@@ -12,7 +12,11 @@
 //   „gelesen“, ausdrücklichem Sofortbeginn (Pflicht für den Fast-Track), Unterschrift und Prüfsumme → Vertrags-PDF mit
 //   Annahmevermerk und Widerrufsbelehrung → kapitalCFertigstellen: Bestellzeile global_individuell OHNE Firma (Privatperson,
 //   Endpreis, keine Umsatzsteuer-Umkehr), Akte (firma.art „privat“ — „Mein Auftrag“ zeigt das Widerrufsrecht; kapitalangebot +
-//   kapitalPrivat), Rechnung → Aufgabe + Mail an Justin (Vertrag und Rechnung an den Kunden — Vertragsbestätigung § 312f BGB).
+//   kapitalPrivat), Rechnung → Vertragsbestätigung an den Kunden (§ 312f BGB, automatisch: Vertrag + Rechnung als PDF, welcome@;
+//   Marke fiaon_global_auftraege.auftrag_mail_am) → Aufgabe + Mail an Justin.
+//   Die Vertragsbestätigung ist die bewusste Ausnahme zu E-301 („keine automatische Mail an Firmenkunden“): Fassung C schließt mit
+//   einem Verbraucher, ohne Bestätigung auf einem dauerhaften Datenträger darf FIAON nicht beginnen. Ging sie nicht raus, sagt die
+//   Start-Aufgabe nach der Zahlung „ERST Vertragsbestätigung senden“ (Nachprüfung 27.10.2026).
 //   Teil 2 (Erfolgshonorar) per Chefbüro-Knopf „Gesellschaft eingetragen“ (Route …/kapital/buergschaft — dieselbe Route wie
 //   Teil 2 der Fassung B, hier mit den Texten der Fassung C). Teil 3 gibt es nicht.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -28,7 +32,8 @@ import {
   ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
 import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
-import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl, globalVerlauf } from "./fiaon-global-auftrag";
+import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl, globalVerlauf, globalVertragPdfLesen, globalRechnungPdf } from "./fiaon-global-auftrag";
+import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
 import { kapitalBuerginAus } from "./fiaon-global-angebot-kapital";
 import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { zahlwort } from "@shared/fiaon-global-angebot-firma";
@@ -36,11 +41,11 @@ import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import type { FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { KAPITAL_KNOPF, kapitalEur, kapitalTag, type KapitalUnterschriftVermerk } from "@shared/fiaon-global-angebot-kapital";
 import {
-  KAPITAL_C_FASSUNG, KAPITAL_C_GUELTIG_TAGE, KAPITAL_C_TEIL1_TITEL, KAPITAL_C_TEIL2, KAPITAL_C_AUSZAHLUNG, KAPITAL_C_ANNAHME, KAPITAL_C_MARKE, kapitalCAuszahlungPruefen,
+  KAPITAL_C_FASSUNG, KAPITAL_C_GUELTIG_TAGE, KAPITAL_C_TEIL1_TITEL, KAPITAL_C_TEIL2, KAPITAL_C_AUSZAHLUNG, KAPITAL_C_ANNAHME, KAPITAL_C_MARKE, KAPITAL_C_BESTAETIGUNG, kapitalCAuszahlungPruefen,
   kapitalCParameterAus, kapitalCParameterFehler, kapitalCKundePruefen, kapitalCBuerginFehler, kapitalCPflichtFehlen,
   kapitalCSeite, kapitalCBestellUebersicht, kapitalCAnnahmeTexte, kapitalCAnsprechpartner, kapitalCAnrede, kapitalCGruss, kapitalCName,
   kapitalCVertragTitel, kapitalCVertragUnterzeile, kapitalCRumpfHtml, kapitalCHashEingabe, kapitalCHeuteCents, kapitalCLaufzeitGueltig,
-  kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
+  kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -91,13 +96,16 @@ export function kapitalCWahlAus(z: AngebotZeile): (KapitalCWahl & { unterschrift
 // ═══════════════════════════════════════════════════════════════════════════
 // PRÜFSUMME, HTML, PDF
 // ═══════════════════════════════════════════════════════════════════════════
+/** Die Prüfsumme läuft über den VOLLSTÄNDIGEN Rumpf (so steht er im angenommenen Vertrag) — die gekürzte Darstellung ändert sie nicht. */
 export function kapitalCTextHash(d: KapitalCDaten): string { return docHash(kapitalCHashEingabe(d, kapitalCRumpfHtml(d, null))); }
+/** Was über den Link erreichbar ist, solange das Angebot offen ist (Seite, Entwurfs-PDF): Ausweisnummern gekürzt (§ 20 PAuswG). */
+const UEBER_DEN_LINK = { ausweiseGekuerzt: true } as const;
 const BILDSCHIRM_CSS = `${GLOBAL_VERTRAG_CSS}${ANGEBOT_VERTRAG_CSS}`;
 function escape(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
 export function kapitalCVorschauHtml(d: KapitalCDaten): string {
   return `<style>${BILDSCHIRM_CSS}</style>
 <div class="gv" lang="de"><h1 class="gv-titel">${escape(kapitalCVertragTitel())}</h1><p class="gv-unterzeile">${escape(kapitalCVertragUnterzeile(d))}</p></div>
-${kapitalCRumpfHtml(d, null)}`;
+${kapitalCRumpfHtml(d, null, UEBER_DEN_LINK)}`;
 }
 const PDF_CSS = `
   body { font-weight: 400; color: #0f2044; }
@@ -114,7 +122,8 @@ const RAND = { oben: "18mm", unten: "20mm", links: "16mm", rechts: "16mm" };
 export async function kapitalCVertragPdf(d: KapitalCDaten, annahme: KapitalCAnnahmeVermerk | null): Promise<Buffer> {
   const titel = kapitalCVertragTitel();
   const html = wrapFiaonDocument({
-    documentTitle: titel, subtitle: kapitalCVertragUnterzeile(d), bodyHtml: kapitalCRumpfHtml(d, annahme),
+    // Angenommen: der vollständige Vertrag (Kunde und Akte). Entwurf: über den Link erreichbar — Ausweisnummern gekürzt.
+    documentTitle: titel, subtitle: kapitalCVertragUnterzeile(d), bodyHtml: kapitalCRumpfHtml(d, annahme, annahme ? {} : UEBER_DEN_LINK),
     watermark: annahme ? null : "Angebot — nicht angenommen", markenzeile: MARKENZEILE, zusatzCss: PDF_CSS,
   });
   return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Company No. 17318250 · Fassung ${d.fassung} · Angebot ${d.ref}${annahme ? "" : ` · Entwurf · Prüfsumme ${kapitalCTextHash(d).slice(0, 12)}`}`, rand: RAND, keinNotbehelf: !!annahme });
@@ -234,7 +243,7 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
     fertigTitel: KAPITAL_C_ANNAHME.fertigTitel(kapitalCGruss(d.kunde)),
     fertigText: KAPITAL_C_ANNAHME.fertigText(d.kunde.email, llc, laufzeit),
     teil1Bezahlt: bezahlt,
-    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(kapitalEur(kapitalCHeuteCents(d.parameter))),
+    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(kapitalCEur(kapitalCHeuteCents(d.parameter))),
     fertigFuss: KAPITAL_C_ANNAHME.fertigFuss,
     llc: w?.llc ?? null,
   };
@@ -313,7 +322,7 @@ async function bestellzeilePrivat(ref: string, k: KapitalCKunde, packName: strin
       contactFirstName: k.vorname, contactLastName: k.nachname,
       contactEmail: k.email, email: k.email, billingEmail: k.email, contactPhone: k.telefon || null,
       street: k.strasse, zip: k.plz, city: k.ort, country: k.land,
-      // Der Vertrag schließt AGB aus (Ziffer 14) — keine AGB-Zustimmung, keine Bonitätsabfrage; der Vertrag ist angenommen.
+      // Der Vertrag selbst ist die Vereinbarung (Ziffer 14: weitere AGB gelten nicht) — keine AGB-Zustimmung, keine Bonitätsabfrage.
       ag1: false, ag2: false, ag3: true,
       webMessungAus: true, messungAus: true,
     }),
@@ -406,6 +415,8 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
   const z = await angebotLesen({ id });
   if (!z || String(z.status) !== "angenommen") return;
   if (!z.auftrag_ref || z.nacharbeit_fehler) await kapitalCFertigstellen(id).catch(() => null);
+  // Die Vertragsbestätigung an den Kunden (§ 312f BGB) — vor allem anderen; höchstens einmal, nachholbar.
+  const best = await kapitalCVertragsbestaetigung(id).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) } as { ok: boolean; grund: string | null }));
   const z2 = (await angebotLesen({ id }))!;
   const d = kapitalCDatenAus(z2); const w = kapitalCWahlAus(z2); const par = d.parameter;
   const name = kapitalCName(d.kunde);
@@ -415,8 +426,10 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
     `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung im Register prüfen (${par.bundesstaat}).`,
     `LAUFZEIT: ${w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCLaufzeitSatz(par, w.laufzeitJahre) : "—"}.`,
     `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
-    `VERTRAGSBESTÄTIGUNG (§ 312f BGB): Vertrag als PDF mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung an ${d.kunde.email} schicken — vor Beginn der Ausführung (Sofortbeginn ist verlangt). Keine automatische Kundenmail.`,
-    `BÜRGSCHAFT: Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV. ERFOLGSHONORAR ${kapitalEur(par.erfolgCents)} per Knopf „${KAPITAL_C_TEIL2.knopf}“, sobald die LLC eingetragen ist.`,
+    best.ok
+      ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): automatisch an ${d.kunde.email} — Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF (welcome@).`
+      : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Vertrag als PDF mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung bitte von Hand an ${d.kunde.email} schicken — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
+    `BÜRGSCHAFT: Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV${par.buerginAktiv ? "" : " (im Angebot als inaktiv offengelegt — erst nach dem Reinstatement)"}. ERFOLGSHONORAR ${kapitalEur(par.erfolgCents)} per Knopf „${KAPITAL_C_TEIL2.knopf}“, sobald die LLC eingetragen ist.`,
     `UNTERLAGEN: ${par.unterlagen.map((u) => u.titel).join(", ") || "—"} — liegen vor; bitte in der Akte ablegen (Office › Auftrag › Dokumente), falls noch nicht geschehen.`,
     `JAHRESBETREUUNG: ${kapitalEur(par.jahresCents)} je Jahr ab dem zweiten Jahr (verlängert sich nicht von selbst).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK}.`,
@@ -437,6 +450,79 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
     .then((A) => A.annahmeMelden({ ref: d.ref, name: `${name} (privat)`, art: "Kapital-Angebot", betrag: `${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Rechnung sofort), ${kapitalEur(par.erfolgCents)} bei Eintragung, ab Jahr 2 ${kapitalEur(par.jahresCents)} je Jahr`, zeilen }))
     .then((s) => console.log(`[FIAON-KAPITAL-C] ${d.ref}: Annahme — ${s}`))
     .catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Annahme-Mail an Justin:`, e));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE VERTRAGSBESTÄTIGUNG (§ 312f Abs. 2, § 312i Abs. 1 Nr. 3 BGB) — automatisch nach der Annahme, höchstens einmal, nachholbar
+// Vertrag (angenommenes PDF aus der Akte) + Rechnung als Anhang, Texte aus KAPITAL_C_BESTAETIGUNG, Absender welcome@.
+// Marke: fiaon_global_auftraege.auftrag_mail_am (wie die Auftragsmail von /business/start) — bei einem Fehler wieder leer, der Grund
+// steht in auftrag_mail_fehler und in der Aufgabe an Justin. Ohne BREVO_API_KEY (Prüfstand) geht nichts raus.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "System (FIAON Global, Fassung C)"): Promise<{ ok: boolean; grund: string | null; schon?: true }> {
+  const z = await angebotLesen({ id });
+  if (!z || String(z.status) !== "angenommen") return { ok: false, grund: "Das Angebot ist nicht angenommen." };
+  const ref1 = z.auftrag_ref ? String(z.auftrag_ref) : null;
+  if (!ref1) return { ok: false, grund: "Bestellung und Akte fehlen noch (Nachholen)." };
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_auftraege SET auftrag_mail_am = NOW(), auftrag_mail_fehler = NULL, updated_at = NOW()
+     WHERE ref = ${ref1} AND auftrag_mail_am IS NULL RETURNING ref`) as any[];
+  if (!frei) {
+    const [a] = (await sqlPool`SELECT auftrag_mail_am FROM fiaon_global_auftraege WHERE ref = ${ref1} LIMIT 1`) as any[];
+    return a?.auftrag_mail_am ? { ok: true, grund: null, schon: true } : { ok: false, grund: "Die Akte fehlt noch (Nachholen)." };
+  }
+  const d = kapitalCDatenAus(z); const w = kapitalCWahlAus(z); const k = d.kunde; const par = d.parameter;
+  const T = KAPITAL_C_BESTAETIGUNG;
+  const b = await globalBestellungLesen(ref1).catch(() => null);
+  let erg: { ok: boolean; grund: string | null; messageId: string | null };
+  try {
+    const vertrag = await globalVertragPdfLesen(ref1);
+    if (!vertrag) throw new Error("der angenommene Vertrag liegt nicht als PDF in der Akte");
+    const rechnung = await globalRechnungPdf(ref1);
+    if (!rechnung) throw new Error("die Rechnung ließ sich nicht erzeugen");
+    const am = new Date(z.angenommen_am);
+    const angenommen = `${am.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" })} um ${am.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })} Uhr`;
+    const llc = w?.llc.wunsch || "Ihre Gesellschaft";
+    const plan = w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCPlan(par, w.laufzeitJahre) : null;
+    const laufzeit = plan ? `${zahlwort(plan.jahre)} Jahre · Monatsrate ${kapitalCEurCent(plan.monatsrateCents)} (Rechenbeispiel)` : "wie gewählt";
+    const zweck = b?.payment_reference ? String(b.payment_reference) : null;
+    const zahlungsseite = zweck ? absoluteUrl(`/zahlung/${encodeURIComponent(zweck)}?bereich=business`) : null;
+    const meinAuftrag = globalMeinAuftragUrl(ref1);
+    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc });
+    const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par)), zweck, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
+    // Ohne Signaturkarte: Das Gerüst setzt sie direkt hinter die Absätze — mitten in eine Bestätigung gehört sie nicht.
+    const { freitextSenden } = await import("../mail/motor");
+    const r = await freitextSenden({
+      an: k.email, betreff: T.betreff(d.ref), absender: "welcome",
+      text: [...absaetze, daten.map((x) => `${x.label}: ${x.wert}`).join("\n"), T.fussnote].join("\n\n"),
+      anhaenge: [{ name: `FIAON_Global_Vertrag_${d.ref}.pdf`, inhalt: vertrag }, { name: rechnung.dateiname, inhalt: rechnung.pdf }],
+      baustein: {
+        betreff: T.betreff(d.ref), preheader: T.preheader, titel: T.titel, persoenlich: true,
+        bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+        absaetze: absaetze.map(escape), daten: daten.map((x) => ({ label: escape(x.label), wert: escape(x.wert) })),
+        ...(zahlungsseite ? { knopf: { text: T.knopf, url: zahlungsseite } } : {}),
+        knopf2: { text: T.knopf2, url: meinAuftrag },
+        fussnote: escape(T.fussnote),
+      },
+    });
+    erg = { ok: r.ok, grund: r.ok ? null : (r.grund ?? "unbekannt"), messageId: r.messageId ?? null };
+  } catch (e) { erg = { ok: false, grund: e instanceof Error ? e.message : String(e), messageId: null }; }
+  if (erg.ok) {
+    await sqlPool`UPDATE fiaon_applications SET welcome_sent_at = COALESCE(welcome_sent_at, NOW()) WHERE ref = ${ref1}`.catch(() => {});
+    await globalVerlauf(ref1, `FIAON Global: Vertragsbestätigung (§ 312f BGB) an ${k.email} — Vertrag mit Annahmevermerk und Widerrufsbelehrung plus Rechnung als PDF.`).catch(() => {});
+    await verlaufAngebot(id, ausgeloestVon, `Vertragsbestätigung an ${k.email} (Vertrag + Rechnung als PDF)`).catch(() => {});
+  } else {
+    await sqlPool`UPDATE fiaon_global_auftraege SET auftrag_mail_am = NULL, auftrag_mail_fehler = ${String(erg.grund).slice(0, 500)}, updated_at = NOW() WHERE ref = ${ref1}`.catch(() => {});
+    await globalVerlauf(ref1, `FIAON Global: Die Vertragsbestätigung ging NICHT raus (${erg.grund}). Bitte Vertrag und Rechnung von Hand schicken, bevor wir beginnen.`).catch(() => {});
+  }
+  try {
+    const { mailProtokoll } = await import("./fiaon-mail-log");
+    await mailProtokoll({
+      event: "global_kapital_c_vertrag", personId: z.person_id != null ? Number(z.person_id) : null, empfaenger: k.email || null,
+      status: erg.ok ? "versandt" : "fehlgeschlagen", grund: erg.grund, payload: { angebot: d.ref, auftrag: ref1, anhaenge: ["Vertrag (PDF)", "Rechnung (PDF)"] },
+      ausgeloestVon, brevoMessageId: erg.messageId,
+    });
+  } catch (e) { console.error(`[FIAON-KAPITAL-C] ${d.ref}: Mailprotokoll Vertragsbestätigung:`, e); }
+  return { ok: erg.ok, grund: erg.grund };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -602,7 +688,10 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
   const z2 = (await angebotLesen({ id: Number(z.id) }))!;
   const frist = { beginn: isoTag(z2.frist_beginn) ?? beginn, ende: isoTag(z2.frist_ende) ?? ende };
   const w = kapitalCWahlAus(z2);
-  const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null });
+  // § 312f BGB: Ohne Vertragsbestätigung auf einem dauerhaften Datenträger beginnt FIAON nicht — noch einmal versuchen, sonst sagt
+  // die Start-Aufgabe zuerst „ERST Vertragsbestätigung senden“.
+  const best = akte.auftrag_mail_am ? { ok: true, grund: null } : await kapitalCVertragsbestaetigung(Number(z.id)).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+  const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null } });
   let aufgabeId: number | null = null;
   try {
     const erg = await auftragFuerKunden({

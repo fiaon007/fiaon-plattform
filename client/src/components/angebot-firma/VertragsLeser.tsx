@@ -32,7 +32,14 @@ const WORTE = {
 
 type Pdf = { titel: string; href: string };
 
-export default function VertragsLeser({ v, html, pdfs, annehmen }: { v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[]; annehmen?: { knopf: string; onAnnehmen: () => void } }) {
+/**
+ * `oeffner` (E-432, 27.10.2026, optional): Die Seite bekommt eine Funktion, die den Leser von außen öffnet — z. B. das Wort „Vertrag“
+ * im Satz „Ich habe den Vertrag … gelesen“ in der Annahme. Der Fokus kehrt danach dorthin zurück, wo er vorher war.
+ */
+export default function VertragsLeser({ v, html, pdfs, annehmen, oeffner }: {
+  v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[]; annehmen?: { knopf: string; onAnnehmen: () => void };
+  oeffner?: { current: ((anker: string | null) => void) | null };
+}) {
   const [offen, setOffen] = useState(false);
   const [ziel, setZiel] = useState<string | null>(null);
   const [aktiv, setAktiv] = useState<string>("praeambel");
@@ -48,6 +55,11 @@ export default function VertragsLeser({ v, html, pdfs, annehmen }: { v: FirmaSei
     setOffen(true);
   };
   const schliessen = useCallback(() => { setOffen(false); setInhaltAuf(false); }, []);
+  useEffect(() => {
+    if (!oeffner) return;
+    oeffner.current = (anker) => { ausloeser.current = (document.activeElement as HTMLElement | null) ?? null; setZiel(anker); setOffen(true); };
+    return () => { oeffner.current = null; };
+  }, [oeffner]);
   /** Abschluss-Block: Leser schließen, ohne den Fokus zum Auslöser zurückzugeben — die Annahme übernimmt ihn. */
   const zurAnnahme = () => { ausloeser.current = null; setOffen(false); setInhaltAuf(false); window.setTimeout(() => annehmen?.onAnnehmen(), 30); };
 

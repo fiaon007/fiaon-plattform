@@ -1486,6 +1486,17 @@ export async function globalAuftragsMailNachholen(ref: string): Promise<{ ok: bo
   const akte = await globalAkteLesen(ref);
   if (!akte) return { ok: false, error: "Zu dieser Bestellung gibt es keine Auftragsakte." };
   if (akte.auftrag_mail_am) return { ok: true, meldung: `Die Mail ging bereits am ${tagDe(new Date(akte.auftrag_mail_am))} raus.` };
+  // E-432 (Nachprüfung 27.10.2026): Beim Kapital-Angebot der Fassung C (Privatperson) ist „die Auftragsmail“ die Vertragsbestätigung
+  // nach § 312f BGB (eigene Texte, Vertrag + Rechnung) — nicht die Mail von /business/start.
+  {
+    const [a] = (await sqlPool`SELECT id, fassung FROM fiaon_global_angebote WHERE auftrag_ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+    const { istKapitalCFassung } = await import("@shared/fiaon-global-angebot-kapital");
+    if (a && istKapitalCFassung(a.fassung)) {
+      const { kapitalCVertragsbestaetigung } = await import("./fiaon-global-angebot-kapital-c");
+      const b = await kapitalCVertragsbestaetigung(Number(a.id), "Leitung (Nachholen)");
+      return b.ok ? { ok: true, meldung: "Die Vertragsbestätigung mit Vertrag und Rechnung ist jetzt beim Kunden." } : { ok: false, error: `Die Vertragsbestätigung ging wieder nicht raus: ${b.grund}` };
+    }
+  }
   const mail = await auftragsMailSenden(ref);
   return mail.ok ? { ok: true, meldung: "Vertrag und Rechnung sind jetzt beim Kunden." } : { ok: false, error: `Die Mail ging wieder nicht raus: ${mail.grund}` };
 }

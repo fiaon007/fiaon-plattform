@@ -43,6 +43,8 @@ import { GLOBAL_ZUSATZ, GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER } from "../shared/
 // E-423 (22.10.2026): der persönliche Zugang — Anmeldung, Code, Zugang einrichten, Übersicht, Banner; dazu die Sätze des Servers.
 import { GLOBAL_KONTO_WOERTER } from "../client/src/i18n/global-konto";
 import { KONTO_SAETZE } from "../shared/fiaon-global-konto";
+// E-432 (Nachprüfung 27.10.2026): das Kapital-Angebot der Fassung C (Privatperson) — Seite, Annahme, Übersicht, Bestätigung, „Mein Auftrag“.
+import * as KC from "../shared/fiaon-global-angebot-kapital-c";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
@@ -57,6 +59,10 @@ const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung als Gruppe (§ 18 HGB) — FIAON ist eine Gesellschaft, keine Gruppe" },
   { muster: /ohne sicherheiten/i, grund: "die persönliche Haftung IST die Sicherheit — „ohne Bareinlage“" },
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
+  // E-432 (Nachprüfung 27.10.2026): Umschreibungen, die die Wand bis dahin übersah.
+  { muster: /sicherheiten\s+verlang\w*[^.]*nicht/i, grund: "„Sicherheiten verlangen … nicht“ ist „ohne Sicherheiten“ in anderen Worten — „ohne Bareinlage“ und die persönliche Haftung nennen" },
+  { muster: /\bist\b[^?]*\bsicher\?/i, grund: "„Ist … sicher? — Ja“ verspricht ein Ergebnis — die Frage umdrehen („Was, wenn …?“)" },
+  { muster: /ohne pause/i, grund: "„läuft ohne Pause“ — eine Frist mit Ruhensgründen läuft nicht ohne Pause" },
 ];
 
 function sammle(wert: unknown, pfad: string, aus: [string, string][]) {
@@ -114,6 +120,28 @@ sammle(RADAR_KERNSATZ, "radar-kernsatz", texte);
 for (const z of GLOBAL_ZUSATZ) sammle({ ...z.de, angabe: z.angabe?.de ?? null }, `zusatz/${z.key}`, texte);
 sammle(GLOBAL_ZUSATZ_GRUPPEN.map((g) => g.de), "zusatz/gruppen", texte);
 sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
+// E-432 (Nachprüfung 27.10.2026): Fassung C mit Musterdaten (Repo öffentlich). „Garantie“ ist dort NUR als Hauptwort der
+// vertraglichen Geld-zurück-Garantie erlaubt (Justin, E-432) — „garantiert/garantieren“ bleibt rot (siehe unten).
+{
+  const k = KC.kapitalCKundePruefen({ art: "privat", anrede: "Herr", vorname: "Max", nachname: "Mustermann", geburtsdatum: "1980-01-15", geburtsort: "Musterstadt", staatsangehoerigkeit: "deutsch",
+    strasse: "Musterweg 1", plz: "12345", ort: "Musterstadt", land: "DE", email: "max@beispiel.example", telefon: "", ausweise: [{ art: "reisepass", nummer: "C01X00T47", gueltigBis: "2033-01-01", behoerde: "Stadt Musterstadt" }] });
+  if (!k.ok) { console.log(`FEHLER: Musterkunde Fassung C: ${k.error}`); process.exitCode = 1; }
+  else {
+    const d = { ref: "FIAON-IA-CMUSTER", fassung: KC.KAPITAL_C_FASSUNG, kunde: k.kunde, parameter: KC.KAPITAL_C_VORGABEN, gueltigBis: "2026-11-10",
+      buergin: { name: "Muster Partner LLC", bundesstaat: "Florida", anschrift: "1 Example Way, Miami, FL 33100, USA", registernummer: "L00000000000", vertreter: "Erika Muster", funktion: "Manager" } };
+    sammle(KC.kapitalCSeite(d), "kapital-c/seite", texte);
+    sammle(KC.kapitalCAnnahmeTexte(d), "kapital-c/annahme", texte);
+    sammle(KC.kapitalCBestellUebersicht(d, 10), "kapital-c/uebersicht", texte);
+    sammle(KC.KAPITAL_C_ANNAHME, "kapital-c/annahme-fest", texte);
+    sammle(KC.KAPITAL_C_ETAPPEN, "kapital-c/etappen", texte);
+    sammle(KC.kapitalCMeinAuftrag({ parameter: KC.KAPITAL_C_VORGABEN, angenommenAm: "2026-10-28", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }), "kapital-c/mein-auftrag", texte);
+    sammle({ betreff: KC.KAPITAL_C_BESTAETIGUNG.betreff("FIAON-IA-CMUSTER"), preheader: KC.KAPITAL_C_BESTAETIGUNG.preheader, titel: KC.KAPITAL_C_BESTAETIGUNG.titel,
+      absaetze: KC.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC" }), fussnote: KC.KAPITAL_C_BESTAETIGUNG.fussnote }, "kapital-c/bestaetigung", texte);
+  }
+}
+/** Fassung C: ein Satz mit „Garantie“ ist erlaubt, wenn er die Geld-zurück-Garantie (oder ihre Frist) meint — nie ein „garantiert“. */
+const kapitalCGarantie = (pfad: string, text: string, treffer: string) =>
+  pfad.startsWith("kapital-c/") && /garant/i.test(treffer) && /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(text) && !/\bgarantier/i.test(text);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.
@@ -127,7 +155,10 @@ for (const [pfad, text] of texte) {
   // Zusagen „wir melden uns / Rückruf" sind auf diesen Flächen GEDECKT: Jede Anfrage und
   // jeder Auftrag legt beim Absenden eine Aufgabe für die zuständige Person an
   // (POST /api/fiaon/global/anfrage, /termine, /auftrag) — das ist das Werkzeug zur Zusage.
-  for (const t of wandPruefen(text, ["aufgabe_an_betreuer"])) { fehler++; console.log(`WAND  ${pfad}: „${text.slice(0, 90)}“ → ${t.hinweis ?? JSON.stringify(t)}`); }
+  for (const t of wandPruefen(text, ["aufgabe_an_betreuer"])) {
+    if (kapitalCGarantie(pfad, text, t.treffer)) continue;
+    fehler++; console.log(`WAND  ${pfad}: „${text.slice(0, 90)}“ → ${t.hinweis ?? JSON.stringify(t)}`);
+  }
   const ohneVip = text.split(VIP_ERLAUBT).join("");
   for (const r of SCHAERFER) if (r.muster.test(ohneVip)) { fehler++; console.log(`E-188 ${pfad}: „${text.slice(0, 90)}“ → ${r.grund}`); }
 }

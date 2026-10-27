@@ -898,7 +898,7 @@ export function kapitalRechnungsTextNachFassung(z: { angebotRef: string; nr: num
   if (istKapitalCFassung(z.fassung)) {
     const am = z.ereignisAm ? ` am ${kapitalTag(z.ereignisAm)}` : "";
     if (z.nr === 2) return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: Erfolgshonorar einschließlich Bürgschaft (Ziffer 6 Absatz 2) — Gesellschaft eingetragen${am} (Auftrag ${z.auftragRef})`, zeitraum: "einmalig" };
-    return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: US-Gesellschaft, Konto und Karten, Finanzierungsbegleitung im ersten Jahr und Fast-Track (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
+    return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: US-Gesellschaft, Konto und Karten im ersten Jahr sowie Fast-Track (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
   }
   return kapitalRechnungsText(z);
 }

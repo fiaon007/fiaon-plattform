@@ -2,10 +2,12 @@
    /business/angebot/:token — DAS KAPITAL-ANGEBOT, FASSUNG C (PRIVATPERSONEN), Register E-432
 
    Baut auf .gaf (Firmenseite), .gab (Begleit), .gak (Glasblau statt Gold) und .gkp (Kapital-Hero) auf. Eigenes mit gkc-:
-   Auftakt im Glasblau, Konditionen-Band, der Laufzeit-Rechner als die EINE Navy-Glas-Stelle der Seite, typografische
-   Paket-Kacheln (jede klickbar), ruhige Investition, „Ihre Unterlagen liegen vor“, Widerruf und Informationen zum Aufklappen.
-   Kein Gold, wenig Icons, Haarlinien, dünne Schrift. Am Handy (360–430 px) stapelt alles, kein seitliches Scrollen
-   (die Zinstreppe scrollt in ihrem eigenen Kasten). Bewegung aus bei prefers-reduced-motion.
+   Auftakt im Glasblau, Monatsrate in der Karte oben, der Laufzeit-Rechner mit den Konditionen als die EINE Navy-Glas-Stelle,
+   typografische Paket-Kacheln (jede klickbar), ruhige Investition, „Ihre Unterlagen liegen vor“, Widerruf und Informationen.
+   Kein Gold, wenig Icons, Haarlinien, dünne Schrift. Am Handy (360–430 px) stapelt alles, kein seitliches Scrollen — auch die
+   Zinstreppe nicht (je Stufe eine Zeile mit zwei Ebenen). Bewegung aus bei prefers-reduced-motion; Anheben nur mit echter Maus.
+   Nachprüfung 27.10.2026 (Gestaltung): Fehler ruhig (Blau = fehlt noch, ein Rotton = falsch), Knopf einzeilig, keine zweite
+   Navy-Fläche, Inhaltsverzeichnis ohne falsche Sonderzeile, Ziffern nur dort tabellarisch, wo nur Ziffern stehen.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Auftakt im Glasblau (Justin 09.10.2026: „kein Gold“) ─────────────── */
@@ -15,6 +17,22 @@
 .gkc .gaf-auftakt.blau .gaf-auftakt-linie { background:linear-gradient(90deg, transparent, #5aa8fb, transparent); }
 .gkc .gaf-auftakt.blau .gaf-auftakt-weiter { color:#1d4ed8; border-color:rgba(40,141,250,.5); }
 .gkc .gaf-auftakt.blau .gaf-auftakt-weiter:hover { color:var(--tinte); border-color:#288dfa; box-shadow:0 10px 30px rgba(40,141,250,.22); }
+
+.gkc-nb { white-space:nowrap; }
+/* Punktzeilen: am Handy je Teil eine Zeile, der Punkt entfällt; der leise Teil („Rechenbeispiel“) ohne Versalien */
+.gkc-pz-teil.leise { text-transform:none; letter-spacing:.02em; opacity:.8; }
+@media (max-width:560px) {
+  .gkc-pz-umbruch .gkc-pz-trenner { display:none; }
+  .gkc-pz-umbruch .gkc-pz-teil { display:block; }
+  .gkc-pz-umbruch .gkc-pz-teil + .gkc-pz-teil { margin-top:2px; }
+}
+/* <b> trägt in .gaf das Gewicht 500 — die großen Zahlen bleiben dünn (Regel: dünne Schrift) */
+.gkc .gkc-invest-betrag, .gkc .gkc-hero-rate-wert, .gkc .gkc-eck b, .gkc .gkc-wahl-zeile b { font-weight:300; }
+/* Ziffern tabellarisch nur, wo NUR Ziffern stehen — in gemischtem Text machte „tnum“ den Bindestrich breit („US - $“). */
+.gkc .gaf-leiste-ref, .gkc .gaf-uebersicht dd, .gkc .gaf-fuss-ref, .gkc .gkc-rate-usd, .gkc .gkc-rate-raten { font-variant-numeric:normal; }
+
+/* ── Kopfleiste: am Handy nur „gültig bis …“ ──────────────────────────── */
+@media (max-width:560px) { .gkc .gkc-leiste-nr { display:none; } .gkc .gaf-leiste-ref { max-width:none; } }
 
 /* ── Hero: die Karte „Ihre Finanzierung“ ──────────────────────────────── */
 .gkc-hero .gab-lead { max-width:52ch; }
@@ -26,23 +44,27 @@
 /* Der Glasring sitzt weiter in der Ecke — er läuft nie durch den Betrag. */
 .gkc-plan .gkp-plan-ring { right:-140px; top:-140px; }
 .gkc .gkp-plan-garantie { color:var(--tinte); }
-
-/* ── Konditionen: ein ruhiges Band in vier Schritten ──────────────────── */
-.gkc-band { position:relative; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0 28px; padding-top:30px; }
-.gkc-band::before { content:""; position:absolute; left:0; right:0; top:6px; height:1px; background:linear-gradient(90deg, rgba(40,141,250,.55), rgba(29,78,216,.25) 70%, rgba(29,78,216,0)); }
-.gkc-band-schritt { position:relative; display:flex; flex-direction:column; gap:8px; }
-.gkc-band-punkt { position:absolute; left:0; top:-30px; width:13px; height:13px; border-radius:50%; background:#fff; border:2px solid #288dfa; box-shadow:0 0 0 5px rgba(40,141,250,.12); }
-.gkc-band-wann { font-size:11.5px; font-weight:500; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-tief); font-variant-numeric:tabular-nums; }
-.gkc-band-titel { font-family:var(--serif); font-weight:300; font-size:clamp(24px,2.3vw,30px); line-height:1.12; letter-spacing:-.015em; color:var(--tinte); }
-.gkc-band-text { font-size:14.5px; line-height:1.6; color:var(--leise); max-width:30ch; }
-.gkc-fein-block { margin-top:34px; max-width:78ch; }
-@media (max-width:900px) {
-  .gkc-band { grid-template-columns:1fr; gap:26px; padding:0 0 0 30px; }
-  .gkc-band::before { left:6px; right:auto; top:6px; bottom:6px; width:1px; height:auto; background:linear-gradient(180deg, rgba(40,141,250,.55), rgba(29,78,216,.15)); }
-  .gkc-band-punkt { left:-30px; top:4px; }
+/* Die Monatsrate der gewählten Laufzeit — klickbar, führt zum Rechner */
+.gkc-hero-rate { position:relative; display:block; width:100%; margin-top:14px; padding:14px 16px; border-radius:14px; border:1px solid rgba(40,141,250,.22);
+  background:linear-gradient(160deg, #ffffff, #f2f8ff); text-align:left; font:inherit; color:inherit; cursor:pointer; transition:border-color .3s var(--ease), box-shadow .3s var(--ease); }
+.gkc-hero-rate:focus-visible { outline:2px solid #1d4ed8; outline-offset:2px; }
+.gkc-hero-rate-auge { display:block; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-tief); }
+.gkc-hero-rate-zeile { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin-top:6px; }
+.gkc-hero-rate-wert { font-family:var(--serif); font-weight:300; font-size:30px; line-height:1.1; letter-spacing:-.01em; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gkc-hero-rate-bei { font-size:14px; color:var(--leise); white-space:nowrap; }
+.gkc-hero-rate-knopf { margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:13.5px; color:#1d4ed8; white-space:nowrap; }
+@media (hover:hover) { .gkc-hero-rate:hover { border-color:rgba(40,141,250,.5); box-shadow:0 14px 34px -22px rgba(29,78,216,.55); } }
+/* Am Handy: die Eckdaten als ruhige Liste — eine Zeile je Wert (Etikett links, Wert rechts, Haarlinien) */
+@media (max-width:560px) {
+  .gkc-eck { grid-template-columns:1fr; gap:0; border-top:1px solid rgba(40,141,250,.16); }
+  .gkc-eck li { display:flex; flex-direction:row-reverse; justify-content:space-between; align-items:baseline; gap:12px; padding:11px 2px; border-radius:0; background:none; border:0; border-bottom:1px solid rgba(40,141,250,.16); }
+  .gkc-eck b { font-size:19px; white-space:nowrap; }
+  .gkc-eck span { margin-top:0; font-size:12px; letter-spacing:.1em; }
+  .gkc-hero-rate-knopf { margin-left:0; flex-basis:100%; }
 }
 
 /* ── Der Laufzeit-Rechner — die EINE Navy-Glas-Stelle ─────────────────── */
+.gkc-abschnitt-rechner { padding-top:72px; }
 .gkc-rechner { position:relative; overflow:hidden; border-radius:32px; padding:56px 56px 40px; color:#e8f0ff;
   background:radial-gradient(110% 130% at 88% -18%, rgba(40,141,250,.34), rgba(40,141,250,0) 56%), radial-gradient(80% 90% at -10% 110%, rgba(90,168,251,.16), rgba(90,168,251,0) 60%), linear-gradient(160deg, #0b1220 0%, #12284a 58%, #1a2744 100%);
   box-shadow:0 50px 110px -48px rgba(11,18,32,.78), inset 0 1px 0 rgba(255,255,255,.09); scroll-margin-top:24px; }
@@ -59,103 +81,184 @@
 .gkc-jahre { margin-top:12px; display:grid; grid-template-columns:repeat(11,minmax(0,1fr)); gap:6px; }
 .gkc-jahr { height:50px; min-width:0; padding:0; border-radius:12px; border:1px solid rgba(156,200,255,.22); background:rgba(255,255,255,.04); color:#dbe8ff;
   font:400 16px/1 var(--sans); font-variant-numeric:tabular-nums; cursor:pointer; transition:background .3s var(--ease), border-color .3s var(--ease), color .3s, transform .3s var(--ease), box-shadow .3s; }
-.gkc-jahr:hover { border-color:rgba(156,200,255,.55); background:rgba(255,255,255,.09); transform:translateY(-1px); }
 .gkc-jahr.an { color:#fff; border-color:transparent; background:linear-gradient(140deg,#5aa8fb 0%,#288dfa 40%,#1d4ed8 100%); box-shadow:0 12px 26px -10px rgba(40,141,250,.95), inset 0 1px 0 rgba(255,255,255,.35); }
 .gkc-jahr:focus-visible { outline:2px solid #cfe4fe; outline-offset:2px; }
-.gkc-jahre-einheit { margin-top:8px; font-size:12px; color:rgba(232,240,255,.5); text-align:right; }
+@media (hover:hover) { .gkc-jahr:hover { border-color:rgba(156,200,255,.55); background:rgba(255,255,255,.09); transform:translateY(-1px); } .gkc-jahr.an:hover { background:linear-gradient(140deg,#5aa8fb 0%,#288dfa 40%,#1d4ed8 100%); } }
+.gkc-jahre-einheit { margin-top:8px; font-size:12px; color:rgba(232,240,255,.62); text-align:right; }
+.gkc-jahre-zelle { display:none; }
 .gkc-rechner-rechts { position:relative; padding:34px 34px 30px; border-radius:24px; background:linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); border:1px solid rgba(156,200,255,.2); box-shadow:inset 0 1px 0 rgba(255,255,255,.08); }
 .gkc-rate-auge { font-size:11px; font-weight:500; letter-spacing:.2em; text-transform:uppercase; color:#9cc8ff; }
 .gkc-rate-betrag { margin-top:12px; font-family:var(--serif); font-weight:300; line-height:1; letter-spacing:-.03em; font-variant-numeric:tabular-nums; white-space:nowrap;
   background:linear-gradient(120deg, #ffffff 0%, #e2efff 40%, #8ec2ff 100%); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .gkc-rate-ganz { font-size:clamp(58px,6.2vw,94px); }
 .gkc-rate-cent { font-size:clamp(24px,2.3vw,34px); letter-spacing:-.01em; }
-.gkc-nb { white-space:nowrap; }
-.gkc-rate-usd { margin-top:14px; font-size:14px; line-height:1.55; color:rgba(232,240,255,.72); font-variant-numeric:tabular-nums; }
+/* Die Rate in US-Dollar — so lautet sie bei der Bank: gut lesbar direkt unter der Euro-Zahl */
+.gkc-rate-usd { margin-top:14px; font-size:19px; line-height:1.4; color:#fff; }
+.gkc-rate-raten { margin-top:6px; font-size:13.5px; line-height:1.55; color:rgba(232,240,255,.66); }
 .gkc-werte { margin-top:24px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-.gkc-werte > div { padding:14px 14px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(156,200,255,.13); }
-.gkc-werte dt { font-size:10.5px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,240,255,.56); }
-.gkc-werte dd { margin-top:7px; font-size:16px; font-weight:400; color:#fff; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.gkc-werte small { display:block; margin-top:3px; font-size:11.5px; color:rgba(232,240,255,.56); white-space:normal; }
-.gkc-treppe { position:relative; margin-top:30px; padding-top:16px; border-top:1px solid rgba(156,200,255,.16); }
+.gkc-werte > div { display:flex; flex-direction:column; justify-content:space-between; gap:8px; padding:14px 14px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(156,200,255,.13); }
+.gkc-werte dt { font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,240,255,.6); white-space:nowrap; }
+.gkc-werte dd { font-size:16px; font-weight:400; color:#fff; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+/* Die Konditionen — eine ruhige Leiste im Rechner (vorher eigener Abschnitt: dieselbe Geschichte zweimal) */
+.gkc-kond { position:relative; margin-top:34px; padding-top:22px; border-top:1px solid rgba(156,200,255,.16); }
+.gkc-kond-auge { font-size:11px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:#9cc8ff; }
+.gkc-kond-liste { margin-top:14px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px 26px; }
+.gkc-kond-liste li { display:flex; flex-direction:column; gap:5px; padding-left:14px; border-left:1px solid rgba(156,200,255,.28); }
+.gkc-kond-wann { font-size:11.5px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:rgba(232,240,255,.6); white-space:nowrap; }
+.gkc-kond-titel { font-family:var(--serif); font-weight:300; font-size:22px; line-height:1.15; letter-spacing:-.01em; color:#fff; }
+.gkc-kond-text { font-size:13.5px; line-height:1.55; color:rgba(232,240,255,.7); }
+
+.gkc-treppe { position:relative; margin-top:26px; padding-top:16px; border-top:1px solid rgba(156,200,255,.16); }
 .gkc-treppe-knopf { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; min-height:44px; padding:0; background:none; border:0; color:#cfe4fe; font:400 14.5px var(--sans); cursor:pointer; }
-.gkc-treppe-knopf:hover { color:#fff; }
 .gkc-treppe-knopf:focus-visible { outline:2px solid #cfe4fe; outline-offset:3px; border-radius:6px; }
-.gkc-treppe-halter { margin-top:10px; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px; border:1px solid rgba(156,200,255,.15); background:rgba(11,18,32,.25); }
-.gkc-treppe table { width:100%; min-width:520px; border-collapse:collapse; font-size:13.5px; font-variant-numeric:tabular-nums; }
-.gkc-treppe th { padding:11px 16px; text-align:left; font-size:10.5px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,240,255,.55); border-bottom:1px solid rgba(156,200,255,.15); }
+@media (hover:hover) { .gkc-treppe-knopf:hover { color:#fff; } }
+.gkc-treppe-halter { margin-top:10px; border-radius:14px; border:1px solid rgba(156,200,255,.15); background:rgba(11,18,32,.25); }
+.gkc-treppe table { width:100%; border-collapse:collapse; font-size:13.5px; font-variant-numeric:tabular-nums; }
+.gkc-treppe th { padding:11px 16px; text-align:left; font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(232,240,255,.6); border-bottom:1px solid rgba(156,200,255,.15); }
 .gkc-treppe td { padding:10px 16px; color:#e8f0ff; border-bottom:1px solid rgba(156,200,255,.08); white-space:nowrap; }
 .gkc-treppe th:nth-child(n+3), .gkc-treppe td:nth-child(n+3) { text-align:right; }
 .gkc-treppe tr:last-child td { border-bottom:0; }
-.gkc-rechner-fuss { position:relative; margin-top:26px; display:grid; gap:8px; font-size:13px; line-height:1.6; color:rgba(232,240,255,.64); max-width:86ch; }
+.gkc-rechner-fuss { position:relative; margin-top:26px; display:grid; gap:8px; font-size:13px; line-height:1.6; color:rgba(232,240,255,.66); max-width:86ch; }
 .gkc-puenktlich { font-size:15.5px; color:#fff; }
-.gkc-hinweis { font-size:12.5px; color:rgba(232,240,255,.52); }
+.gkc-verantwortung { font-size:14px; color:rgba(232,240,255,.86); }
+.gkc-hinweis { font-size:12.5px; color:rgba(232,240,255,.56); }
+.gkc-fein-block { margin-top:22px; max-width:78ch; }
 @media (max-width:980px) {
   .gkc-rechner { padding:40px 28px 30px; border-radius:28px; }
   .gkc-rechner-raster { grid-template-columns:1fr; gap:28px; }
+  .gkc-kond-liste { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width:560px) {
+  .gkc-abschnitt-rechner { padding-top:56px; }
   .gkc-rechner { padding:30px 18px 24px; border-radius:24px; }
   .gkc-jahre { grid-template-columns:repeat(6,minmax(0,1fr)); gap:7px; }
   .gkc-jahr { height:48px; }
+  /* „Jahre“ steht in der freien zwölften Zelle statt allein rechts unten */
+  .gkc-jahre-zelle { display:grid; place-items:center; font-size:12.5px; color:rgba(232,240,255,.62); }
+  .gkc-jahre-einheit { display:none; }
   .gkc-rechner-rechts { padding:24px 20px 20px; border-radius:20px; }
+  .gkc-rate-usd { font-size:17px; }
+  .gkc-rate-raten > .gkc-trenner-erst { display:none; }
+  .gkc-rate-raten > .gkc-raten-zahl { display:block; }
   .gkc-werte { grid-template-columns:1fr; gap:8px; }
-  .gkc-werte > div { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:12px 14px; }
-  .gkc-werte dd { margin-top:0; text-align:right; }
-  .gkc-werte small { display:inline; margin-left:6px; }
-  .gkc-wahl-zeile > span[aria-hidden] { display:none; }
-  .gkc-wahl-zeile > span:not([aria-hidden]) { flex-basis:100%; order:3; }
+  .gkc-werte > div { flex-direction:row; align-items:baseline; justify-content:space-between; gap:12px; padding:12px 14px; }
+  .gkc-werte dt { font-size:12px; }
+  .gkc-werte dd { text-align:right; }
+  .gkc-kond-liste { grid-template-columns:1fr; gap:14px; }
+  .gkc-kond-wann { font-size:12px; }
+  .gkc-kond-titel { font-size:20px; }
+  /* Die Zinstreppe am Handy: je Stufe eine Zeile mit zwei Ebenen — oben Zeitraum und Zins, darunter Zinsen und Rest */
+  .gkc-treppe thead { display:none; }
+  .gkc-treppe table, .gkc-treppe tbody { display:block; }
+  .gkc-treppe tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 12px; padding:12px 14px; border-bottom:1px solid rgba(156,200,255,.1); }
+  .gkc-treppe tr:last-child { border-bottom:0; }
+  .gkc-treppe td { padding:0; border:0; white-space:normal; text-align:left; }
+  .gkc-treppe td.gkc-tr-zeit { font-size:14px; color:#fff; }
+  .gkc-treppe td.gkc-tr-zins { text-align:right; font-size:14px; color:#fff; white-space:nowrap; }
+  .gkc-treppe td.gkc-tr-zinsen, .gkc-treppe td.gkc-tr-rest { font-size:12.5px; color:rgba(232,240,255,.7); white-space:nowrap; }
+  .gkc-treppe td.gkc-tr-zinsen { text-align:left; }
+  .gkc-treppe td.gkc-tr-rest { text-align:right; }
+  .gkc-treppe td.gkc-tr-zinsen::before, .gkc-treppe td.gkc-tr-rest::before { content:attr(data-label) "\00a0"; color:rgba(232,240,255,.5); }
+  .gkc-wahl-zeile > .gkc-wahl-trenner { display:none; }
+  .gkc-wahl-zeile > .gkc-wahl-rate { flex-basis:100%; order:3; }
 }
+
+/* ── Name: Ausweichnamen eingeklappt, Fehler ruhig ─────────────────────── */
+.gkc-ausweich { margin-top:2px; }
+.gkc-ausweich-knopf { display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0; background:none; border:0; font:400 14px var(--sans); color:#1d4ed8; cursor:pointer; }
+.gkc-ausweich-knopf .gaf-plus { width:12px; height:12px; }
+.gkc-ausweich-knopf .gaf-plus::before, .gkc-ausweich-knopf .gaf-plus::after { width:12px; top:5.5px; }
+.gkc-ausweich-knopf:focus-visible { outline:2px solid #1d4ed8; outline-offset:3px; border-radius:6px; }
+.gkc-ausweich .gab-namen-zwei { padding-top:4px; }
+.gkc-ausweich .gaf-fein { margin-top:10px; padding-bottom:4px; }
+/* Fokus nur am Rahmen des Felds (vorher lagen zwei Ringe versetzt übereinander) */
+.gkc .gab-feld input:focus, .gkc .gab-feld input:focus-visible { outline:none; box-shadow:none; }
+.gkc .gab-feld-eingabe:focus-within { border-color:#288dfa; box-shadow:0 0 0 3px rgba(40,141,250,.18); }
+.gkc .gab-feld-llc { color:#1d4ed8; }
+/* Falsch: ein Rotton. Fehlt nur noch: dünne blaue Linie links und ein Satz in Tinte. */
+.gkc .gab-feld.fehlt .gab-feld-eingabe { border-color:#b42318; box-shadow:none; }
+.gkc .gab-feld.fehlt .gab-feld-eingabe:focus-within { box-shadow:0 0 0 3px rgba(180,35,24,.12); }
+.gkc .gab-feld-fehler { color:#b42318; }
+.gkc .gab-feld.leer .gab-feld-eingabe { border-color:#288dfa; box-shadow:inset 3px 0 0 #288dfa; }
+.gkc .gab-feld.leer .gab-feld-fehler { color:var(--tinte); }
+/* Die Urkunde im Glasblau — vorher Ring und gestrichelte Linie in Gold (fest eingetragen in global-angebot-begleit.css) */
+.gkc .gab-urkunde { border-color:rgba(40,141,250,.22); box-shadow:0 0 0 5px var(--elfenbein), 0 0 0 6px rgba(40,141,250,.25); }
+.gkc .gab-urkunde-fuss { border-top-color:rgba(40,141,250,.35); }
+.gkc .gab-urkunde-name.leer { color:#9db4d3; }
 
 /* ── Ihr Paket: typografische Kacheln, jede klickbar ──────────────────── */
 .gkc-paket { display:grid; gap:40px; }
 .gkc-paket-titel { font-size:11.5px; font-weight:500; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-tief); }
 .gkc-kacheln { margin-top:14px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; align-items:start; }
 .gkc-kachel { border-radius:20px; background:rgba(255,255,255,.82); border:1px solid var(--linie); transition:border-color .35s var(--ease), box-shadow .35s var(--ease), transform .35s var(--ease); }
-.gkc-kachel:hover { border-color:rgba(40,141,250,.45); box-shadow:0 22px 50px -32px rgba(29,78,216,.5); transform:translateY(-2px); }
 .gkc-kachel.auf { border-color:rgba(40,141,250,.55); background:linear-gradient(170deg, #ffffff, #f2f8ff); box-shadow:0 26px 60px -36px rgba(29,78,216,.55); }
-.gkc-kachel-kopf { display:flex; flex-direction:column; align-items:flex-start; gap:8px; width:100%; padding:24px 22px 18px; text-align:left; background:none; border:0; border-radius:20px; cursor:pointer; color:inherit; font:inherit; }
+@media (hover:hover) { .gkc-kachel:hover { border-color:rgba(40,141,250,.45); box-shadow:0 22px 50px -32px rgba(29,78,216,.5); transform:translateY(-2px); } }
+/* Gleiche Höhe der geschlossenen Kacheln, „Mehr erfahren“ immer unten */
+.gkc-kachel-kopf { display:flex; flex-direction:column; align-items:flex-start; gap:8px; width:100%; min-height:176px; padding:24px 22px 18px; text-align:left; background:none; border:0; border-radius:20px; cursor:pointer; color:inherit; font:inherit; }
 .gkc-kachel-kopf:focus-visible { outline:2px solid #288dfa; outline-offset:2px; }
 .gkc-kachel-titel { font-family:var(--serif); font-weight:400; font-size:21px; line-height:1.2; letter-spacing:-.01em; color:var(--tinte); }
 .gkc-kachel-zeile { font-size:14px; line-height:1.55; color:var(--leise); }
-.gkc-kachel-mehr { display:inline-flex; align-items:center; gap:10px; margin-top:6px; font-size:13px; color:#1d4ed8; }
+.gkc-kachel-mehr { display:inline-flex; align-items:center; gap:10px; margin-top:auto; padding-top:6px; font-size:13px; color:#1d4ed8; }
 .gkc-kachel-mehr .gaf-plus { width:12px; height:12px; }
 .gkc-kachel-mehr .gaf-plus::before, .gkc-kachel-mehr .gaf-plus::after { width:12px; top:5.5px; }
 .gkc-kachel-details { padding:0 22px 22px; display:grid; gap:9px; }
 .gkc-kachel-details li { position:relative; padding-left:18px; font-size:14px; line-height:1.55; color:var(--tinte); }
 .gkc-kachel-details li::before { content:""; position:absolute; left:0; top:.75em; width:9px; height:1px; background:#288dfa; }
 .gkc-paket-fein { margin-top:22px; max-width:78ch; }
-@media (max-width:1100px) { .gkc-kacheln { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:620px) { .gkc-kacheln { grid-template-columns:1fr; gap:10px; } .gkc-kachel-kopf { padding:20px 18px 14px; } .gkc-kachel-details { padding:0 18px 18px; } }
+@media (max-width:1100px) { .gkc-kacheln { grid-template-columns:repeat(2,minmax(0,1fr)); } .gkc-kachel-kopf { min-height:150px; } }
+/* Am Handy eine kompakte Liste: Titel und Plus in einer Zeile (~56 px); die Zeile darunter erst beim Aufklappen */
+@media (max-width:620px) {
+  .gkc-paket { gap:28px; }
+  .gkc-kacheln { grid-template-columns:1fr; gap:8px; }
+  .gkc-kachel { border-radius:16px; }
+  .gkc-kachel-kopf { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 12px; min-height:56px; padding:14px 18px; border-radius:16px; }
+  .gkc-kachel-titel { font-size:18px; }
+  .gkc-kachel-zeile { grid-column:1 / -1; grid-row:2; display:none; }
+  .gkc-kachel.auf .gkc-kachel-zeile { display:block; }
+  .gkc-kachel-mehr { grid-column:2; grid-row:1; margin-top:0; padding-top:0; }
+  .gkc-kachel-mehr-text { display:none; }
+  .gkc-kachel-details { padding:0 18px 16px; }
+}
 
-/* ── Ihre Investition: offen, vollständig, ruhig ──────────────────────── */
-.gkc-invest { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:stretch; }
-.gkc-invest-heute { padding:32px 32px 26px; border-radius:24px; background:#fff; border:1px solid rgba(40,141,250,.28); box-shadow:0 30px 70px -44px rgba(29,78,216,.45); }
-.gkc-invest-auge, .gkc-invest-wann { font-size:11px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-tief); }
-.gkc-invest-wann { color:var(--leise); }
-.gkc-invest-betrag { margin-top:12px; font-family:var(--serif); font-weight:300; font-size:clamp(40px,4.2vw,54px); line-height:1; letter-spacing:-.02em; color:var(--tinte); font-variant-numeric:tabular-nums; }
-.gkc-invest-zeilen { margin-top:20px; border-top:1px solid var(--linie); }
-.gkc-invest-zeilen li { display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding:11px 0; border-bottom:1px solid var(--linie); font-size:14px; line-height:1.5; color:var(--text); }
-.gkc-invest-zeilen b { font-weight:400; color:var(--tinte); white-space:nowrap; font-variant-numeric:tabular-nums; }
-.gkc-invest-spaeter { display:grid; gap:12px; }
-.gkc-invest-posten { padding:22px 26px; border-radius:20px; background:rgba(255,255,255,.6); border:1px solid var(--linie); }
-.gkc-invest-zeile { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; margin-top:8px; }
-.gkc-invest-zeile b { font-family:var(--serif); font-weight:400; font-size:28px; line-height:1; color:var(--tinte); white-space:nowrap; font-variant-numeric:tabular-nums; }
-.gkc-invest-zeile span { font-size:15px; color:var(--tinte); }
-.gkc-invest-text { margin-top:6px; font-size:13.5px; line-height:1.55; color:var(--leise); }
-.gkc-invest-garantie { margin-top:22px; padding:16px 20px; border-radius:16px; background:var(--elfenbein); border:1px solid rgba(40,141,250,.16); font-size:14.5px; line-height:1.6; color:var(--tinte); max-width:86ch; }
-@media (max-width:860px) { .gkc-invest { grid-template-columns:1fr; } .gkc-invest-heute { padding:26px 22px 20px; } .gkc-invest-posten { padding:20px; } }
+/* ── Ihre Investition: vollständig und ruhig — drei gleiche Zeilen mit Haarlinien, keine Karte, kein Schatten ── */
+.gkc-invest-liste { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--linie); border-bottom:1px solid var(--linie); }
+.gkc-invest-posten { display:flex; flex-direction:column; gap:8px; padding:24px 26px 22px 0; }
+.gkc-invest-posten + .gkc-invest-posten { padding-left:26px; border-left:1px solid var(--linie); }
+.gkc-invest-wann { font-size:11.5px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); }
+.gkc-invest-betrag { font-family:var(--serif); font-weight:300; font-size:28px; line-height:1.1; letter-spacing:-.01em; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gkc-invest-text { font-size:13.5px; line-height:1.55; color:var(--leise); }
+.gkc-invest-summe { margin-top:16px; font-size:15px; line-height:1.6; color:var(--tinte); }
+.gkc-invest-fein { margin-top:18px; max-width:86ch; }
+@media (max-width:860px) {
+  .gkc-invest-liste { grid-template-columns:1fr; }
+  .gkc-invest-posten { padding:18px 0; }
+  .gkc-invest-posten + .gkc-invest-posten { padding-left:0; border-left:0; border-top:1px solid var(--linie); }
+}
 
 /* ── Ihre Unterlagen liegen vor ───────────────────────────────────────── */
 .gkc-unterlagen { border-top:1px solid var(--linie); }
 .gkc-unterlage { display:flex; align-items:baseline; justify-content:space-between; gap:8px 24px; flex-wrap:wrap; padding:18px 2px; border-bottom:1px solid var(--linie); }
 .gkc-unterlage-titel { font-size:17px; font-weight:400; color:var(--tinte); }
-.gkc-unterlage-stand { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; letter-spacing:.06em; color:#1d4ed8; font-variant-numeric:tabular-nums; }
+.gkc-unterlage-stand { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; letter-spacing:.06em; color:#1d4ed8; }
 .gkc-unterlagen + .gaf-fein { margin-top:16px; }
+@media (max-width:560px) { .gkc-unterlage { flex-direction:column; align-items:flex-start; gap:6px; } }
 
 /* ── Ansprechpartner ──────────────────────────────────────────────────── */
 .gkc-personen { max-width:620px; }
 
 /* ── Vertrag, Widerruf, Informationen ─────────────────────────────────── */
+/* „Vertrag lesen“ im Glasblau — die Navy-Fläche gehört allein dem Rechner */
+.gkc .gaf-dokument-lesen { background:linear-gradient(140deg, #3b9bff 0%, #288dfa 30%, #1d4ed8 100%); border-color:transparent; box-shadow:0 14px 30px -14px rgba(29,78,216,.7); }
+.gkc .gaf-leser-zu { background:#fff; border-color:var(--linie-2); color:var(--tinte); }
+@media (hover:hover) {
+  .gkc .gaf-dokument-lesen:hover { box-shadow:0 20px 40px -14px rgba(29,78,216,.75); }
+  .gkc .gaf-leser-zu:hover { color:#1d4ed8; border-color:#288dfa; box-shadow:none; }
+}
+@media (hover:none) { .gkc .gaf-dokument-lesen:hover, .gkc .gkp-knopf:hover { transform:none; } }
+/* Inhaltsverzeichnis: die Sonderzeile nur für die Anlage „A“ — Ziffer 14 steht wie 1 bis 13 */
+.gkc .gaf-dokument-inhalt li:nth-last-child(2) .marke, .gkc .gaf-leser-inhalt li:nth-last-child(2) .marke { grid-column:auto; font-size:12px; letter-spacing:0; text-transform:none; }
+.gkc .gaf-dokument-inhalt li:nth-last-child(2) button, .gkc .gaf-leser-inhalt li:nth-last-child(2) a { grid-template-columns:2.6em minmax(0,1fr); padding-top:7px; }
 .gkc-recht { margin-top:28px; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }
 .gkc-recht-block { padding:26px 28px 14px; border-radius:20px; background:#fff; border:1px solid var(--linie); scroll-margin-top:24px; }
 .gkc-recht-block > p { margin-top:8px; font-size:14.5px; line-height:1.6; color:var(--text); }
@@ -173,25 +276,68 @@
 /* ── Auftrag erteilen: Glasblau statt Elfenbein und Navy ──────────────── */
 .gkc .gaf-abschnitt-annahme::before { background:linear-gradient(180deg, rgba(242,248,255,0), #f2f8ff 26%, #f2f8ff 74%, rgba(242,248,255,0)); }
 .gkc .gaf-annahme { box-shadow:0 1px 2px rgba(12,26,46,.04), 0 40px 90px -30px rgba(29,78,216,.22); }
-.gkc-wahl-zeile { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; margin-top:12px; font-size:15.5px; color:var(--tinte); font-variant-numeric:tabular-nums; }
-.gkc-wahl-zeile b { font-family:var(--serif); font-weight:300; font-size:30px; letter-spacing:-.01em; }
-.gkc-wahl-zeile > span[aria-hidden] { color:var(--leise); }
-.gkc-link { margin-left:auto; padding:6px 0; background:none; border:0; color:#1d4ed8; font:400 14px var(--sans); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.gkc-wahl-zeile { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 12px; margin-top:12px; font-size:15.5px; color:var(--tinte); }
+.gkc-wahl-zeile b { font-family:var(--serif); font-weight:300; font-size:30px; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+.gkc-wahl-trenner { color:var(--leise); }
+.gkc-name-wert { overflow-wrap:anywhere; }
+.gkc-name-ausweich { flex-basis:100%; order:3; font-size:13px; color:var(--leise); }
+.gkc .gkc-name-zeile b { font-size:26px; }
+.gkc-link { margin-left:auto; display:inline-flex; align-items:center; min-height:44px; min-width:44px; padding:0 2px; background:none; border:0; color:#1d4ed8; font:400 14px var(--sans); text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
 .gkc-link:focus-visible { outline:2px solid #288dfa; outline-offset:3px; border-radius:4px; }
-.gkc .gaf-haken-zeile:hover { border-color:#288dfa; }
 .gkc .gaf-haken-zeile.an { border-color:#1d4ed8; background:#f5f9ff; }
 .gkc .gaf-haken-zeile.an .gaf-haken-kasten { background:#1d4ed8; border-color:#1d4ed8; }
+@media (hover:hover) { .gkc .gaf-haken-zeile:hover { border-color:#288dfa; } }
+/* Fokus am Kästchen: 2 px Blau mit 2 px Abstand — mit der Tastatur deutlich sichtbar */
+.gkc .gaf-haken-zeile input:focus-visible + .gaf-haken-kasten { box-shadow:0 0 0 2px #fff, 0 0 0 4px #1d4ed8; }
+.gkc-satz-link { color:#1d4ed8; text-decoration:underline; text-underline-offset:3px; text-decoration-thickness:1px; }
+.gkc-satz-link:focus-visible { outline:2px solid #1d4ed8; outline-offset:2px; border-radius:3px; }
 .gkc-haken-unter { display:block; margin-top:6px; font-size:12.5px; line-height:1.55; color:var(--leise); }
-.gkc .gaf-knopf-annehmen { background:linear-gradient(140deg, #3b9bff 0%, #288dfa 30%, #1d4ed8 100%);
+/* Was noch fehlt: ruhig — dünne blaue Linie links, Satz in Tinte (kein Rot, kein rosa Kasten) */
+.gkc .gaf-haken.fehlt .gaf-haken-zeile:not(.an) { border-color:var(--linie-2); box-shadow:inset 3px 0 0 #288dfa; }
+.gkc .gaf-haken.fehlt .gaf-haken-zeile:not(.an) .gaf-haken-kasten { border-color:#288dfa; }
+.gkc .gab-annahme-namen.fehlt { border-radius:0; box-shadow:inset 2px 0 0 #288dfa; padding-left:16px; }
+.gkc .gaf-signatur.fehlt .gaf-signatur-feld, .gkc .gaf-signatur.fehlt .gaf-signatur-vorschau { box-shadow:inset 0 0 0 1px rgba(40,141,250,.4), inset 3px 0 0 #288dfa; }
+.gkc .gaf-fehlt { background:#f5f9ff; border-color:rgba(40,141,250,.3); color:var(--tinte); }
+.gkc .gaf-fehler { background:#f5f9ff; border-color:rgba(40,141,250,.3); color:var(--tinte); }
+.gkc .gaf-signatur .gaf-feld-hinweis { color:var(--tinte); }
+.gkc .gaf-fehler:focus { outline:2px solid #1d4ed8; outline-offset:2px; }
+/* Gleich viel Luft über und unter jeder Trennlinie (vorher 76–88 px vor der Unterschrift) */
+.gkc .gkc-haken { border-bottom:0; margin-bottom:0; padding-bottom:0; }
+.gkc .gaf-signatur { margin-top:36px; padding-top:36px; }
+.gkc .gaf-knopf-annehmen { min-width:380px; background:linear-gradient(140deg, #3b9bff 0%, #288dfa 30%, #1d4ed8 100%);
   box-shadow:0 18px 40px -12px rgba(29,78,216,.55), inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(11,18,32,.18); }
 .gkc .gaf-knopf-annehmen::after { background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.3), rgba(255,255,255,0)); }
-.gkc .gaf-knopf-annehmen:hover:not(:disabled) { box-shadow:0 26px 54px -14px rgba(29,78,216,.6), inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(11,18,32,.18); }
+@media (hover:hover) { .gkc .gaf-knopf-annehmen:hover:not(:disabled) { box-shadow:0 26px 54px -14px rgba(29,78,216,.6), inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(11,18,32,.18); } }
+@media (hover:none) { .gkc .gaf-knopf-annehmen:hover:not(:disabled) { transform:none; } }
+/* Beim Senden: volle Farbe, gleiche Breite, eine feine Lichtlinie unten — „läuft“, nicht „gesperrt“ */
+.gkc .gaf-knopf-annehmen.sendet { cursor:progress; }
+.gkc .gaf-knopf-annehmen.sendet::before { content:""; position:absolute; left:0; bottom:0; height:2px; width:36%; background:linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.95), rgba(255,255,255,0)); animation:gkcSenden 1.2s ease-in-out infinite; }
+@keyframes gkcSenden { from { transform:translateX(-100%); } to { transform:translateX(280%); } }
 .gkc .gaf-uebersicht dd { font-size:13.5px; }
 .gkc .gaf-uebersicht { margin-bottom:28px; }
-.gkc .gkc-haken { border-bottom:0; margin-bottom:8px; }
+@media (max-width:620px) { .gkc .gaf-knopf-annehmen { min-width:0; } }
+/* Am Handy einzeilig: ohne Pfeil, 16 px Innenabstand, 15 px Schrift */
+@media (max-width:400px) {
+  .gkc .gaf-knopf-annehmen { padding:0 16px; font-size:15px; white-space:nowrap; gap:0; }
+  .gkc .gaf-knopf-annehmen svg { display:none; }
+}
+
+/* ── Am Handy kürzer: weniger Luft zwischen den Abschnitten (die Seite war ~19 Bildschirme lang) ── */
+@media (max-width:720px) {
+  .gkc .gaf-abschnitt { padding-top:64px; }
+  .gkc .gaf-kopf { margin-bottom:28px; }
+  .gkc .gkc-abschnitt-rechner { padding-top:48px; }
+  .gkc .gaf-etappe { padding-bottom:48px; }
+}
+
+/* ── Feinschliff am Handy: lesbare Etiketten (≥ 12 px) ─────────────────── */
+@media (max-width:560px) {
+  .gkc .gkc-rate-auge, .gkc .gkc-auge-hell, .gkc .gkc-jahre-label, .gkc .gkc-kond-auge, .gkc .gkp-plan-auge, .gkc .gkc-hero-rate-auge, .gkc .gkc-invest-wann, .gkc .gkc-paket-titel { font-size:12px; }
+}
 
 @media (prefers-reduced-motion:reduce) {
   .gkc-rechner-licht span { animation:none; }
-  .gkc-jahr, .gkc-kachel { transition:none; }
+  .gkc-jahr, .gkc-kachel, .gkc-hero-rate { transition:none; }
   .gkc-jahr:hover, .gkc-kachel:hover { transform:none; }
+  .gkc .gaf-knopf-annehmen.sendet::before { animation:none; left:32%; }
 }

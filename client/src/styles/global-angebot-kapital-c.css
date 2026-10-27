@@ -27,7 +27,7 @@
   .gkc-pz-umbruch .gkc-pz-teil + .gkc-pz-teil { margin-top:2px; }
 }
 /* <b> trägt in .gaf das Gewicht 500 — die großen Zahlen bleiben dünn (Regel: dünne Schrift) */
-.gkc .gkc-invest-betrag, .gkc .gkc-hero-rate-wert, .gkc .gkc-eck b, .gkc .gkc-wahl-zeile b { font-weight:300; }
+.gkc .gkc-hero-rate-wert, .gkc .gkc-eck b, .gkc .gkc-wahl-zeile b { font-weight:300; }
 /* Ziffern tabellarisch nur, wo NUR Ziffern stehen — in gemischtem Text machte „tnum“ den Bindestrich breit („US - $“). */
 .gkc .gaf-leiste-ref, .gkc .gaf-uebersicht dd, .gkc .gaf-fuss-ref, .gkc .gkc-rate-usd, .gkc .gkc-rate-raten { font-variant-numeric:normal; }
 
@@ -221,19 +221,24 @@
   .gkc-kachel-details { padding:0 18px 16px; }
 }
 
-/* ── Ihre Investition: vollständig und ruhig — drei gleiche Zeilen mit Haarlinien, keine Karte, kein Schatten ── */
-.gkc-invest-liste { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--linie); border-bottom:1px solid var(--linie); }
-.gkc-invest-posten { display:flex; flex-direction:column; gap:8px; padding:24px 26px 22px 0; }
-.gkc-invest-posten + .gkc-invest-posten { padding-left:26px; border-left:1px solid var(--linie); }
-.gkc-invest-wann { font-size:11.5px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--leise); }
-.gkc-invest-betrag { font-family:var(--serif); font-weight:300; font-size:28px; line-height:1.1; letter-spacing:-.01em; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
-.gkc-invest-text { font-size:13.5px; line-height:1.55; color:var(--leise); }
-.gkc-invest-summe { margin-top:16px; font-size:15px; line-height:1.6; color:var(--tinte); }
-.gkc-invest-fein { margin-top:18px; max-width:86ch; }
-@media (max-width:860px) {
-  .gkc-invest-liste { grid-template-columns:1fr; }
-  .gkc-invest-posten { padding:18px 0; }
-  .gkc-invest-posten + .gkc-invest-posten { padding-left:0; border-left:0; border-top:1px solid var(--linie); }
+/* ── Ihre Investition: LEISE (Justin 27.10.2026, 17:40 — „kleiner, weiß auf weiß“) ─────────────────────────
+   Keine Bühne, keine großen Ziffern, keine Karte: eine Haarlinie, ein kleines Etikett, EINE Zeile mit allen Beträgen, die
+   Einzelheiten zum Aufklappen. Leitplanke (Prüfstand): jede Schrift hier ≥ 13 px, Farben nur --leise/--text (≥ 4,5:1 auf Papier). */
+.gkc .gaf-abschnitt.gkc-invest { padding-top:64px; }
+.gkc-invest-leise { max-width:78ch; padding-top:20px; border-top:1px solid var(--linie); }
+.gkc-invest-titel { font-size:13px; font-weight:400; letter-spacing:.12em; text-transform:uppercase; color:var(--leise); }
+.gkc-invest-zeile { margin-top:8px; font-size:14px; line-height:1.7; color:var(--leise); }
+.gkc-invest-leise .gaf-mehr { margin-top:4px; }
+.gkc-invest-einzeln { display:grid; gap:10px; padding-top:2px; }
+.gkc-invest-einzeln > div { display:grid; grid-template-columns:minmax(0,220px) minmax(0,1fr); gap:2px 18px; }
+.gkc-invest-einzeln dt { font-size:13px; line-height:1.6; color:var(--leise); }
+.gkc-invest-einzeln dd { font-size:13.5px; line-height:1.6; color:var(--text); }
+.gkc .gkc-invest-betrag { font-weight:400; color:var(--text); }
+.gkc-invest-summe { margin-top:12px; font-size:13.5px; line-height:1.6; color:var(--text); }
+.gkc-invest-fein { margin-top:6px; padding-bottom:10px; font-size:13px; line-height:1.6; color:var(--leise); }
+@media (max-width:560px) {
+  .gkc .gaf-abschnitt.gkc-invest { padding-top:48px; }
+  .gkc-invest-einzeln > div { grid-template-columns:1fr; }
 }
 
 /* ── Ihre Unterlagen liegen vor ───────────────────────────────────────── */
@@ -332,7 +337,7 @@
 
 /* ── Feinschliff am Handy: lesbare Etiketten (≥ 12 px) ─────────────────── */
 @media (max-width:560px) {
-  .gkc .gkc-rate-auge, .gkc .gkc-auge-hell, .gkc .gkc-jahre-label, .gkc .gkc-kond-auge, .gkc .gkp-plan-auge, .gkc .gkc-hero-rate-auge, .gkc .gkc-invest-wann, .gkc .gkc-paket-titel { font-size:12px; }
+  .gkc .gkc-rate-auge, .gkc .gkc-auge-hell, .gkc .gkc-jahre-label, .gkc .gkc-kond-auge, .gkc .gkp-plan-auge, .gkc .gkc-hero-rate-auge, .gkc .gkc-paket-titel { font-size:12px; }
 }
 
 @media (prefers-reduced-motion:reduce) {
@@ -352,7 +357,7 @@
 /* Paket: gleich hohe geschlossene Kacheln auch mit der längeren Zeile „EIN und ITIN“ */
 @media (min-width:1101px) { .gkc-kachel-kopf { min-height:200px; } }
 /* Keine Einzelwörter allein in der letzten Zeile */
-.gkc-kond-text, .gkc-invest-summe, .gkc .gaf-sub, .gkc-rechner-fuss p, .gkc-invest-text, .gkc-haken-unter { text-wrap:pretty; }
+.gkc-kond-text, .gkc-invest-zeile, .gkc-invest-einzeln dd, .gkc .gaf-sub, .gkc-rechner-fuss p, .gkc-haken-unter { text-wrap:pretty; }
 /* „Bitte noch ergänzen:“ — die Punkte sind Verweise und sehen so aus */
 .gkc .gaf-fehlt a { color:#1d4ed8; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; }
 /* Fehlt der Name: eine Markierung am Feld reicht (vorher zwei parallele blaue Linien) */

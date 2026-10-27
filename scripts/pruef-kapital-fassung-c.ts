@@ -15,6 +15,9 @@
 //   6 Wortwand (Hausregeln + E-188) — „Garantie“ nur als Hauptwort der Geld-zurück-Garantie, nie „garantiert“, nie „sicher?“
 //   7 Prüfsumme, Annahmevermerk (mit letzter Rate), gekürzte Ausweisnummern, Parameter- und Kundenprüfung, Teil 2 / Auszahlung,
 //     „Mein Auftrag“, Aufgaben-Texte, Registerstand der Bürgin
+//   4b KEIN Verwendungszweck (Justin 27.10.2026, 17:40): ein Marken-Vorhaben in den Daten taucht in keinem Kundentext und keinem
+//     Vertrag auf; keine Wörter eines Zwecks (Vorhaben, Ort, bezahlter Anteil, Termin, Bauträger) — auch nicht fest im Text
+//   5b „Ihre Investition“ leise, aber vollständig und lesbar: alle Beträge in der sichtbaren Zeile, Schrift 13–15 px, Kontrast ≥ 4,5:1
 //
 //   npx tsx scripts/pruef-kapital-fassung-c.ts
 //   … --privat <angebot.json>   prüft zusätzlich, dass KEIN Wert des echten Kunden in den Code-Dateien steht (Repo öffentlich)
@@ -184,7 +187,7 @@ const rumpf = ohneHtml(C.kapitalCRumpfHtml(D, null));
   ok(/binnen vierzehn Tagen nach Maßgabe der Widerrufsbelehrung in der Anlage/.test(vertragText), "Ziffer 10: Widerrufsrecht mit Verweis auf die Anlage");
   ok(/ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt \(Fast-Track\)/.test(vertragText) && /angemessenen Betrag für die bis dahin erbrachten Leistungen/.test(vertragText) && /Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat/.test(vertragText), "Sofortbeginn: ausdrücklich verlangt, Wertersatz, Erlöschen (§ 356 Abs. 4 / § 357a Abs. 2 BGB)");
   ok(/vor Ablauf der Widerrufsfrist mit der Arbeit beginnt \(Fast-Track\)/.test(C.KAPITAL_C_SOFORT_TEXT) && /anteilig/.test(C.KAPITAL_C_SOFORT_TEXT) && /erlischt/.test(C.KAPITAL_C_SOFORT_TEXT), "Haken-Text Sofortbeginn (wie ANTRAG_NEU_SOFORT_TEXT, mit Erlöschen)");
-  ok(/^Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für die Fertigstellung Ihres Projekts zum 31\. Dezember 2026 zählt aber jede Woche\. Ohne den Haken können Sie das Angebot deshalb nicht annehmen\.$/.test(C.kapitalCAnnahmeTexte(D).sofortUnter), "Sofortbeginn offen als Bedingung des Angebots — mit seinem Grund (Fertigstellung), kein Schein einer Wahl");
+  ok(/^Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für unser Ziel, die Auszahlung in Woche vier, zählt aber jede Woche\. Ohne den Haken können Sie das Angebot deshalb nicht annehmen\.$/.test(C.kapitalCAnnahmeTexte(D).sofortUnter), "Sofortbeginn offen als Bedingung des Angebots — mit seinem Grund (Ziel Woche vier, ohne Vorhaben und Termin), kein Schein einer Wahl");
   ok(/die Bürgin ist zum Zeitpunkt der Übernahme im Register ihres Bundesstaats als aktiv geführt/.test(vertragText), "Bürgschaft: Registerstand der Bürgin als Bedingung (Bestand, nicht abgeschwächt)");
   ok(/Die Bürgin wird im Register ihres Bundesstaats derzeit als inaktiv geführt \(Stand 19\.10\.2026\); die Bürgschaft übernimmt sie erst nach ihrer Reaktivierung, wenn sie dort wieder als aktiv geführt wird \(Absatz 3\)/.test(vertragText), "Bürgin inaktiv → offen in Ziffer 5 Absatz 1, mit Stand und Verweis auf die Bedingung");
   const aktiv = flach(absText(C.kapitalCZiffern({ ...D, parameter: { ...PAR, buerginAktiv: true } })).join("\n"));
@@ -228,7 +231,9 @@ const rumpf = ohneHtml(C.kapitalCRumpfHtml(D, null));
   ok(/Die Raten zahlt die Gesellschaft pünktlich zu jedem Fälligkeitstag an das finanzierende Institut/.test(vertragText), "Raten pünktlich an das finanzierende Institut");
   ok(/Darlehen und Raten lauten auf US-Dollar; Euro-Beträge sind Umrechnungen, ihr Gegenwert in Euro kann sich mit dem Wechselkurs ändern — steigt der Kurs des US-Dollars um zehn Prozent, steigt jede Rate in Euro ebenfalls um zehn Prozent/.test(vertragText), "Währungsrisiko mit Beispiel");
   ok(/Ausgezahlt wird in US-Dollar zum Referenzkurs der Europäischen Zentralbank am Tag der Auszahlung; zum Kurs vom 26\.10\.2026 sind das rund 279\.700 US-\$/.test(vertragText), "Auszahlung in US-Dollar zum EZB-Kurs des Auszahlungstags, Schätzung mit Kurs und Datum");
-  ok(/Der Auftraggeber möchte sein Immobilienprojekt in den Vereinigten Arabischen Emiraten \(zu 60 % bezahlt, Fertigstellung vorgesehen zum 31\.12\.2026\) finanzieren/.test(rumpf) && /Die Mittel dienen dem Immobilienprojekt des Auftraggebers in den Vereinigten Arabischen Emiraten/.test(vertragText), "Projekt: Präambel „sein …“, Ziffer 4 im Dativ");
+  // Justin 27.10.2026, 17:40: „Was er mit dem Geld macht, ist seine Sache!“ — kein Zweck in Präambel, Ziffer 4 und Ziffer 5.
+  ok(/Der Auftraggeber möchte eine eigene US-Gesellschaft gründen, die eine Finanzierung aufnimmt\./.test(rumpf) && !/Die Mittel dienen/.test(vertragText) && !/dient dem Zweck/.test(vertragText)
+    && vertragText.includes(flach(C.KAPITAL_C_VERWENDUNG.vertrag)), "Kein Verwendungszweck: Präambel ohne Vorhaben, Ziffer 4 ohne „Die Mittel dienen …“ (die Gesellschaft entscheidet selbst, wofür und wo), Ziffer 5 ohne Zweckbindung");
   ok(/Alle Beträge sind Endpreise; eine etwa anfallende Umsatzsteuer ist darin enthalten/.test(vertragText), "Endpreise");
   ok(/verlängert sich nicht von selbst/.test(vertragText), "Jahresbetreuung verlängert sich nicht von selbst (Verbraucher)");
   ok(/Der Auftraggeber schließt diesen Vertrag als Verbraucher/.test(vertragText), "Verbrauchervertrag ausdrücklich");
@@ -275,6 +280,42 @@ ok(seiteFlach.includes("Einführungszeiträume ohne Sollzins bieten manche Herau
 ok(vertragText.includes("Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest.") && /Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut/.test(vertragText) && /Für Konto und Karten gilt die Geld-zurück-Garantie nach Ziffer 4 nicht/.test(vertragText), "Vertrag: Institut entscheidet, Sollzins-Satz, Garantie nicht für Karten");
 ok(alleTexte.every((x) => !/\bnorthwest\b/i.test(x.text)) && !/Schwarzott|Northwest/i.test(readFileSync(path.join(WURZEL, "shared/fiaon-global-angebot-kapital-c.ts"), "utf8").replace(/\/\/.*$/gm, "")), "kein Partnername im Code der Fassung C");
 
+// ═══ 4b KEIN VERWENDUNGSZWECK (Justin 27.10.2026, 17:40) ═════════════════════
+abschnitt("4b Kein Verwendungszweck — Vorhaben, Ort, Anteil, Termin nirgends (Justin 27.10.2026)");
+{
+  // (a) Ein MARKEN-Vorhaben in den Daten: Kein Kundentext und kein Vertrag darf eines seiner Felder zeigen (die Felder bleiben nur
+  //     als Datenfeld in der Akte).
+  const MARKE = { art: "Markenvorhaben", wo: "in Markenland", woKurz: "im Markenland", bezahltProzent: 37, fertigstellung: "2027-03-19" };
+  const DM = { ...D, parameter: { ...PAR, projekt: MARKE } };
+  const angenommen = { am: new Date("2026-10-28T10:00:00Z"), ip: "203.0.113.7", userAgent: "x", hash: "abc", wahl: { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true as const }, unterschrift: { art: "getippt" as const, name: "Max Mustermann" } };
+  const texte: { wo: string; text: string }[] = [];
+  const dazu = (wo: string, wert: unknown) => sammle(wert, []).forEach((t) => texte.push({ wo, text: flach(t) }));
+  dazu("vertrag (Entwurf)", ohneHtml(C.kapitalCRumpfHtml(DM, null, { ausweiseGekuerzt: true })));
+  dazu("vertrag (angenommen)", ohneHtml(C.kapitalCRumpfHtml(DM, angenommen)));
+  dazu("vertrag-kopf", [C.kapitalCVertragTitel(), C.kapitalCVertragUnterzeile(DM), C.kapitalCVertragInhalt(DM)]);
+  dazu("seite", C.kapitalCSeite(DM)); dazu("annahme", C.kapitalCAnnahmeTexte(DM)); dazu("uebersicht", C.kapitalCBestellUebersicht(DM, 10));
+  dazu("nach-der-annahme", { ...C.KAPITAL_C_ANNAHME, fertigTitel: C.KAPITAL_C_ANNAHME.fertigTitel("Herr Mustermann"), fertigText: C.KAPITAL_C_ANNAHME.fertigText("max@beispiel.example", "MUSTER LLC", "zehn Jahre"), fertigZahlung: C.KAPITAL_C_ANNAHME.fertigZahlung("3.289 €") });
+  dazu("bestaetigung", C.KAPITAL_C_BESTAETIGUNG); dazu("etappen", C.KAPITAL_C_ETAPPEN);
+  dazu("mein-auftrag", C.kapitalCMeinAuftrag({ parameter: DM.parameter, angenommenAm: "2026-10-28", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }));
+  dazu("zahlungsseite", C.kapitalCZahlungsseiteTeil2({ bezahlt: false, angebotRef: "FIAON-IA-CMUSTER", titel: "Erfolgshonorar", eingetragenAm: "2026-11-04", zielWochen: 4 }));
+  dazu("aufgaben", [C.kapitalCStartAufgabe({ angebotRef: "R", name: "Max Mustermann", parameter: DM.parameter, bezahltAm: "2026-10-29", zweck: "FIAON-ABC", frist: { beginn: "2026-10-29", ende: "2026-12-24" }, llc: "MUSTER LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null } }),
+    C.kapitalCFristAufgabe({ schritt: "warnung14", tageBis: 14, angebotRef: "R", name: "Max Mustermann", fristBeginn: "2026-10-29", fristEnde: "2026-12-24", parameter: DM.parameter })]);
+  const marke = /Markenvorhaben|Markenland|\b37\s?%|19\.03\.2027|19\. März 2027/;
+  ok(texte.length > 150 && texte.every((x) => !marke.test(x.text)), `kein Feld des Vorhabens in ${texte.length} Texten (Vertrag, Seite, Annahme, Übersicht, Bestätigung, Mein Auftrag, Zahlungsseite, Aufgaben)`, texte.filter((x) => marke.test(x.text)).map((x) => `${x.wo}: ${x.text.slice(0, 90)}`));
+  // (b) Kein Wort eines Zwecks — auch nicht fest im Text (Vorhaben, Ort, bezahlter Anteil, Termin, Bauträger, Restzahlung).
+  const ZWECK = /emirat|\bVAE\b|arabisch|dubai|immobil|bauträger|fertigstell|\bprojekt|restzahlung|\b60\s?%|31\.\s?12\.|31\. Dezember/i;
+  ok(texte.every((x) => !ZWECK.test(x.text)), "kein Vorhaben, kein Ort, kein bezahlter Anteil, kein Termin, kein Bauträger — in keinem Kundentext und keinem Vertrag", texte.filter((x) => ZWECK.test(x.text)).map((x) => `${x.wo}: ${x.text.slice(0, 90)}`));
+  // (c) Statt des Zwecks: „Sie entscheiden“ — Seite (Konditionen, Fragen) und Vertrag (Ziffer 4 Absatz 4).
+  const seiteM = flach(sammle(C.kapitalCSeite(DM), []).join(" "));
+  ok(seiteM.includes(C.KAPITAL_C_VERWENDUNG.seite) && flach(absText(C.kapitalCZiffern(DM)).join(" ")).includes(flach(C.KAPITAL_C_VERWENDUNG.vertrag)) && seiteM.includes(C.KAPITAL_C_VERWENDUNG.rat),
+    "Statt des Zwecks: „Wofür Ihre Gesellschaft die Finanzierung einsetzt, entscheiden Sie“, Ziffer 4 Abs. 4 und der Rat ohne Bauträger");
+  // (d) Der Hero, wie Justin ihn will: die Finanzierung für die Gesellschaft — Gründung, Begleitung, Bürgschaft, Geld-zurück-Garantie.
+  const h = C.kapitalCSeite(D).hero;
+  ok(h.titel === "Die Finanzierung für Ihre Gesellschaft." && /^Wir gründen Ihre eigene US-Gesellschaft und begleiten Sie bis zur Auszahlung Ihrer Finanzierung über 250\.000 €\. Unsere US-Partnergesellschaft übernimmt die Bürgschaft gegenüber der Bank — und Sie erhalten eine Geld-zurück-Garantie\.$/.test(flach(h.lead))
+    && flach(C.kapitalCSeite(D).auftakt.zeile) === "Ihre eigene US-Gesellschaft und Ihre Finanzierung über 250.000 €.", "Hero und Willkommen ohne Verwendungszweck", { titel: h.titel, lead: h.lead });
+  ok(Object.values(C.KAPITAL_C_VORGABEN.projekt).every((v) => !v), "Vorgabe des Vorhabens leer (nur Datenfeld, das Repo trägt kein Vorhaben)");
+}
+
 // ═══ 5 KOSTEN VOLLSTÄNDIG ════════════════════════════════════════════════════
 abschnitt("5 Kosten vollständig (offen, Endpreise, Gesamtpreis)");
 {
@@ -298,6 +339,40 @@ abschnitt("5 Kosten vollständig (offen, Endpreise, Gesamtpreis)");
   ok(s.investition.zeilen[0].wann === "Mit Ihrem Auftrag" && uz.some((z) => z.label === "Fällig mit Ihrem Auftrag") && !uz.some((z) => /^Heute/.test(z.label)) && /Fällig mit Ihrem Auftrag: 3\.289 €/.test(flach(C.kapitalCAnnahmeTexte(D).unterKnopf)), "„Mit Ihrem Auftrag“ statt „heute“ — in Investition, Übersicht und unter dem Knopf");
   ok(/Kommt die Auszahlung nicht binnen acht Wochen, erhalten Sie auch diesen Betrag zurück\./.test(s.investition.zeilen[1].text) && flach(s.investition.summe) === "Im ersten Jahr insgesamt 10.179 €.", "Investition: Erfolgshonorar mit Geld-zurück-Satz, Summe ohne doppeltes „Endpreise“");
   ok(uz.some((z) => z.label === "Geld-zurück-Garantie (Ziffer 4)" && /erhalten Sie alles Gezahlte zurück/.test(z.wert)), "Übersicht: Geld-zurück-Garantie");
+}
+
+// ═══ 5b IHRE INVESTITION: LEISE, ABER VOLLSTÄNDIG UND LESBAR (Justin 27.10.2026, 17:40) ═══
+abschnitt("5b Ihre Investition: leise, vollständig, lesbar (Justin 27.10.2026)");
+{
+  const inv = C.kapitalCSeite(D).investition;
+  const zeile = flach(inv.zeile);
+  ok(["3.289 €", "6.890 €", "10.179 €", "699 €"].every((b) => zeile.includes(b)) && /^Mit Ihrem Auftrag 3\.289 €, mit der Eintragung Ihrer Gesellschaft 6\.890 € einschließlich Bürgschaft — im ersten Jahr insgesamt 10\.179 €; ab dem zweiten Jahr 699 € je Jahr\. Alle Beträge sind Endpreise\.$/.test(zeile),
+    "Investition vollständig in der SICHTBAREN Zeile: 3.289 € mit dem Auftrag, 6.890 € mit der Eintragung, im ersten Jahr 10.179 €, ab Jahr 2 699 € je Jahr, Endpreise", zeile);
+  ok(C.kapitalCHeuteCents(PAR) === 328_900 && PAR.erfolgCents === 689_000 && C.kapitalCErstesJahrCents(PAR) === 1_017_900 && PAR.jahresCents === 69_900, "Zahlen der Zeile: 2.790 + 499 = 3.289; + 6.890 = 10.179; 699 je Jahr");
+  ok(inv.knopf === "Einzelheiten" && inv.zeilen.length === 3 && flach(inv.summe) === "Im ersten Jahr insgesamt 10.179 €." && /Überweisung auf Rechnung/.test(inv.fein), "Einzelheiten zum Aufklappen: drei Posten, Summe, Zahlweg");
+  // Leitplanke im Stil: jede Schrift 13–15 px, Farben nur --leise/--text, keine Karte, kein Schatten, keine Serifen-Ziffer.
+  const css = readFileSync(path.join(WURZEL, "client/src/styles/global-angebot-kapital-c.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const regeln = [...css.matchAll(/([^{}]*\.gkc-invest[^{}]*)\{([^}]*)\}/g)].map((m) => ({ sel: m[1].trim(), rumpf: m[2] }));
+  const groessen = regeln.flatMap((r) => [...r.rumpf.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => ({ sel: r.sel, px: Number(m[1]) })));
+  ok(regeln.length >= 8 && groessen.length >= 5 && groessen.every((g) => g.px >= 13 && g.px <= 15), "Investition: jede Schrift 13–15 px (lesbar, aber leise — keine großen Ziffern)", groessen);
+  const farben = regeln.flatMap((r) => [...r.rumpf.matchAll(/(?:^|;)\s*color:\s*([^;]+)/g)].map((m) => m[1].trim()));
+  ok(farben.length >= 5 && farben.every((f) => ["var(--leise)", "var(--text)"].includes(f)), "Investition: Farben nur --leise/--text", farben);
+  ok(!regeln.some((r) => /box-shadow|background|var\(--serif\)|font-weight:\s*[5-9]00/.test(r.rumpf)), "Investition: keine Karte, kein Schatten, keine Serifen-Ziffer, kein kräftiges Gewicht");
+  // Kontrast aus der Quelle (global-angebot-firma.css): --leise und --text auf Papier und auf Weiß mindestens 4,5:1.
+  const basis = readFileSync(path.join(WURZEL, "client/src/styles/global-angebot-firma.css"), "utf8");
+  const farbe = (n: string) => (basis.match(new RegExp(`--${n}:\\s*(#[0-9a-fA-F]{6})`)) ?? [])[1] ?? "";
+  const lum = (hex: string) => { const k = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * k[0] + 0.7152 * k[1] + 0.0722 * k[2]; };
+  const kontrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const papier = farbe("papier");
+  const werte = ["leise", "text"].map((n) => ({ n, hex: farbe(n), papier: Math.round(kontrast(farbe(n), papier) * 100) / 100, weiss: Math.round(kontrast(farbe(n), "#ffffff") * 100) / 100 }));
+  ok(!!papier && werte.every((w) => w.hex && w.papier >= 4.5 && w.weiss >= 4.5), "Investition: Kontrast ≥ 4,5:1 auf Papier und auf Weiß", werte);
+  // Die Seite zeigt die Zeile SICHTBAR — vor „Einzelheiten“, nicht darin; kein großer Kopf mehr.
+  const tsx = readFileSync(path.join(WURZEL, "client/src/pages/business-angebot-kapital-c.tsx"), "utf8");
+  const a = tsx.indexOf('id="investition"'); const block = tsx.slice(a, tsx.indexOf("</section>", a));
+  ok(a > 0 && block.indexOf("{I.zeile}") > 0 && block.indexOf("{I.zeile}") < block.indexOf("<Klapp") && !/<Kopf\b/.test(block) && !/gaf-h2/.test(block), "Seite: Zeile mit allen Beträgen sichtbar vor „Einzelheiten“, kein großer Kopf");
+  // Die Übersicht direkt über dem Knopf (§ 312j BGB) bleibt vollständig.
+  const ue = C.kapitalCBestellUebersicht(D, 10).zeilen;
+  ok(["Fällig mit Ihrem Auftrag", "Mit der Eintragung", "Im ersten Jahr insgesamt", "Ab dem zweiten Jahr"].every((l) => ue.some((z) => z.label === l)), "Übersicht über dem Knopf: alle vier Preiszeilen stehen weiter da");
 }
 
 // ═══ 6 WORTWAND ═════════════════════════════════════════════════════════════
@@ -338,7 +413,7 @@ abschnitt("7 Prüfsumme, Annahmevermerk, Prüfungen, nach der Annahme");
   ok(/Laufzeit der Finanzierung \(Ziffer 4 Absatz 2\): zehn Jahre \(120 Monatsraten ab dem siebten Monat nach der Auszahlung\); Monatsrate nach dem Rechenbeispiel 2\.333,86 € \(≈ 2\.611 US-\$, letzte Rate 2\.334,34 €\)/.test(vermerk), "Annahmevermerk: Laufzeit, Raten, Monatsrate und letzte Rate", vermerk.slice(vermerk.indexOf("Annahmevermerk"), vermerk.indexOf("Annahmevermerk") + 400));
   ok(/Wunschname MUSTER VENTURES LLC/.test(vermerk) && vermerk.includes(C.KAPITAL_C_SOFORT_TEXT) && vermerk.includes(C.KAPITAL_C_GELESEN_TEXT), "Annahmevermerk: Name, Sofortbeginn und „gelesen“ wörtlich");
   const roh = C.kapitalCParameterAus({ betragCents: -5, laufzeitMinJahre: 7, laufzeitMaxJahre: 3, laufzeitVorschlagJahre: 40, kursUsdJeEur: 9, projekt: { bezahltProzent: 140 } as any, buerginAktiv: "ja" as any, buerginStandAm: "19.10.2026" });
-  ok(roh.betragCents === C.KAPITAL_C_VORGABEN.betragCents && roh.laufzeitMaxJahre >= roh.laufzeitMinJahre && roh.laufzeitVorschlagJahre <= roh.laufzeitMaxJahre && roh.kursUsdJeEur === C.KAPITAL_C_VORGABEN.kursUsdJeEur && roh.projekt.bezahltProzent === 60
+  ok(roh.betragCents === C.KAPITAL_C_VORGABEN.betragCents && roh.laufzeitMaxJahre >= roh.laufzeitMinJahre && roh.laufzeitVorschlagJahre <= roh.laufzeitMaxJahre && roh.kursUsdJeEur === C.KAPITAL_C_VORGABEN.kursUsdJeEur && roh.projekt.bezahltProzent === C.KAPITAL_C_VORGABEN.projekt.bezahltProzent
     && roh.buerginAktiv === false && roh.buerginStandAm === "", "Parameter: Unsinn fällt auf die Vorgaben zurück (Bürgin ohne Beleg = inaktiv)");
   ok(!C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, plz: "1234" }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, email: "kein" }).ok
     && !C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [{ art: "reisepass", nummer: "x", gueltigBis: "2030-01-01", behoerde: "B" }] }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, geburtsdatum: "15.01.1980" }).ok, "Kunde: Ausweis, PLZ, E-Mail, Nummer, Geburtsdatum werden geprüft");
@@ -424,6 +499,7 @@ if (mail && existsSync(mail)) {
   ok(/3\.289 €/.test(tf) && /6\.890 €/.test(tf) && /10\.179 €/.test(tf) && /699 €/.test(tf) && /Ziffer 6/.test(tf) && !/heute 3\.289/.test(tf), "Mail: Ihre Investition vollständig (3.289 € mit dem Auftrag, 6.890 € bei Eintragung, 10.179 € im ersten Jahr, 699 €/Jahr, Ziffer 6)");
   ok(/unsere Begleitung bis zur Finanzierung/.test(tf) && !/ist Ihr Vertrag bereit: Ihre eigene US-Gesellschaft und die Finanzierung/.test(tf) && !/so steht es in Ziffer 4 Ihres Vertrags\./.test(tf.replace(/Geld-zurück-Garantie[^.]*\.[^.]*\./g, "")) && !/vollständig vor/.test(tf), "Mail: Begleitung statt Zusage, Konditionen als Ziel, Unterlagen „für den Start“");
   ok(/4\.312,58 €/.test(tf) && /1\.736,92 €/.test(tf), "Mail: Monatsrate je nach Laufzeit (5 und 15 Jahre)");
+  ok(!/emirat|\bVAE\b|arabisch|dubai|immobil|bauträger|fertigstell|\bprojekt|restzahlung|\b60\s?%|31\. Dezember/i.test(tf), "Mail: kein Verwendungszweck (Justin 27.10.2026, 17:40)", (tf.match(/.{0,40}(emirat|immobil|projekt|bauträger|fertigstell).{0,40}/i) ?? [""])[0]);
   if (/<html/i.test(t)) ok(!/font-weight:\s*[6-9]00/.test(t.split("fiaon-karte")[0]) && !/font:\s*[6-9]00/.test(t.split("fiaon-karte")[0]), "Mail (HTML): kein Schriftgewicht 600+ im Text (Signaturkarte ausgenommen)");
   const funde = W.globalWortPruefen(tf, ["aufgabe_an_betreuer"]).filter((f) => !(/garant/i.test(f.treffer) && /Geld-zurück-Garantie/.test(tf) && !/\bgarantier/i.test(tf)));
   ok(funde.length === 0, "Mail: Wortwand", funde);

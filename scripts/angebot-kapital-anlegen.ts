@@ -20,7 +20,8 @@
 // ── FASSUNG C — PRIVATPERSONEN (E-432, 27.10.2026) ─────────────────────────
 // Trägt die Datei kunde.art „privat“ (oder fassung IA-KAPITAL-…-C), läuft der Weg der Fassung C: Kunde als Privatperson
 // (Name, Geburtsdatum/-ort, Staatsangehörigkeit, Anschrift, E-Mail, ausweise[]), parameter nach KapitalCParameter
-// (Preise als Endpreise, Finanzierung, Kurs, Konditionen, Projekt, Unterlagen-Titel), buergin wie Fassung B. KEIN Prüfbericht
+// (Preise als Endpreise, Finanzierung, Kurs, Konditionen, Unterlagen-Titel; „projekt“ nur noch als Datenfeld — seit Justins Wort vom
+// 27.10.2026, 17:40 zeigt kein Kundentext einen Verwendungszweck), buergin wie Fassung B. KEIN Prüfbericht
 // (--compliance wird dort nicht gelesen). Die Vorschau schreibt den Vertrag UND die Raten je Laufzeit in die Ausgabe.
 // Die Ausweis- und Gehaltsbilder bleiben in der privaten Ablage — dieses Skript lädt nie Dateien hoch.
 // Runde 2 (27.10.2026): Die Doppel-Suche findet nur offene Angebote der Fassung C (ein Firmen-Kapital-Angebot derselben Adresse

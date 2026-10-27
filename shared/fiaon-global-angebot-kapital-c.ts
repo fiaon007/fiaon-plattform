@@ -41,6 +41,16 @@
 //   · „Mit Ihrem Auftrag“ statt „heute“; Haken „gelesen“ entfällt — die Unterschrift bestätigt den Satz darüber (ein Haken bleibt:
 //     Fast-Track). Kundensicht ohne interne Kennung („Vertragsstand 27.10.2026“), Beschwerdeweg in Ziffer 14.
 //
+// ── JUSTIN 27.10.2026, 17:40 ─────────────────────────────────────────────────
+//   · „Was er mit dem Geld macht, ist seine Sache!“ — KEIN Verwendungszweck mehr (kein Vorhaben, kein Ort, kein bezahlter Anteil,
+//     kein Termin), wo der Kunde liest: Seite, Vertrag (Präambel, Ziffer 4, Bürgschaftsbedingungen in Ziffer 5), Annahme, Bestätigung,
+//     Mail. Die Parameter `projekt` bleiben nur als Datenfeld (Akte, Vorgabe leer); kein Text liest sie. Statt des Zwecks: „Wofür Ihre
+//     Gesellschaft die Finanzierung einsetzt, entscheiden Sie“ (im Rahmen der Bedingungen der Bank). Prüfstand: ein Marken-Vorhaben
+//     darf in keinem Kundentext und keinem Vertrag auftauchen.
+//   · „Ihre Investition … kleiner (weiß auf weiß)“ — keine Bühne, keine großen Ziffern: eine leise Zeile mit ALLEN Beträgen
+//     (Endpreise, Gesamtpreis des ersten Jahres), Einzelheiten zum Aufklappen. Lesbar (≥ 13 px, Kontrast ≥ 4,5:1) und vollständig;
+//     die Übersicht über dem Knopf (§ 312j BGB) bleibt vollständig.
+//
 // ── DER RECHNER (rein, kapitalCPlan) ───────────────────────────────────────
 // Laufzeit T Jahre = N = 12·T Monatsraten ab Monat (ratenfrei + 1). Zins je Monat m: 0 für m ≤ zinsfrei, sonst
 // (Start + Schritt · floor((m − zinsfrei − 1) / 12)) / 12. Gleichbleibende Rate R aus den Abzinsungsfaktoren
@@ -101,12 +111,16 @@ export interface KapitalCKunde {
   telefon: string;
   ausweise: KapitalCAusweis[];
 }
+/**
+ * Das Vorhaben des Kunden — NUR noch Datenfeld (Akte, interne Notiz). Justin 27.10.2026, 17:40: „Was er mit dem Geld macht, ist
+ * seine Sache!“ Seite, Vertrag, Annahme, Bestätigung und Mail nennen keinen Verwendungszweck; kein Kundentext liest diese Felder.
+ */
 export interface KapitalCProjekt {
   /** z. B. „Immobilienprojekt“ */
   art: string;
-  /** z. B. „in den Vereinigten Arabischen Emiraten“ (mit Präposition, so steht es im Satz) */
+  /** Ort mit Präposition, z. B. „in Spanien“ */
   wo: string;
-  /** kurz für Überschriften: „in den Emiraten“ */
+  /** Ort kurz */
   woKurz: string;
   bezahltProzent: number;
   /** JJJJ-MM-TT */
@@ -179,7 +193,8 @@ export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   laufzeitMaxJahre: 15,
   laufzeitVorschlagJahre: 10,
   aufstockungAbMonat: 18,
-  projekt: { art: "Immobilienprojekt", wo: "in den Vereinigten Arabischen Emiraten", woKurz: "in den Emiraten", bezahltProzent: 60, fertigstellung: "2026-12-31" },
+  // Nur Datenfeld, nirgends gezeigt (Justin 27.10.2026, 17:40) — die Vorgabe ist leer; die private Angebotsdatei darf es füllen.
+  projekt: { art: "", wo: "", woKurz: "", bezahltProzent: 0, fertigstellung: "" },
   garantieWochen: 8,
   erstattungTage: 14,
   zielWochen: 4,
@@ -456,14 +471,16 @@ export function kapitalCBetragSatz(par: KapitalCParameter): string {
   return `Ausgezahlt wird in US-Dollar zum Referenzkurs der Europäischen Zentralbank am Tag der Auszahlung; zum Kurs vom ${kapitalTag(par.kursDatum)} sind das rund ${kapitalCUsd(kapitalCInUsd(par.betragCents, par.kursUsdJeEur))}`;
 }
 /**
- * Das Projekt im Satz — `art` ist ein sächliches Wort („Immobilienprojekt“): „sein …“ (Präambel, Akkusativ) bzw.
- * „dem … des Auftraggebers“ (Ziffer 4, Dativ).
+ * Die Verwendung der Mittel — EINE Quelle für Seite (Konditionen, Fragen) und Vertrag (Ziffer 4 Absatz 4). Kein Zweck, kein Ort,
+ * kein Projekt (Justin 27.10.2026, 17:40): Wofür die Gesellschaft die Finanzierung einsetzt, entscheidet der Kunde — im Rahmen der
+ * Bedingungen der Bank. (Vorher: kapitalCProjektSatz mit Projekt, Ort, bezahltem Anteil und Fertigstellung — entfernt.)
  */
-export function kapitalCProjektSatz(par: KapitalCParameter, fall: "sein" | "dativ" = "dativ"): string {
-  const pr = par.projekt;
-  const kopf = fall === "sein" ? `sein ${pr.art}` : `dem ${pr.art} des Auftraggebers`;
-  return `${kopf} ${pr.wo} (zu ${pr.bezahltProzent} % bezahlt, Fertigstellung vorgesehen zum ${kapitalTag(pr.fertigstellung)})`;
-}
+export const KAPITAL_C_VERWENDUNG = {
+  seite: "Wofür Ihre Gesellschaft die Finanzierung einsetzt, entscheiden Sie.",
+  vertrag: "Die Mittel sind nicht an die USA gebunden: Wofür und wo die Gesellschaft sie einsetzt, auch in Europa, entscheidet sie selbst im Rahmen der Bedingungen des finanzierenden Instituts.",
+  /** Der Rat zur Vorsicht (Runde 1), ohne Projekt: nichts zusagen, was von der Finanzierung abhängt, bevor sie da ist. */
+  rat: "Unser Rat: Sagen Sie Zahlungen, die von der Finanzierung abhängen, erst nach der Auszahlung zu.",
+} as const;
 export const KAPITAL_C_SOFORT_TEXT = "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt (Fast-Track). Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.";
 export const KAPITAL_C_GELESEN_TEXT = "Ich habe den Vertrag, die Informationen vor Vertragsschluss und die Widerrufsbelehrung mit dem Muster-Widerrufsformular gelesen.";
 // Runde 2 (27.10.): „für die Finanzierung gilt …“ statt „für sie gilt …“ — „sie“ ließ sich auf Konto und Karten lesen (Ziffer 3 Abs. 2).
@@ -508,7 +525,8 @@ function kapitalCZ5(par: Pick<KapitalCParameter, "ddAbgeschlossen">): { bedingun
 export function kapitalCPraeambel(d: KapitalCDaten): string[] {
   const par = d.parameter;
   return [
-    `Der Auftraggeber möchte ${kapitalCProjektSatz(par, "sein")} finanzieren und dafür eine eigene US-Gesellschaft nutzen.`,
+    // Ohne Verwendungszweck (Justin 27.10.2026, 17:40).
+    "Der Auftraggeber möchte eine eigene US-Gesellschaft gründen, die eine Finanzierung aufnimmt.",
     `FIAON gründet diese Gesellschaft, bereitet Konto und Karten vor und begleitet sie bis zur Finanzierung über ${kapitalCEur(par.betragCents)} durch eine US-Bank. Die US-Partnergesellschaft von FIAON übernimmt dafür eine Bürgschaft, und FIAON gibt dem Auftraggeber eine ${KAPITAL_C_GARANTIE_NAME}: Kommt die Auszahlung nicht rechtzeitig, erhält er alles Gezahlte zurück.`,
   ];
 }
@@ -547,10 +565,10 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
       p(`Die Anträge stellen der Auftraggeber bzw. die Gesellschaft selbst; FIAON bereitet sie vollständig vor. Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut. ${KAPITAL_C_KARTEN_SOLLZINS} Für Konto und Karten gilt die ${KAPITAL_C_GARANTIE_NAME} nach Ziffer 4 nicht.`),
     ] },
     { nr: 4, titel: `Begleitung zur Finanzierung und ${KAPITAL_C_GARANTIE_NAME}`, absaetze: [
-      p(`FIAON begleitet die Gesellschaft bis zur Finanzierung über ${kapitalCEur(par.betragCents)} durch eine US-Bank (nachfolgend „finanzierendes Institut“). ${kapitalCBetragSatz(par)}. Die Mittel dienen ${kapitalCProjektSatz(par, "dativ")}. FIAON bereitet jeden Antrag vollständig vor und begleitet bis zur Auszahlung; über die Finanzierung entscheidet das finanzierende Institut nach seiner Prüfung. Den Darlehensvertrag schließt die Gesellschaft im eigenen Namen, und ob sie ein Angebot annimmt, entscheidet sie allein.`),
+      p(`FIAON begleitet die Gesellschaft bis zur Finanzierung über ${kapitalCEur(par.betragCents)} durch eine US-Bank (nachfolgend „finanzierendes Institut“). ${kapitalCBetragSatz(par)}. FIAON bereitet jeden Antrag vollständig vor und begleitet bis zur Auszahlung; über die Finanzierung entscheidet das finanzierende Institut nach seiner Prüfung. Den Darlehensvertrag schließt die Gesellschaft im eigenen Namen, und ob sie ein Angebot annimmt, entscheidet sie allein.`),
       p(`Ziel der Begleitung ist eine Finanzierung zu folgenden Bedingungen: ${kapitalCKonditionenSatz(par)}`),
       p("Die Raten zahlt die Gesellschaft pünktlich zu jedem Fälligkeitstag an das finanzierende Institut. Zeichnet sich ab, dass sie eine Rate nicht pünktlich zahlen kann, teilt der Auftraggeber dies FIAON unverzüglich in Textform mit. Darlehen und Raten lauten auf US-Dollar; Euro-Beträge sind Umrechnungen, ihr Gegenwert in Euro kann sich mit dem Wechselkurs ändern — steigt der Kurs des US-Dollars um zehn Prozent, steigt jede Rate in Euro ebenfalls um zehn Prozent. Maßgeblich ist der Darlehensvertrag des finanzierenden Instituts; das Rechenbeispiel der Angebotsseite folgt den Bedingungen nach Absatz 2."),
-      p(`Die Mittel sind nicht an die USA gebunden: Die Gesellschaft kann sie im Rahmen der Bedingungen des finanzierenden Instituts ${par.projekt.wo} oder in Europa einsetzen. Wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt der Partner-Steuerberater von FIAON vorab mit dem Auftraggeber. Eine US-Gesellschaft ist kein Steuermodell.`),
+      p(`${KAPITAL_C_VERWENDUNG.vertrag} Wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt der Partner-Steuerberater von FIAON vorab mit dem Auftraggeber. Eine US-Gesellschaft ist kein Steuermodell.`),
       p(G.vertrag),
       p(`Die Frist ruht, solange die Vergütung nach Ziffer 6 Absatz 1 nicht gezahlt ist. Sie ruht außerdem nur für die Tage, um die der Auftraggeber die Frist nach Ziffer 7 Absatz 2 überschreitet, und solange ein der Gesellschaft vorgelegtes Finanzierungsangebot über den Betrag zu den Bedingungen nach Absatz 2 ohne weitere Sicherheiten oder Kosten des Auftraggebers zur Annahme offensteht; lehnt die Gesellschaft ein solches Angebot ab oder lässt sie es verfallen, entfällt die ${KAPITAL_C_GARANTIE_NAME}. Die Unterlagen nach Ziffer 7 Absatz 1 liegen FIAON bei Vertragsschluss vor; ihretwegen ruht die Frist nicht. Die ${KAPITAL_C_GARANTIE_NAME} entfällt auch, wenn der Auftraggeber vorsätzlich falsche Angaben macht.`),
       p(`Ziel der Parteien ist die Auszahlung binnen ${zahlwort(par.zielWochen)} Wochen ab Auftragserteilung; diesem Ziel dient der Fast-Track (Ziffer 2 Absatz 3). Verbindlich ist allein die Frist der ${KAPITAL_C_GARANTIE_NAME} nach Absatz 5.`),
@@ -561,7 +579,7 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
       liste([
         "die Vergütung nach Ziffer 6 Absatz 1 ist bezahlt",
         "die Identifizierung des Auftraggebers ist abgeschlossen, und die Unterlagen nach Ziffer 7 liegen vor",
-        "die Finanzierung dient dem Zweck nach Ziffer 4 Absatz 1",
+        // Keine Zweckbindung mehr (Justin 27.10.2026, 17:40) — der Vertrag nennt keinen Verwendungszweck.
         "die Bürgin ist zum Zeitpunkt der Übernahme im Register ihres Bundesstaats als aktiv geführt",
       ], "Die Bürgin übernimmt die Bürgschaft, sobald Folgendes vorliegt:"),
       p(`Eine Bareinlage oder dingliche Sicherheit verlangen FIAON und die Bürgin nicht; für den Rückgriff nach Absatz ${Z5.rueckgriff} haftet der Auftraggeber persönlich. Die Vergütung für die Bürgschaft ist im Erfolgshonorar nach Ziffer 6 Absatz 2 enthalten. Die Form der Bürgschaft stimmt die Bürgin mit dem finanzierenden Institut ab.`),
@@ -700,7 +718,8 @@ export function kapitalCVertragInhalt(d: KapitalCDaten): { anker: string; marke:
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE SEITE
 // Reihenfolge (Nachprüfung 27.10.): Ihre Finanzierung mit Monatsrate · Laufzeit-Rechner mit den Konditionen (die EINE Navy-Stelle) ·
-// Name · Paket · Weg · Investition (ruhig, vollständig) · Unterlagen · Fragen · Ansprechpartner · Vertrag · Auftrag erteilen.
+// Name · Paket · Weg · Investition (leise: eine Zeile mit allen Beträgen, Einzelheiten zum Aufklappen — Justin 27.10., 17:40) ·
+// Unterlagen · Fragen · Ansprechpartner · Vertrag · Auftrag erteilen.
 // Die Geld-zurück-Garantie steht sichtbar nur in der Karte oben und in der Übersicht über dem Knopf (dazu Fragen, Informationen, Vertrag).
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KapitalCPaketKachel { schluessel: string; titel: string; zeile: string; details: string[] }
@@ -723,7 +742,11 @@ export interface KapitalCSeite {
   llc: Record<keyof typeof BEGLEIT_LLC_TEXTE, string> & { aendern: string; ausweichAuf: string; ausweichZu: string };
   paket: { auge: string; titel: string; sub: string; gruppen: { titel: string; kacheln: KapitalCPaketKachel[] }[]; fein: string; mehr: string; weniger: string };
   weg: { auge: string; titel: string; sub: string; liste: FirmaPhase[] };
-  investition: { titel: string; sub: string; zeilen: { wann: string; betrag: string; text: string }[]; summe: string; fein: string };
+  /**
+   * Justin 27.10.2026, 17:40: „kleiner (weiß auf weiß)“ — keine Bühne. `zeile` steht SICHTBAR und nennt alle Beträge (mit dem Auftrag,
+   * mit der Eintragung, Gesamtpreis des ersten Jahres, ab Jahr 2, Endpreise); `zeilen`/`summe`/`fein` klappen unter `knopf` auf.
+   */
+  investition: { titel: string; zeile: string; knopf: string; knopfZu: string; zeilen: { wann: string; betrag: string; text: string }[]; summe: string; fein: string };
   unterlagen: { auge: string; titel: string; sub: string; liste: { titel: string; stand: string }[]; fein: string };
   fragen: { titel: string; sub: string; liste: { frage: string; antwort: string[] }[]; sichtbar: number };
   ansprechpartner: { titel: string; sub: string };
@@ -739,7 +762,6 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
   // Die ganze Gleichung bricht nie um („1 € =“ | „1,1188 US-$“, Nachprüfung Runde 2).
   const kursZeile = `EZB-Referenzkurs vom ${kapitalTag(par.kursDatum)}: 1${NB}€${NB}=${NB}${kapitalCKurs(par.kursUsdJeEur)}${NB}US-$`;
   const s1 = par.zinsfreiMonate + 1;
-  const projektKurz = `${par.projekt.art} ${par.projekt.woKurz}`;
   const buerginStand = kapitalCBuerginStand(par, "seite", d.buergin.bundesstaat);
   const Z5 = kapitalCZ5(par);
   const buerginOrt = kapitalCBuerginOrt(d.buergin);
@@ -747,14 +769,15 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
     auftakt: {
       auge: "FIAON Global · Persönlich für Sie",
       gruss: `Willkommen, ${kapitalCGruss(k)}.`,
-      zeile: `Ihre Finanzierung über ${betrag} — für Ihr ${projektKurz}.`,
+      zeile: `Ihre eigene US-Gesellschaft und Ihre Finanzierung über ${betrag}.`,
       weiter: "Weiter",
     },
     hero: {
       auge: `Persönlich für ${kapitalCGrussAkk(k)}`,
-      titel: `Die Finanzierung für Ihr Projekt ${par.projekt.woKurz}.`,
-      // Runde 2: zwei Sätze (am Handy kürzer), „Restzahlung“ statt „letzter Schritt“, „Sie“ statt „sie“, Bürgschaft ohne Präsens-Zusage.
-      lead: `Ihr ${par.projekt.art} ist zu ${par.projekt.bezahltProzent}${NB}% bezahlt und soll zum ${kapitalCTagLang(par.projekt.fertigstellung)} fertig sein. Für die Restzahlung gründen wir Ihre eigene US-Gesellschaft und begleiten Sie bis zur Auszahlung — mit der Bürgschaft unserer US-Partnergesellschaft gegenüber der Bank und Ihrer ${KAPITAL_C_GARANTIE_NAME}.`,
+      // Justin 27.10.2026, 17:40: kein Projekt, kein Ort, kein bezahlter Anteil, kein Termin — „was er mit dem Geld macht, ist seine
+      // Sache“. Zwei Sätze (am Handy kurz), „Sie“ = der Kunde, Bürgschaft als Übernahme (keine Präsens-Zusage, Runde 2).
+      titel: "Die Finanzierung für Ihre Gesellschaft.",
+      lead: `Wir gründen Ihre eigene US-Gesellschaft und begleiten Sie bis zur Auszahlung Ihrer Finanzierung über ${betrag}. Unsere US-Partnergesellschaft übernimmt die Bürgschaft gegenüber der Bank — und Sie erhalten eine ${KAPITAL_C_GARANTIE_NAME}.`,
       betrag, umrechnung: kapitalCUngefaehr(usd), kurs: `${kursZeile}. Ausgezahlt wird in US-Dollar zum Kurs des Auszahlungstags.`,
       siegel: "Ihre Finanzierung",
       eckdaten: [
@@ -776,8 +799,8 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
         { wann: `Ab Monat ${s1}`, titel: `${kapitalCProzent(par.zinsStartBp)} im Jahr`, text: `Danach steigt der Zins mit jedem Jahr um ${kapitalProzent(par.zinsSchrittBp)} Prozentpunkte.` },
         { wann: `Ab Monat ${par.aufstockungAbMonat}`, titel: "Aufstocken oder umschulden", text: "Auf Wunsch beantragt Ihre Gesellschaft eine Aufstockung oder wechselt zu einer anderen Bank — die Entscheidung liegt bei der Bank. Mit der Jahresbetreuung begleiten wir Sie dabei." },
       ],
-      // Erst das Projekt („Und die Emirate?“), dann der Pflichtsatz wörtlich aus der einen Quelle (E-199).
-      fein: [`Ihre Gesellschaft setzt die Finanzierung für Ihr ${projektKurz} ein. ${GLOBAL_KAPITAL_FREI.de.satz}`, GLOBAL_KAPITAL_FREI.de.steuer],
+      // Erst „Sie entscheiden“ (kein Zweck, Justin 27.10.), dann der Pflichtsatz wörtlich aus der einen Quelle (E-199).
+      fein: [`${KAPITAL_C_VERWENDUNG.seite} ${GLOBAL_KAPITAL_FREI.de.satz}`, GLOBAL_KAPITAL_FREI.de.steuer],
     },
     rechner: {
       auge: "Laufzeit und Rate",
@@ -836,13 +859,15 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
       liste: [
         { nr: 1, titel: "Ihre Gesellschaft entsteht", dauer: "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, EIN mit Vorrang, US-Adresse, Telefonnummer und Assistenz. Sie unterschreiben, was wir vorbereiten.` },
         { nr: 2, titel: "Alles für die Bank", dauer: "Wochen zwei und drei", text: "Geschäftskonto, Unterlagen und Bürgschaft — wir bereiten jeden Antrag vollständig vor und stimmen alles mit der finanzierenden Bank ab." },
-        { nr: 3, titel: "Auszahlung", dauer: "Woche vier — unser Ziel", text: `Ihre Finanzierung über ${betrag} auf dem Konto Ihrer Gesellschaft, in US-Dollar zum Kurs des Auszahlungstags. Zahlungen an Ihren Bauträger sagen Sie am besten erst danach zu.` },
+        { nr: 3, titel: "Auszahlung", dauer: "Woche vier — unser Ziel", text: `Ihre Finanzierung über ${betrag} auf dem Konto Ihrer Gesellschaft, in US-Dollar zum Kurs des Auszahlungstags. Zahlungen, die von der Finanzierung abhängen, sagen Sie am besten erst danach zu.` },
         { nr: 4, titel: "Konto und Karten", dauer: "Danach", text: "Ihr privates US-Konto, Ihre Kreditkarten und die Firmenkarte — Schritt für Schritt, fertig vorbereitet." },
       ],
     },
     investition: {
       titel: "Ihre Investition",
-      sub: "Alle Beträge sind Endpreise. Überweisung auf Rechnung — keine Lastschrift, kein Abo.",
+      // Leise, aber vollständig (§ 3 PAngV): alle Beträge in EINER sichtbaren Zeile — die Einzelheiten klappen auf.
+      zeile: `Mit Ihrem Auftrag ${kapitalCEur(kapitalCHeuteCents(par))}, mit der Eintragung Ihrer Gesellschaft ${kapitalCEur(par.erfolgCents)} einschließlich Bürgschaft — im ersten Jahr insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}; ab dem zweiten Jahr ${kapitalCEur(par.jahresCents)} je Jahr. Alle Beträge sind Endpreise.`,
+      knopf: "Einzelheiten", knopfZu: "Einzelheiten schließen",
       zeilen: [
         // „Mit Ihrem Auftrag“ statt „heute“ (fällig mit der Rechnung bei der Annahme, zahlbar binnen sieben Tagen — Runde 2).
         { wann: "Mit Ihrem Auftrag", betrag: kapitalCEur(kapitalCHeuteCents(par)), text: `Gründung, Konto und Karten${NB}${kapitalCEur(par.gruendungCents)} · Fast-Track${NB}${kapitalCEur(par.fastTrackCents)}` },
@@ -850,7 +875,7 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
         { wann: "Ab dem zweiten Jahr", betrag: `${kapitalCEur(par.jahresCents)} je Jahr`, text: "Jahresbetreuung: Adresse, Telefonnummer, Assistenz und alle US-Meldungen, solange Ihre Gesellschaft besteht — Sie zahlen jedes Jahr neu, nichts verlängert sich von selbst." },
       ],
       summe: `Im ersten Jahr insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}.`,
-      fein: "Die Honorare unserer Partner sind enthalten. Zinsen und Kosten der Finanzierung richten sich nach Ziffer 4 und dem Darlehensvertrag der Bank.",
+      fein: "Überweisung auf Rechnung — keine Lastschrift, kein Abo. Die Honorare unserer Partner sind enthalten. Zinsen und Kosten der Finanzierung richten sich nach Ziffer 4 und dem Darlehensvertrag der Bank.",
     },
     unterlagen: {
       auge: "Ihre Unterlagen",
@@ -866,7 +891,7 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
       // Runde 2 (Kundensicht): Bürgschaft offen (verbunden, 36 Monate, Rückgriff aus Ziffer 5 Abs. 5, Registerstand mit Folge), die Frage
       // nach anderen Bedingungen der Bank an Platz 2, Raten mit Dauerauftrag und Quartalsmeldung, vorzeitige Rückzahlung.
       liste: [
-        { frage: "Was, wenn die Auszahlung nicht kommt?", antwort: [G.frage, "Unser Rat: Sagen Sie Zahlungen an Ihren Bauträger erst zu, wenn die Finanzierung auf dem Konto Ihrer Gesellschaft ist."] },
+        { frage: "Was, wenn die Auszahlung nicht kommt?", antwort: [G.frage, KAPITAL_C_VERWENDUNG.rat] },
         { frage: "Und wenn die Bank andere Bedingungen anbietet?", antwort: [
           "Dann entscheiden Sie. Bevor Ihre Gesellschaft etwas unterschreibt, sehen Sie das Angebot der Bank schwarz auf weiß. Ein Angebot mit schlechteren Bedingungen, weiteren Sicherheiten oder Kosten für Sie muss Ihre Gesellschaft nicht annehmen — Ihre Geld-zurück-Garantie läuft dann weiter.",
           "Nur ein Angebot genau zu den Bedingungen aus Ziffer 4, ohne weitere Sicherheiten oder Kosten für Sie, lässt die Frist ruhen, solange es offensteht; lehnt Ihre Gesellschaft ein solches Angebot ab, entfällt die Geld-zurück-Garantie (Ziffer 4).",
@@ -883,7 +908,7 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
         { frage: "Kann ich die Laufzeit später ändern?", antwort: [`Über eine Umschuldung: Ab dem ${kapitalCOrdnung(par.aufstockungAbMonat)} Monat kann Ihre Gesellschaft zu einer anderen Bank wechseln oder eine Aufstockung beantragen — darüber entscheidet die Bank; mit der Jahresbetreuung begleiten wir Sie dabei. Was dann gilt, steht im neuen Vertrag der Bank.`] },
         { frage: "Kann meine Gesellschaft früher zurückzahlen?", antwort: ["Ob und wann vorzeitig zurückgezahlt werden kann, regelt der Darlehensvertrag der Bank. Diese Bedingungen zeigen wir Ihnen, bevor Ihre Gesellschaft das Angebot annimmt."] },
         { frage: "Warum Dollar?", antwort: [`Ihre Gesellschaft ist eine US-Gesellschaft: Darlehen und Raten lauten auf US-Dollar. Wir rechnen Ihnen alles in Euro um; steigt der Kurs des Dollars um 10${NB}%, steigt Ihre Rate in Euro um 10${NB}% — und umgekehrt.`] },
-        { frage: "Muss das Geld in den USA bleiben?", antwort: [`Nein. Ihre Gesellschaft setzt die Finanzierung für Ihr ${projektKurz} ein. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Eine US-Gesellschaft ist kein Steuermodell.`] },
+        { frage: "Muss das Geld in den USA bleiben?", antwort: [`Nein. ${KAPITAL_C_VERWENDUNG.seite} ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Eine US-Gesellschaft ist kein Steuermodell.`] },
         { frage: "Muss ich in die USA reisen?", antwort: ["Nein. Unsere Partner in den USA erledigen die Termine vor Ort; Sie steuern jeden Schritt von zu Hause. Für Ihre ITIN prüft unser zertifizierter Partner im DACH-Raum vorab die Voraussetzungen — persönlich oder im Videotermin."] },
         { frage: "Wem gehört die Gesellschaft?", antwort: ["Allein Ihnen. FIAON erwirbt keine Anteile. Eine US-Gesellschaft ist kein Steuermodell — wie sie steuerlich behandelt wird, klärt unser Partner-Steuerberater vorab mit Ihnen."] },
         { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Dieses Angebot gibt es mit Fast-Track: Mit Ihrer Annahme verlangen Sie, dass wir sofort beginnen; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig."] },
@@ -992,7 +1017,8 @@ export function kapitalCAnnahmeTexte(d: KapitalCDaten): KapitalCAnnahmeTexte {
     gelesenVorsatz: "Mit Ihrer Unterschrift bestätigen Sie:",
     gelesenLinks: { vertrag: "Vertrag", informationen: "Informationen vor Vertragsschluss", widerruf: "Widerrufsbelehrung" },
     sofort: KAPITAL_C_SOFORT_TEXT,
-    sofortUnter: `Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für die Fertigstellung Ihres Projekts zum ${kapitalCTagLang(par.projekt.fertigstellung)} zählt aber jede Woche. Ohne den Haken können Sie das Angebot deshalb nicht annehmen.`,
+    // Sein Grund ohne Projekt und Termin (Justin 27.10.2026, 17:40): unser Ziel, die Auszahlung in Woche vier.
+    sofortUnter: `Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für unser Ziel, die Auszahlung in Woche ${zahlwort(par.zielWochen)}, zählt aber jede Woche. Ohne den Haken können Sie das Angebot deshalb nicht annehmen.`,
     unterschrift: {
       titel: "Ihre Unterschrift",
       sub: "Zeichnen Sie mit Finger oder Maus — oder tippen Sie Ihren Namen.",

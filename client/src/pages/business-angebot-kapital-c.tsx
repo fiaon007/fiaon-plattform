@@ -6,7 +6,8 @@
 // Justin (27.10.2026): „nur noch Laufzeit, Name und Unterschrift … es muss sich perfekt anfühlen.“
 // Reihenfolge (Nachprüfung 27.10.): Willkommen · Ihre Finanzierung (Betrag groß, Eckdaten, Monatsrate, Geld-zurück-Garantie) ·
 // Laufzeit-Rechner mit den Konditionen (die EINE Navy-Stelle) · Name der Gesellschaft mit Live-Urkunde · Ihr Paket · Ihr Weg ·
-// Ihre Investition (ruhig, vollständig) · Ihre Unterlagen · Fragen · Ansprechpartner · Vertrag, Widerruf, Informationen · Auftrag.
+// Ihre Investition (leise: eine Zeile mit allen Beträgen, Einzelheiten zum Aufklappen — Justin 27.10., 17:40) · Ihre Unterlagen ·
+// Fragen · Ansprechpartner · Vertrag, Widerruf, Informationen · Auftrag. Kein Verwendungszweck auf der Seite (Justin 27.10.).
 // Inhalte aus KapitalCKundenSicht (shared/fiaon-global-angebot-kapital-c.ts); die Rate rechnet dieselbe reine Funktion wie
 // Vertrag und Server (kapitalCPlan). Hart im Client stehen nur Bedienbeschriftungen. CI Glasblau, kein Gold (.gak/.gkp/.gkc).
 // Runde 2 (27.10.2026): Laufzeit, Name, EIN Haken (Fast-Track) und die Unterschrift — der Satz „… gelesen“ steht über der
@@ -381,6 +382,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const [kachelAuf, setKachelAuf] = useState<string | null>(null);
   const [widerrufAuf, setWiderrufAuf] = useState(false);
   const [infoAuf, setInfoAuf] = useState(false);
+  const [investAuf, setInvestAuf] = useState(false);
   const leserOeffnen = useRef<((anker: string | null) => void) | null>(null);
   const fehlerKasten = useRef<HTMLDivElement>(null);
   useSeitenRahmen(WORTE.seitenTitel);
@@ -571,23 +573,27 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
           </div>
         </section>
 
-        {/* 6 — Ihre Investition: vollständig, Endpreise, ruhig */}
-        <section className="gaf-abschnitt" id="investition" aria-label={I.titel}>
-          <div className="gaf-rahmen">
-            <Kopf titel={I.titel} sub={I.sub} />
-            <Auf>
-              <ul className="gkc-invest-liste">
-                {I.zeilen.map((z) => (
-                  <li key={z.wann} className="gkc-invest-posten">
-                    <span className="gkc-invest-wann">{z.wann}</span>
-                    <b className="gkc-invest-betrag">{z.betrag}</b>
-                    <span className="gkc-invest-text"><Teile text={z.text} /></span>
-                  </li>
-                ))}
-              </ul>
-              <p className="gkc-invest-summe">{I.summe}</p>
-            </Auf>
-            <p className="gaf-fein gkc-invest-fein">{I.fein}</p>
+        {/* 6 — Ihre Investition: leise (Justin 27.10.2026, 17:40 — „kleiner, weiß auf weiß“). Keine Bühne, keine großen Ziffern,
+            keine Karte: EINE sichtbare Zeile mit allen Beträgen (Endpreise, Gesamtpreis), die Einzelheiten klappen auf. Lesbar bleibt
+            sie: mindestens 13 px, Kontrast mindestens 4,5:1 (Prüfstand). Die Übersicht über dem Knopf nennt alles noch einmal. */}
+        <section className="gaf-abschnitt gkc-invest" id="investition" aria-labelledby="gkc-invest-titel">
+          <div className="gaf-rahmen gaf-rahmen-schmal">
+            <div className="gkc-invest-leise">
+              <h2 className="gkc-invest-titel" id="gkc-invest-titel">{I.titel}</h2>
+              <p className="gkc-invest-zeile">{I.zeile}</p>
+              <Klapp auf={investAuf} setAuf={setInvestAuf} knopf={I.knopf} knopfZu={I.knopfZu} id="gkc-invest-einzeln">
+                <dl className="gkc-invest-einzeln">
+                  {I.zeilen.map((z) => (
+                    <div key={z.wann}>
+                      <dt>{z.wann}</dt>
+                      <dd><span className="gkc-nb gkc-invest-betrag">{z.betrag}</span> · <Teile text={z.text} /></dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className="gkc-invest-summe">{I.summe}</p>
+                <p className="gkc-invest-fein">{I.fein}</p>
+              </Klapp>
+            </div>
           </div>
         </section>
 

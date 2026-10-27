@@ -1,7 +1,7 @@
 /**
  * PRÜFSTAND FÜR EINEN NEUEN BUSINESS-RATGEBER (27.10.2026, E-439)
  *
- *   npx tsx scripts/pruef-artikel-e436.ts <datei.ts> [<datei.ts> …]
+ *   npx tsx scripts/pruef-artikel-e439.ts <datei.ts> [<datei.ts> …]
  *
  * Jede Datei exportiert `SEITE` (eine GlobalSeite, deutsch ODER englisch). Geprüft wird ohne DB und ohne Netz,
  * was die Schreib-Agenten vor der Abgabe selbst bestehen müssen — dieselben Grenzen wie pruef-global-seiten.ts
@@ -18,8 +18,8 @@ import { globalWortPruefen, globalWortPruefenEn } from "../shared/fiaon-global-w
 import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
 
 /** Pfade der neuen Beiträge dieser Runde — sie dürfen einander im Weiterlesen nennen, bevor sie im Register stehen. */
-const NEU_DE = (process.env.E436_NEU_DE ?? "").split(",").filter(Boolean);
-const NEU_EN = (process.env.E436_NEU_EN ?? "").split(",").filter(Boolean);
+const NEU_DE = (process.env.E439_NEU_DE ?? "").split(",").filter(Boolean);
+const NEU_EN = (process.env.E439_NEU_EN ?? "").split(",").filter(Boolean);
 
 function texteVon(b: GlobalBlock): string[] {
   const t: string[] = [];
@@ -113,7 +113,7 @@ async function pruefe(datei: string): Promise<string[]> {
 }
 
 const dateien = process.argv.slice(2);
-if (!dateien.length) { console.error("Aufruf: npx tsx scripts/pruef-artikel-e436.ts <datei.ts> …"); process.exit(2); }
+if (!dateien.length) { console.error("Aufruf: npx tsx scripts/pruef-artikel-e439.ts <datei.ts> …"); process.exit(2); }
 let summe = 0;
 for (const d of dateien) {
   const fehler = await pruefe(d);

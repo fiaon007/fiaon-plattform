@@ -57,6 +57,7 @@ import { WERKZEUG_ARTIKEL_1 } from "./fiaon-ratgeber-werkzeuge-1";
 import { WERKZEUG_ARTIKEL_2 } from "./fiaon-ratgeber-werkzeuge-2";
 import { WERKZEUG_ARTIKEL_3 } from "./fiaon-ratgeber-werkzeuge-3";
 import { WERKZEUG_ARTIKEL_4 } from "./fiaon-ratgeber-werkzeuge-4";
+import { HAND_ARTIKEL_E439 } from "./ratgeber-e439";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Lauf = any;
@@ -124,6 +125,16 @@ export async function ensureRatgeberTabelle(): Promise<void> {
       INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, pruefung, thema_slug, published_at, bereich)
       VALUES (${a.slug}, ${a.titel}, ${a.untertitel}, ${a.teaser}, ${a.inhalt}, ${a.kategorie}, ${a.land}, ${a.keyword}, ${JSON.stringify(a.schlagworte)}::text::jsonb, ${JSON.stringify(a.faq)}::text::jsonb,
               ${a.metaTitel}, ${a.metaBeschreibung}, ${lesezeitVon(a.inhalt)}, 'veroeffentlicht', 'hand', ${JSON.stringify(p)}::text::jsonb, ${a.slug}, NOW(), ${bereichVonKategorie(a.kategorie)})
+      ON CONFLICT (slug) DO NOTHING`;
+  }
+  // E-439 (27.10.2026): fünf Privat-Ratgeber — gestaffelt datiert (1–5 Stunden zurück), sonst stünden alle in derselben Sekunde.
+  for (let i = 0; i < HAND_ARTIKEL_E439.length; i++) {
+    const a = HAND_ARTIKEL_E439[i];
+    const p = pruefstand({ titel: a.titel, teaser: a.teaser, inhalt: a.inhalt, faq: a.faq, metaTitel: a.metaTitel, metaBeschreibung: a.metaBeschreibung, keyword: a.keyword });
+    await sqlPool`
+      INSERT INTO fiaon_ratgeber (slug, titel, untertitel, teaser, inhalt, kategorie, land, keyword, schlagworte, faq, meta_titel, meta_beschreibung, lesezeit, status, quelle, pruefung, thema_slug, published_at, bereich)
+      VALUES (${a.slug}, ${a.titel}, ${a.untertitel}, ${a.teaser}, ${a.inhalt}, ${a.kategorie}, ${a.land}, ${a.keyword}, ${JSON.stringify(a.schlagworte)}::text::jsonb, ${JSON.stringify(a.faq)}::text::jsonb,
+              ${a.metaTitel}, ${a.metaBeschreibung}, ${lesezeitVon(a.inhalt)}, 'veroeffentlicht', 'hand', ${JSON.stringify(p)}::text::jsonb, ${a.slug}, NOW() - (${i + 1} * INTERVAL '1 hour'), ${bereichVonKategorie(a.kategorie)})
       ON CONFLICT (slug) DO NOTHING`;
   }
   tabelleDa = true;

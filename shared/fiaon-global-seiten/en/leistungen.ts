@@ -416,7 +416,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       { f: "How long does it take to build up capital?", a: `In our experience: ${dauerKurz("global_struktur")} with ${STRUKTUR}, ${dauerKurz("global_banking")} with ${BANKING}, ${dauerKurz("global_kapital")} with ${KAPITAL}. How quickly it goes is determined by the institutions and by whether you pay on time.` },
     ],
     paket: "global_kapital",
-    weiter: ["/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/building-us-credit", "/en/business/us-business-bank-account"],
+    weiter: ["/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/building-us-credit", "/en/business/knowledge/us-funding-for-foreign-owned-companies"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

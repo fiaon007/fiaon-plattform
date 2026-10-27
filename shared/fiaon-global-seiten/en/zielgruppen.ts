@@ -104,7 +104,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       { f: "How long does it take to set up a US subsidiary?", a: "The company is usually in place after a few weeks, once the documents are complete. The IRS issues the EIN on its own timeline." },
     ],
     paket: "global_banking",
-    weiter: ["/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/llc-oder-corporation", "/business/aus-deutschland", "/business/us-pflichten"].map(globalEnPfad),
+    weiter: ["/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/markteintritt-usa", "/business/aus-deutschland", "/business/us-pflichten"].map(globalEnPfad),
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       { f: "Does a US LLC lower my taxes?", a: "Generally not. If the company is managed from Germany, Austria or Switzerland, it is taxable there." },
     ],
     paket: "global_banking",
-    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-bankkonto-unterlagen", "/business/us-pflichten", "/business/wyoming"].map(globalEnPfad),
+    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-bankkonto-unterlagen", "/business/us-pflichten", "/business/wissen/amazon-stripe-paypal-llc"].map(globalEnPfad),
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -380,7 +380,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       { f: "How does the German tax office classify an LLC?", a: "By means of a Typenvergleich: depending on the operating agreement, like a corporation or like a partnership. That is why the classification is reviewed before the operating agreement is drafted." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/llc-gruenden", "/business/privatpersonen"].map(globalEnPfad),
+    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/llc-gruenden", "/business/wissen/us-llc-wohnsitz-deutschland"].map(globalEnPfad),
     quellen: [
       QUELLEN_RECHT_EN.ao10,
       QUELLEN_RECHT_EN.ao138,
@@ -453,7 +453,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       { f: "Who is my contracting party?", a: "FIAON LTD in London. Schwarzott Capital Partners AG in Zurich and Schwarzott Global LLC in Miami are partners of FIAON Global." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-deutschland", "/business/us-firmengruendung"].map(globalEnPfad),
+    weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-oesterreich", "/business/us-firmengruendung"].map(globalEnPfad),
     quellen: [QUELLEN_RECHT_EN.dbg50],
   },
 ];

@@ -45,9 +45,9 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "hub",
     seo: {
       titel: "US LLC guide: formation, EIN, bank account — FIAON Global",
-      beschreibung: "19 articles on US companies: LLC, EIN and ITIN, address, bank account, credit score, business credit cards, financing, tax — honest, with sources.",
+      beschreibung: "28 articles on US companies: LLC, EIN and ITIN, address, bank account, credit score, business credit cards, US funding, tax — honest, with sources.",
     },
-    stand: S,
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 22",
     auge: "Knowledge",
@@ -55,7 +55,7 @@ export const WISSEN_EN: GlobalSeite[] = [
     h1b: "Explained honestly, with sources.",
     lead: "What business owners from Germany, Austria and Switzerland should know about a US company: formation, EIN and ITIN, US presence, bank account, cards, tax returns and structure. Every article cites its sources, states its as-of date and also says what a US company cannot do.",
     ziffern: [
-      { wert: "19 articles", label: "Formation, tax numbers, account, cards, financing, tax" },
+      { wert: "28 articles", label: "Formation, tax numbers, account, cards, financing, tax" },
       { wert: "3 states", label: "Florida, Delaware, Wyoming" },
       { wert: FAKTEN_STAND_EN, label: "all figures as of this date" },
     ],
@@ -79,6 +79,8 @@ export const WISSEN_EN: GlobalSeite[] = [
           { pfad: "/en/business/knowledge/llc-vs-gmbh", tag: "Legal form" },
           { pfad: "/en/business/knowledge/subsidiary-or-branch", tag: "Structure" },
           { pfad: "/en/business/knowledge/checking-providers", tag: "Providers" },
+          { pfad: "/en/business/knowledge/us-market-entry", tag: "Market entry" },
+          { pfad: "/en/business/knowledge/us-llc-disadvantages", tag: "Trade-offs" },
         ],
       },
       {
@@ -102,11 +104,28 @@ export const WISSEN_EN: GlobalSeite[] = [
         ],
       },
       {
+        typ: "verzeichnis", id: "funding", h2: "US funding and capital",
+        eintraege: [
+          { pfad: "/en/business/knowledge/us-funding-for-foreign-owned-companies", tag: "Guide" },
+          { pfad: "/en/business/knowledge/credit-card-stacking", tag: "Warning signs" },
+          { pfad: "/en/business/knowledge/sba-loans-non-us-citizens", tag: "SBA" },
+        ],
+      },
+      {
         typ: "verzeichnis", id: "steuern", h2: "Tax and obligations",
         eintraege: [
           { pfad: "/en/business/knowledge/us-llc-tax", tag: "Tax" },
           { pfad: "/en/business/knowledge/llc-tax-returns", tag: "Tax return" },
           { pfad: "/en/business/knowledge/form-5472", tag: "Reporting duty" },
+          { pfad: "/en/business/knowledge/us-llc-german-resident", tag: "Germany" },
+        ],
+      },
+      {
+        typ: "verzeichnis", id: "praxis", h2: "Selling, visas, existing companies",
+        eintraege: [
+          { pfad: "/en/business/knowledge/amazon-stripe-paypal-us-llc", tag: "Platforms" },
+          { pfad: "/en/business/knowledge/e2-visa-own-us-company", tag: "Visa" },
+          { pfad: "/en/business/knowledge/reinstate-or-dissolve-us-llc", tag: "Existing LLC" },
         ],
       },
       {
@@ -122,6 +141,7 @@ export const WISSEN_EN: GlobalSeite[] = [
         eintraege: [
           { pfad: "/en/business/from-germany", tag: "Germany" },
           { pfad: "/en/business/from-switzerland", tag: "Switzerland" },
+          { pfad: "/en/business/from-austria", tag: "Austria" },
           { pfad: "/en/business/partners", tag: "Locations" },
         ],
       },

@@ -67,6 +67,18 @@ export const GLOBAL_EN_PFADE: Record<string, string> = {
   "/business/wissen/us-adresse-und-telefon": "/en/business/knowledge/us-address-and-phone",
   "/business/wissen/us-immobilie-finanzieren": "/en/business/knowledge/financing-us-property",
   "/business/wissen/finanzierungswege-usa": "/en/business/knowledge/us-financing-routes",
+  // 27.10.2026 (E-439): zehn Ratgeber, Österreich, Konzeptseite.
+  "/business/wissen/us-funding": "/en/business/knowledge/us-funding-for-foreign-owned-companies",
+  "/business/wissen/sba-kredit-auslaender": "/en/business/knowledge/sba-loans-non-us-citizens",
+  "/business/wissen/kreditkarten-stacking": "/en/business/knowledge/credit-card-stacking",
+  "/business/wissen/us-llc-wohnsitz-deutschland": "/en/business/knowledge/us-llc-german-resident",
+  "/business/wissen/markteintritt-usa": "/en/business/knowledge/us-market-entry",
+  "/business/wissen/amazon-stripe-paypal-llc": "/en/business/knowledge/amazon-stripe-paypal-us-llc",
+  "/business/wissen/llc-retten-oder-aufloesen": "/en/business/knowledge/reinstate-or-dissolve-us-llc",
+  "/business/wissen/e2-visum": "/en/business/knowledge/e2-visa-own-us-company",
+  "/business/wissen/nachteile-us-llc": "/en/business/knowledge/us-llc-disadvantages",
+  "/business/aus-oesterreich": "/en/business/from-austria",
+  "/business/was-ist-fiaon-global": "/en/business/what-is-fiaon-global",
   // Standorte
   "/business/partner": "/en/business/partners",
   // Impressum, Datenschutz und Cookie-Einstellungen gibt es nur deutsch — englische Seiten verlinken sie

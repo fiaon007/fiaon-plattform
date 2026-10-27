@@ -386,7 +386,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { f: "Wie lange dauert der Aufbau?", a: `Als Erfahrungswert: ${dauer("global_struktur")} bei Global Struktur, ${dauer("global_banking").replace("Begleitung in der Regel ", "")} bei Global Banking, ${dauer("global_kapital").replace("Begleitung in der Regel ", "")} bei Global Kapital. Wie schnell es geht, bestimmen die Institute und Ihre pünktliche Abrechnung.` },
     ],
     paket: "global_kapital",
-    weiter: ["/business/wissen/us-firmenkarte-beantragen", "/business/wissen/business-credit-usa", "/business/wissen/us-bonitaet-aufbauen", "/business/us-geschaeftskonto"],
+    weiter: ["/business/wissen/us-firmenkarte-beantragen", "/business/wissen/business-credit-usa", "/business/wissen/us-bonitaet-aufbauen", "/business/wissen/us-funding"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -43,7 +43,7 @@ export const WISSEN: GlobalSeite[] = [
     art: "hub",
     seo: {
       titel: "Ratgeber US-Gesellschaft: LLC, EIN, Konto — FIAON Global",
-      beschreibung: "19 Beiträge zur US-Gesellschaft: LLC, EIN und ITIN, Anschrift, Konto, Credit Score, Firmenkarten, Finanzierung, Steuern — ehrlich erklärt, mit Quellen.",
+      beschreibung: "28 Beiträge zur US-Gesellschaft: LLC, EIN und ITIN, Anschrift, Konto, Credit Score, Firmenkarten, US-Funding, Steuern — ehrlich erklärt, mit Quellen.",
     },
     // 23.09.2026 (E-232): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
     stand: "2026-09-23",
@@ -53,7 +53,7 @@ export const WISSEN: GlobalSeite[] = [
     h1b: "Ehrlich erklärt, mit Quellen.",
     lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz über eine US-Gesellschaft wissen sollten: Gründung, EIN und ITIN, US-Präsenz, Konto, Karten, Steuererklärung und Struktur. Jeder Beitrag nennt seine Quellen und seinen Stand und sagt auch, was eine US-Gesellschaft nicht kann.",
     ziffern: [
-      { wert: "19 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Finanzierung, Steuern" },
+      { wert: "28 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Finanzierung, Steuern" },
       { wert: "3 Staaten", label: "Florida, Delaware, Wyoming" },
       { wert: FAKTEN_STAND, label: "Stand aller Zahlen" },
     ],
@@ -77,6 +77,8 @@ export const WISSEN: GlobalSeite[] = [
           { pfad: "/business/wissen/llc-oder-gmbh", tag: "Rechtsform" },
           { pfad: "/business/wissen/tochter-oder-zweigniederlassung", tag: "Struktur" },
           { pfad: "/business/wissen/anbieter-pruefen", tag: "Anbieter" },
+          { pfad: "/business/wissen/markteintritt-usa", tag: "Markteintritt" },
+          { pfad: "/business/wissen/nachteile-us-llc", tag: "Abwägung" },
         ],
       },
       {
@@ -100,11 +102,28 @@ export const WISSEN: GlobalSeite[] = [
         ],
       },
       {
+        typ: "verzeichnis", id: "funding", h2: "US-Funding und Kapital",
+        eintraege: [
+          { pfad: "/business/wissen/us-funding", tag: "Pfeiler" },
+          { pfad: "/business/wissen/kreditkarten-stacking", tag: "Warnzeichen" },
+          { pfad: "/business/wissen/sba-kredit-auslaender", tag: "SBA" },
+        ],
+      },
+      {
         typ: "verzeichnis", id: "steuern", h2: "Steuern und Pflichten",
         eintraege: [
           { pfad: "/business/wissen/us-llc-steuern", tag: "Steuern" },
           { pfad: "/business/wissen/llc-steuererklaerung", tag: "Steuererklärung" },
           { pfad: "/business/wissen/form-5472", tag: "Meldepflicht" },
+          { pfad: "/business/wissen/us-llc-wohnsitz-deutschland", tag: "Deutschland" },
+        ],
+      },
+      {
+        typ: "verzeichnis", id: "praxis", h2: "Verkaufen, Visum, Bestand",
+        eintraege: [
+          { pfad: "/business/wissen/amazon-stripe-paypal-llc", tag: "Plattformen" },
+          { pfad: "/business/wissen/e2-visum", tag: "Visum" },
+          { pfad: "/business/wissen/llc-retten-oder-aufloesen", tag: "Bestand" },
         ],
       },
       {
@@ -120,6 +139,7 @@ export const WISSEN: GlobalSeite[] = [
         eintraege: [
           { pfad: "/business/aus-deutschland", tag: "Deutschland" },
           { pfad: "/business/aus-der-schweiz", tag: "Schweiz" },
+          { pfad: "/business/aus-oesterreich", tag: "Österreich" },
           { pfad: "/business/partner", tag: "Standorte" },
         ],
       },

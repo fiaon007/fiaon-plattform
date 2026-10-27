@@ -339,7 +339,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       { f: "Does FIAON arrange the loan for my US company?", a: "No. FIAON is not a bank and neither grants nor brokers loans. We prepare the company, documents and sequence; the institution decides." },
     ],
     paket: "global_kapital",
-    weiter: ["/en/business/knowledge/us-business-credit", "/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/financing-us-property", "/en/business/us-business-credit-cards"],
+    weiter: ["/en/business/knowledge/us-business-credit", "/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-funding-for-foreign-owned-companies", "/en/business/us-business-credit-cards"],
     quellen: [Q.duns, Q.paydex, QF.sbaKredite, QF.sbaRegel2026, Q.ftcSeek],
   },
 ];

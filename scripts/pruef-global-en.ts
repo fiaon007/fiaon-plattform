@@ -50,9 +50,10 @@ const { WISSEN } = await import("../shared/fiaon-global-seiten/wissen");
 const { WISSEN_GRUENDUNG } = await import("../shared/fiaon-global-seiten/wissen-gruendung");
 const { WISSEN_KONTO_KARTEN } = await import("../shared/fiaon-global-seiten/wissen-konto-karten");
 const { WISSEN_FINANZIERUNG } = await import("../shared/fiaon-global-seiten/wissen-finanzierung");
+const { WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE } = await import("../shared/fiaon-global-seiten/wissen-e439");
 const { PARTNER_SEITE } = await import("../shared/fiaon-global-seiten/partner");
 const { PRIVAT_SEITE } = await import("../shared/fiaon-global-seiten/privat");
-const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, PARTNER_SEITE];
+const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, ...WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE, PARTNER_SEITE];
 const DE = new Map(DEUTSCH.map((s) => [s.pfad, s]));
 
 // Die englischen Seiten: aus den genannten Dateien oder aus allen in en/.
@@ -79,7 +80,8 @@ const OHNE_TEXT = /\.(pfad|art|stand|erschienen|key|kennung|url|paket|typ|id|auf
 const LINK_ERLAUBT = /^\/(en\/business(\/|#|\?|$)|impressum|datenschutz|cookie-einstellungen)/;
 // Deutsche Reste. Erlaubt sind deutsche Fachbegriffe, die der Text bewusst in Klammern/kursiv nennt,
 // und Namen (GmbH, Schwarzott, Zefix …) — alles andere mit Umlaut oder deutschem Funktionswort fällt auf.
-const DEUTSCH_ERLAUBT = /\b(Typenvergleich|Hinzurechnungsbesteuerung|Körperschaftsteuer\w*|Gewerbesteuer|Abgabenordnung|Außensteuergesetz|Einkommensteuer\w*|Gesellschaftsvertrag|Handelsregister|Bundesfinanzministerium|Schifflände|Zürich|Aktiengesellschaft|GmbH|UG \(haftungsbeschränkt\)|Österreich|Bürgerliches Gesetzbuch|Finanzamt|Stammkapital|Steuerberater|Betriebsstätte|Ort der Geschäftsleitung|tatsächliche Verwaltung|Kapitalgesellschaft|Personengesellschaft)\b/g;
+// E-439: der Pflichtvermerk für Rechnungen (§ 14a Abs. 5 UStG) und die Feststellungserklärung stehen bewusst deutsch da.
+const DEUTSCH_ERLAUBT = /\b(Steuerschuldnerschaft des Leistungsempfängers|Feststellungserklärung|Typenvergleich|Hinzurechnungsbesteuerung|Körperschaftsteuer\w*|Gewerbesteuer|Abgabenordnung|Außensteuergesetz|Einkommensteuer\w*|Gesellschaftsvertrag|Handelsregister|Bundesfinanzministerium|Schifflände|Zürich|Aktiengesellschaft|GmbH|UG \(haftungsbeschränkt\)|Österreich|Bürgerliches Gesetzbuch|Finanzamt|Stammkapital|Steuerberater|Betriebsstätte|Ort der Geschäftsleitung|tatsächliche Verwaltung|Kapitalgesellschaft|Personengesellschaft)\b/g;
 const DEUTSCHE_WOERTER = /\b(und|oder|nicht|der|die|das|den|dem|des|ein|eine|einer|eines|Ihr|Ihre|Ihren|Ihrem|Ihrer|Sie|wir|uns|mit|für|auf|von|zur|zum|ist|sind|wird|werden|bei|nach|über|auch|wie|dass|sich|kein|keine|Jahr|Seite|Frist)\b/;
 const DEUTSCHE_ZAHL = /\b\d[\d.]*(,\d+)? ?(\$|€|US-Dollar|Euro)(?![\w])|\b\d{1,3}(\.\d{3})+ ?(\$|€)|\b\d+,\d+ ?%|\b\d{1,2}\. ?(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b|\b(Januar|Februar|März|Mai|Juni|Juli|Oktober|Dezember)\b/;
 const AMERIKANISCH = /\b(organiz\w*|authoriz\w*|recogniz\w*|realiz\w*|analyz\w*|color\w*|favor\w*|behavior\w*|center\w*|advisor\w*|licensed?|license(?! Tax)|fulfill\b|enrollment)\b/i;

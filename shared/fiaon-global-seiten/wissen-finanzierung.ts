@@ -342,7 +342,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       { f: "Beschafft FIAON den Kredit für meine US-Gesellschaft?", a: "Nein. FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Wir bereiten Gesellschaft, Unterlagen und Reihenfolge vor; das Institut entscheidet." },
     ],
     paket: "global_kapital",
-    weiter: ["/business/wissen/business-credit-usa", "/business/wissen/us-firmenkarte-beantragen", "/business/wissen/us-immobilie-finanzieren", "/business/firmenkarten-kapital"],
+    weiter: ["/business/wissen/business-credit-usa", "/business/wissen/us-firmenkarte-beantragen", "/business/wissen/us-funding", "/business/firmenkarten-kapital"],
     quellen: [Q.duns, Q.paydex, QF.sbaKredite, QF.sbaRegel2026, Q.ftcSeek],
   },
 ];

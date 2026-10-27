@@ -1,7 +1,7 @@
 /**
  * PRÜFSTAND FÜR EINEN NEUEN PRIVAT-RATGEBER (27.10.2026, E-439)
  *
- *   npx tsx scripts/pruef-privat-e436.ts <datei.ts> [<datei.ts> …]
+ *   npx tsx scripts/pruef-privat-e439.ts <datei.ts> [<datei.ts> …]
  *
  * Jede Datei exportiert `ARTIKEL` (ein StartArtikel wie in server/lib/fiaon-ratgeber-werkzeuge-4.ts).
  * Es gilt das Tor der Redaktion — pruefstand(…, { streng: true }) aus shared/fiaon-ratgeber.ts, dasselbe,

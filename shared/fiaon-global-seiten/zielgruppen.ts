@@ -2,8 +2,9 @@
 // FIAON GLOBAL — FÜR WEN (19.09.2026, E-191)
 // Vier Unternehmensformen (Mittelstand, Onlinehandel, Agenturen und Software,
 // Bau und Immobilien) und zwei Herkunftsländer (Deutschland, Schweiz).
-// Österreich bekommt erst eine eigene Seite, wenn die gewerberechtliche Frage
-// geklärt ist (E-187) — bis dahin nennen die Seiten Österreich nur allgemein.
+// Österreich hat seit 27.10.2026 eine eigene Seite (E-439, /business/aus-oesterreich in e439/): Justin hat die
+// gewerberechtliche Frage aus E-187 entschieden; die Seite nennt sich selbst nicht „Unternehmensberatung“ und lässt
+// österreichisches Steuerrecht nur durch in Österreich befugte Partner-Steuerberater prüfen (§ 124 WTBG).
 //
 // Jede Seite sagt ehrlich, wann eine US-Gesellschaft passt — und wann nicht.
 // Kein Steuerversprechen, keine Zahl ohne Quelle, kein Bankname. Die Seiten zu
@@ -91,7 +92,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Wie lange dauert die Gründung der Tochter?", a: "Die Gesellschaft steht in der Regel nach wenigen Wochen, sobald die Unterlagen vollständig sind. Die EIN vergibt die IRS in eigener Frist." },
     ],
     paket: "global_banking",
-    weiter: ["/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/llc-oder-corporation", "/business/aus-deutschland", "/business/us-pflichten"],
+    weiter: ["/business/wissen/tochter-oder-zweigniederlassung", "/business/wissen/markteintritt-usa", "/business/aus-deutschland", "/business/us-pflichten"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -158,7 +159,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Spare ich mit einer US-LLC Steuern?", a: "In der Regel nicht. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie dort steuerpflichtig." },
     ],
     paket: "global_banking",
-    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-bankkonto-unterlagen", "/business/us-pflichten", "/business/wyoming"],
+    weiter: ["/business/us-geschaeftskonto", "/business/wissen/us-bankkonto-unterlagen", "/business/us-pflichten", "/business/wissen/amazon-stripe-paypal-llc"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -355,7 +356,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Wie ordnet das Finanzamt eine LLC ein?", a: "Über einen Typenvergleich: Je nach Operating Agreement wie eine Kapitalgesellschaft oder wie eine Personengesellschaft. Deshalb wird die Einordnung vor dem Operating Agreement geprüft." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/llc-gruenden", "/business/privatpersonen"],
+    weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/llc-gruenden", "/business/wissen/us-llc-wohnsitz-deutschland"],
     quellen: [
       { titel: "§ 10 AO — Geschäftsleitung", url: "https://www.gesetze-im-internet.de/ao_1977/__10.html" },
       { titel: "§ 138 AO — Anzeigen über die Erwerbstätigkeit", url: "https://www.gesetze-im-internet.de/ao_1977/__138.html" },
@@ -425,7 +426,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD in London. Die Schwarzott Capital Partners AG in Zürich und die Schwarzott Global LLC in Miami sind Partner von FIAON Global." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-deutschland", "/business/us-firmengruendung"],
+    weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-oesterreich", "/business/us-firmengruendung"],
     quellen: [
       { titel: "Art. 50 DBG — Persönliche Zugehörigkeit", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_50" },
     ],

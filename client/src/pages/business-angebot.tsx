@@ -75,6 +75,42 @@ import type { KapitalKundenSicht } from "@shared/fiaon-global-angebot-kapital";
 // E-432: Das OFFENE Kapital-Angebot der Fassung C (Privatperson, variante „privat“) — eigene Seite mit Laufzeit-Rechner.
 const BusinessAngebotKapitalC = lazy(() => import("@/pages/business-angebot-kapital-c"));
 import type { KapitalCKundenSicht } from "@shared/fiaon-global-angebot-kapital-c";
+import { MarkeGlobal } from "@/components/angebot-firma/marke";
+
+/**
+ * Der Ladebildschirm des persönlichen Angebots — Glasblau, Wortmarke, eine feine Lichtlinie; ohne Menü und ohne Website-Fuß.
+ * Gilt für jede Fassung (auch als Ersatz, solange die eigene Seite als Chunk nachlädt). Bewegung aus bei „weniger Bewegung“.
+ */
+function AngebotLaedt() {
+  useEffect(() => {
+    let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const neu = !robots;
+    if (!robots) { robots = document.createElement("meta"); robots.name = "robots"; document.head.appendChild(robots); }
+    const vorher = robots.content;
+    robots.content = "noindex, nofollow";
+    const titelVorher = document.title;
+    document.title = "Ihr persönliches Angebot · FIAON Global";
+    return () => { if (neu) robots!.remove(); else robots!.content = vorher; document.title = titelVorher; };
+  }, []);
+  return (
+    <div className="angebot-laedt" role="status" aria-live="polite" data-fiaon="angebot-laedt">
+      <style>{`
+        .angebot-laedt{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(120% 90% at 50% 38%,#ffffff 0%,#f2f8ff 50%,#dcecff 100%);color:#0c1a2e;z-index:1}
+        .angebot-laedt-mitte{display:grid;justify-items:center;gap:22px;padding:24px}
+        .angebot-laedt-linie{position:relative;display:block;width:132px;height:1px;overflow:hidden;background:rgba(40,141,250,.18)}
+        .angebot-laedt-linie span{position:absolute;inset:0 auto 0 -40%;width:40%;background:linear-gradient(90deg,rgba(40,141,250,0),#288dfa,rgba(40,141,250,0));animation:angebotLaedtLicht 1.6s ease-in-out infinite}
+        .angebot-laedt-text{font:400 13.5px/1.4 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:.02em;color:#5a6a82}
+        @keyframes angebotLaedtLicht{from{left:-40%}to{left:100%}}
+        @media (prefers-reduced-motion:reduce){.angebot-laedt-linie span{animation:none;left:30%}}
+      `}</style>
+      <div className="angebot-laedt-mitte">
+        <MarkeGlobal hoehe={22} />
+        <span className="angebot-laedt-linie" aria-hidden="true"><span /></span>
+        <span className="angebot-laedt-text">Ihr Angebot wird geladen …</span>
+      </div>
+    </div>
+  );
+}
 import { useAngebotLesen } from "@/lib/angebot-lesen";
 
 type Zeile = { label: string; wert: string; kern?: boolean };
@@ -350,13 +386,9 @@ export default function BusinessAngebot() {
   const titel = "Ihr persönliches Angebot · FIAON Global";
   const beschreibung = ANGEBOT_GARANTIE_FEST.metaBeschreibung;
 
-  if (stand === "laedt") {
-    return (
-      <Dunkel seite="business" titel={titel} beschreibung={beschreibung}>
-        <div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>
-      </Dunkel>
-    );
-  }
+  // Nachprüfung E-432 (27.10.2026): Der erste Eindruck nach dem Klick in der Mail ist ein ruhiger Ladebildschirm im Glasblau —
+  // nicht die Website mit Menü und Navy-Fuß („Festpreis … Beauftragen“), der zu keinem persönlichen Angebot passt.
+  if (stand === "laedt") return <AngebotLaedt />;
   if (stand === "fehler") {
     return (
       <Dunkel seite="business" titel={titel} beschreibung={beschreibung}>
@@ -419,7 +451,7 @@ export default function BusinessAngebot() {
   const firma = sicht as unknown as FirmaKundenSicht;
   if (firma.art === "firma" && firma.status === "offen") {
     return (
-      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+      <Suspense fallback={<AngebotLaedt />}>
         <BusinessAngebotFirma sicht={firma} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
@@ -429,7 +461,7 @@ export default function BusinessAngebot() {
   const kapitalC = sicht as unknown as KapitalCKundenSicht;
   if (kapitalC.art === "kapital" && kapitalC.variante === "privat" && kapitalC.status === "offen") {
     return (
-      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+      <Suspense fallback={<AngebotLaedt />}>
         <BusinessAngebotKapitalC sicht={kapitalC} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
@@ -439,7 +471,7 @@ export default function BusinessAngebot() {
   const kapital = sicht as unknown as KapitalKundenSicht;
   if (kapital.art === "kapital" && kapital.status === "offen") {
     return (
-      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+      <Suspense fallback={<AngebotLaedt />}>
         <BusinessAngebotKapital sicht={kapital} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
@@ -449,7 +481,7 @@ export default function BusinessAngebot() {
   const koop = sicht as unknown as KoopKundenSicht;
   if (koop.art === "koop" && koop.status === "offen") {
     return (
-      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+      <Suspense fallback={<AngebotLaedt />}>
         <BusinessAngebotKoop sicht={koop} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />
@@ -459,7 +491,7 @@ export default function BusinessAngebot() {
   const begleit = sicht as unknown as BegleitKundenSicht;
   if (begleit.art === "begleit" && begleit.status === "offen") {
     return (
-      <Suspense fallback={<div className="gs gia"><div className="dk-rahmen"><p className="gia-laedt" role="status">Ihr Angebot wird geladen …</p></div></div>}>
+      <Suspense fallback={<AngebotLaedt />}>
         <BusinessAngebotBegleit sicht={begleit} token={token}
           onAngenommen={(j) => { setFertig(j as Fertig); window.scrollTo({ top: 0 }); }}
           onNeuLaden={() => { void laden(beginn, tagFuerVertrag, jahresbetreuung); }} />

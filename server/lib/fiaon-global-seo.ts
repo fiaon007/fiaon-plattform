@@ -35,7 +35,7 @@ function eintrag(g: GlobalSeite): SeoSeite {
     titel: g.seo.titel, beschreibung: g.seo.beschreibung,
     h1: h1Von(g), lead: g.lead,
     abschnitte: [{ h2: GLOBAL_SEITE_WORTE[sp].kurz, text: g.kurz }, ...g.bloecke.map((b) => blockAlsText(b, titelVon, sp)).filter((x): x is SeoAbschnitt => !!x)],
-    weiter: g.weiter, krumen: globalKrumen(g),
+    weiter: g.weiter, krumen: globalKrumen(g), quellen: g.quellen,
     werkzeug: g.art === "werkzeug" ? (en ? "FIAON Global package finder" : "Paket-Finder FIAON Global") : undefined,
     global: g.art,
     ...(schwester ? { sprache: sp, schwester } : {}),

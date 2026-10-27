@@ -49,11 +49,11 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
   {
     pfad: "/business/lp/tochtergesellschaft",
     quelle: "/business/tochtergesellschaft-usa",
-    seo: { titel: "Tochtergesellschaft in den USA — FIAON Global", beschreibung: "Ihre US-Tochter aus einer Hand: Gründung, EIN, Pflichtenkalender, abgestimmt mit Ihrem Steuerberater. Festpreis, Team vor Ort in Miami." },
+    seo: { titel: "Tochtergesellschaft in den USA — FIAON Global", beschreibung: "Ihre US-Tochter aus einer Hand: Gründung, EIN, erste US-Meldung, abgestimmt mit Ihrem Steuerberater. Festpreis, Team vor Ort in Miami." },
     auge: "US-Tochtergesellschaft",
     h1: "Ihre Tochtergesellschaft in den USA.",
     h1b: "Gegründet, gemeldet, vorbereitet.",
-    lead: `Für Unternehmen mit echtem US-Geschäft: Wir gründen Ihre US-Tochter, holen die EIN, führen den Pflichtenkalender und stimmen alles mit Ihrem Steuerberater ab. ${ab}, alle Gebühren inklusive.`,
+    lead: `Für Unternehmen mit echtem US-Geschäft: Wir gründen Ihre US-Tochter, holen die EIN, lassen die erste US-Meldung von unserem US-CPA erstellen und stimmen alles mit Ihrem Steuerberater ab. ${ab}, alle Gebühren inklusive.`,
     vorteile: [
       "Ihre GmbH, AG oder Holding als Gesellschafterin",
       "Prüfung vor der Gründung durch unseren Partner-Steuerberater",
@@ -90,14 +90,14 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
   {
     pfad: "/business/lp/us-pflichten",
     quelle: "/business/us-pflichten",
-    seo: { titel: "Form 5472 und US-Pflichten — FIAON Global", beschreibung: "Form 5472 mit Form 1120, Jahresmeldung, Registered Agent: der Pflichtenkalender für Ihre US-Gesellschaft, die erste Meldung durch unseren US-CPA." },
+    seo: { titel: "Form 5472 und US-Pflichten — FIAON Global", beschreibung: "Form 5472 mit Form 1120, Jahresmeldung, Registered Agent: die US-Meldungen Ihrer Gesellschaft — die erste erstellt unser US-CPA im Festpreis." },
     auge: "US-Pflichten",
     h1: "Form 5472 und US-Pflichten.",
     h1b: "Im Kalender, nicht im Hinterkopf.",
-    lead: `Jede US-Gesellschaft mit ausländischem Gesellschafter meldet der IRS jährlich Form 5472 — auch ohne Umsatz. Wir führen den Pflichtenkalender, unser US-CPA erstellt die erste Meldung. ${ab}, alle Gebühren inklusive.`,
+    lead: `Jede US-Gesellschaft mit ausländischem Gesellschafter meldet der IRS jährlich Form 5472 — auch ohne Umsatz. Unser US-CPA erstellt die erste Meldung, und Sie kennen jede Frist vorab. ${ab}, alle Gebühren inklusive.`,
     vorteile: [
       "Form 5472 mit Form 1120 durch unseren US-CPA — im ersten Jahr im Festpreis",
-      "Pflichtenkalender für IRS, Bundesstaat und Registered Agent",
+      "Alle Fristen für IRS, Bundesstaat und Registered Agent vorab genannt",
       "Meldung zu Hause vorbereitet für Ihren Steuerberater",
       "Ein Ansprechpartner für alle Fristen",
     ],

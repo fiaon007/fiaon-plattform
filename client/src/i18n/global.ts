@@ -44,7 +44,7 @@ export interface GlobalSternKnoten { name: string; umfang?: string; status: "fes
 const de = {
   metaTitel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
   // 06.10.2026 (E-293): ohne „Konto, Karten“ als Leistung und ohne „alles inklusive“ — es sind Anträge, und „inklusive“ gilt für das Paket.
-  metaBeschreibung: "US-Gesellschaft gründen mit Team in Miami — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto- und Kartenanträge. Festpreis ab 2.499 €.",
+  metaBeschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, EIN und ITIN, Konto- und Kartenanträge, Team in Miami. Festpreis ab 2.499 €.",
 
   // ── 1 Hero mit Vertrauensleiste ──
   auge: "FIAON Global · Für Unternehmen und Privatpersonen",
@@ -323,7 +323,7 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Form a US company from €2,499 — FIAON Global",
-  metaBeschreibung: "Form a US company with our team in Miami — for companies and private individuals: formation, EIN, ITIN, account and card applications. From €2,499.",
+  metaBeschreibung: "The business consultancy for your US company: formation, EIN and ITIN, account and card applications, a team in Miami. Fixed price from €2,499.",
 
   auge: "FIAON Global · For companies and private individuals",
   augeLink: "private individuals",

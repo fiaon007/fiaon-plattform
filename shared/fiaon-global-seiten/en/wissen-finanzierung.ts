@@ -25,6 +25,7 @@ const QF: Record<string, GlobalQuelle> = {
   dscrProgramm: { titel: "Foreign national DSCR programme description (lender, 2026)", url: "https://admortgage.com/programs/foreign-nationals/" },
   dscrZinsen: { titel: "DSCR rates for foreign investors (market observation, August 2026)", url: "https://homeabroadinc.com/mortgages/dscr-loan-interest-rates/" },
   sbaKredite: { titel: "U.S. Small Business Administration — Loans", url: "https://www.sba.gov/funding-programs/loans" },
+  sbaRegel2026: { titel: "SBA Procedural Notice 5000-876626 — ownership, citizenship and residency for 7(a) and 504 loans (effective 1 March 2026)", url: "https://www.naggl.org/wp-content/uploads/2026/05/5000-876626.pdf" },
 };
 
 export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
@@ -255,7 +256,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       titel: "Financing routes for a US company — FIAON Global",
       beschreibung: "Cards, supplier accounts, balance-based business credit cards, platform loans, credit lines, property financing: what is open to a US company.",
     },
-    stand: S,
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 42",
     auge: "Knowledge · Financing",
@@ -303,7 +304,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "grenzen", h2: "Where the limits are",
         absaetze: [
-          "Government-backed small business loans from the SBA are generally not open to companies wholly owned by people without US citizenship or a green card. Some online lenders only lend to owners resident in the US.",
+          "Since 1 March 2026, government-backed SBA small business loans (the 7(a) and 504 programmes) have only been open to companies whose owners are all US citizens or US nationals with their principal residence in the United States — green card holders are excluded as well. Some online lenders only lend to owners resident in the US.",
           "Building large amounts through stacked cards alone is not a proven route. In 2025 the US Federal Trade Commission ruled against a provider that promised business owners financing and applied for credit cards instead.",
         ],
       },
@@ -333,12 +334,12 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
     ],
     fragen: [
       { f: "Which financing does a new US company get fastest?", a: "Business credit cards whose limit follows the balance, and supplier accounts with payment terms. Bank credit lines usually require years in business, revenue or collateral." },
-      { f: "Can an LLC from Europe get an SBA loan?", a: "Generally not, if it is wholly owned by people without US citizenship or a green card." },
+      { f: "Can an LLC from Europe get an SBA loan?", a: "No. Since 1 March 2026, every direct and indirect owner must be a US citizen or US national with a principal residence in the United States (SBA Procedural Notice 5000-876626); a green card is not enough." },
       { f: "Can a parent company in Europe stand surety for the US company?", a: "Yes, this is a common route to a credit line. The bank then mainly assesses the parent company's balance sheet." },
       { f: "Does FIAON arrange the loan for my US company?", a: "No. FIAON is not a bank and neither grants nor brokers loans. We prepare the company, documents and sequence; the institution decides." },
     ],
     paket: "global_kapital",
     weiter: ["/en/business/knowledge/us-business-credit", "/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/financing-us-property", "/en/business/us-business-credit-cards"],
-    quellen: [Q.duns, Q.paydex, QF.sbaKredite, Q.ftcSeek],
+    quellen: [Q.duns, Q.paydex, QF.sbaKredite, QF.sbaRegel2026, Q.ftcSeek],
   },
 ];

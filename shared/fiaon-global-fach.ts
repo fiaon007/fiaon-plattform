@@ -11,7 +11,7 @@
 //   steuern   — Steuern & Pflichten (Formulare erklärt, Ausfüllhilfen, Check)
 //
 // NAMEN, DIE NICHTS VERLIEREN: „Unternehmensberatung" ist in Österreich ein
-// reglementiertes Gewerbe (§ 94 Z 74 GewO, Wortregel in fiaon-global-wortregeln),
+// reglementiertes Gewerbe (§ 94 Z 74 GewO); seit E-436 (27.10.2026) nennt sich FIAON trotzdem so (Justin),
 // „Rechtsanwalt" und „Steuerberater" sind geschützte Berufsbezeichnungen, und
 // Rechts-/Steuerdienstleistung im Einzelfall ist Anwälten und Steuerberatern
 // vorbehalten (RDG, StBerG). Erlaubt und hier gebaut: allgemeine Information,

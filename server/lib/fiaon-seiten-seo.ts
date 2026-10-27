@@ -32,7 +32,7 @@ import fs from "fs";
 import path from "path";
 import {
   SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN, GLOBAL_BILD, GLOBAL_BILD_EN,
-  seoSeite, seoFragen, seoIndexierbar, type SeoSeite, schwesterPfad } from "@shared/fiaon-seo-seiten";
+  seoSeite, seoFragen, seoIndexierbar, type SeoSeite, type SeoAbschnitt, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
@@ -40,6 +40,10 @@ import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
 import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
+import { ogBusinessBild, istBusinessPfad } from "@shared/fiaon-og-business-regeln";
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
+import { businessArtikel } from "./fiaon-business-artikel-liste";
+import { begriffStand, begriffeVerlinken } from "@shared/fiaon-global-begriffe";
 // Trägt die Unterseiten von FIAON Global in die SEO-Tabelle ein — VOR jeder Abfrage.
 import "./fiaon-global-seo";
 import { globalSeite, globalLandingpage } from "@shared/fiaon-global-seiten";
@@ -62,7 +66,9 @@ export function indexHtml(): string | null {
   ];
   const f = kandidaten.find((k) => fs.existsSync(k));
   if (!f) return null;
-  const html = fs.readFileSync(f, "utf8");
+  // 27.10.2026 (E-436): Die Notizen im Quelltext von index.html (Entwicklungsgeschichte, E-Nummern, das Konto der
+  // Search Console) gehen nicht an Besucher und Crawler. Nur die Platzhalter <!--FIAON-…--> bleiben stehen.
+  const html = fs.readFileSync(f, "utf8").replace(/<!--(?!FIAON-[A-Z-]+-->)[\s\S]*?-->\s*/g, "");
   indexCache = { html, zeit: Date.now() };
   return html;
 }
@@ -111,7 +117,15 @@ export function kopfEinsetzen(html: string, kopf: {
     setz("og:image", "property", kopf.bild);
     setz("og:image:secure_url", "property", kopf.bild);
     setz("twitter:image", "name", kopf.bild);
-    if (kopf.bildAlt) { setz("og:image:alt", "property", kopf.bildAlt); setz("twitter:image:alt", "name", kopf.bildAlt); }
+    // 27.10.2026 (E-436): Alle Vorschaubilder des Hauses sind 1200×630-JPEGs; Maße und Typ stehen
+    // ausdrücklich da, damit LinkedIn/WhatsApp die große Karte zeigen, ohne das Bild erst zu laden.
+    setz("og:image:type", "property", "image/jpeg");
+    setz("og:image:width", "property", "1200");
+    setz("og:image:height", "property", "630");
+    // Ohne eigenen Alternativtext bliebe der aus index.html („Betriebssystem für Bonität“) stehen — dann lieber der Titel.
+    const alt = kopf.bildAlt || kopf.titel;
+    setz("og:image:alt", "property", alt); setz("twitter:image:alt", "name", alt);
+    setz("twitter:card", "name", "summary_large_image");
   } else if (kopf.bild === "") {
     // 04.09.2026: Ein leeres `bild` heisst ausdruecklich „kein Vorschaubild".
     // Ohne das erbt jede Seite das Werbebild aus index.html — auch der
@@ -152,7 +166,21 @@ export function kopfEinsetzen(html: string, kopf: {
 }
 
 // ── Das Unternehmen, einmal vollständig — auf jeder Seite dasselbe. ──────────
-export function organisationLd(): Record<string, unknown> {
+/**
+ * 27.10.2026 (E-436): Die Business-Welt trägt ihren eigenen Namen im Kopf. Vorher standen auf jeder
+ * Business-Seite die Stichwörter der Privatkunden („SCHUFA Eintrag löschen …“) und og:site_name „FIAON“.
+ * Google liest meta keywords nicht, Bing wertet fremde Stichwörter als Rauschen — also weg damit.
+ */
+export function businessKopf(html: string): string {
+  return html
+    .replace(/\s*<meta name="keywords" content="[^"]*"\s*\/?>/, "")
+    .replace(/<meta property="og:site_name" content="[^"]*"\s*\/?>/, '<meta property="og:site_name" content="FIAON Global" />');
+}
+
+export function organisationLd(bereich?: "business"): Record<string, unknown> {
+  // 27.10.2026 (E-436): Auf Business-Seiten nennt die Organisation nur die Themen von FIAON Global — vorher trugen auch die
+  // Anzeigen-Landingpages „SCHUFA“, „Inkasso“, „Kreditkarte trotz Eintrag“ im Datenblock (Google liest die Zielseite mit).
+  const business = bereich === "business";
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -162,14 +190,19 @@ export function organisationLd(): Record<string, unknown> {
     url: BASIS,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg?v=2`,
-    description: "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
+    description: business
+      ? "FIAON LTD (London) mit FIAON Global, der Unternehmensberatung für die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz."
+      : "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
     // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
     identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
-    contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de"], areaServed: ["DE", "AT", "CH"] }],
+    contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
     areaServed: [{ "@type": "Country", name: "Deutschland" }, { "@type": "Country", name: "Österreich" }, { "@type": "Country", name: "Schweiz" }],
-    knowsLanguage: "de",
-    knowsAbout: ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag",
+    // 27.10.2026 (E-436): FIAON spricht Deutsch und Englisch (56 + 53 englische Seiten); FIAON Global ist ein eigener Knoten.
+    knowsLanguage: ["de", "en"],
+    brand: [{ "@type": "Brand", name: "FIAON Global", url: `${BASIS}/business` }],
+    subOrganization: { "@id": `${BASIS}/#fiaon-global` },
+    knowsAbout: [...(business ? [] : ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag"]),
       "US-LLC-Gründung", "US-Firmengründung aus Deutschland", "Employer Identification Number (EIN)", "ITIN", "Form 5472", "Registered Agent", "US-Geschäftskonto", "US-Firmenkarten"],
     // 24.09.2026 (E-234, Justin: „Profile freigeben … mach alles du"): Nur was nachweislich FIAON ist.
     // Der Registereintrag im Companies House ist die amtliche Seite der Firma. Eine LinkedIn-Firmenseite
@@ -180,6 +213,39 @@ export function organisationLd(): Record<string, unknown> {
       `https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`,
       ...SOZIALE_PROFILE.map((p) => p.href),
     ],
+  };
+}
+
+/**
+ * 27.10.2026 (E-436): FIAON Global als eigene Entität — für Google, Bing und KI-Assistenten, die eine Marke einem
+ * Unternehmen zuordnen. Vorher kannte das Markup nur „FIAON — Das Betriebssystem für Bonität“, auch auf /en/business.
+ * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-436, Wortregel freigegeben).
+ * Nur wahre, prüfbare Angaben: Vertragspartner FIAON LTD (Companies House), Standorte wie auf /business/partner.
+ */
+export function globalOrganisationLd(sprache: Sprache = "de"): Record<string, unknown> {
+  const en = sprache === "en";
+  return {
+    "@context": "https://schema.org",
+    "@type": ["Organization", "ProfessionalService"],
+    "@id": `${BASIS}/#fiaon-global`,
+    name: "FIAON Global",
+    alternateName: en ? ["FIAON Global business consultancy"] : ["FIAON Global Unternehmensberatung"],
+    url: `${BASIS}${en ? "/en/business" : "/business"}`,
+    logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
+    image: ogBusinessBild(en ? "/en/business" : "/business")?.url ?? `${BASIS}/og-global.jpg?v=2`,
+    slogan: en ? "One contact instead of eight." : "Ein Ansprechpartner statt acht.",
+    description: en
+      ? "FIAON Global is the business consultancy of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, at a fixed price, with a team on the ground in Miami. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit."
+      : "FIAON Global ist die Unternehmensberatung der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.",
+    parentOrganization: { "@id": `${BASIS}/#organisation` },
+    address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
+    areaServed: (en ? ["Germany", "Austria", "Switzerland"] : ["Deutschland", "Österreich", "Schweiz"]).map((name) => ({ "@type": "Country", name })),
+    knowsLanguage: ["de", "en"],
+    knowsAbout: en
+      ? ["US company formation", "US LLC for non-residents", "Employer Identification Number (EIN)", "ITIN", "Registered agent", "Form 5472", "US business bank account", "US business credit", "US business credit cards", "US market entry", "E-2 visa (basics)"]
+      : ["US-Firmengründung", "US-LLC für Ausländer", "Employer Identification Number (EIN)", "ITIN", "Registered Agent", "Form 5472", "US-Geschäftskonto", "US-Funding und Business Credit", "US-Firmenkarten", "Markteintritt USA", "E-2-Visum (Grundzüge)"],
+    contactPoint: [{ "@type": "ContactPoint", contactType: "customer service", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
+    sameAs: [`https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`],
   };
 }
 
@@ -195,7 +261,7 @@ function breadcrumbLd(s: SeoSeite): Record<string, unknown> | null {
 }
 
 function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
-  const ld: unknown[] = [organisationLd()];
+  const ld: unknown[] = [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined)];
   const fragen = seoFragen(s.pfad);
   if (s.pfad === "/") {
     ld.push({ "@context": "https://schema.org", "@type": "WebSite", "@id": `${BASIS}/#website`, name: "FIAON", url: BASIS, inLanguage: "de", publisher: { "@id": `${BASIS}/#organisation` } });
@@ -203,6 +269,9 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     const krumen = breadcrumbLd(s);
     if (krumen) ld.push(krumen);
   }
+  const imBusiness = istBusinessPfad(s.pfad);
+  if (imBusiness) ld.push(globalOrganisationLd(s.sprache === "en" ? "en" : "de"));
+  const herausgeber = { "@id": `${BASIS}/${imBusiness ? "#fiaon-global" : "#organisation"}` };
   ld.push({
     "@context": "https://schema.org",
     "@type": s.art === "pfeiler" ? "Article" : "WebPage",
@@ -211,10 +280,20 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     url, name: s.titel, headline: s.h1, description: s.beschreibung, inLanguage: s.sprache === "en" ? "en" : "de",
     dateModified: s.stand, isPartOf: { "@id": `${BASIS}/#website` },
     ...(s.art === "pfeiler" ? {
-      author: { "@id": `${BASIS}/#organisation` }, publisher: { "@id": `${BASIS}/#organisation` }, mainEntityOfPage: url,
+      author: herausgeber, publisher: herausgeber, mainEntityOfPage: url,
       datePublished: s.erschienen ?? s.stand, image: s.bild || `${BASIS}/og-fiaon.jpg?v=2`,
     } : {}),
   });
+  if (s.global === "hub") {
+    const en = s.sprache === "en";
+    const teile = [
+      ...(s.abschnitte ?? []).flatMap((a) => a.links ?? []).map((l) => ({ url: `${BASIS}${l.pfad}`, name: l.text })),
+      ...businessArtikel(en ? "en" : "de").slice(0, 80).map((a) => ({ url: `${BASIS}${businessArtikelPfad(a.slug, a.sprache)}`, name: a.titel })),
+    ];
+    ld.push({ "@context": "https://schema.org", "@type": "CollectionPage", "@id": `${url}#sammlung`, name: s.h1, url, inLanguage: en ? "en" : "de",
+      publisher: { "@id": `${BASIS}/#fiaon-global` },
+      mainEntity: { "@type": "ItemList", itemListElement: teile.map((x, i) => ({ "@type": "ListItem", position: i + 1, url: x.url, name: x.name })) } });
+  }
   if (fragen.length) {
     ld.push({ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: fragen.map((f) => ({ "@type": "Question", name: f.f, acceptedAnswer: { "@type": "Answer", text: f.a } })) });
   }
@@ -246,7 +325,7 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
       name: "FIAON Global",
       serviceType: en ? "Formation of a US company, US tax numbers (EIN, ITIN), registered agent, preparation of account and card applications" : "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, Vorbereitung von Konto- und Kartenanträgen",
       description: en ? "Your US company from one source: formation, EIN and ITIN, registered agent, US address, partner lawyer, partner tax adviser and US CPA — fixed price, one-off." : "US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, US-Adresse, Partner-Anwalt, Partner-Steuerberater und US-CPA — Festpreis, einmalig.",
-      provider: { "@id": `${BASIS}/#organisation` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
+      provider: { "@id": `${BASIS}/#fiaon-global` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
       offers: {
         "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: Math.min(...preise).toFixed(2), highPrice: Math.max(...preise).toFixed(2), offerCount: preise.length, url: `${BASIS}${globalPaketePfad(sp)}`,
         offers: GLOBAL_PAKETE.map((p) => ({ "@type": "Offer", name: `FIAON ${p[sp].name}`, price: ((globalKatalog(p.key)?.preisCents ?? 0) / 100).toFixed(2), priceCurrency: "EUR", url: `${BASIS}${globalStartPfad(p.key, sp)}`, availability: "https://schema.org/InStock" })),
@@ -292,7 +371,7 @@ export function seoRahmen(sprache: Sprache = "de"): { kopf: string; fuss: string
  * vorgerenderten Korpus. Eine Seite unter /business verlinkt dort FIAON Global, nicht die
  * Privatkunden-Themen: gleiche Botschaft für Leser und Suchmaschine.
  */
-function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
+export function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: string } {
   const en = sprache === "en";
   const start = en ? "/en/business" : "/business";
   // 24.09.2026 (E-234): dieselben vier Spalten in beiden Sprachen — die Fachseiten gibt es jetzt auch englisch
@@ -313,7 +392,27 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   const { kopf: nav, fuss } = business ? seoRahmenBusiness(en ? "en" : "de") : seoRahmen(en ? "en" : "de");
   const wurzel = business ? link(en ? "/en/business" : "/business", "FIAON Global") : link(en ? "/en" : "/", "FIAON");
   const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${wurzel}</li>${s.krumen.filter((k) => !(business && k.pfad === (en ? "/en/business" : "/business"))).map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
-  const abschnitte = (s.abschnitte ?? []).map((a) => `<section><h2>${esc(a.h2)}</h2><p>${esc(a.text)}</p>${a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</section>`).join("");
+  // 27.10.2026 (E-436): Tabellen als <table>, Verzeichnisse als Links, Quellen als verlinkte Liste — vorher stand
+  // hier alles als flache Aufzählung, und die Quellen sah nur, wer JavaScript ausführt (KI-Crawler tun das nicht).
+  const tabelleHtml = (t: NonNullable<SeoAbschnitt["tabelle"]>) =>
+    `<table><thead><tr>${t.kopf.map((k) => `<th scope="col">${esc(k)}</th>`).join("")}</tr></thead><tbody>${t.zeilen.map((z) => `<tr>${z.map((c, i) => (i === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</tbody></table>${t.fuss?.length ? t.fuss.map((f) => `<p><small>${esc(f)}</small></p>`).join("") : ""}`;
+  // E-436: Fachbegriffe im Fließtext der Business-Seiten verlinken (dieselbe Regel wie im Browser).
+  const begriffe = istBusinessPfad(s.pfad) ? begriffStand(en ? "en" : "de", s.pfad, (p) => !!seoSeite(p) || !!globalSeite(p)) : null;
+  const absatz = (text: string) => (begriffe ? begriffeVerlinken(text, begriffe).map((t) => (typeof t === "string" ? esc(t) : link(t.pfad, t.text))).join("") : esc(text));
+  const abschnitte = (s.abschnitte ?? []).map((a) => {
+    const unten = a.tabelle ? tabelleHtml(a.tabelle)
+      : a.links?.length ? `<ul>${a.links.map((l) => `<li>${link(en && !l.pfad.startsWith("/en/") ? (schwesterPfad(l.pfad, "en") ?? l.pfad) : l.pfad, l.text)}</li>`).join("")}</ul>`
+      : a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
+    return `<section><h2>${esc(a.h2)}</h2>${a.text ? `<p>${absatz(a.text)}</p>` : ""}${unten}</section>`;
+  }).join("");
+  // 27.10.2026 (E-436): Die Wissens-Übersicht nennt die Artikel der Redaktion als echte Links (vorher nur per JavaScript).
+  const redaktion = s.global === "hub" ? businessArtikel(en ? "en" : "de") : [];
+  const aktuell = redaktion.length
+    ? `<section><h2>${en ? "Latest from the editorial team" : "Aktuell aus der Redaktion"}</h2><ul>${redaktion.slice(0, 80).map((a) => `<li>${link(businessArtikelPfad(a.slug, a.sprache), a.titel)} – ${esc(a.teaser)}</li>`).join("")}</ul></section>`
+    : "";
+  const quellen = s.quellen?.length
+    ? `<section><h2>${en ? "Sources" : "Quellen"}</h2><ol>${s.quellen.map((q) => `<li><a href="${esc(q.url)}" rel="noopener">${esc(q.titel)}</a></li>`).join("")}</ol><p><small>${en ? "As of" : "Stand"} ${esc(s.stand)}</small></p></section>`
+    : "";
   const werkzeuge = (s.pfad === "/werkzeuge" || s.pfad === "/en/tools") ? `<section><h2>${s.sprache === "en" ? "The twenty tools" : "Die zwanzig Werkzeuge"}</h2><ul>${(s.sprache === "en" ? SEO_WERKZEUGE_EN : SEO_WERKZEUGE).map((w) => `<li>${link(s.sprache === "en" ? (schwesterPfad(w.pfad, "en") ?? w.pfad) : w.pfad, w.name)} – ${esc(w.frage)} ${esc(w.satz)}</li>`).join("")}</ul></section>` : "";
   const glossar = (s.pfad === "/glossar-bonitaet" || s.pfad === "/en/credit-glossary") ? `<section><h2>${s.sprache === "en" ? "The terms" : "Die Begriffe"}</h2><dl>${(s.sprache === "en" ? SEO_GLOSSAR_EN : SEO_GLOSSAR).map((g) => `<dt>${esc(g.wort)}</dt><dd>${esc(g.text)}</dd>`).join("")}</dl></section>` : "";
   const faq = fragen.length ? `<section><h2>${en ? "Frequently asked questions" : "Häufige Fragen"}</h2>${fragen.map((f) => `<h3>${esc(f.f)}</h3><p>${esc(f.a)}</p>`).join("")}</section>` : "";
@@ -321,7 +420,7 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   // ihre Farbe. Dunkel wie die Bühne (Standard), hell wo die fertige Seite hell ist: FIAON Global
   // (Kanzlei), die Rechtstexte und die alte Auskunftsseite. Die Gestaltung steht in client/index.html.
   const hell = business || s.art === "recht" || HELLE_SEITEN.has(s.pfad);
-  return `<div class="${hell ? "vorab vorab-hell" : "vorab"}">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${werkzeuge}${glossar}${faq}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
+  return `<div class="${hell ? "vorab vorab-hell" : "vorab"}">${nav}<main>${krumen}<article><h1>${esc(s.h1)}</h1><p>${esc(s.lead)}</p>${abschnitte}${aktuell}${werkzeuge}${glossar}${faq}${quellen}${weiterlesen(s, business)}</article></main>${fuss}</div>`;
 }
 
 /**
@@ -354,16 +453,21 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   if (!html) return null;
   const url = `${BASIS}${s.canonical ?? (s.pfad === "/" ? "/" : s.pfad)}`;
   const beschreibung = beschreibungKuerzen(s.beschreibung);
-  const ld = s.robots?.includes("noindex") ? [organisationLd()] : strukturierteDaten(s, url);
+  const ld = s.robots?.includes("noindex") ? [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined)] : strukturierteDaten(s, url);
   const sprache: Sprache = s.sprache === "en" ? "en" : "de";
   const absolut = (p: string) => `${BASIS}${p === "/" ? "/" : p}`;
   const alternativen = s.schwester
     ? { de: absolut(sprache === "de" ? s.pfad : s.schwester), en: absolut(sprache === "en" ? s.pfad : s.schwester) }
     : undefined;
-  const bildAlt = s.bild === GLOBAL_BILD ? "FIAON Global – Ihre US-Gesellschaft aus einer Hand" : s.bild === GLOBAL_BILD_EN ? "FIAON Global – your US company from one source" : undefined;
+  // 27.10.2026 (E-436): Jede Business-Adresse zeigt ihr eigenes Vorschaubild (scripts/og-business-bilder.ts);
+  // fehlt es, bleibt das der Tabelle (GLOBAL_BILD). Eine Regel für Register, Übersichten und Landingpages.
+  const eigenesBild = istBusinessPfad(s.pfad) ? ogBusinessBild(s.pfad) : null;
+  const bild = s.bild === "" ? "" : eigenesBild?.url ?? s.bild;
+  const bildAlt = eigenesBild?.alt ?? s.bildAlt ?? (s.bild === GLOBAL_BILD ? "FIAON Global – Ihre US-Gesellschaft aus einer Hand" : s.bild === GLOBAL_BILD_EN ? "FIAON Global – your US company from one source" : undefined);
   const og: Record<string, string> = { type: s.art === "pfeiler" ? "article" : "website" };
   if (s.art === "pfeiler") { og.erschienen = s.erschienen ?? s.stand; og.geaendert = s.stand; }
-  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild: s.bild, bildAlt, og, sprache, alternativen });
+  let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild, bildAlt, og, sprache, alternativen });
+  if (istBusinessPfad(s.pfad)) out = businessKopf(out);
   // Der Korpus nur für indexierbare Seiten — ein Login-Formular braucht
   // keinen Vorab-Text, und interne Wege sollen nichts preisgeben.
   if (!s.robots?.includes("noindex")) {

@@ -83,6 +83,13 @@ export interface SeoAbschnitt {
   text: string;
   /** Kurze Aufzählung unter dem Absatz — z. B. Schritte oder Hebel. */
   punkte?: string[];
+  /**
+   * 27.10.2026 (E-436): Eine echte Tabelle im Vorab-HTML (statt der flachen Punkte) — KI-Crawler und Bing führen
+   * kein JavaScript aus und zitieren Tabellen am liebsten. Gibt es sie, rendert der Korpus sie statt `punkte`.
+   */
+  tabelle?: { kopf: string[]; zeilen: string[][]; fuss?: string[] };
+  /** 27.10.2026 (E-436): Verlinkte Einträge (Verzeichnisse) — im Vorab-HTML als <a href>, nicht nur als Text. */
+  links?: { pfad: string; text: string }[];
 }
 
 export interface SeoSeite {
@@ -115,6 +122,10 @@ export interface SeoSeite {
   werkzeug?: string;
   /** Bild für Open Graph, falls die Seite ein eigenes hat. */
   bild?: string;
+  /** 27.10.2026 (E-436): Quellen Dritter — im Vorab-HTML als verlinkte Liste (sonst nur per JavaScript sichtbar). */
+  quellen?: { titel: string; url: string }[];
+  /** Alternativtext zum Vorschaubild (E-436) — fehlt = Titel der Seite, nie der Werbesatz aus index.html. */
+  bildAlt?: string;
   /** Die Seite hat einen eigenen Vorrenderer (Ratgeber) — Tabelle liefert nur Titel/Beschreibung für den Client. */
   eigenerVorrenderer?: boolean;
   // ── Zweisprachigkeit (02.09.2026, shared/fiaon-sprache.ts) ──────────────
@@ -380,7 +391,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
     titel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
-    beschreibung: "US-Gesellschaft gründen mit Team in Miami — für Unternehmen und Privatpersonen: Gründung, EIN, ITIN, Konto- und Kartenanträge. Festpreis ab 2.499 €.",
+    // 27.10.2026 (E-436, Justin: „Platzhirsch als Unternehmensberatung“): das Wort in der Trefferzeile — Wortregel freigegeben.
+    beschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, EIN und ITIN, Konto- und Kartenanträge, Team in Miami. Festpreis ab 2.499 €.",
     h1: "US-Gesellschaft gründen. Den Weg zum Kapital planen.",
     lead: "Gründung, EIN und ITIN, Konto- und Kartenanträge — mit unserem Team in Miami und einem festen Ansprechpartner.",
     abschnitte: [
@@ -396,7 +408,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       pfad: "/en/business",
       bild: GLOBAL_BILD_EN,
       titel: "Form a US company from €2,499 — FIAON Global",
-      beschreibung: "Form a US company with our team in Miami — for companies and private individuals: formation, EIN, ITIN, account and card applications. From €2,499.",
+      beschreibung: "The business consultancy for your US company: formation, EIN and ITIN, account and card applications, a team in Miami. Fixed price from €2,499.",
       h1: "Form a US company. Plan your route to capital.",
       lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
       abschnitte: [

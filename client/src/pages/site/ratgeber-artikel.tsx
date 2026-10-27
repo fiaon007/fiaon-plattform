@@ -17,6 +17,7 @@ import LeseAufruf from "@/components/site/LeseAufruf";
 import { SozialBeitrag } from "@/components/site/sozial/SozialBeitrag";
 // E-379: Business-Artikel (FIAON Global) zeigen den Weg zu FIAON Global statt zum Privatkunden-Paket.
 import { globalPaketePfad, globalGespraechPfad } from "@shared/fiaon-global-wege";
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { EINSTIEG_KNOPF_ZUSATZ, EINSTIEG_TEXT, antragLinkAusRatgeber, einstiegAusThema } from "@shared/fiaon-antrag-einstieg";
 
 interface Weiterer { slug: string; titel: string; teaser: string; kategorie: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
@@ -31,7 +32,8 @@ function kopfSetzen(a: Artikel) {
     if (attr.content) el.setAttribute("content", attr.content); if (attr.href) el.setAttribute("href", attr.href);
   };
   setz('meta[name="description"]', { name: "description", content: a.metaBeschreibung || a.teaser });
-  setz('link[rel="canonical"]', { rel: "canonical", href: `https://www.fiaon.com/ratgeber/${a.slug}` });
+  // E-436: ohne www — dieselbe Adresse wie im Vorab-HTML des Servers (www antwortet mit 301).
+  setz('link[rel="canonical"]', { rel: "canonical", href: `https://fiaon.com/ratgeber/${a.slug}` });
   setz('meta[property="og:title"]', { property: "og:title", content: a.titel });
   setz('meta[property="og:description"]', { property: "og:description", content: a.teaser });
   setz('meta[property="og:type"]', { property: "og:type", content: "article" });
@@ -40,7 +42,7 @@ function kopfSetzen(a: Artikel) {
     "@graph": [
       { "@type": "Article", headline: a.titel, description: a.teaser, datePublished: a.veroeffentlichtAm, dateModified: a.aktualisiertAm, inLanguage: "de",
         author: { "@type": "Person", name: AUTORIN.name, jobTitle: AUTORIN.rolle }, publisher: { "@type": "Organization", name: "FIAON", url: "https://www.fiaon.com" },
-        mainEntityOfPage: `https://www.fiaon.com/ratgeber/${a.slug}`, keywords: a.schlagworte.join(", "), wordCount: textAusMarkdown(a.inhalt).split(" ").length },
+        mainEntityOfPage: `https://fiaon.com/ratgeber/${a.slug}`, keywords: a.schlagworte.join(", "), wordCount: textAusMarkdown(a.inhalt).split(" ").length },
       a.faq.length ? { "@type": "FAQPage", mainEntity: a.faq.map((f) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
     ].filter(Boolean),
   };
@@ -63,6 +65,8 @@ export default function RatgeberArtikel() {
     fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}${vorschau ? "?vorschau=1" : ""}`).then(async (r) => {
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) { setFehler(j?.error || "Diesen Ratgeber gibt es nicht."); return; }
+      // E-436: Business-Artikel wohnen in der Business-Welt (der Server leitet /ratgeber/<slug> dafür per 301 um).
+      if (j.artikel?.bereich === "business" && !vorschau) { window.location.replace(businessArtikelPfad(j.artikel.slug, j.artikel.sprache)); return; }
       setA(j.artikel); setWeitere(j.weitere || []); kopfSetzen(j.artikel);
     }).catch(() => setFehler("Der Ratgeber ist gerade nicht erreichbar."));
     return () => { document.getElementById("rg-ld")?.remove(); };

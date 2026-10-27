@@ -189,7 +189,8 @@ const GEIST: [RegExp, string][] = [
   [/\b\d+\s*(stunden|tage[n]?|werktage[n]?|wochen|monate[n]?)\b/i, "Dauer mit Ziffer"],
   [/\bziel-?(limit|rahmen)\b/i, "Ziel-Limit/Ziel-Rahmen"],
   [/\bempfohlen\b/i, "„empfohlen“"],
-  [/unternehmensberatung|beratungsgruppe|\bgroup\b|\bgruppe\b/i, "Selbstbezeichnung Beratung/Gruppe"],
+  // 27.10.2026 (E-436): „Unternehmensberatung“ ist erlaubt (Justin) — Gruppe bleibt gesperrt.
+  [/beratungsgruppe|\bgroup\b|\bgruppe\b/i, "Selbstbezeichnung Gruppe"],
 ];
 function wandUndGeist(name: string, text: string): void {
   const funde = wandPruefen(text);

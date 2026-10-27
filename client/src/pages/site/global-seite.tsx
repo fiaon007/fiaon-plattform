@@ -49,6 +49,9 @@ import { GLOBAL_PAKETE, globalKapital, globalPaket, globalPreisText, type Global
 import { globalStartPfad, globalPaketePfad, globalSeitePfad } from "@shared/fiaon-global-wege";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { businessArtikelAusPfad, businessArtikelPfad } from "@shared/fiaon-business-artikel";
+import { markdownZuHtml } from "@shared/fiaon-markdown";
+import { begriffStand, begriffeVerlinken, type Textteil } from "@shared/fiaon-global-begriffe";
 import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
@@ -76,7 +79,76 @@ const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").match
 export default function GlobalSeitePage() {
   const pfad = typeof window !== "undefined" ? window.location.pathname : "";
   const s = globalSeite(pfad);
-  if (!s) return <NotFound />;
+  if (s) return <Seite s={s} />;
+  // E-436 (27.10.2026): Kein Registereintrag? Dann vielleicht ein Artikel der Business-Redaktion.
+  const artikel = businessArtikelAusPfad(pfad);
+  return artikel ? <RedaktionsArtikel slug={artikel.slug} sp={artikel.sprache} /> : <NotFound />;
+}
+
+// ── Ein Artikel der Business-Redaktion im Kleid der Unterseiten (E-436, 27.10.2026) ──
+// Die Tagesartikel (fiaon_ratgeber, bereich business) liefen bis heute auf der dunklen Privat-Bühne unter
+// /ratgeber/<slug>. Jetzt sehen sie aus wie jede Seite von FIAON Global: Kopf mit Merkblatt, Inhaltsverzeichnis,
+// Antwortkarte, Abschnitte, Fragen, Paket. Der Text kommt aus dem Markdown der Redaktion — Abschnitt für Abschnitt.
+interface RedaktionsDaten { slug: string; titel: string; untertitel: string | null; teaser: string; inhalt: string; kategorie: string; land: string;
+  lesezeit: number; faq: { frage: string; antwort: string }[]; metaTitel: string; metaBeschreibung: string; veroeffentlichtAm: string | null; aktualisiertAm: string; bereich: string; sprache?: string }
+
+function redaktionsSeite(a: RedaktionsDaten, sp: Sp): GlobalSeite {
+  const en = sp === "en";
+  const teile = a.inhalt.split(/^## +/m);
+  const vorweg = teile[0].trim();
+  const abschnitte = teile.slice(1).map((t, i) => {
+    const [kopf, ...rest] = t.split("\n");
+    return { typ: "html" as const, id: `a${i + 1}`, h2: kopf.trim(), html: markdownZuHtml(rest.join("\n").trim()) };
+  }).filter((b) => b.h2 && !/^(Quellen|Sources)$/i.test(b.h2));
+  const quellenTeil = teile.slice(1).find((t) => /^(Quellen|Sources)\s*$/i.test(t.split("\n")[0].trim()));
+  const quellen = quellenTeil ? Array.from(quellenTeil.matchAll(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g)).map((m) => ({ titel: m[1], url: m[2] })) : [];
+  const [h1, ...h1rest] = a.titel.split(/:\s+/);
+  const stand = (a.aktualisiertAm || a.veroeffentlichtAm || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const datum = datumIn(stand, sp);
+  return {
+    pfad: businessArtikelPfad(a.slug, sp), sprache: sp, art: "wissen",
+    seo: { titel: a.metaTitel || a.titel, beschreibung: a.metaBeschreibung || a.teaser },
+    stand, erschienen: (a.veroeffentlichtAm || stand).slice(0, 10), kennung: en ? "Editorial" : "Redaktion",
+    auge: en ? "Knowledge · Latest from the editorial team" : "Wissen · Aktuell aus der Redaktion",
+    h1: h1rest.length ? `${h1}:` : a.titel, h1b: h1rest.length ? h1rest.join(": ") : undefined,
+    lead: a.untertitel || a.teaser,
+    blick: [
+      [en ? "As of" : "Stand", datum],
+      [en ? "Reading time" : "Lesezeit", en ? `${a.lesezeit} min` : `${a.lesezeit} Min.`],
+      [en ? "Written by" : "Redaktion", "FIAON Global"],
+      [en ? "With FIAON Global" : "Mit FIAON Global", en ? "Company, tax numbers, account and the path to capital — one contact" : "Gesellschaft, Steuernummern, Konto und der Weg zum Kapital — ein Ansprechpartner"],
+    ],
+    kurz: vorweg ? vorweg.replace(/[*_`#>\[\]]/g, "").replace(/\(https?:[^)]+\)/g, "").split(/\n\n/)[0].slice(0, 700) : a.teaser,
+    bloecke: [
+      ...abschnitte,
+      { typ: "paket", id: "paket", h2: en ? "From one source" : "Aus einer Hand", lead: en ? "Formation, EIN and ITIN, registered agent, US address and the prepared account and card applications — at a fixed price." : "Gründung, EIN und ITIN, Registered Agent, US-Adresse und die vorbereiteten Konto- und Kartenanträge — zum Festpreis.", paket: "global_banking" },
+    ],
+    fragen: a.faq.map((f) => ({ f: f.frage, a: f.antwort })),
+    paket: "global_banking",
+    weiter: en ? ["/en/business/knowledge", "/en/business/us-company-formation", "/en/business/us-business-credit-cards", "/en/business/costs"]
+      : ["/business/wissen", "/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/kosten"],
+    quellen,
+  };
+}
+
+function RedaktionsArtikel({ slug, sp }: { slug: string; sp: Sp }) {
+  const [s, setS] = useState<GlobalSeite | null>(null);
+  const [fehlt, setFehlt] = useState(false);
+  useEffect(() => {
+    let vorbei = false;
+    fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}`).then((r) => r.json()).then((j) => {
+      if (vorbei) return;
+      const a = j?.artikel as RedaktionsDaten | undefined;
+      if (!j?.ok || !a || a.bereich !== "business") { setFehlt(true); return; }
+      const asp: Sp = a.sprache === "en" ? "en" : "de";
+      // Falsche Sprache in der Adresse → auf die richtige (der Server leitet dasselbe per 301).
+      if (asp !== sp) { window.location.replace(businessArtikelPfad(slug, asp)); return; }
+      setS(redaktionsSeite(a, asp));
+    }).catch(() => { if (!vorbei) setFehlt(true); });
+    return () => { vorbei = true; };
+  }, [slug, sp]);
+  if (fehlt) return <NotFound />;
+  if (!s) return <Dunkel seite="business" sprache={sp} titel="FIAON Global" beschreibung=""><div style={{ minHeight: "70vh" }} /></Dunkel>;
   return <Seite s={s} />;
 }
 
@@ -87,18 +159,25 @@ function Seite({ s }: { s: GlobalSeite }) {
   const w = GLOBAL_SEITE_WORTE[sp];
   // E-379 (15.10.2026): Auf der Wissen-Übersicht stehen die neuesten Beiträge der Redaktion — jeden Tag einer
   // für Unternehmer (server/lib/fiaon-ratgeber-redaktion.ts). Nur deutsch: Die Redaktion schreibt deutsch.
-  const mitAktuell = s.art === "hub" && sp === "de";
+  const mitAktuell = s.art === "hub";
   const [aktuell, setAktuell] = useState<RedaktionsBeitrag[]>([]);
   useEffect(() => {
     if (!mitAktuell) return;
     let vorbei = false;
-    fetch("/api/fiaon/ratgeber?bereich=business&sprache=de&limit=60").then((r) => r.json())
+    fetch(`/api/fiaon/ratgeber?bereich=business&sprache=${sp}&limit=60`).then((r) => r.json())
       .then((j) => { if (!vorbei) setAktuell(Array.isArray(j?.artikel) ? j.artikel : []); }).catch(() => {});
     return () => { vorbei = true; };
   }, [mitAktuell]);
+  // E-436: Fachbegriffe im Fließtext verlinken — erstes Vorkommen, höchstens sechs je Seite (shared/fiaon-global-begriffe.ts).
+  const begriffe = useMemo(() => {
+    const stand = begriffStand(sp, s.pfad, (p) => !!globalSeite(p));
+    const plan = new Map<string, Textteil[]>();
+    for (const b of s.bloecke) if (b.typ === "text") b.absaetze.forEach((a, i) => plan.set(`${b.id}:${i}`, begriffeVerlinken(a, stand)));
+    return plan;
+  }, [s, sp]);
   const inhalt = useMemo(() => {
     const basis = globalInhalt(s);
-    return mitAktuell && aktuell.length ? [basis[0], { id: "aktuell", titel: AKTUELL_TITEL }, ...basis.slice(1)] : basis;
+    return mitAktuell && aktuell.length ? [basis[0], { id: "aktuell", titel: AKTUELL_TITEL[sp] }, ...basis.slice(1)] : basis;
   }, [s, mitAktuell, aktuell.length]);
   const nummer = useMemo(() => {
     const m = new Map<string, string>();
@@ -227,9 +306,9 @@ function Seite({ s }: { s: GlobalSeite }) {
               </ol>
             </details>
 
-            {mitAktuell && aktuell.length > 0 && <RedaktionAktuell beitraege={aktuell} nr={nummer.get("aktuell")} />}
+            {mitAktuell && aktuell.length > 0 && <RedaktionAktuell beitraege={aktuell} nr={nummer.get("aktuell")} sp={sp} />}
 
-            {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} onGespraech={oeffneGespraech}
+            {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} begriffe={begriffe} onGespraech={oeffneGespraech}
               randUnten={b.typ === "hinweis" && !randDaneben(s.bloecke[i + 1])} />)}
 
             {s.fragen.length > 0 && (
@@ -338,7 +417,7 @@ function useScrollspy(ids: string[]): string | null {
 
 // ── Aktuell aus der Redaktion (E-379) ───────────────────────────────────────
 interface RedaktionsBeitrag { slug: string; titel: string; teaser: string; land: string; lesezeit: number; veroeffentlichtAm: string | null }
-const AKTUELL_TITEL = "Aktuell aus der Redaktion";
+const AKTUELL_TITEL = { de: "Aktuell aus der Redaktion", en: "Latest from the editorial team" } as const;
 const AKTUELL_SICHTBAR = 6;
 
 /**
@@ -346,24 +425,24 @@ const AKTUELL_SICHTBAR = 6;
  * ?bereich=business: Menü und Fußzeile bleiben die von FIAON Global (lib/bereich.ts — ein Geschäftskunde verlässt
  * die Business-Welt nie aus Versehen).
  */
-function RedaktionAktuell({ beitraege, nr }: { beitraege: RedaktionsBeitrag[]; nr?: string }) {
+function RedaktionAktuell({ beitraege, nr, sp }: { beitraege: RedaktionsBeitrag[]; nr?: string; sp: Sp }) {
   const [alle, setAlle] = useState(false);
   const sichtbar = alle ? beitraege : beitraege.slice(0, AKTUELL_SICHTBAR);
-  const am = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" }) : "");
+  const am = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(sp === "en" ? "en-GB" : "de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" }) : "");
   return (
     <Abschnitt id="aktuell">
-      <Kopf nr={nr} h2={AKTUELL_TITEL} lead="Jeden Tag ein neuer Beitrag für Unternehmer — aktuell, mit Quellen." />
+      <Kopf nr={nr} h2={AKTUELL_TITEL[sp]} lead={sp === "en" ? "New articles for business owners — current, with sources." : "Jeden Tag ein neuer Beitrag für Unternehmer — aktuell, mit Quellen."} />
       <ul className="fd-verzeichnis">
         {sichtbar.map((b) => (
-          <li key={b.slug}><a href={`/ratgeber/${encodeURIComponent(b.slug)}?bereich=business`}>
-            <span><span className="tag">{am(b.veroeffentlichtAm)} · {b.lesezeit} Min.</span><span className="titel">{b.titel}</span><span className="text">{b.teaser}</span></span>
+          <li key={b.slug}><a href={businessArtikelPfad(b.slug, sp)}>
+            <span><span className="tag">{am(b.veroeffentlichtAm)} · {b.lesezeit} {sp === "en" ? "min" : "Min."}</span><span className="titel">{b.titel}</span><span className="text">{b.teaser}</span></span>
             <span className="pfeil"><Pfeil groesse={18} /></span>
           </a></li>
         ))}
       </ul>
       {beitraege.length > AKTUELL_SICHTBAR && (
         <button type="button" className="fg-textknopf" style={{ marginTop: 14 }} onClick={() => setAlle((x) => !x)}>
-          {alle ? "Weniger zeigen" : `Alle ${beitraege.length} Beiträge`}
+          {alle ? (sp === "en" ? "Show fewer" : "Weniger zeigen") : (sp === "en" ? `All ${beitraege.length} articles` : `Alle ${beitraege.length} Beiträge`)}
         </button>
       )}
     </Abschnitt>
@@ -414,7 +493,7 @@ const RECHT = /§|recht|steuer|pflicht|haft|gesetz|finanzamt|meldung|behörde|ve
  */
 const randDaneben = (naechster?: GlobalBlock) => !!naechster && naechster.typ !== "pakete" && naechster.typ !== "hinweis";
 
-function Baustein({ b, nr, seite, sp, onGespraech, randUnten = false }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp; onGespraech: (paket?: GlobalSchluessel) => void; randUnten?: boolean }): ReactNode {
+function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp; begriffe?: Map<string, Textteil[]>; onGespraech: (paket?: GlobalSchluessel) => void; randUnten?: boolean }): ReactNode {
   const u = GLOBAL_SEITE_WOERTER[sp];
   const wege = { sp, seite: seite.pfad, art: seite.auftraggeber, onGespraech };
   switch (b.typ) {
@@ -422,7 +501,11 @@ function Baustein({ b, nr, seite, sp, onGespraech, randUnten = false }: { b: Glo
       return (
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} />
-          {b.absaetze.map((a) => <p key={a.slice(0, 40)} className="fd-p">{a}</p>)}
+          {b.absaetze.map((a, i) => (
+            <p key={a.slice(0, 40)} className="fd-p">
+              {(begriffe?.get(`${b.id}:${i}`) ?? [a]).map((t, j) => (typeof t === "string" ? t : <a key={j} href={t.pfad} className="fd-begriff">{t.text}</a>))}
+            </p>
+          ))}
           {b.punkte?.length ? <ul className="fd-punkte">{b.punkte.map((p) => <li key={p}><Haken />{p}</li>)}</ul> : null}
           {b.nach && <p className="fd-nach">{b.nach}</p>}
         </Abschnitt>
@@ -552,6 +635,14 @@ function Baustein({ b, nr, seite, sp, onGespraech, randUnten = false }: { b: Glo
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <div className="fd-fragen"><Fragen items={b.fragen} /></div>
+        </Abschnitt>
+      );
+    case "html":
+      // E-436: ein Abschnitt eines Redaktionsartikels (Markdown → HTML, aus der eigenen Datenbank).
+      return (
+        <Abschnitt id={b.id}>
+          <Kopf nr={nr} h2={b.h2} />
+          <div className="fd-html" dangerouslySetInnerHTML={{ __html: b.html }} />
         </Abschnitt>
       );
   }

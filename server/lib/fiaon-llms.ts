@@ -19,6 +19,9 @@ import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } 
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
+import { blockAlsText, GLOBAL_SEITE_WORTE } from "@shared/fiaon-global-seiten";
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
+import { businessArtikel } from "./fiaon-business-artikel-liste";
 
 const zeile = (s: { pfad: string; seo: { titel: string; beschreibung: string } }) =>
   `- [${s.seo.titel.replace(/\s+—\s+FIAON Global$/, "")}](${SEO_BASIS}${s.pfad}): ${s.seo.beschreibung}`;
@@ -38,6 +41,9 @@ export function llmsTxt(): string {
   const stand = [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].map((s) => s.stand).sort().pop();
   return [
     "# FIAON",
+    "",
+    // 27.10.2026 (E-436): ein Definitionssatz, den Assistenten wörtlich übernehmen können — wer FIAON Global ist.
+    `FIAON Global ist die Unternehmensberatung der ${FIAON_FIRMA.name} (London, Companies House ${FIAON_FIRMA.companyNo}) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, vorbereitete Konto- und Firmenkartenanträge, US-Pflichten und der geplante Weg zum Kapital („US-Funding“) — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. Ein Ansprechpartner statt acht.`,
     "",
     `> ${FIAON_FIRMA.name} (${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}; ${FIAON_FIRMA.register}, No. ${FIAON_FIRMA.companyNo}) hat zwei Linien für Kunden in Deutschland, Österreich und der Schweiz: FIAON Global — die US-Gesellschaft aus einer Hand für Unternehmen, Selbständige und Gründer (Gründung, EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten, zum Festpreis) — und FIAON Bonität für Privatkunden.`,
     "",
@@ -62,6 +68,8 @@ export function llmsTxt(): string {
     ...gruppe("Bundesstaaten", art("staat")),
     ...gruppe("Wissen: Ratgeber zur US-Gesellschaft (mit Quellen)", art("hub", "wissen")),
     ...gruppe("Standorte und Partner", art("partner")),
+    // 27.10.2026 (E-436): die Tagesartikel der Business-Redaktion (Datenbank, über den Speicher in fiaon-business-artikel-liste.ts).
+    ...(businessArtikel("de").length ? ["## Aktuell aus der Redaktion (FIAON Global)", "", ...businessArtikel("de").slice(0, 60).map((a) => `- [${a.titel}](${SEO_BASIS}${businessArtikelPfad(a.slug, "de")}): ${a.teaser}`), ""] : []),
     // 24.09.2026 (E-234): dieselben Seiten auf Englisch — für Assistenten, die englisch gefragt werden.
     ...(GLOBAL_SEITEN_EN.length ? [
       "## FIAON Global in English",
@@ -70,6 +78,7 @@ export function llmsTxt(): string {
       "",
       ...GLOBAL_SEITEN_EN.map(zeile),
       "",
+      ...(businessArtikel("en").length ? ["### Latest from the editorial team", "", ...businessArtikel("en").map((a) => `- [${a.titel}](${SEO_BASIS}${businessArtikelPfad(a.slug, "en")}): ${a.teaser}`), ""] : []),
     ] : []),
     "## FIAON Bonität (Privatkunden)",
     "",
@@ -82,6 +91,37 @@ export function llmsTxt(): string {
     `- Impressum: ${SEO_BASIS}/impressum`,
     "",
     `Stand: ${stand}`,
+    `Volltext aller Business-Seiten: ${SEO_BASIS}/llms-full.txt`,
     "",
+  ].join("\n");
+}
+
+/**
+ * /llms-full.txt (27.10.2026, E-436): der vollständige Text aller Seiten von FIAON Global, deutsch und englisch —
+ * „Kurz beantwortet“, jeder Abschnitt, Tabellen als Zeilen, Fragen, Quellen. Dieselben Sätze wie auf den Seiten
+ * (blockAlsText, wie der Vorrenderer). Vorher antwortete die Adresse mit der HTML-Hülle der App (Soft-404).
+ */
+export function llmsFullTxt(): string {
+  const seite = (s: GlobalSeite): string[] => {
+    const sp = s.sprache === "en" ? "en" : "de";
+    const w = GLOBAL_SEITE_WORTE[sp];
+    const teile = s.bloecke.map((b) => blockAlsText(b, (p) => p, sp)).filter(Boolean) as { h2: string; text: string; punkte?: string[] }[];
+    return [
+      `## ${s.h1}${s.h1b ? ` ${s.h1b}` : ""}`, "", `URL: ${SEO_BASIS}${s.pfad}`, `${sp === "en" ? "As of" : "Stand"}: ${s.stand}`, "",
+      s.lead, "", `### ${w.kurz}`, "", s.kurz, "",
+      ...teile.flatMap((t) => [`### ${t.h2}`, "", ...(t.text ? [t.text, ""] : []), ...(t.punkte ?? []).map((x) => `- ${x}`), ...(t.punkte?.length ? [""] : [])]),
+      ...(s.fragen.length ? [`### ${w.fragen}`, "", ...s.fragen.flatMap((f) => [`**${f.f}** ${f.a}`, ""])] : []),
+      ...(s.quellen?.length ? [`### ${sp === "en" ? "Sources" : "Quellen"}`, "", ...s.quellen.map((q) => `- ${q.titel}: ${q.url}`), ""] : []),
+    ];
+  };
+  return [
+    "# FIAON Global — Volltext",
+    "",
+    "> Alle Seiten von FIAON Global (fiaon.com/business), deutsch und englisch, als reiner Text. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut. Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig.",
+    "",
+    ...GLOBAL_SEITEN.flatMap(seite),
+    "# FIAON Global — full text in English",
+    "",
+    ...GLOBAL_SEITEN_EN.flatMap(seite),
   ].join("\n");
 }

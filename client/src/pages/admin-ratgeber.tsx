@@ -18,6 +18,7 @@
 // Lauf; „Tagesartikel jetzt“ startet den Lauf sofort, „Entwurf erzeugen“
 // schreibt einen zusätzlichen Entwurf im gewählten Bereich.
 // ═══════════════════════════════════════════════════════════════════════════
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageIntro } from "@/components/admin/PageHelp";
 import { BEREICH_LABEL, KATEGORIEN, THEMEN, pruefstand, type Artikel, type Bereich, type Kategorie, type Status } from "@shared/fiaon-ratgeber";
@@ -138,7 +139,7 @@ export default function AdminRatgeberPage() {
               <span key={b} className="inline-flex items-center gap-1.5">
                 <span className="text-slate-500">{BEREICH_LABEL[b]}</span>
                 {st.erledigt && a
-                  ? <a href={`/ratgeber/${a.slug}${b === "business" ? "?bereich=business" : ""}`} target="_blank" rel="noreferrer" className="text-emerald-700 font-medium" title={a.titel}>{zeichen}</a>
+                  ? <a href={b === "business" ? businessArtikelPfad(a.slug, (a as any).sprache) : `/ratgeber/${a.slug}`} target="_blank" rel="noreferrer" className="text-emerald-700 font-medium" title={a.titel}>{zeichen}</a>
                   : <span className={a ? "text-amber-700" : "text-slate-400"} title={a?.titel}>{zeichen}</span>}
               </span>
             );

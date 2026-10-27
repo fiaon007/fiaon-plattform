@@ -93,18 +93,23 @@ export function globalInhalt(s: GlobalSeite): { id: string; titel: string }[] {
 }
 
 /** Ein Baustein als Klartext — für den Korpus der Suchmaschinen (derselbe Inhalt wie sichtbar). */
-export function blockAlsText(b: GlobalBlock, seitenTitel: (pfad: string) => string, sprache: "de" | "en" = "de"): { h2: string; text: string; punkte?: string[] } | null {
+export function blockAlsText(b: GlobalBlock, seitenTitel: (pfad: string) => string, sprache: "de" | "en" = "de"): {
+  h2: string; text: string; punkte?: string[];
+  tabelle?: { kopf: string[]; zeilen: string[][]; fuss?: string[] }; links?: { pfad: string; text: string }[];
+} | null {
   const [rFiaon, rPartner, rSie] = GLOBAL_SEITE_WORTE[sprache].rollen;
   switch (b.typ) {
     case "text": return { h2: b.h2, text: [...b.absaetze, ...(b.nach ? [b.nach] : [])].join(" "), punkte: b.punkte };
     case "etappen": return { h2: b.h2, text: b.lead ?? "", punkte: b.etappen.map((e, i) => `${i + 1}. ${e.titel}${e.dauer ? ` (${e.dauer})` : ""}: ${e.text}`) };
     case "rollen": return { h2: b.h2, text: b.lead ?? "", punkte: [`${rFiaon}: ${b.fiaon.join("; ")}`, `${rPartner}: ${b.partner.join("; ")}`, `${rSie}: ${b.sie.join("; ")}`] };
-    case "tabelle": return { h2: b.h2, text: [b.lead ?? "", ...(b.fuss ?? [])].join(" ").trim(), punkte: b.zeilen.map((z) => z.map((zelle, i) => (b.kopf[i] ? `${b.kopf[i]}: ${zelle}` : zelle)).join(" · ")) };
-    case "karten": return { h2: b.h2, text: b.lead ?? "", punkte: b.karten.map((k) => `${k.tag ? `${k.tag} — ` : ""}${k.titel}: ${k.text}`) };
+    // E-436: die Tabelle bleibt eine Tabelle (punkte für Leser ohne Tabellen, z. B. llms.txt).
+    case "tabelle": return { h2: b.h2, text: (b.lead ?? "").trim(), punkte: b.zeilen.map((z) => z.map((zelle, i) => (b.kopf[i] ? `${b.kopf[i]}: ${zelle}` : zelle)).join(" · ")), tabelle: { kopf: b.kopf, zeilen: b.zeilen, fuss: b.fuss } };
+    case "karten": return { h2: b.h2, text: b.lead ?? "", punkte: b.karten.map((k) => `${k.tag ? `${k.tag} — ` : ""}${k.titel}: ${k.text}`), ...(b.karten.some((k) => k.pfad) ? { links: b.karten.filter((k) => k.pfad).map((k) => ({ pfad: k.pfad!, text: k.titel })) } : {}) };
     case "hinweis": return { h2: b.h2, text: b.lead ?? "", punkte: b.punkte };
     case "fragen": return { h2: b.h2, text: b.lead ?? "", punkte: b.fragen.map((f) => `${f.f} ${f.a}`) };
-    case "verzeichnis": return { h2: b.h2, text: b.lead ?? "", punkte: b.eintraege.map((e) => seitenTitel(e.pfad)) };
+    case "verzeichnis": return { h2: b.h2, text: b.lead ?? "", punkte: b.eintraege.map((e) => seitenTitel(e.pfad)), links: b.eintraege.map((e) => ({ pfad: e.pfad, text: seitenTitel(e.pfad) })) };
     case "zitat": return null;
+    case "html": return { h2: b.h2, text: b.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() };
     case "paket": case "pakete": case "standorte": case "finder": return b.h2 ? { h2: b.h2, text: b.lead ?? "" } : null;
   }
 }

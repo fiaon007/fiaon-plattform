@@ -32,6 +32,8 @@ export const QUELLEN_FINANZIERUNG: Record<string, GlobalQuelle> = {
   dscrProgramm: { titel: "Programmbeschreibung Foreign National DSCR (Kreditgeber, 2026)", url: "https://admortgage.com/programs/foreign-nationals/" },
   dscrZinsen: { titel: "DSCR-Zinsen für ausländische Investoren (Marktbeobachtung, August 2026)", url: "https://homeabroadinc.com/mortgages/dscr-loan-interest-rates/" },
   sbaKredite: { titel: "U.S. Small Business Administration — Loans", url: "https://www.sba.gov/funding-programs/loans" },
+  // 27.10.2026 (E-436): Seit 01.03.2026 nur noch 100 % US-Eigentümer mit US-Hauptwohnsitz (vorher hieß es hier „in der Regel nicht").
+  sbaRegel2026: { titel: "SBA Procedural Notice 5000-876626 — Eigentümer, Staatsbürgerschaft und Wohnsitz bei 7(a)- und 504-Krediten (gültig ab 01.03.2026)", url: "https://www.naggl.org/wp-content/uploads/2026/05/5000-876626.pdf" },
 };
 const QF = QUELLEN_FINANZIERUNG;
 
@@ -257,7 +259,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       titel: "Finanzierungswege einer US-Gesellschaft — FIAON Global",
       beschreibung: "Karten, Lieferantenkonten, Firmenkarten nach Guthaben, Plattformkredite, Kreditlinie, Objektfinanzierung: was einer US-Gesellschaft offensteht.",
     },
-    stand: S,
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 42",
     auge: "Wissen · Finanzierung",
@@ -305,7 +307,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       {
         typ: "text", id: "grenzen", h2: "Wo die Grenzen liegen",
         absaetze: [
-          "Staatlich gestützte Kleinunternehmerkredite der SBA stehen Gesellschaften, die vollständig Personen ohne US-Staatsbürgerschaft oder Green Card gehören, in der Regel nicht offen. Manche Online-Kreditgeber vergeben Kredite nur an Inhaber mit Wohnsitz in den USA.",
+          "Staatlich gestützte Kleinunternehmerkredite der SBA (Programme 7(a) und 504) stehen seit dem 1. März 2026 nur Gesellschaften offen, deren Eigentümer ausnahmslos US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sind — auch Inhaber einer Green Card sind ausgeschlossen. Manche Online-Kreditgeber vergeben Kredite nur an Inhaber mit Wohnsitz in den USA.",
           "Große Beträge allein über gestapelte Karten aufzubauen, ist kein belegter Weg. Die US-Handelsaufsicht FTC hat 2025 einen Anbieter verurteilt, der Unternehmern Finanzierungen versprach und stattdessen Kreditkarten beantragte.",
         ],
       },
@@ -335,12 +337,12 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
     ],
     fragen: [
       { f: "Welche Finanzierung bekommt eine neue US-Gesellschaft am schnellsten?", a: "Firmenkarten, deren Rahmen sich am Guthaben orientiert, und Lieferantenkonten mit Zahlungsziel. Kreditlinien der Bank setzen meist Geschäftsjahre, Umsatz oder eine Sicherheit voraus." },
-      { f: "Bekommt eine LLC aus Europa einen SBA-Kredit?", a: "In der Regel nicht, wenn sie vollständig Personen ohne US-Staatsbürgerschaft oder Green Card gehört." },
+      { f: "Bekommt eine LLC aus Europa einen SBA-Kredit?", a: "Nein. Seit dem 1. März 2026 müssen alle direkten und indirekten Eigentümer US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626); auch eine Green Card genügt nicht." },
       { f: "Kann eine Muttergesellschaft in Europa für die US-Gesellschaft bürgen?", a: "Ja, das ist ein üblicher Weg zu einer Kreditlinie. Die Bank prüft dann vor allem die Bilanz der Muttergesellschaft." },
       { f: "Beschafft FIAON den Kredit für meine US-Gesellschaft?", a: "Nein. FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Wir bereiten Gesellschaft, Unterlagen und Reihenfolge vor; das Institut entscheidet." },
     ],
     paket: "global_kapital",
     weiter: ["/business/wissen/business-credit-usa", "/business/wissen/us-firmenkarte-beantragen", "/business/wissen/us-immobilie-finanzieren", "/business/firmenkarten-kapital"],
-    quellen: [Q.duns, Q.paydex, QF.sbaKredite, Q.ftcSeek],
+    quellen: [Q.duns, Q.paydex, QF.sbaKredite, QF.sbaRegel2026, Q.ftcSeek],
   },
 ];

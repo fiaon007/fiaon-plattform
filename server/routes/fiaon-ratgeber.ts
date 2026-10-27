@@ -20,6 +20,7 @@
 // Alle 30 Minuten, ab 06:00 Berlin: Tagesartikel je Bereich (ratgeberTageslauf, Lauf „ratgeber-tagesartikel“).
 // Sitemap:                   sitemapXml() ergänzt die statische Sitemap.
 // ═══════════════════════════════════════════════════════════════════════════
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { AUTORIN, BEREICHE, THEMEN, pruefstand, slugify, lesezeitVon, bereichVonKategorie, type Artikel, type Bereich } from "@shared/fiaon-ratgeber";
@@ -245,9 +246,11 @@ export async function ratgeberTageslaufStreng(): Promise<ReturnType<typeof ratge
 export async function sitemapXml(statisch: string): Promise<string> {
   try {
     await ensureRatgeberTabelle();
-    const rows = (await sqlPool`SELECT slug, updated_at FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
+    const rows = (await sqlPool`SELECT slug, updated_at, bereich, sprache FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
+    // 27.10.2026 (E-436): Business-Artikel stehen unter ihrer Business-Adresse (/business/wissen/…, /en/business/knowledge/…).
+    const adresse = (r: any) => (r.bereich === "business" ? businessArtikelPfad(r.slug, r.sprache) : `/ratgeber/${r.slug}`);
     const extra = [`  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
-      ...rows.map((r) => `  <url><loc>https://fiaon.com/ratgeber/${r.slug}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");
+      ...rows.map((r) => `  <url><loc>https://fiaon.com${adresse(r)}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");
     return statisch.replace("</urlset>", `${extra}\n</urlset>`);
   } catch { return statisch; }
 }

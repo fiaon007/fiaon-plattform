@@ -905,6 +905,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(llmsTxt());
     } catch (e) { console.error('[LLMS]', e); res.status(500).end(); }
   });
+  // 27.10.2026 (E-436): der Volltext der Business-Welt für KI-Assistenten (vorher Soft-404) und eine echte security.txt.
+  app.get('/llms-full.txt', async (_req, res) => {
+    try {
+      const { llmsFullTxt } = await import('./lib/fiaon-llms');
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(llmsFullTxt());
+    } catch (e) { console.error('[LLMS-FULL]', e); res.status(500).end(); }
+  });
+  app.get(['/.well-known/security.txt', '/security.txt'], (_req, res) => {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(['Contact: mailto:support@fiaon.com', 'Expires: 2027-10-27T00:00:00.000Z', 'Preferred-Languages: de, en', 'Canonical: https://fiaon.com/.well-known/security.txt', ''].join('\n'));
+  });
   // 29.09.2026 (E-263): Termine im eigenen Kalender — Abo (/kalender/<token>.ics), Einrichtungsseite
   // (/kalender/<token>), Einzeltermin (/kalender/t/…) und Kundendatei (/kalender/k/…). Ohne Login (der
   // Token ist die Berechtigung), vor den Seiten-Fangnetzen unten, außerhalb der /api-Gatter und des Anfrage-Logs.
@@ -1001,6 +1015,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
     '/terms': '/agb',
+    // 27.10.2026 (E-436): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
+    '/about': '/ueber-uns',
   };
   app.get(Object.keys(UMGEZOGEN), (req, res, next) => {
     const pfad = req.path.replace(/\/+$/, '').toLowerCase();
@@ -1008,6 +1024,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!ziel) return next();
     const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
     res.redirect(301, ziel + (pfad === '/business-antrag' ? '' : abfrage));
+  });
+
+  // 27.10.2026 (E-436): Die Tagesartikel der Business-Redaktion wohnen in der Business-Welt —
+  // /business/wissen/<slug> (deutsch) und /en/business/knowledge/<slug> (englisch). Registerseiten gehen vor
+  // (globalSeite), unbekannte Slugs fallen durch zum 404 des Catch-all. Passt die Sprache der Adresse nicht
+  // zum Artikel, 301 auf die richtige.
+  app.get(['/business/wissen/:slug', '/en/business/knowledge/:slug'], async (req, res, next) => {
+    try {
+      const { globalSeite } = await import('@shared/fiaon-global-seiten');
+      if (globalSeite(req.path)) return next();
+      const slug = String(req.params.slug || '').toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(slug)) return next();
+      const { businessArtikelHtml } = await import('./lib/fiaon-ratgeber-seo');
+      const erg = await businessArtikelHtml(slug, req.path.startsWith('/en/') ? 'en' : 'de');
+      if (!erg) return next();
+      if ('umleiten' in erg) return res.redirect(301, erg.umleiten);
+      let html = erg.html;
+      if (process.env.NODE_ENV !== 'production') {
+        try { const { viteInstanz } = await import('./vite'); if (viteInstanz) html = await viteInstanz.transformIndexHtml(req.originalUrl, html); } catch { /* Entwicklung */ }
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.send(html);
+    } catch (e) { console.error('[BUSINESS-ARTIKEL]', e); next(); }
   });
 
   app.get('*', async (req, res, next) => {
@@ -1044,9 +1084,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Ratgeber vorgerendert für Suchmaschinen (Kopf + Inhalt im HTML) — VOR der SPA-Auslieferung.
   app.get(['/ratgeber', '/ratgeber/:slug'], async (req, res, next) => {
     try {
-      const { ratgeberSeitenHtml } = await import('./lib/fiaon-ratgeber-seo');
+      const { ratgeberSeitenHtml, businessArtikelZiel } = await import('./lib/fiaon-ratgeber-seo');
+      // 27.10.2026 (E-436): Business-Artikel sind umgezogen — dauerhaft auf ihre Business-Adresse (Abfrage ohne bereich=…).
+      if (req.params.slug && req.query.vorschau !== '1') {
+        const ziel = await businessArtikelZiel(String(req.params.slug));
+        if (ziel) {
+          const q = new URLSearchParams(req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?') + 1) : '');
+          q.delete('bereich');
+          const rest = q.toString();
+          return res.redirect(301, ziel + (rest ? `?${rest}` : ''));
+        }
+      }
       const html = await ratgeberSeitenHtml(req.params.slug ? String(req.params.slug) : null);
-      if (!html) return next();
+      if (!html) {
+        // 27.10.2026 (E-436): Ein unbekannter Artikel ist keine Seite — 404 mit noindex statt 200 mit der Startseiten-Hülle
+        // (Soft-404). Die App lädt trotzdem (Vorschau der Redaktion mit ?vorschau=1 funktioniert weiter).
+        if (req.params.slug) {
+          const { nichtGefundenHtml } = await import('./lib/fiaon-seiten-seo');
+          const nf = nichtGefundenHtml(req.path);
+          if (nf) { res.status(404); res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); return res.send(nf); }
+        }
+        return next();
+      }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=300');
       res.send(html);
@@ -1057,6 +1116,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vorher hieß der Lauf „ratgeber-entwuerfe" und meldete sechs Wochen lang Erfolg, ohne einen Artikel zu schreiben.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('ratgeber-tagesartikel', async () => await fiaonRatgeber.ratgeberTageslaufStreng(), 30 * 60 * 1000, { beimStartNach: 120_000 });
+  // 27.10.2026 (E-436): die Business-Artikel für Vorrenderer und llms.txt einmal beim Start laden (danach alle 5 Min. bei Bedarf).
+  void import('./lib/fiaon-business-artikel-liste').then((m) => m.businessArtikelLaden()).catch(() => {});
+  // E-436: nach jedem Deploy die frisch geänderten Seiten an Bing melden (IndexNow), drei Minuten nach dem Start.
+  setTimeout(() => { void import('./lib/fiaon-indexnow').then((m) => m.indexNowNachStart()).catch(() => {}); }, 180_000).unref?.();
   });
 
   // 🧭 MEIN BEREICH — der neue Kundenbereich (E-013). Hinter signiertem Cookie.

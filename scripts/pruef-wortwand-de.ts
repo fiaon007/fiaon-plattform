@@ -53,7 +53,7 @@ const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /ziel-?(limit|rahmen)/i, grund: "Kapitalrahmen statt Ziel-Limit" },
   { muster: /\bempfohlen\w*\b/i, grund: "keine Empfehlung" },
   { muster: /\b0\s?%/, grund: "kein Zinssatz als Zahl — „Einführungszeitraum ohne Sollzins“" },
-  { muster: /unternehmensberat|\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung (AT § 94 Z 74 GewO, § 18 HGB)" },
+  { muster: /\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung als Gruppe (§ 18 HGB) — FIAON ist eine Gesellschaft, keine Gruppe" },
   { muster: /ohne sicherheiten/i, grund: "die persönliche Haftung IST die Sicherheit — „ohne Bareinlage“" },
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
 ];

@@ -208,6 +208,8 @@ export interface Artikel {
   erstelltAm: string; aktualisiertAm: string; veroeffentlichtAm: string | null;
   /** E-379: privat (/ratgeber) oder business (FIAON Global). */
   bereich: Bereich;
+  /** E-436: Sprache des Textes — bestimmt die Adresse eines Business-Artikels (/business/wissen bzw. /en/business/knowledge). */
+  sprache?: "de" | "en";
   /** E-379: Der Berliner Tag, für den die Redaktion diesen Artikel als Tagesartikel geschrieben hat (sonst null). */
   tagesartikel: string | null;
   /** E-379: Die Quellen der Recherche (Websuche) — für die Redaktion. */

@@ -37,6 +37,7 @@
 // Die KI ist austauschbar (RedaktionKi) — der Prüfstand scripts/pruef-e379.ts
 // setzt eine Attrappe ein und ruft nie das Netz.
 // ═══════════════════════════════════════════════════════════════════════════
+import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { sqlPool } from "./db-pool";
 import { openaiFetch, kiPausiert, istKiPause, kiSchluessel, kiLesenMoeglich } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
@@ -150,6 +151,7 @@ export function zeile(r: any): Artikel {
     status: r.status, quelle: r.quelle, modell: r.modell ?? null, pruefung: r.pruefung ? jsonLesen<Pruefung | null>(r.pruefung, null) : null,
     erstelltAm: r.created_at, aktualisiertAm: r.updated_at, veroeffentlichtAm: r.published_at ?? null,
     bereich: (r.bereich === "business" ? "business" : r.bereich === "privat" ? "privat" : bereichVonKategorie(r.kategorie)),
+    sprache: r.sprache === "en" ? "en" : "de",
     tagesartikel: datumText(r.tagesartikel),
     quellen: Array.isArray(recherche?.quellen) ? recherche.quellen : [],
     anlass: r.anlass ?? recherche?.anlass ?? null,
@@ -886,7 +888,12 @@ export async function bereichAbarbeiten(b: Bereich, tag: string, ki: RedaktionKi
   const [pub] = (await lauf`
     UPDATE fiaon_ratgeber SET status = 'veroeffentlicht', quelle = 'ki', published_at = NOW(), updated_at = NOW()
      WHERE id = ${id} AND status NOT IN ('veroeffentlicht', 'archiv')
-    RETURNING slug, titel`) as any[];
+    RETURNING slug, titel, bereich, sprache`) as any[];
+  // E-436: den neuen Artikel sofort an Bing melden (IndexNow) und die Business-Liste für Vorrenderer/llms.txt auffrischen.
+  if (pub) {
+    void import("./fiaon-indexnow").then((m) => m.indexNowMelden([pub.bereich === "business" ? businessArtikelPfad(pub.slug, pub.sprache) : `/ratgeber/${pub.slug}`], "Tagesartikel")).catch(() => {});
+    if (pub.bereich === "business") void import("./fiaon-business-artikel-liste").then((m) => m.businessArtikelLaden()).catch(() => {});
+  }
   return { bereich: b, ergebnis: pub ? "veroeffentlicht" : "erledigt", id, slug: pub?.slug, titel: pub?.titel, versuche: gezaehlt, fehler: [] };
 }
 

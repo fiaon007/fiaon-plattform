@@ -106,9 +106,12 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // als Einzelrechnung; die laufende Abrechnung ist eine spätere Scheibe). Geprüft im Einzelnen: scripts/pruef-global-zusatz.ts.
 gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung + Zusatzdienste",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "koop_kontakte", ...PAKETE.filter((p) => p.globalZusatz).map((p) => p.key)].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "llc_loeschung", "koop_kontakte", ...PAKETE.filter((p) => p.globalZusatz).map((p) => p.key)].sort());
 // E-419: Fast-Track der Gründung — Einmalkauf privat, 533,20 € (599 USD zum EZB-Kurs vom 21.10.2026), Zahlungsseite global, nicht verkaufbar.
 {
+  // E-432 (27.10.2026): Löschung einer früheren US-Gesellschaft — 149,00 USD zum EZB-Kurs = 132,63 €, wie llc_fasttrack.
+  const lo = paket("llc_loeschung");
+  ok("llc_loeschung: privat, kein Abo, eingestellt, 132,63 €, Zahlungsseite global, Rechnungstext mit USD und Kurs", lo?.art === "privat" && lo.abo === false && lo.eingestellt === true && lo.preisCents === 13263 && lo.zahlungsseite === "global" && /149,00 USD/.test(lo.rechnung?.beschreibung ?? "") && /1,1234/.test(lo.rechnung?.beschreibung ?? "") && !istGlobalPaket("llc_loeschung") && !verkaufbarePakete().some((p) => p.key === "llc_loeschung"));
   const ft = paket("llc_fasttrack");
   ok("llc_fasttrack: privat, kein Abo, eingestellt, 533,20 €, Zahlungsseite global, Rechnungstext mit USD und Kurs", ft?.art === "privat" && ft.abo === false && ft.eingestellt === true && ft.preisCents === 53320 && ft.zahlungsseite === "global" && /599,00 USD/.test(ft.rechnung?.beschreibung ?? "") && /1,1234/.test(ft.rechnung?.beschreibung ?? "") && !istGlobalPaket("llc_fasttrack") && !verkaufbarePakete().some((p) => p.key === "llc_fasttrack"));
 }

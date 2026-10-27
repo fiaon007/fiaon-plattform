@@ -16,6 +16,8 @@
 //     [--tage 7] [--pdf <ordner>]            → Vorschau (nichts geschrieben)
 //   … --schreiben                          → legt an (nur gegen 127.0.0.1/localhost)
 //   … --schreiben --produktion             → gegen die Produktion, NUR mit Justins Go
+//   [--zweck FIAON-XXXXXX]   E-432: dieser Verwendungszweck statt eines neuen (der Kunde hat ihn schon überwiesen)
+//   [--bank <txn_id>]        E-432: den Bankeingang gleich über den einen Buchungsweg buchen (bankeingangBuchen, Betrag muss passen)
 // Ein zweiter Lauf mit derselben Vorlage und demselben Paket legt keine zweite Rechnung an (offene/bezahlte Zeile wird gezeigt).
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
@@ -26,6 +28,8 @@ const schreiben = process.argv.includes("--schreiben");
 const produktion = process.argv.includes("--produktion");
 const vorlage = arg("--vorlage"); const paketKey = arg("--paket"); const name = arg("--name"); const grund = arg("--grund");
 const tage = Math.max(0, Math.min(30, Number(arg("--tage") ?? 7) || 0)); const pdfOrdner = arg("--pdf");
+const zweck = arg("--zweck"); const bankTxn = arg("--bank");
+if (zweck && !/^FIAON-[A-Z0-9]{6}$/.test(zweck)) { console.error("ABBRUCH: --zweck in der Form FIAON-XXXXXX."); process.exit(2); }
 if (!vorlage || !paketKey || !name || !grund) { console.error("ABBRUCH: --vorlage, --paket, --name und --grund sind Pflicht."); process.exit(2); }
 const url = String(process.env.DATABASE_URL ?? "");
 let host = ""; try { host = new URL(url).hostname; } catch { /* unten */ }
@@ -64,6 +68,14 @@ if (!schreiben || da) {
   await sqlPool.end(); process.exit(0);
 }
 
+if (zweck) {
+  const [belegt] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE payment_reference = ${zweck} LIMIT 1`) as any[];
+  if (belegt) { console.error(`ABBRUCH: Verwendungszweck ${zweck} gehört schon zu ${belegt.ref}.`); await sqlPool.end(); process.exit(2); }
+}
+const [tx] = bankTxn ? ((await sqlPool`SELECT id, amount_cents, applied FROM fiaon_bank_txns WHERE txn_id = ${bankTxn} LIMIT 1`) as any[]) : [];
+if (bankTxn && (!tx || tx.applied || Number(tx.amount_cents) !== p.preisCents)) {
+  console.error(`ABBRUCH: Bankeingang ${bankTxn} fehlt, ist schon verbucht oder passt nicht zum Betrag (${tx ? tx.amount_cents : "—"} ≠ ${p.preisCents} Cent).`); await sqlPool.end(); process.exit(2);
+}
 const ref = `FIAON-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
 await sqlPool`
   INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, first_name, last_name, company_name, contact_name, email, billing_email,
@@ -79,10 +91,17 @@ if (b.status !== 200 || !b.body.paymentReference) { console.error(`FEHLER Bestel
 await sqlPool`UPDATE fiaon_applications SET payment_due_date = ${new Date(Date.now() + tage * 864e5)}, updated_at = NOW() WHERE ref = ${ref}`;
 const { ensureInvoiceNumber } = await import("../server/fiaon-invoice");
 const nummer = await ensureInvoiceNumber(sqlPool, ref);
-console.log(`Angelegt: ${ref} · Verwendungszweck ${b.body.paymentReference} · ${nummer}`);
+const vz = zweck ?? String(b.body.paymentReference);
+if (zweck) await sqlPool`UPDATE fiaon_applications SET payment_reference = ${zweck}, updated_at = NOW() WHERE ref = ${ref}`;
+console.log(`Angelegt: ${ref} · Verwendungszweck ${vz} · ${nummer}`);
+if (tx) {
+  const { bankeingangBuchen } = await import("../server/lib/fiaon-bank-nachholen");
+  const r = await bankeingangBuchen(Number(tx.id), { ziel: ref, wer: "Skript einzelrechnung-anlegen" });
+  console.log(r.ok ? `Gebucht: Bankeingang ${bankTxn} → ${ref}` : `NICHT gebucht (${r.status}): ${r.error}`);
+}
 if (pdfOrdner) {
   const { rechnungAlsPdf } = await import("../server/lib/fiaon-rechnung-pdf");
-  const r = await rechnungAlsPdf(String(b.body.paymentReference));
+  const r = await rechnungAlsPdf(vz);
   if (r) { fs.mkdirSync(pdfOrdner, { recursive: true }); fs.writeFileSync(path.join(pdfOrdner, `Rechnung_${r.rechnungsnummer}.pdf`), r.pdf); console.log(`PDF: ${path.join(pdfOrdner, `Rechnung_${r.rechnungsnummer}.pdf`)}`); }
 }
 await new Promise((r) => setTimeout(r, 2000));

@@ -15,7 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Durchlaufende Fremdkosten: kein Umsatz für die Provision (Gründung zum Selbstkostenpreis, Fast-Track, Kooperationsrechnungen). */
-export const KOOP_DURCHLAUF_SCHLUESSEL = ["llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "koop_kontakte"] as const;
+export const KOOP_DURCHLAUF_SCHLUESSEL = ["llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "llc_loeschung", "koop_kontakte"] as const;
 /** So lange zählen die Zahlungen eines empfohlenen Kunden ab der Meldung. */
 export const KOOP_PROVISION_MONATE = 12;
 

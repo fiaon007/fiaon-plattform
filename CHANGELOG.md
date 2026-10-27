@@ -5,6 +5,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — FIAON Global (E-432): Rechnung „Behördliche Löschung US-Gesellschaft“ + Rechnungs-Werkzeug bucht mit
+- **Was:** Neuer Katalogeintrag `llc_loeschung` (132,63 € = 149,00 USD zum EZB-Kurs vom 26.10.2026, Fremdkosten ohne Aufschlag,
+  Einmalkauf, Zahlungsseite global, keine Partner-Provision). `scripts/einzelrechnung-anlegen.ts` kann jetzt einen schon überwiesenen
+  Verwendungszweck übernehmen (`--zweck`) und den Bankeingang gleich über den einen Buchungsweg buchen (`--bank`).
+- **Warum:** Eine frühere US-Gesellschaft eines Kunden blockiert den ITIN-Antrag; die Löschung wird weiterberechnet. Die außerhalb der
+  Plattform erstellte Rechnung trug eine Nummer, die schon einem anderen Kunden gehört — die Plattform vergibt die richtige.
+- **Wo:** `shared/fiaon-pakete.ts`, `shared/fiaon-koop-empfehlung.ts`, `scripts/einzelrechnung-anlegen.ts`, Prüfstand `pruef-pakete` (374).
+
 ## 27.10.2026 — Chefbüro am Handy (E-430): keine Seite ist breiter als das Telefon
 - **Was:** Neue Schicht `client/src/styles/chefbuero-handy.css` (lädt zuletzt; am Rechner ändert sie nichts). Raster bekommen eine
   Untergrenze (`minmax(0, 1fr)`), breite Tabellen werden am Handy Karten je Zeile (Klasse `.hk` mit `data-label`) oder rollen in ihrem

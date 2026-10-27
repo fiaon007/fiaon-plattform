@@ -341,3 +341,69 @@
   .gkc-jahr:hover, .gkc-kachel:hover { transform:none; }
   .gkc .gaf-knopf-annehmen.sendet::before { animation:none; left:32%; }
 }
+
+/* ═══ Runde 2 der Nachprüfung (27.10.2026): Feinschliff Gestaltung ═══════════════════════════════════════ */
+/* „Rechenbeispiel“ in voller Farbe (vorher 4,19:1 bei 11 px), Angebotsnummer im Fuß und leerer Urkunden-Name mit genug Kontrast */
+.gkc-pz-teil.leise { opacity:1; }
+.gkc .gaf-fuss-ref { color:var(--leise); }
+.gkc .gab-urkunde-name.leer { color:#6f8fbd; }
+/* Kein Gold-Rest: die Fortschrittsschiene in „Ihr Weg“ leuchtet blau */
+.gkc .gaf-weg-gold { box-shadow:0 0 12px rgba(40,141,250,.4); }
+/* Paket: gleich hohe geschlossene Kacheln auch mit der längeren Zeile „EIN und ITIN“ */
+@media (min-width:1101px) { .gkc-kachel-kopf { min-height:200px; } }
+/* Keine Einzelwörter allein in der letzten Zeile */
+.gkc-kond-text, .gkc-invest-summe, .gkc .gaf-sub, .gkc-rechner-fuss p, .gkc-invest-text, .gkc-haken-unter { text-wrap:pretty; }
+/* „Bitte noch ergänzen:“ — die Punkte sind Verweise und sehen so aus */
+.gkc .gaf-fehlt a { color:#1d4ed8; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; }
+/* Fehlt der Name: eine Markierung am Feld reicht (vorher zwei parallele blaue Linien) */
+.gkc .gab-annahme-namen.fehlt { box-shadow:none; padding-left:0; }
+/* Garantie-Satz in der Karte: der Haken steht an der ersten Zeile */
+.gkc .gkp-plan-garantie { align-items:flex-start; }
+.gkc .gkp-plan-garantie svg { margin-top:4px; }
+/* Der Satz, den die Unterschrift bestätigt (statt eines eigenen Hakens) */
+.gkc-unterschrift-satz { margin-top:10px; font-size:14.5px; line-height:1.65; color:var(--tinte); max-width:62ch; }
+/* KI-Hinweis am Porträt (E-288) */
+.gkc-ki-hinweis { display:block; margin-top:2px; font-size:12px; color:var(--leise); }
+/* Name in der Annahme: Ausweichnamen in einer eigenen Zeile darunter */
+.gkc .gkc-name-ausweich { margin-top:6px; font-size:13px; color:var(--leise); overflow-wrap:anywhere; }
+@media (max-width:560px) {
+  .gkc .gkc-name-zeile { flex-wrap:nowrap; align-items:flex-end; }
+  .gkc .gkc-name-zeile b { font-size:22px; min-width:0; }
+  /* Rolle beim Ansprechpartner: der letzte Teil („Director“) bewusst in einer eigenen Zeile */
+  .gkc-rolle-trenner { display:none; }
+  .gkc-rolle-letzt { display:block; }
+  /* Etiketten am Handy mindestens 12 px — auch die übrigen */
+  .gkc .gaf-auge, .gkc .gaf-etappe-dauer, .gkc .gab-urkunde-auge, .gkc .gab-urkunde-zeile, .gkc .gab-urkunde-fuss span, .gkc .gaf-dokument-auge,
+  .gkc .gaf-dokument-inhalt .marke, .gkc .gaf-leiste-ref, .gkc .gaf-fuss-ref { font-size:12px; }
+  /* Hero-Karte: die Monatsrate vor den Eckdaten — „Laufzeit wählen und sofort die Rate sehen“ rückt einen Wisch nach oben */
+  .gkc-plan { display:flex; flex-direction:column; }
+  .gkc-plan .gkc-hero-rate { order:1; margin-top:2px; }
+  .gkc-plan .gkc-eck { order:2; margin-top:16px; }
+  .gkc-plan .gkp-plan-garantie { order:3; }
+}
+@media (max-width:400px) { .gkc-eck span { letter-spacing:.06em; } }
+/* „Weniger Bewegung“: Sprünge ohne Gleiten (html trägt sonst scroll-behavior:smooth) */
+@media (prefers-reduced-motion:reduce) { html.gaf-seite { scroll-behavior:auto; } }
+
+/* ── Nach der Annahme: die ruhige Fertig-Ansicht im Rahmen der Angebotsseite (kein Website-Menü, kein Navy) ── */
+.gkc-fertig-abschnitt { padding-top:72px; }
+.gkc-fertig-titel { text-wrap:balance; }
+.gkc-fertig-karte { margin-top:8px; padding:30px 32px 26px; border-radius:24px; background:linear-gradient(170deg, #ffffff, #f2f8ff); border:1px solid rgba(40,141,250,.22);
+  box-shadow:0 1px 2px rgba(12,26,46,.04), 0 40px 90px -40px rgba(29,78,216,.28); }
+.gkc-fertig-daten { display:grid; gap:10px; }
+.gkc-fertig-daten > div { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 16px; padding-bottom:10px; border-bottom:1px solid var(--linie); }
+.gkc-fertig-daten dt { font-size:12px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--leise); }
+.gkc-fertig-daten dd { font-size:15.5px; color:var(--tinte); overflow-wrap:anywhere; }
+.gkc-fertig-zahlung { margin-top:20px; font-size:16px; line-height:1.6; color:var(--tinte); }
+.gkc-fertig-zweck { margin-top:4px; font-size:14.5px; color:var(--text); }
+.gkc-fertig-knoepfe { margin-top:22px; display:flex; flex-wrap:wrap; gap:12px; }
+.gkc-fertig .gkp-knopf, .gkc-fertig .gkp-knopf-leise { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+.gkc-fertig-dateien { margin-top:28px; }
+.gkc-fertig-dateien .gaf-dokumente { margin-top:12px; }
+.gkc-fertig-fuss { margin-top:22px; font-size:14px; line-height:1.6; color:var(--text); }
+@media (hover:none) { .gkc-fertig .gkp-knopf:hover { transform:none; } }
+@media (max-width:560px) {
+  .gkc-fertig-abschnitt { padding-top:48px; }
+  .gkc-fertig-karte { padding:24px 20px 20px; border-radius:20px; }
+  .gkc-fertig-knoepfe a { width:100%; }
+}

@@ -23,6 +23,10 @@
 // (Preise als Endpreise, Finanzierung, Kurs, Konditionen, Projekt, Unterlagen-Titel), buergin wie Fassung B. KEIN Prüfbericht
 // (--compliance wird dort nicht gelesen). Die Vorschau schreibt den Vertrag UND die Raten je Laufzeit in die Ausgabe.
 // Die Ausweis- und Gehaltsbilder bleiben in der privaten Ablage — dieses Skript lädt nie Dateien hoch.
+// Runde 2 (27.10.2026): Die Doppel-Suche findet nur offene Angebote der Fassung C (ein Firmen-Kapital-Angebot derselben Adresse
+// bleibt unberührt). Mit --schreiben --produktion bricht es ab, wenn SESSION_SECRET fehlt (der Link wäre in der Produktion ungültig)
+// oder der Registerstand einer inaktiven Bürgin älter als sieben Tage ist. Der Link für die Mail kommt am sichersten aus dem
+// Chefbüro („Link kopieren“, vom Server signiert); das Skript druckt ihn immer absolut.
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
@@ -137,17 +141,28 @@ async function fassungC(roh: any): Promise<void> {
   }
   const fehlt = SC.kapitalCPflichtFehlen(d);
   console.log(fehlt.length ? `Für die Annahme fehlt: ${fehlt.join(" · ")}` : "Pflichtfelder vollständig.");
+  // Runde 2: Der Satz „derzeit als inaktiv geführt (Stand …)“ steht im Vertrag — ein alter Stand ist beim Versand falsch oder veraltet.
+  const standAlter = parameter.buerginStandAm ? Math.round((Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00Z`) - Date.parse(`${parameter.buerginStandAm}T12:00:00Z`)) / 864e5) : null;
+  if (!parameter.buerginAktiv && (standAlter == null || standAlter > 7)) {
+    const satz = `Registerstand der Bürgin ${standAlter == null ? "ohne Datum" : `älter als 7 Tage (${standAlter} Tage)`} — Sunbiz am Versandtag prüfen und buerginStandAm setzen (bei aktiv: buerginAktiv=true).`;
+    if (schreiben && produktion) { console.error(`ABBRUCH: ${satz}`); await sqlPool.end(); process.exit(2); }
+    console.log(`WARNUNG: ${satz}`);
+  }
   if (!schreiben) { console.log("Nur Vorschau — zum Anlegen --schreiben."); return; }
+  // Der Link wird mit SESSION_SECRET signiert — ohne das Geheimnis der Produktion wäre er dort ungültig (403).
+  if (produktion && !process.env.SESSION_SECRET) { console.error("ABBRUCH: --produktion ohne SESSION_SECRET — der gedruckte Link wäre in der Produktion ungültig. Link sonst aus dem Chefbüro („Link kopieren“)."); await sqlPool.end(); process.exit(2); }
   await A.ensureAngebotTabellen();
+  // Runde 2 (Technik): NUR Fassung C — ein offenes Firmen-Kapital-Angebot (A/B) derselben Adresse darf hier nie überschrieben werden.
   const [offen] = (await sqlPool`
-    SELECT id, angebot_ref FROM fiaon_global_angebote
-     WHERE status = 'offen' AND fassung LIKE 'IA-KAPITAL-%' AND lower(kunde->>'email') = ${k.kunde.email.toLowerCase()} ORDER BY id DESC LIMIT 1`) as any[];
+    SELECT id, angebot_ref, fassung FROM fiaon_global_angebote
+     WHERE status = 'offen' AND fassung LIKE 'IA-KAPITAL-%-C' AND lower(kunde->>'email') = ${k.kunde.email.toLowerCase()} ORDER BY id DESC LIMIT 1`) as any[];
   if (offen) {
     const erg = await KC.kapitalCAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
     if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
     const z = (await A.angebotLesen({ id: Number(offen.id) }))!;
     const dz = KC.kapitalCDatenAus(z);
-    console.log(`Nachgetragen: ${offen.angebot_ref} · Link: ${A.angebotKundenPfad(A.angebotTokenErzeugen(dz.ref, dz.gueltigBis))}`);
+    const { absoluteUrl } = await import("../server/fiaon-base-url");
+    console.log(`Nachgetragen: ${offen.angebot_ref} · Link: ${absoluteUrl(A.angebotKundenPfad(A.angebotTokenErzeugen(dz.ref, dz.gueltigBis)))}`);
   } else {
     const erg = await KC.kapitalCAnlegen({ ...roh, kunde: k.kunde, buergin, parameter }, "Skript angebot-kapital-anlegen");
     if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }

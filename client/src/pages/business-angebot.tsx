@@ -74,6 +74,8 @@ const BusinessAngebotKapital = lazy(() => import("@/pages/business-angebot-kapit
 import type { KapitalKundenSicht } from "@shared/fiaon-global-angebot-kapital";
 // E-432: Das OFFENE Kapital-Angebot der Fassung C (Privatperson, variante „privat“) — eigene Seite mit Laufzeit-Rechner.
 const BusinessAngebotKapitalC = lazy(() => import("@/pages/business-angebot-kapital-c"));
+// E-432 (Runde 2): Nach der Annahme der Fassung C die ruhige Fertig-Ansicht im Rahmen der Angebotsseite — nicht die Website mit Menü.
+const KapitalCFertig = lazy(() => import("@/pages/business-angebot-kapital-c").then((m) => ({ default: m.KapitalCFertig })));
 import type { KapitalCKundenSicht } from "@shared/fiaon-global-angebot-kapital-c";
 import { MarkeGlobal } from "@/components/angebot-firma/marke";
 
@@ -82,6 +84,17 @@ import { MarkeGlobal } from "@/components/angebot-firma/marke";
  * Gilt für jede Fassung (auch als Ersatz, solange die eigene Seite als Chunk nachlädt). Bewegung aus bei „weniger Bewegung“.
  */
 function AngebotLaedt() {
+  // Runde 2 (Gestaltung): Solange die Startbühne aus index.html (#fi-start, „Fassade“) noch steht oder ausblendet, bleibt die Mitte
+  // unsichtbar — sonst blitzt sie abgeschnitten durch die Fensterstreben. Erst danach blendet sie ruhig ein; meist ist das Angebot
+  // bis dahin geladen, und dieser Schirm erscheint gar nicht.
+  const [frei, setFrei] = useState(() => typeof document === "undefined" || !document.getElementById("fi-start"));
+  useEffect(() => {
+    if (frei) return;
+    const mo = new MutationObserver(() => { if (!document.getElementById("fi-start")) { setFrei(true); mo.disconnect(); } });
+    mo.observe(document.body, { childList: true, subtree: true });
+    const notfall = window.setTimeout(() => setFrei(true), 12_000);
+    return () => { mo.disconnect(); window.clearTimeout(notfall); };
+  }, [frei]);
   useEffect(() => {
     let robots = document.head.querySelector<HTMLMetaElement>('meta[name="robots"]');
     const neu = !robots;
@@ -96,14 +109,14 @@ function AngebotLaedt() {
     <div className="angebot-laedt" role="status" aria-live="polite" data-fiaon="angebot-laedt">
       <style>{`
         .angebot-laedt{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(120% 90% at 50% 38%,#ffffff 0%,#f2f8ff 50%,#dcecff 100%);color:#0c1a2e;z-index:1}
-        .angebot-laedt-mitte{display:grid;justify-items:center;gap:22px;padding:24px}
+        .angebot-laedt-mitte{display:grid;justify-items:center;gap:22px;padding:24px;transition:opacity .4s ease}
         .angebot-laedt-linie{position:relative;display:block;width:132px;height:1px;overflow:hidden;background:rgba(40,141,250,.18)}
         .angebot-laedt-linie span{position:absolute;inset:0 auto 0 -40%;width:40%;background:linear-gradient(90deg,rgba(40,141,250,0),#288dfa,rgba(40,141,250,0));animation:angebotLaedtLicht 1.6s ease-in-out infinite}
         .angebot-laedt-text{font:400 13.5px/1.4 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:.02em;color:#5a6a82}
         @keyframes angebotLaedtLicht{from{left:-40%}to{left:100%}}
-        @media (prefers-reduced-motion:reduce){.angebot-laedt-linie span{animation:none;left:30%}}
+        @media (prefers-reduced-motion:reduce){.angebot-laedt-linie span{animation:none;left:30%}.angebot-laedt-mitte{transition:none}}
       `}</style>
-      <div className="angebot-laedt-mitte">
+      <div className="angebot-laedt-mitte" style={{ opacity: frei ? 1 : 0 }} aria-hidden={!frei || undefined}>
         <MarkeGlobal hoehe={22} />
         <span className="angebot-laedt-linie" aria-hidden="true"><span /></span>
         <span className="angebot-laedt-text">Ihr Angebot wird geladen …</span>
@@ -402,6 +415,10 @@ export default function BusinessAngebot() {
   }
 
   if (fertig) {
+    const fc = fertig as Fertig & { variante?: string; privat?: unknown };
+    if (fc.variante === "privat" && fc.privat) {
+      return <Suspense fallback={<AngebotLaedt />}><KapitalCFertig f={fc as unknown as import("@/pages/business-angebot-kapital-c").KapitalCFertigDaten} /></Suspense>;
+    }
     return (
       <Dunkel seite="business" titel={titel} beschreibung={beschreibung}>
         <div className="gs gia" data-fiaon="angebot-fertig"><div className="dk-rahmen">

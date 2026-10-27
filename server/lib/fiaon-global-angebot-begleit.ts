@@ -501,7 +501,7 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const ref = String(a.ref ?? "");
   if (!ref) return null;
   const [t] = (await sqlPool`
-    SELECT t.nr, t.titel, t.zahlungsziel_tage, t.meilenstein_am, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref, g.fassung
+    SELECT t.nr, t.titel, t.zahlungsziel_tage, t.meilenstein_am, g.id AS angebot_id, g.angebot_ref, g.angenommen_am, g.auftrag_ref, g.fassung, g.parameter
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote g ON g.id = t.angebot_id
      WHERE t.bestell_ref = ${ref} AND g.status = 'angenommen' LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
@@ -518,6 +518,39 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const tag = (v: unknown) => (v ? begleitTag(new Date(String(v)).toISOString().slice(0, 10)) : "");
   const bezahlt = String(a.payment_status) === "paid";
   const kapital = String(t.fassung ?? "").startsWith("IA-KAPITAL-");
+  // E-432 (Runde 2, Technik): Fassung C (Privatperson) hat eigene Texte für Teil 2 (Erfolgshonorar mit der Eintragung — die Bürgin
+  // ist dort nicht „zugesagt“) und nur die Ansprechpartner aus dem Angebot (nicht das ganze Team).
+  const { istKapitalCFassung } = await import("@shared/fiaon-global-angebot-kapital");
+  const KC = istKapitalCFassung(t.fassung) ? await import("@shared/fiaon-global-angebot-kapital-c") : null;
+  const { portraitUrl } = await import("@shared/fiaon-portraits");
+  const ansprechpartner = KC
+    ? KC.kapitalCAnsprechpartner(KC.kapitalCParameterAus(json<any>(t.parameter, {}))).map((p) => ({ ...p, portrait: portraitUrl(p.kuerzel) }))
+    : ANGEBOT_ANSPRECHPARTNER.map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` }));
+  const ansprechTitel = KC && ansprechpartner.length === 1 ? "Ihr Ansprechpartner" : "Ihre Ansprechpartner";
+  if (KC && Number(t.nr) >= 2) {
+    const c = KC.kapitalCZahlungsseiteTeil2({
+      bezahlt, angebotRef: String(t.angebot_ref), titel: String(t.titel), eingetragenAm: t.meilenstein_am ? new Date(String(t.meilenstein_am)).toISOString().slice(0, 10) : null,
+      zielWochen: KC.kapitalCParameterAus(json<any>(t.parameter, {})).zielWochen,
+    });
+    return {
+      auge: "FIAON Global · Ihr Auftrag",
+      gesellschaft: name,
+      gesellschaftZeile: name ? `Limited Liability Company · State of ${staat}` : "",
+      satz: c.satz,
+      pruefTitel: "Stand Ihres Auftrags",
+      pruefungen: [
+        { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
+        { titel: c.pruefung.titel, text: c.pruefung.text, stand: "ok" as const },
+        { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen` : "bitte überweisen", stand: bezahlt ? "ok" : "offen" },
+      ],
+      dokumenteTitel: "Ihre Unterlagen",
+      dokumente: zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${String(t.titel)}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : [],
+      hinweis: "Ihren Vertrag und Ihren Auftragsbereich öffnen Sie über die persönlichen Links in unseren E-Mails.",
+      schritteTitel: "So geht es weiter",
+      schritte: c.schritte,
+      ansprechTitel, ansprechpartner,
+    };
+  }
   // E-401: Die zwei späteren Rechnungen des Kapital-Angebots (Teil 2 Bürgschaftsgebühr, Teil 3 bei Auszahlung) — die Gesellschaft
   // steht längst; die Seite spricht vom Anlass der Rechnung statt von der Anmeldung.
   if (kapital && Number(t.nr) >= 2) {
@@ -587,7 +620,6 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
       { titel: `Anmeldung in ${staat}`, text: "Wir reichen die Anmeldung Ihrer Gesellschaft beim Bundesstaat ein — Registered Agent und Geschäftsadresse stehen bereit." },
       { titel: "Ihre Gesellschaft steht", text: "Danach folgen US-Steuernummer (EIN), Geschäftskonto und die Anträge für Ihre Karten — Schritt für Schritt mit Ihnen." },
     ],
-    ansprechTitel: "Ihre Ansprechpartner",
-    ansprechpartner: ANGEBOT_ANSPRECHPARTNER.map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
+    ansprechTitel, ansprechpartner,
   };
 }

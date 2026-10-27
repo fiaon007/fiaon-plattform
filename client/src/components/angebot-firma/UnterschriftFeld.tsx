@@ -12,7 +12,7 @@
 // Handy: Das Feld nimmt die volle Breite, touch-action: none (die Seite scrollt
 // beim Zeichnen nicht mit), Pointer-Ereignisse für Finger, Stift und Maus.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { FirmaAnnahmeTexte, FirmaUnterschriftEingabe } from "@shared/fiaon-global-angebot-firma-typen";
 
 const TINTE = "#1b3866";
@@ -36,8 +36,9 @@ function namenBild(name: string): string | null {
   } catch { return null; }
 }
 
-export default function UnterschriftFeld({ t, fehlt, onAenderung, gesperrt = false }: {
-  t: FirmaAnnahmeTexte["unterschrift"]; fehlt: boolean; onAenderung: (s: UnterschriftStand) => void; gesperrt?: boolean;
+/** `zusatz` (E-432, optional): ein Satz direkt unter der Überschrift, den die Unterschrift bestätigt (Fassung C: „… gelesen“). */
+export default function UnterschriftFeld({ t, fehlt, onAenderung, gesperrt = false, zusatz }: {
+  t: FirmaAnnahmeTexte["unterschrift"]; fehlt: boolean; onAenderung: (s: UnterschriftStand) => void; gesperrt?: boolean; zusatz?: ReactNode;
 }) {
   const [art, setArt] = useState<"zeichnen" | "tippen">("zeichnen");
   const [name, setName] = useState("");
@@ -151,6 +152,7 @@ export default function UnterschriftFeld({ t, fehlt, onAenderung, gesperrt = fal
   return (
     <div className={`gaf-signatur${fehlt ? " fehlt" : ""}`} id="gaf-unterschrift" data-fiaon="firma-unterschrift">
       <h3 className="gaf-h3">{t.titel}</h3>
+      {zusatz}
       <p className="gaf-signatur-sub">{t.sub}</p>
       <div className="gaf-signatur-wahl" role="tablist" aria-label={t.titel}>
         <button type="button" role="tab" aria-selected={art === "zeichnen"} className={art === "zeichnen" ? "an" : ""} onClick={() => wechseln("zeichnen")} disabled={gesperrt}>{t.zeichnen}</button>

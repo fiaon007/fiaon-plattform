@@ -19,8 +19,17 @@
 //   Start-Aufgabe nach der Zahlung „ERST Vertragsbestätigung senden“ (Nachprüfung 27.10.2026).
 //   Teil 2 (Erfolgshonorar) per Chefbüro-Knopf „Gesellschaft eingetragen“ (Route …/kapital/buergschaft — dieselbe Route wie
 //   Teil 2 der Fassung B, hier mit den Texten der Fassung C). Teil 3 gibt es nicht.
+//
+// ── RUNDE 2 (27.10.2026) ──────────────────────────────────────────────────
+//   · ZUSTELLUNG: „raus“ heißt nur „Brevo hat angenommen“. kapitalCZustellungLauf (stündlich aus kapitalFristLauf) liest den
+//     Zustellstand der Vertragsbestätigung (Mailprotokoll + Brevo-Ereignisse): gebounct/blockiert/spam → Marke zurück auf NULL,
+//     Fehler „nicht zugestellt: …“ und eine dringende Aufgabe; nach zwei Stunden ohne Zustellung → Aufgabe „bitte prüfen“.
+//     Beim Zahlungseingang beginnt FIAON nur mit ZUGESTELLTER Bestätigung — sonst sagt die Start-Aufgabe „ERST …“.
+//   · Der Browser bekommt nur einen geheimen Fingerabdruck der Prüfsumme (HMAC) — die SHA-256 über den Vertrag mit den vollen
+//     Ausweisnummern bleibt im Server und im PDF des angenommenen Vertrags. Das Entwurfs-PDF trägt nur die Kennung.
+//   · Ändern nur bei Fassung C; „Finanzierung ausgezahlt“ erst, wenn die Frist läuft; Fertig-Ansicht mit Ansprechpartner des Angebots.
 // ═══════════════════════════════════════════════════════════════════════════
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -28,9 +37,10 @@ import { wrapFiaonDocument, htmlZuPdfMitFusszeile, docHash } from "./fiaon-html-
 import { GLOBAL_VERTRAG_CSS } from "./fiaon-global-vertrag";
 import { ANGEBOT_VERTRAG_CSS } from "./fiaon-global-angebot-vertrag";
 import {
-  ensureAngebotTabellen, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStatusAus, verlaufAngebot,
+  ensureAngebotTabellen, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStatusAus, verlaufAngebot, angebotGeheimFingerabdruck,
   ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
+import { portraitUrl, portraitMitKi, portraitAlt, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
 import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
 import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl, globalVerlauf, globalVertragPdfLesen, globalRechnungPdf } from "./fiaon-global-auftrag";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
@@ -39,13 +49,14 @@ import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import type { FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
-import { KAPITAL_KNOPF, kapitalEur, kapitalTag, type KapitalUnterschriftVermerk } from "@shared/fiaon-global-angebot-kapital";
+import { KAPITAL_KNOPF, KAPITAL_C_FASSUNGEN, istKapitalCFassung, kapitalEur, kapitalTag, type KapitalUnterschriftVermerk } from "@shared/fiaon-global-angebot-kapital";
 import {
   KAPITAL_C_FASSUNG, KAPITAL_C_GUELTIG_TAGE, KAPITAL_C_TEIL1_TITEL, KAPITAL_C_TEIL2, KAPITAL_C_AUSZAHLUNG, KAPITAL_C_ANNAHME, KAPITAL_C_MARKE, KAPITAL_C_BESTAETIGUNG, kapitalCAuszahlungPruefen,
   kapitalCParameterAus, kapitalCParameterFehler, kapitalCKundePruefen, kapitalCBuerginFehler, kapitalCPflichtFehlen,
   kapitalCSeite, kapitalCBestellUebersicht, kapitalCAnnahmeTexte, kapitalCAnsprechpartner, kapitalCAnrede, kapitalCGruss, kapitalCName,
   kapitalCVertragTitel, kapitalCVertragUnterzeile, kapitalCRumpfHtml, kapitalCHashEingabe, kapitalCHeuteCents, kapitalCLaufzeitGueltig,
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
+  kapitalCVertragsstand,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -98,6 +109,16 @@ export function kapitalCWahlAus(z: AngebotZeile): (KapitalCWahl & { unterschrift
 // ═══════════════════════════════════════════════════════════════════════════
 /** Die Prüfsumme läuft über den VOLLSTÄNDIGEN Rumpf (so steht er im angenommenen Vertrag) — die gekürzte Darstellung ändert sie nicht. */
 export function kapitalCTextHash(d: KapitalCDaten): string { return docHash(kapitalCHashEingabe(d, kapitalCRumpfHtml(d, null))); }
+/**
+ * Was der Browser als „textHash“ bekommt und bei der Annahme zurückschickt: ein GEHEIMER Fingerabdruck der Prüfsumme (HMAC, Runde 2).
+ * Die echte SHA-256 läuft über den Vertrag mit den VOLLSTÄNDIGEN Ausweisnummern — aus ihr ließen sich die gekürzten Nummern der
+ * Seite durch Probieren zurückrechnen. Im angenommenen Vertrag (PDF, Annahmevermerk, Datenbank) steht weiter die echte SHA-256.
+ */
+export function kapitalCSichtHash(d: KapitalCDaten): string { return angebotGeheimFingerabdruck("kapital-c-text", kapitalCTextHash(d)); }
+function gleich(a: string, b: string): boolean {
+  const x = Buffer.from(String(a)); const y = Buffer.from(String(b));
+  return x.length === y.length && timingSafeEqual(x, y);
+}
 /** Was über den Link erreichbar ist, solange das Angebot offen ist (Seite, Entwurfs-PDF): Ausweisnummern gekürzt (§ 20 PAuswG). */
 const UEBER_DEN_LINK = { ausweiseGekuerzt: true } as const;
 const BILDSCHIRM_CSS = `${GLOBAL_VERTRAG_CSS}${ANGEBOT_VERTRAG_CSS}`;
@@ -126,7 +147,9 @@ export async function kapitalCVertragPdf(d: KapitalCDaten, annahme: KapitalCAnna
     documentTitle: titel, subtitle: kapitalCVertragUnterzeile(d), bodyHtml: kapitalCRumpfHtml(d, annahme, annahme ? {} : UEBER_DEN_LINK),
     watermark: annahme ? null : "Angebot — nicht angenommen", markenzeile: MARKENZEILE, zusatzCss: PDF_CSS,
   });
-  return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Company No. 17318250 · Fassung ${d.fassung} · Angebot ${d.ref}${annahme ? "" : ` · Entwurf · Prüfsumme ${kapitalCTextHash(d).slice(0, 12)}`}`, rand: RAND, keinNotbehelf: !!annahme });
+  // Runde 2: „Vertragsstand“ statt der internen Kennung; der Entwurf trägt nur die geheime Kennung (keine Teile der echten SHA-256).
+  const stand = kapitalCVertragsstand(d.fassung);
+  return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Company No. 17318250${stand ? ` · Vertragsstand ${stand}` : ""} · Angebot ${d.ref}${annahme ? "" : ` · Entwurf · Kennung ${kapitalCSichtHash(d).slice(0, 12)}`}`, rand: RAND, keinNotbehelf: !!annahme });
 }
 export async function kapitalCPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1"): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
   const d = kapitalCDatenAus(z);
@@ -173,6 +196,8 @@ export async function kapitalCAnlegen(ein: any, wer: string): Promise<Ergebnis<{
 export async function kapitalCAendern(id: number, ein: any, wer: string): Promise<Ergebnis<{ fehlt: string[] }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  // Runde 2 (Technik): Ein offenes Firmen-Kapital-Angebot (Fassung A/B) derselben Adresse darf hier nie überschrieben werden.
+  if (!istKapitalCFassung(z.fassung)) return nein("Kein Kapital-Angebot der Fassung C — ändern hier nur für Privatpersonen.", 409);
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = kapitalCDatenAus(z); const altHash = kapitalCTextHash(alt);
   const neu: KapitalCDaten = { ...alt }; const geaendert: string[] = [];
@@ -210,17 +235,23 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
       zinsSchrittBp: par.zinsSchrittBp, laufzeitMinJahre: par.laufzeitMinJahre, laufzeitMaxJahre: par.laufzeitMaxJahre, kursUsdJeEur: par.kursUsdJeEur,
       laufzeitVorschlagJahre: par.laufzeitVorschlagJahre,
     },
-    ansprechpartner: kapitalCAnsprechpartner(par).map((p) => ({ ...p, portrait: `/portraits/${p.kuerzel}.jpg` })),
+    ansprechpartner: kapitalCAnsprechpartnerSicht(par),
     uebersicht: kapitalCBestellUebersicht(d, par.laufzeitVorschlagJahre),
     annahme,
     annahmeBereit: fehlt.length === 0 && !opts.leitung,
     gesperrtGrund: fehlt.length ? annahme.gesperrt : null,
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
     html: kapitalCVorschauHtml(d),
-    textHash: kapitalCTextHash(d),
+    textHash: kapitalCSichtHash(d),
     vertragPdf: `/api/fiaon/global/angebot/${t}/vertrag.pdf`,
   };
   return { status: 200, body: body as unknown as Record<string, unknown> };
+}
+/** Die Ansprechpartner des Angebots für Seite und Fertig-Ansicht — Porträt mit Stand (?v=), Alt-Text und KI-Hinweis (E-288). */
+function kapitalCAnsprechpartnerSicht(par: KapitalCParameter) {
+  return kapitalCAnsprechpartner(par).map((p) => ({
+    ...p, portrait: portraitUrl(p.kuerzel), alt: portraitAlt(p.kuerzel, p.name), kiHinweis: portraitMitKi(p.kuerzel) ? KI_PORTRAIT_HINWEIS.de : null,
+  }));
 }
 export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
   const d = kapitalCDatenAus(z);
@@ -232,19 +263,33 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
   const b = ref1 ? await globalBestellungLesen(ref1).catch(() => null) : null;
   const zweck = b?.payment_reference ? String(b.payment_reference) : null;
   const bezahlt = String(b?.payment_status ?? "") === "paid";
+  const ansprech = kapitalCAnsprechpartnerSicht(d.parameter);
+  const heute = kapitalCEur(kapitalCHeuteCents(d.parameter));
+  const { signInvoiceUrl } = await import("../fiaon-invoice");
   return {
     art: "kapital", variante: "privat", startgespraech: null,
+    // Runde 2 (Gestaltung + Kundensicht): die ruhige Fertig-Ansicht der Fassung C — ohne Website-Menü, nur der Ansprechpartner
+    // des Angebots, „Zu „Mein Auftrag““, Verwendungszweck, Dateien mit klaren Namen.
+    privat: {
+      auge: KAPITAL_C_ANNAHME.fertigAuge, zweck: zweck ? KAPITAL_C_ANNAHME.fertigZweck(zweck) : null,
+      knopf: KAPITAL_C_ANNAHME.fertigKnopf, meinAuftragKnopf: KAPITAL_C_ANNAHME.fertigMeinAuftrag,
+      dateien: { vertrag: KAPITAL_C_ANNAHME.fertigDateien.vertrag, rechnung: KAPITAL_C_ANNAHME.fertigDateien.rechnung(heute) },
+      ansprechTitel: KAPITAL_C_ANNAHME.fertigAnsprech, ansprechpartner: ansprech,
+      marke: KAPITAL_C_MARKE,
+    },
     ref: d.ref, auftragRef: ref1, email: d.kunde.email, sofortBeginn: true,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
     betragCents: kapitalCHeuteCents(d.parameter),
     zahlungsseite: zweck ? `/zahlung/${encodeURIComponent(zweck)}?bereich=business` : null,
-    meinAuftrag: ref1 && (await globalAkteLesen(ref1).catch(() => null)) ? globalMeinAuftragUrl(ref1) : null, rechnungUrl: null,
+    meinAuftrag: ref1 && (await globalAkteLesen(ref1).catch(() => null)) ? globalMeinAuftragUrl(ref1) : null,
+    // Die Rechnung über den signierten Link (wie die Zahlungsseite), 30 Tage gültig.
+    rechnungUrl: zweck ? signInvoiceUrl(zweck, 30 * 24 * 3600_000) : null,
     vertragUrl: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf`,
     fertigTitel: KAPITAL_C_ANNAHME.fertigTitel(kapitalCGruss(d.kunde)),
     fertigText: KAPITAL_C_ANNAHME.fertigText(d.kunde.email, llc, laufzeit),
     teil1Bezahlt: bezahlt,
-    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(kapitalCEur(kapitalCHeuteCents(d.parameter))),
-    fertigFuss: KAPITAL_C_ANNAHME.fertigFuss,
+    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(heute),
+    fertigFuss: ansprech[0] ? KAPITAL_C_ANNAHME.fertigFussMit(ansprech[0]) : KAPITAL_C_ANNAHME.fertigFuss,
     llc: w?.llc ?? null,
   };
 }
@@ -271,7 +316,7 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
   const u = firmaUnterschriftPruefen(body?.unterschrift, { vertretung: { nachname: d.kunde.nachname } } as unknown as FirmaKunde);
   if (!u.ok) return fehler(400, u.error, { code: u.code });
   const hash = kapitalCTextHash(d);
-  if (String(body?.textHash ?? "") !== hash) return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
+  if (!gleich(String(body?.textHash ?? ""), kapitalCSichtHash(d))) return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
 
   const jetzt = new Date();
   const wahl: KapitalCWahl = { llc: llc.wahl, laufzeitJahre: jahre, sofortBeginn: true };
@@ -427,8 +472,8 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
     `LAUFZEIT: ${w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCLaufzeitSatz(par, w.laufzeitJahre) : "—"}.`,
     `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
     best.ok
-      ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): automatisch an ${d.kunde.email} — Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF (welcome@).`
-      : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Vertrag als PDF mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung bitte von Hand an ${d.kunde.email} schicken — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
+      ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): an ${d.kunde.email} abgeschickt (welcome@, Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF) — Zustellung noch offen: Das System prüft stündlich bei Brevo und meldet sich, wenn sie nicht ankommt.`
+      : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Nicht zusätzlich von Hand schicken (beim Zahlungseingang versucht das System es sonst noch einmal, und der Kunde bekäme sie doppelt). Erst wenn auch das Nachholen scheitert, von Hand — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
     `BÜRGSCHAFT: Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV${par.buerginAktiv ? "" : " (im Angebot als inaktiv offengelegt — erst nach dem Reinstatement)"}. ERFOLGSHONORAR ${kapitalEur(par.erfolgCents)} per Knopf „${KAPITAL_C_TEIL2.knopf}“, sobald die LLC eingetragen ist.`,
     `UNTERLAGEN: ${par.unterlagen.map((u) => u.titel).join(", ") || "—"} — liegen vor; bitte in der Akte ablegen (Office › Auftrag › Dokumente), falls noch nicht geschehen.`,
     `JAHRESBETREUUNG: ${kapitalEur(par.jahresCents)} je Jahr ab dem zweiten Jahr (verlängert sich nicht von selbst).`,
@@ -489,6 +534,15 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     const meinAuftrag = globalMeinAuftragUrl(ref1);
     const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc });
     const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par)), zweck, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
+    // Runde 2: Brevo verwirft Mails an gesperrte Adressen still (auch Abmelder, auch Service-Mails). Die Vertragsbestätigung ist
+    // Pflicht (§ 312f BGB) und vom Kunden eben ausgelöst — die Sperre wird vorher aufgehoben (204 = war gesperrt, 404 = war frei).
+    if (process.env.BREVO_API_KEY) {
+      const { brevoSperreAufhebenBefund } = await import("./fiaon-brevo");
+      const sperre = await brevoSperreAufhebenBefund(k.email).catch(() => null);
+      if (sperre?.ergebnis === "aufgehoben" && sperre.status !== 404) {
+        await verlaufAngebot(id, ausgeloestVon, "Brevo-Sperre der Kundenadresse vor der Vertragsbestätigung aufgehoben (§ 312f BGB).").catch(() => {});
+      }
+    }
     // Ohne Signaturkarte: Das Gerüst setzt sie direkt hinter die Absätze — mitten in eine Bestätigung gehört sie nicht.
     const { freitextSenden } = await import("../mail/motor");
     const r = await freitextSenden({
@@ -523,6 +577,110 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     });
   } catch (e) { console.error(`[FIAON-KAPITAL-C] ${d.ref}: Mailprotokoll Vertragsbestätigung:`, e); }
   return { ok: erg.ok, grund: erg.grund };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZUSTELLUNG DER VERTRAGSBESTÄTIGUNG (Runde 2, § 312f BGB) — „raus“ heißt nur „Brevo hat angenommen“ (HTTP 201)
+// ═══════════════════════════════════════════════════════════════════════════
+/** Präfix in fiaon_global_auftraege.auftrag_mail_fehler: Die Bestätigung kam nachweislich NICHT an — kein automatischer neuer Versuch. */
+const NICHT_ZUGESTELLT = "nicht zugestellt:";
+const ANGEKOMMEN = ["zugestellt", "geoeffnet", "geklickt"];
+const GESCHEITERT = ["gebounct", "blockiert", "spam", "fehler"];
+/**
+ * Der Zustellstand der Vertragsbestätigung eines Angebots seit `seit`. Mit Brevo-Schlüssel fragt er Brevo direkt und zählt NUR die
+ * Ereignisse DIESER Mail (gleiche messageId oder Betreff mit der Angebotsnummer — die Zugangs-Einladung geht zur selben Zeit an
+ * dieselbe Adresse und darf nicht als Zustellung zählen); das Ergebnis trägt er ins Mailprotokoll ein. Ohne Schlüssel oder wenn
+ * Brevo nicht antwortet: der Stand im Mailprotokoll. Angekommen schlägt Fehler (ein „soft bounce“ mit späterer Zustellung ist da).
+ * Schickt NIE eine Mail.
+ */
+export async function kapitalCZustellStand(angebotRef: string, seit: Date): Promise<{ stand: "zugestellt" | "gescheitert" | "offen"; satz: string; zustellung: string | null; grund: string | null }> {
+  const [m] = (await sqlPool`
+    SELECT id, created_at, empfaenger, brevo_message_id, zustellung, zustellung_grund FROM fiaon_mail_log
+     WHERE event = 'global_kapital_c_vertrag' AND status = 'versandt' AND payload->>'angebot' = ${angebotRef}
+       AND created_at >= ${new Date(seit.getTime() - 10 * 60_000)}
+     ORDER BY created_at DESC LIMIT 1`) as any[];
+  if (!m) return { stand: "offen", satz: "kein Versand im Mailprotokoll — Zustellung nicht bestätigt", zustellung: null, grund: null };
+  let namen: string[] = m.zustellung ? [String(m.zustellung)] : [];
+  let grund: string | null = m.zustellung_grund ? String(m.zustellung_grund) : null;
+  if (process.env.BREVO_API_KEY && m.empfaenger) {
+    const { ereignisseFuer } = await import("./fiaon-brevo");
+    const gesendet = new Date(m.created_at).getTime();
+    const r = await ereignisseFuer(String(m.empfaenger), new Date(gesendet - 3600_000)).catch(() => null);
+    if (r?.ok) {
+      const id = m.brevo_message_id ? String(m.brevo_message_id) : "";
+      const passend = r.ereignisse.filter((e) => (id && e.messageId === id) || (!!e.betreff && e.betreff.includes(angebotRef) && /Vertrag/.test(e.betreff)));
+      namen = passend.map((e) => e.ereignis);
+      grund = passend.find((e) => GESCHEITERT.includes(e.ereignis))?.grund ?? null;
+      const zustand = namen.find((n) => ANGEKOMMEN.includes(n)) ?? namen.find((n) => GESCHEITERT.includes(n)) ?? null;
+      const am = passend.find((e) => e.ereignis === zustand)?.am ?? null;
+      if (zustand) await sqlPool`UPDATE fiaon_mail_log SET zustellung = ${zustand}, zustellung_am = ${am ? new Date(am) : null}, zustellung_grund = ${grund}, abgeglichen_am = NOW() WHERE id = ${m.id}`.catch(() => {});
+    }
+  }
+  const angekommen = namen.find((n) => ANGEKOMMEN.includes(n));
+  if (angekommen) return { stand: "zugestellt", satz: `zugestellt (${angekommen})`, zustellung: angekommen, grund: null };
+  const fehler = namen.find((n) => GESCHEITERT.includes(n));
+  if (fehler) return { stand: "gescheitert", satz: `${NICHT_ZUGESTELLT} ${fehler}${grund ? ` — ${grund}` : ""}`, zustellung: fehler, grund };
+  return { stand: "offen", satz: "Zustellung bei Brevo nicht bestätigt", zustellung: namen[0] ?? null, grund: null };
+}
+/**
+ * Stündlich (aus kapitalFristLauf): Kam die Vertragsbestätigung an? Nur Fassung C, zwei Stunden bis sieben Tage nach dem Versand,
+ * nur mit Brevo-Schlüssel. Nachweislich NICHT angekommen → Marke zurück (auftrag_mail_am NULL, Fehler „nicht zugestellt: …“, damit
+ * „Auftragsmail nachholen“ neu schickt und der Start wartet) und EINE dringende Aufgabe. Ohne jede Zustellung → EINE Aufgabe „bitte
+ * prüfen“; die Marke bleibt (kein doppelter Versand, falls Brevo nur spät meldet). Je Versand genau eine Aufgabe (Schlüssel mit Zeit).
+ * Schickt NIE selbst eine Mail.
+ */
+export async function kapitalCZustellungLauf(jetzt: Date = new Date()): Promise<{ geprueft: number; gescheitert: number; offen: number }> {
+  if (!process.env.BREVO_API_KEY) return { geprueft: 0, gescheitert: 0, offen: 0 };
+  const zeilen = (await sqlPool`
+    SELECT a.id, a.angebot_ref, a.fassung, a.person_id, a.kunde, g.ref AS akte_ref, g.auftrag_mail_am
+      FROM fiaon_global_angebote a JOIN fiaon_global_auftraege g ON g.ref = a.auftrag_ref
+     WHERE a.status = 'angenommen' AND a.fassung LIKE 'IA-KAPITAL-%-C' AND g.auftrag_mail_am IS NOT NULL
+       AND g.auftrag_mail_am < ${new Date(jetzt.getTime() - 2 * 3600_000)} AND g.auftrag_mail_am > ${new Date(jetzt.getTime() - 7 * 864e5)}
+       AND COALESCE(g.status, '') <> 'storniert'
+     LIMIT 50`) as any[];
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  let geprueft = 0; let gescheitert = 0; let offen = 0;
+  for (const z of zeilen) {
+    if (!istKapitalCFassung(z.fassung)) continue;
+    const st = await kapitalCZustellStand(String(z.angebot_ref), new Date(z.auftrag_mail_am)).catch((e) => { console.error(`[FIAON-KAPITAL-C] ${z.angebot_ref}: Zustellstand:`, e); return null; });
+    geprueft++;
+    if (!st || st.stand === "zugestellt") continue;
+    const kunde = json<any>(z.kunde, {}); const name = kapitalCName(kunde) || String(z.angebot_ref); const email = String(kunde.email ?? "");
+    const ref1 = String(z.akte_ref); const mal = new Date(z.auftrag_mail_am).getTime();
+    if (st.stand === "gescheitert") {
+      const [zurueck] = (await sqlPool`UPDATE fiaon_global_auftraege SET auftrag_mail_am = NULL, auftrag_mail_fehler = ${st.satz.slice(0, 500)}, updated_at = NOW()
+                                       WHERE ref = ${ref1} AND auftrag_mail_am = ${z.auftrag_mail_am} RETURNING ref`) as any[];
+      if (!zurueck) continue;
+      gescheitert++;
+      await verlaufAngebot(Number(z.id), "System", `Vertragsbestätigung NICHT zugestellt (${st.satz}) — Marke zurückgenommen, Aufgabe an Justin.`).catch(() => {});
+      await globalVerlauf(ref1, `FIAON Global: Die Vertragsbestätigung kam laut Brevo nicht an (${st.satz}). Vor dem Beginn neu schicken („Auftragsmail nachholen“).`).catch(() => {});
+      await auftragFuerKunden({
+        personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+        titel: `Vertragsbestätigung NICHT zugestellt — ${name} (Kapital-Angebot ${z.angebot_ref})`,
+        text: [
+          `Die Vertragsbestätigung (§ 312f BGB) an ${email} ist laut Brevo nicht angekommen: ${st.satz}.`,
+          "Ohne Bestätigung auf einem dauerhaften Datenträger beginnen wir nicht (Sofortbeginn ist verlangt).",
+          "1. Adresse mit dem Kunden klären (Tippfehler, volles Postfach?). 2. Im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal neu und hebt vorher eine Brevo-Sperre der Adresse auf.",
+          "Das System hat KEINE Mail neu geschickt.",
+        ].join("\n"),
+        dringend: true, anBetreiber: true, schluessel: `global:${ref1}:vertrag-zustellung:${mal}`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+      }).catch((e) => console.error(`[FIAON-KAPITAL-C] ${z.angebot_ref}: Aufgabe Zustellung:`, e));
+    } else {
+      offen++;
+      await auftragFuerKunden({
+        personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1,
+        titel: `Vertragsbestätigung: Zustellung nicht bestätigt — ${name} (Kapital-Angebot ${z.angebot_ref})`,
+        text: [
+          `Die Vertragsbestätigung (§ 312f BGB) an ${email} ging vor über zwei Stunden raus, Brevo meldet aber keine Zustellung (${st.satz}).`,
+          "Bitte im Brevo-Protokoll oder beim Kunden nachsehen. Kam sie an, ist nichts zu tun.",
+          "Kam sie nicht an: Adresse prüfen, dann Vertrag (PDF aus dem Chefbüro) und Rechnung von Hand schicken — vor dem Beginn (Sofortbeginn ist verlangt).",
+          "Das System hat KEINE Mail neu geschickt.",
+        ].join("\n"),
+        dringend: true, anBetreiber: true, schluessel: `global:${ref1}:vertrag-zustellung-offen:${mal}`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+      }).catch((e) => console.error(`[FIAON-KAPITAL-C] ${z.angebot_ref}: Aufgabe Zustellung offen:`, e));
+    }
+  }
+  return { geprueft, gescheitert, offen };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -636,7 +794,7 @@ async function kapitalCAuszahlungEintragen(id: number, ein: any, wer: string): P
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Kapital-Angebot gibt es nicht.", 404);
   const d = kapitalCDatenAus(z);
-  const p = kapitalCAuszahlungPruefen({ status: String(z.status), angenommenAm: isoTag(z.angenommen_am), heute: berlinToday(), garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am }, ein);
+  const p = kapitalCAuszahlungPruefen({ status: String(z.status), angenommenAm: isoTag(z.angenommen_am), heute: berlinToday(), garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am, fristBeginn: isoTag(z.frist_beginn) }, ein);
   const ref1 = String(z.auftrag_ref || d.ref);
   if (!p.ok) return p.schon ? { ok: true, schon: true, ref: ref1, rechnungsnummer: null, betragCents: 0, zahlungsseite: null, meldung: p.error } : nein(p.error, 409);
   const [frei] = (await sqlPool`UPDATE fiaon_global_angebote SET garantie_erfuellt_am = ${p.daten.datum}::date, updated_at = NOW() WHERE id = ${id} AND garantie_erfuellt_am IS NULL RETURNING id`) as any[];
@@ -688,9 +846,15 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
   const z2 = (await angebotLesen({ id: Number(z.id) }))!;
   const frist = { beginn: isoTag(z2.frist_beginn) ?? beginn, ende: isoTag(z2.frist_ende) ?? ende };
   const w = kapitalCWahlAus(z2);
-  // § 312f BGB: Ohne Vertragsbestätigung auf einem dauerhaften Datenträger beginnt FIAON nicht — noch einmal versuchen, sonst sagt
-  // die Start-Aufgabe zuerst „ERST Vertragsbestätigung senden“.
-  const best = akte.auftrag_mail_am ? { ok: true, grund: null } : await kapitalCVertragsbestaetigung(Number(z.id)).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
+  // § 312f BGB: Ohne Vertragsbestätigung auf einem dauerhaften Datenträger beginnt FIAON nicht. Runde 2: „raus“ reicht nicht — die
+  // Bestätigung muss ZUGESTELLT sein (Brevo). Ging sie nie raus, noch ein automatischer Versuch; kam sie nachweislich nicht an
+  // (gebounct/blockiert), KEIN neuer Versuch an dieselbe Adresse — die Start-Aufgabe sagt dann zuerst „ERST Vertragsbestätigung …“.
+  const best: { ok: boolean; grund: string | null } = akte.auftrag_mail_am
+    ? await kapitalCZustellStand(d.ref, new Date(akte.auftrag_mail_am)).then((st) => (st.stand === "zugestellt" ? { ok: true, grund: null } : { ok: false, grund: st.satz }))
+      .catch((e) => ({ ok: false, grund: `Zustellung nicht prüfbar (${e instanceof Error ? e.message : String(e)})` }))
+    : String(akte.auftrag_mail_fehler ?? "").startsWith(NICHT_ZUGESTELLT)
+      ? { ok: false, grund: String(akte.auftrag_mail_fehler) }
+      : await kapitalCVertragsbestaetigung(Number(z.id)).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
   const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null } });
   let aufgabeId: number | null = null;
   try {
@@ -758,7 +922,7 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
     status: String(z.status), parameter: par, angenommenAm: isoTag(z.angenommen_am), heute: ext.heute, teil1Bezahlt: String(t1?.payment_status) === "paid",
     vorhanden: t2 ? { rechnungSteht: RECHNUNG_STEHT.includes(String(t2.payment_status ?? "")) } : null,
   }, { datum: ext.heute });
-  const pa = kapitalCAuszahlungPruefen({ status: String(z.status), angenommenAm: isoTag(z.angenommen_am), heute: ext.heute, garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am }, { datum: ext.heute });
+  const pa = kapitalCAuszahlungPruefen({ status: String(z.status), angenommenAm: isoTag(z.angenommen_am), heute: ext.heute, garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am, fristBeginn: isoTag(z.frist_beginn) }, { datum: ext.heute });
   const name = kapitalCName(d.kunde);
   const laufzeit = w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? ` · Laufzeit ${w.laufzeitJahre} J. (Rate ${kapitalCEurCent(kapitalCPlan(par, w.laufzeitJahre).monatsrateCents)})` : "";
   return {

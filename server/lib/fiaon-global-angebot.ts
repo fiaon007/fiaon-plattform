@@ -268,6 +268,14 @@ function signatur(ref: string, exp: number): string {
   return createHmac("sha256", geheimnis()).update(`global-angebot.${ref}.${exp}`).digest("hex").slice(0, 32);
 }
 /**
+ * Ein GEHEIMER Fingerabdruck (HMAC mit dem Server-Geheimnis) — für Werte, die der Browser nur zurückschickt, aber nicht nachrechnen
+ * können soll. E-432, Runde 2: Die Prüfsumme der Fassung C läuft über den Vertrag MIT den vollständigen Ausweisnummern; als reine
+ * SHA-256 im Browser ließen sich die gekürzten Nummern durch Probieren zurückrechnen.
+ */
+export function angebotGeheimFingerabdruck(zweck: string, wert: string): string {
+  return createHmac("sha256", geheimnis()).update(`${zweck}.${wert}`).digest("hex");
+}
+/**
  * Der Link gilt bis zum Ende der Gültigkeit plus sieben Tage — danach ist auch die Bestätigungsseite zu.
  * Gegenprüfung 01.10.2026 (Datensparsamkeit): Über den Link ist Anlage 2 (Einkommen, Wohneigentum,
  * Geburtsdatum) ohne Anmeldung abrufbar; ein Nachlauf von dreißig Tagen war zu lang. Nach der Annahme
@@ -1127,12 +1135,14 @@ export async function angebotNacharbeit(id: number): Promise<void> {
  * Die Meldung von „Nachholen“ (POST …/nachholen) — rein. Beim Firmenangebot geht keine Mail raus: Die Meldung sagt das, damit
  * niemand glaubt, die Kundin habe eine Bestätigung bekommen (Nachprüfung 08.10.2026, N1). E-268 unverändert.
  */
-export function nachholenMeldung(mail: { ok: boolean; grund: string | null; firma?: true; begleit?: true }): string {
+export function nachholenMeldung(mail: { ok: boolean; grund: string | null; firma?: true; begleit?: true; kapitalC?: true }): string {
+  // E-432 (Runde 2): Fassung C hat Bestellung, Akte und die Vertragsbestätigung (§ 312f BGB) — die Meldung sagt, ob sie raus ist.
+  if (mail.kapitalC) return mail.ok ? "Bestellung, Akte und Vertragsbestätigung (Vertrag und Rechnung als PDF) stehen." : `Bestellung und Akte stehen — die Vertragsbestätigung ging nicht raus: ${mail.grund ?? "unbekannt"}`;
   if (mail.begleit) return "Begleitvertrag: Aufgabe und Meldung an Justin stehen — es gibt keine Bestellung und keine automatische Mail an den Kunden.";
   if (mail.firma) return "Bestellung und Akte stehen — beim Firmenangebot geht keine Mail an die Kundin: Vertrag und Rechnung schickt der Ansprechpartner von Hand.";
   return mail.ok ? "Bestellung, Akte und Bestätigungsmail stehen." : `Bestellung und Akte stehen — die Mail ging nicht raus: ${mail.grund}`;
 }
-export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; grund: string | null; firma?: true; begleit?: true }> {
+export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; grund: string | null; firma?: true; begleit?: true; kapitalC?: true }> {
   // E-301: Für das Firmenangebot gibt es (noch) keine Bestätigungsmail — die Vorlage spricht von Teil 1/Teil 2 und Widerruf.
   // Vertrag und Rechnung schickt der Ansprechpartner (Aufgabe aus firmaNacharbeit). Hier wird nichts versandt — „firma“ sagt
   // das dem Aufrufer, damit „Nachholen“ keine Bestätigungsmail meldet (Nachprüfung 08.10.2026, N1).
@@ -1140,6 +1150,13 @@ export async function bestaetigungSenden(id: number): Promise<{ ok: boolean; gru
   if (istFirmenFassung(fa?.fassung)) return { ok: true, grund: "Firmenangebot — keine automatische Bestätigungsmail", firma: true };
   if (istBegleitFassung(fa?.fassung)) return { ok: true, grund: "Begleitvertrag — keine automatische Bestätigungsmail", begleit: true };
   if (istKoopFassung(fa?.fassung)) return { ok: true, grund: "Kooperationsvertrag — keine automatische Bestätigungsmail", begleit: true };
+  // E-432: Fassung C schickt die Vertragsbestätigung selbst (kapitalCNacharbeit, eben im Nachholen gelaufen) — hier nur der Stand.
+  if (istKapitalCFassung(fa?.fassung)) {
+    const [s] = (await sqlPool`
+      SELECT g.auftrag_mail_am, g.auftrag_mail_fehler FROM fiaon_global_angebote a LEFT JOIN fiaon_global_auftraege g ON g.ref = a.auftrag_ref
+       WHERE a.id = ${id} LIMIT 1`.catch(() => [])) as any[];
+    return s?.auftrag_mail_am ? { ok: true, grund: null, kapitalC: true } : { ok: false, grund: String(s?.auftrag_mail_fehler || "Bestellung und Akte fehlen noch"), kapitalC: true };
+  }
   if (istKapitalFassung(fa?.fassung)) return { ok: true, grund: "Kapital-Angebot (Firmenkunde) — keine automatische Bestätigungsmail", begleit: true };
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NOW(), bestaetigung_mail_fehler = NULL, updated_at = NOW()

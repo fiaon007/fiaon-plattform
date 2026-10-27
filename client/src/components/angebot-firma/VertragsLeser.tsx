@@ -20,7 +20,7 @@
 // und springt zur Annahme (Fokus auf das erste offene Feld), damit niemand erst
 // „Schließen“ suchen muss.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { FirmaSeite } from "@shared/fiaon-global-angebot-firma-typen";
 import { Auf, Zeichen } from "./gemeinsam";
 
@@ -36,8 +36,9 @@ type Pdf = { titel: string; href: string };
  * `oeffner` (E-432, 27.10.2026, optional): Die Seite bekommt eine Funktion, die den Leser von außen öffnet — z. B. das Wort „Vertrag“
  * im Satz „Ich habe den Vertrag … gelesen“ in der Annahme. Der Fokus kehrt danach dorthin zurück, wo er vorher war.
  */
+/** `annehmen.satz` (E-432, optional): eigener Satz am Ende des Lesers (Fassung C: ein Haken und die Unterschrift, kein „zwei Bestätigungen“). */
 export default function VertragsLeser({ v, html, pdfs, annehmen, oeffner }: {
-  v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[]; annehmen?: { knopf: string; onAnnehmen: () => void };
+  v: FirmaSeite["vertrag"]; html: string; pdfs: Pdf[]; annehmen?: { knopf: string; onAnnehmen: () => void; satz?: string };
   oeffner?: { current: ((anker: string | null) => void) | null };
 }) {
   const [offen, setOffen] = useState(false);
@@ -137,7 +138,10 @@ export default function VertragsLeser({ v, html, pdfs, annehmen, oeffner }: {
           <div className="gaf-dokument-blatt">
             <p className="gaf-dokument-auge">FIAON LTD · London</p>
             <h3 className="gaf-dokument-titel">{v.dokument}</h3>
-            <p className="gaf-dokument-unter">{v.unterzeile}</p>
+            {/* Jeder Teil bleibt ganz (keine Angebotsnummer, die mitten im Code umbricht; der Punkt hängt nie allein am Zeilenende). */}
+            <p className="gaf-dokument-unter">{v.unterzeile.split(" · ").map((t, i) => (
+              <Fragment key={`${i}-${t}`}>{i > 0 && " · "}<span style={{ whiteSpace: "nowrap" }}>{t}</span></Fragment>
+            ))}</p>
             <ol className="gaf-dokument-inhalt">
               {v.inhalt.map((z) => (
                 <li key={z.anker}>
@@ -190,7 +194,7 @@ export default function VertragsLeser({ v, html, pdfs, annehmen, oeffner }: {
               {annehmen && (
                 <div className="gaf-leser-ende" data-fiaon="firma-leser-ende">
                   <p className="gaf-leser-ende-auge">{WORTE.endeAuge}</p>
-                  <p className="gaf-leser-ende-satz">{WORTE.endeSatz}</p>
+                  <p className="gaf-leser-ende-satz">{annehmen.satz ?? WORTE.endeSatz}</p>
                   <button type="button" className="gaf-knopf-annehmen" onClick={zurAnnahme} data-fiaon="firma-leser-annehmen">
                     <span>{annehmen.knopf}</span><Zeichen art="pfeilRunter" groesse={18} />
                   </button>

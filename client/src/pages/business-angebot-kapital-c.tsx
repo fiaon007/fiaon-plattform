@@ -9,6 +9,8 @@
 // Ihre Investition (ruhig, vollständig) · Ihre Unterlagen · Fragen · Ansprechpartner · Vertrag, Widerruf, Informationen · Auftrag.
 // Inhalte aus KapitalCKundenSicht (shared/fiaon-global-angebot-kapital-c.ts); die Rate rechnet dieselbe reine Funktion wie
 // Vertrag und Server (kapitalCPlan). Hart im Client stehen nur Bedienbeschriftungen. CI Glasblau, kein Gold (.gak/.gkp/.gkc).
+// Runde 2 (27.10.2026): Laufzeit, Name, EIN Haken (Fast-Track) und die Unterschrift — der Satz „… gelesen“ steht über der
+// Unterschrift, sie bestätigt ihn. Nach der Annahme die ruhige Fertig-Ansicht KapitalCFertig (ohne Website-Menü, Glasblau).
 // ═══════════════════════════════════════════════════════════════════════════
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ANGEBOT_AUFRUF_HINWEIS } from "@shared/fiaon-global-angebot";
@@ -81,7 +83,7 @@ function Kopf({ titel, sub, auge }: { titel: string; sub?: string; auge?: string
 const springen = (id: string, mitte = true) => {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ block: mitte ? "center" : "start", behavior: ruhig() ? "auto" : "smooth" });
+  el.scrollIntoView({ block: mitte ? "center" : "start", behavior: (ruhig() ? "instant" : "smooth") as ScrollBehavior });
   const feld = el.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ?? el.querySelector<HTMLElement>("input, canvas, button") ?? el;
   window.setTimeout(() => feld.focus({ preventScroll: true }), ruhig() ? 0 : 350);
 };
@@ -142,7 +144,7 @@ function Urkunde({ t, name, staat }: { t: LlcTexte; name: string; staat: string 
       <div className="gab-urkunde-kopf"><span className="gab-urkunde-auge">Articles of Organization</span></div>
       <p className="gab-urkunde-zeile">{t.vorschauZeile}</p>
       <p className={`gab-urkunde-name${voll ? "" : " leer"}`}>{voll || t.vorschauLeer}</p>
-      <div className="gab-urkunde-fuss"><span>State of {staat} · Document No. nach Eintragung</span><span>{t.vorschauFuss}</span></div>
+      <div className="gab-urkunde-fuss"><span>State of {staat} · Registernummer nach der Eintragung</span><span>{t.vorschauFuss}</span></div>
     </div>
   );
 }
@@ -156,6 +158,16 @@ function Punktzeile({ text, leise = false }: { text: string; leise?: boolean }) 
   return <>{teile.map((t, i) => (
     <Fragment key={t}>{i > 0 && <span className="gkc-pz-trenner" aria-hidden="true"> · </span>}<span className={`gkc-pz-teil${leise && i > 0 ? " leise" : ""}`}>{t}</span></Fragment>
   ))}</>;
+}
+
+/** „Gründung, Konto und Karten 2.790 € · Fast-Track 499 €“ — jeder Teil bleibt ganz (nie „Fast-“ | „Track“). */
+function Teile({ text }: { text: string }) {
+  return <>{text.split(" · ").map((t, i) => <Fragment key={`${i}-${t}`}>{i > 0 && " · "}<span className="gkc-nb">{t}</span></Fragment>)}</>;
+}
+/** „Fast-Track“ in Fließtext ohne Trennung am Bindestrich. */
+function OhneTrennung({ text, wort = "Fast-Track" }: { text: string; wort?: string }) {
+  const teile = text.split(wort);
+  return <>{teile.map((t, i) => <Fragment key={i}>{i > 0 && <span className="gkc-nb">{wort}</span>}{t}</Fragment>)}</>;
 }
 
 /** Ein Hinweis an einem Namensfeld: „leer“ = es fehlt nur noch (ruhig, blau), sonst ist die Eingabe falsch (ein Rotton). */
@@ -358,7 +370,6 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const [wahl, setWahl] = useState<BegleitLlcWahl>({ wunsch: "", alternative1: "", alternative2: "" });
   const [beruehrt, setBeruehrt] = useState<Partial<Record<NamenFeld, boolean>>>({});
   const [nameHier, setNameHier] = useState(false);
-  const [gelesen, setGelesen] = useState(false);
   const [sofort, setSofort] = useState(false);
   const [sig, setSig] = useState<UnterschriftStand>({ da: false, eingabe: null });
   const [falle, setFalle] = useState("");
@@ -376,7 +387,10 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
   const widerruf = useMemo(() => globalWiderrufsbelehrung("de"), []);
-  const plan = useMemo(() => kapitalCPlan(k, jahre), [k, jahre]);
+  // Nach „Angebot neu laden“ kann sich der Rahmen geändert haben — die Wahl bleibt darin (sonst wirft kapitalCPlan, die Seite wäre leer).
+  const jahreIm = Math.min(k.laufzeitMaxJahre, Math.max(k.laufzeitMinJahre, Math.round(jahre)));
+  useEffect(() => { if (jahreIm !== jahre) setJahre(jahreIm); }, [jahreIm, jahre]);
+  const plan = useMemo(() => kapitalCPlan(k, jahreIm), [k, jahreIm]);
   // Nach einem Fehler beim Absenden: Fokus auf den Hinweis (Vorleser und Tastatur landen dort, nicht im Nichts).
   useEffect(() => { if (fehler) fehlerKasten.current?.focus(); }, [fehler]);
 
@@ -414,12 +428,11 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const fehlt: { id: string; text: string }[] = [];
   if (wunschFehler) fehlt.push({ id: "gkc-annahme-namen", text: wunschFehler });
   else if (ausweichFehler && ausweichFeld) fehlt.push({ id: `gkc-oben-${ausweichFeld}`, text: ausweichFehler });
-  if (!gelesen) fehlt.push({ id: "gkc-gelesen", text: "Bitte bestätigen Sie, dass Sie Vertrag, Informationen und Widerrufsbelehrung gelesen haben." });
   if (!sofort) fehlt.push({ id: "gkc-sofort", text: "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
   if (!sig.da || !sig.eingabe) fehlt.push({ id: "gaf-unterschrift", text: A.unterschrift.fehlt });
   const zeig = (id: string) => zeigeFehlt && fehlt.some((f) => f.id === id);
 
-  const uebersicht = sicht.uebersicht.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(k, jahre) } : z));
+  const uebersicht = sicht.uebersicht.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(k, jahreIm) } : z));
   const zumText = {
     vertrag: () => leserOeffnen.current?.(null),
     informationen: () => { setInfoAuf(true); window.setTimeout(() => springen("informationen", false), 30); },
@@ -431,7 +444,8 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
     if (fehlt.length) { setZeigeFehlt(true); setFehler(""); springen(fehlt[0].id); return; }
     setSendet(true); setFehler(""); setGeaendert(false); setServerFeld(null);
     const eingabe: KapitalCAnnahmeEingabe & { falle: string } = {
-      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahre, gelesen: true, sofortBeginn: true, unterschrift: sig.eingabe!, falle,
+      // „gelesen“: Die Unterschrift bestätigt den Satz direkt darüber (kein eigener Haken mehr, Runde 2).
+      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahreIm, gelesen: true, sofortBeginn: true, unterschrift: sig.eingabe!, falle,
     };
     try {
       const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, {
@@ -500,7 +514,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
               <span className="gkc-hero-rate-auge gkc-pz-umbruch"><Punktzeile text={einsetzen(H.rateAuge, { monat: String(plan.ersteRateMonat) })} leise /></span>
               <span className="gkc-hero-rate-zeile">
                 <b className="gkc-hero-rate-wert">{kapitalCEurCent(plan.monatsrateCents)}</b>
-                <span className="gkc-hero-rate-bei">{einsetzen(H.rateBei, { jahre: String(jahre) })}</span>
+                <span className="gkc-hero-rate-bei">{einsetzen(H.rateBei, { jahre: String(jahreIm) })}</span>
                 <span className="gkc-hero-rate-knopf">{H.rateKnopf}<Zeichen art="pfeil" groesse={14} /></span>
               </span>
             </button>
@@ -513,7 +527,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
         {/* 2 — Laufzeit, Rate und Konditionen */}
         <section className="gaf-abschnitt gkc-abschnitt-rechner" id="gkc-rechner" aria-label={S.rechner.auge}>
           <div className="gaf-rahmen">
-            <Auf><Rechner sicht={sicht} jahre={jahre} setJahre={setJahre} plan={plan} /></Auf>
+            <Auf><Rechner sicht={sicht} jahre={jahreIm} setJahre={setJahre} plan={plan} /></Auf>
             <div className="gkc-fein-block">{S.konditionen.fein.map((x) => <p key={x} className="gaf-fein">{x}</p>)}</div>
           </div>
         </section>
@@ -567,7 +581,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                   <li key={z.wann} className="gkc-invest-posten">
                     <span className="gkc-invest-wann">{z.wann}</span>
                     <b className="gkc-invest-betrag">{z.betrag}</b>
-                    <span className="gkc-invest-text">{z.text}</span>
+                    <span className="gkc-invest-text"><Teile text={z.text} /></span>
                   </li>
                 ))}
               </ul>
@@ -613,13 +627,21 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                   <span className="gab-person-bild">
                     {ohneBild[p.kuerzel]
                       ? <span className="gaf-person-mono" aria-hidden="true">{p.name.split(/\s+/).map((x) => x[0]).join("").slice(0, 2)}</span>
-                      : <img src={p.portrait} alt={p.name} width={160} height={160} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
+                      : <img src={p.portrait} alt={p.alt || p.name} width={160} height={160} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
                   </span>
                   <span className="gab-person-text">
                     <b>{p.name}</b>
-                    <span className="gkc-rolle">{p.rolle.split(" · ").map((r, j, alle) => (
-                      <Fragment key={r}><span className="gkc-nb">{r}{j < alle.length - 1 ? " ·" : ""}</span>{j < alle.length - 1 ? " " : ""}</Fragment>
-                    ))}</span>
+                    {(() => {
+                      // Am Handy steht der letzte Teil („Director“) bewusst in einer eigenen Zeile — kein Punkt am Zeilenende.
+                      const teile = p.rolle.split(" · ");
+                      return (
+                        <span className="gkc-rolle">
+                          <span className="gkc-nb">{teile.slice(0, -1).join(" · ")}</span>
+                          {teile.length > 1 && <><span className="gkc-rolle-trenner"> · </span><span className="gkc-rolle-letzt gkc-nb">{teile[teile.length - 1]}</span></>}
+                        </span>
+                      );
+                    })()}
+                    {p.kiHinweis && !ohneBild[p.kuerzel] && <small className="gkc-ki-hinweis">{p.kiHinweis}</small>}
                     <a href={`mailto:${p.email}?subject=${betreff}`}><Zeichen art="mail" groesse={16} /><span>{p.email}</span></a>
                     <a href={`tel:${p.telefon.replace(/\s/g, "")}`}><Zeichen art="telefon" groesse={16} /><span>{p.telefon}</span></a>
                   </span>
@@ -633,7 +655,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
         <section className="gaf-abschnitt" id="vertrag" aria-label={S.vertrag.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.vertrag.titel} sub={S.vertrag.sub} />
-            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.knopf, onAnnehmen: () => springen(nameGut ? "gkc-gelesen" : "gkc-annahme-namen") }}
+            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.leserKnopf, satz: A.leserSatz, onAnnehmen: () => springen(nameGut ? "gkc-sofort" : "gkc-annahme-namen") }}
               pdfs={[{ titel: WORTE.vertragPdf, href: sicht.vertragPdf }]} oeffner={leserOeffnen} />
             <div className="gkc-recht">
               <div className="gkc-recht-block" id="widerruf">
@@ -669,7 +691,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
               <div className="gaf-annahme-feld gkc-wahl">
                 <h3 className="gaf-h3">{A.laufzeit}</h3>
                 <p className="gkc-wahl-zeile">
-                  <b>{jahre} {S.rechner.jahre}</b><span className="gkc-wahl-trenner" aria-hidden="true">·</span>
+                  <b>{jahreIm} {S.rechner.jahre}</b><span className="gkc-wahl-trenner" aria-hidden="true">·</span>
                   <span className="gkc-wahl-rate">{einsetzen(A.rateZeile, { rate: kapitalCEurCent(plan.monatsrateCents) })}</span>
                   <button type="button" className="gkc-link" onClick={() => springen("gkc-rechner", false)}>{A.laufzeitAendern}</button>
                 </p>
@@ -682,11 +704,13 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                 {nameZeigen ? (
                   <NamensFelder t={T} wahl={wahl} setWahl={nameNeu} hinweise={hinweise} idPraefix="gkc-annahme" nurWunsch onVerlassen={verlassen} />
                 ) : (
-                  <p className="gkc-wahl-zeile gkc-name-zeile">
-                    <b className="gkc-name-wert">{llcVollname(wahl.wunsch)}</b>
-                    {(wahl.alternative1 || wahl.alternative2) && <span className="gkc-name-ausweich">{[wahl.alternative1, wahl.alternative2].map(llcVollname).filter(Boolean).join(" · ")}</span>}
-                    <button type="button" className="gkc-link" onClick={() => springen("gkc-name")}>{A.nameAendern}</button>
-                  </p>
+                  <>
+                    <p className="gkc-wahl-zeile gkc-name-zeile">
+                      <b className="gkc-name-wert">{llcVollname(wahl.wunsch)}</b>
+                      <button type="button" className="gkc-link" onClick={() => springen("gkc-name")}>{A.nameAendern}</button>
+                    </p>
+                    {(wahl.alternative1 || wahl.alternative2) && <p className="gkc-name-ausweich">{[wahl.alternative1, wahl.alternative2].map(llcVollname).filter(Boolean).join(" · ")}</p>}
+                  </>
                 )}
               </div>
 
@@ -695,20 +719,17 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                 <dl>{uebersicht.map((z) => <div key={z.label}><dt>{z.label}</dt><dd>{z.wert}</dd></div>)}</dl>
               </div>
 
-              <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-gelesen") || zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
-                <label className={`gaf-haken-zeile${gelesen ? " an" : ""}`} id="gkc-gelesen">
-                  <input type="checkbox" checked={gelesen} onChange={(e) => setGelesen(e.target.checked)} required aria-invalid={(zeig("gkc-gelesen") && !gelesen) || undefined} />
-                  <span className="gaf-haken-kasten" aria-hidden="true"><Zeichen art="haken" groesse={14} /></span>
-                  <span><GelesenSatz satz={A.gelesen} links={A.gelesenLinks} ziele={zumText} /></span>
-                </label>
+              <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
                 <label className={`gaf-haken-zeile${sofort ? " an" : ""}`} id="gkc-sofort">
                   <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} required aria-invalid={(zeig("gkc-sofort") && !sofort) || undefined} aria-describedby="gkc-sofort-unter" />
                   <span className="gaf-haken-kasten" aria-hidden="true"><Zeichen art="haken" groesse={14} /></span>
-                  <span>{A.sofort}<small className="gkc-haken-unter" id="gkc-sofort-unter">{A.sofortUnter}</small></span>
+                  <span><OhneTrennung text={A.sofort} /><small className="gkc-haken-unter" id="gkc-sofort-unter"><OhneTrennung text={A.sofortUnter} /></small></span>
                 </label>
               </div>
 
-              <UnterschriftFeld t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig} />
+              {/* Kein Haken „gelesen“ (Runde 2): Die Unterschrift bestätigt den Satz direkt darunter — die drei Wörter führen zum Text. */}
+              <UnterschriftFeld t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig}
+                zusatz={<p className="gkc-unterschrift-satz" id="gkc-gelesen">{A.gelesenVorsatz} „<GelesenSatz satz={A.gelesen} links={A.gelesenLinks} ziele={zumText} />“</p>} />
 
               <input className="gaf-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} name="firma_webseite" />
               {fehler && (
@@ -747,10 +768,123 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
           <ul className="gaf-pflicht">{S.pflicht.map((x) => <li key={x}>{x}</li>)}</ul>
           <p className="gaf-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           <p className="gaf-fuss-links"><a href="/impressum">{WORTE.impressum}</a> · <a href="/datenschutz">{WORTE.datenschutz}</a></p>
-          <p className="gaf-fuss-ref">{WORTE.angebot} {sicht.ref} · {sicht.fassung}</p>
+          <p className="gaf-fuss-ref">{WORTE.angebot} {sicht.ref}</p>
         </div>
       </footer>
     </div>
   );
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH DER ANNAHME — die ruhige Fertig-Ansicht der Fassung C (Runde 2, Gestaltung + Kundensicht)
+// Vorher sprang dieselbe Adresse in die Website (Menü „Leistungen / Preise …“, Navy-Knopf „Beauftragen“, drei Ansprechpartner).
+// Jetzt: derselbe Rahmen wie die Angebotsseite (Glasblau, Wortmarke, kein Website-Menü), „Zur Zahlungsseite“ im Blau-Verlauf,
+// der Verwendungszweck offen, Dateien mit klaren Namen und nur der Ansprechpartner aus dem Angebot (mit KI-Hinweis am Porträt).
+// Texte vom Server (kapitalCAngenommenAntwort → privat), hier nur Bedienbeschriftungen.
+// ═══════════════════════════════════════════════════════════════════════════
+export interface KapitalCFertigDaten {
+  ref: string; zahlungsseite: string | null; meinAuftrag: string | null; vertragUrl: string | null; rechnungUrl: string | null;
+  fertigTitel: string; fertigText: string; teil1Bezahlt?: boolean; fertigZahlung?: string; fertigFuss?: string;
+  llc?: { wunsch: string } | null;
+  privat: {
+    auge: string; zweck: string | null; knopf: string; meinAuftragKnopf: string; dateien: { vertrag: string; rechnung: string };
+    ansprechTitel: string; ansprechpartner: KapitalCKundenSicht["ansprechpartner"]; marke: string;
+  };
+}
+const FERTIG_WORTE = { angebot: "Angebot", gesellschaft: "Ihre Gesellschaft", dateien: "Ihre Unterlagen", impressum: "Impressum", datenschutz: "Datenschutzerklärung" };
+export function KapitalCFertig({ f }: { f: KapitalCFertigDaten }) {
+  useSeitenRahmen(WORTE.seitenTitel);
+  const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
+  const P = f.privat;
+  const betreff = encodeURIComponent(`${FERTIG_WORTE.angebot} ${f.ref}`);
+  return (
+    <div className="gaf gab gak gkp gkc gkc-fertig" data-fiaon="angebot-fertig" data-variante="privat">
+      <header className="gaf-leiste-oben">
+        <div className="gaf-rahmen gaf-leiste-oben-innen">
+          <MarkeGlobal hoehe={17} className="gaf-marke" />
+          <span className="gaf-leiste-ref"><span className="gkc-nb">{FERTIG_WORTE.angebot} {f.ref}</span></span>
+        </div>
+      </header>
+      <main className="gaf-inhalt">
+        <section className="gaf-abschnitt gkc-fertig-abschnitt" aria-label={f.fertigTitel}>
+          <div className="gaf-rahmen gaf-rahmen-schmal">
+            <div className="gaf-kopf">
+              <p className="gaf-auge">{P.auge}</p>
+              <h1 className="gaf-h2 gkc-fertig-titel">{f.fertigTitel}</h1>
+              <p className="gaf-sub">{f.fertigText}</p>
+            </div>
+            <div className="gkc-fertig-karte">
+              <dl className="gkc-fertig-daten">
+                <div><dt>{FERTIG_WORTE.angebot}</dt><dd>{f.ref}</dd></div>
+                {f.llc?.wunsch && <div><dt>{FERTIG_WORTE.gesellschaft}</dt><dd>{f.llc.wunsch}</dd></div>}
+              </dl>
+              {!f.teil1Bezahlt && f.fertigZahlung && <p className="gkc-fertig-zahlung"><OhneTrennung text={f.fertigZahlung} /></p>}
+              {!f.teil1Bezahlt && P.zweck && <p className="gkc-fertig-zweck">{P.zweck}</p>}
+              <div className="gkc-fertig-knoepfe">
+                {f.zahlungsseite && !f.teil1Bezahlt && <a className="gkp-knopf" href={f.zahlungsseite}>{P.knopf}<Zeichen art="pfeil" groesse={16} /></a>}
+                {f.meinAuftrag && <a className="gkp-knopf-leise gkc-fertig-leise" href={f.meinAuftrag}>{P.meinAuftragKnopf}</a>}
+              </div>
+              {(f.vertragUrl || f.rechnungUrl) && (
+                <div className="gkc-fertig-dateien">
+                  <p className="gaf-auge">{FERTIG_WORTE.dateien}</p>
+                  <ul className="gaf-dokumente">
+                    {[{ titel: P.dateien.vertrag, href: f.vertragUrl }, { titel: P.dateien.rechnung, href: f.rechnungUrl }].filter((d) => d.href).map((d) => (
+                      <li key={d.titel}>
+                        <a href={d.href!} target="_blank" rel="noreferrer">
+                          <span className="gaf-dok-zeichen"><Zeichen art="dokument" groesse={20} /></span>
+                          <span className="gaf-dok-titel">{d.titel}</span>
+                          <span className="gaf-dok-aktion"><Zeichen art="pfeil" groesse={14} /></span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {f.fertigFuss && <p className="gkc-fertig-fuss">{f.fertigFuss}</p>}
+            </div>
+          </div>
+        </section>
+        {P.ansprechpartner.length > 0 && (
+          <section className="gaf-abschnitt" aria-label={P.ansprechTitel}>
+            <div className="gaf-rahmen gaf-rahmen-schmal">
+              <div className="gaf-kopf"><h2 className="gaf-h2">{P.ansprechTitel}</h2></div>
+              <ul className="gab-personen gkc-personen">
+                {P.ansprechpartner.map((p) => {
+                  const teile = p.rolle.split(" · ");
+                  return (
+                    <li key={p.kuerzel} className="gab-person">
+                      <span className="gab-person-bild">
+                        {ohneBild[p.kuerzel]
+                          ? <span className="gaf-person-mono" aria-hidden="true">{p.name.split(/\s+/).map((x) => x[0]).join("").slice(0, 2)}</span>
+                          : <img src={p.portrait} alt={p.alt || p.name} width={160} height={160} decoding="async" onError={() => setOhneBild((o) => ({ ...o, [p.kuerzel]: true }))} />}
+                      </span>
+                      <span className="gab-person-text">
+                        <b>{p.name}</b>
+                        <span className="gkc-rolle">
+                          <span className="gkc-nb">{teile.slice(0, -1).join(" · ")}</span>
+                          {teile.length > 1 && <><span className="gkc-rolle-trenner"> · </span><span className="gkc-rolle-letzt gkc-nb">{teile[teile.length - 1]}</span></>}
+                        </span>
+                        {p.kiHinweis && !ohneBild[p.kuerzel] && <small className="gkc-ki-hinweis">{p.kiHinweis}</small>}
+                        <a href={`mailto:${p.email}?subject=${betreff}`}><Zeichen art="mail" groesse={16} /><span>{p.email}</span></a>
+                        <a href={`tel:${p.telefon.replace(/\s/g, "")}`}><Zeichen art="telefon" groesse={16} /><span>{p.telefon}</span></a>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        )}
+      </main>
+      <footer className="gaf-fuss">
+        <div className="gaf-rahmen">
+          <MarkeGlobal hoehe={16} className="gaf-marke" />
+          <p className="gaf-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
+          <p className="gaf-fuss-links"><a href="/impressum">{FERTIG_WORTE.impressum}</a> · <a href="/datenschutz">{FERTIG_WORTE.datenschutz}</a></p>
+          <p className="gaf-fuss-ref">{FERTIG_WORTE.angebot} {f.ref}</p>
+        </div>
+      </footer>
+    </div>
+  );
+}

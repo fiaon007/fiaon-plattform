@@ -640,6 +640,10 @@ export async function kapitalNachZahlung(ref: string, t: any, z: AngebotZeile): 
 const FRIST_MARKE = { warnung14: "frist_warnung_14_am", warnung3: "frist_warnung_3_am", abgelaufen: "frist_abgelaufen_am" } as const;
 export async function kapitalFristLauf(jetzt: Date = new Date()): Promise<{ warnungen: number; fristende: number }> {
   const heute = berlinToday(jetzt);
+  // E-432 (Runde 2): Kam die Vertragsbestätigung der Fassung C an (§ 312f BGB)? Nur Aufgaben, nie eine Mail; ein Fehler hält nichts an.
+  await (await fassungC()).kapitalCZustellungLauf(jetzt)
+    .then((r) => { if (r.gescheitert || r.offen) console.log(`[FIAON-KAPITAL] Zustellung Vertragsbestätigung: ${r.geprueft} geprüft, ${r.gescheitert} nicht zugestellt, ${r.offen} offen`); })
+    .catch((e) => console.error("[FIAON-KAPITAL] Zustellung Vertragsbestätigung (Fassung C):", e));
   const zeilen = (await sqlPool`
     SELECT a.id, a.angebot_ref, a.status, a.fassung, a.kunde, a.parameter, a.person_id, a.auftrag_ref, a.frist_beginn, a.frist_ende,
            a.frist_warnung_14_am, a.frist_warnung_3_am, a.frist_abgelaufen_am, a.garantie_erfuellt_am, a.erstattung_ausgeloest_am,

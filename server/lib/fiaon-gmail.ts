@@ -460,6 +460,11 @@ export async function neueMailEntwurf(postfach: string, opts: { vonName?: string
   return String(j?.id || "");
 }
 
+/** Legt eine Nachricht in den Papierkorb (E-441: die Gesendet-Kopie einer Code-Mail). Kein endgültiges Löschen. */
+export async function nachrichtInPapierkorb(postfach: string, id: string): Promise<void> {
+  await api(postfach, `/messages/${encodeURIComponent(id)}/trash`, { method: "POST" });
+}
+
 /** Sendet die neue Mail aus dem Postfach und gibt die Nachrichten-ID zurück. */
 export async function neueMailSenden(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string }): Promise<string> {
   const j = await api(postfach, "/messages/send", { method: "POST", body: JSON.stringify({ raw: mimeNeu({ von: postfach, ...opts }) }) });

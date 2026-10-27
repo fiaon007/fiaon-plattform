@@ -227,39 +227,49 @@ export async function kontoMailSenden(event: KontoMail, k: KontoZeile, zusatz: R
   if (nurProtokoll) { ok = true; grund = "Prüfstand: nicht verschickt, nur protokolliert (kein BREVO_API_KEY)"; }
   if (!gesperrt && !nurProtokoll) {
     // E-441 (27.10.2026): Zwei Wege. Brevo nahm Codes an iCloud an („sent“), stellte sie aber über eine Stunde nicht zu —
-    // der Kunde kam nicht weiter. Apple-Postfächer und jedes „Code neu senden“ gehen deshalb zuerst über Google Workspace
-    // (Postfach des Absenders); scheitert ein Weg, nimmt der andere die Mail.
+    // der Kunde kam nicht weiter. Apple-Postfächer gehen deshalb zuerst über Google Workspace (Postfach des Absenders),
+    // alle anderen zuerst über Brevo; scheitert ein Weg, nimmt der andere die Mail. „Code neu senden“ heißt meist: der
+    // erste kam nicht an — dann geht derselbe Code über BEIDE Wege.
     // Ohne Brevo-Schlüssel (Prüfstand, Vorschau) bleibt es beim alten Weg — dort soll auch Google nichts verschicken.
-    const reihe: KontoMailWeg[] = !process.env.BREVO_API_KEY ? ["brevo"]
-      : (opts.weg ?? kontoMailWegFuer(k.email)) === "google" ? ["google", "brevo"] : ["brevo", "google"];
-    const gruende: string[] = [];
+    const an = String(nutzlast.email ?? "").trim();
+    const wunsch = opts.weg ?? kontoMailWegFuer(k.email);
+    const reihe: Array<"brevo" | "google"> = !process.env.BREVO_API_KEY || !adresseSiehtGueltigAus(an) ? ["brevo"]
+      : wunsch === "brevo" ? ["brevo", "google"] : ["google", "brevo"];
+    const gruende: string[] = []; const genommen: Array<"brevo" | "google"> = [];
     for (const w of reihe) {
       const erg = await kontoMailUeber(w, event, nutzlast);
-      if (erg.ok) { ok = true; ueber = w; messageId = erg.messageId; grund = [...gruende, erg.grund, w === "google" ? "über Google Workspace verschickt" : null].filter(Boolean).join(" · ") || null; break; }
-      gruende.push(`${w}: ${erg.grund || "unbekannt"}`);
+      if (erg.ok) {
+        ok = true; genommen.push(w); if (w === "brevo") messageId = erg.messageId;
+        if (erg.grund) gruende.push(erg.grund);
+        if (wunsch !== "beide") break;
+      } else gruende.push(`${w}: ${erg.grund || "unbekannt"}`);
     }
-    if (!ok) grund = gruende.join(" · ") || "unbekannt";
+    ueber = genommen.length > 1 ? "beide" : genommen[0] ?? "brevo";
+    grund = [...gruende, ok && ueber !== "brevo" ? `Weg: ${ueber === "beide" ? "Brevo und Google Workspace" : "Google Workspace"}` : null].filter(Boolean).join(" · ") || null;
   }
   try {
     const klar = kontoKlartextImProtokoll();
-    const payload: Record<string, unknown> = { ...nutzlast };
+    const payload: Record<string, unknown> = { ...nutzlast, versandweg: ueber };
     if (!klar) for (const f of GEHEIME_FELDER) if (payload[f]) payload[f] = "[verborgen]";
     const { mailProtokoll } = await import("./fiaon-mail-log");
     await mailProtokoll({
       event, personId: null, empfaenger: k.email,
       status: nurProtokoll ? "uebersprungen" : ok ? "versandt" : gesperrt ? "uebersprungen" : "fehlgeschlagen", grund: ok ? grund : (grund || "unbekannt"),
-      payload, ausgeloestVon: von, brevoMessageId: ueber === "brevo" ? messageId : null,
+      payload, ausgeloestVon: von, brevoMessageId: messageId,
     });
   } catch (e) { console.error(`[GLOBAL-KONTO] Mailprotokoll ${event}:`, e); }
   return { ok, grund: ok ? null : (grund || "unbekannt") };
 }
 
-export type KontoMailWeg = "brevo" | "google";
+/** „beide“ = derselbe Code über Brevo UND Google Workspace (nach „Code neu senden“). Steht als payload.versandweg im Protokoll. */
+export type KontoMailWeg = "brevo" | "google" | "beide";
 /** Apple-Postfächer (iCloud) bekommen Zugangs-Mails zuerst über Google Workspace (E-441). */
 export function kontoMailWegFuer(email: string): KontoMailWeg {
   return /@(icloud|me|mac)\.com$/i.test(String(email || "").trim()) ? "google" : "brevo";
 }
-async function kontoMailUeber(weg: KontoMailWeg, event: KontoMail, nutzlast: Record<string, unknown>): Promise<{ ok: boolean; messageId: string | null; grund: string | null }> {
+// Dieselbe Regel wie der Motor (mailDirektSenden): genau eine Adresse, ohne Leerzeichen — sonst geht auf keinem Weg etwas raus.
+const adresseSiehtGueltigAus = (an: string) => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(an);
+async function kontoMailUeber(weg: "brevo" | "google", event: KontoMail, nutzlast: Record<string, unknown>): Promise<{ ok: boolean; messageId: string | null; grund: string | null }> {
   try {
     if (weg === "brevo") {
       const { mailDirektSenden } = await import("../mail/motor");
@@ -271,10 +281,17 @@ async function kontoMailUeber(weg: KontoMailWeg, event: KontoMail, nutzlast: Rec
     if (!G.gmailBereit()) return { ok: false, messageId: null, grund: "GOOGLE_SA_KEY fehlt" };
     const mail = mailRendern(event, nutzlast);
     if (!mail) return { ok: false, messageId: null, grund: `Keine Vorlage für '${event}' im Motor.` };
-    const an = String((nutzlast as any).email ?? "").trim();
-    if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
-    const id = await G.neueMailSenden(mail.absender.email, { vonName: mail.absender.name, an, betreff: mail.betreff, text: mail.text, html: mail.html });
-    return { ok: !!id, messageId: id || null, grund: id ? null : "Google hat keine Nachrichten-ID geliefert" };
+    const an = String(nutzlast.email ?? "").trim();
+    // Wie Brevo höchstens 15 Sekunden — hängt Google, kommt der andere Weg dran, statt dass der Kunde wartet.
+    const id = await Promise.race([
+      G.neueMailSenden(mail.absender.email, { vonName: mail.absender.name, an, betreff: mail.betreff, text: mail.text, html: mail.html }),
+      new Promise<string>((_, nein) => setTimeout(() => nein(new Error("Google: keine Antwort in 15 Sekunden")), 15_000)),
+    ]);
+    if (!id) return { ok: false, messageId: null, grund: "Google hat keine Nachrichten-ID geliefert" };
+    // Code und Links sollen nicht im Gesendet-Ordner des Postfachs stehen bleiben (dort lesen Team und Postmeister mit):
+    // die Kopie geht in den Papierkorb (gmail.modify, kein endgültiges Löschen). Scheitert das, ist die Mail trotzdem raus.
+    await G.nachrichtInPapierkorb(mail.absender.email, id).catch((e) => console.error("[GLOBAL-KONTO] Gesendet-Kopie nicht im Papierkorb:", e instanceof Error ? e.message : e));
+    return { ok: true, messageId: id, grund: null };
   } catch (e) { return { ok: false, messageId: null, grund: e instanceof Error ? e.message : String(e) }; }
 }
 
@@ -638,8 +655,8 @@ export async function kontoCodeNeu(b: { vorgang?: unknown }, a: Anfrage): Promis
      WHERE id = ${z.id} AND eingeloest_am IS NULL AND neu_gesendet = ${Number(z.neu_gesendet || 0)} RETURNING id`) as any[];
   if (!frei) return nein(429, S(k.sprache).codeNeuWarten(60), "warten");
   const zweck = (["anmeldung", "einrichtung", "passwort"].includes(String(z.zweck)) ? z.zweck : "anmeldung") as "anmeldung" | "einrichtung" | "passwort";
-  // „Code neu senden“ heißt meist: der erste kam nicht an — darum zuerst der zweite Weg (E-441).
-  const mail = await kontoMailSenden("global_login_code", k, { login_code: code, code_anlass: escapeHtml(CODE_ANLASS[zweck][k.sprache]) }, { weg: "google" });
+  // „Code neu senden“ heißt meist: der erste kam nicht an — darum derselbe Code über beide Wege (E-441).
+  const mail = await kontoMailSenden("global_login_code", k, { login_code: code, code_anlass: escapeHtml(CODE_ANLASS[zweck][k.sprache]) }, { weg: "beide" });
   await kontoProtokoll({ kontoId: k.id, ereignis: "code_neu", erfolg: mail.ok, ip: a.ip, ua: a.ua, details: { zweck, grund: mail.grund } });
   return { ok: true, meldung: S(k.sprache).codeNeuOk, ...(mail.ok ? {} : { mailFehler: true }) };
 }

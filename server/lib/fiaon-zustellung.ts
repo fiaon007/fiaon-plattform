@@ -619,6 +619,8 @@ export async function zustellungAbgleichen(
       AND created_at > NOW() - INTERVAL '7 days'
       -- Endzustände nicht erneut abfragen; „angenommen" und Leerstand schon.
       AND COALESCE(zustellung, '') NOT IN ('gebounct', 'blockiert', 'spam', 'geklickt')
+      -- E-441: nur über Google Workspace verschickte Zugangs-Mails kennt Brevo nicht — sonst bekämen sie den Zustand einer anderen Mail.
+      AND COALESCE(payload->>'versandweg', 'brevo') <> 'google'
       AND (abgeglichen_am IS NULL OR abgeglichen_am < NOW() - INTERVAL '45 minutes')
     ORDER BY created_at DESC
     LIMIT ${opts.maxZeilen ?? 120}

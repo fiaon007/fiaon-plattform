@@ -584,9 +584,9 @@ async function codeMail(ref: string, k: FormularKontext, email: string, name: st
   const { escapeHtml } = await import("./fiaon-html-pdf");
   const teile = name.split(/\s+/);
   const pseudo: any = { id: 0, email, name, anrede: null, nachname: teile[teile.length - 1], firma: k.firmaName || null, sprache: k.sprache };
-  // „Code neu senden“ geht zuerst über den zweiten Weg (Google Workspace), sonst entscheidet die Adresse (E-441).
+  // „Code neu senden“ geht über beide Wege (Brevo und Google Workspace), sonst entscheidet die Adresse (E-441).
   const erg = await kontoMailSenden("global_unterschrift_code", pseudo, { login_code: code, dokument_titel: escapeHtml(titel) },
-    { ausgeloestVon: `Kunde (Unterschrift ${ref}${opts.neu ? ", neuer Code" : ""})`, ...(opts.neu ? { weg: "google" as const } : {}) });
+    { ausgeloestVon: `Kunde (Unterschrift ${ref}${opts.neu ? ", neuer Code" : ""})`, ...(opts.neu ? { weg: "beide" as const } : {}) });
   return erg;
 }
 

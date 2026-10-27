@@ -15,7 +15,13 @@ import { ruhig } from "./gemeinsam";
 
 type Teilchen = { x: number; y: number; r: number; v: number; phase: number; drift: number; hell: number };
 
-function staubStarten(canvas: HTMLCanvasElement): () => void {
+/** E-432: Der Staub im FIAON-Glasblau (Fassung C, kein Gold) — sonst wie bisher golden. */
+const STAUB = {
+  gold: ["243,227,181", "217,180,90", "184,137,46"],
+  blau: ["207,228,254", "90,168,251", "29,78,216"],
+} as const;
+function staubStarten(canvas: HTMLCanvasElement, ton: "gold" | "blau" = "gold"): () => void {
+  const [hell, mitte, tief] = STAUB[ton];
   const ctx = canvas.getContext("2d");
   if (!ctx) return () => {};
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -41,9 +47,9 @@ function staubStarten(canvas: HTMLCanvasElement): () => void {
       const funkeln = 0.55 + 0.45 * Math.sin(jetzt / 520 + t.phase * 3);
       const a = t.hell * funkeln;
       const g = ctx.createRadialGradient(t.x, t.y, 0, t.x, t.y, t.r * 3.2);
-      g.addColorStop(0, `rgba(243,227,181,${a})`);
-      g.addColorStop(0.35, `rgba(217,180,90,${a * 0.75})`);
-      g.addColorStop(1, "rgba(184,137,46,0)");
+      g.addColorStop(0, `rgba(${hell},${a})`);
+      g.addColorStop(0.35, `rgba(${mitte},${a * 0.75})`);
+      g.addColorStop(1, `rgba(${tief},0)`);
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(t.x, t.y, t.r * 3.2, 0, Math.PI * 2); ctx.fill();
     }
@@ -71,7 +77,7 @@ function nachStartbuehne(los: () => void): () => void {
 }
 const STEHT_MS = 4600;
 
-export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde }: { auge: string; gruss: string; zeile: string; weiter: string; onWeg: () => void; onEnde: () => void }) {
+export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde, ton = "gold" }: { auge: string; gruss: string; zeile: string; weiter: string; onWeg: () => void; onEnde: () => void; ton?: "gold" | "blau" }) {
   const [weg, setWeg] = useState(false);
   const [los, setLos] = useState(false);
   const still = useRef(ruhig());
@@ -86,7 +92,7 @@ export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde
     let stopp = () => {};
     const ab = nachStartbuehne(() => {
       setLos(true);
-      if (!still.current && canvas.current) stopp = staubStarten(canvas.current);
+      if (!still.current && canvas.current) stopp = staubStarten(canvas.current, ton);
     });
     return () => { ab(); window.removeEventListener("keydown", taste); stopp(); document.documentElement.classList.remove("gaf-auftakt-an"); };
   }, []);
@@ -113,7 +119,7 @@ export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde
   }, [weg, onWeg, onEnde]);
 
   return (
-    <div className={`gaf-auftakt${los ? " los" : ""}${weg ? " weg" : ""}`} role="dialog" aria-modal="false" aria-label={auge} onClick={() => setWeg(true)} data-fiaon="firma-auftakt"
+    <div className={`gaf-auftakt${ton === "blau" ? " blau" : ""}${los ? " los" : ""}${weg ? " weg" : ""}`} role="dialog" aria-modal="false" aria-label={auge} onClick={() => setWeg(true)} data-fiaon="firma-auftakt"
       onPointerEnter={(e) => { if (e.pointerType === "mouse") halten(true); }} onPointerLeave={(e) => { if (e.pointerType === "mouse") halten(false); }}
       onFocusCapture={() => halten(true)} onBlurCapture={() => halten(false)}>
       <canvas ref={canvas} className="gaf-auftakt-staub" aria-hidden="true" />

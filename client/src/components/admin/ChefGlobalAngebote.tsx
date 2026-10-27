@@ -256,6 +256,9 @@ type KapitalAngebot = {
   kapital: { llc: { wunsch: string; alternative1: string; alternative2: string } | null; zeile: string };
   gebuehren?: { buergschaftCents: number; auszahlungCents: number; vereinbart: boolean; garantieWochen: number };
   teile: KapitalTeil[]; knoepfe: { buergschaft?: string | null; auszahlung?: string | null };
+  /** E-432: Fassung C (Privatperson) — eigene Knopftexte: „Gesellschaft eingetragen“ (Erfolgshonorar) und „Finanzierung ausgezahlt“ (ohne Rechnung). */
+  variante?: "privat";
+  knopfTexte?: Partial<Record<"buergschaft" | "auszahlung", { knopf: string; datum: string; hinweis: string; ereignis: string; ohneRechnung?: boolean }>>;
   aufrufe: Aufrufe | null; verlauf: { am: string; wer: string; was: string }[];
   zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null;
 };
@@ -279,13 +282,15 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
   const [form, setForm] = useState<{ datum: string; beleg: string }>({ datum: "", beleg: "" });
   const llc = a.kapital.llc; const g = a.gebuehren;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
-  const k = KAPITAL_KNOEPFE.find((x) => x.art === offen);
+  // E-432: Fassung C bringt eigene Knopftexte mit — sonst die der Fassung B.
+  const knoepfe = KAPITAL_KNOEPFE.map((x) => ({ ...x, ...(a.knopfTexte?.[x.art] ?? {}) }));
+  const k = knoepfe.find((x) => x.art === offen);
   return (
     <section className={`cz-block cg-angebot cg-${a.status}`} data-angebot={a.ref} data-art="kapital">
       <header className="cg-angebot-kopf">
         <div>
           <h3>{a.kundeName} <span className="cg-ref">{a.ref} · Kapital-Angebot</span></h3>
-          <p className="cm-klartext">{a.kapital.zeile}{g?.vereinbart ? ` · später ${eur(g.buergschaftCents)} bei Bürgschaftszusage, ${eur(g.auszahlungCents)} bei Auszahlung` : ""} · gültig bis {datum(a.gueltigBis)} · {a.kunde.email}</p>
+          <p className="cm-klartext">{a.kapital.zeile}{g?.vereinbart && a.variante !== "privat" ? ` · später ${eur(g.buergschaftCents)} bei Bürgschaftszusage, ${eur(g.auszahlungCents)} bei Auszahlung` : ""} · gültig bis {datum(a.gueltigBis)} · {a.kunde.email}</p>
           {a.fehlt.length > 0 && <p className="cm-klartext cg-rot">Fehlt für die Annahme: {a.fehlt.join(" · ")}</p>}
         </div>
         <span className={`cg-marke cg-marke-${a.status === "angenommen" ? "gestartet" : a.status === "offen" ? "offen" : "storniert"}`}>{STATUS_TEXT[a.status]}</span>
@@ -307,7 +312,7 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
               {a.teile.map((t) => { const st = kapitalTeilStand(t); return (
                 <tr key={t.nr} data-teil={t.nr}>
                   <td>{t.nr}</td>
-                  <td><b>{t.titel}</b>{t.ereignisAm ? <span className="cm-klartext">{t.nr === 2 ? "zugesagt" : "ausgezahlt"} am {datum(t.ereignisAm)}</span> : null}</td>
+                  <td><b>{t.titel}</b>{t.ereignisAm ? <span className="cm-klartext">{t.nr === 2 ? (a.knopfTexte?.buergschaft?.ereignis ?? "zugesagt") : "ausgezahlt"} am {datum(t.ereignisAm)}</span> : null}</td>
                   <td>{eur(t.betragCents)}</td>
                   <td className={st.rot ? "cg-rot" : undefined}>{st.text}</td>
                   <td>{t.rechnungUrl ? <a href={t.rechnungUrl} target="_blank" rel="noreferrer">{t.rechnungsnummer ?? "Rechnung"}</a> : "—"}{t.verwendungszweck ? <span className="cm-klartext">Zweck {t.verwendungszweck}</span> : null}{t.zahlungsseite && t.rechnungUrl ? <span className="cm-klartext"><a href={t.zahlungsseite} target="_blank" rel="noreferrer">Zahlungsseite</a></span> : null}</td>
@@ -315,8 +320,8 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
             </tbody>
           </table></div>
           <div className="cg-knoepfe cg-knoepfe-reihe">
-            {KAPITAL_KNOEPFE.map((x) => { const grund = a.knoepfe[x.art] ?? null; const teil = a.teile.find((t) => t.nr === x.nr); const nochmal = !!teil && !teil.rechnungUrl && !teil.entfallenAm; return (
-              <span key={x.art}><button type="button" className="cg-knopf cg-knopf-haupt" data-knopf={x.art} disabled={!!grund} onClick={() => { setOffen(x.art); setForm({ datum: teil?.ereignisAm ?? heute, beleg: "" }); }}>{x.knopf}{g ? ` → Rechnung ${eur(g[x.cents])}` : ""}{nochmal ? " (fortsetzen)" : ""}</button>{grund && <span className="cm-fein">{grund}</span>}</span>
+            {knoepfe.map((x) => { const grund = a.knoepfe[x.art] ?? null; const ohneRechnung = "ohneRechnung" in x && !!x.ohneRechnung; const teil = ohneRechnung ? undefined : a.teile.find((t) => t.nr === x.nr); const nochmal = !!teil && !teil.rechnungUrl && !teil.entfallenAm; return (
+              <span key={x.art}><button type="button" className="cg-knopf cg-knopf-haupt" data-knopf={x.art} disabled={!!grund} onClick={() => { setOffen(x.art); setForm({ datum: teil?.ereignisAm ?? heute, beleg: "" }); }}>{x.knopf}{g && !ohneRechnung ? ` → Rechnung ${eur(g[x.cents])}` : ""}{nochmal ? " (fortsetzen)" : ""}</button>{grund && <span className="cm-fein">{grund}</span>}</span>
             ); })}
           </div>
           {k && (
@@ -325,8 +330,8 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
                 <label>{k.datum}<input type="date" max={heute} value={form.datum} onChange={(e) => setForm({ ...form, datum: e.target.value })} /></label>
                 <label>Beleg (intern, freiwillig)<input value={form.beleg} placeholder="z. B. Institut und Zusage per Mail vom …" onChange={(e) => setForm({ ...form, beleg: e.target.value })} /></label>
               </div>
-              <p className="cm-fein" title={k.hinweis}>Legt Teil {k.nr} an und stellt die Rechnung (Reverse Charge wie Teil 1). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.</p>
-              <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kg${a.id}${k.art}` || !form.datum} onClick={async () => { const r = await aktion(`kg${a.id}${k.art}`, `/admin/global/angebote/${a.id}/kapital/${k.art}`, form); if (r.ok) setOffen(null); }}>Rechnung stellen</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
+              <p className="cm-fein" title={k.hinweis}>{"ohneRechnung" in k && k.ohneRechnung ? k.hinweis : a.variante === "privat" ? `Legt Teil ${k.nr} an und stellt die Rechnung (Endpreis, Privatperson). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.` : `Legt Teil ${k.nr} an und stellt die Rechnung (Reverse Charge wie Teil 1). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.`}</p>
+              <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kg${a.id}${k.art}` || !form.datum} onClick={async () => { const r = await aktion(`kg${a.id}${k.art}`, `/admin/global/angebote/${a.id}/kapital/${k.art}`, form); if (r.ok) setOffen(null); }}>{"ohneRechnung" in k && k.ohneRechnung ? "Eintragen" : "Rechnung stellen"}</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
             </div>
           )}
         </div>

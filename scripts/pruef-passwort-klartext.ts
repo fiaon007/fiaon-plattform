@@ -242,15 +242,16 @@ try {
       const ist = await httpLogin(mail, pw);
       pruefe(ist === soll, `${name}: ${ist}`);
     }
-    // „Passwort vergessen": Identität (Name, E-Mail, Geburtsdatum) → neues Passwort → neu geht, alt nicht.
+    // „Passwort vergessen" (seit E-302, 27.10.2026): Identität (Name, E-Mail, Geburtsdatum) setzt KEIN Passwort mehr,
+    // sondern schickt den Anmelde-Link an die hinterlegte Adresse; der alte Direkt-Weg antwortet 410.
+    const [g0] = await sql`SELECT password FROM fiaon_applications WHERE ref = ${P + "GINA"}`;
     const v = await http("/verify-identity", { email: M("gina"), firstName: "gina", lastName: "Pruef", birthDay: "2", birthMonth: "1", birthYear: "1980" });
-    pruefe(v.status === 200 && typeof v.j?.token === "string", `Passwort vergessen: Identität bestätigt (${v.status})`);
-    const r = await http("/reset-password-direct", { token: v.j?.token, newPassword: PW.ginaNeu });
-    pruefe(r.status === 200 && r.j?.zugangOffen === true, `Passwort vergessen: neues Passwort gesetzt (${r.status})`);
-    pruefe((await httpLogin(M("gina"), PW.ginaNeu)) === "200:GINA", "gina mit NEUEM Passwort: 200");
-    pruefe((await httpLogin(M("gina"), PW.gina)) === "401:AUTH-01", "gina mit ALTEM Passwort: 401");
+    pruefe(v.status === 200 && v.j?.perMail === true && v.j?.token === undefined, `Passwort vergessen: Anmelde-Link statt Token (${v.status})`);
+    const r = await http("/reset-password-direct", { token: "egal", newPassword: PW.ginaNeu });
+    pruefe(r.status === 410, `Passwort vergessen: Direkt-Weg stillgelegt (${r.status})`);
+    pruefe((await httpLogin(M("gina"), PW.gina)) === "200:GINA", "gina mit BISHERIGEM Passwort: weiter 200");
     const [g] = await sql`SELECT password FROM fiaon_applications WHERE ref = ${P + "GINA"}`;
-    pruefe(istGehasht(g.password), "das neue Passwort liegt gehasht (CHECK hat den Reset nicht behindert)");
+    pruefe(istGehasht(g.password) && g.password === g0.password, "das Passwort ist unverändert und liegt gehasht");
   }
   // Eine neue Bestellung wird an die Person gebunden — es entsteht KEINE Passwort-Kopie.
   const { bindePersonAnAntrag } = await import("../server/fiaon-person-model");

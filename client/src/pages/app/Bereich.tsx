@@ -260,7 +260,7 @@ export default function AppBereich() {
         {b && bildschirm === "mehr" && rest[0] === "termine" && <Termine kundeRef={ref} demo={demo} daten={termine} />}
         {b && bildschirm === "mehr" && rest[0] === "vollmachten" && <Vollmachten kundeRef={ref} basis={basis} demo={demo} />}
         {b && bildschirm === "mehr" && rest[0] === "mitteilungen" && <Mitteilungen kundeRef={ref} demo={demo} />}
-        {b && bildschirm === "mehr" && rest[0] === "passwort" && <Passwort kundeRef={ref} demo={demo} gesetzt={b.passwortGesetzt !== false} basis={basis} />}
+        {b && bildschirm === "mehr" && rest[0] === "passwort" && <Passwort kundeRef={ref} demo={demo} gesetzt={b.passwortGesetzt !== false} frisch={!!b.passwortFrisch} basis={basis} />}
         {/* E-282 (05.10.2026): die persönliche FIAON-PIN. Nach dem Speichern weiß die Schale es sofort —
             sonst stünde auf „Heute“ bis zum nächsten Laden noch „Persönliche PIN festlegen“. */}
         {b && bildschirm === "mehr" && rest[0] === "pin" && <Pin kundeRef={ref} demo={demo} basis={basis} gesetzt={b.pinGesetzt} frisch={!!b.pinFrisch} email={b.kunde.email} geburtsdatum={b.kunde.geburtsdatum} onGespeichert={() => setB((x) => (x ? { ...x, pinGesetzt: true, pinFrisch: false } : x))} />}

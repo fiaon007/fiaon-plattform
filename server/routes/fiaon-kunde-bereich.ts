@@ -716,6 +716,8 @@ router.get("/kunde/:ref/bereich", requireKunde, async (req: KundeRequest, res: R
       // E-282: Vertrag aus dem neuen Antrag als PDF (Vertrag § 13 Abs. 2) — Link unter „Geld und Abo".
       vertragPdf: await (await import("../lib/fiaon-antrag-neu-bestaetigung")).vertragsRefFuerKunde(ref).then((r) => !!r).catch(() => false),
       pinFrisch: frischPasst(req, ref),
+      // E-302: dasselbe frische Cookie erlaubt das neue Passwort ohne das bisherige („Passwort vergessen“).
+      passwortFrisch: frischPasst(req, ref),
       // Die Auswertung des Kontoauszugs (22.08.2026) — null, solange keiner da ist.
       finanzen: await (await import("../lib/fiaon-kontoauszug-analyse")).analyseFuer(ref).catch(() => null),
       // ── DIE AUSWERTUNG DER BONITAETSAUSKUNFT (10.09.2026, E-174) ────────
@@ -857,7 +859,7 @@ router.patch("/kunde/:ref/stammdaten", requireKunde, async (req: KundeRequest, r
   }
 });
 
-/** POST /kunde/:ref/passwort — eigenes Passwort ändern (altes muss stimmen). */
+/** POST /kunde/:ref/passwort — eigenes Passwort ändern (altes muss stimmen — außer frisch über den Anmelde-Link, E-302). */
 router.post("/kunde/:ref/passwort", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const ref = req.kundeRef!;
@@ -866,8 +868,20 @@ router.post("/kunde/:ref/passwort", requireKunde, async (req: KundeRequest, res:
     if (neu.length < 8) return res.status(400).json({ ok: false, error: "Das neue Passwort braucht mindestens 8 Zeichen." });
     const [a] = (await sqlPool`SELECT password FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL LIMIT 1`) as any[];
     if (!a) return res.status(404).json({ ok: false, error: "Konto nicht gefunden." });
-    if (!passwortPasst(a.password, alt)) return res.status(400).json({ ok: false, error: "Das bisherige Passwort stimmt nicht." });
+    // E-302 (27.10.2026), „Passwort vergessen“: /verify-identity setzt kein Passwort mehr, sondern schickt den
+    // Anmelde-Link an die hinterlegte Adresse. Der Klick daraus beweist das Postfach (dasselbe frische Cookie wie
+    // bei „PIN vergessen“, 15 Minuten) — in dieser Zeit darf das neue Passwort ohne das bisherige gesetzt werden.
+    const frisch = !alt && frischPasst(req, ref);
+    if (!frisch && !passwortPasst(a.password, alt)) return res.status(400).json({ ok: false, error: "Das bisherige Passwort stimmt nicht." });
     await sqlPool`UPDATE fiaon_applications SET password = ${passwortHashen(neu)}, updated_at = NOW() WHERE ref = ${ref}`;
+    if (frisch) {
+      await sqlPool`
+        INSERT INTO fiaon_vermerke (art, ref, text, sicht, autor_art, autor_name, created_at)
+        VALUES ('system', ${ref}, ${"Der Kunde hat sein Passwort über den Anmelde-Link neu festgelegt (ohne das bisherige, „Passwort vergessen“)."},
+                'intern', 'kunde', 'Kundenbereich', NOW())`
+        .catch((e) => console.error(`[MEIN-BEREICH] Passwort-Vermerk ${ref}:`, e?.message || e));
+      console.log(`[MEIN-BEREICH] Passwort über den Anmelde-Link neu festgelegt (${ref})`);
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error("[MEIN-BEREICH] passwort:", err);

@@ -14,6 +14,9 @@
 //   Passwort da   → POST /kunde/:ref/passwort         { alt, neu }
 //                   (server/routes/fiaon-kunde-bereich.ts:490ff.; 400 zu kurz,
 //                    400 bisheriges Passwort falsch, 404 kein Konto)
+//   frisch (E-302, 27.10.2026) → POST /kunde/:ref/passwort { neu } — wer gerade
+//                   über den Anmelde-Link aus „Passwort vergessen“ kam, braucht das
+//                   bisherige nicht (frisches Cookie, 15 Minuten, wie bei der PIN).
 //
 // Die Felder kommen aus Einrichtung.tsx (neues Passwort + Wiederholung,
 // Anzeigen/Verbergen, Stärkeanzeige), die Änderungsmaske aus dem bisherigen
@@ -36,11 +39,13 @@ const MINDEST = STAERKE[0];
 
 type Meldung = { ton: "gut" | "fehler"; text: string };
 
-export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
+export function Passwort({ kundeRef, demo, gesetzt, frisch = false, basis: basisProp }: {
   kundeRef: string;
   demo: boolean;
   /** Hat dieses Konto schon ein Passwort? Kommt als `passwortGesetzt` aus GET /kunde/:ref/bereich. */
   gesetzt: boolean;
+  /** E-302: `passwortFrisch` — gerade über den Anmelde-Link hereingekommen, das bisherige Passwort ist nicht nötig. */
+  frisch?: boolean;
   basis?: string;
 }) {
   // Die Schale reicht keine Basis herein — in der Demo führt „Zurück“ trotzdem nach /app/demo.
@@ -56,16 +61,19 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
   const [meldung, setMeldung] = useState<Meldung | null>(null);
   const [fertig, setFertig] = useState(false);
 
+  // Frisch über den Link: neues Passwort zweimal, ohne das bisherige (nur bis zum ersten Speichern).
+  const ohneAlt = aendern && frisch && !fertig;
+
   const leeren = () => { setAlt(""); setNeu(""); setNeu2(""); setZeigen(false); };
 
   /** Ein Weg für beide Routen: prüfen, senden, den Satz des Servers zeigen. */
   const senden = async (e: FormEvent) => {
     e.preventDefault();
     if (demo) { setMeldung({ ton: "gut", text: "In der Demo-Ansicht wird nichts geändert." }); return; }
-    if (aendern && !alt) { setMeldung({ ton: "fehler", text: "Bitte geben Sie zuerst Ihr bisheriges Passwort ein." }); return; }
+    if (aendern && !ohneAlt && !alt) { setMeldung({ ton: "fehler", text: "Bitte geben Sie zuerst Ihr bisheriges Passwort ein." }); return; }
     if (neu.length < MINDEST) { setMeldung({ ton: "fehler", text: `Ihr Passwort braucht mindestens ${MINDEST} Zeichen.` }); return; }
-    if (!aendern && neu !== neu2) { setMeldung({ ton: "fehler", text: "Die beiden Eingaben stimmen nicht überein. Bitte tippen Sie das Passwort noch einmal." }); return; }
-    if (aendern && neu === alt) { setMeldung({ ton: "fehler", text: "Das neue Passwort ist dasselbe wie das bisherige. Bitte wählen Sie ein anderes." }); return; }
+    if ((!aendern || ohneAlt) && neu !== neu2) { setMeldung({ ton: "fehler", text: "Die beiden Eingaben stimmen nicht überein. Bitte tippen Sie das Passwort noch einmal." }); return; }
+    if (aendern && !ohneAlt && neu === alt) { setMeldung({ ton: "fehler", text: "Das neue Passwort ist dasselbe wie das bisherige. Bitte wählen Sie ein anderes." }); return; }
 
     setLaeuft(true); setMeldung(null);
     const pfad = `/kunde/${encodeURIComponent(kundeRef)}/${aendern ? "passwort" : "passwort-setzen"}`;
@@ -73,7 +81,7 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
       const r = await api(pfad, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(aendern ? { alt, neu } : { neu }),
+        body: JSON.stringify(aendern && !ohneAlt ? { alt, neu } : { neu }),
       });
       setLaeuft(false);
       if (r.ok && r.json?.ok !== false) {
@@ -111,6 +119,15 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
       </h1>
       {demo && <div className="ap-demo-band ap-auf"><b>Demo-Ansicht</b><span>Nur Anzeige – hier wird nichts geändert.</span></div>}
 
+      {ohneAlt && (
+        <div className="ap-band ap-auf">
+          <div>
+            <b>Sie sind über den Link aus Ihrer E-Mail angemeldet.</b>
+            <span>Legen Sie jetzt Ihr neues Passwort fest – das bisherige brauchen Sie dafür nicht.</span>
+          </div>
+        </div>
+      )}
+
       {!aendern && !fertig && (
         <div className="ap-band ap-auf">
           <div>
@@ -121,7 +138,7 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
       )}
 
       <form className="ap-karte ap-form ap-auf v1" onSubmit={senden} noValidate>
-        {aendern && (
+        {aendern && !ohneAlt && (
           <label className="ap-feld">
             <span>Bisheriges Passwort</span>
             <input type="password" autoComplete="current-password" value={alt} onChange={(e) => setAlt(e.target.value)} disabled={laeuft || demo} readOnly={demo} />
@@ -141,7 +158,7 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
             <button type="button" onClick={() => setZeigen(!zeigen)} aria-label={zeigen ? "Passwort verbergen" : "Passwort anzeigen"}>{zeigen ? "Verbergen" : "Anzeigen"}</button>
           </div>
         </label>
-        {!aendern && (
+        {(!aendern || ohneAlt) && (
           <label className="ap-feld">
             <span>Passwort wiederholen</span>
             <input type={zeigen ? "text" : "password"} autoComplete="new-password" value={neu2} onChange={(e) => setNeu2(e.target.value)} disabled={laeuft || demo} readOnly={demo} />
@@ -150,7 +167,7 @@ export function Passwort({ kundeRef, demo, gesetzt, basis: basisProp }: {
         <div className="ap-stufen hell" aria-hidden="true" style={{ marginTop: 2 }}>{stufen}</div>
         <p className="ap-fuss" style={{ margin: "2px 2px 0" }}>Mindestens {MINDEST} Zeichen. Wählen Sie eines, das Sie sonst nirgends verwenden – es öffnet Ihre Akte mit Vorgängen, Unterlagen und Vollmacht.</p>
         {!demo && (
-          <button type="submit" className="ap-knopf" disabled={laeuft || neu.length < MINDEST || (aendern && !alt) || (!aendern && !neu2)}>
+          <button type="submit" className="ap-knopf" disabled={laeuft || neu.length < MINDEST || (aendern && !ohneAlt && !alt) || ((!aendern || ohneAlt) && !neu2)}>
             {laeuft ? "Wird gespeichert …" : aendern ? "Passwort ändern" : "Passwort speichern"}
           </button>
         )}

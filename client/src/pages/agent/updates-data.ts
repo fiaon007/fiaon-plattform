@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-302 (gebaut 08.10.2026, live 27.10.2026): Drei Anmelde-Lücken geschlossen (Gegenprüfung E-IT-G).
+    id: "2026-10-27-anmeldung-sicher",
+    date: "2026-10-27",
+    category: "Behoben",
+    title: "Passwort vergessen: jetzt immer über die E-Mail",
+    summary:
+      "Drei Wege, über die jemand ein fremdes Konto hätte übernehmen können, sind geschlossen. Für dich ändert sich eine Sache: "
+      + "„Passwort vergessen“ setzt kein Passwort mehr sofort, sondern schickt dem Kunden einen Anmelde-Link an seine hinterlegte "
+      + "E-Mail-Adresse. Der Link führt ihn direkt zu „Passwort“ in seinem Bereich — dort legt er das neue fest, ohne das alte.",
+    changes: [
+      "Wer nur Name, E-Mail und Geburtsdatum kennt, kann kein Passwort mehr zurücksetzen — der Link geht an das Postfach des Kunden.",
+      "„Passwort vergessen“ ist zusätzlich gedrosselt (nicht beliebig oft hintereinander) — gegen Ausprobieren.",
+      "Nach dem Klick auf den Link hat der Kunde 15 Minuten, um sein neues Passwort festzulegen. In der Akte steht danach ein Vermerk.",
+      "Kommt ein Kunde gar nicht ins Postfach, hilft weiter der Weg „Zugang retten“ in der Akte (Setz-Link oder Einmal-Passwort) — unverändert.",
+    ],
+    howto: [
+      "Sagt ein Kunde „ich habe mein Passwort vergessen“: auf fiaon.com/passwort-vergessen Name, E-Mail und Geburtsdatum eingeben — dann kommt der Link per Mail (auch Spam-Ordner prüfen).",
+      "Kommt keine Mail an (falsche Adresse hinterlegt o. Ä.): in der Akte über „Zugang retten“ einen Setz-Link oder ein Einmal-Passwort erzeugen.",
+    ],
+  },
+  {
     // 22.10.2026: Dokumente & Unterschriften je Global-Mandat — eigenes digitales Unterschreiben, Formulare vorausgefüllt.
     id: "2026-10-22-global-unterschriften",
     date: "2026-10-22",

@@ -5,6 +5,41 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — E-302: Drei Anmelde-Lücken im Antrag/Login geschlossen (gebaut 08.10., heute auf main gebracht)
+
+- **Warum:** Eine Gegenprüfung (E-IT-G, 08.10.) fand drei Wege, ein fremdes Kundenkonto zu übernehmen. Die Reparatur war am
+  08.10. fertig, wurde aber nie gespeichert und lag nur in einer Arbeitskopie (gefunden bei der Gehirn-Prüfung E-434).
+- **Verdacht 1 — fremde Zeile unterschieben:** Wer nur die E-Mail-Adresse eines Kunden kannte, konnte über das öffentliche
+  Antragsformular (POST /application) eine eigene Zeile mit dieser Adresse und einem eigenen Passwort anlegen. Die Anmeldung
+  nahm das Passwort aus JEDER Zeile derselben E-Mail, wählte aber die BEZAHLTE Zeile des echten Kunden als Konto — das
+  fremde Passwort öffnete das fremde Konto. **Zu:** (1) Die Anmeldung wählt das Konto nur noch aus den Zeilen DESSELBEN
+  Kunden (gleiche Person / dieselbe Zeile / Zusammenführung). (2) Auf eine E-Mail, die schon ein bezahltes Konto trägt,
+  speichert das Formular kein Passwort mehr.
+- **Verdacht 2 — Passwort über die Referenz überschreiben:** Die Referenz (FIAON-…) ist kein Geheimnis. **Zu:** Das Passwort
+  wird beim Speichern nur noch geändert, wenn der Browser den Antrag nachweislich selbst führt (Antrags-Cookie) oder als
+  dieser Kunde angemeldet ist. Alle übrigen Felder bleiben unberührt.
+- **Verdacht 3 — Zurücksetzen allein mit Wissen:** „Passwort vergessen“ setzte ein neues Passwort allein gegen Vorname,
+  Nachname, E-Mail und Geburtsdatum. **Zu:** Drossel je IP und je E-Mail; der Weg führt nur noch über einen Anmelde-Link an
+  die beim Konto hinterlegte Adresse. Der alte Direkt-Weg (reset-password-direct) antwortet mit 410.
+- **Neu heute dazu:** Der Link führt direkt zu „Passwort“ im Bereich (/app/mehr/passwort). Wer gerade über ihn kam, legt das
+  neue Passwort ohne das bisherige fest (dasselbe 15-Minuten-Cookie wie bei „PIN vergessen“, Vermerk in der Akte) — vorher
+  hätte die Seite das vergessene Passwort verlangt. Alle neuen Kundentexte in der Sie-Form.
+- **Wo:** server/fiaon-login-logic.ts (selberKunde, Kontoauswahl), server/routes/fiaon-antrag.ts (/application,
+  /verify-identity, /reset-password-direct, Drossel), server/routes/fiaon-kunde-bereich.ts (POST /kunde/:ref/passwort,
+  passwortFrisch), client/src/pages/passwort-vergessen.tsx („Bitte prüfen Sie Ihr Postfach“), client/src/pages/app/Passwort.tsx.
+  Prüfstände: scripts/pruef-e302-anmeldung.ts (alle drei Wege echt über HTTP auf der lokalen Kopie, Opfer MIT E-Mail-Alias
+  wie im Betrieb, Rotprobe gegen den alten Stand), scripts/pruef-login-familie-fremdzeile.ts, scripts/login-notfall-test.ts;
+  scripts/pruef-it-g.ts und scripts/pruef-passwort-klartext.ts auf den neuen Weg umgestellt.
+- **Zusätzlich geschlossen (27.10.):** Die Fassung vom 08.10. verließ sich darauf, dass eine untergeschobene Zeile keine Person
+  bekommt. bindePersonAnAntrag hängt sie aber über den E-Mail-Alias an die Person des Opfers — dann blieb ein Weg in zwei
+  Schritten (anlegen ohne Passwort, mit dem eigenen Antrags-Cookie erneut mit Passwort speichern). Die Wand „kein Passwort auf
+  eine E-Mail mit bezahltem Konto“ gilt jetzt auch beim Aktualisieren; der echte Inhaber ändert sein Passwort über seine Sitzung.
+- **Mara und KI-Assistent sagen es richtig:** Mail-Mara (server/lib/fiaon-postmeister-agent.ts) erklärte Kunden „legt sofort ein
+  neues Passwort fest — es kommt kein Link per E-Mail“; das Haus-Wissen (shared/fiaon-wissen.ts) ebenso knapp. Beide nennen
+  jetzt den neuen Weg: Angaben eingeben → Anmelde-Link an die hinterlegte Adresse → „Passwort“ im Bereich.
+- **Gegen echte Daten gemessen (nur lesend):** alte gegen neue Kontoauswahl für alle 3.018 Login-Familien mit 1.461
+  Passwort-Zeilen — 0 Unterschiede; in 60 Tagen kein Zweitantrag mit Passwort auf eine schon bezahlte Adresse.
+
 ## 27.10.2026 — FIAON Global für Google, Bing und KI: 10 Business- + 5 Privat-Ratgeber, Vorschaubild je Seite, „Unternehmensberatung“ (E-439)
 - **Anlass (Justin):** „5 neue Ratgeber für Privat und 10 neue Ratgeber für die Business Seite — SEO/SEA perfekt … jeder Link, den wir
   vom Business teilen, soll darauf aufbauen … Platzhirsch für US Funding, US-Gesellschaft … als Unternehmensberatung“ und

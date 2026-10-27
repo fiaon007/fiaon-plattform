@@ -56,7 +56,7 @@ function PremiumBtn({ children, onClick, disabled, type = "button" }: { children
   );
 }
 
-type Phase = "verify" | "newpass" | "done";
+type Phase = "verify" | "mail" | "newpass" | "done";
 
 export default function PasswortVergessenPage() {
   const [phase, setPhase] = useState<Phase>("verify");
@@ -119,11 +119,16 @@ export default function PasswortVergessenPage() {
         body: JSON.stringify({ firstName, lastName, email, birthDay: String(geb.tag), birthMonth: String(geb.monat), birthYear: String(geb.jahr) }),
       });
       const data = await res.json();
-      if (!data.ok) {
-        setVerifyError(data.error || "Verifizierung fehlgeschlagen");
+      // 08.10.2026 (E-IT-G): Der Server setzt kein Passwort mehr direkt gegen
+      // Name+Geburtsdatum. Er schickt einen Anmelde-Link an die hinterlegte
+      // E-Mail-Adresse — und antwortet für jede Eingabe gleich (ok, perMail),
+      // damit niemand ausprobieren kann, ob es ein Konto gibt. Wir zeigen immer
+      // dieselbe ruhige Bestätigung; der 400er „alle Felder" bleibt der einzige
+      // echte Fehler hier.
+      if (!data.ok && !data.perMail) {
+        setVerifyError(data.error || "Bitte alle Felder ausfüllen.");
       } else {
-        setToken(data.token);
-        setPhase("newpass");
+        setPhase("mail");
       }
     } catch {
       setVerifyError("Verbindungsfehler. Bitte erneut versuchen.");
@@ -202,7 +207,7 @@ export default function PasswortVergessenPage() {
               <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">Konto-Wiederherstellung</p>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-3">Passwort zurücksetzen</h1>
               <p className="text-[14px] text-gray-500 leading-relaxed max-w-sm mx-auto">
-                Bitte bestätigen Sie Ihre Identität — kein E-Mail-Link nötig. Neues Passwort sofort festlegen.
+                Bitte bestätigen Sie Ihre Angaben — wir schicken Ihnen einen Anmelde-Link an Ihre hinterlegte E-Mail-Adresse. Ihr neues Passwort vergeben Sie danach im Bereich.
               </p>
             </div>
 
@@ -275,7 +280,7 @@ export default function PasswortVergessenPage() {
                 {/* Security note */}
                 <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 mb-5">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" className="shrink-0 mt-0.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  <p className="text-[12px] text-blue-700 leading-relaxed">Ihre Daten werden sicher verifiziert. Kein Link per E-Mail nötig.</p>
+                  <p className="text-[12px] text-blue-700 leading-relaxed">Ihre Daten werden sicher geprüft. Den Anmelde-Link senden wir nur an die E-Mail-Adresse, die bei Ihrem Konto hinterlegt ist.</p>
                 </div>
 
                 <PremiumBtn onClick={handleVerify} disabled={verifyLoading}>
@@ -302,7 +307,35 @@ export default function PasswortVergessenPage() {
           </div>
         )}
 
-        {/* === PHASE: NEW PASSWORD === */}
+        {/* === PHASE: LINK AN DIE E-MAIL GESCHICKT (E-IT-G) === */}
+        {phase === "mail" && (
+          <div className="pw-card-enter text-center py-8">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full relative flex items-center justify-center">
+              <div className="absolute inset-[-2px] rounded-full" style={{ background: "conic-gradient(#2563eb,#93c5fd,#2563eb)", animation: "pwRingRotate 4s linear infinite" }} />
+              <div className="w-[56px] h-[56px] rounded-full bg-white flex items-center justify-center relative z-10 shadow-sm">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="m3 7 9 6 9-6" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-[11px] font-semibold text-[#2563eb] uppercase tracking-[.2em] mb-2">E-Mail unterwegs</p>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight fiaon-gradient-text-animated mb-4">Bitte prüfen Sie Ihr Postfach</h2>
+            <p className="text-[15px] text-gray-600 mb-3 max-w-sm mx-auto leading-relaxed">
+              Wenn Ihre Angaben zu einem Konto passen, haben wir Ihnen einen Anmelde-Link an die dort hinterlegte E-Mail-Adresse geschickt. Er gilt 60 Minuten.
+            </p>
+            <p className="text-[13.5px] text-gray-500 mb-8 max-w-sm mx-auto leading-relaxed">
+              Öffnen Sie den Link — er führt Sie direkt zu „Passwort“ in Ihrem Bereich. Dort legen Sie Ihr neues Passwort fest. Bitte sehen Sie auch im Spam-Ordner nach.
+            </p>
+            <div className="max-w-xs mx-auto space-y-3">
+              <a href="/kontakt" className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 rounded-full text-[15px] font-medium text-gray-600 border border-gray-200 hover:border-gray-300 hover:text-gray-800 transition-all duration-300" style={{ minHeight: 48 }}>
+                Keine E-Mail erhalten? Support kontaktieren
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* === PHASE: NEW PASSWORD (seit E-IT-G nicht mehr erreichbar; Passwort wird im Bereich vergeben) === */}
         {phase === "newpass" && (
           <div className="pw-card-enter">
             {/* Header */}

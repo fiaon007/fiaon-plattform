@@ -222,7 +222,7 @@ DAS LIMIT-GESPRÄCH (FIAON Pro, Ultra und High-End)
 - Es ist ein Gespräch, keine Limit-Zusage.
 
 DER KUNDENBEREICH (Anmelden: fiaon.com/app/login — mit Passwort oder ohne Passwort über einen Anmelde-Link per E-Mail; fiaon.com/login fragt nur das Passwort ab und führt mit „Ohne Passwort anmelden“ dorthin)
-Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (${UNTERLAGEN_WISSEN}), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen — oder ohne Passwort über den Anmelde-Link auf fiaon.com/app/login.
+Übersicht mit Fahrplan (Etappen: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte), Meine Bonität, Konto verbinden (Kontoanbindung kommt), Meine Finanzen (Auswertung des Kontoauszugs), Meine Schreiben, Unterlagen (${UNTERLAGEN_WISSEN}), Meine Vorteile, Mein Konto, Abo & Zahlungen (Raten, Zahlungskalender, Abo kündigen), Passwort & Sicherheit, Hilfe (Anliegen an die Ansprechpartnerin). Passwort vergessen: fiaon.com/passwort-vergessen — Name, E-Mail-Adresse und Geburtsdatum eingeben; der Anmelde-Link kommt an die hinterlegte E-Mail-Adresse und führt direkt zu „Passwort“ im Bereich, wo das neue Passwort ohne das bisherige festgelegt wird. Ohne Passwort geht es auch über den Anmelde-Link auf fiaon.com/app/login.
 
 DAS STARTGESPRÄCH (Agenda des Mitarbeiters)
 ${agenda}

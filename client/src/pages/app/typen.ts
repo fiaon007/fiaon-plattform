@@ -43,6 +43,8 @@ export interface Bereich {
   pinGesetzt?: boolean | null;
   /** E-282: gerade über den Anmelde-Link angemeldet — die PIN darf ohne die bisherige neu festgelegt werden (15 Minuten). */
   pinFrisch?: boolean;
+  /** E-302: gerade über den Anmelde-Link hereingekommen — das neue Passwort braucht das bisherige nicht. */
+  passwortFrisch?: boolean;
   /** E-282: Es gibt einen angenommenen Vertrag aus dem neuen Antrag — als PDF abrufbar (Vertrag § 13 Abs. 2). */
   vertragPdf?: boolean;
   finanzen?: any;

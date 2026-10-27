@@ -168,6 +168,42 @@ export function storedPasswordOf(row: any): string | null {
 }
 
 /**
+ * Gehören zwei Antragszeilen NACHWEISLICH demselben Kunden? (08.10.2026, E-IT-G)
+ *
+ * ── DIE LÜCKE, DIE DAS SCHLIESST ──────────────────────────────────────────
+ * Die Familie einer Anmeldung wird allein über die E-Mail-Adresse geladen
+ * (loadLoginFamily: email, contact_email, billing_email, Person). Eine
+ * E-Mail-Adresse ist aber kein Besitznachweis: Wer über POST /application eine
+ * eigene Zeile mit der Adresse eines zahlenden Kunden anlegt (ohne Person, ohne
+ * Zahlung), hängt damit seine Zeile in dessen Familie. decideLogin nahm das
+ * Passwort bisher aus JEDER Familienzeile, während pickAccountRow die BEZAHLTE
+ * Zeile des Kunden als Konto wählte — das eingegebene Fremd-Passwort öffnete so
+ * ein fremdes Konto. Auf dem Prüfstand nachgestellt
+ * (scripts/pruef-login-familie-fremdzeile.ts, scripts/repro-it-g.sh).
+ *
+ * ── DIE REGEL ─────────────────────────────────────────────────────────────
+ * Dieselbe Person ist dieselbe Person. Zwei Zeilen gehören zusammen, wenn
+ *   · es dieselbe Zeile ist (ref), ODER
+ *   · beide dieselbe (nicht leere) person_id tragen, ODER
+ *   · die eine in die andere zusammengeführt wurde oder beide in dieselbe
+ *     (merged_into) — eine Dublette verliert ihre Zugehörigkeit nicht.
+ * Eine frisch untergeschobene Zeile hat KEINE person_id (der Insert setzt
+ * keine, der Kontakt-Trigger fasst null-Personen nicht an) und ist in nichts
+ * zusammengeführt — sie gehört damit nur zu sich selbst.
+ */
+export function selberKunde(a: any, b: any): boolean {
+  if (!a || !b) return false;
+  if (a.ref && b.ref && a.ref === b.ref) return true;
+  const pa = a.person_id != null && a.person_id !== "" ? Number(a.person_id) : null;
+  const pb = b.person_id != null && b.person_id !== "" ? Number(b.person_id) : null;
+  if (pa != null && pb != null && Number.isFinite(pa) && pa === pb) return true;
+  if (a.merged_into && a.merged_into === b.ref) return true;
+  if (b.merged_into && b.merged_into === a.ref) return true;
+  if (a.merged_into && b.merged_into && a.merged_into === b.merged_into) return true;
+  return false;
+}
+
+/**
  * Die Zeile, die das KONTO des Kunden ist — sie entscheidet über Zugang, Status
  * und die Daten im Portal. Rangfolge (höher = besser):
  *  +16 nicht als Dublette zusammengeführt
@@ -285,7 +321,7 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
         reason: "kein Passwort hinterlegt",
         ref: account?.ref ?? null,
         error: "Für dieses Konto ist noch kein Passwort gesetzt.",
-        hint: "Das liegt an uns, nicht an Ihnen. Setzen Sie jetzt ein Passwort — Sie brauchen dafür nur Ihren Namen, Ihre E-Mail-Adresse und Ihr Geburtsdatum.",
+        hint: "Das liegt an uns, nicht an Ihnen. Setzen Sie jetzt ein Passwort — mit Ihrem Namen, Ihrer E-Mail-Adresse und Ihrem Geburtsdatum; den Link dazu senden wir an Ihr Postfach.",
         action: "Passwort jetzt setzen",
         actionHref: "/passwort-vergessen",
       };
@@ -310,7 +346,18 @@ export function decideLogin(family: any[], password: string): LoginVerdict {
   // einem solchen Auftrag („Zugang retten" kann es dorthin gelegt haben), gibt es keinen Privatbereich zu
   // öffnen. Lag es an einem eigenen Privat-Antrag, bleibt alles wie vor E-188 (istNurFirmenkunde).
   if (istNurFirmenkunde(rows, matched)) return globalVerdict(rows, "FIAON Global: Passwort stimmt, Zugang ist „Mein Auftrag“");
-  const account = pickAccountRow(rows, matched) ?? matched;
+
+  // ── DAS KONTO GEHÖRT DEM, DESSEN PASSWORT STIMMTE (08.10.2026, E-IT-G) ────
+  // Nicht mehr die beste Zeile der GANZEN E-Mail-Familie, sondern die beste
+  // Zeile des Kunden, dessen Passwort gerade getroffen hat (selberKunde). So
+  // kann eine untergeschobene Fremdzeile (Verdacht 1) niemals das bezahlte
+  // Konto eines anderen Menschen öffnen — sie gehört nur zu sich selbst, und
+  // der Angreifer landet höchstens in seiner eigenen leeren Zeile.
+  // Für echte Familien (Konto + SCHUFA-Zeile + zusammengeführte Dubletten,
+  // alle dieselbe Person/Kette) ist die Auswahl Zeile für Zeile dieselbe wie
+  // zuvor — belegt in scripts/pruef-login-familie-fremdzeile.ts.
+  const kontoZeilen = rows.filter((r) => selberKunde(r, matched));
+  const account = pickAccountRow(kontoZeilen.length ? kontoZeilen : [matched], matched) ?? matched;
 
   // ── HIER STAND DAS ZAHLUNGS-TOR (entfernt am 27.08.2026) ────────────────
   // Es wies mit „Deine Zahlung ist noch nicht eingegangen" ab (AUTH-03) —

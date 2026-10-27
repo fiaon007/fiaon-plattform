@@ -36,8 +36,7 @@ import postgres from "postgres";
 import { sqlPool } from "../lib/db-pool";
 // 06.09.2026 (Lücken-Audit): Kundenrouten hinter requireKunde, Passwörter nur noch gehasht,
 // Antrags-Cookie statt „Referenz reicht“ — siehe lib/fiaon-antrag-sitzung.ts.
-import { requireKunde, istGehasht, passwortHashen } from "../lib/fiaon-kunde-session";
-import { UTM_SCHLUESSEL_LISTE } from "../lib/fiaon-utm";
+import { requireKunde, istGehasht, passwortHashen, kundeAusCookie } from "../lib/fiaon-kunde-session";
 import { antragCookieSetzen, antragPasst, angabenPassen, requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 import { antragsSpaltenOhneAnhaenge } from "../lib/fiaon-antrag-spalten";
 import { produktkategorie, produktkategorieSql, KATEGORIE_TEXT } from "../lib/fiaon-produktkategorie";
@@ -74,12 +73,40 @@ import { geburtsdatumLesen, geburtsdatumFuerSpeicher, geburtsdatumIso, geburtsda
 
 const router = Router();
 
-// In-memory store for identity-verify tokens (15 min TTL)
-const verifyTokens = new Map<string, { ref: string; expiresAt: number }>();
-setInterval(() => {
-  const now = Date.now();
-  verifyTokens.forEach((v, k) => { if (v.expiresAt < now) verifyTokens.delete(k); });
-}, 60_000);
+// ═══════════════════════════════════════════════════════════════════════════
+// DROSSEL FÜR DAS ZURÜCKSETZEN (08.10.2026, E-IT-G) — je IP und je E-Mail
+//
+// Verdacht 3: „Passwort vergessen" verlangt nur Vorname, Nachname, E-Mail und
+// Geburtsdatum — alles keine Geheimnisse. Ohne Bremse ließ sich ein Geburtsdatum
+// frei durchprobieren (auf dem Prüfstand: 12 Versuche, 12x 401, kein 429).
+// Speicher-Bremse mit Verfall wie beim Anmelde-Link (fiaon-app-login.ts): ein
+// Neustart vergisst sie, das ist hier verkraftbar. Die IP kommt wie im Login aus
+// dem ERSTEN X-Forwarded-For-Eintrag hinter dem Render-Proxy.
+// ═══════════════════════════════════════════════════════════════════════════
+const resetBremse = new Map<string, number[]>();
+let resetBremsePflege = 0;
+const RESET_JE_IP = 10;                 // 10 Versuche je IP / 15 Minuten
+const RESET_FENSTER_IP_MS = 15 * 60 * 1000;
+const RESET_JE_EMAIL = 5;               // 5 Versuche je E-Mail / Stunde
+const RESET_FENSTER_EMAIL_MS = 60 * 60 * 1000;
+/** Zählt einen Versuch; false, sobald der Deckel im Fenster erreicht ist. */
+function resetDrosselErlaubt(schluessel: string, deckel: number, fenster: number): boolean {
+  const jetzt = Date.now();
+  if (jetzt - resetBremsePflege > 5 * 60 * 1000) {
+    resetBremsePflege = jetzt;
+    const laengstes = Math.max(RESET_FENSTER_IP_MS, RESET_FENSTER_EMAIL_MS);
+    const alt: string[] = [];
+    resetBremse.forEach((zeiten, k) => { if (!zeiten.some((t) => jetzt - t < laengstes)) alt.push(k); });
+    for (const k of alt) resetBremse.delete(k);
+  }
+  const frisch = (resetBremse.get(schluessel) ?? []).filter((t) => jetzt - t < fenster);
+  if (frisch.length >= deckel) { resetBremse.set(schluessel, frisch); return false; }
+  frisch.push(jetzt);
+  resetBremse.set(schluessel, frisch);
+  return true;
+}
+/** Nur für Tests/Prüfstand. */
+export function resetDrosselLeeren(): void { resetBremse.clear(); }
 
 // Configure multer for KYC document uploads
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3290,7 +3317,41 @@ router.post("/application", async (req, res) => {
 
     // Try update first
     const existing = await db.select().from(fiaonApplications).where(eq(fiaonApplications.ref, ref)).limit(1);
-    
+
+    // ══════════════════════════════════════════════════════════════════════
+    // KEIN PASSWORT AUF EINE E-MAIL MIT BEZAHLTEM KONTO (08.10.2026, E-IT-G)
+    //
+    // Verdacht 1, die Schreibseite: Wer über diese öffentliche Route eine NEUE
+    // Zeile mit der E-Mail eines zahlenden Kunden anlegt, durfte darauf ein
+    // eigenes Passwort setzen und hängte damit sein Passwort in dessen Familie.
+    // decideLogin wählt das Konto jetzt nur noch aus den Zeilen DESSELBEN Kunden
+    // (selberKunde) — aber die zweite Wand steht hier: Trägt die E-Mail (egal ob
+    // in email/contact_email/billing_email oder an der Person) schon ein
+    // BEZAHLTES Konto, das nicht diese Zeile ist, wird kein Passwort gespeichert.
+    // Ein neuer, ehrlicher Antrag mit einer noch nie bezahlten Adresse ist nicht
+    // betroffen; ein zahlender Kunde hat sein Passwort ohnehin an seinem Konto.
+    // ══════════════════════════════════════════════════════════════════════
+    const pwEmailNorm = String(email || contactEmail || billingEmail || "").trim().toLowerCase();
+    let fremdeBezahlteEmail = false;
+    if (password && pwEmailNorm) {
+      const [treffer] = (await sqlPool`
+        SELECT 1 FROM fiaon_applications
+        WHERE gdpr_deleted_at IS NULL AND payment_status = 'paid' AND ref <> ${ref}
+          AND (LOWER(TRIM(COALESCE(email, ''))) = ${pwEmailNorm}
+            OR LOWER(TRIM(COALESCE(contact_email, ''))) = ${pwEmailNorm}
+            OR LOWER(TRIM(COALESCE(billing_email, ''))) = ${pwEmailNorm}
+            OR person_id IN (SELECT id FROM fiaon_persons
+                             WHERE LOWER(TRIM(COALESCE(primary_email, ''))) = ${pwEmailNorm}
+                               AND merged_into_person_id IS NULL))
+        LIMIT 1`.catch(() => [])) as any[];
+      fremdeBezahlteEmail = !!treffer;
+      if (fremdeBezahlteEmail) {
+        console.warn(`[FIAON-APP] ${ref}: Passwort NICHT gespeichert — die E-Mail trägt bereits ein bezahltes Konto (E-IT-G).`);
+      }
+    }
+    // Das Passwort, das wir an dieser Zeile tatsächlich speichern dürfen.
+    const pwGespeichert = password && !fremdeBezahlteEmail ? passwortHashen(String(password)) : null;
+
     // ══════════════════════════════════════════════════════════════════════
     // DIE REINIGUNG AN DER SCHREIBSTELLE (19.08.2026)
     //
@@ -3316,8 +3377,9 @@ router.post("/application", async (req, res) => {
       firstName: nameSauber(firstName), lastName: nameSauber(lastName),
       birthdate, phone, phoneCountryCode, street, zip, city, country, nationality,
       employment, employer, employedSince, income: income || null, rent: rent || null, debts: debts || null, housing,
-      // Password for login — 06.09.2026: nur noch gehasht (scrypt), nie mehr Klartext in der Spalte
-      password: password ? passwortHashen(String(password)) : password,
+      // Password for login — 06.09.2026: nur noch gehasht (scrypt), nie mehr Klartext in der Spalte.
+      // 08.10.2026 (E-IT-G): null, wenn die E-Mail schon ein bezahltes Fremd-Konto trägt (pwGespeichert).
+      password: pwGespeichert,
       // Business customer fields
       companyName: nameSauber(companyName), legalForm, taxId, establishedYear,
       contactName: nameSauber(contactName), contactEmail, contactPhone, businessType, industry, annualRevenue: annualRevenue || null, employees: employees || null, monthlyExpenses: monthlyExpenses || null, billingEmail,
@@ -3348,7 +3410,33 @@ router.post("/application", async (req, res) => {
         }
       }
       console.log("[FIAON-APP] Updating existing application via direct SQL only to prevent password overwrite");
-      
+
+      // ══════════════════════════════════════════════════════════════════════
+      // PASSWORT NUR MIT BESITZNACHWEIS ÜBERSCHREIBEN (08.10.2026, E-IT-G)
+      //
+      // Verdacht 2: Die Referenz ist kein Geheimnis — sie steht in jedem
+      // Verwendungszweck, auf jeder Rechnung, in jeder Mail. Wer eine (Alt-)
+      // Referenz kannte, konnte hier ein neues Passwort setzen und das Konto
+      // übernehmen, ohne irgendetwas nachzuweisen. Ab jetzt wird das Passwort im
+      // UPDATE nur geschrieben, wenn der Browser den Antrag nachweislich selbst
+      // führt (Antrags-Cookie) ODER als dieser Kunde angemeldet ist
+      // (Kundensitzung auf genau diese Referenz). Fehlt beides, bleibt das
+      // bisherige Passwort unberührt — alle übrigen Felder laufen wie gehabt.
+      // Nachgestellt in scripts/repro-it-g.sh.
+      // ══════════════════════════════════════════════════════════════════════
+      //
+      // E-302 (27.10.2026): Die Wand „kein Passwort auf eine E-Mail mit bezahltem Konto“ (fremdeBezahlteEmail,
+      // s. o.) gilt auch HIER. Ohne sie blieb ein Weg in zwei Schritten offen: Zeile mit der Opfer-Adresse
+      // anlegen (Passwort wird nicht gespeichert, aber das Antrags-Cookie gesetzt), dann dieselbe Zeile mit
+      // Passwort erneut speichern — das eigene Cookie passt. Und bindePersonAnAntrag hängt die Zeile über den
+      // E-Mail-Alias an die PERSON des Opfers; damit zählt sie für selberKunde zum selben Kunden.
+      // Eine eingeloggte Kundensitzung auf genau diese Referenz bleibt der Weg für den echten Inhaber.
+      const darfPasswortSetzen = (antragPasst(req, ref) && !fremdeBezahlteEmail) || kundeAusCookie(req) === ref;
+      const pwUpdate = darfPasswortSetzen && password ? passwortHashen(String(password)) : "";
+      if (password && !darfPasswortSetzen) {
+        console.warn(`[FIAON-APP] ${ref}: Passwort-Überschreibung abgelehnt — ${fremdeBezahlteEmail ? "die E-Mail trägt bereits ein bezahltes Konto" : "ohne Antrags-Cookie/Kundensitzung"} (E-302).`);
+      }
+
       // Use direct SQL for ALL fields to prevent Drizzle from overwriting password
       // Convert undefined to null to avoid UNDEFINED_VALUE error
       await sqlPool`
@@ -3385,7 +3473,8 @@ router.post("/application", async (req, res) => {
           -- auf [step]) - OHNE Passwort. Jeder dieser Zwischenspeicher setzte das
           -- Passwort des Kunden auf NULL: Der Kunde kannte sein Passwort, der
           -- Datensatz nicht mehr. Jetzt gilt: nur SETZEN, niemals loeschen.
-          password = COALESCE(NULLIF(${password ? passwortHashen(String(password)) : ''}, ''), password),
+          -- 08.10.2026 (E-IT-G): und nur mit Besitznachweis (pwUpdate, s. o.).
+          password = COALESCE(NULLIF(${pwUpdate}, ''), password),
           company_name = ${values.companyName ?? null},
           legal_form = ${values.legalForm ?? null},
           tax_id = ${values.taxId ?? null},
@@ -3460,7 +3549,9 @@ router.post("/application", async (req, res) => {
       antragCookieSetzen(res, ref);
       if (password) {
         await sqlPool`UPDATE fiaon_applications SET status = ${status}, email = ${email} WHERE ref = ${ref}`;
-        console.log("[FIAON-APP] Passwort gespeichert (gehasht, nur in der Spalte)");
+        console.log(pwGespeichert
+          ? "[FIAON-APP] Passwort gespeichert (gehasht, nur in der Spalte)"
+          : "[FIAON-APP] Passwort NICHT gespeichert (E-Mail trägt bereits ein bezahltes Konto, E-IT-G)");
       }
     }
 
@@ -5458,14 +5549,21 @@ router.get("/admin/applications/:ref/document/:type", async (req, res) => {
 // Die Identitätsprüfung selbst (Vorname + Nachname + E-Mail + Geburtsdatum)
 // bleibt unverändert streng — nur der Status-Filter ist weg.
 
-/** Eine Meldung für „E-Mail unbekannt" UND „Angaben passen nicht" — keine Auskunft
- *  darüber, ob eine E-Mail-Adresse bei uns existiert. */
-const VERIFY_NEUTRAL_MESSAGE =
-  "Die Angaben stimmen nicht mit einem Konto überein. Bitte prüfen Sie Vorname, Nachname, E-Mail-Adresse und Geburtsdatum — genau so, wie Sie sie im Antrag angegeben haben.";
+// POST /api/fiaon/verify-identity — prüft Name + Geb. + E-Mail und schickt einen
+// Anmelde-Link an die hinterlegte Adresse (08.10.2026, E-IT-G; früher: Token im Body).
+// Eine Antwort für JEDE Eingabe (Treffer, Fehlschlag, Drossel) — kein Hinweis darauf,
+// ob es zu diesen Angaben ein Konto gibt. Der Weg führt ab jetzt immer über die
+// hinterlegte E-Mail-Adresse (08.10.2026, E-IT-G).
+const RESET_PER_MAIL_ANTWORT = {
+  ok: true as const,
+  perMail: true as const,
+  text: "Wenn die Angaben zu einem Konto passen, haben wir einen Anmelde-Link an die dort hinterlegte E-Mail-Adresse geschickt. "
+    + "Bitte öffnen Sie ihn und vergeben Sie danach im Bereich Ihr neues Passwort. Sehen Sie auch im Spam-Ordner nach.",
+};
 
-// POST /api/fiaon/verify-identity — prüft Name + Geb. + Email, gibt Token zurück
 router.post("/verify-identity", async (req, res) => {
   const emailForLog = String(req.body?.email ?? "");
+  const ipRoh = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "";
   try {
     const { firstName, lastName, birthDay, birthMonth, birthYear, email } = req.body;
     if (!firstName || !lastName || !email || !birthDay || !birthMonth || !birthYear) {
@@ -5477,6 +5575,17 @@ router.post("/verify-identity", async (req, res) => {
     // E-IT-G (08.10.2026): derselbe Leser wie überall (Kontext „pruefung“ — keine
     // Altersregel, der Mensch soll durchkommen; zweistellige Jahre ergänzt).
     const birthdate = geburtsdatumLesen({ tag: birthDay, monat: birthMonth, jahr: birthYear }, "pruefung").iso ?? "ungueltig";
+
+    // ── DROSSEL je IP und je E-Mail (08.10.2026, E-IT-G, Verdacht 3) ──────────
+    // Ohne sie ließ sich das Geburtsdatum frei durchprobieren. Gezählt wird VOR
+    // dem Datenbankzugriff; die Antwort bleibt dieselbe neutrale Mail-Auskunft,
+    // damit die Drossel selbst nichts über die Existenz eines Kontos verrät.
+    const ipOk = resetDrosselErlaubt(`ip:${ipRoh || "unbekannt"}`, RESET_JE_IP, RESET_FENSTER_IP_MS);
+    const mailOk = resetDrosselErlaubt(`email:${createHash("sha256").update(trimEmail).digest("hex")}`, RESET_JE_EMAIL, RESET_FENSTER_EMAIL_MS);
+    if (!ipOk || !mailOk) {
+      logLoginAttempt({ email: trimEmail, code: "RESET-DROSSEL", reason: `Reset gedrosselt (${!ipOk ? "IP" : "E-Mail"})`, ip: ipRoh, userAgent: String(req.headers["user-agent"] || "") });
+      return res.status(429).json(RESET_PER_MAIL_ANTWORT);
+    }
 
     // Dieselbe Kontoauflösung wie im Login: die ganze Familie der E-Mail.
     const family = await loadLoginFamily(trimEmail);
@@ -5537,27 +5646,36 @@ router.post("/verify-identity", async (req, res) => {
         email: trimEmail,
         code: "RESET-01",
         reason: family.length === 0 ? "Reset: kein Datensatz zur E-Mail" : "Reset: Name/Geburtsdatum passen nicht",
-        ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "",
+        ip: ipRoh,
         userAgent: String(req.headers["user-agent"] || ""),
       });
-      return res.status(401).json({ ok: false, error: VERIFY_NEUTRAL_MESSAGE });
+      // Keine Auskunft, ob es das Konto gibt — dieselbe Mail-Antwort wie beim Treffer.
+      return res.json(RESET_PER_MAIL_ANTWORT);
     }
 
-    // Das Passwort gehört an das KONTO, nicht an eine Zusatzbestellung oder eine
-    // zusammengeführte Dublette.
+    // ── NUR ÜBER DIE HINTERLEGTE E-MAIL (08.10.2026, E-IT-G, Verdacht 3) ──────
+    // Früher gab diese Route bei passendem Namen+Geburtsdatum SOFORT ein Token
+    // zurück, mit dem der Browser direkt ein neues Passwort setzte — Vorname,
+    // Nachname, E-Mail und Geburtsdatum sind aber keine Geheimnisse. Jetzt setzt
+    // niemand mehr allein mit diesem Wissen ein Passwort: Wir schicken einen
+    // Anmelde-Link an die beim Konto hinterlegte Adresse (an die Person, nicht an
+    // die getippte Adresse — fiaon-app-login.ts/loginLinkAnfordern, selbst noch
+    // einmal gedrosselt). Wer das Postfach öffnen kann, kommt herein und vergibt
+    // im Bereich sein neues Passwort. reset-password-direct ist damit stillgelegt.
     const account = pickAccountRow(candidates)!;
-    const token = randomBytes(32).toString("hex");
-    verifyTokens.set(token, { ref: account.ref, expiresAt: Date.now() + 15 * 60 * 1000 });
-
-    logLoginAttempt({
-      email: trimEmail,
-      code: "RESET-OK",
-      reason: "Identität bestätigt, Passwort darf gesetzt werden",
-      ref: account.ref,
-      ip: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.socket.remoteAddress || "",
-      userAgent: String(req.headers["user-agent"] || ""),
-    });
-    return res.json({ ok: true, token });
+    try {
+      const { loginLinkAnfordern } = await import("./fiaon-app-login");
+      // E-302 (27.10.2026): Der Link führt direkt zur Passwort-Seite; dort reicht das frische Cookie aus dem Klick.
+      const erg = await loginLinkAnfordern({ email: trimEmail, ip: ipRoh, userAgent: String(req.headers["user-agent"] || ""), weiter: "/app/mehr/passwort" });
+      logLoginAttempt({
+        email: trimEmail, code: "RESET-MAIL",
+        reason: `Identität bestätigt — Anmelde-Link an hinterlegte Adresse (${erg.ergebnis})`,
+        ref: account.ref, ip: ipRoh, userAgent: String(req.headers["user-agent"] || ""),
+      });
+    } catch (e) {
+      console.error("[FIAON-VERIFY-IDENTITY] Anmelde-Link:", e instanceof Error ? e.message : e);
+    }
+    return res.json(RESET_PER_MAIL_ANTWORT);
   } catch (err) {
     const incident = randomBytes(4).toString("hex").toUpperCase();
     console.error(`[FIAON-VERIFY-IDENTITY] RESET-05-${incident}`, err);
@@ -5572,95 +5690,23 @@ router.post("/verify-identity", async (req, res) => {
   }
 });
 
-// POST /api/fiaon/reset-password-direct — setzt Passwort nach Identity-Verify
-router.post("/reset-password-direct", async (req, res) => {
-  try {
-    const { token, newPassword } = req.body;
-    if (!token || !newPassword || String(newPassword).length < 8) {
-      return res.status(400).json({ ok: false, error: "Ungültige Anfrage oder Passwort zu kurz (mind. 8 Zeichen)." });
-    }
-
-    const entry = verifyTokens.get(token);
-    if (!entry || entry.expiresAt < Date.now()) {
-      verifyTokens.delete(token);
-      return res.status(401).json({ ok: false, error: "Sitzung abgelaufen. Bitte erneut verifizieren." });
-    }
-
-    const { ref } = entry;
-    // utm wird ERGÄNZT, nicht ersetzt — das Ersetzen war Teil der Ursache
-    // (es löschte die Rückfall-Kopie und alle übrigen utm-Schlüssel).
-    // 24.09.2026: Bei Altzeilen ist utm ein JSON-Skalar (Zeichenkette statt Objekt) —
-    // „utm - 'password'“ brach dort mit „cannot delete from scalar“ ab (RESET-05, 59 von
-    // 71 Resets seit 10.09.). Entfernt wird der Schlüssel nur noch aus Objekten; die
-    // Anmeldung liest ohnehin die Spalte password (storedPasswordOf).
-    // 25.09.2026 (E-242): Genau in diesen Text-/Array-Altformen lag das Klartext-Passwort weiter.
-    // Jetzt wird utm auf die Erlaubnisliste (lib/fiaon-utm.ts) gekürzt, Altformen werden zu {}.
-    const updated = await sqlPool`
-      UPDATE fiaon_applications
-      SET password = ${passwortHashen(String(newPassword))},
-          utm = CASE WHEN utm IS NULL THEN NULL
-                     WHEN jsonb_typeof(utm) = 'object' THEN (SELECT COALESCE(jsonb_object_agg(k, v), '{}'::jsonb) FROM jsonb_each(utm) AS u(k, v) WHERE k = ANY(${UTM_SCHLUESSEL_LISTE}::text[]))
-                     ELSE '{}'::jsonb END,
-          updated_at = NOW()
-      WHERE ref = ${ref}
-      RETURNING ref
-    `;
-    if (updated.length === 0) {
-      return res.status(410).json({ ok: false, error: "Konto nicht mehr auffindbar. Bitte wenden Sie sich an den Support." });
-    }
-
-    verifyTokens.delete(token);
-    console.log("[FIAON-RESET-DIRECT] Passwort gesetzt für", ref);
-
-    // ══════════════════════════════════════════════════════════════════════
-    // SAG IHM JETZT, OB DIE TÜR OFFEN IST (27.08.2026)
-    //
-    // Daniel: „Man kann sich aktuell nicht einloggen."
-    //
-    // GEMESSEN im Anmeldeprotokoll über 30 Tage: 81 Menschen haben ein
-    // Passwort gesetzt, 16 davon wurden binnen zwei Stunden danach
-    // abgewiesen — jeder Fünfte. Der Ablauf sagte „Identität bestätigt,
-    // setz dein Passwort", und Sekunden später „Deine Zahlung ist noch
-    // nicht eingegangen". Aus Kundensicht ist das ein kaputtes Portal,
-    // und genau so wird es gemeldet.
-    //
-    // Das Passwort wird trotzdem gesetzt — es ist sein Konto, und er wird
-    // es brauchen. Aber er erfährt SOFORT, woran er ist, statt gegen eine
-    // Tür zu laufen. (Nachtrag 27.08. abends: Das Zahlungs-Tor selbst ist
-    // seither weg — abgewiesen wird nur noch die Hand-Sperre, s. u.)
-    // ══════════════════════════════════════════════════════════════════════
-    // ── SEIT 27.08.2026 SPERRT NUR NOCH DIE HAND-SPERRE ───────────────────
-    // Vorher wies dieser Weg nach dem Zahlungsstatus ab (16 von 81 Resets
-    // endeten so — „Passwort gesetzt, aber Zahlung offen"). Entscheidung des
-    // Inhabers: Wer sein Passwort setzt, kommt hinein; die einzige Ausnahme
-    // ist account_status='suspended' (vom Mitarbeiter gesetzt, mit Grund).
-    const [konto] = (await sqlPool`
-      SELECT status, payment_status, payment_reference, account_status
-        FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
-    const gesperrt = konto?.account_status === "suspended";
-
-    if (!gesperrt) return res.json({ ok: true, zugangOffen: true });
-
-    return res.json({
-      ok: true,
-      zugangOffen: false,
-      // Bewusst dieselben Worte wie am Zugangstor — zwei Formulierungen für
-      // dieselbe Lage sind der Anfang jeder Verwirrung.
-      hinweis: "Dein Passwort ist gesetzt, aber dein Konto ist derzeit gesperrt.",
-      erklaerung: "Bitte kontaktiere den Support — wir klären das mit dir persönlich.",
-      referenz: konto?.payment_reference || null,
-      weiter: null,
-    });
-  } catch (err) {
-    const incident = randomBytes(4).toString("hex").toUpperCase();
-    console.error(`[FIAON-RESET-DIRECT] RESET-05-${incident}`, err);
-    return res.status(503).json({
-      ok: false,
-      code: `RESET-05-${incident}`,
-      error: "Technisches Problem — Ihr Passwort wurde NICHT geändert. Bitte in einem Moment erneut versuchen.",
-      hint: `Bleibt das Problem, nennen Sie dem Support diesen Fehlercode: RESET-05-${incident}`,
-    });
-  }
+// POST /api/fiaon/reset-password-direct — STILLGELEGT (08.10.2026, E-IT-G, Verdacht 3)
+//
+// Dieser Weg setzte ein neues Passwort allein gegen ein Token, das
+// /verify-identity nach Name+E-Mail+Geburtsdatum SOFORT an den Browser gab —
+// also ohne Nachweis, dass der Absender das Postfach des Kunden besitzt. Seit
+// E-IT-G gibt /verify-identity kein solches Token mehr aus, sondern schickt
+// einen Anmelde-Link an die hinterlegte Adresse; das neue Passwort vergibt der
+// Kunde danach im Bereich (requireKunde, POST /kunde/:ref/passwort[-setzen]).
+// Diese Route kann daher nur noch mit einem Token aufgerufen werden, das es
+// nicht mehr gibt — sie antwortet jetzt durchweg mit 410 und weist den Weg.
+router.post("/reset-password-direct", (_req, res) => {
+  return res.status(410).json({
+    ok: false,
+    code: "RESET-ENTFERNT",
+    error: "Dieser Weg wurde ersetzt.",
+    hint: "Bitte fordern Sie unter „Passwort vergessen“ einen Anmelde-Link an. Er geht an Ihre hinterlegte E-Mail-Adresse; danach vergeben Sie Ihr neues Passwort im Bereich.",
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

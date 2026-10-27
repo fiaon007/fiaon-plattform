@@ -251,6 +251,9 @@
 
 /* ── Ansprechpartner ──────────────────────────────────────────────────── */
 .gkc-personen { max-width:620px; }
+/* „Ihr Team“ darunter (Justin 27.10.2026, abends): Raster, Ring und Initialen wie Fassung A/B (.gaf-team + .gkp). Eigenes nur:
+   jeder Teil der Rolle in seiner Zeile (kein „·“ am Zeilenende) und ausgewogene Umbrüche (kein einzelnes Wort allein unten). */
+.gkc-team .gkc-team-rolle-teil { display:block; text-wrap:balance; }
 
 /* ── Vertrag, Widerruf, Informationen ─────────────────────────────────── */
 /* „Vertrag lesen“ im Glasblau — die Navy-Fläche gehört allein dem Rechner */

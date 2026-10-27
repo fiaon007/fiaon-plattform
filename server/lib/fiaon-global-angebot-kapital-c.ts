@@ -229,7 +229,8 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
     ok: true, status: "offen", art: "kapital", variante: "privat", ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
     kunde: { anrede: k.anrede, vorname: k.vorname, nachname: k.nachname, email: k.email },
     kundeAnrede: kapitalCAnrede(k),
-    seite: kapitalCSeite(d),
+    // Mit dem Link: Teamfotos am Angebot gehen nur hinter ihm raus (wie Fassung A/B). Die Prüfsumme liest das Team nie.
+    seite: kapitalCSeite(d, token),
     konditionen: {
       betragCents: par.betragCents, ratenfreiMonate: par.ratenfreiMonate, zinsfreiMonate: par.zinsfreiMonate, zinsStartBp: par.zinsStartBp,
       zinsSchrittBp: par.zinsSchrittBp, laufzeitMinJahre: par.laufzeitMinJahre, laufzeitMaxJahre: par.laufzeitMaxJahre, kursUsdJeEur: par.kursUsdJeEur,

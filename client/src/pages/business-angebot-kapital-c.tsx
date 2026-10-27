@@ -7,7 +7,8 @@
 // Reihenfolge (Nachprüfung 27.10.): Willkommen · Ihre Finanzierung (Betrag groß, Eckdaten, Monatsrate, Geld-zurück-Garantie) ·
 // Laufzeit-Rechner mit den Konditionen (die EINE Navy-Stelle) · Name der Gesellschaft mit Live-Urkunde · Ihr Paket · Ihr Weg ·
 // Ihre Investition (leise: eine Zeile mit allen Beträgen, Einzelheiten zum Aufklappen — Justin 27.10., 17:40) · Ihre Unterlagen ·
-// Fragen · Ansprechpartner · Vertrag, Widerruf, Informationen · Auftrag. Kein Verwendungszweck auf der Seite (Justin 27.10.).
+// Fragen · Ansprechpartner mit „Ihr Team“ (Raster wie Fassung A/B: Foto oder Initialen, Bildnachweis im Fuß — Justin 27.10., abends) ·
+// Vertrag, Widerruf, Informationen · Auftrag. Kein Verwendungszweck auf der Seite (Justin 27.10.).
 // Inhalte aus KapitalCKundenSicht (shared/fiaon-global-angebot-kapital-c.ts); die Rate rechnet dieselbe reine Funktion wie
 // Vertrag und Server (kapitalCPlan). Hart im Client stehen nur Bedienbeschriftungen. CI Glasblau, kein Gold (.gak/.gkp/.gkc).
 // Runde 2 (27.10.2026): Laufzeit, Name, EIN Haken (Fast-Track) und die Unterschrift — der Satz „… gelesen“ steht über der
@@ -365,6 +366,8 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
 }) {
   const S = sicht.seite, A = sicht.annahme, T = S.llc, H = S.hero, I = S.investition;
   const k = sicht.konditionen;
+  // Ihr Team (wie Fassung A/B) — eine ältere Antwort ohne Team zeigt schlicht keinen Abschnitt.
+  const team = S.ansprechpartner.team ?? [];
   const [auftakt, setAuftakt] = useState<"offen" | "geht" | "vorbei">("offen");
   const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
   const [jahre, setJahre] = useState<number>(k.laufzeitVorschlagJahre);
@@ -654,6 +657,26 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                 </Auf>
               ))}
             </ul>
+            {/* Ihr Team — wie Fassung A/B (Raster, Foto oder Initialen, Glasblau über .gkp); leeres Team = kein Abschnitt */}
+            {team.length > 0 && (
+              <div className="gaf-team gkp-team gkc-team" data-fiaon="kapital-team">
+                <Kopf titel={S.ansprechpartner.teamTitel} sub={S.ansprechpartner.teamSub} />
+                <ul className="gaf-team-raster">
+                  {team.map((t, i) => (
+                    <Auf als="li" key={`${i}-${t.name}`} verz={(i % 4) * 70} className="gaf-team-person">
+                      <span className="gaf-team-bild">
+                        {t.foto && !ohneBild[`team:${i}`]
+                          ? <img src={t.foto} alt={t.name} width={240} height={240} loading="lazy" decoding="async" onError={() => setOhneBild((o) => ({ ...o, [`team:${i}`]: true }))} />
+                          : <span className="gaf-team-mono" aria-hidden="true">{t.initialen}</span>}
+                      </span>
+                      <span className="gaf-team-name">{t.name}</span>
+                      {/* Wie bei den Ansprechpartnern: kein Punkt am Zeilenende — jeder Teil der Rolle („A · B“) steht in seiner Zeile. */}
+                      <span className="gaf-team-rolle">{t.rolle.split(" · ").map((teil, j) => <span key={j} className="gkc-team-rolle-teil">{teil}</span>)}</span>
+                    </Auf>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
 
@@ -772,6 +795,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
         <div className="gaf-rahmen">
           <MarkeGlobal hoehe={16} className="gaf-marke" />
           <ul className="gaf-pflicht">{S.pflicht.map((x) => <li key={x}>{x}</li>)}</ul>
+          {S.bildnachweis && <p className="gaf-aufruf-hinweis">{S.bildnachweis}</p>}
           <p className="gaf-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           <p className="gaf-fuss-links"><a href="/impressum">{WORTE.impressum}</a> · <a href="/datenschutz">{WORTE.datenschutz}</a></p>
           <p className="gaf-fuss-ref">{WORTE.angebot} {sicht.ref}</p>

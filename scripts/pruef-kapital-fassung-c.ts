@@ -18,9 +18,14 @@
 //   4b KEIN Verwendungszweck (Justin 27.10.2026, 17:40): ein Marken-Vorhaben in den Daten taucht in keinem Kundentext und keinem
 //     Vertrag auf; keine Wörter eines Zwecks (Vorhaben, Ort, bezahlter Anteil, Termin, Bauträger) — auch nicht fest im Text
 //   5b „Ihre Investition“ leise, aber vollständig und lesbar: alle Beträge in der sichtbaren Zeile, Schrift 13–15 px, Kontrast ≥ 4,5:1
+//   7b „Ihr Team“ (Justin 27.10.2026, abends — wie Fassung A/B): Einlesen nach denselben Regeln wie A/B, Porträt des Hauses,
+//     Bildname → Adresse NUR hinter dem Link, KI-Porträt/fremde Adresse/Pfad → Initialen, Bildnachweis, leeres Team = kein Abschnitt,
+//     und vor allem: Vertrag, Prüfsumme und der Fingerabdruck für den Browser sind mit und ohne Team GLEICH (eine offene Seite muss
+//     nicht neu laden) — auch über die echte Kundensicht des Servers (kapitalCKundenSicht, ohne Datenbank)
 //
 //   npx tsx scripts/pruef-kapital-fassung-c.ts
-//   … --privat <angebot.json>   prüft zusätzlich, dass KEIN Wert des echten Kunden in den Code-Dateien steht (Repo öffentlich)
+//   … --privat <angebot.json>   prüft zusätzlich, dass KEIN Wert des echten Kunden und kein Name aus seinem Team in den Code-Dateien
+//                               steht (Repo öffentlich)
 //   … --mail <Mail.txt>         prüft den Mailtext (Wortwand, kein Bankname, {{LINK}} vorhanden, Kosten und Rate genannt)
 // ═══════════════════════════════════════════════════════════════════════════
 import { readFileSync, existsSync } from "node:fs";
@@ -469,6 +474,81 @@ abschnitt("7 Prüfsumme, Annahmevermerk, Prüfungen, nach der Annahme");
   ok(C.kapitalCBuerginOrt({ anschrift: "1 Example Way, Miami, FL 33100, USA", bundesstaat: "Florida" }) === "Miami" && C.kapitalCBuerginOrt({ anschrift: "Irgendwo", bundesstaat: "Florida" }) === "Florida", "Ort der Bürgin aus der Anschrift, sonst der Bundesstaat");
 }
 
+// ═══ 7b IHR TEAM (wie Fassung A/B, Justin 27.10.2026 abends) ════════════════
+abschnitt("7b Ihr Team — Einlesen, Fotos nur hinter dem Link, Prüfsumme unverändert");
+{
+  // Musterteam (Repo öffentlich): Porträt des Hauses, Fotos am Angebot, ohne Foto — und alles, was NICHT durchgehen darf.
+  const TEAM_ROH = [
+    { name: "  Paula   Probehaus ", rolle: " Leitung   Muster ", foto: "haus:muster" },
+    { name: "Dr. Konrad Kontrollmann", rolle: "Recht (Muster)", foto: "team-konrad-kontrollmann.webp" },
+    { name: "Mag. Petra Prüfling", rolle: "Steuern (Muster)", foto: "team-petra-pruefling.webp" },
+    { name: "Tim Testmann", rolle: "Ohne Foto (Muster)" },
+    { name: "Nina Nichtbestaetigt", rolle: "Muster", foto: "team-nina.webp", bestaetigt: false },
+    { name: "", rolle: "ohne Namen" },
+    { name: "Olaf Ohnerolle", rolle: "   " },
+    { name: "Karl Kiporträt", rolle: "Muster", foto: "haus:justin" },
+    { name: "Fritz Fremd", rolle: "Muster", foto: "https://example.com/x.webp" },
+    { name: "Paul Pfad", rolle: "Muster", foto: "../geheim.webp" },
+  ];
+  const parT = C.kapitalCParameterAus({ ...PAR, team: TEAM_ROH as any });
+  const DT = { ...D, parameter: parT };
+  ok(C.KAPITAL_C_VORGABEN.team.length === 0 && PAR.team.length === 0, "Vorgabe: kein Team (ohne Team bleibt die Seite wie bisher)");
+  ok(parT.team.length === 7 && parT.team[0].name === "Paula Probehaus" && parT.team[0].rolle === "Leitung Muster" && parT.team[3].foto === null
+    && !parT.team.some((t) => /Nichtbestaetigt|Ohnerolle/.test(t.name)), "Einlesen: geglättet, nur bestätigte, ohne leeren Namen oder leere Rolle", parT.team.map((t) => t.name));
+  ok(JSON.stringify(K.kapitalParameterAus({ team: TEAM_ROH as any }).team) === JSON.stringify(parT.team), "Einlesen: dieselben Regeln wie Fassung A/B (kapitalTeamAus)");
+  const viele = Array.from({ length: 25 }, (_, i) => ({ name: `Muster ${i} ${"x".repeat(120)}`, rolle: `Rolle ${"y".repeat(150)}`, foto: `team-${"z".repeat(60)}.webp` }));
+  const pv = C.kapitalCParameterAus({ team: viele as any });
+  ok(pv.team.length === 20 && pv.team.every((t) => t.name.length === 80 && t.rolle.length === 100 && String(t.foto).length === 40), "Grenzen: höchstens 20, Name 80, Rolle 100, foto 40 Zeichen");
+  ok(JSON.stringify(C.kapitalCParameterAus({ betragCents: 25_000_000 }, parT).team) === JSON.stringify(parT.team) && JSON.stringify(C.kapitalCParameterAus({ team: "kaputt" as any }, parT).team) === JSON.stringify(parT.team)
+    && C.kapitalCParameterAus({ team: [] }, parT).team.length === 0, "Nachtrag ohne team behält es, Unsinn auch; eine leere Liste leert es");
+
+  const TOKEN = "FIAON-IA-CMUSTER.1893456000000.ab+c/d";
+  const T_ENC = encodeURIComponent(TOKEN);
+  const sT = C.kapitalCSeite(DT, TOKEN);
+  const tm = sT.ansprechpartner.team;
+  ok(tm.length === 7 && tm.map((t) => t.name).join("|") === parT.team.map((t) => t.name).join("|"), "Seite: das ganze Team in der Reihenfolge der Datei");
+  ok(tm[0].foto === "/portraits/muster.jpg", "haus:<kürzel> → echtes Porträt des Hauses (/portraits/<kürzel>.jpg)", tm[0].foto);
+  ok(tm[1].foto === `/api/fiaon/global/angebot/${T_ENC}/bild/team-konrad-kontrollmann.webp` && tm[2].foto === `/api/fiaon/global/angebot/${T_ENC}/bild/team-petra-pruefling.webp`,
+    "Bildname → Adresse hinter dem persönlichen Link (Token kodiert)", [tm[1].foto, tm[2].foto]);
+  ok(tm[3].foto === null && tm[4].foto === null && tm[5].foto === null && tm[6].foto === null, "ohne Foto, KI-Porträt, fremde Adresse, Pfad → Initialen (foto null)", tm.slice(3).map((t) => t.foto));
+  ok(tm.every((t) => t.foto === null || t.foto.startsWith("/portraits/") || t.foto.startsWith(`/api/fiaon/global/angebot/${T_ENC}/bild/`)), "nie eine Adresse außerhalb des Links oder der Porträts");
+  ok(tm[0].initialen === "PP" && tm[1].initialen === "KK" && tm[2].initialen === "PP" && tm[3].initialen === "TT", "Initialen ohne Titel (Dr., Mag.)", tm.map((t) => t.initialen));
+  ok(sT.ansprechpartner.teamTitel === K.KAPITAL_TEAM_TEXTE.titel && sT.ansprechpartner.teamSub === K.KAPITAL_TEAM_TEXTE.sub && K.KAPITAL_TEAM_TEXTE.titel === "Ihr Team"
+    && sT.ansprechpartner.titel === "Ihr Ansprechpartner", "Texte wie Fassung A/B: „Ihr Team“ / „Diese Menschen arbeiten an Ihrem Auftrag mit.“ unter „Ihr Ansprechpartner“");
+  ok(sT.bildnachweis === "Bildnachweis: Teamfotos teils Symbolbilder." && sT.bildnachweis === K.kapitalBildnachweis(parT), "Bildnachweis wie A/B, sobald ein Foto am Angebot liegt");
+  const ohneToken = C.kapitalCSeite(DT).ansprechpartner.team;
+  ok(ohneToken[0].foto === "/portraits/muster.jpg" && ohneToken[1].foto === null && ohneToken[2].foto === null, "ohne Link (kein Token): Fotos am Angebot → Initialen, Porträt des Hauses bleibt");
+  const nurHaus = C.kapitalCSeite({ ...D, parameter: C.kapitalCParameterAus({ ...PAR, team: [{ name: "Paula Probehaus", rolle: "Muster", foto: "haus:muster" }] }) }, TOKEN);
+  ok(nurHaus.bildnachweis === "" && nurHaus.ansprechpartner.team.length === 1, "nur Porträts des Hauses → kein Bildnachweis");
+  const leer = C.kapitalCSeite(D, TOKEN);
+  ok(leer.ansprechpartner.team.length === 0 && leer.bildnachweis === "", "leeres Team → keine Personen, kein Bildnachweis");
+  // Die Seite zeigt den Abschnitt nur mit Team und den Bildnachweis nur, wenn er gesetzt ist — mit den Klassen der Fassung A/B.
+  const quelle = readFileSync(path.join(WURZEL, "client/src/pages/business-angebot-kapital-c.tsx"), "utf8");
+  ok(/\{team\.length > 0 && \(\s*<div className="gaf-team gkp-team[^"]*" data-fiaon="kapital-team">/.test(quelle) && /\{S\.bildnachweis && <p className="gaf-aufruf-hinweis">\{S\.bildnachweis\}<\/p>\}/.test(quelle)
+    && ["gaf-team-raster", "gaf-team-person", "gaf-team-bild", "gaf-team-mono", "gaf-team-name", "gaf-team-rolle"].every((c) => quelle.includes(`className="${c}"`)),
+    "Seite: „Ihr Team“ nur mit Team (leeres Team = kein Abschnitt), Bildnachweis nur wenn gesetzt, Klassen wie Fassung A/B");
+
+  // DIE PRÜFSUMME: Das Team steht nie im Vertrag — Text, Inhaltsverzeichnis, Annahmevermerk und Prüfsumme sind gleich.
+  const hOhne = C.kapitalCHashEingabe(D, C.kapitalCRumpfHtml(D, null)); const hMit = C.kapitalCHashEingabe(DT, C.kapitalCRumpfHtml(DT, null));
+  ok(hOhne === hMit, "Prüfsumme: gleicher Vertragstext mit und ohne Team");
+  ok(C.kapitalCRumpfHtml(D, null, { ausweiseGekuerzt: true }) === C.kapitalCRumpfHtml(DT, null, { ausweiseGekuerzt: true }) && JSON.stringify(C.kapitalCVertragInhalt(D)) === JSON.stringify(C.kapitalCVertragInhalt(DT)),
+    "Seite und Entwurf: gekürzter Vertrag und Inhaltsverzeichnis gleich");
+  const vermerkT = { am: new Date("2026-10-28T10:00:00Z"), ip: "203.0.113.7", userAgent: "x", hash: "abc", wahl: { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true as const }, unterschrift: { art: "getippt" as const, name: "Max Mustermann" } };
+  ok(C.kapitalCRumpfHtml(D, vermerkT as any) === C.kapitalCRumpfHtml(DT, vermerkT as any), "angenommener Vertrag (mit Vermerk) gleich");
+  const vertragT = ohneHtml(C.kapitalCRumpfHtml(DT, vermerkT as any));
+  ok(!/Probehaus|Kontrollmann|Prüfling|Testmann|Symbolbild|team-/.test(vertragT), "kein Teamname, kein Foto, kein Bildnachweis im Vertrag");
+  // Über den echten Weg des Servers (ohne Datenbank): Prüfsumme, Fingerabdruck für den Browser, Vertrags-HTML — und das Team.
+  const KS = await import("../server/lib/fiaon-global-angebot-kapital-c");
+  ok(KS.kapitalCTextHash(D) === KS.kapitalCTextHash(DT) && KS.kapitalCSichtHash(D) === KS.kapitalCSichtHash(DT), "Server: kapitalCTextHash und kapitalCSichtHash mit und ohne Team gleich");
+  const zeile = (parameter: unknown) => ({ id: 1, angebot_ref: D.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: KUNDE_ROH, parameter, buergin: BUERGIN, gueltig_bis: D.gueltigBis }) as any;
+  const sichtOhne = (await KS.kapitalCKundenSicht(TOKEN, zeile({ ...PAR, unterschriftFrei: true }))).body as any;
+  const sichtMit = (await KS.kapitalCKundenSicht(TOKEN, zeile({ ...PAR, unterschriftFrei: true, team: TEAM_ROH }))).body as any;
+  ok(sichtOhne.textHash === sichtMit.textHash && sichtOhne.html === sichtMit.html && sichtOhne.vertragPdf === sichtMit.vertragPdf && sichtOhne.annahmeBereit === true && sichtMit.annahmeBereit === true,
+    "Kundensicht: textHash, Vertrags-HTML und PDF-Adresse mit und ohne Team gleich — offene Seiten müssen nicht neu laden");
+  ok(sichtOhne.seite.ansprechpartner.team.length === 0 && sichtMit.seite.ansprechpartner.team.length === 7 && sichtMit.seite.ansprechpartner.team[1].foto === `/api/fiaon/global/angebot/${T_ENC}/bild/team-konrad-kontrollmann.webp`
+    && sichtMit.seite.bildnachweis === "Bildnachweis: Teamfotos teils Symbolbilder." && sichtOhne.seite.bildnachweis === "", "Kundensicht: Team mit Fotos hinter dem Link (token-gebunden) und Bildnachweis; ohne Team nichts davon");
+}
+
 // ═══ OPTIONAL: KEINE ECHTEN KUNDENDATEN IM CODE / MAILTEXT ══════════════════
 const privat = arg("--privat");
 if (privat) {
@@ -479,7 +559,17 @@ if (privat) {
   for (const v of [k.vorname, k.nachname, k.strasse, k.plz, k.ort, k.email, k.geburtsdatum, k.geburtsort, ...(Array.isArray(k.ausweise) ? k.ausweise.map((a: any) => a?.nummer) : [])]) {
     const s = String(v ?? "").trim(); if (s.length >= 4) werte.add(s.toLowerCase());
   }
-  const dateien = ["shared/fiaon-global-angebot-kapital-c.ts", "server/lib/fiaon-global-angebot-kapital-c.ts", "client/src/pages/business-angebot-kapital-c.tsx", "client/src/styles/global-angebot-kapital-c.css", "scripts/pruef-kapital-fassung-c.ts", "scripts/angebot-kapital-anlegen.ts", "shared/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-auftrag.ts", "client/src/pages/business-angebot.tsx", "client/src/components/angebot-firma/VertragsLeser.tsx", "scripts/pruef-wortwand-de.ts"];
+  // Das Team (Justin 27.10.2026, abends): Namen und Fotonamen kommen nur aus der privaten Datei. Geprüft wird jeder Namensteil ab vier
+  // Buchstaben (ohne Titel) — außer dem Kürzel eines Porträts des Hauses („haus:<kürzel>“ steht als Kürzel ohnehin im Code).
+  const teamRoh: any[] = Array.isArray(roh?.parameter?.team) ? roh.parameter.team : [];
+  for (const t of teamRoh) {
+    const kuerzel = String(t?.foto ?? "").startsWith("haus:") ? String(t.foto).slice(5).toLowerCase() : "";
+    const name = String(t?.name ?? "").replace(/\b(Dr|Mag|Prof)\.\s*/g, "").replace(/\s+/g, " ").trim();
+    if (name.length >= 4) werte.add(name.toLowerCase());
+    for (const teil of name.split(" ")) if (teil.length >= 4 && teil.toLowerCase() !== kuerzel) werte.add(teil.toLowerCase());
+  }
+  if (teamRoh.length) console.log(`  (dazu ${teamRoh.length} Menschen aus dem Team)`);
+  const dateien = ["shared/fiaon-global-angebot-kapital-c.ts", "server/lib/fiaon-global-angebot-kapital-c.ts", "client/src/pages/business-angebot-kapital-c.tsx", "client/src/styles/global-angebot-kapital-c.css", "scripts/pruef-kapital-fassung-c.ts", "scripts/angebot-kapital-anlegen.ts", "shared/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-auftrag.ts", "client/src/pages/business-angebot.tsx", "client/src/components/angebot-firma/VertragsLeser.tsx", "scripts/pruef-wortwand-de.ts", "client/src/pages/business-angebot-kapital.tsx", "client/src/styles/global-angebot-kapital.css"];
   // Als ganzes Wort (Buchstaben/Ziffern davor und danach zählen nicht): ein kurzer Nachname steckt sonst in „übergeben“ o. Ä.
   const ganzesWort = (w: string) => new RegExp(`(?<![\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "u");
   for (const f of dateien) {

@@ -42,7 +42,7 @@ import { GLOBAL_BUEHNE_WOERTER, GLOBAL_WOERTER, type GlobalBegriff } from "@/i18
 import {
   GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND,
   GLOBAL_NICHT_INKLUSIVE, GLOBAL_VERGLEICH, GLOBAL_KAPITAL_FREI, GLOBAL_BUERGSCHAFT_SEITE, globalPaket, globalPreisText, globalPlanungText,
-  globalKapitalSpanne, globalJahresbetreuungPreisText,
+  globalKapitalSpanne,
 } from "@shared/fiaon-global";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { GLOBAL_VERBUNDEN } from "@shared/fiaon-global-partner";
@@ -54,7 +54,7 @@ import EtappenBuehnen from "@/components/site/global/EtappenBuehnen";
 import SternZentrale from "@/components/site/global/SternZentrale";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
-import HeroAuftrag from "@/components/site/global/HeroAuftrag";
+import HeroAlpen from "@/components/site/global/HeroAlpen";
 import GlobalBogen from "@/components/site/global/GlobalBogen";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
@@ -63,6 +63,7 @@ import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
+import "@/styles/global-apple.css";
 
 function Winkel({ offen }: { offen: boolean }) {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: offen ? "rotate(180deg)" : undefined, transition: "transform .25s" }}><path d="m6 9 6 6 6-6" /></svg>;
@@ -86,17 +87,6 @@ function Sek({ id, className, children }: { id?: string; className: string; chil
   const ref = useRef<HTMLElement>(null);
   useEinmalSichtbar(ref, 0, "0px 0px -25% 0px");
   return <section ref={ref} id={id} className={className} style={id ? { scrollMarginTop: 72 } : undefined}>{children}</section>;
-}
-
-/** Die Linien-Zeichen der Vertrauensleiste: Paragraf, Dokument, Rechnung, Register. */
-function LeistenZeichen({ i }: { i: number }) {
-  const pfade = [
-    "M8.5 4.5c-2-1.6-5-.6-4.4 1.5.6 2.2 6.4 2.6 6.4 5.3 0 1.8-2.5 2.4-3.9 1.4M11.5 15.5c2 1.6 5 .6 4.4-1.5-.6-2.2-6.4-2.6-6.4-5.3 0-1.8 2.5-2.4 3.9-1.4",
-    "M5.5 2.5h6.5l3.5 3.5v11.5h-10zM12 2.5V6h3.5M8 10h5M8 13h5",
-    "M5 2.5h10v15l-2-1.3-1.7 1.3-1.6-1.3L8 17.5l-1.5-1.3L5 17.5zM7.5 7h5M7.5 10h5M7.5 13h3",
-    "M3 7.5 10 3l7 4.5M4 8h12M5.5 9v6M10 9v6M14.5 9v6M3.5 16.5h13",
-  ];
-  return <svg className="fg-leiste-zeichen" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d={pfade[i]} /></svg>;
 }
 
 // ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
@@ -219,7 +209,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
       const h = window.innerHeight;
       const rahmen = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
       const imBild = (r: DOMRect | null) => !!r && r.top < h * 0.85 && r.bottom > h * 0.15;
-      const kopf = rahmen(".fg-hero");
+      // E-442 (27.10.2026): der Hero ist die Alpen-Bühne (.ha, HeroAlpen.tsx).
+      const kopf = rahmen(".ha");
       const pakete = rahmen("#pakete");
       const schluss = rahmen(".fg-schluss");
       const inPaketen = handy() && !!pakete && pakete.top < 0 && pakete.bottom > h * 0.5;
@@ -249,7 +240,6 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() });
   };
   const zuDenPaketen = () => document.getElementById("pakete")?.scrollIntoView({ behavior: glatt() });
-  const zurJahresbetreuung = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("jahresbetreuung")?.scrollIntoView({ behavior: glatt() }); };
   // Antippen der Viererwahl: Die Reihe gleitet selbst — die Höhe folgt erst danach (wischtBis, Safari rastet sonst zurück).
   const paketZeigen = (key: string) => { wischtBis.current = Date.now() + 700; setMobilPaket(key); wischeZu(key, glatt()); };
   const geld = GLOBAL_GELD_ZURUECK.aktiv ? GLOBAL_GELD_ZURUECK[s] : null;
@@ -285,48 +275,21 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <div className="fg fg-neu">
-        {/* ── 1 Hero: Anspruch, Kapitalrahmen und Festpreis links, rechts „Ihr Auftrag“ (Beispielansicht), darunter die Vertrauensleiste ── */}
-        <section className="fg-hero">
-          <div className="fg-rahmen fg-hero-raster">
-            <Auf className="fg-hero-text">
-              <span className="fg-auge">{auge}</span>
-              <h1 className="fg-h1">{t.h1a}<br /><em>{t.h1b}</em></h1>
-              <p className="fg-lead">{mitBegriffen(t.lead, [begriff("ein"), begriff("itin")])}</p>
-              <div className="fg-kopf-zahlen">
-                <div>
-                  <span>{mitBegriffen(t.kapitalKopf, [begriff("kapitalrahmen")])}</span>
-                  <b className="fg-glanz">{globalKapitalSpanne(s)}</b>
-                  <em>{t.kapitalKopfZusatz}</em>
-                  <p className="fg-chip fg-kapital-frei"><Haken groesse={12} /><span>{frei.kurz}<sup>{nrFrei}</sup></span></p>
-                </div>
-                <div>
-                  <span>{t.preisKopf}</span>
-                  <b className="fg-glanz">{t.preisAb} {abPreis}</b>
-                  <em>{t.preisKopfZusatz}</em>
-                  <a className="fg-jahr-zeile" href="#jahresbetreuung" onClick={zurJahresbetreuung}>{t.jahrZeile(globalJahresbetreuungPreisText(s))}</a>
-                </div>
-              </div>
-              <div className="fg-knoepfe fg-hero-knoepfe">
-                <button type="button" className="fg-knopf" onClick={zuDenPaketen}>{t.knopfPakete}<Pfeil /></button>
-                <button type="button" className="fg-knopf hell fg-hero-gespraech" onClick={() => zumGespraech()}>{t.knopfGespraech}</button>
-              </div>
-              <p className="fg-mikro">{t.gespraechMikro}</p>
-              <p className="fg-fussnote"><sup>{nrFrei}</sup> {frei.satz} {frei.steuer}</p>
-            </Auf>
-            {/* 09.10.2026: statt der Gründungsurkunde (Justin: „passt nicht“) die Leistung selbst — schwebendes Glas in Ebenen,
-                „Beispielansicht“ senkrecht daneben. Am Handy unter den Knöpfen (.fg-hero-objekt-rahmen, order 6). */}
-            <div className="fg-hero-objekt-rahmen fg-hero-buehne"><HeroAuftrag w={buehne} en={s === "en"} /></div>
-          </div>
-          <div className="fg-rahmen">
-            <ul className="fg-vertrauensleiste">
-              {t.vertrauensleiste.map((x, i) => (
-                <li key={x}><LeistenZeichen i={i} />
-                  {i === 1 ? <a href={s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag"}>{x}</a> : <span>{x}</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
+        {/* ── 1 Hero: die Alpen-Bühne (E-442, 27.10.2026) — wie der Sperrbildschirm des Chefbüros: Film, EINE große dünne Zahl
+               (der Festpreis) mit ihrem Satz, die Überschrift dünn, zwei Glaspillen, drei Milchglas-Widgets (Kapitalrahmen mit
+               Institut-Satz, Ansprechpartner, Vertrag). Der frühere Hero „Ihr Auftrag“ (09.10.) und die Vertrauensleiste gehen
+               darin auf; die Sätze bleiben dieselben (i18n/global.ts). ── */}
+        <HeroAlpen en={s === "en"} onPakete={zuDenPaketen} onGespraech={() => zumGespraech()} t={{
+          auge, ab: t.preisAb, preis: abPreis,
+          label: `${t.preisKopf} · ${t.preisKopfZusatz.replace(/\.$/, "")}`,
+          h1a: t.h1a, h1b: t.h1b,
+          knopfPakete: t.knopfPakete, knopfGespraech: t.knopfGespraech, mikro: t.gespraechMikro,
+          kapitalTitel: t.kapitalKopf, kapitalWert: globalKapitalSpanne(s), kapitalSatz: t.kapitalKopfZusatz,
+          kapitalFrei: frei.kurz, fussnoteNr: nrFrei, fussnote: `${frei.satz} ${frei.steuer}`,
+          personTitel: buehne.person,
+          vertrag: t.vertrauensleiste, mustervertragHref: s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag",
+          weiter: t.knopfPakete,
+        }} />
 
         {/* ── 1b Der Vorführraum (E-313): die Filme im iPhone, das Kino mit Ton, das Konzept als PDF-Mappe ── */}
         <GlobalVorfuehrraum />

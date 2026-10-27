@@ -25,6 +25,7 @@ import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
+import "@/styles/global-apple.css";
 
 function Kopf({ auge, h1, h1b, lead }: { auge: string; h1: string; h1b?: string; lead: string }) {
   return (

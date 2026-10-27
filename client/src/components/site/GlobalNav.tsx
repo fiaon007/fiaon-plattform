@@ -26,6 +26,7 @@ import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiao
 import { globalSchwester } from "@shared/fiaon-global-pfade";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
+import "@/styles/global-rahmen-apple.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Promo = Record<MenueGruppe, { titel: string; text: string; href: string; knopf: string }>;

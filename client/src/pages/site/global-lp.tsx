@@ -25,6 +25,7 @@ import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-rahmen.css";
+import "@/styles/global-apple.css";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 export default function GlobalLandingPage() {

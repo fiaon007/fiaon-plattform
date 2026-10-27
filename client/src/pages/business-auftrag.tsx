@@ -37,6 +37,7 @@ import GlobalKontoLeiste, { zurGlobalAnmeldung } from "@/components/site/GlobalK
 import { GLOBAL_KONTO_WOERTER } from "@/i18n/global-konto";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
+import "@/styles/global-apple.css";
 // E-338: das neue Portal — nur, wenn der Server `portalNeu` meldet (für diesen Kunden freigeschaltet oder Vorschau der Leitung).
 const GlobalPortal = lazy(() => import("./global-portal"));
 

@@ -21,6 +21,7 @@ import { GlobalMarke } from "@/components/site/GlobalNav";
 import GlobalOrte from "@/components/site/global/GlobalOrte";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-grafik.css";
+import "@/styles/global-rahmen-apple.css";
 
 // 19.09.2026 (E-192): Ein Paket heißt „Global Banking" — „Bank" in einer Bezeichnung ist nach § 39 KWG Kreditinstituten
 // vorbehalten, außer der Zusammenhang schließt den Anschein von Bankgeschäften aus (§ 41 KWG). Der Satz KEINE_BANK

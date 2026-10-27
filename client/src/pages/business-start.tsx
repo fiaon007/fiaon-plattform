@@ -54,6 +54,7 @@ import { GLOBAL_START_WOERTER } from "@/i18n/global-start";
 import { GLOBAL_PAKETE, GLOBAL_INKLUSIVE, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, globalPaket, globalPreisText, globalPlanungText, istFiaonSelbst } from "@shared/fiaon-global";
 import { kampagne, messungsDaten, werbeKonversion } from "@/lib/werbung";
 import "@/styles/global-start.css";
+import "@/styles/global-apple.css";
 
 type Land = "DE" | "AT" | "CH";
 type Auftraggeber = "unternehmen" | "privat";

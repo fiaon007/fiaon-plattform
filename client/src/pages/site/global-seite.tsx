@@ -56,6 +56,7 @@ import { werbeEreignis } from "@/lib/werbung";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-grafik.css";
+import "@/styles/global-apple.css";
 
 const ROEMISCH = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
 

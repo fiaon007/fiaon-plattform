@@ -300,6 +300,10 @@ abschnitt("6 Wortwand (Hausregeln + E-188, Nachprüfung 27.10.)");
     for (const satz of saetze(text)) {
       for (const f of W.globalWortPruefen(satz, ["aufgabe_an_betreuer"])) {
         if (/garant/i.test(f.treffer) && garantieGebunden(satz)) continue;
+        // Justin 27.10.2026 (E-432): Die Konditionen der Finanzierung stehen im Vertrag als Ziel der Begleitung (Ziffer 4 — das
+        // Institut entscheidet, die Raten sind ein Rechenbeispiel). Einzelvertrag, keine Werbung: Nur DIESE Sätze sind von der
+        // Zins-Regel (E-439, verbotene Aussage 1) ausgenommen; für alle anderen Global-Texte bleibt sie scharf.
+        if (wo === "vertrag" && /verbotene Aussage 1/.test(f.hinweis) && /zinsfrei/.test(satz) && /siebzehnten Monat/.test(satz)) continue;
         treffer++; console.log(`  WAND  ${wo}: „${satz.slice(0, 110)}“ → ${f.hinweis}`);
       }
     }

@@ -54,7 +54,7 @@ import EtappenBuehnen from "@/components/site/global/EtappenBuehnen";
 import SternZentrale from "@/components/site/global/SternZentrale";
 import GlobalBeleg from "@/components/site/global/GlobalBeleg";
 import GlobalBuergschaft from "@/components/site/global/GlobalBuergschaft";
-import HeroAlpen from "@/components/site/global/HeroAlpen";
+import HeroGlas from "@/components/site/global/HeroGlas";
 import GlobalBogen from "@/components/site/global/GlobalBogen";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
@@ -209,8 +209,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
       const h = window.innerHeight;
       const rahmen = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
       const imBild = (r: DOMRect | null) => !!r && r.top < h * 0.85 && r.bottom > h * 0.15;
-      // E-442 (27.10.2026): der Hero ist die Alpen-Bühne (.ha, HeroAlpen.tsx).
-      const kopf = rahmen(".ha");
+      // E-442 (27.10.2026): der Hero ist die Glas-Bühne (.hg, HeroGlas.tsx).
+      const kopf = rahmen(".hg");
       const pakete = rahmen("#pakete");
       const schluss = rahmen(".fg-schluss");
       const inPaketen = handy() && !!pakete && pakete.top < 0 && pakete.bottom > h * 0.5;
@@ -275,11 +275,11 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   return (
     <Dunkel seite="business" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
       <div className="fg fg-neu">
-        {/* ── 1 Hero: die Alpen-Bühne (E-442, 27.10.2026) — wie der Sperrbildschirm des Chefbüros: Film, EINE große dünne Zahl
-               (der Festpreis) mit ihrem Satz, die Überschrift dünn, zwei Glaspillen, drei Milchglas-Widgets (Kapitalrahmen mit
-               Institut-Satz, Ansprechpartner, Vertrag). Der frühere Hero „Ihr Auftrag“ (09.10.) und die Vertrauensleiste gehen
-               darin auf; die Sätze bleiben dieselben (i18n/global.ts). ── */}
-        <HeroAlpen en={s === "en"} onPakete={zuDenPaketen} onGespraech={() => zumGespraech()} t={{
+        {/* ── 1 Hero: die Glas-Bühne (E-442, 27.10.2026) — wie die Zahlen im Chefbüro, aber clean (Justin: kein Berg-Hintergrund):
+               EINE große dünne Zahl (der Festpreis) mit ihrem Satz, die Überschrift dünn, zwei Pillen, drei Milchglas-Widgets
+               (Kapitalrahmen mit Institut-Satz, Ansprechpartner, Vertrag). Der frühere Hero „Ihr Auftrag“ (09.10.) und die
+               Vertrauensleiste gehen darin auf; die Sätze bleiben dieselben (i18n/global.ts). ── */}
+        <HeroGlas en={s === "en"} onPakete={zuDenPaketen} onGespraech={() => zumGespraech()} t={{
           auge, ab: t.preisAb, preis: abPreis,
           label: `${t.preisKopf} · ${t.preisKopfZusatz.replace(/\.$/, "")}`,
           h1a: t.h1a, h1b: t.h1b,

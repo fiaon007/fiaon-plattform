@@ -5,8 +5,6 @@
 
    Der Kopf ist keine Leiste mehr, sondern eine schwebende Glaspille (wie das Menü
    im Chefbüro und die Leiste des Global-Portals): 12 px vom Rand, rund, Milchglas.
-   Über der Alpen-Bühne (html.fg-film, gesetzt von HeroAlpen.tsx) ist das Glas
-   dunkel und die Schrift weiß; sobald die Bühne aus dem Bild ist, wird es hell.
    Nichts klebt über dem Inhalt: die Pille lässt den Grund durchscheinen.
    ═══════════════════════════════════════════════════════════════════════════ */
 html .gk.gk, html .gf.gf, html .gk-mobil.gk-mobil {
@@ -48,29 +46,6 @@ html .gk.gk .gk-burger { border-radius: 50%; }
 html .gk.gk .gk-burger:hover { background: var(--gk-stein); }
 /* Im Paketabschnitt am Telefon fährt der Kopf ein (business.tsx) — die Pille ganz hinaus, nicht nur um ihre Höhe. */
 html.fg-kopf-weg .gk.gk { transform: translateY(calc(-100% - 16px)); }
-
-/* ── Über der Alpen-Bühne: dunkles Glas, weiße Schrift ─────────────────── */
-html.fg-film .gk.gk .gk-leiste {
-  background: linear-gradient(160deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .06)), rgba(8, 18, 40, .22);
-  border-color: rgba(255, 255, 255, .24);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 18px 44px -28px rgba(0, 0, 0, .6);
-}
-html.fg-film .gk.gk .gk-marke { color: #fff; }
-html.fg-film .gk.gk .gk-thema { color: rgba(255, 255, 255, .86); }
-html.fg-film .gk.gk .gk-thema:hover, html.fg-film .gk.gk .gk-thema[aria-expanded="true"] { background: rgba(255, 255, 255, .14); color: #fff; }
-html.fg-film .gk.gk .gk-thema[data-an] { color: #fff; }
-html.fg-film .gk.gk .gk-winkel { color: rgba(255, 255, 255, .6); }
-html.fg-film .gk.gk .gk-leise { color: rgba(255, 255, 255, .8); }
-html.fg-film .gk.gk .gk-leise:hover { color: #fff; }
-html.fg-film .gk.gk .gk-knopf { background: rgba(255, 255, 255, .92); color: #0b1c36; box-shadow: inset 0 1px 0 #fff, 0 16px 34px -18px rgba(0, 0, 0, .55); }
-html.fg-film .gk.gk .gk-knopf:hover { background: #fff; }
-html.fg-film .gk.gk .gk-knopf.hell { background: rgba(255, 255, 255, .14); color: #fff; border-color: rgba(255, 255, 255, .3); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32); }
-html.fg-film .gk.gk .gk-knopf.hell:hover { background: rgba(255, 255, 255, .24); }
-html.fg-film .gk.gk .gk-sprache { color: rgba(255, 255, 255, .6); }
-html.fg-film .gk.gk .gk-sprache span[data-an] { color: #fff; }
-html.fg-film .gk.gk .gk-burger span { background: #fff; }
-html.fg-film .gk.gk .gk-burger:hover { background: rgba(255, 255, 255, .14); }
-html.fg-film .gk.gk .gk-thema:focus-visible, html.fg-film .gk.gk .gk-knopf:focus-visible, html.fg-film .gk.gk .gk-burger:focus-visible { outline-color: #fff; }
 
 /* ── Das Panel am Rechner: Milchglas unter der Pille ────────────────────── */
 html .gk.gk .gk-panel {
@@ -133,7 +108,6 @@ html .gf.gf .gf-unten, html .gf.gf .gf-recht a, html .gf.gf .gf-recht button { f
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   html .gk.gk .gk-leiste { background: rgba(255, 255, 255, .94); }
-  html.fg-film .gk.gk .gk-leiste { background: rgba(8, 18, 40, .72); }
   html .gk.gk .gk-panel { background: rgba(255, 255, 255, .97); }
   html .gk-mobil.gk-mobil { background: #f0f6ff; }
 }

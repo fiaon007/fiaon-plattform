@@ -599,6 +599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // und ist über Marken und Aufgaben-Schlüssel wiederholbar (Begründung an globalTageslauf).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000 });
+    // 22.10.2026 (erster Begleitvertrag): geprüfter Name eines Begleitvertrags aus der Gründungsrechnung in die Akte — ohne Mail, also ohne Sendefenster.
+    tageslauf('global_begleit_name', async () => await (await import('./lib/fiaon-global-akte-komplett')).begleitNamenAbgleich(), 30 * 60 * 1000, { beimStartNach: 150_000 });
   });
   // 🌐 FIAON Global — der ruhige Zahlungstakt für Firmenaufträge (E-188): am 3. und 7. Tag eine Mail, am
   //    10. Tag eine dringende Aufgabe „anrufen". Halbstündlich; der Lauf hält sich selbst ans Sendefenster.
@@ -1167,6 +1169,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🌐 Chefbüro › Global (E-338): der Arbeitsraum für die Firmenkunden — Mandate, Tresor, Post, Anfragen, Kapital.
   const chefGlobal = await import('./routes/fiaon-chef-global');
   app.use('/api/fiaon', chefGlobal.default);
+  // ✍️ 22.10.2026: Dokumente & Unterschriften je Global-Mandat (Formulare erzeugen, FIAON unterschreibt, bereitstellen, prüfen)
+  //    — Chefbüro und Office über dieselben Funktionen (server/lib/fiaon-global-unterschrift.ts).
+  const globalUnterschrift = await import('./routes/fiaon-global-unterschrift');
+  app.use('/api/fiaon', globalUnterschrift.default);
   // 🤝 E-425 (22.10.2026): Geschäftspartner-CRM im Reiter „Geschäftspartner“ (Global-Aufträge) — Partner, Kontakte,
   //    Verlauf, Dokumente, Aufgaben, „Aus E-Mail übernehmen“ (KI, nie ohne Bestätigung), Adressvorschläge. requireChef("leitung").
   const partnerCrm = await import('./routes/fiaon-partner-crm');

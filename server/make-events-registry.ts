@@ -928,6 +928,16 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    type: "global_unterschrift_code",
+    label: "FIAON Global: Code zum digitalen Unterschreiben (Firmenkunde)",
+    description: "Der sechsstellige Code, wenn der Kunde im Portal ein Dokument digital unterschreibt (Ergänzung, Statement of Organizer, Operating Agreement). An das angemeldete Konto bzw. die Adresse des Mandats; bei weiteren Mitgliedern an deren Adresse. Zehn Minuten gültig, kein Code im Betreff.",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", sprache: "de", anrede_zeile: "Guten Tag Herr Muster", kunde: "Muster GmbH",
+      login_code: "482913", dokument_titel: "Operating Agreement",
+    },
+  },
+  {
     type: "global_passwort_neu",
     label: "FIAON Global: neues Passwort festlegen (Firmenkunde)",
     description: "„Passwort vergessen“ auf /business/login: Link zum Festlegen eines neuen Passworts (60 Minuten, einmal). Die Seite antwortet für jede Adresse gleich; die Mail geht nur an eine Adresse mit Zugang.",

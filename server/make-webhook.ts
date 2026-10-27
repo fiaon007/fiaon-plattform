@@ -122,6 +122,7 @@ export type MakeEventType =
   | "global_zugang_einladung" // „Zugang einrichten“ — nach der Annahme oder von Hand (Link 7 Tage, einmal)
   | "global_login_code"       // der sechsstellige Code bei Anmeldung, Einrichtung und neuem Passwort (10 Minuten)
   | "global_passwort_neu"     // „Passwort vergessen“ — Link 60 Minuten, einmal
+  | "global_unterschrift_code" // 22.10.2026: Code zum digitalen Unterschreiben im Portal (10 Minuten)
   | "global_zahlung_erinnerung" // ruhige Erinnerung am 3. und 7. Tag nach dem Auftrag (server/lib/fiaon-global-zahlungstakt.ts)
   // ── Die Bonitätsauskunft (E-240, 24.09.2026): seit heute automatisch aus dem
   //    Liefer-Weg (server/lib/fiaon-auskunft-lieferung.ts), die Namen bleiben.

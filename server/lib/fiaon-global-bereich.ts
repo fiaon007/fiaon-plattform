@@ -61,6 +61,7 @@ import { globalPaket } from "@shared/fiaon-global";
 import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { KAPITAL_MARKE, KAPITAL_ETAPPEN } from "@shared/fiaon-global-angebot-kapital";
+import { BEGLEIT_PORTAL } from "@shared/fiaon-global-angebot-begleit";
 import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
   globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
@@ -254,6 +255,22 @@ async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: stri
   };
 }
 
+/**
+ * 22.10.2026 (erster Begleitvertrag): Ein Begleitvertrag ohne eingetragene zuständige Person (Akte vor E-428 angelegt) nennt im Portal den
+ * ersten Ansprechpartner seines Angebots — dieselben Menschen, Adressen und Nummern, die der Kunde auf seiner Angebotsseite sah.
+ * Nur lesen; die Zuständigkeit selbst setzt weiter das Chefbüro (dort mit Aufgabe und Mail).
+ */
+async function angebotsAnsprechpartner(ref: string): Promise<{ name: string; vorname: string; email: string; telefon: string } | undefined> {
+  const [o] = (await sqlPool`
+    SELECT o.parameter->'ansprechpartner' AS ap FROM fiaon_global_auftraege a JOIN fiaon_global_angebote o ON o.id = a.angebot_id
+     WHERE a.ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  const kuerzel = Array.isArray(o?.ap) ? String(o.ap[0] ?? "") : "";
+  if (!kuerzel) return undefined;
+  const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
+  const p = ANGEBOT_ANSPRECHPARTNER.find((x) => x.kuerzel === kuerzel);
+  return p ? { name: p.name, vorname: p.name.split(" ")[0], email: p.email, telefon: p.telefon } : undefined;
+}
+
 // ── Lesen: Dokumente, Fristen, Verlauf ───────────────────────────────────────
 async function dokumenteLesen(ref: string): Promise<any[]> {
   return (await sqlPool`
@@ -297,21 +314,28 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
   const gp = globalPaket(akte.paket_key);
   // E-407: Ein Kapital-Angebot (Akte bestaetigungen.kapitalangebot) heißt beim Kunden so wie auf seiner Seite — nicht „Individualangebot“ —,
   // und „Ihr Weg“ erzählt seinen Vertrag (KAPITAL_ETAPPEN), nicht Kartenleiter und Kreditrahmen des Individualangebots.
-  const kapital = json<Record<string, unknown>>(akte.bestaetigungen, {}).kapitalangebot === true;
-  const paketName = kapital ? KAPITAL_MARKE
+  const best = json<Record<string, unknown>>(akte.bestaetigungen, {});
+  const kapital = best.kapitalangebot === true;
+  // 22.10.2026 (erster Begleitvertrag): Ein Begleitvertrag hängt ebenfalls am Paket des Individualangebots. Er heißt beim Kunden
+  // „Begleitvertrag“, und „Ihr Weg“ erzählt SEINE Etappen (BEGLEIT_PORTAL) — nicht Garantie, Kartenleiter und Bankdarlehen.
+  const begleit = best.begleitvertrag === true;
+  const paketName = kapital ? KAPITAL_MARKE : begleit ? BEGLEIT_PORTAL.name[sprache === "en" ? "en" : "de"]
     : sprache === "en" && gp ? `FIAON ${gp.en.name}` : (kat?.label ?? String(b.pack_name || akte.paket_key));
   const firma = json<Record<string, any>>(akte.firma, {});
-  const [dokumente, fristen, geschrieben, ansprechpartner] = await Promise.all([
+  const [dokumente, fristen, geschrieben, zustaendig] = await Promise.all([
     dokumenteLesen(ref), fristenLesen(ref), verlaufLesen(ref),
     ansprechpartnerFuer(akte.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null),
   ]);
+  const ansprechpartner = zustaendig ?? (begleit ? await angebotsAnsprechpartner(ref) : undefined);
   const bis = globalPaketEtappeBis(akte.paket_key);
   // Individualangebot (01.10.2026), Nachtrag (h): Etappe 1 und die Unterlagenliste verlangen dort nur den Reisepass.
   const individuell = istAngebotsPaket(akte.paket_key);
   const etappen = GLOBAL_ETAPPEN.map((e) => {
     const seit = e.nr === 0 ? iso(akte.unterschrieben_am ?? akte.created_at) : (l.etappenSeit[String(e.nr)] ? iso(l.etappenSeit[String(e.nr)]) : null);
     const stand = globalEtappeStand(e.nr, l.etappe);
-    const text = kapital && (e.nr === 1 || e.nr === 2 || e.nr === 3 || e.nr === 4) ? KAPITAL_ETAPPEN[e.nr] : globalEtappeText(e.nr, sprache, individuell);
+    const text = kapital && (e.nr === 1 || e.nr === 2 || e.nr === 3 || e.nr === 4) ? KAPITAL_ETAPPEN[e.nr]
+      : begleit && sprache !== "en" && (e.nr === 1 || e.nr === 2 || e.nr === 3 || e.nr === 4) ? BEGLEIT_PORTAL.etappen[e.nr]
+      : globalEtappeText(e.nr, sprache, individuell);
     return { nr: e.nr, ...text, stand, ...(seit && stand !== "offen" ? { seit } : {}), imPaket: e.nr <= bis || e.nr === GLOBAL_ETAPPE_MAX };
   });
   const g = l.gesellschaft;

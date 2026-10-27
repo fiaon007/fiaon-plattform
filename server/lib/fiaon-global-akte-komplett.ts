@@ -165,7 +165,11 @@ export async function globalPflichtSicht(ref: string, fuer: Fuer): Promise<Recor
     SELECT id, pflicht_key, titel, dateiname, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, unterschrift_von_id, unterschrift_art
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL AND (pflicht_key IS NOT NULL OR unterschrift_gefordert)`) as any[];
   const modusVon = new Map(doks.map((d) => [Number(d.id), unterschriftModus(d.pflicht_key, d.unterschrift_art)]));
-  const liste = globalPflichtFuer(m.fassung, { gegruendet: m.gegruendet, bereit: doks.map((d) => String(d.pflicht_key ?? "")).filter(Boolean) });
+  // 22.10.2026: die Ergänzung „Befugnisse von FIAON“ nur für ältere Vertragsfassungen; das 8821 im Mandat abschaltbar.
+  const U = await import("./fiaon-global-unterschrift");
+  const [fa] = (await sqlPool`SELECT formular_angaben FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  const aus = fa?.formular_angaben?.irs8821?.aktiv === false ? ["irs_8821"] : [];
+  const liste = globalPflichtFuer(m.fassung, { gegruendet: m.gegruendet, bereit: doks.map((d) => String(d.pflicht_key ?? "")).filter(Boolean), ergaenzung: await U.ergaenzungFuer(ref).catch(() => false), aus });
   const stand = globalPflichtStand(liste, doks
     .filter((d) => fuer === "team" || d.sichtbar_fuer_kunde)
     .map((d) => ({
@@ -234,7 +238,7 @@ async function eintraegeSammeln(ref: string, fuer: Fuer): Promise<Eintrag[]> {
   }
   // Tresor (Kunde: was er sieht; Team: alles), Vollmachten in eigenem Ordner
   const doks = (await sqlPool`
-    SELECT id, art, titel, dateiname, sichtbar_fuer_kunde, von, pflicht_key, unterschrift_gefordert, unterschrift_von_id, unterschrieben_am FROM fiaon_global_dokumente
+    SELECT id, art, titel, dateiname, sichtbar_fuer_kunde, von, pflicht_key, unterschrift_gefordert, unterschrift_von_id, unterschrieben_am, unterschrift_nachweis FROM fiaon_global_dokumente
      WHERE ref = ${ref} AND geloescht_am IS NULL ORDER BY created_at ASC, id ASC`) as any[];
   const { globalDokumentLesen } = await import("./fiaon-global-bereich");
   for (const d of doks) {
@@ -244,6 +248,13 @@ async function eintraegeSammeln(ref: string, fuer: Fuer): Promise<Eintrag[]> {
       ordner: vollmacht ? AKTE_ORDNER.vollmachten : AKTE_ORDNER.tresor, name: String(d.dateiname), titel: String(d.titel || d.dateiname),
       laden: async () => (await globalDokumentLesen(ref, d.id, fuer === "kunde" ? "kunde" : "office"))?.inhalt ?? null,
     });
+    // 22.10.2026: zu jeder digital unterschriebenen Endfassung der Nachweis als Datei (das Zertifikat steht zusätzlich als
+    // letzte Seite im PDF) — für das Team: Prüfsummen, Code-Zeitpunkte, IP, Gerät, Zustimmungsfassung.
+    const akte = d.unterschrift_nachweis && typeof d.unterschrift_nachweis === "object" ? d.unterschrift_nachweis : null;
+    if (fuer === "team" && d.unterschrift_von_id != null && akte?.art === "digital" && Number(akte.endfassungId) === Number(d.id)) {
+      liste.push({ ordner: AKTE_ORDNER.vollmachten, name: `Nachweis_${String(akte.docId || d.id)}.json`, titel: `Nachweis der Unterschrift ${String(akte.docId || "")}`,
+        laden: async () => Buffer.from(JSON.stringify(akte, null, 2), "utf8") });
+    }
   }
   // Nachweise aus dem Angebot
   const { unterlagenFuerAuftrag, unterlageDateiFuerAuftrag } = await import("./fiaon-global-angebot-unterlagen");
@@ -351,22 +362,67 @@ export async function globalBegleitAkteAnlegen(angebotId: number, agent: { id: n
     sofortBeginn: sch.sofortBeginn === true, jahresbetreuungGewaehlt: sch.jahresbetreuung === true, aktePerKnopf: { von: agent.name, am: new Date().toISOString() } };
   // Status „gestartet“: Der Begleitvertrag läuft (Justin führt den Kunden persönlich) — keine Zahlungserinnerung des
   // Global-Wegs an einer Einzelrechnung, keine Startmail. Jahresbetreuung bleibt aus (ihre Rechnung stellt die Leitung von Hand).
+  // Zuständig: wer die Akte anlegt (beim Begleitvertrag führt die Leitung den Kunden persönlich); sonst die Vorgabe „Neue an …“.
+  const { globalEinstellungen } = await import("./fiaon-global-auftrag");
+  const zustaendigVorgabe = agent.id ? agent.id : (await globalEinstellungen().catch(() => null))?.zustaendigAgentId ?? null;
   await sqlPool`
     INSERT INTO fiaon_global_auftraege
       (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_pdf, vertrag_version, vertrag_sprache, unterschrieben_am, ip, user_agent,
-       quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, angebot_id, person_id, gesellschaft)
+       quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, angebot_id, person_id, gesellschaft, zustaendig_agent_id, gestartet_am)
     VALUES
       (${anker}, ${ANGEBOT_PAKET_KEY}, ${daten.land}, ${sqlPool.json(daten.firma as any)}, ${sqlPool.json(daten.ansprechpartner as any)}, ${sqlPool.json(bestaetigungen as any)},
        ${a.vertrag_pdf ?? null}, ${String(a.fassung)}, 'de', ${a.angenommen_am ?? null}, ${a.ip ?? null}, ${a.user_agent ?? null},
        'individualangebot', 'gestartet', ${a.text_hash ?? null}, ${daten.name || null}, ${daten.email || null}, 'none', ${angebotId}, ${personId},
-       ${daten.gesellschaft ? sqlPool.json(daten.gesellschaft as any) : null})
+       ${daten.gesellschaft ? sqlPool.json(daten.gesellschaft as any) : null}, ${zustaendigVorgabe}, NOW())
     ON CONFLICT (ref) DO NOTHING`;
   const [neu] = (await sqlPool`SELECT ref, angebot_id FROM fiaon_global_auftraege WHERE ref = ${anker} LIMIT 1`) as any[];
   if (!neu || Number(neu.angebot_id) !== angebotId) return nein(409, "Die Akte ließ sich nicht anlegen — die Rechnung wurde gerade anders vergeben. Bitte neu laden.");
   const { verlaufSchreiben } = await import("./fiaon-global-bereich");
   await verlaufSchreiben(anker, { art: "akte", text: `Global-Akte zum Begleitvertrag ${a.angebot_ref} angelegt (${agent.name}); Anker: Rechnung ${anker}.`, sichtbar: false, agentId: agent.id || null });
   console.log(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Akte ${anker} angelegt (${agent.name})`);
+  // Der geprüfte Name aus der Gründungsrechnung gleich mitnehmen (sonst erst mit dem nächsten Lauf).
+  await begleitNamenAbgleich().catch((e) => console.error(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Namensabgleich:`, e));
   return { ok: true, ref: anker, schon: false, meldung: `Global-Akte ${anker} angelegt. Das neue Portal schaltet der Inhaber im Mandat frei.` };
+}
+
+// ── 5b DER GEPRÜFTE NAME EINES BEGLEITVERTRAGS (22.10.2026, erster Begleitvertrag) ─────
+// Die Akte trägt bei der Anlage den Wunschnamen aus der Annahme mit dem Vermerk „vorgemerkt“ (geprueft: false, E-399). Geprüft
+// wird er im Register, bevor die Leitung die Gründungsrechnung stellt — deren Titel trägt dann den geprüften Namen (beim
+// vergebenen Wunschnamen den Ausweichnamen, Ziffer 3). Dieser Abgleich übernimmt ihn: Name in die Akte, Vermerk weg, Station
+// „Name geprüft“ erledigt (Tag der ersten solchen Rechnung) — über den Weg des Stationen-Editors, mit Verlauf. Keine Mail.
+// Nur Akten mit dem Vermerk und ohne erledigte Station; einmal geprüft, fasst der Lauf die Akte nie wieder an.
+export async function begleitNamenAbgleich(): Promise<{ geprueft: number; gesetzt: string[]; fehler: number }> {
+  const erg = { geprueft: 0, gesetzt: [] as string[], fehler: 0 };
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_auftraege') AS a, to_regclass('public.fiaon_global_schritte') AS s`) as any[];
+  if (!t?.a || !t?.s) return erg;
+  const { BEGLEIT_NAMENS_RECHNUNGEN, begleitLlcAusRechnung } = await import("./fiaon-global-angebot-begleit");
+  const akten = (await sqlPool`
+    SELECT a.ref, a.person_id, a.gesellschaft->>'name' AS name
+      FROM fiaon_global_auftraege a
+     WHERE (a.bestaetigungen->>'begleitvertrag') = 'true' AND a.status <> 'storniert'
+       AND a.gesellschaft->>'geprueft' = 'false' AND a.person_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM fiaon_global_schritte s WHERE s.ref = a.ref AND s.schluessel = 'name' AND s.status IN ('erledigt', 'entfaellt'))`) as any[];
+  for (const a of akten) {
+    erg.geprueft++;
+    const rechnungen = (await sqlPool`
+      SELECT pack_name, created_at FROM fiaon_applications
+       WHERE person_id = ${Number(a.person_id)} AND pack_key = ANY(${[...BEGLEIT_NAMENS_RECHNUNGEN]}) AND merged_into IS NULL AND invoice_number IS NOT NULL
+       ORDER BY created_at ASC`) as any[];
+    const mitName = rechnungen.map((r) => ({ name: begleitLlcAusRechnung(r.pack_name), am: r.created_at })).filter((r) => r.name);
+    if (!mitName.length) continue;
+    // Der jüngste Titel gilt (wurde der Name nach einer Rechnung noch gewechselt, trägt ihn die neuere); das Datum der Prüfung ist die erste.
+    const name = mitName[mitName.length - 1].name!;
+    const { berlinDatum } = await import("./fiaon-time");
+    const datum = berlinDatum(new Date(mitName[0].am));
+    const { globalStationSpeichern } = await import("./fiaon-global-mandat");
+    const r = await globalStationSpeichern(String(a.ref), {
+      schluessel: "name", status: "erledigt", datum,
+      ...(name !== String(a.name ?? "") ? { werte: { name } } : {}),
+    }, { id: 0, name: "Abgleich Gründungsrechnung" }).catch((e) => ({ ok: false as const, status: 500, error: String(e?.message ?? e) }));
+    if (r.ok) { erg.gesetzt.push(`${a.ref}: ${name}`); console.log(`[GLOBAL-AKTE] ${a.ref}: geprüfter Name aus der Gründungsrechnung — ${name} (${datum})`); }
+    else { erg.fehler++; console.error(`[GLOBAL-AKTE] ${a.ref}: Namensabgleich gescheitert — ${r.error}`); }
+  }
+  return erg;
 }
 
 // ── 6 VON HAND UNTERSCHRIEBEN: DER SCAN ALS PDF (22.10.2026) ─────────────────

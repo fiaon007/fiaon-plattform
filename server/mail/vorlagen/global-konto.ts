@@ -10,6 +10,7 @@
 //   global_login_code        der sechsstellige Code — bei jeder Anmeldung, beim Einrichten und nach
 //                            einem neuen Passwort. Zehn Minuten gültig.
 //   global_passwort_neu      „Passwort vergessen“ — Link 60 Minuten, einmal.
+//   global_unterschrift_code der Code zum digitalen Unterschreiben im Portal (22.10.2026), zehn Minuten.
 //
 // ── TRANSAKTIONAL ─────────────────────────────────────────────────────────
 // Diese drei gehen IMMER raus: auch an die Kundin eines Firmenangebots (Automatik-Wand
@@ -27,6 +28,7 @@
 //   global_zugang_einladung: einrichten_url, email_anzeige, gueltig_text
 //   global_login_code:       login_code, code_anlass
 //   global_passwort_neu:     passwort_url
+//   global_unterschrift_code: login_code, dokument_titel
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
@@ -94,6 +96,38 @@ const PAARE: Record<string, Record<"de" | "en", MailBaustein>> = {
         "{{params.anrede_zeile}}, here is your code {{params.code_anlass}}. Enter it on the page you are currently on.",
         "The code is valid for ten minutes and only for this one sign-in. Please do not pass it on to anyone — not on the phone either. FIAON never asks for this code.",
         "You have not just signed in? Then someone knows your password. Please set a new one via “Forgotten password”.",
+      ],
+      daten: [
+        { label: "Your code", wert: "<b style=\"font-size:26px;letter-spacing:6px\">{{params.login_code}}</b>" },
+      ],
+    },
+  },
+
+  // 22.10.2026: der Code zum digitalen Unterschreiben im Portal (shared/fiaon-global-unterschrift.ts).
+  global_unterschrift_code: {
+    de: {
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      betreff: "Ihr Code zum Unterschreiben bei FIAON Global",
+      preheader: "Geben Sie den Code im Portal ein, um das Dokument zu unterschreiben. Er gilt zehn Minuten.",
+      titel: "Ihr Code zum Unterschreiben",
+      absaetze: [
+        "{{params.anrede_zeile}}, Sie unterschreiben gerade im Portal: <b>{{params.dokument_titel}}</b>. Mit diesem Code bestätigen Sie Ihre Unterschrift.",
+        "Der Code gilt zehn Minuten und nur für dieses eine Dokument. Bitte geben Sie ihn niemandem weiter — auch nicht am Telefon. FIAON fragt nie nach diesem Code.",
+        "Sie unterschreiben gerade nichts? Dann ist nichts zu tun — ohne den Code entsteht keine Unterschrift.",
+      ],
+      daten: [
+        { label: "Ihr Code", wert: "<b style=\"font-size:26px;letter-spacing:6px\">{{params.login_code}}</b>" },
+      ],
+    },
+    en: {
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      betreff: "Your code to sign with FIAON Global",
+      preheader: "Enter the code in the portal to sign the document. It is valid for ten minutes.",
+      titel: "Your code to sign",
+      absaetze: [
+        "{{params.anrede_zeile}}, you are signing in the portal: <b>{{params.dokument_titel}}</b>. This code confirms your signature.",
+        "The code is valid for ten minutes and only for this one document. Please do not pass it on to anyone — not on the phone either. FIAON never asks for this code.",
+        "You are not signing anything right now? Then there is nothing to do — without the code no signature is made.",
       ],
       daten: [
         { label: "Your code", wert: "<b style=\"font-size:26px;letter-spacing:6px\">{{params.login_code}}</b>" },

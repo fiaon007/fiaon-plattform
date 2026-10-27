@@ -5,6 +5,83 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 23.10.2026 — FIAON Global: Oberfläche für Dokumente & Unterschriften (Portal, Chefbüro, Office)
+- **Kunde (Portal):** Unter „Für Sie zu tun“ erscheinen die Dokumente in sinnvoller Reihenfolge (Ergänzung, Statement,
+  Operating Agreement, IRS-Formulare). „Jetzt unterschreiben“ öffnet ein ruhiges Fenster (am Handy als Blatt von unten):
+  Lesen → Zustimmen (Hinweis aufklappbar) → Name (vorbelegt, „/s/ Name“-Vorschau) → Code aus der E-Mail → „Unterschrieben“.
+  `client/src/pages/global-portal-unterschrift.tsx`. Von Hand (SS-4/8821) bleibt der Vier-Schritte-Weg mit Scan.
+- **Team:** Chefbüro › Global › Mandat › Reiter **„Dokumente & Unterschriften“** und Office › Global-Akte › Reiter
+  **„Unterschriften“** (ein Bauteil: `client/src/components/global/GlobalFormulare.tsx`): je Dokument Stand, rote Liste
+  „Es fehlt noch“, Vorschau, „Formular erzeugen“, „FIAON unterschreibt“ (Statement), „Zur Unterschrift bereitstellen“
+  (gesperrt, solange etwas fehlt oder die Daten seit dem Erzeugen geändert sind), „Prüfen“, „Welche Felder woher“ (IRS);
+  darunter die Angaben, die nur das Team kennt (Mitglieder und Anteile, County, Geschäftsart, Tätigkeit, 8821-Empfänger).
+- **Rundgang** der Global-Akte und **Update-Hinweis** für das Team nachgezogen.
+
+## 23.10.2026 — FIAON Global: Dokumente & Unterschriften — eigenes digitales Unterschreiben, Formulare vollständig vorausgefüllt
+- **Was:** Je Mandat fünf Dokumente, alle aus der Akte erzeugt und erst VOLLSTÄNDIG zum Kunden (fehlt etwas, nennt der Server
+  die Liste und lehnt „erzeugen“/„bereitstellen“ ab — der Kunde füllt nichts aus, er unterschreibt nur):
+  1. **Ergänzung „Befugnisse für FIAON“** (FIAON-CI) für Kunden mit älterer Vertragsfassung — legt sich selbst an und steht
+     unter „Für Sie zu tun“; Text wörtlich aus `shared/fiaon-global-befugnisse.ts`.
+  2. **Statement of Organizer** (US-Format: Letter, Times, 2,5 Zoll frei oben, „Page X of Y“, Doc-ID) — FIAON unterschreibt
+     als Organizer (Team-Knopf, Nachweis), danach bestätigt das Mitglied digital. Organizer im Mandat überschreibbar.
+  3. **Operating Agreement** (ein Mitglied = Vorlage aus „Recht & Verträge“, mehrere Mitglieder = neuer Text daneben,
+     manager-managed wählbar) — die Mitglieder unterschreiben digital; danach Station „Operating Agreement“ erledigt.
+  4. **IRS SS-4** und 5. **IRS 8821** — die amtlichen PDFs (server/assets/irs, Rev. 12-2025 bzw. 01-2021) mit pdf-lib
+     gefüllt und flach; Unterschrift und Datum bleiben für die Hand. Nie digital (Wand am Server).
+- **Digital unterschreiben (E-SIGN, ohne Fremdanbieter):** Zustimmung mit Verbraucher-Hinweis → getippter Name (muss passen)
+  → sechsstelliger Code per E-Mail (an das angemeldete Konto, sonst an die Adresse des Mandats; weitere Mitglieder an ihre
+  eigene) → unterschriebene Fassung mit „/s/ Name“ und Vermerk, Zertifikatsseite (Code-Zeitpunkte, IP, Gerät, Prüfsumme
+  vorher, Zustimmungsfassung) und **Siegel** (PAdES, eigener CMS-Bau ohne neues Paket; ohne Schlüssel „ausstehend“, die
+  Prüfsumme steht im Nachweis — das Unterschreiben scheitert nie daran). Roboter-Wand wie bei Zusagen. Prüfen im Team:
+  Prüfsumme neu gerechnet + Siegel geprüft. Neue Mail „Code zum Unterschreiben“ (transaktional, de/en). Das Zeichenfeld ist abgelöst.
+- **Speicher:** Migration 125 (`formular_angaben`, `formular_daten`, `fiaon_global_unterschrift_codes`); Nachweis in `unterschrift_nachweis`.
+  Das Team-ZIP enthält zu jeder Endfassung den Nachweis als JSON.
+- **Wo:** `shared/fiaon-global-us-dokumente.ts`, `shared/fiaon-global-irs.ts`, `shared/fiaon-global-unterschrift.ts`,
+  `server/lib/fiaon-global-unterschrift.ts`, `server/lib/fiaon-global-pdf-satz.ts`, `server/lib/fiaon-global-siegel.ts`,
+  `server/lib/fiaon-global-irs.ts`, Routen `server/routes/fiaon-global-unterschrift.ts` (Chefbüro + Office) und
+  `/api/fiaon/global/mein-auftrag/:ref/unterschrift/:id/{ansicht,start,code-neu}`. Prüfstand `scripts/pruef-global-unterschrift.ts`.
+- **Umgebung (Render):** `FIAON_SIGN_CERT_PEM` + `FIAON_SIGN_KEY_PEM` (+ `FIAON_SIGN_KEY_PASS`) fürs Siegel, `FIAON_GLOBAL_FAX` für den Designee.
+
+## 22.10.2026 — FIAON Global: „Befugnisse von FIAON“ als Ziffer in jedem Global-Vertrag (Option A)
+- **Was:** Statt einer eigenen Vollmacht gegenüber US-Behörden steht jetzt IM Vertrag, was FIAON für den Kunden tun darf —
+  eine Quelle für alle Vertragsarten (`shared/fiaon-global-befugnisse.ts`): Gründung (als Organizer), Registered Agent und
+  Kontaktperson (= Kunde bzw. Member/Manager), Post, EIN (SS-4, FIAON als Third Party Designee), ITIN mit Certifying
+  Acceptance Agent, Annual Reports, D-U-N-S, Domain/Telefon/Adresse, **Steuern und Recht über zugelassene Partner
+  (US-CPA, Steuerberater, Anwälte, z. B. Form 5472/1120) — FIAON beauftragt, koordiniert und zahlt sie, der Kunde spricht nur
+  mit FIAON**, Vorbereitung von Bank-/Karten-/Kreditanträgen (stellen und unterschreiben tut der Kunde). Einzige Grenzen:
+  keine Konten und kein Geld, keine Kredit-/Karten-/Finanzierungsanträge oder -verträge und keine Bürgschaften für den
+  Kunden, keine Übertragung/Belastung von Anteilen und keine Auflösung ohne Weisung in Textform. Wo das Gesetz die
+  persönliche Unterschrift verlangt, bereiten FIAON/der Partner alles vor und der Kunde unterschreibt nur. Untervollmacht,
+  Information im Portal, Widerruf in Textform, drei Monate geordnete Übergabe.
+- **Neue Fassungen:** Paketauftrag `2026-10-23` (de/en, neue Ziffer vor den Schlussbestimmungen; Ziffer 4: gegenüber Behörden
+  handelt FIAON), Individualangebot `IA-2026-10-23` (Ziffer 15, Schluss 16), Begleit `IA-BEGLEIT-2026-10-23` (Ziffer 14),
+  Kapital `IA-KAPITAL-2026-10-23` (Ziffer 12), Firma `IA-FIRMA-2026-10-23` (Ziffer 20). Angenommene Verträge behalten ihr PDF.
+- **Warum:** Justin: „Mach alles komplett fertig“ — die rechtliche Prüfung vom 22.10. hat die Umfassende Vollmacht verworfen.
+- **Wo:** `shared/fiaon-global-befugnisse.ts`, `server/lib/fiaon-global-vertrag.ts`, `shared/fiaon-global-angebot*.ts`;
+  Prüfsummen in `scripts/pruef-individualangebot.ts` und `scripts/pruef-angebot-firma.ts` mit Vermerk neu gesetzt.
+
+## 23.10.2026 — FIAON Global (E-429): Kundenportal im Apple-Glas, Begleitvertrag mit seinen eigenen Worten, geprüfter Name aus der Gründungsrechnung
+- **Was (Aussehen):** Die Übersicht des Kundenportals ist jetzt ein Sperrbildschirm wie beim iPhone: Datum, EINE große dünne Zahl
+  (Fortschritt), „Phase I von IV“, Gruß, Name der Gesellschaft, zwei Glaspillen — darunter drei Glas-Widgets „Als Nächstes“, „Ihr Weg“
+  (vier Phasen als Liste) und der Ansprechpartner. Unter der blauen Bühne helles Milchglas: „Für Sie zu tun“, „Ihr Büro“ (am Telefon zwei
+  Spalten, je Kachel eine Zeile), „Zuletzt passiert“ (drei Zeilen). Schrift wie bei Apple, Knöpfe als Glasblau-Pillen. Das FIAON-Logo
+  führt zur Übersicht des Portals (vorher auf die Website, wo man nicht angemeldet war). Das Banner „Zugang einrichten“ ist dunkel statt
+  ein heller Streifen. Neue Datei `client/src/styles/global-portal-glas.css` (Schicht über `global-portal.css`, Klasse `.gp-glas`).
+- **Was (Daten):** Eine Akte aus einem Begleitvertrag hängt am Paket des Individualangebots. Das Portal zeigte deshalb „Individualangebot“,
+  Garantie, Frist, Bürgin und die Etappen-Texte des Individualangebots. Jetzt: Name „Begleitvertrag“, die vier Phasen in den Worten von
+  „Ihr Weg“ aus dem Vertrag (`BEGLEIT_PORTAL` in `shared/fiaon-global-angebot-begleit.ts`), unter „Vertrag & Zahlung“ das Erfolgshonorar
+  (Ziffer 7), die Entscheidung der Institute (Ziffer 6) und die gewählte Jahresbetreuung (Ziffer 8) — `begleitSichtZurAkte`.
+  Ohne eingetragene zuständige Person nennt das Portal den ersten Ansprechpartner des Angebots (nur lesen, keine Aufgabe, keine Mail).
+- **Was (Name):** Ist der Wunschname im Register vergeben, gilt der Ausweichname — die Leitung stellt die Gründungsrechnung erst nach der
+  Prüfung, ihr Titel trägt den geprüften Namen. Neuer Lauf `global_begleit_name` (halbstündlich, ohne Mail): übernimmt diesen Namen in die
+  Akte, nimmt den Vermerk „vorgemerkt“ weg und erledigt die Station „Name geprüft“ (Datum der ersten Rechnung). Im Stationen-Editor hat
+  „Name geprüft“ jetzt ein Feld für den geprüften Namen; „erledigt“ nimmt den Vermerk „vorgemerkt“ immer weg.
+- **Was („Als Nächstes“):** Ohne eingetragenen nächsten Schritt nennt die Bühne den Satz der nächsten offenen Station (`naechster` in
+  `GLOBAL_FAHRPLAN`, `globalNaechsterSchritt`) statt „Wir melden uns mit dem nächsten Schritt.“
+- **Warum:** Justin: „Bei [dem ersten Begleitvertrags-Kunden] im neuen Portal passt garnichts — unordentlich am Handy, falsche Daten (sein
+  LLC-Name wurde bereits geprüft), überladen, das Logo führt raus … Apple Design mit Glas (Glas wie im Screenshot!)“.
+- **Wo:** fiaon.com/business/auftrag/<Ref> (Kunde) bzw. Vorschau aus Chefbüro › Global; Lauf in der Lauf-Ampel als `global_begleit_name`.
+
 ## 22.10.2026 — FIAON Global: SS-4 von Hand unterschreiben, Global-Akte für Begleitverträge, Angebotsnamen im Chefbüro
 - **Was (von Hand):** Jedes „Dokument zur Unterschrift“ hat jetzt einen Modus — `digital` (Unterschrift-Dialog im Portal) oder
   `handschriftlich`. IRS SS-4 und IRS 8821 sind immer handschriftlich (unser Registered-Agent-Partner verlangt für das SS-4 eine

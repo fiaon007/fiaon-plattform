@@ -22,6 +22,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_JAHRESBETREUUNG, globalAgentVertrag } from "./fiaon-global";
 import { FIAON_FIRMA } from "./fiaon-firma";
+import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANNAHME, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
@@ -32,8 +33,9 @@ import type { FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnt
 // ═══════════════════════════════════════════════════════════════════════════
 export const BEGLEIT_FASSUNG_PRAEFIX = "IA-BEGLEIT-";
 /** Eine neue Fassung = neuer Eintrag. ANGENOMMENE Angebote behalten ihre; ein OFFENES zeigt immer die aktuelle. */
-export const BEGLEIT_FASSUNG = "IA-BEGLEIT-2026-10-22";
-export const BEGLEIT_FASSUNGEN = ["IA-BEGLEIT-2026-10-08-A", BEGLEIT_FASSUNG] as const;
+/** IA-BEGLEIT-2026-10-23 (Option A): neue Ziffer 14 „Befugnisse von FIAON“, Schlussbestimmungen jetzt Ziffer 15; Ziffer 9: Behörden. */
+export const BEGLEIT_FASSUNG = "IA-BEGLEIT-2026-10-23";
+export const BEGLEIT_FASSUNGEN = ["IA-BEGLEIT-2026-10-08-A", "IA-BEGLEIT-2026-10-22", BEGLEIT_FASSUNG] as const;
 export function istBegleitFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(BEGLEIT_FASSUNG_PRAEFIX);
 }
@@ -318,7 +320,7 @@ export function begleitZiffern(d: BegleitDaten): AngebotZiffer[] {
     ] },
     { nr: 9, titel: "Pflichthinweise und Angaben", absaetze: [
       liste([...ANGEBOT_PFLICHTHINWEIS, "Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut."], "Der Auftraggeber nimmt die folgenden Hinweise zur Kenntnis:"),
-      p("Anträge bei Behörden und Instituten stellen der Auftraggeber bzw. die Gesellschaft im eigenen Namen; FIAON bereitet sie vor. Alle Angaben gegenüber Instituten und Behörden müssen wahr und vollständig sein; FIAON reicht keine Unterlagen ein, deren Angaben es für unzutreffend hält."),
+      p("Anträge bei Instituten stellen der Auftraggeber bzw. die Gesellschaft im eigenen Namen; FIAON bereitet sie vor. Gegenüber Behörden handelt FIAON nach Ziffer 14. Alle Angaben gegenüber Instituten und Behörden müssen wahr und vollständig sein; FIAON reicht keine Unterlagen ein, deren Angaben es für unzutreffend hält."),
       p("Vor Beginn identifiziert FIAON den Auftraggeber anhand eines gültigen Reisepasses und gleicht Name und Geburtsdatum mit den Sanktionslisten ab. Der Auftraggeber erklärt, dass weder er selbst noch ein Familienmitglied oder eine ihm bekanntermaßen nahestehende Person ein wichtiges öffentliches Amt ausübt oder in den letzten zwölf Monaten ausgeübt hat (§ 1 Abs. 12 bis 14 GwG); trifft das nicht zu, teilt er es FIAON vor der Annahme in Textform mit."),
     ] },
     { nr: 10, titel: "Laufzeit und Ende", absaetze: [
@@ -338,7 +340,8 @@ export function begleitZiffern(d: BegleitDaten): AngebotZiffer[] {
       p("Beide Parteien behandeln nicht öffentliche Informationen der anderen Partei vertraulich, auch nach dem Ende des Vertrags. FIAON gibt Unterlagen nur weiter, soweit es die Leistung erfordert: an Behörden, an den Registered Agent, an den US-CPA aus dem Partnernetz von FIAON und an Institute, bei denen die Gesellschaft einen Antrag stellt."),
       p("FIAON verarbeitet personenbezogene Daten des Auftraggebers, um diesen Vertrag zu erfüllen (Art. 6 Abs. 1 Buchst. b DSGVO), und nach der Datenschutzerklärung unter fiaon.com/datenschutz. Für Gründung und Anträge gehen Daten in die USA; für Empfänger ohne Zertifizierung nach dem EU-U.S. Data Privacy Framework stützt sich die Übermittlung darauf, dass sie für die Erfüllung dieses Vertrags erforderlich ist (Art. 49 Abs. 1 Buchst. b DSGVO). Der Auftraggeber kann Auskunft, Berichtigung, Löschung, Einschränkung und Datenübertragbarkeit verlangen und sich bei einer Aufsichtsbehörde beschweren."),
     ] },
-    { nr: 14, titel: "Schlussbestimmungen", absaetze: [
+    { nr: 14, titel: BEFUGNISSE_TITEL.de, absaetze: befugnisseAbsaetze("auftraggeber") },
+    { nr: 15, titel: "Schlussbestimmungen", absaetze: [
       p("Dieser Vertrag ist eine Individualvereinbarung; Allgemeine Geschäftsbedingungen von FIAON gelten für ihn nicht. Beigefügt ist die Anlage (Widerrufsbelehrung und Muster-Widerrufsformular)."),
       p("Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts. Ist der Auftraggeber Verbraucher, gilt diese Rechtswahl nur, soweit ihm dadurch nicht der Schutz entzogen wird, den ihm die zwingenden Bestimmungen des Rechts des Staates seines gewöhnlichen Aufenthalts gewähren. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."),
     ] },
@@ -421,7 +424,7 @@ function anlageHtml(): string {
     </div>
   </section>`;
 }
-/** Der Rumpf: Präambel, vierzehn Ziffern, Annahmeblock, Anlage. Die Prüfsumme läuft über den Rumpf OHNE Vermerk. */
+/** Der Rumpf: Präambel, fünfzehn Ziffern (seit IA-BEGLEIT-2026-10-23), Annahmeblock, Anlage. Die Prüfsumme läuft über den Rumpf OHNE Vermerk. */
 export function begleitRumpfHtml(d: BegleitDaten, annahme: BegleitAnnahmeVermerk | null = null): string {
   const ziffern = ziffernHtml(begleitZiffern(d)).split("\n");
   const letzte = ziffern.pop() ?? "";
@@ -695,3 +698,29 @@ export interface BegleitKundenSicht {
   textHash: string;
   vertragPdf: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IM PORTAL („Mein Auftrag“, 22.10.2026)
+//
+// Justin: „Im neuen Portal passt garnichts … falsche Daten.“ Die Akte eines Begleitvertrags hängt am Paket des
+// Individualangebots (global_individuell) — ohne diese Sätze erzählte das Portal von Garantie, Frist, Bürgin und Kartenleiter.
+// Hier spricht der Begleitvertrag mit SEINEN Worten: die Etappen aus „Ihr Weg“ (Ziffer 5, ohne Beträge), das Erfolgshonorar
+// (Ziffer 7), die Entscheidung der Institute (Ziffer 6) und die Jahresbetreuung (Ziffer 8). Nur deutsch, wie die Fassung.
+// ═══════════════════════════════════════════════════════════════════════════
+export const BEGLEIT_PORTAL = {
+  /** Der Name des Auftrags im Portal (Bühne, Vertragskarte) — „für Bestandskunden“ ist Innensprache. */
+  name: { de: "Begleitvertrag", en: "Support agreement" },
+  titel: "Ihr Begleitvertrag",
+  /** Die vier Phasen des Portals in den Worten von „Ihr Weg“: Etappe 1 und 2 der Seite (LLC, Konto) sind hier Phase I. */
+  etappen: {
+    1: { titel: "Ihre LLC und Ihr Konto", text: "Anmeldung Ihrer Gesellschaft, Registered Agent, US-Adresse und Steuernummer (EIN) — danach bereiten wir die Eröffnung Ihres US-Geschäftskontos vor und begleiten sie." },
+    2: { titel: "Erste Business-Karten", text: "Zum Start kleinere Rahmen. Wir bereiten jeden Antrag vollständig vor; Sie unterschreiben ihn." },
+    3: { titel: "Weitere Karten und Kreditlinien", text: "Mit wachsender Kredithistorie Ihrer Gesellschaft folgen höhere Rahmen und erste Kreditlinien." },
+    4: { titel: "Größere Finanzierungen", text: "Schritt für Schritt zum gemeinsamen Plan — jeder Antrag vollständig vorbereitet und begleitet bis zur Entscheidung." },
+  } as Record<1 | 2 | 3 | 4, { titel: string; text: string }>,
+  /** Der Satz unter „Ihr Begleitvertrag“ (statt Frist und Garantie des Individualangebots). */
+  satz: (par: Pick<BegleitParameter, "begleitMonate" | "honorarProzent">): string =>
+    `Begleitung ${monateWort(par.begleitMonate)} ab der Eintragung Ihrer Gesellschaft — ohne Monatsbeitrag und ohne Grundvergütung. FIAON erhält allein ${begleitProzent(par.honorarProzent)} Erfolgshonorar auf jede Finanzierung, die Ihre Gesellschaft durch die Begleitung erhält, fällig erst nach der Einräumung (Ziffer 7). Über jede Finanzierung entscheidet allein das jeweilige Institut (Ziffer 6).`,
+  jahresGewaehlt: `Bei der Annahme gewählt — ${GLOBAL_JAHRESBETREUUNG.de.preisZeile}, ab dem zweiten Jahr (Ziffer 8).`,
+  seiteHinweis: "Ihr Vertrag mit allen Anlagen liegt als PDF unter „Verträge und Vereinbarungen“.",
+} as const;

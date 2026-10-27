@@ -1,0 +1,32 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOKUMENTE & UNTERSCHRIFTEN (22.10.2026) — baut auf den Farben des Stationen-Editors
+   (.gst .dunkel/.hell) auf. Klassen .gfo-. Blau-Paar, kein Gold, keine Icons.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gfo-kopf { cursor: default; }
+.gfo-inhalt { padding: 2px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.gfo-fehlend { padding: 10px 12px; border-radius: 12px; background: var(--gst-rot-flaeche); border: 1px solid rgba(248,113,113,.3); color: var(--gst-rot); font: 400 12.5px/1.5 'Inter', sans-serif; }
+.gfo-fehlend b { display: block; font-weight: 600; margin-bottom: 4px; }
+.gfo-fehlend ul, .gfo-hinweise, .gfo-sig, .gfo-fehlt { margin: 0; padding-left: 18px; }
+.gfo-hinweise { font: 400 12px/1.5 'Inter', sans-serif; color: var(--gst-leise); }
+.gfo-sig { font: 400 12.5px/1.5 'Inter', sans-serif; color: var(--gst-text); list-style: none; padding: 0; }
+.gfo-sig b { color: var(--gst-stark); font-weight: 500; }
+.gfo-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gfo-knoepfe a.gst-knopf { text-decoration: none; display: inline-flex; align-items: center; }
+.gfo-fiaon, .gfo-freigabe { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 12px; border: 1px dashed var(--gst-linie); }
+.gfo-haupt { background: linear-gradient(145deg, var(--gst-licht), var(--gst-blau)) !important; color: #fff !important; border-color: transparent !important; }
+.gfo-haupt:disabled { opacity: .45; }
+.gfo-pruefung { padding: 10px 12px; border-radius: 12px; font: 400 12.5px/1.5 'Inter', sans-serif; border: 1px solid var(--gst-linie); }
+.gfo-pruefung.gut { background: var(--gst-gruen-flaeche); color: var(--gst-gruen); }
+.gfo-pruefung.schlecht { background: var(--gst-rot-flaeche); color: var(--gst-rot); }
+.gfo-pruefung ul { margin: 6px 0 0; padding-left: 18px; color: var(--gst-text); }
+.gfo-tabelle { width: 100%; border-collapse: collapse; font: 400 12px/1.4 'Inter', sans-serif; }
+.gfo-tabelle th, .gfo-tabelle td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--gst-linie); vertical-align: top; }
+.gfo-tabelle th { font-weight: 600; color: var(--gst-leise); }
+.gfo-tabelle td:nth-child(2) { color: var(--gst-stark); white-space: pre-line; }
+.gfo-angaben .gst-auge { margin-top: 12px; }
+.gfo-h { margin: 10px 0 0; font: 500 13px/1.3 'Inter', sans-serif; color: var(--gst-stark); }
+.gfo-mitglied { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 80px minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.gfo-breit { grid-column: span 1; }
+.gfo .gst-felder.zwei .gfo-breit { grid-column: 1 / -1; }
+@media (max-width: 900px) { .gfo-mitglied { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .gfo-mitglied { grid-template-columns: 1fr; } .gfo-fiaon, .gfo-freigabe { width: 100%; } }

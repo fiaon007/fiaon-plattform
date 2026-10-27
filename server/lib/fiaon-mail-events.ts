@@ -314,6 +314,11 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false,
     klartext: "FIAON Global: sechsstelliger Code bei jeder Anmeldung, beim Einrichten und nach einem neuen Passwort — zehn Minuten gültig.",
   },
+  global_unterschrift_code: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: sechsstelliger Code zum digitalen Unterschreiben eines Dokuments im Portal — zehn Minuten gültig, fordert der Kunde selbst an.",
+  },
   global_passwort_neu: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     vonHand: false,

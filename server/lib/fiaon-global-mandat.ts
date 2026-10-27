@@ -25,18 +25,16 @@
 // nichts als „vom Kunden gelesen" vermerkt — keine Post, keine Antwort, kein
 // Dokument (Justin, Regel „Kundenlinks nie selbst öffnen").
 // ═══════════════════════════════════════════════════════════════════════════
-import { createHash } from "node:crypto";
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { escapeHtml } from "./fiaon-html-pdf";
 import {
-  ensureGlobalBereich, lageLesen, verlaufSchreiben, dokumentSpeichern, nameAusMultipart, bereichMail, kundensatz, eingangMelden,
+  ensureGlobalBereich, lageLesen, verlaufSchreiben, dokumentSpeichern, nameAusMultipart, bereichMail, kundensatz,
   globalBereichOfficeSicht, globalGesellschaftSetzen,
   type BereichAgent, type DateiEin, type Erg, type Lage,
 } from "./fiaon-global-bereich";
 import { globalDokumentArt, globalDokumentArtText, istIsoTag, type BereichSprache } from "@shared/fiaon-global-bereich";
-import { HANDSCHRIFT_WOERTER, unterschriftModus } from "@shared/fiaon-global-akte";
+import { unterschriftModus } from "@shared/fiaon-global-akte";
 import {
   GLOBAL_FAHRPLAN, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
@@ -283,6 +281,10 @@ export async function globalPortalNeuFrei(ref: string): Promise<boolean> {
  * oder die Leitung die Vorschau öffnet. `token` ist der gültige Link-Schlüssel.
  */
 export async function globalMandatKundenZusatz(ref: string, token: string, sprache: BereichSprache, vorschau: boolean): Promise<Record<string, unknown>> {
+  // 22.10.2026: Kunden mit älterer Vertragsfassung bekommen die Ergänzung „Befugnisse von FIAON“ — sie legt sich hier selbst
+  // an (einmal) und steht dann unter „Für Sie zu tun“. Ein Fehler hier hält das Portal nicht an.
+  const U = await import("./fiaon-global-unterschrift");
+  await U.ergaenzungSicherstellen(ref);
   const z = await mandatZeile(ref);
   const [schritte, kapital, nachrichten, zusatz, dienste] = await Promise.all([
     schritteLesen(ref, sprache, "kunde"), kapitalLesen(ref, sprache, "kunde"), nachrichtenLesen(ref, "kunde"), dokumentZusatzLesen(ref),
@@ -316,6 +318,8 @@ export async function globalMandatKundenZusatz(ref: string, token: string, sprac
     // Nur freigegebene Felder; die ITIN als Maske (Klartext nur über „Anzeigen“ → /itin).
     gesellschaftPlus: globalPlusFuerKunde(gesellschaftPlusLesen(z)),
     dokumentZusatz: Object.fromEntries(Array.from(zusatz.entries()).map(([id, d]) => [String(id), dokumentZusatz(d)])),
+    // Digital unterschreiben: je wartendem Dokument die Fassung zum Ansehen und die Namen, die noch unterschreiben.
+    unterschriften: await U.unterschriftKundenSicht(ref).catch((e) => { console.error(`[GLOBAL-MANDAT] ${ref}: Unterschriften nicht gelesen:`, e); return {}; }),
   };
 }
 
@@ -683,6 +687,13 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
         hinweis = EXCLUDED.hinweis, intern = EXCLUDED.intern, geaendert_von = EXCLUDED.geaendert_von, updated_at = NOW()`;
   }
 
+  // 22.10.2026 (erster Begleitvertrag): „Name geprüft“ erledigt → der bei der Annahme nur vorgemerkte Name (geprueft: false, E-399)
+  // gilt als geprüft. Sonst nannte die Zahlungsseite ihn weiter „vorgemerkt“, während Portal und Station „erledigt“ sagten.
+  if (v.schluessel === "name" && status === "erledigt") {
+    await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = jsonb_set(gesellschaft, '{geprueft}', 'true'::jsonb), updated_at = NOW()
+                   WHERE ref = ${ref} AND gesellschaft IS NOT NULL AND gesellschaft->>'geprueft' = 'false'`;
+  }
+
   // 5 · VERLAUF — der Kunde liest das Neue, das Team alles
   const titelDe = globalSchrittTitel(v.schluessel, "de");
   for (const satz of stationVerlaufSaetze(gesetzt, l.sprache)) await verlaufSchreiben(ref, { art: "station", text: satz, sichtbar: true, agentId: agent.id });
@@ -889,106 +900,6 @@ export async function globalKundeHatGelesen(ref: string, was: "nachrichten" | { 
   }
 }
 
-/** pdf-lib schreibt mit WinAnsi — Zeichen außerhalb (z. B. „ł") werden ohne Akzent geschrieben statt das Blatt zu sprengen. */
-function sicher(font: PDFFont, s: string): string {
-  try { font.encodeText(s); return s; } catch {
-    const ohne = s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-    return Array.from(ohne).map((c) => { try { font.encodeText(c); return c; } catch { return "?"; } }).join("");
-  }
-}
-
-/**
- * POST /global/mein-auftrag/:ref/unterschrift/:id — der Kunde unterschreibt ein angefordertes PDF.
- * Ergebnis: die Originalseiten + ein Unterschriftsblatt (Name, Zeitpunkt, IP, Prüfsumme des Originals,
- * die gezeichnete Unterschrift) als NEUES Dokument; das Original wird als unterschrieben vermerkt.
- */
-export async function globalKundeUnterschreibt(ref: string, idRoh: unknown, ein: { name?: unknown; bild?: unknown; zustimmung?: unknown; ip: string; userAgent: string }): Promise<Erg<{ meldung: string; id: number }>> {
-  const l = await lageOder404(ref);
-  if ("fehler" in l) return l.fehler;
-  const s = l.sprache;
-  const id = Number(idRoh);
-  const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
-    SELECT id, art, titel, dateiname, mime, inhalt, unterschrift_gefordert, unterschrieben_am, sichtbar_fuer_kunde, pflicht_key, unterschrift_art
-      FROM fiaon_global_dokumente WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL`) as any[]) : [];
-  if (!d || !d.unterschrift_gefordert || !d.sichtbar_fuer_kunde) return nein(404, t(s, "Dieses Dokument wartet nicht auf Ihre Unterschrift.", "This document is not waiting for your signature."));
-  // 22.10.2026: Was von Hand unterschrieben wird (IRS-Formulare), bekommt NIE eine gezeichnete Unterschrift.
-  if (unterschriftModus(d.pflicht_key, d.unterschrift_art) === "handschriftlich") return nein(409, HANDSCHRIFT_WOERTER[s].nurHandschrift);
-  if (d.unterschrieben_am) return nein(409, t(s, "Dieses Dokument haben Sie bereits unterschrieben.", "You have already signed this document."));
-  if (ein.zustimmung !== true) return nein(400, t(s, "Bitte bestätigen Sie, dass Sie das Dokument gelesen haben und unterschreiben möchten.", "Please confirm that you have read the document and wish to sign it."));
-  const name = knapp(ein.name, 120);
-  if (name.length < 3 || !/\s/.test(name)) return nein(400, t(s, "Bitte geben Sie Ihren vollständigen Namen ein (Vor- und Nachname).", "Please enter your full name (first and last name)."));
-  const bild = String(ein.bild ?? "");
-  const m = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/.exec(bild);
-  const png = m ? Buffer.from(m[1], "base64") : null;
-  if (!png || png.length < 200 || png.length > 600_000) return nein(400, t(s, "Bitte zeichnen Sie Ihre Unterschrift in das Feld.", "Please draw your signature in the field."));
-  const original = Buffer.from(d.inhalt);
-  const hash = createHash("sha256").update(original).digest("hex");
-  let ausgabe: Buffer;
-  try {
-    const pdf = await PDFDocument.load(original, { ignoreEncryption: false });
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const fett = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const zeichen = await pdf.embedPng(png);
-    const jetzt = new Date();
-    const wann = new Intl.DateTimeFormat(s === "en" ? "en-GB" : "de-DE", { timeZone: "Europe/Berlin", dateStyle: "long", timeStyle: "medium" }).format(jetzt);
-    const titel = String(d.titel || globalDokumentArtText(d.art, s));
-    // Fußzeile auf jeder Originalseite.
-    const seiten = pdf.getPages();
-    seiten.forEach((p, i) => {
-      const { width } = p.getSize();
-      p.drawText(sicher(font, `${t(s, "Elektronisch unterschrieben", "Signed electronically")} · ${name} · ${wann} · ${t(s, "Seite", "Page")} ${i + 1}/${seiten.length} · SHA-256 ${hash.slice(0, 16)}`), {
-        x: 36, y: 14, size: 6.5, font, color: rgb(0.42, 0.46, 0.53), maxWidth: width - 72,
-      });
-    });
-    // Das Unterschriftsblatt.
-    const blatt = pdf.addPage([595.28, 841.89]);
-    const navy = rgb(0.07, 0.157, 0.29);
-    const leise = rgb(0.42, 0.46, 0.53);
-    let y = 770;
-    blatt.drawText("FIAON Global", { x: 56, y, size: 11, font: fett, color: navy }); y -= 34;
-    blatt.drawText(sicher(fett, t(s, "Unterschriftsblatt", "Signature page")), { x: 56, y, size: 22, font: fett, color: navy }); y -= 26;
-    blatt.drawText(sicher(font, t(s, "Elektronische Unterschrift in „Mein Auftrag“", "Electronic signature in “My order”")), { x: 56, y, size: 11, font, color: leise }); y -= 40;
-    const zeile = (k: string, v: string) => {
-      blatt.drawText(sicher(font, k), { x: 56, y, size: 9.5, font, color: leise });
-      blatt.drawText(sicher(fett, v), { x: 210, y, size: 10, font: fett, color: navy, maxWidth: 330 });
-      y -= 22;
-    };
-    zeile(t(s, "Dokument", "Document"), titel.slice(0, 90));
-    zeile(t(s, "Datei", "File"), String(d.dateiname).slice(0, 90));
-    zeile(t(s, "Auftrag", "Order"), ref);
-    zeile(t(s, "Unterschrieben von", "Signed by"), name);
-    zeile(t(s, "Zeitpunkt", "Time"), `${wann} (${t(s, "Berlin", "Berlin time")})`);
-    zeile(t(s, "IP-Adresse", "IP address"), ein.ip || "—");
-    zeile(t(s, "Prüfsumme (SHA-256)", "Checksum (SHA-256)"), `${hash.slice(0, 32)}`);
-    blatt.drawText(sicher(font, hash.slice(32)), { x: 210, y: y + 10, size: 10, font: fett, color: navy }); y -= 22;
-    y -= 14;
-    blatt.drawText(sicher(font, t(s, "Unterschrift", "Signature")), { x: 56, y, size: 9.5, font, color: leise }); y -= 10;
-    const breite = 260; const hoehe = Math.min(120, (zeichen.height / zeichen.width) * breite);
-    blatt.drawRectangle({ x: 56, y: y - hoehe - 16, width: breite + 24, height: hoehe + 24, borderColor: rgb(0.89, 0.91, 0.93), borderWidth: 1 });
-    blatt.drawImage(zeichen, { x: 68, y: y - hoehe - 4, width: breite, height: hoehe });
-    y -= hoehe + 50;
-    const erklaerung = t(s,
-      `${name} hat dieses Dokument am ${wann} in „Mein Auftrag“ geöffnet, die Bestätigung „gelesen und einverstanden“ gegeben und mit dieser Unterschrift unterschrieben. Die Prüfsumme belegt, welche Fassung unterschrieben wurde.`,
-      `${name} opened this document in “My order” on ${wann}, confirmed “read and agreed” and signed it with this signature. The checksum shows which version was signed.`);
-    let rest = erklaerung;
-    while (rest.length) {
-      let n = Math.min(rest.length, 95);
-      if (n < rest.length) { const leer = rest.lastIndexOf(" ", n); if (leer > 40) n = leer; }
-      blatt.drawText(sicher(font, rest.slice(0, n).trim()), { x: 56, y, size: 9.5, font, color: leise });
-      rest = rest.slice(n).trim(); y -= 15;
-    }
-    ausgabe = Buffer.from(await pdf.save());
-  } catch (e) {
-    console.error(`[GLOBAL-MANDAT] ${ref}: Unterschrift ${id} nicht erzeugt:`, e);
-    return nein(422, t(s, "Dieses PDF lässt sich nicht elektronisch unterschreiben. Ihr Ansprechpartner schickt Ihnen eine andere Fassung.", "This PDF cannot be signed electronically. Your contact will send you another version."));
-  }
-  const basis = String(d.dateiname).replace(/\.pdf$/i, "");
-  const neu = await dokumentSpeichern({ ref, von: "kunde", art: String(d.art), dateiname: `${basis}_${t(s, "unterschrieben", "signed")}.pdf`, mime: "application/pdf", inhalt: ausgabe, sichtbar: true, agentId: null });
-  await sqlPool`UPDATE fiaon_global_dokumente SET titel = ${`${String(d.titel || globalDokumentArtText(d.art, s))} — ${t(s, "unterschrieben", "signed")}`}, unterschrift_von_id = ${id}, unterschrift_name = ${name}, unterschrieben_am = NOW(), kunde_gelesen_am = NOW() WHERE id = ${neu.id}`;
-  await sqlPool`UPDATE fiaon_global_dokumente SET unterschrieben_am = NOW(), unterschrift_name = ${name}, unterschrift_ip = ${ein.ip.slice(0, 64)}, kunde_gelesen_am = COALESCE(kunde_gelesen_am, NOW()) WHERE id = ${id}`;
-  const titel = String(d.titel || globalDokumentArtText(d.art, "de"));
-  await verlaufSchreiben(ref, { art: "unterschrift", text: t(s, `Sie haben unterschrieben: ${titel}.`, `You signed: ${titel}.`), sichtbar: true, von: "kunde" });
-  await eingangMelden(l, `Der Kunde hat im Portal unterschrieben: „${titel}“ (${name}). Die unterschriebene Fassung liegt im Tresor.`);
-  return { ok: true, id: neu.id, meldung: t(s, "Danke — Ihre Unterschrift ist gespeichert. Die unterschriebene Fassung liegt in Ihrem Tresor.", "Thank you — your signature has been saved. The signed version is in your vault.") };
-}
+// 22.10.2026: Das Zeichenfeld („mit dem Finger unterschreiben“) ist abgelöst durch das eigene, E-SIGN-konforme
+// Unterschreiben mit Zustimmung, getipptem Namen und Code per E-Mail — server/lib/fiaon-global-unterschrift.ts.
 

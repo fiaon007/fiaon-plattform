@@ -932,7 +932,7 @@ async function bestellzeileAnlegen(ref: string, d: AngebotDaten, nr: 1 | 2, kont
       contactFirstName: k.vorname, contactLastName: k.nachname,
       contactEmail: k.email, email: k.email, billingEmail: k.email, contactPhone: k.telefon || null,
       street: k.strasse, zip: k.plz, city: k.ort, country: k.land,
-      // Gegenprüfung 01.10.2026: Ziffer 15 schließt die AGB aus — die Akte darf keine AGB-Zustimmung behaupten (consent_agb bleibt leer).
+      // Gegenprüfung 01.10.2026: die Schlussbestimmungen (seit IA-2026-10-23 Ziffer 16) schließen die AGB aus — die Akte darf keine AGB-Zustimmung behaupten (consent_agb bleibt leer).
       // Der Vertrag selbst ist angenommen (ag3 → consent_contract); eine Bonitätsabfrage gibt es nicht (ag2).
       ag1: false, ag2: false, ag3: true,
       // Endabnahme 01.10.2026: Auf diesem Weg gibt es KEINE Messung — weder Pixel/Web noch die Lead-Stufe an Meta
@@ -2122,6 +2122,8 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
   if (istFirmenFassung(z.fassung)) { const F = await import("./fiaon-global-angebot-firma"); return F.firmaSichtZurAkte(z); }
   // E-407: Kapital-Angebot — drei Teile (Gründungskosten, Bürgschaftsgebühr, Vergütung bei Auszahlung) und die Garantie aus Ziffer 4.
   if (istKapitalFassung(z.fassung)) { const C = await import("./fiaon-global-angebot-kapital"); return C.kapitalSichtZurAkte(z); }
+  // 22.10.2026: Begleitvertrag — ohne Teile, Frist, Garantie und Bürgin des Individualangebots (BEGLEIT_PORTAL).
+  if (/^IA-BEGLEIT-/.test(String(z.fassung ?? ""))) { const B = await import("./fiaon-global-angebot-begleit"); return B.begleitSichtZurAkte(z); }
   const d = angebotDatenAus(z);
   const teile = await Promise.all((z.teile as any[]).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;

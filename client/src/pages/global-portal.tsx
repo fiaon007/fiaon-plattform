@@ -28,10 +28,9 @@ import {
   LayoutGrid, Compass, Scale, Calculator, Layers,
 } from "lucide-react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
-import WellenFeld from "@/components/site/WellenFeld";
 import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
-import { GLOBAL_TRESOR, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
+import { GLOBAL_TRESOR, globalNaechsterSchritt, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
 import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-bereich";
 // 22.10.2026: die Werte der Stationen (EIN, ITIN-Maske, D-U-N-S, Telefon, Adressen, Konto) — eine Quelle mit dem Editor.
 import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
@@ -39,6 +38,8 @@ import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKu
 import PortalNav, { type NavGruppe } from "./global-portal-nav";
 // 22.10.2026: von Hand unterschreiben (IRS-Formulare) — ausdrucken, unterschreiben, als PDF scannen, hochladen.
 import HandschriftDialog from "./global-portal-handschrift";
+// 22.10.2026: digital unterschreiben — Zustimmung, Name, Code per E-Mail (E-SIGN), statt Zeichenfeld.
+import UnterschriftDigital from "./global-portal-unterschrift";
 import { HANDSCHRIFT_WOERTER } from "@shared/fiaon-global-akte";
 // E-341: die Fachbereiche (Strategie & Wachstum, Recht & Verträge, Steuern & Pflichten) — erst beim Öffnen geladen.
 const GlobalFach = lazy(() => import("./global-portal-fach"));
@@ -47,6 +48,8 @@ const GlobalDienste = lazy(() => import("./global-portal-dienste"));
 import { ZUSATZ_WOERTER, globalZusatz, zusatzFreigegeben } from "@shared/fiaon-global-zusatz";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-portal.css";
+// 22.10.2026: Apple-Glas (Justin: „Apple Design mit Glas — Glas wie im Screenshot!“) — eine Schicht über dem Portal.
+import "@/styles/global-portal-glas.css";
 
 type T = Record<string, any>;
 
@@ -77,7 +80,8 @@ const W = {
     gruppen: { uebersicht: "Übersicht", weg: "Ihr Weg", buero: "Ihr Büro", kapital: "Kapital", vertrag: "Vertrag & Zahlung", fach: "Fachbereiche" } as Record<string, string>,
     seiten: { uebersicht: "Übersicht", fahrplan: "Fahrplan", gesellschaft: "Ihre Gesellschaft", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
     phase: (r: string) => `Phase ${r} von IV`, vorStart: "Vor dem Start", abgeschlossen: "Abgeschlossen", stationen: (a: number, b: number) => `${a} von ${b} Stationen`,
-    chip: { seit: (f: string, d: string) => `${f} seit ${d}`, ein: "EIN erteilt", itin: "ITIN erteilt", duns: "D-U-N-S vorhanden", konto: "Geschäftskonto eröffnet" },
+    chip: { seit: (f: string, d: string) => `${f} seit ${d}`, name: "Name geprüft", ein: "EIN erteilt", itin: "ITIN erteilt", duns: "D-U-N-S vorhanden", konto: "Geschäftskonto eröffnet" },
+    alsNaechstes: "Als Nächstes", wegAuge: "Ihr Weg",
     rolle: "Ihr Ansprechpartner", nachricht: "Nachricht", meilenstein: "Nächster Schritt",
     karteWeg: { auge: "Ihr Fortschritt", text: (a: number, b: number) => `${a} von ${b} Stationen erledigt — jede mit Datum und Wert.`, knopf: "Zum Fahrplan" },
     karteBuero: { auge: "Ihr Briefkasten", neu: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, leer: "Alles gelesen", text: "Jeder Brief für Ihre Gesellschaft wird für Sie eingescannt.", knopf: "Zur Post" },
@@ -149,7 +153,8 @@ const W = {
     gruppen: { uebersicht: "Overview", weg: "Your path", buero: "Your office", kapital: "Capital", vertrag: "Contract & payment", fach: "Expert areas" } as Record<string, string>,
     seiten: { uebersicht: "Overview", fahrplan: "Roadmap", gesellschaft: "Your company", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
     phase: (r: string) => `Phase ${r} of IV`, vorStart: "Before the start", abgeschlossen: "Completed", stationen: (a: number, b: number) => `${a} of ${b} stations`,
-    chip: { seit: (f: string, d: string) => `${f} since ${d}`, ein: "EIN issued", itin: "ITIN issued", duns: "D-U-N-S on file", konto: "Business account open" },
+    chip: { seit: (f: string, d: string) => `${f} since ${d}`, name: "Name checked", ein: "EIN issued", itin: "ITIN issued", duns: "D-U-N-S on file", konto: "Business account open" },
+    alsNaechstes: "Up next", wegAuge: "Your path",
     rolle: "Your contact", nachricht: "Message", meilenstein: "Next step",
     karteWeg: { auge: "Your progress", text: (a: number, b: number) => `${a} of ${b} stations done — each with its date and value.`, knopf: "To the roadmap" },
     karteBuero: { auge: "Your mailbox", neu: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, leer: "All read", text: "Every letter for your company is scanned for you.", knopf: "To your mail" },
@@ -247,108 +252,9 @@ function Zaehler({ ziel, dauer = 1400 }: { ziel: number; dauer?: number }) {
   return <>{w}</>;
 }
 
-// ── Unterschriftsfeld ────────────────────────────────────────────────────────
-function Zeichenfeld({ onAenderung, leeren }: { onAenderung: (leer: boolean) => void; leeren: number }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const zeichnet = useRef(false);
-  const letzter = useRef<{ x: number; y: number } | null>(null);
-  useEffect(() => {
-    const c = ref.current; if (!c) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
-    const ctx = c.getContext("2d")!; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0c1a2e"; ctx.lineWidth = 2.2;
-    ctx.clearRect(0, 0, c.width, c.height);
-    onAenderung(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leeren]);
-  const punkt = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  return (
-    <canvas ref={ref} className="gp-zeichenfeld" aria-label="Unterschriftsfeld"
-      onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); zeichnet.current = true; letzter.current = punkt(e); }}
-      onPointerMove={(e) => {
-        if (!zeichnet.current || !letzter.current) return;
-        const ctx = e.currentTarget.getContext("2d")!; const p = punkt(e); const l = letzter.current;
-        ctx.beginPath(); ctx.moveTo(l.x, l.y);
-        ctx.quadraticCurveTo(l.x, l.y, (l.x + p.x) / 2, (l.y + p.y) / 2); ctx.lineTo(p.x, p.y); ctx.stroke();
-        letzter.current = p; onAenderung(false);
-      }}
-      onPointerUp={() => { zeichnet.current = false; letzter.current = null; }}
-      onPointerCancel={() => { zeichnet.current = false; letzter.current = null; }} />
-  );
-}
-
-function UnterschriftDialog({ dok, url, sendenUrl, s, gruss, onFertig, onZu, vorschau }: {
-  dok: T; url: string; sendenUrl: string; s: "de" | "en"; gruss: string; onFertig: () => void; onZu: () => void; vorschau: boolean;
-}) {
-  const w = W[s];
-  const [name, setName] = useState(gruss);
-  const [leer, setLeer] = useState(true);
-  const [ok, setOk] = useState(false);
-  const [leeren, setLeeren] = useState(0);
-  const [stand, setStand] = useState<"" | "laeuft" | "fertig">("");
-  const [fehler, setFehler] = useState("");
-  const feld = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const zu = (e: KeyboardEvent) => { if (e.key === "Escape" && stand !== "laeuft") onZu(); };
-    window.addEventListener("keydown", zu);
-    document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", zu); document.body.style.overflow = ""; };
-  }, [onZu, stand]);
-  const unterschreiben = async () => {
-    const c = feld.current?.querySelector("canvas") as HTMLCanvasElement | null;
-    if (!c) return;
-    setStand("laeuft"); setFehler("");
-    try {
-      const r = await fetch(sendenUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), bild: c.toDataURL("image/png"), zustimmung: ok }) });
-      const j = await r.json().catch(() => ({}));
-      if (r.ok && j.ok) { setStand("fertig"); onFertig(); } else { setStand(""); setFehler(j.error || "—"); }
-    } catch { setStand(""); setFehler(s === "en" ? "No connection — please try again." : "Keine Verbindung — bitte noch einmal."); }
-  };
-  return (
-    <div className="gp-schleier" role="dialog" aria-modal="true" aria-label={w.modalTitel} onMouseDown={(e) => { if (e.target === e.currentTarget && stand !== "laeuft") onZu(); }}>
-      <div className="gp-dialog">
-        <button type="button" className="gp-dialog-zu" onClick={onZu} aria-label={w.schliessen} disabled={stand === "laeuft"}><X size={18} /></button>
-        {stand === "fertig" ? (
-          <div className="gp-fertig">
-            <svg className="gp-haken-gross" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" /><path d="M15 27 l7 7 l15 -16" /></svg>
-            <h3>{w.modalFertig}</h3>
-            <p>{w.modalFertigText}</p>
-            <button type="button" className="gp-knopf" onClick={onZu}>{w.schliessen}</button>
-          </div>
-        ) : (
-          <>
-            <span className="gp-auge"><FileSignature size={14} /> {w.modalTitel}</span>
-            <h3>{dok.titel || dok.artText}</h3>
-            <div className="gp-dialog-pdf">
-              <iframe src={url} title={dok.titel || dok.artText} />
-              <a href={url} target="_blank" rel="noopener" className="gp-link"><FileText size={14} /> {w.modalLesen}</a>
-            </div>
-            <label className="gp-feldname">{w.modalName}
-              <input className="gp-eingabe" value={name} autoComplete="name" onChange={(e) => setName(e.target.value)} />
-            </label>
-            <div className="gp-feldname">{w.modalZeichnen}
-              <div ref={feld} className="gp-zeichen-rahmen">
-                <Zeichenfeld onAenderung={setLeer} leeren={leeren} />
-                <span className="gp-zeichen-linie" aria-hidden="true" />
-                {!leer && <button type="button" className="gp-zeichen-neu" onClick={() => setLeeren((x) => x + 1)}>{w.modalLoeschen}</button>}
-              </div>
-            </div>
-            <label className="gp-haken"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} /> <span>{w.modalZustimmung}</span></label>
-            {fehler && <p className="gp-meldung schlecht" role="alert">{fehler}</p>}
-            {vorschau && <p className="gp-meldung" role="note">{s === "en" ? "Preview — only the client signs here." : "Vorschau — hier unterschreibt nur der Kunde."}</p>}
-            <button type="button" className="gp-knopf gross" disabled={vorschau || leer || !ok || name.trim().split(/\s+/).length < 2 || stand === "laeuft"} onClick={unterschreiben}>
-              {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> {w.modalLaeuft}</> : <><PenLine size={16} /> {w.modalKnopf}</>}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+// ── Unterschreiben ───────────────────────────────────────────────────────────
+// 22.10.2026: Das Zeichenfeld ist abgelöst — digital unterschreibt der Kunde mit Zustimmung, getipptem Namen und Code
+// per E-Mail (global-portal-unterschrift.tsx); von Hand (IRS-Formulare) mit Scan (global-portal-handschrift.tsx).
 
 // ── Das Portal ───────────────────────────────────────────────────────────────
 export default function GlobalPortal({ a, gref, token, s, t, laden }: {
@@ -512,7 +418,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   // ── „Für Sie zu tun" ──
   const tun: { key: string; Icon: any; ton: string; titel: string; text: string; knopf?: string; aktion?: () => void; href?: string }[] = [];
   if (a.status === "offen" && a.zahlung?.zahlungsseite) tun.push({ key: "zahlung", Icon: Landmark, ton: "navy", titel: t.zahlungOffenTitel, text: t.zahlungOffenText, knopf: t.zurZahlung, href: a.zahlung.zahlungsseite });
-  for (const d of zuUnterschreiben) {
+  // 22.10.2026: zuerst die Ergänzung zum Vertrag, dann Statement, Operating Agreement, IRS-Formulare, dann der Rest.
+  const REIHE = ["fiaon_befugnisse", "us_organizer", "us_operating_agreement", "irs_ss4", "irs_8821"];
+  const rang = (d: T) => { const i = REIHE.indexOf(String(d.pflichtKey ?? "")); return i < 0 ? REIHE.length : i; };
+  for (const d of [...zuUnterschreiben].sort((a, b) => rang(a) - rang(b))) {
     const p = ((pflicht?.eintraege ?? []) as T[]).find((e) => e.dokumentId === d.id);
     tun.push({ key: `u${d.id}`, Icon: FileSignature, ton: "blau", titel: p ? w.pflichtTun(p.titel) : w.unterschriftTitel(d.titel || d.artText), text: p?.text || w.unterschriftText, knopf: d.unterschrift?.modus === "handschriftlich" ? HANDSCHRIFT_WOERTER[s].knopf : w.unterschreiben, aktion: () => setDialog(d) });
   }
@@ -584,9 +493,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   // die erste Phase mit offener Station (die Seite widerspricht sich nicht).
   const etappeServer = Number((a.etappen ?? []).find((x: T) => x.stand === "jetzt")?.nr ?? (a.etappe ?? 0));
   const etappeJetzt = etappeServer >= 1 ? etappeServer : erledigt > 0 ? (phasen.find((ph) => ph.gesamt > 0 && ph.fertig < ph.gesamt)?.nr ?? 4) : 0;
-  const phaseZeile = etappeJetzt >= 1 && etappeJetzt <= 4 ? `${w.phase(ROEMISCH[etappeJetzt])} · ${phasen[etappeJetzt - 1].titel}` : etappeJetzt >= 5 ? w.abgeschlossen : w.vorStart;
+  const phaseKurz = etappeJetzt >= 1 && etappeJetzt <= 4 ? w.phase(ROEMISCH[etappeJetzt]) : etappeJetzt >= 5 ? w.abgeschlossen : w.vorStart;
+  // Die Bühne (22.10.2026): Datum wie auf dem Sperrbildschirm; „Als Nächstes“ = der Schritt des Teams, sonst die nächste offene Station.
+  const heuteText = new Date().toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
+  const naechsterText = a.naechsterSchritt?.text || globalNaechsterSchritt(schritte, s) || w.naechsterLeer;
+  const nameGeprueft = schritte.some((x) => x.schluessel === "name" && x.status === "erledigt");
   const chips: string[] = [
-    g.gegruendetAm ? w.chip.seit(g.form || "LLC", tagKurz(g.gegruendetAm)) : "",
+    g.gegruendetAm ? w.chip.seit(g.form || "LLC", tagKurz(g.gegruendetAm)) : nameGeprueft ? w.chip.name : "",
     gp.ein ? w.chip.ein : "", gp.itinVorhanden ? w.chip.itin : "", gp.duns ? w.chip.duns : "", gp.kontoEroeffnetAm ? w.chip.konto : "",
   ].filter(Boolean);
   const freigabe: string[] = a.dienste?.freigegeben ?? [];
@@ -645,12 +558,12 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   ));
 
   return (
-    <div className="gp">
+    <div className={`gp gp-glas${seite === "uebersicht" ? " gp-start" : ""}`}>
       {vorschau && <div className="gp-vorschau" role="note"><Sparkles size={14} /> {w.vorschau(vollerName || name || "der Kunde")}</div>}
 
       {/* ── Navigation (22.10.2026): schwebende Glasleiste mit Themen und Panel; am Telefon ein ganzseitiges Menü ── */}
       <PortalNav gruppen={navGruppen} seite={seite} geh={geh} titel={w.buero} aktuellTitel={w.seiten[seite]}
-        marke={<a className="gp-logo" href={s === "en" ? "/en/business" : "/business"} aria-label="FIAON Global"><FiaonWortmarke variante="global" hoehe="22px" /></a>}
+        marke={<a className="gp-logo" href="#uebersicht" onClick={(e) => { e.preventDefault(); geh("uebersicht"); }} aria-label={`FIAON Global · ${w.seiten.uebersicht}`}><FiaonWortmarke variante="global" hoehe="22px" /></a>}
         person={ap ? { name: String(ap.name ?? apVorname), rolle: w.rolle, bild: ap.bild ?? null, onKlick: () => geh("anfragen") } : null}
         texte={{ navTitel: w.navTitel, menue: w.menue, schliessen: w.schliessen, sicher: w.sicher, schreiben: w.schreiben }} />
 
@@ -658,98 +571,82 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
         <div className="gp-seiteninhalt" key={seite} data-richtung={richtung} data-fiaon={`portal-seite-${seite}`}>
           {seite === "uebersicht" ? (
             <>
-              {/* ── Die Bühne (die EINE dunkle Stelle): Gesellschaft, Phase, Ring über vier Phasen, nächster Schritt, Kontakt ── */}
-      <section className="gp-buehne" aria-label={w.ihreGesellschaft}>
-        <div className="gp-licht a" aria-hidden="true" /><div className="gp-licht b" aria-hidden="true" />
-        <div className="gp-buehne-innen">
-          <div className="gp-buehne-links">
-            <p className="gp-gruss">{hallo}{name ? `, ${name}` : ""}.</p>
-            <span className="gp-auge hell">{w.buero} · {a.paketName}</span>
-            <h1 className="gp-llc">{g.name || a.firma?.name || w.gesellschaftOhneName}</h1>
-            <p className="gp-llc-zeile">{phaseZeile}</p>
-            <div className="gp-pillen">
-              <span className={`gp-pille st-${a.status}`}>{t.status?.[a.status] ?? a.status}</span>
-              {chips.map((c) => <span key={c} className="gp-pille">{c}</span>)}
-            </div>
-            {ap && (
-              <div className="gp-kontakt-glas">
-                {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-kontakt-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
-                <div><b>{ap.name}</b><small>{w.rolle}</small></div>
-                <button type="button" className="gp-glas-knopf" onClick={() => geh("anfragen")}>{w.nachricht}</button>
-              </div>
-            )}
-          </div>
-          <div className="gp-buehne-rechts">
-            <PhasenRing phasen={phasen} prozent={prozent} zeile={w.stationen(erledigt, gesamt)} titel={w.fortschritt} />
-            <button type="button" className="gp-naechster" onClick={() => geh("fahrplan")}>
-              <span className="gp-auge hell">{w.meilenstein}</span>
-              <p>{a.naechsterSchritt?.text || w.naechsterLeer}</p>
-              {a.naechsterSchritt?.bis && <small>{t.schrittBis(tag(a.naechsterSchritt.bis))}</small>}
-            </button>
-          </div>
-        </div>
-        <ol className="gp-phasen" aria-label={t.wegTitel}>
-          {phasen.map((ph, i) => (
-            <li key={ph.nr} style={{ ["--i" as any]: i }}>
-              <button type="button" className={`gp-phase st-${ph.stand}${ph.jetzt ? " jetzt" : ""}${ph.imPaket ? "" : " ausserhalb"}`} onClick={() => geh("fahrplan")} aria-current={ph.jetzt ? "step" : undefined}>
-                <span className="gp-phase-kopf"><i>{ph.stand === "fertig" ? <Check size={12} strokeWidth={3} /> : ROEMISCH[ph.nr]}</i><b>{ph.titel}</b></span>
-                <small>{ph.gesamt ? `${ph.fertig} ${s === "en" ? "of" : "von"} ${ph.gesamt}` : ""}{ph.gesamt ? " · " : ""}{w.etappeStand[ph.stand]}</small>
-                <span className="gp-phase-balken" aria-hidden="true"><i style={{ width: `${ph.gesamt ? Math.round((ph.fertig / ph.gesamt) * 100) : ph.stand === "fertig" ? 100 : 0}%` }} /></span>
-              </button>
-            </li>
-          ))}
-        </ol>
-        <WellenFeld unten className="gp-welle" />
-      </section>
-
-              <div className="gp-spalten">
-                <main className="gp-haupt">
-          {/* ── Für Sie zu tun ── */}
-          <section id="gp-tun" className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2">{w.tunTitel}</h2>
-            {tun.length === 0 ? (
-              <div className="gp-alles-gut"><CheckCircle2 size={22} /><p>{w.tunLeer}</p></div>
-            ) : (
-              <div className="gp-tun">
-                {tun.map((x, i) => (
-                  <div key={x.key} className={`gp-tun-karte ${x.ton}`} style={{ ["--i" as any]: i }}>
-                    <span className="gp-tun-icon"><x.Icon size={18} strokeWidth={1.7} /></span>
-                    <div><b>{x.titel}</b><p>{x.text}</p></div>
-                    {x.href ? <a className="gp-knopf" href={x.href}>{x.knopf} <ArrowRight size={14} /></a>
-                      : x.aktion ? <button type="button" className="gp-knopf" onClick={x.aktion}>{x.knopf} <ArrowRight size={14} /></button> : null}
+              {/* ── 22.10.2026: Die Bühne wie ein Sperrbildschirm (Justin: „Apple Design mit Glas — Glas wie im Screenshot!“):
+                    Datum, EINE große dünne Zahl, wenige Glaspillen — darunter drei Glas-Widgets. Die einzige blaue Stelle. ── */}
+              <section className="gp-sperr" aria-label={w.ihreGesellschaft} data-fiaon="portal-buehne">
+                <div className="gp-sperr-kopf">
+                  <p className="gp-sperr-datum">{heuteText}</p>
+                  <p className="gp-sperr-zahl" aria-label={`${prozent} % · ${w.fortschritt}`}><Zaehler ziel={prozent} /><span aria-hidden="true">%</span></p>
+                  <p className="gp-sperr-label">{w.fortschritt} · {phaseKurz}</p>
+                  <p className="gp-sperr-gruss">{hallo}{name ? `, ${name}` : ""}.</p>
+                  <h1 className="gp-sperr-llc">{g.name || a.firma?.name || w.gesellschaftOhneName}</h1>
+                  <p className="gp-sperr-unter">{[g.bundesstaat, a.paketName].filter(Boolean).join(" · ")}</p>
+                  <div className="gp-sperr-pillen">
+                    <span className={`gp-glaspille st-${a.status}`}>{t.status?.[a.status] ?? a.status}</span>
+                    {chips.slice(0, 2).map((c) => <span key={c} className="gp-glaspille">{c}</span>)}
                   </div>
-                ))}
-              </div>
-            )}
-            {sg && sg.zeile && (
-              <div className="gp-termin">
-                <CalendarClock size={18} strokeWidth={1.7} />
-                <div><b>{sg.titel}: {sg.zeile}</b>{sg.wie && <small>{sg.wie}</small>}</div>
-                <div className="gp-termin-wege">
-                  {sg.kalenderUrl && <a className="gp-knopf leise" href={sg.kalenderUrl}>{sg.texte.kalender}</a>}
-                  {sg.googleUrl && <a className="gp-knopf leise" href={sg.googleUrl} target="_blank" rel="noopener">{sg.texte.google}</a>}
-                  {sg.verschiebenUrl && <a className="gp-knopf leise" href={sg.verschiebenUrl}>{sg.texte.verschieben}</a>}
                 </div>
-              </div>
-            )}
-            {sg && !sg.zeile && sg.satz && <p className="gp-leise">{sg.satz}</p>}
-          </section>
-                </main>
-                <aside className="gp-seite">
-          {/* ── Zuletzt passiert ── */}
-          <div className="gp-karte gp-auftauchen">
-            <span className="gp-auge">{w.zuletzt}</span>
-            {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
-              <>
-                <ol className="gp-verlauf kurz">
-                  {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 5).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
-                </ol>
-                {(a.verlauf as T[]).length > 5 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
-              </>
-            )}
-          </div>
-                </aside>
-              </div>
+                <div className="gp-widgets">
+                  <button type="button" className="gp-widget gp-w-naechst" onClick={() => geh("fahrplan")} data-fiaon="portal-als-naechstes">
+                    <span className="gp-widget-auge">{w.alsNaechstes}</span>
+                    <p>{naechsterText}</p>
+                    {a.naechsterSchritt?.bis && <small>{t.schrittBis(tag(a.naechsterSchritt.bis))}</small>}
+                    <span className="gp-widget-pfeil" aria-hidden="true"><ArrowRight size={16} /></span>
+                  </button>
+                  <div className="gp-widget gp-w-weg">
+                    <span className="gp-widget-auge">{w.wegAuge}</span>
+                    <ol className="gp-weg" aria-label={t.wegTitel}>
+                      {phasen.map((ph, i) => (
+                        <li key={ph.nr} style={{ ["--i" as any]: i }}>
+                          <button type="button" className={`gp-weg-zeile st-${ph.stand}${ph.jetzt ? " jetzt" : ""}${ph.imPaket ? "" : " ausserhalb"}`} onClick={() => geh("fahrplan")} aria-current={ph.jetzt ? "step" : undefined}>
+                            <i aria-hidden="true">{ph.stand === "fertig" ? <Check size={12} strokeWidth={3} /> : ROEMISCH[ph.nr]}</i>
+                            <span className="gp-weg-text"><b>{ph.titel}</b><small>{ph.gesamt ? `${ph.fertig} ${s === "en" ? "of" : "von"} ${ph.gesamt} · ` : ""}{w.etappeStand[ph.stand]}</small></span>
+                            <span className="gp-weg-balken" aria-hidden="true"><em style={{ width: `${ph.gesamt ? Math.round((ph.fertig / ph.gesamt) * 100) : ph.stand === "fertig" ? 100 : 0}%` }} /></span>
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  {ap && (
+                    <div className="gp-widget gp-w-kontakt">
+                      {ap.bild ? <img src={ap.bild} alt="" /> : <span className="gp-w-mono" aria-hidden="true">{(ap.vorname || ap.name || "F").slice(0, 1)}</span>}
+                      <div><b>{ap.name}</b><small>{w.rolle}</small></div>
+                      <button type="button" className="gp-w-knopf" onClick={() => geh("anfragen")}>{w.nachricht}</button>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* ── Für Sie zu tun ── */}
+              <section id="gp-tun" className="gp-abschnitt gp-auftauchen">
+                <h2 className="gp-h2">{w.tunTitel}</h2>
+                {tun.length === 0 ? (
+                  <div className="gp-alles-gut"><CheckCircle2 size={22} /><p>{w.tunLeer}</p></div>
+                ) : (
+                  <div className="gp-tun">
+                    {tun.map((x, i) => (
+                      <div key={x.key} className={`gp-tun-karte ${x.ton}`} style={{ ["--i" as any]: i }}>
+                        <span className="gp-tun-icon"><x.Icon size={18} strokeWidth={1.7} /></span>
+                        <div><b>{x.titel}</b><p>{x.text}</p></div>
+                        {x.href ? <a className="gp-knopf" href={x.href}>{x.knopf} <ArrowRight size={14} /></a>
+                          : x.aktion ? <button type="button" className="gp-knopf" onClick={x.aktion}>{x.knopf} <ArrowRight size={14} /></button> : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {sg && sg.zeile && (
+                  <div className="gp-termin">
+                    <CalendarClock size={18} strokeWidth={1.7} />
+                    <div><b>{sg.titel}: {sg.zeile}</b>{sg.wie && <small>{sg.wie}</small>}</div>
+                    <div className="gp-termin-wege">
+                      {sg.kalenderUrl && <a className="gp-knopf leise" href={sg.kalenderUrl}>{sg.texte.kalender}</a>}
+                      {sg.googleUrl && <a className="gp-knopf leise" href={sg.googleUrl} target="_blank" rel="noopener">{sg.texte.google}</a>}
+                      {sg.verschiebenUrl && <a className="gp-knopf leise" href={sg.verschiebenUrl}>{sg.texte.verschieben}</a>}
+                    </div>
+                  </div>
+                )}
+                {sg && !sg.zeile && sg.satz && <p className="gp-leise">{sg.satz}</p>}
+              </section>
 
               {/* ── Ihr Büro: Nummer, Konto & Karten, Adressen & Post, Fristen, Dokumente, Dienste — jede Kachel klickbar ── */}
               <section className="gp-abschnitt gp-auftauchen gp-buero" aria-label={w.bueroTitel}>
@@ -790,6 +687,19 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                     <span className="gp-buero-fuss">{ZUSATZ_WOERTER[s].titel} <ArrowRight size={14} /></span>
                   </button>
                 </div>
+              </section>
+
+              {/* ── Zuletzt passiert (drei Zeilen, auf Wunsch alle) ── */}
+              <section className="gp-abschnitt gp-auftauchen gp-zuletzt" aria-label={w.zuletzt}>
+                <h2 className="gp-h2">{w.zuletzt}</h2>
+                {(a.verlauf ?? []).length === 0 ? <p className="gp-leise">{t.verlaufLeer}</p> : (
+                  <>
+                    <ol className="gp-verlauf kurz">
+                      {(a.verlauf as T[]).slice(0, verlaufAlle ? 200 : 3).map((v, i) => <li key={i}><time dateTime={v.am}>{tagKurz(v.am)}</time><span>{v.text}</span></li>)}
+                    </ol>
+                    {(a.verlauf as T[]).length > 3 && <button type="button" className="gp-link" onClick={() => setVerlaufAlle((x) => !x)}>{verlaufAlle ? w.weniger : w.alleZeigen} <ChevronDown size={14} style={{ transform: verlaufAlle ? "rotate(180deg)" : "none" }} /></button>}
+                  </>
+                )}
               </section>
             </>
           ) : (
@@ -1087,7 +997,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                   <main className="gp-haupt">
           {/* ── Vertrag, Zahlungsplan, Garantie ── */}
           <section id="gp-vertrag" className="gp-abschnitt gp-auftauchen">
-            <h2 className="gp-h2"><ShieldCheck size={20} strokeWidth={1.5} /> {a.angebot ? `${ANGEBOT_MEIN_AUFTRAG.titel} ${a.angebot.ref}` : w.auftragTitel}</h2>
+            <h2 className="gp-h2"><ShieldCheck size={20} strokeWidth={1.5} /> {a.angebot ? (a.angebot.titel ?? ANGEBOT_MEIN_AUFTRAG.titel) : w.auftragTitel}</h2>
+            {a.angebot?.ref && <p className="gp-ref-zeile">{a.angebot.ref}</p>}
             {a.angebot && (
               <>
                 <ul className="gp-teile">
@@ -1253,8 +1164,12 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
           onFertig={() => void laden()} onZu={() => setDialog(null)} />
       )}
       {dialog && dialog.unterschrift?.modus !== "handschriftlich" && (
-        <UnterschriftDialog dok={dialog} s={s} vorschau={vorschau} gruss={vollerName}
-          url={mitToken(`/dokument/${encodeURIComponent(String(dialog.id))}`)}
+        <UnterschriftDigital dok={dialog} s={s} vorschau={vorschau}
+          titel={((pflicht?.eintraege ?? []) as T[]).find((e) => e.dokumentId === dialog.id)?.titel ?? (dialog.titel || dialog.artText)}
+          namen={(a.unterschriften?.[String(dialog.id)]?.namen as string[] | undefined) ?? (vollerName ? [vollerName] : [])}
+          ansichtUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}/ansicht`)}
+          startUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}/start`)}
+          codeNeuUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}/code-neu`)}
           sendenUrl={mitToken(`/unterschrift/${encodeURIComponent(String(dialog.id))}`)}
           onFertig={() => void laden()} onZu={() => setDialog(null)} />
       )}
@@ -1285,31 +1200,6 @@ function Zeile({ k, v, kopie, kopiert, w }: { k: string; v?: string | null; kopi
         <span>{v}</span>
         {kopie && <button type="button" className="gp-kopie" onClick={kopie} aria-label={`${k} kopieren`}>{kopiert ? <><Check size={12} /> {w?.kopiert}</> : <Copy size={12} />}</button>}
       </dd>
-    </div>
-  );
-}
-
-/** Der Ring der Bühne: vier Bögen, je Phase einer, gefüllt nach erledigten Stationen — in der Mitte der Gesamtstand. */
-function PhasenRing({ phasen, prozent, zeile, titel }: { phasen: { nr: number; fertig: number; gesamt: number; stand: string; jetzt: boolean }[]; prozent: number; zeile: string; titel: string }) {
-  const U = 2 * Math.PI * 52; const luecke = 7; const bogen = U / 4 - luecke;
-  return (
-    <div className="gp-ring-karte">
-      <svg className="gp-ring" viewBox="0 0 120 120" aria-hidden="true">
-        <defs><linearGradient id="gpRing" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#7fb6ff" /><stop offset="1" stopColor="#288dfa" /></linearGradient></defs>
-        {phasen.map((p, i) => {
-          const anteil = p.gesamt ? p.fertig / p.gesamt : p.stand === "fertig" ? 1 : 0;
-          const versatz = -(i * (U / 4) + luecke / 2);
-          return (
-            <g key={p.nr}>
-              <circle cx="60" cy="60" r="52" className={`gp-ring-grund${p.jetzt ? " jetzt" : ""}`} strokeDasharray={`${bogen} ${U - bogen}`} strokeDashoffset={versatz} />
-              {anteil > 0 && <circle cx="60" cy="60" r="52" className="gp-ring-bogen" style={{ ["--i" as any]: i }} strokeDasharray={`${bogen * anteil} ${U - bogen * anteil}`} strokeDashoffset={versatz} />}
-            </g>
-          );
-        })}
-      </svg>
-      {["I", "II", "III", "IV"].map((r, i) => <span key={r} className={`gp-ring-roemisch r${i}${phasen[i]?.jetzt ? " jetzt" : ""}`} aria-hidden="true">{r}</span>)}
-      <div className="gp-ring-mitte"><b><Zaehler ziel={prozent} />%</b><small>{titel}</small></div>
-      <p className="gp-ring-satz">{zeile}</p>
     </div>
   );
 }

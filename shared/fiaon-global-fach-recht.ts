@@ -1234,3 +1234,74 @@ export const FACH_VORLAGEN: FachVorlage[] = [
     art: "sonstiges",
   },
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// (C) OPERATING AGREEMENT FÜR MEHRERE MITGLIEDER — und die Manager-Fassung (22.10.2026)
+// Das Mandat setzt das Operating Agreement selbst (shared/fiaon-global-us-dokumente.ts, US-Format, digital
+// unterschrieben). Ein Mitglied: die Vorlage oben (operating-agreement-smllc) — dieselbe Quelle wie das Portal.
+// Mehrere Mitglieder: dieser Text. Er steht bewusst NICHT in FACH_VORLAGEN (die Portal-Vorlagen bleiben für die
+// Ein-Personen-LLC); Gestaltungen für Investoren oder besondere Gewinnverteilungen gehören zu einer US-Kanzlei.
+// „[[SCHEDULE]]“ wird zur Tabelle der Mitglieder mit Anschrift und Anteil.
+// ═══════════════════════════════════════════════════════════════════════════
+export const OA_MEHRERE_TEXT: readonly string[] = [
+  "This Operating Agreement (this “Agreement”) of {{llcName}}, a {{bundesstaatName}} limited liability company (the “Company”), is made and entered into effective as of {{heute}} by and among the {{anzahlWort}} persons listed in Schedule A as members of the Company (each a “Member” and together the “Members”).",
+  "## 1. Formation",
+  "1.1 Formation. The Company was formed as a limited liability company under the laws of the State of {{bundesstaatName}} by the filing of its articles of organization with the competent state authority on {{gegruendetAm}} under document number {{aktenzeichen}}. The rights and obligations of the Members and the administration of the Company are governed by this Agreement, the articles of organization and the limited liability company act of the State of {{bundesstaatName}}, as amended from time to time (the “Act”). To the extent permitted by the Act, this Agreement controls where it differs from a default rule of the Act.",
+  "1.2 Name. The name of the Company is {{llcName}}. The Company may conduct business under that name or under any fictitious name duly registered by the Company.",
+  "1.3 Principal Office and Registered Agent. The principal office of the Company is located at {{usAdresse}}, or at such other place as the Members may designate. The registered agent of the Company in the State of {{bundesstaatName}} is {{registeredAgent}}, or such other registered agent as the Members may designate by making the required filing with the state.",
+  "1.4 Employer Identification Number. The federal Employer Identification Number of the Company is {{ein}}.",
+  "1.5 Term. The existence of the Company commenced on the date its articles of organization became effective and shall continue until the Company is dissolved and its affairs are wound up in accordance with this Agreement and the Act.",
+  "## 2. Purpose and Powers",
+  "2.1 Purpose. The purpose of the Company is {{zweck}}, and to engage in any other lawful act or activity for which limited liability companies may be organized under the Act.",
+  "2.2 Powers. The Company has all powers necessary or convenient to carry out its purpose, including the power to enter into contracts, to open and maintain bank and payment accounts, to borrow money, to acquire, hold and dispose of property, and to sue and be sued in its own name.",
+  "## 3. Members, Interests and Capital",
+  "3.1 Members and Percentage Interests. The Members of the Company are {{mitgliederListe}}. Each Member holds the percentage of the membership interests in the Company set out next to that Member’s name in Schedule A (the “Percentage Interest”).",
+  "3.2 Capital Contributions. Each Member has contributed or will contribute to the Company its initial capital contribution as follows: {{einlage}}. No Member is required to make any additional capital contribution. Additional capital contributions require the consent of Members holding a majority of the Percentage Interests and, unless all Members agree otherwise, shall be made in proportion to the Percentage Interests.",
+  "3.3 No Interest; No Withdrawal. No interest shall accrue on any capital contribution. No Member has the right to withdraw or to be repaid any capital contribution except as provided in this Agreement.",
+  "3.4 Loans by Members. A Member may lend money to the Company on terms approved in writing by Members holding a majority of the Percentage Interests. A loan by a Member is not a capital contribution and shall be documented and recorded as a loan.",
+  "3.5 Capital Accounts. A separate capital account shall be maintained for each Member in accordance with the applicable Treasury Regulations.",
+  "## 4. Allocations, Distributions and Tax Matters",
+  "4.1 Allocations. Items of income, gain, loss, deduction and credit of the Company shall be allocated among the Members in proportion to their Percentage Interests, except as otherwise required by the Internal Revenue Code and the Treasury Regulations.",
+  "4.2 Distributions. The Company may make distributions at such times and in such amounts as Members holding a majority of the Percentage Interests determine. Distributions shall be made to the Members in proportion to their Percentage Interests. No distribution shall be made if, after giving it effect, (a) the Company would not be able to pay its debts as they become due in the ordinary course of its activities, or (b) the Company's total assets would be less than the sum of its total liabilities, or if the distribution would otherwise violate the Act.",
+  "4.3 Tax Classification and Partnership Representative. The Members acknowledge that, for United States federal income tax purposes, an eligible entity with two or more owners is classified as a partnership unless an election to be classified otherwise is made. Any election regarding the tax classification of the Company requires the consent of all Members. The Member listed first in Schedule A is designated as the partnership representative of the Company for purposes of the Internal Revenue Code and shall keep the other Members informed of all material tax proceedings. The tax treatment of the Company and of the Members in any jurisdiction is determined by applicable law and not by this Agreement.",
+  "## 5. Management",
+  "5.1 Member-Managed. The Company is a member-managed limited liability company. Except as provided in Section 5.3, decisions of the Company are made by Members holding a majority of the Percentage Interests.",
+  "5.2 Authority to Bind. Each Member, acting alone, is authorized to execute documents and to take actions on behalf of the Company in the ordinary course of its business. A Member may sign on behalf of the Company under the title “Member” or “Managing Member”.",
+  "5.3 Major Decisions. The following actions require the written consent of all Members: (a) amending this Agreement or the articles of organization; (b) admitting a new Member; (c) selling, leasing or otherwise disposing of all or substantially all of the assets of the Company; (d) merging, converting or dissolving the Company; and (e) changing the tax classification of the Company.",
+  "5.4 Action by Written Consent. Any action required or permitted to be taken by the Members may be taken without a meeting by a written consent signed by Members holding the Percentage Interests required for that action. Written consents shall be kept with the records of the Company.",
+  "5.5 Other Activities. A Member may engage in other business activities, whether or not similar to those of the Company, without any obligation to offer an interest in such activities to the Company or the other Members.",
+  "## 6. Banking and Records",
+  "6.1 Bank Accounts. All funds of the Company shall be deposited in one or more accounts maintained in the name of the Company with banks or other financial institutions selected by the Members. Company funds shall not be commingled with the personal funds of any Member or of any other person.",
+  "6.2 Signatories. The Members may designate in writing the persons authorized to sign or transact on the accounts of the Company.",
+  "6.3 Books and Records. The Company shall maintain complete and accurate books and records of its business, including a copy of its articles of organization and all amendments, this Agreement and all amendments, all written consents of the Members, its federal, state and local tax returns and reports, and any other records required by the Act. Each Member may inspect the books and records of the Company upon reasonable notice.",
+  "6.4 Fiscal Year. The fiscal year of the Company is the calendar year unless the Members determine otherwise.",
+  "## 7. Limited Liability and Indemnification",
+  "7.1 Limited Liability. Except as otherwise required by the Act, the debts, obligations and other liabilities of the Company, whether arising in contract, tort or otherwise, are solely the debts, obligations and liabilities of the Company. No Member is personally liable for any such debt, obligation or liability solely by reason of being or acting as a member or manager of the Company.",
+  "7.2 Indemnification. To the fullest extent permitted by the Act, the Company shall indemnify, defend and hold harmless each Member and any officer of the Company from and against any loss, damage, claim, cost or expense (including reasonable attorneys' fees) incurred by reason of any act or omission performed or omitted in good faith on behalf of the Company, except to the extent arising from conduct for which the Act does not permit indemnification, including conduct involving bad faith, willful or intentional misconduct, or a knowing violation of law.",
+  "7.3 No Third-Party Rights. The provisions of this Agreement are solely for the benefit of the Members and the Company and do not confer any rights upon any creditor or other third party.",
+  "## 8. Transfer, Admission and Succession",
+  "8.1 Restrictions on Transfer. No Member may transfer, pledge or otherwise encumber all or any part of its membership interest without the prior written consent of all other Members. Any transfer in violation of this Section is void.",
+  "8.2 Right of First Refusal. A Member wishing to transfer its membership interest to a third party shall first offer it to the other Members, in proportion to their Percentage Interests, on the same terms. The other Members may accept the offer in writing within thirty days.",
+  "8.3 Admission of Members. A transferee or a new member is admitted only with the written consent of all Members and upon signing a written acceptance of this Agreement.",
+  "8.4 Death or Incapacity of a Member. Upon the death or adjudicated incapacity of a Member, to the extent permitted by the Act, the Company shall not dissolve but shall continue with the remaining Members, and the personal representative or successor of that Member shall hold the economic rights of the membership interest until admitted as a Member in accordance with Section 8.3.",
+  "## 9. Dissolution and Winding Up",
+  "9.1 Events of Dissolution. The Company shall be dissolved only upon (a) the written decision of all Members to dissolve the Company, (b) the entry of a decree of judicial dissolution, or (c) any other event that requires dissolution under the Act and cannot be avoided under this Agreement.",
+  "9.2 Winding Up. Upon dissolution, the Members or a person designated by them shall wind up the affairs of the Company, liquidate its assets, file articles of dissolution with the competent state authority and give notice to known creditors as provided in the Act.",
+  "9.3 Order of Distribution. The assets of the Company shall be applied first to the payment of, or reasonable provision for, all debts and liabilities of the Company, including liabilities to Members as creditors, and thereafter distributed to the Members in accordance with their positive capital account balances and then in proportion to their Percentage Interests.",
+  "## 10. General Provisions",
+  "10.1 Governing Law. This Agreement is governed by and shall be construed in accordance with the laws of the State of {{bundesstaatName}}, without regard to its conflict of laws principles.",
+  "10.2 Entire Agreement; Amendments. This Agreement, together with Schedule A, constitutes the entire agreement of the Members with respect to its subject matter and supersedes all prior agreements and understandings. This Agreement may be amended only by a written instrument signed by all Members.",
+  "10.3 Severability. If any provision of this Agreement is held invalid or unenforceable, the remaining provisions remain in full force and effect, and the invalid provision shall be deemed replaced by a valid provision that comes closest to its intent.",
+  "10.4 Electronic Signature; Counterparts. This Agreement may be signed electronically and in counterparts, and an electronic signature has the same effect as a handwritten signature.",
+  "10.5 Headings. Headings are for convenience only and do not affect the interpretation of this Agreement.",
+  "## Schedule A — Members and Percentage Interests",
+  "Company: {{llcName}}, a {{bundesstaatName}} limited liability company, document number {{aktenzeichen}}, EIN {{ein}}.",
+  "[[SCHEDULE]]",
+  "IN WITNESS WHEREOF, the undersigned Members have executed this Operating Agreement effective as of {{heute}}.",
+];
+
+/** Manager-Fassung: Ziffer 5.1 und 5.2 ersetzen (ein oder mehrere Mitglieder) — gewählt im Mandat („manager-managed“). */
+export const OA_MANAGER_ERSATZ: Readonly<Record<string, string>> = {
+  "5.1 ": "5.1 Manager-Managed. The Company is a manager-managed limited liability company. {{managerName}} is appointed as the manager of the Company (the “Manager”). The Manager has full authority to manage and control the business and affairs of the Company in the ordinary course, subject to the matters reserved to the members by this Agreement or the Act. The members may remove and replace the Manager at any time by written consent.",
+  "5.2 ": "5.2 Authority to Bind. The Manager, acting alone, is authorized to execute any document and to take any action on behalf of the Company in the ordinary course of its business and signs under the title “Manager”. No member acting solely in its capacity as member has authority to bind the Company.",
+};

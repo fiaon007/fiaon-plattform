@@ -53,7 +53,8 @@ pruefe("Annahme-Antworten", texteAus(Object.values(S.BEGLEIT_ANNAHME).map((v) =>
 titel("3. Vertragssprache (Präambel und Ziffern ohne Ihr/wir)");
 const ansprache = vertragOhneAnlage.match(/\b(Ihr|Ihre|Ihren|Ihrem|Ihrer|Sie|wir|uns|unser\w*)\b/g) ?? [];
 ok(ansprache.length === 0, "Vertrag spricht über die Parteien", ansprache);
-ok(S.begleitZiffern(D).length === 14 && S.begleitVertragInhalt(D).length === 16, "vierzehn Ziffern, Inhalt mit Präambel und Anlage");
+// Fassung 2026-10-23 (Option A): + Ziffer 14 „Befugnisse von FIAON“ — fünfzehn Ziffern.
+ok(S.begleitZiffern(D).length === 15 && S.begleitVertragInhalt(D).length === 17, "fünfzehn Ziffern, Inhalt mit Präambel und Anlage");
 
 titel("4. Alles offen: Honorar, Gründung, Jahresbetreuung, Altabo");
 const U = texteAus(S.begleitBestellUebersicht(D)).join("\n");

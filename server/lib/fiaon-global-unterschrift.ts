@@ -579,12 +579,14 @@ export async function unterschriftStarten(ref: string, idRoh: unknown, ein: { zu
   return { ok: true, vorgang, maske: emailMaske(email) };
 }
 
-async function codeMail(ref: string, k: FormularKontext, email: string, name: string, code: string, titel: string): Promise<{ ok: boolean; grund: string | null }> {
+async function codeMail(ref: string, k: FormularKontext, email: string, name: string, code: string, titel: string, opts: { neu?: boolean } = {}): Promise<{ ok: boolean; grund: string | null }> {
   const { kontoMailSenden } = await import("./fiaon-global-konto");
   const { escapeHtml } = await import("./fiaon-html-pdf");
   const teile = name.split(/\s+/);
   const pseudo: any = { id: 0, email, name, anrede: null, nachname: teile[teile.length - 1], firma: k.firmaName || null, sprache: k.sprache };
-  const erg = await kontoMailSenden("global_unterschrift_code", pseudo, { login_code: code, dokument_titel: escapeHtml(titel) }, { ausgeloestVon: `Kunde (Unterschrift ${ref})` });
+  // „Code neu senden“ geht zuerst über den zweiten Weg (Google Workspace), sonst entscheidet die Adresse (E-441).
+  const erg = await kontoMailSenden("global_unterschrift_code", pseudo, { login_code: code, dokument_titel: escapeHtml(titel) },
+    { ausgeloestVon: `Kunde (Unterschrift ${ref}${opts.neu ? ", neuer Code" : ""})`, ...(opts.neu ? { weg: "google" as const } : {}) });
   return erg;
 }
 
@@ -608,7 +610,7 @@ export async function unterschriftCodeNeu(ref: string, idRoh: unknown, ein: { vo
      WHERE id = ${z.id} AND eingeloest_am IS NULL AND neu_gesendet = ${Number(z.neu_gesendet || 0)} RETURNING id`) as any[];
   if (!frei) return nein(429, W.codeNeuWarten(60));
   const [d] = (await sqlPool`SELECT titel, dateiname FROM fiaon_global_dokumente WHERE id = ${Number(z.dokument_id)} LIMIT 1`) as any[];
-  const mail = await codeMail(ref, k, String(z.email), String(z.name), code, String(d?.titel || d?.dateiname || ""));
+  const mail = await codeMail(ref, k, String(z.email), String(z.name), code, String(d?.titel || d?.dateiname || ""), { neu: true });
   return mail.ok ? { ok: true, meldung: W.codeNeuOk } : nein(502, W.mailFehler);
 }
 

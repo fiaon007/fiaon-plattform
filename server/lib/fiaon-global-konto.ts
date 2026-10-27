@@ -213,10 +213,10 @@ const GEHEIME_FELDER = ["login_code", "einrichten_url", "passwort_url"];
  * trotzdem gefragt — fällt die Ausnahme dort je weg, sperrt sie hier sichtbar (Protokoll „uebersprungen“), statt
  * still zu versenden; der Prüfstand pruef-global-login.ts hält die Ausnahme fest.
  */
-export async function kontoMailSenden(event: KontoMail, k: KontoZeile, zusatz: Record<string, string>, opts: { ausgeloestVon?: string } = {}): Promise<{ ok: boolean; grund: string | null }> {
+export async function kontoMailSenden(event: KontoMail, k: KontoZeile, zusatz: Record<string, string>, opts: { ausgeloestVon?: string; weg?: KontoMailWeg } = {}): Promise<{ ok: boolean; grund: string | null }> {
   const nutzlast = kontoMailNutzlast(k, zusatz);
   const von = opts.ausgeloestVon ?? "System (FIAON Global, Zugang)";
-  let ok = false; let grund: string | null = null; let messageId: string | null = null; let gesperrt = false;
+  let ok = false; let grund: string | null = null; let messageId: string | null = null; let gesperrt = false; let ueber: KontoMailWeg = "brevo";
   try {
     const F = await import("./fiaon-global-firma-post");
     if (await F.firmaGlobalMailSperre(event, null, k.email, von)) { gesperrt = true; grund = F.FIRMA_KEINE_AUTOMATIK; }
@@ -226,11 +226,19 @@ export async function kontoMailSenden(event: KontoMail, k: KontoZeile, zusatz: R
   const nurProtokoll = !gesperrt && !process.env.BREVO_API_KEY && kontoKlartextImProtokoll();
   if (nurProtokoll) { ok = true; grund = "Prüfstand: nicht verschickt, nur protokolliert (kein BREVO_API_KEY)"; }
   if (!gesperrt && !nurProtokoll) {
-    try {
-      const { mailDirektSenden } = await import("../mail/motor");
-      const erg = await mailDirektSenden(event, nutzlast);
-      ok = erg.ok; grund = erg.ok ? (erg.grund ?? null) : (erg.grund || "unbekannt"); messageId = erg.messageId ?? null;
-    } catch (e) { grund = e instanceof Error ? e.message : String(e); }
+    // E-441 (27.10.2026): Zwei Wege. Brevo nahm Codes an iCloud an („sent“), stellte sie aber über eine Stunde nicht zu —
+    // der Kunde kam nicht weiter. Apple-Postfächer und jedes „Code neu senden“ gehen deshalb zuerst über Google Workspace
+    // (Postfach des Absenders); scheitert ein Weg, nimmt der andere die Mail.
+    // Ohne Brevo-Schlüssel (Prüfstand, Vorschau) bleibt es beim alten Weg — dort soll auch Google nichts verschicken.
+    const reihe: KontoMailWeg[] = !process.env.BREVO_API_KEY ? ["brevo"]
+      : (opts.weg ?? kontoMailWegFuer(k.email)) === "google" ? ["google", "brevo"] : ["brevo", "google"];
+    const gruende: string[] = [];
+    for (const w of reihe) {
+      const erg = await kontoMailUeber(w, event, nutzlast);
+      if (erg.ok) { ok = true; ueber = w; messageId = erg.messageId; grund = [...gruende, erg.grund, w === "google" ? "über Google Workspace verschickt" : null].filter(Boolean).join(" · ") || null; break; }
+      gruende.push(`${w}: ${erg.grund || "unbekannt"}`);
+    }
+    if (!ok) grund = gruende.join(" · ") || "unbekannt";
   }
   try {
     const klar = kontoKlartextImProtokoll();
@@ -240,10 +248,34 @@ export async function kontoMailSenden(event: KontoMail, k: KontoZeile, zusatz: R
     await mailProtokoll({
       event, personId: null, empfaenger: k.email,
       status: nurProtokoll ? "uebersprungen" : ok ? "versandt" : gesperrt ? "uebersprungen" : "fehlgeschlagen", grund: ok ? grund : (grund || "unbekannt"),
-      payload, ausgeloestVon: von, brevoMessageId: messageId,
+      payload, ausgeloestVon: von, brevoMessageId: ueber === "brevo" ? messageId : null,
     });
   } catch (e) { console.error(`[GLOBAL-KONTO] Mailprotokoll ${event}:`, e); }
   return { ok, grund: ok ? null : (grund || "unbekannt") };
+}
+
+export type KontoMailWeg = "brevo" | "google";
+/** Apple-Postfächer (iCloud) bekommen Zugangs-Mails zuerst über Google Workspace (E-441). */
+export function kontoMailWegFuer(email: string): KontoMailWeg {
+  return /@(icloud|me|mac)\.com$/i.test(String(email || "").trim()) ? "google" : "brevo";
+}
+async function kontoMailUeber(weg: KontoMailWeg, event: KontoMail, nutzlast: Record<string, unknown>): Promise<{ ok: boolean; messageId: string | null; grund: string | null }> {
+  try {
+    if (weg === "brevo") {
+      const { mailDirektSenden } = await import("../mail/motor");
+      const erg = await mailDirektSenden(event, nutzlast);
+      return { ok: erg.ok, messageId: erg.messageId ?? null, grund: erg.ok ? (erg.grund ?? null) : (erg.grund || "unbekannt") };
+    }
+    const { mailRendern } = await import("../mail/motor");
+    const G = await import("./fiaon-gmail");
+    if (!G.gmailBereit()) return { ok: false, messageId: null, grund: "GOOGLE_SA_KEY fehlt" };
+    const mail = mailRendern(event, nutzlast);
+    if (!mail) return { ok: false, messageId: null, grund: `Keine Vorlage für '${event}' im Motor.` };
+    const an = String((nutzlast as any).email ?? "").trim();
+    if (!an) return { ok: false, messageId: null, grund: "Keine Empfängeradresse in der Nutzlast." };
+    const id = await G.neueMailSenden(mail.absender.email, { vonName: mail.absender.name, an, betreff: mail.betreff, text: mail.text, html: mail.html });
+    return { ok: !!id, messageId: id || null, grund: id ? null : "Google hat keine Nachrichten-ID geliefert" };
+  } catch (e) { return { ok: false, messageId: null, grund: e instanceof Error ? e.message : String(e) }; }
 }
 
 const tagText = (d: Date, s: KontoSprache) => d.toLocaleDateString(s === "en" ? "en-GB" : "de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" });
@@ -606,7 +638,8 @@ export async function kontoCodeNeu(b: { vorgang?: unknown }, a: Anfrage): Promis
      WHERE id = ${z.id} AND eingeloest_am IS NULL AND neu_gesendet = ${Number(z.neu_gesendet || 0)} RETURNING id`) as any[];
   if (!frei) return nein(429, S(k.sprache).codeNeuWarten(60), "warten");
   const zweck = (["anmeldung", "einrichtung", "passwort"].includes(String(z.zweck)) ? z.zweck : "anmeldung") as "anmeldung" | "einrichtung" | "passwort";
-  const mail = await kontoMailSenden("global_login_code", k, { login_code: code, code_anlass: escapeHtml(CODE_ANLASS[zweck][k.sprache]) });
+  // „Code neu senden“ heißt meist: der erste kam nicht an — darum zuerst der zweite Weg (E-441).
+  const mail = await kontoMailSenden("global_login_code", k, { login_code: code, code_anlass: escapeHtml(CODE_ANLASS[zweck][k.sprache]) }, { weg: "google" });
   await kontoProtokoll({ kontoId: k.id, ereignis: "code_neu", erfolg: mail.ok, ip: a.ip, ua: a.ua, details: { zweck, grund: mail.grund } });
   return { ok: true, meldung: S(k.sprache).codeNeuOk, ...(mail.ok ? {} : { mailFehler: true }) };
 }

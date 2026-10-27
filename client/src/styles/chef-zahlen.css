@@ -118,7 +118,7 @@
 @media (max-width: 640px) {
   .cz-monate { gap: 8px; height: 150px; }
   .cz-monat b { font-size: 10.5px; }
-  .cz-paket { grid-template-columns: 1fr; gap: 4px; }
+  .cz-paket { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .cz-paket i { order: 3; }
 }
 

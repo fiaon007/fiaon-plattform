@@ -388,7 +388,8 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
           <small>Die zwölf jüngsten Zahlungen · <a href="/chef/zahlungen">alle ansehen</a></small>
         </div>
         <div className="cl-tab-huelle">
-          <table className="cl-tab">
+          {/* Am Handy (chefbuero-handy.css, .hk): je Zahlung eine Karte — Kunde und Betrag oben, der Rest leise darunter. */}
+          <table className="cl-tab hk hk-kompakt">
             <thead>
               <tr><th>Eingang</th><th>Kunde</th><th>Paket</th><th>Rate</th><th>Betreuer</th><th className="r">Betrag</th></tr>
             </thead>
@@ -396,11 +397,11 @@ export default function ChefLagezimmer({ name }: { name: string | null }) {
               {l.letzteZahlungen.map((z, i) => (
                 <tr key={i}>
                   <td className="cl-zeit">{new Date(z.am).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })}</td>
-                  <td>{z.personId ? <a href={akteLink(z.personId, "chef") ?? undefined}>{z.kunde}</a> : z.kunde}</td>
-                  <td className="cl-leise">{z.paket ?? "—"}</td>
-                  <td className="cl-leise">{z.rateNr > 0 ? `${z.rateNr}.` : "—"}</td>
-                  <td className="cl-leise">{z.betreuer ?? "—"}</td>
-                  <td className="r"><b>{eur(z.cents)}</b></td>
+                  <td className="hk-titel">{z.personId ? <a href={akteLink(z.personId, "chef") ?? undefined}>{z.kunde}</a> : z.kunde}</td>
+                  <td className={`cl-leise${z.paket ? "" : " hk-leer"}`}>{z.paket ?? "—"}</td>
+                  <td className={`cl-leise${z.rateNr > 0 ? "" : " hk-leer"}`} data-label="Rate">{z.rateNr > 0 ? `${z.rateNr}.` : "—"}</td>
+                  <td className={`cl-leise${z.betreuer ? "" : " hk-leer"}`} data-label="Betreuer">{z.betreuer ?? "—"}</td>
+                  <td className="r hk-wert"><b>{eur(z.cents)}</b></td>
                 </tr>
               ))}
             </tbody>

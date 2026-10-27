@@ -51,7 +51,7 @@
 }
 
 /* ── Tafeln ── */
-.pm-raster { display: grid; gap: 18px; grid-template-columns: 1fr; }
+.pm-raster { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 980px) { .pm-raster { grid-template-columns: 1.15fr 1fr; } }
 .pm-tafel {
   border-radius: 18px; padding: 18px 20px;

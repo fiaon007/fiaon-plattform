@@ -20,4 +20,4 @@
 .cgz-link input { min-width: 0; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--cgr-linie); background: rgba(2,6,23,.4); color: #e2e8f0; font: 400 12px/1 ui-monospace, Menlo, monospace; }
 .cgz-meldung { margin: 0; font: 400 12.5px/1.45 'Inter', sans-serif; color: var(--cgr-rot); }
 .cgz-meldung.gut { color: var(--cgr-gruen); }
-@media (max-width: 720px) { .cgz-zeile { grid-template-columns: 1fr; } .cgz-knopf { justify-self: start; } }
+@media (max-width: 720px) { .cgz-zeile { grid-template-columns: minmax(0, 1fr); } .cgz-knopf { justify-self: start; } }

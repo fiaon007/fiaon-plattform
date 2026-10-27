@@ -180,19 +180,20 @@ function AuftraegeListe() {
         {sichtbar.length === 0 ? (
           <p className="cg-leer">{alle.length === 0 ? "Noch kein Global-Auftrag." : "Hier liegt gerade nichts."}</p>
         ) : (
-          <div className="cm-tab-halter"><table className="cm-tab cg-tab">
+          // Am Handy (chefbuero-handy.css, .hk): je Auftrag eine Karte, jede Zelle mit ihrer Spaltenüberschrift.
+          <div className="cm-tab-halter"><table className="cm-tab cg-tab hk">
             <thead><tr><th>Firma</th><th>Paket</th><th>Stand</th><th>Zuständig</th><th>Stichtag</th><th>Dokumente</th><th></th></tr></thead>
             <tbody>
               {sichtbar.map((z) => (
                 <tr key={z.ref} className={`cg-zeile cg-${z.status}`}>
-                  <td>
+                  <td className="hk-titel">
                     <b>{z.firma}</b>
                     <span className="cm-klartext">{[z.ort, z.land].filter(Boolean).join(", ")}{z.ansprechpartner ? ` · ${z.ansprechpartner}${z.funktion ? `, ${z.funktion}` : ""}` : ""}</span>
                     <span className="cm-klartext">{[z.email, z.telefon].filter(Boolean).join(" · ") || "—"}</span>
                     <span className="cm-klartext cg-ref">{z.ref}{z.verwendungszweck ? ` · Verwendungszweck ${z.verwendungszweck}` : ""}</span>
                     {z.alsPartner && <span className="cm-klartext cg-rolle">Auch Geschäftspartner · Kooperation {z.alsPartner}</span>}
                   </td>
-                  <td>
+                  <td data-label="Paket">
                     <b>{z.paketName.replace(/^FIAON /, "")}</b>
                     <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>
                     {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor Buchung klären.</span>}
@@ -200,7 +201,7 @@ function AuftraegeListe() {
                     {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}
                     {z.angebotId != null && <span className="cm-klartext cg-jahr" title="Teil 2, Frist und Erstattung im Reiter „Individualangebote“">Individualangebot</span>}
                   </td>
-                  <td>
+                  <td data-label="Stand">
                     <span className={`cg-marke cg-marke-${z.status}`}>{STATUS_TEXT[z.status]}</span>
                     <span className="cm-klartext">
                       {z.status === "offen" && <>seit {z.alterTage === 0 ? "heute" : `${z.alterTage} ${z.alterTage === 1 ? "Tag" : "Tagen"}`}{z.faelligAm ? ` · zahlbar bis ${datum(z.faelligAm)}` : ""}{z.zahlungGemeldetAm ? ` · Überweisung gemeldet ${datum(z.zahlungGemeldetAm)}` : ""}</>}
@@ -219,15 +220,15 @@ function AuftraegeListe() {
                     {z.auftragMailFehler && !z.auftragMailAm && <span className="cm-klartext cg-rot">Vertrag + Rechnung nicht raus: {z.auftragMailFehler}</span>}
                     {z.startMailFehler && !z.startMailAm && <span className="cm-klartext cg-rot">Startmail ging nicht raus: {z.startMailFehler}</span>}
                   </td>
-                  <td>
+                  <td data-label="Zuständig">
                     {z.zustaendig ? <b>{z.zustaendig.name}</b> : <span className="cg-rot">niemand</span>}
                     {z.betreuer && z.betreuer !== z.zustaendig?.name && <span className="cm-klartext">Betreuer: {z.betreuer}</span>}
                   </td>
-                  <td>
+                  <td data-label="Stichtag">
                     {z.stichtag ? <b>{datum(z.stichtag)}</b> : <span className="cm-wann">{z.status === "gestartet" ? "fehlt" : "—"}</span>}
                     {z.stichtag && <span className="cm-klartext">{z.stichtagMailAm ? `mitgeteilt am ${datum(z.stichtagMailAm)}` : "noch nicht mitgeteilt"}</span>}
                   </td>
-                  <td>
+                  <td data-label="Dokumente">
                     <div className="cg-links">
                       {z.vertragUrl ? <a href={z.vertragUrl} target="_blank" rel="noreferrer">Vertrag (PDF)</a> : <span className="cm-wann">kein Vertrag</span>}
                       {z.rechnungUrl && <a href={z.rechnungUrl} target="_blank" rel="noreferrer">Rechnung{z.rechnungsnummer ? ` ${z.rechnungsnummer.replace(/^FIAON-INV-/, "")}` : ""} (PDF)</a>}
@@ -235,7 +236,7 @@ function AuftraegeListe() {
                       <a href={`/chef/global?mandat=${encodeURIComponent(z.ref)}`} title="Arbeitsraum mit Kundenportal-Vorschau"><b>Arbeitsraum</b></a>
                     </div>
                   </td>
-                  <td>
+                  <td className="hk-voll">
                     <div className="cg-knoepfe">
                       {/* Der Grund steht als TEXT da, nicht im Tooltip (AGENTS.md: ein gesperrter Knopf ohne sichtbaren Grund ist ein Rätsel). */}
                       {!z.ohneAuftrag && z.status === "offen" && z.angebotId == null && <span className="cm-klartext" title="Wird im Startgespräch festgelegt.">Stichtag erst nach Zahlungseingang.</span>}

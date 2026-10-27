@@ -144,7 +144,7 @@ button.ar-fakt { cursor: pointer; }
 .ar-karte-rechts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ar-liste-karte { padding: 6px 12px 10px; }
 .ar-werkzeugleiste { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
-.ar-zwei { display: grid; gap: 14px; grid-template-columns: 1fr; }
+.ar-zwei { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1100px) { .ar-zwei { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
 .ar-zeile-knopf { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ar input[type="text"], .ar input[type="tel"], .ar input[type="search"], .ar input[type="number"], .ar input[type="date"], .ar input[type="time"], .ar select.ar-wahl, .ar textarea {
@@ -370,10 +370,10 @@ button.ar-fakt { cursor: pointer; }
   .ar-anruf-zeile .ar-ausgang { grid-area: ausgang; font-size: 13px; }
   .ar-detail { padding: 14px 12px; }
   .ar-blase { max-width: 90%; }
-  .ar-ton-zeile { grid-template-columns: 1fr; gap: 4px; padding: 7px 0; }
+  .ar-ton-zeile { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 7px 0; }
   .ar-anrufen-los .ar-knopf.gross { width: 100%; }
   .ar-nummer.offen input { width: 100%; }
-  .ar-plan { grid-template-columns: 1fr; }
+  .ar-plan { grid-template-columns: minmax(0, 1fr); }
   .ar-plan-knoepfe { justify-content: flex-start; }
   .ar-stunden { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 12px; }
   .ar-leiter { grid-template-columns: repeat(2, minmax(0, 1fr)); }

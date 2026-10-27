@@ -237,9 +237,9 @@ export default function ChefSeitenverzeichnis() {
         .sv-hinweis { margin: 0 0 8px; font: 400 12px/1.5 'Inter', sans-serif; color: rgba(159,196,255,.6); }
         .sv-liste { padding: 2px 14px 14px; }
         .sv-liste ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px;
-          grid-template-columns: 1fr; }
-        @media (min-width: 760px) { .sv-liste ul { grid-template-columns: 1fr 1fr; } }
-        @media (min-width: 1180px) { .sv-liste ul { grid-template-columns: 1fr 1fr 1fr; } }
+          grid-template-columns: minmax(0, 1fr); }
+        @media (min-width: 760px) { .sv-liste ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (min-width: 1180px) { .sv-liste ul { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
         .sv-liste a, .sv-liste li > span { display: flex; align-items: baseline; gap: 8px;
           padding: 7px 10px; border-radius: 9px; text-decoration: none; color: inherit; min-width: 0; }
         .sv-liste a:hover { background: rgba(40,141,250,.1); }

@@ -136,7 +136,7 @@
 }
 
 /* ── Raster und Karte ───────────────────────────────────────────────────── */
-.tk-raster { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.tk-raster { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 @media (min-width: 760px) { .tk-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1280px) { .tk-raster { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
@@ -237,7 +237,7 @@
 .tk-versuche[data-stufe="oft"] { --v: var(--tk-gelb); }
 .tk-versuche[data-stufe="viel"] { --v: var(--tk-rot); }
 
-.tk-fakten { margin: 0; display: grid; grid-template-columns: 1fr; gap: 6px; }
+.tk-fakten { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .tk-fakten > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; align-items: baseline; }
 .tk-fakten dt { font: 400 11px/1.4 'Inter', sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--tk-still); }
 .tk-fakten dd { margin: 0; font: 300 13.5px/1.45 'Inter', sans-serif; color: var(--tk-text); overflow-wrap: anywhere; }
@@ -309,7 +309,7 @@
 /* Am Telefon untereinander, volle Breite — nebeneinander wurden „Nachrichten"
    und „speichert zuerst den Kontakt" abgeschnitten (gemessen auf 390 px). */
 @media (max-width: 560px) {
-  .tk-aktionen { grid-template-columns: 1fr; gap: 8px; }
+  .tk-aktionen { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .tk-anrufen, .tk-nachrichten { min-height: 58px; }
 }
 /* E-274 (02.10.2026): „E-Mail" — die dritte Zeile unter Anrufen und Nachrichten.

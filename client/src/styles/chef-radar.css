@@ -203,7 +203,7 @@ select.cr-feld { cursor: pointer; }
 .cr-bearbeiten label, .cr-ausgabe label { display: grid; gap: 5px; font-size: 11.5px; color: var(--cr-leise); }
 .cr-ausgabe { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 12px; border-top: 1px solid var(--cr-linie); }
 .cr-ausgabe .cr-fenster-zeile, .cr-ausgabe .cr-senden-frage { grid-column: 1 / -1; }
-@media (max-width: 700px) { .cr-ausgabe { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .cr-ausgabe { grid-template-columns: minmax(0, 1fr); } }
 .cr-senden-frage { display: grid; gap: 9px; padding: 12px 14px; border-radius: 16px; background: rgba(29, 78, 216, .18); border: 1px solid rgba(147, 197, 253, .34); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
 
 @media (max-width: 900px) {
@@ -406,12 +406,12 @@ select.cr-feld { cursor: pointer; }
   .cr-trichter-stufen li:nth-child(5)::before { display: none; }
 }
 @media (max-width: 700px) {
-  .cr-glas .cr-held { grid-template-columns: 1fr; padding: 20px 18px; border-radius: 24px; }
+  .cr-glas .cr-held { grid-template-columns: minmax(0, 1fr); padding: 20px 18px; border-radius: 24px; }
   .cr-glas .cr-held-ziele { justify-content: center; }
   .cr-trichter-stufen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-trichter-stufen li::before { display: none; }
   .cr-glas .cr-haupt { display: flex; overflow-x: auto; justify-self: stretch; }
-  .cr-mara-werte { grid-template-columns: 1fr; }
+  .cr-mara-werte { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .cr-glas .cr-held, .cr-gespraeche, .cr-firmen, .cr-automatik, .cr-messung { animation: none; }
@@ -460,7 +460,7 @@ select.cr-feld { cursor: pointer; }
 .cr-schatten .cr-knopf { border-radius: 999px; }
 .cr-schatten .cr-blatt { width: min(720px, 100vw); background: linear-gradient(160deg, rgba(12, 22, 44, .97), rgba(16, 30, 58, .97)); border-left: 1px solid rgba(196, 222, 255, .2); }
 .cr-schatten .cr-blatt-kopf { background: rgba(12, 22, 44, .95); }
-@media (max-width: 560px) { .cr-fenster-raster { grid-template-columns: 1fr; } .cr-schatten .cr-blatt { border-radius: 0; } }
+@media (max-width: 560px) { .cr-fenster-raster { grid-template-columns: minmax(0, 1fr); } .cr-schatten .cr-blatt { border-radius: 0; } }
 @media (prefers-reduced-motion: reduce) { .cr-schatten, .cr-schatten .cr-fenster { animation: none; } }
 
 /* ── E-337: Entscheider, Mara-Bild, Signatur-Vorschau ── */
@@ -514,7 +514,7 @@ select.cr-feld { cursor: pointer; }
 .cr-trichter-brief b { font-weight: 500; color: #fff; font-variant-numeric: tabular-nums; }
 .cr-trichter-brief i { font-style: normal; color: rgba(196, 222, 255, .35); }
 @media (max-width: 640px) {
-  .cr-brief-oben { grid-template-columns: 1fr; }
+  .cr-brief-oben { grid-template-columns: minmax(0, 1fr); }
   .cr-brief-werte { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cr-brief-pdf { height: 480px; }
 }

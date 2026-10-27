@@ -158,6 +158,6 @@
 
 @media (max-width: 640px) {
   .gp-panel-kopf, .gp-panel-inhalt { padding-left: 16px; padding-right: 16px; }
-  .gp-kond-zeile { grid-template-columns: 1fr; }
+  .gp-kond-zeile { grid-template-columns: minmax(0, 1fr); }
   .gp-filterzeile .gp-trenner { display: none; }
 }

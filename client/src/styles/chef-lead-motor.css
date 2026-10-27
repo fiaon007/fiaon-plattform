@@ -204,7 +204,7 @@ a.lm-name:hover { text-decoration: underline; }
 .lm-unterklapp > summary::before { content: "▸ "; color: var(--lm-still); }
 .lm-unterklapp[open] > summary::before { content: "▾ "; }
 .lm-unterklapp > summary:hover { color: var(--lm-text-2); }
-@media (max-width: 640px) { .lm-mess-zeile { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .lm-mess-zeile { grid-template-columns: minmax(0, 1fr); } }
 
 /* ═══ WhatsApp-Vorlagen mit Knöpfen (23.09.2026, E-215) ═══════════════════
    Justin: „Ich kann keine Vorlage einreichen, weil ich keinen Knopf dafür
@@ -284,7 +284,7 @@ a.lm-name:hover { text-decoration: underline; }
 .lm-bau-tun { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
 
 @media (max-width: 900px) {
-  .lm-bau { grid-template-columns: 1fr; }
+  .lm-bau { grid-template-columns: minmax(0, 1fr); }
   .lm-knopf-zeile { grid-template-columns: 1fr 1fr; }
 }
 

@@ -175,12 +175,12 @@ a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border
 /* ── Handy ───────────────────────────────────────────────────────────────── */
 @media (max-width: 760px) {
   .ki-buehne, .ki-karte { padding: 15px 14px; }
-  .ki-raster.zwei, .ki-raster.drei { grid-template-columns: 1fr; }
+  .ki-raster.zwei, .ki-raster.drei { grid-template-columns: minmax(0, 1fr); }
   .ki-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ki-zahlen .ki-zahl { font-size: 28px; }
-  .ki-feld { grid-template-columns: 1fr; }
+  .ki-feld { grid-template-columns: minmax(0, 1fr); }
   .ki-feld .ki-eingabe { grid-column: 1; grid-row: auto; flex-wrap: wrap; }
-  .ki-zeile { grid-template-columns: 1fr; }
+  .ki-zeile { grid-template-columns: minmax(0, 1fr); }
   .ki-zeile.ki-zeile-rechts > :last-child { justify-self: start; }
   .ki-stunden { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }

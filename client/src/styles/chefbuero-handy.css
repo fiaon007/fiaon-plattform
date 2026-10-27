@@ -1,0 +1,236 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO AM HANDY (22.10.2026)
+
+   Justin (Fotos vom iPhone, ~390 px): „Schau dir ALLE /chef-Seiten an — sie
+   sind nicht responsiv, es passt auf keiner Seite."
+
+   Diese Schicht liegt über allen Chefbüro-Stilen (ChefShell lädt sie zuletzt).
+   Am Rechner ändert sie nichts: Was hier für alle Breiten gilt, greift nur,
+   wenn Inhalt BREITER wäre als seine Spalte — dort war es ein Fehler.
+
+   ── DIE URSACHEN (gemessen an allen 85 Seiten und Räumen) ────────────────
+   1. Raster ohne Untergrenze. `display: grid` ohne Spaltenangabe (oder „1fr")
+      ist so breit wie sein breitester Inhalt: eine Tabelle mit min-width,
+      eine Zahl ohne Umbruch, eine Knopfreihe mit nowrap. Dann wird die GANZE
+      Seite breiter als das Telefon, und alles rechts ist abgeschnitten —
+      die große Zahl, die Pillen, die zweite Kachelspalte. Abhilfe: Spalten
+      mit `minmax(0, 1fr)`; breite Tabellen rollen in IHREM Rahmen.
+   2. Feste Mindestbreiten in Zeilen-Rastern (Zahlungszentrale, Kundenliste),
+      Tabellen ohne Rollrahmen, Knopfleisten ohne Umbruch.
+   3. Die Wegeleiste ragte 4 px über den Rand (Rand −16 px bei 12 px Abstand).
+   4. Riesenzahlen mit zu großer Mindestschrift.
+
+   ── DIE MUSTER AM TELEFON (≤ 640 px) ─────────────────────────────────────
+   · 16 px Seitenrand, auch neben der Kamera-Aussparung (safe-area).
+   · Reiter, Filter und Wegeleisten: eine Leiste, die in sich seitlich rollt,
+     mit weichem Rand statt harter Kante — nie die Seite.
+   · Wichtige Listen werden Karten je Zeile; andere Tabellen rollen im Rahmen
+     mit Hinweis „seitlich wischen".
+   · Dialoge und Schubladen füllen das Telefon.
+   · Knöpfe mindestens 44 px hoch (Apple-Richtwert für Finger).
+   · Lange Referenzen und Adressen brechen um, statt hinauszuragen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ 1 — Die Hülle hält jede Seite in ihrer Spalte (alle Breiten) ═══════════ */
+.cb .cb-inhalt, .cb .cb-szene, .cb .cbs-huelle, .cb .cbs, .cb .cbs-eigen { min-width: 0; }
+
+/* Raster ohne eigene Spaltenangabe bekommen eine Spalte mit Untergrenze 0.
+   :where() hat Spezifität 0 — jede Spaltenangabe einer Seite (auch sm:/md:) gewinnt. Die Liste unten sind die
+   Inhalts-Raster der Chef-Räume ohne Spaltenangabe (Seitenwurzeln, Listen, Blöcke; gezählt 22.10.2026) — kleine
+   Zeichen-Raster (place-items: center) stehen bewusst nicht darin. Neue Seite mit `display: grid` als Wurzel?
+   Dort gleich `grid-template-columns: minmax(0, 1fr)` schreiben — oder die Klasse hier ergänzen. */
+:where(.cb-inhalt) :where(.grid) { grid-template-columns: minmax(0, 1fr); }
+:where(.cb-inhalt) :where(
+  .cz, .cz-karten, .cz-karte, .cz-vertrag, .cz-pakete, .cz-liste, .cm, .cm-test, .cm-takt,
+  .cl-klemmer, .cl-team, .cw-pruefliste, .cw-handstarts, .cw-treffer, .cw-freigaben, .cw-stapelinhalt, .cw-postliste,
+  .ck-steuerung, .ck-liste, .cbes-seiten, .cb-rang ul,
+  .ar-live, .ar-reiter-inhalt, .ar-probe, .ar-detail, .ar-detail-block, .ar-feld, .ar-rueckfall, .ar-letzter, .ar-gruende-feld,
+  .ar-ton-gruppe, .ar-satz, .ar-stimmen, .ar-feedback, .ar-plan-text, .ar-einreihen, .ar-suche, .ar-erg-tabelle, .ar-leer,
+  .akb, .akb-regeln ul, .akb-karte, .akb-karte-kopf, .akb-schritt, .akb-stellen, .akb-upload,
+  .ak, .ak-scharf-text, .ak-rueckfrage-liste,
+  .bz-leiste, .bz-tipp, .bz-trichter, .bz-rang ul, .bz-heat,
+  .cgr-neu, .cg-links, .cg-form, .cg-annahme, .cg-verlauf ul, .cg-aufrufe, .cg-unterlagen, .cg-unterlagen-liste,
+  .ki-raster, .kt, .kt-kachel, .kt-block, .kz-teil, .kz-vorschlag, .kz-personen, .kz-person, .kz-probe, .kz-keinkunde,
+  .lm, .lm-alarme, .lm-karte, .lm-pruefliste, .lm-liste, .lm-zeile, .lm-texte-inhalt, .lm-einwilligung, .lm-vorlage,
+  .lm-blase, .lm-fenster, .lm-messung, .lm-mess-block, .lm-vl-liste, .lm-vl-auf, .lm-werkstatt, .lm-profil-felder,
+  .lm-eigene, .lm-bau-felder, .lm-beispiele, .lm-vorschau-blase, .lm-funde,
+  .mp-regeln ul, .mp-zeile-inhalt, .mp-seite, .mp-gedaechtnis, .mp-post, .mp-wissen, .mp-wissen ul, .mp-fenster,
+  .mp-anweisung, .mp-auftraege, .mp-auftrag, .mp-plan, .mp-werkzeuge, .mp-ergebnis, .mbz, .mbz-spalte, .mbz-held,
+  .mt-inhalt, .mt-rr-inhalt, .mt-abo-liste, .mt-abo-zeile,
+  .gp, .gp-karte, .gp-streifen, .gp-panel-kopf, .gp-feld-block, .gp-hinweise, .gp-liste, .gp-eintrag, .gp-verlauf, .gp-auswahl,
+  .pf, .pf-leib, .pf-verlauf, .pm, .pm-postfaecher, .pm-strom, .pm-entwuerfe, .pm-werk, .pv, .pv-je,
+  .cr, .cr-lauf, .cr-stapel-text, .cr-fenster-rumpf, .cr-blatt-rumpf, .cr-block, .cr-gruende, .cr-profil-raster,
+  .cr-aufhaenger, .cr-bearbeiten, .cr-mara, .cr-trichter, .cr-gespraeche, .cr-firmen, .cr-automatik, .cr-messung,
+  .cr-post-liste, .cr-post, .cr-kachel, .cr-faden, .cr-brief, .cr-probe, .cr-szenarien,
+  .tk-nb-liste, .tk-ki, .tk-ki-fenster, .tk-mail-text, .tk-mail-vorschau, .tk-termine, .tk-blatt-punkte, .tk-wahl,
+  .wz-lauf, .wz-gruende, .wz-mp-inhalt
+) { grid-template-columns: minmax(0, 1fr); }
+
+/* ── Das Lagezimmer (/chef) ──────────────────────────────────────────────────
+   Am iPhone war die Spalte so breit wie ihr breitester Inhalt: Die Riesenzahl, die Pillen und der
+   Zeitraum-Schalter standen mittig in einer zu breiten Spalte (rechts abgeschnitten), und die vier
+   Kennzahlen fanden darin Platz für ZWEI Kacheln nebeneinander — die zweite außerhalb des Bildes. */
+.cb .cl, .cb .cl-block { grid-template-columns: minmax(0, 1fr); }
+.cb .cl-vier { grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
+
+/* ═══ 2 — Telefon und Tablet hochkant (≤ 960 px): Rand, Kopf, Wegeleiste ═════ */
+@media (max-width: 960px) {
+  .cb .cb-grund {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .cb .cl-zwei { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 700px) {
+  /* Lagezimmer: Die Riesenzahl passt immer in die Zeile — auch zwölf Zeichen („123.456,78 €") bei 320 px.
+     Breite einer Ziffernfolge ≈ 5,55 × Schriftgröße (gemessen); bis 390 px bleibt es bei 15vw wie bisher. */
+  .cb.cb-apple .cl-riesenzahl { font-size: clamp(36px, min(15vw, calc((100vw - 32px) / 5.8)), 84px); max-width: 100%; }
+  .cb .cl-riesenzahl { max-width: 100%; }
+  /* Zeitraum-Schalter: drei gleich breite Knöpfe, die in die Zeile passen. */
+  .cb .cl-zeitraum { display: flex; max-width: 100%; }
+  .cb .cl-zeitraum-knopf { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+  .cb.cb-apple .cl-zeitraum-knopf { padding-left: 14px; padding-right: 14px; }
+  /* Pillen: brechen um und bleiben in der Spalte. */
+  .cb .cl-aufschlag-zeile { max-width: 100%; }
+  .cb .cl-pille { max-width: 100%; flex-wrap: wrap; justify-content: center; row-gap: 2px; text-align: center; }
+  /* „Sechs Monate": Die Beträge unter der Kurve standen Kante an Kante („980 €3k €2,8k …"). */
+  .cb .cl-verlauf { padding-left: 12px; padding-right: 12px; }
+  .cb .cl-verlauf-achse em { font-size: 10px; letter-spacing: -.02em; }
+  .cb .cl-verlauf-achse b { font-size: 10px; letter-spacing: .02em; }
+}
+
+@media (max-width: 700px) {
+  /* Die Wegeleiste rollt bis an den Bildschirmrand (beidseitig), die Reiter rasten ein,
+     und an den Kanten blendet sie weich aus — man sieht, dass es weitergeht. */
+  .cb .cb-wege {
+    margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px;
+    scroll-padding-inline: 16px; scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 22px), transparent 100%);
+  }
+  .cb .cb-wege > .cb-weg { flex: 0 0 auto; scroll-snap-align: start; }
+}
+
+/* ═══ Rollrahmen: man sieht, dass es seitlich weitergeht (≤ 960 px) ══════════
+   ChefShell markiert jeden Rahmen, der gerade seitlich rollen kann (data-rollt). Die Kante, hinter der noch
+   etwas steht, blendet weich aus; über einer Tabelle steht zusätzlich der Hinweis zum Wischen. */
+@media (max-width: 960px) {
+  .cb .cb-inhalt [data-rollt="rechts"] {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), rgba(0, 0, 0, .12));
+    mask-image: linear-gradient(90deg, #000 calc(100% - 40px), rgba(0, 0, 0, .12));
+  }
+  .cb .cb-inhalt [data-rollt="links"] {
+    -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .12), #000 40px);
+    mask-image: linear-gradient(90deg, rgba(0, 0, 0, .12), #000 40px);
+  }
+  .cb .cb-inhalt [data-rollt="beide"] {
+    -webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, .12), #000 32px, #000 calc(100% - 40px), rgba(0, 0, 0, .12));
+    mask-image: linear-gradient(90deg, rgba(0, 0, 0, .12), #000 32px, #000 calc(100% - 40px), rgba(0, 0, 0, .12));
+  }
+  .cb .cb-inhalt [data-rollt]:has(> table)::before {
+    content: "Seitlich wischen — weitere Spalten \2192";
+    position: sticky; left: 0; display: block; width: max-content; max-width: calc(100vw - 48px);
+    padding: 8px 12px 6px; font: 500 11px/1.3 'Inter', -apple-system, sans-serif; letter-spacing: .02em; color: #93c5fd;
+  }
+}
+
+/* ═══ Karten statt Tabelle (≤ 640 px) — für die wichtigen Listen ════════════
+   Eine Tabelle mit class="hk" wird am Telefon eine Karte je Zeile. Jede Zelle trägt ihre Spaltenüberschrift
+   als data-label („STAND  Wartet auf Zahlung"). Rollen: .hk-titel (oben links, groß), .hk-wert (oben rechts,
+   z. B. der Betrag), .hk-voll (ganze Breite ohne Beschriftung, z. B. Knöpfe). Mit .hk-kompakt am Tisch stehen
+   die übrigen Zellen als eine leise Zeile mit Punkten statt als beschriftete Zeilen. */
+@media (max-width: 640px) {
+  .cb table.hk { display: block; width: 100%; min-width: 0 !important; border-collapse: separate; border-spacing: 0; }
+  .cb table.hk > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .cb table.hk > tbody { display: grid; gap: 10px; }
+  .cb table.hk > tbody > tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: start;
+    padding: 12px 14px; border-radius: 14px;
+    background: rgba(15, 23, 42, .46); border: 1px solid rgba(148, 163, 184, .16);
+  }
+  .cb table.hk > tbody > tr:hover > td { background: transparent; }
+  .cb table.hk > tbody > tr > td {
+    grid-column: 1 / -1; display: block; min-width: 0; padding: 5px 0; border: 0;
+    text-align: left; white-space: normal; overflow-wrap: anywhere;
+  }
+  /* Beschriftung links in einer festen Spalte, der Inhalt (auch mehrzeilig) rechts daneben. */
+  .cb table.hk > tbody > tr > td[data-label]:not(.hk-titel):not(.hk-wert):not(.hk-voll) { position: relative; padding-left: 92px; min-height: 26px; }
+  .cb table.hk > tbody > tr > td[data-label]:not(.hk-titel):not(.hk-wert):not(.hk-voll)::before {
+    content: attr(data-label); position: absolute; left: 0; top: 7px; width: 84px;
+    font: 500 10px/1.4 'Inter', -apple-system, sans-serif; letter-spacing: .1em;
+    text-transform: uppercase; color: #7c8ba1; overflow-wrap: anywhere;
+  }
+  .cb table.hk > tbody > tr > td.hk-titel { grid-column: 1; grid-row: 1; padding-top: 0; font-size: 14.5px; }
+  .cb table.hk > tbody > tr > td.hk-wert { grid-column: 2; grid-row: 1; padding-top: 0; text-align: right; white-space: nowrap; overflow-wrap: normal; }
+  .cb table.hk > tbody > tr > td.hk-leer { display: none; }
+  .cb table.hk .cm-klartext { max-width: none; }
+  /* Kompakt: oben Titel und Wert, darunter die übrigen Zellen als eine leise Zeile mit Punkten. */
+  .cb table.hk.hk-kompakt > tbody > tr { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0; row-gap: 3px; }
+  .cb table.hk.hk-kompakt > tbody > tr > td { flex: 0 1 auto; padding: 0; min-height: 0; position: static; font-size: 12px; color: #94a3b8; }
+  .cb table.hk.hk-kompakt > tbody > tr > td[data-label]:not(.hk-titel):not(.hk-wert):not(.hk-voll) { padding-left: 0; min-height: 0; position: static; }
+  .cb table.hk.hk-kompakt > tbody > tr > td.hk-titel { order: -2; flex: 1 1 60%; font-size: 14px; color: #e5e7eb; }
+  .cb table.hk.hk-kompakt > tbody > tr > td.hk-wert { order: -1; margin-left: auto; padding-left: 12px; font-size: 14px; color: #fff; }
+  .cb table.hk.hk-kompakt > tbody > tr > td[data-label]:not(.hk-titel):not(.hk-wert):not(.hk-voll)::before { content: attr(data-label) "\00a0"; position: static; width: auto; display: inline; font: inherit; letter-spacing: 0; text-transform: none; color: #64748b; }
+  .cb table.hk.hk-kompakt > tbody > tr > td:not(.hk-titel):not(.hk-wert):has(~ td:not(.hk-titel):not(.hk-wert):not(.hk-leer))::after { content: "·"; margin: 0 7px; color: #64748b; }
+  /* Der Rollrahmen um eine Kartentabelle wird überflüssig: keine Fläche, kein Rollen. */
+  .cb :is(.cl-tab-huelle, .cm-tab-halter, .cw-tabelle-rahmen, .overflow-x-auto):has(> table.hk) {
+    overflow: visible; background: transparent; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+    -webkit-mask-image: none; mask-image: none;
+  }
+  .cb :is(.cl-tab-huelle, .cm-tab-halter, .cw-tabelle-rahmen, .overflow-x-auto):has(> table.hk)::before { content: none; }
+}
+
+/* ═══ Tabellen ohne Rollrahmen (≤ 960 px) ═══════════════════════════════════
+   Manche Admin-Seiten legen die Tabelle direkt in die Karte (E-Mail-Events, Verträge, Finanzen). Am Telefon wird
+   diese Karte selbst zum Rollrahmen — sonst ist die Tabelle rechts einfach weg. Karten-Tabellen (.hk) ausgenommen. */
+@media (max-width: 960px) {
+  .cb .cb-inhalt :is(div, section, article):has(> table:not(.hk)) { overflow-x: auto; max-width: 100%; }
+}
+
+/* ═══ Die übernommenen Admin-Seiten (.cbs) am Telefon ═══════════════════════
+   Wie die Handy-Regeln der Verwaltung (admin-3d.css, .admin-flaeche) — dort gelten sie seit August, im Chefbüro
+   griffen sie nicht, weil die Seiten hier in .cbs statt .admin-flaeche liegen. */
+@media (max-width: 640px) {
+  .cb .cbs .a3-tafel-kopf { flex-wrap: wrap; row-gap: 8px; }
+  .cb .cbs .a3-reiter { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .cb .cbs .a3-reiter::-webkit-scrollbar { display: none; }
+  .cb .cbs .a3-reiter > button { flex: 0 0 auto; }
+  .cb .cbs .overflow-x-auto > table:not(.hk) { min-width: 560px; }
+  /* Tippziele: Knöpfe und Knopf-Links mindestens 44 px — außer Schalter mit fester Höhe (role=switch, h-…). */
+  .cb .cbs button:not([role="switch"]):not([class^="h-"]):not([class*=" h-"]),
+  .cb .cbs a[class*="rounded"]:not([class^="h-"]):not([class*=" h-"]) { min-height: 44px; }
+  .cb .cbs thead th, .cb .cbs tbody td { padding-left: 10px; padding-right: 10px; }
+  /* Lange Adressen, Referenzen, Pfade (code) brechen um, statt die Spalte zu sprengen. */
+  .cb .cbs :is(code, kbd, samp) { overflow-wrap: anywhere; word-break: break-word; white-space: normal; }
+  /* Statusmarken brechen um statt abgeschnitten zu werden — „Kunde meldet Zahlung (noch nicht bankbestätigt)"
+     ist mit Absicht lang (AGENTS.md, 08.08.2026: der Zusatz darf nie fehlen). */
+  .cb .cbs .rounded-full.whitespace-nowrap:is(span, b, em) { white-space: normal; max-width: 100%; }
+  /* Knopfgruppen, die nicht schrumpfen sollten (shrink-0), dürfen am Telefon in die nächste Zeile. */
+  .cb .cbs .flex.shrink-0:has(> button) { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
+  /* Kennzahlen-Zeilen mit Trennstrichen (Soll/Haben/Netto) brechen um. */
+  .cb .cbs .flex.divide-x { flex-wrap: wrap; row-gap: 10px; }
+}
+
+/* Auswahllisten sind so breit wie ihr längster Eintrag — am Telefon nie breiter als ihre Spalte. Und lange Wörter
+   (Pfade, Adressen ohne Leerzeichen) brechen am Zeilenende um, statt hinauszuragen. */
+@media (max-width: 960px) {
+  .cb .cb-inhalt select, .cb .cb-inhalt label { max-width: 100%; }
+  .cb .cb-inhalt { overflow-wrap: break-word; }
+  /* Vollfläche (WhatsApp): derselbe 16-px-Rand wie überall — die Wegeleiste rollt bündig bis zum Bildschirmrand. */
+  .cb.cb-voll .cb-grund { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* ═══ 3 — Telefon (≤ 640 px) ════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Kopfleiste: am Rand ausgerichtet wie der Inhalt, Knöpfe fingergroß. */
+  .cb.cb-glas .cb-kopf { margin-left: max(16px, env(safe-area-inset-left)); margin-right: max(16px, env(safe-area-inset-right)); }
+  .cb .cb-kopf .cb-burger, .cb .cb-kopf .cb-rund { width: 44px; height: 44px; }
+  .cb .cb-schublade-kopf .cb-rund { width: 44px; height: 44px; }
+  .cb .cb-weg { min-height: 36px; padding-top: 9px; padding-bottom: 9px; }
+  .cb .cb-schublade .cb-punkt { min-height: 44px; }
+  .cb .cb-schublade .cb-unterpunkt { min-height: 40px; display: flex; align-items: center; }
+
+  /* „Weiter in …“ füllt die Breite. */
+  .cb .cb-weiter-link { min-width: 0; width: 100%; max-width: none; }
+}

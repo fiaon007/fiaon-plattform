@@ -37,6 +37,8 @@ import "@/styles/chefbuero-seiten.css";
 import "@/styles/chefbuero-glas.css";
 // E-345: Apple-Bühne (Milchglas, Systemschrift, Sperrbildschirm-Startseite) — nur aktiv mit .cb-apple.
 import "@/styles/chefbuero-apple.css";
+// 22.10.2026 (Justin: „es passt auf keiner Seite") — die Handy-Schicht zuletzt: Raster mit Untergrenze, 16 px Rand, Muster ≤ 640 px.
+import "@/styles/chefbuero-handy.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 /** Glaskarten mit Zeiger-Licht — dieselbe Liste wie die Glaskarten-Regel in chefbuero-glas.css. */
@@ -449,6 +451,46 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
       wurzel.querySelectorAll(".cb-kurz").forEach((el) => { el.classList.remove("cb-kurz", "cb-kurz-auf"); el.removeAttribute("title"); });
     };
   }, [volltext, raumKey, seiteSlug]);
+  // ── ROLLRAHMEN SIND SICHTBAR (22.10.2026, Chefbüro am Handy) ─────────────
+  // Eine breite Tabelle rollt am Telefon in ihrem Rahmen — aber man sah nicht, DASS dort mehr steht: Die Spalten
+  // „Stand“, „Zuständig“ … lagen unsichtbar rechts. Jeder Rahmen, der gerade seitlich rollen kann, trägt
+  // data-rollt="rechts" | "links" | "beide"; chefbuero-handy.css blendet die Kante dort weich aus.
+  useEffect(() => {
+    const wurzel = document.querySelector(".cb-inhalt");
+    if (!wurzel) return;
+    const KANDIDATEN = "[class*='overflow-x-auto'], [class*='overflow-auto'], [class*='overflow-x-scroll'], .cm-tab-halter, .cl-tab-huelle, .cw-tabelle-rahmen, [data-rollrahmen]";
+    const beobachtet = new WeakSet<Element>();
+    const markieren = (el: HTMLElement) => {
+      const ox = getComputedStyle(el).overflowX;
+      const rollt = (ox === "auto" || ox === "scroll") && el.scrollWidth > el.clientWidth + 2;
+      if (!rollt) { if (el.hasAttribute("data-rollt")) el.removeAttribute("data-rollt"); return; }
+      const links = el.scrollLeft > 2;
+      const rechts = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+      const wert = links && rechts ? "beide" : rechts ? "rechts" : links ? "links" : "";
+      if (el.getAttribute("data-rollt") !== wert) el.setAttribute("data-rollt", wert);
+      if (!beobachtet.has(el)) {
+        beobachtet.add(el);
+        let bild = 0;
+        el.addEventListener("scroll", () => { if (!bild) bild = requestAnimationFrame(() => { bild = 0; markieren(el); }); }, { passive: true });
+      }
+    };
+    let takt = 0;
+    const pruefen = () => {
+      takt = 0;
+      const kandidaten = new Set<HTMLElement>(Array.from(wurzel.querySelectorAll<HTMLElement>(KANDIDATEN)));
+      wurzel.querySelectorAll("table").forEach((t) => {
+        if (t.parentElement) kandidaten.add(t.parentElement);
+        if (t.parentElement?.parentElement) kandidaten.add(t.parentElement.parentElement);
+      });
+      kandidaten.forEach(markieren);
+    };
+    const spaeter = () => { if (!takt) takt = window.setTimeout(pruefen, 250); };
+    const beobachter = new MutationObserver(spaeter);
+    beobachter.observe(wurzel, { childList: true, subtree: true });
+    window.addEventListener("resize", spaeter);
+    pruefen();
+    return () => { beobachter.disconnect(); window.removeEventListener("resize", spaeter); if (takt) clearTimeout(takt); };
+  }, [raumKey, seiteSlug]);
   const vorname = String(name || "").split(" ")[0];
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";

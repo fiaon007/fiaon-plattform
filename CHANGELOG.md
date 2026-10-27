@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — E-441: Codes zum Anmelden und Unterschreiben kommen jetzt auch bei iCloud an (zweiter Versandweg)
+
+- **Warum:** Ein Global-Kunde mit iCloud-Adresse bekam beim digitalen Unterschreiben keinen Code. Brevo nahm neun Code-Mails an,
+  stellte aber über eine Stunde keine zu (kein „zugestellt“, kein „verzögert“, kein Fehler). Dieselbe Mail an eine Google-Adresse kam
+  sofort an. Die Plattform hatte für diese Codes nur den einen Weg über Brevo.
+- **Was jetzt gilt:** Die Zugangs-Mails von FIAON Global (Einladung, Anmelde-Code, Passwort-Link, Unterschrift-Code) haben zwei Wege:
+  Brevo und Google Workspace (das Absender-Postfach). Apple-Adressen (icloud.com, me.com, mac.com) gehen zuerst über Google,
+  alle anderen zuerst über Brevo; scheitert ein Weg, nimmt der andere die Mail. **„Code neu senden“** schickt denselben Code über
+  beide Wege — der Kunde liest dazu: „Er kann zweimal ankommen — es ist derselbe Code“ und den Hinweis auf den Junk-Ordner.
+- **Sicher:** Ungültige Adressen gehen auf keinem Weg raus. Der Google-Weg wartet höchstens 15 Sekunden. Die Kopie im
+  Gesendet-Ordner kommt sofort in den Papierkorb (Codes und Links sollen dort nicht lesbar liegen). Im Mail-Protokoll steht der Weg
+  (payload.versandweg); der Zustell-Abgleich mit Brevo lässt reine Google-Mails aus.
+- **Wo:** server/lib/fiaon-global-konto.ts (kontoMailSenden, kontoMailWegFuer), server/lib/fiaon-global-unterschrift.ts (codeMail),
+  server/lib/fiaon-gmail.ts (nachrichtInPapierkorb), server/lib/fiaon-zustellung.ts, Texte in shared/fiaon-global-konto.ts und
+  shared/fiaon-global-unterschrift.ts. Gegengeprüft von drei Prüfern mit Widerlegungsrunde.
+
 ## 27.10.2026 — E-302: Drei Anmelde-Lücken im Antrag/Login geschlossen (gebaut 08.10., heute auf main gebracht)
 
 - **Warum:** Eine Gegenprüfung (E-IT-G, 08.10.) fand drei Wege, ein fremdes Kundenkonto zu übernehmen. Die Reparatur war am

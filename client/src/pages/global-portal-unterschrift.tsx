@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { UNTERSCHRIFT_WOERTER, namePasst } from "@shared/fiaon-global-unterschrift";
+import "@/styles/global-portal-unterschrift.css";
 
 type T = Record<string, any>;
 

@@ -579,7 +579,8 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
         {/* 6 — Ihre Investition: leise (Justin 27.10.2026, 17:40 — „kleiner, weiß auf weiß“). Keine Bühne, keine großen Ziffern,
             keine Karte: EINE sichtbare Zeile mit allen Beträgen (Endpreise, Gesamtpreis), die Einzelheiten klappen auf. Lesbar bleibt
             sie: mindestens 13 px, Kontrast mindestens 4,5:1 (Prüfstand). Die Übersicht über dem Knopf nennt alles noch einmal. */}
-        <section className="gaf-abschnitt gkc-invest" id="investition" aria-labelledby="gkc-invest-titel">
+        {/* aria-label: die Lesemessung (lib/angebot-lesen.ts, E-410) zählt nur section[aria-label] — so sieht Justin auch die Zeit bei den Kosten. */}
+        <section className="gaf-abschnitt gkc-invest" id="investition" aria-label={I.titel}>
           <div className="gaf-rahmen gaf-rahmen-schmal">
             <div className="gkc-invest-leise">
               <h2 className="gkc-invest-titel" id="gkc-invest-titel">{I.titel}</h2>

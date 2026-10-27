@@ -189,6 +189,10 @@ const rumpf = ohneHtml(C.kapitalCRumpfHtml(D, null));
   ok(/Die Bürgin wird im Register ihres Bundesstaats derzeit als inaktiv geführt \(Stand 19\.10\.2026\); die Bürgschaft übernimmt sie erst nach ihrer Reaktivierung, wenn sie dort wieder als aktiv geführt wird \(Absatz 3\)/.test(vertragText), "Bürgin inaktiv → offen in Ziffer 5 Absatz 1, mit Stand und Verweis auf die Bedingung");
   const aktiv = flach(absText(C.kapitalCZiffern({ ...D, parameter: { ...PAR, buerginAktiv: true } })).join("\n"));
   ok(!/inaktiv/.test(aktiv) && !sammle(C.kapitalCSeite({ ...D, parameter: { ...PAR, buerginAktiv: true } }), []).some((t) => /inaktiv/.test(t)), "Bürgin aktiv (nach dem Reinstatement) → kein Inaktiv-Satz in Vertrag und Seite");
+  ok(C.kapitalCPflichtFehlen({ ...D, parameter: { ...PAR, unterschriftFrei: false } }).some((f) => /Freigabe zur Unterschrift/.test(f))
+    && C.kapitalCPflichtFehlen({ ...D, parameter: { ...PAR, unterschriftFrei: true } }).length === 0, "Unterschrift erst nach Justins GO: ohne Freigabe gesperrt, mit Freigabe frei");
+  ok(C.KAPITAL_C_VORGABEN.unterschriftFrei === false && C.kapitalCParameterAus({}).unterschriftFrei === false
+    && C.kapitalCParameterAus({ unterschriftFrei: "ja" as any }).unterschriftFrei === false && C.kapitalCParameterAus({ unterschriftFrei: true }).unterschriftFrei === true, "Vorgabe gesperrt; nur ein echtes true gibt frei");
   ok(/tritt diesem Vertrag für Ziffer 5 bei/.test(vertragText) && /als Gesamtschuldner den gezahlten Betrag/.test(vertragText)
     && /Eine Bareinlage oder dingliche Sicherheit verlangen FIAON und die Bürgin nicht; für den Rückgriff nach Absatz 5 haftet der Auftraggeber persönlich/.test(vertragText), "Bürgschaft: Beitritt, Rückgriff offen, persönliche Haftung ausdrücklich (kein „ohne Sicherheiten“)");
   const ohneDd = flach(absText(C.kapitalCZiffern({ ...D, parameter: { ...PAR, ddAbgeschlossen: false } })).join("\n"));
@@ -322,7 +326,8 @@ abschnitt("7 Prüfsumme, Annahmevermerk, Prüfungen, nach der Annahme");
     && roh.buerginAktiv === false && roh.buerginStandAm === "", "Parameter: Unsinn fällt auf die Vorgaben zurück (Bürgin ohne Beleg = inaktiv)");
   ok(!C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, plz: "1234" }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, email: "kein" }).ok
     && !C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [{ art: "reisepass", nummer: "x", gueltigBis: "2030-01-01", behoerde: "B" }] }).ok && !C.kapitalCKundePruefen({ ...KUNDE_ROH, geburtsdatum: "15.01.1980" }).ok, "Kunde: Ausweis, PLZ, E-Mail, Nummer, Geburtsdatum werden geprüft");
-  ok(C.kapitalCPflichtFehlen(D).length === 0 && C.kapitalCPflichtFehlen({ ...D, buergin: { ...BUERGIN, registernummer: "" } }).length === 1, "Pflichtfelder: vollständig / Bürgin ohne Registernummer fehlt");
+  const DF = { ...D, parameter: { ...PAR, unterschriftFrei: true } };
+  ok(C.kapitalCPflichtFehlen(DF).length === 0 && C.kapitalCPflichtFehlen({ ...DF, buergin: { ...BUERGIN, registernummer: "" } }).length === 1, "Pflichtfelder: vollständig (freigegeben) / Bürgin ohne Registernummer fehlt");
   const lage = { status: "angenommen", parameter: PAR, angenommenAm: "2026-10-28", heute: "2026-11-05", teil1Bezahlt: true, vorhanden: null };
   ok(!C.kapitalCTeil2Pruefen({ ...lage, teil1Bezahlt: false }, { datum: "2026-11-04" }).ok && !C.kapitalCTeil2Pruefen({ ...lage, status: "offen" }, { datum: "2026-11-04" }).ok
     && !C.kapitalCTeil2Pruefen(lage, { datum: "2026-11-06" }).ok && !C.kapitalCTeil2Pruefen(lage, { datum: "2026-10-27" }).ok, "Teil 2: erst nach Zahlung Teil 1, nach Annahme, Datum nicht in der Zukunft/vor der Annahme");

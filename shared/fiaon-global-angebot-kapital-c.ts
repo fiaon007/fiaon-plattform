@@ -140,6 +140,12 @@ export interface KapitalCParameter {
   buerginAktiv: boolean;
   /** Tag der letzten Registerprüfung (JJJJ-MM-TT) — steht als „Stand …“ im Satz; leer = ohne Datum */
   buerginStandAm: string;
+  /**
+   * Justin 27.10.2026: „wenn ich GO sage, dann live stellen, sodass er unterschreiben kann“. Die Seite ist vorher schon sichtbar,
+   * unterschreiben (annehmen) geht erst mit true. Vorgabe false: Knopf gesperrt („wird gerade vervollständigt“), die Annahme
+   * antwortet 409. Freigeben: private Datei mit true neu einlesen (scripts/angebot-kapital-anlegen.ts trägt ins offene Angebot ein).
+   */
+  unterschriftFrei: boolean;
   /** Begleitung ab der Eintragung (Monate) */
   begleitMonate: number;
   /** Die Unterlagen, die bei Vertragsschluss vorliegen — nur Titel und Eingangstag, nie die Dateien */
@@ -172,6 +178,7 @@ export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   buergschaftMonate: 36,
   buerginAktiv: false,
   buerginStandAm: "",
+  unterschriftFrei: false,
   begleitMonate: 12,
   unterlagen: [],
   ddAbgeschlossen: true,
@@ -1033,6 +1040,7 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
     buergschaftMonate: zahl("buergschaftMonate", 1, 240),
     buerginAktiv: typeof r.buerginAktiv === "boolean" ? r.buerginAktiv : basis.buerginAktiv,
     buerginStandAm: ISO.test(String(r.buerginStandAm ?? "")) ? String(r.buerginStandAm) : basis.buerginStandAm,
+    unterschriftFrei: typeof r.unterschriftFrei === "boolean" ? r.unterschriftFrei : basis.unterschriftFrei,
     begleitMonate: zahl("begleitMonate", 1, 60),
     unterlagen,
     ddAbgeschlossen: typeof r.ddAbgeschlossen === "boolean" ? r.ddAbgeschlossen : basis.ddAbgeschlossen,
@@ -1091,6 +1099,7 @@ export function kapitalCPflichtFehlen(d: Pick<KapitalCDaten, "kunde" | "paramete
   if (!k.ok) fehlt.push(`Auftraggeber: ${k.error}`);
   const pf = kapitalCParameterFehler(d.parameter); if (pf) fehlt.push(pf);
   const bf = kapitalCBuerginFehler(d.buergin); if (bf) fehlt.push(bf);
+  if (!d.parameter.unterschriftFrei) fehlt.push("Freigabe zur Unterschrift (Justins GO) — Parameter unterschriftFrei");
   return fehlt;
 }
 export function kapitalCAnsprechpartner(par: Pick<KapitalCParameter, "ansprechpartner">): { kuerzel: string; name: string; rolle: string; email: string; telefon: string }[] {

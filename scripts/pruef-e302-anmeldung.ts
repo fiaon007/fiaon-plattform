@@ -71,14 +71,18 @@ const NEU_MAIL = "neukunde-e302@example.com";
 const ANGRIFF_REF = "FIAON-ANGRIFF-E302";
 const NEU_REF = "FIAON-NEUKUNDE-E302";
 const OPFER_REF = "FIAON-OPFER-E302";
+// Scheibe 2: ein zweites Opfer, dessen bezahltes Konto erst NACH der Fremdzeile entsteht (und kein Passwort trägt).
+const OPFER2_MAIL = "opfer2-e302@example.com";
+const OPFER2_REF = "FIAON-OPFER2-E302";
+const VORHER_REF = "FIAON-VORHER-E302";
 
 async function aufraeumen() {
-  const refs = [OPFER_REF, ANGRIFF_REF, NEU_REF];
+  const refs = [OPFER_REF, ANGRIFF_REF, NEU_REF, OPFER2_REF, VORHER_REF];
   await sql`DELETE FROM fiaon_login_links WHERE ref = ANY(${refs})`.catch(() => {});
   await sql`DELETE FROM fiaon_vermerke WHERE ref = ANY(${refs})`.catch(() => {});
-  const pids = (await sql`SELECT id FROM fiaon_persons WHERE primary_email = ANY(${[OPFER_MAIL, NEU_MAIL]})
-                          UNION SELECT person_id FROM fiaon_person_aliases WHERE value_norm = ANY(${[OPFER_MAIL, NEU_MAIL]})`).map((r: any) => Number(r.id));
-  await sql`DELETE FROM fiaon_applications WHERE ref = ANY(${refs}) OR lower(email) = ANY(${[OPFER_MAIL, NEU_MAIL]})`;
+  const pids = (await sql`SELECT id FROM fiaon_persons WHERE primary_email = ANY(${[OPFER_MAIL, NEU_MAIL, OPFER2_MAIL]})
+                          UNION SELECT person_id FROM fiaon_person_aliases WHERE value_norm = ANY(${[OPFER_MAIL, NEU_MAIL, OPFER2_MAIL]})`).map((r: any) => Number(r.id));
+  await sql`DELETE FROM fiaon_applications WHERE ref = ANY(${refs}) OR lower(email) = ANY(${[OPFER_MAIL, NEU_MAIL, OPFER2_MAIL]})`;
   if (pids.length) {
     await sql`DELETE FROM fiaon_person_aliases WHERE person_id = ANY(${pids})`;
     await sql`DELETE FROM fiaon_persons WHERE id = ANY(${pids})`.catch(() => {});
@@ -178,9 +182,44 @@ try {
   await neu.post("/application", { ref: NEU_REF, type: "private", status: "started", currentStep: 2, firstName: "Nina", lastName: "Neu", email: NEU_MAIL, phoneCountryCode: "+49", phone: "17699988877", password: "Neu-Kunde-777" });
   const l5 = await browser("198.51.100.31").post("/login", { email: NEU_MAIL, password: "Neu-Kunde-777" });
   pruefe(l5.status === 200 && l5.j?.ref === NEU_REF, `5b eigenes Passwort beim zweiten Speichern geändert, Anmeldung geht (${l5.status})`);
+
+  // ── SCHEIBE 2: Fremdzeile VOR der Zahlung des Menschen angelegt ─────────
+  console.log("\nScheibe 2 — Fremdzeile angelegt, bevor der Mensch selbst zahlt");
+  const [p2] = await sql`
+    INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email, birthdate)
+    VALUES ('PERS-OPFER2-E302', 'Paula', 'Zweit', ${OPFER2_MAIL}, '1975-09-30') RETURNING id`;
+  await sql`INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source)
+            VALUES (${p2.id}, 'email', ${OPFER2_MAIL}, ${OPFER2_MAIL}, 'pruef-e302')`;
+  const vorher = browser("203.0.113.40");
+  await vorher.post("/application", {
+    ref: VORHER_REF, type: "private", status: "started", currentStep: 1, firstName: "Max", lastName: "Angreifer",
+    email: OPFER2_MAIL, phoneCountryCode: "+49", phone: "17655544433", password: "vorher-pw-888",
+  });
+  const [v1] = await sql`SELECT password, person_id FROM fiaon_applications WHERE ref = ${VORHER_REF}`;
+  pruefe(!!v1?.password && v1?.person_id === p2.id, `6a Fremdzeile trägt ein Passwort und hängt an der Person des Menschen (${v1?.person_id === p2.id ? "ja" : String(v1?.person_id)})`);
+  // Später zahlt der Mensch selbst — sein Konto (an derselben Person) trägt kein Passwort.
+  await sql`
+    INSERT INTO fiaon_applications (ref, type, status, email, password, person_id, birthdate, first_name, last_name, payment_status, account_status, created_at)
+    VALUES (${OPFER2_REF}, 'private', 'completed', ${OPFER2_MAIL}, NULL, ${p2.id}, '1975-09-30', 'Paula', 'Zweit', 'paid', 'active', NOW())`;
+  const l6 = await browser("203.0.113.40").post("/login", { email: OPFER2_MAIL, password: "vorher-pw-888" });
+  pruefe(l6.j?.ref !== OPFER2_REF, `6b Passwort der Fremdzeile öffnet NICHT das bezahlte Konto (${l6.status} → ${l6.j?.ref ?? l6.j?.code ?? ""})`);
+  // Gegenprobe: derselbe Mensch (gleicher Nachname + Geburtsdatum) legt im Antrag sein Passwort fest und zahlt
+  // über eine zweite Zeile ohne Passwort — er muss in sein bezahltes Konto kommen.
+  await sql`DELETE FROM fiaon_applications WHERE ref IN (${VORHER_REF}, ${OPFER2_REF})`;
+  const echt = browser("198.51.100.40");
+  await echt.post("/application", {
+    ref: VORHER_REF, type: "private", status: "started", currentStep: 1, firstName: "Paula", lastName: "Zweit",
+    birthDay: "30", birthMonth: "9", birthYear: "1975",
+    email: OPFER2_MAIL, phoneCountryCode: "+49", phone: "17655544433", password: "Paula-Eigen-999",
+  });
+  await sql`
+    INSERT INTO fiaon_applications (ref, type, status, email, password, person_id, birthdate, first_name, last_name, payment_status, account_status, created_at)
+    VALUES (${OPFER2_REF}, 'private', 'completed', ${OPFER2_MAIL}, NULL, ${p2.id}, '1975-09-30', 'Paula', 'Zweit', 'paid', 'active', NOW())`;
+  const l6c = await browser("198.51.100.40").post("/login", { email: OPFER2_MAIL, password: "Paula-Eigen-999" });
+  pruefe(l6c.status === 200 && l6c.j?.ref === OPFER2_REF, `6c derselbe Mensch: Passwort am Antrag öffnet sein bezahltes Konto (${l6c.status} → ${l6c.j?.ref ?? ""})`);
 } finally {
   await aufraeumen().catch((e) => console.error("Aufräumen:", e?.message || e));
-  const [rest] = await sql`SELECT COUNT(*)::int AS n FROM fiaon_applications WHERE lower(email) = ANY(${[OPFER_MAIL, NEU_MAIL]})`;
+  const [rest] = await sql`SELECT COUNT(*)::int AS n FROM fiaon_applications WHERE lower(email) = ANY(${[OPFER_MAIL, NEU_MAIL, OPFER2_MAIL]})`;
   console.log(`\nAufgeräumt: ${rest.n === 0 ? "ja" : `NEIN (${rest.n} Zeilen übrig)`}`);
   await sql.end();
 }

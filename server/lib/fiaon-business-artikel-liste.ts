@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE REDAKTIONSARTIKEL DER BUSINESS-WELT IM SPEICHER (27.10.2026, E-436)
+// DIE REDAKTIONSARTIKEL DER BUSINESS-WELT IM SPEICHER (27.10.2026, E-439)
 //
 // Der Vorrenderer (seitenHtml) und /llms.txt sind synchron — sie können nicht auf die
 // Datenbank warten. Diese Liste hält die veröffentlichten Business-Artikel (Slug,

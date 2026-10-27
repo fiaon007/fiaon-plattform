@@ -102,7 +102,7 @@ export function blockAlsText(b: GlobalBlock, seitenTitel: (pfad: string) => stri
     case "text": return { h2: b.h2, text: [...b.absaetze, ...(b.nach ? [b.nach] : [])].join(" "), punkte: b.punkte };
     case "etappen": return { h2: b.h2, text: b.lead ?? "", punkte: b.etappen.map((e, i) => `${i + 1}. ${e.titel}${e.dauer ? ` (${e.dauer})` : ""}: ${e.text}`) };
     case "rollen": return { h2: b.h2, text: b.lead ?? "", punkte: [`${rFiaon}: ${b.fiaon.join("; ")}`, `${rPartner}: ${b.partner.join("; ")}`, `${rSie}: ${b.sie.join("; ")}`] };
-    // E-436: die Tabelle bleibt eine Tabelle (punkte für Leser ohne Tabellen, z. B. llms.txt).
+    // E-439: die Tabelle bleibt eine Tabelle (punkte für Leser ohne Tabellen, z. B. llms.txt).
     case "tabelle": return { h2: b.h2, text: (b.lead ?? "").trim(), punkte: b.zeilen.map((z) => z.map((zelle, i) => (b.kopf[i] ? `${b.kopf[i]}: ${zelle}` : zelle)).join(" · ")), tabelle: { kopf: b.kopf, zeilen: b.zeilen, fuss: b.fuss } };
     case "karten": return { h2: b.h2, text: b.lead ?? "", punkte: b.karten.map((k) => `${k.tag ? `${k.tag} — ` : ""}${k.titel}: ${k.text}`), ...(b.karten.some((k) => k.pfad) ? { links: b.karten.filter((k) => k.pfad).map((k) => ({ pfad: k.pfad!, text: k.titel })) } : {}) };
     case "hinweis": return { h2: b.h2, text: b.lead ?? "", punkte: b.punkte };

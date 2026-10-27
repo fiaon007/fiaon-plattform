@@ -449,10 +449,14 @@ const FELDER: Record<Bereich, string> = {
   privat: "SCHUFA, KSV1870, CRIF und Score; Einträge, Löschfristen und Datenschutzrechte gegenüber Auskunfteien; Inkasso, Mahnung und "
     + "Mahnbescheid; Kontopfändung und P-Konto; Girokonto und Basiskonto; Kreditkarte, Dispo, Ratenkauf/„Buy now, pay later“ und Konsumkredit; "
     + "Verbraucherinsolvenz und Restschuldbefreiung; Bonität beim Mieten, Mobilfunk, Strom.",
-  business: "Firmenbonität (Creditreform, CRIF, Bonitätsindex, Zahlungserfahrungen); Gründung und Rechtsform (GmbH, UG, LLC); Finanzierung "
-    + "und Kapitalzugang (Bankkredit, Kreditvergabe der Banken, Förderkredite, Firmenkarten, Kreditrahmen); Zahlungsausfälle, Zahlungsmoral "
-    + "und Insolvenztrends; Geschäftskonto und Kontokündigung; internationale Strukturen und Expansion in die USA (US-Gesellschaft, Tochter, "
-    + "EIN, US-Konto, US-Meldepflichten).",
+  // 27.10.2026 (E-439): Die Redaktion schreibt für FIAON Global — Schwerpunkt US-Gesellschaft. Die Prüfung vom 27.10. fand 15 von 29
+  // Business-Artikeln zu deutscher Firmenbonität; das verwässert das Thema, für das /business bei Google und KI gefunden werden soll.
+  business: "die US-Gesellschaft aus Deutschland, Österreich und der Schweiz: Gründung und Rechtsform (LLC, Corporation, Tochtergesellschaft, "
+    + "Bundesstaaten Wyoming, Delaware, Florida); US-Steuernummern und Meldepflichten (EIN, ITIN, Form 5472 mit 1120, Jahresberichte, Sales Tax, "
+    + "1099, W-8BEN-E); US-Geschäftskonto, US-Bonität und Business Credit (D-U-N-S, Firmenkarten, Kapitalwege, SBA-Regeln für ausländische "
+    + "Eigentümer); Markteintritt und Expansion (Marke beim USPTO, Personal und Payroll, Grundzüge der Visa, Zölle und Handel); Besteuerung "
+    + "der US-Gesellschaft zu Hause (Ort der Geschäftsleitung, Doppelbesteuerungsabkommen, Meldungen). Firmenbonität und Finanzierung in DACH "
+    + "nur, wenn der Text zur US-Gesellschaft führt.",
 };
 
 const AKTUELL: Record<Bereich, string> = {
@@ -460,10 +464,10 @@ const AKTUELL: Record<Bereich, string> = {
     + "Urteil (BGH, EuGH, OGH, Schweizer Bundesgericht), eine Entscheidung oder Warnung der BaFin, FMA, FINMA oder einer Datenschutzbehörde, "
     + "neue Zahlen (SchuldnerAtlas, Destatis, Statistik Austria, KSV1870), eine Änderung bei SCHUFA, KSV1870 oder CRIF, eine saisonale Lage "
     + "(Jahresende, Nebenkostenabrechnung, Weihnachtseinkäufe auf Raten).",
-  business: "neue Insolvenzzahlen (Destatis, Creditreform, KSV1870, Creditreform Schweiz), Zinsentscheidungen der EZB und ihre Wirkung auf "
-    + "Firmenkredite, Umfragen zur Kreditvergabe (Bank Lending Survey, ifo-Kredithürde, KfW), neue Gesetze und Fristen (Offenlegung, "
-    + "E-Rechnung, Zahlungsverzug, US-Meldepflichten), Urteile des BGH oder EuGH zu Haftung und Zahlungsverkehr, Kontokündigungen durch Banken, "
-    + "Zölle und Handelsfragen mit den USA.",
+  business: "neue Regeln, Formulare und Fristen der IRS (Form 5472, 1120, 1099, W-8BEN-E, ITIN), Gebühren und Fristen der Bundesstaaten "
+    + "(Florida, Delaware, Wyoming), FinCEN-Meldungen, SBA- und Bankregeln für ausländische Eigentümer, Aufsichtsfälle zu Funding-Angeboten "
+    + "(FTC), US-Zölle und Handelsfragen mit Deutschland, Österreich und der Schweiz, neue Schreiben des BMF, des österreichischen BMF oder "
+    + "der ESTV zur Einordnung von US-Gesellschaften, Urteile zu Haftung und Zahlungsverkehr, Zahlen zum US-Geschäft von DACH-Unternehmen.",
 };
 
 function angebotText(b: Bereich): string {
@@ -889,7 +893,7 @@ export async function bereichAbarbeiten(b: Bereich, tag: string, ki: RedaktionKi
     UPDATE fiaon_ratgeber SET status = 'veroeffentlicht', quelle = 'ki', published_at = NOW(), updated_at = NOW()
      WHERE id = ${id} AND status NOT IN ('veroeffentlicht', 'archiv')
     RETURNING slug, titel, bereich, sprache`) as any[];
-  // E-436: den neuen Artikel sofort an Bing melden (IndexNow) und die Business-Liste für Vorrenderer/llms.txt auffrischen.
+  // E-439: den neuen Artikel sofort an Bing melden (IndexNow) und die Business-Liste für Vorrenderer/llms.txt auffrischen.
   if (pub) {
     void import("./fiaon-indexnow").then((m) => m.indexNowMelden([pub.bereich === "business" ? businessArtikelPfad(pub.slug, pub.sprache) : `/ratgeber/${pub.slug}`], "Tagesartikel")).catch(() => {});
     if (pub.bereich === "business") void import("./fiaon-business-artikel-liste").then((m) => m.businessArtikelLaden()).catch(() => {});

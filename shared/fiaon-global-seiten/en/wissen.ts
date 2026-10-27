@@ -22,6 +22,17 @@ const QUELLE_DBG50 = QUELLEN_RECHT_EN.dbg50;
 const QUELLE_ASTG = QUELLEN_RECHT_EN.astg7;
 const QUELLE_GMBHG5 = QUELLEN_RECHT_EN.gmbhg5;
 const QUELLE_I1120 = QUELLEN_RECHT_EN.i1120;
+// 27.10.2026: Austria as a full column in "What applies where" — the same URLs as ../wissen.ts, English titles.
+const RIS = "https://www.ris.bka.gv.at/NormDokument.wxe?Abfrage=Bundesnormen";
+const QUELLE_BAO27 = { titel: "Section 27 Austrian Federal Fiscal Code (BAO) — registered office and place of management", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=27` };
+const QUELLE_KSTG_AT1 = { titel: "Section 1 Austrian Corporate Income Tax Act 1988 (KStG) — unlimited tax liability", url: `${RIS}&Gesetzesnummer=10004569&Paragraf=1` };
+const QUELLE_EAS1159 = { titel: "Austrian Federal Ministry of Finance, EAS 1159 of 31 October 1997 — classification of the US LLC", url: "https://findok.bmf.gv.at/findok/resources/pdf/09ba647c-ba5c-473d-a01f-1bcf7b2fbf89/14179.1.X.X.pdf" };
+const QUELLE_BAO120 = { titel: "Section 120 Austrian Federal Fiscal Code (BAO) — notification duties", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=120` };
+const QUELLE_BAO121 = { titel: "Section 121 Austrian Federal Fiscal Code (BAO) — time limit for notifications", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=121` };
+const QUELLE_KSTG_AT10A = { titel: "Section 10a Austrian Corporate Income Tax Act 1988 (KStG) — passive income of low-taxed corporations", url: `${RIS}&Gesetzesnummer=10004569&Paragraf=10a` };
+const QUELLE_DBG49 = { titel: "Art. 49 Swiss Federal Direct Tax Act (DBG) — legal entities, foreign entities treated as equivalent", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_49" };
+const QUELLE_DBG52 = { titel: "Art. 52 Swiss Federal Direct Tax Act (DBG) — scope of tax liability", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_52" };
+const QUELLE_DBG124 = { titel: "Art. 124 Swiss Federal Direct Tax Act (DBG) — tax return", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_124" };
 
 const KAPITAL = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 
@@ -133,7 +144,8 @@ export const WISSEN_EN: GlobalSeite[] = [
       titel: "US LLC tax in Germany: the honest answer — FIAON Global",
       beschreibung: "Can a US LLC reduce your tax? For owners in Germany and Switzerland usually not: place of management, classification, reporting duties — with sources.",
     },
-    stand: S,
+    // 27.10.2026: "What applies where" with Austria as a column of its own (sources RIS, Findok, Fedlex).
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 23",
     auge: "Knowledge · Tax",
@@ -180,14 +192,19 @@ export const WISSEN_EN: GlobalSeite[] = [
       },
       {
         typ: "tabelle", id: "uebersicht", h2: "What applies where",
-        kopf: ["", "US", "Germany", "Switzerland"],
+        kopf: ["", "US", "Germany", "Austria", "Switzerland"],
         zeilen: [
-          ["Connecting factor", "Business in the US, legal form", "Place of management (§ 10 AO)", "Registered office or place of effective management (Art. 50 DBG)"],
-          ["Reporting", "Form 5472 with Form 1120, annually", "§ 138 AO with the tax return", "under cantonal and federal law"],
-          ["Classification of the LLC", "usually not a separate taxable entity", "Typenvergleich (comparison with German legal forms)", "under Swiss law"],
-          ["Who reviews it", "US CPA", "Tax adviser", "Fiduciary or tax adviser"],
+          ["Connecting factor (place of management)", "Legal form and business in the US", "Place of management: the centre of top-level commercial direction (§ 10 AO)", "Place of management: the centre of top-level commercial direction (§ 27(2) BAO)", "Registered office or place of effective management in Switzerland (Art. 50 DBG)"],
+          ["Unlimited tax liability of the company", "without business in the US, often no federal tax on the profit", "Place of management or registered office in Germany: on all income (§ 1 KStG)", "Place of management or registered office in Austria: on all domestic and foreign income (§ 1(2) KStG 1988)", "Registered office or place of effective management in Switzerland: unlimited, but not covering businesses, permanent establishments and real estate abroad (Art. 52(1) DBG)"],
+          ["Classification of the LLC", "usually not a separate taxable entity", "Typenvergleich (comparison with German legal forms) based on the overall picture; the US classification plays no role (letter of 19 March 2004)", "Typenvergleich based on structure and economic role; the treatment in the US is not decisive (Austrian Ministry of Finance, EAS 1159)", "treated as equivalent to the Swiss legal entity it most closely resembles in law or in fact (Art. 49(3) DBG)"],
+          ["Reporting the shareholding", "Form 5472 with Form 1120, annually", "Report the formation or acquisition to the tax office, with the tax return (§ 138(2) and (5) AO)", "Notify circumstances that establish or change personal tax liability within one month (§§ 120, 121 BAO); whether the shareholding is covered is to be checked case by case", "File the tax return in full, with the required enclosures (Art. 124(2) DBG); a separate report is to be checked case by case"],
+          ["Attribution of low-taxed companies' income", "to be checked case by case", "only if the company has neither its place of management nor its registered office in Germany: low-taxed, passive income is taxable in the hands of the controlling shareholder (§ 7 AStG)", "Passive income of low-taxed foreign corporations is attributed to a controlling corporation (§ 10a KStG 1988); for individuals, to be checked case by case", "to be checked case by case"],
+          ["Who reviews it", "US CPA", "Tax adviser", "Tax adviser", "Fiduciary or tax adviser"],
         ],
-        fuss: ["Simplified overview; in the individual case, the activity, the legal form and the double taxation agreement decide."],
+        fuss: [
+          "Simplified overview; in the individual case, the activity, the legal form and the double taxation agreement decide.",
+          "The row on unlimited tax liability assumes that the LLC is classified as a corporation or legal entity; in all three countries, this is decided by comparison with domestic legal forms.",
+        ],
       },
       {
         typ: "karten", id: "wofuer", h2: "What a US company is good for", spalten: 3,
@@ -213,7 +230,12 @@ export const WISSEN_EN: GlobalSeite[] = [
       { f: "So what is a US company actually good for?", a: `For genuine business in the US — contracts with US customers, a US account, payments in US dollars, separate liability, a card history of its own — and for building capital. ${KAPITAL}` },
     ],
     weiter: ["/en/business/from-germany", "/en/business/from-switzerland", "/en/business/knowledge/form-5472", "/en/business/knowledge/llc-tax-returns"],
-    quellen: [QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138, QUELLE_DBG50, QUELLEN_IRS_EN[4]],
+    quellen: [
+      QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138,
+      QUELLE_BAO27, QUELLE_KSTG_AT1, QUELLE_EAS1159, QUELLE_BAO120, QUELLE_BAO121, QUELLE_KSTG_AT10A,
+      QUELLE_DBG49, QUELLE_DBG50, QUELLE_DBG52, QUELLE_DBG124,
+      QUELLEN_IRS_EN[4],
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

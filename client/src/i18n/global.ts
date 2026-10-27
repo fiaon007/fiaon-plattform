@@ -42,7 +42,7 @@ export type GlobalBegriff = "ein" | "itin" | "registeredAgent" | "operatingAgree
 export interface GlobalSternKnoten { name: string; umfang?: string; status: "fest" | "antrag"; inkl?: number }
 
 const de = {
-  metaTitel: "US-Gesellschaft gründen ab 2.499 € — FIAON Global",
+  metaTitel: "US-Firma gründen ab 2.499 € — FIAON Global",
   // 06.10.2026 (E-293): ohne „Konto, Karten“ als Leistung und ohne „alles inklusive“ — es sind Anträge, und „inklusive“ gilt für das Paket.
   metaBeschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, EIN und ITIN, Konto- und Kartenanträge, Team in Miami. Festpreis ab 2.499 €.",
 

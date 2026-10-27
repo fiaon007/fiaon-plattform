@@ -247,7 +247,7 @@ export async function sitemapXml(statisch: string): Promise<string> {
   try {
     await ensureRatgeberTabelle();
     const rows = (await sqlPool`SELECT slug, updated_at, bereich, sprache FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' ORDER BY published_at DESC`) as any[];
-    // 27.10.2026 (E-436): Business-Artikel stehen unter ihrer Business-Adresse (/business/wissen/…, /en/business/knowledge/…).
+    // 27.10.2026 (E-439): Business-Artikel stehen unter ihrer Business-Adresse (/business/wissen/…, /en/business/knowledge/…).
     const adresse = (r: any) => (r.bereich === "business" ? businessArtikelPfad(r.slug, r.sprache) : `/ratgeber/${r.slug}`);
     const extra = [`  <url><loc>https://fiaon.com/ratgeber</loc><changefreq>daily</changefreq><priority>0.8</priority></url>`,
       ...rows.map((r) => `  <url><loc>https://fiaon.com${adresse(r)}</loc><lastmod>${new Date(r.updated_at).toISOString().slice(0, 10)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`)].join("\n");

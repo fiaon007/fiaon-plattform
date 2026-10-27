@@ -305,7 +305,7 @@ const SCHAERFER_EN: { muster: RegExp; grund: string }[] = [
   { muster: /\b0\s?%/, grund: "kein Zinssatz als Zahl" },
   { muster: /\brecommend\w*\b/i, grund: "keine Empfehlung" },
   { muster: /\b(without|no) collateral\b|\bunsecured\b/i, grund: "die persönliche Haftung IST die Sicherheit" },
-  // 27.10.2026 (E-436): „business consultancy“ erlaubt (Justin) — Regel entfällt.
+  // 27.10.2026 (E-439): „business consultancy“ erlaubt (Justin) — Regel entfällt.
   { muster: /\bsave tax|tax saving|tax advantage/i, grund: "kein Steuerversprechen" },
   { muster: /\baffiliate/i, grund: "Wortverbot" },
 ];

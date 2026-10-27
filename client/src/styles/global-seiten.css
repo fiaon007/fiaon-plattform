@@ -658,7 +658,7 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
   .fd-text.neu{display:block}
 }
 
-/* E-436 (27.10.2026): Abschnitte der Redaktionsartikel (Markdown → HTML) im Kleid der Unterseiten. */
+/* E-439 (27.10.2026): Abschnitte der Redaktionsartikel (Markdown → HTML) im Kleid der Unterseiten. */
 .fd-html{max-width:68ch}
 .fd-html p{margin-top:18px;font-size:16.5px;line-height:1.8;font-weight:300;color:var(--text)}
 .fd-html p:first-child{margin-top:20px}
@@ -670,6 +670,6 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
 .fd-html table{width:100%;margin-top:22px;border-collapse:collapse;font-size:14px;display:block;overflow-x:auto}
 .fd-html th,.fd-html td{padding:10px 12px;border-bottom:1px solid var(--linie);text-align:left;vertical-align:top}
 .fd-html th{font-weight:500;color:var(--tinte)}
-/* E-436: verlinkte Fachbegriffe im Fließtext — ruhig, wie eine Fußnote, nicht wie ein Knopf. */
+/* E-439: verlinkte Fachbegriffe im Fließtext — ruhig, wie eine Fußnote, nicht wie ein Knopf. */
 .fd-p a.fd-begriff{color:inherit;text-decoration:underline;text-decoration-color:rgba(18,40,74,.32);text-underline-offset:3px;text-decoration-thickness:1px;transition:text-decoration-color .2s}
 .fd-p a.fd-begriff:hover{text-decoration-color:var(--navy)}

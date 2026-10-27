@@ -1,5 +1,5 @@
 /**
- * PRÜFSTAND FÜR EINEN NEUEN BUSINESS-RATGEBER (27.10.2026, E-436)
+ * PRÜFSTAND FÜR EINEN NEUEN BUSINESS-RATGEBER (27.10.2026, E-439)
  *
  *   npx tsx scripts/pruef-artikel-e436.ts <datei.ts> [<datei.ts> …]
  *

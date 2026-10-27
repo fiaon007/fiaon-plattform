@@ -23,6 +23,18 @@ const QUELLE_DBG50 = { titel: "Art. 50 DBG — Persönliche Zugehörigkeit", url
 const QUELLE_ASTG = { titel: "§ 7 AStG — Hinzurechnungsbesteuerung", url: "https://www.gesetze-im-internet.de/astg/__7.html" };
 const QUELLE_GMBHG5 = { titel: "§ 5 GmbHG — Stammkapital", url: "https://www.gesetze-im-internet.de/gmbhg/__5.html" };
 const QUELLE_I1120 = { titel: "IRS — Instructions for Form 1120", url: "https://www.irs.gov/instructions/i1120" };
+// 27.10.2026: Österreich als vollwertige Spalte in „Was wo gilt“ (/business/wissen/us-llc-steuern) — Wortlaut
+// am 27.10.2026 im RIS, in der Findok des BMF und in der Fedlex (DBG, Stand 02.09.2026) nachgelesen.
+const RIS = "https://www.ris.bka.gv.at/NormDokument.wxe?Abfrage=Bundesnormen";
+const QUELLE_BAO27 = { titel: "§ 27 BAO (Österreich) — Sitz und Ort der Geschäftsleitung", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=27` };
+const QUELLE_KSTG_AT1 = { titel: "§ 1 KStG 1988 (Österreich) — Unbeschränkte Steuerpflicht", url: `${RIS}&Gesetzesnummer=10004569&Paragraf=1` };
+const QUELLE_EAS1159 = { titel: "BMF Österreich, EAS 1159 vom 31.10.1997 — Typenvergleich bei der US-LLC", url: "https://findok.bmf.gv.at/findok/resources/pdf/09ba647c-ba5c-473d-a01f-1bcf7b2fbf89/14179.1.X.X.pdf" };
+const QUELLE_BAO120 = { titel: "§ 120 BAO (Österreich) — Anzeigepflichten", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=120` };
+const QUELLE_BAO121 = { titel: "§ 121 BAO (Österreich) — Frist der Anzeigen", url: `${RIS}&Gesetzesnummer=10003940&Paragraf=121` };
+const QUELLE_KSTG_AT10A = { titel: "§ 10a KStG 1988 (Österreich) — Passiveinkünfte niedrigbesteuerter Körperschaften", url: `${RIS}&Gesetzesnummer=10004569&Paragraf=10a` };
+const QUELLE_DBG49 = { titel: "Art. 49 DBG — Juristische Personen, Gleichstellung ausländischer", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_49" };
+const QUELLE_DBG52 = { titel: "Art. 52 DBG — Umfang der Steuerpflicht", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_52" };
+const QUELLE_DBG124 = { titel: "Art. 124 DBG — Steuererklärung", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_124" };
 
 export const WISSEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -128,7 +140,8 @@ export const WISSEN: GlobalSeite[] = [
       titel: "US-LLC und Steuern: Die ehrliche Antwort — FIAON Global",
       beschreibung: "Spart eine US-LLC Steuern? Für Unternehmer aus Deutschland und der Schweiz meist nicht: Geschäftsleitung, Typenvergleich, Meldepflichten — mit Quellen.",
     },
-    stand: S,
+    // 27.10.2026: Tabelle „Was wo gilt“ mit Österreich als eigener Spalte (Quellen RIS, Findok, Fedlex).
+    stand: "2026-10-27",
     kennung: "FG · 23",
     auge: "Wissen · Steuern",
     h1: "Spart eine US-LLC Steuern?",
@@ -174,14 +187,19 @@ export const WISSEN: GlobalSeite[] = [
       },
       {
         typ: "tabelle", id: "uebersicht", h2: "Was wo gilt",
-        kopf: ["", "USA", "Deutschland", "Schweiz"],
+        kopf: ["", "USA", "Deutschland", "Österreich", "Schweiz"],
         zeilen: [
-          ["Anknüpfung", "Geschäft in den USA, Rechtsform", "Ort der Geschäftsleitung (§ 10 AO)", "Sitz oder tatsächliche Verwaltung (Art. 50 DBG)"],
-          ["Meldung", "Form 5472 mit Form 1120, jährlich", "§ 138 AO mit der Steuererklärung", "nach kantonalem und Bundesrecht"],
-          ["Einordnung der LLC", "meist kein eigenes Steuersubjekt", "Typenvergleich", "nach Schweizer Recht"],
-          ["Wer es prüft", "US-CPA", "Steuerberater", "Treuhand oder Steuerberater"],
+          ["Anknüpfung (Ort der Geschäftsleitung)", "Rechtsform und Geschäft in den USA", "Ort der Geschäftsleitung: Mittelpunkt der geschäftlichen Oberleitung (§ 10 AO)", "Ort der Geschäftsleitung: Mittelpunkt der geschäftlichen Oberleitung (§ 27 Abs. 2 BAO)", "Sitz oder tatsächliche Verwaltung in der Schweiz (Art. 50 DBG)"],
+          ["Unbeschränkte Steuerpflicht der Gesellschaft", "ohne Geschäft in den USA oft keine Bundessteuer auf den Gewinn", "Geschäftsleitung oder Sitz in Deutschland: mit allen Einkünften (§ 1 KStG)", "Geschäftsleitung oder Sitz in Österreich: mit allen in- und ausländischen Einkünften (§ 1 Abs. 2 KStG 1988)", "Sitz oder tatsächliche Verwaltung in der Schweiz: unbeschränkt, aber nicht für Geschäftsbetriebe, Betriebsstätten und Grundstücke im Ausland (Art. 52 Abs. 1 DBG)"],
+          ["Einordnung der LLC", "meist kein eigenes Steuersubjekt", "Typenvergleich nach dem Gesamtbild; die Einordnung in den USA zählt nicht (BMF-Schreiben vom 19.03.2004)", "Typenvergleich nach Aufbau und wirtschaftlicher Bedeutung; die Behandlung in den USA ist nicht entscheidend (BMF, EAS 1159)", "gleichgestellt der Schweizer juristischen Person, der sie rechtlich oder tatsächlich am ähnlichsten ist (Art. 49 Abs. 3 DBG)"],
+          ["Meldepflicht der Beteiligung", "Form 5472 mit Form 1120, jährlich", "Gründung oder Erwerb dem Finanzamt mitteilen, mit der Steuererklärung (§ 138 Abs. 2 und 5 AO)", "Umstände anzeigen, die die persönliche Abgabepflicht begründen oder ändern, binnen einem Monat (§§ 120, 121 BAO); ob die Beteiligung dazugehört, im Einzelfall prüfen", "Steuererklärung vollständig und samt Beilagen einreichen (Art. 124 Abs. 2 DBG); eine gesonderte Meldung im Einzelfall prüfen"],
+          ["Hinzurechnung niedrig besteuerter Gesellschaften", "im Einzelfall prüfen", "nur wenn die Gesellschaft weder Geschäftsleitung noch Sitz in Deutschland hat: niedrig besteuerte, passive Einkünfte beim beherrschenden Gesellschafter steuerpflichtig (§ 7 AStG)", "Passiveinkünfte niedrig besteuerter ausländischer Körperschaften werden einer beherrschenden Körperschaft hinzugerechnet (§ 10a KStG 1988); für natürliche Personen im Einzelfall prüfen", "im Einzelfall prüfen"],
+          ["Wer es prüft", "US-CPA", "Steuerberater", "Steuerberater", "Treuhand oder Steuerberater"],
         ],
-        fuss: ["Vereinfachte Übersicht; im Einzelfall entscheiden Tätigkeit, Rechtsform und Doppelbesteuerungsabkommen."],
+        fuss: [
+          "Vereinfachte Übersicht; im Einzelfall entscheiden Tätigkeit, Rechtsform und Doppelbesteuerungsabkommen.",
+          "Die Zeile zur unbeschränkten Steuerpflicht setzt voraus, dass die LLC als Körperschaft beziehungsweise juristische Person eingeordnet wird; das entscheidet in allen drei Ländern der Vergleich mit den heimischen Rechtsformen.",
+        ],
       },
       {
         typ: "karten", id: "wofuer", h2: "Wofür eine US-Gesellschaft gut ist", spalten: 3,
@@ -207,7 +225,12 @@ export const WISSEN: GlobalSeite[] = [
       { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: `Für echtes Geschäft in den USA — Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie — und für den Aufbau von Kapital. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     weiter: ["/business/aus-deutschland", "/business/aus-der-schweiz", "/business/wissen/form-5472", "/business/wissen/llc-steuererklaerung"],
-    quellen: [QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138, QUELLE_DBG50, QUELLEN_IRS[4]],
+    quellen: [
+      QUELLE_AO10, QUELLE_KSTG1, QUELLE_BMF, QUELLE_ASTG, QUELLE_AO138,
+      QUELLE_BAO27, QUELLE_KSTG_AT1, QUELLE_EAS1159, QUELLE_BAO120, QUELLE_BAO121, QUELLE_KSTG_AT10A,
+      QUELLE_DBG49, QUELLE_DBG50, QUELLE_DBG52, QUELLE_DBG124,
+      QUELLEN_IRS[4],
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

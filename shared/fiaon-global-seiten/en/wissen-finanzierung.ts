@@ -25,7 +25,7 @@ const QF: Record<string, GlobalQuelle> = {
   dscrProgramm: { titel: "Foreign national DSCR programme description (lender, 2026)", url: "https://admortgage.com/programs/foreign-nationals/" },
   dscrZinsen: { titel: "DSCR rates for foreign investors (market observation, August 2026)", url: "https://homeabroadinc.com/mortgages/dscr-loan-interest-rates/" },
   sbaKredite: { titel: "U.S. Small Business Administration — Loans", url: "https://www.sba.gov/funding-programs/loans" },
-  sbaRegel2026: { titel: "SBA Procedural Notice 5000-876626 — ownership, citizenship and residency for 7(a) and 504 loans (effective 1 March 2026)", url: "https://www.naggl.org/wp-content/uploads/2026/05/5000-876626.pdf" },
+  sbaRegel2026: { titel: "U.S. GAO, B-338157 — SBA citizenship and residency requirements for 7(a) and 504 loans (Notices 5000-876441, 5000-876626)", url: "https://www.gao.gov/products/b-338157" },
 };
 
 export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
@@ -144,7 +144,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       titel: "Financing a US property as a foreigner — FIAON Global",
       beschreibung: "How foreigners finance a US property: rent coverage instead of income, equity, reserves, source of funds, closing from abroad, FIRPTA.",
     },
-    stand: S,
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 41",
     auge: "Knowledge · Property in the US",
@@ -180,7 +180,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         kopf: ["Attribute", "Usual range"],
         zeilen: [
           ["Equity on purchase", "20 – 35% of the price"],
-          ["Interest, 30-year fixed", "approx. 6.9 – 9.5% p.a."],
+          ["Interest", "set by the lender alone — depending on the property, equity and rent coverage"],
           ["Rent coverage (DSCR)", "usually at least 1.0"],
           ["Reserves", "6 – 12 monthly instalments, often allowed abroad"],
           ["Source of the deposit", "own account, 60 – 90 days beforehand, documented"],
@@ -204,7 +204,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         typ: "karten", id: "varianten", h2: "Three kinds of property financing", spalten: 3,
         karten: [
           { tag: "Long term", titel: "Holding a rental", text: "A DSCR loan with a long term, often thirty years; the rent carries the instalment. The usual route for investors from abroad." },
-          { tag: "Short term", titel: "Buy and renovate", text: "Short-term property loans (hard money) for purchase and renovation, according to market data approx. 8 to 15 percent interest plus fees. Expensive, meant for a clear exit." },
+          { tag: "Short term", titel: "Buy and renovate", text: "Short-term property loans (hard money) for purchase and renovation, considerably more expensive than a long-term property loan and with fees. Meant for a clear exit." },
           { tag: "Negotiated", titel: "Seller financing", text: "The seller defers part of the price. Terms are freely negotiated; the contract belongs in the hands of a US lawyer." },
         ],
       },
@@ -242,7 +242,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
     ],
     paket: "global_kapital",
     weiter: ["/en/business/knowledge/us-financing-routes", "/en/business/knowledge/form-a-us-llc", "/en/business/knowledge/us-llc-tax", "/en/business/knowledge/choosing-a-state"],
-    quellen: [QF.dscrHandbuch, QF.dscrProgramm, QF.dscrZinsen, QF.firpta],
+    quellen: [QF.dscrHandbuch, QF.dscrProgramm, QF.firpta],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

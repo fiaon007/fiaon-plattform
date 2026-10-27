@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORSCHAUBILDER DER BUSINESS-WELT — DIE REGELN (27.10.2026, E-436)
+// VORSCHAUBILDER DER BUSINESS-WELT — DIE REGELN (27.10.2026, E-439)
 //
 // Justin: „Jeder Link, den wir vom Business teilen, soll darauf aufbauen und so aussehen.“
 // Jede Business-Adresse bekommt ein eigenes 1200×630-Bild (scripts/og-business-bilder.ts);

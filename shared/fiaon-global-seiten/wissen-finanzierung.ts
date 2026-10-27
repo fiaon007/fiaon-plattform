@@ -32,8 +32,8 @@ export const QUELLEN_FINANZIERUNG: Record<string, GlobalQuelle> = {
   dscrProgramm: { titel: "Programmbeschreibung Foreign National DSCR (Kreditgeber, 2026)", url: "https://admortgage.com/programs/foreign-nationals/" },
   dscrZinsen: { titel: "DSCR-Zinsen für ausländische Investoren (Marktbeobachtung, August 2026)", url: "https://homeabroadinc.com/mortgages/dscr-loan-interest-rates/" },
   sbaKredite: { titel: "U.S. Small Business Administration — Loans", url: "https://www.sba.gov/funding-programs/loans" },
-  // 27.10.2026 (E-436): Seit 01.03.2026 nur noch 100 % US-Eigentümer mit US-Hauptwohnsitz (vorher hieß es hier „in der Regel nicht").
-  sbaRegel2026: { titel: "SBA Procedural Notice 5000-876626 — Eigentümer, Staatsbürgerschaft und Wohnsitz bei 7(a)- und 504-Krediten (gültig ab 01.03.2026)", url: "https://www.naggl.org/wp-content/uploads/2026/05/5000-876626.pdf" },
+  // 27.10.2026 (E-439): Seit 01.03.2026 nur noch 100 % US-Eigentümer mit US-Hauptwohnsitz (vorher hieß es hier „in der Regel nicht").
+  sbaRegel2026: { titel: "U.S. GAO, B-338157 — SBA: Staatsbürgerschaft und Wohnsitz bei 7(a)- und 504-Krediten (Notices 5000-876441, 5000-876626)", url: "https://www.gao.gov/products/b-338157" },
 };
 const QF = QUELLEN_FINANZIERUNG;
 
@@ -149,7 +149,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       titel: "US-Immobilie finanzieren als Ausländer — FIAON Global",
       beschreibung: "Wie Ausländer eine US-Immobilie finanzieren: Mietdeckung statt Einkommen, Eigenkapital, Reserven, Herkunft der Mittel, Abschluss aus der Ferne, FIRPTA.",
     },
-    stand: S,
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 41",
     auge: "Wissen · Immobilien in den USA",
@@ -185,7 +185,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         kopf: ["Merkmal", "Übliche Spanne"],
         zeilen: [
           ["Eigenkapital beim Kauf", "20 – 35 % des Kaufpreises"],
-          ["Zins, 30 Jahre fest", "ca. 6,9 – 9,5 % p. a."],
+          ["Zins", "legt allein der Kreditgeber fest — nach Objekt, Eigenkapital und Mietdeckung"],
           ["Mietdeckung (DSCR)", "meist mindestens 1,0"],
           ["Reserven", "6 – 12 Monatsraten, oft im Ausland zulässig"],
           ["Herkunft der Anzahlung", "eigenes Konto, 60 – 90 Tage vorher, belegt"],
@@ -209,7 +209,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         typ: "karten", id: "varianten", h2: "Drei Arten der Objektfinanzierung", spalten: 3,
         karten: [
           { tag: "Langfristig", titel: "Mietobjekt halten", text: "DSCR-Kredit mit langer Laufzeit, oft dreißig Jahre; die Miete trägt die Rate. Der übliche Weg für Investoren aus dem Ausland." },
-          { tag: "Kurzfristig", titel: "Kaufen und sanieren", text: "Kurzfristige Objektkredite (Hard Money) für Kauf und Sanierung, laut Marktangaben ca. 8 bis 15 Prozent Zins plus Gebühren. Teuer, für einen klaren Ausstieg gedacht." },
+          { tag: "Kurzfristig", titel: "Kaufen und sanieren", text: "Kurzfristige Objektkredite (Hard Money) für Kauf und Sanierung, deutlich teurer als ein langfristiger Objektkredit und mit Gebühren. Für einen klaren Ausstieg gedacht." },
           { tag: "Verhandelt", titel: "Verkäuferfinanzierung", text: "Der Verkäufer stundet einen Teil des Preises. Bedingungen sind frei verhandelt; der Vertrag gehört in die Hand eines US-Anwalts." },
         ],
       },
@@ -247,7 +247,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
     ],
     paket: "global_kapital",
     weiter: ["/business/wissen/finanzierungswege-usa", "/business/wissen/llc-gruenden", "/business/wissen/us-llc-steuern", "/business/wissen/bundesstaat-waehlen"],
-    quellen: [QF.dscrHandbuch, QF.dscrProgramm, QF.dscrZinsen, QF.firpta],
+    quellen: [QF.dscrHandbuch, QF.dscrProgramm, QF.firpta],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

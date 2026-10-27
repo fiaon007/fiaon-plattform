@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// FACHBEGRIFFE IM FLIESSTEXT VERLINKEN (27.10.2026, E-436)
+// FACHBEGRIFFE IM FLIESSTEXT VERLINKEN (27.10.2026, E-439)
 //
 // Die Live-Prüfung vom 27.10.2026 zählte im Fließtext der 86 Business-Seiten
 // null Links: Linkkraft floss nur über Menü, Fuß, Brotkrumen und „Weiterlesen“.

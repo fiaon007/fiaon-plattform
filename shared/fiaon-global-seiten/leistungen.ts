@@ -25,7 +25,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     pfad: "/business/us-firmengruendung",
     art: "leistung",
     seo: {
-      titel: "US-Firmengründung: LLC oder Corporation — FIAON Global",
+      titel: "US-Firma gründen: LLC oder Corporation — FIAON Global",
       beschreibung: "Ihre US-Gesellschaft aus Deutschland oder der Schweiz: LLC oder Corporation, EIN, ITIN, Registered Agent und Adresse. Festpreis, alle Gebühren inklusive.",
     },
     stand: S,
@@ -217,7 +217,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     pfad: "/business/us-geschaeftskonto",
     art: "leistung",
     seo: {
-      titel: "US-Geschäftskonto eröffnen aus Deutschland — FIAON Global",
+      titel: "US-Geschäftskonto eröffnen als Deutscher — FIAON Global",
       beschreibung: "US-Konto für Ihre LLC oder Corporation: Unterlagen zusammengestellt, Antrag vollständig vorbereitet, Rückfragen begleitet. Das Institut entscheidet.",
     },
     stand: S,

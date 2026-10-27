@@ -32,7 +32,7 @@ function kopfSetzen(a: Artikel) {
     if (attr.content) el.setAttribute("content", attr.content); if (attr.href) el.setAttribute("href", attr.href);
   };
   setz('meta[name="description"]', { name: "description", content: a.metaBeschreibung || a.teaser });
-  // E-436: ohne www — dieselbe Adresse wie im Vorab-HTML des Servers (www antwortet mit 301).
+  // E-439: ohne www — dieselbe Adresse wie im Vorab-HTML des Servers (www antwortet mit 301).
   setz('link[rel="canonical"]', { rel: "canonical", href: `https://fiaon.com/ratgeber/${a.slug}` });
   setz('meta[property="og:title"]', { property: "og:title", content: a.titel });
   setz('meta[property="og:description"]', { property: "og:description", content: a.teaser });
@@ -65,7 +65,7 @@ export default function RatgeberArtikel() {
     fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}${vorschau ? "?vorschau=1" : ""}`).then(async (r) => {
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) { setFehler(j?.error || "Diesen Ratgeber gibt es nicht."); return; }
-      // E-436: Business-Artikel wohnen in der Business-Welt (der Server leitet /ratgeber/<slug> dafür per 301 um).
+      // E-439: Business-Artikel wohnen in der Business-Welt (der Server leitet /ratgeber/<slug> dafür per 301 um).
       if (j.artikel?.bereich === "business" && !vorschau) { window.location.replace(businessArtikelPfad(j.artikel.slug, j.artikel.sprache)); return; }
       setA(j.artikel); setWeitere(j.weitere || []); kopfSetzen(j.artikel);
     }).catch(() => setFehler("Der Ratgeber ist gerade nicht erreichbar."));

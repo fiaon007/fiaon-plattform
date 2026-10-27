@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE ADRESSE EINES REDAKTIONSARTIKELS DER BUSINESS-WELT (27.10.2026, E-436)
+// DIE ADRESSE EINES REDAKTIONSARTIKELS DER BUSINESS-WELT (27.10.2026, E-439)
 //
 // Die Tagesartikel der Redaktion (fiaon_ratgeber, bereich = business) standen unter
 // /ratgeber/<slug> — im Rahmen der Privatkunden, mit dem Bonitäts-Bild und ohne
-// Sprache. Seit E-436 wohnen sie in der Business-Welt: deutsch unter
+// Sprache. Seit E-439 wohnen sie in der Business-Welt: deutsch unter
 // /business/wissen/<slug>, englisch unter /en/business/knowledge/<slug>.
 // /ratgeber/<slug> leitet für Business-Artikel dauerhaft (301) dorthin.
 // Server (Vorrenderer, Sitemap, llms.txt) und Client (Links, Weiterleitung) rechnen

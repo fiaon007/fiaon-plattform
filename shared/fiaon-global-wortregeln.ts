@@ -7,9 +7,9 @@
 // FIAON Global gelten dazu schärfere Regeln (Register E-188): kein „bis zu",
 // kein Bankname als Versprechen, keine Frist mit Ziffer in Wochen oder Monaten,
 // kein „0 %", kein „ohne Sicherheiten", kein Steuerversprechen.
-// 27.10.2026 (E-436, Justin): „Unternehmensberatung DÜRFEN WIR VERWENDEN ALS UK-GESELLSCHAFT!“ — die
+// 27.10.2026 (E-439, Justin): „Unternehmensberatung DÜRFEN WIR VERWENDEN ALS UK-GESELLSCHAFT!“ — die
 // Selbstbezeichnung ist seitdem erlaubt (DE und CH frei; AT: reglementiertes Gewerbe § 94 Z 74 GewO,
-// Risiko im Register E-436 vermerkt). „Beratung“ allein bleibt in der Hauswand (FIAON berät nicht in
+// Risiko im Register E-439 vermerkt). „Beratung“ allein bleibt in der Hauswand (FIAON berät nicht in
 // Recht und Steuern — das tun die Partner im Mandat des Kunden), „Gruppe“ bleibt gesperrt. Bis heute standen sie nur im Prüfstand
 // scripts/pruef-wortwand-de.ts — der prüft, was im CODE steht.
 //
@@ -44,6 +44,8 @@ export const GLOBAL_SCHAERFER: GlobalWortregel[] = [
   { muster: /ziel-?(limit|rahmen)/i, grund: "Kapitalrahmen statt Ziel-Limit" },
   { muster: /\bempfohlen\w*\b/i, grund: "keine Empfehlung" },
   { muster: /\b0\s?%/, grund: "kein Zinssatz als Zahl — „Einführungszeitraum ohne Sollzins“" },
+  // 27.10.2026 (E-439): FG · 41 trug live „ca. 6,9 – 9,5 % p. a.“ — Zinssätze fängt jetzt jede Form (verbotene Aussage 1).
+  { muster: /\d+(?:[.,]\d+)?\s?%\s?(?:p\.\s?a\.|pro jahr|zins|sollzins|effektiv)|\bzins\w*\s+(?:von\s+)?(?:ca\.\s+|rund\s+|etwa\s+)?\d+(?:[.,]\d+)?\s?(?:%|prozent)|\d+\s+bis\s+\d+\s+prozent\s+zins/i, grund: "kein Zinssatz als Zahl — über den Zins entscheidet allein das Institut (verbotene Aussage 1)" },
   { muster: /\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung als Gruppe (§ 18 HGB) — FIAON ist eine Gesellschaft, keine Gruppe" },
   { muster: /ohne sicherheiten/i, grund: "die persönliche Haftung IST die Sicherheit — „ohne Bareinlage“" },
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
@@ -90,9 +92,10 @@ export const GLOBAL_SCHAERFER_EN: GlobalWortregel[] = [
   { muster: /\b(within|in)\s+\d+\s*(–|-|to)?\s*\d*\s*(working\s+|business\s+|calendar\s+)?(hours?|days?|weeks?|months?)\b/i, grund: "no deadline with digits (write the number as a word or give a date)" },
   { muster: /\btarget[- ]?(limit|credit line|credit limit)\b|\bfunding[- ]limit\b/i, grund: "capital range — never a target or funding limit" },
   { muster: /\b0\s?%|\b(0|zero)\s?per\s?cent\b/i, grund: "no interest rate as a number — “introductory period without debit interest”" },
+  { muster: /\d+(?:\.\d+)?\s?%\s?(?:p\.\s?a\.|apr|a year|per year|interest)|\binterest(?: rate)?s?\s+(?:of\s+)?(?:approx\.\s+|around\s+|about\s+)?\d+(?:\.\d+)?\s?(?:%|per\s?cent)|\d+\s+to\s+\d+\s+per\s?cent\s+interest/i, grund: "no interest rate as a number — the institution alone decides on interest (forbidden statement 1)" },
   { muster: /\brecommend\w*\b/i, grund: "no recommendation" },
   { muster: /\b(without|no|zero)\s+(any\s+)?collateral\b|\bcollateral[- ]free\b|\bunsecured\b/i, grund: "the personal guarantee IS the security — “no cash deposit”" },
-  // 27.10.2026 (E-436): „business consultancy“ ist erlaubt (Justin) — nur die Gruppe bleibt gesperrt.
+  // 27.10.2026 (E-439): „business consultancy“ ist erlaubt (Justin) — nur die Gruppe bleibt gesperrt.
   { muster: /\badvisory\s+group\b|\bfiaon group\b/i, grund: "self-description (not a group)" },
   { muster: /\b(save|saves|saving)\s+(on\s+)?tax(es)?\b|\btax[- ](saving|savings|advantage|advantages|benefit|benefits|break|breaks)\b|(?<![“"‘])\btax[- ]free\b/i, grund: "no tax promise (“tax-free” only as a quoted myth)" },
   { muster: /\baffiliate/i, grund: "banned word" },

@@ -149,7 +149,9 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       titel: "US-Bonität aufbauen: der Credit Score — FIAON Global",
       beschreibung: "Warum die SCHUFA in den USA nicht zählt, wie der FICO Score entsteht, was ein erster Score braucht und wie eine US-Kredithistorie wächst.",
     },
-    stand: S,
+    // 27.10.2026: Abschnitt „Zählt meine SCHUFA in den USA?“ (Experian, Dienst für ausländische Kreditdaten mit
+    // eigener Länderliste und Dokumentation), EO 14406 Sec. 3(a)(vi) zur ITIN im Abschnitt „null“, eine Frage dazu.
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 35",
     auge: "Wissen · Bonität in den USA",
@@ -177,6 +179,15 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         absaetze: [
           "Auskunfteien arbeiten national. Die SCHUFA in Deutschland, die KSV1870 in Österreich oder die CRIF in der Schweiz melden nicht an die US-Auskunfteien Equifax, Experian und TransUnion. Eine lange, saubere Zahlungsgeschichte in Europa zählt beim ersten US-Antrag deshalb in aller Regel nicht — ein alter Eintrag allerdings auch nicht.",
           "Die US-Auskunfteien führen persönliche Akten in der Praxis über die Sozialversicherungsnummer oder die ITIN, dazu Name, Anschrift und Geburtsdatum. Ohne eine dieser Nummern entsteht kaum eine Akte, an die sich Zahlungen knüpfen lassen.",
+          "Am 19. Mai 2026 kam für die ITIN ein Punkt hinzu: Die Executive Order 14406 „Restoring Integrity to America’s Financial System“ beauftragt den US-Finanzminister, Finanzinstituten in einem Hinweis (Advisory) Warnsignale zu beschreiben. Dazu zählt die Nutzung einer ITIN, um Kreditprodukte zu erhalten oder Einlagenkonten zu eröffnen, wenn kein geprüfter rechtmäßiger Aufenthaltsstatus vorliegt. Die Order hält fest, dass die ITIN der Erfüllung der Steuerpflicht dient; ihre Nutzung anstelle einer Sozialversicherungsnummer oder eines gültigen Visums mit Arbeitserlaubnis kann aber als Risikofaktor gelten, der eine vertiefte Prüfung verlangt — damit ein Konto nicht der Beschäftigung ohne Arbeitserlaubnis dient. Wer mit ITIN beantragt, sollte deshalb mit Rückfragen rechnen.",
+        ],
+      },
+      {
+        typ: "text", id: "schufa-usa", h2: "Zählt meine SCHUFA in den USA?",
+        absaetze: [
+          "Nein. Kreditdaten aus anderen Ländern gehen nicht in das US-System über — weder Einträge der SCHUFA in Deutschland noch der KSV1870 in Österreich oder der CRIF in der Schweiz. Ihre US-Kreditakte beginnt bei null. Auch eine SCHUFA-Auskunft, die Sie einem Antrag beilegen, ändert daran nichts: Der FICO Score wird allein aus den Daten Ihrer US-Kreditakte berechnet.",
+          "Eine Ausnahme gibt es nur am Rand. Einzelne US-Institute, darunter Kartenherausgeber, nutzen einen Dienst, über den Menschen, die in die USA gezogen sind, ihre ausländische Kreditgeschichte in einen US-Antrag einbringen können. Er nennt Deutschland, Österreich und die Schweiz unter den Ländern, aus denen er Kreditdaten liest; nach seiner technischen Dokumentation stützt er sich in allen drei Ländern auf Daten der CRIF, SCHUFA und KSV1870 nennt sie nicht. Für welche Länder ein US-Herausgeber diesen Weg tatsächlich anbietet und was er aus den Daten macht, entscheidet jeder Herausgeber selbst.",
+          "Eine US-Kreditakte ersetzt dieser Weg nicht. Einen ersten FICO Score gibt es erst, wenn ein Konto mindestens sechs Monate besteht und in den letzten sechs Monaten an eine US-Auskunftei gemeldet wurde — der Aufbau beginnt deshalb in jedem Fall mit dem ersten US-Konto.",
         ],
       },
       {
@@ -243,13 +254,20 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
     fragen: [
       { f: "Zählt meine SCHUFA in den USA?", a: "Nein. US-Auskunfteien lesen keine SCHUFA-Daten ein; Ihre US-Kredithistorie beginnt bei null — ohne Vorteil aus guten, aber auch ohne Nachteil aus alten Einträgen." },
       { f: "Wie bekomme ich einen US Credit Score ohne SSN?", a: "Über die ITIN: Auskunfteien führen persönliche Akten in der Praxis über SSN oder ITIN. Einen ersten FICO Score gibt es, sobald ein Konto mindestens sechs Monate besteht und in den letzten sechs Monaten gemeldet wurde." },
+      { f: "Was ändert die Executive Order 14406 für Anträge mit ITIN?", a: "Sie beauftragt den US-Finanzminister, Finanzinstituten Warnsignale zu beschreiben. Dazu zählt die Nutzung einer ITIN statt einer Sozialversicherungsnummer oder eines Visums mit Arbeitserlaubnis bei Konto- und Kreditanträgen, wenn kein geprüfter rechtmäßiger Aufenthaltsstatus vorliegt: Sie kann als Risikofaktor gelten, der eine vertiefte Prüfung verlangt. Rechnen Sie mit Rückfragen; über jeden Antrag entscheidet allein das Institut." },
       { f: "Wie lange dauert es, eine US-Kredithistorie aufzubauen?", a: "Einen ersten Score gibt es nach etwa sechs Monaten. Eine belastbare Historie, die größere Rahmen trägt, wächst über Jahre — mit pünktlichen Zahlungen und wenigen, geplanten Anträgen." },
       { f: "Wie hoch sollte die Auslastung meiner Karten sein?", a: "So niedrig wie möglich. Die Auslastung macht rund 30 Prozent des FICO Score aus; gemeldet wird meist der Saldo am Abrechnungsstichtag." },
       { f: "Hilft eine Firmenkarte meinem persönlichen Score?", a: "Das regelt jeder Herausgeber selbst: Manche melden Firmenkarten in der persönlichen Akte, manche nur bei Verzug, manche gar nicht." },
     ],
     paket: "global_banking",
     weiter: ["/business/firmenkarten-kapital", "/business/wissen/business-credit-usa", "/business/wissen/itin-beantragen", "/business/wissen/us-firmenkarte-beantragen"],
-    quellen: [Q.ficoFaktoren, Q.ficoMindest, Q.ftcAuskunft, Q.ftcCredit, Q.itinUebersicht],
+    quellen: [
+      Q.ficoFaktoren, Q.ficoMindest, Q.ftcAuskunft, Q.ftcCredit, Q.itinUebersicht,
+      { titel: "Experian — Kreditaufbau für Neuankömmlinge in den USA (26.05.2026)", url: "https://www.experian.com/blogs/ask-experian/how-to-build-credit-when-new-to-us/" },
+      { titel: "Nova Credit — Credit Passport: Herkunftsländer und Nutzer", url: "https://www.novacredit.com/company" },
+      { titel: "Nova Credit — Credit Passport API v4: Auskunfteien je Land", url: "https://docs.novacredit.com/credit-passport/v4" },
+      { titel: "Weißes Haus — Executive Order 14406 „Restoring Integrity to America’s Financial System“ (19.05.2026)", url: "https://www.whitehouse.gov/presidential-actions/2026/05/restoring-integrity-to-americas-financial-system/" },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

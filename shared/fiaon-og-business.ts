@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// GENERIERT von scripts/og-business-bilder.ts (E-436) — NIE von Hand ändern.
+// GENERIERT von scripts/og-business-bilder.ts (E-439) — NIE von Hand ändern.
 // Eigenes Vorschaubild je Business-Adresse: client/public/og/business/<datei>.jpg
 // Neue Seite im Register → Skript laufen lassen; scripts/pruef-og-business.ts prüft die Abdeckung.
 // ═══════════════════════════════════════════════════════════════════════════

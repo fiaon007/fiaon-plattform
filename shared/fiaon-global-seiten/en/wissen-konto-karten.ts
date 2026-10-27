@@ -161,7 +161,8 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       titel: "Build US credit from scratch: the FICO Score — FIAON Global",
       beschreibung: "Why SCHUFA does not count in the US, how the FICO Score is made up, what you need for a first score and how a US credit history grows.",
     },
-    stand: S,
+    // 27.10.2026: wie die deutsche Schwester — Abschnitt „schufa-usa“, EO 14406 Sec. 3(a)(vi) im Abschnitt „null“, eine Frage.
+    stand: "2026-10-27",
     erschienen: S,
     kennung: "FG · 35",
     auge: "Knowledge · Credit in the US",
@@ -189,6 +190,15 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         absaetze: [
           "Credit bureaus work nationally. SCHUFA in Germany, KSV1870 in Austria or CRIF in Switzerland do not report to the US credit bureaus Equifax, Experian and TransUnion. A long, clean payment history in Europe therefore does not, as a rule, count for your first US application — but neither does an old entry.",
           "In practice, the US credit bureaus keep personal files by Social Security number or ITIN, together with name, address and date of birth. Without one of these numbers, there is rarely a file to which payments can be linked.",
+          "On 19 May 2026, one further point was added for the ITIN: Executive Order 14406, “Restoring Integrity to America’s Financial System”, instructs the US Secretary of the Treasury to describe warning signs to financial institutions in an advisory. These include the use of an ITIN to obtain credit products or open deposit accounts where lawful immigration status has not been verified. The order states that the ITIN facilitates tax compliance; its use in place of a Social Security number or a valid work-authorised visa may, however, be identified as a risk factor requiring enhanced due diligence — so that an account is not used to facilitate employment without work authorisation. Anyone applying with an ITIN should therefore expect follow-up questions.",
+        ],
+      },
+      {
+        typ: "text", id: "schufa-usa", h2: "Does my SCHUFA record count in the US?",
+        absaetze: [
+          "No. Credit data from other countries does not transfer to the US system — neither entries held by SCHUFA in Germany nor by KSV1870 in Austria or CRIF in Switzerland. Your US credit file starts at zero. Attaching a SCHUFA report to an application does not change this either: the FICO Score is calculated solely from the data in your US credit file.",
+          "There is an exception only at the margins. Individual US institutions, including card issuers, use a service through which people who have moved to the US can bring their foreign credit history into a US application. It lists Germany, Austria and Switzerland among the countries whose credit data it reads; according to its technical documentation, it relies on CRIF data in all three countries and does not name SCHUFA or KSV1870. Each issuer decides for itself for which countries it actually offers this route and what it makes of the data.",
+          "This route does not replace a US credit file. A first FICO Score can only be generated once an account has existed for at least six months and has been reported to a US credit bureau in the last six months — so building your history always begins with your first US account.",
         ],
       },
       {
@@ -255,13 +265,20 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
     fragen: [
       { f: "Does my SCHUFA record count in the US?", a: "No. US credit bureaus do not use SCHUFA data; your US credit history starts at zero — without any benefit from good entries, but also without any disadvantage from old ones." },
       { f: "How do I get a US credit score without an SSN?", a: "Through the ITIN: in practice, credit bureaus keep personal files by SSN or ITIN. A first FICO Score can be generated once an account has existed for at least six months and has been reported in the last six months." },
+      { f: "What does Executive Order 14406 change for applications with an ITIN?", a: "It instructs the US Secretary of the Treasury to describe warning signs to financial institutions. These include the use of an ITIN instead of a Social Security number or a work-authorised visa for account and credit applications where lawful immigration status has not been verified: such use may be identified as a risk factor requiring enhanced due diligence. Expect follow-up questions; the institution alone decides on every application." },
       { f: "How long does it take to build a US credit history?", a: "A first score comes after about six months. A robust history that supports larger limits grows over years — with on-time payments and few, planned applications." },
       { f: "What credit utilisation should I aim for?", a: "As low as possible. Utilisation accounts for around 30 per cent of the FICO Score; what is reported is usually the balance on the statement date." },
       { f: "Does a business credit card help my personal credit score?", a: "Each issuer decides for itself: some report business credit cards in the personal file, some only when payments are late, some not at all." },
     ],
     paket: "global_banking",
     weiter: ["/en/business/us-business-credit-cards", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/applying-for-an-itin", "/en/business/knowledge/us-business-credit-card"],
-    quellen: [Q.ficoFaktoren, Q.ficoMindest, Q.ftcAuskunft, Q.ftcCredit, Q.itinUebersicht],
+    quellen: [
+      Q.ficoFaktoren, Q.ficoMindest, Q.ftcAuskunft, Q.ftcCredit, Q.itinUebersicht,
+      { titel: "Experian — 8 ways to build credit if you’re new to the US (26 May 2026)", url: "https://www.experian.com/blogs/ask-experian/how-to-build-credit-when-new-to-us/" },
+      { titel: "Nova Credit — Credit Passport: countries of origin and users", url: "https://www.novacredit.com/company" },
+      { titel: "Nova Credit — Credit Passport API v4: credit bureaus by country", url: "https://docs.novacredit.com/credit-passport/v4" },
+      { titel: "The White House — Executive Order 14406, “Restoring Integrity to America’s Financial System” (19 May 2026)", url: "https://www.whitehouse.gov/presidential-actions/2026/05/restoring-integrity-to-americas-financial-system/" },
+    ],
   },
 
   // ─────────────────────────────────────────────────────────────────────────

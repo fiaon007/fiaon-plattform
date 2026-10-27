@@ -80,12 +80,12 @@ export default function GlobalSeitePage() {
   const pfad = typeof window !== "undefined" ? window.location.pathname : "";
   const s = globalSeite(pfad);
   if (s) return <Seite s={s} />;
-  // E-436 (27.10.2026): Kein Registereintrag? Dann vielleicht ein Artikel der Business-Redaktion.
+  // E-439 (27.10.2026): Kein Registereintrag? Dann vielleicht ein Artikel der Business-Redaktion.
   const artikel = businessArtikelAusPfad(pfad);
   return artikel ? <RedaktionsArtikel slug={artikel.slug} sp={artikel.sprache} /> : <NotFound />;
 }
 
-// ── Ein Artikel der Business-Redaktion im Kleid der Unterseiten (E-436, 27.10.2026) ──
+// ── Ein Artikel der Business-Redaktion im Kleid der Unterseiten (E-439, 27.10.2026) ──
 // Die Tagesartikel (fiaon_ratgeber, bereich business) liefen bis heute auf der dunklen Privat-Bühne unter
 // /ratgeber/<slug>. Jetzt sehen sie aus wie jede Seite von FIAON Global: Kopf mit Merkblatt, Inhaltsverzeichnis,
 // Antwortkarte, Abschnitte, Fragen, Paket. Der Text kommt aus dem Markdown der Redaktion — Abschnitt für Abschnitt.
@@ -168,7 +168,7 @@ function Seite({ s }: { s: GlobalSeite }) {
       .then((j) => { if (!vorbei) setAktuell(Array.isArray(j?.artikel) ? j.artikel : []); }).catch(() => {});
     return () => { vorbei = true; };
   }, [mitAktuell]);
-  // E-436: Fachbegriffe im Fließtext verlinken — erstes Vorkommen, höchstens sechs je Seite (shared/fiaon-global-begriffe.ts).
+  // E-439: Fachbegriffe im Fließtext verlinken — erstes Vorkommen, höchstens sechs je Seite (shared/fiaon-global-begriffe.ts).
   const begriffe = useMemo(() => {
     const stand = begriffStand(sp, s.pfad, (p) => !!globalSeite(p));
     const plan = new Map<string, Textteil[]>();
@@ -638,7 +638,7 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
         </Abschnitt>
       );
     case "html":
-      // E-436: ein Abschnitt eines Redaktionsartikels (Markdown → HTML, aus der eigenen Datenbank).
+      // E-439: ein Abschnitt eines Redaktionsartikels (Markdown → HTML, aus der eigenen Datenbank).
       return (
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} />

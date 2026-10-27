@@ -53,6 +53,7 @@ const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /ziel-?(limit|rahmen)/i, grund: "Kapitalrahmen statt Ziel-Limit" },
   { muster: /\bempfohlen\w*\b/i, grund: "keine Empfehlung" },
   { muster: /\b0\s?%/, grund: "kein Zinssatz als Zahl — „Einführungszeitraum ohne Sollzins“" },
+  { muster: /\d+(?:[.,]\d+)?\s?%\s?(?:p\.\s?a\.|pro jahr|zins|sollzins|effektiv)|\bzins\w*\s+(?:von\s+)?(?:ca\.\s+|rund\s+|etwa\s+)?\d+(?:[.,]\d+)?\s?(?:%|prozent)|\d+\s+bis\s+\d+\s+prozent\s+zins/i, grund: "kein Zinssatz als Zahl — über den Zins entscheidet allein das Institut (verbotene Aussage 1)" },
   { muster: /\bberatungsgruppe\b|\bfiaon group\b/i, grund: "Selbstbezeichnung als Gruppe (§ 18 HGB) — FIAON ist eine Gesellschaft, keine Gruppe" },
   { muster: /ohne sicherheiten/i, grund: "die persönliche Haftung IST die Sicherheit — „ohne Bareinlage“" },
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },

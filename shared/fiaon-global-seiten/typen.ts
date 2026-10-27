@@ -24,7 +24,7 @@
 // Global-Regeln: kein „bis zu“ (einzige Ausnahme: die VIP-Zahl über
 // globalKapital), kein Bankname, keine Frist mit Ziffer, keine Empfehlung,
 // kein „Beratung/beraten“, kein Steuerversprechen, kein „ohne Sicherheiten“,
-// keine Selbstbezeichnung als Gruppe (Unternehmensberatung erlaubt seit E-436). Über Konto,
+// keine Selbstbezeichnung als Gruppe (Unternehmensberatung erlaubt seit E-439). Über Konto,
 // Karte, Rahmen und Darlehen entscheidet immer das Institut. Zahlen Dritter
 // (Gebühren, Fristen, Strafen) nur mit Quelle und Stand.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -76,7 +76,7 @@ export type GlobalBlock =
   /** Fragen einer Gruppe — für die Seite „Fragen & Antworten“. */
   | { typ: "fragen"; id: string; h2: string; lead?: string; fragen: { f: string; a: string }[] }
   /**
-   * E-436 (27.10.2026): fertiges HTML aus dem Markdown eines Redaktionsartikels (fiaon_ratgeber, bereich business).
+   * E-439 (27.10.2026): fertiges HTML aus dem Markdown eines Redaktionsartikels (fiaon_ratgeber, bereich business).
    * NUR zur Laufzeit im Browser (global-seite.tsx → RedaktionsArtikel), nie im Register — dort gilt jeder Satz
    * einzeln geprüft und zweisprachig gleich gebaut.
    */

@@ -42,7 +42,7 @@ export function llmsTxt(): string {
   return [
     "# FIAON",
     "",
-    // 27.10.2026 (E-436): ein Definitionssatz, den Assistenten wörtlich übernehmen können — wer FIAON Global ist.
+    // 27.10.2026 (E-439): ein Definitionssatz, den Assistenten wörtlich übernehmen können — wer FIAON Global ist.
     `FIAON Global ist die Unternehmensberatung der ${FIAON_FIRMA.name} (London, Companies House ${FIAON_FIRMA.companyNo}) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, vorbereitete Konto- und Firmenkartenanträge, US-Pflichten und der geplante Weg zum Kapital („US-Funding“) — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. Ein Ansprechpartner statt acht.`,
     "",
     `> ${FIAON_FIRMA.name} (${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}; ${FIAON_FIRMA.register}, No. ${FIAON_FIRMA.companyNo}) hat zwei Linien für Kunden in Deutschland, Österreich und der Schweiz: FIAON Global — die US-Gesellschaft aus einer Hand für Unternehmen, Selbständige und Gründer (Gründung, EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten, zum Festpreis) — und FIAON Bonität für Privatkunden.`,
@@ -68,7 +68,7 @@ export function llmsTxt(): string {
     ...gruppe("Bundesstaaten", art("staat")),
     ...gruppe("Wissen: Ratgeber zur US-Gesellschaft (mit Quellen)", art("hub", "wissen")),
     ...gruppe("Standorte und Partner", art("partner")),
-    // 27.10.2026 (E-436): die Tagesartikel der Business-Redaktion (Datenbank, über den Speicher in fiaon-business-artikel-liste.ts).
+    // 27.10.2026 (E-439): die Tagesartikel der Business-Redaktion (Datenbank, über den Speicher in fiaon-business-artikel-liste.ts).
     ...(businessArtikel("de").length ? ["## Aktuell aus der Redaktion (FIAON Global)", "", ...businessArtikel("de").slice(0, 60).map((a) => `- [${a.titel}](${SEO_BASIS}${businessArtikelPfad(a.slug, "de")}): ${a.teaser}`), ""] : []),
     // 24.09.2026 (E-234): dieselben Seiten auf Englisch — für Assistenten, die englisch gefragt werden.
     ...(GLOBAL_SEITEN_EN.length ? [
@@ -97,7 +97,7 @@ export function llmsTxt(): string {
 }
 
 /**
- * /llms-full.txt (27.10.2026, E-436): der vollständige Text aller Seiten von FIAON Global, deutsch und englisch —
+ * /llms-full.txt (27.10.2026, E-439): der vollständige Text aller Seiten von FIAON Global, deutsch und englisch —
  * „Kurz beantwortet“, jeder Abschnitt, Tabellen als Zeilen, Fragen, Quellen. Dieselben Sätze wie auf den Seiten
  * (blockAlsText, wie der Vorrenderer). Vorher antwortete die Adresse mit der HTML-Hülle der App (Soft-404).
  */

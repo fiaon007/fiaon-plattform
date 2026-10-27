@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// INDEXNOW — NEUE UND GEÄNDERTE SEITEN SOFORT AN BING MELDEN (27.10.2026, E-436)
+// INDEXNOW — NEUE UND GEÄNDERTE SEITEN SOFORT AN BING MELDEN (27.10.2026, E-439)
 //
 // Bing (und Yandex, Seznam, Naver) nehmen Meldungen über IndexNow an; Bing speist
 // die Websuche von ChatGPT und Copilot. Der Schlüssel liegt seit E-234 unter

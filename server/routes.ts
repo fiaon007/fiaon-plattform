@@ -905,7 +905,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(llmsTxt());
     } catch (e) { console.error('[LLMS]', e); res.status(500).end(); }
   });
-  // 27.10.2026 (E-436): der Volltext der Business-Welt für KI-Assistenten (vorher Soft-404) und eine echte security.txt.
+  // 27.10.2026 (E-439): der Volltext der Business-Welt für KI-Assistenten (vorher Soft-404) und eine echte security.txt.
   app.get('/llms-full.txt', async (_req, res) => {
     try {
       const { llmsFullTxt } = await import('./lib/fiaon-llms');
@@ -1015,7 +1015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
     '/terms': '/agb',
-    // 27.10.2026 (E-436): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
+    // 27.10.2026 (E-439): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
     '/about': '/ueber-uns',
   };
   app.get(Object.keys(UMGEZOGEN), (req, res, next) => {
@@ -1026,7 +1026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.redirect(301, ziel + (pfad === '/business-antrag' ? '' : abfrage));
   });
 
-  // 27.10.2026 (E-436): Die Tagesartikel der Business-Redaktion wohnen in der Business-Welt —
+  // 27.10.2026 (E-439): Die Tagesartikel der Business-Redaktion wohnen in der Business-Welt —
   // /business/wissen/<slug> (deutsch) und /en/business/knowledge/<slug> (englisch). Registerseiten gehen vor
   // (globalSeite), unbekannte Slugs fallen durch zum 404 des Catch-all. Passt die Sprache der Adresse nicht
   // zum Artikel, 301 auf die richtige.
@@ -1085,7 +1085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(['/ratgeber', '/ratgeber/:slug'], async (req, res, next) => {
     try {
       const { ratgeberSeitenHtml, businessArtikelZiel } = await import('./lib/fiaon-ratgeber-seo');
-      // 27.10.2026 (E-436): Business-Artikel sind umgezogen — dauerhaft auf ihre Business-Adresse (Abfrage ohne bereich=…).
+      // 27.10.2026 (E-439): Business-Artikel sind umgezogen — dauerhaft auf ihre Business-Adresse (Abfrage ohne bereich=…).
       if (req.params.slug && req.query.vorschau !== '1') {
         const ziel = await businessArtikelZiel(String(req.params.slug));
         if (ziel) {
@@ -1097,7 +1097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const html = await ratgeberSeitenHtml(req.params.slug ? String(req.params.slug) : null);
       if (!html) {
-        // 27.10.2026 (E-436): Ein unbekannter Artikel ist keine Seite — 404 mit noindex statt 200 mit der Startseiten-Hülle
+        // 27.10.2026 (E-439): Ein unbekannter Artikel ist keine Seite — 404 mit noindex statt 200 mit der Startseiten-Hülle
         // (Soft-404). Die App lädt trotzdem (Vorschau der Redaktion mit ?vorschau=1 funktioniert weiter).
         if (req.params.slug) {
           const { nichtGefundenHtml } = await import('./lib/fiaon-seiten-seo');
@@ -1116,9 +1116,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vorher hieß der Lauf „ratgeber-entwuerfe" und meldete sechs Wochen lang Erfolg, ohne einen Artikel zu schreiben.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('ratgeber-tagesartikel', async () => await fiaonRatgeber.ratgeberTageslaufStreng(), 30 * 60 * 1000, { beimStartNach: 120_000 });
-  // 27.10.2026 (E-436): die Business-Artikel für Vorrenderer und llms.txt einmal beim Start laden (danach alle 5 Min. bei Bedarf).
+  // 27.10.2026 (E-439): die Business-Artikel für Vorrenderer und llms.txt einmal beim Start laden (danach alle 5 Min. bei Bedarf).
   void import('./lib/fiaon-business-artikel-liste').then((m) => m.businessArtikelLaden()).catch(() => {});
-  // E-436: nach jedem Deploy die frisch geänderten Seiten an Bing melden (IndexNow), drei Minuten nach dem Start.
+  // E-439: nach jedem Deploy die frisch geänderten Seiten an Bing melden (IndexNow), drei Minuten nach dem Start.
   setTimeout(() => { void import('./lib/fiaon-indexnow').then((m) => m.indexNowNachStart()).catch(() => {}); }, 180_000).unref?.();
   });
 

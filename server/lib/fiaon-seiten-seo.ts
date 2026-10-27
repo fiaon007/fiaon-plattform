@@ -66,7 +66,7 @@ export function indexHtml(): string | null {
   ];
   const f = kandidaten.find((k) => fs.existsSync(k));
   if (!f) return null;
-  // 27.10.2026 (E-436): Die Notizen im Quelltext von index.html (Entwicklungsgeschichte, E-Nummern, das Konto der
+  // 27.10.2026 (E-439): Die Notizen im Quelltext von index.html (Entwicklungsgeschichte, E-Nummern, das Konto der
   // Search Console) gehen nicht an Besucher und Crawler. Nur die Platzhalter <!--FIAON-…--> bleiben stehen.
   const html = fs.readFileSync(f, "utf8").replace(/<!--(?!FIAON-[A-Z-]+-->)[\s\S]*?-->\s*/g, "");
   indexCache = { html, zeit: Date.now() };
@@ -117,7 +117,7 @@ export function kopfEinsetzen(html: string, kopf: {
     setz("og:image", "property", kopf.bild);
     setz("og:image:secure_url", "property", kopf.bild);
     setz("twitter:image", "name", kopf.bild);
-    // 27.10.2026 (E-436): Alle Vorschaubilder des Hauses sind 1200×630-JPEGs; Maße und Typ stehen
+    // 27.10.2026 (E-439): Alle Vorschaubilder des Hauses sind 1200×630-JPEGs; Maße und Typ stehen
     // ausdrücklich da, damit LinkedIn/WhatsApp die große Karte zeigen, ohne das Bild erst zu laden.
     setz("og:image:type", "property", "image/jpeg");
     setz("og:image:width", "property", "1200");
@@ -167,7 +167,7 @@ export function kopfEinsetzen(html: string, kopf: {
 
 // ── Das Unternehmen, einmal vollständig — auf jeder Seite dasselbe. ──────────
 /**
- * 27.10.2026 (E-436): Die Business-Welt trägt ihren eigenen Namen im Kopf. Vorher standen auf jeder
+ * 27.10.2026 (E-439): Die Business-Welt trägt ihren eigenen Namen im Kopf. Vorher standen auf jeder
  * Business-Seite die Stichwörter der Privatkunden („SCHUFA Eintrag löschen …“) und og:site_name „FIAON“.
  * Google liest meta keywords nicht, Bing wertet fremde Stichwörter als Rauschen — also weg damit.
  */
@@ -178,7 +178,7 @@ export function businessKopf(html: string): string {
 }
 
 export function organisationLd(bereich?: "business"): Record<string, unknown> {
-  // 27.10.2026 (E-436): Auf Business-Seiten nennt die Organisation nur die Themen von FIAON Global — vorher trugen auch die
+  // 27.10.2026 (E-439): Auf Business-Seiten nennt die Organisation nur die Themen von FIAON Global — vorher trugen auch die
   // Anzeigen-Landingpages „SCHUFA“, „Inkasso“, „Kreditkarte trotz Eintrag“ im Datenblock (Google liest die Zielseite mit).
   const business = bereich === "business";
   return {
@@ -198,7 +198,7 @@ export function organisationLd(bereich?: "business"): Record<string, unknown> {
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
     contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
     areaServed: [{ "@type": "Country", name: "Deutschland" }, { "@type": "Country", name: "Österreich" }, { "@type": "Country", name: "Schweiz" }],
-    // 27.10.2026 (E-436): FIAON spricht Deutsch und Englisch (56 + 53 englische Seiten); FIAON Global ist ein eigener Knoten.
+    // 27.10.2026 (E-439): FIAON spricht Deutsch und Englisch (56 + 53 englische Seiten); FIAON Global ist ein eigener Knoten.
     knowsLanguage: ["de", "en"],
     brand: [{ "@type": "Brand", name: "FIAON Global", url: `${BASIS}/business` }],
     subOrganization: { "@id": `${BASIS}/#fiaon-global` },
@@ -217,9 +217,9 @@ export function organisationLd(bereich?: "business"): Record<string, unknown> {
 }
 
 /**
- * 27.10.2026 (E-436): FIAON Global als eigene Entität — für Google, Bing und KI-Assistenten, die eine Marke einem
+ * 27.10.2026 (E-439): FIAON Global als eigene Entität — für Google, Bing und KI-Assistenten, die eine Marke einem
  * Unternehmen zuordnen. Vorher kannte das Markup nur „FIAON — Das Betriebssystem für Bonität“, auch auf /en/business.
- * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-436, Wortregel freigegeben).
+ * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-439, Wortregel freigegeben).
  * Nur wahre, prüfbare Angaben: Vertragspartner FIAON LTD (Companies House), Standorte wie auf /business/partner.
  */
 export function globalOrganisationLd(sprache: Sprache = "de"): Record<string, unknown> {
@@ -392,11 +392,11 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   const { kopf: nav, fuss } = business ? seoRahmenBusiness(en ? "en" : "de") : seoRahmen(en ? "en" : "de");
   const wurzel = business ? link(en ? "/en/business" : "/business", "FIAON Global") : link(en ? "/en" : "/", "FIAON");
   const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${wurzel}</li>${s.krumen.filter((k) => !(business && k.pfad === (en ? "/en/business" : "/business"))).map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";
-  // 27.10.2026 (E-436): Tabellen als <table>, Verzeichnisse als Links, Quellen als verlinkte Liste — vorher stand
+  // 27.10.2026 (E-439): Tabellen als <table>, Verzeichnisse als Links, Quellen als verlinkte Liste — vorher stand
   // hier alles als flache Aufzählung, und die Quellen sah nur, wer JavaScript ausführt (KI-Crawler tun das nicht).
   const tabelleHtml = (t: NonNullable<SeoAbschnitt["tabelle"]>) =>
     `<table><thead><tr>${t.kopf.map((k) => `<th scope="col">${esc(k)}</th>`).join("")}</tr></thead><tbody>${t.zeilen.map((z) => `<tr>${z.map((c, i) => (i === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join("")}</tr>`).join("")}</tbody></table>${t.fuss?.length ? t.fuss.map((f) => `<p><small>${esc(f)}</small></p>`).join("") : ""}`;
-  // E-436: Fachbegriffe im Fließtext der Business-Seiten verlinken (dieselbe Regel wie im Browser).
+  // E-439: Fachbegriffe im Fließtext der Business-Seiten verlinken (dieselbe Regel wie im Browser).
   const begriffe = istBusinessPfad(s.pfad) ? begriffStand(en ? "en" : "de", s.pfad, (p) => !!seoSeite(p) || !!globalSeite(p)) : null;
   const absatz = (text: string) => (begriffe ? begriffeVerlinken(text, begriffe).map((t) => (typeof t === "string" ? esc(t) : link(t.pfad, t.text))).join("") : esc(text));
   const abschnitte = (s.abschnitte ?? []).map((a) => {
@@ -405,7 +405,7 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
       : a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
     return `<section><h2>${esc(a.h2)}</h2>${a.text ? `<p>${absatz(a.text)}</p>` : ""}${unten}</section>`;
   }).join("");
-  // 27.10.2026 (E-436): Die Wissens-Übersicht nennt die Artikel der Redaktion als echte Links (vorher nur per JavaScript).
+  // 27.10.2026 (E-439): Die Wissens-Übersicht nennt die Artikel der Redaktion als echte Links (vorher nur per JavaScript).
   const redaktion = s.global === "hub" ? businessArtikel(en ? "en" : "de") : [];
   const aktuell = redaktion.length
     ? `<section><h2>${en ? "Latest from the editorial team" : "Aktuell aus der Redaktion"}</h2><ul>${redaktion.slice(0, 80).map((a) => `<li>${link(businessArtikelPfad(a.slug, a.sprache), a.titel)} – ${esc(a.teaser)}</li>`).join("")}</ul></section>`
@@ -459,7 +459,7 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   const alternativen = s.schwester
     ? { de: absolut(sprache === "de" ? s.pfad : s.schwester), en: absolut(sprache === "en" ? s.pfad : s.schwester) }
     : undefined;
-  // 27.10.2026 (E-436): Jede Business-Adresse zeigt ihr eigenes Vorschaubild (scripts/og-business-bilder.ts);
+  // 27.10.2026 (E-439): Jede Business-Adresse zeigt ihr eigenes Vorschaubild (scripts/og-business-bilder.ts);
   // fehlt es, bleibt das der Tabelle (GLOBAL_BILD). Eine Regel für Register, Übersichten und Landingpages.
   const eigenesBild = istBusinessPfad(s.pfad) ? ogBusinessBild(s.pfad) : null;
   const bild = s.bild === "" ? "" : eigenesBild?.url ?? s.bild;

@@ -72,7 +72,7 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
     faq.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f: any) => ({ "@type": "Question", name: f.frage, acceptedAnswer: { "@type": "Answer", text: f.antwort } })) } : null,
     { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: krume1.name, item: `${BASIS}${krume1.pfad === "/" ? "" : krume1.pfad}` }, { "@type": "ListItem", position: 2, name: krume2.name, item: `${BASIS}${krume2.pfad}` }, { "@type": "ListItem", position: 3, name: a.titel, item: url }] },
   ].filter(Boolean);
-  // 27.10.2026 (E-436): Business-Artikel tragen ein Bild der Business-Welt (eigenes oder das Redaktionsbild) —
+  // 27.10.2026 (E-439): Business-Artikel tragen ein Bild der Business-Welt (eigenes oder das Redaktionsbild) —
   // vorher erbten sie das Bonitäts-Bild aus index.html, auch wenn man sie auf LinkedIn teilte.
   const bild = business ? ogBusinessArtikelBild(a.slug, a.sprache === "en" ? "en" : "de") : null;
   return kopfEinsetzen(html, { titel: ratgeberTitel(a.meta_titel || a.titel), beschreibung: beschreibungKuerzen(a.meta_beschreibung || a.teaser), url, ld, og: { type: "article" }, ...(bild ? { bild: bild.url, bildAlt: bild.alt } : {}) })
@@ -111,7 +111,7 @@ function pfeilerLinks(kategorie?: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BUSINESS-ARTIKEL IN DER BUSINESS-WELT (27.10.2026, E-436)
+// BUSINESS-ARTIKEL IN DER BUSINESS-WELT (27.10.2026, E-439)
 // Die Tagesartikel für Unternehmer (bereich business) hingen unter /ratgeber/<slug> im Rahmen der Privatkunden,
 // mit Bonitäts-Bild, deutscher Sprache auch für englische Texte und einer Verbraucher-Redakteurin als Autorin.
 // Jetzt: eigene Adresse (shared/fiaon-business-artikel.ts), Kopf und Fuß von FIAON Global, Sprache des Artikels,

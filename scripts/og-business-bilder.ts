@@ -1,5 +1,5 @@
 /**
- * VORSCHAUBILDER JE BUSINESS-SEITE (27.10.2026, E-436)
+ * VORSCHAUBILDER JE BUSINESS-SEITE (27.10.2026, E-439)
  *
  * Justin: „Jeder Link, den wir vom Business teilen, soll darauf aufbauen und so aussehen.“
  * Bis heute trugen alle Business-Seiten dasselbe Bild (og-global.jpg); die Artikel der
@@ -204,7 +204,7 @@ async function main() {
   if (NUR || arg("--ziel")) return; // Proben schreiben die Liste nicht.
   const pfade = Object.keys(liste).sort();
   writeFileSync(join(ROOT, "shared/fiaon-og-business.ts"), `// ═══════════════════════════════════════════════════════════════════════════
-// GENERIERT von scripts/og-business-bilder.ts (E-436) — NIE von Hand ändern.
+// GENERIERT von scripts/og-business-bilder.ts (E-439) — NIE von Hand ändern.
 // Eigenes Vorschaubild je Business-Adresse: client/public/og/business/<datei>.jpg
 // Neue Seite im Register → Skript laufen lassen; scripts/pruef-og-business.ts prüft die Abdeckung.
 // ═══════════════════════════════════════════════════════════════════════════

@@ -58,6 +58,14 @@ const [da] = (await sqlPool`
    WHERE pack_key = ${p.key} AND person_id IS NOT DISTINCT FROM ${v.person_id} AND COALESCE(payment_status, '') NOT IN ('cancelled', 'superseded', 'refunded')
    ORDER BY created_at DESC LIMIT 1`) as any[];
 if (da) { console.log(`Gibt es schon: ${da.ref} · ${da.payment_reference} · ${da.invoice_number ?? "ohne Nummer"} · ${da.payment_status}`); }
+if (da && schreiben && bankTxn && String(da.payment_status) !== "paid" && da.payment_reference) {
+  const [t] = (await sqlPool`SELECT id, amount_cents, applied FROM fiaon_bank_txns WHERE txn_id = ${bankTxn} LIMIT 1`) as any[];
+  if (t && !t.applied && Number(t.amount_cents) === p.preisCents) {
+    const { bankeingangBuchen } = await import("../server/lib/fiaon-bank-nachholen");
+    const r = await bankeingangBuchen(Number(t.id), { ziel: String(da.payment_reference), wer: "Skript einzelrechnung-anlegen" });
+    console.log(r.ok ? `Gebucht: Bankeingang ${bankTxn} → ${da.payment_reference}` : `NICHT gebucht (${r.status}): ${r.error}`);
+  } else console.log(`Bankeingang ${bankTxn} nicht buchbar (fehlt, schon verbucht oder Betrag passt nicht).`);
+}
 if (!schreiben || da) {
   if (da && pdfOrdner && da.payment_reference) {
     const { rechnungAlsPdf } = await import("../server/lib/fiaon-rechnung-pdf");
@@ -96,8 +104,9 @@ if (zweck) await sqlPool`UPDATE fiaon_applications SET payment_reference = ${zwe
 console.log(`Angelegt: ${ref} · Verwendungszweck ${vz} · ${nummer}`);
 if (tx) {
   const { bankeingangBuchen } = await import("../server/lib/fiaon-bank-nachholen");
-  const r = await bankeingangBuchen(Number(tx.id), { ziel: ref, wer: "Skript einzelrechnung-anlegen" });
-  console.log(r.ok ? `Gebucht: Bankeingang ${bankTxn} → ${ref}` : `NICHT gebucht (${r.status}): ${r.error}`);
+  // Das Buchungsziel ist der Verwendungszweck (FIAON-XXXXXX), nicht die Bestell-Ref.
+  const r = await bankeingangBuchen(Number(tx.id), { ziel: vz, wer: "Skript einzelrechnung-anlegen" });
+  console.log(r.ok ? `Gebucht: Bankeingang ${bankTxn} → ${vz}` : `NICHT gebucht (${r.status}): ${r.error}`);
 }
 if (pdfOrdner) {
   const { rechnungAlsPdf } = await import("../server/lib/fiaon-rechnung-pdf");

@@ -12,6 +12,7 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 - **Warum:** Eine frühere US-Gesellschaft eines Kunden blockiert den ITIN-Antrag; die Löschung wird weiterberechnet. Die außerhalb der
   Plattform erstellte Rechnung trug eine Nummer, die schon einem anderen Kunden gehört — die Plattform vergibt die richtige.
 - **Wo:** `shared/fiaon-pakete.ts`, `shared/fiaon-koop-empfehlung.ts`, `scripts/einzelrechnung-anlegen.ts`, Prüfstand `pruef-pakete` (374).
+- **Nachtrag:** Bezahlte Bestellungen zeigen auf dem Rechnungs-PDF „Bezahlt am … — vielen Dank.“ statt der Überweisungsdaten (Raten unverändert); `--bank` bucht auf den Verwendungszweck.
 
 ## 27.10.2026 — Chefbüro am Handy (E-430): keine Seite ist breiter als das Telefon
 - **Was:** Neue Schicht `client/src/styles/chefbuero-handy.css` (lädt zuletzt; am Rechner ändert sie nichts). Raster bekommen eine

@@ -446,30 +446,42 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
   }
   y += 22;
 
-  // ── Zahlungsdaten-Block (dynamische Höhe — Hinweiszeile kollidiert NIE) ──
-  const payRows: Array<[string, string, string]> = [
-    ["Empfänger", FIAON_BANK_DETAILS.recipient, "Recipient"],
-    ["IBAN", groupIban(FIAON_BANK_DETAILS.iban), ""],
-    ["BIC", FIAON_BANK_DETAILS.bic, ""],
-    ["Verwendungszweck", a.payment_reference || "—", "Payment reference"],
-    ["Zahlungsziel", dueDate ? deDate(dueDate) : "—", "Payment due"],
-  ];
-  const payStep = en ? 21 : 14;
-  const payBoxH = 12 + 20 + (en ? 9 : 0) + payRows.length * payStep + 18 + (en ? 10 : 0); // Titel + Zeilen + Hinweis
-  doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
-  doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
-  doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text(koop ? "Zahlung per SEPA-Banküberweisung" : "Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
-  zweit("Payment by SEPA bank transfer (payment in advance)", M + 14, y + 25, W - 28);
-  let py = y + 32 + (en ? 9 : 0);
-  for (const [label, value, labelEn] of payRows) {
-    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, M + 14, py, { width: 120, lineBreak: false });
-    doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, M + 140, py, { width: W - 154, lineBreak: false });
-    if (labelEn) zweit(labelEn, M + 14, py + 10, 120);
-    py += payStep;
+  // ── E-432 (27.10.2026): Bezahlte Bestellung → „Bezahlt am …“ statt Überweisungsdaten (Raten haben ihren eigenen Stand). ──
+  const bezahltAm = !a.rate_id && String(a.payment_status ?? "") === "paid" ? (a.paid_at || a.completed_at || null) : null;
+  if (bezahltAm) {
+    const boxH = 46 + (en ? 10 : 0);
+    doc.roundedRect(M, y, W, boxH, 8).fillColor(CI.bgSoft).fill();
+    doc.roundedRect(M, y, W, boxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text(`Bezahlt am ${deDate(new Date(bezahltAm))} — vielen Dank.`, M + 14, y + 12, { width: W - 28, lineBreak: false });
+    zweit(`Paid on ${deDate(new Date(bezahltAm))} — thank you.`, M + 14, y + 25, W - 28);
+    doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(`Verwendungszweck ${a.payment_reference || "—"} · per SEPA-Banküberweisung`, M + 14, y + 28 + (en ? 10 : 0), { width: W - 28, lineBreak: false });
   }
-  doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
-    .text("Bitte geben Sie den Verwendungszweck exakt an – nur so kann Ihre Zahlung automatisch zugeordnet werden.", M + 14, py + 4, { width: W - 28, lineBreak: false });
-  zweit("Please state the payment reference exactly – it is the only way your payment can be matched automatically.", M + 14, py + 14, W - 28);
+  // ── Zahlungsdaten-Block (dynamische Höhe — Hinweiszeile kollidiert NIE) ──
+  if (!bezahltAm) {
+    const payRows: Array<[string, string, string]> = [
+      ["Empfänger", FIAON_BANK_DETAILS.recipient, "Recipient"],
+      ["IBAN", groupIban(FIAON_BANK_DETAILS.iban), ""],
+      ["BIC", FIAON_BANK_DETAILS.bic, ""],
+      ["Verwendungszweck", a.payment_reference || "—", "Payment reference"],
+      ["Zahlungsziel", dueDate ? deDate(dueDate) : "—", "Payment due"],
+    ];
+    const payStep = en ? 21 : 14;
+    const payBoxH = 12 + 20 + (en ? 9 : 0) + payRows.length * payStep + 18 + (en ? 10 : 0); // Titel + Zeilen + Hinweis
+    doc.roundedRect(M, y, W, payBoxH, 8).fillColor(CI.bgSoft).fill();
+    doc.roundedRect(M, y, W, payBoxH, 8).lineWidth(1).strokeColor(CI.lightLine).stroke();
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(CI.blue).text(koop ? "Zahlung per SEPA-Banküberweisung" : "Zahlung per SEPA-Banküberweisung (Vorkasse)", M + 14, y + 12, { width: W - 28, lineBreak: false });
+    zweit("Payment by SEPA bank transfer (payment in advance)", M + 14, y + 25, W - 28);
+    let py = y + 32 + (en ? 9 : 0);
+    for (const [label, value, labelEn] of payRows) {
+      doc.font("Helvetica").fontSize(8.5).fillColor(CI.slate).text(label, M + 14, py, { width: 120, lineBreak: false });
+      doc.font("Helvetica-Bold").fontSize(8.5).fillColor(CI.dark).text(value, M + 140, py, { width: W - 154, lineBreak: false });
+      if (labelEn) zweit(labelEn, M + 14, py + 10, 120);
+      py += payStep;
+    }
+    doc.font("Helvetica").fontSize(7.5).fillColor(CI.slate)
+      .text("Bitte geben Sie den Verwendungszweck exakt an – nur so kann Ihre Zahlung automatisch zugeordnet werden.", M + 14, py + 4, { width: W - 28, lineBreak: false });
+    zweit("Please state the payment reference exactly – it is the only way your payment can be matched automatically.", M + 14, py + 14, W - 28);
+  }
 
   // ── Fußzeile: einzeilig sauber + Seitenzahl bei Mehrseitigkeit ──
   const range = doc.bufferedPageRange ? doc.bufferedPageRange() : { start: 0, count: 1 };

@@ -75,7 +75,7 @@ import { istBegleitFassung } from "@shared/fiaon-global-angebot-begleit";
 // E-384 (16.10.2026): Kooperationsvertrag (IA-KOOP-) — eigener Pfad wie der Begleitvertrag.
 import { istKoopFassung } from "@shared/fiaon-global-angebot-koop";
 // E-399 (19.10.2026): Kapital-Angebot für Firmenkunden (IA-KAPITAL-) — eigener Pfad, Abschluss wie das Firmenangebot.
-import { istKapitalFassung, KAPITAL_SPERRGRUND, kapitalRechnungsText } from "@shared/fiaon-global-angebot-kapital";
+import { istKapitalFassung, istKapitalCFassung, KAPITAL_SPERRGRUND, kapitalRechnungsTextNachFassung } from "@shared/fiaon-global-angebot-kapital";
 
 export type AngebotStatus = "offen" | "angenommen" | "zurueckgezogen" | "abgelaufen";
 export const ANGEBOT_PAKET_KEY = "global_individuell";
@@ -384,7 +384,8 @@ export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung
   // E-301: Rechnungstexte des Firmenangebots (Gründung, Monat n, Umsatz-/Verkaufsbeteiligung).
   if (istFirmenFassung(t.fassung)) return (await import("./fiaon-global-angebot-firma")).firmaRechnungsZeile(ref);
   // E-401: Kapital-Angebot — Festpreis (Teil 1), Bürgschaftsgebühr (Teil 2), Vergütung bei Auszahlung (Teil 3).
-  if (istKapitalFassung(t.fassung)) return kapitalRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr), auftragRef: String(t.auftrag_ref || ref), ereignisAm: isoTag(t.meilenstein_am) });
+  // E-432: Fassung C (Privatperson) — Gründung + Fast-Track (Teil 1), Erfolgshonorar (Teil 2).
+  if (istKapitalFassung(t.fassung)) return kapitalRechnungsTextNachFassung({ angebotRef: String(t.angebot_ref), nr: Number(t.nr), auftragRef: String(t.auftrag_ref || ref), ereignisAm: isoTag(t.meilenstein_am), fassung: String(t.fassung) });
   return angebotRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr) === 2 ? 2 : 1, auftragRef: String(t.auftrag_ref || ref), meilensteinArt: t.meilenstein_art, meilensteinAm: isoTag(t.meilenstein_am) });
 }
 
@@ -1825,7 +1826,10 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
   const B = zeilen.some((z) => istBegleitFassung(z.fassung)) ? await import("./fiaon-global-angebot-begleit") : null;
   const K = zeilen.some((z) => istKoopFassung(z.fassung)) ? await import("./fiaon-global-angebot-koop") : null;
   const C = zeilen.some((z) => istKapitalFassung(z.fassung)) ? await import("./fiaon-global-angebot-kapital") : null;
+  // E-432: Fassung C (Privatperson) hat einen eigenen Eintrag — der Eintrag der Fassung B liest kunde.firma.
+  const KC = zeilen.some((z) => istKapitalCFassung(z.fassung)) ? await import("./fiaon-global-angebot-kapital-c") : null;
   const liste: Record<string, unknown>[] = zeilen.map((z) => {
+    if (KC && istKapitalCFassung(z.fassung)) return KC.kapitalCListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null, teile: alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)) });
     if (C && istKapitalFassung(z.fassung)) return C.kapitalListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null, teile: alleTeile.filter((t) => Number(t.angebot_id) === Number(z.id)) });
     if (K && istKoopFassung(z.fassung)) return K.koopListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });
     if (B && istBegleitFassung(z.fassung)) return B.begleitListenEintrag(z, { heute, aufrufe: aufrufe ? aufrufe.get(Number(z.id)) ?? null : null });

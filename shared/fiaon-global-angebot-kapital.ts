@@ -52,6 +52,17 @@ export const KAPITAL_FASSUNGEN = ["IA-KAPITAL-2026-10-19-A", "IA-KAPITAL-2026-10
 export function istKapitalFassung(fassung: unknown): boolean {
   return String(fassung ?? "").startsWith(KAPITAL_FASSUNG_PRAEFIX);
 }
+/**
+ * Fassung C (27.10.2026, E-432): das Kapital-Angebot für PRIVATPERSONEN (Verbraucher) — eigene Daten, eigener Vertrag mit
+ * Widerrufsbelehrung, Laufzeit-Rechner. Texte und Regeln: shared/fiaon-global-angebot-kapital-c.ts. Sie trägt das Präfix
+ * IA-KAPITAL- (alle Wege des Kapital-Angebots greifen), verzweigt aber an jeder Stelle VOR kapitalDatenAus in den eigenen Pfad
+ * (server/lib/fiaon-global-angebot-kapital-c.ts) — die Firmen-Fassungen A/B lesen kunde.firma, die Fassung C hat keine Firma.
+ */
+export const KAPITAL_C_FASSUNG = "IA-KAPITAL-2026-10-27-C";
+export const KAPITAL_C_FASSUNGEN = [KAPITAL_C_FASSUNG] as const;
+export function istKapitalCFassung(fassung: unknown): boolean {
+  return (KAPITAL_C_FASSUNGEN as readonly string[]).includes(String(fassung ?? ""));
+}
 export const KAPITAL_GUELTIG_TAGE = 14;
 export const KAPITAL_KNOPF = "Auftrag zahlungspflichtig erteilen";
 export const KAPITAL_MARKE = "FIAON Global · Kapital für Ihr Unternehmen";
@@ -881,6 +892,15 @@ export function kapitalStartAufgabe(ein: {
       "Keine automatische Kundenmail (Firmenangebot) — den Start bitte persönlich mitteilen.",
     ].join("\n"),
   };
+}
+/** Die Zeile auf der Rechnung nach Fassung — Fassung C (E-432) hat eigene Teile (Gründung + Fast-Track, Erfolgshonorar). */
+export function kapitalRechnungsTextNachFassung(z: { angebotRef: string; nr: number; auftragRef: string; ereignisAm?: string | null; fassung?: string | null }): { beschreibung: string; zeitraum: string } {
+  if (istKapitalCFassung(z.fassung)) {
+    const am = z.ereignisAm ? ` am ${kapitalTag(z.ereignisAm)}` : "";
+    if (z.nr === 2) return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: Erfolgshonorar einschließlich Bürgschaft (Ziffer 6 Absatz 2) — Gesellschaft eingetragen${am} (Auftrag ${z.auftragRef})`, zeitraum: "einmalig" };
+    return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: US-Gesellschaft, Konto und Karten, Finanzierungsbegleitung im ersten Jahr und Fast-Track (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
+  }
+  return kapitalRechnungsText(z);
 }
 /** Der Vermerk, wenn Teil 2 oder Teil 3 bezahlt ist — ohne neue Frist (Ziffer 4 rechnet ab Teil 1). */
 export function kapitalTeilBezahltVermerk(ein: { angebotRef: string; titel: string; betragCents: number; zweck: string | null; fristEnde: string | null; nachGarantiefall: boolean }): string {

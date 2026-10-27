@@ -32,7 +32,7 @@ import { complianceKundenfassung, complianceHtml } from "@shared/fiaon-global-an
 import type { ComplianceKundenfassung, FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import {
-  KAPITAL_FASSUNG, KAPITAL_FASSUNGEN, KAPITAL_GUELTIG_TAGE, KAPITAL_KNOPF, KAPITAL_ANNAHME, KAPITAL_TEIL_TITEL,
+  KAPITAL_FASSUNG, KAPITAL_FASSUNGEN, KAPITAL_GUELTIG_TAGE, KAPITAL_KNOPF, KAPITAL_ANNAHME, KAPITAL_TEIL_TITEL, istKapitalCFassung,
   kapitalParameterAus, kapitalParameterFehler, kapitalBuerginFehler, kapitalPflichtFehlen, kapitalSeite, kapitalBestellUebersicht,
   kapitalAnnahmeTexte, kapitalAnsprechpartner, kapitalAnrede, kapitalVertretungName, kapitalVertragTitel, kapitalVertragUnterzeile,
   kapitalRumpfHtml, kapitalHashEingabe, kapitalEur, kapitalChf, kapitalTag, istKapitalFassung,
@@ -58,6 +58,8 @@ type Ergebnis<T = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; s
 const nein = (error: string, status = 400) => ({ ok: false as const, status, error });
 const CHEF_LINK = "/chef/s/global-auftraege?reiter=angebote";
 const STAAT_KURZ: Record<string, string> = { Florida: "FL", Wyoming: "WY", Delaware: "DE", "New Mexico": "NM" };
+/** E-432: Fassung C (Privatperson) hat einen eigenen Pfad — jede Stelle unten verzweigt dorthin, BEVOR kapitalDatenAus kunde.firma liest. */
+const fassungC = () => import("./fiaon-global-angebot-kapital-c");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LESEN
@@ -132,6 +134,7 @@ export async function kapitalPruefberichtPdf(d: KapitalDaten): Promise<Buffer | 
   return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Prüfbericht · Angebot ${d.ref}`, rand: RAND });
 }
 export async function kapitalPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1"): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCPdfErzeugen(z, art);
   const d = kapitalDatenAus(z);
   if (art === "pruefbericht") {
     const pdf = await kapitalPruefberichtPdf(d);
@@ -149,6 +152,7 @@ export async function kapitalPdfErzeugen(z: AngebotZeile, art: "vertrag" | "prue
 // ANLEGEN UND ÄNDERN (nur Skript)
 // ═══════════════════════════════════════════════════════════════════════════
 export async function kapitalAnlegen(ein: any, wer: string): Promise<Ergebnis<{ id: number; ref: string; link: string }>> {
+  if (istKapitalCFassung(ein?.fassung) || ein?.kunde?.art === "privat") return (await fassungC()).kapitalCAnlegen(ein, wer);
   await ensureAngebotTabellen();
   const fassung = String(ein?.fassung || KAPITAL_FASSUNG);
   if (!(KAPITAL_FASSUNGEN as readonly string[]).includes(fassung)) return nein("Diese Fassung des Kapital-Angebots gibt es nicht.");
@@ -181,6 +185,7 @@ export async function kapitalAnlegen(ein: any, wer: string): Promise<Ergebnis<{ 
 export async function kapitalAendern(id: number, ein: any, wer: string): Promise<Ergebnis<{ fehlt: string[] }>> {
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Angebot gibt es nicht.", 404);
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCAendern(id, ein, wer);
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = kapitalDatenAus(z); const altHash = kapitalTextHash(alt);
   const neu: KapitalDaten = { ...alt }; const geaendert: string[] = [];
@@ -204,6 +209,7 @@ export async function kapitalAendern(id: number, ein: any, wer: string): Promise
 // DIE SEITE (offen) und die Antwort nach der Annahme
 // ═══════════════════════════════════════════════════════════════════════════
 export async function kapitalKundenSicht(token: string, z: AngebotZeile, opts: { leitung?: boolean } = {}): Promise<{ status: number; body: Record<string, unknown> }> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCKundenSicht(token, z, opts);
   const d = kapitalDatenAus(z);
   const fehlt = kapitalPflichtFehlen(d);
   const k = d.kunde;
@@ -230,6 +236,7 @@ export async function kapitalKundenSicht(token: string, z: AngebotZeile, opts: {
 }
 /** Dieselben Felder wie die Antwort des Individualangebots nach der Annahme — die Ansicht „fertig“ ist dieselbe. */
 export async function kapitalAngenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCAngenommenAntwort(z);
   const d = kapitalDatenAus(z);
   const w = kapitalWahlAus(z);
   const llc = w?.llc.wunsch || "Ihre Gesellschaft";
@@ -261,6 +268,7 @@ export async function kapitalAngenommenAntwort(z: AngebotZeile): Promise<Record<
 // DIE ANNAHME (gerufen aus annehmen() im Individualangebot: Token, Status, Leitung und Honigtopf sind dort geprüft)
 // ═══════════════════════════════════════════════════════════════════════════
 export async function kapitalAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeKontext, helfer: { zuViel: (ip: string) => boolean }): Promise<{ status: number; body: Record<string, unknown> }> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCAnnehmen(z, body, kontext, helfer);
   const fehler = (status: number, error: string, extra: Record<string, unknown> = {}) => ({ status, body: { ok: false, error, ...extra } });
   const d = kapitalDatenAus(z);
   const texte = kapitalAnnahmeTexte(d);
@@ -318,6 +326,7 @@ export async function kapitalAnnehmen(z: AngebotZeile, body: any, kontext: Annah
  */
 export async function kapitalFertigstellen(id: number): Promise<{ ok: boolean; grund?: string }> {
   const z = await angebotLesen({ id });
+  if (z && istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCFertigstellen(id);
   if (!z || String(z.status) !== "angenommen" || !istKapitalFassung(z.fassung)) return { ok: false, grund: "nicht angenommen" };
   const d = kapitalDatenAus(z);
   const w = kapitalWahlAus(z);
@@ -396,6 +405,7 @@ export async function kapitalFertigstellen(id: number): Promise<{ ok: boolean; g
 /** Nach der Annahme: Aufgabe an Justin (wiederholbar über den Schlüssel) und genau einmal eine Mail an js@. */
 export async function kapitalNacharbeit(id: number): Promise<void> {
   const z = await angebotLesen({ id });
+  if (z && istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCNacharbeit(id);
   if (!z || String(z.status) !== "angenommen" || !istKapitalFassung(z.fassung)) return;
   if (!z.auftrag_ref || z.nacharbeit_fehler) await kapitalFertigstellen(id).catch(() => null);
   const z2 = (await angebotLesen({ id }))!;
@@ -440,6 +450,8 @@ export async function kapitalNacharbeit(id: number): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 const RECHNUNG_STEHT = ["pending_payment", "claimed_paid", "paid"];
 export async function kapitalGebuehrBerechnen(id: number, artRoh: unknown, ein: any, wer: string): Promise<Ergebnis<{ ref: string; rechnungsnummer: string | null; betragCents: number; zahlungsseite: string | null; meldung: string; schon?: true }>> {
+  const zC = await angebotLesen({ id });
+  if (zC && istKapitalCFassung(zC.fassung)) return (await fassungC()).kapitalCGebuehrBerechnen(id, artRoh, ein, wer);
   if (!istKapitalGebuehrArt(artRoh)) return nein("Diese Rechnung gibt es nicht — „buergschaft“ oder „auszahlung“.", 404);
   const art: KapitalGebuehrArt = artRoh; const g = KAPITAL_GEBUEHREN[art];
   const z = await angebotLesen({ id });
@@ -559,6 +571,7 @@ export async function kapitalGebuehrBerechnen(id: number, artRoh: unknown, ein: 
 // die Start-Aufgabe nur, solange die Akte nicht „gestartet“ ist.
 // ═══════════════════════════════════════════════════════════════════════════
 export async function kapitalNachZahlung(ref: string, t: any, z: AngebotZeile): Promise<{ gestartet: boolean; grund?: string }> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCNachZahlung(ref, t, z);
   const d = kapitalDatenAus(z);
   const b = await globalBestellungLesen(ref);
   if (!b || String(b.payment_status) !== "paid") return { gestartet: false, grund: "nicht bezahlt" };
@@ -647,8 +660,10 @@ export async function kapitalFristLauf(jetzt: Date = new Date()): Promise<{ warn
     const spalte = FRIST_MARKE[s.schritt];
     const [frei] = (await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NOW() WHERE id = $1 AND ${spalte} IS NULL RETURNING id`, [z.id])) as any[];
     if (!frei) continue;
-    const d = kapitalDatenAus(z as AngebotZeile); const ref1 = String(z.auftrag_ref || d.ref);
-    const auf = kapitalFristAufgabe({ ...s, angebotRef: d.ref, firma: d.kunde.firma?.name || d.ref, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende)!, parameter: d.parameter });
+    // E-432: Fassung C (Privatperson) — Euro, Erfolgshonorar, kein kunde.firma.
+    const ref1 = String(z.auftrag_ref || z.angebot_ref);
+    const auf = istKapitalCFassung(z.fassung) ? (await fassungC()).kapitalCFristAufgabeFuer(z, s)
+      : (() => { const d = kapitalDatenAus(z as AngebotZeile); return kapitalFristAufgabe({ ...s, angebotRef: d.ref, firma: d.kunde.firma?.name || d.ref, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende)!, parameter: d.parameter }); })();
     try {
       await auftragFuerKunden({
         personId: z.person_id != null ? Number(z.person_id) : null, ref: ref1, titel: auf.titel, text: auf.text,
@@ -657,7 +672,7 @@ export async function kapitalFristLauf(jetzt: Date = new Date()): Promise<{ warn
         bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
       });
     } catch (e) {
-      console.error(`[FIAON-KAPITAL] ${d.ref}: Fristwarnung (${s.schritt}):`, e);
+      console.error(`[FIAON-KAPITAL] ${z.angebot_ref}: Fristwarnung (${s.schritt}):`, e);
       await sqlPool.unsafe(`UPDATE fiaon_global_angebote SET ${spalte} = NULL WHERE id = $1`, [z.id]).catch(() => {});
       continue;
     }
@@ -700,6 +715,7 @@ function kapitalTeileSicht(z: AngebotZeile, d: KapitalDaten, teile: any[], heute
  * Individual-/Firmenangebot, dazu die Sätze, die die Seite statt der Individual-Texte zeigt. Nur lesen.
  */
 export async function kapitalSichtZurAkte(z: AngebotZeile): Promise<Record<string, unknown>> {
+  if (istKapitalCFassung(z.fassung)) return (await fassungC()).kapitalCSichtZurAkte(z);
   const d = kapitalDatenAus(z);
   const roh = await Promise.all((((z as any).teile as any[] | undefined) ?? []).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;

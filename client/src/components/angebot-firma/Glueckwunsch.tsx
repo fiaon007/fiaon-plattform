@@ -9,9 +9,12 @@
 // geht — sonst lief der Gruß unsichtbar hinter ihr ab (Gutachten 07.10.2026). Liegt
 // der Zeiger auf dem Auftakt oder der Fokus auf „weiter“, wartet er. „Weniger Bewegung“: kein Staub, keine Bewegung — nur
 // stehen und dann ohne Gleiten verschwinden. Alle Texte aus seite.auftakt.
+// E-432 (Justin 27.10.2026, Variante B „Morgendämmerung“): ton="morgen" — keine Teilchen; aus tiefem Blau geht das Licht
+// auf, der Horizont zieht auf, der Gruß steigt hinter ihm auf. Bild und Ablauf: styles/global-angebot-auftakt-morgen.css.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { ruhig } from "./gemeinsam";
+import "@/styles/global-angebot-auftakt-morgen.css";
 
 type Teilchen = { x: number; y: number; r: number; v: number; phase: number; drift: number; hell: number };
 
@@ -76,8 +79,10 @@ function nachStartbuehne(los: () => void): () => void {
   return () => { fertig = true; mo.disconnect(); window.clearTimeout(notfall); };
 }
 const STEHT_MS = 4600;
+/** Die Morgendämmerung braucht gut drei Sekunden bis zum hellen Himmel — danach soll der Gruß noch in Ruhe stehen. */
+const STEHT_MS_MORGEN = 6600;
 
-export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde, ton = "gold" }: { auge: string; gruss: string; zeile: string; weiter: string; onWeg: () => void; onEnde: () => void; ton?: "gold" | "blau" }) {
+export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde, ton = "gold" }: { auge: string; gruss: string; zeile: string; weiter: string; onWeg: () => void; onEnde: () => void; ton?: "gold" | "blau" | "morgen" }) {
   const [weg, setWeg] = useState(false);
   const [los, setLos] = useState(false);
   const still = useRef(ruhig());
@@ -92,7 +97,7 @@ export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde
     let stopp = () => {};
     const ab = nachStartbuehne(() => {
       setLos(true);
-      if (!still.current && canvas.current) stopp = staubStarten(canvas.current, ton);
+      if (!still.current && canvas.current && ton !== "morgen") stopp = staubStarten(canvas.current, ton);
     });
     return () => { ab(); window.removeEventListener("keydown", taste); stopp(); document.documentElement.classList.remove("gaf-auftakt-an"); };
   }, []);
@@ -100,7 +105,7 @@ export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde
   // Die Standzeit läuft erst ab „los“ und wartet, solange Zeiger oder Fokus auf dem Auftakt liegen.
   useEffect(() => {
     if (!los || weg) return;
-    let rest = STEHT_MS; let start = performance.now(); let t = 0;
+    let rest = ton === "morgen" ? STEHT_MS_MORGEN : STEHT_MS; let start = performance.now(); let t = 0;
     const planen = () => { window.clearTimeout(t); t = window.setTimeout(() => { if (halt.current) return; setWeg(true); }, rest); };
     const anhalten = () => { if (halt.current) return; halt.current = true; window.clearTimeout(t); rest = Math.max(1200, rest - (performance.now() - start)); };
     const weiterLaufen = () => { if (!halt.current) return; halt.current = false; start = performance.now(); planen(); };
@@ -119,15 +124,25 @@ export default function Glueckwunsch({ auge, gruss, zeile, weiter, onWeg, onEnde
   }, [weg, onWeg, onEnde]);
 
   return (
-    <div className={`gaf-auftakt${ton === "blau" ? " blau" : ""}${los ? " los" : ""}${weg ? " weg" : ""}`} role="dialog" aria-modal="false" aria-label={auge} onClick={() => setWeg(true)} data-fiaon="firma-auftakt"
+    <div className={`gaf-auftakt${ton === "gold" ? "" : ` ${ton}`}${los ? " los" : ""}${weg ? " weg" : ""}`} role="dialog" aria-modal="false" aria-label={auge} onClick={() => setWeg(true)} data-fiaon="firma-auftakt"
       onPointerEnter={(e) => { if (e.pointerType === "mouse") halten(true); }} onPointerLeave={(e) => { if (e.pointerType === "mouse") halten(false); }}
       onFocusCapture={() => halten(true)} onBlurCapture={() => halten(false)}>
-      <canvas ref={canvas} className="gaf-auftakt-staub" aria-hidden="true" />
-      <div className="gaf-auftakt-schein" aria-hidden="true" />
+      {ton === "morgen" ? (
+        <>
+          <div className="gaf-auftakt-himmel" aria-hidden="true" />
+          <div className="gaf-auftakt-sonne" aria-hidden="true" />
+          <i className="gaf-auftakt-horizont" aria-hidden="true" />
+        </>
+      ) : (
+        <>
+          <canvas ref={canvas} className="gaf-auftakt-staub" aria-hidden="true" />
+          <div className="gaf-auftakt-schein" aria-hidden="true" />
+        </>
+      )}
       <div className="gaf-auftakt-inner">
         <span className="gaf-auftakt-auge">{auge}</span>
         <i className="gaf-auftakt-linie" aria-hidden="true" />
-        <p className="gaf-auftakt-gruss">{gruss}</p>
+        {ton === "morgen" ? <span className="gaf-auftakt-maske"><p className="gaf-auftakt-gruss">{gruss}</p></span> : <p className="gaf-auftakt-gruss">{gruss}</p>}
         <p className="gaf-auftakt-zeile">{zeile}</p>
         <button type="button" className="gaf-auftakt-weiter" onClick={(e) => { e.stopPropagation(); setWeg(true); }}>
           <span>{weiter}</span>

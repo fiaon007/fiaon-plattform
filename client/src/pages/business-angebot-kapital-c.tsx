@@ -473,7 +473,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   return (
     <div className={`gaf gab gak gkp gkc${auftakt === "offen" ? " gaf-wartet" : ""}`} data-fiaon="angebot-kapital-c">
       {auftakt !== "vorbei" && (
-        <Glueckwunsch ton="blau" auge={S.auftakt.auge} gruss={S.auftakt.gruss} zeile={S.auftakt.zeile} weiter={S.auftakt.weiter} onWeg={auftaktGeht} onEnde={auftaktEnde} />
+        <Glueckwunsch ton="morgen" auge={S.auftakt.auge} gruss={S.auftakt.gruss} zeile={S.auftakt.zeile} weiter={S.auftakt.weiter} onWeg={auftaktGeht} onEnde={auftaktEnde} />
       )}
 
       <header className="gaf-leiste-oben">

@@ -1,0 +1,38 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER AUFTAKT „MORGENDÄMMERUNG“ (E-432, Justin 27.10.2026: Variante B)
+   Keine Teilchen. Ab .los: der Horizont zieht auf → die Sonne steigt → der Himmel hellt aus tiefem Blau auf →
+   Auge, Gruß (steigt aus der Maske wie hinter dem Horizont), Zeile, „weiter“. Endbild: heller Glasblau-Himmel.
+   „Weniger Bewegung“: sofort das Endbild, ohne Ablauf.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gaf-auftakt.morgen { background:#0a1a36; }
+.gaf-auftakt-himmel { position:absolute; inset:0; opacity:0; background:linear-gradient(180deg, #f3f8ff 0%, #e2edff 55%, #cfe2ff 100%); }
+.gaf-auftakt-sonne { position:absolute; left:50%; top:64%; width:min(1500px,170vw); aspect-ratio:1; border-radius:50%; opacity:0;
+  transform:translate(-50%,-50%) scale(.22);
+  background:radial-gradient(circle, rgba(255,255,255,.96) 0%, rgba(176,210,255,.6) 30%, rgba(40,141,250,0) 66%); }
+.gaf-auftakt-horizont { position:absolute; left:50%; top:64%; width:0; height:1px; transform:translateX(-50%);
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.9), transparent); }
+.gaf-auftakt.morgen.los .gaf-auftakt-himmel { animation:gafMorgenHimmel 2.4s ease .5s forwards; }
+.gaf-auftakt.morgen.los .gaf-auftakt-sonne { animation:gafMorgenSonne 3s cubic-bezier(.2,.8,.2,1) .15s forwards; }
+.gaf-auftakt.morgen.los .gaf-auftakt-horizont { animation:gafMorgenLinie 1.8s cubic-bezier(.2,.8,.2,1) .25s forwards, gafMorgenLinieAus 1.2s ease 2.4s forwards; }
+
+/* Die Texte kommen erst, wenn der Himmel hell ist. */
+.gaf-auftakt.morgen .gaf-auftakt-auge { color:#1d4ed8; animation-delay:2.05s; }
+.gaf-auftakt.morgen .gaf-auftakt-linie { background:linear-gradient(90deg, transparent, #5aa8fb, transparent); animation-delay:2.1s; }
+.gaf-auftakt-maske { display:block; overflow:hidden; padding-bottom:.14em; }
+.gaf-auftakt.morgen .gaf-auftakt-gruss { opacity:1; transform:translateY(110%); animation:gafMorgenGruss 1.3s cubic-bezier(.2,.8,.2,1) 2.15s forwards; }
+.gaf-auftakt.morgen .gaf-auftakt-zeile { animation-delay:2.95s; }
+.gaf-auftakt.morgen .gaf-auftakt-weiter { color:#1d4ed8; border-color:rgba(40,141,250,.5); animation-delay:3.25s; }
+.gaf-auftakt.morgen .gaf-auftakt-weiter:hover { color:var(--tinte); border-color:#288dfa; box-shadow:0 10px 30px rgba(40,141,250,.22); }
+
+@keyframes gafMorgenHimmel { to { opacity:1; } }
+@keyframes gafMorgenSonne { 0% { opacity:0; transform:translate(-50%,-50%) scale(.22); } 40% { opacity:1; } 100% { opacity:.85; transform:translate(-50%,-50%) scale(1.25); } }
+@keyframes gafMorgenLinie { to { width:min(92vw,1100px); } }
+@keyframes gafMorgenLinieAus { to { opacity:.25; } }
+@keyframes gafMorgenGruss { to { transform:none; } }
+
+@media (prefers-reduced-motion:reduce) {
+  .gaf-auftakt.morgen .gaf-auftakt-himmel { opacity:1; }
+  .gaf-auftakt.morgen .gaf-auftakt-sonne { opacity:.85; transform:translate(-50%,-50%) scale(1.25); }
+  .gaf-auftakt.morgen .gaf-auftakt-horizont { width:0; }
+  .gaf-auftakt.morgen .gaf-auftakt-gruss { transform:none; }
+}

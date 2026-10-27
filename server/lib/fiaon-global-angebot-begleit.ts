@@ -258,7 +258,12 @@ export async function begleitKundenSicht(token: string, z: AngebotZeile, opts: {
 export async function begleitAngenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
   const d = begleitDatenAus(z);
   const w = begleitWahlAus(z);
-  const llc = w?.llc.wunsch || "Ihre Gesellschaft";
+  // 27.10.2026: Ist der Name im Register geprüft (Akte: geprueft true), zeigt die Seite DIESEN Namen — beim vergebenen
+  // Wunschnamen also den Ausweichnamen, wie Portal und Rechnungen. Vorher stand hier immer der Wunsch aus der Annahme.
+  const [akte] = (await sqlPool`SELECT gesellschaft FROM fiaon_global_auftraege WHERE angebot_id = ${Number(z.id)} LIMIT 1`.catch(() => [])) as any[];
+  const ges = json<Record<string, any>>(akte?.gesellschaft, {});
+  const geprueft = ges.geprueft === true && typeof ges.name === "string" && ges.name.trim() ? ges.name.trim() : null;
+  const llc = geprueft || w?.llc.wunsch || "Ihre Gesellschaft";
   const token = angebotTokenErzeugen(d.ref, d.gueltigBis);
   return {
     art: "begleit", startgespraech: null,
@@ -271,7 +276,7 @@ export async function begleitAngenommenAntwort(z: AngebotZeile): Promise<Record<
     teil1Bezahlt: true,
     fertigZahlung: BEGLEIT_ANNAHME.fertigZahlung,
     fertigFuss: BEGLEIT_ANNAHME.fertigFuss,
-    llc: w?.llc ?? null,
+    llc: w?.llc ? (geprueft ? { ...w.llc, wunsch: geprueft } : w.llc) : null,
   };
 }
 

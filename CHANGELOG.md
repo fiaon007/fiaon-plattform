@@ -5,6 +5,33 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 27.10.2026 — FIAON Global für Google, Bing und KI: 10 Business- + 5 Privat-Ratgeber, Vorschaubild je Seite, „Unternehmensberatung“ (E-439)
+- **Anlass (Justin):** „5 neue Ratgeber für Privat und 10 neue Ratgeber für die Business Seite — SEO/SEA perfekt … jeder Link, den wir
+  vom Business teilen, soll darauf aufbauen … Platzhirsch für US Funding, US-Gesellschaft … als Unternehmensberatung“ und
+  „Unternehmensberatung DÜRFEN WIR VERWENDEN ALS UK-GESELLSCHAFT“.
+- **Neue Seiten (je Deutsch + Englisch):** /business/wissen/us-funding, …/sba-kredit-auslaender, …/kreditkarten-stacking,
+  …/us-llc-wohnsitz-deutschland, …/markteintritt-usa, …/amazon-stripe-paypal-llc, …/llc-retten-oder-aufloesen, …/e2-visum,
+  …/nachteile-us-llc, dazu /business/aus-oesterreich und /business/was-ist-fiaon-global. Jede Seite: geschrieben, Quelle für Quelle
+  gegengeprüft, übersetzt, sprachlich gegengeprüft. Wissens-Übersicht jetzt 28 Beiträge, Menü mit Österreich, US-Funding,
+  Markteintritt und „Was ist FIAON Global?“.
+- **Fünf Privat-Ratgeber:** Schuldnerverzeichnis, Vermögensauskunft, öffentliche Schulden (Rundfunkbeitrag, Finanzamt),
+  Identitätsdiebstahl, Bonität ohne SCHUFA-Historie — unter /ratgeber, beim Start eingespielt.
+- **Geteilte Links:** Jede Business-Adresse zeigt ein eigenes Vorschaubild im /business-Design (143 Bilder, client/public/og/business,
+  Skript scripts/og-business-bilder.ts, Prüfstand scripts/pruef-og-business.ts).
+- **Redaktionsartikel umgezogen:** Die Tagesartikel für Unternehmer stehen unter /business/wissen/… bzw. /en/business/knowledge/…
+  im Business-Design (vorher /ratgeber mit Privat-Rahmen, Bonitäts-Bild, erfundener Autorin) — alte Adressen leiten dauerhaft um.
+  Die Redaktion schreibt ab jetzt mit Schwerpunkt US-Gesellschaft.
+- **Für Google und KI:** eigene Marke „FIAON Global“ (Unternehmensberatung) im Datenblock, Tabellen, Quellen und Fachbegriff-Links
+  im ausgelieferten HTML, Wissens-Seite verlinkt alle Artikel, llms.txt mit Definitionssatz, neu /llms-full.txt und
+  /.well-known/security.txt, Bing wird über IndexNow automatisch benachrichtigt. /business: „Die Unternehmensberatung für Ihre
+  US-Gesellschaft …“, Titel „US-Firma gründen ab 2.499 €“.
+- **Ehrlichkeit:** Zinssätze von „US-Immobilie finanzieren“ entfernt (verbotene Aussage 1) + neue Wortregel gegen Zinssätze als
+  Zahl; SBA-Regel seit 01.03.2026 korrigiert; Anzeigen-Landingpages versprechen den Pflichtenkalender nicht mehr ab 2.499 €.
+- **Anzeigen (SEA):** fertiger Plan + Importdateien für den Google Ads Editor in ~/Desktop/FIAON/06_Marketing/SEA_GLOBAL_2026-10-27/
+  (nur „Gründung“ bewerbbar — „US Funding“ braucht bei Google eine Finanzaufsichts-Lizenz).
+- **Wo:** shared/fiaon-global-seiten/e439/ + en/e439/, wissen-e439.ts, server/lib/ratgeber-e439/, server/lib/fiaon-seiten-seo.ts,
+  server/lib/fiaon-ratgeber-seo.ts, server/lib/fiaon-business-artikel-liste.ts, server/lib/fiaon-indexnow.ts, shared/fiaon-global-begriffe.ts.
+
 ## 27.10.2026 — FIAON Global (E-436): Löschung einer früheren Gesellschaft steht automatisch im Fahrplan
 - **Was:** Neue Station „Frühere Gesellschaft gelöscht“ (nur bei Bedarf — der Kunde sieht sie erst, wenn sie im Mandat angelegt ist; zählt nur
   dann zum Fortschritt). Der halbstündliche Abgleich (`global_begleit_name` → `globalAkteAbgleich`) legt sie selbst an, sobald eine

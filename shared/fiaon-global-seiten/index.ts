@@ -81,7 +81,8 @@ export function globalKrumen(s: GlobalSeite): { name: string; pfad: string }[] {
   const w = GLOBAL_SEITE_WORTE[globalSprache(s)];
   const k: { name: string; pfad: string }[] = [{ name: "FIAON Global", pfad: w.wurzel }];
   if (s.pfad.startsWith(`${w.wissenPfad}/`)) k.push({ name: w.wissen, pfad: w.wissenPfad });
-  k.push({ name: globalMenuePunkt(s.pfad)?.titel ?? s.h1.replace(/[.?!]$/, ""), pfad: s.pfad });
+  // E-439: auch der Doppelpunkt am Ende (Redaktionsartikel „Frist für Form 941: …“) gehört nicht in die Brotkrumen.
+  k.push({ name: globalMenuePunkt(s.pfad)?.titel ?? s.h1.replace(/[.?!:]$/, ""), pfad: s.pfad });
   return k;
 }
 

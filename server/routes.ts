@@ -600,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_tageslauf', async () => await (await import('./lib/fiaon-global-bereich')).globalTageslauf(), 60 * 60 * 1000, { beimStartNach: 540_000 });
     // 22.10.2026 (erster Begleitvertrag): geprüfter Name eines Begleitvertrags aus der Gründungsrechnung in die Akte — ohne Mail, also ohne Sendefenster.
-    tageslauf('global_begleit_name', async () => await (await import('./lib/fiaon-global-akte-komplett')).begleitNamenAbgleich(), 30 * 60 * 1000, { beimStartNach: 150_000 });
+    tageslauf('global_begleit_name', async () => await (await import('./lib/fiaon-global-akte-komplett')).globalAkteAbgleich(), 30 * 60 * 1000, { beimStartNach: 150_000 });
   });
   // 🌐 FIAON Global — der ruhige Zahlungstakt für Firmenaufträge (E-188): am 3. und 7. Tag eine Mail, am
   //    10. Tag eine dringende Aufgabe „anrufen". Halbstündlich; der Lauf hält sich selbst ans Sendefenster.

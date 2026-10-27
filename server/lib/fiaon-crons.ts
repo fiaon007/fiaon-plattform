@@ -512,7 +512,7 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   // Mo–Sa) — außerhalb kehrt er sofort zurück und zählt trotzdem als gelaufen. Steht er, steht der Takt.
   // 22.10.2026 (erster Begleitvertrag): Läuft halbstündlich, ohne Sendefenster (schreibt keine Mail, nur Akte und Verlauf).
   global_begleit_name: {
-    zweck: "FIAON Global: den geprüften Namen eines Begleitvertrags aus der Gründungs- bzw. Fast-Track-Rechnung in die Akte übernehmen und die Station „Name geprüft“ erledigen",
+    zweck: "FIAON Global: den geprüften Namen eines Begleitvertrags aus der Gründungs- bzw. Fast-Track-Rechnung in die Akte übernehmen und „Name geprüft“ erledigen; bei bezahlter Löschungsrechnung die Station „Frühere Gesellschaft gelöscht“ anlegen",
     folge: "Das Kundenportal zeigt weiter den vorgemerkten Wunschnamen — auch wenn er im Register vergeben war — und „Vor dem Start“: Der Kunde sieht falsche Daten.",
     fenster: 2,
   },

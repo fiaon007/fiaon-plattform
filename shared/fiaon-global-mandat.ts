@@ -52,6 +52,8 @@ export interface GlobalSchrittVorlage {
   feld?: keyof GlobalGesellschaftPlus;
   /** 22.10.2026: Ein Satz für die Bühne des Portals, solange diese Station die nächste offene ist („Als Nächstes“). */
   naechster?: Paar;
+  /** 27.10.2026: Nur bei Bedarf — der Kunde sieht die Station erst, wenn sie im Mandat angelegt ist (Team oder Abgleich). */
+  nurBeiBedarf?: true;
 }
 
 export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
@@ -76,6 +78,11 @@ export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
   { schluessel: "operating_agreement", etappe: 1, titel: { de: "Operating Agreement unterschrieben", en: "Operating agreement signed" },
     text: { de: "Der Gesellschaftsvertrag Ihrer LLC ist unterschrieben und liegt in Ihrem Tresor.", en: "Your LLC's operating agreement is signed and stored in your vault." },
     naechster: { de: "Wir bereiten das Operating Agreement Ihrer LLC zur Unterschrift vor.", en: "We prepare your LLC's operating agreement for signature." } },
+  // 27.10.2026: Eine frühere US-Gesellschaft des Kunden kann den ITIN-Antrag blockieren — dann löschen wir sie. Nur bei Bedarf;
+  // legt sich selbst an, sobald die Löschungsrechnung (llc_loeschung) bezahlt ist (begleitNamenAbgleich → vorgesellschaftAbgleich).
+  { schluessel: "vorgesellschaft", etappe: 1, nurBeiBedarf: true, titel: { de: "Frühere Gesellschaft gelöscht", en: "Previous company dissolved" },
+    text: { de: "Ihre frühere US-Gesellschaft ist offiziell gelöscht und ihr Steuerkonto geschlossen — nichts blockiert mehr Ihren ITIN-Antrag.", en: "Your previous US company is officially dissolved and its tax account closed — nothing blocks your ITIN application any more." },
+    naechster: { de: "Wir lassen Ihre frühere US-Gesellschaft löschen und ihr Steuerkonto schließen.", en: "We are dissolving your previous US company and closing its tax account." }, feld: "vorGesellschaft" },
   { schluessel: "itin", etappe: 1, titel: { de: "ITIN", en: "ITIN" },
     text: { de: "Die persönliche US-Steuernummer, wenn sie gebraucht wird. Die Behörde vergibt sie in eigener Frist.", en: "The personal US tax number, where it is needed. The authority issues it on its own timeline." },
     naechster: { de: "Wir bereiten Ihre persönliche US-Steuernummer (ITIN) vor.", en: "We prepare your personal US tax number (ITIN)." } },
@@ -97,6 +104,8 @@ export const GLOBAL_FAHRPLAN: GlobalSchrittVorlage[] = [
     naechster: { de: "Wir bereiten die Anträge für Kreditrahmen und Darlehen vor.", en: "We prepare the applications for credit lines and loans." } },
 ];
 const SCHRITT_NACH_KEY = new Map(GLOBAL_FAHRPLAN.map((s) => [s.schluessel, s]));
+/** Die Stationen, die jeder Kunde hat (ohne die „nur bei Bedarf“). */
+export const GLOBAL_FAHRPLAN_BEDARF: string[] = GLOBAL_FAHRPLAN.filter((s) => s.nurBeiBedarf).map((s) => s.schluessel);
 export function globalSchrittVorlage(schluessel: unknown): GlobalSchrittVorlage | null {
   return SCHRITT_NACH_KEY.get(String(schluessel ?? "")) ?? null;
 }
@@ -157,6 +166,8 @@ export interface GlobalGesellschaftPlus {
   kontoInstitut?: string | null;
   /** Tag der Kontoeröffnung, YYYY-MM-DD. */
   kontoEroeffnetAm?: string | null;
+  /** 27.10.2026: frühere US-Gesellschaft, die gelöscht wird (Name · Bundesstaat · Nummer), eine Zeile. */
+  vorGesellschaft?: string | null;
 }
 export const GLOBAL_GESELLSCHAFT_PLUS_FELDER: { feld: keyof GlobalGesellschaftPlus; titel: Paar; max: number }[] = [
   { feld: "aktenzeichen", titel: { de: "Registernummer (Document Number)", en: "Register number (document number)" }, max: 40 },

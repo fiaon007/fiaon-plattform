@@ -55,6 +55,10 @@ export const GLOBAL_STATION_FELDER: Record<string, StationFeld[]> = {
   name: [
     { feld: "name", ort: "grund", art: "text", titel: "Geprüfter Name der Gesellschaft", platzhalter: "MUSTER HOLDINGS LLC", max: 160, hilfe: "Ist der Wunschname vergeben, hier den freien Ausweichnamen eintragen." },
   ],
+  // 27.10.2026: die frühere Gesellschaft, die gelöscht wird — eine Zeile für den Kunden (Name · Bundesstaat · Nummer).
+  vorgesellschaft: [
+    { feld: "vorGesellschaft", ort: "plus", art: "text", titel: "Frühere Gesellschaft (Name · Bundesstaat · Nummer)", platzhalter: "MUSTER LLC · Wyoming · 2026-000000000", max: 200 },
+  ],
   eingetragen: [
     { feld: "name", ort: "grund", art: "text", titel: "Name der Gesellschaft", platzhalter: "MUSTER HOLDINGS LLC", max: 160 },
     { feld: "form", ort: "grund", art: "form", titel: "Rechtsform" },
@@ -286,7 +290,7 @@ export function stationWertePruefen(schluessel: string, roh: Record<string, unkn
 
 // ── WAS DER KUNDE SIEHT ──────────────────────────────────────────────────────
 /** Die Felder von gesellschaft_plus, die das Portal zeigen darf. Alles andere (itinEnc, kontoInstitut, registeredAgent) bleibt drin. */
-export const GLOBAL_PLUS_KUNDE = ["aktenzeichen", "ein", "einBriefAm", "agentAdresse", "kontaktperson", "usAdresse", "usTelefon", "privatAdresse", "itinBescheidAm", "duns", "kontoEroeffnetAm", "hinweis"] as const;
+export const GLOBAL_PLUS_KUNDE = ["vorGesellschaft", "aktenzeichen", "ein", "einBriefAm", "agentAdresse", "kontaktperson", "usAdresse", "usTelefon", "privatAdresse", "itinBescheidAm", "duns", "kontoEroeffnetAm", "hinweis"] as const;
 export type GlobalPlusKunde = Partial<Record<(typeof GLOBAL_PLUS_KUNDE)[number], string | null>> & { itinMaske?: string | null; itinVorhanden?: boolean };
 /** Die Wand gegen Interna: nur freigegebene Felder, die ITIN nur als Maske. */
 export function globalPlusFuerKunde(plus: GlobalGesellschaftPlus | null | undefined): GlobalPlusKunde {
@@ -309,12 +313,12 @@ export function globalPlusFuerTeam(plus: GlobalGesellschaftPlus | null | undefin
 export interface StationZeile { key: string; titel: string; wert: string; kopie?: string; geheim?: "itin" }
 const W: Record<BereichSprache, Record<string, string>> = {
   de: {
-    name: "Gesellschaft", staat: "Bundesstaat", gegruendet: "Gegründet am", akz: "State File Number", agentAdresse: "Anschrift des Registered Agent", kontakt: "Kontaktperson",
+    vor: "Frühere Gesellschaft", name: "Gesellschaft", staat: "Bundesstaat", gegruendet: "Gegründet am", akz: "State File Number", agentAdresse: "Anschrift des Registered Agent", kontakt: "Kontaktperson",
     telefon: "US-Telefonnummer", geschaeft: "US-Geschäftsadresse", privat: "Private US-Adresse", ein: "EIN", einBrief: "Bestätigung der US-Steuerbehörde vom",
     itin: "ITIN", itinBescheid: "Bescheid der US-Steuerbehörde vom", duns: "D-U-N-S-Nummer", konto: "Geschäftskonto eröffnet am",
   },
   en: {
-    name: "Company", staat: "State", gegruendet: "Formed on", akz: "State file number", agentAdresse: "Registered agent address", kontakt: "Contact person",
+    vor: "Previous company", name: "Company", staat: "State", gegruendet: "Formed on", akz: "State file number", agentAdresse: "Registered agent address", kontakt: "Contact person",
     telefon: "US phone number", geschaeft: "US business address", privat: "Private US address", ein: "EIN", einBrief: "IRS confirmation dated",
     itin: "ITIN", itinBescheid: "IRS notice dated", duns: "D-U-N-S number", konto: "Business account opened on",
   },
@@ -325,6 +329,9 @@ export function stationZeilen(schluessel: string, g: GlobalGesellschaft | null |
   const z: StationZeile[] = [];
   const dazu = (key: string, titel: string, wert: string | null | undefined, extra: Partial<StationZeile> = {}) => { if (wert) z.push({ key, titel, wert, ...extra }); };
   switch (schluessel) {
+    case "vorgesellschaft":
+      dazu("vor", w.vor, pp.vorGesellschaft);
+      break;
     case "eingetragen":
       dazu("name", w.name, gg.name ?? null);
       dazu("staat", w.staat, gg.bundesstaat ? (staatName(gg.bundesstaat) ?? gg.bundesstaat) : null);

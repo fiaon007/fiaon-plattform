@@ -36,7 +36,7 @@ import {
 import { globalDokumentArt, globalDokumentArtText, istIsoTag, type BereichSprache } from "@shared/fiaon-global-bereich";
 import { unterschriftModus } from "@shared/fiaon-global-akte";
 import {
-  GLOBAL_FAHRPLAN, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
+  GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
   globalTresorKategorie, globalAngebotKundeAnzeige, type GlobalGesellschaftPlus,
 } from "@shared/fiaon-global-mandat";
@@ -195,7 +195,8 @@ async function schritteLesen(ref: string, sprache: BereichSprache, fuer: "kunde"
       status: z ? String(z.status) : "offen", datum: z ? tag(z.datum) : null, beantragtAm: z ? tag(z.beantragt_am) : null, hinweis: z?.hinweis ? String(z.hinweis) : null,
       ...(fuer === "chef" ? { intern: z?.intern ? String(z.intern) : null, geaendertVon: z?.geaendert_von ?? null, geaendertAm: iso(z?.updated_at) } : {}),
     };
-  }).filter((s) => fuer === "chef" || s.status !== "entfaellt");
+    // 27.10.2026: Stationen „nur bei Bedarf“ sieht der Kunde erst, wenn sie im Mandat angelegt sind; das Team sieht sie immer (zum Anlegen).
+  }).filter((s) => fuer === "chef" ? true : s.status !== "entfaellt" && (!GLOBAL_FAHRPLAN_BEDARF.includes(s.schluessel) || nach.has(s.schluessel)));
 }
 
 async function kapitalLesen(ref: string, sprache: BereichSprache, fuer: "kunde" | "chef"): Promise<Record<string, unknown>[]> {
@@ -336,7 +337,8 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
            (SELECT COUNT(*)::int FROM fiaon_global_dokumente d WHERE d.ref = g.ref AND d.art = 'post' AND d.kunde_gelesen_am IS NULL AND d.geloescht_am IS NULL) AS post_ungelesen,
            (SELECT MIN(f.faellig_am) FROM fiaon_global_fristen f WHERE f.ref = g.ref AND f.erledigt_am IS NULL) AS naechste_frist,
            (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status = 'erledigt') AS schritte_erledigt,
-           (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status = 'entfaellt') AS schritte_entfallen
+           (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status = 'entfaellt' AND NOT (s.schluessel = ANY(${GLOBAL_FAHRPLAN_BEDARF}))) AS schritte_entfallen,
+           (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status <> 'entfaellt' AND s.schluessel = ANY(${GLOBAL_FAHRPLAN_BEDARF})) AS schritte_bedarf
       FROM fiaon_global_auftraege g
       LEFT JOIN fiaon_agents ag ON ag.id = g.zustaendig_agent_id
      ORDER BY g.created_at DESC`) as any[];
@@ -347,7 +349,7 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
     const ap = json<Record<string, any>>(a.ansprechpartner, {});
     const g = json<Record<string, any>>(a.gesellschaft, {});
     const kunde = [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || String(firma.name || a.firma_name || "");
-    const gesamt = GLOBAL_FAHRPLAN.length - Number(a.schritte_entfallen || 0);
+    const gesamt = GLOBAL_FAHRPLAN.length - GLOBAL_FAHRPLAN_BEDARF.length + Number(a.schritte_bedarf || 0) - Number(a.schritte_entfallen || 0);
     mandate.push({
       ref: String(a.ref), status: l?.status ?? "offen", paket: String(a.paket_key),
       kunde, firma: firma.art === "privat" ? null : String(firma.name || a.firma_name || "") || null,

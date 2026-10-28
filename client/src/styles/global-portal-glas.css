@@ -80,13 +80,17 @@
 .gp-glas .gp-sperr-gruss { margin: 26px 0 0; font: 400 15px/1.4 var(--ap); color: rgba(255, 255, 255, .86); animation: gp-ein .9s var(--kurve) .2s both; }
 /* ── E-452: DER FIRMENNAME ALS BÜHNE ─────────────────────────────────────────
    Justin: „Prozentanzeige weg — lieber eine perfekte Animation mit den Firmennamen, HIGH END“.
-   Zwei deckungsgleiche Lagen: (1) die Buchstaben steigen gestaffelt aus der Maske ihres Wortes (overflow: hidden),
-   weich abgebremst; (2) die Glanzlage — nur ein heller Lichtstreifen, per background-clip auf die Buchstaben
-   beschnitten — streicht EINMAL von links nach rechts darüber, wenn der Name steht. Dahinter ein ruhiger Lichthof,
-   der sehr langsam atmet (nur opacity, läuft nicht unter einer Glasfläche). Ohne Bewegung: alles sofort da. */
+   Zwei deckungsgleiche Lagen: (1) die WÖRTER steigen gestaffelt aus ihrer Maske (overflow: hidden) und blenden dabei
+   auf — wie Apple ganze Wörter zeigt; (2) die Glanzlage trägt EINEN Verlauf über den ganzen Namen (background-clip:
+   text) und streicht EINMAL als gleichmäßiger Lichtstrich darüber, wenn der Name steht — eine Fläche, kein Glanz je
+   Buchstabe, kein Filter. Dahinter ein ruhiger Lichthof, der sehr langsam atmet (nur opacity, unter keiner Glasfläche).
+   Lange Wörter: die Schrift schrumpft, bis das längste Wort (--lang Zeichen) in die Breite passt — nie abgeschnitten.
+   Ohne Bewegung oder beim zweiten Besuch: alles sofort da. */
 .gp-glas .gp-name {
+  --lang: 10;
   position: relative; margin: 8px 0 0; max-width: 100%;
-  font: 200 clamp(34px, 9.2vw, 78px)/1.06 var(--ap); letter-spacing: -.018em; color: #fff;
+  font: 200 min(clamp(34px, 9.2vw, 78px), calc(min(100vw - 32px, 760px) / (var(--lang) * .68)))/1.06 var(--ap);
+  letter-spacing: -.018em; color: #fff;
   text-wrap: balance;
 }
 .gp-glas .gp-name::before {
@@ -95,30 +99,34 @@
   animation: gp-name-hof 1.6s var(--kurve) .2s both, gp-name-atmen 9s ease-in-out 2s infinite alternate;
 }
 .gp-glas .gp-name-lage { display: block; }
-.gp-glas .gp-name-glanz { position: absolute; inset: 0; pointer-events: none; }
 .gp-glas .gp-name-wort {
   display: inline-block; white-space: nowrap; overflow: hidden; vertical-align: top;
-  /* Luft für Ober- und Unterlängen innerhalb der Maske, ohne die Zeilenhöhe zu ändern. */
-  padding: .08em .03em .14em; margin: -.08em -.03em -.14em;
+  /* Luft für Umlaut-Punkte, Ober- und Unterlängen innerhalb der Maske, ohne die Zeilenhöhe zu ändern. */
+  padding: .18em .04em .16em; margin: -.18em -.04em -.16em;
 }
 .gp-glas .gp-name-b {
   display: inline-block;
-  background: linear-gradient(180deg, #ffffff 18%, #dbeaff 100%);
+  /* Ein Hauch unter Reinweiß, damit der Lichtstrich darüber sichtbar wird (Weiß auf Weiß sähe man nicht). */
+  background: linear-gradient(180deg, #f1f6ff 12%, #cfe1ff 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: gp-name-auf .95s cubic-bezier(.16, 1, .3, 1) both;
+  animation: gp-name-auf .9s cubic-bezier(.16, 1, .3, 1) both;
 }
-/* Glanzlage: je Buchstabe ein schmaler Lichtstreifen, nacheinander gestartet — zusammen EIN Strich über den Namen. */
-.gp-glas .gp-name-glanz { filter: drop-shadow(0 0 10px rgba(205, 230, 255, .6)); }
-.gp-glas .gp-name-glanz .gp-name-b {
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 36%, rgba(255, 255, 255, .96) 50%, rgba(255, 255, 255, 0) 64%) no-repeat;
+/* Glanzlage: EIN Verlauf auf der ganzen Lage, die Wörter ohne eigenen Hintergrund — ein Strich über den ganzen Namen. */
+.gp-glas .gp-name-glanz {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0) 38%, #fff 50%, rgba(255, 255, 255, 0) 62%) no-repeat;
   background-size: 300% 100%; background-position: 100% 0;
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: gp-name-glanz .8s cubic-bezier(.45, 0, .25, 1) both;
+  animation: gp-name-glanz 1.1s ease-in-out both;
 }
-@keyframes gp-name-auf { from { transform: translateY(105%); } to { transform: none; } }
+@keyframes gp-name-auf { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes gp-name-glanz { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 @keyframes gp-name-hof { from { opacity: 0; transform: translate(-50%, -50%) scale(.82); } to { opacity: 1; transform: translate(-50%, -50%); } }
 @keyframes gp-name-atmen { from { opacity: 1; } to { opacity: .62; } }
+/* Zweiter Besuch der Übersicht (Rückkehr von einer Unterseite): der Name steht still da, ohne Schimmer. */
+.gp-glas .gp-name.gp-name-still .gp-name-b { animation: none; }
+.gp-glas .gp-name.gp-name-still .gp-name-glanz { display: none; }
+.gp-glas .gp-name.gp-name-still::before { animation: gp-name-atmen 9s ease-in-out infinite alternate; }
 /* Solange die Startbühne (#fi-start) noch über der Seite steht, wartet die ganze Choreografie der Bühne. */
 .gp-glas .gp-sperr.gp-wartet *, .gp-glas .gp-sperr.gp-wartet *::before { animation-play-state: paused; }
 .gp-glas .gp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
@@ -155,11 +163,11 @@
 .gp-glas .gp-widget:nth-child(3) { animation-delay: .16s; }
 .gp-glas button.gp-widget { cursor: pointer; transition: transform .3s var(--kurve), background .3s; }
 .gp-glas button.gp-widget:hover { transform: translateY(-2px); background: linear-gradient(160deg, rgba(255, 255, 255, .25), rgba(255, 255, 255, .1)), rgba(8, 26, 72, .12); }
-.gp-glas .gp-widget-auge { font: 500 11px/1 var(--ap); letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .66); }
+.gp-glas .gp-widget-auge { font: 500 11px/1 var(--ap); letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .74); }
 /* ── E-452: „Gerade“ — ein Satz, was passiert; darunter „Für Sie“: ein Schritt oder Ruhe ── */
-.gp-glas .gp-w-satz { margin: 2px 0 0; font: 300 19px/1.42 var(--ap); letter-spacing: -.005em; color: #fff; text-wrap: pretty; }
+.gp-glas .gp-w-satz { margin: 2px 0 0; font: 300 21px/1.38 var(--ap); letter-spacing: -.005em; color: #fff; text-wrap: pretty; }
 .gp-glas .gp-w-jetzt > small { font: 400 12.5px/1.3 var(--ap); color: rgba(255, 255, 255, .72); }
-.gp-glas .gp-w-fuer { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .16); display: flex; flex-direction: column; gap: 8px; }
+.gp-glas .gp-w-fuer { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .16); display: flex; flex-direction: column; gap: 8px; }
 .gp-glas .gp-w-fuer-zeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .gp-glas .gp-w-fuer-zeile p { flex: 1 1 180px; margin: 0; font: 400 14.5px/1.4 var(--ap); color: #fff; }
 .gp-glas .gp-w-ruhe { margin: 0; font: 400 14.5px/1.45 var(--ap); color: rgba(255, 255, 255, .86); }
@@ -173,18 +181,19 @@
 }
 .gp-glas .gp-meilen-zeile + .gp-meilen-zeile { border-top: 1px solid rgba(255, 255, 255, .12); }
 .gp-glas .gp-meilen-zeichen { position: relative; align-self: center; height: 18px; font: 400 14px/18px var(--ap); text-align: center; color: #bfdcff; }
+.gp-glas .gp-meilen-zeichen .gp-hk { color: #cfe5ff; }
 .gp-glas .gp-meilen-zeile.jetzt .gp-meilen-zeichen::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
   background: #fff; box-shadow: 0 0 0 5px rgba(255, 255, 255, .14), 0 0 16px rgba(170, 212, 255, .9);
 }
 .gp-glas .gp-meilen-zeile.offen .gp-meilen-zeichen::before {
   content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, .42);
+  border: 1px solid rgba(255, 255, 255, .6);
 }
 .gp-glas .gp-meilen-text { min-width: 0; font: 400 15px/1.35 var(--ap); color: #fff; overflow-wrap: anywhere; }
 .gp-glas .gp-meilen-zeile.fertig .gp-meilen-text { color: rgba(255, 255, 255, .78); }
-.gp-glas .gp-meilen-zeile.offen .gp-meilen-text { color: rgba(255, 255, 255, .6); font-weight: 300; }
-.gp-glas .gp-meilen-wann { font: 400 12.5px/1.3 var(--ap); color: rgba(255, 255, 255, .62); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gp-glas .gp-meilen-zeile.offen .gp-meilen-text { color: rgba(255, 255, 255, .78); font-weight: 400; }
+.gp-glas .gp-meilen-wann { font: 400 12.5px/1.3 var(--ap); color: rgba(255, 255, 255, .8); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .gp-glas .gp-meilen-zeile.jetzt .gp-meilen-wann { color: #cfe5ff; }
 .gp-glas .gp-w-link {
   align-self: flex-start; margin-top: auto; padding: 8px 0 0; min-height: 36px; border: 0; background: none; cursor: pointer;
@@ -248,6 +257,9 @@
 
 /* ── Vertrag: die Nummer leise unter dem Titel (sie brach sonst mitten im Titel um) ── */
 .gp-glas .gp-ref-zeile { margin: 6px 0 0; font: 400 12.5px/1.3 var(--ap); letter-spacing: .04em; color: var(--leise); font-variant-numeric: tabular-nums; }
+/* ── E-452: EINE Schrift für den Firmennamen und den Sparringspartner — Apple-Glas ist die Vorlage, keine Serifen. ── */
+.gp-glas .gp-karte-gross { font: 300 26px/1.15 var(--ap); letter-spacing: -.012em; overflow-wrap: anywhere; }
+.gp-glas .gpf-sparring-kopf b { font-family: var(--ap); font-weight: 300; letter-spacing: -.01em; }
 /* ── Fahrplan: Kapitel in der Apple-Schrift ── */
 .gp-glas .gp-kapitel-kopf b { font: 500 18px/1.3 var(--ap); letter-spacing: -.01em; }
 /* ── Menü am Telefon: dieselbe Schrift, Knopf in Glasblau ── */
@@ -263,9 +275,11 @@
   .gp.gp-glas { --gp-kopf: 68px; padding: 0 16px 34px; }
   .gp-glas .gp-vorschau { margin: 0 -16px; padding: 10px 16px; }
   .gp-glas .gp-sperr { padding: calc(var(--gp-kopf) + 34px) 16px 22px; border-radius: 0 0 32px 32px; }
+  .gp-glas .gp-name { font-size: min(clamp(34px, 9.2vw, 78px), calc((100vw - 32px) / (var(--lang) * .68))); }
   .gp-glas .gp-sperr-gruss { margin-top: 22px; }
   .gp-glas .gp-widgets { margin-top: 24px; gap: 10px; }
   .gp-glas .gp-widget { padding: 16px; border-radius: 22px; }
+  .gp-glas .gp-w-satz { font-size: 18.5px; }
   .gp-glas .gp-seiteninhalt { gap: 14px; }
   .gp-glas .gp-abschnitt { padding: 20px 16px; border-radius: 24px; }
   .gp-glas .gp-h2 { font-size: 20px; }

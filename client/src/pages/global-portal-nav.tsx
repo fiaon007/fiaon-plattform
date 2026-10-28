@@ -14,7 +14,7 @@
 // schließt und gibt den Fokus an das Thema zurück; ein Klick daneben oder Tab
 // aus dem Kopf schließt ebenfalls. Die Adresse bleibt #<seite> — Zurück-Taste
 // und geteilte Links funktionieren wie bisher. Bei „Bewegung reduzieren“ gleitet
-// nichts. Keine Icon-Bibliothek: Ordnung durch Typografie, Ziffern, Haarlinien.
+// nichts. Keine Icon-Bibliothek: Ordnung durch Typografie und Haarlinien (E-452: keine Ziffern).
 // Nichts klebt beim Scrollen (Hausregel des Portals).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";

@@ -109,7 +109,13 @@ ok(S.GLOBAL_STATION_UNTERSCHRIFT.ein?.pflichtKey === "irs_ss4", "SS-4 an der EIN
   const g = await import("../shared/fiaon-global");
   ok(/Inhaber/.test(g.GLOBAL_AGENT.de.kontakt) && !/übernehmen wir das für Sie/.test(g.GLOBAL_AGENT.de.kontakt), "Kundensatz aus GLOBAL_AGENT (E-424): der Inhaber, nicht FIAON");
   const portalQuelle = datei("client/src/pages/global-portal.tsx");
-  ok(/GLOBAL_AGENT\[s\]\.kontakt/.test(portalQuelle), "Portal zeigt den Kontaktpersonen-Satz aus GLOBAL_AGENT");
+  // E-452: der Satz passt zum Bundesstaat — Wyoming (oder ohne Staat) = GLOBAL_AGENT, sonst ohne fremde Rechtslage.
+  ok(/globalAgentKontakt\(s, g\.bundesstaat\)/.test(portalQuelle), "Portal zeigt den Kontaktpersonen-Satz aus GLOBAL_AGENT (je Bundesstaat)");
+  for (const sp of ["de", "en"] as const) {
+    ok(g.globalAgentKontakt(sp, "WY") === g.GLOBAL_AGENT[sp].kontakt && g.globalAgentKontakt(sp, null) === g.GLOBAL_AGENT[sp].kontakt, `${sp}: Wyoming und ohne Staat = Satz aus GLOBAL_AGENT`);
+    const fl = g.globalAgentKontakt(sp, "FL");
+    ok(!/Wyoming/.test(fl) && (sp === "de" ? /Inhaber/ : /owner/).test(fl), `${sp}: Florida-Gesellschaft — kein „Wyoming verlangt …“, Inhaber bleibt`);
+  }
   const libQ = datei("server/lib/fiaon-global-mandat.ts");
   ok(/FROM fiaon_agents WHERE COALESCE\(is_test_account, FALSE\) = FALSE/.test(libQ) && /jemand aus dem FIAON-Team/.test(libQ), "Server lehnt eine Kontaktperson aus dem FIAON-Team ab");
   ok(/stationKontaktWarnungen\(neu\.kontaktAdresse, neu\.agentAdresse\)/.test(libQ) && /export async function globalKontaktVorschlag/.test(libQ), "Server: Warnungen zur Anschrift + Vorschlag aus dem Auftrag");

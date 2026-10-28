@@ -26,7 +26,7 @@ import { Fragment, Suspense, lazy, useEffect, useMemo, useRef, useState, type Fo
 // (Ausklapp-Winkel, Lade-Kreis ohne Text). Alles andere ist Text und Typografie.
 import { ChevronDown, Loader2 } from "lucide-react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
-import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalPreisText } from "@shared/fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalAgentKontakt, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_FAHRPLAN, GLOBAL_TRESOR, globalNaechsterSchritt, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
 import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-bereich";
@@ -75,7 +75,7 @@ const W = {
     morgen: "Guten Morgen", tag: "Guten Tag", abend: "Guten Abend",
     navTitel: "Bereiche Ihres Portals", buero: "Ihr US-Büro", menue: "Menü",
     gruppen: { uebersicht: "Übersicht", weg: "Ihre Firma", buero: "Ihr Büro", kapital: "Kapital", vertrag: "Vertrag & Zahlung", fach: "Fachbereiche" } as Record<string, string>,
-    seiten: { uebersicht: "Übersicht", fahrplan: "Ihr Weg", gesellschaft: "Ihre Gesellschaft", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
+    seiten: { uebersicht: "Übersicht", fahrplan: "Ihr Weg", gesellschaft: "Firmendaten", tresor: "Tresor", post: "Post", adressen: "Nummer & Adressen", anfragen: "Anfragen", kapital: "Banken & Kapital", vertrag: "Vertrag & Zahlung", dienste: ZUSATZ_WOERTER.de.nav, strategie: "Strategie & Wachstum", recht: "Recht & Verträge", steuern: "Steuern & Pflichten" } as Record<string, string>,
     // E-452 (28.10.2026): Justin: „auch nicht sowas wie ‚Phase I von IV‘ — viel zu kompliziert, denk dich in den Kunden rein“.
     // Keine Phasen, Ziffern oder Zähler: EIN Satz, was gerade passiert, EIN Schritt für den Kunden, die Meilensteine in Alltagssprache.
     vorStart: "Vor dem Start", allesErledigt: "Alles erledigt",
@@ -91,7 +91,7 @@ const W = {
     } as Record<string, string>,
     chip: { seit: (f: string, d: string) => `${f} seit ${d}`, name: "Name geprüft", ein: "EIN erteilt", itin: "ITIN erteilt", duns: "D-U-N-S vorhanden", konto: "Geschäftskonto eröffnet" },
     wegAuge: "Ihr Weg", kopieren: "Kopieren", dokOeffnen: "Öffnen",
-    rolle: "Ihr Ansprechpartner", nachricht: "Nachricht", meilenstein: "Nächster Schritt",
+    rolle: "Ihr Ansprechpartner", nachricht: "Nachricht",
     karteWeg: { auge: "Ihr Weg", text: "Jeder Schritt mit Datum, sobald er erledigt ist.", knopf: "Ihren Weg ansehen" },
     karteBuero: { auge: "Ihr Briefkasten", neu: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, leer: "Alles gelesen", text: "Jeder Brief für Ihre Gesellschaft wird für Sie eingescannt.", knopf: "Zur Post" },
     karteFach: { auge: "Fachbereiche", titel: "Antworten für Ihre Gesellschaft", text: "Sparring, Vorlagen und Fristen — jederzeit, auf Ihre Gesellschaft bezogen." },
@@ -125,9 +125,8 @@ const W = {
     } as Record<string, string>,
     alleBereiche: "Alles für Ihre Gesellschaft",
     meinAuftrag: "Mein Auftrag", ihreGesellschaft: "Ihre Gesellschaft", inGruendung: "in Gründung", gesellschaftOhneName: "Ihre US-Gesellschaft",
-    schritte: (a: number, b: number) => `${a} von ${b} Schritten`, naechster: "Ihr nächster Schritt", naechsterLeer: "Wir melden uns mit dem nächsten Schritt.",
-    sprung: { tun: "Für Sie", fahrplan: "Fahrplan", tresor: "Tresor", post: "Post", anfragen: "Anfragen", kapital: "Banken & Kapital", fristen: "Pflichten", auftrag: "Vertrag" },
-    tunTitel: "Für Sie zu tun", tunLeer: "Alles erledigt — wir sind am Zug.",
+    naechsterLeer: "Wir melden uns mit dem nächsten Schritt.",
+    tunTitel: "Für Sie zu tun", tunWeiter: "Weitere Schritte", tunLeer: "Alles erledigt — wir sind am Zug.",
     unterschriftTitel: (x: string) => `Bitte unterschreiben: ${x}`, unterschriftText: "Direkt hier, ohne Ausdrucken.", unterschreiben: "Jetzt unterschreiben",
     antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Zu Ihrer Anfrage.", lesen: "Antwort lesen",
     postTitel: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, postText: "Für Sie eingescannt.", oeffnen: "Öffnen",
@@ -136,8 +135,9 @@ const W = {
     neuTitel: (x: string) => `Bitte neu einreichen: ${x}`, bitteNeu: "Bitte neu einreichen", neuGrund: (x: string) => `Bitte neu: ${x}`,
     termin: "Ihr Startgespräch",
     fahrplanTitel: "Schritt für Schritt", fahrplanLead: "Was erledigt ist, steht mit Datum da. Was noch kommt, folgt darunter.",
-    stand: { offen: "offen", in_arbeit: "in Arbeit", beantragt: "beantragt", erledigt: "erledigt" } as Record<string, string>,
-    etappeStand: { fertig: "erledigt", jetzt: "läuft gerade", arbeit: "läuft gerade", offen: "kommt danach" } as Record<string, string>,
+    // E-452: EIN Wort für „läuft“ — Karte, Kapitel und Station sagen dasselbe.
+    stand: { offen: "offen", in_arbeit: "läuft", beantragt: "läuft", erledigt: "erledigt" } as Record<string, string>,
+    etappeStand: { fertig: "erledigt", jetzt: "läuft", arbeit: "läuft", offen: "kommt danach" } as Record<string, string>,
     tresorTitel: "Ihr Tresor", tresorLead: "Alle Dokumente vertraulich an einem Ort — unterschreiben direkt hier.", alle: "Alle",
     nachweise: "Nachweise und Sicherheiten", vertragRechnungen: "Vertrag und Rechnungen", neu: "Neu", leerMappe: "Noch leer.",
     hochladenTitel: "Unterlage hochladen", hochladenFeld: "Datei hierher ziehen oder auswählen", hochladenKlein: "PDF, JPG, PNG oder HEIC · bis 15 MB", art: "Was laden Sie hoch?", hochladen: "Hochladen", laedt: "Wird hochgeladen …",
@@ -162,7 +162,7 @@ const W = {
     morgen: "Good morning", tag: "Good afternoon", abend: "Good evening",
     navTitel: "Areas of your portal", buero: "Your US office", menue: "Menu",
     gruppen: { uebersicht: "Overview", weg: "Your company", buero: "Your office", kapital: "Capital", vertrag: "Contract & payment", fach: "Expert areas" } as Record<string, string>,
-    seiten: { uebersicht: "Overview", fahrplan: "Your path", gesellschaft: "Your company", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
+    seiten: { uebersicht: "Overview", fahrplan: "Your path", gesellschaft: "Company details", tresor: "Vault", post: "Mail", adressen: "Number & addresses", anfragen: "Requests", kapital: "Banking & capital", vertrag: "Contract & payment", dienste: ZUSATZ_WOERTER.en.nav, strategie: "Strategy & growth", recht: "Law & contracts", steuern: "Tax & compliance" } as Record<string, string>,
     vorStart: "Before the start", allesErledigt: "All done",
     jetztAuge: "Right now", fuerSie: "For you", nichtsTun: "There is nothing you need to do right now.",
     wegAnsehen: "See the whole path", laeuft: "under way", wegStartet: "Your path begins once your payment arrives.",
@@ -175,7 +175,7 @@ const W = {
     } as Record<string, string>,
     chip: { seit: (f: string, d: string) => `${f} since ${d}`, name: "Name checked", ein: "EIN issued", itin: "ITIN issued", duns: "D-U-N-S on file", konto: "Business account open" },
     wegAuge: "Your path", kopieren: "Copy", dokOeffnen: "Open",
-    rolle: "Your contact", nachricht: "Message", meilenstein: "Next step",
+    rolle: "Your contact", nachricht: "Message",
     karteWeg: { auge: "Your path", text: "Every step with its date once it is done.", knopf: "See your path" },
     karteBuero: { auge: "Your mailbox", neu: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, leer: "All read", text: "Every letter for your company is scanned for you.", knopf: "To your mail" },
     karteFach: { auge: "Expert areas", titel: "Answers for your company", text: "Sparring, templates and deadlines — any time, tailored to your company." },
@@ -208,9 +208,8 @@ const W = {
     } as Record<string, string>,
     alleBereiche: "Everything for your company",
     meinAuftrag: "My order", ihreGesellschaft: "Your company", inGruendung: "being formed", gesellschaftOhneName: "Your US company",
-    schritte: (a: number, b: number) => `${a} of ${b} steps`, naechster: "Your next step", naechsterLeer: "We will be in touch with the next step.",
-    sprung: { tun: "For you", fahrplan: "Roadmap", tresor: "Vault", post: "Mail", anfragen: "Requests", kapital: "Banking & capital", fristen: "Compliance", auftrag: "Contract" },
-    tunTitel: "For you to do", tunLeer: "All done — the next move is ours.",
+    naechsterLeer: "We will be in touch with the next step.",
+    tunTitel: "For you to do", tunWeiter: "Further steps", tunLeer: "All done — the next move is ours.",
     unterschriftTitel: (x: string) => `Please sign: ${x}`, unterschriftText: "Right here, no printing needed.", unterschreiben: "Sign now",
     antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "On your request.", lesen: "Read the reply",
     postTitel: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, postText: "Scanned for you.", oeffnen: "Open",
@@ -218,7 +217,7 @@ const W = {
     neuTitel: (x: string) => `Please submit again: ${x}`, bitteNeu: "Please submit again", neuGrund: (x: string) => `Needed again: ${x}`,
     termin: "Your kick-off call",
     fahrplanTitel: "Step by step", fahrplanLead: "What is done carries its date. What is still to come follows below.",
-    stand: { offen: "open", in_arbeit: "in progress", beantragt: "applied for", erledigt: "done" } as Record<string, string>,
+    stand: { offen: "open", in_arbeit: "under way", beantragt: "under way", erledigt: "done" } as Record<string, string>,
     etappeStand: { fertig: "done", jetzt: "under way", arbeit: "under way", offen: "still to come" } as Record<string, string>,
     tresorTitel: "Your vault", tresorLead: "Every document, confidential and in one place — sign right here.", alle: "All",
     nachweise: "Evidence and collateral", vertragRechnungen: "Contract and invoices", neu: "New", leerMappe: "Empty for now.",
@@ -259,17 +258,17 @@ function useAuftauchen(abh: unknown) {
 
 /**
  * E-452: Beim ersten Aufruf steht die Startbühne (index.html, #fi-start) über der Seite. Die Bühne der Übersicht wartet,
- * bis sie aufgeht — sonst liefe die Namens-Animation unsichtbar dahinter ab. Nach Seitenwechseln gibt es keine Startbühne.
+ * bis sie WEG ist — sonst liefe die Namens-Animation dahinter ab. „zu“ ist nur der Anfang ihres Ausgangs (App.tsx:
+ * die Streifen laufen danach noch ~950 ms über die Seite); erst wenn die Hülle aus dem DOM ist, steht die Bühne frei.
+ * Nach Seitenwechseln gibt es keine Startbühne. Die Hülle liegt direkt in <body> (index.html).
  */
 function useStartbuehneOffen(): boolean {
-  const offen = () => { const h = typeof document !== "undefined" ? document.getElementById("fi-start") : null; return !h || h.classList.contains("zu"); };
+  const offen = () => typeof document === "undefined" || !document.getElementById("fi-start");
   const [o, setO] = useState(offen);
   useEffect(() => {
     if (o) return;
-    const h = document.getElementById("fi-start");
-    if (!h) { setO(true); return; }
+    if (offen()) { setO(true); return; }
     const mo = new MutationObserver(() => { if (offen()) { setO(true); mo.disconnect(); } });
-    mo.observe(h, { attributes: true, attributeFilter: ["class"] });
     mo.observe(document.body, { childList: true });
     const notfall = window.setTimeout(() => setO(true), 6000);
     return () => { mo.disconnect(); window.clearTimeout(notfall); };
@@ -361,8 +360,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const J = GLOBAL_JAHRESBETREUUNG[s];
   const stunde = new Date().getHours();
   const hallo = stunde < 11 ? w.morgen : stunde < 18 ? w.tag : w.abend;
-  // „Herr Hildbrand" — mit Anrede und Nachname; fehlt die Anrede, der hinterlegte Name, sonst nur der Gruß.
-  const name = a.gruss?.anrede && a.gruss?.nachname ? `${a.gruss.anrede} ${a.gruss.nachname}` : (a.gruss?.name ?? "");
+  // „Herr Mustermann" — mit Anrede und Nachname; fehlt die Anrede, der hinterlegte Name, sonst nur der Gruß.
+  // E-452: auf Englisch „Mr“/„Ms“ statt „Herr“/„Frau“ (die Anrede kommt deutsch aus dem Auftrag).
+  const anredeText = (x: string) => s !== "en" ? x : ({ herr: "Mr", frau: "Ms" } as Record<string, string>)[x.trim().toLowerCase()] ?? x;
+  const name = a.gruss?.anrede && a.gruss?.nachname ? `${anredeText(String(a.gruss.anrede))} ${a.gruss.nachname}` : (a.gruss?.name ?? "");
   const vollerName = [a.gruss?.vorname, a.gruss?.nachname].filter(Boolean).join(" ") || a.gruss?.name || "";
 
   // ── Tresor-Mappen ──
@@ -490,6 +491,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     }
   }
   const sg = a.angebot?.startgespraech;
+  // E-452 (Gutachten): tun[0] steht in der Bühne unter „Für Sie“ — darunter nur der Rest, nie derselbe Auftrag zweimal.
+  const tunWeiter = tun.slice(1);
   // Die Etappe kommt vom Server (sie steuert Mails). Für die Anzeige gilt zusätzlich der Fahrplan: Läuft in einer
   // „folgenden" Etappe schon etwas, steht sie auf „in Arbeit" — die Seite widerspricht sich nicht.
   const standAnzeige = (e: T): string => {
@@ -507,7 +510,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     switch (k) {
       case "uebersicht": return de ? "Ihr Stand auf einen Blick" : "Your status at a glance";
       case "fahrplan": return wegKurz;
-      case "gesellschaft": return [g.name, gp.ein ? `EIN ${gp.ein}` : "", gp.duns ? "D-U-N-S" : ""].filter(Boolean).join(" · ") || (de ? "Name, Nummern und Daten" : "Name, numbers and dates");
+      // E-452: ohne den Namen — er steht auf jeder Karte schon groß darüber.
+      case "gesellschaft": return [gp.ein ? `EIN ${gp.ein}` : "", gp.duns ? "D-U-N-S" : ""].filter(Boolean).join(" · ") || (de ? "Nummern und Daten" : "Numbers and dates");
       case "adressen": return [gp.usTelefon ? stationTelefonText(gp.usTelefon) : "", gp.usAdresse ? (de ? "Geschäftsadresse" : "Business address") : "", gp.privatAdresse ? (de ? "private Adresse" : "private address") : ""].filter(Boolean).join(" · ") || (de ? "Folgt mit der Einrichtung" : "Follows with the set-up");
       case "tresor": return de ? `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} Dokumente${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} zur Unterschrift` : ""}` : `${tresorDoks.length + (a.angebotUnterlagen ?? []).length} documents${zuUnterschreiben.length ? ` · ${zuUnterschreiben.length} to sign` : ""}`;
       case "post": return postNeu.length ? (de ? `${postNeu.length} ungelesen` : `${postNeu.length} unread`) : (de ? `${post.length} Briefe` : `${post.length} letters`);
@@ -580,7 +584,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
         {z.geheim === "itin" && (itinKlar
           ? <button type="button" className="gp-kopie" onClick={() => setItinKlar(null)}>{w.verbergen}</button>
           : <button type="button" className="gp-kopie" onClick={() => void itinAnzeigen()} data-fiaon="itin-anzeigen">{w.anzeigen}</button>)}
-        {z.kopie && <button type="button" className="gp-kopie" onClick={() => kopieren(z.kopie!, z.key)} aria-label={`${z.titel} kopieren`}>{kopiert === z.key ? w.kopiert : w.kopieren}</button>}
+        {z.kopie && <button type="button" className="gp-kopie" onClick={() => kopieren(z.kopie!, z.key)} aria-label={`${z.titel}: ${kopiert === z.key ? w.kopiert : w.kopieren}`}>{kopiert === z.key ? w.kopiert : w.kopieren}</button>}
       </dd>
     </div>
   );
@@ -656,9 +660,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                       <ol className="gp-meilen" aria-label={t.wegTitel}>
                         {meilensteine.map(({ x, stand }, i) => (
                           <li key={String(x.schluessel ?? i)} className={`gp-meilen-zeile ${stand}`} style={{ ["--i" as any]: i }} aria-current={stand === "jetzt" ? "step" : undefined}>
-                            <span className="gp-meilen-zeichen" aria-hidden="true">{stand === "fertig" ? "✓" : ""}</span>
+                            <span className="gp-meilen-zeichen" aria-hidden="true">{stand === "fertig" ? <i className="gp-hk" /> : null}</span>
                             <span className="gp-meilen-text">{alltag(x)}<span className="gp-sr"> · {w.etappeStand[stand === "jetzt" ? "jetzt" : stand]}</span></span>
-                            <span className="gp-meilen-wann" aria-hidden="true">{stand === "fertig" ? tagMonat(x.datum) : stand === "jetzt" ? w.laeuft : ""}</span>
+                            <span className="gp-meilen-wann" aria-hidden={stand === "fertig" ? undefined : true}>{stand === "fertig" ? tagMonat(x.datum) : stand === "jetzt" ? w.laeuft : ""}</span>
                           </li>
                         ))}
                       </ol>
@@ -675,14 +679,14 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 </div>
               </section>
 
-              {/* ── Für Sie zu tun ── */}
+              {/* ── Weitere Schritte (E-452): der erste Schritt steht schon oben unter „Für Sie“ — hier nur, was danach kommt.
+                    Ist nichts weiter zu tun und kein Termin da, entfällt der Abschnitt (oben steht schon „Sie müssen gerade nichts tun.“). ── */}
+              {(tunWeiter.length > 0 || !!(sg && (sg.zeile || sg.satz))) && (
               <section id="gp-tun" className="gp-abschnitt gp-auftauchen">
-                <h2 className="gp-h2">{w.tunTitel}</h2>
-                {tun.length === 0 ? (
-                  <div className="gp-alles-gut"><p>{w.tunLeer}</p></div>
-                ) : (
+                <h2 className="gp-h2">{tunWeiter.length ? w.tunWeiter : w.termin}</h2>
+                {tunWeiter.length > 0 && (
                   <div className="gp-tun">
-                    {tun.map((x, i) => (
+                    {tunWeiter.map((x, i) => (
                       <div key={x.key} className={`gp-tun-karte ${x.ton}`} style={{ ["--i" as any]: i }}>
                         <div><b>{x.titel}</b><p>{x.text}</p></div>
                         {x.href ? <a className="gp-knopf" href={x.href}>{x.knopf}</a>
@@ -703,6 +707,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 )}
                 {sg && !sg.zeile && sg.satz && <p className="gp-leise">{sg.satz}</p>}
               </section>
+              )}
 
               {/* ── Ihr Büro: Nummer, Konto & Karten, Adressen & Post, Fristen, Dokumente, Dienste — jede Kachel klickbar ── */}
               <section className="gp-abschnitt gp-auftauchen gp-buero" aria-label={w.bueroTitel}>
@@ -781,7 +786,6 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                 return (
                   <div key={nr} className={`gp-kapitel ${st}${e.imPaket === false ? " ausserhalb" : ""}`}>
                     <div className="gp-kapitel-kopf">
-                      <span className="gp-kapitel-punkt" aria-hidden="true" />
                       <div><b>{e.titel}</b><small>{w.etappeStand[st]}{e.stand === "jetzt" && e.seit ? ` · ${t.seit(tagKurz(e.seit))}` : ""}</small></div>
                     </div>
                     {e.text && <p className="gp-kapitel-text">{e.text}</p>}
@@ -789,12 +793,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                       {liste.map((x, i) => (
                         <li key={x.schluessel} className={`gp-schritt ${x.status}`} style={{ ["--i" as any]: i }}>
                           <span className="gp-schritt-zeichen" aria-hidden="true">
-                            {/* E-452: Stand über Schrift statt Icon — Häkchen-Zeichen = erledigt, Puls = läuft, feiner Ring = kommt noch. */}
-                            {x.status === "erledigt" ? <span className="gp-stand-haken">✓</span> : x.status === "in_arbeit" || x.status === "beantragt" ? <span className="gp-puls" /> : <span className="gp-stand-punkt" />}
+                            {/* E-452: Stand ohne Icon — gezeichneter Haken = erledigt, Puls = läuft, feiner Ring = kommt noch. */}
+                            {x.status === "erledigt" ? <span className="gp-stand-haken"><i className="gp-hk" /></span> : x.status === "in_arbeit" || x.status === "beantragt" ? <span className="gp-puls" /> : <span className="gp-stand-punkt" />}
                           </span>
                           <div>
                             <b>{alltag(x)}</b>
-                            <small>{stationStatusName(x.schluessel, x.status, s) ?? w.stand[x.status] ?? x.status}{x.datum ? ` · ${tagKurz(x.datum)}` : x.beantragtAm && x.status === "beantragt" ? ` · ${tagKurz(x.beantragtAm)}` : ""}</small>
+                            {/* E-452: „offen“ sagt schon der leere Ring — die Zeile steht nur bei „läuft“ und „erledigt“ (mit Datum). */}
+                            {x.status !== "offen" && <small>{(x.status === "in_arbeit" || x.status === "beantragt" ? w.stand[x.status] : stationStatusName(x.schluessel, x.status, s) ?? w.stand[x.status] ?? x.status)}{x.datum ? ` · ${tagKurz(x.datum)}` : x.beantragtAm && x.status === "beantragt" ? ` · ${tagKurz(x.beantragtAm)}` : ""}</small>}
                             {x.hinweis ? <p className="gp-schritt-hinweis">{x.hinweis}</p> : <p className="gp-schritt-text">{x.text}</p>}
                             {(() => {
                               // 22.10.2026: die echten Werte der Station — EIN, ITIN (maskiert, „Anzeigen“), D-U-N-S, Nummer, Adressen, Konto, Karten.
@@ -808,8 +813,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                                 </dl>
                               );
                             })()}
-                            {/* E-424: die Kontaktperson ist der Kunde selbst (bzw. ein Gesellschafter) — der Satz kommt aus GLOBAL_AGENT. */}
-                            {x.schluessel === "agent" && <p className="gp-schritt-text">{GLOBAL_AGENT[s].kontakt}</p>}
+                            {/* E-424: die Kontaktperson ist der Kunde selbst (bzw. ein Gesellschafter) — der Satz kommt aus GLOBAL_AGENT, mit dem Bundesstaat der Gesellschaft. */}
+                            {x.schluessel === "agent" && <p className="gp-schritt-text">{globalAgentKontakt(s, g.bundesstaat)}</p>}
                             {x.schluessel === "kreditrahmen" && !a.angebot && stationWerte("kreditrahmen").kapital.length > 0 && <p className="gp-schritt-text">{GLOBAL_ETAPPE_FUSSNOTE[s]}</p>}
                           </div>
                         </li>
@@ -879,7 +884,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                             <b className="gp-nummer">{stationTelefonText(gp.usTelefon)}</b>
                             <div className="gp-adresse-wege">
                               <a className="gp-knopf leise" href={`tel:${gp.usTelefon}`}>{w.anrufen}</a>
-                              <button type="button" className="gp-kopie" onClick={() => kopieren(gp.usTelefon!, "tel")}>{kopiert === "tel" ? w.kopiert : w.kopieren}</button>
+                              <button type="button" className="gp-kopie" onClick={() => kopieren(gp.usTelefon!, "tel")} aria-label={`${w.kachel.nummer}: ${kopiert === "tel" ? w.kopiert : w.kopieren}`}>{kopiert === "tel" ? w.kopiert : w.kopieren}</button>
                             </div>
                           </div>
                         )}
@@ -887,7 +892,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                           <div key={k} className="gp-adresse">
                             <span className="gp-auge">{titel}</span>
                             <address>{gp[k]}</address>
-                            <button type="button" className="gp-kopie" onClick={() => kopieren(String(gp[k]), k)} aria-label={`${titel} kopieren`}>{kopiert === k ? w.kopiert : w.kopieren}</button>
+                            <button type="button" className="gp-kopie" onClick={() => kopieren(String(gp[k]), k)} aria-label={`${titel}: ${kopiert === k ? w.kopiert : w.kopieren}`}>{kopiert === k ? w.kopiert : w.kopieren}</button>
                           </div>
                         ) : null)}
                         {!gp.privatAdresse && dienstFrei("wohnadresse") && (
@@ -1071,7 +1076,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
               </>
             )}
             {a.stichtag && <p className="gp-satz">{t.stichtag}: <b>{tag(a.stichtag)}</b></p>}
-            {/* E-334 (Fall Hildbrand): Sofortstart zeigt die Wahl des Kunden — nie die Widerrufsfrist als Behauptung. */}
+            {/* E-334: Sofortstart zeigt die Wahl des Kunden — nie die Widerrufsfrist als Behauptung. */}
             {a.widerruf && (a.widerruf.sofortBeginn ? (
               <p className="gp-satz" data-fiaon="mein-auftrag-start-sofort"><b>{t.startSofort}</b> {a.status === "offen" ? t.startSofortOffen : t.startSofortLaeuft}</p>
             ) : (
@@ -1236,36 +1241,34 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
 }
 
 // ── Der Firmenname als Bühne (E-452) ─────────────────────────────────────────
-// Buchstaben steigen gestaffelt aus einer Maske (je Wort), insgesamt ~1,2 s; danach streicht EINMAL ein Lichtschimmer
-// darüber (eine deckungsgleiche zweite Lage, nur Glanz). Der Screenreader liest den Namen einmal (gp-sr), nie buchstabenweise.
-// „Bewegung reduzieren“: alles sofort da, kein Schimmer (CSS).
+// Die WÖRTER steigen gestaffelt aus ihrer Maske (je Wort ~100 ms versetzt, 0,9 s, weich abgebremst) — wie Apple ganze
+// Wörter zeigt, nicht Buchstabe für Buchstabe. Steht der Name, streicht EINMAL ein gleichmäßiger Lichtstrich über den
+// ganzen Namen (eine deckungsgleiche zweite Lage mit EINEM Verlauf, kein Glanz je Buchstabe). Der Screenreader liest
+// den Namen einmal (gp-sr). „Bewegung reduzieren“: alles sofort da, kein Schimmer (CSS).
+// Lange Wörter: Die Schrift wird so klein, dass das längste Wort in eine Zeile passt (--lang), nie abgeschnitten.
+// Die Choreografie läuft EINMAL je Besuch — wer von einer Unterseite zurückkommt, sieht den Namen still stehen.
+let firmenNameGezeigt = false;
 function FirmenName({ name }: { name: string }) {
   const woerter = name.trim().split(/\s+/).filter(Boolean);
-  const zahl = Math.max(1, woerter.reduce((x, y) => x + Array.from(y).length, 0));
-  const takt = Math.min(34, 520 / zahl); // ms je Buchstabe: lange Namen staffeln enger, die Dauer bleibt gleich
-  const glanzTakt = Math.min(42, 760 / zahl);
-  let n = 0;
+  const lang = Math.max(1, ...woerter.map((x) => Array.from(x).length));
+  const [still] = useState(() => firmenNameGezeigt);
+  useEffect(() => { firmenNameGezeigt = true; }, []);
+  const takt = 100; // ms je Wort
+  const glanzAb = 120 + Math.max(0, woerter.length - 1) * takt + 780; // wenn das letzte Wort fast steht
   // Das Leerzeichen steht ZWISCHEN den Wörtern (in einem inline-block fiele es am Ende weg) — so bricht der Name nur dort um.
   const lage = (glanz: boolean) => woerter.map((wort, wi) => (
     <Fragment key={wi}>
       {wi > 0 ? " " : null}
       <span className="gp-name-wort">
-        {Array.from(wort).map((b, bi) => {
-          // Aufstieg: ab 120 ms gestaffelt. Glanz: wandert danach Buchstabe für Buchstabe von links nach rechts.
-          const d = glanz ? Math.round(1350 + n * glanzTakt) : Math.round(120 + n * takt);
-          n++;
-          return <span key={bi} className="gp-name-b" style={{ animationDelay: `${d}ms` }}>{b}</span>;
-        })}
+        {glanz ? wort : <span className="gp-name-b" style={{ animationDelay: `${120 + wi * takt}ms` }}>{wort}</span>}
       </span>
     </Fragment>
   ));
-  const sicht = lage(false);
-  n = 0;
   return (
-    <h1 className="gp-sperr-llc gp-name" data-fiaon="portal-firmenname">
+    <h1 className={`gp-name${still ? " gp-name-still" : ""}`} data-fiaon="portal-firmenname" style={{ ["--lang" as any]: lang }}>
       <span className="gp-sr">{name}</span>
-      <span className="gp-name-lage" aria-hidden="true">{sicht}</span>
-      <span className="gp-name-lage gp-name-glanz" aria-hidden="true">{lage(true)}</span>
+      <span className="gp-name-lage" aria-hidden="true">{lage(false)}</span>
+      <span className="gp-name-lage gp-name-glanz" aria-hidden="true" style={{ animationDelay: `${glanzAb}ms` }}>{lage(true)}</span>
     </h1>
   );
 }
@@ -1290,7 +1293,7 @@ function Zeile({ k, v, kopie, kopiert, w }: { k: string; v?: string | null; kopi
       <dt>{k}</dt>
       <dd>
         <span>{v}</span>
-        {kopie && <button type="button" className="gp-kopie" onClick={kopie} aria-label={`${k} kopieren`}>{kopiert ? w?.kopiert : (w?.kopieren ?? "Kopieren")}</button>}
+        {kopie && <button type="button" className="gp-kopie" onClick={kopie} aria-label={`${k}: ${kopiert ? (w?.kopiert ?? "Kopiert") : (w?.kopieren ?? "Kopieren")}`}>{kopiert ? (w?.kopiert ?? "Kopiert") : (w?.kopieren ?? "Kopieren")}</button>}
       </dd>
     </div>
   );

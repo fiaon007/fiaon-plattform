@@ -228,11 +228,12 @@ function Bibliothek({ bereich, gref, onFrage }: { bereich: FachBereich; gref: st
         ))}
         {k.umsetzen && k.umsetzen.length > 0 && (
           <section className="gpf-umsetzen">
-            <div className="gpf-umsetzen-kopf"><h3>Jetzt umsetzen</h3><span>{fertig} / {k.umsetzen.length}</span></div>
+            {/* E-452: kein Zähler („2 / 5“) — die Haken sprechen für sich; ist alles erledigt, sagt es ein ruhiger Satz. */}
+            <div className="gpf-umsetzen-kopf"><h3>Jetzt umsetzen</h3>{fertig === k.umsetzen.length && <span>Alles abgehakt.</span>}</div>
             {k.umsetzen.map((u, i) => (
               <label key={i} className={`gpf-haken${erledigt[k.id]?.[i] ? " an" : ""}`}>
                 <input type="checkbox" checked={!!erledigt[k.id]?.[i]} onChange={() => haken(k.id, i)} />
-                <span className="gpf-haken-feld">{erledigt[k.id]?.[i] && "✓"}</span>
+                <span className="gpf-haken-feld">{erledigt[k.id]?.[i] && <i className="gp-hk" />}</span>
                 <span>{u}</span>
               </label>
             ))}
@@ -322,7 +323,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
         </div>
         <label className="gp-haken"><input type="checkbox" checked={unterschrift} onChange={(e) => setUnterschrift(e.target.checked)} /> <span>Danach hier unterschreiben</span></label>
         <p className="gpf-hinweis">{FACH_HINWEIS.recht}</p>
-        {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor →</button></>}</p>}
+        {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor</button></>}</p>}
         <button type="button" className="gp-knopf gross" disabled={fehlt.length > 0 || stand === "laeuft"} onClick={erstellen}>
           {stand === "laeuft" ? "Wird erstellt …" : (vorschau ? "Vorschau-PDF erstellen" : "Dokument erstellen")}
         </button>
@@ -522,15 +523,15 @@ function Kreditfahrplan({ gref }: { gref: string }) {
   const n = h.filter(Boolean).length;
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><div><b>Fahrplan geschäftliche Kreditwürdigkeit</b><small>Was Auskunfteien und Banken sehen wollen — zum Abhaken.</small></div>
-        {/* E-452: keine Prozentzahl — schlicht, wie viele Punkte schon abgehakt sind. */}
-        <span className="gpf-zaehler">{n} / {KREDIT_SCHRITTE.length}</span></div>
+      {/* E-452: keine Prozentzahl, kein Zähler — die Haken sprechen für sich. */}
+      <div className="gpf-werkzeug-kopf"><div><b>Kreditwürdigkeit Ihrer Firma</b><small>Was Auskunfteien und Banken sehen wollen — zum Abhaken.</small></div></div>
       {KREDIT_SCHRITTE.map((x, i) => (
         <label key={i} className={`gpf-haken${h[i] ? " an" : ""}`}>
           <input type="checkbox" checked={!!h[i]} onChange={() => { const neu = [...h]; neu[i] = !neu[i]; setH(neu); speicher.schreiben(k, neu); }} />
-          <span className="gpf-haken-feld">{h[i] && "✓"}</span><span>{x}</span>
+          <span className="gpf-haken-feld">{h[i] && <i className="gp-hk" />}</span><span>{x}</span>
         </label>
       ))}
+      {n === KREDIT_SCHRITTE.length && <p className="gpf-alles-abgehakt">Alles abgehakt.</p>}
     </div>
   );
 }
@@ -567,7 +568,7 @@ function Expose({ mitToken, vorschau, laden, geh }: { mitToken: (p: string) => s
             <textarea className="gp-eingabe" rows={2} value={w[f.key] ?? ""} onChange={(e) => setW({ ...w, [f.key]: e.target.value })} /><small>{f.hilfe}</small></label>
         ))}
       </div>
-      {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor →</button></>}</p>}
+      {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor</button></>}</p>}
       <button type="button" className="gp-knopf gross" disabled={(w.geschaeft ?? "").trim().length < 20 || stand === "laeuft"} onClick={los}>
         {stand === "laeuft" ? "Die KI schreibt Ihr Exposé …" : "Exposé erstellen"}
       </button>

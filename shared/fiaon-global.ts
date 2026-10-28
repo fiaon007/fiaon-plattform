@@ -325,6 +325,18 @@ export const GLOBAL_AGENT = {
     pass: "Our certified acceptance agent partner in the DACH region checks your passport, in person or in a video appointment — you do not have to send it to the US.",
   },
 } as const;
+/**
+ * Der Satz zur Kontaktperson im Kundenportal — passend zum Bundesstaat der Gesellschaft (E-452, 28.10.2026).
+ * Die Pflicht steht im Wyoming-Gesetz (W.S. 17-28-107); bei Gesellschaften anderer Staaten behauptet der Satz keine
+ * fremde Rechtslage, sondern sagt nur, was wir tun. Ohne Bundesstaat bleibt der Wyoming-Satz (unser Regelfall).
+ */
+export function globalAgentKontakt(s: "de" | "en", bundesstaat?: string | null): string {
+  const st = String(bundesstaat ?? "").trim().toUpperCase();
+  if (!st || st === "WY" || st === "WYOMING") return GLOBAL_AGENT[s].kontakt;
+  return s === "en"
+    ? "We register a contact person with address and phone number for your company – usually you yourself as the owner. We already have your details and register them confidentially; they are not publicly visible."
+    : "Für Ihre Gesellschaft hinterlegen wir eine Kontaktperson mit Anschrift und Telefonnummer – in der Regel Sie selbst als Inhaber. Ihre Angaben liegen uns bereits vor; wir hinterlegen sie vertraulich, öffentlich einsehbar sind sie nicht.";
+}
 /** Ein Vertragssatz aus GLOBAL_AGENT.de in der Form des Vertrags — „Auftraggeberin“ für die Firmen-Angebote (Kapital, Firma). */
 export function globalAgentVertrag(teil: "nutzung" | "haftung", weiblich = false): string {
   const t = GLOBAL_AGENT.de[teil];

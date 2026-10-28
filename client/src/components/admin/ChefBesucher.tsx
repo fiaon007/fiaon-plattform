@@ -14,7 +14,8 @@
 //   3. Wo?             Seiten, Einstieg, Ausstieg
 //   4. Woher?          Kanal, Herkunft, Kampagne, Anzeige
 //   5. Wer, wann?      Gerät, Sprache, Land, Wochentag × Stunde
-//   6. Wo klemmt es?   Clarity (Wut-Klicks …) — ChefBesucherClarity.tsx
+//   6. Was sagt Google? Search Console (E-454) — ChefBesucherGoogle.tsx
+//   7. Wo klemmt es?   Clarity (Wut-Klicks …) — ChefBesucherClarity.tsx
 // JEDE Zeile jeder Liste filtert die GANZE Seite (Kampagne anklicken → alles
 // zeigt nur noch diese Kampagne). Zeitraum und Filter stehen in der Adresse —
 // ein Link zeigt genau diese Ansicht.
@@ -26,6 +27,10 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type Keyboard
 import "@/styles/chef-besucher.css";
 import { API, Karte, zahl, eur } from "./chef-teile";
 import ChefBesucherClarity, { dauerText } from "./ChefBesucherClarity";
+import ChefBesucherGoogle from "./ChefBesucherGoogle";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
+import "@/styles/office-rundgang.css";
 import {
   BESUCH_FILTER, BESUCH_ZEITRAEUME, OHNE,
   type BesuchFilter, type BesuchFilterSchluessel, type BesuchZeitraum,
@@ -420,6 +425,7 @@ export default function ChefBesucher() {
           <span key={s.pfad} className="bz-live-seite">{s.pfad} <b>{s.n}</b></span>
         ))}
         <span className="bz-leise">ohne Cookies · Team und Roboter zählen nicht</span>
+        <a className="bz-live-seite bz-sprung" href="#google" title="Zu den Google-Zahlen (Search Console)">Google ↓</a>
       </div>
     </header>
   );
@@ -674,7 +680,9 @@ export default function ChefBesucher() {
         {filterZeile}
       </div>
       {inhalt}
+      <ChefBesucherGoogle />
       <ChefBesucherClarity />
+      <Rundgang raum="besucher" titel="Besucher" schritte={RUNDGAENGE.besucher.schritte} />
     </div>
   );
 }

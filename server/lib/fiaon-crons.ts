@@ -388,6 +388,14 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     // zweiten Tag kurz auf Gelb, ohne dass etwas fehlt.
     fenster: 30,
   },
+  // E-454 (28.10.2026): Google Search Console — holt ab 05:00 Berlin einmal am Tag. Ein Abruf ohne Daten (Zugang
+  // fehlt, Google antwortet nicht) wirft und steht als Fehler in der Historie, nie als Erfolg.
+  "google-search-console": {
+    zweck: "Google-Zahlen (Klicks, Suchanfragen, Sitemaps, URL-Prüfung) aus der Search Console holen und ablegen",
+    folge: "Chefbüro › Besucher › Google bleibt auf dem alten Stand — „Neu bei Google“ und „Fast auf Seite 1“ "
+      + "veralten, und neu aufgenommene Seiten fallen niemandem auf.",
+    fenster: 30,
+  },
   // E-378: Die eigene Messung verspricht in der Datenschutzerklärung (III a) eine Löschfrist.
   "besuch-aufraeumen": {
     zweck: "Eigene Besuchermessung nach 400 Tagen löschen (Datenschutzerklärung III a)",

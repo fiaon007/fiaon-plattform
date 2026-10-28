@@ -51,6 +51,25 @@ export const GLOBAL_SCHAERFER: GlobalWortregel[] = [
   { muster: /steuern sparen|steuerersparnis|steuervorteil/i, grund: "kein Steuerversprechen" },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ÖSTERREICH-AUSNAHME AUS E-439 ALS PRÜFBARE REGEL (28.10.2026, E-454)
+// „Unternehmensberatung“ / „business consultancy“ ist als Selbstbezeichnung erlaubt — nur nicht auf der
+// Österreich-Seite (DE + EN): In Österreich ist Unternehmensberatung ein reglementiertes Gewerbe
+// (§ 94 Z 74 GewO). Bis heute stand das Wort dort trotzdem einmal sichtbar und dreimal im Datenblock
+// (Organisation, alternateName, FIAON Global). Die Regel gilt für Seitentext UND JSON-LD;
+// scripts/pruef-global-seiten.ts, pruef-wortwand-de.ts und pruef-global-en.ts melden jeden Treffer als Fehler.
+// ═══════════════════════════════════════════════════════════════════════════
+export const OESTERREICH_SEITEN: readonly string[] = ["/business/aus-oesterreich", "/en/business/from-austria"];
+
+/** true = die Adresse ist eine Österreich-Seite (mit oder ohne Schrägstrich, Anker oder Parameter). */
+export const istOesterreichSeite = (pfad: string): boolean =>
+  OESTERREICH_SEITEN.includes((String(pfad ?? "").split(/[?#]/)[0].replace(/\/+$/, "") || "/").toLowerCase());
+
+export const OESTERREICH_REGEL: GlobalWortregel = {
+  muster: /unternehmensberat\w*|\bconsult(?:ancy|ancies|ant|ants|ing)\b/i,
+  grund: "Österreich-Seite: keine Selbstbezeichnung „Unternehmensberatung“/„consultancy“ (AT § 94 Z 74 GewO, E-439/E-454)",
+};
+
 export interface GlobalWorthinweis {
   /** „wand" = Hausregel aus fiaon-wortverbote.ts, „global" = schärfere Regel aus E-188. */
   quelle: "wand" | "global";

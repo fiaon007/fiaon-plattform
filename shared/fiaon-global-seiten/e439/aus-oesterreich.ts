@@ -14,11 +14,12 @@
 // in findok nicht abrufbar war — die Merkmale stehen deshalb mit EAS 1107.
 //
 // Wortwand: kein Steuermodell (Ort der Geschäftsleitung steht vorn), kein Bank-
-// name, keine Preiszahl (Baustein "paket"), kein „Beratung/beraten“. Die Selbst-
-// bezeichnung „Unternehmensberatung“ (Justin, E-439: „als UK-Gesellschaft“) steht
-// genau einmal, an die FIAON LTD in London gebunden (Abschnitt "fiaon"). In
-// Österreich ist Unternehmensberatung ein reglementiertes Gewerbe (§ 94 Z 74 GewO);
-// das Restrisiko (Abmahnung durch AT-Mitbewerber) steht im Register E-439.
+// name, keine Preiszahl (Baustein "paket"), kein „Beratung/beraten“.
+// Selbstbezeichnung (28.10.2026, E-454): Diese Seite nennt FIAON NIE „Unternehmens-
+// beratung“ — weder im Text noch im Datenblock. In Österreich ist das ein regle-
+// mentiertes Gewerbe (§ 94 Z 74 GewO), die Ausnahme steht so in E-439. Bis E-454
+// stand das Wort hier einmal im Abschnitt "fiaon" (jetzt: Vertragspartner mit Sitz
+// und Registernummer). Regel: OESTERREICH_REGEL in shared/fiaon-global-wortregeln.ts.
 //
 // Prüfung 27.10.2026 (Fach- und Rechtsprüfer): alle Quellen im Original gelesen;
 // § 22 KStG in der Fassung ab 01.01.2028 (BGBl. I Nr. 62/2026: 24 % für Einkommens-
@@ -27,6 +28,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { FIAON_FIRMA } from "../../fiaon-firma";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, IRS, SCHWELLEN, FRISTEN } from "../fakten";
 
 const S = "2026-10-27";
@@ -191,7 +193,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Ein Ansprechpartner statt acht: Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — die Gründung beim Bundesstaat, die EIN bei der US-Steuerbehörde, die Vorbereitung der ITIN, soweit deren Voraussetzungen vorliegen, die D-U-N-S-Nummer und die jährlichen US-Meldungen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, von uns vollständig vorbereitet; darüber entscheidet allein das Institut.",
         "Vor der Gründung prüft ein in Österreich befugter Partner-Steuerberater auf Ihr Mandat, wo der Ort der Geschäftsleitung liegen wird und wie Österreich Ihre LLC im Typenvergleich einordnen dürfte. Das Ergebnis fließt in das Operating Agreement, das unser Partner-Anwalt schreibt. Die erste US-Meldung — Form 5472 mit Form 1120 — reicht unser US-CPA ein. Die Honorare dieser Partner für die Leistungen Ihres Pakets trägt FIAON; alle Gebühren des Pakets sind im Festpreis enthalten.",
-        "Ihr Vertragspartner ist die FIAON LTD, eine Unternehmensberatung mit Sitz in London. Unser Team in Miami nimmt Termine bei Behörden und Instituten vor Ort wahr, unser Partnerstandort ist Zürich. Ab dem zweiten Jahr können Sie die Jahresbetreuung dazunehmen — freiwillig.",
+        `Ihr Vertragspartner ist die ${FIAON_FIRMA.name} mit Sitz in London (Companies House ${FIAON_FIRMA.companyNo}). Unser Team in Miami nimmt Termine bei Behörden und Instituten vor Ort wahr, unser Partnerstandort ist Zürich. Ab dem zweiten Jahr können Sie die Jahresbetreuung dazunehmen — freiwillig.`,
         ...GELD_ZURUECK,
       ],
     },

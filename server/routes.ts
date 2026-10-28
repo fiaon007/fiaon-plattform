@@ -1284,6 +1284,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return await chefClarity.clarityTageslauf();
     }, 60 * 60 * 1000, { beimStartNach: 90_000 });
   });
+  // 🔎 E-454 (28.10.2026): Google Search Console im Chefbüro (Besucher › Google). Stündlich prüfen, ab 05:00 Berlin
+  //    einmal am Tag holen (Zahlen, Sitemaps, bis zu 150 URL-Prüfungen) — lib/fiaon-search-console.ts. Ohne Zugang:
+  //    Zustand „zugang_fehlt“, neuer Versuch nach 3 Stunden. Eine Zeile in der Lauf-Historie nur bei Abruf oder Fehler.
+  const chefGoogle = await import('./routes/fiaon-chef-google');
+  app.use('/api/fiaon', chefGoogle.default);
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('google-search-console', async () => await (await import('./lib/fiaon-search-console')).gscTageslauf(),
+      60 * 60 * 1000, { beimStartNach: 600_000, nurMitErgebnis: true });
+  });
 
   // 🎯 Rückholung offener Anträge (02.09.2026, E-074): fünf Segmente, ein
   // Ziel — der Termin. Der Lauf ist ohne `rueckhol_pro_tag` ABGESCHALTET.

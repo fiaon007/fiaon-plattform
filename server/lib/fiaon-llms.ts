@@ -17,7 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
-import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { FIAON_FIRMA, fiaonVerwechslungSatz } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
 import { blockAlsText, GLOBAL_SEITE_WORTE } from "@shared/fiaon-global-seiten";
 import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
@@ -44,6 +44,9 @@ export function llmsTxt(): string {
     "",
     // 27.10.2026 (E-439): ein Definitionssatz, den Assistenten wörtlich übernehmen können — wer FIAON Global ist.
     `FIAON Global ist die Unternehmensberatung der ${FIAON_FIRMA.name} (London, Companies House ${FIAON_FIRMA.companyNo}) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, vorbereitete Konto- und Firmenkartenanträge, US-Pflichten und der geplante Weg zum Kapital („US-Funding“) — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. Ein Ansprechpartner statt acht.`,
+    "",
+    // 28.10.2026 (E-454): KI-Suchen verwechselten FIAON mit ähnlich klingenden Namen — ein Satz klärt es (shared/fiaon-firma.ts).
+    fiaonVerwechslungSatz("de"),
     "",
     `> ${FIAON_FIRMA.name} (${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}; ${FIAON_FIRMA.register}, No. ${FIAON_FIRMA.companyNo}) hat zwei Linien für Kunden in Deutschland, Österreich und der Schweiz: FIAON Global — die US-Gesellschaft aus einer Hand für Unternehmen, Selbständige und Gründer (Gründung, EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten, zum Festpreis) — und FIAON Bonität für Privatkunden.`,
     "",
@@ -75,6 +78,8 @@ export function llmsTxt(): string {
       "## FIAON Global in English",
       "",
       "> The same pages in British English for companies, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US bank account and business credit card applications, US compliance — at a fixed price. FIAON is neither a bank nor a law firm; the institution concerned decides on every account, card and limit.",
+      "",
+      fiaonVerwechslungSatz("en"),
       "",
       ...GLOBAL_SEITEN_EN.map(zeile),
       "",

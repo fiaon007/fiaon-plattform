@@ -537,6 +537,48 @@ abschnitt("Englische Unterseiten");
   console.log(`  ${GLOBAL_SEITEN_EN.length} englische Seiten, Paare und Vorab-HTML geprüft`);
 }
 
+// ═══ 12: ÖSTERREICH-SEITE OHNE „UNTERNEHMENSBERATUNG“, KLÄRUNGSSATZ IM SCHEMA (28.10.2026, E-454) ═══
+// E-439: „Unternehmensberatung“/„business consultancy“ ist erlaubt — nur nicht auf der Österreich-Seite (AT § 94 Z 74 GewO).
+// Bis E-454 stand das Wort dort trotzdem einmal sichtbar und dreimal im JSON-LD. Geprüft wird das fertige HTML (Text UND
+// Datenblock) beider Sprachen, mit und ohne ?bereich=business, dazu der Registereintrag selbst. Außerdem: Jede Seite trägt
+// im Organisations-Schema den Klärungssatz gegen Verwechslungen (disambiguatingDescription) in ihrer Sprache, /llms.txt auch.
+abschnitt("Österreich-Seite und Verwechslungs-Schutz (E-454)");
+{
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const { GLOBAL_SEITEN_EN } = await import("../shared/fiaon-global-seiten");
+  const { OESTERREICH_SEITEN, OESTERREICH_REGEL, istOesterreichSeite } = await import("../shared/fiaon-global-wortregeln");
+  const { fiaonVerwechslung } = await import("../shared/fiaon-firma");
+  const { llmsTxt } = await import("../server/lib/fiaon-llms");
+  ok(OESTERREICH_SEITEN.length === 2 && istOesterreichSeite("/business/aus-oesterreich/") && istOesterreichSeite("/en/business/from-austria?x=1") && !istOesterreichSeite("/business/aus-deutschland"),
+    "istOesterreichSeite erkennt die beiden Österreich-Adressen nicht (oder eine andere)");
+  const ldVon = (html: string) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => { try { return JSON.parse(m[1]); } catch { return null; } });
+  for (const pfad of OESTERREICH_SEITEN) {
+    const register = [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].find((x) => x.pfad === pfad);
+    ok(!!register, `${pfad}: fehlt im Register`);
+    const imRegister = JSON.stringify(register ?? {}).match(OESTERREICH_REGEL.muster)?.[0];
+    ok(!imRegister, `${pfad}: Registereintrag nennt „${imRegister}“ — ${OESTERREICH_REGEL.grund}`);
+    for (const bereich of [undefined, "business"] as const) {
+      const html = seitenHtml(pfad, bereich ? { bereich } : {}) ?? "";
+      ok(html.length > 5000, `${pfad}${bereich ? " (bereich business)" : ""}: kein Vorab-HTML`);
+      const fund = html.match(OESTERREICH_REGEL.muster);
+      ok(!fund, `${pfad}${bereich ? " (bereich business)" : ""}: HTML nennt „${fund?.[0]}“ bei „…${fund ? html.slice(Math.max(0, fund.index! - 60), fund.index! + 20).replace(/\s+/g, " ") : ""}…“ — ${OESTERREICH_REGEL.grund}`);
+    }
+  }
+  // Klärungssatz: auf Deutsch und Englisch, privat und Business, in der Organisation (FIAON LTD) und bei FIAON Global.
+  for (const [pfad, sp] of [["/", "de"], ["/preise", "de"], ["/business", "de"], ["/business/aus-oesterreich", "de"], ["/en/business", "en"], ["/en/business/from-austria", "en"]] as const) {
+    const ld = ldVon(seitenHtml(pfad) ?? "");
+    const org = ld.find((l) => l?.["@id"] === "https://fiaon.com/#organisation");
+    ok(org?.disambiguatingDescription === fiaonVerwechslung(sp), `${pfad}: Organisation ohne disambiguatingDescription (${sp}) — „${org?.disambiguatingDescription ?? "fehlt"}“`);
+    if (pfad.includes("business")) {
+      const glob = ld.find((l) => l?.["@id"] === "https://fiaon.com/#fiaon-global");
+      ok(typeof glob?.disambiguatingDescription === "string" && glob.disambiguatingDescription.includes(sp === "en" ? "not related to" : "nicht verwandt mit"), `${pfad}: FIAON Global ohne disambiguatingDescription (${sp})`);
+    }
+  }
+  const llms = llmsTxt();
+  ok(llms.includes("Nicht zu verwechseln mit") && llms.includes("Not to be confused with"), "/llms.txt: der Satz „Nicht zu verwechseln mit …“ fehlt (deutsch oder englisch)");
+  console.log(`  ${OESTERREICH_SEITEN.length} Österreich-Seiten (Register + HTML, je zwei Bereiche), Klärungssatz auf 6 Seiten und in /llms.txt geprüft`);
+}
+
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════
 abschnitt("Ergebnis");
 if (hinweise.length) { console.log("  Hinweise (kein Fehler):"); for (const h of hinweise) console.log(`    · ${h}`); }

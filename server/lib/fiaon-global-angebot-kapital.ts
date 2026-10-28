@@ -362,8 +362,8 @@ export async function kapitalFertigstellen(id: number): Promise<{ ok: boolean; g
            unterschrieben_am, ip, user_agent, quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, ust_hinweis,
            jahresbetreuung, jahresbetreuung_preis_cents, angebot_id)
         VALUES
-          (${ref1}, ${ANGEBOT_PAKET_KEY}, ${f.land}, ${JSON.stringify(firma)}::jsonb, ${JSON.stringify(ansprechpartner)}::jsonb, ${f.uid || null},
-           ${JSON.stringify(bestaetigungen)}::jsonb, ${pngM ? Buffer.from(pngM[1], "base64") : null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
+          (${ref1}, ${ANGEBOT_PAKET_KEY}, ${f.land}, ${jsonb(firma)}, ${jsonb(ansprechpartner)}, ${f.uid || null},
+           ${jsonb(bestaetigungen)}, ${pngM ? Buffer.from(pngM[1], "base64") : null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
            ${new Date(z.angenommen_am)}, ${z.ip}, ${z.user_agent}, 'individualangebot', 'offen', ${z.text_hash}, ${f.name}, ${d.kunde.email},
            ${f.uid ? "reverse_charge" : "none"}, ${f.uid ? null : "Keine UID am Kapital-Angebot — Rechnung ohne Reverse Charge, bitte klären."},
            TRUE, ${d.parameter.jahresCents}, ${id})
@@ -372,7 +372,7 @@ export async function kapitalFertigstellen(id: number): Promise<{ ok: boolean; g
     // Der gewählte Name steht in der Akte — die Zahlungsseite zeigt ihn als Urkunde (E-320), als „vorgemerkt“ (geprueft: false), bis
     // jemand ihn im Register geprüft hat — nie „geprüft“, bevor es stimmt.
     if (w?.llc.wunsch) {
-      await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${JSON.stringify({ name: w.llc.wunsch, bundesstaat: STAAT_KURZ[d.parameter.bundesstaat] ?? d.parameter.bundesstaat, geprueft: false })}::jsonb
+      await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${jsonb({ name: w.llc.wunsch, bundesstaat: STAAT_KURZ[d.parameter.bundesstaat] ?? d.parameter.bundesstaat, geprueft: false })}
                      WHERE ref = ${ref1} AND (gesellschaft IS NULL OR gesellschaft::text IN ('null', '{}'))`.catch((e) => console.error(`[FIAON-KAPITAL] ${d.ref}: Gesellschaft in der Akte:`, e));
     }
     const uid = d.kunde.firma.uid || null;
@@ -392,6 +392,9 @@ export async function kapitalFertigstellen(id: number): Promise<{ ok: boolean; g
       [person] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref1}`) as any[];
     }
     if (person?.person_id) await sqlPool`UPDATE fiaon_global_angebote SET person_id = COALESCE(person_id, ${Number(person.person_id)}) WHERE id = ${id}`;
+    // E-432 (28.10.2026): die Person auch an die Akte — sonst stand person_id dort bis zum nächsten Neustart leer (der Nachtrag in
+    // ensureGlobalMandat läuft nur einmal je Prozess), und Chefbüro und Abgleiche sahen keine Person.
+    if (person?.person_id) await sqlPool`UPDATE fiaon_global_auftraege SET person_id = ${Number(person.person_id)}, updated_at = NOW() WHERE ref = ${ref1} AND person_id IS NULL`;
     await sqlPool`UPDATE fiaon_global_angebote SET nacharbeit_fehler = NULL, updated_at = NOW() WHERE id = ${id} AND nacharbeit_fehler IS NOT NULL`;
     return { ok: true };
   } catch (e) {

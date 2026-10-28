@@ -499,7 +499,7 @@ export async function begleitZahlungsKontext(a: { ref?: unknown; person_id?: unk
 // E-320 (09.10.2026): DIE ZAHLUNGSSEITE FÜR TEILE EINES INDIVIDUALANGEBOTS (E-268)
 // Gesellschaft aus der Akte (fiaon_global_auftraege.gesellschaft), Rechnung signiert, Prüfliste aus der Akte (Reisepass im Dokumentenraum = „erhalten und geprüft“ — das Dokument selbst NIE auf der Seite).
 // ═══════════════════════════════════════════════════════════════════════════
-export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_reference?: unknown; invoice_number?: unknown; payment_status?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
+export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_reference?: unknown; invoice_number?: unknown; payment_status?: unknown; payment_due_date?: unknown }): Promise<import("@shared/fiaon-zahlung-auftrag").ZahlungAuftragKontext | null> {
   const ref = String(a.ref ?? "");
   if (!ref) return null;
   const [t] = (await sqlPool`
@@ -523,6 +523,16 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const tag = (v: unknown) => (v ? begleitTag(new Date(String(v)).toISOString().slice(0, 10)) : "");
   const bezahlt = String(a.payment_status) === "paid";
   const kapital = String(t.fassung ?? "").startsWith("IA-KAPITAL-");
+  // E-432 (28.10.2026, Justin: „Die Rechnung ist eigentlich umgehend, also sofort fällig“): Die Seite nennt das Datum aus der
+  // Bestellung (payment_due_date) statt „binnen 7 Tagen“ — das zählte nicht herunter und stand als Ziffer da. Fällig ist der Betrag
+  // mit dem Auftrag; das Datum ist der späteste Zahltag laut Vertrag. Liegt er heute oder davor: „bitte heute überweisen“.
+  // Nie „überfällig“, „Mahnung“ oder „Verzug“ auf dieser Seite.
+  const faelligIso = a.payment_due_date && !Number.isNaN(new Date(String(a.payment_due_date)).getTime()) ? berlinToday(new Date(String(a.payment_due_date))) : null;
+  const spaeter = !!faelligIso && faelligIso > berlinToday();
+  const zahlZeile = (nachher: string) => spaeter
+    ? `fällig mit Ihrem Auftrag — bitte jetzt überweisen, spätestens bis zum ${begleitTag(faelligIso)}${nachher}`
+    : `fällig mit Ihrem Auftrag — bitte heute überweisen${nachher}`;
+  const spaetereZeile = spaeter ? `bitte überweisen — spätestens bis zum ${begleitTag(faelligIso)}` : "bitte überweisen";
   // E-432 (Runde 2, Technik): Fassung C (Privatperson) hat eigene Texte für Teil 2 (Erfolgshonorar mit der Eintragung — die Bürgin
   // ist dort nicht „zugesagt“) und nur die Ansprechpartner aus dem Angebot (nicht das ganze Team).
   const { istKapitalCFassung } = await import("@shared/fiaon-global-angebot-kapital");
@@ -546,7 +556,7 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
       pruefungen: [
         { titel: "Vertrag angenommen", text: t.angenommen_am ? `am ${tag(t.angenommen_am)} — mit Ihrer Unterschrift` : "mit Ihrer Unterschrift", stand: "ok" },
         { titel: c.pruefung.titel, text: c.pruefung.text, stand: "ok" as const },
-        { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen` : "bitte überweisen", stand: bezahlt ? "ok" : "offen" },
+        { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : spaetereZeile, stand: bezahlt ? "ok" : "offen" },
       ],
       dokumenteTitel: "Ihre Unterlagen",
       dokumente: zweck ? [{ titel: "Ihre Rechnung", unter: `${String(a.invoice_number ?? "Rechnung")} · ${String(t.titel)}`, href: signInvoiceUrl(zweck, 30 * 24 * 3600_000) }] : [],
@@ -561,7 +571,7 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   if (kapital && Number(t.nr) >= 2) {
     const buergschaft = Number(t.nr) === 2;
     const am = t.meilenstein_am ? ` am ${tag(t.meilenstein_am)}` : "";
-    const ziel = Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen` : "bitte überweisen";
+    const ziel = spaetereZeile;
     return {
       auge: "FIAON Global · Ihr Auftrag",
       gesellschaft: name,
@@ -612,7 +622,7 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
         : { titel: "Name geprüft", text: `${name} ist im Register von ${staat} frei`, stand: "ok" as const }] : []),
       ...(pass ? [{ titel: "Reisepass erhalten und geprüft", text: `am ${tag(pass.created_at)} — liegt sicher in Ihrem Auftragsbereich`, stand: "ok" as const }] : []),
       ...(name && pass && !bezahlt && ges.geprueft !== false ? [{ titel: "Anmeldung vorbereitet", text: "im Eilverfahren — wir reichen sie direkt nach Ihrer Zahlung ein", stand: "ok" as const }] : []),
-      { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : kapital && Number(t.zahlungsziel_tage) > 0 ? `binnen ${Number(t.zahlungsziel_tage)} Tagen überweisen — mit dem Eingang melden wir Ihre Gesellschaft an` : "heute überweisen — dann geht die Anmeldung raus", stand: bezahlt ? "ok" : "offen" },
+      { titel: bezahlt ? "Zahlung eingegangen" : "Nur noch: Ihre Zahlung", text: bezahlt ? "vielen Dank" : kapital ? zahlZeile("; mit dem Eingang melden wir Ihre Gesellschaft an") : "heute überweisen — dann geht die Anmeldung raus", stand: bezahlt ? "ok" : "offen" },
     ],
     dokumenteTitel: "Ihre Unterlagen",
     // NUR die Rechnung: Vertrag (mit Prüfbericht) und Auftragsbereich (mit dem Reisepass im Dokumentenraum) sind über die öffentliche

@@ -64,7 +64,7 @@ export const GLOBAL_STATION_FELDER: Record<string, StationFeld[]> = {
     { feld: "form", ort: "grund", art: "form", titel: "Rechtsform" },
     { feld: "bundesstaat", ort: "grund", art: "staat", titel: "Bundesstaat" },
     { feld: "gegruendetAm", ort: "grund", art: "datum", titel: "Gegründet am", hilfe: "Bundesstaat und Gründungstag setzen den Pflichtenkalender." },
-    { feld: "aktenzeichen", ort: "plus", art: "text", titel: "State File Number", platzhalter: "z. B. 2026-001234567", max: 40 },
+    { feld: "aktenzeichen", ort: "plus", art: "text", titel: "Registernummer (State File Number / Document Number)", platzhalter: "z. B. L26000123456 oder 2026-001234567", max: 40 },
   ],
   // E-424 (22.10.2026): Die Kontaktperson, die Wyoming verlangt, ist eine NATÜRLICHE Person aus dem Kreis der
   // Gesellschafter oder der Geschäftsführung des Kunden — in der Regel der Inhaber selbst, NIE jemand von FIAON (Wyoming
@@ -193,7 +193,7 @@ export function stationKontaktWarnungen(adresse: unknown, agentAdresse: unknown)
   const a = String(adresse ?? "").toLowerCase().replace(/\s+/g, " ").trim();
   if (!a) return [];
   const w: string[] = [];
-  if (/\b(p\.?\s?o\.?\s?box|postfach|post office box|pmb|private mailbox)\b/.test(a)) w.push("Die Anschrift sieht nach einem Postfach aus — Wyoming verlangt die Wohnanschrift der Person.");
+  if (/\b(p\.?\s?o\.?\s?box|postfach|post office box|pmb|private mailbox)\b/.test(a)) w.push("Die Anschrift sieht nach einem Postfach aus — gebraucht wird die Wohnanschrift der Person.");
   if (/virtual office|virtuelles büro|regus|davinci|opus virtual|mail ?forward|registered agent|\bc\/o\b|suite r\b/.test(a)) w.push("Die Anschrift sieht nach einem virtuellen Büro oder einer Agent-Adresse aus — bitte die Wohnanschrift eintragen.");
   const ag = String(agentAdresse ?? "").toLowerCase().replace(/\s+/g, " ").trim();
   const ersteZeile = (x: string) => x.split(/[,\n]/)[0].trim();
@@ -313,16 +313,24 @@ export function globalPlusFuerTeam(plus: GlobalGesellschaftPlus | null | undefin
 export interface StationZeile { key: string; titel: string; wert: string; kopie?: string; geheim?: "itin" }
 const W: Record<BereichSprache, Record<string, string>> = {
   de: {
-    vor: "Frühere Gesellschaft", name: "Gesellschaft", staat: "Bundesstaat", gegruendet: "Gegründet am", akz: "State File Number", agentAdresse: "Anschrift des Registered Agent", kontakt: "Kontaktperson",
+    vor: "Frühere Gesellschaft", name: "Gesellschaft", staat: "Bundesstaat", gegruendet: "Gegründet am", akz: "Registernummer", agentAdresse: "Anschrift des Registered Agent", kontakt: "Kontaktperson",
     telefon: "US-Telefonnummer", geschaeft: "US-Geschäftsadresse", privat: "Private US-Adresse", ein: "EIN", einBrief: "Bestätigung der US-Steuerbehörde vom",
     itin: "ITIN", itinBescheid: "Bescheid der US-Steuerbehörde vom", duns: "D-U-N-S-Nummer", konto: "Geschäftskonto eröffnet am",
   },
   en: {
-    vor: "Previous company", name: "Company", staat: "State", gegruendet: "Formed on", akz: "State file number", agentAdresse: "Registered agent address", kontakt: "Contact person",
+    vor: "Previous company", name: "Company", staat: "State", gegruendet: "Formed on", akz: "Register number", agentAdresse: "Registered agent address", kontakt: "Contact person",
     telefon: "US phone number", geschaeft: "US business address", privat: "Private US address", ein: "EIN", einBrief: "IRS confirmation dated",
     itin: "ITIN", itinBescheid: "IRS notice dated", duns: "D-U-N-S number", konto: "Business account opened on",
   },
 };
+/**
+ * E-432 (28.10.2026): Gehört die Kontaktperson zu diesem Bundesstaat? Ja bei Wyoming und solange der Staat noch offen ist
+ * (Kürzel „WY“ oder Name „Wyoming“, wie Team und Portal ihn tragen); nein bei jedem anderen Staat.
+ */
+export function stationKontaktpersonStaat(staat: unknown): boolean {
+  const x = String(staat ?? "").trim().toLowerCase();
+  return !x || x === "wy" || x === "wyoming";
+}
 /** Die Zeilen, die das Portal unter einer Station zeigt. `tag` formatiert ein Datum in der Sprache der Seite. */
 export function stationZeilen(schluessel: string, g: GlobalGesellschaft | null | undefined, p: GlobalPlusKunde | null | undefined, s: BereichSprache, tag: (iso: string) => string, staatName: (code: string) => string | null = () => null): StationZeile[] {
   const w = W[s]; const gg = g ?? {}; const pp = p ?? {};
@@ -340,7 +348,9 @@ export function stationZeilen(schluessel: string, g: GlobalGesellschaft | null |
       break;
     case "agent":
       dazu("agentAdresse", w.agentAdresse, pp.agentAdresse);
-      dazu("kontakt", w.kontakt, pp.kontaktperson);
+      // E-432 (28.10.2026): Die Kontaktperson ist eine Wyoming-Pflicht (W.S. 17-28-107) — bei einer Gesellschaft in einem anderen
+      // Staat (z. B. Florida) steht sie nicht beim Kunden; die Daten bleiben in gesellschaft_plus.
+      if (stationKontaktpersonStaat(gg.bundesstaat)) dazu("kontakt", w.kontakt, pp.kontaktperson);
       break;
     case "adresse":
       dazu("telefon", w.telefon, pp.usTelefon ? stationTelefonText(pp.usTelefon) : null, { kopie: pp.usTelefon ?? undefined });

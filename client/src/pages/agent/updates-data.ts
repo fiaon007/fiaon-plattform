@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-432 (28.10.2026): Global-Akte — Sätze je Bundesstaat, neue Dokumentarten, Zahlung „fällig mit Ihrem Auftrag“.
+    id: "2026-10-28-global-bundesstaat-unterlagen",
+    date: "2026-10-28",
+    category: "Verbessert",
+    title: "Global-Akte: Florida statt Wyoming, eigene Arten für Ausweis, Gehalt und Kontoauszug",
+    summary:
+      "Der Fahrplan des Kunden spricht jetzt zum Bundesstaat seiner Gesellschaft, und im Tresor gibt es drei neue Dokumentarten. "
+      + "Auf der Zahlungsseite steht das echte Datum statt „binnen 7 Tagen“.",
+    changes: [
+      "Station „Registered Agent bestellt“: Bei einer LLC in Florida liest der Kunde den Florida-Satz (Registered Agent mit Anschrift in Florida, Jahresmeldung zwischen 1. Januar und 1. Mai). Den Satz zur Kontaktperson gibt es nur noch bei Wyoming.",
+      "Kontaktperson: nur noch bei Wyoming aus dem Auftrag vorbelegt und beim Kunden gezeigt. Die Felder bleiben.",
+      "Beim Kunden heißt die Nummer der Gesellschaft jetzt „Registernummer“ (vorher „State File Number“).",
+      "Neue Dokumentarten: Personalausweis (Mappe „Ihre Nachweise“), Einkommensnachweis, z. B. Gehaltsnachweis (Mappe „Karten und Kapital“), Kontoauszug (Mappe „Bank und Konto“). Der Kunde kann sie auch selbst hochladen.",
+      "Zahlungsseite eines Angebots: „fällig mit Ihrem Auftrag — bitte jetzt überweisen, spätestens bis zum …“ mit dem Datum aus der Rechnung.",
+    ],
+    howto: [
+      "Unterlage ablegen: Global-Akte → Dokumente → Art wählen (z. B. Personalausweis) → Datei hochladen. Vor dem Zahlungseingang geht das nur im Chefbüro (Global-Mandat → Tresor).",
+      "Gesellschaft in Florida: Station „Registered Agent bestellt“ ohne Kontaktperson speichern — das ist richtig so.",
+    ],
+  },
+  {
     // E-302 (gebaut 08.10.2026, live 27.10.2026): Drei Anmelde-Lücken geschlossen (Gegenprüfung E-IT-G).
     id: "2026-10-27-anmeldung-sicher",
     date: "2026-10-27",

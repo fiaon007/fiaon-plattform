@@ -194,12 +194,19 @@ gleich(B.globalUnterlagenStand([]).filter((u) => u.alsText).map((u) => u.art), [
 ok(B.globalUnterlagenStand([], "de").every((u) => !/als Text/i.test(u.hinweis)) && B.globalUnterlagenStand([], "en").every((u) => !/as text/i.test(u.hinweis)), "ein Hinweis verspricht ein Textfeld, das die Seite nicht haben muss");
 ok(B.globalUnterlagenStand([], "en").filter((u) => u.alsText).every((u) => /as text/.test(u.textHinweis ?? "")), "textHinweis englisch");
 // E-338: zwölf Arten + acht des Global-Mandats (Vollmacht, Bank, Karten, Kapital, Steuer, Jahresbericht, Post, Info).
-gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "bank_vertrag", "ein_brief", "gesellschafterliste", "gruendungsurkunde", "info", "itin_bescheid", "jahresbericht", "kapital_vertrag", "karten_unterlage", "namenswunsch", "operating_agreement", "post", "registerauszug", "reisepass", "sonstiges", "steuer", "taetigkeitsbeschreibung", "vollmacht"], "zwanzig Dokumentarten");
+// E-432 (28.10.2026): + Personalausweis, Einkommensnachweis, Kontoauszug (Unterlagen einer Finanzierung) = dreiundzwanzig.
+gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "bank_vertrag", "ein_brief", "einkommensnachweis", "gesellschafterliste", "gruendungsurkunde", "info", "itin_bescheid", "jahresbericht", "kapital_vertrag", "karten_unterlage", "kontoauszug", "namenswunsch", "operating_agreement", "personalausweis", "post", "registerauszug", "reisepass", "sonstiges", "steuer", "taetigkeitsbeschreibung", "vollmacht"], "dreiundzwanzig Dokumentarten");
 ok(B.GLOBAL_DOKUMENTARTEN[B.GLOBAL_DOKUMENTARTEN.length - 1].art === "sonstiges", "„Sonstiges“ bleibt der letzte Eintrag");
 ok(["vollmacht", "post", "info", "jahresbericht"].every((a) => !B.globalKundeDarfArt(a)), "Vollmacht, Post, Info, Jahresbericht legt nur FIAON ab");
 
-gleich(B.globalDokumentArtenFuer("office").length, 20, "das Office wählt aus allen zwanzig Arten");
-ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 12, "der Kunde wählt nur aus Arten, die er liefern darf (zwölf, mit „Sonstiges“)");
+gleich(B.globalDokumentArtenFuer("office").length, 23, "das Office wählt aus allen dreiundzwanzig Arten");
+ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 15, "der Kunde wählt nur aus Arten, die er liefern darf (fünfzehn, mit „Sonstiges“)");
+// E-432: die drei neuen Arten liegen in ihren Mappen (Tresor) und darf der Kunde selbst liefern.
+{
+  const MM = await import("../shared/fiaon-global-mandat");
+  gleich(["personalausweis", "einkommensnachweis", "kontoauszug"].map((a) => MM.globalTresorKategorie(a)), ["identitaet", "kapital", "bank"], "neue Arten: Mappen Nachweise, Kapital, Bank");
+  ok(["personalausweis", "einkommensnachweis", "kontoauszug"].every((a) => B.globalKundeDarfArt(a)), "neue Arten: der Kunde darf sie selbst hochladen");
+}
 gleich(B.globalDokumentArtenFuer("kunde", "en").find((a) => a.art === "reisepass")?.titel, "Passport", "Auswahl englisch");
 
 // ═══ 5: MAILS ═══════════════════════════════════════════════════════════════

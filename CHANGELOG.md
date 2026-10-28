@@ -5,6 +5,42 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.10.2026 — E-432: Global-Auftrag „mit Hand und Fuß“ — Florida statt Wyoming, Zahlung „fällig mit Ihrem Auftrag“, Pflege-Skript
+
+- **Warum:** Beim ersten angenommenen Kapital-Angebot (Fassung C, Privatperson, LLC in Florida) fiel auf: Der Fahrplan zeigte unter
+  „Registered Agent bestellt“ den Wyoming-Satz zur Kontaktperson; die Zahlungsseite sagte „binnen 7 Tagen überweisen“ (zählt nicht
+  herunter, Ziffer statt Wort), obwohl der Betrag mit dem Auftrag fällig ist; Ausweis, Gehaltsnachweise und Kontoauszug hatten keine
+  eigene Dokumentart; die Akte trug firma/ansprechpartner/bestaetigungen/gesellschaft als JSON-TEXT (doppelt kodiert), deshalb sprang
+  „Name geprüft“ nie auf geprüft, und person_id blieb bis zum nächsten Neustart leer.
+- **Was jetzt gilt:**
+  - Der Satz unter „Registered Agent bestellt“ hängt am Bundesstaat (`globalAgentStaatSatz`): Wyoming = Kontaktperson, Florida =
+    Registered Agent mit Anschrift in Florida + Annual Report 1. Januar bis 1. Mai, sonst keiner. Die Kontaktperson steht nur noch
+    bei Wyoming beim Kunden und im Editor vorbelegt. „State File Number“ heißt beim Kunden „Registernummer“.
+  - Zahlungsseite eines Angebotsteils: „fällig mit Ihrem Auftrag — bitte jetzt überweisen, spätestens bis zum TT.MM.JJJJ“ (Datum aus
+    der Bestellung), am letzten Tag „bitte heute überweisen“ — nie „überfällig“. Ein schon geschlossener Vertrag mit „zahlbar binnen
+    sieben Tagen“ bleibt so (FIAON kann nicht früher verlangen, § 271 Abs. 2 BGB) — Wortlaut und Prüfsumme sind unverändert.
+  - Fassung C: Zahlungsziel 0 Tage = „zahlbar sofort ohne Abzug“ in Vertrag, Informationen, Übersicht und Knopf-Satz (vorher wäre
+    „binnen null Tagen“ entstanden); neue Angebote haben 0 als Vorgabe. Fristen von Angebotsteilen enden um 23:59:59 Berlin des
+    letzten Tages (§ 188 BGB) statt „Annahme + N × 24 h“.
+  - Drei neue Dokumentarten: Personalausweis (Mappe „Ihre Nachweise“), Einkommensnachweis („Karten und Kapital“), Kontoauszug
+    („Bank und Konto“).
+  - Kapital-Angebote schreiben die Akte jetzt als Objekte und tragen die Person an der Akte ein; „Name geprüft“ verträgt auch
+    die alten JSON-Text-Akten (der Merker springt, die Gesellschaft wird dabei zum Objekt). Die vollständige Akte liest den
+    Gesellschaftsnamen auch aus solchen Akten (vorher fiel sie auf den Namen des Kunden zurück).
+  - Formulare einer Privatperson (Fassung C): „Auftraggeber“ statt „für die Auftraggeberin“.
+  - Partnerbereich: Das JSON der Partnerseite trägt bei den Empfehlungen keine interne Notiz, kein Telefon, keine E-Mail und keine
+    Personennummer mehr (Tippgeber-Vereinbarung Ziffer 5 Abs. 1) — die Seite zeigte sie nie, mitgeschickt wurden sie trotzdem.
+  - Neu: `scripts/global-auftrag-pflegen.ts` — pflegt EINEN Auftrag über die vorhandenen Plattform-Wege (Tresor mit Metadaten-
+    Bereinigung, „Name geprüft“ mit Beleg, fehlende Personendaten aus der privaten Datei, Zahlungsfrist nur wenn der Vertrag sie
+    trägt, Partner-Empfehlung zuordnen). Vorgabe Vorschau mit nur-lesender Verbindung; wiederholbar.
+- **Wo:** shared/fiaon-global.ts, client/src/pages/global-portal.tsx, shared/fiaon-global-stationen.ts,
+  client/src/components/global/GlobalStationen.tsx, server/lib/fiaon-global-angebot-begleit.ts, shared/fiaon-global-angebot-kapital-c.ts,
+  server/lib/fiaon-global-angebot-kapital(-c).ts, server/lib/fiaon-global-mandat.ts, server/lib/fiaon-global-akte-komplett.ts,
+  server/lib/fiaon-time.ts (berlinFristEnde), server/routes/fiaon-antrag.ts, server/lib/fiaon-zahlungsfrist.ts (Route Konditionen
+  ruft ihn), server/lib/fiaon-global-pflege.ts, shared/fiaon-global-bereich.ts, shared/fiaon-global-mandat.ts,
+  server/lib/fiaon-global-unterschrift.ts, server/lib/fiaon-koop-lieferung.ts (koopPartnerSicht).
+  Prüfstand: scripts/pruef-global-auftrag-pflegen.ts (lokale Prüf-Datenbank).
+
 ## 27.10.2026 — E-441: Codes zum Anmelden und Unterschreiben kommen jetzt auch bei iCloud an (zweiter Versandweg)
 
 - **Warum:** Ein Global-Kunde mit iCloud-Adresse bekam beim digitalen Unterschreiben keinen Code. Brevo nahm neun Code-Mails an,

@@ -177,7 +177,11 @@ export type GlobalDokumentArt =
   | "reisepass" | "adressnachweis" | "registerauszug" | "gesellschafterliste" | "namenswunsch" | "taetigkeitsbeschreibung"
   | "gruendungsurkunde" | "ein_brief" | "operating_agreement" | "itin_bescheid" | "bank_unterlage" | "sonstiges"
   // E-338 (12.10.2026): Arten des Global-Mandats — Tresor-Kategorien in shared/fiaon-global-mandat.ts.
-  | "vollmacht" | "bank_vertrag" | "karten_unterlage" | "kapital_vertrag" | "steuer" | "jahresbericht" | "post" | "info";
+  | "vollmacht" | "bank_vertrag" | "karten_unterlage" | "kapital_vertrag" | "steuer" | "jahresbericht" | "post" | "info"
+  // E-432 (28.10.2026): die Unterlagen einer Finanzierung (Kapital-Angebot Fassung C) — vorher landeten Personalausweis,
+  // Gehaltsnachweise und Kontoauszug unter „Adressnachweis“, „Unterlage für Bank“ oder „Sonstiges“. Die Art einer
+  // FIAON-Ablage lässt sich später nicht ändern; deshalb eigene Arten.
+  | "personalausweis" | "einkommensnachweis" | "kontoauszug";
 
 /** `von`: wer diese Art üblicherweise liefert. Der Kunde wählt nur aus „kunde" und „beide"; FIAON darf jede Art ablegen. */
 export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fiaon" | "beide"; de: string; en: string }[] = [
@@ -201,6 +205,10 @@ export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fia
   { art: "jahresbericht", von: "fiaon", de: "Jahresbericht (Annual Report)", en: "Annual report" },
   { art: "post", von: "fiaon", de: "Eingegangene Post", en: "Incoming mail" },
   { art: "info", von: "fiaon", de: "Infomaterial", en: "Information material" },
+  // E-432: Personalausweis (Mappe „Ihre Nachweise“), Einkommensnachweis (Mappe „Karten und Kapital“), Kontoauszug (Mappe „Bank und Konto“).
+  { art: "personalausweis", von: "kunde", de: "Personalausweis", en: "Identity card" },
+  { art: "einkommensnachweis", von: "kunde", de: "Einkommensnachweis (z. B. Gehaltsnachweis)", en: "Proof of income (e.g. payslip)" },
+  { art: "kontoauszug", von: "kunde", de: "Kontoauszug", en: "Bank statement" },
   { art: "sonstiges", von: "beide", de: "Sonstiges Dokument", en: "Other document" },
 ];
 

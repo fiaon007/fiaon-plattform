@@ -549,6 +549,35 @@ abschnitt("7b Ihr Team — Einlesen, Fotos nur hinter dem Link, Prüfsumme unver
     && sichtMit.seite.bildnachweis === "Bildnachweis: Teamfotos teils Symbolbilder." && sichtOhne.seite.bildnachweis === "", "Kundensicht: Team mit Fotos hinter dem Link (token-gebunden) und Bildnachweis; ohne Team nichts davon");
 }
 
+// ═══ 7c ZAHLUNGSZIEL „SOFORT“ (E-432, 28.10.2026) ═══════════════════════════
+// Justin: „Die Rechnung ist eigentlich umgehend, also sofort fällig.“ Neue Angebote: Vorgabe 0 Tage = „zahlbar sofort“ (vorher ergab
+// 0 „binnen null Tagen“). Ein Angebot mit gespeicherten sieben Tagen behält jeden Satz wortgleich — Prüfsumme unverändert.
+abschnitt("7c Zahlungsziel sofort (0, 1 und 7 Tage)");
+{
+  const mit = (tage: number) => ({ ...D, parameter: { ...PAR, zahlungszielTage: tage } });
+  const texte = (tage: number) => {
+    const d = mit(tage);
+    const s = C.kapitalCSeite(d);
+    return {
+      vertrag: flach(absText(C.kapitalCZiffern(d)).join("\n")),
+      info: flach(s.informationen.zeilen.find((z) => z.titel === "Zahlung")?.text ?? ""),
+      uebersicht: flach(C.kapitalCBestellUebersicht(d, 10).zeilen.map((z) => `${z.label}: ${z.wert}`).join(" | ")),
+      knopf: flach(C.kapitalCAnnahmeTexte(d).unterKnopf),
+    };
+  };
+  const t0 = texte(0); const t1 = texte(1); const t7 = texte(7);
+  ok(C.KAPITAL_C_VORGABEN.zahlungszielTage === 0, "Vorgabe für neue Angebote: 0 Tage (sofort)");
+  ok(/Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar sofort ohne Abzug per Überweisung\./.test(t0.vertrag) && /FIAON berechnet es mit Rechnung, zahlbar sofort\./.test(t0.vertrag), "0 Tage: Ziffer 6 Abs. 1 und 2 „zahlbar sofort“", t0.vertrag.match(/Der Betrag ist[^.]*\./)?.[0]);
+  ok(t0.info === `Per Überweisung auf Rechnung, zahlbar sofort. Die Rechnung über 3.289 € kommt mit der Annahme.` && /Rechnung mit der Annahme, zahlbar sofort/.test(t0.uebersicht) && /Fällig mit Ihrem Auftrag: 3\.289 € — sofort per Überweisung\./.test(t0.knopf), "0 Tage: Informationen, Übersicht (§ 312j) und Satz unter dem Knopf gleichlautend", { info: t0.info, knopf: t0.knopf });
+  ok(![t0, t1, t7].some((t) => /null Tagen|eins Tagen|binnen 0|binnen 1 /.test(Object.values(t).join(" "))), "nie „binnen null Tagen“ oder „binnen eins Tagen“");
+  ok(/zahlbar binnen eines Tages ohne Abzug per Überweisung/.test(t1.vertrag) && /per Überweisung binnen eines Tages\./.test(t1.knopf), "1 Tag: „binnen eines Tages“");
+  ok(/zahlbar binnen sieben Tagen ohne Abzug per Überweisung\./.test(t7.vertrag) && /FIAON berechnet es mit Rechnung, zahlbar binnen sieben Tagen\./.test(t7.vertrag) && t7.info === "Per Überweisung auf Rechnung, zahlbar binnen sieben Tagen. Die Rechnung über 3.289 € kommt mit der Annahme."
+    && /Fällig mit Ihrem Auftrag: 3\.289 € — per Überweisung binnen sieben Tagen\./.test(t7.knopf), "7 Tage: Wortlaut wie bisher (Ziffer 6, Informationen, Knopf)");
+  ok(C.kapitalCHashEingabe(mit(7), C.kapitalCRumpfHtml(mit(7), null)) !== C.kapitalCHashEingabe(mit(0), C.kapitalCRumpfHtml(mit(0), null)), "0 und 7 Tage ergeben verschiedene Prüfsummen (ein offenes Angebot lädt nach einer Änderung neu)");
+  const w = W.globalWortPruefen([t0.vertrag.match(/Der Betrag ist[^.]*\./)?.[0] ?? "", t0.info, t0.knopf].join(" "), ["aufgabe_an_betreuer"]);
+  ok(w.length === 0, "0 Tage: Wortwand ohne Treffer", w);
+}
+
 // ═══ OPTIONAL: KEINE ECHTEN KUNDENDATEN IM CODE / MAILTEXT ══════════════════
 const privat = arg("--privat");
 if (privat) {
@@ -569,7 +598,9 @@ if (privat) {
     for (const teil of name.split(" ")) if (teil.length >= 4 && teil.toLowerCase() !== kuerzel) werte.add(teil.toLowerCase());
   }
   if (teamRoh.length) console.log(`  (dazu ${teamRoh.length} Menschen aus dem Team)`);
-  const dateien = ["shared/fiaon-global-angebot-kapital-c.ts", "server/lib/fiaon-global-angebot-kapital-c.ts", "client/src/pages/business-angebot-kapital-c.tsx", "client/src/styles/global-angebot-kapital-c.css", "scripts/pruef-kapital-fassung-c.ts", "scripts/angebot-kapital-anlegen.ts", "shared/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-auftrag.ts", "client/src/pages/business-angebot.tsx", "client/src/components/angebot-firma/VertragsLeser.tsx", "scripts/pruef-wortwand-de.ts", "client/src/pages/business-angebot-kapital.tsx", "client/src/styles/global-angebot-kapital.css"];
+  const dateien = ["shared/fiaon-global-angebot-kapital-c.ts", "server/lib/fiaon-global-angebot-kapital-c.ts", "client/src/pages/business-angebot-kapital-c.tsx", "client/src/styles/global-angebot-kapital-c.css", "scripts/pruef-kapital-fassung-c.ts", "scripts/angebot-kapital-anlegen.ts", "shared/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-angebot-kapital.ts", "server/lib/fiaon-global-auftrag.ts", "client/src/pages/business-angebot.tsx", "client/src/components/angebot-firma/VertragsLeser.tsx", "scripts/pruef-wortwand-de.ts", "client/src/pages/business-angebot-kapital.tsx", "client/src/styles/global-angebot-kapital.css",
+    // E-432 (28.10.2026): das Pflege-Skript für Global-Aufträge, sein Prüfstand und seine Bausteine
+    "scripts/global-auftrag-pflegen.ts", "scripts/pruef-global-auftrag-pflegen.ts", "server/lib/fiaon-global-pflege.ts", "server/lib/fiaon-zahlungsfrist.ts"];
   // Als ganzes Wort (Buchstaben/Ziffern davor und danach zählen nicht): ein kurzer Nachname steckt sonst in „übergeben“ o. Ä.
   const ganzesWort = (w: string) => new RegExp(`(?<![\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "u");
   for (const f of dateien) {

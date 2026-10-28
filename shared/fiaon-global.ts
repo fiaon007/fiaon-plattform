@@ -345,6 +345,7 @@ export function globalAgentVertrag(teil: "nutzung" | "haftung", weiblich = false
     : t;
 }
 
+
 // ── ALLES INKLUSIVE (18.09.2026) ────────────────────────────────────────────
 // Was der Festpreis im Einzelnen abdeckt — die Seite, der Auftrag und das Office
 // zeigen diese Liste. Sie gilt für alle vier Pakete; die Pakete darüber hinaus

@@ -192,7 +192,9 @@ export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   fastTrackCents: 49_900,
   erfolgCents: 689_000,
   jahresCents: 69_900,
-  zahlungszielTage: 7,
+  // E-432 (28.10.2026, Justin: „Die Rechnung ist eigentlich umgehend, also sofort fällig“): neue Angebote „zahlbar sofort“
+  // (kapitalCZahlbar). Angebote mit gespeichertem Wert (z. B. sieben Tage) behalten ihn — ihr Wortlaut und ihre Prüfsumme bleiben.
+  zahlungszielTage: 0,
   betragCents: 25_000_000,
   kursUsdJeEur: 1.1188,
   kursDatum: "2026-10-26",
@@ -332,6 +334,15 @@ export function kapitalCHeuteCents(par: Pick<KapitalCParameter, "gruendungCents"
 /** Der Gesamtpreis des ersten Jahres: heute fällig + Erfolgshonorar bei Eintragung (§ 3 PAngV, Art. 246a EGBGB). */
 export function kapitalCErstesJahrCents(par: Pick<KapitalCParameter, "gruendungCents" | "fastTrackCents" | "erfolgCents">): number {
   return kapitalCHeuteCents(par) + par.erfolgCents;
+}
+/**
+ * Das Zahlungsziel als Vertragswort (E-432, 28.10.2026 — Justin: „Die Rechnung ist eigentlich umgehend, also sofort fällig“):
+ * 0 Tage = „sofort“ (gesetzliche Grundregel § 271 Abs. 1 BGB, Muster des Individualangebots E-268), 1 Tag = „binnen eines Tages“,
+ * sonst „binnen sieben Tagen“. Vorher ergab 0 „binnen null Tagen“. Bei sieben Tagen bleibt jeder Satz WORTGLEICH — die Prüfsumme
+ * offener und angenommener Angebote ändert sich nicht.
+ */
+export function kapitalCZahlbar(tage: number): string {
+  return tage <= 0 ? "sofort" : tage === 1 ? "binnen eines Tages" : `binnen ${zahlwort(tage)} Tagen`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -598,8 +609,8 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
       p("Nimmt das finanzierende Institut die Bürgin in Anspruch, ersetzen die Gesellschaft und der Auftraggeber der Bürgin als Gesamtschuldner den gezahlten Betrag mit den Kosten der Inanspruchnahme (Rückgriff). Solange die Bürgschaft besteht, teilt der Auftraggeber FIAON einmal im Quartal den Stand der Finanzierung und der Rückzahlungen in Textform mit."),
     ] },
     { nr: 6, titel: "Vergütung und Fälligkeit", absaetze: [
-      p(`Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Gründung, Konto und Karten) zahlt der Auftraggeber einmalig ${kapitalCEur(par.gruendungCents)} und für den Fast-Track (Ziffer 2 Absatz 3) einmalig ${kapitalCEur(par.fastTrackCents)}, zusammen ${kapitalCEur(kapitalCHeuteCents(par))}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang (Ziffer 10 Absatz 2).`),
-      p(`Mit der erfolgreichen Gründung der Gesellschaft — ihrer Eintragung beim Bundesstaat — wird das Erfolgshonorar von ${kapitalCEur(par.erfolgCents)} fällig; es schließt die Bürgschaft nach Ziffer 5 ein. FIAON berechnet es mit Rechnung, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen. Kommt es nicht zur Eintragung, entfällt es. Im ersten Jahr zahlt der Auftraggeber damit insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}.`),
+      p(`Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Gründung, Konto und Karten) zahlt der Auftraggeber einmalig ${kapitalCEur(par.gruendungCents)} und für den Fast-Track (Ziffer 2 Absatz 3) einmalig ${kapitalCEur(par.fastTrackCents)}, zusammen ${kapitalCEur(kapitalCHeuteCents(par))}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)} ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang (Ziffer 10 Absatz 2).`),
+      p(`Mit der erfolgreichen Gründung der Gesellschaft — ihrer Eintragung beim Bundesstaat — wird das Erfolgshonorar von ${kapitalCEur(par.erfolgCents)} fällig; es schließt die Bürgschaft nach Ziffer 5 ein. FIAON berechnet es mit Rechnung, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}. Kommt es nicht zur Eintragung, entfällt es. Im ersten Jahr zahlt der Auftraggeber damit insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}.`),
       p(`Ab dem zweiten Jahr nach der Eintragung betreut FIAON die Gesellschaft für ${kapitalCEur(par.jahresCents)} je Jahr (Jahresbetreuung): Registered Agent und US-Geschäftsadresse, US-Telefonnummer und Assistenz, die jährliche US-Meldung (Form 5472 mit Form 1120) durch einen US-CPA aus dem Partnernetz von FIAON, die Jahresmeldung beim Bundesstaat einschließlich der Staatsgebühr, der Pflichtenkalender, die Begleitung bei einer Aufstockung oder Umschuldung nach Ziffer 4 Absatz 2 und ein fester Ansprechpartner. Die Jahresbetreuung wird jährlich im Voraus berechnet und verlängert sich nicht von selbst: Mit der Zahlung der Jahresrechnung beginnt das jeweilige Betreuungsjahr. Bleibt die Zahlung aus, endet die Jahresbetreuung; die laufenden Kosten der Gesellschaft trägt der Auftraggeber dann selbst.`),
       p("Alle Beträge sind Endpreise; eine etwa anfallende Umsatzsteuer ist darin enthalten. Die Honorare der Partner von FIAON für die hier genannten Leistungen trägt FIAON. Zinsen und Kosten der Finanzierung richten sich nach Ziffer 4 und dem Darlehensvertrag des finanzierenden Instituts."),
     ] },
@@ -956,7 +967,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
         { titel: "Ihr Vertragspartner", text: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, ${kapitalCOrtZeileNb()}, ${FIAON_FIRMA.land} · ${FIAON_FIRMA.register}, Nr. ${FIAON_FIRMA.companyNo} · vertreten durch ${FIAON_FIRMA.director}, Director · Telefon ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}` },
         { titel: "Die Leistung", text: `Gründung Ihrer US-Gesellschaft (LLC) in ${par.bundesstaat} mit Adresse, Telefonnummer, Assistenz, EIN und — nach dem ITIN-Check — ITIN, im ersten Jahr mit der ersten Jahresmeldung beim Bundesstaat; Vorbereitung von privatem Konto, privaten Karten, Geschäftskonto und Firmenkarte; Begleitung bis zur Finanzierung über ${betrag} durch eine US-Bank mit der Bürgschaft unserer US-Partnergesellschaft (Ziffer 2 bis 5). Über die Finanzierung entscheidet die Bank.` },
         { titel: "Die Preise", text: `Mit Ihrem Auftrag fällig ${kapitalCEur(kapitalCHeuteCents(par))} (Gründung, Konto und Karten ${kapitalCEur(par.gruendungCents)}, Fast-Track ${kapitalCEur(par.fastTrackCents)}); mit der Eintragung Ihrer Gesellschaft ${kapitalCEur(par.erfolgCents)} Erfolgshonorar einschließlich Bürgschaft; im ersten Jahr insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}; ab dem zweiten Jahr ${kapitalCEur(par.jahresCents)} je Jahr. Alle Beträge sind Endpreise.` },
-        { titel: "Zahlung", text: `Per Überweisung auf Rechnung, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen. Die Rechnung über ${kapitalCEur(kapitalCHeuteCents(par))} kommt mit der Annahme.` },
+        { titel: "Zahlung", text: `Per Überweisung auf Rechnung, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}. Die Rechnung über ${kapitalCEur(kapitalCHeuteCents(par))} kommt mit der Annahme.` },
         { titel: "Beginn und Zeitplan", text: `Mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist (Fast-Track). Unser Ziel ist die Auszahlung in Woche ${zahlwort(par.zielWochen)}.` },
         { titel: KAPITAL_C_GARANTIE_NAME, text: G.info },
         { titel: "Sicherheiten und Bürgschaft", text: `Eine Bareinlage oder dingliche Sicherheit verlangen wir nicht. Die Bürgschaft gegenüber der Bank übernimmt unsere US-Partnergesellschaft, ein mit FIAON verbundenes Unternehmen (Ziffer 5)${buerginStand ? `, sobald sie im US-Register wieder als aktiv geführt wird; derzeit wird sie dort als inaktiv geführt` : ""}. ${KAPITAL_C_VERANTWORTUNG}` },
@@ -988,7 +999,7 @@ export function kapitalCBestellUebersicht(d: KapitalCDaten, laufzeitJahre: numbe
       { label: KAPITAL_C_LAUFZEIT_LABEL, wert: kapitalCLaufzeitZeile(par, plan ? plan.jahre : null) },
       { label: "Ihre Verantwortung", wert: KAPITAL_C_VERANTWORTUNG },
       { label: `${KAPITAL_C_GARANTIE_NAME} (Ziffer 4)`, wert: kapitalCGarantie(par).uebersicht },
-      { label: "Fällig mit Ihrem Auftrag", wert: `${kapitalCEur(kapitalCHeuteCents(par))} (Gründung, Konto und Karten ${kapitalCEur(par.gruendungCents)} + Fast-Track ${kapitalCEur(par.fastTrackCents)}) — Rechnung mit der Annahme, zahlbar binnen ${zahlwort(par.zahlungszielTage)} Tagen` },
+      { label: "Fällig mit Ihrem Auftrag", wert: `${kapitalCEur(kapitalCHeuteCents(par))} (Gründung, Konto und Karten ${kapitalCEur(par.gruendungCents)} + Fast-Track ${kapitalCEur(par.fastTrackCents)}) — Rechnung mit der Annahme, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}` },
       { label: "Mit der Eintragung", wert: `${kapitalCEur(par.erfolgCents)} Erfolgshonorar einschließlich Bürgschaft (Ziffer 6 Absatz 2)` },
       { label: "Im ersten Jahr insgesamt", wert: `${kapitalCEur(kapitalCErstesJahrCents(par))} — Endpreise, eine etwa anfallende Umsatzsteuer ist enthalten` },
       { label: "Ab dem zweiten Jahr", wert: `Jahresbetreuung ${kapitalCEur(par.jahresCents)} je Jahr` },
@@ -1053,7 +1064,7 @@ export function kapitalCAnnahmeTexte(d: KapitalCDaten): KapitalCAnnahmeTexte {
     },
     knopf: KAPITAL_KNOPF,
     knopfSendet: "Ihr Auftrag wird übermittelt …",
-    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig mit Ihrem Auftrag: ${kapitalCEur(kapitalCHeuteCents(par))} — per Überweisung binnen ${zahlwort(par.zahlungszielTage)} Tagen. Ihren Vertrag als PDF und die Rechnung erhalten Sie per E-Mail.`,
+    unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig mit Ihrem Auftrag: ${kapitalCEur(kapitalCHeuteCents(par))} — ${par.zahlungszielTage > 0 ? `per Überweisung ${kapitalCZahlbar(par.zahlungszielTage)}` : "sofort per Überweisung"}. Ihren Vertrag als PDF und die Rechnung erhalten Sie per E-Mail.`,
     gesperrt: "Dieses Angebot wird gerade vervollständigt. Ihr Ansprechpartner gibt Ihnen Bescheid, sobald Sie es annehmen können.",
     leserKnopf: "Zur Annahme",
     leserSatz: "Angenommen wird unten auf der Seite — mit einem Haken für den Fast-Track und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin.",
@@ -1092,13 +1103,14 @@ export const KAPITAL_C_BESTAETIGUNG = {
     "Im Anhang finden Sie Ihren Vertrag mit Annahmevermerk, der Widerrufsbelehrung und dem Muster-Widerrufsformular sowie die Rechnung über Gründung, Konto und Karten und den Fast-Track.",
     "Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen; die Einzelheiten stehen in der Widerrufsbelehrung im Anhang. Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen (Fast-Track): Wir beginnen mit Ihrem Zahlungseingang, und widerrufen Sie danach, zahlen Sie für die bis dahin erbrachten Leistungen einen angemessenen Betrag.",
   ],
-  daten: (ein: { ref: string; llc: string; laufzeit: string; heute: string; zweck: string | null; faellig: string | null }) => [
+  // E-432 (28.10.2026): `sofort` = Zahlungsziel null Tage — dann „Zahlbar: sofort“ statt eines Datums.
+  daten: (ein: { ref: string; llc: string; laufzeit: string; heute: string; zweck: string | null; faellig: string | null; sofort?: boolean }) => [
     { label: "Angebot", wert: ein.ref },
     { label: "Ihre Gesellschaft", wert: ein.llc },
     { label: KAPITAL_C_LAUFZEIT_LABEL, wert: ein.laufzeit },
     { label: "Fällig mit Ihrem Auftrag", wert: ein.heute },
     ...(ein.zweck ? [{ label: "Verwendungszweck", wert: ein.zweck }] : []),
-    ...(ein.faellig ? [{ label: "Zahlbar bis", wert: ein.faellig }] : []),
+    ...(ein.sofort ? [{ label: "Zahlbar", wert: "sofort" }] : ein.faellig ? [{ label: "Zahlbar bis", wert: ein.faellig }] : []),
   ],
   knopf: "Zur Zahlungsseite",
   knopf2: "Zu „Mein Auftrag“",

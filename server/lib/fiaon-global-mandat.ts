@@ -34,7 +34,7 @@ import {
   type BereichAgent, type DateiEin, type Erg, type Lage,
 } from "./fiaon-global-bereich";
 import {
-  globalDokumentArt, globalDokumentArtText, globalKundeDarfArt, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
+  globalDokumentArt, globalDokumentArtText, globalKundeDarfArt, globalAblehnungOffen, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
 } from "@shared/fiaon-global-bereich";
 import { unterschriftModus } from "@shared/fiaon-global-akte";
 import {
@@ -826,7 +826,7 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
   await ensureGlobalMandat();
   const id = Number(idRoh);
   const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
-    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am, unterschrift_von_id, abgelehnt_am, abgelehnt_grund FROM fiaon_global_dokumente
+    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am, unterschrift_von_id, abgelehnt_am, abgelehnt_grund, created_at FROM fiaon_global_dokumente
      WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL`) as any[]) : [];
   if (!d) return nein(404, "Dieses Dokument gibt es nicht (mehr).");
   const titel = ein.titel !== undefined ? (knapp(ein.titel, 160) || null) : undefined;
@@ -855,6 +855,16 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
     const w = kundensatz(grund); if (w) return nein(400, w);
   }
   const zurueck = ein.ablehnungZurueck === true && !!d.abgelehnt_am;
+  // E-443 (28.10.2026, Praxistest): Ist das Dokument schon durch einen neueren Upload derselben Unterlage ersetzt, ist beim
+  // Kunden nichts offen — „bitte neu“ oder die Rücknahme schriebe ihm eine Verlaufszeile, die nicht stimmt. Dieselbe
+  // Rechnung wie das Portal (globalAblehnungOffen).
+  if (grund !== undefined || zurueck) {
+    const andere = (await sqlPool`SELECT id, art, created_at, abgelehnt_am FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL AND id <> ${id}`) as any[];
+    const zeit = (x: unknown) => (x ? new Date(x as string).toISOString() : null);
+    const ersetzt = !globalAblehnungOffen({ id, art: String(artNeu?.art ?? d.art), am: zeit(d.created_at), abgelehntAm: "ja" },
+      andere.map((x) => ({ id: Number(x.id), art: String(x.art), am: zeit(x.created_at), abgelehntAm: zeit(x.abgelehnt_am) })));
+    if (ersetzt) return nein(409, "Dieses Dokument ist schon durch einen neueren Upload ersetzt — beim Kunden ist dazu nichts offen. „Bitte neu“ bei Bedarf am neuen Dokument setzen.");
+  }
   // E-443 (28.10.2026, Gutachten): Doppelklick — dieselbe Ablehnung mit demselben Grund schreibt keine zweite Kundenzeile.
   const schonSo = grund !== undefined && !!d.abgelehnt_am && String(d.abgelehnt_grund ?? "") === grund;
   if (schonSo && artNeu == null && titel === undefined && sichtbar === undefined && unterschrift === undefined) {
@@ -918,7 +928,7 @@ export async function globalChefGesehen(ref: string, ids: number[] | "alle", wer
     if (!liste.length) return 0;
     zahl = ((await sqlPool`
       UPDATE fiaon_global_dokumente SET fiaon_gesehen_am = NOW()
-       WHERE ref = ${ref} AND von = 'kunde' AND fiaon_gesehen_am IS NULL AND id = ANY(${liste}) RETURNING id`) as any[]).length;
+       WHERE ref = ${ref} AND von = 'kunde' AND fiaon_gesehen_am IS NULL AND geloescht_am IS NULL AND id = ANY(${liste}) RETURNING id`) as any[]).length;
   }
   await globalKundenAufgabenErledigen(ref, wer);
   return zahl;

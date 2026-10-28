@@ -199,7 +199,7 @@ if (!ROT) {
     const vor2 = (await todos(REF2)).filter((x) => /:eingang:/.test(x.schluessel));
     ok(vor2.length === 1 && vor2[0].status === "offen", "zweite Akte: Upload-Aufgabe offen", vor2);
     const n: any = await sicher("globalChefGesehen", () => M.globalChefGesehen(REF, "alle", CHEF.name));
-    ok(Number(n) >= 1, `globalChefGesehen meldet ${n} Dokument(e)`, n);
+    ok(Number(n) === 1, `globalChefGesehen meldet genau 1 Dokument (den Scan; das Foto galt durch das Ablehnen schon als gesehen) — ${n}`, n);
     const c: any = await chef(REF);
     ok((c?.dokumente ?? []).filter((x: any) => x.von === "kunde").every((x: any) => x.neu === false), "Chef: kein Kunden-Dokument mehr neu", (c?.dokumente ?? []).map((x: any) => ({ id: x.id, neu: x.neu })));
     const t = (await todos(REF)).filter((x) => /:eingang:/.test(x.schluessel));
@@ -266,6 +266,35 @@ if (!ROT) {
     ok(Number(g[0].n) === 0, "DB: Kundennachricht gelesen_fiaon_am gesetzt", g[0]);
     const t4 = (await todos(REF2)).filter((x) => /:eingang:/.test(x.schluessel));
     ok(JSON.stringify(t2.map((x) => x.status)) === JSON.stringify(t4.map((x) => x.status)), "Aufgaben der zweiten Akte unberührt");
+  }
+
+  // ═══ 9 EINZELN GESEHEN, ERSETZT, ZURÜCKNEHMEN (Gegenprüfung des Praxistests) ═══
+  schritt("9", "Einzeln öffnen = gesehen; ersetztes Dokument nicht mehr ablehnbar; „bitte neu“ zurücknehmen");
+  {
+    const vz = async (r: string) => ((await portal(r))?.verlauf ?? []).length;
+    const v0 = await vz(REF);
+    const e1: any = await M.globalMandatDokumentAendern(REF, fotoId, { ablehnen: "Bitte noch einmal anders scannen" }, CHEF);
+    ok(e1?.ok === false && e1.status === 409, "ersetztes Foto: neues „bitte neu“ → 409", e1);
+    const e2: any = await M.globalMandatDokumentAendern(REF, fotoId, { ablehnungZurueck: true }, CHEF);
+    ok(e2?.ok === false && e2.status === 409, "ersetztes Foto: Rücknahme → 409", e2);
+    ok((await vz(REF)) === v0, "keine neue Kunden-Verlaufszeile durch die abgewiesenen Versuche", { vorher: v0, nachher: await vz(REF) });
+    const [z] = (await sqlPool`SELECT id FROM fiaon_global_dokumente WHERE ref = ${REF2} AND von = 'kunde' AND geloescht_am IS NULL ORDER BY id DESC LIMIT 1`) as any[];
+    const id2 = Number(z?.id ?? 0);
+    const n1: any = await sicher("globalChefGesehen([id])", () => M.globalChefGesehen(REF2, [id2], CHEF.name));
+    const n2: any = await M.globalChefGesehen(REF2, [id2], CHEF.name);
+    ok(Number(n1) === 1 && Number(n2) === 0, "Dokument einzeln geöffnet: einmal 1, beim zweiten Mal 0", { n1, n2 });
+    const c2: any = await chef(REF2);
+    ok((c2?.dokumente ?? []).find((x: any) => Number(x.id) === id2)?.neu === false, "Chef-Akte zwei: Dokument nicht mehr neu");
+    const t5 = (await todos(REF2)).filter((x) => /:eingang:/.test(x.schluessel));
+    ok(t5.length === 1 && t5[0].status === "erledigt", "Upload-Aufgabe der zweiten Akte erledigt", t5.map((x) => x.status));
+    const ab: any = await M.globalMandatDokumentAendern(REF2, id2, { ablehnen: GRUND }, CHEF);
+    ok(!!ab?.ok && offen(await portal(REF2)).length === 1, "zweite Akte: „bitte neu“ → Portal zeigt 1 offene Unterlage", ab);
+    const zu: any = await M.globalMandatDokumentAendern(REF2, id2, { ablehnungZurueck: true }, CHEF);
+    const p2: any = await portal(REF2);
+    ok(!!zu?.ok && offen(p2).length === 0, "Rücknahme → Portal: nichts mehr offen", { zu, offen: offen(p2) });
+    ok((p2?.verlauf ?? []).some((x: any) => /in Ordnung/.test(String(x.text))), "Kunde liest „… ist in Ordnung“ im Verlauf", p2?.verlauf?.slice(0, 3));
+    const zu2: any = await M.globalMandatDokumentAendern(REF2, id2, { ablehnungZurueck: true }, CHEF);
+    ok(zu2?.ok === true && /Nichts geändert/.test(String(zu2.meldung)), "zweite Rücknahme: „Nichts geändert.“", zu2);
   }
 }
 

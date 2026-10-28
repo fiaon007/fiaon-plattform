@@ -85,11 +85,19 @@ function kurzWerte(schluessel: string, g: T | null, p: T | null, kapital: T[]): 
   }
 }
 
-export default function GlobalStationen({ basis, daten, onGespeichert, ton = "dunkel" }: {
+export default function GlobalStationen({ basis, daten, onGespeichert, ton = "dunkel", startOffen = null }: {
   /** z. B. /api/fiaon/chef/global/mandate/<REF> oder /api/fiaon/agent/global/auftraege/<REF> */
   basis: string; daten: StationenDaten; onGespeichert: () => void; ton?: "dunkel" | "hell";
+  /** E-455 (29.10.2026): diese Station gleich geöffnet zeigen (Chefbüro › Global-Kunden, „Wert eintragen“). Freiwillig. */
+  startOffen?: string | null;
 }) {
-  const [offen, setOffen] = useState<string | null>(null);
+  const [offen, setOffen] = useState<string | null>(startOffen);
+  // E-455: Wechselt die gewünschte Station, öffnet sie sich und rollt ins Bild.
+  useEffect(() => {
+    if (!startOffen) return;
+    setOffen(startOffen);
+    window.requestAnimationFrame(() => document.querySelector(`[data-station="${startOffen}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }, [startOffen]);
   const schritte = daten.schritte ?? [];
   const sichtbar = schritte.filter((s) => s.status !== "entfaellt");
   const erledigt = sichtbar.filter((s) => s.status === "erledigt").length;

@@ -35,6 +35,8 @@ import ChefRueckholung from "@/components/admin/ChefRueckholung";
 import { Suspense, lazy } from "react";
 // E-338: der Global-Arbeitsraum — eigene Seite, erst beim Betreten geladen.
 const ChefGlobal = lazy(() => import("@/components/admin/ChefGlobal"));
+// E-455: der eigene Raum „Global-Kunden“ im Global-CI — dieselben Daten, eigener Aufbau.
+const ChefGlobalKunden = lazy(() => import("@/components/admin/ChefGlobalKunden"));
 // E-409: der Raum „KI-Team“ öffnet auf „Heute“ (Mara und Aras) — dieselbe Seite wie /chef/s/ki-heute.
 const ChefKiHeute = lazy(() => import("@/components/admin/ChefKiHeute"));
 
@@ -54,6 +56,7 @@ const EIGENE_SEITE: Record<string, (stufe: ChefStufe) => JSX.Element> = {
   rueckholung: () => <ChefRueckholung />,
   ki: () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><div className="cbs-eigen"><ChefKiHeute /></div></Suspense>,
   global: () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><ChefGlobal /></Suspense>,
+  "global-kunden": () => <Suspense fallback={<div className="cl-geruest"><span /><span /><span /><span /></div>}><ChefGlobalKunden /></Suspense>,
 };
 
 const STUFEN: ChefStufe[] = ["inhaber", "geschaeftsfuehrung", "leitung"];
@@ -90,7 +93,7 @@ export default function ChefPage() {
 
   return (
     <ChefShell stufe={stufe} name={status.name} titel={(status as any).titel ?? null} raumKey={raum.key} onAbmelden={abmelden}
-               ruhigeHuelle={!!seite?.ruhig || (!istSeite && raum.key === "ki") /* E-252: nur Seiten mit `ruhig`; E-409 Fund 18: auch /chef/ki (Heute) — kein Alpen-Film unter dem Glas */}
+               ruhigeHuelle={!!seite?.ruhig || (!istSeite && raum.key === "ki") || (!istSeite && raum.key === "global-kunden") /* E-455: helle Tafel auf dem Standbild, kein Film;  E-252: nur Seiten mit `ruhig`; E-409 Fund 18: auch /chef/ki (Heute) — kein Alpen-Film unter dem Glas */}
                vollflaeche={!!seite?.vollflaeche /* E-IT-H: nur Seiten mit `vollflaeche` (heute /chef/s/whatsapp) */}
                stillerGrund={!!seite?.stillerGrund /* Aras-Cockpit 20.10.2026: kein Foto hinter den Daten (heute /chef/s/aras) */}
                seiteSlug={seite?.slug ?? null} volltext={!!seite?.volltext /* E-342: Kurzmodus aus, wo langer Text Inhalt ist */}>

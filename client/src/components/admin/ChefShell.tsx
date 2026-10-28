@@ -24,7 +24,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2, Bot,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2, Bot, Building2,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad, type ChefSeite } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
@@ -144,6 +144,14 @@ export const CHEF_RAEUME: ChefRaum[] = [
     punkte: [],
   },
   // ── FIAON Global (E-338) ────────────────────────────────────────────────
+  // E-455 (29.10.2026): Justin — „Baue mir einen eigenen Bereich für die Global-Kunden in Global CI (Apple) … mit 1 Klick
+  // alles lösen.“ Ausdrücklich ein EIGENER Raum (Ausnahme von „keine neuen Chef-Seiten“), oben in der Gruppe; derselbe
+  // Datenweg wie „Global-Mandate“ (/chef/global), der unverändert daneben bleibt.
+  {
+    key: "global-kunden", label: "Global-Kunden", Icon: Building2, mindest: "leitung", gruppe: "global",
+    satz: "Jeder Firmenkunde auf einer Seite — mit dem nächsten Schritt.",
+    punkte: [],
+  },
   {
     key: "global", label: "Global-Mandate", Icon: Globe2, mindest: "leitung", gruppe: "global",
     satz: "Firmenkunden — Mandate, Angebote, Radar.",
@@ -535,7 +543,8 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
     // E-342: Die Seiten des offenen Raums stehen darunter — im aufgeklappten Menü und in der Schublade.
     // Ein Raum, der allein unter seiner Überschrift steht (FIAON Global), zeigt sie immer.
     const unter = raumSeitenFuer(r.key, darf);
-    const allein = CHEF_RAEUME.filter((x) => x.gruppe === r.gruppe).length === 1;
+    // E-455: „allein“ zählt nur Räume MIT Seiten — Global-Kunden (ohne Unterseiten) nimmt Global-Mandate die offene Liste nicht weg.
+    const allein = CHEF_RAEUME.filter((x) => x.gruppe === r.gruppe && raumSeitenFuer(x.key, darf).length > 0).length === 1;
     const offen = unter.length > 0 && (inSchublade || !schmal) && (aktiv.key === r.key || allein);
     return (
       <>
@@ -543,6 +552,10 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
           <i><r.Icon size={18} strokeWidth={1.75} /></i>
           <span>{r.label}</span>
           {r.key === "global" && globalNeu > 0 && (
+            <em className="cb-zahl" title={`${globalNeu} ${globalNeu === 1 ? "Akte" : "Akten"} mit Neuem vom Kunden`} aria-label={`${globalNeu} neu`}>{globalNeu > 99 ? "99+" : globalNeu}</em>
+          )}
+          {/* E-455: dieselbe Zahl am neuen Raum „Global-Kunden“. */}
+          {r.key === "global-kunden" && globalNeu > 0 && (
             <em className="cb-zahl" title={`${globalNeu} ${globalNeu === 1 ? "Akte" : "Akten"} mit Neuem vom Kunden`} aria-label={`${globalNeu} neu`}>{globalNeu > 99 ? "99+" : globalNeu}</em>
           )}
         </Link>

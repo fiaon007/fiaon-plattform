@@ -1582,6 +1582,57 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/global-kunden (E-455, 29.10.2026) — Chefbüro › Global-Kunden ─────────
+// Justin: „Baue mir einen eigenen Bereich für die Global-Kunden in Global CI (Apple), übersichtlich, erklärlich …
+//          immer mit 1 Klick alles lösen … Fahrplan haben für uns intern.“ Der Raum „Global-Mandate“ bleibt daneben.
+export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
+  {
+    titel: "Jeder Firmenkunde auf einer Seite — mit dem einen nächsten Schritt.",
+    text: "Links stehen die Kunden, rechts die geöffnete Akte. Es sind dieselben Daten wie im Raum „Global-Mandate“ und im Kundenportal: "
+      + "Was du hier änderst, sieht der Kunde sofort. Was er tut, erscheint hier von selbst — die Seite lädt jede Minute leise nach, "
+      + "solange der Tab offen ist. Was du gerade tippst, bleibt stehen.",
+  },
+  {
+    ziel: ".cgn-filter",
+    titel: "„Braucht uns“ zeigt nur, wo wir dran sind.",
+    text: "Braucht uns: Neues vom Kunden, eine Frist in den nächsten 14 Tagen oder ein Fahrplan, der weiterläuft. "
+      + "Wartet auf Kunde: Zahlung offen oder eine Unterschrift liegt beim Kunden. Alle: jede Akte. "
+      + "Der blaue Punkt mit Schein heißt: Der Kunde hat etwas hochgeladen oder geschrieben.",
+    tipp: "Morgens „Braucht uns“ von oben nach unten abarbeiten — dann ist der Tag sauber.",
+  },
+  {
+    ziel: ".cgn-naechstes",
+    titel: "„Als Nächstes“: ein Satz, ein Knopf.",
+    text: "Die Karte sagt, was jetzt bei dieser Akte zu tun ist, und warum. Die Reihenfolge: zuerst Nachrichten des Kunden, dann neue Dokumente, "
+      + "dann eine drängende Frist, dann wer die Akte führt, dann die nächste Station im Fahrplan. Der Knopf erledigt es mit einem Klick — "
+      + "„Antworten“ öffnet das Antwortfeld, „Öffnen“ zeigt das Dokument (öffnen = gesehen), „Starten“ und „Erledigt“ setzen die Station. "
+      + "Darunter steht, worauf wir beim Kunden warten.",
+  },
+  {
+    ziel: "[data-cgn='zeitlinie']",
+    titel: "Der Fahrplan: unsere Stationen, intern gesteuert.",
+    text: "Jede Station hat einen Knopf: „Starten“, wenn sie offen ist, „Erledigt“, wenn sie läuft — das Datum ist dann heute. "
+      + "Über „···“ änderst du das Datum, schreibst eine interne Notiz, setzt „Beantragt“ oder „Entfällt“. "
+      + "„Kunde sieht“ heißt: Die Station steht in seinem Portal. Werte wie EIN oder ITIN trägst du im Editor ein („Alle Werte bearbeiten“) "
+      + "oder direkt unter „Firmendaten“.",
+    tipp: "Darüber stehen die Etappen, wie der Kunde sie liest — ein Klick auf eine Etappe setzt sie (mit Satz und Mail, wenn du willst).",
+  },
+  {
+    ziel: "[data-cgn='dokumente']",
+    titel: "Dokumente: Neues oben.",
+    text: "Neue Uploads des Kunden stehen ganz oben, darunter, was beim Kunden zur Unterschrift liegt, dann alle Mappen. "
+      + "„···“ an einem Dokument: Art korrigieren, „Bitte neu …“ mit Grund, freigeben oder intern machen, Unterschrift anfordern, entfernen. "
+      + "Die Reiter daneben: Post für den Briefkasten des Kunden, Unterschriften (SS-4, 8821, Scan im Namen des Kunden, Akte als ZIP) und Formulare.",
+  },
+  {
+    titel: "Alles andere ist eingeklappt — ein Klick öffnet es.",
+    text: "Nachrichten (öffnen = gelesen), Zahlungen & Leistungen (Rechnungen, Zusatzdienste), Firmendaten (EIN, Registernummer, Agent, US-Adresse, "
+      + "US-Telefon, ITIN, D-U-N-S — je Wert „Ändern“, dazu wer zuständig ist), Banken & Kapital, Fristen, Verlauf & Notizen und „Mehr“ "
+      + "(Portal freischalten, Link per Mail, Stichtag, Test-Akte, KI-Gespräche). „Kundenansicht“ oben zeigt das Portal, wie der Kunde es sieht.",
+    tipp: "„Alte Ansicht“ öffnet dieselbe Akte im Raum „Global-Mandate“. Die Zahl am Menüpunkt zählt Akten mit Neuem vom Kunden.",
+  },
+];
+
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────
 // Das Werkzeug der zuständigen Person. Der Rundgang erklärt, was oben steht und
 // warum — und dass hier kein Geld gebucht und nichts zugesagt wird.
@@ -2995,6 +3046,8 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
   // E-443 (28.10.2026): Chefbüro › Global-Mandate.
   chefGlobal: { titel: "Global-Mandate", schritte: RUNDGANG_CHEF_GLOBAL },
+  // E-455 (29.10.2026): der eigene Raum „Global-Kunden“.
+  chefGlobalKunden: { titel: "Global-Kunden", schritte: RUNDGANG_CHEF_GLOBAL_KUNDEN },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },

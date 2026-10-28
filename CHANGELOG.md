@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.10.2026 — E-454: Google-Zahlen im Chefbüro (Besucher › Google)
+
+- **Warum:** Justin: „Ja Zugang — die Google-Zahlen landen automatisch im Chefbüro.“ Bisher las man die Search Console von Hand
+  im Browser ab; welche Seite neu bei Google ist und welche Suchanfragen knapp vor Seite 1 stehen, sah niemand.
+- **Was jetzt gilt:**
+  - Ein Tageslauf (`google-search-console`) holt jeden Morgen ab 5 Uhr Berlin aus der Google Search Console: Klicks,
+    Impressionen, CTR und Position der letzten 28 Tage mit Daten (verglichen mit den 28 davor), Verlauf je Tag, Suchanfragen,
+    Seiten, Länder, Geräte und den Sitemap-Stand. Dazu prüft er bis zu 150 Adressen aus der Sitemap am Tag (Google erlaubt
+    2.000), die wichtigsten zuerst: Ist die Seite bei Google? Daraus entstehen „Neu bei Google“ und „Noch nicht bei Google“
+    (mit Googles Grund).
+  - Alles wird als Tages-Schnappschuss abgelegt (neue Tabellen `fiaon_gsc_tage`, `fiaon_gsc_adressen`). Das Chefbüro liest nur
+    von dort. Ein Fehlschlag überschreibt nie einen guten Stand desselben Tages.
+  - Fehlt der Zugang (Search Console API im Google-Projekt aus oder Dienstkonto ohne Freigabe), steht dort „Zugang fehlt noch“
+    mit dem Satz, was fehlt — kein Absturz. Der Lauf versucht es alle 3 Stunden neu und meldet in der Lauf-Ampel keinen Erfolg,
+    solange keine Daten kommen. Sobald der Zugang da ist, kommen die Zahlen von selbst.
+  - Chefbüro › Besucher hat unter der eigenen Messung den Abschnitt „Google“ (Sprung „Google ↓“ oben): Kacheln mit Vergleich,
+    Säulen je Tag, „Fast auf Seite 1“ (Platz 8–20), Suchanfragen, Seiten, Länder, Geräte, Bei-Google-Zählung, Neu/Noch nicht,
+    Sitemap. Knopf „Jetzt abrufen“ nur für Geschäftsführung und Inhaber, höchstens alle 10 Minuten.
+  - Der Raum hat einen kurzen Rundgang (Besucher, mit Google).
+- **Wo:** server/lib/fiaon-search-console.ts, server/routes/fiaon-chef-google.ts, db/migrations/126_google_search_console.sql,
+  server/routes.ts (Einhängen + Lauf), server/lib/fiaon-crons.ts (LAUF_FOLGEN), client/src/components/admin/ChefBesucherGoogle.tsx,
+  ChefBesucher.tsx, client/src/styles/chef-besucher.css, client/src/pages/agent/rundgaenge.ts (RUNDGANG_BESUCHER),
+  Prüfstand scripts/pruef-search-console.ts (ohne Netz; `--db` gegen lokale DB; `--live` ein Token-Abruf).
+
 ## 28.10.2026 — E-432: Global-Auftrag „mit Hand und Fuß“ — Florida statt Wyoming, Zahlung „fällig mit Ihrem Auftrag“, Pflege-Skript
 
 - **Warum:** Beim ersten angenommenen Kapital-Angebot (Fassung C, Privatperson, LLC in Florida) fiel auf: Der Fahrplan zeigte unter

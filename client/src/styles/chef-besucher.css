@@ -203,6 +203,35 @@
 .bz-clarity-zahlen { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 12.5px; color: var(--bz-leise); }
 .bz-clarity-zahlen b { color: #fff; font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 4px; }
 
+/* ── Google (E-454, Search Console) ───────────────────────────────────── */
+.bzg { padding-top: 22px; border-top: 1px solid rgba(255, 255, 255, .08); scroll-margin-top: 96px; }
+.bzg .cbes-stand { margin-bottom: 0; }
+.bz-status a.bz-sprung { color: #93c5fd; text-decoration: none; }
+.bz-status a.bz-sprung:hover { color: #fff; }
+.bzg-versuch { color: #fcd34d; }
+.bzg-zugang { max-width: 72ch; }
+.bzg a.bz-rang-zeile { text-decoration: none; }
+.bzg .bzg-still { cursor: default; }
+.bzg .bzg-still:hover { background: transparent; }
+.bzg-fast .bz-rang-zahl { color: #93c5fd; }
+.bzg-neu .bz-rang-zahl { color: #6ee7b7; }
+.bzg-band-karte { padding-bottom: 12px; }
+.bzg-band { display: flex; align-items: flex-end; gap: 3px; height: 96px; }
+.bzg-saeule { position: relative; flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bzg-saeule i { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 3px 3px 1px 1px; }
+.bzg-impr { background: rgba(147, 197, 253, .14); }
+.bzg-saeule .bzg-klick { left: 22%; right: 22%; background: linear-gradient(180deg, var(--bz-blau), #2563eb); }
+.bzg-saeule:hover .bzg-impr { background: rgba(147, 197, 253, .26); }
+.bzg-legende-klick { border-top: 3px solid var(--bz-blau); }
+.bzg-legende-impr { border-top: 3px solid rgba(147, 197, 253, .3); }
+.bzg-index { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 22px; font-size: 12.5px; color: #b8c4d6; }
+.bzg-index b { color: #fff; font-weight: 300; font-size: 22px; font-variant-numeric: tabular-nums; margin-right: 5px; letter-spacing: -.01em; }
+.bzg-sitemaps { display: grid; gap: 6px; font-size: 12.5px; color: var(--bz-leise); font-variant-numeric: tabular-nums; }
+.bzg-sitemaps b { color: #cbd5e1; font-weight: 400; }
+.bzg-sitemaps i { font-style: normal; }
+.bzg-sitemaps i[data-ton="rot"] { color: #fca5a5; }
+.bzg-sitemaps i[data-ton="gelb"] { color: #fcd34d; }
+
 /* ── Telefon ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .bz-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); }

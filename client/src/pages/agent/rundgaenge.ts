@@ -2947,7 +2947,45 @@ export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
   },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CHEFBÜRO › BESUCHER (E-454, 28.10.2026) — eigene Messung, Google, Clarity.
+// Ziele nur auf Teile, die immer stehen (Leiste, #google, .bz-clarity); Kacheln und
+// Listen erscheinen erst mit Daten — die Karten dazu stehen mittig (fiaon-rundgang-pflege).
+// ═══════════════════════════════════════════════════════════════════════════
+export const RUNDGANG_BESUCHER: RundgangSchritt[] = [
+  {
+    titel: "Besucher: wer kommt — und was daraus wird.",
+    text: "Oben die eigene Messung ohne Cookies, darunter die Zahlen von Google und die Ärgernisse aus Clarity.",
+  },
+  {
+    ziel: ".bz-leiste",
+    titel: "Zeitraum und Filter.",
+    text: "Zeitraum wählen, Vergleich an oder aus. Jede Zeile einer Liste filtert die ganze Seite; der Filter steht dann hier oben, ein Klick löst ihn.",
+  },
+  {
+    ziel: "#google",
+    titel: "Google: Klicks, Impressionen, Position.",
+    text: "Die letzten 28 Tage aus der Search Console, verglichen mit den 28 davor. Kommt jeden Morgen ab 5 Uhr von selbst. Fehlt der Zugang, steht es hier.",
+    tipp: "„Jetzt abrufen“ holt sofort neu — Geschäftsführung und Inhaber, höchstens alle 10 Minuten.",
+  },
+  {
+    titel: "Fast auf Seite 1.",
+    text: "Suchanfragen auf Platz 8 bis 20: Hier bringt eine bessere Seite am schnellsten neue Besucher. Ein Klick zeigt die Google-Suche dazu.",
+  },
+  {
+    titel: "Neu bei Google, noch nicht bei Google.",
+    text: "Jeden Tag prüft der Lauf bis zu 150 Adressen aus der Sitemap. „Neu“ = seit Kurzem aufgenommen. „Noch nicht“ = wartet, mit Googles Grund; ein Klick öffnet die Prüfung in der Search Console.",
+  },
+  {
+    ziel: ".bz-clarity",
+    titel: "Ärgernisse aus Clarity.",
+    text: "Wut-Klicks, tote Klicks und Fehler je Seite. „Als Aufgabe“ legt den Befund ins TODO-Brett.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  // E-454 (28.10.2026): Chefbüro › Besucher (mit Google).
+  besucher:    { titel: "Besucher", schritte: RUNDGANG_BESUCHER },
   // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“). Die Schulung-Stichprobe ist weg (E-409 × E-406, 20.10.2026).
   lagezimmer:  { titel: "Lagezimmer", schritte: RUNDGANG_LAGEZIMMER },
   auskunft:    { titel: "Auskunft-Verkauf", schritte: RUNDGANG_AUSKUNFT },

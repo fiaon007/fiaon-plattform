@@ -35,6 +35,8 @@ export interface HeroGlasTexte {
   label: string;
   h1a: string;
   h1b: string;
+  /** Der Lead-Satz der Seite (mit antippbaren Begriffen). */
+  lead: ReactNode;
   knopfPakete: string;
   knopfGespraech: string;
   mikro: string;
@@ -74,12 +76,15 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
       <div className="hg-licht" aria-hidden="true" />
       <div className="hg-inhalt">
         <p className="hg-auge">{t.auge}</p>
-        <p className="hg-zahl" aria-label={`${t.ab} ${t.preis}`}><span className="hg-zahl-ab" aria-hidden="true">{t.ab}</span>{t.preis}</p>
+        {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}
+        <p className="hg-zahl"><span className="hg-zahl-ab">{t.ab} </span>{t.preis}</p>
         <p className="hg-label">{t.label}</p>
         <h1 className="hg-h1">{t.h1a} <em>{t.h1b}</em></h1>
+        {/* Der eine Satz, was im Festpreis steckt — mit den antippbaren Begriffen EIN und ITIN (Prüfung 27.10.: ging mit dem alten Hero verloren). */}
+        <p className="hg-lead">{t.lead}</p>
         <div className="hg-pillen">
           <button type="button" className="hg-pille voll" onClick={onPakete}>{t.knopfPakete}<Pfeil /></button>
-          <button type="button" className="hg-pille" onClick={onGespraech}>{t.knopfGespraech}</button>
+          <button type="button" className="hg-pille" style={{ ["--i" as string]: 1 }} onClick={onGespraech}>{t.knopfGespraech}</button>
         </div>
         <p className="hg-mikro">{t.mikro}</p>
 

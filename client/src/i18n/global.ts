@@ -61,7 +61,6 @@ const de = {
   preisKopfZusatz: "Einmalig, alle Gebühren des Pakets inklusive.",
   kapitalKopf: "Kapitalrahmen je nach Paket",
   kapitalKopfZusatz: "Ihr Ziel — über jeden Rahmen entscheidet das jeweilige Institut.",
-  jahrZeile: (preis: string) => `Ab Jahr zwei optional: Jahresbetreuung ${preis} im Jahr`,
   // Vier Felder unter dem Hero; das zweite führt auf den Mustervertrag, das vierte kommt aus FIAON_FIRMA.
   vertrauensleiste: [
     "Vertrag auf Deutsch, nach deutschem Recht",
@@ -338,7 +337,6 @@ const en: typeof de = {
   preisKopfZusatz: "One-off, all package fees included.",
   kapitalKopf: "Capital range by package",
   kapitalKopfZusatz: "Your target — each institution decides on its own limit.",
-  jahrZeile: (preis: string) => `From year two, optional: annual care plan ${preis} a year`,
   vertrauensleiste: [
     "Contract under German law",
     "Read the model contract first",

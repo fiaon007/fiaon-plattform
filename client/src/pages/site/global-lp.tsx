@@ -46,14 +46,15 @@ export default function GlobalLandingPage() {
   const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
 
   return (
-    <div className="fg fd" style={{ minHeight: "100vh", background: "var(--papier)" }}>
+    <div className="fg fd lp">
       {/* ── Schlanker Kopf: Marke, Vertragspartner, eine Handlung ─────────── */}
-      <header style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(255,255,255,.92)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: "1px solid var(--linie)" }}>
-        <div className="fg-rahmen" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, minHeight: 66 }}>
-          <a href="/business" style={{ display: "flex", alignItems: "baseline", gap: 10, textDecoration: "none" }}>
+      {/* E-442 (27.10.2026): Kopf als schwebende Glaspille, Stile in global-apple.css (.lp-*) statt inline. */}
+      <header className="lp-kopf">
+        <div className="lp-kopf-innen">
+          <a href="/business" className="lp-marke">
             <FiaonWortmarke variante="global" hoehe={20} farbe={MARKE_NAVY} />
           </a>
-          <a className="fg-knopf" href="#gespraech" onClick={zumGespraech} style={{ minHeight: 42, padding: "0 18px", fontSize: 13.5 }}>Gespräch vereinbaren</a>
+          <a className="fg-knopf lp-knopf" href="#gespraech" onClick={zumGespraech}>Gespräch vereinbaren</a>
         </div>
       </header>
 
@@ -143,17 +144,17 @@ export default function GlobalLandingPage() {
       </section>
 
       {/* ── Fuß: nur das Nötige ─────────────────────────────────────────── */}
-      <footer style={{ borderTop: "1px solid var(--linie)", padding: "28px 0 40px", background: "var(--stein)" }}>
-        <div className="fg-rahmen" style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px", justifyContent: "space-between", fontSize: 12.5, color: "var(--leise)" }}>
+      <footer className="lp-fuss">
+        <div className="fg-rahmen lp-fuss-innen">
           <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo} · FIAON ist keine Bank und keine Kanzlei.</span>
-          <span style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <a href="/business" style={{ color: "var(--navy)" }}>FIAON Global</a>
+          <span className="lp-fuss-links">
+            <a href="/business">FIAON Global</a>
             {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}
-            <a href="/impressum?bereich=business" style={{ color: "var(--navy)" }}>Impressum</a>
-            <a href="/datenschutz?bereich=business" style={{ color: "var(--navy)" }}>Datenschutz</a>
-            <a href="/business/mustervertrag" style={{ color: "var(--navy)" }}>Mustervertrag</a>
-            <a href="/business/widerrufsbelehrung" style={{ color: "var(--navy)" }}>Widerrufsbelehrung</a>
-            <a href="/cookie-einstellungen?bereich=business" style={{ color: "var(--navy)" }}>Cookie-Einstellungen</a>
+            <a href="/impressum?bereich=business">Impressum</a>
+            <a href="/datenschutz?bereich=business">Datenschutz</a>
+            <a href="/business/mustervertrag">Mustervertrag</a>
+            <a href="/business/widerrufsbelehrung">Widerrufsbelehrung</a>
+            <a href="/cookie-einstellungen?bereich=business">Cookie-Einstellungen</a>
           </span>
         </div>
       </footer>

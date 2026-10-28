@@ -57,6 +57,7 @@ import { useRoute } from "wouter";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import "@/styles/global-start.css";
 import "@/styles/global-angebot.css";
+import "@/styles/global-apple.css";
 import { ANGEBOT_AUFRUF_HINWEIS, ANGEBOT_ANSPRECHPARTNER, ANGEBOT_ANSPRECHPARTNER_TITEL, ANGEBOT_ANSPRECHPARTNER_SATZ, ANGEBOT_ANNAHME as AN, ANGEBOT_GARANTIE_FEST } from "@shared/fiaon-global-angebot";
 import { STARTGESPRAECH_TEXTE } from "@shared/fiaon-global-startgespraech";
 import { portraitUrl, portraitMitKi, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";

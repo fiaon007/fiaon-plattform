@@ -60,7 +60,7 @@ html .gs.gs::before {
     linear-gradient(180deg, #f4f8ff 0%, #eaf1fd 55%, #eef3fc 100%);
 }
 html .fg.fg.fg-neu { zoom: 1; } /* E-311 (zoom .95) ist mit dem neuen Maß überflüssig — und eine Messfalle. */
-html .fg.fg :focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; border-radius: 10px; }
+html .fg.fg :focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; } /* kein border-radius: der Ring folgt der Form (Pillen bleiben rund) */
 
 /* ── Luft: jeder Abschnitt atmet, keine grauen Streifen mehr ─────────────── */
 html .fg.fg .fg-sek,
@@ -75,7 +75,7 @@ html .fg.fg.fg-neu #fragen { padding: clamp(96px, 9vw, 150px) 0; }
 html .fg.fg .fg-rahmen { padding: 0 clamp(16px, 3vw, 32px); }
 
 /* ── Schrift: dünn, eng gesetzt, Apple ──────────────────────────────────── */
-html .fg.fg .fg-auge { font: 600 11px/1 var(--ap); letter-spacing: .2em; color: #1d4ed8; gap: 0; }
+html .fg.fg .fg-auge { font: 500 11px/1 var(--ap); letter-spacing: .2em; color: #1d4ed8; gap: 0; }
 html .fg.fg .fg-auge::before, html .fg.fg .fg-kopf.mitte .fg-auge::after { display: none; }
 html .fg.fg .fg-h1 { font: 200 clamp(42px, 5.6vw, 82px)/1.02 var(--ap); letter-spacing: -.03em; margin-top: 18px; }
 html .fg.fg .fg-h1 em { font-style: normal; font-weight: 200; color: #1d4ed8; }
@@ -194,13 +194,13 @@ html .fg.fg .fg-tarif.fokus {
   box-shadow: var(--glas-licht), 0 0 0 5px rgba(40, 141, 250, .08), 0 34px 74px -36px rgba(29, 78, 216, .5);
 }
 html .fg.fg .fg-tarif.fokus:hover { border-color: rgba(40, 141, 250, .7); box-shadow: var(--glas-licht), 0 0 0 5px rgba(40, 141, 250, .12), 0 40px 80px -36px rgba(29, 78, 216, .6); }
-html .fg.fg .fg-tarif-band { background: var(--knopf-blau); box-shadow: 0 10px 22px -8px rgba(29, 78, 216, .6); font-weight: 600; }
-html .fg.fg .fg-tarif-kopf .marke { font: 600 10.5px/1 var(--ap); letter-spacing: .18em; color: #1d4ed8; }
+html .fg.fg .fg-tarif-band { background: var(--knopf-blau); box-shadow: 0 10px 22px -8px rgba(29, 78, 216, .6); font-weight: 500; }
+html .fg.fg .fg-tarif-kopf .marke { font: 500 10.5px/1 var(--ap); letter-spacing: .18em; color: #1d4ed8; }
 html .fg.fg .fg-tarif-kopf h3 { font: 300 clamp(26px, 2.3vw, 32px)/1.08 var(--ap); letter-spacing: -.022em; margin-top: 10px; }
 html .fg.fg .fg-tarif-weg .balken i { background: rgba(18, 40, 74, .1); }
 html .fg.fg .fg-tarif-zahlen { background: rgba(255, 255, 255, .55); border: 1px solid rgba(255, 255, 255, .95); border-radius: 20px; box-shadow: var(--glas-licht); }
 html .fg.fg .fg-tarif-zahlen > div + div { border-left-color: rgba(18, 40, 74, .08); }
-html .fg.fg .fg-tarif-zahlen span { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fg-tarif-zahlen span { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fg-tarif-zahlen b { font: 300 clamp(26px, 2.3vw, 32px)/1 var(--ap); letter-spacing: -.028em; }
 html .fg.fg .fg-tarif-zahlen em.inkl { color: #12284a; }
 html .fg.fg .fg-tarif .tun .fg-knopf { border-radius: 999px; min-height: 50px; }
@@ -215,7 +215,7 @@ html .fg.fg .fg-tarif.vip h3 { font: 200 clamp(38px, 4vw, 56px)/1 var(--ap); let
 html .fg.fg .fg-tarif.vip .marke { font-family: var(--ap); color: #9fc2ff; }
 html .fg.fg .fg-vip-kapital { border-radius: 22px; }
 html .fg.fg .fg-vip-kapital b { font: 200 clamp(40px, 4.6vw, 64px)/1 var(--ap); letter-spacing: -.03em; }
-html .fg.fg .fg-vip-preis b { font: 200 clamp(38px, 3.6px, 52px)/1 var(--ap); font-size: clamp(38px, 3.6vw, 52px); letter-spacing: -.03em; }
+html .fg.fg .fg-vip-preis b { font: 200 clamp(38px, 3.6vw, 52px)/1 var(--ap); letter-spacing: -.03em; }
 html .fg.fg .fg-tarif.vip .tun .fg-knopf { border-radius: 999px; background: #fff; color: #0b1c36; border-color: #fff; box-shadow: inset 0 1px 0 #fff, 0 16px 36px -16px rgba(40, 141, 250, .55); }
 html .fg.fg .fg-tarif.vip .tun .fg-knopf:hover { background: #eef5ff; }
 html .fg.fg .fg-ticket-blatt { border-radius: 22px; }
@@ -235,7 +235,7 @@ html .fg.fg .fg-tabelle th:first-child, html .fg.fg .fg-tabelle td:first-child, 
 html .fg.fg .fg-tabelle thead th b { font: 300 20px/1.15 var(--ap); letter-spacing: -.015em; }
 html .fg.fg .fg-tabelle thead th.fokus { box-shadow: inset 0 3px 0 #288dfa; }
 html .fg.fg .fg-tabelle td.fokus, html .fg.fg .fg-tabelle thead th.fokus { background: rgba(40, 141, 250, .07); }
-html .fg.fg .fg-tabelle tr.gruppe td { background: rgba(18, 40, 74, .04); color: #1d4ed8; font-weight: 600; }
+html .fg.fg .fg-tabelle tr.gruppe td { background: rgba(18, 40, 74, .04); color: #1d4ed8; font-weight: 500; }
 html .fg.fg .fg-tabelle tfoot .fg-knopf { border-radius: 999px; }
 
 /* Die Viererwahl am Telefon und die Wischpunkte */
@@ -272,7 +272,7 @@ html .fg.fg .fg-paket-fuss a { color: #1d4ed8; text-decoration-color: rgba(29, 7
 
 /* Die vier Etappen (EtappenBuehnen.tsx): Karten und Klappe aus Glas, das Team-Band mit Glasblau-Tiefe */
 html .fg.fg .fg-eb-knoten { font-family: var(--ap); font-weight: 500; background: rgba(255, 255, 255, .82); border-color: rgba(255, 255, 255, .95); box-shadow: var(--glas-licht), 0 8px 18px -10px rgba(29, 78, 216, .5); }
-html .fg.fg .fg-eb-ab { font-weight: 600; }
+html .fg.fg .fg-eb-ab { font-weight: 500; }
 html .fg.fg .fg-eb-titel { font: 400 21px/1.2 var(--ap); letter-spacing: -.018em; }
 html .fg.fg .fg-eb-institut { background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .95); box-shadow: var(--glas-licht); }
 html .fg.fg .fg-eb-mehr { border-top-color: rgba(18, 40, 74, .08); color: #1d4ed8; }
@@ -340,7 +340,7 @@ html .fg.fg .fg-ehrlich-zeile b { font: 500 15px/1.4 var(--ap); font-style: norm
 html .fg.fg .fg-ehrlich-zeile a { color: #12284a; }
 html .fg.fg .fg-stern-unter { border-top-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fg-fuer-chips { border-top-color: rgba(18, 40, 74, .08); }
-html .fg.fg .fg-fuer-chips > span { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fg-fuer-chips > span { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fg-fuer-chips li > a, html .fg.fg .fg-fuer-chips li > span {
   height: 38px; padding: 0 16px; background: var(--glas-dicht); border-color: var(--glas-kante); font: 400 13.5px/1 var(--ap); color: #12284a;
   box-shadow: var(--glas-licht), 0 10px 24px -18px rgba(18, 40, 74, .45); transition: transform .5s var(--feder), background .25s, color .25s;
@@ -355,7 +355,7 @@ html .fg.fg .hb-c { border-radius: 32px; }
 
 /* Erstgespräch: Kalender und Visitenkarte aus Glas, gewählte Tage in Glasblau */
 html .fg.fg .fg-kal { padding: 32px; }
-html .fg.fg .fg-kal h3 { font: 600 10.5px/1 var(--ap); letter-spacing: .18em; color: #1d4ed8; }
+html .fg.fg .fg-kal h3 { font: 500 10.5px/1 var(--ap); letter-spacing: .18em; color: #1d4ed8; }
 html .fg.fg .fg-tag, html .fg.fg .fg-zeit { border-radius: 16px; background: rgba(255, 255, 255, .72); border-color: rgba(255, 255, 255, .95); box-shadow: var(--glas-licht); transition: transform .4s var(--feder), background .2s, border-color .2s; }
 html .fg.fg .fg-tag:hover, html .fg.fg .fg-zeit:hover { background: #fff; border-color: rgba(40, 141, 250, .45); transform: translateY(-1px); }
 html .fg.fg .fg-tag[aria-pressed="true"], html .fg.fg .fg-zeit[aria-pressed="true"] { background: var(--knopf-blau); border-color: transparent; box-shadow: var(--knopf-blau-schatten); }
@@ -364,7 +364,7 @@ html .fg.fg .fg-gewaehlt { border-radius: 16px; background: rgba(40, 141, 250, .
 html .fg.fg .fg-feld { border-radius: 14px; background: rgba(255, 255, 255, .82); border-color: rgba(18, 40, 74, .14); font-family: var(--ap); }
 html .fg.fg .fg-feld:focus { border-color: #288dfa; box-shadow: 0 0 0 4px rgba(40, 141, 250, .14); }
 html .fg.fg .fg-visitenkarte { padding: 22px 24px; border-radius: 22px; }
-html .fg.fg .fg-visitenkarte-titel { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fg-visitenkarte-titel { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fg-visitenkarte-wer b { font: 400 22px/1.1 var(--ap); letter-spacing: -.015em; }
 html .fg.fg .fg-visitenkarte .monogramm { background: var(--knopf-blau); font-family: var(--ap); font-weight: 300; }
 html .fg.fg .fg-fertig h3 { font: 300 24px/1.2 var(--ap); }
@@ -419,12 +419,12 @@ html .fg.fg .fd-merkblatt-kopf b { font: 300 21px/1.2 var(--ap); }
 html .fg.fg .fd-merkblatt dl > div { border-top-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fd-merkblatt-fuss { background: rgba(255, 255, 255, .4); border-top-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fd-kurz { padding: 28px 32px 30px; border-top: 1px solid var(--glas-kante); border-bottom: 1px solid var(--glas-kante); }
-html .fg.fg .fd-marke { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fd-marke { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fd-kurz p { font: 300 clamp(19px, 1.6vw, 23px)/1.5 var(--ap); letter-spacing: -.012em; }
 html .fg.fg .fd-koerper { padding-top: clamp(64px, 7vw, 96px); }
 html .fg.fg .fd-abschnitt { padding: clamp(48px, 5vw, 68px) 0 10px; }
 html .fg.fg .fd-abschnitt + .fd-abschnitt { border-top-color: rgba(18, 40, 74, .08); }
-html .fg.fg .fd-nr { font: 600 11px/1 var(--ap); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
+html .fg.fg .fd-nr { font: 500 11px/1 var(--ap); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
 html .fg.fg .fd .fd-h2, html .fg.fg .fd-h2 { font: 300 clamp(26px, 2.5vw, 36px)/1.12 var(--ap); letter-spacing: -.024em; }
 html .fg.fg .fd-block-lead, html .fg.fg .fd-p, html .fg.fg .fd-punkte li, html .fg.fg .fd-nach { font-family: var(--ap); }
 html .fg.fg .fd-etappen::before { background: linear-gradient(180deg, rgba(29, 78, 216, .35), rgba(29, 78, 216, .08)); }
@@ -434,7 +434,7 @@ html .fg.fg .fd-etappe h3 { font: 500 17px/1.35 var(--ap); }
 html .fg.fg .fd-etappe .dauer { color: #1d4ed8; }
 html .fg.fg .fd-rolle, html .fg.fg .fd-karte, html .fg.fg .fd-paket, html .fg.fg .fd-weiter-raster a, html .fg.fg .fd-hinweis { border-radius: 22px; }
 html .fg.fg .fd-rolle.fiaon { border-color: rgba(40, 141, 250, .5); box-shadow: var(--glas-licht), 0 0 0 4px rgba(40, 141, 250, .08), 0 24px 50px -24px rgba(29, 78, 216, .4); }
-html .fg.fg .fd-rolle h3, html .fg.fg .fd-karte .tag, html .fg.fg .fd-weiter-raster .tag, html .fg.fg .fd-verzeichnis .tag, html .fg.fg .fd-paket .marke { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fd-rolle h3, html .fg.fg .fd-karte .tag, html .fg.fg .fd-weiter-raster .tag, html .fg.fg .fd-verzeichnis .tag, html .fg.fg .fd-paket .marke { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fd-rolle.fiaon li::before, html .fg.fg .fd-rolle li::before { background: #288dfa; }
 html .fg.fg .fd-karte h3, html .fg.fg .fd-weiter-raster .titel, html .fg.fg .fd-verzeichnis .titel { font: 400 21px/1.25 var(--ap); letter-spacing: -.015em; }
 html .fg.fg a.fd-karte:hover, html .fg.fg .fd-paket:hover, html .fg.fg .fd-weiter-raster a:hover { border-color: rgba(40, 141, 250, .45); box-shadow: var(--glas-licht), 0 28px 60px -30px rgba(29, 78, 216, .4); transform: translateY(-4px); }
@@ -445,14 +445,14 @@ html .fg.fg .fd-tabelle th.hervor, html .fg.fg .fd-tabelle td.hervor { backgroun
 html .fg.fg .fd-tabelle tbody tr:hover td { background: rgba(255, 255, 255, .5); }
 html .fg.fg .fd-tabelle tbody tr:hover td.hervor { background: rgba(40, 141, 250, .14); }
 html .fg.fg .fd-hinweis { padding: 26px 28px 24px; }
-html .fg.fg .fd-hinweis li::before { font-family: var(--ap); font-style: normal; font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fd-hinweis li::before { font-family: var(--ap); font-style: normal; font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fd-zitat { font: 300 clamp(22px, 2.1vw, 29px)/1.4 var(--ap); font-style: normal; letter-spacing: -.015em; }
 html .fg.fg .fd-tafel { border-color: rgba(40, 141, 250, .45); box-shadow: var(--glas-licht), 0 0 0 4px rgba(40, 141, 250, .08), 0 30px 64px -30px rgba(29, 78, 216, .45); }
-html .fg.fg .fd-tafel-links .marke { border-radius: 999px; background: var(--knopf-blau); font-weight: 600; }
+html .fg.fg .fd-tafel-links .marke { border-radius: 999px; background: var(--knopf-blau); font-weight: 500; }
 html .fg.fg .fd-tafel-links h3 { font: 300 30px/1.1 var(--ap); letter-spacing: -.024em; }
 html .fg.fg .fd-tafel-rechts { background: rgba(255, 255, 255, .4); border-left-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fg-kapital { border-radius: 18px; background: rgba(255, 255, 255, .6); border-color: rgba(255, 255, 255, .95); box-shadow: var(--glas-licht); }
-html .fg.fg .fg-kapital span { font-weight: 600; color: #1d4ed8; }
+html .fg.fg .fg-kapital span { font-weight: 500; color: #1d4ed8; }
 html .fg.fg .fg-kapital b { font: 300 clamp(28px, 2.4vw, 34px)/1.05 var(--ap); letter-spacing: -.025em; }
 html .fg.fg .fg-preis { border-top-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fg-preis b { font: 200 46px/1 var(--ap); letter-spacing: -.03em; }
@@ -467,7 +467,7 @@ html .fg.fg .fd-standorte { border-top-color: rgba(18, 40, 74, .12); }
 html .fg.fg .fd-standort + .fd-standort { border-left-color: rgba(18, 40, 74, .08); }
 html .fg.fg .fd-standort .stadt b { font: 200 clamp(28px, 2.6vw, 36px)/1 var(--ap); letter-spacing: -.025em; }
 html .fg.fg .fd-standort .zeit::before { background: #288dfa; box-shadow: 0 0 0 3px rgba(40, 141, 250, .16); }
-html .fg.fg .fd-inhalt p { color: #1d4ed8; font-weight: 600; }
+html .fg.fg .fd-inhalt p { color: #1d4ed8; font-weight: 500; }
 html .fg.fg .fd-inhalt ol { border-left-color: rgba(18, 40, 74, .1); }
 html .fg.fg .fd-inhalt ol a i { font-family: var(--ap); font-weight: 500; }
 html .fg.fg .fd-inhalt ol a[aria-current="true"] { border-left-color: #288dfa; }
@@ -499,7 +499,7 @@ html .fg.fg .gr-text h2 { font: 300 26px/1.2 var(--ap); letter-spacing: -.02em; 
 
 /* ═══ DER AUFTRAG (/business/start, /business/auftrag — .gs) ═════════════ */
 html .gs.gs { font-family: var(--ap); }
-html .gs.gs .gs-auge { font: 600 11px/1 var(--ap); letter-spacing: .2em; color: #1d4ed8; gap: 0; }
+html .gs.gs .gs-auge { font: 500 11px/1 var(--ap); letter-spacing: .2em; color: #1d4ed8; gap: 0; }
 html .gs.gs .gs-auge::before { display: none; }
 html .gs.gs .gs-h1 { font: 200 clamp(32px, 3.8vw, 52px)/1.06 var(--ap); letter-spacing: -.028em; }
 html .gs.gs .gs-lead { font: 300 16.5px/1.65 var(--ap); }
@@ -553,4 +553,131 @@ html .gs.gs .gs-sicher { border-top-color: rgba(18, 40, 74, .08); }
 }
 @media print {
   html .fg.fg::before, html .gs.gs::before { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NACHBESSERUNGEN AUS DER MEHR-AUGEN-PRÜFUNG (E-442, 27./28.10.2026)
+   Fünf Blickwinkel (Design-Regeln, Wortrecht, Code, Handy, Abdeckung) + drei Skeptiker je Befund.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Team-Band hell: Global VIP bleibt die EINE dunkle Bühne des Abschnitts (E-013); kein Dauer-Lichtstreif unter dem Glas. */
+html .fg.fg .fg-eb-team { background: var(--glas); color: #0c1a2e; border: 1px solid var(--glas-kante); box-shadow: var(--glas-licht), var(--glas-schatten); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+html .fg.fg .fg-eb-team::after { display: none; }
+html .fg.fg .fg-eb-team-kopf > b { color: #0c1a2e; }
+html .fg.fg .fg-eb-team-kopf > span { color: #5d6678; }
+html .fg.fg .fg-eb-team-liste li { border-left-color: rgba(18, 40, 74, .14); }
+html .fg.fg .fg-eb-team-liste b { color: #0c1a2e; }
+html .fg.fg .fg-eb-team-liste em { color: #1d4ed8; }
+html .fg.fg .fg-eb-team-was > span { color: #5d6678; }
+html .fg.fg .fg-eb-team-satz { border-top-color: rgba(18, 40, 74, .1); color: #5d6678; }
+html .fg.fg .fg-eb-team-mehr { min-height: 44px; padding: 0 14px 0 16px; background: var(--glas-dicht); border-color: var(--glas-kante); color: #12284a; box-shadow: var(--glas-licht); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fg-eb-team-mehr:hover { background: #fff; border-color: rgba(40, 141, 250, .45); }
+html .fg.fg .fg-eb-team .fg-eb-team-mehr:focus-visible { outline-color: #288dfa; }
+html .fg.fg .fg-eb-mehr { min-height: 44px; }
+/* Schaltzentrale: Glas statt flachem Weiß, ohne Symbolkacheln (Justin 22.10.: wenige/keine Icons). */
+html .fg.fg .sn-z .sn-karte { grid-template-columns: minmax(0, 1fr) 22px; padding: 0 16px; background: var(--glas); border-color: var(--glas-kante); box-shadow: var(--glas-licht), var(--glas-schatten); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+html .fg.fg .sn-z .sn-karte .sn-karte-symbol { display: none; }
+html .fg.fg .sn-m-karte { background: var(--glas); border-color: var(--glas-kante); box-shadow: var(--glas-licht), var(--glas-schatten); }
+html .fg.fg .sn-sie, html .fg.fg .sn-m-sie { background: var(--glas-dicht); border-color: var(--glas-kante); box-shadow: var(--glas-licht), 0 12px 28px -20px rgba(18, 40, 74, .5); font-family: var(--ap); }
+html .fg.fg .fg-kleingedruckt h3 svg { display: none; }
+/* Begriffe zum Antippen: das Fenster aus Glas. */
+html .fg.fg .fg-begriff-pop { border-radius: 16px; background: var(--glas-dicht); border-color: var(--glas-kante); box-shadow: var(--glas-licht), 0 18px 40px -24px rgba(18, 40, 74, .5); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+/* Unterseiten: VIP-Zeile, Merkblatt-Fuß, Orte, Inhaltsleisten-Knopf. */
+html .fg.fg .fd-vip-zeile { background: var(--glas); border: 1px solid var(--glas-kante); border-radius: 24px; box-shadow: var(--glas-licht), var(--glas-schatten); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+html .fg.fg .fd-karteikarte-fuss { background: rgba(255, 255, 255, .4); border-top-color: rgba(18, 40, 74, .08); }
+html .fg.fg .fd-orte-liste { border-top-color: rgba(18, 40, 74, .12); }
+html .fg.fg .fd-orte-liste .stadt { font: 200 clamp(24px, 2.2vw, 30px)/1.1 var(--ap); letter-spacing: -.02em; }
+html .fg.fg .fd-inhalt-fuss .fg-knopf { white-space: nowrap; font-size: 12.5px; padding: 0 12px; }
+/* Rechtsseiten: Mustervertrag und Widerrufsbelehrung. */
+html .fg.fg .gr-papier, html .fg.fg .gr-weiter { background: var(--glas); border: 1px solid var(--glas-kante); border-radius: 26px; box-shadow: var(--glas-licht), var(--glas-schatten); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+html .fg.fg .gr-seg { padding: 4px; border-radius: 999px; background: var(--glas-dicht); border-color: var(--glas-kante); box-shadow: var(--glas-licht), 0 12px 28px -20px rgba(18, 40, 74, .5); }
+html .fg.fg .gr-seg button { border-radius: 999px; font-family: var(--ap); }
+html .fg.fg .gr-seg button[aria-checked="true"] { background: var(--knopf-blau); box-shadow: var(--knopf-blau-schatten); }
+html .fg.fg .gr-seg button[aria-checked="true"] b, html .fg.fg .gr-seg button[aria-checked="true"] span { color: #fff; }
+/* Auftrag (.gs): die Innenflächen des Blatts. */
+html .gs.gs .gs-art button { border-radius: 18px; background: rgba(255, 255, 255, .62); border-color: rgba(255, 255, 255, .95); box-shadow: var(--glas-licht); }
+html .gs.gs .gs-art button:hover { border-color: rgba(40, 141, 250, .4); background: rgba(255, 255, 255, .85); }
+html .gs.gs .gs-art button[aria-checked="true"] { border-color: rgba(40, 141, 250, .6); box-shadow: var(--glas-licht), 0 0 0 3px rgba(40, 141, 250, .12); background: rgba(255, 255, 255, .85); }
+html .gs.gs .gs-art button[aria-checked="true"] .punkt { border-color: #288dfa; }
+html .gs.gs .gs-art button[aria-checked="true"] .punkt::after { background: #288dfa; }
+html .gs.gs .gs-art button:focus-visible { outline-color: #288dfa; }
+html .gs.gs .gs-beginn, html .gs.gs .gs-web, html .gs.gs .gs-jahr, html .gs.gs .gs-vertrag, html .gs.gs .gs-bank, html .gs.gs .gia-wahl:not(.gs-beginn) { border-radius: 18px; background: rgba(255, 255, 255, .55); border-color: var(--glas-kante); box-shadow: var(--glas-licht); }
+html .gs.gs .gs-treffer { border-radius: 18px; background: rgba(255, 255, 255, .96); border-color: var(--glas-kante); box-shadow: var(--glas-licht), 0 24px 60px -24px rgba(18, 40, 74, .4); }
+html .gs.gs .gs-seg { padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, .6); border-color: var(--glas-kante); box-shadow: var(--glas-licht); }
+html .gs.gs .gs-seg button { border-radius: 999px; font-family: var(--ap); }
+html .gs.gs .gs-seg button[aria-pressed="true"] { background: var(--knopf-blau); color: #fff; box-shadow: var(--knopf-blau-schatten); }
+html .gs.gs .gs-ref { border-radius: 999px; background: rgba(255, 255, 255, .6); border-color: var(--glas-kante); }
+html .gs.gs .gs-fehler { border-radius: 14px; }
+html .gs.gs .gs-vertreter button { border-radius: 999px; background: rgba(255, 255, 255, .7); border-color: rgba(18, 40, 74, .12); font-family: var(--ap); }
+html .gs.gs .gs-vertreter button:hover { border-color: rgba(40, 141, 250, .5); }
+html .gs.gs .gs-qr { border-radius: 14px; }
+/* Mein Auftrag (.ga) im selben Blatt. */
+html .gs.gs .ga-zahlung, html .gs.gs .ga-schritt, html .gs.gs .ga-liste { border-radius: 20px; background: rgba(255, 255, 255, .6); border-color: var(--glas-kante); box-shadow: var(--glas-licht); }
+html .gs.gs .ga-abschnitt { border-top-color: rgba(18, 40, 74, .08); }
+html .gs.gs .ga-knopf, html .gs.gs .ga-nachricht textarea { font-family: var(--ap); }
+html .gs.gs .ga-knopf { background: rgba(255, 255, 255, .8); border-color: rgba(18, 40, 74, .12); font-weight: 500; }
+html .gs.gs .ga-knopf.blau { background: var(--knopf-blau); color: #fff; border-color: transparent; box-shadow: var(--knopf-blau-schatten); }
+html .gs.gs .ga-nachricht textarea { border-radius: 14px; background: rgba(255, 255, 255, .82); }
+/* Die Konto-Leiste über „Mein Auftrag“: eine dunkle Pille unter der Kopf-Pille statt eines Balkens unter ihr. */
+html .dk.dk-business .gko-leiste { margin: 84px 12px 0; border-radius: 999px; background: rgba(11, 28, 54, .9); font-family: var(--ap, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif); }
+html .dk.dk-business .gko-leiste + .gs { padding-top: 40px; }
+/* Anmeldung, Zugang, Konto, Passwort (.gko): dieselbe Welt. */
+html .gko.gko { --ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif; --sans: var(--ap); --serif: var(--ap); font-family: var(--ap);
+  background: radial-gradient(72vw 48vw at 100% -4%, rgba(40, 141, 250, .17), rgba(40, 141, 250, 0) 62%), radial-gradient(58vw 44vw at -12% 38%, rgba(29, 78, 216, .1), rgba(29, 78, 216, 0) 60%), linear-gradient(180deg, #f4f8ff 0%, #eaf1fd 55%, #eef3fc 100%); }
+html .gko.gko .gko-karte { border-radius: 26px; background: rgba(255, 255, 255, .64); border: 1px solid rgba(255, 255, 255, .92); box-shadow: inset 0 1px 0 #fff, 0 26px 56px -36px rgba(18, 40, 74, .4); -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%); }
+html .gko.gko .gko-knopf { border-radius: 999px; border-color: transparent; background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); color: #fff; font-weight: 500; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px -14px rgba(29, 78, 216, .75); }
+html .gko.gko .gko-zeile { border-radius: 20px; background: rgba(255, 255, 255, .64); border: 1px solid rgba(255, 255, 255, .92); box-shadow: inset 0 1px 0 #fff; }
+html .gko.gko .gko-wer, html .gko.gko .gko-meldung { border-radius: 16px; }
+html .gko.gko .gko-auge { font-weight: 500; letter-spacing: .2em; }
+/* Firmenangebot (.gia) — Fragen und Flächen auf dem Glasgrund; die Tafel bleibt die eine dunkle Fläche. */
+html .gia-auftakt.gia-auftakt { --serif: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; font-family: var(--sans); }
+html .gs.gs .gia-karten li, html .gs.gs .gia-schutz li { border-radius: 20px; background: rgba(255, 255, 255, .6); border-color: var(--glas-kante); box-shadow: var(--glas-licht); }
+html .gs.gs .gia-karten h3, html .gs.gs .gia-schutz h3, html .gs.gs .gia-h2 { font-family: var(--ap); font-weight: 300; letter-spacing: -.018em; }
+html .gs.gs .gia-vertrag-knopf, html .gs.gs .gia-knopf-leise { border-radius: 999px; background: rgba(255, 255, 255, .8); border-color: rgba(18, 40, 74, .12); font-family: var(--ap); font-weight: 500; }
+html .gs.gs .gia-vertrag-knopf:hover, html .gs.gs .gia-knopf-leise:hover { border-color: rgba(40, 141, 250, .5); background: #fff; }
+html .gs.gs .gia-uebersicht { border-radius: 18px; border-color: var(--glas-kante); background: rgba(255, 255, 255, .6); }
+html .gs.gs .gia-vorschau { border-radius: 14px; }
+html .gs.gs .gia-tafel { border-radius: 26px; }
+html .gs.gs .gia-nutzen li::before { background: #288dfa; }
+/* Landingpages hinter Anzeigen (/business/lp): Kopf als Glaspille, Fuß leise. */
+html .fg.fg.lp { min-height: 100vh; }
+html .fg.fg .lp-kopf { position: sticky; top: 12px; z-index: 50; margin: 12px 12px 0; }
+html .fg.fg .lp-kopf-innen { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 60px; max-width: 1248px; margin: 0 auto; padding: 0 10px 0 22px; border-radius: 999px; background: var(--glas); border: 1px solid var(--glas-kante); box-shadow: var(--glas-licht), 0 18px 44px -28px rgba(18, 40, 74, .5); -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur); }
+html .fg.fg .lp-marke { display: flex; align-items: baseline; gap: 10px; text-decoration: none; }
+html .fg.fg .lp-knopf { min-height: 42px; padding: 0 18px; font-size: 13.5px; }
+html .fg.fg .lp-fuss { margin-top: 24px; padding: 28px 0 40px; border-top: 1px solid var(--linie); background: transparent; }
+html .fg.fg .lp-fuss-innen { display: flex; flex-wrap: wrap; gap: 10px 22px; justify-content: space-between; font: 400 12.5px/1.6 var(--ap); color: #5d6678; }
+html .fg.fg .lp-fuss-links { display: flex; gap: 16px; flex-wrap: wrap; }
+html .fg.fg .lp-fuss a { color: #1d4ed8; text-decoration: none; }
+html .fg.fg .lp-fuss a:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Die Cookie-Karte liegt außerhalb von .fg (App.tsx) — über den Seitenrahmen erreichen. */
+html.fg-dokument .ew-karte { border-radius: 24px; background: rgba(255, 255, 255, .86); border: 1px solid rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff, 0 26px 56px -30px rgba(18, 40, 74, .45); -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; }
+html.fg-dokument .ew-karte h2 { font: 300 20px/1.25 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; letter-spacing: -.015em; }
+html.fg-dokument .ew-karte .ew-knopf { border-radius: 999px; border-color: rgba(18, 40, 74, .14); background: rgba(255, 255, 255, .85); font-family: inherit; font-weight: 500; }
+html.fg-dokument .ew-karte .ew-knopf:hover { background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); border-color: transparent; color: #fff; }
+/* Das Social-Fenster liegt am <body> (Portal). */
+html .sz-kanzlei-ansicht.sz-kanzlei-ansicht .sz-ansicht-titel { font: 300 23px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif; letter-spacing: -.015em; }
+html .sz-kanzlei-ansicht.sz-kanzlei-ansicht .sz-ansicht-kasten { border-radius: 26px; }
+
+/* ── Telefon ── */
+@media (max-width: 720px) {
+  /* Klebende Flächen ohne Unschärfe (sie liegen beim Scrollen dauerhaft über bewegtem Inhalt). */
+  html .fg.fg .fg-paket-wahl, html .fg.fg .fg-mobil, html .fg.fg .fd-mobil { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .94); }
+  html .fg.fg .gv .gv-lead { display: none; } /* die Telefone sagen selbst, was die Filme sind */
+  html .fg.fg .fg-eb-team-liste li:has(em) { grid-column: 1 / -1; }
+  html .fg.fg .fg-eb-team-kopf > b { font-size: 20px; }
+  html .fg.fg .fg-eb-team-mehr { padding: 0 10px 0 12px; }
+}
+@media (max-width: 640px) {
+  /* Wischreihe: die Auf-Hülle bleibt still (global.css 336 verlor gegen die Schicht). */
+  html .fg.fg .fg-tarife > .dk-auf { transform: none; transition: none; }
+  /* Viererwahl: beim Einfahren des Kopfs wandert der Klebe-Abstand, nicht das Element (sonst rutscht sie auch im Fluss hoch). */
+  html .fg.fg.fg-neu .fg-paket-wahl { transition: top .3s var(--kurve); }
+  html.fg-kopf-weg .fg.fg-neu .fg-paket-wahl { transform: none; top: 8px; }
+  /* Das VIP-Segment der Wahl hell — die dunkle Bühne ist die VIP-Tafel selbst. */
+  html .fg.fg .fg-paket-wahl #wahl-global_vip { background: rgba(18, 40, 74, .06); }
+  html .fg.fg .fg-paket-wahl #wahl-global_vip b { color: #0c1a2e; }
+  html .fg.fg .fg-paket-wahl #wahl-global_vip span { color: #1d4ed8; }
+  html .fg.fg .fg-paket-wahl #wahl-global_vip[aria-pressed="true"] { background: var(--knopf-blau); box-shadow: var(--knopf-blau-schatten); }
+  html .fg.fg .fg-paket-wahl #wahl-global_vip[aria-pressed="true"] b, html .fg.fg .fg-paket-wahl #wahl-global_vip[aria-pressed="true"] span { color: #fff; }
+  html .fg.fg .fg-paket-wahl #wahl-global_vip::after { display: none; }
 }

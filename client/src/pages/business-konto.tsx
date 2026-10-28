@@ -23,6 +23,7 @@ import { GLOBAL_KONTO_WOERTER } from "@/i18n/global-konto";
 import { KONTO_PFADE, passwortBewerten } from "@shared/fiaon-global-konto";
 import { VORBELEGUNG_SCHLUESSEL } from "@/components/site/GlobalKontoLeiste";
 import "@/styles/global-konto.css";
+import "@/styles/global-apple.css";
 
 type Modus = "login" | "vergessen" | "zugang" | "konto";
 type Meldung = { art: "fehler" | "gut" | "info"; text: string } | null;

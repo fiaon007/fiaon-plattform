@@ -608,7 +608,10 @@ export async function kapitalNachZahlung(ref: string, t: any, z: AngebotZeile): 
   if (String(akte.status) === "gestartet") return { gestartet: false, grund: "schon gestartet" };
   const z2 = (await angebotLesen({ id: Number(z.id) }))!;
   const fristJetzt = frist ? { beginn: isoTag(z2.frist_beginn) ?? frist.beginn, ende: isoTag(z2.frist_ende) ?? frist.ende } : null;
-  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${ref1} AND art = 'reisepass' AND geloescht_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
+  // E-443 (28.10.2026, Gutachten): ein als „bitte neu“ markierter Pass zählt nicht (wie im Portal) — die Spalte legt
+  // ensureGlobalBereich an; scheitert das, bleibt der Pass wie bisher „nicht da“ (catch), nie „erhalten“.
+  await import("./fiaon-global-bereich").then((m) => m.ensureGlobalBereich()).catch(() => {});
+  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${ref1} AND art = 'reisepass' AND geloescht_am IS NULL AND abgelehnt_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
   const auf = kapitalStartAufgabe({
     angebotRef: d.ref, firma: d.kunde.firma.name, vertretung: kapitalVertretungName(d.kunde), fassung: String(z.fassung), parameter: d.parameter,
     bezahltAm, zweck: b.payment_reference ?? null, frist: fristJetzt, reisepassAm: pass?.created_at ? isoTag(new Date(pass.created_at)) : null,

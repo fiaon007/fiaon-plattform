@@ -1547,13 +1547,16 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
     text: "Im Tresor hat jeder Kunden-Upload „Bitte neu …“: Du schreibst einen kurzen Satz für den Kunden, z. B. „Foto statt Scan — bitte als PDF-Scan“. "
       + "Die Unterlage zählt dann nicht mehr als vorhanden, das Portal zeigt sie unter „Für Sie zu tun“ mit deinem Satz, und der Kunde "
       + "liest eine Zeile im Verlauf. Eine Mail geht nicht raus — die schreibst du selbst, wenn du willst. Ein neuer Upload derselben "
-      + "Unterlage löst es von selbst. Die Auswahl daneben korrigiert die Art (z. B. „Sonstiges“ → „Reisepass“).",
+      + "Unterlage löst es von selbst — die alte Datei steht dann grau als „ersetzt“ da, der Kunde liest kein „bitte neu“ mehr. "
+      + "Zurücknehmen schreibt dem Kunden eine kurze Zeile „ist in Ordnung“. Die Auswahl daneben korrigiert die Art (z. B. „Sonstiges“ → „Reisepass“); "
+      + "angeboten werden nur Arten, die der Kunde selbst einreicht. Liest der Kunde Englisch, sagt dir das Feld, den Grund auf Englisch zu schreiben.",
     tipp: "Löschen ist nicht nötig: Das alte Bild bleibt für dich sichtbar, der Kunde weiß, was fehlt.",
   },
   {
     titel: "Alle Kunden-Aufgaben führen hierher.",
     text: "Upload, Nachricht, digitale Unterschrift und unterschriebener Scan legen eine Aufgabe an, die direkt in diese Akte springt. "
-      + "Gelesen oder beantwortet (Reiter „Anfragen“) bzw. geöffnet (Tresor) — dann ist die Aufgabe erledigt. Nur der SS-4-Scan bleibt "
+      + "Gelesen oder beantwortet (Reiter „Anfragen“ oder „antworten“ unter „Jetzt zu tun“) bzw. geöffnet (Tresor) — dann ist die Aufgabe erledigt. "
+      + "Lädt das Team einen Scan selbst hoch, schließt sich seine Aufgabe sofort. Nur der SS-4-Scan bleibt "
       + "offen, bis du ihn an den Registered Agent zurückgeschickt hast.",
   },
 ];

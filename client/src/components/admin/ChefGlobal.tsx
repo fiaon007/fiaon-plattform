@@ -10,14 +10,14 @@
 // das geöffnete Mandat mit Reitern. Jede Änderung geht über dieselben
 // Funktionen wie Office und Kundenportal — der Kunde sieht sie sofort.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Globe2, Building2, FileText, MessageSquare, Landmark, CalendarClock, History, Eye, Copy, Check,
   Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
-import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN } from "@shared/fiaon-global-bereich";
+import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN, globalKundeDarfArt } from "@shared/fiaon-global-bereich";
 import {
   GLOBAL_KAPITAL_ARTEN, GLOBAL_KAPITAL_STATUS,
   GLOBAL_TRESOR, globalTresorKategorie, globalUsd, type GlobalTresorKategorie,
@@ -228,6 +228,17 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
   // E-443: Eine neue Datei geöffnet (neuer Tab) — der Server setzt „gesehen“; kurz danach leise nachladen, damit Marke,
   // Kachel und Zähler sofort stimmen (das Zurückkehren in den Tab lädt ohnehin nach).
   const geoeffnet = (d: any) => { if (d?.neu) window.setTimeout(() => { leise(); onGeaendert(); }, 1500); };
+  // E-443 (28.10.2026, Gutachten): EINE Stelle für „Anfragen gelesen“ — gleich, ob über den Reiter, über „antworten“ unter
+  // „Jetzt zu tun“ (so kommt man über den Aufgaben-Link an) oder weil bei offenem Reiter eine neue Nachricht nachgeladen
+  // wurde. Gelesen → Akte neu (Zahl am Reiter, „Jetzt zu tun“); die Nachrichten-Aufgabe erledigt der Server.
+  const anfragenUngelesen = m ? (m.nachrichten as any[]).filter((n) => n.von === "kunde" && !n.gelesen).length : 0;
+  const gelesenLaeuft = useRef(false);
+  useEffect(() => {
+    if (reiter !== "anfragen" || anfragenUngelesen === 0 || gelesenLaeuft.current) return;
+    gelesenLaeuft.current = true;
+    void senden(`/chef/global/mandate/${r}/anfragen-gelesen`, "POST").then(() => { neu(); onGeaendert(); }).finally(() => { gelesenLaeuft.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reiter, anfragenUngelesen]);
 
   if (fehler) return <div className="cgr-akte"><Fehlermeldung text={fehler} erneut={neu} /></div>;
   if (!m) return <div className="cgr-akte"><Geruest zeilen={8} /></div>;
@@ -286,11 +297,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
 
       <nav className="cgr-reiter" aria-label="Bereiche des Mandats">
         {REITER.map((x) => (
-          <button key={x.key} type="button" className={reiter === x.key ? "an" : ""} onClick={() => {
-            setReiter(x.key);
-            // E-443: gelesen → auch die Akte neu (Zahl am Reiter, „Jetzt zu tun“); die Nachrichten-Aufgabe erledigt der Server.
-            if (x.key === "anfragen" && anfragenNeu > 0) void senden(`/chef/global/mandate/${r}/anfragen-gelesen`, "POST").then(() => { neu(); onGeaendert(); });
-          }}>
+          <button key={x.key} type="button" className={reiter === x.key ? "an" : ""} onClick={() => setReiter(x.key)}>
             <x.Icon size={14} strokeWidth={1.8} /> {x.titel}{x.zahl ? <span>{x.zahl}</span> : null}
           </button>
         ))}
@@ -728,22 +735,27 @@ function Ablage({ gref, tun, fest, portalNeu }: { gref: string; tun: Tun; fest?:
 // E-443 (28.10.2026): Marke „Neu“ (Kunden-Upload, im Chefbüro noch nicht geöffnet), „bitte neu“ mit Grund für den Kunden
 // und die Art eines Kunden-Uploads korrigieren. Öffnen der Datei = gesehen (Server, Dokument-Route).
 const ARTEN_TRESOR = GLOBAL_TRESOR.filter((k) => k.kategorie !== "vertrag" && k.kategorie !== "post");
-function DokumentZeile({ d, tun, geoeffnet }: { d: any; tun: Tun; geoeffnet?: (d: any) => void }) {
+function DokumentZeile({ d, tun, geoeffnet, sprache }: { d: any; tun: Tun; geoeffnet?: (d: any) => void; sprache?: string }) {
   const titel = d.titel || d.artText;
   const [grund, setGrund] = useState<string | null>(null);
+  // E-443 (28.10.2026, Gutachten): Sperre gegen Doppelklick (am Handy häufig) — sonst zwei gleiche Zeilen beim Kunden.
+  const [laeuft, setLaeuft] = useState(false);
   // Kunden-Upload, aber keine unterschriebene Fassung (die gehört zum Nachweis der Unterschrift).
   const kundeFrei = d.von === "kunde" && !d.unterschriebeneFassungVon;
+  // „bitte neu“ ist erledigt, sobald der Kunde dieselbe Unterlage neu eingereicht hat — grau „ersetzt“, nichts mehr zu tun.
+  const ablehnungOffen = !!d.abgelehnt && !d.abgelehnt.erledigt;
+  const englisch = sprache === "en";
   return (
     <div className={`cgr-dok${d.von === "kunde" ? " vom-kunden" : ""}${d.neu ? " neu" : ""}`} data-fiaon={d.neu ? "chef-dok-neu" : undefined}>
       <span className="cgr-dok-icon">{d.unterschrift?.gefordert ? <PenLine size={15} /> : <FileText size={15} />}</span>
       <a className="cgr-dok-text" href={d.url} target="_blank" rel="noreferrer" onClick={() => geoeffnet?.(d)}>
         <b>{titel}</b>
         <small>{d.name} · {d.von === "kunde" ? "vom Kunden" : (d.vonName ?? "FIAON")} · {datum(d.am)}{d.post ? ` · ${d.post.absender ?? ""}` : ""}</small>
-        {d.abgelehnt && <small className="cgr-dok-grund">Bitte neu: „{d.abgelehnt.grund}“ ({datum(d.abgelehnt.am)})</small>}
+        {d.abgelehnt && <small className={`cgr-dok-grund${ablehnungOffen ? "" : " ersetzt"}`}>{ablehnungOffen ? "Bitte neu" : "Ersetzt — war „bitte neu“"}: „{d.abgelehnt.grund}“ ({datum(d.abgelehnt.am)})</small>}
       </a>
       <span className="cgr-dok-marken">
         {d.neu && <em className="blau">Neu</em>}
-        {d.abgelehnt && <em className="rot">bitte neu</em>}
+        {d.abgelehnt && (ablehnungOffen ? <em className="rot">bitte neu</em> : <em className="leise">ersetzt</em>)}
         {d.unterschrift?.gefordert && <em className={d.unterschrift.unterschrieben ? "gruen" : "gelb"}>{d.unterschrift.unterschrieben ? `unterschrieben ${datum(d.unterschrift.am)}` : "wartet auf Unterschrift"}</em>}
         {d.von !== "kunde" && d.sichtbarFuerKunde && <em className={d.gelesen ? "gruen" : "leise"}>{d.gelesen ? "gelesen" : "ungelesen"}</em>}
         {d.von !== "kunde" && !d.sichtbarFuerKunde && <em className="leise"><Lock size={10} /> intern</em>}
@@ -754,24 +766,29 @@ function DokumentZeile({ d, tun, geoeffnet }: { d: any; tun: Tun; geoeffnet?: (d
                   onChange={(e) => { if (e.target.value !== d.art) void tun(`/dokument/${d.id}`, "POST", { art: e.target.value }); }}>
             {ARTEN_TRESOR.map((g) => (
               <optgroup key={g.kategorie} label={g.titel.de}>
-                {GLOBAL_DOKUMENTARTEN.filter((a) => globalTresorKategorie(a.art) === g.kategorie && a.art !== "post").map((a) => <option key={a.art} value={a.art}>{a.de}</option>)}
+                {/* E-443 (Gutachten): nur Arten, die der Kunde selbst einreicht — sonst entstünde eine Aufgabe, die er nie erledigen kann. */}
+                {GLOBAL_DOKUMENTARTEN.filter((a) => globalTresorKategorie(a.art) === g.kategorie && a.art !== "post" && (globalKundeDarfArt(a.art) || a.art === d.art)).map((a) => <option key={a.art} value={a.art}>{a.de}</option>)}
               </optgroup>
             ))}
           </select>
         )}
         {kundeFrei && !d.abgelehnt && grund === null && <button type="button" data-fiaon="chef-dok-ablehnen" onClick={() => setGrund("")}>Bitte neu …</button>}
-        {kundeFrei && d.abgelehnt && <button type="button" onClick={() => void tun(`/dokument/${d.id}`, "POST", { ablehnungZurueck: true })}>„Bitte neu“ zurücknehmen</button>}
+        {kundeFrei && ablehnungOffen && <button type="button" disabled={laeuft} onClick={async () => { setLaeuft(true); await tun(`/dokument/${d.id}`, "POST", { ablehnungZurueck: true }); setLaeuft(false); }}>„Bitte neu“ zurücknehmen</button>}
         {d.von !== "kunde" && <button type="button" onClick={() => tun(`/dokument/${d.id}`, "POST", { sichtbar: !d.sichtbarFuerKunde })}>{d.sichtbarFuerKunde ? "Intern machen" : "Freigeben"}</button>}
         {d.istPdf && !d.unterschrift?.unterschrieben && d.von !== "kunde" && <button type="button" onClick={() => tun(`/dokument/${d.id}`, "POST", { unterschrift: !d.unterschrift?.gefordert })}>{d.unterschrift?.gefordert ? "Keine Unterschrift" : "Unterschrift anfordern"}</button>}
         <button type="button" onClick={() => { if (window.confirm(`„${titel}“ aus dem Tresor entfernen?`)) void tun(`/dokument/${d.id}`, "DELETE"); }}><Trash2 size={12} /></button>
       </div>
       {grund !== null && (
         <div className="cgr-form zeile cgr-dok-form">
-          <input value={grund} maxLength={300} autoFocus onChange={(e) => setGrund(e.target.value)} placeholder="Grund für den Kunden, z. B. Foto statt Scan — bitte als PDF-Scan" />
-          <button type="button" className="cw-knopf cgr-haupt" disabled={grund.trim().length < 8}
-                  onClick={async () => { if (await tun(`/dokument/${d.id}`, "POST", { ablehnen: grund.trim() })) setGrund(null); }}>Als „bitte neu“ markieren</button>
+          <input value={grund} maxLength={300} autoFocus onChange={(e) => setGrund(e.target.value)}
+                 placeholder={englisch ? "Reason in English, e.g. Photo instead of a scan — please upload a PDF scan" : "Grund für den Kunden, z. B. Foto statt Scan — bitte als PDF-Scan"} />
+          <button type="button" className="cw-knopf cgr-haupt" disabled={laeuft || grund.trim().length < 8}
+                  onClick={async () => { setLaeuft(true); const ok = await tun(`/dokument/${d.id}`, "POST", { ablehnen: grund.trim() }); setLaeuft(false); if (ok) setGrund(null); }}>
+            {laeuft ? "Speichert …" : "Als „bitte neu“ markieren"}
+          </button>
           <button type="button" className="cw-knopf" onClick={() => setGrund(null)}>Abbrechen</button>
-          <small className="cgr-leise">Der Kunde sieht die Unterlage wieder unter „Für Sie zu tun“ — mit diesem Satz. Es geht keine Mail raus.</small>
+          {/* E-443 (Gutachten): Der Kunde liest den Grund wörtlich — in seiner Portal-Sprache schreiben. */}
+          <small className="cgr-leise">{englisch ? "Der Kunde liest Englisch — den Grund bitte auf Englisch schreiben. " : ""}Der Kunde sieht die Unterlage wieder unter „Für Sie zu tun“ — mit diesem Satz. Es geht keine Mail raus.</small>
         </div>
       )}
     </div>
@@ -804,7 +821,7 @@ function Tresor({ m, tun, gref, geoeffnet }: { m: any; tun: Tun; gref: string; g
         {GLOBAL_TRESOR.filter((k) => k.kategorie !== "vertrag" && k.kategorie !== "post" && nach.has(k.kategorie)).map((k) => (
           <div key={k.kategorie} className="cgr-mappe">
             <div className="cgr-mappe-kopf"><b>{k.titel.de}</b><small>{nach.get(k.kategorie)!.length}</small></div>
-            {nach.get(k.kategorie)!.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} geoeffnet={geoeffnet} />)}
+            {nach.get(k.kategorie)!.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} geoeffnet={geoeffnet} sprache={m.sprache} />)}
           </div>
         ))}
         {doks.length === 0 && <p className="cgr-leer">Noch keine Dokumente im Tresor.</p>}

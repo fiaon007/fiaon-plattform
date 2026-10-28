@@ -57,7 +57,7 @@ abschnitt("F1 Nachladen");
 ok(/export function useDaten<T>\(pfad: string \| null, abhaengig: unknown\[\] = \[\], takt\?: number\)/.test(teile), "useDaten: dritter Parameter `takt` ist freiwillig (andere Aufrufer unverändert)");
 const leise = koerper(teile, "const leise = () => {");
 ok(leise.length > 0, "useDaten hat einen leisen Lauf");
-ok(!/setLaedt|setFehler/.test(leise), "der leise Lauf setzt weder „lädt …“ noch einen Fehler", leise.slice(0, 200));
+ok(!/setLaedt|setFehler\((?!null\))/.test(leise), "der leise Lauf setzt weder „lädt …“ noch einen Fehler (nach Erfolg räumt er einen alten weg)", leise.slice(0, 200));
 ok(/document\.visibilityState !== "visible"/.test(leise), "leise nur bei sichtbarem Tab");
 ok(/catch\(\(\) => \{ \/\* leise/.test(leise), "Fehlschlag im Hintergrund: alte Daten bleiben stehen");
 ok(/pfadJetzt\.current === p/.test(leise), "eine Antwort für ein anderes Mandat wird verworfen");
@@ -220,6 +220,87 @@ ok(/„bitte neu“ markiert, steht sie hier wieder auf „fehlt noch“/.test(r
 const geaendert = [teile, chef, portal, mandat, bereich, routen, rundgaenge].join("\n");
 ok(!/FIAON-MV[0-9A-Z]{6}/.test(geaendert), "keine echte Kunden-Referenz im Quelltext");
 ok((geaendert.match(/E-443 \(28\.10\.2026\)/g) ?? []).length >= 10, "Stellen tragen „E-443 (28.10.2026)“");
+
+// ═══ GUTACHTEN (Korrektheit, Kundensicht, Chef-Bedienung) ═════════════════════
+abschnitt("Gutachten: Nachbesserungen");
+// Kundensicht 2: maßgeblich ist der UPLOAD-Zeitpunkt des abgelehnten Dokuments, nicht der Zeitpunkt der Ablehnung.
+{
+  const foto = { id: 1, art: "reisepass", am: "2026-10-28T08:00:00.000Z", abgelehntAm: "2026-10-28T10:00:00.000Z", abgelehntGrund: "Foto statt Scan — bitte als PDF-Scan" };
+  const scan = { id: 2, art: "reisepass", am: "2026-10-28T08:05:00.000Z" };
+  const doks = [foto, scan];
+  gleich(B.globalOffeneAblehnungen(doks).length, 0, "Foto 10:00, Scan 10:05, Foto um 12:00 abgelehnt → nichts offen (der Scan gilt)");
+  const st = B.globalUnterlagenStand(["reisepass"], "de", false, true, B.globalOffeneAblehnungen(doks));
+  gleich(B.globalNachreichen(B.globalOffeneAblehnungen(doks), st).length, 0, "… und kein „Bitte neu einreichen: Reisepass“ neben „vorhanden“");
+  ok(!B.globalAblehnungOffen(foto, doks), "globalAblehnungOffen: ersetzt durch den jüngeren Scan");
+  // Gewollt bleibt: ein älterer Pass gilt, der neuere wird abgelehnt → der Kunde soll neu einreichen.
+  const alt = { id: 3, art: "reisepass", am: "2026-10-01T08:00:00.000Z" };
+  const neuAbgelehnt = { id: 4, art: "reisepass", am: "2026-10-20T08:00:00.000Z", abgelehntAm: "2026-10-21T08:00:00.000Z", abgelehntGrund: "Abgelaufen — bitte den neuen Pass" };
+  gleich(B.globalOffeneAblehnungen([alt, neuAbgelehnt]).map((x) => x.id), [4], "älterer Pass gilt, neuerer abgelehnt → bleibt offen");
+  // Ablehnung, dann neuer Upload → erledigt.
+  const nachher = { id: 5, art: "reisepass", am: "2026-10-22T08:00:00.000Z" };
+  ok(!B.globalAblehnungOffen(neuAbgelehnt, [alt, neuAbgelehnt, nachher]), "neuer Upload nach der Ablehnung → erledigt");
+  ok(B.globalAblehnungOffen(neuAbgelehnt, [alt, neuAbgelehnt]), "ohne neuen Upload → offen");
+}
+// Kundensicht 1 / Chef 1: der Kunde sieht „Bitte neu einreichen“ nur, solange die Ablehnung offen ist; das Chefbüro „ersetzt“.
+ok(/const ablehnungOffen = new Set\(stand\.filter\(\(x\) => globalAblehnungOffen\(x, stand\)\)/.test(bereich), "Sicht: offene Ablehnungen je Dokument einmal gebildet");
+ok(/d\.abgelehnt_am && \(fuer === "office" \|\| ablehnungOffen\.has\(Number\(d\.id\)\)\)/.test(bereich), "Kunde bekommt `abgelehnt` nur bei offener Ablehnung");
+ok(/fuer === "office" && !ablehnungOffen\.has\(Number\(d\.id\)\) \? \{ erledigt: true \}/.test(bereich), "Office/Chef: erledigte Ablehnung trägt `erledigt`");
+ok(/<em className="leise">ersetzt<\/em>/.test(chef) && /\.cgr-dok-grund\.ersetzt/.test(css), "Chefbüro: graue Marke „ersetzt“");
+// Kundensicht 3: der Angebotsweg zählt einen abgelehnten Pass nicht als „erhalten und geprüft“.
+for (const f of ["server/lib/fiaon-global-angebot-begleit.ts", "server/lib/fiaon-global-angebot-kapital.ts"]) {
+  ok(/art = 'reisepass' AND geloescht_am IS NULL AND abgelehnt_am IS NULL/.test(datei(f)), `${f.split("/").pop()}: abgelehnter Pass zählt nicht`);
+  ok(/m\.ensureGlobalBereich\(\)/.test(datei(f)), `${f.split("/").pop()}: Spalte vorher sichergestellt`);
+}
+// Korrektheit 3: genau die abgelehnte Datei noch einmal → klarer Satz statt „liegt im Tresor“.
+{
+  const k = koerper(bereich, "export async function globalKundenDokument(");
+  ok(/if \(d\.doppelt\) \{[\s\S]{0,200}SELECT abgelehnt_am FROM fiaon_global_dokumente WHERE id = \$\{d\.id\} AND ref = \$\{ref\}/.test(k) && /nein\(409, t\(s, "Diese Datei hatten wir bereits als nicht geeignet markiert/.test(k), "gleiche abgelehnte Datei → 409 mit Kundentext");
+  ok(wandUrteil(wandPruefen("Diese Datei hatten wir bereits als nicht geeignet markiert. Bitte laden Sie einen neuen Scan hoch.")).sendbar && wandUrteil(wandPruefen("We had already marked this file as unsuitable. Please upload a new scan.")).sendbar, "Kundentext besteht die Wortwand");
+}
+// Korrektheit 1 + 5 / Chef 3: gelöschte Teil-Fassungen zählen nicht; ein Scan vom Team gilt als gesehen.
+{
+  const e = koerper(mandat, "export async function globalKundenAufgabenErledigen(");
+  ok(/d\.unterschrift_von_id IS NOT NULL AND d\.geloescht_am IS NULL/.test(e), "Unterschrifts-Erledigung: nur nicht gelöschte Fassungen");
+  ok(/\(\(d\.von = 'kunde' AND d\.fiaon_gesehen_am IS NOT NULL\) OR d\.von = 'fiaon'\)/.test(e), "Scan/Fassung vom Team gilt als gesehen");
+  ok(/irs_ss4/.test(e), "SS-4 bleibt offen");
+  ok(/if \(!kunde\) \{[\s\S]{0,200}globalKundenAufgabenErledigen\(ref/.test(akteKomplett), "Team-Scan erledigt seine Aufgabe sofort");
+}
+// Korrektheit 4 / Kundensicht 5: Rücknahme schreibt die sichtbare Gegenzeile.
+{
+  const a = koerper(mandat, "export async function globalMandatDokumentAendern(");
+  ok(/else if \(zurueck\) \{[\s\S]{0,400}art: "dokument_ok", text: GLOBAL_VERLAUF_TEXT\[sprache\]\.dokumentWiederOk\([\s\S]{0,120}sichtbar: true/.test(a), "Rücknahme: sichtbare Zeile „ist in Ordnung“");
+  gleich(B.GLOBAL_VERLAUF_TEXT.de.dokumentWiederOk("Reisepass"), "„Reisepass“ ist in Ordnung — Sie müssen nichts neu einreichen.", "Gegenzeile de (gesiezt)");
+  gleich(B.GLOBAL_VERLAUF_TEXT.en.dokumentWiederOk("Passport"), "“Passport” is in order — there is nothing you need to submit again.", "Gegenzeile en");
+  for (const x of [B.GLOBAL_VERLAUF_TEXT.de.dokumentWiederOk("Reisepass"), B.GLOBAL_VERLAUF_TEXT.en.dokumentWiederOk("Passport")]) ok(wandUrteil(wandPruefen(x)).sendbar, `Wortwand: ${x}`);
+  // Kundensicht 4: Art nur, wenn der Kunde sie selbst einreichen darf — am Server und in der Auswahl.
+  ok(/if \(!globalKundeDarfArt\(artNeu\.art\)\) return nein\(400/.test(a), "Art ändern: nur Arten, die der Kunde einreicht (Server)");
+  ok(/if \(!globalKundeDarfArt\(artNeu\?\.art \?\? d\.art\)\) return nein\(400/.test(a), "„bitte neu“ nur bei einer Art, die der Kunde einreicht (Server)");
+  ok(/globalKundeDarfArt\(a\.art\) \|\| a\.art === d\.art/.test(chef), "Art ändern: Auswahl im Chefbüro ebenso");
+  ok(B.GLOBAL_DOKUMENTARTEN.some((x: any) => x.von === "fiaon" && !B.globalKundeDarfArt(x.art)), "es gibt FIAON-Arten, die der Kunde nicht wählen darf (Probe)");
+  // Chef 4: Doppelklick — Knopf gesperrt, und der Server schreibt keine zweite Kundenzeile.
+  ok(/const schonSo = grund !== undefined && !!d\.abgelehnt_am && String\(d\.abgelehnt_grund \?\? ""\) === grund/.test(a), "Server: gleiche Ablehnung zweimal → keine zweite Zeile");
+}
+ok(/disabled=\{laeuft \|\| grund\.trim\(\)\.length < 8\}/.test(chef), "Chefbüro: „Als bitte neu markieren“ gesperrt, solange es läuft");
+// Kundensicht 7: Sprache des Kunden beim Grund.
+ok(/Der Kunde liest Englisch — den Grund bitte auf Englisch schreiben/.test(chef) && /sprache=\{m\.sprache\}/.test(chef), "Chefbüro: Hinweis bei englischem Kunden");
+// Korrektheit 2 / Chef 5: veraltete leise Antwort überschreibt keinen frischen Stand.
+{
+  const lz = koerper(teile, "const leise = () => {");
+  ok(/const stand = useRef\(0\)/.test(teile) && /stand\.current \+= 1/.test(teile), "useDaten: Stand-Zähler, jeder laute Lauf zählt hoch");
+  ok(/const start = stand\.current/.test(lz) && /stand\.current === start/.test(lz), "leiser Lauf verwirft die Antwort nach einem lauten Lauf");
+}
+// Chef 2 + 7: „antworten“ unter „Jetzt zu tun“ und neue Nachrichten bei offenem Reiter gelten als gelesen — EINE Stelle.
+ok(/if \(reiter !== "anfragen" \|\| anfragenUngelesen === 0 \|\| gelesenLaeuft\.current\) return;/.test(chef), "gelesen: Effekt auf Reiter „Anfragen“ (Reiter, „antworten“, Nachladen)");
+ok((chef.match(/anfragen-gelesen/g) ?? []).length === 1, "gelesen wird nur an einer Stelle gesendet");
+// Chef 6: „Zum Tresor“ wählt zuerst die abgelehnte Unterlage.
+ok(/fehlend\.find\(\(u: T\) => u\.abgelehnt && erlaubt\(u\.art\)\) \?\? fehlend\.find\(\(u: T\) => erlaubt\(u\.art\)\)/.test(portal), "Portal: „Zum Tresor“ wählt die abgelehnte Unterlage vor");
+// Kundensicht 8 / Chef 8: das bisherige Portal zeigt Grund und „Bitte neu einreichen“.
+{
+  const alt = datei("client/src/pages/business-auftrag.tsx");
+  ok(/abgelehnt\?: \{ grund: string \}/.test(alt) && /nachreichen\?: \{ art: string; titel: string; grund: string \}\[\]/.test(alt), "bisheriges Portal: Typen");
+  ok(/u\.abgelehnt\?\.grund \?/.test(alt) && /\(a\.nachreichen \?\? \[\]\)\.map/.test(alt), "bisheriges Portal: Grund und Nachreichen sichtbar");
+}
+for (const w of ["„ersetzt“", "nur Arten, die der Kunde selbst einreicht", "Englisch", "„antworten“ unter „Jetzt zu tun“", "Scan selbst hoch"]) ok(rg.includes(w), `Rundgang erklärt: ${w}`);
 
 ok(netz.length === 0, "kein Netzzugriff", netz.join(", "));
 console.log(`\n${gut} ok, ${rot.length} rot.`);

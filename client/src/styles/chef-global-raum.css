@@ -224,6 +224,8 @@ em.st-leise { color: var(--cgr-still); }
 .cgr-dok-marken em.rot { color: #fca5a5; border-color: rgba(248,113,113,.35); }
 .cgr-dok.neu { box-shadow: inset 2px 0 0 rgba(96,165,250,.7); }
 .cgr-dok-text .cgr-dok-grund { color: #fca5a5; }
+/* E-443 (28.10.2026): erledigte Ablehnung — der Kunde hat neu eingereicht. */
+.cgr-dok-text .cgr-dok-grund.ersetzt { color: var(--cgr-still); }
 .cgr-dok-art { max-width: 190px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--cgr-linie); background: rgba(255,255,255,.03); color: var(--cgr-leise); font: 400 11px/1.2 'Inter', sans-serif; }
 .cgr-dok-art option, .cgr-dok-art optgroup { color: #0f172a; }
 .cgr-dok-form { flex-basis: 100%; }

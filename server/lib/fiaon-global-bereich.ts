@@ -68,7 +68,7 @@ import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
   globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
   globalFristMarke, globalTageslaufFenster, globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
-  globalUnterlagenStand, globalUnterlagenEingangSatz, globalOffeneAblehnungen, globalNachreichen, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
+  globalUnterlagenStand, globalUnterlagenEingangSatz, globalOffeneAblehnungen, globalAblehnungOffen, globalNachreichen, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
   GLOBAL_ETAPPE_FUSSNOTE,
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
@@ -371,7 +371,11 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     : null;
   const verlaufAlles = verlaufBauen(l, geschrieben, paketName);
   // E-443 (28.10.2026): EINE Unterlagen-Rechnung für Portal, Office und Chefbüro — abgelehnte Dokumente zählen nicht.
-  const ablehnungen = globalOffeneAblehnungen(dokumente.map((d) => ({ id: Number(d.id), art: String(d.art), am: iso(d.created_at), abgelehntAm: iso(d.abgelehnt_am), abgelehntGrund: d.abgelehnt_grund ?? null })));
+  const stand = dokumente.map((d) => ({ id: Number(d.id), art: String(d.art), am: iso(d.created_at), abgelehntAm: iso(d.abgelehnt_am), abgelehntGrund: d.abgelehnt_grund ?? null }));
+  const ablehnungen = globalOffeneAblehnungen(stand);
+  // E-443 (28.10.2026, Gutachten): Je Dokument — ist seine Ablehnung noch offen? Erledigte (neu eingereicht) sieht der
+  // Kunde nicht mehr als „Bitte neu einreichen“; das Chefbüro sieht sie grau als „ersetzt“.
+  const ablehnungOffen = new Set(stand.filter((x) => globalAblehnungOffen(x, stand)).map((x) => x.id));
   const unterlagen = globalUnterlagenStand(dokumente.filter((d) => !d.abgelehnt_am).map((d) => String(d.art)), sprache, firma.art === "privat", individuell, ablehnungen);
   const nachreichen = globalNachreichen(ablehnungen, unterlagen, sprache);
   const bezahlt = String(b.payment_status) === "paid";
@@ -400,7 +404,8 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     dokumente: sichtbareDokumente.map((d) => ({
       id: Number(d.id), art: String(d.art), artText: globalDokumentArtText(d.art, sprache), name: String(d.dateiname),
       groesse: Number(d.groesse || 0), von: d.von === "kunde" ? "kunde" : "fiaon", am: iso(d.created_at),
-      ...(d.abgelehnt_am ? { abgelehnt: { am: iso(d.abgelehnt_am), grund: String(d.abgelehnt_grund ?? "") } } : {}),
+      ...(d.abgelehnt_am && (fuer === "office" || ablehnungOffen.has(Number(d.id)))
+        ? { abgelehnt: { am: iso(d.abgelehnt_am), grund: String(d.abgelehnt_grund ?? ""), ...(fuer === "office" && !ablehnungOffen.has(Number(d.id)) ? { erledigt: true } : {}) } } : {}),
       ...(fuer === "office" ? { sichtbarFuerKunde: d.von === "kunde" || !!d.sichtbar_fuer_kunde, vonName: d.von === "kunde" ? "Kunde" : (d.agent_name ?? "FIAON") } : {}),
     })),
     fristen: fristen.map((f) => ({
@@ -916,6 +921,12 @@ export async function globalKundenDokument(ref: string, ein: { art: unknown; dat
   if (Number(anz?.n || 0) >= GLOBAL_DOKUMENTE_MAX) return nein(409, t(s, "In Ihrem Dokumentenraum liegen bereits vierzig Dokumente. Bitte schreiben Sie Ihrem Ansprechpartner, wenn noch etwas fehlt.", "Your document room already holds forty documents. Please message your contact if something is still missing."));
   const name = globalDateiname(nameAusMultipart(datei.originalname), typ.endung);
   const d = await dokumentSpeichern({ ref, von: "kunde", art: art.art, dateiname: name, mime: typ.mime, inhalt: datei.buffer, sichtbar: true, agentId: null });
+  // E-443 (28.10.2026, Gutachten): Genau die Datei, die wir als „bitte neu“ markiert haben, noch einmal — kein stilles
+  // „liegt im Tresor“ (die Unterlage bliebe offen, das Team erführe nichts), sondern ein klarer Satz.
+  if (d.doppelt) {
+    const [alt] = (await sqlPool`SELECT abgelehnt_am FROM fiaon_global_dokumente WHERE id = ${d.id} AND ref = ${ref}`) as any[];
+    if (alt?.abgelehnt_am) return nein(409, t(s, "Diese Datei hatten wir bereits als nicht geeignet markiert. Bitte laden Sie einen neuen Scan hoch.", "We had already marked this file as unsuitable. Please upload a new scan."));
+  }
   if (!d.doppelt) {
     await verlaufSchreiben(ref, { art: "dokument", text: GLOBAL_VERLAUF_TEXT[s].dokumentKunde(globalDokumentArtText(art.art, s), name), sichtbar: true, von: "kunde" });
     await eingangMelden(l, `Der Kunde hat hochgeladen: ${art.de} („${name}“).`);

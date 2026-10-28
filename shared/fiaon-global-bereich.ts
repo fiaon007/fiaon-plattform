@@ -345,8 +345,21 @@ function gleicheUnterlage(art: string): string[] {
 }
 
 /**
+ * Ist diese Ablehnung noch offen? Erledigt ist sie, sobald ein nicht abgelehntes Dokument derselben Unterlage hochgeladen
+ * wurde, das JÜNGER ist als das abgelehnte Dokument selbst — maßgeblich ist der Upload-Zeitpunkt, nicht der Zeitpunkt der
+ * Ablehnung. E-443 (28.10.2026, Gutachten): Foto 10:00, Scan 10:05, Foto um 12:00 abgelehnt → der Scan gilt, nichts offen.
+ * Ein älterer Pass, der noch gilt, erledigt die Ablehnung eines neueren dagegen nicht.
+ */
+export function globalAblehnungOffen(d: GlobalDokumentStand, doks: Iterable<GlobalDokumentStand>): boolean {
+  if (!d.abgelehntAm) return false;
+  const hochgeladen = String(d.am ?? "");
+  const gruppe = gleicheUnterlage(String(d.art));
+  return !Array.from(doks).some((x) => !x.abgelehntAm && gruppe.includes(String(x.art)) && String(x.am ?? "") > hochgeladen);
+}
+
+/**
  * Offene Ablehnungen — je Art die jüngste, solange danach kein neues, nicht abgelehntes Dokument derselben Unterlage
- * kam. Reine Funktion für Server, Portal und Prüfstand. Jüngste zuerst.
+ * kam (globalAblehnungOffen). Reine Funktion für Server, Portal und Prüfstand. Jüngste zuerst.
  */
 export function globalOffeneAblehnungen(doks: Iterable<GlobalDokumentStand>): GlobalAblehnung[] {
   const liste = Array.from(doks);
@@ -354,8 +367,7 @@ export function globalOffeneAblehnungen(doks: Iterable<GlobalDokumentStand>): Gl
   for (const d of liste) {
     if (!d.abgelehntAm) continue;
     const seit = String(d.abgelehntAm);
-    const gruppe = gleicheUnterlage(String(d.art));
-    if (liste.some((x) => !x.abgelehntAm && gruppe.includes(String(x.art)) && String(x.am ?? "") > seit)) continue;
+    if (!globalAblehnungOffen(d, liste)) continue;
     const da = offen.get(String(d.art));
     if (!da || seit > da.am) offen.set(String(d.art), { id: d.id ?? null, art: String(d.art), grund: String(d.abgelehntGrund ?? "").trim(), am: seit });
   }
@@ -638,6 +650,8 @@ export const GLOBAL_VERLAUF_TEXT = {
     nachricht: (text: string) => `Ihre Nachricht: ${text}`,
     // E-443 (28.10.2026): eine Unterlage „bitte neu“ — der Grund steht im Satz.
     dokumentNeu: (art: string, grund: string) => `Bitte reichen Sie „${art}“ neu ein: ${grund}`,
+    // E-443 (28.10.2026, Gutachten): „bitte neu“ zurückgenommen — die Gegenzeile, damit keine alte Forderung stehen bleibt.
+    dokumentWiederOk: (art: string) => `„${art}“ ist in Ordnung — Sie müssen nichts neu einreichen.`,
     wiederOffen: "Ihr Auftrag wird weiter begleitet.",
   },
   en: {
@@ -655,6 +669,7 @@ export const GLOBAL_VERLAUF_TEXT = {
     dokumentFiaon: (art: string, name: string) => `FIAON has provided a document for you: ${art} (${name}).`,
     nachricht: (text: string) => `Your message: ${text}`,
     dokumentNeu: (art: string, grund: string) => `Please submit “${art}” again: ${grund}`,
+    dokumentWiederOk: (art: string) => `“${art}” is in order — there is nothing you need to submit again.`,
     wiederOffen: "Support for your order continues.",
   },
 } as const;

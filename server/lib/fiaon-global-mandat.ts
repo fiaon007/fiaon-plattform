@@ -34,7 +34,7 @@ import {
   type BereichAgent, type DateiEin, type Erg, type Lage,
 } from "./fiaon-global-bereich";
 import {
-  globalDokumentArt, globalDokumentArtText, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
+  globalDokumentArt, globalDokumentArtText, globalKundeDarfArt, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
 } from "@shared/fiaon-global-bereich";
 import { unterschriftModus } from "@shared/fiaon-global-akte";
 import {
@@ -826,7 +826,7 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
   await ensureGlobalMandat();
   const id = Number(idRoh);
   const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
-    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am, unterschrift_von_id, abgelehnt_am FROM fiaon_global_dokumente
+    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am, unterschrift_von_id, abgelehnt_am, abgelehnt_grund FROM fiaon_global_dokumente
      WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL`) as any[]) : [];
   if (!d) return nein(404, "Dieses Dokument gibt es nicht (mehr).");
   const titel = ein.titel !== undefined ? (knapp(ein.titel, 160) || null) : undefined;
@@ -843,14 +843,23 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
   if (ein.art !== undefined) {
     const f = nurKunde("Die Art ändern"); if (f) return f;
     if (!artNeu || artNeu.art === "post") return nein(400, "Diese Dokumentart gibt es nicht — bitte eine Art aus der Liste wählen.");
+    // E-443 (28.10.2026, Gutachten): nur Arten, die der Kunde selbst hochladen darf — sonst stünde nach „bitte neu“
+    // eine Unterlage unter „Für Sie zu tun“, die er im Upload gar nicht wählen kann.
+    if (!globalKundeDarfArt(artNeu.art)) return nein(400, `„${artNeu.de}“ legt nur FIAON ab — bitte eine Art wählen, die der Kunde selbst einreicht.`);
   }
   const grund = ein.ablehnen !== undefined ? absatz(ein.ablehnen, GLOBAL_ABLEHNUNG_GRUND_MAX) : undefined;
   if (grund !== undefined) {
     const f = nurKunde("„Bitte neu“"); if (f) return f;
+    if (!globalKundeDarfArt(artNeu?.art ?? d.art)) return nein(400, "Diese Art legt nur FIAON ab — bitte erst die richtige Art wählen, dann „bitte neu“.");
     if (grund.length < GLOBAL_ABLEHNUNG_GRUND_MIN) return nein(400, "Bitte einen kurzen Grund für den Kunden angeben, z. B. „Foto statt Scan — bitte als PDF-Scan“.");
     const w = kundensatz(grund); if (w) return nein(400, w);
   }
   const zurueck = ein.ablehnungZurueck === true && !!d.abgelehnt_am;
+  // E-443 (28.10.2026, Gutachten): Doppelklick — dieselbe Ablehnung mit demselben Grund schreibt keine zweite Kundenzeile.
+  const schonSo = grund !== undefined && !!d.abgelehnt_am && String(d.abgelehnt_grund ?? "") === grund;
+  if (schonSo && artNeu == null && titel === undefined && sichtbar === undefined && unterschrift === undefined) {
+    return { ok: true, meldung: "Ist schon als „bitte neu“ markiert — mit diesem Grund." };
+  }
   const sieht = grund !== undefined || artNeu != null;
   await sqlPool`
     UPDATE fiaon_global_dokumente SET
@@ -877,6 +886,11 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
     const l = await lageLesen(ref);
     const sprache: BereichSprache = l?.sprache ?? "de";
     await verlaufSchreiben(ref, { art: "dokument_neu", text: GLOBAL_VERLAUF_TEXT[sprache].dokumentNeu(globalDokumentArtText(artNeu?.art ?? d.art, sprache), grund), sichtbar: true, agentId: agent.id });
+  } else if (zurueck) {
+    // E-443 (28.10.2026, Gutachten): Rücknahme — die sichtbare Gegenzeile, sonst liest der Kunde weiter „bitte neu einreichen“.
+    const l = await lageLesen(ref);
+    const sprache: BereichSprache = l?.sprache ?? "de";
+    await verlaufSchreiben(ref, { art: "dokument_ok", text: GLOBAL_VERLAUF_TEXT[sprache].dokumentWiederOk(globalDokumentArtText(artNeu?.art ?? d.art, sprache)), sichtbar: true, agentId: agent.id });
   }
   if (sieht) await globalKundenAufgabenErledigen(ref, agent.name);
   return {
@@ -917,6 +931,8 @@ export async function globalChefGesehen(ref: string, ids: number[] | "alle", wer
  *   global:<ref>:signatur:<Original>:<Nr> digitale Unterschrift — erledigt, sobald die unterschriebene Fassung gesehen ist
  *   global:<ref>:scan:<Original>         unterschriebener Scan — ebenso; AUSNAHME SS-4: dort folgt ein echter Handgriff
  *                                        (zurück an den Registered Agent), diese Aufgabe schließt das Team selbst.
+ * E-443 (28.10.2026, Gutachten): nur nicht gelöschte Fassungen zählen — eine gelöschte, gesehene Teil-Fassung darf die
+ * Aufgabe zur Endfassung nicht schließen. Hat das Team den Scan selbst hochgeladen (von = 'fiaon'), gilt er als gesehen.
  * Darf nie einen Weg aufhalten: Fehler landen nur im Log.
  */
 export async function globalKundenAufgabenErledigen(ref: string, wer: string): Promise<void> {
@@ -934,7 +950,8 @@ export async function globalKundenAufgabenErledigen(ref: string, wer: string): P
      WHERE (t.schluessel LIKE ${`global:${ref}:signatur:%`} OR t.schluessel LIKE ${`global:${ref}:scan:%`}) AND t.status <> 'erledigt'
        AND EXISTS (
          SELECT 1 FROM fiaon_global_dokumente d LEFT JOIN fiaon_global_dokumente o ON o.id = d.unterschrift_von_id
-          WHERE d.ref = ${ref} AND d.von = 'kunde' AND d.fiaon_gesehen_am IS NOT NULL AND d.unterschrift_von_id IS NOT NULL
+          WHERE d.ref = ${ref} AND d.unterschrift_von_id IS NOT NULL AND d.geloescht_am IS NULL
+            AND ((d.von = 'kunde' AND d.fiaon_gesehen_am IS NOT NULL) OR d.von = 'fiaon')
             AND split_part(t.schluessel, ':', 4) = d.unterschrift_von_id::text
             AND NOT (split_part(t.schluessel, ':', 3) = 'scan' AND COALESCE(o.pflicht_key, '') = 'irs_ss4'))`
     .catch((e) => console.error(`[GLOBAL-MANDAT] ${ref}: Unterschrifts-Aufgaben nicht erledigt:`, e));

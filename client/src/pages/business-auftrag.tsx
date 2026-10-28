@@ -56,7 +56,9 @@ type Auftrag = {
   naechsterSchritt?: { text: string; bis?: string | null } | null;
   ansprechpartner?: { name: string; vorname?: string; email?: string; telefon?: string; bild?: string } | null;
   gesellschaft?: { name?: string; form?: string; bundesstaat?: string; gegruendetAm?: string } | null;
-  unterlagen: { art: string; titel: string; hinweis?: string; vorhanden: boolean }[];
+  // E-443 (28.10.2026): „bitte neu“ — der Grund für eine fehlende Unterlage und was zusätzlich neu einzureichen ist.
+  unterlagen: { art: string; titel: string; hinweis?: string; vorhanden: boolean; abgelehnt?: { grund: string } }[];
+  nachreichen?: { art: string; titel: string; grund: string }[];
   dokumente: Dokument[];
   /** E-332 (12.10.2026): Unterlagen aus dem Individualangebot — Vertrag, Nachweise, Sicherheiten (eine Quelle mit der Angebotsseite). */
   angebotUnterlagen?: { id: number; titel: string; mime: string; groesse: number; reihenfolge: number; url: string }[];
@@ -318,10 +320,20 @@ export default function BusinessAuftrag() {
                   <ul className="ga-liste">
                     {a.unterlagen.map((u) => (
                       <li key={u.art}>
-                        <div><b>{u.titel}</b>{u.hinweis && <span>{u.hinweis}</span>}</div>
+                        <div><b>{u.titel}</b>{!u.vorhanden && u.abgelehnt?.grund ? <span>{s === "en" ? "Needed again" : "Bitte neu"}: {u.abgelehnt.grund}</span> : u.hinweis && <span>{u.hinweis}</span>}</div>
                         <div className="ga-rechts">
                           <span className={`ga-marke ${u.vorhanden ? "gut" : "offen"}`}>{u.vorhanden ? t.vorhanden : t.fehlt}</span>
                           <button type="button" className={`ga-knopf${u.vorhanden ? "" : " blau"}`} disabled={!darfHochladen || !!laedtHoch} onClick={() => waehleDatei(u.art)}>{laedtHoch === u.art ? t.laedtHoch : t.hochladen}</button>
+                        </div>
+                      </li>
+                    ))}
+                    {/* E-443 (28.10.2026): zusätzlich neu einzureichen (z. B. ein abgelehntes „Sonstiges Dokument“) — mit Grund. */}
+                    {(a.nachreichen ?? []).map((x) => (
+                      <li key={`n-${x.art}`}>
+                        <div><b>{s === "en" ? `Please submit again: ${x.titel}` : `Bitte neu einreichen: ${x.titel}`}</b>{x.grund && <span>{x.grund}</span>}</div>
+                        <div className="ga-rechts">
+                          <span className="ga-marke offen">{t.fehlt}</span>
+                          <button type="button" className="ga-knopf blau" disabled={!darfHochladen || !!laedtHoch} onClick={() => waehleDatei(x.art)}>{laedtHoch === x.art ? t.laedtHoch : t.hochladen}</button>
                         </div>
                       </li>
                     ))}

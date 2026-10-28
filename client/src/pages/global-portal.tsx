@@ -442,7 +442,12 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
   // E-443 (28.10.2026): Fehlt eine Unterlage, weil wir sie neu brauchen, steht der Grund dabei; der Knopf wählt ihre Art vor.
-  if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.abgelehnt?.grund ? `${u.titel} — ${u.abgelehnt.grund}` : u.titel).join(" · "), knopf: w.zumTresor, aktion: () => { if (erlaubt(fehlend[0]?.art)) setArt(fehlend[0].art); zu("gp-tresor"); } });
+  if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.abgelehnt?.grund ? `${u.titel} — ${u.abgelehnt.grund}` : u.titel).join(" · "), knopf: w.zumTresor, aktion: () => {
+    // E-443 (Gutachten): zuerst die Unterlage, die wir neu brauchen — wie die Vorbelegung ohne Klick.
+    const ziel = (fehlend.find((u: T) => u.abgelehnt && erlaubt(u.art)) ?? fehlend.find((u: T) => erlaubt(u.art)))?.art;
+    if (ziel) setArt(ziel);
+    zu("gp-tresor");
+  } });
   for (const x of nachreichen) tun.push({ key: `n${x.art}`, Icon: Upload, ton: "", titel: w.neuTitel(x.titel), text: x.grund, knopf: w.zumTresor, aktion: () => { if (erlaubt(x.art)) setArt(x.art); zu("gp-tresor"); } });
   // Scheibe 1: offene Rechnung eines hinzugefügten Dienstes — mit dem Weg zur Zahlungsseite.
   for (const d of (a.dienste?.gebucht ?? []) as T[]) {

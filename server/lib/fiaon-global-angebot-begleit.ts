@@ -508,7 +508,10 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
   const akteRef = String(t.auftrag_ref || ref);
   const [akte] = (await sqlPool`SELECT gesellschaft FROM fiaon_global_auftraege WHERE ref = ${akteRef} LIMIT 1`.catch(() => [])) as any[];
   const ges = json<{ name?: string | null; bundesstaat?: string | null; geprueft?: boolean }>(akte?.gesellschaft, {});
-  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${akteRef} AND art = 'reisepass' AND geloescht_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
+  // E-443 (28.10.2026, Gutachten): ein als „bitte neu“ markierter Pass zählt nicht (wie im Portal) — die Spalte legt
+  // ensureGlobalBereich an; scheitert das, bleibt der Pass wie bisher „nicht da“ (catch), nie „erhalten“.
+  await import("./fiaon-global-bereich").then((m) => m.ensureGlobalBereich()).catch(() => {});
+  const [pass] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${akteRef} AND art = 'reisepass' AND geloescht_am IS NULL AND abgelehnt_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
   const { signInvoiceUrl } = await import("../fiaon-invoice");
   const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
   const zweck = String(a.payment_reference ?? "");

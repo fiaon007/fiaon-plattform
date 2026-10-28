@@ -160,8 +160,12 @@ export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = [], takt
   const pfadJetzt = useRef(pfad);
   pfadJetzt.current = pfad;
   const leiseLaeuft = useRef(false);
+  // E-443 (28.10.2026): Stand-Zähler — jeder laute Lauf zählt hoch. Eine leise Antwort, die vor einem lauten Lauf
+  // gestartet ist (z. B. vor „bitte neu“ → neu()), ist veraltet und darf den frischen Stand nicht überschreiben.
+  const stand = useRef(0);
 
   useEffect(() => {
+    stand.current += 1;
     if (pfad === null) { setLaedt(false); return; }
     let weg = false;
     setLaedt(true);
@@ -185,10 +189,11 @@ export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = [], takt
     const p = pfadJetzt.current;
     if (p === null || leiseLaeuft.current || typeof document === "undefined" || document.visibilityState !== "visible") return;
     leiseLaeuft.current = true;
+    const start = stand.current;
     fetch(`${API}${p}`, { credentials: "include" })
       .then(async (r) => {
         const j = r.ok ? await r.json().catch(() => null) : null;
-        if (j?.ok && pfadJetzt.current === p) setDaten(j as T);
+        if (j?.ok && pfadJetzt.current === p && stand.current === start) { setDaten(j as T); setFehler(null); }
       })
       .catch(() => { /* leise: die alten Daten bleiben stehen */ })
       .finally(() => { leiseLaeuft.current = false; });

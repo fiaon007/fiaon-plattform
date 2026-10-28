@@ -518,5 +518,13 @@ export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { 
       anlageText: "Unterschriebener Scan im Portal hochgeladen.",
     });
   } catch (e) { console.error(`[GLOBAL-AKTE] ${ref}: Aufgabe zum Scan nicht angelegt:`, e); }
-  return { ok: true, id: neu.id, meldung: kunde ? W.fertigText : "Scan als unterschriebene Fassung abgelegt — Aufgabe ist angelegt." };
+  // E-443 (28.10.2026, Gutachten): Hat das Team den Scan selbst hochgeladen, ist er gesehen — die Aufgabe schließt sich
+  // sofort (außer SS-4: dort folgt der Weg zum Registered Agent von Hand).
+  if (!kunde) {
+    try {
+      const { globalKundenAufgabenErledigen } = await import("./fiaon-global-mandat");
+      await globalKundenAufgabenErledigen(ref, (wer as any).team.name || "Team");
+    } catch (e) { console.error(`[GLOBAL-AKTE] ${ref}: Scan-Aufgabe nicht erledigt:`, e); }
+  }
+  return { ok: true, id: neu.id, meldung: kunde ? W.fertigText : d.pflicht_key === "irs_ss4" ? "Scan als unterschriebene Fassung abgelegt — die Aufgabe „an den Registered Agent“ ist angelegt." : "Scan als unterschriebene Fassung abgelegt." };
 }

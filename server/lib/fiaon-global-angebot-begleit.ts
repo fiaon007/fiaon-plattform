@@ -17,8 +17,10 @@
 // ── WAS BEWUSST NICHT PASSIERT ────────────────────────────────────────────
 //   · Keine Bestellzeile, keine Rechnung, keine Akte automatisch: Heute wird nichts fällig. Die Gründungskosten
 //     (Selbstkosten mit Aufstellung) und jedes Erfolgshonorar stellt die Leitung von Hand über den einen Weg.
-//   · Keine Kundenmail und kein automatisches Startgespräch: Justin führt den Kunden persönlich (auftrag_ref bleibt leer —
-//     Stundenlauf, Startgespräch und Bestätigungsmail des Individualangebots fassen das Angebot deshalb nicht an).
+//   · Keine Kundenmail und kein automatisches Startgespräch: Justin führt den Kunden persönlich. Bei der Annahme bleibt
+//     auftrag_ref leer (es gibt noch keine Akte). E-451 (28.10.2026): Mit der Global-Akte („Global-Akte anlegen“, Abgleich)
+//     wird auftrag_ref gesetzt — Stundenlauf/Nachholen, Startgespräch und Bestätigungsmail schließen den Begleitvertrag
+//     ausdrücklich über die Fassung aus (fiaon-global-akte-komplett.ts, begleitAngebotVerknuepfen).
 //   · Das Altabo storniert dieser Code NICHT selbst (Geld nur über die vorhandenen Wege) — die Aufgabe nennt es als ersten Schritt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { randomBytes } from "node:crypto";

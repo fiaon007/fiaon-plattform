@@ -672,7 +672,7 @@ export async function unterschriftAbschliessen(ref: string, idRoh: unknown, ein:
   try {
     const l = await lageLesen(ref);
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    const { globalEinstellungen } = await import("./fiaon-global-auftrag");
+    const { globalAufgabenZiel } = await import("./fiaon-global-auftrag");
     await auftragFuerKunden({
       personId: l?.b?.person_id != null ? Number(l.b.person_id) : null, ref,
       titel: `${erg.vollstaendig ? "Digital unterschrieben" : "Teilweise unterschrieben"}: ${art ? TITEL[art].de : titel} — ${l?.akte?.firma_name || ref}`,
@@ -680,7 +680,8 @@ export async function unterschriftAbschliessen(ref: string, idRoh: unknown, ein:
       schluessel: `global:${ref}:signatur:${d.id}:${nachweis.nr}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       // E-443 (28.10.2026): EIN Helfer für den Weg ins Chefbüro — wie Upload und Nachricht (shared/fiaon-global-wege.ts).
       link: globalChefMandatPfad(ref),
-      agentId: (l?.akte?.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l?.akte?.zustaendig_agent_id)),
       anlageText: "Digitale Unterschrift im Portal.",
     });
   } catch (e) { console.error(`[GLOBAL-UNTERSCHRIFT] ${ref}: Aufgabe nicht angelegt:`, e); }

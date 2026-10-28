@@ -895,7 +895,8 @@ router.post("/admin/todo", async (req: Request, res: Response) => {
   } catch (err) { console.error("[TODO] anlegen:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 
-async function delegieren(id: number, agentId: number | null, hinweis: string, opt: { neu?: boolean } = {}): Promise<string | null> {
+// E-451 (28.10.2026): exportiert — die Zuständigkeit einer Global-Akte im Chefbüro nimmt ihre offenen Aufgaben mit.
+export async function delegieren(id: number, agentId: number | null, hinweis: string, opt: { neu?: boolean } = {}): Promise<string | null> {
   if (agentId) {
     const [a] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${agentId} AND COALESCE(active, TRUE) = TRUE`) as any[];
     if (!a) return "Mitarbeiter nicht gefunden.";

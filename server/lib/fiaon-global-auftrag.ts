@@ -224,6 +224,27 @@ export async function globalEinstellungen(): Promise<GlobalEinstellungen> {
   };
 }
 
+/**
+ * E-451 (28.10.2026): Wohin gehen die Aufgaben einer Akte? EINE Regel für alle Kunden-Aufgaben (Upload, Nachricht,
+ * Unterschrift, Scan, Zusatzdienst, Tageslauf). Vorher nannte das Portal Justin, die Aufgaben gingen an die Vorgabe,
+ * und das Chefbüro zeigte niemanden. Jetzt gilt die Zuständigkeit der Akte (fiaon_global_auftraege.zustaendig_agent_id):
+ *   · ein aktiver Mitarbeiter            → an ihn;
+ *   · die Leitungs-Anmeldung des Chefbüros (aktiv, aber Testkonto — so ist die Leitung angelegt): ein Testkonto bekommt
+ *     nie eine Mitarbeiter-Aufgabe (empfaengerNachId) — die Aufgaben landen auf dem Board des Betreibers (anBetreiber);
+ *   · leer, inaktiv oder gesperrt        → wie bisher die Vorgabe „Neue Global-Aufträge an …“ (global_zustaendig_agent_id).
+ * Ergebnis zum Einsetzen in auftragFuerKunden({ ...ziel }). Nur lesen.
+ */
+export async function globalAufgabenZiel(zustaendigAgentId: unknown): Promise<{ agentId: number | null; anBetreiber?: true }> {
+  const id = Number(zustaendigAgentId);
+  if (Number.isInteger(id) && id > 0) {
+    const [a] = (await sqlPool`
+      SELECT COALESCE(active, TRUE) AS aktiv, COALESCE(is_test_account, FALSE) AS test, zugang_gesperrt_am IS NOT NULL AS gesperrt
+        FROM fiaon_agents WHERE id = ${id} LIMIT 1`.catch(() => [])) as any[];
+    if (a?.aktiv && !a.gesperrt) return a.test ? { agentId: null, anBetreiber: true } : { agentId: id };
+  }
+  return { agentId: (await globalEinstellungen()).zustaendigAgentId };
+}
+
 // ── Eingabe prüfen ───────────────────────────────────────────────────────────
 export interface GlobalFirma {
   /** 19.09.2026 (E-191): "privat" = eine Privatperson beauftragt; dann ist `name` ihr voller Name. */

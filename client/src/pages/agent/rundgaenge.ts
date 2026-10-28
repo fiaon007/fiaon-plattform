@@ -1559,6 +1559,27 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
       + "Lädt das Team einen Scan selbst hoch, schließt sich seine Aufgabe sofort. Nur der SS-4-Scan bleibt "
       + "offen, bis du ihn an den Registered Agent zurückgeschickt hast.",
   },
+  // E-451 (28.10.2026): Zahl im Menü, Zuständigkeit, Weg des Kunden.
+  {
+    titel: "Die Zahl am Menüpunkt „Global-Mandate“ = Akten mit Neuem vom Kunden.",
+    text: "Neben „Global-Mandate“ im Menü steht, wie viele Akten etwas Neues vom Kunden haben: ein ungesehener Upload, eine frisch "
+      + "unterschriebene Fassung oder eine ungelesene Nachricht. Sie lädt auf jeder Chefbüro-Seite jede Minute leise nach — und "
+      + "sofort, wenn du hier etwas öffnest oder liest. Test-Akten und Stornos zählen nicht.",
+  },
+  {
+    ziel: ".cgr-reiter",
+    titel: "Zuständig: EINE Person je Akte.",
+    text: "Im Überblick steht unter „Zuständig“, wer die Akte führt, wohin ihre Aufgaben gehen und wen das Portal als Ansprechpartner nennt. "
+      + "Mit „Festlegen“ setzt du die Person: Das Portal nennt sie ab dem nächsten Laden, neue Aufgaben gehen an sie, und offene Aufgaben "
+      + "der Akte, die bei einem Mitarbeiter liegen, wandern mit. Wählst du dich selbst (Leitung), landen die Aufgaben auf deinem Board. "
+      + "Ist niemand festgelegt, gehen die Aufgaben wie bisher an die Vorgabe — der Block sagt dir das offen. Der Kunde bekommt keine Mail.",
+  },
+  {
+    titel: "„Der Weg des Kunden“ zeigt seine Etappen.",
+    text: "Die Etappen im Überblick sind genau die, die der Kunde im Portal liest: beim Begleitvertrag „Ihre LLC und Ihr Konto“, "
+      + "„Erste Business-Karten“ usw., beim Kapital-Angebot dessen eigene. Beim Begleitvertrag stehen außerdem Vertrag und "
+      + "Angebotsunterlagen in Portal und Chefbüro, und der Verlauf trägt „Zahlung eingegangen“ und „gestartet“.",
+  },
 ];
 
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────

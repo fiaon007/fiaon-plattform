@@ -17,7 +17,7 @@ import {
   Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
-import { GLOBAL_DOKUMENTARTEN, GLOBAL_ETAPPEN, globalKundeDarfArt } from "@shared/fiaon-global-bereich";
+import { GLOBAL_DOKUMENTARTEN, globalKundeDarfArt } from "@shared/fiaon-global-bereich";
 import {
   GLOBAL_KAPITAL_ARTEN, GLOBAL_KAPITAL_STATUS,
   GLOBAL_TRESOR, globalTresorKategorie, globalUsd, type GlobalTresorKategorie,
@@ -194,7 +194,8 @@ export default function ChefGlobal() {
         </aside>
 
         <main className="cgr-akte-huelle">
-          {gewaehlt ? <MandatAkte key={gewaehlt} gref={gewaehlt} onGeaendert={neu} />
+          {/* E-451 (28.10.2026): Nach jeder Änderung in der Akte lädt auch die Zahl am Menüpunkt „Global-Mandate“ sofort nach. */}
+          {gewaehlt ? <MandatAkte key={gewaehlt} gref={gewaehlt} onGeaendert={() => { neu(); window.dispatchEvent(new Event("chef-global-geaendert")); }} />
             : !laedt && <div className="cgr-akte leer"><Globe2 size={28} strokeWidth={1.4} /><p>Wähle links ein Mandat.</p></div>}
         </main>
       </div>
@@ -282,7 +283,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
             <em className={`st-${m.status}`}>{STATUS_TEXT[m.status] ?? m.status}</em>
             <em className={m.portal.neu ? "st-portal" : "st-leise"}>{m.portal.neu ? `Neues Portal seit ${datum(m.portal.seit)}` : "Bisheriges Portal"}</em>
             {m.test && <em className="st-test">Test</em>}
-            {m.zustaendig && <em className="st-leise">Zuständig: {m.zustaendig.name}</em>}
+            {/* E-451 (28.10.2026): immer sichtbar — auch, wenn niemand festgelegt ist (dann gehen die Aufgaben an die Vorgabe). */}
+            <em className="st-leise">Zuständig: {m.zustaendig ? m.zustaendig.name : "nicht festgelegt"}</em>
           </div>
         </div>
         <div className="cgr-akte-tun">
@@ -324,6 +326,40 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
 
 type Tun = (pfad: string, methode: "POST" | "DELETE", body?: unknown) => Promise<boolean>;
 
+// ── Zuständigkeit (E-451, 28.10.2026) ────────────────────────────────────────
+// EINE Quelle: die Person in der Akte. Das Portal nennt sie als Ansprechpartner, die Aufgaben der Akte folgen ihr
+// (globalAufgabenZiel), und hier wird sie gesetzt. Ohne Person sagt der Block offen, wohin was geht.
+function Zustaendigkeit({ m, tun }: { m: any; tun: Tun }) {
+  const z = (m.zustaendigkeit ?? {}) as { agentId: number | null; name: string | null; aufgabenAn?: string; portalNennt: string | null; auswahl?: { id: number; name: string }[] };
+  const auswahl = z.auswahl ?? [];
+  const [wahl, setWahl] = useState<string>(z.agentId ? String(z.agentId) : "");
+  const [laeuft, setLaeuft] = useState(false);
+  return (
+    <section className="cgr-block">
+      <h3>Zuständig</h3>
+      <dl className="cgr-daten">
+        <dt>Akte</dt><dd>{z.name ? <b>{z.name}</b> : "nicht festgelegt"}</dd>
+        <dt>Aufgaben an</dt><dd>{z.aufgabenAn ?? "—"}</dd>
+        <dt>Portal nennt</dt><dd>{z.portalNennt ?? "niemanden"}</dd>
+      </dl>
+      {!z.name && (
+        <p className="cgr-warnung">Niemand ist festgelegt: Die Aufgaben gehen an die Vorgabe, das Portal nennt {z.portalNennt ?? "niemanden"}. Lege fest, wer die Akte führt — dann stimmen Portal, Aufgaben und Chefbüro überein.</p>
+      )}
+      <div className="cgr-form zeile">
+        <select value={wahl} onChange={(e) => setWahl(e.target.value)} aria-label="Zuständige Person">
+          <option value="">Person wählen …</option>
+          {auswahl.map((a) => <option key={a.id} value={String(a.id)}>{a.name}</option>)}
+        </select>
+        <button type="button" className="cw-knopf cgr-haupt" disabled={!wahl || laeuft || Number(wahl) === z.agentId}
+                title="Offene Aufgaben dieser Akte wandern mit; der Kunde bekommt keine Mail."
+                onClick={async () => { setLaeuft(true); try { await tun("/zustaendig", "POST", { agentId: Number(wahl) }); } finally { setLaeuft(false); } }}>
+          {laeuft ? "Legt fest …" : "Festlegen"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 // ── Überblick ────────────────────────────────────────────────────────────────
 function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Reiter) => void }) {
   const [etappeWahl, setEtappeWahl] = useState<number | null>(null);
@@ -348,18 +384,17 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
     <div className="cgr-gitter">
       <section className="cgr-block breit">
         <h3>Der Weg des Kunden</h3>
+        {/* E-451 (28.10.2026): die Etappen genau so, wie der Kunde sie im Portal liest — aus derselben Server-Sicht (sichtBauen):
+            beim Begleitvertrag seine eigenen (BEGLEIT_PORTAL), beim Kapital-Angebot KAPITAL_ETAPPEN — nicht mehr fest GLOBAL_ETAPPEN. */}
         <div className="cgr-etappen">
-          {GLOBAL_ETAPPEN.map((e) => {
-            const stand = (m.etappen as any[]).find((x) => x.nr === e.nr)?.stand ?? "offen";
-            return (
-              <button key={e.nr} type="button" className={`cgr-etappe ${stand}${etappeWahl === e.nr ? " gewaehlt" : ""}`}
-                      disabled={m.status === "offen" || m.status === "storniert"}
-                      title={m.status === "offen" ? "Etappen setzt du nach dem Zahlungseingang." : `Auf Etappe ${e.nr} setzen`}
-                      onClick={() => { setEtappeWahl(e.nr); setEtappeText(""); }}>
-                <span>{e.nr}</span><b>{e.de.titel}</b>
-              </button>
-            );
-          })}
+          {(m.etappen as { nr: number; titel: string; text?: string; stand: string }[]).map((e) => (
+            <button key={e.nr} type="button" className={`cgr-etappe ${e.stand ?? "offen"}${etappeWahl === e.nr ? " gewaehlt" : ""}`}
+                    disabled={m.status === "offen" || m.status === "storniert"}
+                    title={m.status === "offen" ? "Etappen setzt du nach dem Zahlungseingang." : `Auf Etappe ${e.nr} setzen${e.text ? ` — ${e.text}` : ""}`}
+                    onClick={() => { setEtappeWahl(e.nr); setEtappeText(""); }}>
+              <span>{e.nr}</span><b>{e.titel}</b>
+            </button>
+          ))}
         </div>
         {m.status === "offen" && <p className="cgr-satz">Etappen starten mit dem Zahlungseingang — den Fahrplan kannst du schon pflegen.</p>}
         {etappeWahl !== null && (
@@ -426,6 +461,8 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
           {m.person && <><dt>Personenakte</dt><dd><a className="cgr-link" href={`/akte/${m.person.id}`}>Person {m.person.id} <ExternalLink size={11} /></a>{m.person.gesperrt ? <span className="cgr-leise"> · für Privat-Abläufe gesperrt</span> : null}</dd></>}
         </dl>
       </section>
+
+      <Zustaendigkeit m={m} tun={tun} />
 
       <section className="cgr-block">
         <h3>Vertrag &amp; Zahlung</h3>

@@ -2011,6 +2011,8 @@ export async function globalAngebotLauf(jetzt: Date = new Date()): Promise<{ abg
        AND (startgespraech_versuch_am IS NULL OR startgespraech_versuch_am < ${new Date(jetzt.getTime() - 30 * 60_000)})
        AND angenommen_am > ${new Date(jetzt.getTime() - 3 * 864e5)}
        AND fassung NOT LIKE 'IA-KAPITAL-%'
+       -- E-451 (28.10.2026): die Begleit-Akte trägt jetzt auftrag_ref — kein automatisches Startgespräch (Leitung führt persönlich).
+       AND fassung NOT LIKE 'IA-BEGLEIT-%'
      LIMIT 10`.catch((e) => { console.error("[FIAON-ANGEBOT] Startgespräche nachholen (Migration 090?):", e); return []; })) as any[];
   for (const o of ohneStart) {
     const SG = await import("./fiaon-global-angebot-startgespraech");

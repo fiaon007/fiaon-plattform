@@ -138,6 +138,8 @@ em.st-leise { color: var(--cgr-still); }
 .cgr textarea { resize: vertical; }
 .cgr input:focus, .cgr select:focus, .cgr textarea:focus { border-color: rgba(96,165,250,.55); box-shadow: 0 0 0 3px rgba(40,141,250,.15); }
 .cgr-form.zeile input:not([type="checkbox"]) { width: auto; flex: 1 1 200px; }
+/* E-451 (28.10.2026): Auswahl in einer Zeile (Zuständigkeit) — wie die Eingabefelder, damit der Knopf daneben bleibt. */
+.cgr-form.zeile select { width: auto; flex: 1 1 200px; }
 .cgr-form.zeile label { display: inline-flex; align-items: center; gap: 6px; color: var(--cgr-leise); font: 400 12px/1 'Inter', sans-serif; }
 .cgr-felder { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .cgr-felder label { display: flex; flex-direction: column; gap: 5px; font: 500 11px/1.3 'Inter', sans-serif; color: var(--cgr-leise); letter-spacing: .01em; }

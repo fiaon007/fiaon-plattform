@@ -23,6 +23,7 @@ import {
   globalMandateListe, globalMandatChefSicht, globalSchrittSetzen, globalGesellschaftPlusSetzen, globalKapitalSpeichern, globalKapitalEntfernen,
   globalMandatDokument, globalMandatDokumentAendern, globalMandatAntwort, globalMandatAnfragenGelesen, globalMandatTest, globalMandatPortal,
   globalVorschauLink, globalKundenLink, globalStationSpeichern, globalItinKlartext, globalChefGesehen,
+  globalChefNeuZahl, globalZustaendigAuswahl, globalMandatZustaendigSetzen,
 } from "../lib/fiaon-global-mandat";
 import { GLOBAL_DATEI_MAX_BYTES, globalDateinameKopf, globalMimeAuslieferbar } from "../lib/fiaon-global-bereich-regeln";
 
@@ -70,11 +71,20 @@ router.get("/chef/global/mandate", requireChef("leitung"), async (_req, res) => 
   catch (e) { fehler(res, "liste", e); }
 });
 
+// E-451 (28.10.2026): die Zahl am Menüpunkt „Global-Mandate“ — Akten mit Neuem vom Kunden. Leicht, nur lesen; das Menü
+// fragt sie im Takt des Raums (60 s, nur bei sichtbarem Tab) von jeder Chefbüro-Seite aus.
+router.get("/chef/global/neu-zahl", requireChef("leitung"), async (_req, res) => {
+  try { res.setHeader("Cache-Control", "private, no-store"); res.json({ ok: true, ...(await globalChefNeuZahl()) }); }
+  catch (e) { fehler(res, "neu-zahl", e); }
+});
+
 router.get("/chef/global/mandate/:ref", requireChef("leitung"), async (req, res) => {
   try {
     res.setHeader("Cache-Control", "private, no-store");
     const m = await globalMandatChefSicht(ref(req));
     if (!m) return res.status(404).json({ ok: false, error: "Diesen Auftrag gibt es nicht." });
+    // E-451 (28.10.2026): Wen das Chefbüro als zuständig eintragen darf — mit der angemeldeten Leitung selbst.
+    (m.zustaendigkeit as Record<string, unknown>).auswahl = await globalZustaendigAuswahl((await wer(req)).id || null);
     // Der Vorschau-Link reist mit (zwei Stunden gültig) — der Knopf ist ein normaler Link, kein Fenster nach einer
     // Serverabfrage (das blocken Safari und Chrome als Popup).
     res.json({ ok: true, mandat: m, kundenLink: globalKundenLink(ref(req)), vorschauUrl: globalVorschauLink(ref(req)) });
@@ -119,6 +129,12 @@ router.post("/chef/global/mandate/:ref/gesehen", requireChef("leitung"), async (
     const n = await globalChefGesehen(ref(req), "alle", (await wer(req)).name);
     res.json({ ok: true, meldung: n ? `${n} ${n === 1 ? "Dokument" : "Dokumente"} als gesehen markiert — die Aufgaben dazu sind erledigt.` : "Es war nichts Neues mehr offen." });
   } catch (e) { fehler(res, "gesehen", e); }
+});
+
+// E-451 (28.10.2026): die Zuständigkeit der Akte setzen — EINE Quelle für Portal, Aufgaben und Chefbüro.
+router.post("/chef/global/mandate/:ref/zustaendig", requireChef("leitung"), async (req, res) => {
+  try { antwort(res, await globalMandatZustaendigSetzen(ref(req), req.body?.agentId, await wer(req))); }
+  catch (e) { fehler(res, "zustaendig", e); }
 });
 
 // ── Stand, Schritt, Stichtag, Abschluss ──────────────────────────────────────

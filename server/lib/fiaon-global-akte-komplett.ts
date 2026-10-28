@@ -344,7 +344,11 @@ export async function globalBegleitAkteAnlegen(angebotId: number, agent: { id: n
   if (!/^IA-BEGLEIT-/i.test(String(a.fassung ?? ""))) return nein(400, "Nur für Begleitverträge — die anderen Angebote legen ihre Akte bei der Annahme selbst an.");
   if (String(a.status) !== "angenommen") return nein(409, "Das Angebot ist noch nicht angenommen.");
   const [da] = (await sqlPool`SELECT ref FROM fiaon_global_auftraege WHERE angebot_id = ${angebotId} LIMIT 1`) as any[];
-  if (da) return { ok: true, ref: String(da.ref), schon: true, meldung: `Die Global-Akte gibt es schon (${da.ref}).` };
+  if (da) {
+    // E-451 (28.10.2026): Der Knopf ist wiederholbar — er holt auch die Verknüpfung Angebot → Akte nach (falls sie fehlt).
+    await begleitAngebotVerknuepfen(angebotId).catch((e) => console.error(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Verknüpfung:`, e));
+    return { ok: true, ref: String(da.ref), schon: true, meldung: `Die Global-Akte gibt es schon (${da.ref}).` };
+  }
   const daten = begleitAkteDaten({ fassung: String(a.fassung), kunde: jsonLesen(a.kunde), parameter: jsonLesen(a.parameter), schalter: jsonLesen(a.schalter) });
   const personId = a.person_id != null ? Number(a.person_id) : null;
   const kandidaten = (await sqlPool`
@@ -380,6 +384,10 @@ export async function globalBegleitAkteAnlegen(angebotId: number, agent: { id: n
   if (!neu || Number(neu.angebot_id) !== angebotId) return nein(409, "Die Akte ließ sich nicht anlegen — die Rechnung wurde gerade anders vergeben. Bitte neu laden.");
   const { verlaufSchreiben } = await import("./fiaon-global-bereich");
   await verlaufSchreiben(anker, { art: "akte", text: `Global-Akte zum Begleitvertrag ${a.angebot_ref} angelegt (${agent.name}); Anker: Rechnung ${anker}.`, sichtbar: false, agentId: agent.id || null });
+  // E-451 (28.10.2026): Angebot ↔ Akte verknüpfen (auftrag_ref) — sonst fehlen Begleitvertrag-Block und Angebotsunterlagen in
+  // Portal und Chefbüro (sie suchen das Angebot über auftrag_ref). Ist die Bestellung schon bezahlt, gleich den Verlauf mitnehmen.
+  await begleitAngebotVerknuepfen(angebotId).catch((e) => console.error(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Verknüpfung:`, e));
+  await begleitZahlungStartAbgleich(anker).catch((e) => console.error(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Zahlung/Start:`, e));
   console.log(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Akte ${anker} angelegt (${agent.name})`);
   // Der geprüfte Name aus der Gründungsrechnung gleich mitnehmen (sonst erst mit dem nächsten Lauf).
   await begleitNamenAbgleich().catch((e) => console.error(`[GLOBAL-AKTE] Begleit ${a.angebot_ref}: Namensabgleich:`, e));
@@ -455,9 +463,74 @@ export async function vorgesellschaftAbgleich(): Promise<{ geprueft: number; ges
   return erg;
 }
 
-/** Der halbstündliche Abgleich der Global-Akten (Lauf global_begleit_name): geprüfter Name und Löschung einer früheren Gesellschaft. */
-export async function globalAkteAbgleich(): Promise<{ name: Awaited<ReturnType<typeof begleitNamenAbgleich>>; loeschung: Awaited<ReturnType<typeof vorgesellschaftAbgleich>> }> {
-  return { name: await begleitNamenAbgleich(), loeschung: await vorgesellschaftAbgleich() };
+// ── 5d BEGLEITVERTRAG: ANGEBOT ↔ AKTE, ZAHLUNG UND START (E-451, 28.10.2026) ─────────────
+// (1) Verknüpfung. Die Begleit-Akte hing bisher nur über fiaon_global_auftraege.angebot_id am Angebot; auftrag_ref am Angebot
+//     blieb leer. Portal und Chefbüro suchen das Angebot aber über auftrag_ref (angebotSichtZurAkte, angebotIdFuerAuftrag,
+//     Konto-Zugriff) — Begleitvertrag-Block und Angebotsunterlagen fehlten. Jetzt setzt die Anlage auftrag_ref; für den
+//     Bestand holt der Abgleich es nach — NUR, wenn es eindeutig ist (genau eine Akte trägt dieses Angebot, kein anderes
+//     Angebot trägt diese Akte). Warum das jetzt sicher ist: Die Läufe, die an auftrag_ref hängen, fassen den Begleitvertrag
+//     nicht an — Stundenlauf/Nachholen (fassung NOT LIKE 'IA-BEGLEIT-%'), Bestätigungsmail (bestaetigungSenden: begleit →
+//     nichts), Startgespräch (angebotStartgespraechBuchen: Begleitvertrag → nicht_bereit, E-451), Frist/Teil 2 (keine Frist,
+//     keine Teile). Keine Mail.
+export async function begleitAngebotVerknuepfen(angebotId: number | null = null): Promise<{ verknuepft: string[] }> {
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS o, to_regclass('public.fiaon_global_auftraege') AS a`) as any[];
+  if (!t?.o || !t?.a) return { verknuepft: [] };
+  const zeilen = (await sqlPool`
+    UPDATE fiaon_global_angebote a SET auftrag_ref = g.ref, updated_at = NOW()
+      FROM fiaon_global_auftraege g
+     WHERE g.angebot_id = a.id AND a.auftrag_ref IS NULL AND a.fassung LIKE 'IA-BEGLEIT-%'
+       AND (${angebotId}::bigint IS NULL OR a.id = ${angebotId}::bigint)
+       AND (SELECT COUNT(*) FROM fiaon_global_auftraege g2 WHERE g2.angebot_id = a.id) = 1
+       AND NOT EXISTS (SELECT 1 FROM fiaon_global_angebote x WHERE x.auftrag_ref = g.ref)
+    RETURNING a.angebot_ref, g.ref`) as any[];
+  if (zeilen.length) {
+    const { verlaufSchreiben } = await import("./fiaon-global-bereich");
+    for (const z of zeilen) {
+      await verlaufSchreiben(String(z.ref), { art: "akte", sichtbar: false, text: `Begleitvertrag ${z.angebot_ref} mit dieser Akte verknüpft — Vertrag und Angebotsunterlagen stehen jetzt in Portal und Chefbüro.` });
+      console.log(`[GLOBAL-AKTE] ${z.ref}: Begleitvertrag ${z.angebot_ref} verknüpft (auftrag_ref).`);
+    }
+  }
+  return { verknuepft: zeilen.map((z) => `${z.ref} ← ${z.angebot_ref}`) };
+}
+
+// (2) Zahlung und Start. Die Rechnungen des Begleitvertrags sind Einzelkäufe (llc_paket, llc_gruendung*, llc_fasttrack — Art
+//     „privat“, kein Global-Paket): onCustomerPaid ruft globalNachZahlung für sie nicht, also setzte niemand bezahlt_am — die
+//     Zeile „Zahlung eingegangen.“ fehlte im Verlauf (verlaufBauen leitet sie aus bezahlt_am ab), obwohl Portal und Chefbüro
+//     „bezahlt“ zeigten (payment_status der Anker-Rechnung). Akten vor dem Nachtrag ec3b0516 (22.10., 23:30) tragen auch kein
+//     gestartet_am — die Zeile „Ihr Auftrag ist gestartet.“ fehlte. Jetzt: bezahlt_am = Tag der Anker-Rechnung aus derselben
+//     Quelle wie Chefbüro und Umsatz (COALESCE(paid_at, completed_at)); gestartet_am = Anlage der Akte (so setzt es die Anlage
+//     heute auch: gestartet_am = NOW()). Nur leere Felder, nie überschreiben — wiederholbar. Gerufen beim Bestätigen einer
+//     Zahlung (onCustomerPaid, nur diese Bestellung) und im halbstündlichen Abgleich (Bestand und Netz). Keine Mail; die Zeilen
+//     sind die abgeleiteten des Verlaufs, es wird keine zweite geschrieben.
+export async function begleitZahlungStartAbgleich(ref: string | null = null): Promise<{ bezahlt: string[]; gestartet: string[] }> {
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_auftraege') AS a`) as any[];
+  if (!t?.a) return { bezahlt: [], gestartet: [] };
+  const bezahlt = (await sqlPool`
+    UPDATE fiaon_global_auftraege g SET bezahlt_am = COALESCE(b.paid_at, b.completed_at), updated_at = NOW()
+      FROM fiaon_applications b
+     WHERE b.ref = g.ref AND (g.bestaetigungen->>'begleitvertrag') = 'true' AND g.bezahlt_am IS NULL
+       AND b.payment_status = 'paid' AND COALESCE(b.paid_at, b.completed_at) IS NOT NULL
+       AND (${ref}::text IS NULL OR g.ref = ${ref}::text)
+    RETURNING g.ref`) as any[];
+  const gestartet = (await sqlPool`
+    UPDATE fiaon_global_auftraege g SET gestartet_am = g.created_at, updated_at = NOW()
+     WHERE (g.bestaetigungen->>'begleitvertrag') = 'true' AND g.gestartet_am IS NULL AND g.status IN ('gestartet', 'abgeschlossen')
+       AND (${ref}::text IS NULL OR g.ref = ${ref}::text)
+    RETURNING g.ref`) as any[];
+  for (const z of bezahlt) console.log(`[GLOBAL-AKTE] ${z.ref}: Begleitvertrag — Zahlungseingang in die Akte übernommen.`);
+  for (const z of gestartet) console.log(`[GLOBAL-AKTE] ${z.ref}: Begleitvertrag — Start (Anlage der Akte) in die Akte übernommen.`);
+  return { bezahlt: bezahlt.map((z) => String(z.ref)), gestartet: gestartet.map((z) => String(z.ref)) };
+}
+
+/** Der halbstündliche Abgleich der Global-Akten (Lauf global_begleit_name): geprüfter Name, Löschung einer früheren Gesellschaft,
+ *  und seit E-451 die Verknüpfung Begleitvertrag ↔ Akte sowie Zahlung/Start der Begleit-Akten. Ein Fehler in einem Teil hält die anderen nicht an. */
+export async function globalAkteAbgleich(): Promise<{
+  name: Awaited<ReturnType<typeof begleitNamenAbgleich>>; loeschung: Awaited<ReturnType<typeof vorgesellschaftAbgleich>>;
+  verknuepfung: { verknuepft: string[] } | { fehler: string }; zahlungStart: { bezahlt: string[]; gestartet: string[] } | { fehler: string };
+}> {
+  const verknuepfung = await begleitAngebotVerknuepfen().catch((e) => { console.error("[GLOBAL-AKTE] Abgleich Verknüpfung:", e); return { fehler: String(e?.message ?? e) }; });
+  const zahlungStart = await begleitZahlungStartAbgleich().catch((e) => { console.error("[GLOBAL-AKTE] Abgleich Zahlung/Start:", e); return { fehler: String(e?.message ?? e) }; });
+  return { name: await begleitNamenAbgleich(), loeschung: await vorgesellschaftAbgleich(), verknuepfung, zahlungStart };
 }
 
 // ── 6 VON HAND UNTERSCHRIEBEN: DER SCAN ALS PDF (22.10.2026) ─────────────────
@@ -505,7 +578,7 @@ export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { 
   // Die Aufgabe ans Team: beim SS-4 der Weg zurück an das Ablageteam unseres Registered-Agent-Partners.
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    const { globalEinstellungen } = await import("./fiaon-global-auftrag");
+    const { globalAufgabenZiel } = await import("./fiaon-global-auftrag");
     const ss4 = d.pflicht_key === "irs_ss4";
     await auftragFuerKunden({
       personId: l.b?.person_id != null ? Number(l.b.person_id) : null, ref,
@@ -514,7 +587,8 @@ export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { 
       schluessel: `global:${ref}:scan:${id}`, bereich: "konten", quelle: "global", autorName: "FIAON Global", dringend: ss4,
       // E-443 (28.10.2026): EIN Helfer für den Weg ins Chefbüro — wie Upload und Nachricht (shared/fiaon-global-wege.ts).
       link: globalChefMandatPfad(ref),
-      agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l.akte.zustaendig_agent_id)),
       anlageText: "Unterschriebener Scan im Portal hochgeladen.",
     });
   } catch (e) { console.error(`[GLOBAL-AKTE] ${ref}: Aufgabe zum Scan nicht angelegt:`, e); }

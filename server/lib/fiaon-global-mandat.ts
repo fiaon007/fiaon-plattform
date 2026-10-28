@@ -46,7 +46,7 @@ import {
   GLOBAL_STATION_FELDER, globalPlusFuerKunde, globalPlusFuerTeam, stationKontaktWarnungen, stationStatusName, stationTelefonInt, stationVerlaufSaetze, stationWertePruefen,
 } from "@shared/fiaon-global-stationen";
 import { GLOBAL_DATEI_MAX_BYTES, GLOBAL_DOKUMENTE_MAX, globalDateiTyp, globalDateiname } from "./fiaon-global-bereich-regeln";
-import { globalMeinAuftragUrl, globalTokenErzeugen } from "./fiaon-global-auftrag";
+import { globalMeinAuftragUrl, globalTokenErzeugen, globalAufgabenZiel, globalMitarbeiter } from "./fiaon-global-auftrag";
 
 const nein = (status: number, error: string) => ({ ok: false as const, status, error });
 const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString() : null);
@@ -439,7 +439,102 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
     person,
     test: !!z?.ist_test_am,
     portal: { neu: !!z?.portal_neu_am, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
+    // E-451 (28.10.2026): EINE Quelle für „wer führt diese Akte“ — gesetzt, wohin die Aufgaben gehen, wen das Portal nennt.
+    zustaendigkeit: await zustaendigkeitSicht(office),
   };
+}
+
+// ── E-451 (28.10.2026): ZUSTÄNDIGKEIT — EINE QUELLE ──────────────────────────
+// Vorher widersprachen sich drei Stellen: Das Portal nannte beim Begleitvertrag ohne eingetragene Person den ersten
+// Ansprechpartner des Angebots, die Aufgaben gingen an die Vorgabe „Neue Global-Aufträge an …“, und das Chefbüro zeigte
+// niemanden. Die Quelle ist fiaon_global_auftraege.zustaendig_agent_id: Das Portal nennt diese Person (ansprechpartnerFuer),
+// die Aufgaben folgen ihr (globalAufgabenZiel), und das Chefbüro zeigt sie und setzt sie (globalMandatZustaendigSetzen).
+// Ist sie leer, gilt wie bisher der Ersatz — das Chefbüro sagt dann offen, wohin was geht.
+async function zustaendigkeitSicht(office: Record<string, any>): Promise<Record<string, unknown>> {
+  const gesetzt = office.zustaendig as { id: number; name: string } | null;
+  const ziel = await globalAufgabenZiel(gesetzt?.id ?? null);
+  let aufgabenAn: string;
+  if (ziel.anBetreiber) aufgabenAn = "Board der Leitung (Justin)";
+  else if (ziel.agentId) {
+    const [a] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${ziel.agentId} LIMIT 1`.catch(() => [])) as any[];
+    const name = a?.name ? String(a.name) : `Mitarbeiter ${ziel.agentId}`;
+    aufgabenAn = gesetzt?.id === ziel.agentId ? name : `${name} (Vorgabe „Neue Global-Aufträge an …“)`;
+  } else aufgabenAn = "niemand fest — Betreuer bzw. Vertriebsleitung";
+  return {
+    agentId: gesetzt?.id ?? null, name: gesetzt?.name ?? null, aufgabenAn,
+    portalNennt: office.ansprechpartner?.name ? String(office.ansprechpartner.name) : null,
+  };
+}
+
+/**
+ * Wen das Chefbüro als zuständig eintragen darf: die aktiven Mitarbeiter von Vertrieb und Leitung (wie die Übergabe in
+ * „Global-Aufträge“, globalMitarbeiter) — und die angemeldete Leitung selbst (ihr Konto ist ein Testkonto und fehlt dort;
+ * ihre Aufgaben landen auf dem Board der Leitung, siehe globalAufgabenZiel).
+ */
+export async function globalZustaendigAuswahl(chefAgentId: number | null): Promise<{ id: number; name: string }[]> {
+  const liste = (await globalMitarbeiter()).map((m) => ({ id: m.id, name: m.name }));
+  if (chefAgentId && !liste.some((m) => m.id === chefAgentId)) {
+    const [c] = (await sqlPool`
+      SELECT id, name FROM fiaon_agents WHERE id = ${chefAgentId} AND COALESCE(active, TRUE) AND zugang_gesperrt_am IS NULL LIMIT 1`.catch(() => [])) as any[];
+    if (c) liste.unshift({ id: Number(c.id), name: `${String(c.name)} (Leitung)` });
+  }
+  return liste;
+}
+
+/**
+ * Die Zuständigkeit im Chefbüro setzen. Die offenen Aufgaben dieser Akte, die bei einem Mitarbeiter liegen, wandern mit
+ * (delegieren — wie die Übergabe auf dem Board); was auf dem Board der Leitung liegt, bleibt dort. Keine Mail an den
+ * Kunden; das Portal nennt ab dem nächsten Laden die neue Person. Interne Verlaufszeile.
+ */
+export async function globalMandatZustaendigSetzen(ref: string, agentIdRoh: unknown, agent: BereichAgent): Promise<Erg<{ meldung: string }>> {
+  const l = await lageOder404(ref);
+  if ("fehler" in l) return l.fehler;
+  const id = Number(agentIdRoh);
+  const ziel = (await globalZustaendigAuswahl(agent.id || null)).find((m) => m.id === id);
+  if (!ziel) return nein(400, "Diese Person ist nicht aktiv oder darf keine Global-Akte führen.");
+  const alt = l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null;
+  if (alt === id) return { ok: true, meldung: `${ziel.name} ist bereits zuständig.` };
+  const [altName] = alt ? ((await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${alt} LIMIT 1`.catch(() => [])) as any[]) : [];
+  await sqlPool`UPDATE fiaon_global_auftraege SET zustaendig_agent_id = ${id}, updated_at = NOW() WHERE ref = ${ref}`;
+  const aufgabenZiel = await globalAufgabenZiel(id);
+  const offen = (await sqlPool`
+    SELECT id FROM fiaon_betreiber_todos
+     WHERE schluessel LIKE ${`global:${ref}:%`} AND status <> 'erledigt' AND zustaendig_art = 'agent'
+       AND zustaendig_agent_id IS DISTINCT FROM ${aufgabenZiel.agentId}`.catch(() => [])) as any[];
+  let gewandert = 0;
+  if (offen.length) {
+    const { delegieren } = await import("../routes/fiaon-betreiber-todo");
+    for (const t of offen) {
+      const f = await delegieren(Number(t.id), aufgabenZiel.anBetreiber ? null : aufgabenZiel.agentId, "").catch((e) => String(e?.message ?? e));
+      if (f) console.error(`[GLOBAL-MANDAT] ${ref}: Aufgabe ${t.id} nicht übergeben — ${f}`); else gewandert++;
+    }
+  }
+  const wohin = aufgabenZiel.anBetreiber ? "auf das Board der Leitung" : `an ${ziel.name}`;
+  await verlaufSchreiben(ref, {
+    art: "zustaendig", sichtbar: false, agentId: agent.id || null,
+    text: `Zuständigkeit: ${ziel.name}${altName?.name ? ` (vorher ${String(altName.name)})` : ""} — gesetzt im Chefbüro (${agent.name}); ${gewandert} offene ${gewandert === 1 ? "Aufgabe" : "Aufgaben"} ${wohin} übergeben.`,
+  });
+  return { ok: true, meldung: `${ziel.name} ist jetzt zuständig. Das Portal nennt ${ziel.name.replace(/ \(Leitung\)$/, "")} als Ansprechpartner; ${gewandert} offene ${gewandert === 1 ? "Aufgabe ging" : "Aufgaben gingen"} ${wohin}. Eine Mail ging nicht raus.` };
+}
+
+// ── E-451 (28.10.2026): DIE ZAHL AM MENÜPUNKT „GLOBAL-MANDATE“ ──────────────
+/**
+ * Wie viele Akten haben Neues vom Kunden? Neu = ungesehene Kunden-Uploads (dazu zählen die frisch unterschriebenen
+ * Fassungen: die digitale Unterschrift und der Scan des Kunden legen ein Dokument mit von = 'kunde' an, das bis zum
+ * Öffnen fiaon_gesehen_am = NULL trägt) oder ungelesene Kundennachrichten — dieselben Bedingungen wie die Zahl am Mandat
+ * in der Liste (globalMandateListe). Ohne Test-Akten und Stornos, wie die Kennzahlen. Nur lesen, leicht (zwei EXISTS je Akte).
+ */
+export async function globalChefNeuZahl(): Promise<{ akten: number }> {
+  await ensureGlobalMandat();
+  const [z] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_global_auftraege g
+     WHERE g.ist_test_am IS NULL AND COALESCE(g.status, '') <> 'storniert'
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.ref = g.ref AND b.archived_at IS NOT NULL)
+       AND (EXISTS (SELECT 1 FROM fiaon_global_dokumente d
+                     WHERE d.ref = g.ref AND d.von = 'kunde' AND d.fiaon_gesehen_am IS NULL AND d.geloescht_am IS NULL)
+         OR EXISTS (SELECT 1 FROM fiaon_global_nachrichten n
+                     WHERE n.ref = g.ref AND n.von = 'kunde' AND n.gelesen_fiaon_am IS NULL))`) as any[];
+  return { akten: Number(z?.n ?? 0) };
 }
 
 /** Der Link, mit dem die Leitung das NEUE Portal so sieht wie der Kunde — ohne dass etwas als gelesen gilt. */

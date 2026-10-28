@@ -10,6 +10,7 @@
 //   F4  BITTE NEU   ablehnen mit Grund, Art korrigieren; abgelehnt zählt nicht; Portal zeigt Grund; Upload vorbelegt; keine Mail
 //   F5  BEZAHLT     Chefbüro und Portal aus derselben Quelle (payment_status = paid, Datum COALESCE(paid_at, completed_at))
 //   F6  ZÄHLUNG     Aufgabe zum Upload zählt mit derselben Liste wie das Portal (Begleitvertrag: nur Reisepass)
+//   E-451 (28.10.2026) A Zahl am Menüpunkt · B Weg des Kunden · C Begleit Zahlung/Start · D Akte ↔ Angebot · E Zuständigkeit
 //
 //   env -i PATH="$PATH" HOME="$HOME" TZ=Europe/Berlin node_modules/.bin/tsx scripts/pruef-chef-global-sync.ts   (Exit 1 bei ROT)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -301,6 +302,89 @@ ok(/fehlend\.find\(\(u: T\) => u\.abgelehnt && erlaubt\(u\.art\)\) \?\? fehlend\
   ok(/u\.abgelehnt\?\.grund \?/.test(alt) && /\(a\.nachreichen \?\? \[\]\)\.map/.test(alt), "bisheriges Portal: Grund und Nachreichen sichtbar");
 }
 for (const w of ["„ersetzt“", "nur Arten, die der Kunde selbst einreicht", "Englisch", "„antworten“ unter „Jetzt zu tun“", "Scan selbst hoch"]) ok(rg.includes(w), `Rundgang erklärt: ${w}`);
+
+// ═══ E-451 (28.10.2026): AUSBAU — MENÜ-ZAHL, WEG DES KUNDEN, BEGLEIT-VERLAUF, AKTE ↔ ANGEBOT, ZUSTÄNDIGKEIT ═════════
+// Die Datenbank-Wege prüft scripts/pruef-e451-lokal.ts gegen die lokale Kopie; hier Quelltext und reine Teile.
+{
+  const shell = datei("client/src/components/admin/ChefShell.tsx");
+  const shellCss = datei("client/src/styles/chefbuero.css");
+  const agentRoute = datei("server/routes/fiaon-agent.ts");
+  const angebot = datei("server/lib/fiaon-global-angebot.ts");
+  const startg = datei("server/lib/fiaon-global-angebot-startgespraech.ts");
+  const zusatz = datei("server/lib/fiaon-global-zusatz.ts");
+  const todo = datei("server/routes/fiaon-betreiber-todo.ts");
+  const { BEGLEIT_PORTAL } = await import("../shared/fiaon-global-angebot-begleit");
+
+  abschnitt("E-451 A Zahl am Menüpunkt");
+  const nz = koerper(mandat, "export async function globalChefNeuZahl(");
+  ok(nz.length > 0, "globalChefNeuZahl vorhanden");
+  ok(!/\b(UPDATE|INSERT|DELETE)\b/.test(nz), "die Zahl liest nur (kein UPDATE/INSERT/DELETE)");
+  ok(/d\.von = 'kunde' AND d\.fiaon_gesehen_am IS NULL AND d\.geloescht_am IS NULL/.test(nz) && /n\.von = 'kunde' AND n\.gelesen_fiaon_am IS NULL/.test(nz), "dieselben Bedingungen wie die Zahl am Mandat (Uploads/Fassungen ungesehen, Nachrichten ungelesen)");
+  ok(/d\.von = 'kunde' AND d\.fiaon_gesehen_am IS NULL AND d\.geloescht_am IS NULL\) AS uploads_neu/.test(koerper(mandat, "export async function globalMandateListe(")), "… die Liste zählt genauso (gleiche Quelle)");
+  ok(/g\.ist_test_am IS NULL/.test(nz) && /<> 'storniert'/.test(nz) && /archived_at IS NOT NULL/.test(nz), "ohne Test-Akten und Stornos (wie die Kennzahlen)");
+  ok(/von = 'kunde'/.test(koerper(datei("server/lib/fiaon-global-unterschrift.ts"), "  const d = await dokumentSpeichern({ ref, von: kunde ? \"kunde\"")) || /dokumentSpeichern\(\{ ref, von: kunde \? "kunde" : "fiaon"/.test(unterschrift), "unterschriebene Fassung des Kunden ist ein Kunden-Dokument (zählt über dieselbe Bedingung)");
+  ok(/router\.get\("\/chef\/global\/neu-zahl", requireChef\("leitung"\)/.test(routen), "Endpunkt GET /chef/global/neu-zahl mit requireChef(leitung)");
+  ok(/fetch\("\/api\/fiaon\/chef\/global\/neu-zahl"/.test(shell) && /window\.setInterval\(holen, 60_000\)/.test(shell), "Menü fragt im Takt des Raums (60 s)");
+  ok(/document\.visibilityState !== "visible"/.test(koerper(shell, "    const holen = () => {")) && /addEventListener\("visibilitychange", holen\)/.test(shell), "nur bei sichtbarem Tab, sofort beim Zurückkehren");
+  ok(/addEventListener\("chef-global-geaendert", holen\)/.test(shell) && /dispatchEvent\(new Event\("chef-global-geaendert"\)\)/.test(chef), "Global-Raum meldet Änderungen → Zahl lädt sofort nach");
+  ok(/removeEventListener\("chef-global-geaendert", holen\)/.test(shell) && /window\.clearInterval\(uhr\)/.test(shell), "Uhr und Lauscher werden abgebaut");
+  ok(/r\.key === "global" && globalNeu > 0 && \(\s*<em className="cb-zahl"/.test(shell), "Zahl nur am Punkt „Global-Mandate“ und nur, wenn > 0");
+  ok(/\.cb-punkt \.cb-zahl\{/.test(shellCss) && /\.cb\.cb-schmal \.cb-leiste \.cb-punkt \.cb-zahl\{position:absolute/.test(shellCss), "Pille im offenen und im eingeklappten Menü");
+
+  abschnitt("E-451 B Der Weg des Kunden");
+  ok(!/import \{[^}]*GLOBAL_ETAPPEN[^}]*\} from "@shared\/fiaon-global-bereich"/.test(chef) && !/GLOBAL_ETAPPEN\.map/.test(chef), "Chef-Akte rendert nicht mehr fest GLOBAL_ETAPPEN");
+  ok(/\(m\.etappen as \{ nr: number; titel: string; text\?: string; stand: string \}\[\]\)\.map/.test(chef) && /<b>\{e\.titel\}<\/b>/.test(chef), "Chef-Akte rendert die Etappen der Server-Sicht (dieselbe wie das Portal)");
+  ok(/begleit && sprache !== "en" && \(e\.nr === 1 \|\| e\.nr === 2 \|\| e\.nr === 3 \|\| e\.nr === 4\) \? BEGLEIT_PORTAL\.etappen\[e\.nr\]/.test(bereich), "Server-Sicht: Begleitvertrag → BEGLEIT_PORTAL.etappen (für Portal UND Chefbüro)");
+  gleich([1, 2, 3, 4].map((n) => typeof (BEGLEIT_PORTAL.etappen as any)[n]?.titel), ["string", "string", "string", "string"], "BEGLEIT_PORTAL hat Titel für Etappe 1–4");
+
+  abschnitt("E-451 C Begleit-Akte: Zahlung und Start");
+  const zs = koerper(akteKomplett, "export async function begleitZahlungStartAbgleich(");
+  ok(zs.length > 0, "begleitZahlungStartAbgleich vorhanden");
+  ok(/g\.bezahlt_am IS NULL/.test(zs) && /g\.gestartet_am IS NULL/.test(zs), "nur leere Felder (nie überschreiben)");
+  ok(/COALESCE\(b\.paid_at, b\.completed_at\)/.test(zs) && /b\.payment_status = 'paid'/.test(zs), "Zahlungstag aus derselben Quelle wie Chefbüro/Umsatz (paid_at, sonst completed_at)");
+  ok((zs.match(/\(g\.bestaetigungen->>'begleitvertrag'\) = 'true'/g) ?? []).length === 2, "nur Begleit-Akten");
+  ok(/gestartet_am = g\.created_at/.test(zs) && /g\.status IN \('gestartet', 'abgeschlossen'\)/.test(zs), "Start = Anlage der Akte, nur laufende/abgeschlossene");
+  ok(!/bereichMail|globalMailSenden|mailSenden|verlaufSchreiben/.test(zs), "keine Mail, keine zweite Verlaufszeile (die Zeilen leitet verlaufBauen ab)");
+  ok(/T\.zahlung/.test(koerper(bereich, "function verlaufBauen(")) && /l\.akte\.bezahlt_am && BEZAHLT\.includes\(l\.status\)/.test(bereich), "Verlauf leitet „Zahlung eingegangen.“ aus bezahlt_am ab (bestehend)");
+  ok(/begleitZahlungStartAbgleich\(ref\)/.test(agentRoute), "beim Bestätigen einer Zahlung (onCustomerPaid) für genau diese Bestellung");
+  ok(/begleitZahlungStartAbgleich\(\)/.test(koerper(akteKomplett, "export async function globalAkteAbgleich(")), "… und im halbstündlichen Abgleich (Bestand)");
+  ok(/begleitZahlungStartAbgleich\(anker\)/.test(akteKomplett), "… und beim Anlegen der Begleit-Akte");
+  ok(!/router\.get[\s\S]{0,400}begleitZahlungStartAbgleich/.test(routen), "kein GET schreibt (Chef-Routen rufen den Abgleich nicht)");
+
+  abschnitt("E-451 D Akte ↔ Angebot");
+  const vk = koerper(akteKomplett, "export async function begleitAngebotVerknuepfen(");
+  ok(vk.length > 0, "begleitAngebotVerknuepfen vorhanden");
+  ok(/a\.auftrag_ref IS NULL/.test(vk) && /a\.fassung LIKE 'IA-BEGLEIT-%'/.test(vk), "nur Begleit-Angebote ohne auftrag_ref");
+  ok(/\(SELECT COUNT\(\*\) FROM fiaon_global_auftraege g2 WHERE g2\.angebot_id = a\.id\) = 1/.test(vk) && /NOT EXISTS \(SELECT 1 FROM fiaon_global_angebote x WHERE x\.auftrag_ref = g\.ref\)/.test(vk), "nur wenn eindeutig (eine Akte je Angebot, Akte nicht schon vergeben)");
+  ok(/begleitAngebotVerknuepfen\(angebotId\)/.test(koerper(akteKomplett, "export async function globalBegleitAkteAnlegen(")), "Knopf „Global-Akte anlegen“ verknüpft (auch wiederholt)");
+  ok(/begleitAngebotVerknuepfen\(\)/.test(koerper(akteKomplett, "export async function globalAkteAbgleich(")), "halbstündlicher Abgleich verknüpft den Bestand");
+  ok(/if \(\/\^IA-\(BEGLEIT\|KOOP\)-\/\.test\(String\(z\.fassung \?\? ""\)\)\) return \{ status: "nicht_bereit"/.test(startg), "Startgespräch: Begleit/Koop → nicht_bereit (kein automatischer Termin)");
+  ok(/AND fassung NOT LIKE 'IA-KAPITAL-%'\s*\n\s*-- E-451[^\n]*\n\s*AND fassung NOT LIKE 'IA-BEGLEIT-%'/.test(angebot), "Stundenlauf „Startgespräch nachholen“ schließt den Begleitvertrag aus");
+  ok(/AND fassung NOT LIKE 'IA-BEGLEIT-%' AND fassung NOT LIKE 'IA-KOOP-%' LIMIT 20/.test(angebot), "Stundenlauf „Nachholen“ schloss ihn schon aus (bestehend)");
+  ok(/if \(istBegleitFassung\(fa\?\.fassung\)\) return \{ ok: true, grund: "Begleitvertrag — keine automatische Bestätigungsmail"/.test(angebot), "Bestätigungsmail: Begleitvertrag → nichts (bestehend)");
+  ok(/WHERE auftrag_ref = \$\{ref1\} LIMIT 1/.test(koerper(angebot, "export async function angebotSichtZurAkte(")) && /IA-BEGLEIT-/.test(koerper(angebot, "export async function angebotSichtZurAkte(")), "Portal/Chefbüro finden den Begleitvertrag über auftrag_ref (begleitSichtZurAkte)");
+
+  abschnitt("E-451 E Zuständigkeit");
+  const ziel = koerper(auftrag, "export async function globalAufgabenZiel(");
+  ok(ziel.length > 0 && /a\.test \? \{ agentId: null, anBetreiber: true \} : \{ agentId: id \}/.test(ziel) && /\(await globalEinstellungen\(\)\)\.zustaendigAgentId/.test(ziel), "EINE Regel: Mitarbeiter → er, Leitung (Testkonto) → Board, leer/inaktiv/gesperrt → Vorgabe");
+  const alt = /zustaendig_agent_id \? Number\([^)]*zustaendig_agent_id\) : null\) \?\? \(await globalEinstellungen\(\)\)\.zustaendigAgentId/;
+  for (const [n, q] of [["bereich", bereich], ["unterschrift", unterschrift], ["akte-komplett", akteKomplett], ["zusatz", zusatz]] as const) {
+    ok(!alt.test(q), `${n}: kein eigenes „zuständig ?? Vorgabe“ mehr`);
+  }
+  ok((bereich.match(/\.\.\.\(await globalAufgabenZiel\(l\.akte\.zustaendig_agent_id\)\)/g) ?? []).length === 2 && /const ziel = await globalAufgabenZiel\(g\.zustaendig_agent_id\)/.test(bereich) && /globalOfficeAuftragPfad\(ref\), \.\.\.ziel,/.test(bereich), "Upload, Nachricht und Tageslauf folgen der Akte");
+  ok(/\.\.\.\(await globalAufgabenZiel\(l\?\.akte\?\.zustaendig_agent_id\)\)/.test(unterschrift) && /\.\.\.\(await globalAufgabenZiel\(l\.akte\.zustaendig_agent_id\)\)/.test(akteKomplett), "digitale Unterschrift und Scan folgen der Akte");
+  ok((zusatz.match(/globalAufgabenZiel\(l\??\.akte\?\.zustaendig_agent_id\)/g) ?? []).length === 2, "Zusatzdienste folgen der Akte");
+  ok(/router\.post\("\/chef\/global\/mandate\/:ref\/zustaendig", requireChef\("leitung"\)/.test(routen), "Route POST …/zustaendig (requireChef leitung)");
+  ok(/zustaendigkeit: await zustaendigkeitSicht\(office\)/.test(mandat) && /portalNennt: office\.ansprechpartner\?\.name/.test(mandat), "Chef-Sicht: Zuständigkeit aus derselben Sicht wie das Portal (ansprechpartner)");
+  const zs2 = koerper(mandat, "export async function globalMandatZustaendigSetzen(");
+  ok(/zustaendig_art = 'agent'/.test(zs2) && /delegieren\(/.test(zs2) && /sichtbar: false/.test(zs2) && !/bereichMail|globalMailSenden/.test(zs2), "Setzen: offene Mitarbeiter-Aufgaben wandern, interne Verlaufszeile, keine Mail");
+  ok(/^export async function delegieren\(/m.test(todo), "delegieren ist exportiert (eine Übergabe-Logik)");
+  ok(/<Zustaendigkeit m=\{m\} tun=\{tun\} \/>/.test(chef) && /tun\("\/zustaendig", "POST", \{ agentId: Number\(wahl\) \}\)/.test(chef), "Chef-Akte: Block „Zuständig“ mit Festlegen");
+  ok(/Zuständig: \{m\.zustaendig \? m\.zustaendig\.name : "nicht festgelegt"\}/.test(chef), "Kopf der Akte zeigt die Zuständigkeit immer (auch „nicht festgelegt“)");
+  ok(/const \[wahl, setWahl\] = useState<string>\(z\.agentId \? String\(z\.agentId\) : ""\)/.test(chef) && !/setWahl\(m\./.test(chef), "Auswahl ist eigener State — das Nachladen überschreibt sie nicht");
+  ok(/ANGEBOT_ANSPRECHPARTNER\.find\(\(p\) => p\.email === mail\)\?\.telefon/.test(bereich), "Portal: die gesetzte Person behält ihre Geschäftsnummer (Hausadresse)");
+  for (const w of ["Zahl am Menüpunkt", "Zuständig: EINE Person", "Der Weg des Kunden"]) ok(rg.includes(w), `Rundgang erklärt: ${w}`);
+}
 
 ok(netz.length === 0, "kein Netzzugriff", netz.join(", "));
 console.log(`\n${gut} ok, ${rot.length} rot.`);

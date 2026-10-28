@@ -315,7 +315,7 @@ async function nachDerRechnung(id: number, z: GlobalZusatz, l: any): Promise<voi
   const ref = String(l.ref);
   const s: ZusatzSprache = l.sprache === "en" ? "en" : "de";
   const zeile = (await zeileLesen(id))!;
-  const { globalBestellungLesen, globalMailSenden, globalRechnungPdf, globalMeinAuftragUrl, globalVerlauf, globalEinstellungen } = await import("./fiaon-global-auftrag");
+  const { globalBestellungLesen, globalMailSenden, globalRechnungPdf, globalMeinAuftragUrl, globalVerlauf, globalAufgabenZiel } = await import("./fiaon-global-auftrag");
   const { verlaufSchreiben } = await import("./fiaon-global-bereich");
   const b = await globalBestellungLesen(String(zeile.bestell_ref));
   const nr = String(b?.invoice_number || b?.payment_reference || zeile.bestell_ref);
@@ -367,7 +367,8 @@ async function nachDerRechnung(id: number, z: GlobalZusatz, l: any): Promise<voi
       ].filter(Boolean).join("\n"),
       schluessel: `global:${ref}:zusatz:${id}:gebucht`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       link: chefLink(ref),
-      agentId: (l.akte?.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l.akte?.zustaendig_agent_id)),
       anlageText: "Zusatzdienst im Portal gebucht.",
     });
   } catch (e) { console.error(`[GLOBAL-ZUSATZ] ${ref}: Aufgabe „gebucht“:`, e); }
@@ -405,7 +406,7 @@ export async function zusatzNachZahlung(bestellRef: string): Promise<{ gestartet
   const s: ZusatzSprache = l?.sprache === "en" ? "en" : "de";
   const titel = kat ? kat[s].titel : String(z.zusatz_key);
   await verlaufSchreiben(ref, { art: "zusatz", text: ZUSATZ_WOERTER[s].verlaufBezahlt(titel), sichtbar: true });
-  const { globalVerlauf, globalEinstellungen } = await import("./fiaon-global-auftrag");
+  const { globalVerlauf, globalAufgabenZiel } = await import("./fiaon-global-auftrag");
   await globalVerlauf(ref, `FIAON Global: Zusatzdienst bezahlt — ${kat?.de.titel ?? z.zusatz_key} (${b.payment_reference ?? bestellRef}).`).catch(() => {});
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -421,7 +422,8 @@ export async function zusatzNachZahlung(bestellRef: string): Promise<{ gestartet
       ].filter(Boolean).join("\n"),
       dringend: true, schluessel: `global:${ref}:zusatz:${z.id}:einrichten`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       link: chefLink(ref),
-      agentId: (l?.akte?.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l?.akte?.zustaendig_agent_id)),
       anlageText: "Zahlungseingang Zusatzdienst — einrichten.",
     });
   } catch (e) { console.error(`[GLOBAL-ZUSATZ] ${ref}: Aufgabe „einrichten“:`, e); }

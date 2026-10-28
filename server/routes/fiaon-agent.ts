@@ -1000,6 +1000,15 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   } catch (e) {
     console.error(`[FIAON-GLOBAL] ${ref}: Start nach Zahlungseingang fehlgeschlagen — die Aufgabe „US-Struktur starten" fehlt, der Kunde hat KEINE Startmail:`, e);
   }
+  // E-451 (28.10.2026): Begleitvertrag — seine Rechnungen sind Einzelkäufe (kein Global-Paket, oben nicht erfasst). Ist diese
+  // Bestellung der Anker einer Begleit-Akte, trägt die Akte jetzt den Zahlungseingang (Verlauf „Zahlung eingegangen.“).
+  // Nur leere Felder, keine Mail; der halbstündliche Abgleich holt es sonst nach.
+  try {
+    const { begleitZahlungStartAbgleich } = await import("../lib/fiaon-global-akte-komplett");
+    await begleitZahlungStartAbgleich(ref);
+  } catch (e) {
+    console.error(`[FIAON-GLOBAL] ${ref}: Begleit-Akte — Zahlungseingang nicht übernommen (der Abgleich holt es nach):`, e);
+  }
   // ══════════════════════════════════════════════════════════════════════════
   // BONITÄTSAUSKUNFT: NACH DER ZAHLUNG WIRD GELIEFERT (24.09.2026, E-240)
   //

@@ -270,8 +270,9 @@ export const AKTE_ORDNER = { vertraege: "01 Vertraege", rechnungen: "02 Rechnung
 // Stationen, Tresor und Rechnungen trotzdem laufen, legt die Leitung die Akte mit einem Klick an („Global-Akte anlegen“).
 // Eine Akte braucht eine Bestellzeile mit derselben Nummer (lageLesen) — der ANKER ist deshalb die älteste nicht
 // stornierte Einzelrechnung der Global-Welt derselben Person (llc_paket, llc_gruendung*, llc_fasttrack). Ohne eine
-// solche Rechnung gibt es noch keine Akte. auftrag_ref am Angebot bleibt leer (der Begleitvertrag soll nie in den
-// Stundenlauf, das Startgespräch oder die Bestätigungsmail des Individualangebots fallen) — verbunden ist über angebot_id.
+// solche Rechnung gibt es noch keine Akte. Verbunden ist über angebot_id — und seit E-451 (28.10.2026) auch über auftrag_ref
+// am Angebot (Portal und Chefbüro finden darüber Vertrag und Angebotsunterlagen); Stundenlauf, Startgespräch und
+// Bestätigungsmail des Individualangebots schließen den Begleitvertrag über seine Fassung aus.
 export interface AnkerKandidat { ref: string; packKey: string; createdAt: string; paymentStatus: string; cancelled: boolean; merged: boolean; archived: boolean }
 export function begleitAkteAnker(zeilen: AnkerKandidat[]): string | null {
   const ok = zeilen.filter((z) => !z.merged && !z.archived && !z.cancelled && !["cancelled", "superseded"].includes(String(z.paymentStatus))

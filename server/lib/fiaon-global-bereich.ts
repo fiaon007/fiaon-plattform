@@ -73,7 +73,7 @@ import {
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
 import {
-  ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalEinstellungen, globalMailSenden, globalMeinAuftragUrl, globalSpracheVon,
+  ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalEinstellungen, globalAufgabenZiel, globalMailSenden, globalMeinAuftragUrl, globalSpracheVon,
   globalStatusAus, globalStichtagSetzen, globalJahresbetreuungAus, globalEur, type GlobalMail,
 } from "./fiaon-global-auftrag";
 import { globalWiderrufsfrist } from "./fiaon-global-vertrag";
@@ -249,7 +249,7 @@ const LAEUFT: GlobalBereichStatus[] = ["bezahlt", "gestartet"];
 const BEZAHLT: GlobalBereichStatus[] = ["bezahlt", "gestartet", "abgeschlossen"];
 
 // ── Der Ansprechpartner, wie ihn der Kunde sieht ─────────────────────────────
-async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: string; vorname: string; email: string; bild?: string } | undefined> {
+async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: string; vorname: string; email: string; bild?: string; telefon?: string } | undefined> {
   if (!agentId) return undefined;
   const [a] = (await sqlPool`
     SELECT name, first_name, email, avatar FROM fiaon_agents
@@ -258,11 +258,15 @@ async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: stri
   const name = String(a.name || "").trim();
   const mail = String(a.email || "").trim().toLowerCase();
   const bild = typeof a.avatar === "string" && a.avatar.startsWith("data:image/") ? a.avatar : undefined;
+  // E-451 (28.10.2026): Ist die zuständige Person einer der Ansprechpartner der Angebotsseite (gleiche Hausadresse), reist ihre
+  // Geschäftsnummer mit — der Kunde behält beim Setzen der Zuständigkeit im Chefbüro dieselbe Nummer wie vorher (angebotsAnsprechpartner).
+  const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
+  const telefon = mail.endsWith("@fiaon.com") ? ANGEBOT_ANSPRECHPARTNER.find((p) => p.email === mail)?.telefon : undefined;
   return {
     name, vorname: String(a.first_name || name.split(" ")[0] || "").trim(),
     // Nur eine Adresse des Hauses geht an den Kunden — nie die private eines Mitarbeiters.
     email: mail.endsWith("@fiaon.com") ? mail : "welcome@fiaon.com",
-    ...(bild ? { bild } : {}),
+    ...(bild ? { bild } : {}), ...(telefon ? { telefon } : {}),
   };
 }
 
@@ -893,7 +897,8 @@ export async function eingangMelden(l: Lage, zeile: string): Promise<void> {
       schluessel: `global:${l.ref}:eingang:${berlinToday()}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       // E-443: EIN Ziel für alle Kunden-Aufgaben — die Chef-Akte. Öffnet das Team dort die Datei, erledigt sich die Aufgabe.
       link: globalChefMandatPfad(l.ref),
-      agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l.akte.zustaendig_agent_id)),
       anlageText: "Der Kunde hat in „Mein Auftrag“ etwas hochgeladen.",
     });
     if (offen === 0) await aufgabeErledigen(`global:${l.ref}:unterlagen`, "Alle Unterlagen der Liste liegen vor.");
@@ -1032,7 +1037,8 @@ export async function globalKundenNachricht(ref: string, ein: { text: unknown; a
       dringend: false, schluessel: `global:${ref}:nachricht:${berlinToday()}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       // E-443 (28.10.2026): ins Chefbüro — Lesen oder Beantworten dort erledigt die Aufgabe.
       link: globalChefMandatPfad(ref),
-      agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 (28.10.2026): EINE Regel für das Ziel — die Zuständigkeit der Akte (globalAufgabenZiel).
+      ...(await globalAufgabenZiel(l.akte.zustaendig_agent_id)),
       anlageText: "Der Kunde hat in „Mein Auftrag“ geschrieben.",
     });
     if (!erg.id) throw new Error("Aufgabe nicht angelegt");
@@ -1156,7 +1162,6 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
   await ensureGlobalBereich();
   const heute = berlinToday(jetzt);
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-  const einstellungen = await globalEinstellungen();
 
   const auftraege = (await sqlPool`
     SELECT g.ref, g.status, g.paket_key, g.firma_name, g.gestartet_am, g.gesellschaft, g.vertrag_sprache, g.zustaendig_agent_id, a.person_id,
@@ -1169,11 +1174,12 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
     const ref = String(g.ref);
     const firma = String(g.firma_name || ref);
     const sprache: BereichSprache = String(g.vertrag_sprache) === "en" ? "en" : "de";
-    const zustaendig = (g.zustaendig_agent_id ? Number(g.zustaendig_agent_id) : null) ?? einstellungen.zustaendigAgentId;
+    // E-451 (28.10.2026): dieselbe Regel wie jede Kunden-Aufgabe (globalAufgabenZiel) — einmal je Akte.
+    const ziel = await globalAufgabenZiel(g.zustaendig_agent_id);
     const laeuft = String(g.status) === "gestartet";
     const aufgabe = (schluessel: string, titel: string, text: string, faelligAm: string, dringend = false) => auftragFuerKunden({
       personId: g.person_id != null ? Number(g.person_id) : null, ref, titel, text, faelligAm, dringend, schluessel,
-      bereich: "konten", quelle: "global", autorName: "FIAON Global", link: globalOfficeAuftragPfad(ref), agentId: zustaendig,
+      bereich: "konten", quelle: "global", autorName: "FIAON Global", link: globalOfficeAuftragPfad(ref), ...ziel,
       anlageText: "Vom Tageslauf für FIAON Global angelegt.",
     });
     try {

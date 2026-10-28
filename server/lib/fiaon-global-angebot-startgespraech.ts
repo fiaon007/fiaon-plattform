@@ -425,6 +425,9 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
   if (!z || String(z.status) !== "angenommen" || !z.auftrag_ref) return { status: "nicht_bereit", grund: "nicht angenommen oder noch ohne Auftrag" };
   // E-412: Das Kapital-Angebot hat kein automatisches Startgespräch — Justin teilt den Start persönlich mit. Kein Versuch, keine Aufgabe.
   if (String(z.fassung ?? "").startsWith("IA-KAPITAL-")) return { status: "nicht_bereit", grund: "Kapital-Angebot: kein automatisches Startgespräch" };
+  // E-451 (28.10.2026): Begleit- und Kooperationsvertrag ebenso nicht — seit E-451 trägt die Begleit-Akte auftrag_ref (Verknüpfung
+  // Angebot ↔ Akte); den Kunden führt die Leitung persönlich (fiaon-global-angebot-begleit.ts, Kopf).
+  if (/^IA-(BEGLEIT|KOOP)-/.test(String(z.fassung ?? ""))) return { status: "nicht_bereit", grund: "Begleit-/Kooperationsvertrag: kein automatisches Startgespräch" };
   if (z.startgespraech_termin_id) return { status: "schon", terminId: Number(z.startgespraech_termin_id), beginn: new Date(z.startgespraech_am ?? jetzt).toISOString(), mit: "" };
   const ref = String(z.angebot_ref); const ref1 = String(z.auftrag_ref);
   const kunde = json<AngebotKunde>(z.kunde, {} as AngebotKunde);

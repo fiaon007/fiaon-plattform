@@ -51,6 +51,10 @@
 .cb-punkt.gesperrt{opacity:.38;cursor:not-allowed}
 .cb-punkt.gesperrt:hover{background:transparent;color:#cbd5e1}
 .cb-punkt .schloss{display:grid;place-items:center;color:#64748b;flex:0 0 16px}
+/* E-451 (28.10.2026): Zahl am Menüpunkt „Global-Mandate“ (Akten mit Neuem vom Kunden) — kleine Glasblau-Pille; eingeklappt am Icon. */
+.cb-punkt .cb-zahl{flex:0 0 auto;min-width:18px;height:18px;padding:0 5px;border-radius:999px;display:grid;place-items:center;font:500 10.5px/1 'Inter',sans-serif;font-style:normal;color:#fff;background:#2563EB;box-shadow:0 0 0 2px rgba(15,32,68,.55)}
+.cb-punkt.an .cb-zahl{background:#fff;color:#1D4ED8}
+.cb.cb-schmal .cb-leiste .cb-punkt .cb-zahl{position:absolute;top:2px;right:7px;min-width:15px;height:15px;padding:0 4px;font-size:9.5px}
 /* Inhalt (immer dunkel — das Chefbüro liegt direkt auf der Bühne) */
 .cb-inhalt{min-width:0;animation:cbAuf .45s cubic-bezier(.2,.8,.2,1) both}
 @keyframes cbAuf{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}

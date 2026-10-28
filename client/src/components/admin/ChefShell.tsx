@@ -491,6 +491,31 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
     pruefen();
     return () => { beobachter.disconnect(); window.removeEventListener("resize", spaeter); if (takt) clearTimeout(takt); };
   }, [raumKey, seiteSlug]);
+  // ── DIE ZAHL AM MENÜPUNKT „GLOBAL-MANDATE“ (E-451, 28.10.2026) ──────────
+  // Wie viele Akten haben Neues vom Kunden (ungesehene Uploads und unterschriebene Fassungen, ungelesene Nachrichten)?
+  // Leise im Takt des Raums (60 s, nur bei sichtbarem Tab, sofort beim Zurückkehren) und sofort, wenn der Global-Raum
+  // etwas als gesehen/gelesen markiert (Ereignis „chef-global-geaendert“). Kein Ladebalken, kein Fehler — schlägt es fehl,
+  // bleibt die alte Zahl stehen.
+  const [globalNeu, setGlobalNeu] = useState(0);
+  useEffect(() => {
+    let weg = false;
+    const holen = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/fiaon/chef/global/neu-zahl", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (!weg && j?.ok) setGlobalNeu(Math.max(0, Number(j.akten) || 0)); })
+        .catch(() => { /* leise: alte Zahl bleibt */ });
+    };
+    holen();
+    const uhr = window.setInterval(holen, 60_000);
+    document.addEventListener("visibilitychange", holen);
+    window.addEventListener("chef-global-geaendert", holen);
+    return () => {
+      weg = true; window.clearInterval(uhr);
+      document.removeEventListener("visibilitychange", holen);
+      window.removeEventListener("chef-global-geaendert", holen);
+    };
+  }, []);
   const vorname = String(name || "").split(" ")[0];
   const stunde = new Date().getHours();
   const gruss = stunde < 11 ? "Guten Morgen" : stunde < 18 ? "Guten Tag" : "Guten Abend";
@@ -517,6 +542,9 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
         <Link href={`/chef/${r.key}`} className={`cb-punkt${aktiv.key === r.key && (!seiteSlug || !offen) ? " an" : ""}${aktiv.key === r.key ? " offen" : ""}`} title={r.label} onClick={() => inSchublade && setMenueOffen(false)}>
           <i><r.Icon size={18} strokeWidth={1.75} /></i>
           <span>{r.label}</span>
+          {r.key === "global" && globalNeu > 0 && (
+            <em className="cb-zahl" title={`${globalNeu} ${globalNeu === 1 ? "Akte" : "Akten"} mit Neuem vom Kunden`} aria-label={`${globalNeu} neu`}>{globalNeu > 99 ? "99+" : globalNeu}</em>
+          )}
         </Link>
         {offen && (
           <div className="cb-unter">

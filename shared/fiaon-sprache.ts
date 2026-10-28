@@ -85,6 +85,7 @@ export const EN_FUSS: { titel: string; links: [string, string][] }[] = [
   { titel: "Company", links: [
     ["/was-ist-fiaon", "About FIAON"],
     ["/fiaon-erfahrungen", "How FIAON works"],
+    ["/ist-fiaon-serioes", "Is FIAON legit?"],
     ["/sicherheit", "Privacy & security"],
     ["/team", "Team"],
     ["/karriere", "Careers"],

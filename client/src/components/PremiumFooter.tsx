@@ -56,6 +56,7 @@ const PLATTFORM: [string, string][] = [
 const UNTERNEHMEN: [string, string][] = [
   ["/was-ist-fiaon", "Über FIAON"],
   ["/fiaon-erfahrungen", "So arbeitet FIAON"],
+  ["/ist-fiaon-serioes", "Ist FIAON seriös?"],
   ["/sicherheit", "Datenschutz & Sicherheit"],
   ["/team", "Team"],
   ["/karriere", "Karriere"],

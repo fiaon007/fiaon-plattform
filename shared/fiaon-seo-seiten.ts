@@ -57,6 +57,8 @@ import { AUSKUNFT_KEIN_WIDERRUF, auskunftLeistungszeit } from "./fiaon-auskunft-
 // 05.10.2026 (E-283): die AGB-Fassung und ihr Archiv unter /agb/<Fassung>.
 import { AGB_FASSUNG, AGB_FRUEHERE_FASSUNGEN } from "./fiaon-vertrag-paket";
 import { agbDatumLang } from "./fiaon-antrag-neu";
+// 28.10.2026 (E-445): die Vertrauensseite „Ist FIAON seriös?“ — Abschnitte aus ihrer einen Quelle (sichtbar = Vorab-HTML).
+import { SERIOES_TEXTE, SERIOES_PFAD, SERIOES_STAND, COMPANIES_HOUSE_URL, type SerioesTexte } from "./fiaon-serioes";
 
 const AUSK_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
 const AUSK_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
@@ -70,6 +72,11 @@ const AUSW_INKLUSIVE_NEU = "Für neue Paketkunden ist die Bonitätsauswertung im
 const euroEn = (c: number) => `€${c / 100}`;
 /** Die Auskunfteien eines Landes als Zeilen — wie die Liste „Bei wem wir anfragen" (E-241). */
 const auskunfteienZeilen = (land: AuskunftLand) => auskunfteienFuer(land).map((a) => `${a.kurz}: ${a.name}, ${a.anschrift[1].replace(/^\d+\s*/, "")} — Datenkopie nach ${a.recht}`);
+/** „Auf einen Blick“ als echte Tabelle, danach die Abschnitte der Seite in ihrer Reihenfolge (E-445). */
+const serioesAbschnitte = (t: SerioesTexte, kopf: [string, string]): SeoAbschnitt[] => [
+  { h2: t.blickH2, text: "", tabelle: { kopf, zeilen: t.blick } },
+  ...t.abschnitte.map((a) => ({ h2: a.h2a + a.h2b, text: a.text, punkte: a.punkte })),
+];
 
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
@@ -204,6 +211,7 @@ export const SEO_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/ueber-uns", "Über FIAON"],
     ["/was-ist-fiaon", "Was ist FIAON"],
     ["/fiaon-erfahrungen", "So arbeitet FIAON"],
+    ["/ist-fiaon-serioes", "Ist FIAON seriös? Die Fakten"],
     ["/vergleich", "Anwalt, App, selbst – oder FIAON?"],
     ["/transparenz", "Transparenzbericht"],
     ["/status", "Status"],
@@ -795,7 +803,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Zwei typische Verläufe", text: "Nachgestellt aus der Praxis: der Eintrag, der nie hätte gemeldet werden dürfen (Löschung nach acht Wochen, Konto nach zehn) – und der berechtigte Eintrag, bei dem keine Löschung möglich ist, aber Ratenvereinbarung, Erledigt-Vermerk und Guthabenkonto den Weg bauen." },
       { h2: "Bewertungen – im Aufbau", text: "FIAON legt die öffentlichen Bewertungsprofile (Trustpilot, ProvenExpert, Google) im September 2026 an; bis echte Bewertungen vorliegen, zeigen wir lieber nichts als erfundene Sterne." },
     ],
-    weiter: ["/was-ist-fiaon", "/preise", "/team", "/sicherheit", "/kontakt", "/privatkunden"],
+    weiter: [SERIOES_PFAD.de, "/was-ist-fiaon", "/preise", "/team", "/sicherheit", "/kontakt", "/privatkunden"],
     krumen: [{ name: "So arbeitet FIAON", pfad: "/fiaon-erfahrungen" }],
     en: {
       pfad: "/en/how-fiaon-works",
@@ -808,8 +816,32 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "How it works in three steps", text: "An application with a fixed price and a 15-minute onboarding call; your credit assessment from your bank statements, and the data copy you requested yourself checked line by line against Section 31 BDSG and the deletion deadlines; letters approved by you sent by registered post, deadlines tracked, account and card prepared with the partner institution. The bank decides." },
         { h2: "The seriousness check", text: "Six questions that apply to every provider: deletion guarantees, success fees, concealed free rights, a missing legal notice, time pressure, no insight into the steps. FIAON answers all six — and shows where reviews stand: being set up, nothing invented.", punkte: ["Six warning signs of dubious providers", "Two typical journeys, reconstructed from practice", "Honest up to the no: justified entries stay"] },
       ],
-      weiter: ["/preise", "/ueber-uns", "/transparenz"],
+      weiter: ["/preise", "/ueber-uns", "/transparenz", SERIOES_PFAD.de],
       krumen: [{ name: "FIAON reviews", pfad: "/en/how-fiaon-works" }],
+    },
+  },
+  // 28.10.2026 (E-445): Search Console — „fiaon seriös“, „ist das abzocke“, „fiaon kreditkarte erfahrungen“.
+  // Unter unserem Treffer standen fremde Warnlisten; diese Seite legt die prüfbaren Fakten hin. Die
+  // Abschnitte kommen aus shared/fiaon-serioes.ts (dieselben Sätze wie auf der Seite).
+  [SERIOES_PFAD.de]: {
+    pfad: SERIOES_PFAD.de, art: "unternehmen", stand: SERIOES_STAND, prio: 0.8,
+    titel: "Ist FIAON seriös? Die Fakten zu Firma, Zahlung, Vertrag",
+    beschreibung: "Ist FIAON seriös oder Abzocke? Die prüfbaren Fakten: FIAON LTD London (Nr. 17318250), Zahlung nur per Überweisung, klare Laufzeit, Datenschutz, Kontakt.",
+    h1: SERIOES_TEXTE.de.h1a + SERIOES_TEXTE.de.h1b,
+    lead: SERIOES_TEXTE.de.lead,
+    abschnitte: serioesAbschnitte(SERIOES_TEXTE.de, ["Thema", "Fakt"]),
+    quellen: [{ titel: "Companies House (England and Wales): FIAON LTD, Nr. 17318250", url: COMPANIES_HOUSE_URL }],
+    weiter: ["/fiaon-erfahrungen", "/impressum", "/sicherheit", "/kontakt", "/preise", "/team"],
+    krumen: [{ name: "Ist FIAON seriös?", pfad: SERIOES_PFAD.de }],
+    en: {
+      pfad: SERIOES_PFAD.en,
+      titel: "Is FIAON legit? The facts on company, payment, contract",
+      beschreibung: "Is FIAON legitimate? The verifiable facts: FIAON LTD London (Companies House 17318250), payment by bank transfer only, clear terms, privacy, contact.",
+      h1: SERIOES_TEXTE.en.h1a + SERIOES_TEXTE.en.h1b,
+      lead: SERIOES_TEXTE.en.lead,
+      abschnitte: serioesAbschnitte(SERIOES_TEXTE.en, ["Topic", "Fact"]),
+      weiter: ["/fiaon-erfahrungen", "/sicherheit", "/kontakt", "/preise", "/team"],
+      krumen: [{ name: "Is FIAON legit?", pfad: SERIOES_PFAD.en }],
     },
   },
 

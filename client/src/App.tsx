@@ -310,6 +310,8 @@ const RatenzahlungUndBonitaet = lazy(() => import("@/pages/site/ratenzahlung-und
 const SelbstauskunftCheckliste = lazy(() => import("@/pages/site/selbstauskunft-checkliste"));
 const SchufaNeutralAnfragen = lazy(() => import("@/pages/site/schufa-neutral-anfragen"));
 const FiaonErfahrungen = lazy(() => import("@/pages/site/fiaon-erfahrungen"));
+// 28.10.2026 (E-445): „Ist FIAON seriös? Die Fakten“ — DE und EN.
+const IstFiaonSerioes = lazy(() => import("@/pages/site/ist-fiaon-serioes"));
 const GlossarBonitaet = lazy(() => import("@/pages/site/glossar-bonitaet"));
 const WzKartenCheck = lazy(() => import("@/pages/site/werkzeuge/karten-check"));
 const WzSpielraum = lazy(() => import("@/pages/site/werkzeuge/spielraum"));
@@ -444,6 +446,7 @@ function Router() {
       <Route path="/en/transparency" component={SiteTransparenz} />
       <Route path="/en/help" component={SiteHilfe} />
       <Route path="/en/how-fiaon-works" component={FiaonErfahrungen} />
+      <Route path="/en/is-fiaon-legit" component={IstFiaonSerioes} />
       <Route path="/en/strengthen-your-credit-file" component={BonitaetVerbessern} />
       <Route path="/en/loans-without-schufa" component={KreditOhneSchufa} />
       <Route path="/en/credit-bureaus" component={AuskunfteienSeite} />
@@ -534,6 +537,7 @@ function Router() {
       <Route path="/selbstauskunft-checkliste" component={SelbstauskunftCheckliste} />
       <Route path="/schufa-neutral-anfragen" component={SchufaNeutralAnfragen} />
       <Route path="/fiaon-erfahrungen" component={FiaonErfahrungen} />
+      <Route path="/ist-fiaon-serioes" component={IstFiaonSerioes} />
       <Route path="/glossar-bonitaet" component={GlossarBonitaet} />
       <Route path="/werkzeuge/karten-check" component={WzKartenCheck} />
       <Route path="/werkzeuge/spielraum" component={WzSpielraum} />

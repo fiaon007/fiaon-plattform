@@ -61,8 +61,8 @@ import { globalPaket } from "@shared/fiaon-global";
 import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 // E-443 (28.10.2026): Aufgaben aus Kunden-Upload und Kunden-Nachricht führen ins Chefbüro (Global-Mandate).
 import { globalChefMandatPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
-import { KAPITAL_MARKE, KAPITAL_ETAPPEN } from "@shared/fiaon-global-angebot-kapital";
-import { KAPITAL_C_MARKE, KAPITAL_C_ETAPPEN } from "@shared/fiaon-global-angebot-kapital-c";
+import { KAPITAL_MARKE, KAPITAL_ETAPPEN, KAPITAL_PFLICHT_ZUSATZ } from "@shared/fiaon-global-angebot-kapital";
+import { KAPITAL_C_MARKE, KAPITAL_C_ETAPPEN, KAPITAL_C_PFLICHT_ZUSATZ } from "@shared/fiaon-global-angebot-kapital-c";
 import { BEGLEIT_PORTAL } from "@shared/fiaon-global-angebot-begleit";
 import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
@@ -175,6 +175,33 @@ function json<T>(v: unknown, leer: T): T {
   if (v && typeof v === "object") return v as T;
   try { return (JSON.parse(String(v ?? "")) as T) ?? leer; } catch { return leer; }
 }
+
+// ── E-451 Nachtrag (Gutachten, 28.10.2026): EINE Wahl der Etappen-Texte je Akte ──────────────────────────────────────
+// „Ihr Weg“ im Portal, die Chef-Akte, die Verlaufszeile und die Etappen-Mail lesen dieselben Texte: Kapital-Angebot (B/C) und
+// Begleitvertrag ihre eigenen, das Individualangebot seine Garantie-Fassung, die Pakete die allgemeinen. Vorher schrieben Verlauf
+// und Mail beim Begleitvertrag und beim Kapital-Angebot die Texte des Individualangebots — mit Garantie-Fußnote, die dort nicht gilt.
+type EtappeFassung = "kapital" | "kapitalPrivat" | "begleit" | "individuell" | "paket";
+export function etappeFassungFuerAkte(akte: { bestaetigungen?: unknown; paket_key?: unknown }): EtappeFassung {
+  const best = json<Record<string, unknown>>(akte.bestaetigungen, {});
+  if (best.kapitalangebot === true) return best.kapitalPrivat === true ? "kapitalPrivat" : "kapital";
+  if (best.begleitvertrag === true) return "begleit";
+  return istAngebotsPaket(akte.paket_key) ? "individuell" : "paket";
+}
+export function etappeTextFuerAkte(akte: { bestaetigungen?: unknown; paket_key?: unknown }, nr: number, sprache: BereichSprache): { titel: string; text: string } {
+  const f = etappeFassungFuerAkte(akte);
+  const mitte = nr === 1 || nr === 2 || nr === 3 || nr === 4;
+  if (mitte && f === "kapitalPrivat") return KAPITAL_C_ETAPPEN[nr];
+  if (mitte && f === "kapital") return KAPITAL_ETAPPEN[nr];
+  if (mitte && f === "begleit" && sprache !== "en") return BEGLEIT_PORTAL.etappen[nr];
+  return globalEtappeText(nr, sprache, f === "individuell");
+}
+/** Fußnote der Etappen-Mail: Garantie-Satz nur dort, wo der Vertrag ihn hat — und dann mit SEINER Ziffer. */
+export function etappeFussnoteFuerAkte(akte: { bestaetigungen?: unknown; paket_key?: unknown }, sprache: BereichSprache): string {
+  if (sprache === "en") return GLOBAL_ETAPPE_FUSSNOTE.en;
+  const f = etappeFassungFuerAkte(akte);
+  return f === "kapitalPrivat" ? KAPITAL_C_PFLICHT_ZUSATZ : f === "kapital" ? KAPITAL_PFLICHT_ZUSATZ : f === "begleit" ? BEGLEIT_PORTAL.fussnote
+    : f === "individuell" ? GLOBAL_ETAPPE_FUSSNOTE.individuell : GLOBAL_ETAPPE_FUSSNOTE.de;
+}
 const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString() : null);
 const knapp = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 /** Mehrzeiliger Text: Zeilenumbrüche bleiben, Steuerzeichen nicht. */
@@ -261,11 +288,14 @@ async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: stri
   // E-451 (28.10.2026): Ist die zuständige Person einer der Ansprechpartner der Angebotsseite (gleiche Hausadresse), reist ihre
   // Geschäftsnummer mit — der Kunde behält beim Setzen der Zuständigkeit im Chefbüro dieselbe Nummer wie vorher (angebotsAnsprechpartner).
   const { ANGEBOT_ANSPRECHPARTNER } = await import("@shared/fiaon-global-angebot");
-  const telefon = mail.endsWith("@fiaon.com") ? ANGEBOT_ANSPRECHPARTNER.find((p) => p.email === mail)?.telefon : undefined;
+  // E-451 Nachtrag (Gutachten): Wer im Konto eine private Adresse trägt (Daniel), wird zusätzlich über den vollen Namen erkannt —
+  // dann reisen Hausadresse UND Nummer der Angebotsseite mit, statt „welcome@“ ohne Telefon.
+  const bekannt = ANGEBOT_ANSPRECHPARTNER.find((p) => (mail.endsWith("@fiaon.com") && p.email === mail) || (name && p.name.toLowerCase() === name.toLowerCase()));
+  const telefon = bekannt?.telefon;
   return {
     name, vorname: String(a.first_name || name.split(" ")[0] || "").trim(),
     // Nur eine Adresse des Hauses geht an den Kunden — nie die private eines Mitarbeiters.
-    email: mail.endsWith("@fiaon.com") ? mail : "welcome@fiaon.com",
+    email: bekannt ? bekannt.email : mail.endsWith("@fiaon.com") ? mail : "welcome@fiaon.com",
     ...(bild ? { bild } : {}), ...(telefon ? { telefon } : {}),
   };
 }
@@ -351,9 +381,7 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
   const etappen = GLOBAL_ETAPPEN.map((e) => {
     const seit = e.nr === 0 ? iso(akte.unterschrieben_am ?? akte.created_at) : (l.etappenSeit[String(e.nr)] ? iso(l.etappenSeit[String(e.nr)]) : null);
     const stand = globalEtappeStand(e.nr, l.etappe);
-    const text = kapital && (e.nr === 1 || e.nr === 2 || e.nr === 3 || e.nr === 4) ? (kapitalPrivat ? KAPITAL_C_ETAPPEN[e.nr] : KAPITAL_ETAPPEN[e.nr])
-      : begleit && sprache !== "en" && (e.nr === 1 || e.nr === 2 || e.nr === 3 || e.nr === 4) ? BEGLEIT_PORTAL.etappen[e.nr]
-      : globalEtappeText(e.nr, sprache, individuell);
+    const text = etappeTextFuerAkte(akte, e.nr, sprache);
     return { nr: e.nr, ...text, stand, ...(seit && stand !== "offen" ? { seit } : {}), imPaket: e.nr <= bis || e.nr === GLOBAL_ETAPPE_MAX };
   });
   const g = l.gesellschaft;
@@ -598,11 +626,11 @@ export async function globalStartVermerken(ref: string): Promise<boolean> {
     UPDATE fiaon_global_auftraege
        SET etappe = 1, etappe_seit = NOW(), etappen_seit = COALESCE(etappen_seit, '{}'::jsonb) || ${sqlPool.json({ "1": jetzt })}, updated_at = NOW()
      WHERE ref = ${ref} AND etappe = 0 AND status = 'gestartet'
-     RETURNING vertrag_sprache`) as any[];
+     RETURNING vertrag_sprache, bestaetigungen, paket_key`) as any[];
   if (!z) return false;
   const sprache: BereichSprache = String(z.vertrag_sprache) === "en" ? "en" : "de";
   const T = GLOBAL_VERLAUF_TEXT[sprache];
-  await verlaufSchreiben(ref, { art: "start", text: `${T.start} ${T.etappe(1, globalEtappeText(1, sprache).titel)}`, sichtbar: true });
+  await verlaufSchreiben(ref, { art: "start", text: `${T.start} ${T.etappe(1, etappeTextFuerAkte(z, 1, sprache).titel)}`, sichtbar: true });
   return true;
 }
 
@@ -625,9 +653,9 @@ export async function globalEtappeSetzen(ref: string, ein: { etappe: unknown; te
            abgeschlossen_am = NULL, updated_at = NOW()
      WHERE ref = ${ref}`;
   const T = GLOBAL_VERLAUF_TEXT[l.sprache];
-  const titel = globalEtappeText(nr, l.sprache, istAngebotsPaket(l.akte.paket_key)).titel;
+  const titel = etappeTextFuerAkte(l.akte, nr, l.sprache).titel;
   await verlaufSchreiben(ref, { art: "etappe", text: [warZu ? T.wiederOffen : null, nr === 0 ? titel + "." : T.etappe(nr, titel), text || null].filter(Boolean).join(" "), sichtbar: true, agentId: agent.id });
-  if (ein.mitteilen !== true) return { ok: true, meldung: `Etappe ${nr} („${globalEtappeText(nr, "de").titel}“) gesetzt. Der Kunde sieht sie in „Mein Auftrag“; eine Mail ging nicht raus.` };
+  if (ein.mitteilen !== true) return { ok: true, meldung: `Etappe ${nr} („${etappeTextFuerAkte(l.akte, nr, "de").titel}“) gesetzt. Der Kunde sieht sie in „Mein Auftrag“; eine Mail ging nicht raus.` };
   const frisch = (await lageLesen(ref)) ?? l;
   const mail = await etappenMail(frisch, nr, text, agent.name);
   return { ok: true, meldung: mail.ok ? `Etappe ${nr} gesetzt und dem Kunden per Mail mitgeteilt.` : `Etappe ${nr} gesetzt — die Mail an den Kunden ging NICHT raus (${mail.grund}).` };
@@ -635,8 +663,8 @@ export async function globalEtappeSetzen(ref: string, ein: { etappe: unknown; te
 
 async function etappenMail(l: Lage, nr: number, persoenlich: string, wer: string): Promise<{ ok: boolean; grund: string | null }> {
   // E-271: Beim Individualangebot die Etappen-Texte und die Fußnote mit der Garantie (kein Institut-Satz).
-  const individuell = istAngebotsPaket(l.akte.paket_key);
-  const e = globalEtappeText(nr, l.sprache, individuell);
+  // E-451 Nachtrag: Begleitvertrag und Kapital-Angebot mit IHREN Texten und Fußnoten (etappeTextFuerAkte) — nie die Garantie des Individualangebots.
+  const e = etappeTextFuerAkte(l.akte, nr, l.sprache);
   const schritt = l.akte.naechster_schritt
     ? `${t(l.sprache, "Ihr nächster Schritt:", "Your next step:")} ${escapeHtml(String(l.akte.naechster_schritt))}${l.akte.naechster_schritt_bis ? ` (${t(l.sprache, "bis zum", "by")} ${globalTagAlsText(isoTag(l.akte.naechster_schritt_bis), l.sprache)})` : ""}`
     : t(l.sprache, "Den Stand, Ihre Dokumente und Ihre Termine finden Sie jederzeit unter „Mein Auftrag“.", "You can find the status, your documents and your dates at any time under “My order”.");
@@ -644,7 +672,7 @@ async function etappenMail(l: Lage, nr: number, persoenlich: string, wer: string
     etappe_marke: nr >= GLOBAL_ETAPPE_MAX ? t(l.sprache, "Abschluss", "Completion") : `${t(l.sprache, "Etappe", "Stage")} ${nr}`,
     etappe_titel: escapeHtml(e.titel), etappe_text: escapeHtml(e.text),
     etappe_weiter: [persoenlich ? escapeHtml(persoenlich).replace(/\n/g, "<br />") : null, schritt].filter(Boolean).join("<br /><br />"),
-    fussnote_text: individuell && l.sprache !== "en" ? GLOBAL_ETAPPE_FUSSNOTE.individuell : l.sprache === "en" ? GLOBAL_ETAPPE_FUSSNOTE.en : GLOBAL_ETAPPE_FUSSNOTE.de,
+    fussnote_text: etappeFussnoteFuerAkte(l.akte, l.sprache),
   }, wer);
 }
 

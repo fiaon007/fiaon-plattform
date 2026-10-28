@@ -1101,7 +1101,8 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
     text: `Der Kunde hat am ${tagDe(new Date())} auf der Zahlungsseite gemeldet, dass er ${eur(Math.round(Number(b.amount_due || 0) * 100))} überwiesen hat (Verwendungszweck ${b.payment_reference ?? "—"}). Den Eingang prüft die Zahlungsstelle; sobald er gebucht ist, startet der Auftrag von selbst.`,
     schluessel: `global:${ref}:auftrag`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
     link: globalOfficeAuftragPfad(ref),
-    agentId: akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : (await globalEinstellungen()).zustaendigAgentId,
+    // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
+    ...(await globalAufgabenZiel(akte?.zustaendig_agent_id)),
   });
   await verlauf(ref, "FIAON Global: Der Kunde hat auf der Zahlungsseite gemeldet, dass er überwiesen hat. Keine Privatkunden-Mail; die zuständige Person ist informiert.");
 }
@@ -1216,7 +1217,8 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
         ].join("\n"),
         schluessel: `global:${ref}:widerruf`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
         link: globalOfficeAuftragPfad(ref),
-        agentId: (akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
+        // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
+        ...(await globalAufgabenZiel(akte?.zustaendig_agent_id)),
         anlageText: "Zahlungseingang gebucht — Start nach der Widerrufsfrist.",
       });
     } catch (e) {
@@ -1235,7 +1237,6 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
     ? "Provision gebucht: " + provisionen.map((p) => `${eur(Number(p.amount_cents))} (${Number(p.rate_bp) / 100} %, ${p.kind === "override" ? "Team-Umsatzbeteiligung" : "Abschluss"}) für ${p.name || "—"}`).join("; ") + "."
     : "Provision: keine gebucht — vor der Zahlung ist kein Gespräch eines Mitarbeiters dokumentiert (Direktzahler, Hausregel). Wer anders entscheiden will: Nachbuchungs-Center; der Satz für FIAON Global steht in global_provision_prozent.";
 
-  const einstellungen = await globalEinstellungen();
   let agentId: number | null = null; let aufgabeId: number | null = null;
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -1263,7 +1264,8 @@ export async function globalNachZahlung(ref: string, opts: { jetzt?: Date } = {}
       ].filter(Boolean).join("\n"),
       dringend: true, schluessel: `global:${ref}:start`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
       link: globalOfficeAuftragPfad(ref),
-      agentId: (akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : null) ?? einstellungen.zustaendigAgentId,
+      // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
+      ...(await globalAufgabenZiel(akte?.zustaendig_agent_id)),
       anlageText: "Zahlungseingang gebucht — Auftrag startet.",
     });
     agentId = erg.agentId; aufgabeId = erg.id;

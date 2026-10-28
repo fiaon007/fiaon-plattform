@@ -260,7 +260,7 @@ export function kapitalUnterlagen(par: Pick<KapitalParameter, "ddAbgeschlossen">
     "eine kurze Beschreibung der Geschäftstätigkeit der Gesellschaft",
   ];
 }
-const KAPITAL_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut; für die Finanzierung gilt die Garantie nach Ziffer 4.";
+export const KAPITAL_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut; für die Finanzierung gilt die Garantie nach Ziffer 4.";
 export function kapitalZiffern(d: KapitalDaten): AngebotZiffer[] {
   const par = d.parameter; const b = d.buergin; const v = d.kunde.vertretung;
   const kapital = `${kapitalChf(par.kapitalChf)} (umgerechnet rund ${kapitalUsd(par.kapitalUsd)}; ${par.kursText})`;

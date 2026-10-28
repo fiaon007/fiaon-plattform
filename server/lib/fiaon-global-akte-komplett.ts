@@ -510,6 +510,9 @@ export async function begleitZahlungStartAbgleich(ref: string | null = null): Pr
       FROM fiaon_applications b
      WHERE b.ref = g.ref AND (g.bestaetigungen->>'begleitvertrag') = 'true' AND g.bezahlt_am IS NULL
        AND b.payment_status = 'paid' AND COALESCE(b.paid_at, b.completed_at) IS NOT NULL
+       -- E-451 Nachtrag (Gutachten): Eine Zahlung VOR der Unterschrift gehört zu einem früheren Auftrag (z. B. dem Unterlagen-Paket) —
+       -- der Begleitvertrag selbst hat keine Grundvergütung. Dann keine Zeile „Zahlung eingegangen.“ vor dem Vertrag.
+       AND (g.unterschrieben_am IS NULL OR COALESCE(b.paid_at, b.completed_at) >= g.unterschrieben_am)
        AND (${ref}::text IS NULL OR g.ref = ${ref}::text)
     RETURNING g.ref`) as any[];
   const gestartet = (await sqlPool`

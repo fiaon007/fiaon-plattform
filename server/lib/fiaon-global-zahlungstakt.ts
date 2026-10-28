@@ -281,7 +281,7 @@ async function erinnerungSenden(ref: string, stufe: "erinnerung_1" | "erinnerung
 
 async function aufgabeAnlegen(ref: string): Promise<"erledigt" | "nichts"> {
   const { sqlPool } = await import("./db-pool");
-  const { globalAkteLesen, globalBestellungLesen, globalEinstellungen, globalVerlauf, globalEur } = await import("./fiaon-global-auftrag");
+  const { globalAkteLesen, globalBestellungLesen, globalAufgabenZiel, globalVerlauf, globalEur } = await import("./fiaon-global-auftrag");
   const { paket: katalogPaket } = await import("@shared/fiaon-pakete");
   const { absoluteUrl } = await import("../fiaon-base-url");
   const akte = await globalAkteLesen(ref);
@@ -316,7 +316,8 @@ async function aufgabeAnlegen(ref: string): Promise<"erledigt" | "nichts"> {
         "Will der Kunde nicht mehr: bitte der Leitung Bescheid geben — sie storniert den Auftrag unter /chef/s/global-auftraege (Knopf „Auftrag stornieren“).",
       ].filter(Boolean).join("\n"),
       dringend: true, schluessel: `global:${ref}:zahlung-tag10`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
-      agentId: akte.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : (await globalEinstellungen()).zustaendigAgentId,
+      // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
+      ...(await globalAufgabenZiel(akte.zustaendig_agent_id)),
       anlageText: "Zehn Tage nach dem Auftrag ist keine Zahlung gebucht.",
     });
     if (!anlage.id) throw new Error("Aufgabe wurde nicht angelegt");

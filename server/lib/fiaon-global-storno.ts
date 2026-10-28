@@ -89,7 +89,7 @@ export async function globalAuftragStornieren(
   ref: string, ein: { grund?: unknown; erstattung?: unknown; ohneErstattungsAufgabe?: boolean; auchAbgeschlossen?: boolean }, wer: string,
 ): Promise<{ ok: boolean; status?: number; error?: string; meldung?: string }> {
   const { sqlPool } = await import("./db-pool");
-  const { ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEur, globalEinstellungen } = await import("./fiaon-global-auftrag");
+  const { ensureGlobalTabelle, globalAkteLesen, globalBestellungLesen, globalVerlauf, globalEur, globalAufgabenZiel } = await import("./fiaon-global-auftrag");
   const { istGlobalPaket, paket: katalogPaket } = await import("@shared/fiaon-pakete");
   await ensureGlobalTabelle();
   await ensureStornoSpalten();
@@ -165,7 +165,8 @@ export async function globalAuftragStornieren(
 
   // ── 4. Die zuständige Person erfährt es als Aufgabe ────────────────────────
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-  const zustaendig = akte?.zustaendig_agent_id ? Number(akte.zustaendig_agent_id) : (await globalEinstellungen()).zustaendigAgentId;
+  // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
+  const ziel = await globalAufgabenZiel(akte?.zustaendig_agent_id);
   await auftragFuerKunden({
     personId: b.person_id != null ? Number(b.person_id) : null, ref,
     titel: `FIAON Global: Auftrag storniert — ${firma}, ${paketName}`,
@@ -178,7 +179,7 @@ export async function globalAuftragStornieren(
       "Bitte offene Schritte zu diesem Auftrag ruhen lassen und die übrigen Aufgaben dazu schließen. Hat der Kunde den Storno noch nicht von dir gehört: bitte kurz anrufen.",
       terminSatz.trim(),
     ].filter(Boolean).join("\n"),
-    schluessel: `global:${ref}:storno`, bereich: "konten", quelle: "global", autorName: wer, agentId: zustaendig,
+    schluessel: `global:${ref}:storno`, bereich: "konten", quelle: "global", autorName: wer, ...ziel,
     anlageText: "Auftrag in /chef/s/global-auftraege storniert.",
   }).catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Aufgabe zum Storno nicht angelegt:`, e));
 

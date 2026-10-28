@@ -13,6 +13,9 @@
 //      Portal und Chefbüro; Startgespräch für den Begleitvertrag „nicht_bereit“; Knopf „Global-Akte anlegen“ verknüpft sofort
 //   E  Zuständigkeit: Chef-Sicht sagt offen, wohin was geht; Festlegen → Portal nennt die Person, offene Aufgaben wandern mit,
 //      neue Aufgaben folgen ihr (Leitung = Board des Betreibers); ungültige Person → 400
+//   N  Nachtrag aus den Gutachten: Etappe setzen schreibt beim Begleitvertrag SEINE Titel (keine Garantie), Startzeile je Vertrag,
+//      Zahlung vor der Unterschrift → keine Zeile „Zahlung eingegangen.“, Daniel behält Hausadresse + Nummer, wartende Aufgaben
+//      wandern nicht, eine über die Rechnung stornierte Akte zählt nicht im Menü
 //
 // ── NIE GEGEN DIE PRODUKTION ──────────────────────────────────────────────
 // Der Lauf SCHREIBT (Saat, Dokumente, Aufgaben). Er weigert sich, wenn DATABASE_URL nicht auf 127.0.0.1/localhost zeigt,
@@ -84,6 +87,8 @@ const REFN = `FIAON-E451-${stempel}-N`;
 const REF2A = `FIAON-E451-${stempel}-2A`;
 const REF2B = `FIAON-E451-${stempel}-2B`;
 const REF3 = `FIAON-E451-${stempel}-3`;
+const REFP = `FIAON-E451-${stempel}-P`;   // Nachtrag: Begleit-Akte, Zahlung NACH der Unterschrift
+const REFX = `FIAON-E451-${stempel}-X`;   // Nachtrag: Rechnung storniert (cancelled_at), Akte selbst nicht
 const CHEF = { id: 928, name: "Prüf-Leitung" };   // Leitungs-Anmeldung: aktiv, Testkonto
 const DANIEL = 8;                                   // aktiver Mitarbeiter, zugleich Vorgabe global_zustaendig_agent_id
 const GESPERRT = 927;                               // gesperrtes Prüfkonto
@@ -130,6 +135,11 @@ await bestellung(REFN, "global_individuell", MAIL, true); await akte(REFN, { beg
 await bestellung(REF2A, "llc_paket", MAIL, true); await akte(REF2A, { angebotId: ANG2, begleit: true });
 await bestellung(REF2B, "llc_paket", MAIL, true); await akte(REF2B, { angebotId: ANG2, begleit: true });
 await bestellung(REF3, "llc_paket", MAIL3, true);
+await bestellung(REFP, "llc_paket", MAIL, true);  await akte(REFP, { begleit: true });
+const PAID_P = new Date(Date.now() - 2 * 86_400_000);
+await sqlPool`UPDATE fiaon_applications SET paid_at = ${PAID_P}, completed_at = ${PAID_P} WHERE ref = ${REFP}`;
+await bestellung(REFX, "global_individuell", MAIL, true); await akte(REFX, { begleit: false });
+await sqlPool`UPDATE fiaon_applications SET cancelled_at = NOW() WHERE ref = ${REFX}`;
 for (const r of [REF, REFT, REF2A]) await M.globalMandatPortal(r, true, CHEF);
 console.log(`Saat: ${REF} (Begleit, Angebot ${ANG}), ${REFT} (Test), ${REFN} (kein Begleit), ${REF2A}/${REF2B} (Angebot ${ANG2} doppelt), Rechnung ${REF3} (Angebot ${ANG3} ohne Akte)`);
 
@@ -156,6 +166,9 @@ schritt("A", "Zahl am Menüpunkt „Global-Mandate“");
     // Test-Akte bekommt einen Upload → zählt nicht.
     await sicher("Upload Test-Akte", () => L.globalKundenDokument(REFT, { art: "reisepass", datei: { buffer: pdf("T"), originalname: "pass.pdf" } }));
     ok(Number((await neuZahl()).akten) === n0, "Upload in einer Test-Akte zählt nicht", { n0 });
+    // Nachtrag (Gutachten 5): Akte, deren Rechnung storniert ist (cancelled_at) — die Liste zeigt sie als storniert, das Menü zählt sie nicht.
+    await L.dokumentSpeichern({ ref: REFX, von: "kunde", art: "reisepass", dateiname: "pass.pdf", mime: "application/pdf", inhalt: pdf("X"), sichtbar: true, agentId: null });
+    ok(Number((await neuZahl()).akten) === n0, "Nachtrag: Upload in einer über die Rechnung stornierten Akte zählt nicht", { n0 });
     const up: any = await sicher("Upload", () => L.globalKundenDokument(REF, { art: "reisepass", datei: { buffer: JPG, originalname: "IMG_1.jpg" } }));
     ok(!!up?.ok, "Kunden-Upload angenommen", up);
     ok(Number((await neuZahl()).akten) === n0 + 1, "Upload → eine Akte mehr", { n0 });
@@ -199,18 +212,25 @@ schritt("C", "Begleit-Akte: „Zahlung eingegangen“ und „gestartet“ im Ver
   const lauf = fn(K, "begleitZahlungStartAbgleich");
   if (lauf) {
     const r1: any = await sicher("Abgleich 1", () => lauf());
-    ok((r1?.bezahlt ?? []).includes(REF) && (r1?.gestartet ?? []).includes(REF), "Abgleich übernimmt Zahlung und Start", r1);
+    ok((r1?.gestartet ?? []).includes(REF), "Abgleich übernimmt den Start", r1);
+    // Nachtrag (Gutachten 2): Die Anker-Rechnung wurde VOR der Unterschrift bezahlt (Unterlagen-Paket) — keine Zahlung für den Begleitvertrag.
+    ok(!(r1?.bezahlt ?? []).includes(REF), "Nachtrag: Zahlung vor der Unterschrift → kein bezahlt_am", r1);
+    ok((r1?.bezahlt ?? []).includes(REFP), "Zahlung nach der Unterschrift → bezahlt_am wird übernommen", r1);
     ok(!(r1?.bezahlt ?? []).includes(REFN), "Nicht-Begleit-Akte bleibt unberührt", r1);
     const z = await akteZeile(REF);
-    ok(z && new Date(z.bezahlt_am).toISOString() === PAID_AT, "bezahlt_am = paid_at der Anker-Rechnung (dieselbe Quelle wie Chefbüro/Umsatz)", z?.bezahlt_am);
+    ok(z && z.bezahlt_am === null, "REF: bezahlt_am bleibt leer", z?.bezahlt_am);
+    const zp = await akteZeile(REFP);
+    ok(zp && new Date(zp.bezahlt_am).toISOString() === PAID_P.toISOString(), "REFP: bezahlt_am = paid_at der Anker-Rechnung (dieselbe Quelle wie Chefbüro/Umsatz)", zp?.bezahlt_am);
     ok(z && new Date(z.gestartet_am).getTime() === new Date(z.created_at).getTime(), "gestartet_am = Anlage der Akte", { g: z?.gestartet_am, c: z?.created_at });
     const r2: any = await sicher("Abgleich 2", () => lauf());
     ok(!(r2?.bezahlt ?? []).includes(REF) && !(r2?.gestartet ?? []).includes(REF), "zweiter Lauf: nichts mehr (idempotent)", r2);
     const nach: any = await portal(REF);
-    ok(zeilen(nach).filter((t) => t === "Zahlung eingegangen.").length === 1, "Portal-Verlauf: „Zahlung eingegangen.“ genau einmal", zeilen(nach));
+    ok(zeilen(nach).filter((t) => t === "Zahlung eingegangen.").length === 0, "Nachtrag: Portal-Verlauf REF ohne „Zahlung eingegangen.“ vor dem Vertrag", zeilen(nach));
+    const nachP: any = await portal(REFP);
+    ok(zeilen(nachP).filter((t) => t === "Zahlung eingegangen.").length === 1, "Portal-Verlauf REFP: „Zahlung eingegangen.“ genau einmal", zeilen(nachP));
     ok(zeilen(nach).filter((t) => t === "Ihr Auftrag ist gestartet.").length === 1, "Portal-Verlauf: „Ihr Auftrag ist gestartet.“ genau einmal");
     const c: any = await chef(REF);
-    ok(c?.bezahltAm === PAID_AT, "Chefbüro „Bezahlt“ = derselbe Tag", c?.bezahltAm);
+    ok(c?.bezahltAm === PAID_AT, "Chefbüro „Bezahlt“ zeigt weiter den Tag der Anker-Rechnung (paid_at)", c?.bezahltAm);
     ok((await akteZeile(REFN)).bezahlt_am === null, "Nicht-Begleit-Akte: bezahlt_am bleibt leer");
   }
   // Der halbstündliche Lauf ruft den Abgleich mit.
@@ -243,7 +263,7 @@ schritt("D", "Begleit-Akte findet ihr Angebot (auftrag_ref), nur wenn eindeutig"
   ok(!!k?.ok && k.ref === REF3, "Knopf legt die Akte am Anker an", k);
   ok((await angebotZeile(ANG3))?.auftrag_ref === REF3, "Knopf verknüpft sofort (auftrag_ref)", await angebotZeile(ANG3));
   const z3 = await akteZeile(REF3);
-  ok(!!z3?.bezahlt_am && !!z3?.gestartet_am, "Knopf übernimmt Zahlung (Anker bezahlt) und Start", { b: z3?.bezahlt_am, g: z3?.gestartet_am });
+  ok(!z3?.bezahlt_am && !!z3?.gestartet_am, "Knopf übernimmt den Start; die Zahlung lag vor der Annahme → kein bezahlt_am (Nachtrag)", { b: z3?.bezahlt_am, g: z3?.gestartet_am });
 }
 
 // ═══ E ZUSTÄNDIGKEIT ═════════════════════════════════════════════════════════
@@ -258,6 +278,11 @@ schritt("E", "Zuständigkeit: eine Quelle für Portal, Aufgaben und Chefbüro");
   await L.globalKundenNachricht(REF, { text: "Noch eine Frage zur Gründung." });
   const vor = (await todos(REF)).filter((t) => t.status !== "erledigt" && /:nachricht:/.test(t.schluessel));
   ok(vor.length === 1 && vor[0].zustaendig_art === "agent" && Number(vor[0].zustaendig_agent_id) === DANIEL, "vorher: Nachricht-Aufgabe liegt bei der Vorgabe (Daniel)", vor);
+  // Nachtrag (Gutachten 3): eine WARTENDE Aufgabe (offene Rückfrage) bei Daniel — sie darf beim Wechsel nicht wandern.
+  const { auftragFuerKunden } = await import("../server/routes/fiaon-betreiber-todo");
+  const w: any = await auftragFuerKunden({ personId: null, ref: REF, titel: "Prüfstand: wartende Aufgabe", text: "Rückfrage offen.", schluessel: `global:${REF}:pruef-wartet`,
+    bereich: "konten", quelle: "global", autorName: "Prüfstand", agentId: DANIEL } as any);
+  await sqlPool`UPDATE fiaon_betreiber_todos SET status = 'wartet', frage_offen = TRUE WHERE id = ${w.id}`;
   const setzen = fn(M, "globalMandatZustaendigSetzen");
   const auswahl = fn(M, "globalZustaendigAuswahl");
   if (setzen && auswahl) {
@@ -270,6 +295,8 @@ schritt("E", "Zuständigkeit: eine Quelle für Portal, Aufgaben und Chefbüro");
     ok(Number((await akteZeile(REF)).zustaendig_agent_id) === CHEF.id, "Akte trägt die Leitung");
     const t1 = (await todos(REF)).find((t) => t.id === vor[0]?.id);
     ok(t1?.zustaendig_art === "betreiber" && t1?.zustaendig_agent_id === null, "offene Aufgabe wandert auf das Board der Leitung", t1);
+    const tw = ((await sqlPool`SELECT status, zustaendig_art, zustaendig_agent_id, frage_offen FROM fiaon_betreiber_todos WHERE id = ${w.id}`) as any[])[0];
+    ok(tw?.status === "wartet" && tw.zustaendig_art === "agent" && Number(tw.zustaendig_agent_id) === DANIEL && tw.frage_offen === true, "Nachtrag: wartende Aufgabe bleibt bei Daniel, mit ihrer Rückfrage", tw);
     const p1: any = await portal(REF);
     ok(p1?.ansprechpartner?.name === "Justin Schwarzott" && p1.ansprechpartner.email === "js@fiaon.com" && !!p1.ansprechpartner.telefon, "Portal nennt die Leitung (mit Hausadresse und Nummer)", p1?.ansprechpartner);
     const c1: any = await chef(REF);
@@ -285,6 +312,7 @@ schritt("E", "Zuständigkeit: eine Quelle für Portal, Aufgaben und Chefbüro");
     ok(t3.length >= 1, "Nachricht-Aufgabe offen", t3);
     const p2: any = await portal(REF);
     ok(p2?.ansprechpartner?.name === "Daniel Stripling", "Portal nennt jetzt Daniel", p2?.ansprechpartner);
+    ok(p2?.ansprechpartner?.email === "daniel@fiaon.com" && !!p2.ansprechpartner.telefon, "Nachtrag: Daniel mit Hausadresse und Geschäftsnummer (nicht welcome@ ohne Telefon)", { email: p2?.ansprechpartner?.email, telefon: !!p2?.ansprechpartner?.telefon });
     const nochmal: any = await setzen(REF, DANIEL, CHEF);
     ok(!!nochmal?.ok && /bereits/.test(String(nochmal.meldung)), "dieselbe Person noch einmal: „bereits zuständig“", nochmal);
     const verlauf = (await sqlPool`SELECT text, sichtbar FROM fiaon_global_verlauf WHERE ref = ${REF} AND art = 'zustaendig' ORDER BY id`) as any[];
@@ -298,6 +326,22 @@ schritt("E", "Zuständigkeit: eine Quelle für Portal, Aufgaben und Chefbüro");
     ok(JSON.stringify(await zielFn(GESPERRT)) === JSON.stringify({ agentId: DANIEL }), "Ziel: gesperrt → Vorgabe");
     ok(JSON.stringify(await zielFn(null)) === JSON.stringify({ agentId: DANIEL }), "Ziel: leer → Vorgabe");
   }
+}
+
+// ═══ N NACHTRAG: ETAPPEN-TEXTE JE VERTRAG ═════════════════════════════════════
+schritt("N", "Nachtrag: Etappe setzen und Startzeile beim Begleitvertrag mit SEINEN Worten");
+{
+  const e: any = await sicher("Etappe 2 setzen", () => L.globalEtappeSetzen(REF, { etappe: 2, mitteilen: false }, CHEF));
+  ok(!!e?.ok && /Erste Business-Karten/.test(String(e.meldung)), "Meldung nennt „Erste Business-Karten“", e);
+  const [v] = (await sqlPool`SELECT text, sichtbar FROM fiaon_global_verlauf WHERE ref = ${REF} AND art = 'etappe' ORDER BY id DESC LIMIT 1`) as any[];
+  ok(!!v && /Erste Business-Karten/.test(String(v.text)) && !/Firmenkarte|Garantie|Kartenleiter|Bürgin/.test(String(v.text)), "Verlaufszeile für den Kunden: Begleit-Titel, keine Garantie", v);
+  const t2 = typeof L.etappeTextFuerAkte === "function" ? L.etappeTextFuerAkte(await akteZeile(REF), 4, "de") : null;
+  ok(!!t2 && t2.titel === (BEGLEIT_PORTAL.etappen as any)[4].titel && !/Bürgin|Garantie/.test(t2.text), "Etappe 4 (Mailtext) beim Begleitvertrag: ohne Bürgin/Garantie", t2);
+  const f = typeof L.etappeFussnoteFuerAkte === "function" ? L.etappeFussnoteFuerAkte(await akteZeile(REF), "de") : "Garantie";
+  ok(!/Garantie/.test(String(f)), "Mail-Fußnote beim Begleitvertrag ohne Garantie", f);
+  const st: any = await sicher("Start vermerken", () => L.globalStartVermerken(REFP));
+  const [sv] = (await sqlPool`SELECT text FROM fiaon_global_verlauf WHERE ref = ${REFP} AND art = 'start' ORDER BY id DESC LIMIT 1`) as any[];
+  ok(st === true && /Ihre LLC und Ihr Konto/.test(String(sv?.text)) && !/Gründung und Dokumente/.test(String(sv?.text)), "Startzeile beim Begleitvertrag: „Ihre LLC und Ihr Konto“", { st, sv });
 }
 
 // ═══ ENDE ════════════════════════════════════════════════════════════════════

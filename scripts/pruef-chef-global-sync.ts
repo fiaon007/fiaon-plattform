@@ -334,7 +334,7 @@ for (const w of ["„ersetzt“", "nur Arten, die der Kunde selbst einreicht", "
   abschnitt("E-451 B Der Weg des Kunden");
   ok(!/import \{[^}]*GLOBAL_ETAPPEN[^}]*\} from "@shared\/fiaon-global-bereich"/.test(chef) && !/GLOBAL_ETAPPEN\.map/.test(chef), "Chef-Akte rendert nicht mehr fest GLOBAL_ETAPPEN");
   ok(/\(m\.etappen as \{ nr: number; titel: string; text\?: string; stand: string \}\[\]\)\.map/.test(chef) && /<b>\{e\.titel\}<\/b>/.test(chef), "Chef-Akte rendert die Etappen der Server-Sicht (dieselbe wie das Portal)");
-  ok(/begleit && sprache !== "en" && \(e\.nr === 1 \|\| e\.nr === 2 \|\| e\.nr === 3 \|\| e\.nr === 4\) \? BEGLEIT_PORTAL\.etappen\[e\.nr\]/.test(bereich), "Server-Sicht: Begleitvertrag → BEGLEIT_PORTAL.etappen (für Portal UND Chefbüro)");
+  ok(/if \(mitte && f === "begleit" && sprache !== "en"\) return BEGLEIT_PORTAL\.etappen\[nr\]/.test(koerper(bereich, "export function etappeTextFuerAkte(")) && /const text = etappeTextFuerAkte\(akte, e\.nr, sprache\)/.test(bereich), "Server-Sicht: Begleitvertrag → BEGLEIT_PORTAL.etappen (für Portal UND Chefbüro, über etappeTextFuerAkte)");
   gleich([1, 2, 3, 4].map((n) => typeof (BEGLEIT_PORTAL.etappen as any)[n]?.titel), ["string", "string", "string", "string"], "BEGLEIT_PORTAL hat Titel für Etappe 1–4");
 
   abschnitt("E-451 C Begleit-Akte: Zahlung und Start");
@@ -382,8 +382,61 @@ for (const w of ["„ersetzt“", "nur Arten, die der Kunde selbst einreicht", "
   ok(/<Zustaendigkeit m=\{m\} tun=\{tun\} \/>/.test(chef) && /tun\("\/zustaendig", "POST", \{ agentId: Number\(wahl\) \}\)/.test(chef), "Chef-Akte: Block „Zuständig“ mit Festlegen");
   ok(/Zuständig: \{m\.zustaendig \? m\.zustaendig\.name : "nicht festgelegt"\}/.test(chef), "Kopf der Akte zeigt die Zuständigkeit immer (auch „nicht festgelegt“)");
   ok(/const \[wahl, setWahl\] = useState<string>\(z\.agentId \? String\(z\.agentId\) : ""\)/.test(chef) && !/setWahl\(m\./.test(chef), "Auswahl ist eigener State — das Nachladen überschreibt sie nicht");
-  ok(/ANGEBOT_ANSPRECHPARTNER\.find\(\(p\) => p\.email === mail\)\?\.telefon/.test(bereich), "Portal: die gesetzte Person behält ihre Geschäftsnummer (Hausadresse)");
+  ok(/ANGEBOT_ANSPRECHPARTNER\.find\(\(p\) => \(mail\.endsWith\("@fiaon\.com"\) && p\.email === mail\) \|\| \(name && p\.name\.toLowerCase\(\) === name\.toLowerCase\(\)\)\)/.test(bereich) && /email: bekannt \? bekannt\.email :/.test(bereich), "Portal: die gesetzte Person behält Geschäftsadresse und -nummer (über Hausadresse ODER Namen)");
   for (const w of ["Zahl am Menüpunkt", "Zuständig: EINE Person", "Der Weg des Kunden"]) ok(rg.includes(w), `Rundgang erklärt: ${w}`);
+}
+
+// ═══ E-451 NACHTRAG (Gutachten, 28.10.2026): Etappen-Texte je Vertrag, Ansprechpartner, wartende Aufgaben, Regel überall ═══
+{
+  abschnitt("E-451 Nachtrag 1: Etappen-Texte und Fußnote je Vertrag");
+  const Bmod: any = await import("../server/lib/fiaon-global-bereich");
+  // Rotprobe auf einem alten Stand: fehlende Helfer zählen als ROT, kein Absturz.
+  const fehlt = (n: string) => () => { ok(false, `Funktion ${n} fehlt`); return { titel: "", text: "" } as any; };
+  const B = { etappeTextFuerAkte: typeof Bmod.etappeTextFuerAkte === "function" ? Bmod.etappeTextFuerAkte : fehlt("etappeTextFuerAkte"),
+              etappeFussnoteFuerAkte: typeof Bmod.etappeFussnoteFuerAkte === "function" ? Bmod.etappeFussnoteFuerAkte : fehlt("etappeFussnoteFuerAkte") };
+  const { BEGLEIT_PORTAL } = await import("../shared/fiaon-global-angebot-begleit");
+  const { KAPITAL_ETAPPEN, KAPITAL_PFLICHT_ZUSATZ } = await import("../shared/fiaon-global-angebot-kapital");
+  const { KAPITAL_C_ETAPPEN, KAPITAL_C_PFLICHT_ZUSATZ } = await import("../shared/fiaon-global-angebot-kapital-c");
+  const { GLOBAL_ETAPPE_FUSSNOTE, globalEtappeText } = await import("../shared/fiaon-global-bereich");
+  const begleit = { paket_key: "global_individuell", bestaetigungen: { begleitvertrag: true } };
+  const begleitStr = { paket_key: "global_individuell", bestaetigungen: JSON.stringify({ begleitvertrag: true }) };
+  const kapital = { paket_key: "global_individuell", bestaetigungen: { kapitalangebot: true } };
+  const kapitalC = { paket_key: "global_individuell", bestaetigungen: { kapitalangebot: true, kapitalPrivat: true } };
+  const indiv = { paket_key: "global_individuell", bestaetigungen: {} };
+  const paket = { paket_key: "global_banking", bestaetigungen: {} };
+  for (const n of [1, 2, 3, 4] as const) {
+    gleich(B.etappeTextFuerAkte(begleit, n, "de"), (BEGLEIT_PORTAL.etappen as any)[n], `Begleit Etappe ${n} = BEGLEIT_PORTAL`);
+    gleich(B.etappeTextFuerAkte(kapital, n, "de"), KAPITAL_ETAPPEN[n], `Kapital B Etappe ${n} = KAPITAL_ETAPPEN`);
+    gleich(B.etappeTextFuerAkte(kapitalC, n, "de"), KAPITAL_C_ETAPPEN[n], `Kapital C Etappe ${n} = KAPITAL_C_ETAPPEN`);
+    gleich(B.etappeTextFuerAkte(indiv, n, "de"), globalEtappeText(n, "de", true), `Individualangebot Etappe ${n} unverändert`);
+    gleich(B.etappeTextFuerAkte(paket, n, "de"), globalEtappeText(n, "de", false), `Paket Etappe ${n} unverändert`);
+    const t = B.etappeTextFuerAkte(begleit, n, "de");
+    ok(!/Garantie|Bürgin|Kartenleiter|Ziffer 3/.test(`${t.titel} ${t.text}`), `Begleit Etappe ${n}: ohne Garantie/Bürgin/Kartenleiter`);
+  }
+  gleich(B.etappeTextFuerAkte(begleitStr, 2, "de"), (BEGLEIT_PORTAL.etappen as any)[2], "bestaetigungen als Text (jsonb-String) → gleiche Wahl");
+  ok(!/Garantie/.test(B.etappeFussnoteFuerAkte(begleit, "de")) && B.etappeFussnoteFuerAkte(begleit, "de") === BEGLEIT_PORTAL.fussnote, "Fußnote Begleit: Ziffer-6-Satz, keine Garantie");
+  ok(B.etappeFussnoteFuerAkte(kapital, "de") === KAPITAL_PFLICHT_ZUSATZ && /Ziffer 4/.test(KAPITAL_PFLICHT_ZUSATZ), "Fußnote Kapital B: eigener Satz (Ziffer 4)");
+  ok(B.etappeFussnoteFuerAkte(kapitalC, "de") === KAPITAL_C_PFLICHT_ZUSATZ, "Fußnote Kapital C: eigener Satz");
+  ok(B.etappeFussnoteFuerAkte(indiv, "de") === GLOBAL_ETAPPE_FUSSNOTE.individuell, "Fußnote Individualangebot: Garantie (unverändert)");
+  ok(B.etappeFussnoteFuerAkte(paket, "de") === GLOBAL_ETAPPE_FUSSNOTE.de && B.etappeFussnoteFuerAkte(begleit, "en") === GLOBAL_ETAPPE_FUSSNOTE.en, "Fußnote Paket/Englisch: Institut-Satz (unverändert)");
+  const setzen = koerper(bereich, "export async function globalEtappeSetzen(");
+  const mail = koerper(bereich, "async function etappenMail(");
+  ok(/etappeTextFuerAkte\(l\.akte, nr, l\.sprache\)\.titel/.test(setzen) && /etappeTextFuerAkte\(l\.akte, nr, "de"\)\.titel/.test(setzen) && !/globalEtappeText\(/.test(setzen), "Etappe setzen: Verlauf und Meldung über etappeTextFuerAkte");
+  ok(/const e = etappeTextFuerAkte\(l\.akte, nr, l\.sprache\)/.test(mail) && /fussnote_text: etappeFussnoteFuerAkte\(l\.akte, l\.sprache\)/.test(mail) && !/GLOBAL_ETAPPE_FUSSNOTE\.individuell/.test(mail), "Etappen-Mail: Titel, Text und Fußnote je Vertrag");
+  ok(/etappeTextFuerAkte\(z, 1, sprache\)\.titel/.test(koerper(bereich, "export async function globalStartVermerken(")) && /RETURNING vertrag_sprache, bestaetigungen, paket_key/.test(bereich), "Startzeile „Etappe 1 hat begonnen“ je Vertrag");
+
+  abschnitt("E-451 Nachtrag 2–5: Zahlung vor Vertrag, Wechsel, Regel überall, Menü-Zahl");
+  ok(/COALESCE\(b\.paid_at, b\.completed_at\) >= g\.unterschrieben_am/.test(koerper(akteKomplett, "export async function begleitZahlungStartAbgleich(")), "Begleit: Zahlung vor der Unterschrift → kein bezahlt_am (keine Zeile „Zahlung eingegangen.“ vor dem Vertrag)");
+  ok(/status IN \('offen', 'in_arbeit'\) AND zustaendig_art = 'agent'/.test(koerper(mandat, "export async function globalMandatZustaendigSetzen(")), "Wechsel: wartende Aufgaben (offene Rückfrage) wandern nicht");
+  const storno = datei("server/lib/fiaon-global-storno.ts");
+  const takt = datei("server/lib/fiaon-global-zahlungstakt.ts");
+  const altTernaer = /zustaendig_agent_id \? Number\([^)]*zustaendig_agent_id\) : \(await globalEinstellungen\(\)\)\.zustaendigAgentId/;
+  const altOder = /zustaendig_agent_id \? Number\([^)]*zustaendig_agent_id\) : null\) \?\? (\(await globalEinstellungen\(\)\)|einstellungen)\.zustaendigAgentId/;
+  for (const [n, q] of [["storno", storno], ["zahlungstakt", takt], ["auftrag", auftrag]] as const) ok(!altTernaer.test(q) && !altOder.test(q), `${n}: keine eigene „zuständig sonst Vorgabe“-Regel mehr`);
+  ok(/const ziel = await globalAufgabenZiel\(akte\?\.zustaendig_agent_id\)/.test(storno) && /autorName: wer, \.\.\.ziel,/.test(storno), "Storno-Aufgabe folgt globalAufgabenZiel");
+  ok(/\.\.\.\(await globalAufgabenZiel\(akte\.zustaendig_agent_id\)\)/.test(takt), "Zahlungstakt-Aufgabe folgt globalAufgabenZiel");
+  ok((auftrag.match(/\.\.\.\(await globalAufgabenZiel\(akte\?\.zustaendig_agent_id\)\)/g) ?? []).length === 3, "Auftrag: Überweisung gemeldet, Widerruf, Start folgen globalAufgabenZiel");
+  ok(/b\.cancelled_at IS NOT NULL OR COALESCE\(b\.payment_status, ''\) IN \('cancelled', 'superseded'\)/.test(koerper(mandat, "export async function globalChefNeuZahl(")), "Menü-Zahl: storniert wie die Liste (auch über die Rechnung)");
 }
 
 ok(netz.length === 0, "kein Netzzugriff", netz.join(", "));

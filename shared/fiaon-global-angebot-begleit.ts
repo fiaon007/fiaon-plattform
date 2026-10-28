@@ -721,6 +721,8 @@ export const BEGLEIT_PORTAL = {
   /** Der Satz unter „Ihr Begleitvertrag“ (statt Frist und Garantie des Individualangebots). */
   satz: (par: Pick<BegleitParameter, "begleitMonate" | "honorarProzent">): string =>
     `Begleitung ${monateWort(par.begleitMonate)} ab der Eintragung Ihrer Gesellschaft — ohne Monatsbeitrag und ohne Grundvergütung. FIAON erhält allein ${begleitProzent(par.honorarProzent)} Erfolgshonorar auf jede Finanzierung, die Ihre Gesellschaft durch die Begleitung erhält, fällig erst nach der Einräumung (Ziffer 7). Über jede Finanzierung entscheidet allein das jeweilige Institut (Ziffer 6).`,
+  /** E-451 Nachtrag: Fußnote der Etappen-Mail — der Satz aus Ziffer 6 statt der Garantie des Individualangebots (dieser Vertrag hat keine). */
+  fussnote: "Über jede Finanzierung entscheidet allein das jeweilige Institut (Ziffer 6 Ihres Vertrags).",
   jahresGewaehlt: `Bei der Annahme gewählt — ${GLOBAL_JAHRESBETREUUNG.de.preisZeile}, ab dem zweiten Jahr (Ziffer 8).`,
   seiteHinweis: "Ihr Vertrag mit allen Anlagen liegt als PDF unter „Verträge und Vereinbarungen“.",
 } as const;

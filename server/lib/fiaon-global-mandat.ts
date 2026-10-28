@@ -497,9 +497,11 @@ export async function globalMandatZustaendigSetzen(ref: string, agentIdRoh: unkn
   const [altName] = alt ? ((await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${alt} LIMIT 1`.catch(() => [])) as any[]) : [];
   await sqlPool`UPDATE fiaon_global_auftraege SET zustaendig_agent_id = ${id}, updated_at = NOW() WHERE ref = ${ref}`;
   const aufgabenZiel = await globalAufgabenZiel(id);
+  // E-451 Nachtrag (Gutachten): nur offene und laufende Aufgaben wandern — eine wartende (offene Rückfrage) bliebe sonst
+  // durch delegieren() ohne ihre Frage als „offen“ beim Neuen liegen; sie bleibt, wo die Frage gestellt ist.
   const offen = (await sqlPool`
     SELECT id FROM fiaon_betreiber_todos
-     WHERE schluessel LIKE ${`global:${ref}:%`} AND status <> 'erledigt' AND zustaendig_art = 'agent'
+     WHERE schluessel LIKE ${`global:${ref}:%`} AND status IN ('offen', 'in_arbeit') AND zustaendig_art = 'agent'
        AND zustaendig_agent_id IS DISTINCT FROM ${aufgabenZiel.agentId}`.catch(() => [])) as any[];
   let gewandert = 0;
   if (offen.length) {
@@ -529,7 +531,9 @@ export async function globalChefNeuZahl(): Promise<{ akten: number }> {
   const [z] = (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_global_auftraege g
      WHERE g.ist_test_am IS NULL AND COALESCE(g.status, '') <> 'storniert'
-       AND NOT EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.ref = g.ref AND b.archived_at IS NOT NULL)
+       -- E-451 Nachtrag (Gutachten): storniert wie in der Liste (statusAus) — auch über die Rechnung (cancelled_at, cancelled/superseded).
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications b WHERE b.ref = g.ref
+                        AND (b.archived_at IS NOT NULL OR b.cancelled_at IS NOT NULL OR COALESCE(b.payment_status, '') IN ('cancelled', 'superseded')))
        AND (EXISTS (SELECT 1 FROM fiaon_global_dokumente d
                      WHERE d.ref = g.ref AND d.von = 'kunde' AND d.fiaon_gesehen_am IS NULL AND d.geloescht_am IS NULL)
          OR EXISTS (SELECT 1 FROM fiaon_global_nachrichten n

@@ -496,7 +496,7 @@ export const KAPITAL_C_VERWENDUNG = {
 export const KAPITAL_C_SOFORT_TEXT = "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt (Fast-Track). Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.";
 export const KAPITAL_C_GELESEN_TEXT = "Ich habe den Vertrag, die Informationen vor Vertragsschluss und die Widerrufsbelehrung mit dem Muster-Widerrufsformular gelesen.";
 // Runde 2 (27.10.): „für die Finanzierung gilt …“ statt „für sie gilt …“ — „sie“ ließ sich auf Konto und Karten lesen (Ziffer 3 Abs. 2).
-const KAPITAL_C_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut, über die Finanzierung das finanzierende Institut; für die Finanzierung gilt die Geld-zurück-Garantie nach Ziffer 4.";
+export const KAPITAL_C_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut, über die Finanzierung das finanzierende Institut; für die Finanzierung gilt die Geld-zurück-Garantie nach Ziffer 4.";
 const KAPITAL_C_KARTEN_SOLLZINS = "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest.";
 /**
  * Ihre Verantwortung — der persönliche Rückgriff in einem ruhigen Satz, mit Obergrenze (Rechner, Übersicht, Fragen, Informationen;

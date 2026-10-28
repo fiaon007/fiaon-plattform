@@ -11,7 +11,9 @@
 //   --tresor <ordner>             Unterlagen aus einem Ordner in den Tresor (globalMandatDokument): Art am Dateinamen erkannt
 //                                 (Reisepass, Personalausweis Vorder-/Rückseite, Gehalts-/Einkommensnachweis JJJJ-MM, Kontoauszug
 //                                 JJJJ-MM, Adressnachweis), Metadaten entfernt (EXIF/XMP/Info; ein signiertes PDF bleibt
-//                                 unverändert), für den Kunden sichtbar, OHNE Mail. Nie doppelt: gleicher Inhalt oder gleicher
+//                                 unverändert), OHNE Mail. Sichtbar für den Kunden NUR, wenn sein Konto aktiv ist (sonst öffnete der
+//                                 Link aus der Vertragsbestätigung die Dateien ohne Anmeldung) — sonst intern, später im Chefbüro
+//                                 sichtbar schalten (globalMandatDokumentAendern). Nie doppelt: gleicher Inhalt oder gleicher
 //                                 Titel im Tresor → übersprungen. Versteckte Dateien (.…) und Unbekanntes bleiben liegen.
 //   --name-geprueft <JJJJ-MM-TT>  Fahrplan-Station „Name geprüft“ auf erledigt mit Datum (globalStationSpeichern, vor der Zahlung
 //     [--beleg "<text>"]          erlaubt); der Beleg steht intern (Vorgabe „Sunbiz TT.MM.JJJJ: frei“). Der Merker „geprüft“
@@ -92,6 +94,8 @@ const lokal = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host);
 if (!lokal && !produktion) abbruch(`DATABASE_URL zeigt auf eine fremde Datenbank — gegen die Produktion nur mit --produktion${schreiben ? " (und Justins Go)" : ""}.`);
 if (lokal && produktion) abbruch("--produktion, aber DATABASE_URL zeigt auf 127.0.0.1/localhost — bitte prüfen.");
 if (schreiben && lokal && (process.env.BREVO_API_KEY || process.env.MAKE_WEBHOOK_URL)) abbruch("Ein Mail-Weg ist gesetzt. Lokal bitte mit env -i starten.");
+// Ein Tunnel zur Produktion auf 127.0.0.1 sähe „lokal“ aus — lokal geschrieben wird nur in eine Prüf-DB.
+if (schreiben && lokal && !/^fiaon_pruefstand_/.test(dbName)) abbruch(`Lokal schreibt das Skript nur in eine Prüf-DB (Name fiaon_pruefstand_…), nicht in „${dbName}“.`);
 // Kein Schritt dieses Laufs verschickt etwas — die Wege werden trotzdem abgeklemmt (eine Mail an den Kunden ginge nie still raus).
 for (const k of ["BREVO_API_KEY", "MAKE_WEBHOOK_URL", "TWILIO_AUTH_TOKEN", "AIRWALLEX_API_KEY", "GOCARDLESS_ACCESS_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "WHATSAPP_TOKEN", "META_ACCESS_TOKEN"]) delete process.env[k];
 process.env.CRONS = "aus";
@@ -171,6 +175,11 @@ if (tresorOrdner) {
   const versteckt = fs.readdirSync(tresorOrdner).filter((n) => n.startsWith(".")).length;
   abschnitt(`2 Tresor: ${namen.length} Datei(en)${versteckt ? ` (+${versteckt} versteckte, bleiben liegen)` : ""}`);
   try {
+    // Sichtbar nur hinter einem AKTIVEN Konto (Gutachten 28.10.2026): ohne Anmeldung öffnet der Link aus der Vertragsbestätigung
+    // das Portal — und mit ihm jedes sichtbare Dokument und das ZIP.
+    const { refAktivesKonto } = await import("../server/lib/fiaon-global-konto");
+    const kontoAktiv = !!(await refAktivesKonto(ref).catch(() => null));
+    const sichtbarText = kontoAktiv ? "für den Kunden sichtbar, ohne Mail" : "INTERN (Kunde hat noch kein aktives Konto — sichtbar schalten, sobald er sich angemeldet hat), ohne Mail";
     const vorhanden = (await sqlPool`
       SELECT id, art, titel, doc_hash FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL ORDER BY id`.catch(() => [])) as any[];
     const geplant: { name: string; art: string; titel: string; dateiname: string; daten: Buffer; hash: string }[] = [];
@@ -192,11 +201,11 @@ if (tresorOrdner) {
       if (gleich) { zeile("schon", `${kopf} — genau diese Datei liegt schon im Tresor${"id" in gleich ? ` (#${gleich.id})` : " (doppelt im Ordner)"}`); continue; }
       if (gleicherTitel) { zeile("schon", `${kopf} — „${e.titel}“ liegt schon im Tresor${"id" in gleicherTitel ? ` (#${gleicherTitel.id})` : " (doppelt im Ordner)"}, andere Datei: übersprungen (bei Bedarf die alte Fassung im Chefbüro entfernen)`); continue; }
       geplant.push({ name, art: e.art, titel: e.titel, dateiname: `${e.dateiname}.${b.typ.endung}`, daten: b.daten, hash });
-      if (!schreiben) zeile("neu", `${kopf} — für den Kunden sichtbar, ohne Mail`);
+      if (!schreiben) zeile("neu", `${kopf} — ${sichtbarText}`);
     }
     if (schreiben && M) {
       for (const g of geplant) {
-        const r = await M.globalMandatDokument(ref, { art: g.art, datei: { buffer: g.daten, originalname: g.dateiname }, titel: g.titel, sichtbar: true, mitteilen: false, unterschrift: false }, agent);
+        const r = await M.globalMandatDokument(ref, { art: g.art, datei: { buffer: g.daten, originalname: g.dateiname }, titel: g.titel, sichtbar: kontoAktiv, mitteilen: false, unterschrift: false }, agent);
         if (!r.ok) { zeile("fehler", `${g.name}: ${r.error}`); probleme++; continue; }
         zeile(/liegt schon/.test(r.meldung) ? "schon" : "neu", `${g.name} → „${g.titel}“ (#${r.id}) — ${r.meldung}`);
       }

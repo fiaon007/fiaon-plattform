@@ -18,6 +18,21 @@ export const BANK = {
   gueltigSeit: "2026-09-02",
 } as const;
 
+/**
+ * Zweite Verbindung NUR für Zahlungen aus den Vereinigten Arabischen Emiraten (28.10.2026, E-432): Airwallex Global Account in AED
+ * bei der Standard Chartered Bank, Dubai Branch. Eingänge dort erkennt der Zahlungsabgleich (CSV → Bankbuch) noch nicht —
+ * von Hand auf den Verwendungszweck buchen. Für alles andere gilt BANK.
+ */
+export const BANK_AED = {
+  empfaenger: "FIAON LTD",
+  iban: "AE210446498900000111911",
+  ibanDisplay: "AE21 0446 4989 0000 0111 911",
+  bank: "Standard Chartered Bank, Dubai Branch",
+  land: "Vereinigte Arabische Emirate",
+  waehrung: "AED",
+  gueltigSeit: "2026-10-28",
+} as const;
+
 /** Die alte, gesperrte Verbindung — NUR zum Erkennen in Texten/Abgleichen, nie zum Anzeigen. */
 export const BANK_ALT_GESPERRT = {
   iban: "BE09905892763957",

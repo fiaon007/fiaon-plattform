@@ -225,7 +225,7 @@ export function RechnungBestaetigung({
                 Vorher waren sie an `v.moeglich` gehängt: Wer keine Adresse
                 hatte, sah ein Fenster mit einer Fehlermeldung und sonst nichts
                 — kein Paket, kein Betrag, keine Referenz. Genau so sah der
-                Screenshot bei Joachim Rechtsteiner aus. Was der Kunde bekommen
+                Screenshot im gemeldeten Fall aus. Was der Kunde bekommen
                 SOLL, gehört auch dann auf den Bildschirm, wenn es gerade nicht
                 rausgehen kann. */}
             {(v.paket || v.betragCents != null || v.verwendungszweck || v.ref) && (

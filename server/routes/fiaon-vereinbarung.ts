@@ -30,6 +30,7 @@ import { Router, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import { sqlPool } from "../lib/db-pool";
 import { geburtsdatumAnzeige, geburtsdatumFuerSpeicher } from "../../shared/fiaon-geburtsdatum";
+import { requireChef } from "./fiaon-chef-zugang";
 
 const router = Router();
 
@@ -78,6 +79,9 @@ export async function ensureVereinbarungTabellen(): Promise<void> {
     for (const sp of [
       "leitung_name TEXT", "leitung_am TIMESTAMPTZ", "leitung_ip TEXT",
       "leitung_urteil TEXT", "leitung_feedback TEXT",
+      // E-447: Mail und Telefon des Vertragspartners, wie sie im Vertrag
+      // stehen — nicht in `angaben`, die gehören zur Prüfsumme der Unterschrift.
+      "kontakt JSONB",
     ]) {
       await tx.unsafe(`ALTER TABLE fiaon_vereinbarungen ADD COLUMN IF NOT EXISTS ${sp}`);
     }
@@ -133,11 +137,19 @@ router.post("/vereinbarung/entsperren", async (req: Request, res: Response) => {
     }
     await protokoll(`geoeffnet_${rolle}`, req);
     const [v] = (await sqlPool`SELECT * FROM fiaon_vereinbarungen WHERE schluessel = ${SCHLUESSEL}`) as any[];
+    // E-447 (28.10.2026): Mail und Telefon standen fest in der Seite — und die
+    // geht an jeden Besucher, auch ohne Code. Jetzt kommen sie erst nach dem
+    // Aufsperren: aus `kontakt`, sonst aus dem Mitarbeiter-Datensatz.
+    const [ag] = v?.agent_id
+      ? ((await sqlPool`SELECT email, phone FROM fiaon_agents WHERE id = ${v.agent_id}`.catch(() => [])) as any[])
+      : [];
+    const k = (v?.kontakt && typeof v.kontakt === "object") ? v.kontakt : {};
     res.json({
       ok: true,
       rolle,
       vereinbarung: {
         titel: v?.titel ?? "",
+        kontakt: { email: k.email || ag?.email || "", telefon: k.telefon || ag?.phone || "" },
         angaben: v?.angaben ?? {},
         anmerkungen: v?.anmerkungen ?? "",
         unterzeichnetAm: v?.unterzeichnet_am ?? null,
@@ -313,6 +325,26 @@ router.post("/vereinbarung/unterzeichnen", async (req: Request, res: Response) =
     res.json({ ok: true, unterzeichnetAm: neu?.unterzeichnet_am ?? null, pruefsumme: pruefsumme.slice(0, 16) });
   } catch (err) {
     console.error("[VEREINBARUNG] unterzeichnen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Kontakt des Vertragspartners hinterlegen (E-447) ──────────────────────
+// Der eine Schreibweg für `kontakt` — nur der Inhaber, aus der angemeldeten
+// Chefbüro-Sitzung. Ändert weder Angaben noch Prüfsumme der Unterschrift.
+router.put("/chef/vereinbarung/kontakt", requireChef("inhaber"), async (req: Request, res: Response) => {
+  try {
+    await ensureVereinbarungTabellen();
+    const email = String(req.body?.email ?? "").trim().slice(0, 200);
+    const telefon = String(req.body?.telefon ?? "").trim().slice(0, 50);
+    if (!email && !telefon) return res.status(400).json({ ok: false, error: "Erwartet: { email, telefon }" });
+    await sqlPool`
+      UPDATE fiaon_vereinbarungen
+         SET kontakt = ${JSON.stringify({ email, telefon })}::text::jsonb, updated_at = NOW()
+       WHERE schluessel = ${SCHLUESSEL}`;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[VEREINBARUNG] kontakt:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

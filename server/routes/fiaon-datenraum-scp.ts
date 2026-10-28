@@ -67,44 +67,67 @@ export interface Partei {
 // der Versuchsbremse davor. Die neuen tragen einen Zufallsteil aus einem
 // Alphabet ohne verwechselbare Zeichen (kein I, L, O, 0, 1), weil sie am
 // Telefon durchgegeben und abgetippt werden.
-export const PARTEIEN: Record<string, Partei> = {
-  "SCP-E1-DNK8K7": {
-    rolle: "erwerber1", bezeichnung: "Erwerber zu 1",
-    name: "Schwarzott Capital Partners AG",
-    sitz: "Schifflände 26, 8001 Zürich, Schweiz",
-    register: "UID CHE-102.119.428 · Handelsregisteramt des Kantons Zürich",
-    vertretung: "Justin Schwarzott, Verwaltungsrat, mit Einzelunterschrift",
-    quote: "41,50 %", gesamtanteil: "EUR 5.810.000,00",
-  },
-  "SCP-E2-5K4HD3": {
-    rolle: "erwerber2", bezeichnung: "Erwerber zu 2",
-    name: "FIAON Ltd.",
-    sitz: "128 City Road, London EC1V 2NX, United Kingdom",
-    register: "Companies House (England & Wales), Reg.-Nr. 17318250",
-    vertretung: null,
-    quote: "15,00 %", gesamtanteil: "EUR 2.100.000,00",
-  },
-  "SCP-E3-NMXWR3": {
-    rolle: "erwerber3", bezeichnung: "Erwerber zu 3",
-    name: "Dr. Gerhold",
-    sitz: "Woodland Hills, USA",
-    register: null, vertretung: null,
-    quote: "43,50 %", gesamtanteil: "EUR 6.090.000,00",
-  },
-  "SCP-V-7PCGHZ": {
-    rolle: "veraeusserer", bezeichnung: "Veräußerer",
-    name: "Christian Schwab",
-    sitz: "Olbersweg 41, 22767 Hamburg, Deutschland",
-    register: "geboren am 26.06.1976 in Hamburg",
-    vertretung: "Alleingesellschafter und alleinvertretungsberechtigter Geschäftsführer der SWP Verwaltungs GmbH",
-    quote: "100 % der Geschäftsanteile (Nennbetrag EUR 25.000,00)", gesamtanteil: null,
-  },
+// ── DIE VERTRAGSANGABEN STEHEN IN DER DATENBANK (E-447, 28.10.2026) ───────
+// Bis heute standen Namen, Anschriften, Geburtsdatum des Veräußerers und die
+// Kaufpreis-Anteile fest in diesem Modul und in der Seite selbst. Das Repo ist
+// öffentlich, und alles unter client/src geht an jeden Besucher — auch an den,
+// der nie einen Code hatte. Jetzt hängt am Code nur noch die ROLLE; alles,
+// was der Vertrag über die Parteien sagt, liegt in scp_dokumente.angaben und
+// wird erst nach der Anmeldung ausgeliefert. Geburtsdatum und Privatanschrift
+// zeigt die Oberfläche gar nicht mehr — sie stehen im PDF.
+export const PARTEIEN: Record<string, { rolle: string; bezeichnung: string }> = {
+  "SCP-E1-DNK8K7": { rolle: "erwerber1", bezeichnung: "Erwerber zu 1" },
+  "SCP-E2-5K4HD3": { rolle: "erwerber2", bezeichnung: "Erwerber zu 2" },
+  "SCP-E3-NMXWR3": { rolle: "erwerber3", bezeichnung: "Erwerber zu 3" },
+  "SCP-V-7PCGHZ": { rolle: "veraeusserer", bezeichnung: "Veräußerer" },
 };
+
+/** Was zu einer Partei in den Vertragsangaben steht (scp_dokumente.angaben.parteien). */
+type ParteiAngaben = Partial<Omit<Partei, "rolle" | "bezeichnung">> & { quoteKurz?: string | null };
+
+const DOKUMENT_ANGABEN = "anteilskaufvertrag";
+
+async function vertragsAngaben(): Promise<Record<string, any> | null> {
+  const [d] = (await sqlPool`
+    SELECT angaben FROM scp_dokumente WHERE schluessel = ${DOKUMENT_ANGABEN}`.catch(() => [])) as any[];
+  let a = d?.angaben;
+  if (typeof a === "string") { try { a = JSON.parse(a); } catch { a = null; } }
+  return a && typeof a === "object" && !Array.isArray(a) ? a : null;
+}
+
+/** Die Partei einer Rolle — Bezeichnung aus dem Code, alles Weitere aus der Datenbank. */
+function parteiMitAngaben(rolle: string, angaben: Record<string, any> | null): Partei | null {
+  const p = Object.values(PARTEIEN).find((x) => x.rolle === rolle);
+  if (!p) return null;
+  const a: ParteiAngaben = angaben?.parteien?.[rolle] ?? {};
+  return {
+    rolle: p.rolle, bezeichnung: p.bezeichnung,
+    name: a.name ?? p.bezeichnung, sitz: a.sitz ?? "",
+    register: a.register ?? null, vertretung: a.vertretung ?? null,
+    quote: a.quote ?? null, gesamtanteil: a.gesamtanteil ?? null,
+  };
+}
+
+/**
+ * Der Vertrag, wie ihn ein angemeldeter Gast sieht: die Angaben ohne die
+ * Parteien-Rohdaten, dazu die Reihe der vier Unterschriftsfelder.
+ * Ohne hinterlegte Angaben bleibt `angaben` null — die Seite verweist dann aufs PDF.
+ */
+function vertragFuerGast(angaben: Record<string, any> | null) {
+  const { parteien: _p, ...rest } = angaben ?? {};
+  return {
+    angaben: angaben ? rest : null,
+    reihe: Object.values(PARTEIEN).map((p) => {
+      const a: ParteiAngaben = angaben?.parteien?.[p.rolle] ?? {};
+      return { rolle: p.rolle, bezeichnung: p.bezeichnung, name: a.name ?? p.bezeichnung, quote: a.quoteKurz ?? a.quote ?? "" };
+    }),
+  };
+}
 
 /**
  * Den Code so lesen, wie Menschen ihn wirklich eingeben (05.09.2026).
  *
- * DER ANLASS: Christian Schwab kam nicht herein — drei Versuche am 05.09.
+ * DER ANLASS: Der Veräußerer kam nicht herein — drei Versuche am 05.09.
  * zwischen 08:41 und 08:43, alle als „code_falsch" protokolliert. Sein Code
  * war und ist gültig; gescheitert ist die Schreibweise.
  *
@@ -122,7 +145,7 @@ export const PARTEIEN: Record<string, Partei> = {
  */
 const nurZeichen = (s: string) => String(s ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-export function parteiVonCode(code: string): { code: string; partei: Partei } | null {
+export function parteiVonCode(code: string): { code: string; partei: { rolle: string; bezeichnung: string } } | null {
   const roh = String(code ?? "").trim().toUpperCase();
   const p = PARTEIEN[roh];
   if (p) return { code: roh, partei: p };
@@ -236,6 +259,8 @@ export async function ensureScpTabellen(): Promise<void> {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`;
+    // E-447: die Vertragsangaben (Parteien, Quoten, Kaufpreis) — nie im Quelltext.
+    await tx.unsafe(`ALTER TABLE scp_dokumente ADD COLUMN IF NOT EXISTS angaben JSONB`);
   });
 }
 
@@ -309,10 +334,12 @@ router.post("/scp/anmelden", async (req: Request, res: Response) => {
       maxAge: TAGE * 24 * 3600_000,
     });
     await protokoll(Number(gast.id), "angemeldet", `${partei.rolle} · ${email}`, req);
+    const angaben = await vertragsAngaben();
     res.json({
       ok: true,
       gast: { name: gast.name, firma: gast.firma, email: gast.email, telefon: gast.telefon },
-      partei,
+      partei: parteiMitAngaben(partei.rolle, angaben),
+      vertrag: vertragFuerGast(angaben),
     });
   } catch (err) {
     console.error("[SCP] anmelden:", err);
@@ -333,9 +360,11 @@ router.get("/scp/stand", async (req: Request, res: Response) => {
     // also sah JEDER, der später vorbeikam, den Vertrag als ungezeichnet.
     // Das ist schlimmer als eine fehlende Anzeige: Es ist eine falsche.
     //
-    // Der Stand verrät nichts, was die Seite nicht ohnehin zeigt — Parteien,
-    // Quoten und Beträge stehen dort für jeden lesbar. Ob eine Partei bereits
-    // gezeichnet hat, ist demgegenüber die harmlosere Angabe.
+    // E-447 (28.10.2026): Der Stand trägt die getippten Namen der
+    // Unterzeichner — personenbezogen. Er geht deshalb nur noch an angemeldete
+    // Gäste. Die Seite zeigt ihn ohnehin erst nach der Anmeldung und holt ihn
+    // dort frisch (standHolen nach dem Anmelden), der Fehler vom 04.09. kehrt
+    // also nicht zurück.
     const standAlle = (await sqlPool`
       SELECT rolle, unterschrift, unterzeichnet_am FROM scp_zeichnungen
        WHERE rolle IS NOT NULL AND unterzeichnet_am IS NOT NULL`) as any[];
@@ -343,20 +372,22 @@ router.get("/scp/stand", async (req: Request, res: Response) => {
       rolle: z.rolle, unterschrift: z.unterschrift, unterzeichnetAm: z.unterzeichnet_am,
     }));
     const gastId = tokenPruefen((req as any).cookies?.[COOKIE]);
-    if (!gastId) return res.json({ ok: true, angemeldet: false, stand: standListe });
+    if (!gastId) return res.json({ ok: true, angemeldet: false, stand: [] });
     const [gast] = (await sqlPool`SELECT id, name, firma, email, telefon, rolle FROM scp_gaeste WHERE id = ${gastId}`) as any[];
-    if (!gast) return res.json({ ok: true, angemeldet: false, stand: standListe });
+    if (!gast) return res.json({ ok: true, angemeldet: false, stand: [] });
     const [meine] = (await sqlPool`
       SELECT dokument, anmerkungen, unterschrift, unterzeichnet_am
         FROM scp_zeichnungen WHERE gast_id = ${gastId} LIMIT 1`) as any[];
     // Der Stand ALLER Parteien: Ein Vertrag mit vier Unterschriften ist erst
     // dann vollstaendig, wenn alle vier da sind — jede Partei soll sehen,
     // worauf noch gewartet wird.
-    const partei = gast.rolle ? Object.values(PARTEIEN).find((p) => p.rolle === gast.rolle) ?? null : null;
+    const angaben = await vertragsAngaben();
+    const partei = gast.rolle ? parteiMitAngaben(gast.rolle, angaben) : null;
     res.json({
       ok: true, angemeldet: true,
       gast: { name: gast.name, firma: gast.firma, email: gast.email, telefon: gast.telefon },
       partei,
+      vertrag: vertragFuerGast(angaben),
       meine: meine ? {
         anmerkungen: meine.anmerkungen, unterschrift: meine.unterschrift,
         unterzeichnetAm: meine.unterzeichnet_am,
@@ -401,7 +432,9 @@ router.get("/chef/scp/aufsicht", requireChef("inhaber"), async (_req: Request, r
 
     // Jede Partei mit ihrem Stand — auch die, die noch nie da war. Eine Liste,
     // die nur Anwesende zeigt, beantwortet die wichtigste Frage nicht: wer fehlt.
-    const parteien = Object.entries(PARTEIEN).map(([code, p]) => {
+    const angaben = await vertragsAngaben();
+    const parteien = Object.entries(PARTEIEN).map(([code, roh]) => {
+      const p = parteiMitAngaben(roh.rolle, angaben)!;
       const z = zeichnungen.find((x: any) => x.rolle === p.rolle && x.unterzeichnet_am);
       const g = gaeste.find((x: any) => x.rolle === p.rolle);
       return {
@@ -427,9 +460,36 @@ router.get("/chef/scp/aufsicht", requireChef("inhaber"), async (_req: Request, r
         fehlen: parteien.filter((p) => !p.gezeichnet).map((p) => p.name),
       },
       parteien, gaeste, zeichnungen, protokoll,
+      angabenHinterlegt: !!angaben,
     });
   } catch (err) {
     console.error("[SCP] aufsicht:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ── Vertragsangaben hinterlegen (E-447) ────────────────────────────────────
+// Der eine Schreibweg für scp_dokumente.angaben — nur der Inhaber, aus der
+// angemeldeten Chefbüro-Sitzung. So kommen Namen und Beträge in die Datenbank,
+// ohne je wieder im (öffentlichen) Quelltext zu stehen.
+router.put("/chef/scp/angaben", requireChef("inhaber"), async (req: Request, res: Response) => {
+  try {
+    await ensureScpTabellen();
+    const a = req.body?.angaben;
+    if (!a || typeof a !== "object" || Array.isArray(a) || !a.parteien || typeof a.parteien !== "object") {
+      return res.status(400).json({ ok: false, error: "Erwartet: { angaben: { …, parteien: { <rolle>: {…} } } }" });
+    }
+    const unbekannt = Object.keys(a.parteien).filter((r) => !Object.values(PARTEIEN).some((p) => p.rolle === r));
+    if (unbekannt.length) return res.status(400).json({ ok: false, error: `Unbekannte Rolle: ${unbekannt.join(", ")}` });
+    const json = JSON.stringify(a);
+    if (json.length > 50_000) return res.status(413).json({ ok: false, error: "Zu groß." });
+    const r = (await sqlPool`
+      UPDATE scp_dokumente SET angaben = ${json}::text::jsonb, updated_at = NOW()
+       WHERE schluessel = ${DOKUMENT_ANGABEN} RETURNING schluessel`) as any[];
+    if (!r.length) return res.status(404).json({ ok: false, error: "Der Vertrag ist noch nicht hinterlegt." });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SCP] angaben:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });

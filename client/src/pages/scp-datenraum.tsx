@@ -78,20 +78,34 @@ type Partei = {
 type Meine = { anmerkungen: string | null; unterschrift: string | null; unterzeichnetAm: string | null };
 type Stand = { rolle: string; unterschrift: string | null; unterzeichnetAm: string };
 
-const DOKUMENT = "anteilskaufvertrag";
+// ── DIE VERTRAGSANGABEN KOMMEN VOM SERVER (E-447, 28.10.2026) ─────────────
+// Hier standen Parteien, Quoten, Kaufpreis-Anteile und Name, Geburtsdatum und
+// Anschrift des Veräußerers fest im Code. Diese Datei geht an jeden Besucher
+// aus — auch an den, der nie einen Code hatte. Jetzt liefert der Server die
+// Angaben aus scp_dokumente.angaben, und zwar erst nach der Anmeldung.
+// Geburtsdatum und Privatanschrift zeigt die Seite gar nicht mehr; sie
+// stehen im PDF.
+type SpiegelZeile = { was: string; wert: string; mono?: boolean; fett?: boolean };
+type Vertrag = {
+  angaben: {
+    titel?: string;
+    einleitung?: string;
+    gegenstand?: SpiegelZeile[];
+    quoten?: { spalten: string[]; zeilen: { was: string; werte: string[]; stark?: boolean }[] };
+    veraeusserer?: string;
+    pdf?: string;
+    fuss?: string;
+  } | null;
+  reihe: { rolle: string; bezeichnung: string; name: string; quote: string }[];
+};
 
-/** Die vier Parteien in der Reihenfolge der Unterschriftenseiten. */
-const REIHE: { rolle: string; bezeichnung: string; name: string; quote: string }[] = [
-  { rolle: "erwerber1", bezeichnung: "Erwerber zu 1", name: "Schwarzott Capital Partners AG", quote: "41,50 %" },
-  { rolle: "erwerber2", bezeichnung: "Erwerber zu 2", name: "FIAON Ltd.", quote: "15,00 %" },
-  { rolle: "erwerber3", bezeichnung: "Erwerber zu 3", name: "Dr. Gerhold", quote: "43,50 %" },
-  { rolle: "veraeusserer", bezeichnung: "Veräußerer", name: "Christian Schwab", quote: "100 % der Anteile" },
-];
+const DOKUMENT = "anteilskaufvertrag";
 
 export default function ScpDatenraum(): JSX.Element {
   const [laedt, setLaedt] = useState(true);
   const [gast, setGast] = useState<Gast | null>(null);
   const [partei, setPartei] = useState<Partei | null>(null);
+  const [vertrag, setVertrag] = useState<Vertrag | null>(null);
   const [meine, setMeine] = useState<Meine | null>(null);
   const [stand, setStand] = useState<Stand[]>([]);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -147,6 +161,7 @@ export default function ScpDatenraum(): JSX.Element {
       if (!r.ok || !r.json?.angemeldet) return;
       setGast(r.json.gast);
       setPartei(r.json.partei ?? null);
+      setVertrag(r.json.vertrag ?? null);
       setStand(r.json.stand || []);
       const m = r.json.meine as Meine | null;
       if (m) {
@@ -165,6 +180,7 @@ export default function ScpDatenraum(): JSX.Element {
     if (!r.ok) { setFehler(r.json?.error || "Der Zugang war nicht möglich."); return; }
     setGast(r.json.gast);
     setPartei(r.json.partei ?? null);
+    setVertrag(r.json.vertrag ?? null);
     if (!unterschrift) setUnterschrift(r.json.gast.name);
     // Nach dem Anmelden den Stand frisch holen: Zwischen Seitenaufbau und
     // Anmeldung kann eine andere Partei gezeichnet haben — und ohne dieses
@@ -272,6 +288,8 @@ export default function ScpDatenraum(): JSX.Element {
   }
 
   // ── Der Datenraum ────────────────────────────────────────────────────────
+  const v = vertrag?.angaben ?? null;
+  const titel = v?.titel || "Anteilskaufvertrag";
   return (
     <main className="scp">
       <header className="scp-kopf">
@@ -291,10 +309,9 @@ export default function ScpDatenraum(): JSX.Element {
 
         <section className="scp-auftakt">
           <p className="scp-eyebrow">Vertraulicher Datenraum · Zeichnung</p>
-          <Wortlauf text="Anteilskaufvertrag SWP Verwaltungs GmbH" als="h1" klasse="scp-h1 gross" />
+          <Wortlauf text={titel} als="h1" klasse="scp-h1 gross" />
           <p className="scp-lead">
-            Erwerb sämtlicher Geschäftsanteile an der SWP Verwaltungs GmbH, Hamburg, durch drei
-            gemeinschaftlich handelnde Erwerber. Gesamtkaufpreis 14.000.000,00 EUR.
+            {v?.einleitung ?? "Die Vertragsangaben stehen im vollständigen Vertrag (PDF) unter 03."}
             {partei && <> Sie sind hier als <b>{partei.bezeichnung}</b> — {partei.name}.</>}
           </p>
         </section>
@@ -322,16 +339,14 @@ export default function ScpDatenraum(): JSX.Element {
             Gegenstand ist der Erwerb sämtlicher Geschäftsanteile an der Gesellschaft auf
             schuldenfreier Basis (Share Deal). Die Due Diligence ist nach § 5 abgeschlossen.
           </p>
-          <div className="scp-spiegel">
-            <Zeile was="Gesellschaft" wert="SWP Verwaltungs GmbH" />
-            <Zeile was="Sitz" wert="Olbersweg 41, 22767 Hamburg" />
-            <Zeile was="Handelsregister" wert={<span className="scp-mono">Amtsgericht Lübeck, HRB 23250 HL</span>} />
-            <Zeile was="Stammkapital" wert={<span className="scp-mono">EUR 25.000,00</span>} />
-            <Zeile was="Gesamtkaufpreis" wert={<span className="scp-mono"><b>EUR 14.000.000,00</b></span>} />
-            <Zeile was="davon Ablösebetrag" wert={<span className="scp-mono">EUR 8.000.000,00 (variabel)</span>} />
-            <Zeile was="davon Gewinnanteil" wert={<span className="scp-mono">EUR 6.000.000,00 (variabel)</span>} />
-            <Zeile was="Erwerbsform" wert="Anteilskauf (Share Deal), schuldenfreie Basis" />
-          </div>
+          {!!v?.gegenstand?.length && (
+            <div className="scp-spiegel">
+              {v.gegenstand.map((z) => (
+                <Zeile key={z.was} was={z.was}
+                       wert={z.mono ? <span className="scp-mono">{z.fett ? <b>{z.wert}</b> : z.wert}</span> : z.fett ? <b>{z.wert}</b> : z.wert} />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* ── Die Parteien und Quoten ──────────────────────────────────── */}
@@ -341,32 +356,31 @@ export default function ScpDatenraum(): JSX.Element {
           <p className="scp-satz">
             Anlage 1 des Vertrags. Die Summe der Beteiligungsquoten ergibt 100,00 %.
           </p>
-          <div className="scp-tabhuelle">
-            <table className="scp-tab">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Erwerber zu 1</th>
-                  <th>Erwerber zu 2</th>
-                  <th>Erwerber zu 3</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>Firma / Name</td><td>Schwarzott Capital Partners AG</td><td>FIAON Ltd.</td><td>Dr. Gerhold</td></tr>
-                <tr><td>Sitz</td><td>Zürich, Schweiz</td><td>London, UK</td><td>Woodland Hills, USA</td></tr>
-                <tr className="stark"><td>Beteiligungsquote</td><td>41,50 %</td><td>15,00 %</td><td>43,50 %</td></tr>
-                <tr><td>Nennbetrag</td><td>EUR 10.375,00</td><td>EUR 3.750,00</td><td>EUR 10.875,00</td></tr>
-                <tr><td>Anteil Gewinnanteil</td><td>EUR 2.490.000,00</td><td>EUR 900.000,00</td><td>EUR 2.610.000,00</td></tr>
-                <tr><td>Anteil Ablösebetrag</td><td>EUR 3.320.000,00</td><td>EUR 1.200.000,00</td><td>EUR 3.480.000,00</td></tr>
-                <tr className="stark"><td>Gesamtanteil Kaufpreis</td><td>EUR 5.810.000,00</td><td>EUR 2.100.000,00</td><td>EUR 6.090.000,00</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p className="scp-satz" style={{ marginTop: 18 }}>
-            <b>Veräußerer:</b> Christian Schwab, geboren am 26.06.1976 in Hamburg, Olbersweg 41,
-            22767 Hamburg — Alleingesellschafter und alleinvertretungsberechtigter Geschäftsführer,
-            100 % der Geschäftsanteile.
-          </p>
+          {v?.quoten && (
+            <div className="scp-tabhuelle">
+              <table className="scp-tab">
+                <thead>
+                  <tr>
+                    <th></th>
+                    {v.quoten.spalten.map((sp) => <th key={sp}>{sp}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {v.quoten.zeilen.map((z) => (
+                    <tr key={z.was} className={z.stark ? "stark" : undefined}>
+                      <td>{z.was}</td>
+                      {z.werte.map((w, i) => <td key={i}>{w}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {v?.veraeusserer && (
+            <p className="scp-satz" style={{ marginTop: 18 }}>
+              <b>Veräußerer:</b> {v.veraeusserer}
+            </p>
+          )}
         </section>
 
         {/* ── Der Vertrag ──────────────────────────────────────────── */}
@@ -380,8 +394,8 @@ export default function ScpDatenraum(): JSX.Element {
           <a className="scp-akte-oeffnen" href={`${API}/scp/vertrag.pdf`} target="_blank" rel="noopener noreferrer">
             <span className="scp-akte-nr">§</span>
             <span className="scp-akte-text">
-              <span className="scp-akte-titel">Anteilskaufvertrag SWP Verwaltungs GmbH</span>
-              <span className="scp-akte-was">33 Seiten · Kaufpreis EUR 14.000.000,00 · nebst Anlagen 1 bis 5</span>
+              <span className="scp-akte-titel">{titel}</span>
+              {v?.pdf && <span className="scp-akte-was">{v.pdf}</span>}
             </span>
             <span className="scp-akte-stand">öffnen</span>
           </a>
@@ -504,7 +518,7 @@ export default function ScpDatenraum(): JSX.Element {
             Danach folgt die notarielle Beurkundung nach § 12.
           </p>
           <div className="scp-unterschriften vier">
-            {REIHE.map((r) => {
+            {(vertrag?.reihe ?? []).map((r) => {
               const z = stand.find((x) => x.rolle === r.rolle);
               const ich = partei?.rolle === r.rolle;
               return (
@@ -530,10 +544,7 @@ export default function ScpDatenraum(): JSX.Element {
 
         <footer className="scp-fuss">
           <div className="scp-linie" />
-          <p>
-            Anteilskaufvertrag SWP Verwaltungs GmbH · HRB 23250 HL (Amtsgericht Lübeck) ·
-            Kaufpreis EUR 14.000.000,00
-          </p>
+          <p>{v?.fuss ?? titel}</p>
           <p className="scp-fuss-leise">
             Vertraulich. Dieser Datenraum und sein Inhalt sind ausschliesslich für die geladene
             Person bestimmt. Weitergabe an Dritte ist nicht gestattet.

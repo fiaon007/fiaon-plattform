@@ -73,6 +73,8 @@ export default function VereinbarungSeite(): JSX.Element {
   const [busy, setBusy] = useState(false);
 
   const [a, setA] = useState<Angaben>({});
+  // E-447: Mail und Telefon kommen erst nach dem Aufsperren vom Server.
+  const [kontakt, setKontakt] = useState<{ email: string; telefon: string }>({ email: "", telefon: "" });
   const [anmerkungen, setAnmerkungen] = useState("");
   // ── ZWEI STUFEN (26.08.2026) ─────────────────────────────────────────────
   // Justin: „Florentine muss es zuerst lesen, Feedback geben ODER direkt
@@ -103,6 +105,7 @@ export default function VereinbarungSeite(): JSX.Element {
     const v = r.json.vereinbarung || {};
     setRolle(r.json.rolle === "leitung" ? "leitung" : "partner");
     setA(v.angaben || {});
+    setKontakt({ email: v.kontakt?.email || "", telefon: v.kontakt?.telefon || "" });
     setAnmerkungen(v.anmerkungen || "");
     setLeitung({ am: v.leitungAm ?? null, name: v.leitungName ?? null, urteil: v.leitungUrteil ?? null, feedback: v.leitungFeedback ?? null });
     if (v.leitungName) setLtName(v.leitungName);
@@ -265,8 +268,8 @@ export default function VereinbarungSeite(): JSX.Element {
                 <Luecke name="ort" wert={feld("ort")} setzen={setz("ort")} gesperrt={gesperrt} breite={180} hinweis="Ort" /></td></tr>
               <tr><td>Land</td><td>
                 <Luecke name="land" wert={feld("land")} setzen={setz("land")} gesperrt={gesperrt} breite={160} hinweis="Deutschland" /></td></tr>
-              <tr><td>E-Mail</td><td>nikitaboychenko73@gmail.com</td></tr>
-              <tr><td>Telefon</td><td>+49 163 4065459</td></tr>
+              <tr><td>E-Mail</td><td>{kontakt.email || "—"}</td></tr>
+              <tr><td>Telefon</td><td>{kontakt.telefon || "—"}</td></tr>
               <tr><td>Steuerliche Identifikationsnummer</td><td>
                 <Luecke name="steuerId" wert={feld("steuerId")} setzen={setz("steuerId")} gesperrt={gesperrt} breite={180} hinweis="11-stellig" /></td></tr>
               <tr><td>Steuernummer <em>(falls vorhanden)</em></td><td>

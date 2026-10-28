@@ -2843,8 +2843,8 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       "DIE E-MAIL WURDE IM FENSTER NICHT GEFUNDEN. Bei Kunden, deren Adresse nur "
       + "in den Stammdaten steht (nicht an der Bestellung), sagte das Fenster "
       + "„Für diesen Kunden ist keine E-Mail-Adresse hinterlegt“ — während in der "
-      + "Akte eine steht. Beweisfall Joachim Rechtsteiner: Das Fenster zeigt jetzt "
-      + "euro-tec@t-online.de und sagt dazu, dass sie aus den Stammdaten kommt.",
+      + "Akte eine steht. Jetzt zeigt das Fenster die Adresse aus den Stammdaten "
+      + "und sagt dazu, dass sie von dort kommt.",
 
       "OHNE ADRESSE IST „SENDEN“ JETZT SICHTBAR GESPERRT — grau statt blassblau. "
       + "Vorher sah der Knopf aus, als ginge er, und ein Klick hätte einen "
@@ -3527,10 +3527,10 @@ export const AGENT_UPDATES: AgentUpdate[] = [
       + "Sie stand nur an der falschen Stelle. Das ist behoben, und es kann nicht wiederkommen.",
     changes: [
       "DAS WAR DAS PROBLEM: Eine E-Mail-Adresse konnte an der BESTELLUNG stehen, aber nicht am KUNDEN. Der Versand liest den Kunden — also fand er keine Adresse und tat nichts. Gemessen: 169 Menschen betroffen, davon 17 zahlende Kunden.",
-      "Genau das waren die Fälle, die ihr gemeldet habt: Pietro Bianco und Joachim Rechtsteiner. Beide haben jetzt ihre Adresse am Kunden — der Versand findet sie.",
+      "Genau das waren die zwei Fälle, die ihr gemeldet habt. Beide haben jetzt ihre Adresse am Kunden — der Versand findet sie.",
       "ES KANN NICHT WIEDERKOMMEN: Ab jetzt wandert jede Adresse und jede Nummer automatisch an den Kunden, egal wo sie eingetragen wird — Antragsformular, Lead, Kundenakte, Import. Es gibt keinen Weg mehr daran vorbei.",
       "Trägt jemand eine ZWEITE Adresse ein, behält der Kunde seine erste, und die neue wird als Nebenadresse gespeichert. Die Suche findet beide. Nichts geht verloren, nichts überschreibt sich.",
-      "DOPPELTE KUNDEN: Weil die Adressen jetzt am Kunden stehen, findet das System Doppelgänger, die vorher unsichtbar waren. Aus 3 Vorschlägen wurden 37 — darunter Maik Matzke, Manuela Schlabs und Pietro Bianco.",
+      "DOPPELTE KUNDEN: Weil die Adressen jetzt am Kunden stehen, findet das System Doppelgänger, die vorher unsichtbar waren. Aus 3 Vorschlägen wurden 37.",
       "Ein Teil davon war früher schon abgelehnt worden („nur der Name passt, kein zweiter Beweis“) — damals richtig, weil die E-Mail fehlte. Jetzt gibt es den zweiten Beweis, und die Vorschläge kommen wieder.",
       "E-MAIL-EVENTS: Die gelben Marken „nicht bestätigt“ bedeuten NICHT, dass Zweige fehlen. Es fehlt ein Zugangsschlüssel zum Mail-Anbieter — ohne ihn kann die Plattform die Zustellung nicht nachprüfen. Das steht jetzt als Karte ganz oben, statt euch rätseln zu lassen.",
       "Und „E-Mail-Events“ hat ein eigenes Zeichen im Menü — vorher dasselbe wie „Mail-Zentrale“ direkt darüber.",

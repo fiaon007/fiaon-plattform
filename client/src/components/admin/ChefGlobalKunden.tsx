@@ -41,6 +41,8 @@ interface MandatZeile {
   llc: string | null; bundesstaat: string | null; etappe: number; fortschritt: { erledigt: number; gesamt: number };
   naechsterSchritt: string | null; stichtag: string | null; naechsteFrist: string | null; zustaendig: string | null;
   anfragenNeu: number; uploadsNeu: number; unterschriftenOffen: number; postUngelesen: number; test: boolean; portalNeu: boolean; angelegtAm: string;
+  /** E-455: die nächste Station (Server, globalMandateListe). */
+  naechsteStation?: { schluessel: string; titel: string; status: string } | null;
 }
 interface AngebotZeile { id: number; angebotRef: string; status: string; art: string; kunde: string; firma: string | null; gueltigBis: string | null; angenommenAm: string | null }
 interface Liste { ok: true; mandate: MandatZeile[]; angebote: AngebotZeile[]; kennzahlen: Record<string, number> }
@@ -51,8 +53,14 @@ const STATUS: Record<string, { text: string; ton?: "blau" | "gruen" | "rot" }> =
   abgeschlossen: { text: "Abgeschlossen", ton: "gruen" }, storniert: { text: "Storniert", ton: "rot" },
 };
 const ANGEBOT_ART: Record<string, string> = { firma: "Firmenangebot", begleit: "Begleitvertrag", individuell: "Individualangebot", kapital: "Kapital-Angebot", koop: "Kooperation" };
-type Filter = "uns" | "kunde" | "alle";
-const FILTER: { key: Filter; text: string }[] = [{ key: "uns", text: "Braucht uns" }, { key: "kunde", text: "Wartet auf Kunde" }, { key: "alle", text: "Alle" }];
+// „Wartet“ = beim Kunden ODER bei Behörde/Institut (E-455 Gegenprüfung: kurz, damit die Zahl nie abgeschnitten wird).
+type Filter = "uns" | "wartet" | "alle";
+const FILTER: { key: Filter; text: string; titel: string }[] = [
+  { key: "uns", text: "Braucht uns", titel: "Wir sind dran: Neues vom Kunden, Frist, niemand zuständig oder der Fahrplan läuft" },
+  { key: "wartet", text: "Wartet", titel: "Wartet auf den Kunden (Zahlung, Unterschrift) oder auf eine Behörde bzw. ein Institut" },
+  { key: "alle", text: "Alle", titel: "Jede Akte" },
+];
+const passt = (f: Filter, g: ListenGruppe) => f === "alle" || (f === "uns" ? g === "uns" : g === "kunde" || g === "amt");
 
 /** Der Name, unter dem wir den Kunden führen: die US-Gesellschaft, sonst die Firma, sonst die Person. */
 function anzeigeName(z: { llc?: string | null; firma?: string | null; kunde?: string; ref: string }): string {
@@ -66,7 +74,7 @@ export default function ChefGlobalKunden() {
   const [, navigate] = useLocation();
   const gewaehlt = (() => { try { return new URLSearchParams(adresse).get("akte"); } catch { return null; } })();
   const { daten, laedt, fehler, neu } = useDaten<Liste>("/chef/global/mandate", [], NACHLADEN_MS);
-  const [filter, setFilter] = useState<Filter>(() => { try { return (window.localStorage.getItem("cgn-filter") as Filter) || "uns"; } catch { return "uns"; } });
+  const [filter, setFilter] = useState<Filter>(() => { try { const f = window.localStorage.getItem("cgn-filter"); return f === "wartet" || f === "alle" ? f : "uns"; } catch { return "uns"; } });
   const [suche, setSuche] = useState("");
   const [tests, setTests] = useState(false);
   const [angeboteAuf, setAngeboteAuf] = useState(false);
@@ -74,16 +82,17 @@ export default function ChefGlobalKunden() {
   const [akteLaeuft, setAkteLaeuft] = useState<number | null>(null);
   const [akteMeldung, setAkteMeldung] = useState<{ id: number; text: string; gut: boolean } | null>(null);
   const heute = heuteBerlin();
+  const rundgangStart = useRef<(() => void) | null>(null);
 
   useEffect(() => { try { window.localStorage.setItem("cgn-filter", filter); } catch { /* egal */ } }, [filter]);
 
   const zeilen = useMemo(() => (daten?.mandate ?? []).filter((m) => tests || !m.test).map((m) => ({ m, lage: listenLage(m, heute) })), [daten, tests, heute]);
   const zahl: Record<Filter, number> = {
-    uns: zeilen.filter((z) => z.lage.gruppe === "uns").length, kunde: zeilen.filter((z) => z.lage.gruppe === "kunde").length, alle: zeilen.length,
+    uns: zeilen.filter((z) => passt("uns", z.lage.gruppe)).length, wartet: zeilen.filter((z) => passt("wartet", z.lage.gruppe)).length, alle: zeilen.length,
   };
   const s = suche.trim().toLowerCase();
   const sichtbar = zeilen
-    .filter((z) => filter === "alle" || z.lage.gruppe === (filter as ListenGruppe))
+    .filter((z) => passt(filter, z.lage.gruppe))
     .filter((z) => !s || [z.m.llc, z.m.firma, z.m.kunde, z.m.ref, z.m.email].some((x) => String(x ?? "").toLowerCase().includes(s)))
     .sort((a, b) => Number(b.lage.neu) - Number(a.lage.neu));
 
@@ -107,12 +116,14 @@ export default function ChefGlobalKunden() {
   const neuGesamt = (k.uploadsNeu ?? 0) + (k.anfragenNeu ?? 0);
   return (
     <div className={`cgn${gewaehlt ? " mit-akte" : ""}`}>
-      <Rundgang raum="chef-global-kunden" titel="Global-Kunden" schritte={RUNDGAENGE.chefGlobalKunden.schritte} />
+      {/* E-455 Gegenprüfung: kein schwebender Knopf über dem Inhalt (er verdeckte „Zeigen“, „···“, „Starten“) — ein leiser Link im Kopf (Muster E-252). */}
+      <Rundgang raum="chef-global-kunden" titel="Global-Kunden" schritte={RUNDGAENGE.chefGlobalKunden.schritte} knopf="keiner" startRef={rundgangStart} />
       <div className="cgn-tafel">
         <header className="cgn-kopf">
           <div>
             <span className="cgn-auge">Chefbüro · FIAON Global</span>
             <h1>Global-Kunden</h1>
+            <button type="button" className="cgn-link leise cgn-rundgang" data-cgn="rundgang" onClick={() => rundgangStart.current?.()}>Rundgang</button>
           </div>
           <ul className="cgn-zahlen" aria-label="Kennzahlen" data-cgn="kennzahlen">
             <li><b>{k.aktiv ?? "—"}</b>aktiv</li>
@@ -130,7 +141,7 @@ export default function ChefGlobalKunden() {
             </div>
             <div className="cgn-filter" role="tablist" aria-label="Filter">
               {FILTER.map((f) => (
-                <button key={f.key} type="button" role="tab" aria-selected={filter === f.key} className={filter === f.key ? "an" : ""} onClick={() => setFilter(f.key)}>
+                <button key={f.key} type="button" role="tab" aria-selected={filter === f.key} className={filter === f.key ? "an" : ""} title={f.titel} onClick={() => setFilter(f.key)}>
                   {f.text}<span>{zahl[f.key]}</span>
                 </button>
               ))}
@@ -141,14 +152,14 @@ export default function ChefGlobalKunden() {
               {sichtbar.map(({ m, lage }) => (
                 <button key={m.ref} type="button" className={`cgn-zeile${gewaehlt === m.ref ? " an" : ""}${m.test ? " test" : ""}`} onClick={() => waehlen(m.ref)}
                         aria-current={gewaehlt === m.ref ? "true" : undefined} data-cgn="zeile">
-                  <span className={`cgn-punkt ${lage.neu ? "neu" : lage.gruppe}`} aria-label={lage.neu ? "Neues vom Kunden" : lage.gruppe === "uns" ? "Braucht uns" : lage.gruppe === "kunde" ? "Wartet auf Kunde" : "Ruhe"} />
+                  <span className={`cgn-punkt ${lage.neu ? "neu" : lage.gruppe}`} aria-label={lage.neu ? "Neues vom Kunden" : lage.gruppe === "uns" ? "Braucht uns" : lage.gruppe === "kunde" ? "Wartet auf Kunde" : lage.gruppe === "amt" ? "Wartet auf Behörde" : "Ruhe"} />
                   <b>{anzeigeName(m)}</b>
                   <small>{lage.stand}{m.test ? " · Test" : ""}</small>
-                  <em className={lage.gruppe === "kunde" ? "kunde" : ""}>{lage.naechster}</em>
+                  <em className={lage.gruppe === "kunde" || lage.gruppe === "amt" ? "kunde" : ""}>{lage.naechster}</em>
                 </button>
               ))}
               {daten && sichtbar.length === 0 && (
-                <p className="cgn-leer">{s ? "Kein Kunde passt zur Suche." : filter === "uns" ? "Niemand braucht uns gerade. Alles erledigt." : filter === "kunde" ? "Wir warten auf keinen Kunden." : "Noch kein Global-Auftrag."}</p>
+                <p className="cgn-leer">{s ? "Kein Kunde passt zur Suche." : filter === "uns" ? "Niemand braucht uns gerade. Alles erledigt." : filter === "wartet" ? "Wir warten auf niemanden." : "Noch kein Global-Auftrag."}</p>
               )}
             </div>
             <div className="cgn-liste-fuss">
@@ -238,7 +249,8 @@ function Akte({ gref, zurueck, onGeaendert }: { gref: string; zurueck: () => voi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auf.nachrichten, ungelesen]);
 
-  if (fehler) return <><button type="button" className="cgn-zurueck" onClick={zurueck}>‹ Alle Kunden</button><Fehlermeldung text={fehler} erneut={neu} /></>;
+  // E-455 Gegenprüfung: Scheitert ein Nachladen nach einer Aktion, bleibt die Akte stehen — der Fehler steht als Hinweis darüber.
+  if (fehler && !m) return <><button type="button" className="cgn-zurueck" onClick={zurueck}>‹ Alle Kunden</button><Fehlermeldung text={fehler} erneut={neu} /></>;
   if (!m) return <Geruest zeilen={8} />;
 
   const person = [m.kontakt?.vorname, m.kontakt?.nachname].filter(Boolean).join(" ");
@@ -298,6 +310,7 @@ function Akte({ gref, zurueck, onGeaendert }: { gref: string; zurueck: () => voi
         </div>
       </div>
 
+      {fehler && <div className="cgn-meldung schlecht" role="alert" data-cgn="nachlade-fehler">Neu laden hat nicht geklappt: {fehler} Die Akte zeigt den letzten Stand. <button type="button" className="cgn-link" onClick={neu}>Nochmal laden</button></div>}
       {meldung && <div className={`cgn-meldung${meldung.gut ? "" : " schlecht"}`} role="status">{meldung.text}</div>}
 
       <section className={`cgn-naechstes ${naechstes.ton}`} aria-label="Als Nächstes" data-cgn="als-naechstes">
@@ -375,6 +388,9 @@ function Fahrplan({ m, gref, tun, heute, editor, setEditor, onGespeichert }: {
   const [satz, setSatz] = useState(m.naechsterSchritt?.text ?? "");
   const [satzBis, setSatzBis] = useState(m.naechsterSchritt?.bis ?? "");
   const [erledigteAuf, setErledigteAuf] = useState(false);
+  // E-455 Gegenprüfung: Sperre gegen Doppelklick — „Etappe setzen“ schickt sonst zwei Mails an den Kunden.
+  const [laeuft, setLaeuft] = useState<"" | "etappe" | "satz">("");
+  const einmal = async (was: "etappe" | "satz", f: () => Promise<boolean>) => { if (laeuft) return false; setLaeuft(was); try { return await f(); } finally { setLaeuft(""); } };
   const schritte = m.schritte as Station[];
   const zaehlt = new Set(zaehlendeStationen(schritte).map((s) => s.schluessel));
   const naechste = naechsteStation(schritte)?.schluessel;
@@ -403,7 +419,7 @@ function Fahrplan({ m, gref, tun, heute, editor, setEditor, onGespeichert }: {
             <div className="cgn-reihe zwischen">
               <label className="cgn-haken"><input type="checkbox" checked={etappeMail} onChange={(e) => setEtappeMail(e.target.checked)} /> Per Mail mitteilen</label>
               <span className="cgn-reihe">
-                <button type="button" className="cgn-knopf haupt klein" onClick={async () => { if (await tun("/etappe", "POST", { etappe: etappeWahl, text: etappeText, mitteilen: etappeMail })) setEtappeWahl(null); }}>Etappe {etappeWahl} setzen</button>
+                <button type="button" className="cgn-knopf haupt klein" disabled={!!laeuft} data-cgn="etappe-setzen" onClick={async () => { if (await einmal("etappe", () => tun("/etappe", "POST", { etappe: etappeWahl, text: etappeText, mitteilen: etappeMail }))) setEtappeWahl(null); }}>{laeuft === "etappe" ? "Setzt …" : `Etappe ${etappeWahl} setzen`}</button>
                 <button type="button" className="cgn-knopf klein" onClick={() => setEtappeWahl(null)}>Abbrechen</button>
               </span>
             </div>
@@ -424,7 +440,7 @@ function Fahrplan({ m, gref, tun, heute, editor, setEditor, onGespeichert }: {
             <div className="cgn-reihe zwischen">
               <label className="cgn-haken">bis <input type="date" value={satzBis} onChange={(e) => setSatzBis(e.target.value)} aria-label="bis" /></label>
               <span className="cgn-reihe">
-                <button type="button" className="cgn-knopf haupt klein" onClick={async () => { if (await tun("/naechster-schritt", "POST", { text: satz, bis: satzBis || null })) setSatzAuf(false); }}>Speichern</button>
+                <button type="button" className="cgn-knopf haupt klein" disabled={!!laeuft} data-cgn="satz-speichern" onClick={async () => { if (await einmal("satz", () => tun("/naechster-schritt", "POST", { text: satz, bis: satzBis || null }))) setSatzAuf(false); }}>{laeuft === "satz" ? "Speichert …" : "Speichern"}</button>
                 <button type="button" className="cgn-knopf klein" onClick={() => setSatzAuf(false)}>Abbrechen</button>
               </span>
             </div>

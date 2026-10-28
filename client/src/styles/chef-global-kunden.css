@@ -42,6 +42,7 @@
 }
 .cgn-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 28px; flex-wrap: wrap; padding: 26px 30px 18px; border-bottom: 1px solid var(--cgn-linie); }
 .cgn-auge { display: block; font: 500 11px/1.2 var(--cgn-schrift); letter-spacing: .14em; text-transform: uppercase; color: var(--cgn-still); }
+.cgn-kopf .cgn-rundgang { display: block; margin-top: 8px; font-size: 12.5px; }
 .cgn-kopf h1 { margin: 6px 0 0; font: 300 30px/1.1 var(--cgn-anzeige); letter-spacing: -.02em; color: var(--cgn-tinte); }
 .cgn-zahlen { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; }
 .cgn-zahlen li { font: 400 12.5px/1.4 var(--cgn-schrift); color: var(--cgn-leise); white-space: nowrap; }
@@ -61,10 +62,11 @@
 .cgn-suche input::placeholder { color: var(--cgn-still); }
 .cgn-filter { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(18, 40, 74, .05); }
 .cgn-filter button {
-  flex: 1; min-width: 0; height: 32px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
   color: var(--cgn-leise); font: 400 12.5px/1 var(--cgn-schrift); white-space: nowrap; transition: background .2s, color .2s, box-shadow .2s;
 }
-.cgn-filter button span { font-variant-numeric: tabular-nums; color: var(--cgn-still); margin-left: 4px; }
+.cgn-filter button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.cgn-filter button span { flex: none; font-variant-numeric: tabular-nums; color: var(--cgn-still); }
 .cgn-filter button.an { background: #fff; color: var(--cgn-tinte); box-shadow: 0 1px 3px rgba(18, 40, 74, .12); }
 .cgn-filter button.an span { color: var(--cgn-tiefe); }
 .cgn-zeilen { display: flex; flex-direction: column; margin: 0 -6px; }
@@ -81,7 +83,7 @@
 .cgn-punkt { grid-row: 1 / span 3; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px var(--cgn-linie-2); }
 .cgn-punkt.uns { background: var(--cgn-licht); box-shadow: none; }
 .cgn-punkt.neu { background: var(--cgn-licht); box-shadow: 0 0 0 4px rgba(40, 141, 250, .18); }
-.cgn-punkt.kunde { box-shadow: inset 0 0 0 1.5px var(--cgn-leise); }
+.cgn-punkt.kunde, .cgn-punkt.amt { box-shadow: inset 0 0 0 1.5px var(--cgn-leise); }
 .cgn-zeile b { font: 400 14px/1.3 var(--cgn-schrift); color: var(--cgn-tinte); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cgn-zeile small { font: 400 12px/1.35 var(--cgn-schrift); color: var(--cgn-leise); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cgn-zeile em { font: 400 12px/1.35 var(--cgn-schrift); font-style: normal; color: var(--cgn-tiefe); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -308,6 +310,7 @@
   .cgn-knopf, .cgn-filter button, .cgn-segment button, .cgn-etappe { min-height: 44px; }
   .cgn-knopf.klein { min-height: 44px; }
   .cgn-punkte { width: 44px; height: 44px; }
+  .cgn-kopf .cgn-rundgang { display: inline-flex; align-items: center; min-height: 44px; margin-top: 0; }
   .cgn-suche input { height: 44px; font-size: 16px; }
   .cgn input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .cgn select, .cgn textarea { font-size: 16px; min-height: 44px; }
   .cgn-abschnitt-kopf { min-height: 56px; padding: 14px 16px; }

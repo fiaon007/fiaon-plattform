@@ -83,6 +83,12 @@ export interface ChefRaum {
   mindest: ChefStufe;
   /** E-336: Unter welcher Überschrift der Raum im Menü steht (CHEF_GRUPPEN). */
   gruppe: ChefGruppe;
+  /**
+   * E-455 (29.10.2026): ein zusätzlicher Raum NEBEN dem Hauptraum seiner Gruppe (Global-Kunden neben Global-Mandate).
+   * Er zählt nicht mit, wenn das Menü entscheidet, ob ein Raum „allein“ unter seiner Überschrift steht — so bleiben die
+   * Unterseiten von Global-Mandate offen, und jede andere Gruppe verhält sich genau wie vorher.
+   */
+  nebenraum?: true;
   punkte: ChefPunkt[];
 }
 
@@ -148,7 +154,7 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // alles lösen.“ Ausdrücklich ein EIGENER Raum (Ausnahme von „keine neuen Chef-Seiten“), oben in der Gruppe; derselbe
   // Datenweg wie „Global-Mandate“ (/chef/global), der unverändert daneben bleibt.
   {
-    key: "global-kunden", label: "Global-Kunden", Icon: Building2, mindest: "leitung", gruppe: "global",
+    key: "global-kunden", label: "Global-Kunden", Icon: Building2, mindest: "leitung", gruppe: "global", nebenraum: true,
     satz: "Jeder Firmenkunde auf einer Seite — mit dem nächsten Schritt.",
     punkte: [],
   },
@@ -543,8 +549,9 @@ export function ChefShell({ stufe, name, titel, raumKey, onAbmelden, children, r
     // E-342: Die Seiten des offenen Raums stehen darunter — im aufgeklappten Menü und in der Schublade.
     // Ein Raum, der allein unter seiner Überschrift steht (FIAON Global), zeigt sie immer.
     const unter = raumSeitenFuer(r.key, darf);
-    // E-455: „allein“ zählt nur Räume MIT Seiten — Global-Kunden (ohne Unterseiten) nimmt Global-Mandate die offene Liste nicht weg.
-    const allein = CHEF_RAEUME.filter((x) => x.gruppe === r.gruppe && raumSeitenFuer(x.key, darf).length > 0).length === 1;
+    // E-455: Ein Nebenraum (Global-Kunden) zählt nicht mit — sonst verlöre Global-Mandate seine offene Liste. Alle anderen
+    // Gruppen zählen wie vor E-455 (Gegenprüfung: die Zählung „nur Räume mit Seiten“ klappte Heute, Kunden, Geld, System auf).
+    const allein = CHEF_RAEUME.filter((x) => x.gruppe === r.gruppe && !x.nebenraum).length === 1;
     const offen = unter.length > 0 && (inSchublade || !schmal) && (aktiv.key === r.key || allein);
     return (
       <>

@@ -37,6 +37,8 @@ import {
   globalDokumentArt, globalDokumentArtText, globalKundeDarfArt, globalAblehnungOffen, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
 } from "@shared/fiaon-global-bereich";
 import { unterschriftModus } from "@shared/fiaon-global-akte";
+// E-455 (29.10.2026): die nächste Station je Akte für die Liste des Raums „Global-Kunden“ — dieselbe Rechnung wie die Karte „Als Nächstes“.
+import { naechsteStation } from "@shared/fiaon-global-als-naechstes";
 import {
   GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
@@ -340,7 +342,9 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
            (SELECT MIN(f.faellig_am) FROM fiaon_global_fristen f WHERE f.ref = g.ref AND f.erledigt_am IS NULL) AS naechste_frist,
            (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status = 'erledigt') AS schritte_erledigt,
            (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status = 'entfaellt' AND NOT (s.schluessel = ANY(${GLOBAL_FAHRPLAN_BEDARF}))) AS schritte_entfallen,
-           (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status <> 'entfaellt' AND s.schluessel = ANY(${GLOBAL_FAHRPLAN_BEDARF})) AS schritte_bedarf
+           (SELECT COUNT(*)::int FROM fiaon_global_schritte s WHERE s.ref = g.ref AND s.status <> 'entfaellt' AND s.schluessel = ANY(${GLOBAL_FAHRPLAN_BEDARF})) AS schritte_bedarf,
+           -- E-455: Stand je Station (nur Schlüssel + Status) — die Liste nennt daraus die nächste Station.
+           (SELECT COALESCE(json_agg(json_build_object('k', s.schluessel, 's', s.status)), '[]'::json) FROM fiaon_global_schritte s WHERE s.ref = g.ref) AS stationen_stand
       FROM fiaon_global_auftraege g
       LEFT JOIN fiaon_agents ag ON ag.id = g.zustaendig_agent_id
      ORDER BY g.created_at DESC`) as any[];
@@ -352,6 +356,9 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
     const g = json<Record<string, any>>(a.gesellschaft, {});
     const kunde = [ap.vorname, ap.nachname].filter(Boolean).join(" ").trim() || String(firma.name || a.firma_name || "");
     const gesamt = GLOBAL_FAHRPLAN.length - GLOBAL_FAHRPLAN_BEDARF.length + Number(a.schritte_bedarf || 0) - Number(a.schritte_entfallen || 0);
+    // E-455: angelegte Stationen tragen ein Änderungszeichen (wie in der Chef-Sicht), fehlende gelten als offen.
+    const stand = new Map(json<{ k: string; s: string }[]>(a.stationen_stand, []).map((x) => [String(x.k), String(x.s)]));
+    const naechste = naechsteStation(GLOBAL_FAHRPLAN.map((v) => ({ schluessel: v.schluessel, status: stand.get(v.schluessel) ?? "offen", geaendertAm: stand.has(v.schluessel) ? "ja" : null })));
     mandate.push({
       ref: String(a.ref), status: l?.status ?? "offen", paket: String(a.paket_key),
       kunde, firma: firma.art === "privat" ? null : String(firma.name || a.firma_name || "") || null,
@@ -359,6 +366,7 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
       llc: g.name ? String(g.name) : null, bundesstaat: g.bundesstaat ? String(g.bundesstaat) : null,
       etappe: l?.etappe ?? Number(a.etappe || 0),
       fortschritt: { erledigt: Number(a.schritte_erledigt || 0), gesamt: Math.max(1, gesamt) },
+      naechsteStation: naechste ? { schluessel: naechste.schluessel, titel: globalSchrittTitel(naechste.schluessel, "de"), status: naechste.status } : null,
       naechsterSchritt: a.naechster_schritt ? String(a.naechster_schritt) : null,
       stichtag: tag(a.stichtag), naechsteFrist: tag(a.naechste_frist),
       zustaendig: a.zustaendig_name ? String(a.zustaendig_name) : null,

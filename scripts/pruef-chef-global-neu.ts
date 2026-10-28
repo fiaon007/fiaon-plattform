@@ -47,6 +47,8 @@ abschnitt("A „Als Nächstes“");
 {
   const a = N.alsNaechstes(basis({ status: "storniert" }) as any, HEUTE);
   gleich([a.ton, a.knopf], ["ruhe", null], "storniert → Ruhe, kein Knopf");
+  const stornoNachricht = N.alsNaechstes(basis({ status: "storniert", nachrichten: [{ von: "kunde", gelesen: false }] }) as any, HEUTE);
+  gleich([stornoNachricht.knopf, stornoNachricht.aktion.art, stornoNachricht.wartet], ["Antworten", "antworten", []], "Gegenprüfung 6: ungelesene Nachricht geht auch bei storniert vor (ohne „Beim Kunden“)");
 
   const nachricht = N.alsNaechstes(basis({ nachrichten: [{ von: "kunde", gelesen: false }, { von: "fiaon", gelesen: false }], dokumente: [{ id: 5, von: "kunde", neu: true }] }) as any, HEUTE);
   gleich([nachricht.ton, nachricht.knopf, nachricht.aktion.art], ["uns", "Antworten", "antworten"], "1 ungelesene Kundennachricht schlägt alles andere (auch neue Dokumente)");
@@ -125,6 +127,19 @@ abschnitt("B Liste");
   gleich(z({ status: "offen", uploadsNeu: 1 }).gruppe, "uns", "Neues schlägt „Zahlung offen“");
   gleich(z({ fortschritt: { erledigt: 12, gesamt: 12 } }).gruppe, "ruhe", "Fahrplan komplett → nur unter „Alle“");
   gleich([z({ status: "storniert" }).gruppe, z({ status: "abgeschlossen" }).gruppe], ["ruhe", "ruhe"], "storniert/abgeschlossen → Ruhe");
+  const amt = z({ naechsteStation: { titel: "EIN der Gesellschaft", status: "beantragt" } });
+  gleich([amt.gruppe, amt.naechster], ["amt", "Wartet auf Behörde: EIN der Gesellschaft"], "Gegenprüfung 7: nächste Station beantragt → Wartet auf Behörde (wie die Karte)");
+  gleich(z({ naechsteStation: { titel: "EIN der Gesellschaft", status: "in_arbeit" } }).gruppe, "uns", "nächste Station läuft → Braucht uns");
+  gleich(z({ uploadsNeu: 1, naechsteStation: { titel: "X", status: "beantragt" } }).gruppe, "uns", "Neues schlägt „Wartet auf Behörde“");
+  gleich([z({ zustaendig: null }).gruppe, z({ zustaendig: null }).naechster], ["uns", "Niemand führt die Akte"], "niemand zuständig → Braucht uns (wie Karte Regel 4)");
+  gleich(z({ zustaendig: null, status: "offen" }).gruppe, "uns", "niemand zuständig geht vor „Zahlung offen“ (wie Karte)");
+  gleich(z({ zustaendig: "Team" }).gruppe, "uns", "zuständig gesetzt → keine Sonderregel");
+}
+
+{
+  const mandatSrv = datei("server/lib/fiaon-global-mandat.ts");
+  ok(/AS stationen_stand/.test(mandatSrv) && /naechsteStation: naechste \? \{ schluessel: naechste\.schluessel, titel: globalSchrittTitel\(naechste\.schluessel, "de"\), status: naechste\.status \}/.test(mandatSrv),
+    "Liste (globalMandateListe) trägt die nächste Station — dieselbe Rechnung naechsteStation wie die Karte");
 }
 
 // ═══ C INVENTAR ═══════════════════════════════════════════════════════════════
@@ -203,13 +218,33 @@ ok(iKunden > 0 && iMandate > iKunden, "Raum „Global-Kunden“ steht in FIAON G
 ok(/key: "global-kunden", label: "Global-Kunden", Icon: \w+, mindest: "leitung", gruppe: "global"/.test(shell), "Stufe Leitung wie Global-Mandate");
 ok(/r\.key === "global-kunden" && globalNeu > 0 && \(\s*<em className="cb-zahl"/.test(shell), "Menü-Zahl (E-451) auch am neuen Punkt");
 ok(/r\.key === "global" && globalNeu > 0 && \(\s*<em className="cb-zahl"/.test(shell), "Menü-Zahl am alten Punkt bleibt");
-ok(/raumSeitenFuer\(x\.key, darf\)\.length > 0\)\.length === 1/.test(shell), "Unterseiten von Global-Mandate bleiben im Menü offen (allein zählt Räume mit Seiten)");
+ok(/const allein = CHEF_RAEUME\.filter\(\(x\) => x\.gruppe === r\.gruppe && !x\.nebenraum\)\.length === 1;/.test(shell) && /gruppe: "global", nebenraum: true,/.test(shell),
+  "Gegenprüfung 1: „allein“ zählt nur den Nebenraum Global-Kunden nicht mit");
+// Für jede Gruppe außer „global“: „allein“ je Raum wie auf origin/main (Räume aus dem Quelltext gelesen).
+function raeumeAus(src: string): { key: string; gruppe: string; neben: boolean }[] {
+  const block = src.slice(src.indexOf("export const CHEF_RAEUME"), src.indexOf("];", src.indexOf("export const CHEF_RAEUME")));
+  return Array.from(block.matchAll(/key: "([^"]+)", label: "[^"]*", Icon: \w+, mindest: "\w+", gruppe: "(\w+)"(, nebenraum: true)?/g)).map((x) => ({ key: x[1], gruppe: x[2], neben: !!x[3] }));
+}
+const alleinJe = (rs: { key: string; gruppe: string; neben: boolean }[], mitNeben: boolean) =>
+  Object.fromEntries(rs.map((r) => [r.key, rs.filter((x) => x.gruppe === r.gruppe && (mitNeben || !x.neben)).length === 1]));
+const shellMain = (() => { try { return execSync("git show origin/main:client/src/components/admin/ChefShell.tsx", { cwd: WURZEL, encoding: "utf8", maxBuffer: 1 << 24 }); } catch { return ""; } })();
+const raeumeJetzt = raeumeAus(shell); const raeumeMain = raeumeAus(shellMain);
+ok(raeumeJetzt.length >= 15 && raeumeMain.length >= 14, `Räume aus dem Quelltext gelesen (jetzt ${raeumeJetzt.length}, main ${raeumeMain.length})`);
+const jetzt = alleinJe(raeumeJetzt, false); const vorher = alleinJe(raeumeMain, true);
+const abweichung = raeumeMain.filter((r) => r.gruppe !== "global" && jetzt[r.key] !== vorher[r.key]).map((r) => r.key);
+ok(abweichung.length === 0, "Gegenprüfung 1: jede Gruppe außer „FIAON Global“ klappt auf wie auf origin/main", abweichung.join(", "));
+ok(jetzt["global"] === true && vorher["global"] === true, "Global-Mandate bleibt „allein“ — seine Unterseiten bleiben im Menü offen");
 ok(/"global-kunden": \(\) => <Suspense[^\n]*<ChefGlobalKunden \/>/.test(chef), "/chef/global-kunden zeigt den neuen Raum (lazy)");
 ok(/\(!istSeite && raum\.key === "global-kunden"\)/.test(chef), "ruhige Hülle: Standbild statt Film unter der Tafel");
 ok(/global: \(\) => <Suspense[^\n]*<ChefGlobal \/>/.test(chef), "/chef/global zeigt weiter den alten Raum");
 gleich(globalChefMandatPfad("AB-1"), "/chef/global?mandat=AB-1", "Aufgaben-Links bleiben auf dem alten Raum");
-const diffAlt = (() => { try { return execSync("git diff --stat origin/main -- client/src/components/admin/ChefGlobal.tsx client/src/styles/chef-global-raum.css server/ shared/fiaon-global-wege.ts", { cwd: WURZEL, encoding: "utf8" }).trim(); } catch { return "?"; } })();
-gleich(diffAlt, "", "alter Raum, Server und Aufgaben-Wege unverändert gegenüber origin/main");
+const diffAlt = (() => { try { return execSync("git diff --stat origin/main -- client/src/components/admin/ChefGlobal.tsx client/src/styles/chef-global-raum.css server/routes/ shared/fiaon-global-wege.ts", { cwd: WURZEL, encoding: "utf8" }).trim(); } catch { return "?"; } })();
+gleich(diffAlt, "", "alter Raum, Server-Routen und Aufgaben-Wege unverändert gegenüber origin/main");
+const diffLib = (() => { try { return execSync("git diff -U0 origin/main -- server/", { cwd: WURZEL, encoding: "utf8" }); } catch { return "?"; } })();
+const libDateien = Array.from(diffLib.matchAll(/^\+\+\+ b\/(.+)$/gm)).map((x) => x[1]);
+const libWeg = diffLib.split("\n").filter((z) => /^-(?!--)/.test(z));
+ok(JSON.stringify(libDateien) === JSON.stringify(["server/lib/fiaon-global-mandat.ts"]) && libWeg.length === 1 && /schritte_bedarf$/.test(libWeg[0]),
+  "Server: nur globalMandateListe ergänzt (ein Feld mehr, keine Zeile anders außer dem Komma)", `${libDateien.join(",")} · ${libWeg.join(" | ")}`);
 const rund = datei("client/src/pages/agent/rundgaenge.ts");
 ok(/chefGlobalKunden: \{ titel: "Global-Kunden", schritte: RUNDGANG_CHEF_GLOBAL_KUNDEN \}/.test(rund), "eigener Rundgang eingetragen");
 const ziele = Array.from(rund.slice(rund.indexOf("RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[]"), rund.indexOf("// ── /agent/global (17.09.2026")).matchAll(/ziel: "([^"]+)"/g)).map((x) => x[1]);
@@ -217,6 +252,21 @@ for (const z of ziele) {
   const roh = z.replace(/^\./, "").replace(/^\[data-cgn='([^']+)'\]$/, "$1");
   ok(beide.includes(roh) || datei("client/src/components/admin/chef-global-kunden-teile.tsx").includes("data-cgn={id}"), `Rundgang-Ziel „${z}“ gibt es im Raum`);
 }
+// Gegenprüfung 2/3/5/8
+ok(/f\.art === "itin" && !wert\.trim\(\)\) \{ setFehler\("Bitte die neue ITIN eingeben — leer lassen löscht sie nicht\."\); return; \}/.test(teile), "Gegenprüfung 2: leeres ITIN-Feld löscht nicht");
+ok(/const itinLoeschen = async \(\) => \{\s*if \(!window\.confirm\(/.test(teile) && /werte: \{ itin: "" \}/.test(teile), "Gegenprüfung 2: ITIN löschen nur mit eigener Rückfrage");
+ok(/knopf="keiner" startRef=\{rundgangStart\}/.test(neuRaum) && /onClick=\{\(\) => rundgangStart\.current\?\.\(\)\}>Rundgang</.test(neuRaum), "Gegenprüfung 3: kein schwebender Rundgang-Knopf, leiser Link im Kopf");
+for (const [was, re, src] of [
+  ["Etappe setzen", /disabled=\{!!laeuft\} data-cgn="etappe-setzen" onClick=\{async \(\) => \{ if \(await einmal\("etappe"/, neuRaum],
+  ["Satz speichern", /disabled=\{!!laeuft\} data-cgn="satz-speichern" onClick=\{async \(\) => \{ if \(await einmal\("satz"/, neuRaum],
+  ["Notiz speichern", /disabled=\{text\.trim\(\)\.length < 2 \|\| laeuft\} data-cgn="notiz-speichern"[\s\S]{0,80}if \(laeuft\) return; setLaeuft\(true\)/, teile],
+  ["Frist anlegen", /disabled=\{!titel \|\| !faellig \|\| laeuft\} data-cgn="frist-anlegen"[\s\S]{0,80}if \(laeuft\) return; setLaeuft\(true\)/, teile],
+  ["Kapital anlegen", /const speichern = async \(\) => \{ if \(!form \|\| laeuft\) return; setLaeuft\(true\)/, teile],
+] as [string, RegExp, string][]) ok(re.test(src), `Gegenprüfung 5: Doppelklick-Sperre „${was}“`);
+ok(/const einmal = async \(was: "etappe" \| "satz", f: \(\) => Promise<boolean>\) => \{ if \(laeuft\) return false;/.test(neuRaum), "Sperre greift vor dem zweiten Aufruf (nicht nur über disabled)");
+ok(/if \(fehler && !m\) return/.test(neuRaum) && /data-cgn="nachlade-fehler"/.test(neuRaum), "Gegenprüfung 8: misslungenes Nachladen ersetzt die Akte nicht");
+ok(/flex: 1 1 auto/.test(datei("client/src/styles/chef-global-kunden.css")) && /\.cgn-filter button span \{ flex: none;/.test(datei("client/src/styles/chef-global-kunden.css")) && /text: "Wartet", titel: "Wartet auf den Kunden/.test(neuRaum),
+  "Gegenprüfung 4: Filterzahl wird nie abgeschnitten (kurzes Etikett, Zahl flex: none)");
 ok(/startOffen = null/.test(datei("client/src/components/global/GlobalStationen.tsx")) && /useState<string \| null>\(startOffen\)/.test(datei("client/src/components/global/GlobalStationen.tsx")), "Stationen-Editor: startOffen freiwillig (Office unverändert)");
 ok(/schreibt über DIESELBEN Endpunkte|Dieselben Daten und Endpunkte/.test(beide) && !/fetch\(`\$\{API\}\/agent\//.test(beide), "nur Chef-Endpunkte (requireChef), keine Office-Wege");
 

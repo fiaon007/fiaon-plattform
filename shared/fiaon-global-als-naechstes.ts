@@ -11,16 +11,17 @@
 // „Wartet auf Kunde“. Prüfstand: scripts/pruef-chef-global-neu.ts.
 //
 // Reihenfolge (die erste, die zutrifft, gewinnt):
-//   0 storniert / abgeschlossen      → Ruhe, kein Knopf
-//   1 ungelesene Kundennachricht     → „Antworten“
+//   1 ungelesene Kundennachricht     → „Antworten“ (auch bei einer stornierten Akte — der Kunde wartet trotzdem)
+//   0 storniert                      → Ruhe, kein Knopf
 //   2 neues Kunden-Dokument          → „Öffnen“ (Öffnen = gesehen, die Aufgabe dazu erledigt sich)
 //   3 Frist überfällig oder ≤ 14 T.  → „Erledigt“
 //   4 niemand zuständig              → „Ich übernehme“ (die Leitung selbst) bzw. „Person wählen“
 //   5 Zahlung offen                  → Wartet auf Kunde („Link erneut senden“)
 //   6 nächste Station im Fahrplan    → „Starten“ · „<Wert> eintragen“ · „Erledigt“
 //   7 sonst                          → Wartet auf Kunde (wenn etwas beim Kunden liegt) oder „Nichts offen“
-// Die Liste folgt derselben Reihenfolge: Neues/Frist → Braucht uns; Zahlung offen → Wartet auf Kunde; Fahrplan läuft →
-// Braucht uns; Fahrplan fertig und etwas liegt beim Kunden → Wartet auf Kunde; sonst Ruhe.
+// Die Liste folgt derselben Reihenfolge: Neues/Frist/niemand zuständig → Braucht uns; Zahlung offen → Wartet auf Kunde;
+// nächste Station „beantragt“ → Wartet auf Behörde; Fahrplan läuft → Braucht uns; Fahrplan fertig und etwas liegt beim
+// Kunden → Wartet auf Kunde; sonst Ruhe.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF } from "./fiaon-global-mandat";
 
@@ -128,17 +129,17 @@ export function alsNaechstes(m: AlsNaechstesAkte, heute: string): AlsNaechstes {
   const wartet = wartetAufKunde(m);
   const status = String(m.status ?? "offen");
 
-  // 0 · Ruhe
-  if (status === "storniert") return { ton: "ruhe", titel: "Der Auftrag ist storniert.", warum: "Hier ist nichts mehr zu tun.", knopf: null, aktion: { art: "keine" }, wartet: [] };
-
-  // 1 · Der Kunde hat geschrieben
+  // 1 · Der Kunde hat geschrieben — auch bei einer stornierten Akte (E-455 Gegenprüfung: er wartet trotzdem auf Antwort)
   const ungelesen = (m.nachrichten ?? []).filter((n) => n.von === "kunde" && !n.gelesen).length;
   if (ungelesen > 0) {
     return {
       ton: "uns", titel: ungelesen === 1 ? "Der Kunde hat geschrieben." : `Der Kunde hat ${ungelesen} Nachrichten geschrieben.`,
-      warum: "Er wartet im Portal auf eine Antwort.", knopf: "Antworten", aktion: { art: "antworten" }, wartet,
+      warum: "Er wartet im Portal auf eine Antwort.", knopf: "Antworten", aktion: { art: "antworten" }, wartet: status === "storniert" ? [] : wartet,
     };
   }
+
+  // 0 · Ruhe
+  if (status === "storniert") return { ton: "ruhe", titel: "Der Auftrag ist storniert.", warum: "Hier ist nichts mehr zu tun.", knopf: null, aktion: { art: "keine" }, wartet: [] };
 
   // 2 · Neue Dokumente vom Kunden (auch frisch unterschriebene Fassungen)
   const neu = (m.dokumente ?? []).filter((d) => d.neu);
@@ -224,8 +225,13 @@ export function alsNaechstes(m: AlsNaechstesAkte, heute: string): AlsNaechstes {
 export interface ListenZeile {
   status: string; anfragenNeu?: number; uploadsNeu?: number; unterschriftenOffen?: number;
   naechsteFrist?: string | null; naechsterSchritt?: string | null; fortschritt?: { erledigt: number; gesamt: number } | null;
+  /** Name der zuständigen Person; null = niemand festgelegt, undefined = unbekannt (dann keine Regel). */
+  zustaendig?: string | null;
+  /** E-455: die nächste Station (globalMandateListe) — „beantragt“ heißt: Behörde oder Institut ist dran. */
+  naechsteStation?: { titel: string; status: string } | null;
 }
-export type ListenGruppe = "uns" | "kunde" | "ruhe";
+/** uns = Braucht uns · kunde = wartet auf den Kunden · amt = wartet auf Behörde/Institut · ruhe = nur unter „Alle“ */
+export type ListenGruppe = "uns" | "kunde" | "amt" | "ruhe";
 export interface ListenLage {
   gruppe: ListenGruppe;
   /** Neues vom Kunden (Punkt in der Liste). */
@@ -250,10 +256,13 @@ export function listenLage(z: ListenZeile, heute: string): ListenLage {
     const t = tageBis(z.naechsteFrist, heute);
     return { gruppe: "uns", neu, stand, naechster: t < 0 ? `Frist überfällig (${tagDe(z.naechsteFrist)})` : `Frist am ${tagDe(z.naechsteFrist)}` };
   }
+  if (z.zustaendig === null) return { gruppe: "uns", neu, stand, naechster: "Niemand führt die Akte" };
   if (z.status === "offen") return { gruppe: "kunde", neu, stand, naechster: "Wartet auf die Zahlung" };
   // Wie die Karte „Als Nächstes“: Solange unser Fahrplan läuft, sind WIR dran — eine Unterschrift beim Kunden steht daneben.
+  // Ist die nächste Station beantragt, entscheidet eine Behörde oder ein Institut (Karte: „Wartet auf Behörde oder Institut“).
   const u = Number(z.unterschriftenOffen || 0);
   const beimKunden = u > 0 ? `${mehrzahl(u, "Unterschrift", "Unterschriften")} beim Kunden` : "";
+  if (z.naechsteStation?.status === "beantragt") return { gruppe: "amt", neu, stand, naechster: `Wartet auf Behörde: ${z.naechsteStation.titel}` };
   if (f.erledigt < f.gesamt) return { gruppe: "uns", neu, stand, naechster: z.naechsterSchritt ? String(z.naechsterSchritt) : beimKunden || "Fahrplan weiterführen" };
   if (u > 0) return { gruppe: "kunde", neu, stand, naechster: beimKunden };
   return { gruppe: "ruhe", neu, stand, naechster: "Fahrplan komplett" };

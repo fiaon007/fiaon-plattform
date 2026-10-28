@@ -545,10 +545,18 @@ function FeldInline({ schluessel, f, m, tun, gref }: { schluessel: string; f: St
   useEffect(() => { if (!klar) return; const t = window.setTimeout(() => setKlar(null), 20_000); return () => window.clearTimeout(t); }, [klar]);
   const anzeige = feldAnzeige(f, m);
   const speichern = async () => {
+    // E-455 Gegenprüfung: Die ITIN steht nie im Feld (nur maskiert) — ein leeres Feld darf sie nicht löschen.
+    if (f.art === "itin" && !wert.trim()) { setFehler("Bitte die neue ITIN eingeben — leer lassen löscht sie nicht."); return; }
     const pr = stationWertePruefen(schluessel, { [f.feld]: wert }, heuteBerlin());
     if (!pr.ok) { setFehler(pr.error); return; }
     setLaeuft(true); setFehler("");
     try { if (await tun("/station", "POST", { schluessel, werte: { [f.feld]: wert } })) setAuf(false); } finally { setLaeuft(false); }
+  };
+  // Löschen der ITIN nur mit eigener Rückfrage.
+  const itinLoeschen = async () => {
+    if (!window.confirm("Die hinterlegte ITIN wirklich löschen? Der Kunde sieht danach keine ITIN mehr.")) return;
+    setLaeuft(true); setFehler("");
+    try { await tun("/station", "POST", { schluessel, werte: { itin: "" } }); } finally { setLaeuft(false); }
   };
   const itinZeigen = async () => {
     const j = await senden(`/chef/global/mandate/${encodeURIComponent(gref)}/itin`, "POST");
@@ -579,6 +587,7 @@ function FeldInline({ schluessel, f, m, tun, gref }: { schluessel: string; f: St
             {anzeige ? (f.art === "mehrzeilig" ? <pre>{anzeige}</pre> : <span>{klar ?? anzeige}</span>) : <span className="leer">noch leer</span>}
             <span className="cgn-reihe">
               {f.art === "itin" && anzeige && (klar ? <button type="button" className="cgn-link leise" onClick={() => setKlar(null)}>Verbergen</button> : <button type="button" className="cgn-link leise" onClick={() => void itinZeigen()}>Anzeigen</button>)}
+              {f.art === "itin" && anzeige && <button type="button" className="cgn-link leise" disabled={laeuft} data-cgn="itin-loeschen" onClick={() => void itinLoeschen()}>Löschen</button>}
               <button type="button" className="cgn-link" onClick={() => { setWert(roh); setAuf(true); setKlar(null); }}>{anzeige ? "Ändern" : "Eintragen"}</button>
             </span>
             {fehler && <span className="cgn-fehler" role="alert">{fehler}</span>}
@@ -621,8 +630,10 @@ export function Zustaendigkeit({ m, tun }: { m: T; tun: Tun }) {
 const LEER_KAPITAL = { id: 0, art: "konto", institut: "", produkt: "", inhaber: "firma", status: "vorbereitung", betragUsd: "", beantragtAm: "", entschiedenAm: "", hinweis: "", intern: "", sichtbar: true };
 export function Kapital({ m, tun }: { m: T; tun: Tun }) {
   const [form, setForm] = useState<typeof LEER_KAPITAL | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
   const liste = m.kapital as T[];
-  const speichern = async () => { if (form && await tun("/kapital", "POST", form)) setForm(null); };
+  // E-455 Gegenprüfung: Doppelklick legt sonst zwei Einträge an.
+  const speichern = async () => { if (!form || laeuft) return; setLaeuft(true); try { if (await tun("/kapital", "POST", form)) setForm(null); } finally { setLaeuft(false); } };
   return (
     <>
       <div className="cgn-reihe zwischen">
@@ -646,7 +657,7 @@ export function Kapital({ m, tun }: { m: T; tun: Tun }) {
           </div>
           <label className="cgn-haken"><input type="checkbox" checked={form.sichtbar} onChange={(e) => setForm({ ...form, sichtbar: e.target.checked })} /> Kunde sieht diesen Eintrag</label>
           <div className="cgn-reihe">
-            <button type="button" className="cgn-knopf haupt klein" onClick={() => void speichern()}>{form.id ? "Speichern" : "Anlegen"}</button>
+            <button type="button" className="cgn-knopf haupt klein" disabled={laeuft} data-cgn="kapital-speichern" onClick={() => void speichern()}>{laeuft ? "Speichert …" : form.id ? "Speichern" : "Anlegen"}</button>
             <button type="button" className="cgn-knopf klein" onClick={() => setForm(null)}>Abbrechen</button>
           </div>
         </div>
@@ -681,6 +692,7 @@ export function Fristen({ m, tun }: { m: T; tun: Tun }) {
   const [faellig, setFaellig] = useState("");
   const [hinweis, setHinweis] = useState("");
   const [neu, setNeu] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
   const liste = m.fristen as T[];
   return (
     <>
@@ -705,7 +717,8 @@ export function Fristen({ m, tun }: { m: T; tun: Tun }) {
             <label className="cgn-feld breit">Hinweis (freiwillig)<input value={hinweis} onChange={(e) => setHinweis(e.target.value)} /></label>
           </div>
           <div className="cgn-reihe">
-            <button type="button" className="cgn-knopf haupt klein" disabled={!titel || !faellig} onClick={async () => { if (await tun("/frist", "POST", { titel, faelligAm: faellig, hinweis })) { setTitel(""); setFaellig(""); setHinweis(""); setNeu(false); } }}>Anlegen</button>
+            <button type="button" className="cgn-knopf haupt klein" disabled={!titel || !faellig || laeuft} data-cgn="frist-anlegen"
+                    onClick={async () => { if (laeuft) return; setLaeuft(true); try { if (await tun("/frist", "POST", { titel, faelligAm: faellig, hinweis })) { setTitel(""); setFaellig(""); setHinweis(""); setNeu(false); } } finally { setLaeuft(false); } }}>{laeuft ? "Legt an …" : "Anlegen"}</button>
             <button type="button" className="cgn-knopf klein" onClick={() => setNeu(false)}>Abbrechen</button>
           </div>
         </div>
@@ -719,6 +732,7 @@ export function Verlauf({ m, tun }: { m: T; tun: Tun }) {
   const [text, setText] = useState("");
   const [sichtbar, setSichtbar] = useState(false);
   const [alle, setAlle] = useState(false);
+  const [laeuft, setLaeuft] = useState(false);
   const zeilen = (m.intern?.verlaufAlles ?? []) as T[];
   const gezeigt = alle ? zeilen : zeilen.slice(0, 8);
   return (
@@ -727,7 +741,8 @@ export function Verlauf({ m, tun }: { m: T; tun: Tun }) {
         <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Notiz — intern, oder für den Kunden sichtbar" aria-label="Notiz" />
         <div className="cgn-reihe zwischen">
           <label className="cgn-haken"><input type="checkbox" checked={sichtbar} onChange={(e) => setSichtbar(e.target.checked)} /> Kunde sieht die Notiz</label>
-          <button type="button" className="cgn-knopf klein haupt" disabled={text.trim().length < 2} onClick={async () => { if (await tun("/notiz", "POST", { text, sichtbar })) setText(""); }}>Notiz speichern</button>
+          <button type="button" className="cgn-knopf klein haupt" disabled={text.trim().length < 2 || laeuft} data-cgn="notiz-speichern"
+                  onClick={async () => { if (laeuft) return; setLaeuft(true); try { if (await tun("/notiz", "POST", { text, sichtbar })) setText(""); } finally { setLaeuft(false); } }}>{laeuft ? "Speichert …" : "Notiz speichern"}</button>
         </div>
       </div>
       <div className="cgn-gruppe">

@@ -1595,8 +1595,9 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
   {
     ziel: ".cgn-filter",
     titel: "„Braucht uns“ zeigt nur, wo wir dran sind.",
-    text: "Braucht uns: Neues vom Kunden, eine Frist in den nächsten 14 Tagen oder ein Fahrplan, der weiterläuft. "
-      + "Wartet auf Kunde: Zahlung offen oder eine Unterschrift liegt beim Kunden. Alle: jede Akte. "
+    text: "Braucht uns: Neues vom Kunden, eine Frist in den nächsten 14 Tagen, niemand führt die Akte oder der Fahrplan läuft weiter. "
+      + "Wartet: Die Zahlung ist offen, eine Unterschrift liegt beim Kunden, oder die nächste Station ist beantragt und eine Behörde bzw. "
+      + "ein Institut entscheidet. Alle: jede Akte. "
       + "Der blaue Punkt mit Schein heißt: Der Kunde hat etwas hochgeladen oder geschrieben.",
     tipp: "Morgens „Braucht uns“ von oben nach unten abarbeiten — dann ist der Tag sauber.",
   },
@@ -1630,7 +1631,8 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     text: "Nachrichten (öffnen = gelesen), Zahlungen & Leistungen (Rechnungen, Zusatzdienste), Firmendaten (EIN, Registernummer, Agent, US-Adresse, "
       + "US-Telefon, ITIN, D-U-N-S — je Wert „Ändern“, dazu wer zuständig ist), Banken & Kapital, Fristen, Verlauf & Notizen und „Mehr“ "
       + "(Portal freischalten, Link per Mail, Stichtag, Test-Akte, KI-Gespräche). „Kundenansicht“ oben zeigt das Portal, wie der Kunde es sieht.",
-    tipp: "„Alte Ansicht“ öffnet dieselbe Akte im Raum „Global-Mandate“. Die Zahl am Menüpunkt zählt Akten mit Neuem vom Kunden.",
+    tipp: "„Alte Ansicht“ öffnet dieselbe Akte im Raum „Global-Mandate“. Die Zahl am Menüpunkt zählt Akten mit Neuem vom Kunden. "
+      + "Diesen Rundgang startest du jederzeit wieder über „Rundgang“ oben unter der Überschrift.",
   },
 ];
 

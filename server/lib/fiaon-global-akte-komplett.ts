@@ -62,8 +62,10 @@ async function mandatLesen(ref: string): Promise<Mandat | null> {
       FROM fiaon_global_auftraege g LEFT JOIN fiaon_global_angebote a ON a.id = g.angebot_id
      WHERE g.ref = ${ref} LIMIT 1`) as any[];
   if (!g) return null;
-  const ap = typeof g.ansprechpartner === "object" && g.ansprechpartner ? g.ansprechpartner : {};
-  const ges = typeof g.gesellschaft === "object" && g.gesellschaft ? g.gesellschaft : {};
+  // E-432 (28.10.2026): jsonLesen verträgt auch JSON-Text (doppelt kodiert, wie bei den Kapital-Akten bis heute) — vorher
+  // fiel die Gesellschaft dort auf firma_name (den Namen des Kunden) zurück, und „gegründet“ blieb immer false.
+  const ap = jsonLesen(g.ansprechpartner);
+  const ges = jsonLesen(g.gesellschaft);
   return {
     ref: String(g.ref), personId: g.person_id != null ? Number(g.person_id) : null, email: g.email ? String(g.email).trim().toLowerCase() : null,
     sprache: String(g.vertrag_sprache ?? "").toLowerCase() === "en" ? "en" : "de", fassung: g.fassung ? String(g.fassung) : null,

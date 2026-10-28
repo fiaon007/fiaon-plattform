@@ -687,6 +687,8 @@ export async function globalKapitalEntfernen(ref: string, idRoh: unknown, agent:
 // fiaon_global_schritte. Der Kunde liest beim ERSTEN Eintragen einen Satz im Verlauf („Ihre ITIN ist da.“), das Team
 // eine interne Zeile mit Namen. Nie steht die ITIN im Verlauf, im Protokoll oder in einer Antwort.
 const FELD_TITEL = new Map(Object.values(GLOBAL_STATION_FELDER).flat().map((f) => [f.feld, f.titel]));
+/** gesellschaft als Objekt — auch wenn sie als JSON-Text (jsonb „string“, doppelt kodiert) in der Spalte steht (E-432). */
+const GESELLSCHAFT_OBJEKT_SQL = `(CASE WHEN jsonb_typeof(gesellschaft) = 'string' AND (gesellschaft #>> '{}') LIKE '{%' THEN (gesellschaft #>> '{}')::jsonb ELSE gesellschaft END)`;
 const leerWert = (v: unknown) => v == null || String(v).trim() === "";
 
 export async function globalStationSpeichern(ref: string, ein: Record<string, unknown>, agent: BereichAgent, opts: { vorZahlung?: boolean } = {}): Promise<Erg<{ meldung: string; gesellschaftPlus: Record<string, unknown>; hinweise: string[] }>> {
@@ -726,7 +728,7 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
     const norm = (x: unknown) => String(x ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim();
     const team = (await sqlPool`SELECT name FROM fiaon_agents WHERE COALESCE(is_test_account, FALSE) = FALSE AND name IS NOT NULL`.catch(() => [])) as any[];
     if (team.some((a) => norm(a.name) && norm(a.name) === norm(kontaktNeu))) {
-      return { ok: false as const, status: 400, error: "Kontaktperson: Das ist jemand aus dem FIAON-Team. Wyoming verlangt eine natürliche Person aus dem Kreis der Gesellschafter oder der Geschäftsführung des Kunden — in der Regel den Inhaber.", feld: "kontaktperson" } as ReturnType<typeof nein>;
+      return { ok: false as const, status: 400, error: "Kontaktperson: Das ist jemand aus dem FIAON-Team. Die Kontaktperson ist eine natürliche Person aus dem Kreis der Gesellschafter oder der Geschäftsführung des Kunden — in der Regel der Inhaber.", feld: "kontaktperson" } as ReturnType<typeof nein>;
     }
   }
 
@@ -797,9 +799,13 @@ export async function globalStationSpeichern(ref: string, ein: Record<string, un
 
   // 22.10.2026 (erster Begleitvertrag): „Name geprüft“ erledigt → der bei der Annahme nur vorgemerkte Name (geprueft: false, E-399)
   // gilt als geprüft. Sonst nannte die Zahlungsseite ihn weiter „vorgemerkt“, während Portal und Station „erledigt“ sagten.
+  // E-432 (28.10.2026): Die Akten der Kapital-Angebote trugen gesellschaft bis heute als JSON-TEXT (doppelt kodiert, jsonb_typeof
+  // „string“) — dort lieferte gesellschaft->>'geprueft' NULL, das UPDATE traf keine Zeile, und die Zahlungsseite blieb bei
+  // „vorgemerkt“. Jetzt wird der Text erst ausgepackt (ein Objekt bleibt, wie es ist); dabei wird er zum Objekt.
   if (v.schluessel === "name" && status === "erledigt") {
-    await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = jsonb_set(gesellschaft, '{geprueft}', 'true'::jsonb), updated_at = NOW()
-                   WHERE ref = ${ref} AND gesellschaft IS NOT NULL AND gesellschaft->>'geprueft' = 'false'`;
+    await sqlPool`UPDATE fiaon_global_auftraege
+                     SET gesellschaft = jsonb_set(${sqlPool.unsafe(GESELLSCHAFT_OBJEKT_SQL)}, '{geprueft}', 'true'::jsonb), updated_at = NOW()
+                   WHERE ref = ${ref} AND gesellschaft IS NOT NULL AND (${sqlPool.unsafe(GESELLSCHAFT_OBJEKT_SQL)})->>'geprueft' = 'false'`;
   }
 
   // 5 · VERLAUF — der Kunde liest das Neue, das Team alles

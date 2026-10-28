@@ -116,6 +116,15 @@ ok(S.GLOBAL_STATION_UNTERSCHRIFT.ein?.pflichtKey === "irs_ss4", "SS-4 an der EIN
     const fl = g.globalAgentKontakt(sp, "FL");
     ok(!/Wyoming/.test(fl) && (sp === "de" ? /Inhaber/ : /owner/).test(fl), `${sp}: Florida-Gesellschaft — kein „Wyoming verlangt …“, Inhaber bleibt`);
   }
+  // Kontaktperson-Zeile beim Kunden nur bei Wyoming oder offenem Staat; Editor-Vorbelegung ebenso.
+  const tagX = (iso: string) => iso;
+  const plusK = { kontaktperson: "Erika Muster", agentAdresse: "1 Example Way\nMiami, FL 33100" };
+  gleich(S.stationZeilen("agent", { bundesstaat: "Florida" } as any, plusK as any, "de", tagX).map((z) => z.key), ["agentAdresse"], "FL: Kunde sieht die Agent-Adresse, keine Kontaktperson");
+  gleich(S.stationZeilen("agent", { bundesstaat: "WY" } as any, plusK as any, "de", tagX).map((z) => z.key), ["agentAdresse", "kontakt"], "WY: Agent-Adresse und Kontaktperson");
+  gleich(S.stationZeilen("agent", {} as any, plusK as any, "de", tagX).map((z) => z.key), ["agentAdresse", "kontakt"], "Staat offen: wie bisher mit Kontaktperson");
+  gleich(S.stationZeilen("eingetragen", {} as any, { aktenzeichen: "L26000123456" } as any, "de", tagX).map((z) => z.titel), ["Registernummer"], "Registernummer statt „State File Number“ beim Kunden");
+  const editorQ = datei("client/src/components/global/GlobalStationen.tsx");
+  ok(/s\.schluessel === "agent" && stationKontaktpersonStaat\(g\?\.bundesstaat\)/.test(editorQ), "Editor: Vorbelegung der Kontaktperson nur bei Wyoming/offenem Staat");
   const libQ = datei("server/lib/fiaon-global-mandat.ts");
   ok(/FROM fiaon_agents WHERE COALESCE\(is_test_account, FALSE\) = FALSE/.test(libQ) && /jemand aus dem FIAON-Team/.test(libQ), "Server lehnt eine Kontaktperson aus dem FIAON-Team ab");
   ok(/stationKontaktWarnungen\(neu\.kontaktAdresse, neu\.agentAdresse\)/.test(libQ) && /export async function globalKontaktVorschlag/.test(libQ), "Server: Warnungen zur Anschrift + Vorschlag aus dem Auftrag");

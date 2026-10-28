@@ -1070,25 +1070,13 @@ router.post("/admin/kunden/:ref/konditionen", async (req: Request, res: Response
         changes.push({ field: "Betrag", from: `${from} €`, to: `${v.toFixed(2)} €` });
       }
     }
-    // Zahlungsfrist — nur bei offenen/angekündigten/abgelaufenen Bestellungen
+    // Zahlungsfrist — nur bei offenen/angekündigten/abgelaufenen Bestellungen. E-432 (28.10.2026): EIN Weg mit dem Pflege-Skript
+    // für Global-Aufträge (server/lib/fiaon-zahlungsfrist.ts) — gleiche Prüfungen, Meldungen und Protokollsatz wie bisher hier.
     if (body.paymentDueDate !== undefined) {
-      if (!["pending_payment", "claimed_paid", "expired"].includes(cur.payment_status)) {
-        return res.status(409).json({ ok: false, error: "Zahlungsfrist nur bei offenen Bestellungen änderbar" });
-      }
-      const d = String(body.paymentDueDate || "").trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ ok: false, error: "Frist ungültig (JJJJ-MM-TT)" });
-      const from = cur.payment_due_date ? new Date(cur.payment_due_date).toISOString().slice(0, 10) : "—";
-      if (from !== d) {
-        // Ende des Tages Europe/Berlin ≈ 22:00 UTC (Sommer) — bewusst 23:59 Berlin über Datums-Cast:
-        await sqlPool`
-          UPDATE fiaon_applications SET
-            payment_due_date = (${d}::date + INTERVAL '1 day' - INTERVAL '1 second') AT TIME ZONE 'Europe/Berlin',
-            payment_status = CASE WHEN payment_status = 'expired' AND ${d}::date >= (NOW() AT TIME ZONE 'Europe/Berlin')::date THEN 'pending_payment' ELSE payment_status END,
-            updated_at = NOW()
-          WHERE ref = ${ref}`;
-        await auditApp(ref, `Zahlungsfrist geändert durch Admin: ${from} → ${d}`);
-        changes.push({ field: "Zahlungsfrist", from, to: d });
-      }
+      const { zahlungsfristSetzen } = await import("../lib/fiaon-zahlungsfrist");
+      const r = await zahlungsfristSetzen(ref, body.paymentDueDate);
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error });
+      if (r.geaendert) changes.push({ field: "Zahlungsfrist", from: r.von, to: r.nach });
     }
     // ══════════════════════════════════════════════════════════════════════
     // PAKET — UND DER BETRAG GEHT MIT (19.08.2026)

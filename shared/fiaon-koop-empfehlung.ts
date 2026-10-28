@@ -16,6 +16,13 @@
 
 /** Durchlaufende Fremdkosten: kein Umsatz für die Provision (Gründung zum Selbstkostenpreis, Fast-Track, Kooperationsrechnungen). */
 export const KOOP_DURCHLAUF_SCHLUESSEL = ["llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "llc_loeschung", "koop_kontakte"] as const;
+/**
+ * Justin 28.10.2026 (E-432): Auch der FAST-TRACK der Kapital-Fassung C ist durchlaufend (Tippgeber-Vereinbarung Ziffer 3 Abs. 2) —
+ * dort steckt er mit Gründung, Konto und Karten in EINER Bestellung (global_individuell). Von dieser ersten Zahlung zählt nur der
+ * Teil ohne Fast-Track (parameter.fastTrackCents des Angebots, dessen auftrag_ref die Zahlung ist); spätere Zahlungen derselben
+ * Person (Erfolgshonorar) zählen voll. SQL-Ausdruck über q (UMSATZ_QUELLE_SQL): der abzuziehende Betrag in Cent, nie mehr als q.cents.
+ */
+export const KOOP_DURCHLAUF_ABZUG_SQL = `COALESCE((SELECT LEAST(q.cents, GREATEST(0, COALESCE((ga.parameter->>'fastTrackCents')::int, 0))) FROM fiaon_global_angebote ga WHERE ga.auftrag_ref = q.ref AND ga.fassung LIKE 'IA-KAPITAL-%-C' LIMIT 1), 0)`;
 /** So lange zählen die Zahlungen eines empfohlenen Kunden ab der Meldung. */
 export const KOOP_PROVISION_MONATE = 12;
 

@@ -11,7 +11,7 @@
 import { sqlPool } from "./db-pool";
 import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import {
-  KOOP_DURCHLAUF_SCHLUESSEL, KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, koopProvisionAus, koopProvisionCents, koopEmpfehlungAus,
+  KOOP_DURCHLAUF_SCHLUESSEL, KOOP_DURCHLAUF_ABZUG_SQL, KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, koopProvisionAus, koopProvisionCents, koopEmpfehlungAus,
   koopBerechnungAusgesetzt, koopMonatsbericht, type KoopEmpfehlungStand,
 } from "@shared/fiaon-koop-empfehlung";
 
@@ -76,7 +76,7 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }): Promise<Koop
   const personen = Array.from(new Set(zeilen.map((x) => x.person_id).filter((x) => x != null).map(Number)));
   const geld = personen.length ? ((await sqlPool.unsafe(`
     WITH q AS (${UMSATZ_QUELLE_SQL})
-    SELECT e.id, COALESCE(SUM(q.cents), 0)::int AS cents, COUNT(q.ref)::int AS n
+    SELECT e.id, COALESCE(SUM(q.cents - ${KOOP_DURCHLAUF_ABZUG_SQL}), 0)::int AS cents, COUNT(q.ref)::int AS n
       FROM fiaon_koop_empfehlungen e
       LEFT JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($3::text[]))
@@ -253,7 +253,7 @@ export async function koopGutschriftPosten(angebotId: number, monat: string, pro
   await ensureEmpfehlungTabelle();
   const roh = (await sqlPool.unsafe(`
     WITH q AS (${UMSATZ_QUELLE_SQL})
-    SELECT e.id AS eid, e.name, q.ref, q.am, q.cents
+    SELECT e.id AS eid, e.name, q.ref, q.am, (q.cents - ${KOOP_DURCHLAUF_ABZUG_SQL}) AS cents
       FROM fiaon_koop_empfehlungen e
       JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
      WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL

@@ -89,6 +89,7 @@ for (const p of GLOBAL_PAKETE) sammle(p.de, `fiaon-global/${p.key}`, texte);
 sammle(GLOBAL_PFLICHTHINWEIS.de, "fiaon-global/pflichthinweis", texte);
 sammle(GLOBAL_ROLLEN.de, "fiaon-global/rollen", texte);
 sammle(GLOBAL_GELD_ZURUECK.de, "fiaon-global/geld-zurueck", texte);
+// E-432 (28.10.2026): der Satz zum Registered Agent je Bundesstaat (Portal › Fahrplan › „Registered Agent bestellt“).
 // E-196 (19.09.2026): Jahresbetreuung ab dem zweiten Jahr und die Nachrichtenlage (nur die deutschen Felder).
 sammle(GLOBAL_JAHRESBETREUUNG.de, "fiaon-global/jahresbetreuung", texte);
 // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — die eine Quelle für Seite, Fragen, Leitfaden, Wissen.

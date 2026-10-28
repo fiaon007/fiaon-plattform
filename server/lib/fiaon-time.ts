@@ -180,6 +180,17 @@ export function berlinZeitpunkt(datumISO: string, minutenAbMitternacht: number):
   return new Date(utc);
 }
 
+/**
+ * Das Ende einer Zahlungsfrist von `tage` Kalendertagen ab heute (Berlin): 23:59:59 des letzten Tages (§ 188 Abs. 1 BGB —
+ * die Frist endet mit dem Ablauf des letzten Tages). 0 Tage = heute 23:59:59 („sofort“). E-432 (28.10.2026): Vorher stand bei
+ * einem Angebotsteil „jetzt + N × 24 Stunden“ — bei null Tagen war die Frist schon in der Minute der Annahme „abgelaufen“.
+ */
+export function berlinFristEnde(tage: number, ab: Date = new Date()): Date {
+  const [y, m, d] = berlinToday(ab).split("-").map(Number);
+  const letzterTag = new Date(Date.UTC(y, m - 1, d + Math.max(0, Math.trunc(Number(tage) || 0)))).toISOString().slice(0, 10);
+  return new Date(berlinZeitpunkt(letzterTag, 24 * 60).getTime() - 1000);
+}
+
 /** Datum in Berlin als „YYYY-MM-DD". */
 export function berlinDatum(at: Date): string {
   return new Intl.DateTimeFormat("en-CA", {

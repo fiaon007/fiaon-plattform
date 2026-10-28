@@ -1673,8 +1673,9 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
       + "ITIN als 9XX-XX-XXXX, die D-U-N-S mit neun Ziffern, die US-Nummer mit +1 — verlässt du ein Feld, prüft die Karte sofort "
       + "und formatiert schön. „Speichern“ schickt alles in einem Zug; der Kunde sieht die Werte sofort in seinem Portal und "
       + "beim ersten Eintragen einen Satz im Verlauf („Ihre EIN ist da.“).",
-    tipp: "Kontaktperson (Station Registered Agent): immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. "
+    tipp: "Kontaktperson (Station Registered Agent, nur Wyoming): immer der Inhaber oder ein Gesellschafter/Manager des Kunden — nie jemand von FIAON. "
       + "Sie ist aus dem Auftrag vorbelegt; die Wohnanschrift darf kein Postfach, kein virtuelles Büro und keine Agent-Adresse sein (die Karte warnt). "
+      + "Bei einer Gesellschaft in Florida gibt es diese Pflicht nicht — dort ist nichts vorbelegt, und der Kunde liest den Florida-Satz (Registered Agent, Annual Report). "
       + "EIN ohne SSN/ITIN: Status „SS-4 zur Unterschrift“ → „Eingereicht (Fax)“ → „EIN erteilt“; das SS-4 erzeugst du im Reiter „Unterschriften“ (vorausgefüllt aus der Akte). "
       + "Das SS-4 (und IRS 8821) unterschreibt der Kunde VON HAND: ausdrucken, unterschreiben, datieren, als PDF scannen, hochladen — "
       + "schickt er es dir per Mail, lädst du den Scan an der Station „im Namen des Kunden“ hoch (nur PDF). Dann kommt die Aufgabe, "

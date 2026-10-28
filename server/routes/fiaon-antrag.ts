@@ -1105,8 +1105,12 @@ export async function bestellungFuerAntrag(
   if (!amount) return { status: 400, body: { ok: false, error: `Unbekanntes Paket: ${app.pack_key}` } };
 
   const paymentReference = app.payment_reference || (await generateUniquePaymentReference());
-  // Teil 1 eines Individualangebots: Zahlungsziel sofort (0 Tage), Teil 2: sieben Tage — aus dem Teil.
-  const dueDate = new Date(Date.now() + (angebotsTeil ? angebotsTeil.zahlungszielTage : PAYMENT_DUE_DAYS) * 24 * 60 * 60 * 1000);
+  // Angebotsteil (Individualangebot E-268, Kapital-Angebote): das Zahlungsziel aus dem Teil (E-268 Teil 1: 0 Tage; Kapital C bis
+  // 28.10.2026: sieben Tage, neue Angebote: 0 = sofort). E-432 (28.10.2026): als ENDE des Berliner Kalendertags (§ 188 BGB) statt
+  // „jetzt + N × 24 h“ — sonst galt eine Frist von null Tagen schon in der Minute der Annahme als abgelaufen. Pakete wie bisher.
+  const dueDate = angebotsTeil
+    ? (await import("../lib/fiaon-time")).berlinFristEnde(angebotsTeil.zahlungszielTage)
+    : new Date(Date.now() + PAYMENT_DUE_DAYS * 24 * 60 * 60 * 1000);
 
   await sqlPool`
     UPDATE fiaon_applications SET

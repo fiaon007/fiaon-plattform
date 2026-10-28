@@ -139,7 +139,9 @@ export async function formularKontext(ref: string, o: { mitItin?: boolean } = {}
   return {
     ref, sprache: String(g.vertrag_sprache ?? "").toLowerCase() === "en" ? "en" : "de",
     kundeName: name, kundeAnschrift: wohn, kundeEmail: knapp(ap.email || g.email).toLowerCase(), kundeTelefon: knapp(plus.kontaktTelefon || ap.telefon),
-    firmaName: privat ? "" : knapp(firma.name), weiblich: /^IA-(FIRMA|KAPITAL)-/i.test(fassung),
+    // „Auftraggeberin“ ist die FIRMA eines Firmen-/Kapital-Angebots. E-432 (28.10.2026): Ein Kapital-Angebot der Fassung C schließt
+    // mit einer Privatperson — dort „Auftraggeber“ (und beim Unterschreiben nicht „für die Auftraggeberin“).
+    firmaName: privat ? "" : knapp(firma.name), weiblich: !privat && /^IA-(FIRMA|KAPITAL)-/i.test(fassung),
     vertragFassung: fassung, vertragAm: tag(g.unterschrieben_am),
     llc: {
       name: knapp(ges.name), bundesstaat: knapp(ges.bundesstaat).toUpperCase(), gegruendetAm: ges.gegruendetAm ? String(ges.gegruendetAm).slice(0, 10) : null,

@@ -38,14 +38,18 @@ export function bildTypAusName(name: string): BildTyp | null {
 
 export interface BereinigtesBild { daten: Buffer; typ: BildTyp; entfernt: string[] }
 
-/** Bild prüfen und ohne Metadaten zurückgeben. Wirft mit einem lesbaren Satz, wenn es kein erlaubtes oder ein kaputtes Bild ist. */
-export function bildOhneMetadaten(roh: Buffer, name: string): BereinigtesBild {
+/**
+ * Bild prüfen und ohne Metadaten zurückgeben. Wirft mit einem lesbaren Satz, wenn es kein erlaubtes oder ein kaputtes Bild ist.
+ * `hoechst`: größte erlaubte Größe nach dem Bereinigen — Vorgabe 4 MB (Angebotsbilder); der Tresor eines Global-Auftrags erlaubt
+ * 15 MB (E-432, scripts/global-auftrag-pflegen.ts).
+ */
+export function bildOhneMetadaten(roh: Buffer, name: string, hoechst: number = BILD_HOECHST_BYTES): BereinigtesBild {
   const typ = bildTypAusInhalt(roh);
   if (!typ) throw new Error(`${name}: kein WebP-, PNG- oder JPEG-Bild (Signatur fehlt).`);
   const erwartet = bildTypAusName(name);
   if (erwartet !== typ) throw new Error(`${name}: Endung und Inhalt passen nicht (Inhalt ${typ}).`);
   const erg = typ === "image/webp" ? webpOhne(roh, name) : typ === "image/png" ? pngOhne(roh, name) : jpegOhne(roh, name);
-  if (erg.daten.length > BILD_HOECHST_BYTES) throw new Error(`${name}: größer als ${Math.round(BILD_HOECHST_BYTES / 1024 / 1024)} MB.`);
+  if (erg.daten.length > hoechst) throw new Error(`${name}: größer als ${Math.round(hoechst / 1024 / 1024)} MB.`);
   return { ...erg, typ };
 }
 

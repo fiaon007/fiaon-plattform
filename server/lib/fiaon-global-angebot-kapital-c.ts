@@ -45,7 +45,7 @@ import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
 import { globalAkteLesen, globalBestellungLesen, globalMeinAuftragUrl, globalVerlauf, globalVertragPdfLesen, globalRechnungPdf } from "./fiaon-global-auftrag";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
 import { kapitalBuerginAus } from "./fiaon-global-angebot-kapital";
-import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
+import { globalChefMandatPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import type { FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
@@ -56,7 +56,7 @@ import {
   kapitalCSeite, kapitalCBestellUebersicht, kapitalCAnnahmeTexte, kapitalCAnsprechpartner, kapitalCAnrede, kapitalCGruss, kapitalCName,
   kapitalCVertragTitel, kapitalCVertragUnterzeile, kapitalCRumpfHtml, kapitalCHashEingabe, kapitalCHeuteCents, kapitalCLaufzeitGueltig,
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
-  kapitalCVertragsstand,
+  kapitalCVertragsstand, kapitalCZahlbar,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -420,15 +420,15 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
            unterschrieben_am, ip, user_agent, quelle, status, doc_hash, firma_name, email, rechnung_ust_modus, ust_hinweis,
            jahresbetreuung, jahresbetreuung_preis_cents, angebot_id)
         VALUES
-          (${ref1}, ${ANGEBOT_PAKET_KEY}, ${k.land}, ${JSON.stringify(firma)}::jsonb, ${JSON.stringify(ansprechpartner)}::jsonb, ${null},
-           ${JSON.stringify(bestaetigungen)}::jsonb, ${pngM ? Buffer.from(pngM[1], "base64") : null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
+          (${ref1}, ${ANGEBOT_PAKET_KEY}, ${k.land}, ${jsonb(firma)}, ${jsonb(ansprechpartner)}, ${null},
+           ${jsonb(bestaetigungen)}, ${pngM ? Buffer.from(pngM[1], "base64") : null}, ${pdfZeile?.vertrag_pdf ?? null}, ${d.fassung}, 'de',
            ${new Date(z.angenommen_am)}, ${z.ip}, ${z.user_agent}, 'individualangebot', 'offen', ${z.text_hash}, ${firma.name}, ${k.email},
            'none', ${null}, TRUE, ${d.parameter.jahresCents}, ${id})
         ON CONFLICT (ref) DO NOTHING`;
     }
     // Der gewählte Name steht in der Akte — „vorgemerkt“ (geprueft: false), bis jemand ihn im Register geprüft hat.
     if (w?.llc.wunsch) {
-      await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${JSON.stringify({ name: w.llc.wunsch, bundesstaat: STAAT_KURZ[d.parameter.bundesstaat] ?? d.parameter.bundesstaat, geprueft: false })}::jsonb
+      await sqlPool`UPDATE fiaon_global_auftraege SET gesellschaft = ${jsonb({ name: w.llc.wunsch, bundesstaat: STAAT_KURZ[d.parameter.bundesstaat] ?? d.parameter.bundesstaat, geprueft: false })}
                      WHERE ref = ${ref1} AND (gesellschaft IS NULL OR gesellschaft::text IN ('null', '{}'))`.catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Gesellschaft in der Akte:`, e));
     }
     const b = await globalBestellungLesen(ref1);
@@ -446,6 +446,9 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
       [person] = (await sqlPool`SELECT person_id FROM fiaon_applications WHERE ref = ${ref1}`) as any[];
     }
     if (person?.person_id) await sqlPool`UPDATE fiaon_global_angebote SET person_id = COALESCE(person_id, ${Number(person.person_id)}) WHERE id = ${id}`;
+    // E-432 (28.10.2026): die Person auch an die Akte — sonst stand person_id dort bis zum nächsten Neustart leer (der Nachtrag in
+    // ensureGlobalMandat läuft nur einmal je Prozess), und Chefbüro und Abgleiche sahen keine Person.
+    if (person?.person_id) await sqlPool`UPDATE fiaon_global_auftraege SET person_id = ${Number(person.person_id)}, updated_at = NOW() WHERE ref = ${ref1} AND person_id IS NULL`;
     await sqlPool`UPDATE fiaon_global_angebote SET nacharbeit_fehler = NULL, updated_at = NOW() WHERE id = ${id} AND nacharbeit_fehler IS NOT NULL`;
     return { ok: true };
   } catch (e) {
@@ -476,7 +479,9 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
       ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): an ${d.kunde.email} abgeschickt (welcome@, Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF) — Zustellung noch offen: Das System prüft stündlich bei Brevo und meldet sich, wenn sie nicht ankommt.`
       : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Nicht zusätzlich von Hand schicken (beim Zahlungseingang versucht das System es sonst noch einmal, und der Kunde bekäme sie doppelt). Erst wenn auch das Nachholen scheitert, von Hand — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
     `BÜRGSCHAFT: Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV${par.buerginAktiv ? "" : " (im Angebot als inaktiv offengelegt — erst nach dem Reinstatement)"}. ERFOLGSHONORAR ${kapitalEur(par.erfolgCents)} per Knopf „${KAPITAL_C_TEIL2.knopf}“, sobald die LLC eingetragen ist.`,
-    `UNTERLAGEN: ${par.unterlagen.map((u) => u.titel).join(", ") || "—"} — liegen vor; bitte in der Akte ablegen (Office › Auftrag › Dokumente), falls noch nicht geschehen.`,
+    // E-432 (28.10.2026): Vor dem Zahlungseingang nimmt nur der Tresor im Chefbüro Dokumente an (das Office antwortet 409) —
+    // oder in einem Zug mit Metadaten-Bereinigung: scripts/global-auftrag-pflegen.ts --tresor <ordner>.
+    `UNTERLAGEN: ${par.unterlagen.map((u) => u.titel).join(", ") || "—"} — liegen vor; bitte in den Tresor legen: Chefbüro › Global-Mandat › Tresor${z2.auftrag_ref ? ` (${absoluteUrl(globalChefMandatPfad(String(z2.auftrag_ref)))})` : ""}, falls noch nicht geschehen.`,
     `JAHRESBETREUUNG: ${kapitalEur(par.jahresCents)} je Jahr ab dem zweiten Jahr (verlängert sich nicht von selbst).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK}.`,
   ];
@@ -493,7 +498,7 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
      WHERE id = ${id} AND bestaetigung_mail_am IS NULL RETURNING id`) as any[];
   if (!marke) return;
   await import("./fiaon-global-angebot-aufrufe")
-    .then((A) => A.annahmeMelden({ ref: d.ref, name: `${name} (privat)`, art: "Kapital-Angebot", betrag: `${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Rechnung sofort), ${kapitalEur(par.erfolgCents)} bei Eintragung, ab Jahr 2 ${kapitalEur(par.jahresCents)} je Jahr`, zeilen }))
+    .then((A) => A.annahmeMelden({ ref: d.ref, name: `${name} (privat)`, art: "Kapital-Angebot", betrag: `${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Rechnung mit der Annahme, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}${par.zahlungszielTage > 0 && b?.payment_due_date ? ` bis ${kapitalTag(berlinToday(new Date(b.payment_due_date)))}` : ""}), ${kapitalEur(par.erfolgCents)} bei Eintragung, ab Jahr 2 ${kapitalEur(par.jahresCents)} je Jahr`, zeilen }))
     .then((s) => console.log(`[FIAON-KAPITAL-C] ${d.ref}: Annahme — ${s}`))
     .catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Annahme-Mail an Justin:`, e));
 }
@@ -534,7 +539,8 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     const zahlungsseite = zweck ? absoluteUrl(`/zahlung/${encodeURIComponent(zweck)}?bereich=business`) : null;
     const meinAuftrag = globalMeinAuftragUrl(ref1);
     const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc });
-    const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par)), zweck, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
+    // E-432 (28.10.2026): Zahlungsziel null Tage → „Zahlbar: sofort“; sonst der Tag aus der Bestellung (bei sieben Tagen wie bisher).
+    const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par)), zweck, sofort: par.zahlungszielTage <= 0, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
     // Runde 2: Brevo verwirft Mails an gesperrte Adressen still (auch Abmelder, auch Service-Mails). Die Vertragsbestätigung ist
     // Pflicht (§ 312f BGB) und vom Kunden eben ausgelöst — die Sperre wird vorher aufgehoben (204 = war gesperrt, 404 = war frei).
     if (process.env.BREVO_API_KEY) {
@@ -756,12 +762,12 @@ export async function kapitalCGebuehrBerechnen(id: number, artRoh: unknown, ein:
   const name = kapitalCName(d.kunde);
   if (erst) {
     await verlaufAngebot(id, wer, satz, { teil: g.nr, bestellRef: ref, ...(teil.meilenstein_beleg ? { beleg: String(teil.meilenstein_beleg) } : {}) });
-    await globalVerlauf(ref1, `FIAON Global: ${satz}, ${g.ziffer} des Kapital-Angebots ${d.ref}, zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen (eingetragen von ${wer}).`)
+    await globalVerlauf(ref1, `FIAON Global: ${satz}, ${g.ziffer} des Kapital-Angebots ${d.ref}, zahlbar ${kapitalCZahlbar(Number(teil.zahlungsziel_tage))} (eingetragen von ${wer}).`)
       .catch((e: unknown) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Verlauf der Akte:`, e));
   }
   const zeilen = [
     `${name} (privat) · ${satz}.`,
-    `Zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen${b?.payment_reference ? ` · Verwendungszweck ${b.payment_reference}` : ""}${zahlungsseite ? ` · Zahlungsseite ${zahlungsseite}` : ""}.`,
+    `Zahlbar ${kapitalCZahlbar(Number(teil.zahlungsziel_tage))}${b?.payment_due_date ? ` (bis ${kapitalTag(berlinToday(new Date(b.payment_due_date)))})` : ""}${b?.payment_reference ? ` · Verwendungszweck ${b.payment_reference}` : ""}${zahlungsseite ? ` · Zahlungsseite ${zahlungsseite}` : ""}.`,
     `Keine automatische Kundenmail — Rechnung und Zahlungsseite bitte persönlich an ${d.kunde.email} schicken.`,
     ...(teil.meilenstein_beleg ? [`Beleg (intern): ${String(teil.meilenstein_beleg)}`] : []),
     `Chefbüro: ${absoluteUrl(CHEF_LINK)}`,
@@ -786,7 +792,7 @@ export async function kapitalCGebuehrBerechnen(id: number, artRoh: unknown, ein:
   }
   return {
     ok: true, ref, rechnungsnummer: b?.invoice_number ?? null, betragCents: Number(teil.betrag_cents), zahlungsseite,
-    meldung: `Rechnung ${b?.invoice_number ?? ref} über das ${g.titel} (${betrag} Endpreis) steht, zahlbar binnen ${zahlwort(Number(teil.zahlungsziel_tage))} Tagen. Keine Kundenmail — Aufgabe mit Zahlungslink liegt bei Justin.${mailSatz}`,
+    meldung: `Rechnung ${b?.invoice_number ?? ref} über das ${g.titel} (${betrag} Endpreis) steht, zahlbar ${kapitalCZahlbar(Number(teil.zahlungsziel_tage))}. Keine Kundenmail — Aufgabe mit Zahlungslink liegt bei Justin.${mailSatz}`,
   };
 }
 

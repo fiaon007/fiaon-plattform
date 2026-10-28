@@ -383,7 +383,7 @@ export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEinga
   const wortlaut = `${koopEinwilligungText(d.partner, thema, bereich)} ${KOOP_EINWILLIGUNG_FRAGE} — Antwort des Kunden: Ja.`;
   const ewFassung = koopEinwilligungFassung(bereich);
   // Je Kontakt berechnet wird nur Vorsorge; Abschlüsse bekommen ihren Preis bei der Meldung, der Partnerplatz nie je Kontakt.
-  // E-419: „Berechnung ausgesetzt“ (Justin an Chehade 22.10.: „verrechnen tun wir einstweilen nichts“) — Kontakte kosten 0 €.
+  // E-419: „Berechnung ausgesetzt“ (Justin an den ersten Partner 22.10.: „verrechnen tun wir einstweilen nichts“) — Kontakte kosten 0 €.
   const kontaktPreis = modell === "kontakt" && !koopBerechnungAusgesetzt(schalterAus(z)) ? d.parameter.preisCents : 0;
 
   let ergebnis: { id: number; ersatz: boolean } | { fehler: string; status: number };
@@ -637,7 +637,12 @@ export async function koopPartnerSicht(z: AngebotZeile, jetzt = new Date()): Pro
   return {
     ok: true,
     verlauf,
-    empfehlungen: empfehlungen && (empfehlungen.prozent != null || empfehlungen.liste.length) ? empfehlungen : null,
+    // E-432 (28.10.2026): Der Partner bekommt von seinen Empfehlungen nur, was er für seine Provision braucht (Tippgeber-Vereinbarung
+    // Ziffer 5 Abs. 1) — interne Notiz, Telefon, E-Mail und die Personennummer bleiben im Haus (vorher standen sie im JSON der Seite,
+    // auch wenn die Seite sie nicht zeigte). Chefbüro und Monatsbericht lesen koopEmpfehlungSicht direkt und sind nicht betroffen.
+    empfehlungen: empfehlungen && (empfehlungen.prozent != null || empfehlungen.liste.length)
+      ? { ...empfehlungen, liste: empfehlungen.liste.map(({ notiz: _n, telefon: _t, email: _e, personId: _p, ...fuerPartner }) => fuerPartner) }
+      : null,
     berechnungAusgesetzt: koopBerechnungAusgesetzt(schalterAus(z)),
     modell, bereich: d.parameter.bereich, einheit: B.einheit,
     sparten: modell === "abschluss" ? (B.sparten ?? []).map((name, i) => ({ name, betrag: koopEur(i === 0 ? d.parameter.preisCents : d.parameter.zweitCents) })) : [],

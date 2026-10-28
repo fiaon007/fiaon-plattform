@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { GLOBAL_ETAPPEN, US_BUNDESSTAATEN, globalDokumentArtText } from "@shared/fiaon-global-bereich";
 import { GLOBAL_FAHRPLAN, GLOBAL_KAPITAL_STATUS, GLOBAL_SCHRITT_STATUS, GLOBAL_SCHRITT_STATUS_TEXT, globalUsd, type GlobalSchrittStatus } from "@shared/fiaon-global-mandat";
 import {
-  GLOBAL_STATION_DOKUMENT, GLOBAL_STATION_FELDER, GLOBAL_STATION_KAPITAL, GLOBAL_STATION_UNTERSCHRIFT, STATION_ROLLEN, stationKontaktWarnungen, stationStatusName,
+  GLOBAL_STATION_DOKUMENT, GLOBAL_STATION_FELDER, GLOBAL_STATION_KAPITAL, GLOBAL_STATION_UNTERSCHRIFT, STATION_ROLLEN, stationKontaktWarnungen, stationKontaktpersonStaat, stationStatusName,
   stationTelefonText, stationWertePruefen, type StationFeld,
 } from "@shared/fiaon-global-stationen";
 import "@/styles/global-stationen.css";
@@ -139,7 +139,8 @@ function Station({ s, i, basis, daten, offen, umschalten, onGespeichert }: {
     werte: Object.fromEntries(felder.map((f) => [f.feld, feldWert(f, g, p)])) as Record<string, string>,
   });
   // E-424: Fehlt die Kontaktperson, steht der Kunde selbst (aus dem Auftrag) vorbelegt im Entwurf — das Team prüft und speichert.
-  const vorschlag = s.schluessel === "agent" ? daten.kontaktVorschlag ?? null : null;
+  // E-432 (28.10.2026): nur bei Wyoming (oder noch offenem Staat) — in Florida gibt es diese Pflicht nicht; die Felder bleiben.
+  const vorschlag = s.schluessel === "agent" && stationKontaktpersonStaat(g?.bundesstaat) ? daten.kontaktVorschlag ?? null : null;
   const mitVorschlag = (e: ReturnType<typeof ausAkte>) => !vorschlag || e.werte.kontaktperson ? e : {
     ...e, werte: { ...e.werte, kontaktperson: vorschlag.name, kontaktRolle: e.werte.kontaktRolle || vorschlag.rolle, kontaktEmail: e.werte.kontaktEmail || vorschlag.email,
       kontaktTelefon: e.werte.kontaktTelefon || vorschlag.telefon, kontaktAdresse: e.werte.kontaktAdresse || vorschlag.adresse },

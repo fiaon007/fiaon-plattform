@@ -29,6 +29,8 @@ export interface SerioesAbschnitt {
   h2b: string;
   text: string;
   punkte?: string[];
+  /** Zeilen für einen Kasten unter dem Text (Bankverbindung) — im Vorab-HTML als Tabelle. */
+  zeilen?: [string, string][];
 }
 
 const zahlen = { monate: ERSTLAUFZEIT_MONATE, widerruf: WIDERRUFSFRIST_TAGE };
@@ -56,7 +58,8 @@ const de = {
     },
     {
       id: "zahlung", h2a: "Wohin Sie zahlen – ", h2b: "und woran Sie uns erkennen.",
-      text: `Bei FIAON zahlen Sie ausschließlich per Überweisung auf das Geschäftskonto der ${BANK.empfaenger}. Es gibt keine Lastschrift und keine Kartenabbuchung: Jede Zahlung lösen Sie selbst in Ihrer Banking-App aus. Jede Zahlungsaufforderung nennt Ihren persönlichen Verwendungszweck und diese Bankverbindung: Empfänger ${BANK.empfaenger}, IBAN ${BANK.ibanDisplay}, BIC ${BANK.bic}, ${BANK.bank}.`,
+      text: `Bei FIAON zahlen Sie ausschließlich per Überweisung auf das Geschäftskonto der ${BANK.empfaenger}. Es gibt keine Lastschrift und keine Kartenabbuchung: Jede Zahlung lösen Sie selbst in Ihrer Banking-App aus. Jede Zahlungsaufforderung nennt Ihren persönlichen Verwendungszweck und diese Bankverbindung.`,
+      zeilen: [["Empfänger", BANK.empfaenger], ["IBAN", BANK.ibanDisplay], ["BIC", BANK.bic], ["Bank", BANK.bank]],
       punkte: [
         "FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto.",
         "Fordert Sie jemand im Namen von FIAON dazu auf, zahlen Sie bitte nicht und melden Sie es uns sofort.",
@@ -113,7 +116,8 @@ const en: typeof de = {
     },
     {
       id: "zahlung", h2a: "Where you pay — ", h2b: "and how to recognise us.",
-      text: `At FIAON you pay by bank transfer only, to the business account of ${BANK.empfaenger}. There are no direct debits and no card charges: you make every payment yourself in your banking app. Every payment request states your personal payment reference and this account: recipient ${BANK.empfaenger}, IBAN ${BANK.ibanDisplay}, BIC ${BANK.bic}, ${BANK.bank}.`,
+      text: `At FIAON you pay by bank transfer only, to the business account of ${BANK.empfaenger}. There are no direct debits and no card charges: you make every payment yourself in your banking app. Every payment request states your personal payment reference and this account.`,
+      zeilen: [["Recipient", BANK.empfaenger], ["IBAN", BANK.ibanDisplay], ["BIC", BANK.bic], ["Bank", BANK.bank]],
       punkte: [
         "FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account.",
         "If anyone asks you to do so in FIAON's name, please do not pay and let us know straight away.",

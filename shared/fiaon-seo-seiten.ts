@@ -75,7 +75,9 @@ const auskunfteienZeilen = (land: AuskunftLand) => auskunfteienFuer(land).map((a
 /** „Auf einen Blick“ als echte Tabelle, danach die Abschnitte der Seite in ihrer Reihenfolge (E-445). */
 const serioesAbschnitte = (t: SerioesTexte, kopf: [string, string]): SeoAbschnitt[] => [
   { h2: t.blickH2, text: "", tabelle: { kopf, zeilen: t.blick } },
-  ...t.abschnitte.map((a) => ({ h2: a.h2a + a.h2b, text: a.text, punkte: a.punkte })),
+  ...t.abschnitte.map((a): SeoAbschnitt => (a.zeilen
+    ? { h2: a.h2a + a.h2b, text: [a.text, ...(a.punkte ?? [])].join(" "), tabelle: { kopf, zeilen: a.zeilen } }
+    : { h2: a.h2a + a.h2b, text: a.text, punkte: a.punkte })),
 ];
 
 export const SEO_BASIS = "https://fiaon.com";

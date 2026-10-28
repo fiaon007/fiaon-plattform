@@ -7,7 +7,7 @@
 // was FIAON ist und was nicht, Laufzeit, Datenschutz, Kontaktwege, Verwechslungsgefahr.
 //
 // Eine Quelle: Abschnitte und „Auf einen Blick“ aus shared/fiaon-serioes.ts (dieselben Sätze stehen im
-// Vorab-HTML), Bankverbindung aus shared/fiaon-bank.ts, Firma aus shared/fiaon-firma.ts.
+// Vorab-HTML), Bankverbindung über shared/fiaon-serioes.ts aus shared/fiaon-bank.ts, Firma aus shared/fiaon-firma.ts.
 // Die Schwester /fiaon-erfahrungen („So arbeitet FIAON“) zeigt Ablauf und Seriositäts-Check — hier nur Fakten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Dunkel, Hero, Block, Licht, Knopf, Zeilen, Glas, Karten, Fragen, Zwischenruf } from "@/components/site/DunkleBuehne";
@@ -15,7 +15,6 @@ import SeoDaten from "@/components/site/SeoDaten";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { SERIOES_WOERTER } from "@/i18n/ist-fiaon-serioes";
 import { SERIOES_TEXTE, SERIOES_PFAD, COMPANIES_HOUSE_URL, type SerioesAbschnitt } from "@shared/fiaon-serioes";
-import { BANK } from "@shared/fiaon-bank";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
@@ -30,8 +29,8 @@ export default function IstFiaonSerioes() {
   const pfad = SERIOES_PFAD[sprache];
   const a = Object.fromEntries(s.abschnitte.map((x) => [x.id, x])) as Record<string, SerioesAbschnitt>;
   const titel = (x: SerioesAbschnitt) => <>{x.h2a}<span className="dk-verlauf">{x.h2b}</span></>;
-  // „Keine Bank: …“ → Kachel mit Titel und Text.
-  const nicht = (a.was.punkte ?? []).map((p) => { const i = p.indexOf(": "); return { titel: p.slice(0, i), text: p.slice(i + 2) }; });
+  // „Keine Bank: …“ → Kachel mit Titel und Text (Text groß beginnend — im Englischen folgt dem Doppelpunkt ein kleiner Buchstabe).
+  const nicht = (a.was.punkte ?? []).map((p) => { const i = p.indexOf(": "); const rest = p.slice(i + 2); return { titel: p.slice(0, i), text: rest.charAt(0).toUpperCase() + rest.slice(1) }; });
 
   return (
     <Dunkel seite="ratgeber" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
@@ -50,24 +49,17 @@ export default function IstFiaonSerioes() {
       </Block>
 
       <Licht>
-        <Block id={a.wer.id} schmal titel={titel(a.wer)}>
-          <p className="dk-text" style={textStil}>{a.wer.text}</p>
-          <div className="sx-vertiefen" style={{ marginTop: 22 }}>
+        <Block id={a.wer.id} schmal titel={titel(a.wer)} lead={a.wer.text}>
+          <div className="sx-vertiefen">
             <a href={COMPANIES_HOUSE_URL} target="_blank" rel="noopener noreferrer"><b>{t.registerPruefen}</b><span>Companies House · {FIAON_FIRMA.companyNo}</span></a>
             <a href="/impressum"><b>{t.impressum}</b><span>{FIAON_FIRMA.name} · {FIAON_FIRMA.ortZeile}</span></a>
             <a href={zu("/team")}><b>{t.team}</b><span>{FIAON_FIRMA.director}</span></a>
           </div>
         </Block>
 
-        <Block id={a.zahlung.id} schmal titel={titel(a.zahlung)}>
-          <p className="dk-text" style={textStil}>{a.zahlung.text}</p>
-          <Glas tag={t.bankTag} style={{ marginTop: 22 }}>
-            <Zeilen items={[
-              [t.bankZeilen.empfaenger, BANK.empfaenger],
-              [t.bankZeilen.iban, BANK.ibanDisplay],
-              [t.bankZeilen.bic, BANK.bic],
-              [t.bankZeilen.bank, BANK.bank],
-            ]} />
+        <Block id={a.zahlung.id} schmal titel={titel(a.zahlung)} lead={a.zahlung.text}>
+          <Glas tag={t.bankTag} style={{ marginTop: 32 }}>
+            <Zeilen items={a.zahlung.zeilen ?? []} />
           </Glas>
           <ul className="dk-text" style={{ ...textStil, margin: "22px 0 0 18px" }}>
             {(a.zahlung.punkte ?? []).map((p) => <li key={p}>{p}</li>)}
@@ -78,26 +70,23 @@ export default function IstFiaonSerioes() {
           <Karten items={nicht} />
         </Block>
 
-        <Block id={a.laufzeit.id} schmal titel={titel(a.laufzeit)}>
-          <p className="dk-text" style={textStil}>{a.laufzeit.text}</p>
-          <div className="dk-knoepfe" style={{ marginTop: 22 }}>
+        <Block id={a.laufzeit.id} schmal titel={titel(a.laufzeit)} lead={a.laufzeit.text}>
+          <div className="dk-knoepfe">
             <Knopf href="/agb" still>{t.agb}</Knopf>
             <Knopf href="/widerrufsbelehrung" still>{t.widerruf}</Knopf>
             <Knopf href={zu("/preise")} still>{t.preise}</Knopf>
           </div>
         </Block>
 
-        <Block id={a.daten.id} schmal titel={titel(a.daten)}>
-          <p className="dk-text" style={textStil}>{a.daten.text}</p>
-          <div className="dk-knoepfe" style={{ marginTop: 22 }}>
+        <Block id={a.daten.id} schmal titel={titel(a.daten)} lead={a.daten.text}>
+          <div className="dk-knoepfe">
             <Knopf href={zu("/sicherheit")} still>{t.sicherheit}</Knopf>
             <Knopf href="/privacy" still>{t.datenschutz}</Knopf>
           </div>
         </Block>
 
-        <Block id={a.kontakt.id} schmal titel={titel(a.kontakt)}>
-          <p className="dk-text" style={textStil}>{a.kontakt.text}</p>
-          <div className="dk-knoepfe" style={{ marginTop: 22 }}>
+        <Block id={a.kontakt.id} schmal titel={titel(a.kontakt)} lead={a.kontakt.text}>
+          <div className="dk-knoepfe">
             <Knopf href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</Knopf>
             <Knopf href={`mailto:${FIAON_FIRMA.email}`} still>{FIAON_FIRMA.email}</Knopf>
             <Knopf href={zu("/kontakt")} still>{t.dringend}</Knopf>

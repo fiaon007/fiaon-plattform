@@ -117,23 +117,34 @@ html .gf.gf .gf-unten, html .gf.gf .gf-recht a, html .gf.gf .gf-recht button { f
    Wie Apples „StaggeredFadeIn“: 30 px tiefer und unsichtbar, dann gestaffelt hoch (0,9 s, je Stufe 0,12 s).
    Nur mit JS und erlaubter Bewegung (html.ap-bewegung); danach nimmt der Haken die Klassen wieder ab.
    ═══════════════════════════════════════════════════════════════════════════ */
-html.ap-bewegung .ap-rein:not(.ap-da) { opacity: 0; transform: translate3d(0, 30px, 0); }
-html.ap-bewegung .ap-rein.ap-da {
-  opacity: 1; transform: none;
-  transition: opacity .9s cubic-bezier(.25, .1, .25, 1) calc(var(--ap-i, 0) * 120ms), transform .9s cubic-bezier(.16, 1, .3, 1) calc(var(--ap-i, 0) * 120ms);
+/* Als Animation, nicht als Übergang: Viele Bausteine haben eine eigene `transition` (Fragen, Karten, Vergleichs-Pille) —
+   die hätte den Übergang ersetzt, und die Blöcke wären ohne Gleiten aufgesprungen (Gegenprüfung 28.10.). Eine Animation
+   lässt die eigenen Übergänge in Ruhe; ihr Ende ist der eigene Zustand des Blocks (auch ein eigenes transform).
+   Doppelte Klassen = höheres Gewicht als jede Bausteinregel (bis 0,4,x). */
+html.ap-bewegung.ap-bewegung .ap-rein.ap-rein:not(.ap-da) { opacity: 0; transform: translate3d(0, 30px, 0); }
+html.ap-bewegung.ap-bewegung .ap-rein.ap-rein.ap-da {
+  animation: ap-ein-licht .9s cubic-bezier(.25, .1, .25, 1) calc(var(--ap-i, 0) * 120ms) backwards,
+             ap-ein-weg .9s cubic-bezier(.16, 1, .3, 1) calc(var(--ap-i, 0) * 120ms) backwards;
 }
+@keyframes ap-ein-licht { from { opacity: 0; } }
+@keyframes ap-ein-weg { from { transform: translate3d(0, 30px, 0); } }
 @media (prefers-reduced-motion: reduce) {
-  html.ap-bewegung .ap-rein:not(.ap-da) { opacity: 1; transform: none; }
+  html.ap-bewegung.ap-bewegung .ap-rein.ap-rein:not(.ap-da) { opacity: 1; transform: none; }
+  html.ap-bewegung.ap-bewegung .ap-rein.ap-rein.ap-da { animation: none; }
 }
 
 /* Die Kopf-Pille wird beim Scrollen schmaler und dichter — wie Apples Leiste. */
 html .gk.gk .gk-leiste { transition: height .45s cubic-bezier(.22, 1, .36, 1), background .35s ease, border-color .35s ease, box-shadow .35s ease; }
 html.ap-gescrollt .gk.gk .gk-leiste { height: 52px; background: rgba(255, 255, 255, .78); box-shadow: inset 0 1px 0 #fff, 0 14px 40px -26px rgba(18, 40, 74, .5); }
 html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
-@media (max-width: 640px) { html.ap-gescrollt .gk.gk .gk-leiste { height: 50px; } }
+/* Am Telefon ohne Unschärfe bleibt die Pille dicht (.92) — sonst schiene beim Scrollen der Text durch das Logo (Gegenprüfung 28.10.). */
+@media (max-width: 640px) { html.ap-gescrollt .gk.gk .gk-leiste { height: 50px; background: var(--gk-glas); } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html.ap-gescrollt .gk.gk .gk-leiste { background: rgba(255, 255, 255, .94); }
+}
 @media (prefers-reduced-motion: reduce) { html .gk.gk .gk-leiste { transition: none; } }
 
 /* Drucken (Mustervertrag, Rechtsseiten): alles sofort sichtbar, nichts wartet auf den Bildlauf. */
 @media print {
-  html.ap-bewegung .ap-rein { opacity: 1 !important; transform: none !important; transition: none !important; }
+  html.ap-bewegung .ap-rein { opacity: 1 !important; transform: none !important; animation: none !important; }
 }

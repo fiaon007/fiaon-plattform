@@ -32,6 +32,7 @@ import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
@@ -244,7 +245,7 @@ function Seite({ s }: { s: GlobalSeite }) {
                 </ol>
               </nav>
               <span className="fg-auge">{s.auge}</span>
-              <h1 className="fg-h1 fd-h1">{s.h1}{s.h1b && <><br /><em>{s.h1b}</em></>}</h1>
+              <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(s.h1)}{s.h1b && <><br /><em>{ohneBindestrichBruch(s.h1b)}</em></>}</h1>
               <p className="fd-lead">{s.lead}</p>
               <div className="fg-knoepfe fd-kopf-knoepfe">
                 <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>

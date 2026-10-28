@@ -57,6 +57,8 @@ export interface HeroGlasTexte {
   mustervertragHref: string;
   /** Beschriftung des Winkels nach unten (aria-label). */
   weiter: string;
+  /** Name des Abschnitts mit den drei Kacheln (für Screenreader, „Auf einen Blick“). */
+  blickName: string;
 }
 
 /** Wie viele Zeichen zwei Sätze vorn teilen — „Ihr Weg “ bleibt stehen, nur der Rest wird gelöscht und neu getippt. */
@@ -173,13 +175,15 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
 
       <a className="hg-weiter" href="#auf-einen-blick" aria-label={t.weiter} onClick={(e) => {
         e.preventDefault();
+        // Fokus zuerst in den Abschnitt: Der Winkel blendet beim Scrollen aus — der Fokus fiele sonst auf <body> (Gegenprüfung 28.10.).
+        blick.current?.focus({ preventScroll: true });
         blick.current?.scrollIntoView({ behavior: ruhigGewuenscht() ? "auto" : "smooth", block: "start" });
       }}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
       </a>
     </section>
 
-    <section ref={blick} id="auf-einen-blick" className="hg-blick" style={{ scrollMarginTop: 96 }}>
+    <section ref={blick} id="auf-einen-blick" className="hg-blick" tabIndex={-1} aria-label={t.blickName} style={{ scrollMarginTop: 96 }}>
         <div className="hg-widgets">
           <div className="hg-widget" style={{ ["--i" as string]: 0 }}>
             <span className="hg-w-auge">{t.kapitalTitel}</span>

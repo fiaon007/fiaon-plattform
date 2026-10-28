@@ -127,6 +127,8 @@
 .hg-w-vertrag a:hover { text-decoration-color: currentColor; }
 .hg-blick .hg-fussnote { margin: clamp(36px, 4vw, 56px) auto 0; max-width: 74ch; font: 400 11.5px/1.5 var(--ap); color: #5d6678; }
 .hg-fussnote sup { font-size: .75em; }
+/* Ziel des Winkels: bekommt den Fokus (tabIndex -1), zeigt aber keinen Rahmen um den ganzen Abschnitt. */
+.hg-blick:focus, .hg-blick:focus-visible { outline: none; }
 
 /* Der Hinweis nach unten: ein leiser Winkel, der atmet. */
 .hg-weiter { position: absolute; left: 50%; bottom: clamp(24px, 4vh, 40px); z-index: 1; width: 40px; height: 40px; margin-left: -20px; display: grid; place-items: center; border-radius: 50%; color: #12284a; text-decoration: none;
@@ -162,10 +164,14 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
 @keyframes hg-hoch { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
 /* Beim Wegscrollen tritt die Bühne leise zurück (an den Bildlauf gekoppelt, aber nur transform/opacity auf dem Compositor —
    kein Video, kein Ruckeln). Ohne Unterstützung im Browser steht sie einfach still. */
-@supports (animation-timeline: scroll()) {
+/* Gekoppelt an die Unterkante der Bühne (view-timeline „exit“), nicht an scrollY 0: Ist die Bühne höher als das Bild
+   (Handy quer, kurze Laptops), bleibt alles voll sichtbar, bis man es gesehen hat — sonst verblassten die Pillen genau
+   dann, wenn man zu ihnen scrollt (Gegenprüfung 28.10.). Bei genau einer Bildhöhe beginnt „exit 0 %“ bei scrollY 0. */
+@supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    .hg-inhalt { animation: hg-raus linear both; animation-timeline: scroll(root); animation-range: 0 80vh; }
-    .hg-licht { animation: hg-licht-raus linear both; animation-timeline: scroll(root); animation-range: 0 80vh; }
+    .hg { view-timeline: --buehne block; }
+    .hg-inhalt { animation: hg-raus linear both; animation-timeline: --buehne; animation-range: exit 0% exit 80%; }
+    .hg-licht { animation: hg-licht-raus linear both; animation-timeline: --buehne; animation-range: exit 0% exit 80%; }
   }
 }
 @keyframes hg-raus { to { opacity: 0; transform: translate3d(0, -6vh, 0) scale(.94); } }
@@ -201,8 +207,22 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
 @media (max-width: 380px) {
   .hg, .hg-blick { padding-left: 20px; padding-right: 20px; }
 }
-@media (max-height: 700px) and (min-width: 721px) {
-  .hg .hg-zahl { font-size: clamp(64px, min(9vw, 17vh), 120px); }
+/* Kurze Laptops (1366×657, 1280×632 …): Die Bühne passt ganz ins erste Bild, Winkel inklusive (Gegenprüfung 28.10.). */
+@media (max-height: 740px) and (min-width: 721px) {
+  .hg { padding: 88px 24px 76px; }
+  .hg .hg-zahl { margin-top: 14px; font-size: clamp(64px, min(9vw, 16vh), 120px); }
+  .hg .hg-label { margin-top: 16px; }
+  .hg .hg-h1, .hg .hg-tipp { font-size: clamp(24px, 2.6vw, 34px); }
+  .hg .hg-h1 { margin-top: 26px; }
+  .hg .hg-lead { margin-top: 16px; }
+  .hg-pillen { margin-top: 26px; }
+  .hg .hg-mikro { margin-top: 18px; }
+  .hg-weiter { bottom: 20px; }
+}
+/* Noch kürzer: Der Winkel hätte keinen Platz mehr — dann lieber keiner als ein angeschnittener. */
+@media (max-height: 640px) and (min-width: 721px) {
+  .hg { padding-bottom: 40px; }
+  .hg-weiter { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hg *, .hg *::before, .hg *::after, .hg-blick * { animation: none !important; transition: none !important; }
@@ -211,4 +231,12 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .hg-widget, .hg-pille:not(.voll) { background: rgba(255, 255, 255, .92); }
+}
+
+/* Drucken: Bühne und Kacheln stehen, auch wenn noch nicht gescrollt wurde (Gegenprüfung 28.10.). */
+@media print {
+  .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-pille, .hg-blick[data-an] .hg-widget, .hg-blick[data-an] .hg-fussnote { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .hg-inhalt, .hg-licht { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .hg { min-height: 0; }
+  .hg-weiter { display: none; }
 }

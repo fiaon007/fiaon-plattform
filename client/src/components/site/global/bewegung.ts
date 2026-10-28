@@ -40,7 +40,16 @@ export function useEinmalSichtbar(ref: RefObject<Element | null>, schwelle = 0.3
     // sonst trägt ein fokussierter Knopf bis zum Auslösen des Beobachters die Deckkraft 0.
     const perFokus = () => { an(); io.disconnect(); };
     el.addEventListener("focusin", perFokus, { once: true });
-    return () => { io.disconnect(); el.removeEventListener("focusin", perFokus); };
+    // 28.10.2026 (E-442, Gegenprüfung): Wer druckt, ohne vorher zu scrollen, bekommt den Endzustand — sonst blieben
+    // Abschnitte (Kacheln „Auf einen Blick“, Pakete, Stern, Bogen) auf dem Papier leer.
+    const druckMedium = window.matchMedia?.("print");
+    const perDruckMedium = (e: MediaQueryListEvent) => { if (e.matches) perFokus(); };
+    window.addEventListener("beforeprint", perFokus);
+    druckMedium?.addEventListener?.("change", perDruckMedium);
+    return () => {
+      io.disconnect(); el.removeEventListener("focusin", perFokus);
+      window.removeEventListener("beforeprint", perFokus); druckMedium?.removeEventListener?.("change", perDruckMedium);
+    };
   }, [ref, schwelle, rand]);
 }
 

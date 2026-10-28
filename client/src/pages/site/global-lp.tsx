@@ -28,6 +28,7 @@ import "@/styles/global-rahmen.css";
 import "@/styles/global-apple.css";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
+import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import "@/styles/global-rahmen-apple.css";
 
 export default function GlobalLandingPage() {
@@ -66,7 +67,7 @@ export default function GlobalLandingPage() {
         <div className="fg-rahmen fd-kopf-raster">
           <Auf>
             <span className="fg-auge">{lp.auge}</span>
-            <h1 className="fg-h1 fd-h1">{lp.h1}{lp.h1b && <><br /><em>{lp.h1b}</em></>}</h1>
+            <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(lp.h1)}{lp.h1b && <><br /><em>{ohneBindestrichBruch(lp.h1b)}</em></>}</h1>
             <p className="fd-lead">{lp.lead}</p>
             <ul className="fd-punkte" style={{ marginTop: 22 }}>{lp.vorteile.map((v) => <li key={v}><Haken />{v}</li>)}</ul>
             <div className="fg-knoepfe">

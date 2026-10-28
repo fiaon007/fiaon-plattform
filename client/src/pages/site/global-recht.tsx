@@ -18,6 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
+import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import { useSprache } from "@/i18n/sprache";
 import { globalWiderrufsbelehrung, globalWiderrufAnbieter } from "@shared/fiaon-global-widerruf";
 import { GLOBAL_PAKETE, GLOBAL_JAHRESBETREUUNG, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
@@ -33,7 +34,7 @@ function Kopf({ auge, h1, h1b, lead }: { auge: string; h1: string; h1b?: string;
       <div className="fg-rahmen">
         <Auf>
           <span className="fg-auge">{auge}</span>
-          <h1 className="fg-h1 fd-h1">{h1}{h1b && <><br /><em>{h1b}</em></>}</h1>
+          <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(h1)}{h1b && <><br /><em>{ohneBindestrichBruch(h1b)}</em></>}</h1>
           <p className="fd-lead">{lead}</p>
         </Auf>
       </div>

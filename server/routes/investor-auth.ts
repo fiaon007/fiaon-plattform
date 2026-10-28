@@ -259,6 +259,31 @@ export function ensureInvestorTables(): Promise<void> {
     // token_meta: per-investment contract metadata (allocation breakdown, contract ref, wallet, blockchain, …)
     await client`ALTER TABLE investor_investments ADD COLUMN IF NOT EXISTS token_meta JSONB`;
 
+    // ---- E-448: Abrechnungen (z. B. Reisekosten) — der Investor prüft Positionen + Belege und gibt frei ----
+    await client`
+      CREATE TABLE IF NOT EXISTS investor_abrechnungen (
+        id SERIAL PRIMARY KEY,
+        investor_id VARCHAR NOT NULL REFERENCES investors(id) ON DELETE CASCADE,
+        titel VARCHAR NOT NULL,
+        art VARCHAR NOT NULL DEFAULT 'reisekosten',
+        zeitraum VARCHAR,
+        grundlage VARCHAR,
+        positionen JSONB NOT NULL DEFAULT '[]'::jsonb,
+        summe_cents BIGINT NOT NULL DEFAULT 0,
+        waehrung VARCHAR NOT NULL DEFAULT 'EUR',
+        konto JSONB,
+        hinweis TEXT,
+        status VARCHAR NOT NULL DEFAULT 'zur_pruefung',
+        rueckfrage TEXT,
+        freigegeben_am TIMESTAMPTZ,
+        freigegeben_ip VARCHAR,
+        ausgezahlt_am TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await client`CREATE INDEX IF NOT EXISTS investor_abrechnungen_investor_idx ON investor_abrechnungen(investor_id)`;
+
     // ---- benefit activity (bookings, consultations, cancellations) — all tracked ----
     await client`
       CREATE TABLE IF NOT EXISTS investor_benefit_activity (
@@ -818,6 +843,75 @@ router.post("/benefit-activity/:id/respond", requireInvestor, async (req: Invest
   } catch (err) {
     logger.error("[INVESTOR-BENEFIT-ACTIVITY-RESPOND] error", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ============================================================================
+// E-448: ABRECHNUNGEN — der Investor sieht Positionen + Belege, gibt frei oder fragt nach.
+// Freigabe/Rückfrage landet als Aufgabe auf dem Betreiber-Board (Auszahlung im nächsten Buchungslauf).
+// ============================================================================
+router.get("/abrechnungen", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    await ensureInvestorTables();
+    const rows = await client`
+      SELECT id, titel, art, zeitraum, grundlage, positionen, summe_cents, waehrung, konto, hinweis, status, rueckfrage,
+             freigegeben_am, ausgezahlt_am, created_at
+      FROM investor_abrechnungen WHERE investor_id = ${req.investor!.id}
+      ORDER BY created_at DESC
+    `;
+    res.json({ ok: true, abrechnungen: rows });
+  } catch (err) {
+    logger.error("[INVESTOR-ABRECHNUNG] list error", err);
+    res.status(500).json({ ok: false, error: "Abrechnungen konnten nicht geladen werden" });
+  }
+});
+
+async function abrechnungAufgabe(id: number, titel: string, text: string) {
+  try {
+    const { todoAnlegen } = await import("./fiaon-betreiber-todo");
+    await todoAnlegen(`investor-abrechnung-${id}`, { titel, text, bereich: "geld", prioritaet: 1, link: "/chef/s/investoren", quelle: "investoren-portal" });
+  } catch (err) {
+    logger.error("[INVESTOR-ABRECHNUNG] Aufgabe konnte nicht angelegt werden", err);
+  }
+}
+
+router.post("/abrechnungen/:id/freigeben", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+    const [row] = await client`
+      UPDATE investor_abrechnungen
+      SET status = 'freigegeben', freigegeben_am = NOW(), freigegeben_ip = ${ip}, updated_at = NOW()
+      WHERE id = ${id} AND investor_id = ${req.investor!.id} AND status IN ('zur_pruefung', 'rueckfrage')
+      RETURNING id, titel, summe_cents, waehrung
+    `;
+    if (!row) return res.status(409).json({ ok: false, error: "Diese Abrechnung kann nicht (mehr) freigegeben werden." });
+    const betrag = (Number(row.summe_cents) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " " + row.waehrung;
+    await abrechnungAufgabe(row.id, `Abrechnung freigegeben: ${row.titel} · ${betrag}`,
+      `${req.investor!.name} hat die Abrechnung im Investoren-Portal geprüft und freigegeben. Im nächsten Buchungslauf auszahlen und danach in der Investoren-Verwaltung als ausgezahlt markieren.`);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("[INVESTOR-ABRECHNUNG] freigeben error", err);
+    res.status(500).json({ ok: false, error: "Freigabe fehlgeschlagen" });
+  }
+});
+
+router.post("/abrechnungen/:id/rueckfrage", requireInvestor, async (req: InvestorRequest, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    const text = String(req.body?.text ?? "").trim().slice(0, 2000);
+    if (!text) return res.status(400).json({ ok: false, error: "Bitte schreiben Sie kurz, was wir prüfen sollen." });
+    const [row] = await client`
+      UPDATE investor_abrechnungen SET status = 'rueckfrage', rueckfrage = ${text}, updated_at = NOW()
+      WHERE id = ${id} AND investor_id = ${req.investor!.id} AND status IN ('zur_pruefung', 'rueckfrage')
+      RETURNING id, titel
+    `;
+    if (!row) return res.status(409).json({ ok: false, error: "Zu dieser Abrechnung ist keine Rückfrage mehr möglich." });
+    await abrechnungAufgabe(row.id, `Rückfrage zur Abrechnung: ${row.titel}`, `${req.investor!.name}: ${text}`);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("[INVESTOR-ABRECHNUNG] rueckfrage error", err);
+    res.status(500).json({ ok: false, error: "Rückfrage konnte nicht gesendet werden" });
   }
 });
 

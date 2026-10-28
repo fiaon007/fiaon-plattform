@@ -57,6 +57,15 @@ interface Investment {
   token_quantity: number | null; token_purchase_price_cents: number | null; token_current_price_cents: number | null;
   token_meta?: TokenMeta | null;
 }
+// E-448: Abrechnung (z. B. Reisekosten) — der Investor prüft Positionen + Belege und gibt frei
+interface AbrechnungPosition { datum: string; text: string; kategorie?: string | null; original?: string | null; kurs?: string | null; betragCents: number; dokumentId?: number | null; }
+interface Abrechnung {
+  id: number; titel: string; art: string; zeitraum: string | null; grundlage: string | null;
+  positionen: AbrechnungPosition[]; summe_cents: number; waehrung: string;
+  konto: { inhaber?: string; iban?: string; bic?: string; bank?: string } | null;
+  hinweis: string | null; status: string; rueckfrage: string | null;
+  freigegeben_am: string | null; ausgezahlt_am: string | null; created_at: string;
+}
 interface Transaction {
   id: number; investment_id: number | null; transaction_type: string;
   amount_cents: number; currency: string; description: string | null;
@@ -304,11 +313,12 @@ export default function InvestorDashboardPage() {
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [documents, setDocuments] = useState<InvestorDoc[]>([]);
+  const [abrechnungen, setAbrechnungen] = useState<Abrechnung[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [cardData, setCardData] = useState<{ tier: InvestorTier; pricing: { priceCents: number; isFree: boolean }; order: CardOrder | null } | null>(null);
   const [benefits, setBenefits] = useState<BenefitRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"overview" | "investments" | "returns" | "card" | "benefits" | "documents" | "account">("overview");
+  const [tab, setTab] = useState<"overview" | "investments" | "returns" | "card" | "benefits" | "documents" | "abrechnungen" | "account">("overview");
   const [selectedInvestment, setSelectedInvestment] = useState<Investment | null>(null);
   const [requestModal, setRequestModal] = useState<"deposit" | "withdrawal" | null>(null);
   const [showGreeting, setShowGreeting] = useState(false);
@@ -339,11 +349,13 @@ export default function InvestorDashboardPage() {
         const meRes = await fetch("/api/investor/me", { credentials: "include" });
         if (!meRes.ok) { window.location.href = "/banking"; return; }
         const meData = await meRes.json();
-        const [pfRes, cardRes, benRes] = await Promise.all([
+        const [pfRes, cardRes, benRes, abrRes] = await Promise.all([
           fetch("/api/investor/portfolio", { credentials: "include" }),
           fetch("/api/investor/card", { credentials: "include" }),
           fetch("/api/investor/benefits", { credentials: "include" }),
+          fetch("/api/investor/abrechnungen", { credentials: "include" }),
         ]);
+        const abrJson = abrRes.ok ? await abrRes.json() : null;
         const pfData = await pfRes.json();
         const cardJson = cardRes.ok ? await cardRes.json() : null;
         const benJson = benRes.ok ? await benRes.json() : null;
@@ -355,6 +367,7 @@ export default function InvestorDashboardPage() {
         setSummary(pfData.summary || null);
         setCardData(cardJson);
         setBenefits(benJson?.benefits || []);
+        setAbrechnungen(abrJson?.abrechnungen || []);
       } catch {
         if (active) window.location.href = "/banking";
       } finally {
@@ -391,6 +404,7 @@ export default function InvestorDashboardPage() {
   const pendingDepositsCents = transactions
     .filter((t) => t.status === "pending" && t.transaction_type === "deposit")
     .reduce((acc, t) => acc + (Number(t.amount_cents) || 0), 0);
+  const offeneAbrechnungen = abrechnungen.filter((a) => a.status === "zur_pruefung");
   const TABS = [
     { id: "overview" as const, label: "Übersicht", icon: "overview" },
     { id: "investments" as const, label: "Investments", icon: "investments" },
@@ -398,6 +412,7 @@ export default function InvestorDashboardPage() {
     { id: "card" as const, label: "Karte", icon: "card" },
     { id: "benefits" as const, label: "Leistungen", icon: "benefits" },
     { id: "documents" as const, label: "Verträge", icon: "documents" },
+    { id: "abrechnungen" as const, label: "Abrechnungen", icon: "receipt" },
     { id: "account" as const, label: "Konto", icon: "account" },
   ];
 
@@ -474,6 +489,7 @@ export default function InvestorDashboardPage() {
               <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)} className={tab === t.id ? "an" : ""}>
                 <Icon name={t.icon} size={16} strokeWidth={1.6} />
                 {t.label}
+                {t.id === "abrechnungen" && offeneAbrechnungen.length > 0 && <span className="ib-zaehler">{offeneAbrechnungen.length}</span>}
               </button>
             ))}
           </div>
@@ -482,6 +498,19 @@ export default function InvestorDashboardPage() {
         {/* ═══ OVERVIEW ═══ */}
         {tab === "overview" && (
           <div className="flex flex-col gap-6">
+            {offeneAbrechnungen.map((a) => (
+              <button key={a.id} onClick={() => setTab("abrechnungen")} className="ib-karte ib-aufruf">
+                <span className="ib-aufruf-symbol"><Icon name="receipt" size={20} strokeWidth={1.6} /></span>
+                <span className="min-w-0 text-left">
+                  <span className="ib-kachel-l block">Wartet auf Ihre Freigabe</span>
+                  <span className="block text-[15px] text-[#12284a] mt-1 truncate">{a.titel}</span>
+                </span>
+                <span className="ml-auto text-right shrink-0">
+                  <span className="block text-[17px] text-[#12284a] tabular-nums" style={{ fontWeight: 300 }}>{eur2(a.summe_cents)}</span>
+                  <span className="block text-[12px] text-[#1D4ED8] mt-0.5">Jetzt prüfen →</span>
+                </span>
+              </button>
+            ))}
             {/* Transaktionsverlauf */}
             <div className="scp-card p-6">
               <div className="flex items-center justify-between mb-4">
@@ -617,6 +646,13 @@ export default function InvestorDashboardPage() {
         )}
 
         {/* ═══ DOCUMENTS ═══ */}
+        {tab === "abrechnungen" && (
+          <AbrechnungenTab abrechnungen={abrechnungen} onGeaendert={async () => {
+            const r = await fetch("/api/investor/abrechnungen", { credentials: "include" });
+            if (r.ok) setAbrechnungen((await r.json()).abrechnungen || []);
+          }} />
+        )}
+
         {tab === "documents" && (
           <div className="scp-card overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100">
@@ -702,6 +738,141 @@ function SectionHeader({ title }: { title: string }) {
       <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: "#288DFA" }} />
       <p className="text-[10.5px] font-bold uppercase tracking-[.2em] text-slate-500">{title}</p>
     </div>
+  );
+}
+
+const ABR_STATUS: Record<string, { label: string; cls: string }> = {
+  zur_pruefung: { label: "Zur Prüfung", cls: "bg-[#288DFA]/12 text-[#1D4ED8]" },
+  rueckfrage: { label: "Rückfrage gesendet", cls: "bg-[#12284a]/8 text-[#12284a]" },
+  freigegeben: { label: "Freigegeben", cls: "bg-emerald-50 text-emerald-700" },
+  ausgezahlt: { label: "Ausgezahlt", cls: "bg-emerald-50 text-emerald-700" },
+  storniert: { label: "Storniert", cls: "bg-slate-100 text-slate-500" },
+};
+
+function AbrechnungenTab({ abrechnungen, onGeaendert }: { abrechnungen: Abrechnung[]; onGeaendert: () => Promise<void> }) {
+  if (!abrechnungen.length) {
+    return (
+      <div className="scp-card p-10 text-center">
+        <p className="text-[15px] text-[#12284a]">Keine Abrechnungen</p>
+        <p className="text-[13px] text-slate-500 mt-1">Hier erscheinen Reisekosten- und andere Abrechnungen zur Prüfung.</p>
+      </div>
+    );
+  }
+  return <div className="space-y-6">{abrechnungen.map((a) => <AbrechnungKarte key={a.id} a={a} onGeaendert={onGeaendert} />)}</div>;
+}
+
+function AbrechnungKarte({ a, onGeaendert }: { a: Abrechnung; onGeaendert: () => Promise<void> }) {
+  const [geprueft, setGeprueft] = useState(false);
+  const [frageOffen, setFrageOffen] = useState(false);
+  const [frage, setFrage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const st = ABR_STATUS[a.status] || { label: a.status, cls: "bg-slate-100 text-slate-500" };
+  const offen = a.status === "zur_pruefung" || a.status === "rueckfrage";
+  const senden = async (pfad: "freigeben" | "rueckfrage") => {
+    setBusy(true); setFehler(null);
+    try {
+      const r = await fetch(`/api/investor/abrechnungen/${a.id}/${pfad}`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(pfad === "rueckfrage" ? { text: frage } : {}),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) { setFehler(d.error || "Das hat nicht geklappt. Bitte versuchen Sie es erneut."); return; }
+      setFrageOffen(false); setFrage("");
+      await onGeaendert();
+    } finally { setBusy(false); }
+  };
+  return (
+    <section className="scp-card overflow-hidden">
+      <div className="px-6 sm:px-8 pt-6 sm:pt-7 pb-5 flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="ib-kachel-l">{a.art === "reisekosten" ? "Reisekostenabrechnung" : "Abrechnung"}{a.zeitraum ? ` · ${a.zeitraum}` : ""}</p>
+          <h2 className="text-[22px] sm:text-[24px] text-[#12284a] mt-1.5">{a.titel}</h2>
+          {a.grundlage && <p className="text-[12.5px] text-slate-500 mt-1">Grundlage: {a.grundlage}</p>}
+        </div>
+        <span className={`text-[11px] px-3 py-1.5 rounded-full shrink-0 ${st.cls}`} style={{ fontWeight: 500 }}>{st.label}</span>
+      </div>
+
+      <div className="px-4 sm:px-8">
+        <div className="ib-tafel">
+          {a.positionen.map((p, i) => (
+            <div key={i} className="ib-tafel-zeile">
+              <div className="min-w-0">
+                <p className="ib-tafel-pos">{p.text}</p>
+                <p className="ib-tafel-sub">
+                  {p.datum}{p.kategorie ? ` · ${p.kategorie}` : ""}{p.original ? ` · ${p.original}` : ""}{p.kurs ? ` · ${p.kurs}` : ""}
+                </p>
+                {p.dokumentId != null && (
+                  <a href={`/api/investor/documents/${p.dokumentId}/download`} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-[#1D4ED8] hover:underline min-h-[32px]">
+                    <Icon name="documents" size={13} strokeWidth={1.7} /> Beleg ansehen
+                  </a>
+                )}
+              </div>
+              <p className="ib-tafel-wert">{eur2(p.betragCents)}</p>
+            </div>
+          ))}
+          <div className="ib-tafel-zeile ib-tafel-summe">
+            <p className="ib-tafel-pos">Erstattungsbetrag</p>
+            <p className="ib-tafel-wert">{eur2(a.summe_cents)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-6 sm:px-8 py-6 grid sm:grid-cols-2 gap-3">
+        {a.konto && (
+          <div className="ib-kachel">
+            <p className="ib-kachel-l">Auszahlung auf</p>
+            <p className="ib-kachel-v">{a.konto.inhaber}</p>
+            <p className="text-[12.5px] text-slate-600 mt-1 font-mono">{a.konto.iban}</p>
+            <p className="text-[11.5px] text-slate-500 mt-0.5">{[a.konto.bic, a.konto.bank].filter(Boolean).join(" · ")}</p>
+          </div>
+        )}
+        <div className="ib-kachel">
+          <p className="ib-kachel-l">So geht es weiter</p>
+          <p className="text-[12.5px] text-slate-600 leading-relaxed mt-1">
+            {a.status === "ausgezahlt" ? `Ausgezahlt am ${fmtDate(a.ausgezahlt_am)}.`
+              : a.status === "freigegeben" ? `Von Ihnen freigegeben am ${fmtDate(a.freigegeben_am)}. Die Auszahlung erfolgt im nächsten Buchungslauf.`
+              : a.status === "rueckfrage" ? "Ihre Rückfrage liegt bei uns. Wir melden uns – danach können Sie hier freigeben."
+              : "Bitte prüfen Sie die Positionen und Belege. Nach Ihrer Freigabe zahlen wir im nächsten Buchungslauf aus."}
+          </p>
+          {a.hinweis && <p className="text-[12px] text-slate-500 leading-relaxed mt-2">{a.hinweis}</p>}
+        </div>
+      </div>
+
+      {offen && (
+        <div className="px-6 sm:px-8 pb-7 space-y-3">
+          {fehler && <p className="text-[12.5px] text-rose-600">{fehler}</p>}
+          {!frageOffen ? (
+            <>
+              <label className="flex items-start gap-3 text-[13px] text-slate-700 cursor-pointer min-h-[44px]">
+                <input type="checkbox" checked={geprueft} onChange={(e) => setGeprueft(e.target.checked)} className="mt-1 w-[18px] h-[18px] accent-[#1D4ED8]" />
+                Ich habe alle Positionen und Belege geprüft. Die Abrechnung ist korrekt.
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button disabled={!geprueft || busy} onClick={() => senden("freigeben")}
+                  className="flex-1 min-h-[50px] rounded-full text-[14.5px] text-white disabled:opacity-45 transition-all"
+                  style={{ background: "linear-gradient(140deg,#4f9dff,#1D4ED8)", boxShadow: "0 14px 30px -18px rgba(29,78,216,.8)" }}>
+                  {busy ? "Wird gesendet…" : "Abrechnung freigeben"}
+                </button>
+                <button disabled={busy} onClick={() => setFrageOffen(true)} className="flex-1 min-h-[50px] rounded-full text-[14.5px] text-[#12284a] bg-white/80 border border-[#12284a]/12 hover:bg-white transition-colors">
+                  Rückfrage stellen
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <textarea value={frage} onChange={(e) => setFrage(e.target.value)} rows={3} placeholder="Was sollen wir prüfen oder ergänzen?" className="scp-input" />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button disabled={!frage.trim() || busy} onClick={() => senden("rueckfrage")} className="flex-1 min-h-[50px] rounded-full text-[14.5px] text-white disabled:opacity-45" style={{ background: "linear-gradient(140deg,#4f9dff,#1D4ED8)" }}>
+                  {busy ? "Wird gesendet…" : "Rückfrage senden"}
+                </button>
+                <button onClick={() => setFrageOffen(false)} className="flex-1 min-h-[50px] rounded-full text-[14.5px] text-slate-600 hover:bg-white/70">Abbrechen</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

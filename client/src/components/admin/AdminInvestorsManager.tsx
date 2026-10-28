@@ -41,8 +41,21 @@ interface CapitalRequest {
 }
 interface Detail {
   investor: any; investments: Investment[]; transactions: Transaction[]; documents: InvestorDoc[];
-  cardOrders: CardOrder[]; benefits: BenefitRow[]; requests?: CapitalRequest[];
+  cardOrders: CardOrder[]; benefits: BenefitRow[]; requests?: CapitalRequest[]; abrechnungen?: Abrechnung[];
 }
+// E-448: Abrechnungen (z. B. Reisekosten), die der Investor im Portal prüft und freigibt
+interface Abrechnung {
+  id: number; titel: string; zeitraum: string | null; summe_cents: number; waehrung: string; status: string;
+  rueckfrage: string | null; freigegeben_am: string | null; ausgezahlt_am: string | null; created_at: string;
+  positionen: { datum: string; text: string; original?: string | null; betragCents: number }[];
+}
+const ABR_STATUS: Record<string, [string, string]> = {
+  zur_pruefung: ["Beim Investor zur Prüfung", "bg-amber-50 text-amber-700"],
+  rueckfrage: ["Rückfrage vom Investor", "bg-rose-50 text-rose-700"],
+  freigegeben: ["Freigegeben · auszahlen", "bg-blue-50 text-blue-700"],
+  ausgezahlt: ["Ausgezahlt", "bg-emerald-50 text-emerald-700"],
+  storniert: ["Storniert", "bg-slate-100 text-slate-500"],
+};
 const CARD_STATUSES = ["requested", "approved", "in_production", "shipped", "active", "cancelled"];
 
 const eur = (cents: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: 0 }).format((cents || 0) / 100);
@@ -86,7 +99,7 @@ export default function AdminInvestorsManager() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [detailTab, setDetailTab] = useState<"profile" | "investments" | "transactions" | "requests" | "card" | "benefits" | "documents">("profile");
+  const [detailTab, setDetailTab] = useState<"profile" | "investments" | "transactions" | "requests" | "card" | "benefits" | "documents" | "abrechnungen">("profile");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState<null | "newInvestor" | "newInvestment" | "newTransaction" | "newDocument" | "password">(null);
   const [editInv, setEditInv] = useState<Investment | null>(null);
@@ -164,6 +177,13 @@ export default function AdminInvestorsManager() {
     if (!selectedId || !confirm("Investment löschen?")) return;
     await api(`/api/admin/investors/${selectedId}/investments/${invId}`, { method: "DELETE" });
     await loadDetail(selectedId); await loadList();
+  };
+  const setAbrechnungStatus = async (aid: number, status: string) => {
+    if (!selectedId) return;
+    if (status === "ausgezahlt" && !confirm("Abrechnung als ausgezahlt markieren? Erst nach der Überweisung.")) return;
+    const r = await api(`/api/admin/investors/${selectedId}/abrechnungen/${aid}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    const d = await r.json();
+    if (d.ok) { flash("Abrechnung aktualisiert"); await loadDetail(selectedId); } else flash(d.error || "Fehler");
   };
   const updateRequest = async (reqId: number, status: string) => {
     if (!selectedId) return;
@@ -323,6 +343,7 @@ export default function AdminInvestorsManager() {
                     ["card", "Karte"],
                     ["benefits", `Leistungen (${detail.benefits.length})`],
                     ["documents", `Dokumente (${detail.documents.length})`],
+                    ["abrechnungen", `Abrechnungen (${(detail.abrechnungen || []).length})`],
                   ];
                   return tabs.map(([id, label]) => (
                     <button key={id} onClick={() => setDetailTab(id as any)} className={`px-3.5 py-2.5 text-[13px] font-semibold rounded-t-lg transition-colors border-b-2 whitespace-nowrap ${detailTab === id ? "text-[#2563eb] border-[#2563eb]" : "text-slate-500 border-transparent hover:text-slate-800"}`}>{label}</button>
@@ -488,6 +509,33 @@ export default function AdminInvestorsManager() {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+                {detailTab === "abrechnungen" && (
+                  <div className="space-y-3">
+                    {(detail.abrechnungen || []).length === 0 ? <p className="py-10 text-center text-[13px] text-slate-400">Keine Abrechnungen</p> : (detail.abrechnungen || []).map((a) => {
+                      const st = ABR_STATUS[a.status] || [a.status, "bg-slate-100 text-slate-500"];
+                      return (
+                        <div key={a.id} className="p-4 rounded-xl border border-slate-100 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[13px] font-semibold text-slate-900">{a.titel}</p>
+                              <p className="text-[11px] text-slate-400">{a.zeitraum || ""} · {a.positionen.length} Positionen · angelegt {fmtDate(a.created_at)}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-[14px] font-bold text-slate-900">{(a.summe_cents / 100).toLocaleString("de-DE", { style: "currency", currency: a.waehrung || "EUR" })}</p>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st[1]}`}>{st[0]}</span>
+                            </div>
+                          </div>
+                          {a.rueckfrage && a.status === "rueckfrage" && <p className="text-[12px] text-rose-700 bg-rose-50 rounded-lg px-3 py-2">„{a.rueckfrage}“</p>}
+                          {a.freigegeben_am && <p className="text-[11px] text-slate-500">Freigegeben am {fmtDate(a.freigegeben_am)}{a.ausgezahlt_am ? ` · ausgezahlt am ${fmtDate(a.ausgezahlt_am)}` : ""}</p>}
+                          <div className="flex gap-2 pt-1">
+                            {a.status === "freigegeben" && <button onClick={() => setAbrechnungStatus(a.id, "ausgezahlt")} className="px-3 py-1.5 text-[12px] font-bold text-white bg-[#2563eb] rounded-lg">Als ausgezahlt markieren</button>}
+                            {a.status === "rueckfrage" && <button onClick={() => setAbrechnungStatus(a.id, "zur_pruefung")} className="px-3 py-1.5 text-[12px] font-semibold text-slate-700 border border-slate-200 rounded-lg">Geklärt · erneut zur Prüfung</button>}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
                 {detailTab === "documents" && (

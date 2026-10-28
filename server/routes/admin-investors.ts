@@ -150,7 +150,11 @@ router.get("/:id", async (req, res) => {
       ORDER BY created_at DESC
     `;
 
-    res.json({ ok: true, investor, investments, transactions, documents, cardOrders, benefits, benefitActivity, requests });
+    const abrechnungen = await client`
+      SELECT * FROM investor_abrechnungen WHERE investor_id = ${id} ORDER BY created_at DESC
+    `;
+
+    res.json({ ok: true, investor, investments, transactions, documents, cardOrders, benefits, benefitActivity, requests, abrechnungen });
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] detail error", err);
     res.status(500).json({ ok: false, error: "Failed to load investor" });
@@ -608,6 +612,70 @@ router.delete("/:id/requests/:reqId", async (req, res) => {
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] delete request error", err);
     res.status(500).json({ ok: false, error: "Failed to delete request" });
+  }
+});
+
+// ============================================================================
+// E-448: ABRECHNUNGEN (z. B. Reisekosten) — anlegen, Status setzen (ausgezahlt)
+// Positionen: [{ datum, text, kategorie?, original?, betragCents, kurs?, dokumentId? }] — Summe rechnet der Server.
+// ============================================================================
+function positionenPruefen(roh: unknown): { positionen: any[]; summe: number } | null {
+  if (!Array.isArray(roh) || roh.length === 0 || roh.length > 200) return null;
+  const positionen = roh.map((p: any) => ({
+    datum: String(p?.datum ?? "").slice(0, 40),
+    text: String(p?.text ?? "").slice(0, 300),
+    kategorie: p?.kategorie ? String(p.kategorie).slice(0, 60) : null,
+    original: p?.original ? String(p.original).slice(0, 60) : null,
+    kurs: p?.kurs ? String(p.kurs).slice(0, 80) : null,
+    betragCents: Math.round(Number(p?.betragCents)),
+    dokumentId: p?.dokumentId != null && p.dokumentId !== "" ? Number(p.dokumentId) : null,
+  }));
+  if (positionen.some((p) => !p.text || !Number.isFinite(p.betragCents))) return null;
+  return { positionen, summe: positionen.reduce((a, p) => a + p.betragCents, 0) };
+}
+
+router.post("/:id/abrechnungen", async (req, res) => {
+  try {
+    await ensureInvestorTables();
+    const { id } = req.params;
+    const { titel, art = "reisekosten", zeitraum, grundlage, positionen, waehrung = "EUR", konto, hinweis } = req.body ?? {};
+    if (!titel) return res.status(400).json({ ok: false, error: "Titel ist erforderlich" });
+    const geprueft = positionenPruefen(positionen);
+    if (!geprueft) return res.status(400).json({ ok: false, error: "Positionen fehlen oder sind unvollständig" });
+    const [row] = await client`
+      INSERT INTO investor_abrechnungen (investor_id, titel, art, zeitraum, grundlage, positionen, summe_cents, waehrung, konto, hinweis)
+      VALUES (${id}, ${String(titel)}, ${String(art)}, ${zeitraum ?? null}, ${grundlage ?? null},
+              ${JSON.stringify(geprueft.positionen)}::jsonb, ${geprueft.summe}, ${String(waehrung)},
+              ${konto != null ? JSON.stringify(konto) : null}::jsonb, ${hinweis ?? null})
+      RETURNING *
+    `;
+    res.status(201).json({ ok: true, abrechnung: row });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] abrechnung create error", err);
+    res.status(500).json({ ok: false, error: "Abrechnung konnte nicht angelegt werden" });
+  }
+});
+
+router.patch("/:id/abrechnungen/:aid", async (req, res) => {
+  try {
+    const { id, aid } = req.params;
+    const status = String(req.body?.status ?? "");
+    if (!["zur_pruefung", "rueckfrage", "freigegeben", "ausgezahlt", "storniert"].includes(status)) {
+      return res.status(400).json({ ok: false, error: "Unbekannter Status" });
+    }
+    const [row] = await client`
+      UPDATE investor_abrechnungen
+      SET status = ${status},
+          ausgezahlt_am = CASE WHEN ${status} = 'ausgezahlt' THEN NOW() ELSE ausgezahlt_am END,
+          updated_at = NOW()
+      WHERE id = ${Number(aid)} AND investor_id = ${id}
+      RETURNING *
+    `;
+    if (!row) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden" });
+    res.json({ ok: true, abrechnung: row });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] abrechnung patch error", err);
+    res.status(500).json({ ok: false, error: "Status konnte nicht gesetzt werden" });
   }
 });
 

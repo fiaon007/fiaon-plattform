@@ -230,3 +230,18 @@
 .ib-glas .scp-input:focus { border-color: var(--ib-blau); box-shadow: 0 0 0 4px rgba(40, 141, 250, .14); background: #fff; }
 .ib-glas .scp-input:disabled { background: rgba(238, 244, 253, .8); color: #7a879c; }
 .ib-glas .scp-label { font-weight: 500; letter-spacing: .12em; color: #7a879c; }
+
+/* E-448: Zähler am Reiter und Aufruf-Karte „wartet auf Ihre Freigabe“ */
+.ib-zaehler {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  font: 500 10.5px/1 var(--ib-ap); color: #fff; background: linear-gradient(140deg, #4f9dff, #1D4ED8);
+}
+.ib-glas .ib-aufruf {
+  display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px 20px; border-radius: 24px; text-align: left;
+  transition: transform .25s, box-shadow .25s;
+}
+.ib-glas .ib-aufruf:hover { transform: translateY(-1px); }
+.ib-aufruf-symbol {
+  width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex-shrink: 0; color: #fff;
+  background: linear-gradient(140deg, #4f9dff, #1D4ED8); box-shadow: 0 10px 22px -12px rgba(29, 78, 216, .8);
+}

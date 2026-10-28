@@ -1613,7 +1613,8 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     titel: "Der Fahrplan: unsere Stationen, intern gesteuert.",
     text: "Jede Station hat einen Knopf: „Starten“, wenn sie offen ist, „Erledigt“, wenn sie läuft — das Datum ist dann heute. "
       + "Über „···“ änderst du das Datum, schreibst eine interne Notiz, setzt „Beantragt“ oder „Entfällt“. "
-      + "„Kunde sieht“ heißt: Die Station steht in seinem Portal. Werte wie EIN oder ITIN trägst du im Editor ein („Alle Werte bearbeiten“) "
+      + "„Kunde sieht“ heißt: Die Station steht in seinem Portal. Erledigtes steht eingeklappt in einer Zeile („Zeigen“). "
+      + "Werte wie EIN oder ITIN trägst du im Editor ein („Alle Werte bearbeiten“) "
       + "oder direkt unter „Firmendaten“.",
     tipp: "Darüber stehen die Etappen, wie der Kunde sie liest — ein Klick auf eine Etappe setzt sie (mit Satz und Mail, wenn du willst).",
   },

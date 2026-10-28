@@ -19,6 +19,8 @@
 //   5 Zahlung offen                  → Wartet auf Kunde („Link erneut senden“)
 //   6 nächste Station im Fahrplan    → „Starten“ · „<Wert> eintragen“ · „Erledigt“
 //   7 sonst                          → Wartet auf Kunde (wenn etwas beim Kunden liegt) oder „Nichts offen“
+// Die Liste folgt derselben Reihenfolge: Neues/Frist → Braucht uns; Zahlung offen → Wartet auf Kunde; Fahrplan läuft →
+// Braucht uns; Fahrplan fertig und etwas liegt beim Kunden → Wartet auf Kunde; sonst Ruhe.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF } from "./fiaon-global-mandat";
 
@@ -190,19 +192,19 @@ export function alsNaechstes(m: AlsNaechstesAkte, heute: string): AlsNaechstes {
       const titel = String(s.titel || s.schluessel);
       const st = s.status ?? "offen";
       if (st === "offen") {
-        return { ton: "uns", titel: `${titel} starten.`, warum: "Das ist die nächste Station im Fahrplan. Der Kunde sieht danach „In Arbeit“.", knopf: "Starten", aktion: { art: "station", schluessel: s.schluessel, status: "in_arbeit" }, wartet };
+        return { ton: "uns", titel: `„${titel}“ starten.`, warum: "Das ist die nächste Station im Fahrplan. Der Kunde sieht danach „In Arbeit“.", knopf: "Starten", aktion: { art: "station", schluessel: s.schluessel, status: "in_arbeit" }, wartet };
       }
       const wert = ALS_NAECHSTES_WERT[s.schluessel];
       const plus = m.gesellschaftPlus ?? {};
       if (wert && !String(plus[wert.feld] ?? "").trim()) {
         return {
-          ton: st === "beantragt" ? "amt" : "uns", titel: `${titel}: ${wert.titel} eintragen.`,
-          warum: st === "beantragt" ? "Beantragt — sobald die Nummer da ist, hier eintragen. Der Kunde sieht sie sofort." : "Die Station läuft; der Kunde sieht die Nummer, sobald sie eingetragen ist.",
+          ton: st === "beantragt" ? "amt" : "uns", titel: `${wert.titel} eintragen.`,
+          warum: st === "beantragt" ? `„${titel}“ ist beantragt — sobald die Nummer da ist, hier eintragen. Der Kunde sieht sie sofort.` : `„${titel}“ läuft. Der Kunde sieht die Nummer, sobald sie eingetragen ist.`,
           knopf: `${wert.titel} eintragen`, aktion: { art: "station-werte", schluessel: s.schluessel }, wartet,
         };
       }
       return {
-        ton: st === "beantragt" ? "amt" : "uns", titel: `${titel} abschließen.`,
+        ton: st === "beantragt" ? "amt" : "uns", titel: `„${titel}“ abschließen.`,
         warum: st === "beantragt" ? `Beantragt${s.beantragtAm ? ` am ${tagDe(String(s.beantragtAm))}` : ""} — die Entscheidung liegt bei Behörde oder Institut.` : "Die Station läuft. „Erledigt“ setzt das Datum auf heute; der Kunde sieht es sofort.",
         knopf: "Erledigt", aktion: { art: "station", schluessel: s.schluessel, status: "erledigt" }, wartet,
       };
@@ -249,10 +251,12 @@ export function listenLage(z: ListenZeile, heute: string): ListenLage {
     return { gruppe: "uns", neu, stand, naechster: t < 0 ? `Frist überfällig (${tagDe(z.naechsteFrist)})` : `Frist am ${tagDe(z.naechsteFrist)}` };
   }
   if (z.status === "offen") return { gruppe: "kunde", neu, stand, naechster: "Wartet auf die Zahlung" };
+  // Wie die Karte „Als Nächstes“: Solange unser Fahrplan läuft, sind WIR dran — eine Unterschrift beim Kunden steht daneben.
   const u = Number(z.unterschriftenOffen || 0);
-  if (u > 0) return { gruppe: "kunde", neu, stand, naechster: `${mehrzahl(u, "Unterschrift", "Unterschriften")} beim Kunden` };
-  if (f.erledigt >= f.gesamt) return { gruppe: "ruhe", neu, stand, naechster: "Fahrplan komplett" };
-  return { gruppe: "uns", neu, stand, naechster: z.naechsterSchritt ? String(z.naechsterSchritt) : "Fahrplan weiterführen" };
+  const beimKunden = u > 0 ? `${mehrzahl(u, "Unterschrift", "Unterschriften")} beim Kunden` : "";
+  if (f.erledigt < f.gesamt) return { gruppe: "uns", neu, stand, naechster: z.naechsterSchritt ? String(z.naechsterSchritt) : beimKunden || "Fahrplan weiterführen" };
+  if (u > 0) return { gruppe: "kunde", neu, stand, naechster: beimKunden };
+  return { gruppe: "ruhe", neu, stand, naechster: "Fahrplan komplett" };
 }
 
 function neuText(dok: number, nachricht: number): string {

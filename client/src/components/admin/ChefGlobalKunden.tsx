@@ -374,10 +374,14 @@ function Fahrplan({ m, gref, tun, heute, editor, setEditor, onGespeichert }: {
   const [satzAuf, setSatzAuf] = useState(false);
   const [satz, setSatz] = useState(m.naechsterSchritt?.text ?? "");
   const [satzBis, setSatzBis] = useState(m.naechsterSchritt?.bis ?? "");
+  const [erledigteAuf, setErledigteAuf] = useState(false);
   const schritte = m.schritte as Station[];
   const zaehlt = new Set(zaehlendeStationen(schritte).map((s) => s.schluessel));
   const naechste = naechsteStation(schritte)?.schluessel;
-  const zeigen = schritte.filter((s) => zaehlt.has(s.schluessel) || s.status === "entfaellt");
+  const alleZeigen = schritte.filter((s) => zaehlt.has(s.schluessel) || s.status === "entfaellt");
+  // Nichts überladen: Erledigtes und Entfallenes steht eingeklappt in EINER Zeile — ein Klick zeigt es.
+  const fertig = alleZeigen.filter((s) => s.status === "erledigt" || s.status === "entfaellt");
+  const zeigen = erledigteAuf ? alleZeigen : alleZeigen.filter((s) => s.status !== "erledigt" && s.status !== "entfaellt");
   const bedarf = schritte.filter((s) => GLOBAL_FAHRPLAN_BEDARF.includes(s.schluessel) && !zaehlt.has(s.schluessel) && s.status !== "entfaellt");
   const gesperrt = m.status === "offen" || m.status === "storniert";
   return (
@@ -431,6 +435,18 @@ function Fahrplan({ m, gref, tun, heute, editor, setEditor, onGespeichert }: {
       <div className="cgn-gruppe">
         <span className="cgn-auge">Unser Fahrplan · intern gesteuert</span>
         <ol className="cgn-zeitlinie" data-cgn="zeitlinie">
+          {fertig.length > 0 && (
+            <li className="cgn-station st-erledigt cgn-station-sammel">
+              <span className="cgn-station-punkt" aria-hidden="true" />
+              <span className="cgn-station-text">
+                <b>{fertig.filter((s) => s.status === "erledigt").length} {fertig.filter((s) => s.status === "erledigt").length === 1 ? "Station" : "Stationen"} erledigt</b>
+                <small>{fertig.map((s) => s.titel).join(" · ")}</small>
+              </span>
+              <span className="cgn-station-tun">
+                <button type="button" className="cgn-knopf klein" aria-expanded={erledigteAuf} data-cgn="erledigte-schalter" onClick={() => setErledigteAuf((v) => !v)}>{erledigteAuf ? "Einklappen" : "Zeigen"}</button>
+              </span>
+            </li>
+          )}
           {zeigen.map((s) => <StationZeile key={s.schluessel} s={s} naechste={s.schluessel === naechste} tun={tun} heute={heute}
                                              werte={() => setEditor({ auf: true, station: s.schluessel })} />)}
         </ol>
@@ -485,15 +501,14 @@ function StationZeile({ s, naechste, tun, heute, werte }: { s: T; naechste: bool
   };
   const stand = status === "erledigt" ? `${name("erledigt")}${s.datum ? ` am ${tagDe(s.datum)}` : ""}`
     : status === "beantragt" ? `${name("beantragt")}${s.beantragtAm ? ` am ${tagDe(s.beantragtAm)}` : ""}`
-    : status === "in_arbeit" ? `${name("in_arbeit")} — läuft` : name(status);
+    : name(status);
   return (
     <li className={`cgn-station st-${status}${naechste ? " naechste" : ""}`} data-cgn-station={s.schluessel}>
       <span className="cgn-station-punkt" aria-hidden="true" />
       <span className="cgn-station-text">
         <b>{s.titel}</b>
-        <small>{stand}{s.geaendertVon ? ` · ${s.geaendertVon}` : ""}</small>
-        {s.intern && <small className="intern">Notiz: {s.intern}</small>}
-        <span className={`cgn-sicht${status === "entfaellt" ? "" : " kunde"}`}>{status === "entfaellt" ? "nur intern" : "Kunde sieht"}</span>
+        <small>{stand}{s.geaendertVon ? ` · ${s.geaendertVon}` : ""} · <span className={`cgn-sicht${status === "entfaellt" ? "" : " kunde"}`}>{status === "entfaellt" ? "nur intern" : "Kunde sieht"}</span></small>
+        {s.intern && <small className="intern">Notiz (intern): {s.intern}</small>}
       </span>
       <span className="cgn-station-tun">
         {status === "offen" && <button type="button" className={`cgn-knopf klein${naechste ? " haupt" : ""}`} disabled={laeuft} data-cgn="station-starten" onClick={() => void setze({ status: "in_arbeit" })}>Starten</button>}

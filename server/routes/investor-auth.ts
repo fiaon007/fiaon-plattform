@@ -10,6 +10,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { scryptSync, randomBytes, timingSafeEqual, createHmac } from "crypto";
+import multer from "multer";
 import { client } from "../db";
 import { logger } from "../logger";
 
@@ -58,6 +59,8 @@ interface InvestorSession {
   sub: string; // investor id
   email: string;
   name: string;
+  /** E-450: Vorschau aus der Verwaltung — nur ansehen, nichts auslösen */
+  vorschau?: boolean;
   iat: number;
   exp: number;
 }
@@ -283,6 +286,8 @@ export function ensureInvestorTables(): Promise<void> {
       )
     `;
     await client`CREATE INDEX IF NOT EXISTS investor_abrechnungen_investor_idx ON investor_abrechnungen(investor_id)`;
+    // E-450: Token-Auszahlungsanfragen tragen die Stückzahl selbst (nicht nur im Notiztext)
+    await client`ALTER TABLE investor_requests ADD COLUMN IF NOT EXISTS token_stueck NUMERIC(20,6)`;
 
     // ---- benefit activity (bookings, consultations, cancellations) — all tracked ----
     await client`
@@ -313,7 +318,7 @@ export function ensureInvestorTables(): Promise<void> {
 // requireInvestor middleware — attaches req.investor
 // ----------------------------------------------------------------------------
 export interface InvestorRequest extends Request {
-  investor?: { id: string; email: string; name: string };
+  investor?: { id: string; email: string; name: string; vorschau?: boolean };
 }
 
 export function requireInvestor(req: InvestorRequest, res: Response, next: NextFunction) {
@@ -322,8 +327,43 @@ export function requireInvestor(req: InvestorRequest, res: Response, next: NextF
   if (!session) {
     return res.status(401).json({ ok: false, error: "Nicht angemeldet" });
   }
-  req.investor = { id: session.sub, email: session.email, name: session.name };
+  req.investor = { id: session.sub, email: session.email, name: session.name, vorschau: !!session.vorschau };
+  if (session.vorschau && req.method !== "GET") {
+    return res.status(403).json({ ok: false, error: "Vorschau aus der Verwaltung – hier wird nur angesehen, nichts ausgelöst." });
+  }
   next();
+}
+
+/** E-450: Die Verwaltung (Chef-Stufe inhaber / Admin) sieht das Banking eines Investors genau so wie er — nur lesend, 2 Stunden. */
+export function setzeVorschauSitzung(res: Response, investor: { id: string; email: string; name: string }): void {
+  if (GEHEIMNIS_FEHLT) throw new Error("Kein Sitzungs-Geheimnis gesetzt – Vorschau gesperrt");
+  const max = 2 * 60 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  const body = b64url(JSON.stringify({ sub: investor.id, email: investor.email, name: investor.name, vorschau: true, iat: now, exp: now + max }));
+  const sig = createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
+  res.setHeader("Set-Cookie", buildCookie(`${body}.${sig}`, max));
+}
+
+/** Liest „1.250,50“, „1250,5“, „1,250.50“ und „1250.50“ richtig; NaN bei Unsinn. */
+export function betragLesen(roh: unknown): number {
+  let t = String(roh ?? "").trim().replace(/[\s€$]/g, "").replace(/^(EUR|USD|CHF|AED|GBP)/i, "");
+  if (!t) return NaN;
+  const komma = t.lastIndexOf(","), punkt = t.lastIndexOf(".");
+  if (komma > punkt) t = t.replace(/\./g, "").replace(",", ".");
+  else if (punkt > komma && komma !== -1) t = t.replace(/,/g, "");
+  else if (punkt !== -1 && komma === -1 && !/^\d{1,3}(\.\d{3})+$/.test(t)) { /* Punkt als Dezimalzeichen */ }
+  else t = t.replace(/\./g, "");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+async function boardAufgabe(schluessel: string, titel: string, text: string) {
+  try {
+    const { todoAnlegen } = await import("./fiaon-betreiber-todo");
+    await todoAnlegen(schluessel, { titel, text, bereich: "geld", prioritaet: 1, link: "/chef/s/investoren", quelle: "investoren-portal" });
+  } catch (err) {
+    logger.error("[INVESTOR] Board-Aufgabe konnte nicht angelegt werden", err);
+  }
 }
 
 // ============================================================================
@@ -397,7 +437,7 @@ router.get("/me", requireInvestor, async (req: InvestorRequest, res: Response) =
       FROM investors WHERE id = ${req.investor!.id} LIMIT 1
     `;
     if (!investor) return res.status(404).json({ ok: false, error: "Nicht gefunden" });
-    return res.json({ ok: true, investor });
+    return res.json({ ok: true, investor, vorschau: !!req.investor!.vorschau });
   } catch (err) {
     logger.error("[INVESTOR-ME] error", err);
     return res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -684,8 +724,9 @@ router.post("/change-password", requireInvestor, async (req: InvestorRequest, re
 // ============================================================================
 router.get("/requests", requireInvestor, async (req: InvestorRequest, res: Response) => {
   try {
+    await ensureInvestorTables();
     const rows = await client`
-      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at
+      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at, token_stueck
       FROM investor_requests WHERE investor_id = ${req.investor!.id}
       ORDER BY created_at DESC LIMIT 100
     `;
@@ -703,22 +744,43 @@ router.get("/requests", requireInvestor, async (req: InvestorRequest, res: Respo
 router.post("/requests", requireInvestor, async (req: InvestorRequest, res: Response) => {
   try {
     const investorId = req.investor!.id;
-    const { requestType, investmentId, amountCents, note } = req.body ?? {};
+    await ensureInvestorTables();
+    const { requestType, investmentId, amountCents, note, tokenStueck } = req.body ?? {};
     if (requestType !== "deposit" && requestType !== "withdrawal") {
       return res.status(400).json({ ok: false, error: "Ungültiger Anfragetyp" });
     }
-    const amount = Number(amountCents);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    // E-450: Die Anlage muss dem Investor aus der Sitzung gehören
+    let anlage: any = null;
+    if (investmentId) {
+      [anlage] = await client`SELECT id, name, investment_type, token_quantity, token_current_price_cents FROM investor_investments WHERE id = ${Number(investmentId)} AND investor_id = ${investorId} LIMIT 1`;
+      if (!anlage) return res.status(400).json({ ok: false, error: "Dieser Vertrag gehört nicht zu Ihrem Konto." });
+    }
+    let stueck: number | null = null;
+    let amount = Number(amountCents);
+    if (tokenStueck != null && tokenStueck !== "") {
+      stueck = Math.floor(Number(tokenStueck));
+      if (requestType !== "withdrawal" || !anlage || anlage.investment_type !== "token") return res.status(400).json({ ok: false, error: "Token-Anfragen sind nur für Token-Verträge möglich." });
+      if (!Number.isFinite(stueck) || stueck <= 0) return res.status(400).json({ ok: false, error: "Bitte eine gültige Anzahl Token angeben." });
+      if (anlage.token_quantity != null && stueck > Number(anlage.token_quantity)) return res.status(400).json({ ok: false, error: `In diesem Vertrag halten Sie ${Number(anlage.token_quantity).toLocaleString("de-DE")} Token.` });
+      amount = anlage.token_current_price_cents != null ? Math.round(stueck * Number(anlage.token_current_price_cents)) : 0;
+    } else if (!Number.isFinite(amount) || amount <= 0 || amount > 1e12) {
       return res.status(400).json({ ok: false, error: "Bitte einen gültigen Betrag angeben" });
     }
     const [request] = await client`
-      INSERT INTO investor_requests (investor_id, investment_id, request_type, amount_cents, currency, note, status)
+      INSERT INTO investor_requests (investor_id, investment_id, request_type, amount_cents, currency, note, status, token_stueck)
       VALUES (
-        ${investorId}, ${investmentId ? Number(investmentId) : null}, ${requestType},
-        ${Math.round(amount)}, 'EUR', ${note ?? null}, 'pending'
+        ${investorId}, ${anlage ? Number(anlage.id) : null}, ${requestType},
+        ${Math.round(amount)}, 'EUR', ${note ? String(note).slice(0, 2000) : null}, 'pending', ${stueck}
       )
-      RETURNING id, investment_id, request_type, amount_cents, currency, note, status, created_at
+      RETURNING id, investment_id, request_type, amount_cents, currency, note, status, created_at, token_stueck
     `;
+    // E-450: jede Anfrage meldet sich auf dem Betreiber-Board (vorher lag sie still in der Tabelle)
+    const betrag = stueck != null
+      ? `${stueck.toLocaleString("de-DE")} Token aus „${anlage.name}“`
+      : (Math.round(amount) / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " EUR";
+    await boardAufgabe(`investor-anfrage-${request.id}`,
+      `${stueck != null ? "Token-Auszahlungsanfrage" : requestType === "withdrawal" ? "Auszahlungsanfrage" : "Einzahlungsanfrage"}: ${req.investor!.name} · ${betrag}`,
+      `${note ? `Nachricht: ${String(note).slice(0, 500)}\n` : ""}Im Chefbüro › Geld › Investoren › Anfragen prüfen und dem Investor antworten.`);
     return res.status(201).json({ ok: true, request });
   } catch (err) {
     logger.error("[INVESTOR-REQUESTS-CREATE] error", err);
@@ -867,12 +929,7 @@ router.get("/abrechnungen", requireInvestor, async (req: InvestorRequest, res: R
 });
 
 async function abrechnungAufgabe(id: number, titel: string, text: string) {
-  try {
-    const { todoAnlegen } = await import("./fiaon-betreiber-todo");
-    await todoAnlegen(`investor-abrechnung-${id}`, { titel, text, bereich: "geld", prioritaet: 1, link: "/chef/s/investoren", quelle: "investoren-portal" });
-  } catch (err) {
-    logger.error("[INVESTOR-ABRECHNUNG] Aufgabe konnte nicht angelegt werden", err);
-  }
+  await boardAufgabe(`investor-abrechnung-${id}`, titel, text);
 }
 
 router.post("/abrechnungen/:id/freigeben", requireInvestor, async (req: InvestorRequest, res: Response) => {
@@ -912,6 +969,82 @@ router.post("/abrechnungen/:id/rueckfrage", requireInvestor, async (req: Investo
   } catch (err) {
     logger.error("[INVESTOR-ABRECHNUNG] rueckfrage error", err);
     res.status(500).json({ ok: false, error: "Rückfrage konnte nicht gesendet werden" });
+  }
+});
+
+// ============================================================================
+// E-450: KOSTEN EINREICHEN — der Investor lädt jederzeit Belege hoch (z. B. vergessene Reisekosten);
+// daraus wird eine Abrechnung „eingereicht“, die die Verwaltung prüft.
+// ============================================================================
+const belegUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => /^(application\/pdf|image\/(jpeg|png|heic|heif|webp))$/.test(file.mimetype)
+    ? cb(null, true) : cb(Object.assign(new Error("Dateityp"), { code: "FALSCHER_TYP" }) as any),
+});
+
+router.post("/einreichungen", requireInvestor, (req: Request, res: Response, next: NextFunction) => {
+  // multer-Fehler (zu groß, zu viele Dateien) hier abfangen und klar beantworten
+  belegUpload.array("belege", 10)(req, res, (err: any) => {
+    if (!err) return next();
+    const text = err?.code === "LIMIT_FILE_SIZE" ? "Ein Beleg ist größer als 15 MB. Bitte verkleinern oder als PDF senden."
+      : err?.code === "LIMIT_FILE_COUNT" || err?.code === "LIMIT_UNEXPECTED_FILE" ? "Bitte höchstens 10 Belege auf einmal einreichen."
+      : err?.code === "FALSCHER_TYP" ? "Bitte nur PDF-Dateien oder Fotos (JPG, PNG, HEIC) einreichen."
+      : "Die Belege konnten nicht gelesen werden.";
+    res.status(400).json({ ok: false, error: text });
+  });
+}, async (req: InvestorRequest, res: Response) => {
+  try {
+    await ensureInvestorTables();
+    const investorId = req.investor!.id;
+    const dateien = ((req as any).files || []) as Express.Multer.File[];
+    const text = String(req.body?.text ?? "").trim().slice(0, 300);
+    const datum = String(req.body?.datum ?? "").trim().slice(0, 40);
+    const kategorie = String(req.body?.kategorie ?? "").trim().slice(0, 60) || null;
+    const waehrung = String(req.body?.waehrung ?? "EUR").trim().toUpperCase().slice(0, 3) || "EUR";
+    const notiz = String(req.body?.notiz ?? "").trim().slice(0, 2000) || null;
+    const betrag = betragLesen(req.body?.betrag);
+    if (!text) return res.status(400).json({ ok: false, error: "Bitte beschreiben Sie kurz, wofür die Kosten sind." });
+    if (!Number.isFinite(betrag) || betrag <= 0 || betrag > 10_000_000) return res.status(400).json({ ok: false, error: "Bitte geben Sie einen gültigen Betrag an." });
+    if (!dateien.length) return res.status(400).json({ ok: false, error: "Bitte fügen Sie mindestens einen Beleg bei (PDF oder Foto)." });
+    if (dateien.reduce((a, f) => a + f.size, 0) > 25 * 1024 * 1024) return res.status(400).json({ ok: false, error: "Zusammen höchstens 25 MB je Einreichung, bitte aufteilen." });
+    const [{ heute }] = await client`
+      SELECT count(*)::int AS heute FROM investor_abrechnungen
+      WHERE investor_id = ${investorId} AND art = 'einreichung' AND created_at > NOW() - INTERVAL '1 day'
+    `;
+    if (heute >= 20) return res.status(429).json({ ok: false, error: "Heute sind schon viele Einreichungen eingegangen. Bitte morgen weiter oder kurz bei uns melden." });
+
+    const cents = Math.round(betrag * 100);
+    const original = `${waehrung} ${betrag.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const id = await client.begin(async (tx: any) => {
+      const ids: number[] = [];
+      for (const f of dateien) {
+        const [doc] = await tx`
+          INSERT INTO investor_documents (investor_id, investment_id, title, document_type, file_name, mime_type, file_size, file_data)
+          VALUES (${investorId}, NULL, ${`Eingereicht · ${text}`.slice(0, 250)}, 'statement', ${f.originalname}, ${f.mimetype}, ${f.size}, ${f.buffer})
+          RETURNING id
+        `;
+        ids.push(Number(doc.id));
+      }
+      const position = {
+        datum, text, kategorie, notiz, original: waehrung === "EUR" ? null : original,
+        kurs: waehrung === "EUR" ? null : "Umrechnung in Euro zum EZB-Referenzkurs bei unserer Prüfung",
+        betragCents: waehrung === "EUR" ? cents : 0, dokumentId: ids[0], dokumentIds: ids,
+      };
+      const [row] = await tx`
+        INSERT INTO investor_abrechnungen (investor_id, titel, art, zeitraum, positionen, summe_cents, waehrung, status)
+        VALUES (${investorId}, ${text.slice(0, 200)}, 'einreichung', ${datum || null}, ${JSON.stringify([position])}::jsonb,
+                ${position.betragCents}, 'EUR', 'eingereicht')
+        RETURNING id
+      `;
+      return { id: Number(row.id), belege: ids.length };
+    });
+    await boardAufgabe(`investor-einreichung-${id.id}`, `Beleg eingereicht: ${req.investor!.name} · ${original}`,
+      `${text}${datum ? ` (${datum})` : ""} · ${id.belege} Beleg(e)${notiz ? `\nNotiz: ${notiz}` : ""}\nIm Chefbüro › Geld › Investoren › Abrechnungen prüfen: anerkennen (dann im Buchungslauf auszahlen) oder mit Hinweis ablehnen.`);
+    res.status(201).json({ ok: true, id: id.id });
+  } catch (err) {
+    logger.error("[INVESTOR-EINREICHUNG] error", err);
+    res.status(500).json({ ok: false, error: "Die Einreichung hat nicht geklappt. Bitte versuchen Sie es erneut." });
   }
 });
 

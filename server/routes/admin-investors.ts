@@ -12,7 +12,7 @@ import { randomBytes } from "crypto";
 import { client } from "../db";
 import { logger } from "../logger";
 import { adminZugriff } from "../lib/fiaon-admin-wache";
-import { ensureInvestorTables, hashInvestorPassword } from "./investor-auth";
+import { ensureInvestorTables, hashInvestorPassword, setzeVorschauSitzung } from "./investor-auth";
 
 const router = Router();
 
@@ -145,7 +145,7 @@ router.get("/:id", async (req, res) => {
       ORDER BY COALESCE(scheduled_at, created_at) DESC, created_at DESC
     `;
     const requests = await client`
-      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at
+      SELECT id, investment_id, request_type, amount_cents, currency, note, status, created_at, token_stueck
       FROM investor_requests WHERE investor_id = ${id}
       ORDER BY created_at DESC
     `;
@@ -660,22 +660,50 @@ router.patch("/:id/abrechnungen/:aid", async (req, res) => {
   try {
     const { id, aid } = req.params;
     const status = String(req.body?.status ?? "");
-    if (!["zur_pruefung", "rueckfrage", "freigegeben", "ausgezahlt", "storniert"].includes(status)) {
+    // E-450: „anerkannt“ = von der Verwaltung geprüft (z. B. eingereichter Beleg); „freigegeben“ setzt nur der Investor selbst
+    if (!["zur_pruefung", "rueckfrage", "eingereicht", "anerkannt", "freigegeben", "ausgezahlt", "storniert"].includes(status)) {
       return res.status(400).json({ ok: false, error: "Unbekannter Status" });
+    }
+    const [alt] = await client`SELECT status FROM investor_abrechnungen WHERE id = ${Number(aid)} AND investor_id = ${id}`;
+    if (!alt) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden" });
+    if (status === "freigegeben" && alt.status !== "freigegeben") {
+      return res.status(409).json({ ok: false, error: "Freigeben kann nur der Investor selbst." });
+    }
+    const hinweis = req.body?.hinweis != null ? String(req.body.hinweis).slice(0, 2000) : null;
+    let summeCents: number | null = null;
+    if (req.body?.summeCents != null && req.body.summeCents !== "") {
+      summeCents = Number(req.body.summeCents);
+      if (!Number.isInteger(summeCents) || summeCents <= 0 || summeCents > 1_000_000_000) return res.status(400).json({ ok: false, error: "Ungültiger Betrag" });
+      if (!["eingereicht", "zur_pruefung"].includes(alt.status)) return res.status(409).json({ ok: false, error: "Der Betrag ist nach der Freigabe fest." });
     }
     const [row] = await client`
       UPDATE investor_abrechnungen
       SET status = ${status},
+          hinweis = COALESCE(${hinweis}, hinweis),
+          summe_cents = COALESCE(${summeCents}, summe_cents),
           ausgezahlt_am = CASE WHEN ${status} = 'ausgezahlt' THEN NOW() ELSE ausgezahlt_am END,
           updated_at = NOW()
       WHERE id = ${Number(aid)} AND investor_id = ${id}
       RETURNING *
     `;
-    if (!row) return res.status(404).json({ ok: false, error: "Abrechnung nicht gefunden" });
     res.json({ ok: true, abrechnung: row });
   } catch (err) {
     logger.error("[ADMIN-INVESTORS] abrechnung patch error", err);
     res.status(500).json({ ok: false, error: "Status konnte nicht gesetzt werden" });
+  }
+});
+
+// E-450: „Als Investor ansehen“ — setzt eine Vorschau-Sitzung (nur lesen, 2 h) für genau diesen Investor
+router.post("/:id/vorschau", async (req, res) => {
+  try {
+    const [inv] = await client`SELECT id, email, first_name, last_name FROM investors WHERE id = ${req.params.id} LIMIT 1`;
+    if (!inv) return res.status(404).json({ ok: false, error: "Investor nicht gefunden" });
+    setzeVorschauSitzung(res, { id: inv.id, email: inv.email, name: `${inv.first_name ?? ""} ${inv.last_name ?? ""}`.trim() });
+    logger.info?.(`[ADMIN-INVESTORS] Vorschau geöffnet für ${inv.id}`);
+    res.json({ ok: true, url: "/banking/dashboard" });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] vorschau error", err);
+    res.status(500).json({ ok: false, error: "Vorschau konnte nicht geöffnet werden" });
   }
 });
 

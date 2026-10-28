@@ -58,7 +58,7 @@ interface Investment {
   token_meta?: TokenMeta | null;
 }
 // E-448: Abrechnung (z. B. Reisekosten) — der Investor prüft Positionen + Belege und gibt frei
-interface AbrechnungPosition { datum: string; text: string; kategorie?: string | null; original?: string | null; kurs?: string | null; betragCents: number; dokumentId?: number | null; }
+interface AbrechnungPosition { datum: string; text: string; kategorie?: string | null; original?: string | null; kurs?: string | null; betragCents: number; dokumentId?: number | null; dokumentIds?: number[]; notiz?: string | null; }
 interface Abrechnung {
   id: number; titel: string; art: string; zeitraum: string | null; grundlage: string | null;
   positionen: AbrechnungPosition[]; summe_cents: number; waehrung: string;
@@ -310,6 +310,7 @@ function TransactionTimeline({ transactions, emptyHint }: { transactions: Transa
    ────────────────────────────────────────────────────────── */
 export default function InvestorDashboardPage() {
   const [investor, setInvestor] = useState<Investor | null>(null);
+  const [vorschau, setVorschau] = useState(false);
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [documents, setDocuments] = useState<InvestorDoc[]>([]);
@@ -361,6 +362,7 @@ export default function InvestorDashboardPage() {
         const benJson = benRes.ok ? await benRes.json() : null;
         if (!active) return;
         setInvestor(meData.investor);
+        setVorschau(!!meData.vorschau);
         setInvestments(pfData.investments || []);
         setTransactions(pfData.transactions || []);
         setDocuments(pfData.documents || []);
@@ -446,6 +448,12 @@ export default function InvestorDashboardPage() {
         </div>
       </header>
 
+      {vorschau && (
+        <div className="ib-vorschau">
+          <span><b>Vorschau aus der Verwaltung</b> · So sieht {investor?.salutation ? `${investor.salutation} ` : ""}{investor?.last_name || "der Investor"} das Banking. Hier wird nur angesehen, nichts ausgelöst.</span>
+          <button onClick={logout}>Vorschau beenden</button>
+        </div>
+      )}
       <main className="max-w-[1180px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-7">
         {/* ═══ BÜHNE: die eine blaue Stelle, eine große dünne Zahl ═══ */}
         <section className="ib-buehne">
@@ -511,6 +519,16 @@ export default function InvestorDashboardPage() {
                 </span>
               </button>
             ))}
+            {offeneAbrechnungen.length === 0 && (
+              <button onClick={() => setTab("abrechnungen")} className="ib-karte ib-aufruf">
+                <span className="ib-aufruf-symbol"><Icon name="receipt" size={20} strokeWidth={1.6} /></span>
+                <span className="min-w-0 text-left">
+                  <span className="ib-kachel-l block">Kosten vorgestreckt?</span>
+                  <span className="block text-[15px] text-[#12284a] mt-1">Belege jederzeit hier einreichen – wir prüfen jede Einreichung persönlich.</span>
+                </span>
+                <span className="ml-auto text-[12px] text-[#1D4ED8] shrink-0">Beleg einreichen →</span>
+              </button>
+            )}
             {/* Transaktionsverlauf */}
             <div className="scp-card p-6">
               <div className="flex items-center justify-between mb-4">
@@ -743,22 +761,144 @@ function SectionHeader({ title }: { title: string }) {
 
 const ABR_STATUS: Record<string, { label: string; cls: string }> = {
   zur_pruefung: { label: "Zur Prüfung", cls: "bg-[#288DFA]/12 text-[#1D4ED8]" },
+  eingereicht: { label: "Eingereicht · in Prüfung", cls: "bg-[#288DFA]/12 text-[#1D4ED8]" },
+  anerkannt: { label: "Anerkannt · Erstattung folgt", cls: "bg-emerald-50 text-emerald-700" },
   rueckfrage: { label: "Rückfrage gesendet", cls: "bg-[#12284a]/8 text-[#12284a]" },
   freigegeben: { label: "Freigegeben", cls: "bg-emerald-50 text-emerald-700" },
   ausgezahlt: { label: "Ausgezahlt", cls: "bg-emerald-50 text-emerald-700" },
   storniert: { label: "Storniert", cls: "bg-slate-100 text-slate-500" },
 };
 
+interface Anfrage { id: number; request_type: string; amount_cents: number; note: string | null; status: string; created_at: string; token_stueck?: string | number | null; }
+const ANFRAGE_STATUS: Record<string, [string, string]> = {
+  pending: ["In Prüfung", "bg-[#288DFA]/12 text-[#1D4ED8]"], approved: ["Angenommen · Abwicklung folgt", "bg-[#288DFA]/12 text-[#1D4ED8]"],
+  completed: ["Abgeschlossen", "bg-[#12284a]/8 text-[#12284a]"], rejected: ["Nicht möglich", "bg-[#12284a]/8 text-[#12284a]"],
+};
+
 function AbrechnungenTab({ abrechnungen, onGeaendert }: { abrechnungen: Abrechnung[]; onGeaendert: () => Promise<void> }) {
-  if (!abrechnungen.length) {
-    return (
-      <div className="scp-card p-10 text-center">
-        <p className="text-[15px] text-[#12284a]">Keine Abrechnungen</p>
-        <p className="text-[13px] text-slate-500 mt-1">Hier erscheinen Reisekosten- und andere Abrechnungen zur Prüfung.</p>
+  const [einreichen, setEinreichen] = useState(false);
+  const [anfragen, setAnfragen] = useState<Anfrage[]>([]);
+  useEffect(() => {
+    fetch("/api/investor/requests", { credentials: "include" }).then((r) => (r.ok ? r.json() : null)).then((d) => setAnfragen(d?.requests || [])).catch(() => {});
+  }, []);
+  return (
+    <div className="space-y-6">
+      <section className="scp-card px-6 sm:px-8 py-6 flex items-center justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="ib-kachel-l">Abrechnungen & Belege</p>
+          <p className="text-[15px] text-[#12284a] mt-1.5">Kosten vorgestreckt? Reichen Sie Belege jederzeit ein. Wir prüfen sie und erstatten anerkannte Kosten im nächsten Buchungslauf.</p>
+        </div>
+        <button onClick={() => setEinreichen(true)} className="min-h-[48px] px-6 rounded-full text-[14px] text-white shrink-0" style={{ background: "linear-gradient(140deg,#4f9dff,#1D4ED8)", boxShadow: "0 14px 30px -18px rgba(29,78,216,.8)" }}>
+          + Kosten einreichen
+        </button>
+      </section>
+
+      {abrechnungen.map((a) => <AbrechnungKarte key={a.id} a={a} onGeaendert={onGeaendert} />)}
+
+      {anfragen.length > 0 && (
+        <section className="scp-card px-6 sm:px-8 py-6">
+          <p className="ib-kachel-l mb-3">Ihre Anfragen</p>
+          <div className="ib-tafel">
+            {anfragen.map((q) => {
+              const st = ANFRAGE_STATUS[q.status] || [q.status, "bg-slate-100 text-slate-500"];
+              return (
+                <div key={q.id} className="ib-tafel-zeile">
+                  <div className="min-w-0">
+                    <p className="ib-tafel-pos">{q.token_stueck != null ? "Token-Anfrage" : q.request_type === "withdrawal" ? "Auszahlung" : "Einzahlung"} · {fmtDate(q.created_at)}</p>
+                    {q.note && <p className="ib-tafel-sub">{q.note}</p>}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="ib-tafel-wert">{q.token_stueck != null ? `${Number(q.token_stueck).toLocaleString("de-DE")} Token` : eur2(q.amount_cents)}</p>
+                    <span className={`inline-block mt-1 text-[10.5px] px-2 py-0.5 rounded-full ${st[1]}`}>{st[0]}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {einreichen && <EinreichenModal onClose={() => setEinreichen(false)} onFertig={async () => { setEinreichen(false); await onGeaendert(); }} />}
+    </div>
+  );
+}
+
+function EinreichenModal({ onClose, onFertig }: { onClose: () => void; onFertig: () => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [datum, setDatum] = useState("");
+  const [betrag, setBetrag] = useState("");
+  const [waehrung, setWaehrung] = useState("EUR");
+  const [kategorie, setKategorie] = useState("Reise");
+  const [notiz, setNotiz] = useState("");
+  const [dateien, setDateien] = useState<File[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const senden = async () => {
+    setFehler(null);
+    if (!text.trim()) { setFehler("Bitte beschreiben Sie kurz, wofür die Kosten sind."); return; }
+    if (!betrag.trim()) { setFehler("Bitte geben Sie den Betrag an."); return; }
+    if (!dateien.length) { setFehler("Bitte fügen Sie mindestens einen Beleg bei."); return; }
+    const fd = new FormData();
+    fd.append("text", text.trim()); fd.append("datum", datum.trim()); fd.append("betrag", betrag.trim());
+    fd.append("waehrung", waehrung); fd.append("kategorie", kategorie); fd.append("notiz", notiz.trim());
+    dateien.forEach((f) => fd.append("belege", f));
+    setBusy(true);
+    try {
+      const r = await fetch("/api/investor/einreichungen", { method: "POST", credentials: "include", body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) { setFehler(d.error || "Das hat nicht geklappt. Bitte versuchen Sie es erneut."); return; }
+      await onFertig();
+    } catch { setFehler("Verbindungsfehler. Bitte versuchen Sie es erneut."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4" style={{ background: "rgba(13,27,62,.45)", backdropFilter: "blur(6px)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-[520px] max-h-[92vh] overflow-y-auto bg-white rounded-[28px] scp-fade-up" style={{ boxShadow: "0 40px 90px -25px rgba(0,0,0,.5)" }}>
+        <div className="px-7 pt-7 pb-5 text-white" style={{ background: "var(--ib-buehne)" }}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[.2em]" style={{ color: "#A6D2FF", fontWeight: 500 }}>Abrechnungen</p>
+              <h2 className="text-[21px] mt-1" style={{ fontWeight: 400 }}>Kosten einreichen</h2>
+              <p className="text-[12.5px] text-white/80 mt-1" style={{ fontWeight: 300 }}>Wir prüfen Ihren Beleg. Anerkannte Kosten erstatten wir im nächsten Buchungslauf.</p>
+            </div>
+            <button onClick={onClose} aria-label="Schließen" className="w-11 h-11 rounded-full grid place-items-center text-white/70 hover:text-white hover:bg-white/10"><Icon name="x" size={16} strokeWidth={2} /></button>
+          </div>
+        </div>
+        <div className="p-7 space-y-4">
+          <div><label className="scp-label">Wofür?</label><input className="scp-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="z. B. Hotel Beverly Hills, 10.–19.08." /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="scp-label">Datum</label><input className="scp-input" value={datum} onChange={(e) => setDatum(e.target.value)} placeholder="z. B. 12.08.2026" /></div>
+            <div><label className="scp-label">Art</label>
+              <select className="scp-input" value={kategorie} onChange={(e) => setKategorie(e.target.value)}>
+                {["Reise", "Flug", "Hotel", "Bodentransport", "Repräsentation", "Sonstiges"].map((k) => <option key={k}>{k}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-[1fr_110px] gap-3">
+            <div><label className="scp-label">Betrag</label><input className="scp-input" inputMode="decimal" value={betrag} onChange={(e) => setBetrag(e.target.value)} placeholder="z. B. 1.250,00" /></div>
+            <div><label className="scp-label">Währung</label>
+              <select className="scp-input" value={waehrung} onChange={(e) => setWaehrung(e.target.value)}>{["EUR", "USD", "CHF", "AED", "GBP"].map((w) => <option key={w}>{w}</option>)}</select>
+            </div>
+          </div>
+          {waehrung !== "EUR" && <p className="text-[11.5px] text-slate-500 -mt-1">Wir rechnen zum EZB-Referenzkurs in Euro um. Den Erstattungsbetrag sehen Sie nach unserer Prüfung.</p>}
+          <div>
+            <label className="scp-label">Belege (PDF oder Foto)</label>
+            <label className="ib-ablage">
+              <input type="file" multiple accept="application/pdf,image/*" className="sr-only" onChange={(e) => setDateien(Array.from(e.target.files || []).slice(0, 10))} />
+              <Icon name="documents" size={18} strokeWidth={1.6} />
+              <span>{dateien.length ? `${dateien.length} Datei${dateien.length === 1 ? "" : "en"} gewählt` : "Belege auswählen"}</span>
+            </label>
+            {dateien.length > 0 && <p className="text-[11.5px] text-slate-500 mt-1.5 truncate">{dateien.map((f) => f.name).join(" · ")}</p>}
+          </div>
+          <div><label className="scp-label">Notiz (optional)</label><textarea className="scp-input" rows={2} value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="Anlass, Teilnehmer, Hinweise…" /></div>
+          {fehler && <p className="text-[12.5px] text-rose-600">{fehler}</p>}
+          <button onClick={senden} disabled={busy} className="w-full min-h-[50px] rounded-full text-[14.5px] text-white disabled:opacity-50" style={{ background: "linear-gradient(140deg,#4f9dff,#1D4ED8)" }}>
+            {busy ? "Wird übermittelt…" : "Zur Prüfung einreichen"}
+          </button>
+        </div>
       </div>
-    );
-  }
-  return <div className="space-y-6">{abrechnungen.map((a) => <AbrechnungKarte key={a.id} a={a} onGeaendert={onGeaendert} />)}</div>;
+    </div>
+  );
 }
 
 function AbrechnungKarte({ a, onGeaendert }: { a: Abrechnung; onGeaendert: () => Promise<void> }) {
@@ -786,7 +926,7 @@ function AbrechnungKarte({ a, onGeaendert }: { a: Abrechnung; onGeaendert: () =>
     <section className="scp-card overflow-hidden">
       <div className="px-6 sm:px-8 pt-6 sm:pt-7 pb-5 flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <p className="ib-kachel-l">{a.art === "reisekosten" ? "Reisekostenabrechnung" : "Abrechnung"}{a.zeitraum ? ` · ${a.zeitraum}` : ""}</p>
+          <p className="ib-kachel-l">{a.art === "reisekosten" ? "Reisekostenabrechnung" : a.art === "einreichung" ? "Von Ihnen eingereicht" : "Abrechnung"}{a.zeitraum ? ` · ${a.zeitraum}` : ""}</p>
           <h2 className="text-[22px] sm:text-[24px] text-[#12284a] mt-1.5">{a.titel}</h2>
           {a.grundlage && <p className="text-[12.5px] text-slate-500 mt-1">Grundlage: {a.grundlage}</p>}
         </div>
@@ -802,18 +942,19 @@ function AbrechnungKarte({ a, onGeaendert }: { a: Abrechnung; onGeaendert: () =>
                 <p className="ib-tafel-sub">
                   {p.datum}{p.kategorie ? ` · ${p.kategorie}` : ""}{p.original ? ` · ${p.original}` : ""}{p.kurs ? ` · ${p.kurs}` : ""}
                 </p>
-                {p.dokumentId != null && (
-                  <a href={`/api/investor/documents/${p.dokumentId}/download`} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-1.5 text-[12px] text-[#1D4ED8] hover:underline min-h-[32px]">
-                    <Icon name="documents" size={13} strokeWidth={1.7} /> Beleg ansehen
+                {p.notiz && <p className="ib-tafel-sub italic">„{p.notiz}“</p>}
+                {(p.dokumentIds?.length ? p.dokumentIds : p.dokumentId != null ? [p.dokumentId] : []).map((did, k, alle) => (
+                  <a key={did} href={`/api/investor/documents/${did}/download`} target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 mt-1.5 mr-4 text-[12px] text-[#1D4ED8] hover:underline min-h-[32px]">
+                    <Icon name="documents" size={13} strokeWidth={1.7} /> {alle.length > 1 ? `Beleg ${k + 1} ansehen` : "Beleg ansehen"}
                   </a>
-                )}
+                ))}
               </div>
-              <p className="ib-tafel-wert">{eur2(p.betragCents)}</p>
+              <p className="ib-tafel-wert">{p.betragCents > 0 ? eur2(p.betragCents) : (p.original || "–")}</p>
             </div>
           ))}
           <div className="ib-tafel-zeile ib-tafel-summe">
             <p className="ib-tafel-pos">Erstattungsbetrag</p>
-            <p className="ib-tafel-wert">{eur2(a.summe_cents)}</p>
+            <p className="ib-tafel-wert">{a.summe_cents > 0 ? eur2(a.summe_cents) : "wird umgerechnet"}</p>
           </div>
         </div>
       </div>
@@ -831,8 +972,11 @@ function AbrechnungKarte({ a, onGeaendert }: { a: Abrechnung; onGeaendert: () =>
           <p className="ib-kachel-l">So geht es weiter</p>
           <p className="text-[12.5px] text-slate-600 leading-relaxed mt-1">
             {a.status === "ausgezahlt" ? `Ausgezahlt am ${fmtDate(a.ausgezahlt_am)}.`
-              : a.status === "freigegeben" ? `Von Ihnen freigegeben am ${fmtDate(a.freigegeben_am)}. Die Auszahlung erfolgt im nächsten Buchungslauf.`
+              : a.status === "anerkannt" ? "Von uns geprüft und anerkannt. Die Erstattung erfolgt im nächsten Buchungslauf."
+              : a.status === "freigegeben" ? (a.freigegeben_am ? `Von Ihnen freigegeben am ${fmtDate(a.freigegeben_am)}. Die Auszahlung erfolgt im nächsten Buchungslauf.` : "Freigegeben. Die Auszahlung erfolgt im nächsten Buchungslauf.")
               : a.status === "rueckfrage" ? "Ihre Rückfrage liegt bei uns. Wir melden uns – danach können Sie hier freigeben."
+              : a.status === "eingereicht" ? "Danke! Wir prüfen Ihren Beleg und melden uns. Nach der Anerkennung erstatten wir im nächsten Buchungslauf."
+              : a.status === "storniert" ? (a.art === "einreichung" ? (a.hinweis ? "Diese Einreichung wurde nicht erstattet – den Grund finden Sie unten." : "Diese Einreichung wurde nicht erstattet. Bei Fragen melden Sie sich gern bei uns.") : "Diese Abrechnung wurde storniert. Bei Fragen melden Sie sich gern bei uns.")
               : "Bitte prüfen Sie die Positionen und Belege. Nach Ihrer Freigabe zahlen wir im nächsten Buchungslauf aus."}
           </p>
           {a.hinweis && <p className="text-[12px] text-slate-500 leading-relaxed mt-2">{a.hinweis}</p>}
@@ -2034,17 +2178,30 @@ function RequestModal({ type, investments, summary, contractualRatePct, onClose 
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // E-450: Bei Token-Anlagen fragt der Investor eine Stückzahl an; der Euro-Wert ist nur ein Richtwert zum aktuellen Kurs.
+  const gewaehlt = activeInvestments.find((i) => i.id === investmentId);
+  const tokenAuszahlung = !isDeposit && gewaehlt?.investment_type === "token";
+  const tokenKurs = gewaehlt?.token_current_price_cents != null ? Number(gewaehlt.token_current_price_cents) : null;
+  const tokenMax = gewaehlt?.token_quantity != null ? Number(gewaehlt.token_quantity) : null;
+  const eingabe = parseFloat(amount.replace(/\./g, "").replace(",", "."));
 
   const submit = async () => {
     setError(null);
-    const amt = Math.round(parseFloat(amount.replace(/\./g, "").replace(",", ".")) * 100);
-    if (!Number.isFinite(amt) || amt <= 0) { setError("Bitte geben Sie einen gültigen Betrag ein."); return; }
+    let amt = Math.round(eingabe * 100);
+    let notiz = note;
+    if (tokenAuszahlung) {
+      const stueck = Math.floor(eingabe);
+      if (!Number.isFinite(stueck) || stueck <= 0) { setError("Bitte geben Sie eine gültige Anzahl Token ein."); return; }
+      if (tokenMax != null && stueck > tokenMax) { setError(`Sie halten in diesem Vertrag ${tokenMax.toLocaleString("de-DE")} Token.`); return; }
+      amt = 0;
+      notiz = note;
+    } else if (!Number.isFinite(amt) || amt <= 0) { setError("Bitte geben Sie einen gültigen Betrag ein."); return; }
     setBusy(true);
     try {
       const r = await fetch("/api/investor/requests", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestType: type, investmentId: investmentId || null, amountCents: amt, note }),
+        body: JSON.stringify({ requestType: type, investmentId: investmentId || null, amountCents: amt, note: notiz, tokenStueck: tokenAuszahlung ? Math.floor(eingabe) : undefined }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.ok) { setError(d.error || "Anfrage fehlgeschlagen"); return; }
@@ -2098,7 +2255,7 @@ function RequestModal({ type, investments, summary, contractualRatePct, onClose 
               {activeInvestments.length > 0 && (
                 <div>
                   <label className="scp-label">Vertrag</label>
-                  <select className="scp-input" value={investmentId} onChange={(e) => setInvestmentId(e.target.value ? Number(e.target.value) : "")}>
+                  <select className="scp-input" value={investmentId} onChange={(e) => { setInvestmentId(e.target.value ? Number(e.target.value) : ""); setAmount(""); }}>
                     {activeInvestments.map((inv) => (
                       <option key={inv.id} value={inv.id}>{inv.name}</option>
                     ))}
@@ -2107,8 +2264,15 @@ function RequestModal({ type, investments, summary, contractualRatePct, onClose 
               )}
 
               <div>
-                <label className="scp-label">{isDeposit ? "Gewünschter Einzahlungsbetrag" : "Gewünschter Auszahlungsbetrag"} (EUR)</label>
-                <input className="scp-input" inputMode="decimal" placeholder="z. B. 25.000" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <label className="scp-label">{tokenAuszahlung ? "Anzahl Token" : `${isDeposit ? "Gewünschter Einzahlungsbetrag" : "Gewünschter Auszahlungsbetrag"} (EUR)`}</label>
+                <input className="scp-input" inputMode="decimal" placeholder={tokenAuszahlung ? `z. B. ${tokenMax ? Math.floor(tokenMax / 4).toLocaleString("de-DE") : "100.000"}` : "z. B. 25.000"} value={amount} onChange={(e) => setAmount(e.target.value)} />
+                {tokenAuszahlung && (
+                  <p className="text-[11.5px] text-slate-500 mt-1.5">
+                    {tokenMax != null ? `Bestand in diesem Vertrag: ${tokenMax.toLocaleString("de-DE")} Token. ` : ""}
+                    {tokenKurs != null && Number.isFinite(eingabe) && eingabe > 0 ? `Rechnerischer Wert zum zuletzt mitgeteilten Tokenpreis: ${eur2(Math.round(Math.floor(eingabe) * tokenKurs))} (unverbindlich). ` : ""}
+                    Ihre Anfrage ist unverbindlich. Ob und zu welchen Bedingungen eine Rücknahme oder Übertragung möglich ist, richtet sich nach Ihrem Vertrag – wir prüfen und melden uns persönlich.
+                  </p>
+                )}
               </div>
 
               <div>

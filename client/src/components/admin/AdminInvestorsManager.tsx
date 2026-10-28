@@ -37,7 +37,7 @@ interface InvestorDoc {
 }
 interface CapitalRequest {
   id: number; investment_id: number | null; request_type: string; amount_cents: number | null;
-  currency: string; note: string | null; status: string; created_at: string;
+  currency: string; note: string | null; status: string; created_at: string; token_stueck?: string | number | null;
 }
 interface Detail {
   investor: any; investments: Investment[]; transactions: Transaction[]; documents: InvestorDoc[];
@@ -47,12 +47,15 @@ interface Detail {
 interface Abrechnung {
   id: number; titel: string; zeitraum: string | null; summe_cents: number; waehrung: string; status: string;
   rueckfrage: string | null; freigegeben_am: string | null; ausgezahlt_am: string | null; created_at: string;
-  positionen: { datum: string; text: string; original?: string | null; betragCents: number }[];
+  art?: string; hinweis?: string | null;
+  positionen: { datum: string; text: string; original?: string | null; betragCents: number; dokumentId?: number | null; dokumentIds?: number[] }[];
 }
 const ABR_STATUS: Record<string, [string, string]> = {
   zur_pruefung: ["Beim Investor zur Prüfung", "bg-amber-50 text-amber-700"],
+  eingereicht: ["Vom Investor eingereicht · prüfen", "bg-violet-50 text-violet-700"],
   rueckfrage: ["Rückfrage vom Investor", "bg-rose-50 text-rose-700"],
-  freigegeben: ["Freigegeben · auszahlen", "bg-blue-50 text-blue-700"],
+  freigegeben: ["Vom Investor freigegeben · auszahlen", "bg-blue-50 text-blue-700"],
+  anerkannt: ["Von uns anerkannt · auszahlen", "bg-blue-50 text-blue-700"],
   ausgezahlt: ["Ausgezahlt", "bg-emerald-50 text-emerald-700"],
   storniert: ["Storniert", "bg-slate-100 text-slate-500"],
 };
@@ -177,6 +180,36 @@ export default function AdminInvestorsManager() {
     if (!selectedId || !confirm("Investment löschen?")) return;
     await api(`/api/admin/investors/${selectedId}/investments/${invId}`, { method: "DELETE" });
     await loadDetail(selectedId); await loadList();
+  };
+  // E-450: Vorschau-Sitzung setzen und das Banking in einem neuen Tab öffnen (nur ansehen)
+  const openVorschau = async () => {
+    if (!selectedId) return;
+    const fenster = window.open("about:blank", "_blank");
+    try {
+      const r = await api(`/api/admin/investors/${selectedId}/vorschau`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) { fenster?.close(); flash(d.error || "Vorschau nicht möglich"); return; }
+      if (fenster) fenster.location.href = d.url; else window.location.href = d.url; // Popup gesperrt → im selben Tab
+    } catch { fenster?.close(); flash("Verbindungsfehler"); }
+  };
+  const pruefeEinreichung = async (a: Abrechnung, annehmen: boolean) => {
+    if (!selectedId) return;
+    let body: Record<string, unknown>;
+    if (annehmen) {
+      const vorschlag = a.summe_cents > 0 ? (a.summe_cents / 100).toFixed(2).replace(".", ",") : "";
+      const eur = prompt(`Erstattungsbetrag in EUR${a.positionen[0]?.original ? ` (eingereicht: ${a.positionen[0].original}, zum EZB-Kurs des Zahltags umrechnen)` : ""}:`, vorschlag);
+      if (eur == null) return;
+      const cents = Math.round(parseFloat(eur.replace(/\./g, "").replace(",", ".")) * 100);
+      if (!Number.isFinite(cents) || cents <= 0) { flash("Ungültiger Betrag"); return; }
+      body = { status: "anerkannt", summeCents: cents };
+    } else {
+      const grund = prompt("Kurzer Hinweis an den Investor (warum nicht erstattet / was fehlt):", "");
+      if (grund == null || !grund.trim()) return;
+      body = { status: "storniert", hinweis: grund.trim() };
+    }
+    const r = await api(`/api/admin/investors/${selectedId}/abrechnungen/${a.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (d.ok) { flash(annehmen ? "Anerkannt – zur Auszahlung" : "Mit Hinweis abgelehnt"); await loadDetail(selectedId); } else flash(d.error || "Fehler");
   };
   const setAbrechnungStatus = async (aid: number, status: string) => {
     if (!selectedId) return;
@@ -326,6 +359,7 @@ export default function AdminInvestorsManager() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button onClick={openVorschau} title="Öffnet das Banking genau so, wie der Investor es sieht – nur ansehen" className="px-3 py-2 text-[12px] font-semibold text-white bg-[#2563eb] rounded-lg hover:bg-blue-700 transition-colors">Als Investor ansehen</button>
                   <button onClick={() => setModal("password")} className="px-3 py-2 text-[12px] font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">Passwort</button>
                   <button onClick={deleteInvestor} className="px-3 py-2 text-[12px] font-semibold text-rose-600 bg-rose-50 rounded-lg hover:bg-rose-100 transition-colors">Löschen</button>
                 </div>
@@ -439,7 +473,8 @@ export default function AdminInvestorsManager() {
                               {rq.note && <p className="text-[12px] text-slate-600 mt-1.5 leading-snug bg-white border border-slate-100 rounded-lg px-2.5 py-1.5">{rq.note}</p>}
                             </div>
                             <div className="text-right shrink-0">
-                              <p className="text-[15px] font-bold text-slate-900 tabular-nums">{rq.amount_cents != null ? eur(rq.amount_cents) : "—"}</p>
+                              <p className="text-[15px] font-bold text-slate-900 tabular-nums">{rq.token_stueck != null ? `${Number(rq.token_stueck).toLocaleString("de-DE")} Token` : rq.amount_cents != null ? eur(rq.amount_cents) : "—"}</p>
+                              {rq.token_stueck != null && rq.amount_cents ? <p className="text-[11px] text-slate-400">Richtwert {eur(rq.amount_cents)}</p> : null}
                             </div>
                           </div>
                           <div className="flex items-center justify-end gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100">
@@ -527,11 +562,22 @@ export default function AdminInvestorsManager() {
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${st[1]}`}>{st[0]}</span>
                             </div>
                           </div>
+                          {a.positionen.map((p, i) => (
+                            <div key={i} className="text-[12px] text-slate-600 flex flex-wrap gap-x-3">
+                              <span>{p.datum} · {p.text}{p.original ? ` · ${p.original}` : ""}</span>
+                              {(p.dokumentIds?.length ? p.dokumentIds : p.dokumentId != null ? [p.dokumentId] : []).map((did, k) => (
+                                <a key={did} href={`/api/admin/investors/${selectedId}/documents/${did}/download`} target="_blank" rel="noopener" className="text-[#2563eb] hover:underline">Beleg {k + 1} ↓</a>
+                              ))}
+                            </div>
+                          ))}
+                          {a.hinweis && a.art === "einreichung" && <p className="text-[11px] text-slate-500">Hinweis: {a.hinweis}</p>}
                           {a.rueckfrage && a.status === "rueckfrage" && <p className="text-[12px] text-rose-700 bg-rose-50 rounded-lg px-3 py-2">„{a.rueckfrage}“</p>}
                           {a.freigegeben_am && <p className="text-[11px] text-slate-500">Freigegeben am {fmtDate(a.freigegeben_am)}{a.ausgezahlt_am ? ` · ausgezahlt am ${fmtDate(a.ausgezahlt_am)}` : ""}</p>}
                           <div className="flex gap-2 pt-1">
-                            {a.status === "freigegeben" && <button onClick={() => setAbrechnungStatus(a.id, "ausgezahlt")} className="px-3 py-1.5 text-[12px] font-bold text-white bg-[#2563eb] rounded-lg">Als ausgezahlt markieren</button>}
+                            {(a.status === "freigegeben" || a.status === "anerkannt") && <button onClick={() => setAbrechnungStatus(a.id, "ausgezahlt")} className="px-3 py-1.5 text-[12px] font-bold text-white bg-[#2563eb] rounded-lg">Als ausgezahlt markieren</button>}
                             {a.status === "rueckfrage" && <button onClick={() => setAbrechnungStatus(a.id, "zur_pruefung")} className="px-3 py-1.5 text-[12px] font-semibold text-slate-700 border border-slate-200 rounded-lg">Geklärt · erneut zur Prüfung</button>}
+                            {a.status === "eingereicht" && <button onClick={() => pruefeEinreichung(a, true)} className="px-3 py-1.5 text-[12px] font-bold text-white bg-[#2563eb] rounded-lg">Anerkennen</button>}
+                            {a.status === "eingereicht" && <button onClick={() => pruefeEinreichung(a, false)} className="px-3 py-1.5 text-[12px] font-semibold text-slate-700 border border-slate-200 rounded-lg">Mit Hinweis ablehnen</button>}
                           </div>
                         </div>
                       );

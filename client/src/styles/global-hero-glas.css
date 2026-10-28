@@ -128,10 +128,11 @@
 .hg-blick .hg-fussnote { margin: clamp(36px, 4vw, 56px) auto 0; max-width: 74ch; font: 400 11.5px/1.5 var(--ap); color: #5d6678; }
 .hg-fussnote sup { font-size: .75em; }
 /* Ziel des Winkels: bekommt den Fokus (tabIndex -1), zeigt aber keinen Rahmen um den ganzen Abschnitt. */
-.hg-blick:focus, .hg-blick:focus-visible { outline: none; }
+/* Gewicht über dem allgemeinen Fokusring (html .fg.fg :focus-visible, .dk :focus-visible) — Nachprüfung 28.10. */
+html .fg.fg .hg-blick:focus, html .fg.fg .hg-blick:focus-visible, html .dk .hg-blick:focus-visible, .hg-blick:focus { outline: none; }
 
 /* Der Hinweis nach unten: ein leiser Winkel, der atmet. */
-.hg-weiter { position: absolute; left: 50%; bottom: clamp(24px, 4vh, 40px); z-index: 1; width: 40px; height: 40px; margin-left: -20px; display: grid; place-items: center; border-radius: 50%; color: #12284a; text-decoration: none;
+.hg-weiter { position: absolute; left: 50%; bottom: clamp(24px, 4vh, 40px); z-index: 1; width: 44px; height: 44px; margin-left: -22px; display: grid; place-items: center; border-radius: 50%; color: #12284a; text-decoration: none;
   background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff, 0 10px 24px -16px rgba(18, 40, 74, .5);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); animation: hg-atmen 3.2s ease-in-out 3s infinite; }
 .hg-weiter:hover { color: #1d4ed8; background: #fff; }
@@ -208,7 +209,7 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
   .hg, .hg-blick { padding-left: 20px; padding-right: 20px; }
 }
 /* Kurze Laptops (1366×657, 1280×632 …): Die Bühne passt ganz ins erste Bild, Winkel inklusive (Gegenprüfung 28.10.). */
-@media (max-height: 740px) and (min-width: 721px) {
+@media (max-height: 780px) and (min-width: 721px) {
   .hg { padding: 88px 24px 76px; }
   .hg .hg-zahl { margin-top: 14px; font-size: clamp(64px, min(9vw, 16vh), 120px); }
   .hg .hg-label { margin-top: 16px; }

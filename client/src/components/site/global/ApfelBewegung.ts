@@ -11,8 +11,8 @@
 //
 // Ein Haken für alle Seiten: GlobalNav (/business, 80 Unterseiten, Auftrag, Rechtsseiten, Angebote) und die
 // Landingpages rufen ihn auf. Die Liste ZIELE nennt Blöcke, die noch keine eigene Bewegung haben; Bausteine mit
-// eigenem Auftritt (Hero, Pakettafeln, Etappen, Schaltzentrale, Bogen, Vorführraum-Telefone, Beitragsleiste,
-// Angebots-Hero) sind ausgenommen — ebenso alles mit eigenem data-an und alles in seitlich scrollenden Leisten.
+// eigenem Auftritt (Hero, Pakettafeln, Etappen, Schaltzentrale, Bogen, Vorführraum, Beiträge, Angebots-Hero,
+// Etappen-Linie, Standort-Uhren, Rollen-Dreieck) sind ausgenommen — ebenso alles mit eigenem data-an und alles in seitlich scrollenden Leisten.
 // Sicherungen (Gegenprüfung 28.10.): Fokus per Tastatur zeigt den Block sofort; am Seitenende erscheint alles,
 // was im Bild steht; beim Drucken steht alles. Ohne JS und bei „weniger Bewegung“ steht alles sofort sichtbar
 // (die Klasse ap-bewegung fehlt dann). Stil: styles/global-rahmen-apple.css (Animation, nicht Übergang).
@@ -25,8 +25,7 @@ const ZIELE = [
   // /business und Privatpersonen
   ".fg-beleg-kopf", ".fg-beleg-spalte", ".fg-kleingedruckt > div", ".fg-paket-fuss", ".fg-tarif-vergleich",
   ".fg-jb.band", ".fg-jb.voll", ".fg-jb.kompakt", ".fg-stern-unter > *", ".fg-fuer-chips",
-  ".fg-gespraech-seite", ".fg-kal", ".dk-frage", ".fg-fragen-alle", ".fg-schluss-text > *", ".gv-mappe",
-  ".sz-kopf", ".sz-profile",
+  ".fg-gespraech-seite", ".fg-kal", ".dk-frage", ".fg-fragen-alle", ".fg-schluss-text > *",
   // die 80 Unterseiten und die Redaktion
   ".fd-krumen", ".fd-kopf .fg-auge", ".fd-h1", ".fd-lead", ".fd-kopf-knoepfe", ".fd-ziffern", ".fd-merkblatt", ".fd-karteikarte",
   ".fd-kurz", ".fd-abschnitt > *", ".fd-karte", ".fd-rolle", ".fd-paket", ".fd-tafel", ".fd-tabelle", ".fd-hinweis",
@@ -43,8 +42,9 @@ const AUSNAHMEN = [
   ".hg", ".gk", ".gk-mobil", ".dk-auf", ".fg-eb", ".sn", ".hb-c", ".gv-buehne", ".fg-tarif", ".fd-tafeln",
   // Angebotsseite: Der Hero baut sich unter der Begrüßung selbst auf (Gegenprüfung 28.10.).
   ".gia-hero",
-  // Beitragsleiste: seitlich scrollend, eigene Einfahrt (.sz[data-an]) — sonst kämen Karten leer ins Bild.
-  ".sz-reihe",
+  // Eigene Einfahrt (Nachprüfung 28.10.): Vorführraum (.gv — die PDF-Mappe blinkte sonst doppelt), Beiträge (.sz, seitlich
+  // scrollend — Karten kämen sonst leer ins Bild), Etappen-Linie, Standort-Uhren und Rollen-Dreieck der Unterseiten.
+  ".gv", ".sz", ".fd-weg", ".fd-orte", ".fd-dreieck",
   "[role=dialog]", "dialog",
 ].join(", ");
 
@@ -81,15 +81,21 @@ export function useApfelBewegung() {
     };
     /** Sofort zeigen, ohne Gleiten (Fokus, Druck). */
     const sofort = (el: HTMLElement) => { io.unobserve(el); wartet = wartet.filter((x) => x !== el); fertig(el); };
+    // Staffel über Schübe hinweg: Kommt ein neuer Schub, während der vorige noch gestaffelt startet, reiht er sich
+    // dahinter ein — sonst liefe Zeile 3 vor Zeile 2 los (Nachprüfung 28.10.).
+    let staffelBis = 0;
     const zeigen = (liste: HTMLElement[]) => {
       // Reihenfolge wie beim Lesen: oben vor unten, links vor rechts.
       liste.sort((a, b) => {
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
         return Math.round(ra.top - rb.top) || ra.left - rb.left;
       });
+      const jetzt = performance.now();
+      const basis = Math.max(0, Math.ceil((staffelBis - jetzt) / 120));
+      staffelBis = Math.max(staffelBis, jetzt + Math.min(basis + liste.length, STUFEN) * 120);
       liste.forEach((el, i) => {
         offen.delete(el);
-        el.style.setProperty("--ap-i", String(Math.min(i, STUFEN)));
+        el.style.setProperty("--ap-i", String(Math.min(basis + i, STUFEN)));
         el.classList.add("ap-da");
         let weg = 0;
         const ende = (e?: AnimationEvent) => {
@@ -130,7 +136,10 @@ export function useApfelBewegung() {
         io.observe(el);
       });
     };
-    markieren();
+    // Erst nach allen Layout-Effekten dieses Durchgangs (noch vor dem ersten Bild): Dann hat useEinmalSichtbar sein
+    // data-an schon gesetzt, und Blöcke mit eigener Einfahrt werden erkannt (Nachprüfung 28.10.: die Prüfung lief zu früh).
+    let tot = false;
+    queueMicrotask(() => { if (!tot) markieren(); });
     // Später erscheinende Blöcke (Kalender, aufgeklappte Fragen, nachgeladene Beiträge) bekommen denselben Auftritt.
     let bild = 0;
     const mo = new MutationObserver((liste) => {
@@ -163,6 +172,7 @@ export function useApfelBewegung() {
     window.addEventListener("beforeprint", perDruck);
 
     return () => {
+      tot = true;
       loesen(); mo.disconnect(); io.disconnect(); cancelAnimationFrame(bild); cancelAnimationFrame(rollBild);
       document.removeEventListener("focusin", perFokus, true);
       window.removeEventListener("scroll", perRollen);

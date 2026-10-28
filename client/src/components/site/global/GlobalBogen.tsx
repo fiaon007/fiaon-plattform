@@ -12,6 +12,7 @@
 // wird je Größe einmal vorgezeichnet; jedes Bild kopiert sie nur. Bei „weniger Bewegung“ steht sofort das Endbild.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { beobachteSichtbar, nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
 import { DACH, FLORIDA, KARTE_RAHMEN, ORTE, istLand, liegtIn, type Punkt } from "@/components/site/global/bogen-karte";
 import type { GLOBAL_BUEHNE_WOERTER } from "@/i18n/global";
@@ -236,12 +237,16 @@ export default function GlobalBogen({ w, etappen }: {
       los = nachLadebild(() => { gestartet = true; t0 = performance.now(); if (!raf && sichtbar) raf = requestAnimationFrame(schleife); });
     }, { threshold: 0.35, rootMargin: "0px 0px -8% 0px" });
     io.observe(el);
+    // Drucken ohne zu scrollen (28.10.2026, E-442): sofort das Endbild — Bögen, Orte, Etappen, „Kapital auch in Europa“.
+    // flushSync, damit die Beschriftungen vor dem Druckbild stehen (sonst bliebe das Fenster auf dem Papier leer).
+    const perDruck = () => { io.disconnect(); gestartet = true; t0 = performance.now() - 1e6; flushSync(() => zeichnen(performance.now())); };
+    window.addEventListener("beforeprint", perDruck);
     // Danach läuft die Schleife nur, solange das Fenster sichtbar ist (und der Tab vorn).
     const weg = beobachteSichtbar(el, (an) => {
       sichtbar = an;
       if (an && gestartet && !raf) raf = requestAnimationFrame(schleife);
     });
-    return () => { ro?.disconnect(); io.disconnect(); weg(); los(); if (raf) cancelAnimationFrame(raf); };
+    return () => { ro?.disconnect(); io.disconnect(); weg(); los(); window.removeEventListener("beforeprint", perDruck); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
   return (

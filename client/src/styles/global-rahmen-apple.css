@@ -144,7 +144,12 @@ html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
 }
 @media (prefers-reduced-motion: reduce) { html .gk.gk .gk-leiste { transition: none; } }
 
-/* Drucken (Mustervertrag, Rechtsseiten): alles sofort sichtbar, nichts wartet auf den Bildlauf. */
+/* Drucken (auch ohne vorher zu scrollen): alles im Endzustand. Beim Drucken setzen die Beobachter data-an="1"
+   (beforeprint, bewegung.ts); hier laufen dann keine Übergänge und Animationen mehr an — sonst druckte der Browser
+   den ersten Schritt mit Deckkraft 0 (Nachprüfung 28.10.: Vorführraum, Pakete, Beleg, Bogen-Text blieben leer). */
 @media print {
   html.ap-bewegung .ap-rein { opacity: 1 !important; transform: none !important; animation: none !important; }
+  html .fg [data-an], html .fg [data-an] *, html .gs [data-an], html .gs [data-an] *,
+  html .dk-auf, html .dk-auf * { animation: none !important; transition: none !important; }
+  html .dk-auf { opacity: 1 !important; transform: none !important; }
 }

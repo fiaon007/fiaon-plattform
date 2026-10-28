@@ -13,7 +13,9 @@
 //   … --schreiben --produktion   → gegen die Produktion, NUR mit Justins Go
 //   … --vorschau <datei.html>    → wohin die Vorschau des Vertrags geht (Vorgabe: neben der Datei)
 //   … --bilder <ordner>          → E-402: die Teamfotos (parameter.team[].foto als Bildname, z. B. team-x.webp) aus dem Ordner prüfen,
-//                                   ohne Metadaten an das Angebot binden (fiaon_global_angebot_bilder, nur hinter dem Link)
+//                                   ohne Metadaten an das Angebot binden (fiaon_global_angebot_bilder, nur hinter dem Link).
+//                                   Gelesen werden NUR die Dateien, die das Team beim Namen nennt; ein Name, der nach einer
+//                                   Unterlage aussieht (Ausweis, Pass, Gehalt, Konto), bricht ab. Fassung A/B und C (E-432).
 // Ein zweiter Lauf legt kein zweites Angebot an: Gibt es für dieselbe E-Mail schon ein OFFENES Kapital-Angebot, trägt er
 // Kunde, Bürgin, Parameter, Prüfbericht und Gültigkeit dort nach (kapitalAendern). Ein angenommenes fasst er nie an.
 //
@@ -23,7 +25,10 @@
 // (Preise als Endpreise, Finanzierung, Kurs, Konditionen, Unterlagen-Titel; „projekt“ nur noch als Datenfeld — seit Justins Wort vom
 // 27.10.2026, 17:40 zeigt kein Kundentext einen Verwendungszweck), buergin wie Fassung B. KEIN Prüfbericht
 // (--compliance wird dort nicht gelesen). Die Vorschau schreibt den Vertrag UND die Raten je Laufzeit in die Ausgabe.
-// Die Ausweis- und Gehaltsbilder bleiben in der privaten Ablage — dieses Skript lädt nie Dateien hoch.
+// Die Ausweis- und Gehaltsbilder bleiben in der privaten Ablage — dieses Skript lädt sie NIE hoch. Hochgeladen werden nur die
+// Teamfotos mit --bilder (Justin 27.10.2026, abends: „Das gesamte Team mit Fotos noch anfügen“): wie A/B, geprüft schon in der
+// Vorschau (fehlt ein Bild, bricht der Lauf ab, bevor etwas geschrieben ist); nach dem Anlegen/Nachtragen sagt das Skript, welches
+// Teamfoto am Angebot noch fehlt. Das Team steht nur auf der Seite, nie im Vertrag — die Prüfsumme bleibt gleich.
 // Runde 2 (27.10.2026): Die Doppel-Suche findet nur offene Angebote der Fassung C (ein Firmen-Kapital-Angebot derselben Adresse
 // bleibt unberührt). Mit --schreiben --produktion bricht es ab, wenn SESSION_SECRET fehlt (der Link wäre in der Produktion ungültig)
 // oder der Registerstand einer inaktiven Bürgin älter als sieben Tage ist. Der Link für die Mail kommt am sichersten aus dem
@@ -54,9 +59,9 @@ const A = await import("../server/lib/fiaon-global-angebot");
 
 const roh = JSON.parse(fs.readFileSync(datei, "utf8"));
 if (roh?.kunde?.art === "privat" || /^IA-KAPITAL-.*-C$/.test(String(roh?.fassung ?? ""))) {
-  await fassungC(roh);
+  const gut = await fassungC(roh);
   await sqlPool.end();
-  process.exit(0);
+  process.exit(gut ? 0 : 1);
 }
 const k = F.firmaKundePruefen(roh.kunde);
 if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}`); process.exit(1); }
@@ -80,20 +85,8 @@ console.log(fehlt.length ? `Für die Annahme fehlt: ${fehlt.join(" · ")}` : "Pf
 
 if (!schreiben) { console.log("Nur Vorschau — zum Anlegen --schreiben."); await sqlPool.end(); process.exit(0); }
 
-// E-402: Teamfotos aus dem Ordner (nur Bildnamen aus den Daten) — geprüft und ohne Metadaten
-const { bildOhneMetadaten } = await import("../server/lib/fiaon-bild-bereinigen");
-const bilder: { name: string; daten: Buffer; typ: "image/webp" | "image/png" | "image/jpeg" }[] = [];
-if (bilderOrdner) {
-  for (const t of parameter.team) {
-    const n = String(t.foto ?? "");
-    if (!FS.FIRMA_BILD_NAME.test(n)) continue;
-    const pfad = path.join(bilderOrdner, n);
-    if (!fs.existsSync(pfad)) { console.error(`FEHLER Bild fehlt: ${n}`); process.exit(1); }
-    const b = bildOhneMetadaten(fs.readFileSync(pfad), n);
-    bilder.push({ name: n, daten: b.daten, typ: b.typ });
-  }
-  console.log(`Teamfotos: ${bilder.length} geprüft`);
-}
+// E-402: Teamfotos aus dem Ordner (nur Bildnamen aus den Daten) — geprüft und ohne Metadaten (teamBilderLesen, auch für Fassung C)
+const bilder = await teamBilderLesen(parameter.team);
 
 await A.ensureAngebotTabellen();
 const [offen] = (await sqlPool`
@@ -118,7 +111,7 @@ process.exit(0);
 // ═══════════════════════════════════════════════════════════════════════════
 // FASSUNG C (Privatperson, E-432)
 // ═══════════════════════════════════════════════════════════════════════════
-async function fassungC(roh: any): Promise<void> {
+async function fassungC(roh: any): Promise<boolean> {
   const KC = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const SC = await import("../shared/fiaon-global-angebot-kapital-c");
   const k = SC.kapitalCKundePruefen(roh.kunde);
@@ -142,6 +135,13 @@ async function fassungC(roh: any): Promise<void> {
   }
   const fehlt = SC.kapitalCPflichtFehlen(d);
   console.log(fehlt.length ? `Für die Annahme fehlt: ${fehlt.join(" · ")}` : "Pflichtfelder vollständig.");
+  // Justin 27.10.2026, abends: das Team mit Fotos (wie A/B). Die Fotos prüft schon die Vorschau — fehlt eines, bricht der Lauf ab,
+  // bevor etwas geschrieben ist. Das Team steht nur auf der Seite: Die Prüfsumme oben ist mit und ohne Team dieselbe.
+  const teamNamen = teamBildNamen(parameter.team);
+  const haus = parameter.team.filter((t) => String(t.foto ?? "").startsWith("haus:")).length;
+  console.log(`Team: ${parameter.team.length} Person(en) · ${haus} Porträt(s) des Hauses · ${teamNamen.length} Foto(s) am Angebot · Prüfsumme ohne Team ${KC.kapitalCTextHash({ ...d, parameter: { ...parameter, team: [] } }) === KC.kapitalCTextHash(d) ? "gleich" : "ANDERS"}`);
+  const bilder = await teamBilderLesen(parameter.team);
+  if (teamNamen.length && !bilderOrdner) console.log(`Hinweis: ${teamNamen.length} Teamfoto(s) als Bildname, aber ohne --bilder — liegen sie noch nicht am Angebot, zeigt die Seite dort Initialen.`);
   // Runde 2: Der Satz „derzeit als inaktiv geführt (Stand …)“ steht im Vertrag — ein alter Stand ist beim Versand falsch oder veraltet.
   const standAlter = parameter.buerginStandAm ? Math.round((Date.parse(`${new Date().toISOString().slice(0, 10)}T12:00:00Z`) - Date.parse(`${parameter.buerginStandAm}T12:00:00Z`)) / 864e5) : null;
   if (!parameter.buerginAktiv && (standAlter == null || standAlter > 7)) {
@@ -149,7 +149,7 @@ async function fassungC(roh: any): Promise<void> {
     if (schreiben && produktion) { console.error(`ABBRUCH: ${satz}`); await sqlPool.end(); process.exit(2); }
     console.log(`WARNUNG: ${satz}`);
   }
-  if (!schreiben) { console.log("Nur Vorschau — zum Anlegen --schreiben."); return; }
+  if (!schreiben) { console.log("Nur Vorschau — zum Anlegen --schreiben."); return true; }
   // Der Link wird mit SESSION_SECRET signiert — ohne das Geheimnis der Produktion wäre er dort ungültig (403).
   if (produktion && !process.env.SESSION_SECRET) { console.error("ABBRUCH: --produktion ohne SESSION_SECRET — der gedruckte Link wäre in der Produktion ungültig. Link sonst aus dem Chefbüro („Link kopieren“)."); await sqlPool.end(); process.exit(2); }
   await A.ensureAngebotTabellen();
@@ -157,16 +157,59 @@ async function fassungC(roh: any): Promise<void> {
   const [offen] = (await sqlPool`
     SELECT id, angebot_ref, fassung FROM fiaon_global_angebote
      WHERE status = 'offen' AND fassung LIKE 'IA-KAPITAL-%-C' AND lower(kunde->>'email') = ${k.kunde.email.toLowerCase()} ORDER BY id DESC LIMIT 1`) as any[];
+  let id: number;
   if (offen) {
     const erg = await KC.kapitalCAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
     if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
-    const z = (await A.angebotLesen({ id: Number(offen.id) }))!;
+    id = Number(offen.id);
+    const z = (await A.angebotLesen({ id }))!;
     const dz = KC.kapitalCDatenAus(z);
     const { absoluteUrl } = await import("../server/fiaon-base-url");
     console.log(`Nachgetragen: ${offen.angebot_ref} · Link: ${absoluteUrl(A.angebotKundenPfad(A.angebotTokenErzeugen(dz.ref, dz.gueltigBis)))}`);
   } else {
     const erg = await KC.kapitalCAnlegen({ ...roh, kunde: k.kunde, buergin, parameter }, "Skript angebot-kapital-anlegen");
     if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
+    id = erg.id;
     console.log(`Angelegt: ${erg.ref} (id ${erg.id}) · Link: ${erg.link}`);
   }
+  // Die Teamfotos ans Angebot (wie A/B: firmaBilderSpeichern, nur hinter dem Link) — und sagen, welches dort noch fehlt.
+  let gut = true;
+  if (bilder.length) {
+    const bs = await F.firmaBilderSpeichern(id, bilder, "Skript angebot-kapital-anlegen");
+    if (bs.ok) console.log(`Bilder: ${bs.gespeichert} eingespielt`); else { console.error(`FEHLER Bilder: ${bs.error}`); gut = false; }
+  }
+  if (teamNamen.length) {
+    const da = new Set(await F.firmaBilderNamen(id));
+    const fehlen = teamNamen.filter((n) => !da.has(n));
+    console.log(fehlen.length ? `WARNUNG: ${fehlen.length} Teamfoto(s) fehlen am Angebot (${fehlen.join(", ")}) — mit --bilder <ordner> nachholen; bis dahin stehen dort Initialen.` : `Teamfotos am Angebot: alle ${teamNamen.length} da.`);
+  }
+  return gut;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEAMFOTOS (E-402, für Fassung C mit E-432) — NUR die Bilder, die das Team beim Namen nennt
+// ═══════════════════════════════════════════════════════════════════════════
+/** Die Bildnamen am Angebot, die das Team nennt (ohne „haus:“-Porträts), jeder einmal. */
+function teamBildNamen(team: { foto?: string | null }[]): string[] {
+  return Array.from(new Set(team.map((t) => String(t.foto ?? "")).filter((n) => FS.FIRMA_BILD_NAME.test(n))));
+}
+/** Mit --bilder: die genannten Teamfotos aus dem Ordner lesen, prüfen und ohne Metadaten zurückgeben — sonst nichts. */
+async function teamBilderLesen(team: { foto?: string | null }[]): Promise<{ name: string; daten: Buffer; typ: "image/webp" | "image/png" | "image/jpeg" }[]> {
+  const aus: { name: string; daten: Buffer; typ: "image/webp" | "image/png" | "image/jpeg" }[] = [];
+  if (!bilderOrdner) return aus;
+  // Ein Name, der nach einer Unterlage aussieht — solche Dateien lädt dieses Skript nie hoch (hier, nicht oben im Modul: die
+  // Funktion läuft, bevor der Lauf das Modulende erreicht).
+  const UNTERLAGE_NAME = /(ausweis|reisepass|passport|gehalt|lohn|konto|identit|(^|-)pass(-|\.)|(^|-)id(-|\.))/;
+  const { bildOhneMetadaten } = await import("../server/lib/fiaon-bild-bereinigen");
+  for (const n of teamBildNamen(team)) {
+    if (UNTERLAGE_NAME.test(n)) { console.error(`ABBRUCH: „${n}“ sieht nach einer Unterlage aus (Ausweis, Pass, Gehalt, Konto) — Teamfotos tragen einen eigenen Namen (team-….webp).`); await sqlPool.end(); process.exit(2); }
+    const pfad = path.join(bilderOrdner, n);
+    if (!fs.existsSync(pfad)) { console.error(`FEHLER Bild fehlt: ${n}`); await sqlPool.end(); process.exit(1); }
+    try {
+      const b = bildOhneMetadaten(fs.readFileSync(pfad), n);
+      aus.push({ name: n, daten: b.daten, typ: b.typ });
+    } catch (e) { console.error(`FEHLER Bild: ${e instanceof Error ? e.message : String(e)}`); await sqlPool.end(); process.exit(1); }
+  }
+  console.log(`Teamfotos: ${aus.length} geprüft`);
+  return aus;
 }

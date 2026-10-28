@@ -79,6 +79,13 @@ export interface KapitalBuergin {
   vertreter: string;
   funktion: string;
 }
+/**
+ * Ein Mensch aus dem Team, wie er in der privaten Angebotsdatei steht (Fassung A/B und C — nie im Code): foto = „haus:<kürzel>“
+ * (echtes Porträt des Hauses) oder ein Bildname am Angebot („team-x.webp“, nur hinter dem Link). Eingelesen mit kapitalTeamAus.
+ */
+export interface KapitalTeamEintrag { name: string; rolle: string; foto?: string | null }
+/** Ein Mensch aus dem Team auf der Seite: foto ist eine Adresse (Porträt oder Bild hinter dem Link) oder null (Initialen). */
+export interface KapitalTeamPerson { name: string; rolle: string; foto: string | null; initialen: string }
 export interface KapitalParameter {
   /** Festpreis (einmalig, netto) */
   preisCents: number;
@@ -110,7 +117,7 @@ export interface KapitalParameter {
   kartenBisUsd: number;
   kartenHerausgeber: string;
   /** B: das Team (aus der privaten Angebotsdatei — nie im Code); foto nur „haus:<kürzel>“ eines ECHTEN Porträts */
-  team: { name: string; rolle: string; foto?: string | null }[];
+  team: KapitalTeamEintrag[];
   /** B: Sonderfreigabe der Leitung trotz offener Punkte im Prüfbericht (erscheint als Siegel an der Compliance-Bühne) */
   sonderfreigabe: FirmaSonderfreigabe | null;
   /**
@@ -431,20 +438,32 @@ export interface KapitalSeite {
   sonderfreigabe: FirmaSonderfreigabe | null;
   investition: { titel: string; sub: string; heuteAuge: string; preis: string; preisZeile: string; spaeterTitel: string; posten: { wann: string; betrag: string; titel: string; text: string }[]; jahr: string; inklusive: string[]; garantie: string; fein: string };
   fragen: { titel: string; sub: string; liste: FirmaFrage[]; sichtbar: number };
-  ansprechpartner: { titel: string; sub: string; teamTitel: string; teamSub: string; team: { name: string; rolle: string; foto: string | null; initialen: string }[] };
+  ansprechpartner: { titel: string; sub: string; teamTitel: string; teamSub: string; team: KapitalTeamPerson[] };
   vertrag: { titel: string; sub: string; dokument: string; unterzeile: string; inhalt: { anker: string; marke: string; titel: string }[] };
   pflicht: string[];
   bildnachweis: string;
 }
+/** Überschrift und Unterzeile des Teams unter den Ansprechpartnern — Fassung A/B und C (E-432, 27.10.2026) sagen dasselbe. */
+export const KAPITAL_TEAM_TEXTE = { titel: "Ihr Team", sub: "Diese Menschen arbeiten an Ihrem Auftrag mit." } as const;
 function initialen(name: string): string {
   return name.replace(/^(Dr\.|Mag\.|Prof\.)\s+/g, "").split(/\s+/).filter(Boolean).map((t) => t[0]).join("").slice(0, 2).toUpperCase();
 }
 /**
+ * Das Team aus den Rohdaten der privaten Angebotsdatei (Fassung A/B und C): nur bestätigte Einträge (bestaetigt ≠ false), höchstens
+ * zwanzig, Name und Rolle geglättet und gekürzt, foto höchstens 40 Zeichen. Kein Array → `basis` (ein Nachtrag ohne team behält es).
+ */
+export function kapitalTeamAus(roh: unknown, basis: KapitalTeamEintrag[]): KapitalTeamEintrag[] {
+  if (!Array.isArray(roh)) return basis;
+  return (roh as any[]).filter((t) => t && t.bestaetigt !== false).slice(0, 20)
+    .map((t) => ({ name: String(t.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80), rolle: String(t.rolle ?? "").replace(/\s+/g, " ").trim().slice(0, 100), foto: typeof t.foto === "string" ? t.foto.slice(0, 40) : null }))
+    .filter((t) => t.name && t.rolle);
+}
+/**
  * Das Team aus den Angebotsdaten (wie E-301): „haus:<kürzel>“ = echtes Porträt des Hauses; ein Bildname („team-x.webp“) = Foto am
  * Angebot, ausgeliefert NUR hinter dem Link (token nötig, sonst Monogramm). Bildnamen-Fotos sind teils Symbolbilder — die Seite
- * nennt das im Bildnachweis (kapitalBildnachweis).
+ * nennt das im Bildnachweis (kapitalBildnachweis). Fassung C nutzt dieselbe Funktion (E-432).
  */
-export function kapitalTeam(par: KapitalParameter, token?: string): { name: string; rolle: string; foto: string | null; initialen: string }[] {
+export function kapitalTeam(par: Pick<KapitalParameter, "team">, token?: string): KapitalTeamPerson[] {
   return par.team.map((t) => {
     const f = String(t.foto ?? "");
     const k = f.startsWith("haus:") ? f.slice(5) : "";
@@ -453,7 +472,7 @@ export function kapitalTeam(par: KapitalParameter, token?: string): { name: stri
     return { name: t.name, rolle: t.rolle, foto, initialen: initialen(t.name) };
   });
 }
-export function kapitalBildnachweis(par: KapitalParameter): string {
+export function kapitalBildnachweis(par: Pick<KapitalParameter, "team">): string {
   return par.team.some((t) => FIRMA_BILD_NAME.test(String(t.foto ?? ""))) ? "Bildnachweis: Teamfotos teils Symbolbilder." : "";
 }
 export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
@@ -599,8 +618,8 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
     ansprechpartner: {
       titel: "Ihre Ansprechpartner",
       sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage und danach bei jedem Schritt.",
-      teamTitel: "Ihr Team",
-      teamSub: "Diese Menschen arbeiten an Ihrem Auftrag mit.",
+      teamTitel: KAPITAL_TEAM_TEXTE.titel,
+      teamSub: KAPITAL_TEAM_TEXTE.sub,
       team: kapitalTeam(par, token),
     },
     vertrag: {
@@ -717,11 +736,7 @@ export function kapitalParameterAus(roh: Partial<KapitalParameter> | null | unde
     laufzeitMaxJahre: zahl("laufzeitMaxJahre", 0, 30),
     kartenMax: zahl("kartenMax", 0, 30),
     ddAbgeschlossen: typeof r.ddAbgeschlossen === "boolean" ? r.ddAbgeschlossen : basis.ddAbgeschlossen,
-    team: Array.isArray(r.team)
-      ? (r.team as any[]).filter((t) => t && t.bestaetigt !== false).slice(0, 20)
-        .map((t) => ({ name: String(t.name ?? "").replace(/\s+/g, " ").trim().slice(0, 80), rolle: String(t.rolle ?? "").replace(/\s+/g, " ").trim().slice(0, 100), foto: typeof t.foto === "string" ? t.foto.slice(0, 40) : null }))
-        .filter((t) => t.name && t.rolle)
-      : basis.team,
+    team: kapitalTeamAus(r.team, basis.team),
     sonderfreigabe: r.sonderfreigabe && typeof r.sonderfreigabe === "object" && String((r.sonderfreigabe as any).text ?? "").trim()
       ? { titel: String((r.sonderfreigabe as any).titel ?? "Sonderfreigabe").slice(0, 80), text: String((r.sonderfreigabe as any).text).slice(0, 900),
           unterzeichner: String((r.sonderfreigabe as any).unterzeichner ?? "").slice(0, 80), funktion: String((r.sonderfreigabe as any).funktion ?? "").slice(0, 120),

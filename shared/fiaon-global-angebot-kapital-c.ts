@@ -51,6 +51,11 @@
 //     (Endpreise, Gesamtpreis des ersten Jahres), Einzelheiten zum Aufklappen. Lesbar (≥ 13 px, Kontrast ≥ 4,5:1) und vollständig;
 //     die Übersicht über dem Knopf (§ 312j BGB) bleibt vollständig.
 //
+// ── JUSTIN 27.10.2026, ABENDS: „Das gesamte Team mit Fotos noch anfügen“ ─────────────────────
+//   · Parameter `team` wie Fassung A/B (E-402): dieselben Regeln (kapitalTeamAus), dieselbe Darstellung (kapitalTeam — Porträt des
+//     Hauses oder Foto am Angebot NUR hinter dem Link, sonst Initialen), derselbe Bildnachweis. Die Seite zeigt es unter „Ihr
+//     Ansprechpartner“ als „Ihr Team“. Das Team steht NIE im Vertrag — die Prüfsumme bleibt gleich (Prüfstand: mit und ohne Team).
+//
 // ── DER RECHNER (rein, kapitalCPlan) ───────────────────────────────────────
 // Laufzeit T Jahre = N = 12·T Monatsraten ab Monat (ratenfrei + 1). Zins je Monat m: 0 für m ≤ zinsfrei, sonst
 // (Start + Schritt · floor((m − zinsfrei − 1) / 12)) / 12. Gleichbleibende Rate R aus den Abzinsungsfaktoren
@@ -71,8 +76,8 @@ import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import type { FirmaAnnahmeTexte, FirmaPhase, FirmaUnterschriftEingabe } from "./fiaon-global-angebot-firma-typen";
 import {
-  KAPITAL_C_FASSUNG, KAPITAL_KNOPF, kapitalEur, kapitalTag, kapitalProzent,
-  type KapitalBuergin, type KapitalUnterschriftVermerk,
+  KAPITAL_C_FASSUNG, KAPITAL_KNOPF, KAPITAL_TEAM_TEXTE, kapitalEur, kapitalTag, kapitalProzent, kapitalTeamAus, kapitalTeam, kapitalBildnachweis,
+  type KapitalBuergin, type KapitalUnterschriftVermerk, type KapitalTeamEintrag, type KapitalTeamPerson,
 } from "./fiaon-global-angebot-kapital";
 
 export { KAPITAL_C_FASSUNG };
@@ -175,6 +180,12 @@ export interface KapitalCParameter {
   unterlagen: { titel: string; am: string }[];
   ddAbgeschlossen: boolean;
   ansprechpartner: string[];
+  /**
+   * Das Team unter „Ihr Ansprechpartner“ (Justin 27.10.2026, wie Fassung A/B, E-402) — aus der privaten Angebotsdatei, nie im Code.
+   * foto: „haus:<kürzel>“ = echtes Porträt des Hauses, ein Bildname = Foto am Angebot (nur hinter dem Link, Skript mit --bilder).
+   * Steht NUR auf der Seite, nie im Vertrag: Die Prüfsumme bleibt gleich, eine offene Seite muss nicht neu laden.
+   */
+  team: KapitalTeamEintrag[];
 }
 export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   gruendungCents: 279_000,
@@ -207,6 +218,7 @@ export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   unterlagen: [],
   ddAbgeschlossen: true,
   ansprechpartner: ["justin"],
+  team: [],
 };
 export interface KapitalCDaten {
   ref: string;
@@ -719,7 +731,7 @@ export function kapitalCVertragInhalt(d: KapitalCDaten): { anker: string; marke:
 // DIE SEITE
 // Reihenfolge (Nachprüfung 27.10.): Ihre Finanzierung mit Monatsrate · Laufzeit-Rechner mit den Konditionen (die EINE Navy-Stelle) ·
 // Name · Paket · Weg · Investition (leise: eine Zeile mit allen Beträgen, Einzelheiten zum Aufklappen — Justin 27.10., 17:40) ·
-// Unterlagen · Fragen · Ansprechpartner · Vertrag · Auftrag erteilen.
+// Unterlagen · Fragen · Ansprechpartner mit „Ihr Team“ · Vertrag · Auftrag erteilen.
 // Die Geld-zurück-Garantie steht sichtbar nur in der Karte oben und in der Übersicht über dem Knopf (dazu Fragen, Informationen, Vertrag).
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KapitalCPaketKachel { schluessel: string; titel: string; zeile: string; details: string[] }
@@ -749,13 +761,20 @@ export interface KapitalCSeite {
   investition: { titel: string; zeile: string; knopf: string; knopfZu: string; zeilen: { wann: string; betrag: string; text: string }[]; summe: string; fein: string };
   unterlagen: { auge: string; titel: string; sub: string; liste: { titel: string; stand: string }[]; fein: string };
   fragen: { titel: string; sub: string; liste: { frage: string; antwort: string[] }[]; sichtbar: number };
-  ansprechpartner: { titel: string; sub: string };
+  /** Ansprechpartner und darunter „Ihr Team“ (wie Fassung A/B) — leeres Team = kein Abschnitt auf der Seite. */
+  ansprechpartner: { titel: string; sub: string; teamTitel: string; teamSub: string; team: KapitalTeamPerson[] };
   vertrag: { titel: string; sub: string; dokument: string; unterzeile: string; inhalt: { anker: string; marke: string; titel: string }[] };
   widerruf: { titel: string; text: string; knopf: string };
   informationen: { titel: string; sub: string; zeilen: { titel: string; text: string }[] };
   pflicht: string[];
+  /** „Bildnachweis: Teamfotos teils Symbolbilder.“ sobald ein Teamfoto ein Bild am Angebot ist — sonst leer (wie Fassung A/B). */
+  bildnachweis: string;
 }
-export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
+/**
+ * Die Seite. `token` (der persönliche Link) braucht nur das Team: Fotos am Angebot gehen ausschließlich hinter dem Link raus
+ * (kapitalTeam wie Fassung A/B) — ohne token stehen dort Initialen. Vertrag und Prüfsumme lesen das Team nie.
+ */
+export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
   const par = d.parameter; const k = d.kunde; const G = kapitalCGarantie(par);
   const betrag = kapitalCEur(par.betragCents);
   const usd = kapitalCUsd(kapitalCInUsd(par.betragCents, par.kursUsdJeEur));
@@ -914,7 +933,10 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
         { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Dieses Angebot gibt es mit Fast-Track: Mit Ihrer Annahme verlangen Sie, dass wir sofort beginnen; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig."] },
       ],
     },
-    ansprechpartner: { titel: "Ihr Ansprechpartner", sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage, danach bei jedem Schritt." },
+    ansprechpartner: {
+      titel: "Ihr Ansprechpartner", sub: "Sie erreichen uns direkt — vor der Annahme bei jeder Frage, danach bei jedem Schritt.",
+      teamTitel: KAPITAL_TEAM_TEXTE.titel, teamSub: KAPITAL_TEAM_TEXTE.sub, team: kapitalTeam(par, token),
+    },
     vertrag: {
       titel: "Ihr Vertrag",
       sub: "Vierzehn klare Ziffern mit Widerrufsbelehrung und Muster-Widerrufsformular als Anlage — derselbe Text wie im PDF. Ihre Ausweisnummern zeigen wir hier gekürzt; im angenommenen Vertrag stehen sie vollständig.",
@@ -945,6 +967,7 @@ export function kapitalCSeite(d: KapitalCDaten): KapitalCSeite {
       ],
     },
     pflicht: [...ANGEBOT_PFLICHTHINWEIS, KAPITAL_C_PFLICHT_ZUSATZ],
+    bildnachweis: kapitalBildnachweis(par),
   };
 }
 
@@ -1137,6 +1160,8 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
     unterlagen,
     ddAbgeschlossen: typeof r.ddAbgeschlossen === "boolean" ? r.ddAbgeschlossen : basis.ddAbgeschlossen,
     ansprechpartner: ap.length ? ap : basis.ansprechpartner,
+    // Dieselben Regeln wie Fassung A/B (kapitalTeamAus): nur bestätigte, höchstens zwanzig; ohne team bleibt das bisherige.
+    team: kapitalTeamAus(r.team, basis.team),
   };
 }
 export function kapitalCParameterFehler(par: KapitalCParameter): string | null {

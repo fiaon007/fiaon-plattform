@@ -363,7 +363,10 @@ export default function InvestorDashboardPage() {
         if (!active) return;
         setInvestor(meData.investor);
         setVorschau(!!meData.vorschau);
-        setInvestments(pfData.investments || []);
+        // E-450: ordentlich sortiert — aktive Anlagen zuerst (neuester Vertrag oben), fällige/beendete darunter
+        const rang = (st: string) => (st === "active" ? 0 : st === "pending" ? 1 : 2);
+        setInvestments([...(pfData.investments || [])].sort((a: Investment, b: Investment) =>
+          rang(a.status) - rang(b.status) || String(b.start_date || "").localeCompare(String(a.start_date || ""))));
         setTransactions(pfData.transactions || []);
         setDocuments(pfData.documents || []);
         setSummary(pfData.summary || null);
@@ -679,10 +682,19 @@ export default function InvestorDashboardPage() {
             </div>
             {documents.length === 0 ? (
               <div className="py-16 text-center text-[14px] text-slate-400">Noch keine Dokumente hinterlegt.</div>
-            ) : (
-              <div className="divide-y divide-slate-50">
-                {documents.map((doc) => (
-                  <a key={doc.id} href={`/api/investor/documents/${doc.id}/download`} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
+            ) : (() => {
+              // E-450: Verträge chronologisch nach Vertragsbeginn, Belege getrennt darunter
+              const beginn = (d: InvestorDoc) => String(investments.find((i) => i.id === d.investment_id)?.start_date || d.created_at || "");
+              const gruppen: [string, InvestorDoc[]][] = [
+                ["Verträge", documents.filter((d) => d.document_type === "contract").sort((x, y) => beginn(x).localeCompare(beginn(y)))],
+                ["Abrechnungen & Belege", documents.filter((d) => d.document_type === "statement").sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)) || y.id - x.id)],
+                ["Weitere Unterlagen", documents.filter((d) => d.document_type !== "contract" && d.document_type !== "statement")],
+              ];
+              return gruppen.filter(([, l]) => l.length).map(([titel, liste]) => (
+                <div key={titel}>
+                  <p className="ib-kachel-l px-6 pt-5 pb-1">{titel}</p>
+                  <div className="divide-y divide-slate-50">
+                    {liste.map((doc) => (                  <a key={doc.id} href={`/api/investor/documents/${doc.id}/download`} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50 transition-colors group">
                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center"><span className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{({ contract: "VTR", statement: "ABR", tax: "STR", report: "RPT" } as Record<string, string>)[doc.document_type] || "DOK"}</span></div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-slate-900 truncate">{doc.title}</p>
@@ -690,9 +702,11 @@ export default function InvestorDashboardPage() {
                     </div>
                     <span className="text-[12px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "#288DFA" }}>Herunterladen ↓</span>
                   </a>
-                ))}
-              </div>
-            )}
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
 

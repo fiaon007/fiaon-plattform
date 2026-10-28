@@ -437,6 +437,24 @@ router.post("/:id/documents", upload.single("file"), async (req, res) => {
   }
 });
 
+// E-450: Titel eines Dokuments ändern (z. B. technische Dateinamen in lesbare Titel)
+router.patch("/:id/documents/:docId", async (req, res) => {
+  try {
+    const title = String(req.body?.title ?? "").trim().slice(0, 250);
+    if (!title) return res.status(400).json({ ok: false, error: "Titel ist erforderlich" });
+    const [doc] = await client`
+      UPDATE investor_documents SET title = ${title}
+      WHERE id = ${Number(req.params.docId)} AND investor_id = ${req.params.id}
+      RETURNING id, title
+    `;
+    if (!doc) return res.status(404).json({ ok: false, error: "Dokument nicht gefunden" });
+    res.json({ ok: true, document: doc });
+  } catch (err) {
+    logger.error("[ADMIN-INVESTORS] document rename error", err);
+    res.status(500).json({ ok: false, error: "Titel konnte nicht geändert werden" });
+  }
+});
+
 router.get("/:id/documents/:docId/download", async (req, res) => {
   try {
     const { docId } = req.params;

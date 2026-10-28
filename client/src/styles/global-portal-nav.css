@@ -54,13 +54,13 @@
   box-shadow: 0 1px 0 #fff inset, 0 40px 80px -40px rgba(12,26,46,.55); animation: gpn-auf .32s var(--kurve) both; }
 .gpn-panel[hidden] { display: none; }
 .gpn-panel-innen { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 32px; padding: 26px 26px 26px 30px; }
-.gpn-panel-titel { margin: 0 0 10px 12px; font: 600 10.5px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--navy); }
+.gpn-panel-titel { margin: 0 0 10px 12px; font: 500 10.5px/1.4 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--navy); }
 .gpn-panel-liste ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; }
 .gpn-panel-liste li { animation: gpn-hoch .45s var(--kurve) both; animation-delay: calc(var(--i, 0) * 40ms + 40ms); }
-.gpn-panel-liste a { display: grid; grid-template-columns: 26px minmax(0, 1fr) 16px; gap: 10px; align-items: start; padding: 13px 12px; border-radius: 14px; text-decoration: none; transition: background .2s; }
+.gpn-panel-liste a { display: grid; grid-template-columns: minmax(0, 1fr) 16px; gap: 10px; align-items: start; padding: 13px 12px; border-radius: 14px; text-decoration: none; transition: background .2s; }
 .gpn-panel-liste a:hover, .gpn-panel-liste a:focus-visible { background: var(--stein); outline: none; }
 .gpn-panel-liste a[aria-current="page"] { background: var(--blau-hell); }
-.gpn-ziffer { font: 400 13px/1.4 var(--serif); color: var(--licht); font-variant-numeric: tabular-nums; }
+/* E-452: keine Ziffern vor den Einträgen — Ordnung durch Schrift und Luft. */
 .gpn-eintrag { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .gpn-eintrag b { display: inline-flex; align-items: center; gap: 8px; font: 500 15px/1.3 var(--sans); color: var(--tinte); }
 .gpn-eintrag span { font: 400 12.5px/1.45 var(--sans); color: var(--leise); }

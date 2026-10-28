@@ -16,10 +16,9 @@
 // Fortschritt (Checklisten, Rechner) bleibt in diesem Browser (localStorage).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import {
-  ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, ChevronDown, Clock, ExternalLink, FileSignature, FileText, Loader2, MessageCircleQuestion,
-  Plus, Printer, Send, Sparkles, Trash2, Wand2, X, Calculator, LineChart, ListChecks, Landmark, Scale, Compass,
-} from "lucide-react";
+// E-452 (28.10.2026): Justin: „weg mit den ICONS, die sehen billig aus“ — es bleiben nur Bedien-Zeichen
+// (Ausklapp-Winkel, Schließen-Kreuz). Reiter, Karten, Knöpfe und Werkzeuge sprechen in Worten.
+import { ChevronDown, X } from "lucide-react";
 import { FACH_HINWEIS, type FachBereich, type FachKapitel, type FachVorlage, type FachFormular } from "@shared/fiaon-global-fach";
 import { FACH_STRATEGIE_KAPITEL } from "@shared/fiaon-global-fach-strategie";
 import { FACH_RECHT_KAPITEL, FACH_VORLAGEN } from "@shared/fiaon-global-fach-recht";
@@ -33,13 +32,13 @@ const REITER: Record<FachBereich, Reiter[]> = {
   recht: ["vorlagen", "sparring", "bibliothek"],
   steuern: ["formulare", "check", "sparring", "bibliothek"],
 };
-const REITER_TEXT: Record<Reiter, { de: string; en: string; Icon: any }> = {
-  sparring: { de: "KI-Sparring", en: "AI sparring", Icon: Sparkles },
-  bibliothek: { de: "Bibliothek", en: "Library", Icon: BookOpen },
-  werkzeuge: { de: "Werkzeuge", en: "Tools", Icon: Calculator },
-  vorlagen: { de: "Vorlagen", en: "Templates", Icon: Wand2 },
-  formulare: { de: "Formulare", en: "Forms", Icon: FileText },
-  check: { de: "Pflichten-Check", en: "Compliance check", Icon: ListChecks },
+const REITER_TEXT: Record<Reiter, { de: string; en: string }> = {
+  sparring: { de: "KI-Sparring", en: "AI sparring" },
+  bibliothek: { de: "Bibliothek", en: "Library" },
+  werkzeuge: { de: "Werkzeuge", en: "Tools" },
+  vorlagen: { de: "Vorlagen", en: "Templates" },
+  formulare: { de: "Formulare", en: "Forms" },
+  check: { de: "Pflichten-Check", en: "Compliance check" },
 };
 const BIBLIOTHEK_NAME: Record<FachBereich, string> = { strategie: "Strategiebuch", recht: "Verzeichnis", steuern: "Steuerwissen" };
 const FRAGEN: Record<FachBereich, string[]> = {
@@ -117,14 +116,14 @@ function Einzelfall({ bereich, mitToken, vorschau, zu, vorbelegt }: { bereich: F
           </div>
         ) : (
           <>
-            <span className="gp-auge"><MessageCircleQuestion size={14} /> Einzelfall prüfen lassen</span>
+            <span className="gp-auge">Einzelfall prüfen lassen</span>
             <h3>Worum geht es konkret?</h3>
             <p className="gp-leise">Mit allen wichtigen Umständen — direkt an Ihren Ansprechpartner.</p>
             <textarea className="gp-eingabe" rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={1800} />
             {fehler && <p className="gp-meldung schlecht">{fehler}</p>}
             {vorschau && <p className="gp-meldung">Vorschau — Anfragen schickt hier nur der Kunde.</p>}
             <button type="button" className="gp-knopf gross" disabled={vorschau || text.trim().length < 10 || stand === "laeuft"} onClick={senden}>
-              {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> Wird gesendet …</> : <><Send size={16} /> Anfrage senden</>}
+              {stand === "laeuft" ? "Wird gesendet …" : "Anfrage senden"}
             </button>
           </>
         )}
@@ -162,7 +161,6 @@ function Sparring({ bereich, verlauf, mitToken, vorschau, frageVor, onEinzelfall
   return (
     <div className="gpf-sparring">
       <div className="gpf-sparring-kopf">
-        <span className="gpf-ki-zeichen"><Sparkles size={18} /></span>
         <div><b>Ihr Sparringspartner</b><small>{FACH_HINWEIS[bereich]}</small></div>
       </div>
       <div className="gpf-faden" ref={faden}>
@@ -186,10 +184,10 @@ function Sparring({ bereich, verlauf, mitToken, vorschau, frageVor, onEinzelfall
       <form className="gpf-frage" onSubmit={stellen}>
         <textarea className="gp-eingabe" rows={2} value={frage} placeholder="Ihre Frage …" maxLength={1500} onChange={(e) => setFrage(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void stellen(); } }} />
-        <button type="submit" className="gp-knopf" disabled={laeuft || frage.trim().length < 3}>{laeuft ? <Loader2 size={15} className="gp-dreht" /> : <Send size={15} />} Fragen</button>
+        <button type="submit" className="gp-knopf" disabled={laeuft || frage.trim().length < 3}>{laeuft ? "Einen Moment …" : "Fragen"}</button>
       </form>
       <button type="button" className="gpf-einzelfall" onClick={() => onEinzelfall(nachrichten.filter((n) => n.rolle === "kunde").slice(-1)[0]?.text)}>
-        <MessageCircleQuestion size={15} /> Einzelfall prüfen lassen
+        Einzelfall prüfen lassen
       </button>
     </div>
   );
@@ -215,11 +213,11 @@ function Bibliothek({ bereich, gref, onFrage }: { bereich: FachBereich; gref: st
     const fertig = (erledigt[k.id] ?? []).filter(Boolean).length;
     return (
       <article className="gpf-kapitel">
-        <button type="button" className="gp-link" onClick={() => { setOffen(null); window.scrollTo({ top: 0 }); }}><ArrowLeft size={14} /> {BIBLIOTHEK_NAME[bereich]}</button>
+        <button type="button" className="gp-link" onClick={() => { setOffen(null); window.scrollTo({ top: 0 }); }}>Zurück: {BIBLIOTHEK_NAME[bereich]}</button>
         <span className="gp-auge">{k.gruppe}</span>
         <h2 className="gpf-kapitel-titel">{k.titel}</h2>
         <p className="gpf-kapitel-kurz">{k.kurz}</p>
-        <p className="gpf-kapitel-meta"><Clock size={13} /> {k.minuten} Min. Lesezeit · {k.stand}</p>
+        <p className="gpf-kapitel-meta">{k.minuten} Min. Lesezeit · {k.stand}</p>
         {k.abschnitte.map((ab, i) => (
           <section key={i} className="gpf-abschnitt">
             {ab.titel && <h3>{ab.titel}</h3>}
@@ -234,16 +232,16 @@ function Bibliothek({ bereich, gref, onFrage }: { bereich: FachBereich; gref: st
             {k.umsetzen.map((u, i) => (
               <label key={i} className={`gpf-haken${erledigt[k.id]?.[i] ? " an" : ""}`}>
                 <input type="checkbox" checked={!!erledigt[k.id]?.[i]} onChange={() => haken(k.id, i)} />
-                <span className="gpf-haken-feld">{erledigt[k.id]?.[i] && <Check size={13} strokeWidth={3} />}</span>
+                <span className="gpf-haken-feld">{erledigt[k.id]?.[i] && "✓"}</span>
                 <span>{u}</span>
               </label>
             ))}
           </section>
         )}
         {k.quellen && k.quellen.length > 0 && (
-          <section className="gpf-quellen"><h3>Amtliche Quellen</h3>{k.quellen.map((q) => <a key={q.url} href={q.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> {q.titel}</a>)}</section>
+          <section className="gpf-quellen"><h3>Amtliche Quellen</h3>{k.quellen.map((q) => <a key={q.url} href={q.url} target="_blank" rel="noopener noreferrer">{q.titel}</a>)}</section>
         )}
-        <button type="button" className="gp-knopf leise" onClick={() => onFrage(`Zum Kapitel „${k.titel}“: `)}><Sparkles size={15} /> Frage dazu stellen</button>
+        <button type="button" className="gp-knopf leise" onClick={() => onFrage(`Zum Kapitel „${k.titel}“: `)}>Frage dazu stellen</button>
       </article>
     );
   }
@@ -257,10 +255,9 @@ function Bibliothek({ bereich, gref, onFrage }: { bereich: FachBereich; gref: st
               const n = (erledigt[x.id] ?? []).filter(Boolean).length;
               return (
                 <button key={x.id} type="button" className="gpf-karte" style={{ ["--i" as any]: i }} onClick={() => { setOffen(x.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
-                  <span className="gpf-karte-meta"><Clock size={12} /> {x.minuten} Min.{x.umsetzen?.length ? ` · ${n}/${x.umsetzen.length} umgesetzt` : ""}</span>
+                  <span className="gpf-karte-meta">{x.minuten} Min.{x.umsetzen?.length ? ` · ${n}/${x.umsetzen.length} umgesetzt` : ""}</span>
                   <b>{x.titel}</b>
                   <small>{x.kurz}</small>
-                  <ArrowRight size={15} className="gpf-karte-pfeil" />
                 </button>
               );
             })}
@@ -304,8 +301,8 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
     const fehlt = v.felder.filter((f) => f.pflicht && !werte[f.key]?.trim());
     return (
       <div className="gpf-editor">
-        <button type="button" className="gp-link" onClick={() => setV(null)}><ArrowLeft size={14} /> Alle Vorlagen</button>
-        <span className="gp-auge"><Wand2 size={13} /> Vorlage · {v.sprache === "en" ? "englisches Dokument" : "deutsches Dokument"}</span>
+        <button type="button" className="gp-link" onClick={() => setV(null)}>Zurück: alle Vorlagen</button>
+        <span className="gp-auge">Vorlage · {v.sprache === "en" ? "englisches Dokument" : "deutsches Dokument"}</span>
         <h2 className="gpf-kapitel-titel">{v.titel}</h2>
         <p className="gpf-kapitel-kurz">{v.wozu}</p>
         <p className="gp-leise">{v.wann}</p>
@@ -327,7 +324,7 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
         <p className="gpf-hinweis">{FACH_HINWEIS.recht}</p>
         {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor →</button></>}</p>}
         <button type="button" className="gp-knopf gross" disabled={fehlt.length > 0 || stand === "laeuft"} onClick={erstellen}>
-          {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> Wird erstellt …</> : <><FileSignature size={16} /> {vorschau ? "Vorschau-PDF erstellen" : "Dokument erstellen"}</>}
+          {stand === "laeuft" ? "Wird erstellt …" : (vorschau ? "Vorschau-PDF erstellen" : "Dokument erstellen")}
         </button>
       </div>
     );
@@ -336,11 +333,10 @@ function Vorlagen({ mitToken, vorbelegung, vorschau, laden, geh }: { mitToken: (
     <div className="gpf-vorlagen">
       {FACH_VORLAGEN.map((x, i) => (
         <button key={x.id} type="button" className="gpf-vorlage" style={{ ["--i" as any]: i }} onClick={() => oeffnen(x)}>
-          <span className="gpf-vorlage-icon"><FileText size={20} strokeWidth={1.5} /></span>
           <span className="gpf-vorlage-sprache">{x.sprache.toUpperCase()}</span>
           <b>{x.titel}</b>
           <small>{x.wozu}</small>
-          <span className="gpf-vorlage-los">Erstellen <ArrowRight size={14} /></span>
+          <span className="gpf-vorlage-los">Erstellen</span>
         </button>
       ))}
     </div>
@@ -367,7 +363,7 @@ function Formulare({ staat }: { staat: string | null }) {
               <ol>{f.schritte.map((x, i) => <li key={i}>{x}</li>)}</ol>
               {f.folgen && <div className="gpf-merke warn"><b>Bei Versäumnis</b><p>{f.folgen}</p></div>}
               <div className="gpf-merke"><b>Was FIAON tut</b><p>{f.fiaon}</p></div>
-              <a className="gp-link" href={f.quelle.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={13} /> {f.quelle.titel}</a>
+              <a className="gp-link" href={f.quelle.url} target="_blank" rel="noopener noreferrer">{f.quelle.titel}</a>
             </div>
           )}
         </div>
@@ -421,9 +417,9 @@ function Check_({ staat, onFrage }: { staat: string | null; onFrage: (q: string)
       {fertig ? (
         <div className="gpf-check-ergebnis">
           <h3>Das betrifft Ihre Gesellschaft</h3>
-          {ergebnis.map((e, i) => <div key={i} className="gpf-check-punkt" style={{ ["--i" as any]: i }}><CheckCircle2 size={17} /><div><b>{e.titel}</b><p>{e.warum}</p></div></div>)}
+          {ergebnis.map((e, i) => <div key={i} className="gpf-check-punkt" style={{ ["--i" as any]: i }}><span className="gpf-check-zeichen" aria-hidden="true">✓</span><div><b>{e.titel}</b><p>{e.warum}</p></div></div>)}
           <p className="gpf-hinweis">{FACH_HINWEIS.steuern}</p>
-          <button type="button" className="gp-knopf leise" onClick={() => onFrage("Zu meinem Pflichten-Check: ")}><Sparkles size={15} /> Frage dazu stellen</button>
+          <button type="button" className="gp-knopf leise" onClick={() => onFrage("Zu meinem Pflichten-Check: ")}>Frage dazu stellen</button>
         </div>
       ) : <p className="gp-leise">Sechs Fragen — dann sehen Sie Ihre Pflichten.</p>}
     </div>
@@ -457,8 +453,8 @@ function Liquiditaet({ gref }: { gref: string }) {
   );
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><LineChart size={20} /><div><b>Liquiditätsplan · zwölf Monate</b><small>Werte ändern — die Kurve folgt sofort.</small></div>
-        <button type="button" className="gp-knopf leise klein" onClick={() => window.print()}><Printer size={14} /> Drucken</button></div>
+      <div className="gpf-werkzeug-kopf"><div><b>Liquiditätsplan · zwölf Monate</b><small>Werte ändern — die Kurve folgt sofort.</small></div>
+        <button type="button" className="gp-knopf leise klein" onClick={() => window.print()}>Drucken</button></div>
       <div className="gpf-felder drei">
         {feld("start", "Kontostand heute", "USD")}{feld("umsatz", "Umsatz im ersten Monat", "USD")}{feld("wachstum", "Wachstum je Monat", "%")}
         {feld("fix", "Fixkosten je Monat", "USD")}{feld("variabel", "Variable Kosten vom Umsatz", "%")}{feld("einmal", "Einmalige Ausgabe", "USD")}
@@ -490,15 +486,15 @@ function Kapitalbedarf({ gref }: { gref: string }) {
   const summe = zeilen.reduce((s2, z) => s2 + (Number(z.betrag.replace(",", ".")) || 0), 0);
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><Landmark size={20} /><div><b>Kapitalbedarf</b><small>Die Summe mit Puffer ist Ihre Zahl fürs Bank-Exposé.</small></div></div>
+      <div className="gpf-werkzeug-kopf"><div><b>Kapitalbedarf</b><small>Die Summe mit Puffer ist Ihre Zahl fürs Bank-Exposé.</small></div></div>
       {zeilen.map((z, i) => (
         <div key={i} className="gpf-kap-zeile">
           <input className="gp-eingabe" value={z.was} onChange={(e) => setZeilen(zeilen.map((x, j) => (j === i ? { ...x, was: e.target.value } : x)))} />
           <div className="gpf-zahl"><input className="gp-eingabe" inputMode="decimal" value={z.betrag} onChange={(e) => setZeilen(zeilen.map((x, j) => (j === i ? { ...x, betrag: e.target.value } : x)))} /><em>USD</em></div>
-          <button type="button" className="gp-kopie" onClick={() => setZeilen(zeilen.filter((_, j) => j !== i))} aria-label="Zeile entfernen"><Trash2 size={13} /></button>
+          <button type="button" className="gp-kopie" onClick={() => setZeilen(zeilen.filter((_, j) => j !== i))} aria-label="Zeile entfernen">Entfernen</button>
         </div>
       ))}
-      <button type="button" className="gp-link" onClick={() => setZeilen([...zeilen, { was: "", betrag: "" }])}><Plus size={14} /> Position hinzufügen</button>
+      <button type="button" className="gp-link" onClick={() => setZeilen([...zeilen, { was: "", betrag: "" }])}>Position hinzufügen</button>
       <label className="gp-feldname"><span>Puffer für Unvorhergesehenes: {puffer} %</span><input type="range" min={0} max={40} value={puffer} onChange={(e) => setPuffer(Number(e.target.value))} /></label>
       <div className="gpf-kennzahlen">
         <div><small>Summe</small><b>{usd(summe)}</b></div>
@@ -524,15 +520,15 @@ function Kreditfahrplan({ gref }: { gref: string }) {
   const k = `gp-kredit:${gref}`;
   const [h, setH] = useState<boolean[]>(() => speicher.lesen(k, []));
   const n = h.filter(Boolean).length;
-  const p = Math.round((n / KREDIT_SCHRITTE.length) * 100);
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><ListChecks size={20} /><div><b>Fahrplan geschäftliche Kreditwürdigkeit</b><small>Was Auskunfteien und Banken sehen wollen — zum Abhaken.</small></div>
-        <span className="gpf-mini-ring" style={{ ["--p" as any]: p }}><b>{p}%</b></span></div>
+      <div className="gpf-werkzeug-kopf"><div><b>Fahrplan geschäftliche Kreditwürdigkeit</b><small>Was Auskunfteien und Banken sehen wollen — zum Abhaken.</small></div>
+        {/* E-452: keine Prozentzahl — schlicht, wie viele Punkte schon abgehakt sind. */}
+        <span className="gpf-zaehler">{n} / {KREDIT_SCHRITTE.length}</span></div>
       {KREDIT_SCHRITTE.map((x, i) => (
         <label key={i} className={`gpf-haken${h[i] ? " an" : ""}`}>
           <input type="checkbox" checked={!!h[i]} onChange={() => { const neu = [...h]; neu[i] = !neu[i]; setH(neu); speicher.schreiben(k, neu); }} />
-          <span className="gpf-haken-feld">{h[i] && <Check size={13} strokeWidth={3} />}</span><span>{x}</span>
+          <span className="gpf-haken-feld">{h[i] && "✓"}</span><span>{x}</span>
         </label>
       ))}
     </div>
@@ -564,7 +560,7 @@ function Expose({ mitToken, vorschau, laden, geh }: { mitToken: (p: string) => s
   };
   return (
     <div className="gpf-werkzeug">
-      <div className="gpf-werkzeug-kopf"><FileText size={20} /><div><b>Bank-Exposé (Executive Summary)</b><small>Auf Deutsch ausfüllen — die KI legt ein englisches PDF in Ihren Tresor.</small></div></div>
+      <div className="gpf-werkzeug-kopf"><div><b>Bank-Exposé (Executive Summary)</b><small>Auf Deutsch ausfüllen — die KI legt ein englisches PDF in Ihren Tresor.</small></div></div>
       <div className="gpf-felder">
         {FELDER.map((f) => (
           <label key={f.key} className="gp-feldname breit"><span>{f.label}</span>
@@ -573,7 +569,7 @@ function Expose({ mitToken, vorschau, laden, geh }: { mitToken: (p: string) => s
       </div>
       {meldung && <p className={`gp-meldung ${meldung.gut ? "gut" : "schlecht"}`}>{meldung.text}{meldung.gut && !vorschau && <> <button type="button" className="gp-link" onClick={() => geh("tresor")}>Zum Tresor →</button></>}</p>}
       <button type="button" className="gp-knopf gross" disabled={(w.geschaeft ?? "").trim().length < 20 || stand === "laeuft"} onClick={los}>
-        {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> Die KI schreibt Ihr Exposé …</> : <><Sparkles size={16} /> Exposé erstellen</>}
+        {stand === "laeuft" ? "Die KI schreibt Ihr Exposé …" : "Exposé erstellen"}
       </button>
     </div>
   );
@@ -597,17 +593,15 @@ export default function GlobalFach({ bereich, a, s, mitToken, vorschau, laden, g
   }, [bereich]);
   const fragen = (q: string) => { setFrageVor(q); setReiter("sparring"); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const staat = a.gesellschaft?.bundesstaatCode ?? null;
-  const BereichIcon = bereich === "strategie" ? Compass : bereich === "recht" ? Scale : Calculator;
 
   return (
     <section className="gp-abschnitt gpf">
       <div className="gpf-reiter" role="tablist">
-        <span className="gpf-reiter-zeichen" aria-hidden="true"><BereichIcon size={18} strokeWidth={1.6} /></span>
         {REITER[bereich].map((r) => {
           const R = REITER_TEXT[r];
           return (
             <button key={r} type="button" role="tab" aria-selected={reiter === r} className={reiter === r ? "an" : ""} onClick={() => setReiter(r)}>
-              <R.Icon size={15} strokeWidth={1.7} /> {r === "bibliothek" ? BIBLIOTHEK_NAME[bereich] : (s === "en" ? R.en : R.de)}
+              {r === "bibliothek" ? BIBLIOTHEK_NAME[bereich] : (s === "en" ? R.en : R.de)}
             </button>
           );
         })}
@@ -622,8 +616,8 @@ export default function GlobalFach({ bereich, a, s, mitToken, vorschau, laden, g
         {reiter === "werkzeuge" && (
           <>
             <div className="gpf-werkzeugwahl">
-              {([["liquiditaet", "Liquiditätsplan", LineChart], ["kapital", "Kapitalbedarf", Landmark], ["kredit", "Kreditwürdigkeit", ListChecks], ["expose", "Bank-Exposé", FileText]] as const).map(([k2, t2, I]) => (
-                <button key={k2} type="button" className={werkzeug === k2 ? "an" : ""} onClick={() => setWerkzeug(k2)}><I size={16} strokeWidth={1.6} /> {t2}</button>
+              {([["liquiditaet", "Liquiditätsplan"], ["kapital", "Kapitalbedarf"], ["kredit", "Kreditwürdigkeit"], ["expose", "Bank-Exposé"]] as const).map(([k2, t2]) => (
+                <button key={k2} type="button" className={werkzeug === k2 ? "an" : ""} onClick={() => setWerkzeug(k2)}>{t2}</button>
               ))}
             </div>
             {werkzeug === "liquiditaet" && <Liquiditaet gref={String(a.ref)} />}
@@ -634,7 +628,7 @@ export default function GlobalFach({ bereich, a, s, mitToken, vorschau, laden, g
         )}
       </div>
       {reiter !== "sparring" && (
-        <button type="button" className="gpf-einzelfall unten" onClick={() => setEinzelfall({})}><MessageCircleQuestion size={15} /> Einzelfall prüfen lassen</button>
+        <button type="button" className="gpf-einzelfall unten" onClick={() => setEinzelfall({})}>Einzelfall prüfen lassen</button>
       )}
       {einzelfall && <Einzelfall bereich={bereich} mitToken={mitToken} vorschau={vorschau} zu={() => setEinzelfall(null)} vorbelegt={einzelfall.text} />}
     </section>

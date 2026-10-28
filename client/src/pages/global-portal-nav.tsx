@@ -173,7 +173,6 @@ export default function PortalNav<K extends string>({ gruppen, seite, geh, marke
                   {g.eintraege.map((e, i) => (
                     <li key={e.key} style={{ ["--i" as any]: i }}>
                       <a href={`#${e.key}`} aria-current={seite === e.key ? "page" : undefined} onClick={(ev) => { ev.preventDefault(); waehle(e.key); }}>
-                        <span className="gpn-ziffer" aria-hidden="true">{String(i + 1).padStart(2, "0")}</span>
                         <span className="gpn-eintrag"><b>{e.titel}{(e.zahl ?? 0) > 0 && <i className="gpn-zahl">{e.zahl}</i>}</b><span>{e.satz}</span></span>
                         <span className="gpn-pfeil" aria-hidden="true">→</span>
                       </a>

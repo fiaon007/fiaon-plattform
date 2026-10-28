@@ -9,7 +9,8 @@
 // .gpd-Klassen (global-portal-dienste.css) — ein späterer Entwurf tauscht nur das CSS.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Loader2, X } from "lucide-react";
+// E-452: ohne Schmuck-Icons — nur das Schließen-Kreuz bleibt.
+import { X } from "lucide-react";
 import {
   GLOBAL_ZUSATZ_GRUPPEN, ZUSATZ_WOERTER, buchbareZusatzdienste, globalZusatz, zusatzAngabePruefen, zusatzFreigegeben, zusatzPreisText, zusatzZeitraumText,
   type GlobalZusatz, type ZusatzStatus,
@@ -119,7 +120,7 @@ export default function GlobalDienste({ a, s, mitToken, vorschau, laden }: {
                     <span className="gpd-kachel-kurz">{z[s].kurz}</span>
                     <span className="gpd-kachel-fuss">
                       <span className="gpd-preis">{drin ? W.enthaltenMarke : g ? W.statusKurz[g.status as ZusatzStatus] : zusatzPreisText(z, s)}</span>
-                      <span className="gpd-mehr">{W.mehr} <ArrowRight size={14} strokeWidth={1.6} /></span>
+                      <span className="gpd-mehr">{W.mehr}</span>
                     </span>
                   </button>
                 );
@@ -176,7 +177,7 @@ export default function GlobalDienste({ a, s, mitToken, vorschau, laden }: {
                       {meldung && <p className="gp-meldung schlecht" role="alert">{meldung}</p>}
                       {vorschau && <p className="gp-meldung" role="note">{frei(offen) ? W.vorschau : `${W.vorschau} · ${W.nichtFreigegeben}`}</p>}
                       <button ref={knopfRef} type="button" className="gp-knopf gross" disabled={vorschau || stand === "laeuft"} onClick={() => void hinzufuegen()} data-fiaon="dienst-hinzufuegen">
-                        {stand === "laeuft" ? <><Loader2 size={16} className="gp-dreht" /> {W.laeuft}</> : W.hinzufuegen}
+                        {stand === "laeuft" ? W.laeuft : W.hinzufuegen}
                       </button>
                     </>
                   )}

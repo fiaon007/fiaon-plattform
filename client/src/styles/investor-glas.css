@@ -1,0 +1,232 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   INVESTOREN-PORTAL IM APPLE-GLAS (E-446, 28.10.2026) — /banking und /banking/dashboard.
+   Justin: „Kümmere dich auch ums Design … damit wir alles in Apple Glas Stil haben.“
+
+   Vorlage: das Global-Portal (global-portal-glas.css) und /business (global-apple.css):
+   EINE blaue Bühne mit einer großen, dünnen Zahl (die eine dunkle Stelle der Seite);
+   alles andere helles Milchglas auf ruhigem, STATISCHEM Blaugrund (keine Dauer-Animation
+   unter backdrop-filter); dünne Schrift; Glasblau #288DFA / #1D4ED8 statt Gold; nichts klebt.
+   Alles hängt an .ib-glas — andere Seiten bleiben unberührt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ib-glas {
+  --ib-ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --ib-tinte: #12284a;
+  --ib-blau: #288DFA;
+  --ib-tief: #1D4ED8;
+  --ib-glas: rgba(255, 255, 255, .66);
+  --ib-kante: rgba(255, 255, 255, .88);
+  --ib-licht: inset 0 1px 0 rgba(255, 255, 255, .95);
+  --ib-schatten: 0 1px 2px rgba(18, 40, 74, .05), 0 24px 52px -34px rgba(18, 40, 74, .42);
+  --ib-blur: blur(24px) saturate(170%);
+  --ib-buehne:
+    radial-gradient(70% 60% at 88% -4%, rgba(166, 210, 255, .55), rgba(166, 210, 255, 0) 64%),
+    radial-gradient(60% 70% at -2% 46%, rgba(40, 141, 250, .5), rgba(40, 141, 250, 0) 66%),
+    radial-gradient(90% 50% at 50% 135%, rgba(127, 182, 255, .38), rgba(127, 182, 255, 0) 62%),
+    linear-gradient(172deg, #0b2150 0%, #13377f 42%, #1b4fbd 82%, #2f6fe0 118%);
+  position: relative; isolation: isolate; min-height: 100vh; min-height: 100dvh;
+  overflow-x: hidden; overflow-x: clip;
+  color: var(--ib-tinte); font-family: var(--ib-ap);
+  -webkit-font-smoothing: antialiased; color-scheme: light only;
+  background: #eef3fc;
+}
+.ib-glas::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(70vmax 46vmax at 105% -6%, rgba(40, 141, 250, .18), rgba(40, 141, 250, 0) 62%),
+    radial-gradient(60vmax 44vmax at -10% 55%, rgba(29, 78, 216, .10), rgba(29, 78, 216, 0) 62%),
+    radial-gradient(50vmax 36vmax at 85% 105%, rgba(127, 182, 255, .22), rgba(127, 182, 255, 0) 60%),
+    linear-gradient(180deg, #f4f8ff 0%, #eaf1fd 100%);
+}
+
+/* ── Schrift: dünn, ruhig (Überschriften 400, Augenzeilen 500, nie 600+) ───── */
+.ib-glas, .ib-glas .font-display { font-family: var(--ib-ap); }
+.ib-glas .font-display { font-weight: 300; letter-spacing: -.02em; }
+.ib-glas .font-bold, .ib-glas .font-semibold, .ib-glas .font-extrabold { font-weight: 500; }
+.ib-glas :is(h1, h2, h3), .ib-glas :is(h1, h2, h3)[class] { font-weight: 400; letter-spacing: -.015em; }
+.ib-glas .font-display.font-semibold, .ib-glas .font-display.font-bold { font-weight: 300; }
+.ib-glas :is([class*="text-[2"], [class*="text-[3"], [class*="text-[4"], [class*="text-[5"]):is(.font-bold, .font-semibold) { font-weight: 300; }
+.ib-glas h1.ib-zahl { font-weight: 200; letter-spacing: -.045em; }
+.ib-glas .uppercase { font-weight: 500; }
+.ib-glas .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── Karten: Milchglas statt weißer Fläche ──────────────────────────────── */
+.ib-glas main .bg-white.rounded-2xl, .ib-glas main .bg-white.rounded-3xl,
+.ib-glas .ib-karte {
+  background: var(--ib-glas) !important;
+  -webkit-backdrop-filter: var(--ib-blur); backdrop-filter: var(--ib-blur);
+  border: 1px solid var(--ib-kante) !important;
+  box-shadow: var(--ib-licht), var(--ib-schatten) !important;
+}
+.ib-glas main .bg-white.rounded-xl { background: rgba(255, 255, 255, .78) !important; }
+.ib-glas .bg-slate-50 { background-color: rgba(238, 244, 253, .7) !important; }
+.ib-glas .border-slate-100, .ib-glas .border-slate-200 { border-color: rgba(18, 40, 74, .08) !important; }
+.ib-glas .divide-slate-100 > * + * { border-color: rgba(18, 40, 74, .07) !important; }
+
+/* ── Kopf: schwebende Glaspille, klebt nicht ────────────────────────────── */
+.ib-kopf { padding: 14px 16px 0; }
+.ib-kopf-innen {
+  max-width: 1180px; margin: 0 auto; height: 60px; padding: 0 10px 0 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border-radius: 999px; background: rgba(255, 255, 255, .62);
+  -webkit-backdrop-filter: var(--ib-blur); backdrop-filter: var(--ib-blur);
+  border: 1px solid var(--ib-kante); box-shadow: var(--ib-licht), 0 18px 40px -30px rgba(18, 40, 74, .45);
+}
+.ib-marke { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.ib-marke-zeichen {
+  width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0;
+  color: #fff; font: 400 16px/1 var(--ib-ap);
+  background: linear-gradient(140deg, #4f9dff, #1D4ED8); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 8px 18px -10px rgba(29, 78, 216, .8);
+}
+.ib-marke-name { margin: 0; font: 500 14px/1.15 var(--ib-ap); color: var(--ib-tinte); letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ib-marke-zeile { margin: 2px 0 0; font: 500 9.5px/1 var(--ib-ap); letter-spacing: .26em; text-transform: uppercase; color: var(--ib-blau); }
+.ib-person { display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 14px; border-radius: 999px; border: 1px solid transparent; transition: background .2s, border-color .2s; }
+.ib-person:hover, .ib-person.an { background: rgba(255, 255, 255, .75); border-color: var(--ib-kante); }
+.ib-avatar {
+  width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center; flex-shrink: 0;
+  color: #fff; font: 500 13px/1 var(--ib-ap); background: linear-gradient(140deg, #4f9dff, #1D4ED8);
+}
+.ib-runder-knopf {
+  width: 44px; height: 44px; border-radius: 999px; display: grid; place-items: center; color: #6b7a93;
+  transition: background .2s, color .2s;
+}
+.ib-runder-knopf:hover { background: rgba(255, 255, 255, .8); color: var(--ib-tinte); }
+
+/* ═══ DIE BÜHNE: die eine blaue Stelle ═════════════════════════════════════ */
+.ib-buehne {
+  position: relative; isolation: isolate; overflow: hidden; color: #fff; text-align: center;
+  border-radius: 34px; padding: 40px 22px 26px; background: var(--ib-buehne);
+  box-shadow: 0 40px 80px -52px rgba(12, 32, 80, .75), inset 0 1px 0 rgba(255, 255, 255, .22);
+}
+.ib-buehne::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .5;
+  background: radial-gradient(40% 30% at 50% 30%, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 70%);
+}
+.ib-buehne-zeile { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.ib-augenzeile { margin: 0; font: 500 11.5px/1.2 var(--ib-ap); letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .78); }
+.ib-stufe {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+  font: 500 10.5px/1 var(--ib-ap); letter-spacing: .14em; text-transform: uppercase; color: #fff;
+  background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .3); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.ib-stufe i { width: 6px; height: 6px; border-radius: 999px; background: #a6d2ff; box-shadow: 0 0 10px #a6d2ff; }
+.ib-zahl {
+  margin: 14px 0 0; font: 200 clamp(46px, 11vw, 96px)/1 var(--ib-ap); letter-spacing: -.045em;
+  font-variant-numeric: tabular-nums; color: #fff;
+  background: linear-gradient(180deg, #ffffff 30%, rgba(214, 233, 255, .82) 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(166, 210, 255, .18);
+}
+.ib-zahl-unter { margin: 10px 0 0; font: 300 14px/1.4 var(--ib-ap); color: rgba(255, 255, 255, .78); }
+.ib-offen {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 7px 13px; border-radius: 999px;
+  font: 400 12px/1.2 var(--ib-ap); color: #fff; background: rgba(255, 255, 255, .14); border: 1px solid rgba(255, 255, 255, .26);
+}
+.ib-offen i { width: 6px; height: 6px; border-radius: 999px; background: #fcd679; }
+.ib-pillen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 28px auto 0; max-width: 940px; }
+@media (min-width: 760px) { .ib-pillen { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ib-pille {
+  text-align: left; padding: 14px 16px; border-radius: 22px; color: #fff;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .05)), rgba(8, 24, 64, .14);
+  border: 1px solid rgba(255, 255, 255, .26); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3);
+  transition: background .25s, transform .25s;
+}
+.ib-pille:hover, .ib-pille:focus-visible { background: linear-gradient(160deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .12)); transform: translateY(-1px); outline: none; }
+.ib-pille-l { margin: 0; font: 500 10.5px/1.2 var(--ib-ap); letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .92); }
+.ib-pille-v { margin: 7px 0 0; font: 300 22px/1.1 var(--ib-ap); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.ib-pille-s { margin: 5px 0 0; font: 400 11px/1.3 var(--ib-ap); color: rgba(255, 255, 255, .9); }
+.ib-aktionen { display: flex; flex-direction: column; gap: 10px; max-width: 620px; margin: 24px auto 0; }
+@media (min-width: 640px) { .ib-aktionen { flex-direction: row; } }
+.ib-knopf-hell, .ib-knopf-klar {
+  flex: 1; min-height: 50px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: 400 14.5px/1 var(--ib-ap); transition: transform .2s, background .2s, box-shadow .2s;
+}
+.ib-knopf-hell { color: var(--ib-tinte); background: linear-gradient(180deg, #ffffff, #e9f2ff); box-shadow: 0 14px 30px -18px rgba(3, 12, 40, .8), inset 0 1px 0 #fff; }
+.ib-knopf-hell:hover { transform: translateY(-1px); }
+.ib-knopf-klar { color: #fff; background: rgba(8, 24, 64, .24); border: 1px solid rgba(255, 255, 255, .38); }
+.ib-knopf-klar:hover { background: rgba(8, 24, 64, .34); }
+.ib-knopf-hell:active, .ib-knopf-klar:active { transform: scale(.99); }
+
+/* ── Reiter: Glas-Segmente ─────────────────────────────────────────────── */
+.ib-reiter {
+  display: flex; align-items: center; gap: 2px; width: max-content; padding: 5px; border-radius: 999px;
+  background: rgba(255, 255, 255, .55); -webkit-backdrop-filter: var(--ib-blur); backdrop-filter: var(--ib-blur);
+  border: 1px solid var(--ib-kante); box-shadow: var(--ib-licht), 0 12px 30px -24px rgba(18, 40, 74, .4);
+}
+.ib-reiter button {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 15px; border-radius: 999px;
+  font: 400 13px/1 var(--ib-ap); color: #5a6a84; white-space: nowrap; transition: background .2s, color .2s, box-shadow .2s;
+}
+.ib-reiter button:hover { color: var(--ib-tinte); background: rgba(255, 255, 255, .6); }
+.ib-reiter button.an { color: var(--ib-tinte); background: #fff; box-shadow: 0 1px 2px rgba(18, 40, 74, .08), 0 8px 18px -12px rgba(18, 40, 74, .45); }
+.ib-reiter button.an svg { color: var(--ib-blau); }
+
+/* ── Tafeln & Kacheln in den Vertragsdetails ──────────────────────────── */
+.ib-tafel { border-radius: 18px; overflow: hidden; border: 1px solid rgba(18, 40, 74, .08); background: rgba(255, 255, 255, .6); }
+.ib-tafel-zeile { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px 16px; }
+.ib-tafel-zeile + .ib-tafel-zeile { border-top: 1px solid rgba(18, 40, 74, .06); }
+.ib-tafel-pos { margin: 0; font: 500 12.5px/1.35 var(--ib-ap); color: var(--ib-tinte); }
+.ib-tafel-sub { margin: 3px 0 0; font: 400 11px/1.35 var(--ib-ap); color: #7a879c; }
+.ib-tafel-wert { margin: 0; font: 400 13px/1.35 var(--ib-ap); color: var(--ib-tinte); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.ib-tafel-summe { background: linear-gradient(120deg, rgba(40, 141, 250, .12), rgba(29, 78, 216, .08)); }
+.ib-tafel-summe .ib-tafel-wert { color: var(--ib-tief); font-weight: 500; }
+.ib-kachel { padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, .62); border: 1px solid rgba(18, 40, 74, .07); }
+.ib-kachel-l { margin: 0; font: 500 9.5px/1.2 var(--ib-ap); letter-spacing: .12em; text-transform: uppercase; color: #8190a8; }
+.ib-kachel-v { margin: 6px 0 0; font: 400 13.5px/1.25 var(--ib-ap); color: var(--ib-tinte); font-variant-numeric: tabular-nums; }
+.ib-hinweis { padding: 12px 14px; border-radius: 16px; font: 400 12.5px/1.5 var(--ib-ap); color: #3b4c66; background: rgba(40, 141, 250, .08); border: 1px solid rgba(40, 141, 250, .18); }
+
+/* ═══ ANMELDUNG: Sperrbildschirm mit einer Milchglas-Karte ════════════════ */
+.ib-anmeldung {
+  color: #fff;
+  background:
+    radial-gradient(60% 50% at 85% 0%, rgba(166, 210, 255, .42), rgba(166, 210, 255, 0) 64%),
+    radial-gradient(55% 60% at 0% 40%, rgba(40, 141, 250, .42), rgba(40, 141, 250, 0) 66%),
+    linear-gradient(175deg, #0b2150 0%, #13377f 50%, #1a4ab3 100%);
+}
+.ib-anmeldung::before { display: none; }
+.ib-anmeldung-karte {
+  border-radius: 30px; padding: 34px 26px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .09));
+  -webkit-backdrop-filter: blur(28px) saturate(170%); backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, .3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 40px 80px -40px rgba(3, 12, 40, .7);
+}
+@media (min-width: 640px) { .ib-anmeldung-karte { padding: 42px 40px; } }
+.ib-feld {
+  width: 100%; min-height: 50px; padding: 0 18px; border-radius: 16px; outline: none;
+  font: 400 15px/1 var(--ib-ap); color: #fff; background: rgba(255, 255, 255, .12);
+  border: 1px solid rgba(255, 255, 255, .26); transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.ib-feld::placeholder { color: rgba(255, 255, 255, .5); }
+.ib-feld:focus { border-color: rgba(255, 255, 255, .7); background: rgba(255, 255, 255, .18); box-shadow: 0 0 0 4px rgba(166, 210, 255, .22); }
+.ib-feld-l { display: block; margin: 0 0 8px; font: 500 11px/1 var(--ib-ap); letter-spacing: .14em; text-transform: uppercase; color: rgba(255, 255, 255, .72); }
+
+/* Telefon: klebende Glasflächen ohne Unschärfe (ruckelt sonst), Knöpfe ≥ 44 px */
+@media (max-width: 640px) {
+  .ib-kopf { padding: 10px 12px 0; }
+  .ib-kopf-innen { height: 56px; }
+  .ib-buehne { border-radius: 28px; padding: 30px 16px 18px; }
+  .ib-pille { padding: 12px 13px; border-radius: 18px; }
+  .ib-pille-v { font-size: 19px; }
+  .ib-reiter button { min-height: 44px; }
+  .ib-marke-name { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ib-glas *, .ib-glas *::before, .ib-glas *::after { transition: none !important; animation: none !important; }
+}
+
+/* Die alten Bank-Flächen (index.css: .scp-card, .scp-scroll) im Portal als Milchglas */
+.ib-glas .scp-card {
+  background: var(--ib-glas); -webkit-backdrop-filter: var(--ib-blur); backdrop-filter: var(--ib-blur);
+  border: 1px solid var(--ib-kante); border-radius: 26px; box-shadow: var(--ib-licht), var(--ib-schatten);
+}
+.ib-glas .scp-card.cursor-pointer { transition: transform .25s, box-shadow .25s; }
+.ib-glas .scp-card.cursor-pointer:hover { transform: translateY(-2px); box-shadow: var(--ib-licht), 0 1px 2px rgba(18, 40, 74, .05), 0 30px 60px -34px rgba(18, 40, 74, .5); }
+.ib-glas .scp-scroll::-webkit-scrollbar-thumb { background: rgba(18, 40, 74, .16); }
+.ib-glas .scp-input {
+  min-height: 46px; border-radius: 14px; font-family: var(--ib-ap); color: var(--ib-tinte);
+  background: rgba(255, 255, 255, .8); border-color: rgba(18, 40, 74, .12);
+}
+.ib-glas .scp-input::placeholder { color: #9aa7bb; }
+.ib-glas .scp-input:focus { border-color: var(--ib-blau); box-shadow: 0 0 0 4px rgba(40, 141, 250, .14); background: #fff; }
+.ib-glas .scp-input:disabled { background: rgba(238, 244, 253, .8); color: #7a879c; }
+.ib-glas .scp-label { font-weight: 500; letter-spacing: .12em; color: #7a879c; }

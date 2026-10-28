@@ -27,15 +27,15 @@ export const TIERS: Record<InvestorTier, TierDef> = {
     key: "premium",
     label: "Premium",
     tagline: "Erweiterte Leistungen für aktive Investoren.",
-    accent: "#2563eb",
-    gradient: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+    accent: "#288DFA",
+    gradient: "linear-gradient(140deg,#7cc0ff,#288DFA)",
   },
   circle: {
     key: "circle",
     label: "Circle Investor",
     tagline: "Der innerste Kreis. Alles inklusive.",
-    accent: "#b8923a",
-    gradient: "linear-gradient(135deg,#d4af6a,#b8923a 55%,#8a6d24)",
+    accent: "#1D4ED8",
+    gradient: "linear-gradient(140deg,#4f9dff,#1D4ED8 60%,#13377f)",
   },
 };
 
@@ -99,17 +99,17 @@ export const CARD_DESIGNS: Record<CardDesign, CardDesignDef> = {
   },
   gold: {
     key: "gold",
-    label: "Gold",
-    face: "linear-gradient(135deg,#2a2a2a 0%,#1a1a1a 100%)",
-    ink: "#e8d9b0",
-    sheen: "linear-gradient(115deg,transparent 30%,rgba(212,175,106,.18) 50%,transparent 70%)",
+    label: "Graphit",
+    face: "linear-gradient(135deg,#2a2d33 0%,#16181c 100%)",
+    ink: "#e6ebf2",
+    sheen: "linear-gradient(115deg,transparent 30%,rgba(214,226,240,.2) 50%,transparent 70%)",
   },
   circle: {
     key: "circle",
     label: "Circle",
-    face: "linear-gradient(135deg,#0d1b3e 0%,#101010 60%,#0d1b3e 100%)",
-    ink: "#d4af6a",
-    sheen: "linear-gradient(115deg,transparent 25%,rgba(212,175,106,.28) 50%,transparent 75%)",
+    face: "linear-gradient(140deg,#0b2150 0%,#13377f 45%,#1f5bd0 100%)",
+    ink: "#dcecff",
+    sheen: "linear-gradient(115deg,transparent 25%,rgba(166,210,255,.32) 50%,transparent 75%)",
   },
 };
 

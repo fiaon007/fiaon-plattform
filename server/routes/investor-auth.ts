@@ -25,6 +25,10 @@ const SESSION_SECRET =
   "fiaon-investor-dev-secret-local-only";
 const SESSION_MAX_AGE_S = 7 * 24 * 60 * 60; // 7 days
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+// E-446: Der Ersatzwert oben steht im öffentlichen Quelltext. In Produktion gilt er nie —
+// fehlt ein eigenes Geheimnis, bleibt die Anmeldung zu (statt fälschbarer Sitzungen).
+const GEHEIMNIS_FEHLT = IS_PRODUCTION && !process.env.INVESTOR_SESSION_SECRET && !process.env.SESSION_SECRET;
+if (GEHEIMNIS_FEHLT) console.error("[INVESTOR-AUTH] kein INVESTOR_SESSION_SECRET/SESSION_SECRET gesetzt — Investoren-Anmeldung gesperrt");
 
 // ----------------------------------------------------------------------------
 // Password hashing (scrypt) — format: <hashHex>.<saltHex>
@@ -71,7 +75,7 @@ function signSession(payload: Omit<InvestorSession, "iat" | "exp">): string {
 }
 
 function verifySession(token: string | undefined): InvestorSession | null {
-  if (!token) return null;
+  if (!token || GEHEIMNIS_FEHLT) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
   const expected = createHmac("sha256", SESSION_SECRET).update(body).digest("base64url");
@@ -308,6 +312,7 @@ router.post("/login", async (req: Request, res: Response) => {
       return res.status(400).json({ ok: false, error: "E-Mail und Passwort erforderlich" });
     }
 
+    if (GEHEIMNIS_FEHLT) return res.status(503).json({ ok: false, error: "Die Anmeldung ist gerade nicht verfügbar. Bitte versuchen Sie es später erneut." });
     const normalizedEmail = String(email).trim().toLowerCase();
     const [investor] = await client`
       SELECT * FROM investors WHERE LOWER(email) = ${normalizedEmail} LIMIT 1

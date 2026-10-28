@@ -113,6 +113,16 @@
 @media (min-width: 921px) { .hg-w-person { align-items: flex-start; } .hg-w-person .hg-w-knopf { margin-top: 4px; } }
 /* ── „Ihr Team“ (Justin 28.10.): Foto-Stapel mit feinem Ring, die Zeilen übereinander — wechselt alle 2,4 s ── */
 .hg-w-bild { position: relative; flex: 0 0 auto; width: 62px; height: 62px; }
+/* Das Foto ist zugleich der Knopf „Wechsel anhalten / fortsetzen“ (WCAG 2.2.2) — 62 px Tippfläche, kleines Zeichen unten rechts. */
+button.hg-w-bild { display: block; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hg-w-halt { position: absolute; right: -1px; bottom: -1px; z-index: 2; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #1d4ed8;
+  background: rgba(255, 255, 255, .94); box-shadow: 0 4px 10px -4px rgba(18, 40, 74, .45), inset 0 0 0 1px rgba(40, 141, 250, .18); opacity: 0; transform: scale(.8);
+  transition: opacity .25s ease, transform .35s var(--feder); }
+.hg-w-halt svg { width: 10px; height: 10px; }
+.hg-w-halt path { fill: currentColor; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+button.hg-w-bild:hover .hg-w-halt, button.hg-w-bild:focus-visible .hg-w-halt, .hg-w-team[data-angehalten] .hg-w-halt { opacity: 1; transform: none; }
+@media (hover: none) { .hg-w-halt { opacity: 1; transform: none; } }
+.hg-w-team[data-angehalten] .hg-w-ring .lauf { opacity: .5; }
 .hg-w-bild img { position: absolute; inset: 4px; width: 54px; height: 54px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;
   box-shadow: 0 8px 20px -10px rgba(18, 40, 74, .5); opacity: 0; transform: scale(.9); transition: opacity .45s ease, transform .9s var(--kurve); }
 /* Das neue Foto kommt einen Hauch später als das alte geht — kein Doppelbild in der Mitte. */
@@ -130,11 +140,15 @@
   transition: opacity .45s ease, transform .8s var(--kurve), filter .45s ease; }
 .hg-w-eintrag.an { opacity: 1; transform: none; filter: none; transition-delay: .1s; }
 .hg-w-eintrag.weg { transform: translate3d(0, -10px, 0); transition-delay: 0s; }
+/* Unsichtbare Einträge und Fotos fangen keine Klicks und keine Markierung (sonst markierte ein Doppelklick „Hermann“). */
+.hg-w-eintrag:not(.an), .hg-w-bild img:not(.an) { pointer-events: none; -webkit-user-select: none; user-select: none; }
+.hg-w-ki { margin-top: 2px; font: 400 10.5px/1.3 var(--ap); letter-spacing: .01em; color: #7c8798; }
 .hg-w-person .hg-w-auge sup { font-size: .8em; margin-left: 2px; letter-spacing: 0; }
 /* Zweite Fußnote (Teamfotos) dicht unter der ersten — Gewicht über .hg-blick .hg-fussnote (auch am Telefon). */
 .hg-blick .hg-fussnote + .hg-fussnote { margin-top: 6px; }
 .hg-w-person > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
-.hg-w-person b { font: 500 17px/1.2 var(--ap); letter-spacing: -.01em; }
+/* Namen dürfen umbrechen (Gegenprüfung 28.10.: „Matthias Hamschmi…“ bei 1440, „Mag. Sarah A…“ bei 1024) — der Stapel hält die Höhe. */
+.hg-w-person b { font: 500 17px/1.2 var(--ap); letter-spacing: -.01em; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: balance; }
 .hg-w-knopf { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; padding: 0;
   background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); border: 1px solid transparent; color: #fff; cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 10px 20px -12px rgba(29, 78, 216, .75);

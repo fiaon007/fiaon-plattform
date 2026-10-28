@@ -9,10 +9,24 @@
 // CSS (styles/global-grafik.css) mit transform, opacity, stroke-dashoffset und
 // clip-path. Bei „weniger Bewegung“ steht der Endzustand sofort, ohne Beobachter.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useLayoutEffect, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore, type RefObject } from "react";
 
 export const ruhigGewuenscht = () =>
   typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** „Weniger Bewegung“ als Zustand, der Änderungen der Einstellung mitbekommt (28.10.2026, E-442: eine Quelle für
+ *  Team-Kachel und Fußnote — sonst konnte die Kachel auf einem KI-Bild stehen bleiben, während der Hinweis verschwand). */
+export function useRuhig(): boolean {
+  return useSyncExternalStore(
+    (melden) => {
+      const mq = typeof window !== "undefined" ? window.matchMedia?.("(prefers-reduced-motion: reduce)") : null;
+      mq?.addEventListener?.("change", melden);
+      return () => mq?.removeEventListener?.("change", melden);
+    },
+    ruhigGewuenscht,
+    () => false,
+  );
+}
 
 /**
  * Setzt einmal `data-an="1"`, sobald `schwelle` des Elements sichtbar ist (unten 10 % Rand).

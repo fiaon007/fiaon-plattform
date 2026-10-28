@@ -20,7 +20,8 @@
 // Bei „weniger Bewegung“ steht sofort das Endbild.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar, useRuhig } from "@/components/site/global/bewegung";
+import { KI_PORTRAIT_HINWEIS, portraitMitKi } from "@shared/fiaon-portraits";
 import { GLOBAL_TEAM, GLOBAL_TEAM_TAKT_MS, teamFoto } from "@shared/fiaon-global-team";
 import "@/styles/global-hero-glas.css";
 
@@ -54,6 +55,9 @@ export interface HeroGlasTexte {
   teamTitel: string;
   /** Fußnote zu den Fotos: „Teamfotos teils Symbolbilder, mit KI erstellt.“ */
   teamHinweis: string;
+  /** Beschriftung des Foto-Knopfs: „Wechsel anhalten“ / „Wechsel fortsetzen“. */
+  teamAnhalten: string;
+  teamFortsetzen: string;
   /** Kleine Zeile über der Vertragsliste („Ihr Vertrag“) — wie bei den beiden anderen Kacheln. */
   vertragTitel: string;
   /** Vier Zeilen der Vertrauensleiste; die zweite verlinkt den Mustervertrag. */
@@ -136,37 +140,54 @@ function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boo
 // Anderst und alle weiteren (shared/fiaon-global-team.ts). Jede Person steht 2,4 s; ein feiner Glasblau-Ring um das Foto
 // zeigt, wann die nächste kommt — sein Ende (animationend) löst den Wechsel aus, so bleiben Ring und Wechsel immer gleich.
 // Foto und Zeilen blenden weich über (alt nach oben, neu von unten, Apple-artig). Alle Personen liegen übereinander im
-// selben Raster: Die Kachel ist immer so hoch wie die längste Zeile, nichts springt. Pause bei Maus darüber, Fokus darin,
-// außer Sicht oder Tab hinten (WCAG 2.2.2). Screenreader lesen die ganze Liste einmal. Bei „weniger Bewegung“: kein
-// Wechsel, Daniel als Ansprechpartner (wie vorher).
-function TeamKachel({ en, titel, titelRuhig, nr, knopf, onGespraech }: { en: boolean; titel: string; titelRuhig: string; nr: number; knopf: string; onGespraech: () => void }) {
+// selben Raster: Die Kachel ist immer so hoch wie der längste Eintrag, nichts springt.
+// Gegenprüfung 28.10.: Start erst, wenn die Kachel aufgetaucht ist (Daniel zuerst, volle 2,4 s); Pause bei Maus darüber,
+// bei Tastatur-Fokus (nicht nach Klick/Tippen — sonst blieb der Wechsel nach dem Pfeil für immer stehen), außer Sicht
+// und Tab hinten; das Foto ist ein Knopf „Wechsel anhalten / fortsetzen“ (WCAG 2.2.2, auch am Telefon). Justins
+// KI-Porträt trägt den Hinweis am Bild (wie auf /team), die Fußnote nennt alle Fotos genau. Screenreader lesen die ganze
+// Liste einmal. Bei „weniger Bewegung“ (auch später umgeschaltet): kein Wechsel, Daniel als Ansprechpartner.
+type TeamTexte = { titel: string; titelRuhig: string; nr: number; knopf: string; anhalten: string; fortsetzen: string };
+function TeamKachel({ en, ruhig, x, onGespraech }: { en: boolean; ruhig: boolean; x: TeamTexte; onGespraech: () => void }) {
   const sp = en ? "en" : "de";
-  const [ruhig] = useState(() => ruhigGewuenscht());
   const [i, setI] = useState(0);
   const [vorher, setVorher] = useState(-1);
   const [lauf, setLauf] = useState(false);
+  const [angehalten, setAngehalten] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || ruhig) return;
-    let sicht = false, halt = 0;
-    const pruefen = () => setLauf(sicht && halt === 0);
-    const weg = beobachteSichtbar(el, (s) => { sicht = s; pruefen(); });
-    let maus = false, fokus = false;
-    const neu = () => { halt = (maus ? 1 : 0) + (fokus ? 1 : 0); pruefen(); };
-    const rein = () => { maus = true; neu(); }, raus = () => { maus = false; neu(); };
-    const fRein = () => { fokus = true; neu(); }, fRaus = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) { fokus = false; neu(); } };
+    let sicht = false, maus = false, fokus = false;
+    // Erst wenn der Abschnitt aufgetaucht und die Kachel fertig hochgeglitten ist (hg-hoch), beginnt der Takt.
+    const blick = el.closest(".hg-blick");
+    let offen = !blick || blick.getAttribute("data-an") === "1";
+    const pruefen = () => setLauf(offen && sicht && !maus && !fokus);
+    let warte = 0;
+    const aufgetaucht = () => { if (offen) return; offen = true; window.clearTimeout(warte); pruefen(); };
+    const perEnde = (e: AnimationEvent) => { if (e.target === el && e.animationName === "hg-hoch") aufgetaucht(); };
+    el.addEventListener("animationend", perEnde);
+    const mo = new MutationObserver(() => {
+      if (blick?.getAttribute("data-an") !== "1") return;
+      mo.disconnect();
+      warte = window.setTimeout(aufgetaucht, 1300); // falls kein animationend kommt
+    });
+    if (!offen && blick) mo.observe(blick, { attributes: true, attributeFilter: ["data-an"] });
+    const weg = beobachteSichtbar(el, (s) => { sicht = s; if (!s) fokus = false; pruefen(); });
+    const rein = () => { maus = true; pruefen(); }, raus = () => { maus = false; pruefen(); };
+    const fRein = (e: FocusEvent) => { fokus = !!(e.target as Element | null)?.matches?.(":focus-visible"); pruefen(); };
+    const fRaus = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) { fokus = false; pruefen(); } };
     el.addEventListener("pointerenter", rein); el.addEventListener("pointerleave", raus);
     el.addEventListener("focusin", fRein); el.addEventListener("focusout", fRaus);
     return () => {
-      weg();
+      weg(); mo.disconnect(); window.clearTimeout(warte);
+      el.removeEventListener("animationend", perEnde);
       el.removeEventListener("pointerenter", rein); el.removeEventListener("pointerleave", raus);
       el.removeEventListener("focusin", fRein); el.removeEventListener("focusout", fRaus);
     };
   }, [ruhig]);
   const weiter = () => { setVorher(i); setI((i + 1) % GLOBAL_TEAM.length); };
   const knopfEl = (
-    <button type="button" className="hg-w-knopf" aria-label={knopf} onClick={onGespraech}>
+    <button type="button" className="hg-w-knopf" aria-label={x.knopf} onClick={onGespraech}>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
     </button>
   );
@@ -175,28 +196,39 @@ function TeamKachel({ en, titel, titelRuhig, nr, knopf, onGespraech }: { en: boo
     return (
       <div className="hg-widget hg-w-person" style={{ ["--i" as string]: 1 }}>
         <span className="hg-w-bild"><img className="an" src={teamFoto(p.kuerzel)} alt="" width={54} height={54} loading="lazy" decoding="async" /></span>
-        <div className="hg-w-wer"><span className="hg-w-auge">{titelRuhig}</span><b>{p.name}</b><small>{p.rolle[sp]}</small></div>
+        <div className="hg-w-wer"><span className="hg-w-auge">{x.titelRuhig}</span><b>{p.name}</b><small>{p.rolle[sp]}</small></div>
         {knopfEl}
       </div>
     );
   }
   const stand = (k: number) => (k === i ? "an" : k === vorher ? "weg" : undefined);
+  const ki = (kuerzel: string) => portraitMitKi(kuerzel) ? KI_PORTRAIT_HINWEIS[sp] : null;
   return (
-    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={lauf ? "1" : "0"}
+    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={lauf && !angehalten ? "1" : "0"} data-angehalten={angehalten ? "1" : undefined}
       style={{ ["--i" as string]: 1, ["--takt" as string]: `${GLOBAL_TEAM_TAKT_MS}ms` }}>
-      <span className="hg-w-bild" aria-hidden="true">
-        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" width={54} height={54} loading="lazy" decoding="async" />)}
-        <svg className="hg-w-ring" viewBox="0 0 62 62">
+      <button type="button" className="hg-w-bild" aria-pressed={angehalten} aria-label={angehalten ? x.fortsetzen : x.anhalten}
+        onClick={() => setAngehalten((a) => !a)}>
+        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" title={ki(p.kuerzel) ?? undefined} width={54} height={54} loading="lazy" decoding="async" />)}
+        <svg className="hg-w-ring" viewBox="0 0 62 62" aria-hidden="true">
           <circle className="spur" cx="31" cy="31" r="30" />
           <circle key={i} className="lauf" cx="31" cy="31" r="30" pathLength={100} onAnimationEnd={weiter} />
         </svg>
-      </span>
-      <div className="hg-w-wer">
-        <span className="hg-w-auge">{titel}<sup>{nr}</sup></span>
-        <span className="hg-w-stapel" aria-hidden="true">
-          {GLOBAL_TEAM.map((p, k) => <span key={p.kuerzel} className={`hg-w-eintrag${stand(k) ? ` ${stand(k)}` : ""}`}><b>{p.name}</b><small>{p.rolle[sp]}</small></span>)}
+        <span className="hg-w-halt" aria-hidden="true">
+          {angehalten
+            ? <svg viewBox="0 0 12 12"><path d="M4 2.6v6.8L9.4 6z" /></svg>
+            : <svg viewBox="0 0 12 12"><path d="M4 3v6M8 3v6" /></svg>}
         </span>
-        <span className="hg-sr">{GLOBAL_TEAM.map((p) => `${p.name}, ${p.rolle[sp]}`).join("; ")}.</span>
+      </button>
+      <div className="hg-w-wer">
+        <span className="hg-w-auge">{x.titel}<sup>{x.nr}</sup></span>
+        <span className="hg-w-stapel" aria-hidden="true">
+          {GLOBAL_TEAM.map((p, k) => (
+            <span key={p.kuerzel} className={`hg-w-eintrag${stand(k) ? ` ${stand(k)}` : ""}`}>
+              <b>{p.name}</b><small>{p.rolle[sp]}</small>{ki(p.kuerzel) && <small className="hg-w-ki">{ki(p.kuerzel)}</small>}
+            </span>
+          ))}
+        </span>
+        <span className="hg-sr">{GLOBAL_TEAM.map((p) => `${p.name}, ${p.rolle[sp]}${ki(p.kuerzel) ? ` (${ki(p.kuerzel)})` : ""}`).join("; ")}.</span>
       </div>
       {knopfEl}
     </div>
@@ -209,6 +241,8 @@ function Pfeil() {
 
 export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void }) {
   const [an, setAn] = useState(false);
+  // Eine Quelle für Team-Kachel und Fußnote ² (auch wenn „weniger Bewegung“ später umgeschaltet wird).
+  const ruhig = useRuhig();
   // E-442 (28.10.2026, Justin): „Man soll nur den Hero am Anfang sehen — erst wenn man scrollt, die Kacheln.“ Die drei
   // Kacheln und die Fußnote stehen darum in einem eigenen Abschnitt UNTER der Bühne und gleiten beim Hineinscrollen hoch.
   const blick = useRef<HTMLElement>(null);
@@ -264,7 +298,8 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
             <small>{t.kapitalSatz}</small>
             <span className="hg-w-chip">{t.kapitalFrei}<sup>{t.fussnoteNr}</sup></span>
           </div>
-          <TeamKachel en={en} titel={t.teamTitel} titelRuhig={t.personTitel} nr={t.fussnoteNr + 1} knopf={t.knopfGespraech} onGespraech={onGespraech} />
+          <TeamKachel en={en} ruhig={ruhig} onGespraech={onGespraech}
+            x={{ titel: t.teamTitel, titelRuhig: t.personTitel, nr: t.fussnoteNr + 1, knopf: t.knopfGespraech, anhalten: t.teamAnhalten, fortsetzen: t.teamFortsetzen }} />
           <div className="hg-widget hg-w-vertrag" style={{ ["--i" as string]: 2 }}>
             <span className="hg-w-auge">{t.vertragTitel}</span>
             <ul>
@@ -275,7 +310,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
           </div>
         </div>
         <p className="hg-fussnote"><sup>{t.fussnoteNr}</sup> {t.fussnote}</p>
-        {!ruhigGewuenscht() && <p className="hg-fussnote hg-fussnote-team"><sup>{t.fussnoteNr + 1}</sup> {t.teamHinweis}</p>}
+        {!ruhig && <p className="hg-fussnote hg-fussnote-team"><sup>{t.fussnoteNr + 1}</sup> {t.teamHinweis}</p>}
     </section>
     </>
   );

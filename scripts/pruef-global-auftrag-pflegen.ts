@@ -287,7 +287,8 @@ abschnitt("4", "Schreiben: Tresor, Name geprüft, Akte, Empfehlung — und die Z
   const doks = (await sqlPool`SELECT id, von, art, titel, dateiname, mime, inhalt, sichtbar_fuer_kunde FROM fiaon_global_dokumente WHERE ref = ${REF} AND geloescht_am IS NULL ORDER BY id`) as any[];
   gleich(doks.map((d) => [d.art, d.titel]), [["reisepass", "Reisepass"], ["personalausweis", "Personalausweis – Vorderseite"], ["personalausweis", "Personalausweis – Rückseite"],
     ["einkommensnachweis", "Gehaltsnachweis August 2026"], ["einkommensnachweis", "Gehaltsnachweis September 2026"], ["kontoauszug", "Kontoauszug Oktober 2026"], ["kontoauszug", "Kontoauszug September 2026"]], "Tresor: sieben Unterlagen mit Art und Titel");
-  ok(doks.every((d) => d.von === "fiaon" && d.sichtbar_fuer_kunde === true), "Tresor: von FIAON abgelegt, für den Kunden sichtbar");
+  // Gutachten 28.10.2026: Ohne AKTIVES Kundenkonto öffnet der Link aus der Vertragsbestätigung das Portal ohne Anmeldung — darum intern.
+  ok(doks.every((d) => d.von === "fiaon" && d.sichtbar_fuer_kunde === false), "Tresor: von FIAON abgelegt, INTERN (Kunde hat noch kein aktives Konto)");
   ok(doks.filter((d) => d.titel !== "Kontoauszug September 2026").every((d) => ohneSpur(Buffer.from(d.inhalt))), "Tresor: keine Metadaten in den gespeicherten Bytes");
   ok(Buffer.from(doks.find((d) => d.titel === "Kontoauszug September 2026")?.inhalt ?? []).equals(SIGNIERT), "Tresor: signiertes PDF Byte für Byte erhalten");
   gleich(doks.map((d) => d.dateiname), ["Reisepass.pdf", "Personalausweis Vorderseite.png", "Personalausweis Rückseite.png", "Gehaltsnachweis 2026-08.jpg", "Gehaltsnachweis 2026-09.jpg", "Kontoauszug 2026-10.pdf", "Kontoauszug 2026-09.pdf"], "Tresor: neutrale Dateinamen (ohne Nummer, ohne Bank)");
@@ -305,7 +306,7 @@ abschnitt("4", "Schreiben: Tresor, Name geprüft, Akte, Empfehlung — und die Z
   const emp = (await sqlPool`SELECT id, person_id FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(koop.id)} ORDER BY id`) as any[];
   gleich(emp.map((x) => [Number(x.id), x.person_id == null ? null : Number(x.person_id)]), [[EID, PID], [EID_FREMD, null]], "Empfehlung zugeordnet, die fremde bleibt frei");
   const verlauf = (await sqlPool`SELECT text, sichtbar FROM fiaon_global_verlauf WHERE ref = ${REF} ORDER BY id`) as any[];
-  ok(verlauf.filter((x) => x.sichtbar && /^Neues Dokument in Ihrem Tresor: /.test(x.text)).length === 7 && verlauf.some((x) => x.sichtbar && x.text === "Erledigt: Name geprüft."), "Kunde liest im Verlauf: sieben Dokumente, „Erledigt: Name geprüft.“", verlauf.map((x) => x.text));
+  ok(!verlauf.some((x) => x.sichtbar && /^Neues Dokument in Ihrem Tresor: /.test(x.text)) && verlauf.some((x) => x.sichtbar && x.text === "Erledigt: Name geprüft."), "Kunde liest im Verlauf: keine Tresor-Zeile (intern), „Erledigt: Name geprüft.“", verlauf.map((x) => x.text));
   ok(verlauf.some((x) => !x.sichtbar && /^Personendaten aus dem Vertrag nachgetragen/.test(x.text)) && !verlauf.some((x) => /C01X00T47/.test(x.text)), "intern: Zeile „Personendaten nachgetragen“, ohne Passnummer");
   // Die Zahlungsseite (E-320) — dieselbe Funktion wie /zahlung/<Zweck>
   const B: any = await import("../server/lib/fiaon-global-angebot-begleit");
@@ -383,6 +384,38 @@ abschnitt("6", "Schutz: Vertragsfrist, fremde Datei, fremde Empfehlung, falsche 
   ok(tipp.code === 2 && /Unbekannter Schalter/.test(tipp.out), "Tippfehler im Schalter: Abbruch", tipp.out.slice(-300));
   const nichts = lauf(["--ref", REF]);
   ok(nichts.code === 2 && /Keine Aktion gewählt/.test(nichts.out), "ohne Aktion: Abbruch", nichts.out.slice(-300));
+}
+
+abschnitt("6b", "Tresor bei AKTIVEM Kundenkonto: sichtbar");
+{
+  const [k] = (await sqlPool`INSERT INTO fiaon_global_konten (email, name, status, quelle) VALUES (${("aktiv-" + stempel + "@beispiel.example").toLowerCase()}, 'Erika Aktiv', 'aktiv', 'pruefstand') RETURNING id`) as any[];
+  await sqlPool`INSERT INTO fiaon_global_konto_refs (konto_id, art, ref, quelle) VALUES (${Number(k.id)}, 'auftrag', ${REF2}, 'pruefstand')`;
+  const a = lauf(["--ref", REF2, "--tresor", ORDNER, "--schreiben"]);
+  const d2 = (await sqlPool`SELECT sichtbar_fuer_kunde FROM fiaon_global_dokumente WHERE ref = ${REF2} AND geloescht_am IS NULL`) as any[];
+  ok(a.code === 0 && d2.length === 7 && d2.every((d) => d.sichtbar_fuer_kunde === true), "aktives Konto: sieben Unterlagen, für den Kunden sichtbar", { code: a.code, n: d2.length, out: a.out.slice(-800) });
+}
+
+abschnitt("7", "Provision: der Fast-Track der Fassung C zählt nicht (Justin 28.10.2026)");
+{
+  // Bankbestätigte Zahlung der ersten Rechnung (3.289,00 €) — die Empfehlung ist seit Abschnitt 4 der Person zugeordnet.
+  await sqlPool`UPDATE fiaon_applications SET payment_status = 'paid', paid_at = NOW() WHERE ref = ${REF}`;
+  const sicht = await K.koopEmpfehlungSicht({ id: Number(koop.id), schalter: { provision: { prozent: 30, seit: "2026-10-22" } } });
+  const z = sicht.liste.find((x: any) => Number(x.id) === EID);
+  ok(z && z.umsatzCents === 328900 - C.KAPITAL_C_VORGABEN.fastTrackCents && z.provisionCents === Math.round((328900 - C.KAPITAL_C_VORGABEN.fastTrackCents) * 0.3),
+    "Partnerbereich: Umsatz ohne Fast-Track (2.790,00 €), Provision 30 % = 837,00 €", z ? { umsatz: z.umsatzCents, provision: z.provisionCents } : null);
+  const monat = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+  const posten = await K.koopGutschriftPosten(Number(koop.id), monat, 30);
+  const pz = posten.filter((x: any) => x.ref === REF);
+  ok(pz.length === 1 && pz[0].umsatzCents === 279000 && pz[0].provisionCents === 83700, "Gutschrift-Posten: 2.790,00 € → 837,00 €", pz);
+  // Eine spätere Zahlung derselben Person (Erfolgshonorar, eigene Bestellung) zählt voll.
+  // Wie Teil 2 im Betrieb: erst der angenommene Teil (Katalogpreis-Wand), dann die Bestellzeile.
+  await sqlPool`INSERT INTO fiaon_global_angebot_teile (angebot_id, nr, titel, betrag_cents, faelligkeit, zahlungsziel_tage, bestell_ref, rechnung_am)
+    VALUES (${angebote[REF]}, 2, 'Erfolgshonorar', 689000, 'sofort', 7, ${REF + "-T2"}, ${RECHNUNG_AM})`;
+  await sqlPool`INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, person_id, email, first_name, last_name, country, paid_at)
+    VALUES (${REF + "-T2"}, 'business', 'submitted', 'global_individuell', 'Erfolgshonorar (Prüfstand)', ${"PAY2" + REF.slice(-10)}, 'paid', 6890.00, ${PID}, ${MAIL}, 'Max', 'Prüfmann', 'DE', NOW())`;
+  const sicht2 = await K.koopEmpfehlungSicht({ id: Number(koop.id), schalter: { provision: { prozent: 30, seit: "2026-10-22" } } });
+  const z2 = sicht2.liste.find((x: any) => Number(x.id) === EID);
+  ok(z2 && z2.umsatzCents === 279000 + 689000, "Erfolgshonorar zählt voll (2.790 € + 6.890 €)", z2 ? z2.umsatzCents : null);
 }
 
 fs.rmSync(ORDNER, { recursive: true, force: true }); fs.rmSync(PRIVAT, { force: true }); fs.rmSync(FREMD, { force: true });

@@ -11,7 +11,7 @@
 // Festpreis „ab 2.499 €“), darunter in Kapitälchen der Satz dazu (einmalig,
 // alle Gebühren des Pakets inklusive), die Überschrift dünn, zwei Pillen,
 // drei Milchglas-Widgets: Kapitalrahmen (mit „das Institut entscheidet“,
-// Blickfang-Regel), der echte Ansprechpartner (VISITENKARTEN) und die
+// Blickfang-Regel), das Team im Wechsel (shared/fiaon-global-team.ts) und die
 // Vertrauensleiste als Vertrag-Widget. Alle Sätze kommen aus i18n/global.ts —
 // die Wortwand liest sie dort; hier steht kein eigener deutscher Satz.
 //
@@ -21,7 +21,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
-import { VISITENKARTEN } from "@shared/fiaon-visitenkarte";
+import { GLOBAL_TEAM, GLOBAL_TEAM_TAKT_MS, teamFoto } from "@shared/fiaon-global-team";
 import "@/styles/global-hero-glas.css";
 
 export interface HeroGlasTexte {
@@ -50,6 +50,10 @@ export interface HeroGlasTexte {
   fussnoteNr: number;
   fussnote: string;
   personTitel: string;
+  /** „Ihr Team“ — die Kachel zeigt das ganze Team im Wechsel (Justin 28.10.). */
+  teamTitel: string;
+  /** Fußnote zu den Fotos: „Teamfotos teils Symbolbilder, mit KI erstellt.“ */
+  teamHinweis: string;
   /** Kleine Zeile über der Vertragsliste („Ihr Vertrag“) — wie bei den beiden anderen Kacheln. */
   vertragTitel: string;
   /** Vier Zeilen der Vertrauensleiste; die zweite verlinkt den Mustervertrag. */
@@ -128,13 +132,83 @@ function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boo
   );
 }
 
+// ── „Ihr Team“ (Justin 28.10.2026): Die Kachel zeigt das ganze Team im Wechsel — Daniel, Florentine, Justin, Mag. Sarah
+// Anderst und alle weiteren (shared/fiaon-global-team.ts). Jede Person steht 2,4 s; ein feiner Glasblau-Ring um das Foto
+// zeigt, wann die nächste kommt — sein Ende (animationend) löst den Wechsel aus, so bleiben Ring und Wechsel immer gleich.
+// Foto und Zeilen blenden weich über (alt nach oben, neu von unten, Apple-artig). Alle Personen liegen übereinander im
+// selben Raster: Die Kachel ist immer so hoch wie die längste Zeile, nichts springt. Pause bei Maus darüber, Fokus darin,
+// außer Sicht oder Tab hinten (WCAG 2.2.2). Screenreader lesen die ganze Liste einmal. Bei „weniger Bewegung“: kein
+// Wechsel, Daniel als Ansprechpartner (wie vorher).
+function TeamKachel({ en, titel, titelRuhig, nr, knopf, onGespraech }: { en: boolean; titel: string; titelRuhig: string; nr: number; knopf: string; onGespraech: () => void }) {
+  const sp = en ? "en" : "de";
+  const [ruhig] = useState(() => ruhigGewuenscht());
+  const [i, setI] = useState(0);
+  const [vorher, setVorher] = useState(-1);
+  const [lauf, setLauf] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || ruhig) return;
+    let sicht = false, halt = 0;
+    const pruefen = () => setLauf(sicht && halt === 0);
+    const weg = beobachteSichtbar(el, (s) => { sicht = s; pruefen(); });
+    let maus = false, fokus = false;
+    const neu = () => { halt = (maus ? 1 : 0) + (fokus ? 1 : 0); pruefen(); };
+    const rein = () => { maus = true; neu(); }, raus = () => { maus = false; neu(); };
+    const fRein = () => { fokus = true; neu(); }, fRaus = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) { fokus = false; neu(); } };
+    el.addEventListener("pointerenter", rein); el.addEventListener("pointerleave", raus);
+    el.addEventListener("focusin", fRein); el.addEventListener("focusout", fRaus);
+    return () => {
+      weg();
+      el.removeEventListener("pointerenter", rein); el.removeEventListener("pointerleave", raus);
+      el.removeEventListener("focusin", fRein); el.removeEventListener("focusout", fRaus);
+    };
+  }, [ruhig]);
+  const weiter = () => { setVorher(i); setI((i + 1) % GLOBAL_TEAM.length); };
+  const knopfEl = (
+    <button type="button" className="hg-w-knopf" aria-label={knopf} onClick={onGespraech}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+    </button>
+  );
+  if (ruhig) {
+    const p = GLOBAL_TEAM[0];
+    return (
+      <div className="hg-widget hg-w-person" style={{ ["--i" as string]: 1 }}>
+        <span className="hg-w-bild"><img className="an" src={teamFoto(p.kuerzel)} alt="" width={54} height={54} loading="lazy" decoding="async" /></span>
+        <div className="hg-w-wer"><span className="hg-w-auge">{titelRuhig}</span><b>{p.name}</b><small>{p.rolle[sp]}</small></div>
+        {knopfEl}
+      </div>
+    );
+  }
+  const stand = (k: number) => (k === i ? "an" : k === vorher ? "weg" : undefined);
+  return (
+    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={lauf ? "1" : "0"}
+      style={{ ["--i" as string]: 1, ["--takt" as string]: `${GLOBAL_TEAM_TAKT_MS}ms` }}>
+      <span className="hg-w-bild" aria-hidden="true">
+        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" width={54} height={54} loading="lazy" decoding="async" />)}
+        <svg className="hg-w-ring" viewBox="0 0 62 62">
+          <circle className="spur" cx="31" cy="31" r="30" />
+          <circle key={i} className="lauf" cx="31" cy="31" r="30" pathLength={100} onAnimationEnd={weiter} />
+        </svg>
+      </span>
+      <div className="hg-w-wer">
+        <span className="hg-w-auge">{titel}<sup>{nr}</sup></span>
+        <span className="hg-w-stapel" aria-hidden="true">
+          {GLOBAL_TEAM.map((p, k) => <span key={p.kuerzel} className={`hg-w-eintrag${stand(k) ? ` ${stand(k)}` : ""}`}><b>{p.name}</b><small>{p.rolle[sp]}</small></span>)}
+        </span>
+        <span className="hg-sr">{GLOBAL_TEAM.map((p) => `${p.name}, ${p.rolle[sp]}`).join("; ")}.</span>
+      </div>
+      {knopfEl}
+    </div>
+  );
+}
+
 function Pfeil() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 }
 
 export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void }) {
   const [an, setAn] = useState(false);
-  const person = VISITENKARTEN.daniel;
   // E-442 (28.10.2026, Justin): „Man soll nur den Hero am Anfang sehen — erst wenn man scrollt, die Kacheln.“ Die drei
   // Kacheln und die Fußnote stehen darum in einem eigenen Abschnitt UNTER der Bühne und gleiten beim Hineinscrollen hoch.
   const blick = useRef<HTMLElement>(null);
@@ -147,7 +221,6 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
     return () => { weg(); cancelAnimationFrame(raf); };
   }, []);
 
-  const sp = en ? "en" : "de";
   return (
     <>
     <section className="hg" data-an={an ? "1" : "0"}>
@@ -191,17 +264,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
             <small>{t.kapitalSatz}</small>
             <span className="hg-w-chip">{t.kapitalFrei}<sup>{t.fussnoteNr}</sup></span>
           </div>
-          <div className="hg-widget hg-w-person" style={{ ["--i" as string]: 1 }}>
-            <img src="/portraits/daniel.jpg" alt="" width={54} height={54} loading="lazy" decoding="async" />
-            <div>
-              <span className="hg-w-auge">{t.personTitel}</span>
-              <b>{person.name}</b>
-              <small>{person.rolle[sp]}</small>
-            </div>
-            <button type="button" className="hg-w-knopf" aria-label={t.knopfGespraech} onClick={onGespraech}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            </button>
-          </div>
+          <TeamKachel en={en} titel={t.teamTitel} titelRuhig={t.personTitel} nr={t.fussnoteNr + 1} knopf={t.knopfGespraech} onGespraech={onGespraech} />
           <div className="hg-widget hg-w-vertrag" style={{ ["--i" as string]: 2 }}>
             <span className="hg-w-auge">{t.vertragTitel}</span>
             <ul>
@@ -212,6 +275,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
           </div>
         </div>
         <p className="hg-fussnote"><sup>{t.fussnoteNr}</sup> {t.fussnote}</p>
+        {!ruhigGewuenscht() && <p className="hg-fussnote hg-fussnote-team"><sup>{t.fussnoteNr + 1}</sup> {t.teamHinweis}</p>}
     </section>
     </>
   );

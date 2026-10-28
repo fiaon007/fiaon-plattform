@@ -20,6 +20,7 @@ import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER, GLOBAL_FILM_WOERTER, GLOBAL_BUEHNE_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { VISITENKARTEN } from "../shared/fiaon-visitenkarte";
+import { GLOBAL_TEAM } from "../shared/fiaon-global-team";
 import { GLOBAL_AUFTRAG_WOERTER } from "../client/src/i18n/global-auftrag";
 import { GLOBAL_SEITE_WOERTER } from "../client/src/i18n/global-seite";
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_GELD_ZURUECK, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI, GLOBAL_BUERGSCHAFT_SEITE, globalKapital } from "../shared/fiaon-global";
@@ -77,6 +78,7 @@ const texte: [string, string][] = [];
 sammle(GLOBAL_WOERTER.de, "i18n/global", texte);
 // E-442 (27.10.2026): Die Rollenzeile des Ansprechpartners steht im Hero von /business — sie kommt aus den Visitenkarten.
 sammle(Object.fromEntries(Object.entries(VISITENKARTEN).map(([k, v]) => [k, v.rolle.de])), "fiaon-visitenkarte/rolle", texte);
+sammle(Object.fromEntries(GLOBAL_TEAM.map((p) => [p.kuerzel, p.rolle.de])), "fiaon-global-team/rolle", texte);
 // 09.10.2026: Vorführraum (E-313) und die Bühne von /business (Hero „Ihr Auftrag“, Sektion „Der Bogen“).
 sammle(GLOBAL_FILM_WOERTER.de, "i18n/global-film", texte);
 sammle(GLOBAL_BUEHNE_WOERTER.de, "i18n/global-buehne", texte);

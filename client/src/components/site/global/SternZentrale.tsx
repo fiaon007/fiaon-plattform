@@ -22,6 +22,7 @@
 // GLOBAL_INKLUSIVE (Begriff.tsx).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import type { GlobalSternKnoten } from "@/i18n/global";
 import { Begriff, mitBegriffen } from "@/components/site/global/Begriff";
 import { ruhigGewuenscht } from "@/components/site/global/bewegung";
@@ -102,7 +103,16 @@ function useOhneMit(ref: RefObject<HTMLElement | null>, pause = 450) {
       zeit.current = window.setTimeout(() => setMit(true), pause);
     }, { threshold: 0.3, rootMargin: "0px 0px -8% 0px" });
     io.observe(el);
-    return () => { io.disconnect(); window.clearTimeout(zeit.current); };
+    // Drucken ohne zu scrollen (28.10.2026, E-442): Papier zeigt die Lösung („Mit“), wie jeder Besucher sie auf dem Schirm sieht.
+    const perDruck = () => { io.disconnect(); window.clearTimeout(zeit.current); flushSync(() => setMit(true)); };
+    const druckMedium = window.matchMedia?.("print");
+    const perDruckMedium = (e: MediaQueryListEvent) => { if (e.matches) perDruck(); };
+    window.addEventListener("beforeprint", perDruck);
+    druckMedium?.addEventListener?.("change", perDruckMedium);
+    return () => {
+      io.disconnect(); window.clearTimeout(zeit.current);
+      window.removeEventListener("beforeprint", perDruck); druckMedium?.removeEventListener?.("change", perDruckMedium);
+    };
   }, [ref, pause]);
   const waehle = (wert: boolean) => { window.clearTimeout(zeit.current); setSelbst(false); setMit(wert); };
   return { mit, selbst, waehle };

@@ -239,7 +239,9 @@ export default function GlobalBogen({ w, etappen }: {
     io.observe(el);
     // Drucken ohne zu scrollen (28.10.2026, E-442): sofort das Endbild — Bögen, Orte, Etappen, „Kapital auch in Europa“.
     // flushSync, damit die Beschriftungen vor dem Druckbild stehen (sonst bliebe das Fenster auf dem Papier leer).
-    const perDruck = () => { io.disconnect(); gestartet = true; t0 = performance.now() - 1e6; flushSync(() => zeichnen(performance.now())); };
+    // Steht das Endbild schon (Auftakt gesehen), bleibt es unverändert. Gedruckt werden die Pixel (image-rendering:
+    // pixelated im Druckstil) — sonst gab Chrome die Leinwand hell und die weißen Beschriftungen unlesbar aus.
+    const perDruck = () => { if (letztePhase >= 6) return; io.disconnect(); gestartet = true; t0 = performance.now() - 1e6; flushSync(() => zeichnen(performance.now())); };
     window.addEventListener("beforeprint", perDruck);
     // Danach läuft die Schleife nur, solange das Fenster sichtbar ist (und der Tab vorn).
     const weg = beobachteSichtbar(el, (an) => {

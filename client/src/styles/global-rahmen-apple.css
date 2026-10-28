@@ -149,7 +149,30 @@ html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
    den ersten Schritt mit Deckkraft 0 (Nachprüfung 28.10.: Vorführraum, Pakete, Beleg, Bogen-Text blieben leer). */
 @media print {
   html.ap-bewegung .ap-rein { opacity: 1 !important; transform: none !important; animation: none !important; }
-  html .fg [data-an], html .fg [data-an] *, html .gs [data-an], html .gs [data-an] *,
-  html .dk-auf, html .dk-auf * { animation: none !important; transition: none !important; }
+  html [data-an], html [data-an] *, html [data-an] *::before, html [data-an] *::after,
+  html .dk-auf, html .dk-auf *, html .dk-auf *::after { animation: none !important; transition: none !important; }
   html .dk-auf { opacity: 1 !important; transform: none !important; }
+  /* Endzustände, die sonst nur eine Animation herstellt (wie bei „weniger Bewegung“, global-grafik.css). */
+  html .fg-jb-zeit .zwei::after { -webkit-clip-path: none !important; clip-path: none !important; }
+  html .gf-orte-karte .zug, html .gf-orte-karte path { stroke-dashoffset: 0 !important; }
+  html .gf-orte-karte .punkt { opacity: 1 !important; }
+  html .gf-orte-karte .puls { opacity: 0 !important; }
+  html .fg-eb .fg-eb-spur::after { transform: none !important; }
+  html .fg-tarif-weg .balken i.an::after { transform: none !important; }
+  /* Verlaufs-Schrift (background-clip: text) druckt in Vorschau/Quick Look als schwarzer Balken → schlichte Farbe. */
+  html .hg .hg-zahl, html .fg-h1, html .fg-h2, html .fg-glanz {
+    background: none !important; -webkit-background-clip: border-box !important; background-clip: border-box !important; animation: none !important;
+  }
+  html .hg .hg-zahl { color: #12284a !important; -webkit-text-fill-color: #12284a !important; }
+  html .fg-h1, html .fg-h2, html .fg-glanz { color: var(--glanz-grund, #0c1a2e) !important; -webkit-text-fill-color: var(--glanz-grund, #0c1a2e) !important; }
+  /* Kopf-Pille einmal oben statt auf jeder Seite über dem Text; Menüs und die untere Leiste nicht auf Papier. */
+  html .gk.gk { position: absolute !important; }
+  html .gk-mobil, html .gk .gk-panel, html .fg.fg .fg-mobil { display: none !important; }
+  /* Zugeklappte „Mehr“-Felder der Etappen lassen sonst eine leere Fläche in der Karte. */
+  html .fg-eb-klappe:not(.auf) { display: none !important; }
+  /* VIP-Karte: Der leuchtende Rand ist ein Farbring, der nur durch eine Maske schmal bleibt — auf Papier ginge die Maske
+     verloren und ein Lichtfächer läge über dem Text. Rand und Lichtflecken sind Schmuck → im Druck weg. */
+  html .fg-vip-rand, html .fg-vip-licht { display: none !important; }
+  /* Der Bogen: die gezeichneten Pixel drucken (sonst gibt Chrome die Leinwand hell aus). */
+  html .hb-c-leinwand { image-rendering: pixelated; }
 }

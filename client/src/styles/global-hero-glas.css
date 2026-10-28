@@ -240,4 +240,7 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
   .hg-inhalt, .hg-licht { animation: none !important; opacity: 1 !important; transform: none !important; }
   .hg { min-height: 0; }
   .hg-weiter { display: none; }
+  /* Die Tipp-Zeile druckt immer den ganzen Satz (getippter Teil + unsichtbarer Rest), ohne Strich — nie „Ihr Weg zum Ka|“. */
+  .hg-tipp-rest { visibility: visible !important; color: #1f5fe6; }
+  .hg-tipp-strich::after { display: none !important; }
 }

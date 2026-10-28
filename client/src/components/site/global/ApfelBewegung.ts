@@ -12,7 +12,7 @@
 // Ein Haken für alle Seiten: GlobalNav (/business, 80 Unterseiten, Auftrag, Rechtsseiten, Angebote) und die
 // Landingpages rufen ihn auf. Die Liste ZIELE nennt Blöcke, die noch keine eigene Bewegung haben; Bausteine mit
 // eigenem Auftritt (Hero, Pakettafeln, Etappen, Schaltzentrale, Bogen, Vorführraum, Beiträge, Angebots-Hero,
-// Etappen-Linie, Standort-Uhren, Rollen-Dreieck) sind ausgenommen — ebenso alles mit eigenem data-an und alles in seitlich scrollenden Leisten.
+// Etappen-Linie, Rollen-Dreieck) sind ausgenommen — ebenso alles mit eigenem data-an und alles in seitlich scrollenden Leisten.
 // Sicherungen (Gegenprüfung 28.10.): Fokus per Tastatur zeigt den Block sofort; am Seitenende erscheint alles,
 // was im Bild steht; beim Drucken steht alles. Ohne JS und bei „weniger Bewegung“ steht alles sofort sichtbar
 // (die Klasse ap-bewegung fehlt dann). Stil: styles/global-rahmen-apple.css (Animation, nicht Übergang).
@@ -31,6 +31,8 @@ const ZIELE = [
   ".fd-kurz", ".fd-abschnitt > *", ".fd-karte", ".fd-rolle", ".fd-paket", ".fd-tafel", ".fd-tabelle", ".fd-hinweis",
   ".fd-etappe", ".fd-standort", ".fd-weiter-raster > a", ".fd-verzeichnis li", ".fd-finder", ".fd-gespraech-karte",
   ".fd-zitat", ".fd-vermerk", ".fd-vip-zeile", ".fd-weiter > .fg-auge",
+  // „Drei Standorte“: Der Rahmen (.fd-orte, eigenes data-an) zeichnet nur zwei Bögen — Karte und Liste gleiten selbst.
+  ".fd-orte-karte", ".fd-orte-liste > li", ".fd-verbunden",
   // Auftrag, Mein Auftrag, Rechtsseiten
   ".gs-kopf > *", ".gs-blatt", ".gs-seite", ".gr-wahl", ".gr-papier", ".gr-weiter",
   // Fuß
@@ -43,8 +45,8 @@ const AUSNAHMEN = [
   // Angebotsseite: Der Hero baut sich unter der Begrüßung selbst auf (Gegenprüfung 28.10.).
   ".gia-hero",
   // Eigene Einfahrt (Nachprüfung 28.10.): Vorführraum (.gv — die PDF-Mappe blinkte sonst doppelt), Beiträge (.sz, seitlich
-  // scrollend — Karten kämen sonst leer ins Bild), Etappen-Linie, Standort-Uhren und Rollen-Dreieck der Unterseiten.
-  ".gv", ".sz", ".fd-weg", ".fd-orte", ".fd-dreieck",
+  // scrollend — Karten kämen sonst leer ins Bild), Etappen-Linie und Rollen-Dreieck der Unterseiten.
+  ".gv", ".sz", ".fd-weg", ".fd-dreieck",
   "[role=dialog]", "dialog",
 ].join(", ");
 
@@ -81,9 +83,11 @@ export function useApfelBewegung() {
     };
     /** Sofort zeigen, ohne Gleiten (Fokus, Druck). */
     const sofort = (el: HTMLElement) => { io.unobserve(el); wartet = wartet.filter((x) => x !== el); fertig(el); };
-    // Staffel über Schübe hinweg: Kommt ein neuer Schub, während der vorige noch gestaffelt startet, reiht er sich
-    // dahinter ein — sonst liefe Zeile 3 vor Zeile 2 los (Nachprüfung 28.10.).
-    let staffelBis = 0;
+    // Staffel über Schübe hinweg — aber nur für Schübe im nächsten Bild (≤ 34 ms) und höchstens zwei Stufen: Dann bleibt
+    // die Lesereihenfolge, wenn Zeilen in aufeinanderfolgenden Bildern die Linie kreuzen. Ein unbegrenzter Übertrag lief
+    // beim zügigen Scrollen und bei Sprüngen (Inhaltsverzeichnis, #gespraech) voll: Jeder Block wartete 0,72 s, die
+    // Seite wirkte leer (Letzte Prüfung 28.10.).
+    let letzterStart = 0, letzterSchub = -1e9;
     const zeigen = (liste: HTMLElement[]) => {
       // Reihenfolge wie beim Lesen: oben vor unten, links vor rechts.
       liste.sort((a, b) => {
@@ -91,8 +95,9 @@ export function useApfelBewegung() {
         return Math.round(ra.top - rb.top) || ra.left - rb.left;
       });
       const jetzt = performance.now();
-      const basis = Math.max(0, Math.ceil((staffelBis - jetzt) / 120));
-      staffelBis = Math.max(staffelBis, jetzt + Math.min(basis + liste.length, STUFEN) * 120);
+      const basis = jetzt - letzterSchub > 34 ? 0 : Math.min(2, Math.max(0, Math.ceil((letzterStart + 120 - jetzt) / 120)));
+      letzterSchub = jetzt;
+      letzterStart = jetzt + Math.min(basis + liste.length - 1, STUFEN) * 120;
       liste.forEach((el, i) => {
         offen.delete(el);
         el.style.setProperty("--ap-i", String(Math.min(basis + i, STUFEN)));
@@ -149,9 +154,10 @@ export function useApfelBewegung() {
     });
     mo.observe(document.body, { childList: true, subtree: true });
 
-    // Tastatur: Ein fokussierter Block ist sofort sichtbar — nie ein Fokusring auf Deckkraft 0 (Gegenprüfung 28.10.).
+    // Tastatur: Ein fokussierter Block ist sofort sichtbar — nie ein Fokusring auf Deckkraft 0 (Gegenprüfung 28.10.),
+    // auch nicht, während er noch auf seine Stufe wartet (ap-da gesetzt, Animation noch im Verzug).
     const perFokus = (e: FocusEvent) => {
-      const t = (e.target as Element | null)?.closest?.(".ap-rein:not(.ap-da)") as HTMLElement | null;
+      const t = (e.target as Element | null)?.closest?.(".ap-rein") as HTMLElement | null;
       if (t) sofort(t);
     };
     document.addEventListener("focusin", perFokus, true);

@@ -28,6 +28,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
+import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
 
 type Promo = Record<MenueGruppe, { titel: string; text: string; href: string; knopf: string }>;
 const PROMO: { de: Promo; en: Promo } = {
@@ -62,6 +63,8 @@ export function GlobalMarke({ en = false, hell = false }: { en?: boolean; hell?:
 }
 
 export default function GlobalNav() {
+  // E-442 (28.10.2026): Apple-Bewegung für jede Seite der Business-Welt (Auftritt beim Hineinscrollen, schmale Kopf-Pille).
+  useApfelBewegung();
   const sprache = useSprache();
   const en = sprache === "en";
   const pfad = typeof window !== "undefined" ? window.location.pathname : "/business";

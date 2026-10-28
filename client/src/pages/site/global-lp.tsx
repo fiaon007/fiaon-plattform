@@ -27,9 +27,12 @@ import "@/styles/global-seiten.css";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-apple.css";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
+import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
+import "@/styles/global-rahmen-apple.css";
 
 export default function GlobalLandingPage() {
   const lp = globalLandingpage(typeof window !== "undefined" ? window.location.pathname : "");
+  useApfelBewegung();
   // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument).
   useEffect(() => {
     document.documentElement.classList.add("fg-dokument");

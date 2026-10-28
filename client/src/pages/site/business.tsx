@@ -286,9 +286,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           knopfPakete: t.knopfPakete, knopfGespraech: t.knopfGespraech, mikro: t.gespraechMikro,
           kapitalTitel: t.kapitalKopf, kapitalWert: globalKapitalSpanne(s), kapitalSatz: t.kapitalKopfZusatz,
           kapitalFrei: frei.kurz, fussnoteNr: nrFrei, fussnote: `${frei.satz} ${frei.steuer}`,
-          personTitel: buehne.person,
+          personTitel: buehne.person, vertragTitel: buehne.vertragAuge,
           vertrag: t.vertrauensleiste, mustervertragHref: s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag",
-          weiter: t.knopfPakete,
+          weiter: buehne.weiterBlick,
         }} />
 
         {/* ── 1b Der Vorführraum (E-313): die Filme im iPhone, das Kino mit Ton, das Konzept als PDF-Mappe ── */}

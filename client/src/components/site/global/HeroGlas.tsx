@@ -20,7 +20,7 @@
 // Bei „weniger Bewegung“ steht sofort das Endbild.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { beobachteSichtbar, nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
+import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { VISITENKARTEN } from "@shared/fiaon-visitenkarte";
 import "@/styles/global-hero-glas.css";
 
@@ -50,6 +50,8 @@ export interface HeroGlasTexte {
   fussnoteNr: number;
   fussnote: string;
   personTitel: string;
+  /** Kleine Zeile über der Vertragsliste („Ihr Vertrag“) — wie bei den beiden anderen Kacheln. */
+  vertragTitel: string;
   /** Vier Zeilen der Vertrauensleiste; die zweite verlinkt den Mustervertrag. */
   vertrag: string[];
   mustervertragHref: string;
@@ -131,6 +133,10 @@ function Pfeil() {
 export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void }) {
   const [an, setAn] = useState(false);
   const person = VISITENKARTEN.daniel;
+  // E-442 (28.10.2026, Justin): „Man soll nur den Hero am Anfang sehen — erst wenn man scrollt, die Kacheln.“ Die drei
+  // Kacheln und die Fußnote stehen darum in einem eigenen Abschnitt UNTER der Bühne und gleiten beim Hineinscrollen hoch.
+  const blick = useRef<HTMLElement>(null);
+  useEinmalSichtbar(blick, 0, "0px 0px -18% 0px");
 
   useLayoutEffect(() => {
     if (ruhigGewuenscht()) { setAn(true); return; }
@@ -141,6 +147,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
 
   const sp = en ? "en" : "de";
   return (
+    <>
     <section className="hg" data-an={an ? "1" : "0"}>
       <div className="hg-licht" aria-hidden="true" />
       <div className="hg-inhalt">
@@ -162,7 +169,17 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
           <button type="button" className="hg-pille" style={{ ["--i" as string]: 1 }} onClick={onGespraech}>{t.knopfGespraech}</button>
         </div>
         <p className="hg-mikro">{t.mikro}</p>
+      </div>
 
+      <a className="hg-weiter" href="#auf-einen-blick" aria-label={t.weiter} onClick={(e) => {
+        e.preventDefault();
+        blick.current?.scrollIntoView({ behavior: ruhigGewuenscht() ? "auto" : "smooth", block: "start" });
+      }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </a>
+    </section>
+
+    <section ref={blick} id="auf-einen-blick" className="hg-blick" style={{ scrollMarginTop: 96 }}>
         <div className="hg-widgets">
           <div className="hg-widget" style={{ ["--i" as string]: 0 }}>
             <span className="hg-w-auge">{t.kapitalTitel}</span>
@@ -182,6 +199,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
             </button>
           </div>
           <div className="hg-widget hg-w-vertrag" style={{ ["--i" as string]: 2 }}>
+            <span className="hg-w-auge">{t.vertragTitel}</span>
             <ul>
               {t.vertrag.map((x, i) => (
                 <li key={x}>{i === 1 ? <a href={t.mustervertragHref}>{x}</a> : <span>{x}</span>}</li>
@@ -190,11 +208,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
           </div>
         </div>
         <p className="hg-fussnote"><sup>{t.fussnoteNr}</sup> {t.fussnote}</p>
-      </div>
-
-      <a className="hg-weiter" href="#pakete" aria-label={t.weiter} onClick={(e) => { e.preventDefault(); onPakete(); }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </a>
     </section>
+    </>
   );
 }

@@ -376,7 +376,7 @@ html .fg.fg .dk-frage { margin-top: 10px; padding: 0 22px; border: 1px solid var
 html .fg.fg .dk-frage:hover { background: var(--glas-dicht); }
 html .fg.fg .dk-frage button { font: 400 16px/1.4 var(--ap); padding: 20px 0; }
 html .fg.fg .dk-frage .plus { border-color: rgba(18, 40, 74, .18); color: #1d4ed8; border-radius: 50%; }
-html .fg.fg .dk-frage.auf .plus { background: #288dfa; border-color: #288dfa; }
+html .fg.fg .dk-frage.auf .plus { background: #288dfa; border-color: #288dfa; color: #fff; }
 html .fg.fg .dk-frage .antwort p { font: 300 15px/1.7 var(--ap); color: #3b4658; }
 html .fg.fg.fg-neu .fg-fragen-kopf .fg-fragen-alle, html .fg.fg .fg-fragen-alle { color: #1d4ed8; text-decoration: none; font-weight: 500; }
 html .fg.fg .fg-fragen-mehr { color: #1d4ed8; }
@@ -761,3 +761,30 @@ html .fg.fg .fg-tarif-zahlen { margin-top: 18px; }
   html .fg.fg .fd-koerper, html .fg.fg .fd-weiter { padding-left: 20px; padding-right: 20px; }
   html .fg.fg .fd-tafeln { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; scroll-padding: 0 20px; }
 }
+
+/* ═══ 28.10.2026 nachmittags (Justin: „mehr Platz, mehr atmen, alles hochwertiger“) — Maße nach Apple vermessen:
+   Abschnitte 112 px Luft, Abschnitts-Überschriften groß und dünn, Fließtext 17 px. ═══ */
+html .fg.fg .fd-abschnitt { padding: clamp(64px, 7vw, 104px) 0 12px; }
+html .fg.fg .fd .fd-h2, html .fg.fg .fd-h2 { font-size: clamp(28px, 3.1vw, 46px); line-height: 1.1; letter-spacing: -.026em; max-width: 24ch; }
+html .fg.fg .fd-p, html .fg.fg .fd-block-lead { font-size: 17px; line-height: 1.7; }
+html .fg.fg .fd-kurz { margin-bottom: 8px; }
+html .fg.fg .fd-kopf .fd-kopf-knoepfe { margin-top: 40px; }
+html .fg.fg .fd-ziffern { margin-top: 48px; }
+html .fg.fg .fg-kopf .fg-lead { max-width: 52ch; }
+html .fg.fg .fg-sek .fg-kopf { margin-bottom: 8px; }
+/* Karten reagieren wie bei Apple: ein Hauch größer statt hochzuspringen. */
+@media (hover: hover) and (pointer: fine) {
+  html .fg.fg a.fd-karte:hover, html .fg.fg .fd-paket:hover, html .fg.fg .fd-weiter-raster a:hover { transform: scale(1.012); }
+  html .fg.fg a.fd-karte, html .fg.fg .fd-paket, html .fg.fg .fd-weiter-raster a { transition: transform .3s cubic-bezier(0, 0, .5, 1), box-shadow .3s ease, border-color .3s ease; }
+}
+/* Kopf der Unterseiten: Die Überschrift war mit 72 px bei langen Sätzen vier Zeilen hoch und der Einleitungssatz klebte darunter
+   (16 px, Messung 28.10.). Jetzt höchstens 64 px wie Apples Abschnittsköpfe, und jede Stufe hat ihren eigenen Atemraum. */
+html .fg.fg .fd .fd-h1, html .fg.fg .fd-h1 { font: 200 clamp(35px, 4.4vw, 64px)/1.06 var(--ap); letter-spacing: -.03em; margin-top: 20px; max-width: 22ch; text-wrap: balance; }
+html .fg.fg .fd-kopf .fd-lead { margin-top: clamp(22px, 2.4vw, 32px); max-width: 60ch; }
+html .fg.fg .fd-kopf .fd-kopf-knoepfe { margin-top: clamp(32px, 3.4vw, 48px); }
+@media (max-width: 720px) {
+  /* „pretty“ statt „balance“: sonst trennt der Ausgleich am Bindestrich („US-|Firma“, Foto 28.10.). */
+  html .fg.fg .fd .fd-h1, html .fg.fg .fd-h1 { max-width: none; text-wrap: pretty; }
+}
+/* Der Schalter „Ohne / Mit FIAON Global“ klebte unter der Überschrift (11 px) — jetzt mit eigenem Abstand. */
+html .fg.fg .sn { margin-top: clamp(28px, 3vw, 44px); }

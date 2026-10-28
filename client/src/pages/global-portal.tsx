@@ -43,6 +43,9 @@ import { HANDSCHRIFT_WOERTER } from "@shared/fiaon-global-akte";
 const GlobalFach = lazy(() => import("./global-portal-fach"));
 // Scheibe 1 „Ihr US-Büro“ (22.10.2026): Zusatzdienste per Klick — Texte und Preise aus shared/fiaon-global-zusatz.ts.
 const GlobalDienste = lazy(() => import("./global-portal-dienste"));
+// E-456 (29.10.2026): „Neu für Sie" — das Fenster beim Öffnen, wenn FIAON seit dem letzten Besuch etwas bereitgestellt hat.
+const PortalNeuigkeiten = lazy(() => import("./global-portal-neuigkeiten"));
+import type { GlobalNeuigkeit, GlobalNeuigkeitZiel } from "@shared/fiaon-global-neuigkeiten";
 import { ZUSATZ_WOERTER, globalZusatz, zusatzFreigegeben } from "@shared/fiaon-global-zusatz";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-portal.css";
@@ -438,6 +441,24 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ungeleseneAntworten.length, vorschau]);
   useEffect(() => { const f = fadenRef.current; if (f) f.scrollTop = f.scrollHeight; }, [nachrichten.length]);
+
+  // ── E-456: „Neu für Sie" ──
+  // Einmal je Öffnen des Portals: Der Server liefert, was seit dem letzten „Gesehen" neu ist. Das Fenster öffnet beim
+  // ersten Laden (nicht beim Auffrischen jede Minute). In der Vorschau der Leitung nur mit ?neuigkeiten=zeigen —
+  // und dort wird nie etwas vermerkt (Server und Seite).
+  const neuDaten = a.neuigkeiten as { liste: GlobalNeuigkeit[]; weitere: number; stand: string } | undefined;
+  const [neuOffen, setNeuOffen] = useState(false);
+  const neuEntschieden = useRef(false);
+  useEffect(() => {
+    if (neuEntschieden.current || !neuDaten) return;
+    neuEntschieden.current = true;
+    const wunsch = new URLSearchParams(window.location.search).get("neuigkeiten") === "zeigen";
+    if (neuDaten.liste?.length && (!vorschau || wunsch)) setNeuOffen(true);
+  }, [neuDaten, vorschau]);
+  const neuGesehen = () => {
+    if (vorschau || !neuDaten) return;
+    void fetch(mitToken("/neuigkeiten/gesehen"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bis: neuDaten.stand }) }).catch(() => { /* beim nächsten Mal wieder */ });
+  };
 
   // ── Unterschrift ──
   const [dialog, setDialog] = useState<T | null>(null);
@@ -1217,6 +1238,14 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       </div>
 
       <footer className="gp-fuss">{w.fusszeile}</footer>
+
+      {neuOffen && neuDaten && (
+        <Suspense fallback={null}>
+          <PortalNeuigkeiten liste={neuDaten.liste} weitere={neuDaten.weitere ?? 0} s={s} vorschau={vorschau}
+            onZu={() => { neuGesehen(); setNeuOffen(false); }}
+            onZiel={(z: GlobalNeuigkeitZiel) => { neuGesehen(); setNeuOffen(false); geh(z); }} />
+        </Suspense>
+      )}
 
       {/* 22.10.2026: Von Hand zu unterschreibende Formulare (IRS SS-4/8821) bekommen NIE ein Zeichenfeld — vier Schritte bis zum PDF-Scan. */}
       {dialog && dialog.unterschrift?.modus === "handschriftlich" && (

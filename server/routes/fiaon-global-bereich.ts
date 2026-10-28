@@ -152,6 +152,12 @@ router.get("/global/mein-auftrag/:ref", async (req: Request, res: Response) => {
     const { globalPortalNeuFrei, globalMandatKundenZusatz } = await import("../lib/fiaon-global-mandat");
     if (vorschau || await globalPortalNeuFrei(ref)) {
       Object.assign(auftrag, await globalMandatKundenZusatz(ref, token, (auftrag.sprache as "de" | "en") ?? "de", vorschau));
+      // E-456 (29.10.2026): „Neu für Sie" — was FIAON seit dem letzten „Gesehen" bereitgestellt hat. Lesen schreibt nie;
+      // ein Fehler hier leert nur das Fenster, das Portal lädt trotzdem.
+      const { globalNeuigkeitenKunde } = await import("../lib/fiaon-global-neuigkeiten");
+      const neuigkeiten = await globalNeuigkeitenKunde(ref, (auftrag.sprache as "de" | "en") ?? "de")
+        .catch((e) => { console.error(`[GLOBAL-BEREICH] ${ref}: Neuigkeiten nicht gelesen:`, e); return null; });
+      if (neuigkeiten) auftrag.neuigkeiten = neuigkeiten;
     }
     res.json({
       ok: true, auftrag, ...(zugang && !vorschau ? { zugang } : {}),
@@ -317,6 +323,22 @@ router.post("/global/mein-auftrag/:ref/gelesen", async (req: Request, res: Respo
     res.json({ ok: true });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] gelesen:", err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// E-456 (29.10.2026): „Neu für Sie" — der Kunde hat das Fenster geschlossen („Verstanden") oder ein Ziel geöffnet („Ansehen").
+// `bis` = der Stand, mit dem die Seite das Fenster zeigte. In der Vorschau der Leitung wird NIE etwas vermerkt.
+router.post("/global/mein-auftrag/:ref/neuigkeiten/gesehen", async (req: Request, res: Response) => {
+  try {
+    const ref = await zutritt(req, res);
+    if (!ref) return;
+    if (istVorschau(req)) return res.json({ ok: true, vorschau: true });
+    const { globalNeuigkeitenGesehen } = await import("../lib/fiaon-global-neuigkeiten");
+    await globalNeuigkeitenGesehen(ref, req.body?.bis);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] neuigkeiten gesehen:", err);
     res.status(500).json({ ok: false });
   }
 });

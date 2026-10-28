@@ -336,12 +336,13 @@ const en: typeof de = {
   augeLink: "private individuals",
   h1a: "Form a US company.",
   h1b: "Plan your route to capital.",
+  // Kurz genug für eine Zeile am Handy (375 px); „business card“ hieße britisch Visitenkarte (E-234) — darum „company card“.
   h1Wechsel: [
     "Your route to capital.",
-    "Your route into the US financial system.",
+    "Your route into US finance.",
     "Your route to a US company.",
-    "Your route to a US business account.",
-    "Your route to your first US business card.",
+    "Your route to US banking.",
+    "Your route to a company card.",
   ],
   lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
   knopfPakete: "Packages and prices",

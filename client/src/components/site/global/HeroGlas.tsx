@@ -71,10 +71,11 @@ function gemeinsam(a: string, b: string) {
  * der nächste Satz tippt sich (52 ms je Zeichen, leicht unregelmäßig wie von Hand). Der Strich blinkt nur, solange der Satz steht.
  * Die Zeile reserviert ihren Platz mit allen Sätzen unsichtbar übereinander — nichts darunter springt.
  * Läuft nur, wenn die Bühne im Bild und der Tab vorn ist; bei „weniger Bewegung“ steht der erste Satz still, ohne Strich.
- * Für Screenreader und Suchmaschinen steht die ruhige Fassung (h1b) unsichtbar in der Überschrift; die Tipp-Zeile ist aria-hidden.
+ * Für Screenreader und Suchmaschinen steht die ruhige Fassung (h1b) unsichtbar in der Überschrift; die Tipp-Zeile ist aria-hidden
+ * und steht AUSSERHALB der h1 (sonst läsen Crawler alle Sätze als Überschrift).
  */
 function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boolean }) {
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [stand, setStand] = useState({ i: 0, n: saetze[0]?.length ?? 0, tippt: false });
   useEffect(() => {
     const el = ref.current;
@@ -100,21 +101,26 @@ function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boo
     const weg = beobachteSichtbar(el, (s) => {
       sichtbar = s;
       if (!s) { window.clearTimeout(uhr); uhr = 0; return; }
-      if (!uhr) schritt();
+      if (uhr) return;
+      // Unterbrochen, während der Satz stand (weggescrollt, Tab hinten)? Dann erst wieder ganz halten, nicht sofort löschen.
+      if (modus === "loeschen" && n === saetze[i].length) { zeigen(false); plan(2600); } else schritt();
     });
     return () => { weg(); window.clearTimeout(uhr); };
   }, [saetze, startbereit]);
   // „Ihr Weg “ steht ruhig in Navy, nur das wechselnde Ende leuchtet in Glasblau.
   const fest = saetze.reduce((p, s) => Math.min(p, gemeinsam(saetze[0], s)), saetze[0]?.length ?? 0);
-  const text = (saetze[stand.i] ?? "").slice(0, stand.n);
+  const satz = saetze[stand.i] ?? "";
+  const text = satz.slice(0, stand.n);
+  // Der noch nicht getippte Rest steht unsichtbar dahinter: So gelten immer die Umbrüche und die Breite des FERTIGEN Satzes —
+  // nichts bricht beim Tippen neu um, und „Ihr Weg “ wandert nicht mit jedem Zeichen zur Seite (Gegenprüfung 28.10.).
   return (
-    <span ref={ref} className="hg-tipp" aria-hidden="true">
+    <div ref={ref} className="hg-tipp" aria-hidden="true">
       {saetze.map((s) => <span key={s} className="hg-tipp-mass">{s}</span>)}
       <span className="hg-tipp-text">
         <span className="fest">{text.slice(0, fest)}</span><span className="wechsel">{text.slice(fest)}</span>
-        <i className={`hg-tipp-strich${stand.tippt ? "" : " blinkt"}`} />
+        <i className={`hg-tipp-strich${stand.tippt ? "" : " blinkt"}`} /><span className="hg-tipp-rest">{satz.slice(stand.n)}</span>
       </span>
-    </span>
+    </div>
   );
 }
 
@@ -143,7 +149,9 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
         <p className="hg-zahl"><span className="hg-zahl-ab">{t.ab} </span>{t.preis}</p>
         <p className="hg-label">{t.label}</p>
         {t.wechsel && t.wechsel.length > 1 ? (
-          <h1 className="hg-h1">{t.h1a} <span className="hg-sr">{t.h1b}</span><TippZeile saetze={t.wechsel} startbereit={an} /></h1>
+          // Die Überschrift trägt nur die ruhigen Sätze (für Suchmaschinen und Screenreader); die Tipp-Zeile steht als eigene,
+          // aria-hidden Zeile direkt darunter — sonst stünden alle Mass-Sätze im Text der h1 (Gegenprüfung 28.10.).
+          <><h1 className="hg-h1 mit-tipp">{t.h1a} <span className="hg-sr">{t.h1b}</span></h1><TippZeile saetze={t.wechsel} startbereit={an} /></>
         ) : (
           <h1 className="hg-h1">{t.h1a} <em>{t.h1b}</em></h1>
         )}

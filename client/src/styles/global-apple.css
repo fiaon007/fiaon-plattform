@@ -704,14 +704,14 @@ html .fg.fg .fg-tarif-zahlen > div > em.inkl { display: flex; }
   html .fg.fg .fg-tarif-zahlen > div + div { border-left: 0; border-top: 1px solid rgba(18, 40, 74, .08); }
 }
 /* Luft in der Tafel: Knopf und „Erst sprechen“ mit gleichem Abstand zu Zahlen und Liste. */
-html .fg.fg .fg-tarif .tun { margin-top: 20px; gap: 6px; }
+html .fg.fg .fg-tarif:not(.vip) .tun { margin-top: 20px; gap: 6px; }
 html .fg.fg .fg-tarif-leistungen { margin-top: 22px; padding-top: 22px; }
 html .fg.fg .fg-tarif-weg { margin-top: 16px; }
 html .fg.fg .fg-tarif-zahlen { margin-top: 18px; }
 
 /* Drei Tafeln nebeneinander: die Zeile „Etappen … Begleitung …“ bricht ein- bis dreizeilig — gleiche Mindesthöhe, damit die
    Zahlenkästen, Knöpfe und Listen aller drei Tafeln auf einer Linie beginnen. */
-@media (min-width: 1001px) { html .fg.fg .fg-tarif:not(.vip) .fg-tarif-weg { min-height: 52px; align-items: flex-start; } }
+@media (min-width: 1001px) { html .fg.fg .fg-tarif:not(.vip) .fg-tarif-weg { min-height: 52px; } }
 
 /* ── Telefon: 24 px Rand überall (vorher 16 px), die Wischreihe genau bis an den Bildschirmrand ── */
 @media (max-width: 720px) {
@@ -733,4 +733,31 @@ html .fg.fg .fg-tarif-zahlen { margin-top: 18px; }
 @media (max-width: 380px) {
   html .fg.fg .fg-rahmen { padding: 0 20px; }
   html .fg.fg.fg-neu .fg-tarife { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; scroll-padding: 0 20px; }
+}
+
+/* ── Gegenprüfung 28.10.2026 ──────────────────────────────────────────────── */
+/* Ganz schmale Preis-Kästen (Unterseiten-Wischreihe bei 641–1000 px): Titel, Zahl, Satz untereinander statt übereinander. */
+@container (max-width: 240px) {
+  html .fg.fg .fg-tarif-zahlen > div { grid-template-columns: minmax(0, 1fr); grid-template-areas: "titel" "zahl" "satz"; }
+  html .fg.fg .fg-tarif-zahlen > div > b { justify-self: start; }
+}
+/* In der Wischreihe der Unterseiten (.fd-tafeln, Karte höchstens 330 px) keine Tablet-Innenteilung in zwei Spalten. */
+@media (max-width: 1000px) {
+  html .fg.fg .fd-tafeln .fg-tarif:not(.vip) { display: flex; }
+  html .fg.fg .fd-tafeln .fg-tarif:not(.vip) .tun { align-self: stretch; }
+  html .fg.fg .fd-tafeln .fg-tarif-leistungen { margin-top: 20px; padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--linie); }
+}
+/* Versteckte Leiste ganz weg, auch mit iPhone-Safe-Area (vorher schauten 16 px unten heraus). */
+@media (max-width: 640px) {
+  html .fg.fg.fg-neu .fg-mobil:not(.da) { transform: translateY(calc(100% + 42px + env(safe-area-inset-bottom))); pointer-events: none; }
+}
+@media (max-width: 820px) {
+  html .fg.fg .fd-mobil:not(.da) { transform: translateY(calc(100% + 42px + env(safe-area-inset-bottom))); pointer-events: none; }
+}
+/* Kleine Handys: die schwebende Leiste etwas näher an den Rand, damit „Struktur · 2.499 € — beauftragen“ hineinpasst. */
+@media (max-width: 380px) {
+  html .fg.fg.fg-neu .fg-mobil { left: 6px; right: 6px; padding: 6px; }
+  html .fg.fg.fg-neu .fg-mobil.in-paketen a, html .fg.fg.fg-neu .fg-mobil.in-paketen button { font-size: 13px; padding: 0 6px; }
+  html .fg.fg .fd-koerper, html .fg.fg .fd-weiter { padding-left: 20px; padding-right: 20px; }
+  html .fg.fg .fd-tafeln { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; scroll-padding: 0 20px; }
 }

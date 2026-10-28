@@ -151,17 +151,22 @@ function TeamKachel({ en, ruhig, x, onGespraech }: { en: boolean; ruhig: boolean
   const sp = en ? "en" : "de";
   const [i, setI] = useState(0);
   const [vorher, setVorher] = useState(-1);
-  const [lauf, setLauf] = useState(false);
+  // bereit = aufgetaucht und im Bild; gehalten = Maus über der Kachel oder Tastatur-Fokus darin (nicht auf dem Foto-Knopf).
+  const [bereit, setBereit] = useState(false);
+  const [gehalten, setGehalten] = useState(false);
   const [angehalten, setAngehalten] = useState(false);
+  // Wer ausdrücklich „fortsetzen“ wählt, dem läuft der Wechsel sofort — auch mit der Maus über der Kachel (APG-Karussell).
+  const [nutzerStart, setNutzerStart] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || ruhig) return;
     let sicht = false, maus = false, fokus = false;
+    const knopf = el.querySelector("button.hg-w-bild");
     // Erst wenn der Abschnitt aufgetaucht und die Kachel fertig hochgeglitten ist (hg-hoch), beginnt der Takt.
     const blick = el.closest(".hg-blick");
     let offen = !blick || blick.getAttribute("data-an") === "1";
-    const pruefen = () => setLauf(offen && sicht && !maus && !fokus);
+    const pruefen = () => { setBereit(offen && sicht); setGehalten(maus || fokus); };
     let warte = 0;
     const aufgetaucht = () => { if (offen) return; offen = true; window.clearTimeout(warte); pruefen(); };
     const perEnde = (e: AnimationEvent) => { if (e.target === el && e.animationName === "hg-hoch") aufgetaucht(); };
@@ -173,15 +178,17 @@ function TeamKachel({ en, ruhig, x, onGespraech }: { en: boolean; ruhig: boolean
     });
     if (!offen && blick) mo.observe(blick, { attributes: true, attributeFilter: ["data-an"] });
     const weg = beobachteSichtbar(el, (s) => { sicht = s; if (!s) fokus = false; pruefen(); });
-    const rein = () => { maus = true; pruefen(); }, raus = () => { maus = false; pruefen(); };
-    const fRein = (e: FocusEvent) => { fokus = !!(e.target as Element | null)?.matches?.(":focus-visible"); pruefen(); };
+    // Der Foto-Knopf selbst hält nicht an (sonst könnte „fortsetzen“ nie wirken, solange man darauf zeigt).
+    const rein = (e: PointerEvent) => { maus = !knopf?.contains(e.target as Node | null); pruefen(); };
+    const raus = () => { maus = false; pruefen(); };
+    const fRein = (e: FocusEvent) => { const z = e.target as Element | null; fokus = !!z?.matches?.(":focus-visible") && !knopf?.contains(z); pruefen(); };
     const fRaus = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) { fokus = false; pruefen(); } };
-    el.addEventListener("pointerenter", rein); el.addEventListener("pointerleave", raus);
+    el.addEventListener("pointerover", rein); el.addEventListener("pointerleave", raus);
     el.addEventListener("focusin", fRein); el.addEventListener("focusout", fRaus);
     return () => {
       weg(); mo.disconnect(); window.clearTimeout(warte);
       el.removeEventListener("animationend", perEnde);
-      el.removeEventListener("pointerenter", rein); el.removeEventListener("pointerleave", raus);
+      el.removeEventListener("pointerover", rein); el.removeEventListener("pointerleave", raus);
       el.removeEventListener("focusin", fRein); el.removeEventListener("focusout", fRaus);
     };
   }, [ruhig]);
@@ -204,11 +211,13 @@ function TeamKachel({ en, ruhig, x, onGespraech }: { en: boolean; ruhig: boolean
   const stand = (k: number) => (k === i ? "an" : k === vorher ? "weg" : undefined);
   const ki = (kuerzel: string) => portraitMitKi(kuerzel) ? KI_PORTRAIT_HINWEIS[sp] : null;
   return (
-    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={lauf && !angehalten ? "1" : "0"} data-angehalten={angehalten ? "1" : undefined}
+    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={bereit && !angehalten && (nutzerStart || !gehalten) ? "1" : "0"} data-angehalten={angehalten ? "1" : undefined}
       style={{ ["--i" as string]: 1, ["--takt" as string]: `${GLOBAL_TEAM_TAKT_MS}ms` }}>
-      <button type="button" className="hg-w-bild" aria-pressed={angehalten} aria-label={angehalten ? x.fortsetzen : x.anhalten}
-        onClick={() => setAngehalten((a) => !a)}>
-        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" title={ki(p.kuerzel) ?? undefined} width={54} height={54} loading="lazy" decoding="async" />)}
+      {/* Ein Umschalter mit festem Namen „Wechsel anhalten“: „gedrückt“ heißt angehalten (APG-Knopfmuster — Name und Zustand
+          nie doppelt und gegenläufig). Der Tooltip sagt, was ein Klick tut. */}
+      <button type="button" className="hg-w-bild" aria-pressed={angehalten} aria-label={x.anhalten} title={angehalten ? x.fortsetzen : x.anhalten}
+        onClick={() => { const neu = !angehalten; setAngehalten(neu); setNutzerStart(!neu); }}>
+        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" aria-hidden="true" width={54} height={54} loading="lazy" decoding="async" />)}
         <svg className="hg-w-ring" viewBox="0 0 62 62" aria-hidden="true">
           <circle className="spur" cx="31" cy="31" r="30" />
           <circle key={i} className="lauf" cx="31" cy="31" r="30" pathLength={100} onAnimationEnd={weiter} />

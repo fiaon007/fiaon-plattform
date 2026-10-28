@@ -123,6 +123,8 @@ button.hg-w-bild { display: block; padding: 0; border: 0; border-radius: 50%; ba
 button.hg-w-bild:hover .hg-w-halt, button.hg-w-bild:focus-visible .hg-w-halt, .hg-w-team[data-angehalten] .hg-w-halt { opacity: 1; transform: none; }
 @media (hover: none) { .hg-w-halt { opacity: 1; transform: none; } }
 .hg-w-team[data-angehalten] .hg-w-ring .lauf { opacity: .5; }
+/* Runder Fokusring für die runden Knöpfe (der allgemeine Ring hat 6 px Ecken). */
+html .fg.fg button.hg-w-bild:focus-visible, html .fg.fg .hg-w-knopf:focus-visible { border-radius: 50%; }
 .hg-w-bild img { position: absolute; inset: 4px; width: 54px; height: 54px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;
   box-shadow: 0 8px 20px -10px rgba(18, 40, 74, .5); opacity: 0; transform: scale(.9); transition: opacity .45s ease, transform .9s var(--kurve); }
 /* Das neue Foto kommt einen Hauch später als das alte geht — kein Doppelbild in der Mitte. */

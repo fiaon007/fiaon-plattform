@@ -1525,6 +1525,39 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/global (E-443, 28.10.2026) — Chefbüro › Global-Mandate ──────────────
+// Justin: „Man kann über das Chef-Dashboard kaum arbeiten, es läuft nicht synchron mit dem Kundenportal.“
+export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
+  {
+    titel: "Hier führst du jedes Global-Mandat — synchron mit dem Kundenportal.",
+    text: "Links die Mandate, rechts die geöffnete Akte mit Reitern. Was du änderst, sieht der Kunde sofort in seinem Portal. "
+      + "Und umgekehrt: Lädt der Kunde etwas hoch, schreibt oder unterschreibt er, erscheint es hier von selbst — der Raum lädt "
+      + "jede Minute leise nach, solange der Tab offen ist, und sofort, wenn du in den Tab zurückkommst. Was du gerade tippst, bleibt stehen.",
+  },
+  {
+    ziel: ".cgr-kacheln",
+    titel: "„Neue Uploads“ zählt, was noch niemand geöffnet hat.",
+    text: "Ein Kunden-Dokument trägt im Tresor die Marke „Neu“, bis jemand es im Chefbüro öffnet. Das bloße Öffnen der Akte zählt "
+      + "nicht mehr. Im Tresor setzt „Alle als gesehen markieren“ die ganze Akte auf gesehen.",
+    tipp: "Öffnen = gesehen: Die Aufgabe „neue Unterlagen“ bzw. „digital unterschrieben“ auf dem Board erledigt sich dann von selbst.",
+  },
+  {
+    ziel: ".cgr-reiter",
+    titel: "Unbrauchbare Unterlage? „Bitte neu …“ mit Grund.",
+    text: "Im Tresor hat jeder Kunden-Upload „Bitte neu …“: Du schreibst einen kurzen Satz für den Kunden, z. B. „Foto statt Scan — bitte als PDF-Scan“. "
+      + "Die Unterlage zählt dann nicht mehr als vorhanden, das Portal zeigt sie unter „Für Sie zu tun“ mit deinem Satz, und der Kunde "
+      + "liest eine Zeile im Verlauf. Eine Mail geht nicht raus — die schreibst du selbst, wenn du willst. Ein neuer Upload derselben "
+      + "Unterlage löst es von selbst. Die Auswahl daneben korrigiert die Art (z. B. „Sonstiges“ → „Reisepass“).",
+    tipp: "Löschen ist nicht nötig: Das alte Bild bleibt für dich sichtbar, der Kunde weiß, was fehlt.",
+  },
+  {
+    titel: "Alle Kunden-Aufgaben führen hierher.",
+    text: "Upload, Nachricht, digitale Unterschrift und unterschriebener Scan legen eine Aufgabe an, die direkt in diese Akte springt. "
+      + "Gelesen oder beantwortet (Reiter „Anfragen“) bzw. geöffnet (Tresor) — dann ist die Aufgabe erledigt. Nur der SS-4-Scan bleibt "
+      + "offen, bis du ihn an den Registered Agent zurückgeschickt hast.",
+  },
+];
+
 // ── /agent/global (17.09.2026, E-188) — die Liste der Global-Aufträge ───────
 // Das Werkzeug der zuständigen Person. Der Rundgang erklärt, was oben steht und
 // warum — und dass hier kein Geld gebucht und nichts zugesagt wird.
@@ -1656,7 +1689,9 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     titel: "Dokumente: was fehlt, was da ist, was du dazulegst.",
     text: "Oben die Liste der Unterlagen, die der Kunde liefern muss — mit „fehlt noch“ oder „liegt vor“. Darunter lädst du selbst "
       + "hoch: Art wählen, Datei wählen (PDF, JPG, PNG, HEIC bis 15 MB), entscheiden, ob der Kunde es sieht. Im Dokumentenraum "
-      + "liegen beide Richtungen; „Ansehen“ öffnet, „Löschen“ blendet aus und steht im Verlauf.",
+      + "liegen beide Richtungen; „Ansehen“ öffnet, „Löschen“ blendet aus und steht im Verlauf. "
+      // E-443 (28.10.2026): „bitte neu“ aus dem Chefbüro.
+      + "Hat die Leitung im Chefbüro eine Unterlage als „bitte neu“ markiert, steht sie hier wieder auf „fehlt noch“.",
     tipp: "Gründungsdokument, EIN-Bestätigung, Operating Agreement: immer „für den Kunden sichtbar“ — das ist der Dokumentenraum, den er gekauft hat.",
   },
   {
@@ -2895,6 +2930,8 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   waZentrale:  { titel: "WhatsApp-Zentrale", schritte: RUNDGANG_WA_ZENTRALE },
   bewerbungen:  { titel: "Bewerbungen",  schritte: RUNDGANG_BEWERBUNGEN },
   globalAuftraege: { titel: "Global-Aufträge", schritte: RUNDGANG_GLOBAL_AUFTRAEGE },
+  // E-443 (28.10.2026): Chefbüro › Global-Mandate.
+  chefGlobal: { titel: "Global-Mandate", schritte: RUNDGANG_CHEF_GLOBAL },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },

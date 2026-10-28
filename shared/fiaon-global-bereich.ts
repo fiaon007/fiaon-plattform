@@ -295,19 +295,81 @@ export function globalUnterlagenZeilen(sprache: BereichSprache = "de", privat = 
   return globalUnterlagenListe(privat, nurReisepass).map((u) => u[sprache].zeile);
 }
 
-/** Welche Unterlagen liegen vor? `arten` = die Arten aller nicht gelöschten Dokumente des Auftrags. */
-export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de", privat = false, nurReisepass = false): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string }[] {
+/**
+ * Welche Unterlagen liegen vor? `arten` = die Arten aller nicht gelöschten und NICHT abgelehnten Dokumente des Auftrags.
+ * E-443 (28.10.2026): `ablehnungen` (aus globalOffeneAblehnungen) — eine fehlende Unterlage trägt dann den Grund
+ * („Foto statt Scan — bitte als PDF-Scan“), damit Portal und Chefbüro sagen, WAS neu gebraucht wird.
+ */
+export function globalUnterlagenStand(arten: Iterable<string>, sprache: BereichSprache = "de", privat = false, nurReisepass = false, ablehnungen: GlobalAblehnung[] = []): { art: GlobalDokumentArt; titel: string; hinweis: string; vorhanden: boolean; alsText?: true; textHinweis?: string; abgelehnt?: { grund: string } }[] {
   const da = new Set(Array.from(arten, (a) => String(a)));
   return globalUnterlagenListe(privat, nurReisepass).map((u) => {
     const t = sprache === "en" ? u.en : u.de;
+    const vorhanden = u.erfuelltDurch.some((a) => da.has(a));
+    const ab = vorhanden ? undefined : ablehnungen.find((x) => (u.erfuelltDurch as string[]).includes(x.art));
     return {
-      art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden: u.erfuelltDurch.some((a) => da.has(a)),
+      art: u.art, titel: t.titel, hinweis: t.hinweis, vorhanden,
       ...(GLOBAL_TEXT_UNTERLAGEN.includes(u.art) && t.textHinweis ? { alsText: true as const, textHinweis: t.textHinweis } : {}),
+      ...(ab ? { abgelehnt: { grund: ab.grund } } : {}),
     };
   });
 }
 export function globalUnterlagenOffen(arten: Iterable<string>, privat = false, nurReisepass = false): number {
   return globalUnterlagenStand(arten, "de", privat, nurReisepass).filter((u) => !u.vorhanden).length;
+}
+
+/**
+ * E-443 (28.10.2026): Der Satz der Team-Aufgabe zum Kunden-Upload — dieselbe Liste wie Portal und Chef-Akte
+ * (Begleitvertrag/Individualangebot: nur der Reisepass). Vorher stand dort fest „von 5“.
+ */
+export function globalUnterlagenEingangSatz(stand: { titel: string; vorhanden: boolean }[]): string {
+  const fehlt = stand.filter((u) => !u.vorhanden);
+  if (fehlt.length === 0) return stand.length === 1 ? "Damit liegt die verlangte Unterlage vor." : "Damit liegen ALLE Unterlagen der Liste vor.";
+  if (stand.length === 1) return `Es fehlt noch die verlangte Unterlage: ${fehlt[0].titel}.`;
+  return `Es ${fehlt.length === 1 ? "fehlt" : "fehlen"} noch ${fehlt.length} von ${stand.length} Unterlagen der Liste: ${fehlt.map((u) => u.titel).join(", ")}.`;
+}
+
+// ── E-443 (28.10.2026): „BITTE NEU“ — EINE UNTERLAGE ABLEHNEN ────────────────
+// Justin: Ein Handyfoto vom Pass hakte die Pflicht „Reisepass“ ab — das Portal sagte „Alles erledigt“. Jetzt lehnt das
+// Chefbüro ein Kunden-Dokument mit Grund ab (abgelehnt_am, abgelehnt_grund): Es zählt nicht mehr als vorhanden, und der
+// Kunde liest unter „Für Sie zu tun“, was neu gebraucht wird. Ein neuer Upload derselben Unterlage löst es von selbst.
+export interface GlobalDokumentStand { id?: number | null; art: string; am?: string | null; abgelehntAm?: string | null; abgelehntGrund?: string | null }
+export interface GlobalAblehnung { id: number | null; art: string; grund: string; am: string }
+/** Der Grund, den der Kunde liest: kurz, ganzer Satz, keine Interna. */
+export const GLOBAL_ABLEHNUNG_GRUND_MIN = 8;
+export const GLOBAL_ABLEHNUNG_GRUND_MAX = 300;
+
+/** Die Arten, die dieselbe Unterlage erfüllen (Registerauszug ↔ Gesellschafterliste); sonst nur die Art selbst. */
+function gleicheUnterlage(art: string): string[] {
+  const u = GLOBAL_UNTERLAGEN_LISTE.find((x) => (x.erfuelltDurch as string[]).includes(art));
+  return u ? (u.erfuelltDurch as string[]) : [art];
+}
+
+/**
+ * Offene Ablehnungen — je Art die jüngste, solange danach kein neues, nicht abgelehntes Dokument derselben Unterlage
+ * kam. Reine Funktion für Server, Portal und Prüfstand. Jüngste zuerst.
+ */
+export function globalOffeneAblehnungen(doks: Iterable<GlobalDokumentStand>): GlobalAblehnung[] {
+  const liste = Array.from(doks);
+  const offen = new Map<string, GlobalAblehnung>();
+  for (const d of liste) {
+    if (!d.abgelehntAm) continue;
+    const seit = String(d.abgelehntAm);
+    const gruppe = gleicheUnterlage(String(d.art));
+    if (liste.some((x) => !x.abgelehntAm && gruppe.includes(String(x.art)) && String(x.am ?? "") > seit)) continue;
+    const da = offen.get(String(d.art));
+    if (!da || seit > da.am) offen.set(String(d.art), { id: d.id ?? null, art: String(d.art), grund: String(d.abgelehntGrund ?? "").trim(), am: seit });
+  }
+  return Array.from(offen.values()).sort((a, b) => b.am.localeCompare(a.am));
+}
+
+/**
+ * Was der Kunde zusätzlich neu einreichen soll: offene Ablehnungen, die NICHT schon als fehlende Unterlage (mit Grund)
+ * in `stand` stehen — z. B. ein abgelehntes „Sonstiges Dokument“ oder ein Pass, wenn ein älterer noch gilt.
+ */
+export function globalNachreichen(ablehnungen: GlobalAblehnung[], stand: { art: string; vorhanden: boolean; abgelehnt?: { grund: string } }[], sprache: BereichSprache = "de"): { art: string; titel: string; grund: string }[] {
+  const schonDa = new Set<string>();
+  for (const u of stand) if (!u.vorhanden && u.abgelehnt) for (const a of gleicheUnterlage(u.art)) schonDa.add(a);
+  return ablehnungen.filter((x) => !schonDa.has(x.art)).map((x) => ({ art: x.art, titel: globalDokumentArtText(x.art, sprache), grund: x.grund }));
 }
 
 // ── DIE US-GESELLSCHAFT ──────────────────────────────────────────────────────
@@ -574,6 +636,8 @@ export const GLOBAL_VERLAUF_TEXT = {
     dokumentKunde: (art: string, name: string) => `Sie haben ein Dokument hochgeladen: ${art} (${name}).`,
     dokumentFiaon: (art: string, name: string) => `FIAON hat ein Dokument für Sie bereitgestellt: ${art} (${name}).`,
     nachricht: (text: string) => `Ihre Nachricht: ${text}`,
+    // E-443 (28.10.2026): eine Unterlage „bitte neu“ — der Grund steht im Satz.
+    dokumentNeu: (art: string, grund: string) => `Bitte reichen Sie „${art}“ neu ein: ${grund}`,
     wiederOffen: "Ihr Auftrag wird weiter begleitet.",
   },
   en: {
@@ -590,6 +654,7 @@ export const GLOBAL_VERLAUF_TEXT = {
     dokumentKunde: (art: string, name: string) => `You uploaded a document: ${art} (${name}).`,
     dokumentFiaon: (art: string, name: string) => `FIAON has provided a document for you: ${art} (${name}).`,
     nachricht: (text: string) => `Your message: ${text}`,
+    dokumentNeu: (art: string, grund: string) => `Please submit “${art}” again: ${grund}`,
     wiederOffen: "Support for your order continues.",
   },
 } as const;

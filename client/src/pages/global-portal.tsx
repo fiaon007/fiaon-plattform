@@ -123,6 +123,8 @@ const W = {
     antwortTitel: (n: string) => `Neue Antwort von ${n}`, antwortText: "Zu Ihrer Anfrage.", lesen: "Antwort lesen",
     postTitel: (n: number) => n === 1 ? "Ein neuer Brief" : `${n} neue Briefe`, postText: "Für Sie eingescannt.", oeffnen: "Öffnen",
     unterlagenTitel: (n: number) => n === 1 ? "Eine Unterlage fehlt noch" : `${n} Unterlagen fehlen noch`, unterlagenText: "Bitte im Tresor hochladen.", zumTresor: "Zum Tresor",
+    // E-443 (28.10.2026): eine Unterlage, die wir neu brauchen — mit dem Grund aus dem Team.
+    neuTitel: (x: string) => `Bitte neu einreichen: ${x}`, bitteNeu: "Bitte neu einreichen", neuGrund: (x: string) => `Bitte neu: ${x}`,
     termin: "Ihr Startgespräch",
     fahrplanTitel: "Ihr Fahrplan", fahrplanLead: "Alle Schritte zu Gesellschaft, Konto und Kapital — mit Datum, sobald erledigt.",
     stand: { offen: "offen", in_arbeit: "in Arbeit", beantragt: "beantragt", erledigt: "erledigt" } as Record<string, string>,
@@ -195,6 +197,7 @@ const W = {
     antwortTitel: (n: string) => `New reply from ${n}`, antwortText: "On your request.", lesen: "Read the reply",
     postTitel: (n: number) => n === 1 ? "One new letter" : `${n} new letters`, postText: "Scanned for you.", oeffnen: "Open",
     unterlagenTitel: (n: number) => n === 1 ? "One document is still missing" : `${n} documents are still missing`, unterlagenText: "Please upload to your vault.", zumTresor: "Go to the vault",
+    neuTitel: (x: string) => `Please submit again: ${x}`, bitteNeu: "Please submit again", neuGrund: (x: string) => `Needed again: ${x}`,
     termin: "Your kick-off call",
     fahrplanTitel: "Your roadmap", fahrplanLead: "Every step to company, account and capital — dated once done.",
     stand: { offen: "open", in_arbeit: "in progress", beantragt: "applied for", erledigt: "done" } as Record<string, string>,
@@ -313,6 +316,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const postNeu = post.filter((d) => !d.gelesen);
   const darfHochladen = ["bezahlt", "gestartet", "abgeschlossen"].includes(a.status);
   const fehlend = darfHochladen ? (a.unterlagen ?? []).filter((u: T) => !u.vorhanden) : [];
+  // E-443 (28.10.2026): Was das Team als „bitte neu“ markiert hat und nicht schon oben als fehlende Unterlage steht.
+  const nachreichen: T[] = darfHochladen ? (a.nachreichen ?? []) : [];
   const ap = a.ansprechpartner as T | undefined;
   const apVorname = ap?.vorname || ap?.name?.split(" ")[0] || (s === "en" ? "your contact" : "Ihrem Ansprechpartner");
   const g = a.gesellschaft ?? {};
@@ -355,7 +360,15 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   }, [a, s]);
 
   // ── Hochladen ──
-  const [art, setArt] = useState("sonstiges");
+  const [art, setArtRoh] = useState("sonstiges");
+  // E-443 (28.10.2026): Ist eine Unterlage angefordert oder „bitte neu“, steht ihre Art im Upload schon vorbelegt — bis der
+  // Kunde selbst wählt. Vorher stand dort immer „Sonstiges“, und ein Pass landete als „Sonstiges Dokument“.
+  const [artGewaehlt, setArtGewaehlt] = useState(false);
+  const setArt = (x: string) => { setArtGewaehlt(true); setArtRoh(x); };
+  const erlaubt = (x?: string) => !!x && ((a.dokumentArten ?? []) as T[]).some((d) => d.art === x);
+  const artVorschlag = [fehlend.find((u: T) => u.abgelehnt)?.art, nachreichen[0]?.art, fehlend[0]?.art].find((x) => erlaubt(x)) ?? "sonstiges";
+  useEffect(() => { if (!artGewaehlt) setArtRoh(artVorschlag); }, [artVorschlag, artGewaehlt]);
+  const grundFuerArt = fehlend.find((u: T) => u.art === art)?.abgelehnt?.grund ?? nachreichen.find((x) => x.art === art)?.grund ?? null;
   const [datei, setDatei] = useState<File | null>(null);
   const [zieht, setZieht] = useState(false);
   const [laedtHoch, setLaedtHoch] = useState(false);
@@ -369,7 +382,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
       const r = await fetch(mitToken("/dokument"), { method: "POST", body: fd });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) setUploadMeldung({ gut: false, text: j.error || t.uploadFehler });
-      else { setDatei(null); setUploadMeldung({ gut: true, text: s === "en" ? "Uploaded — now in your vault." : "Hochgeladen — liegt im Tresor." }); await laden(); }
+      // E-443: nach dem Upload schlägt die Auswahl wieder die nächste fehlende Unterlage vor.
+      else { setDatei(null); setArtGewaehlt(false); setUploadMeldung({ gut: true, text: s === "en" ? "Uploaded — now in your vault." : "Hochgeladen — liegt im Tresor." }); await laden(); }
     } catch { setUploadMeldung({ gut: false, text: t.uploadFehler }); }
     finally { setLaedtHoch(false); }
   };
@@ -427,7 +441,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   }
   if (ungeleseneAntworten.length) tun.push({ key: "antwort", Icon: MessageSquare, ton: "blau", titel: w.antwortTitel(ungeleseneAntworten[ungeleseneAntworten.length - 1].autor || apVorname), text: w.antwortText, knopf: w.lesen, aktion: () => zu("gp-anfragen") });
   if (postNeu.length) tun.push({ key: "post", Icon: Inbox, ton: "", titel: w.postTitel(postNeu.length), text: w.postText, knopf: w.oeffnen, aktion: () => zu("gp-post") });
-  if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.titel).join(" · "), knopf: w.zumTresor, aktion: () => zu("gp-tresor") });
+  // E-443 (28.10.2026): Fehlt eine Unterlage, weil wir sie neu brauchen, steht der Grund dabei; der Knopf wählt ihre Art vor.
+  if (fehlend.length) tun.push({ key: "unterlagen", Icon: Upload, ton: "", titel: w.unterlagenTitel(fehlend.length), text: fehlend.map((u: T) => u.abgelehnt?.grund ? `${u.titel} — ${u.abgelehnt.grund}` : u.titel).join(" · "), knopf: w.zumTresor, aktion: () => { if (erlaubt(fehlend[0]?.art)) setArt(fehlend[0].art); zu("gp-tresor"); } });
+  for (const x of nachreichen) tun.push({ key: `n${x.art}`, Icon: Upload, ton: "", titel: w.neuTitel(x.titel), text: x.grund, knopf: w.zumTresor, aktion: () => { if (erlaubt(x.art)) setArt(x.art); zu("gp-tresor"); } });
   // Scheibe 1: offene Rechnung eines hinzugefügten Dienstes — mit dem Weg zur Zahlungsseite.
   for (const d of (a.dienste?.gebucht ?? []) as T[]) {
     const z = globalZusatz(d.key);
@@ -551,9 +567,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   ));
   const zeilenDok = (liste: T[]) => liste.map((d) => (
     <DokZeile key={d.id} titel={d.titel || d.artText || d.name} Icon={d.unterschrift?.gefordert ? FileSignature : FileText}
-      unter={[d.titel ? d.name : (d.artText ? d.name : ""), d.von === "kunde" ? t.vonIhnen : t.vonFiaon, tagKurz(d.am), kb(d.groesse)].filter(Boolean).join(" · ")}
+      unter={[d.abgelehnt?.grund ? w.neuGrund(d.abgelehnt.grund) : "", d.titel ? d.name : (d.artText ? d.name : ""), d.von === "kunde" ? t.vonIhnen : t.vonFiaon, tagKurz(d.am), kb(d.groesse)].filter(Boolean).join(" · ")}
       href={mitToken(`/dokument/${encodeURIComponent(String(d.id))}`)}
-      marke={d.unterschrift?.gefordert ? (d.unterschrift.unterschrieben ? { text: w.unterschrieben(tagKurz(d.unterschrift.am)), ton: "gruen" } : { text: w.wartet, ton: "blau" }) : (d.von !== "kunde" && !d.gelesen ? { text: w.neu, ton: "blau" } : undefined)}
+      marke={d.abgelehnt ? { text: w.bitteNeu, ton: "st-abgelehnt" } : d.unterschrift?.gefordert ? (d.unterschrift.unterschrieben ? { text: w.unterschrieben(tagKurz(d.unterschrift.am)), ton: "gruen" } : { text: w.wartet, ton: "blau" }) : (d.von !== "kunde" && !d.gelesen ? { text: w.neu, ton: "blau" } : undefined)}
       aktion={d.unterschrift?.gefordert && !d.unterschrift.unterschrieben ? { text: d.unterschrift.modus === "handschriftlich" ? HANDSCHRIFT_WOERTER[s].knopf : w.unterschreiben, los: () => setDialog(d) } : undefined} />
   ));
 
@@ -871,13 +887,17 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                    onDragOver={(e) => { e.preventDefault(); setZieht(true); }} onDragLeave={() => setZieht(false)}
                    onDrop={(e) => { e.preventDefault(); setZieht(false); const f = e.dataTransfer.files?.[0]; if (f) setDatei(f); }}>
                 <b className="gp-ablage-titel">{w.hochladenTitel}</b>
-                {fehlend.length > 0 && (
+                {(fehlend.length > 0 || nachreichen.length > 0) && (
                   <ul className="gp-fehlt">
                     {fehlend.map((u: T) => (
                       <li key={u.art}><button type="button" className={art === u.art ? "an" : ""} onClick={() => setArt(u.art)}><CircleDashed size={14} /> {u.titel}</button></li>
                     ))}
+                    {nachreichen.filter((x) => erlaubt(x.art) && !fehlend.some((u: T) => u.art === x.art)).map((x) => (
+                      <li key={`n${x.art}`}><button type="button" className={art === x.art ? "an" : ""} onClick={() => setArt(x.art)}><CircleDashed size={14} /> {x.titel}</button></li>
+                    ))}
                   </ul>
                 )}
+                {grundFuerArt && <p className="gp-leise" role="note">{w.neuGrund(grundFuerArt)}</p>}
                 <label className="gp-ablage-feld">
                   <Upload size={20} strokeWidth={1.5} />
                   <span>{datei ? <b>{datei.name}</b> : w.hochladenFeld}</span>

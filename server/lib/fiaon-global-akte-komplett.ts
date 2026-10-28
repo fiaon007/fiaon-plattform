@@ -31,6 +31,7 @@ import {
   HANDSCHRIFT_WOERTER, istBildInhalt, istPdfInhalt, unterschriftModus, type UnterschriftModus,
 } from "@shared/fiaon-global-akte";
 import { createHash } from "node:crypto";
+import { globalChefMandatPfad } from "@shared/fiaon-global-wege";
 
 type Fuer = "kunde" | "team";
 const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString() : null);
@@ -511,7 +512,8 @@ export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { 
       titel: ss4 ? `SS-4 unterschrieben – an den Registered Agent (Ablageteam) per E-Mail zurücksenden — ${l.akte.firma_name || ref}` : `${p ? p.titel.de : "Dokument"} unterschrieben zurück — ${l.akte.firma_name || ref}`,
       text: `${kunde ? "Der Kunde hat" : "Im Namen des Kunden wurde"} „${p ? p.titel.de : String(d.titel || d.dateiname)}“ von Hand unterschrieben als PDF hochgeladen. Der Scan liegt im Tresor (Akte komplett).${ss4 ? " Bitte das unterschriebene SS-4 per E-Mail an das Ablageteam des Registered Agent zurückschicken; danach Station EIN auf „Eingereicht (Fax)“ setzen." : " Bitte prüfen."}`,
       schluessel: `global:${ref}:scan:${id}`, bereich: "konten", quelle: "global", autorName: "FIAON Global", dringend: ss4,
-      link: `/chef/global?mandat=${encodeURIComponent(ref)}`,
+      // E-443 (28.10.2026): EIN Helfer für den Weg ins Chefbüro — wie Upload und Nachricht (shared/fiaon-global-wege.ts).
+      link: globalChefMandatPfad(ref),
       agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
       anlageText: "Unterschriebener Scan im Portal hochgeladen.",
     });

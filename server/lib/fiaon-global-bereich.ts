@@ -59,7 +59,8 @@ import { escapeHtml } from "./fiaon-html-pdf";
 import { paket as katalogPaket, istAngebotsPaket } from "@shared/fiaon-pakete";
 import { globalPaket } from "@shared/fiaon-global";
 import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
-import { globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
+// E-443 (28.10.2026): Aufgaben aus Kunden-Upload und Kunden-Nachricht führen ins Chefbüro (Global-Mandate).
+import { globalChefMandatPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { KAPITAL_MARKE, KAPITAL_ETAPPEN } from "@shared/fiaon-global-angebot-kapital";
 import { KAPITAL_C_MARKE, KAPITAL_C_ETAPPEN } from "@shared/fiaon-global-angebot-kapital-c";
 import { BEGLEIT_PORTAL } from "@shared/fiaon-global-angebot-begleit";
@@ -67,7 +68,7 @@ import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
   globalDokumentArt, globalDokumentArtText, globalDokumentArtenFuer, globalDurchgangMonat, globalEtappeStand, globalEtappeText, globalFristAbstandText,
   globalFristMarke, globalTageslaufFenster, globalHatMonatsdurchgang, globalHeimatMeldungSchritt, globalKundeDarfArt, globalPaketEtappeBis, globalPflichtFristen, globalTagAlsText,
-  globalUnterlagenOffen, globalUnterlagenStand, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
+  globalUnterlagenStand, globalUnterlagenEingangSatz, globalOffeneAblehnungen, globalNachreichen, isoPlusTage, istIsoTag, usBundesstaatCode, usBundesstaatName, globalJahresbetreuungRechnungAb,
   GLOBAL_ETAPPE_FUSSNOTE,
   type BereichSprache, type GlobalGesellschaft,
 } from "@shared/fiaon-global-bereich";
@@ -123,6 +124,15 @@ export function ensureGlobalBereich(): Promise<void> {
           geloescht_am TIMESTAMPTZ
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_global_dokumente_ref_idx ON fiaon_global_dokumente (ref, created_at DESC)`;
+      // E-443 (28.10.2026): „bitte neu“ — ein abgelehntes Kunden-Dokument zählt nicht mehr als vorhanden (Grund liest der Kunde).
+      await sqlPool.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '3s'`;
+        await tx`
+          ALTER TABLE fiaon_global_dokumente
+            ADD COLUMN IF NOT EXISTS abgelehnt_am TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS abgelehnt_grund TEXT,
+            ADD COLUMN IF NOT EXISTS abgelehnt_von TEXT`;
+      });
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_global_verlauf (
           id BIGSERIAL PRIMARY KEY,
@@ -275,7 +285,8 @@ async function angebotsAnsprechpartner(ref: string): Promise<{ name: string; vor
 // ── Lesen: Dokumente, Fristen, Verlauf ───────────────────────────────────────
 async function dokumenteLesen(ref: string): Promise<any[]> {
   return (await sqlPool`
-    SELECT d.id, d.von, d.art, d.dateiname, d.mime, d.groesse, d.sichtbar_fuer_kunde, d.hochgeladen_von_agent, d.created_at, ag.name AS agent_name
+    SELECT d.id, d.von, d.art, d.dateiname, d.mime, d.groesse, d.sichtbar_fuer_kunde, d.hochgeladen_von_agent, d.created_at, ag.name AS agent_name,
+           d.abgelehnt_am, d.abgelehnt_grund
       FROM fiaon_global_dokumente d LEFT JOIN fiaon_agents ag ON ag.id = d.hochgeladen_von_agent
      WHERE d.ref = ${ref} AND d.geloescht_am IS NULL
      ORDER BY d.created_at DESC, d.id DESC`) as any[];
@@ -359,6 +370,10 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ? { ...globalWiderrufsfrist(new Date(akte.unterschrieben_am)), sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true }
     : null;
   const verlaufAlles = verlaufBauen(l, geschrieben, paketName);
+  // E-443 (28.10.2026): EINE Unterlagen-Rechnung für Portal, Office und Chefbüro — abgelehnte Dokumente zählen nicht.
+  const ablehnungen = globalOffeneAblehnungen(dokumente.map((d) => ({ id: Number(d.id), art: String(d.art), am: iso(d.created_at), abgelehntAm: iso(d.abgelehnt_am), abgelehntGrund: d.abgelehnt_grund ?? null })));
+  const unterlagen = globalUnterlagenStand(dokumente.filter((d) => !d.abgelehnt_am).map((d) => String(d.art)), sprache, firma.art === "privat", individuell, ablehnungen);
+  const nachreichen = globalNachreichen(ablehnungen, unterlagen, sprache);
   const bezahlt = String(b.payment_status) === "paid";
   // 19.09.2026 (E-196): Jahresbetreuung — angekreuzt ja/nein und der Preis je Betreuungsjahr. Das Office sieht
   // dazu, ab wann die Rechnung für das zweite Betreuungsjahr zu stellen ist: dieselbe Regel wie im Tageslauf.
@@ -380,10 +395,12 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ...(ansprechpartner ? { ansprechpartner } : {}),
     ...(gesellschaft ? { gesellschaft } : {}),
     // Vorhanden ist eine Unterlage, sobald ein Dokument ihrer Art im Raum liegt — gleich, wer es abgelegt hat.
-    unterlagen: globalUnterlagenStand(dokumente.map((d) => String(d.art)), sprache, firma.art === "privat", individuell),
+    // E-443 (28.10.2026): … und es nicht als „bitte neu“ abgelehnt ist. Fehlt sie deshalb, trägt sie den Grund.
+    unterlagen, ...(nachreichen.length ? { nachreichen } : {}),
     dokumente: sichtbareDokumente.map((d) => ({
       id: Number(d.id), art: String(d.art), artText: globalDokumentArtText(d.art, sprache), name: String(d.dateiname),
       groesse: Number(d.groesse || 0), von: d.von === "kunde" ? "kunde" : "fiaon", am: iso(d.created_at),
+      ...(d.abgelehnt_am ? { abgelehnt: { am: iso(d.abgelehnt_am), grund: String(d.abgelehnt_grund ?? "") } } : {}),
       ...(fuer === "office" ? { sichtbarFuerKunde: d.von === "kunde" || !!d.sichtbar_fuer_kunde, vonName: d.von === "kunde" ? "Kunde" : (d.agent_name ?? "FIAON") } : {}),
     })),
     fristen: fristen.map((f) => ({
@@ -467,7 +484,11 @@ export async function globalBereichOfficeSicht(ref: string): Promise<Record<stri
     zustaendig: z ? { id: Number(z.id), name: String(z.name) } : null,
     betragCents: Math.round(Number(l.b.amount_due || 0) * 100),
     verwendungszweck: l.b.payment_reference ?? null, rechnungsnummer: l.b.invoice_number ?? null,
-    erstelltAm: iso(l.akte.created_at), bezahltAm: iso(l.akte.bezahlt_am), gestartetAm: iso(l.akte.gestartet_am), abgeschlossenAm: iso(l.akte.abgeschlossen_am),
+    // E-443 (28.10.2026): „Bezahlt“ aus derselben Quelle wie das Portal (Bestellung payment_status = paid). Fehlt das Datum in der
+    // Akte (Begleit-Akte über eine schon bezahlte Bestellung), gilt der Tag der Umsatz-Quelle: COALESCE(paid_at, completed_at).
+    erstelltAm: iso(l.akte.created_at),
+    bezahltAm: iso(l.akte.bezahlt_am) ?? (String(l.b.payment_status) === "paid" ? iso(l.b.paid_at ?? l.b.completed_at) : null),
+    gestartetAm: iso(l.akte.gestartet_am), abgeschlossenAm: iso(l.akte.abgeschlossen_am),
     intern: {
       notizen: alles.filter((v) => v.art === "notiz").map((v) => ({ id: v.id ?? null, am: v.am, von: v.von ?? "System", text: v.text, sichtbar: v.sichtbar })),
       verlaufAlles: alles.map((v) => ({ am: v.am, art: v.art, text: v.text, sichtbar: v.sichtbar, ...(v.von ? { von: v.von } : {}) })),
@@ -511,7 +532,8 @@ export async function globalBereichListe(wer: { agentId: number; alle: boolean }
      LIMIT 300`) as any[];
   if (!rows.length) return [];
   const refs = rows.map((r) => String(r.ref));
-  const arten = (await sqlPool`SELECT ref, art FROM fiaon_global_dokumente WHERE geloescht_am IS NULL AND ref = ANY(${refs}) GROUP BY ref, art`) as any[];
+  // E-443: abgelehnte Dokumente („bitte neu“) zählen nicht als vorhanden.
+  const arten = (await sqlPool`SELECT ref, art FROM fiaon_global_dokumente WHERE geloescht_am IS NULL AND abgelehnt_am IS NULL AND ref = ANY(${refs}) GROUP BY ref, art`) as any[];
   const naechste = (await sqlPool`
     SELECT DISTINCT ON (ref) ref, titel, faellig_am FROM fiaon_global_fristen
      WHERE erledigt_am IS NULL AND ref = ANY(${refs}) ORDER BY ref, faellig_am ASC, id ASC`) as any[];
@@ -529,7 +551,8 @@ export async function globalBereichListe(wer: { agentId: number; alle: boolean }
       etappe: status === "offen" ? 0 : Number(r.etappe || 0),
       ...(r.stichtag ? { stichtag: isoTag(r.stichtag) } : {}),
       ...(r.naechster_schritt ? { naechsterSchritt: { text: String(r.naechster_schritt), ...(r.naechster_schritt_bis ? { bis: isoTag(r.naechster_schritt_bis) } : {}) } } : {}),
-      offeneUnterlagen: globalUnterlagenOffen(artenJe.get(String(r.ref)) ?? []),
+      // E-443 (28.10.2026): dieselbe Liste wie Portal und Akte (privat ohne Registerauszug, Angebots-Paket nur Reisepass).
+      offeneUnterlagen: globalUnterlagenStand(artenJe.get(String(r.ref)) ?? [], "de", firma.art === "privat", istAngebotsPaket(r.paket_key)).filter((u) => !u.vorhanden).length,
       ...(frist ? { naechsteFrist: { titel: String(frist.titel), faelligAm: isoTag(frist.faellig_am) } } : {}),
       zustaendig: r.zustaendig_agent_id ? { id: Number(r.zustaendig_agent_id), name: String(r.zustaendig_name || `Mitarbeiter ${r.zustaendig_agent_id}`) } : null,
       alterTage: Math.max(0, Math.floor((Date.now() - new Date(r.created_at).getTime()) / 86_400_000)),
@@ -853,14 +876,18 @@ export async function eingangMelden(l: Lage, zeile: string): Promise<void> {
   try {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
     const firma = String(l.akte.firma_name || l.ref);
-    const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${l.ref} AND geloescht_am IS NULL`) as any[];
-    const offen = globalUnterlagenOffen(arten.map((a) => String(a.art)));
+    // E-443 (28.10.2026): dieselbe Unterlagen-Logik wie Portal und Chef-Akte — privat ohne Registerauszug, Begleitvertrag/
+    // Individualangebot nur der Reisepass, abgelehnte Dokumente zählen nicht. Vorher fest „von 5“ (falsch beim Begleitvertrag).
+    const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${l.ref} AND geloescht_am IS NULL AND abgelehnt_am IS NULL`) as any[];
+    const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de", json<Record<string, any>>(l.akte.firma, {}).art === "privat", istAngebotsPaket(l.akte.paket_key));
+    const offen = stand.filter((u) => !u.vorhanden).length;
     await auftragFuerKunden({
       personId: l.b.person_id != null ? Number(l.b.person_id) : null, ref: l.ref,
       titel: `FIAON Global: neue Unterlagen — ${firma}`,
-      text: `${zeile} ${offen === 0 ? "Damit liegen ALLE Unterlagen der Liste vor." : `Es fehlen noch ${offen} von 5 Unterlagen der Liste.`} Bitte ansehen und prüfen: ${globalOfficeAuftragPfad(l.ref)}`,
+      text: `${zeile} ${globalUnterlagenEingangSatz(stand)} Bitte im Chefbüro ansehen und prüfen: ${globalChefMandatPfad(l.ref)}`,
       schluessel: `global:${l.ref}:eingang:${berlinToday()}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
-      link: globalOfficeAuftragPfad(l.ref),
+      // E-443: EIN Ziel für alle Kunden-Aufgaben — die Chef-Akte. Öffnet das Team dort die Datei, erledigt sich die Aufgabe.
+      link: globalChefMandatPfad(l.ref),
       agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
       anlageText: "Der Kunde hat in „Mein Auftrag“ etwas hochgeladen.",
     });
@@ -990,9 +1017,10 @@ export async function globalKundenNachricht(ref: string, ein: { text: unknown; a
     const erg = await auftragFuerKunden({
       personId: l.b.person_id != null ? Number(l.b.person_id) : null, ref,
       titel: `FIAON Global: Nachricht von ${firma}`,
-      text: `Nachricht aus „Mein Auftrag“ (${globalTagAlsText(berlinToday(), "de")}):\n„${text}“\nBitte antworten — per Telefon oder Mail — und im Auftrag eine sichtbare Notiz hinterlassen: ${globalOfficeAuftragPfad(ref)}`,
+      text: `Nachricht aus „Mein Auftrag“ (${globalTagAlsText(berlinToday(), "de")}):\n„${text}“\nBitte im Chefbüro unter „Anfragen“ antworten (oder per Telefon/Mail und dort eine Notiz): ${globalChefMandatPfad(ref)}`,
       dringend: false, schluessel: `global:${ref}:nachricht:${berlinToday()}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
-      link: globalOfficeAuftragPfad(ref),
+      // E-443 (28.10.2026): ins Chefbüro — Lesen oder Beantworten dort erledigt die Aufgabe.
+      link: globalChefMandatPfad(ref),
       agentId: (l.akte.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
       anlageText: "Der Kunde hat in „Mein Auftrag“ geschrieben.",
     });
@@ -1229,7 +1257,7 @@ export async function globalTageslauf(jetzt: Date = new Date()): Promise<GlobalT
       if (heute >= isoPlusTage(start, GLOBAL_UNTERLAGEN_NACHFASS_TAGE)) {
         const schluessel = `global:${ref}:unterlagen`;
         if (!(await aufgabeDa(schluessel))) {
-          const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
+          const arten = (await sqlPool`SELECT DISTINCT art FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL AND abgelehnt_am IS NULL`) as any[];
           const [fa] = (await sqlPool`SELECT firma, paket_key FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
           const stand = globalUnterlagenStand(arten.map((a) => String(a.art)), "de", json<Record<string, any>>(fa?.firma, {}).art === "privat", istAngebotsPaket(fa?.paket_key));
           const fehlt = stand.filter((u) => !u.vorhanden);

@@ -142,14 +142,24 @@ export function Fehlermeldung({ text, erneut }: { text: string; erneut?: () => v
  * der seine Daten mal aus einem Kontext bekommt und mal selbst holt
  * (`useMaraDaten` in mara-lage.tsx) — die Hook-Regel verbietet, `useDaten`
  * nur manchmal aufzurufen. Für jeden bisherigen Aufrufer ändert sich nichts.
+ *
+ * E-443 (28.10.2026): `takt` (ms, freiwillig) — leise nachladen, solange der Tab sichtbar ist, und sofort beim
+ * Zurückkehren in den Tab (Muster wie das Kundenportal, business-auftrag.tsx E-332). Ein leiser Lauf setzt weder
+ * „lädt …“ noch einen Fehler: Klappt er nicht, bleiben die alten Daten stehen. Er ersetzt nur `daten` — Eingaben in
+ * Formularen leben im eigenen useState der Räume und bleiben unberührt. `leise()` stößt denselben Lauf von Hand an.
+ * Ohne `takt` (alle bisherigen Aufrufer) ändert sich nichts.
  */
-export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = []): {
-  daten: T | null; laedt: boolean; fehler: string | null; neu: () => void;
+export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = [], takt?: number): {
+  daten: T | null; laedt: boolean; fehler: string | null; neu: () => void; leise: () => void;
 } {
   const [daten, setDaten] = useState<T | null>(null);
   const [laedt, setLaedt] = useState(pfad !== null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [runde, setRunde] = useState(0);
+  // E-443: Der leise Lauf liest den Pfad zum Zeitpunkt der Antwort — ein Mandatswechsel dazwischen verwirft sie.
+  const pfadJetzt = useRef(pfad);
+  pfadJetzt.current = pfad;
+  const leiseLaeuft = useRef(false);
 
   useEffect(() => {
     if (pfad === null) { setLaedt(false); return; }
@@ -171,5 +181,26 @@ export function useDaten<T>(pfad: string | null, abhaengig: unknown[] = []): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pfad, runde, ...abhaengig]);
 
-  return { daten, laedt, fehler, neu: () => setRunde((r) => r + 1) };
+  const leise = () => {
+    const p = pfadJetzt.current;
+    if (p === null || leiseLaeuft.current || typeof document === "undefined" || document.visibilityState !== "visible") return;
+    leiseLaeuft.current = true;
+    fetch(`${API}${p}`, { credentials: "include" })
+      .then(async (r) => {
+        const j = r.ok ? await r.json().catch(() => null) : null;
+        if (j?.ok && pfadJetzt.current === p) setDaten(j as T);
+      })
+      .catch(() => { /* leise: die alten Daten bleiben stehen */ })
+      .finally(() => { leiseLaeuft.current = false; });
+  };
+
+  useEffect(() => {
+    if (!takt || pfad === null) return;
+    const uhr = window.setInterval(leise, takt);
+    document.addEventListener("visibilitychange", leise);
+    return () => { window.clearInterval(uhr); document.removeEventListener("visibilitychange", leise); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pfad, takt]);
+
+  return { daten, laedt, fehler, neu: () => setRunde((r) => r + 1), leise };
 }

@@ -69,5 +69,13 @@ export function globalOfficeAuftragPfad(ref: string): string {
   return `/agent/global/${encodeURIComponent(ref)}`;
 }
 
+/**
+ * E-443 (28.10.2026): Derselbe Auftrag im Chefbüro (Raum „Global-Mandate“). EIN Ziel für alle Aufgaben, die der
+ * Kunde auslöst — Upload, Nachricht, digitale Unterschrift, unterschriebener Scan. Dort wird gesehen und erledigt.
+ */
+export function globalChefMandatPfad(ref: string): string {
+  return `/chef/global?mandat=${encodeURIComponent(ref)}`;
+}
+
 export const GLOBAL_SEITE_URL = "https://fiaon.com/business";
 export const GLOBAL_GESPRAECH_URL = "https://fiaon.com/business#gespraech";

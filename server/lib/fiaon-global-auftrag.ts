@@ -500,7 +500,9 @@ async function bestellungLesen(ref: string): Promise<any | null> {
   const [a] = (await sqlPool`
     SELECT ref, person_id, pack_key, pack_name, payment_reference, payment_status, payment_due_date, amount_due, invoice_number,
            company_name, contact_name, contact_email, email, assigned_agent_id, completed_at, cancelled_at, merged_into,
-           claimed_paid_at, archived_at
+           claimed_paid_at, archived_at,
+           -- E-443 (28.10.2026): der Zahltag der Umsatz-Quelle (COALESCE(paid_at, completed_at)) — für „Bezahlt am“ im Chefbüro.
+           paid_at
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   return a ?? null;
 }

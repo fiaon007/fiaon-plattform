@@ -22,7 +22,7 @@ import {
 import {
   globalMandateListe, globalMandatChefSicht, globalSchrittSetzen, globalGesellschaftPlusSetzen, globalKapitalSpeichern, globalKapitalEntfernen,
   globalMandatDokument, globalMandatDokumentAendern, globalMandatAntwort, globalMandatAnfragenGelesen, globalMandatTest, globalMandatPortal,
-  globalVorschauLink, globalKundenLink, globalStationSpeichern, globalItinKlartext,
+  globalVorschauLink, globalKundenLink, globalStationSpeichern, globalItinKlartext, globalChefGesehen,
 } from "../lib/fiaon-global-mandat";
 import { GLOBAL_DATEI_MAX_BYTES, globalDateinameKopf, globalMimeAuslieferbar } from "../lib/fiaon-global-bereich-regeln";
 
@@ -106,7 +106,19 @@ router.get("/chef/global/mandate/:ref/dokument/:id", requireChef("leitung"), asy
     res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.end(d.inhalt);
+    // E-443 (28.10.2026): Wer die Datei im Chefbüro öffnet, hat sie gesehen — die Marke „Neu“ geht, die Aufgabe dazu erledigt
+    // sich. Erst NACH dem Ausliefern und ohne Einfluss darauf (ein Fehler hier landet nur im Log).
+    void wer(req).then((w) => globalChefGesehen(ref(req), [Number(req.params.id)], w.name))
+      .catch((e) => console.error("[CHEF-GLOBAL] gesehen:", e));
   } catch (e) { fehler(res, "dokument lesen", e); }
+});
+
+// E-443 (28.10.2026): „Alle als gesehen markieren“ — alle Kunden-Uploads der Akte, die zugehörigen Aufgaben erledigen sich.
+router.post("/chef/global/mandate/:ref/gesehen", requireChef("leitung"), async (req, res) => {
+  try {
+    const n = await globalChefGesehen(ref(req), "alle", (await wer(req)).name);
+    res.json({ ok: true, meldung: n ? `${n} ${n === 1 ? "Dokument" : "Dokumente"} als gesehen markiert — die Aufgaben dazu sind erledigt.` : "Es war nichts Neues mehr offen." });
+  } catch (e) { fehler(res, "gesehen", e); }
 });
 
 // ── Stand, Schritt, Stichtag, Abschluss ──────────────────────────────────────

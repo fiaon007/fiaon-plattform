@@ -41,6 +41,7 @@ import {
 import { ergaenzungNoetig } from "@shared/fiaon-global-befugnisse";
 import { globalPflichtUnterlage } from "@shared/fiaon-global-akte";
 import { stationTelefonText } from "@shared/fiaon-global-stationen";
+import { globalChefMandatPfad } from "@shared/fiaon-global-wege";
 import { satzPdf, anhaengen, type Signatur } from "./fiaon-global-pdf-satz";
 
 type Erg<T> = ({ ok: true } & T) | { ok: false; status: number; error: string; fehlend?: Fehlend[] };
@@ -677,7 +678,8 @@ export async function unterschriftAbschliessen(ref: string, idRoh: unknown, ein:
       titel: `${erg.vollstaendig ? "Digital unterschrieben" : "Teilweise unterschrieben"}: ${art ? TITEL[art].de : titel} — ${l?.akte?.firma_name || ref}`,
       text: `${nachweis.name} hat im Portal digital unterschrieben (Code an ${nachweis.codeEmail}). ${erg.vollstaendig ? "Alle Unterschriften liegen vor — die unterschriebene Fassung mit Zertifikat liegt im Tresor." : "Es fehlen noch weitere Unterschriften."} Siegel: ${erg.akte.siegel?.status === "versiegelt" ? "versiegelt" : `ausstehend (${erg.akte.siegel?.grund ?? "—"})`}.`,
       schluessel: `global:${ref}:signatur:${d.id}:${nachweis.nr}`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
-      link: `/chef/global?mandat=${encodeURIComponent(ref)}`,
+      // E-443 (28.10.2026): EIN Helfer für den Weg ins Chefbüro — wie Upload und Nachricht (shared/fiaon-global-wege.ts).
+      link: globalChefMandatPfad(ref),
       agentId: (l?.akte?.zustaendig_agent_id ? Number(l.akte.zustaendig_agent_id) : null) ?? (await globalEinstellungen()).zustaendigAgentId,
       anlageText: "Digitale Unterschrift im Portal.",
     });

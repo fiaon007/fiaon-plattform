@@ -23,6 +23,15 @@ import {
   GLOBAL_TRESOR, globalTresorKategorie, globalUsd, type GlobalTresorKategorie,
 } from "@shared/fiaon-global-mandat";
 import "@/styles/chef-global-raum.css";
+// E-443 (28.10.2026): der Rundgang des Raums (Nachladen, Marke „Neu“, „bitte neu“, Aufgaben).
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
+import "@/styles/office-rundgang.css";
+
+// E-443 (28.10.2026): Justin — „Man kann über das Chef-Dashboard kaum arbeiten, es läuft nicht synchron mit dem
+// Kundenportal.“ Das Portal lud jede Minute nach, das Chefbüro nie. Jetzt lädt der Raum leise im selben Takt nach
+// (nur bei sichtbarem Tab, sofort beim Zurückkehren) — ohne Ladebalken, ohne Fehlermeldung, ohne offene Eingaben anzufassen.
+const NACHLADEN_MS = 60_000;
 // E-342: Gespräche je Tag + Google-Kalender als Leiste im Raum.
 import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
 // 22.10.2026: der Stationen-Editor (auch im Office).
@@ -65,7 +74,7 @@ export default function ChefGlobal() {
   const adresse = useSearch();
   const [, navigate] = useLocation();
   const gewaehlt = (() => { try { return new URLSearchParams(adresse).get("mandat"); } catch { return null; } })();
-  const { daten, laedt, fehler, neu } = useDaten<Liste & { ok: true }>("/chef/global/mandate");
+  const { daten, laedt, fehler, neu } = useDaten<Liste & { ok: true }>("/chef/global/mandate", [], NACHLADEN_MS);
   const [testZeigen, setTestZeigen] = useState(false);
   // 22.10.2026: „Global-Akte anlegen“ für ein angenommenes Begleit-Angebot — Ergebnis bleibt stehen (Erfolg mit Nummer, Fehler rot).
   const [akteLaeuft, setAkteLaeuft] = useState<number | null>(null);
@@ -101,10 +110,11 @@ export default function ChefGlobal() {
 
   return (
     <div className="cgr">
+      <Rundgang raum="chef-global" titel="Global-Mandate" schritte={RUNDGAENGE.chefGlobal.schritte} />
       <header className="cgr-kopf">
         <span className="cb-pille">Chefbüro · FIAON Global</span>
         <h1><span className="cb-verlauf">Global-Mandate</span></h1>
-        <p>Was du hier änderst, sieht der Kunde sofort in seinem Portal.</p>
+        <p>Was du hier änderst, sieht der Kunde sofort in seinem Portal — und was er tut, erscheint hier von selbst (jede Minute).</p>
       </header>
 
       <section className="cgr-kacheln" aria-label="Kennzahlen">
@@ -196,7 +206,7 @@ export default function ChefGlobal() {
 type Reiter = "ueberblick" | "gesellschaft" | "akte" | "unterschriften" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
-  const { daten, laedt, fehler, neu } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`);
+  const { daten, laedt, fehler, neu, leise } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`, [], NACHLADEN_MS);
   const [reiter, setReiter] = useState<Reiter>("ueberblick");
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
   const [kopiert, setKopiert] = useState(false);
@@ -215,6 +225,9 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
   const kopieren = async () => {
     try { await navigator.clipboard.writeText(daten?.kundenLink ?? ""); setKopiert(true); setTimeout(() => setKopiert(false), 1800); } catch { /* egal */ }
   };
+  // E-443: Eine neue Datei geöffnet (neuer Tab) — der Server setzt „gesehen“; kurz danach leise nachladen, damit Marke,
+  // Kachel und Zähler sofort stimmen (das Zurückkehren in den Tab lädt ohnehin nach).
+  const geoeffnet = (d: any) => { if (d?.neu) window.setTimeout(() => { leise(); onGeaendert(); }, 1500); };
 
   if (fehler) return <div className="cgr-akte"><Fehlermeldung text={fehler} erneut={neu} /></div>;
   if (!m) return <div className="cgr-akte"><Geruest zeilen={8} /></div>;
@@ -275,7 +288,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
         {REITER.map((x) => (
           <button key={x.key} type="button" className={reiter === x.key ? "an" : ""} onClick={() => {
             setReiter(x.key);
-            if (x.key === "anfragen" && anfragenNeu > 0) void senden(`/chef/global/mandate/${r}/anfragen-gelesen`, "POST").then(() => onGeaendert());
+            // E-443: gelesen → auch die Akte neu (Zahl am Reiter, „Jetzt zu tun“); die Nachrichten-Aufgabe erledigt der Server.
+            if (x.key === "anfragen" && anfragenNeu > 0) void senden(`/chef/global/mandate/${r}/anfragen-gelesen`, "POST").then(() => { neu(); onGeaendert(); });
           }}>
             <x.Icon size={14} strokeWidth={1.8} /> {x.titel}{x.zahl ? <span>{x.zahl}</span> : null}
           </button>
@@ -288,8 +302,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
         {reiter === "akte" && <AkteKomplett gref={gref} tun={tun} />}
         {reiter === "unterschriften" && <GlobalFormulare basis={`/api/fiaon/chef/global/mandate/${r}`} ton="dunkel" onGeaendert={() => { neu(); onGeaendert(); }} />}
         {reiter === "kapital" && <Kapital m={m} tun={tun} />}
-        {reiter === "tresor" && <Tresor m={m} tun={tun} gref={gref} />}
-        {reiter === "post" && <Post m={m} tun={tun} gref={gref} />}
+        {reiter === "tresor" && <Tresor m={m} tun={tun} gref={gref} geoeffnet={geoeffnet} />}
+        {reiter === "post" && <Post m={m} tun={tun} gref={gref} geoeffnet={geoeffnet} />}
         {reiter === "anfragen" && <Anfragen m={m} tun={tun} />}
         {reiter === "fristen" && <Fristen m={m} tun={tun} />}
         {reiter === "leistungen" && <Leistungen gref={gref} tun={tun} />}
@@ -318,6 +332,10 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
   const offeneUnterschriften = (m.dokumente as any[]).filter((d) => d.unterschrift?.gefordert && !d.unterschrift?.unterschrieben);
   const anfragenNeu = (m.nachrichten as any[]).filter((n) => n.von === "kunde" && !n.gelesen).length;
   const garantie = m.angebot?.garantieZiel;
+  // E-443 (28.10.2026): dieselbe Unterlagen-Rechnung wie das Portal (abgelehnte zählen nicht) — und neue Kunden-Uploads.
+  const fehlendeUnterlagen = m.status !== "offen" ? (m.unterlagen as any[]).filter((u) => !u.vorhanden) : [];
+  const nachreichen = (m.nachreichen ?? []) as any[];
+  const uploadsNeu = (m.dokumente as any[]).filter((d) => d.neu).length;
 
   return (
     <div className="cgr-gitter">
@@ -359,13 +377,15 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
           {m.status === "offen" && <li className="gelb"><Landmark size={14} /> Zahlung offen{m.angebot?.teile?.[0] ? ` — ${m.angebot.teile[0].titel}` : ""}</li>}
           {anfragenNeu > 0 && <li className="blau"><MessageSquare size={14} /> {anfragenNeu} neue {anfragenNeu === 1 ? "Anfrage" : "Anfragen"} — <button type="button" className="cgr-link" onClick={() => setReiter("anfragen")}>antworten</button></li>}
           {offeneUnterschriften.length > 0 && <li><PenLine size={14} /> {offeneUnterschriften.length} Unterschrift{offeneUnterschriften.length === 1 ? "" : "en"} beim Kunden offen</li>}
-          {(m.unterlagen as any[]).filter((u) => !u.vorhanden).length > 0 && m.status !== "offen" && (
-            <li><FileText size={14} /> Unterlagen fehlen: {(m.unterlagen as any[]).filter((u) => !u.vorhanden).map((u) => u.titel).join(", ")}</li>
+          {uploadsNeu > 0 && <li className="blau"><Upload size={14} /> {uploadsNeu} {uploadsNeu === 1 ? "neues Dokument" : "neue Dokumente"} vom Kunden — <button type="button" className="cgr-link" onClick={() => setReiter("tresor")}>ansehen</button></li>}
+          {fehlendeUnterlagen.length > 0 && (
+            <li><FileText size={14} /> Unterlagen fehlen: {fehlendeUnterlagen.map((u) => u.abgelehnt ? `${u.titel} (bitte neu)` : u.titel).join(", ")}</li>
           )}
+          {nachreichen.map((x) => <li key={`n-${x.art}`}><FileText size={14} /> Bitte neu angefordert: {x.titel}</li>)}
           {(m.fristen as any[]).filter((f) => !f.erledigt).slice(0, 2).map((f) => (
             <li key={f.id}><CalendarClock size={14} /> {f.titel} — {datum(f.faelligAm)}</li>
           ))}
-          {m.status !== "offen" && anfragenNeu === 0 && offeneUnterschriften.length === 0 && (m.fristen as any[]).filter((f) => !f.erledigt).length === 0 && (
+          {m.status !== "offen" && anfragenNeu === 0 && offeneUnterschriften.length === 0 && uploadsNeu === 0 && fehlendeUnterlagen.length === 0 && nachreichen.length === 0 && (m.fristen as any[]).filter((f) => !f.erledigt).length === 0 && (
             <li className="gruen"><ShieldCheck size={14} /> Nichts offen.</li>
           )}
         </ul>
@@ -405,7 +425,8 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
         <dl className="cgr-daten">
           <dt>Paket</dt><dd>{m.paketName}</dd>
           <dt>Erteilt</dt><dd>{datum(m.erstelltAm)}</dd>
-          <dt>Bezahlt</dt><dd>{m.bezahltAm ? datum(m.bezahltAm) : "offen"}</dd>
+          {/* E-443: dieselbe Quelle wie das Portal (zahlung.status aus der Bestellung); das Datum liefert der Server mit. */}
+          <dt>Bezahlt</dt><dd>{m.bezahltAm ? datum(m.bezahltAm) : m.zahlung?.status === "bezahlt" ? "bezahlt" : "offen"}</dd>
           {m.rechnungsnummer && <><dt>Rechnung</dt><dd>{m.rechnungsnummer}</dd></>}
           {(m.angebot?.teile as any[] | undefined)?.map((t) => (
             <div key={t.nr} className="cgr-teil"><dt>Teil {t.nr}</dt><dd>{t.titel} · {(t.betragCents / 100).toLocaleString("de-DE", { minimumFractionDigits: 2 })} € · {t.stand}</dd></div>
@@ -547,7 +568,7 @@ function Kapital({ m, tun }: { m: any; tun: Tun }) {
 const EURO = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const STAND_TEXT: Record<string, string> = { fehlt: "noch nicht abgelegt", vorbereitet: "vorbereitet (intern)", wartet: "zur Unterschrift", unterschrieben: "unterschrieben" };
 function AkteKomplett({ gref, tun }: { gref: string; tun: Tun }) {
-  const { daten, fehler, neu } = useDaten<{ ok: true; rechnungen: any[]; vertraege: any[]; pflicht: any; zipUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}/akte`);
+  const { daten, fehler, neu } = useDaten<{ ok: true; rechnungen: any[]; vertraege: any[]; pflicht: any; zipUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}/akte`, [], NACHLADEN_MS);
   const [hoch, setHoch] = useState<{ key: string; titel: string; datei: File | null; modus: "digital" | "handschriftlich"; scanFuer?: number } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
   if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;
@@ -704,33 +725,64 @@ function Ablage({ gref, tun, fest, portalNeu }: { gref: string; tun: Tun; fest?:
   );
 }
 
-function DokumentZeile({ d, tun }: { d: any; tun: Tun }) {
+// E-443 (28.10.2026): Marke „Neu“ (Kunden-Upload, im Chefbüro noch nicht geöffnet), „bitte neu“ mit Grund für den Kunden
+// und die Art eines Kunden-Uploads korrigieren. Öffnen der Datei = gesehen (Server, Dokument-Route).
+const ARTEN_TRESOR = GLOBAL_TRESOR.filter((k) => k.kategorie !== "vertrag" && k.kategorie !== "post");
+function DokumentZeile({ d, tun, geoeffnet }: { d: any; tun: Tun; geoeffnet?: (d: any) => void }) {
   const titel = d.titel || d.artText;
+  const [grund, setGrund] = useState<string | null>(null);
+  // Kunden-Upload, aber keine unterschriebene Fassung (die gehört zum Nachweis der Unterschrift).
+  const kundeFrei = d.von === "kunde" && !d.unterschriebeneFassungVon;
   return (
-    <div className={`cgr-dok${d.von === "kunde" ? " vom-kunden" : ""}`}>
+    <div className={`cgr-dok${d.von === "kunde" ? " vom-kunden" : ""}${d.neu ? " neu" : ""}`} data-fiaon={d.neu ? "chef-dok-neu" : undefined}>
       <span className="cgr-dok-icon">{d.unterschrift?.gefordert ? <PenLine size={15} /> : <FileText size={15} />}</span>
-      <a className="cgr-dok-text" href={d.url} target="_blank" rel="noreferrer">
+      <a className="cgr-dok-text" href={d.url} target="_blank" rel="noreferrer" onClick={() => geoeffnet?.(d)}>
         <b>{titel}</b>
         <small>{d.name} · {d.von === "kunde" ? "vom Kunden" : (d.vonName ?? "FIAON")} · {datum(d.am)}{d.post ? ` · ${d.post.absender ?? ""}` : ""}</small>
+        {d.abgelehnt && <small className="cgr-dok-grund">Bitte neu: „{d.abgelehnt.grund}“ ({datum(d.abgelehnt.am)})</small>}
       </a>
       <span className="cgr-dok-marken">
+        {d.neu && <em className="blau">Neu</em>}
+        {d.abgelehnt && <em className="rot">bitte neu</em>}
         {d.unterschrift?.gefordert && <em className={d.unterschrift.unterschrieben ? "gruen" : "gelb"}>{d.unterschrift.unterschrieben ? `unterschrieben ${datum(d.unterschrift.am)}` : "wartet auf Unterschrift"}</em>}
         {d.von !== "kunde" && d.sichtbarFuerKunde && <em className={d.gelesen ? "gruen" : "leise"}>{d.gelesen ? "gelesen" : "ungelesen"}</em>}
         {d.von !== "kunde" && !d.sichtbarFuerKunde && <em className="leise"><Lock size={10} /> intern</em>}
       </span>
       <div className="cgr-mini">
+        {kundeFrei && (
+          <select className="cgr-dok-art" value={d.art} aria-label="Art des Dokuments" title="Art korrigieren — zählt danach für die richtige Unterlage"
+                  onChange={(e) => { if (e.target.value !== d.art) void tun(`/dokument/${d.id}`, "POST", { art: e.target.value }); }}>
+            {ARTEN_TRESOR.map((g) => (
+              <optgroup key={g.kategorie} label={g.titel.de}>
+                {GLOBAL_DOKUMENTARTEN.filter((a) => globalTresorKategorie(a.art) === g.kategorie && a.art !== "post").map((a) => <option key={a.art} value={a.art}>{a.de}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        )}
+        {kundeFrei && !d.abgelehnt && grund === null && <button type="button" data-fiaon="chef-dok-ablehnen" onClick={() => setGrund("")}>Bitte neu …</button>}
+        {kundeFrei && d.abgelehnt && <button type="button" onClick={() => void tun(`/dokument/${d.id}`, "POST", { ablehnungZurueck: true })}>„Bitte neu“ zurücknehmen</button>}
         {d.von !== "kunde" && <button type="button" onClick={() => tun(`/dokument/${d.id}`, "POST", { sichtbar: !d.sichtbarFuerKunde })}>{d.sichtbarFuerKunde ? "Intern machen" : "Freigeben"}</button>}
         {d.istPdf && !d.unterschrift?.unterschrieben && d.von !== "kunde" && <button type="button" onClick={() => tun(`/dokument/${d.id}`, "POST", { unterschrift: !d.unterschrift?.gefordert })}>{d.unterschrift?.gefordert ? "Keine Unterschrift" : "Unterschrift anfordern"}</button>}
         <button type="button" onClick={() => { if (window.confirm(`„${titel}“ aus dem Tresor entfernen?`)) void tun(`/dokument/${d.id}`, "DELETE"); }}><Trash2 size={12} /></button>
       </div>
+      {grund !== null && (
+        <div className="cgr-form zeile cgr-dok-form">
+          <input value={grund} maxLength={300} autoFocus onChange={(e) => setGrund(e.target.value)} placeholder="Grund für den Kunden, z. B. Foto statt Scan — bitte als PDF-Scan" />
+          <button type="button" className="cw-knopf cgr-haupt" disabled={grund.trim().length < 8}
+                  onClick={async () => { if (await tun(`/dokument/${d.id}`, "POST", { ablehnen: grund.trim() })) setGrund(null); }}>Als „bitte neu“ markieren</button>
+          <button type="button" className="cw-knopf" onClick={() => setGrund(null)}>Abbrechen</button>
+          <small className="cgr-leise">Der Kunde sieht die Unterlage wieder unter „Für Sie zu tun“ — mit diesem Satz. Es geht keine Mail raus.</small>
+        </div>
+      )}
     </div>
   );
 }
 
-function Tresor({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
+function Tresor({ m, tun, gref, geoeffnet }: { m: any; tun: Tun; gref: string; geoeffnet: (d: any) => void }) {
   const doks = (m.dokumente as any[]).filter((d) => d.art !== "post");
   const nach = new Map<GlobalTresorKategorie, any[]>();
   for (const d of doks) { const k = (d.kategorie ?? "sonstiges") as GlobalTresorKategorie; nach.set(k, [...(nach.get(k) ?? []), d]); }
+  const neuZahl = (m.dokumente as any[]).filter((d) => d.neu).length;
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
@@ -738,7 +790,11 @@ function Tresor({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
         <Ablage gref={gref} tun={tun} portalNeu={!!m.portal?.neu} />
       </section>
       <section className="cgr-block breit">
-        <h3>Im Tresor</h3>
+        <div className="cgr-block-kopf">
+          <h3>Im Tresor {neuZahl > 0 && <small>{neuZahl} neu vom Kunden</small>}</h3>
+          {/* E-443: alle Kunden-Uploads der Akte als gesehen — die Aufgaben „neue Unterlagen“/„unterschrieben“ erledigen sich. */}
+          {neuZahl > 0 && <button type="button" className="cw-knopf" data-fiaon="chef-alle-gesehen" onClick={() => void tun("/gesehen", "POST")}><Check size={14} /> Alle als gesehen markieren</button>}
+        </div>
         <div className="cgr-mappe">
           <div className="cgr-mappe-kopf"><b>Vertrag und Rechnungen</b><small>immer im Portal</small></div>
           {m.vertragUrl && <a className="cgr-dok" href={m.vertragUrl} target="_blank" rel="noreferrer"><span className="cgr-dok-icon"><FileText size={15} /></span><span className="cgr-dok-text"><b>Vertrag</b><small>unterschrieben {datum(m.erstelltAm)}</small></span></a>}
@@ -748,7 +804,7 @@ function Tresor({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
         {GLOBAL_TRESOR.filter((k) => k.kategorie !== "vertrag" && k.kategorie !== "post" && nach.has(k.kategorie)).map((k) => (
           <div key={k.kategorie} className="cgr-mappe">
             <div className="cgr-mappe-kopf"><b>{k.titel.de}</b><small>{nach.get(k.kategorie)!.length}</small></div>
-            {nach.get(k.kategorie)!.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} />)}
+            {nach.get(k.kategorie)!.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} geoeffnet={geoeffnet} />)}
           </div>
         ))}
         {doks.length === 0 && <p className="cgr-leer">Noch keine Dokumente im Tresor.</p>}
@@ -757,7 +813,7 @@ function Tresor({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
   );
 }
 
-function Post({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
+function Post({ m, tun, gref, geoeffnet }: { m: any; tun: Tun; gref: string; geoeffnet: (d: any) => void }) {
   const post = (m.dokumente as any[]).filter((d) => d.art === "post");
   return (
     <div className="cgr-gitter">
@@ -767,7 +823,7 @@ function Post({ m, tun, gref }: { m: any; tun: Tun; gref: string }) {
       </section>
       <section className="cgr-block breit">
         <h3>Briefkasten</h3>
-        {post.length === 0 ? <p className="cgr-leer">Noch keine Post.</p> : post.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} />)}
+        {post.length === 0 ? <p className="cgr-leer">Noch keine Post.</p> : post.map((d) => <DokumentZeile key={d.id} d={d} tun={tun} geoeffnet={geoeffnet} />)}
       </section>
     </div>
   );
@@ -873,7 +929,7 @@ const LEISTUNG_STATUS: Record<string, { text: string; ton: string }> = {
   aktiv: { text: "Aktiv", ton: "gruen" }, storniert: { text: "Storniert", ton: "rot" },
 };
 function Leistungen({ gref, tun }: { gref: string; tun: Tun }) {
-  const { daten, fehler, neu } = useDaten<{ ok: true; katalog: any[]; buchungen: any[] }>(`/chef/global/mandate/${encodeURIComponent(gref)}/zusatz`);
+  const { daten, fehler, neu } = useDaten<{ ok: true; katalog: any[]; buchungen: any[] }>(`/chef/global/mandate/${encodeURIComponent(gref)}/zusatz`, [], NACHLADEN_MS);
   const [notiz, setNotiz] = useState<Record<number, string>>({});
   const [laeuft, setLaeuft] = useState<number | null>(null);
   if (fehler) return <Fehlermeldung text={fehler} erneut={neu} />;

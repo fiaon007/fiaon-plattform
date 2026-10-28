@@ -219,6 +219,15 @@ em.st-leise { color: var(--cgr-still); }
 .cgr-dok-marken em { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border-radius: 999px; font: 500 10px/1 'Inter', sans-serif; font-style: normal; border: 1px solid var(--cgr-linie); color: var(--cgr-still); }
 .cgr-dok-marken em.gruen { color: #6ee7b7; border-color: rgba(52,211,153,.3); }
 .cgr-dok-marken em.gelb { color: #fcd34d; border-color: rgba(251,191,36,.32); }
+/* E-443 (28.10.2026): Marke „Neu“ (Kunden-Upload, noch nicht geöffnet), „bitte neu“ mit Grund, Art korrigieren. */
+.cgr-dok-marken em.blau { color: #93c5fd; border-color: rgba(96,165,250,.4); background: rgba(40,141,250,.12); }
+.cgr-dok-marken em.rot { color: #fca5a5; border-color: rgba(248,113,113,.35); }
+.cgr-dok.neu { box-shadow: inset 2px 0 0 rgba(96,165,250,.7); }
+.cgr-dok-text .cgr-dok-grund { color: #fca5a5; }
+.cgr-dok-art { max-width: 190px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--cgr-linie); background: rgba(255,255,255,.03); color: var(--cgr-leise); font: 400 11px/1.2 'Inter', sans-serif; }
+.cgr-dok-art option, .cgr-dok-art optgroup { color: #0f172a; }
+.cgr-dok-form { flex-basis: 100%; }
+.cgr-dok-form input { flex: 1 1 240px; }
 .cgr-mini { display: flex; gap: 4px; flex-wrap: wrap; }
 .cgr-mini button { display: inline-flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--cgr-linie); background: rgba(255,255,255,.03); color: var(--cgr-leise); font: 400 11px/1 'Inter', sans-serif; cursor: pointer; transition: color .2s, border-color .2s; }
 .cgr-mini button:hover { color: #f1f5f9; border-color: rgba(96,165,250,.35); }

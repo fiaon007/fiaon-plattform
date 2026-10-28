@@ -33,7 +33,9 @@ import {
   globalBereichOfficeSicht, globalGesellschaftSetzen,
   type BereichAgent, type DateiEin, type Erg, type Lage,
 } from "./fiaon-global-bereich";
-import { globalDokumentArt, globalDokumentArtText, istIsoTag, type BereichSprache } from "@shared/fiaon-global-bereich";
+import {
+  globalDokumentArt, globalDokumentArtText, istIsoTag, GLOBAL_VERLAUF_TEXT, GLOBAL_ABLEHNUNG_GRUND_MIN, GLOBAL_ABLEHNUNG_GRUND_MAX, type BereichSprache,
+} from "@shared/fiaon-global-bereich";
 import { unterschriftModus } from "@shared/fiaon-global-akte";
 import {
   GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
@@ -235,7 +237,7 @@ async function nachrichtenLesen(ref: string, fuer: "kunde" | "chef"): Promise<Re
 /** Die Zusatzfelder der Dokumente (Titel, Post, Unterschrift, gelesen) — nach id. */
 async function dokumentZusatzLesen(ref: string): Promise<Map<number, any>> {
   const zeilen = (await sqlPool`
-    SELECT id, art, titel, kunde_gelesen_am, fiaon_gesehen_am, post_absender, post_eingang_am, unterschrift_gefordert, unterschrieben_am,
+    SELECT id, von, art, titel, kunde_gelesen_am, fiaon_gesehen_am, post_absender, post_eingang_am, unterschrift_gefordert, unterschrieben_am,
            unterschrift_name, unterschrift_von_id, mime, pflicht_key, unterschrift_art
       FROM fiaon_global_dokumente WHERE ref = ${ref} AND geloescht_am IS NULL`) as any[];
   return new Map(zeilen.map((z) => [Number(z.id), z]));
@@ -410,8 +412,9 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
   const [schritte, kapital, nachrichten, zusatz] = await Promise.all([
     schritteLesen(ref, "de", "chef"), kapitalLesen(ref, "de", "chef"), nachrichtenLesen(ref, "chef"), dokumentZusatzLesen(ref),
   ]);
-  // Was der Kunde hochgeladen hat, gilt mit dem Öffnen der Akte als gesehen — die Marke „neu" in der Liste verschwindet.
-  await sqlPool`UPDATE fiaon_global_dokumente SET fiaon_gesehen_am = NOW() WHERE ref = ${ref} AND von = 'kunde' AND fiaon_gesehen_am IS NULL`.catch(() => {});
+  // E-443 (28.10.2026): Das Lesen der Akte schreibt NICHTS mehr. Vorher setzte dieser GET alle Kunden-Uploads auf „gesehen“ —
+  // schon das bloße Betreten des Raums (er öffnet von selbst das neueste Mandat) löschte die Marke „neu“, ohne dass jemand
+  // hinsah. Gesehen wird jetzt beim Öffnen der Datei (Dokument-Route) oder mit „Alle als gesehen markieren“ (globalChefGesehen).
   let person: Record<string, unknown> | null = null;
   if (z?.person_id) {
     const [p] = (await sqlPool`
@@ -423,7 +426,11 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
   return {
     ...office,
     // Im Chefbüro über die Chefbüro-Wege (requireChef) — nicht über die Office-Wege, die eine Office-Sitzung erwarten.
-    dokumente: (office.dokumente as any[]).map((d) => ({ ...d, ...dokumentZusatz(zusatz.get(Number(d.id))), url: `/api/fiaon/chef/global/mandate/${r}/dokument/${d.id}` })),
+    // E-443: `neu` = Kunden-Dokument, das im Chefbüro noch niemand geöffnet hat (fiaon_gesehen_am leer) — nur in der Chef-Sicht.
+    dokumente: (office.dokumente as any[]).map((d) => {
+      const z = zusatz.get(Number(d.id));
+      return { ...d, ...dokumentZusatz(z), neu: d.von === "kunde" && !!z && !z.fiaon_gesehen_am, url: `/api/fiaon/chef/global/mandate/${r}/dokument/${d.id}` };
+    }),
     vertragUrl: office.vertragUrl ? `/api/fiaon/admin/global/auftraege/${r}/vertrag.pdf` : null,
     rechnungUrl: office.rechnungUrl ? `/api/fiaon/admin/global/auftraege/${r}/rechnung.pdf` : null,
     schritte, kapital, nachrichten, zugesagtCents,
@@ -819,7 +826,7 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
   await ensureGlobalMandat();
   const id = Number(idRoh);
   const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
-    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am FROM fiaon_global_dokumente
+    SELECT id, von, mime, art, dateiname, sichtbar_fuer_kunde, unterschrift_gefordert, unterschrieben_am, unterschrift_von_id, abgelehnt_am FROM fiaon_global_dokumente
      WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL`) as any[]) : [];
   if (!d) return nein(404, "Dieses Dokument gibt es nicht (mehr).");
   const titel = ein.titel !== undefined ? (knapp(ein.titel, 160) || null) : undefined;
@@ -828,18 +835,109 @@ export async function globalMandatDokumentAendern(ref: string, idRoh: unknown, e
   if (unterschrift && String(d.mime) !== "application/pdf") return nein(400, "Eine Unterschrift lässt sich nur für ein PDF anfordern.");
   if (unterschrift === false && d.unterschrieben_am) return nein(409, "Dieses Dokument ist schon unterschrieben.");
   if (sichtbar === false && d.von === "kunde") return nein(400, "Was der Kunde selbst hochgeladen hat, sieht er immer.");
+  // E-443 (28.10.2026): Art eines Kunden-Uploads korrigieren und „bitte neu“ (ablehnen mit Grund für den Kunden) — nur bei
+  // Kunden-Dokumenten, nie bei einer unterschriebenen Fassung (die gehört zum Unterschrifts-Nachweis).
+  const nurKunde = (was: string) => d.von !== "kunde" ? nein(400, `${was} geht nur bei Dokumenten, die der Kunde hochgeladen hat.`)
+    : d.unterschrift_von_id ? nein(409, "Eine unterschriebene Fassung lässt sich nicht ändern — sie gehört zum Nachweis der Unterschrift.") : null;
+  const artNeu = ein.art !== undefined ? globalDokumentArt(ein.art) : undefined;
+  if (ein.art !== undefined) {
+    const f = nurKunde("Die Art ändern"); if (f) return f;
+    if (!artNeu || artNeu.art === "post") return nein(400, "Diese Dokumentart gibt es nicht — bitte eine Art aus der Liste wählen.");
+  }
+  const grund = ein.ablehnen !== undefined ? absatz(ein.ablehnen, GLOBAL_ABLEHNUNG_GRUND_MAX) : undefined;
+  if (grund !== undefined) {
+    const f = nurKunde("„Bitte neu“"); if (f) return f;
+    if (grund.length < GLOBAL_ABLEHNUNG_GRUND_MIN) return nein(400, "Bitte einen kurzen Grund für den Kunden angeben, z. B. „Foto statt Scan — bitte als PDF-Scan“.");
+    const w = kundensatz(grund); if (w) return nein(400, w);
+  }
+  const zurueck = ein.ablehnungZurueck === true && !!d.abgelehnt_am;
+  const sieht = grund !== undefined || artNeu != null;
   await sqlPool`
     UPDATE fiaon_global_dokumente SET
       titel = CASE WHEN ${titel !== undefined} THEN ${titel ?? null} ELSE titel END,
       sichtbar_fuer_kunde = CASE WHEN ${sichtbar !== undefined || unterschrift === true} THEN ${(sichtbar ?? true) || unterschrift === true} ELSE sichtbar_fuer_kunde END,
-      unterschrift_gefordert = CASE WHEN ${unterschrift !== undefined} THEN ${unterschrift ?? false} ELSE unterschrift_gefordert END
+      unterschrift_gefordert = CASE WHEN ${unterschrift !== undefined} THEN ${unterschrift ?? false} ELSE unterschrift_gefordert END,
+      art = CASE WHEN ${artNeu != null} THEN ${artNeu?.art ?? null} ELSE art END,
+      abgelehnt_am = CASE WHEN ${grund !== undefined} THEN NOW() WHEN ${zurueck} THEN NULL ELSE abgelehnt_am END,
+      abgelehnt_grund = CASE WHEN ${grund !== undefined} THEN ${grund ?? null} WHEN ${zurueck} THEN NULL ELSE abgelehnt_grund END,
+      abgelehnt_von = CASE WHEN ${grund !== undefined} THEN ${agent.name} WHEN ${zurueck} THEN NULL ELSE abgelehnt_von END,
+      fiaon_gesehen_am = CASE WHEN ${sieht} THEN COALESCE(fiaon_gesehen_am, NOW()) ELSE fiaon_gesehen_am END
      WHERE id = ${id} AND ref = ${ref}`;
   const teile: string[] = [];
   if (titel !== undefined) teile.push("Titel");
   if (sichtbar !== undefined) teile.push(sichtbar ? "für den Kunden sichtbar" : "nur intern");
   if (unterschrift !== undefined) teile.push(unterschrift ? "Unterschrift angefordert" : "Unterschrift nicht mehr angefordert");
+  if (artNeu) teile.push(`Art: ${globalDokumentArtText(d.art, "de")} → ${artNeu.de}`);
+  if (grund !== undefined) teile.push(`„bitte neu“ (${grund})`);
+  if (zurueck) teile.push("„bitte neu“ zurückgenommen");
+  if (!teile.length) return { ok: true, meldung: "Nichts geändert." };
   await verlaufSchreiben(ref, { art: "dokument", text: `Dokument „${String(d.dateiname)}“: ${teile.join(", ")}.`, sichtbar: false, agentId: agent.id });
-  return { ok: true, meldung: `Gespeichert: ${teile.join(", ")}.` };
+  // „Bitte neu“: eine Zeile, die der Kunde im Verlauf liest — KEINE Mail (die schickt die Leitung selbst, wenn sie will).
+  if (grund !== undefined) {
+    const l = await lageLesen(ref);
+    const sprache: BereichSprache = l?.sprache ?? "de";
+    await verlaufSchreiben(ref, { art: "dokument_neu", text: GLOBAL_VERLAUF_TEXT[sprache].dokumentNeu(globalDokumentArtText(artNeu?.art ?? d.art, sprache), grund), sichtbar: true, agentId: agent.id });
+  }
+  if (sieht) await globalKundenAufgabenErledigen(ref, agent.name);
+  return {
+    ok: true,
+    meldung: grund !== undefined ? "Als „bitte neu“ markiert. Der Kunde sieht die Unterlage wieder unter „Für Sie zu tun“ — mit deinem Grund. Eine Mail ging nicht raus."
+      : `Gespeichert: ${teile.join(", ")}.`,
+  };
+}
+
+// ── E-443 (28.10.2026): GESEHEN IM CHEFBÜRO — und die Aufgaben dazu erledigen sich ───────
+/**
+ * Ein Kunden-Dokument gilt als gesehen, wenn die Leitung es im Chefbüro öffnet (Dokument-Route) oder „Alle als gesehen
+ * markieren“ drückt — nie mehr beim bloßen Laden der Akte. `ids` = die geöffneten Dokumente, "alle" = die ganze Akte.
+ * Gibt zurück, wie viele Dokumente dadurch neu als gesehen gelten.
+ */
+export async function globalChefGesehen(ref: string, ids: number[] | "alle", wer: string): Promise<number> {
+  await ensureGlobalMandat();
+  let zahl = 0;
+  if (ids === "alle") {
+    zahl = ((await sqlPool`
+      UPDATE fiaon_global_dokumente SET fiaon_gesehen_am = NOW()
+       WHERE ref = ${ref} AND von = 'kunde' AND fiaon_gesehen_am IS NULL AND geloescht_am IS NULL RETURNING id`) as any[]).length;
+  } else {
+    const liste = ids.filter((i) => Number.isInteger(i) && i > 0);
+    if (!liste.length) return 0;
+    zahl = ((await sqlPool`
+      UPDATE fiaon_global_dokumente SET fiaon_gesehen_am = NOW()
+       WHERE ref = ${ref} AND von = 'kunde' AND fiaon_gesehen_am IS NULL AND id = ANY(${liste}) RETURNING id`) as any[]).length;
+  }
+  await globalKundenAufgabenErledigen(ref, wer);
+  return zahl;
+}
+
+/**
+ * Die offenen Aufgaben, die der Kunde ausgelöst hat, erledigen — sobald im Chefbüro gesehen (Muster: Erledigung beim
+ * Beantworten einer Anfrage in globalMandatAntwort). Die Schlüssel kommen aus den Stellen, die sie anlegen:
+ *   global:<ref>:eingang:<Tag>          eingangMelden — erledigt, sobald von diesem Berliner Tag nichts Ungesehenes mehr liegt
+ *   global:<ref>:signatur:<Original>:<Nr> digitale Unterschrift — erledigt, sobald die unterschriebene Fassung gesehen ist
+ *   global:<ref>:scan:<Original>         unterschriebener Scan — ebenso; AUSNAHME SS-4: dort folgt ein echter Handgriff
+ *                                        (zurück an den Registered Agent), diese Aufgabe schließt das Team selbst.
+ * Darf nie einen Weg aufhalten: Fehler landen nur im Log.
+ */
+export async function globalKundenAufgabenErledigen(ref: string, wer: string): Promise<void> {
+  const ergebnis = `Im Chefbüro gesehen (${wer}).`;
+  await sqlPool`
+    UPDATE fiaon_betreiber_todos t SET status = 'erledigt', erledigt_am = COALESCE(t.erledigt_am, NOW()), ergebnis = COALESCE(t.ergebnis, ${ergebnis}), updated_at = NOW()
+     WHERE t.schluessel LIKE ${`global:${ref}:eingang:%`} AND t.status <> 'erledigt'
+       AND NOT EXISTS (
+         SELECT 1 FROM fiaon_global_dokumente d
+          WHERE d.ref = ${ref} AND d.von = 'kunde' AND d.fiaon_gesehen_am IS NULL AND d.geloescht_am IS NULL
+            AND to_char(d.created_at AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') = split_part(t.schluessel, ':', 4))`
+    .catch((e) => console.error(`[GLOBAL-MANDAT] ${ref}: Eingangs-Aufgaben nicht erledigt:`, e));
+  await sqlPool`
+    UPDATE fiaon_betreiber_todos t SET status = 'erledigt', erledigt_am = COALESCE(t.erledigt_am, NOW()), ergebnis = COALESCE(t.ergebnis, ${ergebnis}), updated_at = NOW()
+     WHERE (t.schluessel LIKE ${`global:${ref}:signatur:%`} OR t.schluessel LIKE ${`global:${ref}:scan:%`}) AND t.status <> 'erledigt'
+       AND EXISTS (
+         SELECT 1 FROM fiaon_global_dokumente d LEFT JOIN fiaon_global_dokumente o ON o.id = d.unterschrift_von_id
+          WHERE d.ref = ${ref} AND d.von = 'kunde' AND d.fiaon_gesehen_am IS NOT NULL AND d.unterschrift_von_id IS NOT NULL
+            AND split_part(t.schluessel, ':', 4) = d.unterschrift_von_id::text
+            AND NOT (split_part(t.schluessel, ':', 3) = 'scan' AND COALESCE(o.pflicht_key, '') = 'irs_ss4'))`
+    .catch((e) => console.error(`[GLOBAL-MANDAT] ${ref}: Unterschrifts-Aufgaben nicht erledigt:`, e));
 }
 
 /** Antwort von FIAON auf eine Anfrage — im Faden, optional mit Mail. Offene Nachrichten-Aufgaben werden erledigt. */
@@ -864,6 +962,10 @@ export async function globalMandatAntwort(ref: string, ein: { text?: unknown; mi
 export async function globalMandatAnfragenGelesen(ref: string): Promise<void> {
   await ensureGlobalMandat();
   await sqlPool`UPDATE fiaon_global_nachrichten SET gelesen_fiaon_am = NOW() WHERE ref = ${ref} AND von = 'kunde' AND gelesen_fiaon_am IS NULL`;
+  // E-443 (28.10.2026): Gelesen im Chefbüro erledigt die Nachrichten-Aufgaben — wie das Beantworten (globalMandatAntwort).
+  await sqlPool`
+    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()), ergebnis = COALESCE(ergebnis, 'Im Chefbüro gelesen.'), updated_at = NOW()
+     WHERE schluessel LIKE ${`global:${ref}:nachricht:%`} AND status <> 'erledigt'`.catch(() => {});
 }
 
 export async function globalMandatTest(ref: string, an: boolean, agent: BereichAgent): Promise<Erg<{ meldung: string }>> {

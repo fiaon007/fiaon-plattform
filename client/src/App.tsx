@@ -755,8 +755,9 @@ function Router() {
       <Route path="/agent/praesentation" component={AgentPraesentationPage} />
       {/* E-227 (23.09.2026): eigener Zugang, eigenes Kassenbuch, Vier-Augen-Freigabe.
           Bewusst außerhalb von /chef und /agent — wer hier arbeitet, arbeitet am Geld. */}
+      {/* /banking gehört dem Investoren-Portal (weiter unten) — die zweite Adresse der Buchhaltung
+          hatte seit E-228 dessen Anmeldung verdeckt. */}
       <Route path="/buchhaltung" component={BuchhaltungPage} />
-      <Route path="/banking" component={BuchhaltungPage} />
       {/* E-315 (09.10.2026): DIE EINE Akte — Tür nach Sitzung (Chefbüro / Office), shared/fiaon-akte-aufloesung.ts */}
       <Route path="/akte/:kennung" component={AkteTuerPage} />
       <Route path="/chef" component={ChefPage} />

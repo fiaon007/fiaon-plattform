@@ -28,7 +28,7 @@ const GRUPPEN: Gruppe[] = [
       ["/kontakt", "Kontakt & KI-Assistent"], ["/sicherheit", "Datenschutz & Sicherheit"],
       ["/fiaon-erfahrungen", "So arbeitet FIAON"], ["/plattform-konzept", "Plattform-Konzept"],
       ["/oesterreich", "Österreich"], ["/schweiz", "Schweiz"], ["/kreditkarte", "Kreditkarte trotz Eintrag"], ["/partnerbank-dkb", "Konto & Karte mit der DKB"],
-      ["/bonitaet", "Bonität"], ["/banking", "Banking"], ["/start", "Start (Kampagne)"],
+      ["/bonitaet", "Bonität"], ["/banking", "Investoren-Banking (Anmeldung)"], ["/buchhaltung", "FIAON Banking (Buchhaltung)"], ["/start", "Start (Kampagne)"],
     ],
   },
   {

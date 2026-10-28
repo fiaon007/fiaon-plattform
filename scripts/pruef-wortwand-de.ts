@@ -11,12 +11,16 @@
 // Zusätzlich zur Wand gelten für FIAON Global schärfere Regeln, die das Regex
 // der Wand nicht kennt (Register E-188): kein „bis zu", kein Bankname, keine
 // Frist mit Ziffer in Wochen/Monaten, kein „Ziel-Limit", kein „empfohlen",
-// kein „0 %" als Zahl, keine „Unternehmensberatung"/„Gruppe" als
-// Selbstbezeichnung, kein „ohne Sicherheiten".
+// kein „0 %" als Zahl, keine „Gruppe" als Selbstbezeichnung, kein „ohne
+// Sicherheiten". „Unternehmensberatung" ist seit E-439 erlaubt — außer auf der
+// Österreich-Seite (OESTERREICH_REGEL, E-454; das fertige HTML samt JSON-LD prüft
+// scripts/pruef-global-seiten.ts).
 //
 //     npx tsx scripts/pruef-wortwand-de.ts        → Fehlercode 1 bei Treffern
 // ═══════════════════════════════════════════════════════════════════════════
 import { wandPruefen } from "../shared/fiaon-wortverbote";
+// 28.10.2026 (E-454): die Österreich-Ausnahme aus E-439 — kein „Unternehmensberatung“ auf /business/aus-oesterreich.
+import { OESTERREICH_SEITEN, OESTERREICH_REGEL } from "../shared/fiaon-global-wortregeln";
 import { GLOBAL_WOERTER, GLOBAL_GESPRAECH_WOERTER, GLOBAL_FUSS_WOERTER, GLOBAL_FILM_WOERTER, GLOBAL_BUEHNE_WOERTER } from "../client/src/i18n/global";
 import { GLOBAL_START_WOERTER } from "../client/src/i18n/global-start";
 import { VISITENKARTEN } from "../shared/fiaon-visitenkarte";
@@ -165,6 +169,9 @@ for (const [pfad, text] of texte) {
   }
   const ohneVip = text.split(VIP_ERLAUBT).join("");
   for (const r of SCHAERFER) if (r.muster.test(ohneVip)) { fehler++; console.log(`E-188 ${pfad}: „${text.slice(0, 90)}“ → ${r.grund}`); }
+  if (OESTERREICH_SEITEN.some((p) => pfad === `seiten${p}` || pfad.startsWith(`seiten${p}.`)) && OESTERREICH_REGEL.muster.test(text)) {
+    fehler++; console.log(`E-454 ${pfad}: „${text.slice(0, 90)}“ → ${OESTERREICH_REGEL.grund}`);
+  }
 }
 console.log(`${texte.length} deutsche Texte geprüft — ${fehler} Treffer.`);
 if (fehler) process.exitCode = 1;

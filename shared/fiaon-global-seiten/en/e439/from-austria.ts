@@ -22,11 +22,14 @@
 // Wortwand EN: kein Steuermodell (Ort der Geschäftsleitung steht vorn), kein „up to“,
 // kein Bankname, keine Preiszahl (Baustein "paket"), kein „recommend“, „advice“ nie,
 // „personal guarantee“ als Fachbegriff, Firmenkarte = „business credit card“.
-// „Business consultancy“ steht genau einmal, wie im Deutschen an die FIAON LTD in
-// London gebunden (Abschnitt "fiaon"; Justin, E-439/E-439).
+// Selbstbezeichnung (28.10.2026, E-454): wie im Deutschen nie „business consultancy“ —
+// weder im Text noch im Datenblock (AT § 94 Z 74 GewO, Ausnahme aus E-439). Bis E-454
+// stand das Wort einmal im Abschnitt "fiaon"; Regel: OESTERREICH_REGEL in
+// shared/fiaon-global-wortregeln.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
 import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, globalPaket } from "../../../fiaon-global";
+import { FIAON_FIRMA } from "../../../fiaon-firma";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_STAATEN_EN, IRS_EN, SCHWELLEN_EN, FRISTEN_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
@@ -194,7 +197,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "One point of contact instead of eight: with your power of attorney, we submit all applications for you — the formation with the state, the EIN with the IRS, the preparation of the ITIN where its requirements are met, the D-U-N-S Number and the annual US filings. We provide the registered agent, US business address and US phone number for the first year. You submit account, card and credit applications yourself, fully prepared by us; the institution alone decides on them.",
         "Before formation, a partner tax adviser authorised in Austria, engaged by you, reviews where the place of management will be and how Austria is likely to classify your LLC under the comparison of legal types. The result goes into the operating agreement drafted by our partner lawyer. Our US CPA files the first US return — Form 5472 with Form 1120. FIAON pays these partners’ fees for the services in your package; all fees of the package are included in the fixed price.",
-        "Your contracting party is FIAON LTD, a business consultancy based in London. Our team in Miami attends appointments with authorities and institutions on the ground; our partner location is Zurich. From the second year, you can add the annual care plan if you wish — it is voluntary.",
+        `Your contracting party is ${FIAON_FIRMA.name}, based in London (Companies House ${FIAON_FIRMA.companyNo}). Our team in Miami attends appointments with authorities and institutions on the ground; our partner location is Zurich. From the second year, you can add the annual care plan if you wish — it is voluntary.`,
         ...GELD_ZURUECK,
       ],
     },

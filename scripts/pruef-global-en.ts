@@ -18,6 +18,7 @@
 //      darf „up to" tragen), keine deutschen Reste (Umlaute, Funktionswörter,
 //      „125 $", „2.499 €", „15. April"), Kapital-Satz nur mit Steuersatz, Geld-
 //      zurück nur mit Bedingungen.
+//      Österreich-Seite: kein „business consultancy“ (E-454, OESTERREICH_REGEL).
 //   Hinweise (kein Fehler): amerikanische Schreibweisen, „business card".
 //
 // Aufruf: npx tsx scripts/pruef-global-en.ts [datei …]   (ohne Datei: alle)
@@ -29,7 +30,7 @@ import { pathToFileURL } from "url";
 import type { GlobalBlock, GlobalSeite } from "../shared/fiaon-global-seiten/typen";
 import { GLOBAL_EN_PFADE, globalEnPfad } from "../shared/fiaon-global-pfade";
 import { GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI, globalKapital } from "../shared/fiaon-global";
-import { globalWortPruefenEn } from "../shared/fiaon-global-wortregeln";
+import { globalWortPruefenEn, istOesterreichSeite, OESTERREICH_REGEL } from "../shared/fiaon-global-wortregeln";
 import { titelPixel, beschreibungPixel, TITEL_MAX_PX, BESCHREIBUNG_MAX_PX } from "../shared/fiaon-pixel";
 
 const WURZEL = path.resolve(import.meta.dirname, "..");
@@ -144,6 +145,8 @@ for (const { datei, s: e } of englisch) {
   for (const [p, t] of alle) {
     if (OHNE_TEXT.test(p)) continue;
     for (const f of globalWortPruefenEn(t, VIP)) ok(false, `${p}: ${f.hinweis} — „${f.treffer}" in „${t.slice(0, 90)}"`);
+    // 28.10.2026 (E-454): Österreich-Seite ohne „business consultancy“ (AT § 94 Z 74 GewO, Ausnahme aus E-439).
+    if (istOesterreichSeite(e.pfad) && OESTERREICH_REGEL.muster.test(t)) ok(false, `${p}: ${OESTERREICH_REGEL.grund} — in „${t.slice(0, 90)}"`);
     const ohneErlaubt = t.replace(DEUTSCH_ERLAUBT, "");
     const rest = ohneErlaubt.match(/[äöüÄÖÜß]/) ?? ohneErlaubt.match(DEUTSCHE_WOERTER);
     if (rest && !/\.quellen\[/.test(p)) ok(false, `${p}: deutscher Rest „${rest[0]}" in „${t.slice(0, 90)}"`);

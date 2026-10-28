@@ -5,6 +5,25 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 28.10.2026 — E-454: Österreich-Seite ohne „Unternehmensberatung“, Verwechslungs-Schutz im Schema und in /llms.txt
+
+- **Warum:** E-439 erlaubt „Unternehmensberatung“ als Selbstbezeichnung — nur nicht auf der Österreich-Seite (dort ist das ein
+  reglementiertes Gewerbe, § 94 Z 74 GewO). Auf /business/aus-oesterreich und /en/business/from-austria stand das Wort trotzdem:
+  einmal sichtbar („Ihr Vertragspartner ist die FIAON LTD, eine Unternehmensberatung …“) und dreimal im Datenblock für Google
+  (Organisation, Zweitname und Beschreibung von FIAON Global). Dazu verwechselten KI-Suchen FIAON mit FXON, Fxonet, fiona.com und FIA Global.
+- **Was jetzt gilt:**
+  - Österreich-Seite (DE + EN): „Ihr Vertragspartner ist die FIAON LTD mit Sitz in London (Companies House 17318250).“ Im Datenblock
+    heißt FIAON Global dort „eine Marke der FIAON LTD“, ohne Zweitnamen; die Organisation beschreibt die Leistungen neutral.
+    Alle anderen Seiten bleiben wortgleich.
+  - Jede Seite trägt im Datenblock der Organisation (und bei FIAON Global) den Klärungssatz `disambiguatingDescription`
+    („… nicht verwandt mit FXON, Fxonet, Fiona (fiona.com) oder FIA Global“), deutsch oder englisch nach Seitensprache.
+    /llms.txt nennt denselben Satz („Nicht zu verwechseln mit …“, im englischen Teil „Not to be confused with …“).
+  - Neue Prüfregel: „Unternehmensberatung“/„consultancy“ auf den Österreich-Seiten ist ein Fehler — im Register
+    (pruef-wortwand-de, pruef-global-en) und im fertigen HTML samt Datenblock (pruef-global-seiten, Abschnitt E-454).
+- **Wo:** shared/fiaon-global-wortregeln.ts (OESTERREICH_SEITEN, OESTERREICH_REGEL), shared/fiaon-firma.ts (fiaonVerwechslung),
+  server/lib/fiaon-seiten-seo.ts (organisationLd, globalOrganisationLd), server/lib/fiaon-llms.ts, server/lib/fiaon-ratgeber-seo.ts,
+  shared/fiaon-global-seiten/e439/aus-oesterreich.ts, shared/fiaon-global-seiten/en/e439/from-austria.ts.
+
 ## 28.10.2026 — E-454: Google-Zahlen im Chefbüro (Besucher › Google)
 
 - **Warum:** Justin: „Ja Zugang — die Google-Zahlen landen automatisch im Chefbüro.“ Bisher las man die Search Console von Hand

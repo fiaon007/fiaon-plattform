@@ -37,7 +37,8 @@ import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
-import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { FIAON_FIRMA, fiaonVerwechslung } from "@shared/fiaon-firma";
+import { istOesterreichSeite } from "@shared/fiaon-global-wortregeln";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
 import { markeSvg, MARKE_NAVY } from "@shared/fiaon-marke";
 import { ogBusinessBild, istBusinessPfad } from "@shared/fiaon-og-business-regeln";
@@ -177,10 +178,22 @@ export function businessKopf(html: string): string {
     .replace(/<meta property="og:site_name" content="[^"]*"\s*\/?>/, '<meta property="og:site_name" content="FIAON Global" />');
 }
 
-export function organisationLd(bereich?: "business"): Record<string, unknown> {
+/**
+ * Optionen für den Datenblock der Organisation (28.10.2026, E-454):
+ * `sprache` — Sprache der Seite (der Klärungssatz disambiguatingDescription steht deutsch oder englisch; Standard Deutsch).
+ * `oesterreich` — Österreich-Seite: keine Selbstbezeichnung „Unternehmensberatung“/„business consultancy“ (AT § 94 Z 74 GewO, E-439).
+ */
+export interface OrganisationOptionen { sprache?: Sprache; oesterreich?: boolean }
+
+export function organisationLd(bereich?: "business", optionen: OrganisationOptionen = {}): Record<string, unknown> {
   // 27.10.2026 (E-439): Auf Business-Seiten nennt die Organisation nur die Themen von FIAON Global — vorher trugen auch die
   // Anzeigen-Landingpages „SCHUFA“, „Inkasso“, „Kreditkarte trotz Eintrag“ im Datenblock (Google liest die Zielseite mit).
   const business = bereich === "business";
+  const sp: Sprache = optionen.sprache === "en" ? "en" : "de";
+  // 28.10.2026 (E-454): Auf der Österreich-Seite ohne „Unternehmensberatung“ — dieselben Leistungen, neutral beschrieben.
+  const oesterreichText = sp === "en"
+    ? "FIAON LTD (London) with FIAON Global: your US company from one source — formation, EIN and ITIN, registered agent, preparation of account and card applications, US compliance — for companies and private individuals in Germany, Austria and Switzerland."
+    : "FIAON LTD (London) mit FIAON Global: die US-Gesellschaft aus einer Hand — Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz.";
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -190,11 +203,13 @@ export function organisationLd(bereich?: "business"): Record<string, unknown> {
     url: BASIS,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg?v=2`,
-    description: business
+    description: business && optionen.oesterreich ? oesterreichText : business
       ? "FIAON LTD (London) mit FIAON Global, der Unternehmensberatung für die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz."
       : "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
     // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
     identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
+    // 28.10.2026 (E-454): KI-Suchen verwechselten FIAON mit FXON, Fxonet, fiona.com und FIA Global — ein Satz klärt es (shared/fiaon-firma.ts).
+    disambiguatingDescription: fiaonVerwechslung(sp),
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
     contactPoint: [{ "@type": "ContactPoint", contactType: "customer support", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
     areaServed: [{ "@type": "Country", name: "Deutschland" }, { "@type": "Country", name: "Österreich" }, { "@type": "Country", name: "Schweiz" }],
@@ -219,24 +234,29 @@ export function organisationLd(bereich?: "business"): Record<string, unknown> {
 /**
  * 27.10.2026 (E-439): FIAON Global als eigene Entität — für Google, Bing und KI-Assistenten, die eine Marke einem
  * Unternehmen zuordnen. Vorher kannte das Markup nur „FIAON — Das Betriebssystem für Bonität“, auch auf /en/business.
- * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-439, Wortregel freigegeben).
+ * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-439, Wortregel freigegeben) — außer auf der
+ * Österreich-Seite (`oesterreich`, E-454: AT § 94 Z 74 GewO).
  * Nur wahre, prüfbare Angaben: Vertragspartner FIAON LTD (Companies House), Standorte wie auf /business/partner.
  */
-export function globalOrganisationLd(sprache: Sprache = "de"): Record<string, unknown> {
+export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<OrganisationOptionen, "oesterreich"> = {}): Record<string, unknown> {
   const en = sprache === "en";
+  // 28.10.2026 (E-454): Auf der Österreich-Seite heißt FIAON Global „Marke der FIAON LTD“ statt „Unternehmensberatung“, ohne alternateName.
+  const at = !!optionen.oesterreich;
+  const wer = en ? (at ? "a brand" : "the business consultancy") : (at ? "eine Marke" : "die Unternehmensberatung");
   return {
     "@context": "https://schema.org",
     "@type": ["Organization", "ProfessionalService"],
     "@id": `${BASIS}/#fiaon-global`,
     name: "FIAON Global",
-    alternateName: en ? ["FIAON Global business consultancy"] : ["FIAON Global Unternehmensberatung"],
+    ...(at ? {} : { alternateName: en ? ["FIAON Global business consultancy"] : ["FIAON Global Unternehmensberatung"] }),
     url: `${BASIS}${en ? "/en/business" : "/business"}`,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: ogBusinessBild(en ? "/en/business" : "/business")?.url ?? `${BASIS}/og-global.jpg?v=2`,
     slogan: en ? "One contact instead of eight." : "Ein Ansprechpartner statt acht.",
     description: en
-      ? "FIAON Global is the business consultancy of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, at a fixed price, with a team on the ground in Miami. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit."
-      : "FIAON Global ist die Unternehmensberatung der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.",
+      ? `FIAON Global is ${wer} of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, at a fixed price, with a team on the ground in Miami. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit.`
+      : `FIAON Global ist ${wer} der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.`,
+    disambiguatingDescription: fiaonVerwechslung(en ? "en" : "de", `FIAON Global (${FIAON_FIRMA.name}, London, Companies House ${FIAON_FIRMA.companyNo})`),
     parentOrganization: { "@id": `${BASIS}/#organisation` },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
     areaServed: (en ? ["Germany", "Austria", "Switzerland"] : ["Deutschland", "Österreich", "Schweiz"]).map((name) => ({ "@type": "Country", name })),
@@ -261,7 +281,9 @@ function breadcrumbLd(s: SeoSeite): Record<string, unknown> | null {
 }
 
 function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
-  const ld: unknown[] = [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined)];
+  const sp: Sprache = s.sprache === "en" ? "en" : "de";
+  const oesterreich = istOesterreichSeite(s.pfad);
+  const ld: unknown[] = [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined, { sprache: sp, oesterreich })];
   const fragen = seoFragen(s.pfad);
   if (s.pfad === "/") {
     ld.push({ "@context": "https://schema.org", "@type": "WebSite", "@id": `${BASIS}/#website`, name: "FIAON", url: BASIS, inLanguage: "de", publisher: { "@id": `${BASIS}/#organisation` } });
@@ -270,7 +292,7 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
     if (krumen) ld.push(krumen);
   }
   const imBusiness = istBusinessPfad(s.pfad);
-  if (imBusiness) ld.push(globalOrganisationLd(s.sprache === "en" ? "en" : "de"));
+  if (imBusiness) ld.push(globalOrganisationLd(sp, { oesterreich }));
   const herausgeber = { "@id": `${BASIS}/${imBusiness ? "#fiaon-global" : "#organisation"}` };
   ld.push({
     "@context": "https://schema.org",
@@ -453,7 +475,9 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   if (!html) return null;
   const url = `${BASIS}${s.canonical ?? (s.pfad === "/" ? "/" : s.pfad)}`;
   const beschreibung = beschreibungKuerzen(s.beschreibung);
-  const ld = s.robots?.includes("noindex") ? [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined)] : strukturierteDaten(s, url);
+  const ld = s.robots?.includes("noindex")
+    ? [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined, { sprache: s.sprache === "en" ? "en" : "de", oesterreich: istOesterreichSeite(s.pfad) })]
+    : strukturierteDaten(s, url);
   const sprache: Sprache = s.sprache === "en" ? "en" : "de";
   const absolut = (p: string) => `${BASIS}${p === "/" ? "/" : p}`;
   const alternativen = s.schwester

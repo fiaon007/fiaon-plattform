@@ -159,7 +159,7 @@ export async function businessArtikelHtml(slug: string, sprache: "de" | "en"): P
   const inhalt = `<main><nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li><a href="${wurzel}">FIAON Global</a></li><li><a href="${hub}">${en ? "Knowledge" : "Wissen"}</a></li></ol></nav><article><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>${esc(byline)}</p>${markdownZuHtml(a.inhalt)}${faqHtml}<nav aria-label="${en ? "Read on" : "Weiterlesen"}"><h2>${en ? "Read on" : "Weiterlesen"}</h2><ul>${weiter}</ul></nav></article></main>`;
   const bild = ogBusinessArtikelBild(slug, sp);
   const ld = [
-    organisationLd(), globalOrganisationLd(sp),
+    organisationLd(undefined, { sprache: sp }), globalOrganisationLd(sp),
     { "@context": "https://schema.org", "@type": "Article", "@id": `${url}#seite`, headline: a.titel, description: a.teaser, inLanguage: sp, datePublished: a.published_at, dateModified: a.updated_at,
       author: { "@id": `${BASIS}/#fiaon-global` }, publisher: { "@id": `${BASIS}/#fiaon-global` }, mainEntityOfPage: url, image: bild?.url,
       keywords: schlag.join(", "), articleSection: kat, wordCount: textAusMarkdown(a.inhalt).split(" ").length },

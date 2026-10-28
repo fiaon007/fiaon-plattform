@@ -52,6 +52,14 @@ const de = {
   augeLink: "Privatpersonen",
   h1a: "US-Gesellschaft gründen.",
   h1b: "Den Weg zum Kapital planen.",
+  /** E-442 (28.10.2026, Justin): Die zweite Zeile tippt sich selbst — „Ihr Weg …“. Screenreader und Suchmaschinen lesen h1b. */
+  h1Wechsel: [
+    "Ihr Weg zum Kapital.",
+    "Ihr Weg ins US-Finanzsystem.",
+    "Ihr Weg zur US-Gesellschaft.",
+    "Ihr Weg zum US-Geschäftskonto.",
+    "Ihr Weg zur ersten Firmenkarte.",
+  ] as string[],
   lead: "Gründung, EIN und ITIN, Konto- und Kartenanträge — mit unserem Team in Miami und einem festen Ansprechpartner.",
   knopfPakete: "Pakete und Preise",
   knopfGespraech: "Erstgespräch vereinbaren",
@@ -328,6 +336,13 @@ const en: typeof de = {
   augeLink: "private individuals",
   h1a: "Form a US company.",
   h1b: "Plan your route to capital.",
+  h1Wechsel: [
+    "Your route to capital.",
+    "Your route into the US financial system.",
+    "Your route to a US company.",
+    "Your route to a US business account.",
+    "Your route to your first US business card.",
+  ],
   lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
   knopfPakete: "Packages and prices",
   knopfGespraech: "Arrange a first call",

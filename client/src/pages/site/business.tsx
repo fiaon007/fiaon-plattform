@@ -282,7 +282,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         <HeroGlas en={s === "en"} onPakete={zuDenPaketen} onGespraech={() => zumGespraech()} t={{
           auge, ab: t.preisAb, preis: abPreis,
           label: `${t.preisKopf} · ${t.preisKopfZusatz.replace(/\.$/, "")}`,
-          h1a: t.h1a, h1b: t.h1b, lead: mitBegriffen(t.lead, [begriff("ein"), begriff("itin")]),
+          h1a: t.h1a, h1b: t.h1b, wechsel: privat ? undefined : basis.h1Wechsel, lead: mitBegriffen(t.lead, [begriff("ein"), begriff("itin")]),
           knopfPakete: t.knopfPakete, knopfGespraech: t.knopfGespraech, mikro: t.gespraechMikro,
           kapitalTitel: t.kapitalKopf, kapitalWert: globalKapitalSpanne(s), kapitalSatz: t.kapitalKopfZusatz,
           kapitalFrei: frei.kurz, fussnoteNr: nrFrei, fussnote: `${frei.satz} ${frei.steuer}`,

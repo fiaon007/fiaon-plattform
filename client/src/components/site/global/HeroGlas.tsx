@@ -19,8 +19,8 @@
 // steht alles — nur der Glanz zieht alle neun Sekunden über die Zahl.
 // Bei „weniger Bewegung“ steht sofort das Endbild.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useLayoutEffect, useState, type ReactNode } from "react";
-import { nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { beobachteSichtbar, nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
 import { VISITENKARTEN } from "@shared/fiaon-visitenkarte";
 import "@/styles/global-hero-glas.css";
 
@@ -35,6 +35,8 @@ export interface HeroGlasTexte {
   label: string;
   h1a: string;
   h1b: string;
+  /** Die Sätze, die sich in der zweiten Zeile selbst tippen (ohne: h1b steht still). */
+  wechsel?: string[];
   /** Der Lead-Satz der Seite (mit antippbaren Begriffen). */
   lead: ReactNode;
   knopfPakete: string;
@@ -53,6 +55,67 @@ export interface HeroGlasTexte {
   mustervertragHref: string;
   /** Beschriftung des Winkels nach unten (aria-label). */
   weiter: string;
+}
+
+/** Wie viele Zeichen zwei Sätze vorn teilen — „Ihr Weg “ bleibt stehen, nur der Rest wird gelöscht und neu getippt. */
+function gemeinsam(a: string, b: string) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
+
+/**
+ * DIE TIPP-ZEILE (E-442, 28.10.2026) — Justin: „Den Weg zum Kapital planen. — da muss eine Animation her, mit Tipp-Animation:
+ * ‚Ihr Weg zum Kapital‘, ‚Ihr Weg zur US-Gesellschaft‘, ‚Ihr Weg in das US-Finanzsystem‘ …“
+ * Ablauf: Satz steht 2,6 s → nur der Teil hinter dem gemeinsamen Anfang wird gelöscht (28 ms je Zeichen) → kurze Pause →
+ * der nächste Satz tippt sich (52 ms je Zeichen, leicht unregelmäßig wie von Hand). Der Strich blinkt nur, solange der Satz steht.
+ * Die Zeile reserviert ihren Platz mit allen Sätzen unsichtbar übereinander — nichts darunter springt.
+ * Läuft nur, wenn die Bühne im Bild und der Tab vorn ist; bei „weniger Bewegung“ steht der erste Satz still, ohne Strich.
+ * Für Screenreader und Suchmaschinen steht die ruhige Fassung (h1b) unsichtbar in der Überschrift; die Tipp-Zeile ist aria-hidden.
+ */
+function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boolean }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [stand, setStand] = useState({ i: 0, n: saetze[0]?.length ?? 0, tippt: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !startbereit || saetze.length < 2 || ruhigGewuenscht()) return;
+    let i = 0, n = saetze[0].length, modus: "halten" | "loeschen" | "pause" | "tippen" = "halten";
+    let uhr = 0, sichtbar = false;
+    const zeigen = (tippt: boolean) => setStand({ i, n, tippt });
+    const plan = (ms: number) => { uhr = window.setTimeout(() => { uhr = 0; schritt(); }, ms); };
+    const schritt = () => {
+      if (!sichtbar) return;
+      const naechster = (i + 1) % saetze.length;
+      const bis = gemeinsam(saetze[i], saetze[naechster]);
+      if (modus === "halten") { modus = "loeschen"; zeigen(false); plan(2600); return; }
+      if (modus === "loeschen") {
+        if (n > bis) { n--; zeigen(true); plan(28); return; }
+        modus = "pause"; plan(360); return;
+      }
+      if (modus === "pause") { i = naechster; modus = "tippen"; zeigen(true); plan(90); return; }
+      const satz = saetze[i];
+      if (n < satz.length) { n++; zeigen(true); plan(satz[n - 1] === " " ? 90 : 40 + ((n * 37) % 30)); return; }
+      modus = "halten"; zeigen(false); schritt();
+    };
+    const weg = beobachteSichtbar(el, (s) => {
+      sichtbar = s;
+      if (!s) { window.clearTimeout(uhr); uhr = 0; return; }
+      if (!uhr) schritt();
+    });
+    return () => { weg(); window.clearTimeout(uhr); };
+  }, [saetze, startbereit]);
+  // „Ihr Weg “ steht ruhig in Navy, nur das wechselnde Ende leuchtet in Glasblau.
+  const fest = saetze.reduce((p, s) => Math.min(p, gemeinsam(saetze[0], s)), saetze[0]?.length ?? 0);
+  const text = (saetze[stand.i] ?? "").slice(0, stand.n);
+  return (
+    <span ref={ref} className="hg-tipp" aria-hidden="true">
+      {saetze.map((s) => <span key={s} className="hg-tipp-mass">{s}</span>)}
+      <span className="hg-tipp-text">
+        <span className="fest">{text.slice(0, fest)}</span><span className="wechsel">{text.slice(fest)}</span>
+        <i className={`hg-tipp-strich${stand.tippt ? "" : " blinkt"}`} />
+      </span>
+    </span>
+  );
 }
 
 function Pfeil() {
@@ -79,7 +142,11 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
         {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}
         <p className="hg-zahl"><span className="hg-zahl-ab">{t.ab} </span>{t.preis}</p>
         <p className="hg-label">{t.label}</p>
-        <h1 className="hg-h1">{t.h1a} <em>{t.h1b}</em></h1>
+        {t.wechsel && t.wechsel.length > 1 ? (
+          <h1 className="hg-h1">{t.h1a} <span className="hg-sr">{t.h1b}</span><TippZeile saetze={t.wechsel} startbereit={an} /></h1>
+        ) : (
+          <h1 className="hg-h1">{t.h1a} <em>{t.h1b}</em></h1>
+        )}
         {/* Der eine Satz, was im Festpreis steckt — mit den antippbaren Begriffen EIN und ITIN (Prüfung 27.10.: ging mit dem alten Hero verloren). */}
         <p className="hg-lead">{t.lead}</p>
         <div className="hg-pillen">

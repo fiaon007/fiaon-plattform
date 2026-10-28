@@ -681,3 +681,56 @@ html .sz-kanzlei-ansicht.sz-kanzlei-ansicht .sz-ansicht-kasten { border-radius: 
   html .fg.fg .fg-paket-wahl #wahl-global_vip[aria-pressed="true"] b, html .fg.fg .fg-paket-wahl #wahl-global_vip[aria-pressed="true"] span { color: #fff; }
   html .fg.fg .fg-paket-wahl #wahl-global_vip::after { display: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEINSCHLIFF 28.10.2026 (E-442, Justin: „Bei den Produktpreisen passen die Abstände nicht — am Handy muss alles sauberer
+   aussehen, es ist rechts und links sehr knapp“)
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Kapitalrahmen und Festpreis: zwei Zeilen statt zwei enger Spalten. Gemessen 28.10.: in jeder Breite ab 1.000 px war die Zahl
+   breiter als ihre Zelle (bis 24 px), „250.000 $“ stieß an den Trennstrich. Jetzt je Zeile: Überschrift links, Zahl rechts auf
+   einer Grundlinie, der Satz dazu darunter über die ganze Breite. Die Zahl passt sich der Breite der Tafel an (cqi). */
+html .fg.fg .fg-tarif-zahlen { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; }
+html .fg.fg .fg-tarif-zahlen > div {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "titel zahl" "satz satz";
+  align-items: baseline; column-gap: 14px; row-gap: 6px; padding: 16px 20px 15px;
+}
+html .fg.fg .fg-tarif-zahlen > div + div { border-left: 0; border-top: 1px solid rgba(18, 40, 74, .08); }
+html .fg.fg .fg-tarif-zahlen > div > span { grid-area: titel; align-self: baseline; }
+html .fg.fg .fg-tarif-zahlen > div > b { grid-area: zahl; justify-self: end; font-size: clamp(20px, 9.2cqi, 32px); }
+html .fg.fg .fg-tarif-zahlen > div > em { grid-area: satz; }
+html .fg.fg .fg-tarif-zahlen > div > em.inkl { display: flex; }
+@container (max-width: 300px) {
+  html .fg.fg .fg-tarif-zahlen > div { padding: 14px 16px 13px; }
+  html .fg.fg .fg-tarif-zahlen > div + div { border-left: 0; border-top: 1px solid rgba(18, 40, 74, .08); }
+}
+/* Luft in der Tafel: Knopf und „Erst sprechen“ mit gleichem Abstand zu Zahlen und Liste. */
+html .fg.fg .fg-tarif .tun { margin-top: 20px; gap: 6px; }
+html .fg.fg .fg-tarif-leistungen { margin-top: 22px; padding-top: 22px; }
+html .fg.fg .fg-tarif-weg { margin-top: 16px; }
+html .fg.fg .fg-tarif-zahlen { margin-top: 18px; }
+
+/* Drei Tafeln nebeneinander: die Zeile „Etappen … Begleitung …“ bricht ein- bis dreizeilig — gleiche Mindesthöhe, damit die
+   Zahlenkästen, Knöpfe und Listen aller drei Tafeln auf einer Linie beginnen. */
+@media (min-width: 1001px) { html .fg.fg .fg-tarif:not(.vip) .fg-tarif-weg { min-height: 52px; align-items: flex-start; } }
+
+/* ── Telefon: 24 px Rand überall (vorher 16 px), die Wischreihe genau bis an den Bildschirmrand ── */
+@media (max-width: 720px) {
+  html .fg.fg .fg-rahmen { padding: 0 24px; }
+  html .fg.fg .fd-koerper, html .fg.fg .fd-weiter { padding-left: 24px; padding-right: 24px; }
+}
+@media (max-width: 640px) {
+  html .fg.fg.fg-neu .fg-tarife { margin: 16px -24px 0; padding: 16px 24px 8px; scroll-padding: 0 24px; }
+  html .fg.fg.fg-neu .fg-tarife > .dk-auf { flex: 0 0 calc(100% - 28px); }
+  /* „Jetzt beauftragen“ über die ganze Tafel (die Tablet-Regel align-self:start ließ ihn am Handy auf Textbreite schrumpfen). */
+  html .fg.fg .fg-tarif:not(.vip) .tun { align-self: stretch; }
+  /* Die Handlungsleiste schwebt wie die Kopf-Pille: 12 px vom Rand, rund. */
+  html .fg.fg.fg-neu .fg-mobil {
+    left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); border-radius: 26px; border-width: 1px;
+    padding: 8px; min-height: 0; box-shadow: 0 18px 44px -12px rgba(12, 26, 46, .28);
+  }
+  html .fg.fg .fd-mobil { left: 12px; right: 12px; }
+}
+@media (max-width: 380px) {
+  html .fg.fg .fg-rahmen { padding: 0 20px; }
+  html .fg.fg.fg-neu .fg-tarife { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; scroll-padding: 0 20px; }
+}

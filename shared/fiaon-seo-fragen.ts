@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /ist-fiaon-serioes (9), /en/is-fiaon-legit (9), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: / (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), /business (17), /en/business (17), /preise (6), /en/pricing (6), /en (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -1060,82 +1060,6 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Where are the reviews?",
       "a": "FIAON is currently setting up the public review profiles (Trustpilot, ProvenExpert, Google) — customers receive an invitation after the onboarding call. Until the profiles are up, we would rather show nothing here than invented stars. Verifiable today: figures from operations, process, prices, team and security."
-    }
-  ],
-  "/ist-fiaon-serioes": [
-    {
-      "f": "Ist FIAON seriös?",
-      "a": "Prüfen Sie es an Fakten, nicht an Versprechen: FIAON wird von der FIAON LTD betrieben, eingetragen im britischen Handelsregister Companies House unter der Nummer 17318250, Sitz 128 City Road, London. Sie zahlen nur per Überweisung auf das Geschäftskonto der FIAON LTD, Paket und Monatsentgelt stehen vor dem Abschluss fest, es gilt das gesetzliche Widerrufsrecht von 14 Tagen, und Sie erreichen Menschen per Telefon und E-Mail."
-    },
-    {
-      "f": "Ist FIAON Abzocke?",
-      "a": "Nein – und Sie können es selbst prüfen. Vor dem Abschluss sehen Sie Paket, Monatsentgelt, Gesamtbetrag, Laufzeit und Kündigungsregel; dieselben Angaben stehen in Ihrer Vertragsbestätigung. Von Ihrem Konto wird nichts abgebucht – jede Zahlung lösen Sie selbst per Überweisung aus. Die Leistungen stehen im Vertrag, und jeder Schritt ist in Ihrem Kundenbereich nachlesbar."
-    },
-    {
-      "f": "Wer steht hinter FIAON?",
-      "a": "Die FIAON LTD mit Sitz in 128 City Road, London, EC1V 2NX, eingetragen beim Companies House (England and Wales) unter der Nummer 17318250. Geschäftsführer ist der Gründer Justin Schwarzott. Den Eintrag können Sie kostenlos und ohne Anmeldung auf der Seite des Companies House einsehen; alle Pflichtangaben stehen im Impressum."
-    },
-    {
-      "f": "Wohin zahle ich, und wie erkenne ich eine echte Zahlungsaufforderung?",
-      "a": "Sie zahlen nur per Überweisung an den Empfänger FIAON LTD; die Bankverbindung steht auf dieser Seite und in jeder Zahlungsaufforderung, zusammen mit Ihrem persönlichen Verwendungszweck. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto. Erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht und melden Sie sich bei support@fiaon.com oder unter +41 44 244 93 01."
-    },
-    {
-      "f": "Ist FIAON eine Bank oder ein Kreditvermittler?",
-      "a": "FIAON ist eine Plattform für Bonität und Zugang. Ihr Konto und Ihre Visa-Kreditkarte führt unsere Partnerbank, die DKB; FIAON bereitet Ihren Antrag mit Ihnen vor. FIAON vermittelt keine Kredite und verlangt keine Gebühr für einen Kredit – Sie zahlen ein Monatsentgelt für Leistungen, die in Ihrem Vertrag stehen."
-    },
-    {
-      "f": "Wie lange läuft der Vertrag, und wie kündige ich?",
-      "a": "Pakete für Privatkunden haben eine Mindestlaufzeit von zwölf Monaten und sind danach jederzeit mit einer Frist von einem Monat kündbar. Zum Ende der Mindestlaufzeit kündigen Sie mit einem Monat Frist – formlos per E-Mail an support@fiaon.com oder im Kundenbereich unter „Abo & Zahlungen“. Das gesetzliche Widerrufsrecht von 14 Tagen ab Vertragsschluss gilt zusätzlich. FIAON Global arbeitet mit Festpreisen je Paket."
-    },
-    {
-      "f": "Was passiert mit meinen Daten?",
-      "a": "Ihre Akte liegt auf Servern in Frankfurt am Main, verschlüsselt bei Übertragung und Ablage. FIAON verarbeitet nur, was Sie selbst hochladen, verschickt kein Schreiben ohne Ihre Freigabe und verkauft keine Daten. Auskunft, Berichtigung und Löschung nach der DSGVO können Sie jederzeit verlangen; nach Vertragsende löschen wir Ihre Unterlagen auf Wunsch vollständig, nur Rechnungsdaten bleiben aus gesetzlichen Gründen aufbewahrt."
-    },
-    {
-      "f": "Wie erreiche ich FIAON?",
-      "a": "Telefonisch werktags unter +41 44 244 93 01, per E-Mail an support@fiaon.com (Antwort in der Regel am selben Werktag), als Kunde im Kundenbereich unter „Hilfe“ und für Dringendes über „Dringend melden“ auf der Kontaktseite – die Meldung geht direkt an die Geschäftsführung. Post: FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom."
-    },
-    {
-      "f": "Warum finde ich Warnungen oder Bewertungen, die nicht zu FIAON passen?",
-      "a": "Weil es Unternehmen mit ähnlich klingenden Namen gibt. FIAON schreibt sich F-I-A-O-N, die Internetadresse ist fiaon.com, Vertragspartner ist die FIAON LTD in London. Warnlisten von Aufsichtsbehörden und Verbraucherportalen nennen Anbieter mit Namen und Adresse – prüfen Sie beides genau. Wenn etwas nicht zusammenpasst, fragen Sie uns direkt."
-    }
-  ],
-  "/en/is-fiaon-legit": [
-    {
-      "f": "Is FIAON legit?",
-      "a": "Judge us on facts, not promises: FIAON is operated by FIAON LTD, registered with Companies House (England and Wales) under number 17318250, registered office 128 City Road, London. You pay by bank transfer only, to the business account of FIAON LTD; plan and monthly fee are fixed before you sign; the statutory 14-day right of withdrawal applies; and you can reach real people by phone and e-mail."
-    },
-    {
-      "f": "Is FIAON a scam?",
-      "a": "No — and you can check that yourself. Before you sign, you see the plan, the monthly fee, the total amount, the term and the cancellation rule; the same details are repeated in your contract confirmation. Nothing is ever debited from your account — you make every payment yourself by bank transfer. The services are set out in the contract, and every step is visible in your customer area."
-    },
-    {
-      "f": "Who is behind FIAON?",
-      "a": "FIAON LTD, registered office 128 City Road, London, EC1V 2NX, registered with Companies House (England and Wales) under number 17318250. The Director is the founder, Justin Schwarzott. You can view the entry free of charge and without an account on the Companies House website; all statutory details are in the legal notice (Impressum)."
-    },
-    {
-      "f": "Where do I pay, and how do I recognise a genuine payment request?",
-      "a": "You pay by bank transfer only, to the recipient FIAON LTD; the account details are on this page and in every payment request, together with your personal payment reference. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If you receive such a request in FIAON's name, please do not pay and contact support@fiaon.com or +41 44 244 93 01."
-    },
-    {
-      "f": "Is FIAON a bank or a credit broker?",
-      "a": "FIAON is a platform for credit standing and access. Your account and your Visa credit card are provided by our partner bank, DKB; FIAON prepares your application with you. FIAON does not broker loans and never charges a fee for a loan — you pay a monthly fee for services set out in your contract."
-    },
-    {
-      "f": "How long does the contract run, and how do I cancel?",
-      "a": "Plans for private customers have a minimum term of twelve months and can then be cancelled at any time with one month's notice. To end the contract at the close of the minimum term, give one month's notice — informally by e-mail to support@fiaon.com or in your customer area under “Subscription & payments”. The statutory 14-day right of withdrawal from the conclusion of the contract applies in addition. FIAON Global works with a fixed price per package."
-    },
-    {
-      "f": "What happens to my data?",
-      "a": "Your file is stored on servers in Frankfurt am Main, encrypted in transit and at rest. FIAON processes only what you upload yourself, sends no letter without your approval and never sells data. You can request access, correction and erasure under the GDPR at any time; once the contract has ended, we delete your documents in full on request — only invoicing records are kept, as the law requires."
-    },
-    {
-      "f": "How do I reach FIAON?",
-      "a": "By phone on weekdays on +41 44 244 93 01, by e-mail to support@fiaon.com (reply usually on the same working day), as a customer in your customer area under “Help”, and for anything urgent via “Report urgently” on the contact page — your message goes straight to the management. Post: FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom."
-    },
-    {
-      "f": "Why do I find warnings or reviews that do not fit FIAON?",
-      "a": "Because there are companies with similar-sounding names. FIAON is spelt F-I-A-O-N, the web address is fiaon.com, and the contracting party is FIAON LTD in London. Warning lists from regulators and consumer portals name providers with their name and address — check both carefully. If something does not add up, ask us directly."
     }
   ],
   "/termin": [

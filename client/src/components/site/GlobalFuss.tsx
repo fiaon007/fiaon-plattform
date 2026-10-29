@@ -17,6 +17,7 @@ import { SozialeLinks } from "@/components/site/SozialeLinks";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { mitBereich } from "@/lib/bereich";
+import { istBusinessPfad } from "@shared/fiaon-business-grenze";
 import { GlobalMarke } from "@/components/site/GlobalNav";
 import GlobalOrte from "@/components/site/global/GlobalOrte";
 import "@/styles/global-rahmen.css";
@@ -36,7 +37,7 @@ export default function GlobalFuss() {
   const jahr = new Date().getFullYear();
   const recht: [string, string][] = w.recht.map(({ pfad, text }) => [en && !pfad.startsWith("/en/") ? schwesterPfad(pfad, "en") ?? pfad : pfad, text]);
   // Die Business-eigenen Rechtsseiten tragen den Rahmen ohnehin; die gemeinsamen bekommen ?bereich=business.
-  const rechtHref = (p: string) => (/^\/(en\/)?business(\/|$)/.test(p) ? p : mitBereich(p));
+  const rechtHref = (p: string) => (istBusinessPfad(p) ? p : mitBereich(p));
 
   return (
     <footer className="gf" aria-label={w.label}>

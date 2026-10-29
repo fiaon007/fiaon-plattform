@@ -154,6 +154,12 @@ function RedaktionsArtikel({ slug, sp }: { slug: string; sp: Sp }) {
   return <Seite s={s} />;
 }
 
+// 29.10.2026 (E-459): Die Vorlage zeichnet auch Seiten außerhalb des Registers — die Vertrauensseite „Ist FIAON seriös?“
+// (pages/site/ist-fiaon-serioes.tsx) gibt ihren Datensatz (shared/fiaon-serioes-seite.ts) direkt hinein.
+export function GlobalSeitenAnsicht({ s }: { s: GlobalSeite }) {
+  return <Seite s={s} />;
+}
+
 function Seite({ s }: { s: GlobalSeite }) {
   const sp = globalSprache(s);
   const t = GLOBAL_WOERTER[sp];

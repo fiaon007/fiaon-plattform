@@ -635,12 +635,16 @@ export interface RadarMotor {
   ableitung: boolean;
   ableitungAnteil: number;
   ableitungRueckMax: number;
+  /** Postfächer (Punkt 6): Tagesgrenze je Postfach, Hochfahren neuer Postfächer (Woche 1, Woche 2), pausierte Postfächer. */
+  postfachJeTag: number;
+  postfachRampe: number[];
+  postfachAus: string[];
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
 export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30,
   partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang",
-  ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5 };
+  ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5, postfachJeTag: 60, postfachRampe: [20, 40], postfachAus: [] };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
@@ -648,6 +652,7 @@ export const RADAR_MOTOR_SCHLUESSEL = {
   sucheTagesziel: "radar_suche_tagesziel", sucheLaeufe: "radar_suche_laeufe",
   partnerGruppen: "radar_partner_gruppen", partnerTagesziel: "radar_partner_tagesziel", partnerProvisionText: "radar_partner_provision_text",
   ableitung: "radar_ableitung", ableitungAnteil: "radar_ableitung_anteil", ableitungRueckMax: "radar_ableitung_rueck_max",
+  postfachJeTag: "radar_postfach_je_tag", postfachRampe: "radar_postfach_rampe", postfachAus: "radar_postfach_aus",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -705,7 +710,53 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     ableitung: roh[k.ableitung] != null ? text(roh[k.ableitung]) !== "aus" : v.ableitung,
     ableitungAnteil: Math.round(zahl(roh[k.ableitungAnteil], v.ableitungAnteil, 0, 100)),
     ableitungRueckMax: zahl(roh[k.ableitungRueckMax], v.ableitungRueckMax, 0.5, 50),
+    postfachJeTag: Math.round(zahl(roh[k.postfachJeTag], v.postfachJeTag, 1, RADAR_HOECHSTENS_JE_TAG)),
+    postfachRampe: (() => {
+      const r = text(roh[k.postfachRampe]).split(/[,;\s]+/).filter(Boolean).map(Number);
+      return r.length && r.length <= 4 && r.every((n) => Number.isInteger(n) && n >= 1 && n <= RADAR_HOECHSTENS_JE_TAG) ? r : [...v.postfachRampe];
+    })(),
+    postfachAus: text(roh[k.postfachAus]).toLowerCase().split(/[,;\s]+/).filter((a) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(a)),
   };
+}
+
+/**
+ * Tagesgrenze eines Postfachs: neue Postfächer fahren hoch (Woche 1 → 20, Woche 2 → 40, danach radar_postfach_je_tag).
+ * Beginn = erster Radar-Versand des Postfachs; ohne Geschichte = Woche 1. Rein.
+ */
+export function radarPostfachGrenze(e: { ersterVersand: Date | string | null | undefined; jetzt: Date; jeTag: number; rampe: readonly number[] }): number {
+  const erster = e.ersterVersand ? new Date(e.ersterVersand).getTime() : NaN;
+  const tage = Number.isFinite(erster) ? Math.max(0, Math.floor((e.jetzt.getTime() - erster) / 86_400_000)) : 0;
+  const woche = Math.floor(tage / 7);
+  const stufe = woche < e.rampe.length ? e.rampe[woche] : e.jeTag;
+  return Math.max(0, Math.min(e.jeTag, stufe));
+}
+
+/**
+ * Ist ein Postfach bereit für erste Mails? Gmail-Zugang (wenn eingerichtet), eine echte Person (Vor- und Nachname) mit
+ * Signatur MIT Bild — Justins Karte zählt als Bild —, und bei einer anderen Domäne als fiaon.com: MX, SPF (Google),
+ * DKIM und DMARC. Ein Postfach ohne echte Person sendet nie. Rein.
+ */
+export function radarPostfachBereit(e: {
+  person: { name: string; signaturHtml: string; quelle: "gmail" | "karte" } | null; gmail: boolean | null;
+  dns: { mx: boolean; spf: boolean; dkim: boolean; dmarc: boolean } | null; eigeneDomain: boolean;
+}): { bereit: boolean; gruende: string[] } {
+  const gruende: string[] = [];
+  if (e.gmail === false) gruende.push("Gmail-Zugang fehlt (Dienstkonto-Delegation)");
+  if (!e.person) gruende.push("Keine Unterschrift — in Gmail Name und Signatur einrichten");
+  else {
+    if (String(e.person.name ?? "").replace(/\|.*$/, "").trim().split(/\s+/).filter((w) => w.length >= 2).length < 2) gruende.push("Absendername ohne Vor- und Nachnamen");
+    if (e.person.quelle !== "karte" && !/<img\b/i.test(e.person.signaturHtml)) gruende.push("Gmail-Signatur ohne Bild");
+  }
+  if (!e.eigeneDomain) {
+    if (!e.dns) gruende.push("DNS der Versand-Domäne nicht lesbar");
+    else {
+      if (!e.dns.mx) gruende.push("MX fehlt");
+      if (!e.dns.spf) gruende.push("SPF ohne Google");
+      if (!e.dns.dkim) gruende.push("DKIM fehlt");
+      if (!e.dns.dmarc) gruende.push("DMARC fehlt");
+    }
+  }
+  return { bereit: !gruende.length, gruende };
 }
 
 // ── POSTFÄCHER UND EHRLICHE LEISTUNG (E-458 Punkt 6) ────────────────────────

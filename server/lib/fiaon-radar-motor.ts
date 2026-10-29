@@ -25,17 +25,18 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  ensureRadarTabellen, zeileLesen, radarScannen, radarMailAusgeben, radarPostfaecher, radarMotorEinstellung, RadarFehler,
+  ensureRadarTabellen, zeileLesen, radarScannen, radarMailAusgeben, radarPostfaecher, radarMotorEinstellung, radarAbsenderFuer, RadarFehler,
   type RadarSender,
 } from "./fiaon-radar";
+import { versandDns, type VersandDns } from "./fiaon-mx";
 import { radarAutomatik } from "./fiaon-radar-faden";
-import { gmailBereit } from "./fiaon-gmail";
+import { gmailBereit, postfachProbe } from "./fiaon-gmail";
 import { kiPausiert } from "./fiaon-ki-pause";
 import { berlinToday } from "./fiaon-time";
 import {
   RADAR_SIGNAL_AB, RADAR_STROEME, RADAR_NUR_BRIEF_LAENDER, RADAR_HOECHSTENS_JE_TAG, RADAR_MOTOR_STATUS, RADAR_NACHFASS_TAGE,
   radarMotorImFenster, radarMotorSoll, radarMotorFensterStunden, radarMotorReststunden, radarBerlinTagMinute,
-  radarPostfachWaehlen, radarMoeglich, radarAdressePersoenlich, radarAdressePruefen,
+  radarPostfachWaehlen, radarMoeglich, radarAdressePersoenlich, radarAdressePruefen, radarPostfachGrenze, radarPostfachBereit,
   type RadarStrom, type RadarMotor, type RadarPostfachLage, type RadarMoeglich,
 } from "@shared/fiaon-radar";
 
@@ -75,15 +76,56 @@ export function persoenlicheAdresse(f: any): boolean {
   return radarAdressePersoenlich(email, namen);
 }
 
-// ── Postfächer: Grenze, heute gesendet, Reserve ─────────────────────────────
-/** Der Stand aller Radar-Postfächer heute (Berliner Tag): alles, was der Radar daraus sendet, und fällige Nachfass-Mails. */
-export async function postfachLagen(jetzt: Date = new Date(), lauf: any = sqlPool): Promise<RadarPostfachLage[]> {
+// ── Postfächer: Bereitschaft, Grenze, heute gesendet, Reserve (Punkt 6) ──────
+export interface PostfachBereitschaft {
+  adresse: string; bereit: boolean; gruende: string[]; name: string | null; quelle: "gmail" | "karte" | null; signaturHtml: string | null;
+  gmail: boolean | null; dns: VersandDns | null; am: number;
+}
+const bereitschaftCache = new Map<string, PostfachBereitschaft>();
+
+/**
+ * Ist ein Postfach bereit? Gmail-Zugang (Probe), Person und Signatur aus Gmail (sendAs; js@ notfalls Justins Karte), bei
+ * fremden Domänen MX, SPF, DKIM und DMARC. Sechs Stunden zwischengespeichert; neu = sofort neu prüfen (Chefbüro).
+ */
+export async function postfachBereitschaft(adresse: string, neu = false): Promise<PostfachBereitschaft> {
+  const a = String(adresse || "").trim().toLowerCase();
+  const im = bereitschaftCache.get(a);
+  if (im && !neu && Date.now() - im.am < 6 * 3_600_000) return im;
+  const domain = a.split("@")[1] ?? "";
+  const eigen = domain === "fiaon.com";
+  const absender = await radarAbsenderFuer(a).catch(() => null);
+  const gmail = gmailBereit() ? (await postfachProbe(a).catch(() => ({ ok: false }))).ok : null;
+  const dns = eigen ? null : await versandDns(domain).catch(() => null);
+  const urteil = radarPostfachBereit({ person: absender ? { name: absender.name, signaturHtml: absender.signaturHtml, quelle: absender.quelle } : null, gmail, dns, eigeneDomain: eigen });
+  const wert: PostfachBereitschaft = { adresse: a, ...urteil, name: absender?.name ?? null, quelle: absender?.quelle ?? null, signaturHtml: absender?.signaturHtml ?? null, gmail, dns, am: Date.now() };
+  bereitschaftCache.set(a, wert);
+  return wert;
+}
+
+/** Prüfstand: den Zwischenspeicher der Bereitschaft leeren. */
+export function postfachBereitschaftVergessen(): void { bereitschaftCache.clear(); }
+
+/** Pausen aus der Zustell-Bremse (Punkt 7): Postfach → bis. Steht in fiaon_settings (radar_postfach_pause). */
+export async function postfachPausen(lauf: any = sqlPool): Promise<Record<string, string>> {
+  const [z] = (await lauf`SELECT value FROM fiaon_settings WHERE key = 'radar_postfach_pause'`.catch(() => [])) as any[];
+  try { const p = JSON.parse(String(z?.value ?? "{}")); return p && typeof p === "object" ? p : {}; } catch { return {}; }
+}
+
+/**
+ * Der Stand aller Radar-Postfächer heute (Berliner Tag): Grenze mit Hochfahren, alles, was der Radar daraus sendet
+ * (erste Mail, Nachfass, Mara — nicht Justins Antworten von Hand), fällige Nachfass-Mails als Reserve, Pause und
+ * Bereitschaft (aus dem Zwischenspeicher; bereit = vorher mit postfachBereitschaft geprüft).
+ */
+export async function postfachLagen(jetzt: Date = new Date(), lauf: any = sqlPool, bereitschaft?: Map<string, PostfachBereitschaft>): Promise<RadarPostfachLage[]> {
   const tag = berlinToday(jetzt);
   const adressen = radarPostfaecher();
   if (!adressen.length) return [];
+  const m = await radarMotorEinstellung();
   const gesendet = (await lauf`
-    SELECT postfach, COUNT(*)::int AS n, MAX(datum) AS letzte FROM fiaon_radar_post
-     WHERE richtung = 'aus' AND art <> 'von_hand' AND postfach = ANY(${adressen}) AND (datum AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date
+    SELECT postfach, COUNT(*) FILTER (WHERE (datum AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date)::int AS n,
+           MAX(datum) AS letzte, MIN(datum) AS erster
+      FROM fiaon_radar_post
+     WHERE richtung = 'aus' AND art <> 'von_hand' AND postfach = ANY(${adressen})
      GROUP BY postfach`) as any[];
   const sendend = (await lauf`
     SELECT postfach, COUNT(*)::int AS n, MAX(motor_am) AS letzte FROM fiaon_radar_firmen
@@ -94,23 +136,31 @@ export async function postfachLagen(jetzt: Date = new Date(), lauf: any = sqlPoo
        AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND postfach = ANY(${adressen})
        AND (nachfass_faellig AT TIME ZONE 'Europe/Berlin')::date <= ${tag}::date
      GROUP BY postfach`) as any[];
+  const pausen = await postfachPausen(lauf);
   const je = (liste: any[], p: string) => liste.find((x) => String(x.postfach) === p);
   return adressen.map((adresse) => {
     const g = je(gesendet, adresse), s = je(sendend, adresse), r = je(reserve, adresse);
     const letzte = [g?.letzte, s?.letzte].filter(Boolean).map((d) => new Date(d).getTime());
+    const bis = pausen[adresse] ? new Date(pausen[adresse]).getTime() : NaN;
+    const b = bereitschaft?.get(adresse) ?? bereitschaftCache.get(adresse);
     return {
-      adresse, grenze: RADAR_HOECHSTENS_JE_TAG, heute: Number(g?.n ?? 0) + Number(s?.n ?? 0), reserve: Number(r?.n ?? 0),
-      letzteAm: letzte.length ? new Date(Math.max(...letzte)) : null, bereit: true,
+      adresse,
+      grenze: radarPostfachGrenze({ ersterVersand: g?.erster ?? null, jetzt, jeTag: m.postfachJeTag, rampe: m.postfachRampe }),
+      heute: Number(g?.n ?? 0) + Number(s?.n ?? 0), reserve: Number(r?.n ?? 0),
+      letzteAm: letzte.length ? new Date(Math.max(...letzte)) : null,
+      bereit: b ? b.bereit : false,
+      pause: m.postfachAus.includes(adresse) || (Number.isFinite(bis) && bis > jetzt.getTime()),
     };
   });
 }
 
 /** Die ehrliche Leistung heute (Punkt 6) — für Puffer, Kachel und Satz. */
 export async function motorMoeglich(m: RadarMotor, jetzt: Date = new Date(), bremse = 1): Promise<RadarMoeglich & { postfaecher: RadarPostfachLage[] }> {
+  for (const a of radarPostfaecher()) await postfachBereitschaft(a);
   const postfaecher = await postfachLagen(jetzt);
   const r = radarMoeglich({
     postfaecher, reststunden: radarMotorReststunden(jetzt, m) || radarMotorFensterStunden(m), fensterStunden: radarMotorFensterStunden(m),
-    ziele: { firma: m.firmenJeStunde, partner: m.partnerJeStunde }, bremse,
+    ziele: { firma: m.firmenJeStunde, partner: m.partnerJeStunde }, bremse, grenzeVoll: m.postfachJeTag,
   });
   return { ...r, postfaecher };
 }
@@ -374,6 +424,8 @@ export async function radarMotorSenden(opt: { jetzt?: Date; sender?: RadarSender
   if (!opt.sender && !gmailBereit()) return { ...erg, grund: "Gmail-Anbindung fehlt" };
   await ensureRadarTabellen();
   const bremse = await bremseFaktor();
+  // Die Bereitschaft der Postfächer VOR der Sperre prüfen (Gmail, DNS — Netz gehört nicht in die Transaktion).
+  for (const a of radarPostfaecher()) await postfachBereitschaft(a);
   const genommen = await uebernehmen(jetzt, m, bremse, null, !!opt.einmal);
   if (!genommen.length) return { ...erg, grund: "nichts fällig" };
   for (const g of genommen) {
@@ -478,7 +530,10 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
   return {
     einstellung: m, an: a.versand, abPassung: a.abPassung, imFenster: radarMotorImFenster(jetzt, m), jetztMinute: minute, bremse,
     leistung: { ziel: leistung.ziel, moeglich: leistung.moeglich, leistungJeStunde: leistung.leistung, je: leistung.je, tagJe: leistung.tagJe, satz: leistung.satz, postfaecherNoetig: leistung.postfaecherNoetig },
-    postfaecher: leistung.postfaecher,
+    postfaecher: leistung.postfaecher.map((p) => {
+      const b = bereitschaftCache.get(p.adresse);
+      return { ...p, name: b?.name ?? null, quelle: b?.quelle ?? null, gruende: b?.gruende ?? [], gmail: b?.gmail ?? null, dns: b?.dns ?? null, signaturHtml: b?.signaturHtml ?? null };
+    }),
     stroeme: Object.fromEntries(RADAR_STROEME.map((s) => [s, {
       bereit: je(s, "bereit"), arbeit: je(s, "arbeit"), sendet: je(s, "sendet"), gesendetHeute: je(s, "gesendet"), verworfenHeute: je(s, "verworfen"),
       vorrat: Number(vorrat.find((z) => z.strom === s)?.n ?? 0),
@@ -487,6 +542,21 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
     }])),
     status: RADAR_MOTOR_STATUS,
   };
+}
+
+/** Ein Postfach im Chefbüro pausieren oder wieder freigeben (radar_postfach_aus). */
+export async function radarPostfachPausieren(adresse: string, pause: boolean): Promise<string[]> {
+  const a = String(adresse || "").trim().toLowerCase();
+  if (!radarPostfaecher().includes(a)) throw new RadarFehler("Dieses Postfach ist für den Radar nicht freigegeben.", 403);
+  const m = await radarMotorEinstellung();
+  const liste = pause ? Array.from(new Set([...m.postfachAus, a])) : m.postfachAus.filter((x) => x !== a);
+  await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_postfach_aus', ${liste.join(",")}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  if (!pause) {
+    // Auch eine Pause der Zustell-Bremse für dieses Postfach endet mit dem Klick.
+    const pausen = await postfachPausen();
+    if (pausen[a]) { delete pausen[a]; await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_postfach_pause', ${JSON.stringify(pausen)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`; }
+  }
+  return liste;
 }
 
 /** Setzt Motor-Schalter — nur bekannte Schlüssel, nur gültige Werte. */
@@ -543,6 +613,12 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
     const n = Number(String(ein.ableitungRueckMax).replace(",", "."));
     if (!Number.isFinite(n) || n < 0.5 || n > 50) throw new RadarFehler("Rückläufer-Grenze der Ableitung: 0,5 bis 50 Prozent.");
     setzen.push([k.ableitungRueckMax, String(n)]);
+  }
+  if (ein.postfachJeTag !== undefined) setzen.push([k.postfachJeTag, ganz(ein.postfachJeTag, 1, RADAR_HOECHSTENS_JE_TAG, "Mails je Postfach und Tag")]);
+  if (ein.postfachRampe !== undefined) {
+    const r = (Array.isArray(ein.postfachRampe) ? ein.postfachRampe : String(ein.postfachRampe).split(/[,;\s]+/)).map(Number).filter((n) => !Number.isNaN(n));
+    if (!r.length || r.length > 4 || r.some((n) => !Number.isInteger(n) || n < 1 || n > RADAR_HOECHSTENS_JE_TAG)) throw new RadarFehler(`Hochfahren: eine bis vier Zahlen von 1 bis ${RADAR_HOECHSTENS_JE_TAG} (Woche 1, Woche 2 …).`);
+    setzen.push([k.postfachRampe, r.join(",")]);
   }
   if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
   if (ein.partnerProvisionText !== undefined) {

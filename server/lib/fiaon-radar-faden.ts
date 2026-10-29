@@ -1162,6 +1162,9 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
 
   // ── Nachfassen: höchstens zwei je Lauf ──
   if (s.nachfass) {
+    // E-458 (Punkt 6): Das Nachfassen bleibt im Postfach der ersten Mail und achtet auf dessen Tagesgrenze — ist es voll,
+    // wartet der Nachfass bis morgen.
+    const lagen = await (await import("./fiaon-radar-motor")).postfachLagen(jetzt).catch(() => []);
     // E-458 (Punkt 8): Österreich bekommt kein Nachfassen (auch nicht auf eine alte erste Mail) — dort geht nur der Brief.
     await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_faellig = NULL
                    WHERE nachfass_faellig IS NOT NULL
@@ -1184,6 +1187,8 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         // E-458: das Nachfassen trägt die Unterschrift des Postfachs der ersten Mail. Ohne echte Unterschrift wartet es.
         const absender = await radarAbsenderFuer(String(f.postfach), f.mail?.links?.seite ?? null);
         if (!absender) { erg.uebersprungen++; continue; }
+        const lage = lagen.find((l) => l.adresse === String(f.postfach));
+        if (lage && lage.heute >= lage.grenze) { erg.uebersprungen++; continue; }
         // Atomar: Stufe weiterzählen, bevor gesendet wird — ein zweiter Lauf greift dieselbe Firma nicht.
         const [frei] = (await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_stufe = nachfass_stufe + 1, nachfass_faellig = NULL
                                        WHERE id = ${f.id} AND nachfass_stufe = ${f.nachfass_stufe} AND status = 'versendet' RETURNING nachfass_stufe`) as any[];
@@ -1202,6 +1207,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, thread_id, richtung, art, von, betreff, datum, text)
                       VALUES (${f.id}, ${f.postfach}, ${id}, ${original.threadId}, 'aus', ${`nachfass${stufe}`}, ${f.postfach}, ${`Re: ${f.mail?.betreff ?? ""}`}, NOW(), ${text}) ON CONFLICT (gmail_id) DO NOTHING`;
         erg.nachfass++; erg.versandt++;
+        if (lage) lage.heute++;
       } catch (e: any) {
         erg.uebersprungen++;
         console.error(`[RADAR-VERSAND] Nachfass ${f.id}:`, e?.message || e);

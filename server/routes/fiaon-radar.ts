@@ -339,7 +339,7 @@ router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) 
     const { radarMotorSetzen } = await import("../lib/fiaon-radar-motor");
     const b = req.body ?? {};
     const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe",
-      "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax"];
+      "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax", "postfachJeTag", "postfachRampe"];
     const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
     const einstellung = await radarMotorSetzen(teil);
     console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);
@@ -353,6 +353,24 @@ router.post("/chef/radar/partner/suchen", wache, async (req: ChefRequest, res: R
     const { radarPartnerSucheStarten } = await import("../lib/fiaon-radar-partner");
     const laufId = await radarPartnerSucheStarten({ gruppe: String(req.body?.gruppe ?? ""), land: alsRadarLand(req.body?.land), anzahl: Number(req.body?.anzahl) || 10, von: req.chef?.agentId ?? null });
     res.json({ ok: true, laufId });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Punkt 6): ein Postfach pausieren oder freigeben; „prüfen“ liest Gmail, Signatur und DNS sofort neu.
+router.post("/chef/radar/postfach/:adresse/pause", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarPostfachPausieren } = await import("../lib/fiaon-radar-motor");
+    res.json({ ok: true, aus: await radarPostfachPausieren(String(req.params.adresse), req.body?.pause === true) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/postfach/:adresse/pruefen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { postfachBereitschaft } = await import("../lib/fiaon-radar-motor");
+    const { radarPostfaecher } = await import("../lib/fiaon-radar");
+    const a = String(req.params.adresse).toLowerCase();
+    if (!radarPostfaecher().includes(a)) throw new RadarFehler("Dieses Postfach ist für den Radar nicht freigegeben.", 403);
+    res.json({ ok: true, bereitschaft: await postfachBereitschaft(a, true) });
   } catch (e) { fehler(res, e); }
 });
 

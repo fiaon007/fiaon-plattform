@@ -720,7 +720,10 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     ok(!!partnerMail && !/Einen Termin wählen|#gespraech/.test(partnerMail.html), "Partner-Mail ohne Terminlink");
     // 4. Zwei Instanzen gleichzeitig: Die Sperre lässt nur so viele hinaus, wie dran sind (zwei Postfächer, zwei Ströme).
     process.env.RADAR_POSTFAECHER = "js@fiaon.com,pruef@fiaon.com";
-    lib.radarAbsenderErsatzSetzen(async (p) => ({ postfach: p, name: p.startsWith("pruef") ? "Anna Beispiel" : "Justin Schwarzott", signaturHtml: "<div>Unterschrift</div>", signaturText: "Unterschrift", quelle: "gmail" as const }));
+    lib.radarAbsenderErsatzSetzen(async (p) => ({ postfach: p, name: p.startsWith("pruef") ? "Anna Beispiel" : "Justin Schwarzott", signaturHtml: '<div>Unterschrift<br><img src="https://bilder.example/u.png"></div>', signaturText: "Unterschrift", quelle: "gmail" as const }));
+    mo.postfachBereitschaftVergessen();
+    const lagenNeu = await mo.postfachLagen(new Date());
+    ok(lagenNeu.find((l) => l.adresse === "pruef@fiaon.com")?.grenze === 20, "Ein neues Postfach ohne Geschichte startet mit 20 am Tag (Hochfahren)");
     await anlegen(6); await anlegen(7, { strom: "partner", mail: mailPartner }); await anlegen(8); await anlegen(9, { strom: "partner", mail: mailPartner });
     await zuruecklegen(30);
     const vorher = gesendet.length;
@@ -729,7 +732,10 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     ok(neuGesendet >= 1 && neuGesendet <= 2 && ra.gesendet + rb.gesendet === neuGesendet, `Zwei Instanzen gleichzeitig: ${neuGesendet} Mails (höchstens eine je Strom), keine doppelt`);
     const doppelt = (await sqlPool`SELECT firma_id, COUNT(*)::int AS n FROM fiaon_radar_post WHERE art = 'erstmail' GROUP BY firma_id HAVING COUNT(*) > 1`) as any[];
     ok(!doppelt.length, "Keine Firma bekam zwei erste Mails");
+    const genutzt = new Set(gesendet.slice(vorher).map((x) => x.postfach));
+    ok(neuGesendet < 2 || genutzt.size === 2, `Rundlauf: zwei Mails im selben Takt gehen aus zwei Postfächern (${Array.from(genutzt).join(", ")})`);
     lib.radarAbsenderErsatzSetzen(null);
+    mo.postfachBereitschaftVergessen();
     delete process.env.RADAR_POSTFAECHER;
     // 5. Vorbereiten mit Attrappen: Österreich nie, stärkstes Signal zuerst, KI-Pause gibt die Firma zurück.
     await sqlPool`DELETE FROM fiaon_radar_post`; await sqlPool`DELETE FROM fiaon_radar_firmen`;
@@ -868,6 +874,44 @@ abschnitt("Chef-Adresse ableiten — nur mit belegtem Muster und MX (E-458)");
   ok(/abgeleitetErlaubt = \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= m\.ableitungAnteil/.test(moQ) && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Stunde höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen; Wache schaltet ab und legt eine Aufgabe an");
   ok(/import \{ mailDomain \} from "\.\.\/lib\/fiaon-mx"/.test(lies("server/routes/fiaon-antrag-neu.ts")) && !/async function mailDomain/.test(lies("server/routes/fiaon-antrag-neu.ts")), "Der Antrag prüft MX über dieselbe Funktion (fiaon-mx.ts)");
   ok(/WHERE motor_status IS NULL|r\.motor_status IS NULL/.test(moQ) && !/automatik_am IS NULL/.test(moQ), "Die früher einmal versuchten Firmen (automatik_am) kommen über motor_status wieder dran");
+}
+
+abschnitt("Postfächer: Rundlauf, Tagesgrenze, Hochfahren (E-458)");
+{
+  const lib = await import("../server/lib/fiaon-radar");
+  const alt = { p: process.env.RADAR_POSTFAECHER, d: process.env.RADAR_VERSAND_DOMAINS };
+  process.env.RADAR_POSTFAECHER = "a@fiaon.com,b@versand.example,c@gmail.com"; process.env.RADAR_VERSAND_DOMAINS = "fiaon.com,versand.example,gmail.com";
+  const mit = lib.radarPostfaecher();
+  delete process.env.RADAR_VERSAND_DOMAINS;
+  const ohne = lib.radarPostfaecher();
+  if (alt.p === undefined) delete process.env.RADAR_POSTFAECHER; else process.env.RADAR_POSTFAECHER = alt.p;
+  if (alt.d !== undefined) process.env.RADAR_VERSAND_DOMAINS = alt.d;
+  ok(JSON.stringify(mit) === JSON.stringify(["a@fiaon.com", "b@versand.example"]) && JSON.stringify(ohne) === JSON.stringify(["a@fiaon.com"]), `RADAR_VERSAND_DOMAINS: fiaon.com und versand.example ja, gmail.com nie; ohne Env nur @fiaon.com (${mit.join(",")} / ${ohne.join(",")})`);
+  const jetzt = new Date("2026-10-29T10:00:00+01:00");
+  const g = (tageHer: number | null, jeTag = 60) => sh8.radarPostfachGrenze({ ersterVersand: tageHer == null ? null : new Date(jetzt.getTime() - tageHer * 86_400_000), jetzt, jeTag, rampe: [20, 40] });
+  ok(g(0) === 20 && g(6) === 20 && g(7) === 40 && g(13) === 40 && g(14) === 60 && g(400) === 60 && g(null) === 20, "Hochfahren: Tag 0–6 → 20, Tag 7–13 → 40, ab Tag 14 → 60; ohne Geschichte → 20");
+  ok(g(30, 30) === 30 && g(8, 30) === 30 && sh8.radarMotorLesen({ radar_postfach_je_tag: "500" }).postfachJeTag === 60 && JSON.stringify(sh8.radarMotorLesen({ radar_postfach_rampe: "10,30" }).postfachRampe) === "[10,30]", "radar_postfach_je_tag 30 → höchstens 30; die harte Grenze bleibt 60; Rampe einstellbar");
+  const sig = '<div>Anna Beispiel<br><img src="https://bilder.example/anna.png"></div>';
+  const dnsGut = { mx: true, spf: true, dkim: true, dmarc: true };
+  const b = (person: any, eigen = true, dns: any = null, gmail: boolean | null = true) => sh8.radarPostfachBereit({ person, gmail, dns, eigeneDomain: eigen });
+  ok(b({ name: "Anna Beispiel", signaturHtml: sig, quelle: "gmail" }).bereit && b({ name: "Justin Schwarzott", signaturHtml: "", quelle: "karte" }).bereit, "Bereit: echte Person mit Bild-Signatur (oder Justins Karte)");
+  ok(!b({ name: "Anna Beispiel", signaturHtml: "<div>Anna Beispiel</div>", quelle: "gmail" }).bereit && !b({ name: "Vertrieb", signaturHtml: sig, quelle: "gmail" }).bereit && !b(null).bereit, "Nicht bereit: Signatur ohne Bild, Name mit einem Wort, keine Unterschrift");
+  ok(!b({ name: "Anna Beispiel", signaturHtml: sig, quelle: "gmail" }, false, { ...dnsGut, spf: false, dkim: false, dmarc: false }).bereit && b({ name: "Anna Beispiel", signaturHtml: sig, quelle: "gmail" }, false, dnsGut).bereit && !b({ name: "Anna Beispiel", signaturHtml: sig, quelle: "gmail" }, true, null, false).bereit, "Fremde Domäne ohne SPF/DKIM/DMARC nicht bereit, mit allen vier bereit; ohne Gmail-Zugang nie");
+  const mx = await import("../server/lib/fiaon-mx");
+  mx.mxAufloeserSetzen({
+    resolveMx: async () => [{ exchange: "aspmx.l.google.com", priority: 1 }], resolve4: async () => [],
+    resolveTxt: async (n: string) => (n.startsWith("_dmarc.") ? [["v=DMARC1; p=none"]] : n.startsWith("google._domainkey.") ? [["v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA"]] : [["v=spf1 include:_spf.google.com ~all"]]),
+  });
+  const vd = await mx.versandDns("versand.example");
+  mx.mxAufloeserSetzen({ resolveMx: async () => [{ exchange: "mx.example", priority: 1 }], resolve4: async () => [], resolveTxt: async () => [["v=spf1 -all"]] });
+  const vd2 = await mx.versandDns("versand.example");
+  mx.mxAufloeserSetzen(null);
+  ok(vd.mx && vd.spf && vd.dkim && vd.dmarc && vd2.mx && !vd2.spf && !vd2.dkim && !vd2.dmarc, "DNS-Ampel (Attrappe): MX, SPF mit Google, DKIM, DMARC");
+  const moQ = lies("server/lib/fiaon-radar-motor.ts"), fdQ = lies("server/lib/fiaon-radar-faden.ts");
+  ok(/WHERE richtung = 'aus' AND art <> 'von_hand' AND postfach = ANY/.test(moQ) && /AND nachfass_stufe < \$\{RADAR_NACHFASS_TAGE\.length\} AND postfach = ANY/.test(moQ), "Tageszählung je Postfach: erste Mail, Nachfass und Mara (nicht Justins Antworten von Hand); fällige Nachfass-Mails reserviert");
+  ok(/const lage = lagen\.find\(\(l\) => l\.adresse === String\(f\.postfach\)\);\s*if \(lage && lage\.heute >= lage\.grenze\) \{ erg\.uebersprungen\+\+; continue; \}/.test(fdQ), "Nachfass bleibt im Postfach der ersten Mail und wartet, wenn es voll ist");
+  ok(/postfachJs: postfach === "js@fiaon\.com"/.test(fdQ) && /for \(const a of radarPostfaecher\(\)\) await postfachBereitschaft\(a\);\s*const genommen = await uebernehmen/.test(moQ), "Aus js@ antwortet Mara nie selbst (andere Postfächer dürfen); Bereitschaft vor der Sperre geprüft");
+  ok(/"\/chef\/radar\/postfach\/:adresse\/pause", wache/.test(lies("server/routes/fiaon-radar.ts")) && /"\/chef\/radar\/postfach\/:adresse\/pruefen", wache/.test(lies("server/routes/fiaon-radar.ts")), "Postfach pausieren und prüfen hinter der Wache");
 }
 
 abschnitt("Ergebnis");

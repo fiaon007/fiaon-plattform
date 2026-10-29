@@ -70,9 +70,19 @@ const MODELL = () => process.env.RADAR_MODELL || process.env.POSTMEISTER_MODELL 
 const SCHLUESSEL = () => process.env.OPENAI_API_KEY || process.env.ASSISTENT_API_KEY || "";
 const TAGESDECKEL_EUR = () => Number(process.env.RADAR_TAGESDECKEL_EUR || 25);
 const SEITE = () => (process.env.RADAR_SEITE || "https://fiaon.com").replace(/\/+$/, "");
+/**
+ * Die Versand-Domänen (E-458 Punkt 6): Env RADAR_VERSAND_DOMAINS, Vorgabe fiaon.com. Jede Domäne muss im selben Google
+ * Workspace liegen (Dienstkonto-Delegation); Freemail-Domänen nie.
+ */
+export function radarVersandDomains(): string[] {
+  return Array.from(new Set(String(process.env.RADAR_VERSAND_DOMAINS || "fiaon.com").split(",").map((s) => s.trim().toLowerCase())
+    .filter((d) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d) && !RADAR_FREEMAIL.has(d))));
+}
 /** Die Postfächer, aus denen der Radar schreiben darf — DIE Wand vor Entwurf und Versand. */
 export function radarPostfaecher(): string[] {
-  return String(process.env.RADAR_POSTFAECHER || "js@fiaon.com").split(",").map((s) => s.trim().toLowerCase()).filter((s) => /^[^@\s]+@fiaon\.com$/.test(s));
+  const domaenen = radarVersandDomains();
+  return String(process.env.RADAR_POSTFAECHER || "js@fiaon.com").split(",").map((s) => s.trim().toLowerCase())
+    .filter((s) => { const m = /^[^@\s]+@([a-z0-9.-]+)$/.exec(s); return !!m && domaenen.includes(m[1]); });
 }
 export function radarAbsender() {
   return {

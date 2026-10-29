@@ -181,6 +181,8 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           ["Requirement", "a company that has been formed", "a tax reason that the IRS recognises"],
           ["IRS fee", "none", "none"],
           ["IRS processing time", "fax about four working days, post about four weeks", "about seven weeks, from abroad nine to eleven"],
+          // E-465 (29.10.2026): current practice next to the IRS figure.
+          ["In practice at present", "same day by phone from abroad, often around two weeks by fax", "as stated by the IRS"],
         ],
         fuss: ["Processing times according to the IRS (as of 2026): EIN by fax about four working days, by post about four weeks; ITIN about seven weeks, and between mid-January and the end of April as well as for applications from abroad nine to eleven weeks."],
       },

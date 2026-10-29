@@ -13,26 +13,33 @@ import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPreisText } fro
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
 import type { GlobalBlock, GlobalSeite } from "../typen";
+import { BUNDESSTAATEN, STAATEN_STAND, STAATEN_STAND_TEXT, STAATEN_ZUR_WAHL } from "../../fiaon-global-bundesstaaten";
 
 const S = "2026-09-24";
+// E-465 (29.10.2026): honest registration times, express and Delaware as the standard for new engagements.
+const S465 = STAATEN_STAND;
+const ZEIT = STAATEN_STAND_TEXT.en;
+const DE_ = BUNDESSTAATEN.delaware, FL_ = BUNDESSTAATEN.florida, WY_ = BUNDESSTAATEN.wyoming;
 const VIP = globalPaket("global_vip")!.en.name;
 const AB_PREIS = globalPreisText("global_struktur", "en");
 
-/** The three states compared — the same table on every state page. */
+/** The three states compared — the same table on every state page (E-465: order Delaware, Florida, Wyoming; registration and express). */
 function vergleich(hervor: 1 | 2 | 3): GlobalBlock {
   return {
-    typ: "tabelle", id: "vergleich", h2: "Florida, Delaware and Wyoming compared",
-    lead: "The three states for an LLC side by side.",
-    kopf: ["", "Florida", "Delaware", "Wyoming"],
+    typ: "tabelle", id: "vergleich", h2: "Delaware, Florida and Wyoming compared",
+    lead: `The three states for an LLC side by side — registration times as of ${ZEIT}, experience rather than a commitment.`,
+    kopf: ["", ...STAATEN_ZUR_WAHL.map((b) => b.name)],
     zeilen: [
-      ["Formation", STAAT_EN.florida.gruendung, STAAT_EN.delaware.gruendung, STAAT_EN.wyoming.gruendung],
-      ["Paid to the state each year", STAAT_EN.florida.jahr, STAAT_EN.delaware.jahr, STAAT_EN.wyoming.jahr],
-      ["Deadline", "1 January to 1 May", "1 June", "Month of formation"],
-      ["State tax", "5.5% for corporations", "depends on the activity", "no corporate or personal income tax"],
-      ["Strength", "Team on the ground in Miami, business in Florida", "Corporate law, investors", "Lean, low running costs"],
+      ["Registration", ...STAATEN_ZUR_WAHL.map((b) => b.eintragungKurz.en)],
+      ["Express", ...STAATEN_ZUR_WAHL.map((b) => b.express.kurz.en)],
+      ["Formation", STAAT_EN.delaware.gruendung, STAAT_EN.florida.gruendung, STAAT_EN.wyoming.gruendung],
+      ["Paid to the state each year", STAAT_EN.delaware.jahr, STAAT_EN.florida.jahr, STAAT_EN.wyoming.jahr],
+      ["Deadline", "1 June", "1 January to 1 May", "Month of formation"],
+      ["State tax", "depends on the activity", "5.5% for corporations", "no corporate or personal income tax"],
+      ["Strength", "Speed with express, reputation with banks and investors", "Team on the ground in Miami, business in Florida", "Lean, low running costs"],
     ],
     hervor,
-    fuss: [`As of ${FAKTEN_STAND_EN}, amounts for LLCs. Delaware: ${STAAT_EN.delaware.jahrAlt}`],
+    fuss: [`Times as of ${ZEIT}, amounts as of ${FAKTEN_STAND_EN} for LLCs. Delaware: ${STAAT_EN.delaware.jahrAlt}`],
   };
 }
 
@@ -47,19 +54,20 @@ export const STAATEN_EN: GlobalSeite[] = [
       titel: "Form a Florida LLC: costs and requirements — FIAON Global",
       beschreibung: `Florida LLC: ${STAAT_EN.florida.gruendung} to form, ${STAAT_EN.florida.jahr} annual report due by 1 May, registered agent with a Florida address. Our team on the ground is based in Miami.`,
     },
-    stand: S,
+    stand: S465,
     erschienen: S,
     kennung: "FG · 19",
     auge: "Knowledge · US state",
     h1: "Florida.",
     h1b: "Home of our team on the ground.",
-    lead: `Florida is where our team on the ground is based: Schwarzott Global LLC in Miami. For companies that do business in Florida, need in-person appointments or plan the kick-off in the ${VIP} package, it is the obvious choice — with clear fees and a fixed deadline in spring.`,
+    lead: `Florida is where our team on the ground is based: Schwarzott Global LLC in Miami. For companies that do business in Florida, need in-person appointments or plan the kick-off in the ${VIP} package, it is the obvious choice — with clear fees and a fixed deadline in spring. At present, though, Florida is registering more slowly than usual: often around two weeks, with no express option.`,
     ziffern: [
       { wert: STAAT_EN.florida.gruendung, label: "Forming an LLC" },
       { wert: STAAT_EN.florida.jahr, label: "Annual report, 1 January to 1 May" },
       { wert: "Miami", label: "Our team on the ground" },
     ],
     blick: [
+      ["Registration", `around two weeks at present, no express (as of ${ZEIT})`],
       ["Formation", `${STAAT_EN.florida.gruendung} — ${STAAT_EN.florida.gruendungDetail}`],
       ["Each year", `${STAAT_EN.florida.jahr} ${STAAT_EN.florida.jahrName}, ${STAAT_EN.florida.jahrFrist}`],
       ["Late filing", STAAT_EN.florida.jahrVerzug],
@@ -93,10 +101,11 @@ export const STAATEN_EN: GlobalSeite[] = [
         ],
         nach: STAAT_EN.florida.llcSteuer,
       },
-      vergleich(1),
+      vergleich(2),
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
+          `Registration: ${FL_.eintragung.en} If time matters, form in Delaware with express or in Wyoming.`,
           `Anyone who files the annual report after 1 May pays ${STAAT_EN.florida.jahrVerzug.replace("after 1 May ", "")}. The deadline is in your compliance calendar.`,
           GLOBAL_PFLICHTHINWEIS.en[0],
           `Regardless of the state, the IRS requires Form 5472 with Form 1120 every year; failure to file can result in a penalty of ${IRS_EN.strafe5472}.`,
@@ -109,6 +118,7 @@ export const STAATEN_EN: GlobalSeite[] = [
       { f: "How much does a Florida LLC cost?", a: `Formation costs ${STAAT_EN.florida.gruendung}, and the annual report costs ${STAAT_EN.florida.jahr} a year. With FIAON Global, formation and the first year are included in the fixed price from ${AB_PREIS}.` },
       { f: "When is the Florida annual report due?", a: "Between 1 January and 1 May, starting in the year after formation. After 1 May, a late fee of $400 is added." },
       { f: "Does a Florida LLC pay corporate income tax?", a: "An LLC that is disregarded for tax purposes does not file its own Florida return. If it is owned by a corporation such as a GmbH, the owner files a Florida return; corporations pay 5.5% with a $50,000 exemption." },
+      { f: "How long does formation take in Florida?", a: FL_.eintragung.en },
       { f: "Do I need a Florida address for my LLC?", a: "The company needs a registered agent with an address in Florida. We provide the registered agent in the first year, as well as the business address." },
     ],
     paket: "global_struktur",
@@ -124,21 +134,22 @@ export const STAATEN_EN: GlobalSeite[] = [
     art: "staat",
     seo: {
       titel: "Form a Delaware LLC: costs and requirements — FIAON Global",
-      beschreibung: `Delaware LLC: ${STAAT_EN.delaware.gruendung} to form, ${STAAT_EN.delaware.jahr} annual tax from tax year 2026, due 1 June. When Delaware is the right fit — and when it is not.`,
+      beschreibung: `Delaware LLC: registered in one or two business days with express, ${STAAT_EN.delaware.gruendung} to form, ${STAAT_EN.delaware.jahr} annual tax due 1 June. When it fits.`,
     },
-    stand: S,
+    stand: S465,
     erschienen: S,
     kennung: "FG · 20",
     auge: "Knowledge · US state",
     h1: "Delaware.",
-    h1b: "The state for investors.",
-    lead: "Delaware is famous for its corporate law: dedicated courts for corporate disputes, a long-established body of case law, investors who know it. For a corporation with plans to bring in investors, that counts in its favour — for a small LLC it often does not, because the annual tax has just gone up.",
+    h1b: "Fast, predictable, well known.",
+    lead: "Delaware is famous for its corporate law: dedicated courts for corporate disputes, a long-established body of case law, banks and investors who know it. On top of that, Delaware is currently the fastest route you can plan on: with the state’s express service an LLC usually stands after one or two business days. The other side is the annual tax of $400.",
     ziffern: [
       { wert: STAAT_EN.delaware.gruendung, label: "Forming an LLC" },
       { wert: STAAT_EN.delaware.jahr, label: "Annual LLC tax from tax year 2026" },
-      { wert: "1 June", label: "Annual tax deadline" },
+      { wert: "1–2 business days", label: `Registration with express (as of ${ZEIT})` },
     ],
     blick: [
+      ["Registration", `one or two business days with express (as of ${ZEIT})`],
       ["Formation", `${STAAT_EN.delaware.gruendung} (${STAAT_EN.delaware.gruendungDetail})`],
       ["Each year", `${STAAT_EN.delaware.jahr} ${STAAT_EN.delaware.jahrName}, due ${STAAT_EN.delaware.jahrFrist}`],
       ["Late payment", STAAT_EN.delaware.jahrVerzug],
@@ -146,7 +157,7 @@ export const STAATEN_EN: GlobalSeite[] = [
       ["Registered agent", STAAT_EN.delaware.agent],
       ["Corporation", "annual report $50, Franchise Tax from $175, due 1 March"],
     ],
-    kurz: `Forming an LLC in Delaware costs ${STAAT_EN.delaware.gruendung}. Every year, an annual tax of ${STAAT_EN.delaware.jahr} is due on 1 June — from tax year 2026; before that it was $300. A registered agent with an office in Delaware is mandatory. Delaware is suited above all to corporations that want to take on investors.`,
+    kurz: `Forming an LLC in Delaware costs ${STAAT_EN.delaware.gruendung}. Every year, an annual tax of ${STAAT_EN.delaware.jahr} is due on 1 June — from tax year 2026; before that it was $300. A registered agent with an office in Delaware is mandatory. With the state’s express service an LLC in Delaware is usually registered after one or two business days — which is why Delaware is our standard for new engagements.`,
     bloecke: [
       {
         typ: "tabelle", id: "fakten", h2: "Delaware in figures",
@@ -161,31 +172,34 @@ export const STAATEN_EN: GlobalSeite[] = [
         fuss: [STAAT_EN.delaware.jahrAlt, `As of ${FAKTEN_STAND_EN}; sources at the end of the page.`],
       },
       {
-        typ: "karten", id: "wann", h2: "When Delaware is the right fit — and when it is not", spalten: 2,
+        typ: "karten", id: "wann", h2: "When Delaware is the right fit — and when it is not", spalten: 3,
         karten: [
+          { tag: "Good fit", titel: "A fast, predictable start", text: "With the state’s express service the company usually stands after one or two business days — very reliably. Banks and lenders know Delaware." },
           { tag: "Good fit", titel: "Corporation with investors", text: "US investors, employee equity programmes, a later sale: this is where Delaware is the standard everyone knows." },
-          { tag: "Rarely a fit", titel: "Small LLC without investors", text: "For an LLC that handles orders or builds up a card history, the annual tax of $400 is a cost that brings nothing in return." },
+          { tag: "Less of a fit", titel: "When every dollar of upkeep counts", text: "The annual tax of $400 is the highest of the three states. If low running costs matter most, Wyoming is cheaper." },
         ],
       },
-      vergleich(2),
+      vergleich(1),
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
+          `Registration: ${DE_.eintragung.en} The state decides on registration.`,
           `The annual LLC tax is due even if the company is dormant. If it is paid late, ${STAAT_EN.delaware.jahrVerzug.replace("if late, ", "")} is added.`,
           "A Delaware company that does business in another state generally has to register there as well — with separate fees.",
           GLOBAL_PFLICHTHINWEIS.en[0],
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: "For corporations with plans to bring in investors: formation, EIN and coordination with a lawyer and a tax adviser.", paket: "global_struktur" },
+      { typ: "paket", id: "paket", h2: "The right package", lead: "Formation in Delaware with everything needed to get started — including as a corporation with plans to bring in investors.", paket: "global_struktur" },
     ],
     fragen: [
       { f: "How much does a Delaware LLC cost?", a: `Formation costs ${STAAT_EN.delaware.gruendung}, and the annual tax is ${STAAT_EN.delaware.jahr} — from tax year 2026, due on 1 June of the following year. Before that it was $300.` },
       { f: "Why do so many companies incorporate in Delaware?", a: "Because of its corporate law: dedicated courts for corporate disputes, a long-established body of case law and investors who know it. This matters above all for corporations with investors." },
-      { f: "Does Delaware make sense for a small LLC?", a: "Rarely. For an LLC without plans to bring in investors, the annual tax is a cost that brings nothing in return; Florida or Wyoming are often a better fit." },
+      { f: "How quickly is an LLC registered in Delaware?", a: DE_.eintragung.en },
+      { f: "Does Delaware make sense for a small LLC as well?", a: "Often, yes: Delaware is currently the fastest route you can plan on, and banks and lenders know it. The other side is the annual tax of $400 — if low running costs matter most, Wyoming is cheaper." },
       { f: "Does a Delaware company have to register in other states?", a: "If it does business in another state, generally yes — with separate fees there." },
     ],
     paket: "global_struktur",
-    weiter: ["/business/wissen/llc-oder-corporation", "/business/florida", "/business/wyoming", "/business/agenturen-software"].map(globalEnPfad),
+    weiter: ["/business/wissen/bundesstaat-waehlen", "/business/wissen/llc-oder-corporation", "/business/florida", "/business/wyoming"].map(globalEnPfad),
     quellen: QUELLEN_STAATEN_EN.delaware,
   },
 
@@ -199,7 +213,7 @@ export const STAATEN_EN: GlobalSeite[] = [
       titel: "Form a Wyoming LLC: costs and requirements — FIAON Global",
       beschreibung: `Wyoming LLC: ${STAAT_EN.wyoming.gruendung} to form, License Tax from $60 a year, due in the month of formation, no state corporate income tax. When it fits — and what it is not.`,
     },
-    stand: S,
+    stand: S465,
     erschienen: S,
     kennung: "FG · 21",
     auge: "Knowledge · US state",
@@ -212,6 +226,7 @@ export const STAATEN_EN: GlobalSeite[] = [
       { wert: "none", label: "State corporate and personal income tax" },
     ],
     blick: [
+      ["Registration", `around three business days, often sooner (as of ${ZEIT})`],
       ["Formation", `${STAAT_EN.wyoming.gruendung} (${STAAT_EN.wyoming.gruendungDetail})`],
       ["Each year", `annual report with License Tax: ${STAAT_EN.wyoming.jahrDetail}`],
       ["Deadline", STAAT_EN.wyoming.jahrFrist],
@@ -244,6 +259,8 @@ export const STAATEN_EN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
+          `Registration: ${WY_.eintragung.en}`,
+          WY_.nachteile.en[0],
           `The annual report is due in the month of formation; ${STAAT_EN.wyoming.jahrVerzug}. The deadline is in your compliance calendar.`,
           GLOBAL_AGENT.en.kontakt,
           GLOBAL_PFLICHTHINWEIS.en[0],
@@ -256,7 +273,8 @@ export const STAATEN_EN: GlobalSeite[] = [
       { f: "How much does a Wyoming LLC cost?", a: `Formation costs ${STAAT_EN.wyoming.gruendung}; each year, the annual report costs at least $60 in License Tax. With FIAON Global, formation and the first year are included in the fixed price from ${AB_PREIS}.` },
       { f: "Does a Wyoming LLC pay any tax?", a: "Wyoming levies no corporate income tax and no state income tax. However, the company is taxable where it is managed — for entrepreneurs from Germany, Austria or Switzerland, usually in their home country." },
       { f: "When is the Wyoming annual report due?", a: "On the first day of the month in which the company was formed. If the report is more than sixty days overdue, the state may dissolve the company." },
-      { f: "Is Wyoming better than Delaware?", a: "For an LLC without investors, Wyoming is usually cheaper to maintain. For a corporation with plans to bring in investors, Delaware is the standard." },
+      { f: "Is Wyoming better than Delaware?", a: "Cheaper to maintain and similarly fast. Delaware has the stronger reputation with banks and lenders and is even more predictable with express; some institutions look more closely at Wyoming companies with no business in the state." },
+      { f: "How quickly is an LLC registered in Wyoming?", a: WY_.eintragung.en },
     ],
     paket: "global_struktur",
     weiter: ["/business/wissen/us-llc-steuern", "/business/florida", "/business/delaware", "/business/wissen/bundesstaat-waehlen"].map(globalEnPfad),

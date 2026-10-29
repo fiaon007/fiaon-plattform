@@ -45,7 +45,9 @@ export const STAAT = {
 } as const;
 
 export const IRS = {
-  einDauer: "per Fax etwa vier Werktage, per Post etwa vier Wochen",
+  // E-465 (29.10.2026): laut IRS per Fax etwa vier Werktage — in der Praxis derzeit oft rund zwei Wochen (Gründungspartner, schriftlich 29.10.);
+  // per Telefon (Antragsteller aus dem Ausland) wird die Nummer im Gespräch vergeben. Einzelheiten: shared/fiaon-global-bundesstaaten.ts (EIN_ZEITEN).
+  einDauer: "per Telefon aus dem Ausland am selben Tag, per Fax laut IRS etwa vier Werktage (derzeit oft rund zwei Wochen), per Post etwa vier Wochen",
   itinDauer: "etwa sieben Wochen; zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen",
   strafe5472: "25.000 US-Dollar je Formular und Jahr",
   frist5472: "15. April, mit Form 7004 verlängerbar bis 15. Oktober",

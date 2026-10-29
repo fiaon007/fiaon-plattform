@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
+import { STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "@shared/fiaon-global-bundesstaaten";
 import { FIAON_FIRMA, fiaonVerwechslungSatz } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
 import { blockAlsText, GLOBAL_SEITE_WORTE } from "@shared/fiaon-global-seiten";
@@ -53,7 +54,9 @@ export function llmsTxt(): string {
     "",
     "## FIAON Global in Kürze",
     "",
-    "- Eine US-Gesellschaft (LLC oder Corporation) in Florida, Delaware oder Wyoming, gegründet vollständig aus dem Ausland — ohne US-Wohnsitz und ohne Reise.",
+    "- Eine US-Gesellschaft (LLC oder Corporation) in Delaware, Florida oder Wyoming, gegründet vollständig aus dem Ausland — ohne US-Wohnsitz und ohne Reise.",
+    // E-465 (29.10.2026): die Staaten-Wahl mit ehrlichen Zeiten aus shared/fiaon-global-bundesstaaten.ts.
+    `- ${STAAT_WAHL_SATZ.de} (Zeiten Stand ${STAATEN_STAND_TEXT.de}, Erfahrungswerte ohne Zusage.)`,
     "- Ein Vertrag, ein Ansprechpartner, ein Dokumentenraum; Team vor Ort in Miami, Partnerstandort Zürich, Vertragspartner in London.",
     `- ${GLOBAL_ROLLEN.de.fiaon}`,
     `- ${GLOBAL_ROLLEN.de.partner}`,

@@ -38,7 +38,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       titel: "LLC gründen aus Deutschland: die Anleitung — FIAON Global",
       beschreibung: "US-LLC aus Deutschland, Österreich oder der Schweiz gründen: zehn Schritte von der Prüfung bis zur Form 5472 — mit Kosten, Unterlagen und Fristen.",
     },
-    stand: S,
+    stand: "2026-10-29",
     erschienen: S,
     kennung: "FG · 30",
     auge: "Wissen · Gründung",
@@ -74,12 +74,12 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         etappen: [
           { titel: "Vorhaben und steuerliche Prüfung", dauer: "vor allem anderen", text: "Klären Sie, was die Gesellschaft tun soll und wo sie geführt wird. Ein Steuerberater mit US-Erfahrung prüft, wie Ihr Heimatland die LLC einordnet (in Deutschland per Typenvergleich) und welche Meldungen anfallen." },
           { titel: "Rechtsform wählen", text: "Die LLC für Handel, Dienstleistung und eine eigene Kartenhistorie; die Corporation, wenn Investoren einsteigen sollen. Eine LLC kann einer Person gehören, mehreren oder Ihrer GmbH — jede Variante hat eigene Steuerfolgen." },
-          { titel: "Bundesstaat wählen", text: "Wo findet das Geschäft statt, kommen Investoren, braucht es Termine vor Ort? Danach richtet sich die Wahl zwischen Florida, Delaware und Wyoming. Wer in einem weiteren Staat tätig wird, registriert sich dort zusätzlich." },
+          { titel: "Bundesstaat wählen", text: "Wie schnell soll die Gesellschaft stehen, wo findet das Geschäft statt, kommen Investoren, braucht es Termine vor Ort? Danach richtet sich die Wahl zwischen Delaware, Florida und Wyoming. Wer in einem weiteren Staat tätig wird, registriert sich dort zusätzlich." },
           { titel: "Namen prüfen", text: "Jeder Name wird im Staat nur einmal vergeben und trägt den Zusatz „LLC“ oder „Limited Liability Company“. Prüfen Sie ihn im Register des Staats und halten Sie zwei Ausweichnamen bereit." },
           { titel: "Registered Agent bestellen", text: "Jede LLC braucht im Gründungsstaat einen Registered Agent mit physischer Anschrift, der amtliche Post und Klagen entgegennimmt — ab dem ersten Tag und ohne Unterbrechung." },
-          { titel: "Beim Bundesstaat einreichen", dauer: "online meist zügig", text: `Das Gründungsdokument geht mit der Gebühr an den Staat: in Florida die Articles of Organization (${STAAT.florida.gruendung}), in Delaware das Certificate of Formation (${STAAT.delaware.gruendung}), in Wyoming die Articles of Organization (${STAAT.wyoming.gruendung}). Mit der Eintragung besteht die Gesellschaft.` },
+          { titel: "Beim Bundesstaat einreichen", dauer: "je nach Staat ein bis zwei Werktage bis rund zwei Wochen", text: `Das Gründungsdokument geht mit der Gebühr an den Staat: in Florida die Articles of Organization (${STAAT.florida.gruendung}), in Delaware das Certificate of Formation (${STAAT.delaware.gruendung}), in Wyoming die Articles of Organization (${STAAT.wyoming.gruendung}). Mit der Eintragung besteht die Gesellschaft.` },
           { titel: "Operating Agreement aufsetzen", text: "Der Gesellschaftsvertrag regelt Beteiligung, Geschäftsführung, Gewinnverteilung und Nachfolge. Er wird nicht eingereicht, aber jedes Institut fragt danach — und seit dem 1. Juni 2026 auch die IRS, wenn ein ITIN-Antrag auf die Beteiligung an einer LLC mit mehreren Gesellschaftern gestützt wird." },
-          { titel: "EIN beantragen", dauer: "per Fax etwa vier Werktage", text: "Die Steuernummer der Gesellschaft beantragen Sie mit Form SS-4 — ohne US-Sozialversicherungsnummer per Fax, Post oder Telefon, nicht online. Ohne EIN kein Konto, kein Kartenantrag, keine Form 5472." },
+          { titel: "EIN beantragen", dauer: "per Telefon am selben Tag, per Fax derzeit oft rund zwei Wochen", text: "Die Steuernummer der Gesellschaft beantragen Sie mit Form SS-4 — ohne US-Sozialversicherungsnummer per Fax, Post oder Telefon, nicht online. Ohne EIN kein Konto, kein Kartenantrag, keine Form 5472." },
           { titel: "ITIN, wenn ein Grund vorliegt", text: "Die persönliche US-Steuernummer gibt es nur mit steuerlichem Grund (Form W-7). Für die EIN ist sie nicht nötig; für eine persönliche Kredithistorie in den USA oft schon." },
           { titel: "Konto, Pflichtenkalender, Meldung zu Hause", text: "Mit Gründungsdokument, EIN und Operating Agreement folgt der Kontoantrag. Danach beginnen die Pflichten: Jahresmeldung im Staat, Form 5472 bis zum 15. April, die Meldung ans Finanzamt nach § 138 AO." },
         ],
@@ -141,7 +141,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     fragen: [
       { f: "Kann ich als Deutscher eine LLC in den USA gründen?", a: "Ja. Eine LLC gründen Sie vollständig aus Deutschland — ohne US-Wohnsitz, ohne Reise, ohne Mindestkapital und ohne US-Staatsbürgerschaft. Nötig sind ein Registered Agent im Gründungsstaat und die Gebühr des Staats." },
       { f: "Was kostet es, eine LLC zu gründen?", a: `Die Gebühr des Staats beträgt in Wyoming ${STAAT.wyoming.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Florida ${STAAT.florida.gruendung}. Dazu kommen Registered Agent, Operating Agreement und jedes Jahr Staatsgebühr und Form 5472. Bei FIAON Global ist das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten.` },
-      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung beim Staat geht online meist zügig. Länger dauern EIN (${IRS.einDauer}), ITIN und Kontoantrag. Mit FIAON Global dauert die Begleitung bis zum ersten Konto- und Kartenantrag in der Regel ${STRUKTUR_DAUER}.` },
+      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung beim Staat dauert derzeit ein bis zwei Werktage (Delaware mit Express), rund drei Werktage (Wyoming) oder oft rund zwei Wochen (Florida). Länger dauern EIN (${IRS.einDauer}), ITIN und Kontoantrag. Mit FIAON Global dauert die Begleitung bis zum ersten Konto- und Kartenantrag in der Regel ${STRUKTUR_DAUER}.` },
       { f: "Brauche ich für die LLC eine US-Adresse?", a: "Die LLC braucht einen Registered Agent mit Anschrift im Gründungsstaat. Für Konto und Verträge braucht sie zusätzlich eine Geschäftsadresse; die Anschrift des Agent reicht vielen Instituten dafür nicht." },
       { f: "Muss eine neue LLC noch eine BOI-Meldung abgeben?", a: "Nein, wenn sie in den USA gegründet wurde. Seit dem 14. August 2026 sind US-Gesellschaften endgültig von der BOI-Meldung befreit; melden müssen nur ausländische Gesellschaften, die sich in einem Bundesstaat registrieren." },
     ],
@@ -160,7 +160,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       titel: "EIN beantragen aus dem Ausland: Form SS-4 — FIAON Global",
       beschreibung: "EIN für Ihre LLC ohne SSN beantragen: Form SS-4 Zeile für Zeile, Fax, Post oder Telefon, Dauer und die typischen Fehler — Stand September 2026.",
     },
-    stand: S,
+    stand: "2026-10-29",
     erschienen: S,
     kennung: "FG · 31",
     auge: "Wissen · Steuernummer",
@@ -169,7 +169,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     lead: "Die EIN ist die Steuernummer Ihrer US-Gesellschaft — ohne sie kein Konto, kein Kartenantrag, keine Meldung an die IRS. Der Online-Antrag bleibt Gründern ohne US-Sozialversicherungsnummer verschlossen. So kommen Sie trotzdem an die Nummer: mit Form SS-4, per Fax, Post oder Telefon.",
     ziffern: [
       { wert: "kostenlos", label: "die EIN selbst kostet bei der IRS nichts" },
-      { wert: "etwa 4 Werktage", label: "per Fax, per Post etwa vier Wochen" },
+      { wert: "am selben Tag", label: "per Telefon aus dem Ausland; per Fax derzeit oft rund zwei Wochen" },
       { wert: "9 Ziffern", label: "im Format 12-3456789" },
     ],
     blick: [
@@ -224,7 +224,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "karten", id: "wege", h2: "Drei Wege zur Nummer", spalten: 3,
         karten: [
-          { tag: "Fax", titel: "Etwa vier Werktage", text: `Aus dem Ausland an ${EIN_WEG.faxAusland}. Geben Sie eine Faxnummer für die Antwort an — so kommt die Nummer auf demselben Weg zurück.` },
+          { tag: "Fax", titel: "Laut IRS etwa vier Werktage", text: `Aus dem Ausland an ${EIN_WEG.faxAusland}. Geben Sie eine Faxnummer für die Antwort an — so kommt die Nummer auf demselben Weg zurück. In der Praxis dauert es derzeit oft rund zwei Wochen.` },
           { tag: "Post", titel: "Etwa vier Wochen", text: `An ${EIN_WEG.post}. Der langsamste Weg — und der mit den meisten verlorenen Wochen, wenn eine Angabe fehlt.` },
           { tag: "Telefon", titel: "Nur für Antragsteller aus dem Ausland", text: `Unter ${EIN_WEG.telefon}, ${EIN_WEG.telefonZeit}. Anrufen darf, wer für die Gesellschaft unterschreiben darf oder als Designee befugt ist.` },
         ],

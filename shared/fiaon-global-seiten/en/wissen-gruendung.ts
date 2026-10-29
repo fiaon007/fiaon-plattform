@@ -44,7 +44,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       titel: "Form a US LLC from Germany: 10-step guide — FIAON Global",
       beschreibung: "Form a US LLC from Germany, Austria or Switzerland: ten steps from the initial review to Form 5472 — with costs, documents and deadlines.",
     },
-    stand: S,
+    stand: "2026-10-29",
     erschienen: S,
     kennung: "FG · 30",
     auge: "Knowledge · Formation",
@@ -80,12 +80,12 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
         etappen: [
           { titel: "Plan and tax review", dauer: "before anything else", text: "Clarify what the company is meant to do and where it will be managed. A tax adviser with US experience reviews how your home country classifies the LLC (in Germany by comparison with German legal forms, the Typenvergleich) and which notifications are required." },
           { titel: "Choose the legal form", text: "The LLC suits trading, services and building a card history of its own; the corporation suits businesses that want to bring in investors. An LLC can belong to one person, to several or to your GmbH — each variant has its own tax consequences." },
-          { titel: "Choose the state", text: "Where will the business take place? Are investors coming in? Will you need appointments on site? The choice between Florida, Delaware and Wyoming follows from the answers. A company that does business in another state also registers there." },
+          { titel: "Choose the state", text: "How quickly should the company stand? Where will the business take place? Are investors coming in? Will you need appointments on site? The choice between Delaware, Florida and Wyoming follows from the answers. A company that does business in another state also registers there." },
           { titel: "Check the name", text: "Each name is granted only once in a state and carries the suffix “LLC” or “Limited Liability Company”. Check it in the state’s register and keep two alternative names ready." },
           { titel: "Appoint a registered agent", text: "Every LLC needs a registered agent in the state of formation with a physical address, who accepts official mail and lawsuits — from the first day and without interruption." },
-          { titel: "File with the state", dauer: "online, usually quick", text: `The formation document goes to the state together with the fee: in Florida the Articles of Organization (${STAAT_EN.florida.gruendung}), in Delaware the Certificate of Formation (${STAAT_EN.delaware.gruendung}), in Wyoming the Articles of Organization (${STAAT_EN.wyoming.gruendung}). Once registered, the company exists.` },
+          { titel: "File with the state", dauer: "one or two business days to around two weeks, depending on the state", text: `The formation document goes to the state together with the fee: in Florida the Articles of Organization (${STAAT_EN.florida.gruendung}), in Delaware the Certificate of Formation (${STAAT_EN.delaware.gruendung}), in Wyoming the Articles of Organization (${STAAT_EN.wyoming.gruendung}). Once registered, the company exists.` },
           { titel: "Draw up the operating agreement", text: "The operating agreement governs ownership, management, profit distribution and succession. It is not filed, but every institution asks for it — and since 1 June 2026 so does the IRS, if an ITIN application is based on an interest in an LLC with several shareholders (members)." },
-          { titel: "Apply for the EIN", dauer: "about four business days by fax", text: "You apply for the company’s tax number with Form SS-4 — without a US Social Security number by fax, post or phone, not online. No EIN means no account, no card application and no Form 5472." },
+          { titel: "Apply for the EIN", dauer: "the same day by phone, often around two weeks by fax at present", text: "You apply for the company’s tax number with Form SS-4 — without a US Social Security number by fax, post or phone, not online. No EIN means no account, no card application and no Form 5472." },
           { titel: "The ITIN, if there is a reason", text: "The personal US tax number is issued only with a tax reason (Form W-7). It is not needed for the EIN; for a personal credit history in the US it often is." },
           { titel: "Account, compliance calendar, notification at home", text: "Once the formation document, EIN and operating agreement are in place, the account application follows. Then the duties begin: the annual report to the state, Form 5472 by 15 April, the notification to the tax office under section 138 of the German Fiscal Code (AO)." },
         ],
@@ -147,7 +147,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
     fragen: [
       { f: "As a German, can I set up an LLC in the United States?", a: "Yes. You can form an LLC entirely from Germany — without US residence, without travelling, without minimum capital and without US citizenship. What you need is a registered agent in the state of formation and the state fee." },
       { f: "How much does it cost to form an LLC?", a: `The state fee is ${STAAT_EN.wyoming.gruendung} in Wyoming, ${STAAT_EN.delaware.gruendung} in Delaware and ${STAAT_EN.florida.gruendung} in Florida. On top of that come the registered agent, the operating agreement and, every year, the state fee and Form 5472. With FIAON Global, the first year is included in the fixed price, starting at ${globalPreisText("global_struktur", "en")}.` },
-      { f: "How long does it take to form an LLC?", a: `Registration with the state is usually quick online. The EIN (${IRS_EN.einDauer}), the ITIN and the account application take longer. With FIAON Global, support until the first account and card application typically takes ${STRUKTUR_DAUER}.` },
+      { f: "How long does it take to form an LLC?", a: `Registration with the state currently takes one or two business days (Delaware with express), around three business days (Wyoming) or often around two weeks (Florida). The EIN (${IRS_EN.einDauer}), the ITIN and the account application take longer. With FIAON Global, support until the first account and card application typically takes ${STRUKTUR_DAUER}.` },
       { f: "Do I need a US address for my LLC?", a: "The LLC needs a registered agent with an address in the state of formation. For the account and contracts it also needs a business address; for many institutions the agent’s address is not enough for this." },
       { f: "Does a new LLC still have to file a BOI report?", a: "No, if it was formed in the US. Since 14 August 2026, US companies have been definitively exempt from BOI reporting; only foreign companies that register in a state still have to report." },
     ],
@@ -168,7 +168,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       titel: "Get an EIN without an SSN: Form SS-4 — FIAON Global",
       beschreibung: "Apply for an EIN for your LLC without an SSN: Form SS-4 line by line, fax, post or phone, timing and the typical mistakes — as of September 2026.",
     },
-    stand: S,
+    stand: "2026-10-29",
     erschienen: S,
     kennung: "FG · 31",
     auge: "Knowledge · Tax number",
@@ -177,7 +177,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
     lead: "The EIN is your US company’s tax number — without it there is no account, no card application and no filing with the IRS. The online application remains closed to founders without a US Social Security number. Here is how you still get the number: with Form SS-4, by fax, post or phone.",
     ziffern: [
       { wert: "Free", label: "the EIN itself costs nothing at the IRS" },
-      { wert: "About four business days", label: "by fax, about four weeks by post" },
+      { wert: "The same day", label: "by phone from abroad; often around two weeks by fax at present" },
       { wert: "9 digits", label: "in the format 12-3456789" },
     ],
     blick: [
@@ -232,7 +232,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "karten", id: "wege", h2: "Three routes to the number", spalten: 3,
         karten: [
-          { tag: "Fax", titel: "About four business days", text: `From abroad to ${EIN_WEG_EN.faxAusland}. Give a fax number for the reply — that way the number comes back by the same route.` },
+          { tag: "Fax", titel: "About four business days according to the IRS", text: `From abroad to ${EIN_WEG_EN.faxAusland}. Give a fax number for the reply — that way the number comes back by the same route. In practice it often takes around two weeks at present.` },
           { tag: "Post", titel: "About four weeks", text: `To ${EIN_WEG_EN.post}. The slowest route — and the one with the most lost weeks if a detail is missing.` },
           { tag: "Phone", titel: "Only for applicants from abroad", text: `On ${EIN_WEG_EN.telefon}, ${EIN_WEG_EN.telefonZeit}. The call may be made by anyone who is authorised to sign for the company or authorised as designee.` },
         ],

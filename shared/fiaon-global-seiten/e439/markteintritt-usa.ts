@@ -219,7 +219,7 @@ export const SEITE: GlobalSeite = {
       karten: [
         { tag: "Struktur", titel: "Die Tochter in den USA", text: "Wenn Ihre GmbH, AG oder Holding Gesellschafterin wird: Ablauf und Unterlagen.", pfad: "/business/tochtergesellschaft-usa" },
         { tag: "Gründung", titel: "US-Firmengründung", text: "LLC oder Corporation mit Team vor Ort, EIN und ITIN, zum Festpreis.", pfad: "/business/us-firmengruendung" },
-        { tag: "Bundesstaat", titel: "Welcher Bundesstaat?", text: "Florida, Delaware oder Wyoming: drei Fragen entscheiden.", pfad: "/business/wissen/bundesstaat-waehlen" },
+        { tag: "Bundesstaat", titel: "Welcher Bundesstaat?", text: "Delaware, Florida oder Wyoming: Zeiten, Kosten, Vor- und Nachteile.", pfad: "/business/wissen/bundesstaat-waehlen" },
         { tag: "Konto", titel: "Das US-Geschäftskonto", text: "Welche Unterlagen Institute verlangen und wie der Antrag entsteht.", pfad: "/business/us-geschaeftskonto" },
         { tag: "Pflichten", titel: "Ihre US-Pflichten", text: "Form 5472, Staatsgebühr, Registered Agent und die Meldung zu Hause im Kalender.", pfad: "/business/us-pflichten" },
         { tag: "Vor Ort", titel: "Global VIP in Miami", text: "Der Auftakt persönlich vor Ort, mit Terminen an der Seite unseres Teams.", pfad: "/business/miami" },

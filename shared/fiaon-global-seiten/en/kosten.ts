@@ -13,6 +13,8 @@ import {
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FAKTEN_STAND_EN, IRS_EN, MARKT_EN, QUELLEN_IRS_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
+// E-465 (29.10.2026): registration times and express per state from the single source.
+import { BUNDESSTAATEN, STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "../../fiaon-global-bundesstaaten";
 
 const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const STRUKTUR_PREIS = globalPreisText("global_struktur", "en");
@@ -29,7 +31,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
       titel: "US LLC formation costs and annual fees — FIAON Global",
       beschreibung: "What a US LLC costs: state fees in Florida, Delaware and Wyoming, running costs from year two and the FIAON Global fixed price — with sources.",
     },
-    stand: "2026-09-24",
+    stand: "2026-10-29",
     erschienen: "2026-09-24",
     kennung: "FG · 07",
     auge: "Prices and process · Costs",
@@ -79,9 +81,11 @@ export const KOSTEN_EN: GlobalSeite[] = [
           ["Deadline", "1 January to 1 May", STAAT_EN.delaware.jahrFrist, "Month of formation"],
           ["If late", STAAT_EN.florida.jahrVerzug, STAAT_EN.delaware.jahrVerzug, "dissolution possible after sixty days"],
           ["Registered agent", "Required", "Required", "Required"],
+          [`Registration (as of ${STAATEN_STAND_TEXT.en})`, BUNDESSTAATEN.florida.eintragungKurz.en, BUNDESSTAATEN.delaware.eintragungKurz.en, BUNDESSTAATEN.wyoming.eintragungKurz.en],
+          ["Express", BUNDESSTAATEN.florida.express.kurz.en, BUNDESSTAATEN.delaware.express.kurz.en, BUNDESSTAATEN.wyoming.express.kurz.en],
         ],
         fuss: [
-          `As of ${FAKTEN_STAND_EN}. ${STAAT_EN.florida.gruendung} in Florida = ${STAAT_EN.florida.gruendungDetail}.`,
+          `As of ${FAKTEN_STAND_EN}; registration times as of ${STAATEN_STAND_TEXT.en}, experience rather than a commitment. ${STAAT_EN.florida.gruendung} in Florida = ${STAAT_EN.florida.gruendungDetail}.`,
           `Delaware: ${STAAT_EN.delaware.jahrAlt}`,
           `Wyoming: ${STAAT_EN.wyoming.jahrDetail}.`,
           "Different amounts apply to corporations; the details are on the states’ own websites.",
@@ -124,6 +128,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
           "Ongoing bookkeeping, sales tax registrations in the US and the tax return in your home country are not part of the packages.",
           `For a missed Form 5472, the IRS can impose a penalty of ${IRS_EN.strafe5472} — the most expensive item is the forgotten one.`,
           "State fees change: with effect from tax year 2026, Delaware has raised the annual LLC tax from $300 to $400.",
+          STAAT_WAHL_SATZ.en,
         ],
       },
       { typ: "pakete", id: "pakete", h2: "The four packages", lead: "Fixed price, one-off — all fees and our partners’ professional fees included." },
@@ -136,7 +141,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
       { f: "Is VAT included in the fixed price?", a: "For companies, VAT is added to the prices where applicable. For private individuals, the fixed prices are final prices." },
       { f: "Why is the fixed price higher than the state fee?", a: "Because it covers everyone who works on your company: registered agent, address, phone, lawyer, tax adviser, US CPA, the EIN and ITIN applications and the preparation of the account and card applications — coordinated by one contact." },
     ],
-    weiter: ["/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"].map(globalEnPfad),
+    weiter: ["/business/wissen/bundesstaat-waehlen", "/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"].map(globalEnPfad),
     quellen: [...QUELLEN_STAATEN_EN.florida.slice(0, 2), QUELLEN_STAATEN_EN.delaware[0], QUELLEN_STAATEN_EN.delaware[1], QUELLEN_STAATEN_EN.wyoming[0], QUELLEN_STAATEN_EN.wyoming[1], QUELLEN_IRS_EN[0], QUELLEN_IRS_EN[2], QUELLEN_IRS_EN[4]],
   },
 ];

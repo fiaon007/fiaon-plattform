@@ -8,6 +8,8 @@
 import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PAKETE, globalPlanungText, globalPreisText } from "../fiaon-global";
 import { FAKTEN_STAND, IRS, MARKT, QUELLEN_IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
 import type { GlobalSeite } from "./typen";
+// E-465 (29.10.2026): Eintragungszeiten und Express je Staat aus der einen Quelle.
+import { BUNDESSTAATEN, STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "../fiaon-global-bundesstaaten";
 
 const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -19,7 +21,7 @@ export const KOSTEN: GlobalSeite[] = [
       titel: "LLC gründen: Kosten im Überblick — FIAON Global",
       beschreibung: "Was eine US-LLC kostet: Staatsgebühren in Florida, Delaware und Wyoming, laufende Kosten ab Jahr zwei und der Festpreis von FIAON Global — mit Quellen.",
     },
-    stand: "2026-09-19",
+    stand: "2026-10-29",
     kennung: "FG · 07",
     auge: "Preise und Ablauf · Kosten",
     h1: "Was eine US-Firma kostet.",
@@ -68,9 +70,11 @@ export const KOSTEN: GlobalSeite[] = [
           ["Frist", "1. Januar bis 1. Mai", STAAT.delaware.jahrFrist, "Gründungsmonat"],
           ["Bei Verzug", STAAT.florida.jahrVerzug, STAAT.delaware.jahrVerzug, "Auflösung nach 60 Tagen möglich"],
           ["Registered Agent", "Pflicht", "Pflicht", "Pflicht"],
+          [`Eintragung (Stand ${STAATEN_STAND_TEXT.de})`, BUNDESSTAATEN.florida.eintragungKurz.de, BUNDESSTAATEN.delaware.eintragungKurz.de, BUNDESSTAATEN.wyoming.eintragungKurz.de],
+          ["Express", BUNDESSTAATEN.florida.express.kurz.de, BUNDESSTAATEN.delaware.express.kurz.de, BUNDESSTAATEN.wyoming.express.kurz.de],
         ],
         fuss: [
-          `Stand ${FAKTEN_STAND}. ${STAAT.florida.gruendung} in Florida = ${STAAT.florida.gruendungDetail}.`,
+          `Stand ${FAKTEN_STAND}; Eintragungszeiten Stand ${STAATEN_STAND_TEXT.de}, Erfahrungswerte ohne Zusage. ${STAAT.florida.gruendung} in Florida = ${STAAT.florida.gruendungDetail}.`,
           `Delaware: ${STAAT.delaware.jahrAlt}`,
           `Wyoming: ${STAAT.wyoming.jahrDetail}.`,
           "Für Corporations gelten andere Beträge; die Einzelheiten stehen auf den Seiten der Bundesstaaten.",
@@ -113,6 +117,7 @@ export const KOSTEN: GlobalSeite[] = [
           "Laufende Buchhaltung, Umsatzsteuer-Registrierungen in den USA und die Steuererklärung im Heimatland sind nicht Teil der Pakete.",
           `Für eine versäumte Form 5472 kann die IRS ${IRS.strafe5472} festsetzen — die teuerste Position ist die vergessene.`,
           "Gebühren der Staaten ändern sich: Delaware hat die Jahressteuer der LLC ab dem Steuerjahr 2026 von 300 $ auf 400 $ angehoben.",
+          STAAT_WAHL_SATZ.de,
         ],
       },
       { typ: "pakete", id: "pakete", h2: "Die vier Pakete", lead: "Festpreis, einmalig — alle Gebühren und die Honorare unserer Partner inklusive." },
@@ -125,7 +130,7 @@ export const KOSTEN: GlobalSeite[] = [
       { f: "Ist die Umsatzsteuer im Festpreis enthalten?", a: "Für Unternehmen verstehen sich die Preise zuzüglich Umsatzsteuer, soweit sie anfällt. Für Privatpersonen sind die Festpreise Endpreise." },
       { f: "Warum ist der Festpreis höher als die Staatsgebühr?", a: "Weil er alle enthält, die für Ihre Gesellschaft arbeiten: Registered Agent, Adresse, Telefon, Anwalt, Steuerberater, US-CPA, die Anträge für EIN und ITIN und die Vorbereitung von Konto und Karte — koordiniert von einem Ansprechpartner." },
     ],
-    weiter: ["/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"],
+    weiter: ["/business/wissen/bundesstaat-waehlen", "/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"],
     quellen: [...QUELLEN_STAATEN.florida.slice(0, 2), QUELLEN_STAATEN.delaware[0], QUELLEN_STAATEN.delaware[1], QUELLEN_STAATEN.wyoming[0], QUELLEN_STAATEN.wyoming[1], QUELLEN_IRS[0], QUELLEN_IRS[2], QUELLEN_IRS[4]],
   },
 ];

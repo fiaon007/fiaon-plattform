@@ -157,6 +157,8 @@ export const LEISTUNGEN: GlobalSeite[] = [
           ["Voraussetzung", "eine gegründete Gesellschaft", "ein steuerlicher Grund, den die IRS anerkennt"],
           ["Gebühr der IRS", "keine", "keine"],
           ["Dauer laut IRS", "Fax etwa vier Werktage, Post etwa vier Wochen", "etwa sieben Wochen, aus dem Ausland neun bis elf"],
+          // E-465 (29.10.2026): die heutige Praxis neben der Angabe der IRS (shared/fiaon-global-bundesstaaten.ts, EIN_ZEITEN).
+          ["Derzeit in der Praxis", "Telefon aus dem Ausland am selben Tag, Fax oft rund zwei Wochen", "wie laut IRS"],
         ],
         fuss: ["Bearbeitungszeiten laut IRS (Stand 2026): EIN per Fax etwa vier Werktage, per Post etwa vier Wochen; ITIN etwa sieben Wochen, zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen."],
       },

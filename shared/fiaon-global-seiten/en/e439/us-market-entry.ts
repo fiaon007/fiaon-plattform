@@ -232,7 +232,7 @@ export const SEITE: GlobalSeite = {
       karten: [
         { tag: "Structure", titel: "The subsidiary in the US", text: "When your GmbH, AG or holding company becomes the shareholder: process and documents.", pfad: "/en/business/us-subsidiary" },
         { tag: "Formation", titel: "US company formation", text: "LLC or corporation with a team on the ground, EIN and ITIN, at a fixed price.", pfad: "/en/business/us-company-formation" },
-        { tag: "State", titel: "Which state?", text: "Florida, Delaware or Wyoming: three questions decide.", pfad: "/en/business/knowledge/choosing-a-state" },
+        { tag: "State", titel: "Which state?", text: "Delaware, Florida or Wyoming: times, costs, pros and cons.", pfad: "/en/business/knowledge/choosing-a-state" },
         { tag: "Account", titel: "The US business bank account", text: "Which documents institutions ask for and how the application comes together.", pfad: "/en/business/us-business-bank-account" },
         { tag: "Duties", titel: "Your US duties", text: "Form 5472, state fee, registered agent and the filing at home, all in the calendar.", pfad: "/en/business/us-compliance" },
         { tag: "On the ground", titel: "Global VIP in Miami", text: "The kick-off in person on the ground, with appointments alongside our team.", pfad: "/en/business/miami" },

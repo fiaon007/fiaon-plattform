@@ -10,8 +10,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
 import { GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
-import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
+import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN, QUELLEN_STAATEN_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
+import { bundesstaatWahlSeite } from "../bundesstaat-wahl";
 
 const S = "2026-09-24";
 const QUELLE_AO10 = QUELLEN_RECHT_EN.ao10;
@@ -56,7 +57,7 @@ export const WISSEN_EN: GlobalSeite[] = [
     lead: "What business owners from Germany, Austria and Switzerland should know about a US company: formation, EIN and ITIN, US presence, bank account, cards, tax returns and structure. Every article cites its sources, states its as-of date and also says what a US company cannot do.",
     ziffern: [
       { wert: "28 articles", label: "Formation, tax numbers, account, cards, financing, tax" },
-      { wert: "3 states", label: "Florida, Delaware, Wyoming" },
+      { wert: "3 states", label: "Delaware, Florida, Wyoming" },
       { wert: FAKTEN_STAND_EN, label: "all figures as of this date" },
     ],
     blick: [
@@ -484,82 +485,9 @@ export const WISSEN_EN: GlobalSeite[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  {
-    pfad: "/en/business/knowledge/choosing-a-state",
-    sprache: "en",
-    schwester: "/business/wissen/bundesstaat-waehlen",
-    art: "wissen",
-    seo: {
-      titel: "Best state for a US LLC? Three questions — FIAON Global",
-      beschreibung: "Florida, Delaware or Wyoming? Fees, deadlines, strengths and drawbacks compared — and the three questions that decide which state to choose.",
-    },
-    stand: S,
-    erschienen: S,
-    kennung: "FG · 27",
-    auge: "Knowledge · State",
-    h1: "Which state?",
-    h1b: "Three questions decide.",
-    lead: "Delaware for investors, Wyoming for low costs, Florida for business and appointments on the ground — these rules of thumb hold true. But the decision comes down to three questions about your plans, not a state’s advertising.",
-    ziffern: [
-      { wert: `${STAAT_EN.wyoming.gruendung} to ${STAAT_EN.florida.gruendung}`, label: "Formation fee for an LLC" },
-      { wert: `$60 to ${STAAT_EN.delaware.jahr}`, label: "paid to the state each year" },
-      { wert: "3 questions", label: "that decide the choice" },
-    ],
-    blick: [
-      ["Florida", `${STAAT_EN.florida.gruendung} formation, ${STAAT_EN.florida.jahr} a year — team on the ground in Miami`],
-      ["Delaware", `${STAAT_EN.delaware.gruendung} formation, ${STAAT_EN.delaware.jahr} a year — the standard for investors`],
-      ["Wyoming", `${STAAT_EN.wyoming.gruendung} formation, from $60 a year — lean to maintain`],
-      ["Question 1", "Where are your customers, suppliers, projects?"],
-      ["Question 2", "Do you plan to bring in investors?"],
-      ["Question 3", "Do you need appointments on the ground?"],
-    ],
-    kurz: `For most business owners, the choice comes down to three questions. Where does the business take place? Do you plan to bring in investors? Do you need appointments on the ground? Anyone who operates in Florida or needs appointments in Miami forms there (${STAAT_EN.florida.gruendung}). Anyone planning to bring in investors usually forms a corporation in Delaware. Anyone who is not active in any state and wants low costs looks at Wyoming (${STAAT_EN.wyoming.gruendung}, from $60 a year).`,
-    bloecke: [
-      {
-        typ: "etappen", id: "fragen-drei", h2: "The three questions",
-        etappen: [
-          { titel: "Where does the business take place?", text: "If the company is active in a state — with an office, warehouse, employees or projects — it has to register there anyway. That state is then usually the simplest choice." },
-          { titel: "Do you plan to bring in investors?", text: "Investors in the US generally expect a corporation in Delaware. If you are planning that, it is better to form there from the outset." },
-          { titel: "Do you need appointments on the ground?", text: "If an institution requires an in-person appointment or you want to experience the set-up yourself, Florida with our team in Miami is the natural choice." },
-        ],
-      },
-      {
-        typ: "tabelle", id: "vergleich", h2: "The three states compared",
-        kopf: ["", "Florida", "Delaware", "Wyoming"],
-        zeilen: [
-          ["Formation", STAAT_EN.florida.gruendung, STAAT_EN.delaware.gruendung, STAAT_EN.wyoming.gruendung],
-          ["Paid to the state each year", STAAT_EN.florida.jahr, STAAT_EN.delaware.jahr, STAAT_EN.wyoming.jahr],
-          ["Deadline", "1 January to 1 May", "1 June", "month of formation"],
-          ["Strength", "business in Florida, team on the ground", "corporate law, investors", "low running costs"],
-          ["Drawback", "spring deadline, $400 late fee", "higher annual tax", "no team on the ground"],
-        ],
-        fuss: [`As of ${FAKTEN_STAND_EN}, amounts for LLCs.`],
-      },
-      {
-        typ: "verzeichnis", id: "staaten", h2: "The states in detail",
-        eintraege: [
-          { pfad: "/en/business/florida", tag: "State" },
-          { pfad: "/en/business/delaware", tag: "State" },
-          { pfad: "/en/business/wyoming", tag: "State" },
-        ],
-      },
-      {
-        typ: "hinweis", id: "wissen", h2: "What you need to know",
-        punkte: [
-          "The state changes nothing about tax liability in your home country — that depends on the place of management.",
-          "A company that becomes active in another state generally has to register there as well.",
-          "We decide on the state together with you in the kick-off call; the state fee is included in the fixed price.",
-        ],
-      },
-    ],
-    fragen: [
-      { f: "Which state is best for an LLC?", a: "There is no best one, only the right one: Florida for business and appointments on the ground, Delaware for investors, Wyoming for low running costs." },
-      { f: "Why not simply choose the cheapest state?", a: "Because a company that is active in another state has to register there as well — and then pays twice." },
-      { f: "Does the state affect my tax at home?", a: "No. Tax liability in your home country depends on the place of management, not on the company’s registered office." },
-    ],
-    weiter: ["/en/business/florida", "/en/business/delaware", "/en/business/wyoming", "/en/business/knowledge/form-a-us-llc"],
-    quellen: [QUELLEN_STAATEN_EN.florida[0], QUELLEN_STAATEN_EN.delaware[0], QUELLEN_STAATEN_EN.delaware[1], QUELLEN_STAATEN_EN.wyoming[0]],
-  },
+  // E-465 (29.10.2026): FG · 27 entsteht für DE und EN aus shared/fiaon-global-seiten/bundesstaat-wahl.ts
+  // (Zeiten, Express, Vor- und Nachteile aus shared/fiaon-global-bundesstaaten.ts).
+  bundesstaatWahlSeite("en"),
 
   // ─────────────────────────────────────────────────────────────────────────
   {

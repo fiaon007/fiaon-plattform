@@ -11,8 +11,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "../fiaon-global";
 import { GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
-import { FAKTEN_STAND, IRS, QUELLEN_IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
+import { FAKTEN_STAND, IRS, QUELLEN_IRS, QUELLEN_STAATEN } from "./fakten";
 import type { GlobalSeite } from "./typen";
+import { bundesstaatWahlSeite } from "./bundesstaat-wahl";
 
 const S = "2026-09-19";
 const QUELLE_AO10 = { titel: "§ 10 AO — Geschäftsleitung", url: "https://www.gesetze-im-internet.de/ao_1977/__10.html" };
@@ -54,7 +55,7 @@ export const WISSEN: GlobalSeite[] = [
     lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz über eine US-Gesellschaft wissen sollten: Gründung, EIN und ITIN, US-Präsenz, Konto, Karten, Steuererklärung und Struktur. Jeder Beitrag nennt seine Quellen und seinen Stand und sagt auch, was eine US-Gesellschaft nicht kann.",
     ziffern: [
       { wert: "28 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Finanzierung, Steuern" },
-      { wert: "3 Staaten", label: "Florida, Delaware, Wyoming" },
+      { wert: "3 Staaten", label: "Delaware, Florida, Wyoming" },
       { wert: FAKTEN_STAND, label: "Stand aller Zahlen" },
     ],
     blick: [
@@ -470,79 +471,9 @@ export const WISSEN: GlobalSeite[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────────────
-  {
-    pfad: "/business/wissen/bundesstaat-waehlen",
-    art: "wissen",
-    seo: {
-      titel: "Welcher Bundesstaat für die LLC? — FIAON Global",
-      beschreibung: "Florida, Delaware oder Wyoming? Gebühren, Fristen, Stärken und Kehrseiten im Vergleich — und die drei Fragen, die die Wahl des Bundesstaats entscheiden.",
-    },
-    stand: S,
-    kennung: "FG · 27",
-    auge: "Wissen · Bundesstaat",
-    h1: "Welcher Bundesstaat?",
-    h1b: "Drei Fragen entscheiden.",
-    lead: "Delaware für Investoren, Wyoming für niedrige Kosten, Florida für Geschäft und Termine vor Ort — die Faustregeln stimmen. Entscheidend sind aber drei Fragen zu Ihrem Vorhaben, nicht die Werbung eines Staats.",
-    ziffern: [
-      { wert: `${STAAT.wyoming.gruendung} bis ${STAAT.florida.gruendung}`, label: "Gründungsgebühr einer LLC" },
-      { wert: `60 $ bis ${STAAT.delaware.jahr}`, label: "jährlich an den Staat" },
-      { wert: "3 Fragen", label: "die die Wahl entscheiden" },
-    ],
-    blick: [
-      ["Florida", `${STAAT.florida.gruendung} Gründung, ${STAAT.florida.jahr} im Jahr — Team vor Ort in Miami`],
-      ["Delaware", `${STAAT.delaware.gruendung} Gründung, ${STAAT.delaware.jahr} im Jahr — Standard für Investoren`],
-      ["Wyoming", `${STAAT.wyoming.gruendung} Gründung, ab 60 $ im Jahr — schlank im Unterhalt`],
-      ["Frage 1", "Wo sind Ihre Kunden, Lieferanten, Projekte?"],
-      ["Frage 2", "Sollen Investoren einsteigen?"],
-      ["Frage 3", "Brauchen Sie Termine vor Ort?"],
-    ],
-    kurz: `Für die meisten Unternehmer entscheidet sich die Wahl an drei Fragen: Wo findet das Geschäft statt? Sollen Investoren einsteigen? Braucht es Termine vor Ort? Wer in Florida tätig ist oder Termine in Miami braucht, gründet dort (${STAAT.florida.gruendung}). Wer Investoren plant, gründet meist eine Corporation in Delaware. Wer in keinem Staat tätig ist und niedrige Kosten will, schaut auf Wyoming (${STAAT.wyoming.gruendung}, ab 60 $ im Jahr).`,
-    bloecke: [
-      {
-        typ: "etappen", id: "fragen-drei", h2: "Die drei Fragen",
-        etappen: [
-          { titel: "Wo findet das Geschäft statt?", text: "Ist die Gesellschaft in einem Staat tätig — mit Büro, Lager, Mitarbeitern oder Projekten —, muss sie sich dort ohnehin registrieren. Dann ist dieser Staat meist die einfachste Wahl." },
-          { titel: "Sollen Investoren einsteigen?", text: "Investoren in den USA erwarten in der Regel eine Corporation in Delaware. Wer das plant, gründet besser gleich dort." },
-          { titel: "Braucht es Termine vor Ort?", text: "Verlangt ein Institut einen persönlichen Termin oder wollen Sie den Aufbau selbst erleben, ist Florida mit unserem Team in Miami naheliegend." },
-        ],
-      },
-      {
-        typ: "tabelle", id: "vergleich", h2: "Die drei Staaten im Vergleich",
-        kopf: ["", "Florida", "Delaware", "Wyoming"],
-        zeilen: [
-          ["Gründung", STAAT.florida.gruendung, STAAT.delaware.gruendung, STAAT.wyoming.gruendung],
-          ["Jährlich an den Staat", STAAT.florida.jahr, STAAT.delaware.jahr, STAAT.wyoming.jahr],
-          ["Frist", "1. Januar bis 1. Mai", "1. Juni", "Gründungsmonat"],
-          ["Stärke", "Geschäft in Florida, Team vor Ort", "Gesellschaftsrecht, Investoren", "niedrige laufende Kosten"],
-          ["Kehrseite", "Frist im Frühjahr, Zuschlag 400 $", "höhere Jahressteuer", "kein Team vor Ort"],
-        ],
-        fuss: [`Stand ${FAKTEN_STAND}, Beträge für LLCs.`],
-      },
-      {
-        typ: "verzeichnis", id: "staaten", h2: "Die Staaten im Einzelnen",
-        eintraege: [
-          { pfad: "/business/florida", tag: "Bundesstaat" },
-          { pfad: "/business/delaware", tag: "Bundesstaat" },
-          { pfad: "/business/wyoming", tag: "Bundesstaat" },
-        ],
-      },
-      {
-        typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
-        punkte: [
-          "Der Bundesstaat ändert nichts an der Steuerpflicht im Heimatland — sie hängt am Ort der Geschäftsleitung.",
-          "Eine Gesellschaft, die in einem anderen Staat tätig wird, muss sich dort in der Regel zusätzlich registrieren.",
-          "Den Staat legen wir im Startgespräch gemeinsam fest; die Staatsgebühr ist im Festpreis enthalten.",
-        ],
-      },
-    ],
-    fragen: [
-      { f: "Welcher Bundesstaat ist der beste für eine LLC?", a: "Es gibt keinen besten, nur einen passenden: Florida für Geschäft und Termine vor Ort, Delaware für Investoren, Wyoming für niedrige laufende Kosten." },
-      { f: "Warum nicht einfach den günstigsten Staat?", a: "Weil eine Gesellschaft, die in einem anderen Staat tätig ist, sich dort zusätzlich registrieren muss — dann zahlt sie doppelt." },
-      { f: "Beeinflusst der Bundesstaat meine Steuern zu Hause?", a: "Nein. Die Steuerpflicht im Heimatland hängt am Ort der Geschäftsleitung, nicht am Sitz der Gesellschaft." },
-    ],
-    weiter: ["/business/florida", "/business/delaware", "/business/wyoming", "/business/wissen/llc-gruenden"],
-    quellen: [QUELLEN_STAATEN.florida[0], QUELLEN_STAATEN.delaware[0], QUELLEN_STAATEN.delaware[1], QUELLEN_STAATEN.wyoming[0]],
-  },
+  // E-465 (29.10.2026): FG · 27 entsteht für DE und EN aus shared/fiaon-global-seiten/bundesstaat-wahl.ts
+  // (Zeiten, Express, Vor- und Nachteile aus shared/fiaon-global-bundesstaaten.ts).
+  bundesstaatWahlSeite("de"),
 
   // ─────────────────────────────────────────────────────────────────────────
   {

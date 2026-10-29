@@ -38,7 +38,8 @@ export const STAAT_EN = {
 } as const;
 
 export const IRS_EN = {
-  einDauer: "about four business days by fax, about four weeks by post",
+  // E-465 (29.10.2026): see fakten.ts — IRS figure for fax, plus the current practice.
+  einDauer: "the same day by phone from abroad, about four business days by fax according to the IRS (often around two weeks at present), about four weeks by post",
   itinDauer: "about seven weeks; between mid-January and the end of April and for applications from abroad, nine to eleven weeks",
   strafe5472: "US$25,000 per form per year",
   frist5472: "15 April, extendable to 15 October with Form 7004",

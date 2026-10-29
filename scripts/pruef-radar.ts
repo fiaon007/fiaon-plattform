@@ -763,6 +763,14 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(/ziel: "\.cr-motor"/.test(rgFr) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritt zum Mail-Motor, kein 8:30, kein Abmeldesatz");
 }
 
+// E-458 (Befund der ersten echten Mails, 29.10. abends): EINE Sprachregel für Schreib-KI (Firma, Partner) und Prüf-KI.
+{
+  const lib = lies("server/lib/fiaon-radar.ts"), pr = lies("server/lib/fiaon-radar-pruef.ts"), sh = lies("shared/fiaon-radar.ts");
+  ok(/export const RADAR_SPRACHE_REGEL =/.test(sh) && /Satzfetzen/.test(sh), "Sprachregel steht einmal in shared/fiaon-radar.ts");
+  ok((lib.match(/`- \$\{RADAR_SPRACHE_REGEL\}`/g) ?? []).length === 2, "Schreib-Anweisung Firma und Partner tragen die Sprachregel");
+  ok(/8\. SPRACHE: \$\{RADAR_SPRACHE_REGEL\}/.test(pr) && /NICHT beanstanden: die Anrede-Zeile/.test(pr) && /9\. PARTNER/.test(pr), "Prüf-KI: Regel 8 Sprache (Anrede = Hausstil, nicht beanstanden), Partner jetzt Regel 9");
+}
+
 // ── Ende zu Ende gegen den LOKALEN Prüfstand (nur mit PRUEF_MOTOR_DB=an und einer EIGENEN Datenbank auf 127.0.0.1) ──
 if (process.env.PRUEF_MOTOR_DB === "an") {
   abschnitt("Mail-Motor Ende zu Ende im lokalen Prüfstand (E-458)");

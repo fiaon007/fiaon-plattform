@@ -1301,6 +1301,14 @@ export const RADAR_KERNSATZ = {
 // Justin: „immer 100 % menschlich, mit Signatur, 100 % personalisiert und NIEMALS klingt sie nach KI … kein Abmelde-Link,
 // es soll ja so fühlen, als würde man hier explizit an die Person schreiben und keine Bulk-Kampagne.“
 /** Floskeln, an denen man eine KI- oder Massenmail erkennt — in jeder Motor-Mail gesperrt. */
+/**
+ * E-458 (Befund der ersten echten Mails, 29.10.2026 abends): Die Prüf-KI ließ Satzfetzen von der Website durch („… die
+ * Investitionskosten von Store Größe und Planung abhängen“) und schiefes Passiv („Der US-Markt ist als nächster großer Schritt
+ * genannt“). EINE Sprachregel für die Schreib-KI (Firma und Partner) und die Prüf-KI.
+ */
+export const RADAR_SPRACHE_REGEL =
+  "Fehlerfreies, flüssiges Deutsch, wie es ein gebildeter Muttersprachler schreibt. Den Anlass immer in eigenen, vollständigen Sätzen nacherzählen, nie Stichwörter oder Satzfetzen von einer Website übernehmen (falsch: „von Store Größe und Planung“). Aktiv statt schiefem Passiv (falsch: „ist als nächster Schritt genannt“). Keine halben Gedanken (falsch: „oder helfen beim Aufbau“). Zusammengesetzte Wörter richtig, mit Bindestrich wo nötig.";
+
 export const RADAR_KI_FLOSKELN: readonly { muster: RegExp; wort: string }[] = [
   { muster: /ich hoffe,?\s+(diese|meine)\s+(nachricht|mail|e-mail)|ich hoffe,?\s+(es geht ihnen|ihnen geht es|sie hatten)/i, wort: "Ich hoffe, diese Nachricht …" },
   { muster: /in der heutigen zeit|in zeiten wie diesen/i, wort: "in der heutigen Zeit" },

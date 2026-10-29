@@ -22,7 +22,7 @@ import {
   RADAR_TON_BEISPIELE_PARTNER, type RadarMail,
 } from "./fiaon-radar";
 import {
-  RADAR_KI_FLOSKELN, radarPruefUrteil, radarAehnlichkeit, alsRadarStrom, RADAR_MOTOR_VORGABE, radarPartnerGruppe,
+  RADAR_KI_FLOSKELN, RADAR_SPRACHE_REGEL, radarPruefUrteil, radarAehnlichkeit, alsRadarStrom, RADAR_MOTOR_VORGABE, radarPartnerGruppe,
   radarNurZusage, radarFingerabdruckText, radarBetreffSchluessel,
   type RadarPruefUrteil, type RadarStrom,
 } from "@shared/fiaon-radar";
@@ -87,8 +87,12 @@ export function radarPruefAnweisung(o: RadarPruefOpts): string {
     `5. ZUSAGE: zusage = true NUR, wenn die Mail verspricht, dass die Firma (oder ihre Kunden, Mandanten) etwas SICHER bekommt: Geld, Kapital, Kredit, eine Karte, ein Limit, eine Bewilligung, eine Steuerersparnis. Ebenso bei einem Zinssatz, einem Betrag, einer Bürgschaft, „bis zu“, „garantiert“, „gesichert“, einem Bankname oder Kartenherausgeber und bei „Ihre Kunden bekommen bei uns Konto oder Karten“. KEINE Zusage ist die freigegebene Beschreibung unserer Leistung: eine eigene Gesellschaft oder LLC in den USA gründen; uns um Geschäftskonto und Firmenkarten kümmern oder dabei helfen; den Weg zu US-Funding oder zu Kapital aus den USA ebnen; ein zweiter Weg zu Kapital oder ein zweiter Geldtopf neben der Bank als MÖGLICHKEIT („wenn es klappt“, „hätten Sie“); unser Team vor Ort erledigt den amerikanischen Teil; „Einführungszeitraum ohne Sollzins“ (das Hauswort)${o.strom === "partner" && o.provision !== false ? `; der freigegebene Provisions-Satz „${provisionText}“` : ""}. „ohne Sollzins“ ohne „Einführungszeitraum“ ist eine Zusage.`,
     "6. ERFUNDEN: erfunden = true, wenn die Mail über DIESE Firma oder ihre Kunden und Mandanten etwas behauptet, das NICHT in den Aufhängern oder im Profil steht (Zahlen, Pläne, Bedarf, Orte, Personen, Ereignisse). Allgemeine Erfahrungssätze mit „meist“, „oft“ oder „häufig“, die nichts Bestimmtes über diese Firma sagen, sind erlaubt.",
     "7. REGELN: Gedankenstrich (– — oder „ - “), Aufzählung, Fettdruck, Emoji, Ausrufezeichen, Link im Text, Du-Form, PS, Name oder Rolle des Absenders im Text: je ein Punkt.",
+    // E-458 (Befund der ersten echten Mails, 29.10. abends): Satzfetzen von der Website und schiefes Passiv gingen durch.
+    // Die Anrede-Zeile und die Großschreibung des ersten Wortes danach setzt der Server nach Hausstil (Justin hat die Beispiele
+    // so freigegeben, 29.10.) — die Schreib-KI kann sie nicht ändern; sie zu beanstanden ließe jede Mail grundlos durchfallen.
+    `8. SPRACHE: ${RADAR_SPRACHE_REGEL} Je Verstoß ein Punkt (auch Grammatik- und Rechtschreibfehler, fehlende Artikel). NICHT beanstanden: die Anrede-Zeile (erste Zeile nach dem Betreff) und die Großschreibung des ersten Wortes danach — beides ist Hausstil des Servers.`,
     o.strom === "partner"
-      ? `8. PARTNER: Kein Terminwunsch, kein Anruf, kein Treffen, kein Gespräch, kein Austausch anbieten (schriftliche Konditionen) — sonst ein Punkt. ${o.provision === false ? "Diese Gruppe (Steuerberater, Rechtsanwälte) darf KEINE Provision, keine Prozente und kein Tippgeld angeboten bekommen (berufsrechtlich nicht möglich) — sonst zusage = true." : `Eine Provision nur genau als „${provisionText}“, ohne Betrag.`}`
+      ? `9. PARTNER: Kein Terminwunsch, kein Anruf, kein Treffen, kein Gespräch, kein Austausch anbieten (schriftliche Konditionen) — sonst ein Punkt. ${o.provision === false ? "Diese Gruppe (Steuerberater, Rechtsanwälte) darf KEINE Provision, keine Prozente und kein Tippgeld angeboten bekommen (berufsrechtlich nicht möglich) — sonst zusage = true." : `Eine Provision nur genau als „${provisionText}“, ohne Betrag.`}`
       : "",
     `ok = true NUR, wenn nichts davon zutrifft und ki_klang ≤ ${max}.`,
     "punkte = jede Beanstandung mit regel (kurz), stelle (wörtliches Zitat aus der Mail) und hinweis (was besser wäre). neu_hinweis = ein bis zwei Sätze für die Neufassung.",

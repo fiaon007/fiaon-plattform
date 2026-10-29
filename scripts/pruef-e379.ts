@@ -34,7 +34,7 @@ function muster(bereich: "privat" | "business", opt: { titel?: string; fehler?: 
   const teile: string[] = [absatz(6), absatz(5)];
   for (let i = 0; i < abschnitte; i++) teile.push(`## Abschnitt ${i + 1}: Was jetzt wichtig ist\n\n${absatz(9)}\n\n${absatz(8)}`);
   teile.push("## Schritt für Schritt\n\n1. Unterlagen sammeln.\n2. Fristen notieren.\n3. Den nächsten Schritt planen.");
-  const ziel = bereich === "business" ? "[Pakete von FIAON Global](/business#pakete)" : "[die Pakete für Privatkunden](/privatkunden)";
+  const ziel = bereich === "business" ? "[Pakete von FIAON Global](/#pakete)" : "[die Pakete für Privatkunden](/privatkunden)";
   if (opt.fehler !== "ohneFiaon") teile.push(`## ${bereich === "business" ? "So übernimmt FIAON Global den Weg" : "Was FIAON dabei übernimmt"}\n\n${absatz(4)} Mehr dazu auf ${ziel}.`);
   teile.push(`## Was nicht geht\n\n${absatz(4)}`);
   teile.push(`## Das Wichtigste in drei Sätzen\n\n${absatz(3)}`);

@@ -32,14 +32,15 @@ const ZIEL = path.join(WURZEL, "shared", "fiaon-seo-fragen.ts");
 
 /** Seitendatei → Pfad der Seite. Nur was hier steht, wird gelesen. */
 const QUELLEN: Record<string, string> = {
-  "client/src/pages/fiaon-home.tsx": "/",
+  // 29.10.2026 (E-461): Die Privat-Startseite heißt /privat (englisch /en/private); fiaon.com/ ist FIAON Global.
+  "client/src/pages/fiaon-home.tsx": "/privat",
   "client/src/i18n/was-ist-fiaon.ts": "/was-ist-fiaon|/en/what-is-fiaon",
   "client/src/i18n/privatkunden.ts": "/privatkunden|/en/personal",
-  "client/src/i18n/global.ts": "/business|/en/business", // 17.09.2026 (E-188): /business ist FIAON Global
+  "client/src/i18n/global.ts": "/|/en", // 17.09.2026 (E-188): FIAON Global — seit E-461 (29.10.2026) die Startseite / und /en
   // 02.09.2026: Die Fragen von /preise stehen im zweisprachigen Wörterbuch —
   // erste Hälfte (const de) → /preise, zweite Hälfte (const en) → /en/pricing.
   "client/src/i18n/preise.ts": "/preise|/en/pricing",
-  "client/src/pages/site/en-start.tsx": "/en",
+  "client/src/pages/site/en-start.tsx": "/en/private",
   "client/src/i18n/kreditkarte.ts": "/kreditkarte|/en/credit-card",
   "client/src/i18n/partnerbank-dkb.ts": "/partnerbank-dkb|/en/partner-bank-dkb",
   // E-388 (16.10.2026): Partner-Netzwerk — ein Wörterbuch, sechs Seiten (Block je Seite).

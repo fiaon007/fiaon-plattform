@@ -18,10 +18,12 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  ensureRadarTabellen, radarKi, zeileLesen, radarMailSchreiben, radarMailHash, radarMotorEinstellung, RadarFehler, type RadarMail,
+  ensureRadarTabellen, radarKi, zeileLesen, radarMailSchreiben, radarMailHash, radarMotorEinstellung, RadarFehler, RADAR_TON_BEISPIELE,
+  RADAR_TON_BEISPIELE_PARTNER, type RadarMail,
 } from "./fiaon-radar";
 import {
   RADAR_KI_FLOSKELN, radarPruefUrteil, radarAehnlichkeit, alsRadarStrom, RADAR_MOTOR_VORGABE, radarPartnerGruppe,
+  radarNurZusage, radarFingerabdruckText, radarBetreffSchluessel,
   type RadarPruefUrteil, type RadarStrom,
 } from "@shared/fiaon-radar";
 
@@ -74,11 +76,16 @@ export function radarPruefAnweisung(o: RadarPruefOpts): string {
       : o.strom === "partner"
         ? "3. NUTZEN: nutzen_klar = true, wenn klar wird, wobei FIAON den Mandanten oder Kunden dieses Partners hilft (eigene US-Gesellschaft gründen, sich um Geschäftskonto und Firmenkarten kümmern, Weg zu Kapital) und was der Partner davon hat."
         : "3. NUTZEN: nutzen_klar = true, wenn klar wird, was FIAON für diese Firma tut (eigene US-Gesellschaft, Geschäftskonto, Firmenkarten, Weg zu US-Funding).",
+    // E-458 (Befund Prüf-KI 29.10.2026): Der feste Schlusssatz stand als normale Zeile nach der Frage in der Eingabe — die
+    // Prüferin hielt ihn für einen zusätzlichen Satz der Schreib-KI, die ihn nie streichen kann (zwei von vier Mails fielen nur
+    // deshalb durch, gegengeprüft). Link-Satz und Schlusssatz stehen deshalb NICHT in der Eingabe; hier steht nur, dass es sie gibt.
     nachfass
       ? "4. FRAGE: eine_frage = true, wenn die Mail höchstens eine Frage stellt (eine letzte Nachfass-Mail darf ohne Frage enden)."
-      : "4. FRAGE: eine_frage = true, wenn die Mail genau eine Frage stellt. Danach dürfen nur noch ein Link und ein fester Schlusssatz folgen, die der Server setzt — das ist erlaubt und keine zweite Frage.",
-    "5. ZUSAGE: zusage = true bei jeder Zusage oder jedem Versprechen: Finanzierung, Kapital, Kredit, Karte oder Limit zugesagt oder „gesichert“, ein Zinssatz, ein Betrag, eine Bürgschaft, „bis zu“, ein Bankname oder Kartenherausgeber, „garantiert“, Steuervorteile, „Ihre Kunden bekommen bei uns Konto oder Karten“. „Einführungszeitraum ohne Sollzins“ ist das freigegebene Hauswort und KEINE Zusage; „ohne Sollzins“ ohne „Einführungszeitraum“ ist eine.",
-    "6. ERFUNDEN: erfunden = true, wenn die Mail über die Firma etwas behauptet, das NICHT in den Aufhängern oder im Profil steht (Zahlen, Pläne, Orte, Personen, Ereignisse).",
+      : "4. FRAGE: eine_frage = true, wenn die Mail genau eine Frage stellt. (Nach der Frage setzt der Server später noch einen festen Link-Satz und einen festen Schlusssatz. Beide stehen NICHT unten und werden nicht geprüft.)",
+    // E-458 (Befund Prüf-KI 29.10.2026): Dieselbe freigegebene Leistungsbeschreibung galt in 10 Läufen als Nutzen und in 2 als
+    // „Zusage“ (Regel 3 nannte sie selbst als Nutzen). Jetzt steht ausdrücklich da, was KEINE Zusage ist.
+    `5. ZUSAGE: zusage = true NUR, wenn die Mail verspricht, dass die Firma (oder ihre Kunden, Mandanten) etwas SICHER bekommt: Geld, Kapital, Kredit, eine Karte, ein Limit, eine Bewilligung, eine Steuerersparnis. Ebenso bei einem Zinssatz, einem Betrag, einer Bürgschaft, „bis zu“, „garantiert“, „gesichert“, einem Bankname oder Kartenherausgeber und bei „Ihre Kunden bekommen bei uns Konto oder Karten“. KEINE Zusage ist die freigegebene Beschreibung unserer Leistung: eine eigene Gesellschaft oder LLC in den USA gründen; uns um Geschäftskonto und Firmenkarten kümmern oder dabei helfen; den Weg zu US-Funding oder zu Kapital aus den USA ebnen; ein zweiter Weg zu Kapital oder ein zweiter Geldtopf neben der Bank als MÖGLICHKEIT („wenn es klappt“, „hätten Sie“); unser Team vor Ort erledigt den amerikanischen Teil; „Einführungszeitraum ohne Sollzins“ (das Hauswort)${o.strom === "partner" && o.provision !== false ? `; der freigegebene Provisions-Satz „${provisionText}“` : ""}. „ohne Sollzins“ ohne „Einführungszeitraum“ ist eine Zusage.`,
+    "6. ERFUNDEN: erfunden = true, wenn die Mail über DIESE Firma oder ihre Kunden und Mandanten etwas behauptet, das NICHT in den Aufhängern oder im Profil steht (Zahlen, Pläne, Bedarf, Orte, Personen, Ereignisse). Allgemeine Erfahrungssätze mit „meist“, „oft“ oder „häufig“, die nichts Bestimmtes über diese Firma sagen, sind erlaubt.",
     "7. REGELN: Gedankenstrich (– — oder „ - “), Aufzählung, Fettdruck, Emoji, Ausrufezeichen, Link im Text, Du-Form, PS, Name oder Rolle des Absenders im Text: je ein Punkt.",
     o.strom === "partner"
       ? `8. PARTNER: Kein Terminwunsch, kein Anruf, kein Treffen, kein Gespräch, kein Austausch anbieten (schriftliche Konditionen) — sonst ein Punkt. ${o.provision === false ? "Diese Gruppe (Steuerberater, Rechtsanwälte) darf KEINE Provision, keine Prozente und kein Tippgeld angeboten bekommen (berufsrechtlich nicht möglich) — sonst zusage = true." : `Eine Provision nur genau als „${provisionText}“, ohne Betrag.`}`
@@ -106,7 +113,6 @@ export async function radarMailPruefKi(f: any, mail: { betreff: string; anrede?:
     mail.anrede ?? "",
     ...mail.absaetze,
     mail.frage,
-    mail.schluss ?? "",
     ...erste,
     "",
     `FIRMA: ${f?.name ?? "?"} (${f?.domain ?? "?"}), ${f?.ort ?? ""} ${f?.land ?? ""}`,
@@ -118,14 +124,37 @@ export async function radarMailPruefKi(f: any, mail: { betreff: string; anrede?:
   const modell = modellErsatz ? "attrappe" : PRUEF_MODELL();
   const roh = modellErsatz
     ? await modellErsatz({ anweisung, eingabe, schema: SCHEMA_PRUEF })
-    : (await radarKi<unknown>({ zweck: "radar_pruef", anweisung, eingabe, schema: SCHEMA_PRUEF, aufwand: "low", maxTokens: 4000, modell })).daten;
+    // E-458 (Befund Prüf-KI 29.10.2026): Aufwand „medium“ statt „low“ — bei „low“ dachte das Modell in 5 von 12 Läufen gar nicht
+    // nach, und genau diese 5 fielen durch (4 mit „Zusage“); die 7 mit Nachdenken meldeten keine einzige. ≈ 1 Cent mehr je Prüfung.
+    : (await radarKi<unknown>({ zweck: "radar_pruef", anweisung, eingabe, schema: SCHEMA_PRUEF, aufwand: "medium", maxTokens: 6000, modell })).daten;
   const r = radarPruefUrteil(roh, o.maxKlang ?? RADAR_MOTOR_VORGABE.kiKlangMax);
   return { ...r, modell, hash: radarMailHash(mail) };
+}
+
+/**
+ * E-458 (Befund Prüf-KI 29.10.2026): Fällt eine Mail NUR wegen „Zusage“ durch (sonst alles in Ordnung), holt der Motor ein
+ * zweites Urteil, bevor er neu schreibt — gemessen schwankte genau dieses Urteil bei wortgleicher Mail. Das zweite Urteil
+ * gilt. Kostet nur in diesem Fall einen Aufruf mehr; eine echte Zusage fällt auch beim zweiten Mal durch.
+ */
+export async function radarPruefMitZweitmeinung(pruefen: () => Promise<RadarPruefung>, maxKlang: number = RADAR_MOTOR_VORGABE.kiKlangMax): Promise<RadarPruefung & { zweitmeinung?: boolean }> {
+  const erste = await pruefen();
+  if (erste.bestanden || !radarNurZusage(erste.urteil, maxKlang)) return erste;
+  const zweite = await pruefen();
+  return { ...zweite, zweitmeinung: true };
 }
 
 /** Der Text, den die KI schrieb (ohne Anrede, Schlusssatz, Unterschrift) — für den Fingerabdruck. */
 export function radarMailKoerper(m: { absaetze?: unknown; frage?: unknown } | null | undefined): string {
   return [...(Array.isArray(m?.absaetze) ? (m!.absaetze as unknown[]).map(String) : []), String(m?.frage ?? "")].join("\n");
+}
+/**
+ * E-458 (Befund Prüf-KI): Der Fingerabdruck einer Mail gegen frühere Mails UND gegen die Ton-Beispiele der Anweisung — ohne
+ * Hauswort und freigegebenen Provisions-Satz (die stehen in vielen Mails gleich und dürfen das). Rein.
+ */
+export function radarMailAehnlichkeit(mail: { absaetze?: unknown; frage?: unknown }, vergleich: readonly string[], strom: RadarStrom, provisionText?: string | null): number {
+  const feste = strom === "partner" ? [provisionText ?? RADAR_MOTOR_VORGABE.partnerProvisionText] : [];
+  const vorbilder = strom === "partner" ? RADAR_TON_BEISPIELE_PARTNER : RADAR_TON_BEISPIELE;
+  return radarAehnlichkeit(radarFingerabdruckText(radarMailKoerper(mail), feste), [...vergleich, vorbilder.join(" ")].map((t) => radarFingerabdruckText(t, feste)));
 }
 
 export interface FertigErgebnis<M> { ok: boolean; mail: M | null; versuche: number; grund: string | null; pruefung: RadarPruefung | null; aehnlich: number }
@@ -140,6 +169,8 @@ export async function radarFertigAblauf<M extends { sperrend: string[] }>(e: {
   pruefen: (mail: M) => Promise<RadarPruefung>;
   aehnlich: (mail: M) => Promise<number> | number;
   aehnlichMax: number;
+  /** E-458 (Befund Prüf-KI): Gab es diesen Betreff schon in einer früheren Mail desselben Stroms? */
+  betreffDoppelt?: (mail: M) => boolean;
 }): Promise<FertigErgebnis<M>> {
   let hinweis: string | null = null;
   let letzte: RadarPruefung | null = null;
@@ -147,6 +178,13 @@ export async function radarFertigAblauf<M extends { sperrend: string[] }>(e: {
   for (let versuch = 1; versuch <= 2; versuch++) {
     const mail = await e.schreiben(hinweis);
     if (mail.sperrend.length) return { ok: false, mail, versuche: versuch, grund: mail.sperrend.slice(0, 2).join("; "), pruefung: letzte, aehnlich };
+    if (e.betreffDoppelt?.(mail)) {
+      const satz = "Denselben Betreff gab es schon in einer früheren Mail — Serienmail-Muster";
+      letzte = { bestanden: false, urteil: null, gruende: [satz], modell: "fingerabdruck", hash: "" };
+      hinweis = `${satz}. Wähle einen anderen Betreff, gebunden an genau diesen Aufhänger.`;
+      if (versuch === 2) return { ok: false, mail, versuche: versuch, grund: satz, pruefung: letzte, aehnlich };
+      continue;
+    }
     aehnlich = await e.aehnlich(mail);
     if (aehnlich > e.aehnlichMax) {
       const satz = `Zu ähnlich zu einer früheren Mail (${Math.round(aehnlich * 100)} % gleiche Wortfolgen) — Serienmail-Muster`;
@@ -164,13 +202,17 @@ export async function radarFertigAblauf<M extends { sperrend: string[] }>(e: {
   return { ok: false, mail: null, versuche: 2, grund: (letzte?.gruende ?? []).slice(0, 2).join("; ") || "Die Prüf-KI gibt die Mail nicht frei", pruefung: letzte, aehnlich };
 }
 
-/** Die Texte der letzten Motor-Mails desselben Stroms (gesendet, in Arbeit oder bereit) — für den Fingerabdruck. */
-async function letzteTexte(strom: RadarStrom, ohneId: number): Promise<string[]> {
+/** Die letzten Motor-Mails desselben Stroms (gesendet, in Arbeit oder bereit) — Texte und Betreffs für den Fingerabdruck. */
+async function letzteMails(strom: RadarStrom, ohneId: number): Promise<{ texte: string[]; betreffs: Set<string> }> {
   const z = (await sqlPool`
     SELECT mail FROM fiaon_radar_firmen
      WHERE strom = ${strom} AND id <> ${ohneId} AND mail IS NOT NULL AND motor_status IN ('bereit', 'sendet', 'gesendet')
      ORDER BY motor_am DESC NULLS LAST LIMIT 100`.catch(() => [])) as any[];
-  return z.map((r) => radarMailKoerper(zeileLesen(r)?.mail)).filter((t) => t.trim());
+  const mails = z.map((r) => zeileLesen(r)?.mail).filter(Boolean);
+  return {
+    texte: mails.map((m: any) => radarMailKoerper(m)).filter((t: string) => t.trim()),
+    betreffs: new Set(mails.map((m: any) => radarBetreffSchluessel(m?.betreff)).filter(Boolean)),
+  };
 }
 
 async function urteilMerken(id: number, p: RadarPruefung | null, versuch: number): Promise<void> {
@@ -195,15 +237,16 @@ export async function radarMailFertig(id: number, o: { hinweis?: string | null }
   const strom = alsRadarStrom(f0.strom);
   const m = await radarMotorEinstellung();
   const provision = await gruppeProvision(f0);
-  const vergleich = await letzteTexte(strom, id);
+  const vergleich = await letzteMails(strom, id);
   const erg = await radarFertigAblauf<RadarMail>({
     schreiben: (pruefHinweis) => radarMailSchreiben(id, { hinweis: o.hinweis ?? null, pruefHinweis }),
     pruefen: async (mail) => {
       const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
-      return radarMailPruefKi(f, mail, { strom, art: "erstmail", provision, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax });
+      return radarPruefMitZweitmeinung(() => radarMailPruefKi(f, mail, { strom, art: "erstmail", provision, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax }), m.kiKlangMax);
     },
-    aehnlich: (mail) => radarAehnlichkeit(radarMailKoerper(mail), vergleich),
+    aehnlich: (mail) => radarMailAehnlichkeit(mail, vergleich.texte, strom, m.partnerProvisionText),
     aehnlichMax: m.aehnlichMax,
+    betreffDoppelt: (mail) => vergleich.betreffs.has(radarBetreffSchluessel(mail.betreff)),
   });
   await urteilMerken(id, erg.ok ? erg.pruefung : (erg.pruefung && erg.pruefung.hash ? erg.pruefung : null), erg.versuche);
   return erg;
@@ -217,12 +260,16 @@ export async function radarMailNurPruefen(id: number): Promise<RadarPruefung> {
   if (!f.mail) throw new RadarFehler("Es gibt noch keine Mail zu dieser Firma.", 404);
   const strom = alsRadarStrom(f.strom);
   const m = await radarMotorEinstellung();
-  const aehnlich = radarAehnlichkeit(radarMailKoerper(f.mail), await letzteTexte(strom, id));
+  const vergleich = await letzteMails(strom, id);
+  const aehnlich = radarMailAehnlichkeit(f.mail, vergleich.texte, strom, m.partnerProvisionText);
   let p: RadarPruefung;
   if (aehnlich > m.aehnlichMax) {
     p = { bestanden: false, urteil: null, gruende: [`Zu ähnlich zu einer früheren Mail (${Math.round(aehnlich * 100)} % gleiche Wortfolgen)`], modell: "fingerabdruck", hash: radarMailHash(f.mail) };
+  } else if (vergleich.betreffs.has(radarBetreffSchluessel(f.mail.betreff))) {
+    p = { bestanden: false, urteil: null, gruende: ["Denselben Betreff gab es schon in einer früheren Mail — bitte einen eigenen Betreff"], modell: "fingerabdruck", hash: radarMailHash(f.mail) };
   } else {
-    p = await radarMailPruefKi(f, f.mail, { strom, art: "erstmail", provision: await gruppeProvision(f), provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax });
+    const provision = await gruppeProvision(f);
+    p = await radarPruefMitZweitmeinung(() => radarMailPruefKi(f, f.mail, { strom, art: "erstmail", provision, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax }), m.kiKlangMax);
   }
   await urteilMerken(id, p, Number(f.pruef_ki?.versuch ?? 0) + 1);
   return p;

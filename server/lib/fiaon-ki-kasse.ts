@@ -165,6 +165,17 @@ export async function kassePruefen(dienst: string): Promise<KasseUrteil> {
   return u;
 }
 
+/**
+ * E-458 (Befund Go-live, Mail-Motor): Wie viel Dollar-Cent ein Topf heute hat (Anteil × Gesamtdeckel) — null, wenn die Kasse
+ * aus ist oder kein Stand lesbar. Der Mail-Motor hält damit seine Vorbereitung unter einem Teil des B2B-Topfs.
+ */
+export async function kasseTopfGrenzeCents(topf: KasseTopf): Promise<number | null> {
+  let z: Zwischen | null = null;
+  try { z = await standHolen(); } catch { z = zwischen; }
+  if (!z || !z.einst.an || !(z.einst.tagUsd > 0)) return null;
+  return topfCents(z.einst, topf);
+}
+
 // ── Modell je Aufgabe (E-262 D) ────────────────────────────────────────────
 /**
  * Das Modell einer Aufgabe — synchron (die Aufrufer bauen ihre Anfrage ohne Warten). Liest den zwischengespeicherten

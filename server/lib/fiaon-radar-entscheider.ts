@@ -233,6 +233,8 @@ export async function entscheiderFinden(id: number, opts: { websuche?: boolean }
     eingabe: `Firma: ${f.name} (${f.website}), ${f.ort ?? ""} ${f.land ?? ""}. Bekannte Vertreter laut Impressum: ${namen.join(", ") || "unbekannt"}.`,
     schema: SCHEMA_SUCHE, webSuche: true, aufwand: "low", maxTokens: 6000,
   });
+  // E-458 (Befund Go-live): Die bezahlte Websuche lief — der Motor wiederholt sie für diese Firma 30 Tage lang nicht.
+  await sqlPool`UPDATE fiaon_radar_firmen SET entscheider_websuche_am = NOW() WHERE id = ${id}`;
   for (const p of (daten?.personen ?? []).slice(0, 3)) {
     const e = await entscheiderBelegen(id, p, { seiten, firma: f, namen: [] });
     if (e) return e;

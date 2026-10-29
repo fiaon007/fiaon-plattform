@@ -57,6 +57,8 @@ ok(K.kasseMinuten(new Date("2026-10-29T07:15:00Z")) === 8 * 60 + 15, "Minuten se
 console.log("── 3 · Bereiche und Anteile");
 const bereiche: [string, K.KasseBereich][] = [
   ["radar", "b2b"], ["radar-faden", "b2b"], ["ratgeber", "b2b"], ["partner-crm", "b2b"],
+  // E-458 (Befund Go-live): Antworten im Firmen-Radar und der Fach-Chat der Global-Kunden sind Antworten an Menschen (Vorrang).
+  ["radar-antwort", "menschen"], ["global-berater", "menschen"],
   ["postmeister-antwort", "menschen"], ["postmeister-einordnen", "menschen"], ["mara-whatsapp", "menschen"], ["mara-anliegen", "menschen"], ["kontakt-chat", "menschen"],
   ["mara-aktion", "privat"], ["mara-auftrag", "privat"], ["ocr", "haus"], ["pruef-mara", "haus"], ["copilot", "haus"], ["unbekannt", "haus"],
 ];

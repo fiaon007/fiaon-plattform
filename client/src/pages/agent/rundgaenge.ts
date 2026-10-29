@@ -1868,11 +1868,13 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   },
   {
     ziel: ".cr-mara",
-    titel: "Ein Schalter: Mara verkauft — oder pausiert.",
-    // E-458 (29.10.2026): der Mail-Motor — Fenster und Tempo stehen unter Automatik › Mail-Motor.
+    titel: "Ein Schalter: Mara verkauft — oder alles aus.",
+    // E-458 (29.10.2026): der Mail-Motor — Fenster und Tempo stehen unter Automatik › Mail-Motor. E-458 (Befund Go-live): der
+    // große Schalter ist der Not-Aus; er zeigt „an“, solange irgendetwas sendet.
     text: "Eingeschaltet bereitet Mara rund um die Uhr erste Mails vor und sendet sie im Fenster des Mail-Motors (Vorgabe Mo–Fr 07–19 Uhr), "
       + "gleichmäßig über jede Stunde, und fasst nach. Antworten liest sie immer, rund um die Uhr. Aus js@ sendet sie keine Antworten selbst — "
-      + "die liegen unter „Gespräche“ zur Freigabe.",
+      + "die liegen unter „Gespräche“ zur Freigabe. Der Schalter ist der Not-Aus: ein Klick, und erste Mails UND Nachfassen sind sofort aus.",
+    tipp: "Nach einem neuen Stand startet der Mail-Motor erst, wenn du ihn im Reiter „Automatik“ freigibst. Vorrat und KI-Kosten (in Dollar) stehen direkt hier.",
   },
   {
     ziel: ".cr-trichter",
@@ -1886,7 +1888,8 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     text: "„Gespräche“ zeigt jede Antwort einer Firma mit Maras Antwort darunter: lesen, ändern, „Senden …“. Absagen kommen von selbst "
       + "auf die Sperrliste, Rückläufer bekommen eine neue Adresse. „Firmen“ ist die Liste mit Stapel, „Automatik“ hat alle Schalter, "
       + "„Messung“ jeden Tag als Zeile. Im Reiter „Firmen“ zeigt „Qualifiziert“ nur Firmen mit Kapitalsignal ab 3; alles Ältere liegt im „Archiv“.",
-    tipp: "Ein Klick auf den Firmennamen öffnet die Akte mit dem ganzen Faden unter „Verlauf“.",
+    tipp: "Ein Klick auf den Firmennamen öffnet die Akte mit dem ganzen Faden unter „Verlauf“. Mit dem Filter „Mail-Motor“ findest du in der Liste "
+      + "alles, was in der Warteschlange liegt oder verworfen wurde.",
   },
   {
     titel: "Angeschrieben wird nur, wer Kapital braucht.",
@@ -1902,26 +1905,27 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     // E-458 (29.10.2026): Justin: „jede Stunde MINDESTENS 10 Mails an Firmen und 10 neue Kooperationspartner, 07–19 Uhr“.
     ziel: ".cr-motor",
-    titel: "Der Mail-Motor: zwei Ströme, jede Stunde.",
-    text: "Firmen mit Kapitalbedarf und Kooperationspartner haben je ein Ziel pro Stunde. Tag und Nacht bereitet Mara vor: Signal prüfen, "
-      + "Chef finden, Mail schreiben, von der Prüf-KI lesen lassen. Fertige Mails warten in der Warteschlange und gehen nur im Fenster hinaus, "
-      + "gleichmäßig über die Stunde. Der Satz oben sagt ehrlich, was die Postfächer heute tragen: mehr Postfächer = mehr Tempo.",
-    tipp: "Tage, Fenster und Ziele änderst du hier und drückst „Speichern“. „Warteschlange jetzt füllen“ startet die Vorbereitung sofort, "
-      + "„Jetzt eine senden …“ schickt die nächste geprüfte Mail (nur im Fenster, mit allen Wänden). Unter „Feineinstellungen“ "
-      + "liegen alle übrigen Schalter: Terminlink, Prüf-KI, Suche, Partner, Ableitung, Postfächer und Bremse.",
+    titel: "Der Mail-Motor (Reiter „Automatik“): zwei Ströme, jede Stunde.",
+    text: "Firmen mit Kapitalbedarf und Kooperationspartner haben je ein Ziel pro Stunde. Tag und Nacht bereitet Mara vor: Chef finden, "
+      + "Signal prüfen, Mail schreiben, von der Prüf-KI lesen lassen. Fertige Mails warten in der Warteschlange und gehen nur im Fenster hinaus, "
+      + "gleichmäßig über die Stunde. Der Satz in der Kachel sagt ehrlich, was die Postfächer heute tragen: mehr Postfächer = mehr Tempo. "
+      + "Oben rechts steht, was der Motor gerade tut — mit dem wahren Grund, wenn er nicht sendet (Freigabe, Fenster, Störung, für heute voll).",
+    tipp: "Neu gestartet wartet der Motor auf deine Freigabe: „3 Mails vorbereiten“, die Mails in der Akte lesen, dann „Freigeben und starten“. "
+      + "Tage, Fenster und Ziele änderst du im Reiter „Automatik“ in dieser Kachel. „Jetzt eine senden …“ schickt die nächste geprüfte Mail. "
+      + "Unter „Feineinstellungen“ liegen alle übrigen Schalter, jeder mit einem Satz Erklärung.",
   },
   {
     ziel: ".cr-postfaecher",
-    titel: "Postfächer: Tempo kommt aus warmen Postfächern.",
+    titel: "Postfächer (Reiter „Automatik“): Tempo kommt aus warmen Postfächern.",
     text: "Jedes Postfach sendet mit seiner echten Gmail-Signatur und hat eine Tagesgrenze, die es gleichmäßig über das Fenster verteilt. "
-      + "Neue Postfächer fahren langsam hoch (Woche 1 → 20, Woche 2 → 40, danach 60 am Tag). Die Ampel zeigt Gmail, Signatur und bei eigenen "
-      + "Versand-Domänen MX, SPF, DKIM und DMARC — nur ein grünes Postfach sendet. Eine kurze Störung (Gmail, Netz) hält es nicht an: Dann "
-      + "gilt der letzte gute Stand, und nach einem Sendefehler ruht es nur kurz.",
-    tipp: "Mit dem Schalter pausierst du ein Postfach; „Jetzt prüfen“ liest Gmail und DNS sofort neu.",
+      + "Postfächer fahren ab der Freigabe langsam hoch (Woche 1 → 20, Woche 2 → 40, danach 60 am Tag) — auch js@. Die Ampel zeigt Gmail, "
+      + "Signatur und bei eigenen Versand-Domänen MX, SPF, DKIM und DMARC (die Ausweise der Domain gegen Spam) — nur ein grünes Postfach sendet. "
+      + "Eine kurze Störung (Gmail, Netz) hält es nicht lange an: Darunter steht in einfachen Worten, bis wann es ruht.",
+    tipp: "Der Schalter „sendet“ zeigt nur deine eigene Pause. „Jetzt prüfen“ liest Gmail und DNS sofort neu und sagt, ob das Postfach bereit ist.",
   },
   {
     ziel: ".cr-zustellung",
-    titel: "Zustellung: der Motor bremst sich selbst.",
+    titel: "Zustellung (Reiter „Automatik“): der Motor bremst sich selbst.",
     text: "Kommen in 7 Tagen mehr als 3 % der Mails zurück oder beschweren sich mehr als 0,3 %, halbiert der Motor Tempo und Tagesgrenze "
       + "und du bekommst eine Aufgabe. Ein einzelnes Postfach über der Grenze ruht 48 Stunden, wenn ein anderes sauber weiter sendet. "
       + "Drei Tage unter beiden Grenzen: volle Fahrt.",
@@ -1930,7 +1934,7 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     // E-458 (Nachbesserung): die Prüf-KI hat einen eigenen Schritt.
     ziel: ".cr-pruefki-kachel",
-    titel: "Die Prüf-KI liest jede Mail, bevor sie hinausgeht.",
+    titel: "Die Prüf-KI (Reiter „Automatik“) liest jede Mail, bevor sie hinausgeht.",
     text: "Eine zweite KI prüft jede erste Mail und jedes Nachfassen: klingt sie nach Mensch, hat sie einen echten Bezug, verspricht sie nichts. "
       + "Fällt eine Mail durch, schreibt Mara sie einmal neu, sonst geht sie nicht hinaus. Hier siehst du, was heute gelesen, freigegeben "
       + "und verworfen wurde, und die nächste Mail so, wie sie hinausgeht.",
@@ -1938,19 +1942,20 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   },
   {
     ziel: ".cr-adressen",
-    titel: "Adressen: nur belegt, nie geraten.",
+    titel: "Adressen (Reiter „Automatik“): nur belegt, nie geraten.",
     text: "Fehlt die Adresse des Chefs, leitet Mara sie nur aus einem belegten Muster ab: mindestens ein echter Kollege derselben Firma mit "
       + "Namen (bei Mustern wie nachname@ zwei) und ein Mailserver der Domäne. Kommt eine abgeleitete Adresse zurück, geht ein Brief. "
-      + "Mit dem Schalter oben rechts schaltest du die Ableitung aus; dann gehen auch schon vorbereitete abgeleitete Mails nicht mehr hinaus.",
+      + "In der ersten Woche nach der Freigabe gehen höchstens 20 % der ersten Mails an abgeleitete Adressen. Mit dem Schalter „Ableitung“ "
+      + "schaltest du sie aus; dann gehen auch schon vorbereitete abgeleitete Mails nicht mehr hinaus.",
     tipp: "Österreich zählt hier mit: Sagt auch nur ein Zeichen Österreich (Domäne, Telefon, UID), geht vorerst gar keine Post hinaus — nur nach Deutschland und in die Schweiz.",
   },
   {
     ziel: ".cr-partner",
-    titel: "Kooperationspartner: Menschen, die uns Kunden bringen.",
+    titel: "Kooperationspartner (Reiter „Automatik“): Menschen, die uns Kunden bringen.",
     text: "Mara sucht und schreibt Steuerberater, Anwälte, Finanzierer, Kreditvermittler, Berater und Agenturen an. Steuerberater und Anwälte "
       + "bekommen keine Provision (Berufsrecht) — wir gründen ihren Mandanten die US-Gesellschaft und kümmern uns um Konto und Karten. Alle anderen "
       + "sind Tippgeber mit der Provision aus den Feineinstellungen. Kein Termin: Konditionen gehen schriftlich. Wer Interesse zeigt, steht danach "
-      + "unter Geschäftspartner. Wer schon dort steht, bekommt nie eine Kaltmail.",
+      + "unter Geschäftspartner. Wer schon dort steht — oder als Kunde, Tippgeber oder Global-Bucher bekannt ist —, bekommt nie eine Kaltmail.",
     tipp: "Jede Gruppe lässt sich einzeln an- und ausschalten; eine ausgeschaltete Gruppe bekommt sofort keine Mail mehr. "
       + "Im Reiter „Firmen“ schaltest du oben zwischen Firmen und Partnern um. In der Akte holt „Zurück in den Vorrat“ eine verworfene Firma zurück.",
   },
@@ -1967,7 +1972,7 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     // E-361 (14.10.2026): Maras Szenarien — jede Art von Antwort, jede mit ihrer Regel.
     ziel: ".cr-mara-test",
-    titel: "Mara kennt jede Art von Antwort.",
+    titel: "Mara kennt jede Art von Antwort (Reiter „Automatik“, ganz unten).",
     text: "Interesse, Frage, Terminwunsch, Rückruf, Unterlagen, Einwand, „später“, Kalender-Bestätigung und -Absage, Absage, Datenschutz, "
       + "Anwalt, Abwesenheit, Rückläufer und mehr: 18 Arten, jede mit fester Regel. Nennt eine Firma eine freie Zeit, trägt Mara sie ein "
       + "(Schalter „Selbst“) — sonst steht an der Antwort „Termin eintragen“. Datenschutz geht nur als Entwurf von dir, Anwaltspost nie.",

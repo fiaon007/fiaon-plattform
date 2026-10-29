@@ -42,7 +42,7 @@ import { sqlPool } from "./db-pool";
 import {
   ensureRadarTabellen, radarKi, radarPostfaecher, radarAbsender, radarStatusSetzen, radarKontaktNachsuchen,
   radarScannen, radarSperren, zeileLesen, RadarFehler, radarAbsenderFuer, mailPruefen, radarMotorEinstellung, sqlOesterreich,
-  type MailPruefOpts,
+  radarSendeFehlerArt, type MailPruefOpts,
 } from "./fiaon-radar";
 import { gmailBereit, nachrichtenMitFaden, nachrichtLesen, antwortSenden, type GmailNachricht } from "./fiaon-gmail";
 import { kiPausiert } from "./fiaon-ki-pause";
@@ -58,7 +58,7 @@ import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-glo
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { htmlAusText, maraSignatur, persoenlicheMailHtml, persoenlicheMailText, type SignaturDaten } from "./fiaon-signatur";
-import { radarMailPruefKi } from "./fiaon-radar-pruef";
+import { radarMailPruefKi, radarPruefMitZweitmeinung } from "./fiaon-radar-pruef";
 
 /**
  * Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). E-458 nach E-461 (29.10.2026): Die Karte
@@ -370,7 +370,9 @@ async function ausgehendMerken(firmaId: number, postfach: string, n: GmailNachri
   if (!neu || ersteMail) return;
   await sqlPool`UPDATE fiaon_radar_post SET mara_status = 'von_hand', mara_am = NOW()
                  WHERE firma_id = ${firmaId} AND mara_status = 'entwurf' AND datum < ${n.datum}`;
-  await sqlPool`UPDATE fiaon_radar_firmen SET letzte_mail_am = GREATEST(COALESCE(letzte_mail_am, ${n.datum}), ${n.datum}), updated_at = NOW() WHERE id = ${firmaId}`;
+  // E-458 (Befund Go-live): Schreibt ein Mensch selbst im Faden (z. B. nach einem Telefonat), endet das automatische Nachfassen —
+  // sonst käme danach noch „ich wollte kurz nachhaken, ob meine Nachricht angekommen ist“.
+  await sqlPool`UPDATE fiaon_radar_firmen SET letzte_mail_am = GREATEST(COALESCE(letzte_mail_am, ${n.datum}), ${n.datum}), nachfass_faellig = NULL, updated_at = NOW() WHERE id = ${firmaId}`;
 }
 
 /** Unsere letzte eigene Mail im Faden (erste Mail, Nachfass oder Mara) — damit „der erste Vorschlag passt“ eindeutig wird. */
@@ -1180,9 +1182,10 @@ export async function nachfassSchreiben(f: any, stufe: number, m: RadarMotor, sc
       if (absaetze.length && !p.sperrend.length) {
         // E-458 (Punkt 4): Auch das Nachfassen liest die Prüf-KI vor dem Versand — zweimal durchgefallen → feste Vorlage.
         // E-458 (Befund): mit Gruppe, Provisions-Satz und KI-Klang aus dem Chefbüro, und mit der ersten Mail zum Vergleich.
-        const pk = await radarMailPruefKi(f, { betreff: String(f.mail?.betreff ?? ""), absaetze, frage }, {
+        // E-458 (Befund Prüf-KI): nur wegen „Zusage“ durchgefallen → ein zweites Urteil, bevor neu geschrieben wird.
+        const pk = await radarPruefMitZweitmeinung(() => radarMailPruefKi(f, { betreff: String(f.mail?.betreff ?? ""), absaetze, frage }, {
           strom, art: "nachfass", stufe, provision: gruppe ? gruppe.provision : null, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax,
-        });
+        }), m.kiKlangMax);
         if (pk.bestanden) return { absaetze, frage, vorlage: false };
         nachtrag = `\n\nDie Prüferin hat deinen Entwurf zurückgegeben — schreibe ihn neu: ${[pk.urteil?.neu_hinweis, ...pk.gruende.slice(0, 3)].filter(Boolean).join("; ")}`;
         continue;
@@ -1195,6 +1198,16 @@ export async function nachfassSchreiben(f: any, stufe: number, m: RadarMotor, sc
   }
   const v = nachfassVorlage(strom, stufe, Number(f.id));
   return { absaetze: [...v.absaetze], frage: v.frage, vorlage: true };
+}
+
+/**
+ * E-458 (Befund Go-live): Eine Nachfass-Stufe, deren Senden schiefging, bevor Gmail etwas annahm, kommt zurück — in einer
+ * Stunde erneut. Nur, wenn sie noch genau so dasteht (kein zweiter Lauf hat sie inzwischen genommen).
+ */
+export async function nachfassStufeZurueck(id: number, stufe: number): Promise<boolean> {
+  const z = (await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_stufe = nachfass_stufe - 1, nachfass_faellig = NOW() + INTERVAL '1 hour'
+                            WHERE id = ${id} AND nachfass_stufe = ${stufe} AND nachfass_faellig IS NULL AND nachfass_stufe > 0 RETURNING id`) as any[];
+  return z.length > 0;
 }
 
 /** E-458 (Punkt 7): Zustell-Wache — Fehler hier halten den Versand-Lauf nie an. */
@@ -1266,19 +1279,32 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         const absender = await radarAbsenderFuer(String(f.postfach), f.mail?.links?.seite ?? null);
         if (!absender) { erg.uebersprungen++; continue; }
         const lage = lagen.find((l) => l.adresse === String(f.postfach));
-        if (lage && lage.heute >= lage.grenze) { erg.uebersprungen++; continue; }
+        // E-458 (Befund Go-live): Ein pausiertes Postfach (Chefbüro, Zustell-Bremse, Störung beim Senden) schickt auch kein
+        // Nachfassen — vorher lief es genau dann weiter, wenn das Postfach geschont werden sollte.
+        if (lage && (lage.pause || lage.heute >= lage.grenze)) { erg.uebersprungen++; continue; }
         // Atomar: Stufe weiterzählen, bevor gesendet wird — ein zweiter Lauf greift dieselbe Firma nicht.
         const [frei] = (await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_stufe = nachfass_stufe + 1, nachfass_faellig = NULL
                                        WHERE id = ${f.id} AND nachfass_stufe = ${f.nachfass_stufe} AND status = 'versendet' RETURNING nachfass_stufe`) as any[];
         if (!frei) continue;
         const stufe = Number(frei.nachfass_stufe);
-        const original = await nachrichtLesen(String(f.postfach), String(f.gmail_nachricht_id));
-        const n = await nachfassSchreiben(f, stufe, m);
-        // E-458 (Punkt 3): wie von Hand in Gmail — echte Unterschrift, leise Impressum-Zeile, kein Abmelde-Fuß;
-        // Absendername = der Mensch des Postfachs (ohne „| FIAON Global“).
-        const teile = { anrede: f.mail?.anrede ?? "Guten Tag,", absaetze: n.absaetze, frage: n.frage || null, gruss: f.mail?.gruss ?? radarGruss(f.id), signatur: { html: absender.signaturHtml, text: absender.signaturText } };
-        const text = persoenlicheMailText(teile);
-        const id = await antwortSenden(String(f.postfach), original, text, persoenlicheMailHtml(teile), null, { vonName: absender.name, an: f.email });
+        let id!: string;
+        let original!: GmailNachricht;
+        let text = "";
+        try {
+          original = await nachrichtLesen(String(f.postfach), String(f.gmail_nachricht_id));
+          const n = await nachfassSchreiben(f, stufe, m);
+          // E-458 (Punkt 3): wie von Hand in Gmail — echte Unterschrift, leise Impressum-Zeile, kein Abmelde-Fuß;
+          // Absendername = der Mensch des Postfachs (ohne „| FIAON Global“).
+          const teile = { anrede: f.mail?.anrede ?? "Guten Tag,", absaetze: n.absaetze, frage: n.frage || null, gruss: f.mail?.gruss ?? radarGruss(f.id), signatur: { html: absender.signaturHtml, text: absender.signaturText } };
+          text = persoenlicheMailText(teile);
+          id = await antwortSenden(String(f.postfach), original, text, persoenlicheMailHtml(teile), null, { vonName: absender.name, an: f.email });
+        } catch (e) {
+          // E-458 (Befund Go-live): Ging das Senden schief, bevor Gmail etwas annahm, kommt die Stufe zurück (in einer Stunde
+          // erneut) — vorher war sie verloren, und die zweite Stufe wurde nie geplant. „Unklar“ (Netz nach dem Aufruf) bleibt
+          // vorsichtig verbraucht: lieber ein Nachfassen zu wenig als eines doppelt.
+          if (radarSendeFehlerArt(e) !== "unklar") await nachfassStufeZurueck(Number(f.id), stufe);
+          throw e;
+        }
         const naechste = RADAR_NACHFASS_TAGE[stufe];
         await sqlPool`UPDATE fiaon_radar_firmen SET letzte_mail_am = NOW(),
                         nachfass_faellig = ${naechste != null ? new Date(Date.now() + naechste * 86_400_000) : null}, updated_at = NOW() WHERE id = ${f.id}`;

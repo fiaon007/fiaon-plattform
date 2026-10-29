@@ -24,8 +24,8 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
   RADAR_BEREICHE, RADAR_GRUPPEN, RADAR_STATUS, RADAR_STAPEL_MAX, RADAR_ZIELBILD, RADAR_TRICHTER, RADAR_ANTWORT_ARTEN, RADAR_KERNSATZ,
   RADAR_NACHFASS_TAGE, RADAR_HOECHSTENS_JE_TAG, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, radarBereich,
-  RADAR_PARTNER_GRUPPEN, RADAR_PARTNER_SIGNALE, radarPartnerGruppe,
-  type RadarStatus, type RadarAntwortArt, type RadarBriefAnbieter,
+  RADAR_PARTNER_GRUPPEN, RADAR_PARTNER_SIGNALE, radarPartnerGruppe, RADAR_MOTOR_STATUS, RADAR_LAENDER_AKTIV, RADAR_ABLEITUNG_START, radarUhrzeit,
+  type RadarStatus, type RadarAntwortArt, type RadarBriefAnbieter, type RadarMotorStatus,
 } from "@shared/fiaon-radar";
 import { RADAR_SZENARIEN, type RadarSzenario } from "@shared/fiaon-radar-szenarien";
 import { GLOBAL_PAKETE } from "@shared/fiaon-global";
@@ -72,7 +72,7 @@ type PruefKi = { ok: boolean; punkte: { regel: string; stelle: string; hinweis: 
 type Voll = Zeile & {
   impressum: any; notiz: string | null; gmail_entwurf_id: string | null;
   // E-458: das Urteil der Prüf-KI zur gespeicherten Fassung, der Strom und der Stand in der Warteschlange.
-  pruef_ki?: PruefKi | null; strom?: string | null; motor_status?: string | null; motor_grund?: string | null;
+  pruef_ki?: PruefKi | null; strom?: string | null; motor_status?: string | null; motor_grund?: string | null; partner_firma_id?: number | null;
   scan: { profil: any; aufhaenger: Aufhaenger[]; verworfen: number; seiten: { url: string; titel: string }[]; am: string } | null;
   mail: Mail | null;
   brief?: { betreff: string; erstellt_am: string } | null;
@@ -93,12 +93,19 @@ type MotorStand = {
     tage: number[]; von: string; bis: string; firmenJeStunde: number; partnerJeStunde: number; puffer: number; haltbarTage: number; link: "termin" | "keiner";
     kiKlangMax: number; aehnlichMax: number; sucheTagesziel: number; sucheLaeufe: number; postfachJeTag: number; postfachRampe: number[];
     partnerTagesziel: number; partnerProvisionText: string; ableitungAnteil: number; ableitungRueckMax: number; zustellRueckMax: number; zustellBeschwerdeMax: number;
-    zustellBasis: number;
+    zustellBasis: number; freigabeAm: string | null; kiAnteil: number; ableitungAnteilEigen: boolean;
   };
   an: boolean; abPassung: number; imFenster: boolean; bremse: number;
+  /** E-458 (Befund Sicht): was der Motor gerade tut, mit dem wahren Grund. */
+  lage: { chip: string; ton: "gut" | "warm" | "leise"; grund: string | null; senden: boolean };
+  freigabeAm: string | null;
+  geld: { heute: number; grenze: number | null; frei: boolean; anteil: number } | null;
+  ableitungAnteilJetzt: number;
   leistung: { ziel: number; moeglich: number; leistungJeStunde: number; je: { firma: number; partner: number }; tagJe: { firma: number; partner: number }; satz: string; postfaecherNoetig: number };
   postfaecher: {
     adresse: string; grenze: number; heute: number; reserve?: number; bereit: boolean; pause?: boolean; name: string | null; quelle: "gmail" | "karte" | null;
+    /** Justins eigene Pause (der Schalter) — getrennt vom Ruhen nach einer Störung oder durch die Bremse. */
+    aus?: boolean; ruhtBis?: string | null; ruhtGrund?: string | null;
     gruende: string[]; gmail: boolean | null; dns: { mx: boolean; spf: boolean; dkim: boolean; dmarc: boolean } | null; signaturHtml: string | null;
     /** E-458 (Befund): kurze Störung — der letzte gute Stand gilt, oder das Postfach ruht nach einem Sendefehler kurz. */
     stoerung?: string[];
@@ -132,7 +139,7 @@ type Uebersicht = {
   firmen: Zeile[]; heute: string; tagesziel: number; stapelMax: number; kostenHeute: number; deckel: number; postfaecher: string[];
   absender: { name: string; rolle: string; telefon: string }; gmail: boolean; ki: boolean;
   zahlen: { heute: number; heute_tageslauf: number; gesamt: number; versendet: number; antworten: number; leads: number; kaeufe: number; offen: number };
-  nachStand: Record<string, number>; laeufe: Lauf[];
+  nachStand: Record<string, number>; nachMotor?: Record<string, number>; laeufe: Lauf[];
 };
 
 async function rufen<T = any>(pfad: string, methode: "POST" | "PUT" | "GET" = "POST", body?: unknown): Promise<T> {
@@ -172,7 +179,8 @@ export default function ChefRadar() {
     try { const f = Number(new URLSearchParams(window.location.search).get("firma")); return Number.isInteger(f) && f > 0 ? f : null; } catch { return null; }
   });
   const [lauf, setLauf] = useState<Lauf | null>(null);
-  const [suchen, setSuchen] = useState(false);
+  // E-458 (Befund Sicht): „Partner suchen“ öffnet die Partnersuche — das Fenster bekommt den Strom aus der Liste mit.
+  const [suchen, setSuchen] = useState<false | "firma" | "partner">(false);
   const [website, setWebsite] = useState(false);
   const [postfach, setPostfach] = useState("");
   const [runde, setRunde] = useState(0);
@@ -211,7 +219,8 @@ export default function ChefRadar() {
 
   return (
     <div className="cr cr-glas">
-      <Rundgang raum="firmen-radar" titel="Firmen-Radar" schritte={RUNDGAENGE.firmenRadar.schritte} />
+      {/* E-458 (Befund Sicht): neuer Merker, damit Justin und das Team die neuen Schritte (Mail-Motor, Freigabe, Postfächer …) einmal sehen. */}
+      <Rundgang raum="firmen-radar-2" titel="Firmen-Radar" schritte={RUNDGAENGE.firmenRadar.schritte} />
 
       <MaraKopf trichter={t.daten} uebersicht={u.daten} motor={motor.daten} onGeaendert={neuLaden} />
       {t.fehler && <Fehlermeldung text={t.fehler} erneut={t.neu} />}
@@ -228,12 +237,12 @@ export default function ChefRadar() {
       </nav>
 
       {haupt === "gespraeche" && <Gespraeche runde={runde} onFirma={firmaOeffnen} onGeaendert={neuLaden} />}
-      {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />}
+      {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={(x) => setSuchen(x)} onWebsite={() => setWebsite(true)} />}
       {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} motor={motor.daten} onGeaendert={neuLaden} />}
       {haupt === "automatik" && <MaraTesten />}
       {haupt === "messung" && <Messung trichter={t.daten} />}
 
-      {suchen && <SuchFenster onZu={() => setSuchen(false)} onLauf={(l) => { setLauf(l); setSuchen(false); wechseln("firmen"); }} />}
+      {suchen && <SuchFenster start={suchen} onZu={() => setSuchen(false)} onLauf={(l) => { setLauf(l); setSuchen(false); wechseln("firmen"); }} />}
       {website && <WebsiteFenster onZu={() => setWebsite(false)} onFertig={(id) => { setWebsite(false); neuLaden(); firmaOeffnen(id); }} />}
       {offen && <Akte key={offen} id={offen} uebersicht={u.daten} motor={motor.daten} postfach={postfach} onPostfach={setPostfach} onZu={() => firmaOeffnen(null)} onGeaendert={neuLaden} />}
     </div>
@@ -276,29 +285,40 @@ function MaraKopf({ trichter, uebersicht, motor, onGeaendert }: {
   trichter: Trichter | null; uebersicht: Uebersicht | null; motor: MotorStand | null; onGeaendert: () => void;
 }) {
   const a = trichter?.automatik;
-  const an = !!a && a.versand && a.nachfass;
+  // E-458 (Befund Go-live): Der große Schalter ist der Not-Aus. Er zeigt „an“, solange IRGENDETWAS sendet (erste Mails ODER
+  // Nachfassen) — vorher zeigte er „pausiert“, während der Motor weiter erste Mails schickte, und ein Klick hätte eingeschaltet.
+  const an = !!a && (a.versand || a.nachfass);
   const [frage, setFrage] = useState(false);
   const [verantwortet, setVerantwortet] = useState(false);
   const [arbeit, setArbeit] = useState<string | null>(null);
-  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "warn" | "fehler"; text: string } | null>(null);
   const h = trichter?.heute;
-  const postfach = uebersicht?.postfaecher?.[0] ?? "js@fiaon.com";
+  const postfaecher = motor?.postfaecher ?? [];
+  const freigegeben = !!motor?.freigabeAm;
 
   const schalten = async (ein: boolean) => {
     setArbeit("schalter"); setMeldung(null);
     try {
-      await rufen("/chef/radar/automatik", "POST", ein ? { versand: true, nachfass: true, mara: "auto" } : { versand: false, nachfass: false });
+      // Einschalten lässt „Mara antwortet“ so, wie es steht (Selbst / Zur Freigabe) — der Schalter schaltet nur den Versand.
+      await rufen("/chef/radar/automatik", "POST", ein ? { versand: true, nachfass: true } : { versand: false, nachfass: false });
       setFrage(false); setVerantwortet(false); onGeaendert();
-      setMeldung({ art: "gut", text: ein ? `Mara verkauft. Erste Mails ${fensterText(motor?.einstellung)}, vorbereitet wird rund um die Uhr, Antworten liest sie immer.` : "Mara pausiert den Versand. Antworten liest sie weiter." });
+      setMeldung({ art: "gut", text: ein
+        ? `Mara verkauft. Erste Mails ${fensterText(motor?.einstellung)}, Antworten liest sie immer.${freigegeben ? "" : " Der Mail-Motor startet erst nach deiner Freigabe (Automatik › Mail-Motor)."}`
+        : "Alles aus: keine ersten Mails, kein Nachfassen. Antworten liest Mara weiter." });
     } catch (e: any) { setMeldung({ art: "fehler", text: e.message }); }
     finally { setArbeit(null); }
   };
   const knopf = async (name: string, pfad: string, text: (j: any) => string) => {
     setArbeit(name); setMeldung(null);
-    try { const j = await rufen<any>(pfad, "POST"); onGeaendert(); setMeldung({ art: "gut", text: text(j.ergebnis ?? {}) }); }
+    try {
+      const j = await rufen<any>(pfad, "POST"); onGeaendert();
+      // E-458 (Befund Sicht): „nichts passiert“ (mit Grund) ist ein Hinweis, kein grüner Erfolg.
+      setMeldung({ art: j.ergebnis?.grund ? "warn" : "gut", text: text(j.ergebnis ?? {}) });
+    }
     catch (e: any) { setMeldung({ art: "fehler", text: e.message }); }
     finally { setArbeit(null); }
   };
+  const vorratFirmen = motor?.stroeme.firma.vorrat ?? 0, vorratPartner = motor?.stroeme.partner.vorrat ?? 0;
 
   return (
     <header className="cr-held">
@@ -326,23 +346,26 @@ function MaraKopf({ trichter, uebersicht, motor, onGeaendert }: {
         <div className="cr-mara-kopf">
           <span className="cr-mara-bild" aria-hidden="true"><img src="/mail/signatur/mara.png" alt="" width={44} height={44} /><span className="cr-mara-punkt" /></span>
           <div>
-            <b>Mara {an ? "verkauft" : "pausiert"}</b>
+            <b>Mara {!an ? "pausiert" : a?.versand && a?.nachfass ? "verkauft" : a?.versand ? "verkauft · Nachfassen aus" : "fasst nur nach"}</b>
             <span>{an
-              ? `${fensterText(motor?.einstellung)} · Ziel ${zahl(motor?.leistung.ziel ?? 0)}/h · möglich ${zahl(Math.min(motor?.leistung.ziel ?? 0, motor?.leistung.moeglich ?? 0))}/h · heute ${zahl(h?.angeschrieben ?? 0)} erste Mails, ${zahl(h?.nachfass ?? 0)} nachgefasst`
+              ? !freigegeben && a?.versand
+                ? "Der Mail-Motor wartet auf deine Freigabe (Automatik › Mail-Motor). Nachfassen und Antworten laufen."
+                : `${fensterText(motor?.einstellung)} · Ziel ${zahl(motor?.leistung.ziel ?? 0)}/h · möglich ${zahl(Math.min(motor?.leistung.ziel ?? 0, motor?.leistung.moeglich ?? 0))}/h · heute ${zahl(h?.angeschrieben ?? 0)} erste Mails, ${zahl(h?.nachfass ?? 0)} nachgefasst`
               : "Liest Antworten weiter."}</span>
           </div>
-          <button type="button" role="switch" aria-checked={an} className="cr-kippe" disabled={!!arbeit || !a} onClick={() => (an ? void schalten(false) : setFrage(true))}>
+          <button type="button" role="switch" aria-checked={an} className="cr-kippe" disabled={!!arbeit || !a} title={an ? "Not-Aus: erste Mails UND Nachfassen sofort aus" : "Mara einschalten"} onClick={() => (an ? void schalten(false) : setFrage(true))}>
             <i aria-hidden="true" />
-            <span className="sr-only">{an ? "Mara pausieren" : "Mara einschalten"}</span>
+            <span className="sr-only">{an ? "Alles aus (erste Mails und Nachfassen)" : "Mara einschalten"}</span>
           </button>
         </div>
         <dl className="cr-mara-werte">
-          <div><dt>Firmen im Vorrat</dt><dd>{zahl(trichter?.vorrat ?? 0)}</dd></div>
-          <div><dt>KI heute</dt><dd>{(uebersicht?.kostenHeute ?? 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd></div>
-          <div className="breit"><dt>Absender</dt><dd>{postfach}</dd></div>
+          {/* E-458 (Befund Sicht): EIN Vorrat — so gezählt, wie der Motor auswählt (Firmen und Partner getrennt). */}
+          <div><dt>Vorrat</dt><dd>{zahl(vorratFirmen)} Firmen · {zahl(vorratPartner)} Partner</dd></div>
+          <div><dt>KI heute</dt><dd>{(uebersicht?.kostenHeute ?? 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $</dd></div>
+          <div className="breit"><dt>Postfächer</dt><dd>{postfaecher.length ? `${postfaecher.length} (${postfaecher.filter((p) => p.bereit && !p.pause).length} bereit) · ${postfaecher.map((p) => p.adresse).join(", ")}` : (uebersicht?.postfaecher ?? []).join(", ") || "—"}</dd></div>
         </dl>
         {frage && (
-          <div className="cr-mara-frage">
+          <div className="cr-mara-frage" data-volltext>
             <p>Je Stunde <b>{motor?.einstellung.firmenJeStunde ?? 10} Firmen und {motor?.einstellung.partnerJeStunde ?? 10} Partner</b> ({fensterText(motor?.einstellung)}), so viele die Postfächer tragen, nur an Entscheider, jede Mail von der Prüf-KI gelesen, zweimal Nachfassen.</p>
             <p className="cr-recht">Jede Mail persönlich, mit echter Unterschrift. Wer absagt, hört nie wieder von uns. Nur Deutschland und die Schweiz.</p>
             <label className="cr-haken-zeile"><input type="checkbox" checked={verantwortet} onChange={(e) => setVerantwortet(e.target.checked)} /> Ich verantworte den automatischen Versand.</label>
@@ -596,13 +619,13 @@ function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
         <PartnerKachel motor={motor} onGeaendert={onGeaendert} />
         <AdressenKachel motor={motor} onGeaendert={onGeaendert} />
         <article className="cr-kachel">
-          <header><b>Erste Mails</b><Kippe an={a.versand} aus={!!arbeit} onKlick={() => setzen("versand", { versand: !a.versand }, a.versand ? "Erste Mails pausiert." : "Erste Mails laufen.")} /></header>
-          <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. {fensterText(motor?.einstellung)}, Tempo im Mail-Motor.</p>
+          <header><b>Erste Mails</b><Kippe an={a.versand} aus={!!arbeit} label="sendet" onKlick={() => setzen("versand", { versand: !a.versand }, a.versand ? "Erste Mails aus — der Motor sendet keine erste Mail mehr (Wirkung in höchstens einer Minute)." : "Erste Mails laufen.")} /></header>
+          <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. {fensterText(motor?.einstellung)}, Tempo im Mail-Motor. Dieser Schalter ist der schnellste Stopp für erste Mails.</p>
           <div className="cr-kachel-feld">
             <label><span>Ab Passung</span><input className="cr-feld" type="number" min={0} max={100} value={abPassung} onChange={(e) => setAbPassung(e.target.value)} /></label>
             <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setzen("zahlen", { abPassung: Number(abPassung) }, "Gespeichert.")}>Speichern</button>
           </div>
-          <span className="cr-klein">Höchstens {RADAR_HOECHSTENS_JE_TAG} Mails je Postfach und Tag (mit Nachfass).</span>
+          <span className="cr-klein">Höchstens {motor?.einstellung.postfachJeTag ?? RADAR_HOECHSTENS_JE_TAG} Mails je Postfach und Tag (mit Nachfass), neue Postfächer weniger.</span>
         </article>
         <article className="cr-kachel">
           <header><b>Nachfassen</b><Kippe an={a.nachfass} aus={!!arbeit} onKlick={() => setzen("nachfass", { nachfass: !a.nachfass }, a.nachfass ? "Nachfassen pausiert." : "Nachfassen läuft.")} /></header>
@@ -619,7 +642,7 @@ function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
         </article>
         <article className="cr-kachel">
           <header><b>Suche</b><span className="cr-chip">läuft täglich</span></header>
-          <p>Rund um die Uhr, bis {zahl(motor?.einstellung.sucheTagesziel ?? 50)} qualifizierte Firmen und {zahl(motor?.partner.tagesziel ?? 100)} Partner am Tag (höchstens {zahl(motor?.einstellung.sucheLaeufe ?? 30)} Suchläufe). Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
+          <p>Rund um die Uhr, bis {zahl(motor?.einstellung.sucheTagesziel ?? 50)} qualifizierte Firmen und {zahl(motor?.partner.tagesziel ?? 100)} Partner am Tag (höchstens {zahl(motor?.einstellung.sucheLaeufe ?? 30)} Suchläufe). Vorrat: <b>{zahl(motor?.stroeme.firma.vorrat ?? 0)} Firmen · {zahl(motor?.stroeme.partner.vorrat ?? 0)} Partner</b>.</p>
         </article>
         <BriefKachel />
         <article className="cr-kachel breit">
@@ -653,31 +676,65 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
   const [tage, setTage] = useState<number[]>([]);
   const [arbeit, setArbeit] = useState<string | null>(null);
   const [frage, setFrage] = useState(false);
-  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const [freigabeFrage, setFreigabeFrage] = useState(false);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "warn" | "fehler"; text: string } | null>(null);
   const e = motor?.einstellung;
   useEffect(() => {
     if (!e) return;
     setFirmen(String(e.firmenJeStunde)); setPartner(String(e.partnerJeStunde)); setVon(e.von); setBis(e.bis); setTage([...e.tage]);
   }, [e?.firmenJeStunde, e?.partnerJeStunde, e?.von, e?.bis, e?.tage?.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tun = async (name: string, fn: () => Promise<any>, gut: (j: any) => string) => {
+  const tun = async (name: string, fn: () => Promise<any>, gut: (j: any) => string, art: (j: any) => "gut" | "warn" = () => "gut") => {
     setArbeit(name); setMeldung(null);
-    try { const j = await fn(); onGeaendert(); setMeldung({ art: "gut", text: gut(j) }); }
+    try { const j = await fn(); onGeaendert(); setMeldung({ art: art(j), text: gut(j) }); }
     catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
     finally { setArbeit(null); }
   };
   if (!motor || !e) return <article className="cr-kachel breit cr-motor"><Geruest zeilen={4} /></article>;
   const l = motor.leistung;
+  const lage = motor.lage;
   const stundeVon = Math.floor(Number(e.von.slice(0, 2))), stundeBis = Math.ceil(Number(e.bis.slice(0, 2)) + Number(e.bis.slice(3)) / 60);
   const stunden = Array.from({ length: Math.max(0, stundeBis - stundeVon) }, (_, i) => stundeVon + i);
   const proStunde = (s: "firma" | "partner", h: number) => motor.stroeme[s].stunden.find((x) => x.stunde === h)?.n ?? 0;
-  const spitze = Math.max(1, ...stunden.map((h) => proStunde("firma", h) + proStunde("partner", h)), e.firmenJeStunde + e.partnerJeStunde);
+  const zielStunde = e.firmenJeStunde + e.partnerJeStunde;
+  // E-458 (Befund Sicht): Die Höhe misst am Größeren aus Ziel und echtem Höchstwert — und jede Mail ist mindestens sichtbar.
+  const spitze = Math.max(1, ...stunden.map((h) => proStunde("firma", h) + proStunde("partner", h)), zielStunde);
+  const hoehe = (n: number) => (n > 0 ? Math.max(14, (n / spitze) * 100) : 0);
+  const fuellen = () => void tun("fuellen", () => rufen("/chef/radar/motor/fuellen", "POST", {}),
+    () => "Mara bereitet bis zu drei Mails vor — das dauert ein paar Minuten. Danach unter Firmen › Mail-Motor „In der Warteschlange“ öffnen und lesen.");
   return (
     <article className="cr-kachel breit cr-motor">
       <header>
         <b>Mail-Motor</b>
-        <span className="cr-chip">{!motor.an ? "aus — Schalter oben" : motor.imFenster ? "sendet gerade" : "bereitet vor"}{motor.bremse < 1 ? ` · gebremst ×${String(motor.bremse).replace(".", ",")}` : ""}</span>
+        <span className={`cr-chip${lage.ton === "warm" ? " warm" : ""}`}>{lage.chip}{motor.bremse < 1 ? ` · gebremst ×${String(motor.bremse).replace(".", ",")}` : ""}</span>
       </header>
-      <p className="cr-motor-satz">{l.satz}{l.moeglich < l.ziel && l.postfaecherNoetig ? `. Für ${zahl(l.ziel)} je Stunde braucht es ${zahl(l.postfaecherNoetig)} warme Postfächer.` : "."}</p>
+      {/* E-458 (Befund Go-live): Ein Deploy ist nie der Start — erst echte Mails ansehen, dann einmal freigeben. */}
+      {!motor.freigabeAm && (
+        <div className="cr-motor-freigabe" data-volltext>
+          <b>Der Motor wartet auf deine Freigabe.</b>
+          <ol>
+            <li>„3 Mails vorbereiten“ drücken (dauert ein paar Minuten, nichts geht hinaus).</li>
+            <li>Unter Firmen › Mail-Motor „In der Warteschlange“ die Mails öffnen und lesen, mit Absender und Unterschrift.</li>
+            <li>Passt alles: „Freigeben und starten“. Ab dann sendet der Motor im Fenster, js@ fährt sanft hoch.</li>
+          </ol>
+          <div className="cr-fenster-zeile">
+            <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={fuellen}>{arbeit === "fuellen" ? "Startet …" : "3 Mails vorbereiten"}</button>
+            <button type="button" className="cr-knopf warm" disabled={!!arbeit} onClick={() => setFreigabeFrage(true)}>Freigeben und starten …</button>
+          </div>
+          {freigabeFrage && (
+            <div className="cr-senden-frage" data-volltext>
+              <b>Mail-Motor jetzt freigeben?</b>
+              <p className="cr-recht">Ab jetzt bereitet Mara rund um die Uhr vor und sendet im Fenster ({fensterText(e)}), solange „Erste Mails“ an ist. Postfächer fahren ab heute hoch ({e.postfachRampe.map((n, i) => `Woche ${i + 1}: ${n}`).join(", ")}, danach {e.postfachJeTag} am Tag). Stopp jederzeit mit dem Schalter „Erste Mails“.</p>
+              <div className="cr-fenster-zeile">
+                <button type="button" className="cr-knopf warm" disabled={!!arbeit}
+                        onClick={() => void tun("freigeben", () => rufen("/chef/radar/motor/freigeben", "POST", { bestaetigt: true }), () => "Freigegeben. Der Motor startet mit dem nächsten Takt.").then(() => setFreigabeFrage(false))}>{arbeit === "freigeben" ? "Gibt frei …" : "Ja, freigeben"}</button>
+                <button type="button" className="cr-knopf hell" onClick={() => setFreigabeFrage(false)}>Abbrechen</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="cr-motor-satz" data-volltext>{l.satz}{l.moeglich < l.ziel && l.postfaecherNoetig ? `. Für ${zahl(l.ziel)} je Stunde braucht es ${zahl(l.postfaecherNoetig)} warme Postfächer (warm = sendet seit Wochen ohne Probleme).` : "."}</p>
+      {lage.grund && motor.freigabeAm && <p className={`cr-hinweis ${lage.ton === "warm" ? "warn" : ""}`} data-volltext>{lage.grund}</p>}
       <dl className="cr-mara-werte">
         <div><dt>Ziel je Stunde</dt><dd>{zahl(l.ziel)}</dd></div>
         <div><dt>Heute möglich</dt><dd>{zahl(Math.min(l.ziel, l.moeglich))} je Stunde</dd></div>
@@ -691,17 +748,25 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
               <b>{s === "firma" ? "Firmen mit Kapitalbedarf" : "Kooperationspartner"}</b>
               <span>{s === "firma" ? e.firmenJeStunde : e.partnerJeStunde} je Stunde · heute {zahl(x.gesendetHeute)} gesendet</span>
               <span className="cr-klein">Warteschlange: {zahl(x.bereit)} bereit · {zahl(x.arbeit)} in Arbeit · heute {zahl(x.verworfenHeute)} verworfen · Vorrat {zahl(x.vorrat)}</span>
-              {!!x.gruende.length && <span className="cr-klein" title={x.gruende.map((g) => `${g.n} × ${g.grund}`).join("\n")}>Häufigster Grund: {x.gruende[0].grund}</span>}
+              {!!x.gruende.length && <span className="cr-klein" title={x.gruende.map((g) => `${g.n} × ${g.grund.replace(/^Mail:\s*/, "")}`).join("\n")}>Häufigster Grund: {x.gruende[0].grund.replace(/^Mail:\s*/, "")}</span>}
             </div>
           );
         })}
       </div>
+      {/* E-458 (Befund Sicht): mit Überschrift, Legende, Zahl über jedem Balken und einer Linie beim Ziel. */}
+      <div className="cr-motor-stunden-kopf">
+        <b>Erste Mails je Stunde heute</b>
+        <span className="cr-legende"><i className="f" /> Firmen <i className="p" /> Partner <i className="z" /> Ziel {zielStunde}</span>
+      </div>
       <div className="cr-motor-stunden" aria-label="Erste Mails je Stunde heute">
+        {/* Höhe der Balkenfläche: 84 px minus 4 px oben und 16 px unten (Stunden) = 64 px — die Linie steht beim Ziel. */}
+        <em className="cr-motor-ziel" style={{ bottom: `${16 + Math.round((zielStunde / spitze) * 64)}px` }} aria-hidden="true" />
         {stunden.map((h) => {
           const f = proStunde("firma", h), p = proStunde("partner", h);
           return (
             <span key={h} title={`${String(h).padStart(2, "0")} Uhr: ${f} Firmen, ${p} Partner`}>
-              <i className="p" style={{ height: `${(p / spitze) * 100}%` }} /><i className="f" style={{ height: `${(f / spitze) * 100}%` }} />
+              {f + p > 0 && <b className="cr-motor-zahl" style={{ bottom: `${Math.min(80, hoehe(f) + hoehe(p))}%` }}>{f + p}</b>}
+              <i className="p" style={{ height: `${hoehe(p)}%` }} /><i className="f" style={{ height: `${hoehe(f)}%` }} />
               <small>{String(h).padStart(2, "0")}</small>
             </span>
           );
@@ -710,8 +775,8 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
       <div className="cr-kachel-feld">
         <label><span>Firmen je Stunde</span><input className="cr-feld" type="number" min={0} max={30} value={firmen} onChange={(ev) => setFirmen(ev.target.value)} /></label>
         <label><span>Partner je Stunde</span><input className="cr-feld" type="number" min={0} max={30} value={partner} onChange={(ev) => setPartner(ev.target.value)} /></label>
-        <label><span>Von</span><input className="cr-feld" type="time" value={von} onChange={(ev) => setVon(ev.target.value)} /></label>
-        <label><span>Bis</span><input className="cr-feld" type="time" value={bis} onChange={(ev) => setBis(ev.target.value)} /></label>
+        <label><span>Von</span><input className="cr-feld cr-zeitfeld" type="time" value={von} onChange={(ev) => setVon(ev.target.value)} /></label>
+        <label><span>Bis</span><input className="cr-feld cr-zeitfeld" type="time" value={bis} onChange={(ev) => setBis(ev.target.value)} /></label>
       </div>
       <div className="cr-motor-tage" role="group" aria-label="Sendetage">
         {WOCHENTAGE.map((t, i) => (
@@ -723,19 +788,19 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
       <div className="cr-fenster-zeile">
         <button type="button" className="cr-knopf hell" disabled={!!arbeit || !tage.length}
                 onClick={() => void tun("speichern", () => rufen("/chef/radar/motor", "POST", { firmenJeStunde: Number(firmen), partnerJeStunde: Number(partner), von, bis, tage }), () => "Gespeichert.")}>Speichern</button>
-        <button type="button" className="cr-knopf hell" disabled={!!arbeit || !motor.an} title={motor.an ? "" : "Erst Mara einschalten"}
-                onClick={() => void tun("fuellen", () => rufen("/chef/radar/motor/fuellen", "POST", {}), () => "Mara bereitet bis zu drei Mails vor — das dauert ein paar Minuten.")}>{arbeit === "fuellen" ? "Startet …" : "Warteschlange jetzt füllen"}</button>
-        <button type="button" className="cr-knopf warm" disabled={!!arbeit || !motor.an || !motor.imFenster || !(motor.stroeme.firma.bereit + motor.stroeme.partner.bereit)}
-                title={!motor.imFenster ? "Nur im Sendefenster" : ""} onClick={() => setFrage(true)}>Jetzt eine senden …</button>
+        {motor.freigabeAm && <button type="button" className="cr-knopf hell" disabled={!!arbeit} title="Bis zu drei Mails sofort vorbereiten (kostet KI-Geld)"
+                onClick={fuellen}>{arbeit === "fuellen" ? "Startet …" : "Warteschlange jetzt füllen"}</button>}
+        <button type="button" className="cr-knopf warm" disabled={!!arbeit || !lage.senden}
+                title={lage.senden ? "" : lage.grund ?? ""} onClick={() => setFrage(true)}>Jetzt eine senden …</button>
       </div>
       {frage && (
-        <div className="cr-senden-frage">
+        <div className="cr-senden-frage" data-volltext>
           <b>Die nächste geprüfte Mail jetzt senden?</b>
-          <p className="cr-recht">Alle Wände gelten: Sperrliste, kein Gespräch, keine zweite Mail, keine Mail nach Österreich, Freigabe der Prüf-KI.</p>
+          <p className="cr-recht">Alle Sicherungen gelten: Sperrliste, nicht an Firmen, mit denen wir schon schreiben, keine zweite Mail, keine Mail nach Österreich, nur mit Freigabe der Prüf-KI.</p>
           <div className="cr-fenster-zeile">
             <button type="button" className="cr-knopf warm" disabled={!!arbeit}
                     onClick={() => void tun("senden", () => rufen<{ ergebnis: { gesendet: number; grund?: string } }>("/chef/radar/motor/senden", "POST", { bestaetigt: true }),
-                      (j) => (j.ergebnis.gesendet ? "Gesendet." : `Nichts gesendet: ${j.ergebnis.grund ?? "keine Mail frei"}.`)).then(() => setFrage(false))}>{arbeit === "senden" ? "Sendet …" : "Jetzt senden"}</button>
+                      (j) => (j.ergebnis.gesendet ? "Gesendet." : `Nichts gesendet: ${j.ergebnis.grund ?? "keine Mail frei"}.`), (j) => (j.ergebnis.gesendet ? "gut" : "warn")).then(() => setFrage(false))}>{arbeit === "senden" ? "Sendet …" : "Jetzt senden"}</button>
             <button type="button" className="cr-knopf hell" onClick={() => setFrage(false)}>Abbrechen</button>
           </div>
         </div>
@@ -756,18 +821,23 @@ function MotorFeinschalter({ e, onGeaendert }: { e: MotorStand["einstellung"]; o
     puffer: String(e.puffer).replace(".", ","), haltbarTage: String(e.haltbarTage), link: e.link, kiKlangMax: String(e.kiKlangMax), aehnlichMax: String(e.aehnlichMax).replace(".", ","),
     sucheTagesziel: String(e.sucheTagesziel), sucheLaeufe: String(e.sucheLaeufe), partnerTagesziel: String(e.partnerTagesziel), partnerProvisionText: e.partnerProvisionText,
     ableitungAnteil: String(e.ableitungAnteil), ableitungRueckMax: String(e.ableitungRueckMax).replace(".", ","), postfachJeTag: String(e.postfachJeTag),
-    postfachRampe: e.postfachRampe.join(","), zustellRueckMax: String(e.zustellRueckMax).replace(".", ","), zustellBeschwerdeMax: String(e.zustellBeschwerdeMax).replace(".", ","),
-    zustellBasis: String(e.zustellBasis),
+    rampe1: String(e.postfachRampe[0] ?? ""), rampe2: String(e.postfachRampe[1] ?? ""), zustellRueckMax: String(e.zustellRueckMax).replace(".", ","), zustellBeschwerdeMax: String(e.zustellBeschwerdeMax).replace(".", ","),
+    zustellBasis: String(e.zustellBasis), kiAnteil: String(e.kiAnteil),
   }), [stand]); // eslint-disable-line react-hooks/exhaustive-deps
   const [w, setW] = useState(start);
   useEffect(() => setW(start), [start]);
   const [arbeit, setArbeit] = useState(false);
   const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
-  const feld = (key: keyof typeof start, label: string, art: "text" | "number" = "number") => (
-    <label key={key}><span>{label}</span><input className="cr-feld" type={art} value={w[key]} onChange={(ev) => setW((alt) => ({ ...alt, [key]: ev.target.value }))} /></label>
+  // E-458 (Befund Sicht): unter jedem Feld ein kurzer Satz, was es bedeutet — breite Felder für lange Werte.
+  const feld = (key: keyof typeof start, label: string, hilfe: string, art: "text" | "number" = "number", breit = false) => (
+    <label key={key} className={breit ? "breit" : undefined}><span>{label}</span>
+      <input className="cr-feld" type={art} value={w[key]} onChange={(ev) => setW((alt) => ({ ...alt, [key]: ev.target.value }))} />
+      <small>{hilfe}</small>
+    </label>
   );
   const speichern = async () => {
-    const teil = Object.fromEntries(Object.entries(w).filter(([k, v]) => v !== (start as Record<string, string>)[k]));
+    const teil: Record<string, string> = Object.fromEntries(Object.entries(w).filter(([k, v]) => v !== (start as Record<string, string>)[k] && k !== "rampe1" && k !== "rampe2"));
+    if (w.rampe1 !== start.rampe1 || w.rampe2 !== start.rampe2) teil.postfachRampe = [w.rampe1, w.rampe2].map((x) => x.trim()).filter(Boolean).join(",");
     if (!Object.keys(teil).length) { setMeldung({ art: "gut", text: "Nichts geändert." }); return; }
     setArbeit(true); setMeldung(null);
     try { await rufen("/chef/radar/motor", "POST", teil); onGeaendert(); setMeldung({ art: "gut", text: "Gespeichert." }); }
@@ -777,20 +847,31 @@ function MotorFeinschalter({ e, onGeaendert }: { e: MotorStand["einstellung"]; o
   return (
     <details className="cr-feinschalter">
       <summary>Feineinstellungen</summary>
+      <p className="cr-klein">Nur ändern, wenn nötig — die Vorgaben sind gut.</p>
       <div className="cr-kachel-feld cr-fein-raster">
-        {feld("puffer", "Warteschlange reicht für (Tage)", "text")}{feld("haltbarTage", "Fertige Mail haltbar (Tage)")}
-        <label><span>Link in Firmen-Mails</span>
+        {feld("puffer", "Warteschlange reicht für (Tage)", "So viele Tage fertiger Mails liegen bereit.", "text")}
+        {feld("haltbarTage", "Fertige Mail haltbar (Tage)", "Danach wird sie neu geschrieben.")}
+        <label className="breit"><span>Link in Firmen-Mails</span>
           <select className="cr-feld" value={w.link} onChange={(ev) => setW((alt) => ({ ...alt, link: ev.target.value as "termin" | "keiner" }))}>
             <option value="termin">kurzer Terminlink (fiaon.com/g/…)</option><option value="keiner">kein Link</option>
           </select>
+          <small>Partner-Mails haben nie einen Link.</small>
         </label>
-        {feld("kiKlangMax", "Prüf-KI: KI-Klang höchstens (0–10)")}{feld("aehnlichMax", "Ähnlichkeit höchstens (0,05–1)", "text")}
-        {feld("sucheTagesziel", "Suche: Firmen je Tag")}{feld("sucheLaeufe", "Suchläufe je Tag")}{feld("partnerTagesziel", "Partner-Funde je Tag")}
-        {feld("partnerProvisionText", "Provisions-Satz (Mail, Prüf-KI, Mara, CRM)", "text")}
-        {feld("ableitungAnteil", "Abgeleitete Adressen höchstens % je Stunde")}{feld("ableitungRueckMax", "Ableitung stoppt ab % Rückläufern", "text")}
-        {feld("postfachJeTag", "Mails je Postfach und Tag (≤ 60)")}{feld("postfachRampe", "Hochfahren (Woche 1, Woche 2)", "text")}
-        {feld("zustellRueckMax", "Bremse ab % Rückläufern", "text")}{feld("zustellBeschwerdeMax", "Bremse ab % Beschwerden", "text")}
-        {feld("zustellBasis", "Bremse rechnet ab … Mails (7 Tage)")}
+        {feld("kiKlangMax", "Prüf-KI: KI-Klang höchstens (0–10)", "0 = klingt wie ein Mensch, 10 = klar KI.")}
+        {feld("aehnlichMax", "Ähnlichkeit höchstens (0,05–1)", "Wie sehr eine Mail früheren gleichen darf — kleiner heißt verschiedener.", "text")}
+        {feld("sucheTagesziel", "Suche: Firmen je Tag", "Neue qualifizierte Firmen am Tag.")}
+        {feld("sucheLaeufe", "Suchläufe je Tag", "Jeder Lauf kostet KI-Geld (etwa 0,80 $).")}
+        {feld("partnerTagesziel", "Partner-Funde je Tag", "Neue Kooperationspartner am Tag.")}
+        {feld("kiAnteil", "KI-Geld der Vorbereitung (% des B2B-Topfs)", "Suche und Vorbereitung höchstens so viel — der Rest bleibt für Nachfassen und Ratgeber.")}
+        {feld("partnerProvisionText", "Provisions-Satz (Mail, Prüf-KI, Mara, CRM)", "Steht wörtlich in jeder Partner-Mail mit Provision.", "text", true)}
+        {feld("ableitungAnteil", "Abgeleitete Adressen höchstens % je Tag", `In der ersten Woche nach der Freigabe höchstens ${RADAR_ABLEITUNG_START.anteil} %, wenn hier nichts eigenes steht.`)}
+        {feld("ableitungRueckMax", "Ableitung stoppt ab % Rückläufern", "Kommen zu viele abgeleitete Mails zurück, schaltet sie sich ab.", "text")}
+        {feld("postfachJeTag", "Mails je Postfach und Tag (≤ 60)", "Alles zusammen: erste Mails, Nachfassen, Mara.")}
+        {feld("rampe1", "Hochfahren: Woche 1", "Mails am Tag in der ersten Woche.")}
+        {feld("rampe2", "Hochfahren: Woche 2", "Mails am Tag in der zweiten Woche.")}
+        {feld("zustellRueckMax", "Bremse ab % Rückläufern", "Unzustellbare Mails in 7 Tagen.", "text")}
+        {feld("zustellBeschwerdeMax", "Bremse ab % Beschwerden", "Beschwerden in 7 Tagen.", "text")}
+        {feld("zustellBasis", "Bremse rechnet ab … Mails (7 Tage)", "Darunter gibt es noch keine Quote.")}
       </div>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
       <button type="button" className="cr-knopf hell" disabled={arbeit} onClick={() => void speichern()}>{arbeit ? "Speichert …" : "Feineinstellungen speichern"}</button>
@@ -801,10 +882,11 @@ function MotorFeinschalter({ e, onGeaendert }: { e: MotorStand["einstellung"]; o
 /** Ein kleiner Helfer für die Motor-Kacheln: Knopf drücken, Meldung zeigen, neu laden. */
 function useTun(onGeaendert: () => void) {
   const [arbeit, setArbeit] = useState<string | null>(null);
-  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
-  const tun = async (name: string, fn: () => Promise<any>, gut: string) => {
+  const [meldung, setMeldung] = useState<{ art: "gut" | "warn" | "fehler"; text: string } | null>(null);
+  // Die Meldung darf aus der Antwort kommen (z. B. „wieder an, ruht aber noch bis 17:13“) — dann gelb statt grün.
+  const tun = async (name: string, fn: () => Promise<any>, gut: string | ((j: any) => { art: "gut" | "warn"; text: string })) => {
     setArbeit(name); setMeldung(null);
-    try { await fn(); onGeaendert(); setMeldung({ art: "gut", text: gut }); }
+    try { const j = await fn(); onGeaendert(); setMeldung(typeof gut === "string" ? { art: "gut", text: gut } : gut(j)); }
     catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
     finally { setArbeit(null); }
   };
@@ -815,27 +897,34 @@ function useTun(onGeaendert: () => void) {
 function PostfachKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
   const { arbeit, meldung, tun } = useTun(onGeaendert);
   if (!motor) return <article className="cr-kachel breit cr-postfaecher"><Geruest zeilen={3} /></article>;
-  const ampel = (wert: boolean | null | undefined, label: string) => <span className={`cr-ampel ${wert == null ? "leise" : wert ? "gut" : "rot"}`}>{label}</span>;
+  const ampel = (wert: boolean | null | undefined, label: string, titel: string) => <span className={`cr-ampel ${wert == null ? "leise" : wert ? "gut" : "rot"}`} title={titel}>{label}</span>;
   return (
     <article className="cr-kachel breit cr-postfaecher">
       <header><b>Postfächer</b><span className="cr-chip">{motor.postfaecher.filter((p) => p.bereit && !p.pause).length} von {motor.postfaecher.length} bereit</span></header>
-      <p className="cr-klein">Jedes Postfach unterschreibt mit seiner echten Gmail-Signatur. Neue Postfächer fahren hoch ({motor.einstellung.postfachRampe.map((n, i) => `Woche ${i + 1} → ${n}`).join(", ")}, danach {motor.einstellung.postfachJeTag} am Tag); gezählt wird alles, was der Radar daraus sendet. Jedes Postfach verteilt seinen Rest gleichmäßig über das Fenster.</p>
-      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <p className="cr-klein">Jedes Postfach unterschreibt mit seiner echten Gmail-Signatur. Postfächer fahren hoch ({motor.einstellung.postfachRampe.map((n, i) => `Woche ${i + 1} → ${n}`).join(", ")}, danach {motor.einstellung.postfachJeTag} am Tag; gezählt ab der Freigabe des Motors). Gezählt wird alles, was der Radar daraus sendet, gleichmäßig über das Fenster verteilt.</p>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`} data-volltext>{meldung.text}</p>}
       <ul className="cr-postfach-liste">
         {motor.postfaecher.map((p) => (
           <li key={p.adresse} className={p.bereit && !p.pause ? "bereit" : "nicht"}>
             <div className="cr-postfach-kopf">
               <b>{p.name ?? "—"}</b><span>{p.adresse}</span>
-              <Kippe an={!p.pause} aus={!!arbeit} onKlick={() => void tun(`pause-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pause`, "POST", { pause: !p.pause }), p.pause ? "Postfach sendet wieder." : "Postfach pausiert.")} />
+              {/* E-458 (Befund Sicht): Der Schalter zeigt nur DEINE Pause — eine Störung steht als eigene Zeile darunter. */}
+              <Kippe an={!p.aus} aus={!!arbeit} label="sendet" onKlick={() => void tun(`pause-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pause`, "POST", { pause: !p.aus }),
+                (j) => ({ art: j?.ruhtBis ? "warn" : "gut", text: String(j?.meldung ?? (p.aus ? "Postfach sendet wieder." : "Postfach pausiert.")) }))} />
             </div>
             <div className="cr-postfach-ampel">
-              {ampel(p.gmail, "Gmail")}{ampel(p.quelle ? !p.gruende.some((g) => /Signatur|Unterschrift|Absendername/.test(g)) : false, p.quelle === "karte" ? "Karte" : "Signatur")}
-              {p.dns ? <>{ampel(p.dns.mx, "MX")}{ampel(p.dns.spf, "SPF")}{ampel(p.dns.dkim, "DKIM")}{ampel(p.dns.dmarc, "DMARC")}</> : <span className="cr-ampel leise">Hausdomäne</span>}
+              {ampel(p.gmail, "Gmail", "Der Zugang zu Gmail klappt")}
+              {ampel(p.quelle ? !p.gruende.some((g) => /Signatur|Unterschrift|Absendername/.test(g)) : false, p.quelle === "karte" ? "Karte" : "Signatur", p.quelle === "karte" ? "Karte = Justins Unterschriftskarte, weil Gmail gerade keine Signatur liefert" : "Echte Gmail-Signatur mit Bild")}
+              {p.dns
+                ? <>{ampel(p.dns.mx, "MX", "MX, SPF, DKIM, DMARC = Ausweise der Domain, damit Mails nicht im Spam landen")}{ampel(p.dns.spf, "SPF", "Ausweis der Domain gegen Spam")}{ampel(p.dns.dkim, "DKIM", "Ausweis der Domain gegen Spam")}{ampel(p.dns.dmarc, "DMARC", "Ausweis der Domain gegen Spam")}</>
+                : <span className="cr-ampel leise" title="fiaon.com ist schon geprüft (MX, SPF, DKIM, DMARC)">fiaon.com geprüft</span>}
             </div>
-            <div className="cr-postfach-zahl"><Balken wert={p.heute} ziel={p.grenze} /><span>heute {zahl(p.heute)} von {zahl(p.grenze)}{p.reserve ? ` · ${zahl(p.reserve)} Nachfass reserviert` : ""}</span></div>
+            <div className="cr-postfach-zahl"><Balken wert={p.heute} ziel={p.grenze} /><span>heute {zahl(p.heute)} von {zahl(p.grenze)}{p.heute + (p.reserve ?? 0) >= p.grenze && p.grenze > 0 ? " · für heute voll" : ""}{p.reserve ? ` · ${zahl(p.reserve)} Nachfass reserviert` : ""}</span></div>
             {!!p.gruende.length && <span className="cr-klein">{p.gruende.join(" · ")}</span>}
-            {!!p.stoerung?.length && <span className="cr-klein cr-stoerung">Kurze Störung: {p.stoerung.join(" · ")}</span>}
-            <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => void tun(`pruefen-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pruefen`, "POST", {}), "Neu geprüft.")}>Jetzt prüfen</button>
+            {p.ruhtBis && <span className="cr-klein cr-stoerung">Ruht bis {radarUhrzeit(p.ruhtBis)} Uhr: {p.ruhtGrund ?? "kurze Störung"} — danach sendet es von selbst.</span>}
+            {!!p.stoerung?.length && !p.ruhtBis && <span className="cr-klein cr-stoerung">Kurze Störung: {p.stoerung.join(" · ")}</span>}
+            <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => void tun(`pruefen-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pruefen`, "POST", {}),
+              (j) => ({ art: j?.bereitschaft?.bereit ? "gut" : "warn", text: j?.bereitschaft?.bereit ? `${p.adresse}: bereit.` : `${p.adresse}: nicht bereit — ${(j?.bereitschaft?.gruende ?? []).join(" · ") || "siehe Ampel"}.` }))}>Jetzt prüfen</button>
           </li>
         ))}
       </ul>
@@ -854,9 +943,9 @@ function ZustellKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGea
     <article className="cr-kachel cr-zustellung">
       <header><b>Zustellung</b><span className={`cr-chip${b ? " warm" : ""}`}>{b ? `gebremst ×${String(b.faktor).replace(".", ",")}` : "volle Fahrt"}</span></header>
       <dl className="cr-mara-werte">
-        <div><dt>Rückläufer (7 Tage)</dt><dd>{prozent(z.gesamt.rueckQuote)} <small>Grenze {prozent(z.grenzen.rueckMax)}</small></dd></div>
-        <div><dt>Beschwerden (7 Tage)</dt><dd>{prozent(z.gesamt.beschwerdeQuote)} <small>Grenze {prozent(z.grenzen.beschwerdeMax)}</small></dd></div>
-        <div className="breit"><dt>Sendungen</dt><dd>{zahl(z.gesamt.gesendet)}{z.gesamt.gesendet < z.grenzen.basis ? ` — Quote ab ${z.grenzen.basis}` : ""}</dd></div>
+        <div><dt>Rückläufer (7 Tage)</dt><dd>{z.gesamt.rueckQuote == null ? "noch keine Quote" : prozent(z.gesamt.rueckQuote)} <small>Grenze {prozent(z.grenzen.rueckMax)}</small></dd></div>
+        <div><dt>Beschwerden (7 Tage)</dt><dd>{z.gesamt.beschwerdeQuote == null ? "noch keine Quote" : prozent(z.gesamt.beschwerdeQuote)} <small>Grenze {prozent(z.grenzen.beschwerdeMax)}</small></dd></div>
+        <div className="breit"><dt>Sendungen (7 Tage)</dt><dd>{zahl(z.gesamt.gesendet)}{z.gesamt.gesendet < z.grenzen.basis ? ` · eine Quote gibt es erst ab ${z.grenzen.basis} Mails in 7 Tagen` : ""}</dd></div>
       </dl>
       {Object.entries(z.je).length > 1 && (
         <ul className="cr-klein cr-zustell-je">
@@ -894,7 +983,7 @@ function PruefKiKachel({ motor }: { motor: MotorStand | null }) {
       {!!p.gruende.length && <p className="cr-klein">Zuletzt verworfen: {p.gruende.slice(0, 3).map((g) => g.replace(/^Mail:\s*/, "")).join(" · ")}</p>}
       {n ? (
         <div className="cr-naechste-mail">
-          <span className="cr-auge">So sieht die nächste Mail aus · {n.strom === "partner" ? "Partner" : "Firma"} · {n.name}</span>
+          <span className="cr-auge">Text der nächsten Mail (ohne Link, Gruß und Unterschrift) · {n.strom === "partner" ? "Partner" : "Firma"} · {n.name}</span>
           <b>{n.betreff}</b>
           <p>{n.anrede}</p>
           {n.absaetze.map((a, i) => <p key={i}>{a}</p>)}
@@ -926,7 +1015,7 @@ function PartnerKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGea
           return (
             <li key={g.key} className={an.has(g.key) ? "an" : "aus"}>
               <Kippe an={an.has(g.key)} aus={!!arbeit} onKlick={() => schalten(g.key)} />
-              <div><b>{g.label}</b><span className="cr-klein">{g.provision ? "mit Provision" : "ohne Provision"} · Vorrat {zahl(x.vorrat)} · bereit {zahl(x.bereit)} · gesendet {zahl(x.gesendet)} · im CRM {zahl(x.imCrm)}</span></div>
+              <div><b>{g.label}</b><span className="cr-klein">{g.provision ? "mit Provision" : "ohne Provision"} · Vorrat {zahl(x.vorrat)} · bereit {zahl(x.bereit)} · gesendet {zahl(x.gesendet)} · unter Geschäftspartner {zahl(x.imCrm)}</span></div>
             </li>
           );
         })}
@@ -945,12 +1034,12 @@ function AdressenKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGe
   const rueck = a.abgeleitet7 >= 30 ? Math.round((a.rueckAbgeleitet7 / a.abgeleitet7) * 1000) / 10 : null;
   return (
     <article className="cr-kachel cr-adressen">
-      <header><b>Adressen</b><Kippe an={a.ableitung} aus={!!arbeit} onKlick={() => void tun("ableitung", () => rufen("/chef/radar/motor", "POST", { ableitung: !a.ableitung }), a.ableitung ? "Ableitung aus." : "Ableitung an.")} /></header>
-      <p className="cr-klein">Chef-Adressen werden nur aus einem belegten Muster der eigenen Domäne abgeleitet (z. B. a.schmidt@ auf der Team-Seite) und nur mit MX — nie geraten. Höchstens {a.anteilMax} % der Mails je Stunde.</p>
+      <header><b>Adressen</b><Kippe an={a.ableitung} aus={!!arbeit} label="Ableitung" onKlick={() => void tun("ableitung", () => rufen("/chef/radar/motor", "POST", { ableitung: !a.ableitung }), a.ableitung ? "Ableitung aus." : "Ableitung an.")} /></header>
+      <p className="cr-klein">Chef-Adressen werden nur aus einem belegten Muster der eigenen Domäne abgeleitet (z. B. a.schmidt@ auf der Team-Seite) und nur, wenn die Domäne Post annimmt — nie geraten. Höchstens {motor?.ableitungAnteilJetzt ?? a.anteilMax} % der ersten Mails am Tag{(motor?.ableitungAnteilJetzt ?? a.anteilMax) < a.anteilMax ? ` (erste Woche nach der Freigabe, danach ${a.anteilMax} %)` : ""}.</p>
       <dl className="cr-mara-werte">
         <div><dt>Abgeleitet (7 Tage)</dt><dd>{anteil} % <small>{zahl(a.abgeleitet7)} von {zahl(a.gesendet7)}</small></dd></div>
         <div><dt>Deren Rückläufer</dt><dd>{rueck == null ? "—" : prozent(rueck)} <small>Grenze {prozent(a.rueckMax)}</small></dd></div>
-        <div className="breit"><dt>Österreich</dt><dd>{zahl(a.oesterreichBrief)} zurückgestellt <small>vorerst keine Post — nur Deutschland und die Schweiz</small></dd></div>
+        <div className="breit"><dt>Österreich</dt><dd>{zahl(a.oesterreichBrief)} zurückgestellt (nur DE und CH)</dd></div>
       </dl>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
     </article>
@@ -1088,12 +1177,14 @@ function SignaturVorschau({ bild, name, rolle, punkt }: { bild: string; name: st
   );
 }
 
-function Kippe({ an, aus, onKlick }: { an: boolean; aus?: boolean; onKlick: () => void }) {
-  return (
+function Kippe({ an, aus, onKlick, label }: { an: boolean; aus?: boolean; onKlick: () => void; label?: string }) {
+  // E-458 (Befund Sicht): ein kleines Wort neben dem Schalter sagt, was er schaltet.
+  const knopf = (
     <button type="button" role="switch" aria-checked={an} className="cr-kippe klein" disabled={aus} onClick={onKlick}>
-      <i aria-hidden="true" /><span className="sr-only">{an ? "Ausschalten" : "Einschalten"}</span>
+      <i aria-hidden="true" /><span className="sr-only">{label ? `${label}: ${an ? "ausschalten" : "einschalten"}` : an ? "Ausschalten" : "Einschalten"}</span>
     </button>
   );
+  return label ? <span className="cr-kippe-zeile"><small aria-hidden="true">{label}</small>{knopf}</span> : knopf;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1134,14 +1225,18 @@ function Messung({ trichter }: { trichter: Trichter | null }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // FIRMEN — die Liste wie bisher (Reiter, Tabelle, Stapel)
 // ═══════════════════════════════════════════════════════════════════════════
+/** E-458 (Befund Sicht): der Stand im Mail-Motor, in Worten für die Liste. */
+const MOTOR_LABEL: Record<string, string> = { ...RADAR_MOTOR_STATUS, bereit: "In der Warteschlange" } as Record<RadarMotorStatus | string, string>;
+
 function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen, onWebsite }: {
-  runde: number; postfach: string; lauf: Lauf | null; setLauf: (l: Lauf | null) => void; onFirma: (id: number) => void; offen: number | null; onSuchen: () => void; onWebsite: () => void;
+  runde: number; postfach: string; lauf: Lauf | null; setLauf: (l: Lauf | null) => void; onFirma: (id: number) => void; offen: number | null; onSuchen: (strom: "firma" | "partner") => void; onWebsite: () => void;
 }) {
   // E-337: Startansicht = „Qualifiziert“ (Justin: „ab jetzt nur noch qualifizierte Unternehmen“).
   const [gruppe, setGruppe] = useState("qualifiziert");
   // E-458: Umschalter Firmen | Partner — dieselbe Liste, je Strom.
   const [strom, setStrom] = useState<"firma" | "partner">("firma");
   const [bereichFilter, setBereichFilter] = useState("");
+  const [motorFilter, setMotorFilter] = useState("");
   const [nurHeute, setNurHeute] = useState(false);
   const [suche, setSuche] = useState("");
   const [auswahl, setAuswahl] = useState<number[]>([]);
@@ -1155,9 +1250,10 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
     p.set("strom", strom);
     if (gruppe) p.set("gruppe", gruppe);
     if (bereichFilter) p.set("bereich", bereichFilter);
+    if (motorFilter) p.set("motor", motorFilter);
     if (suche.trim().length >= 2) p.set("suche", suche.trim());
     return p.toString();
-  }, [gruppe, bereichFilter, nurHeute, suche, heute, strom]);
+  }, [gruppe, bereichFilter, motorFilter, nurHeute, suche, heute, strom]);
   const { daten, laedt, fehler, neu } = useDaten<Uebersicht>(`/chef/radar?${qs}`, [qs, runde]);
   const laeuft = lauf?.status === "laeuft";
   const firmen = daten?.firmen ?? [];
@@ -1185,7 +1281,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
             <button key={x} type="button" role="radio" aria-checked={strom === x} className={strom === x ? "an" : undefined} onClick={() => { setStrom(x); setBereichFilter(""); setAuswahl([]); }}>{x === "firma" ? "Firmen" : "Partner"}</button>
           ))}
         </div>
-        <button type="button" className="cr-glasknopf" onClick={onSuchen}>{strom === "partner" ? "Partner suchen" : "Firmen suchen"}</button>
+        <button type="button" className="cr-glasknopf" onClick={() => onSuchen(strom)}>{strom === "partner" ? "Partner suchen" : "Firmen suchen"}</button>
         <button type="button" className="cr-glasknopf leise" onClick={onWebsite}>Website aufnehmen</button>
       </div>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
@@ -1204,6 +1300,11 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
             <option value="">{strom === "partner" ? "Alle Gruppen" : "Alle Bereiche"}</option>
             {(strom === "partner" ? RADAR_PARTNER_GRUPPEN : RADAR_BEREICHE).map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
           </select>
+          {/* E-458 (Befund Sicht): verworfene oder abgelaufene Firmen finden, ohne jede Akte zu öffnen. */}
+          <select className="cr-feld" value={motorFilter} onChange={(e) => setMotorFilter(e.target.value)} aria-label="Stand im Mail-Motor">
+            <option value="">Mail-Motor: alle</option>
+            {(["bereit", "verworfen", "abgelaufen", "gesendet"] as const).map((k) => <option key={k} value={k}>{MOTOR_LABEL[k]}{daten?.nachMotor?.[k] != null ? ` (${daten.nachMotor[k]})` : ""}</option>)}
+          </select>
           <input className="cr-feld" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, Domäne, Ort" aria-label="Suchen" />
         </div>
       </div>
@@ -1213,7 +1314,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
       {daten && !firmen.length && (
         <div className="cr-leer">
           <b>Hier ist gerade nichts.</b>
-          <span>{gruppe === "qualifiziert" ? "Mara sucht rund um die Uhr — neue Firmen erscheinen nach der Prüfung." : "Hier steht gerade keine Firma."} <button type="button" className="cr-textknopf" onClick={onSuchen}>Jetzt suchen</button></span>
+          <span>{gruppe === "qualifiziert" ? `Mara sucht rund um die Uhr — neue ${strom === "partner" ? "Partner" : "Firmen"} erscheinen nach der Prüfung.` : `Hier steht gerade ${strom === "partner" ? "kein Partner" : "keine Firma"}.`} <button type="button" className="cr-textknopf" onClick={() => onSuchen(strom)}>Jetzt suchen</button></span>
         </div>
       )}
       {!!firmen.length && (
@@ -1224,7 +1325,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
                 <th className="cr-haken-spalte">
                   <input type="checkbox" checked={alleGewaehlt} aria-label="Alle auswählen" onChange={(e) => setAuswahl(e.target.checked ? firmen.slice(0, max).map((f) => f.id) : [])} />
                 </th>
-                <th>Passung</th><th>Firma</th><th>Signal</th><th>Ort</th><th>Kontakt</th><th>Stand</th>
+                <th>Passung</th><th>{strom === "partner" ? "Partner" : "Firma"}</th><th>Signal</th><th>Ort</th><th>Kontakt</th><th>Stand</th>
               </tr>
             </thead>
             <tbody>
@@ -1235,14 +1336,19 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
                   </td>
                   <td><Passung wert={f.passung} /></td>
                   <td className="cr-firma"><b>{f.name}</b><span>{f.kurz || f.domain}</span></td>
-                  <td className="cr-leise-spalte"><SignalPunkte staerke={f.signal_staerke ?? null} titel={f.signal?.art ?? radarBereich(f.bereich)?.label ?? radarPartnerGruppe(f.bereich)?.label ?? ""} /></td>
+                  <td className="cr-leise-spalte"><SignalPunkte staerke={f.signal_staerke ?? null} titel={f.signal?.art ?? radarBereich(f.bereich)?.label ?? radarPartnerGruppe(f.bereich)?.label ?? ""} art={f.strom === "partner" ? "Partnersignal" : "Kapitalsignal"} /></td>
                   <td className="cr-leise-spalte">{[f.ort, f.land].filter(Boolean).join(", ")}</td>
                   <td className="cr-kontakt-spalte">
                     {f.entscheider
                       ? <><span className="cr-mail persoenlich" title={f.entscheider.email}>{f.entscheider.name}</span><span className="cr-ap" title={f.entscheider.email}>{f.entscheider.email}</span></>
                       : f.email ? <><span className="cr-mail sammel" title={f.email}>{f.email}</span><span className="cr-ap">{f.entscheider_am ? "kein Entscheider gefunden" : "Entscheider noch nicht gesucht"}</span></> : <span className="cr-ohne">E-Mail fehlt</span>}
                   </td>
-                  <td><Stand s={f.status} /></td>
+                  <td>
+                    <Stand s={f.status} />
+                    {f.motor_status && f.motor_status !== "gesendet" && !f.versendet_am && (
+                      <span className={`cr-motor-chip ${f.motor_status}`} title={f.motor_grund ? f.motor_grund.replace(/^Mail:\s*/, "") : undefined}>{MOTOR_LABEL[f.motor_status] ?? f.motor_status}</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1280,10 +1386,10 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
   );
 }
 
-function SignalPunkte({ staerke, titel }: { staerke: number | null; titel: string }) {
+function SignalPunkte({ staerke, titel, art = "Kapitalsignal" }: { staerke: number | null; titel: string; art?: string }) {
   const n = Math.max(0, Math.min(5, staerke ?? 0));
   return (
-    <span className="cr-signal" title={staerke ? `Kapitalsignal ${n}/5${titel ? ` · ${titel}` : ""}` : "noch kein belegtes Kapitalsignal"}>
+    <span className="cr-signal" title={staerke ? `${art} ${n}/5${titel ? ` · ${titel}` : ""}` : `noch kein belegtes ${art}`}>
       {[1, 2, 3, 4, 5].map((i) => <i key={i} className={i <= n ? "an" : undefined} />)}
     </span>
   );
@@ -1343,9 +1449,10 @@ function Fenster({ titel, onZu, children }: { titel: string; onZu: () => void; c
   );
 }
 
-function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => void }) {
-  // E-458: dieselbe Suche für Kooperationspartner (Gruppe statt Branche, ohne Kapitalsignal).
-  const [art, setArt] = useState<"firma" | "partner">("firma");
+function SuchFenster({ start, onZu, onLauf }: { start: "firma" | "partner"; onZu: () => void; onLauf: (l: Lauf) => void }) {
+  // E-458: dieselbe Suche für Kooperationspartner (Gruppe statt Branche, ohne Kapitalsignal). E-458 (Befund Sicht): Das
+  // Fenster öffnet mit dem Strom der Liste („Partner suchen“ → Kooperationspartner).
+  const [art, setArt] = useState<"firma" | "partner">(start);
   const [gruppe, setGruppe] = useState(RADAR_PARTNER_GRUPPEN[0].key);
   const [bereich, setBereich] = useState(RADAR_BEREICHE[0].key);
   const [signal, setSignal] = useState(RADAR_SIGNALE[0].key);
@@ -1397,7 +1504,7 @@ function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => 
         </label>}
         <label><span>Land</span>
           <div className="cr-segment" role="radiogroup" aria-label="Land">
-            {[["", "Alle"], ["DE", "DE"], ["AT", "AT"], ["CH", "CH"]].map(([k, l]) => (
+            {[["", "Alle"], ...RADAR_LAENDER_AKTIV.map((x) => [x, x])].map(([k, l]) => (
               <button key={k} type="button" role="radio" aria-checked={land === k} className={land === k ? "an" : undefined} onClick={() => setLand(k)}>{l}</button>
             ))}
           </div>
@@ -1504,8 +1611,16 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
   const mail = f?.mail;
   const zu = f?.status === "gesperrt" || f?.status === "kein_interesse";
   const raus = f?.status === "versendet" || !!f?.versendet_am || f?.status === "brief" || !!f?.brief_versendet_am;
-  // E-337: Der Weg geht bis zum Kauf.
-  const schritt = f?.kauf_am ? 8 : f?.status === "angebot" ? 7 : f?.termin_am ? 6 : f?.lead_am ? 5 : raus ? 4 : mail ? 3 : scan ? 2 : 1;
+  // E-337: Der Weg geht bis zum Kauf. E-458 (Befund Sicht): Partner bekommen keinen Termin und kein Angebot — ihr Weg endet
+  // unter Geschäftspartner.
+  const istPartner = f?.strom === "partner";
+  const schritte = istPartner ? ["Gefunden", "Gescannt", "Mail bereit", "Versendet", "Interesse", "Geschäftspartner"] : ["Gefunden", "Gescannt", "Mail bereit", "Versendet", "Lead", "Termin", "Angebot", "Kauf"];
+  const schritt = istPartner
+    ? (f?.partner_firma_id ? 6 : f?.lead_am ? 5 : raus ? 4 : mail ? 3 : scan ? 2 : 1)
+    : (f?.kauf_am ? 8 : f?.status === "angebot" ? 7 : f?.termin_am ? 6 : f?.lead_am ? 5 : raus ? 4 : mail ? 3 : scan ? 2 : 1);
+  // E-458 (Befund Sicht): Senden nur, wenn es auch hinausgehen darf — mit Unterschrift und mit Freigabe der Prüf-KI.
+  const sendenGesperrt = vorschau?.ohneUnterschrift ? `${postfach} hat keine echte Unterschrift — aus diesem Postfach geht keine erste Mail.`
+    : !f?.pruef_ki?.ok ? "Erst „Prüfen lassen“ — ohne Freigabe der Prüf-KI geht keine erste Mail hinaus." : null;
   // Nach einem Rückläufer oder einer neuen Adresse vom falschen Empfänger darf die erste Mail EINMAL an die neue Adresse.
   const neuerVersuch = !!f && (f.status === "unzustellbar" || (f.status === "antwort" && f.antwort_art === "falscher_empfaenger")) && !!f.email;
 
@@ -1535,7 +1650,7 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
             )}
 
             <ol className="cr-schritte" aria-label="Fortschritt">
-              {["Gefunden", "Gescannt", "Mail bereit", "Versendet", "Lead", "Termin", "Angebot", "Kauf"].map((t, i) => (
+              {schritte.map((t, i) => (
                 <li key={t} className={schritt > i + 1 ? "da" : schritt === i + 1 ? "jetzt" : undefined}>{t}</li>
               ))}
             </ol>
@@ -1575,11 +1690,15 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
                     <p className="cr-hinweis">Kooperationspartner · {radarPartnerGruppe(f.bereich)?.label ?? f.bereich} · {radarPartnerGruppe(f.bereich)?.provision === false ? "ohne Provision (Berufsrecht), gegenseitige Vorstellung" : `Tippgeber mit Provision (${motor?.einstellung.partnerProvisionText ?? "laut Feineinstellungen"})`} · Konditionen schriftlich, kein Termin.</p>
                   )}
                   {f.motor_status && (
-                    <div className="cr-fenster-zeile">
-                      <p className="cr-klein">Mail-Motor: {f.motor_status}{f.motor_grund ? ` — ${f.motor_grund}` : ""}</p>
+                    <div className={`cr-motor-karte ${f.motor_status}`}>
+                      <div>
+                        <span className="cr-auge">Mail-Motor</span>
+                        <b>{MOTOR_LABEL[f.motor_status] ?? f.motor_status}</b>
+                        {f.motor_grund && <span className="cr-klein">{f.motor_grund.replace(/^Mail:\s*/, "")}</span>}
+                      </div>
                       {/* E-458 (Befund): verworfen oder abgelaufen ist keine Sackgasse — zurück in den Vorrat, der Motor bereitet neu vor. */}
                       {(f.motor_status === "verworfen" || f.motor_status === "abgelaufen") && !f.versendet_am && (
-                        <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => tun("vorrat", () => rufen(`/chef/radar/firma/${id}/vorrat`), "Zurück im Vorrat — der Mail-Motor bereitet sie neu vor.")}>Zurück in den Vorrat</button>
+                        <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => tun("vorrat", () => rufen(`/chef/radar/firma/${id}/vorrat`), "Zurück im Vorrat — der Mail-Motor bereitet sie neu vor.")}>Zurück in den Vorrat</button>
                       )}
                     </div>
                   )}
@@ -1592,7 +1711,7 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
                             {/* E-458: woher die Adresse kommt — Website, Websuche oder abgeleitet aus einem belegten Muster. */}
                             <span className="cr-herkunft">
                               {f.entscheider.weg === "abgeleitet"
-                                ? `Abgeleitet aus ${f.entscheider.beleg?.adresse ?? "einem Beispiel"}${f.entscheider.beleg?.name ? ` (${f.entscheider.beleg.name})` : ""} · Muster ${f.entscheider.muster ?? "—"} · MX geprüft${f.entscheider.muster_widerlegt ? " · WIDERLEGT (Rückläufer) — Brief statt Mail" : ""}`
+                                ? `Abgeleitet aus ${f.entscheider.beleg?.adresse ?? "einem Beispiel"}${f.entscheider.beleg?.name ? ` (${f.entscheider.beleg.name})` : ""} · gleiches Muster wie dort · die Domäne nimmt Post an${f.entscheider.muster_widerlegt ? " · WIDERLEGT (Rückläufer) — Brief statt Mail" : ""}`
                                 : f.entscheider.weg === "web" ? "Aus der Websuche, wörtlich belegt" : "Von der Website, wörtlich belegt"}
                             </span></>
                         : <b>{f.entscheider_am ? "Keine persönliche Adresse gefunden" : "Noch nicht gesucht"}</b>}
@@ -1611,8 +1730,8 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
                   )}
                   {f.signal?.art && (
                     <div className="cr-block">
-                      <h3>Kapitalsignal <small>Stärke {f.signal_staerke ?? "?"} von 5</small></h3>
-                      <p className="cr-profil">{f.signal.label ?? RADAR_SIGNALE.find((x) => x.key === f.signal?.art)?.label ?? f.signal.art}{f.signal.beleg ? <> — <q>{f.signal.beleg}</q></> : null}</p>
+                      <h3>{istPartner ? "Partnersignal" : "Kapitalsignal"} <small>Stärke {f.signal_staerke ?? "?"} von 5</small></h3>
+                      <p className="cr-profil">{f.signal.label ?? (istPartner ? RADAR_PARTNER_SIGNALE : RADAR_SIGNALE).find((x) => x.key === f.signal?.art)?.label ?? f.signal.art}{f.signal.beleg ? <> — <q>{f.signal.beleg}</q></> : null}</p>
                       {f.signal.url && <a href={f.signal.url} target="_blank" rel="noopener noreferrer" className="cr-link">Beleg ↗</a>}
                     </div>
                   )}
@@ -1718,12 +1837,13 @@ function Akte({ id, uebersicht, motor, postfach, onPostfach, onZu, onGeaendert }
                           </label>
                           <label><span>An</span><input className="cr-feld" value={an} onChange={(e) => setAn(e.target.value)} placeholder="E-Mail der Firma" /></label>
                           <div className="cr-fenster-zeile">
-                            <button type="button" className="cr-knopf" disabled={!!arbeit || !!mail.sperrend?.length || !postfach || !an.trim()}
+                            <button type="button" className="cr-knopf" disabled={!!arbeit || !!mail.sperrend?.length || !postfach || !an.trim() || !!sendenGesperrt} title={sendenGesperrt ?? ""}
                                     onClick={() => tun("entwurf", () => rufen(`/chef/radar/firma/${id}/ausgeben`, "POST", { art: "entwurf", postfach, an }), `Liegt als Entwurf in ${postfach}.`)}>
                               {arbeit === "entwurf" ? "Legt an …" : f.status === "im_postfach" ? "Entwurf erneut ablegen" : "Als Entwurf ins Postfach"}
                             </button>
-                            <button type="button" className="cr-knopf warm" disabled={!!arbeit || !!mail.sperrend?.length || !postfach || !an.trim()} onClick={() => setSendenFrage(true)}>Direkt senden …</button>
+                            <button type="button" className="cr-knopf warm" disabled={!!arbeit || !!mail.sperrend?.length || !postfach || !an.trim() || !!sendenGesperrt} title={sendenGesperrt ?? ""} onClick={() => setSendenFrage(true)}>Direkt senden …</button>
                           </div>
+                          {sendenGesperrt && <p className="cr-klein">{sendenGesperrt}</p>}
                           {sendenFrage && (
                             <div className="cr-senden-frage">
                               <b>Mail an {an} aus {postfach} senden?</b>

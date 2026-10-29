@@ -39,7 +39,7 @@ router.get("/chef/radar", wache, async (req: ChefRequest, res: Response) => {
     res.json({ ok: true, ...(await radarUebersicht({
       tag: String(req.query.tag ?? "") || null, bereich: String(req.query.bereich ?? "") || null,
       status: String(req.query.status ?? "") || null, gruppe: String(req.query.gruppe ?? "") || null, suche: String(req.query.suche ?? "") || null,
-      strom: String(req.query.strom ?? "") || null,
+      strom: String(req.query.strom ?? "") || null, motor: String(req.query.motor ?? "") || null,
     })) });
   } catch (e) { fehler(res, e); }
 });
@@ -361,7 +361,7 @@ router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) 
     const b = req.body ?? {};
     const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe",
       "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax", "postfachJeTag", "postfachRampe",
-      "zustellRueckMax", "zustellBeschwerdeMax", "zustellBasis"];
+      "zustellRueckMax", "zustellBeschwerdeMax", "zustellBasis", "kiAnteil"];
     const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
     const einstellung = await radarMotorSetzen(teil);
     console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);
@@ -381,8 +381,9 @@ router.post("/chef/radar/partner/suchen", wache, async (req: ChefRequest, res: R
 // E-458 (Punkt 6): ein Postfach pausieren oder freigeben; „prüfen“ liest Gmail, Signatur und DNS sofort neu.
 router.post("/chef/radar/postfach/:adresse/pause", wache, async (req: ChefRequest, res: Response) => {
   try {
-    const { radarPostfachPausieren } = await import("../lib/fiaon-radar-motor");
-    res.json({ ok: true, aus: await radarPostfachPausieren(String(req.params.adresse), req.body?.pause === true) });
+    // E-458 (Befund Sicht): Die Antwort sagt ehrlich, ob das Postfach danach noch von selbst ruht (Gmail-Störung).
+    const { radarPostfachSchalten } = await import("../lib/fiaon-radar-motor");
+    res.json({ ok: true, ...(await radarPostfachSchalten(String(req.params.adresse), req.body?.pause === true)) });
   } catch (e) { fehler(res, e); }
 });
 
@@ -408,11 +409,24 @@ router.post("/chef/radar/bremse/loesen", wache, async (req: ChefRequest, res: Re
 });
 
 // Die Warteschlange jetzt füllen: läuft im Hintergrund (eine Firma braucht Minuten) — die Kachel fragt den Stand ab.
+// E-458 (Befund Go-live): Auch VOR der Freigabe und bei ausgeschaltetem Schalter — höchstens drei Mails, damit Justin echte
+// Mails des Motors in der Akte lesen kann, bevor irgendetwas hinausgeht (ohneHauptschalter).
 router.post("/chef/radar/motor/fuellen", wache, async (_req: ChefRequest, res: Response) => {
   try {
     const { radarMotorVorbereiten } = await import("../lib/fiaon-radar-motor");
-    void radarMotorVorbereiten({ max: 3 }).catch((e) => console.error("[MAIL-MOTOR] Füllen:", e?.message || e));
+    void radarMotorVorbereiten({ max: 3, ohneHauptschalter: true }).catch((e) => console.error("[MAIL-MOTOR] Füllen:", e?.message || e));
     res.json({ ok: true, gestartet: true });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Befund Go-live): „Freigeben und starten“ — erst danach bereitet der Motor von selbst vor und sendet. Nur mit Bestätigung.
+router.post("/chef/radar/motor/freigeben", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte die Freigabe bestätigen.");
+    const { radarMotorFreigeben } = await import("../lib/fiaon-radar-motor");
+    const am = await radarMotorFreigeben();
+    console.log(`[MAIL-MOTOR] Freigabe von #${req.chef?.agentId ?? "?"}: ${am}`);
+    res.json({ ok: true, freigabeAm: am });
   } catch (e) { fehler(res, e); }
 });
 

@@ -171,7 +171,7 @@ export const RADAR_PARTNER_GRUPPEN: readonly RadarPartnerGruppe[] = [
     frage: "Gibt es unter Ihren Mandanten Unternehmer, die gerade in die USA gehen wollen?" },
   { key: "finanzierer", label: "Finanzierer und Finanzierungsberater", provision: true, crmArt: "kooperation",
     suche: "unabhängige Finanzierungsvermittler, Finanzierungsberater und kleine Finanzierungshäuser, die mittelständischen Unternehmern Kapital besorgen (keine Banken, keine Versicherer)",
-    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen unsere Konditionen für Tippgeber schriftlich schicken?" },
+    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen die Konditionen dafür schriftlich schicken?" },
   { key: "kreditvermittler", label: "Kreditvermittler", provision: true, crmArt: "kooperation",
     suche: "inhabergeführte Kreditvermittler und Darlehensvermittler für Gewerbekunden, Selbstständige und den Mittelstand",
     angebot: ANGEBOT_PROVISION, frage: "Haben Sie Kunden, denen eine zweite Kapitalquelle in den USA helfen würde?" },
@@ -183,7 +183,7 @@ export const RADAR_PARTNER_GRUPPEN: readonly RadarPartnerGruppe[] = [
     angebot: ANGEBOT_PROVISION, frage: "Haben Sie Unternehmer unter Ihren Kunden, für die eine eigene Gesellschaft in den USA ein Thema ist?" },
   { key: "unternehmensberater", label: "Unternehmensberater", provision: true, crmArt: "kooperation",
     suche: "inhabergeführte Unternehmensberatungen für kleine und mittlere Unternehmen (Wachstum, Internationalisierung, Finanzen), keine großen Beratungshäuser",
-    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen unsere Konditionen für Tippgeber schriftlich schicken?" },
+    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen die Konditionen dafür schriftlich schicken?" },
   { key: "gruendung", label: "Gründungsbegleiter und Gründerzentren", provision: true, crmArt: "kooperation",
     suche: "Gründercoaches, Gründungsbegleiter und private Gründerzentren, die Start-ups und junge GmbHs begleiten (keine Anbieter, die selbst US-Gesellschaften gründen)",
     angebot: ANGEBOT_PROVISION, frage: "Begegnen Ihnen Gründer, die von Anfang an auch in den USA verkaufen wollen?" },
@@ -201,6 +201,29 @@ export function radarPartnerGruppe(key: unknown): RadarPartnerGruppe | null {
 export function radarPartnerAngebot(g: RadarPartnerGruppe | null | undefined, provisionText?: string | null): string {
   if (!g) return "Wir gründen Ihren Kunden eine eigene US-Gesellschaft und kümmern uns um Geschäftskonto und Firmenkarten.";
   return g.angebot.replace(RADAR_PROVISION_PLATZHALTER, String(provisionText || RADAR_MOTOR_VORGABE.partnerProvisionText));
+}
+/**
+ * E-458 (Befund Prüf-KI 29.10.2026): Das Angebot für die Schreib-KI als INHALT („was drinstehen muss“), nicht als fertiger
+ * Satz — acht von zehn Gruppen teilten denselben Satz, die Mails glichen sich zu 40 % und fielen durch den Fingerabdruck.
+ * Kanzleien bekommen statt des hohlen „wir stellen uns gegenseitig Mandanten vor“ einen echten Grund. Rein.
+ */
+export function radarPartnerAngebotPunkte(g: RadarPartnerGruppe | null | undefined, provisionText?: string | null): string[] {
+  const satz = String(provisionText || RADAR_MOTOR_VORGABE.partnerProvisionText);
+  if (g && !g.provision) {
+    const betreuung = g.key === "rechtsanwaelte" ? "rechtliche" : "steuerliche";
+    return [
+      "wir gründen ihren Mandanten eine eigene Gesellschaft in den USA",
+      "wir kümmern uns um Geschäftskonto und Firmenkarten (darüber entscheidet die Bank, also nie „bekommen bei uns“)",
+      `die ${betreuung} Betreuung bleibt ganz bei der Kanzlei`,
+      `ein echter Grund für die Kanzlei: Unsere Kunden brauchen für ihre US-Gesellschaft oft eine Kanzlei in Deutschland, die beide Seiten kennt`,
+    ];
+  }
+  return [
+    "wir gründen ihren Kunden eine eigene Gesellschaft in den USA",
+    "wir kümmern uns um Geschäftskonto und Firmenkarten oder helfen dabei (darüber entscheidet die Bank, also nie „bekommen bei uns“)",
+    `für jeden Kunden, den der Partner vorstellt, bekommt er wörtlich „${satz}“`,
+    "sein eigenes Geschäft mit dem Kunden bleibt davon unberührt",
+  ];
 }
 
 /** Das Bild eines guten Partners — die KI sucht danach, das Chefbüro zeigt es. */
@@ -669,13 +692,25 @@ export interface RadarMotor {
   zustellRueckMax: number;
   zustellBeschwerdeMax: number;
   zustellBasis: number;
+  /**
+   * E-458 (Befund Go-live): Justins Freigabe des Motors (ISO-Zeit) — erst danach bereitet er von selbst vor und sendet.
+   * So ist ein Deploy nie der Start: Justin sieht zuerst echte Mails in der Akte. Ab hier fahren die Postfächer hoch.
+   */
+  freigabeAm: string | null;
+  /** Ist der Anteil abgeleiteter Adressen ausdrücklich gesetzt? Sonst gilt in der ersten Woche nach der Freigabe der Startwert. */
+  ableitungAnteilEigen: boolean;
+  /**
+   * E-458 (Befund Go-live, KI-Geld): Vorbereitung und Suche zusammen höchstens so viel Prozent des B2B-Topfs der KI-Kasse
+   * am Tag — der Rest bleibt für Nachfassen, Ratgeber und Partner-CRM. Antworten an Menschen zahlen aus ihrem eigenen Topf.
+   */
+  kiAnteil: number;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
 export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30,
   partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang",
   ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5, postfachJeTag: 60, postfachRampe: [20, 40], postfachAus: [],
-  zustellRueckMax: 3, zustellBeschwerdeMax: 0.3, zustellBasis: 50 };
+  zustellRueckMax: 3, zustellBeschwerdeMax: 0.3, zustellBasis: 50, freigabeAm: null, ableitungAnteilEigen: false, kiAnteil: 60 };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
@@ -685,6 +720,7 @@ export const RADAR_MOTOR_SCHLUESSEL = {
   ableitung: "radar_ableitung", ableitungAnteil: "radar_ableitung_anteil", ableitungRueckMax: "radar_ableitung_rueck_max",
   postfachJeTag: "radar_postfach_je_tag", postfachRampe: "radar_postfach_rampe", postfachAus: "radar_postfach_aus",
   zustellRueckMax: "radar_zustell_rueck_max", zustellBeschwerdeMax: "radar_zustell_beschwerde_max", zustellBasis: "radar_zustell_basis",
+  freigabeAm: "radar_motor_freigabe", kiAnteil: "radar_motor_ki_anteil",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -751,7 +787,38 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     zustellRueckMax: zahl(roh[k.zustellRueckMax], v.zustellRueckMax, 0.5, 20),
     zustellBeschwerdeMax: zahl(roh[k.zustellBeschwerdeMax], v.zustellBeschwerdeMax, 0.05, 5),
     zustellBasis: Math.round(zahl(roh[k.zustellBasis], v.zustellBasis, 10, 1000)),
+    freigabeAm: (() => {
+      const t = text(roh[k.freigabeAm]);
+      const d = t ? new Date(t) : null;
+      return d && Number.isFinite(d.getTime()) ? d.toISOString() : null;
+    })(),
+    ableitungAnteilEigen: zahl(roh[k.ableitungAnteil], -1, 0, 100) >= 0,
+    kiAnteil: Math.round(zahl(roh[k.kiAnteil], v.kiAnteil, 10, 100)),
   };
+}
+
+/** E-458 (Befund Go-live): In der ersten Woche nach der Freigabe höchstens so viel Prozent abgeleiteter Adressen je Tag. */
+export const RADAR_ABLEITUNG_START = { tage: 7, anteil: 20 } as const;
+/**
+ * Der Anteil abgeleiteter Adressen, der JETZT gilt: in den ersten sieben Tagen nach der Freigabe höchstens 20 % (die ersten
+ * Rückläufer gingen sonst voll auf den Ruf von Justins Hauptpostfach) — es sei denn, Justin hat ihn ausdrücklich gesetzt. Rein.
+ */
+export function radarAbleitungAnteilJetzt(m: Pick<RadarMotor, "ableitungAnteil" | "ableitungAnteilEigen" | "freigabeAm">, jetzt: Date = new Date()): number {
+  if (m.ableitungAnteilEigen || !m.freigabeAm) return m.ableitungAnteil;
+  const seit = jetzt.getTime() - new Date(m.freigabeAm).getTime();
+  return seit >= 0 && seit < RADAR_ABLEITUNG_START.tage * 86_400_000 ? Math.min(m.ableitungAnteil, RADAR_ABLEITUNG_START.anteil) : m.ableitungAnteil;
+}
+
+/**
+ * E-458 (Befund Go-live): Ab wann ein Postfach hochfährt (Woche 1 → 20, Woche 2 → 40 …). Ohne Radar-Geschichte: Woche 1
+ * (null). Mit Geschichte: der erste Radar-Versand — aber nie vor der Freigabe des Motors. Sonst stünde js@ (Radar seit
+ * 19.09.) am ersten Tag auf voller Grenze: zehnmal so viele Kaltmails aus Justins Hauptpostfach wie bisher. Rein.
+ */
+export function radarPostfachStart(ersterVersand: Date | string | null | undefined, freigabeAm: Date | string | null | undefined): Date | null {
+  const a = ersterVersand ? new Date(ersterVersand).getTime() : NaN;
+  if (!Number.isFinite(a)) return null;
+  const b = freigabeAm ? new Date(freigabeAm).getTime() : NaN;
+  return new Date(Number.isFinite(b) ? Math.max(a, b) : a);
 }
 
 // ── ZUSTELLUNG SCHÜTZEN (E-458 Punkt 7) ─────────────────────────────────────
@@ -843,8 +910,13 @@ export interface RadarPostfachLage {
   adresse: string; grenze: number; heute: number; reserve?: number; letzteAm?: Date | string | null;
   /** Gmail-Zugang, echte Person mit Signatur, DNS — nur „bereit“ sendet. */
   bereit: boolean;
-  /** Pausiert (Chefbüro oder Zustell-Bremse). */
+  /** Pausiert (Chefbüro, Zustell-Bremse oder Störung beim Senden) — für Auswahl und Leistung zählt nur das. */
   pause?: boolean;
+  /** E-458 (Befund Sicht): nur Justins eigene Pause (Schalter im Chefbüro) — der Schalter zeigt genau das. */
+  aus?: boolean;
+  /** Das Postfach ruht von selbst bis … (Gmail-Störung oder Zustell-Bremse) — mit Grund in einfachen Worten. */
+  ruhtBis?: string | null;
+  ruhtGrund?: string | null;
 }
 /** Abstand zwischen zwei Mails aus demselben Postfach: 3 Minuten plus 0–59 Sekunden, fest je letzter Mail. Rein. */
 export function radarPostfachAbstandSek(letzteAm: Date | string | null | undefined): number {
@@ -934,6 +1006,68 @@ export function radarMoeglich(e: {
     tagJe: { firma: Math.floor(Math.min(tagZiel(zf), tagVoll * anteil(zf))), partner: Math.floor(Math.min(tagZiel(zp), tagVoll * anteil(zp))) },
     postfaecherNoetig, satz,
   };
+}
+
+/** „17:13“ in Berliner Zeit — nur über formatToParts (Zeit-Falle Berlin). Rein. */
+export function radarUhrzeit(d: Date | string): string {
+  const x = new Date(d);
+  if (!Number.isFinite(x.getTime())) return "";
+  const m = radarBerlinTagMinute(x).minute;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * E-458 (Befund Sicht): Gmail- und Netzfehler in einfachen Worten fürs Chefbüro. Die Rohmeldung (Englisch, JSON) gehört ins
+ * Server-Protokoll, nicht in Kachel und Akte. Rein.
+ */
+export function radarFehlerKlartext(roh: unknown): string {
+  const t = String((roh as any)?.message ?? roh ?? "").trim();
+  if (/unklar, ob (die mail hinausging|gesendet|der letzte versuch)/i.test(t)) return "Unklar, ob die letzte Mail hinausging — der Gesendet-Ordner wird geprüft";
+  const m = /HTTP (\d{3})/.exec(t);
+  const c = m ? Number(m[1]) : 0;
+  if (c === 429 || /rate.?limit|RESOURCE_EXHAUSTED|too many requests/i.test(t)) return "Gmail bremst kurz (zu viele Mails in kurzer Zeit)";
+  if (/^Token für /i.test(t)) return c >= 500 ? "Gmail-Anmeldung kurz gestört" : "Gmail-Zugang abgelaufen oder gesperrt";
+  if (c === 401 || c === 403 || /unauthorized_client|invalid_grant|access_denied|GOOGLE_SA_KEY/i.test(t)) return "Gmail-Zugang abgelaufen oder gesperrt";
+  if (c >= 500 || /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|timeout|aborted/i.test(t)) return "Gmail kurz nicht erreichbar";
+  if (c >= 400) return "Gmail hat diese Mail abgelehnt";
+  if (/Unterschrift/i.test(t)) return "Keine echte Unterschrift im Postfach";
+  return t ? (t.length > 140 ? `${t.slice(0, 137)}…` : t) : "Unbekannte Störung";
+}
+
+export interface RadarMotorLage {
+  /** Kurz für den Chip oben rechts in der Kachel. */
+  chip: string;
+  ton: "gut" | "warm" | "leise";
+  /** Der Grund in einem einfachen Satz — null, wenn alles läuft. */
+  grund: string | null;
+  /** Darf „Jetzt eine senden …“ gerade etwas bewirken? */
+  senden: boolean;
+}
+/**
+ * E-458 (Befund Sicht): Was der Motor gerade tut — EIN Satz mit dem wahren Grund statt „sendet gerade“ bei „heute möglich 0“.
+ * Reihenfolge: Freigabe, Schalter, Fenster, Postfächer (Störung, Pause, voll), Warteschlange. Rein.
+ */
+export function radarMotorLage(e: {
+  an: boolean; freigabe: boolean; imFenster: boolean; schlange: number; von: string;
+  postfaecher: readonly RadarPostfachLage[];
+}): RadarMotorLage {
+  if (!e.freigabe) return { chip: "wartet auf deine Freigabe", ton: "warm", grund: "Der Motor sendet erst nach deiner Freigabe: zuerst drei echte Mails ansehen, dann „Freigeben und starten“.", senden: false };
+  if (!e.an) return { chip: "aus", ton: "leise", grund: "„Erste Mails“ ist aus — der Motor bereitet nichts vor und sendet nichts.", senden: false };
+  if (!e.imFenster) return { chip: "bereitet vor", ton: "leise", grund: "Außerhalb des Sendefensters: Mara bereitet vor, gesendet wird im Fenster.", senden: false };
+  const bereit = e.postfaecher.filter((p) => p.bereit);
+  const frei = bereit.filter((p) => !p.pause);
+  if (!frei.length) {
+    const ruht = bereit.filter((p) => !p.aus && p.ruhtBis).sort((a, b) => String(a.ruhtBis).localeCompare(String(b.ruhtBis)))[0];
+    if (ruht) return { chip: `Störung bis ${radarUhrzeit(ruht.ruhtBis!)}`, ton: "warm", grund: `${ruht.ruhtGrund ?? "Kurze Störung"}. Ab ${radarUhrzeit(ruht.ruhtBis!)} Uhr sendet ${ruht.adresse} von selbst weiter.`, senden: false };
+    if (bereit.length && bereit.every((p) => p.aus)) return { chip: "Postfächer pausiert", ton: "warm", grund: "Alle Postfächer sind im Chefbüro pausiert (Kachel Postfächer).", senden: false };
+    return { chip: "kein Postfach bereit", ton: "warm", grund: "Kein Postfach ist bereit — die Kachel Postfächer zeigt, was fehlt.", senden: false };
+  }
+  if (frei.every((p) => p.heute + (p.reserve ?? 0) >= p.grenze)) {
+    const p = frei[0];
+    return { chip: "für heute voll", ton: "warm", grund: `Heute möglich 0: ${p.adresse} hat sein Tageslimit erreicht (${p.heute} von ${p.grenze}${p.reserve ? `, ${p.reserve} Nachfass reserviert` : ""}). Morgen ab ${e.von} Uhr geht es weiter.`, senden: false };
+  }
+  if (e.schlange <= 0) return { chip: "Warteschlange leer", ton: "leise", grund: "Noch keine fertige Mail — Mara bereitet gerade vor.", senden: false };
+  return { chip: "sendet gerade", ton: "gut", grund: null, senden: true };
 }
 
 /** Wochentag (1 = Montag) und Minute des Tages in Berliner Zeit — nur über formatToParts (Zeit-Falle Berlin). Rein. */
@@ -1096,6 +1230,15 @@ export function radarPruefUrteil(roh: unknown, maxKlang = RADAR_MOTOR_VORGABE.ki
   return { bestanden, urteil: u, gruende };
 }
 
+/**
+ * E-458 (Befund Prüf-KI 29.10.2026): Fiel die Mail NUR wegen „Zusage“ durch (sonst alles in Ordnung)? Gemessen schwankte
+ * genau dieses Urteil bei wortgleicher Mail (10-mal frei, 2-mal „Zusage“) — dann holt der Motor ein zweites Urteil, bevor er
+ * neu schreibt. Rein.
+ */
+export function radarNurZusage(u: RadarPruefUrteil | null | undefined, maxKlang = RADAR_MOTOR_VORGABE.kiKlangMax): boolean {
+  return !!u && u.zusage && !u.erfunden && u.ki_klang <= maxKlang && u.bezug_konkret && u.nutzen_klar && u.eine_frage;
+}
+
 /** Die 5-Wort-Folgen eines Textes (klein, ohne Akzente, ß → ss). Rein. */
 export function radarSchindeln(text: string, n = 5): Set<string> {
   const woerter = String(text ?? "").toLowerCase().replace(/ß/g, "ss").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
@@ -1143,9 +1286,11 @@ export const RADAR_TRICHTER: { key: string; label: string; satz: string }[] = [
 // jeder verzinste Kredit. Kein Betrag, kein Rahmen, kein Institut-Satz (Justin, 12.10.).
 // E-458 (29.10.2026): ohne Gedankenstriche — Justin: „NIEMALS klingt sie nach KI“, und Gedankenstrich-Ketten sind das
 // erste Erkennungszeichen. Wirkt auch auf Brief, Nachfass und das Zitat im Chefbüro.
+// E-458 (Befund Prüf-KI 29.10.2026): „das Kapital lässt sich einsetzen“ las die Prüf-KI als sicheres Geld (Zusage) — der
+// Vorteil steht jetzt als Möglichkeit („wenn es klappt“). Inhalt und Hauswort bleiben, wie Justin sie freigab.
 export const RADAR_KERNSATZ = {
   was: "Wir gründen für Unternehmer eine eigene LLC in den USA, das US-Gegenstück zur GmbH, kümmern uns um Geschäftskonto und Firmenkreditkarten und ebnen den Weg zu US-Funding.",
-  vorteil: "Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und das Kapital lässt sich auch in Europa einsetzen.",
+  vorteil: "Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und wenn es klappt, lässt sich das Kapital auch in Europa einsetzen.",
   vorOrt: "Alles Amerikanische erledigt unser Team vor Ort.",
 } as const;
 
@@ -1205,14 +1350,54 @@ export function radarSchlussEcho(frage: string | null | undefined, schluss: stri
   const s = echoWoerter(schluss);
   return Array.from(echoWoerter(frage)).filter((w) => s.has(w));
 }
-/** Der Schlusssatz dieser Firma zu dieser Frage — ab id % Anzahl der erste ohne Echo. Gleiche Firma, gleiche Frage, gleicher Satz. Rein. */
-export function radarSchlusssatzFuer(id: number, frage?: string | null): string {
+/**
+ * Der Schlusssatz dieser Firma zu dieser Frage — ab id % Anzahl der erste ohne Echo. Gleiche Firma, gleiche Frage, gleicher Satz.
+ * E-458 (Befund Prüf-KI): Trägt die Mail den Terminlink („Wenn Sie mögen, suchen Sie sich …“), folgt kein zweiter Satz, der
+ * mit „Wenn“ beginnt — zweimal „Wenn“ hintereinander liest sich wie ein Baukasten. Rein.
+ */
+export function radarSchlusssatzFuer(id: number, frage?: string | null, o: { mitLink?: boolean } = {}): string {
   const n = Math.abs(Math.round(Number(id) || 0));
   for (let i = 0; i < RADAR_SCHLUSSSAETZE.length; i++) {
     const s = RADAR_SCHLUSSSAETZE[(n + i) % RADAR_SCHLUSSSAETZE.length];
+    if (o.mitLink && /^wenn\b/i.test(s)) continue;
     if (!radarSchlussEcho(frage, s).length) return s;
   }
   return RADAR_SCHLUSSSAETZE[RADAR_SCHLUSSSAETZE.length - 1];
+}
+
+/**
+ * E-458 (Befund Prüf-KI 29.10.2026): „Ich habe gesehen, dass Sie …“ ist der bekannteste Einstieg automatischer Kaltakquise —
+ * vier Mails mit demselben Anfang verraten die Vorlage. Je Firma fest eine von vier Arten, den Anlass zu nennen. Rein.
+ */
+export const RADAR_EINSTIEGE: readonly { key: string; anweisung: string }[] = [
+  { key: "fakt", anweisung: "Beginne direkt mit der Beobachtung als Aussage über die Firma, ohne „Ich habe gesehen“ oder „Ich habe gelesen“ (z. B. „Sie bauen dieses Jahr eine zweite Halle, so steht es auf Ihrer Seite.“)." },
+  { key: "quelle", anweisung: "Nenne zuerst kurz, wo es steht, dann die Beobachtung (z. B. „Auf Ihrer Seite steht, dass …“ oder „In Ihrer Mitteilung vom Frühjahr lese ich, dass …“). Nicht „Ich habe gesehen“." },
+  { key: "ich", anweisung: "Beginne mit „Ich habe gelesen, dass …“ oder „Ich habe gesehen, dass …“ und der Beobachtung." },
+  { key: "kurz", anweisung: "Beginne mit „Kurz zu …“ und dem Anlass als Stichwort, dann ein Satz dazu (z. B. „Kurz zu Ihrer neuen Halle: Bis so ein Bau etwas einbringt, vergeht meist eine Weile.“)." },
+];
+/** Der Einstieg dieser Firma — je Firma fest (id % 4). Rein. */
+export function radarEinstiegFuer(id: number): { key: string; anweisung: string } {
+  return RADAR_EINSTIEGE[Math.abs(Math.round(Number(id) || 0)) % RADAR_EINSTIEGE.length];
+}
+
+/** Feste, freigegebene Wendungen, die in vielen Mails gleich stehen dürfen (Hauswort) — sie zählen nicht für den Fingerabdruck. */
+export const RADAR_HAUSWOERTER: readonly string[] = ["Einführungszeitraum ohne Sollzins"];
+/**
+ * E-458 (Befund Prüf-KI): der Text für den Fingerabdruck — ohne Hauswort und ohne den freigegebenen Provisions-Satz. Der
+ * Pflichtsatz allein machte zwei Partner-Mails schon zu 21 % „gleich“; mit der Angebots-Vorlage sperrte der Motor gute Mails. Rein.
+ */
+export function radarFingerabdruckText(text: string, feste: readonly (string | null | undefined)[] = []): string {
+  let t = String(text ?? "");
+  for (const f of [...RADAR_HAUSWOERTER, ...feste]) {
+    const s = String(f ?? "").trim();
+    if (s.length < 8) continue;
+    t = t.replace(new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"), "gi"), " · ");
+  }
+  return t;
+}
+/** Ein Betreff ohne Groß/Klein, Satzzeichen und Doppel-Leerzeichen — gleiche Betreffs über viele Mails sind ein Serienmuster. Rein. */
+export function radarBetreffSchluessel(betreff: string | null | undefined): string {
+  return String(betreff ?? "").toLowerCase().replace(/ß/g, "ss").normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 }
 /** Der Schlusssatz dieser Firma ohne bekannte Frage (Rückweg für alte Mails). Rein. */
 export function radarSchlusssatz(id: number): string {
@@ -1236,6 +1421,24 @@ export function radarNamensteile(name: string | null | undefined): string[] {
   const n = String(name ?? "").toLowerCase().replace(/\(.*?\)/g, " ").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
     .normalize("NFKD").replace(/[̀-ͯ]/g, "");
   return Array.from(new Set(n.split(/[^a-z]+/).filter((w) => w.length >= 3 && !PARTIKEL.has(w))));
+}
+
+/** Ein Mensch als Vergleichsschlüssel („Dr. Petra Brandt“ → „petra brandt“) — leer, wenn kein Vor- und Nachname da ist. Rein. */
+export function radarPersonSchluessel(name: string | null | undefined): string {
+  const t = radarNamensteile(name);
+  return t.length >= 2 ? t.join(" ") : "";
+}
+/**
+ * E-458 (Befund Go-live): Gehören zwei Radar-Firmen wohl zum selben Betrieb — gleicher Ort oder gleicher Kern der Domäne
+ * („kornblume-backstuben.example“ und „kornblume.example“)? Für die Regel „derselbe Mensch bekommt keine zweite Kaltmail“. Rein.
+ */
+export function radarGleicherBetrieb(a: { ort?: string | null; domain?: string | null }, b: { ort?: string | null; domain?: string | null }): boolean {
+  const ort = (x: unknown) => String(x ?? "").toLowerCase().replace(/[^a-zäöüß]+/g, " ").trim().split(" ")[0] ?? "";
+  if (ort(a.ort) && ort(a.ort) === ort(b.ort)) return true;
+  const kern = (d: unknown) => new Set(String(d ?? "").toLowerCase().split(".").slice(0, -1).join("-").split(/[^a-z0-9äöü]+/)
+    .filter((w) => w.length >= 4 && !/^(gmbh|group|gruppe|holding|online|shop|home|info|mail|team|firma|kanzlei)$/.test(w)));
+  const kb = kern(b.domain);
+  return Array.from(kern(a.domain)).some((w) => kb.has(w));
 }
 
 /** Ist das die persönliche Adresse eines Menschen (und, wenn Namen bekannt sind, eines dieser Menschen)? Rein. */
@@ -1517,6 +1720,15 @@ export function radarKurzlinkZiel(kennung: unknown): string {
 const LAND_ZEILE: Record<RadarLand, string> = { DE: "DEUTSCHLAND", AT: "ÖSTERREICH", CH: "SCHWEIZ" };
 /** Geschäftsführung, Inhaberschaft, Vorstand — wer über einen Brief an die Firma entscheidet. */
 export const RADAR_ROLLE_CHEF = /geschäftsführ|geschaeftsfuehr|inhaber|ceo|vorstand|director|gründer|gruender|founder|präsident|praesident|managing|gesellschafter|komplementär/i;
+/**
+ * E-458 (Befund Prüf-KI 29.10.2026): „Guten Tag Hannah Albrecht“ wirkt wie ein Serienbrief-Feld. Ein weibliches Rollenwort
+ * AM NAMEN dieses Menschen (Impressum: „Geschäftsführerin“, „Inhaberin“, „Steuerberaterin“ …) belegt „Frau“. Männliche Formen
+ * nicht — sie stehen oft für alle. Geraten wird weiter nie. Rein.
+ */
+export const RADAR_ROLLE_WEIBLICH = /(^|[^a-zäöüß])(geschäftsführerin|geschaeftsfuehrerin|inhaberin|steuerberaterin|rechtsanwältin|rechtsanwaeltin|gesellschafterin|gründerin|gruenderin|vorständin|vorstaendin|prokuristin|partnerin|direktorin|präsidentin|praesidentin|wirtschaftsprüferin|wirtschaftsprueferin|notarin)([^a-zäöüß]|$)/i;
+export function radarAnredeAusRolle(rolle: string | null | undefined): "Frau" | null {
+  return RADAR_ROLLE_WEIBLICH.test(String(rolle ?? "")) ? "Frau" : null;
+}
 const NAMEN_PARTIKEL = /^(von|van|vom|zu|zur|zum|de|del|der|den|di|da|le|la|und)$/i;
 
 /**
@@ -1593,6 +1805,8 @@ export interface RadarBriefPruefFirma {
 export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] } {
   const anschrift = radarBriefAnschrift(f.impressum, { firmenname: f.name, land: f.land });
   const nurBrief = !radarMailErlaubt(radarLandFuer(f));
+  // E-458 (Justin 29.10.2026, wörtlich „lass Österreich komplett weg, kein Brief, keine Email“): auch kein Brief von Hand.
+  const landAktiv = radarLandAktiv(radarLandFuer(f));
   // E-458 (Punkt 5): Eine abgeleitete Adresse, die als unzustellbar zurückkam (muster_widerlegt), zählt nicht mehr.
   const widerlegt = f.entscheider?.weg === "abgeleitet" && f.entscheider?.muster_widerlegt === true;
   const persoenlich = !nurBrief && !widerlegt && !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
@@ -1602,8 +1816,9 @@ export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkt
   // gelesen — dann geht der Brief (das verspricht die Ableitung), obwohl versendet_am gesetzt ist.
   const zurueck = f.status === "unzustellbar" && widerlegt;
   const punkte = [
+    { key: "land", ok: landAktiv, text: landAktiv ? "Deutschland oder Schweiz" : "Österreich: vorerst gar keine Post — weder Mail noch Brief (nur Deutschland und die Schweiz)" },
     { key: "signal", ok: Number(f.signal_staerke ?? 0) >= RADAR_SIGNAL_AB, text: `Kapitalsignal ab Stärke ${RADAR_SIGNAL_AB}${f.signal_staerke != null ? ` (hat ${f.signal_staerke})` : " (noch nicht geprüft)"}` },
-    { key: "persoenlich", ok: !persoenlich, text: nurBrief ? "Österreich: keine Mail — die Automatik schreibt vorerst nur nach Deutschland und in die Schweiz, ein Brief nur von Hand" : persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
+    { key: "persoenlich", ok: !persoenlich, text: nurBrief ? "Österreich: keine Mail" : persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
     { key: "anschrift", ok: !anschrift.fehlt.length, text: anschrift.fehlt.length ? `Anschrift unvollständig: ${anschrift.fehlt.join(", ")}` : "Name und Anschrift aus dem Impressum vollständig" },
     { key: "offen", ok: !zu && !gespraech && (!f.versendet_am || zurueck), text: zu ? "Gesperrt, abgelehnt oder passt nicht" : gespraech ? "Mit der Firma läuft schon ein Gespräch" : zurueck ? "Die Mail an die abgeleitete Adresse kam zurück — der Brief geht" : f.versendet_am ? "Hat schon eine erste Mail bekommen" : "Noch kein Kontakt, nicht gesperrt" },
     { key: "einmal", ok: !f.brief_versendet_am, text: f.brief_versendet_am ? "Hat schon einen Brief bekommen — je Firma genau einer" : "Noch kein Brief an diese Firma" },

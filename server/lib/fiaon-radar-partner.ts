@@ -19,7 +19,7 @@ import {
 } from "./fiaon-radar";
 import { berlinToday } from "./fiaon-time";
 import {
-  RADAR_PARTNER_ZIELBILD, RADAR_PARTNER_SIGNALE, RADAR_FREEMAIL, radarPartnerGruppe, radarDomain, radarLandAktiv, type RadarLand,
+  RADAR_PARTNER_ZIELBILD, RADAR_PARTNER_SIGNALE, RADAR_FREEMAIL, radarPartnerGruppe, radarDomain, radarLandAktiv, radarPersonSchluessel, type RadarLand,
 } from "@shared/fiaon-radar";
 
 /** E-458 (Justin 29.10.2026): „lass Österreich komplett weg … nur DE und CH“ — auch keine Partner-Suche dort (wie radarSuchen). */
@@ -53,8 +53,76 @@ export async function schonPartner(domain: string | null | undefined, email?: st
   const e = String(email ?? "").trim().toLowerCase().split("@")[1] ?? "";
   return (!!d && ausschlussMerk.liste.has(d)) || (!!e && !RADAR_FREEMAIL.has(e) && ausschlussMerk.liste.has(e));
 }
-/** Prüfstand: den Zwischenspeicher der Partner-Sperre leeren. */
-export function schonPartnerVergessen(): void { ausschlussMerk = null; }
+/** Prüfstand: den Zwischenspeicher der Partner-Sperre leeren (auch die Liste der Bekannten). */
+export function schonPartnerVergessen(): void { ausschlussMerk = null; bekannteMerk = null; }
+
+// ── E-458 (Befund Go-live): Wen wir schon kennen — Kunden, Global-Bucher, Tippgeber, Partner ─────────────────────────────
+// Die Domänen-Sperre oben fängt keine Freemail-Adressen: Alle Global-Kunden und der IA-KOOP-Tippgeber sind mit me.com,
+// icloud.com oder gmx bekannt. Findet die Partner-Suche die Website eines Tippgebers, bekäme er sonst eine Kalt-Anfrage
+// mit seinem eigenen 30-%-Angebot. Deshalb hier zusätzlich: jede bekannte ADRESSE, jede bekannte Firmen-DOMÄNE (ohne
+// Freemail) und der volle NAME (Vor- und Nachname) aus den Quellen mit persönlicher Beziehung. Fünf Minuten im Speicher.
+interface Bekannte { emails: Map<string, string>; domains: Map<string, string>; namen: Map<string, string> }
+let bekannteMerk: { bis: number; b: Bekannte } | null = null;
+async function bekannteLaden(): Promise<Bekannte> {
+  const b: Bekannte = { emails: new Map(), domains: new Map(), namen: new Map() };
+  const mail = (roh: unknown, quelle: string) => {
+    const e = String(roh ?? "").trim().toLowerCase();
+    if (!/^[^@\s<>"]+@[^@\s<>"]+\.[a-z]{2,}$/.test(e)) return;
+    if (!b.emails.has(e)) b.emails.set(e, quelle);
+    const d = e.split("@")[1] ?? "";
+    if (d && d !== "fiaon.com" && !RADAR_FREEMAIL.has(d) && !b.domains.has(d)) b.domains.set(d, quelle);
+  };
+  const name = (roh: unknown, quelle: string) => {
+    const n = radarPersonSchluessel(String(roh ?? ""));
+    if (n && !b.namen.has(n)) b.namen.set(n, quelle);
+  };
+  const lies = async (q: Promise<any[]>) => ((await q.catch(() => [])) as any[]);
+  for (const z of await lies(sqlPool`SELECT kunde->>'email' AS email, kunde->>'name' AS name, fassung FROM fiaon_global_angebote` as Promise<any[]>)) {
+    const quelle = String(z.fassung ?? "").startsWith("IA-KOOP-") ? "Kooperationsvertrag" : "Global-Angebot";
+    mail(z.email, quelle); name(z.name, quelle);
+  }
+  for (const z of await lies(sqlPool`SELECT email, ansprechpartner->>'email' AS email2,
+                                       COALESCE(NULLIF(ansprechpartner->>'name', ''), concat_ws(' ', ansprechpartner->>'vorname', ansprechpartner->>'nachname')) AS name
+                                       FROM fiaon_global_auftraege` as Promise<any[]>)) {
+    mail(z.email, "Global-Kunde"); mail(z.email2, "Global-Kunde"); name(z.name, "Global-Kunde");
+  }
+  for (const z of await lies(sqlPool`SELECT email, name FROM fiaon_global_konten` as Promise<any[]>)) { mail(z.email, "Global-Konto"); name(z.name, "Global-Konto"); }
+  for (const z of await lies(sqlPool`SELECT email, name FROM fiaon_partner_kontakte WHERE entfernt_am IS NULL` as Promise<any[]>)) { mail(z.email, "Geschäftspartner"); name(z.name, "Geschäftspartner"); }
+  for (const z of await lies(sqlPool`SELECT email FROM fiaon_partner_firmen` as Promise<any[]>)) mail(z.email, "Geschäftspartner");
+  for (const z of await lies(sqlPool`SELECT email, name FROM fiaon_koop_empfehlungen` as Promise<any[]>)) { mail(z.email, "Kooperation"); name(z.name, "Kooperation"); }
+  for (const z of await lies(sqlPool`SELECT email, name FROM fiaon_anfragen` as Promise<any[]>)) { mail(z.email, "Anfrage"); name(z.name, "Anfrage"); }
+  for (const z of await lies(sqlPool`SELECT email, ansprechpartner AS name FROM fiaon_firmen_leads` as Promise<any[]>)) { mail(z.email, "Firmen-Lead"); name(z.name, "Firmen-Lead"); }
+  // Privat-Bestand: Adresse und Firmen-Domäne (ein Name allein wäre bei so vielen Menschen zu ungenau) — dazu die Bucher
+  // von Global-Gesprächen mit vollem Namen.
+  for (const z of await lies(sqlPool`SELECT primary_email AS email FROM fiaon_persons WHERE primary_email LIKE '%@%'` as Promise<any[]>)) mail(z.email, "Kunde");
+  for (const z of await lies(sqlPool`SELECT DISTINCT p.primary_email AS email, concat_ws(' ', p.first_name, p.last_name) AS name
+                                       FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id WHERE t.quelle = 'global'` as Promise<any[]>)) {
+    mail(z.email, "Global-Gespräch"); name(z.name, "Global-Gespräch");
+  }
+  return b;
+}
+async function bekannte(): Promise<Bekannte> {
+  if (!bekannteMerk || bekannteMerk.bis < Date.now()) bekannteMerk = { bis: Date.now() + 5 * 60_000, b: await bekannteLaden() };
+  return bekannteMerk.b;
+}
+/** Die bekannten Firmen-Domänen (ohne Freemail) — die Suche nimmt sie gar nicht erst auf. */
+export async function bekannteDomains(): Promise<Set<string>> {
+  return new Set(Array.from((await bekannte()).domains.keys()));
+}
+/**
+ * Kennen wir diesen Menschen oder diese Firma schon (Kunde, Global-Kunde oder -Bucher, Tippgeber, Partner, Anfrage)? Dann die
+ * Quelle in einfachen Worten — sonst null. Adresse genau, Domäne ohne Freemail, Name nur mit Vor- und Nachnamen.
+ */
+export async function schonBekannt(e: { domain?: string | null; email?: string | null; person?: string | null }): Promise<string | null> {
+  const b = await bekannte();
+  const email = String(e.email ?? "").trim().toLowerCase();
+  if (email && b.emails.has(email)) return b.emails.get(email)!;
+  for (const d of [String(e.domain ?? "").trim().toLowerCase().replace(/^www\./, ""), email.split("@")[1] ?? ""]) {
+    if (d && !RADAR_FREEMAIL.has(d) && b.domains.has(d)) return b.domains.get(d)!;
+  }
+  const n = radarPersonSchluessel(e.person);
+  return n && b.namen.has(n) ? b.namen.get(n)! : null;
+}
 
 const SCHEMA_PARTNER = {
   type: "object", additionalProperties: false,

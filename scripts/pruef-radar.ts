@@ -177,7 +177,8 @@ ok(sZuStark.staerke === 3, `Stärke gedeckelt auf die Art + 1 (${sZuStark.staerk
 ok((await signalPruefen({ art: "gibtsnicht", beleg: "irgendein langer Satz ohne Bedeutung hier", url: "", staerke: 4 }, sSeite)).signal === null, "Unbekannte Signal-Art zählt nicht");
 ok(RADAR_SIGNALE.every((x) => x.staerke >= 1 && x.staerke <= 5) && RADAR_SIGNALE.filter((x) => x.staerke >= RADAR_SIGNAL_AB).length >= 5, "Signale mit Stärke 1–5, mindestens fünf ab der Schwelle");
 // E-458: Die Automatik der ersten Mails ist der Mail-Motor (fiaon-radar-motor.ts).
-ok(/r\.signal_staerke IS NULL OR r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(lies("server/lib/fiaon-radar-motor.ts")) && /< RADAR_SIGNAL_AB\) \{[\s\S]{0,400}return verwerfen\(id,/.test(lies("server/lib/fiaon-radar-motor.ts")), "Automatik schreibt nur ab Signalstärke 3");
+ok(/r\.signal_staerke IS NULL OR r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(lies("server/lib/fiaon-radar-motor.ts")) && /< RADAR_SIGNAL_AB\) return nichtQualifiziert\(f\)/.test(lies("server/lib/fiaon-radar-motor.ts"))
+  && /const nichtQualifiziert = async[\s\S]{0,400}return verwerfen\(id,/.test(lies("server/lib/fiaon-radar-motor.ts")), "Automatik schreibt nur ab Signalstärke 3");
 
 abschnitt("Nur Entscheider, menschliche Anrede, Signatur (E-337)");
 const { radarAdressePersoenlich } = await import("../shared/fiaon-radar");
@@ -459,7 +460,9 @@ abschnitt("Österreich: keine Mail, kein automatischer Brief (E-458; Justin 29.1
   ok(!sh8.radarMailErlaubt("AT") && sh8.radarMailErlaubt("DE") && sh8.radarMailErlaubt("CH"), "Mail nach DE und CH, nicht nach AT");
   const impAt = { name: "Beispiel Handel GmbH", strasse: "Musterstraße 1", plz: "1010", ort: "Wien", land: "AT", vertreter: [{ name: "Anna Beispiel", funktion: "Geschäftsführerin" }] };
   const atFirma = { status: "gescannt", land: "AT", signal_staerke: 4, impressum: impAt, name: impAt.name, domain: "beispiel-handel.example", entscheider: { name: "Anna Beispiel", email: "anna.beispiel@beispiel-handel.example" }, versendet_am: null, brief_versendet_am: null };
-  ok(sh8.radarBriefPruefen(atFirma).ok && /nur von Hand/.test(sh8.radarBriefPruefen(atFirma).punkte.find((p) => p.key === "persoenlich")?.text ?? ""), "Österreich: keine Mail; ein Brief nur noch von Hand in der Akte (die Automatik nimmt Österreich nicht)");
+  // E-458 (Justin 29.10.2026, wörtlich „kein Brief, keine Email“): auch kein Brief von Hand mehr.
+  ok(!sh8.radarBriefPruefen(atFirma).ok && /weder Mail noch Brief/.test(sh8.radarBriefPruefen(atFirma).punkte.find((p) => p.key === "land")?.text ?? "") && !sh8.radarBriefPruefen({ ...atFirma, land: "DE", domain: "beispiel-handel.example", impressum: { ...impAt, land: "AT" } }).ok,
+    "Österreich: weder Mail noch Brief — auch nicht von Hand in der Akte (Land-Punkt in der Brief-Prüfung)");
   ok(!sh8.radarBriefPruefen({ ...atFirma, land: "DE", impressum: { ...impAt, land: "DE", plz: "10115", ort: "Berlin" } }).ok, "Deutschland mit persönlicher Adresse → die Mail geht vor");
   const lib8 = lies("server/lib/fiaon-radar.ts"), fd8 = lies("server/lib/fiaon-radar-faden.ts"), br8 = lies("server/lib/fiaon-radar-brief.ts");
   ok(/if \(!radarMailErlaubt\(radarLandFuer\(f\)\)\) throw new RadarFehler\("Nach Österreich geht keine Mail — vorerst nur Deutschland und die Schweiz\."\)/.test(lib8), "radarMailAusgeben wirft für Österreich — gilt für Motor, Stapel und Akte");
@@ -471,7 +474,7 @@ abschnitt("Österreich: keine Mail, kein automatischer Brief (E-458; Justin 29.1
     && sh8.radarLandFuer(imp({ telefon: "0043 1 234" })) === "AT" && sh8.radarLandFuer(imp({ telefon: "+49 30 1234" })) === "DE" && sh8.radarLandFuer({ land: "CH", domain: "beispiel.ch" }) === "CH",
     "Österreich gewinnt: Spalte „DE“ mit .at-Domäne, UID ATU oder Telefon +43/0043 → AT; +49 bleibt DE, .ch bleibt CH");
   ok(/COALESCE\(r\.motor_status, ''\) NOT IN \('arbeit', 'bereit', 'sendet'\) AND r\.strom = 'firma'/.test(br8), "Brief-Lauf: kein Brief, solange die Mail in der Warteschlange liegt; nur Firmen");
-  ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER,[\s\S]{0,200}ADD COLUMN IF NOT EXISTS motor_sendefehler INTEGER NOT NULL DEFAULT 0`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
+  ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER,[\s\S]{0,200}ADD COLUMN IF NOT EXISTS motor_sendefehler INTEGER NOT NULL DEFAULT 0,\s*ADD COLUMN IF NOT EXISTS entscheider_websuche_am TIMESTAMPTZ`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
 }
 
 abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
@@ -484,7 +487,7 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
     betreff: "Ihre neue Halle",
     absaetze: [
       "Ich habe gesehen, dass Sie in diesem Jahr eine zweite Halle bauen. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.",
-      "Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort.",
+      "Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH. Dann kümmern wir uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort.",
     ],
     frage: "Wäre das für Ihre Pläne gerade ein Thema?", ps: "",
   };
@@ -626,7 +629,7 @@ abschnitt("Prüf-KI vor jeder Mail (E-458)");
   ok(h === lib.radarMailHash({ ...m }) && /^[0-9a-f]{64}$/.test(h), "Hash: stabil (sha256)");
   ok(h !== lib.radarMailHash({ ...m, betreff: "Ihre neue Halle." }) && h !== lib.radarMailHash({ ...m, absaetze: ["Satz eins!", "Satz zwei."] }) && h !== lib.radarMailHash({ ...m, frage: "Passt das ?" }), "Hash: ändert sich bei jedem Zeichen in Betreff, Absätzen oder Frage");
   const anw = pk.radarPruefAnweisung({ strom: "firma" });
-  ok(["Zusage", "Zinssatz", "Betrag", "Bürgschaft", "„bis zu“", "Bankname", "ERFUNDEN", "KI-KLANG", "Gedankenstrich", "Aufzählung", "Floskeln"].every((w) => anw.includes(w)), "Die Prüf-Anweisung nennt Zusage, Zinssatz, Betrag, Bürgschaft, „bis zu“, Bankname, Erfundenes, KI-Klang, Gedankenstrich, Aufzählung, Floskeln");
+  ok(["ZUSAGE", "Zinssatz", "Betrag", "Bürgschaft", "„bis zu“", "Bankname", "ERFUNDEN", "KI-KLANG", "Gedankenstrich", "Aufzählung", "Floskeln"].every((w) => anw.includes(w)), "Die Prüf-Anweisung nennt Zusage, Zinssatz, Betrag, Bürgschaft, „bis zu“, Bankname, Erfundenes, KI-Klang, Gedankenstrich, Aufzählung, Floskeln");
   ok(/KEINE Provision/.test(pk.radarPruefAnweisung({ strom: "partner", provision: false })) && /Terminwunsch/.test(pk.radarPruefAnweisung({ strom: "partner", provision: true })), "Partner: Provision nur wo erlaubt, kein Treffen");
   // Fingerabdruck
   const kern = Object.values(sh8.RADAR_KERNSATZ).join(" ");
@@ -673,7 +676,12 @@ abschnitt("Prüf-KI vor jeder Mail (E-458)");
   // E-458 (Befund): Die Anweisung kennt den Aufbau der Mail (Link und Schlusssatz nach der Frage), das Hauswort zum Sollzins,
   // den Provisions-Satz aus dem Chefbüro, und beim Nachfassen die erste Mail und den Abschluss ohne neuen Nutzen.
   const anwF = pk.radarPruefAnweisung({ strom: "firma" });
-  ok(/Link und ein fester Schlusssatz folgen, die der Server setzt/.test(anwF) && /„Einführungszeitraum ohne Sollzins“ ist das freigegebene Hauswort und KEINE Zusage/.test(anwF), "Prüf-Anweisung: Link und Schlusssatz nach der Frage erlaubt; „Einführungszeitraum ohne Sollzins“ ist keine Zusage");
+  // E-458 (Befund Prüf-KI 29.10.): Link-Satz und Schlusssatz stehen NICHT in der Eingabe — die Anweisung sagt nur, dass es sie gibt;
+  // die freigegebene Leistungsbeschreibung steht ausdrücklich als „keine Zusage“ da; Erfahrungssätze mit „meist/oft“ sind erlaubt.
+  ok(/festen Link-Satz und einen festen Schlusssatz\. Beide stehen NICHT unten und werden nicht geprüft/.test(anwF) && /KEINE Zusage ist die freigegebene Beschreibung unserer Leistung/.test(anwF)
+    && /uns um Geschäftskonto und Firmenkarten kümmern oder dabei helfen/.test(anwF) && /„Einführungszeitraum ohne Sollzins“ \(das Hauswort\)/.test(anwF) && /„ohne Sollzins“ ohne „Einführungszeitraum“ ist eine Zusage/.test(anwF)
+    && /Allgemeine Erfahrungssätze mit „meist“, „oft“ oder „häufig“/.test(anwF),
+    "Prüf-Anweisung: Link und Schlusssatz nicht in der Eingabe; freigegebene Leistung ist keine Zusage; Hauswort; allgemeine Erfahrungssätze erlaubt");
   const anwP = pk.radarPruefAnweisung({ strom: "partner", provision: true, provisionText: "25 Prozent unseres Honorars, zwei Jahre lang" });
   ok(anwP.includes("„25 Prozent unseres Honorars, zwei Jahre lang“") && !anwP.includes("30 Prozent") && /wobei FIAON den Mandanten oder Kunden dieses Partners hilft/.test(anwP) && !/bei FIAON bekommen/.test(anwP), "Prüf-Anweisung Partner: Provisions-Satz aus dem Chefbüro, Nutzen als Hilfe statt „bekommen“");
   const anwN = pk.radarPruefAnweisung({ strom: "partner", art: "nachfass", stufe: 2, provision: false, maxKlang: 2 });
@@ -733,7 +741,7 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(sendenQ.length > 500 && !/radarKi|kiPausiert/.test(sendenQ), "radarMotorSenden ruft keine KI und fragt die KI-Pause nicht (sendet aus der Warteschlange weiter)");
   ok(/pg_advisory_xact_lock\(\$\{MOTOR_SPERRE\}\)/.test(motorQ) && /MOTOR_SPERRE = 458001/.test(motorQ) && /SET motor_status = 'sendet'[\s\S]{0,700}RETURNING id/.test(motorQ), "Übernahme unter pg_advisory_xact_lock mit motor_status = 'sendet' … RETURNING");
   const kandQ = motorQ.slice(motorQ.indexOf("export async function kandidatNehmen"), motorQ.indexOf("async function verwerfen"));
-  ok(/r\.strom = \$\{strom\}/.test(kandQ) && /r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(kandQ) && /ORDER BY COALESCE\(r\.signal_staerke, \$\{RADAR_SIGNAL_AB\}\) DESC, r\.passung DESC/.test(kandQ) && /AND NOT \$\{sqlOesterreich\(\)\}/.test(kandQ) && /r\.motor_status IS NULL/.test(kandQ) && /FOR UPDATE SKIP LOCKED/.test(kandQ)
+  ok(/r\.strom = \$\{strom\}/.test(kandQ) && /r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(kandQ) && /ORDER BY \$\{sqlWebsucheErfolglos\(\)\} ASC, COALESCE\(r\.signal_staerke, \$\{RADAR_SIGNAL_AB\}\) DESC, r\.passung DESC/.test(kandQ) && /AND NOT \$\{sqlOesterreich\(\)\}/.test(kandQ) && /r\.motor_status IS NULL/.test(kandQ) && /FOR UPDATE SKIP LOCKED/.test(kandQ)
     && /\(\$\{strom\} <> 'partner' OR r\.bereich = ANY\(\$\{\[\.\.\.gruppen\]\}::text\[\]\)\)/.test(kandQ), "Kandidaten: Strom-Filter, nur eingeschaltete Partner-Gruppen, Signal ≥ 3, stärkstes Signal und Passung zuerst, ohne Österreich, über motor_status (nicht automatik_am)");
   ok(Object.keys(sh8.RADAR_STATUS).length === 16, "RADAR_STATUS bleibt bei 16 Ständen (die Warteschlange ist eine eigene Spalte)");
   ok(!/JSON\.stringify\([^)]*\)\}::jsonb/.test(motorQ + lies("server/lib/fiaon-radar-pruef.ts")), "JSONB nur über sqlPool.json()");
@@ -766,12 +774,29 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     const bisMin = Math.min(23 * 60 + 59, jetztBerlin.minute + 40);
     const bis = `${String(Math.floor(bisMin / 60)).padStart(2, "0")}:${String(bisMin % 60).padStart(2, "0")}`;
     const leeren = async () => { await sqlPool`DELETE FROM fiaon_radar_post`; await sqlPool`DELETE FROM fiaon_radar_firmen`; };
+    // E-458 (Nachbesserung): Was Schritt 7 im Partner-CRM anlegt („Beispiel 21 GmbH“, Kontakt „Max Beispiel“), räumt der Lauf
+    // selbst wieder weg — sonst wäre „Max Beispiel“ beim nächsten Lauf ein bekannter Partner (Sperre über den Namen).
+    const crmLeeren = async () => {
+      const ids = ((await sqlPool`SELECT id FROM fiaon_partner_firmen WHERE erstellt_von = 'Mara (Firmen-Radar)' AND name LIKE 'Beispiel % GmbH'`.catch(() => [])) as any[]).map((z) => Number(z.id));
+      if (ids.length) {
+        await sqlPool`DELETE FROM fiaon_partner_verlauf WHERE firma_id = ANY(${ids})`.catch(() => {});
+        await sqlPool`DELETE FROM fiaon_partner_aufgaben WHERE firma_id = ANY(${ids})`.catch(() => {});
+        await sqlPool`DELETE FROM fiaon_partner_dokumente WHERE firma_id = ANY(${ids})`.catch(() => {});
+        await sqlPool`DELETE FROM fiaon_partner_kontakte WHERE firma_id = ANY(${ids})`.catch(() => {});
+        await sqlPool`DELETE FROM fiaon_partner_firmen WHERE id = ANY(${ids})`.catch(() => {});
+      }
+      (await import("../server/lib/fiaon-radar-partner")).schonPartnerVergessen();
+    };
+    await crmLeeren();
     await leeren(); await sqlPool`DELETE FROM fiaon_radar_sperre`;
     await sqlPool`DELETE FROM fiaon_settings WHERE key LIKE 'radar_%'`;
-    await setzen({ radar_auto_versand: "an", radar_auto_nachfass: "aus", radar_mara_antwort: "entwurf", radar_auto_ab_passung: "70", radar_motor_tage: String(jetztBerlin.tag), radar_motor_von: "00:00", radar_motor_bis: bis });
+    // E-458 (Befund Go-live): Ohne Freigabe sendet der Motor nichts — die Läufe hier gelten dem freigegebenen Motor (die Sperre
+    // davor prüft Schritt 18). Die Freigabe liegt zwei Tage zurück: Woche 1 des Hochfahrens, wie nach einem echten Start.
+    await setzen({ radar_auto_versand: "an", radar_auto_nachfass: "aus", radar_mara_antwort: "entwurf", radar_auto_ab_passung: "70", radar_motor_tage: String(jetztBerlin.tag), radar_motor_von: "00:00", radar_motor_bis: bis,
+      radar_motor_freigabe: new Date(Date.now() - 2 * 86_400_000).toISOString() });
     const mailFirma = { betreff: "Ihre neue Halle", anrede: "Hallo Frau Beispiel,", absaetze: [
       "Ich habe gesehen, dass Sie in diesem Jahr eine zweite Halle bauen. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.",
-      "Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort."],
+      "Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH. Dann kümmern wir uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort."],
       frage: "Wäre das für Ihre Pläne gerade ein Thema?", ps: "", paket: null, warnungen: [], sperrend: [], geaendert: false, erstellt_am: new Date().toISOString(), mitLink: true, strom: "firma" };
     const mailPartner = { betreff: "Ihre Mandanten mit Plänen in den USA", anrede: "Guten Tag Max Beispiel,", absaetze: [
       "Ich habe auf Ihrer Website gelesen, dass Sie viele Onlinehändler betreuen, die auch an Kunden in Übersee verkaufen. Für genau diese Unternehmer haben wir etwas Passendes.",
@@ -923,6 +948,7 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     let schonWarf: any = null;
     try { await lib.radarMailAusgeben(schon, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { schonWarf = e; }
     ok(schonWarf?.status === 409 && /Geschäftspartner/.test(String(schonWarf?.message)) && !gesendet.some((g) => g.an.endsWith("@firma21.example")), `Schon Partner (CRM): keine Kaltmail beim Senden (${schonWarf?.message})`);
+    await crmLeeren();
 
     // 8. E-458 (Befund Sendefehler): Gmail-Störungen verbrennen keine geprüften Top-Firmen mehr.
     await leeren();
@@ -1101,6 +1127,115 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     let abgelehnt2 = "";
     try { await mo.radarMotorSetzen({ partnerProvisionText: "Tippgeld nach Absprache" }); } catch (e: any) { abgelehnt2 = String(e?.message ?? e); }
     ok(/Prozent/.test(abgelehnt2) && /zwei Jahre/.test((await lib.radarMotorEinstellung()).partnerProvisionText), "Provisions-Satz ohne „Prozent“ wird abgelehnt");
+    // 18. E-458 (Befund Go-live): Vor der Freigabe weder Vorbereitung von selbst noch Versand — „3 Mails vorbereiten“ geht.
+    await leeren();
+    // Die Feineinstellungen aus Schritt 17 zurück auf die Vorgaben (Hochfahren 20/40 usw.).
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_postfach_rampe', 'radar_motor_puffer', 'radar_motor_haltbar_tage', 'radar_motor_link', 'radar_pruef_ki_klang_max',
+                    'radar_motor_aehnlich_max', 'radar_zustell_rueck_max', 'radar_zustell_basis', 'radar_partner_provision_text')`;
+    const freiVorher = (await lib.radarMotorEinstellung()).freigabeAm;
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_motor_freigabe'`;
+    await anlegen(90);
+    r = await mo.radarMotorSenden({ sender });
+    const vorFreigabe = gesendet.length;
+    const zaehler = { entscheider: 0, fertig: 0, scannen: 0 };
+    const zaehlend = {
+      scannen: async () => { zaehler.scannen++; return null; }, entscheider: async () => { zaehler.entscheider++; return null; },
+      fertig: async () => { zaehler.fertig++; return { ok: true, grund: null }; }, pruefen: async () => ({ ok: true, grund: null }),
+    };
+    const vg1 = await mo.radarMotorVorbereiten({ schritte: zaehlend, max: 1 });
+    ok(r.gesendet === 0 && r.grund === "wartet auf Justins Freigabe" && vg1.aus === true && vg1.grund === "wartet auf Justins Freigabe" && gesendet.length === vorFreigabe,
+      `Vor der Freigabe: kein Versand, keine Vorbereitung von selbst (${r.grund} · ${vg1.grund})`);
+    await anlegen(91, { motor: null, signal: 4 });
+    await sqlPool`UPDATE fiaon_radar_firmen SET scan = ${sqlPool.json({ profil: {}, aufhaenger: [{ text: "x", beleg: "y" }] })} WHERE domain = 'firma91.example'`;
+    const vg2 = await mo.radarMotorVorbereiten({ schritte: zaehlend, max: 1, ohneHauptschalter: true });
+    ok(vg2.bereit === 1 && zaehler.fertig === 1, "„3 Mails vorbereiten“ (ohneHauptschalter) geht auch vor der Freigabe — Justin liest echte Mails, bevor etwas hinausgeht");
+    const am1 = await mo.radarMotorFreigeben(new Date("2026-10-30T06:00:00Z"));
+    const am2 = await mo.radarMotorFreigeben(new Date("2026-11-05T06:00:00Z"));
+    ok(am1 === "2026-10-30T06:00:00.000Z" && am2 === am1 && (await lib.radarMotorEinstellung()).freigabeAm === "2026-10-30T06:00:00.000Z", "Freigabe gesetzt — ein zweiter Klick überschreibt sie nicht");
+    // 19. Hochfahren ab der Freigabe: js@ mit Radar-Geschichte seit 40 Tagen startet in Woche 1 (20), nicht mit 60.
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_motor_bremse', 'radar_postfach_pause', 'radar_postfach_stoerung')`;
+    await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', 'alt-40', 'aus', 'erstmail', NOW() - INTERVAL '40 days')`;
+    await setzen({ radar_motor_freigabe: new Date(Date.now() - 86_400_000).toISOString() });
+    const grenzeW1 = (await mo.postfachLagen(new Date())).find((l) => l.adresse === "js@fiaon.com")?.grenze;
+    await setzen({ radar_motor_freigabe: new Date(Date.now() - 15 * 86_400_000).toISOString() });
+    const grenzeW3 = (await mo.postfachLagen(new Date())).find((l) => l.adresse === "js@fiaon.com")?.grenze;
+    ok(grenzeW1 === 20 && grenzeW3 === 60, `js@ (Radar seit 40 Tagen): einen Tag nach der Freigabe ${grenzeW1} am Tag, zwei Wochen danach ${grenzeW3}`);
+    // 20. Derselbe Mensch: dieselbe Adresse über eine andere Firma, derselbe Name im selben Ort → keine zweite Kaltmail.
+    await leeren();
+    const schonA = await anlegen(92, { motor: "gesendet", status: "versendet" });
+    await sqlPool`UPDATE fiaon_radar_firmen SET versendet_am = NOW() - INTERVAL '30 days', ort = 'Ulm' WHERE id = ${schonA}`;
+    const gleicheAdresse = await anlegen(93, { motor: null });
+    await sqlPool`UPDATE fiaon_radar_firmen SET email = 'anna.beispiel@firma92.example' WHERE id = ${gleicheAdresse}`;
+    ok((await mo.kandidatNehmen("firma", 0, [])) === null, "Vorbereiten: an diese Adresse ging schon eine erste Mail (andere Firma) → nicht genommen");
+    let doppelWarf: any = null;
+    try { await lib.radarMailAusgeben(gleicheAdresse, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true, an: "anna.beispiel@firma92.example" }); } catch (e) { doppelWarf = e; }
+    ok(doppelWarf?.status === 409 && /Schon angeschrieben/.test(String(doppelWarf?.message)), `Senden: dieselbe Adresse über eine andere Firma → 409 (${doppelWarf?.message})`);
+    const gleicherName = await anlegen(94, { motor: null });
+    await sqlPool`UPDATE fiaon_radar_firmen SET ort = 'Ulm' WHERE id = ${gleicherName}`;
+    let nameWarf: any = null;
+    try { await lib.radarMailAusgeben(gleicherName, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { nameWarf = e; }
+    ok(nameWarf?.status === 409 && /Anna Beispiel/.test(String(nameWarf?.message)), `Senden: derselbe Name im selben Ort (anderer Betrieb?) → 409 (${nameWarf?.message})`);
+    const andererOrt = await anlegen(95, { motor: null });
+    await sqlPool`UPDATE fiaon_radar_firmen SET ort = 'Köln' WHERE id = ${andererOrt}`;
+    const vorAnders = gesendet.length;
+    await lib.radarMailAusgeben(andererOrt, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true });
+    ok(gesendet.length === vorAnders + 1, "Gleicher Name, anderer Ort und andere Domäne: geht hinaus (kein Fehlalarm)");
+    // 21. Bekannte (hier: eine Anfrage mit Freemail-Adresse) bekommen keine Kaltmail — über den vollen Namen.
+    const pa21 = await import("../server/lib/fiaon-radar-partner");
+    const [anf] = (await sqlPool`INSERT INTO fiaon_anfragen (art, name, email) VALUES ('pruefstand', 'Erika Musterfrau', 'erika.musterfrau@gmx.de') RETURNING id`) as any[];
+    pa21.schonPartnerVergessen();
+    const bekannt = await anlegen(96, { motor: null });
+    await sqlPool`UPDATE fiaon_radar_firmen SET email = 'erika.musterfrau@firma96.example', ansprechpartner = 'Erika Musterfrau',
+                    entscheider = jsonb_set(jsonb_set(entscheider, '{name}', '"Erika Musterfrau"'), '{email}', '"erika.musterfrau@firma96.example"'),
+                    impressum = jsonb_set(impressum, '{vertreter}', '[{"name": "Erika Musterfrau", "funktion": "Geschäftsführerin"}]'::jsonb),
+                    mail = jsonb_set(mail, '{anrede}', '"Hallo Frau Musterfrau,"') WHERE id = ${bekannt}`;
+    let bekanntWarf: any = null;
+    try { await lib.radarMailAusgeben(bekannt, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { bekanntWarf = e; }
+    await sqlPool`DELETE FROM fiaon_anfragen WHERE id = ${anf.id}`;
+    pa21.schonPartnerVergessen();
+    ok(bekanntWarf?.status === 409 && /Schon bekannt \(Anfrage\)/.test(String(bekanntWarf?.message)) && (await pa21.schonBekannt({ person: "Erika Musterfrau" })) === null,
+      `Bekannt mit Freemail (Anfrage): über den vollen Namen erkannt → keine Kaltmail (${bekanntWarf?.message})`);
+    // 22. Altlasten: frische Firmen zuerst; eine Altlast bekommt keine zweite bezahlte Websuche und keinen Scan ohne Adresse.
+    await leeren();
+    const alt = await anlegen(97, { motor: null, signal: 5, passung: 99 });
+    await sqlPool`UPDATE fiaon_radar_firmen SET email = 'info@firma97.example', entscheider = NULL, entscheider_am = NOW() - INTERVAL '5 days', automatik_am = NOW() - INTERVAL '5 days', scan = NULL WHERE id = ${alt}`;
+    const frisch = await anlegen(98, { motor: null, signal: 4, passung: 80 });
+    const erste = await mo.kandidatNehmen("firma", 0, []);
+    ok(erste === frisch, `Altlasten zuletzt: zuerst die frische Firma (${erste} statt ${alt})`);
+    await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = NULL WHERE id = ${frisch}`;
+    zaehler.entscheider = 0; zaehler.scannen = 0;
+    const altErg = await mo.vorbereitenEine(alt, "firma", { ...zaehlend, entscheider: async (_id: number, websuche: boolean) => { zaehler.entscheider += websuche ? 100 : 1; return null; } }, { ableitung: true });
+    ok(altErg.ergebnis === "verworfen" && zaehler.entscheider === 1 && zaehler.scannen === 0 && /Websuche lief schon/.test(String(altErg.grund)),
+      `Altlast: nur der kostenlose Website-Schritt, keine zweite Websuche, kein Scan ohne Adresse (${altErg.grund})`);
+    // 23. KI-Geld: Hat die Vorbereitung ihren Teil des B2B-Topfs verbraucht, endet der Lauf vor der nächsten Firma.
+    const ks = await import("../server/lib/fiaon-ki-kasse");
+    await setzen({ ki_kasse_tag_usd: "10", radar_motor_ki_anteil: "50" });
+    await sqlPool`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, kosten_cents, ok) VALUES ('radar', 'pruefstand', 0, 0, 400, TRUE)`;
+    await ks.kasseFrisch();
+    const geld = await lib.radarVorbereitungGeld(await lib.radarMotorEinstellung());
+    const vgGeld = await mo.radarMotorVorbereiten({ max: 1 });
+    await sqlPool`DELETE FROM fiaon_ki_nutzung WHERE modell = 'pruefstand'`;
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('ki_kasse_tag_usd', 'radar_motor_ki_anteil')`;
+    await ks.kasseFrisch();
+    ok(!geld.frei && geld.grenze === 3.75 && /KI-Geld für die Vorbereitung heute verbraucht/.test(String(vgGeld.grund)) && vgGeld.bereit === 0,
+      `KI-Geld der Vorbereitung: 4 $ von 3,75 $ (50 % von 7,50 $) verbraucht → Lauf endet (${vgGeld.grund})`);
+    // 24. Nachfassen: eine gescheiterte Stufe kommt zurück (in einer Stunde), nur einmal.
+    const nf = await anlegen(99, { motor: "gesendet", status: "versendet" });
+    await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_stufe = 1, nachfass_faellig = NULL WHERE id = ${nf}`;
+    const z1 = await fd.nachfassStufeZurueck(nf, 1), z2 = await fd.nachfassStufeZurueck(nf, 1);
+    const nfZ = await zeile(nf);
+    ok(z1 && !z2 && nfZ.nachfass_stufe === 0 && new Date(nfZ.nachfass_faellig).getTime() > Date.now() + 50 * 60_000, "Nachfass-Stufe nach einem Sendefehler zurück (in einer Stunde erneut) — genau einmal");
+    // 25. Postfach-Schalter: ruht es noch wegen einer Störung, sagt die Meldung das ehrlich.
+    await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_postfach_stoerung', ${JSON.stringify({ "js@fiaon.com": { bis: new Date(Date.now() + 30 * 60_000).toISOString(), grund: "Gmail bremst kurz (zu viele Mails in kurzer Zeit)", n: 1 } })})
+                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+    const sch = await mo.radarPostfachSchalten("js@fiaon.com", false);
+    const lageS = (await mo.postfachLagen(new Date())).find((l) => l.adresse === "js@fiaon.com");
+    ok(!!sch.ruhtBis && /sendet es von selbst/.test(sch.meldung) && lageS?.pause === true && lageS?.aus === false && /Gmail bremst kurz/.test(String(lageS?.ruhtGrund)),
+      `Postfach-Schalter an, Störung läuft: ehrliche Meldung, Schalter „an“, ruht mit Grund (${sch.meldung})`);
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_postfach_stoerung'`;
+    const stand3 = await mo.radarMotorStand();
+    ok(!!stand3.lage?.chip && "freigabeAm" in stand3 && typeof stand3.ableitungAnteilJetzt === "number", `Stand fürs Chefbüro mit Lage („${stand3.lage?.chip}“), Freigabe und Anteil der Ableitung`);
+    if (freiVorher) await setzen({ radar_motor_freigabe: freiVorher });
     await sqlPool.end({ timeout: 2 });
   }
 }
@@ -1207,7 +1342,8 @@ abschnitt("Chef-Adresse ableiten — nur mit belegtem Muster und MX (E-458)");
   ok(/OR \(r\.status = 'unzustellbar' AND r\.entscheider->>'muster_widerlegt' = 'true'\)/.test(briefQ) && /'ohne_kontakt', 'unzustellbar'\) THEN 'brief'/.test(briefQ), "Der Brief-Lauf nimmt widerlegte Ableitungen; der Stand wird danach „Brief unterwegs“");
   ok(sh8.radarAbleitungUrteil({ gesendet: 30, rueck: 2, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 29, rueck: 9, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 100, rueck: 5, rueckMax: 5 }).abschalten, "Schutz: über 5 % Rückläufer abgeleiteter Adressen (ab 30 Sendungen) schaltet die Ableitung ab");
   const moQ = lies("server/lib/fiaon-radar-motor.ts");
-  ok(/abgeleitetErlaubt = m\.ableitung && \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= m\.ableitungAnteil/.test(moQ) && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Stunde höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen; Wache schaltet ab und legt eine Aufgabe an");
+  ok(/const anteil = radarAbleitungAnteilJetzt\(m, jetzt\);[\s\S]{0,200}abgeleitetErlaubt = m\.ableitung && \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= anteil/.test(moQ) && /\(p\.datum AT TIME ZONE 'Europe\/Berlin'\)::date = \$\{berlinToday\(jetzt\)\}::date`\) as any\[\];\s*let abg/.test(moQ)
+    && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Tag höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen (erste Woche nach der Freigabe 20 %); Wache schaltet ab und legt eine Aufgabe an");
   ok(/import \{ mailDomain \} from "\.\.\/lib\/fiaon-mx"/.test(lies("server/routes/fiaon-antrag-neu.ts")) && !/async function mailDomain/.test(lies("server/routes/fiaon-antrag-neu.ts")), "Der Antrag prüft MX über dieselbe Funktion (fiaon-mx.ts)");
   ok(/WHERE motor_status IS NULL|r\.motor_status IS NULL/.test(moQ) && !/automatik_am IS NULL/.test(moQ), "Die früher einmal versuchten Firmen (automatik_am) kommen über motor_status wieder dran");
 }
@@ -1245,7 +1381,7 @@ abschnitt("Postfächer: Rundlauf, Tagesgrenze, Hochfahren (E-458)");
   ok(vd.mx && vd.spf && vd.dkim && vd.dmarc && vd2.mx && !vd2.spf && !vd2.dkim && !vd2.dmarc, "DNS-Ampel (Attrappe): MX, SPF mit Google, DKIM, DMARC");
   const moQ = lies("server/lib/fiaon-radar-motor.ts"), fdQ = lies("server/lib/fiaon-radar-faden.ts");
   ok(/WHERE richtung = 'aus' AND art <> 'von_hand' AND postfach = ANY/.test(moQ) && /AND nachfass_stufe < \$\{RADAR_NACHFASS_TAGE\.length\} AND postfach = ANY/.test(moQ), "Tageszählung je Postfach: erste Mail, Nachfass und Mara (nicht Justins Antworten von Hand); fällige Nachfass-Mails reserviert");
-  ok(/const lage = lagen\.find\(\(l\) => l\.adresse === String\(f\.postfach\)\);\s*if \(lage && lage\.heute >= lage\.grenze\) \{ erg\.uebersprungen\+\+; continue; \}/.test(fdQ), "Nachfass bleibt im Postfach der ersten Mail und wartet, wenn es voll ist");
+  ok(/const lage = lagen\.find\(\(l\) => l\.adresse === String\(f\.postfach\)\);[\s\S]{0,400}if \(lage && \(lage\.pause \|\| lage\.heute >= lage\.grenze\)\) \{ erg\.uebersprungen\+\+; continue; \}/.test(fdQ), "Nachfass bleibt im Postfach der ersten Mail und wartet, wenn es voll oder pausiert ist");
   ok(/postfachJs: postfach === "js@fiaon\.com"/.test(fdQ) && /for \(const a of radarPostfaecher\(\)\) await postfachBereitschaft\(a\);\s*const genommen = await uebernehmen/.test(moQ), "Aus js@ antwortet Mara nie selbst (andere Postfächer dürfen); Bereitschaft vor der Sperre geprüft");
   ok(/"\/chef\/radar\/postfach\/:adresse\/pause", wache/.test(lies("server/routes/fiaon-radar.ts")) && /"\/chef\/radar\/postfach\/:adresse\/pruefen", wache/.test(lies("server/routes/fiaon-radar.ts")), "Postfach pausieren und prüfen hinter der Wache");
 }
@@ -1305,9 +1441,13 @@ abschnitt("Chefbüro: alle Schalter im Raum Firmen-Radar › Automatik (E-458)")
   const erlaubt = Array.from((motorWeg.match(/const erlaubt = \[([\s\S]*?)\];/)?.[1] ?? "").matchAll(/"([a-zA-Z]+)"/g)).map((m) => m[1]);
   const felder = Array.from(ui.matchAll(/feld\("([a-zA-Z]+)"/g)).map((m) => m[1]);
   const motorRufe = Array.from(ui.matchAll(/rufen\("\/chef\/radar\/motor", "POST", \{([^}]*)\}/g)).map((m) => m[1]).join(" ");
-  const fehltUi = erlaubt.filter((k) => !felder.includes(k) && !new RegExp(`\\b${k}\\b`).test(motorRufe) && !(k === "link" && /value=\{w\.link\}/.test(ui)));
+  const fehltUi = erlaubt.filter((k) => !felder.includes(k) && !new RegExp(`\\b${k}\\b`).test(motorRufe) && !(k === "link" && /value=\{w\.link\}/.test(ui))
+    && !(k === "postfachRampe" && /teil\.postfachRampe = \[w\.rampe1, w\.rampe2\]/.test(ui)));
   ok(erlaubt.length >= 23 && !fehltUi.length, `Jeder Schalter des Motors ist im Chefbüro bedienbar (${erlaubt.length}${fehltUi.length ? `; fehlt: ${fehltUi.join(", ")}` : ""})`);
-  const fehltWeg = Object.keys(sh8.RADAR_MOTOR_SCHLUESSEL).filter((k) => k !== "postfachAus" && !erlaubt.includes(k));
+  // Die Freigabe setzt NICHT der allgemeine Schalter-Weg, sondern nur „Freigeben und starten“ mit Bestätigung (eigene Route).
+  const fehltWeg = Object.keys(sh8.RADAR_MOTOR_SCHLUESSEL).filter((k) => k !== "postfachAus" && k !== "freigabeAm" && !erlaubt.includes(k));
+  ok(!erlaubt.includes("freigabeAm") && /"\/chef\/radar\/motor\/freigeben", wache[\s\S]{0,200}bestaetigt !== true/.test(rt) && /rufen\("\/chef\/radar\/motor\/freigeben", "POST", \{ bestaetigt: true \}\)/.test(ui),
+    "Die Freigabe des Motors nur über „Freigeben und starten“ mit Bestätigung (nicht über den allgemeinen Schalter-Weg)");
   ok(!fehltWeg.length && /<PostfachKachel /.test(ui) && /\/chef\/radar\/postfach\/\$\{encodeURIComponent\(/.test(ui), `Jeder Motor-Schlüssel ist einstellbar${fehltWeg.length ? ` (fehlt: ${fehltWeg.join(", ")})` : ""}; Postfach-Pausen über ihren Knopf`);
   ok(/<summary>Feineinstellungen<\/summary>/.test(ui) && /const stand = JSON\.stringify\(e\)/.test(ui) && /\}\), \[stand\]\);/.test(ui) && /v !== \(start as Record<string, string>\)\[k\]/.test(ui),
     "Feineinstellungen: aufklappbar, Eingaben überleben das Nachladen jede Minute, gespeichert wird nur, was sich geändert hat");
@@ -1332,6 +1472,163 @@ ok(!radarLandAktiv("AT") && !radarLandAktiv("at") && radarLandAktiv("DE") && rad
   ok(/if \(!radarLandAktiv\(radarLandFuer\(\{ land: landFirma, impressum: f, domain \}\)\)\) return nein\(/.test(r), "Aufnahme: auch .at-Domäne, UID ATU oder +43 gilt als Österreich („Österreich gewinnt“)");
   const texte = lies("client/src/components/admin/ChefRadar.tsx") + lies("client/src/pages/agent/rundgaenge.ts") + lies("shared/fiaon-radar.ts");
   ok(!/Österreich bekommt Briefe|Briefe statt Mails|im Brief-Vorrat|Österreich nur für den Brief|geht ein Brief statt einer Mail|hier geht der Brief statt der Mail/.test(texte), "Chefbüro, Rundgang und Zielbilder sagen nicht mehr „Österreich bekommt Briefe“");
+}
+
+abschnitt("Nachbesserung nach Sicht, echter Prüf-KI und Go-live-Prüfung (E-458, 29.10.2026)");
+{
+  const lib = await import("../server/lib/fiaon-radar");
+  const pk = await import("../server/lib/fiaon-radar-pruef");
+  const kasse = await import("../shared/fiaon-ki-kasse");
+  const mo = lies("server/lib/fiaon-radar-motor.ts"), rq = lies("server/lib/fiaon-radar.ts"), fq = lies("server/lib/fiaon-radar-faden.ts"), pq = lies("server/lib/fiaon-radar-pruef.ts");
+  const rt = lies("server/routes/fiaon-radar.ts"), ui = lies("client/src/components/admin/ChefRadar.tsx"), rg = lies("client/src/pages/agent/rundgaenge.ts");
+  // ── Prüf-KI: Schlusssatz nicht in der Eingabe, Aufwand medium, Zweitmeinung nur bei „nur Zusage“ ──
+  let eingabe = "";
+  pk.radarPruefModellSetzen(async (e) => { eingabe = e.eingabe; return JSON.stringify({ ok: true, ki_klang: 1, bezug_konkret: true, nutzen_klar: true, eine_frage: true, zusage: false, erfunden: false, punkte: [], neu_hinweis: "" }); });
+  await pk.radarMailPruefKi({ name: "Beispiel GmbH", domain: "beispiel.example", scan: { aufhaenger: [{ text: "Neue Halle", beleg: "Wir bauen eine zweite Halle" }], profil: {} } },
+    { betreff: "Ihre neue Halle", absaetze: ["Ein Absatz."], frage: "Passt das?", schluss: sh8.RADAR_SCHLUSSSAETZE[2] }, { strom: "firma" });
+  pk.radarPruefModellSetzen(null);
+  ok(!!eingabe && !sh8.RADAR_SCHLUSSSAETZE.some((x) => eingabe.includes(x)) && !eingabe.includes(lib.RADAR_LINK_SATZ), "Prüf-KI: Schlusssatz und Link-Satz stehen NICHT in der Eingabe (sie hielt sie für einen Fehler der Schreib-KI)");
+  ok(/zweck: "radar_pruef", anweisung, eingabe, schema: SCHEMA_PRUEF, aufwand: "medium"/.test(pq), "Prüf-KI denkt mit Aufwand „medium“ (bei „low“ oft gar nicht — genau diese Urteile schwankten)");
+  const urteil = (x: Record<string, unknown>) => ({ ok: false, ki_klang: 2, bezug_konkret: true, nutzen_klar: true, eine_frage: true, zusage: true, erfunden: false, punkte: [], neu_hinweis: "", ...x });
+  ok(sh8.radarNurZusage(urteil({}) as any, 3) && !sh8.radarNurZusage(urteil({ erfunden: true }) as any, 3) && !sh8.radarNurZusage(urteil({ ki_klang: 5 }) as any, 3) && !sh8.radarNurZusage(urteil({ zusage: false }) as any, 3),
+    "„Nur Zusage“ erkannt — mit Erfundenem, KI-Klang über der Grenze oder ohne Zusage nicht");
+  let rufe = 0;
+  const pruefung = (u: Record<string, unknown>) => async () => { rufe++; const r = sh8.radarPruefUrteil(urteil(u), 3); return { ...r, modell: "attrappe", hash: "h" }; };
+  let zm = await pk.radarPruefMitZweitmeinung(pruefung({}), 3);
+  ok(rufe === 2 && zm.zweitmeinung === true, "Nur „Zusage“: ein zweites Urteil, bevor neu geschrieben wird");
+  rufe = 0; zm = await pk.radarPruefMitZweitmeinung(pruefung({ erfunden: true }), 3);
+  ok(rufe === 1 && !zm.zweitmeinung, "Erfunden (echter Fehler): kein zweites Urteil — gleich neu schreiben");
+  rufe = 0; zm = await pk.radarPruefMitZweitmeinung(pruefung({ ok: true, zusage: false }), 3);
+  ok(rufe === 1 && zm.bestanden, "Bestanden: kein zweiter Aufruf");
+  ok(/radarPruefMitZweitmeinung\(\(\) => radarMailPruefKi\(f, mail,/.test(pq) && /radarPruefMitZweitmeinung\(\(\) => radarMailPruefKi\(f, f\.mail,/.test(pq) && /radarPruefMitZweitmeinung\(\(\) => radarMailPruefKi\(f, \{ betreff/.test(fq),
+    "Zweitmeinung in Motor, „Prüfen lassen“ und Nachfassen");
+  // ── Fingerabdruck: ohne Provisions-Satz und Hauswort, gegen die Ton-Beispiele, Betreff doppelt ──
+  const satz = sh8.RADAR_MOTOR_VORGABE.partnerProvisionText;
+  const p1 = { absaetze: ["Auf Ihrer Seite steht, dass Sie vor allem Händler begleiten.", `Für jeden Kunden, den Sie uns vorstellen, bekommen Sie ${satz}. Den Rest erledigt unser Team.`], frage: "Darf ich Ihnen die Konditionen dafür schriftlich schicken?" };
+  const p2 = { absaetze: ["Ihre Kanzlei betreut viele Gründer aus der Region.", `Wer uns einen Kunden vorstellt, bekommt ${satz}. Die Arbeit mit dem Kunden bleibt bei Ihnen.`], frage: "Wäre das für Ihre Mandanten etwas?" };
+  const roh = sh8.radarAehnlichkeit(pk.radarMailKoerper(p2), [pk.radarMailKoerper(p1)]);
+  const ohne = pk.radarMailAehnlichkeit(p2, [pk.radarMailKoerper(p1)], "partner", satz);
+  ok(roh > 0 && ohne < roh, `Fingerabdruck ohne den freigegebenen Provisions-Satz (${roh} → ${ohne})`);
+  ok(!sh8.radarFingerabdruckText("viele Karten mit einem Einführungszeitraum ohne Sollzins").includes("Sollzins"), "Fingerabdruck ohne das Hauswort „Einführungszeitraum ohne Sollzins“");
+  const kopie = { absaetze: [lib.RADAR_TON_BEISPIELE.slice(0, 3).join(" "), lib.RADAR_TON_BEISPIELE.slice(3, 6).join(" ")], frage: lib.RADAR_TON_BEISPIELE[6] };
+  ok(pk.radarMailAehnlichkeit(kopie, [], "firma") > 0.35, "Eine Mail, die die Ton-Beispiele abschreibt, fällt durch den Fingerabdruck");
+  ok(sh8.radarBetreffSchluessel("Ihre neue Halle!") === sh8.radarBetreffSchluessel(" ihre  NEUE halle ") && sh8.radarBetreffSchluessel("Ihre Halle") !== sh8.radarBetreffSchluessel("Ihre neue Halle"), "Betreff-Schlüssel: Groß/Klein und Satzzeichen egal");
+  const hinweise: (string | null)[] = [];
+  const doppelErg = await pk.radarFertigAblauf({
+    schreiben: async (hw) => { hinweise.push(hw); return { sperrend: [] as string[], betreff: hinweise.length === 1 ? "Ihre neue Halle" : "Ihr zweiter Standort" }; },
+    pruefen: async () => ({ bestanden: true, urteil: null, gruende: [], modell: "attrappe", hash: "h" }),
+    aehnlich: () => 0.1, aehnlichMax: 0.35, betreffDoppelt: (m) => m.betreff === "Ihre neue Halle",
+  });
+  ok(doppelErg.ok && hinweise.length === 2 && /Denselben Betreff gab es schon/.test(String(hinweise[1])), "Betreff schon einmal verwendet → einmal neu, mit Hinweis (ohne die Prüf-KI zu bezahlen)");
+  // ── Schreib-Anweisung: Einstieg je Firma, Ton-Beispiele statt Vorbild, Folgerung allgemein, Nutzen als Möglichkeit ──
+  ok(new Set([0, 1, 2, 3].map((i) => sh8.radarEinstiegFuer(i).key)).size === 4 && sh8.radarEinstiegFuer(4).key === sh8.radarEinstiegFuer(0).key, "Vier Einstiege, je Firma fest (nicht jede Mail beginnt mit „Ich habe gesehen“)");
+  ok(/const einstieg = radarEinstiegFuer\(id\)\.anweisung;/.test(rq) && /mailAnweisung\(einstieg\)/.test(rq) && /mailAnweisungPartner\(radarPartnerGruppe\(f\.bereich\), motor\.partnerProvisionText, einstieg\)/.test(rq), "Schreib-KI bekommt den Einstieg dieser Firma");
+  ok(!/Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf/.test(rq) && !/das Kapital können Sie auch hier einsetzen/.test(rq) && /TON-BEISPIELE \(nur der Ton; nie einen dieser Sätze übernehmen/.test(rq),
+    "Das alte Ton-Vorbild (abgeschrieben, von der Prüf-KI abgelehnt) ist weg; kurze, verschiedene Ton-Beispiele");
+  ok(/Folgerung als ALLGEMEINE Erfahrung mit „meist“, „oft“ oder „häufig“/.test(rq) && /als MÖGLICHKEIT \(„wenn es klappt“, „hätten Sie“\), nie als sicheres Geld/.test(rq) && /unterstellt keine Pläne, Wünsche oder Probleme/.test(rq),
+    "Anweisung: Folgerung allgemein (nie Unbelegtes über die Firma), Nutzen als Möglichkeit, Partner-Betreff ohne Unterstellung");
+  ok(!/Ihre Mandanten mit Plänen in den USA/.test(rq) && /lieber „Kapital aus den USA“ als „Funding“/.test(rq), "Kein Betreff-Vorbild mehr, das Pläne unterstellt; kein Fachjargon");
+  ok(/wenn es klappt/.test(sh8.RADAR_KERNSATZ.vorteil) && !globalWortPruefen(sh8.RADAR_KERNSATZ.vorteil).length, "Kernsatz: der Vorteil als Möglichkeit („wenn es klappt“), besteht die Wortwand");
+  const punkteSt = sh8.radarPartnerAngebotPunkte(sh8.radarPartnerGruppe("steuerberater"), satz).join(" ");
+  const punkteKv = sh8.radarPartnerAngebotPunkte(sh8.radarPartnerGruppe("kreditvermittler"), satz).join(" ");
+  ok(!/provision|prozent|honorar/i.test(punkteSt) && /Kanzlei in Deutschland, die beide Seiten kennt/.test(punkteSt) && punkteKv.includes(satz) && /unberührt/.test(punkteKv),
+    "Partner-Angebot als Inhalt: Kanzlei ohne Provision mit echtem Grund; Vermittler mit dem Provisions-Satz");
+  ok(sh8.RADAR_PARTNER_GRUPPEN.every((g) => !/Tippgeber/.test(g.frage)), "Partner-Fragen ohne „Tippgeber“ (klingt für einen Profi klein)");
+  // ── Strenge Wand: Satzlänge, „sprechen … an“, Schlusssatz nach dem Link ──
+  const satz23 = Array.from({ length: 23 }, (_, i) => `wort${i}`).join(" ") + ".";
+  const satz22 = Array.from({ length: 22 }, (_, i) => `wort${i}`).join(" ") + ".";
+  const wand = (absatz: string, extra: Record<string, unknown> = {}) => lib.radarMailStreng({ betreff: "Ihre Halle", absaetze: [absatz, "Ich schreibe Ihnen kurz."], frage: "Passt das?" }, { streng: true, strom: "firma", ...extra });
+  ok(wand(satz23).some((x) => /Satz mit 23 Wörtern/.test(x)) && !wand(satz22).some((x) => /Satz mit/.test(x)) && !wand(satz23, { woerter: [25, 60], frageOptional: true }).some((x) => /Satz mit/.test(x)),
+    "Streng: ein Satz über 22 Wörter sperrt (erste Mail); 22 geht; beim Nachfassen keine Satzgrenze");
+  const pw = (t: string) => lib.radarMailStreng({ betreff: "Ihre Mandanten", absaetze: [t, "Ich schreibe Ihnen kurz."], frage: "Haben Sie solche Mandanten?" }, { streng: true, strom: "partner", gruppe: "steuerberater", mitLink: false });
+  ok(!pw("Sie sprechen dort Händler an, die ins Ausland verkaufen.").some((x) => /Gesprächswunsch/.test(x)) && pw("Darüber sprechen wir gern kurz.").some((x) => /Gesprächswunsch/.test(x)) && pw("Ein kurzes Gespräch dazu?").some((x) => /Gesprächswunsch/.test(x)),
+    "Partner-Wand: „sprechen … an“ ist kein Gesprächswunsch; „sprechen wir“ und „Gespräch“ sperren weiter");
+  const ohneEcho = "Wäre das für die neue Halle eine Hilfe?";
+  ok([0, 1, 2, 3, 4, 5, 6, 7].every((id) => !/^wenn\b/i.test(sh8.radarSchlusssatzFuer(id, ohneEcho, { mitLink: true }))) && [0, 1, 2, 3, 4, 5].some((id) => /^wenn\b/i.test(sh8.radarSchlusssatzFuer(id, ohneEcho))),
+    "Nach dem Terminlink („Wenn Sie mögen …“) kein Schlusssatz, der auch mit „Wenn“ beginnt");
+  ok(/radarSchlusssatzFuer\(id, entwurf\.frage, \{ mitLink \}\)/.test(rq) && /radarSchlusssatzFuer\(id, frage, \{ mitLink \}\)/.test(rq), "Schreiben und Hand-Änderung wählen den Schlusssatz mit Blick auf den Link");
+  // ── Anrede: weibliche Rolle am Namen belegt „Frau“ ──
+  ok(lib.radarFormAusRolle({ impressum: { vertreter: [{ name: "Hannah Albrecht", funktion: "Geschäftsführerin" }] } }, "Hannah Albrecht") === "Frau"
+    && lib.radarFormAusRolle({ impressum: { vertreter: [{ name: "Max Müller", funktion: "Geschäftsführer" }] } }, "Max Müller") === null
+    && lib.radarFormAusRolle({ impressum: { vertreter: [{ name: "Hannah Albrecht (Inhaberin)" }] } }, "Hannah Albrecht") === "Frau"
+    && lib.radarFormAusRolle({ impressum: { vertreter: [{ name: "Anna Beispiel", funktion: "Geschäftsführerin" }] } }, "Max Müller") === null,
+    "Anrede: „Geschäftsführerin“/„Inhaberin“ am Namen → „Frau“; männliche Form oder fremder Name → nichts geraten");
+  ok(lib.anredeFuer("Hannah Albrecht", "Frau") === "Hallo Frau Albrecht," && lib.anredeFuer("Petra Brandt", "Frau", { partner: true }) === "Guten Tag Frau Brandt,", "„Hallo Frau Albrecht,“ statt „Guten Tag Hannah Albrecht,“");
+  // ── Klartext statt roher Gmail-Fehler; was der Motor gerade tut ──
+  ok(sh8.radarFehlerKlartext('Gmail js@fiaon.com /messages/send: HTTP 429 {"code":429,"message":"User-rate limit exceeded"}') === "Gmail bremst kurz (zu viele Mails in kurzer Zeit)"
+    && sh8.radarFehlerKlartext("Token für js@fiaon.com: HTTP 401 {}") === "Gmail-Zugang abgelaufen oder gesperrt" && sh8.radarFehlerKlartext("fetch failed") === "Gmail kurz nicht erreichbar"
+    && sh8.radarFehlerKlartext("Gmail js@fiaon.com /messages/send: HTTP 400 Invalid To header") === "Gmail hat diese Mail abgelehnt",
+    "Gmail-Fehler in einfachen Worten (429, Token, Netz, Ablehnung) — keine Rohmeldung in Kachel und Akte");
+  ok(!/Sendet wieder ab \$\{uhr\} Uhr: \$\{s\.grund\}/.test(mo) && /radarFehlerKlartext\(grund\)\.slice\(0, 200\)/.test(mo), "Störung des Postfachs wird in Klartext gespeichert und gezeigt");
+  const pfl = (x: Record<string, unknown> = {}) => ({ adresse: "js@fiaon.com", grenze: 20, heute: 0, reserve: 0, bereit: true, ...x });
+  const lage = (x: Record<string, unknown>) => sh8.radarMotorLage({ an: true, freigabe: true, imFenster: true, schlange: 3, von: "07:00", postfaecher: [pfl()], ...x } as any);
+  ok(lage({ freigabe: false }).chip === "wartet auf deine Freigabe" && !lage({ freigabe: false }).senden && lage({ an: false }).chip === "aus" && lage({ imFenster: false }).chip === "bereitet vor",
+    "Motor-Lage: Freigabe, Schalter, Fenster");
+  const voll = lage({ postfaecher: [pfl({ heute: 75, grenze: 60 })] });
+  const stoer = lage({ postfaecher: [pfl({ pause: true, ruhtBis: "2026-10-29T16:13:00Z", ruhtGrund: "Gmail bremst kurz (zu viele Mails in kurzer Zeit)" })] });
+  ok(voll.chip === "für heute voll" && /75 von 60/.test(String(voll.grund)) && /Morgen ab 07:00 Uhr/.test(String(voll.grund)) && !voll.senden, `„heute möglich 0“ sagt den wahren Grund (${voll.grund})`);
+  ok(stoer.chip === "Störung bis 17:13" && /Gmail bremst kurz/.test(String(stoer.grund)) && !stoer.senden && lage({ schlange: 0 }).chip === "Warteschlange leer" && lage({}).senden && lage({}).chip === "sendet gerade",
+    "Motor-Lage: Störung mit Uhrzeit, leere Warteschlange, sendet gerade");
+  // ── Freigabe, Hochfahren ab Freigabe, Ableitung in der ersten Woche ──
+  const mFrei = sh8.radarMotorLesen({ radar_motor_freigabe: "2026-10-30T06:00:00Z" });
+  ok(sh8.radarMotorLesen({}).freigabeAm === null && mFrei.freigabeAm === "2026-10-30T06:00:00.000Z" && sh8.radarMotorLesen({ radar_motor_freigabe: "quatsch" }).freigabeAm === null, "Freigabe lesen: ohne Wert keine, Unsinn keine");
+  ok(sh8.radarPostfachStart(null, mFrei.freigabeAm) === null && sh8.radarPostfachStart("2026-09-19T08:00:00Z", mFrei.freigabeAm)?.toISOString() === "2026-10-30T06:00:00.000Z"
+    && sh8.radarPostfachStart("2026-11-05T08:00:00Z", mFrei.freigabeAm)?.toISOString() === "2026-11-05T08:00:00.000Z",
+    "Hochfahren: ohne Geschichte Woche 1; mit Geschichte frühestens ab der Freigabe (js@ seit 19.09. → ab Freigabe)");
+  const js = sh8.radarPostfachGrenze({ ersterVersand: sh8.radarPostfachStart("2026-09-19T08:00:00Z", mFrei.freigabeAm), jetzt: new Date("2026-10-30T12:00:00Z"), jeTag: 60, rampe: [20, 40] });
+  ok(js === 20 && sh8.radarPostfachGrenze({ ersterVersand: "2026-09-19T08:00:00Z", jetzt: new Date("2026-10-30T12:00:00Z"), jeTag: 60, rampe: [20, 40] }) === 60, `js@ fährt ab der Freigabe hoch: Woche 1 → ${js} statt sofort 60`);
+  ok(/radarPostfachGrenze\(\{ ersterVersand: radarPostfachStart\(g\?\.erster \?\? null, m\.freigabeAm\)/.test(mo), "postfachLagen rechnet das Hochfahren ab der Freigabe");
+  ok(sh8.radarAbleitungAnteilJetzt({ ...mFrei, ableitungAnteil: 50, ableitungAnteilEigen: false }, new Date("2026-11-02T12:00:00Z")) === 20
+    && sh8.radarAbleitungAnteilJetzt({ ...mFrei, ableitungAnteil: 50, ableitungAnteilEigen: false }, new Date("2026-11-08T12:00:00Z")) === 50
+    && sh8.radarAbleitungAnteilJetzt({ ...mFrei, ableitungAnteil: 50, ableitungAnteilEigen: true }, new Date("2026-11-02T12:00:00Z")) === 50
+    && sh8.radarMotorLesen({ radar_ableitung_anteil: "35" }).ableitungAnteilEigen && !sh8.radarMotorLesen({}).ableitungAnteilEigen,
+    "Ableitung: erste Woche nach der Freigabe höchstens 20 %, danach 50 %; ausdrücklich gesetzt gilt der eigene Wert");
+  ok(/if \(!m\.freigabeAm && !opt\.ohneHauptschalter\) return \{ \.\.\.erg, aus: true, grund: "wartet auf Justins Freigabe" \}/.test(mo) && /if \(!m\.freigabeAm\) return \{ \.\.\.erg, grund: "wartet auf Justins Freigabe" \}/.test(mo),
+    "Vor der Freigabe: keine Vorbereitung von selbst, kein Versand (auch nicht „Jetzt eine senden“)");
+  ok(/radarMotorVorbereiten\(\{ max: 3, ohneHauptschalter: true \}\)/.test(rt) && /ON CONFLICT \(key\) DO UPDATE SET value = fiaon_settings\.value RETURNING value/.test(mo), "„3 Mails vorbereiten“ geht vor der Freigabe; die Freigabe wird nie überschrieben");
+  ok(/Freigeben und starten/.test(ui) && /3 Mails vorbereiten/.test(ui) && /Freigeben und starten/.test(rg), "Chefbüro und Rundgang: Freigabe-Kasten mit „3 Mails vorbereiten“ und „Freigeben und starten“");
+  // ── KI-Geld: Antworten zahlen aus „Antworten an Menschen“, Vorbereitung höchstens kiAnteil % des B2B-Topfs ──
+  ok(lib.radarKiDienst("radar_antwort") === "radar-antwort" && lib.radarKiDienst("radar_mara") === "radar-antwort" && lib.radarKiDienst("radar_mail") === "radar" && lib.radarKiDienst("radar_pruef") === "radar",
+    "Antworten einordnen und Maras Antwort laufen als eigener Dienst „radar-antwort“");
+  ok(kasse.bereichFuer("radar-antwort") === "menschen" && kasse.bereichFuer("global-berater") === "menschen" && kasse.bereichFuer("radar") === "b2b" && kasse.bereichFuer("radar_irgendwas") === "b2b",
+    "KI-Kasse: Radar-Antworten und Fach-Chat der Global-Kunden = Antworten an Menschen (Vorrang); Radar-Vorbereitung bleibt B2B");
+  ok(/const heute = dienst === "radar" \? await kostenHeute\("radar"\)/.test(rq) && /openaiFetch\(dienst, "\/responses"/.test(rq), "Der Radar-Deckel gilt nicht für Antworten an Menschen");
+  ok(sh8.radarMotorLesen({}).kiAnteil === 60 && sh8.radarMotorLesen({ radar_motor_ki_anteil: "5" }).kiAnteil === 60 && sh8.radarMotorLesen({ radar_motor_ki_anteil: "40" }).kiAnteil === 40, "KI-Anteil der Vorbereitung: Vorgabe 60 %, 10–100");
+  ok(/const geld = await radarVorbereitungGeld\(m\);\s*if \(!geld\.frei\)/.test(mo) && /const geld = await radarVorbereitungGeld\(motor\);\s*if \(!geld\.frei\) \{ fehler = geld\.grund; break; \}/.test(rq), "Vor jeder Runde des Motors und vor jedem Suchlauf: KI-Geld der Vorbereitung geprüft");
+  // ── Vorrat: EINE Definition; Altlasten zuletzt und ohne zweite bezahlte Websuche ──
+  ok(/WHERE \$\{sqlMotorVorrat\(abPassung, motor\.partnerGruppen\)\} OR motor_status IN \('arbeit', 'bereit'\)/.test(rq) && (mo.match(/sqlMotorVorrat\(a\.abPassung, m\.partnerGruppen\)/g) ?? []).length === 2,
+    "Vorrat gezählt wie der Motor auswählt — im Tageslauf (Firmen vs. Partner), im Motor und im Chefbüro");
+  const jetzt = new Date("2026-10-30T10:00:00Z");
+  ok(lib.radarWebsucheErfolglos({ entscheider: null, entscheider_am: "2026-10-20T10:00:00Z", automatik_am: "2026-10-20T10:00:00Z" }, jetzt)
+    && !lib.radarWebsucheErfolglos({ entscheider: null, entscheider_am: "2026-10-20T10:00:00Z", automatik_am: null }, jetzt)
+    && !lib.radarWebsucheErfolglos({ entscheider: null, entscheider_websuche_am: "2026-09-10T10:00:00Z" }, jetzt)
+    && !lib.radarWebsucheErfolglos({ entscheider: { name: "X" }, entscheider_websuche_am: "2026-10-29T10:00:00Z" }, jetzt),
+    "Altlast: Websuche (alter Lauf oder Motor) in den letzten 30 Tagen ohne Ergebnis → keine zweite bezahlte Suche");
+  ok(/const websucheVergeblich = radarWebsucheErfolglos\(f\);\s*await schritte\.entscheider\(id, false\);/.test(mo) && /if \(!persoenlich\(f\) && !websucheVergeblich\) \{ await schritte\.entscheider\(id, true\);/.test(mo)
+    && mo.indexOf("await schritte.entscheider(id, false)") < mo.indexOf("await schritte.scannen(id)"), "Erst die kostenlosen Schritte (Website, Ableitung), dann die Websuche (nicht doppelt), erst mit Adresse der bezahlte Scan");
+  ok(/SET entscheider_websuche_am = NOW\(\) WHERE id = \$\{id\}/.test(lies("server/lib/fiaon-radar-entscheider.ts")), "Die bezahlte Websuche merkt sich ihr Datum");
+  ok(/COUNT\(\*\) FILTER \(WHERE motor_status = 'bereit' AND COALESCE\(entscheider->>'weg', ''\) = 'abgeleitet'\)::int AS abgeleitet/.test(mo) && /Math\.min\(Number\(z\.abgeleitet\)/.test(mo),
+    "Puffer: abgeleitete Mails zählen nur bis zu ihrem erlaubten Anteil (keine Warteschlange, die stillsteht)");
+  // ── Derselbe Mensch, bekannte Kunden und Partner, Österreich-Adresse, Nachfassen ──
+  ok(sh8.radarPersonSchluessel("Dr. Petra Brandt") === "petra brandt" && sh8.radarPersonSchluessel("Brandt") === "" && sh8.radarGleicherBetrieb({ ort: "Freiburg im Breisgau", domain: "a.example" }, { ort: "Freiburg", domain: "b.example" })
+    && sh8.radarGleicherBetrieb({ domain: "kornblume-backstuben.example" }, { domain: "kornblume.example" }) && !sh8.radarGleicherBetrieb({ ort: "Ulm", domain: "kanzlei-meier.example" }, { ort: "Köln", domain: "kanzlei-schulz.example" }),
+    "Derselbe Mensch: Name als Schlüssel; gleicher Betrieb über Ort oder Domänen-Kern („kanzlei“ zählt nicht)");
+  ok(/const doppelt = await radarSchonAngeschrieben\(f, an, person\);/.test(rq) && /const bekannt = await partnerModul\.schonBekannt\(/.test(rq) && /if \(\/\\\.at\$\/i\.test\(an\)\) throw new RadarFehler/.test(rq),
+    "Beim Senden: derselbe Mensch nie zweimal, bekannte Kunden/Tippgeber/Partner nie, keine Adresse auf .at");
+  ok(/AND NOT EXISTS \(SELECT 1 FROM fiaon_radar_firmen y WHERE y\.id <> r\.id AND y\.versendet_am IS NOT NULL AND r\.email IS NOT NULL AND lower\(y\.email\) = lower\(r\.email\)\)/.test(mo), "Vorbereiten: an diese Adresse ging schon eine erste Mail → gar nicht erst vorbereiten");
+  const paQ = lies("server/lib/fiaon-radar-partner.ts");
+  ok(/FROM fiaon_global_angebote/.test(paQ) && /FROM fiaon_global_konten/.test(paQ) && /FROM fiaon_persons WHERE primary_email/.test(paQ) && /t\.quelle = 'global'/.test(paQ) && /FROM fiaon_koop_empfehlungen/.test(paQ) && /bekannteDomains\(\)/.test(rq),
+    "Bekannte: Global-Angebote (auch IA-KOOP-Tippgeber mit Freemail, über den Namen), Konten, Global-Bucher, Kunden, Empfehlungen — auch bei der Suche ausgeschlossen");
+  ok(/if \(radarSendeFehlerArt\(e\) !== "unklar"\) await nachfassStufeZurueck\(Number\(f\.id\), stufe\);/.test(fq) && /nachfass_faellig = NULL, updated_at = NOW\(\) WHERE id = \$\{firmaId\}/.test(fq),
+    "Nachfassen: gescheiterte Stufe kommt zurück; schreibt ein Mensch selbst im Faden, endet das automatische Nachfassen");
+  // ── Chefbüro ──
+  ok(/const an = !!a && \(a\.versand \|\| a\.nachfass\);/.test(ui) && !/mara: "auto" \} : \{ versand: false/.test(ui), "Not-Aus: der große Schalter zeigt „an“, solange irgendetwas sendet; Einschalten ändert „Mara antwortet“ nicht");
+  ok(/<SuchFenster start=\{suchen\}/.test(ui) && /useState<"firma" \| "partner">\(start\)/.test(ui) && /\.\.\.RADAR_LAENDER_AKTIV\.map/.test(ui) && !/\["AT", "AT"\]/.test(ui), "„Partner suchen“ öffnet die Partnersuche; kein „AT“ mehr im Suchfenster");
+  ok(/className="cr-mara-frage" data-volltext/.test(ui) && /<Kippe an=\{!p\.aus\}/.test(ui) && /radarPostfachSchalten/.test(rt) && /cr-motor-chip/.test(ui) && /set\("motor", motorFilter\)/.test(ui) && /motor_status = \$\{motor\}/.test(rq),
+    "Chefbüro: Einschalt-Frage ganz lesbar, Postfach-Schalter nur für die eigene Pause, Motor-Stand in der Liste mit Filter");
+  ok(/Erste Mails je Stunde heute/.test(ui) && /cr-motor-ziel/.test(ui) && /Partnersignal/.test(ui) && /"Geschäftspartner"\]/.test(ui) && /sendenGesperrt/.test(ui) && /KI heute<\/dt><dd>[^<]*\$<\/dd>/.test(ui),
+    "Chefbüro: Stunden-Leiste mit Überschrift und Ziel-Linie, Partner-Wörter, Senden nur mit Unterschrift und Freigabe, KI in Dollar");
+  ok(/raum="firmen-radar-2"/.test(ui) && /Reiter „Automatik“/.test(rg), "Rundgang: neuer Merker (alle sehen die neuen Schritte einmal), Schritte nennen den Reiter „Automatik“");
 }
 
 abschnitt("Ergebnis");

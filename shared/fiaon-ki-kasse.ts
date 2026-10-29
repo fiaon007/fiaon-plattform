@@ -119,7 +119,7 @@ export interface BereichSicht { key: KasseBereich; label: string; satz: string; 
 
 export const KASSE_BEREICHE: readonly BereichSicht[] = [
   { key: "b2b", label: "B2B-Neukunden", satz: "Firmen-Radar, Mail-Motor, Partner, Ratgeber." },
-  { key: "menschen", label: "Antworten an Menschen", satz: "Postfach, WhatsApp, Anliegen — bei Knappheit zuerst.", vorrang: true },
+  { key: "menschen", label: "Antworten an Menschen", satz: "Postfach, WhatsApp, Anliegen, Antworten im Firmen-Radar, Fach-Chat der Global-Kunden — bei Knappheit zuerst.", vorrang: true },
   { key: "privat", label: "Privat-Mails", satz: "Mail-Aktion und Mara-Aufträge." },
   { key: "haus", label: "Haus", satz: "Texterkennung, Prüfungen, Analysen, Copilot." },
 ];
@@ -148,11 +148,13 @@ export const KASSE_SCHLUESSEL = {
 
 /**
  * Welcher Dienst (fiaon_ki_nutzung.dienst, erster Parameter von openaiFetch) zahlt aus welchem Topf.
- * Was hier fehlt, ist „Haus“. Der Firmen-Radar (und mit ihm der Mail-Motor) ist ganz B2B — den Zweck je
- * Radar-Aufruf (Suche, Scan, Mail, Antwort) unterscheidet die Kasse erst, wenn der Radar ihn mitschreibt.
+ * Was hier fehlt, ist „Haus“. Der Firmen-Radar (und mit ihm der Mail-Motor) zahlt Suche, Scan, Mail, Prüf-KI und Nachfassen
+ * aus B2B. E-458 (Befund Go-live): Das Einordnen von Antworten und Maras Antwort („radar-antwort“) und der Fach-Chat der
+ * zahlenden Global-Kunden („global-berater“) sind Antworten an Menschen — mit Vorrang, nie hinter der Vorbereitung.
  */
 const ZUORDNUNG: Readonly<Record<string, KasseBereich>> = {
-  radar: "b2b", "partner-crm": "b2b", firmen: "b2b", impressum: "b2b", "global-berater": "b2b", ratgeber: "b2b",
+  radar: "b2b", "partner-crm": "b2b", firmen: "b2b", impressum: "b2b", ratgeber: "b2b",
+  "radar-antwort": "menschen", "global-berater": "menschen",
   "postmeister-antwort": "menschen", "postmeister-einordnen": "menschen", "postmeister-alt": "menschen",
   "mara-whatsapp": "menschen", "mara-anliegen": "menschen", "mara-nacharbeit": "menschen", "kontakt-chat": "menschen",
   "mara-aktion": "privat", "mara-auftrag": "privat",

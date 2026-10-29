@@ -226,7 +226,7 @@ export const CHEF_SEITEN: ChefSeite[] = [
   { slug: "aras-probe", label: "Aras-Probe (jetzt in KI-Team › Aras)", satz: "Umgezogen in den Raum „KI-Team“.", Seite: ArasProbeUmzug, raum: "", mindest: "inhaber", eigenesDesign: true },
   // 19.09.2026: Firmen-Radar — täglich 50 passende Firmen, Scan der Website, persönliche erste Mail.
   // Justin: „aber nicht bei Nikita, Admin!" — deshalb hier und erst ab Geschäftsführung.
-  { slug: "firmen-radar", label: "Firmen-Radar", satz: "50 passende Firmen am Tag — Scan und erste Mail.", Seite: FirmenRadar, raum: "global", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche" },
+  { slug: "firmen-radar", label: "Firmen-Radar", satz: "Firmen und Partner — persönliche Mails jede Stunde, Mo–Fr 07–19.", Seite: FirmenRadar, raum: "global", mindest: "geschaeftsfuehrung", auch: "radar akquise neukunden firmen b2b global kaltakquise mail leads suche partner kooperation mail-motor postfach" },
   // 17.09.2026 (E-188): FIAON Global — Firmenaufträge über die US-Struktur. Eigene Liste, weil ein
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.

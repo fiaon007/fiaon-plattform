@@ -22,11 +22,18 @@
 //
 // Hauptschalter bleibt radar_auto_versand („Mara verkauft“). Die Schalter stehen in shared/fiaon-radar.ts
 // (RADAR_MOTOR_SCHLUESSEL), das Chefbüro bedient sie unter Firmen-Radar › Automatik.
+//
+// E-458 (Befund Go-live): Ein Deploy ist NIE der Start. Bis Justin im Chefbüro einmal „Freigeben und starten“ drückt
+// (radar_motor_freigabe), bereitet der Motor nicht von selbst vor und sendet nichts — vorher sieht er drei echte Mails in der
+// Akte („3 Mails vorbereiten“). Mit der Freigabe beginnt das Hochfahren der Postfächer (auch für js@), und in der ersten
+// Woche gehen höchstens 20 % der Mails an abgeleitete Adressen. Die Vorbereitung hält sich an einen Teil des B2B-Topfs der
+// KI-Kasse (radarVorbereitungGeld), damit Antworten, Nachfassen und Ratgeber immer Geld übrig haben.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
   ensureRadarTabellen, zeileLesen, radarScannen, radarMailAusgeben, radarPostfaecher, radarMotorEinstellung, radarAbsenderLesen, RadarFehler,
-  radarVersandAbgleich, radarSendeFehlerArt, radarGmailVoruebergehend, sqlOesterreich, radarMailWand,
+  radarVersandAbgleich, radarSendeFehlerArt, radarGmailVoruebergehend, sqlOesterreich, radarMailWand, sqlMotorVorrat, sqlWebsucheErfolglos,
+  radarWebsucheErfolglos, radarVorbereitungGeld,
   type RadarSender,
 } from "./fiaon-radar";
 import { versandDns, type VersandDns } from "./fiaon-mx";
@@ -38,10 +45,13 @@ import {
   RADAR_SIGNAL_AB, RADAR_STROEME, RADAR_HOECHSTENS_JE_TAG, RADAR_MOTOR_STATUS, RADAR_NACHFASS_TAGE,
   radarMotorImFenster, radarMotorSoll, radarMotorFensterStunden, radarMotorReststunden, radarBerlinTagMinute,
   radarPostfachWaehlen, radarMoeglich, radarAdressePersoenlich, radarAdressePruefen, radarPostfachGrenze, radarPostfachBereit,
-  radarZustellWerte, radarBremseEntscheiden, RADAR_LAENDER_AKTIV, type RadarZustellWerte, type RadarBremse,
+  radarZustellWerte, radarBremseEntscheiden, RADAR_LAENDER_AKTIV, radarAbleitungAnteilJetzt, radarPostfachStart, radarFehlerKlartext,
+  radarMotorLage, radarUhrzeit, RADAR_PARTNER_GRUPPEN, type RadarZustellWerte, type RadarBremse,
   type RadarStrom, type RadarMotor, type RadarPostfachLage, type RadarMoeglich,
 } from "@shared/fiaon-radar";
 
+/** Alle Partner-Gruppen — für den Vorrat je Gruppe (auch ausgeschaltete zeigen ihren Vorrat). */
+const RADAR_PARTNER_ALLE: readonly string[] = RADAR_PARTNER_GRUPPEN.map((g) => g.key);
 /** Der Schlüssel der Übernahme-Sperre (eigener Raum neben dem Brief, 339001). */
 const MOTOR_SPERRE = 458001;
 /** Höchstens so viele Firmen bereitet ein Lauf vor (drei gleichzeitig) — der nächste Takt macht weiter. */
@@ -173,7 +183,8 @@ async function postfachStoerungSetzen(adresse: string, grund: string | null): Pr
   if (!grund) { if (!alle[adresse]) return; delete alle[adresse]; }
   else {
     const n = Math.min(4, Number(alle[adresse]?.n ?? 0) + 1);
-    alle[adresse] = { bis: new Date(Date.now() + 15 * 60_000 * 2 ** (n - 1)).toISOString(), grund: grund.slice(0, 200), n };
+    // E-458 (Befund Sicht): der Grund in einfachen Worten — die Rohmeldung steht im Server-Protokoll.
+    alle[adresse] = { bis: new Date(Date.now() + 15 * 60_000 * 2 ** (n - 1)).toISOString(), grund: radarFehlerKlartext(grund).slice(0, 200), n };
   }
   await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_postfach_stoerung', ${JSON.stringify(alle)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
 }
@@ -216,13 +227,21 @@ export async function postfachLagen(jetzt: Date = new Date(), lauf: any = sqlPoo
     const bis = pausen[adresse] ? new Date(pausen[adresse]).getTime() : NaN;
     const stoerBis = stoerungen[adresse]?.bis ? new Date(stoerungen[adresse].bis).getTime() : NaN;
     const b = bereitschaft?.get(adresse) ?? bereitschaftCache.get(adresse);
+    const aus = m.postfachAus.includes(adresse);
+    const stoert = Number.isFinite(stoerBis) && stoerBis > jetzt.getTime();
+    const bremst = Number.isFinite(bis) && bis > jetzt.getTime();
+    // E-458 (Befund Sicht): Justins eigene Pause (der Schalter) getrennt vom Ruhen nach einer Störung oder durch die Bremse.
+    const ruhtBis = stoert || bremst ? new Date(Math.max(stoert ? stoerBis : 0, bremst ? bis : 0)).toISOString() : null;
     return {
       adresse,
-      grenze: Math.floor(radarPostfachGrenze({ ersterVersand: g?.erster ?? null, jetzt, jeTag: m.postfachJeTag, rampe: m.postfachRampe }) * faktor),
+      // E-458 (Befund Go-live): Das Hochfahren beginnt frühestens mit der Freigabe des Motors (radarPostfachStart).
+      grenze: Math.floor(radarPostfachGrenze({ ersterVersand: radarPostfachStart(g?.erster ?? null, m.freigabeAm), jetzt, jeTag: m.postfachJeTag, rampe: m.postfachRampe }) * faktor),
       heute: Number(g?.n ?? 0) + Number(s?.n ?? 0), reserve: Number(r?.n ?? 0),
       letzteAm: letzte.length ? new Date(Math.max(...letzte)) : null,
       bereit: b ? b.bereit : false,
-      pause: m.postfachAus.includes(adresse) || (Number.isFinite(bis) && bis > jetzt.getTime()) || (Number.isFinite(stoerBis) && stoerBis > jetzt.getTime()),
+      pause: aus || bremst || stoert,
+      aus, ruhtBis,
+      ruhtGrund: stoert ? radarFehlerKlartext(stoerungen[adresse].grund) : bremst ? "Zu viele Rückläufer oder Beschwerden aus diesem Postfach — es ruht 48 Stunden" : null,
     };
   });
 }
@@ -248,9 +267,12 @@ export async function motorMoeglich(m: RadarMotor, jetzt: Date = new Date(), bre
  *   „verworfen“ wegen Sendefehlern → nach einem Tag einmal zurück auf „bereit“ (die Mail ist geprüft, nur Gmail war gestört)
  */
 export async function warteschlangeAufraeumen(m: RadarMotor): Promise<void> {
+  // E-458 (Befund Sicht): Beim dritten Mal ein eigener Grund — die Firma wird NICHT mehr von selbst vorbereitet.
   await sqlPool`UPDATE fiaon_radar_firmen SET motor_versuche = motor_versuche + 1, motor_am = NOW(),
                         motor_status = CASE WHEN motor_versuche + 1 >= 3 THEN 'abgelaufen' ELSE NULL END,
-                        motor_grund = ${`Älter als ${m.haltbarTage} Tage — wird neu vorbereitet`}
+                        motor_grund = CASE WHEN motor_versuche + 1 >= 3
+                                           THEN 'Dreimal nicht rechtzeitig gesendet — bleibt liegen. „Zurück in den Vorrat“ holt sie zurück.'
+                                           ELSE ${`Älter als ${m.haltbarTage} Tage — wird neu vorbereitet`} END
                  WHERE motor_status = 'bereit' AND motor_am < NOW() - make_interval(days => ${m.haltbarTage})`;
   await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'gesendet', motor_am = NOW()
                  WHERE motor_status = 'sendet' AND motor_am < NOW() - INTERVAL '10 minutes' AND versand_lauf IS NULL
@@ -302,7 +324,11 @@ export async function kandidatNehmen(strom: RadarStrom, abPassung: number, grupp
           AND NOT ${sqlOesterreich()}
           AND COALESCE(r.land, 'DE') = ANY(${[...RADAR_LAENDER_AKTIV] as string[]})
           AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))
-        ORDER BY COALESCE(r.signal_staerke, ${RADAR_SIGNAL_AB}) DESC, r.passung DESC NULLS LAST, r.created_at DESC
+          -- E-458 (Befund Go-live): an diese Adresse ging schon eine erste Mail (über eine andere Firma) — nicht vorbereiten.
+          AND NOT EXISTS (SELECT 1 FROM fiaon_radar_firmen y WHERE y.id <> r.id AND y.versendet_am IS NOT NULL AND r.email IS NOT NULL AND lower(y.email) = lower(r.email))
+        -- E-458 (Befund Go-live): Altlasten (bezahlte Websuche schon ohne Ergebnis) zuletzt — sie bekommen nur noch die
+        -- kostenlosen Schritte; frische Firmen zuerst.
+        ORDER BY ${sqlWebsucheErfolglos()} ASC, COALESCE(r.signal_staerke, ${RADAR_SIGNAL_AB}) DESC, r.passung DESC NULLS LAST, r.created_at DESC
         LIMIT 1 FOR UPDATE SKIP LOCKED)
        AND motor_status IS NULL
     RETURNING id`) as any[];
@@ -320,22 +346,30 @@ export async function vorbereitenEine(id: number, strom: RadarStrom, schritte: M
   try {
     let f = await firmaLesen(id);
     if (!f) return { ergebnis: "zurueck", grund: "Firma nicht gefunden" };
-    // 1. Signal ungeprüft oder kein Scan → scannen (bezahlt; ohne Scan gibt es keinen belegten Aufhänger).
-    if (f.signal_staerke == null || !f.scan) { await schritte.scannen(id); f = await firmaLesen(id); }
-    if (Number(f.signal_staerke ?? 0) < RADAR_SIGNAL_AB) {
+    const nichtQualifiziert = async (x: any) => {
       // Nicht qualifiziert (Justin: „nur noch qualifizierte Unternehmen“) — Firmen ins Archiv wie bisher.
-      if (strom === "firma") await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${`Kapitalsignal ${Number(f.signal_staerke ?? 0)} von 5 (Scan)`} WHERE id = ${id}`;
-      return verwerfen(id, `Signal ${Number(f.signal_staerke ?? 0)} von 5 — nicht qualifiziert`);
-    }
-    // 2. Der Entscheider: erst die Website (kostenlos; ab Punkt 5 mit belegtem Adress-Muster), dann die Websuche (bezahlt).
+      if (strom === "firma") await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${`Kapitalsignal ${Number(x.signal_staerke ?? 0)} von 5 (Scan)`} WHERE id = ${id}`;
+      return verwerfen(id, `Signal ${Number(x.signal_staerke ?? 0)} von 5 — nicht qualifiziert`);
+    };
+    // E-458 (Befund Go-live): erst die KOSTENLOSEN Schritte, dann die bezahlten. Vorher scannte der Motor zuerst (≈ 0,2 $) und
+    // wiederholte danach die bezahlte Websuche — auch bei ≈ 200 Altlasten, bei denen genau diese Suche schon scheiterte.
+    // 1. Ist das Signal schon bekannt und zu schwach, gleich aufhören (kostet nichts).
+    if (f.signal_staerke != null && Number(f.signal_staerke) < RADAR_SIGNAL_AB) return nichtQualifiziert(f);
+    // 2. Der Entscheider: erst die Website und die Ableitung (kostenlos), dann die Websuche (bezahlt) — aber nicht noch einmal,
+    // wenn sie in den letzten 30 Tagen schon ohne Ergebnis lief (vor dem Website-Schritt lesen, der setzt entscheider_am neu).
     // E-458 (Befund): Bei abgeschalteter Ableitung zählt eine abgeleitete Adresse nicht (dann Suche oder Brief).
     const persoenlich = (x: any) => persoenlicheAdresse(x, { ableitung: o.ableitung });
     if (!persoenlich(f)) {
+      const websucheVergeblich = radarWebsucheErfolglos(f);
       await schritte.entscheider(id, false);
       f = await firmaLesen(id);
-      if (!persoenlich(f)) { await schritte.entscheider(id, true); f = await firmaLesen(id); }
-      if (!persoenlich(f)) return verwerfen(id, "Keine persönliche Adresse des Entscheiders — bleibt für den Brief");
+      if (!persoenlich(f) && !websucheVergeblich) { await schritte.entscheider(id, true); f = await firmaLesen(id); }
+      if (!persoenlich(f)) return verwerfen(id, websucheVergeblich ? "Keine persönliche Adresse (Websuche lief schon ohne Ergebnis) — bleibt für den Brief" : "Keine persönliche Adresse des Entscheiders — bleibt für den Brief");
     }
+    // 3. Erst jetzt, mit persönlicher Adresse, der bezahlte Scan — wenn das Signal ungeprüft ist oder kein Scan da ist (ohne
+    // Scan gibt es keinen belegten Aufhänger).
+    if (f.signal_staerke == null || !f.scan) { await schritte.scannen(id); f = await firmaLesen(id); }
+    if (Number(f.signal_staerke ?? 0) < RADAR_SIGNAL_AB) return nichtQualifiziert(f);
     // 3. Mail schreiben (strenge Regeln) und von der Prüf-KI lesen lassen (höchstens einmal neu). E-458 (Befund): Eine von
     // Hand verbesserte Mail wird nie überschrieben — die Prüf-KI liest sie nur; besteht sie nicht, bleibt sie für die Akte.
     const handarbeit = !!f.mail?.geaendert;
@@ -364,7 +398,10 @@ export interface VorbereitenErgebnis {
   warteschlange: Record<RadarStrom, number>; puffer: Record<RadarStrom, number>;
 }
 
-/** Füllt die Warteschlange je Strom bis zum Puffer. Rund um die Uhr; KI-Pause und Tagesdeckel beenden den Lauf. */
+/**
+ * Füllt die Warteschlange je Strom bis zum Puffer. Rund um die Uhr; KI-Pause, Tagesdeckel und das KI-Geld der Vorbereitung
+ * beenden den Lauf. E-458 (Befund Go-live): Vor Justins Freigabe nur auf Knopfdruck („3 Mails vorbereiten“, ohneHauptschalter).
+ */
 export async function radarMotorVorbereiten(opt: { jetzt?: Date; max?: number; schritte?: MotorSchritte; ohneHauptschalter?: boolean } = {}): Promise<VorbereitenErgebnis> {
   const jetzt = opt.jetzt ?? new Date();
   const erg: VorbereitenErgebnis = { bereit: 0, verworfen: 0, zurueck: 0, warteschlange: { firma: 0, partner: 0 }, puffer: { firma: 0, partner: 0 } };
@@ -372,20 +409,28 @@ export async function radarMotorVorbereiten(opt: { jetzt?: Date; max?: number; s
   if (!a.versand && !opt.ohneHauptschalter) return { ...erg, aus: true, grund: "aus" };
   await ensureRadarTabellen();
   const m = await radarMotorEinstellung();
+  if (!m.freigabeAm && !opt.ohneHauptschalter) return { ...erg, aus: true, grund: "wartet auf Justins Freigabe" };
   await warteschlangeAufraeumen(m);
   if (!opt.schritte && (await kiPausiert())) return { ...erg, grund: "KI pausiert" };
   const leistung = await motorMoeglich(m, jetzt);
+  // E-458 (Befund Go-live): Mails an ABGELEITETE Adressen zählen im Puffer nur bis zu dem Anteil, den der Versand je Tag
+  // erlaubt — sonst stand eine Warteschlange voller abgeleiteter Mails still (sie dürfen nicht allein hinaus), und der Motor
+  // bereitete nichts mehr vor, bis sie nach sieben Tagen abliefen.
+  const anteil = m.ableitung ? radarAbleitungAnteilJetzt(m, jetzt) : 0;
   const zaehlen = async () => Object.fromEntries(((await sqlPool`
-    SELECT strom, COUNT(*) FILTER (WHERE motor_status IN ('bereit', 'arbeit'))::int AS n FROM fiaon_radar_firmen
-     WHERE strom <> 'partner' OR bereich = ANY(${m.partnerGruppen}::text[]) GROUP BY strom`) as any[])
-    .map((z) => [String(z.strom), Number(z.n)])) as Record<string, number>;
+    SELECT strom,
+           COUNT(*) FILTER (WHERE motor_status = 'arbeit')::int AS arbeit,
+           COUNT(*) FILTER (WHERE motor_status = 'bereit' AND COALESCE(entscheider->>'weg', '') <> 'abgeleitet')::int AS frei,
+           COUNT(*) FILTER (WHERE motor_status = 'bereit' AND COALESCE(entscheider->>'weg', '') = 'abgeleitet')::int AS abgeleitet
+      FROM fiaon_radar_firmen
+     WHERE motor_status IN ('bereit', 'arbeit') AND (strom <> 'partner' OR bereich = ANY(${m.partnerGruppen}::text[])) GROUP BY strom`) as any[])
+    .map((z) => [String(z.strom), Number(z.arbeit) + Number(z.frei) + Math.min(Number(z.abgeleitet), anteil >= 100 ? Number(z.abgeleitet) : Math.floor(Number(z.frei) * anteil / Math.max(1, 100 - anteil)))])) as Record<string, number>;
   // Der Puffer hängt an der Leistung der Postfächer (tagJe), nicht am Ziel. Hat ein Strom gar keinen Vorrat, übernimmt
-  // der andere seinen Teil — die Lücke füllt beim Senden der andere Strom. Partner zählen nur aus eingeschalteten Gruppen.
+  // der andere seinen Teil — die Lücke füllt beim Senden der andere Strom. E-458 (Befund Go-live): Vorrat = wie der Motor
+  // auswählt (sqlMotorVorrat), eine Definition für Tageslauf, Motor und Chefbüro.
   const vorrat = Object.fromEntries(((await sqlPool`
-    SELECT strom, COUNT(*)::int AS n FROM fiaon_radar_firmen
-     WHERE motor_status IS NULL AND archiviert_am IS NULL AND versendet_am IS NULL AND status IN ('neu', 'gescannt', 'mail')
-       AND (strom <> 'partner' OR bereich = ANY(${m.partnerGruppen}::text[]))
-     GROUP BY strom`) as any[]).map((z) => [String(z.strom), Number(z.n)])) as Record<string, number>;
+    SELECT strom, COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE ${sqlMotorVorrat(a.abPassung, m.partnerGruppen)} GROUP BY strom`) as any[])
+    .map((z) => [String(z.strom), Number(z.n)])) as Record<string, number>;
   let schlange = await zaehlen();
   const ziel = { firma: m.firmenJeStunde, partner: m.partnerJeStunde } as Record<RadarStrom, number>;
   for (const s of RADAR_STROEME) erg.puffer[s] = ziel[s] > 0 ? Math.ceil(leistung.tagJe[s] * m.puffer) : 0;
@@ -400,6 +445,12 @@ export async function radarMotorVorbereiten(opt: { jetzt?: Date; max?: number; s
   while (rest > 0 && !stopp.fehler) {
     const offen = RADAR_STROEME.filter((s) => erg.puffer[s] > (schlange[s] ?? 0));
     if (!offen.length) break;
+    // E-458 (Befund Go-live, KI-Geld): vor jeder Runde — Vorbereitung und Suche höchstens kiAnteil % des B2B-Topfs. Ein Knopfdruck
+    // im Chefbüro (ohneHauptschalter, höchstens drei Mails) bremst das nicht.
+    if (!opt.schritte && !opt.ohneHauptschalter) {
+      const geld = await radarVorbereitungGeld(m);
+      if (!geld.frei) { erg.grund = geld.grund ?? "KI-Geld der Vorbereitung verbraucht"; break; }
+    }
     offen.sort((x, y) => (erg.puffer[y] - (schlange[y] ?? 0)) - (erg.puffer[x] - (schlange[x] ?? 0)));
     const runde: { id: number; strom: RadarStrom }[] = [];
     for (const s of offen) {
@@ -505,17 +556,20 @@ async function uebernehmen(jetzt: Date, m: RadarMotor, bremse: RadarBremse | nul
     let lagen = await postfachLagen(jetzt, tx);
     // Der Takt je Postfach verteilt seinen Rest über das restliche Fenster („Jetzt eine senden“ nur mit Mindestabstand).
     const restSek = ohneSoll ? null : radarMotorReststunden(jetzt, m) * 3600;
-    // E-458 (Punkt 5): höchstens radar_ableitung_anteil Prozent der Mails je Stunde an abgeleitete Adressen — gezählt nach
-    // der Herkunft am Eintrag (adress_weg), nicht nach dem Entscheider, der sich später ändern kann.
+    // E-458 (Punkt 5): höchstens radar_ableitung_anteil Prozent der ersten Mails an abgeleitete Adressen — gezählt nach der
+    // Herkunft am Eintrag (adress_weg), nicht nach dem Entscheider, der sich später ändern kann. E-458 (Befund Go-live): je
+    // Berliner TAG statt je Stunde (bei ein, zwei Mails je Stunde hieße 20 % sonst „nie“), in der ersten Woche nach der
+    // Freigabe höchstens 20 % (radarAbleitungAnteilJetzt).
     const [st1] = (await tx`
       SELECT COUNT(*) FILTER (WHERE p.adress_weg = 'abgeleitet')::int AS abg, COUNT(*)::int AS alle
         FROM fiaon_radar_post p
-       WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND p.datum > NOW() - INTERVAL '1 hour'`) as any[];
+       WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND (p.datum AT TIME ZONE 'Europe/Berlin')::date = ${berlinToday(jetzt)}::date`) as any[];
     let abg = Number(st1?.abg ?? 0), alle = Number(st1?.alle ?? 0);
+    const anteil = radarAbleitungAnteilJetzt(m, jetzt);
     for (const d of dran) {
       const p = radarPostfachWaehlen(lagen, jetzt, restSek);
       if (!p) break;
-      const abgeleitetErlaubt = m.ableitung && ((abg + 1) / (alle + 1)) * 100 <= m.ableitungAnteil;
+      const abgeleitetErlaubt = m.ableitung && ((abg + 1) / (alle + 1)) * 100 <= anteil;
       const [z] = (await tx`
         UPDATE fiaon_radar_firmen SET motor_status = 'sendet', motor_am = NOW(), postfach = ${p.adresse}
          WHERE id = (SELECT id FROM fiaon_radar_firmen WHERE motor_status = 'bereit' AND strom = ${d.strom} AND motor_am <= NOW()
@@ -554,6 +608,8 @@ export async function radarMotorSenden(opt: { jetzt?: Date; sender?: RadarSender
   const a = await radarAutomatik();
   if (!a.versand) return { ...erg, grund: "aus" };
   const m = await radarMotorEinstellung();
+  // E-458 (Befund Go-live): Vor Justins Freigabe sendet der Motor nichts — auch nicht „Jetzt eine senden“.
+  if (!m.freigabeAm) return { ...erg, grund: "wartet auf Justins Freigabe" };
   if (!radarMotorImFenster(jetzt, m)) return { ...erg, grund: "außerhalb des Sendefensters" };
   if (!opt.sender && !gmailBereit()) return { ...erg, grund: "Gmail-Anbindung fehlt" };
   await ensureRadarTabellen();
@@ -578,12 +634,12 @@ export async function radarMotorSenden(opt: { jetzt?: Date; sender?: RadarSender
         erg.verworfen++;
       } else if (unklar) {
         // Bleibt „sendet“ — der Abgleich mit dem Gesendet-Ordner entscheidet (warteschlangeAufraeumen). Das Postfach ruht kurz.
-        await sqlPool`UPDATE fiaon_radar_firmen SET motor_grund = ${`Unklar, ob gesendet: ${grund}`.slice(0, 400)} WHERE id = ${g.id} AND motor_status = 'sendet'`;
+        await sqlPool`UPDATE fiaon_radar_firmen SET motor_grund = ${`Unklar, ob gesendet (${radarFehlerKlartext(grund)}) — der Gesendet-Ordner wird geprüft`.slice(0, 400)} WHERE id = ${g.id} AND motor_status = 'sendet'`;
         await postfachStoerungSetzen(g.postfach, `Unklar, ob gesendet (${grund.slice(0, 120)})`);
         erg.zurueck++;
         console.error(`[MAIL-MOTOR] Senden ${g.id} unklar:`, grund);
       } else if (postfachStoerung) {
-        await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'bereit', motor_grund = ${`Postfach gestört, kommt wieder: ${grund}`.slice(0, 400)}
+        await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'bereit', motor_grund = ${`Postfach kurz gestört (${radarFehlerKlartext(grund)}) — die Mail wartet ohne Nachteil`.slice(0, 400)}
                        WHERE id = ${g.id} AND motor_status = 'sendet'`;
         await postfachStoerungSetzen(g.postfach, grund);
         erg.zurueck++;
@@ -592,7 +648,7 @@ export async function radarMotorSenden(opt: { jetzt?: Date; sender?: RadarSender
         await sqlPool`UPDATE fiaon_radar_firmen SET motor_sendefehler = motor_sendefehler + 1,
                               motor_status = CASE WHEN motor_sendefehler + 1 >= 3 THEN 'verworfen' ELSE 'bereit' END,
                               motor_am = NOW() + make_interval(mins => ${30} * (motor_sendefehler + 1)),
-                              motor_grund = ${`Senden fehlgeschlagen: ${grund}`}
+                              motor_grund = ${`Senden fehlgeschlagen: ${radarFehlerKlartext(grund)}`}
                        WHERE id = ${g.id} AND motor_status = 'sendet'`;
         erg.zurueck++;
         console.error(`[MAIL-MOTOR] Senden ${g.id}:`, grund);
@@ -613,6 +669,18 @@ export async function radarZurueckInVorrat(id: number): Promise<void> {
      WHERE id = ${id} AND motor_status IN ('verworfen', 'abgelaufen') AND versendet_am IS NULL
     RETURNING id`) as any[];
   if (!z) throw new RadarFehler("Nur verworfene oder abgelaufene Firmen ohne erste Mail gehen zurück in den Vorrat.", 409);
+}
+
+/**
+ * E-458 (Befund Go-live): „Freigeben und starten“ (Chefbüro, mit Bestätigung) — ab jetzt bereitet der Motor von selbst vor
+ * und sendet im Fenster; die Postfächer fahren ab heute hoch. Einmal gesetzt, bleibt die Freigabe (der Stopp ist der Schalter
+ * „Erste Mails“). Gibt den Zeitpunkt zurück.
+ */
+export async function radarMotorFreigeben(jetzt: Date = new Date()): Promise<string> {
+  const { RADAR_MOTOR_SCHLUESSEL: k } = await import("@shared/fiaon-radar");
+  const [z] = (await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES (${k.freigabeAm}, ${jetzt.toISOString()})
+                              ON CONFLICT (key) DO UPDATE SET value = fiaon_settings.value RETURNING value`) as any[];
+  return String(z?.value ?? jetzt.toISOString());
 }
 
 /** Für den Minutentakt (nurMitErgebnis): eine Historienzeile, wenn gesendet wurde — und einmal je Stunde als Lebenszeichen. */
@@ -764,10 +832,9 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
       FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id
      WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND (p.datum AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date
      GROUP BY f.strom, stunde`) as any[];
+  // E-458 (Befund Sicht): EIN Vorrat — so gezählt, wie der Motor auswählt (sqlMotorVorrat). Vorher standen drei Zahlen da.
   const vorrat = (await sqlPool`
-    SELECT strom, COUNT(*)::int AS n FROM fiaon_radar_firmen
-     WHERE motor_status IS NULL AND archiviert_am IS NULL AND versendet_am IS NULL AND status IN ('neu', 'gescannt', 'mail')
-       AND (signal_staerke IS NULL OR signal_staerke >= ${RADAR_SIGNAL_AB}) GROUP BY strom`) as any[];
+    SELECT strom, COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE ${sqlMotorVorrat(a.abPassung, m.partnerGruppen)} GROUP BY strom`) as any[];
   const { minute } = radarBerlinTagMinute(jetzt);
   const zustellung = await zustellWerte(m).catch(() => null);
   // Prüf-KI heute (Punkt 4): gelesen, freigegeben, neu geschrieben, verworfen — und die nächste Mail als Vorschau.
@@ -785,7 +852,7 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
   // Partner je Gruppe (Punkt 2): Vorrat, Warteschlange, gesendet.
   const partnerJe = (await sqlPool`
     SELECT bereich,
-           COUNT(*) FILTER (WHERE motor_status IS NULL AND archiviert_am IS NULL AND versendet_am IS NULL AND status IN ('neu', 'gescannt', 'mail'))::int AS vorrat,
+           COUNT(*) FILTER (WHERE ${sqlMotorVorrat(a.abPassung, RADAR_PARTNER_ALLE)})::int AS vorrat,
            COUNT(*) FILTER (WHERE motor_status = 'bereit')::int AS bereit,
            COUNT(*) FILTER (WHERE versendet_am IS NOT NULL)::int AS gesendet,
            COUNT(*) FILTER (WHERE partner_firma_id IS NOT NULL)::int AS im_crm
@@ -804,7 +871,13 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
        AND ${sqlOesterreich()}`.catch(() => [{ n: 0 }])) as any[];
   const stoerungen = await postfachStoerungen();
   const brief = await (async () => { try { const { radarBriefEinstellung } = await import("./fiaon-radar-brief"); return await radarBriefEinstellung(); } catch { return null; } })();
+  const geld = await radarVorbereitungGeld(m).catch(() => null);
+  const schlangeJetzt = RADAR_STROEME.reduce((n, s) => n + je(s, "bereit"), 0);
+  // E-458 (Befund Sicht): was der Motor gerade tut, mit dem wahren Grund (Freigabe, Schalter, Fenster, Störung, voll, leer).
+  const lage = radarMotorLage({ an: a.versand, freigabe: !!m.freigabeAm, imFenster: radarMotorImFenster(jetzt, m), schlange: schlangeJetzt, von: m.von, postfaecher: leistung.postfaecher });
   return {
+    lage, freigabeAm: m.freigabeAm, geld: geld ? { heute: geld.heute, grenze: geld.grenze, frei: geld.frei, anteil: m.kiAnteil } : null,
+    ableitungAnteilJetzt: radarAbleitungAnteilJetzt(m, jetzt),
     pruefKi: { geprueft: Number(pk?.geprueft ?? 0), bestanden: Number(pk?.bestanden ?? 0), neuGeschrieben: Number(pk?.neu ?? 0), verworfen: Number(pk?.verworfen ?? 0), gruende: pkGruende,
       naechste: naechste?.mail ? { name: naechste.name, strom: naechste.strom, betreff: naechste.mail.betreff, anrede: naechste.mail.anrede, absaetze: naechste.mail.absaetze, frage: naechste.mail.frage, schluss: naechste.mail.schluss ?? null } : null,
       kiKlangMax: m.kiKlangMax, aehnlichMax: m.aehnlichMax },
@@ -817,9 +890,10 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
     postfaecher: leistung.postfaecher.map((p) => {
       const b = bereitschaftCache.get(p.adresse);
       const s = stoerungen[p.adresse] && new Date(stoerungen[p.adresse].bis).getTime() > jetzt.getTime() ? stoerungen[p.adresse] : null;
-      const uhr = s ? (() => { const min = radarBerlinTagMinute(new Date(s.bis)).minute; return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`; })() : "";
+      // E-458 (Befund Sicht): kurze, einfache Sätze — keine rohe Gmail-Meldung (Englisch, JSON) in Kachel und Akte.
       return { ...p, name: b?.name ?? null, quelle: b?.quelle ?? null, gruende: b?.gruende ?? [], gmail: b?.gmail ?? null, dns: b?.dns ?? null, signaturHtml: b?.signaturHtml ?? null,
-        stoerung: [...(b?.stoerung ?? []), ...(s ? [`Sendet wieder ab ${uhr} Uhr: ${s.grund}`] : [])] };
+        stoerung: [...(b?.stoerung ?? []).map((x) => (/^Gmail kurz gestört/.test(x) ? `${radarFehlerKlartext(x)} — der letzte gute Stand gilt` : x)),
+          ...(s ? [`${radarFehlerKlartext(s.grund)}. Sendet wieder ab ${radarUhrzeit(s.bis)} Uhr`] : [])] };
     }),
     stroeme: Object.fromEntries(RADAR_STROEME.map((s) => [s, {
       bereit: je(s, "bereit"), arbeit: je(s, "arbeit"), sendet: je(s, "sendet"), gesendetHeute: je(s, "gesendet"), verworfenHeute: je(s, "verworfen"),
@@ -829,6 +903,21 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
     }])),
     status: RADAR_MOTOR_STATUS,
   };
+}
+
+/**
+ * Ein Postfach im Chefbüro pausieren oder wieder freigeben (radar_postfach_aus). E-458 (Befund Sicht): Ruht es danach noch
+ * von selbst (Gmail-Störung), sagt die Antwort das ehrlich — der Schalter zeigt nur Justins eigene Pause.
+ */
+export async function radarPostfachSchalten(adresse: string, pause: boolean): Promise<{ aus: string[]; ruhtBis: string | null; ruhtGrund: string | null; meldung: string }> {
+  const liste = await radarPostfachPausieren(adresse, pause);
+  const a = String(adresse || "").trim().toLowerCase();
+  const lage = (await postfachLagen()).find((l) => l.adresse === a);
+  const ruhtBis = !pause && lage?.ruhtBis ? lage.ruhtBis : null;
+  const meldung = pause ? "Postfach pausiert — es sendet keine erste Mail und kein Nachfassen."
+    : ruhtBis ? `Postfach ist wieder an. ${lage?.ruhtGrund ?? "Es ruht noch kurz"} — ab ${radarUhrzeit(ruhtBis)} Uhr sendet es von selbst.`
+    : "Postfach sendet wieder.";
+  return { aus: liste, ruhtBis, ruhtGrund: ruhtBis ? lage?.ruhtGrund ?? null : null, meldung };
 }
 
 /** Ein Postfach im Chefbüro pausieren oder wieder freigeben (radar_postfach_aus). */
@@ -872,10 +961,10 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
   if (ein.partnerJeStunde !== undefined) setzen.push([k.partnerJeStunde, ganz(ein.partnerJeStunde, 0, RADAR_MOTOR_HOECHSTENS_JE_STUNDE, "Partner je Stunde")]);
   if (ein.puffer !== undefined) {
     const n = Number(String(ein.puffer).replace(",", "."));
-    if (!Number.isFinite(n) || n < 0.1 || n > 5) throw new RadarFehler("Puffer: 0,1 bis 5 Tage.");
+    if (!Number.isFinite(n) || n < 0.1 || n > 5) throw new RadarFehler("Warteschlange reicht für: 0,1 bis 5 Tage.");
     setzen.push([k.puffer, String(n)]);
   }
-  if (ein.haltbarTage !== undefined) setzen.push([k.haltbarTage, ganz(ein.haltbarTage, 1, 30, "Haltbar")]);
+  if (ein.haltbarTage !== undefined) setzen.push([k.haltbarTage, ganz(ein.haltbarTage, 1, 30, "Fertige Mail haltbar (Tage)")]);
   if (ein.link !== undefined) {
     if (!["termin", "keiner"].includes(String(ein.link))) throw new RadarFehler("Link: „termin“ oder „keiner“.");
     setzen.push([k.link, String(ein.link)]);
@@ -904,7 +993,7 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
   if (ein.postfachJeTag !== undefined) setzen.push([k.postfachJeTag, ganz(ein.postfachJeTag, 1, RADAR_HOECHSTENS_JE_TAG, "Mails je Postfach und Tag")]);
   if (ein.postfachRampe !== undefined) {
     const r = (Array.isArray(ein.postfachRampe) ? ein.postfachRampe : String(ein.postfachRampe).split(/[,;\s]+/)).map(Number).filter((n) => !Number.isNaN(n));
-    if (!r.length || r.length > 4 || r.some((n) => !Number.isInteger(n) || n < 1 || n > RADAR_HOECHSTENS_JE_TAG)) throw new RadarFehler(`Hochfahren: eine bis vier Zahlen von 1 bis ${RADAR_HOECHSTENS_JE_TAG} (Woche 1, Woche 2 …).`);
+    if (!r.length || r.length > 4 || r.some((n) => !Number.isInteger(n) || n < 1 || n > RADAR_HOECHSTENS_JE_TAG)) throw new RadarFehler(`Hochfahren: Woche 1 und Woche 2 je eine Zahl von 1 bis ${RADAR_HOECHSTENS_JE_TAG}.`);
     setzen.push([k.postfachRampe, r.join(",")]);
   }
   const prozent = (x: unknown, min: number, max: number, was: string, key: string) => {
@@ -916,6 +1005,7 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
   if (ein.zustellBeschwerdeMax !== undefined) prozent(ein.zustellBeschwerdeMax, 0.05, 5, "Beschwerde-Grenze", k.zustellBeschwerdeMax);
   if (ein.zustellBasis !== undefined) setzen.push([k.zustellBasis, ganz(ein.zustellBasis, 10, 1000, "Bremse rechnet ab so vielen Mails")]);
   if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
+  if (ein.kiAnteil !== undefined) setzen.push([k.kiAnteil, ganz(ein.kiAnteil, 10, 100, "KI-Geld der Vorbereitung (Prozent des B2B-Topfs)")]);
   if (ein.partnerProvisionText !== undefined) {
     const t = String(ein.partnerProvisionText).replace(/[\r\n]+/g, " ").trim();
     if (t.length < 10 || t.length > 120 || !/prozent|%/i.test(t)) throw new RadarFehler("Provisions-Satz: 10 bis 120 Zeichen, mit „Prozent“.");

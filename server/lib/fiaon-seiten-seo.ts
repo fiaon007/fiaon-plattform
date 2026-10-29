@@ -408,12 +408,12 @@ export function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: strin
   // 24.09.2026 (E-234): dieselben vier Spalten in beiden Sprachen — die Fachseiten gibt es jetzt auch englisch
   // (bis heute verwies die englische Seite auf die deutschen, „in German").
   const gruppen = globalMenue(sprache).map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
-  // 29.10.2026 (E-461): Seit fiaon.com/ FIAON Global ist, führt ein leiser Link zur Privat-Startseite (wie im Kopf des Browsers).
-  const privat = link(en ? PRIVAT_START.en : PRIVAT_START.de, en ? "Personal customers" : "Privatkunden");
-  const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}<li>${privat}</li></ul></nav></header>`;
+  // 29.10.2026 (E-461): Seit fiaon.com/ FIAON Global ist, führt EIN leiser Link im Fuß zur Privat-Startseite (wie im Browser, nach dem Angebot benannt).
+  const privat = link(en ? PRIVAT_START.en : PRIVAT_START.de, en ? "Credit file, account and card" : "Bonität, Konto und Karte");
+  const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
   const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"], ["/en/is-fiaon-legit", "Is FIAON legit?"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"], ["/ist-fiaon-serioes", "Ist FIAON seriös?"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;
-  const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav><p>${esc(zeile)}</p></footer>`;
+  const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}<li>${privat}</li></ul></nav><p>${esc(zeile)}</p></footer>`;
   return { kopf, fuss };
 }
 

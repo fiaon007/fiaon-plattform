@@ -282,7 +282,7 @@ const de: NetzWoerter = {
       { s: "stern", titel: "Wenige Partner je Region", text: "Höchstens drei Partner je Region. Sie werden genannt, nicht gelistet." },
       { s: "beleg", titel: "Vorbereitete Unterlagen", text: "Kontoauszüge und Belege liegen auf Wunsch des Mandanten digital vor — weniger Nachfragen." },
       { s: "termin", titel: "Termine in Ihren Zeiten", text: "Erstgespräche werden in die Zeiten gelegt, die Sie freigeben." },
-      { s: "schild", titel: "Berufsrechtlich sauber", text: "Fester Preis für den Partnerplatz, keine Vergütung je Mandat (§ 9 Abs. 2 StBerG)." },
+      { s: "schild", titel: "Berufsrechtlich sauber", text: "Fester Preis für den Partnerplatz, keine Vergütung je Mandat (§ 9 StBerG)." },
       { s: "netz", titel: "Partnerbereich", text: "Termine, Zeiten und Rechnungen an einem Ort." },
       { s: "haken", titel: "Planbar", text: "Ein Preis im Monat, nach drei Monaten monatlich kündbar." },
     ],
@@ -300,7 +300,7 @@ const de: NetzWoerter = {
     preis: {
       wert: "490 €", einheit: "netto im Monat je Region",
       punkte: ["Höchstens drei Partner je Region", "Mindestlaufzeit drei Monate, danach monatlich kündbar", "Monatliche Rechnung, zahlbar binnen 14 Tagen", "Keine Erfolgsbeteiligung, keine Abrechnung je Mandat"],
-      fein: "Nettopreis, Reverse Charge. Der Preis gilt für Sichtbarkeit und Terminorganisation — unabhängig von Zahl und Ausgang der Mandate (§ 9 Abs. 2 StBerG). Eine Zahl an Mandaten sagt FIAON nicht zu.",
+      fein: "Nettopreis, Reverse Charge. Der Preis gilt für Sichtbarkeit und Terminorganisation — unabhängig von Zahl und Ausgang der Mandate (§ 9 StBerG). Eine Zahl an Mandaten sagt FIAON nicht zu.",
     },
     anforderungPille: "Wer passt", anforderungH2a: "Was wir ", anforderungH2b: "von Partnern erwarten.",
     anforderungen: [
@@ -311,7 +311,7 @@ const de: NetzWoerter = {
       "Respektvoller Umgang mit Menschen in angespannter finanzieller Lage",
     ],
     fragen: [
-      { f: "Warum zahle ich nicht je Mandat?", a: "Weil das berufsrechtlich unzulässig wäre: § 9 Abs. 2 StBerG verbietet Vergütungen für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation." },
+      { f: "Warum zahle ich nicht je Mandat?", a: "Weil das berufsrechtlich unzulässig wäre: § 9 StBerG verbietet Vergütungen für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation." },
       { f: "Was kostet der Partnerplatz?", a: "490 € netto im Monat je Region, Mindestlaufzeit drei Monate, danach monatlich kündbar." },
       { f: "Können sich Lohnsteuerhilfevereine bewerben?", a: "Ja — anerkannte Lohnsteuerhilfevereine mit Beratungsstelle, im Rahmen ihrer Beratungsbefugnis nach § 4 Nr. 11 StBerG." },
       { f: "Bekomme ich die Unterlagen digital?", a: "Wenn der Mandant zustimmt, ja: Belege und Kontoauszüge aus seinem FIAON-Bereich liegen vor dem Termin in Ihrem Partnerbereich." },
@@ -687,7 +687,7 @@ const en: NetzWoerter = {
       { s: "stern", titel: "Few partners per region", text: "At most three partners per region. You are named, not listed." },
       { s: "beleg", titel: "Prepared records", text: "Bank statements and receipts are available digitally if the client wishes — fewer follow-up questions." },
       { s: "termin", titel: "Appointments in your times", text: "First meetings are placed in the times you release." },
-      { s: "schild", titel: "Within professional rules", text: "A fixed price for the partner seat, no fee per mandate (§ 9(2) StBerG)." },
+      { s: "schild", titel: "Within professional rules", text: "A fixed price for the partner seat, no fee per mandate (§ 9 StBerG)." },
       { s: "netz", titel: "Partner area", text: "Appointments, times and invoices in one place." },
       { s: "haken", titel: "Predictable", text: "One price a month, terminable monthly after three months." },
     ],
@@ -705,7 +705,7 @@ const en: NetzWoerter = {
     preis: {
       wert: "€490", einheit: "net a month per region",
       punkte: ["At most three partners per region", "Minimum term three months, then terminable monthly", "Monthly invoice, payable within 14 days", "No success fee, no billing per mandate"],
-      fein: "Net price, reverse charge. The price covers visibility and appointment organisation — regardless of the number and outcome of mandates (§ 9(2) StBerG). FIAON promises no number of mandates.",
+      fein: "Net price, reverse charge. The price covers visibility and appointment organisation — regardless of the number and outcome of mandates (§ 9 StBerG). FIAON promises no number of mandates.",
     },
     anforderungPille: "Who fits", anforderungH2a: "What we ", anforderungH2b: "expect from partners.",
     anforderungen: [
@@ -716,7 +716,7 @@ const en: NetzWoerter = {
       "Respectful treatment of people in a strained financial situation",
     ],
     fragen: [
-      { f: "Why do I not pay per mandate?", a: "Because it would breach professional rules: § 9(2) StBerG prohibits fees for introducing engagements. The partner seat is a fixed price for visibility and appointment organisation." },
+      { f: "Why do I not pay per mandate?", a: "Because it would breach professional rules: § 9 StBerG prohibits fees for introducing engagements. The partner seat is a fixed price for visibility and appointment organisation." },
       { f: "What does the partner seat cost?", a: "€490 net a month per region, minimum term three months, then terminable monthly." },
       { f: "Can income tax assistance associations apply?", a: "Yes — recognised associations with an office, within their authority under § 4 No. 11 StBerG." },
       { f: "Do I receive the records digitally?", a: "If the client agrees, yes: receipts and bank statements from their FIAON area are in your partner area before the appointment." },

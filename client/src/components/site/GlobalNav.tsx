@@ -24,6 +24,7 @@ import { globalMenue, type MenueGruppe } from "@shared/fiaon-global-menue";
 import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
 import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { globalSchwester } from "@shared/fiaon-global-pfade";
+import { SERIOES_PFAD } from "@shared/fiaon-serioes";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
@@ -126,7 +127,10 @@ export default function GlobalNav() {
   // Der Umschalter DE/EN: die Schwesterseite; auf Auftrag und „Mein Auftrag" reisen Abfrage (?paket, ?art, ?t) und Anker mit.
   const sprachHref = (() => {
     const loc = typeof window !== "undefined" ? window.location : null;
-    const ziel = globalSchwester(pfad, en ? "de" : "en") ?? globalSeitePfad(en ? "de" : "en");
+    // 29.10.2026 (E-459): Die Vertrauensseite liegt außerhalb von /business — ihr Paar kommt aus ihrer kleinen Quelle.
+    const pn = (pfad.replace(/\/+$/, "") || "/").toLowerCase();
+    const serioes = pn === SERIOES_PFAD.de || pn === SERIOES_PFAD.en ? SERIOES_PFAD[en ? "de" : "en"] : null;
+    const ziel = serioes ?? globalSchwester(pfad, en ? "de" : "en") ?? globalSeitePfad(en ? "de" : "en");
     return ziel + (/\/business\/(start|auftrag)(\/|$)/.test(ziel) ? (loc?.search ?? "") : "") + (loc?.hash ?? "");
   })();
   const gespraechHref = en ? "/en/business#gespraech" : "/business#gespraech";

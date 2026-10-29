@@ -56,7 +56,7 @@ const de = {
   menschenH2a: "Menschen und ", menschenH2b: "Sicherheit.", menschenLead: "Vertrauen hat zwei Adressen: wer arbeitet, und wie mit Ihren Daten umgegangen wird.",
   links: [
     // 28.10.2026 (E-445): die Fakten-Seite für „fiaon seriös“ — Register, Konto, Laufzeit, Kontakt.
-    { href: "/ist-fiaon-serioes", t: "Ist FIAON seriös? Die Fakten", s: "Registereintrag, das eine Geschäftskonto, Laufzeit, Datenschutz und Kontaktwege – alles selbst nachprüfbar." },
+    { href: "/ist-fiaon-serioes", t: "Ist FIAON seriös? Die Fakten", s: "Für Firmenkunden und Partner: FIAON LTD im Register, Bankverbindung, Festpreis und Mustervertrag von FIAON Global, Datenschutz und Kontaktwege – alles selbst nachprüfbar." },
     { href: "/team", t: "Das FIAON-Team", s: "Namen, Gesichter, Verantwortlichkeiten – die Menschen hinter der Plattform, viele davon selbst ehemalige Kunden." },
     { href: "/sicherheit", t: "Sicherheit und Datenschutz", s: "Server in Frankfurt, Verschlüsselung, Freigabe vor jedem Schreiben, Löschung auf Wunsch." },
     { href: "/preise", t: "Alle Preise offen", s: "Jedes Paket, jede Rate, keine Sternchen. Was es kostet, steht fest, bevor Sie beauftragen." },
@@ -129,7 +129,7 @@ const en: typeof de = {
   zitat: "Honest up to the no: justified entries cannot be deleted away. We say so — and show what works instead.", zitatWer: "Justin Schwarzott, founder of FIAON",
   menschenH2a: "People and ", menschenH2b: "security.", menschenLead: "Trust has two addresses: who does the work, and how your data is handled.",
   links: [
-    { href: "/ist-fiaon-serioes", t: "Is FIAON legit? The facts", s: "Register entry, our only business account, term, data protection and contact routes — all verifiable yourself." },
+    { href: "/ist-fiaon-serioes", t: "Is FIAON legit? The facts", s: "For business clients and partners: FIAON LTD in the register, bank details, fixed price and model contract of FIAON Global, data protection and contact routes — all verifiable yourself." },
     { href: "/team", t: "The FIAON team", s: "Names, faces, responsibilities — the people behind the platform, many of them former customers themselves." },
     { href: "/sicherheit", t: "Security and privacy", s: "Servers in Frankfurt, encryption, approval before every letter, deletion on request." },
     { href: "/preise", t: "All prices open", s: "Every plan, every instalment, no asterisks. What it costs is fixed before you engage us." },

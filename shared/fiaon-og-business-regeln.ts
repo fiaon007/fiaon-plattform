@@ -36,5 +36,5 @@ export function ogBusinessArtikelBild(slug: string, sprache: "de" | "en"): { url
   return ogBusinessBild(ogArtikelSchluessel(slug)) ?? ogBusinessBild(OG_BUSINESS_REDAKTION[sprache]);
 }
 
-/** Gehört die Adresse zur Business-Welt? (Dieselbe Grenze wie client/src/lib/bereich.ts.) */
-export const istBusinessPfad = (pfad: string) => /^\/(en\/)?business(\/|$)/.test(pfad.split(/[?#]/)[0]);
+/** Gehört die Adresse zur Business-Welt? Die Regel steht in shared/fiaon-business-grenze.ts (klein, auch im Browser). */
+export { istBusinessPfad, BUSINESS_EIGENE_PFADE } from "./fiaon-business-grenze";

@@ -14,6 +14,8 @@ import {
   GLOBAL_SEITEN, GLOBAL_SEITEN_EN, LANDINGPAGES, blockAlsText, globalKrumen, globalSeite, globalSprache, GLOBAL_SEITE_WORTE,
   type GlobalSeite, type GlobalSeitenArt,
 } from "@shared/fiaon-global-seiten";
+import { SERIOES_SEITE } from "@shared/fiaon-serioes-seite";
+import { SERIOES_KOPF } from "@shared/fiaon-serioes";
 
 const seoArt = (a: GlobalSeitenArt): SeoArt => (a === "wissen" || a === "hub" ? "pfeiler" : a === "werkzeug" ? "werkzeug" : a === "land" ? "land" : "produkt");
 const h1Von = (g: GlobalSeite) => `${g.h1}${g.h1b ? ` ${g.h1b}` : ""}`;
@@ -51,7 +53,29 @@ export const GLOBAL_SEO_EINTRAEGE: SeoSeite[] = [
   })),
 ];
 
+// 29.10.2026 (E-459): die Vertrauensseite „Ist FIAON seriös?“ — ganz auf FIAON Global, außerhalb von /business und
+// außerhalb des Registers (eigene Adresse, kein Menüeintrag). Kopf, Sprachpaar und Sitemap stehen schon in der gemeinsamen
+// Tabelle; hier kommen Korpus und FAQ aus derselben Quelle wie die sichtbare Seite (shared/fiaon-serioes-seite.ts):
+// „Kurz beantwortet“, „Auf einen Blick“ als echte Tabelle (KI-Crawler zitieren Tabellen), dann jeder Baustein.
+function serioesEintrag(g: GlobalSeite, krume: string): SeoSeite {
+  const sp = globalSprache(g);
+  const en = sp === "en";
+  return {
+    pfad: g.pfad, art: "unternehmen", stand: g.stand, erschienen: g.erschienen, prio: g.prio ?? (en ? 0.7 : 0.8),
+    bild: en ? GLOBAL_BILD_EN : GLOBAL_BILD,
+    titel: g.seo.titel, beschreibung: g.seo.beschreibung, h1: h1Von(g), lead: g.lead,
+    abschnitte: [
+      { h2: GLOBAL_SEITE_WORTE[sp].kurz, text: g.kurz },
+      { h2: en ? "At a glance" : "Auf einen Blick", text: "", tabelle: { kopf: en ? ["Topic", "Fact"] : ["Thema", "Fakt"], zeilen: g.blick } },
+      ...g.bloecke.map((b) => blockAlsText(b, titelVon, sp)).filter((x): x is SeoAbschnitt => !!x),
+    ],
+    weiter: g.weiter, krumen: [{ name: krume, pfad: g.pfad }], quellen: g.quellen,
+    sprache: sp, schwester: g.schwester,
+  };
+}
+const SERIOES_EINTRAEGE = [serioesEintrag(SERIOES_SEITE.de, SERIOES_KOPF.de.krume), serioesEintrag(SERIOES_SEITE.en, SERIOES_KOPF.en.krume)];
+
 seoZusatzEintragen(
-  GLOBAL_SEO_EINTRAEGE,
-  new Map([...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].filter((g) => g.fragen.length).map((g) => [g.pfad, g.fragen.map((f) => ({ f: f.f, a: f.a }))])),
+  [...GLOBAL_SEO_EINTRAEGE, ...SERIOES_EINTRAEGE],
+  new Map([...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN, SERIOES_SEITE.de, SERIOES_SEITE.en].filter((g) => g.fragen.length).map((g) => [g.pfad, g.fragen.map((f) => ({ f: f.f, a: f.a }))])),
 );

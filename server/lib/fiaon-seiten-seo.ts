@@ -272,7 +272,7 @@ export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<Org
 function breadcrumbLd(s: SeoSeite): Record<string, unknown> | null {
   // 19.09.2026 (E-192): Die Business-Welt beginnt bei FIAON Global, nicht auf der Startseite
   // der Privatkunden — wie die sichtbaren Brotkrumen (globalKrumen) und korpus() unten.
-  const business = /^\/(en\/)?business(\/|$)/.test(s.pfad);
+  const business = istBusinessPfad(s.pfad);
   const wurzel = business ? { name: "FIAON Global", pfad: s.sprache === "en" ? "/en/business" : "/business" } : { name: "FIAON", pfad: "/" };
   const kette = [wurzel, ...(s.krumen ?? []).filter((k) => !(business && k.pfad === wurzel.pfad))];
   if (kette.length < 2) return null; // Die Startseite eines Bereichs braucht keine Brotkrumen.
@@ -365,7 +365,7 @@ function weiterlesen(s: SeoSeite, nurBusiness = false): string {
   // Englische Seiten verweisen auf die englische Schwester des Ziels, wo es sie gibt.
   // Im Business-Rahmen nur Ziele der Business-Welt — das Impressum verweist sonst auf AGB und Kontakt der Privatkunden.
   const ziele = (s.weiter ?? []).map((p) => seoSeite(en ? (schwesterPfad(p, "en") ?? p) : p))
-    .filter((z): z is SeoSeite => !!z && (!nurBusiness || /^\/(en\/)?business(\/|$)/.test(z.pfad)))
+    .filter((z): z is SeoSeite => !!z && (!nurBusiness || istBusinessPfad(z.pfad)))
     // 24.09.2026 (E-234): Eine englische Business-Seite verweist nie auf eine deutsche (fehlende Schwester = kein Eintrag).
     .filter((z) => !(en && nurBusiness) || z.sprache === "en");
   if (!ziele.length) return "";
@@ -400,7 +400,7 @@ export function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: strin
   // (bis heute verwies die englische Seite auf die deutschen, „in German").
   const gruppen = globalMenue(sprache).map((g) => ({ titel: g.titel, eintraege: g.eintraege.map((e) => [e.pfad, e.titel]) }));
   const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
-  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"]];
+  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", "Model contract"], ["/en/is-fiaon-legit", "Is FIAON legit?"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", "Mustervertrag"], ["/ist-fiaon-serioes", "Ist FIAON seriös?"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;
   const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav><p>${esc(zeile)}</p></footer>`;
   return { kopf, fuss };
@@ -410,7 +410,7 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   const fragen = seoFragen(s.pfad);
   const en = s.sprache === "en";
   // Gemeinsame Seiten (Impressum …), aus der Business-Welt geöffnet, tragen deren Rahmen (routes.ts, ?bereich=business).
-  const business = businessRahmen || /^\/(en\/)?business(\/|$)/.test(s.pfad);
+  const business = businessRahmen || istBusinessPfad(s.pfad);
   const { kopf: nav, fuss } = business ? seoRahmenBusiness(en ? "en" : "de") : seoRahmen(en ? "en" : "de");
   const wurzel = business ? link(en ? "/en/business" : "/business", "FIAON Global") : link(en ? "/en" : "/", "FIAON");
   const krumen = s.krumen?.length ? `<nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li>${wurzel}</li>${s.krumen.filter((k) => !(business && k.pfad === (en ? "/en/business" : "/business"))).map((k) => `<li>${link(k.pfad, k.name)}</li>`).join("")}</ol></nav>` : "";

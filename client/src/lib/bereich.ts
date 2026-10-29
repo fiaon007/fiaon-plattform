@@ -14,11 +14,13 @@
 //     Fußzeile. Ein Geschäftskunde verlässt die Business-Welt nie aus Versehen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useLocation, useSearch } from "wouter";
+import { istBusinessPfad } from "@shared/fiaon-business-grenze";
 
 export const BUSINESS_PARAM = "bereich=business";
 
 export function istBusinessBereich(pfad: string, suche = ""): boolean {
-  return /^\/(en\/)?business(\/|$)/.test(pfad) || new URLSearchParams(suche).get("bereich") === "business";
+  // 29.10.2026 (E-459): dieselbe Grenze wie der Server — /business und die Vertrauensseite („alles auf Business“).
+  return istBusinessPfad(pfad) || new URLSearchParams(suche).get("bereich") === "business";
 }
 
 /** Für Rahmen-Bausteine (Menü, Fußzeile): Liegt die aktuelle Seite im Business-Bereich? */

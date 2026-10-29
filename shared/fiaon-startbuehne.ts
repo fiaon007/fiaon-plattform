@@ -7,7 +7,8 @@
  * stand er als Textseite im Fenster.
  *
  * 06.10.2026: Zwei Welten, zwei Motive — Justin wählte aus zwölf Entwürfen (Werkbank scratchpad/lader,
- * Jury + Schliff) „Riffelglas“ für Privat und „Fassade“ für FIAON Global (Business-Adressen). Die Motive
+ * Jury + Schliff) „Riffelglas“ für Privat und „Fassade“ für FIAON Global (Business-Adressen; seit 29.10.2026, E-461,
+ * „Flüssiges Glas“ — auch auf der Startseite fiaon.com/). Die Motive
  * stehen in shared/fiaon-startbuehne-motive.ts (erzeugt). Beide liegen in index.html; ein Skript im Kopf
  * entscheidet VOR dem ersten Bild per Adresse, welches sichtbar ist. Dasselbe Motiv ist der Lader beim
  * Seitenwechsel (App.tsx, SeiteLaedt). Die Bühne geht erst, wenn die erste Seite wirklich steht

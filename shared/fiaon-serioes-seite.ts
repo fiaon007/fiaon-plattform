@@ -16,8 +16,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite } from "./fiaon-global-seiten/typen";
 import { FIAON_FIRMA as F } from "./fiaon-firma";
-import { BANK } from "./fiaon-bank";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, globalPreisText } from "./fiaon-global";
+import { BANK, BANK_AED } from "./fiaon-bank";
+import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "./fiaon-global";
 import { WIDERRUFSFRIST_TAGE } from "./fiaon-jahresvertrag";
 import { SERIOES_PFAD, SERIOES_STAND, SERIOES_KOPF, COMPANIES_HOUSE_URL } from "./fiaon-serioes";
 
@@ -56,12 +56,12 @@ const de: GlobalSeite = {
   bloecke: [
     {
       typ: "karten", id: "wer", h2: "Wer hinter FIAON Global steht", spalten: 2,
-      lead: `FIAON Global ist das Angebot der ${F.name} für Unternehmen und Unternehmer – eingetragen im britischen Handelsregister (Companies House, England and Wales) unter der Nummer ${F.companyNo}, Sitz ${F.strasse}, ${F.ortZeile}. Geschäftsführer (Director) ist der Gründer ${F.director}. Ihr Vertragspartner ist in jedem Fall die ${F.name} – auch dort, wo unsere Partner in den USA oder in Ihrem Land für Sie tätig werden.`,
+      lead: `FIAON Global ist das Angebot der ${F.name} für Unternehmen, Gründer und Privatpersonen – eingetragen im britischen Handelsregister (Companies House, England and Wales) unter der Nummer ${F.companyNo}, Sitz ${F.strasse}, ${F.ortZeile}. Geschäftsführer (Director) ist der Gründer ${F.director}. Ihr Vertragspartner für den Auftrag ist die ${F.name}. ${GLOBAL_ROLLEN.de.partner}`,
       karten: [
         { tag: "Register", titel: "Registereintrag prüfen", text: `Companies House · Nr. ${F.companyNo} – kostenlos und ohne Anmeldung.`, pfad: COMPANIES_HOUSE_URL },
-        { tag: "Impressum", titel: "Impressum", text: `Alle Pflichtangaben der ${F.name}.`, pfad: "/impressum?bereich=business" },
+        { titel: "Impressum", text: `Alle Pflichtangaben der ${F.name}.`, pfad: "/impressum?bereich=business" },
         { tag: "Team", titel: "Ihr Team", text: "Ihr Ansprechpartner und alle, die an Ihrem Auftrag mitarbeiten.", pfad: "/business#auf-einen-blick" },
-        { tag: "Privatkunden", titel: "Sie sind Privatkunde?", text: "Laufzeit, Monatsentgelt und Ablauf für Bonität, Konto und Karte.", pfad: "/fiaon-erfahrungen" },
+        { tag: "Privatkunden", titel: "FIAON für Bonität, Konto und Karte?", text: "Laufzeit, Monatsentgelt und Ablauf der Privatkunden-Pakete.", pfad: "/fiaon-erfahrungen" },
       ],
     },
     {
@@ -70,15 +70,15 @@ const de: GlobalSeite = {
       kopf: ["Angabe", "Bankverbindung"],
       zeilen: [["Empfänger", BANK.empfaenger], ["IBAN", BANK.ibanDisplay], ["BIC", BANK.bic], ["Bank", BANK.bank]],
       fuss: [
-        `Für Zahlungen aus den Vereinigten Arabischen Emiraten nennt Ihre Rechnung ein zweites Konto der ${F.name} in Dubai – Empfänger ist immer die ${F.name}.`,
+        `Für Zahlungen aus den Vereinigten Arabischen Emiraten nennen wir Ihnen auf Wunsch ein zweites Konto der ${BANK_AED.empfaenger} in ${BANK_AED.waehrung}: IBAN ${BANK_AED.ibanDisplay}, ${BANK_AED.bank}. Andere Konten gibt es nicht.`,
         "FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto. Fordert Sie jemand im Namen von FIAON dazu auf, zahlen Sie bitte nicht und melden Sie es uns sofort.",
       ],
     },
     {
       typ: "karten", id: "vertrag", h2: "Was vor der Beauftragung feststeht", spalten: 2,
-      lead: `Preis, Leistungen und Vertrag kennen Sie, bevor Sie etwas unterschreiben. Der Vertrag ist auf Deutsch verfasst und folgt deutschem Recht; für Privatpersonen gilt zusätzlich das gesetzliche Widerrufsrecht von ${WIDERRUFSFRIST_TAGE} Tagen.`,
+      lead: `Preis, Leistungen und Vertrag kennen Sie, bevor Sie etwas unterschreiben. Der Vertrag ist auf Deutsch verfasst und folgt deutschem Recht. Beauftragen Sie als Privatperson und handeln dabei als Verbraucher, gilt zusätzlich das gesetzliche Widerrufsrecht von ${WIDERRUFSFRIST_TAGE} Tagen.`,
       karten: [
-        { tag: "Festpreis", titel: "Ein Preis je Paket, einmalig", text: `Mit allen Gebühren des Pakets, per Rechnung, kein Abo – die Pakete beginnen bei ${globalPreisText("global_struktur", "de")}.`, pfad: "/business/kosten" },
+        { tag: "Festpreis", titel: "Ein Preis je Paket, einmalig", text: `Mit allen Gebühren des Pakets, per Rechnung, kein Abo – die Pakete beginnen bei ${globalPreisText("global_struktur", "de")} (für Unternehmen zuzüglich Umsatzsteuer).`, pfad: "/business/kosten" },
         { tag: "Vertrag", titel: "Mustervertrag vorab lesen", text: "Jede Ziffer des Auftrags, bevor Sie beauftragen.", pfad: "/business/mustervertrag" },
         { tag: "Zusage", titel: GZ.de.titel, text: `${GZ.de.text} ${GZ.de.bedingungen}` },
         { tag: "Jahr zwei", titel: "Jahresbetreuung nur auf Wunsch", text: "Ab dem zweiten Jahr zum festen Jahrespreis, jährlich im Voraus berechnet – sie verlängert sich nicht von selbst." },
@@ -88,17 +88,17 @@ const de: GlobalSeite = {
       typ: "karten", id: "was", h2: "Was FIAON Global ist – und was nicht", spalten: 2,
       lead: "FIAON Global gründet Ihre US-Gesellschaft und begleitet Sie danach: EIN und ITIN, Registered Agent und US-Adresse, die Anträge für Geschäftskonto und Firmenkarten und die Etappen auf dem Weg zum Kapital – zum Festpreis, mit einem festen Ansprechpartner. FIAON Global versteht sich als Unternehmensberatung für diesen Weg.",
       karten: [
-        { tag: "Keine Bank", titel: "Keine Bank", text: "FIAON führt keine Konten und vergibt keine Kredite. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut." },
-        { tag: "Kein Kreditvermittler", titel: "Kein Kreditvermittler", text: "FIAON vermittelt keine Kredite und sagt keinen Rahmen zu. Der Kapitalrahmen eines Pakets ist Ihr Ziel – er bestimmt, wie weit wir Sie begleiten. Sie zahlen nie einen Vorschuss für ein Darlehen, sondern den Festpreis für Leistungen, die in Ihrem Vertrag stehen." },
-        { tag: "Kein Steuermodell", titel: "Kein Steuermodell", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig. Unser Partner-Steuerberater prüft Ihren Fall vor der Gründung – das ist in jedem Paket enthalten." },
-        { tag: "Keine Kanzlei", titel: "Keine Kanzlei", text: "Den Gesellschaftsvertrag (Operating Agreement) erstellt unser Partner-Anwalt. FIAON koordiniert Ihren Auftrag; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat." },
+        { titel: "Keine Bank", text: "FIAON führt keine Konten und vergibt keine Kredite. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut." },
+        { titel: "Kein Kreditvermittler", text: "FIAON vermittelt keine Kredite und sagt keinen Rahmen zu. Der Kapitalrahmen eines Pakets ist Ihr Ziel – er bestimmt, wie weit wir Sie begleiten. Sie zahlen nie einen Vorschuss für ein Darlehen, sondern den Festpreis für Leistungen, die in Ihrem Vertrag stehen." },
+        { titel: "Kein Steuermodell", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig. Unser Partner-Steuerberater prüft Ihren Fall vor der Gründung – das ist in jedem Paket enthalten." },
+        { titel: "Keine Kanzlei", text: "Den Gesellschaftsvertrag (Operating Agreement) erstellt unser Partner-Anwalt. FIAON koordiniert Ihren Auftrag; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat." },
       ],
     },
     { typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen", punkte: [...GLOBAL_PFLICHTHINWEIS.de] },
     {
       typ: "text", id: "unterlagen", h2: "Was mit Ihren Unterlagen geschieht",
       absaetze: [
-        "Ihre Unterlagen laden Sie in Ihrem persönlichen Kundenportal hoch. Sie liegen auf Servern in Frankfurt am Main, verschlüsselt bei der Übertragung und bei der Ablage. Weiter gehen sie nur an die Partner, die für Ihren Auftrag tätig werden – etwa für die Gründung, die Anträge auf EIN und ITIN oder die erste US-Meldung –, und nie an Werbenetzwerke.",
+        "Ihre Unterlagen laden Sie in Ihrem persönlichen Kundenportal hoch. Sie liegen auf Servern in Frankfurt am Main, verschlüsselt bei der Übertragung und bei der Ablage. Weiter gehen sie nur dorthin, wo Ihr Auftrag es erfordert: an die US-Behörden, bei denen wir für Sie einreichen – etwa die Gründung beim Bundesstaat und den EIN-Antrag –, an den Registered Agent und an die Partner, die für Ihren Auftrag tätig werden, etwa für die ITIN oder die erste US-Meldung. Nie an Werbenetzwerke.",
         "Auskunft, Berichtigung und Löschung nach Art. 15 bis 17 DSGVO können Sie jederzeit verlangen. Nach dem Ende des Auftrags löschen wir Ihre Unterlagen auf Wunsch vollständig; nur Rechnungsdaten bewahren wir aus gesetzlichen Gründen auf.",
       ],
     },
@@ -106,10 +106,10 @@ const de: GlobalSeite = {
       typ: "karten", id: "partner", h2: "Für Partner: Steuerberater, Kanzleien, Finanzierer", spalten: 2,
       lead: "Viele Unternehmer kommen über ihre Steuerkanzlei, ihren Anwalt oder ihren Finanzierer zu uns. Für Partner gilt dieselbe Klarheit wie für Kunden.",
       karten: [
-        { tag: "Vertrag", titel: "Schriftlicher Partnervertrag", text: "Leistungen und Vergütung stehen vor dem Start in einem Vertrag – je Bereich." },
-        { tag: "Gutschrift", titel: "Abrechnung per Gutschrift", text: "Vergütungen rechnen wir per Gutschrift ab, mit einem Monatsbericht über jeden Kunden, der über Sie zu uns kommt." },
-        { tag: "Berufsrecht", titel: "Berufsrecht gewahrt", text: "Anwälte und Steuerberater erhalten nie eine Vergütung je Mandat, sondern einen festen Partnerplatz – wie es § 49b Abs. 3 BRAO und § 9 Abs. 2 StBerG verlangen." },
-        { tag: "Partner werden", titel: "Partner werden", text: "Bereiche, Bedingungen und Verträge im Überblick.", pfad: "/partnernetzwerk" },
+        { tag: "Vereinbarung", titel: "Alles schriftlich", text: "Jede Zusammenarbeit steht vorher in einer schriftlichen Vereinbarung – Leistungen und Bedingungen inklusive." },
+        { tag: "Gutschrift", titel: "Abrechnung per Gutschrift", text: "Wer als Tippgeber oder Kooperationspartner vergütet wird, erhält eine Gutschrift mit Monatsbericht." },
+        { tag: "Berufsrecht", titel: "Berufsrecht gewahrt", text: "Anwälte und Steuerberater erhalten für das Zuführen von Mandanten keine Vergütung und keinen sonstigen Vorteil (§ 49b Abs. 3 BRAO, § 9 Abs. 2 StBerG). Arbeiten sie für Ihren Auftrag, trägt FIAON ihr Honorar für die Leistungen Ihres Pakets." },
+        { tag: "Kontakt", titel: "Partner werden", text: `Schreiben Sie uns an ${F.email} – Bedingungen und Vereinbarung erhalten Sie schriftlich.`, pfad: `mailto:${F.email}?subject=Partnerschaft%20FIAON%20Global` },
       ],
     },
     {
@@ -129,13 +129,13 @@ const de: GlobalSeite = {
   fragen: [
     { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an Fakten statt an Versprechen: FIAON Global ist ein Angebot der ${F.name}, eingetragen beim Companies House (England and Wales) unter der Nummer ${F.companyNo}, Sitz ${F.strasse}, ${F.ortZeile}. Jedes Paket hat einen Festpreis, Sie zahlen per Rechnung auf das Geschäftskonto der ${F.name}, den Vertrag lesen Sie vorab als Mustervertrag, und Sie erreichen einen festen Ansprechpartner per Telefon und E-Mail.` },
     { f: "Wer steht hinter FIAON Global?", a: `Die ${F.name} mit Sitz in ${F.strasse}, ${F.ortZeile}, eingetragen beim Companies House unter der Nummer ${F.companyNo}. Geschäftsführer ist der Gründer ${F.director}. Den Eintrag können Sie kostenlos und ohne Anmeldung einsehen; alle Pflichtangaben stehen im Impressum. Ihr Vertragspartner ist in jedem Fall die ${F.name}.` },
-    { f: "Wohin zahle ich, und woran erkenne ich eine echte Rechnung?", a: `Sie zahlen nur per Überweisung an ${BANK.empfaenger}; die Bankverbindung steht auf dieser Seite und auf jeder Rechnung, zusammen mit Ihrem Verwendungszweck. Für Zahlungen aus den Vereinigten Arabischen Emiraten nennt die Rechnung ein zweites Konto der ${F.name} in Dubai. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto – erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht und melden Sie sich bei ${F.email} oder unter ${F.telefon}.` },
-    { f: "Was kostet FIAON Global, und gibt es ein Abo?", a: `Jedes Paket hat einen Festpreis, einmalig, mit allen Gebühren des Pakets; er steht fest, bevor Sie beauftragen. Die Pakete beginnen bei ${globalPreisText("global_struktur", "de")}. Es gibt kein Abo: Ab dem zweiten Jahr können Sie die Jahresbetreuung zum festen Jahrespreis dazunehmen – sie wird jährlich im Voraus berechnet und verlängert sich nicht von selbst.` },
+    { f: "Wohin zahle ich, und woran erkenne ich eine echte Rechnung?", a: `Sie zahlen nur per Überweisung an ${BANK.empfaenger}; die Bankverbindung steht auf dieser Seite und auf jeder Rechnung, zusammen mit Ihrem Verwendungszweck. Für Zahlungen aus den Vereinigten Arabischen Emiraten nennen wir Ihnen auf Wunsch ein zweites Konto der ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} (IBAN ${BANK_AED.ibanDisplay}); andere Konten gibt es nicht. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto – erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht und melden Sie sich bei ${F.email} oder unter ${F.telefon}.` },
+    { f: "Was kostet FIAON Global, und gibt es ein Abo?", a: `Jedes Paket hat einen Festpreis, einmalig, mit allen Gebühren des Pakets; er steht fest, bevor Sie beauftragen. Die Pakete beginnen bei ${globalPreisText("global_struktur", "de")}, für Unternehmen zuzüglich Umsatzsteuer. Es gibt kein Abo: Ab dem zweiten Jahr können Sie die Jahresbetreuung zum festen Jahrespreis dazunehmen – sie wird jährlich im Voraus berechnet und verlängert sich nicht von selbst.` },
     { f: "Ist FIAON eine Bank oder ein Kreditvermittler?", a: "Nein. FIAON führt keine Konten, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Der Kapitalrahmen eines Pakets ist Ihr Ziel und bestimmt, wie weit wir Sie begleiten; über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut. Sie zahlen den Festpreis für Leistungen, die in Ihrem Vertrag stehen – nie einen Vorschuss für ein Darlehen." },
     { f: "Spare ich mit einer US-Gesellschaft Steuern?", a: "Eine US-Gesellschaft ist kein Steuermodell. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, bleibt sie dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden. Unser Partner-Steuerberater prüft Ihren Fall vor der Gründung – das ist in jedem Paket enthalten." },
     { f: "Was passiert, wenn FIAON nicht liefert?", a: `${GZ.de.text} ${GZ.de.bedingungen}` },
-    { f: "Was passiert mit meinen Unterlagen?", a: "Sie laden sie in Ihrem persönlichen Kundenportal hoch; sie liegen auf Servern in Frankfurt am Main, verschlüsselt bei Übertragung und Ablage. Weiter gehen sie nur an die Partner, die für Ihren Auftrag tätig werden, und nie an Werbenetzwerke. Auskunft, Berichtigung und Löschung nach der DSGVO können Sie jederzeit verlangen; nach dem Ende des Auftrags löschen wir Ihre Unterlagen auf Wunsch vollständig, nur Rechnungsdaten bleiben aus gesetzlichen Gründen aufbewahrt." },
-    { f: "Wie arbeite ich als Steuerberater, Kanzlei oder Finanzierer mit FIAON zusammen?", a: "Über einen schriftlichen Partnervertrag je Bereich. Vergütungen rechnen wir per Gutschrift mit einem Monatsbericht ab. Anwälte und Steuerberater erhalten nie eine Vergütung je Mandat, sondern einen festen Partnerplatz – so, wie es das Berufsrecht verlangt. Bereiche und Bedingungen stehen im Partnernetzwerk auf fiaon.com." },
+    { f: "Was passiert mit meinen Unterlagen?", a: "Sie laden sie in Ihrem persönlichen Kundenportal hoch; sie liegen auf Servern in Frankfurt am Main, verschlüsselt bei Übertragung und Ablage. Weiter gehen sie nur, soweit Ihr Auftrag es erfordert – an die US-Behörden, bei denen wir für Sie einreichen, an den Registered Agent und an die Partner, die für Ihren Auftrag tätig werden –, und nie an Werbenetzwerke. Auskunft, Berichtigung und Löschung nach der DSGVO können Sie jederzeit verlangen; nach dem Ende des Auftrags löschen wir Ihre Unterlagen auf Wunsch vollständig, nur Rechnungsdaten bleiben aus gesetzlichen Gründen aufbewahrt." },
+    { f: "Wie arbeite ich als Steuerberater, Kanzlei oder Finanzierer mit FIAON zusammen?", a: `Über eine schriftliche Vereinbarung, die vor dem Start feststeht. Wer als Tippgeber oder Kooperationspartner vergütet wird, erhält eine Gutschrift mit Monatsbericht. Anwälte und Steuerberater erhalten für das Zuführen von Mandanten keine Vergütung und keinen sonstigen Vorteil (§ 49b Abs. 3 BRAO, § 9 Abs. 2 StBerG); arbeiten sie für den Auftrag eines Kunden, trägt FIAON ihr Honorar für die Leistungen des Pakets. Schreiben Sie uns an ${F.email} – Bedingungen und Vereinbarung erhalten Sie schriftlich.` },
     { f: "Warum finde ich Warnungen oder Bewertungen, die nicht zu FIAON passen?", a: `Weil es Unternehmen mit ähnlich klingenden Namen gibt. FIAON schreibt sich F-I-A-O-N, die Internetadresse ist fiaon.com, Vertragspartner ist die ${F.name} in London. Warnlisten von Aufsichtsbehörden und Verbraucherportalen nennen Anbieter mit Namen und Anschrift – prüfen Sie beides genau. Wenn etwas nicht zusammenpasst, fragen Sie uns direkt.` },
   ],
   weiter: ["/business/was-ist-fiaon-global", "/business/kosten", "/business/ablauf", "/business/fragen"],
@@ -161,7 +161,7 @@ const en: GlobalSeite = {
     ["Management", `${F.director} (Director), founder`],
     ["Price", "Fixed price per package, one-off, all fees of the package included"],
     ["Payment", `By invoice, bank transfer to ${BANK.empfaenger} only — no subscription, no direct debit`],
-    ["Contract", "In German, under German law; model contract available to read in advance"],
+    ["Contract", "In English or German, under German law; model contract available to read in advance"],
     ["Your documents", "Servers in Frankfurt am Main, encrypted, under the GDPR"],
     ["Contact", `${F.telefon} · ${F.email}`],
   ],
@@ -169,12 +169,12 @@ const en: GlobalSeite = {
   bloecke: [
     {
       typ: "karten", id: "wer", h2: "Who is behind FIAON Global", spalten: 2,
-      lead: `FIAON Global is the service of ${F.name} for companies and business owners — registered with the UK company register (Companies House, England and Wales) under number ${F.companyNo}, registered office ${F.strasse}, ${F.ortZeile}. The Director is the founder, ${F.director}. Your contracting party is always ${F.name} — including where our partners in the United States or in your country work for you.`,
+      lead: `FIAON Global is the service of ${F.name} for companies, founders and private individuals — registered with the UK company register (Companies House, England and Wales) under number ${F.companyNo}, registered office ${F.strasse}, ${F.ortZeile}. The Director is the founder, ${F.director}. Your contracting party for the mandate is ${F.name}. ${GLOBAL_ROLLEN.en.partner}`,
       karten: [
         { tag: "Register", titel: "Check the register entry", text: `Companies House · No. ${F.companyNo} — free of charge, no account needed.`, pfad: COMPANIES_HOUSE_URL },
-        { tag: "Legal notice", titel: "Legal notice", text: `All statutory details of ${F.name}.`, pfad: "/impressum?bereich=business" },
+        { titel: "Legal notice", text: `All statutory details of ${F.name}.`, pfad: "/impressum?bereich=business" },
         { tag: "Team", titel: "Your team", text: "Your contact and everyone who works on your mandate.", pfad: "/en/business#auf-einen-blick" },
-        { tag: "Private customers", titel: "A private customer?", text: "Term, monthly fee and process for credit standing, account and card.", pfad: "/en/how-fiaon-works" },
+        { tag: "Private customers", titel: "FIAON for credit standing, account and card?", text: "Term, monthly fee and process of the private customer plans.", pfad: "/en/how-fiaon-works" },
       ],
     },
     {
@@ -183,15 +183,15 @@ const en: GlobalSeite = {
       kopf: ["Item", "Bank details"],
       zeilen: [["Recipient", BANK.empfaenger], ["IBAN", BANK.ibanDisplay], ["BIC", BANK.bic], ["Bank", BANK.bank]],
       fuss: [
-        `For payments from the United Arab Emirates, your invoice names a second account of ${F.name} in Dubai — the recipient is always ${F.name}.`,
+        `For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request: IBAN ${BANK_AED.ibanDisplay}, ${BANK_AED.bank}. There are no other accounts.`,
         "FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If anyone asks you to do so in FIAON's name, please do not pay and let us know straight away.",
       ],
     },
     {
       typ: "karten", id: "vertrag", h2: "What is fixed before you commission us", spalten: 2,
-      lead: `You know the price, the services and the contract before you sign anything. The contract is written in German and governed by German law; private individuals also have the statutory ${WIDERRUFSFRIST_TAGE}-day right of withdrawal.`,
+      lead: `You know the price, the services and the contract before you sign anything. The contract is available in English and German and is governed by German law. If you engage us as a private individual acting as a consumer, the statutory ${WIDERRUFSFRIST_TAGE}-day right of withdrawal also applies.`,
       karten: [
-        { tag: "Fixed price", titel: "One price per package, one-off", text: `All fees of the package included, by invoice, no subscription — packages start at ${globalPreisText("global_struktur", "en")}.`, pfad: "/en/business/costs" },
+        { tag: "Fixed price", titel: "One price per package, one-off", text: `All fees of the package included, by invoice, no subscription — packages start at ${globalPreisText("global_struktur", "en")} (plus VAT for companies).`, pfad: "/en/business/costs" },
         { tag: "Contract", titel: "Read the model contract first", text: "Every clause of the mandate, before you commission us.", pfad: "/en/business/mustervertrag" },
         { tag: "Commitment", titel: GZ.en.titel, text: `${GZ.en.text} ${GZ.en.bedingungen}` },
         { tag: "Year two", titel: "Annual care only if you want it", text: "From the second year at a fixed annual price, invoiced a year in advance — it does not renew by itself." },
@@ -201,17 +201,17 @@ const en: GlobalSeite = {
       typ: "karten", id: "was", h2: "What FIAON Global is — and what it is not", spalten: 2,
       lead: "FIAON Global forms your US company and supports you afterwards: EIN and ITIN, registered agent and US address, the applications for a business account and company cards, and the stages on the route to capital — at a fixed price, with a dedicated contact. FIAON Global sees itself as a business consultancy for this route.",
       karten: [
-        { tag: "Not a bank", titel: "Not a bank", text: "FIAON holds no accounts and grants no loans. Decisions on account, card, limit and loan are made by the institution alone." },
-        { tag: "No loan brokering", titel: "No loan brokering", text: "FIAON does not broker loans and commits to no limit. A package's capital target is your goal — it sets how far we accompany you. You never pay an advance for a loan, only the fixed price for services set out in your contract." },
-        { tag: "Not a tax scheme", titel: "Not a tax scheme", text: "A US company managed from Germany, Austria or Switzerland remains taxable there. Our partner tax adviser reviews your case before formation — this is included in every package." },
-        { tag: "Not a law firm", titel: "Not a law firm", text: "Our partner lawyer drafts the operating agreement. FIAON coordinates your mandate; tax and legal questions are handled by our partners under your engagement." },
+        { titel: "Not a bank", text: "FIAON holds no accounts and grants no loans. Decisions on account, card, limit and loan are made by the institution alone." },
+        { titel: "No loan brokering", text: "FIAON does not broker loans and commits to no limit. A package's capital target is your goal — it sets how far we accompany you. You never pay an advance for a loan, only the fixed price for services set out in your contract." },
+        { titel: "Not a tax scheme", text: "A US company managed from Germany, Austria or Switzerland remains taxable there. Our partner tax adviser reviews your case before formation — this is included in every package." },
+        { titel: "Not a law firm", text: "Our partner lawyer drafts the operating agreement. FIAON coordinates your mandate; tax and legal questions are handled by our partners under your engagement." },
       ],
     },
     { typ: "hinweis", id: "wissen", h2: "What you need to know", punkte: [...GLOBAL_PFLICHTHINWEIS.en] },
     {
       typ: "text", id: "unterlagen", h2: "What happens to your documents",
       absaetze: [
-        "You upload your documents in your personal client portal. They are stored on servers in Frankfurt am Main, encrypted in transit and at rest. They go only to the partners who work on your mandate — for the formation, the EIN and ITIN applications or the first US filing, for example — and never to advertising networks.",
+        "You upload your documents in your personal client portal. They are stored on servers in Frankfurt am Main, encrypted in transit and at rest. They go only where your mandate requires: to the US authorities with which we file on your behalf — the formation with the state and the EIN application, for example — to the registered agent, and to the partners who work on your mandate, such as for the ITIN or the first US filing. Never to advertising networks.",
         "You can request access, correction and erasure under Articles 15 to 17 GDPR at any time. Once the mandate has ended, we delete your documents in full on request; only invoicing records are kept, as the law requires.",
       ],
     },
@@ -219,10 +219,10 @@ const en: GlobalSeite = {
       typ: "karten", id: "partner", h2: "For partners: tax advisers, law firms, financiers", spalten: 2,
       lead: "Many business owners come to us through their tax firm, their lawyer or their financier. Partners get the same clarity as clients.",
       karten: [
-        { tag: "Contract", titel: "A written partner agreement", text: "Services and remuneration are set out in an agreement before we start — per area." },
-        { tag: "Credit note", titel: "Settlement by credit note", text: "We settle remuneration by credit note, with a monthly report on every client who comes to us through you." },
-        { tag: "Professional rules", titel: "Professional rules respected", text: "Lawyers and tax advisers are never paid per mandate, but through a fixed partner place — as German professional law requires (section 49b(3) BRAO and section 9(2) StBerG)." },
-        { tag: "Become a partner", titel: "Become a partner", text: "Areas, conditions and agreements at a glance.", pfad: "/en/partner-network" },
+        { tag: "Agreement", titel: "Everything in writing", text: "Every cooperation is set out beforehand in a written agreement — services and conditions included." },
+        { tag: "Credit note", titel: "Settlement by credit note", text: "Anyone remunerated as an introducer or cooperation partner receives a credit note with a monthly report." },
+        { tag: "Professional rules", titel: "Professional rules respected", text: "Lawyers and tax advisers receive no fee or other benefit for introducing clients (section 49b(3) BRAO, section 9(2) StBerG). Where they work on your mandate, FIAON pays their fees for the services in your package." },
+        { tag: "Contact", titel: "Become a partner", text: `Write to us at ${F.email} — you receive the conditions and the agreement in writing.`, pfad: `mailto:${F.email}?subject=Partnership%20FIAON%20Global` },
       ],
     },
     {
@@ -242,13 +242,13 @@ const en: GlobalSeite = {
   fragen: [
     { f: "Is FIAON Global legit?", a: `Judge us on facts, not promises: FIAON Global is a service of ${F.name}, registered with Companies House (England and Wales) under number ${F.companyNo}, registered office ${F.strasse}, ${F.ortZeile}. Every package has a fixed price, you pay by invoice into the business account of ${F.name}, you read the contract in advance as a model contract, and you can reach a dedicated contact by phone and e-mail.` },
     { f: "Who is behind FIAON Global?", a: `${F.name}, registered office ${F.strasse}, ${F.ortZeile}, registered with Companies House under number ${F.companyNo}. The Director is the founder, ${F.director}. You can view the entry free of charge and without an account; all statutory details are in the legal notice. Your contracting party is always ${F.name}.` },
-    { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, the invoice names a second account of ${F.name} in Dubai. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account — if you receive such a request in FIAON's name, please do not pay and contact ${F.email} or ${F.telefon}.` },
-    { f: "What does FIAON Global cost, and is there a subscription?", a: `Every package has a fixed price, one-off, with all fees of the package included; it is fixed before you commission us. Packages start at ${globalPreisText("global_struktur", "en")}. There is no subscription: from the second year you can add the annual care plan at a fixed annual price — it is invoiced a year in advance and does not renew by itself.` },
+    { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request (IBAN ${BANK_AED.ibanDisplay}); there are no other accounts. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account — if you receive such a request in FIAON's name, please do not pay and contact ${F.email} or ${F.telefon}.` },
+    { f: "What does FIAON Global cost, and is there a subscription?", a: `Every package has a fixed price, one-off, with all fees of the package included; it is fixed before you commission us. Packages start at ${globalPreisText("global_struktur", "en")}, plus VAT for companies. There is no subscription: from the second year you can add the annual care plan at a fixed annual price — it is invoiced a year in advance and does not renew by itself.` },
     { f: "Is FIAON a bank, or does it broker loans?", a: "No. FIAON holds no accounts, grants no loans, brokers no loans and commits to no limit. A package's capital target is your goal and sets how far we accompany you; decisions on account, card, limit and loan are made by the institution alone. You pay the fixed price for services set out in your contract — never an advance for a loan." },
     { f: "Does a US company save me tax?", a: "A US company is not a tax scheme. If it is managed from Germany, Austria or Switzerland, it remains taxable there, and its formation must be reported to the tax office. Our partner tax adviser reviews your case before formation — this is included in every package." },
     { f: "What happens if FIAON does not deliver?", a: `${GZ.en.text} ${GZ.en.bedingungen}` },
-    { f: "What happens to my documents?", a: "You upload them in your personal client portal; they are stored on servers in Frankfurt am Main, encrypted in transit and at rest. They go only to the partners who work on your mandate and never to advertising networks. You can request access, correction and erasure under the GDPR at any time; once the mandate has ended, we delete your documents in full on request — only invoicing records are kept, as the law requires." },
-    { f: "How do I work with FIAON as a tax adviser, law firm or financier?", a: "Through a written partner agreement per area. We settle remuneration by credit note with a monthly report. Lawyers and tax advisers are never paid per mandate, but through a fixed partner place — as professional law requires. Areas and conditions are set out in the partner network on fiaon.com." },
+    { f: "What happens to my documents?", a: "You upload them in your personal client portal; they are stored on servers in Frankfurt am Main, encrypted in transit and at rest. They go only where your mandate requires — to the US authorities with which we file on your behalf, to the registered agent and to the partners who work on your mandate — and never to advertising networks. You can request access, correction and erasure under the GDPR at any time; once the mandate has ended, we delete your documents in full on request — only invoicing records are kept, as the law requires." },
+    { f: "How do I work with FIAON as a tax adviser, law firm or financier?", a: `Through a written agreement that is fixed before we start. Anyone remunerated as an introducer or cooperation partner receives a credit note with a monthly report. Lawyers and tax advisers receive no fee or other benefit for introducing clients (section 49b(3) BRAO, section 9(2) StBerG); where they work on a client’s mandate, FIAON pays their fees for the services in the package. Write to us at ${F.email} — you receive the conditions and the agreement in writing.` },
     { f: "Why do I find warnings or reviews that do not fit FIAON?", a: `Because there are companies with similar-sounding names. FIAON is spelt F-I-A-O-N, the web address is fiaon.com, and the contracting party is ${F.name} in London. Warning lists from regulators and consumer portals name providers with their name and address — check both carefully. If something does not add up, ask us directly.` },
   ],
   weiter: ["/en/business/what-is-fiaon-global", "/en/business/costs", "/en/business/process", "/en/business/faq"],

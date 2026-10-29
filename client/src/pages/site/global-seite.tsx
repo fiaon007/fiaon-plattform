@@ -572,7 +572,9 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
                   <h3>{k.titel}</h3><p>{k.text}</p>
                 </>
               );
-              return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
+              // 29.10.2026 (E-459): Karten mit fremder Adresse (Companies House) öffnen in einem neuen Tab — wie die Quellenliste.
+              const extern = !!k.pfad && /^https?:\/\//.test(k.pfad);
+              return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
             })}
           </div>
         </Abschnitt>

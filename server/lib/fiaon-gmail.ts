@@ -481,3 +481,27 @@ export async function neueMailSendenMitFaden(postfach: string, opts: { vonName?:
   return { id: String(j?.id || ""), threadId: String(j?.threadId || "") };
 }
 
+
+// ── E-458 (29.10.2026): DIE ECHTE UNTERSCHRIFT EINES POSTFACHS ──────────────
+// Die erste Mail des Mail-Motors trägt die Gmail-Signatur, die der Mensch in seinem Postfach eingerichtet hat (Name +
+// Signatur mit Bild) — nicht eine nachgebaute Karte. Gelesen über users.settings.sendAs.get (zum Lesen reicht der
+// Scope gmail.modify), sechs Stunden im Speicher; ein Fehler nur zehn Minuten (sonst bliebe ein Postfach nach einer
+// kurzen Störung sechs Stunden ohne Unterschrift).
+const absenderCache = new Map<string, { wert: { displayName: string; signature: string } | null; bis: number; fehler?: string }>();
+export async function absenderLesen(postfach: string): Promise<{ displayName: string; signature: string }> {
+  const p = String(postfach || "").trim().toLowerCase();
+  const im = absenderCache.get(p);
+  if (im && im.bis > Date.now()) {
+    if (im.wert) return im.wert;
+    throw new Error(im.fehler ?? `sendAs ${p} nicht lesbar`);
+  }
+  try {
+    const j = await api(p, `/settings/sendAs/${encodeURIComponent(p)}`);
+    const wert = { displayName: String(j?.displayName ?? "").trim(), signature: String(j?.signature ?? "") };
+    absenderCache.set(p, { wert, bis: Date.now() + 6 * 3_600_000 });
+    return wert;
+  } catch (e: any) {
+    absenderCache.set(p, { wert: null, bis: Date.now() + 10 * 60_000, fehler: String(e?.message || e).slice(0, 200) });
+    throw e;
+  }
+}

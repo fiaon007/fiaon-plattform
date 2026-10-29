@@ -1863,9 +1863,11 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     titel: "Angeschrieben wird nur, wer Kapital braucht.",
     text: "Jede Firma trägt ein Kapitalsignal mit Stärke 1 bis 5 (Punkte in der Liste) — mit wörtlichem Beleg auf seiner Quelle. "
       + "Automatisch schreibt Mara erst ab Stärke 3 und nur an den Entscheider persönlich — nie an info@, office@ oder welcome@. "
-      + "Die erste Mail nennt einen echten Anlass, was wir tun, und stellt eine Frage, ohne Preis und ohne Betrag. "
-      + "Jede Mail trägt die Signaturkarte mit Porträt.",
-    tipp: "Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine vorherige Einwilligung — Mara hält Tageskontingent, Abmeldesatz und Sperrliste ein.",
+      + "Die erste Mail nennt einen echten Anlass, was wir tun, und stellt genau eine Frage, ohne Preis und ohne Betrag. "
+      + "Jede Mail sieht aus wie von Hand in Gmail geschrieben: echte Unterschrift des Postfachs, darunter leise Impressum und Datenschutz.",
+    // E-458 (29.10.2026): kein Abmelde-Link mehr — ein natürlicher Schlusssatz; Österreich bekommt Briefe statt Mails.
+    tipp: "Statt eines Abmelde-Links steht am Ende ein natürlicher Satz („Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.“). "
+      + "Wer ablehnt, kommt sofort auf die Sperrliste und hört nie wieder von uns. Nach Österreich gehen Briefe statt Mails.",
   },
   {
     // E-339 (12.10.2026): Brief statt Mail.

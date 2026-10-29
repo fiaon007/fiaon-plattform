@@ -126,3 +126,71 @@ ${signaturHtml(s)}
 ${fuss ? `<p style="margin:22px 0 0;padding-top:12px;border-top:1px solid #e5e8ee;font-size:11.5px;line-height:1.5;color:#7a8394">${esc(fuss).replace(/\n/g, "<br>")}</p>` : ""}
 </div></body></html>`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-458 (29.10.2026) — DIE ERSTE MAIL SIEHT AUS WIE VON HAND IN GMAIL GESCHRIEBEN
+//
+// Justin: „immer 100 % menschlich, mit Signatur … kein Abmelde-Link, es soll ja so fühlen, als würde man hier explizit an
+// die Person schreiben und keine Bulk-Kampagne.“ Deshalb kein eigenes Mail-Dokument (DOCTYPE, 600 px, eigene Schrift),
+// sondern das, was Gmail selbst schickt: <div dir="ltr">, Absätze als <div>, die ECHTE Signatur des Postfachs im Block
+// gmail_signature — und darunter eine leise Zeile mit Firma, Impressum und Datenschutz wie bei jeder Geschäftsmail.
+// signaturHtml und htmlAusText oben bleiben Byte für Byte (scripts/pruef-mara-signatur.ts vergleicht sie).
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PersoenlicheMail {
+  anrede: string;
+  absaetze: string[];
+  frage?: string | null;
+  /** Höchstens ein Link, als eigene Zeile nach der Frage (Firmen: „Einen Termin wählen“; Partner: keiner). */
+  link?: { text: string; url: string } | null;
+  /** Der natürliche letzte Satz vor dem Gruß (statt Abmelde-Satz). */
+  schluss?: string | null;
+  gruss: string;
+  /** Die Unterschrift des Absender-Postfachs: HTML (Gmail-Signatur) und Text. */
+  signatur: { html: string; text: string };
+}
+
+const IMPRESSUM = () => ({ ort: FIAON_FIRMA.ortZeile.split(",")[0].trim(), impressum: `${basis()}/impressum`, datenschutz: `${basis()}/datenschutz` });
+
+/** Die leise Zeile unter der Signatur: Firma, Sitz, Register, Impressum, Datenschutz. */
+export function impressumZeileHtml(): string {
+  const i = IMPRESSUM();
+  const link = (url: string, text: string) => `<a href="${esc(url)}" style="color:#9aa0a6;text-decoration:underline;">${text}</a>`;
+  return `<div style="margin-top:14px;font-size:11px;line-height:1.5;color:#9aa0a6;">${esc(FIAON_FIRMA.name)} · ${esc(i.ort)} · Companies House ${esc(FIAON_FIRMA.companyNo)} · ${link(i.impressum, "Impressum")} · ${link(i.datenschutz, "Datenschutz")}</div>`;
+}
+export function impressumZeileText(): string {
+  const i = IMPRESSUM();
+  return `${FIAON_FIRMA.name} · ${i.ort} · Companies House ${FIAON_FIRMA.companyNo} · Impressum: ${i.impressum} · Datenschutz: ${i.datenschutz}`;
+}
+
+/** Eine Gmail-Signatur (HTML) als Text — Zeilenumbrüche aus <br>/<div>/<p>, Entitäten aufgelöst, Bilder weg. */
+export function signaturAlsText(html: string): string {
+  return String(html ?? "")
+    .replace(/<(br|\/div|\/p|\/tr|\/li)\b[^>]*>/gi, "\n").replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
+    .split("\n").map((z) => z.replace(/[ \t]+/g, " ").trim()).filter((z, i, a) => z || (i > 0 && a[i - 1])).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Die Mail als HTML, wie Gmail sie beim Schreiben von Hand baut. Alle Eingaben maskiert; die Signatur kommt aus Gmail. */
+export function persoenlicheMailHtml(m: PersoenlicheMail): string {
+  const zeile = (t: string) => `<div>${esc(t)}</div>`;
+  const leer = "<div><br></div>";
+  const teile: string[] = [zeile(m.anrede), leer];
+  for (const a of m.absaetze) teile.push(zeile(a), leer);
+  if (m.frage) teile.push(zeile(m.frage), leer);
+  if (m.link) teile.push(`<div><a href="${esc(m.link.url)}">${esc(m.link.text)}</a></div>`, leer);
+  if (m.schluss) teile.push(zeile(m.schluss), leer);
+  teile.push(zeile(m.gruss));
+  return `<div dir="ltr">${teile.join("")}<div><br clear="all"></div><div><br></div><span class="gmail_signature_prefix">-- </span><br><div dir="ltr" class="gmail_signature" data-smartmail="gmail_signature">${m.signatur.html}</div>${impressumZeileHtml()}</div>`;
+}
+
+/** Dieselbe Mail als Text (für Mailprogramme ohne HTML und für den Verlauf im Chefbüro). */
+export function persoenlicheMailText(m: PersoenlicheMail): string {
+  return [
+    m.anrede, "",
+    ...m.absaetze.flatMap((a) => [a, ""]),
+    ...(m.frage ? [m.frage, ""] : []),
+    ...(m.link ? [`${m.link.text}: ${m.link.url}`, ""] : []),
+    ...(m.schluss ? [m.schluss, ""] : []),
+    m.gruss, "", "-- ", m.signatur.text, "", impressumZeileText(),
+  ].join("\n");
+}

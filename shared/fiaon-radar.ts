@@ -242,7 +242,7 @@ export const RADAR_ANTWORT_ARTEN: Record<RadarAntwortArt, RadarAntwortRegel> = {
   spaeter: { label: "Später melden", lead: false, stopptNachfass: true, mara: "antwort", sperre: false, dringend: false, was: "Kein Nachfassen. Mara bestätigt und meldet sich zum genannten Zeitpunkt wieder (Wiedervorlage)." },
   termin_gebucht: { label: "Termin gebucht", lead: true, stopptNachfass: true, mara: "nie", sperre: false, dringend: false, was: "Stand „Termin“. Keine Antwort an eine Kalender-Mail — Aufgabe für Justin." },
   termin_abgesagt: { label: "Termin abgesagt", lead: true, stopptNachfass: true, mara: "entwurf", sperre: false, dringend: true, was: "Zurück auf „Lead“. Dringende Aufgabe; Mara legt neue Zeiten als Entwurf bereit." },
-  kein_interesse: { label: "Kein Interesse", lead: false, stopptNachfass: true, mara: "nie", sperre: true, dringend: false, was: "Sperrliste. Nie wieder eine Mail — so verspricht es der Abmeldesatz." },
+  kein_interesse: { label: "Kein Interesse", lead: false, stopptNachfass: true, mara: "nie", sperre: true, dringend: false, was: "Sperrliste. Wer ablehnt, bekommt nie wieder eine Mail von uns." },
   datenschutz: { label: "Datenschutz", lead: false, stopptNachfass: true, mara: "entwurf", sperre: true, dringend: true, was: "Sperrliste. Dringende Aufgabe; Antwort mit der Datenquelle liegt als Entwurf von Justin bereit — nie automatisch." },
   rechtlich: { label: "Anwalt / Abmahnung", lead: false, stopptNachfass: true, mara: "nie", sperre: true, dringend: true, was: "Sperrliste. Dringende Aufgabe für Justin. Keine Antwort von Mara." },
   abwesend: { label: "Abwesend", lead: false, stopptNachfass: false, mara: "nie", sperre: false, dringend: false, was: "Nachfassen wartet bis nach der Rückkehr." },
@@ -468,13 +468,16 @@ export interface RadarMotor {
   puffer: number;
   /** So viele Tage bleibt eine fertige Mail sendbar — danach ist sie veraltet. */
   haltbarTage: number;
+  /** Firmen-Mails: ein Link „Einen Termin wählen“ nach der Frage — oder keiner. Partner-Mails tragen nie einen. */
+  link: "termin" | "keiner";
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
-export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7 };
+export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin" };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
+  link: "radar_motor_link",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -519,6 +522,7 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     partnerJeStunde: jeStunde(roh[k.partnerJeStunde], v.partnerJeStunde),
     puffer: zahl(roh[k.puffer], v.puffer, 0.1, 5),
     haltbarTage: Math.round(zahl(roh[k.haltbarTage], v.haltbarTage, 1, 30)),
+    link: text(roh[k.link]) === "keiner" ? "keiner" : v.link,
   };
 }
 
@@ -619,11 +623,61 @@ export const RADAR_TRICHTER: { key: string; label: string; satz: string }[] = [
 // So steht es jetzt da, und es hält: Das Konto eröffnet die Bank — wir „kümmern uns darum“. Der Preisvorteil hängt am
 // Einführungszeitraum ohne Sollzins (das Hauswort statt „0 %“, E-188) — in dieser Zeit ist das Kapital günstiger als
 // jeder verzinste Kredit. Kein Betrag, kein Rahmen, kein Institut-Satz (Justin, 12.10.).
+// E-458 (29.10.2026): ohne Gedankenstriche — Justin: „NIEMALS klingt sie nach KI“, und Gedankenstrich-Ketten sind das
+// erste Erkennungszeichen. Wirkt auch auf Brief, Nachfass und das Zitat im Chefbüro.
 export const RADAR_KERNSATZ = {
-  was: "Wir gründen für Unternehmer eine eigene LLC in den USA – das US-Gegenstück zur GmbH –, kümmern uns um Geschäftskonto und Firmenkreditkarten und ebnen den Weg zu US-Funding.",
+  was: "Wir gründen für Unternehmer eine eigene LLC in den USA, das US-Gegenstück zur GmbH, kümmern uns um Geschäftskonto und Firmenkreditkarten und ebnen den Weg zu US-Funding.",
   vorteil: "Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und das Kapital lässt sich auch in Europa einsetzen.",
   vorOrt: "Alles Amerikanische erledigt unser Team vor Ort.",
 } as const;
+
+// ── MENSCHLICH, NIE NACH KI (E-458 Punkt 3) ─────────────────────────────────
+// Justin: „immer 100 % menschlich, mit Signatur, 100 % personalisiert und NIEMALS klingt sie nach KI … kein Abmelde-Link,
+// es soll ja so fühlen, als würde man hier explizit an die Person schreiben und keine Bulk-Kampagne.“
+/** Floskeln, an denen man eine KI- oder Massenmail erkennt — in jeder Motor-Mail gesperrt. */
+export const RADAR_KI_FLOSKELN: readonly { muster: RegExp; wort: string }[] = [
+  { muster: /ich hoffe,?\s+(diese|meine)\s+(nachricht|mail|e-mail)|ich hoffe,?\s+(es geht ihnen|ihnen geht es|sie hatten)/i, wort: "Ich hoffe, diese Nachricht …" },
+  { muster: /in der heutigen zeit|in zeiten wie diesen/i, wort: "in der heutigen Zeit" },
+  { muster: /\bspannend\w*/i, wort: "spannend" },
+  { muster: /\binnovativ\w*/i, wort: "innovativ" },
+  { muster: /ma(ß|ss)geschneidert\w*/i, wort: "maßgeschneidert" },
+  { muster: /\bnahtlos\w*/i, wort: "nahtlos" },
+  { muster: /\bsynergie\w*/i, wort: "Synergie" },
+  { muster: /\bmehrwert\w*/i, wort: "Mehrwert" },
+  { muster: /\bganzheitlich\w*/i, wort: "ganzheitlich" },
+  { muster: /\beinzigartig\w*/i, wort: "einzigartig" },
+  { muster: /game.?changer/i, wort: "Game-Changer" },
+  { muster: /\brevolution\w*|\bbahnbrechend\w*/i, wort: "revolutionär" },
+  { muster: /zögern sie nicht/i, wort: "zögern Sie nicht" },
+  { muster: /ich freue mich[^.?!]{0,40}(von ihnen zu hören|auf ihre (rückmeldung|antwort))/i, wort: "Ich freue mich, von Ihnen zu hören" },
+  { muster: /\blassen sie uns\b/i, wort: "Lassen Sie uns" },
+  { muster: /\bstellen sie sich vor\b/i, wort: "Stellen Sie sich vor" },
+  { muster: /win.?win/i, wort: "Win-win" },
+  { muster: /nächste[ns]?\s+level/i, wort: "nächstes Level" },
+  { muster: /potenzial\w*\s+(voll\s+)?(aus)?(zu\s+)?schöpf/i, wort: "Potenzial ausschöpfen" },
+  { muster: /\bunverbindlich\w*/i, wort: "unverbindlich" },
+  { muster: /\bkostenlos\w*/i, wort: "kostenlos" },
+];
+
+/**
+ * Statt eines Abmelde-Links oder Abmelde-Satzes: ein natürlicher letzter Satz vor dem Gruß. Wer antwortet, dass es kein
+ * Thema ist, kommt auf die Sperrliste und hört nie wieder von uns (eingangVerarbeiten). Je Firma fest (id % 4).
+ */
+export const RADAR_SCHLUSSSAETZE: readonly string[] = [
+  "Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.",
+  "Wenn das bei Ihnen gerade nicht passt, reicht mir eine kurze Antwort.",
+  "Ist das für Sie im Moment kein Thema, schreiben Sie mir einfach eine Zeile.",
+  "Sollte das gerade nicht Ihr Thema sein, genügt mir ein kurzes Nein.",
+];
+/** Der Schlusssatz dieser Firma — gleiche Firma, gleicher Satz. Rein. */
+export function radarSchlusssatz(id: number): string {
+  const n = Math.abs(Math.round(Number(id) || 0));
+  return RADAR_SCHLUSSSAETZE[n % RADAR_SCHLUSSSAETZE.length];
+}
+/** Der Gruß dieser Firma — „Viele Grüße“ oder „Beste Grüße“, je Firma fest. Rein. */
+export function radarGruss(id: number): string {
+  return Math.abs(Math.round(Number(id) || 0)) % 2 ? "Beste Grüße" : "Viele Grüße";
+}
 
 // ── NUR ENTSCHEIDER (Justin, 12.10.2026) ────────────────────────────────────
 // „Keine info, office, welcome Emails oder so.“ Die erste Mail geht nur noch an die PERSÖNLICHE Adresse eines

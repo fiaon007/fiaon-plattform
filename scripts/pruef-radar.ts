@@ -20,6 +20,7 @@ import {
 import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 import { GLOBAL_SEITEN } from "../shared/fiaon-global-seiten";
 import { FIAON_FIRMA } from "../shared/fiaon-firma";
+import { RADAR_SCHLUSSSAETZE as RADAR_SCHLUSSSAETZE_P } from "../shared/fiaon-radar";
 
 // Die Datenbank-Anbindung verlangt beim Laden eine Adresse — abgefragt wird hier nie („ins Leere").
 process.env.DATABASE_URL ||= "postgres://pruefstand@127.0.0.1:9/ins-leere";
@@ -90,9 +91,10 @@ const html = mailHtml({ anrede: "Guten Tag <b>X</b>,", absaetze: ['<script>alert
 const ohneSignaturBilder = html.replace(/<img src="https:\/\/[^"]+\/mail\/signatur\/[a-z]+\.(png|gif)"[^>]*>/g, "");
 ok(!/<script|<img|onerror=alert\(1\)>/i.test(ohneSignaturBilder.replace(/&lt;img src=x onerror=alert\(1\)&gt;/, "")) && html.includes("&lt;script&gt;"), "HTML ist maskiert — kein eingeschleuster Code");
 ok(!/<img\b/i.test(ohneSignaturBilder) && !/background-image/i.test(html), "Keine Bilder außer der Signaturkarte — die Mail sieht aus wie eine persönliche Mail");
-ok(html.includes(FIAON_FIRMA.companyNo) && html.includes("Kein Thema für Sie?") && html.includes(FIAON_FIRMA.name), "Fuß mit Firma, Registernummer und Abmeldesatz");
+// E-458: kein Abmelde-Satz mehr — ein natürlicher Schlusssatz, darunter die leise Zeile mit Firma, Register, Impressum, Datenschutz.
+ok(html.includes(FIAON_FIRMA.companyNo) && !html.includes("Kein Thema für Sie?") && html.includes(FIAON_FIRMA.name) && html.includes(RADAR_SCHLUSSSAETZE_P[0]), "Fuß mit Firma und Registernummer, Schlusssatz statt Abmeldesatz");
 const text = mailText({ anrede: "Guten Tag,", absaetze: ["A"], frage: "B?", ps: "", links });
-ok(text.includes(links.gespraech) && text.includes(FIAON_FIRMA.companyNo) && text.includes("Kein Thema für Sie?"), "Textfassung trägt Link, Firma und Abmeldesatz");
+ok(text.includes(links.gespraech) && text.includes(FIAON_FIRMA.companyNo) && !text.includes("Kein Thema für Sie?") && text.includes(RADAR_SCHLUSSSAETZE_P[0]), "Textfassung trägt Link, Firma und Schlusssatz — keinen Abmeldesatz");
 
 abschnitt("Anrede");
 ok(anredeFuer("Thomas Huber (Geschäftsführer)") === "Guten Tag Thomas Huber,", "Name aus dem Impressum, ohne Funktion");
@@ -187,8 +189,9 @@ const sig = await import("../server/lib/fiaon-signatur");
 const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen Termin wählen: https://fiaon.com/business?utm_source=radar#gespraech\n\nViele Grüße\nMara Lindner\nDigitale Assistentin\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott"));
 ok(sigHtml.includes("/mail/signatur/mara.png") && sigHtml.includes("linie.gif") && sigHtml.includes("punkt.gif") && sigHtml.includes("Digitale Assistentin von Justin Schwarzott"), "Maras Karte: Porträt, Lichtlinie, Punkt, KI-Hinweis „Digitale Assistentin“");
 ok(sigHtml.includes("Einen Termin wählen") && sigHtml.includes("FIAON LTD · Fuß") && !/Mara Lindner<br>Digitale/.test(sigHtml), "Termin als Link, Fuß klein, Textunterschrift durch die Karte ersetzt");
-ok(/signaturHtml\(\{ person: "justin"/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt Justins Karte");
-ok((lies("server/lib/fiaon-radar-faden.ts").match(/htmlAusText\(/g) ?? []).length >= 3, "Nachfass, Maras Antwort und Freigabe senden mit Karte");
+// E-458: die erste Mail trägt die ECHTE Gmail-Unterschrift des Postfachs (sendAs); Justins Karte nur noch als Rückweg für js@.
+ok(/await absenderLesen\(postfach\)/.test(lies("server/lib/fiaon-radar.ts")) && /return postfach === "js@fiaon\.com" \? \{ \.\.\.radarKarteAbsender\(seite\), postfach \} : null;/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt die Gmail-Unterschrift des Postfachs, die Karte nur als Rückweg für js@");
+ok((lies("server/lib/fiaon-radar-faden.ts").match(/htmlAusText\(/g) ?? []).length >= 2 && /antwortSenden\(String\(f\.postfach\), original, text, persoenlicheMailHtml\(teile\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Maras Antwort und Freigabe mit Karte, das Nachfassen mit der echten Unterschrift (E-458)");
 ok(fs.existsSync(path.join(wurzel, "client/public/mail/signatur/mara.png")) && fs.existsSync(path.join(wurzel, "client/public/mail/signatur/linie.gif")), "Signaturbilder liegen öffentlich bereit");
 ok(/radarAdressePersoenlich\(an, namen\)/.test(lies("server/lib/fiaon-radar.ts")), "Wand beim Senden: nur persönliche Adresse eines Entscheiders");
 ok(/entscheiderFinden\(id, \{ websuche: false \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")) && /entscheiderFinden\(id, \{ websuche: true \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Automatik: Entscheider erst Website, dann (nach Signal) Websuche");
@@ -458,6 +461,72 @@ abschnitt("Österreich: Brief statt Mail (E-458)");
   ok(/wiedervorlage_am <= NOW\(\)[\s\S]{0,700}RADAR_NUR_BRIEF_LAENDER/.test(fd8), "Keine Wiedervorlage-Mail nach Österreich");
   ok(/COALESCE\(r\.motor_status, ''\) NOT IN \('arbeit', 'bereit', 'sendet'\) AND r\.strom = 'firma'/.test(br8), "Brief-Lauf: kein Brief, solange die Mail in der Warteschlange liegt; nur Firmen");
   ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
+}
+
+abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
+{
+  const lib = await import("../server/lib/fiaon-radar");
+  const sig8 = await import("../server/lib/fiaon-signatur");
+  const gm = await import("../server/lib/fiaon-gmail");
+  const fd = await import("../server/lib/fiaon-radar-faden");
+  const schluss = sh8.RADAR_SCHLUSSSAETZE[0];
+  const basis = {
+    betreff: "Ihre neue Halle",
+    absaetze: [
+      "Ich habe gesehen, dass Sie in diesem Jahr eine zweite Halle bauen. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.",
+      "Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort.",
+    ],
+    frage: "Wäre das für Ihre Pläne gerade ein Thema?", ps: "",
+  };
+  const o = { streng: true, strom: "firma" as const, anrede: "Hallo Frau Beispiel,", schluss, mitLink: true };
+  const sp = (m: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => lib.mailPruefen({ ...basis, ...m } as any, { ...o, ...extra }).sperrend;
+  const mit = (zusatz: string) => ({ absaetze: [`${basis.absaetze[0]} ${zusatz}`, basis.absaetze[1]] });
+  ok(sp().length === 0, `Saubere Mail besteht die strengen Regeln (${sp().join("; ")})`);
+  ok(sp(mit("Das ist mutig – und richtig.")).some((x) => /Gedankenstrich/.test(x)) && sp(mit("Das ist mutig—und richtig.")).some((x) => /Gedankenstrich/.test(x)) && sp(mit("Hamburg - Berlin.")).some((x) => /Gedankenstrich/.test(x)), "Streng: „ – “, „—“ und „ - “ sperren");
+  ok(sp({ absaetze: [basis.absaetze[0], basis.absaetze[1].replace("vergleichbar mit einer GmbH", "das US-Gegenstück zur GmbH")] }).length === 0, "Streng: „US-Gegenstück“ sperrt nicht (Bindestrich ist kein Gedankenstrich)");
+  ok(sp({ absaetze: [basis.absaetze[0], `- Punkt eins\n${basis.absaetze[1]}`] }).some((x) => /Aufzählung/.test(x)) && sp(mit("Das ist **wichtig**.")).some((x) => /Fettdruck/.test(x)) && sp(mit("Los geht es 🚀.")).some((x) => /Emoji/.test(x)), "Streng: Aufzählung, **fett** und Emoji sperren");
+  ok(sp(mit("Mehr unter https://beispiel.example.")).some((x) => /Link im Text/.test(x)) && sp(mit("Mehr unter www.beispiel.example.")).some((x) => /Link im Text/.test(x)), "Streng: „https://“ und „www.“ im Text sperren");
+  const woerter = (n: number) => sp({ absaetze: [Array.from({ length: n - 4 - schluss.split(/\s+/).length }, (_, i) => `Wort${i}`).join(" ")], frage: "Darf ich kurz nachfragen?" });
+  ok(woerter(69).some((x) => /Zu kurz/.test(x)) && !woerter(70).some((x) => /Zu (kurz|lang)/.test(x)) && !woerter(130).some((x) => /Zu (kurz|lang)/.test(x)) && woerter(131).some((x) => /Zu lang/.test(x)), "Streng: 69 Wörter sperrt, 70 und 130 gehen, 131 sperrt (mit Schlusssatz)");
+  ok(sp({ frage: "Passt das? Oder lieber später?" }).some((x) => /Genau eine Frage/.test(x)) && sp({ frage: "Wäre das für Ihre Pläne gerade ein Thema." }).some((x) => /endet nicht mit/.test(x)), "Streng: zwei Fragezeichen sperren, eine Frage ohne „?“ sperrt");
+  for (const fl of ["Ich hoffe, diese Nachricht erreicht Sie gut.", "Das ist spannend.", "In der heutigen Zeit zählt das.", "Wir arbeiten maßgeschneidert.", "Alles läuft nahtlos."]) ok(sp(mit(fl)).some((x) => /Floskel/.test(x)), `Streng: „${fl}“ sperrt`);
+  ok(sp(mit("Hast du Zeit?")).some((x) => /Du-Form/.test(x)) && sp(mit("Das klappt.!")).some((x) => /Ausrufezeichen/.test(x)), "Streng: Du-Form und „!“ sperren");
+  ok(sp(mit("Eine Bürgschaft brauchen Sie nicht.")).some((x) => /Bürgschaft/.test(x)) && sp(mit("Wir sagen Ihnen die Finanzierung zu.")).some((x) => /Zusage/.test(x)), "Streng: „Bürgschaft“ und „Wir sagen Ihnen die Finanzierung zu“ sperren");
+  ok(sp({ ps: "Noch etwas." }).some((x) => /PS/.test(x)) && lib.mailPruefen(basis, { ...o, anrede: "Guten Tag," }).sperrend.some((x) => /Anrede ohne Namen/.test(x)), "Streng: PS sperrt, „Guten Tag,“ ohne Namen sperrt");
+  ok(sp({ betreff: "Ein sehr langer Betreff, der weit über sechzig Zeichen hinausgeht und auffällt" }).some((x) => /Betreff länger/.test(x)) && sp({ betreff: "Re: Ihre Halle" }).some((x) => /Re:/.test(x)) && sp({ betreff: "IHRE NEUE HALLE" }).some((x) => /Versalien/.test(x)) && !sp({ betreff: "ARKU: Ihre neue Halle" }).length, "Streng: Betreff über 60 Zeichen, „Re:“ und Versalien sperren — ein Firmenkürzel nicht");
+  ok(sp({ absaetze: ["Sie bauen eine zweite Halle. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.", basis.absaetze[1].replace(/wir|uns|unser/gi, "man")] }).some((x) => /Erste Person/.test(x)), "Streng: ohne „ich“/„wir“ sperrt");
+  ok(sp({}, { strom: "partner", mitLink: true }).some((x) => /Terminlink/.test(x)) && sp(mit("Ein kurzes Telefonat wäre gut."), { strom: "partner", mitLink: false }).some((x) => /Gesprächswunsch/.test(x)), "Streng: Partner-Mail mit Terminlink oder Gesprächswunsch sperrt");
+  const weich = lib.mailPruefen({ ...basis, absaetze: [`${basis.absaetze[0]} Das ist spannend!`, basis.absaetze[1]], ps: "Noch etwas." });
+  ok(!weich.sperrend.length && weich.warnungen.some((x) => /Ausrufezeichen/.test(x)), "Ohne streng bleiben dieselben Fälle Hinweise (Hand-Änderung)");
+  ok(!/[–—]/.test(Object.values(sh8.RADAR_KERNSATZ).join(" ")) && globalWortPruefen(Object.values(sh8.RADAR_KERNSATZ).join(" ")).length === 0, "Kernsatz ohne Gedankenstriche, besteht die Wortwand");
+  ok(sh8.RADAR_SCHLUSSSAETZE.length === 4 && sh8.RADAR_SCHLUSSSAETZE.every((x) => !globalWortPruefen(x).length && !/[?!–—]/.test(x) && !/abmeld|verteiler|newsletter/i.test(x)), "Vier natürliche Schlusssätze, Wortwand sauber, kein Abmelde-Wort");
+  ok(sh8.radarSchlusssatz(7) === sh8.radarSchlusssatz(7) && sh8.radarSchlusssatz(0) !== sh8.radarSchlusssatz(1) && sh8.radarGruss(2) === "Viele Grüße" && sh8.radarGruss(3) === "Beste Grüße", "Schlusssatz und Gruß je Firma fest (gleiche ID, gleicher Satz)");
+  ok(fd.antwortKern(`Kein Bedarf, danke.\n\nAm Do., 29. Okt. 2026 um 10:05 schrieb Max Beispiel <max@beispiel.example>:\n> ${schluss}`) === "Kein Bedarf, danke." && fd.antwortVorab({ vonAdresse: "max@beispiel.example", betreff: "AW: Ihre neue Halle", text: schluss }) === null, "Der Schlusssatz im Zitat wird abgeschnitten und nie als Abmeldung gelesen");
+  ok(!/Abmeldesatz/.test(sh8.RADAR_ANTWORT_ARTEN.kein_interesse.was), "„Kein Interesse“ erklärt sich ohne Abmeldesatz");
+  // Die Mail sieht aus wie in Gmail geschrieben — mit der echten Unterschrift des Postfachs.
+  const anna = { postfach: "anna@versand.example", name: "Anna Beispiel", signaturHtml: '<div dir="ltr"><b>Anna Beispiel</b><br>Partnerschaften<br><img src="https://bilder.example/anna.png" width="80"></div>', signaturText: "Anna Beispiel\nPartnerschaften", quelle: "gmail" as const };
+  const lk = { gespraech: "https://fiaon.com/business?utm_source=radar&utm_content=r7#gespraech", seite: "https://fiaon.com/business" };
+  const h8 = lib.mailHtml({ anrede: "Hallo Frau <b>X</b>,", absaetze: ['<script>alert(1)</script> & "Zitat"'], frage: "Passt es?", links: lk, schluss: sh8.radarSchlusssatz(3), gruss: "Beste Grüße", mitLink: true }, anna);
+  const vorSig = h8.slice(0, h8.indexOf('class="gmail_signature"'));
+  ok(h8.includes(sh8.radarSchlusssatz(3)) && /https:\/\/fiaon\.com\/impressum/.test(h8) && /https:\/\/fiaon\.com\/datenschutz/.test(h8) && h8.includes(">Impressum<") && h8.includes(">Datenschutz<"), "Neue Mail-HTML: Schlusssatz, Impressum und Datenschutz verlinkt");
+  ok(!h8.includes("Kein Thema für Sie?") && !/border-top/.test(h8) && !/DOCTYPE/i.test(h8) && (vorSig.match(/<a /g) ?? []).length <= 1 && h8.startsWith('<div dir="ltr">'), "Kein Abmeldesatz, keine Fußleiste, kein eigenes Dokument, höchstens ein Link vor der Unterschrift");
+  ok(h8.includes("&lt;script&gt;") && !/<script/i.test(h8) && h8.includes("Hallo Frau &lt;b&gt;X&lt;/b&gt;,") && h8.includes(anna.signaturHtml), "Eingaben maskiert, die Gmail-Unterschrift steht unverändert im Block gmail_signature");
+  const t8 = lib.mailText({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: lk, schluss, gruss: "Viele Grüße", mitLink: false }, anna);
+  ok(t8.includes(schluss) && t8.includes("-- \nAnna Beispiel") && t8.includes("Impressum: https://fiaon.com/impressum") && !t8.includes(lk.gespraech), "Textfassung: Schlusssatz, Unterschrift, Impressum — ohne Link, wenn keiner gewünscht ist");
+  ok(lib.radarPersonEcht("Anna Beispiel", anna.signaturHtml) && !lib.radarPersonEcht("Vertrieb", anna.signaturHtml) && !lib.radarPersonEcht("Anna Beispiel", ""), "Echte Person: Vor- und Nachname und eine Signatur mit Inhalt");
+  ok(sig8.signaturAlsText('<div>Anna Beispiel<br>Partnerschaften</div><div><img src="x.png"></div>') === "Anna Beispiel\nPartnerschaften", "Gmail-Signatur als Text");
+  const roh = gm.mimeNeu({ von: "anna@versand.example", vonName: "Anna Beispiel", an: "max@beispiel.example", betreff: "Ihre neue Halle", text: "x", html: "<div>x</div>" });
+  const kopf = Buffer.from(roh.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8").split("\r\n\r\n")[0];
+  ok(!/List-Unsubscribe/i.test(kopf) && kopf.includes(`=?UTF-8?B?${Buffer.from("Anna Beispiel").toString("base64")}?=`), "Ohne abmelden: kein List-Unsubscribe im Kopf, Absendername ohne Zusatz");
+  const libQ = lies("server/lib/fiaon-radar.ts"), fdQ = lies("server/lib/fiaon-radar-faden.ts");
+  ok(/neueMailSendenMitFaden\(postfach, inhalt\)/.test(libQ) && !/abmelden: postfach/.test(libQ) && /abmelden/.test(lies("server/lib/fiaon-mara-aktion.ts")), "radarMailAusgeben sendet ohne List-Unsubscribe; die Mara-Aktion bleibt unverändert");
+  ok(/const inhalt = \{ vonName: absender\.name,/.test(libQ) && /vonName: absender\.name, an: f\.email/.test(fdQ) && /"Mara Lindner \| FIAON Global"/.test(fdQ) && !/\$\{radarAbsender\(\)\.name\} \| FIAON Global/.test(libQ + fdQ), "Absendername ohne „| FIAON Global“ bei Erstmail, Nachfass und Freigabe — Mara bleibt „Mara Lindner | FIAON Global“");
+  for (const strom of ["firma", "partner"] as const) for (const stufe of [1, 2]) {
+    const v = fd.NACHFASS_VORLAGEN[strom][stufe - 1];
+    const r = lib.mailPruefen({ betreff: "Ihre neue Halle", absaetze: v.absaetze, frage: v.frage, ps: "" }, fd.nachfassRegeln(strom, stufe));
+    ok(!r.sperrend.length, `Nachfass-Vorlage ${strom} Stufe ${stufe} besteht die strenge Prüfung (${r.sperrend.join("; ")})`);
+  }
+  ok(/Diese Mail ist nach alten Regeln geschrieben oder verletzt sie/.test(libQ) && /\{ streng: true, strom, gruppe: f\.mail\.gruppe \?\? null, anrede: f\.mail\.anrede \?\? null, schluss, mitLink \}/.test(libQ), "Beim Senden gelten die strengen Regeln — für Motor, Stapel und Akte");
 }
 
 abschnitt("Ergebnis");

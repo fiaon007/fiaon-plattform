@@ -157,6 +157,8 @@ a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border
 .ki-kasse-kopf .ki-zahlen { flex: 1 1 320px; }
 .ki-kasse-kopf .ki-pille { white-space: normal; max-width: 100%; }
 .ki-toepfe .ki-zeile-satz { display: grid; gap: 6px; }
+/* Der Balken unter jeder Zeile über die volle Breite — sonst schrumpft er auf die Länge des Satzes (rechtsbündig). */
+.ki-kasse .ki-zeile.ki-zeile-rechts > .ki-zeile-satz { justify-self: stretch; }
 .ki-feld.ki-anteile { grid-template-columns: minmax(0, 1fr); }
 .ki-feld.ki-anteile .ki-eingabe { grid-column: 1; grid-row: auto; flex-wrap: wrap; align-items: flex-end; }
 .ki-anteil { display: inline-flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--k-text-3); }

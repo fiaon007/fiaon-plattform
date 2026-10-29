@@ -121,12 +121,14 @@ try {
   await S.nutzungMerken({ dienst: "mara-whatsapp", modell: "gpt-5.5", dauerMs: 900, ok: true, usage: { input_tokens: 10_000, output_tokens: 200, input_tokens_details: { cached_tokens: 6_000 } } });
   neu();
   await rufen("mara-aktion"); // 3 $ von 2,75 $ → gebremst (Anteil Privat)
+  await new Promise((r) => setTimeout(r, 400)); // die Bremse schreibt ihre Protokollzeile im Hintergrund
   const lage = await KS.kasseLage();
   const topf = (k: string) => lage.toepfe.find((t) => t.key === k)!;
   // WhatsApp: 4.000 × 0,5 + 6.000 × 0,05 + 200 × 3 je 1.000 = 2,0 + 0,3 + 0,6 = 2,9 Cent
   ok(lage.tagUsd === 55 && Math.abs(lage.summeCents - (1200 + 300 + 2.9)) < 0.01, `Summe heute ${(lage.summeCents / 100).toFixed(4)} $ (Radar 12 + Aktion 3 + WhatsApp 0,029)`);
   ok(topf("b2b").grenzeCents === 4125 && topf("b2b").cents === 1200 && topf("privat").gebremst >= 1, "Töpfe: B2B 12 $ von 41,25 $; Privat gebremst");
-  ok(lage.status === "laeuft" && /Läuft/.test(lage.statusText), "Status: läuft");
+  ok(lage.status === "laeuft" && /bis 0 Uhr warten: Privat-Mails/.test(lage.statusText) && lage.wartend.includes("Privat-Mails"), "Status: läuft — Privat-Mails warten bis 0 Uhr", lage.statusText);
+  ok(lage.gebremst >= 1 && topf("privat").gebremst >= 1 && topf("b2b").gebremst === 0, "„heute gebremst“ aus dem Protokoll, je Topf richtig zugeordnet");
   ok(lage.cache.some((c) => c.dienst === "mara-whatsapp" && c.quote === 60), "Cache-Quote heute: WhatsApp 60 %");
   ok(lage.bremsen.some((b) => /mara-aktion · anteil/.test(b.text)), "Bremsung steht im Protokoll (Dienst ki-kasse)");
   ok(lage.modelle.find((m) => m.aufgabe === "postfach")?.modell === "gpt-5.5" && lage.modelle.find((m) => m.aufgabe === "einordnen")?.schluessel === "ki_modell_einordnen", "Modell je Aufgabe: Postfach gpt-5.5 (fest), Einordnen umschaltbar");

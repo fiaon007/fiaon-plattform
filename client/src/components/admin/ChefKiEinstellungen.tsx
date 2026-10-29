@@ -23,7 +23,7 @@ interface KasseTopfSicht { key: KasseTopf; label: string; satz: string; vorrang:
 interface KasseLage {
   ok: boolean; tag: string; an: boolean; tagUsd: number; anteile: Record<KasseTopf, number>; nachholUsd: number;
   summeCents: number; stundeCents: number; nachhol: { seit: string; bis: string } | null;
-  status: "aus" | "laeuft" | "nachhol" | "nur_antworten" | "voll"; statusText: string;
+  status: "aus" | "laeuft" | "nachhol" | "nur_antworten" | "voll"; statusText: string; wartend: string[]; gebremst: number;
   toepfe: KasseTopfSicht[]; bremsen: { am: string; text: string }[];
   cache: { dienst: string; eingabe: number; gecacht: number; quote: number }[];
   modelle: { aufgabe: string; label: string; kunde: boolean; modell: string; schluessel: string | null; erlaubt: string[] }[];
@@ -140,7 +140,8 @@ export default function ChefKiEinstellungen() {
   const max = Math.max(1, ...(kosten.daten?.verlauf ?? []).map((v) => v.ki + v.telefon));
   const feld = (schluessel: string) => register.find((e) => e.schluessel === schluessel);
   const gesamtVoll = k ? Math.min(100, Math.round((k.summeCents / Math.max(1, k.tagUsd * 100)) * 100)) : 0;
-  const gebremst = (k?.toepfe ?? []).reduce((x, t) => x + t.gebremst, 0);
+  // Läuft die Kasse, aber ein Topf ist leer, ist der Status nicht „alles gut“ — dann die blaue Pille wie bei der Bremse.
+  const ton = k ? (k.status === "laeuft" && k.wartend.length ? STATUS_TON.nachhol : STATUS_TON[k.status]) : STATUS_TON.aus;
   return (
     <div className="ki ki-einstellungen">
       <KiRundgang schluessel="kiEinstellungen" raum="ki-einstellungen" />
@@ -155,9 +156,9 @@ export default function ChefKiEinstellungen() {
               <div className="ki-zahlen">
                 <div><span className="ki-zahl">{usd(k.summeCents / 100)}</span><small>heute von {usd(k.tagUsd)}</small></div>
                 <div title={k.nachhol ? `Nachhol-Bremse: höchstens ${usd(k.nachholUsd)} je Stunde` : "alle KI in den letzten 60 Minuten"}><span className="ki-zahl klein">{usd(k.stundeCents / 100)}</span><small>letzte Stunde</small></div>
-                <div title="So oft hat die Kasse heute einen Aufruf angehalten — die Arbeit wartet und läuft im nächsten Takt."><span className="ki-zahl klein">{gebremst}</span><small>heute gebremst</small></div>
+                <div title="So oft hat die Kasse heute angehalten (je Dienst höchstens einmal je 15 Minuten gezählt) — die Arbeit wartet und läuft im nächsten Takt."><span className="ki-zahl klein">{k.gebremst}</span><small>heute gebremst</small></div>
               </div>
-              <span className={`ki-pille ${STATUS_TON[k.status].pille}`} data-ki="kasse-status"><span className={`ki-punkt ${STATUS_TON[k.status].punkt}`} aria-hidden="true" />{k.statusText}</span>
+              <span className={`ki-pille ${ton.pille}`} data-ki="kasse-status"><span className={`ki-punkt ${ton.punkt}`} aria-hidden="true" />{k.statusText}</span>
             </div>
             <span className="ki-balken ki-abstand" aria-hidden="true"><i className={gesamtVoll >= 100 ? "krit" : gesamtVoll >= 90 ? "voll" : ""} style={{ width: `${gesamtVoll}%` }} /></span>
             <ul className="ki-liste ki-abstand ki-toepfe" data-ki="kasse-toepfe">

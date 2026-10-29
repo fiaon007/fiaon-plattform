@@ -139,14 +139,10 @@ function standMitNachtraegen(z: Zwischen): KasseStand & { jeDienst: Record<strin
 
 // ── Bremsen merken (für Protokoll und Chefbüro) ────────────────────────────
 const gemerkt = new Map<string, number>();
-let bremsTag = "";
-const bremsenHeute = new Map<KasseBereich, number>();
 
 async function bremseMerken(dienst: string, u: Extract<KasseUrteil, { erlaubt: false }>): Promise<void> {
-  const tag = kasseTag();
-  if (tag !== bremsTag) { bremsTag = tag; bremsenHeute.clear(); }
-  bremsenHeute.set(u.bereich, (bremsenHeute.get(u.bereich) ?? 0) + 1);
-  // Eine Zeile je Dienst und Art höchstens alle 15 Minuten — WhatsApp fragt jede Minute neu.
+  // Eine Zeile je Dienst und Art höchstens alle 15 Minuten — WhatsApp fragt jede Minute neu. Das Chefbüro zählt diese
+  // Zeilen (übersteht einen Neustart); ein Prozess-Zähler fing nach jedem Deploy bei 0 an.
   const k = `${dienst}:${u.art}`;
   if (Date.now() - (gemerkt.get(k) ?? 0) < 15 * 60_000) return;
   gemerkt.set(k, Date.now());
@@ -193,6 +189,10 @@ export interface KasseLage {
   nachhol: { seit: string; bis: string } | null;
   status: "aus" | "laeuft" | "nachhol" | "nur_antworten" | "voll";
   statusText: string;
+  /** Bereiche (ohne Vorrang), deren Topf heute leer ist — sie warten bis 0 Uhr. */
+  wartend: string[];
+  /** Bremsungen heute (je Dienst und Art höchstens eine je 15 Minuten gezählt). */
+  gebremst: number;
   toepfe: { key: KasseTopf; label: string; satz: string; vorrang: boolean; cents: number; grenzeCents: number; anteil: number; gebremst: number }[];
   /** Die letzten Bremsungen (aus dem Protokoll, heute). */
   bremsen: { am: string; text: string }[];
@@ -214,7 +214,7 @@ export async function kasseLage(): Promise<KasseLage> {
     sqlPool`
       SELECT created_at, fehler FROM fiaon_ki_nutzung
        WHERE dienst = 'ki-kasse' AND created_at >= (${tag}::date::timestamp AT TIME ZONE 'Europe/Berlin')
-       ORDER BY id DESC LIMIT 12`.catch(() => []) as Promise<any[]>,
+       ORDER BY id DESC LIMIT 500`.catch(() => []) as Promise<any[]>,
     sqlPool`
       SELECT dienst, COALESCE(SUM(prompt_tokens), 0)::float AS ein, COALESCE(SUM(cached_tokens), 0)::float AS gecacht
         FROM fiaon_ki_nutzung
@@ -225,16 +225,23 @@ export async function kasseLage(): Promise<KasseLage> {
   const nachhol = nachholSeit ? { seit: nachholSeit, bis: new Date(new Date(nachholSeit).getTime() + KASSE_NACHHOL_STUNDEN * 3_600_000).toISOString() } : null;
   const bis = nachhol ? new Date(nachhol.bis).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "";
   const status: KasseLage["status"] = !e.an ? "aus" : summe >= gesamt ? "voll" : summe >= gesamt - reserve ? "nur_antworten" : nachhol ? "nachhol" : "laeuft";
+  const wartend = KASSE_BEREICHE.filter((b) => !b.vorrang && s.heuteCents[b.key] >= topfCents(e, b.key)).map((b) => b.label);
+  // Je Bereich zählen, wo die Kasse heute bremste: Die Zeile beginnt mit dem Dienst („mara-aktion · anteil: …“).
+  const gebremstJe = new Map<KasseBereich, number>();
+  for (const z of bremsZeilen) {
+    const b = bereichFuer(String(z.fehler ?? "").split(" · ")[0]);
+    gebremstJe.set(b, (gebremstJe.get(b) ?? 0) + 1);
+  }
   const statusText = {
     aus: "Kasse aus — sie misst nur und bremst nie.",
-    laeuft: "Läuft — jeder Bereich arbeitet in seinem Anteil.",
+    laeuft: wartend.length && e.an ? `Läuft — bis 0 Uhr warten: ${wartend.join(", ")} (Anteil verbraucht).` : "Läuft — jeder Bereich arbeitet in seinem Anteil.",
     nachhol: `Nachhol-Bremse bis ${bis} Uhr — höchstens ${usdText(e.nachholUsd * 100)} je Stunde, Antworten an Menschen zuerst.`,
     nur_antworten: "Nur noch Antworten an Menschen — die Reserve ist angebrochen.",
     voll: "Tagesdeckel erreicht — ab 0 Uhr geht es weiter.",
   }[status];
   const toepfe: KasseLage["toepfe"] = KASSE_BEREICHE.map((b) => ({
     key: b.key, label: b.label, satz: b.satz, vorrang: !!b.vorrang, cents: Math.round(s.heuteCents[b.key] * 100) / 100,
-    grenzeCents: topfCents(e, b.key), anteil: e.anteile[b.key], gebremst: bremsTag === tag ? bremsenHeute.get(b.key) ?? 0 : 0,
+    grenzeCents: topfCents(e, b.key), anteil: e.anteile[b.key], gebremst: gebremstJe.get(b.key) ?? 0,
   }));
   toepfe.push({
     key: "reserve", label: "Reserve", satz: "Nur für Antworten an Menschen, wenn ihr Anteil verbraucht ist.", vorrang: false,
@@ -243,7 +250,8 @@ export async function kasseLage(): Promise<KasseLage> {
   return {
     tag, an: e.an, tagUsd: e.tagUsd, anteile: e.anteile, nachholUsd: e.nachholUsd,
     summeCents: Math.round(summe * 100) / 100, stundeCents: Math.round(s.stundeCents * 100) / 100, nachhol, status, statusText, toepfe,
-    bremsen: bremsZeilen.map((r) => ({ am: new Date(r.created_at).toISOString(), text: String(r.fehler ?? "") })),
+    wartend: e.an ? wartend : [], gebremst: bremsZeilen.length,
+    bremsen: bremsZeilen.slice(0, 12).map((r) => ({ am: new Date(r.created_at).toISOString(), text: String(r.fehler ?? "") })),
     cache: cacheZeilen.map((r) => ({ dienst: String(r.dienst), eingabe: Number(r.ein) || 0, gecacht: Number(r.gecacht) || 0, quote: Number(r.ein) ? Math.round((Number(r.gecacht) / Number(r.ein)) * 1000) / 10 : 0 })),
     modelle: KI_AUFGABEN.map((a) => ({ aufgabe: a.aufgabe, label: a.label, kunde: a.kunde, modell: kiModell(a.aufgabe), schluessel: a.schluessel ?? null, erlaubt: [...(a.erlaubt ?? [])] })),
     preise: { ...KI_PREISE },
@@ -352,5 +360,5 @@ export async function kasseTakt(): Promise<{ nachgeholt: boolean; status: string
 
 /** Nur für Prüfstände: Zwischenspeicher, Nachträge und Marken vergessen. */
 export function kasseZuruecksetzen(): void {
-  zwischen = null; laeuft = null; nachtraege = []; gemerkt.clear(); bremsenHeute.clear(); bremsTag = ""; umgestellt = false; letztesNachholen = 0;
+  zwischen = null; laeuft = null; nachtraege = []; gemerkt.clear(); umgestellt = false; letztesNachholen = 0;
 }

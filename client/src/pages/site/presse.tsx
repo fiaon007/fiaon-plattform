@@ -1,5 +1,6 @@
 // /presse · /en/press — FIAON in den Medien. Alles, was ein Journalist in fünf Minuten braucht.
 // Zweisprachig 02.09.2026, Texte: client/src/i18n/presse.ts; Preise aus shared/fiaon-pakete.
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Zeilen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import ArasCore from "@/components/home3d/ArasCore";
@@ -68,7 +69,8 @@ export default function Presse() {
         <Karten items={t.themen} zwei />
       </Block>
 
-      <Zwischenruf text={t.zwischenruf} knopf={t.testperson} href="/antrag" still={{ knopf: t.startseite, href: zu("/") }} />
+      {/* 29.10.2026 (E-461): der Kundenweg beginnt auf /privat */}
+      <Zwischenruf text={t.zwischenruf} knopf={t.testperson} href="/antrag" still={{ knopf: t.startseite, href: zu(PRIVAT_START.de) }} />
 
       <Block pille={t.meldungenPille} titel={<>{t.meldungenA}<span className="dk-verlauf">{t.meldungenB}</span></>}>
         <div className="dk-raster zwei">

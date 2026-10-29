@@ -38,6 +38,7 @@
 // „Bonitätsauskunft beantragen"). Brotkrumen: FIAON › Bonitätsauskunft ›
 // Bonitätsauskunft beantragen — sichtbar und im Markup gleich.
 // ═══════════════════════════════════════════════════════════════════════════
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { useEffect, useState } from "react";
 import { Dunkel, Block, Licht, Knopf, Fragen, Auf } from "@/components/site/DunkleBuehne";
 import { BxHero, BxSchluss, KaufLeiste, PreisZeile, type BxEigeneWorte } from "@/pages/site/bonitaetsauskunft/bausteine";
@@ -121,7 +122,7 @@ export default function BonitaetsauskunftBeantragen() {
       <div className="bx">
       <BxHero
         seite={null} bild="/kino/akten.jpg" krume={t.krume} familie={!en}
-        krumen={en ? <nav className="bx-krumen" aria-label="Breadcrumbs"><a href="/en">FIAON</a><i aria-hidden="true">/</i><span aria-current="page">{t.krume}</span></nav> : undefined}
+        krumen={en ? <nav className="bx-krumen" aria-label="Breadcrumbs"><a href={PRIVAT_START.en}>FIAON</a><i aria-hidden="true">/</i><span aria-current="page">{t.krume}</span></nav> : undefined}
         pille={t.pille} h1a={t.h1a.trim()} h1b={t.h1b} lead={t.lead(einzeln, mitPaket)}
         preis={<PreisZeile eigen={worte} />}
         knoepfe={<>

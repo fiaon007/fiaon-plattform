@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
@@ -815,7 +816,7 @@ export default function AboKuendigenPage() {
                 </svg>
               </a>
               <a
-                href="/"
+                href={PRIVAT_START.de}
                 className="w-full inline-flex items-center justify-center gap-2 py-3 px-6 rounded-full text-[14px] font-semibold text-slate-500 hover:text-slate-700 transition-colors"
               >
                 Zurück zur Startseite

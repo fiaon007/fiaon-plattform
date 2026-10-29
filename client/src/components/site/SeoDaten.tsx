@@ -21,6 +21,7 @@
 // für Messenger-Vorschauen zählt weiterhin das statische index.html. Die
 // Basis-OG-Daten dort bleiben deshalb bestehen — hier wird nur übersteuert.
 // ═══════════════════════════════════════════════════════════════════════════
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { useEffect } from "react";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
 
@@ -58,8 +59,8 @@ export default function SeoDaten(angaben: SeoAngaben) {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         itemListElement: [
-          // 29.10.2026 (E-461): Die Privat-Welt beginnt auf /privat — fiaon.com/ ist FIAON Global.
-          { "@type": "ListItem", position: 1, name: "FIAON", item: URSPRUNG + "/privat" },
+          // 29.10.2026 (E-461): Die Privat-Welt beginnt auf /privat (englisch /en/private) — fiaon.com/ ist FIAON Global.
+          { "@type": "ListItem", position: 1, name: "FIAON", item: URSPRUNG + (s.pfad === "/en" || s.pfad.startsWith("/en/") ? PRIVAT_START.en : PRIVAT_START.de) },
           ...s.krumen.map((k, i) => ({
             "@type": "ListItem", position: i + 2, name: k.name, item: URSPRUNG + k.pfad,
           })),

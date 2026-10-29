@@ -27,6 +27,7 @@
 // (META_PRODUKT) — nur mit Marketing-Einwilligung und geladenem Pixel;
 // metaEreignis prüft beides selbst (client/src/lib/werbung.ts).
 // ═══════════════════════════════════════════════════════════════════════════
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Dunkel, Licht, Knopf, Auf } from "@/components/site/DunkleBuehne";
@@ -65,7 +66,8 @@ export function Haken() {
 function Krumen({ seite, krume }: { seite: BxSeite | null; krume?: string }) {
   return (
     <nav className="bx-krumen" aria-label="Brotkrumen">
-      <a href="/">FIAON</a><i aria-hidden="true">/</i>
+      {/* 29.10.2026 (E-461): FIAON = die Startseite der Privatkunden (/privat), fiaon.com/ ist FIAON Global. */}
+      <a href={PRIVAT_START.de}>FIAON</a><i aria-hidden="true">/</i>
       {seite === "hub"
         ? <span aria-current="page">Bonitätsauswertung</span>
         : <><a href={BX_PFAD.hub}>Bonitätsauswertung</a><i aria-hidden="true">/</i><span aria-current="page">{krume}</span></>}

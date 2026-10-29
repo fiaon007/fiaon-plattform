@@ -22,6 +22,7 @@
 //
 // prefers-reduced-motion: Sternenfeld steht, Zähler springen auf Endwert.
 // ═══════════════════════════════════════════════════════════════════════════
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Hero, Block, Karten, Schritte, Zeilen, Glas, Zitat, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import ArasCore from "@/components/home3d/ArasCore";
@@ -306,7 +307,7 @@ export default function Investoren() {
         text={de
           ? "Sie möchten die Plattform sehen, bevor Sie Zahlen sehen? Der Kundenweg ist öffentlich – vom ersten Klick bis zum Bereich."
           : "Want to see the platform before you see numbers? The customer journey is public — from the first click to the customer area."}
-        knopf={de ? "Startseite ansehen" : "View the homepage"} href="/"
+        knopf={de ? "Startseite ansehen" : "View the homepage"} href={de ? PRIVAT_START.de : PRIVAT_START.en}
         still={{ knopf: de ? "Produkt-Präsentation" : "Product tour", href: "/demo/kundenbereich" }} />
 
       <Block pille={de ? "Die Maschine" : "The machine"}

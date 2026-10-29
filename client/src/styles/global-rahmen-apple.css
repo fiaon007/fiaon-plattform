@@ -177,5 +177,8 @@ html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
   html .hb-c-leinwand { image-rendering: pixelated; }
 }
 
-/* E-461 (29.10.2026): „Privatkunden“ im Kopf — leise, und nur, wo die Leiste Platz hat (darunter steht der Weg im Menü). */
+/* E-461 (29.10.2026): „Privatkunden“ im Kopf — leise, und nur, wo die Leiste Platz hat. Darunter führen der Fuß, auf der
+   Startseite das Band über der Bühne und am Telefon das Menü dorthin. Bis 1439 px rücken die Themen etwas enger
+   (gemessen: bei 1280 px liefen sie mit dem neuen Link sonst über den Rand, Gegenprüfung 29.10.). */
 @media (max-width: 1279px) { html .gk.gk .gk-privat { display: none; } }
+@media (min-width: 1280px) and (max-width: 1439px) { html .gk.gk .gk-thema { padding: 9px 9px; } html .gk.gk .gk-tun { gap: 6px; } }

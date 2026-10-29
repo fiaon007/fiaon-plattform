@@ -19,6 +19,7 @@
 // diese Seite zeigt, wohin er wächst. Stil: mein-bereich.css (hell, Glas,
 // Blau-Paar) plus demo-kundenbereich.css für die neuen Teile und die Führung.
 // ═══════════════════════════════════════════════════════════════════════════
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import "@/styles/mein-bereich.css";
 import "@/styles/demo-kundenbereich.css";
@@ -355,7 +356,7 @@ export default function DemoKundenbereich() {
       {/* ── Kopfzeile ── */}
       <header className="mb-kopf">
         <div className="mb-kopf-innen">
-          <a href="/" className="mb-wort" style={{ color: MARKE_NAVY }}><FiaonWortmarke hoehe=".9em" /></a>
+          <a href={PRIVAT_START.de} className="mb-wort" style={{ color: MARKE_NAVY }}><FiaonWortmarke hoehe=".9em" /></a>
           <span className="mb-bereich-marke">Mitgliedsbereich · Demo</span>
           <div className="mb-kopf-rechts">
             {modus !== "fuehrung" && <button type="button" className="kb-kopf-knopf" onClick={() => { setStation(0); setModus("fuehrung"); }}>Führung starten</button>}

@@ -37,5 +37,8 @@ export async function indexNowNachStart(): Promise<void> {
   const grenze = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
   const seiten = seoIndexierbar().filter((s) => s.stand >= grenze).map((s) => (s.pfad === "/" ? "/" : s.pfad));
   const artikel = (await businessArtikelLaden()).filter((a) => a.geaendert >= grenze).map((a) => businessArtikelPfad(a.slug, a.sprache));
-  await indexNowMelden([...seiten, ...artikel, "/sitemap.xml", "/llms.txt"], "nach dem Start");
+  // 29.10.2026 (E-461): Umgezogene Adressen mitmelden, solange der neue Eintrag frisch ist — Bing sieht die 301 sonst erst
+  // beim nächsten regulären Besuch. /business und /en/business leiten auf die Startseite / und /en.
+  const umgezogen = seoIndexierbar().some((s) => s.pfad === "/" && s.stand >= grenze) ? ["/business", "/en/business"] : [];
+  await indexNowMelden([...seiten, ...umgezogen, ...artikel, "/sitemap.xml", "/llms.txt"], "nach dem Start");
 }

@@ -106,7 +106,8 @@ export default function WasIstFiaon() {
         <Zitat text={t.zitat} wer={t.zitatWer} en={en} />
       </Block>
 
-      <Zwischenruf text={t.zwischenruf} knopf={t.jetztStarten} href="/antrag" still={{ knopf: t.paketeAnsehen, href: en ? "/en/pricing" : "/#setups" }} />
+      {/* 29.10.2026 (E-461): „/#setups“ lag auf der alten Privat-Startseite */}
+      <Zwischenruf text={t.zwischenruf} knopf={t.jetztStarten} href="/antrag" still={{ knopf: t.paketeAnsehen, href: en ? "/en/pricing" : "/preise" }} />
 
       {/* 12 · Fragen */}
       <Block schmal pille={t.fragenPille}>

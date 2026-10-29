@@ -1032,6 +1032,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 27.10.2026 (E-439): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
     '/about': '/ueber-uns',
   };
+  // 29.10.2026 (E-461): auch /business//, /en/business/// (doppelte Schrägstriche) gehen per 301 auf die Startseite —
+  // die Route oben trifft nur /business und /business/; vorher kam dort die nackte App-Hülle mit index,follow (Gegenprüfung).
+  app.get(/^\/(en\/)?(business|global)\/{2,}$/i, (req, res) => {
+    const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(301, (/^\/en\//i.test(req.path) ? '/en' : '/') + abfrage);
+  });
   app.get(Object.keys(UMGEZOGEN), (req, res, next) => {
     const pfad = req.path.replace(/\/+$/, '').toLowerCase();
     const ziel = UMGEZOGEN[pfad];

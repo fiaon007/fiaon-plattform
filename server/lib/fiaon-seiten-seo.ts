@@ -436,7 +436,8 @@ function korpus(s: SeoSeite, businessRahmen = false): string {
   const absatz = (text: string) => (begriffe ? begriffeVerlinken(text, begriffe).map((t) => (typeof t === "string" ? esc(t) : link(t.pfad, t.text))).join("") : esc(text));
   const abschnitte = (s.abschnitte ?? []).map((a) => {
     const unten = a.tabelle ? tabelleHtml(a.tabelle)
-      : a.links?.length ? `<ul>${a.links.map((l) => `<li>${link(en && !l.pfad.startsWith("/en/") ? (schwesterPfad(l.pfad, "en") ?? l.pfad) : l.pfad, l.text)}</li>`).join("")}</ul>`
+      // 29.10.2026 (E-461): auch „/en#…“ (die englische Startseite mit Anker) ist schon englisch — nie über schwesterPfad (verlöre den Anker).
+      : a.links?.length ? `<ul>${a.links.map((l) => `<li>${link(en && !/^\/en([/?#]|$)/.test(l.pfad) ? (schwesterPfad(l.pfad, "en") ?? l.pfad) : l.pfad, l.text)}</li>`).join("")}</ul>`
       : a.punkte?.length ? `<ul>${a.punkte.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : "";
     return `<section><h2>${esc(a.h2)}</h2>${a.text ? `<p>${absatz(a.text)}</p>` : ""}${unten}</section>`;
   }).join("");

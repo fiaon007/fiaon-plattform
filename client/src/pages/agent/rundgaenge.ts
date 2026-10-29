@@ -1585,6 +1585,17 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
       + "„Erste Business-Karten“ usw., beim Kapital-Angebot dessen eigene. Beim Begleitvertrag stehen außerdem Vertrag und "
       + "Angebotsunterlagen in Portal und Chefbüro, und der Verlauf trägt „Zahlung eingegangen“ und „gestartet“.",
   },
+  // E-462 (29.10.2026): der Reiter „Arbeitsablauf“.
+  {
+    ziel: ".cgr-reiter",
+    titel: "„Arbeitsablauf“: jeder Schritt von der Zahlung bis zur ITIN.",
+    text: "Der Reiter direkt nach „Überblick“ zeigt den ganzen Weg je Kunde: 8 Blöcke, 20 Schritte, dazu die 3 Dinge, die vorher vom Kunden kommen. "
+      + "Beim Registered Agent steht jedes Formularfeld mit dem genauen Wert da — Name, Kontakt-E-Mail (js+nachname@fiaon.com), Adresse —, "
+      + "jeweils mit „Kopieren“. Schritte mit einer Station im Fahrplan zeigen ihren Stand von selbst; „Station öffnen“ springt in "
+      + "„Fahrplan & Werte“ und klappt genau diese Station auf. Die übrigen hakst du ab — das steht mit Name und Zeit im internen Verlauf. "
+      + "Oben: wie viele Schritte erledigt sind und welcher als Nächstes dran ist. Das EIN-Formular wartet, bis Tätigkeit und „Einverstanden“ da sind.",
+    tipp: "„Als Anleitung öffnen“ gibt dir dieselbe Liste ohne Kundendaten in einem neuen Tab — zum Drucken oder für neue Kollegen.",
+  },
 ];
 
 // ── /chef/global-kunden (E-455, 29.10.2026) — Chefbüro › Global-Kunden ─────────

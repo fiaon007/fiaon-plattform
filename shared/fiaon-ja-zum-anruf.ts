@@ -53,10 +53,20 @@ export const JA_AKTE_BESTAETIGUNG = "Der Kunde hat mir gerade im Gespräch gesag
 /** Marke hinter Maras Namen, wenn der Knopf „Mara fragt nach dem Ja“ die Frage schickt (wie „(Nachfass)“). */
 export const JA_FRAGE_MARKE = "(Ja-Frage)";
 /**
- * E-458 (Justin 29.10.2026, „go Plan“ Punkt 8): das Kästchen im Buchungsformular eines Global-Gesprächs (/business, „Gespräch
- * vereinbaren“) — eigene Zeile, nie vorangekreuzt, freiwillig; die Buchung hängt nicht daran. EIN Wortlaut für Anzeige UND
- * Nachweis: Die Seite zeigt genau diesen Satz, der Server speichert ihn (termin_kaestchen, quelle = der Termin) nur, wenn der
- * Browser ihn unverändert zurückschickt. Er deckt NUR den Erinnerungsanruf vor diesem Gespräch.
+ * E-458 (Justin 29.10.2026 nachmittags: „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“): Im Buchungsformular
+ * eines Global-Gesprächs (fiaon.com/, /en, Unterseiten, Landingpages) steht kein Kästchen mehr, sondern dieser Hinweis über dem
+ * Knopf. Wer ein Telefongespräch bucht, bekommt kurz vorher den Bestätigungsanruf — Grundlage ist die Buchung selbst (wie
+ * „rueckruf_buchung“). EIN Wortlaut für Anzeige UND Nachweis: Die Seite zeigt genau diesen Satz, der Server speichert ihn
+ * (termin_buchung, quelle = der Termin) nur, wenn der Browser ihn unverändert zurückschickt. Er deckt NUR den Erinnerungsanruf
+ * vor diesem Gespräch.
+ */
+export const GLOBAL_TERMIN_ARAS_HINWEIS = {
+  de: "Kurz vor dem Gespräch rufen wir Sie an, um den Termin zu bestätigen – auch durch unsere KI-Assistentin ARAS.",
+  en: "Shortly before the conversation, we will call you to confirm the appointment – including through our AI assistant ARAS.",
+} as const;
+/**
+ * Bis 29.10.2026 nachmittags: das freiwillige Kästchen (termin_kaestchen, „go Plan“ Punkt 8). Der Server nimmt den Satz weiter
+ * an — ein Browser mit dem alten Stand schickt ihn, bis er neu lädt; schon gespeicherte Nachweise bleiben gültig.
  */
 export const GLOBAL_TERMIN_ARAS_TEXT = {
   de: "Ja, FIAON darf mich vor dem Gespräch kurz anrufen, um den Termin zu bestätigen – auch durch unsere KI-Assistentin ARAS. Freiwillig und jederzeit widerrufbar.",
@@ -74,7 +84,7 @@ export const JA_GESPRAECH_STUNDEN = 2;
 export const JA_QUELLE_TEXT: Record<EinwilligungArt, string> = {
   antrag_kaestchen: "Antrag-Kästchen", antrag_knopf: "Antrag-Knopf", zuruf_whatsapp: "WhatsApp", zuruf_mail: "Mail",
   meta_kaestchen: "Meta-Formular", rueckruf_buchung: "Rückruf gebucht", chef: "im Gespräch",
-  termin_kaestchen: "Gesprächsbuchung (Erinnerung)",
+  termin_kaestchen: "Gesprächsbuchung (Erinnerung)", termin_buchung: "Gesprächsbuchung (Erinnerung)",
 };
 
 // ── Der JA-Erkenner ─────────────────────────────────────────────────────────────────────────────────────────────

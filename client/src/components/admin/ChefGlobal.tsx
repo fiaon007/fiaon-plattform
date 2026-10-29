@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Globe2, Building2, FileText, MessageSquare, Landmark, CalendarClock, History, Eye, Copy, Check,
-  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers,
+  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers, ListChecks,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { GLOBAL_DOKUMENTARTEN, globalKundeDarfArt } from "@shared/fiaon-global-bereich";
@@ -39,6 +39,8 @@ import GlobalStationen from "@/components/global/GlobalStationen";
 import GlobalFormulare from "@/components/global/GlobalFormulare";
 // E-423: Kundenzugänge (persönlicher Zugang) — „Zugang einladen“ / „Einladung erneut senden“.
 import ChefGlobalZugaenge from "./ChefGlobalZugaenge";
+// E-462 (29.10.2026): der Arbeitsablauf je Kunde (Gründung beim Registered Agent bis ITIN) als Reiter.
+import ChefGlobalArbeitsablauf from "./ChefGlobalArbeitsablauf";
 
 // ── Typen (so, wie der Server sie schickt) ───────────────────────────────────
 interface MandatZeile {
@@ -204,13 +206,16 @@ export default function ChefGlobal() {
 }
 
 // ── Ein Mandat ───────────────────────────────────────────────────────────────
-type Reiter = "ueberblick" | "gesellschaft" | "akte" | "unterschriften" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
+type Reiter = "ueberblick" | "arbeitsablauf" | "gesellschaft" | "akte" | "unterschriften" | "kapital" | "tresor" | "post" | "anfragen" | "fristen" | "leistungen" | "ki" | "verlauf";
 
 function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => void }) {
   const { daten, laedt, fehler, neu, leise } = useDaten<{ ok: true; mandat: any; kundenLink: string; vorschauUrl: string }>(`/chef/global/mandate/${encodeURIComponent(gref)}`, [], NACHLADEN_MS);
   const [reiter, setReiter] = useState<Reiter>("ueberblick");
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
   const [kopiert, setKopiert] = useState(false);
+  // E-462: „Station öffnen“ aus dem Arbeitsablauf — der Reiter „Fahrplan & Werte“ klappt genau diese Station auf.
+  const [stationOffen, setStationOffen] = useState<string | null>(null);
+  const reiterWechseln = (x: Reiter) => { setStationOffen(null); setReiter(x); };
   const m = daten?.mandat;
   const r = encodeURIComponent(gref);
 
@@ -249,6 +254,8 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
   const post = (m.dokumente as any[]).filter((d) => d.art === "post");
   const REITER: { key: Reiter; titel: string; Icon: any; zahl?: number }[] = [
     { key: "ueberblick", titel: "Überblick", Icon: Sparkles },
+    // E-462 (29.10.2026): der komplette Ablauf je Kunde — jedes Feld beim Registered Agent, Stand aus den Stationen, Haken von Hand.
+    { key: "arbeitsablauf", titel: "Arbeitsablauf", Icon: ListChecks },
     { key: "gesellschaft", titel: "Fahrplan & Werte", Icon: Building2 },
     // 22.10.2026: die vollständige Akte — alle Rechnungen der Person, Verträge, Dokumente zur Unterschrift mit Vollständigkeit, ZIP.
     { key: "akte", titel: "Akte komplett", Icon: ShieldCheck },
@@ -299,15 +306,17 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
 
       <nav className="cgr-reiter" aria-label="Bereiche des Mandats">
         {REITER.map((x) => (
-          <button key={x.key} type="button" className={reiter === x.key ? "an" : ""} onClick={() => setReiter(x.key)}>
+          <button key={x.key} type="button" className={reiter === x.key ? "an" : ""} onClick={() => reiterWechseln(x.key)}>
             <x.Icon size={14} strokeWidth={1.8} /> {x.titel}{x.zahl ? <span>{x.zahl}</span> : null}
           </button>
         ))}
       </nav>
 
       <div className="cgr-reiter-inhalt" key={reiter}>
-        {reiter === "ueberblick" && <Ueberblick m={m} tun={tun} setReiter={setReiter} />}
-        {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} gref={gref} onGespeichert={() => { neu(); onGeaendert(); }} />}
+        {reiter === "ueberblick" && <Ueberblick m={m} tun={tun} setReiter={reiterWechseln} />}
+        {reiter === "arbeitsablauf" && <ChefGlobalArbeitsablauf m={m} tun={tun} setReiter={reiterWechseln}
+                                          stationOeffnen={(k) => { setStationOffen(k); setReiter("gesellschaft"); }} />}
+        {reiter === "gesellschaft" && <Gesellschaft m={m} tun={tun} gref={gref} startOffen={stationOffen} onGespeichert={() => { neu(); onGeaendert(); }} />}
         {reiter === "akte" && <AkteKomplett gref={gref} tun={tun} />}
         {reiter === "unterschriften" && <GlobalFormulare basis={`/api/fiaon/chef/global/mandate/${r}`} ton="dunkel" onGeaendert={() => { neu(); onGeaendert(); }} />}
         {reiter === "kapital" && <Kapital m={m} tun={tun} />}
@@ -514,12 +523,12 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
 // 22.10.2026 (Stationen-Editor): Je Station eine Karte mit Status, Datum und den echten Werten — EIN, ITIN (verschlüsselt),
 // D-U-N-S, Telefon, Adressen, Konto, Karten, Kreditrahmen. Dasselbe Bauteil steht im Office (Global-Akte › Fahrplan & Werte).
 // Das alte Gesellschafts-Formular ging darin auf; übrig bleibt der freie Hinweis für den Kunden.
-function Gesellschaft({ m, tun, gref, onGespeichert }: { m: any; tun: Tun; gref: string; onGespeichert: () => void }) {
+function Gesellschaft({ m, tun, gref, onGespeichert, startOffen = null }: { m: any; tun: Tun; gref: string; onGespeichert: () => void; startOffen?: string | null }) {
   const [hinweis, setHinweis] = useState(String(m.gesellschaftPlus?.hinweis ?? ""));
   return (
     <div className="cgr-gitter">
       <section className="cgr-block breit">
-        <GlobalStationen basis={`${API}/chef/global/mandate/${encodeURIComponent(gref)}`} ton="dunkel" onGespeichert={onGespeichert}
+        <GlobalStationen basis={`${API}/chef/global/mandate/${encodeURIComponent(gref)}`} ton="dunkel" onGespeichert={onGespeichert} startOffen={startOffen}
           daten={{
             schritte: m.schritte, gesellschaft: m.gesellschaft, gesellschaftPlus: m.gesellschaftPlus, kapital: m.kapital,
             dokumente: (m.dokumente as any[]).map((d) => ({ id: d.id, art: d.art, name: d.name, titel: d.titel, url: d.url, pflichtKey: d.pflichtKey, unterschrift: d.unterschrift })),

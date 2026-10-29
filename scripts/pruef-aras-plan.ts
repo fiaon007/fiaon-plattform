@@ -322,10 +322,15 @@ titel("10. E-458: ANRUF-WUNSCH UND ERINNERUNG — Regeln, Stufen, Fenster");
     S.RECHTSGRUND.wunsch === "einwilligung" && S.RECHTSGRUND.erinnerung === "einwilligung" && S.istWerbeSpielart("wunsch") && S.PRIORITAET.erinnerung === 1 && S.PRIORITAET.wunsch === 2);
   ok("Firmen (Global): nur Anruf-Wunsch und Erinnerung — Rot-Probe: Rate, Termin, Willkommen bleiben für Firmen zu",
     S.globalErlaubt("wunsch") && S.globalErlaubt("erinnerung") && !S.globalErlaubt("rate") && !S.globalErlaubt("termin") && !S.globalErlaubt("willkommen"));
-  ok("Schriftliches Ja: Antrag-Kästchen, WhatsApp, Mail, Meta — nicht „chef“ (mündlich), nicht „rueckruf_buchung“, nicht das Buchungs-Kästchen",
+  ok("Schriftliches Ja: Antrag-Kästchen, WhatsApp, Mail, Meta — nicht „chef“ (mündlich), nicht „rueckruf_buchung“, nicht die Gesprächsbuchung",
     (["antrag_kaestchen", "zuruf_whatsapp", "zuruf_mail", "meta_kaestchen"] as const).every((a) => S.WUNSCH_EINWILLIGUNGEN.includes(a))
     && !S.WUNSCH_EINWILLIGUNGEN.includes("chef") && !S.WUNSCH_EINWILLIGUNGEN.includes("rueckruf_buchung") && !S.WUNSCH_EINWILLIGUNGEN.includes("termin_kaestchen")
-    && S.EINWILLIGUNG_ARTEN.includes("termin_kaestchen"));
+    && !S.WUNSCH_EINWILLIGUNGEN.includes("termin_buchung") && S.EINWILLIGUNG_ARTEN.includes("termin_kaestchen") && S.EINWILLIGUNG_ARTEN.includes("termin_buchung"));
+  // Justin 29.10. nachmittags: „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“.
+  ok("Erinnerung trägt die Buchung mit Hinweis (neu) oder das alte Kästchen; ein Ja gilt ein halbes Jahr",
+    JSON.stringify([...S.ERINNERUNG_GRUNDLAGEN].sort()) === JSON.stringify(["termin_buchung", "termin_kaestchen"]) && S.WUNSCH_TAGE === 180);
+  ok("Rot-Probe: die Werbe-Arten an Menschen ohne jedes Ja bleiben im Code gesperrt (Lead, Verkauf nach JA, Antrag unbezahlt, Rückholung)",
+    (["lead", "zuruf", "stufe_b", "rueckholung"] as const).every((s) => S.istGesperrteSpielart(s)));
   ok("Werkzeuge: Anruf-Wunsch ohne Zahltag und Ratenpause, Firma mit Erstgespräch, Erinnerung mit Bestätigen — nie ein Zahlungslink an Firmen",
     !S.WERKZEUGE_WUNSCH.includes("zahlungszusage_merken") && !S.WERKZEUGE_WUNSCH.includes("ratenpause_setzen") && S.WERKZEUGE_WUNSCH.includes("rueckruf_buchen")
     && S.WERKZEUGE_WUNSCH_GLOBAL.includes("gespraech_buchen") && !S.WERKZEUGE_WUNSCH_GLOBAL.includes("zahlungslink_senden")

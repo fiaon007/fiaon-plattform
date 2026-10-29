@@ -16,9 +16,11 @@
 //      ein Termin im Kalender von ARAS (Herkunft mara_bei_aras), sein Ja als Nachweis (Wortlaut = Maras Angebot) und der
 //      Eintrag in der Warteschlange als „termin“ mit dem Fenster — Vorrang, und verpasst ARAS das Fenster, bekommt das Team
 //      „Rückruf verpasst — bitte anrufen“ (fiaon-aras-plan.ts). Im Gespräch führt ARAS ihn wie einen Anruf-Wunsch.
-//   3. ERINNERUNG (Spielart „erinnerung“): Hat ein Unternehmen beim Buchen eines Global-Gesprächs das Kästchen „… auch durch
-//      unsere KI-Assistentin ARAS“ angehakt (termin_kaestchen, quelle = genau dieser Termin), ruft ARAS kurz vorher an und
-//      bestätigt (erinnerungFenster in shared/fiaon-aras.ts). Die Mail-Erinnerungen und die Ergebnis-Pflicht des Gesprächs
+//   3. ERINNERUNG (Spielart „erinnerung“): Bucht jemand ein Global-Gespräch, ruft ARAS kurz vorher an und bestätigt
+//      (erinnerungFenster in shared/fiaon-aras.ts). Grundlage ist die Buchung mit dem Hinweis „… auch durch unsere
+//      KI-Assistentin ARAS“ über dem Knopf (termin_buchung, quelle = genau dieser Termin) — seit Justin 29.10. nachmittags
+//      („braucht kein eigenes Kreuz“) ohne Kästchen; ältere Buchungen mit Kästchen (termin_kaestchen) zählen weiter.
+//      Die Mail-Erinnerungen und die Ergebnis-Pflicht des Gesprächs
 //      baut eine andere Datei (fiaon-global-gespraech.ts) — hier wird der Termin nur GELESEN; „bleibt“ und „andere Zeit“
 //      schreiben nur eine Notiz an den Termin bzw. eine Aufgabe für die zuständige Person (fiaon-aras-werkzeuge.ts).
 //
@@ -33,10 +35,10 @@ import { berlinZeitpunkt, berlinToday } from "./fiaon-time";
 import { einwilligungMerken } from "./fiaon-telefon-einwilligung";
 import { nummerKern } from "./fiaon-aras-sperre";
 import {
-  WUNSCH_EINWILLIGUNGEN, WUNSCH_TAGE, WUNSCH_VERSUCHE, WUNSCH_PAUSE_STUNDEN, erinnerungFenster, fensterAmWochentag, berlinTeile,
+  WUNSCH_EINWILLIGUNGEN, WUNSCH_TAGE, WUNSCH_VERSUCHE, WUNSCH_PAUSE_STUNDEN, ERINNERUNG_GRUNDLAGEN, erinnerungFenster, fensterAmWochentag, berlinTeile,
   nummerLand, stufenGrenzen, type ArasEinstellungen, type EinwilligungArt, type Land, type Fenster,
 } from "../../shared/fiaon-aras";
-import { JA_QUELLE_TEXT } from "../../shared/fiaon-ja-zum-anruf";
+import { JA_QUELLE_TEXT, GLOBAL_TERMIN_ARAS_HINWEIS } from "../../shared/fiaon-ja-zum-anruf";
 
 type Lauf = typeof sqlPool;
 
@@ -202,22 +204,24 @@ export interface ErinnerungKandidat {
   geplant: boolean;
 }
 
-/** Gebuchte Global-Gespräche der nächsten 40 Stunden, deren Buchung das Kästchen für den Erinnerungsanruf trägt. Nur lesen. */
+/** Gebuchte Global-Gespräche der nächsten 40 Stunden mit Grundlage für den Erinnerungsanruf (Buchung mit Hinweis, früher Kästchen). Nur lesen. */
 export async function erinnerungKandidaten(einst: ArasEinstellungen, lauf: Lauf = sqlPool): Promise<ErinnerungKandidat[]> {
   await arasSchema(lauf);
+  // Je Gespräch genau EINE Zeile (der jüngste Nachweis) — trägt eine Buchung Hinweis UND altes Kästchen, gibt es trotzdem nur
+  // einen Erinnerungsanruf.
   const zeilen = (await lauf.unsafe(`
-    SELECT t.id AS termin_id, t.beginn, t.person_id, t.agent_id, e.id AS einwilligung_id, e.nummer AS e_nummer,
+    SELECT DISTINCT ON (t.beginn, t.id) t.id AS termin_id, t.beginn, t.person_id, t.agent_id, e.id AS einwilligung_id, e.nummer AS e_nummer,
            p.primary_phone, p.country, p.company_name, p.first_name, p.last_name, ag.first_name AS ag_vorname, ag.name AS ag_name,
            EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.termin_id = t.id AND x.spielart = 'erinnerung'
                      AND (x.status IN ('wartet', 'gewaehlt', 'laeuft', 'verschoben') OR (x.status = 'fertig' AND x.anlass_am = t.beginn))) AS geplant
       FROM fiaon_termine t
-      JOIN fiaon_telefon_einwilligung e ON e.art = 'termin_kaestchen' AND e.quelle_art = 'global_termin' AND e.quelle_id = t.id::text AND e.widerrufen_am IS NULL
+      JOIN fiaon_telefon_einwilligung e ON e.art IN (${ERINNERUNG_GRUNDLAGEN.map((a) => `'${a}'`).join(", ")}) AND e.quelle_art = 'global_termin' AND e.quelle_id = t.id::text AND e.widerrufen_am IS NULL
       JOIN fiaon_persons p ON p.id = t.person_id
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
      WHERE t.quelle = 'global' AND t.status = 'gebucht'
        AND t.beginn > NOW() + INTERVAL '30 minutes' AND t.beginn < NOW() + INTERVAL '40 hours'
        AND ${echtePersonSql("p")}
-     ORDER BY t.beginn`)) as any[];
+     ORDER BY t.beginn, t.id, e.id DESC`)) as any[];
   return zeilen.map((z) => {
     const nummer = waehlbareNummer([{ nummer: z.e_nummer }, { nummer: z.primary_phone }], z.country).waehlbar ?? null;
     const land = (nummerLand(nummer) ?? "DE") as Land;
@@ -231,7 +235,7 @@ export async function erinnerungKandidaten(einst: ArasEinstellungen, lauf: Lauf 
   });
 }
 
-/** Planer: je Gespräch mit Kästchen genau ein Erinnerungsanruf im Fenster vor dem Beginn (oder am Vortag abends). */
+/** Planer: je gebuchtem Gespräch genau ein Erinnerungsanruf im Fenster vor dem Beginn (oder am Vortag abends). */
 export async function erinnerungPlanen(einst: ArasEinstellungen, lauf: Lauf, zaehl: (r: { ok: boolean; grund?: string }) => void): Promise<void> {
   const { planEinreihen } = await import("./fiaon-aras-plan");
   for (const k of await erinnerungKandidaten(einst, lauf)) {
@@ -455,35 +459,42 @@ export function belegSeite(pfad: unknown, referer?: unknown): string {
 }
 
 /**
- * Hat das Unternehmen beim Buchen das Kästchen „… auch durch unsere KI-Assistentin ARAS“ angehakt, wird GENAU dieser Satz zum
- * Nachweis (termin_kaestchen, quelle = der Termin) — aber nur, wenn der Browser denselben Satz zurückschickt, den der Server
- * zeigt (ein alter Stand speichert nichts statt eines Satzes, den niemand gesehen hat). Im Hintergrund, wirft nie: Die Buchung
- * steht schon und hängt nie an der Einwilligung.
+ * Die Buchung trägt den Hinweis „Kurz vor dem Gespräch rufen wir Sie an … – auch durch unsere KI-Assistentin ARAS“ über dem
+ * Knopf: GENAU dieser Satz wird zum Nachweis (termin_buchung, quelle = der Termin) — aber nur, wenn der Browser denselben Satz
+ * zurückschickt, den der Server zeigt (ein fremder Satz speichert nichts statt eines Satzes, den niemand gesehen hat). Ein
+ * Browser mit dem alten Stand schickt noch den Kästchen-Satz (bis 29.10. nachmittags) → termin_kaestchen wie bisher. Im
+ * Hintergrund, wirft nie: Die Buchung steht schon und hängt nie daran.
  */
 export function globalTerminEinwilligungMerken(e: { terminId: number; wortlautBrowser: unknown; wortlautServer: readonly string[]; telefon: string; ip: string; ua: string; sprache: "de" | "en"; seite?: unknown; referer?: unknown }): void {
   const satz = String(e.wortlautBrowser ?? "");
   if (!e.wortlautServer.includes(satz)) {
-    if (satz) console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Kästchen angehakt, aber der Satz im Browser ist nicht der dieses Servers — KEINE Einwilligung gespeichert.`);
+    if (satz) console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Der Satz im Browser ist nicht der dieses Servers — KEIN Nachweis für den Erinnerungsanruf gespeichert.`);
     return;
   }
+  const hinweis = (Object.values(GLOBAL_TERMIN_ARAS_HINWEIS) as string[]).includes(satz);
   void (async () => {
     const [t] = (await sqlPool`SELECT person_id FROM fiaon_termine WHERE id = ${e.terminId}`) as any[];
     const personId = t?.person_id != null ? Number(t.person_id) : null;
     const [p] = personId ? ((await sqlPool`SELECT country FROM fiaon_persons WHERE id = ${personId}`.catch(() => [])) as any[]) : [];
     const nummer = waehlbareNummer([{ nummer: e.telefon }], p?.country ?? "DE").waehlbar ?? e.telefon;
-    if (!nummerKern(nummer)) { console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Kästchen ohne brauchbare Nummer — keine Einwilligung.`); return; }
+    if (!nummerKern(nummer)) { console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Buchung ohne brauchbare Nummer — kein Nachweis für den Erinnerungsanruf.`); return; }
     const { id } = await einwilligungMerken({
-      personId, nummer, art: "termin_kaestchen", wortlaut: satz, quelleArt: "global_termin", quelleId: String(e.terminId),
-      beleg: { seite: belegSeite(e.seite, e.referer), formular: "Gespräch vereinbaren", kaestchen: "eigene Zeile, nicht vorangekreuzt, freiwillig", sprache: e.sprache, ip: e.ip.slice(0, 80), userAgent: e.ua.slice(0, 300) },
+      personId, nummer, art: hinweis ? "termin_buchung" : "termin_kaestchen", wortlaut: satz, quelleArt: "global_termin", quelleId: String(e.terminId),
+      beleg: {
+        seite: belegSeite(e.seite, e.referer), formular: "Gespräch vereinbaren",
+        kaestchen: hinweis ? "kein Kästchen — Hinweis über dem Knopf, Buchung = Grundlage (Justin 29.10.2026: „braucht kein eigenes Kreuz“)" : "eigene Zeile, nicht vorangekreuzt, freiwillig",
+        sprache: e.sprache, ip: e.ip.slice(0, 80), userAgent: e.ua.slice(0, 300),
+      },
     });
-    console.log(`[ARAS-WUNSCH] Termin ${e.terminId}: Einwilligung zum Erinnerungsanruf gespeichert (Nr. ${id}).`);
+    console.log(`[ARAS-WUNSCH] Termin ${e.terminId}: Nachweis für den Erinnerungsanruf gespeichert (Nr. ${id}, ${hinweis ? "Buchung mit Hinweis" : "Kästchen"}).`);
   })().catch((err) => console.error(`[ARAS-WUNSCH] Termin ${e.terminId}: Einwilligung NICHT gespeichert — die Buchung gilt trotzdem:`, err));
 }
 
 // ── Für das Chefbüro (KI-Team › Aras) ──────────────────────────────────────
 export interface WunschLage {
   bereit: { bereit: boolean; grund: string | null };
-  stufe: number; an: { wunsch: boolean; erinnerung: boolean; termin: boolean; willkommen: boolean; rate: boolean };
+  stufe: number;
+  an: { wunsch: boolean; erinnerung: boolean; termin: boolean; willkommen: boolean; stufe_a: boolean; rate: boolean; zusage: boolean; auftrag: boolean };
   wunsch: { personId: number; name: string; firma: boolean; quelle: string; am: string; versuche: number; grund: string | null }[];
   erinnerung: { terminId: number; personId: number; firma: string | null; wann: string; wer: string; fenster: string | null; geplant: boolean }[];
   zahlen: { wunschJetzt: number; wunschGesamt: number; erinnerungen: number; rueckrufeBeiAras: number };
@@ -498,7 +509,10 @@ export async function wunschLage(einst: ArasEinstellungen, lauf: Lauf = sqlPool,
   const kurz = (n: string) => (maskiert && n !== "—" ? `${n.slice(0, 1)}…` : n);
   return {
     bereit: await arasRueckrufBereit(lauf), stufe: g.stufe,
-    an: { wunsch: !!einst.spielarten.wunsch, erinnerung: !!einst.spielarten.erinnerung, termin: !!einst.spielarten.termin, willkommen: !!einst.spielarten.willkommen, rate: !!einst.spielarten.rate },
+    an: {
+      wunsch: !!einst.spielarten.wunsch, erinnerung: !!einst.spielarten.erinnerung, termin: !!einst.spielarten.termin, willkommen: !!einst.spielarten.willkommen,
+      stufe_a: !!einst.spielarten.stufe_a, rate: !!einst.spielarten.rate, zusage: !!einst.spielarten.zusage, auftrag: !!einst.spielarten.auftrag,
+    },
     wunsch: alle.slice(0, 60).map((k) => ({ personId: k.personId, name: kurz(k.name), firma: k.firma, quelle: JA_QUELLE_TEXT[k.art] ?? k.art, am: tagKurz(k.erteiltAm), versuche: k.versuche, grund: k.grund })),
     erinnerung: er.map((k) => ({ terminId: k.terminId, personId: k.personId, firma: k.firma ? kurz(k.firma) : null, wann: `${tagKurz(k.beginn)} ${uhr(k.beginn)} Uhr`, wer: k.wer,
       fenster: k.fenster ? `${k.fenster.vortag ? "am Vortag " : ""}${uhr(k.fenster.ab)}–${uhr(k.fenster.bis)} Uhr` : null, geplant: k.geplant })),

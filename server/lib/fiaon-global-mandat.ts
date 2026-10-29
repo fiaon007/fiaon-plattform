@@ -39,6 +39,7 @@ import {
 import { unterschriftModus } from "@shared/fiaon-global-akte";
 // E-455 (29.10.2026): die nächste Station je Akte für die Liste des Raums „Global-Kunden“ — dieselbe Rechnung wie die Karte „Als Nächstes“.
 import { naechsteStation } from "@shared/fiaon-global-als-naechstes";
+import { ablaufHakenErlaubt, ablaufTitel } from "@shared/fiaon-global-arbeitsablauf";
 import {
   GLOBAL_FAHRPLAN, GLOBAL_FAHRPLAN_BEDARF, GLOBAL_GESELLSCHAFT_PLUS_FELDER, globalEinFormat, globalKapitalArt, globalKapitalArtTitel, globalKapitalStatus,
   globalKapitalStatusTitel, globalKapitalZaehlt, globalSchrittStatus, globalSchrittText, globalSchrittTitel, globalSchrittVorlage,
@@ -80,7 +81,9 @@ export function ensureGlobalMandat(): Promise<void> {
             ADD COLUMN IF NOT EXISTS gesellschaft_plus JSONB,
             ADD COLUMN IF NOT EXISTS ist_test_am TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS portal_neu_am TIMESTAMPTZ,
-            ADD COLUMN IF NOT EXISTS portal_neu_von TEXT`;
+            ADD COLUMN IF NOT EXISTS portal_neu_von TEXT,
+            ADD COLUMN IF NOT EXISTS arbeitsablauf_haken JSONB`;
+        // E-462 (29.10.2026): Haken des Arbeitsablaufs je Auftrag — { schluessel: { am, von } } (shared/fiaon-global-arbeitsablauf.ts).
         await tx`
           ALTER TABLE fiaon_global_dokumente
             ADD COLUMN IF NOT EXISTS titel TEXT,
@@ -270,7 +273,7 @@ async function plusRoh(ref: string): Promise<GlobalGesellschaftPlus> {
 async function mandatZeile(ref: string): Promise<any | null> {
   await ensureGlobalMandat();
   const [z] = (await sqlPool`
-    SELECT ref, person_id, gesellschaft_plus, ist_test_am, portal_neu_am, portal_neu_von, angebot_id, email
+    SELECT ref, person_id, gesellschaft_plus, ist_test_am, portal_neu_am, portal_neu_von, angebot_id, email, arbeitsablauf_haken
       FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
   return z ?? null;
 }
@@ -449,7 +452,50 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
     portal: { neu: !!z?.portal_neu_am, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
     // E-451 (28.10.2026): EINE Quelle für „wer führt diese Akte“ — gesetzt, wohin die Aufgaben gehen, wen das Portal nennt.
     zustaendigkeit: await zustaendigkeitSicht(office),
+    // E-462 (29.10.2026): die Haken des Arbeitsablaufs (Reiter „Arbeitsablauf“) — nur Schlüssel aus der festen Liste.
+    arbeitsablaufHaken: arbeitsablaufHakenLesen(z?.arbeitsablauf_haken),
   };
+}
+
+// ── E-462 (29.10.2026): DER ARBEITSABLAUF — HAKEN VON HAND ──────────────────
+// Die Schritte mit Fahrplan-Station zeigen ihren Stand von selbst; nur die übrigen (und die drei Vorab-Dinge vom Kunden)
+// hakt das Team von Hand ab. Gespeichert je Auftrag in fiaon_global_auftraege.arbeitsablauf_haken als
+// { schluessel: { am, von } }. Geschrieben wird mit jsonb_build_object in SQL — nie ein JSON-Text in jsonb (E-238).
+function arbeitsablaufHakenLesen(roh: unknown): Record<string, { am: string; von: string }> {
+  const o = json<Record<string, any>>(roh, {});
+  const aus: Record<string, { am: string; von: string }> = {};
+  for (const [k, v] of Object.entries(o ?? {})) {
+    if (!ablaufHakenErlaubt(k) || !v || typeof v !== "object") continue;
+    aus[k] = { am: String(v.am ?? ""), von: String(v.von ?? "") };
+  }
+  return aus;
+}
+
+export async function globalArbeitsablaufHaken(ref: string, ein: { schritt?: unknown; erledigt?: unknown }, agent: BereichAgent): Promise<Erg<{ meldung: string; haken: Record<string, { am: string; von: string }> }>> {
+  const l = await lageOder404(ref);
+  if ("fehler" in l) return l.fehler;
+  const key = ein.schritt;
+  if (!ablaufHakenErlaubt(key)) return nein(400, "Diesen Schritt hakt man nicht von Hand ab.");
+  const an = ein.erledigt === true;
+  const vorher = arbeitsablaufHakenLesen((await mandatZeile(ref))?.arbeitsablauf_haken);
+  if (!!vorher[key] === an) return { ok: true, meldung: an ? "War schon abgehakt." : "War nicht abgehakt.", haken: vorher };
+  const [z] = (an
+    ? await sqlPool`
+        UPDATE fiaon_global_auftraege
+           SET arbeitsablauf_haken = COALESCE(arbeitsablauf_haken, '{}'::jsonb)
+                 || jsonb_build_object(${key}::text, jsonb_build_object('am', NOW(), 'von', ${agent.name}::text)),
+               updated_at = NOW()
+         WHERE ref = ${ref} RETURNING arbeitsablauf_haken`
+    : await sqlPool`
+        UPDATE fiaon_global_auftraege
+           SET arbeitsablauf_haken = COALESCE(arbeitsablauf_haken, '{}'::jsonb) - ${key}::text, updated_at = NOW()
+         WHERE ref = ${ref} RETURNING arbeitsablauf_haken`) as any[];
+  const titel = ablaufTitel(key);
+  await verlaufSchreiben(ref, {
+    art: "arbeitsablauf", sichtbar: false, agentId: agent.id || null,
+    text: `Arbeitsablauf: ${titel} ${an ? "abgehakt" : "wieder geöffnet"} (${agent.name}).`,
+  });
+  return { ok: true, meldung: `${titel} ${an ? "abgehakt" : "wieder offen"}.`, haken: arbeitsablaufHakenLesen(z?.arbeitsablauf_haken) };
 }
 
 // ── E-451 (28.10.2026): ZUSTÄNDIGKEIT — EINE QUELLE ──────────────────────────

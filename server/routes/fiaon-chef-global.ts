@@ -23,7 +23,7 @@ import {
   globalMandateListe, globalMandatChefSicht, globalSchrittSetzen, globalGesellschaftPlusSetzen, globalKapitalSpeichern, globalKapitalEntfernen,
   globalMandatDokument, globalMandatDokumentAendern, globalMandatAntwort, globalMandatAnfragenGelesen, globalMandatTest, globalMandatPortal,
   globalVorschauLink, globalKundenLink, globalStationSpeichern, globalItinKlartext, globalChefGesehen,
-  globalChefNeuZahl, globalZustaendigAuswahl, globalMandatZustaendigSetzen,
+  globalChefNeuZahl, globalZustaendigAuswahl, globalMandatZustaendigSetzen, globalArbeitsablaufHaken,
 } from "../lib/fiaon-global-mandat";
 import { GLOBAL_DATEI_MAX_BYTES, globalDateinameKopf, globalMimeAuslieferbar } from "../lib/fiaon-global-bereich-regeln";
 
@@ -135,6 +135,13 @@ router.post("/chef/global/mandate/:ref/gesehen", requireChef("leitung"), async (
 router.post("/chef/global/mandate/:ref/zustaendig", requireChef("leitung"), async (req, res) => {
   try { antwort(res, await globalMandatZustaendigSetzen(ref(req), req.body?.agentId, await wer(req))); }
   catch (e) { fehler(res, "zustaendig", e); }
+});
+
+// E-462 (29.10.2026): Reiter „Arbeitsablauf“ — einen Schritt ohne Fahrplan-Station von Hand abhaken oder wieder öffnen.
+// Nur Schlüssel aus der festen Liste (shared/fiaon-global-arbeitsablauf.ts); interne Verlaufszeile mit wer/wann; keine Mail.
+router.post("/chef/global/mandate/:ref/arbeitsablauf", requireChef("leitung"), async (req, res) => {
+  try { antwort(res, await globalArbeitsablaufHaken(ref(req), { schritt: req.body?.schritt, erledigt: req.body?.erledigt }, await wer(req))); }
+  catch (e) { fehler(res, "arbeitsablauf", e); }
 });
 
 // ── Stand, Schritt, Stichtag, Abschluss ──────────────────────────────────────

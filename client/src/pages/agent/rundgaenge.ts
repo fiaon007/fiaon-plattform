@@ -1585,6 +1585,17 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
       + "„Erste Business-Karten“ usw., beim Kapital-Angebot dessen eigene. Beim Begleitvertrag stehen außerdem Vertrag und "
       + "Angebotsunterlagen in Portal und Chefbüro, und der Verlauf trägt „Zahlung eingegangen“ und „gestartet“.",
   },
+  // E-462 (29.10.2026): der Reiter „Arbeitsablauf“.
+  {
+    ziel: ".cgr-reiter",
+    titel: "„Arbeitsablauf“: jeder Schritt von der Zahlung bis zur ITIN.",
+    text: "Der Reiter direkt nach „Überblick“ zeigt den ganzen Weg je Kunde: 8 Blöcke, 20 Schritte, dazu die 3 Dinge, die vorher vom Kunden kommen. "
+      + "Beim Registered Agent steht jedes Formularfeld mit dem genauen Wert da — Name, Kontakt-E-Mail (js+nachname@fiaon.com), Adresse —, "
+      + "jeweils mit „Kopieren“. Schritte mit einer Station im Fahrplan zeigen ihren Stand von selbst; „Station öffnen“ springt in "
+      + "„Fahrplan & Werte“ und klappt genau diese Station auf. Die übrigen hakst du ab — das steht mit Name und Zeit im internen Verlauf. "
+      + "Oben: wie viele Schritte erledigt sind und welcher als Nächstes dran ist. Das EIN-Formular wartet, bis Tätigkeit und „Einverstanden“ da sind.",
+    tipp: "„Als Anleitung öffnen“ gibt dir dieselbe Liste ohne Kundendaten in einem neuen Tab — zum Drucken oder für neue Kollegen.",
+  },
 ];
 
 // ── /chef/global-kunden (E-455, 29.10.2026) — Chefbüro › Global-Kunden ─────────
@@ -2956,8 +2967,8 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"probe\"]",
     titel: "Probe: hier hörst du ARAS.",
     text: "„Mich anrufen“ — ARAS ruft nur deine Nummer an. Danach gibst du Daumen hoch oder runter, darunter stehen dein Feedback, der Ton und die Stimmen.",
-    // E-458 (29.10.2026) mitgezogen: „ARAS telefoniert nur noch die Termine oder die Leute, die einen Anruf wollen“.
-    tipp: "Kunden ruft sie erst an, wenn du „ARAS wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist — und dann nur Termine, Menschen mit schriftlichem „Ja zum Anruf“ und die Erinnerung vor Global-Gesprächen (Karte „Wen ARAS anruft“ unter „Als Nächstes“).",
+    // E-458 (29.10.2026) mitgezogen: am Nachmittag „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“.
+    tipp: "Kunden ruft sie erst an, wenn du „ARAS wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist — und dann alle, bei denen sie darf: Kunden mit Vertrag, gebuchte Termine, die Erinnerung vor jedem Global-Gespräch und jeden mit „Ja zum Anruf“ (Karte „Wen ARAS anruft“ unter „Als Nächstes“).",
   },
   {
     ziel: "[data-ki=\"cockpit\"]",
@@ -2990,7 +3001,7 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"warteschlange\"]",
     titel: "Als Nächstes: wer dran ist.",
     // E-458 (29.10.2026): oben die Karte „Wen ARAS anruft“.
-    text: "Oben die Karte „Wen ARAS anruft“: welche Gesprächsarten an sind (ein Klick schaltet), wer mit schriftlichem „Ja zum Anruf“ wartet — und warum jemand nicht dran ist —, die Erinnerungen vor Global-Gesprächen und die Rückrufe, die Mara „bei ARAS“ einträgt. Darunter die Warteschlange: je Person „Jetzt“, „Verschieben“ oder „Entfernen“; „Jetzt auffüllen“ holt Fällige sofort aus den Akten.",
+    text: "Oben die Karte „Wen ARAS anruft“: welche Gesprächsarten an sind — in zwei Gruppen, „Mit Termin, Gesprächsbuchung oder Ja zum Anruf“ und „Kunden mit Vertrag“; ein Klick schaltet —, wer mit schriftlichem „Ja zum Anruf“ wartet (und warum jemand nicht dran ist), die Erinnerungen vor Global-Gesprächen und die Rückrufe, die Mara „bei ARAS“ einträgt. Darunter die Warteschlange: je Person „Jetzt“, „Verschieben“ oder „Entfernen“; „Jetzt auffüllen“ holt Fällige sofort aus den Akten.",
     tipp: "Gewählt wird nur, was die Ausbaustufe erlaubt — in Stufe 0 bleibt die Warteschlange leer, und Mara bietet ARAS noch nicht an.",
   },
   {

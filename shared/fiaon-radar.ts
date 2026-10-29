@@ -474,14 +474,18 @@ export interface RadarMotor {
   kiKlangMax: number;
   /** Fingerabdruck (Punkt 4): Anteil der 5-Wort-Folgen, die schon in einer früheren Mail standen — darüber sperrt es. */
   aehnlichMax: number;
+  /** Nachschub (Punkt 1): so viele qualifizierte Firmen sucht der Tageslauf am Tag, mit höchstens so vielen Suchläufen. */
+  sucheTagesziel: number;
+  sucheLaeufe: number;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
-export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35 };
+export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30 };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
   link: "radar_motor_link", kiKlangMax: "radar_pruef_ki_klang_max", aehnlichMax: "radar_motor_aehnlich_max",
+  sucheTagesziel: "radar_suche_tagesziel", sucheLaeufe: "radar_suche_laeufe",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -529,6 +533,95 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     link: text(roh[k.link]) === "keiner" ? "keiner" : v.link,
     kiKlangMax: Math.round(zahl(roh[k.kiKlangMax], v.kiKlangMax, 0, 10)),
     aehnlichMax: zahl(roh[k.aehnlichMax], v.aehnlichMax, 0.05, 1),
+    sucheTagesziel: Math.round(zahl(roh[k.sucheTagesziel], v.sucheTagesziel, 0, 500)),
+    sucheLaeufe: Math.round(zahl(roh[k.sucheLaeufe], v.sucheLaeufe, 0, 200)),
+  };
+}
+
+// ── POSTFÄCHER UND EHRLICHE LEISTUNG (E-458 Punkt 6) ────────────────────────
+/** Ein Versandpostfach heute: Tagesgrenze, heute schon gesendet (alles aus dem Radar), Reserve für fällige Nachfass-Mails. */
+export interface RadarPostfachLage {
+  adresse: string; grenze: number; heute: number; reserve?: number; letzteAm?: Date | string | null;
+  /** Gmail-Zugang, echte Person mit Signatur, DNS — nur „bereit“ sendet. */
+  bereit: boolean;
+  /** Pausiert (Chefbüro oder Zustell-Bremse). */
+  pause?: boolean;
+}
+/** Abstand zwischen zwei Mails aus demselben Postfach: 3 Minuten plus 0–59 Sekunden, fest je letzter Mail. Rein. */
+export function radarPostfachAbstandSek(letzteAm: Date | string | null | undefined): number {
+  const t = letzteAm ? new Date(letzteAm).getTime() : NaN;
+  return 180 + (Number.isFinite(t) ? Math.floor(t / 1000) % 60 : 0);
+}
+/**
+ * Welches Postfach sendet die nächste Mail? Ein bereites, nicht pausiertes Postfach unter seiner Grenze, das lange genug
+ * ruht — mit dem größten Rest (Rest / Grenze), bei Gleichstand das am längsten ruhende. Keins frei → null. Rein.
+ */
+export function radarPostfachWaehlen(liste: readonly RadarPostfachLage[], jetzt: Date = new Date()): RadarPostfachLage | null {
+  const frei = liste.filter((p) => {
+    if (!p.bereit || p.pause || p.grenze <= 0) return false;
+    if (p.heute + (p.reserve ?? 0) >= p.grenze) return false;
+    const letzte = p.letzteAm ? new Date(p.letzteAm).getTime() : NaN;
+    return !Number.isFinite(letzte) || (jetzt.getTime() - letzte) / 1000 >= radarPostfachAbstandSek(p.letzteAm);
+  });
+  if (!frei.length) return null;
+  const rest = (p: RadarPostfachLage) => (p.grenze - p.heute - (p.reserve ?? 0)) / p.grenze;
+  const ruhe = (p: RadarPostfachLage) => (p.letzteAm ? new Date(p.letzteAm).getTime() : 0);
+  return [...frei].sort((a, b) => rest(b) - rest(a) || ruhe(a) - ruhe(b))[0];
+}
+
+/** Sendungen je erster Mail, wenn nachgefasst wird (ein Teil antwortet vorher): 1 Nachfass ≈ 1,95 · 2 Nachfass ≈ 2,85. Rein. */
+export function radarSendungenJeErstmail(nachfassStufen: number = RADAR_NACHFASS_TAGE.length): number {
+  let f = 1;
+  for (let i = 1; i <= Math.max(0, nachfassStufen); i++) f += Math.max(0, 1 - 0.05 * i);
+  return Math.round(f * 100) / 100;
+}
+
+export interface RadarMoeglich {
+  /** Ziel beider Ströme je Stunde (nach der Bremse). */
+  ziel: number;
+  /** Was die bereiten Postfächer in den restlichen Fensterstunden heute je Stunde tragen (abgerundet). */
+  moeglich: number;
+  /** Leistung = das Kleinere aus Ziel und möglich — je Strom nach seinem Anteil am Ziel. */
+  leistung: number;
+  je: Record<RadarStrom, number>;
+  /** Erste Mails, die ein voller Tag je Strom trägt (für den Puffer der Warteschlange). */
+  tagJe: Record<RadarStrom, number>;
+  /** So viele warme Postfächer à Tagesgrenze bräuchte das Ziel. */
+  postfaecherNoetig: number;
+  satz: string;
+}
+/**
+ * Die ehrliche Leistung: (Σ Rest heute − Nachfass-Reserve) / restliche Fensterstunden, aufgeteilt nach den Zielen der
+ * Ströme. Leistung = min(Ziel, möglich). Dazu der Satz fürs Chefbüro und die Rechnung, wie viele Postfächer das Ziel
+ * bräuchte (je erste Mail kommen Nachfass-Mails dazu). Rein.
+ */
+export function radarMoeglich(e: {
+  postfaecher: readonly RadarPostfachLage[]; reststunden: number; fensterStunden: number;
+  ziele: Record<RadarStrom, number>; bremse?: number; nachfassStufen?: number; grenzeVoll?: number;
+}): RadarMoeglich {
+  const bremse = Math.max(0, Math.min(1, e.bremse ?? 1));
+  const zf = Math.max(0, e.ziele.firma) * bremse, zp = Math.max(0, e.ziele.partner) * bremse;
+  const ziel = Math.round((zf + zp) * 10) / 10;
+  const bereit = e.postfaecher.filter((p) => p.bereit && !p.pause);
+  const rest = bereit.reduce((n, p) => n + Math.max(0, p.grenze - p.heute - (p.reserve ?? 0)), 0);
+  const tagVoll = bereit.reduce((n, p) => n + Math.max(0, p.grenze - (p.reserve ?? 0)), 0);
+  const genau = e.reststunden > 0 ? rest / e.reststunden : 0;
+  const moeglich = Math.floor(genau);
+  const leistung = Math.min(ziel, genau);
+  const anteil = (z: number) => (zf + zp > 0 ? z / (zf + zp) : 0);
+  const tagZiel = (z: number) => z * Math.max(0, e.fensterStunden);
+  const sendungen = radarSendungenJeErstmail(e.nachfassStufen);
+  const grenzeVoll = Math.max(1, e.grenzeVoll ?? RADAR_HOECHSTENS_JE_TAG);
+  const postfaecherNoetig = ziel > 0 ? Math.ceil((ziel * Math.max(0, e.fensterStunden) * sendungen) / grenzeVoll) : 0;
+  const zahlText = (n: number) => String(Math.round(n * 10) / 10).replace(".", ",");
+  const satz = moeglich >= ziel
+    ? `Ziel ${zahlText(ziel)} je Stunde, heute möglich ${zahlText(ziel)}`
+    : `Ziel ${zahlText(ziel)} je Stunde, heute möglich ${moeglich} — mehr Postfächer = mehr Tempo`;
+  return {
+    ziel, moeglich, leistung: Math.round(leistung * 10) / 10,
+    je: { firma: Math.round(leistung * anteil(zf) * 10) / 10, partner: Math.round(leistung * anteil(zp) * 10) / 10 },
+    tagJe: { firma: Math.floor(Math.min(tagZiel(zf), tagVoll * anteil(zf))), partner: Math.floor(Math.min(tagZiel(zp), tagVoll * anteil(zp))) },
+    postfaecherNoetig, satz,
   };
 }
 

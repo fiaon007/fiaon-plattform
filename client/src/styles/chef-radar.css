@@ -544,3 +544,18 @@ select.cr-feld { cursor: pointer; }
 .cr-pruefki.gut { border-color: rgba(52, 211, 153, .35); color: #a7f3d0; }
 .cr-pruefki.fehler { border-color: rgba(248, 113, 113, .4); color: #fecaca; }
 .cr-pruefki.offen { border-color: rgba(251, 191, 36, .35); color: #fde68a; }
+
+/* ── E-458: der Mail-Motor ── */
+.cr-motor .cr-motor-satz { margin: 0; font-size: 13px; line-height: 1.5; color: #bfdbfe; }
+.cr-motor-stroeme { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.cr-motor-strom { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 6, 23, .35); border: 1px solid var(--cr-linie); font-size: 12.5px; }
+.cr-motor-strom b { font-weight: 500; color: #fff; }
+.cr-motor-stunden { display: flex; align-items: flex-end; gap: 4px; height: 64px; padding: 4px 2px 16px; }
+.cr-motor-stunden span { position: relative; flex: 1 1 0; height: 100%; display: flex; flex-direction: column-reverse; border-radius: 3px; background: rgba(148, 163, 184, .08); }
+.cr-motor-stunden i { display: block; width: 100%; }
+.cr-motor-stunden i.f { background: linear-gradient(180deg, #7cc3ff, #288dfa); border-radius: 3px 3px 0 0; }
+.cr-motor-stunden i.p { background: rgba(147, 197, 253, .45); }
+.cr-motor-stunden small { position: absolute; bottom: -15px; left: 0; right: 0; text-align: center; font-size: 9.5px; color: var(--cr-leise); }
+.cr-motor-tage { display: flex; flex-wrap: wrap; gap: 6px; }
+.cr-motor-tage button { min-height: 28px; min-width: 38px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, .25); background: rgba(2, 6, 23, .45); color: var(--cr-leise); font-size: 12px; cursor: pointer; }
+.cr-motor-tage button.an { background: rgba(30, 58, 138, .6); border-color: rgba(96, 165, 250, .45); color: #fff; }

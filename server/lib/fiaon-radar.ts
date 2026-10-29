@@ -82,8 +82,8 @@ export function radarAbsender() {
   };
 }
 const KI_ZEIT_MS = 240_000;
-/** Höchstens so viele Suchläufe des Tageslaufs am Tag (E-337) — je Lauf ≈ 0,2–0,3 € KI. */
-const RADAR_SUCHEN_JE_TAG = 30;
+// Höchstens so viele Suchläufe des Tageslaufs am Tag (E-337: fest 30) — seit E-458 die Einstellung radar_suche_laeufe
+// (Vorgabe 30), das Tagesziel radar_suche_tagesziel (Vorgabe RADAR_TAGESZIEL = 50). Je Lauf ≈ 0,2–0,3 € KI.
 
 export class RadarFehler extends Error {
   status: number;
@@ -866,21 +866,25 @@ export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolea
   if (await kiPausiert()) return { ruhe: true, heute: 0, neu: 0, suchen: 0, fehler: "KI pausiert" }; // E-246
   await ensureRadarTabellen();
   const tag = berlinToday(jetzt);
+  // E-458: Tagesziel und Suchläufe sind Einstellungen (radar_suche_tagesziel, radar_suche_laeufe); gezählt werden nur Firmen.
+  const motor = await radarMotorEinstellung();
+  const tagesziel = motor.sucheTagesziel;
+  const laeufeMax = motor.sucheLaeufe;
   // E-337: Aufs Tagesziel zählen nur QUALIFIZIERTE Funde (nicht archiviert, Signal ≥ 3) — sonst wäre das Ziel mit Firmen
-  // erreicht, die Mara nie anschreibt. Gegen die Kosten: höchstens RADAR_SUCHEN_JE_TAG Suchläufe am Tag.
-  const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf' AND archiviert_am IS NULL`) as any[])[0]?.n ?? 0);
+  // erreicht, die Mara nie anschreibt. Gegen die Kosten: höchstens laeufeMax Suchläufe am Tag.
+  const zaehlen = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE tag = ${tag} AND quelle = 'tageslauf' AND archiviert_am IS NULL AND strom = 'firma'`) as any[])[0]?.n ?? 0);
   let heute = await zaehlen();
   // Erst die Lücken schließen: Firmen ohne E-Mail noch einmal nachsuchen (höchstens zehn je Runde).
   const luecken = (await sqlPool`
     SELECT id FROM fiaon_radar_firmen WHERE email IS NULL AND archiviert_am IS NULL AND status IN ('neu', 'gescannt', 'mail') ORDER BY id LIMIT 10`) as any[];
   for (const l of luecken) await radarKontaktNachsuchen(Number(l.id)).catch(() => {});
-  if (heute >= RADAR_TAGESZIEL) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
+  if (heute >= tagesziel) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const laeufeHeute = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_laeufe WHERE art = 'tageslauf' AND created_at > date_trunc('day', NOW())`) as any[])[0]?.n ?? 0);
-  if (laeufeHeute >= RADAR_SUCHEN_JE_TAG) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
+  if (laeufeHeute >= laeufeMax) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const LAENDER: RadarLand[] = ["DE", "DE", "AT", "DE", "CH"];
   let neu = 0, suchen = 0, fehler: string | null = null;
   const tagNr = Math.floor(jetzt.getTime() / 86_400_000);
-  for (let k = 0; k < 3 && heute < RADAR_TAGESZIEL && laeufeHeute + k < RADAR_SUCHEN_JE_TAG; k++) {
+  for (let k = 0; k < 3 && heute < tagesziel && laeufeHeute + k < laeufeMax; k++) {
     const n = laeufeHeute + k;
     const bereich = RADAR_BEREICHE[(tagNr + n) % RADAR_BEREICHE.length];
     const land = LAENDER[(tagNr + n) % LAENDER.length];
@@ -888,7 +892,7 @@ export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolea
     const jagd = RADAR_SIGNALE.flatMap((x) => (x.staerke >= 4 ? [x, x] : x.staerke >= 3 ? [x] : []));
     const signal = jagd[(tagNr * 3 + n) % jagd.length];
     try {
-      const r = await radarSuchen({ bereich: bereich.key, land, anzahl: Math.min(12, RADAR_TAGESZIEL - heute), quelle: "tageslauf", signal: signal.key });
+      const r = await radarSuchen({ bereich: bereich.key, land, anzahl: Math.min(12, tagesziel - heute), quelle: "tageslauf", signal: signal.key });
       neu += r.neu.length; suchen++;
     } catch (e: any) {
       fehler = String(e?.message || e).slice(0, 200);
@@ -1444,7 +1448,7 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   // E-458 (Punkt 3 und 6): Die Mail wird erst JETZT mit der Unterschrift des gewählten Postfachs gebaut — der Text ist
   // absenderneutral. Ein Postfach ohne echte Person (Vor- und Nachname, Gmail-Signatur) sendet nie.
   const absender = await radarAbsenderFuer(postfach, f.mail.links?.seite ?? null);
-  if (!absender) throw new RadarFehler("Dieses Postfach hat keine echte Unterschrift (Vor- und Nachname und Gmail-Signatur) — es sendet keine erste Mail.", 409);
+  if (!absender) throw new RadarFehler("Dieses Postfach hat keine echte Unterschrift (Vor- und Nachname und Gmail-Signatur) — es sendet keine erste Mail.", 503);
   const teile = { anrede: f.mail.anrede, absaetze: f.mail.absaetze, frage: f.mail.frage, ps: f.mail.ps, links: f.mail.links, schluss, gruss, mitLink };
   const html = mailHtml(teile, absender);
   const text = mailText(teile, absender);
@@ -1718,7 +1722,7 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
   nachStand.ohne_mail = Number(((await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
   return {
-    firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: RADAR_TAGESZIEL, stapelMax: RADAR_STAPEL_MAX,
+    firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: (await radarMotorEinstellung()).sucheTagesziel, stapelMax: RADAR_STAPEL_MAX,
     kostenHeute: await kostenHeute("radar").catch(() => 0), deckel: TAGESDECKEL_EUR(),
     postfaecher: radarPostfaecher(), absender: radarAbsender(), gmail: gmailBereit(), ki: !!SCHLUESSEL(),
   };

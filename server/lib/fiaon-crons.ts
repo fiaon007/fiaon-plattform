@@ -496,9 +496,20 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     fenster: 2,
   },
   radar_versand: {
-    zweck: "Firmen-Radar: zweimal kurz nachfassen (Tag 3, Tag 8) und — mit Schalter — erste Mails im Tageskontingent werktags 8:30–17:30 senden",
-    folge: "Angeschriebene Firmen bekommen kein Nachfassen, und das Tageskontingent neuer Mails bleibt liegen — keine neuen Leads.",
+    zweck: "Firmen-Radar: zweimal kurz nachfassen (Tag 3, Tag 8) und Wiedervorlagen schreiben — im Fenster des Mail-Motors; erste Mails sendet seit E-458 allein der Mail-Motor",
+    folge: "Angeschriebene Firmen bekommen kein Nachfassen, Wiedervorlagen bleiben liegen — und der Wächter der Verkaufsläufe sieht nicht mehr, ob erste Mails hinausgehen.",
     fenster: 26,
+  },
+  // E-458 (29.10.2026): der Mail-Motor — zwei Ströme (Firmen mit Kapitalbedarf, Kooperationspartner), je Stunde gleichmäßig.
+  radar_motor_vorbereiten: {
+    zweck: "Mail-Motor: rund um die Uhr Firmen und Partner vorbereiten (Signal prüfen, Entscheider finden, Mail schreiben, Prüf-KI) und fertige Mails in die Warteschlange legen — bis zum Puffer",
+    folge: "Die Warteschlange läuft leer: Im Sendefenster geht keine erste Mail mehr hinaus, obwohl Mara eingeschaltet ist.",
+    fenster: 2,
+  },
+  radar_motor_senden: {
+    zweck: "Mail-Motor: im Sendefenster je Strom die nächste geprüfte Mail senden, gleichmäßig über die Stunde (Zeile bei Versand und einmal je Stunde)",
+    folge: "Fertige Mails bleiben in der Warteschlange liegen und veralten — keine ersten Mails, keine neuen Leads und Partner.",
+    fenster: 2,
   },
   // E-339 (12.10.2026): Brief statt Mail — Firmen mit Kapitalsignal ohne persönliche Entscheider-Adresse bekommen einen Brief.
   radar_brief: {

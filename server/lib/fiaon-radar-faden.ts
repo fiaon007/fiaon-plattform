@@ -23,9 +23,10 @@
 //                     freien Gesprächszeiten + Aufgabe für Justin.
 //   radarAbgleich     Termine, Anfragen, Aufträge und Zahlungen aus FIAON Global
 //                     zurück an die Firma (UTM r<ID> aus der Mail ODER gleiche Domäne).
-//   radarVersandLauf  alle 10 Minuten: Nachfassen (Tag 3, Tag 8) und — mit dem
-//                     Schalter „Versand“ — neue erste Mails im Tageskontingent,
-//                     werktags 8:30–17:30, gleichmäßig verteilt.
+//   radarVersandLauf  alle 10 Minuten: Nachfassen (Tag 3, Tag 8) und Wiedervorlage
+//                     im Fenster des Mail-Motors. Erste Mails schickt seit E-458
+//                     allein der Mail-Motor (fiaon-radar-motor.ts) — je Stunde je
+//                     Strom, gleichmäßig, aus einer geprüften Warteschlange.
 //   radarTrichter     die Zahlen je Tag: gefunden → angeschrieben → zugestellt →
 //                     Antwort → Lead → Termin → Angebot → Kauf.
 //
@@ -34,13 +35,13 @@
 //     Postfächern). Dort legt sie die Antwort zur Freigabe ins Chefbüro; „Senden“
 //     ist Justins Klick. In jedem anderen Radar-Postfach kann „auto“ gelten.
 //   · Keine Mail an eine Firma, die abgesagt hat, gesperrt ist oder im Gespräch.
-//   · Erste Mails nie nachts und nie am Wochenende — Antworten schon: Wer um 23 Uhr
-//     schreibt, bekommt um 23 Uhr eine Antwort.
+//   · Erste Mails und Nachfassen nur im Fenster des Mail-Motors (Vorgabe Mo–Fr 07–19) —
+//     Antworten schon: Wer um 23 Uhr schreibt, bekommt um 23 Uhr eine Antwort.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
   ensureRadarTabellen, radarKi, radarPostfaecher, radarAbsender, radarStatusSetzen, radarKontaktNachsuchen,
-  radarMailSchreiben, radarMailAusgeben, radarScannen, radarSperren, zeileLesen, RadarFehler, radarAbsenderFuer, mailPruefen,
+  radarScannen, radarSperren, zeileLesen, RadarFehler, radarAbsenderFuer, mailPruefen, radarMotorEinstellung,
   type MailPruefOpts,
 } from "./fiaon-radar";
 import { gmailBereit, nachrichtenMitFaden, nachrichtLesen, antwortSenden, type GmailNachricht } from "./fiaon-gmail";
@@ -48,7 +49,7 @@ import { kiPausiert } from "./fiaon-ki-pause";
 import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
-  RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarSendefenster, radarAdressePruefen,
+  RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
   radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss,
   type RadarAntwortArt, type RadarAutomatik,
 } from "@shared/fiaon-radar";
@@ -57,7 +58,6 @@ import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-glo
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { htmlAusText, maraSignatur, persoenlicheMailHtml, persoenlicheMailText, type SignaturDaten } from "./fiaon-signatur";
-import { entscheiderFinden } from "./fiaon-radar-entscheider";
 import { radarMailPruefKi } from "./fiaon-radar-pruef";
 
 /** Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). */
@@ -1074,22 +1074,42 @@ async function nachfassSchreiben(f: any, stufe: number): Promise<{ absaetze: str
   return { absaetze: [...v.absaetze], frage: v.frage, vorlage: true };
 }
 
+/** E-458 (Punkt 7): Zustell-Wache — Fehler hier halten den Versand-Lauf nie an. */
+async function radarZustellWacheSicher(): Promise<void> {
+  try {
+    const mod: any = await import("./fiaon-radar-motor");
+    if (typeof mod.radarZustellWache === "function") await mod.radarZustellWache();
+  } catch (e: any) {
+    console.error("[RADAR-VERSAND] Zustell-Wache:", e?.message || e);
+  }
+}
+
 export interface VersandErgebnis { versandt: number; nachfass: number; erste: number; uebersprungen: number; heute: number; ziel: number; aus: boolean; grund?: string }
 
 /**
- * Alle 10 Minuten: erst Nachfassen, dann — mit Schalter — neue erste Mails im Tageskontingent.
- * `versandt` zählt beides (für den Wächter der Verkaufsläufe); `aus` = beide Schalter aus.
+ * Alle 10 Minuten: Nachfassen und Wiedervorlage im Fenster des Mail-Motors (E-458). Erste Mails schreibt dieser Lauf
+ * NICHT mehr — das macht allein der Mail-Motor (fiaon-radar-motor.ts), sonst griffen zwei Systeme dieselben Firmen.
+ * `versandt` zählt die ersten Mails des Motors seit dem letzten Lauf plus Nachfass — der Wächter der Verkaufsläufe
+ * (VERKAUFSLAEUFE) schlägt weiter an, wenn 24 Stunden nichts hinausgeht. `aus` = Hauptschalter und Nachfassen aus.
  */
 export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgebnis> {
   const s = await radarAutomatik();
-  const erg: VersandErgebnis = { versandt: 0, nachfass: 0, erste: 0, uebersprungen: 0, heute: 0, ziel: s.jeTag, aus: !s.versand && !s.nachfass };
+  const m = await radarMotorEinstellung();
+  const erg: VersandErgebnis = { versandt: 0, nachfass: 0, erste: 0, uebersprungen: 0, heute: 0, ziel: m.firmenJeStunde + m.partnerJeStunde, aus: !s.versand && !s.nachfass };
   if (erg.aus) return { ...erg, grund: "aus" };
-  if (!radarSendefenster(jetzt)) return { ...erg, grund: "außerhalb des Sendefensters" };
+  await ensureRadarTabellen();
+  // Die ersten Mails des Motors seit dem letzten Lauf (10 Minuten) und heute (Berliner Tag).
+  const [z] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '10 minutes')::int AS frisch,
+           COUNT(*) FILTER (WHERE (datum AT TIME ZONE 'Europe/Berlin')::date = ${berlinToday(jetzt)}::date)::int AS heute
+      FROM fiaon_radar_post WHERE richtung = 'aus' AND art = 'erstmail' AND datum > NOW() - INTERVAL '2 days'`) as any[];
+  erg.erste = Number(z?.frisch ?? 0); erg.versandt = erg.erste; erg.heute = Number(z?.heute ?? 0);
+  // E-458 (Punkt 7): die Zustellung im Blick — Rückläufer und Beschwerden je 7 Tage; darüber bremst der Motor.
+  await radarZustellWacheSicher();
+  if (!radarMotorImFenster(jetzt, m)) return { ...erg, grund: "außerhalb des Sendefensters" };
   if (!gmailBereit()) return { ...erg, grund: "Gmail-Anbindung fehlt" };
   if (await kiPausiert()) return { ...erg, grund: "KI pausiert" };
-  await ensureRadarTabellen();
-  const postfach = radarPostfaecher()[0];
-  if (!postfach) return { ...erg, grund: "kein Radar-Postfach" };
+  if (!radarPostfaecher()[0]) return { ...erg, grund: "kein Radar-Postfach" };
 
   // ── Nachfassen: höchstens zwei je Lauf ──
   if (s.nachfass) {
@@ -1168,62 +1188,6 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
     }
   }
 
-  // ── Erste Mails: gleichmäßig über das Sendefenster ──
-  if (s.versand && s.jeTag > 0) {
-    const [z] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_post
-                                WHERE richtung = 'aus' AND art = 'erstmail' AND (datum AT TIME ZONE 'Europe/Berlin')::date = ${berlinToday(jetzt)}::date`) as any[];
-    erg.heute = Number(z?.n ?? 0);
-    // Soll bis jetzt: Anteil des Sendefensters (8:30–17:30 = 540 Minuten), aufgerundet.
-    const t = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(jetzt);
-    const minuten = Number(t.find((x) => x.type === "hour")?.value) * 60 + Number(t.find((x) => x.type === "minute")?.value) - (8 * 60 + 30);
-    const soll = Math.min(s.jeTag, Math.ceil(s.jeTag * Math.max(0, Math.min(1, (minuten + 10) / 540))));
-    let rest = Math.min(3, soll - erg.heute);
-    let versuche = 0;
-    while (rest > 0 && versuche < 6) {
-      versuche++;
-      // Beste zuerst: Kapitalsignal, dann Passung; unzustellbare mit neuer, geprüfter Adresse dürfen einmal nach.
-      const [kandidat] = (await sqlPool`
-        SELECT id FROM fiaon_radar_firmen r
-         WHERE ((r.status IN ('neu', 'gescannt', 'mail') AND r.versendet_am IS NULL)
-                OR (r.status = 'unzustellbar' AND r.email IS NOT NULL AND position(r.email in COALESCE(r.email_ungueltig, '')) = 0))
-           AND r.email IS NOT NULL AND r.automatik_am IS NULL AND r.archiviert_am IS NULL
-           AND COALESCE(r.passung, 0) >= ${s.abPassung}
-           -- E-337: nur mit Kapitalsignal ab Stärke 3 — oder noch ungeprüft (dann prüft der Scan unten, bevor geschrieben wird).
-           AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB})
-           AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(r.email))
-           AND NOT ((CASE WHEN upper(COALESCE(r.land, '')) IN ('DE', 'AT', 'CH') THEN upper(r.land)
-                          WHEN upper(COALESCE(r.impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(r.impressum->>'land')
-                          WHEN r.domain LIKE '%.at' THEN 'AT' WHEN r.domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
-         ORDER BY COALESCE(r.signal_staerke, 0) DESC, r.passung DESC NULLS LAST, r.created_at DESC
-         LIMIT 1`) as any[];
-      if (!kandidat) { erg.grund = "keine passende Firma mehr im Vorrat"; break; }
-      const id = Number(kandidat.id);
-      await sqlPool`UPDATE fiaon_radar_firmen SET automatik_am = NOW() WHERE id = ${id}`;
-      try {
-        // 1. Den Entscheider zuerst auf der Website suchen — ohne KI, nur Impressum, Team, Kontakt (Justin: keine info@/office@).
-        const [vor] = (await sqlPool`SELECT signal_staerke, entscheider, entscheider_am FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
-        if (!vor?.entscheider && !vor?.entscheider_am) await entscheiderFinden(id, { websuche: false });
-        // 2. Das Kapitalsignal sichern: ungeprüfte Firmen werden (neu) gescannt — unter Stärke 3 schreibt Mara nicht.
-        if (vor?.signal_staerke == null) await radarScannen(id);
-        const [nach] = (await sqlPool`SELECT signal_staerke, entscheider FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
-        if (Number(nach?.signal_staerke ?? 0) < RADAR_SIGNAL_AB) {
-          // Nicht qualifiziert (Justin: „nur noch qualifizierte Unternehmen“) — ins Archiv, raus aus der Ansicht.
-          await sqlPool`UPDATE fiaon_radar_firmen SET archiviert_am = NOW(), archiv_grund = ${`Kapitalsignal ${Number(nach?.signal_staerke ?? 0)} von 5 (Scan)`} WHERE id = ${id}`;
-          erg.uebersprungen++; continue;
-        }
-        // 3. Erst jetzt (Signal stimmt) die bezahlte Websuche nach dem Entscheider. Ohne persönliche Adresse keine Mail.
-        if (!nach?.entscheider && !(await entscheiderFinden(id, { websuche: true }))) { erg.uebersprungen++; continue; }
-        const mail = await radarMailSchreiben(id);
-        if (mail.sperrend.length) { erg.uebersprungen++; continue; }
-        await radarMailAusgeben(id, { art: "senden", postfach, von: null });
-        erg.erste++; erg.versandt++; erg.heute++; rest--;
-      } catch (e: any) {
-        erg.uebersprungen++;
-        if (e instanceof RadarFehler && (e.status === 429 || e.status === 503)) { erg.grund = e.message; break; }
-        console.error(`[RADAR-VERSAND] erste Mail ${id}:`, e?.message || e);
-      }
-    }
-  }
   return erg;
 }
 

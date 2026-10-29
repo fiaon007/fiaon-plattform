@@ -1842,8 +1842,10 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     ziel: ".cr-mara",
     titel: "Ein Schalter: Mara verkauft — oder pausiert.",
-    text: "Eingeschaltet schreibt Mara werktags von 8:30 bis 17:30 Uhr selbst erste Mails im Tageskontingent und fasst nach. Antworten "
-      + "liest sie immer, rund um die Uhr. Aus js@ sendet sie keine Antworten selbst — die liegen unter „Gespräche“ zur Freigabe.",
+    // E-458 (29.10.2026): der Mail-Motor — Fenster und Tempo stehen unter Automatik › Mail-Motor.
+    text: "Eingeschaltet bereitet Mara rund um die Uhr erste Mails vor und sendet sie im Fenster des Mail-Motors (Vorgabe Mo–Fr 07–19 Uhr), "
+      + "gleichmäßig über jede Stunde, und fasst nach. Antworten liest sie immer, rund um die Uhr. Aus js@ sendet sie keine Antworten selbst — "
+      + "die liegen unter „Gespräche“ zur Freigabe.",
   },
   {
     ziel: ".cr-trichter",
@@ -1868,6 +1870,16 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     // E-458 (29.10.2026): kein Abmelde-Link mehr — ein natürlicher Schlusssatz; Österreich bekommt Briefe statt Mails.
     tipp: "Statt eines Abmelde-Links steht am Ende ein natürlicher Satz („Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.“). "
       + "Wer ablehnt, kommt sofort auf die Sperrliste und hört nie wieder von uns. Nach Österreich gehen Briefe statt Mails.",
+  },
+  {
+    // E-458 (29.10.2026): Justin: „jede Stunde MINDESTENS 10 Mails an Firmen und 10 neue Kooperationspartner, 07–19 Uhr“.
+    ziel: ".cr-motor",
+    titel: "Der Mail-Motor: zwei Ströme, jede Stunde.",
+    text: "Firmen mit Kapitalbedarf und Kooperationspartner haben je ein Ziel pro Stunde. Tag und Nacht bereitet Mara vor: Signal prüfen, "
+      + "Chef finden, Mail schreiben, von der Prüf-KI lesen lassen. Fertige Mails warten in der Warteschlange und gehen nur im Fenster hinaus, "
+      + "gleichmäßig über die Stunde. Der Satz oben sagt ehrlich, was die Postfächer heute tragen: mehr Postfächer = mehr Tempo.",
+    tipp: "Tage, Fenster und Ziele änderst du hier und drückst „Speichern“. „Warteschlange jetzt füllen“ startet die Vorbereitung sofort, "
+      + "„Jetzt eine senden …“ schickt die nächste geprüfte Mail (nur im Fenster, mit allen Wänden).",
   },
   {
     // E-339 (12.10.2026): Brief statt Mail.

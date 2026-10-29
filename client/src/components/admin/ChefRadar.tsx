@@ -81,6 +81,29 @@ type Lauf = {
   ergebnisse: { id: number; name: string; ok: boolean; text: string }[];
   verworfen: { name: string; website: string; grund: string }[]; fehler: string | null; created_at: string; fertig_am: string | null;
 };
+// E-458 (29.10.2026): der Mail-Motor — zwei Ströme, Warteschlange, ehrliche Leistung.
+type MotorStrom = {
+  bereit: number; arbeit: number; sendet: number; gesendetHeute: number; verworfenHeute: number; vorrat: number;
+  gruende: { grund: string; n: number }[]; stunden: { stunde: number; n: number }[];
+};
+type MotorStand = {
+  einstellung: { tage: number[]; von: string; bis: string; firmenJeStunde: number; partnerJeStunde: number; puffer: number; haltbarTage: number; link: "termin" | "keiner"; kiKlangMax: number; aehnlichMax: number; sucheTagesziel: number; sucheLaeufe: number };
+  an: boolean; abPassung: number; imFenster: boolean; bremse: number;
+  leistung: { ziel: number; moeglich: number; leistungJeStunde: number; je: { firma: number; partner: number }; tagJe: { firma: number; partner: number }; satz: string; postfaecherNoetig: number };
+  postfaecher: { adresse: string; grenze: number; heute: number; reserve?: number; bereit: boolean; pause?: boolean }[];
+  stroeme: { firma: MotorStrom; partner: MotorStrom };
+};
+const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+/** „Mo–Fr 07–19“ aus den Motor-Schaltern. */
+function fensterText(e: MotorStand["einstellung"] | undefined | null): string {
+  if (!e) return "Mo–Fr 07–19";
+  const t = [...e.tage].sort((a, b) => a - b);
+  const zusammen = t.length > 1 && t.every((x, i) => i === 0 || x === t[i - 1] + 1);
+  const tage = zusammen ? `${WOCHENTAGE[t[0] - 1]}–${WOCHENTAGE[t[t.length - 1] - 1]}` : t.map((x) => WOCHENTAGE[x - 1]).join(", ");
+  const kurz = (u: string) => (u.endsWith(":00") ? u.slice(0, 2) : u);
+  return `${tage} ${kurz(e.von)}–${kurz(e.bis)}`;
+}
+
 type Uebersicht = {
   firmen: Zeile[]; heute: string; tagesziel: number; stapelMax: number; kostenHeute: number; deckel: number; postfaecher: string[];
   absender: { name: string; rolle: string; telefon: string }; gmail: boolean; ki: boolean;
@@ -143,6 +166,7 @@ export default function ChefRadar() {
   const t = useDaten<Trichter>(`/chef/radar/trichter?tage=30`, [runde]);
   const u = useDaten<Uebersicht>(`/chef/radar?gruppe=gespraech`, [runde]);
   const offenePost = useDaten<{ post: Post[] }>(`/chef/radar/post?nur=offen`, [runde]);
+  const motor = useDaten<MotorStand>(`/chef/radar/motor`, [runde]);
   useEffect(() => { if (!postfach && u.daten?.postfaecher?.length) setPostfach(u.daten.postfaecher[0]); }, [u.daten, postfach]);
 
   // Ein laufender Lauf (Suche oder Stapel) wird alle drei Sekunden nachgefragt.
@@ -165,7 +189,7 @@ export default function ChefRadar() {
     <div className="cr cr-glas">
       <Rundgang raum="firmen-radar" titel="Firmen-Radar" schritte={RUNDGAENGE.firmenRadar.schritte} />
 
-      <MaraKopf trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} />
+      <MaraKopf trichter={t.daten} uebersicht={u.daten} motor={motor.daten} onGeaendert={neuLaden} />
       {t.fehler && <Fehlermeldung text={t.fehler} erneut={t.neu} />}
       <TrichterTafel trichter={t.daten} />
 
@@ -181,7 +205,7 @@ export default function ChefRadar() {
 
       {haupt === "gespraeche" && <Gespraeche runde={runde} onFirma={firmaOeffnen} onGeaendert={neuLaden} />}
       {haupt === "firmen" && <FirmenListe runde={runde} postfach={postfach} lauf={lauf} setLauf={setLauf} onFirma={firmaOeffnen} offen={offen} onSuchen={() => setSuchen(true)} onWebsite={() => setWebsite(true)} />}
-      {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} onGeaendert={neuLaden} />}
+      {haupt === "automatik" && <AutomatikTafel trichter={t.daten} uebersicht={u.daten} motor={motor.daten} onGeaendert={neuLaden} />}
       {haupt === "automatik" && <MaraTesten />}
       {haupt === "messung" && <Messung trichter={t.daten} />}
 
@@ -224,8 +248,8 @@ function Ring({ wert, ziel, label, unter }: { wert: number; ziel: number; label:
   );
 }
 
-function MaraKopf({ trichter, uebersicht, onGeaendert }: {
-  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void;
+function MaraKopf({ trichter, uebersicht, motor, onGeaendert }: {
+  trichter: Trichter | null; uebersicht: Uebersicht | null; motor: MotorStand | null; onGeaendert: () => void;
 }) {
   const a = trichter?.automatik;
   const an = !!a && a.versand && a.nachfass;
@@ -241,7 +265,7 @@ function MaraKopf({ trichter, uebersicht, onGeaendert }: {
     try {
       await rufen("/chef/radar/automatik", "POST", ein ? { versand: true, nachfass: true, mara: "auto" } : { versand: false, nachfass: false });
       setFrage(false); setVerantwortet(false); onGeaendert();
-      setMeldung({ art: "gut", text: ein ? "Mara verkauft. Erste Mails werktags 8:30–17:30, Antworten liest sie rund um die Uhr." : "Mara pausiert den Versand. Antworten liest sie weiter." });
+      setMeldung({ art: "gut", text: ein ? `Mara verkauft. Erste Mails ${fensterText(motor?.einstellung)}, vorbereitet wird rund um die Uhr, Antworten liest sie immer.` : "Mara pausiert den Versand. Antworten liest sie weiter." });
     } catch (e: any) { setMeldung({ art: "fehler", text: e.message }); }
     finally { setArbeit(null); }
   };
@@ -278,7 +302,9 @@ function MaraKopf({ trichter, uebersicht, onGeaendert }: {
           <span className="cr-mara-bild" aria-hidden="true"><img src="/mail/signatur/mara.png" alt="" width={44} height={44} /><span className="cr-mara-punkt" /></span>
           <div>
             <b>Mara {an ? "verkauft" : "pausiert"}</b>
-            <span>{an ? `${zahl(h?.angeschrieben ?? 0)} von ${a?.jeTag ?? 0} Mails heute · ${zahl(h?.nachfass ?? 0)} nachgefasst` : "Liest Antworten weiter."}</span>
+            <span>{an
+              ? `${fensterText(motor?.einstellung)} · Ziel ${zahl(motor?.leistung.ziel ?? 0)}/h · möglich ${zahl(Math.min(motor?.leistung.ziel ?? 0, motor?.leistung.moeglich ?? 0))}/h · heute ${zahl(h?.angeschrieben ?? 0)} erste Mails, ${zahl(h?.nachfass ?? 0)} nachgefasst`
+              : "Liest Antworten weiter."}</span>
           </div>
           <button type="button" role="switch" aria-checked={an} className="cr-kippe" disabled={!!arbeit || !a} onClick={() => (an ? void schalten(false) : setFrage(true))}>
             <i aria-hidden="true" />
@@ -292,8 +318,8 @@ function MaraKopf({ trichter, uebersicht, onGeaendert }: {
         </dl>
         {frage && (
           <div className="cr-mara-frage">
-            <p>Bis zu <b>{a?.jeTag ?? 0} erste Mails je Werktag</b> aus <b>{postfach}</b>, nur an Entscheider, zweimal Nachfassen.</p>
-            <p className="cr-recht" title="§ 7 UWG, § 174 TKG, Art. 3 UWG CH">Werbe-Mails an Firmen brauchen in DE, AT und CH grundsätzlich eine Einwilligung.</p>
+            <p>Je Stunde <b>{motor?.einstellung.firmenJeStunde ?? 10} Firmen und {motor?.einstellung.partnerJeStunde ?? 10} Partner</b> ({fensterText(motor?.einstellung)}), so viele die Postfächer tragen, nur an Entscheider, jede Mail von der Prüf-KI gelesen, zweimal Nachfassen.</p>
+            <p className="cr-recht" title="§ 7 UWG, § 174 TKG, Art. 3 UWG CH">Werbe-Mails an Firmen brauchen in DE und CH grundsätzlich eine Einwilligung. Österreich bekommt Briefe statt Mails.</p>
             <label className="cr-haken-zeile"><input type="checkbox" checked={verantwortet} onChange={(e) => setVerantwortet(e.target.checked)} /> Ich verantworte den automatischen Versand.</label>
             <div className="cr-fenster-zeile">
               <button type="button" className="cr-knopf" disabled={!verantwortet || !!arbeit} onClick={() => void schalten(true)}>{arbeit === "schalter" ? "Schaltet …" : "Mara einschalten"}</button>
@@ -509,15 +535,14 @@ function PostKarte({ p, onFirma, onGeaendert }: { p: Post; onFirma: (id: number)
 // ═══════════════════════════════════════════════════════════════════════════
 // AUTOMATIK — alle Schalter an einem Ort
 // ═══════════════════════════════════════════════════════════════════════════
-function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
-  trichter: Trichter | null; uebersicht: Uebersicht | null; onGeaendert: () => void;
+function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
+  trichter: Trichter | null; uebersicht: Uebersicht | null; motor: MotorStand | null; onGeaendert: () => void;
 }) {
   const a = trichter?.automatik;
-  const [jeTag, setJeTag] = useState<string>("");
   const [abPassung, setAbPassung] = useState<string>("");
   const [arbeit, setArbeit] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
-  useEffect(() => { if (a) { setJeTag(String(a.jeTag)); setAbPassung(String(a.abPassung)); } }, [a?.jeTag, a?.abPassung]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (a) setAbPassung(String(a.abPassung)); }, [a?.abPassung]); // eslint-disable-line react-hooks/exhaustive-deps
   const setzen = async (name: string, teil: Record<string, unknown>, gut: string) => {
     setArbeit(name); setMeldung(null);
     try { await rufen("/chef/radar/automatik", "POST", teil); onGeaendert(); setMeldung({ art: "gut", text: gut }); }
@@ -530,15 +555,15 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
     <section className="cr-automatik">
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
       <div className="cr-kacheln">
+        <MotorKachel motor={motor} onGeaendert={onGeaendert} />
         <article className="cr-kachel">
           <header><b>Erste Mails</b><Kippe an={a.versand} aus={!!arbeit} onKlick={() => setzen("versand", { versand: !a.versand }, a.versand ? "Erste Mails pausiert." : "Erste Mails laufen.")} /></header>
-          <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. Werktags 8:30–17:30.</p>
+          <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. {fensterText(motor?.einstellung)}, Tempo im Mail-Motor.</p>
           <div className="cr-kachel-feld">
-            <label><span>Mails je Werktag</span><input className="cr-feld" type="number" min={0} max={RADAR_HOECHSTENS_JE_TAG} value={jeTag} onChange={(e) => setJeTag(e.target.value)} /></label>
             <label><span>Ab Passung</span><input className="cr-feld" type="number" min={0} max={100} value={abPassung} onChange={(e) => setAbPassung(e.target.value)} /></label>
-            <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setzen("zahlen", { jeTag: Number(jeTag), abPassung: Number(abPassung) }, "Gespeichert.")}>Speichern</button>
+            <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setzen("zahlen", { abPassung: Number(abPassung) }, "Gespeichert.")}>Speichern</button>
           </div>
-          <span className="cr-klein">Höchstens {RADAR_HOECHSTENS_JE_TAG} je Postfach und Tag.</span>
+          <span className="cr-klein">Höchstens {RADAR_HOECHSTENS_JE_TAG} Mails je Postfach und Tag (mit Nachfass).</span>
         </article>
         <article className="cr-kachel">
           <header><b>Nachfassen</b><Kippe an={a.nachfass} aus={!!arbeit} onKlick={() => setzen("nachfass", { nachfass: !a.nachfass }, a.nachfass ? "Nachfassen pausiert." : "Nachfassen läuft.")} /></header>
@@ -572,6 +597,100 @@ function AutomatikTafel({ trichter, uebersicht, onGeaendert }: {
         </article>
       </div>
     </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-458 — DER MAIL-MOTOR: Ziele je Stunde, Fenster, Tage, Warteschlange, ehrliche Leistung
+// ═══════════════════════════════════════════════════════════════════════════
+function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
+  const [firmen, setFirmen] = useState(""), [partner, setPartner] = useState(""), [von, setVon] = useState(""), [bis, setBis] = useState("");
+  const [tage, setTage] = useState<number[]>([]);
+  const [arbeit, setArbeit] = useState<string | null>(null);
+  const [frage, setFrage] = useState(false);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const e = motor?.einstellung;
+  useEffect(() => {
+    if (!e) return;
+    setFirmen(String(e.firmenJeStunde)); setPartner(String(e.partnerJeStunde)); setVon(e.von); setBis(e.bis); setTage([...e.tage]);
+  }, [e?.firmenJeStunde, e?.partnerJeStunde, e?.von, e?.bis, e?.tage?.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tun = async (name: string, fn: () => Promise<any>, gut: (j: any) => string) => {
+    setArbeit(name); setMeldung(null);
+    try { const j = await fn(); onGeaendert(); setMeldung({ art: "gut", text: gut(j) }); }
+    catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
+    finally { setArbeit(null); }
+  };
+  if (!motor || !e) return <article className="cr-kachel breit cr-motor"><Geruest zeilen={4} /></article>;
+  const l = motor.leistung;
+  const stundeVon = Math.floor(Number(e.von.slice(0, 2))), stundeBis = Math.ceil(Number(e.bis.slice(0, 2)) + Number(e.bis.slice(3)) / 60);
+  const stunden = Array.from({ length: Math.max(0, stundeBis - stundeVon) }, (_, i) => stundeVon + i);
+  const proStunde = (s: "firma" | "partner", h: number) => motor.stroeme[s].stunden.find((x) => x.stunde === h)?.n ?? 0;
+  const spitze = Math.max(1, ...stunden.map((h) => proStunde("firma", h) + proStunde("partner", h)), e.firmenJeStunde + e.partnerJeStunde);
+  return (
+    <article className="cr-kachel breit cr-motor">
+      <header>
+        <b>Mail-Motor</b>
+        <span className="cr-chip">{!motor.an ? "aus — Schalter oben" : motor.imFenster ? "sendet gerade" : "bereitet vor"}{motor.bremse < 1 ? ` · gebremst ×${String(motor.bremse).replace(".", ",")}` : ""}</span>
+      </header>
+      <p className="cr-motor-satz">{l.satz}{l.moeglich < l.ziel && l.postfaecherNoetig ? `. Für ${zahl(l.ziel)} je Stunde braucht es ${zahl(l.postfaecherNoetig)} warme Postfächer.` : "."}</p>
+      <div className="cr-motor-stroeme">
+        {(["firma", "partner"] as const).map((s) => {
+          const x = motor.stroeme[s];
+          return (
+            <div key={s} className="cr-motor-strom">
+              <b>{s === "firma" ? "Firmen mit Kapitalbedarf" : "Kooperationspartner"}</b>
+              <span>{s === "firma" ? e.firmenJeStunde : e.partnerJeStunde} je Stunde · heute {zahl(x.gesendetHeute)} gesendet</span>
+              <span className="cr-klein">Warteschlange: {zahl(x.bereit)} bereit · {zahl(x.arbeit)} in Arbeit · heute {zahl(x.verworfenHeute)} verworfen · Vorrat {zahl(x.vorrat)}</span>
+              {!!x.gruende.length && <span className="cr-klein" title={x.gruende.map((g) => `${g.n} × ${g.grund}`).join("\n")}>Häufigster Grund: {x.gruende[0].grund}</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="cr-motor-stunden" aria-label="Erste Mails je Stunde heute">
+        {stunden.map((h) => {
+          const f = proStunde("firma", h), p = proStunde("partner", h);
+          return (
+            <span key={h} title={`${String(h).padStart(2, "0")} Uhr: ${f} Firmen, ${p} Partner`}>
+              <i className="p" style={{ height: `${(p / spitze) * 100}%` }} /><i className="f" style={{ height: `${(f / spitze) * 100}%` }} />
+              <small>{String(h).padStart(2, "0")}</small>
+            </span>
+          );
+        })}
+      </div>
+      <div className="cr-kachel-feld">
+        <label><span>Firmen je Stunde</span><input className="cr-feld" type="number" min={0} max={30} value={firmen} onChange={(ev) => setFirmen(ev.target.value)} /></label>
+        <label><span>Partner je Stunde</span><input className="cr-feld" type="number" min={0} max={30} value={partner} onChange={(ev) => setPartner(ev.target.value)} /></label>
+        <label><span>Von</span><input className="cr-feld" type="time" value={von} onChange={(ev) => setVon(ev.target.value)} /></label>
+        <label><span>Bis</span><input className="cr-feld" type="time" value={bis} onChange={(ev) => setBis(ev.target.value)} /></label>
+      </div>
+      <div className="cr-motor-tage" role="group" aria-label="Sendetage">
+        {WOCHENTAGE.map((t, i) => (
+          <button key={t} type="button" aria-pressed={tage.includes(i + 1)} className={tage.includes(i + 1) ? "an" : undefined}
+                  onClick={() => setTage((alt) => (alt.includes(i + 1) ? alt.filter((x) => x !== i + 1) : [...alt, i + 1].sort((a, b) => a - b)))}>{t}</button>
+        ))}
+      </div>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <div className="cr-fenster-zeile">
+        <button type="button" className="cr-knopf hell" disabled={!!arbeit || !tage.length}
+                onClick={() => void tun("speichern", () => rufen("/chef/radar/motor", "POST", { firmenJeStunde: Number(firmen), partnerJeStunde: Number(partner), von, bis, tage }), () => "Gespeichert.")}>Speichern</button>
+        <button type="button" className="cr-knopf hell" disabled={!!arbeit || !motor.an} title={motor.an ? "" : "Erst Mara einschalten"}
+                onClick={() => void tun("fuellen", () => rufen("/chef/radar/motor/fuellen", "POST", {}), () => "Mara bereitet bis zu drei Mails vor — das dauert ein paar Minuten.")}>{arbeit === "fuellen" ? "Startet …" : "Warteschlange jetzt füllen"}</button>
+        <button type="button" className="cr-knopf warm" disabled={!!arbeit || !motor.an || !motor.imFenster || !(motor.stroeme.firma.bereit + motor.stroeme.partner.bereit)}
+                title={!motor.imFenster ? "Nur im Sendefenster" : ""} onClick={() => setFrage(true)}>Jetzt eine senden …</button>
+      </div>
+      {frage && (
+        <div className="cr-senden-frage">
+          <b>Die nächste geprüfte Mail jetzt senden?</b>
+          <p className="cr-recht">Alle Wände gelten: Sperrliste, kein Gespräch, keine zweite Mail, keine Mail nach Österreich, Freigabe der Prüf-KI.</p>
+          <div className="cr-fenster-zeile">
+            <button type="button" className="cr-knopf warm" disabled={!!arbeit}
+                    onClick={() => void tun("senden", () => rufen<{ ergebnis: { gesendet: number; grund?: string } }>("/chef/radar/motor/senden", "POST", { bestaetigt: true }),
+                      (j) => (j.ergebnis.gesendet ? "Gesendet." : `Nichts gesendet: ${j.ergebnis.grund ?? "keine Mail frei"}.`)).then(() => setFrage(false))}>{arbeit === "senden" ? "Sendet …" : "Jetzt senden"}</button>
+            <button type="button" className="cr-knopf hell" onClick={() => setFrage(false)}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+    </article>
   );
 }
 

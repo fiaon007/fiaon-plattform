@@ -326,4 +326,42 @@ router.post("/chef/radar/brief-lauf", wache, async (_req: ChefRequest, res: Resp
   } catch (e) { fehler(res, e); }
 });
 
+// ── E-458 (29.10.2026): der Mail-Motor — Stand, Schalter, Warteschlange füllen, eine Mail jetzt senden ──────────
+router.get("/chef/radar/motor", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { radarMotorStand } = await import("../lib/fiaon-radar-motor");
+    res.json({ ok: true, ...(await radarMotorStand()) });
+  } catch (e) { fehler(res, e); }
+});
+
+router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarMotorSetzen } = await import("../lib/fiaon-radar-motor");
+    const b = req.body ?? {};
+    const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe"];
+    const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
+    const einstellung = await radarMotorSetzen(teil);
+    console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);
+    res.json({ ok: true, einstellung });
+  } catch (e) { fehler(res, e); }
+});
+
+// Die Warteschlange jetzt füllen: läuft im Hintergrund (eine Firma braucht Minuten) — die Kachel fragt den Stand ab.
+router.post("/chef/radar/motor/fuellen", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { radarMotorVorbereiten } = await import("../lib/fiaon-radar-motor");
+    void radarMotorVorbereiten({ max: 3 }).catch((e) => console.error("[MAIL-MOTOR] Füllen:", e?.message || e));
+    res.json({ ok: true, gestartet: true });
+  } catch (e) { fehler(res, e); }
+});
+
+// „Jetzt eine senden“: die nächste geprüfte Mail sofort — nur mit Bestätigung, nur im Fenster, mit allen Wänden.
+router.post("/chef/radar/motor/senden", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte den Versand bestätigen.");
+    const { radarMotorSenden } = await import("../lib/fiaon-radar-motor");
+    res.json({ ok: true, ergebnis: await radarMotorSenden({ einmal: true }) });
+  } catch (e) { fehler(res, e); }
+});
+
 export default router;

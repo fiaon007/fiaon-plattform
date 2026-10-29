@@ -587,10 +587,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_radar', async () => await (await import('./lib/fiaon-radar')).radarTageslauf(), 60 * 60 * 1000, { beimStartNach: 780_000 });
-    // E-337 (12.10.2026): Mara übernimmt den Faden — Antworten und Rückläufer rund um die Uhr (alle 10 Minuten),
-    // Nachfassen und erste Mails im Tageskontingent nur werktags 8:30–17:30 und nur mit Schalter im Chefbüro.
+    // E-337 (12.10.2026): Mara übernimmt den Faden — Antworten und Rückläufer rund um die Uhr (alle 10 Minuten);
+    // Nachfassen nur im Fenster des Mail-Motors (E-458) und nur mit Schalter im Chefbüro.
     tageslauf('radar_post', async () => await (await import('./lib/fiaon-radar-faden')).radarPostLauf(), 10 * 60 * 1000, { beimStartNach: 420_000 });
     tageslauf('radar_versand', async () => await (await import('./lib/fiaon-radar-faden')).radarVersandLauf(), 10 * 60 * 1000, { beimStartNach: 600_000 });
+    // E-458 (29.10.2026): der Mail-Motor — Mara bereitet rund um die Uhr vor (suchen, Chef finden, schreiben, Prüf-KI) und
+    // legt fertige Mails in die Warteschlange; gesendet wird nur im Fenster, je Strom höchstens eine je Takt (Minutentakt,
+    // Historienzeile nur bei Versand und einmal je Stunde als Lebenszeichen).
+    tageslauf('radar_motor_vorbereiten', async () => await (await import('./lib/fiaon-radar-motor')).radarMotorVorbereiten(), 5 * 60 * 1000, { beimStartNach: 480_000 });
+    tageslauf('radar_motor_senden', async () => await (await import('./lib/fiaon-radar-motor')).radarMotorSendenTakt(), 60 * 1000, { beimStartNach: 510_000, nurMitErgebnis: true });
     // E-339 (12.10.2026): Brief statt Mail — nur mit Schalter „Briefversand“ im Chefbüro, im Tageskontingent, werktags 8:30–17:30.
     tageslauf('radar_brief', async () => await (await import('./lib/fiaon-radar-brief')).radarBriefLauf(), 15 * 60 * 1000, { beimStartNach: 660_000 });
   });

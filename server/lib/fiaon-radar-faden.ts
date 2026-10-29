@@ -48,7 +48,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarSendefenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan,
+  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER,
   type RadarAntwortArt, type RadarAutomatik,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -1056,10 +1056,19 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
 
   // ── Nachfassen: höchstens zwei je Lauf ──
   if (s.nachfass) {
+    // E-458 (Punkt 8): Österreich bekommt kein Nachfassen (auch nicht auf eine alte erste Mail) — dort geht nur der Brief.
+    await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_faellig = NULL
+                   WHERE nachfass_faellig IS NOT NULL
+                     AND (CASE WHEN upper(COALESCE(land, '')) IN ('DE', 'AT', 'CH') THEN upper(land)
+                               WHEN upper(COALESCE(impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(impressum->>'land')
+                               WHEN domain LIKE '%.at' THEN 'AT' WHEN domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[])`;
     const faellig = (await sqlPool`
       SELECT * FROM fiaon_radar_firmen
        WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW() AND archiviert_am IS NULL
          AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND COALESCE(gmail_thread_id, gmail_nachricht_id) IS NOT NULL AND postfach IS NOT NULL
+         AND NOT ((CASE WHEN upper(COALESCE(land, '')) IN ('DE', 'AT', 'CH') THEN upper(land)
+                        WHEN upper(COALESCE(impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(impressum->>'land')
+                        WHEN domain LIKE '%.at' THEN 'AT' WHEN domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
        ORDER BY nachfass_faellig ASC LIMIT 2`) as any[];
     for (const roh of faellig) {
       const f: any = zeileLesen(roh);
@@ -1094,6 +1103,10 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
              (SELECT p.id FROM fiaon_radar_post p WHERE p.firma_id = f.id AND p.richtung = 'ein' ORDER BY p.datum DESC NULLS LAST, p.id DESC LIMIT 1) AS post_id
         FROM fiaon_radar_firmen f
        WHERE f.wiedervorlage_am <= NOW() AND f.archiviert_am IS NULL AND f.status IN ('antwort', 'lead')
+         -- E-458 (Punkt 8): keine Wiedervorlage-Mail nach Österreich.
+         AND NOT ((CASE WHEN upper(COALESCE(f.land, '')) IN ('DE', 'AT', 'CH') THEN upper(f.land)
+                        WHEN upper(COALESCE(f.impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(f.impressum->>'land')
+                        WHEN f.domain LIKE '%.at' THEN 'AT' WHEN f.domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
        ORDER BY f.wiedervorlage_am ASC LIMIT 2`) as any[];
     for (const w of faellig) {
       try {
@@ -1134,6 +1147,9 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
            -- E-337: nur mit Kapitalsignal ab Stärke 3 — oder noch ungeprüft (dann prüft der Scan unten, bevor geschrieben wird).
            AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB})
            AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(r.email))
+           AND NOT ((CASE WHEN upper(COALESCE(r.land, '')) IN ('DE', 'AT', 'CH') THEN upper(r.land)
+                          WHEN upper(COALESCE(r.impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(r.impressum->>'land')
+                          WHEN r.domain LIKE '%.at' THEN 'AT' WHEN r.domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
          ORDER BY COALESCE(r.signal_staerke, 0) DESC, r.passung DESC NULLS LAST, r.created_at DESC
          LIMIT 1`) as any[];
       if (!kandidat) { erg.grund = "keine passende Firma mehr im Vorrat"; break; }

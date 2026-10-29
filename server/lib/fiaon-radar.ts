@@ -52,6 +52,7 @@ import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, en
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
+  radarLandFuer, radarMailErlaubt,
   type RadarLand, type RadarStatus, type RadarPaket,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -250,6 +251,20 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS spaeter_datum TEXT,
           ADD COLUMN IF NOT EXISTS termin_id INTEGER`;
       await sqlPool`ALTER TABLE fiaon_radar_firmen ADD COLUMN IF NOT EXISTS wiedervorlage_am TIMESTAMPTZ`;
+      // E-458 (29.10.2026): der Mail-Motor — zwei Ströme (Firmen mit Kapitalbedarf, Kooperationspartner) und eine eigene
+      // Warteschlange neben dem Radar-Stand (motor_status: arbeit → bereit → sendet → gesendet · verworfen · abgelaufen),
+      // das Urteil der Prüf-KI vor dem Versand und die Partner-Akte im CRM. Ein ALTER für alle Spalten (eine Sperre).
+      await sqlPool`
+        ALTER TABLE fiaon_radar_firmen
+          ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',
+          ADD COLUMN IF NOT EXISTS motor_status TEXT,
+          ADD COLUMN IF NOT EXISTS motor_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS motor_grund TEXT,
+          ADD COLUMN IF NOT EXISTS motor_versuche INTEGER NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS pruef_ki JSONB,
+          ADD COLUMN IF NOT EXISTS pruef_ki_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`;
+      await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen (motor_status, strom, signal_staerke)`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -275,6 +290,7 @@ export function zeileLesen<T extends Record<string, any>>(r: T | undefined | nul
   if ("signal" in z) z.signal = ausJson(z.signal, null);
   if ("entscheider" in z) z.entscheider = ausJson(z.entscheider, null);
   if ("brief" in z) z.brief = ausJson(z.brief, null);
+  if ("pruef_ki" in z) z.pruef_ki = ausJson(z.pruef_ki, null);
   return z as T;
 }
 
@@ -1235,6 +1251,8 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
   if (!f.mail) throw new RadarFehler("Bitte zuerst die Mail schreiben lassen.");
   if (["gesperrt", "kein_interesse", "passt_nicht"].includes(f.status)) throw new RadarFehler("Diese Firma ist gesperrt, hat abgelehnt oder passt nicht.");
+  // E-458 (Punkt 8): Österreich bekommt keine erste Mail (§ 174 TKG 2021) — auch nicht aus Stapel oder Akte. Dort geht der Brief.
+  if (!radarMailErlaubt(radarLandFuer(f))) throw new RadarFehler("Österreich bekommt Briefe, keine Mails.");
   // E-337: Kam die erste Mail als unzustellbar zurück — oder beim falschen Empfänger an, der eine andere Adresse nannte —,
   // darf sie EINMAL an die neue, geprüfte Adresse gehen.
   const ungueltig = String(f.email_ungueltig ?? "").split(",").map((x: string) => x.trim()).filter(Boolean);

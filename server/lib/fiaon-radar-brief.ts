@@ -661,6 +661,9 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
        WHERE r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND r.versendet_am IS NULL AND r.brief_versendet_am IS NULL
          AND COALESCE(r.brief_status, '') NOT IN ('test', 'sendet', 'uebergeben', 'versendet', 'fehler') AND r.brief_auto_am IS NULL
          AND r.archiviert_am IS NULL
+         -- E-458: Liegt die Mail schon in der Warteschlange des Motors, geht kein Brief. Partner warten (auch in Österreich)
+         -- sichtbar im Brief-Vorrat, bis es den Partner-Brief gibt — der Lauf nimmt nur Firmen.
+         AND COALESCE(r.motor_status, '') NOT IN ('arbeit', 'bereit', 'sendet') AND r.strom = 'firma'
          AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB}) AND COALESCE(r.passung, 0) >= ${automatik.abPassung}
          AND r.impressum ? 'strasse' AND r.impressum ? 'plz'
          AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))

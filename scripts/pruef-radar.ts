@@ -389,12 +389,75 @@ abschnitt("Maras Szenarien (E-361)");
   const probe = fd.slice(fd.indexOf("export async function radarMaraProbe"), fd.indexOf("// ── ABGLEICH: TERMIN, ANGEBOT, KAUF"));
   ok(probe.length > 500 && !/INSERT|UPDATE|DELETE|antwortSenden|globalTerminBuchen|radarTerminEintragen|aufgabeFuerJustin/.test(probe), "„Mara testen“ schreibt, sendet und bucht nichts");
   ok(/darfSenden = opts\.sendenErlaubt && !pruefung\.length && p\.postfach !== "js@fiaon\.com" && regel\?\.mara === "antwort" && !p\.buchungslink && !radarRoboter/.test(fd), "Mara sendet nie aus js@, nie an Maschinen, nie bei fremdem Buchungslink, nur Arten mit Antwort");
-  ok(/Wiedervorlage \(E-361\)[\s\S]{0,900}wiedervorlage_am = NULL WHERE id = \$\{w\.id\} AND wiedervorlage_am <= NOW\(\) RETURNING id/.test(fd), "Wiedervorlage: atomar geholt, dann schreibt Mara im Faden");
+  ok(/Wiedervorlage \(E-361\)[\s\S]{0,1600}wiedervorlage_am = NULL WHERE id = \$\{w\.id\} AND wiedervorlage_am <= NOW\(\) RETURNING id/.test(fd), "Wiedervorlage: atomar geholt, dann schreibt Mara im Faden");
   ok(/const plan = radarPlan\(\{/.test(fd) && /if \(plan\.buchen\)/.test(fd), "Der Wächter entscheidet über radarPlan — dieselbe Regel wie „Mara testen“");
   const rt = lies("server/routes/fiaon-radar.ts");
   ok(/"\/chef\/radar\/mara-probe", wache/.test(rt) && /"\/chef\/radar\/mara-szenarien", wache/.test(rt) && /"\/chef\/radar\/post\/:id\/termin", wache[\s\S]{0,120}bestaetigt !== true/.test(rt), "Neue Routen hinter der Wache, Termin nur mit Bestätigung");
   const ui = lies("client/src/components/admin/ChefRadar.tsx");
   ok(/<MaraTesten \/>/.test(ui) && /Alle \$\{RADAR_SZENARIEN\.length\} Szenarien prüfen/.test(ui) && /Termin \{wunschLesbar\(p\.wunsch_termin!\)\} eintragen/.test(ui), "Chefbüro: „Mara testen“, „Alle Szenarien prüfen“, „Termin eintragen“");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-458 (29.10.2026) — DER MAIL-MOTOR. Testdaten erfunden (example.com), keine echten Firmen.
+// ═══════════════════════════════════════════════════════════════════════════
+const sh8 = await import("../shared/fiaon-radar");
+
+abschnitt("Mail-Motor: Schalter, Fenster, Takt (E-458)");
+{
+  const v = sh8.radarMotorLesen({});
+  ok(JSON.stringify(v.tage) === "[1,2,3,4,5]" && v.von === "07:00" && v.bis === "19:00" && v.firmenJeStunde === 10 && v.partnerJeStunde === 10 && v.puffer === 1.2 && v.haltbarTage === 7,
+    `Ohne Einstellung: Mo–Fr 07:00–19:00, je Strom 10 je Stunde, Puffer 1,2, haltbar 7 (${JSON.stringify(v)})`);
+  const u = sh8.radarMotorLesen({ radar_motor_von: "25:00", radar_motor_firmen_je_stunde: "-3", radar_motor_partner_je_stunde: "abc", radar_motor_puffer: "-3", radar_motor_tage: "abc", radar_motor_haltbar_tage: "abc" });
+  ok(u.von === "07:00" && u.firmenJeStunde === 10 && u.partnerJeStunde === 10 && u.puffer === 1.2 && JSON.stringify(u.tage) === "[1,2,3,4,5]" && u.haltbarTage === 7, "Unsinn („25:00“, „-3“, „abc“) fällt auf die Vorgabe");
+  const g = sh8.radarMotorLesen({ radar_motor_von: "20:00", radar_motor_bis: "19:00" });
+  ok(g.von === "07:00" && g.bis === "19:00", "von ≥ bis fällt auf die Vorgabe");
+  ok(sh8.radarMotorLesen({ radar_motor_firmen_je_stunde: "500" }).firmenJeStunde === sh8.RADAR_MOTOR_HOECHSTENS_JE_STUNDE && sh8.radarMotorLesen({ radar_motor_partner_je_stunde: "0" }).partnerJeStunde === 0, "Je Stunde über 30 wird gedeckelt, 0 schaltet den Strom aus");
+  const eigen = sh8.radarMotorLesen({ radar_motor_von: "7:30", radar_motor_bis: "18:00", radar_motor_tage: "6,1,2,9" });
+  ok(eigen.von === "07:30" && eigen.bis === "18:00" && JSON.stringify(eigen.tage) === "[1,2,6]", `Eigene Tage und Zeiten werden gelesen (${JSON.stringify(eigen)})`);
+  const im = (iso: string, m = v) => sh8.radarMotorImFenster(new Date(iso), m);
+  ok(im("2026-10-29T07:00:00+01:00") && !im("2026-10-29T06:59:00+01:00") && im("2026-10-29T18:59:00+01:00") && !im("2026-10-29T19:00:00+01:00"), "Do 29.10. (Winterzeit): 07:00 ja, 06:59 nein, 18:59 ja, 19:00 nein");
+  ok(!im("2026-10-31T10:00:00+01:00") && im("2026-10-31T10:00:00+01:00", sh8.radarMotorLesen({ radar_motor_tage: "1,2,3,4,5,6" })), "Samstag 10:00 nein — mit Tagen 1–6 ja");
+  ok(im("2026-03-30T07:00:00+02:00") && !im("2026-03-30T06:59:00+02:00") && !im("2026-03-29T10:00:00+02:00"), "Sommerzeit: Mo 30.03. 07:00 ja, 06:59 nein, Sonntag nein");
+  ok(sh8.radarMotorFensterStunden(v) === 12 && sh8.radarMotorReststunden(new Date("2026-10-29T13:00:00+01:00"), v) === 6 && sh8.radarMotorReststunden(new Date("2026-10-31T13:00:00+01:00"), v) === 0, "Fenster 12 Stunden, um 13 Uhr noch 6, am Samstag 0");
+  const soll = (iso: string, gesendet: number, letzte: string | null = null, extra: Record<string, unknown> = {}) =>
+    sh8.radarMotorSoll({ jetzt: new Date(iso), m: v, jeStunde: 10, gesendetHeute: gesendet, letzteAm: letzte, ...extra });
+  ok(soll("2026-10-29T07:30:00+01:00", 0).faellig, "10 je Stunde, 07:30, 0 gesendet → fällig");
+  ok(!soll("2026-10-29T07:30:00+01:00", 6).faellig, "07:30 mit 6 gesendet → nicht fällig");
+  const abstand = soll("2026-10-29T07:30:00+01:00", 2, "2026-10-29T07:28:00+01:00");
+  ok(!abstand.faellig && abstand.abstandSek >= 216 && abstand.abstandSek <= 360, `Letzte Mail vor 120 s bei 360-s-Takt → nicht fällig (Abstand ${abstand.abstandSek} s)`);
+  ok(soll("2026-10-29T07:30:00+01:00", 0, null, { bremse: 0.5 }).soll === 2.5 && soll("2026-10-29T07:30:00+01:00", 0).soll === 5, "Bremse 0,5 halbiert das Soll");
+  ok(!soll("2026-10-29T19:30:00+01:00", 0).faellig && !soll("2026-10-31T10:00:00+01:00", 0).faellig && !soll("2026-10-29T06:30:00+01:00", 0).faellig, "Außerhalb des Fensters nie fällig");
+  ok(!sh8.radarMotorSoll({ jetzt: new Date("2026-10-29T10:00:00+01:00"), m: v, jeStunde: 0, gesendetHeute: 0, letzteAm: null }).faellig, "Strom mit 0 je Stunde ist aus");
+  let gesendet = 0, letzte: Date = new Date("2026-10-29T07:00:00+01:00"), maxJeTakt = 0, inZehn = 0;
+  for (let t = 0; t < 10; t++) {
+    const jetzt = new Date(Date.parse("2026-10-29T10:00:00+01:00") + t * 60_000);
+    let jeTakt = 0;
+    if (sh8.radarMotorSoll({ jetzt, m: v, jeStunde: 10, gesendetHeute: gesendet, letzteAm: letzte }).faellig) { gesendet++; letzte = jetzt; jeTakt++; inZehn++; }
+    maxJeTakt = Math.max(maxJeTakt, jeTakt);
+  }
+  ok(maxJeTakt <= 1 && inZehn >= 1 && inZehn <= 3, `Nach 3 h Ausfall kein Schwall: ${inZehn} Mails in 10 Minuten, höchstens eine je Takt`);
+  let tag = 0, letzteTag: Date | null = null;
+  for (let t = 0; t < 12 * 60; t++) {
+    const jetzt = new Date(Date.parse("2026-10-29T07:00:00+01:00") + t * 60_000);
+    if (sh8.radarMotorSoll({ jetzt, m: v, jeStunde: 10, gesendetHeute: tag, letzteAm: letzteTag }).faellig) { tag++; letzteTag = jetzt; }
+  }
+  ok(tag >= 115 && tag <= 120, `Ein ganzer Tag im Minutentakt: ${tag} Mails (Ziel 10 × 12 = 120), gleichmäßig verteilt`);
+}
+
+abschnitt("Österreich: Brief statt Mail (E-458)");
+{
+  ok(sh8.radarLandFuer({ land: "AT" }) === "AT" && sh8.radarLandFuer({ land: "", domain: "beispiel.at" }) === "AT" && sh8.radarLandFuer({ impressum: { land: "CH" } }) === "CH" && sh8.radarLandFuer({}) === "DE", "Land: Spalte, sonst Impressum, sonst Domäne, sonst DE");
+  ok(!sh8.radarMailErlaubt("AT") && sh8.radarMailErlaubt("DE") && sh8.radarMailErlaubt("CH"), "Mail nach DE und CH, nicht nach AT");
+  const impAt = { name: "Beispiel Handel GmbH", strasse: "Musterstraße 1", plz: "1010", ort: "Wien", land: "AT", vertreter: [{ name: "Anna Beispiel", funktion: "Geschäftsführerin" }] };
+  const atFirma = { status: "gescannt", land: "AT", signal_staerke: 4, impressum: impAt, name: impAt.name, domain: "beispiel-handel.example", entscheider: { name: "Anna Beispiel", email: "anna.beispiel@beispiel-handel.example" }, versendet_am: null, brief_versendet_am: null };
+  ok(sh8.radarBriefPruefen(atFirma).ok, "Österreich mit persönlicher Adresse → Brief (die Mail geht dort nicht vor)");
+  ok(!sh8.radarBriefPruefen({ ...atFirma, land: "DE", impressum: { ...impAt, land: "DE", plz: "10115", ort: "Berlin" } }).ok, "Deutschland mit persönlicher Adresse → die Mail geht vor");
+  const lib8 = lies("server/lib/fiaon-radar.ts"), fd8 = lies("server/lib/fiaon-radar-faden.ts"), br8 = lies("server/lib/fiaon-radar-brief.ts");
+  ok(/if \(!radarMailErlaubt\(radarLandFuer\(f\)\)\) throw new RadarFehler\("Österreich bekommt Briefe, keine Mails\."\)/.test(lib8), "radarMailAusgeben wirft für Österreich — gilt für Motor, Stapel und Akte");
+  ok(/nachfass_stufe < [\s\S]{0,500}= ANY\(\$\{\[\.\.\.RADAR_NUR_BRIEF_LAENDER\]\}::text\[\]\)\)/.test(fd8) && /SET nachfass_faellig = NULL[\s\S]{0,600}RADAR_NUR_BRIEF_LAENDER/.test(fd8), "Kein Nachfassen nach Österreich (auch nicht auf eine alte erste Mail)");
+  ok(/wiedervorlage_am <= NOW\(\)[\s\S]{0,700}RADAR_NUR_BRIEF_LAENDER/.test(fd8), "Keine Wiedervorlage-Mail nach Österreich");
+  ok(/COALESCE\(r\.motor_status, ''\) NOT IN \('arbeit', 'bereit', 'sendet'\) AND r\.strom = 'firma'/.test(br8), "Brief-Lauf: kein Brief, solange die Mail in der Warteschlange liegt; nur Firmen");
+  ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
 }
 
 abschnitt("Ergebnis");

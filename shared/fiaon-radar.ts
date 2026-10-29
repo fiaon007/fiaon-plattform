@@ -430,7 +430,7 @@ export function radarAutomatikLesen(roh: Record<string, string | null | undefine
   };
 }
 
-/** Werktags 8:30–17:30 Uhr (Berlin) — dann lesen Geschäftsführer Mails, und nur dann schreibt der Radar selbst. Rein. */
+/** Werktags 8:30–17:30 Uhr (Berlin) — dann lesen Geschäftsführer Mails. Gilt seit E-458 nur noch für den Brief. Rein. */
 export function radarSendefenster(jetzt: Date = new Date()): boolean {
   const teile = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(jetzt);
   const wert = (t: string) => teile.find((x) => x.type === t)?.value ?? "";
@@ -438,6 +438,165 @@ export function radarSendefenster(jetzt: Date = new Date()): boolean {
   const minuten = Number(wert("hour")) * 60 + Number(wert("minute"));
   if (tag === "Sat" || tag === "Sun") return false;
   return minuten >= 8 * 60 + 30 && minuten < 17 * 60 + 30;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-458 (29.10.2026) — DER MAIL-MOTOR: ZWEI STRÖME, JEDE STUNDE
+//
+// Justin: „Ab heute, jede Stunde MINDESTENS 10 Mails an Firmen die Kapitalbedarf haben und 10 neue Kooperationspartner
+// die uns Kunden bringen — also 20 Mails, jede Stunde — von 07.00 Uhr bis 19.00 Uhr.“
+// Tag und Nacht arbeitet Mara vor (suchen, Chef finden, Mail schreiben, prüfen) und legt fertige Mails in eine
+// Warteschlange; verschickt wird nur im Fenster, gleichmäßig über die Stunde. Hier steht, was Server, Chefbüro und
+// Prüfstand gleich sehen müssen: Ströme, Schalter, Fenster und Takt. Die Arbeit macht server/lib/fiaon-radar-motor.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+/** firma = Firmen mit belegtem Kapitalbedarf · partner = Kooperationspartner, die uns Kunden bringen (Steuerberater, Finanzierer …). */
+export type RadarStrom = "firma" | "partner";
+export const RADAR_STROEME: readonly RadarStrom[] = ["firma", "partner"];
+export const RADAR_STROM_LABEL: Record<RadarStrom, string> = { firma: "Firmen", partner: "Partner" };
+export function alsRadarStrom(roh: unknown): RadarStrom { return roh === "partner" ? "partner" : "firma"; }
+
+export interface RadarMotor {
+  /** Sendetage, 1 = Montag … 7 = Sonntag. */
+  tage: number[];
+  /** Fenster in Berliner Zeit, „HH:MM“ — von einschließlich, bis ausschließlich. */
+  von: string;
+  bis: string;
+  /** Erste Mails je Stunde und Strom (0 = Strom aus). */
+  firmenJeStunde: number;
+  partnerJeStunde: number;
+  /** So viele Tage der heutigen Leistung liegen fertig in der Warteschlange (an die Postfach-Leistung gekoppelt, nicht ans Ziel). */
+  puffer: number;
+  /** So viele Tage bleibt eine fertige Mail sendbar — danach ist sie veraltet. */
+  haltbarTage: number;
+}
+/** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
+export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
+export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7 };
+export const RADAR_MOTOR_SCHLUESSEL = {
+  tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
+  partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
+} as const;
+
+/** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
+export type RadarMotorStatus = "arbeit" | "bereit" | "sendet" | "gesendet" | "verworfen" | "abgelaufen";
+export const RADAR_MOTOR_STATUS: Record<RadarMotorStatus, string> = {
+  arbeit: "In Arbeit", bereit: "Bereit", sendet: "Wird gesendet", gesendet: "Gesendet", verworfen: "Verworfen", abgelaufen: "Abgelaufen",
+};
+
+/** „07:00“ → 420, sonst null. Rein. */
+export function radarUhrzeitMinuten(roh: unknown): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(roh ?? "").trim());
+  if (!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
+}
+
+/** Liest die Motor-Schalter aus Rohwerten (fiaon_settings key → value). Unsinn fällt auf die Vorgabe. Rein. */
+export function radarMotorLesen(roh: Record<string, string | null | undefined>): RadarMotor {
+  const v = RADAR_MOTOR_VORGABE;
+  const k = RADAR_MOTOR_SCHLUESSEL;
+  const text = (x: unknown) => String(x ?? "").trim();
+  const tageRoh = text(roh[k.tage]).split(/[,;\s]+/).filter(Boolean);
+  const tage = Array.from(new Set(tageRoh.map(Number))).filter((n) => Number.isInteger(n) && n >= 1 && n <= 7).sort((a, b) => a - b);
+  const vonM = radarUhrzeitMinuten(roh[k.von]) ?? radarUhrzeitMinuten(v.von)!;
+  const bisM = radarUhrzeitMinuten(roh[k.bis]) ?? radarUhrzeitMinuten(v.bis)!;
+  const fenster = vonM < bisM ? { von: text(roh[k.von]) || v.von, bis: text(roh[k.bis]) || v.bis } : { von: v.von, bis: v.bis };
+  const norm = (s: string) => { const n = radarUhrzeitMinuten(s)!; return `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`; };
+  const jeStunde = (x: unknown, vorgabe: number) => {
+    const s = text(x);
+    if (!/^\d+$/.test(s)) return vorgabe;
+    return Math.min(RADAR_MOTOR_HOECHSTENS_JE_STUNDE, Number(s));
+  };
+  const zahl = (x: unknown, vorgabe: number, min: number, max: number) => {
+    const n = Number(text(x).replace(",", "."));
+    return text(x) !== "" && Number.isFinite(n) && n >= min && n <= max ? n : vorgabe;
+  };
+  return {
+    tage: tageRoh.length && tage.length ? tage : [...v.tage],
+    von: radarUhrzeitMinuten(fenster.von) != null ? norm(fenster.von) : v.von,
+    bis: radarUhrzeitMinuten(fenster.bis) != null ? norm(fenster.bis) : v.bis,
+    firmenJeStunde: jeStunde(roh[k.firmenJeStunde], v.firmenJeStunde),
+    partnerJeStunde: jeStunde(roh[k.partnerJeStunde], v.partnerJeStunde),
+    puffer: zahl(roh[k.puffer], v.puffer, 0.1, 5),
+    haltbarTage: Math.round(zahl(roh[k.haltbarTage], v.haltbarTage, 1, 30)),
+  };
+}
+
+/** Wochentag (1 = Montag) und Minute des Tages in Berliner Zeit — nur über formatToParts (Zeit-Falle Berlin). Rein. */
+export function radarBerlinTagMinute(jetzt: Date = new Date()): { tag: number; minute: number } {
+  const teile = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(jetzt);
+  const wert = (t: string) => teile.find((x) => x.type === t)?.value ?? "";
+  const tag = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(wert("weekday")) + 1;
+  return { tag, minute: Number(wert("hour")) * 60 + Number(wert("minute")) };
+}
+
+/** Liegt jetzt im Sendefenster des Motors (Tag und Uhrzeit, Berlin)? Rein. */
+export function radarMotorImFenster(jetzt: Date, m: RadarMotor): boolean {
+  const { tag, minute } = radarBerlinTagMinute(jetzt);
+  const von = radarUhrzeitMinuten(m.von) ?? 0, bis = radarUhrzeitMinuten(m.bis) ?? 0;
+  return m.tage.includes(tag) && minute >= von && minute < bis;
+}
+
+/** Wie viele Stunden das Fenster je Tag hat (für die ehrliche Leistung). Rein. */
+export function radarMotorFensterStunden(m: RadarMotor): number {
+  return Math.max(0, ((radarUhrzeitMinuten(m.bis) ?? 0) - (radarUhrzeitMinuten(m.von) ?? 0)) / 60);
+}
+
+/** Restliche Fensterstunden heute ab jetzt (0 außerhalb). Rein. */
+export function radarMotorReststunden(jetzt: Date, m: RadarMotor): number {
+  const { tag, minute } = radarBerlinTagMinute(jetzt);
+  if (!m.tage.includes(tag)) return 0;
+  const von = radarUhrzeitMinuten(m.von) ?? 0, bis = radarUhrzeitMinuten(m.bis) ?? 0;
+  return Math.max(0, (bis - Math.max(minute, von)) / 60);
+}
+
+export interface RadarMotorSollEin {
+  jetzt: Date; m: RadarMotor;
+  /** Ziel dieses Stroms je Stunde (vor der Bremse). */
+  jeStunde: number;
+  /** Erste Mails dieses Stroms heute im Fenster. */
+  gesendetHeute: number;
+  /** Zeitpunkt der letzten ersten Mail dieses Stroms. */
+  letzteAm: Date | string | null;
+  /** Zustell-Bremse (1 = volle Fahrt, 0,5 = halbiert, E-458 Punkt 7). */
+  bremse?: number;
+  /** 0–1 für den Mindestabstand; ohne Angabe fest aus dem Zeitpunkt der letzten Mail (gleiche Mail → gleicher Abstand). */
+  zufall?: number;
+}
+
+/**
+ * Ist jetzt die nächste erste Mail dieses Stroms dran? Soll = Ziel je Stunde × Minuten seit Fensterbeginn / 60; dazu ein
+ * Mindestabstand von 60–100 % von 3600 / Ziel Sekunden seit der letzten Mail. So verteilen sich die Mails gleichmäßig über
+ * die Stunde, und nach einem Ausfall kommt kein Schwall: höchstens eine je Takt, mit Abstand. Rein.
+ */
+export function radarMotorSoll(e: RadarMotorSollEin): { faellig: boolean; soll: number; abstandSek: number; grund: string } {
+  const ziel = Math.max(0, e.jeStunde) * Math.max(0, Math.min(1, e.bremse ?? 1));
+  if (!radarMotorImFenster(e.jetzt, e.m)) return { faellig: false, soll: 0, abstandSek: 0, grund: "außerhalb des Sendefensters" };
+  if (ziel <= 0) return { faellig: false, soll: 0, abstandSek: 0, grund: "Strom aus" };
+  const { minute } = radarBerlinTagMinute(e.jetzt);
+  const seit = Math.max(0, minute - (radarUhrzeitMinuten(e.m.von) ?? 0)) + e.jetzt.getUTCSeconds() / 60;
+  const soll = (ziel * seit) / 60;
+  const letzte = e.letzteAm ? new Date(e.letzteAm).getTime() : NaN;
+  const zufall = e.zufall ?? (Number.isFinite(letzte) ? (((Math.floor(letzte / 1000) * 9301 + 49297) % 233280) / 233280) : 0.5);
+  const abstandSek = Math.round((3600 / ziel) * (0.6 + 0.4 * Math.max(0, Math.min(1, zufall))));
+  if (e.gesendetHeute >= soll) return { faellig: false, soll, abstandSek, grund: "Soll erreicht" };
+  if (Number.isFinite(letzte) && (e.jetzt.getTime() - letzte) / 1000 < abstandSek) return { faellig: false, soll, abstandSek, grund: "Abstand zur letzten Mail" };
+  return { faellig: true, soll, abstandSek, grund: "fällig" };
+}
+
+// ── ÖSTERREICH BEKOMMT BRIEFE, KEINE MAILS (E-458 Punkt 8) ───────────────────
+/** In diese Länder geht keine erste Mail und kein Nachfassen — nur der Brief (AT: § 174 TKG 2021). */
+export const RADAR_NUR_BRIEF_LAENDER: readonly RadarLand[] = ["AT"];
+/** Das Land einer Firma: Spalte land, sonst das Impressum, sonst die Endung der Domäne (.at, .ch), sonst DE. Rein. */
+export function radarLandFuer(f: { land?: unknown; impressum?: any; domain?: unknown; website?: unknown } | null | undefined): RadarLand {
+  const direkt = alsRadarLand(f?.land) ?? alsRadarLand(f?.impressum?.land);
+  if (direkt) return direkt;
+  const d = radarDomain(f?.domain ?? f?.website) ?? "";
+  return /\.at$/.test(d) ? "AT" : /\.ch$/.test(d) ? "CH" : "DE";
+}
+/** Darf in dieses Land eine Mail gehen? Rein. */
+export function radarMailErlaubt(land: unknown): boolean {
+  return !(RADAR_NUR_BRIEF_LAENDER as readonly string[]).includes(alsRadarLand(land) ?? "DE");
 }
 
 // ── DER TRICHTER ────────────────────────────────────────────────────────────
@@ -661,20 +820,22 @@ export function radarBriefAnschrift(impressum: any, opts: { firmenname?: string 
 
 export interface RadarBriefPruefFirma {
   status: string; land?: string | null; signal_staerke?: number | null; versendet_am?: unknown; brief_versendet_am?: unknown;
-  entscheider?: { name?: string | null; email?: string | null } | null; impressum?: any; name?: string | null;
+  entscheider?: { name?: string | null; email?: string | null } | null; impressum?: any; name?: string | null; domain?: string | null;
 }
 /**
  * Bekommt diese Firma einen Brief? Jede Bedingung einzeln — das Chefbüro zeigt sie als Liste mit Haken. Rein.
- * Die Mail an eine persönliche Adresse geht vor (kostet nichts, Antwort mit einer Zeile).
+ * Die Mail an eine persönliche Adresse geht vor (kostet nichts, Antwort mit einer Zeile) — außer in Ländern, die nur
+ * Briefe bekommen (E-458: Österreich).
  */
 export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] } {
   const anschrift = radarBriefAnschrift(f.impressum, { firmenname: f.name, land: f.land });
-  const persoenlich = !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
+  const nurBrief = !radarMailErlaubt(radarLandFuer(f));
+  const persoenlich = !nurBrief && !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
   const zu = ["gesperrt", "kein_interesse", "passt_nicht"].includes(f.status);
   const gespraech = (RADAR_IM_GESPRAECH as readonly string[]).includes(f.status);
   const punkte = [
     { key: "signal", ok: Number(f.signal_staerke ?? 0) >= RADAR_SIGNAL_AB, text: `Kapitalsignal ab Stärke ${RADAR_SIGNAL_AB}${f.signal_staerke != null ? ` (hat ${f.signal_staerke})` : " (noch nicht geprüft)"}` },
-    { key: "persoenlich", ok: !persoenlich, text: persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
+    { key: "persoenlich", ok: !persoenlich, text: nurBrief ? "Österreich: hier geht der Brief statt der Mail" : persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
     { key: "anschrift", ok: !anschrift.fehlt.length, text: anschrift.fehlt.length ? `Anschrift unvollständig: ${anschrift.fehlt.join(", ")}` : "Name und Anschrift aus dem Impressum vollständig" },
     { key: "offen", ok: !zu && !gespraech && !f.versendet_am, text: zu ? "Gesperrt, abgelehnt oder passt nicht" : gespraech ? "Mit der Firma läuft schon ein Gespräch" : f.versendet_am ? "Hat schon eine erste Mail bekommen" : "Noch kein Kontakt, nicht gesperrt" },
     { key: "einmal", ok: !f.brief_versendet_am, text: f.brief_versendet_am ? "Hat schon einen Brief bekommen — je Firma genau einer" : "Noch kein Brief an diese Firma" },

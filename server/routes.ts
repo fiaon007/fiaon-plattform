@@ -621,6 +621,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_angebot_lauf', async () => await (await import('./lib/fiaon-global-angebot')).globalAngebotLauf(), 60 * 60 * 1000, { beimStartNach: 660_000 });
   });
+  // 🌐 FIAON Global — kein Gespräch geht mehr verloren (E-458 Nr. 11): Erinnerung am Vortag und eine Stunde vorher,
+  //    eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, am nächsten Werktag um 9 die Leitung. Alle zehn
+  //    Minuten (die Stunden-Mail braucht das Fenster); eine Historienzeile nur, wenn etwas geschah. Atomar über Marken.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_gespraeche', async () => await (await import('./lib/fiaon-global-gespraech')).globalGespraecheLauf(), 10 * 60 * 1000, { beimStartNach: 300_000, nurMitErgebnis: true });
+  });
   // 🤝 E-386: Lieferstrecke der Partner-Kooperation — Übermittlungen nachholen, Partnerbereich-Mail nach der Annahme,
   //    Monatsrechnung für jeden abgeschlossenen Monat (genau einmal je Partner und Monat), eine Zahlungserinnerung.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

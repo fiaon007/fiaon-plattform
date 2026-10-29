@@ -57,7 +57,8 @@ const QUELLEN: Record<string, string> = {
   "client/src/pages/site/investoren.tsx": "/investoren",
   "client/src/pages/site/datenraum.tsx": "/datenraum",
   "client/src/i18n/fiaon-erfahrungen.ts": "/fiaon-erfahrungen|/en/how-fiaon-works",
-  "client/src/i18n/ist-fiaon-serioes.ts": "/ist-fiaon-serioes|/en/is-fiaon-legit",
+  // 29.10.2026 (E-459): /ist-fiaon-serioes und /en/is-fiaon-legit — die FAQ steht jetzt am Datensatz der Seite
+  // (shared/fiaon-serioes-seite.ts) und geht über den Server in die FAQPage (server/lib/fiaon-global-seo.ts).
   "client/src/i18n/termin.ts": "/termin|/en/book-a-call",
   "client/src/i18n/vergleich.ts": "/vergleich|/en/compare",
   "client/src/i18n/hilfe.ts": "/hilfe|/en/help",

@@ -603,7 +603,10 @@ const GESCHEITERT = ["gebounct", "blockiert", "spam", "fehler"];
 export async function kapitalCZustellStand(angebotRef: string, seit: Date): Promise<{ stand: "zugestellt" | "gescheitert" | "offen"; satz: string; zustellung: string | null; grund: string | null }> {
   const [m] = (await sqlPool`
     SELECT id, created_at, empfaenger, brevo_message_id, zustellung, zustellung_grund FROM fiaon_mail_log
-     WHERE event = 'global_kapital_c_vertrag' AND status = 'versandt' AND payload->>'angebot' = ${angebotRef}
+     -- E-460 (29.10.2026): Das Protokoll speichert payload als JSON-TEXT in der jsonb-Spalte (doppelt verpackt) — payload->>'angebot'
+     -- war immer NULL, jede Vertragsbestätigung galt als „nicht im Mailprotokoll“ (Aufgaben „Zustellung nicht bestätigt“ und
+     -- „ERST Vertragsbestätigung senden“, obwohl sie zugestellt war). Die Suche im Text trifft beide Formen.
+     WHERE event = 'global_kapital_c_vertrag' AND status = 'versandt' AND strpos(payload::text, ${angebotRef}) > 0
        AND created_at >= ${new Date(seit.getTime() - 10 * 60_000)}
      ORDER BY created_at DESC LIMIT 1`) as any[];
   if (!m) return { stand: "offen", satz: "kein Versand im Mailprotokoll — Zustellung nicht bestätigt", zustellung: null, grund: null };

@@ -73,6 +73,9 @@ export const PFLICHTMAILS = new Set<string>([
   "finanzauswertung_bereit", // E-IT-D (08.10.2026): Leistung aus dem Vertrag — die freigegebene Auswertung liegt im Bereich (seit E-357 mit PDF, ohne Zahlen im Text).
   "termin_bestaetigung",
   "global_termin",           // E-188: Antwort auf die eben gebuchte Zeit (Erstgespräch FIAON Global).
+  // E-458 Nr. 11: Erinnerungen an die selbst gebuchte Zeit und „nicht erreicht“ zu genau diesem Gespräch (einmal je
+  // Gespräch) — wie termin_erinnerung. Ein Unternehmen, das gestern eine Mail des Firmen-Radars bekam, muss sie trotzdem bekommen.
+  "global_termin_erinnerung", "global_termin_kurz", "global_nicht_erreicht",
   "termin_erinnerung",
   "termin_absage",
   "claim_received",          // „Wir prüfen Ihre Zahlung" — Antwort auf seine Meldung.

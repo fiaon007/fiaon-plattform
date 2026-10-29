@@ -37,6 +37,8 @@ const KEINE_ANTWORT = [
   "termin_erinnerung", "abo_rate_faellig", "welcome", "onboarding_einladung",
   // E-406 B1 (19.10.2026): Maras Mail zur frisch fälligen Rate geht an jeden gleich — sie beantwortet keine Kundenfrage.
   "mara_rate_erinnerung",
+  // E-458 Nr. 11 (29.10.2026): die Mails rund um das Global-Gespräch — Erinnerungen und „nicht erreicht“.
+  "global_termin_erinnerung", "global_termin_kurz", "global_nicht_erreicht",
 ];
 
 function berlinStunde(): number {

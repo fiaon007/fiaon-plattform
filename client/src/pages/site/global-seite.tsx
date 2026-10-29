@@ -154,6 +154,12 @@ function RedaktionsArtikel({ slug, sp }: { slug: string; sp: Sp }) {
   return <Seite s={s} />;
 }
 
+// 29.10.2026 (E-459): Die Vorlage zeichnet auch Seiten außerhalb des Registers — die Vertrauensseite „Ist FIAON seriös?“
+// (pages/site/ist-fiaon-serioes.tsx) gibt ihren Datensatz (shared/fiaon-serioes-seite.ts) direkt hinein.
+export function GlobalSeitenAnsicht({ s }: { s: GlobalSeite }) {
+  return <Seite s={s} />;
+}
+
 function Seite({ s }: { s: GlobalSeite }) {
   const sp = globalSprache(s);
   const t = GLOBAL_WOERTER[sp];
@@ -566,7 +572,9 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
                   <h3>{k.titel}</h3><p>{k.text}</p>
                 </>
               );
-              return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
+              // 29.10.2026 (E-459): Karten mit fremder Adresse (Companies House) öffnen in einem neuen Tab — wie die Quellenliste.
+              const extern = !!k.pfad && /^https?:\/\//.test(k.pfad);
+              return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
             })}
           </div>
         </Abschnitt>

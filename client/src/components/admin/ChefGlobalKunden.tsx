@@ -27,6 +27,7 @@ import {
 } from "./chef-global-kunden-teile";
 import GlobalStationen from "@/components/global/GlobalStationen";
 import ChefGlobalEinstellungen from "./ChefGlobalEinstellungen";
+import ChefGlobalGespraeche from "./ChefGlobalGespraeche";
 import ChefGlobalZugaenge from "./ChefGlobalZugaenge";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
@@ -133,6 +134,9 @@ export default function ChefGlobalKunden() {
             <li><b>{k.fristen30 ?? 0}</b>Fristen in 30 Tagen</li>
           </ul>
         </header>
+
+        {/* E-458 Nr. 11: die Global-Gespräche — wo das Ergebnis fehlt (drei Knöpfe), was geplant ist, was zuletzt war. */}
+        <ChefGlobalGespraeche />
 
         <div className="cgn-raum">
           <aside className="cgn-liste" aria-label="Global-Kunden">

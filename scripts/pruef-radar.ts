@@ -952,6 +952,25 @@ abschnitt("Zustellung schützen: Rückläufer und Beschwerden (E-458)");
   ok(/"\/chef\/radar\/bremse\/loesen", wache[\s\S]{0,120}bestaetigt !== true/.test(lies("server/routes/fiaon-radar.ts")), "„Bremse lösen“ nur mit Bestätigung, hinter der Wache");
 }
 
+abschnitt("Chefbüro: alle Schalter im Raum Firmen-Radar › Automatik (E-458)");
+{
+  const ui = lies("client/src/components/admin/ChefRadar.tsx"), rg = lies("client/src/pages/agent/rundgaenge.ts"), rt = lies("server/routes/fiaon-radar.ts");
+  ok(["<MotorKachel ", "<PostfachKachel ", "<ZustellKachel ", "<PruefKiKachel ", "<PartnerKachel ", "<AdressenKachel "].every((k) => ui.includes(k)), "Reiter Automatik: Kacheln Mail-Motor, Postfächer, Zustellung, Prüf-KI, Partner, Adressen");
+  ok(/Heute möglich/.test(ui) && !/8:30–17:30/.test(ui) && !/Mails je Werktag/.test(ui), "„Heute möglich“ steht da; kein festes 8:30–17:30, kein „Mails je Werktag“");
+  ok(/p\.set\("strom", strom\)/.test(ui) && /Partner suchen/.test(ui) && /"\/chef\/radar\/partner\/suchen"/.test(ui) && /trichter\?tage=30&strom=/.test(ui), "Firmen | Partner im Reiter Firmen, Partnersuche im Suchfenster, Trichter je Strom");
+  ok(/Abgeleitet aus/.test(ui) && /Kooperationspartner · \{radarPartnerGruppe\(f\.bereich\)/.test(ui) && /Prüfen lassen/.test(ui), "Akte: Herkunft der Adresse (Website, Websuche, abgeleitet mit Beleg), Strom und Gruppe, Prüf-KI mit „Prüfen lassen“");
+  const wege = rt.split("\n").filter((z) => /^router\.(get|post|put|delete)\("\/chef\/radar\/(motor|bremse|postfach|partner)/.test(z));
+  ok(wege.length >= 7 && wege.every((z) => z.includes(", wache,")), `Neue Routen des Motors alle hinter der Wache (${wege.length})`);
+  ok(/"\/chef\/radar\/motor\/senden", wache[\s\S]{0,160}bestaetigt !== true/.test(rt) && /"\/chef\/radar\/bremse\/loesen", wache[\s\S]{0,120}bestaetigt !== true/.test(rt), "Eine Mail senden und Bremse lösen nur mit Bestätigung");
+  const seiten = lies("client/src/components/admin/chef-seiten.tsx");
+  ok((seiten.match(/slug: "firmen-radar"/g) ?? []).length === 1 && /slug: "firmen-radar"[^\n]*mindest: "geschaeftsfuehrung"/.test(seiten), "Keine neue Chef-Seite; der Firmen-Radar bleibt ab Geschäftsführung");
+  const rgFr = rg.slice(rg.indexOf("export const RUNDGANG_FIRMEN_RADAR"), rg.indexOf("// ── /chef/s/telefonkartei"));
+  const ziele = Array.from(rgFr.matchAll(/ziel: "\.([a-z0-9-]+)"/g)).map((m) => m[1]);
+  ok([".cr-motor", ".cr-postfaecher", ".cr-zustellung", ".cr-partner"].every((z) => rgFr.includes(`ziel: "${z}"`)) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritte Mail-Motor, Postfächer, Zustellung, Partner; kein 8:30, kein Abmeldesatz");
+  ok(ziele.every((k) => new RegExp(`className=[{"\`][^>]*\\b${k}\\b`).test(ui)), `Jedes Rundgang-Ziel steht als className im Chefbüro (${ziele.join(", ")})`);
+  ok(!/gold|#c9a2|#d4af|#b8860b/i.test(lies("client/src/styles/chef-radar.css").replace(/\/\*[\s\S]*?\*\//g, "")), "Glasblau, kein Gold (Farben ohne Kommentare geprüft)");
+}
+
 abschnitt("Ergebnis");
 console.log(`  ${geprueft} Prüfungen, ${fehler} Fehler.`);
 process.exit(fehler ? 1 : 0);

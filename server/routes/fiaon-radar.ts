@@ -39,6 +39,7 @@ router.get("/chef/radar", wache, async (req: ChefRequest, res: Response) => {
     res.json({ ok: true, ...(await radarUebersicht({
       tag: String(req.query.tag ?? "") || null, bereich: String(req.query.bereich ?? "") || null,
       status: String(req.query.status ?? "") || null, gruppe: String(req.query.gruppe ?? "") || null, suche: String(req.query.suche ?? "") || null,
+      strom: String(req.query.strom ?? "") || null,
     })) });
   } catch (e) { fehler(res, e); }
 });
@@ -158,7 +159,10 @@ router.get("/chef/radar/postfach/:adresse", wache, async (req: ChefRequest, res:
 
 // ── E-337 (12.10.2026): Trichter, Automatik, Posteingang, Mara ─────────────
 router.get("/chef/radar/trichter", wache, async (req: ChefRequest, res: Response) => {
-  try { res.json({ ok: true, ...(await radarTrichter(Number(req.query.tage) || 14)), automatik: await radarAutomatik() }); } catch (e) { fehler(res, e); }
+  try {
+    const strom = req.query.strom === "partner" || req.query.strom === "firma" ? String(req.query.strom) : null;
+    res.json({ ok: true, ...(await radarTrichter(Number(req.query.tage) || 14, strom)), automatik: await radarAutomatik() });
+  } catch (e) { fehler(res, e); }
 });
 
 router.post("/chef/radar/automatik", wache, async (req: ChefRequest, res: Response) => {

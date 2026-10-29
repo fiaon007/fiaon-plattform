@@ -1760,10 +1760,12 @@ export async function radarLaufAbbrechen(id: number): Promise<void> {
 }
 
 // ── Für das Chefbüro ─────────────────────────────────────────────────────────
-export async function radarUebersicht(filter: { tag?: string | null; bereich?: string | null; status?: string | null; gruppe?: string | null; suche?: string | null }): Promise<any> {
+export async function radarUebersicht(filter: { tag?: string | null; bereich?: string | null; status?: string | null; gruppe?: string | null; suche?: string | null; strom?: string | null }): Promise<any> {
   await ensureRadarTabellen();
+  // E-458: Umschalter Firmen | Partner im Chefbüro — ohne Angabe beide.
+  const strom = filter.strom === "partner" || filter.strom === "firma" ? filter.strom : null;
   const tag = filter.tag && /^\d{4}-\d{2}-\d{2}$/.test(filter.tag) ? filter.tag : null;
-  const bereich = filter.bereich && radarBereich(filter.bereich) ? filter.bereich : null;
+  const bereich = filter.bereich && (radarBereich(filter.bereich) || radarPartnerGruppe(filter.bereich)) ? filter.bereich : null;
   const einzeln = filter.status && /^[a-z_]{2,20}$/.test(filter.status) ? filter.status : null;
   // Reiter statt Statusliste: „Offen", „Mail bereit", „Versendet", „Ohne E-Mail", „Aussortiert".
   const gruppe = RADAR_GRUPPEN.find((g) => g.key === String(filter.gruppe ?? ""));
@@ -1776,9 +1778,11 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
     SELECT id, tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, email, ansprechpartner, status,
            gescannt_am, mail_am, versendet_am, postfach, created_at, (scan IS NOT NULL) AS hat_scan, (mail IS NOT NULL) AS hat_mail,
            signal, signal_staerke, antwort_am, antwort_art, lead_am, termin_am, kauf_am, nachfass_stufe, nachfass_faellig, adresse_vorschlag,
-           entscheider, entscheider_am, brief_status, brief_versendet_am, brief_besuche, archiviert_am, archiv_grund
+           entscheider, entscheider_am, brief_status, brief_versendet_am, brief_besuche, archiviert_am, archiv_grund,
+           strom, motor_status, motor_grund
       FROM fiaon_radar_firmen
      WHERE (${tag}::date IS NULL OR tag = ${tag}::date)
+       AND (${strom}::text IS NULL OR strom = ${strom})
        AND (archiviert_am IS NOT NULL) = ${archiv}
        AND (${qualifiziert} = FALSE OR COALESCE(signal_staerke, 0) >= ${RADAR_SIGNAL_AB})
        AND (${bereich}::text IS NULL OR bereich = ${bereich})
@@ -1797,19 +1801,19 @@ export async function radarUebersicht(filter: { tag?: string | null; bereich?: s
            COUNT(*) FILTER (WHERE lead_am IS NOT NULL)::int AS leads,
            COUNT(*) FILTER (WHERE kauf_am IS NOT NULL)::int AS kaeufe,
            COUNT(*) FILTER (WHERE status IN ('mail', 'im_postfach'))::int AS offen
-      FROM fiaon_radar_firmen WHERE archiviert_am IS NULL`) as any[];
+      FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND (${strom}::text IS NULL OR strom = ${strom})`) as any[];
   const laeufe = ((await sqlPool`
     SELECT id, art, bereich, land, status, vorgeschlagen, neu, gesamt, fertig, aktuell, ergebnisse, fehler, created_at, fertig_am
       FROM fiaon_radar_laeufe ORDER BY id DESC LIMIT 8`) as any[]).map((r) => zeileLesen(r));
   // Wie viele Firmen in welchem Reiter stehen — ohne den Zeitraum-Filter, damit die Zahlen stabil bleiben.
-  const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
-  nachStand.archiv = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NOT NULL`) as any[])[0]?.n ?? 0);
+  const nachStand = Object.fromEntries(((await sqlPool`SELECT status, COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND (${strom}::text IS NULL OR strom = ${strom}) GROUP BY status`) as any[]).map((r) => [String(r.status), Number(r.n)]));
+  nachStand.archiv = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NOT NULL AND (${strom}::text IS NULL OR strom = ${strom})`) as any[])[0]?.n ?? 0);
   nachStand.qualifiziert = Number(((await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt')
-       AND COALESCE(signal_staerke, 0) >= ${RADAR_SIGNAL_AB}`) as any[])[0]?.n ?? 0);
+       AND COALESCE(signal_staerke, 0) >= ${RADAR_SIGNAL_AB} AND (${strom}::text IS NULL OR strom = ${strom})`) as any[])[0]?.n ?? 0);
   // Der Reiter „Ohne E-Mail" zählt jede Firma ohne Adresse, egal in welchem Stand sie steht.
   nachStand.ohne_mail = Number(((await sqlPool`
-    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse')`) as any[])[0]?.n ?? 0);
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen WHERE archiviert_am IS NULL AND email IS NULL AND status NOT IN ('versendet', 'brief', 'antwort', 'gesperrt', 'kein_interesse') AND (${strom}::text IS NULL OR strom = ${strom})`) as any[])[0]?.n ?? 0);
   return {
     firmen: firmen.map((r) => zeileLesen(r)), zahlen, nachStand, laeufe, heute, tagesziel: (await radarMotorEinstellung()).sucheTagesziel, stapelMax: RADAR_STAPEL_MAX,
     kostenHeute: await kostenHeute("radar").catch(() => 0), deckel: TAGESDECKEL_EUR(),

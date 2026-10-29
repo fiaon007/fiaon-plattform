@@ -24,6 +24,7 @@ import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import {
   RADAR_BEREICHE, RADAR_GRUPPEN, RADAR_STATUS, RADAR_STAPEL_MAX, RADAR_ZIELBILD, RADAR_TRICHTER, RADAR_ANTWORT_ARTEN, RADAR_KERNSATZ,
   RADAR_NACHFASS_TAGE, RADAR_HOECHSTENS_JE_TAG, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, radarBereich,
+  RADAR_PARTNER_GRUPPEN, RADAR_PARTNER_SIGNALE, radarPartnerGruppe,
   type RadarStatus, type RadarAntwortArt, type RadarBriefAnbieter,
 } from "@shared/fiaon-radar";
 import { RADAR_SZENARIEN, type RadarSzenario } from "@shared/fiaon-radar-szenarien";
@@ -39,7 +40,8 @@ type Zeile = {
   postfach: string | null; hat_scan: boolean; hat_mail: boolean; created_at: string;
   signal?: { art?: string; label?: string; beleg?: string; url?: string } | null; signal_staerke?: number | null; antwort_am?: string | null; antwort_art?: string | null;
   lead_am?: string | null; termin_am?: string | null; kauf_am?: string | null; nachfass_stufe?: number | null; nachfass_faellig?: string | null; adresse_vorschlag?: string | null;
-  entscheider?: { name: string; rolle: string | null; email: string; anrede: string | null; quelle: string; weg: string } | null; entscheider_am?: string | null;
+  entscheider?: { name: string; rolle: string | null; email: string; anrede: string | null; quelle: string; weg: string; muster?: string; beleg?: { adresse: string; name: string; url: string | null }; muster_widerlegt?: boolean } | null; entscheider_am?: string | null;
+  strom?: string | null; motor_status?: string | null; motor_grund?: string | null;
   brief_status?: string | null; brief_versendet_am?: string | null; brief_besuche?: number | null;
   archiviert_am?: string | null; archiv_grund?: string | null;
 };
@@ -87,12 +89,30 @@ type MotorStrom = {
   gruende: { grund: string; n: number }[]; stunden: { stunde: number; n: number }[];
 };
 type MotorStand = {
-  einstellung: { tage: number[]; von: string; bis: string; firmenJeStunde: number; partnerJeStunde: number; puffer: number; haltbarTage: number; link: "termin" | "keiner"; kiKlangMax: number; aehnlichMax: number; sucheTagesziel: number; sucheLaeufe: number };
+  einstellung: {
+    tage: number[]; von: string; bis: string; firmenJeStunde: number; partnerJeStunde: number; puffer: number; haltbarTage: number; link: "termin" | "keiner";
+    kiKlangMax: number; aehnlichMax: number; sucheTagesziel: number; sucheLaeufe: number; postfachJeTag: number; postfachRampe: number[];
+  };
   an: boolean; abPassung: number; imFenster: boolean; bremse: number;
   leistung: { ziel: number; moeglich: number; leistungJeStunde: number; je: { firma: number; partner: number }; tagJe: { firma: number; partner: number }; satz: string; postfaecherNoetig: number };
-  postfaecher: { adresse: string; grenze: number; heute: number; reserve?: number; bereit: boolean; pause?: boolean }[];
+  postfaecher: {
+    adresse: string; grenze: number; heute: number; reserve?: number; bereit: boolean; pause?: boolean; name: string | null; quelle: "gmail" | "karte" | null;
+    gruende: string[]; gmail: boolean | null; dns: { mx: boolean; spf: boolean; dkim: boolean; dmarc: boolean } | null; signaturHtml: string | null;
+  }[];
   stroeme: { firma: MotorStrom; partner: MotorStrom };
+  zustellung: {
+    gesamt: ZustellWerte; je: Record<string, ZustellWerte>; grenzen: { rueckMax: number; beschwerdeMax: number; basis: number };
+    bremse: { faktor: number; seit: string | null; grund: string | null } | null; pausen: Record<string, string>;
+  } | null;
+  pruefKi: {
+    geprueft: number; bestanden: number; neuGeschrieben: number; verworfen: number; gruende: string[]; kiKlangMax: number; aehnlichMax: number;
+    naechste: { name: string; strom: string; betreff: string; anrede: string; absaetze: string[]; frage: string; schluss: string | null } | null;
+  };
+  partner: { gruppen: string[]; tagesziel: number; je: Record<string, { vorrat: number; bereit: number; gesendet: number; imCrm: number }> };
+  adressen: { ableitung: boolean; anteilMax: number; rueckMax: number; gesendet7: number; abgeleitet7: number; rueckAbgeleitet7: number; oesterreichBrief: number; briefVersand: boolean | null; briefTest: boolean | null };
 };
+type ZustellWerte = { gesendet: number; rueck: number; beschwerden: number; rueckQuote: number | null; beschwerdeQuote: number | null };
+const prozent = (n: number | null | undefined) => (n == null ? "—" : `${String(n).replace(".", ",")} %`);
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 /** „Mo–Fr 07–19“ aus den Motor-Schaltern. */
 function fensterText(e: MotorStand["einstellung"] | undefined | null): string {
@@ -335,8 +355,12 @@ function MaraKopf({ trichter, uebersicht, motor, onGeaendert }: {
 
 // ── Der Trichter bis zum Kauf ────────────────────────────────────────────────
 type Zeitraum = "heute" | "7" | "30" | "gesamt";
-function TrichterTafel({ trichter }: { trichter: Trichter | null }) {
+function TrichterTafel({ trichter: alle }: { trichter: Trichter | null }) {
   const [zeitraum, setZeitraum] = useState<Zeitraum>("30");
+  // E-458: Firmen und Partner getrennt ansehen (radarTrichter mit strom-Filter).
+  const [strom, setStrom] = useState<"" | "firma" | "partner">("");
+  const getrennt = useDaten<Trichter>(strom ? `/chef/radar/trichter?tage=30&strom=${strom}` : null, [strom]);
+  const trichter = strom ? getrennt.daten : alle;
   const werte = useMemo(() => {
     if (!trichter) return null;
     const summe = (n: number) => trichter.tage.slice(0, n).reduce((a, t) => {
@@ -351,6 +375,11 @@ function TrichterTafel({ trichter }: { trichter: Trichter | null }) {
     <section className="cr-trichter" aria-label="Vom Fund bis zum Kauf">
       <div className="cr-trichter-kopf">
         <h2>Vom Fund bis zum Kauf</h2>
+        <div className="cr-segment" role="radiogroup" aria-label="Strom">
+          {([["", "Alle"], ["firma", "Firmen"], ["partner", "Partner"]] as const).map(([k, l]) => (
+            <button key={k} type="button" role="radio" aria-checked={strom === k} className={strom === k ? "an" : undefined} onClick={() => setStrom(k)}>{l}</button>
+          ))}
+        </div>
         <div className="cr-segment" role="radiogroup" aria-label="Zeitraum">
           {([["heute", "Heute"], ["7", "7 Tage"], ["30", "30 Tage"], ["gesamt", "Gesamt"]] as const).map(([k, l]) => (
             <button key={k} type="button" role="radio" aria-checked={zeitraum === k} className={zeitraum === k ? "an" : undefined} onClick={() => setZeitraum(k)}>{l}</button>
@@ -556,6 +585,11 @@ function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
       <div className="cr-kacheln">
         <MotorKachel motor={motor} onGeaendert={onGeaendert} />
+        <PostfachKachel motor={motor} onGeaendert={onGeaendert} />
+        <ZustellKachel motor={motor} onGeaendert={onGeaendert} />
+        <PruefKiKachel motor={motor} />
+        <PartnerKachel motor={motor} onGeaendert={onGeaendert} />
+        <AdressenKachel motor={motor} onGeaendert={onGeaendert} />
         <article className="cr-kachel">
           <header><b>Erste Mails</b><Kippe an={a.versand} aus={!!arbeit} onKlick={() => setzen("versand", { versand: !a.versand }, a.versand ? "Erste Mails pausiert." : "Erste Mails laufen.")} /></header>
           <p>Stärkstes Kapitalsignal zuerst, nur an Entscheider. {fensterText(motor?.einstellung)}, Tempo im Mail-Motor.</p>
@@ -589,10 +623,16 @@ function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
           <p className="cr-klein">Plus echter Anlass und eine Frage. Kein Preis, kein Betrag.</p>
         </article>
         <article className="cr-kachel breit">
-          <header><b>Signatur an jeder Mail</b></header>
+          <header><b>Unterschrift an jeder Mail</b></header>
+          <p className="cr-klein">Erste Mail und Nachfassen tragen die echte Gmail-Signatur des Postfachs (fehlt sie, unterschreibt js@ mit Justins Karte). Mara antwortet mit ihrer Karte, sichtbar als digitale Assistentin.</p>
           <div className="cr-signatur-vorschau">
+            {(motor?.postfaecher ?? []).filter((p) => p.signaturHtml).map((p) => (
+              <figure key={p.adresse} className="cr-gmail-signatur">
+                <figcaption>{p.name ?? p.adresse} · {p.quelle === "karte" ? "Karte (Rückweg)" : "Gmail"}</figcaption>
+                <iframe title={`Unterschrift ${p.adresse}`} sandbox="" srcDoc={p.signaturHtml ?? ""} />
+              </figure>
+            ))}
             <SignaturVorschau bild="/mail/signatur/mara.png" name="Mara Lindner" rolle="Digitale Assistentin von Justin Schwarzott" punkt />
-            <SignaturVorschau bild="/mail/signatur/justin.png" name="Justin Schwarzott" rolle="Gründer" />
           </div>
         </article>
       </div>
@@ -633,6 +673,11 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
         <span className="cr-chip">{!motor.an ? "aus — Schalter oben" : motor.imFenster ? "sendet gerade" : "bereitet vor"}{motor.bremse < 1 ? ` · gebremst ×${String(motor.bremse).replace(".", ",")}` : ""}</span>
       </header>
       <p className="cr-motor-satz">{l.satz}{l.moeglich < l.ziel && l.postfaecherNoetig ? `. Für ${zahl(l.ziel)} je Stunde braucht es ${zahl(l.postfaecherNoetig)} warme Postfächer.` : "."}</p>
+      <dl className="cr-mara-werte">
+        <div><dt>Ziel je Stunde</dt><dd>{zahl(l.ziel)}</dd></div>
+        <div><dt>Heute möglich</dt><dd>{zahl(Math.min(l.ziel, l.moeglich))} je Stunde</dd></div>
+        <div className="breit"><dt>Fenster</dt><dd>{fensterText(e)}{motor.imFenster ? " · gerade offen" : ""}</dd></div>
+      </dl>
       <div className="cr-motor-stroeme">
         {(["firma", "partner"] as const).map((s) => {
           const x = motor.stroeme[s];
@@ -690,6 +735,163 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
           </div>
         </div>
       )}
+    </article>
+  );
+}
+
+/** Ein kleiner Helfer für die Motor-Kacheln: Knopf drücken, Meldung zeigen, neu laden. */
+function useTun(onGeaendert: () => void) {
+  const [arbeit, setArbeit] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const tun = async (name: string, fn: () => Promise<any>, gut: string) => {
+    setArbeit(name); setMeldung(null);
+    try { await fn(); onGeaendert(); setMeldung({ art: "gut", text: gut }); }
+    catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
+    finally { setArbeit(null); }
+  };
+  return { arbeit, meldung, tun };
+}
+
+// ── E-458 Punkt 6: Postfächer — Person mit echter Signatur, Ampel, Hochfahren, heute/Grenze, Pause ──────────────
+function PostfachKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
+  const { arbeit, meldung, tun } = useTun(onGeaendert);
+  if (!motor) return <article className="cr-kachel breit cr-postfaecher"><Geruest zeilen={3} /></article>;
+  const ampel = (wert: boolean | null | undefined, label: string) => <span className={`cr-ampel ${wert == null ? "leise" : wert ? "gut" : "rot"}`}>{label}</span>;
+  return (
+    <article className="cr-kachel breit cr-postfaecher">
+      <header><b>Postfächer</b><span className="cr-chip">{motor.postfaecher.filter((p) => p.bereit && !p.pause).length} von {motor.postfaecher.length} bereit</span></header>
+      <p className="cr-klein">Jedes Postfach unterschreibt mit seiner echten Gmail-Signatur. Neue Postfächer fahren hoch ({motor.einstellung.postfachRampe.map((n, i) => `Woche ${i + 1} → ${n}`).join(", ")}, danach {motor.einstellung.postfachJeTag} am Tag); gezählt wird alles, was der Radar daraus sendet.</p>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <ul className="cr-postfach-liste">
+        {motor.postfaecher.map((p) => (
+          <li key={p.adresse} className={p.bereit && !p.pause ? "bereit" : "nicht"}>
+            <div className="cr-postfach-kopf">
+              <b>{p.name ?? "—"}</b><span>{p.adresse}</span>
+              <Kippe an={!p.pause} aus={!!arbeit} onKlick={() => void tun(`pause-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pause`, "POST", { pause: !p.pause }), p.pause ? "Postfach sendet wieder." : "Postfach pausiert.")} />
+            </div>
+            <div className="cr-postfach-ampel">
+              {ampel(p.gmail, "Gmail")}{ampel(p.quelle ? !p.gruende.some((g) => /Signatur|Unterschrift|Absendername/.test(g)) : false, p.quelle === "karte" ? "Karte" : "Signatur")}
+              {p.dns ? <>{ampel(p.dns.mx, "MX")}{ampel(p.dns.spf, "SPF")}{ampel(p.dns.dkim, "DKIM")}{ampel(p.dns.dmarc, "DMARC")}</> : <span className="cr-ampel leise">Hausdomäne</span>}
+            </div>
+            <div className="cr-postfach-zahl"><Balken wert={p.heute} ziel={p.grenze} /><span>heute {zahl(p.heute)} von {zahl(p.grenze)}{p.reserve ? ` · ${zahl(p.reserve)} Nachfass reserviert` : ""}</span></div>
+            {!!p.gruende.length && <span className="cr-klein">{p.gruende.join(" · ")}</span>}
+            <button type="button" className="cr-textknopf" disabled={!!arbeit} onClick={() => void tun(`pruefen-${p.adresse}`, () => rufen(`/chef/radar/postfach/${encodeURIComponent(p.adresse)}/pruefen`, "POST", {}), "Neu geprüft.")}>Jetzt prüfen</button>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+// ── E-458 Punkt 7: Zustellung — Rückläufer und Beschwerden (7 Tage), Bremse ──────────────────────────────────────
+function ZustellKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
+  const { arbeit, meldung, tun } = useTun(onGeaendert);
+  const [frage, setFrage] = useState(false);
+  const z = motor?.zustellung;
+  if (!motor || !z) return <article className="cr-kachel cr-zustellung"><Geruest zeilen={3} /></article>;
+  const b = z.bremse && z.bremse.faktor < 1 ? z.bremse : null;
+  return (
+    <article className="cr-kachel cr-zustellung">
+      <header><b>Zustellung</b><span className={`cr-chip${b ? " warm" : ""}`}>{b ? `gebremst ×${String(b.faktor).replace(".", ",")}` : "volle Fahrt"}</span></header>
+      <dl className="cr-mara-werte">
+        <div><dt>Rückläufer (7 Tage)</dt><dd>{prozent(z.gesamt.rueckQuote)} <small>Grenze {prozent(z.grenzen.rueckMax)}</small></dd></div>
+        <div><dt>Beschwerden (7 Tage)</dt><dd>{prozent(z.gesamt.beschwerdeQuote)} <small>Grenze {prozent(z.grenzen.beschwerdeMax)}</small></dd></div>
+        <div className="breit"><dt>Sendungen</dt><dd>{zahl(z.gesamt.gesendet)}{z.gesamt.gesendet < z.grenzen.basis ? ` — Quote ab ${z.grenzen.basis}` : ""}</dd></div>
+      </dl>
+      {Object.entries(z.je).length > 1 && (
+        <ul className="cr-klein cr-zustell-je">
+          {Object.entries(z.je).map(([a, w]) => <li key={a}>{a}: {prozent(w.rueckQuote)} Rückläufer · {prozent(w.beschwerdeQuote)} Beschwerden{z.pausen[a] && new Date(z.pausen[a]).getTime() > Date.now() ? ` · pausiert bis ${datum(z.pausen[a])}` : ""}</li>)}
+        </ul>
+      )}
+      {b && <p className="cr-hinweis warn">{b.grund}{b.seit ? ` · seit ${datum(b.seit)}` : ""}</p>}
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      {b && !frage && <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => setFrage(true)}>Bremse lösen …</button>}
+      {b && frage && (
+        <div className="cr-fenster-zeile">
+          <button type="button" className="cr-knopf warm" disabled={!!arbeit} onClick={() => void tun("loesen", () => rufen("/chef/radar/bremse/loesen", "POST", { bestaetigt: true }), "Volle Fahrt.").then(() => setFrage(false))}>Ja, Bremse lösen</button>
+          <button type="button" className="cr-knopf hell" onClick={() => setFrage(false)}>Abbrechen</button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+// ── E-458 Punkt 4: die Prüf-KI — heute gelesen, freigegeben, neu geschrieben, verworfen; die nächste Mail ───────────
+function PruefKiKachel({ motor }: { motor: MotorStand | null }) {
+  const p = motor?.pruefKi;
+  if (!p) return <article className="cr-kachel breit cr-pruefki-kachel"><Geruest zeilen={3} /></article>;
+  const n = p.naechste;
+  return (
+    <article className="cr-kachel breit cr-pruefki-kachel">
+      <header><b>Prüf-KI vor jeder Mail</b><span className="cr-chip">KI-Klang höchstens {p.kiKlangMax} von 10</span></header>
+      <dl className="cr-mara-werte">
+        <div><dt>Heute gelesen</dt><dd>{zahl(p.geprueft)}</dd></div>
+        <div><dt>Freigegeben</dt><dd>{zahl(p.bestanden)}</dd></div>
+        <div><dt>Neu geschrieben</dt><dd>{zahl(p.neuGeschrieben)}</dd></div>
+        <div><dt>Verworfen</dt><dd>{zahl(p.verworfen)}</dd></div>
+      </dl>
+      {!!p.gruende.length && <p className="cr-klein">Zuletzt verworfen: {p.gruende.slice(0, 3).map((g) => g.replace(/^Mail:\s*/, "")).join(" · ")}</p>}
+      {n ? (
+        <div className="cr-naechste-mail">
+          <span className="cr-auge">So sieht die nächste Mail aus · {n.strom === "partner" ? "Partner" : "Firma"} · {n.name}</span>
+          <b>{n.betreff}</b>
+          <p>{n.anrede}</p>
+          {n.absaetze.map((a, i) => <p key={i}>{a}</p>)}
+          <p>{n.frage}</p>
+          {n.schluss && <p className="cr-klein">{n.schluss}</p>}
+        </div>
+      ) : <p className="cr-klein">Noch keine Mail in der Warteschlange.</p>}
+    </article>
+  );
+}
+
+// ── E-458 Punkt 2: Partner — Gruppen an/aus, Vorrat je Gruppe, Angebot je Gruppe ───────────────────────────────────
+function PartnerKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
+  const { arbeit, meldung, tun } = useTun(onGeaendert);
+  if (!motor) return <article className="cr-kachel breit cr-partner"><Geruest zeilen={3} /></article>;
+  const an = new Set(motor.partner.gruppen);
+  const schalten = (key: string) => {
+    const neu = an.has(key) ? motor.partner.gruppen.filter((g) => g !== key) : [...motor.partner.gruppen, key];
+    void tun(`gruppe-${key}`, () => rufen("/chef/radar/motor", "POST", { partnerGruppen: neu }), "Gespeichert.");
+  };
+  return (
+    <article className="cr-kachel breit cr-partner">
+      <header><b>Kooperationspartner</b><span className="cr-chip">{an.size} von {RADAR_PARTNER_GRUPPEN.length} Gruppen · bis {motor.partner.tagesziel} Funde am Tag</span></header>
+      <p className="cr-klein">Steuerberater und Anwälte ohne Provision (ihre Mandanten bekommen bei uns US-Gesellschaft, Konto, Karten), alle anderen als Tippgeber mit 30 % Provision. Kein Termin — Konditionen gehen schriftlich. Wer Interesse zeigt, landet unter Chefbüro › Geschäftspartner mit einer Aufgabe.</p>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <ul className="cr-partner-liste">
+        {RADAR_PARTNER_GRUPPEN.map((g) => {
+          const x = motor.partner.je[g.key] ?? { vorrat: 0, bereit: 0, gesendet: 0, imCrm: 0 };
+          return (
+            <li key={g.key} className={an.has(g.key) ? "an" : "aus"}>
+              <Kippe an={an.has(g.key)} aus={!!arbeit} onKlick={() => schalten(g.key)} />
+              <div><b>{g.label}</b><span className="cr-klein">{g.provision ? "30 % Provision" : "ohne Provision"} · Vorrat {zahl(x.vorrat)} · bereit {zahl(x.bereit)} · gesendet {zahl(x.gesendet)} · im CRM {zahl(x.imCrm)}</span></div>
+            </li>
+          );
+        })}
+      </ul>
+      <span className="cr-klein" title={RADAR_PARTNER_SIGNALE.map((x) => `${x.label} (${x.staerke})`).join(" · ")}>Angeschrieben wird ab Partnersignal {RADAR_SIGNAL_AB} (Mandantenbezug mit wörtlichem Beleg).</span>
+    </article>
+  );
+}
+
+// ── E-458 Punkt 5 und 8: Adressen — Anteil abgeleitet, Schalter, Rückläufer; Österreich im Brief-Vorrat ─────────────
+function AdressenKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
+  const { arbeit, meldung, tun } = useTun(onGeaendert);
+  const a = motor?.adressen;
+  if (!a) return <article className="cr-kachel cr-adressen"><Geruest zeilen={3} /></article>;
+  const anteil = a.gesendet7 ? Math.round((a.abgeleitet7 / a.gesendet7) * 100) : 0;
+  const rueck = a.abgeleitet7 >= 30 ? Math.round((a.rueckAbgeleitet7 / a.abgeleitet7) * 1000) / 10 : null;
+  return (
+    <article className="cr-kachel cr-adressen">
+      <header><b>Adressen</b><Kippe an={a.ableitung} aus={!!arbeit} onKlick={() => void tun("ableitung", () => rufen("/chef/radar/motor", "POST", { ableitung: !a.ableitung }), a.ableitung ? "Ableitung aus." : "Ableitung an.")} /></header>
+      <p className="cr-klein">Chef-Adressen werden nur aus einem belegten Muster der eigenen Domäne abgeleitet (z. B. a.schmidt@ auf der Team-Seite) und nur mit MX — nie geraten. Höchstens {a.anteilMax} % der Mails je Stunde.</p>
+      <dl className="cr-mara-werte">
+        <div><dt>Abgeleitet (7 Tage)</dt><dd>{anteil} % <small>{zahl(a.abgeleitet7)} von {zahl(a.gesendet7)}</small></dd></div>
+        <div><dt>Deren Rückläufer</dt><dd>{rueck == null ? "—" : prozent(rueck)} <small>Grenze {prozent(a.rueckMax)}</small></dd></div>
+        <div className="breit"><dt>Österreich</dt><dd>{zahl(a.oesterreichBrief)} im Brief-Vorrat <small>{a.briefVersand ? (a.briefTest ? "Briefversand im Testmodus" : "Briefversand an") : "Briefversand aus"}</small></dd></div>
+      </dl>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
     </article>
   );
 }
@@ -876,6 +1078,8 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
 }) {
   // E-337: Startansicht = „Qualifiziert“ (Justin: „ab jetzt nur noch qualifizierte Unternehmen“).
   const [gruppe, setGruppe] = useState("qualifiziert");
+  // E-458: Umschalter Firmen | Partner — dieselbe Liste, je Strom.
+  const [strom, setStrom] = useState<"firma" | "partner">("firma");
   const [bereichFilter, setBereichFilter] = useState("");
   const [nurHeute, setNurHeute] = useState(false);
   const [suche, setSuche] = useState("");
@@ -887,11 +1091,12 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
   const qs = useMemo(() => {
     const p = new URLSearchParams();
     if (nurHeute) p.set("tag", heute);
+    p.set("strom", strom);
     if (gruppe) p.set("gruppe", gruppe);
     if (bereichFilter) p.set("bereich", bereichFilter);
     if (suche.trim().length >= 2) p.set("suche", suche.trim());
     return p.toString();
-  }, [gruppe, bereichFilter, nurHeute, suche, heute]);
+  }, [gruppe, bereichFilter, nurHeute, suche, heute, strom]);
   const { daten, laedt, fehler, neu } = useDaten<Uebersicht>(`/chef/radar?${qs}`, [qs, runde]);
   const laeuft = lauf?.status === "laeuft";
   const firmen = daten?.firmen ?? [];
@@ -914,7 +1119,12 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
   return (
     <section className="cr-firmen">
       <div className="cr-zeile-kopf cr-firmen-tun">
-        <button type="button" className="cr-glasknopf" onClick={onSuchen}>Firmen suchen</button>
+        <div className="cr-segment cr-strom-wahl" role="radiogroup" aria-label="Strom">
+          {(["firma", "partner"] as const).map((x) => (
+            <button key={x} type="button" role="radio" aria-checked={strom === x} className={strom === x ? "an" : undefined} onClick={() => { setStrom(x); setBereichFilter(""); setAuswahl([]); }}>{x === "firma" ? "Firmen" : "Partner"}</button>
+          ))}
+        </div>
+        <button type="button" className="cr-glasknopf" onClick={onSuchen}>{strom === "partner" ? "Partner suchen" : "Firmen suchen"}</button>
         <button type="button" className="cr-glasknopf leise" onClick={onWebsite}>Website aufnehmen</button>
       </div>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
@@ -930,8 +1140,8 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
         <div className="cr-reiter-filter">
           <label className="cr-schalter"><input type="checkbox" checked={nurHeute} onChange={(e) => setNurHeute(e.target.checked)} /> nur heute</label>
           <select className="cr-feld" value={bereichFilter} onChange={(e) => setBereichFilter(e.target.value)} aria-label="Bereich">
-            <option value="">Alle Bereiche</option>
-            {RADAR_BEREICHE.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
+            <option value="">{strom === "partner" ? "Alle Gruppen" : "Alle Bereiche"}</option>
+            {(strom === "partner" ? RADAR_PARTNER_GRUPPEN : RADAR_BEREICHE).map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
           </select>
           <input className="cr-feld" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Name, Domäne, Ort" aria-label="Suchen" />
         </div>
@@ -1073,6 +1283,9 @@ function Fenster({ titel, onZu, children }: { titel: string; onZu: () => void; c
 }
 
 function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => void }) {
+  // E-458: dieselbe Suche für Kooperationspartner (Gruppe statt Branche, ohne Kapitalsignal).
+  const [art, setArt] = useState<"firma" | "partner">("firma");
+  const [gruppe, setGruppe] = useState(RADAR_PARTNER_GRUPPEN[0].key);
   const [bereich, setBereich] = useState(RADAR_BEREICHE[0].key);
   const [signal, setSignal] = useState(RADAR_SIGNALE[0].key);
   const [land, setLand] = useState("");
@@ -1082,28 +1295,45 @@ function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => 
   const starten = async () => {
     setLaeuft(true); setFehler(null);
     try {
-      const j = await rufen<{ laufId: number }>("/chef/radar/suchen", "POST", { bereich, signal, land: land || null, stichwort: stichwort.trim() || null, anzahl: 10 });
-      onLauf({ id: j.laufId, art: "suche", bereich, land: land || null, status: "laeuft", vorgeschlagen: 0, neu: 0, gesamt: 0, fertig: 0, aktuell: null, ergebnisse: [], verworfen: [], fehler: null, created_at: new Date().toISOString(), fertig_am: null });
+      const j = art === "partner"
+        ? await rufen<{ laufId: number }>("/chef/radar/partner/suchen", "POST", { gruppe, land: land || null, anzahl: 10 })
+        : await rufen<{ laufId: number }>("/chef/radar/suchen", "POST", { bereich, signal, land: land || null, stichwort: stichwort.trim() || null, anzahl: 10 });
+      onLauf({ id: j.laufId, art: "suche", bereich: art === "partner" ? gruppe : bereich, land: land || null, status: "laeuft", vorgeschlagen: 0, neu: 0, gesamt: 0, fertig: 0, aktuell: null, ergebnisse: [], verworfen: [], fehler: null, created_at: new Date().toISOString(), fertig_am: null });
     } catch (e: any) { setFehler(e.message); setLaeuft(false); }
   };
   const gewaehlt = RADAR_SIGNALE.find((x) => x.key === signal);
   return (
-    <Fenster titel="Firmen suchen" onZu={onZu}>
-      <p className="cr-fenster-satz">Mara sucht zehn Firmen mit diesem Kapitalsignal und prüft jede.</p>
-      <div className="cr-chips" role="radiogroup" aria-label="Kapitalsignal">
+    <Fenster titel={art === "partner" ? "Partner suchen" : "Firmen suchen"} onZu={onZu}>
+      <div className="cr-segment" role="radiogroup" aria-label="Was suchen">
+        {(["firma", "partner"] as const).map((x) => (
+          <button key={x} type="button" role="radio" aria-checked={art === x} className={art === x ? "an" : undefined} onClick={() => setArt(x)}>{x === "firma" ? "Firmen mit Kapitalbedarf" : "Kooperationspartner"}</button>
+        ))}
+      </div>
+      {art === "partner" ? (
+        <>
+          <p className="cr-fenster-satz">Mara sucht zehn Partner dieser Gruppe, deren Mandanten oder Kunden zu uns passen, und prüft jeden.</p>
+          <label><span>Gruppe</span>
+            <select className="cr-feld" value={gruppe} onChange={(e) => setGruppe(e.target.value)}>
+              {RADAR_PARTNER_GRUPPEN.map((g) => <option key={g.key} value={g.key}>{g.label}{g.provision ? "" : " (ohne Provision)"}</option>)}
+            </select>
+          </label>
+          <p className="cr-klein cr-fenster-erklaerung">{radarPartnerGruppe(gruppe)?.suche}.</p>
+        </>
+      ) : <p className="cr-fenster-satz">Mara sucht zehn Firmen mit diesem Kapitalsignal und prüft jede.</p>}
+      {art === "firma" && <div className="cr-chips" role="radiogroup" aria-label="Kapitalsignal">
         {RADAR_SIGNALE.map((x) => (
           <button key={x.key} type="button" role="radio" aria-checked={signal === x.key} className={signal === x.key ? "an" : undefined} title={x.suche} onClick={() => setSignal(x.key)}>
             {x.label}<SignalPunkte staerke={x.staerke} titel="" />
           </button>
         ))}
-      </div>
-      {gewaehlt && <p className="cr-klein cr-fenster-erklaerung">{gewaehlt.suche.split(" — ")[0]}.</p>}
+      </div>}
+      {art === "firma" && gewaehlt && <p className="cr-klein cr-fenster-erklaerung">{gewaehlt.suche.split(" — ")[0]}.</p>}
       <div className="cr-fenster-raster">
-        <label><span>Branche</span>
+        {art === "firma" && <label><span>Branche</span>
           <select className="cr-feld" value={bereich} onChange={(e) => setBereich(e.target.value)}>
             {RADAR_BEREICHE.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
           </select>
-        </label>
+        </label>}
         <label><span>Land</span>
           <div className="cr-segment" role="radiogroup" aria-label="Land">
             {[["", "Alle"], ["DE", "DE"], ["AT", "AT"], ["CH", "CH"]].map(([k, l]) => (
@@ -1111,13 +1341,13 @@ function SuchFenster({ onZu, onLauf }: { onZu: () => void; onLauf: (l: Lauf) => 
             ))}
           </div>
         </label>
-        <label className="breit"><span>Stichwort (optional)</span>
+        {art === "firma" && <label className="breit"><span>Stichwort (optional)</span>
           <input className="cr-feld" value={stichwort} onChange={(e) => setStichwort(e.target.value)} placeholder="z. B. München, Kosmetik, Messe in Las Vegas" maxLength={120} />
-        </label>
+        </label>}
       </div>
       {fehler && <p className="cr-hinweis fehler">{fehler}</p>}
       <div className="cr-fenster-tun">
-        <button type="button" className="cr-knopf" onClick={starten} disabled={laeuft}>{laeuft ? "Startet …" : "10 Firmen suchen"}</button>
+        <button type="button" className="cr-knopf" onClick={starten} disabled={laeuft}>{laeuft ? "Startet …" : art === "partner" ? "10 Partner suchen" : "10 Firmen suchen"}</button>
         <button type="button" className="cr-knopf hell" onClick={onZu}>Abbrechen</button>
       </div>
     </Fenster>
@@ -1269,12 +1499,22 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                       </div>
                     </div>
                   )}
+                  {f.strom === "partner" && (
+                    <p className="cr-hinweis">Kooperationspartner · {radarPartnerGruppe(f.bereich)?.label ?? f.bereich} · {radarPartnerGruppe(f.bereich)?.provision === false ? "ohne Provision (Berufsrecht), gegenseitige Vorstellung" : "Tippgeber mit 30 % Provision"} · Konditionen schriftlich, kein Termin.</p>
+                  )}
+                  {f.motor_status && <p className="cr-klein">Mail-Motor: {f.motor_status}{f.motor_grund ? ` — ${f.motor_grund}` : ""}</p>}
                   <div className={`cr-entscheider${f.entscheider ? " da" : ""}`}>
                     <div>
                       <span className="cr-auge">Entscheider</span>
                       {f.entscheider
                         ? <><b>{f.entscheider.anrede ? `${f.entscheider.anrede} ` : ""}{f.entscheider.name}{f.entscheider.rolle ? ` · ${f.entscheider.rolle}` : ""}</b>
-                            <span>{f.entscheider.email} · <a href={f.entscheider.quelle} target="_blank" rel="noopener noreferrer" className="cr-link">Quelle ↗</a></span></>
+                            <span>{f.entscheider.email} · <a href={f.entscheider.quelle} target="_blank" rel="noopener noreferrer" className="cr-link">Quelle ↗</a></span>
+                            {/* E-458: woher die Adresse kommt — Website, Websuche oder abgeleitet aus einem belegten Muster. */}
+                            <span className="cr-herkunft">
+                              {f.entscheider.weg === "abgeleitet"
+                                ? `Abgeleitet aus ${f.entscheider.beleg?.adresse ?? "einem Beispiel"}${f.entscheider.beleg?.name ? ` (${f.entscheider.beleg.name})` : ""} · Muster ${f.entscheider.muster ?? "—"} · MX geprüft${f.entscheider.muster_widerlegt ? " · WIDERLEGT (Rückläufer) — Brief statt Mail" : ""}`
+                                : f.entscheider.weg === "web" ? "Aus der Websuche, wörtlich belegt" : "Von der Website, wörtlich belegt"}
+                            </span></>
                         : <b>{f.entscheider_am ? "Keine persönliche Adresse gefunden" : "Noch nicht gesucht"}</b>}
                     </div>
                     <button type="button" className="cr-knopf hell" disabled={!!arbeit || zu} onClick={() => tun("entscheider", () => rufen(`/chef/radar/firma/${id}/entscheider`), "Entscheider-Suche fertig.")}>

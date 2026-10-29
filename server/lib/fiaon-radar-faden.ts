@@ -1256,13 +1256,13 @@ export interface TrichterTag {
   briefe: number; besuche: number; briefKostenCents: number;
 }
 
-export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; summe: TrichterTag & { zugestellt: number }; gesamt: TrichterTag & { zugestellt: number }; heute: TrichterTag; ziel: typeof RADAR_ZIEL; vorrat: number }> {
+export async function radarTrichter(tage = 14, strom: string | null = null): Promise<{ tage: TrichterTag[]; summe: TrichterTag & { zugestellt: number }; gesamt: TrichterTag & { zugestellt: number }; heute: TrichterTag; ziel: typeof RADAR_ZIEL; vorrat: number }> {
   await ensureRadarTabellen();
   const n = Math.max(1, Math.min(90, Math.round(tage)));
   const zeilen = (await sqlPool`
     WITH t AS (SELECT generate_series((NOW() AT TIME ZONE 'Europe/Berlin')::date - (${n} - 1), (NOW() AT TIME ZONE 'Europe/Berlin')::date, INTERVAL '1 day')::date AS tag),
-    f AS (SELECT * FROM fiaon_radar_firmen),
-    p AS (SELECT * FROM fiaon_radar_post)
+    f AS (SELECT * FROM fiaon_radar_firmen WHERE ${strom}::text IS NULL OR strom = ${strom}),
+    p AS (SELECT x.* FROM fiaon_radar_post x JOIN fiaon_radar_firmen y ON y.id = x.firma_id WHERE ${strom}::text IS NULL OR y.strom = ${strom})
     SELECT to_char(t.tag, 'YYYY-MM-DD') AS tag,
       (SELECT COUNT(*) FROM f WHERE (f.created_at AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS gefunden,
       (SELECT COUNT(*) FROM f WHERE (f.versendet_am AT TIME ZONE 'Europe/Berlin')::date = t.tag)::int AS angeschrieben,
@@ -1282,7 +1282,7 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
   const [g] = (await sqlPool`
     SELECT COUNT(*)::int AS gefunden,
            COUNT(*) FILTER (WHERE versendet_am IS NOT NULL)::int AS angeschrieben,
-           (SELECT COUNT(*) FROM fiaon_radar_post WHERE richtung = 'aus' AND art LIKE 'nachfass%')::int AS nachfass,
+           (SELECT COUNT(*) FROM fiaon_radar_post x JOIN fiaon_radar_firmen y ON y.id = x.firma_id WHERE x.richtung = 'aus' AND x.art LIKE 'nachfass%' AND (${strom}::text IS NULL OR y.strom = ${strom}))::int AS nachfass,
            COUNT(*) FILTER (WHERE versendet_am IS NOT NULL AND (status = 'unzustellbar' OR email_ungueltig IS NOT NULL))::int AS unzustellbar,
            COUNT(*) FILTER (WHERE antwort_am IS NOT NULL)::int AS antworten,
            COUNT(*) FILTER (WHERE lead_am IS NOT NULL)::int AS leads,
@@ -1295,7 +1295,7 @@ export async function radarTrichter(tage = 14): Promise<{ tage: TrichterTag[]; s
            COUNT(*) FILTER (WHERE brief_besuch_am IS NOT NULL)::int AS besuche,
            COALESCE(SUM(brief_kosten_cents), 0)::int AS "briefKostenCents",
            COUNT(*) FILTER (WHERE status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND archiviert_am IS NULL AND versendet_am IS NULL AND brief_versendet_am IS NULL AND COALESCE(signal_staerke, ${RADAR_SIGNAL_AB}) >= ${RADAR_SIGNAL_AB})::int AS vorrat
-      FROM fiaon_radar_firmen`) as any[];
+      FROM fiaon_radar_firmen WHERE ${strom}::text IS NULL OR strom = ${strom}`) as any[];
   const tageListe: TrichterTag[] = zeilen.map((r) => ({ ...r }));
   const plus = (a: TrichterTag, b: TrichterTag): TrichterTag => ({
     tag: a.tag, gefunden: a.gefunden + b.gefunden, angeschrieben: a.angeschrieben + b.angeschrieben, nachfass: a.nachfass + b.nachfass,

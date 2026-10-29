@@ -600,7 +600,47 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
        AND (signal_staerke IS NULL OR signal_staerke >= ${RADAR_SIGNAL_AB}) GROUP BY strom`) as any[];
   const { minute } = radarBerlinTagMinute(jetzt);
   const zustellung = await zustellWerte(m).catch(() => null);
+  // Prüf-KI heute (Punkt 4): gelesen, freigegeben, neu geschrieben, verworfen — und die nächste Mail als Vorschau.
+  const [pk] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE (pruef_ki_am AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date)::int AS geprueft,
+           COUNT(*) FILTER (WHERE (pruef_ki_am AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date AND pruef_ki->>'ok' = 'true')::int AS bestanden,
+           COUNT(*) FILTER (WHERE (pruef_ki_am AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date AND COALESCE((pruef_ki->>'versuch')::int, 1) >= 2)::int AS neu,
+           COUNT(*) FILTER (WHERE motor_status = 'verworfen' AND motor_grund LIKE 'Mail:%' AND (motor_am AT TIME ZONE 'Europe/Berlin')::date = ${tag}::date)::int AS verworfen
+      FROM fiaon_radar_firmen`.catch(() => [{}])) as any[];
+  const pkGruende = ((await sqlPool`
+    SELECT motor_grund FROM fiaon_radar_firmen WHERE motor_status = 'verworfen' AND motor_grund LIKE 'Mail:%' ORDER BY motor_am DESC LIMIT 5`.catch(() => [])) as any[]).map((z) => String(z.motor_grund));
+  const [naechste] = ((await sqlPool`
+    SELECT id, name, strom, mail FROM fiaon_radar_firmen WHERE motor_status = 'bereit'
+     ORDER BY COALESCE(signal_staerke, 0) DESC, passung DESC NULLS LAST, motor_am ASC LIMIT 1`.catch(() => [])) as any[]).map((z) => zeileLesen(z));
+  // Partner je Gruppe (Punkt 2): Vorrat, Warteschlange, gesendet.
+  const partnerJe = (await sqlPool`
+    SELECT bereich,
+           COUNT(*) FILTER (WHERE motor_status IS NULL AND archiviert_am IS NULL AND versendet_am IS NULL AND status IN ('neu', 'gescannt', 'mail'))::int AS vorrat,
+           COUNT(*) FILTER (WHERE motor_status = 'bereit')::int AS bereit,
+           COUNT(*) FILTER (WHERE versendet_am IS NOT NULL)::int AS gesendet,
+           COUNT(*) FILTER (WHERE partner_firma_id IS NOT NULL)::int AS im_crm
+      FROM fiaon_radar_firmen WHERE strom = 'partner' GROUP BY bereich`.catch(() => [])) as any[];
+  // Adressen (Punkt 5): Anteil abgeleiteter Adressen, ihre Rückläufer; Österreich im Brief-Vorrat (Punkt 8).
+  const [adr] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE p.richtung = 'aus' AND p.art = 'erstmail')::int AS gesendet,
+           COUNT(*) FILTER (WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND f.entscheider->>'weg' = 'abgeleitet')::int AS abgeleitet,
+           COUNT(*) FILTER (WHERE p.richtung = 'ein' AND p.art = 'unzustellbar' AND f.entscheider->>'weg' = 'abgeleitet')::int AS rueck_abgeleitet
+      FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id WHERE p.datum > NOW() - INTERVAL '7 days'`.catch(() => [{}])) as any[];
+  const [oesterreich] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_radar_firmen r
+     WHERE r.archiviert_am IS NULL AND r.versendet_am IS NULL AND r.brief_versendet_am IS NULL AND COALESCE(r.signal_staerke, 0) >= ${RADAR_SIGNAL_AB}
+       AND r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt')
+       AND (CASE WHEN upper(COALESCE(r.land, '')) IN ('DE', 'AT', 'CH') THEN upper(r.land)
+                 WHEN upper(COALESCE(r.impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(r.impressum->>'land')
+                 WHEN r.domain LIKE '%.at' THEN 'AT' WHEN r.domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[])`.catch(() => [{ n: 0 }])) as any[];
+  const brief = await (async () => { try { const { radarBriefEinstellung } = await import("./fiaon-radar-brief"); return await radarBriefEinstellung(); } catch { return null; } })();
   return {
+    pruefKi: { geprueft: Number(pk?.geprueft ?? 0), bestanden: Number(pk?.bestanden ?? 0), neuGeschrieben: Number(pk?.neu ?? 0), verworfen: Number(pk?.verworfen ?? 0), gruende: pkGruende,
+      naechste: naechste?.mail ? { name: naechste.name, strom: naechste.strom, betreff: naechste.mail.betreff, anrede: naechste.mail.anrede, absaetze: naechste.mail.absaetze, frage: naechste.mail.frage, schluss: naechste.mail.schluss ?? null } : null,
+      kiKlangMax: m.kiKlangMax, aehnlichMax: m.aehnlichMax },
+    partner: { gruppen: m.partnerGruppen, tagesziel: m.partnerTagesziel, je: Object.fromEntries(partnerJe.map((z) => [String(z.bereich), { vorrat: Number(z.vorrat), bereit: Number(z.bereit), gesendet: Number(z.gesendet), imCrm: Number(z.im_crm) }])) },
+    adressen: { ableitung: m.ableitung, anteilMax: m.ableitungAnteil, rueckMax: m.ableitungRueckMax, gesendet7: Number(adr?.gesendet ?? 0), abgeleitet7: Number(adr?.abgeleitet ?? 0), rueckAbgeleitet7: Number(adr?.rueck_abgeleitet ?? 0),
+      oesterreichBrief: Number(oesterreich?.n ?? 0), briefVersand: brief ? brief.versand : null, briefTest: brief ? brief.testmodus : null },
     zustellung: zustellung ? { ...zustellung, grenzen: { rueckMax: m.zustellRueckMax, beschwerdeMax: m.zustellBeschwerdeMax, basis: m.zustellBasis }, bremse: await bremseLesen(), pausen: await postfachPausen() } : null,
     einstellung: m, an: a.versand, abPassung: a.abPassung, imFenster: radarMotorImFenster(jetzt, m), jetztMinute: minute, bremse,
     leistung: { ziel: leistung.ziel, moeglich: leistung.moeglich, leistungJeStunde: leistung.leistung, je: leistung.je, tagJe: leistung.tagJe, satz: leistung.satz, postfaecherNoetig: leistung.postfaecherNoetig },

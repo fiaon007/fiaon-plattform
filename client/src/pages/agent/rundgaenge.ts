@@ -1882,6 +1882,29 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
       + "„Jetzt eine senden …“ schickt die nächste geprüfte Mail (nur im Fenster, mit allen Wänden).",
   },
   {
+    ziel: ".cr-postfaecher",
+    titel: "Postfächer: Tempo kommt aus warmen Postfächern.",
+    text: "Jedes Postfach sendet mit seiner echten Gmail-Signatur und hat eine Tagesgrenze. Neue Postfächer fahren langsam hoch "
+      + "(Woche 1 → 20, Woche 2 → 40, danach 60 am Tag). Die Ampel zeigt Gmail, Signatur und bei eigenen Versand-Domänen MX, SPF, DKIM und DMARC — "
+      + "nur ein grünes Postfach sendet.",
+    tipp: "Mit dem Schalter pausierst du ein Postfach; „Jetzt prüfen“ liest Gmail und DNS sofort neu.",
+  },
+  {
+    ziel: ".cr-zustellung",
+    titel: "Zustellung: der Motor bremst sich selbst.",
+    text: "Kommen in 7 Tagen mehr als 3 % der Mails zurück oder beschweren sich mehr als 0,3 %, halbiert der Motor sein Tempo und du "
+      + "bekommst eine Aufgabe. Ein einzelnes Postfach über der Grenze pausiert 48 Stunden. Drei Tage unter beiden Grenzen: volle Fahrt.",
+    tipp: "„Bremse lösen …“ gibt sofort wieder volle Fahrt — nur, wenn die Ursache klar ist.",
+  },
+  {
+    ziel: ".cr-partner",
+    titel: "Kooperationspartner: Menschen, die uns Kunden bringen.",
+    text: "Mara sucht und schreibt Steuerberater, Anwälte, Finanzierer, Kreditvermittler, Berater und Agenturen an. Steuerberater und Anwälte "
+      + "bekommen keine Provision (Berufsrecht) — ihre Mandanten bekommen bei uns US-Gesellschaft, Konto und Karten. Alle anderen sind Tippgeber "
+      + "mit 30 % Provision. Kein Termin: Konditionen gehen schriftlich. Wer Interesse zeigt, steht danach unter Geschäftspartner.",
+    tipp: "Jede Gruppe lässt sich einzeln an- und ausschalten. Im Reiter „Firmen“ schaltest du oben zwischen Firmen und Partnern um.",
+  },
+  {
     // E-339 (12.10.2026): Brief statt Mail.
     ziel: ".cr-trichter-brief",
     titel: "Keine persönliche Adresse? Dann ein Brief.",

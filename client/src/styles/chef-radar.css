@@ -559,3 +559,31 @@ select.cr-feld { cursor: pointer; }
 .cr-motor-tage { display: flex; flex-wrap: wrap; gap: 6px; }
 .cr-motor-tage button { min-height: 28px; min-width: 38px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(148, 163, 184, .25); background: rgba(2, 6, 23, .45); color: var(--cr-leise); font-size: 12px; cursor: pointer; }
 .cr-motor-tage button.an { background: rgba(30, 58, 138, .6); border-color: rgba(96, 165, 250, .45); color: #fff; }
+.cr-chip.warm { color: #fde68a; background: rgba(120, 53, 15, .35); border-color: rgba(251, 191, 36, .35); }
+.cr-postfach-liste, .cr-partner-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cr-postfach-liste li { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: rgba(2, 6, 23, .35); border: 1px solid var(--cr-linie); }
+.cr-postfach-liste li.nicht { border-color: rgba(251, 191, 36, .3); }
+.cr-postfach-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; }
+.cr-postfach-kopf b { font-weight: 500; color: #fff; }
+.cr-postfach-kopf span { color: var(--cr-leise); }
+.cr-postfach-kopf .cr-kippe { margin-left: auto; }
+.cr-postfach-ampel { display: flex; flex-wrap: wrap; gap: 5px; }
+.cr-ampel { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border-radius: 999px; font-size: 10.5px; border: 1px solid var(--cr-linie); color: var(--cr-leise); }
+.cr-ampel.gut { color: #a7f3d0; border-color: rgba(52, 211, 153, .35); }
+.cr-ampel.rot { color: #fecaca; border-color: rgba(248, 113, 113, .4); }
+.cr-postfach-zahl { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--cr-leise); }
+.cr-postfach-zahl .cr-balken { flex: 0 0 120px; }
+.cr-zustell-je { margin: 0; padding-left: 16px; display: grid; gap: 2px; }
+.cr-naechste-mail { display: grid; gap: 6px; padding: 12px 14px; border-radius: 10px; background: rgba(255, 255, 255, .96); color: #1b2333; font-size: 13px; line-height: 1.55; }
+.cr-naechste-mail .cr-auge { color: #1d4ed8; }
+.cr-naechste-mail p { margin: 0; }
+.cr-naechste-mail b { font-weight: 600; }
+.cr-partner-liste li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 9px; background: rgba(2, 6, 23, .3); border: 1px solid var(--cr-linie); }
+.cr-partner-liste li.aus { opacity: .6; }
+.cr-partner-liste li div { display: grid; gap: 1px; font-size: 12.5px; }
+.cr-partner-liste li b { font-weight: 500; color: #fff; }
+.cr-strom-wahl { margin-right: 6px; }
+.cr-herkunft { display: block; font-size: 11.5px; color: #93c5fd; }
+.cr-gmail-signatur { margin: 0; display: grid; gap: 4px; }
+.cr-gmail-signatur figcaption { font-size: 11px; color: var(--cr-leise); }
+.cr-gmail-signatur iframe { width: 320px; max-width: 100%; height: 120px; border: 0; border-radius: 8px; background: #fff; }

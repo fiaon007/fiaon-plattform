@@ -41,7 +41,7 @@
 import { sqlPool } from "./db-pool";
 import {
   ensureRadarTabellen, radarKi, radarPostfaecher, radarAbsender, radarStatusSetzen, radarKontaktNachsuchen,
-  radarScannen, radarSperren, zeileLesen, RadarFehler, radarAbsenderFuer, mailPruefen, radarMotorEinstellung,
+  radarScannen, radarSperren, zeileLesen, RadarFehler, radarAbsenderFuer, mailPruefen, radarMotorEinstellung, sqlOesterreich,
   type MailPruefOpts,
 } from "./fiaon-radar";
 import { gmailBereit, nachrichtenMitFaden, nachrichtLesen, antwortSenden, type GmailNachricht } from "./fiaon-gmail";
@@ -50,8 +50,8 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss, radarPartnerGruppe, radarBeschwerde,
-  type RadarAntwortArt, type RadarAutomatik,
+  radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde,
+  type RadarAntwortArt, type RadarAutomatik, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
@@ -142,8 +142,13 @@ const KALENDER_MERKMAL = /(google\.com\/calendar|calendar\.google|google (calend
 const RECHTLICH = /(abmahnung|abmahnen|unterlassungserklärung|unterlassungsaufforderung|strafbewehrte|unerlaubte (e-?mail-?|telefon-?)?werbung|unverlangte (e-?mail-?)?werbung|unzulässige (e-?mail-?)?werbung|§\s*7\s*(abs\.?\s*\d+\s*)?(nr\.?\s*\d\s*)?uwg|wettbewerbswidrig|rechtliche schritte|anwaltliche(n)? schritte|strafanzeige|anzeige erstatten|(an|mit) (meinen|unseren) (rechts)?anwalt|(meinem|unserem) (rechts)?anwalt (übergeben|weiterleiten|vorlegen)|cease and desist|legal action|my (lawyer|attorney)|our (lawyer|attorney|legal (team|department)) will)/i;
 /** Auskunft, Herkunft der Daten, Löschung, Widerspruch — die Antwort braucht die Quelle und geht nie automatisch. „Ist das DSGVO-konform?“ ist eine Frage, kein Antrag. */
 const DATENSCHUTZ = /(art\.?\s*15\b|artikel 15|auskunft (nach|gemäß|gem\.) (art|artikel|der dsgvo|dsgvo|ds-gvo|§)|auskunftsersuchen|woher (haben|hatten|bekommen|beziehen) sie (meine|unsere|diese|die) (daten|adresse|e-?mail|kontaktdaten|mailadresse|e-?mail-?adresse)|woher stammen (meine|unsere|die|diese) (daten|adresse|kontaktdaten)|wie sind sie an (meine|unsere|diese) (daten|adresse|e-?mail(-?adresse)?|kontaktdaten) gekommen|where did you get my (data|details|address|email)|how did you get my (data|details|address|email)|löschen sie (bitte )?(meine|unsere|sämtliche|alle) (personenbezogenen )?daten|löschung (meiner|unserer|der) (personenbezogenen )?daten|delete (all )?my (personal )?data|widerspreche(n)? (hiermit )?(der|jeder) (nutzung|verarbeitung|verwendung)|art\.?\s*21\b|right to (access|erasure)|data subject (access )?request)/i;
-/** Eindeutige Abmeldung — die ganze Antwort ist ein „Stopp“, oder ein klarer Satz. */
-const ABMELDUNG_KURZ = /^\s*(stop+|abmelden|abbestellen|unsubscribe|austragen|remove( me)?|bitte (austragen|abmelden|entfernen)|kein interesse|kein bedarf|nein,? danke|no,? thanks?|not interested)[\s.!]*$/i;
+/**
+ * Eindeutige Abmeldung — die ganze Antwort ist ein „Stopp“, oder ein klarer Satz. E-458 (Befund): Der Schlusssatz lädt
+ * ausdrücklich zu „ein kurzes Nein“ und „kein Thema“ ein — beides erkennt jetzt die Regel (ohne KI, auch in der KI-Pause).
+ */
+const ABMELDUNG_KURZ = /^\s*(stop+|abmelden|abbestellen|unsubscribe|austragen|remove( me)?|bitte (austragen|abmelden|entfernen)|kein interesse|kein bedarf|(nein|nö|nee|no)[\s.,!]*(danke|kein interesse|kein bedarf|thanks?)?|nein,? danke|danke,? (nein|kein (interesse|bedarf))|(ist )?(gerade |aktuell |derzeit )?kein thema|no,? thanks?|not interested)[\s.!]*$/i;
+/** Ein Gruß nach dem ersten Absatz („Nein.\n\nViele Grüße\nMax“) — dann zählt der erste Absatz allein. */
+const GRUSS_ANFANG = /^(viele|beste|freundliche|liebe|herzliche|schöne|mit freundlichen|mfg|vg|lg|gruß|grüße|grüßen|gruss|gruesse|best|kind regards|regards|cheers|thanks|danke und)\b/i;
 const ABMELDUNG = /(bitte (schreiben sie (mir|uns)|kontaktieren sie (mich|uns)) nicht mehr|keine weiteren (e-?mails|mails|nachrichten|zusendungen)|(nehmen|streichen|entfernen|löschen) sie (mich|uns|meine adresse) (bitte )?(aus|von) (ihrem|ihrer|dem|der|ihren) (verteiler|liste|e-?mail-?liste|mailingliste|datenbank)|please (remove|unsubscribe) (me|us)|(stop|don't|do not) (e-?mailing|contacting|writing to) (me|us))/i;
 
 /** Was sich ohne KI sicher erkennen lässt. Sonst null (dann ordnet die KI ein). Rein. */
@@ -163,6 +168,9 @@ export function antwortVorab(n: { vonAdresse: string; betreff: string; text: str
   if (RECHTLICH.test(text) || RECHTLICH.test(betreff)) return "rechtlich";
   if (DATENSCHUTZ.test(text)) return "datenschutz";
   if (ABMELDUNG_KURZ.test(text) || ABMELDUNG.test(text)) return "kein_interesse";
+  // „Nein.“ mit Gruß und Unterschrift darunter: Steht nach dem ersten Absatz nur noch ein Gruß, zählt der erste Absatz allein.
+  const absaetze = text.trim().split(/\n\s*\n/);
+  if (absaetze.length > 1 && GRUSS_ANFANG.test(absaetze[1].trim()) && ABMELDUNG_KURZ.test(absaetze[0])) return "kein_interesse";
   return null;
 }
 
@@ -259,6 +267,9 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
   if (!gmailBereit()) return { ...erg, grund: "Gmail-Anbindung fehlt" };
   await ensureRadarTabellen();
   let kiRest = KI_JE_LAUF;
+  // E-458 (Befund): Firmen mit einer eingegangenen, noch NICHT eingeordneten Mail (KI-Deckel des Laufs, KI-Pause, Fehler) —
+  // ihr Nachfassen wartet, bis die Antwort gelesen ist (sonst bekäme jemand, der gerade „Nein“ schrieb, eine Erinnerung).
+  const wartend = new Set<number>();
   for (const postfach of radarPostfaecher()) {
     erg.postfaecher++;
     // E-339: Firmen, die einen Brief bekamen, schreiben an die Adresse auf dem Brief (das erste Radar-Postfach) —
@@ -305,6 +316,7 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
         const bekannt = new Set(((ids.length ? await sqlPool`SELECT gmail_id FROM fiaon_radar_post WHERE gmail_id = ANY(${ids})` : []) as any[]).map((r) => String(r.gmail_id)));
         for (const m of kandidaten) {
           if (bekannt.has(m.id)) continue;
+          const imFaden = faeden.get(m.threadId) ?? null;
           try {
             erg.gelesen++;
             const n = await nachrichtLesen(postfach, m.id);
@@ -318,13 +330,14 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
             erg.eingang++;
             const r = await eingangVerarbeiten(firmaId, postfach, n, kiRest > 0);
             if (r.ki) kiRest--;
-            if (!r.art) liegenGeblieben++;
+            if (!r.art) { liegenGeblieben++; wartend.add(firmaId); }
             if (r.art && RADAR_ANTWORT_ARTEN[r.art].lead) erg.leads++;
             if (r.art === "kein_interesse") erg.absagen++;
             if (r.art === "unzustellbar") erg.rueckläufer++;
             if (r.mara) erg.mara++;
           } catch (e: any) {
             erg.fehler++; liegenGeblieben++;
+            if (imFaden && abfrage.art !== "aus") wartend.add(imFaden);
             console.error(`[RADAR-POST] ${postfach} ${m.id}:`, e?.message || e);
           }
         }
@@ -333,8 +346,15 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
     if (!liegenGeblieben) await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES (${standKey}, ${beginn}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
     else erg.grund = `${liegenGeblieben} Nachrichten warten auf den nächsten Lauf`;
   }
+  await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_post_wartet', ${JSON.stringify(Array.from(wartend))}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`.catch(() => {});
   await radarAbgleich().catch((e) => { erg.fehler++; console.error("[RADAR-POST] Abgleich:", e?.message || e); });
   return erg;
+}
+
+/** Firmen, deren eingegangene Mail der letzte Post-Lauf noch nicht einordnen konnte — ihr Nachfassen wartet. */
+export async function radarPostWartet(): Promise<Set<number>> {
+  const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'radar_post_wartet'`.catch(() => [])) as any[];
+  try { const l = JSON.parse(String(z?.value ?? "[]")); return new Set(Array.isArray(l) ? l.map(Number).filter(Number.isFinite) : []); } catch { return new Set(); }
 }
 
 /** Eine Mail, die WIR in einem Radar-Faden geschrieben haben (z. B. Justin von Hand) — offene Entwürfe sind damit erledigt. */
@@ -429,6 +449,10 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
     await sqlPool`UPDATE fiaon_radar_post SET mara_status = 'erledigt', mara_am = NOW() WHERE firma_id = ${firmaId} AND mara_status = 'entwurf' AND id <> ${postId}`;
   }
   if (art === "unzustellbar") {
+    // E-458 (Befund): Der Rückläufer erbt die Herkunft der Adresse von der ersten Mail (adress_weg) — die Ableitungs-Wache
+    // zählt danach, nicht nach dem Entscheider der Firma, der sich bis dahin ändern kann.
+    await sqlPool`UPDATE fiaon_radar_post SET adress_weg = (SELECT q.adress_weg FROM fiaon_radar_post q WHERE q.firma_id = ${firmaId} AND q.richtung = 'aus' AND q.art = 'erstmail'
+                                                            ORDER BY q.datum DESC NULLS LAST, q.id DESC LIMIT 1) WHERE id = ${postId}`;
     const ungueltig = Array.from(new Set([...String(f.email_ungueltig ?? "").split(",").map((x: string) => x.trim()).filter(Boolean), String(f.email ?? "")].filter(Boolean)));
     await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status = 'versendet' THEN 'unzustellbar' ELSE status END,
                     email_ungueltig = ${ungueltig.join(",").slice(0, 500)}, nachfass_faellig = NULL, updated_at = NOW() WHERE id = ${firmaId}`;
@@ -552,7 +576,9 @@ export async function partnerInsCrm(f: any, antwort: { text: string; zusammenfas
   const { bestandFuerTreffer, uebernehmen } = await import("./fiaon-partner-crm");
   const { firmenTreffer } = await import("@shared/fiaon-partner-crm");
   const { radarPartnerCrmEingabe } = await import("@shared/fiaon-radar");
-  const eingabe = radarPartnerCrmEingabe({ firma: { name: f.name, website: f.website, email: f.email, bereich: f.bereich, impressum: f.impressum, entscheider: f.entscheider }, antwort, heute: berlinToday() });
+  // E-458 (Befund): dieselbe Provisions-Fassung wie in der Mail (Chefbüro › Feineinstellungen).
+  const provisionText = (await radarMotorEinstellung()).partnerProvisionText;
+  const eingabe = radarPartnerCrmEingabe({ firma: { name: f.name, website: f.website, email: f.email, bereich: f.bereich, impressum: f.impressum, entscheider: f.entscheider }, antwort, heute: berlinToday(), provisionText });
   let firmaId = Number(f.partner_firma_id) || 0;
   if (!firmaId) {
     const treffer = firmenTreffer({ name: f.name, website: f.website, email: f.email ?? undefined }, await bestandFuerTreffer());
@@ -708,6 +734,8 @@ export async function maraTextSchreiben(ein: {
   // E-458: Partner bekommen keinen Termin, keine Zeiten und keinen Buchungslink — Konditionen gehen schriftlich.
   const partner = f.strom === "partner";
   const gruppe = partner ? radarPartnerGruppe(f.bereich) : null;
+  // E-458 (Befund): Mara nennt dieselbe Provisions-Fassung wie die erste Mail (Chefbüro › Feineinstellungen).
+  const provisionText = partner ? (await radarMotorEinstellung()).partnerProvisionText : "";
   const ohneZeiten = partner || !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
   const anweisung = partner ? [
     `Du bist Mara Lindner, die digitale Assistentin von ${a.name} (Gründer von FIAON Global). Du beantwortest die Antwort eines möglichen Kooperationspartners (${gruppe?.label ?? "Partner"}) auf eine Mail von ${a.name}. ${en ? "Schreibe in britischem Englisch, höflich-förmlich, warm, klar, kurz (40 bis 110 Wörter)." : "Sie-Form, warm, klar, kurz (40 bis 110 Wörter)."}`,
@@ -715,7 +743,8 @@ export async function maraTextSchreiben(ein: {
     `Ziel: die Zusammenarbeit SCHRIFTLICH vereinbaren. Bedanke dich, beantworte Fragen nur mit den Fakten unten und sag, dass ${a.name} die Konditionen der Zusammenarbeit schriftlich schickt. KEIN Termin, keine Zeiten, kein Telefonat, kein Treffen, kein Buchungslink. Bittet der Partner ausdrücklich um einen Anruf: sag nur, dass ${a.name} das gesehen hat und sich persönlich meldet.`,
     gruppe && !gruppe.provision
       ? "Diese Gruppe (Steuerberater, Rechtsanwälte) bekommt KEINE Provision: nie Provision, Prozente, Vergütung oder Tippgeld erwähnen. Die Kanzlei behält die steuerliche bzw. rechtliche Betreuung, wir stellen uns gegenseitig Mandanten vor."
-      : "Zur Provision nur, wenn danach gefragt wird: 30 Prozent unseres Honorars, ein Jahr lang, für jeden vorgestellten Kunden — alles Weitere steht in der schriftlichen Vereinbarung.",
+      : `Zur Provision nur, wenn danach gefragt wird: ${provisionText}, für jeden vorgestellten Kunden — alles Weitere steht in der schriftlichen Vereinbarung.`,
+    "Was wir den Kunden des Partners bieten: Wir gründen ihnen eine eigene US-Gesellschaft und kümmern uns um Geschäftskonto und Firmenkarten. Über Konto und Karte entscheidet die Bank, also nie „bekommen bei uns“.",
     "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; erfundene Fakten. Keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
     "Antworte ausschließlich im vorgegebenen JSON: absaetze = 1 bis 3 kurze Absätze.",
     `Kern in einem Satz (Justin): „${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}“`,
@@ -1061,55 +1090,95 @@ const SCHEMA_NACHFASS = {
 
 /**
  * Die festen Nachfass-Vorlagen — der Rückweg, wenn die KI zweimal durch die Wände fällt (E-458: auch die Prüf-KI). Je Strom
- * und Stufe; sie bestehen die strenge Prüfung (25–60 Wörter, keine Gedankenstriche, Stufe 1 mit genau einer Frage).
+ * und Stufe MEHRERE Fassungen, je Firma fest gewählt (E-458, Befund: sonst bekämen hunderte Firmen aus demselben Postfach
+ * dieselbe Abschluss-Mail — genau das Serien-Muster, das der Fingerabdruck bei ersten Mails verhindert). Alle bestehen die
+ * strenge Prüfung (25–60 Wörter, keine Gedankenstriche, Stufe 1 mit genau einer Frage, Partner ohne Provision und ohne
+ * „bekommen bei uns“).
  */
-export const NACHFASS_VORLAGEN: Record<"firma" | "partner", { absaetze: string[]; frage: string }[]> = {
+export const NACHFASS_VORLAGEN: Record<"firma" | "partner", { absaetze: string[]; frage: string }[][]> = {
   firma: [
-    { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. Eine eigene Gesellschaft in den USA öffnet Ihnen einen zweiten Weg zu Kapital, neben der Hausbank."], frage: "Ist das für Ihre nächsten Schritte gerade ein Thema?" },
-    { absaetze: ["ich möchte Sie nicht weiter stören und lege das Thema hiermit zur Seite. Sollte zusätzliches Kapital für Ihre Pläne später wichtig werden, genügt mir eine kurze Zeile, und ich schicke Ihnen zwei Terminvorschläge."], frage: "" },
+    [
+      { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. Eine eigene Gesellschaft in den USA öffnet Ihnen einen zweiten Weg zu Kapital, neben der Hausbank."], frage: "Ist das für Ihre nächsten Schritte gerade ein Thema?" },
+      { absaetze: ["ich melde mich noch einmal kurz zu meiner letzten Nachricht. Mit einer eigenen LLC in den USA, dem amerikanischen Gegenstück zur GmbH, haben Sie neben der Hausbank eine zweite Quelle für Kapital."], frage: "Soll ich Ihnen in zwei Sätzen schreiben, wie das bei Ihnen aussehen könnte?" },
+      { absaetze: ["kurz noch einmal zu meiner Mail von neulich. Viele Unternehmer nutzen eine eigene Gesellschaft in den USA als zweiten Weg zu Kapital, und um alles Amerikanische kümmert sich unser Team vor Ort."], frage: "Wäre das für Sie einen kurzen Blick wert?" },
+    ],
+    [
+      { absaetze: ["ich möchte Sie nicht weiter stören und lege das Thema hiermit zur Seite. Sollte zusätzliches Kapital für Ihre Pläne später wichtig werden, genügt mir eine kurze Zeile, und ich schicke Ihnen zwei Terminvorschläge."], frage: "" },
+      { absaetze: ["ich will Ihr Postfach nicht weiter füllen und belasse es bei dieser letzten Nachricht. Wird ein zweiter Weg zu Kapital später wichtig für Sie, schreiben Sie mir einfach, dann melde ich mich mit zwei Zeiten."], frage: "" },
+      { absaetze: ["das ist meine letzte Nachricht zu diesem Thema, ich möchte Sie nicht drängen. Falls eine eigene Gesellschaft in den USA später doch zu Ihren Plänen passt, reicht eine kurze Antwort, und ich melde mich."], frage: "" },
+    ],
   ],
   partner: [
-    { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. Viele Unternehmer brauchen für ihr Geschäft in den USA eine eigene Gesellschaft, ein Konto und Firmenkarten, und genau das übernehmen wir für sie."], frage: "Haben Sie Mandanten oder Kunden, für die das gerade ein Thema ist?" },
-    { absaetze: ["ich möchte Sie nicht weiter stören und lege das Thema hiermit zur Seite. Falls Ihnen später jemand begegnet, der eine Gesellschaft in den USA braucht, genügt eine kurze Zeile, und ich schicke Ihnen unsere Konditionen schriftlich."], frage: "" },
+    [
+      { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. Viele Unternehmer brauchen für ihr Geschäft in den USA eine eigene Gesellschaft, und wir gründen sie und kümmern uns um Konto und Firmenkarten."], frage: "Haben Sie Mandanten oder Kunden, für die das gerade ein Thema ist?" },
+      { absaetze: ["ich melde mich noch einmal kurz zu meiner letzten Nachricht. Will jemand aus Ihrem Kreis in den USA Geschäfte machen, gründen wir dort die Gesellschaft und kümmern uns um Konto und Karten, Ihre eigene Arbeit bleibt davon unberührt."], frage: "Soll ich Ihnen dazu ein paar Zeilen schicken?" },
+    ],
+    [
+      { absaetze: ["ich möchte Sie nicht weiter stören und lege das Thema hiermit zur Seite. Falls Ihnen später jemand begegnet, der eine Gesellschaft in den USA braucht, genügt eine kurze Zeile, und ich schicke Ihnen unsere Konditionen schriftlich."], frage: "" },
+      { absaetze: ["das ist meine letzte Nachricht dazu, ich will Sie nicht drängen. Sollte einer Ihrer Mandanten oder Kunden später eine Gesellschaft in den USA brauchen, genügt eine kurze Nachricht, und ich melde mich schriftlich mit allem Weiteren."], frage: "" },
+    ],
   ],
 };
-
-/** Die strengen Regeln für ein Nachfassen (E-458): 25–60 Wörter, in Stufe 2 ohne Pflicht-Frage. */
-export function nachfassRegeln(strom: "firma" | "partner", stufe: number): MailPruefOpts {
-  return { streng: true, strom, woerter: [25, 60], frageOptional: stufe > 1 };
+/** Die Vorlage dieser Firma für diese Stufe — je Firma fest (id % Anzahl der Fassungen). Rein. */
+export function nachfassVorlage(strom: "firma" | "partner", stufe: number, id: number): { absaetze: string[]; frage: string } {
+  const liste = NACHFASS_VORLAGEN[strom][stufe === 1 ? 0 : 1];
+  return liste[Math.abs(Math.round(Number(id) || 0)) % liste.length];
 }
 
 /**
- * Die Nachfass-Mail — kurz, im selben Faden, mit der Unterschrift des Postfachs (E-458: kein Abmelde-Fuß mehr). Zwei
- * Versuche der KI gegen die strengen Regeln, sonst die feste Vorlage.
+ * Die strengen Regeln für ein Nachfassen (E-458): 25–60 Wörter, in Stufe 2 ohne Pflicht-Frage. E-458 (Befund): mit der
+ * Partner-Gruppe — Steuerberater und Anwälte bekommen auch im Nachfassen nie Provision, Prozent oder Tippgeld.
  */
-async function nachfassSchreiben(f: any, stufe: number): Promise<{ absaetze: string[]; frage: string; vorlage: boolean }> {
+export function nachfassRegeln(strom: "firma" | "partner", stufe: number, gruppe: string | null = null, provisionText: string | null = null): MailPruefOpts {
+  return { streng: true, strom, gruppe, provisionText, woerter: [25, 60], frageOptional: stufe > 1 };
+}
+
+/** Der Schreiber des Nachfassens — die KI oder im Prüfstand eine Attrappe derselben Form. */
+export type NachfassSchreiber = (ein: { anweisung: string; eingabe: string }) => Promise<{ absaetze: string[]; frage: string }>;
+
+/**
+ * Die Nachfass-Mail — kurz, im selben Faden, mit der Unterschrift des Postfachs (E-458: kein Abmelde-Fuß mehr). Zwei
+ * Versuche der KI gegen die strengen Regeln und die Prüf-KI (mit der Gruppe, dem Provisions-Satz und dem KI-Klang aus dem
+ * Chefbüro), sonst die feste Vorlage dieser Firma.
+ */
+export async function nachfassSchreiben(f: any, stufe: number, m: RadarMotor, schreiber?: NachfassSchreiber | null): Promise<{ absaetze: string[]; frage: string; vorlage: boolean }> {
   const strom: "firma" | "partner" = f.strom === "partner" ? "partner" : "firma";
-  const regeln = nachfassRegeln(strom, stufe);
+  const gruppe = strom === "partner" ? radarPartnerGruppe(f.bereich) : null;
+  const provisionText = gruppe?.provision ? m.partnerProvisionText : null;
+  const regeln = nachfassRegeln(strom, stufe, gruppe?.key ?? null, provisionText);
+  const schreiben: NachfassSchreiber = schreiber ?? (async (ein) => (await radarKi<{ absaetze: string[]; frage: string }>({
+    zweck: "radar_nachfass", anweisung: ein.anweisung, eingabe: ein.eingabe, schema: SCHEMA_NACHFASS, aufwand: "low", maxTokens: 3000,
+  })).daten);
+  const provisionSatz = strom !== "partner" ? ""
+    : gruppe?.provision === false
+      ? "KEINE Provision, keine Prozente, keine Vergütung, kein Tippgeld: Für Steuerberater und Rechtsanwälte ist das berufsrechtlich nicht möglich."
+      : `Eine Provision nur, wenn überhaupt, wörtlich so: „${m.partnerProvisionText}“. Keine andere Zahl.`;
   let nachtrag = "";
   for (let versuch = 0; versuch < 2; versuch++) {
     try {
-      const { daten } = await radarKi<{ absaetze: string[]; frage: string }>({
-        zweck: "radar_nachfass",
+      const daten = await schreiben({
         anweisung: [
           `Du schreibst in der ersten Person eine ${stufe === 1 ? "erste" : "zweite und letzte"} kurze Nachfass-Mail im selben Faden auf deine erste Mail (unten). Sie-Form, menschlich, ruhig. absaetze + frage zusammen 25 bis 60 Wörter. Name und Rolle stehen in der Unterschrift, nie im Text.`,
           stufe === 1
             ? (strom === "partner"
-              ? "Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke zur Zusammenarbeit (ihre Mandanten oder Kunden bekommen bei uns US-Gesellschaft, Konto und Firmenkarten), und genau eine einfache Frage im Feld frage. Kein Termin, kein Anruf, kein Gespräch anbieten."
-              : `Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke, der zur Firma passt, aus diesen Fakten: „${RADAR_KERNSATZ.vorteil}“ / „${RADAR_KERNSATZ.vorOrt}“ / die LLC ist das US-Gegenstück zur GmbH. Dazu genau eine einfache Ja/Nein-Frage im Feld frage.`)
+              ? "Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke zur Zusammenarbeit (wir gründen ihren Mandanten oder Kunden eine US-Gesellschaft und kümmern uns um Konto und Firmenkarten; darüber entscheidet die Bank, also nie „bekommen bei uns“), und genau eine einfache Frage im Feld frage. Kein Termin, kein Anruf, kein Gespräch, kein Austausch anbieten."
+              : `Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke, der zur Firma passt, aus diesen Fakten: „${RADAR_KERNSATZ.vorteil}“ / „${RADAR_KERNSATZ.vorOrt}“ / die LLC ist das US-Gegenstück zur GmbH. „ohne Sollzins“ nur mit „Einführungszeitraum“. Dazu genau eine einfache Ja/Nein-Frage im Feld frage.`)
             : "Inhalt: höflicher Abschluss. Du willst nicht weiter stören; wenn das Thema gerade nicht passt, schließt du es hier; falls doch, genügt eine Zeile. Keine neue Werbung. frage = leer.",
-          "KEINE Gedankenstriche, keine Aufzählung, keine Emojis, kein Ausrufezeichen, kein Link. VERBOTEN: Beträge, Kapitalrahmen, Limits, Zinssätze, „bis zu“, Banknamen, „garantiert“, Zusagen, Bürgschaft, Steuerversprechen, „empfehlen“, Floskeln („Ich wollte mich nur kurz melden“ ist erlaubt, „Ich hoffe, es geht Ihnen gut“ nicht), der Satz, dass ein Institut entscheidet. Keine Anrede, kein Gruß, die setzt der Server.",
+          provisionSatz,
+          "KEINE Gedankenstriche, keine Aufzählung, keine Emojis, kein Ausrufezeichen, kein Link. VERBOTEN: Beträge, Kapitalrahmen, Limits, Zinssätze, Prozentzahlen, „bis zu“, Banknamen, „garantiert“, Zusagen, Bürgschaft, Steuerversprechen, „empfehlen“, Floskeln („Ich wollte mich nur kurz melden“ ist erlaubt, „Ich hoffe, es geht Ihnen gut“ nicht), der Satz, dass ein Institut entscheidet. Keine Anrede, kein Gruß, die setzt der Server.",
           "Antworte ausschließlich im vorgegebenen JSON.",
-        ].join("\n"),
+        ].filter(Boolean).join("\n"),
         eingabe: `Firma: ${f.name}. Deine erste Mail:\n${String(f.mail?.text ?? "").slice(0, 2500)}${nachtrag}`,
-        schema: SCHEMA_NACHFASS, aufwand: "low", maxTokens: 3000,
       });
       const absaetze = (daten.absaetze ?? []).map((x) => String(x).trim()).filter(Boolean).slice(0, 2);
       const frage = stufe === 1 ? String(daten.frage ?? "").trim() : "";
       const p = mailPruefen({ betreff: String(f.mail?.betreff ?? ""), absaetze, frage, ps: "" }, regeln);
       if (absaetze.length && !p.sperrend.length) {
         // E-458 (Punkt 4): Auch das Nachfassen liest die Prüf-KI vor dem Versand — zweimal durchgefallen → feste Vorlage.
-        const pk = await radarMailPruefKi(f, { betreff: String(f.mail?.betreff ?? ""), absaetze, frage }, { strom, art: "nachfass" });
+        // E-458 (Befund): mit Gruppe, Provisions-Satz und KI-Klang aus dem Chefbüro, und mit der ersten Mail zum Vergleich.
+        const pk = await radarMailPruefKi(f, { betreff: String(f.mail?.betreff ?? ""), absaetze, frage }, {
+          strom, art: "nachfass", stufe, provision: gruppe ? gruppe.provision : null, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax,
+        });
         if (pk.bestanden) return { absaetze, frage, vorlage: false };
         nachtrag = `\n\nDie Prüferin hat deinen Entwurf zurückgegeben — schreibe ihn neu: ${[pk.urteil?.neu_hinweis, ...pk.gruende.slice(0, 3)].filter(Boolean).join("; ")}`;
         continue;
@@ -1120,7 +1189,7 @@ async function nachfassSchreiben(f: any, stufe: number): Promise<{ absaetze: str
       if (e instanceof RadarFehler && (e.status === 429 || e.status === 503)) break;
     }
   }
-  const v = NACHFASS_VORLAGEN[strom][stufe === 1 ? 0 : 1];
+  const v = nachfassVorlage(strom, stufe, Number(f.id));
   return { absaetze: [...v.absaetze], frage: v.frage, vorlage: true };
 }
 
@@ -1168,18 +1237,16 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
     // wartet der Nachfass bis morgen.
     const lagen = await (await import("./fiaon-radar-motor")).postfachLagen(jetzt).catch(() => []);
     // E-458 (Punkt 8): Österreich bekommt kein Nachfassen (auch nicht auf eine alte erste Mail) — dort geht nur der Brief.
-    await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_faellig = NULL
-                   WHERE nachfass_faellig IS NOT NULL
-                     AND (CASE WHEN upper(COALESCE(land, '')) IN ('DE', 'AT', 'CH') THEN upper(land)
-                               WHEN upper(COALESCE(impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(impressum->>'land')
-                               WHEN domain LIKE '%.at' THEN 'AT' WHEN domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[])`;
+    // E-458 (Befund): „Österreich gewinnt“ — sobald EIN Zeichen AT sagt (sqlOesterreich).
+    await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_faellig = NULL WHERE nachfass_faellig IS NOT NULL AND ${sqlOesterreich()}`;
+    // E-458 (Befund): Liegt im Faden eine eingegangene Mail, die der Post-Lauf noch nicht einordnen konnte, wartet das Nachfassen.
+    const wartet = await radarPostWartet();
     const faellig = (await sqlPool`
       SELECT * FROM fiaon_radar_firmen
        WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW() AND archiviert_am IS NULL
          AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND COALESCE(gmail_thread_id, gmail_nachricht_id) IS NOT NULL AND postfach IS NOT NULL
-         AND NOT ((CASE WHEN upper(COALESCE(land, '')) IN ('DE', 'AT', 'CH') THEN upper(land)
-                        WHEN upper(COALESCE(impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(impressum->>'land')
-                        WHEN domain LIKE '%.at' THEN 'AT' WHEN domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
+         AND NOT ${sqlOesterreich()}
+         AND id <> ALL(${Array.from(wartet)}::int[])
        ORDER BY nachfass_faellig ASC LIMIT 2`) as any[];
     for (const roh of faellig) {
       const f: any = zeileLesen(roh);
@@ -1197,7 +1264,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
         if (!frei) continue;
         const stufe = Number(frei.nachfass_stufe);
         const original = await nachrichtLesen(String(f.postfach), String(f.gmail_nachricht_id));
-        const n = await nachfassSchreiben(f, stufe);
+        const n = await nachfassSchreiben(f, stufe, m);
         // E-458 (Punkt 3): wie von Hand in Gmail — echte Unterschrift, leise Impressum-Zeile, kein Abmelde-Fuß;
         // Absendername = der Mensch des Postfachs (ohne „| FIAON Global“).
         const teile = { anrede: f.mail?.anrede ?? "Guten Tag,", absaetze: n.absaetze, frage: n.frage || null, gruss: f.mail?.gruss ?? radarGruss(f.id), signatur: { html: absender.signaturHtml, text: absender.signaturText } };
@@ -1224,10 +1291,8 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
              (SELECT p.id FROM fiaon_radar_post p WHERE p.firma_id = f.id AND p.richtung = 'ein' ORDER BY p.datum DESC NULLS LAST, p.id DESC LIMIT 1) AS post_id
         FROM fiaon_radar_firmen f
        WHERE f.wiedervorlage_am <= NOW() AND f.archiviert_am IS NULL AND f.status IN ('antwort', 'lead')
-         -- E-458 (Punkt 8): keine Wiedervorlage-Mail nach Österreich.
-         AND NOT ((CASE WHEN upper(COALESCE(f.land, '')) IN ('DE', 'AT', 'CH') THEN upper(f.land)
-                        WHEN upper(COALESCE(f.impressum->>'land', '')) IN ('DE', 'AT', 'CH') THEN upper(f.impressum->>'land')
-                        WHEN f.domain LIKE '%.at' THEN 'AT' WHEN f.domain LIKE '%.ch' THEN 'CH' ELSE 'DE' END) = ANY(${[...RADAR_NUR_BRIEF_LAENDER]}::text[]))
+         -- E-458 (Punkt 8): keine Wiedervorlage-Mail nach Österreich („Österreich gewinnt“, sqlOesterreich).
+         AND NOT ${sqlOesterreich()}
        ORDER BY f.wiedervorlage_am ASC LIMIT 2`) as any[];
     for (const w of faellig) {
       try {

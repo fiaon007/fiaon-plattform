@@ -520,6 +520,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     next();
   });
+  // ✉️ E-458 (29.10.2026): der kurze, persönliche Terminlink der ersten Radar-Mail (fiaon.com/g/r<ID>) — statt einer langen
+  //    Adresse mit „utm_campaign=firmen_radar“, an der jeder die Serienmail erkennt. Die Zuordnung (r<ID>) bleibt erhalten.
+  app.get('/g/:kennung', async (req, res) => {
+    const { radarKurzlinkZiel } = await import('@shared/fiaon-radar');
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('X-Robots-Tag', 'noindex');
+    res.redirect(302, radarKurzlinkZiel(req.params.kennung));
+  });
   // 📞 Telefonkartei (21.09.2026, E-201): Justins eigene Anrufseite — alle Kunden als Kartei,
   //    Kontakt fürs iPhone, vier Fälle (Rechnung, nicht erreicht, Rückruf, Storno). Nur Stufe Inhaber.
   const fiaonTelefonkarteiRoutes = await import('./routes/fiaon-telefonkartei');

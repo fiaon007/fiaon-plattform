@@ -40,6 +40,19 @@ export async function partnerAusschluss(): Promise<Set<string>> {
   return aus;
 }
 
+// E-458 (Befund): Die Sperre gilt auch beim SENDEN (radarMailAusgeben) — ein Partner kann zwischen Fund und Versand ins CRM
+// kommen. Die Liste bleibt fünf Minuten im Speicher (der Motor sendet jede Minute).
+let ausschlussMerk: { bis: number; liste: Set<string> } | null = null;
+/** Steht diese Domäne (oder die Domäne der Adresse) schon im Partner-CRM oder in einem Kooperationsvertrag? */
+export async function schonPartner(domain: string | null | undefined, email?: string | null): Promise<boolean> {
+  if (!ausschlussMerk || ausschlussMerk.bis < Date.now()) ausschlussMerk = { bis: Date.now() + 5 * 60_000, liste: await partnerAusschluss() };
+  const d = String(domain ?? "").trim().toLowerCase().replace(/^www\./, "");
+  const e = String(email ?? "").trim().toLowerCase().split("@")[1] ?? "";
+  return (!!d && ausschlussMerk.liste.has(d)) || (!!e && !RADAR_FREEMAIL.has(e) && ausschlussMerk.liste.has(e));
+}
+/** Prüfstand: den Zwischenspeicher der Partner-Sperre leeren. */
+export function schonPartnerVergessen(): void { ausschlussMerk = null; }
+
 const SCHEMA_PARTNER = {
   type: "object", additionalProperties: false,
   properties: {

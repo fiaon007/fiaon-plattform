@@ -140,8 +140,11 @@ export interface PersoenlicheMail {
   anrede: string;
   absaetze: string[];
   frage?: string | null;
-  /** Höchstens ein Link, als eigene Zeile nach der Frage (Firmen: „Einen Termin wählen“; Partner: keiner). */
-  link?: { text: string; url: string } | null;
+  /**
+   * Höchstens ein Link, als eigene Zeile nach der Frage (Firmen: Terminlink; Partner: keiner). Mit „anzeige“ steht er als
+   * Satz mit sichtbarem Kurzlink da („Wenn Sie mögen, … aus: fiaon.com/g/r12“), sonst als verlinkter Text.
+   */
+  link?: { text: string; url: string; anzeige?: string | null } | null;
   /** Der natürliche letzte Satz vor dem Gruß (statt Abmelde-Satz). */
   schluss?: string | null;
   gruss: string;
@@ -149,17 +152,22 @@ export interface PersoenlicheMail {
   signatur: { html: string; text: string };
 }
 
-const IMPRESSUM = () => ({ ort: FIAON_FIRMA.ortZeile.split(",")[0].trim(), impressum: `${basis()}/impressum`, datenschutz: `${basis()}/datenschutz` });
+// E-458 (Befund): Die leise Zeile trägt wieder die volle Sitzanschrift und das Register (England and Wales) — so wie jede
+// Geschäftsmail einer britischen Firma und wie der Fuß vorher. Werte aus FIAON_FIRMA.
+const IMPRESSUM = () => ({
+  sitz: `${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}`, register: `${FIAON_FIRMA.register} Nr. ${FIAON_FIRMA.companyNo}`,
+  impressum: `${basis()}/impressum`, datenschutz: `${basis()}/datenschutz`,
+});
 
-/** Die leise Zeile unter der Signatur: Firma, Sitz, Register, Impressum, Datenschutz. */
+/** Die leise Zeile unter der Signatur: Firma, Sitzanschrift, Register, Impressum, Datenschutz. */
 export function impressumZeileHtml(): string {
   const i = IMPRESSUM();
   const link = (url: string, text: string) => `<a href="${esc(url)}" style="color:#9aa0a6;text-decoration:underline;">${text}</a>`;
-  return `<div style="margin-top:14px;font-size:11px;line-height:1.5;color:#9aa0a6;">${esc(FIAON_FIRMA.name)} · ${esc(i.ort)} · Companies House ${esc(FIAON_FIRMA.companyNo)} · ${link(i.impressum, "Impressum")} · ${link(i.datenschutz, "Datenschutz")}</div>`;
+  return `<div style="margin-top:14px;font-size:11px;line-height:1.5;color:#9aa0a6;">${esc(FIAON_FIRMA.name)} · ${esc(i.sitz)} · ${esc(i.register)} · ${link(i.impressum, "Impressum")} · ${link(i.datenschutz, "Datenschutz")}</div>`;
 }
 export function impressumZeileText(): string {
   const i = IMPRESSUM();
-  return `${FIAON_FIRMA.name} · ${i.ort} · Companies House ${FIAON_FIRMA.companyNo} · Impressum: ${i.impressum} · Datenschutz: ${i.datenschutz}`;
+  return `${FIAON_FIRMA.name} · ${i.sitz} · ${i.register} · Impressum: ${i.impressum} · Datenschutz: ${i.datenschutz}`;
 }
 
 /** Eine Gmail-Signatur (HTML) als Text — Zeilenumbrüche aus <br>/<div>/<p>, Entitäten aufgelöst, Bilder weg. */
@@ -177,7 +185,11 @@ export function persoenlicheMailHtml(m: PersoenlicheMail): string {
   const teile: string[] = [zeile(m.anrede), leer];
   for (const a of m.absaetze) teile.push(zeile(a), leer);
   if (m.frage) teile.push(zeile(m.frage), leer);
-  if (m.link) teile.push(`<div><a href="${esc(m.link.url)}">${esc(m.link.text)}</a></div>`, leer);
+  if (m.link) {
+    teile.push(m.link.anzeige
+      ? `<div>${esc(m.link.text)} <a href="${esc(m.link.url)}">${esc(m.link.anzeige)}</a></div>`
+      : `<div><a href="${esc(m.link.url)}">${esc(m.link.text)}</a></div>`, leer);
+  }
   if (m.schluss) teile.push(zeile(m.schluss), leer);
   teile.push(zeile(m.gruss));
   return `<div dir="ltr">${teile.join("")}<div><br clear="all"></div><div><br></div><span class="gmail_signature_prefix">-- </span><br><div dir="ltr" class="gmail_signature" data-smartmail="gmail_signature">${m.signatur.html}</div>${impressumZeileHtml()}</div>`;
@@ -189,7 +201,7 @@ export function persoenlicheMailText(m: PersoenlicheMail): string {
     m.anrede, "",
     ...m.absaetze.flatMap((a) => [a, ""]),
     ...(m.frage ? [m.frage, ""] : []),
-    ...(m.link ? [`${m.link.text}: ${m.link.url}`, ""] : []),
+    ...(m.link ? [m.link.anzeige ? `${m.link.text} ${m.link.url}` : `${m.link.text}: ${m.link.url}`, ""] : []),
     ...(m.schluss ? [m.schluss, ""] : []),
     m.gruss, "", "-- ", m.signatur.text, "", impressumZeileText(),
   ].join("\n");

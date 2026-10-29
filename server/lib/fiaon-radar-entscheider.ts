@@ -48,8 +48,23 @@ export interface Entscheider {
 const NAME_IM_TEXT = /([A-ZÄÖÜ][a-zäöüßéè]+(?:-[A-ZÄÖÜ][a-zäöüßéè]+)?)\s+((?:(?:von|van|vom|zu|zur|zum|de|der|den)\s+)?[A-ZÄÖÜ][a-zäöüßéè]+(?:-[A-ZÄÖÜ][a-zäöüßéè]+)?)/g;
 
 /**
+ * E-458 (Befund Ableitung): Im Deutschen ist JEDES Paar großgeschriebener Wörter ein „Name“ für NAME_IM_TEXT — „Abteilung
+ * Export · export@“, „Niederlassung Hamburg · hamburg@“, „Messe Frankfurt · messe@“. Solche Wörter sind nie Vor- oder
+ * Nachname eines Menschen, und ein Name aus dem Text zählt nur mit Personenkontext (Herr/Frau/Dr. davor oder eine Rolle in
+ * der Nähe). Namen aus dem Impressum (Vertreter) gelten ohne Kontext.
+ */
+const KEIN_NAME = /^(abteilung|abt|niederlassung|filiale|zweigstelle|standort|standorte|werk|lager|halle|zentrale|hauptsitz|sitz|firmensitz|büro|buero|office|messe|messen|team|kontakt|service|kundenservice|kundendienst|vertrieb|verkauf|export|import|einkauf|empfang|rezeption|technik|support|marketing|presse|personal|buchhaltung|verwaltung|geschäftsleitung|geschaeftsleitung|geschäftsführung|geschaeftsfuehrung|leitung|logistik|produktion|qualität|qualitaet|montage|planung|projekt|projekte|region|gebiet|bereich|showroom|shop|store|online|kanzlei|sekretariat|redaktion|labor|praxis|akademie|schulung|karriere|jobs|bewerbung|bewerbungen|datenschutz|impressum|telefon|fax|mobil|adresse|anschrift|öffnungszeiten|oeffnungszeiten|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|deutschland|österreich|schweiz|europa|international|gmbh|ag|kg|holding|gruppe|group|ihre|ihr|unser|unsere|bitte|allgemein|allgemeine|zentral|weitere|neue|neuer|aktuelle|news|blog|home|startseite|über|ueber|uns|wir|sie|mehr|alle|unternehmen)$/i;
+const PERSON_KONTEXT = /\b(herr|herrn|frau|dr\.?|prof\.?|geschäftsführ\w*|geschaeftsfuehr\w*|inhaber\w*|leiter\w*|leitung|ansprechpartner\w*|prokurist\w*|assistenz|assistent\w*|referent\w*|berater\w*|manager\w*|head of|director|partner\w*|gesellschafter\w*|vorstand|mitarbeiter\w*|sachbearbeiter\w*|projektleiter\w*|teamleiter\w*|rechtsanwalt|rechtsanwältin|steuerberater\w*|key account)\b/i;
+/** Ein Name aus dem Text rund um die Adresse: zwei echte Namenswörter (kein Abteilungs-, Orts- oder Füllwort) mit Personenkontext. Rein. */
+export function nameImTextTaugt(name: string, fenster: string): boolean {
+  const teile = String(name ?? "").split(/\s+/).filter((t) => !/^(von|van|vom|zu|zur|zum|de|der|den)$/i.test(t));
+  if (teile.length < 2 || teile.some((t) => KEIN_NAME.test(t.split("-")[0]))) return false;
+  return PERSON_KONTEXT.test(String(fenster ?? ""));
+}
+
+/**
  * Beispiele für das Adress-Muster: persönliche Adressen der eigenen Domäne auf den gelesenen Seiten, je mit dem Namen, zu
- * dem sie passen (Vertreter aus dem Impressum oder ein Name im Text rund um die Adresse, ±200 Zeichen). Rein.
+ * dem sie passen (Vertreter aus dem Impressum oder ein Name MIT Personenkontext im Text rund um die Adresse, ±200 Zeichen). Rein.
  */
 export function adressBeispiele(seiten: { url: string; text: string; html: string }[], domain: string, namen: string[]): RadarAdressBeispiel[] {
   const aus: RadarAdressBeispiel[] = [];
@@ -62,7 +77,8 @@ export function adressBeispiele(seiten: { url: string; text: string; html: strin
       const i = s.text.toLowerCase().indexOf(a);
       const fenster = i >= 0 ? s.text.slice(Math.max(0, i - 200), i + a.length + 200)
         : (() => { const j = s.html.toLowerCase().indexOf(a); return j >= 0 ? s.html.slice(Math.max(0, j - 400), j + a.length + 400).replace(/<[^>]+>/g, " ") : ""; })();
-      const kandidaten = [...namen, ...Array.from(fenster.matchAll(NAME_IM_TEXT)).map((m) => `${m[1]} ${m[2]}`)];
+      const ausText = Array.from(fenster.matchAll(NAME_IM_TEXT)).map((m) => `${m[1]} ${m[2]}`).filter((n) => nameImTextTaugt(n, fenster));
+      const kandidaten = [...namen, ...ausText];
       const name = kandidaten.find((n) => radarMusterVon(lokal, n).length === 1);
       if (!name) continue;
       gesehen.add(a);

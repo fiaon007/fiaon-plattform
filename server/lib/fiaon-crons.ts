@@ -502,7 +502,7 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
   },
   // E-458 (29.10.2026): der Mail-Motor — zwei Ströme (Firmen mit Kapitalbedarf, Kooperationspartner), je Stunde gleichmäßig.
   radar_motor_vorbereiten: {
-    zweck: "Mail-Motor: rund um die Uhr Firmen und Partner vorbereiten (Signal prüfen, Entscheider finden, Mail schreiben, Prüf-KI) und fertige Mails in die Warteschlange legen — bis zum Puffer",
+    zweck: "Mail-Motor: rund um die Uhr Firmen und Partner vorbereiten (Signal prüfen, Entscheider finden, Mail schreiben, Prüf-KI) und fertige Mails in die Warteschlange legen — bis zum Puffer; hängende Versuche gleicht er mit dem Gesendet-Ordner ab (nie doppelt)",
     folge: "Die Warteschlange läuft leer: Im Sendefenster geht keine erste Mail mehr hinaus, obwohl Mara eingeschaltet ist.",
     fenster: 2,
   },

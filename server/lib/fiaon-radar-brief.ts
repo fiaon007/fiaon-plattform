@@ -580,7 +580,7 @@ export async function radarBriefSenden(id: number, ein: { von?: number | null; a
     } else {
       await sqlPool`UPDATE fiaon_radar_firmen SET brief_status = 'uebergeben', brief_versendet_am = NOW(), brief_versendet_von = ${ein.von ?? null},
                       brief_anbieter = ${s.anbieter}, brief_anbieter_id = ${u.id}, brief_kosten_cents = ${u.kostenCents ?? schaetzung}, brief_fehler = NULL,
-                      status = CASE WHEN status IN ('neu', 'gescannt', 'mail', 'im_postfach', 'ohne_kontakt') THEN 'brief' ELSE status END,
+                      status = CASE WHEN status IN ('neu', 'gescannt', 'mail', 'im_postfach', 'ohne_kontakt', 'unzustellbar') THEN 'brief' ELSE status END,
                       updated_at = NOW() WHERE id = ${id}`;
       await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, richtung, art, von, betreff, datum, text)
                     VALUES (${id}, 'brief', 'aus', 'brief', ${RADAR_BRIEF_ANBIETER[s.anbieter].label}, ${brief.betreff}, NOW(), ${briefText(brief).slice(0, 6000)})`;
@@ -658,7 +658,10 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
     // EIN Versuch der Automatik (brief_auto_am) — was übersprungen wurde, holt ein Mensch in der Akte nach.
     const [kandidat] = (await sqlPool`
       SELECT id FROM fiaon_radar_firmen r
-       WHERE r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND r.versendet_am IS NULL AND r.brief_versendet_am IS NULL
+       WHERE ((r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND r.versendet_am IS NULL)
+              -- E-458 (Befund): Die einzige erste Mail ging an eine ABGELEITETE Adresse und kam zurück — dann der Brief.
+              OR (r.status = 'unzustellbar' AND r.entscheider->>'muster_widerlegt' = 'true'))
+         AND r.brief_versendet_am IS NULL
          AND COALESCE(r.brief_status, '') NOT IN ('test', 'sendet', 'uebergeben', 'versendet', 'fehler') AND r.brief_auto_am IS NULL
          AND r.archiviert_am IS NULL
          -- E-458: Liegt die Mail schon in der Warteschlange des Motors, geht kein Brief. Partner warten (auch in Österreich)

@@ -52,12 +52,13 @@ import { robotsRegeln, robotsErlaubt, type RobotsRegel } from "./firmensuche/rob
 import { impressumLesen, htmlZuText, textKarte, woertlich, entitaeten, regexFunde } from "./firmensuche/impressum";
 import { berlinToday } from "./fiaon-time";
 import { openaiFetch, kiPausiert, kiPauseLesen, kiPauseMeldung, istKiPause } from "./fiaon-ki-pause";
-import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, entwurfLoeschen, absenderLesen } from "./fiaon-gmail";
+import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, entwurfLoeschen, absenderLesen, nachrichtenMitFaden } from "./fiaon-gmail";
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
-  radarLandFuer, radarMailErlaubt, RADAR_KI_FLOSKELN, RADAR_SCHLUSSSAETZE, radarSchlusssatz, radarGruss, alsRadarStrom,
-  RADAR_MOTOR_SCHLUESSEL, radarMotorLesen, RADAR_PARTNER_SIGNALE, radarSignalFuer, radarPartnerGruppe, radarUhrzeitMinuten,
+  radarLandFuer, radarMailErlaubt, RADAR_KI_FLOSKELN, RADAR_SCHLUSSSAETZE, radarSchlusssatz, radarSchlusssatzFuer, radarSchlussEcho, radarGruss, alsRadarStrom,
+  RADAR_MOTOR_SCHLUESSEL, radarMotorLesen, RADAR_PARTNER_SIGNALE, radarSignalFuer, radarPartnerGruppe, radarPartnerAngebot, radarUhrzeitMinuten,
+  radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink,
   type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom, type RadarMotor, type RadarPartnerGruppe,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -269,6 +270,8 @@ export function ensureRadarTabellen(): Promise<void> {
       // E-458 (29.10.2026): der Mail-Motor — zwei Ströme (Firmen mit Kapitalbedarf, Kooperationspartner) und eine eigene
       // Warteschlange neben dem Radar-Stand (motor_status: arbeit → bereit → sendet → gesendet · verworfen · abgelaufen),
       // das Urteil der Prüf-KI vor dem Versand und die Partner-Akte im CRM. Ein ALTER für alle Spalten (eine Sperre).
+      // Nachbesserung: versand_lauf = ein begonnener Gmail-Aufruf {am, postfach, an} (gegen Doppel-Mails nach Absturz oder
+      // verlorener Antwort), motor_sendefehler = Sendefehler getrennt von Fehlern der Vorbereitung (motor_versuche).
       await sqlPool`
         ALTER TABLE fiaon_radar_firmen
           ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',
@@ -278,10 +281,14 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS motor_versuche INTEGER NOT NULL DEFAULT 0,
           ADD COLUMN IF NOT EXISTS pruef_ki JSONB,
           ADD COLUMN IF NOT EXISTS pruef_ki_am TIMESTAMPTZ,
-          ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`;
+          ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER,
+          ADD COLUMN IF NOT EXISTS versand_lauf JSONB,
+          ADD COLUMN IF NOT EXISTS motor_sendefehler INTEGER NOT NULL DEFAULT 0`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen (motor_status, strom, signal_staerke)`;
       // E-458 (Punkt 7): Beschwerde = Anwalt/Abmahnung, Datenschutz-Antrag oder Absage mit Spam-Wort — für die Zustell-Bremse.
-      await sqlPool`ALTER TABLE fiaon_radar_post ADD COLUMN IF NOT EXISTS beschwerde BOOLEAN NOT NULL DEFAULT FALSE`;
+      // E-458 (Befund): adress_weg = woher die Adresse einer ersten Mail kam (website, web, abgeleitet) — am Eintrag selbst, damit
+      // die Ableitungs-Wache richtig zählt, auch wenn der Entscheider der Firma später überschrieben wird.
+      await sqlPool`ALTER TABLE fiaon_radar_post ADD COLUMN IF NOT EXISTS beschwerde BOOLEAN NOT NULL DEFAULT FALSE, ADD COLUMN IF NOT EXISTS adress_weg TEXT`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
@@ -308,8 +315,18 @@ export function zeileLesen<T extends Record<string, any>>(r: T | undefined | nul
   if ("entscheider" in z) z.entscheider = ausJson(z.entscheider, null);
   if ("brief" in z) z.brief = ausJson(z.brief, null);
   if ("pruef_ki" in z) z.pruef_ki = ausJson(z.pruef_ki, null);
+  if ("versand_lauf" in z) z.versand_lauf = ausJson(z.versand_lauf, null);
   return z as T;
 }
+
+/**
+ * E-458 (Befund Österreich): ÖSTERREICH GEWINNT — dieselbe Regel wie radarIstOesterreich (shared), als SQL-Teil für die
+ * Spalten von fiaon_radar_firmen (ohne Tabellen-Kürzel; in Abfragen mit Kürzel lösen die Namen auf die eine Firmen-Tabelle
+ * auf). Motor, Nachfass, Wiedervorlage und Chefbüro nutzen genau diesen Teil.
+ */
+export const sqlOesterreich = () => sqlPool`(upper(COALESCE(land, '')) = 'AT' OR upper(COALESCE(impressum->>'land', '')) = 'AT' OR domain LIKE '%.at'
+  OR upper(regexp_replace(COALESCE(impressum->>'ustId', impressum->>'ust_id', ''), '[[:space:]]', '', 'g')) LIKE 'ATU%'
+  OR regexp_replace(COALESCE(impressum->>'telefon', ''), '[^0-9+]', '', 'g') ~ '^([+]|00)43')`;
 
 const RECHTSFORM = /\b(gmbh|mbh|ag|kg|ug|ohg|gbr|se|e\.?\s?k\.?|e\.?\s?u\.?|co|kgaa|haftungsbeschränkt|ltd|limited|inc|llc|sàrl|sarl|sa|og|keg|holding|group|gruppe|und|and|the|der|die|das)\b/g;
 
@@ -1119,23 +1136,28 @@ const SCHEMA_MAIL = {
 };
 
 /** Die Anrede: mit dem Namen aus dem Impressum, sonst neutral. Das Geschlecht wird nie geraten. */
-export function anredeFuer(ansprechpartner: string | null | undefined, form?: "Herr" | "Frau" | null): string {
+export function anredeFuer(ansprechpartner: string | null | undefined, form?: "Herr" | "Frau" | null, o: { partner?: boolean } = {}): string {
   const name = String(ansprechpartner ?? "").replace(/\s*\(.*\)\s*$/, "").replace(/^(herr|frau)\s+/i, "").replace(/\s+/g, " ").trim();
   if (!(name && name.split(/\s+/).length >= 2 && name.length <= 60)) return "Guten Tag,";
   // E-337 (Justin: „menschlicher, wie Öl“): „Hallo Herr zur Linden,“ — aber NUR, wenn „Herr“/„Frau“ wörtlich auf der
   // Quelle steht (fiaon-radar-entscheider.ts). Sonst bleibt es beim vollen Namen ohne geratenes Geschlecht.
   if (form === "Herr" || form === "Frau") {
-    const teile = name.split(" ");
+    // E-458 (Befund): Der Doktortitel bleibt („Frau Dr. Brandt“) — gerade Kanzleien achten darauf. Partner (Kanzleien,
+    // Berater) bekommen „Guten Tag“, Firmen weiter Justins „Hallo“.
+    let teile = name.split(" ");
+    const titel: string[] = [];
+    while (teile.length > 2 && /^(prof|dr)\.?(-ing\.?)?$/i.test(teile[0])) { titel.push(/^prof/i.test(teile[0]) ? "Prof." : "Dr."); teile = teile.slice(1); }
     const idx = teile.findIndex((t, i) => i > 0 && /^(von|van|vom|zu|zur|zum|de|del|di|da|le|la)$/i.test(t));
     const nachname = idx > 0 ? teile.slice(idx).join(" ") : teile[teile.length - 1];
-    return `Hallo ${form} ${nachname},`;
+    return `${o.partner ? "Guten Tag" : "Hallo"} ${form} ${[...titel, nachname].join(" ")},`;
   }
   return `Guten Tag ${name},`;
 }
 
-function mailLinks(id: number, seite: string): { gespraech: string; seite: string } {
+/** Die Links einer Radar-Mail: der lange Terminlink mit Zuordnung, der kurze persönliche Link (E-458) und die Bereichsseite. */
+function mailLinks(id: number, seite: string): { gespraech: string; seite: string; kurz: string } {
   const utm = `utm_source=radar&utm_medium=email&utm_campaign=${RADAR_KAMPAGNE}&utm_content=r${id}`;
-  return { gespraech: `${SEITE()}/business?${utm}#gespraech`, seite: `${SEITE()}${seite}?${utm}` };
+  return { gespraech: radarTerminLink(id, SEITE()), seite: `${SEITE()}${seite}?${utm}`, kurz: radarKurzlink(id, SEITE()) };
 }
 
 // ── WER UNTERSCHREIBT (E-458 Punkt 3 und 6) ─────────────────────────────────
@@ -1161,35 +1183,78 @@ let absenderErsatz: ((postfach: string) => Promise<RadarMailAbsender | null>) | 
 export function radarAbsenderErsatzSetzen(fn: ((postfach: string) => Promise<RadarMailAbsender | null>) | null): void { absenderErsatz = fn; }
 
 /**
- * Die Unterschrift eines Postfachs: displayName und Signatur aus Gmail (sendAs, 6 h zwischengespeichert). Gibt Gmail sie
- * nicht heraus, unterschreibt js@ mit Justins Karte; jedes andere Postfach sendet dann nicht (null) — ein Postfach ohne
- * echte Person schreibt nie.
+ * E-458 (Befund Doppelversand / Bereitschaft): Wie ist ein Fehler eines Gmail-Aufrufs zu lesen? Rein.
+ *   „postfach“ — Token, Zugang (401/403), Rate-Limit (429): Gmail hat nichts angenommen, das POSTFACH hat eine Störung.
+ *   „mail“     — Gmail lehnt genau diese Nachricht ab (übrige 4xx): nichts ging hinaus.
+ *   „unklar“   — Netz, Zeitüberschreitung, 5xx: Gmail KANN die Mail angenommen haben — erst der Gesendet-Ordner entscheidet.
  */
-export async function radarAbsenderFuer(postfachRoh: string, seite?: string | null): Promise<RadarMailAbsender | null> {
+export function radarSendeFehlerArt(e: unknown): "postfach" | "mail" | "unklar" {
+  const t = String((e as any)?.message ?? e ?? "");
+  if (/^Token für |GOOGLE_SA_KEY fehlt/.test(t)) return "postfach";
+  const m = /HTTP (\d{3})/.exec(t);
+  if (m) {
+    const c = Number(m[1]);
+    if (c === 401 || c === 403 || c === 429) return "postfach";
+    if (c >= 400 && c < 500) return "mail";
+  }
+  return "unklar";
+}
+/** Ist ein Gmail-Fehler nur vorübergehend (Netz, 5xx, 429, Zeit)? Dann bleibt der letzte gute Stand eines Postfachs. Rein. */
+export function radarGmailVoruebergehend(fehler: unknown): boolean {
+  const t = String((fehler as any)?.message ?? fehler ?? "");
+  const m = /HTTP (\d{3})/.exec(t);
+  if (m) return Number(m[1]) >= 500 || Number(m[1]) === 429 || Number(m[1]) === 408;
+  return !/GOOGLE_SA_KEY fehlt|unauthorized_client|invalid_grant|access_denied/i.test(t);
+}
+
+/**
+ * Die Unterschrift eines Postfachs mit dem Hinweis, ob Gmail gerade nur gestört war (E-458, Befund Bereitschaft): Ein
+ * kurzer Aussetzer darf ein Postfach nicht stundenlang „ohne Unterschrift“ machen — die Bereitschaft behält dann den
+ * letzten guten Stand (fiaon-radar-motor.ts).
+ */
+export async function radarAbsenderLesen(postfachRoh: string, seite?: string | null): Promise<{ absender: RadarMailAbsender | null; gestoert: boolean }> {
   const postfach = String(postfachRoh || "").trim().toLowerCase();
-  if (absenderErsatz) return absenderErsatz(postfach);
+  if (absenderErsatz) return { absender: await absenderErsatz(postfach), gestoert: false };
+  let gestoert = false;
   if (gmailBereit()) {
     try {
       const s = await absenderLesen(postfach);
       if (radarPersonEcht(s.displayName, s.signature)) {
         const name = s.displayName.replace(/\s*\|.*$/, "").trim();
-        return { postfach, name, signaturHtml: s.signature, signaturText: signaturAlsText(s.signature), quelle: "gmail" };
+        return { absender: { postfach, name, signaturHtml: s.signature, signaturText: signaturAlsText(s.signature), quelle: "gmail" }, gestoert: false };
       }
     } catch (e: any) {
+      gestoert = radarGmailVoruebergehend(e);
       console.error(`[RADAR] Unterschrift ${postfach}:`, String(e?.message || e).slice(0, 160));
     }
   }
-  return postfach === "js@fiaon.com" ? { ...radarKarteAbsender(seite), postfach } : null;
+  return { absender: postfach === "js@fiaon.com" ? { ...radarKarteAbsender(seite), postfach } : null, gestoert };
+}
+
+/**
+ * Die Unterschrift eines Postfachs: displayName und Signatur aus Gmail (sendAs, 6 h zwischengespeichert). Gibt Gmail sie
+ * nicht heraus, unterschreibt js@ mit Justins Karte; jedes andere Postfach sendet dann nicht (null) — ein Postfach ohne
+ * echte Person schreibt nie.
+ */
+export async function radarAbsenderFuer(postfachRoh: string, seite?: string | null): Promise<RadarMailAbsender | null> {
+  return (await radarAbsenderLesen(postfachRoh, seite)).absender;
 }
 
 interface MailTeile {
-  anrede: string; absaetze: string[]; frage: string; ps?: string; links: { gespraech: string; seite: string };
+  anrede: string; absaetze: string[]; frage: string; ps?: string; links: { gespraech: string; seite: string; kurz?: string };
   schluss?: string | null; gruss?: string | null; mitLink?: boolean;
 }
+/**
+ * E-458 (Befund): Der Terminlink steht als normaler Satz mit kurzem, persönlichem Link — kein Werbe-Knopf, kein utm im
+ * Blick. Ohne „passt“, „gerade“ oder „Thema“, damit er die Frage davor nicht wiederholt; der Schlusssatz danach („Falls
+ * nicht, …“) schließt an ihn an.
+ */
+export const RADAR_LINK_SATZ = "Wenn Sie mögen, suchen Sie sich hier direkt eine Zeit aus:";
 function mailBauteile(m: MailTeile, absender: RadarMailAbsender) {
+  const url = m.links.kurz || m.links.gespraech;
   return {
     anrede: m.anrede, absaetze: m.absaetze, frage: m.frage,
-    link: m.mitLink === false ? null : { text: "Einen Termin wählen", url: m.links.gespraech },
+    link: m.mitLink === false ? null : { text: RADAR_LINK_SATZ, url, anzeige: url.replace(/^https?:\/\//, "") },
     schluss: m.schluss ?? RADAR_SCHLUSSSAETZE[0], gruss: m.gruss || "Viele Grüße",
     signatur: { html: absender.signaturHtml, text: absender.signaturText },
   };
@@ -1221,6 +1286,8 @@ export interface MailPruefOpts {
   /** Nachfass: eigene Länge (25–60), die Frage ist dort nicht Pflicht. */
   woerter?: [number, number];
   frageOptional?: boolean;
+  /** Der freigegebene Provisions-Satz (Chefbüro) — eine Prozentzahl darf in Partner-Mails nur in genau diesem Satz stehen. */
+  provisionText?: string | null;
 }
 
 const EMOJI = new RegExp("\\p{Extended_Pictographic}", "u");
@@ -1258,6 +1325,16 @@ export function radarMailStreng(m: { betreff: string; absaetze: string[]; frage:
   for (const f of RADAR_KI_FLOSKELN) if (f.muster.test(rumpf)) aus.push(`Floskel „${f.wort}“`);
   if (/\bbürg(e|en|in|schaft\w*)\b/i.test(rumpf)) aus.push("Bürgschaft — nie in der Akquise-Mail");
   if (/\b(wir|ich)\s+(sagen|sage|sichern|sichere)\b[^.?!]{0,60}\bzu\b|\bzugesagt\b|\bgesichert\b|\bgarantiert\w*|finanzierungszusage|kreditzusage/i.test(rumpf)) aus.push("Zusage — nie Finanzierung, Kapital oder Karte zusagen");
+  // E-458 (Befund): „ohne Sollzins“ nur im selben Satz wie der Einführungszeitraum (das Hauswort) — allein liest es sich
+  // wie „diese Karten kosten keine Zinsen“, und keine andere Wand fängt das ab.
+  if (rumpf.split(/(?<=[.?!])\s+|\n/).some((s) => /ohne\s+sollzins/i.test(s) && !/einf(ü|ue)hrungszeitraum/i.test(s))) aus.push("„ohne Sollzins“ nur mit „Einführungszeitraum“ — sonst klingt es nach einem Zins-Versprechen");
+  // E-458 (Befund): Beträge in Euro sperren hier (in der weichen Prüfung nur ein Hinweis), Dollar sperrt schon die Wand.
+  if (/\d[\d.,]*\s?(€|eur(?![a-z])|euro)|€\s?\d/i.test(rumpf)) aus.push("Betrag in Euro — kein Betrag in der Akquise-Mail");
+  // E-458 (Befund): Prozentzahlen nur bei Partnern mit Provision und nur im freigegebenen Satz (weiter unten).
+  if (o.strom !== "partner" && /\d+(?:[.,]\d+)?\s?(%|prozent\b)/i.test(rumpf)) aus.push("Prozentzahl — Zahlen gehören ins Gespräch, nicht in die erste Mail");
+  // E-458 (Befund „Echo“): Frage und Schlusssatz mit demselben Wort („gerade ein Thema? … gerade kein Thema“) klingen nach Baukasten.
+  const echo = radarSchlussEcho(frage, schluss);
+  if (schluss && echo.length) aus.push(`Schlusssatz wiederholt die Frage („${echo.join("“, „")}“)`);
   if (betreff.length > 60) aus.push(`Betreff länger als 60 Zeichen (${betreff.length})`);
   if (/^\s*(re|aw|fwd?|wg)\s*:/i.test(betreff)) aus.push("Betreff mit „Re:“ — das täuscht einen Faden vor");
   const buchstaben = betreff.replace(/[^A-Za-zÄÖÜäöüß]/g, "");
@@ -1267,10 +1344,18 @@ export function radarMailStreng(m: { betreff: string; absaetze: string[]; frage:
   // Der Schlusssatz kommt vom Server — die erste Person muss im Text der KI stehen.
   if (!/\b(ich|wir|mir|mich|uns|unser\w*)\b/i.test([...absaetze, frage].join("\n"))) aus.push("Erste Person fehlt (ich/wir)");
   if (o.strom === "partner") {
-    // Steuerberater und Rechtsanwälte: keine Provision, keine Prozente, kein Tippgeld (berufsrechtlich nicht möglich).
-    if (radarPartnerGruppe(o.gruppe)?.provision === false && /provision|prozent|%|vergütung|verguetung|tippgeld/i.test(koerper)) aus.push("Diese Gruppe bekommt keine Provision (Berufsrecht) — nichts von Provision, Prozent oder Tippgeld");
+    const g = radarPartnerGruppe(o.gruppe);
+    // Steuerberater und Rechtsanwälte: keine Provision, keine Prozente, kein Tippgeld (berufsrechtlich nicht möglich) —
+    // E-458 (Befund): auch nicht im Betreff.
+    if (g?.provision === false && /provision|prozent|%|vergütung|verguetung|tippgeld/i.test(rumpf)) aus.push("Diese Gruppe bekommt keine Provision (Berufsrecht) — nichts von Provision, Prozent oder Tippgeld");
+    // Mit Provision: eine Prozentzahl nur im freigegebenen Provisions-Satz (Chefbüro), sonst nichts mit Prozent.
+    if (g?.provision !== false && o.provisionText) {
+      const flach = (t: string) => t.toLowerCase().replace(/\s+/g, " ");
+      const ohneSatz = flach(rumpf).split(flach(String(o.provisionText).trim())).join(" ");
+      if (/\d+(?:[.,]\d+)?\s?(%|prozent\b)/i.test(ohneSatz)) aus.push(`Prozentzahl außerhalb des freigegebenen Satzes („${o.provisionText}“)`);
+    }
     if (o.mitLink) aus.push("Partner-Mail mit Terminlink — Partner bekommen Konditionen schriftlich");
-    if (/\b(termin\w*|telefonat\w*|telefonier\w*|anruf\w*|call|meeting\w*|video-?call|zoom|kennenlernen|treffen)\b/i.test(koerper)) aus.push("Partner-Mail mit Gesprächswunsch — Partner bekommen Konditionen schriftlich (keine Meetings)");
+    if (/\b(termin\w*|telefonat\w*|telefonier\w*|anruf\w*|call|meeting\w*|video-?call|zoom|kennenlernen|treffen|gespräch\w*|besprechen|sprechen|austausch\w*|unterhalten)\b/i.test(koerper)) aus.push("Partner-Mail mit Gesprächswunsch — Partner bekommen Konditionen schriftlich (keine Meetings)");
   }
   return aus;
 }
@@ -1305,6 +1390,20 @@ export function mailPruefen(m: { betreff: string; absaetze: string[]; frage: str
   return { sperrend, warnungen };
 }
 
+/**
+ * Die Wand beim SENDEN, EINE Stelle (radarMailAusgeben, Motor bei Hand-Änderungen): Wortwand und strenge Regeln für die
+ * gespeicherte Fassung einer Firma — mit ihrem Schlusssatz, ihrer Gruppe und dem Provisions-Satz aus dem Chefbüro.
+ */
+export function radarMailWand(f: any, motor: RadarMotor): string[] {
+  const m = f?.mail;
+  if (!m) return ["Es gibt noch keine Mail."];
+  const strom = alsRadarStrom(f.strom);
+  return mailPruefen({ betreff: String(m.betreff ?? ""), absaetze: Array.isArray(m.absaetze) ? m.absaetze : [], frage: String(m.frage ?? ""), ps: String(m.ps ?? "") }, {
+    streng: true, strom, gruppe: m.gruppe ?? null, anrede: m.anrede ?? null, schluss: m.schluss ?? radarSchlusssatz(Number(f.id)),
+    mitLink: strom === "firma" && m.mitLink !== false, provisionText: strom === "partner" ? motor.partnerProvisionText : null,
+  }).sperrend;
+}
+
 /** Fingerabdruck einer Fassung (Betreff, Absätze, Frage) — das Urteil der Prüf-KI gilt nur für genau diesen Text. */
 export function radarMailHash(m: { betreff?: unknown; absaetze?: unknown; frage?: unknown } | null | undefined): string {
   const absaetze = Array.isArray(m?.absaetze) ? (m!.absaetze as unknown[]).map((x) => String(x ?? "")) : [];
@@ -1333,15 +1432,17 @@ function mailAnweisung(): string {
     `- KEINE dieser Floskeln: ${RADAR_KI_FLOSKELN.map((f) => `„${f.wort}“`).join(", ")}. Auch nicht „Lösung“, „wir bieten“, „Ich bin auf Ihr Unternehmen gestoßen“.`,
     "- Den Firmennamen höchstens einmal. Keine Schmeichelei.",
     "",
-    "AUFBAU: absaetze (zwei kurze Absätze) und frage zusammen 80 bis 120 Wörter. Anrede, Schlusssatz, Gruß, Unterschrift und Link setzt der Server.",
+    // E-458 (Befund): 80–110 Wörter, weil der Schlusssatz des Servers mitzählt (streng höchstens 130).
+    "AUFBAU: absaetze (zwei kurze Absätze) und frage zusammen 80 bis 110 Wörter. Anrede, Schlusssatz, Gruß, Unterschrift und Link setzt der Server.",
     "1. absaetze[0], der Anlass: EINE konkrete Beobachtung aus genau EINEM der geprüften Aufhänger (am liebsten das Kapitalsignal), dann eine menschliche Folgerung (z. B. „Neue Standorte kosten Geld, lange bevor sie welches verdienen.“). bezug = die Nummer dieses Aufhängers.",
     `2. absaetze[1], der Nutzen, jedes Mal in EIGENEN Worten (nie wörtlich übernehmen): ${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}`,
+    "   „ohne Sollzins“ nur zusammen mit „Einführungszeitraum“ im selben Satz. Keine Zahl, kein Prozent, kein Betrag.",
     "3. frage: GENAU EINE leichte Frage, auf die man mit einer Zeile antworten kann, mit „?“ am Ende. Sonst steht nirgends ein Fragezeichen. Kein Druck, keine Frist.",
     "",
     "TON-VORBILD (nur der Ton, keine Fakten übernehmen):",
     "absaetze[0]: „Ich habe gesehen, dass Sie dieses Jahr eine zweite Halle bauen. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.“",
-    "absaetze[1]: „Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Viele dieser Karten starten ohne Sollzins, und das Kapital können Sie auch hier einsetzen.“",
-    "frage: „Wäre das für Ihre Pläne gerade ein Thema?“",
+    "absaetze[1]: „Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Viele dieser Karten starten mit einem Einführungszeitraum ohne Sollzins, und das Kapital können Sie auch hier einsetzen.“",
+    "frage: „Würde Ihnen so ein zweiter Weg zu Kapital bei der Halle helfen?“",
     "",
     "betreff = höchstens 45 Zeichen, wie eine Mail unter Kollegen, mit dem Anlass oder dem Firmennamen (z. B. „Ihre neue Halle“, „Kapital für den zweiten Standort“). Kein „Re:“, keine Versalien, kein Clickbait.",
     "ps = leer. paket = leer. KEIN Paketname, KEIN Preis, KEIN Betrag, KEIN Zinssatz, KEIN Kapitalrahmen und KEIN Satz darüber, dass ein Institut oder eine Bank entscheidet.",
@@ -1360,7 +1461,7 @@ function mailAnweisung(): string {
 function mailAnweisungPartner(g: RadarPartnerGruppe | null, provisionText = "30 Prozent unseres Honorars, ein Jahr lang"): string {
   const provision = g ? g.provision : true;
   return [
-    `Du schreibst für FIAON Global eine erste E-Mail an die Inhaberin oder den Partner ${g ? `einer Firma aus der Gruppe „${g.label}“` : "einer Kanzlei oder Beratungsfirma"}, in der ersten Person (ich, wir). Es ist eine Anfrage zur Zusammenarbeit: Der Partner stellt uns Kunden vor, seine Mandanten oder Kunden bekommen bei uns eine eigene US-Gesellschaft. Name und Rolle des Absenders stehen in der Unterschrift, NIE im Text. Ziel ist eine schriftliche Antwort, kein Termin.`,
+    `Du schreibst für FIAON Global eine erste E-Mail an die Inhaberin oder den Partner ${g ? `einer Firma aus der Gruppe „${g.label}“` : "einer Kanzlei oder Beratungsfirma"}, in der ersten Person (ich, wir). Es ist eine Anfrage zur Zusammenarbeit: Der Partner stellt uns Kunden vor, wir gründen seinen Mandanten oder Kunden eine eigene US-Gesellschaft und kümmern uns um Konto und Karten (darüber entscheidet die Bank, also nie „bekommen bei uns“). Name und Rolle des Absenders stehen in der Unterschrift, NIE im Text. Ziel ist eine schriftliche Antwort, kein Termin.`,
     "",
     "SO KLINGT ES: wie ein Unternehmer, der einem Kollegen schreibt, den er respektiert. Niemand darf merken, dass eine KI geschrieben hat.",
     "- Kurze Sätze, höchstens 18 Wörter. Ein Gedanke pro Satz. Alltagssprache, aktiv, konkret. Sie-Form, warm, ruhig, selbstbewusst.",
@@ -1368,13 +1469,14 @@ function mailAnweisungPartner(g: RadarPartnerGruppe | null, provisionText = "30 
     `- KEINE dieser Floskeln: ${RADAR_KI_FLOSKELN.map((f) => `„${f.wort}“`).join(", ")}. Auch nicht „Lösung“, „wir bieten“, „Ich bin auf Ihre Kanzlei gestoßen“.`,
     "- Nie „empfehlen“, „Empfehlung“ oder „empfohlen“ (sag „vorstellen“, „zusammenbringen“). Nie „Beratung“, „beraten“ oder „Berater“ als eigenes Wort (sag „Ihre Arbeit“, „Ihre Kanzlei“, „Ihre Mandanten“, „Ihre Kunden“).",
     "",
-    "AUFBAU: absaetze (zwei kurze Absätze) und frage zusammen 80 bis 120 Wörter. Anrede, Schlusssatz, Gruß und Unterschrift setzt der Server.",
+    // E-458 (Befund): 80–110 Wörter, weil der Schlusssatz des Servers mitzählt (streng höchstens 130).
+    "AUFBAU: absaetze (zwei kurze Absätze) und frage zusammen 80 bis 110 Wörter. Anrede, Schlusssatz, Gruß und Unterschrift setzt der Server.",
     "1. absaetze[0], der Anlass: EINE konkrete Beobachtung aus genau EINEM der geprüften Aufhänger (Schwerpunkt, Mandantenkreis) und warum das zu uns passt. bezug = die Nummer dieses Aufhängers.",
-    `2. absaetze[1], das Angebot in eigenen Worten: ${g?.angebot ?? "Ihre Kunden bekommen bei uns eine eigene US-Gesellschaft mit Geschäftskonto und Firmenkarten."}`,
+    `2. absaetze[1], das Angebot in eigenen Worten: ${radarPartnerAngebot(g, provisionText)}`,
     provision
-      ? `   Die Provision genau so und nicht anders: ${provisionText}, für jeden Kunden, den der Partner vorstellt. Kein Betrag, keine andere Zahl.`
+      ? `   Die Provision genau so und nicht anders, wörtlich: „${provisionText}“, für jeden Kunden, den der Partner vorstellt. Kein Betrag, keine andere Zahl, kein anderes Prozent.`
       : "   KEINE Provision, keine Prozente, keine Vergütung, kein Tippgeld: Für Steuerberater und Rechtsanwälte ist das berufsrechtlich nicht möglich. Die Kanzlei behält die steuerliche bzw. rechtliche Betreuung, wir stellen uns gegenseitig Mandanten vor.",
-    `3. frage: GENAU EINE Frage, schriftlich mit einer Zeile beantwortbar, mit „?“ am Ende, z. B. „${g?.frage ?? "Haben Sie Mandanten, für die das gerade ein Thema ist?"}“. KEIN Termin, kein Anruf, kein Gespräch, kein Treffen, kein Kennenlernen.`,
+    `3. frage: GENAU EINE Frage, schriftlich mit einer Zeile beantwortbar, mit „?“ am Ende, z. B. „${g?.frage ?? "Haben Sie Mandanten, für die das gerade ein Thema ist?"}“. KEIN Termin, kein Anruf, kein Gespräch, kein Austausch, kein Treffen, kein Kennenlernen.`,
     "",
     "betreff = höchstens 45 Zeichen, wie eine Mail unter Kollegen (z. B. „Ihre Mandanten mit Plänen in den USA“). Kein „Re:“, keine Versalien.",
     "ps = leer. paket = leer.",
@@ -1398,8 +1500,13 @@ export async function radarMailSchreiben(id: number, wunsch: { hinweis?: string 
   const strom = alsRadarStrom(f.strom);
   const b = radarBereich(f.bereich);
   const links = mailLinks(id, b?.seite ?? "/business");
-  const anrede = anredeFuer(f.entscheider?.name ?? f.ansprechpartner, f.entscheider?.anrede ?? null);
-  const schluss = radarSchlusssatz(id);
+  // E-458 (Befund Anrede): angesprochen wird der Mensch, dem die Adresse gehört — stehen zwei Geschäftsführer im Impressum,
+  // nicht einfach der erste. „Herr“/„Frau“ nur, wenn der belegte Entscheider genau dieser Mensch ist.
+  const vertreterNamen = (Array.isArray(f.impressum?.vertreter) ? f.impressum.vertreter : []).map((v: any) => String(v?.name || [v?.vorname, v?.nachname].filter(Boolean).join(" ")));
+  const empfaenger = radarEmpfaengerName(f.email, [f.entscheider?.name, ...vertreterNamen, f.ansprechpartner]);
+  const anredeName = empfaenger ?? f.entscheider?.name ?? f.ansprechpartner;
+  const form = f.entscheider?.anrede && (!empfaenger || empfaenger === f.entscheider?.name) ? f.entscheider.anrede : null;
+  const anrede = anredeFuer(anredeName, form, { partner: strom === "partner" });
   const gruss = radarGruss(id);
   const motor = await radarMotorEinstellung();
   const mitLink = strom === "firma" && motor.link === "termin";
@@ -1418,9 +1525,10 @@ export async function radarMailSchreiben(id: number, wunsch: { hinweis?: string 
     pruefHinweis ? `Die Prüferin hat die letzte Fassung zurückgegeben. Schreibe die Mail neu und behebe genau diese Punkte: ${pruefHinweis}` : "",
   ].filter(Boolean).join("\n");
 
-  const opts: MailPruefOpts = { streng: true, strom, gruppe: strom === "partner" ? String(f.bereich ?? "") || null : null, anrede, schluss, mitLink };
+  const opts: MailPruefOpts = { streng: true, strom, gruppe: strom === "partner" ? String(f.bereich ?? "") || null : null, anrede, mitLink, provisionText: strom === "partner" ? motor.partnerProvisionText : null };
   let versuch = 0; let entwurf: MailEntwurf | null = null; let pruefung = { sperrend: [] as string[], warnungen: [] as string[] };
   let nachtrag = "";
+  let schluss = radarSchlusssatz(id);
   while (versuch < 2) {
     versuch++;
     const { daten } = await radarKi<MailEntwurf>({ zweck: "radar_mail", anweisung: strom === "partner" ? mailAnweisungPartner(radarPartnerGruppe(f.bereich), motor.partnerProvisionText) : mailAnweisung(), eingabe: eingabe + nachtrag, schema: SCHEMA_MAIL, aufwand: "medium", maxTokens: 12_000 });
@@ -1431,7 +1539,9 @@ export async function radarMailSchreiben(id: number, wunsch: { hinweis?: string 
       passt: daten.passt !== false, passt_grund: String(daten.passt_grund || "").trim().slice(0, 300),
       bezug: Number.isInteger(Number(daten.bezug)) && Number(daten.bezug) >= 1 && Number(daten.bezug) <= aufhaenger.length ? Number(daten.bezug) : undefined,
     };
-    pruefung = mailPruefen(entwurf, opts);
+    // E-458 (Befund „Echo“): Der Schlusssatz wird erst jetzt gewählt — einer, der kein Wort mit der Frage teilt.
+    schluss = radarSchlusssatzFuer(id, entwurf.frage);
+    pruefung = mailPruefen(entwurf, { ...opts, schluss });
     if (!pruefung.sperrend.length) break;
     nachtrag = `\n\nDein letzter Entwurf verletzte diese Regeln — schreibe ihn neu und vermeide sie: ${pruefung.sperrend.join("; ")}`;
   }
@@ -1469,12 +1579,14 @@ export async function radarMailAendern(id: number, ein: { betreff: string; koerp
   if (!betreff) throw new RadarFehler("Bitte einen Betreff angeben.");
   const ps = String(ein.ps ?? f.mail.ps ?? "").trim().slice(0, 400);
   const strom = alsRadarStrom(f.strom);
-  const schluss = f.mail.schluss ?? radarSchlusssatz(id);
+  // E-458 (Befund „Echo“): Mit der neuen Frage wird der Schlusssatz neu gewählt (keiner, der ihr Wort wiederholt).
+  const schluss = radarSchlusssatzFuer(id, frage);
   const gruss = f.mail.gruss ?? radarGruss(id);
   const mitLink = f.mail.mitLink ?? strom === "firma";
   const pruefung = mailPruefen({ betreff, absaetze, frage, ps });
   // E-458: Was beim Senden sperren wird, steht schon jetzt als Hinweis da — der Mensch darf frei ändern, gesendet wird streng.
-  const streng = radarMailStreng({ betreff, absaetze, frage, ps }, { strom, anrede: f.mail.anrede, schluss, mitLink });
+  const motor = await radarMotorEinstellung();
+  const streng = radarMailStreng({ betreff, absaetze, frage, ps }, { strom, gruppe: f.mail.gruppe ?? null, anrede: f.mail.anrede, schluss, mitLink, provisionText: strom === "partner" ? motor.partnerProvisionText : null });
   const links = f.mail.links;
   const anrede = f.mail.anrede;
   const teile = { anrede, absaetze, frage, ps, links, schluss, gruss, mitLink };
@@ -1493,7 +1605,67 @@ export async function radarMailAendern(id: number, ein: { betreff: string; koerp
 /** Der Versandweg — Gmail (neueMailSendenMitFaden) oder im Prüfstand eine Attrappe derselben Form. */
 export type RadarSender = (postfach: string, inhalt: { vonName: string; an: string; betreff: string; text: string; html: string }) => Promise<{ id: string; threadId: string }>;
 
-export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "senden"; postfach: string; an?: string | null; von?: number | null; sender?: RadarSender | null }): Promise<{ ok: true; status: RadarStatus; id: string }> {
+/** Sucht im Gesendet-Ordner eine Mail an diese Adresse seit diesem Zeitpunkt — gefunden: Nachricht und Faden, sonst null. */
+export type RadarGesendetSucher = (postfach: string, an: string, ab: Date) => Promise<{ id: string; threadId: string } | null>;
+let gesendetSucher: RadarGesendetSucher | null = null;
+/** Prüfstand: die Suche im Gesendet-Ordner ohne Gmail (null = echtes Gmail). */
+export function radarGesendetSucherSetzen(fn: RadarGesendetSucher | null): void { gesendetSucher = fn; }
+async function gesendetSuchen(postfach: string, an: string, ab: Date): Promise<{ id: string; threadId: string } | null> {
+  if (gesendetSucher) return gesendetSucher(postfach, an, ab);
+  if (!gmailBereit()) throw new Error("Gmail-Anbindung fehlt");
+  // Genau diese Adresse, nur ab dem Beginn des Versuchs (eine Minute Spielraum) — eine ältere Mail von Hand zählt nicht.
+  const q = `in:sent to:${an.replace(/[\s"()]/g, "")} after:${Math.floor(ab.getTime() / 1000) - 60}`;
+  const liste = await nachrichtenMitFaden(postfach, q, 5);
+  return liste.nachrichten[0] ?? null;
+}
+
+/** Bucht eine hinausgegangene erste Mail: Stand „versendet“, Faden, Nachfassen, Eintrag im Verlauf (mit Herkunft der Adresse). */
+async function versandBuchen(f: any, v: { postfach: string; an: string; gesendet: { id: string; threadId: string }; text: string; von: number | null }): Promise<void> {
+  const nachrichtId = v.gesendet.id;
+  const nachfassTage = RADAR_NACHFASS_TAGE[0] ?? 3;
+  // Lag schon ein Entwurf im Postfach, fliegt er raus — sonst ginge dieselbe Mail ein zweites Mal hinaus.
+  if (f.gmail_entwurf_id && f.postfach) await entwurfLoeschen(String(f.postfach), String(f.gmail_entwurf_id)).catch(() => {});
+  await sqlPool`UPDATE fiaon_radar_firmen SET status = 'versendet', postfach = ${v.postfach}, gmail_nachricht_id = ${nachrichtId},
+                  gmail_thread_id = ${v.gesendet.threadId || nachrichtId}, email = ${v.an}, versand_lauf = NULL,
+                  versendet_am = COALESCE(versendet_am, NOW()), versendet_von = ${v.von}, letzte_mail_am = NOW(),
+                  nachfass_stufe = 0, nachfass_faellig = NOW() + make_interval(days => ${nachfassTage}), updated_at = NOW() WHERE id = ${f.id}`;
+  // E-458 (Befund): die Herkunft der Adresse am Eintrag selbst — die Ableitungs-Wache zählt danach, nicht nach dem
+  // (später womöglich überschriebenen) Entscheider der Firma.
+  const weg = String(f.entscheider?.email ?? "").toLowerCase() === v.an ? String(f.entscheider?.weg ?? "") || null : null;
+  await sqlPool`
+    INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, thread_id, richtung, art, von, betreff, datum, text, adress_weg)
+    VALUES (${f.id}, ${v.postfach}, ${nachrichtId}, ${v.gesendet.threadId || nachrichtId}, 'aus', 'erstmail', ${v.postfach}, ${f.mail?.betreff ?? ""}, NOW(), ${String(v.text).slice(0, 6000)}, ${weg})
+    ON CONFLICT (gmail_id) DO NOTHING`;
+}
+
+/**
+ * E-458 (Befund Doppelversand): Hängt eine erste Mail zwischen „Gmail aufgerufen“ und „gebucht“ (Absturz, Deploy-Neustart,
+ * abgerissene Antwort), entscheidet der Gesendet-Ordner — nie ein blinder zweiter Versuch. Gefunden → nachbuchen
+ * („gesendet“); nicht gefunden → frei für einen neuen Versuch („offen“); Gmail nicht lesbar → „unklar“ (später erneut).
+ */
+export async function radarVersandAbgleich(id: number): Promise<"gesendet" | "offen" | "unklar"> {
+  await ensureRadarTabellen();
+  const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
+  const lauf = f?.versand_lauf;
+  if (!f || !lauf?.am) return "offen";
+  const postfach = String(lauf.postfach ?? f.postfach ?? ""), an = String(lauf.an ?? f.email ?? "").toLowerCase();
+  let fund: { id: string; threadId: string } | null = null;
+  try { fund = await gesendetSuchen(postfach, an, new Date(lauf.am)); }
+  catch (e: any) { console.error(`[RADAR] Abgleich Gesendet ${id}:`, String(e?.message || e).slice(0, 160)); return "unklar"; }
+  if (fund) {
+    await versandBuchen(f, { postfach, an, gesendet: fund, text: String(f.mail?.text ?? "(nachgebucht aus dem Gesendet-Ordner)"), von: null });
+    console.log(`[RADAR] Firma ${id}: erste Mail im Gesendet-Ordner gefunden — nachgebucht, kein zweiter Versand.`);
+    return "gesendet";
+  }
+  await sqlPool`UPDATE fiaon_radar_firmen SET versand_lauf = NULL, updated_at = NOW() WHERE id = ${id}`;
+  return "offen";
+}
+
+export async function radarMailAusgeben(id: number, ein: {
+  art: "entwurf" | "senden"; postfach: string; an?: string | null; von?: number | null; sender?: RadarSender | null;
+  /** Der Motor hat die Tagesgrenze des Postfachs schon unter seiner Sperre geprüft (sonst prüft sie diese Funktion). */
+  grenzeGeprueft?: boolean;
+}): Promise<{ ok: true; status: RadarStatus; id: string }> {
   await ensureRadarTabellen();
   const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
   if (!f) throw new RadarFehler("Firma nicht gefunden.", 404);
@@ -1521,9 +1693,8 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   const schluss = f.mail.schluss ?? radarSchlusssatz(id);
   const gruss = f.mail.gruss ?? radarGruss(id);
   const mitLink = strom === "firma" && f.mail.mitLink !== false;
-  const jetzt = mailPruefen({ betreff: String(f.mail.betreff ?? ""), absaetze: Array.isArray(f.mail.absaetze) ? f.mail.absaetze : [], frage: String(f.mail.frage ?? ""), ps: String(f.mail.ps ?? "") },
-    { streng: true, strom, gruppe: f.mail.gruppe ?? null, anrede: f.mail.anrede ?? null, schluss, mitLink });
-  if (jetzt.sperrend.length) throw new RadarFehler(`Diese Mail ist nach alten Regeln geschrieben oder verletzt sie (${jetzt.sperrend.join("; ")}) — bitte „Neu schreiben“.`);
+  const sperrt = radarMailWand(f, await radarMotorEinstellung());
+  if (sperrt.length) throw new RadarFehler(`Diese Mail ist nach alten Regeln geschrieben oder verletzt sie (${sperrt.join("; ")}) — bitte „Neu schreiben“.`);
   // E-458 (Punkt 4): Nur was die Prüf-KI gelesen und freigegeben hat, geht hinaus — und nur genau dieser Text (Hash).
   // Gilt für Motor, Stapel und Akte; eine Änderung von Hand setzt das Urteil zurück („Prüfen lassen“).
   if (!f.pruef_ki?.ok || f.pruef_ki.hash !== radarMailHash(f.mail)) throw new RadarFehler("Die Prüf-KI hat diese Fassung noch nicht freigegeben — bitte „Prüfen lassen“ oder „Neu schreiben“.", 409);
@@ -1534,6 +1705,18 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   // E-337 (Justin: „keine info, office, welcome Emails“): die erste Mail nur an die persönliche Adresse eines Entscheiders.
   const namen = [f.entscheider?.name, ...((Array.isArray(f.impressum?.vertreter) ? f.impressum.vertreter : []).map((v: any) => v?.name || [v?.vorname, v?.nachname].filter(Boolean).join(" ")))].filter(Boolean) as string[];
   if (!radarAdressePersoenlich(an, namen)) throw new RadarFehler("Erste Mails gehen nur an die persönliche Adresse eines Entscheiders — keine info@, office@ oder welcome@. Bitte „Entscheider suchen“ oder eine persönliche Adresse eintragen.");
+  // E-458 (Befund Anrede): Die Anrede muss zum Menschen hinter der Adresse passen — „Guten Tag Anna Beispiel“ an die
+  // Adresse ihres Mitgeschäftsführers verrät die Maschine.
+  const anredeName = radarAnredeName(f.mail.anrede);
+  if (anredeName && !radarAdressePersoenlich(an, [anredeName])) throw new RadarFehler(`Die Anrede nennt „${anredeName}“, die Adresse ${an} gehört aber jemand anderem — bitte „Neu schreiben“.`);
+  // E-458 (Befund): Wer schon unter Geschäftspartner steht oder einen Kooperationsvertrag hat, bekommt nie eine Kaltmail —
+  // geprüft beim Senden, nicht nur bei der Suche (ein Partner kann zwischen Fund und Versand dazukommen).
+  if (f.partner_firma_id || (await (await import("./fiaon-radar-partner")).schonPartner(f.domain, an))) throw new RadarFehler("Diese Firma steht schon unter Geschäftspartner — keine Kaltmail.", 409);
+  // E-458 (Befund): Die Tagesgrenze je Postfach gilt auch für Stapel und Akte (der Motor prüft sie unter seiner Sperre).
+  if (ein.art === "senden" && !ein.grenzeGeprueft) {
+    const lage = (await (await import("./fiaon-radar-motor")).postfachLagen()).find((l) => l.adresse === postfach);
+    if (lage && lage.heute + (lage.reserve ?? 0) >= lage.grenze) throw new RadarFehler(`Das Postfach ${postfach} ist für heute voll (${lage.heute} von ${lage.grenze}${lage.reserve ? `, ${lage.reserve} Nachfass reserviert` : ""}) — morgen geht es weiter.`, 429);
+  }
   // E-458 (Punkt 3 und 6): Die Mail wird erst JETZT mit der Unterschrift des gewählten Postfachs gebaut — der Text ist
   // absenderneutral. Ein Postfach ohne echte Person (Vor- und Nachname, Gmail-Signatur) sendet nie.
   const absender = await radarAbsenderFuer(postfach, f.mail.links?.seite ?? null);
@@ -1548,23 +1731,63 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
     await sqlPool`UPDATE fiaon_radar_firmen SET status = 'im_postfach', postfach = ${postfach}, gmail_entwurf_id = ${entwurfId}, email = ${an}, updated_at = NOW() WHERE id = ${id}`;
     return { ok: true, status: "im_postfach", id: entwurfId };
   }
+  // E-458 (Befund Doppelversand): Den Versand ATOMAR für sich beanspruchen (Motor, Stapel und Akte über dieselbe Spalte),
+  // bevor Gmail gerufen wird. Ein Anspruch, der älter als 15 Minuten ist, gilt erst nach dem Abgleich mit dem Gesendet-Ordner
+  // als verwaist — nie ein blinder zweiter Versuch.
+  const lauf = { am: new Date().toISOString(), postfach, an };
+  const beanspruchen = async () => ((await sqlPool`
+    UPDATE fiaon_radar_firmen SET versand_lauf = ${sqlPool.json(lauf)}
+     WHERE id = ${id} AND versand_lauf IS NULL AND (versendet_am IS NULL OR (${neuerVersuch} AND status = ${String(f.status)}))
+    RETURNING id`) as any[]).length > 0;
+  if (!(await beanspruchen())) {
+    const [z] = (await sqlPool`SELECT versand_lauf FROM fiaon_radar_firmen WHERE id = ${id}`) as any[];
+    const alt = ausJson<any>(z?.versand_lauf, null);
+    if (!alt?.am || Date.now() - new Date(alt.am).getTime() < 15 * 60_000) throw new RadarFehler("Diese Mail wird gerade gesendet — oder ging schon hinaus.", 409);
+    const abgleich = await radarVersandAbgleich(id);
+    if (abgleich === "gesendet") throw new RadarFehler("Diese Mail ging schon hinaus (im Gesendet-Ordner gefunden) — nachgebucht, kein zweiter Versand.", 409);
+    if (abgleich === "unklar") throw new RadarFehler("Unklar, ob der letzte Versuch hinausging — der Gesendet-Ordner ist gerade nicht lesbar. Bitte später erneut.", 503);
+    if (!(await beanspruchen())) throw new RadarFehler("Diese Mail wird gerade gesendet — oder ging schon hinaus.", 409);
+  }
   // E-337: mit Faden — jede Antwort landet im selben Faden, und der Radar erkennt sie (fiaon-radar-faden.ts).
   // E-458: KEIN List-Unsubscribe mehr — Gmail und Outlook machen daraus einen „Abbestellen“-Knopf (Massenmail-Optik). Wer
   // nicht will, antwortet auf den Schlusssatz und kommt auf die Sperrliste (eingangVerarbeiten).
-  const gesendet = ein.sender ? await ein.sender(postfach, inhalt) : await neueMailSendenMitFaden(postfach, inhalt);
-  const nachrichtId = gesendet.id;
-  // Lag schon ein Entwurf im Postfach, fliegt er raus — sonst ginge dieselbe Mail ein zweites Mal hinaus.
-  if (f.gmail_entwurf_id && f.postfach) await entwurfLoeschen(String(f.postfach), String(f.gmail_entwurf_id)).catch(() => {});
-  const nachfassTage = RADAR_NACHFASS_TAGE[0] ?? 3;
-  await sqlPool`UPDATE fiaon_radar_firmen SET status = 'versendet', postfach = ${postfach}, gmail_nachricht_id = ${nachrichtId},
-                  gmail_thread_id = ${gesendet.threadId || nachrichtId}, email = ${an},
-                  versendet_am = COALESCE(versendet_am, NOW()), versendet_von = ${ein.von ?? null}, letzte_mail_am = NOW(),
-                  nachfass_stufe = 0, nachfass_faellig = NOW() + make_interval(days => ${nachfassTage}), updated_at = NOW() WHERE id = ${id}`;
-  await sqlPool`
-    INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, thread_id, richtung, art, von, betreff, datum, text)
-    VALUES (${id}, ${postfach}, ${nachrichtId}, ${gesendet.threadId || nachrichtId}, 'aus', 'erstmail', ${postfach}, ${f.mail.betreff}, NOW(), ${String(text).slice(0, 6000)})
-    ON CONFLICT (gmail_id) DO NOTHING`;
-  return { ok: true, status: "versendet", id: nachrichtId };
+  let gesendet: { id: string; threadId: string };
+  try {
+    gesendet = ein.sender ? await ein.sender(postfach, inhalt) : await neueMailSendenMitFaden(postfach, inhalt);
+  } catch (e: any) {
+    // Sicher NICHTS hinausgegangen (Token, Zugang, Gmail lehnt ab): Anspruch zurück, ein neuer Versuch ist erlaubt.
+    if (radarSendeFehlerArt(e) !== "unklar") {
+      await sqlPool`UPDATE fiaon_radar_firmen SET versand_lauf = NULL WHERE id = ${id}`.catch(() => {});
+      throw e;
+    }
+    // Netz, Zeitüberschreitung, 5xx: Gmail KANN die Mail angenommen haben. Der Anspruch bleibt stehen — erst der Abgleich
+    // mit dem Gesendet-Ordner entscheidet (radarVersandAbgleich), nie ein blinder zweiter Versand.
+    throw Object.assign(new RadarFehler(`Unklar, ob die Mail hinausging (${String(e?.message || e).slice(0, 160)}) — der Abgleich mit dem Gesendet-Ordner folgt.`, 502), { versandUnklar: true });
+  }
+  try {
+    await versandBuchen(f, { postfach, an, gesendet, text, von: ein.von ?? null });
+  } catch (e: any) {
+    // Die Mail IST draußen, nur das Buchen scheiterte (Datenbank): wie „unklar“ behandeln — der Abgleich bucht nach.
+    throw Object.assign(new RadarFehler(`Gesendet, aber nicht gebucht (${String(e?.message || e).slice(0, 160)}) — der Abgleich mit dem Gesendet-Ordner bucht nach.`, 502), { versandUnklar: true });
+  }
+  return { ok: true, status: "versendet", id: gesendet.id };
+}
+
+/**
+ * E-458 (Befund Akte): die Vorschau so, wie der Empfänger die Mail aus DIESEM Postfach bekommt — mit dessen echter
+ * Gmail-Unterschrift und Namen (vorher zeigte die Akte immer Justins Karte).
+ */
+export async function radarMailVorschau(id: number, postfachRoh: string): Promise<{ html: string; name: string | null; postfach: string; ohneUnterschrift: boolean }> {
+  await ensureRadarTabellen();
+  const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
+  if (!f?.mail) throw new RadarFehler("Es gibt noch keine Mail zu dieser Firma.", 404);
+  const postfach = String(postfachRoh || "").trim().toLowerCase();
+  if (!radarPostfaecher().includes(postfach)) throw new RadarFehler("Dieses Postfach ist für den Radar nicht freigegeben.", 403);
+  const absender = await radarAbsenderFuer(postfach, f.mail.links?.seite ?? null);
+  const strom = alsRadarStrom(f.strom);
+  const teile = { anrede: f.mail.anrede, absaetze: f.mail.absaetze ?? [], frage: f.mail.frage ?? "", ps: f.mail.ps, links: f.mail.links,
+    schluss: f.mail.schluss ?? radarSchlusssatz(id), gruss: f.mail.gruss ?? radarGruss(id), mitLink: strom === "firma" && f.mail.mitLink !== false };
+  return { html: absender ? mailHtml(teile, absender) : String(f.mail.html ?? ""), name: absender?.name ?? null, postfach, ohneUnterschrift: !absender };
 }
 
 export async function radarStatusSetzen(id: number, ein: { status: RadarStatus; notiz?: string | null }): Promise<void> {

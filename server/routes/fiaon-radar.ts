@@ -101,6 +101,23 @@ router.post("/chef/radar/firma/:id/pruefen", wache, async (req: ChefRequest, res
   } catch (e) { fehler(res, e); }
 });
 
+// E-458 (Befund): die Vorschau so, wie der Empfänger sie aus DIESEM Postfach bekommt (echte Gmail-Unterschrift und Name).
+router.get("/chef/radar/firma/:id/vorschau", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarMailVorschau } = await import("../lib/fiaon-radar");
+    res.json({ ok: true, ...(await radarMailVorschau(idAus(req.params.id), String(req.query.postfach ?? ""))) });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Befund): „Zurück in den Vorrat“ — eine verworfene oder abgelaufene Firma wird neu vorbereitet.
+router.post("/chef/radar/firma/:id/vorrat", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarZurueckInVorrat } = await import("../lib/fiaon-radar-motor");
+    await radarZurueckInVorrat(idAus(req.params.id));
+    res.json({ ok: true });
+  } catch (e) { fehler(res, e); }
+});
+
 router.put("/chef/radar/firma/:id/mail", wache, async (req: ChefRequest, res: Response) => {
   try {
     res.json({ ok: true, mail: await radarMailAendern(idAus(req.params.id), { betreff: String(req.body?.betreff ?? ""), koerper: String(req.body?.koerper ?? ""), ps: req.body?.ps != null ? String(req.body.ps) : undefined }) });

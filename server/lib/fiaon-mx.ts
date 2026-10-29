@@ -38,11 +38,16 @@ export async function mailDomain(domain: string): Promise<"mx" | "a" | "keine" |
   return "keine";
 }
 
+/** TXT-Einträge — null bei einer Störung (Zeit, SERVFAIL), [] wenn es den Namen sicher nicht gibt. */
 async function txt(name: string): Promise<string[] | null> {
-  try { return (await zeitlich(aufloeser.resolveTxt(name))).map((t) => t.join("")); } catch { return null; }
+  try { return (await zeitlich(aufloeser.resolveTxt(name))).map((t) => t.join("")); } catch (e) { return endgueltig(e) ? [] : null; }
 }
 
-export interface VersandDns { mx: boolean; spf: boolean; dkim: boolean; dmarc: boolean }
+export interface VersandDns {
+  mx: boolean; spf: boolean; dkim: boolean; dmarc: boolean;
+  /** E-458 (Befund Bereitschaft): eine Abfrage lief in eine Störung (Zeit, SERVFAIL) — das Ergebnis ist nicht sicher. */
+  unklar?: boolean;
+}
 /**
  * Ist eine Versand-Domäne für Google Workspace eingerichtet? MX vorhanden, SPF mit include:_spf.google.com, DKIM-Schlüssel
  * unter google._domainkey, DMARC-Eintrag. Nur lesend.
@@ -55,5 +60,6 @@ export async function versandDns(domain: string): Promise<VersandDns> {
     spf: !!wurzel?.some((t) => /^v=spf1\b/i.test(t) && /include:_spf\.google\.com/i.test(t)),
     dkim: !!dkim?.some((t) => /v=DKIM1/i.test(t) || /\bp=[A-Za-z0-9+/=]{20,}/.test(t)),
     dmarc: !!dmarc?.some((t) => /^v=DMARC1\b/i.test(t)),
+    unklar: mx === "unklar" || wurzel === null || dkim === null || dmarc === null,
   };
 }

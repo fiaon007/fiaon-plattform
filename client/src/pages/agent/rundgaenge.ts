@@ -1837,7 +1837,8 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     titel: "Hier verkauft Mara FIAON Global an Firmen.",
     text: "Mara findet Firmen mit Kapitalbedarf, schreibt jeder eine eigene kurze Mail, fasst zweimal nach, beantwortet jede Antwort mit "
       + "freien Gesprächszeiten und verfolgt die Firma bis zum Kauf. Die zwei Ringe zeigen das Tagesziel: 10 Leads und 5 Käufe.",
-    tipp: "„Postfach jetzt prüfen“ und „Jetzt eine Runde senden“ machen sofort, was Mara sonst alle 10 Minuten von selbst tut.",
+    // E-458 (Nachbesserung): Der Knopf schickt nur noch Nachfassen und Wiedervorlage — erste Mails kommen vom Mail-Motor.
+    tipp: "„Postfach jetzt prüfen“ und „Nachfassen jetzt“ machen sofort, was Mara sonst alle 10 Minuten von selbst tut. Erste Mails schickt der Mail-Motor (Automatik).",
   },
   {
     ziel: ".cr-mara",
@@ -1851,7 +1852,7 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     ziel: ".cr-trichter",
     titel: "Vom Fund bis zum Kauf — mit Quote je Stufe.",
     text: "Gefunden, angeschrieben, zugestellt, Antworten, Leads, Termine, Angebote, Käufe. Termine und Aufträge holt der Radar selbst aus "
-      + "dem Global-Kalender und den Global-Aufträgen zurück. Oben rechts wählst du den Zeitraum.",
+      + "dem Global-Kalender und den Global-Aufträgen zurück. Oben rechts wählst du „Alle“, „Firmen“ oder „Partner“ und den Zeitraum.",
   },
   {
     ziel: ".cr-haupt",
@@ -1868,7 +1869,8 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
       + "Die erste Mail nennt einen echten Anlass, was wir tun, und stellt genau eine Frage, ohne Preis und ohne Betrag. "
       + "Jede Mail sieht aus wie von Hand in Gmail geschrieben: echte Unterschrift des Postfachs, darunter leise Impressum und Datenschutz.",
     // E-458 (29.10.2026): kein Abmelde-Link mehr — ein natürlicher Schlusssatz; Österreich bekommt Briefe statt Mails.
-    tipp: "Statt eines Abmelde-Links steht am Ende ein natürlicher Satz („Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.“). "
+    tipp: "Statt eines Abmelde-Links steht am Ende ein natürlicher Satz („Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.“), "
+      + "der nie ein Wort der Frage wiederholt. Der Terminlink ist kurz und persönlich (fiaon.com/g/…). "
       + "Wer ablehnt, kommt sofort auf die Sperrliste und hört nie wieder von uns. Nach Österreich gehen Briefe statt Mails.",
   },
   {
@@ -1885,25 +1887,46 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
   {
     ziel: ".cr-postfaecher",
     titel: "Postfächer: Tempo kommt aus warmen Postfächern.",
-    text: "Jedes Postfach sendet mit seiner echten Gmail-Signatur und hat eine Tagesgrenze. Neue Postfächer fahren langsam hoch "
-      + "(Woche 1 → 20, Woche 2 → 40, danach 60 am Tag). Die Ampel zeigt Gmail, Signatur und bei eigenen Versand-Domänen MX, SPF, DKIM und DMARC — "
-      + "nur ein grünes Postfach sendet.",
+    text: "Jedes Postfach sendet mit seiner echten Gmail-Signatur und hat eine Tagesgrenze, die es gleichmäßig über das Fenster verteilt. "
+      + "Neue Postfächer fahren langsam hoch (Woche 1 → 20, Woche 2 → 40, danach 60 am Tag). Die Ampel zeigt Gmail, Signatur und bei eigenen "
+      + "Versand-Domänen MX, SPF, DKIM und DMARC — nur ein grünes Postfach sendet. Eine kurze Störung (Gmail, Netz) hält es nicht an: Dann "
+      + "gilt der letzte gute Stand, und nach einem Sendefehler ruht es nur kurz.",
     tipp: "Mit dem Schalter pausierst du ein Postfach; „Jetzt prüfen“ liest Gmail und DNS sofort neu.",
   },
   {
     ziel: ".cr-zustellung",
     titel: "Zustellung: der Motor bremst sich selbst.",
-    text: "Kommen in 7 Tagen mehr als 3 % der Mails zurück oder beschweren sich mehr als 0,3 %, halbiert der Motor sein Tempo und du "
-      + "bekommst eine Aufgabe. Ein einzelnes Postfach über der Grenze pausiert 48 Stunden. Drei Tage unter beiden Grenzen: volle Fahrt.",
+    text: "Kommen in 7 Tagen mehr als 3 % der Mails zurück oder beschweren sich mehr als 0,3 %, halbiert der Motor Tempo und Tagesgrenze "
+      + "und du bekommst eine Aufgabe. Ein einzelnes Postfach über der Grenze ruht 48 Stunden, wenn ein anderes sauber weiter sendet. "
+      + "Drei Tage unter beiden Grenzen: volle Fahrt.",
     tipp: "„Bremse lösen …“ gibt sofort wieder volle Fahrt — nur, wenn die Ursache klar ist.",
+  },
+  {
+    // E-458 (Nachbesserung): die Prüf-KI hat einen eigenen Schritt.
+    ziel: ".cr-pruefki-kachel",
+    titel: "Die Prüf-KI liest jede Mail, bevor sie hinausgeht.",
+    text: "Eine zweite KI prüft jede erste Mail und jedes Nachfassen: klingt sie nach Mensch, hat sie einen echten Bezug, verspricht sie nichts. "
+      + "Fällt eine Mail durch, schreibt Mara sie einmal neu, sonst geht sie nicht hinaus. Hier siehst du, was heute gelesen, freigegeben "
+      + "und verworfen wurde, und die nächste Mail so, wie sie hinausgeht.",
+    tipp: "Änderst du in der Akte eine Mail von Hand, drück danach „Prüfen lassen“. Ohne Freigabe geht sie nicht hinaus, auch nicht aus dem Motor.",
+  },
+  {
+    ziel: ".cr-adressen",
+    titel: "Adressen: nur belegt, nie geraten.",
+    text: "Fehlt die Adresse des Chefs, leitet Mara sie nur aus einem belegten Muster ab: mindestens ein echter Kollege derselben Firma mit "
+      + "Namen (bei Mustern wie nachname@ zwei) und ein Mailserver der Domäne. Kommt eine abgeleitete Adresse zurück, geht ein Brief. "
+      + "Mit dem Schalter oben rechts schaltest du die Ableitung aus; dann gehen auch schon vorbereitete abgeleitete Mails nicht mehr hinaus.",
+    tipp: "Österreich zählt hier mit: Sagt auch nur ein Zeichen Österreich (Domäne, Telefon, UID), geht ein Brief statt einer Mail.",
   },
   {
     ziel: ".cr-partner",
     titel: "Kooperationspartner: Menschen, die uns Kunden bringen.",
     text: "Mara sucht und schreibt Steuerberater, Anwälte, Finanzierer, Kreditvermittler, Berater und Agenturen an. Steuerberater und Anwälte "
-      + "bekommen keine Provision (Berufsrecht) — ihre Mandanten bekommen bei uns US-Gesellschaft, Konto und Karten. Alle anderen sind Tippgeber "
-      + "mit 30 % Provision. Kein Termin: Konditionen gehen schriftlich. Wer Interesse zeigt, steht danach unter Geschäftspartner.",
-    tipp: "Jede Gruppe lässt sich einzeln an- und ausschalten. Im Reiter „Firmen“ schaltest du oben zwischen Firmen und Partnern um.",
+      + "bekommen keine Provision (Berufsrecht) — wir gründen ihren Mandanten die US-Gesellschaft und kümmern uns um Konto und Karten. Alle anderen "
+      + "sind Tippgeber mit der Provision aus den Feineinstellungen. Kein Termin: Konditionen gehen schriftlich. Wer Interesse zeigt, steht danach "
+      + "unter Geschäftspartner. Wer schon dort steht, bekommt nie eine Kaltmail.",
+    tipp: "Jede Gruppe lässt sich einzeln an- und ausschalten; eine ausgeschaltete Gruppe bekommt sofort keine Mail mehr. "
+      + "Im Reiter „Firmen“ schaltest du oben zwischen Firmen und Partnern um. In der Akte holt „Zurück in den Vorrat“ eine verworfene Firma zurück.",
   },
   {
     // E-339 (12.10.2026): Brief statt Mail.

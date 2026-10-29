@@ -192,7 +192,7 @@ const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen
 ok(sigHtml.includes("/mail/signatur/mara.png") && sigHtml.includes("linie.gif") && sigHtml.includes("punkt.gif") && sigHtml.includes("Digitale Assistentin von Justin Schwarzott"), "Maras Karte: Porträt, Lichtlinie, Punkt, KI-Hinweis „Digitale Assistentin“");
 ok(sigHtml.includes("Einen Termin wählen") && sigHtml.includes("FIAON LTD · Fuß") && !/Mara Lindner<br>Digitale/.test(sigHtml), "Termin als Link, Fuß klein, Textunterschrift durch die Karte ersetzt");
 // E-458: die erste Mail trägt die ECHTE Gmail-Unterschrift des Postfachs (sendAs); Justins Karte nur noch als Rückweg für js@.
-ok(/await absenderLesen\(postfach\)/.test(lies("server/lib/fiaon-radar.ts")) && /return postfach === "js@fiaon\.com" \? \{ \.\.\.radarKarteAbsender\(seite\), postfach \} : null;/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt die Gmail-Unterschrift des Postfachs, die Karte nur als Rückweg für js@");
+ok(/await absenderLesen\(postfach\)/.test(lies("server/lib/fiaon-radar.ts")) && /absender: postfach === "js@fiaon\.com" \? \{ \.\.\.radarKarteAbsender\(seite\), postfach \} : null/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt die Gmail-Unterschrift des Postfachs, die Karte nur als Rückweg für js@");
 ok((lies("server/lib/fiaon-radar-faden.ts").match(/htmlAusText\(/g) ?? []).length >= 2 && /antwortSenden\(String\(f\.postfach\), original, text, persoenlicheMailHtml\(teile\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Maras Antwort und Freigabe mit Karte, das Nachfassen mit der echten Unterschrift (E-458)");
 ok(fs.existsSync(path.join(wurzel, "client/public/mail/signatur/mara.png")) && fs.existsSync(path.join(wurzel, "client/public/mail/signatur/linie.gif")), "Signaturbilder liegen öffentlich bereit");
 ok(/radarAdressePersoenlich\(an, namen\)/.test(lies("server/lib/fiaon-radar.ts")), "Wand beim Senden: nur persönliche Adresse eines Entscheiders");
@@ -221,7 +221,7 @@ ok(/je Firma genau eine/.test(lib) && /f\.status === "versendet" \|\| f\.versend
 ok(/radarPostfaecher\(\)\.includes\(postfach\)/.test(lib), "Nur freigegebene Postfächer");
 ok(/await gesperrt\(an, f\.domain\)/.test(lib), "Sperrliste vor jedem Versand");
 ok(/f\.mail\.sperrend\?\.length/.test(lib), "Wortwand-Funde sperren Entwurf und Versand");
-ok(/const jetzt = mailPruefen\(/.test(lib) && /nach alten Regeln geschrieben/.test(lib), "Beim Senden gilt die AKTUELLE Wand — alte Mails müssen neu geschrieben werden");
+ok(/const sperrt = radarMailWand\(f, await radarMotorEinstellung\(\)\)/.test(lib) && /nach alten Regeln geschrieben/.test(lib), "Beim Senden gilt die AKTUELLE Wand — alte Mails müssen neu geschrieben werden");
 ok(/art === "senden" && ein\.bestaetigt !== true/.test(lib), "Stapel-Versand nur mit Bestätigung");
 ok(/PAUSE_MS = \(\) => 20_000/.test(lib) && /art === "senden" && fertig < ids\.length/.test(lib), "Pause zwischen zwei Mails im Stapel");
 ok(/RADAR_STAPEL_MAX\)/.test(lib), "Stapel ist begrenzt");
@@ -459,10 +459,15 @@ abschnitt("Österreich: Brief statt Mail (E-458)");
   ok(!sh8.radarBriefPruefen({ ...atFirma, land: "DE", impressum: { ...impAt, land: "DE", plz: "10115", ort: "Berlin" } }).ok, "Deutschland mit persönlicher Adresse → die Mail geht vor");
   const lib8 = lies("server/lib/fiaon-radar.ts"), fd8 = lies("server/lib/fiaon-radar-faden.ts"), br8 = lies("server/lib/fiaon-radar-brief.ts");
   ok(/if \(!radarMailErlaubt\(radarLandFuer\(f\)\)\) throw new RadarFehler\("Österreich bekommt Briefe, keine Mails\."\)/.test(lib8), "radarMailAusgeben wirft für Österreich — gilt für Motor, Stapel und Akte");
-  ok(/nachfass_stufe < [\s\S]{0,500}= ANY\(\$\{\[\.\.\.RADAR_NUR_BRIEF_LAENDER\]\}::text\[\]\)\)/.test(fd8) && /SET nachfass_faellig = NULL[\s\S]{0,600}RADAR_NUR_BRIEF_LAENDER/.test(fd8), "Kein Nachfassen nach Österreich (auch nicht auf eine alte erste Mail)");
-  ok(/wiedervorlage_am <= NOW\(\)[\s\S]{0,700}RADAR_NUR_BRIEF_LAENDER/.test(fd8), "Keine Wiedervorlage-Mail nach Österreich");
+  // E-458 (Nachbesserung): EINE Regel „Österreich gewinnt“ als SQL-Teil (sqlOesterreich) — im Ende-zu-Ende-Lauf auch gegen die Datenbank geprüft.
+  ok(/nachfass_stufe < [\s\S]{0,300}AND NOT \$\{sqlOesterreich\(\)\}/.test(fd8) && /SET nachfass_faellig = NULL WHERE nachfass_faellig IS NOT NULL AND \$\{sqlOesterreich\(\)\}/.test(fd8), "Kein Nachfassen nach Österreich (auch nicht auf eine alte erste Mail)");
+  ok(/wiedervorlage_am <= NOW\(\)[\s\S]{0,300}AND NOT \$\{sqlOesterreich\(\)\}/.test(fd8), "Keine Wiedervorlage-Mail nach Österreich");
+  const imp = (x: Record<string, unknown>) => ({ land: "DE", domain: "beispiel.example", impressum: { land: "DE", ...x } });
+  ok(sh8.radarLandFuer({ land: "DE", domain: "beispiel-handel.at" }) === "AT" && sh8.radarLandFuer(imp({ ustId: "ATU 12345678" })) === "AT" && sh8.radarLandFuer(imp({ telefon: "+43 1 234 56 78" })) === "AT"
+    && sh8.radarLandFuer(imp({ telefon: "0043 1 234" })) === "AT" && sh8.radarLandFuer(imp({ telefon: "+49 30 1234" })) === "DE" && sh8.radarLandFuer({ land: "CH", domain: "beispiel.ch" }) === "CH",
+    "Österreich gewinnt: Spalte „DE“ mit .at-Domäne, UID ATU oder Telefon +43/0043 → AT; +49 bleibt DE, .ch bleibt CH");
   ok(/COALESCE\(r\.motor_status, ''\) NOT IN \('arbeit', 'bereit', 'sendet'\) AND r\.strom = 'firma'/.test(br8), "Brief-Lauf: kein Brief, solange die Mail in der Warteschlange liegt; nur Firmen");
-  ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
+  ok(/ADD COLUMN IF NOT EXISTS strom TEXT NOT NULL DEFAULT 'firma',[\s\S]{0,500}ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER,[\s\S]{0,200}ADD COLUMN IF NOT EXISTS motor_sendefehler INTEGER NOT NULL DEFAULT 0`/.test(lib8) && /fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen \(motor_status, strom, signal_staerke\)/.test(lib8), "Neue Spalten in EINEM ALTER, Index für die Warteschlange");
 }
 
 abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
@@ -471,7 +476,6 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   const sig8 = await import("../server/lib/fiaon-signatur");
   const gm = await import("../server/lib/fiaon-gmail");
   const fd = await import("../server/lib/fiaon-radar-faden");
-  const schluss = sh8.RADAR_SCHLUSSSAETZE[0];
   const basis = {
     betreff: "Ihre neue Halle",
     absaetze: [
@@ -480,6 +484,9 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
     ],
     frage: "Wäre das für Ihre Pläne gerade ein Thema?", ps: "",
   };
+  // E-458 (Befund „Echo“): Der Schlusssatz wird zur Frage gewählt — keiner, der „gerade“ oder „Thema“ wiederholt.
+  const schluss = sh8.radarSchlusssatzFuer(0, basis.frage);
+  ok(!sh8.radarSchlussEcho(basis.frage, schluss).length && sh8.radarSchlussEcho(basis.frage, sh8.RADAR_SCHLUSSSAETZE[0]).join(",") === "gerade,thema", `Schlusssatz ohne Echo zur Frage gewählt („${schluss}“)`);
   const o = { streng: true, strom: "firma" as const, anrede: "Hallo Frau Beispiel,", schluss, mitLink: true };
   const sp = (m: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => lib.mailPruefen({ ...basis, ...m } as any, { ...o, ...extra }).sperrend;
   const mit = (zusatz: string) => ({ absaetze: [`${basis.absaetze[0]} ${zusatz}`, basis.absaetze[1]] });
@@ -501,9 +508,46 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   const weich = lib.mailPruefen({ ...basis, absaetze: [`${basis.absaetze[0]} Das ist spannend!`, basis.absaetze[1]], ps: "Noch etwas." });
   ok(!weich.sperrend.length && weich.warnungen.some((x) => /Ausrufezeichen/.test(x)), "Ohne streng bleiben dieselben Fälle Hinweise (Hand-Änderung)");
   ok(!/[–—]/.test(Object.values(sh8.RADAR_KERNSATZ).join(" ")) && globalWortPruefen(Object.values(sh8.RADAR_KERNSATZ).join(" ")).length === 0, "Kernsatz ohne Gedankenstriche, besteht die Wortwand");
-  ok(sh8.RADAR_SCHLUSSSAETZE.length === 4 && sh8.RADAR_SCHLUSSSAETZE.every((x) => !globalWortPruefen(x).length && !/[?!–—]/.test(x) && !/abmeld|verteiler|newsletter/i.test(x)), "Vier natürliche Schlusssätze, Wortwand sauber, kein Abmelde-Wort");
+  ok(sh8.RADAR_SCHLUSSSAETZE.length === 6 && sh8.RADAR_SCHLUSSSAETZE.every((x) => !globalWortPruefen(x).length && !/[?!–—]/.test(x) && !/abmeld|verteiler|newsletter/i.test(x)), "Sechs natürliche Schlusssätze, Wortwand sauber, kein Abmelde-Wort");
   ok(sh8.radarSchlusssatz(7) === sh8.radarSchlusssatz(7) && sh8.radarSchlusssatz(0) !== sh8.radarSchlusssatz(1) && sh8.radarGruss(2) === "Viele Grüße" && sh8.radarGruss(3) === "Beste Grüße", "Schlusssatz und Gruß je Firma fest (gleiche ID, gleicher Satz)");
+  // E-458 (Befund „Echo“): Für jede Frage gibt es einen Schlusssatz ohne gemeinsames Wort; die strenge Prüfung sperrt ein Echo.
+  for (const fr of ["Wäre das für Ihre Pläne gerade ein Thema?", "Passt das gerade zu Ihren Plänen?", "Ist das im Moment ein Thema für Sie?", "Darf ich Ihnen unsere Konditionen schriftlich schicken?"]) {
+    for (const id of [0, 1, 2, 3, 4, 5]) ok(!sh8.radarSchlussEcho(fr, sh8.radarSchlusssatzFuer(id, fr)).length, `Kein Echo: „${fr}“ (Firma ${id}) → „${sh8.radarSchlusssatzFuer(id, fr)}“`);
+  }
+  ok(sp({}, { schluss: sh8.RADAR_SCHLUSSSAETZE[0] }).some((x) => /Schlusssatz wiederholt die Frage/.test(x)), "Streng: „gerade ein Thema? … gerade kein Thema“ sperrt");
+  // E-458 (Befund): Sollzins nur mit Einführungszeitraum, kein Euro-Betrag, keine Prozentzahl in Firmen-Mails.
+  ok(sp(mit("Viele Karten starten ohne Sollzins.")).some((x) => /ohne Sollzins/.test(x)) && !sp(mit("Viele Karten starten mit einem Einführungszeitraum ohne Sollzins.")).some((x) => /Sollzins/.test(x)), "Streng: „ohne Sollzins“ sperrt — mit „Einführungszeitraum“ im selben Satz nicht");
+  ok(sp(mit("Das kostet sonst 50.000 € Zinsen.")).some((x) => /Euro/.test(x)) && sp(mit("Das sind 3.900 Euro im Jahr.")).some((x) => /Euro/.test(x)), "Streng: Euro-Betrag sperrt (vorher nur ein Hinweis)");
+  ok(sp(mit("Ihr Umsatz wuchs um 40 Prozent.")).some((x) => /Prozentzahl/.test(x)) && sp(mit("Ihr Umsatz wuchs um 40 %.")).some((x) => /Prozentzahl/.test(x)), "Streng: Prozentzahl in der Firmen-Mail sperrt");
+  // Partner: Provision nur im freigegebenen Satz; Steuerberater nie, auch nicht im Betreff; „Gespräch“ zählt als Gesprächswunsch.
+  const satz = "30 Prozent unseres Honorars, ein Jahr lang";
+  const pmail = { betreff: "Ihre Kunden mit Plänen in den USA", absaetze: ["Ich habe auf Ihrer Seite gelesen, dass Sie vor allem inhabergeführte Händler und Hersteller bei ihren Investitionen begleiten. Gerade diese Unternehmer suchen oft einen zweiten Weg zu Kapital, neben der Hausbank.", `Wir gründen ihnen eine eigene Gesellschaft in den USA und kümmern uns um Konto und Firmenkarten. Für jeden Kunden, den Sie uns vorstellen, bekommen Sie ${satz}.`], frage: "Darf ich Ihnen unsere Konditionen schriftlich schicken?", ps: "" };
+  const pp = (m: Record<string, unknown>, gruppe: string, extra: Record<string, unknown> = {}) => lib.mailPruefen({ ...pmail, ...m } as any, { streng: true, strom: "partner", gruppe, anrede: "Guten Tag Martin Keller,", schluss: sh8.radarSchlusssatzFuer(1, pmail.frage), mitLink: false, provisionText: satz, ...extra }).sperrend;
+  ok(!pp({}, "finanzierer").length, `Partner mit Provision: der freigegebene Satz besteht (${pp({}, "finanzierer").join("; ")})`);
+  ok(pp({ absaetze: [pmail.absaetze[0], pmail.absaetze[1].replace(satz, "25 Prozent für zwei Jahre")] }, "finanzierer").some((x) => /außerhalb des freigegebenen Satzes/.test(x)), "Partner mit Provision: eine andere Prozentzahl sperrt");
+  ok(pp({ betreff: "30 % für Ihre Mandanten", absaetze: [pmail.absaetze[0], "Wir gründen ihnen eine eigene Gesellschaft in den USA und kümmern uns um Konto und Firmenkarten. Die steuerliche Betreuung bleibt ganz bei Ihnen, und wir stellen uns gegenseitig Mandanten vor."] }, "steuerberater").some((x) => /keine Provision/.test(x)), "Steuerberater: Provision im BETREFF sperrt");
+  ok(pp({ frage: "Hätten Sie Zeit für ein kurzes Gespräch?" }, "finanzierer").some((x) => /Gesprächswunsch/.test(x)) && pp({ frage: "Wollen wir uns kurz austauschen?" }, "finanzierer").some((x) => /Gesprächswunsch/.test(x)), "Partner: „Gespräch“ und „austauschen“ sperren");
+  // Partner-Angebot: über Konto und Karte entscheidet die Bank — nie „bekommen bei uns“; der Provisions-Satz kommt aus dem Chefbüro.
+  ok(sh8.RADAR_PARTNER_GRUPPEN.every((g) => !/bekommen bei uns/i.test(g.angebot)) && sh8.radarPartnerAngebot(sh8.radarPartnerGruppe("finanzierer"), "25 Prozent unseres Honorars, zwei Jahre lang").includes("25 Prozent unseres Honorars, zwei Jahre lang") && !sh8.radarPartnerAngebot(sh8.radarPartnerGruppe("steuerberater"), satz).includes("Prozent"), "Partner-Angebot: nie „bekommen bei uns“; Provisions-Satz eingesetzt, Steuerberater ohne");
+  // Anrede: Titel bleibt, Partner „Guten Tag“, Firmen „Hallo“; die Anrede gehört dem Menschen hinter der Adresse.
+  ok(lib.anredeFuer("Dr. Anna Brandt", "Frau", { partner: true }) === "Guten Tag Frau Dr. Brandt," && lib.anredeFuer("Prof. Dr. Max Müller", "Herr") === "Hallo Herr Prof. Dr. Müller," && lib.anredeFuer("Anna Berg", "Frau") === "Hallo Frau Berg,", "Anrede: „Frau Dr. Brandt“ (Partner: „Guten Tag“), „Herr Prof. Dr. Müller“, Firmen weiter „Hallo“");
+  ok(sh8.radarEmpfaengerName("m.mueller@beispiel.example", ["Anna Beispiel", "Max Müller"]) === "Max Müller" && sh8.radarEmpfaengerName("info@beispiel.example", ["Anna Beispiel"]) === null, "Die Anrede gehört dem Menschen hinter der Adresse (zwei Geschäftsführer)");
+  ok(sh8.radarAnredeName("Hallo Frau Dr. Brandt,") === "Brandt" && sh8.radarAnredeName("Guten Tag Max Müller,") === "Max Müller" && sh8.radarAnredeName("Guten Tag,") === null, "Name aus der Anrede gelesen (für die Wand beim Senden)");
+  ok(/if \(anredeName && !radarAdressePersoenlich\(an, \[anredeName\]\)\) throw new RadarFehler/.test(lies("server/lib/fiaon-radar.ts")), "Beim Senden: Anrede und Empfänger müssen zusammenpassen");
+  // Kurzer, persönlicher Terminlink statt utm_campaign; Impressum-Zeile mit Sitzanschrift.
+  ok(sh8.radarKurzlink(4101) === "https://fiaon.com/g/r4101" && sh8.radarKurzlinkZiel("r4101") === "/business?utm_source=radar&utm_medium=email&utm_campaign=firmen_radar&utm_content=r4101#gespraech" && sh8.radarKurzlinkZiel("x<script>") === "/business", "Kurzlink fiaon.com/g/r<ID> → Terminlink mit Zuordnung; Unsinn → /business");
+  const kurzHtml = lib.mailHtml({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
+  const kurzText = lib.mailText({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
+  ok(kurzHtml.includes(">fiaon.com/g/r4101</a>") && !/utm_campaign|Einen Termin wählen/.test(kurzHtml) && kurzText.includes("Wenn Sie mögen, suchen Sie sich hier direkt eine Zeit aus: https://fiaon.com/g/r4101") && !sh8.radarSchlussEcho(lib.RADAR_LINK_SATZ, "Passt das gerade zu Ihrem Thema?").length && !/utm_/.test(kurzText), "Mail zeigt den Kurzlink als normalen Satz — kein utm im Blick, kein Werbe-Knopf");
+  ok(/app\.get\('\/g\/:kennung'/.test(lies("server/routes.ts")) && /res\.redirect\(302, radarKurzlinkZiel\(req\.params\.kennung\)\)/.test(lies("server/routes.ts")), "Server leitet /g/r<ID> weiter (302, noindex)");
+  ok(sig8.impressumZeileText().includes(FIAON_FIRMA.strasse) && sig8.impressumZeileText().includes("England and Wales") && sig8.impressumZeileText().includes(FIAON_FIRMA.companyNo) && sig8.impressumZeileHtml().includes(">Impressum<"), "Impressum-Zeile mit Sitzanschrift und Register (England and Wales)");
   ok(fd.antwortKern(`Kein Bedarf, danke.\n\nAm Do., 29. Okt. 2026 um 10:05 schrieb Max Beispiel <max@beispiel.example>:\n> ${schluss}`) === "Kein Bedarf, danke." && fd.antwortVorab({ vonAdresse: "max@beispiel.example", betreff: "AW: Ihre neue Halle", text: schluss }) === null, "Der Schlusssatz im Zitat wird abgeschnitten und nie als Abmeldung gelesen");
+  // E-458 (Befund): Das eingeladene „kurze Nein“ erkennt die Regel — ohne KI, auch in der KI-Pause; mit Gruß darunter auch.
+  const vorab = (text: string) => fd.antwortVorab({ vonAdresse: "max@beispiel.example", betreff: "AW: Ihre neue Halle", text });
+  ok(vorab("Nein.") === "kein_interesse" && vorab("Nein danke") === "kein_interesse" && vorab("Kein Thema.") === "kein_interesse" && vorab("Ist gerade kein Thema.") === "kein_interesse" && vorab("Nein.\n\nViele Grüße\nMax Beispiel\nGeschäftsführer") === "kein_interesse",
+    "„Nein.“, „Nein danke“, „Kein Thema.“ — auch mit Gruß und Unterschrift darunter — sind eine Absage (Regel, ohne KI)");
+  ok(vorab("Nein, aber melden Sie sich gern im Januar wieder.") === null && vorab("Nein.\n\nAber im Januar gern.") === null, "„Nein, aber im Januar“ bleibt für die Einordnung (keine falsche Sperre)");
+  ok(/wartend\.add\(firmaId\)/.test(lies("server/lib/fiaon-radar-faden.ts")) && /id <> ALL\(\$\{Array\.from\(wartet\)\}::int\[\]\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Liegt eine Antwort noch uneingeordnet im Faden, wartet das Nachfassen");
   ok(!/Abmeldesatz/.test(sh8.RADAR_ANTWORT_ARTEN.kein_interesse.was), "„Kein Interesse“ erklärt sich ohne Abmeldesatz");
   // Die Mail sieht aus wie in Gmail geschrieben — mit der echten Unterschrift des Postfachs.
   const anna = { postfach: "anna@versand.example", name: "Anna Beispiel", signaturHtml: '<div dir="ltr"><b>Anna Beispiel</b><br>Partnerschaften<br><img src="https://bilder.example/anna.png" width="80"></div>', signaturText: "Anna Beispiel\nPartnerschaften", quelle: "gmail" as const };
@@ -523,12 +567,17 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   const libQ = lies("server/lib/fiaon-radar.ts"), fdQ = lies("server/lib/fiaon-radar-faden.ts");
   ok(/neueMailSendenMitFaden\(postfach, inhalt\)/.test(libQ) && !/abmelden: postfach/.test(libQ) && /abmelden/.test(lies("server/lib/fiaon-mara-aktion.ts")), "radarMailAusgeben sendet ohne List-Unsubscribe; die Mara-Aktion bleibt unverändert");
   ok(/const inhalt = \{ vonName: absender\.name,/.test(libQ) && /vonName: absender\.name, an: f\.email/.test(fdQ) && /"Mara Lindner \| FIAON Global"/.test(fdQ) && !/\$\{radarAbsender\(\)\.name\} \| FIAON Global/.test(libQ + fdQ), "Absendername ohne „| FIAON Global“ bei Erstmail, Nachfass und Freigabe — Mara bleibt „Mara Lindner | FIAON Global“");
+  // E-458 (Befund): mehrere Vorlagen je Stufe (sonst hunderte gleiche Mails); alle bestehen — Partner auch als Steuerkanzlei.
   for (const strom of ["firma", "partner"] as const) for (const stufe of [1, 2]) {
-    const v = fd.NACHFASS_VORLAGEN[strom][stufe - 1];
-    const r = lib.mailPruefen({ betreff: "Ihre neue Halle", absaetze: v.absaetze, frage: v.frage, ps: "" }, fd.nachfassRegeln(strom, stufe));
-    ok(!r.sperrend.length, `Nachfass-Vorlage ${strom} Stufe ${stufe} besteht die strenge Prüfung (${r.sperrend.join("; ")})`);
+    const liste = fd.NACHFASS_VORLAGEN[strom][stufe - 1];
+    ok(liste.length >= 2 && new Set(liste.map((v) => v.absaetze.join(" "))).size === liste.length, `Nachfass-Vorlagen ${strom} Stufe ${stufe}: ${liste.length} verschiedene Fassungen`);
+    liste.forEach((v, i) => {
+      const r = lib.mailPruefen({ betreff: "Ihre neue Halle", absaetze: v.absaetze, frage: v.frage, ps: "" }, fd.nachfassRegeln(strom, stufe, strom === "partner" ? "steuerberater" : null));
+      ok(!r.sperrend.length && !/bekommen bei uns/i.test(v.absaetze.join(" ")), `Nachfass-Vorlage ${strom} Stufe ${stufe} Fassung ${i + 1} besteht die strenge Prüfung (${r.sperrend.join("; ")})`);
+    });
   }
-  ok(/Diese Mail ist nach alten Regeln geschrieben oder verletzt sie/.test(libQ) && /\{ streng: true, strom, gruppe: f\.mail\.gruppe \?\? null, anrede: f\.mail\.anrede \?\? null, schluss, mitLink \}/.test(libQ), "Beim Senden gelten die strengen Regeln — für Motor, Stapel und Akte");
+  ok(fd.nachfassVorlage("firma", 2, 10) !== fd.nachfassVorlage("firma", 2, 11) && fd.nachfassVorlage("firma", 2, 10) === fd.nachfassVorlage("firma", 2, 10), "Die Vorlage ist je Firma fest und wechselt zwischen Firmen");
+  ok(/Diese Mail ist nach alten Regeln geschrieben oder verletzt sie/.test(libQ) && /export function radarMailWand\(f: any, motor: RadarMotor\)/.test(libQ) && /streng: true, strom, gruppe: m\.gruppe \?\? null,[\s\S]{0,300}provisionText: strom === "partner" \? motor\.partnerProvisionText : null/.test(libQ), "Beim Senden gelten die strengen Regeln — für Motor, Stapel und Akte (radarMailWand, mit Provisions-Satz)");
 }
 
 abschnitt("Prüf-KI vor jeder Mail (E-458)");
@@ -590,7 +639,28 @@ abschnitt("Prüf-KI vor jeder Mail (E-458)");
   ok(/if \(!f\.pruef_ki\?\.ok \|\| f\.pruef_ki\.hash !== radarMailHash\(f\.mail\)\) throw new RadarFehler/.test(libQ), "radarMailAusgeben verlangt pruef_ki.ok und denselben Hash — für Motor, Stapel und Akte");
   ok(/radarMailAendern[\s\S]{0,3200}pruef_ki = NULL, pruef_ki_am = NULL/.test(libQ) && /mail_am = NOW\(\), pruef_ki = NULL, pruef_ki_am = NULL/.test(libQ), "Hand-Änderung und Neuschreiben setzen das Urteil zurück");
   ok(/radarMailFertig, radarMailNurPruefen/.test(libQ) && /"\/chef\/radar\/firma\/:id\/pruefen", wache/.test(lies("server/routes/fiaon-radar.ts")) && /Prüfen lassen/.test(lies("client/src/components/admin/ChefRadar.tsx")), "Stapel prüft vor dem Senden; Akte: „Prüfen lassen“ hinter der Wache");
-  ok(/radarMailPruefKi\(f, \{ betreff: String\(f\.mail\?\.betreff \?\? ""\), absaetze, frage \}, \{ strom, art: "nachfass" \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Auch das Nachfassen liest die Prüf-KI (zweimal durchgefallen → feste Vorlage)");
+  // E-458 (Befund): Die Anweisung kennt den Aufbau der Mail (Link und Schlusssatz nach der Frage), das Hauswort zum Sollzins,
+  // den Provisions-Satz aus dem Chefbüro, und beim Nachfassen die erste Mail und den Abschluss ohne neuen Nutzen.
+  const anwF = pk.radarPruefAnweisung({ strom: "firma" });
+  ok(/Link und ein fester Schlusssatz folgen, die der Server setzt/.test(anwF) && /„Einführungszeitraum ohne Sollzins“ ist das freigegebene Hauswort und KEINE Zusage/.test(anwF), "Prüf-Anweisung: Link und Schlusssatz nach der Frage erlaubt; „Einführungszeitraum ohne Sollzins“ ist keine Zusage");
+  const anwP = pk.radarPruefAnweisung({ strom: "partner", provision: true, provisionText: "25 Prozent unseres Honorars, zwei Jahre lang" });
+  ok(anwP.includes("„25 Prozent unseres Honorars, zwei Jahre lang“") && !anwP.includes("30 Prozent") && /wobei FIAON den Mandanten oder Kunden dieses Partners hilft/.test(anwP) && !/bei FIAON bekommen/.test(anwP), "Prüf-Anweisung Partner: Provisions-Satz aus dem Chefbüro, Nutzen als Hilfe statt „bekommen“");
+  const anwN = pk.radarPruefAnweisung({ strom: "partner", art: "nachfass", stufe: 2, provision: false, maxKlang: 2 });
+  ok(/KEINE Provision/.test(anwN) && /ein neuer Nutzen ist hier NICHT nötig/.test(anwN) && /ki_klang ≤ 2/.test(anwN) && /DIE ERSTE MAIL/.test(anwN), "Prüf-Anweisung Nachfass Stufe 2: Kanzlei ohne Provision, Abschluss ohne neuen Nutzen, KI-Klang aus dem Chefbüro, Bezug zur ersten Mail");
+  // Das Nachfassen Ende zu Ende mit Attrappen (Schreiber und Prüferin): eine Steuerkanzlei bekommt nie eine Provision.
+  const fd = await import("../server/lib/fiaon-radar-faden");
+  const mm = { ...sh8.radarMotorLesen({}), kiKlangMax: 2 };
+  const kanzlei = { id: 77, name: "Kanzlei Beispiel", strom: "partner", bereich: "steuerberater", domain: "kanzlei.example", scan: { aufhaenger: [], profil: {} },
+    mail: { betreff: "Ihre Mandanten im Onlinehandel", anrede: "Guten Tag Frau Dr. Beispiel,", absaetze: ["Ich habe gesehen, dass Sie viele Onlinehändler betreuen."], frage: "Haben Sie Mandanten, für die das gerade ein Thema ist?", text: "Erste Mail" } };
+  const mitProvision = { absaetze: ["ich melde mich noch einmal kurz. Für jede Vorstellung erhalten Sie 30 Prozent unseres Honorars, ein Jahr lang, und wir kümmern uns um Konto und Karten Ihrer Mandanten in den USA."], frage: "Haben Sie Mandanten, für die das gerade ein Thema ist?" };
+  let geschrieben = 0, gelesen = "";
+  pk.radarPruefModellSetzen(async (e) => { gelesen = `${e.anweisung}\n${e.eingabe}`; return JSON.stringify({ ...gut, ki_klang: 1 }); });
+  const nf1 = await fd.nachfassSchreiben(kanzlei, 1, mm, async () => { geschrieben++; return mitProvision; });
+  ok(nf1.vorlage && geschrieben === 2 && !/provision|prozent|honorar/i.test(nf1.absaetze.join(" ")) && !gelesen, `Nachfass an eine Steuerkanzlei mit „30 Prozent“: die feste Wand sperrt zweimal, es geht die Vorlage ohne Provision (${geschrieben} Versuche)`);
+  const sauberNf = { absaetze: ["ich melde mich noch einmal kurz zu meiner letzten Nachricht. Wenn einer Ihrer Mandanten in den USA verkaufen will, gründen wir dort die Gesellschaft und kümmern uns um Konto und Karten."], frage: "Haben Sie gerade so einen Fall?" };
+  const nf2 = await fd.nachfassSchreiben(kanzlei, 1, mm, async () => sauberNf);
+  pk.radarPruefModellSetzen(null);
+  ok(!nf2.vorlage && /KEINE Provision/.test(gelesen) && /ki_klang ≤ 2/.test(gelesen) && /DIE ERSTE MAIL[\s\S]*Ich habe gesehen, dass Sie viele Onlinehändler betreuen/.test(gelesen), "Nachfass sauber: die Prüf-KI liest mit „KEINE Provision“, dem KI-Klang aus dem Chefbüro und der ersten Mail");
 }
 
 abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
@@ -632,7 +702,8 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(sendenQ.length > 500 && !/radarKi|kiPausiert/.test(sendenQ), "radarMotorSenden ruft keine KI und fragt die KI-Pause nicht (sendet aus der Warteschlange weiter)");
   ok(/pg_advisory_xact_lock\(\$\{MOTOR_SPERRE\}\)/.test(motorQ) && /MOTOR_SPERRE = 458001/.test(motorQ) && /SET motor_status = 'sendet'[\s\S]{0,700}RETURNING id/.test(motorQ), "Übernahme unter pg_advisory_xact_lock mit motor_status = 'sendet' … RETURNING");
   const kandQ = motorQ.slice(motorQ.indexOf("export async function kandidatNehmen"), motorQ.indexOf("async function verwerfen"));
-  ok(/r\.strom = \$\{strom\}/.test(kandQ) && /r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(kandQ) && /ORDER BY COALESCE\(r\.signal_staerke, \$\{RADAR_SIGNAL_AB\}\) DESC, r\.passung DESC/.test(kandQ) && /RADAR_NUR_BRIEF_LAENDER/.test(kandQ) && /r\.motor_status IS NULL/.test(kandQ) && /FOR UPDATE SKIP LOCKED/.test(kandQ), "Kandidaten: Strom-Filter, Signal ≥ 3, stärkstes Signal und Passung zuerst, ohne Österreich, über motor_status (nicht automatik_am)");
+  ok(/r\.strom = \$\{strom\}/.test(kandQ) && /r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(kandQ) && /ORDER BY COALESCE\(r\.signal_staerke, \$\{RADAR_SIGNAL_AB\}\) DESC, r\.passung DESC/.test(kandQ) && /AND NOT \$\{sqlOesterreich\(\)\}/.test(kandQ) && /r\.motor_status IS NULL/.test(kandQ) && /FOR UPDATE SKIP LOCKED/.test(kandQ)
+    && /\(\$\{strom\} <> 'partner' OR r\.bereich = ANY\(\$\{\[\.\.\.gruppen\]\}::text\[\]\)\)/.test(kandQ), "Kandidaten: Strom-Filter, nur eingeschaltete Partner-Gruppen, Signal ≥ 3, stärkstes Signal und Passung zuerst, ohne Österreich, über motor_status (nicht automatik_am)");
   ok(Object.keys(sh8.RADAR_STATUS).length === 16, "RADAR_STATUS bleibt bei 16 Ständen (die Warteschlange ist eine eigene Spalte)");
   ok(!/JSON\.stringify\([^)]*\)\}::jsonb/.test(motorQ + lies("server/lib/fiaon-radar-pruef.ts")), "JSONB nur über sqlPool.json()");
   const rt = lies("server/routes/fiaon-radar.ts");
@@ -644,21 +715,29 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(/ziel: "\.cr-motor"/.test(rgFr) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritt zum Mail-Motor, kein 8:30, kein Abmeldesatz");
 }
 
-// ── Ende zu Ende gegen den LOKALEN Prüfstand (nur mit PRUEF_MOTOR_DB=an und einer Datenbank auf 127.0.0.1) ──
+// ── Ende zu Ende gegen den LOKALEN Prüfstand (nur mit PRUEF_MOTOR_DB=an und einer EIGENEN Datenbank auf 127.0.0.1) ──
 if (process.env.PRUEF_MOTOR_DB === "an") {
   abschnitt("Mail-Motor Ende zu Ende im lokalen Prüfstand (E-458)");
   const url = String(process.env.DATABASE_URL ?? "");
-  if (!/@127\.0\.0\.1:54329\//.test(url)) { ok(false, "Ende-zu-Ende nur gegen den lokalen Prüfstand (127.0.0.1:54329)"); }
-  else {
+  // E-458 (Befund): Der Lauf leert die Radar-Tabellen und alle radar_*-Schalter — deshalb nur gegen eine EIGENE Wegwerf-
+  // Datenbank fiaon_e458_<name> auf 127.0.0.1:54329, nie gegen die gemeinsame Vorlage fiaon_pruefstand anderer Sitzungen.
+  const dbName = (url.split("/").pop() ?? "").split("?")[0];
+  if (!/@127\.0\.0\.1:54329\//.test(url) || !/^fiaon_e458_[a-z0-9_]+$/.test(dbName)) {
+    ok(false, `Ende-zu-Ende nur gegen eine eigene Datenbank fiaon_e458_… auf 127.0.0.1:54329 (nicht „${dbName || "?"}“)`);
+  } else {
     const { sqlPool } = await import("../server/lib/db-pool");
     const lib = await import("../server/lib/fiaon-radar");
     const mo = await import("../server/lib/fiaon-radar-motor");
     await lib.ensureRadarTabellen();
     const setzen = async (werte: Record<string, string>) => { for (const [k, w] of Object.entries(werte)) await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES (${k}, ${w}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`; };
-    const heuteTag = sh8.radarBerlinTagMinute(new Date()).tag;
-    await sqlPool`DELETE FROM fiaon_radar_post`; await sqlPool`DELETE FROM fiaon_radar_firmen`; await sqlPool`DELETE FROM fiaon_radar_sperre`;
+    const jetztBerlin = sh8.radarBerlinTagMinute(new Date());
+    // Das Fenster endet 40 Minuten nach jetzt: Jedes Postfach verteilt seinen Tagesrest über das restliche Fenster (Takt).
+    const bisMin = Math.min(23 * 60 + 59, jetztBerlin.minute + 40);
+    const bis = `${String(Math.floor(bisMin / 60)).padStart(2, "0")}:${String(bisMin % 60).padStart(2, "0")}`;
+    const leeren = async () => { await sqlPool`DELETE FROM fiaon_radar_post`; await sqlPool`DELETE FROM fiaon_radar_firmen`; };
+    await leeren(); await sqlPool`DELETE FROM fiaon_radar_sperre`;
     await sqlPool`DELETE FROM fiaon_settings WHERE key LIKE 'radar_%'`;
-    await setzen({ radar_auto_versand: "an", radar_auto_nachfass: "aus", radar_mara_antwort: "entwurf", radar_auto_ab_passung: "70", radar_motor_tage: String(heuteTag), radar_motor_von: "00:00", radar_motor_bis: "23:59" });
+    await setzen({ radar_auto_versand: "an", radar_auto_nachfass: "aus", radar_mara_antwort: "entwurf", radar_auto_ab_passung: "70", radar_motor_tage: String(jetztBerlin.tag), radar_motor_von: "00:00", radar_motor_bis: bis });
     const mailFirma = { betreff: "Ihre neue Halle", anrede: "Hallo Frau Beispiel,", absaetze: [
       "Ich habe gesehen, dass Sie in diesem Jahr eine zweite Halle bauen. So ein Schritt bindet viel Kapital, lange bevor er etwas einbringt.",
       "Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf. Wir gründen Ihnen eine eigene LLC in den USA, vergleichbar mit einer GmbH, und kümmern uns um Konto, Firmenkarten und den Weg zu US-Funding. Das Amerikanische erledigt unser Team vor Ort."],
@@ -667,21 +746,24 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
       "Ich habe auf Ihrer Website gelesen, dass Sie viele Onlinehändler betreuen, die auch an Kunden in Übersee verkaufen. Für genau diese Unternehmer haben wir etwas Passendes.",
       "Wir gründen ihnen eine eigene Gesellschaft in den USA und kümmern uns um Geschäftskonto und Firmenkarten. Die steuerliche Betreuung bleibt dabei ganz bei Ihnen, und wir stellen uns gern gegenseitig Mandanten vor."],
       frage: "Haben Sie Mandanten, für die das gerade ein Thema ist?", ps: "", paket: null, warnungen: [], sperrend: [], geaendert: false, erstellt_am: new Date().toISOString(), mitLink: false, strom: "partner", gruppe: "steuerberater" };
-    const anlegen = async (n: number, o: { strom?: string; land?: string; mail?: any; status?: string; motor?: string | null; signal?: number; passung?: number } = {}) => {
-      const domain = `firma${n}.example`;
-      const mail = { ...(o.mail ?? mailFirma), schluss: sh8.radarSchlusssatz(n), gruss: sh8.radarGruss(n), links: { gespraech: `https://fiaon.com/business?utm_source=radar&utm_content=r${n}#gespraech`, seite: "https://fiaon.com/business" } };
+    const anlegen = async (n: number, o: { strom?: string; land?: string; mail?: any; status?: string; motor?: string | null; signal?: number; passung?: number; domain?: string; weg?: string; impressum?: Record<string, unknown> } = {}) => {
+      const domain = o.domain ?? `firma${n}.example`;
+      const roh = o.mail ?? mailFirma;
+      // E-458 (Befund „Echo“): der Schlusssatz zur Frage gewählt — wie im Betrieb.
+      const mail = { ...roh, schluss: sh8.radarSchlusssatzFuer(n, roh.frage), gruss: sh8.radarGruss(n), links: { gespraech: sh8.radarTerminLink(n), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(n) } };
       const name = o.strom === "partner" ? "Max Beispiel" : "Anna Beispiel";
       const email = `${name.toLowerCase().replace(" ", ".")}@${domain}`;
       const [z] = (await sqlPool`
         INSERT INTO fiaon_radar_firmen (tag, quelle, bereich, land, name, domain, website, passung, email, ansprechpartner, status, mail, entscheider, signal_staerke, strom, motor_status, motor_am, pruef_ki, impressum)
         VALUES (CURRENT_DATE, 'pruefstand', ${o.strom === "partner" ? "steuerberater" : "bau"}, ${o.land ?? "DE"}, ${`Beispiel ${n} GmbH`}, ${domain}, ${`https://${domain}`}, ${o.passung ?? 85}, ${email}, ${name},
-                ${o.status ?? "mail"}, ${sqlPool.json(mail)}, ${sqlPool.json({ name, rolle: "Geschäftsführung", email, anrede: null, quelle: `https://${domain}/impressum`, weg: "website", am: new Date().toISOString() })},
+                ${o.status ?? "mail"}, ${sqlPool.json(mail)}, ${sqlPool.json({ name, rolle: "Geschäftsführung", email, anrede: null, quelle: `https://${domain}/impressum`, weg: o.weg ?? "website", am: new Date().toISOString() })},
                 ${o.signal ?? 4}, ${o.strom ?? "firma"}, ${o.motor === undefined ? "bereit" : o.motor}, NOW() - INTERVAL '1 hour',
                 ${sqlPool.json({ ok: true, hash: lib.radarMailHash(mail), punkte: [], ki_klang: 1, modell: "attrappe", am: new Date().toISOString(), versuch: 1 })},
-                ${sqlPool.json({ name: `Beispiel ${n} GmbH`, vertreter: [{ name, funktion: "Geschäftsführung" }], land: o.land ?? "DE" })})
+                ${sqlPool.json({ name: `Beispiel ${n} GmbH`, vertreter: [{ name, funktion: "Geschäftsführung" }], land: o.land ?? "DE", ...(o.impressum ?? {}) })})
         RETURNING id`) as any[];
       return Number(z.id);
     };
+    const zeile = async (id: number) => lib.zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]) as any;
     const gesendet: any[] = [];
     let nr = 0;
     const sender = async (postfach: string, inhalt: any) => { gesendet.push({ postfach, ...inhalt }); nr++; return { id: `pruef-${Date.now()}-${nr}`, threadId: `faden-${nr}` }; };
@@ -692,11 +774,10 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     const f1 = await anlegen(1), f2 = await anlegen(2), p1 = await anlegen(3, { strom: "partner", mail: mailPartner });
     const at = await anlegen(4, { land: "AT", signal: 5 }), gesp = await anlegen(5, { signal: 5 });
     await lib.radarSperren({ wert: "firma5.example", grund: "Prüfstand" });
+    void f1; void f2; void p1;
     // 1. Erster Takt: genau eine Mail (ein Postfach, Mindestabstand) — die stärkste Firma (Signal 5, aber AT/Sperrliste) fällt durch die Wand.
     let r = await mo.radarMotorSenden({ sender });
-    const z1 = Object.fromEntries(((await sqlPool`SELECT id, motor_status, motor_grund, status FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x]));
     ok(r.gesendet + r.verworfen >= 1 && gesendet.length <= 1, `Erster Takt: höchstens eine Mail aus js@ (gesendet ${r.gesendet}, verworfen ${r.verworfen})`);
-    // Weiter takten, bis die Wände ihre Firmen verworfen haben und etwas hinausging.
     for (let i = 0; i < 6 && gesendet.length < 1; i++) { await zuruecklegen(10); r = await mo.radarMotorSenden({ sender }); }
     const stand = Object.fromEntries(((await sqlPool`SELECT id, motor_status, motor_grund, status, versendet_am FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x]));
     ok(stand[at].motor_status === "verworfen" && /Österreich/.test(String(stand[at].motor_grund)), `Österreich: beim Senden verworfen (${stand[at].motor_status}: ${stand[at].motor_grund})`);
@@ -704,9 +785,9 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     ok(gesendet.length === 1 && gesendet[0].postfach === "js@fiaon.com" && gesendet[0].vonName === "Justin Schwarzott" && !("abmelden" in gesendet[0]), `Gesendet aus js@ als „Justin Schwarzott“ ohne Zusatz und ohne List-Unsubscribe (${gesendet[0]?.vonName})`);
     ok(gesendet.length === 1 && gesendet[0].html.startsWith('<div dir="ltr">') && gesendet[0].html.includes('class="gmail_signature"') && gesendet[0].html.includes(">Impressum<") && !/Kein Thema für Sie|DOCTYPE/.test(gesendet[0].html)
       && sh8.RADAR_SCHLUSSSAETZE.some((x) => gesendet[0].text.includes(x)) && /\n-- \n/.test(gesendet[0].text), "Die gesendete Mail: Gmail-Aufbau, Unterschrift, Schlusssatz, Impressum — kein Abmeldesatz, kein eigenes Dokument");
-    void z1;
-    const post1 = (await sqlPool`SELECT p.art, f.strom, f.motor_status, f.status FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id`) as any[];
-    ok(post1.length === 1 && post1[0].art === "erstmail" && post1[0].motor_status === "gesendet" && post1[0].status === "versendet", "Nach dem Senden: Faden-Eintrag „erstmail“, Motor „gesendet“, Radar „versendet“");
+    const post1 = (await sqlPool`SELECT p.art, p.adress_weg, f.strom, f.motor_status, f.status, f.versand_lauf FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id`) as any[];
+    ok(post1.length === 1 && post1[0].art === "erstmail" && post1[0].motor_status === "gesendet" && post1[0].status === "versendet" && post1[0].versand_lauf === null && post1[0].adress_weg === "website", "Nach dem Senden: Faden-Eintrag „erstmail“ mit Herkunft der Adresse, Motor „gesendet“, Radar „versendet“, Anspruch gelöst");
+    ok(gesendet.every((g) => !/utm_/.test(String(g.text).split("\n-- \n")[0])), "Kein utm_… im sichtbaren Text der Mail (kurzer, persönlicher Link)");
     // 2. Sofort noch ein Takt: nichts (Abstand je Postfach und je Strom).
     r = await mo.radarMotorSenden({ sender });
     ok(r.gesendet === 0 && gesendet.length === 1, "Gleich danach: kein zweiter Versand (Abstand) — kein Schwall");
@@ -717,7 +798,7 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     const stroeme = new Set(((await sqlPool`SELECT f.strom FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id`) as any[]).map((x) => x.strom));
     ok(stroeme.has("firma") && stroeme.has("partner"), "Beide Ströme bekommen ihre Mails (Firmen und Partner im Wechsel)");
     const partnerMail = gesendet.find((g) => /Mandanten/.test(g.betreff));
-    ok(!!partnerMail && !/Einen Termin wählen|#gespraech/.test(partnerMail.html), "Partner-Mail ohne Terminlink");
+    ok(!!partnerMail && !/suchen Sie sich hier direkt eine Zeit aus|#gespraech|\/g\/r/.test(partnerMail.html), "Partner-Mail ohne Terminlink");
     // 4. Zwei Instanzen gleichzeitig: Die Sperre lässt nur so viele hinaus, wie dran sind (zwei Postfächer, zwei Ströme).
     process.env.RADAR_POSTFAECHER = "js@fiaon.com,pruef@fiaon.com";
     lib.radarAbsenderErsatzSetzen(async (p) => ({ postfach: p, name: p.startsWith("pruef") ? "Anna Beispiel" : "Justin Schwarzott", signaturHtml: '<div>Unterschrift<br><img src="https://bilder.example/u.png"></div>', signaturText: "Unterschrift", quelle: "gmail" as const }));
@@ -737,66 +818,252 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     lib.radarAbsenderErsatzSetzen(null);
     mo.postfachBereitschaftVergessen();
     delete process.env.RADAR_POSTFAECHER;
+
+    // 4b. E-458 (Befund Takt): Jedes Postfach verteilt seinen Tagesrest über das restliche Fenster — kein leeres Postfach um 10 Uhr.
+    const lageTakt = { adresse: "js@fiaon.com", grenze: 60, heute: 0, reserve: 0, letzteAm: new Date(Date.now() - 5 * 60_000), bereit: true };
+    ok(sh8.radarPostfachTaktSek(lageTakt, 12 * 3600) === 720 && sh8.radarPostfachTaktSek({ ...lageTakt, grenze: 30 }, 12 * 3600) === 1440 && sh8.radarPostfachTaktSek(lageTakt, null) < 240,
+      "Takt je Postfach: 60 am Tag über 12 Stunden → alle 12 Minuten; Bremse (Grenze 30) → alle 24 Minuten; ohne Fenster nur der Mindestabstand");
+    ok(sh8.radarPostfachWaehlen([lageTakt], new Date(), 12 * 3600) === null && sh8.radarPostfachWaehlen([lageTakt], new Date(), 40 * 60)?.adresse === "js@fiaon.com", "Postfach erst frei, wenn sein Takt abgelaufen ist");
+
     // 5. Vorbereiten mit Attrappen: Österreich nie, stärkstes Signal zuerst, KI-Pause gibt die Firma zurück.
-    await sqlPool`DELETE FROM fiaon_radar_post`; await sqlPool`DELETE FROM fiaon_radar_firmen`;
+    await leeren();
     const k1 = await anlegen(11, { motor: null, signal: 3 }), k2 = await anlegen(12, { motor: null, signal: 5 }), kAt = await anlegen(13, { motor: null, signal: 5, land: "AT" });
     const k4 = await anlegen(14, { motor: null, signal: 4, passung: 50 }), kp = await anlegen(15, { motor: null, signal: 4, strom: "partner", mail: mailPartner });
     await sqlPool`UPDATE fiaon_radar_firmen SET scan = ${sqlPool.json({ profil: {}, aufhaenger: [{ text: "x", beleg: "y" }] })} WHERE id = ANY(${[k1, k2, kAt, k4, kp]})`;
     const reihenfolge: number[] = [];
-    const attrappe = { scannen: async () => null, entscheider: async () => null, fertig: async (id: number) => { reihenfolge.push(id); return id === k1 ? { ok: false, grund: "Prüf-KI: klingt nach KI" } : { ok: true, grund: null }; } };
+    const attrappe = {
+      scannen: async () => null, entscheider: async () => null,
+      fertig: async (id: number) => { reihenfolge.push(id); return id === k1 ? { ok: false, grund: "Prüf-KI: klingt nach KI" } : { ok: true, grund: null }; },
+      pruefen: async () => ({ ok: true, grund: null }),
+    };
+    // Eine Firma je Lauf: welche zuerst drankommt, ist eindeutig (drei gleichzeitig wären eine Frage der Laufzeit).
+    await mo.radarMotorVorbereiten({ schritte: attrappe, max: 1 });
+    ok(reihenfolge.length === 1 && reihenfolge[0] === k2, `Vorbereiten: stärkstes Signal zuerst (${reihenfolge.join(",")})`);
     const v1 = await mo.radarMotorVorbereiten({ schritte: attrappe, max: 6 });
     const z5 = Object.fromEntries(((await sqlPool`SELECT id, motor_status, motor_grund FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x]));
     ok(z5[kAt].motor_status === null && !reihenfolge.includes(kAt), "Vorbereiten: Österreich wird nie genommen");
     ok(z5[k4].motor_status === null, "Vorbereiten: unter der Passungsschwelle (70) nicht");
-    ok(reihenfolge.indexOf(k2) > -1 && (reihenfolge.indexOf(k1) === -1 || reihenfolge.indexOf(k2) < reihenfolge.indexOf(k1)), `Vorbereiten: stärkstes Signal zuerst (${reihenfolge.join(",")})`);
     ok(z5[k2].motor_status === "bereit" && z5[kp].motor_status === "bereit" && z5[k1].motor_status === "verworfen" && /klingt nach KI/.test(String(z5[k1].motor_grund)), `Vorbereiten: freigegeben → bereit, durchgefallen → verworfen mit Grund (${v1.bereit} bereit, ${v1.verworfen} verworfen)`);
     await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = NULL, motor_grund = NULL WHERE id = ${k1}`;
     const pause = { ...attrappe, fertig: async () => { throw new lib.RadarFehler("KI pausiert", 503); } };
     const v2 = await mo.radarMotorVorbereiten({ schritte: pause, max: 6 });
     const k1Stand = ((await sqlPool`SELECT motor_status, motor_grund FROM fiaon_radar_firmen WHERE id = ${k1}`) as any[])[0];
     ok(k1Stand.motor_status === null && /KI pausiert/.test(String(v2.grund)), "KI-Pause beim Vorbereiten: Lauf endet, die Firma geht zurück in den Vorrat — nichts als bestanden gebucht");
-    // 6. Aufräumen: veraltete „bereit“ → abgelaufen; hängende „sendet“ ohne Versand → zurück auf bereit.
+    // 5b. E-458 (Befund): Eine von Hand geänderte Mail wird nie überschrieben — die Prüf-KI liest sie nur.
+    const hand = await anlegen(16, { motor: null, signal: 5 });
+    await sqlPool`UPDATE fiaon_radar_firmen SET mail = jsonb_set(mail, '{geaendert}', 'true'::jsonb) WHERE id = ${hand}`;
+    await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'gesendet' WHERE id <> ${hand} AND motor_status IS NULL`;
+    const gesehen = { fertig: 0, pruefen: 0 };
+    await mo.radarMotorVorbereiten({ schritte: { ...attrappe, fertig: async () => { gesehen.fertig++; return { ok: true, grund: null }; }, pruefen: async () => { gesehen.pruefen++; return { ok: true, grund: null }; } }, max: 1 });
+    ok(gesehen.pruefen === 1 && gesehen.fertig === 0 && (await zeile(hand)).motor_status === "bereit", "Von Hand geänderte Mail: nur geprüft, nie neu geschrieben — dann bereit");
+    // 6. Aufräumen: veraltete „bereit“ → zurück in den Vorrat (neu vorbereiten); hängende „sendet“ ohne Gmail-Aufruf → bereit;
+    //    nach Sendefehlern verworfen → nach einem Tag einmal zurück auf bereit.
     await sqlPool`UPDATE fiaon_radar_firmen SET motor_am = NOW() - INTERVAL '8 days' WHERE id = ${k2}`;
     await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'sendet', motor_am = NOW() - INTERVAL '20 minutes' WHERE id = ${kp}`;
+    await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'verworfen', motor_grund = 'Senden fehlgeschlagen: HTTP 400', motor_am = NOW() - INTERVAL '2 days', motor_versuche = 0 WHERE id = ${k4}`;
     await mo.warteschlangeAufraeumen(sh8.radarMotorLesen({}));
-    const z6 = Object.fromEntries(((await sqlPool`SELECT id, motor_status FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x.motor_status]));
-    ok(z6[k2] === "abgelaufen" && z6[kp] === "bereit", "Aufräumen: nach 7 Tagen abgelaufen; hängendes Senden ohne Versand zurück auf bereit");
+    const z6 = Object.fromEntries(((await sqlPool`SELECT id, motor_status, motor_grund FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x]));
+    ok(z6[k2].motor_status === null && /neu vorbereitet/.test(String(z6[k2].motor_grund)) && z6[kp].motor_status === "bereit" && z6[k4].motor_status === "bereit",
+      "Aufräumen: nach 7 Tagen zurück in den Vorrat (neu vorbereiten, keine Sackgasse); hängendes Senden ohne Gmail-Aufruf zurück auf bereit; nach Sendefehlern verworfen → nach einem Tag wieder bereit");
+    await sqlPool`UPDATE fiaon_radar_firmen SET motor_status = 'abgelaufen' WHERE id = ${k2}`;
+    await mo.radarZurueckInVorrat(k2);
+    ok((await zeile(k2)).motor_status === null, "„Zurück in den Vorrat“ (Akte) holt eine abgelaufene Firma zurück");
+
     // 7. Partner mit Interesse → Partner-CRM (eine Transaktion), beim zweiten Mal nur Verlauf und Aufgabe.
     const fd = await import("../server/lib/fiaon-radar-faden");
     const pcrm = await import("../server/lib/fiaon-partner-crm");
     await pcrm.ensurePartnerTabellen();
     await sqlPool`DELETE FROM fiaon_partner_aufgaben WHERE erstellt_von = 'Mara (Firmen-Radar)'`.catch(() => {});
     const pId = await anlegen(21, { strom: "partner", mail: mailPartner, motor: "gesendet", status: "versendet" });
-    const pFirma = ((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${pId}`) as any[]).map((x) => lib.zeileLesen(x))[0];
+    const pFirma = await zeile(pId);
     const akteId = await fd.partnerInsCrm(pFirma, { text: "Das klingt gut, schicken Sie mir die Konditionen.", zusammenfassung: "Interesse an der Zusammenarbeit", datum: new Date() });
     const akte = akteId ? await pcrm.partnerAkte(akteId) : null;
     ok(!!akte && akte.firma.art === "kanzlei" && akte.kontakte.some((k: any) => k.name === "Max Beispiel" && k.haupt) && akte.verlauf.length >= 1 && akte.aufgaben.some((a: any) => /ohne Provision/.test(a.titel)), "Ende zu Ende: Steuerkanzlei mit Interesse → Partner-Akte „kanzlei“, Hauptkontakt, Verlauf, Aufgabe „ohne Provision“");
-    const pFirma2 = ((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${pId}`) as any[]).map((x) => lib.zeileLesen(x))[0];
+    const pFirma2 = await zeile(pId);
     const akteId2 = await fd.partnerInsCrm(pFirma2, { text: "Noch eine Frage zur Abwicklung.", zusammenfassung: "Sachfrage", datum: new Date() });
     const akte2 = akteId2 ? await pcrm.partnerAkte(akteId2) : null;
     const anzahlFirmen = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_partner_firmen WHERE name = ${"Beispiel 21 GmbH"}`) as any[])[0].n);
     ok(akteId2 === akteId && anzahlFirmen === 1 && (akte2?.verlauf.length ?? 0) >= 2, "Zweite Antwort: dieselbe Akte, nur Verlauf und Aufgabe dazu (keine Dublette)");
-    // 8. Zustellung: 100 Sendungen aus js@, 4 Rückläufer → 4 % → Bremse 0,5; ein Postfach allein drüber → Pause 48 h.
-    await sqlPool`DELETE FROM fiaon_radar_post`;
+    // 7b. E-458 (Befund): Wer schon unter Geschäftspartner steht, bekommt keine Kaltmail — auch wenn er schon im Vorrat lag.
+    const pa = await import("../server/lib/fiaon-radar-partner");
+    pa.schonPartnerVergessen();
+    await leeren();
+    const schon = await anlegen(21, { motor: null });
+    let schonWarf: any = null;
+    try { await lib.radarMailAusgeben(schon, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { schonWarf = e; }
+    ok(schonWarf?.status === 409 && /Geschäftspartner/.test(String(schonWarf?.message)) && !gesendet.some((g) => g.an.endsWith("@firma21.example")), `Schon Partner (CRM): keine Kaltmail beim Senden (${schonWarf?.message})`);
+
+    // 8. E-458 (Befund Sendefehler): Gmail-Störungen verbrennen keine geprüften Top-Firmen mehr.
+    await leeren();
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_postfach_stoerung', 'radar_motor_bremse', 'radar_postfach_pause')`;
+    const s1 = await anlegen(31, { signal: 5 });
+    r = await mo.radarMotorSenden({ sender: async () => { throw new Error("Gmail js@fiaon.com /messages/send: HTTP 400 Invalid To header"); } });
+    let zs = await zeile(s1);
+    ok(zs.motor_status === "bereit" && zs.motor_sendefehler === 1 && new Date(zs.motor_am).getTime() > Date.now() && !zs.versand_lauf, `Gmail lehnt genau diese Mail ab: zurück auf bereit mit Wartezeit, nicht verworfen (${zs.motor_status}, Fehler ${zs.motor_sendefehler})`);
+    r = await mo.radarMotorSenden({ sender });
+    ok(r.gesendet === 0, "In der Wartezeit wird dieselbe Mail nicht sofort wieder versucht (kein Verbrennen im Minutentakt)");
+    await sqlPool`UPDATE fiaon_radar_firmen SET motor_am = NOW() - INTERVAL '1 hour', motor_sendefehler = 0 WHERE id = ${s1}`;
+    r = await mo.radarMotorSenden({ sender: async () => { throw new Error("Token für js@fiaon.com: HTTP 500 {}"); } });
+    zs = await zeile(s1);
+    const stoer = await mo.postfachStoerungen();
+    const lagenStoer = await mo.postfachLagen(new Date());
+    ok(zs.motor_status === "bereit" && zs.motor_sendefehler === 0 && !!stoer["js@fiaon.com"] && lagenStoer.find((l) => l.adresse === "js@fiaon.com")?.pause === true,
+      "Postfach gestört (Token): die Mail zurück ohne Strafe, das POSTFACH ruht kurz");
+    r = await mo.radarMotorSenden({ sender });
+    ok(r.gesendet === 0 && !gesendet.some((g) => g.an.endsWith("@firma31.example")), "Während der Störungspause geht aus diesem Postfach nichts hinaus");
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_postfach_stoerung'`;
+    // 9. E-458 (Befund Doppelversand): Gmail nimmt an, die Antwort geht verloren → „sendet“ bleibt, der Gesendet-Ordner entscheidet.
+    const halb: any[] = [];
+    r = await mo.radarMotorSenden({ sender: async (postfach: string, inhalt: any) => { halb.push({ postfach, ...inhalt }); throw new Error("fetch failed"); } });
+    zs = await zeile(s1);
+    ok(zs.motor_status === "sendet" && !!zs.versand_lauf?.am && !zs.versendet_am && halb.length === 1, "Antwort verloren: die Mail bleibt „sendet“ mit Anspruch — kein Zurück auf bereit, kein zweiter Versuch");
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_postfach_stoerung'`;
+    await zuruecklegen(11);
+    lib.radarGesendetSucherSetzen(async (_postfach, an) => (halb.some((h) => h.an === an) ? { id: "gefunden-1", threadId: "faden-gefunden-1" } : null));
+    await mo.warteschlangeAufraeumen(sh8.radarMotorLesen({}));
+    zs = await zeile(s1);
+    const postS1 = (await sqlPool`SELECT gmail_id FROM fiaon_radar_post WHERE firma_id = ${s1} AND art = 'erstmail'`) as any[];
+    ok(zs.motor_status === "gesendet" && zs.status === "versendet" && !!zs.versendet_am && !zs.versand_lauf && postS1.length === 1 && postS1[0].gmail_id === "gefunden-1",
+      "Nach 10 Minuten: im Gesendet-Ordner gefunden → nachgebucht, genau EINE Mail");
+    let doppel: any = null;
+    try { await lib.radarMailAusgeben(s1, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { doppel = e; }
+    ok(!!doppel && halb.length === 1 && !gesendet.some((g) => g.an.endsWith("@firma31.example")), "Ein zweiter Versand derselben Firma wird abgewiesen");
+    // … und wenn die Mail NICHT im Gesendet-Ordner steht: frei für einen neuen Versuch.
+    const s2 = await anlegen(32);
+    await zuruecklegen(10);
+    r = await mo.radarMotorSenden({ sender: async () => { throw new Error("fetch failed"); } });
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_postfach_stoerung'`;
+    await zuruecklegen(11);
+    lib.radarGesendetSucherSetzen(async () => null);
+    await mo.warteschlangeAufraeumen(sh8.radarMotorLesen({}));
+    zs = await zeile(s2);
+    ok(zs.motor_status === "bereit" && !zs.versand_lauf && !zs.versendet_am, "Nicht im Gesendet-Ordner → zurück auf bereit, Anspruch gelöst");
+    lib.radarGesendetSucherSetzen(null);
+    // 10. Stapel und Akte gleichzeitig an dieselbe Firma: der Anspruch (versand_lauf) lässt genau EINEN Versand zu.
+    const s3 = await anlegen(33, { motor: null });
+    let parallel = 0;
+    const langsam = async () => { parallel++; await new Promise((ja) => setTimeout(ja, 300)); return { id: `parallel-${parallel}`, threadId: `faden-p-${parallel}` }; };
+    const beide = await Promise.allSettled([
+      lib.radarMailAusgeben(s3, { art: "senden", postfach: "js@fiaon.com", sender: langsam, grenzeGeprueft: true }),
+      lib.radarMailAusgeben(s3, { art: "senden", postfach: "js@fiaon.com", sender: langsam, grenzeGeprueft: true }),
+    ]);
+    ok(parallel === 1 && beide.filter((x) => x.status === "fulfilled").length === 1 && beide.some((x) => x.status === "rejected" && (x as any).reason?.status === 409), `Zwei Wege gleichzeitig: genau ein Gmail-Aufruf (${parallel}), der andere 409`);
+
+    // 11. E-458 (Befund): ausgeschaltete Partner-Gruppe, abgeschaltete Ableitung, Österreich nach Domäne/Telefon.
+    await leeren();
+    await setzen({ radar_partner_gruppen: "finanzierer" });
+    const g1 = await anlegen(34, { strom: "partner", mail: mailPartner });
+    r = await mo.radarMotorSenden({ sender });
+    const g2 = await anlegen(35, { strom: "partner", mail: mailPartner, motor: null });
+    ok((await zeile(g1)).motor_status === "bereit" && r.gesendet === 0 && (await mo.kandidatNehmen("partner", 0, ["finanzierer"])) === null && g2 > 0,
+      "Gruppe „Steuerberater“ aus: weder gesendet noch vorbereitet");
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_partner_gruppen'`;
+    await leeren();
+    await setzen({ radar_ableitung: "aus" });
+    const ab1 = await anlegen(36, { weg: "abgeleitet" });
+    r = await mo.radarMotorSenden({ sender });
+    ok((await zeile(ab1)).motor_status === "bereit" && r.gesendet === 0, "Ableitung aus: eine schon vorbereitete Mail an eine abgeleitete Adresse geht nicht hinaus");
+    // (Anteil 100 %: sonst darf die erste Mail einer Stunde nie an eine abgeleitete Adresse gehen — höchstens 50 % je Stunde.)
+    await setzen({ radar_ableitung: "an", radar_ableitung_anteil: "100" });
+    r = await mo.radarMotorSenden({ sender });
+    await sqlPool`DELETE FROM fiaon_settings WHERE key = 'radar_ableitung_anteil'`;
+    const ab1Post = (await sqlPool`SELECT adress_weg FROM fiaon_radar_post WHERE firma_id = ${ab1}`) as any[];
+    ok(r.gesendet === 1 && ab1Post[0]?.adress_weg === "abgeleitet", "Ableitung wieder an: sie geht hinaus — und der Eintrag trägt „abgeleitet“");
+    const fAb = { email: "a.beispiel@firma.example", domain: "firma.example", name: "Beispiel GmbH", entscheider: { name: "Anna Beispiel", email: "a.beispiel@firma.example", weg: "abgeleitet" }, impressum: { vertreter: [{ name: "Anna Beispiel" }] } };
+    ok(mo.persoenlicheAdresse(fAb, { ableitung: true }) && !mo.persoenlicheAdresse(fAb, { ableitung: false }), "Vorbereiten: bei abgeschalteter Ableitung zählt die abgeleitete Adresse nicht");
+    await leeren();
+    const atDom = await anlegen(37, { motor: null, domain: "firma37-beispiel.at" });
+    const atTel = await anlegen(38, { motor: null, impressum: { telefon: "+43 1 234 56 78" } });
+    const atUid = await anlegen(39, { motor: null, impressum: { ustId: "ATU12345678" } });
+    ok((await mo.kandidatNehmen("firma", 0, [])) === null, "Österreich gewinnt (Datenbank): Spalte „DE“, aber .at-Domäne, Telefon +43 oder UID ATU → nie in die Warteschlange");
+    let atWarf: any = null;
+    try { await lib.radarMailAusgeben(atDom, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { atWarf = e; }
+    ok(/Österreich/.test(String(atWarf?.message)) && atTel > 0 && atUid > 0, "… und radarMailAusgeben weist sie ab (Akte, Stapel)");
+
+    // 12. E-458 (Befund Anrede): Anrede und Empfänger müssen zusammenpassen.
+    await leeren();
+    const zwei = await anlegen(40, { motor: null });
+    await sqlPool`UPDATE fiaon_radar_firmen SET email = 'max.mueller@firma40.example', entscheider = NULL,
+                    impressum = ${sqlPool.json({ name: "Beispiel 40 GmbH", land: "DE", vertreter: [{ name: "Anna Beispiel", funktion: "Geschäftsführerin" }, { name: "Max Müller", funktion: "Geschäftsführer" }] })} WHERE id = ${zwei}`;
+    let anredeWarf: any = null;
+    try { await lib.radarMailAusgeben(zwei, { art: "senden", postfach: "js@fiaon.com", sender, grenzeGeprueft: true }); } catch (e) { anredeWarf = e; }
+    ok(/Die Anrede nennt „Beispiel“/.test(String(anredeWarf?.message)) && !gesendet.some((g) => g.an === "max.mueller@firma40.example"), `„Hallo Frau Beispiel“ an max.mueller@ wird abgewiesen (${anredeWarf?.message})`);
+
+    // 13. E-458 (Befund): Die Tagesgrenze je Postfach gilt auch für Akte und Stapel.
+    await leeren();
+    const voll = await anlegen(41, { motor: null });
+    for (let i = 0; i < 20; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', ${`voll-${i}`}, 'aus', 'nachfass1', NOW())`;
+    let vollWarf: any = null;
+    try { await lib.radarMailAusgeben(voll, { art: "senden", postfach: "js@fiaon.com", sender }); } catch (e) { vollWarf = e; }
+    ok(vollWarf?.status === 429 && /für heute voll/.test(String(vollWarf?.message)), `Akte/Stapel: Postfach voll → 429 (${vollWarf?.message})`);
+
+    // 14. E-458 (Befund Rückläufer): Eine widerlegte Ableitung geht in den Brief, nicht noch einmal in die bezahlte Suche.
+    await leeren();
+    const rueck = await anlegen(42, { motor: null, status: "unzustellbar", weg: "abgeleitet", impressum: { strasse: "Musterweg 1", plz: "10115", ort: "Berlin" } });
+    await sqlPool`UPDATE fiaon_radar_firmen SET versendet_am = NOW() - INTERVAL '2 days', email = 'anna.b@firma42.example', email_ungueltig = 'anna.beispiel@firma42.example',
+                    entscheider = jsonb_set(entscheider, '{muster_widerlegt}', 'true'::jsonb) WHERE id = ${rueck}`;
+    const rueckF = await zeile(rueck);
+    ok((await mo.kandidatNehmen("firma", 0, [])) === null && sh8.radarBriefPruefen(rueckF).ok, "Rückläufer einer abgeleiteten Adresse (echter Stand: unzustellbar, versendet_am gesetzt): kein neuer Motor-Versuch — der Brief geht");
+
+    // 15. E-458 (Befund Bereitschaft): Ein kurzer Gmail-Aussetzer legt das Postfach nicht stundenlang lahm.
+    mo.postfachBereitschaftVergessen();
+    mo.postfachProbeSetzen(async () => ({ ok: true }));
+    const b1 = await mo.postfachBereitschaft("js@fiaon.com", true);
+    mo.postfachProbeSetzen(async () => ({ ok: false, fehler: "Gmail js@fiaon.com /labels: HTTP 503 backendError" }));
+    const b2 = await mo.postfachBereitschaft("js@fiaon.com", true);
+    mo.postfachProbeSetzen(async () => ({ ok: false, fehler: "Token für js@fiaon.com: HTTP 401 {\"error\":\"unauthorized_client\"}" }));
+    const b3 = await mo.postfachBereitschaft("js@fiaon.com", true);
+    mo.postfachProbeSetzen(null); mo.postfachBereitschaftVergessen();
+    ok(b1.bereit && b2.bereit && !!b2.stoerung?.length && !b3.bereit, "Probe wirft einmal (503): bereit bleibt (letzter guter Stand, mit Hinweis); Zugang wirklich weg (401): nicht bereit");
+
+    // 16. Zustellung: 100 Sendungen aus js@, 4 Rückläufer → 4 % → Bremse 0,5 — Tempo UND Tagesgrenze; mit einem Postfach kein Vollstopp.
+    await leeren();
     await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_motor_bremse', 'radar_postfach_pause')`;
     for (let i = 0; i < 100; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', ${`z-aus-${i}`}, 'aus', ${i % 3 ? "erstmail" : "nachfass1"}, NOW() - INTERVAL '2 days')`;
     for (let i = 0; i < 4; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', ${`z-rueck-${i}`}, 'ein', 'unzustellbar', NOW() - INTERVAL '1 day')`;
     const zw = await mo.radarZustellWache();
     const br = await mo.bremseLesen();
     ok(zw.bremse === 0.5 && br?.faktor === 0.5 && /Rückläufer 4 %/.test(String(br?.grund)) && (await mo.bremseFaktor()) === 0.5, `Ende zu Ende: 4 % Rückläufer → Bremse 0,5 gespeichert (${br?.grund})`);
-    ok(zw.pausiert.includes("js@fiaon.com") && !!(await mo.postfachPausen())["js@fiaon.com"], "Das Postfach über der Grenze pausiert 48 Stunden");
+    ok(!zw.pausiert.length && !(await mo.postfachPausen())["js@fiaon.com"], "Nur ein Postfach: keine 48-h-Pause (das wäre Vollstopp) — es bremst allein der Faktor");
+    const lageB = (await mo.postfachLagen(new Date())).find((l) => l.adresse === "js@fiaon.com");
+    const grenzeOhne = sh8.radarPostfachGrenze({ ersterVersand: new Date(Date.now() - 2 * 86_400_000), jetzt: new Date(), jeTag: 60, rampe: [20, 40] });
+    ok(lageB?.grenze === Math.floor(grenzeOhne * 0.5), `Die Bremse halbiert die Tagesgrenze des Postfachs (${lageB?.grenze} statt ${grenzeOhne}) — und damit den Takt`);
+    process.env.RADAR_POSTFAECHER = "js@fiaon.com,zweit@fiaon.com";
+    for (let i = 0; i < 60; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'zweit@fiaon.com', ${`z2-aus-${i}`}, 'aus', 'erstmail', NOW() - INTERVAL '2 days')`;
     const zw2 = await mo.radarZustellWache();
-    ok(zw2.bremse === 0.5 && !zw2.pausiert.length, "Zweiter Lauf: Bremse bleibt, keine doppelte Pause");
+    ok(zw2.pausiert.includes("js@fiaon.com") && !!(await mo.postfachPausen())["js@fiaon.com"] && !zw2.pausiert.includes("zweit@fiaon.com"), "Zwei Postfächer, eines sauber: nur das schlechte ruht 48 Stunden, das andere sendet weiter");
+    const zw3 = await mo.radarZustellWache();
+    ok(zw3.bremse <= 0.5 && !zw3.pausiert.length, "Dritter Lauf: Bremse bleibt, keine doppelte Pause");
+    delete process.env.RADAR_POSTFAECHER;
+    // Die Bremse ab einem Zeitpunkt: davor zählt das volle Ziel (kein Stillstand für den Rest des Tages).
+    const mm = sh8.radarMotorLesen({ radar_motor_tage: "1,2,3,4,5,6,7" });
+    const nachmittag = new Date("2026-10-29T15:00:00+01:00");
+    const sollAb = sh8.radarMotorSoll({ jetzt: nachmittag, m: mm, jeStunde: 10, gesendetHeute: 75, letzteAm: new Date("2026-10-29T14:40:00+01:00"), bremse: 0.5, bremseSeit: new Date("2026-10-29T14:30:00+01:00") });
+    const sollGanz = sh8.radarMotorSoll({ jetzt: nachmittag, m: mm, jeStunde: 10, gesendetHeute: 75, letzteAm: new Date("2026-10-29T14:40:00+01:00"), bremse: 0.5 });
+    ok(sollAb.faellig && Math.round(sollAb.soll * 10) / 10 === 77.5 && !sollGanz.faellig, `Bremse ab 14:30: bis dahin volles Ziel, danach halbes (Soll ${sollAb.soll}) — ohne Zeitpunkt stünde der Motor bis abends still`);
     await mo.radarBremseLoesen();
     await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_motor_bremse', 'radar_postfach_pause')`;
     ok((await mo.bremseFaktor()) === 1, "„Bremse lösen“: wieder volle Fahrt");
+    // 17. E-458 (Befund): Die Ableitungs-Wache zählt nach der Herkunft am Eintrag (adress_weg), nicht nach dem Entscheider.
+    await leeren();
+    for (let i = 0; i < 30; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum, adress_weg) VALUES (0, 'js@fiaon.com', ${`a-aus-${i}`}, 'aus', 'erstmail', NOW() - INTERVAL '1 day', 'abgeleitet')`;
+    for (let i = 0; i < 3; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum, adress_weg) VALUES (0, 'js@fiaon.com', ${`a-rueck-${i}`}, 'ein', 'unzustellbar', NOW(), 'abgeleitet')`;
+    const aw = await mo.radarAbleitungWache();
+    ok(aw.abgeschaltet && aw.quote === 10 && !(await lib.radarMotorEinstellung()).ableitung, `Ableitungs-Wache nach adress_weg: 3 von 30 zurück (10 %) → Ableitung aus (${aw.quote} %)`);
+    await setzen({ radar_ableitung: "an" });
+
     const stand2 = await mo.radarMotorStand();
-    ok(stand2.leistung && typeof stand2.leistung.satz === "string" && stand2.stroeme.partner.bereit >= 1, `Stand fürs Chefbüro: ${stand2.leistung.satz}`);
+    ok(stand2.leistung && typeof stand2.leistung.satz === "string" && Array.isArray(stand2.postfaecher), `Stand fürs Chefbüro: ${stand2.leistung.satz}`);
     // Feineinstellungen genau so, wie das Chefbüro sie schickt (Text, Komma als Dezimalzeichen).
     const fein = await mo.radarMotorSetzen({ puffer: "1,5", haltbarTage: "5", link: "keiner", kiKlangMax: "2", aehnlichMax: "0,3", postfachRampe: "15,30",
       zustellRueckMax: "2,5", zustellBasis: "80", partnerProvisionText: "30 Prozent unseres Honorars, zwei Jahre lang" });
     ok(fein.puffer === 1.5 && fein.haltbarTage === 5 && fein.link === "keiner" && fein.kiKlangMax === 2 && fein.aehnlichMax === 0.3 && fein.postfachRampe.join(",") === "15,30"
       && fein.zustellRueckMax === 2.5 && fein.zustellBasis === 80 && /zwei Jahre/.test(fein.partnerProvisionText), "Feineinstellungen: Werte mit Komma werden gespeichert und richtig gelesen");
+    // E-458 (Befund): Der Provisions-Satz wirkt überall — Prüf-KI, Partner-Angebot, CRM.
+    const pk = await import("../server/lib/fiaon-radar-pruef");
+    ok(pk.radarPruefAnweisung({ strom: "partner", provision: true, provisionText: fein.partnerProvisionText }).includes("zwei Jahre lang")
+      && sh8.radarPartnerCrmEingabe({ firma: { name: "X", bereich: "finanzierer" }, antwort: { text: "Gern.", datum: new Date() }, heute: "2026-10-30", provisionText: fein.partnerProvisionText }).firma.konditionen[0].value.includes("zwei Jahre lang"),
+      "Provisions-Satz aus dem Chefbüro in Prüf-KI und CRM");
     let abgelehnt = "";
     try { await mo.radarMotorSetzen({ haltbarTage: "9", aehnlichMax: "7" }); } catch (e: any) { abgelehnt = String(e?.message ?? e); }
     ok(/Ähnlichkeit/.test(abgelehnt) && (await lib.radarMotorEinstellung()).haltbarTage === 5, `Falsche Eingabe: klare Meldung („${abgelehnt}“), auch der gültige Teil bleibt ungespeichert`);
@@ -830,7 +1097,7 @@ abschnitt("Partner-Strom: Steuerberater, Finanzierer, Kreditvermittler … (E-45
   const st = sh8.radarPartnerCrmEingabe({ firma: { ...kanzlei, bereich: "steuerberater" }, antwort: { text: "Gern, schicken Sie mir das schriftlich.", zusammenfassung: "Interesse", datum: "2026-10-30T10:00:00+01:00" }, heute: "2026-10-30" });
   ok(st.firma.art === "kanzlei" && /ohne Provision/.test(st.firma.konditionen[0].value) && !/30 %/.test(JSON.stringify(st)), "Steuerberater → Akte „kanzlei“, Kondition ohne Provision");
   const kv = sh8.radarPartnerCrmEingabe({ firma: { ...kanzlei, name: "Beispiel Kreditvermittlung", bereich: "kreditvermittler" }, antwort: { text: "Klingt gut.", datum: "2026-10-30T10:00:00+01:00" }, heute: "2026-10-30" });
-  ok(kv.firma.art === "kooperation" && /30 %/.test(kv.firma.konditionen[0].value) && /Tippgeber-Vereinbarung/.test(kv.aufgabe.titel), "Kreditvermittler → „kooperation“ mit 30 %, Aufgabe Tippgeber-Vereinbarung");
+  ok(kv.firma.art === "kooperation" && /^30 Prozent unseres Honorars, ein Jahr lang, je vorgestelltem Kunden/.test(kv.firma.konditionen[0].value) && /Tippgeber-Vereinbarung/.test(kv.aufgabe.titel) && !/30 %/.test(kv.aufgabe.titel), "Kreditvermittler → „kooperation“ mit dem Provisions-Satz, Aufgabe Tippgeber-Vereinbarung");
   ok(st.kontakte.length === 1 && st.kontakte[0].haupt === true && st.kontakte[0].name === "Max Beispiel" && st.firma.tags.includes("radar") && st.firma.tags.includes("steuerberater"), "Kontakt = Entscheider als Hauptkontakt; Schlagworte „radar“ und Gruppe");
   ok(st.aufgabe.faelligAm === "2026-11-02" && sh8.radarNaechsterWerktag("2026-10-29") === "2026-10-30", "Aufgabe fällig am nächsten Werktag (Freitag → Montag)");
   ok(st.firma.strasse === "Musterweg" && st.firma.hausnummer === "12" && crm.firmaPruefen(st.firma).ok && crm.aufgabePruefen({ firmaId: 1, ...st.aufgabe }).ok, "Die Eingabe besteht die Prüfungen des Partner-CRM (Firma, Aufgabe)");
@@ -839,7 +1106,7 @@ abschnitt("Partner-Strom: Steuerberater, Finanzierer, Kreditvermittler … (E-45
     "Ich habe auf Ihrer Website gelesen, dass Sie viele Onlinehändler betreuen, die auch an Kunden in Übersee verkaufen. Für genau diese Unternehmer haben wir etwas Passendes.",
     "Wir gründen ihnen eine eigene Gesellschaft in den USA und kümmern uns um Geschäftskonto und Firmenkarten. Die steuerliche Betreuung bleibt dabei ganz bei Ihnen, und wir stellen uns gern gegenseitig Mandanten vor."],
     frage: "Haben Sie Mandanten, für die das gerade ein Thema ist?", ps: "" };
-  const po = (gruppe: string) => ({ streng: true, strom: "partner" as const, gruppe, anrede: "Guten Tag Max Beispiel,", schluss: sh8.RADAR_SCHLUSSSAETZE[1], mitLink: false });
+  const po = (gruppe: string) => ({ streng: true, strom: "partner" as const, gruppe, anrede: "Guten Tag Max Beispiel,", schluss: sh8.radarSchlusssatzFuer(1, pm.frage), mitLink: false });
   ok(lib.mailPruefen(pm, po("steuerberater")).sperrend.length === 0, `Saubere Partner-Mail an eine Steuerkanzlei besteht (${lib.mailPruefen(pm, po("steuerberater")).sperrend.join("; ")})`);
   const mitProv = { ...pm, absaetze: [pm.absaetze[0], `${pm.absaetze[1]} Dafür gibt es eine Provision.`] };
   const mitProzent = { ...pm, absaetze: [pm.absaetze[0], `${pm.absaetze[1]} Sie bekommen 30 Prozent unseres Honorars.`] };
@@ -876,6 +1143,14 @@ abschnitt("Chef-Adresse ableiten — nur mit belegtem Muster und MX (E-458)");
   const ent = await import("../server/lib/fiaon-radar-entscheider");
   const bsp = ent.adressBeispiele([{ url: `https://${d}/team`, text: `Ihre Ansprechpartnerin im Vertrieb: Anna Schmidt, Telefon 0, a.schmidt@${d}. Allgemein: info@${d}`, html: "" }], d, ["Max Müller"]);
   ok(bsp.length === 1 && bsp[0].name === "Anna Schmidt" && bsp[0].adresse === `a.schmidt@${d}` && sh8.radarAdressMusterLernen(bsp, d) === "{v}.{nachname}", `Beispiele aus dem Seitentext: Name rund um die Adresse (${JSON.stringify(bsp)})`);
+  // E-458 (Befund): Abteilungen, Standorte und Messen sind keine Menschen — „Abteilung Export · Tel … · export@“ lernt kein Muster.
+  const nichtPerson = ent.adressBeispiele([
+    { url: `https://${d}/kontakt`, text: `Abteilung Export · Tel 0 · export@${d}. Niederlassung Hamburg, Telefon 0, hamburg@${d}. Messe Frankfurt: messe@${d}`, html: "" },
+  ], d, ["Peter Meier"]);
+  ok(!nichtPerson.length && sh8.radarAdressMusterLernen(nichtPerson, d) === null, `„Abteilung Export / export@“, „Niederlassung Hamburg / hamburg@“, „Messe Frankfurt / messe@“ zählen nie als Beispiel (${JSON.stringify(nichtPerson)})`);
+  ok(!ent.nameImTextTaugt("Anna Schmidt", "Kontakt: anna@firma.example") && ent.nameImTextTaugt("Anna Schmidt", "Ihre Ansprechpartnerin Anna Schmidt") && !ent.nameImTextTaugt("Abteilung Export", "Leiterin Abteilung Export"), "Name aus dem Text nur mit Personenkontext (Rolle, Herr/Frau) und nie aus Abteilungswörtern");
+  ok(sh8.radarAdressMusterLernen([{ adresse: `schmidt@${d}`, name: "Anna Schmidt" }], d) === null && sh8.radarAdressMusterLernen([{ adresse: `schmidt@${d}`, name: "Anna Schmidt" }, { adresse: `weber@${d}`, name: "Jonas Weber" }], d) === "{nachname}"
+    && sh8.radarAdressMusterLernen([{ adresse: `schmidt@${d}`, name: "Anna Schmidt" }, { adresse: `schmidt@${d}`, name: "Anna Schmidt" }], d) === null, "Schwache Muster ({nachname}, {vorname}, {v}{n}) erst mit zwei VERSCHIEDENEN Beispielen");
   const mx = await import("../server/lib/fiaon-mx");
   const fehler = (code: string) => Promise.reject(Object.assign(new Error(code), { code }));
   mx.mxAufloeserSetzen({ resolveMx: async () => [{ exchange: "mx.beispiel.example", priority: 10 }], resolve4: async () => [], resolveTxt: async () => [] });
@@ -894,9 +1169,14 @@ abschnitt("Chef-Adresse ableiten — nur mit belegtem Muster und MX (E-458)");
   const briefBasis = { status: "gescannt", land: "DE", signal_staerke: 4, name: "Beispiel GmbH", domain: d, versendet_am: null, brief_versendet_am: null,
     impressum: { name: "Beispiel GmbH", strasse: "Musterweg 1", plz: "10115", ort: "Berlin", land: "DE", vertreter: [{ name: "Max Müller", funktion: "Geschäftsführer" }] } };
   ok(!sh8.radarBriefPruefen({ ...briefBasis, entscheider: { name: "Max Müller", email: abg, weg: "abgeleitet" } }).ok && sh8.radarBriefPruefen({ ...briefBasis, entscheider: { name: "Max Müller", email: abg, weg: "abgeleitet", muster_widerlegt: true } }).ok, "Brief: widerlegte abgeleitete Adresse zählt nicht als persönlich → Brief möglich");
+  // E-458 (Befund): der ECHTE Stand nach einem Rückläufer — status „unzustellbar“, versendet_am gesetzt.
+  const nachRueck = { ...briefBasis, status: "unzustellbar", versendet_am: "2026-10-27T10:00:00Z", entscheider: { name: "Max Müller", email: abg, weg: "abgeleitet", muster_widerlegt: true } };
+  ok(sh8.radarBriefPruefen(nachRueck).ok && !sh8.radarBriefPruefen({ ...nachRueck, entscheider: { name: "Max Müller", email: abg, weg: "website" } }).ok, "Brief nach dem Rückläufer einer abgeleiteten Adresse (echter Stand) — nach einem anderen Rückläufer nicht");
+  const briefQ = lies("server/lib/fiaon-radar-brief.ts");
+  ok(/OR \(r\.status = 'unzustellbar' AND r\.entscheider->>'muster_widerlegt' = 'true'\)/.test(briefQ) && /'ohne_kontakt', 'unzustellbar'\) THEN 'brief'/.test(briefQ), "Der Brief-Lauf nimmt widerlegte Ableitungen; der Stand wird danach „Brief unterwegs“");
   ok(sh8.radarAbleitungUrteil({ gesendet: 30, rueck: 2, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 29, rueck: 9, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 100, rueck: 5, rueckMax: 5 }).abschalten, "Schutz: über 5 % Rückläufer abgeleiteter Adressen (ab 30 Sendungen) schaltet die Ableitung ab");
   const moQ = lies("server/lib/fiaon-radar-motor.ts");
-  ok(/abgeleitetErlaubt = \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= m\.ableitungAnteil/.test(moQ) && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Stunde höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen; Wache schaltet ab und legt eine Aufgabe an");
+  ok(/abgeleitetErlaubt = m\.ableitung && \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= m\.ableitungAnteil/.test(moQ) && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Stunde höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen; Wache schaltet ab und legt eine Aufgabe an");
   ok(/import \{ mailDomain \} from "\.\.\/lib\/fiaon-mx"/.test(lies("server/routes/fiaon-antrag-neu.ts")) && !/async function mailDomain/.test(lies("server/routes/fiaon-antrag-neu.ts")), "Der Antrag prüft MX über dieselbe Funktion (fiaon-mx.ts)");
   ok(/WHERE motor_status IS NULL|r\.motor_status IS NULL/.test(moQ) && !/automatik_am IS NULL/.test(moQ), "Die früher einmal versuchten Firmen (automatik_am) kommen über motor_status wieder dran");
 }
@@ -957,7 +1237,8 @@ abschnitt("Zustellung schützen: Rückläufer und Beschwerden (E-458)");
   ok(unter.faktor === 1 && unter.geloest && nochNicht.faktor === 0.5 && !nochNicht.geloest && ent(w(1000, 5), halb).unterSeit === jetzt.toISOString(), "Drei Tage unter beiden Grenzen → 1 (vorher bleibt die Bremse, der Zähler startet)");
   ok(sh8.radarBeschwerde("rechtlich", "") && sh8.radarBeschwerde("datenschutz", "") && sh8.radarBeschwerde("kein_interesse", "Das ist Spam, bitte nicht mehr.") && !sh8.radarBeschwerde("kein_interesse", "Kein Bedarf, danke."), "Beschwerde: Anwalt, Datenschutz und Absage mit „Spam“ zählen — eine normale Absage nicht");
   const moQ = lies("server/lib/fiaon-radar-motor.ts");
-  ok(/const bremse = await bremseFaktor\(\);[\s\S]{0,400}uebernehmen\(jetzt, m, bremse,/.test(moQ) && /motorDran\(jetzt, m, st, bremse\)/.test(moQ) && /jeStunde: ziel\.firma \+ ziel\.partner,[\s\S]{0,200}bremse \}\)/.test(moQ), "Die Bremse wirkt beim Senden auf beide Stundenziele");
+  ok(/const bremse = await bremseLesen\(\);[\s\S]{0,400}uebernehmen\(jetzt, m, bremse,/.test(moQ) && /motorDran\(jetzt, m, st, faktor, bremse\?\.seit \?\? null\)/.test(moQ) && /jeStunde: ziel\.firma \+ ziel\.partner,[\s\S]{0,200}bremse, bremseSeit \}\)/.test(moQ)
+    && /grenze: Math\.floor\(radarPostfachGrenze\([\s\S]{0,160}\) \* faktor\)/.test(moQ), "Die Bremse wirkt beim Senden auf beide Stundenziele UND auf die Tagesgrenze der Postfächer");
   ok(/`radar-zustellung:\$\{berlinToday\(jetzt\)\}`/.test(moQ) && /pausen\[adresse\] = new Date\(jetzt\.getTime\(\) \+ 48 \* 3_600_000\)/.test(moQ), "Aufgabe für Justin einmal je Tag (radar-zustellung:<Tag>); ein Postfach über der Grenze pausiert 48 h");
   ok(/if \(radarBeschwerde\(art, kern\)\) await sqlPool`UPDATE fiaon_radar_post SET beschwerde = TRUE/.test(lies("server/lib/fiaon-radar-faden.ts")) && /ADD COLUMN IF NOT EXISTS beschwerde BOOLEAN/.test(lies("server/lib/fiaon-radar.ts")), "Beschwerden werden am Eingang markiert (Spalte beschwerde)");
   ok(/"\/chef\/radar\/bremse\/loesen", wache[\s\S]{0,120}bestaetigt !== true/.test(lies("server/routes/fiaon-radar.ts")), "„Bremse lösen“ nur mit Bestätigung, hinter der Wache");
@@ -977,7 +1258,14 @@ abschnitt("Chefbüro: alle Schalter im Raum Firmen-Radar › Automatik (E-458)")
   ok((seiten.match(/slug: "firmen-radar"/g) ?? []).length === 1 && /slug: "firmen-radar"[^\n]*mindest: "geschaeftsfuehrung"/.test(seiten), "Keine neue Chef-Seite; der Firmen-Radar bleibt ab Geschäftsführung");
   const rgFr = rg.slice(rg.indexOf("export const RUNDGANG_FIRMEN_RADAR"), rg.indexOf("// ── /chef/s/telefonkartei"));
   const ziele = Array.from(rgFr.matchAll(/ziel: "\.([a-z0-9-]+)"/g)).map((m) => m[1]);
-  ok([".cr-motor", ".cr-postfaecher", ".cr-zustellung", ".cr-partner"].every((z) => rgFr.includes(`ziel: "${z}"`)) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritte Mail-Motor, Postfächer, Zustellung, Partner; kein 8:30, kein Abmeldesatz");
+  ok([".cr-motor", ".cr-postfaecher", ".cr-zustellung", ".cr-partner", ".cr-pruefki-kachel", ".cr-adressen"].every((z) => rgFr.includes(`ziel: "${z}"`)) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritte Mail-Motor, Postfächer, Zustellung, Prüf-KI, Adressen, Partner; kein 8:30, kein Abmeldesatz");
+  // E-458 (Nachbesserung): Rundgang und Oberfläche sagen, was der Bau jetzt tut.
+  ok(/„Nachfassen jetzt“/.test(rgFr) && !/Jetzt eine Runde senden/.test(rgFr + ui) && /„Alle“, „Firmen“ oder „Partner“/.test(rgFr) && /„Prüfen lassen“/.test(rgFr) && /„Zurück in den Vorrat“/.test(rgFr) && !/bekommen bei uns US-Gesellschaft/.test(rgFr),
+    "Rundgang: „Nachfassen jetzt“, Umschalter im Trichter, „Prüfen lassen“ nach Hand-Änderung, „Zurück in den Vorrat“, kein „bekommen bei uns“");
+  ok(!/drohen Abmahnungen|vorherige Einwilligung/.test(ui) && /Wer absagt, hört nie wieder von uns/.test(ui), "Chefbüro: keine Rechts-Belehrung mehr, stattdessen eine stille Leitplanke");
+  ok(/\/chef\/radar\/firma\/\$\{id\}\/vorschau\?postfach=/.test(ui) && /srcDoc=\{vorschau\?\.html \?\? mail\.html\}/.test(ui) && /motor\?\.postfaecher\.find\(\(x\) => x\.adresse === p\)\?\.name/.test(ui) && /"\/chef\/radar\/firma\/:id\/vorschau", wache/.test(rt),
+    "Akte: Vorschau und Absender mit der echten Unterschrift des gewählten Postfachs");
+  ok(/Zurück in den Vorrat/.test(ui) && /"\/chef\/radar\/firma\/:id\/vorrat", wache/.test(rt), "Akte: verworfen/abgelaufen → „Zurück in den Vorrat“ (hinter der Wache)");
   ok(ziele.every((k) => new RegExp(`className=[{"\`][^>]*\\b${k}\\b`).test(ui)), `Jedes Rundgang-Ziel steht als className im Chefbüro (${ziele.join(", ")})`);
   ok(!/gold|#c9a2|#d4af|#b8860b/i.test(lies("client/src/styles/chef-radar.css").replace(/\/\*[\s\S]*?\*\//g, "")), "Glasblau, kein Gold (Farben ohne Kommentare geprüft)");
   // Jeder Schalter, den der Weg /chef/radar/motor annimmt, ist im Chefbüro bedienbar (Kachel, Feineinstellungen, Partner, Adressen);

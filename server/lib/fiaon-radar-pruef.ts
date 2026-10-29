@@ -49,28 +49,39 @@ const SCHEMA_PRUEF = {
   required: ["ok", "ki_klang", "bezug_konkret", "nutzen_klar", "eine_frage", "zusage", "erfunden", "punkte", "neu_hinweis"],
 };
 
+/** Die Optionen der Prüf-KI: Strom, Art (erste Mail oder Nachfass mit Stufe), Provision der Gruppe, Provisions-Satz, KI-Klang. */
+export interface RadarPruefOpts {
+  strom: RadarStrom; art?: "erstmail" | "nachfass"; stufe?: number; provision?: boolean | null; provisionText?: string | null; maxKlang?: number;
+}
+
 /** Die Anweisung der Prüf-KI — EINE Stelle für Motor, Stapel, Akte und Nachfass. */
-export function radarPruefAnweisung(o: { strom: RadarStrom; art?: "erstmail" | "nachfass"; provision?: boolean | null; maxKlang?: number }): string {
+export function radarPruefAnweisung(o: RadarPruefOpts): string {
   const nachfass = o.art === "nachfass";
+  const abschluss = nachfass && (o.stufe ?? 1) > 1;
   const max = o.maxKlang ?? RADAR_MOTOR_VORGABE.kiKlangMax;
+  const provisionText = String(o.provisionText || RADAR_MOTOR_VORGABE.partnerProvisionText);
   return [
     `Du bist die Prüferin für ${nachfass ? "Nachfass-Mails" : "erste E-Mails"} von FIAON Global. Eine andere KI hat die Mail unten geschrieben. Sie geht an einen echten Menschen, als persönliche Mail eines Menschen. Du entscheidest, ob sie so hinausgehen darf. Sei streng: im Zweifel ok = false.`,
     "Prüfe:",
     `1. KI-KLANG: Würde ein aufmerksamer Geschäftsführer merken, dass eine KI oder eine Serienmail schreibt? ki_klang 0 = klingt wie ein Mensch, der genau ihm schreibt; 10 = klar KI oder Massenmail. Anzeichen: Gedankenstriche, Aufzählungen, Floskeln (${RADAR_KI_FLOSKELN.map((f) => f.wort).join(", ")}), Schmeichelei, Werbesprache, Dreierketten, gleich lange Sätze, Füllsätze, übertriebene Höflichkeit, „Ich bin auf Ihr Unternehmen gestoßen“.`,
     nachfass
-      ? "2. BEZUG: bezug_konkret = true, wenn die Nachfass-Mail erkennbar an die erste Mail an genau diese Firma anknüpft."
+      ? "2. BEZUG: bezug_konkret = true, wenn die Nachfass-Mail erkennbar an die erste Mail (unten unter DIE ERSTE MAIL) an genau diese Firma anknüpft."
       : "2. BEZUG: bezug_konkret = true NUR, wenn der Anlass etwas Konkretes über GENAU diese Firma sagt, das in den geprüften Aufhängern steht.",
-    o.strom === "partner"
-      ? "3. NUTZEN: nutzen_klar = true, wenn klar wird, was die Mandanten oder Kunden dieses Partners bei FIAON bekommen (eigene US-Gesellschaft, Geschäftskonto, Firmenkarten, Weg zu Kapital) und was der Partner davon hat."
-      : "3. NUTZEN: nutzen_klar = true, wenn klar wird, was FIAON für diese Firma tut (eigene US-Gesellschaft, Geschäftskonto, Firmenkarten, Weg zu US-Funding).",
+    // E-458 (Befund): Die letzte Nachfass-Mail ist ein höflicher Abschluss — sie braucht keinen neuen Nutzen. Und über Konto
+    // und Karte entscheidet die Bank: FIAON „hilft“ und „kümmert sich“, die Kunden „bekommen“ es nicht bei uns.
+    abschluss
+      ? "3. NUTZEN: Dies ist die letzte Nachfass-Mail, ein höflicher Abschluss. nutzen_klar = true, wenn sie freundlich abschließt und offen lässt, sich später mit einer Zeile zu melden — ein neuer Nutzen ist hier NICHT nötig."
+      : o.strom === "partner"
+        ? "3. NUTZEN: nutzen_klar = true, wenn klar wird, wobei FIAON den Mandanten oder Kunden dieses Partners hilft (eigene US-Gesellschaft gründen, sich um Geschäftskonto und Firmenkarten kümmern, Weg zu Kapital) und was der Partner davon hat."
+        : "3. NUTZEN: nutzen_klar = true, wenn klar wird, was FIAON für diese Firma tut (eigene US-Gesellschaft, Geschäftskonto, Firmenkarten, Weg zu US-Funding).",
     nachfass
       ? "4. FRAGE: eine_frage = true, wenn die Mail höchstens eine Frage stellt (eine letzte Nachfass-Mail darf ohne Frage enden)."
-      : "4. FRAGE: eine_frage = true, wenn die Mail genau eine Frage stellt, am Ende.",
-    "5. ZUSAGE: zusage = true bei jeder Zusage oder jedem Versprechen: Finanzierung, Kapital, Kredit, Karte oder Limit zugesagt oder „gesichert“, ein Zinssatz, ein Betrag, eine Bürgschaft, „bis zu“, ein Bankname oder Kartenherausgeber, „garantiert“, Steuervorteile.",
+      : "4. FRAGE: eine_frage = true, wenn die Mail genau eine Frage stellt. Danach dürfen nur noch ein Link und ein fester Schlusssatz folgen, die der Server setzt — das ist erlaubt und keine zweite Frage.",
+    "5. ZUSAGE: zusage = true bei jeder Zusage oder jedem Versprechen: Finanzierung, Kapital, Kredit, Karte oder Limit zugesagt oder „gesichert“, ein Zinssatz, ein Betrag, eine Bürgschaft, „bis zu“, ein Bankname oder Kartenherausgeber, „garantiert“, Steuervorteile, „Ihre Kunden bekommen bei uns Konto oder Karten“. „Einführungszeitraum ohne Sollzins“ ist das freigegebene Hauswort und KEINE Zusage; „ohne Sollzins“ ohne „Einführungszeitraum“ ist eine.",
     "6. ERFUNDEN: erfunden = true, wenn die Mail über die Firma etwas behauptet, das NICHT in den Aufhängern oder im Profil steht (Zahlen, Pläne, Orte, Personen, Ereignisse).",
     "7. REGELN: Gedankenstrich (– — oder „ - “), Aufzählung, Fettdruck, Emoji, Ausrufezeichen, Link im Text, Du-Form, PS, Name oder Rolle des Absenders im Text: je ein Punkt.",
     o.strom === "partner"
-      ? `8. PARTNER: Kein Terminwunsch, kein Anruf, kein Treffen, kein Gespräch anbieten (schriftliche Konditionen) — sonst ein Punkt. ${o.provision === false ? "Diese Gruppe (Steuerberater, Rechtsanwälte) darf KEINE Provision, keine Prozente und kein Tippgeld angeboten bekommen (berufsrechtlich nicht möglich) — sonst zusage = true." : "Eine Provision nur als „30 Prozent unseres Honorars, ein Jahr lang“, ohne Betrag."}`
+      ? `8. PARTNER: Kein Terminwunsch, kein Anruf, kein Treffen, kein Gespräch, kein Austausch anbieten (schriftliche Konditionen) — sonst ein Punkt. ${o.provision === false ? "Diese Gruppe (Steuerberater, Rechtsanwälte) darf KEINE Provision, keine Prozente und kein Tippgeld angeboten bekommen (berufsrechtlich nicht möglich) — sonst zusage = true." : `Eine Provision nur genau als „${provisionText}“, ohne Betrag.`}`
       : "",
     `ok = true NUR, wenn nichts davon zutrifft und ki_klang ≤ ${max}.`,
     "punkte = jede Beanstandung mit regel (kurz), stelle (wörtliches Zitat aus der Mail) und hinweis (was besser wäre). neu_hinweis = ein bis zwei Sätze für die Neufassung.",
@@ -82,9 +93,13 @@ export interface RadarPruefung { bestanden: boolean; urteil: RadarPruefUrteil | 
 
 /** Lässt die Prüf-KI eine Mail lesen. Schreibt nichts. KI-Pause oder Tagesdeckel werfen (503/429) — nichts gilt dann als bestanden. */
 export async function radarMailPruefKi(f: any, mail: { betreff: string; anrede?: string; absaetze: string[]; frage: string; schluss?: string | null },
-  o: { strom: RadarStrom; art?: "erstmail" | "nachfass"; provision?: boolean | null; maxKlang?: number } = { strom: "firma" }): Promise<RadarPruefung> {
+  o: RadarPruefOpts = { strom: "firma" }): Promise<RadarPruefung> {
   const anweisung = radarPruefAnweisung(o);
   const aufhaenger: any[] = Array.isArray(f?.scan?.aufhaenger) ? f.scan.aufhaenger : [];
+  // E-458 (Befund): Beim Nachfassen liest die Prüferin die erste Mail mit — sonst kann sie den Bezug gar nicht prüfen.
+  const erste = o.art === "nachfass" && f?.mail
+    ? ["", "DIE ERSTE MAIL (darauf antwortet das Nachfassen):", `Betreff: ${f.mail.betreff ?? ""}`, f.mail.anrede ?? "", ...(Array.isArray(f.mail.absaetze) ? f.mail.absaetze : []), f.mail.frage ?? ""]
+    : [];
   const eingabe = [
     "DIE MAIL:",
     `Betreff: ${mail.betreff}`,
@@ -92,6 +107,7 @@ export async function radarMailPruefKi(f: any, mail: { betreff: string; anrede?:
     ...mail.absaetze,
     mail.frage,
     mail.schluss ?? "",
+    ...erste,
     "",
     `FIRMA: ${f?.name ?? "?"} (${f?.domain ?? "?"}), ${f?.ort ?? ""} ${f?.land ?? ""}`,
     "GEPRÜFTE AUFHÄNGER (nur diese Fakten über die Firma sind belegt):",
@@ -184,7 +200,7 @@ export async function radarMailFertig(id: number, o: { hinweis?: string | null }
     schreiben: (pruefHinweis) => radarMailSchreiben(id, { hinweis: o.hinweis ?? null, pruefHinweis }),
     pruefen: async (mail) => {
       const f: any = zeileLesen(((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]);
-      return radarMailPruefKi(f, mail, { strom, art: "erstmail", provision, maxKlang: m.kiKlangMax });
+      return radarMailPruefKi(f, mail, { strom, art: "erstmail", provision, provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax });
     },
     aehnlich: (mail) => radarAehnlichkeit(radarMailKoerper(mail), vergleich),
     aehnlichMax: m.aehnlichMax,
@@ -206,7 +222,7 @@ export async function radarMailNurPruefen(id: number): Promise<RadarPruefung> {
   if (aehnlich > m.aehnlichMax) {
     p = { bestanden: false, urteil: null, gruende: [`Zu ähnlich zu einer früheren Mail (${Math.round(aehnlich * 100)} % gleiche Wortfolgen)`], modell: "fingerabdruck", hash: radarMailHash(f.mail) };
   } else {
-    p = await radarMailPruefKi(f, f.mail, { strom, art: "erstmail", provision: await gruppeProvision(f), maxKlang: m.kiKlangMax });
+    p = await radarMailPruefKi(f, f.mail, { strom, art: "erstmail", provision: await gruppeProvision(f), provisionText: m.partnerProvisionText, maxKlang: m.kiKlangMax });
   }
   await urteilMerken(id, p, Number(f.pruef_ki?.versuch ?? 0) + 1);
   return p;

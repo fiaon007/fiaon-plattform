@@ -338,11 +338,21 @@ router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) 
   try {
     const { radarMotorSetzen } = await import("../lib/fiaon-radar-motor");
     const b = req.body ?? {};
-    const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe"];
+    const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe",
+      "partnerGruppen", "partnerTagesziel", "partnerProvisionText"];
     const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
     const einstellung = await radarMotorSetzen(teil);
     console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);
     res.json({ ok: true, einstellung });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Punkt 2): Partner von Hand suchen (Gruppe, Land) — läuft im Hintergrund wie die Firmensuche.
+router.post("/chef/radar/partner/suchen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarPartnerSucheStarten } = await import("../lib/fiaon-radar-partner");
+    const laufId = await radarPartnerSucheStarten({ gruppe: String(req.body?.gruppe ?? ""), land: alsRadarLand(req.body?.land), anzahl: Number(req.body?.anzahl) || 10, von: req.chef?.agentId ?? null });
+    res.json({ ok: true, laufId });
   } catch (e) { fehler(res, e); }
 });
 

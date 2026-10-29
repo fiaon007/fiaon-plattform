@@ -21,7 +21,7 @@ import {
   ensureRadarTabellen, radarKi, zeileLesen, radarMailSchreiben, radarMailHash, radarMotorEinstellung, RadarFehler, type RadarMail,
 } from "./fiaon-radar";
 import {
-  RADAR_KI_FLOSKELN, radarPruefUrteil, radarAehnlichkeit, alsRadarStrom, RADAR_MOTOR_VORGABE,
+  RADAR_KI_FLOSKELN, radarPruefUrteil, radarAehnlichkeit, alsRadarStrom, RADAR_MOTOR_VORGABE, radarPartnerGruppe,
   type RadarPruefUrteil, type RadarStrom,
 } from "@shared/fiaon-radar";
 
@@ -164,9 +164,8 @@ async function urteilMerken(id: number, p: RadarPruefung | null, versuch: number
 
 async function gruppeProvision(f: any): Promise<boolean | null> {
   if (alsRadarStrom(f?.strom) !== "partner") return null;
-  const sh: any = await import("@shared/fiaon-radar");
-  const g = typeof sh.radarPartnerGruppe === "function" ? sh.radarPartnerGruppe(f.bereich) : null;
-  return g ? !!g.provision : null;
+  const g = radarPartnerGruppe(f.bereich);
+  return g ? g.provision : null;
 }
 
 /**

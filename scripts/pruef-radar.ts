@@ -755,10 +755,78 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     await mo.warteschlangeAufraeumen(sh8.radarMotorLesen({}));
     const z6 = Object.fromEntries(((await sqlPool`SELECT id, motor_status FROM fiaon_radar_firmen`) as any[]).map((x) => [Number(x.id), x.motor_status]));
     ok(z6[k2] === "abgelaufen" && z6[kp] === "bereit", "Aufräumen: nach 7 Tagen abgelaufen; hängendes Senden ohne Versand zurück auf bereit");
+    // 7. Partner mit Interesse → Partner-CRM (eine Transaktion), beim zweiten Mal nur Verlauf und Aufgabe.
+    const fd = await import("../server/lib/fiaon-radar-faden");
+    const pcrm = await import("../server/lib/fiaon-partner-crm");
+    await pcrm.ensurePartnerTabellen();
+    await sqlPool`DELETE FROM fiaon_partner_aufgaben WHERE erstellt_von = 'Mara (Firmen-Radar)'`.catch(() => {});
+    const pId = await anlegen(21, { strom: "partner", mail: mailPartner, motor: "gesendet", status: "versendet" });
+    const pFirma = ((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${pId}`) as any[]).map((x) => lib.zeileLesen(x))[0];
+    const akteId = await fd.partnerInsCrm(pFirma, { text: "Das klingt gut, schicken Sie mir die Konditionen.", zusammenfassung: "Interesse an der Zusammenarbeit", datum: new Date() });
+    const akte = akteId ? await pcrm.partnerAkte(akteId) : null;
+    ok(!!akte && akte.firma.art === "kanzlei" && akte.kontakte.some((k: any) => k.name === "Max Beispiel" && k.haupt) && akte.verlauf.length >= 1 && akte.aufgaben.some((a: any) => /ohne Provision/.test(a.titel)), "Ende zu Ende: Steuerkanzlei mit Interesse → Partner-Akte „kanzlei“, Hauptkontakt, Verlauf, Aufgabe „ohne Provision“");
+    const pFirma2 = ((await sqlPool`SELECT * FROM fiaon_radar_firmen WHERE id = ${pId}`) as any[]).map((x) => lib.zeileLesen(x))[0];
+    const akteId2 = await fd.partnerInsCrm(pFirma2, { text: "Noch eine Frage zur Abwicklung.", zusammenfassung: "Sachfrage", datum: new Date() });
+    const akte2 = akteId2 ? await pcrm.partnerAkte(akteId2) : null;
+    const anzahlFirmen = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_partner_firmen WHERE name = ${"Beispiel 21 GmbH"}`) as any[])[0].n);
+    ok(akteId2 === akteId && anzahlFirmen === 1 && (akte2?.verlauf.length ?? 0) >= 2, "Zweite Antwort: dieselbe Akte, nur Verlauf und Aufgabe dazu (keine Dublette)");
     const stand2 = await mo.radarMotorStand();
     ok(stand2.leistung && typeof stand2.leistung.satz === "string" && stand2.stroeme.partner.bereit >= 1, `Stand fürs Chefbüro: ${stand2.leistung.satz}`);
     await sqlPool.end({ timeout: 2 });
   }
+}
+
+abschnitt("Partner-Strom: Steuerberater, Finanzierer, Kreditvermittler … (E-458)");
+{
+  const crm = await import("../shared/fiaon-partner-crm");
+  const lib = await import("../server/lib/fiaon-radar");
+  const G = sh8.RADAR_PARTNER_GRUPPEN;
+  ok(G.length === 10 && new Set(G.map((g) => g.key)).size === 10 && G.every((g) => !sh8.RADAR_BEREICHE.some((b) => b.key === g.key) && sh8.radarBereich(g.key) === null) && sh8.RADAR_BEREICHE.length === 10, "Zehn Partner-Gruppen, Schlüssel eindeutig und keine Firmen-Bereiche; die zehn Bereiche bleiben");
+  ok(JSON.stringify(G.filter((g) => !g.provision).map((g) => g.key).sort()) === JSON.stringify(["rechtsanwaelte", "steuerberater"]) && G.every((g) => (g.provision ? g.crmArt === "kooperation" : g.crmArt === "kanzlei") && crm.PARTNER_ARTEN.some((a) => a.wert === g.crmArt)), "Steuerberater und Rechtsanwälte ohne Provision (Akte „kanzlei“), alle anderen mit Provision („kooperation“)");
+  for (const g of G) {
+    const text = `${g.angebot}\n${g.frage}`;
+    ok(!globalWortPruefen(text).length && !/[–—]/.test(text) && g.frage.trim().endsWith("?") && !/termin|call|meeting|gespräch|telefon|treffen/i.test(g.frage) && (g.provision || !/provision|prozent|vergütung|tippgeld/i.test(g.angebot)),
+      `Gruppe ${g.key}: Angebot und Frage bestehen die Wortwand, ohne Gedankenstrich, Frage mit „?“ ohne Termin${globalWortPruefen(text).length ? ` (${globalWortPruefen(text).map((x) => x.treffer).join(", ")})` : ""}`);
+  }
+  ok(sh8.RADAR_PARTNER_SIGNALE.every((x) => x.staerke >= 1 && x.staerke <= 5) && sh8.RADAR_PARTNER_SIGNALE.filter((x) => x.staerke >= 3).length >= 3 && sh8.RADAR_PARTNER_SIGNALE.every((x) => !sh8.radarSignal(x.key)), "Partnersignale: Stärke 1–5, mindestens drei ab 3, eigene Schlüssel");
+  const seite = [{ url: "https://kanzlei-beispiel.example/schwerpunkte", text: "Wir begleiten Unternehmer und Onlinehändler beim Schritt in die USA und bei der Gründung einer eigenen Gesellschaft dort." }];
+  const pSig = await lib.signalPruefen({ art: "p_us_expansion", beleg: "Wir begleiten Unternehmer und Onlinehändler beim Schritt in die USA", url: "", staerke: 5 }, seite, undefined, "partner");
+  const fSig = await lib.signalPruefen({ art: "p_us_expansion", beleg: "Wir begleiten Unternehmer und Onlinehändler beim Schritt in die USA", url: "", staerke: 5 }, seite, undefined, "firma");
+  ok(pSig.staerke === 5 && pSig.signal?.geprueft === true && fSig.signal === null, "signalPruefen nimmt Partner-Schlüssel nur im Partner-Strom");
+  // Übergabe ins Partner-CRM (rein)
+  const kanzlei = { name: "Beispiel Steuerkanzlei", website: "https://kanzlei-beispiel.example", email: "max.beispiel@kanzlei-beispiel.example",
+    impressum: { strasse: "Musterweg 12", plz: "10115", ort: "Berlin", land: "DE" }, entscheider: { name: "Max Beispiel", rolle: "Partner", email: "max.beispiel@kanzlei-beispiel.example" } };
+  const st = sh8.radarPartnerCrmEingabe({ firma: { ...kanzlei, bereich: "steuerberater" }, antwort: { text: "Gern, schicken Sie mir das schriftlich.", zusammenfassung: "Interesse", datum: "2026-10-30T10:00:00+01:00" }, heute: "2026-10-30" });
+  ok(st.firma.art === "kanzlei" && /ohne Provision/.test(st.firma.konditionen[0].value) && !/30 %/.test(JSON.stringify(st)), "Steuerberater → Akte „kanzlei“, Kondition ohne Provision");
+  const kv = sh8.radarPartnerCrmEingabe({ firma: { ...kanzlei, name: "Beispiel Kreditvermittlung", bereich: "kreditvermittler" }, antwort: { text: "Klingt gut.", datum: "2026-10-30T10:00:00+01:00" }, heute: "2026-10-30" });
+  ok(kv.firma.art === "kooperation" && /30 %/.test(kv.firma.konditionen[0].value) && /Tippgeber-Vereinbarung/.test(kv.aufgabe.titel), "Kreditvermittler → „kooperation“ mit 30 %, Aufgabe Tippgeber-Vereinbarung");
+  ok(st.kontakte.length === 1 && st.kontakte[0].haupt === true && st.kontakte[0].name === "Max Beispiel" && st.firma.tags.includes("radar") && st.firma.tags.includes("steuerberater"), "Kontakt = Entscheider als Hauptkontakt; Schlagworte „radar“ und Gruppe");
+  ok(st.aufgabe.faelligAm === "2026-11-02" && sh8.radarNaechsterWerktag("2026-10-29") === "2026-10-30", "Aufgabe fällig am nächsten Werktag (Freitag → Montag)");
+  ok(st.firma.strasse === "Musterweg" && st.firma.hausnummer === "12" && crm.firmaPruefen(st.firma).ok && crm.aufgabePruefen({ firmaId: 1, ...st.aufgabe }).ok, "Die Eingabe besteht die Prüfungen des Partner-CRM (Firma, Aufgabe)");
+  // Regeln je Gruppe
+  const pm = { betreff: "Ihre Mandanten mit Plänen in den USA", absaetze: [
+    "Ich habe auf Ihrer Website gelesen, dass Sie viele Onlinehändler betreuen, die auch an Kunden in Übersee verkaufen. Für genau diese Unternehmer haben wir etwas Passendes.",
+    "Wir gründen ihnen eine eigene Gesellschaft in den USA und kümmern uns um Geschäftskonto und Firmenkarten. Die steuerliche Betreuung bleibt dabei ganz bei Ihnen, und wir stellen uns gern gegenseitig Mandanten vor."],
+    frage: "Haben Sie Mandanten, für die das gerade ein Thema ist?", ps: "" };
+  const po = (gruppe: string) => ({ streng: true, strom: "partner" as const, gruppe, anrede: "Guten Tag Max Beispiel,", schluss: sh8.RADAR_SCHLUSSSAETZE[1], mitLink: false });
+  ok(lib.mailPruefen(pm, po("steuerberater")).sperrend.length === 0, `Saubere Partner-Mail an eine Steuerkanzlei besteht (${lib.mailPruefen(pm, po("steuerberater")).sperrend.join("; ")})`);
+  const mitProv = { ...pm, absaetze: [pm.absaetze[0], `${pm.absaetze[1]} Dafür gibt es eine Provision.`] };
+  const mitProzent = { ...pm, absaetze: [pm.absaetze[0], `${pm.absaetze[1]} Sie bekommen 30 Prozent unseres Honorars.`] };
+  ok(lib.mailPruefen(mitProv, po("steuerberater")).sperrend.some((x) => /keine Provision/.test(x)) && lib.mailPruefen(mitProzent, po("steuerberater")).sperrend.some((x) => /keine Provision/.test(x)), "Steuerberater: „Provision“ oder „Prozent“ sperrt");
+  ok(!lib.mailPruefen(mitProzent, po("kreditvermittler")).sperrend.length, `Kreditvermittler: „30 Prozent unseres Honorars“ sperrt nicht (${lib.mailPruefen(mitProzent, po("kreditvermittler")).sperrend.join("; ")})`);
+  const ph = lib.mailHtml({ anrede: "Guten Tag Max Beispiel,", absaetze: pm.absaetze, frage: pm.frage, links: { gespraech: "https://fiaon.com/business#gespraech", seite: "https://fiaon.com/business" }, mitLink: false });
+  ok(!/#gespraech|Einen Termin wählen/.test(ph), "Partner-Mail ohne Terminlink");
+  const termin = sh8.radarPlan({ art: "termin_wunsch", maraModus: "auto", postfachJs: false, frisch: true, roboter: false, buchungslink: null, wunschFrei: true, telefon: true, maraHeute: 0, strom: "partner" });
+  ok(!termin.buchen && termin.schritte.some((x) => /Partner/.test(x)) && sh8.radarPlan({ art: "termin_wunsch", maraModus: "auto", postfachJs: false, frisch: true, roboter: false, buchungslink: null, wunschFrei: true, telefon: true, maraHeute: 0 }).buchen, "radarPlan: Partner buchen nie einen Termin (Firmen weiter)");
+  const pmo = sh8.radarMotorLesen({ radar_partner_gruppen: "steuerberater,quatsch,kreditvermittler" });
+  ok(JSON.stringify(pmo.partnerGruppen) === JSON.stringify(["steuerberater", "kreditvermittler"]) && sh8.radarMotorLesen({}).partnerGruppen.length === 10 && sh8.radarMotorLesen({ radar_partner_gruppen: "" }).partnerGruppen.length === 0 && sh8.radarMotorLesen({}).partnerTagesziel === 100, "Partner-Schalter: Gruppen an/aus (unbekannte fallen weg), 100 Funde am Tag");
+  const libQ = lies("server/lib/fiaon-radar.ts"), fdQ = lies("server/lib/fiaon-radar-faden.ts"), paQ = lies("server/lib/fiaon-radar-partner.ts");
+  ok(/if \(f\.strom === "partner" && regel\.lead && frisch\) \{\s*await partnerInsCrm\(/.test(fdQ) && /uebernehmen\(firmaId/.test(fdQ) && /partner_firma_id = \$\{r\.id\}/.test(fdQ), "Antwort-Wächter: Partner mit Interesse → Partner-CRM (eine Transaktion), bestehende Partner nur Verlauf und Aufgabe");
+  ok(/FROM fiaon_partner_firmen/.test(paQ) && /FROM fiaon_partner_kontakte/.test(paQ) && /fassung LIKE 'IA-KOOP-%'/.test(paQ) && /for \(const d of Array\.from\(await partnerAusschluss\(\)\)\) aus\.add\(d\)/.test(paQ), "Partner-Suche schließt bestehende Partner aus (CRM-Firmen, Kontakte, Kooperationsverträge)");
+  ok(/const mitLink = strom === "firma" && motor\.link === "termin"/.test(libQ) && /KEIN Termin, kein Anruf, kein Gespräch/.test(libQ) && /KEINE Provision, keine Prozente/.test(libQ) && /Nie „empfehlen“/.test(libQ), "Partner-Mail: kein Terminlink, kein Gesprächswunsch, keine Provision für Kanzleien, nie „empfehlen“");
+  ok(/Ziel: die Zusammenarbeit SCHRIFTLICH vereinbaren/.test(fdQ) && /const ohneLink = partner \|\|/.test(fdQ), "Maras Antwort an Partner: schriftlich, ohne Zeiten und ohne Link");
+  ok(/radarPartnerSuchen\(\{ gruppe, land: PARTNER_LAENDER/.test(libQ) && /const PARTNER_LAENDER: RadarLand\[\] = \["DE", "DE", "CH"\]/.test(libQ) && /quote\("partner"\) < quote\("firma"\)/.test(libQ), "Tageslauf: Partner-Suche im selben Lauf, Vorrang für den knapperen Vorrat, Partner nur DE und CH");
+  ok(/"\/chef\/radar\/partner\/suchen", wache/.test(lies("server/routes/fiaon-radar.ts")), "Partnersuche von Hand hinter der Wache");
 }
 
 abschnitt("Ergebnis");

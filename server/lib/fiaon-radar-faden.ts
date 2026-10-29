@@ -50,7 +50,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss,
+  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss, radarPartnerGruppe,
   type RadarAntwortArt, type RadarAutomatik,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -486,7 +486,13 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
   const plan = radarPlan({
     art, maraModus: automatik.mara, postfachJs: postfach === "js@fiaon.com", frisch, roboter: radarRoboter(n.vonAdresse),
     buchungslink: e.buchungslink || null, wunschFrei, telefon: telefon.replace(/\D/g, "").length >= 6, maraHeute: Number(mz?.n ?? 0),
+    strom: f.strom === "partner" ? "partner" : "firma",
   });
+  // E-458 (Punkt 2): Ein Partner mit Interesse kommt ins Partner-CRM (Chefbüro › Geschäftspartner) — Firma, Kontakt,
+  // Verlauf und Aufgabe in EINER Transaktion; ein bestehender Partner bekommt nur Verlauf und Aufgabe.
+  if (f.strom === "partner" && regel.lead && frisch) {
+    await partnerInsCrm(f, { text: kern, zusammenfassung: e.zusammenfassung, datum: n.datum, telefon: e.telefon || null }).catch((err: any) => console.error(`[RADAR-POST] Partner-CRM ${f.id}:`, err?.message || err));
+  }
 
   let gebucht: MaraGebucht | null = null;
   if (plan.buchen) {
@@ -528,6 +534,29 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
     await aufgabeFuerJustin(f, postId, titel[art] ?? `${regel.lead ? "Radar-Lead" : "Radar-Antwort"}: ${f.name}`, teile.join(" · "), plan.dringend, faelligAm);
   }
   return { art, ki, mara };
+}
+
+/**
+ * E-458: Übergabe einer positiven Partner-Antwort ins Partner-CRM. Schon als Partner bekannt (partner_firma_id oder Treffer
+ * über E-Mail, Domain, Name ab 70 Punkten): nur Verlauf und Aufgabe. Sonst neu: Firma (Art je Gruppe, Kondition mit oder
+ * ohne Provision), Entscheider als Hauptkontakt, Verlauf, Aufgabe für den nächsten Werktag.
+ */
+export async function partnerInsCrm(f: any, antwort: { text: string; zusammenfassung?: string | null; datum: Date; telefon?: string | null }): Promise<number | null> {
+  const { bestandFuerTreffer, uebernehmen } = await import("./fiaon-partner-crm");
+  const { firmenTreffer } = await import("@shared/fiaon-partner-crm");
+  const { radarPartnerCrmEingabe } = await import("@shared/fiaon-radar");
+  const eingabe = radarPartnerCrmEingabe({ firma: { name: f.name, website: f.website, email: f.email, bereich: f.bereich, impressum: f.impressum, entscheider: f.entscheider }, antwort, heute: berlinToday() });
+  let firmaId = Number(f.partner_firma_id) || 0;
+  if (!firmaId) {
+    const treffer = firmenTreffer({ name: f.name, website: f.website, email: f.email ?? undefined }, await bestandFuerTreffer());
+    firmaId = treffer.find((t) => t.punkte >= 70)?.id ?? 0;
+  }
+  const r = await uebernehmen(firmaId
+    ? { firmaId, verlauf: eingabe.verlauf, aufgabe: eingabe.aufgabe, quelltext: antwort.text }
+    : { firma: eingabe.firma as any, kontakte: eingabe.kontakte as any, verlauf: eingabe.verlauf, aufgabe: eingabe.aufgabe, quelltext: antwort.text }, "Mara (Firmen-Radar)");
+  if (!r.ok) { console.error(`[RADAR-POST] Partner-CRM ${f.id}: ${r.error}`); return null; }
+  await sqlPool`UPDATE fiaon_radar_firmen SET partner_firma_id = ${r.id}, updated_at = NOW() WHERE id = ${f.id}`;
+  return r.id;
 }
 
 async function aufgabeFuerJustin(f: any, postId: number, titel: string, text: string, dringend: boolean, faelligAm: string | null = null): Promise<void> {
@@ -669,8 +698,21 @@ export async function maraTextSchreiben(ein: {
     : (en ? "in a few weeks" : "in ein paar Wochen");
   const artSatz = String(MARA_JE_ART[ein.wiedervorlage ? "wiedervorlage" : eingang.art] ?? "")
     .replace("{PERSON}", person ?? (en ? "our team" : "unser Team")).replace("{SPAETER}", en ? spaeterText : `im ${spaeterText}`);
-  const ohneZeiten = !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
-  const anweisung = [
+  // E-458: Partner bekommen keinen Termin, keine Zeiten und keinen Buchungslink — Konditionen gehen schriftlich.
+  const partner = f.strom === "partner";
+  const gruppe = partner ? radarPartnerGruppe(f.bereich) : null;
+  const ohneZeiten = partner || !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
+  const anweisung = partner ? [
+    `Du bist Mara Lindner, die digitale Assistentin von ${a.name} (Gründer von FIAON Global). Du beantwortest die Antwort eines möglichen Kooperationspartners (${gruppe?.label ?? "Partner"}) auf eine Mail von ${a.name}. ${en ? "Schreibe in britischem Englisch, höflich-förmlich, warm, klar, kurz (40 bis 110 Wörter)." : "Sie-Form, warm, klar, kurz (40 bis 110 Wörter)."}`,
+    schonVorgestellt ? "Du hast dich in diesem Faden schon vorgestellt." : `PFLICHT (KI-Verordnung Art. 50): Beginne mit einem kurzen Halbsatz, der dich vorstellt (${en ? `„I'm Mara, ${a.name}'s digital assistant —“` : `„ich bin Mara, die digitale Assistentin von ${a.name} —“`}), und mach im selben Satz mit der Sache weiter.`,
+    `Ziel: die Zusammenarbeit SCHRIFTLICH vereinbaren. Bedanke dich, beantworte Fragen nur mit den Fakten unten und sag, dass ${a.name} die Konditionen der Zusammenarbeit schriftlich schickt. KEIN Termin, keine Zeiten, kein Telefonat, kein Treffen, kein Buchungslink. Bittet der Partner ausdrücklich um einen Anruf: sag nur, dass ${a.name} das gesehen hat und sich persönlich meldet.`,
+    gruppe && !gruppe.provision
+      ? "Diese Gruppe (Steuerberater, Rechtsanwälte) bekommt KEINE Provision: nie Provision, Prozente, Vergütung oder Tippgeld erwähnen. Die Kanzlei behält die steuerliche bzw. rechtliche Betreuung, wir stellen uns gegenseitig Mandanten vor."
+      : "Zur Provision nur, wenn danach gefragt wird: 30 Prozent unseres Honorars, ein Jahr lang, für jeden vorgestellten Kunden — alles Weitere steht in der schriftlichen Vereinbarung.",
+    "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; erfundene Fakten. Keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
+    "Antworte ausschließlich im vorgegebenen JSON: absaetze = 1 bis 3 kurze Absätze.",
+    `Kern in einem Satz (Justin): „${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}“`,
+  ].filter(Boolean).join("\n") : [
     `Du bist Mara Lindner, die digitale Assistentin von ${a.name} (Gründer von FIAON Global). Du beantwortest die Antwort einer Firma auf seine Mail. ${en ? "Schreibe in britischem Englisch, höflich-förmlich (you), warm, klar, kurz (40 bis 110 Wörter)." : "Sie-Form, warm, klar, kurz (40 bis 110 Wörter)"}, wie eine sehr gute Assistenz eines Gründers. Ziel: ein 30-Minuten-Telefonat${person ? ` mit ${person} aus unserem Team` : ""} — oder, wenn die Firma direkt starten will, der Weg zum Auftrag.`,
     person ? `Das Gespräch führt ${person} (nicht ${a.name}). Nenne ${person} als Gesprächspartner, wenn du über das Gespräch sprichst.` : "",
     schonVorgestellt ? "Du hast dich in diesem Faden schon vorgestellt." : `PFLICHT (KI-Verordnung Art. 50): Beginne mit einem kurzen Halbsatz, der dich vorstellt (${en ? `„I'm Mara, ${a.name}'s digital assistant —“` : `„ich bin Mara, die digitale Assistentin von ${a.name} —“`}), und mach im selben Satz mit der Sache weiter.`,
@@ -703,7 +745,7 @@ export async function maraTextSchreiben(ein: {
   const anredeName = absenderTeile(eingang.von).name;
   const mitName = /^[A-ZÄÖÜ][\wäöüß-]+(\s+[A-ZÄÖÜ][\wäöüß-]+)+$/.test(anredeName) && anredeName.length <= 60;
   const anrede = en ? (mitName ? `Dear ${anredeName},` : "Hello,") : (mitName ? `Guten Tag ${anredeName},` : "Guten Tag,");
-  const ohneLink = !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
+  const ohneLink = partner || !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
   const linkZeile = ohneLink ? [] : eingang.art === "info"
     ? [en ? "Everything at a glance: https://fiaon.com/en/business" : "Alles auf einen Blick: https://fiaon.com/business", "", en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""]
     : [en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""];
@@ -858,6 +900,7 @@ export async function radarMaraProbe(ein: { von?: string | null; betreff?: strin
   const plan = radarPlan({
     art, maraModus: automatik.mara, postfachJs: (radarPostfaecher()[0] ?? "") === "js@fiaon.com", frisch: true, roboter: radarRoboter(adresse),
     buchungslink: e.buchungslink || null, wunschFrei, telefon: telefon.replace(/\D/g, "").length >= 6, maraHeute: 0,
+    strom: f.strom === "partner" ? "partner" : "firma",
   });
   let mara: MaraProbe["mara"] = null;
   if (ein.mitAntwort && plan.mara !== "keine") {

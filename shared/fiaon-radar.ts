@@ -116,6 +116,152 @@ export function radarSignal(key: unknown): RadarSignal | null {
   return RADAR_SIGNALE.find((x) => x.key === String(key ?? "")) ?? null;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-458 (29.10.2026) — DER PARTNER-STROM: Menschen, die uns Kunden bringen
+//
+// Justin: „Mara soll sich auch Steuerberater, Finanzierer, Kreditvermittler, Anwälte und was weiß ich suchen und
+// anschreiben als Kooperationspartner.“ Gesucht werden Menschen, deren Mandanten oder Kunden eine US-Gesellschaft, ein
+// Konto, Karten oder Kapital brauchen. Eigene Liste (RADAR_BEREICHE bleiben die zehn Branchen der Firmen): je Gruppe,
+// wonach die KI sucht, was wir anbieten und welche eine Frage die Mail stellt. Steuerberater und Anwälte bekommen KEINE
+// Provision (berufsrechtlich nicht möglich) — ihre Mandanten bekommen bei uns US-Gesellschaft, Konto und Karten, die
+// Kanzlei behält die Betreuung, wir stellen uns gegenseitig Mandanten vor. Alle anderen: Tippgeber mit 30 Prozent
+// unseres Honorars, ein Jahr lang (Kooperationsmodell E-419; verbindlich ist allein der IA-KOOP-Vertrag).
+// Partner bekommen nie einen Terminlink und nie einen Gesprächswunsch — Konditionen gehen schriftlich (keine Meetings).
+// ═══════════════════════════════════════════════════════════════════════════
+export interface RadarPartnerGruppe {
+  key: string; label: string;
+  /** Wonach die KI im Netz sucht. */
+  suche: string;
+  /** Was wir dieser Gruppe anbieten — die Mail sagt es in eigenen Worten. */
+  angebot: string;
+  /** Eine Frage, wie die Mail sie stellen kann (schriftlich beantwortbar, kein Termin). */
+  frage: string;
+  /** Tippgeber-Provision erlaubt? Steuerberater und Anwälte: nein (Berufsrecht). */
+  provision: boolean;
+  /** Art der Akte im Partner-CRM (PARTNER_ARTEN). */
+  crmArt: "kanzlei" | "kooperation";
+}
+const ANGEBOT_PROVISION = "Für jeden Kunden, den Sie uns vorstellen, bekommen Sie 30 Prozent unseres Honorars, ein Jahr lang. Ihre Kunden bekommen bei uns eine eigene US-Gesellschaft mit Geschäftskonto, Firmenkarten und dem Weg zu US-Funding.";
+export const RADAR_PARTNER_GRUPPEN: readonly RadarPartnerGruppe[] = [
+  { key: "steuerberater", label: "Steuerberater und Steuerkanzleien", provision: false, crmArt: "kanzlei",
+    suche: "inhabergeführte Steuerkanzleien und Steuerberater mit Unternehmern als Mandanten (Onlinehandel, Mittelstand, Gründer), gern mit internationalem Steuerrecht oder Mandanten mit Geschäft im Ausland",
+    angebot: "Ihre Mandanten bekommen bei uns eine eigene US-Gesellschaft, ein Geschäftskonto und Firmenkarten. Die steuerliche Betreuung bleibt ganz bei Ihnen, und wir stellen uns gegenseitig Mandanten vor.",
+    frage: "Haben Sie Mandanten, für die eine eigene Gesellschaft in den USA gerade ein Thema ist?" },
+  { key: "rechtsanwaelte", label: "Rechtsanwälte (Wirtschafts-, Gesellschafts-, internationales Recht)", provision: false, crmArt: "kanzlei",
+    suche: "inhabergeführte Kanzleien für Wirtschafts-, Gesellschafts- oder internationales Recht mit Unternehmern und Gründern als Mandanten, keine Großkanzleien",
+    angebot: "Ihre Mandanten bekommen bei uns eine eigene US-Gesellschaft, ein Geschäftskonto und Firmenkarten. Die rechtliche Betreuung bleibt ganz bei Ihnen, und wir stellen uns gegenseitig Mandanten vor.",
+    frage: "Gibt es unter Ihren Mandanten Unternehmer, die gerade in die USA gehen wollen?" },
+  { key: "finanzierer", label: "Finanzierer und Finanzierungsberater", provision: true, crmArt: "kooperation",
+    suche: "unabhängige Finanzierungsvermittler, Finanzierungsberater und kleine Finanzierungshäuser, die mittelständischen Unternehmern Kapital besorgen (keine Banken, keine Versicherer)",
+    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen unsere Konditionen für Tippgeber schriftlich schicken?" },
+  { key: "kreditvermittler", label: "Kreditvermittler", provision: true, crmArt: "kooperation",
+    suche: "inhabergeführte Kreditvermittler und Darlehensvermittler für Gewerbekunden, Selbstständige und den Mittelstand",
+    angebot: ANGEBOT_PROVISION, frage: "Haben Sie Kunden, denen eine zweite Kapitalquelle in den USA helfen würde?" },
+  { key: "foerdermittel", label: "Fördermittelberater", provision: true, crmArt: "kooperation",
+    suche: "Fördermittelberater und Förderlotsen, die kleine und mittlere Unternehmen zu Förderkrediten und Zuschüssen begleiten",
+    angebot: ANGEBOT_PROVISION, frage: "Haben Sie Kunden, für die eine zweite Kapitalquelle in den USA gerade passen würde?" },
+  { key: "vermoegen", label: "Vermögens- und Finanzberater", provision: true, crmArt: "kooperation",
+    suche: "unabhängige Vermögensverwalter, Finanzplaner und Family Offices mit Unternehmern als Kunden (keine Banken, keine Versicherer, keine Strukturvertriebe)",
+    angebot: ANGEBOT_PROVISION, frage: "Haben Sie Unternehmer unter Ihren Kunden, für die eine eigene Gesellschaft in den USA ein Thema ist?" },
+  { key: "unternehmensberater", label: "Unternehmensberater", provision: true, crmArt: "kooperation",
+    suche: "inhabergeführte Unternehmensberatungen für kleine und mittlere Unternehmen (Wachstum, Internationalisierung, Finanzen), keine großen Beratungshäuser",
+    angebot: ANGEBOT_PROVISION, frage: "Darf ich Ihnen unsere Konditionen für Tippgeber schriftlich schicken?" },
+  { key: "gruendung", label: "Gründungsbegleiter und Gründerzentren", provision: true, crmArt: "kooperation",
+    suche: "Gründercoaches, Gründungsbegleiter und private Gründerzentren, die Start-ups und junge GmbHs begleiten (keine Anbieter, die selbst US-Gesellschaften gründen)",
+    angebot: ANGEBOT_PROVISION, frage: "Begegnen Ihnen Gründer, die von Anfang an auch in den USA verkaufen wollen?" },
+  { key: "ecommerce", label: "E-Commerce-Agenturen", provision: true, crmArt: "kooperation",
+    suche: "Shopify-, Amazon- und E-Commerce-Agenturen in Deutschland und der Schweiz, die Onlinehändler beim Verkauf in die USA unterstützen",
+    angebot: ANGEBOT_PROVISION, frage: "Haben Sie Händler unter Ihren Kunden, die gerade in die USA verkaufen wollen?" },
+  { key: "us_expansion", label: "US-Expansionsbegleiter", provision: true, crmArt: "kooperation",
+    suche: "Begleiter und Netzwerke für den Markteintritt in den USA (Messen, Vertrieb, Marketing), die selbst KEINE US-Gesellschaften gründen und keine Konten vermitteln",
+    angebot: ANGEBOT_PROVISION, frage: "Haben Sie Kunden, denen für den Schritt in die USA noch die eigene Gesellschaft fehlt?" },
+];
+export function radarPartnerGruppe(key: unknown): RadarPartnerGruppe | null {
+  return RADAR_PARTNER_GRUPPEN.find((g) => g.key === String(key ?? "")) ?? null;
+}
+
+/** Das Bild eines guten Partners — die KI sucht danach, das Chefbüro zeigt es. */
+export const RADAR_PARTNER_ZIELBILD = {
+  muss: [
+    "Sitz in Deutschland oder der Schweiz (Österreich nur für den Brief), eigene Website mit Impressum",
+    "Inhabergeführt, etwa 1 bis 50 Berufsträger — die Inhaberin oder der Partner entscheidet selbst",
+    "Die Mandanten oder Kunden sind Unternehmer in DACH, mit wörtlichem Beleg auf der Website",
+  ],
+  nie: [
+    "Großkanzleien, Big Four, Konzerne, Banken, Versicherer, Strukturvertriebe",
+    "Wer selbst US-Gesellschaften gründet oder Konten und Karten vermittelt (Wettbewerber)",
+    "Kanzleien oder Firmen in Insolvenz oder Liquidation",
+  ],
+} as const;
+
+/** Wie nah ist der Partner an unseren Kunden? Wie die Kapitalsignale: nur mit WÖRTLICHEM Beleg, sonst höchstens 2. */
+export const RADAR_PARTNER_SIGNALE: readonly RadarSignal[] = [
+  { key: "p_us_expansion", label: "Begleitet in die USA", staerke: 5, suche: "berät oder begleitet Unternehmer ausdrücklich beim Schritt in die USA (US-Gesellschaft, US-Markt, US-Vertrieb)" },
+  { key: "p_international", label: "Internationales Steuer- oder Gesellschaftsrecht", staerke: 4, suche: "Schwerpunkt internationales Steuerrecht, Gesellschaftsrecht oder Auslandsgesellschaften" },
+  { key: "p_finanzierung", label: "Besorgt Unternehmern Kapital", staerke: 4, suche: "vermittelt oder begleitet Finanzierungen, Förderkredite oder Kapital für Unternehmer" },
+  { key: "p_foerdermittel", label: "Fördermittel für Unternehmer", staerke: 4, suche: "begleitet Unternehmer zu Fördermitteln und Förderkrediten" },
+  { key: "p_gruender", label: "Gründer als Mandanten", staerke: 3, suche: "betreut ausdrücklich Gründer, Start-ups oder junge GmbHs" },
+  { key: "p_ecommerce", label: "Onlinehändler als Mandanten", staerke: 3, suche: "betreut Onlinehändler, Shopify- oder Amazon-Händler" },
+  { key: "p_unternehmer", label: "Unternehmer als Mandanten", staerke: 3, suche: "Mandanten sind ausdrücklich Unternehmer und Mittelstand" },
+  { key: "p_privat", label: "Überwiegend Privatkunden", staerke: 2, suche: "Mandanten sind überwiegend Privatpersonen" },
+];
+export function radarPartnerSignal(key: unknown): RadarSignal | null {
+  return RADAR_PARTNER_SIGNALE.find((x) => x.key === String(key ?? "")) ?? null;
+}
+/** Das Signal je Strom: Firmen bekommen nur Kapitalsignale, Partner nur Partnersignale. Rein. */
+export function radarSignalFuer(key: unknown, strom: RadarStrom = "firma"): RadarSignal | null {
+  return strom === "partner" ? radarPartnerSignal(key) : radarSignal(key);
+}
+
+/** Der nächste Werktag (Mo–Fr) nach einem Tag „YYYY-MM-DD“. Rein. */
+export function radarNaechsterWerktag(tag: string): string {
+  const d = new Date(`${String(tag).slice(0, 10)}T12:00:00Z`);
+  do { d.setUTCDate(d.getUTCDate() + 1); } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Was eine positive Partner-Antwort im Partner-CRM anlegt (Chefbüro › Geschäftspartner): Firma mit Art und Kondition je
+ * Gruppe, der Entscheider als Hauptkontakt, die Antwort als Verlauf, eine Aufgabe für den nächsten Werktag. Rein — der
+ * Server übergibt es an uebernehmen() (eine Transaktion).
+ */
+export function radarPartnerCrmEingabe(e: {
+  firma: { name: string; website?: string | null; email?: string | null; bereich?: string | null; impressum?: any; entscheider?: { name?: string | null; rolle?: string | null; email?: string | null } | null };
+  antwort: { text: string; zusammenfassung?: string | null; datum: Date | string; telefon?: string | null };
+  heute: string;
+}) {
+  const g = radarPartnerGruppe(e.firma.bereich);
+  const provision = g ? g.provision : true;
+  const imp = e.firma.impressum && typeof e.firma.impressum === "object" ? e.firma.impressum : {};
+  const strasseRoh = String(imp.strasse ?? "").trim();
+  const hausnummer = (strasseRoh.match(/\s(\d+\s?[a-zA-Z]?(?:[-/]\d+[a-zA-Z]?)?)$/)?.[1] ?? "").trim();
+  const am = new Date(e.antwort.datum);
+  return {
+    firma: {
+      name: String(e.firma.name ?? "").slice(0, 160), art: (g?.crmArt ?? "kooperation") as "kanzlei" | "kooperation", status: "gespraech",
+      website: String(e.firma.website ?? ""), email: String(e.firma.email ?? ""), telefon: String(imp.telefon ?? e.antwort.telefon ?? ""),
+      strasse: hausnummer ? strasseRoh.slice(0, strasseRoh.length - hausnummer.length).trim() : strasseRoh, hausnummer, adresszusatz: "",
+      plz: String(imp.plz ?? ""), ort: String(imp.ort ?? ""), region: "", landCode: String(imp.land ?? ""),
+      registerNr: String(imp.registernummer ?? ""), steuerNr: "", ustId: String(imp.ustId ?? imp.ust_id ?? ""),
+      leistung: `${g?.label ?? "Kooperationspartner"} · über den Firmen-Radar`,
+      tags: ["radar", ...(g ? [g.key] : [])],
+      konditionen: [provision
+        ? { label: "Provision", value: "30 % unseres Honorars, 12 Monate je vorgestelltem Kunden (Tippgeber, IA-KOOP-Vertrag)" }
+        : { label: "Zusammenarbeit", value: "gegenseitig, ohne Provision (Berufsrecht) — Mandanten bekommen US-Gesellschaft, Konto, Karten; die Betreuung bleibt bei der Kanzlei" }],
+    },
+    kontakte: e.firma.entscheider?.name ? [{
+      name: String(e.firma.entscheider.name), rolle: String(e.firma.entscheider.rolle ?? ""), email: String(e.firma.entscheider.email ?? e.firma.email ?? ""),
+      telefon: String(e.antwort.telefon ?? ""), mobil: "", durchwahl: "", erreichbarkeit: "", sprache: "de", notiz: "Antwortete auf die Radar-Mail.", haupt: true,
+    }] : [],
+    verlauf: { typ: "email" as const, am: Number.isFinite(am.getTime()) ? am.toISOString().slice(0, 10) : e.heute, titel: `Antwort auf Maras Partner-Mail: ${String(e.antwort.zusammenfassung ?? "Interesse").slice(0, 120)}`, text: String(e.antwort.text ?? "").slice(0, 4000) },
+    aufgabe: {
+      titel: provision ? "Tippgeber-Vereinbarung schicken (IA-KOOP, 30 %)" : "Kooperation ohne Provision schriftlich bestätigen",
+      faelligAm: radarNaechsterWerktag(e.heute),
+      notiz: provision ? "Partner hat auf die Radar-Mail positiv geantwortet. Vereinbarung per scripts/angebot-koop-anlegen.ts schicken." : "Kanzlei hat positiv geantwortet. Zusammenarbeit (gegenseitige Vorstellung, ohne Provision) schriftlich bestätigen.",
+    },
+  };
+}
+
 export type RadarStatus =
   | "neu" | "gescannt" | "mail" | "im_postfach" | "versendet" | "brief" | "antwort"
   | "lead" | "termin" | "angebot" | "kauf"
@@ -299,6 +445,8 @@ export interface RadarPlanLage {
   telefon: boolean;
   /** So oft hat Mara in diesem Faden in den letzten 24 Stunden selbst gesendet. */
   maraHeute: number;
+  /** E-458: Partner (Kooperation) buchen nie einen Global-Termin — Konditionen gehen schriftlich (keine Meetings). */
+  strom?: RadarStrom;
 }
 
 export interface RadarPlan {
@@ -322,9 +470,11 @@ export const RADAR_MARA_JE_FADEN = 3;
 export function radarPlan(l: RadarPlanLage): RadarPlan {
   const r = RADAR_ANTWORT_ARTEN[l.art];
   const schritte: string[] = [r.was];
-  const buchen = RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && l.telefon && l.maraModus === "auto" && l.frisch && !l.buchungslink && !l.roboter;
+  const partner = l.strom === "partner";
+  const buchen = !partner && RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && l.telefon && l.maraModus === "auto" && l.frisch && !l.buchungslink && !l.roboter;
+  if (partner && r.lead) schritte.push("Partner: kein Termin und kein Gespräch — Mara sagt die Konditionen schriftlich zu; der Partner landet im Partner-CRM (Geschäftspartner) mit einer Aufgabe. Will er ausdrücklich einen Anruf, ist das eine Aufgabe, keine Buchung.");
   if (buchen) schritte.push("Die Wunschzeit ist frei: Mara trägt sie in den Global-Kalender ein. Die Firma bekommt die Bestätigung mit Kalendereintrag.");
-  else if (RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && !l.buchungslink) {
+  else if (!partner && RADAR_BUCHBAR.includes(l.art) && l.wunschFrei && !l.buchungslink) {
     schritte.push(!l.telefon
       ? "Die Wunschzeit ist frei, aber eine Telefonnummer fehlt — Mara fragt danach."
       : "Die Wunschzeit ist frei — „Termin eintragen“ an der Antwort bucht sie mit einem Klick.");
@@ -477,15 +627,21 @@ export interface RadarMotor {
   /** Nachschub (Punkt 1): so viele qualifizierte Firmen sucht der Tageslauf am Tag, mit höchstens so vielen Suchläufen. */
   sucheTagesziel: number;
   sucheLaeufe: number;
+  /** Partner-Strom (Punkt 2): eingeschaltete Gruppen, qualifizierte Partner-Funde am Tag, Provisions-Satz (nur Mailtext). */
+  partnerGruppen: string[];
+  partnerTagesziel: number;
+  partnerProvisionText: string;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
-export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30 };
+export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30,
+  partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang" };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
   link: "radar_motor_link", kiKlangMax: "radar_pruef_ki_klang_max", aehnlichMax: "radar_motor_aehnlich_max",
   sucheTagesziel: "radar_suche_tagesziel", sucheLaeufe: "radar_suche_laeufe",
+  partnerGruppen: "radar_partner_gruppen", partnerTagesziel: "radar_partner_tagesziel", partnerProvisionText: "radar_partner_provision_text",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -535,6 +691,11 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     aehnlichMax: zahl(roh[k.aehnlichMax], v.aehnlichMax, 0.05, 1),
     sucheTagesziel: Math.round(zahl(roh[k.sucheTagesziel], v.sucheTagesziel, 0, 500)),
     sucheLaeufe: Math.round(zahl(roh[k.sucheLaeufe], v.sucheLaeufe, 0, 200)),
+    // Ohne Einstellung: alle Gruppen. Eine leere Liste schaltet alle ab; unbekannte Schlüssel fallen weg.
+    partnerGruppen: roh[k.partnerGruppen] == null ? [...v.partnerGruppen]
+      : Array.from(new Set(text(roh[k.partnerGruppen]).split(/[,;\s]+/).filter((g) => !!radarPartnerGruppe(g)))),
+    partnerTagesziel: Math.round(zahl(roh[k.partnerTagesziel], v.partnerTagesziel, 0, 500)),
+    partnerProvisionText: /^[^\n]{10,120}$/.test(text(roh[k.partnerProvisionText])) && /prozent|%/i.test(text(roh[k.partnerProvisionText])) ? text(roh[k.partnerProvisionText]) : v.partnerProvisionText,
   };
 }
 

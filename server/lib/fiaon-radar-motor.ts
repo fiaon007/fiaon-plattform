@@ -485,6 +485,18 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
   }
   if (ein.sucheTagesziel !== undefined) setzen.push([k.sucheTagesziel, ganz(ein.sucheTagesziel, 0, 500, "Suche Tagesziel")]);
   if (ein.sucheLaeufe !== undefined) setzen.push([k.sucheLaeufe, ganz(ein.sucheLaeufe, 0, 200, "Suchläufe")]);
+  if (ein.partnerGruppen !== undefined) {
+    const { radarPartnerGruppe } = await import("@shared/fiaon-radar");
+    const liste = (Array.isArray(ein.partnerGruppen) ? ein.partnerGruppen : String(ein.partnerGruppen).split(/[,;\s]+/)).map(String).filter(Boolean);
+    if (liste.some((g) => !radarPartnerGruppe(g))) throw new RadarFehler("Unbekannte Partner-Gruppe.");
+    setzen.push([k.partnerGruppen, Array.from(new Set(liste)).join(",")]);
+  }
+  if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
+  if (ein.partnerProvisionText !== undefined) {
+    const t = String(ein.partnerProvisionText).replace(/[\r\n]+/g, " ").trim();
+    if (t.length < 10 || t.length > 120 || !/prozent|%/i.test(t)) throw new RadarFehler("Provisions-Satz: 10 bis 120 Zeichen, mit „Prozent“.");
+    setzen.push([k.partnerProvisionText, t]);
+  }
   for (const [key, value] of setzen) {
     await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES (${key}, ${value}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
   }

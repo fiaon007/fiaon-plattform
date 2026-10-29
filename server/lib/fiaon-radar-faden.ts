@@ -50,7 +50,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde, radarStartseiteLink,
+  radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde, radarStartseiteLink, RADAR_LAENDER_AKTIV,
   type RadarAntwortArt, type RadarAutomatik, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -1234,13 +1234,17 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
   if (!gmailBereit()) return { ...erg, grund: "Gmail-Anbindung fehlt" };
   if (await kiPausiert()) return { ...erg, grund: "KI pausiert" };
   if (!radarPostfaecher()[0]) return { ...erg, grund: "kein Radar-Postfach" };
+  // E-458 (Justin 29.10.2026): „lass Österreich komplett weg … nur DE und CH“ — gilt für Nachfass und Wiedervorlage hier
+  // und für die erste Mail im Motor (kandidatNehmen). Dazu bleibt „Österreich gewinnt“ (sqlOesterreich: .at, ATU, +43).
+  const laender = [...RADAR_LAENDER_AKTIV] as string[];
 
   // ── Nachfassen: höchstens zwei je Lauf ──
   if (s.nachfass) {
     // E-458 (Punkt 6): Das Nachfassen bleibt im Postfach der ersten Mail und achtet auf dessen Tagesgrenze — ist es voll,
     // wartet der Nachfass bis morgen.
     const lagen = await (await import("./fiaon-radar-motor")).postfachLagen(jetzt).catch(() => []);
-    // E-458 (Punkt 8): Österreich bekommt kein Nachfassen (auch nicht auf eine alte erste Mail) — dort geht nur der Brief.
+    // E-458 (Punkt 8): Österreich bekommt kein Nachfassen (auch nicht auf eine alte erste Mail) — seit Justin 29.10. vorerst
+    // gar keine Post dorthin (RADAR_LAENDER_AKTIV: nur Deutschland und Schweiz).
     // E-458 (Befund): „Österreich gewinnt“ — sobald EIN Zeichen AT sagt (sqlOesterreich).
     await sqlPool`UPDATE fiaon_radar_firmen SET nachfass_faellig = NULL WHERE nachfass_faellig IS NOT NULL AND ${sqlOesterreich()}`;
     // E-458 (Befund): Liegt im Faden eine eingegangene Mail, die der Post-Lauf noch nicht einordnen konnte, wartet das Nachfassen.
@@ -1250,6 +1254,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
        WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW() AND archiviert_am IS NULL
          AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND COALESCE(gmail_thread_id, gmail_nachricht_id) IS NOT NULL AND postfach IS NOT NULL
          AND NOT ${sqlOesterreich()}
+         AND COALESCE(land, 'DE') = ANY(${laender})
          AND id <> ALL(${Array.from(wartet)}::int[])
        ORDER BY nachfass_faellig ASC LIMIT 2`) as any[];
     for (const roh of faellig) {
@@ -1295,8 +1300,10 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
              (SELECT p.id FROM fiaon_radar_post p WHERE p.firma_id = f.id AND p.richtung = 'ein' ORDER BY p.datum DESC NULLS LAST, p.id DESC LIMIT 1) AS post_id
         FROM fiaon_radar_firmen f
        WHERE f.wiedervorlage_am <= NOW() AND f.archiviert_am IS NULL AND f.status IN ('antwort', 'lead')
-         -- E-458 (Punkt 8): keine Wiedervorlage-Mail nach Österreich („Österreich gewinnt“, sqlOesterreich).
+         -- E-458 (Punkt 8): keine Wiedervorlage-Mail nach Österreich („Österreich gewinnt“, sqlOesterreich) — und seit
+         -- Justin 29.10. nur in aktiven Ländern (Deutschland, Schweiz).
          AND NOT ${sqlOesterreich()}
+         AND COALESCE(f.land, 'DE') = ANY(${laender})
        ORDER BY f.wiedervorlage_am ASC LIMIT 2`) as any[];
     for (const w of faellig) {
       try {

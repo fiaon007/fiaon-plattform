@@ -19,6 +19,16 @@ export const RADAR_TAGESZIEL = 50;
 
 export type RadarLand = "DE" | "AT" | "CH";
 export const RADAR_LAENDER: readonly RadarLand[] = ["DE", "AT", "CH"];
+/**
+ * E-458 (Justin 29.10.2026): „lass Österreich komplett weg, kein Brief, keine Email nur DE und CH – später erweitern wir passend“.
+ * Nur in diesen Ländern sucht der Radar, und nur hierhin schreibt die Automatik (erste Mail, Nachfass, Wiedervorlage, Brief).
+ * Österreich wieder aufnehmen = hier ergänzen.
+ */
+export const RADAR_LAENDER_AKTIV: readonly RadarLand[] = ["DE", "CH"];
+/** Ohne Angabe gilt Deutschland (wie beim Anlegen einer Firma). */
+export function radarLandAktiv(land: unknown): boolean {
+  return (RADAR_LAENDER_AKTIV as readonly string[]).includes(String(land || "DE").trim().toUpperCase());
+}
 
 export interface RadarBereich {
   key: string;
@@ -77,7 +87,8 @@ export function radarBereich(key: unknown): RadarBereich | null {
 // einer kleinen oder mittleren Firma, der JETZT Kapital braucht. Ohne belegtes Kapitalsignal schreibt Mara nicht selbst.
 export const RADAR_ZIELBILD = {
   muss: [
-    "Sitz in Deutschland, Österreich oder der Schweiz, eigene Website mit Impressum",
+    // E-458 (Justin 29.10.2026): Österreich vorerst raus — gesucht wird nur in Deutschland und der Schweiz.
+    "Sitz in Deutschland oder der Schweiz, eigene Website mit Impressum",
     "Inhabergeführt, etwa 3 bis 150 Mitarbeiter — der Inhaber oder Geschäftsführer entscheidet selbst",
     "Ein belegtes Kapitalsignal: sucht Kapital, finanziert sich gerade, expandiert vor der Finanzierung, geht in die USA oder ist jung mit Investitionsvorhaben",
     "Noch KEINE eigene US-Gesellschaft — dann ist der Aufbau unser Auftrag",
@@ -195,7 +206,7 @@ export function radarPartnerAngebot(g: RadarPartnerGruppe | null | undefined, pr
 /** Das Bild eines guten Partners — die KI sucht danach, das Chefbüro zeigt es. */
 export const RADAR_PARTNER_ZIELBILD = {
   muss: [
-    "Sitz in Deutschland oder der Schweiz (Österreich nur für den Brief), eigene Website mit Impressum",
+    "Sitz in Deutschland oder der Schweiz, eigene Website mit Impressum",
     "Inhabergeführt, etwa 1 bis 50 Berufsträger — die Inhaberin oder der Partner entscheidet selbst",
     "Die Mandanten oder Kunden sind Unternehmer in DACH, mit wörtlichem Beleg auf der Website",
   ],
@@ -1006,8 +1017,11 @@ export function radarMotorSoll(e: RadarMotorSollEin): { faellig: boolean; soll: 
   return { faellig: true, soll, abstandSek, grund: "fällig" };
 }
 
-// ── ÖSTERREICH BEKOMMT BRIEFE, KEINE MAILS (E-458 Punkt 8) ───────────────────
-/** In diese Länder geht keine erste Mail und kein Nachfassen — nur der Brief (AT: § 174 TKG 2021). */
+// ── ÖSTERREICH: KEINE MAILS (E-458 Punkt 8) — seit Justin 29.10.2026 vorerst gar keine Post ─────────────
+/**
+ * In diese Länder geht nie eine erste Mail und kein Nachfassen (AT: § 174 TKG 2021). Seit Justin 29.10.2026 schreibt die
+ * Automatik dorthin auch keinen Brief (RADAR_LAENDER_AKTIV: nur DE und CH) — ein Brief nur noch von Hand in der Akte.
+ */
 export const RADAR_NUR_BRIEF_LAENDER: readonly RadarLand[] = ["AT"];
 /**
  * E-458 (Befund): ÖSTERREICH GEWINNT. Eine Firma gilt als österreichisch, sobald EIN Zeichen es sagt — Spalte land,
@@ -1573,8 +1587,8 @@ export interface RadarBriefPruefFirma {
 }
 /**
  * Bekommt diese Firma einen Brief? Jede Bedingung einzeln — das Chefbüro zeigt sie als Liste mit Haken. Rein.
- * Die Mail an eine persönliche Adresse geht vor (kostet nichts, Antwort mit einer Zeile) — außer in Ländern, die nur
- * Briefe bekommen (E-458: Österreich).
+ * Die Mail an eine persönliche Adresse geht vor (kostet nichts, Antwort mit einer Zeile) — außer in Ländern ohne Mail
+ * (E-458: Österreich; seit 29.10. schreibt die Automatik dorthin auch keinen Brief, nur noch von Hand).
  */
 export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] } {
   const anschrift = radarBriefAnschrift(f.impressum, { firmenname: f.name, land: f.land });
@@ -1589,7 +1603,7 @@ export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkt
   const zurueck = f.status === "unzustellbar" && widerlegt;
   const punkte = [
     { key: "signal", ok: Number(f.signal_staerke ?? 0) >= RADAR_SIGNAL_AB, text: `Kapitalsignal ab Stärke ${RADAR_SIGNAL_AB}${f.signal_staerke != null ? ` (hat ${f.signal_staerke})` : " (noch nicht geprüft)"}` },
-    { key: "persoenlich", ok: !persoenlich, text: nurBrief ? "Österreich: hier geht der Brief statt der Mail" : persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
+    { key: "persoenlich", ok: !persoenlich, text: nurBrief ? "Österreich: keine Mail — die Automatik schreibt vorerst nur nach Deutschland und in die Schweiz, ein Brief nur von Hand" : persoenlich ? "Persönliche Adresse des Entscheiders bekannt — die Mail geht vor" : "Keine persönliche Adresse des Entscheiders" },
     { key: "anschrift", ok: !anschrift.fehlt.length, text: anschrift.fehlt.length ? `Anschrift unvollständig: ${anschrift.fehlt.join(", ")}` : "Name und Anschrift aus dem Impressum vollständig" },
     { key: "offen", ok: !zu && !gespraech && (!f.versendet_am || zurueck), text: zu ? "Gesperrt, abgelehnt oder passt nicht" : gespraech ? "Mit der Firma läuft schon ein Gespräch" : zurueck ? "Die Mail an die abgeleitete Adresse kam zurück — der Brief geht" : f.versendet_am ? "Hat schon eine erste Mail bekommen" : "Noch kein Kontakt, nicht gesperrt" },
     { key: "einmal", ok: !f.brief_versendet_am, text: f.brief_versendet_am ? "Hat schon einen Brief bekommen — je Firma genau einer" : "Noch kein Brief an diese Firma" },

@@ -38,7 +38,7 @@ import {
   RADAR_SIGNAL_AB, RADAR_STROEME, RADAR_HOECHSTENS_JE_TAG, RADAR_MOTOR_STATUS, RADAR_NACHFASS_TAGE,
   radarMotorImFenster, radarMotorSoll, radarMotorFensterStunden, radarMotorReststunden, radarBerlinTagMinute,
   radarPostfachWaehlen, radarMoeglich, radarAdressePersoenlich, radarAdressePruefen, radarPostfachGrenze, radarPostfachBereit,
-  radarZustellWerte, radarBremseEntscheiden, type RadarZustellWerte, type RadarBremse,
+  radarZustellWerte, radarBremseEntscheiden, RADAR_LAENDER_AKTIV, type RadarZustellWerte, type RadarBremse,
   type RadarStrom, type RadarMotor, type RadarPostfachLage, type RadarMoeglich,
 } from "@shared/fiaon-radar";
 
@@ -284,7 +284,7 @@ export async function warteschlangeAufraeumen(m: RadarMotor): Promise<void> {
 /**
  * Nimmt die beste offene Firma eines Stroms in Arbeit (atomar, über Instanzen). Österreich, Sperrliste und Archiv nie;
  * Partner nur aus eingeschalteten Gruppen (E-458, Befund); eine widerlegte Ableitung (Rückläufer) geht in den Brief, nicht
- * noch einmal in die bezahlte Suche.
+ * noch einmal in die bezahlte Suche. Seit Justin 29.10.2026 nur aktive Länder (RADAR_LAENDER_AKTIV: Deutschland, Schweiz).
  */
 export async function kandidatNehmen(strom: RadarStrom, abPassung: number, gruppen: readonly string[] = []): Promise<number | null> {
   const [z] = (await sqlPool`
@@ -300,6 +300,7 @@ export async function kandidatNehmen(strom: RadarStrom, abPassung: number, grupp
           AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB})
           AND COALESCE(r.passung, 0) >= ${abPassung}
           AND NOT ${sqlOesterreich()}
+          AND COALESCE(r.land, 'DE') = ANY(${[...RADAR_LAENDER_AKTIV] as string[]})
           AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))
         ORDER BY COALESCE(r.signal_staerke, ${RADAR_SIGNAL_AB}) DESC, r.passung DESC NULLS LAST, r.created_at DESC
         LIMIT 1 FOR UPDATE SKIP LOCKED)
@@ -789,8 +790,8 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
            COUNT(*) FILTER (WHERE versendet_am IS NOT NULL)::int AS gesendet,
            COUNT(*) FILTER (WHERE partner_firma_id IS NOT NULL)::int AS im_crm
       FROM fiaon_radar_firmen WHERE strom = 'partner' GROUP BY bereich`.catch(() => [])) as any[];
-  // Adressen (Punkt 5): Anteil abgeleiteter Adressen, ihre Rückläufer (nach der Herkunft am Eintrag); Österreich im
-  // Brief-Vorrat (Punkt 8, „Österreich gewinnt“).
+  // Adressen (Punkt 5): Anteil abgeleiteter Adressen, ihre Rückläufer (nach der Herkunft am Eintrag); Österreich
+  // zurückgestellt (Punkt 8, „Österreich gewinnt“; seit Justin 29.10. vorerst keine Post, auch kein Brief).
   const [adr] = (await sqlPool`
     SELECT COUNT(*) FILTER (WHERE p.richtung = 'aus' AND p.art = 'erstmail')::int AS gesendet,
            COUNT(*) FILTER (WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND p.adress_weg = 'abgeleitet')::int AS abgeleitet,

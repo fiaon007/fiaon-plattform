@@ -365,7 +365,7 @@ function admin(Component: ComponentType) {
 // hellen Business-Seiten für einen Augenblick die dunkle Weltkugel.
 // 25.09.2026 (E-241): /bonitaet ist keine helle Seite mehr, sondern die Weiterleitung auf die dunkle Übersicht.
 // 06.10.2026 (E-287): Die Weltkugel ist abgelöst. Zwei Welten, zwei Motive aus Justins Wahl: „Riffelglas“
-// (Privat) und „Fassade“ (FIAON Global, Business-Adressen) — shared/fiaon-startbuehne.ts. Derselbe Bildschirm
+// (Privat) und „Fassade“ (FIAON Global, Business-Adressen; seit 29.10.2026 „Flüssiges Glas“) — shared/fiaon-startbuehne.ts. Derselbe Bildschirm
 // steht beim ersten Aufruf ab dem ersten Byte (Startbühne in index.html). Eine Quelle für beide.
 function SeiteLaedt({ pfad }: { pfad: string }) {
   const m = buehnenMotiv(pfad, typeof window !== "undefined" ? window.location.search : "");

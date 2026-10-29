@@ -15,7 +15,7 @@ import path from "node:path";
 import {
   RADAR_BEREICHE, RADAR_STATUS, RADAR_GRUPPEN, RADAR_STAPEL_MAX, RADAR_ANTWORT_ARTEN, RADAR_KERNSATZ, RADAR_HOECHSTENS_JE_TAG, RADAR_NACHFASS_TAGE,
   RADAR_SIGNALE, RADAR_SIGNAL_AB,
-  radarDomain, alsRadarLand, radarBereich, radarAdressePruefen, radarAutomatikLesen, radarSendefenster,
+  radarDomain, alsRadarLand, radarBereich, radarAdressePruefen, radarAutomatikLesen, radarSendefenster, RADAR_LAENDER_AKTIV, radarLandAktiv,
 } from "../shared/fiaon-radar";
 import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 import { GLOBAL_SEITEN } from "../shared/fiaon-global-seiten";
@@ -453,16 +453,16 @@ abschnitt("Mail-Motor: Schalter, Fenster, Takt (E-458)");
   ok(tag >= 115 && tag <= 120, `Ein ganzer Tag im Minutentakt: ${tag} Mails (Ziel 10 × 12 = 120), gleichmäßig verteilt`);
 }
 
-abschnitt("Österreich: Brief statt Mail (E-458)");
+abschnitt("Österreich: keine Mail, kein automatischer Brief (E-458; Justin 29.10.: nur DE und CH)");
 {
   ok(sh8.radarLandFuer({ land: "AT" }) === "AT" && sh8.radarLandFuer({ land: "", domain: "beispiel.at" }) === "AT" && sh8.radarLandFuer({ impressum: { land: "CH" } }) === "CH" && sh8.radarLandFuer({}) === "DE", "Land: Spalte, sonst Impressum, sonst Domäne, sonst DE");
   ok(!sh8.radarMailErlaubt("AT") && sh8.radarMailErlaubt("DE") && sh8.radarMailErlaubt("CH"), "Mail nach DE und CH, nicht nach AT");
   const impAt = { name: "Beispiel Handel GmbH", strasse: "Musterstraße 1", plz: "1010", ort: "Wien", land: "AT", vertreter: [{ name: "Anna Beispiel", funktion: "Geschäftsführerin" }] };
   const atFirma = { status: "gescannt", land: "AT", signal_staerke: 4, impressum: impAt, name: impAt.name, domain: "beispiel-handel.example", entscheider: { name: "Anna Beispiel", email: "anna.beispiel@beispiel-handel.example" }, versendet_am: null, brief_versendet_am: null };
-  ok(sh8.radarBriefPruefen(atFirma).ok, "Österreich mit persönlicher Adresse → Brief (die Mail geht dort nicht vor)");
+  ok(sh8.radarBriefPruefen(atFirma).ok && /nur von Hand/.test(sh8.radarBriefPruefen(atFirma).punkte.find((p) => p.key === "persoenlich")?.text ?? ""), "Österreich: keine Mail; ein Brief nur noch von Hand in der Akte (die Automatik nimmt Österreich nicht)");
   ok(!sh8.radarBriefPruefen({ ...atFirma, land: "DE", impressum: { ...impAt, land: "DE", plz: "10115", ort: "Berlin" } }).ok, "Deutschland mit persönlicher Adresse → die Mail geht vor");
   const lib8 = lies("server/lib/fiaon-radar.ts"), fd8 = lies("server/lib/fiaon-radar-faden.ts"), br8 = lies("server/lib/fiaon-radar-brief.ts");
-  ok(/if \(!radarMailErlaubt\(radarLandFuer\(f\)\)\) throw new RadarFehler\("Österreich bekommt Briefe, keine Mails\."\)/.test(lib8), "radarMailAusgeben wirft für Österreich — gilt für Motor, Stapel und Akte");
+  ok(/if \(!radarMailErlaubt\(radarLandFuer\(f\)\)\) throw new RadarFehler\("Nach Österreich geht keine Mail — vorerst nur Deutschland und die Schweiz\."\)/.test(lib8), "radarMailAusgeben wirft für Österreich — gilt für Motor, Stapel und Akte");
   // E-458 (Nachbesserung): EINE Regel „Österreich gewinnt“ als SQL-Teil (sqlOesterreich) — im Ende-zu-Ende-Lauf auch gegen die Datenbank geprüft.
   ok(/nachfass_stufe < [\s\S]{0,300}AND NOT \$\{sqlOesterreich\(\)\}/.test(fd8) && /SET nachfass_faellig = NULL WHERE nachfass_faellig IS NOT NULL AND \$\{sqlOesterreich\(\)\}/.test(fd8), "Kein Nachfassen nach Österreich (auch nicht auf eine alte erste Mail)");
   ok(/wiedervorlage_am <= NOW\(\)[\s\S]{0,300}AND NOT \$\{sqlOesterreich\(\)\}/.test(fd8), "Keine Wiedervorlage-Mail nach Österreich");
@@ -1312,6 +1312,26 @@ abschnitt("Chefbüro: alle Schalter im Raum Firmen-Radar › Automatik (E-458)")
   ok(/<summary>Feineinstellungen<\/summary>/.test(ui) && /const stand = JSON\.stringify\(e\)/.test(ui) && /\}\), \[stand\]\);/.test(ui) && /v !== \(start as Record<string, string>\)\[k\]/.test(ui),
     "Feineinstellungen: aufklappbar, Eingaben überleben das Nachladen jede Minute, gespeichert wird nur, was sich geändert hat");
   ok(/Unter „Feineinstellungen“/.test(rgFr), "Rundgang nennt die Feineinstellungen");
+}
+
+abschnitt("Nur Deutschland und Schweiz (E-458, Justin 29.10.2026)");
+ok(!RADAR_LAENDER_AKTIV.includes("AT") && RADAR_LAENDER_AKTIV.includes("DE") && RADAR_LAENDER_AKTIV.includes("CH"), "Aktive Länder: DE und CH, nicht AT");
+ok(!radarLandAktiv("AT") && !radarLandAktiv("at") && radarLandAktiv("DE") && radarLandAktiv("CH") && radarLandAktiv(null), "radarLandAktiv: AT nein, DE/CH ja, ohne Angabe = DE");
+{
+  const f = lies("server/lib/fiaon-radar-faden.ts"), b = lies("server/lib/fiaon-radar-brief.ts"), r = lies("server/lib/fiaon-radar.ts"), mo = lies("server/lib/fiaon-radar-motor.ts");
+  ok(/AND NOT \$\{sqlOesterreich\(\)\}\s*AND COALESCE\(land, 'DE'\) = ANY\(\$\{laender\}\)/.test(f), "Nachfass nur in aktiven Ländern (und „Österreich gewinnt“)");
+  ok(/AND NOT \$\{sqlOesterreich\(\)\}\s*AND COALESCE\(f\.land, 'DE'\) = ANY\(\$\{laender\}\)/.test(f), "Wiedervorlage nur in aktiven Ländern (und „Österreich gewinnt“)");
+  // E-458 (Mail-Motor): Die erste Mail wählt der Motor (kandidatNehmen) — der alte Erstmail-Block in radar_versand ist weg.
+  ok(/AND NOT \$\{sqlOesterreich\(\)\}\s*AND COALESCE\(r\.land, 'DE'\) = ANY\(\$\{\[\.\.\.RADAR_LAENDER_AKTIV\]/.test(mo) && !/art = 'erstmail' AND \(datum AT TIME ZONE 'Europe\/Berlin'\)::date = \$\{berlinToday\(jetzt\)\}::date`\) as any\[\];\s*erg\.heute = Number/.test(f), "Erste Mail nur in aktiven Ländern (Motor) — kein zweiter Erstmail-Weg im Versandlauf");
+  ok(/AND COALESCE\(r\.land, 'DE'\) = ANY\(\$\{\[\.\.\.RADAR_LAENDER_AKTIV\]/.test(b) && /AND NOT \$\{sqlOesterreich\(\)\}/.test(b), "Brief nur in aktiven Ländern (und „Österreich gewinnt“: .at, ATU, +43)");
+  ok(!/const LAENDER: RadarLand\[\] = \[[^\]]*"AT"/.test(r), "Tageslauf sucht reihum nicht in Österreich");
+  ok((r.match(/if \(!radarLandAktiv\(/g) ?? []).length >= 2 && /if \(ein\.land && !radarLandAktiv\(ein\.land\)\)/.test(r), "Funde aus Österreich werden nicht aufgenommen, Suche nach Österreich abgewiesen");
+  // E-458 (Merge mit dem Mail-Motor): dieselbe Regel für Partner, für die strengere Erkennung und für alle Texte des Motors.
+  const pa = lies("server/lib/fiaon-radar-partner.ts");
+  ok((pa.match(/if \(ein\.land && !radarLandAktiv\(ein\.land\)\) throw new RadarFehler\(OESTERREICH_AUS\)/g) ?? []).length === 2, "Partner-Suche nach Österreich abgewiesen (Knopf und Tageslauf)");
+  ok(/if \(!radarLandAktiv\(radarLandFuer\(\{ land: landFirma, impressum: f, domain \}\)\)\) return nein\(/.test(r), "Aufnahme: auch .at-Domäne, UID ATU oder +43 gilt als Österreich („Österreich gewinnt“)");
+  const texte = lies("client/src/components/admin/ChefRadar.tsx") + lies("client/src/pages/agent/rundgaenge.ts") + lies("shared/fiaon-radar.ts");
+  ok(!/Österreich bekommt Briefe|Briefe statt Mails|im Brief-Vorrat|Österreich nur für den Brief|geht ein Brief statt einer Mail|hier geht der Brief statt der Mail/.test(texte), "Chefbüro, Rundgang und Zielbilder sagen nicht mehr „Österreich bekommt Briefe“");
 }
 
 abschnitt("Ergebnis");

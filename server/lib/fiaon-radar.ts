@@ -58,7 +58,7 @@ import {
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
   radarLandFuer, radarMailErlaubt, RADAR_KI_FLOSKELN, RADAR_SCHLUSSSAETZE, radarSchlusssatz, radarSchlusssatzFuer, radarSchlussEcho, radarGruss, alsRadarStrom,
   RADAR_MOTOR_SCHLUESSEL, radarMotorLesen, RADAR_PARTNER_SIGNALE, radarSignalFuer, radarPartnerGruppe, radarPartnerAngebot, radarUhrzeitMinuten,
-  radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink, radarStartseiteLink,
+  radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink, radarStartseiteLink, radarLandAktiv,
   type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom, type RadarMotor, type RadarPartnerGruppe,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -773,6 +773,8 @@ export async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; que
   if (ctx.aus.has(domain)) return nein("schon im Radar, Kunde oder gesperrt");
   ctx.aus.add(domain);
   const land = (["DE", "AT", "CH"].includes(v.land) ? v.land : "DE") as RadarLand;
+  // E-458 (Justin 29.10.2026): Österreich vorerst komplett raus — vor jedem Seitenabruf und noch einmal nach dem Impressum.
+  if (!radarLandAktiv(land)) return nein("Österreich vorerst nicht (nur Deutschland und Schweiz)");
 
   const waechter = robotsWaechter();
   const start = await seiteHolen(`https://${domain}/`, waechter);
@@ -787,12 +789,17 @@ export async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; que
   const f: any = kontakt.impressum ?? {};
   const email = kontakt.email;
   const ansprechpartner = kontakt.ansprechpartner;
+  const landFirma = String(f.land || land).slice(0, 2);
+  if (!radarLandAktiv(landFirma)) return nein("Österreich vorerst nicht (nur Deutschland und Schweiz)");
+  // E-458 (Mail-Motor, „Österreich gewinnt“): auch eine .at-Domäne, eine UID ATU… oder eine Nummer +43 gilt als Österreich —
+  // sonst käme eine österreichische Firma als „DE“ in den Vorrat und zählte aufs Tagesziel, ohne je Post zu bekommen.
+  if (!radarLandAktiv(radarLandFuer({ land: landFirma, impressum: f, domain }))) return nein("Österreich vorerst nicht (nur Deutschland und Schweiz)");
   // E-337: das Kapitalsignal nachprüfen — wörtlich auf der Startseite oder der genannten Seite.
   const sig = await signalPruefen(v.kapital_signal, [{ url: start.url, text: start.text }], waechter, strom).catch(() => ({ signal: null, staerke: null }));
 
   const [zeile] = (await sqlPool`
     INSERT INTO fiaon_radar_firmen (tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, impressum, email, ansprechpartner, signal, signal_staerke, strom)
-    VALUES (${ctx.tag}, ${ctx.quelle}, ${ctx.bereich}, ${String(f.land || land).slice(0, 2)}, ${String(f.name || v.name).slice(0, 200)}, ${domain}, ${`https://${domain}`},
+    VALUES (${ctx.tag}, ${ctx.quelle}, ${ctx.bereich}, ${landFirma}, ${String(f.name || v.name).slice(0, 200)}, ${domain}, ${`https://${domain}`},
             ${String(f.ort || v.ort || "").slice(0, 120) || null}, ${String(v.kurz || "").slice(0, 400) || null}, ${Math.max(0, Math.min(100, Math.round(Number(v.passung) || 0)))},
             ${sqlPool.json((v.gruende || []).slice(0, 4).map((g) => ({ text: String(g.text || "").slice(0, 300), url: String(g.url || "").slice(0, 400) })))},
             ${sqlPool.json((v.signale || []).slice(0, 8).map((s) => String(s).slice(0, 80)))},
@@ -830,6 +837,7 @@ export async function radarSuchen(ein: { bereich: string; land?: RadarLand | nul
   await ensureRadarTabellen();
   const b = radarBereich(ein.bereich);
   if (!b) throw new RadarFehler("Unbekannter Bereich.");
+  if (ein.land && !radarLandAktiv(ein.land)) throw new RadarFehler("Österreich ist vorerst ausgeschlossen — gesucht wird nur in Deutschland und der Schweiz.");
   const anzahl = Math.max(3, Math.min(15, Math.round(ein.anzahl ?? 10)));
   const stichwort = String(ein.stichwort ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 120) || null;
   const laufId = ein.laufId ?? Number(((await sqlPool`
@@ -842,7 +850,7 @@ export async function radarSuchen(ein: { bereich: string; land?: RadarLand | nul
       `Bereich: ${b.label} — ${b.suche}.`,
       // E-337: der Signal-Jäger — jede Suche jagt EIN Kapitalsignal.
       radarSignal(ein.signal) ? `Kapitalsignal, nach dem du gezielt suchst: ${radarSignal(ein.signal)!.label} — ${radarSignal(ein.signal)!.suche}.` : "Suche gezielt nach Firmen mit einem belegten Kapitalsignal (siehe kapital_signal).",
-      ein.land ? `Land: nur ${ein.land === "DE" ? "Deutschland" : ein.land === "AT" ? "Österreich" : "Schweiz"}.` : "Länder: Deutschland, Österreich, Schweiz (gemischt).",
+      ein.land ? `Land: nur ${ein.land === "DE" ? "Deutschland" : ein.land === "AT" ? "Österreich" : "Schweiz"}.` : "Länder: Deutschland und Schweiz (gemischt) — keine Firmen aus Österreich.",
       stichwort ? `Zusätzliches Stichwort: ${stichwort}.` : "",
       `Finde ${Math.min(16, Math.ceil(anzahl * 1.6))} passende Firmen, die besten zuerst.`,
       bekannte.length ? `Ausschlussliste (schon bekannt): ${bekannte.join(", ")}` : "",
@@ -914,11 +922,12 @@ export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolea
   for (const l of luecken) await radarKontaktNachsuchen(Number(l.id)).catch(() => {});
   const laeufeHeute = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_laeufe WHERE art = 'tageslauf' AND created_at > date_trunc('day', NOW())`) as any[])[0]?.n ?? 0);
   if (laeufeHeute >= laeufeMax) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
-  const LAENDER: RadarLand[] = ["DE", "DE", "AT", "DE", "CH"];
+  // E-458 (Justin 29.10.2026): Österreich vorerst raus — reihum nur Deutschland und Schweiz (vorher DE, DE, AT, DE, CH).
+  const LAENDER: RadarLand[] = ["DE", "DE", "CH", "DE", "CH"];
   let neu = 0, suchen = 0, fehler: string | null = null;
   const tagNr = Math.floor(jetzt.getTime() / 86_400_000);
   // E-458 (Punkt 2): Partner-Suchen im selben Lauf. Vorrang hat der Strom, dessen Vorrat (samt Warteschlange) im Verhältnis
-  // zu einem Tagesbedarf (Ziel je Stunde × Fensterstunden) kleiner ist. Partner nur in DE und CH (Österreich: nur Brief).
+  // zu einem Tagesbedarf (Ziel je Stunde × Fensterstunden) kleiner ist. Partner nur in DE und CH (Österreich vorerst gar nicht).
   const fensterStunden = Math.max(1, (radarUhrzeitMinuten(motor.bis)! - radarUhrzeitMinuten(motor.von)!) / 60);
   const bedarf = { firma: motor.firmenJeStunde * fensterStunden, partner: motor.partnerJeStunde * fensterStunden };
   const vorratLesen = async () => Object.fromEntries(((await sqlPool`
@@ -1678,7 +1687,8 @@ export async function radarMailAusgeben(id: number, ein: {
   if (!f.mail) throw new RadarFehler("Bitte zuerst die Mail schreiben lassen.");
   if (["gesperrt", "kein_interesse", "passt_nicht"].includes(f.status)) throw new RadarFehler("Diese Firma ist gesperrt, hat abgelehnt oder passt nicht.");
   // E-458 (Punkt 8): Österreich bekommt keine erste Mail (§ 174 TKG 2021) — auch nicht aus Stapel oder Akte. Dort geht der Brief.
-  if (!radarMailErlaubt(radarLandFuer(f))) throw new RadarFehler("Österreich bekommt Briefe, keine Mails.");
+  // E-458 (Punkt 8): nie eine Mail nach Österreich; seit Justin 29.10.2026 geht dorthin vorerst gar nichts automatisch.
+  if (!radarMailErlaubt(radarLandFuer(f))) throw new RadarFehler("Nach Österreich geht keine Mail — vorerst nur Deutschland und die Schweiz.");
   // E-337: Kam die erste Mail als unzustellbar zurück — oder beim falschen Empfänger an, der eine andere Adresse nannte —,
   // darf sie EINMAL an die neue, geprüfte Adresse gehen.
   const ungueltig = String(f.email_ungueltig ?? "").split(",").map((x: string) => x.trim()).filter(Boolean);

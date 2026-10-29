@@ -1883,10 +1883,10 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
       + "Automatisch schreibt Mara erst ab Stärke 3 und nur an den Entscheider persönlich — nie an info@, office@ oder welcome@. "
       + "Die erste Mail nennt einen echten Anlass, was wir tun, und stellt genau eine Frage, ohne Preis und ohne Betrag. "
       + "Jede Mail sieht aus wie von Hand in Gmail geschrieben: echte Unterschrift des Postfachs, darunter leise Impressum und Datenschutz.",
-    // E-458 (29.10.2026): kein Abmelde-Link mehr — ein natürlicher Schlusssatz; Österreich bekommt Briefe statt Mails.
+    // E-458 (29.10.2026): kein Abmelde-Link mehr — ein natürlicher Schlusssatz; Österreich vorerst gar nicht (Justin 29.10.).
     tipp: "Statt eines Abmelde-Links steht am Ende ein natürlicher Satz („Falls das für Sie gerade kein Thema ist, sagen Sie mir einfach kurz Bescheid.“), "
       + "der nie ein Wort der Frage wiederholt. Der Terminlink ist kurz und persönlich (fiaon.com/g/…). "
-      + "Wer ablehnt, kommt sofort auf die Sperrliste und hört nie wieder von uns. Nach Österreich gehen Briefe statt Mails.",
+      + "Wer ablehnt, kommt sofort auf die Sperrliste und hört nie wieder von uns. Geschrieben wird nur nach Deutschland und in die Schweiz.",
   },
   {
     // E-458 (29.10.2026): Justin: „jede Stunde MINDESTENS 10 Mails an Firmen und 10 neue Kooperationspartner, 07–19 Uhr“.
@@ -1931,7 +1931,7 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
     text: "Fehlt die Adresse des Chefs, leitet Mara sie nur aus einem belegten Muster ab: mindestens ein echter Kollege derselben Firma mit "
       + "Namen (bei Mustern wie nachname@ zwei) und ein Mailserver der Domäne. Kommt eine abgeleitete Adresse zurück, geht ein Brief. "
       + "Mit dem Schalter oben rechts schaltest du die Ableitung aus; dann gehen auch schon vorbereitete abgeleitete Mails nicht mehr hinaus.",
-    tipp: "Österreich zählt hier mit: Sagt auch nur ein Zeichen Österreich (Domäne, Telefon, UID), geht ein Brief statt einer Mail.",
+    tipp: "Österreich zählt hier mit: Sagt auch nur ein Zeichen Österreich (Domäne, Telefon, UID), geht vorerst gar keine Post hinaus — nur nach Deutschland und in die Schweiz.",
   },
   {
     ziel: ".cr-partner",

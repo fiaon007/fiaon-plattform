@@ -344,7 +344,7 @@ function MaraKopf({ trichter, uebersicht, motor, onGeaendert }: {
         {frage && (
           <div className="cr-mara-frage">
             <p>Je Stunde <b>{motor?.einstellung.firmenJeStunde ?? 10} Firmen und {motor?.einstellung.partnerJeStunde ?? 10} Partner</b> ({fensterText(motor?.einstellung)}), so viele die Postfächer tragen, nur an Entscheider, jede Mail von der Prüf-KI gelesen, zweimal Nachfassen.</p>
-            <p className="cr-recht">Jede Mail persönlich, mit echter Unterschrift. Wer absagt, hört nie wieder von uns. Österreich bekommt Briefe.</p>
+            <p className="cr-recht">Jede Mail persönlich, mit echter Unterschrift. Wer absagt, hört nie wieder von uns. Nur Deutschland und die Schweiz.</p>
             <label className="cr-haken-zeile"><input type="checkbox" checked={verantwortet} onChange={(e) => setVerantwortet(e.target.checked)} /> Ich verantworte den automatischen Versand.</label>
             <div className="cr-fenster-zeile">
               <button type="button" className="cr-knopf" disabled={!verantwortet || !!arbeit} onClick={() => void schalten(true)}>{arbeit === "schalter" ? "Schaltet …" : "Mara einschalten"}</button>
@@ -936,7 +936,7 @@ function PartnerKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGea
   );
 }
 
-// ── E-458 Punkt 5 und 8: Adressen — Anteil abgeleitet, Schalter, Rückläufer; Österreich im Brief-Vorrat ─────────────
+// ── E-458 Punkt 5 und 8: Adressen — Anteil abgeleitet, Schalter, Rückläufer; Österreich zurückgestellt (Justin 29.10.) ──
 function AdressenKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaendert: () => void }) {
   const { arbeit, meldung, tun } = useTun(onGeaendert);
   const a = motor?.adressen;
@@ -950,7 +950,7 @@ function AdressenKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGe
       <dl className="cr-mara-werte">
         <div><dt>Abgeleitet (7 Tage)</dt><dd>{anteil} % <small>{zahl(a.abgeleitet7)} von {zahl(a.gesendet7)}</small></dd></div>
         <div><dt>Deren Rückläufer</dt><dd>{rueck == null ? "—" : prozent(rueck)} <small>Grenze {prozent(a.rueckMax)}</small></dd></div>
-        <div className="breit"><dt>Österreich</dt><dd>{zahl(a.oesterreichBrief)} im Brief-Vorrat <small>{a.briefVersand ? (a.briefTest ? "Briefversand im Testmodus" : "Briefversand an") : "Briefversand aus"}</small></dd></div>
+        <div className="breit"><dt>Österreich</dt><dd>{zahl(a.oesterreichBrief)} zurückgestellt <small>vorerst keine Post — nur Deutschland und die Schweiz</small></dd></div>
       </dl>
       {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
     </article>
@@ -1268,7 +1268,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
       {sendenFrage && (
         <Fenster titel={`${Math.min(auswahl.length, max)} Mails senden?`} onZu={() => setSendenFrage(false)}>
           <p>Aus <b>{postfach}</b>, alle 20–45 Sekunden eine. Ohne Adresse oder mit Regelverstoß: übersprungen.</p>
-          <p className="cr-recht">Jede Mail persönlich, mit echter Unterschrift. Wer absagt, hört nie wieder von uns. Österreich bekommt Briefe.</p>
+          <p className="cr-recht">Jede Mail persönlich, mit echter Unterschrift. Wer absagt, hört nie wieder von uns. Nur Deutschland und die Schweiz.</p>
           <label className="cr-haken-zeile"><input type="checkbox" checked={verantwortet} onChange={(e) => setVerantwortet(e.target.checked)} /> Ich habe die Mails gelesen und verantworte den Versand.</label>
           <div className="cr-fenster-tun">
             <button type="button" className="cr-knopf" disabled={!verantwortet} onClick={() => void stapel("senden", true)}>Jetzt senden</button>

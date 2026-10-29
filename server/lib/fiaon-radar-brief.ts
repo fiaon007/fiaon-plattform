@@ -36,7 +36,7 @@ import { PDFDocument } from "pdf-lib";
 import { sqlPool } from "./db-pool";
 import {
   ensureRadarTabellen, radarKi, radarScannen, radarAbsender, radarPostfaecher, zeileLesen, mailPruefen, anredeFuer,
-  robotsWaechter, seiteHolen, gesperrt, RadarFehler, type Aufhaenger,
+  robotsWaechter, seiteHolen, gesperrt, RadarFehler, sqlOesterreich, type Aufhaenger,
 } from "./fiaon-radar";
 import { anredeAusText, entscheiderFinden } from "./fiaon-radar-entscheider";
 import { radarAutomatik } from "./fiaon-radar-faden";
@@ -48,7 +48,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import {
   RADAR_KERNSATZ, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, RADAR_BRIEF_SCHLUESSEL, RADAR_BRIEF_HOECHSTENS_JE_TAG, RADAR_BRIEF_TEXTE,
   RADAR_BRIEF_QUELLE, radarBriefEinstellungLesen, radarBriefKosten, radarBriefLink, radarBriefKennung, radarBriefPruefen,
-  radarBriefAnschrift, radarBriefPerson, radarKennungLesen, radarSendefenster, radarBereich,
+  radarBriefAnschrift, radarBriefPerson, radarKennungLesen, radarSendefenster, radarBereich, RADAR_LAENDER_AKTIV,
   type RadarBriefAnbieter, type RadarBriefEinstellung, type RadarBriefEmpfaenger,
 } from "@shared/fiaon-radar";
 
@@ -665,9 +665,13 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
          AND r.brief_versendet_am IS NULL
          AND COALESCE(r.brief_status, '') NOT IN ('test', 'sendet', 'uebergeben', 'versendet', 'fehler') AND r.brief_auto_am IS NULL
          AND r.archiviert_am IS NULL
-         -- E-458: Liegt die Mail schon in der Warteschlange des Motors, geht kein Brief. Partner warten (auch in Österreich)
-         -- sichtbar im Brief-Vorrat, bis es den Partner-Brief gibt — der Lauf nimmt nur Firmen.
+         -- E-458: Liegt die Mail schon in der Warteschlange des Motors, geht kein Brief. Partner warten sichtbar im
+         -- Brief-Vorrat, bis es den Partner-Brief gibt — der Lauf nimmt nur Firmen.
          AND COALESCE(r.motor_status, '') NOT IN ('arbeit', 'bereit', 'sendet') AND r.strom = 'firma'
+         -- E-458 (Justin 29.10.2026): Österreich vorerst komplett raus — auch kein Brief. Nur aktive Länder (DE, CH), und
+         -- „Österreich gewinnt“ (sqlOesterreich): auch eine .at-Domäne, UID ATU… oder Nummer +43 bekommt keinen Brief.
+         AND COALESCE(r.land, 'DE') = ANY(${[...RADAR_LAENDER_AKTIV] as string[]})
+         AND NOT ${sqlOesterreich()}
          AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB}) AND COALESCE(r.passung, 0) >= ${automatik.abPassung}
          AND r.impressum ? 'strasse' AND r.impressum ? 'plz'
          AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))

@@ -19,8 +19,11 @@ import {
 } from "./fiaon-radar";
 import { berlinToday } from "./fiaon-time";
 import {
-  RADAR_PARTNER_ZIELBILD, RADAR_PARTNER_SIGNALE, RADAR_FREEMAIL, radarPartnerGruppe, radarDomain, type RadarLand,
+  RADAR_PARTNER_ZIELBILD, RADAR_PARTNER_SIGNALE, RADAR_FREEMAIL, radarPartnerGruppe, radarDomain, radarLandAktiv, type RadarLand,
 } from "@shared/fiaon-radar";
+
+/** E-458 (Justin 29.10.2026): „lass Österreich komplett weg … nur DE und CH“ — auch keine Partner-Suche dort (wie radarSuchen). */
+const OESTERREICH_AUS = "Österreich ist vorerst ausgeschlossen — gesucht wird nur in Deutschland und der Schweiz.";
 
 /** Domänen, die nie eine Partner-Kaltmail bekommen: Partner-CRM (Website, E-Mail, Kontakte) und Kooperationsverträge. */
 export async function partnerAusschluss(): Promise<Set<string>> {
@@ -106,6 +109,7 @@ export async function radarPartnerSuchen(ein: { gruppe: string; land?: RadarLand
   await ensureRadarTabellen();
   const g = radarPartnerGruppe(ein.gruppe);
   if (!g) throw new RadarFehler("Unbekannte Partner-Gruppe.");
+  if (ein.land && !radarLandAktiv(ein.land)) throw new RadarFehler(OESTERREICH_AUS);
   const anzahl = Math.max(3, Math.min(15, Math.round(ein.anzahl ?? 10)));
   const laufId = ein.laufId ?? Number(((await sqlPool`
     INSERT INTO fiaon_radar_laeufe (art, bereich, land, stichwort, von) VALUES (${ein.quelle}, ${g.key}, ${ein.land ?? null}, ${"partner"}, ${ein.von ?? null}) RETURNING id`) as any[])[0].id);
@@ -143,6 +147,7 @@ export async function radarPartnerSucheStarten(ein: { gruppe: string; land?: Rad
   await ensureRadarTabellen();
   const g = radarPartnerGruppe(ein.gruppe);
   if (!g) throw new RadarFehler("Bitte eine Partner-Gruppe wählen.");
+  if (ein.land && !radarLandAktiv(ein.land)) throw new RadarFehler(OESTERREICH_AUS);
   const offen = (await sqlPool`SELECT id FROM fiaon_radar_laeufe WHERE status = 'laeuft' AND art = 'suche' AND created_at > NOW() - INTERVAL '10 minutes'`) as any[];
   if (offen.length >= 2) throw new RadarFehler("Es laufen schon zwei Suchen — bitte kurz warten.", 429);
   const [r] = (await sqlPool`INSERT INTO fiaon_radar_laeufe (art, bereich, land, stichwort, von) VALUES ('suche', ${g.key}, ${ein.land ?? null}, ${"partner"}, ${ein.von ?? null}) RETURNING id`) as any[];

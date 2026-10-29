@@ -15,7 +15,7 @@ import path from "node:path";
 import {
   RADAR_BEREICHE, RADAR_STATUS, RADAR_GRUPPEN, RADAR_STAPEL_MAX, RADAR_ANTWORT_ARTEN, RADAR_KERNSATZ, RADAR_HOECHSTENS_JE_TAG, RADAR_NACHFASS_TAGE,
   RADAR_SIGNALE, RADAR_SIGNAL_AB,
-  radarDomain, alsRadarLand, radarBereich, radarAdressePruefen, radarAutomatikLesen, radarSendefenster,
+  radarDomain, alsRadarLand, radarBereich, radarAdressePruefen, radarAutomatikLesen, radarSendefenster, RADAR_LAENDER_AKTIV, radarLandAktiv,
 } from "../shared/fiaon-radar";
 import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 import { GLOBAL_SEITEN } from "../shared/fiaon-global-seiten";
@@ -395,6 +395,19 @@ abschnitt("Maras Szenarien (E-361)");
   ok(/"\/chef\/radar\/mara-probe", wache/.test(rt) && /"\/chef\/radar\/mara-szenarien", wache/.test(rt) && /"\/chef\/radar\/post\/:id\/termin", wache[\s\S]{0,120}bestaetigt !== true/.test(rt), "Neue Routen hinter der Wache, Termin nur mit Bestätigung");
   const ui = lies("client/src/components/admin/ChefRadar.tsx");
   ok(/<MaraTesten \/>/.test(ui) && /Alle \$\{RADAR_SZENARIEN\.length\} Szenarien prüfen/.test(ui) && /Termin \{wunschLesbar\(p\.wunsch_termin!\)\} eintragen/.test(ui), "Chefbüro: „Mara testen“, „Alle Szenarien prüfen“, „Termin eintragen“");
+}
+
+abschnitt("Nur Deutschland und Schweiz (E-458, Justin 29.10.2026)");
+ok(!RADAR_LAENDER_AKTIV.includes("AT") && RADAR_LAENDER_AKTIV.includes("DE") && RADAR_LAENDER_AKTIV.includes("CH"), "Aktive Länder: DE und CH, nicht AT");
+ok(!radarLandAktiv("AT") && !radarLandAktiv("at") && radarLandAktiv("DE") && radarLandAktiv("CH") && radarLandAktiv(null), "radarLandAktiv: AT nein, DE/CH ja, ohne Angabe = DE");
+{
+  const f = lies("server/lib/fiaon-radar-faden.ts"), b = lies("server/lib/fiaon-radar-brief.ts"), r = lies("server/lib/fiaon-radar.ts");
+  ok(/AND COALESCE\(land, 'DE'\) = ANY\(\$\{laender\}\)/.test(f), "Nachfass nur in aktiven Ländern");
+  ok(/AND COALESCE\(f\.land, 'DE'\) = ANY\(\$\{laender\}\)/.test(f), "Wiedervorlage nur in aktiven Ländern");
+  ok(/AND COALESCE\(r\.land, 'DE'\) = ANY\(\$\{laender\}\)/.test(f), "Erste Mail nur in aktiven Ländern");
+  ok(/AND COALESCE\(r\.land, 'DE'\) = ANY\(\$\{\[\.\.\.RADAR_LAENDER_AKTIV\]/.test(b), "Brief nur in aktiven Ländern");
+  ok(!/const LAENDER: RadarLand\[\] = \[[^\]]*"AT"/.test(r), "Tageslauf sucht reihum nicht in Österreich");
+  ok((r.match(/if \(!radarLandAktiv\(/g) ?? []).length >= 2 && /if \(ein\.land && !radarLandAktiv\(ein\.land\)\)/.test(r), "Funde aus Österreich werden nicht aufgenommen, Suche nach Österreich abgewiesen");
 }
 
 abschnitt("Ergebnis");

@@ -52,7 +52,7 @@ import { gmailBereit, neueMailEntwurf, neueMailSendenMitFaden, postfachProbe, en
 import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
-  type RadarLand, type RadarStatus, type RadarPaket,
+  radarLandAktiv, type RadarLand, type RadarStatus, type RadarPaket,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
 import { globalWortPruefen } from "@shared/fiaon-global-wortregeln";
@@ -716,6 +716,8 @@ async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; quelle: st
   if (ctx.aus.has(domain)) return nein("schon im Radar, Kunde oder gesperrt");
   ctx.aus.add(domain);
   const land = (["DE", "AT", "CH"].includes(v.land) ? v.land : "DE") as RadarLand;
+  // E-458 (Justin 29.10.2026): Österreich vorerst komplett raus — vor jedem Seitenabruf und noch einmal nach dem Impressum.
+  if (!radarLandAktiv(land)) return nein("Österreich vorerst nicht (nur Deutschland und Schweiz)");
 
   const waechter = robotsWaechter();
   const start = await seiteHolen(`https://${domain}/`, waechter);
@@ -730,12 +732,14 @@ async function vorschlagPruefen(v: Vorschlag, ctx: { bereich: string; quelle: st
   const f: any = kontakt.impressum ?? {};
   const email = kontakt.email;
   const ansprechpartner = kontakt.ansprechpartner;
+  const landFirma = String(f.land || land).slice(0, 2);
+  if (!radarLandAktiv(landFirma)) return nein("Österreich vorerst nicht (nur Deutschland und Schweiz)");
   // E-337: das Kapitalsignal nachprüfen — wörtlich auf der Startseite oder der genannten Seite.
   const sig = await signalPruefen(v.kapital_signal, [{ url: start.url, text: start.text }], waechter).catch(() => ({ signal: null, staerke: null }));
 
   const [zeile] = (await sqlPool`
     INSERT INTO fiaon_radar_firmen (tag, quelle, bereich, land, name, domain, website, ort, kurz, passung, gruende, signale, impressum, email, ansprechpartner, signal, signal_staerke)
-    VALUES (${ctx.tag}, ${ctx.quelle}, ${ctx.bereich}, ${String(f.land || land).slice(0, 2)}, ${String(f.name || v.name).slice(0, 200)}, ${domain}, ${`https://${domain}`},
+    VALUES (${ctx.tag}, ${ctx.quelle}, ${ctx.bereich}, ${landFirma}, ${String(f.name || v.name).slice(0, 200)}, ${domain}, ${`https://${domain}`},
             ${String(f.ort || v.ort || "").slice(0, 120) || null}, ${String(v.kurz || "").slice(0, 400) || null}, ${Math.max(0, Math.min(100, Math.round(Number(v.passung) || 0)))},
             ${sqlPool.json((v.gruende || []).slice(0, 4).map((g) => ({ text: String(g.text || "").slice(0, 300), url: String(g.url || "").slice(0, 400) })))},
             ${sqlPool.json((v.signale || []).slice(0, 8).map((s) => String(s).slice(0, 80)))},
@@ -773,6 +777,7 @@ export async function radarSuchen(ein: { bereich: string; land?: RadarLand | nul
   await ensureRadarTabellen();
   const b = radarBereich(ein.bereich);
   if (!b) throw new RadarFehler("Unbekannter Bereich.");
+  if (ein.land && !radarLandAktiv(ein.land)) throw new RadarFehler("Österreich ist vorerst ausgeschlossen — gesucht wird nur in Deutschland und der Schweiz.");
   const anzahl = Math.max(3, Math.min(15, Math.round(ein.anzahl ?? 10)));
   const stichwort = String(ein.stichwort ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 120) || null;
   const laufId = ein.laufId ?? Number(((await sqlPool`
@@ -785,7 +790,7 @@ export async function radarSuchen(ein: { bereich: string; land?: RadarLand | nul
       `Bereich: ${b.label} — ${b.suche}.`,
       // E-337: der Signal-Jäger — jede Suche jagt EIN Kapitalsignal.
       radarSignal(ein.signal) ? `Kapitalsignal, nach dem du gezielt suchst: ${radarSignal(ein.signal)!.label} — ${radarSignal(ein.signal)!.suche}.` : "Suche gezielt nach Firmen mit einem belegten Kapitalsignal (siehe kapital_signal).",
-      ein.land ? `Land: nur ${ein.land === "DE" ? "Deutschland" : ein.land === "AT" ? "Österreich" : "Schweiz"}.` : "Länder: Deutschland, Österreich, Schweiz (gemischt).",
+      ein.land ? `Land: nur ${ein.land === "DE" ? "Deutschland" : ein.land === "AT" ? "Österreich" : "Schweiz"}.` : "Länder: Deutschland und Schweiz (gemischt) — keine Firmen aus Österreich.",
       stichwort ? `Zusätzliches Stichwort: ${stichwort}.` : "",
       `Finde ${Math.min(16, Math.ceil(anzahl * 1.6))} passende Firmen, die besten zuerst.`,
       bekannte.length ? `Ausschlussliste (schon bekannt): ${bekannte.join(", ")}` : "",
@@ -854,7 +859,8 @@ export async function radarTageslauf(jetzt = new Date()): Promise<{ ruhe: boolea
   if (heute >= RADAR_TAGESZIEL) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
   const laeufeHeute = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_radar_laeufe WHERE art = 'tageslauf' AND created_at > date_trunc('day', NOW())`) as any[])[0]?.n ?? 0);
   if (laeufeHeute >= RADAR_SUCHEN_JE_TAG) return { ruhe: true, heute, neu: 0, suchen: 0, fehler: null };
-  const LAENDER: RadarLand[] = ["DE", "DE", "AT", "DE", "CH"];
+  // E-458 (Justin 29.10.2026): Österreich vorerst raus — reihum nur Deutschland und Schweiz (vorher DE, DE, AT, DE, CH).
+  const LAENDER: RadarLand[] = ["DE", "DE", "CH", "DE", "CH"];
   let neu = 0, suchen = 0, fehler: string | null = null;
   const tagNr = Math.floor(jetzt.getTime() / 86_400_000);
   for (let k = 0; k < 3 && heute < RADAR_TAGESZIEL && laeufeHeute + k < RADAR_SUCHEN_JE_TAG; k++) {

@@ -48,7 +48,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import {
   RADAR_KERNSATZ, RADAR_SIGNAL_AB, RADAR_BRIEF_ANBIETER, RADAR_BRIEF_SCHLUESSEL, RADAR_BRIEF_HOECHSTENS_JE_TAG, RADAR_BRIEF_TEXTE,
   RADAR_BRIEF_QUELLE, radarBriefEinstellungLesen, radarBriefKosten, radarBriefLink, radarBriefKennung, radarBriefPruefen,
-  radarBriefAnschrift, radarBriefPerson, radarKennungLesen, radarSendefenster, radarBereich,
+  radarBriefAnschrift, radarBriefPerson, radarKennungLesen, radarSendefenster, radarBereich, RADAR_LAENDER_AKTIV,
   type RadarBriefAnbieter, type RadarBriefEinstellung, type RadarBriefEmpfaenger,
 } from "@shared/fiaon-radar";
 
@@ -661,6 +661,8 @@ export async function radarBriefLauf(jetzt = new Date()): Promise<BriefLaufErgeb
        WHERE r.status IN ('neu', 'gescannt', 'mail', 'ohne_kontakt') AND r.versendet_am IS NULL AND r.brief_versendet_am IS NULL
          AND COALESCE(r.brief_status, '') NOT IN ('test', 'sendet', 'uebergeben', 'versendet', 'fehler') AND r.brief_auto_am IS NULL
          AND r.archiviert_am IS NULL
+         -- E-458 (Justin 29.10.2026): Österreich vorerst komplett raus — auch kein Brief.
+         AND COALESCE(r.land, 'DE') = ANY(${[...RADAR_LAENDER_AKTIV] as string[]})
          AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB}) AND COALESCE(r.passung, 0) >= ${automatik.abPassung}
          AND r.impressum ? 'strasse' AND r.impressum ? 'plz'
          AND NOT EXISTS (SELECT 1 FROM fiaon_radar_sperre x WHERE x.wert = r.domain OR x.wert = lower(COALESCE(r.email, '')))

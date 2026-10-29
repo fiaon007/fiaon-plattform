@@ -194,8 +194,16 @@ const sig = await import("../server/lib/fiaon-signatur");
 const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen Termin wählen: https://fiaon.com/?utm_source=radar#gespraech\n\nViele Grüße\nMara Lindner\nDigitale Assistentin\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott"));
 ok(sigHtml.includes("/mail/signatur/mara.png") && sigHtml.includes("linie.gif") && sigHtml.includes("punkt.gif") && sigHtml.includes("Digitale Assistentin von Justin Schwarzott"), "Maras Karte: Porträt, Lichtlinie, Punkt, KI-Hinweis „Digitale Assistentin“");
 ok(sigHtml.includes("Einen Termin wählen") && sigHtml.includes("FIAON LTD · Fuß") && !/Mara Lindner<br>Digitale/.test(sigHtml), "Termin als Link, Fuß klein, Textunterschrift durch die Karte ersetzt");
-// E-458: die erste Mail trägt die ECHTE Gmail-Unterschrift des Postfachs (sendAs); Justins Karte nur noch als Rückweg für js@.
-ok(/await absenderLesen\(postfach\)/.test(lies("server/lib/fiaon-radar.ts")) && /absender: postfach === "js@fiaon\.com" \? \{ \.\.\.radarKarteAbsender\(seite\), postfach \} : null/.test(lies("server/lib/fiaon-radar.ts")), "Die erste Mail trägt die Gmail-Unterschrift des Postfachs, die Karte nur als Rückweg für js@");
+// E-458: die erste Mail trägt die ECHTE Gmail-Unterschrift des Postfachs (sendAs); als Rückweg Justins Karte für js@ und —
+// seit Justins Wort vom 29.10. („von Mara (also welcome) und meiner js“) — Maras Karte für welcome@; jedes andere Postfach: null.
+{
+  const lib = lies("server/lib/fiaon-radar.ts");
+  ok(/await absenderLesen\(postfach\)/.test(lib)
+    && /if \(postfach === "js@fiaon\.com"\) return \{ absender: \{ \.\.\.radarKarteAbsender\(seite\), postfach \}, gestoert \};/.test(lib)
+    && /if \(postfach === "welcome@fiaon\.com"\) return \{ absender: radarMaraKarteAbsender\(seite\), gestoert \};\n  return \{ absender: null, gestoert \};/.test(lib),
+    "Die erste Mail trägt die Gmail-Unterschrift des Postfachs, sonst Justins Karte (js@) bzw. Maras Karte (welcome@), sonst keine");
+  ok(/maraSignatur\(radarAbsender\(\)\.name\), email: "welcome@fiaon\.com"/.test(lib) && /quelle: "karte"/.test(lib), "Maras Karte: Mara Lindner, digitale Assistentin, welcome@, Startseite");
+}
 ok((lies("server/lib/fiaon-radar-faden.ts").match(/htmlAusText\(/g) ?? []).length >= 2 && /antwortSenden\(String\(f\.postfach\), original, text, persoenlicheMailHtml\(teile\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Maras Antwort und Freigabe mit Karte, das Nachfassen mit der echten Unterschrift (E-458)");
 ok(fs.existsSync(path.join(wurzel, "client/public/mail/signatur/mara.png")) && fs.existsSync(path.join(wurzel, "client/public/mail/signatur/linie.gif")), "Signaturbilder liegen öffentlich bereit");
 ok(/radarAdressePersoenlich\(an, namen\)/.test(lies("server/lib/fiaon-radar.ts")), "Wand beim Senden: nur persönliche Adresse eines Entscheiders");
@@ -726,7 +734,8 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(sh8.radarPostfachWaehlen([pf("a@versand.example", 60), pf("b@versand.example", 59, "2026-10-29T09:59:00+01:00")], jetzt) === null, "Volles Postfach nie; Postfach unter dem Mindestabstand (3 Min) nie; keins frei → null");
   ok(sh8.radarPostfachWaehlen([pf("a@versand.example", 10, null, { bereit: false }), pf("b@versand.example", 50, null, { pause: true })], jetzt) === null, "Nicht bereit oder pausiert → sendet nicht");
   ok(sh8.radarPostfachAbstandSek("2026-10-29T09:00:00Z") >= 180 && sh8.radarPostfachAbstandSek("2026-10-29T09:00:00Z") < 240, "Abstand je Postfach: 3 Minuten plus Zufall");
-  const mg = sh8.radarMoeglich({ postfaecher: [pf("js@fiaon.com", 0)], reststunden: 12, fensterStunden: 12, ziele: { firma: 10, partner: 10 } });
+  // E-458 (29.10.): seit nur noch EINER Nachfass-Stufe (RADAR_NACHFASS_TAGE = [3]) die Rechnung mit zwei Stufen ausdrücklich.
+  const mg = sh8.radarMoeglich({ postfaecher: [pf("js@fiaon.com", 0)], reststunden: 12, fensterStunden: 12, ziele: { firma: 10, partner: 10 }, nachfassStufen: 2 });
   ok(mg.moeglich === 5 && mg.satz === "Ziel 20 je Stunde, heute möglich 5 — mehr Postfächer = mehr Tempo", `Ehrliche Leistung: ein Postfach 60/Tag, 12 Stunden → 5 je Stunde („${mg.satz}“)`);
   ok(sh8.radarMoeglich({ postfaecher: [pf("js@fiaon.com", 0, null, { reserve: 30 })], reststunden: 12, fensterStunden: 12, ziele: { firma: 10, partner: 10 } }).moeglich === 2, "30 Nachfass-Mails reserviert → 2 je Stunde");
   ok(mg.postfaecherNoetig === 12 && sh8.radarMoeglich({ postfaecher: [], reststunden: 12, fensterStunden: 12, ziele: { firma: 10, partner: 10 }, nachfassStufen: 1 }).postfaecherNoetig === 8 && sh8.radarSendungenJeErstmail(2) === 2.85, "Für 20 je Stunde: 12 warme Postfächer (2 Nachfass) bzw. 8 (1 Nachfass)");

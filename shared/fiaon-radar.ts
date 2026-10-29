@@ -588,8 +588,11 @@ export function radarAdressePruefen(emailRoh: unknown, domain: string, firmennam
 }
 
 // ── NACHFASSEN ──────────────────────────────────────────────────────────────
-/** Nach wie vielen Tagen die erste und die zweite Nachfass-Mail fällig werden (ab der Mail davor). Danach Schluss. */
-export const RADAR_NACHFASS_TAGE: readonly number[] = [3, 5];
+/**
+ * Nach wie vielen Tagen die Nachfass-Mail fällig wird (ab der Mail davor). Danach Schluss.
+ * E-458 (Justin 29.10.2026, „go“ auf den Vorschlag): nur noch EINE Erinnerung — vorher [3, 5]. Mehr Platz für erste Mails je Postfach.
+ */
+export const RADAR_NACHFASS_TAGE: readonly number[] = [3];
 
 // ── DIE SCHALTER DER AUTOMATIK (fiaon_settings, im Chefbüro bedienbar) ───────
 export interface RadarAutomatik {

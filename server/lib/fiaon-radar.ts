@@ -68,7 +68,7 @@ import {
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
 import { globalWortPruefen } from "@shared/fiaon-global-wortregeln";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
-import { signaturHtml, signaturText, signaturAlsText, persoenlicheMailHtml, persoenlicheMailText } from "./fiaon-signatur";
+import { signaturHtml, signaturText, signaturAlsText, persoenlicheMailHtml, persoenlicheMailText, maraSignatur } from "./fiaon-signatur";
 
 // ── Einstellungen ────────────────────────────────────────────────────────────
 const MODELL = () => process.env.RADAR_MODELL || process.env.POSTMEISTER_MODELL || "gpt-5.5";
@@ -1237,6 +1237,18 @@ export function radarKarteAbsender(seite?: string | null): RadarMailAbsender {
   return { postfach: "js@fiaon.com", name: a.name, signaturHtml: signaturHtml(daten), signaturText: signaturText(ohneAbfrage), quelle: "karte" };
 }
 
+/**
+ * E-458 (Justin 29.10.2026: „wir schicken alles mal von Mara (also welcome) und meiner js weg“): Maras Karte für welcome@ —
+ * dieselbe Unterschrift wie in ihren Mails an Kunden, sichtbar als digitale Assistentin (KI-VO Art. 50). Gilt, solange Gmail
+ * für welcome@ keine eigene Unterschrift herausgibt (wie Justins Karte für js@).
+ */
+export function radarMaraKarteAbsender(seite?: string | null): RadarMailAbsender {
+  const ziel = seite ? radarStartseiteLink(seite) : `${SEITE()}/`;
+  const daten = { ...maraSignatur(radarAbsender().name), email: "welcome@fiaon.com", seite: ziel, seiteText: "fiaon.com", status: null };
+  const ohneAbfrage = { ...daten, seite: ziel.replace(/[?#].*$/, "") };
+  return { postfach: "welcome@fiaon.com", name: daten.name, signaturHtml: signaturHtml(daten), signaturText: signaturText(ohneAbfrage), quelle: "karte" };
+}
+
 const BUCHSTABEN2 = new RegExp("\\p{L}{2,}", "u");
 /** Taugt eine Gmail-Unterschrift? Ein Mensch mit Vor- und Nachnamen und eine Signatur mit Inhalt. Rein. */
 export function radarPersonEcht(displayName: string | null | undefined, signatur: string | null | undefined): boolean {
@@ -1294,13 +1306,15 @@ export async function radarAbsenderLesen(postfachRoh: string, seite?: string | n
       console.error(`[RADAR] Unterschrift ${postfach}:`, String(e?.message || e).slice(0, 160));
     }
   }
-  return { absender: postfach === "js@fiaon.com" ? { ...radarKarteAbsender(seite), postfach } : null, gestoert };
+  if (postfach === "js@fiaon.com") return { absender: { ...radarKarteAbsender(seite), postfach }, gestoert };
+  if (postfach === "welcome@fiaon.com") return { absender: radarMaraKarteAbsender(seite), gestoert };
+  return { absender: null, gestoert };
 }
 
 /**
  * Die Unterschrift eines Postfachs: displayName und Signatur aus Gmail (sendAs, 6 h zwischengespeichert). Gibt Gmail sie
- * nicht heraus, unterschreibt js@ mit Justins Karte; jedes andere Postfach sendet dann nicht (null) — ein Postfach ohne
- * echte Person schreibt nie.
+ * nicht heraus, unterschreibt js@ mit Justins Karte und welcome@ mit Maras Karte (E-458, Justin 29.10.); jedes andere Postfach
+ * sendet dann nicht (null) — ein Postfach ohne Person schreibt nie.
  */
 export async function radarAbsenderFuer(postfachRoh: string, seite?: string | null): Promise<RadarMailAbsender | null> {
   return (await radarAbsenderLesen(postfachRoh, seite)).absender;

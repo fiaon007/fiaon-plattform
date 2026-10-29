@@ -1126,7 +1126,7 @@ function Messung({ trichter }: { trichter: Trichter | null }) {
           </tfoot>
         </table>
       </div>
-      <p className="cr-klein" title="Lead = Interesse, Sachfrage oder Terminwunsch in der Antwort, oder Termin/Auftrag über den Link der Mail. Kauf = bezahlter Global-Auftrag einer angeschriebenen Firma. Briefe = beim Versanddienst übergeben (ohne Testmodus). QR-Besuche = /business über den Code auf dem Brief geöffnet. Porto netto.">Ziel je Tag: {trichter.ziel.leads} Leads, {trichter.ziel.kaeufe} Käufe · Lead = Interesse, Frage oder Termin · Kauf = bezahlter Global-Auftrag.</p>
+      <p className="cr-klein" title="Lead = Interesse, Sachfrage oder Terminwunsch in der Antwort, oder Termin/Auftrag über den Link der Mail. Kauf = bezahlter Global-Auftrag einer angeschriebenen Firma. Briefe = beim Versanddienst übergeben (ohne Testmodus). QR-Besuche = fiaon.com über den Code auf dem Brief geöffnet. Porto netto.">Ziel je Tag: {trichter.ziel.leads} Leads, {trichter.ziel.kaeufe} Käufe · Lead = Interesse, Frage oder Termin · Kauf = bezahlter Global-Auftrag.</p>
     </section>
   );
 }

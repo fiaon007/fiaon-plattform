@@ -16,7 +16,7 @@
 //                Kapitalrahmen, kein Institut-Satz). „Herr“/„Frau“ nur, wenn es auf
 //                der Quelle steht (anredeAusText) — wie bei der Mail.
 //   3. DRUCKEN   A4 nach DIN 5008 Form B (Anschrift im Fenster), FIAON-CI Glasblau,
-//                QR-Code auf /business?utm_source=radar_brief&utm_content=r<ID>,
+//                QR-Code auf fiaon.com/?utm_source=radar_brief&utm_content=r<ID> (bis E-461 /business),
 //                Widerspruch (Art. 21) abgesetzt, Datenschutzhinweis (Art. 14).
 //   4. SENDEN    Nur mit Schalter „Briefversand“, im Tageskontingent, an Pingen
 //                oder LetterXpress. Im Testmodus bekommt der Dienst den Brief,
@@ -599,7 +599,8 @@ export async function radarBriefSenden(id: number, ein: { von?: number | null; a
 const KEIN_MENSCH = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|slack|discord|curl|wget|python|headless|lighthouse|monitor|uptime/i;
 
 /**
- * Ein Aufruf von /business?utm_source=radar_brief&utm_content=r<ID>. Gezählt wird nur, wenn an diese Firma wirklich ein
+ * Ein Aufruf von fiaon.com/?utm_source=radar_brief&utm_content=r<ID> (alte Briefe: /business?… kommt per 301 mit derselben
+ * Abfrage auf „/“ an und zählt dort genau einmal). Gezählt wird nur, wenn an diese Firma wirklich ein
  * Brief ging, nicht für Roboter und höchstens einmal je halbe Stunde. Ohne IP, ohne Gerät — nur Firma und Zeit.
  */
 export async function radarBriefBesuchMerken(utmContent: unknown, userAgent: unknown): Promise<boolean> {

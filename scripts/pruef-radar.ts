@@ -85,7 +85,7 @@ ok(mailPruefen({ ...sauber, absaetze: ["Über Rahmen und Bedingungen entscheidet
 ok(mailPruefen({ ...sauber, absaetze: ["Global Kapital kostet 6.999 € Festpreis."] }).warnungen.some((x) => /Preis/.test(x)), "Preis in der ersten Mail wird gemeldet");
 ok(mailPruefen({ ...sauber, absaetze: ["Die Karte kommt garantiert, das Institut entscheidet."] }).sperrend.length > 0, "„garantiert“ sperrt");
 ok(mailPruefen({ ...sauber, absaetze: ["Ich hoffe, es geht Ihnen gut! Wir sind innovativ."] }).warnungen.length >= 2, "Floskel und Ausrufezeichen werden gemeldet");
-const links = { gespraech: "https://fiaon.com/business?utm_source=radar#gespraech", seite: "https://fiaon.com/business" };
+const links = { gespraech: "https://fiaon.com/?utm_source=radar#gespraech", seite: "https://fiaon.com/" };
 const html = mailHtml({ anrede: "Guten Tag <b>X</b>,", absaetze: ['<script>alert(1)</script> & "Zitat"'], frage: "Passt es?", ps: "<img src=x onerror=alert(1)>", links });
 // E-337: Die Signaturkarte trägt Bilder (Justins Wunsch) — erlaubt sind NUR die Bilder unter /mail/signatur/.
 const ohneSignaturBilder = html.replace(/<img src="https:\/\/[^"]+\/mail\/signatur\/[a-z]+\.(png|gif)"[^>]*>/g, "");
@@ -116,7 +116,9 @@ ok(Array.isArray(zeileLesen({ gruende: '[{"text":"a","url":"b"}]', mail: null })
 abschnitt("Bereiche");
 ok(RADAR_BEREICHE.length === 10 && new Set(RADAR_BEREICHE.map((b) => b.key)).size === 10, "Zehn Bereiche, jeder einmal");
 const seitenPfade = new Set(GLOBAL_SEITEN.map((s) => s.pfad));
-for (const b of RADAR_BEREICHE) ok(b.seite === "/business" || seitenPfade.has(b.seite), `${b.key}: Seite ${b.seite} existiert`);
+for (const b of RADAR_BEREICHE) ok(b.seite === "/" || seitenPfade.has(b.seite), `${b.key}: Seite ${b.seite} existiert`);
+// E-458 nach E-461: /business leitet nur noch per 301 auf „/“ — keine Bereichsseite darf über diesen Umweg führen.
+ok(!RADAR_BEREICHE.some((b) => /^\/(en\/)?business\/?$/.test(b.seite)), "Keine Bereichsseite zeigt auf /business (seit E-461 nur noch eine Weiterleitung)");
 ok(radarBereich("gibtsnicht") === null && !!radarBereich("bau"), "Unbekannter Bereich wird abgelehnt");
 ok(Object.keys(RADAR_STATUS).length === 16 && RADAR_STATUS.brief?.label === "Brief unterwegs", "Sechzehn Stände bis zum Kauf (E-337), dazu „Brief unterwegs“ (E-339)");
 const inGruppen = new Set(RADAR_GRUPPEN.flatMap((g) => g.stati));
@@ -188,7 +190,7 @@ ok(anredeAusText("Geschäftsführer: Claudius zur Linden", "zur Linden") === nul
 ok(anredeFuer("Claudius zur Linden (Geschäftsführung)", "Herr") === "Hallo Herr zur Linden," && anredeFuer("Anna Berg", "Frau") === "Hallo Frau Berg,", "Menschliche Anrede mit Nachname (Partikel bleiben)");
 ok(anredeFuer("Anna Berg", null) === "Guten Tag Anna Berg,", "Ohne belegte Anrede: voller Name");
 const sig = await import("../server/lib/fiaon-signatur");
-const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen Termin wählen: https://fiaon.com/business?utm_source=radar#gespraech\n\nViele Grüße\nMara Lindner\nDigitale Assistentin\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott"));
+const sigHtml = sig.htmlAusText("Hallo Herr Muster,\n\nEin Satz.\n\nDirekt einen Termin wählen: https://fiaon.com/?utm_source=radar#gespraech\n\nViele Grüße\nMara Lindner\nDigitale Assistentin\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott"));
 ok(sigHtml.includes("/mail/signatur/mara.png") && sigHtml.includes("linie.gif") && sigHtml.includes("punkt.gif") && sigHtml.includes("Digitale Assistentin von Justin Schwarzott"), "Maras Karte: Porträt, Lichtlinie, Punkt, KI-Hinweis „Digitale Assistentin“");
 ok(sigHtml.includes("Einen Termin wählen") && sigHtml.includes("FIAON LTD · Fuß") && !/Mara Lindner<br>Digitale/.test(sigHtml), "Termin als Link, Fuß klein, Textunterschrift durch die Karte ersetzt");
 // E-458: die erste Mail trägt die ECHTE Gmail-Unterschrift des Postfachs (sendAs); Justins Karte nur noch als Rückweg für js@.
@@ -246,7 +248,8 @@ abschnitt("Brief statt Mail (E-339)");
   ok(sh.radarBriefKosten("pingen", "DE").cents === 114 && !sh.radarBriefKosten("pingen", "DE").geschaetzt && sh.radarBriefKosten("letterxpress", "AT").geschaetzt, "Kosten je Brief: Pingen DE 1,14 €, LetterXpress Ausland als Schätzung markiert");
   // QR-Link und Kennung
   const link = sh.radarBriefLink(1078);
-  ok(link === "https://fiaon.com/business?utm_source=radar_brief&utm_content=r1078#gespraech", `QR-Link wie verlangt (${link})`);
+  ok(link === "https://fiaon.com/?utm_source=radar_brief&utm_content=r1078#gespraech", `QR-Link direkt auf die Startseite, ohne 301 über /business (${link})`);
+  ok(sh.RADAR_BRIEF_TEXTE.qrOhneCode === "Ohne Code: fiaon.com", "Ohne Code: die kurze Adresse fiaon.com (E-461: die Global-Startseite)");
   ok(sh.radarKennungLesen("r1078") === 1078 && sh.radarKennungLesen("1078") === null && sh.radarKennungLesen("r12x") === null && sh.radarBriefKennung(1078) === "R-1078", "Kennung r<ID> wird streng gelesen");
   const qr = QRCode.create(link, { errorCorrectionLevel: "M" }) as any;
   ok(qr.segments.map((x: any) => String(x.data ?? "")).join("") === link || qr.segments.some((x: any) => Buffer.from(x.data ?? []).toString() === link), "Der QR-Code trägt genau diesen Link");
@@ -312,7 +315,8 @@ abschnitt("Brief statt Mail (E-339)");
   const blatt = pdfLib.slice(pdfLib.indexOf("export async function htmlZuPdfBlatt"), pdfLib.indexOf("// EINE ECHTE LAUFENDE FUSSZEILE"));
   ok(blatt.length > 50 && !/renderPdfKitFallback/.test(blatt) && /preferCSSPageSize: true/.test(blatt), "Brief-PDF ohne pdfkit-Notbehelf (sonst verrutscht die Anschrift)");
   const r = lies("server/routes.ts");
-  ok(r.indexOf("app.get('/business', (req, _res, next)") > 0 && r.indexOf("app.get('/business', (req, _res, next)") < r.indexOf("seiteUnbekannt(req.path)") && /radarBriefBesuchMerken\(req\.query\.utm_content, req\.get\('user-agent'\)\)/.test(r) && /next\(\);\n  \}\);/.test(r), "QR-Besuche werden vor dem Seitenaufbau gemerkt — die Seite läuft weiter");
+  ok(r.indexOf("app.get('/', (req, _res, next)") > 0 && r.indexOf("app.get('/', (req, _res, next)") < r.indexOf("seiteUnbekannt(req.path)") && /radarBriefBesuchMerken\(req\.query\.utm_content, req\.get\('user-agent'\)\)/.test(r) && /next\(\);\n  \}\);/.test(r), "QR-Besuche werden auf der Startseite vor dem Seitenaufbau gemerkt — die Seite läuft weiter");
+  ok(r.indexOf("app.get('/business', (req, _res, next)") < 0 && (r.match(/radarBriefBesuchMerken\(/g) ?? []).length === 1 && /'\/business': '\/'/.test(r), "Alter Brief (/business?…): zählt nach der 301 genau einmal auf „/“ — kein zweiter Zähler auf /business");
   ok(/tageslauf\('radar_brief'/.test(r) && /radar_brief: \{/.test(lies("server/lib/fiaon-crons.ts")) && /radar_brief: \(e\)/.test(lies("server/lib/fiaon-crons.ts")), "Lauf radar_brief registriert, beschrieben und bewacht");
   const fd = lies("server/lib/fiaon-radar-faden.ts");
   ok(/z\.utm_source IN \('radar', 'radar_brief'\)/.test(fd) && /FROM fiaon_radar_besuche WHERE quelle = 'radar_brief'/.test(fd) && /INTERVAL '13 months'/.test(fd), "Abgleich zählt Termine/Aufträge aus dem Brief und die QR-Besuche (13 Monate)");
@@ -377,7 +381,7 @@ abschnitt("Maras Szenarien (E-361)");
 
   ok(radarBuchungslink("Buch dir über meinen Link: https://calendar.app.google/AbC123.") === "https://calendar.app.google/AbC123", "Google-Terminplan erkannt, Satzzeichen am Ende ab");
   ok(radarBuchungslink("https://calendly.com/max-muster/30min") !== null && radarBuchungslink("https://outlook.office365.com/owa/calendar/Muster@firma.de/bookings/") !== null && radarBuchungslink("https://meetings-eu1.hubspot.com/max") !== null, "Calendly, Microsoft Bookings, HubSpot erkannt");
-  ok(radarBuchungslink("Termin: https://fiaon.com/business?utm_source=radar#gespraech") === null && radarBuchungslink("Unsere Seite: https://musterfirma.de/kontakt") === null, "Unser eigener Link und normale Seiten zählen nicht");
+  ok(radarBuchungslink("Termin: https://fiaon.com/?utm_source=radar#gespraech") === null && radarBuchungslink("Termin: https://fiaon.com/business?utm_source=radar#gespraech") === null && radarBuchungslink("Unsere Seite: https://musterfirma.de/kontakt") === null, "Unser eigener Link und normale Seiten zählen nicht");
   ok(radarRoboter("calendar-notification@google.com") && radarRoboter("info+noreply@greenlyte.tech") && radarRoboter("no-reply@calendly.com") && !radarRoboter("joerg.bluemel@pakajo.world") && !radarRoboter("info@musterfirma.de"), "Maschinen-Absender erkannt, Menschen nicht");
   ok(absenderTeile("\"Jörg Blümel\" <Joerg.Bluemel@pakajo.world>").name === "Jörg Blümel" && absenderTeile("x@y.de").name === "" && absenderTeile("Jörg <J@p.de>").adresse === "j@p.de", "Absender in Name und Adresse zerlegt");
   ok(antwortVorab({ vonAdresse: "newsletter@musterfirma.de", betreff: "Einladung: Herbst-Webinar", text: "Jetzt anmelden" }) === null, "„Einladung:“ ohne Kalender-Merkmal ist kein Termin");
@@ -387,7 +391,7 @@ abschnitt("Maras Szenarien (E-361)");
   const dsEn = datenschutzEntwurf({ name: "Muster", domain: "muster.com", website: "https://muster.com" }, "tom@muster.com", true);
   ok(/^Hello,/.test(dsEn) && /Art\. 15 GDPR/.test(dsEn) && /https:\/\/muster\.com/.test(dsEn), "Datenschutz-Antwort auf Englisch");
 
-  const sigEn = sig.htmlAusText("Dear Max Muster,\n\nOne sentence.\n\nBook a time directly: https://fiaon.com/en/business?utm_source=radar#gespraech\n\nBest regards\nMara Lindner\nDigital assistant\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott", { rolle: "Digital assistant to Justin Schwarzott" }), "en");
+  const sigEn = sig.htmlAusText("Dear Max Muster,\n\nOne sentence.\n\nBook a time directly: https://fiaon.com/en?utm_source=radar#gespraech\n\nBest regards\nMara Lindner\nDigital assistant\n\n—\nFIAON LTD · Fuß", sig.maraSignatur("Justin Schwarzott", { rolle: "Digital assistant to Justin Schwarzott" }), "en");
   ok(sigEn.includes('lang="en"') && sigEn.includes("Choose a time") && sigEn.includes("Best regards") && sigEn.includes("Digital assistant to Justin Schwarzott") && !/Mara Lindner<br>Digital/.test(sigEn), "Englische Antwort: lang=en, „Choose a time“, Karte mit KI-Hinweis");
 
   const fd = lies("server/lib/fiaon-radar-faden.ts");
@@ -535,9 +539,36 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   ok(sh8.radarAnredeName("Hallo Frau Dr. Brandt,") === "Brandt" && sh8.radarAnredeName("Guten Tag Max Müller,") === "Max Müller" && sh8.radarAnredeName("Guten Tag,") === null, "Name aus der Anrede gelesen (für die Wand beim Senden)");
   ok(/if \(anredeName && !radarAdressePersoenlich\(an, \[anredeName\]\)\) throw new RadarFehler/.test(lies("server/lib/fiaon-radar.ts")), "Beim Senden: Anrede und Empfänger müssen zusammenpassen");
   // Kurzer, persönlicher Terminlink statt utm_campaign; Impressum-Zeile mit Sitzanschrift.
-  ok(sh8.radarKurzlink(4101) === "https://fiaon.com/g/r4101" && sh8.radarKurzlinkZiel("r4101") === "/business?utm_source=radar&utm_medium=email&utm_campaign=firmen_radar&utm_content=r4101#gespraech" && sh8.radarKurzlinkZiel("x<script>") === "/business", "Kurzlink fiaon.com/g/r<ID> → Terminlink mit Zuordnung; Unsinn → /business");
-  const kurzHtml = lib.mailHtml({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
-  const kurzText = lib.mailText({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
+  ok(sh8.radarKurzlink(4101) === "https://fiaon.com/g/r4101" && sh8.radarKurzlinkZiel("r4101") === "/?utm_source=radar&utm_medium=email&utm_campaign=firmen_radar&utm_content=r4101#gespraech" && sh8.radarKurzlinkZiel("x<script>") === "/", "Kurzlink fiaon.com/g/r<ID> → Startseite mit Zuordnung und Anker (E-461, ohne 301-Kette); Unsinn → Startseite");
+  ok(sh8.radarTerminLink(7) === "https://fiaon.com/?utm_source=radar&utm_medium=email&utm_campaign=firmen_radar&utm_content=r7#gespraech", "Terminlink direkt auf fiaon.com/ (dort steht seit E-461 „Gespräch vereinbaren“, #gespraech)");
+  // E-458 nach E-461: radarStartseiteLink stellt jede Form der Übersicht auf „/“ bzw. „/en“ — auch gespeicherte Links.
+  const sl = sh8.radarStartseiteLink;
+  ok(sl("https://fiaon.com/business?utm_source=radar&utm_content=r7#gespraech") === "https://fiaon.com/?utm_source=radar&utm_content=r7#gespraech"
+    && sl("https://fiaon.com/business?utm_source=radar&utm_content=r7#gespraech", true) === "https://fiaon.com/en?utm_source=radar&utm_content=r7#gespraech"
+    && sl("https://fiaon.com/en/business#gespraech", true) === "https://fiaon.com/en#gespraech"
+    && sl("https://fiaon.com/?utm_source=radar#gespraech", true) === "https://fiaon.com/en?utm_source=radar#gespraech"
+    && sl("https://fiaon.com/business/") === "https://fiaon.com/" && sl("https://fiaon.com") === "https://fiaon.com/" && sl("/business?x=1") === "/?x=1",
+    "Gespeicherte Links: /business, /en/business, „/“ → direkt „/“ bzw. „/en“ — utm und Anker bleiben");
+  ok(sl("https://fiaon.com/business/onlinehandel?utm_source=radar") === "https://fiaon.com/business/onlinehandel?utm_source=radar" && sl("https://fiaon.com/g/r12") === "https://fiaon.com/g/r12"
+    && sl("https://fiaon.com/business-antrag") === "https://fiaon.com/business-antrag" && sl("https://fiaon.com/enterprise?x") === "https://fiaon.com/enterprise?x",
+    "Unterseiten, Kurzlink und ähnliche Pfade bleiben unverändert");
+  const altText = lib.mailText({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: "https://fiaon.com/business?utm_source=radar&utm_content=r9#gespraech", seite: "https://fiaon.com/business?utm_source=radar" }, schluss, gruss: "Viele Grüße", mitLink: true });
+  ok(altText.includes("https://fiaon.com/?utm_source=radar&utm_content=r9#gespraech") && !/fiaon\.com\/business/.test(altText), "Mail ohne Kurzlink (gespeichert vor E-458): Link und Karte direkt auf die Startseite, kein /business");
+  const karteLeer = lib.radarKarteAbsender(null);
+  const karteAlt = lib.radarKarteAbsender("https://fiaon.com/business?utm_source=radar&utm_content=r9");
+  ok(karteLeer.signaturHtml.includes('href="https://fiaon.com/"') && karteLeer.signaturHtml.includes(">fiaon.com</a>") && !/\/business/.test(karteLeer.signaturHtml + karteLeer.signaturText)
+    && karteAlt.signaturHtml.includes('href="https://fiaon.com/?utm_source=radar&amp;utm_content=r9"') && !/\/business/.test(karteAlt.signaturHtml + karteAlt.signaturText),
+    "Justins Karte (Rückweg für js@): Startseite fiaon.com/ direkt, sichtbar „fiaon.com“ — auch aus alten Mails mit /business");
+  const fdLink = lies("server/lib/fiaon-radar-faden.ts");
+  ok(/const link = radarStartseiteLink\(f\.mail\?\.links\?\.gespraech \?\? "https:\/\/fiaon\.com\/#gespraech", en\);/.test(fdLink) && !/fiaon\.com\/(en\/)?business/.test(fdLink.split("\n").filter((z) => !/^\s*(\/\/|\*|\/\*)/.test(z)).join("\n")),
+    "Maras Antworten und Karten: Terminlink und Seite direkt auf fiaon.com/ bzw. /en (auch alte gespeicherte Links)");
+  // Kein Ziel des Motors (Mail, Kurzlink, QR, Karte, Antwort, Nachfass) zeigt mehr auf die Übersicht /business.
+  const motorDateien = ["shared/fiaon-radar.ts", "server/routes/fiaon-radar.ts", ...fs.readdirSync(path.join(wurzel, "server/lib")).filter((d) => /^fiaon-radar.*\.ts$/.test(d)).map((d) => `server/lib/${d}`)];
+  const treffer = motorDateien.flatMap((d) => lies(d).split("\n").map((z, i) => ({ d, i: i + 1, z }))
+    .filter(({ z }) => !/^\s*(\/\/|\*|\/\*)/.test(z) && /\/business(?=[?#"'`\s]|$)|fiaon\.com\/en\/business/.test(z)));
+  ok(motorDateien.length >= 9 && !treffer.length, `Kein Motor-Link mehr auf /business (${treffer.map((t) => `${t.d}:${t.i}`).join(", ") || "sauber"})`);
+  const kurzHtml = lib.mailHtml({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
+  const kurzText = lib.mailText({ anrede: "Hallo Frau Beispiel,", absaetze: ["Ein Satz."], frage: "Passt es?", links: { gespraech: sh8.radarTerminLink(4101), seite: "https://fiaon.com/", kurz: sh8.radarKurzlink(4101) }, schluss, gruss: "Viele Grüße", mitLink: true });
   ok(kurzHtml.includes(">fiaon.com/g/r4101</a>") && !/utm_campaign|Einen Termin wählen/.test(kurzHtml) && kurzText.includes("Wenn Sie mögen, suchen Sie sich hier direkt eine Zeit aus: https://fiaon.com/g/r4101") && !sh8.radarSchlussEcho(lib.RADAR_LINK_SATZ, "Passt das gerade zu Ihrem Thema?").length && !/utm_/.test(kurzText), "Mail zeigt den Kurzlink als normalen Satz — kein utm im Blick, kein Werbe-Knopf");
   ok(/app\.get\('\/g\/:kennung'/.test(lies("server/routes.ts")) && /res\.redirect\(302, radarKurzlinkZiel\(req\.params\.kennung\)\)/.test(lies("server/routes.ts")), "Server leitet /g/r<ID> weiter (302, noindex)");
   ok(sig8.impressumZeileText().includes(FIAON_FIRMA.strasse) && sig8.impressumZeileText().includes("England and Wales") && sig8.impressumZeileText().includes(FIAON_FIRMA.companyNo) && sig8.impressumZeileHtml().includes(">Impressum<"), "Impressum-Zeile mit Sitzanschrift und Register (England and Wales)");
@@ -551,7 +582,7 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   ok(!/Abmeldesatz/.test(sh8.RADAR_ANTWORT_ARTEN.kein_interesse.was), "„Kein Interesse“ erklärt sich ohne Abmeldesatz");
   // Die Mail sieht aus wie in Gmail geschrieben — mit der echten Unterschrift des Postfachs.
   const anna = { postfach: "anna@versand.example", name: "Anna Beispiel", signaturHtml: '<div dir="ltr"><b>Anna Beispiel</b><br>Partnerschaften<br><img src="https://bilder.example/anna.png" width="80"></div>', signaturText: "Anna Beispiel\nPartnerschaften", quelle: "gmail" as const };
-  const lk = { gespraech: "https://fiaon.com/business?utm_source=radar&utm_content=r7#gespraech", seite: "https://fiaon.com/business" };
+  const lk = { gespraech: "https://fiaon.com/?utm_source=radar&utm_content=r7#gespraech", seite: "https://fiaon.com/" };
   const h8 = lib.mailHtml({ anrede: "Hallo Frau <b>X</b>,", absaetze: ['<script>alert(1)</script> & "Zitat"'], frage: "Passt es?", links: lk, schluss: sh8.radarSchlusssatz(3), gruss: "Beste Grüße", mitLink: true }, anna);
   const vorSig = h8.slice(0, h8.indexOf('class="gmail_signature"'));
   ok(h8.includes(sh8.radarSchlusssatz(3)) && /https:\/\/fiaon\.com\/impressum/.test(h8) && /https:\/\/fiaon\.com\/datenschutz/.test(h8) && h8.includes(">Impressum<") && h8.includes(">Datenschutz<"), "Neue Mail-HTML: Schlusssatz, Impressum und Datenschutz verlinkt");
@@ -750,7 +781,7 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
       const domain = o.domain ?? `firma${n}.example`;
       const roh = o.mail ?? mailFirma;
       // E-458 (Befund „Echo“): der Schlusssatz zur Frage gewählt — wie im Betrieb.
-      const mail = { ...roh, schluss: sh8.radarSchlusssatzFuer(n, roh.frage), gruss: sh8.radarGruss(n), links: { gespraech: sh8.radarTerminLink(n), seite: "https://fiaon.com/business", kurz: sh8.radarKurzlink(n) } };
+      const mail = { ...roh, schluss: sh8.radarSchlusssatzFuer(n, roh.frage), gruss: sh8.radarGruss(n), links: { gespraech: sh8.radarTerminLink(n), seite: "https://fiaon.com/", kurz: sh8.radarKurzlink(n) } };
       const name = o.strom === "partner" ? "Max Beispiel" : "Anna Beispiel";
       const email = `${name.toLowerCase().replace(" ", ".")}@${domain}`;
       const [z] = (await sqlPool`
@@ -1112,7 +1143,7 @@ abschnitt("Partner-Strom: Steuerberater, Finanzierer, Kreditvermittler … (E-45
   const mitProzent = { ...pm, absaetze: [pm.absaetze[0], `${pm.absaetze[1]} Sie bekommen 30 Prozent unseres Honorars.`] };
   ok(lib.mailPruefen(mitProv, po("steuerberater")).sperrend.some((x) => /keine Provision/.test(x)) && lib.mailPruefen(mitProzent, po("steuerberater")).sperrend.some((x) => /keine Provision/.test(x)), "Steuerberater: „Provision“ oder „Prozent“ sperrt");
   ok(!lib.mailPruefen(mitProzent, po("kreditvermittler")).sperrend.length, `Kreditvermittler: „30 Prozent unseres Honorars“ sperrt nicht (${lib.mailPruefen(mitProzent, po("kreditvermittler")).sperrend.join("; ")})`);
-  const ph = lib.mailHtml({ anrede: "Guten Tag Max Beispiel,", absaetze: pm.absaetze, frage: pm.frage, links: { gespraech: "https://fiaon.com/business#gespraech", seite: "https://fiaon.com/business" }, mitLink: false });
+  const ph = lib.mailHtml({ anrede: "Guten Tag Max Beispiel,", absaetze: pm.absaetze, frage: pm.frage, links: { gespraech: "https://fiaon.com/#gespraech", seite: "https://fiaon.com/" }, mitLink: false });
   ok(!/#gespraech|Einen Termin wählen/.test(ph), "Partner-Mail ohne Terminlink");
   const termin = sh8.radarPlan({ art: "termin_wunsch", maraModus: "auto", postfachJs: false, frisch: true, roboter: false, buchungslink: null, wunschFrei: true, telefon: true, maraHeute: 0, strom: "partner" });
   ok(!termin.buchen && termin.schritte.some((x) => /Partner/.test(x)) && sh8.radarPlan({ art: "termin_wunsch", maraModus: "auto", postfachJs: false, frisch: true, roboter: false, buchungslink: null, wunschFrei: true, telefon: true, maraHeute: 0 }).buchen, "radarPlan: Partner buchen nie einen Termin (Firmen weiter)");

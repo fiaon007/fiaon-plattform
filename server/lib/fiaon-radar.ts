@@ -58,7 +58,7 @@ import {
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
   radarLandFuer, radarMailErlaubt, RADAR_KI_FLOSKELN, RADAR_SCHLUSSSAETZE, radarSchlusssatz, radarSchlusssatzFuer, radarSchlussEcho, radarGruss, alsRadarStrom,
   RADAR_MOTOR_SCHLUESSEL, radarMotorLesen, RADAR_PARTNER_SIGNALE, radarSignalFuer, radarPartnerGruppe, radarPartnerAngebot, radarUhrzeitMinuten,
-  radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink,
+  radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink, radarStartseiteLink,
   type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom, type RadarMotor, type RadarPartnerGruppe,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -221,7 +221,7 @@ export function ensureRadarTabellen(): Promise<void> {
         ALTER TABLE fiaon_radar_firmen
           ADD COLUMN IF NOT EXISTS archiviert_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS archiv_grund TEXT`;
-      // Jeder Aufruf von /business aus einem Brief-QR-Code (utm_source=radar_brief, utm_content=r<ID>) — ohne IP, ohne Gerät.
+      // Jeder Aufruf der Startseite aus einem Brief-QR-Code (utm_source=radar_brief, utm_content=r<ID>; bis E-461 /business) — ohne IP, ohne Gerät.
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_radar_besuche (
           id SERIAL PRIMARY KEY,
@@ -1157,7 +1157,8 @@ export function anredeFuer(ansprechpartner: string | null | undefined, form?: "H
 /** Die Links einer Radar-Mail: der lange Terminlink mit Zuordnung, der kurze persönliche Link (E-458) und die Bereichsseite. */
 function mailLinks(id: number, seite: string): { gespraech: string; seite: string; kurz: string } {
   const utm = `utm_source=radar&utm_medium=email&utm_campaign=${RADAR_KAMPAGNE}&utm_content=r${id}`;
-  return { gespraech: radarTerminLink(id, SEITE()), seite: `${SEITE()}${seite}?${utm}`, kurz: radarKurzlink(id, SEITE()) };
+  // E-458 nach E-461: Die Übersicht ist die Startseite „/“ — nie über die 301 von /business (radarStartseiteLink).
+  return { gespraech: radarTerminLink(id, SEITE()), seite: radarStartseiteLink(`${SEITE()}${seite}?${utm}`), kurz: radarKurzlink(id, SEITE()) };
 }
 
 // ── WER UNTERSCHREIBT (E-458 Punkt 3 und 6) ─────────────────────────────────
@@ -1167,7 +1168,10 @@ export interface RadarMailAbsender { postfach: string; name: string; signaturHtm
 /** Justins Signaturkarte — nur noch der Rückweg für js@, wenn Gmail die Signatur nicht herausgibt. */
 export function radarKarteAbsender(seite?: string | null): RadarMailAbsender {
   const a = radarAbsender();
-  const daten = { person: "justin" as const, name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon, seite: seite ?? null };
+  // E-458 nach E-461 (29.10.2026): Die Karte verlinkt die Startseite fiaon.com/ direkt — auch aus Mails, die noch mit
+  // /business gespeichert sind (keine 301-Kette, utm bleibt). Sichtbar steht „fiaon.com“ statt „fiaon.com/business“.
+  const ziel = seite ? radarStartseiteLink(seite) : `${SEITE()}/`;
+  const daten = { person: "justin" as const, name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon, seite: ziel, seiteText: "fiaon.com" };
   return { postfach: "js@fiaon.com", name: a.name, signaturHtml: signaturHtml(daten), signaturText: signaturText(daten), quelle: "karte" };
 }
 
@@ -1251,7 +1255,8 @@ interface MailTeile {
  */
 export const RADAR_LINK_SATZ = "Wenn Sie mögen, suchen Sie sich hier direkt eine Zeit aus:";
 function mailBauteile(m: MailTeile, absender: RadarMailAbsender) {
-  const url = m.links.kurz || m.links.gespraech;
+  // E-458 nach E-461: Eine Mail ohne Kurzlink (gespeichert vor E-458) zeigt direkt auf die Startseite, nie auf /business.
+  const url = m.links.kurz || radarStartseiteLink(m.links.gespraech);
   return {
     anrede: m.anrede, absaetze: m.absaetze, frage: m.frage,
     link: m.mitLink === false ? null : { text: RADAR_LINK_SATZ, url, anzeige: url.replace(/^https?:\/\//, "") },
@@ -1499,7 +1504,8 @@ export async function radarMailSchreiben(id: number, wunsch: { hinweis?: string 
   if (!aufhaenger.length) throw new RadarFehler("Der Scan hat keinen belegten Aufhänger gefunden — ohne ihn wäre die Mail nicht persönlich. Bitte eine andere Firma wählen oder erneut scannen.");
   const strom = alsRadarStrom(f.strom);
   const b = radarBereich(f.bereich);
-  const links = mailLinks(id, b?.seite ?? "/business");
+  // E-461: ohne eigene Bereichsseite (auch alle Partner) die Startseite „/“ — /business leitet nur noch weiter.
+  const links = mailLinks(id, b?.seite ?? "/");
   // E-458 (Befund Anrede): angesprochen wird der Mensch, dem die Adresse gehört — stehen zwei Geschäftsführer im Impressum,
   // nicht einfach der erste. „Herr“/„Frau“ nur, wenn der belegte Entscheider genau dieser Mensch ist.
   const vertreterNamen = (Array.isArray(f.impressum?.vertreter) ? f.impressum.vertreter : []).map((v: any) => String(v?.name || [v?.vorname, v?.nachname].filter(Boolean).join(" ")));

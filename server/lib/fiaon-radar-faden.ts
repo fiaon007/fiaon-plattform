@@ -50,7 +50,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde,
+  radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde, radarStartseiteLink,
   type RadarAntwortArt, type RadarAutomatik, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -60,18 +60,21 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { htmlAusText, maraSignatur, persoenlicheMailHtml, persoenlicheMailText, type SignaturDaten } from "./fiaon-signatur";
 import { radarMailPruefKi } from "./fiaon-radar-pruef";
 
-/** Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). */
+/**
+ * Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). E-458 nach E-461 (29.10.2026): Die Karte
+ * verlinkt die Global-Startseite direkt — fiaon.com/ bzw. fiaon.com/en —, nicht mehr /business (leitet nur noch per 301 weiter).
+ */
 function karte(person: "mara" | "justin", en = false): SignaturDaten {
   const a = radarAbsender();
   if (en) {
     // E-361: Antwort auf Englisch — die Karte spricht dieselbe Sprache (KI-Hinweis bleibt sichtbar).
     return person === "mara"
-      ? maraSignatur(a.name, { telefon: a.telefon, rolle: `Digital assistant to ${a.name}`, status: "Usually replies within minutes", seite: "https://fiaon.com/en/business", seiteText: "fiaon.com/en/business" })
-      : { person: "justin", name: a.name, rolle: "Founder", telefon: a.telefon, seite: "https://fiaon.com/en/business", seiteText: "fiaon.com/en/business" };
+      ? maraSignatur(a.name, { telefon: a.telefon, rolle: `Digital assistant to ${a.name}`, status: "Usually replies within minutes", seite: "https://fiaon.com/en", seiteText: "fiaon.com/en" })
+      : { person: "justin", name: a.name, rolle: "Founder", telefon: a.telefon, seite: "https://fiaon.com/en", seiteText: "fiaon.com/en" };
   }
   return person === "mara"
-    ? maraSignatur(a.name, { telefon: a.telefon })
-    : { person: "justin", name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon };
+    ? maraSignatur(a.name, { telefon: a.telefon, seite: "https://fiaon.com/", seiteText: "fiaon.com" })
+    : { person: "justin", name: a.name, rolle: a.rolle.replace(/\s*·\s*FIAON Global\s*$/i, ""), telefon: a.telefon, seite: "https://fiaon.com/", seiteText: "fiaon.com" };
 }
 
 /** Ab hier liest der erste Lauf eines Postfachs nach (die erste Radar-Mail ging am 19.09.2026 hinaus). */
@@ -638,7 +641,7 @@ export async function kalenderLaden(): Promise<Kalender> {
 }
 
 /**
- * Trägt die Wunschzeit einer Antwort in den Global-Kalender ein — derselbe Weg wie die Buchung auf /business (Termin,
+ * Trägt die Wunschzeit einer Antwort in den Global-Kalender ein — derselbe Weg wie die Buchung auf fiaon.com/ (Termin,
  * Firmenkontakt, Firmen-Lead, Bestätigung an die Firma, Auftrag an die zuständige Person). Automatisch (Schalter „auto“)
  * oder per Klick „Termin eintragen“ im Chefbüro.
  */
@@ -723,8 +726,9 @@ export async function maraTextSchreiben(ein: {
   const person = kalender.person?.name ?? null;
   const schonVorgestellt = verlauf.some((v) => v.richtung === "aus" && v.art === "mara");
   const zeiten = kalender.angebot.map((z) => (en ? z.textEn : z.text));
-  const linkDe = f.mail?.links?.gespraech ?? "https://fiaon.com/business#gespraech";
-  const link = en ? String(linkDe).replace("fiaon.com/business", "fiaon.com/en/business") : linkDe;
+  // E-458 nach E-461: der Terminlink direkt auf die Startseite — fiaon.com/?…#gespraech, englisch fiaon.com/en?…#gespraech.
+  // Auch ein vor E-461 gespeicherter Link (/business?…) geht so ohne 301 hin; utm und Anker bleiben (radarStartseiteLink).
+  const link = radarStartseiteLink(f.mail?.links?.gespraech ?? "https://fiaon.com/#gespraech", en);
   const kundensaetze = globalLeitfaden().flatMap((b) => b.s.filter((x) => x.kunde).map((x) => x.text)).join("\n");
   const spaeterText = eingang.spaeter_datum
     ? new Intl.DateTimeFormat(en ? "en-GB" : "de-DE", { month: "long", year: "numeric" }).format(new Date(`${eingang.spaeter_datum}T12:00:00Z`))
@@ -783,7 +787,7 @@ export async function maraTextSchreiben(ein: {
   const anrede = en ? (mitName ? `Dear ${anredeName},` : "Hello,") : (mitName ? `Guten Tag ${anredeName},` : "Guten Tag,");
   const ohneLink = partner || !!gebucht || !!eingang.buchungslink || (eingang.art === "spaeter" && !ein.wiedervorlage);
   const linkZeile = ohneLink ? [] : eingang.art === "info"
-    ? [en ? "Everything at a glance: https://fiaon.com/en/business" : "Alles auf einen Blick: https://fiaon.com/business", "", en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""]
+    ? [en ? "Everything at a glance: https://fiaon.com/en" : "Alles auf einen Blick: https://fiaon.com", "", en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""]
     : [en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""];
   const text = [anrede, "", ...absaetze.flatMap((x) => [x, ""]), ...linkZeile, maraGruss(en), "", "—", maraFuss()].join("\n");
   const wand = en ? globalWortPruefenEn(absaetze.join("\n")) : globalWortPruefen(absaetze.join("\n"));
@@ -897,7 +901,7 @@ const MUSTERFIRMA = {
   id: 0, name: "Musterfirma GmbH", domain: "musterfirma.de", website: "https://musterfirma.de", ort: "München", land: "DE", status: "versendet",
   kurz: "Mittelständischer Maschinenbauer mit US-Kunden, plant den Ausbau in Nordamerika.",
   email: "max.muster@musterfirma.de", impressum: { seite: "https://musterfirma.de/impressum", telefon: "+49 89 123456" },
-  mail: { betreff: "Musterfirma: der nächste Schritt in den USA", text: "Guten Tag Max Muster,\n\nich bin auf Ihre Pläne für Nordamerika gestoßen …", links: { gespraech: "https://fiaon.com/business?utm_source=radar&utm_content=r0#gespraech" } },
+  mail: { betreff: "Musterfirma: der nächste Schritt in den USA", text: "Guten Tag Max Muster,\n\nich bin auf Ihre Pläne für Nordamerika gestoßen …", links: { gespraech: "https://fiaon.com/?utm_source=radar&utm_content=r0#gespraech" } },
 };
 
 export interface MaraProbe {
@@ -1069,7 +1073,7 @@ export async function radarAbgleich(): Promise<{ termine: number; angebote: numb
        RETURNING kauf_am`) as any[];
     if (r.length) { angebote++; if (r[0].kauf_am) kaeufe++; }
   }
-  // E-339: Besuche aus dem QR-Code eines Briefs (fiaon_radar_besuche, geschrieben beim Aufruf von /business mit
+  // E-339: Besuche aus dem QR-Code eines Briefs (fiaon_radar_besuche, geschrieben beim Aufruf der Startseite „/“ mit
   // utm_source=radar_brief) an die Firma: wie oft und wann zuerst. Ein Besuch ist noch kein Lead — erst Termin, Anfrage
   // oder Antwort sind es. Aufbewahrung wie bei der Kampagnen-Zuordnung: höchstens 13 Monate.
   await sqlPool`DELETE FROM fiaon_radar_besuche WHERE am < NOW() - INTERVAL '13 months'`.catch(() => {});

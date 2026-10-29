@@ -27,7 +27,10 @@ export interface RadarBereich {
   satz: string;
   /** Wonach die KI im Netz sucht — Branchen, Signale, typische Firmen. */
   suche: string;
-  /** Die FIAON-Seite, auf die die Mail verweist (Zielgruppen-Seite oder die Übersicht). */
+  /**
+   * Die FIAON-Seite, auf die die Mail verweist (Zielgruppen-Seite /business/… oder die Übersicht). Die Übersicht ist seit
+   * E-461 (29.10.2026) die Startseite „/“ — /business leitet nur noch per 301 dorthin, ein Link soll ohne Umweg ankommen.
+   */
   seite: string;
 }
 
@@ -50,16 +53,16 @@ export const RADAR_BEREICHE: readonly RadarBereich[] = [
   { key: "gesundheit", label: "Gesundheit & Medizintechnik", seite: "/business/tochtergesellschaft-usa",
     satz: "Medizintechnik, Health-Tech und Gesundheitsanbieter mit US-Ambitionen.",
     suche: "Medizintechnik-, Health-Tech- und Laborunternehmen sowie Gesundheitsanbieter mit internationalem Vertrieb, US-Zulassungsplänen oder US-Partnern" },
-  { key: "energie", label: "Energie, Cleantech & Mobilität", seite: "/business",
+  { key: "energie", label: "Energie, Cleantech & Mobilität", seite: "/",
     satz: "Energie- und Cleantech-Firmen, die wachsen und investieren.",
     suche: "Unternehmen aus Solar, Energiespeicher, Cleantech und E-Mobilität mit Wachstum, Investitionsbedarf oder internationalen Projekten" },
-  { key: "logistik", label: "Logistik, Handel & Import/Export", seite: "/business",
+  { key: "logistik", label: "Logistik, Handel & Import/Export", seite: "/",
     satz: "Händler und Logistiker mit internationalem Warenverkehr.",
     suche: "Groß- und Außenhändler, Importeure, Exporteure und Logistikdienstleister mit Warenverkehr in die USA oder aus den USA" },
-  { key: "franchise", label: "Franchise, Gastronomie & Hotellerie", seite: "/business",
+  { key: "franchise", label: "Franchise, Gastronomie & Hotellerie", seite: "/",
     satz: "Konzepte, die expandieren — Franchise, Gastronomie, Hotels.",
     suche: "Franchise-Systeme, Gastronomie- und Hotelkonzepte mit Expansion, neuen Standorten oder internationalen Plänen" },
-  { key: "startups", label: "Start-ups mit Kapitalbedarf", seite: "/business",
+  { key: "startups", label: "Start-ups mit Kapitalbedarf", seite: "/",
     satz: "Junge Firmen, die wachsen wollen und Kapital suchen.",
     suche: "Start-ups und junge Wachstumsunternehmen mit laufender oder geplanter Finanzierung, Kapitalbedarf, internationalen Plänen oder US-Markteintritt" },
 ];
@@ -1445,9 +1448,13 @@ export function radarBriefKosten(anbieter: RadarBriefAnbieter, land: unknown): {
 
 /** Die Kennung, unter der Besuche aus dem QR-Code des Briefs zählen (utm_source). */
 export const RADAR_BRIEF_QUELLE = "radar_brief";
-/** Der Link im QR-Code: /business mit Kennung r<ID> und Sprung zum Gesprächstermin. Rein. */
+/**
+ * Der Link im QR-Code: die Startseite fiaon.com/ mit Kennung r<ID> und Sprung zum Gesprächstermin. E-458 nach E-461
+ * (29.10.2026): direkt auf „/“ — /business leitet nur noch per 301 dorthin. Gezählt wird der Besuch auf „/“ (server/routes.ts);
+ * alte Briefe mit /business… kommen über die 301 mit derselben Abfrage dort an und zählen genau einmal. Rein.
+ */
 export function radarBriefLink(id: number, basis = "https://fiaon.com"): string {
-  return `${String(basis).replace(/\/+$/, "")}/business?utm_source=${RADAR_BRIEF_QUELLE}&utm_content=r${Math.round(id)}#gespraech`;
+  return `${String(basis).replace(/\/+$/, "")}/?utm_source=${RADAR_BRIEF_QUELLE}&utm_content=r${Math.round(id)}#gespraech`;
 }
 /** Die Kennung der Firma auf dem Brief — für Widerspruch und Rückfragen. */
 export function radarBriefKennung(id: number): string {
@@ -1459,9 +1466,23 @@ export function radarKennungLesen(utmContent: unknown): number | null {
   return m ? Number(m[1]) : null;
 }
 
-/** Der Terminlink einer Radar-Mail mit Zuordnung (utm_content = r<ID>) — EINE Stelle für Mail und Kurzlink. Rein. */
+/**
+ * Der Terminlink einer Radar-Mail mit Zuordnung (utm_content = r<ID>) — EINE Stelle für Mail und Kurzlink. E-458 nach E-461
+ * (29.10.2026): Den Abschnitt „Gespräch vereinbaren“ (#gespraech) trägt jetzt die Startseite fiaon.com/ — der Link zeigt
+ * direkt dorthin, ohne die 301 von /business; Abfrage (utm_*) und Anker kommen so ohne Umweg an. Rein.
+ */
 export function radarTerminLink(id: number, basis = "https://fiaon.com"): string {
-  return `${String(basis).replace(/\/+$/, "")}/business?utm_source=radar&utm_medium=email&utm_campaign=${RADAR_KAMPAGNE}&utm_content=r${Math.round(id)}#gespraech`;
+  return `${String(basis).replace(/\/+$/, "")}/?utm_source=radar&utm_medium=email&utm_campaign=${RADAR_KAMPAGNE}&utm_content=r${Math.round(id)}#gespraech`;
+}
+/**
+ * E-458 nach E-461 (29.10.2026): stellt einen Link des Radars auf die neue Startseite — „/“ (deutsch) oder „/en“ (englisch).
+ * Gilt für die Übersicht in jeder alten Form (/business, /business/, /en/business, /en, „/“) und auch für Links, die schon
+ * gespeichert sind (Mails vor E-461, f.mail.links); Abfrage (utm_*) und Anker (#gespraech) bleiben unverändert. Unterseiten
+ * (/business/onlinehandel …), der Kurzlink (/g/r<ID>) und alles andere bleiben, wie sie sind. Nur für eigene Links. Rein.
+ */
+export function radarStartseiteLink(link: string, en = false): string {
+  return String(link ?? "").replace(/^((?:https?:\/\/[^/?#]+)?)(?:\/(?:en\/?|(?:en\/)?business\/?)?)?(?=[?#]|$)/i,
+    (_m: string, host: string) => `${host}${en ? "/en" : "/"}`);
 }
 /**
  * E-458 (Befund): Der Link in der ersten Mail ist kurz und persönlich — fiaon.com/g/r<ID> statt einer langen Adresse mit
@@ -1470,10 +1491,13 @@ export function radarTerminLink(id: number, basis = "https://fiaon.com"): string
 export function radarKurzlink(id: number, basis = "https://fiaon.com"): string {
   return `${String(basis).replace(/\/+$/, "")}/g/r${Math.round(id)}`;
 }
-/** Wohin der Kurzlink führt: mit gültiger Kennung zum Terminlink (die Zuordnung bleibt), sonst zur Übersicht. Rein. */
+/**
+ * Wohin der Kurzlink führt: mit gültiger Kennung zum Terminlink (die Zuordnung bleibt), sonst zur Übersicht — beides seit
+ * E-461 direkt auf der Startseite „/“ (eine Weiterleitung, keine Kette). Rein.
+ */
 export function radarKurzlinkZiel(kennung: unknown): string {
   const id = radarKennungLesen(kennung);
-  return id ? radarTerminLink(id, "") : "/business";
+  return id ? radarTerminLink(id, "") : "/";
 }
 
 const LAND_ZEILE: Record<RadarLand, string> = { DE: "DEUTSCHLAND", AT: "ÖSTERREICH", CH: "SCHWEIZ" };
@@ -1581,7 +1605,8 @@ export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkt
 export const RADAR_BRIEF_TEXTE = {
   qrTitel: "Ihr Gespräch mit mir",
   qrSatz: "Code scannen und eine Zeit für 30 Minuten wählen.",
-  qrOhneCode: "Ohne Code: fiaon.com/business",
+  // E-461: fiaon.com/ ist die Global-Startseite mit „Gespräch vereinbaren“ — die kurze Adresse genügt.
+  qrOhneCode: "Ohne Code: fiaon.com",
   antwort: (mail: string) => `Lieber direkt: ${mail}`,
   telefon: (telefon: string) => `oder Telefon ${telefon}`,
   widerspruchTitel: "Keine Post mehr von uns?",

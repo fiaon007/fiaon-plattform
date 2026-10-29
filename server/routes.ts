@@ -513,9 +513,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
   const fiaonRadarRoutes = await import('./routes/fiaon-radar');
   app.use('/api/fiaon', fiaonRadarRoutes.default);
-  // ✉️ E-339 (12.10.2026): Besuche aus dem QR-Code eines Radar-Briefs (/business?utm_source=radar_brief&utm_content=r<ID>).
+  // ✉️ E-339 (12.10.2026): Besuche aus dem QR-Code eines Radar-Briefs (?utm_source=radar_brief&utm_content=r<ID>).
   //    Gemerkt werden nur Firma und Zeit (fiaon_radar_besuche) — ohne IP, ohne Gerät; die Seite läuft unverändert weiter.
-  app.get('/business', (req, _res, next) => {
+  //    E-458 nach E-461 (29.10.2026): Der Code zeigt direkt auf die Startseite fiaon.com/ — gezählt wird dort. Ein alter Brief
+  //    (/business?…) kommt über die 301 von E-461 mit derselben Abfrage hier an und zählt genau einmal, nicht doppelt.
+  app.get('/', (req, _res, next) => {
     if (req.query.utm_source === 'radar_brief') {
       void import('./lib/fiaon-radar-brief')
         .then((m) => m.radarBriefBesuchMerken(req.query.utm_content, req.get('user-agent')))
@@ -525,6 +527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   // ✉️ E-458 (29.10.2026): der kurze, persönliche Terminlink der ersten Radar-Mail (fiaon.com/g/r<ID>) — statt einer langen
   //    Adresse mit „utm_campaign=firmen_radar“, an der jeder die Serienmail erkennt. Die Zuordnung (r<ID>) bleibt erhalten.
+  //    Seit E-461 geht die eine 302 direkt auf die Startseite „/?utm_…#gespraech“ — keine zweite Weiterleitung über /business.
   app.get('/g/:kennung', async (req, res) => {
     const { radarKurzlinkZiel } = await import('@shared/fiaon-radar');
     res.setHeader('Cache-Control', 'no-store');

@@ -69,6 +69,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { GLOBAL_KAPITAL_FREI, globalAgentVertrag } from "./fiaon-global";
+// E-465 (29.10.2026): Staaten-Wahl mit ehrlichen Zeiten — nur für Angebote mit staatenFassung (Bestand unverändert).
+import { angebotStaatFehler, angebotStaatTexte, staatName } from "./fiaon-global-bundesstaaten";
 import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort } from "./fiaon-global-angebot-firma";
@@ -159,6 +161,11 @@ export interface KapitalCParameter {
   erstattungTage: number;
   zielWochen: number;
   bundesstaat: string;
+  /**
+   * E-465: „E-465“ = angelegt mit der Staaten-Wahl (Delaware, Florida, Wyoming) und den ehrlichen Zeiten — dann ziehen
+   * Fahrplan, Eintragungssatz und Jahrespflicht den Staat. Leer = Bestand vor E-465: Text bleibt wortgleich (Prüfsumme).
+   */
+  staatenFassung: string;
   /** Längste Laufzeit der Bürgschaft in Monaten (wie Fassung B, Ziffer 5) */
   buergschaftMonate: number;
   /**
@@ -211,7 +218,9 @@ export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   garantieWochen: 8,
   erstattungTage: 14,
   zielWochen: 4,
+  // Rückfall NUR für Bestandsangebote (alle tragen ihren Staat selbst). Neue Angebote: neuesAngebotParameter → Delaware (E-465).
   bundesstaat: "Florida",
+  staatenFassung: "",
   buergschaftMonate: 36,
   buerginAktiv: false,
   buerginStandAm: "",
@@ -573,7 +582,7 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
         "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
         "die Assistenz der Gesellschaft im ersten Jahr: Post, Anrufe und Termine",
         "die Beantragung der US-Steuernummer der Gesellschaft (EIN) und — soweit die Voraussetzungen der US-Steuerbehörde vorliegen, was FIAON vorab prüft (ITIN-Check) — der persönlichen US-Steuernummer des Auftraggebers (ITIN)",
-        "der Pflichtenkalender, die erste Jahresmeldung der Gesellschaft beim Bundesstaat (Annual Report) einschließlich der Staatsgebühr und die erste jährliche US-Meldung der Gesellschaft durch einen US-CPA aus dem Partnernetz von FIAON",
+        `der Pflichtenkalender, ${angebotStaatTexte(par.bundesstaat, par.staatenFassung)?.jahrVertrag ?? "die erste Jahresmeldung der Gesellschaft beim Bundesstaat (Annual Report)"} einschließlich der Staatsgebühr und die erste jährliche US-Meldung der Gesellschaft durch einen US-CPA aus dem Partnernetz von FIAON`,
       ], "Die Gründung umfasst:"),
       p(`Fast-Track: FIAON bearbeitet den Auftrag mit Vorrang — die Anmeldung beim Bundesstaat und der Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung. FIAON reicht die Anmeldung binnen fünf Werktagen nach dem Eingang der Vergütung nach Ziffer 6 Absatz 1 ein.`),
       p("Über die Eintragung entscheidet der Bundesstaat, über EIN und ITIN die US-Steuerbehörde. Liegen die Voraussetzungen für eine ITIN nicht vor, zeigt FIAON dem Auftraggeber die Wege für Konto und Karten ohne ITIN; entsteht während der Begleitung ein Grund für eine ITIN, beantragt FIAON sie dann. Gegenüber Behörden handelt FIAON nach Ziffer 13."),
@@ -787,6 +796,8 @@ export interface KapitalCSeite {
  */
 export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
   const par = d.parameter; const k = d.kunde; const G = kapitalCGarantie(par);
+  // E-465: staatsabhängige Zeiten nur für Angebote mit staatenFassung — sonst null und der alte Text bleibt wortgleich.
+  const staatT = angebotStaatTexte(par.bundesstaat, par.staatenFassung);
   const betrag = kapitalCEur(par.betragCents);
   const usd = kapitalCUsd(kapitalCInUsd(par.betragCents, par.kursUsdJeEur));
   // Die ganze Gleichung bricht nie um („1 € =“ | „1,1188 US-$“, Nachprüfung Runde 2).
@@ -853,7 +864,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
     llc: {
       ...BEGLEIT_LLC_TEXTE,
       sub: "Die Gesellschaft gehört allein Ihnen. Tippen Sie den Wunschnamen — „LLC“ setzen wir dahinter.",
-      hinweis: `Vor der Anmeldung prüfen wir den Namen im Register von ${par.bundesstaat}; bis dahin ist er für Sie vorgemerkt. Englische Namen funktionieren in den USA am besten, Umlaute sind dort nicht möglich.`,
+      hinweis: `Vor der Anmeldung prüfen wir den Namen ${angebotStaatTexte(par.bundesstaat, par.staatenFassung)?.register ?? `im Register von ${par.bundesstaat}`}; bis dahin ist er für Sie vorgemerkt. Englische Namen funktionieren in den USA am besten, Umlaute sind dort nicht möglich.`,
       alternative1: "Ausweichname 1 (freiwillig)",
       alternative2: "Ausweichname 2 (freiwillig)",
       doppelt: "Diesen Namen haben Sie schon eingetragen — bitte einen anderen.",
@@ -887,7 +898,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
       titel: `${gross(zahlwort(par.zielWochen))} Wochen. Das ist unser Ziel.`,
       sub: "Mit dem Fast-Track laufen Gründung, Unterlagen und Bürgschaft parallel.",
       liste: [
-        { nr: 1, titel: "Ihre Gesellschaft entsteht", dauer: "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, EIN mit Vorrang, US-Adresse, Telefonnummer und Assistenz. Sie unterschreiben, was wir vorbereiten.` },
+        { nr: 1, titel: "Ihre Gesellschaft entsteht", dauer: staatT?.fahrplanDauer ?? "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, EIN mit Vorrang, US-Adresse, Telefonnummer und Assistenz. Sie unterschreiben, was wir vorbereiten.${staatT ? ` ${staatT.eintragungSatz}` : ""}` },
         { nr: 2, titel: "Alles für die Bank", dauer: "Wochen zwei und drei", text: "Geschäftskonto, Unterlagen und Bürgschaft — wir bereiten jeden Antrag vollständig vor und stimmen alles mit der finanzierenden Bank ab." },
         { nr: 3, titel: "Auszahlung", dauer: "Woche vier — unser Ziel", text: `Ihre Finanzierung über ${betrag} auf dem Konto Ihrer Gesellschaft, in US-Dollar zum Kurs des Auszahlungstags. Zahlungen, die von der Finanzierung abhängen, sagen Sie am besten erst danach zu.` },
         { nr: 4, titel: "Konto und Karten", dauer: "Danach", text: "Ihr privates US-Konto, Ihre Kreditkarten und die Firmenkarte — Schritt für Schritt, fertig vorbereitet." },
@@ -901,7 +912,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
       zeilen: [
         // „Mit Ihrem Auftrag“ statt „heute“ (fällig mit der Rechnung bei der Annahme, zahlbar binnen sieben Tagen — Runde 2).
         { wann: "Mit Ihrem Auftrag", betrag: kapitalCEur(kapitalCHeuteCents(par)), text: `Gründung, Konto und Karten${NB}${kapitalCEur(par.gruendungCents)} · Fast-Track${NB}${kapitalCEur(par.fastTrackCents)}` },
-        { wann: "Mit der Eintragung Ihrer Gesellschaft", betrag: kapitalCEur(par.erfolgCents), text: `Erfolgshonorar für die erfolgreiche Gründung, einschließlich Bürgschaft — nach unserem Plan in Woche eins oder zwei. Kommt die Auszahlung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie auch diesen Betrag zurück.` },
+        { wann: "Mit der Eintragung Ihrer Gesellschaft", betrag: kapitalCEur(par.erfolgCents), text: `Erfolgshonorar für die erfolgreiche Gründung, einschließlich Bürgschaft — nach unserem Plan ${staatT?.planWoche ?? "in Woche eins oder zwei"}. Kommt die Auszahlung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie auch diesen Betrag zurück.` },
         { wann: "Ab dem zweiten Jahr", betrag: `${kapitalCEur(par.jahresCents)} je Jahr`, text: "Jahresbetreuung: Adresse, Telefonnummer, Assistenz und alle US-Meldungen, solange Ihre Gesellschaft besteht — Sie zahlen jedes Jahr neu, nichts verlängert sich von selbst." },
       ],
       summe: `Im ersten Jahr insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}.`,
@@ -1163,7 +1174,8 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
     garantieWochen: zahl("garantieWochen", 1, 52),
     erstattungTage: zahl("erstattungTage", 1, 60),
     zielWochen: zahl("zielWochen", 1, 52),
-    bundesstaat: textAus(r.bundesstaat, 40) || basis.bundesstaat,
+    bundesstaat: staatName(textAus(r.bundesstaat, 40) || basis.bundesstaat),
+    staatenFassung: typeof r.staatenFassung === "string" ? textAus(r.staatenFassung, 20) : basis.staatenFassung,
     buergschaftMonate: zahl("buergschaftMonate", 1, 240),
     buerginAktiv: typeof r.buerginAktiv === "boolean" ? r.buerginAktiv : basis.buerginAktiv,
     buerginStandAm: ISO.test(String(r.buerginStandAm ?? "")) ? String(r.buerginStandAm) : basis.buerginStandAm,
@@ -1179,6 +1191,8 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
 export function kapitalCParameterFehler(par: KapitalCParameter): string | null {
   if (!par.gruendungCents) return "Preis der Gründung fehlt.";
   if (!par.bundesstaat) return "Bundesstaat fehlt.";
+  const sf = angebotStaatFehler(par.bundesstaat, par.staatenFassung);
+  if (sf) return sf;
   if (par.zielWochen > par.garantieWochen) return "Das Ziel liegt hinter der Garantiefrist.";
   if (par.laufzeitMinJahre > par.laufzeitMaxJahre) return "Laufzeit: kürzeste über längster.";
   if (par.laufzeitMaxJahre * 12 + par.ratenfreiMonate > 99 * 12) return "Laufzeit zu lang.";

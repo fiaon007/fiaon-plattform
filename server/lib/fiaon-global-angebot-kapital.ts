@@ -31,6 +31,7 @@ import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { complianceKundenfassung, complianceHtml } from "@shared/fiaon-global-angebot-firma";
 import type { ComplianceKundenfassung, FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
+import { neuesAngebotParameter, staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
 import {
   KAPITAL_FASSUNG, KAPITAL_FASSUNGEN, KAPITAL_GUELTIG_TAGE, KAPITAL_KNOPF, KAPITAL_ANNAHME, KAPITAL_TEIL_TITEL, istKapitalCFassung,
   kapitalParameterAus, kapitalParameterFehler, kapitalBuerginFehler, kapitalPflichtFehlen, kapitalSeite, kapitalBestellUebersicht,
@@ -158,7 +159,8 @@ export async function kapitalAnlegen(ein: any, wer: string): Promise<Ergebnis<{ 
   if (!(KAPITAL_FASSUNGEN as readonly string[]).includes(fassung)) return nein("Diese Fassung des Kapital-Angebots gibt es nicht.");
   const k = firmaKundePruefen(ein?.kunde);
   if (!k.ok) return nein(k.error);
-  const parameter = kapitalParameterAus(ein?.parameter);
+  // E-465: neue Angebote mit Staaten-Wahl (ohne Angabe Delaware) und den ehrlichen Zeiten; Bestand läuft nie hier durch.
+  const parameter = kapitalParameterAus(neuesAngebotParameter(ein?.parameter));
   const pf = kapitalParameterFehler(parameter);
   if (pf) return nein(pf);
   const buergin = kapitalBuerginAus(ein?.buergin);
@@ -189,7 +191,7 @@ export async function kapitalAendern(id: number, ein: any, wer: string): Promise
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = kapitalDatenAus(z); const altHash = kapitalTextHash(alt);
   const neu: KapitalDaten = { ...alt }; const geaendert: string[] = [];
-  if (ein?.parameter) { const par = kapitalParameterAus(ein.parameter, alt.parameter); const f = kapitalParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
+  if (ein?.parameter) { const par = { ...kapitalParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung }; /* E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich */ const f = kapitalParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
   if (ein?.kunde) { const k = firmaKundePruefen(ein.kunde); if (!k.ok) return nein(k.error); neu.kunde = k.kunde; geaendert.push("Kunde"); }
   if (ein?.buergin) { const b = kapitalBuerginAus(ein.buergin); const f = kapitalBuerginFehler(b); if (f) return nein(`Fehlt: ${f}`); neu.buergin = b; geaendert.push("Bürgin"); }
   if (ein?.compliance) { neu.compliance = complianceKundenfassung(ein.compliance); geaendert.push("Prüfbericht"); }
@@ -417,7 +419,7 @@ export async function kapitalNacharbeit(id: number): Promise<void> {
   const b = z2.auftrag_ref ? await globalBestellungLesen(String(z2.auftrag_ref)).catch(() => null) : null;
   const namen = w ? [w.llc.wunsch, w.llc.alternative1, w.llc.alternative2].filter(Boolean) : [];
   const zeilen = [
-    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung auf Sunbiz prüfen (${par.bundesstaat}).`,
+    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung ${staatRegisterIntern(par.bundesstaat)} prüfen.`,
     `RECHNUNG: ${kapitalEur(par.preisCents)} netto${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}. Keine automatische Kundenmail (Firmenangebot) — Rechnung/Zahlungsseite bitte persönlich schicken.`,
     "STEUERBERATER: Struktur CH–USA vor der Gründung prüfen lassen (Gesellschafterin Firma oder Inhaber persönlich).",
     `BÜRGSCHAFT: ${kapitalChf(par.buergschaftChf)}, ${par.buergschaftMonate} Monate, Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV, ${par.ddAbgeschlossen ? "Due Diligence abgeschlossen (kein Betreibungsauszug mehr, E-417)" : "Auflagen des Prüfberichts (Betreibungsauszug, Jahresrechnung)"}.`,
@@ -774,7 +776,7 @@ export function kapitalListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
     pruefbericht: d.compliance ? { ampel: d.compliance.gesamt.ampel } : null, buergin: d.buergin,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
-    kapital: { llc: w?.llc ?? null, zeile: `${kapitalEur(d.parameter.preisCents)} + ${kapitalEur(d.parameter.jahresCents)}/Jahr ab Jahr 2 · Plan ${kapitalChf(d.parameter.kapitalChf)} · Bürgschaft ${kapitalChf(d.parameter.buergschaftChf)}` },
+    kapital: { llc: w?.llc ?? null, zeile: `LLC in ${d.parameter.bundesstaat} · ${kapitalEur(d.parameter.preisCents)} + ${kapitalEur(d.parameter.jahresCents)}/Jahr ab Jahr 2 · Plan ${kapitalChf(d.parameter.kapitalChf)} · Bürgschaft ${kapitalChf(d.parameter.buergschaftChf)}` },
     auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
     // E-401: Teil 1 (Festpreis), Teil 2 (Bürgschaftsgebühr), Teil 3 (Vergütung bei Auszahlung) — mit Rechnung und Stand.
     teile: ts.teile, nacharbeitFehler: z.nacharbeit_fehler ?? null,

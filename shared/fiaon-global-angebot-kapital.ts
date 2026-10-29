@@ -31,13 +31,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { globalAgentVertrag } from "./fiaon-global";
+// E-465 (29.10.2026): Staaten-Wahl mit ehrlichen Zeiten — nur für Angebote mit staatenFassung (Bestand unverändert).
+import { angebotStaatFehler, angebotStaatTexte, staatName } from "./fiaon-global-bundesstaaten";
 import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort, monateWort } from "./fiaon-global-angebot-firma";
 import type { FirmaKunde, FirmaPhase, FirmaLeistung, FirmaFrage, FirmaAnnahmeTexte, FirmaUnterschriftEingabe, ComplianceKundenfassung, FirmaSonderfreigabe } from "./fiaon-global-angebot-firma-typen";
 import { portraitUrl, portraitMitKi } from "./fiaon-portraits";
 import { FIRMA_BILD_NAME, firmaBildPfad } from "./fiaon-global-angebot-firma";
-import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
+import { escHtml, begleitLlcTexte, type BegleitLlcTexte, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
 import { plusWerktage } from "./fiaon-wiedervorlage";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -103,6 +105,8 @@ export interface KapitalParameter {
   begleitMonate: number;
   /** Bundesstaat der Gründung */
   bundesstaat: string;
+  /** E-465: „E-465“ = mit Staaten-Wahl und ehrlichen Zeiten angelegt; leer = Bestand (Text wortgleich wie bei der Annahme). */
+  staatenFassung: string;
   /** Zahlungsziel der Rechnung über den Festpreis (Tage) */
   zahlungszielTage: number;
   /** Ansprechpartner (kuerzel aus ANGEBOT_ANSPRECHPARTNER) — der erste ist „Ihr Ansprechpartner“ */
@@ -142,7 +146,9 @@ export const KAPITAL_VORGABEN: KapitalParameter = {
   buergschaftChf: 50_000,
   buergschaftMonate: 36,
   begleitMonate: 12,
+  // Rückfall NUR für Bestandsangebote (alle tragen ihren Staat selbst). Neue Angebote: neuesAngebotParameter → Delaware (E-465).
   bundesstaat: "Florida",
+  staatenFassung: "",
   zahlungszielTage: 7,
   ansprechpartner: ["justin", "daniel"],
   buergschaftCents: 49_900,
@@ -430,7 +436,7 @@ export interface KapitalSeite {
   auftakt: { auge: string; gruss: string; zeile: string; weiter: string };
   hero: { auge: string; titel: string; lead: string; nutzen: string[]; betrag: string; umrechnung: string; kurs: string; siegel: string; staat: string;
     saeulen: { titel: string; wert: string }[]; garantie: string };
-  llc: typeof BEGLEIT_LLC_TEXTE;
+  llc: BegleitLlcTexte;
   ablauf: { titel: string; sub: string; liste: FirmaPhase[] };
   team: { titel: string; sub: string; karten: FirmaLeistung[] };
   buergschaft: { auge: string; titel: string; lead: string; betrag: string; freigabe: string; punkte: { titel: string; text: string }[]; bedingungenTitel: string; bedingungen: string[]; fein: string };
@@ -477,6 +483,8 @@ export function kapitalBildnachweis(par: Pick<KapitalParameter, "team">): string
 }
 export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
   const par = d.parameter; const k = d.kunde;
+  // E-465: staatsabhängige Zeiten nur für Angebote mit staatenFassung — sonst null und der alte Text bleibt wortgleich.
+  const staatT = angebotStaatTexte(par.bundesstaat, par.staatenFassung);
   const betrag = kapitalChf(par.kapitalChf);
   const karten = `${kapitalUsd(par.kartenVonUsd)} bis ${kapitalUsd(par.kartenBisUsd)}`;
   const garantie = par.garantieWochen > 0;
@@ -491,7 +499,7 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
       auge: k.firma.marke || k.firma.name,
       titel: "Ihre US-Gesellschaft. Ihr Kapital. Ein Team, das den Weg kennt.",
       lead: `Wir gründen Ihre LLC in ${par.bundesstaat}, stellen Ihnen Steuerberater, Anwalt und Unternehmensberater zur Seite und bereiten jeden Antrag vollständig vor. Und damit Ihre Finanzierung ${garantie ? "garantiert " : ""}über die Bühne geht, bürgen wir mit unserer US-Partnergesellschaft für Sie.`,
-      nutzen: ["Ihre US-Gesellschaft — in der ersten Woche", "Steuerberater, Anwalt und Unternehmensberater inklusive", "Auszahlung in Woche vier bis fünf — mit unserer Bürgschaft"],
+      nutzen: [staatT ? (staatT.name === "Florida" ? "Ihre US-Gesellschaft — in Florida derzeit in den ersten Wochen" : "Ihre US-Gesellschaft — in den ersten zwei Wochen") : "Ihre US-Gesellschaft — in der ersten Woche", "Steuerberater, Anwalt und Unternehmensberater inklusive", "Auszahlung in Woche vier bis fünf — mit unserer Bürgschaft"],
       betrag,
       umrechnung: `≈ ${kapitalUsd(par.kapitalUsd)}`,
       kurs: par.kursText,
@@ -504,12 +512,12 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
       ],
       garantie: garantie ? "Mit Geld-zurück-Garantie im Vertrag" : "",
     },
-    llc: BEGLEIT_LLC_TEXTE,
+    llc: begleitLlcTexte(staatT),
     ablauf: {
       titel: "Ihr Weg",
       sub: `In fünf Wochen zu ${betrag} für Ihr Unternehmen.`,
       liste: [
-        { nr: 1, titel: "Ihre LLC entsteht", dauer: "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen — Registered Agent, US-Adresse und Telefon inklusive.` },
+        { nr: 1, titel: "Ihre LLC entsteht", dauer: staatT?.fahrplanDauer ?? "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen — Registered Agent, US-Adresse und Telefon inklusive.${staatT ? ` ${staatT.eintragungSatz}` : ""}` },
         { nr: 2, titel: "Alle Dokumente", dauer: "Woche zwei", text: "Operating Agreement vom Anwalt, Steuernummer (EIN), Prüfung der Struktur durch den Steuerberater und Ihr Kapitalplan mit dem Unternehmensberater." },
         { nr: 3, titel: "Firmenkonto und Kreditkarten", dauer: "Woche drei", text: `Ihr US-Geschäftskonto — dazu Business-Kreditkarten von Herausgebern wie ${par.kartenHerausgeber}, mit Rahmen von ${karten} je Karte, zusätzlich zu Ihrer Finanzierung.` },
         { nr: 4, titel: "Finanzierung und Auszahlung", dauer: "Woche vier bis fünf", text: `Antrag mit unserer Bürgschaft über ${kapitalChf(par.buergschaftChf)} im Rücken — der Anwalt sieht den Vertrag, bevor Sie unterschreiben. Dann wird ausgezahlt.`, abzeichen: betrag },
@@ -582,7 +590,7 @@ export function kapitalSeite(d: KapitalDaten, token?: string): KapitalSeite {
         { frage: `Bekomme ich die ${betrag} sicher?`, antwort: [garantie
           ? `Ja. Wir sind uns so sicher, dass es als Garantie in Ihrem Vertrag steht: Kommt Ihre Finanzierung nicht binnen ${zahlwort(par.garantieWochen)} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.`
           : "Wir bereiten Ihren Antrag vollständig vor und stehen mit unserer Bürgschaft ein."] },
-        { frage: "Wann ist das Geld auf meinem Konto?", antwort: ["Unser Plan: Woche eins die LLC, Woche zwei alle Dokumente, Woche drei Konto und Kreditkarten, Woche vier bis fünf Finanzierung und Auszahlung."] },
+        { frage: "Wann ist das Geld auf meinem Konto?", antwort: [staatT ? `Unser Plan: ${staatT.fahrplanDauer} die LLC, danach alle Dokumente, Konto und Kreditkarten, dann Finanzierung und Auszahlung. ${staatT.eintragungSatz}` : "Unser Plan: Woche eins die LLC, Woche zwei alle Dokumente, Woche drei Konto und Kreditkarten, Woche vier bis fünf Finanzierung und Auszahlung."] },
         { frage: "Muss ich dafür in die USA reisen?", antwort: ["Nein. Bei Finanzierungen unter einer Million erledigt unser Team vor Ort alles für Sie — Sie steuern jeden Schritt bequem von zu Hause. Auf Ihre Reisen hat die LLC keinen Einfluss."] },
         { frage: "Was ist eine LLC — und wem gehört sie?", antwort: ["Eine Limited Liability Company ist das amerikanische Gegenstück zur GmbH: eine eigene Gesellschaft mit beschränkter Haftung, schnell gegründet, günstig im Unterhalt und international anerkannt.", "Sie gehört Ihnen persönlich: Wir gründen die LLC auf Ihren Namen, den Vertrag schließen wir mit Ihrem Unternehmen. FIAON erwirbt keine Anteile."] },
         { frage: "Welche Haftung übernehme ich persönlich?", antwort: ["Keine. Kreditnehmerin ist Ihre LLC, und sie haftet nur mit ihrem eigenen Vermögen. Solange über die LLC nur die Finanzierung läuft und kein operatives Geschäft, entstehen keine weiteren Pflichten. Wie es wäre, wenn wir als Bürge einmal zahlen müssten, regelt Ziffer 5."] },
@@ -721,7 +729,8 @@ export function kapitalParameterAus(roh: Partial<KapitalParameter> | null | unde
     buergschaftChf: zahl("buergschaftChf", 0, 50_000_000),
     buergschaftMonate: zahl("buergschaftMonate", 1, 120),
     begleitMonate: zahl("begleitMonate", 1, 60),
-    bundesstaat: text("bundesstaat", 40),
+    bundesstaat: staatName(text("bundesstaat", 40)),
+    staatenFassung: text("staatenFassung", 20),
     zahlungszielTage: zahl("zahlungszielTage", 0, 30),
     ansprechpartner: ap.length ? ap : basis.ansprechpartner,
     buergschaftCents: zahl("buergschaftCents", 0, 10_000_000),
@@ -747,6 +756,8 @@ export function kapitalParameterAus(roh: Partial<KapitalParameter> | null | unde
 export function kapitalParameterFehler(p: KapitalParameter): string | null {
   if (!p.preisCents) return "Preis fehlt.";
   if (!p.bundesstaat) return "Bundesstaat fehlt.";
+  const sf = angebotStaatFehler(p.bundesstaat, p.staatenFassung);
+  if (sf) return sf;
   if (p.buergschaftChf > p.kapitalChf) return "Bürgschaft über dem Kapitalplan.";
   return null;
 }

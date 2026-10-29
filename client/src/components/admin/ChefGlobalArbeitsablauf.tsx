@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { ListChecks, Copy, Check, ExternalLink, AlertTriangle, Info, ChevronDown, FileText, ArrowRight } from "lucide-react";
 import { datum } from "./chef-teile";
 import {
-  ABLAUF_BLOECKE, ABLAUF_VORAB, ABLAUF_WER_TEXT, ablaufEinsetzen, ablaufStand, ablaufWerte,
+  ABLAUF_VORAB, ABLAUF_WER_TEXT, ablaufBloecke, ablaufEinsetzen, ablaufStaat, ablaufStand, ablaufWerte,
   type AblaufLink, type AblaufReiter, type AblaufSchritt, type AblaufSchrittStand, type AblaufFeld, type AblaufHaken,
 } from "@shared/fiaon-global-arbeitsablauf";
 import "@/styles/chef-global-arbeitsablauf.css";
@@ -55,6 +55,8 @@ export default function ChefGlobalArbeitsablauf({ m, tun, setReiter, stationOeff
     telefon: m.kontaktVorschlag?.telefon || m.kontakt?.telefon, wohnadresse: m.kontaktVorschlag?.adresse,
     usTelefon: m.gesellschaftPlus?.usTelefon,
   }), [m]);
+  // E-465 (29.10.2026): der Ablauf je Bundesstaat der Gesellschaft (Register, Gebühr, Summe, Express, Jahrespflicht).
+  const bloecke = useMemo(() => ablaufBloecke(werte.bundesstaat), [werte.bundesstaat]);
   const haken = (m.arbeitsablaufHaken ?? {}) as Record<string, AblaufHaken>;
   const stand = useMemo(() => ablaufStand({
     status: String(m.status), bezahltAm: m.bezahltAm ?? null, schritte: (m.schritte ?? []) as any[],
@@ -63,7 +65,7 @@ export default function ChefGlobalArbeitsablauf({ m, tun, setReiter, stationOeff
     haken,
   }), [m]); // eslint-disable-line react-hooks/exhaustive-deps
   const standVon = new Map(stand.schritte.map((s) => [s.key, s]));
-  const naechster = stand.naechster ? ABLAUF_BLOECKE.flatMap((b) => b.schritte).find((s) => s.key === stand.naechster) ?? null : null;
+  const naechster = stand.naechster ? bloecke.flatMap((b) => b.schritte).find((s) => s.key === stand.naechster) ?? null : null;
   const prozent = Math.round((stand.erledigt / stand.gesamt) * 100);
   const vorabDa = ABLAUF_VORAB.filter((v) => stand.vorab[v.key]?.da).length;
 
@@ -83,8 +85,8 @@ export default function ChefGlobalArbeitsablauf({ m, tun, setReiter, stationOeff
     <div className="cgr-gitter cgr-ab">
       <section className="cgr-block breit cgr-ab-kopf">
         <div className="cgr-block-kopf">
-          <h3><ListChecks size={13} style={{ display: "inline", verticalAlign: "-2px" }} /> Arbeitsablauf je Kunde <small>US-LLC bis ITIN · 8 Blöcke, 20 Schritte</small></h3>
-          <button type="button" className="cw-knopf" onClick={() => anleitungOeffnen()} title="Die Anleitung ohne Kundendaten (mit Leerstellen) in einem neuen Tab — zum Drucken oder Weitergeben.">
+          <h3><ListChecks size={13} style={{ display: "inline", verticalAlign: "-2px" }} /> Arbeitsablauf je Kunde <small>US-LLC bis ITIN · 8 Blöcke, 20 Schritte · Bundesstaat {m.gesellschaft?.bundesstaatName ? werte.bundesstaat : "noch offen — Anleitung zeigt Florida, bis der Staat in „Gesellschaft“ steht"}</small></h3>
+          <button type="button" className="cw-knopf" onClick={() => anleitungOeffnen(werte.bundesstaat)} title="Die Anleitung ohne Kundendaten (mit Leerstellen) in einem neuen Tab — zum Drucken oder Weitergeben.">
             <FileText size={14} /> Als Anleitung öffnen
           </button>
         </div>
@@ -142,7 +144,7 @@ export default function ChefGlobalArbeitsablauf({ m, tun, setReiter, stationOeff
         </ul>
       </section>
 
-      {ABLAUF_BLOECKE.map((b) => {
+      {bloecke.map((b) => {
         const fertig = b.schritte.filter((s) => standVon.get(s.key)?.zustand === "erledigt").length;
         return (
           <section key={b.nr} className="cgr-block breit cgr-ab-block">
@@ -239,13 +241,14 @@ function LinkKnopf({ l, werte, setReiter }: { l: AblaufLink; werte: Record<strin
 
 // ── „Als Anleitung öffnen“ — dieselbe Quelle, ohne Kundendaten (Leerstellen), als eigene Seite zum Drucken ─────
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-function anleitungOeffnen() {
+function anleitungOeffnen(staat: string) {
+  const S = ablaufStaat(staat);
   const leer = (v: string) => esc(ablaufEinsetzen(v, null).text);
   const link = (l: AblaufLink) => "url" in l ? `<li>${esc(l.titel)}: ${esc(ablaufEinsetzen(l.url, null, { url: true }).text)}</li>`
     : "pfad" in l ? `<li>${esc(l.titel)}: Chefbüro ${esc(l.pfad)}</li>` : `<li>${esc(l.titel)}: Reiter im Mandat</li>`;
   const teile: string[] = [];
   teile.push(`<h2>0 · Vorher vom Kunden holen</h2><ol>${ABLAUF_VORAB.map((v) => `<li><b>${esc(v.titel)}</b> — ${esc(v.text)}</li>`).join("")}</ol>`);
-  for (const b of ABLAUF_BLOECKE) {
+  for (const b of ablaufBloecke(S.name)) {
     teile.push(`<h2>${b.nr} · ${esc(b.titel)} <small>${esc(b.wann)}</small></h2>${b.text ? `<p>${esc(b.text)}</p>` : ""}`);
     for (const s of b.schritte) {
       teile.push(`<section><h3>☐ ${s.nr}. ${esc(s.titel)} <small>${esc(ABLAUF_WER_TEXT[s.wer])}</small></h3><p>${esc(s.text)}</p>`
@@ -255,12 +258,12 @@ function anleitungOeffnen() {
         + `</section>`);
     }
   }
-  const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arbeitsablauf je Global-Kunde</title>
+  const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arbeitsablauf je Global-Kunde — ${S.name}</title>
 <style>body{font:14px/1.5 -apple-system,Inter,Helvetica,Arial,sans-serif;color:#0f172a;max-width:860px;margin:32px auto;padding:0 16px}h1{font-weight:500;font-size:24px}
 h2{margin:28px 0 6px;font-size:17px;font-weight:600;border-bottom:1px solid #cbd5e1;padding-bottom:4px}h2 small,h3 small{font-weight:400;color:#64748b;font-size:12px;margin-left:6px}
 h3{margin:14px 0 2px;font-size:14px}section{break-inside:avoid}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{text-align:left;vertical-align:top;padding:4px 8px;border-bottom:1px solid #e2e8f0;font-size:13px}
 th{width:34%;font-weight:500;color:#334155}td small{color:#64748b}.h{background:#fef3c7;padding:6px 10px;border-radius:6px;font-size:13px}.l{font-size:12px;color:#475569;word-break:break-all}
-@media print{body{margin:0}}</style></head><body><h1>Arbeitsablauf je Global-Kunde</h1>
+@media print{body{margin:0}}</style></head><body><h1>Arbeitsablauf je Global-Kunde — ${S.name}</h1>
 <p>US-LLC über den Registered Agent bis zur ITIN. Leerstellen ‹…› füllst du je Kunde aus. Kundentexte immer gesiezt.</p>${teile.join("\n")}</body></html>`;
   const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
   window.open(url, "_blank", "noopener");

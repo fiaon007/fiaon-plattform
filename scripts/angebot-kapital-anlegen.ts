@@ -65,7 +65,11 @@ if (roh?.kunde?.art === "privat" || /^IA-KAPITAL-.*-C$/.test(String(roh?.fassung
 }
 const k = F.firmaKundePruefen(roh.kunde);
 if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}`); process.exit(1); }
-const parameter = S.kapitalParameterAus(roh.parameter);
+// E-465 (29.10.2026): neue Angebote mit Staaten-Wahl — „bundesstaat“ in der Datei: Delaware, Florida oder Wyoming (ohne Angabe Delaware).
+// Ein schon offenes Angebot behält beim Nachtragen seine Staaten-Fassung (Server) und ohne Angabe seinen Staat.
+const SB = await import("../shared/fiaon-global-bundesstaaten");
+const parameter = S.kapitalParameterAus(SB.neuesAngebotParameter(roh.parameter));
+console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
 const pf = S.kapitalParameterFehler(parameter);
 if (pf) { console.error(`FEHLER Parameter: ${pf}`); process.exit(1); }
 const buergin = C.kapitalBuerginAus(roh.buergin);
@@ -93,7 +97,7 @@ const [offen] = (await sqlPool`
   SELECT id, angebot_ref FROM fiaon_global_angebote
    WHERE status = 'offen' AND fassung LIKE 'IA-KAPITAL-%' AND lower(kunde->>'email') = ${k.kunde.email.toLowerCase()} ORDER BY id DESC LIMIT 1`) as any[];
 if (offen) {
-  const erg = await C.kapitalAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter, ...(complianceRoh ? { compliance: complianceRoh } : {}), ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
+  const erg = await C.kapitalAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter: { ...parameter, bundesstaat: roh.parameter?.bundesstaat ?? undefined } as typeof parameter, ...(complianceRoh ? { compliance: complianceRoh } : {}), ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
   if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
   const z = (await A.angebotLesen({ id: Number(offen.id) }))!;
   const dz = C.kapitalDatenAus(z);
@@ -116,7 +120,9 @@ async function fassungC(roh: any): Promise<boolean> {
   const SC = await import("../shared/fiaon-global-angebot-kapital-c");
   const k = SC.kapitalCKundePruefen(roh.kunde);
   if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}`); await sqlPool.end(); process.exit(1); }
-  const parameter = SC.kapitalCParameterAus(roh.parameter);
+  const SB = await import("../shared/fiaon-global-bundesstaaten");
+  const parameter = SC.kapitalCParameterAus(SB.neuesAngebotParameter(roh.parameter));
+  console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
   const pf = SC.kapitalCParameterFehler(parameter);
   if (pf) { console.error(`FEHLER Parameter: ${pf}`); await sqlPool.end(); process.exit(1); }
   const buergin = C.kapitalBuerginAus(roh.buergin);
@@ -159,7 +165,7 @@ async function fassungC(roh: any): Promise<boolean> {
      WHERE status = 'offen' AND fassung LIKE 'IA-KAPITAL-%-C' AND lower(kunde->>'email') = ${k.kunde.email.toLowerCase()} ORDER BY id DESC LIMIT 1`) as any[];
   let id: number;
   if (offen) {
-    const erg = await KC.kapitalCAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
+    const erg = await KC.kapitalCAendern(Number(offen.id), { kunde: k.kunde, buergin, parameter: { ...parameter, bundesstaat: roh.parameter?.bundesstaat ?? undefined } as typeof parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-kapital-anlegen");
     if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
     id = Number(offen.id);
     const z = (await A.angebotLesen({ id }))!;

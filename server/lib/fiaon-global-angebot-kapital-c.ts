@@ -50,6 +50,7 @@ import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import type { FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { KAPITAL_KNOPF, KAPITAL_C_FASSUNGEN, istKapitalCFassung, kapitalEur, kapitalTag, type KapitalUnterschriftVermerk } from "@shared/fiaon-global-angebot-kapital";
+import { neuesAngebotParameter, staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
 import {
   KAPITAL_C_FASSUNG, KAPITAL_C_GUELTIG_TAGE, KAPITAL_C_TEIL1_TITEL, KAPITAL_C_TEIL2, KAPITAL_C_AUSZAHLUNG, KAPITAL_C_ANNAHME, KAPITAL_C_MARKE, KAPITAL_C_BESTAETIGUNG, kapitalCAuszahlungPruefen,
   kapitalCParameterAus, kapitalCParameterFehler, kapitalCKundePruefen, kapitalCBuerginFehler, kapitalCPflichtFehlen,
@@ -170,7 +171,8 @@ export async function kapitalCAnlegen(ein: any, wer: string): Promise<Ergebnis<{
   await ensureAngebotTabellen();
   const k = kapitalCKundePruefen(ein?.kunde);
   if (!k.ok) return nein(`Auftraggeber: ${k.error}`);
-  const parameter = kapitalCParameterAus(ein?.parameter);
+  // E-465: neue Angebote mit Staaten-Wahl (ohne Angabe Delaware) und den ehrlichen Zeiten; Bestand läuft nie hier durch.
+  const parameter = kapitalCParameterAus(neuesAngebotParameter(ein?.parameter));
   const pf = kapitalCParameterFehler(parameter);
   if (pf) return nein(pf);
   const buergin = kapitalBuerginAus(ein?.buergin);
@@ -201,7 +203,7 @@ export async function kapitalCAendern(id: number, ein: any, wer: string): Promis
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = kapitalCDatenAus(z); const altHash = kapitalCTextHash(alt);
   const neu: KapitalCDaten = { ...alt }; const geaendert: string[] = [];
-  if (ein?.parameter) { const par = kapitalCParameterAus(ein.parameter, alt.parameter); const f = kapitalCParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
+  if (ein?.parameter) { const par = { ...kapitalCParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung }; /* E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich */ const f = kapitalCParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
   if (ein?.kunde) { const k = kapitalCKundePruefen(ein.kunde); if (!k.ok) return nein(`Auftraggeber: ${k.error}`); neu.kunde = k.kunde; geaendert.push("Kunde"); }
   if (ein?.buergin) { const b = kapitalBuerginAus(ein.buergin); const f = kapitalCBuerginFehler(b); if (f) return nein(`Fehlt: ${f}`); neu.buergin = b; geaendert.push("Bürgin"); }
   if (ein?.gueltigBis !== undefined) { const g = String(ein.gueltigBis); if (!ISO.test(g) || g < berlinToday()) return nein("„Gültig bis“: ein Datum ab heute."); neu.gueltigBis = g; geaendert.push("Gültigkeit"); }
@@ -472,7 +474,7 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
   const b = z2.auftrag_ref ? await globalBestellungLesen(String(z2.auftrag_ref)).catch(() => null) : null;
   const namen = w ? [w.llc.wunsch, w.llc.alternative1, w.llc.alternative2].filter(Boolean) : [];
   const zeilen = [
-    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung im Register prüfen (${par.bundesstaat}).`,
+    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung ${staatRegisterIntern(par.bundesstaat)} prüfen.`,
     `LAUFZEIT: ${w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCLaufzeitSatz(par, w.laufzeitJahre) : "—"}.`,
     `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
     best.ok
@@ -946,7 +948,7 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
     pruefberichtUrl: null, anlage1Url: null, pruefbericht: null, buergin: d.buergin,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
-    kapital: { llc: w?.llc ?? null, zeile: `${kapitalEur(kapitalCHeuteCents(par))} heute + ${kapitalEur(par.erfolgCents)} bei Eintragung + ${kapitalEur(par.jahresCents)}/Jahr ab Jahr 2 (Endpreise) · Finanzierung ${kapitalEur(par.betragCents)} in USD${laufzeit} · Privatperson (Fassung C)` },
+    kapital: { llc: w?.llc ?? null, zeile: `LLC in ${par.bundesstaat} · ${kapitalEur(kapitalCHeuteCents(par))} heute + ${kapitalEur(par.erfolgCents)} bei Eintragung + ${kapitalEur(par.jahresCents)}/Jahr ab Jahr 2 (Endpreise) · Finanzierung ${kapitalEur(par.betragCents)} in USD${laufzeit} · Privatperson (Fassung C)` },
     auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
     teile: [...teile].sort((a, b) => Number(a.nr) - Number(b.nr)).map((t) => ({
       nr: Number(t.nr), titel: String(t.titel), betragCents: Number(t.betrag_cents), bestellRef: t.bestell_ref ?? null,

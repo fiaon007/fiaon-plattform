@@ -1,9 +1,10 @@
 // E-462 (29.10.2026): Prüfstand für den Arbeitsablauf je Global-Kunde (shared/fiaon-global-arbeitsablauf.ts) — rein, ohne DB.
 // Aufruf: env -i HOME PATH TZ=Europe/Berlin node_modules/.bin/tsx scripts/pruef-global-arbeitsablauf.ts
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import {
   ABLAUF_BLOECKE, ABLAUF_SCHRITTE, ABLAUF_VORAB, ABLAUF_HAKEN_KEYS, ablaufHakenErlaubt, ablaufMailName, ablaufNameOhneEndung,
-  ablaufPlusWerktage, ablaufWerte, ablaufEinsetzen, ablaufStand,
+  ablaufPlusWerktage, ablaufWerte, ablaufEinsetzen, ablaufStand, ablaufBloecke, ablaufStaat,
 } from "../shared/fiaon-global-arbeitsablauf";
 
 let gut = 0, schlecht = 0;
@@ -35,7 +36,10 @@ pruef("Formation: Attorney aus", s8.felder!.some((f) => /Attorney/.test(f.feld) 
 
 // Öffentliches Repo: keine Kundendaten in der Quelle
 const quelle = readFileSync(new URL("../shared/fiaon-global-arbeitsablauf.ts", import.meta.url), "utf8");
-pruef("keine Kundennamen/Rechnungsnummern", !/CHEHADE|389FE6Z2|Kaitlin/i.test(quelle));
+// E-465: Die gesuchten Wörter stehen nur noch als Prüfwert (SHA-256, kleingeschrieben, 16 Zeichen) hier — nicht im Klartext (Repo öffentlich).
+const VERBOTEN = new Set(["84ce06bc911d4583", "372001b2a462226c", "ad880bce90f4ebbf"]);
+const wortHash = (w: string) => createHash("sha256").update(w.toLowerCase()).digest("hex").slice(0, 16);
+pruef("keine Kundennamen/Rechnungsnummern", !(quelle.match(/[A-Za-z0-9]+/g) ?? []).some((w) => VERBOTEN.has(wortHash(w))));
 
 // Haken-Liste
 pruef("Haken: Vorab erlaubt", ablaufHakenErlaubt("v_einverstanden"));
@@ -91,6 +95,29 @@ const st2 = ablaufStand({ status: "gestartet", schritte: [], haken: { v_taetigke
 pruef("EIN wartet ohne US-Nummer", st2.schritte.find((s) => s.key === "s07_ein_formular")!.zustand === "wartet");
 const st3 = ablaufStand({ status: "gestartet", schritte: [], plus: { usTelefon: "+1 555 0100" }, haken: { v_taetigkeit: h(), v_einverstanden: h() } });
 pruef("EIN frei mit Vorab + US-Nummer", st3.schritte.find((s) => s.key === "s07_ein_formular")!.zustand === "offen");
+
+// E-465 (29.10.2026): der Ablauf je Bundesstaat — gleiche Schlüssel, eigene Register, Gebühren, Summen und Jahrespflicht.
+const schluessel = (b: typeof ABLAUF_BLOECKE) => b.flatMap((x) => x.schritte.map((s) => `${s.nr}:${s.key}:${s.quelle.art}`)).join("|");
+const fl = ablaufBloecke("Florida"), de = ablaufBloecke("Delaware"), wy = ablaufBloecke("WY");
+pruef("E-465: Florida-Fassung = ABLAUF_BLOECKE", JSON.stringify(fl) === JSON.stringify(ABLAUF_BLOECKE));
+pruef("E-465: leer/unbekannt → Florida", JSON.stringify(ablaufBloecke("")) === JSON.stringify(fl) && ablaufStaat("Texas").name === "Florida");
+pruef("E-465: Schlüssel je Staat gleich (DE)", schluessel(de) === schluessel(fl));
+pruef("E-465: Schlüssel je Staat gleich (WY)", schluessel(wy) === schluessel(fl));
+const deText = JSON.stringify(de), wyText = JSON.stringify(wy), flText = JSON.stringify(fl);
+// Schlüssel („s13_sunbiz_pruefen“) bleiben für die Haken in der Datenbank — sichtbar ist nur der Text.
+const ohneKey = (s: string) => s.replace(/"key":"[^"]*"/g, "");
+pruef("E-465: Delaware ohne Sunbiz (Platzhalter {sunbizName} = nur der Name)", !/sunbiz(?!Name\})/i.test(ohneKey(deText)), ohneKey(deText).match(/.{40}sunbiz(?!Name\}).{40}/i)?.[0]);
+pruef("E-465: Wyoming ohne Sunbiz (Platzhalter {sunbizName} = nur der Name)", !/sunbiz(?!Name\})/i.test(ohneKey(wyText)), ohneKey(wyText).match(/.{40}sunbiz(?!Name\}).{40}/i)?.[0]);
+for (const w of ["110 $", "289 $ (ohne Express)", "icis.corp.delaware.gov", "corp.delaware.gov/paytaxes", "bis 01.06. (400 $)", "Express", "ein bis zwei Werktagen", "{raAnschrift}"]) pruef(`E-465: Delaware „${w}“`, deText.includes(w));
+for (const w of ["100 $", "279 $", "wyobiz.wyo.gov/Business/FilingSearch.aspx", "wyobiz.wyo.gov/Business/AnnualReport.aspx", "Gründungsmonats", "rund drei Werktage", "{raAnschrift}"]) pruef(`E-465: Wyoming „${w}“`, wyText.includes(w));
+pruef("E-465: Florida ehrlich (rund zwei Wochen, kein Express)", flText.includes("rund zwei Wochen") && flText.includes("einen Express gibt es nicht"));
+pruef("E-465: Florida ohne Express-Hinweis", !fl.flatMap((b) => b.schritte).some((s) => (s.hinweise ?? []).some((h) => /Expedite/.test(h.text))));
+pruef("E-465: EIN-Zeiten ehrlich (Telefon + Fax)", flText.includes("rund zwei Wochen") && /Telefon noch im Gespräch/.test(flText));
+pruef("E-465: Delaware-Werte ohne Florida-Anschrift", !deText.includes("St. Petersburg, FL"));
+const wDe = ablaufWerte({ gesellschaftName: "Muster LLC", bundesstaatName: "Delaware", jetzt });
+pruef("E-465: Werte DE ohne RA-Anschrift (Leerstelle)", wDe.raAnschrift === "" && ablaufEinsetzen("{raAnschrift}", wDe).fehlt);
+pruef("E-465: Werte FL mit RA-Anschrift", ablaufWerte({ bundesstaatName: "Florida", jetzt }).raAnschrift.includes("St. Petersburg"));
+pruef("E-465: Werte ohne Staat = Florida (Bestand)", ablaufWerte({ jetzt }).raAnschrift.includes("St. Petersburg"));
 
 console.log(`pruef-global-arbeitsablauf: ${gut} grün, ${schlecht} rot`);
 process.exit(schlecht ? 1 : 0);

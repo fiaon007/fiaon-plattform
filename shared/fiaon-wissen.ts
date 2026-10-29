@@ -38,6 +38,8 @@ import {
   globalKatalog, globalPreisText, globalPlanungText, GLOBAL_JAHRESBETREUUNG, GLOBAL_KAPITAL_FREI,
 } from "./fiaon-global";
 import { AGENDA } from "./fiaon-onboarding-agenda";
+// E-465 (29.10.2026): die Staaten-Wahl mit ehrlichen Zeiten — eine Quelle für Website, Angebote und Mara.
+import { BUNDESSTAATEN, EIN_ZEITEN, STAAT_BANKEN, STAAT_WAHL_SATZ, STAATEN_STAND_TEXT, STAATEN_ZUR_WAHL } from "./fiaon-global-bundesstaaten";
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { UNTERLAGEN_GRENZEN, WEITERE_UNTERARTEN } from "./fiaon-unterlagen";
 
@@ -103,6 +105,7 @@ Jahresbetreuung ab dem zweiten Jahr (seit 19.09.2026, freiwillig, im Auftrag ank
 Der Kapitalrahmen in US-Dollar (bis 18.09.2026 „Planungsgröße“) ist der Rahmen, den der KUNDE anstrebt — an ihm richten sich Dauer und Tiefe der Betreuung aus. Er ist kein Ergebnis und keine Zusage von FIAON, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht; über jeden Rahmen entscheidet das Institut. Dauern sind Erfahrungswerte („in der Regel"), nie Fristen.
 Das Kapital ist nicht an die USA gebunden (Justin, 19.09.2026): ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Fragt jemand „${GLOBAL_KAPITAL_FREI.de.frage}“, lautet die Antwort: ${GLOBAL_KAPITAL_FREI.de.antwort} Nenne diesen Vorteil nie ohne beide Bedingungen — das Institut entscheidet über Rahmen und Bedingungen, der Partner-Steuerberater klärt die steuerliche Behandlung vorab — und nenne das Kapital nie steuerfrei.
 Wer entscheidet: Über Konto, Karte und Rahmen entscheidet allein das jeweilige US-Institut. ${GLOBAL_ROLLEN.de.fiaon} FIAON vermittelt keine Kredite. Nenne keine Banknamen als Zusage, keine Zinssätze, kein „bis zu" und keine Frist mit Zahl.
+Bundesstaaten (E-465, Zeiten Stand ${STAATEN_STAND_TEXT.de}): ${STAAT_WAHL_SATZ.de} Im Einzelnen: ${STAATEN_ZUR_WAHL.map((b) => `${b.name} — Eintragung ${b.eintragungKurz.de}; Express ${b.express.kurz.de}; jährlich an den Staat ${b.jahr.betrag.de}; passt für: ${b.passtFuer.de}`).join(" · ")} Nevada: ${BUNDESSTAATEN.nevada.einordnung.de} ${EIN_ZEITEN.de.satz} ${STAAT_BANKEN.de} Zeiten nennst du nur als Erfahrungswert („in der Regel“, „derzeit oft rund“), nie als Zusage — über die Eintragung entscheidet der Staat, über die EIN die US-Steuerbehörde. Den Namen unseres Gründungspartners nennst du nie. Der Vergleich für Kunden: fiaon.com/business/wissen/bundesstaat-waehlen.
 Steuer und Recht: ${GLOBAL_ROLLEN.de.partner} ${GLOBAL_ROLLEN.de.kosten} Steuerliche oder rechtliche Einzelfragen beantwortet FIAON nicht — dafür sind die Steuerberater und Anwälte mit eigenem Mandat da.
 Pflichthinweise (immer nennen, wenn es um Steuern, Meldungen oder Haftung geht):
 ${GLOBAL_PFLICHTHINWEIS.de.map((h) => `- ${h}`).join("\n")}${geldZurueck}

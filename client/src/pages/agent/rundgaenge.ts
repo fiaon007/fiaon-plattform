@@ -1593,8 +1593,12 @@ export const RUNDGANG_CHEF_GLOBAL: RundgangSchritt[] = [
       + "Beim Registered Agent steht jedes Formularfeld mit dem genauen Wert da — Name, Kontakt-E-Mail (js+nachname@fiaon.com), Adresse —, "
       + "jeweils mit „Kopieren“. Schritte mit einer Station im Fahrplan zeigen ihren Stand von selbst; „Station öffnen“ springt in "
       + "„Fahrplan & Werte“ und klappt genau diese Station auf. Die übrigen hakst du ab — das steht mit Name und Zeit im internen Verlauf. "
-      + "Oben: wie viele Schritte erledigt sind und welcher als Nächstes dran ist. Das EIN-Formular wartet, bis Tätigkeit und „Einverstanden“ da sind.",
-    tipp: "„Als Anleitung öffnen“ gibt dir dieselbe Liste ohne Kundendaten in einem neuen Tab — zum Drucken oder für neue Kollegen.",
+      + "Oben: wie viele Schritte erledigt sind und welcher als Nächstes dran ist. Das EIN-Formular wartet, bis Tätigkeit und „Einverstanden“ da sind. "
+      // E-465 (29.10.2026): der Ablauf folgt dem Bundesstaat der Gesellschaft.
+      + "Der Ablauf folgt dem Bundesstaat der Gesellschaft (steht oben im Kopf): Delaware zeigt die Namenssuche von Delaware, 110 $ Staatsgebühr, "
+      + "den Express-Hinweis (Eintragung in ein bis zwei Werktagen) und die Jahressteuer bis 1. Juni; Wyoming zeigt wyobiz und den Jahresbericht "
+      + "im Gründungsmonat; Florida bleibt bei Sunbiz — dort dauert die Eintragung derzeit oft rund zwei Wochen, ohne Express.",
+    tipp: "„Als Anleitung öffnen“ gibt dir dieselbe Liste ohne Kundendaten in einem neuen Tab — zum Drucken oder für neue Kollegen, immer für den Staat dieses Kunden.",
   },
 ];
 

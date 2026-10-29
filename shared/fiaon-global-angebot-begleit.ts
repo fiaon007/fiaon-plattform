@@ -21,6 +21,8 @@
 // Datenbank (fiaon_global_angebote) und kommen über den persönlichen Link.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_JAHRESBETREUUNG, globalAgentVertrag } from "./fiaon-global";
+// E-465 (29.10.2026): Staaten-Wahl mit ehrlichen Zeiten — nur für Angebote mit staatenFassung (Bestand unverändert).
+import { angebotStaatFehler, angebotStaatTexte, staatName, type AngebotStaatTexte } from "./fiaon-global-bundesstaaten";
 import { FIAON_FIRMA } from "./fiaon-firma";
 import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
@@ -82,6 +84,8 @@ export interface BegleitParameter {
   zahlungszielTage: number;
   /** Bundesstaat der Gründung */
   bundesstaat: string;
+  /** E-465: „E-465“ = mit Staaten-Wahl und ehrlichen Zeiten angelegt; leer = Bestand (Text wortgleich wie bei der Annahme). */
+  staatenFassung: string;
   /** Erste Karten zum Start: Rahmen je Karte (USD, Spanne) — nur als Erfahrungswert auf der Seite */
   ersteKartenVonUsd: number;
   ersteKartenBisUsd: number;
@@ -103,7 +107,9 @@ export const BEGLEIT_VORGABEN: BegleitParameter = {
   gruendungVonCents: 50_000,
   gruendungBisCents: 70_000,
   zahlungszielTage: 14,
+  // Rückfall NUR für Bestandsangebote (alle tragen ihren Staat selbst). Neue Angebote: neuesAngebotParameter → Delaware (E-465).
   bundesstaat: "Florida",
+  staatenFassung: "",
   ersteKartenVonUsd: 25_000,
   ersteKartenBisUsd: 30_000,
   bisherMitgliedschaft: "FIAON Business",
@@ -216,6 +222,13 @@ export function llcWahlPruefen(roh: any): { ok: true; wahl: BegleitLlcWahl } | {
     gesehen.add(wahl[f]);
   }
   return { ok: true, wahl };
+}
+/** E-465: Die Namens-Texte mit dem Register des gewählten Staats — ohne staatsabhängige Texte (Bestand) unverändert. */
+export type BegleitLlcTexte = Record<keyof typeof BEGLEIT_LLC_TEXTE, string>;
+export function begleitLlcTexte(staatT: AngebotStaatTexte | null): BegleitLlcTexte {
+  return staatT
+    ? { ...BEGLEIT_LLC_TEXTE, hinweis: `Vor der Anmeldung prüfen wir die Verfügbarkeit ${staatT.register}. Englische Namen funktionieren in den USA am besten; Umlaute sind dort nicht möglich.` }
+    : BEGLEIT_LLC_TEXTE;
 }
 export const BEGLEIT_LLC_TEXTE = {
   titel: "Wie soll Ihre Gesellschaft heißen?",
@@ -451,7 +464,7 @@ export interface BegleitVergleichZeile { titel: string; vorher: string; jetzt: s
 export interface BegleitSeite {
   auftakt: { auge: string; gruss: string; zeile: string; weiter: string };
   hero: { auge: string; titel: string; lead: string; nutzen: string[]; kapital: string; kapitalSatz: string; staat: string };
-  llc: typeof BEGLEIT_LLC_TEXTE;
+  llc: BegleitLlcTexte;
   vergleich: { titel: string; sub: string; vorherKopf: string; jetztKopf: string; zeilen: BegleitVergleichZeile[]; fein: string; erledigtTitel: string; erledigt: BegleitBisherPosten[] };
   rechner: { titel: string; sub: string; prozent: number; minUsd: number; maxUsd: number; schrittUsd: number; startUsd: number; kapital: string; honorar: string; bleibt: string; fein: string };
   phasen: { titel: string; sub: string; liste: FirmaPhase[] };
@@ -464,6 +477,8 @@ export interface BegleitSeite {
 }
 export function begleitSeite(d: BegleitDaten): BegleitSeite {
   const par = d.parameter; const k = d.kunde; const J = GLOBAL_JAHRESBETREUUNG.de;
+  // E-465: staatsabhängige Zeiten nur für Angebote mit staatenFassung — sonst null und der alte Text bleibt wortgleich.
+  const staatT = angebotStaatTexte(par.bundesstaat, par.staatenFassung);
   const gruss = begleitKundeGruss(k);
   const spanne = `${begleitEur(par.gruendungVonCents)} bis ${begleitEur(par.gruendungBisCents)}`;
   const karten = `${begleitUsd(par.ersteKartenVonUsd)} und ${begleitUsd(par.ersteKartenBisUsd)}`;
@@ -483,7 +498,7 @@ export function begleitSeite(d: BegleitDaten): BegleitSeite {
       kapitalSatz: "Unser gemeinsamer Plan für Ihre Gesellschaft — Stufe für Stufe, mit einem festen Ansprechpartner.",
       staat: `State of ${par.bundesstaat}`,
     },
-    llc: BEGLEIT_LLC_TEXTE,
+    llc: begleitLlcTexte(staatT),
     vergleich: {
       titel: "Was sich für Sie ändert",
       sub: "Bisher ein Monatsbeitrag — jetzt zahlen Sie nur noch für das, was wirklich ankommt.",
@@ -510,7 +525,7 @@ export function begleitSeite(d: BegleitDaten): BegleitSeite {
       titel: "Ihr Weg",
       sub: `In fünf Etappen zu ${begleitUsd(par.kapitalUsd)} für Ihre Gesellschaft.`,
       liste: [
-        { nr: 1, titel: "Ihre LLC entsteht", dauer: "Woche eins bis zwei", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, Registered Agent, US-Adresse und Steuernummer (EIN).` },
+        { nr: 1, titel: "Ihre LLC entsteht", dauer: staatT?.fahrplanDauer ?? "Woche eins bis zwei", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, Registered Agent, US-Adresse und Steuernummer (EIN).${staatT ? ` ${staatT.eintragungSatz}` : ""}` },
         { nr: 2, titel: "Geschäftskonto", dauer: "Woche zwei bis vier", text: "Wir bereiten die Eröffnung Ihres US-Geschäftskontos vor und begleiten sie." },
         { nr: 3, titel: "Erste Business-Karten", dauer: "ab Monat zwei", text: `Zum Start kleinere Rahmen — erfahrungsgemäß zwischen ${karten} je Karte.` },
         { nr: 4, titel: "Weitere Karten und Kreditlinien", dauer: "ab Monat vier", text: "Mit wachsender Kredithistorie Ihrer Gesellschaft folgen höhere Rahmen und erste Kreditlinien." },
@@ -541,7 +556,7 @@ export function begleitSeite(d: BegleitDaten): BegleitSeite {
         { frage: "Zahle ich wirklich kein Abo mehr?", antwort: [`Ja. Ihre Mitgliedschaft endet mit der Annahme${par.entfaelltAb ? `, der Beitrag zum ${begleitTag(par.entfaelltAb)} entfällt` : ""}. Es kommen keine Monatsbeiträge mehr.`] },
         { frage: "Was kostet die Gründung genau?", antwort: [`Nur das, was wir an Dritte zahlen — insgesamt ${spanne}, höchstens ${begleitEur(par.gruendungBisCents)}. Sie bekommen eine Rechnung mit Aufstellung, sobald die Anmeldung eingereicht ist.`] },
         { frage: "Wann verdient FIAON an mir?", antwort: [`Erst, wenn Ihre Gesellschaft eine Finanzierung erhält: ${begleitProzent(par.honorarProzent)} davon, fällig ${zahlwort(par.honorarZielTage)} Tage nach der Einräumung. Kommt nichts an, zahlen Sie uns nichts.`] },
-        { frage: "Wie schnell steht meine Gesellschaft?", antwort: ["Sobald Ihr Reisepass vorliegt, reichen wir die Anmeldung binnen fünf Werktagen ein. Florida trägt in der Regel innerhalb weniger Tage ein."] },
+        { frage: "Wie schnell steht meine Gesellschaft?", antwort: [staatT ? `Sobald Ihr Reisepass vorliegt, reichen wir die Anmeldung binnen fünf Werktagen ein. ${staatT.eintragungSatz}` : "Sobald Ihr Reisepass vorliegt, reichen wir die Anmeldung binnen fünf Werktagen ein. Florida trägt in der Regel innerhalb weniger Tage ein."] },
         { frage: "Was, wenn mein Wunschname vergeben ist?", antwort: ["Dann nehmen wir Ihren ersten freien Ausweichnamen. Haben Sie keinen angegeben oder ist keiner frei, stimmen wir uns kurz mit Ihnen ab."] },
         { frage: "Muss ich persönlich haften?", antwort: ["Bei US-Firmenkarten verlangen Institute in der Regel die persönliche Haftung des Inhabers. Wir sagen es Ihnen vor jedem Antrag — Sie entscheiden frei."] },
         { frage: "Wie verlässlich ist der Plan?", antwort: [`Die ${begleitUsd(par.kapitalUsd)} sind unser gemeinsamer Plan. Über jede Karte und jeden Rahmen entscheidet das jeweilige Institut — wir sorgen dafür, dass jeder Antrag vollständig und zur richtigen Zeit kommt.`] },
@@ -651,7 +666,8 @@ export function begleitParameterAus(roh: Partial<BegleitParameter> | null | unde
     gruendungVonCents: zahl("gruendungVonCents", 0, 500_000),
     gruendungBisCents: zahl("gruendungBisCents", 0, 500_000),
     zahlungszielTage: zahl("zahlungszielTage", 7, 30),
-    bundesstaat: text("bundesstaat", 40),
+    bundesstaat: staatName(text("bundesstaat", 40)),
+    staatenFassung: text("staatenFassung", 20),
     ersteKartenVonUsd: zahl("ersteKartenVonUsd", 0, 1_000_000),
     ersteKartenBisUsd: zahl("ersteKartenBisUsd", 0, 1_000_000),
     bisherMitgliedschaft: text("bisherMitgliedschaft", 80),
@@ -665,6 +681,8 @@ export function begleitParameterFehler(p: BegleitParameter): string | null {
   if (p.gruendungVonCents > p.gruendungBisCents) return "Gründungskosten: der untere Wert liegt über dem Höchstbetrag.";
   if (p.ersteKartenVonUsd > p.ersteKartenBisUsd) return "Erste Karten: der untere Wert liegt über dem oberen.";
   if (!p.bundesstaat) return "Bundesstaat fehlt.";
+  const sf = angebotStaatFehler(p.bundesstaat, p.staatenFassung);
+  if (sf) return sf;
   if (!p.honorarProzent) return "Erfolgshonorar fehlt.";
   return null;
 }

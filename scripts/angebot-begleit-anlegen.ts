@@ -40,7 +40,11 @@ const A = await import("../server/lib/fiaon-global-angebot");
 const roh = JSON.parse(fs.readFileSync(datei, "utf8"));
 const k = B.begleitKundePruefen(roh.kunde);
 if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}`); process.exit(1); }
-const parameter = S.begleitParameterAus(roh.parameter);
+// E-465 (29.10.2026): neue Angebote mit Staaten-Wahl — „bundesstaat“ in der Datei: Delaware, Florida oder Wyoming (ohne Angabe Delaware).
+// Ein schon offenes Angebot behält beim Nachtragen seine Staaten-Fassung (Server) und ohne Angabe seinen Staat.
+const SB = await import("../shared/fiaon-global-bundesstaaten");
+const parameter = S.begleitParameterAus(SB.neuesAngebotParameter(roh.parameter));
+console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
 const pf = S.begleitParameterFehler(parameter) ?? B.begleitAnspracheFehler(parameter);
 if (pf) { console.error(`FEHLER Parameter: ${pf}`); process.exit(1); }
 
@@ -60,7 +64,7 @@ const [offen] = (await sqlPool`
   SELECT id, angebot_ref FROM fiaon_global_angebote
    WHERE status = 'offen' AND fassung LIKE 'IA-BEGLEIT-%' AND lower(kunde->>'email') = ${k.kunde.email} ORDER BY id DESC LIMIT 1`) as any[];
 if (offen) {
-  const erg = await B.begleitAendern(Number(offen.id), { kunde: k.kunde, parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-begleit-anlegen");
+  const erg = await B.begleitAendern(Number(offen.id), { kunde: k.kunde, parameter: { ...parameter, bundesstaat: roh.parameter?.bundesstaat ?? undefined } as typeof parameter, ...(roh.gueltigBis ? { gueltigBis: roh.gueltigBis } : {}) }, "Skript angebot-begleit-anlegen");
   if (!erg.ok) { console.error(`FEHLER: ${erg.error}`); await sqlPool.end(); process.exit(1); }
   const z = (await A.angebotLesen({ id: Number(offen.id) }))!;
   const dz = B.begleitDatenAus(z);

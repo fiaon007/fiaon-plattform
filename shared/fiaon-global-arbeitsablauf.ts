@@ -19,9 +19,17 @@
 //
 // Platzhalter in Werten und Links: {gesellschaft} {nameOhneEndung} {bundesstaat}
 // {vorname} {nachname} {kunde} {kontaktMail} {telefon} {wohnadresse} {usTelefon}
-// {heuteUs} {plus5Werktage} {sunbizName}. Fehlt ein Wert, zeigt die Seite eine
+// {heuteUs} {plus5Werktage} {sunbizName} {raAnschrift}. Fehlt ein Wert, zeigt die Seite eine
 // Leerstelle — nie einen erfundenen Wert.
+//
+// E-465 (29.10.2026): Der Ablauf hängt am Bundesstaat der Gesellschaft — Register, Gebühr,
+// Warenkorb-Summe, Eintragungszeit (Delaware mit Express), Jahrespflicht. ablaufBloecke(staat)
+// baut ihn je Staat; ABLAUF_BLOECKE ist die Florida-Fassung (Schlüssel und Nummern sind in jedem
+// Staat gleich — die Haken in der Datenbank passen immer). Zeiten aus shared/fiaon-global-bundesstaaten.ts.
 // ═══════════════════════════════════════════════════════════════════════════
+
+import { BUNDESSTAATEN, staatInfo, type StaatSchluessel } from "./fiaon-global-bundesstaaten";
+import { EIN_WEG } from "./fiaon-global-seiten/fakten";
 
 export type AblaufWer = "du" | "team" | "buchhaltung";
 export const ABLAUF_WER_TEXT: Record<AblaufWer, string> = {
@@ -98,8 +106,88 @@ export const ABLAUF_VORAB: AblaufVorab[] = [
     text: "Für die ITIN (die persönliche US-Steuernummer) später. Die Gründung selbst braucht den Pass nicht." },
 ];
 
+// ── JE BUNDESSTAAT (E-465) ──────────────────────────────────────────────────────
+// Florida: genau die Werte aus E-462 (Northwest-Warenkorb 79 + 0 + 100 + 125 = 304 $).
+// Delaware: Staatsgebühr 110 $ (Certificate of Formation) → 289 $ ohne Express; Express des Staats
+// (ein bis zwei Werktage) im Warenkorb dazubuchen — der Aufpreis steht dort.
+// Wyoming: 100 $ + Kartengebühr des Staats (wenige Dollar) → 279 $ + Kartengebühr.
+// Die Anschrift des Registered Agent kennen wir fest nur für Florida; in Delaware und Wyoming steht sie
+// nach der Bestellung im Northwest-Konto (Leerstelle statt erfundener Anschrift).
+export interface AblaufStaat {
+  schluessel: StaatSchluessel; name: string;
+  registerName: string; registerErklaerung: string; sucheTitel: string; sucheUrl: string; sucheText: string;
+  articles: { wert: string; hinweis: string };
+  staatGebuehr: string; summe: string; summeWarnung: string;
+  expressHinweis: string | null;
+  membersHinweis: string | null;
+  eintragungWann: string; eintragungMara: string; pruefenTitel: string; pruefenText: string;
+  jahrText: string; jahrFeld: string; jahrWert: string; jahrLinkTitel: string; jahrUrl: string;
+  /** Feste Anschrift des Registered Agent (nur Florida) — sonst leer. */
+  raAnschrift: string;
+}
+const SUNBIZ_SUCHE = "https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm={sunbizName}";
+
+/** Die Angaben je Staat; Unbekanntes oder leer → Florida (Bestand: alle Mandate vor E-465 sind Florida). */
+export function ablaufStaat(roh: unknown): AblaufStaat {
+  const b = staatInfo(roh) ?? BUNDESSTAATEN.florida;
+  if (b.schluessel === "delaware") return {
+    schluessel: "delaware", name: "Delaware",
+    registerName: "Division of Corporations", registerErklaerung: "Die Division of Corporations ist das Firmenregister von Delaware.",
+    sucheTitel: "Delaware-Namenssuche", sucheUrl: b.register.sucheUrl,
+    sucheText: "Die Division of Corporations ist das Firmenregister von Delaware. Öffne die Namenssuche (Entity Search) und tippe den Namen ein. Ist er frei, setzt du die Station „Name geprüft“ auf erledigt.",
+    articles: { wert: "Standard Articles", hinweis: "110 $ (Gebühr des Staats) — in Delaware heißt das Dokument Certificate of Formation" },
+    staatGebuehr: "110 $", summe: "289 $ (ohne Express)", summeWarnung: "Andere Summe als 289 $ (ohne Express)? Dann nicht bezahlen — erst prüfen, was dazugekommen ist.",
+    expressHinweis: "Express: Delaware trägt mit der Eilbearbeitung des Staats in der Regel in ein bis zwei Werktagen ein. Buche sie im Warenkorb dazu (Expedite), wenn der Vertrag Fast-Track hat oder die Leitung es freigibt — der Aufpreis steht im Warenkorb. Ohne Express dauert es derzeit rund zehn Werktage.",
+    membersHinweis: "Delaware verlangt diese Angabe nicht; fragt das Formular danach, bleibt es bei unserem Standard wie gezeigt.",
+    eintragungWann: "Mit Express Tag 1–2 · sonst rund zehn Werktage",
+    eintragungMara: "eingereicht; Delaware trägt mit Express in der Regel in ein bis zwei Werktagen ein, sonst in rund zehn Werktagen",
+    pruefenTitel: "Register in Delaware täglich prüfen",
+    pruefenText: "Schau jeden Tag in der Namenssuche von Delaware (Entity Search), ob die Firma schon eingetragen ist.",
+    jahrText: "Jedes Jahr: die Formulare 5472 und 1120 bis 15.04. (über TAXUSA). Die Jahressteuer in Delaware (400 $) bis 01.06. (über Northwest). Der Registered Agent verlängert sich von selbst. Hake ab, wenn die Fristen in der Akte stehen.",
+    jahrFeld: "Jahressteuer Delaware", jahrWert: "bis 01.06. (400 $)", jahrLinkTitel: "Delaware-Jahressteuer", jahrUrl: b.register.jahresUrl,
+    raAnschrift: "",
+  };
+  if (b.schluessel === "wyoming") return {
+    schluessel: "wyoming", name: "Wyoming",
+    registerName: "wyobiz", registerErklaerung: "wyobiz ist das Firmenregister von Wyoming.",
+    sucheTitel: "Wyoming-Namenssuche", sucheUrl: b.register.sucheUrl,
+    sucheText: "wyobiz ist das Firmenregister von Wyoming. Öffne die Suche (Filing Search) und tippe den Namen ein. Ist er frei, setzt du die Station „Name geprüft“ auf erledigt.",
+    articles: { wert: "Standard Articles", hinweis: "100 $ (Gebühr des Staats, dazu eine kleine Kartengebühr)" },
+    staatGebuehr: "100 $ + Kartengebühr", summe: "279 $ + Kartengebühr des Staats", summeWarnung: "Deutlich andere Summe als 279 $ plus die kleine Kartengebühr? Dann nicht bezahlen — erst prüfen, was dazugekommen ist.",
+    expressHinweis: null,
+    membersHinweis: "Wyoming verlangt diese Angabe nicht; fragt das Formular danach, bleibt es bei unserem Standard wie gezeigt. Wyoming braucht dafür eine Kontaktperson (in der Regel der Kunde) — die Station „Registered Agent“ fragt danach.",
+    eintragungWann: "Rund drei Werktage, oft schneller",
+    eintragungMara: "eingereicht; Wyoming trägt in der Regel in rund drei Werktagen ein",
+    pruefenTitel: "Register in Wyoming täglich prüfen",
+    pruefenText: "Schau jeden Tag bei wyobiz (Filing Search), ob die Firma schon eingetragen ist.",
+    jahrText: "Jedes Jahr: die Formulare 5472 und 1120 bis 15.04. (über TAXUSA). Der Jahresbericht in Wyoming bis zum 1. Tag des Gründungsmonats (mindestens 60 $, über Northwest). Der Registered Agent verlängert sich von selbst. Hake ab, wenn die Fristen in der Akte stehen.",
+    jahrFeld: "Jahresbericht Wyoming", jahrWert: "1. Tag des Gründungsmonats (ab 60 $)", jahrLinkTitel: "Wyoming-Jahresbericht", jahrUrl: b.register.jahresUrl,
+    raAnschrift: "",
+  };
+  return {
+    schluessel: "florida", name: "Florida",
+    registerName: "Sunbiz", registerErklaerung: "Sunbiz ist das Firmenregister von Florida.",
+    sucheTitel: "Sunbiz-Namenssuche", sucheUrl: SUNBIZ_SUCHE,
+    sucheText: "Sunbiz ist das Firmenregister von Florida. Suche den Namen. Ist er frei, setzt du die Station „Name geprüft“ auf erledigt.",
+    articles: { wert: "Standard Articles", hinweis: "125 $ (Gebühr des Staats)" },
+    staatGebuehr: "125 $", summe: "304 $", summeWarnung: "Andere Summe als 304 $? Dann nicht bezahlen — erst prüfen, was dazugekommen ist.",
+    expressHinweis: null,
+    membersHinweis: null,
+    eintragungWann: "derzeit bis rund zwei Wochen",
+    eintragungMara: "eingereicht; Florida trägt derzeit langsamer ein — oft rund zwei Wochen, die Gründungsunterlagen folgen danach",
+    pruefenTitel: "Sunbiz täglich prüfen",
+    pruefenText: "Schau jeden Tag bei Sunbiz, ob die Firma schon eingetragen ist. Florida braucht derzeit oft rund zwei Wochen, einen Express gibt es nicht.",
+    jahrText: "Jedes Jahr: die Formulare 5472 und 1120 bis 15.04. (über TAXUSA). Der Jahresbericht in Florida zwischen 01.01. und 01.05. (über Northwest). Der Registered Agent verlängert sich von selbst. Hake ab, wenn die Fristen in der Akte stehen.",
+    jahrFeld: "Jahresbericht Florida", jahrWert: "01.01.–01.05.", jahrLinkTitel: "Florida-Jahresbericht", jahrUrl: "https://services.sunbiz.org/Filings/AnnualReport/FilingStart",
+    raAnschrift: ABLAUF_RA_ANSCHRIFT,
+  };
+}
+
 // ── DIE 8 BLÖCKE ─────────────────────────────────────────────────────────────
-export const ABLAUF_BLOECKE: AblaufBlock[] = [
+/** Der Ablauf für den Staat der Gesellschaft (E-465). Schlüssel und Nummern sind in jedem Staat gleich. */
+export function ablaufBloecke(staatRoh?: unknown): AblaufBlock[] {
+  const S = ablaufStaat(staatRoh);
+  return [
   {
     nr: 1, titel: "Geld ist bankbestätigt", wann: "Tag 0",
     text: "Erst wenn das Geld auf dem Konto ist (Airwallex) und die Zahlungsbestätigung raus ist, sprichst du mit dem Kunden.",
@@ -111,10 +199,10 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
       { nr: 2, key: "s02_akte", titel: "Akte vollständig, Portal freischalten", wer: "team", quelle: { art: "haken" },
         text: "Personendaten aus dem Vertrag übernehmen. Unterlagen in den Tresor (der Datei-Ordner der Akte) legen. Dann das neue Portal für den Kunden freischalten.",
         links: [{ titel: "Akte komplett", reiter: "akte" }, { titel: "Tresor", reiter: "tresor" }] },
-      { nr: 3, key: "s03_name", titel: "Name bei Sunbiz prüfen", wer: "team", quelle: { art: "station", schluessel: "name" },
-        text: "Sunbiz ist das Firmenregister von Florida. Suche den Namen. Ist er frei, setzt du die Station „Name geprüft“ auf erledigt.",
+      { nr: 3, key: "s03_name", titel: S.schluessel === "florida" ? "Name bei Sunbiz prüfen" : `Name im Register von ${S.name} prüfen`, wer: "team", quelle: { art: "station", schluessel: "name" },
+        text: S.sucheText,
         felder: [{ feld: "Suchbegriff (ohne LLC)", wert: "{sunbizName}" }],
-        links: [{ titel: "Sunbiz-Namenssuche", url: "https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm={sunbizName}" }] },
+        links: [{ titel: S.sucheTitel, url: S.sucheUrl }] },
     ],
   },
   {
@@ -136,21 +224,22 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
         text: "Wähle genau dieses Paket. „Standard Articles“ sind die normalen Gründungsunterlagen. Das Häkchen beim Registered Agent bleibt an.",
         felder: [
           { feld: "Paket", wert: "Business Formation Package Without SSN" },
-          { feld: "Articles", wert: "Standard Articles", hinweis: "125 $ (Gebühr des Staats)" },
+          { feld: "Articles", wert: S.articles.wert, hinweis: S.articles.hinweis },
           { feld: "Registered Agent", wert: "Häkchen AN", kopieren: false },
           { feld: "Dann", wert: "Next", kopieren: false },
-        ] },
+        ],
+        ...(S.expressHinweis ? { hinweise: [{ ton: "info" as const, text: S.expressHinweis }] } : {}) },
       { nr: 6, key: "s06_cart", titel: "Warenkorb prüfen und bezahlen", wer: "du", quelle: { art: "haken" },
         text: "Prüfe jede Zeile im Warenkorb (Cart). Stimmt die Summe, gehst du zum Checkout und bezahlst. Buche nichts dazu.",
         felder: [
           { feld: "Formation Package", wert: "79 $", kopieren: false },
           { feld: "Registered Agent", wert: "frei (0 $)", kopieren: false },
           { feld: "EIN", wert: "100 $", kopieren: false },
-          { feld: "Staat (Florida)", wert: "125 $", kopieren: false },
-          { feld: "Summe", wert: "304 $", kopieren: false },
+          { feld: `Staat (${S.name})`, wert: S.staatGebuehr, kopieren: false },
+          { feld: "Summe", wert: S.summe, kopieren: false },
         ],
         hinweise: [
-          { ton: "warnung", text: "Andere Summe als 304 $? Dann nicht bezahlen — erst prüfen, was dazugekommen ist." },
+          { ton: "warnung", text: S.summeWarnung },
           { ton: "info", text: "Nach dem Bezahlen öffnet Northwest zuerst das EIN-Formular. Fehlen US-Nummer, Tätigkeit oder „Einverstanden“: nichts eintragen, „Back to Filing Orders“ klicken und die Gründung (Schritt 8) öffnen. Bezahlt ist beides schon." },
         ] },
       { nr: 7, key: "s07_ein_formular", titel: "EIN-Formular ausfüllen", wer: "du", quelle: { art: "haken" }, braucht: ["v_taetigkeit", "v_einverstanden"], brauchtUsTelefon: true,
@@ -188,8 +277,11 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
           { feld: "Attorney-Häkchen", wert: "AUS", kopieren: false },
           { feld: "Dann", wert: "Submit", kopieren: false },
         ],
-        hinweise: [{ ton: "warnung", text: "Meldung „may be unavailable“? Das ist nur eine Unschärfe der Suche. Prüfe den Namen vorher selbst bei Sunbiz." }],
-        links: [{ titel: "Sunbiz-Namenssuche", url: "https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm={sunbizName}" }] },
+        hinweise: [
+          { ton: "warnung", text: `Meldung „may be unavailable“? Das ist nur eine Unschärfe der Suche. Prüfe den Namen vorher selbst bei ${S.registerName}.` },
+          ...(S.membersHinweis ? [{ ton: "info" as const, text: `Members on State Record: ${S.membersHinweis}` }] : []),
+        ],
+        links: [{ titel: S.sucheTitel, url: S.sucheUrl }] },
     ],
   },
   {
@@ -198,15 +290,15 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
       { nr: 9, key: "s09_agent_adresse", titel: "Stationen „Registered Agent“ und „US-Adresse“", wer: "team", quelle: { art: "agent_adresse" }, station: "agent",
         text: "Setze die Station „Registered Agent“ auf erledigt, mit Anschrift. Trage die US-Geschäftsadresse an der Station „US-Adresse und Telefonnummer“ ein. Der Kunde sieht beides sofort im Portal und im Fenster „Neu für Sie“.",
         felder: [
-          { feld: "Anschrift Registered Agent", wert: ABLAUF_RA_ANSCHRIFT },
-          { feld: "US-Geschäftsadresse", wert: ABLAUF_RA_ANSCHRIFT },
+          { feld: "Anschrift Registered Agent", wert: S.raAnschrift || "{raAnschrift}", ...(S.raAnschrift ? {} : { hinweis: "steht nach der Bestellung im Northwest-Konto (Registered Agent)" }) },
+          { feld: "US-Geschäftsadresse", wert: S.raAnschrift || "{raAnschrift}" },
         ] },
       { nr: 10, key: "s10_notiz", titel: "Akte-Notiz, CRM-Aufgabe, Wiedervorlage", wer: "team", quelle: { art: "haken" },
         text: "Notiz in die Akte: Rechnungsnummer und Betrag der Bestellung. Im Geschäftspartner-CRM eine Aufgabe „Eintragung prüfen“ in 5 Werktagen anlegen. Dazu die Wiedervorlage (Erinnerung im Kalender und in der Liste).",
         felder: [{ feld: "Aufgabe fällig", wert: "{plus5Werktage}", hinweis: "+5 Werktage" }],
         links: [{ titel: "Notiz schreiben (Verlauf)", reiter: "verlauf" }, { titel: "Geschäftspartner-CRM", pfad: "/chef/s/global-auftraege?reiter=partner" }] },
       { nr: 11, key: "s11_mara", titel: "Mara-Entwurf an den Kunden", wer: "team", quelle: { art: "haken" },
-        text: "Mara schreibt einen Entwurf (gesiezt, im Faden des Kunden): eingereicht, die Eintragung kommt in den nächsten Tagen, dazu seine US-Adresse. Fehlt noch das „Einverstanden“, bittet sie darum.",
+        text: `Mara schreibt einen Entwurf (gesiezt, im Faden des Kunden): ${S.eintragungMara} — ohne Zusage, der Staat entscheidet. Dazu seine US-Adresse. Fehlt noch das „Einverstanden“, bittet sie darum.`,
         links: [{ titel: "Anfragen (Faden)", reiter: "anfragen" }] },
     ],
   },
@@ -220,11 +312,11 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
     ],
   },
   {
-    nr: 5, titel: "Eintragung", wann: "Tag 2–10",
+    nr: 5, titel: "Eintragung", wann: S.eintragungWann,
     schritte: [
-      { nr: 13, key: "s13_sunbiz_pruefen", titel: "Sunbiz täglich prüfen", wer: "team", quelle: { art: "eintragung_warten" }, station: "eingetragen",
-        text: "Schau jeden Tag bei Sunbiz, ob die Firma schon eingetragen ist.",
-        links: [{ titel: "Sunbiz-Namenssuche", url: "https://search.sunbiz.org/Inquiry/CorporationSearch/SearchResults?inquiryType=EntityName&searchTerm={sunbizName}" }],
+      { nr: 13, key: "s13_sunbiz_pruefen", titel: S.pruefenTitel, wer: "team", quelle: { art: "eintragung_warten" }, station: "eingetragen",
+        text: S.pruefenText,
+        links: [{ titel: S.sucheTitel, url: S.sucheUrl }],
         hinweise: [{ ton: "warnung", text: "Steht die Bestellung bei Northwest länger als 1 Werktag auf „Processing“? Dann schreib einen Entwurf an unsere Ansprechpartnerin dort: „please submit today“." }] },
       { nr: 14, key: "s14_eingetragen", titel: "Eingetragen: Articles in den Tresor", wer: "team", quelle: { art: "station", schluessel: "eingetragen" },
         text: "Articles of Organization = die Gründungsurkunde. Lade sie bei Northwest unter Documents herunter und lege sie in den Tresor (Art „Gründungsurkunde“). Setze die Station „eingetragen“ mit Document Number (Registernummer) und Datum.",
@@ -235,10 +327,11 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
     ],
   },
   {
-    nr: 6, titel: "EIN", wann: "1–4 Wochen",
+    nr: 6, titel: "EIN", wann: "Fax oft rund 2 Wochen · Brief 4–5 Wochen später",
     schritte: [
       { nr: 16, key: "s16_ein", titel: "EIN-Brief in den Tresor", wer: "team", quelle: { art: "station", schluessel: "ein" },
-        text: "Northwest beantragt die EIN von selbst (per Fax bei der Steuerbehörde IRS). Kommt der EIN-Brief, legst du ihn in den Tresor (Art „EIN-Bestätigung“) und setzt die Station „EIN“.",
+        text: "Northwest beantragt die EIN von selbst (per Fax bei der Steuerbehörde IRS) — in jedem Staat gleich, erst nach der Eintragung. Die Nummer kommt derzeit oft nach rund zwei Wochen, der EIN-Brief vier bis fünf Wochen später. Kommt der EIN-Brief, legst du ihn in den Tresor (Art „EIN-Bestätigung“) und setzt die Station „EIN“.",
+        hinweise: [{ ton: "info", text: `Eilt es (z. B. Konto für eine Finanzierung)? Antragsteller aus dem Ausland bekommen die EIN per Telefon noch im Gespräch: ${EIN_WEG.telefon}, ${EIN_WEG.telefonZeit}. Anrufen darf, wer für die Gesellschaft unterschreibt (der Kunde) oder als Designee im Formular SS-4 befugt ist.` }],
         links: [{ titel: "Tresor", reiter: "tresor" }] },
     ],
   },
@@ -262,15 +355,18 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
         ],
         links: [{ titel: "TAXUSA", url: "https://form5472.online" }, { titel: "IRS: ITIN", url: "https://www.irs.gov/individuals/individual-taxpayer-identification-number" }] },
       { nr: 20, key: "s20_jaehrlich", titel: "Jedes Jahr: Pflichten", wer: "team", quelle: { art: "haken" },
-        text: "Jedes Jahr: die Formulare 5472 und 1120 bis 15.04. (über TAXUSA). Der Jahresbericht in Florida zwischen 01.01. und 01.05. (über Northwest). Der Registered Agent verlängert sich von selbst. Hake ab, wenn die Fristen in der Akte stehen.",
+        text: S.jahrText,
         felder: [
           { feld: "5472 / 1120", wert: "bis 15.04.", kopieren: false },
-          { feld: "Jahresbericht Florida", wert: "01.01.–01.05.", kopieren: false },
+          { feld: S.jahrFeld, wert: S.jahrWert, kopieren: false },
         ],
-        links: [{ titel: "Fristen", reiter: "fristen" }, { titel: "Florida-Jahresbericht", url: "https://services.sunbiz.org/Filings/AnnualReport/FilingStart" }, { titel: "TAXUSA", url: "https://form5472.online" }] },
+        links: [{ titel: "Fristen", reiter: "fristen" }, { titel: S.jahrLinkTitel, url: S.jahrUrl }, { titel: "TAXUSA", url: "https://form5472.online" }] },
     ],
   },
-];
+  ];
+}
+/** Die Florida-Fassung (Bestand und Rückfall) — Schlüssel und Nummern gelten für jeden Staat. */
+export const ABLAUF_BLOECKE: AblaufBlock[] = ablaufBloecke("Florida");
 
 export const ABLAUF_SCHRITTE: AblaufSchritt[] = ABLAUF_BLOECKE.flatMap((b) => b.schritte);
 
@@ -300,6 +396,8 @@ export interface AblaufWerteEin {
   usTelefon?: string | null;
   /** Für {heuteUs} und {plus5Werktage}. */
   jetzt?: Date;
+  /** E-465: Anschrift des Registered Agent, wenn bekannt (sonst Florida-Anschrift bei Florida, sonst Leerstelle). */
+  raAnschrift?: string | null;
 }
 
 /** „Müller-Lüdenscheidt" → „muellerluedenscheidt" — für js+<name>@fiaon.com. */
@@ -345,6 +443,7 @@ export function ablaufWerte(e: AblaufWerteEin): Record<string, string> {
     nameOhneEndung: ohne,
     sunbizName: ohne,
     bundesstaat: String(e.bundesstaatName ?? "").trim() || "Florida",
+    raAnschrift: String(e.raAnschrift ?? "").trim() || ablaufStaat(String(e.bundesstaatName ?? "").trim() || "Florida").raAnschrift,
     vorname, nachname,
     kunde: [vorname, nachname].filter(Boolean).join(" "),
     kontaktMail: mailName ? `js+${mailName}@fiaon.com` : "",
@@ -360,7 +459,7 @@ export const ABLAUF_LEERSTELLE: Record<string, string> = {
   gesellschaft: "Name der Gesellschaft", nameOhneEndung: "Name ohne LLC", sunbizName: "Name ohne LLC", bundesstaat: "Bundesstaat",
   vorname: "Vorname", nachname: "Nachname", kunde: "Vor- und Nachname", kontaktMail: "js+nachname@fiaon.com",
   telefon: "Telefon des Kunden", wohnadresse: "Wohnadresse des Kunden", usTelefon: "US-Nummer (falls da)",
-  heuteUs: "MM/TT/JJJJ", plus5Werktage: "heute + 5 Werktage",
+  heuteUs: "MM/TT/JJJJ", plus5Werktage: "heute + 5 Werktage", raAnschrift: "Anschrift aus dem Northwest-Konto",
 };
 
 /**

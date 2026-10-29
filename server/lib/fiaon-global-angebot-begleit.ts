@@ -37,6 +37,7 @@ import {
 import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
 import { dachNummer } from "@shared/fiaon-dach-telefon";
 import { geburtsdatumIso } from "@shared/fiaon-geburtsdatum";
+import { neuesAngebotParameter, staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
 import {
   BEGLEIT_FASSUNG, BEGLEIT_FASSUNGEN, BEGLEIT_GUELTIG_TAGE, BEGLEIT_KNOPF, BEGLEIT_ANNAHME,
   begleitParameterAus, begleitParameterFehler, begleitPflichtFehlen, begleitSeite, begleitBestellUebersicht, begleitAnnahmeTexte,
@@ -198,7 +199,8 @@ export async function begleitAnlegen(ein: any, wer: string): Promise<Ergebnis<{ 
   if (!(BEGLEIT_FASSUNGEN as readonly string[]).includes(fassung)) return nein("Diese Fassung des Begleitvertrags gibt es nicht.");
   const k = begleitKundePruefen(ein?.kunde);
   if (!k.ok) return nein(k.error);
-  const parameter = begleitParameterAus(ein?.parameter);
+  // E-465: neue Angebote mit Staaten-Wahl (ohne Angabe Delaware) und den ehrlichen Zeiten; Bestand läuft nie hier durch.
+  const parameter = begleitParameterAus(neuesAngebotParameter(ein?.parameter));
   const pf = begleitParameterFehler(parameter) ?? begleitAnspracheFehler(parameter);
   if (pf) return nein(pf);
   const heute = berlinToday();
@@ -220,7 +222,7 @@ export async function begleitAendern(id: number, ein: any, wer: string): Promise
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = begleitDatenAus(z); const altHash = begleitTextHash(alt);
   const neu: BegleitDaten = { ...alt }; const geaendert: string[] = [];
-  if (ein?.parameter) { const par = begleitParameterAus(ein.parameter, alt.parameter); const f = begleitParameterFehler(par) ?? begleitAnspracheFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
+  if (ein?.parameter) { const par = { ...begleitParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung }; /* E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich */ const f = begleitParameterFehler(par) ?? begleitAnspracheFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
   if (ein?.kunde) { const k = begleitKundePruefen(ein.kunde); if (!k.ok) return nein(k.error); neu.kunde = k.kunde; geaendert.push("Kunde"); }
   if (ein?.gueltigBis !== undefined) { const g = String(ein.gueltigBis); if (!ISO.test(g) || g < berlinToday()) return nein("„Gültig bis“: ein Datum ab heute."); neu.gueltigBis = g; geaendert.push("Gültigkeit"); }
   if (!geaendert.length) return nein("Es wurde nichts geändert. Beim Begleitvertrag ändert das Skript Kunde, Parameter und Gültigkeit.");
@@ -343,7 +345,7 @@ export async function begleitNacharbeit(id: number): Promise<void> {
   const name = begleitKundeName(d.kunde);
   const namen = w ? [w.llc.wunsch, w.llc.alternative1, w.llc.alternative2].filter(Boolean) : [];
   const zeilen = [
-    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung auf Sunbiz prüfen (${par.bundesstaat}).`,
+    `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung ${staatRegisterIntern(par.bundesstaat)} prüfen.`,
     w?.sofortBeginn ? "BEGINN: sofort (ausdrücklich verlangt) — Reisepass anfordern, Anmeldung binnen fünf Werktagen nach Eingang einreichen." : `BEGINN: nach Ablauf der Widerrufsfrist (${begleitTag(new Date(Date.parse(String(z.angenommen_am)) + 14 * 864e5).toISOString().slice(0, 10))}) — bis dahin nur vorbereiten.`,
     `ALTABO: Mitgliedschaft „${par.bisherMitgliedschaft}“ endet (Ziffer 2)${par.entfaelltAb ? ` — Beitrag zum ${begleitTag(par.entfaelltAb)}${par.entfaelltBetrag ? ` (${par.entfaelltBetrag})` : ""} und alle folgenden STORNIEREN (Raten-Storno), bevor gemahnt wird` : " — offene Beiträge stornieren"}.`,
     `GRÜNDUNGSKOSTEN: Selbstkosten mit Aufstellung, ${begleitEur(par.gruendungVonCents)} bis ${begleitEur(par.gruendungBisCents)}, HÖCHSTENS ${begleitEur(par.gruendungBisCents)} (mehr nur mit Zustimmung in Textform) — Rechnung erst nach Einreichung, Zahlungsziel ${par.zahlungszielTage} Tage.`,
@@ -391,7 +393,7 @@ export function begleitListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
     schalter: w ? { sofortBeginn: w.sofortBeginn, jahresbetreuung: w.jahresbetreuung } : null,
     begleit: {
       llc: w?.llc ?? null,
-      zeile: `Gründung zum Selbstkostenpreis (${begleitEur(d.parameter.gruendungVonCents)}–${begleitEur(d.parameter.gruendungBisCents)}) · Erfolgshonorar ${begleitProzent(d.parameter.honorarProzent)} · Plan ${begleitUsd(d.parameter.kapitalUsd)} · keine Monatsbeiträge`,
+      zeile: `LLC in ${d.parameter.bundesstaat} · Gründung zum Selbstkostenpreis (${begleitEur(d.parameter.gruendungVonCents)}–${begleitEur(d.parameter.gruendungBisCents)}) · Erfolgshonorar ${begleitProzent(d.parameter.honorarProzent)} · Plan ${begleitUsd(d.parameter.kapitalUsd)} · keine Monatsbeiträge`,
     },
     auftragRef: null, officeLink: null, teile: [],
     knoepfe: { meilenstein: "Begleitvertrag: keine Teile", erstattung: "Begleitvertrag: keine Erstattung", garantie: "Begleitvertrag: keine Garantie", hemmung: "Begleitvertrag: keine Frist", aendern: String(z.status) === "offen" ? "Begleitvertrag: Ändern per Skript (scripts/angebot-begleit-anlegen.ts --aendern)" : "Nur solange das Angebot offen ist." },
@@ -486,7 +488,7 @@ export async function begleitZahlungsKontext(a: { ref?: unknown; person_id?: unk
         bezahlt
           ? { titel: "Ihre Zahlung", text: eingangAm ? `Eingegangen am ${eingangAm} — es ist nichts weiter zu tun.` : "Eingegangen — es ist nichts weiter zu tun." }
           : { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
-        { titel: `Anmeldung in ${d.parameter.bundesstaat}`, text: "Wir reichen die Anmeldung beim Bundesstaat (Sunbiz) ein und leiten die Gebühren an Ihren Registered Agent weiter." },
+        { titel: `Anmeldung in ${d.parameter.bundesstaat}`, text: `Wir reichen die Anmeldung beim Bundesstaat${d.parameter.bundesstaat === "Florida" ? " (Sunbiz)" : ""} ein und leiten die Gebühren an Ihren Registered Agent weiter.` },
         { titel: "Ihre Gesellschaft steht", text: "Sobald der Bundesstaat einträgt, erhalten Sie Ihre Gründungsunterlagen. Danach folgen US-Steuernummer (EIN) und Geschäftskonto." },
       ]
       : [],

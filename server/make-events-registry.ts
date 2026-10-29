@@ -1005,6 +1005,39 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       google_kalender_url: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=FIAON+Global&dates=20260924T123000Z%2F20260924T130000Z&ctz=Europe%2FBerlin",
     },
   },
+  // ── E-458 Nr. 11 (29.10.2026): vor und nach dem Global-Gespräch — Texte von Justin freigegeben (6.1/6.2) ──
+  {
+    type: "global_termin_erinnerung",
+    label: "FIAON Global: Erinnerung am Vortag (Unternehmen)",
+    description: "E-458 Nr. 11: 24 Stunden vor dem Global-Gespräch, nur wenn „morgen“ dann stimmt und nicht erst am Vortag gebucht wurde (server/lib/fiaon-global-gespraech.ts, Lauf global_gespraeche). Gesiezt, Global-Rahmen, nennt den, der anruft, und die Nummer; Knopf zum Verschieben. Ersetzt für Global-Gespräche die Privat-Erinnerung termin_erinnerung. Englisch über sprache: \"en\". Nicht beim Firmenangebot (E-301).",
+    customerBound: false,
+    example: {
+      email: "m.beispiel@beispiel-gmbh.de", anrede_zeile: "Guten Tag Frau Beispiel", termin_datum: "30.10.2026", termin_uhrzeit: "10:30",
+      termin_dauer: "30", betreuer_name: "Daniel Beispiel", betreuer_vorname: "Daniel", telefon: "+49 30 1234567",
+      storno_link: "https://www.fiaon.com/termin/absagen/9b2c…?anrede=sie&bereich=business", wann_satz: "heute um 10:30 Uhr", wann_kurz: "heute",
+    },
+  },
+  {
+    type: "global_termin_kurz",
+    label: "FIAON Global: kurze Erinnerung eine Stunde vorher (Unternehmen)",
+    description: "E-458 Nr. 11: eine Stunde vor dem Global-Gespräch (nicht, wenn weniger als zehn Minuten bleiben oder erst anderthalb Stunden vorher gebucht wurde). Zwei Sätze und der Knopf zum Verschieben. Englisch über sprache: \"en\". Nicht beim Firmenangebot (E-301).",
+    customerBound: false,
+    example: {
+      email: "m.beispiel@beispiel-gmbh.de", anrede_zeile: "Guten Tag Frau Beispiel", termin_uhrzeit: "10:30", betreuer_vorname: "Daniel",
+      storno_link: "https://www.fiaon.com/termin/absagen/9b2c…?anrede=sie&bereich=business",
+    },
+  },
+  {
+    type: "global_nicht_erreicht",
+    label: "FIAON Global: „Wir haben Sie nicht erreicht“ (Unternehmen)",
+    description: "E-458 Nr. 11: genau einmal je Gespräch, wenn ein Mensch im Kalender oder im Chefbüro „nicht erreicht“ (oder „Nummer falsch“) einträgt — nie automatisch. Knopf „Neue Zeit wählen“ (Erstgespräch: /business#gespraech; Startgespräch: Justins Seite mit den Daten des Kunden). Danach keine weitere automatische Mail. Englisch über sprache: \"en\".",
+    customerBound: false,
+    example: {
+      email: "m.beispiel@beispiel-gmbh.de", anrede_zeile: "Guten Tag Frau Beispiel", telefon: "+49 30 1234567",
+      betreuer_name: "Daniel Beispiel", wann_satz: "heute um 10:30 Uhr", wann_kurz: "heute",
+      link_kalender: "https://www.fiaon.com/business#gespraech",
+    },
+  },
   // ── DIE BONITÄTSAUSKUNFT (24.09.2026, E-240) ─────────────────────────────
   // Bis heute standen alle drei als „EMPFEHLUNG (noch kein Auto-Versand)" hier,
   // und geliefert wurde nichts: 59 von 66 Käufern ohne Dokument. Jetzt feuert

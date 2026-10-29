@@ -39,6 +39,7 @@ import "@/styles/office-calendar.css";
 import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { maraMarke, MARA_NEU_STUNDEN, type MaraMarke } from "@shared/fiaon-mara-marke";
 import { LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
+import { GLOBAL_ERGEBNIS_WAHL, GLOBAL_GRUENDE, NICHT_ERREICHT_FRAGE } from "@shared/fiaon-global-gespraech";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -215,6 +216,12 @@ const tMara = (a: Termin): MaraMarke | null => (a.quelle === "termin" ? maraMark
 // Diese Wege aus dem Abschluss heißen: Das Gespräch fand NICHT statt — „Niemand
 // dran", „Mailbox", „Falsche Nummer" (unter beiden Urteilen) und „Ohne Ergebnis".
 const tIstLimit = (a: Termin) => a.art === "termin" && a.buchungsquelle === LIMIT_QUELLE;
+// ── E-458 Nr. 11 (29.10.2026): DAS GLOBAL-GESPRÄCH ENDET MIT EINEM VON DREI ERGEBNISSEN ──
+// Stattgefunden / Nicht erreicht / Verschoben — ohne die Privat-Abfrage (Zahlungszusage, Rückruf …) und ohne die
+// Privat-Folgen (Sperre, „Wir haben Sie verpasst“). Vorbei und noch offen heißt: Das Ergebnis fehlt — die Zeile
+// zeigt dann die drei Knöpfe. Texte und Folgen: shared/fiaon-global-gespraech.ts.
+const tIstGlobal = (a: Termin) => a.art === "termin" && a.buchungsquelle === "global";
+const globalFolge = (k: string) => GLOBAL_ERGEBNIS_WAHL.find((w) => w.key === k)?.folge ?? "";
 const LIMIT_NICHT_GEFUEHRT = ["nicht_erreicht", "mailbox", "nummer_falsch", "notiz"];
 /** Frisch von Mara eingetragen — die Marke bekommt den Zusatz „neu". */
 const tMaraNeu = (a: Termin) => !!tMara(a) && !!a.gebucht_am
@@ -308,6 +315,10 @@ function CalendarInnen() {
   const [stundenWoche, setStundenWoche] = useState<number | null>(null);
   const [vollstaendig, setVollstaendig] = useState(true);
   const [detail, setDetail] = useState<Termin | null>(null);
+  // E-458 Nr. 11: „Verschoben“ (Global-Gespräch) öffnet den Dialog gleich beim Verschieben.
+  const [detailModus, setDetailModus] = useState<"verschieben" | null>(null);
+  useEffect(() => { if (!detail) setDetailModus(null); }, [detail]);
+  const verschiebenOeffnen = (a: Termin) => { setDetailModus("verschieben"); setDetail(a); };
   const [anlegen, setAnlegen] = useState(false);
   // E-263 (29.09.2026): das Blatt „In meinen Kalender" (Kalender-Abo).
   const [aboOffen, setAboOffen] = useState(false);
@@ -328,6 +339,17 @@ function CalendarInnen() {
     }).catch(() => { setFehler("Keine Verbindung."); setLaedt(false); });
   }, [montagKey]);
   useEffect(() => { laden(); }, [laden]);
+  // E-458 Nr. 11: Die Aufgabe „Ergebnis fehlt“ verlinkt /agent/kalender?termin=<id> — der Termin öffnet sich gleich.
+  const tiefLink = useRef<number | null>((() => {
+    try { const v = Number(new URLSearchParams(window.location.search).get("termin")); return Number.isInteger(v) && v > 0 ? v : null; } catch { return null; }
+  })());
+  useEffect(() => {
+    const id = tiefLink.current;
+    if (!id || laedt) return;
+    const t = termine.find((x) => x.art === "termin" && Number(x.id) === id);
+    tiefLink.current = null;
+    if (t) setDetail(t);
+  }, [termine, laedt]);
   useEffect(() => {
     api("/agent/arbeitszeiten").then((r) => { if (r.ok) { setBloecke(r.json.bloecke || []); setStundenWoche(Number(r.json.stundenProWoche ?? 0)); setVollstaendig(!!r.json.vollstaendig); } }).catch(() => {});
   }, []);
@@ -394,7 +416,8 @@ function CalendarInnen() {
   const erledigt = async (a: Termin) => {
     const art = a.terminArtText || (a.quelle ? terminArtAusQuelle(a.quelle).text : "");
     const istStart = a.quelle === "onboarding_call" || art === "Onboarding";
-    if (!istStart && a.person_id) { setAbschluss(a); return; }
+    // E-458 Nr. 11: Ein Global-Gespräch fragt nicht nach dem Privat-Ergebnis — „Stattgefunden“ schließt es direkt.
+    if (!istStart && !tIstGlobal(a) && a.person_id) { setAbschluss(a); return; }
     setBusy(tKey(a));
     const r = a.art === "termin"
       ? await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "erledigt" }) })
@@ -443,7 +466,10 @@ function CalendarInnen() {
    * passende Nachricht aus; die Karte sagt danach, WAS passiert ist.
    */
   const nichtZustande = async (a: Termin, grund: string): Promise<boolean> => {
-    if (grund === "kein_interesse") {
+    // E-458 Nr. 11: Beim Global-Gespräch sperrt „kein Interesse“ niemanden — die Firma geht im Cockpit auf „kein Interesse“.
+    if (grund === "kein_interesse" && tIstGlobal(a)) {
+      if (!window.confirm(`${tName(a)} hat kein Interesse mehr?\n\nDie Firma steht im Firmen-Cockpit dann auf „kein Interesse“. Es geht keine Mail raus.`)) return false;
+    } else if (grund === "kein_interesse") {
       const sicher = window.confirm(
         `${tName(a)} will nicht mehr?\n\n`
         + "Der Mensch wird gesperrt: Er erscheint bei keinem Mitarbeiter mehr, "
@@ -464,6 +490,8 @@ function CalendarInnen() {
 
   const verpasst = async (a: Termin) => {
     if (a.art !== "termin") return;
+    // E-458 Nr. 11: Beim Global-Gespräch schickt „nicht erreicht“ dem Unternehmen eine Mail — vorher fragen.
+    if (tIstGlobal(a) && !window.confirm(NICHT_ERREICHT_FRAGE)) return;
     setBusy(tKey(a));
     const r = await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "verpasst" }) });
     setBusy(null);
@@ -656,7 +684,7 @@ function CalendarInnen() {
           <small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Eintrag" : "Einträge"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
-          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
+          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
       )}
 
@@ -665,7 +693,7 @@ function CalendarInnen() {
       {!laedt && ueberfaellig.length > 0 && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Nach dem Tagesgeschäft aufräumen: Ergebnis nachtragen oder neu ansetzen.</small></div>
-          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
+          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
       )}
 
@@ -737,7 +765,7 @@ function CalendarInnen() {
                 <div key={key} className={`ca-tageskarte${istHeute ? " heute" : ""}`}>
                   <div className="ca-tageskarte-kopf"><b>{istHeute ? "Heute" : `${TAGE[i]}, ${datumKurz(ausKey(key))}`}</b><small>{frei.length ? frei.map(([v, b]) => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}–${String(Math.floor(b / 60)).padStart(2, "0")}:${String(b % 60).padStart(2, "0")}`).join(" · ") : "nicht verfügbar"}</small></div>
                   {liste.length === 0 && <p className="ca-leer">–</p>}
-                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} />)}
+                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
                 </div>
               );
             })}
@@ -754,7 +782,8 @@ function CalendarInnen() {
                  onDetails={() => { setDetail(popover.a); setPopover(null); }} />
       )}
       {detail && (
-        <Detail a={detail} busy={busy === tKey(detail)} ausser={!inVerfuegbarkeit(tZeit(detail))} onZu={() => setDetail(null)}
+        <Detail key={`${tKey(detail)}:${detailModus ?? ""}`} startModus={detailModus}
+                a={detail} busy={busy === tKey(detail)} ausser={!inVerfuegbarkeit(tZeit(detail))} onZu={() => setDetail(null)}
                 onErledigt={() => erledigt(detail)} onVerpasst={() => verpasst(detail)} onVerschieben={(w) => verschieben(detail, w)}
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
@@ -833,9 +862,12 @@ function WerMarke({ a, still, verlaufText }: { a: Termin; still?: boolean; verla
   return <span className={still ? undefined : "ca-marke"}>selbst eingetragen</span>;
 }
 
-function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string) => void }) {
+function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande, onVerschieben }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string) => void; onVerschieben: () => void }) {
   const tel = tPhone(a); const d = tZeit(a);
   const [grundOffen, setGrundOffen] = useState(false);
+  // E-458 Nr. 11: Ein Global-Gespräch, das vorbei und noch offen ist, wartet auf sein Ergebnis — drei Knöpfe, sichtbar.
+  const istGlobal = tIstGlobal(a);
+  const ergebnisFehlt = istGlobal && !a.abgesagt && d.getTime() < jetzt && (a.status === "gebucht" || a.status === "verpasst");
   // 24.08.2026 (Justin): „Entferne den farbigen Strich auf der linken Seite
   // der Karte." Die Art des Termins steht ohnehin als Marke im Text — der
   // Strich war eine zweite Aussage über dieselbe Sache. Die Klasse `mit-ton`
@@ -850,7 +882,8 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
       <div className="ca-wer">
         <b>{tName(a)}</b>
         {a.absageText && <span className="ca-hinweis warn">{a.absageText}</span>}
-        {a.status === "verpasst" && <span className="ca-hinweis rot">Ohne Ergebnis verstrichen – mit „Nicht erschienen“ abschließen</span>}
+        {a.status === "verpasst" && !istGlobal && <span className="ca-hinweis rot">Ohne Ergebnis verstrichen – mit „Nicht erschienen“ abschließen</span>}
+        {ergebnisFehlt && <span className="ca-hinweis warn">Ergebnis fehlt – bitte eintragen</span>}
         <small>
           {a.terminArtText && <span className="ca-marke blau" title={tMara(a)?.vonMaraEingetragen ? tMara(a)!.titel : a.terminArtErklaerung || undefined} style={a.terminArtTon ? { color: a.terminArtTon, borderColor: `${a.terminArtTon}66` } : undefined}>{a.terminArtText}</span>}
           {/* VORHER: „Kunde hat gebucht" bei JEDEM Datensatz aus fiaon_termine —
@@ -884,7 +917,33 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
         <button type="button" className="ca-knopf klein still" onClick={onOeffnen} title="Alle Angaben zum Termin">Details</button>
       </div>
 
-      {grundOffen && (
+      {ergebnisFehlt && !grundOffen && (
+        <div className="ca-global-ergebnis" onClick={(e) => e.stopPropagation()} data-fiaon="global-ergebnis">
+          <span>Wie ging das Gespräch aus?</span>
+          <button type="button" className="ca-knopf klein gut" disabled={busy} title={globalFolge("stattgefunden")} onClick={onErledigt}>Stattgefunden</button>
+          <button type="button" className="ca-knopf klein rot" disabled={busy} title={globalFolge("nicht_erreicht")}
+                  onClick={() => { if (window.confirm(NICHT_ERREICHT_FRAGE)) onNichtZustande("nicht_erschienen"); }}>Nicht erreicht</button>
+          <button type="button" className="ca-knopf klein still" disabled={busy || a.status !== "gebucht"} title={globalFolge("verschoben")} onClick={onVerschieben}>Verschoben</button>
+        </div>
+      )}
+
+      {grundOffen && istGlobal && (
+        <div className="ca-gruende" onClick={(e) => e.stopPropagation()}>
+          <p>Warum kam das Gespräch nicht zustande?</p>
+          {GLOBAL_GRUENDE.map((g) => (
+            <button key={g.key} type="button" className={`ca-grund${g.key === "kein_interesse" ? " rot" : ""}`} disabled={busy}
+                    onClick={() => { setGrundOffen(false); onNichtZustande(g.key); }}>
+              <b>{g.label}</b><small>{g.folge}</small>
+            </button>
+          ))}
+          <button type="button" className="ca-grund" disabled={busy || a.status !== "gebucht"} onClick={() => { setGrundOffen(false); onVerschieben(); }}>
+            <b>Verschoben — neue Zeit eintragen</b><small>{globalFolge("verschoben")}</small>
+          </button>
+          <button type="button" className="ca-link-klein" onClick={() => setGrundOffen(false)}>zurück</button>
+        </div>
+      )}
+
+      {grundOffen && !istGlobal && (
         <div className="ca-gruende" onClick={(e) => e.stopPropagation()}>
           <p>Warum kam der Termin nicht zustande?</p>
           {GRUENDE.map((g) => (
@@ -960,11 +1019,14 @@ function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, on
 }
 
 // ── Detail-Dialog mit allen Aktionen ─────────────────────────────────────────
-function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, onUebergeben, onAbsagen }: {
+function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, onUebergeben, onAbsagen, startModus }: {
   a: Termin; busy: boolean; ausser: boolean; onZu: () => void; onErledigt: () => void; onVerpasst: () => void;
   onVerschieben: (wert: string) => Promise<boolean>; onUebergeben: (agentId: number, grund: string) => Promise<boolean>; onAbsagen: () => void;
+  /** E-458 Nr. 11: „Verschoben“ beim Global-Gespräch öffnet gleich das Feld für die neue Zeit. */
+  startModus?: "verschieben" | null;
 }) {
-  const [modus, setModus] = useState<null | "verschieben" | "uebergeben" | "absagen">(null);
+  const [modus, setModus] = useState<null | "verschieben" | "uebergeben" | "absagen">(startModus ?? null);
+  const istGlobal = tIstGlobal(a);
   // ══════════════════════════════════════════════════════════════════════════
   // DAS FELD IST VORGEFÜLLT (26.08.2026, Florentines Punkt 7)
   //
@@ -1034,12 +1096,12 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
           <div className="ca-dialog-aktionen">
             {tel && <button type="button" className="ca-knopf" onClick={() => anrufen(tel, a.person_id, tName(a))}><Phone size={15} strokeWidth={1.75} /> Anrufen</button>}
             <Link href={akteHref(a)} className="ca-knopf still"><ExternalLink size={15} strokeWidth={1.75} /> Zur Akte</Link>
-            {!a.abgesagt && <button type="button" className="ca-knopf gut" disabled={busy} onClick={onErledigt}><Check size={15} strokeWidth={2} /> Erledigt</button>}
+            {!a.abgesagt && <button type="button" className="ca-knopf gut" disabled={busy} onClick={onErledigt} title={istGlobal ? globalFolge("stattgefunden") : undefined}><Check size={15} strokeWidth={2} /> {istGlobal ? "Stattgefunden" : "Erledigt"}</button>}
             {/* 25.08.2026: VORHER nur für Verlaufseinträge — bei einem echten
                 Termin fehlte der Knopf ganz (Meldung Daniel/Florentine).
                 NACHHER bei jedem. */}
             <button type="button" className="ca-knopf still" onClick={() => setModus("verschieben")}>Verschieben</button>
-            {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={onVerpasst} title="Kunde ist nicht erschienen – zählt als Fehlversuch">Nicht erschienen</button>}
+            {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={onVerpasst} title={istGlobal ? globalFolge("nicht_erreicht") : "Kunde ist nicht erschienen – zählt als Fehlversuch"}>{istGlobal ? "Nicht erreicht" : "Nicht erschienen"}</button>}
             {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={() => setModus("uebergeben")}><UserRoundCheck size={15} strokeWidth={1.75} /> Übergeben</button>}
             {gebucht && <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => setModus("absagen")}>Absagen</button>}
           </div>
@@ -1066,7 +1128,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
 
         {modus === "verschieben" && (
           <div className="ca-form">
-            <p>Neuer Zeitpunkt (deutsche Zeit). Die Erinnerung wird erneut fällig.</p>
+            <p>{istGlobal ? `Neuer Zeitpunkt (deutsche Zeit). ${globalFolge("verschoben")}` : "Neuer Zeitpunkt (deutsche Zeit). Die Erinnerung wird erneut fällig."}</p>
             <input type="datetime-local" className="ca-feld" value={wert} onChange={(e) => setWert(e.target.value)} aria-label="Neuer Zeitpunkt" />
             {/* Mitternacht ist fast nie gemeint — meist wurde die Uhrzeit
                 vergessen. Lieber nachfragen als still um 00:00 buchen. */}

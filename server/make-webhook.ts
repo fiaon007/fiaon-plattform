@@ -104,6 +104,10 @@ export type MakeEventType =
   | "documents_change_request"// Dokumente-Änderung angefordert (changes_requested)
   | "zustimmung_link"        // E-184: Bitte an den Kunden, AGB/Bonitätsprüfung/Vertrag selbst zu bestätigen
   | "global_termin"          // E-188: Bestätigung des Erstgesprächs zu FIAON Global (Kalender auf /business)
+  // E-458 Nr. 11 (29.10.2026): vor und nach dem Global-Gespräch (server/lib/fiaon-global-gespraech.ts)
+  | "global_termin_erinnerung" // am Vortag: „Morgen um … Uhr: Ihr Gespräch mit FIAON Global“
+  | "global_termin_kurz"       // eine Stunde vorher
+  | "global_nicht_erreicht"    // einmal, wenn ein Mensch „nicht erreicht“ einträgt — mit Link für eine neue Zeit
   // ── FIAON Global (E-188, 17.09.2026) — Firmenkunden, US-Struktur. Gehen NIE über Make:
   //    `global_auftrag` trägt Vertrag und Rechnung als PDF; der Bestellweg sendet alle drei
   //    direkt über den Motor (server/lib/fiaon-global-auftrag.ts) und protokolliert selbst.

@@ -31,6 +31,17 @@ import { absoluteUrl } from "../fiaon-base-url";
 
 const router = Router();
 
+/**
+ * E-458 Nr. 11 (29.10.2026): Die Vertretung für die Global-Gespräche (Chefbüro, global_vertretung_agent_id) darf bei
+ * einem Global-Gespräch das Ergebnis eintragen und verschieben, auch wenn es im Kalender der zuständigen Person steht —
+ * sonst bekäme sie die Aufgabe „Ergebnis fehlt“ und stünde vor einer verschlossenen Tür. Nur für quelle „global“.
+ */
+async function globalVertretungDarf(termin: { quelle?: unknown }, agentId: number): Promise<boolean> {
+  if (String(termin.quelle) !== "global") return false;
+  const { istGlobalVertretung } = await import("../lib/fiaon-global-gespraech");
+  return istGlobalVertretung(agentId).catch(() => false);
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Gemeinsam: Bestätigungsmail nach einer Buchung
 //
@@ -857,7 +868,7 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
 
     // Dieselbe Grenze wie beim Abhaken: eigener Termin, oder darfAnKunde.
-    if (Number(termin.agent_id) !== req.agent!.id) {
+    if (Number(termin.agent_id) !== req.agent!.id && !(await globalVertretungDarf(termin, req.agent!.id))) {
       const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
       if (!(await darfAnKunde(req.agent!.id, await rolleVon(req.agent!.id), Number(termin.person_id)))) {
         return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
@@ -1056,7 +1067,7 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
     `) as any[];
     if (!termin) return res.status(404).json({ ok: false, error: "Termin nicht gefunden." });
 
-    if (Number(termin.agent_id) !== req.agent!.id) {
+    if (Number(termin.agent_id) !== req.agent!.id && !(await globalVertretungDarf(termin, req.agent!.id))) {
       const { darfAnKunde, rolleVon } = await import("../lib/fiaon-kundenzugriff");
       const rolle = await rolleVon(req.agent!.id);
       if (!(await darfAnKunde(req.agent!.id, rolle, Number(termin.person_id)))) {
@@ -1208,8 +1219,19 @@ router.post("/agent/termine/:id/verschieben", requireAgent, async (req: AgentReq
     const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
     const rolle = String(await rolleVon(req.agent!.id));
     const eigen = Number(t.agent_id) === req.agent!.id;
-    if (!eigen && rolle !== "admin" && rolle !== "vertriebsleiter") {
+    if (!eigen && rolle !== "admin" && rolle !== "vertriebsleiter" && !(await globalVertretungDarf(t, req.agent!.id))) {
       return res.status(403).json({ ok: false, error: "Das ist der Termin einer Kollegin oder eines Kollegen." });
+    }
+
+    // ── E-458 Nr. 11 (29.10.2026): EIN GLOBAL-GESPRÄCH VERSCHIEBT SEIN EIGENER WEG ──────────────
+    // Der allgemeine Weg unten schickt die Privat-Bestätigung (termin_bestaetigung, „FIAON Welcome“-Rahmen)
+    // und lässt die Marken der Global-Erinnerungen stehen. Der Global-Weg schickt die gesiezte Bestätigung,
+    // setzt Erinnerungen und Ergebnis-Pflicht für die neue Zeit zurück und schließt „Ergebnis fehlt“.
+    if (String(t.quelle) === "global") {
+      const { globalGespraechVerschieben } = await import("../lib/fiaon-global-gespraech");
+      const erg = await globalGespraechVerschieben(id, new Date(neu), { id: req.agent!.id, name: req.agent!.name });
+      if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+      return res.json({ ok: true, beginn: erg.beginn, meldung: erg.meldung, hinweis: erg.hinweis });
     }
 
     const alt = t.beginn;

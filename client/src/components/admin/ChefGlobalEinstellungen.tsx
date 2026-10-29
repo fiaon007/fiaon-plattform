@@ -20,7 +20,11 @@ interface GoogleStand {
   konten: { id: number; name: string; email: string }[];
   eingetragen: number; zuletztOk: string | null; fehler: string | null; an: boolean;
 }
-interface Stand { proTag: number; proTagVorgabe: number; zustaendig: { id: number; name: string } | null; google: GoogleStand }
+interface Stand {
+  proTag: number; proTagVorgabe: number; zustaendig: { id: number; name: string } | null; google: GoogleStand;
+  /** E-458 Nr. 11: wer einspringt, wenn die Person der Gespräche nicht da ist. */
+  vertretung?: { id: number; name: string } | null;
+}
 
 const STUFEN = [4, 6, 8, 10, 12];
 
@@ -96,6 +100,13 @@ export default function ChefGlobalEinstellungen() {
         <span className="cge-titel"><UserRound size={15} strokeWidth={1.75} /> Website-Gespräche führt</span>
         <b className="cge-wert">{s.zustaendig?.name ?? "niemand"}</b>
         <small><a href="/chef/rueckholung">ändern</a></small>
+      </div>
+
+      {/* E-458 Nr. 11: die Vertretung — bekommt „Ergebnis fehlt“, wenn die Person der Gespräche nicht da ist. */}
+      <div className="cge-feld" data-fiaon="global-vertretung">
+        <span className="cge-titel"><UserRound size={15} strokeWidth={1.75} /> Vertretung</span>
+        <b className="cge-wert">{s.vertretung?.name ?? "keine"}</b>
+        <small title="Ist die Person der Gespräche abwesend, inaktiv oder gesperrt, bekommt die Vertretung die Aufgabe „Ergebnis fehlt“. Ohne Vertretung geht sie an die Leitung."><a href="/chef/rueckholung">festlegen</a></small>
       </div>
 
       <div className="cge-feld breit">

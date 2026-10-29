@@ -531,6 +531,11 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Steht auf einer Karte „FIAON Global“, hat ein Unternehmen über fiaon.com/business ein "
       + "Erstgespräch gebucht: 30 Minuten, du rufst an — und „Zur Akte“ führt dich ins "
       + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen. "
+      // 29.10.2026 (E-458 Nr. 11) mitgezogen: Erinnerungen und Ergebnis-Pflicht beim Global-Gespräch.
+      + "Das Unternehmen bekommt am Vortag und eine Stunde vorher eine Erinnerung. Ist das Gespräch vorbei, fragt die Karte "
+      + "nach dem Ergebnis: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine "
+      + "neue Zeit) oder „Verschoben“. Ohne Eintrag bekommst du eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, "
+      + "am nächsten Werktag um 9 Uhr erfährt es die Leitung — „verpasst“ setzt das System nicht mehr von selbst. "
       // 05.10.2026 (E-283) mitgezogen: Support heißt jetzt auch im Kalender so, dazu das Limit-Gespräch.
       + "„Support“ ist ein Hilfegespräch mit einem Bestandskunden nach dem Startgespräch. Violett ist ein "
       + "Limit-Gespräch: Kunden mit Pro, Ultra oder High-End buchen es alle drei Monate selbst in ihrem Bereich — "
@@ -1591,6 +1596,16 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     text: "Links stehen die Kunden, rechts die geöffnete Akte. Es sind dieselben Daten wie im Raum „Global-Mandate“ und im Kundenportal: "
       + "Was du hier änderst, sieht der Kunde sofort. Was er tut, erscheint hier von selbst — die Seite lädt jede Minute leise nach, "
       + "solange der Tab offen ist. Was du gerade tippst, bleibt stehen.",
+  },
+  // 29.10.2026 (E-458 Nr. 11): die Leiste „Gespräche“ — kein Global-Gespräch geht mehr verloren.
+  {
+    ziel: "[data-cgn='gespraeche']",
+    titel: "Gespräche: Kein Termin geht mehr verloren.",
+    text: "Hier stehen die Global-Gespräche: wo das Ergebnis fehlt, was geplant ist und was zuletzt war. Fehlt ein Ergebnis, trägst du es "
+      + "mit einem Klick ein: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit) "
+      + "oder „Verschoben“ (neue Zeit, die Bestätigung geht von selbst). Erinnerungen am Vortag und eine Stunde vorher laufen automatisch.",
+    tipp: "Eine halbe Stunde nach dem Gespräch bekommt die zuständige Person die Aufgabe „Ergebnis fehlt“ — ist sie nicht da, die Vertretung. "
+      + "Steht am nächsten Werktag um 9 Uhr noch nichts da, erinnert dich das System. Die Vertretung legst du unter Rückholung › FIAON Global fest.",
   },
   {
     ziel: ".cgn-filter",

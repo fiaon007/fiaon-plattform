@@ -134,7 +134,9 @@ function ensureFirmen(): Promise<void> {
 
 export type GlobalLeadStatus = "termin" | "wiedervorlage" | "in_arbeit" | "kein_interesse";
 export type GlobalLeadEreignis =
-  | "termin_gebucht" | "anfrage" | "termin_abgesagt" | "gespraech_gefuehrt" | "gespraech_nicht_zustande";
+  | "termin_gebucht" | "anfrage" | "termin_abgesagt" | "gespraech_gefuehrt" | "gespraech_nicht_zustande"
+  // E-458 Nr. 11 (29.10.2026): das verschobene Gespräch und die Mails davor/danach (fiaon-global-gespraech.ts).
+  | "termin_verschoben" | "gespraech_mail";
 
 function wiedervorlageTag(wann: "heute" | "morgen" | null): string | null {
   return wann === "heute" ? berlinToday() : wann === "morgen" ? berlinPlusTage(1) : null;

@@ -193,6 +193,23 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "Bestätigung für das Erstgespräch zu FIAON Global — an das Unternehmen, mit Kalenderdatei und Storno-Link.",
     vonHand: false, pflichtFelder: ["termin_datum", "termin_uhrzeit", "storno_link", "kalender_url"],
   },
+  // E-458 Nr. 11 (29.10.2026): vor und nach dem Global-Gespräch — gehören zu einem Termin, gehen nur automatisch
+  // (fiaon-global-gespraech.ts) bzw. nach dem Eintrag „nicht erreicht“.
+  global_termin_erinnerung: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Erinnerung am Vortag an das Unternehmen — wer anruft, unter welcher Nummer, Knopf zum Verschieben.",
+    vonHand: false, pflichtFelder: ["termin_datum", "termin_uhrzeit", "storno_link", "betreuer_name"],
+  },
+  global_termin_kurz: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: kurze Erinnerung eine Stunde vor dem Gespräch.",
+    vonHand: false, pflichtFelder: ["termin_uhrzeit", "storno_link"],
+  },
+  global_nicht_erreicht: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: „Wir haben Sie nicht erreicht“ — einmal je Gespräch, mit Link für eine neue Zeit.",
+    vonHand: false, pflichtFelder: ["wann_satz", "link_kalender"],
+  },
   termin_absage: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Absage durch den Mitarbeiter — der Kunde erfaehrt es sofort, mit Link auf eine neue Zeit.",

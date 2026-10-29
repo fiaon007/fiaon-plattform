@@ -1173,7 +1173,13 @@ export async function maraAktionLauf(opt: {
         } catch (err: any) {
           // E-246: KI pausiert (oder gerade pausiert worden) — Durchgang beenden, KEINE Zeile:
           // „abgelehnt" hieße Ruhe für diesen Menschen und eine falsche Zahl im Steuerpult.
-          if (istKiPause(err)) { pausiert = true; await sqlPool`DELETE FROM fiaon_mara_aktion WHERE id = ${id} AND status = 'in_arbeit'`.catch(() => {}); return; }
+          // E-458 (29.10.2026): Bremst nur die KI-Kasse (Topf „Privat-Mails“ leer, Nachhol-Bremse), wartet nur DIESE Mail —
+          // der Durchgang geht weiter: Die Klärung der Stufe A ist ein fester Text ohne KI und darf nicht mit liegen bleiben.
+          if (istKiPause(err)) {
+            if (err?.art !== "kasse") pausiert = true;
+            await sqlPool`DELETE FROM fiaon_mara_aktion WHERE id = ${id} AND status = 'in_arbeit'`.catch(() => {});
+            return;
+          }
           m = { ok: false, grund: String(err?.message || err).slice(0, 200), betreff: "", text: "", html: "", kern: "", kostenCents: 0, maengel: [] };
         }
         if (!m.ok) {

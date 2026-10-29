@@ -163,6 +163,7 @@ const aktion = lese("server/lib/fiaon-mara-aktion.ts");
 const ap = aktion.slice(aktion.indexOf("function aktionsPrompt("), aktion.indexOf("export function absaetzeFassen("));
 ok(ap.indexOf('personaText("mail"') > 0 && ap.indexOf('personaText("mail"') < ap.indexOf("`DEIN ZIEL:") && (ap.match(/personaText\("mail"/g) ?? []).length === 1, "Mail-Aktion: Persona direkt nach dem ersten Satz (einmal)");
 ok(/const AKTION_MODELL = \(\) => kiModell\("aktion"\)/.test(aktion) && !/\bMODELL\(\)/.test(aktion.replace(/AKTION_MODELL\(\)/g, "")), "Mail-Aktion: eigenes Modell");
+ok(/if \(istKiPause\(err\)\) \{\s*if \(err\?\.art !== "kasse"\) pausiert = true;/.test(aktion), "ROT-PROBE Mail-Aktion: bremst nur die Kasse, wartet nur diese KI-Mail — die feste Klärung (ohne KI) läuft weiter");
 const ton = lese("shared/fiaon-mara-ton.ts");
 const pt = ton.slice(ton.indexOf("export function personaText("), ton.indexOf("// ── Die Tonprüfung"));
 ok(pt.indexOf("formText(kanal),") > 0 && pt.indexOf("formText(kanal),") < pt.indexOf("betreuerZeile,\n  ].join"), "Persona: SEIN Betreuer steht am Ende");

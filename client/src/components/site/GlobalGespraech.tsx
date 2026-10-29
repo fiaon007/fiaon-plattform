@@ -116,8 +116,9 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
         return;
       }
       if (!tag || !zeit) return;
-      // E-458: Der Satz selbst geht mit — der Server speichert die Einwilligung nur, wenn es genau sein Satz ist.
-      const r = await fetch("/api/fiaon/global/termine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined, ...(arasJa ? { arasAnruf: GLOBAL_TERMIN_ARAS_TEXT[sp] } : {}) }) });
+      // E-458: Der Satz selbst geht mit — der Server speichert die Einwilligung nur, wenn es genau sein Satz ist. Dazu der Pfad
+      // dieser Seite für den Nachweis (seit E-461 liegt das Formular auf /, /en, Unterseiten und Landingpages).
+      const r = await fetch("/api/fiaon/global/termine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined, ...(arasJa ? { arasAnruf: GLOBAL_TERMIN_ARAS_TEXT[sp], arasSeite: window.location.pathname } : {}) }) });
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) { setFehler(t.vergeben); setZeit(null); await laden(); return; }
       if (!r.ok || !j.ok) { setFehler(j.error || t.fehler); return; }

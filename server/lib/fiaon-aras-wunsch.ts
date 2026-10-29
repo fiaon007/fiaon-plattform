@@ -442,14 +442,25 @@ export async function gespraechFuerBriefing(terminId: number | null | undefined,
   return { datum: tagKurz(beginn), uhrzeit: uhr(beginn), wann, mitNom: n.nom, mitDat: n.dat, firma: firma && !/^Privatperson ·/.test(firma) ? firma : null, thema };
 }
 
-// ── Das Kästchen im Buchungsformular (/business, E-458) ────────────────────
+// ── Das Kästchen im Buchungsformular (fiaon.com/ und Global-Unterseiten, E-458) ──
+/**
+ * Die Seite, auf der das Kästchen stand — für den Nachweis. Seit E-461 (29.10.) liegt die Buchung auf fiaon.com/ und /en, dazu auf
+ * den Global-Unterseiten und Landingpages (/business leitet nur noch weiter): zuerst der Pfad, den der Browser mitschickt, sonst der
+ * Pfad aus dem Referer (ein alter Stand im Browser schickt keinen), sonst „/“. Nur ein sauberer Pfad zählt — nie Domain oder Suchteil.
+ */
+export function belegSeite(pfad: unknown, referer?: unknown): string {
+  const sauber = (p: unknown) => (typeof p === "string" && /^\/[A-Za-z0-9/_.%-]{0,150}$/.test(p) ? p : null);
+  const ausReferer = () => { try { return typeof referer === "string" && referer ? sauber(new URL(referer).pathname) : null; } catch { return null; } };
+  return sauber(pfad) ?? ausReferer() ?? "/";
+}
+
 /**
  * Hat das Unternehmen beim Buchen das Kästchen „… auch durch unsere KI-Assistentin ARAS“ angehakt, wird GENAU dieser Satz zum
  * Nachweis (termin_kaestchen, quelle = der Termin) — aber nur, wenn der Browser denselben Satz zurückschickt, den der Server
  * zeigt (ein alter Stand speichert nichts statt eines Satzes, den niemand gesehen hat). Im Hintergrund, wirft nie: Die Buchung
  * steht schon und hängt nie an der Einwilligung.
  */
-export function globalTerminEinwilligungMerken(e: { terminId: number; wortlautBrowser: unknown; wortlautServer: readonly string[]; telefon: string; ip: string; ua: string; sprache: "de" | "en" }): void {
+export function globalTerminEinwilligungMerken(e: { terminId: number; wortlautBrowser: unknown; wortlautServer: readonly string[]; telefon: string; ip: string; ua: string; sprache: "de" | "en"; seite?: unknown; referer?: unknown }): void {
   const satz = String(e.wortlautBrowser ?? "");
   if (!e.wortlautServer.includes(satz)) {
     if (satz) console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Kästchen angehakt, aber der Satz im Browser ist nicht der dieses Servers — KEINE Einwilligung gespeichert.`);
@@ -463,7 +474,7 @@ export function globalTerminEinwilligungMerken(e: { terminId: number; wortlautBr
     if (!nummerKern(nummer)) { console.warn(`[ARAS-WUNSCH] Termin ${e.terminId}: Kästchen ohne brauchbare Nummer — keine Einwilligung.`); return; }
     const { id } = await einwilligungMerken({
       personId, nummer, art: "termin_kaestchen", wortlaut: satz, quelleArt: "global_termin", quelleId: String(e.terminId),
-      beleg: { seite: "/business", formular: "Gespräch vereinbaren", kaestchen: "eigene Zeile, nicht vorangekreuzt, freiwillig", sprache: e.sprache, ip: e.ip.slice(0, 80), userAgent: e.ua.slice(0, 300) },
+      beleg: { seite: belegSeite(e.seite, e.referer), formular: "Gespräch vereinbaren", kaestchen: "eigene Zeile, nicht vorangekreuzt, freiwillig", sprache: e.sprache, ip: e.ip.slice(0, 80), userAgent: e.ua.slice(0, 300) },
     });
     console.log(`[ARAS-WUNSCH] Termin ${e.terminId}: Einwilligung zum Erinnerungsanruf gespeichert (Nr. ${id}).`);
   })().catch((err) => console.error(`[ARAS-WUNSCH] Termin ${e.terminId}: Einwilligung NICHT gespeichert — die Buchung gilt trotzdem:`, err));

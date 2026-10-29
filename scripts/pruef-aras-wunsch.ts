@@ -193,14 +193,18 @@ async function main(): Promise<void> {
   ok("Rot-Probe: in Stufe 0 nimmt ARAS keine Rückrufe an — Mara bucht beim Betreuer", !stufe0.ok && (stufe0 as any).grund === "aras_nicht_bereit" && !(await W.arasRueckrufBereit()).bereit);
   await einstellungSetzen("aras_stufe", "1", "pruefstand"); arasEinstellungenVergessen();
 
-  titel("7. DAS KÄSTCHEN DER BUCHUNG (/business): nur der Satz der Seite zählt");
+  titel("7. DAS KÄSTCHEN DER BUCHUNG (fiaon.com/ und Unterseiten): nur der Satz der Seite zählt, der Nachweis nennt die echte Seite");
   const g3p = await person(13, { kind: "business", firma: "Kästchen KG" });
   const [t3] = (await sqlPool`INSERT INTO fiaon_termine (person_id, agent_id, beginn, dauer_min, status, quelle, storno_token) VALUES (${g3p}, ${agentId}, ${new Date(beginnG1.getTime() + 5 * 3600_000)}, 30, 'gebucht', 'global', ${`pruef-e458-g3-${Date.now()}`}) RETURNING id`) as any[];
   W.globalTerminEinwilligungMerken({ terminId: Number(t3.id), wortlautBrowser: "Ja, Sie dürfen mich anrufen.", wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en], telefon: nr(13), ip: "203.0.113.5", ua: "Prüfstand", sprache: "de" });
-  W.globalTerminEinwilligungMerken({ terminId: Number(t3.id), wortlautBrowser: GLOBAL_TERMIN_ARAS_TEXT.en, wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en], telefon: nr(13), ip: "203.0.113.5", ua: "Prüfstand", sprache: "en" });
+  W.globalTerminEinwilligungMerken({ terminId: Number(t3.id), wortlautBrowser: GLOBAL_TERMIN_ARAS_TEXT.en, wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en], telefon: nr(13), ip: "203.0.113.5", ua: "Prüfstand", sprache: "en", seite: "/en", referer: "https://fiaon.com/en/business/wissen" });
   await new Promise((l) => setTimeout(l, 800));
-  const ew3 = (await sqlPool`SELECT art, wortlaut, quelle_art, person_id FROM fiaon_telefon_einwilligung WHERE quelle_art = 'global_termin' AND quelle_id = ${String(t3.id)}`) as any[];
+  const ew3 = (await sqlPool`SELECT art, wortlaut, quelle_art, person_id, beleg FROM fiaon_telefon_einwilligung WHERE quelle_art = 'global_termin' AND quelle_id = ${String(t3.id)}`) as any[];
   ok("Fremder Satz: nichts gespeichert — der Satz der Seite (englisch): genau eine Einwilligung termin_kaestchen an der Person", ew3.length === 1 && ew3[0].art === "termin_kaestchen" && ew3[0].wortlaut === GLOBAL_TERMIN_ARAS_TEXT.en && Number(ew3[0].person_id) === g3p, JSON.stringify(ew3));
+  const beleg3 = typeof ew3[0]?.beleg === "string" ? JSON.parse(ew3[0].beleg) : ew3[0]?.beleg;
+  ok("Nachweis nennt die Seite, die der Browser schickt („/en“), nicht die alte Adresse /business", beleg3?.seite === "/en", JSON.stringify(beleg3));
+  const seiten = [W.belegSeite("/business/wissen/sba", "https://fiaon.com/"), W.belegSeite(undefined, "https://fiaon.com/en?utm_source=x"), W.belegSeite("https://fremd.example/x", "kaputt"), W.belegSeite("/?a=b"), W.belegSeite("/")];
+  ok("Seite für den Nachweis: Browser-Pfad vor Referer, Referer ohne Suchteil, Fremdes → „/“", JSON.stringify(seiten) === JSON.stringify(["/business/wissen/sba", "/en", "/", "/", "/"]), JSON.stringify(seiten));
   const k3 = await W.wunschKandidaten(sqlPool, { personId: g3p, mitAusgeschlossenen: true });
   ok("Rot-Probe: das Buchungs-Kästchen ist KEIN Anruf-Wunsch (deckt nur die Erinnerung)", k3.length === 0);
 

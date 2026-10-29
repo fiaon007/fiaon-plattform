@@ -114,6 +114,7 @@ router.post("/termine", async (req: Request, res: Response) => {
         void import("../lib/fiaon-aras-wunsch").then((m) => m.globalTerminEinwilligungMerken({
           terminId: erg.terminId, wortlautBrowser: b.arasAnruf, wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en],
           telefon: kontakt.telefon, ip: ipVon(req), ua: String(req.headers["user-agent"] ?? ""), sprache: en ? "en" : "de",
+          seite: b.arasSeite, referer: req.headers.referer,
         })).catch((e) => console.error(`[GLOBAL-TERMIN] Einwilligung zu Termin ${erg.terminId}:`, e));
       }
       const messRef = `global-termin-${erg.terminId}`;

@@ -16,6 +16,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { ARAS_SCHLUESSEL as ARAS_KERN_SCHLUESSEL, SPIELARTEN_VORGABE as ARAS_KERN_SPIELARTEN, FENSTER_VORGABE as ARAS_KERN_FENSTER, fensterPruefen as arasFensterPruefen, istGesperrteSpielart, GESPERRT_TEXT } from "./fiaon-aras";
+// E-458 (29.10.2026): die ehrliche KI-Kasse — Gesamtdeckel, Anteile, Nachhol-Bremse, Modell je Aufgabe.
+import { KASSE_ANTEILE_VORGABE, KASSE_TAG_USD_VORGABE, KASSE_NACHHOL_USD_VORGABE, KI_AUFGABEN, anteileFehler } from "./fiaon-ki-kasse";
 
 export type SchalterGruppe = "mara_mail" | "mara_whatsapp" | "aras" | "leitplanken" | "kasse";
 export const GRUPPEN: { key: SchalterGruppe; label: string; satz: string }[] = [
@@ -23,7 +25,7 @@ export const GRUPPEN: { key: SchalterGruppe; label: string; satz: string }[] = [
   { key: "mara_whatsapp", label: "Mara · WhatsApp", satz: "Antworten, Nachfassen, Auskunft-Verkauf." },
   { key: "aras", label: "Aras · Telefon", satz: "Stimme, Regie, Spielarten, Zeiten, Mengen." },
   { key: "leitplanken", label: "Leitplanken", satz: "Prüf-Mara, Bremsen, Termine bei Justin." },
-  { key: "kasse", label: "Kasse", satz: "Deckel je Dienst und Tag." },
+  { key: "kasse", label: "Kasse", satz: "Gesamtdeckel, Anteile, Nachhol-Bremse, Deckel je Dienst — echte Dollar." },
 ];
 
 export type SchalterTyp = "an_aus" | "eins_null" | "zahl" | "text" | "enum" | "json";
@@ -183,10 +185,22 @@ export const REGISTER: readonly RegisterEintrag[] = [
   { schluessel: "gruender_termin_vorlauf_stunden", gruppe: "leitplanken", label: "Termine bei Justin: Vorlauf", satz: "Frühestens in N Stunden — kein Anruf aus dem Nichts.", typ: "zahl", vorgabe: "4", min: 0, max: 72, setzer: KI, leser: "fiaon-gruender-termin.ts:einstellungen", dienst: "mara" },
   { schluessel: "gruender_termin_titel", gruppe: "leitplanken", label: "Termine bei Justin: Titel", satz: "Der Titel auf der Buchungsseite.", typ: "text", vorgabe: "Gründer & Geschäftsführer", maxZeichen: 60, setzer: KI, leser: "fiaon-gruender-termin.ts:einstellungen", dienst: "mara" },
   // ── Kasse ─────────────────────────────────────────────────────────────────
-  { schluessel: "mara_aktion_tag_euro", gruppe: "kasse", label: "Deckel Mail-Aktion", satz: "KI-Kosten der Mail-Aktion je Tag in Euro.", typ: "zahl", vorgabe: "15", min: 0, max: 500, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
-  { schluessel: "mara_wa_tag_euro", gruppe: "kasse", label: "Deckel WhatsApp", satz: "KI-Kosten der WhatsApp-Antworten je Tag in Euro.", typ: "zahl", vorgabe: "30", min: 0, max: 200, setzer: KI, leser: "fiaon-whatsapp-mara.ts:einstellung", dienst: "mara" },
-  { schluessel: "postmeister_tag_euro", gruppe: "kasse", label: "Deckel Postfach", satz: "KI-Kosten der Postfach-Antworten je Tag in Euro.", typ: "zahl", vorgabe: "35", min: 0, max: 200, setzer: KI, leser: "fiaon-postmeister-agent.ts:postmeisterTagEuro", dienst: "mara" },
-  { schluessel: "pruef_mara_tag_euro", gruppe: "kasse", label: "Deckel Prüf-Mara", satz: "KI-Kosten der Prüfung je Tag in Euro.", typ: "zahl", vorgabe: "10", min: 0, max: 100, setzer: KI, leser: "fiaon-ki-pruefung.ts:pruefungTakt", dienst: "pruef" },
+  // ── Kasse (E-458, 29.10.2026): die ehrliche KI-Kasse — echte Dollar je Berliner Tag (shared/fiaon-ki-kasse.ts) ──
+  { schluessel: "ki_kasse_an", gruppe: "kasse", label: "KI-Kasse bremst", satz: "Aus = die Kasse misst nur und bremst nie.", typ: "an_aus", vorgabe: "an", setzer: KI, leser: "fiaon-ki-kasse.ts:kassePruefen", dienst: "mara", rueckfrage: { bei: ["aus"], text: "Dann gibt es keinen Gesamtdeckel und keine Anteile mehr — die KI kann wieder das ganze Guthaben an einem Tag verbrauchen. Wirklich ausschalten?" } },
+  { schluessel: "ki_kasse_tag_usd", gruppe: "kasse", label: "Gesamtdeckel je Tag", satz: "Alle KI zusammen, echte Dollar je Berliner Tag (ab 0 Uhr).", typ: "zahl", vorgabe: String(KASSE_TAG_USD_VORGABE), min: 5, max: 500, setzer: KI, leser: "fiaon-ki-kasse.ts:kassePruefen", dienst: "mara" },
+  { schluessel: "ki_kasse_anteile", gruppe: "kasse", label: "Anteile je Bereich", satz: "B2B, Antworten, Privat, Haus, Reserve — zusammen 100 %.", typ: "json", vorgabe: JSON.stringify(KASSE_ANTEILE_VORGABE), setzer: KI, leser: "fiaon-ki-kasse.ts:kassePruefen", dienst: "mara", jsonPruefen: anteileFehler },
+  { schluessel: "ki_kasse_nachhol_je_stunde", gruppe: "kasse", label: "Nachhol-Bremse je Stunde", satz: "Nach einer KI-Pause: höchstens so viel Dollar je Stunde.", typ: "zahl", vorgabe: String(KASSE_NACHHOL_USD_VORGABE), min: 1, max: 100, setzer: KI, leser: "fiaon-ki-kasse.ts:kassePruefen", dienst: "mara" },
+  // E-458: Die Deckel je Dienst zählen jetzt echte DOLLAR (die Schlüssel heißen weiter _euro). Einmal umgestellt (×3,3,
+  // höchstens die neue Vorgabe) — sonst griffen sie nach der Preis-Reparatur 3–4-mal zu früh (fiaon-ki-kasse.ts).
+  { schluessel: "mara_aktion_tag_euro", gruppe: "kasse", label: "Deckel Mail-Aktion", satz: "Notbremse: echte KI-Kosten der Mail-Aktion je Tag in Dollar.", typ: "zahl", vorgabe: "30", min: 0, max: 500, setzer: MARA_AKTION, leser: "fiaon-mara-aktion.ts:einstellungenLesen", dienst: "mara" },
+  { schluessel: "mara_wa_tag_euro", gruppe: "kasse", label: "Deckel WhatsApp", satz: "Notbremse: echte KI-Kosten der WhatsApp-Antworten je Tag in Dollar.", typ: "zahl", vorgabe: "30", min: 0, max: 200, setzer: KI, leser: "fiaon-whatsapp-mara.ts:einstellung", dienst: "mara" },
+  { schluessel: "postmeister_tag_euro", gruppe: "kasse", label: "Deckel Postfach", satz: "Notbremse: echte KI-Kosten der Postfach-Antworten je Tag in Dollar.", typ: "zahl", vorgabe: "40", min: 0, max: 200, setzer: KI, leser: "fiaon-postmeister-agent.ts:postmeisterTagEuro", dienst: "mara" },
+  { schluessel: "pruef_mara_tag_euro", gruppe: "kasse", label: "Deckel Prüf-Mara", satz: "KI-Kosten der Prüfung je Tag in Dollar.", typ: "zahl", vorgabe: "10", min: 0, max: 100, setzer: KI, leser: "fiaon-ki-pruefung.ts:pruefungTakt", dienst: "pruef" },
+  // E-458 / E-262 D: Modell je Aufgabe — nur, wo kein Kunde den Text liest (Texte an Kunden bleiben auf gpt-5.5).
+  ...KI_AUFGABEN.filter((a) => a.schluessel && a.erlaubt?.length).map((a): RegisterEintrag => ({
+    schluessel: a.schluessel!, gruppe: "kasse", label: `Modell: ${a.label}`, satz: a.aufgabe === "einordnen" ? "Kein Kunde liest es — ein kleineres Modell spart Geld." : "Artikel für die Website — gpt-5.4 kostet die Hälfte.",
+    typ: "enum", vorgabe: a.vorgabe, enum: a.erlaubt!, setzer: KI, leser: "fiaon-ki-kasse.ts:kiModell", dienst: "mara",
+  })),
   // ── Aras · Telefon (Vertrag § 3) — Setzer POST /chef/ki/einstellung → einstellungSetzen (Team 1, über die Anbindung) ──
   { schluessel: "aras_an", gruppe: "aras", label: "Aras wählt", satz: "Ohne „an“ wählt Aras nicht (Probeanrufe gehen trotzdem).", typ: "an_aus", vorgabe: "aus", setzer: KI, leser: "fiaon-aras-waehler.ts:waehlerTakt", dienst: "aras", rueckfrage: { bei: ["an"], text: "Aras ruft dann echte Kunden an — nach Plan, nur in den Zeitfenstern, mit Tagesdeckel. Erst einschalten, wenn dein Ohr beim Probeanruf Ja sagt. Einschalten?" } },
   // E-408 Scheibe 3 (20.10.2026): die Ausbaustufe — Wähler UND Planfüller setzen sie HART durch (Stufe 0 ruft nie einen Kunden an,

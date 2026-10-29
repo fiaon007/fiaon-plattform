@@ -14,6 +14,10 @@ import "@/styles/chef-ki.css";
 
 export { API };
 export const euro = (n: number | null | undefined) => `${Number(n ?? 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+/** E-458: KI-Kosten in echten Dollar (Listenpreis, wie OpenAI abrechnet) — nur die Telefon-Schätzung bleibt Euro. */
+export const usd = (n: number | null | undefined) => `${Number(n ?? 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+/** Ein Kostenbetrag in seiner Währung (KostenDienst.waehrung; ohne Angabe: Dollar). */
+export const betrag = (n: number | null | undefined, waehrung?: string | null) => (waehrung === "EUR" ? euro(n) : usd(n));
 export const zahl = (n: number | null | undefined) => Number(n ?? 0).toLocaleString("de-DE");
 export const uhr = (s: string | null | undefined) => (s ? new Date(s).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—");
 export const tagZeit = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }) : "—");

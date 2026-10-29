@@ -79,7 +79,9 @@ import { ohneEmojis } from "@shared/fiaon-telefonkartei";
 import { akteLesen } from "./fiaon-postmeister-dossier";
 import { kundenwegLesen } from "./fiaon-kundenweg";
 import { gedaechtnisText } from "./fiaon-mara-gedaechtnis";
-import { kiAufruf, antwortLesen, akteKompakt, MODELL, agentNamen, fordertZahlung } from "./fiaon-postmeister-agent";
+import { kiAufruf, antwortLesen, akteKompakt, agentNamen, fordertZahlung } from "./fiaon-postmeister-agent";
+// E-458 / E-262 D: eigenes Modell je Aufgabe (vorher schaltete POSTMEISTER_MODELL Postfach, Aktion und WhatsApp gemeinsam).
+import { kiModell } from "./fiaon-ki-kasse";
 import { kiPausiert, istKiPause } from "./fiaon-ki-pause";
 import { maraGruppe } from "./fiaon-ki-claude";
 import { anredeBestimmen, antwortBauen, grussMitAgent } from "./fiaon-postmeister-antworttext";
@@ -106,6 +108,8 @@ import { STUFE_A_GEMELDET_TAGE } from "@shared/fiaon-wiedervorlage";
 
 export const DIENST = "mara-aktion";
 export const PAKETE_PRIVAT = ["start", "pro", "highend", "ultra"];
+/** E-458 / E-262 D: das Modell der Mail-Aktion — Texte an Kunden bleiben auf gpt-5.5 (Notfall-Weiche MARA_AKTION_MODELL). */
+const AKTION_MODELL = () => kiModell("aktion");
 
 // ── Einstellungen ─────────────────────────────────────────────────────────
 export interface AktionEinstellungen {
@@ -128,7 +132,9 @@ const VORGABE: Record<string, string> = {
   // Mara-Topsales 08.10.2026 (Justin): Vorgabe 60 je Stunde (vorher 50); die Einstellung bleibt änderbar. Am 03.10. führten
   // 300 je Stunde (224 Aufrufe in 22 Minuten) zur Sperre beim KI-Anbieter und 73 Stunden Stillstand.
   mara_aktion_je_stunde: "60",
-  mara_aktion_tag_euro: "15",
+  // E-458 (29.10.2026): echte Dollar (vorher Hausrechnung, ≈ 3,3-mal zu billig) — 30 $ liegt über jedem echten Tag der
+  // letzten 30 Tage (höchstens 16,22 $); die eigentliche Bremse ist die KI-Kasse (Anteil „Privat-Mails“).
+  mara_aktion_tag_euro: "30",
   mara_aktion_stufen: "A,B",
   mara_aktion_emojis: "aus",
   mara_aktion_postfach: "support@fiaon.com",
@@ -655,6 +661,10 @@ function aktionsPrompt(ein: {
     ein.hausanweisung || ``,
     // E-248: „die digitale Assistentin" (KI-Offenlegung) — dieselbe Mara wie im Postfach und auf WhatsApp.
     `Du bist ${ein.name}, die digitale Assistentin von FIAON, und betreust Kunden. Du schreibst diesem Menschen VON DIR AUS eine persönliche E-Mail — er hat dir nicht geschrieben. Du hast seine Akte gelesen, seinen ganzen Weg bei uns und dein Gedächtnis zu ihm.`,
+    // E-262 B (29.10.2026, Prompt-Caching): Die Persona (≈ 5.000 Token, für jeden gleich — SEIN Betreuer steht an ihrem
+    // Ende) kommt direkt nach dem ersten Satz; vorher stand sie hinter Ziel und Abschluss DIESES Kunden.
+    personaText("mail", { betreuer: ein.betreuer, vertretung: null }),
+    ``,
     // E-276 (02.10.2026, Justin: „ja, bau die Mara-Aktion genauso um“ — wie E-275: selbst verkaufen, eher übermotiviert, seriös).
     a
       ? `DEIN ZIEL: Seine gemeldete Zahlung wird zugeordnet, und er freut sich auf seine Karte. Du hilfst SELBST — Beleg als Antwort, Verwendungszweck hinter dem Knopf. Er hat schon überwiesen: KEINE Bitte um Zahlung, kein „zahlen/überweisen Sie“, kein „am besten heute“. Herzlich, zupackend, seriös — Aussicht ja („${AUSSICHT_SAETZE[0]}"), Zusage nie.`
@@ -666,8 +676,6 @@ function aktionsPrompt(ein: {
     a
       ? `SO KLINGT DER ANFANG (nur der Ton, nie wörtlich): „hier ist Mara Lindner, die digitale Assistentin von FIAON. Danke, dass Sie uns Ihre Überweisung gemeldet haben — bei uns ist sie noch nicht zugeordnet, oft kommt der Verwendungszweck verkürzt an.“`
       : `SO KLINGT DER ANFANG (nur der Ton, nie wörtlich): „hier ist Mara Lindner, die digitale Assistentin von FIAON. Ihr Antrag liegt bei mir, und ich freue mich, Sie jetzt auf den Weg zu Ihrer eigenen Visa-Kreditkarte zu bringen.“`,
-    ``,
-    personaText("mail", { betreuer: ein.betreuer, vertretung: null }),
     ``,
     `LAGE: ${a ? `Stufe A — er hat am ${tagDe(k.ereignisAm)} gemeldet, dass er überwiesen hat; das Geld ist bei uns noch nicht zugeordnet.` : `Stufe B — sein Antrag ist seit dem ${tagDe(k.ereignisAm)} abgeschickt, die Aktivierung (erste Monatsrate) ist offen.`}`,
     `DIESE MAIL ist deine ${k.schritt}. an ihn. ${thema(k.stufe, k.schritt)}`,
@@ -957,10 +965,10 @@ export async function mailSchreiben(k: Kandidat, ein: AktionEinstellungen): Prom
   let kosten = 0;
   const rufen = async (extra?: string) => {
     const j = await kiAufruf({
-      dienst: DIENST, modell: MODELL(), aufwand: "low", maxTokens: 3500, schema: SCHEMA, person: k.personId,
+      dienst: DIENST, modell: AKTION_MODELL(), aufwand: "low", maxTokens: 3500, schema: SCHEMA, person: k.personId,
       nachrichten: extra ? [...nachrichten, { role: "user", content: extra }] : nachrichten,
     });
-    kosten += kostenCentsAus(MODELL(), j?.usage);
+    kosten += kostenCentsAus(AKTION_MODELL(), j?.usage);
     return antwortLesen(j, "Mara-Aktion");
   };
 
@@ -1098,7 +1106,7 @@ export async function maraAktionLauf(opt: {
     // Mara-Topsales 08.10.2026 (Justin): nur 08:00–21:00 Uhr Berlin — auch in einer Runde.
     if (!imAktionsFenster(opt.stunde ?? berlinStunde())) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Nachtruhe (${AKTION_FENSTER.von}–${AKTION_FENSTER.bis} Uhr)` };
     const z = await aktionZaehler(e);
-    if (z.kostenHeuteEuro >= e.tagEuro) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Kostendeckel (${z.kostenHeuteEuro.toFixed(2)} € von ${e.tagEuro} €)` };
+    if (z.kostenHeuteEuro >= e.tagEuro) return { gesendet: 0, abgelehnt: 0, fehler: 0, grund: `Kostendeckel (${z.kostenHeuteEuro.toFixed(2)} $ von ${e.tagEuro} $)` };
     // Der Durchgang läuft alle 10 Minuten — je Durchgang also ein Sechstel der Stunde.
     // Mara-Topsales 08.10.2026 (Prüfung): nie über AKTION_HOECHSTENS_JE_STUNDE (60) — in einer Runde UND im Takt.
     const stundenRate = Math.min(e.jeStunde, AKTION_HOECHSTENS_JE_STUNDE);

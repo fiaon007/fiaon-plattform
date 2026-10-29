@@ -14,6 +14,9 @@
 
 import { claudeKostenCents, nutzungsModell } from "./fiaon-ki-claude";
 import { sqlPool } from "./db-pool";
+// E-458 (29.10.2026): echte Preise, Token-Zählung mit Cache und der Berliner Tag aus EINER Quelle (die KI-Kasse).
+import { centsFuer, kasseTag, zaehlungAus } from "@shared/fiaon-ki-kasse";
+import { kostenNachtragen } from "./fiaon-ki-kasse";
 
 let bereit = false;
 
@@ -92,6 +95,9 @@ export async function postmeisterSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `.catch((e) => console.error("[POSTMEISTER-SCHEMA] ki_nutzung:", String(e).slice(0, 200)));
+  // E-458 (29.10.2026): Wie viel der Eingabe kam aus dem Cache? Ohne diese Spalte war die Cache-Quote unbekannt (E-258).
+  await sqlPool`ALTER TABLE fiaon_ki_nutzung ADD COLUMN IF NOT EXISTS cached_tokens INTEGER`
+    .catch((e) => console.error("[POSTMEISTER-SCHEMA] ki_nutzung.cached_tokens:", String(e).slice(0, 200)));
 
   // Anrede EINMAL je Person bestimmen und behalten. Am 02.09. wurde dieselbe
   // Person in zwei Antworten „Herr" und „Frau" genannt.
@@ -145,12 +151,16 @@ export async function postmeisterSchema(): Promise<void> {
   bereit = true;
 }
 
-/** Kosten je 1.000 Token — grobe Hausrechnung, nur zur Messung. */
-const PREIS: Record<string, { ein: number; aus: number }> = {
-  "gpt-5.5": { ein: 0.125, aus: 1.0 },
-  "gpt-5.4": { ein: 0.125, aus: 1.0 },
-  "gpt-4.1-mini": { ein: 0.04, aus: 0.16 },
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE PREISE (E-458, 29.10.2026) — jetzt echte Dollar
+//
+// Bis hierher stand: gpt-5.5 = 0,125 / 1,0 Cent je 1.000 Token (GPT-5-Preis), gpt-5.4 genauso, alles andere
+// 0,1 / 0,8 als Rückfall — jede Anzeige und jeder Deckel lag ≈ 3,3-mal zu niedrig (Plan E-458: 193,73 „€“
+// Hausrechnung gegen ≈ 645 $ Listenpreis in 18 Tagen). Gecachte Eingabe wurde nie erkannt. Die Preistabelle
+// steht jetzt in shared/fiaon-ki-kasse.ts (KI_PREISE): gpt-5.5 5 $ / 0,50 $ gecacht / 30 $ je 1 Mio. Token
+// (E-258), dazu gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini, gpt-4o-mini. Ein unbekanntes Modell rechnet mit
+// dem teuersten Preis — lieber zu teuer als zu billig, sonst bremst kein Deckel. Werte in Dollar-Cent.
+// ═══════════════════════════════════════════════════════════════════════════
 // E-408 (19.10.2026): Stimme wird je SEKUNDE bezahlt, nicht je Token — Listenpreise je Minute in USD (shared/fiaon-aras.ts,
 // stimmKostenCents rechnet mit USD_EUR). Hier nur zur Dokumentation; nutzungMerken nimmt `sekunden` + `kostenCents` direkt.
 export const PREIS_JE_MINUTE_USD: Record<string, number> = { "gpt-live-1": 0.05, "gpt-realtime-2.1-mini": 0.08 };
@@ -167,13 +177,12 @@ function claudeKosten(modell: string, usage: any, dienst?: string | null): numbe
   return claudeKostenCents(echt, { ...usage, _anbieter: "claude", _modell: echt });
 }
 
-/** Kosten eines Aufrufs in Cent — dieselbe Hausrechnung wie im Protokoll (21.09.2026, Mara-Aktion). */
+/** Kosten eines Aufrufs in Dollar-Cent zu Listenpreis — dieselbe Rechnung wie im Protokoll (E-458: mit Cache-Anteil). */
 export function kostenCentsAus(modell: string, usage: any): number {
   // E-279: Kommt die Zählung von Claude (oder trägt Claude für ein OpenAI-Modell), gilt Claudes Preis.
   const c = claudeKosten(modell, usage);
   if (c != null) return c;
-  const p = PREIS[modell] ?? PREIS[modell.replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? { ein: 0.1, aus: 0.8 };
-  return (Number(usage?.prompt_tokens || 0) / 1000) * p.ein + (Number(usage?.completion_tokens || 0) / 1000) * p.aus;
+  return centsFuer(modell, usage);
 }
 
 export async function nutzungMerken(ein: {
@@ -181,34 +190,51 @@ export async function nutzungMerken(ein: {
   /** E-408: Sekunden-Abrechnung (Stimme) — mit `kostenCents` als fertige Hausrechnung statt Token. */
   sekunden?: number | null; kostenCents?: number | null;
 }): Promise<void> {
-  const p = PREIS[ein.modell] ?? PREIS[ein.modell.replace(/-\d{4}-\d{2}-\d{2}$/, "")] ?? { ein: 0.1, aus: 0.8 };
-  const pt = Number(ein.usage?.prompt_tokens || 0);
-  const ct = Number(ein.usage?.completion_tokens || 0);
-  const rt = Number(ein.usage?.completion_tokens_details?.reasoning_tokens || 0);
+  // E-458: Chat- UND Responses-Form, mit gecachter Eingabe und Nachdenken (vorher nur prompt_/completion_tokens).
+  const z = zaehlungAus(ein.usage);
+  const pt = z.ein;
+  const ct = z.aus;
+  const rt = z.denken;
+  const gecacht = z.gecacht;
   // E-279: Claude-Preis (mit Cache-Anteilen), und in der Tabelle steht das Modell, das wirklich lief.
   // E-408: Eine fertige Sekunden-Rechnung (Stimme) hat Vorrang vor der Token-Rechnung.
   const kosten = ein.kostenCents != null && Number.isFinite(Number(ein.kostenCents))
     ? Number(ein.kostenCents)
-    : claudeKosten(ein.modell, ein.usage, ein.dienst) ?? ((pt / 1000) * p.ein + (ct / 1000) * p.aus);
+    : claudeKosten(ein.modell, ein.usage, ein.dienst) ?? centsFuer(ein.modell, ein.usage);
   ein = { ...ein, modell: String(ein.usage?._modell ?? nutzungsModell(ein.modell, ein.dienst)) };
   const sekunden = ein.sekunden != null && Number.isFinite(Number(ein.sekunden)) ? Math.round(Number(ein.sekunden)) : null;
+  // E-458: Die KI-Kasse kennt den Verbrauch sofort — nicht erst nach ihrem nächsten Blick in die Tabelle.
+  kostenNachtragen(ein.dienst, kosten);
+  // Die Spalte `cached_tokens` einmal je Prozess sichern (schreibt ein Dienst vor postmeisterSchema(), fehlte sie sonst).
+  cacheSpalte ??= sqlPool`ALTER TABLE fiaon_ki_nutzung ADD COLUMN IF NOT EXISTS cached_tokens INTEGER`.catch(() => {});
+  await cacheSpalte;
   await sqlPool`
-    INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler, sekunden)
-    VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null}, ${sekunden})
+    INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, cached_tokens, dauer_ms, kosten_cents, ok, fehler, sekunden)
+    VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${gecacht}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null}, ${sekunden})
   `.catch(async () => {
     // Die Spalte `sekunden` legt arasSchema() an — läuft der Postmeister vor ARAS, fehlt sie noch: dann ohne sie.
     await sqlPool`
-      INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
-      VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})
-    `.catch(() => {});
+      INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, cached_tokens, dauer_ms, kosten_cents, ok, fehler)
+      VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${gecacht}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})
+    `.catch(async () => {
+      await sqlPool`
+        INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, reasoning_tokens, dauer_ms, kosten_cents, ok, fehler)
+        VALUES (${ein.dienst}, ${ein.modell}, ${pt}, ${ct}, ${rt}, ${Math.round(ein.dauerMs)}, ${kosten}, ${ein.ok}, ${ein.fehler ?? null})
+      `.catch(() => {});
+    });
   });
 }
+let cacheSpalte: Promise<unknown> | null = null;
 
-/** Tagesausgaben in Euro — für den Kostendeckel. */
-export async function kostenHeute(dienst = "postmeister"): Promise<number> {
+/**
+ * Tagesausgaben eines Dienstes in DOLLAR (E-458: echte Preise, vorher „Euro“ aus der Hausrechnung) — für die
+ * Deckel je Dienst. Der Tag ist der Berliner Kalendertag (vorher UTC: Er begann um 01:00/02:00 Uhr Berlin).
+ */
+export async function kostenHeute(dienst = "postmeister-antwort"): Promise<number> {
+  const tag = kasseTag();
   const [r] = (await sqlPool`
     SELECT COALESCE(SUM(kosten_cents), 0)::float AS c FROM fiaon_ki_nutzung
-     WHERE dienst = ${dienst} AND created_at > date_trunc('day', NOW())
+     WHERE dienst = ${dienst} AND created_at >= (${tag}::date::timestamp AT TIME ZONE 'Europe/Berlin')
   `) as any[];
   return Number(r?.c || 0) / 100;
 }

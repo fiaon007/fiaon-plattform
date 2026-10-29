@@ -2855,8 +2855,8 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"kosten\"]",
     titel: "Kosten heute, je Dienst.",
-    text: "KI-Kosten aller Dienste und das Telefon (geschätzt) — der Balken zeigt, wie viel vom Tagesdeckel verbraucht ist.",
-    tipp: "Deckel ändern: Einstellungen & Kasse.",
+    text: "KI-Kosten aller Dienste in echten Dollar (wie auf der OpenAI-Rechnung) und das Telefon in Euro (geschätzt) — der Balken zeigt, wie viel vom Tagesdeckel verbraucht ist.",
+    tipp: "Gesamtdeckel, Anteile und Deckel ändern: Einstellungen & Kasse.",
   },
   {
     ziel: "[data-ki=\"mara-heute\"]",
@@ -2977,11 +2977,35 @@ export const RUNDGANG_KI_QUALITAET: RundgangSchritt[] = [
   },
 ];
 
+// E-458 (29.10.2026): die ehrliche KI-Kasse — echte Dollar, Gesamtdeckel, Töpfe mit Anteil, Vorrang für Antworten,
+// Nachhol-Bremse, Modell je Aufgabe. Töpfe und Modelle erscheinen erst mit Daten — ohne sie steht die Karte mittig.
 export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"kasse\"]",
-    titel: "Die Kasse.",
-    text: "KI-Kosten je Dienst heute, der Verlauf über 14 Tage (blau KI, grau Telefon) und der Deckel je Dienst. Der Anbieter steht daneben; die KI-Pause schaltest du im Mara-Steuerpult.",
+    titel: "Die Kasse — echte Dollar.",
+    text: "Oben: was die KI heute gekostet hat, in Dollar wie auf der OpenAI-Rechnung, gegen den Gesamtdeckel (Vorgabe 55 $ je Tag, ab 0 Uhr Berliner Zeit). Daneben steht, ob die Kasse gerade bremst.",
+    tipp: "Bis 29.10. rechnete die Anzeige rund 3,3-mal zu billig. Ältere Tage im Verlauf stehen noch in der alten Rechnung.",
+  },
+  {
+    ziel: "[data-ki=\"kasse-toepfe\"]",
+    titel: "Jeder Bereich hat seinen Topf.",
+    text: "B2B-Neukunden bekommen 75 %, Antworten an Menschen 10 %, Privat-Mails und Haus je 5 %, dazu 5 % Reserve. Ist ein Topf leer, wartet dieser Bereich bis 0 Uhr — die Arbeit bleibt liegen und läuft dann weiter, nie geht etwas Falsches raus.",
+    tipp: "Antworten an Menschen haben Vorrang: Sie dürfen über ihren Topf hinaus, bekommen die Reserve und was die anderen übrig lassen.",
+  },
+  {
+    ziel: "[data-ki-schalter=\"ki_kasse_nachhol_je_stunde\"]",
+    titel: "Die Nachhol-Bremse.",
+    text: "Nach einer KI-Pause holt Mara nach — früher fraß diese Welle das frische Guthaben in 20 Minuten. Jetzt gilt 6 Stunden lang: höchstens 8 $ je Stunde, in der ersten halben Stunde nur Antworten an Menschen.",
+  },
+  {
+    ziel: "[data-ki-schalter=\"ki_kasse_anteile\"]",
+    titel: "Anteile ändern.",
+    text: "Fünf Zahlen, zusammen 100 %, dann OK. Gesamtdeckel und Bremse stehen darüber; die alten Deckel je Dienst bleiben als Notbremse.",
+  },
+  {
+    ziel: "[data-ki=\"kasse-modelle\"]",
+    titel: "Modell je Aufgabe.",
+    text: "Texte an Kunden bleiben auf gpt-5.5. Wo kein Kunde mitliest (Einordnen, Ratgeber), kannst du ein günstigeres Modell wählen.",
   },
   {
     ziel: "[data-ki=\"gruppe-mara_mail\"]",

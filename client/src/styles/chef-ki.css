@@ -151,6 +151,18 @@ a.ki-pille { cursor: pointer; } a.ki-pille:hover { text-decoration: none; border
 .ki textarea { min-height: 64px; resize: vertical; }
 .ki-feld.geaendert label::after { content: " ·"; color: var(--k-licht-text); }
 
+/* ── Kasse (E-458, 29.10.2026): Gesamt, Töpfe, Anteile ──────────────────── */
+.ki-kasse .ki-balken { display: block; }
+.ki-kasse-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 18px; flex-wrap: wrap; }
+.ki-kasse-kopf .ki-zahlen { flex: 1 1 320px; }
+.ki-kasse-kopf .ki-pille { white-space: normal; max-width: 100%; }
+.ki-toepfe .ki-zeile-satz { display: grid; gap: 6px; }
+.ki-feld.ki-anteile { grid-template-columns: minmax(0, 1fr); }
+.ki-feld.ki-anteile .ki-eingabe { grid-column: 1; grid-row: auto; flex-wrap: wrap; align-items: flex-end; }
+.ki-anteil { display: inline-flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--k-text-3); }
+.ki-anteil-zahl { display: inline-flex; align-items: center; gap: 4px; color: var(--k-text-2); }
+.ki .ki-anteil input[type="number"] { width: 68px; }
+
 /* ── Aras: Live-Wellen und Transkript ───────────────────────────────────── */
 .ki-live { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .ki-sitzung { padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(120, 170, 255, .2); background: rgba(10, 20, 40, .35); min-width: 0; }

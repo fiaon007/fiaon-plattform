@@ -72,6 +72,8 @@ export async function einstellungSetzen(schluessel: string, wert: unknown, von: 
     INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${schluessel}, ${p.wert}, NOW())
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
   console.log(`[KI-EINSTELLUNG] ${schluessel} = ${wertOeffentlich(schluessel, p.wert).slice(0, 60)} (${von})`);
+  // E-458: Die KI-Kasse liest ihre Schalter zwischengespeichert — nach dem Speichern sofort neu.
+  if (/^ki_(kasse|modell)_/.test(schluessel)) await import("./fiaon-ki-kasse").then((m) => m.kasseFrisch()).catch(() => {});
   return { ok: true, schluessel, wert: p.wert };
 }
 

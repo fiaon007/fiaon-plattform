@@ -1612,10 +1612,11 @@ export async function mailBearbeiten(ein: {
         UPDATE fiaon_postmeister
            SET aktion = 'vorgeordnet', in_arbeit_seit = NULL, naechster_versuch_am = NULL,
                versuche = GREATEST(versuche - ${neuAngelegt ? 0 : 1}, 0),
-               begruendung = ${"KI pausiert — wartet auf das Aktivieren"}, updated_at = NOW()
+               begruendung = ${e?.art === "kasse" ? String(e.message).slice(0, 300) : "KI pausiert — wartet auf das Aktivieren"}, updated_at = NOW()
          WHERE id = ${id} AND gesendet_am IS NULL
       `.catch((x) => console.error("[POSTMEISTER] Pause zurücklegen:", String(x).slice(0, 160)));
-      console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: KI pausiert — zurückgelegt.`);
+      // E-458: Die KI-Kasse bremst wie eine Pause (Anteil, Tagesdeckel, Nachhol-Bremse) — die Mail wartet auf den nächsten Takt.
+      console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e?.art === "kasse" ? "KI-Kasse bremst" : "KI pausiert"} — zurückgelegt.`);
       return { aktion: "geordnet", grund: "KI pausiert", id };
     }
     console.error(`[POSTMEISTER] ${postfach}/${gmailId} (Versuch ${versuche + 1}/4):`, grund);

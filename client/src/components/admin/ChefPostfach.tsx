@@ -326,7 +326,8 @@ export default function ChefPostfach() {
         <div className="pf-kz"><b>{kopf?.zahlen?.offen ?? zaehler.offen ?? 0}</b><span>warten auf dich</span></div>
         <div className="pf-kz warn"><b>{kopf?.zahlen?.dringend ?? zaehler.dringend ?? 0}</b><span>dringend</span></div>
         <div className="pf-kz"><b>{kopf?.zahlen?.heute_gesendet ?? 0}</b><span>heute beantwortet</span></div>
-        <div className="pf-kz"><b>{typeof kopf?.kostenHeuteEuro === "number" ? kopf.kostenHeuteEuro.toFixed(2).replace(".", ",") + " €" : "—"}</b><span>Modellkosten heute</span></div>
+        {/* E-458: echte Dollar (Listenpreis, wie OpenAI abrechnet) — vorher „€“ aus der ≈ 3,3-mal zu billigen Hausrechnung. */}
+        <div className="pf-kz" title="Echte Dollar zu Listenpreis seit 0 Uhr Berlin — die ganze Kasse: Chefbüro › KI-Team › Einstellungen & Kasse"><b>{typeof kopf?.kostenHeuteEuro === "number" ? kopf.kostenHeuteEuro.toFixed(2).replace(".", ",") + " $" : "—"}</b><span>Modellkosten heute</span></div>
         <div className="pf-band-rechts">
           {/* 08.09.2026 (E-167, Justin): „Ich muss auch ALLE Nachrichten auswählen und versenden können." */}
           {ordner === "offen" && liste.some((z) => z.aktion === "entwurf") && (

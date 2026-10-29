@@ -153,6 +153,18 @@ router.post("/chef/ki/pruefung/:id", wache, async (req: ChefRequest, res: Respon
 });
 
 // ── Kosten und Protokoll ───────────────────────────────────────────────────
+// E-458 (29.10.2026): die ehrliche KI-Kasse — Gesamtdeckel, Anteile je Bereich, Nachhol-Bremse, Cache-Quote, Modell je Aufgabe.
+router.get("/chef/ki/kasse", lesen, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { kasseLage } = await import("../lib/fiaon-ki-kasse");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...(await kasseLage()) });
+  } catch (e) {
+    console.error("[CHEF-KI] kasse:", e);
+    fehler(res, 500, "Die KI-Kasse ließ sich nicht laden.");
+  }
+});
+
 router.get("/chef/ki/kosten", lesen, async (req: ChefRequest, res: Response) => {
   try {
     const tage = Math.max(1, Math.min(90, Number(req.query.tage) || 14));

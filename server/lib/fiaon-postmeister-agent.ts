@@ -45,11 +45,15 @@ import {
 } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
+import { kiModell } from "./fiaon-ki-kasse";
+import { cacheSchluessel, werkzeugSignatur } from "@shared/fiaon-ki-kasse";
 import { openaiFetch, istKiPause, aktiverAnbieter } from "./fiaon-ki-pause";
 
 /**
  * E-409 (19.10.2026): Der Tagesdeckel des Postfachs ist ein Schalter im KI-Raum (fiaon_settings.postmeister_tag_euro,
  * Register shared/fiaon-ki-schalter.ts) — die Umgebungsvariable POSTMEISTER_TAG_EURO gilt nur noch, solange nichts gespeichert ist.
+ * E-458 (29.10.2026): Der Wert ist jetzt echte DOLLAR (der Schlüssel heißt weiter _euro). Vorgabe 40 $ — über jedem echten
+ * Tag der letzten 30 Tage (höchstens 18,89 $); die eigentliche Bremse ist die KI-Kasse (fiaon-ki-kasse.ts).
  */
 export async function postmeisterTagEuro(): Promise<number> {
   try {
@@ -58,7 +62,7 @@ export async function postmeisterTagEuro(): Promise<number> {
     const n = Number(z?.value);
     if (z?.value != null && String(z.value) !== "" && Number.isFinite(n) && n >= 0) return Math.min(200, n);
   } catch { /* Vorgabe gilt */ }
-  return Number(process.env.POSTMEISTER_TAG_EURO || 35);
+  return Number(process.env.POSTMEISTER_TAG_EURO || 40);
 }
 import { maraModell } from "./fiaon-ki-claude";
 import { createHash } from "node:crypto";
@@ -109,8 +113,11 @@ import { ANLIEGEN_DIENST, ANLIEGEN_TAG_EURO_VORGABE } from "@shared/fiaon-mara-a
 // E-409 (Fund 6): Ein rotes Werkzeug macht die Antwort zur Karte — eigener Kopf „Ampel rot:“ (Karte in Mara › Entscheidungen).
 import { mailAmpelWerkzeugRotGrund } from "@shared/fiaon-mara-ampel";
 
-export const MODELL = () => process.env.POSTMEISTER_MODELL || "gpt-5.5";
-const MODELL_KLEIN = () => process.env.POSTMEISTER_MODELL_KLEIN || "gpt-5.5";
+// E-458 / E-262 D (29.10.2026): Modell je Aufgabe statt EINER Variable für alle — vorher schaltete POSTMEISTER_MODELL
+// Postfach, Mail-Aktion und WhatsApp nur gemeinsam um. Texte an Kunden bleiben auf gpt-5.5 (Justin 29.10.); das
+// Einordnen (kein Kunde liest es) ist im Chefbüro umschaltbar (KI-Team › Einstellungen & Kasse, ki_modell_einordnen).
+export const MODELL = () => kiModell("postfach");
+const MODELL_KLEIN = () => kiModell("einordnen");
 const SCHLUESSEL = () => process.env.OPENAI_API_KEY || process.env.ASSISTENT_API_KEY || "";
 const MAX_RUNDEN = 6;
 
@@ -460,6 +467,9 @@ function alsChatAntwort(roh: any): any {
       prompt_tokens: u.input_tokens ?? 0,
       completion_tokens: u.output_tokens ?? 0,
       total_tokens: u.total_tokens ?? (Number(u.input_tokens || 0) + Number(u.output_tokens || 0)),
+      // E-458: gecachte Eingabe und Nachdenken mitnehmen — sonst bleibt die Cache-Quote unbekannt (E-258) und der Preis falsch.
+      prompt_tokens_details: { cached_tokens: Number(u.input_tokens_details?.cached_tokens ?? 0) || 0 },
+      completion_tokens_details: { reasoning_tokens: Number(u.output_tokens_details?.reasoning_tokens ?? 0) || 0 },
     },
     _unvollstaendig: roh?.status === "incomplete" ? String(roh?.incomplete_details?.reason ?? "unbekannt") : null,
   };
@@ -534,11 +544,22 @@ async function kiAufrufClaude(ein: {
   }
 }
 
+/**
+ * E-262 B (29.10.2026): Lehnt OpenAI den Cache-Schlüssel je ab (ältere Modellstände), schickt kiAufruf ohne ihn neu
+ * und merkt sich das für diesen Prozess — eine unbekannte Einstellung darf nie eine Kundenantwort kosten.
+ */
+let cacheSchluesselAus = false;
+
 export async function kiAufruf(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number;
   /** E-280: der Mensch, um den es geht — entscheidet die A/B-Gruppe (Opus/Sonnet), wenn Claude trägt. */
   person?: number | string | null;
+  /**
+   * E-262 B: Teil des Cache-Schlüssels (prompt_cache_key) — z. B. der Werkzeug-Satz. Aufrufe desselben Dienstes mit
+   * demselben Textanfang landen so beim selben Cache; gelesen wird der Anfang dann für ein Zehntel des Preises.
+   */
+  cacheTeil?: string | null;
 }): Promise<any> {
   const start = Date.now();
   // E-279 (03.10.2026): Trägt Claude, geht der Aufruf im Chat-Format an die Weiche (fiaon-ki-claude.ts) — dann
@@ -583,14 +604,23 @@ export async function kiAufruf(ein: {
     };
     if (ein.schema) body.text = { format: { type: "json_schema", name: "antwort", strict: true, schema: ein.schema } };
     if (ein.tools?.length) { body.tools = alsResponsesWerkzeuge(ein.tools); body.tool_choice = "auto"; }
+    if (!cacheSchluesselAus) body.prompt_cache_key = cacheSchluessel(ein.dienst, [ein.cacheTeil, werkzeugSignatur(ein.tools)].filter(Boolean).join("-"));
     // E-246: über die KI-Pause — pausiert heißt kein Netzaufruf, ein Abrechnungsfehler pausiert alles.
-    const res = await openaiFetch(ein.dienst, "/responses", {
+    const senden = () => openaiFetch(ein.dienst, "/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${schluessel}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: abbruch.signal,
     });
-    const roh: any = await res.json();
+    let res = await senden();
+    let roh: any = await res.json();
+    if (!res.ok && res.status === 400 && body.prompt_cache_key && /prompt_cache_key/i.test(JSON.stringify(roh?.error ?? roh))) {
+      console.warn(`[POSTMEISTER] OpenAI lehnt prompt_cache_key ab — ab jetzt ohne (${ein.dienst}).`);
+      cacheSchluesselAus = true;
+      delete body.prompt_cache_key;
+      res = await senden();
+      roh = await res.json();
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(roh?.error ?? roh).slice(0, 200)}`);
     const j = alsChatAntwort(roh);
     await nutzungMerken({ dienst: ein.dienst, modell: ein.modell, usage: j?.usage, dauerMs: Date.now() - start, ok: true });
@@ -1196,11 +1226,26 @@ function systemPrompt(ein: {
     `Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
     `DU UNTERSCHREIBST NICHT. Kein Name, kein Gruß am Ende — beides hängt der Server an. Dein Text endet mit dem letzten Satz an den Kunden.`,
     `KEINE ADRESSE (URL) IM TEXT. Wenn der Kunde eine Seite braucht, nennst du sie beim Namen („die Zahlungsseite", „Ihren Bereich") — der Knopf darunter trägt die Adresse. Eine URL im Fließtext ist ein Fremdkörper.`,
-    `HEUTE ist ${ein.heute}.`,
     ``,
-    // 21.09.2026 (Justin): „ein viel besseres Gedächtnis — ALLES bis ins kleinste Detail".
-    `DEIN GEDÄCHTNIS ZU DIESEM MENSCHEN (was du dir aus früheren Gesprächen gemerkt hast — nutze es, damit er merkt, dass du ihn kennst):`,
-    ein.gedaechtnis || "(noch nichts gemerkt)",
+    // ═══════════════════════════════════════════════════════════════════
+    // E-262 B (29.10.2026, Prompt-Caching): ZUERST, WAS FÜR JEDE MAIL GLEICH IST
+    // Hauswissen (≈ 10.000 Token) und Persona (≈ 5.000) standen hinter der
+    // Zeile „HEUTE ist …“ (mit Minute), dem Gedächtnis und den Fragen dieses
+    // Kunden — so begann jeder Auftrag anders, und OpenAI konnte nichts aus
+    // dem Cache lesen. Jetzt kommen sie direkt nach den festen Regeln; was
+    // nur für DIESEN Kunden gilt (HEUTE, Gedächtnis, Sprache, Lage, Akte),
+    // steht danach. Inhalt unverändert, nur die Reihenfolge.
+    // ═══════════════════════════════════════════════════════════════════
+    // DAS HAUS (04.09.2026) — Beim Neubau des Agenten ging das Hauswissen
+    // verloren; der alte Postmeister hatte es. Folge, gemessen an einem echten
+    // Entwurf: Ein Kunde fragte nach dem Hauptsitz, und Mara schrieb „Die
+    // genaue Anschrift möchte ich Ihnen nicht ungesichert nennen" — weil die
+    // Belegpflicht griff und die Anschrift nirgends im Kontext stand. Sie
+    // steht im Impressum. Wer sie verweigert, klingt, als hätte er etwas zu
+    // verbergen.
+    // ═══════════════════════════════════════════════════════════════════
+    `DAS HAUS — das darfst du nennen, ohne Beleg aus der Akte (es ist öffentlich):`,
+    wissenFakten(),
     ``,
     // ═══════════════════════════════════════════════════════════════════
     // E-248 (28.09.2026, Justin): „Mara soll 100 % menschlich und
@@ -1219,6 +1264,12 @@ function systemPrompt(ein: {
         .replace(KARTE_REGEL_TEXT, "═══ KUNDE VON FIAON GLOBAL ═══\n· Die Regeln zur Kreditkarte, zum Wunschlimit und zum Abschluss der Privatlinie gelten für ihn nicht — es gilt DEIN ERSTER AUFTRAG (FIAON Global).")
       : personaText("mail", { betreuer: ein.akte?.betreuer ?? null, vertretung: ein.akte?.vertretung ?? null })
         .replace(KARTE_REGEL_TEXT, MAIL_KARTE_REGEL),
+    ``,
+    `HEUTE ist ${ein.heute}.`,
+    ``,
+    // 21.09.2026 (Justin): „ein viel besseres Gedächtnis — ALLES bis ins kleinste Detail".
+    `DEIN GEDÄCHTNIS ZU DIESEM MENSCHEN (was du dir aus früheren Gesprächen gemerkt hast — nutze es, damit er merkt, dass du ihn kennst):`,
+    ein.gedaechtnis || "(noch nichts gemerkt)",
     ``,
     // Am 02.09.2026 beanstandet: „auf englische Mails antwortet er Deutsch".
     // Die Sprachregel stand bis dahin als Nebensatz in einer Aufzählung. Jetzt
@@ -1351,18 +1402,7 @@ function systemPrompt(ein: {
     // E-275: vorher „… als offen (dann muss ein Rückruf oder Termin belegt sein)“ — das machte aus jeder offenen Frage einen Termin.
     `Jede davon beantwortest du SELBST — oder sagst ehrlich, was du dafür von ihm brauchst. Ein Rückruf oder Termin nur, wenn er ihn will.`,
     ``,
-    // ═══════════════════════════════════════════════════════════════════
-    // DAS HAUS (04.09.2026) — Beim Neubau des Agenten ging das Hauswissen
-    // verloren; der alte Postmeister hatte es. Folge, gemessen an einem echten
-    // Entwurf: Ein Kunde fragte nach dem Hauptsitz, und Mara schrieb „Die
-    // genaue Anschrift möchte ich Ihnen nicht ungesichert nennen" — weil die
-    // Belegpflicht griff und die Anschrift nirgends im Kontext stand. Sie
-    // steht im Impressum. Wer sie verweigert, klingt, als hätte er etwas zu
-    // verbergen.
-    // ═══════════════════════════════════════════════════════════════════
-    `DAS HAUS — das darfst du nennen, ohne Beleg aus der Akte (es ist öffentlich):`,
-    wissenFakten(),
-    ``,
+    // E-262 B (29.10.2026): DAS HAUS steht jetzt oben (nach den festen Regeln) — gleicher Textanfang für jede Mail.
     `BEI WUT UND WIEDERHOLUNG: Ein Kunde, der sich wiederholt, wurde beim ersten Mal nicht verstanden — oder hat es nicht geglaubt. Erkläre es ANDERS, nie vorwurfsvoll. Du spiegelst seinen Ton nicht: Auf „wie oft muss ich es noch sagen" antwortest du NICHT mit „Sie müssen es nicht noch einmal erwähnen". Du erkennst an, was er fühlt („Ich verstehe, dass Sie verärgert sind"), ohne es zu bewerten, und erklärst dann ruhig.`,
     // ══════════════════════════════════════════════════════════════════════
     // WIDERSPRICH DIR NIE (23.09.2026, E-225)
@@ -2255,7 +2295,7 @@ export async function antwortErzeugen(ein: {
   // E-409: Der Mail-Deckel kommt aus dem Schalter-Register (postmeister_tag_euro, KI-Team › Einstellungen & Kasse).
   const deckel = anliegen ? Number(process.env.ANLIEGEN_TAG_EURO || ANLIEGEN_TAG_EURO_VORGABE) : await postmeisterTagEuro();
   const heute = await kostenHeute(dienst).catch(() => 0);
-  if (heute > deckel) return { ...leer, grund: `Tagesdeckel erreicht (${heute.toFixed(2)} € von ${deckel} €)` };
+  if (heute > deckel) return { ...leer, grund: `Tagesdeckel erreicht (${heute.toFixed(2)} $ von ${deckel} $)` };
 
   const akte = await akteLesen(ein.personId, ein.ref);
   const vertrag = await vertragsfassung(ein.ref);
@@ -2563,11 +2603,21 @@ export async function antwortErzeugen(ein: {
 
   let kosten = 0;
 
+  // ── E-262 C (29.10.2026): KEIN EIGENER FORMATIERUNGS-AUFRUF MEHR ─────────
+  // Vorher schrieb das Modell zuerst frei, und ein zweiter Aufruf mit der ganzen Akte goss die Antwort ins Schema
+  // („Schreibe jetzt die Antwort …“) — im Schnitt 3,3 Aufrufe je Antwort (Plan E-458). Jetzt geht das Schema ab
+  // der ersten Runde mit den Werkzeugen mit (die letzte Runde tat das schon immer, es funktioniert): Ruft das Modell
+  // kein Werkzeug mehr, IST seine Ausgabe die fertige Antwort. Trägt Claude (Rückweg), bleibt der alte Weg.
+  const schemaSofort = aktiverAnbieter() !== "claude";
+  // E-262 B: Teil des Cache-Schlüssels — gleicher Werkzeug-Satz, gleicher Textanfang.
+  const werkzeugSatz = anliegen ? "anliegen" : `${lage}${kontext.auskunftAntwort ? "-a" : ""}${werbesperreZahlend ? "-w" : ""}`;
+
   // Werkzeug-Runden
   for (let runde = 0; runde < MAX_RUNDEN; runde++) {
+    const mitSchema = schemaSofort || runde >= MAX_RUNDEN - 1;
     const j = await kiAufruf({
-      dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, person: ein.personId ?? null,
-      nachrichten, tools, schema: runde >= MAX_RUNDEN - 1 ? SCHEMA_B : undefined,
+      dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, person: ein.personId ?? null, cacheTeil: werkzeugSatz,
+      nachrichten, tools, schema: mitSchema ? SCHEMA_B : undefined,
     }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
     if ((j as any).fehler) return { ...leer, grund: `Modell nicht erreichbar: ${(j as any).fehler}`, handlungen };
     // E-248: Kosten wie in der Nutzungstabelle (Preis je Modell, Eingabe und Ausgabe getrennt) —
@@ -2578,13 +2628,16 @@ export async function antwortErzeugen(ein: {
     const rufe = nachricht?.tool_calls ?? [];
     if (!rufe.length) {
       nachrichten.push(nachricht);
-      // Kein Werkzeug mehr — jetzt die Antwort im Schema anfordern.
-      const fertig = await kiAufruf({
-        dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B, person: ein.personId ?? null,
-        nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
-      }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
-      if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
-      kosten += kostenCentsAus(MODELL(), (fertig as any)?.usage);
+      let fertig: any = j;
+      if (!mitSchema) {
+        // Nur noch auf dem Claude-Rückweg: Kein Werkzeug mehr — jetzt die Antwort im Schema anfordern (wie bis E-262).
+        fertig = await kiAufruf({
+          dienst, modell: MODELL(), aufwand: "medium", maxTokens: 9000, schema: SCHEMA_B, person: ein.personId ?? null,
+          nachrichten: [...nachrichten, { role: "user", content: "Schreibe jetzt die Antwort an den Kunden im vorgegebenen Format." }],
+        }).catch((e) => { if (istKiPause(e)) throw e; return { fehler: String(e?.message || e) } as any; });
+        if ((fertig as any).fehler) return { ...leer, grund: `Antwort nicht erzeugt: ${(fertig as any).fehler}`, handlungen };
+        kosten += kostenCentsAus(MODELL(), (fertig as any)?.usage);
+      }
       const roh = antwortLesen(fertig, "Antwort");
       // 21.09.2026: Was Mara Neues über den Menschen weiß, bleibt — auch wenn die Antwort ein Entwurf wird.
       await gedaechtnisMerken(ein.personId, roh?.merken, anliegen ? "anliegen" : "mail").catch((e) => console.warn("[POSTMEISTER] Gedächtnis:", String(e).slice(0, 120)));

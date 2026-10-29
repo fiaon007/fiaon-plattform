@@ -97,7 +97,9 @@
 //   unverändert; Wahrheits- und Verkaufsprüfung (E-248), keine Limit-Zusage, nie „Karte in Produktion“ vor der Bankzusage.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
-import { kiAufruf, antwortLesen, MODELL, agentNamen } from "./fiaon-postmeister-agent";
+import { kiAufruf, antwortLesen, agentNamen } from "./fiaon-postmeister-agent";
+// E-458 / E-262 D: eigenes Modell je Aufgabe (vorher schaltete POSTMEISTER_MODELL Postfach, Aktion und WhatsApp gemeinsam).
+import { kiModell } from "./fiaon-ki-kasse";
 import { kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { waSenden, sendePruefung, fensterOffen, empfaengerNamen } from "./fiaon-whatsapp";
 import { anweisungBlock } from "./fiaon-mara-anweisung";
@@ -184,6 +186,8 @@ import { jaImGespraech, jaFrageZumAnhaengen } from "./fiaon-ja-zum-anruf";
 import { JA_DANKE_WA, ANRUF_SPERRE_WA, jaHinweisFuerMara } from "@shared/fiaon-ja-zum-anruf";
 
 export const DIENST_WA = "mara-whatsapp";
+/** E-458 / E-262 D: das Modell der WhatsApp-Antworten — Texte an Kunden bleiben auf gpt-5.5 (Notfall-Weiche MARA_WA_MODELL). */
+const MODELL = () => kiModell("whatsapp");
 
 /** Übernahme durch einen Menschen läuft nach dieser Zeit ohne Antwort ab. */
 const UEBERNAHME_MS = 15 * 60_000;
@@ -1120,6 +1124,8 @@ function auftrag(ein: {
   stufe?: LinkStufe;
   /** E-275 (02.10.2026): zahlender Kunde — Mara schickt den Link der Partnerbank selbst (karte_link_schicken). */
   kartenWerkzeug?: boolean;
+  /** E-458 (29.10.2026): ARAS nimmt Rückrufe an (Stufe ≥ 1, fiaon-aras-wunsch.ts) — Mara darf den Rückruf „bei ARAS“ eintragen. */
+  arasRueckruf?: boolean;
   /** E-401 (2/6): die letzten Gesprächsnotizen der Kollegen (14 Tage, teamNotizenText) — was dort vereinbart ist, gilt. */
   teamNotizen?: string | null;
 }): string {
@@ -1211,7 +1217,9 @@ function auftrag(ein: {
   ];
   const werkzeugTeil = ein.werkzeuge ? [
     `═══ DU HANDELST SELBST — DEINE WERKZEUGE ═══`,
-    `JETZT: ${ein.jetzt ?? ""} (Berliner Zeit). In Werkzeug-Aufrufen gibst du Zeiten als „YYYY-MM-DD HH:MM" an — dem Kunden schreibst du sie NIE so, sondern wie ein Mensch („heute um 20 Uhr", „morgen um 9:30 Uhr"; die Ergebnisse liefern so_schreiben).`,
+    // E-262 B (29.10.2026): Die Uhrzeit (JETZT, mit Minute) steht unten bei SEINE LAGE — hier stand sie mitten im
+    // gleichbleibenden Teil, und ab dieser Zeile war jeder Auftrag ein anderer (kein Prompt-Caching möglich).
+    `In Werkzeug-Aufrufen gibst du Zeiten als „YYYY-MM-DD HH:MM" an (JETZT steht unten über WER DIR SCHREIBT, Berliner Zeit) — dem Kunden schreibst du sie NIE so, sondern wie ein Mensch („heute um 20 Uhr", „morgen um 9:30 Uhr"; die Ergebnisse liefern so_schreiben).`,
     `Was du selbst erledigst, statt es weiterzugeben: seinen persönlichen Link schicken (Antrag oder Zahlungsseite, DEIN LINK)${ein.kartenWerkzeug ? ", den Link unserer Partnerbank für seinen Kartenantrag (karte_link_schicken)" : ""}, Anrufzeiten anbieten und buchen, wenn er telefonieren will, Termine verschieben, die du oder er selbst gebucht hat, seinen Terminlink schicken, einen Zahltag festhalten${auskunftWerkzeugAn(ein.auskunft) ? ", seine Bonitätsauskunft anbieten" : ""}, eine Kündigung oder ein Storno aufnehmen, ${ein.stufe === "kunde" ? "seine Raten einmal um einen Monat verschieben, wenn er nicht zahlen kann (ratenpause_setzen), " : ""}fehlende Angaben und seine E-Mail-Adresse eintragen (angaben_eintragen, ab dem abgeschickten Antrag), und jede Frage beantworten, die SEINE LAGE und die Fakten beantworten. Ein Mensch (mensch true) nur, wenn es wirklich einen braucht (siehe WANN EIN MENSCH ÜBERNIMMT).`,
     // E-275 (02.10.2026): Hier stand „… sobald er angerufen werden will, unsicher ist oder du ihm einen Anruf anbietest“.
     `· freie_zeiten — die freien Anrufzeiten seines Betreuers (nur in dessen Arbeitszeit, frühestens in 20 Minuten). Nutze es NUR, wenn er angerufen werden will oder ein zugesagter Anruf ausgefallen ist — nie, um eine Frage loszuwerden, die du selbst beantworten kannst. Nenn ihm dann zwei oder drei dieser Zeiten — nie eine andere.`,
@@ -1221,6 +1229,9 @@ function auftrag(ein: {
       `· karte_link_schicken — der Link unserer Partnerbank für seinen Konto- und Kartenantrag (er ist zahlender Kunde). Nutze es, sobald er nach Karte, Kartenlink, Konto, PIN oder „nichts bekommen“ fragt — auch wenn der Link schon einmal raus war (dann mit dem Datum aus SEINE LAGE: „hier noch einmal“). Den Link aus dem Ergebnis schickst du genau so, dazu die Schritte: zuerst das Girokonto eröffnen, dann im Banking die Visa-Kreditkarte dazubuchen; ${KARTE_ZEIT_SATZ.replace(/^Nach/, "nach")} Lehnt das Werkzeug ab, sag ehrlich, was fehlt (der Grund im Ergebnis), und erst dann übergibst du.`,
     ] : []),
     `· rueckruf_eintragen — trägt den Rückruf ECHT in den Kalender ein. Nutze es, sobald er eine Uhrzeit oder ein Zeitfenster nennt („12:25", „1-3", „nachmittags", „morgen früh") oder einer angebotenen Zeit zustimmt. Danach nennst du GENAU die Zeit und den Namen aus dem Ergebnis (mitarbeiter — schon mit Herr/Frau), als Satz: „Gern, ${bsp.nom} ruft Sie heute um 12:30 Uhr an." Weicht die Zeit von seinem Wunsch ab, sag es offen. Meldet es, dass schon ein Termin steht, bestätigst du GENAU diesen Termin (sein_termin, so_schreiben).`,
+    // E-458 (Justin 29.10.2026): ARAS ruft die Menschen an, die einen Anruf wollen — der Rückruf „bei ARAS“ mit Zeitfenster.
+    // Das Ja deckt den KI-Anruf nur, wenn Mara VORHER sagt, dass ARAS eine KI ist (der Server prüft ihre letzte Nachricht).
+    ...(ein.arasRueckruf ? [`· RÜCKRUF BEI ARAS — will er angerufen werden, kannst du ihm zuerst ARAS anbieten, mit einem Zeitfenster von ein bis zwei Stunden (Montag bis Samstag, 09:30 bis 21 Uhr, frühestens in 15 Minuten) und dem KI-Hinweis in EINER Frage: „Sehr gern! Unsere digitale Mitarbeiterin ARAS – eine KI – kann Sie heute zwischen 14 und 16 Uhr anrufen. Passt Ihnen das?" Erst nach seinem Ja: rueckruf_eintragen mit bei: "aras", von, bis und dem Anliegen — danach schreibst du so_schreiben. Will er lieber einen Menschen oder keinen Anruf von einer KI: wie gewohnt beim Betreuer (freie_zeiten, rueckruf_eintragen ohne bei).`] : []),
     `· zahlungszusage_merken — hält fest, wann er zahlen will. Danach bekommt er bis zu diesem Tag keine Zahlungserinnerung, und sein Betreuer sieht den Termin. Nur mit einem eindeutigen Tag (mit Monat) — sonst erst nachfragen.`,
     `· terminlink_schicken — sein persönlicher Link, auf dem er selbst eine Zeit bei seinem Betreuer wählt. Wenn er einen Anruf will, sich aber auf keine Zeit festlegen will oder keine passt.`,
     // E-265 (29.09.2026, Justin): „Mara antwortet selbst und klar, gibt nicht an Abwesende weiter."
@@ -1242,12 +1253,19 @@ function auftrag(ein: {
     : `DEIN LINK: Für ihn liegt gerade kein persönlicher Link vor — schick keinen Antragslink (auch nicht fiaon.com/antrag). Beantworte seine Frage; will er starten, sag, dass ${bName} ihm seinen Link schickt, und setze mensch auf true.`;
   return [
     ein.hausanweisung,
-    ein.kiHinweis ? `PFLICHT IN DIESER ANTWORT (KI-Verordnung Art. 50): Du hast dich in diesem Gespräch noch nicht vorgestellt. Beginne mit einem kurzen Halbsatz („Hier ist ${vorname}, die digitale Assistentin von FIAON —") und mach im selben Satz mit seiner Antwort weiter.` : ``,
     `Du bist ${ein.name} und schreibst für FIAON auf WhatsApp.`,
+    // ── E-262 B (29.10.2026, Prompt-Caching): ZUERST, WAS FÜR JEDES GESPRÄCH GLEICH IST ──
+    // Das Hauswissen (≈ 10.000 Token) stand ganz unten, hinter allem, was nur für DIESEN Kunden gilt; die Persona
+    // (≈ 5.000) hinter dem Hinweis auf die Vorstellung. Jetzt stehen beide direkt nach dem ersten Satz — OpenAI liest
+    // diesen gleichen Anfang für ein Zehntel des Preises aus dem Cache. Inhalt unverändert, nur die Reihenfolge.
+    `DAS HAUS IN FAKTEN — nur diese Fakten und SEINE LAGE liefern Zahlen, Daten und Namen. Rechtliche Abschnitte darin sind Hintergrund; auf WhatsApp nennst du nie Gericht, Mahnverfahren oder Kosten einer offenen Zahlung:`,
+    ein.wissen,
+    ``,
     personaText("whatsapp", ein.anruferBis && bN
       ? { betreuer: ein.fester ?? null, vertretung: { name: bN.nom, dat: bN.dat, bis: ein.anruferBis } }
       : { betreuer: bN }),
     ``,
+    ein.kiHinweis ? `PFLICHT IN DIESER ANTWORT (KI-Verordnung Art. 50): Du hast dich in diesem Gespräch noch nicht vorgestellt. Beginne mit einem kurzen Halbsatz („Hier ist ${vorname}, die digitale Assistentin von FIAON —") und mach im selben Satz mit seiner Antwort weiter.` : ``,
     ...verkaufsTeil,
     ...werkzeugTeil,
     ...auskunftBlock(ein.auskunft),
@@ -1412,9 +1430,8 @@ function auftrag(ein: {
     `WAS DU DIR MERKST (Feld gemerkt)`,
     `Ein Satz mit etwas Neuem, das er selbst gesagt hat und das beim nächsten Mal hilft: wofür er die Karte will, welchen Rahmen er sucht, wann er erreichbar ist, sein Einwand, seine Zahlungsabsicht mit Datum. Nie Gesundheit, Religion, Herkunft oder ähnlich Persönliches. Leer, wenn nichts Neues.`,
     ``,
-    `DAS HAUS IN FAKTEN — nur diese Fakten und SEINE LAGE liefern Zahlen, Daten und Namen. Rechtliche Abschnitte darin sind Hintergrund; auf WhatsApp nennst du nie Gericht, Mahnverfahren oder Kosten einer offenen Zahlung:`,
-    ein.wissen,
-    ``,
+    // E-262 B: DAS HAUS IN FAKTEN steht jetzt oben (gleicher Anfang für jedes Gespräch); hier beginnt, was nur für ihn gilt.
+    ...(ein.werkzeuge ? [`JETZT: ${ein.jetzt ?? ""} (Berliner Zeit).`] : []),
     `WER DIR SCHREIBT: ${ein.wer}`,
     `SEINE LAGE: ${ein.lage}`,
     `WAS DU ÜBER IHN WEISST: ${ein.gedaechtnis || "noch nichts"}`,
@@ -3118,16 +3135,16 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     const letzteVorlage = lv ? { name: String(lv.vorlage), text: lv.text ?? null } : null;
     const lage = await lageFuer(personId ? Number(personId) : null, leadId ? Number(leadId) : null, letzteVorlage, String(neuesteRein?.text ?? ""));
 
-    const deckel = zahlLesen(await einstellung("mara_wa_tag_euro", "30"), 30, 0, 200); // E-280: Claude-Preise (Justin 03.10.: 30 €); E-409 Fund 14: 0 heißt 0
+    const deckel = zahlLesen(await einstellung("mara_wa_tag_euro", "30"), 30, 0, 200); // E-280: Claude-Preise (Justin 03.10.: 30 €); E-409 Fund 14: 0 heißt 0; E-458: echte Dollar
     const heute = await kostenHeute(DIENST_WA).catch(() => 0);
     if (heute >= deckel) {
       const schluessel = `${nummer}-${new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" })}`;
       if (!deckelGemeldet.has(schluessel)) {
         deckelGemeldet.add(schluessel);
-        console.warn(`[MARA-WA] Kostendeckel erreicht (${heute.toFixed(2)} € von ${deckel} €) — ${nummer.slice(-4)} geht an einen Menschen.`);
+        console.warn(`[MARA-WA] Kostendeckel erreicht (${heute.toFixed(2)} $ von ${deckel} $) — ${nummer.slice(-4)} geht an einen Menschen.`);
         await aufgabeFuerMenschen(nummer, personId, leadId, "Mara hat heute ihren KI-Kostendeckel erreicht — bitte selbst antworten.", true, "deckel");
       }
-      return { gesendet: false, grund: `Kostendeckel erreicht (${heute.toFixed(2)} € von ${deckel} €) — Aufgabe an einen Menschen.` };
+      return { gesendet: false, grund: `Kostendeckel erreicht (${heute.toFixed(2)} $ von ${deckel} $) — Aufgabe an einen Menschen.` };
     }
     // Obergrenze je Gespräch: ein Autoresponder auf der Gegenseite darf kein Pingpong auslösen,
     // das das Tagesbudget aller Kunden aufbraucht. 24.09.: Die alte Grenze (6 in 30 Min.) legte
@@ -3576,6 +3593,9 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       land: lage.land, stufe: lage.linkLage.stufe,
       // E-275: der Link der Partnerbank als Werkzeug — nur beim zahlenden Kunden, und nicht, wenn der Server ihn eben geschickt hat.
       kartenWerkzeug: !!personId && stufeJetzt === "kunde" && !vorabKarte && !genanntZurueck,
+      // E-458: Rückruf „bei ARAS“ nur, wenn ARAS gerade Rückrufe annimmt (in Stufe 0 nie) und es eine Person gibt (Global-Kunden
+      // beantwortet Mara ohnehin nicht, E-272).
+      arasRueckruf: !!personId && (await import("./fiaon-aras-wunsch").then((m) => m.arasRueckrufBereit()).catch(() => ({ bereit: false }))).bereit,
       verlauf: verlauf.slice().reverse()
         .filter((v) => v.status !== "fehler")
         .map((v) => {
@@ -4045,6 +4065,8 @@ const WERKZEUGE = [
           bis: { type: "string", description: "Fensterende „YYYY-MM-DD HH:MM\" — oder leer." },
           anliegen: { type: "string", description: "Ein bis zwei Sätze für den Mitarbeiter: worum es geht, was der Kunde schon gefragt hat." },
           verschieben: { type: "boolean", description: "true nur, wenn er einen schon eingetragenen Rückruf auf eine andere Zeit legen will." },
+          // E-458: nur, wenn der Abschnitt „RÜCKRUF BEI ARAS“ in deinem Auftrag steht und er zugestimmt hat.
+          bei: { type: "string", enum: ["betreuer", "aras"], description: "„aras“ nur nach seinem Ja auf dein Angebot, dass ARAS (eine KI) ihn im Fenster von/bis anruft — sonst weglassen." },
         },
         required: ["anliegen"],
       },
@@ -4335,6 +4357,28 @@ async function werkzeugAusfuehrenKern(name: string, args: any, ctx: WerkzeugKont
         ergebnis: { ok: false, grund: "Rückrufe trägt gerade die Geschäftsführung selbst ein (Ampel rot). Sag ihm: Sein Wunsch ist angekommen, wir melden uns und machen die Zeit fest. Nenne KEINE Uhrzeit als fest und schreib nicht, dass etwas eingetragen ist." },
         aktion: { werkzeug: name, ok: false, zeiten: [],
           vorlegen: `Ampel rot (Rückruf eintragen): Rückruf NICHT eingetragen — Wunsch ${wunsch}${args?.verschieben === true ? " (verschieben)" : ""}. Anliegen: ${String(args?.anliegen ?? "").slice(0, 200)}` },
+      };
+    }
+    // E-458 (Justin 29.10.2026): Rückruf „bei ARAS“ — nach seinem Ja auf Maras Angebot mit KI-Hinweis (ihre letzte Nachricht),
+    // mit Fenster. Das Ergebnis hat dieselbe Form wie beim Betreuer (termin), damit die Prüfungen danach greifen.
+    if (args?.bei === "aras") {
+      const { arasRueckrufEintragen } = await import("./fiaon-aras-wunsch");
+      const ra = await arasRueckrufEintragen({
+        personId: ctx.personId, leadId: ctx.leadId, nummer: ctx.nummer, kanal: "whatsapp", von: mt.wunschLesen(args?.von), bis: mt.wunschLesen(args?.bis),
+        anliegen: String(args?.anliegen ?? ""), angebot: ctx.letzteDu ?? null, antwort: ctx.kundeFrei ?? ctx.kunde ?? null,
+      });
+      if (!ra.ok) return { ergebnis: { ok: false, grund: ra.meldung }, aktion: { werkzeug: name, ok: false, zeiten: [] } };
+      const hhmm = (d: Date) => d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+      const satz = `Gern, unsere digitale Mitarbeiterin ARAS ruft Sie ${ra.text} an.`;
+      const nenn = { nom: "ARAS", dat: "ARAS" };
+      return {
+        ergebnis: { ok: true, eingetragen: ra.text, mitarbeiter: "ARAS (unsere digitale Mitarbeiterin, eine KI)", so_schreiben: satz },
+        aktion: {
+          werkzeug: name, ok: true, zeiten: [hhmm(ra.von), hhmm(ra.bis)],
+          termin: { id: ra.terminId, text: ra.text, uhrzeit: hhmm(ra.von), vorname: "ARAS", nenn, agentName: "ARAS",
+            datum: ra.von.toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" }), wochentag: new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", weekday: "long" }).format(ra.von),
+            kundenText: ra.text, beginn: ra.von.toISOString() },
+        },
       };
     }
     const r = await mt.rueckrufBuchen(ctx, {

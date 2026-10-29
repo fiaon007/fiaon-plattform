@@ -43,9 +43,10 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   // 27.10.2026 (E-439): die dritte Länderseite.
   { gruppe: "fuerwen", pfad: "/business/aus-oesterreich", titel: "Aus Österreich", text: "Geschäftsleitung, Meldungen, Partner-Steuerberater", reihe: 8, en: { titel: "From Austria", text: "Place of management, reporting, partner tax adviser" } },
 
-  { gruppe: "preise", pfad: "/business#pakete", titel: "Pakete und Preise", text: "Vier Pakete, Festpreis, alles inklusive", reihe: 1, en: { titel: "Packages and prices", text: "Four packages, fixed price, everything included" } },
+  // 29.10.2026 (E-461): Pakete und Jahresbetreuung stehen auf der Startseite fiaon.com/ (vorher /business).
+  { gruppe: "preise", pfad: "/#pakete", titel: "Pakete und Preise", text: "Vier Pakete, Festpreis, alles inklusive", reihe: 1, en: { titel: "Packages and prices", text: "Four packages, fixed price, everything included" } },
   // E-196: Preis wie GLOBAL_JAHRESBETREUUNG (shared/fiaon-global.ts) — pruef-global-seiten.ts gleicht ab.
-  { gruppe: "preise", pfad: "/business#jahresbetreuung", titel: "Jahresbetreuung ab Jahr zwei", text: "699 € im Jahr, alle Gebühren inklusive", reihe: 2, en: { titel: "Annual care plan from year two", text: "€699 a year, all fees included" } },
+  { gruppe: "preise", pfad: "/#jahresbetreuung", titel: "Jahresbetreuung ab Jahr zwei", text: "699 € im Jahr, alle Gebühren inklusive", reihe: 2, en: { titel: "Annual care plan from year two", text: "€699 a year, all fees included" } },
   { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Festpreis, Staatsgebühren, ab Jahr zwei", reihe: 3, en: { titel: "Costs at a glance", text: "Fixed price, state fees, from year two" } },
   { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Vom Gespräch bis zur Kartenleiter", reihe: 4, en: { titel: "Process and timing", text: "From the first call to the card ladder" } },
   { gruppe: "preise", pfad: "/business/paket-finder", titel: "Paket-Finder", text: "Vier Fragen, ein passendes Paket", reihe: 5, en: { titel: "Package finder", text: "Four questions, one matching package" } },

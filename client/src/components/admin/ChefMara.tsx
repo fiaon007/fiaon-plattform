@@ -78,6 +78,7 @@ interface Mail {
 type MailStatus = "gesendet" | "abgelehnt" | "fehler";
 
 const euro = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const dollar = (n: number) => `${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 const zeit = (s: string | null) => (s ? new Date(s).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—");
 /** Eine Zahl oder, bei 0, ein Wort — keine nackte Null (E-250, Zuordnung § 6). */
 const oderWort = (n: number | null | undefined, wort: string) => (Number(n) > 0 ? zahl(Number(n)) : wort);
@@ -467,8 +468,9 @@ function MaraMailAktion({ onAnweisungZeigen }: { onAnweisungZeigen: () => void }
               unter={rate > 0 ? `Takt jetzt ${rate} je Stunde` : "der Takt steht still"} />
             <StZahl wert={s.schlange.length ? schlangeZahl : "niemand"} titel="in der Schlange" unter="fällig, nach Hitze" />
             {/* E-252 (Gegenprüfung): morgens vor der ersten Mail ein Wort statt „0,00 €" — gerundet auf Cent, wie euro() zeigt. */}
-            <StZahl wert={Math.round(s.kosten.heuteEuro * 100) > 0 ? euro(s.kosten.heuteEuro) : "keine"} titel="Kosten heute"
-              unter={`Deckel ${euro(e.tagEuro)} · ${Math.round(s.kosten.wocheEuro * 100) > 0 ? `Woche ${euro(s.kosten.wocheEuro)}` : "Woche noch nichts"}`} />
+            {/* E-458: KI-Kosten und Deckel in echten Dollar (vorher „€“ aus der ≈ 3,3-mal zu billigen Hausrechnung). */}
+            <StZahl wert={Math.round(s.kosten.heuteEuro * 100) > 0 ? dollar(s.kosten.heuteEuro) : "keine"} titel="Kosten heute"
+              unter={`Deckel ${dollar(e.tagEuro)} · ${Math.round(s.kosten.wocheEuro * 100) > 0 ? `Woche ${dollar(s.kosten.wocheEuro)}` : "Woche noch nichts"}`} />
             <div className="st rechts">
               <span className="mara-still mara-klein" title="lädt jede Minute neu, solange der Tab offen ist">
                 {stand.geladenAm ? `Stand ${uhrBerlin(stand.geladenAm)}` : "lädt jede Minute neu"}
@@ -1044,6 +1046,8 @@ const HANDGRIFF_TEXT: Record<string, string> = {
   global_zugang_senden: "Global-Zugang",
 };
 const ct = (c: number | null | undefined) => (c == null ? "—" : euro(Number(c) / 100));
+/** E-458: KI-Kosten sind echte Dollar (Listenpreis, wie OpenAI abrechnet) — Geld der Kunden bleibt Euro (ct). */
+const usdCt = (c: number | null | undefined) => (c == null ? "—" : dollar(Number(c) / 100));
 const zz = (n: number | null | undefined) => Number(n || 0).toLocaleString("de-DE");
 const tagZeit = (s: string) => {
   try {
@@ -1259,7 +1263,7 @@ function MarasBilanz() {
             <BRahmen klasse="blau" titel="davon nach Mara" wert={ct(z.rahmen.nachMaraCents)}
               unter={`${zz(z.rahmen.nachMaraZahlungen)} ${z.rahmen.nachMaraZahlungen === 1 ? "Zahlung" : "Zahlungen"}${z.rahmen.nachMaraOhneMeldungCents != null ? ` · ${ct(z.rahmen.nachMaraOhneMeldungCents)} ohne Meldung vorher` : ""}`}
               info={def("rahmen.nachMara")} zusatz={`Nach Mail: ${ct(z.rahmen.nachMailCents)} · nach WhatsApp: ${ct(z.rahmen.nachWhatsappCents)}`} />
-            <BRahmen titel="KI-Kosten Mara" wert={ct(z.rahmen.kiCents)} unter={wahl === "start" ? `alle Mara-Dienste · ab ${tagZeit(z.rahmen.ab)}` : "alle Mara-Dienste"}
+            <BRahmen titel="KI-Kosten Mara" wert={usdCt(z.rahmen.kiCents)} unter={wahl === "start" ? `alle Mara-Dienste · ab ${tagZeit(z.rahmen.ab)}` : "alle Mara-Dienste"}
               info={def("rahmen.ki")} zusatz={Object.entries(z.rahmen.kiJeDienst).map(([k, v]) => `${k}: ${ct(v)}`).join(" · ")} />
             <BRahmen klasse="gegen" titel="Kündigung bei Mara vorgemerkt" wert={zz(z.rahmen.kuendigungen)}
               unter={`${z.rahmen.kuendigungen === 1 ? "Mensch" : "Menschen"} · im Postfach`} info={def("rahmen.kuendigungen")} />
@@ -1340,7 +1344,7 @@ function MaraVerkaufsleiste({ bilanzOffen, onBilanz }: { bilanzOffen: boolean; o
   const geldUnter = w ? [
     w.rahmen.nachMaraZahlungen ? `${zahl(w.rahmen.nachMaraZahlungen)} ${w.rahmen.nachMaraZahlungen === 1 ? "Zahlung" : "Zahlungen"}` : null,
     w.rahmen.geldCents ? `von ${ct(w.rahmen.geldCents)} gesamt` : "noch nichts gebucht",
-    w.rahmen.kiCents ? `KI ${ct(w.rahmen.kiCents)}` : null,
+    w.rahmen.kiCents ? `KI ${usdCt(w.rahmen.kiCents)}` : null,
   ].filter(Boolean).join(" · ") : "";
   const heuteGeld = h ? `${istHeute ? "heute" : `am ${tagKurz}`} ${h.rahmen.nachMaraCents ? ct(h.rahmen.nachMaraCents) : "noch nichts"}` : "";
 

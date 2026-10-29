@@ -210,6 +210,9 @@
 .fg-fertig h3{font-family:var(--serif);font-size:24px;font-weight:400;letter-spacing:-.01em;text-transform:none;color:var(--tinte);margin:0 0 10px}
 .fg-fertig p{font-size:15px;font-weight:300;color:var(--text);line-height:1.7}
 .fg-falle{position:absolute !important;left:-9999px !important;width:1px;height:1px;opacity:0}
+/* E-458: das freiwillige Kästchen „… auch durch unsere KI-Assistentin ARAS“ — eigene Zeile, nie vorangekreuzt */
+.fg-kaestchen{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--text);cursor:pointer}
+.fg-kaestchen input{flex:none;width:18px;height:18px;margin:1px 0 0;accent-color:var(--blau);cursor:pointer}
 
 /* ── Schlussband: die zweite dunkle Fläche ──────────────────────────────── */
 .fg-schluss{background:var(--navy-2);color:#fff;padding:112px 0 116px;text-align:center}

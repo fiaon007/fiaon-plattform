@@ -202,6 +202,11 @@ export const KI_DIENSTE: readonly KiDienst[] = [
   { dienst: "telefonkartei", label: "Telefonkartei", wer: "haus" },
   { dienst: "chefbuero", label: "Copilot", wer: "haus" },
   { dienst: "radar", label: "Firmen-Radar", wer: "haus" },
+  { dienst: "mara-anliegen", label: "Mara · Anliegen", wer: "mara" },
+  { dienst: "mara-nacharbeit", label: "Mara · Nach dem Anruf", wer: "mara" },
+  { dienst: "partner-crm", label: "Partner-CRM", wer: "haus" },
+  { dienst: "finanzauswertung", label: "Finanzauswertung", wer: "haus" },
+  { dienst: "ki-kasse", label: "KI-Kasse (Bremsungen)", wer: "haus" },
   { dienst: "ratgeber", label: "Ratgeber", wer: "haus" },
   { dienst: "ocr", label: "Texterkennung", wer: "haus" },
   { dienst: "dokument-pruefung", label: "Dokumentprüfung", wer: "haus" },
@@ -230,7 +235,11 @@ export const TWILIO_MIN_CENTS = 4.3;
 // ═══════════════════════════════════════════════════════════════════════════
 // JSON-FORMEN DES RAUMS (SCHNITTSTELLE § 5)
 // ═══════════════════════════════════════════════════════════════════════════
-export interface KostenDienst { dienst: string; label: string; wer: KiDienst["wer"]; euro: number; deckel: number | null; anteil: number }
+/**
+ * Kosten eines Dienstes heute. E-458 (29.10.2026): `euro` heißt aus Gewohnheit so — für KI-Dienste sind es echte DOLLAR
+ * (Listenpreis, wie OpenAI abrechnet), nur die Telefon-Zeile ist Euro (Twilio-Schätzung). `waehrung` sagt es genau.
+ */
+export interface KostenDienst { dienst: string; label: string; wer: KiDienst["wer"]; euro: number; deckel: number | null; anteil: number; waehrung?: "USD" | "EUR"; bereich?: string }
 
 /** Ein gelber Eintrag in „Heute“ (server/lib/fiaon-mara-heute.ts gelbListe) — mit Rückgängig, wo es sicher geht. */
 export interface GelbSicht {

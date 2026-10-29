@@ -60,7 +60,7 @@ export default function MaraAnliegenSchalter() {
               <small>
                 {s.woche.mensch ? `${zahl(s.woche.mensch)} beim Team (heikel)` : "nichts Heikles offen"}
                 {s.woche.entwuerfe ? ` · ${zahl(s.woche.entwuerfe)} Vorschläge` : ""}
-                {` · Kosten heute ${s.kostenHeuteEuro.toFixed(2).replace(".", ",")} € von ${zahl(s.deckelEuro)} €`}
+                {` · Kosten heute ${s.kostenHeuteEuro.toFixed(2).replace(".", ",")} $ von ${zahl(s.deckelEuro)} $`}
               </small>
             </div>
           </div>

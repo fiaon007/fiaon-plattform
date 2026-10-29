@@ -108,8 +108,8 @@ html.fg-dokument #root { overflow-x:clip; }
 .gk-mobil-liste a b { font:400 15px/1.3 var(--gk-sans); color:var(--gk-tinte); }
 .gk-mobil-liste a span { grid-column:1; font:400 12px/1.4 var(--gk-sans); color:var(--gk-leise); }
 .gk-mobil-liste a[aria-current="page"] b { color:var(--gk-blau); }
-.gk-mobil-zeile { display:flex; gap:22px; padding:18px 0 6px; }
-.gk-mobil-zeile a { font:400 14px/1 var(--gk-sans); color:var(--gk-navy); text-decoration:none; }
+.gk-mobil-zeile { display:flex; flex-wrap:wrap; gap:14px 22px; padding:18px 0 6px; } /* E-461: vier Wege — umbrechen statt quetschen */
+.gk-mobil-zeile a { font:400 14px/1 var(--gk-sans); color:var(--gk-navy); text-decoration:none; white-space:nowrap; }
 .gk-mobil-fuss { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:12px 18px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid var(--gk-linie); background:#fff; }
 .gk-mobil-fuss .gk-knopf { min-height:50px; font-size:14.5px; padding:0 12px; }
 .gk-mobil-fuss .gk-knopf:only-child { grid-column:1 / -1; }

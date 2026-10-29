@@ -26,6 +26,8 @@ import "@/styles/chef-aras.css";
 
 const ArasPlan = lazy(() => import("./aras/ArasPlan"));
 const ArasWarteschlange = lazy(() => import("./aras/ArasWarteschlange"));
+// E-458 (29.10.2026): „Wen ARAS anruft“ — Anruf-Wunsch, Erinnerung vor Global-Gesprächen, Rückrufe bei ARAS, die Schalter.
+const ArasWunsch = lazy(() => import("./aras/ArasWunsch"));
 const ArasAnrufe = lazy(() => import("./aras/ArasAnrufe"));
 const ArasErgebnisse = lazy(() => import("./aras/ArasErgebnisse"));
 const ArasStufe = lazy(() => import("./aras/ArasStufe"));
@@ -92,7 +94,7 @@ export default function ChefKiAras() {
           {reiter === "probe" ? <ArasProbe eingebettet ohneSchalter={verbunden} />
             : reiter === "anrufe" ? <ArasAnrufe verbunden={verbunden} />
             : reiter === "ergebnisse" ? <ArasErgebnisse verbunden={verbunden} />
-            : reiter === "warteschlange" ? <ArasWarteschlange verbunden={verbunden} />
+            : reiter === "warteschlange" ? <><ArasWunsch verbunden={verbunden} onReiter={(r) => (r === "probe" ? setReiter("probe") : zu("einstellungen"))} /><ArasWarteschlange verbunden={verbunden} /></>
             : reiter === "plan" ? <ArasPlan verbunden={verbunden} />
             : reiter === "stufe" ? <ArasStufe verbunden={verbunden} onEinstellungen={() => zu("einstellungen")} />
             : <ArasEinstellungen verbunden={verbunden} fokus={fokus} />}

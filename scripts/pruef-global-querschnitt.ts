@@ -616,7 +616,12 @@ abschnitt("G · Verdrahtung: Lauf, Ereignisse, Frequenzbremse, Türen");
   const freq = await import("../server/lib/fiaon-mail-frequenz");
   ok(freq.PFLICHTMAILS.has("global_zugang"), "global_zugang ist keine Pflichtmail — die Bremse könnte dem Firmenkunden die einzige Tür zuhalten");
   ok(!freq.PFLICHTMAILS.has("global_zahlung_erinnerung"), "global_zahlung_erinnerung ist Pflichtmail — dann prüft niemand mehr hart unzustellbare Adressen");
-  ok(/"global_zahlung_erinnerung",\n\]\);/.test(lies("server/lib/fiaon-mail-frequenz.ts")), "global_zahlung_erinnerung steht nicht in ZAHLUNGSPOST — eine Werbesperre hielte die Erinnerung an die Rechnung auf");
+  // E-460 (29.10.2026): Der Eintrag muss nicht der letzte der Liste sein — E-244 und E-406 kamen danach dazu, die alte Prüfung
+  // („global_zahlung_erinnerung“ direkt vor „]);“) meldete seitdem rot, obwohl er drinsteht. Der Block wird ausgeschnitten wie in
+  // pruef-mara-rate-erinnerung.ts.
+  const frequenz = lies("server/lib/fiaon-mail-frequenz.ts");
+  const zpStart = frequenz.indexOf("const ZAHLUNGSPOST = new Set<string>([");
+  ok(zpStart >= 0 && frequenz.slice(zpStart, frequenz.indexOf("]);", zpStart)).includes('"global_zahlung_erinnerung"'), "global_zahlung_erinnerung steht nicht in ZAHLUNGSPOST — eine Werbesperre hielte die Erinnerung an die Rechnung auf");
   // Die drei Türen rufen dieselbe Funktion.
   const antrag = lies("server/routes/fiaon-antrag.ts"); const app = lies("server/routes/fiaon-app-login.ts");
   ok((antrag.match(/globalZugangSenden\(/g) ?? []).length >= 2, "Login und „Passwort vergessen“ schicken den Link nicht beide über globalZugangSenden");

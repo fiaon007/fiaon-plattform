@@ -58,7 +58,8 @@ import { AUSKUNFT_KEIN_WIDERRUF, auskunftLeistungszeit } from "./fiaon-auskunft-
 import { AGB_FASSUNG, AGB_FRUEHERE_FASSUNGEN } from "./fiaon-vertrag-paket";
 import { agbDatumLang } from "./fiaon-antrag-neu";
 // 28.10.2026 (E-445): die Vertrauensseite „Ist FIAON seriös?“ — Abschnitte aus ihrer einen Quelle (sichtbar = Vorab-HTML).
-import { SERIOES_TEXTE, SERIOES_PFAD, SERIOES_STAND, COMPANIES_HOUSE_URL, type SerioesTexte } from "./fiaon-serioes";
+// 29.10.2026 (E-459): ganz auf FIAON Global — hier nur der Kopf; den Korpus trägt der Server ein (server/lib/fiaon-global-seo.ts).
+import { SERIOES_KOPF, SERIOES_PFAD, SERIOES_STAND, COMPANIES_HOUSE_URL } from "./fiaon-serioes";
 
 const AUSK_EINZELN = euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln);
 const AUSK_MIT_PAKET = euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo);
@@ -72,13 +73,6 @@ const AUSW_INKLUSIVE_NEU = "Für neue Paketkunden ist die Bonitätsauswertung im
 const euroEn = (c: number) => `€${c / 100}`;
 /** Die Auskunfteien eines Landes als Zeilen — wie die Liste „Bei wem wir anfragen" (E-241). */
 const auskunfteienZeilen = (land: AuskunftLand) => auskunfteienFuer(land).map((a) => `${a.kurz}: ${a.name}, ${a.anschrift[1].replace(/^\d+\s*/, "")} — Datenkopie nach ${a.recht}`);
-/** „Auf einen Blick“ als echte Tabelle, danach die Abschnitte der Seite in ihrer Reihenfolge (E-445). */
-const serioesAbschnitte = (t: SerioesTexte, kopf: [string, string]): SeoAbschnitt[] => [
-  { h2: t.blickH2, text: "", tabelle: { kopf, zeilen: t.blick } },
-  ...t.abschnitte.map((a): SeoAbschnitt => (a.zeilen
-    ? { h2: a.h2a + a.h2b, text: [a.text, ...(a.punkte ?? [])].join(" "), tabelle: { kopf, zeilen: a.zeilen } }
-    : { h2: a.h2a + a.h2b, text: a.text, punkte: a.punkte })),
-];
 
 export const SEO_BASIS = "https://fiaon.com";
 /** Vorschaubild der Business-Welt (FIAON Global, 1200 × 630) — deutsch und englisch (E-232). */
@@ -166,13 +160,14 @@ export interface SeoEnglisch {
 // ── Die Navigation und die Fußzeile, wie sie auf der gerenderten Seite stehen.
 // Sie werden im Vorrendering mitgeliefert, damit jede Seite von jeder Seite
 // aus erreichbar ist — auch für einen Crawler, der kein JavaScript ausführt.
+// 29.10.2026 (E-461): Die Startseite der Privatkunden ist /privat; fiaon.com/ ist FIAON Global („Business“).
 export const SEO_NAV: [string, string][] = [
-  ["/", "Startseite"],
+  ["/privat", "Startseite"],
   ["/was-ist-fiaon", "Was ist FIAON"],
   ["/privatkunden", "Privatkunden"],
   // 25.09.2026 (E-241): wie GlassNav — der Menüpunkt führt auf die Übersicht der Seitenfamilie.
   ["/bonitaetsauskunft", "Bonitätsauskunft"],
-  ["/business", "Business"],
+  ["/", "Business"],
   ["/ratgeber", "Ratgeber"],
   ["/werkzeuge", "Kostenlose Werkzeuge"],
   ["/preise", "Preise & Pakete"],
@@ -198,14 +193,14 @@ export const SEO_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
   ] },
   { titel: "Plattform", links: [
-    ["/", "Startseite"],
+    ["/privat", "Startseite"],
     ["/ratgeber", "Ratgeber"],
     ["/werkzeuge", "Kostenlose Werkzeuge"],
     ["/preise", "Preise & Pakete"],
     ["/kreditkarte", "Kreditkarte trotz Eintrag"],
     ["/partnerbank-dkb", "Konto & Karte mit der DKB"],
     ["/privatkunden", "Privatkunden"],
-    ["/business", "Business"],
+    ["/", "Business"],
     ["/oesterreich", "FIAON in Österreich"],
     ["/schweiz", "FIAON in der Schweiz"],
   ] },
@@ -291,8 +286,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // ═════════════════════════════════════════════════════════════════════════
   // START UND PRODUKT
   // ═════════════════════════════════════════════════════════════════════════
-  "/": {
-    pfad: "/", art: "start", stand: PFEILER, prio: 1.0,
+  // 29.10.2026 (E-461): Die Startseite der Privatkunden — bis heute fiaon.com/ und /en. Justin: „wenn man fiaon.com
+  // aufmacht sollte Business kommen nicht mehr Privat, wir tauschen es quasi aus“. Inhalt unverändert, nur die Adresse
+  // (/privat, englisch /en/private); fiaon.com/ trägt seither den Eintrag von FIAON Global (unten).
+  "/privat": {
+    pfad: "/privat", art: "start", stand: "2026-10-29", prio: 0.9,
     titel: "Bonität verstehen, Einträge löschen, Karte — FIAON",
     beschreibung: "FIAON zeigt Ihre Bonität aus Sicht einer Bank, erklärt jeden Eintrag Ihrer Datenkopie, versendet geprüfte Schreiben und öffnet die Tür zu Konto und Karte.",
     h1: "Das Betriebssystem für Bonität.",
@@ -307,7 +305,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/ratgeber", "/kreditkarte"],
     en: {
-      pfad: "/en",
+      pfad: "/en/private",
       titel: "FIAON in English: your credit file, explained and acted on",
       beschreibung: "FIAON explains the credit file you upload, sends reviewed letters and prepares account and card. Germany, Austria, Switzerland.",
       h1: "Your credit file, explained — and acted on.",
@@ -348,7 +346,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
         { h2: "The path from e-mail address to card", text: "Apply in about five minutes, an onboarding call with a person, your report explained entry by entry, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
       ],
-      weiter: ["/preise", "/"],
+      weiter: ["/preise", "/privat"],
       krumen: [{ name: "What is FIAON", pfad: "/en/what-is-fiaon" }],
     },
   },
@@ -396,8 +394,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // Bewusst so gelassen: „Was Sie vor dem Auftrag wissen müssen“ ist hier eine H2, auf der Seite die h3 im
   // Kleingedruckten (gleicher Wortlaut, eigener Abschnitt im Vorab-HTML). Die Mikrozeile „Dreißig Minuten …“
   // steht sichtbar nur im Hero und deshalb nicht mehr im Gesprächsabschnitt.
-  "/business": {
-    pfad: "/business", art: "produkt", stand: "2026-10-06", prio: 0.9,
+  // 29.10.2026 (E-461): Dieser Eintrag ist die Startseite von fiaon.com — vorher stand er unter /business und /en/business
+  // (beide leiten seither dauerhaft hierher, server/routes.ts UMGEZOGEN). Inhalt und Wortlaut unverändert; ohne Brotkrumen
+  // (die Startseite ist die Wurzel). Die Privat-Startseite steht unter /privat (oben).
+  "/": {
+    pfad: "/", art: "start", stand: "2026-10-29", prio: 1.0,
     // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
     titel: "US-Firma gründen ab 2.499 € — FIAON Global",
@@ -413,9 +414,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Erst sprechen, dann entscheiden.", text: "Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt." },
     ],
     weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
-    krumen: [{ name: "Business", pfad: "/business" }],
     en: {
-      pfad: "/en/business",
+      pfad: "/en",
       bild: GLOBAL_BILD_EN,
       titel: "Form a US company from €2,499 — FIAON Global",
       beschreibung: "The business consultancy for your US company: formation, EIN and ITIN, account and card applications, a team in Miami. Fixed price from €2,499.",
@@ -431,7 +431,6 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       // 19.09.2026: Kein Verweis mehr auf /preise und /privatkunden — die Business-Welt verlinkt nie die Privatkunden-Seiten.
       // 24.09.2026 (E-234): dieselben Ziele wie deutsch — weiterlesen() nimmt die englischen Schwestern.
       weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
-      krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
   // 02.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
@@ -465,7 +464,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Für Unternehmen: FIAON Global.", text: "FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet Steuernummern, Dokumente sowie Konto- und Kartenanträge vor. Vier Pakete zum Einmalpreis, kein Abo: Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 €, Global VIP 35.999 €. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut." },
       { h2: "Wann Sie FIAON nicht brauchen", text: "Ein einziger, klar erledigter Eintrag: der kostenlose Löschantrag-Generator. Nur wissen, was drinsteht: die kostenlose Datenkopie. FIAON lohnt sich bei mehreren Einträgen, mehreren Ländern, Fristen und Antworten – oder wenn Konto und Karte das Ziel sind." },
     ],
-    weiter: ["/privatkunden", "/business", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
+    weiter: ["/privatkunden", "/", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
     krumen: [{ name: "Preise & Pakete", pfad: "/preise" }],
     en: {
       pfad: "/en/pricing",
@@ -478,7 +477,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "What doing it yourself costs", text: "Everything FIAON does you can do yourself — the data copy under Art. 15 GDPR is free and the law is public. The question is what your time is worth and how often you will have to chase. Our calculator on this page compares registered letters, hours and a lawyer's fee with a twelve-month plan." },
         { h2: "How you pay", text: "Every instalment by bank transfer, the first and all further ones (payment details with a QR code in your customer area and in every payment e-mail). No credit card needed. Prices include VAT. The bank decides on account, card and limit." },
       ],
-      weiter: ["/"],
+      weiter: ["/privat"],
       krumen: [{ name: "Pricing", pfad: "/en/pricing" }],
     },
   },
@@ -734,7 +733,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "What happens before a customer arrives with you", text: "Insight (report and bank statement analysis), action (letters approved by the customer, instalment agreements), access (introduction with consent and all documents)." },
         { h2: "Four steps to a pilot", text: "Enquiry, conversation with the platform on screen, pilot with a limited number of customers and joint evaluation after 90 days, then integration and scaling." },
       ],
-      weiter: ["/business", "/investoren", "/karriere"],
+      weiter: ["/", "/investoren", "/karriere"],
       krumen: [{ name: "Partners", pfad: "/en/partners" }],
     },
   },
@@ -822,28 +821,26 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       krumen: [{ name: "FIAON reviews", pfad: "/en/how-fiaon-works" }],
     },
   },
-  // 28.10.2026 (E-445): Search Console — „fiaon seriös“, „ist das abzocke“, „fiaon kreditkarte erfahrungen“.
-  // Unter unserem Treffer standen fremde Warnlisten; diese Seite legt die prüfbaren Fakten hin. Die
-  // Abschnitte kommen aus shared/fiaon-serioes.ts (dieselben Sätze wie auf der Seite).
+  // 28.10.2026 (E-445): Search Console — „fiaon seriös“, „ist das abzocke“. 29.10.2026 (E-459): ganz auf FIAON Global (Justin:
+  // „alles auf Business“) — Seite im Rahmen der Business-Welt (istBusinessPfad). Hier stehen Kopf, Sprachpaar und Sitemap;
+  // Abschnitte und FAQ trägt der Server beim Start aus shared/fiaon-serioes-seite.ts ein (dieselben Sätze wie auf der Seite).
   [SERIOES_PFAD.de]: {
-    pfad: SERIOES_PFAD.de, art: "unternehmen", stand: SERIOES_STAND, prio: 0.8,
-    titel: "Ist FIAON seriös? Die Fakten zu Firma, Zahlung, Vertrag",
-    beschreibung: "Ist FIAON seriös oder Abzocke? Die prüfbaren Fakten: FIAON LTD London (Nr. 17318250), Zahlung nur per Überweisung, klare Laufzeit, Datenschutz, Kontakt.",
-    h1: SERIOES_TEXTE.de.h1a + SERIOES_TEXTE.de.h1b,
-    lead: SERIOES_TEXTE.de.lead,
-    abschnitte: serioesAbschnitte(SERIOES_TEXTE.de, ["Thema", "Fakt"]),
+    pfad: SERIOES_PFAD.de, art: "unternehmen", stand: SERIOES_STAND, prio: 0.8, bild: GLOBAL_BILD,
+    titel: SERIOES_KOPF.de.titel,
+    beschreibung: SERIOES_KOPF.de.beschreibung,
+    h1: `${SERIOES_KOPF.de.h1} ${SERIOES_KOPF.de.h1b}`,
+    lead: SERIOES_KOPF.de.lead,
     quellen: [{ titel: "Companies House (England and Wales): FIAON LTD, Nr. 17318250", url: COMPANIES_HOUSE_URL }],
-    weiter: ["/fiaon-erfahrungen", "/impressum", "/sicherheit", "/kontakt", "/preise", "/team"],
-    krumen: [{ name: "Ist FIAON seriös?", pfad: SERIOES_PFAD.de }],
+    weiter: ["/business/was-ist-fiaon-global", "/business/kosten", "/business/ablauf", "/business/fragen"],
+    krumen: [{ name: SERIOES_KOPF.de.krume, pfad: SERIOES_PFAD.de }],
     en: {
-      pfad: SERIOES_PFAD.en,
-      titel: "Is FIAON legit? The facts on company, payment, contract",
-      beschreibung: "Is FIAON legitimate? The verifiable facts: FIAON LTD London (Companies House 17318250), payment by bank transfer only, clear terms, privacy, contact.",
-      h1: SERIOES_TEXTE.en.h1a + SERIOES_TEXTE.en.h1b,
-      lead: SERIOES_TEXTE.en.lead,
-      abschnitte: serioesAbschnitte(SERIOES_TEXTE.en, ["Topic", "Fact"]),
-      weiter: ["/fiaon-erfahrungen", "/sicherheit", "/kontakt", "/preise", "/team"],
-      krumen: [{ name: "Is FIAON legit?", pfad: SERIOES_PFAD.en }],
+      pfad: SERIOES_PFAD.en, bild: GLOBAL_BILD_EN,
+      titel: SERIOES_KOPF.en.titel,
+      beschreibung: SERIOES_KOPF.en.beschreibung,
+      h1: `${SERIOES_KOPF.en.h1} ${SERIOES_KOPF.en.h1b}`,
+      lead: SERIOES_KOPF.en.lead,
+      weiter: ["/en/business/what-is-fiaon-global", "/en/business/costs", "/en/business/process", "/en/business/faq"],
+      krumen: [{ name: SERIOES_KOPF.en.krume, pfad: SERIOES_PFAD.en }],
     },
   },
 
@@ -1268,7 +1265,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Wie lange es dauert", text: auskunftLeistungszeit("firma") },
       { h2: "Kein Widerrufsrecht für Unternehmen", text: `${AUSKUNFT_KEIN_WIDERRUF} Bei der Bestellung bestätigen Sie, dass Sie für das Unternehmen zu gewerblichen Zwecken bestellen und es vertreten dürfen.` },
     ],
-    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/auskunfteien", "/business"],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/auskunfteien", "/"],
     krumen: [{ name: "Bonitätsauswertung", pfad: "/bonitaetsauskunft" }, { name: "Unternehmen", pfad: "/bonitaetsauskunft/unternehmen" }],
   },
   "/bonitaetsauskunft/ablauf": {
@@ -1549,7 +1546,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Was der Kunde davon hat.", text: "Für viele unserer Kunden ist die Steuer der Punkt, an dem sie endlich wieder Geld zurückbekommen könnten — wenn jemand hilft.", punkte: ["Erstattung holen","Belege digital","Ein fester Termin","Geprüft","Kosten vorab","Nur auf Wunsch"] },
       { h2: "Was Ihre Kanzlei davon hat.", text: "Planbare neue Mandanten mit vorbereiteten Unterlagen — berufsrechtlich sauber über einen festen Partnerplatz.", punkte: ["Wenige Partner je Region","Vorbereitete Unterlagen","Termine in Ihren Zeiten","Berufsrechtlich sauber","Partnerbereich","Planbar"] },
       { h2: "Vom Belegstapel zur Erklärung.", text: "Wunsch: Der Kunde möchte seine Steuer erledigen lassen — wir fragen nach offenen Jahren, nicht nach Zahlen. Einwilligung: Er stimmt ausdrücklich zu, dass wir Ihre Kanzlei nennen und Kontaktdaten übermitteln. Termin: Wir vereinbaren das Erstgespräch in Ihren Zeiten. Unterlagen: Auf seinen Wunsch liegen Belege und Kontoauszüge vorab bereit. Mandat: Umfang und Gebühr vereinbaren allein Sie und der Mandant." },
-      { h2: "Ein fester Preis. Kein Entgelt je Mandat.", text: "Steuerberater dürfen für die Vermittlung von Aufträgen nichts zahlen. Deshalb gibt es nur den Partnerplatz — unabhängig davon, wie viele Mandate entstehen. 490 € netto im Monat je Region. Nettopreis, Reverse Charge. Der Preis gilt für Sichtbarkeit und Terminorganisation — unabhängig von Zahl und Ausgang der Mandate (§ 9 Abs. 2 StBerG). Eine Zahl an Mandaten sagt FIAON nicht zu.", punkte: ["Höchstens drei Partner je Region","Mindestlaufzeit drei Monate, danach monatlich kündbar","Monatliche Rechnung, zahlbar binnen 14 Tagen","Keine Erfolgsbeteiligung, keine Abrechnung je Mandat"] },
+      { h2: "Ein fester Preis. Kein Entgelt je Mandat.", text: "Steuerberater dürfen für die Vermittlung von Aufträgen nichts zahlen. Deshalb gibt es nur den Partnerplatz — unabhängig davon, wie viele Mandate entstehen. 490 € netto im Monat je Region. Nettopreis, Reverse Charge. Der Preis gilt für Sichtbarkeit und Terminorganisation — unabhängig von Zahl und Ausgang der Mandate (§ 9 StBerG). Eine Zahl an Mandaten sagt FIAON nicht zu.", punkte: ["Höchstens drei Partner je Region","Mindestlaufzeit drei Monate, danach monatlich kündbar","Monatliche Rechnung, zahlbar binnen 14 Tagen","Keine Erfolgsbeteiligung, keine Abrechnung je Mandat"] },
       { h2: "Was wir von Partnern erwarten.", text: "Bestellung als Steuerberater oder anerkannter Lohnsteuerhilfeverein mit Beratungsstelle · Berufshaftpflichtversicherung · Gebühr bzw. Mitgliedsbeitrag vor Beginn der Arbeit genannt · Feste Zeiten für Erstgespräche, digitale Belegannahme · Respektvoller Umgang mit Menschen in angespannter finanzieller Lage" },
     ],
     krumen: [{"name":"Partner-Netzwerk","pfad":"/partnernetzwerk"},{"name":"Steuern","pfad":"/partnernetzwerk/steuern"}],
@@ -1564,7 +1561,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "What the customer gains.", text: "For many of our customers, tax is where they could finally get money back — if someone helps.", punkte: ["Claim refunds","Receipts digital","A fixed appointment","Vetted","Costs up front","Only if they want it"] },
         { h2: "What your practice gains.", text: "Predictable new clients with prepared records — within professional rules through a fixed partner seat.", punkte: ["Few partners per region","Prepared records","Appointments in your times","Within professional rules","Partner area","Predictable"] },
         { h2: "From a pile of receipts to a tax return.", text: "Wish: The customer wants their tax done — we ask about open years, not figures. Consent: They expressly agree that we name your practice and pass on their contact details. Appointment: We book the first meeting in your times. Records: If they wish, receipts and bank statements are ready beforehand. Mandate: Scope and fee are agreed between you and the client alone." },
-        { h2: "A fixed price. No fee per mandate.", text: "Tax advisers may not pay for introductions. That is why there is only the partner seat — regardless of how many mandates arise. €490 net a month per region. Net price, reverse charge. The price covers visibility and appointment organisation — regardless of the number and outcome of mandates (§ 9(2) StBerG). FIAON promises no number of mandates.", punkte: ["At most three partners per region","Minimum term three months, then terminable monthly","Monthly invoice, payable within 14 days","No success fee, no billing per mandate"] },
+        { h2: "A fixed price. No fee per mandate.", text: "Tax advisers may not pay for introductions. That is why there is only the partner seat — regardless of how many mandates arise. €490 net a month per region. Net price, reverse charge. The price covers visibility and appointment organisation — regardless of the number and outcome of mandates (§ 9 StBerG). FIAON promises no number of mandates.", punkte: ["At most three partners per region","Minimum term three months, then terminable monthly","Monthly invoice, payable within 14 days","No success fee, no billing per mandate"] },
         { h2: "What we expect from partners.", text: "Appointment as a tax adviser or recognised income tax assistance association with an office · Professional indemnity insurance · Fee or membership contribution stated before work begins · Fixed times for first meetings, digital receipt intake · Respectful treatment of people in a strained financial situation" },
       ],
       krumen: [{"name":"Partner network","pfad":"/en/partner-network"},{"name":"Tax","pfad":"/en/partner-network/tax"}],

@@ -59,7 +59,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   if (!e.personId) return leer;
 
   const [p] = (await lauf`
-    SELECT p.id, p.first_name, p.last_name, p.anrede, p.country, p.is_blocked, p.assigned_agent_id, p.sprache,
+    SELECT p.id, p.first_name, p.last_name, p.anrede, p.country, p.is_blocked, p.assigned_agent_id, p.sprache, COALESCE(p.kind, '') AS kind,
            a.id AS agent_id, a.name AS agent_name, a.first_name AS agent_vorname, a.last_name AS agent_nachname, a.anrede AS agent_anrede,
            (a.active AND a.zugang_gesperrt_am IS NULL) AS agent_aktiv
       FROM fiaon_persons p
@@ -171,7 +171,10 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
     SELECT 1 FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id WHERE c.person_id = ${e.personId} AND aa.aufnahme_nein_am IS NOT NULL
      LIMIT 1`) as any[];
 
-  const global = await istGlobalKunde(e.personId, lauf).catch(() => false);
+  // E-458: Die Erinnerung vor dem Global-Gespräch und der Anruf-Wunsch eines Firmenkontakts (kind business) laufen immer in der
+  // Business-Welt — auch wenn er (noch) kein Global-Kunde im Sinne von E-272 ist (z. B. nur ein gebuchtes Erstgespräch).
+  const firmaKontakt = e.spielart === "erinnerung" || (e.spielart === "wunsch" && String(p.kind) === "business");
+  const global = firmaKontakt || await istGlobalKunde(e.personId, lauf).catch(() => false);
   const einw = await einwilligungGueltig(nummerKern(e.nummer), e.personId, lauf).catch(() => null);
 
   let kartenZiel: KartenZiel | null = null;
@@ -191,8 +194,10 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
   let auftrag: Briefing["auftrag"] = null;
   let offenes: string[] | null = null;
   let offenArten: string[] | null = null;
+  let planEinwilligung: number | null = null;
   if (e.planId) {
-    const [pl] = (await lauf`SELECT auftrag_von, auftrag_von_dat, auftrag_text, auftrag_offenes FROM fiaon_aras_plan WHERE id = ${e.planId}`.catch(() => [])) as any[];
+    const [pl] = (await lauf`SELECT auftrag_von, auftrag_von_dat, auftrag_text, auftrag_offenes, einwilligung_id FROM fiaon_aras_plan WHERE id = ${e.planId}`.catch(() => [])) as any[];
+    planEinwilligung = pl?.einwilligung_id != null ? Number(pl.einwilligung_id) : null;
     if (pl?.auftrag_text) auftrag = { text: String(pl.auftrag_text).slice(0, 500), von: String(pl.auftrag_von ?? "das Team"), vonDat: pl.auftrag_von_dat ? String(pl.auftrag_von_dat) : null };
     if (Array.isArray(pl?.auftrag_offenes)) {
       offenes = (pl.auftrag_offenes as unknown[]).map((o: any) => (typeof o === "string" ? o : String(o?.satz ?? ""))).map((x) => x.trim()).filter(Boolean).slice(0, 8);
@@ -211,6 +216,22 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
     terminAm = zeit(t?.beginn);
   }
 
+  // E-458: der Anruf-Wunsch (sein Ja; beim Rückruf „bei ARAS“ Maras Fenster und sein Anliegen) und das Global-Gespräch der Erinnerung.
+  const { wunschFuerBriefing, gespraechFuerBriefing } = await import("./fiaon-aras-wunsch");
+  const wunschInfo = e.spielart === "wunsch" || e.spielart === "termin"
+    ? await wunschFuerBriefing({ einwilligungId: planEinwilligung, terminId: e.terminId ?? null, spielart: e.spielart }, lauf).catch(() => null) : null;
+  const gespraech = e.spielart === "erinnerung" ? await gespraechFuerBriefing(e.terminId ?? null, lauf).catch(() => null) : null;
+  // Bei Firmen ist „Betreuer“ die zuständige Person von FIAON Global (Erinnerung: die Person des Gesprächs).
+  let betreuerNenn = betreuer ? { nom: betreuer.nom, dat: betreuer.dat } : null;
+  if (gespraech) betreuerNenn = { nom: gespraech.mitNom, dat: gespraech.mitDat };
+  else if (global && !betreuerNenn && e.spielart === "wunsch") {
+    try {
+      const { globalZustaendig } = await import("./fiaon-global-termin");
+      const z = await globalZustaendig();
+      if (z) { const [a] = (await lauf`SELECT name, first_name, last_name, anrede FROM fiaon_agents WHERE id = ${z.id}`) as any[]; if (a) { const n = nennform(a); betreuerNenn = { nom: n.nom, dat: n.dat }; } }
+    } catch { /* ohne Ansprechpartner sagt ARAS „die zuständige Person“ */ }
+  }
+
   return {
     anrede, nachname: p.last_name ? String(p.last_name).trim() : null, vorname: p.first_name ? String(p.first_name).trim() : null,
     land: (String(p.country ?? "").toUpperCase() === "AT" || String(p.country ?? "").toUpperCase() === "CH") ? (String(p.country).toUpperCase() as Land) : land,
@@ -223,7 +244,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
       am: zeit(t.beginn) ?? "", bei: t.art === "ki" ? "Aras" : nennform({ name: t.name, first_name: t.first_name, last_name: t.last_name, anrede: t.anrede }).dat,
     })),
     notizen: notizen.map((n: any) => notizSauber(n.note)).filter(Boolean),
-    betreuer: betreuer ? { nom: betreuer.nom, dat: betreuer.dat } : null,
+    betreuer: betreuerNenn,
     aufnahmeFrueherAbgelehnt: !!aufnahme,
     global, isBlocked: !!p.is_blocked,
     einwilligung: einw ? { art: einw.art, am: tag(einw.erteiltAm) ?? "" } : null,
@@ -235,6 +256,7 @@ export async function briefingBauen(e: BriefingEin, lauf: Lauf = sqlPool): Promi
     auftrag, offenes, offenArten, arasNotiz,
     unterschriebenAm, offeneRechnungen, kuendigung, karte, kontakte: kontakte.length ? kontakte : null, maraNotiz,
     probe: e.probe === true,
+    wunsch: wunschInfo, gespraech,
   };
 }
 

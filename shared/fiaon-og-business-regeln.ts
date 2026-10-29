@@ -25,9 +25,16 @@ export function ogDateiName(pfad: string): string {
   return pfad.replace(/^artikel:/, "artikel/").replace(/^\/+|\/+$/g, "").replace(/~/g, "").replace(/\//g, "--") || "start";
 }
 
+/**
+ * 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite (/ und /en) — sie trägt das Bild, das der
+ * Generator weiter unter dem alten Schlüssel /business und /en/business erzeugt (dieselbe Seite, neue Adresse).
+ */
+const OG_ALIAS: Record<string, string> = { "/": "/business", "/en": "/en/business" };
+
 /** Bildadresse + Alternativtext für eine Business-Adresse — null, wenn es (noch) kein eigenes Bild gibt. */
 export function ogBusinessBild(pfad: string): { url: string; alt: string } | null {
-  const e = OG_BUSINESS[pfad.split(/[?#]/)[0]];
+  const p = pfad.split(/[?#]/)[0];
+  const e = OG_BUSINESS[OG_ALIAS[p] ?? p];
   return e ? { url: `https://fiaon.com/og/business/${e.datei}.jpg?v=${OG_BUSINESS_VERSION}`, alt: e.alt } : null;
 }
 
@@ -36,5 +43,5 @@ export function ogBusinessArtikelBild(slug: string, sprache: "de" | "en"): { url
   return ogBusinessBild(ogArtikelSchluessel(slug)) ?? ogBusinessBild(OG_BUSINESS_REDAKTION[sprache]);
 }
 
-/** Gehört die Adresse zur Business-Welt? (Dieselbe Grenze wie client/src/lib/bereich.ts.) */
-export const istBusinessPfad = (pfad: string) => /^\/(en\/)?business(\/|$)/.test(pfad.split(/[?#]/)[0]);
+/** Gehört die Adresse zur Business-Welt? Die Regel steht in shared/fiaon-business-grenze.ts (klein, auch im Browser). */
+export { istBusinessPfad, BUSINESS_EIGENE_PFADE } from "./fiaon-business-grenze";

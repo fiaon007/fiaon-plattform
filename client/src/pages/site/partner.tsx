@@ -1,5 +1,6 @@
 // /partner · /en/partners — Geschäftspartner: Banken, Kartenherausgeber, Auskunfteien, Inkasso, Vermittler.
 // Zweisprachig 02.09.2026, Texte: client/src/i18n/partner.ts. Wortverbot „Affiliate" beachtet.
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SeoDaten from "@/components/site/SeoDaten";
 import KartenSzene from "@/components/home3d/KartenSzene";
@@ -36,7 +37,8 @@ export default function Partner() {
         <Schritte items={t.weg} />
       </Block>
 
-      <Zwischenruf text={t.zwischenruf} knopf={t.gespraech} href="#anfrage" still={{ knopf: t.kundenweg, href: zu("/") }} />
+      {/* 29.10.2026 (E-461): der Kundenweg beginnt auf /privat */}
+      <Zwischenruf text={t.zwischenruf} knopf={t.gespraech} href="#anfrage" still={{ knopf: t.kundenweg, href: zu(PRIVAT_START.de) }} />
 
       <Block pille={t.erhaltenPille} titel={<>{t.erhaltenA}<span className="dk-verlauf">{t.erhaltenB}</span></>}>
         <Karten items={t.erhalten} zwei />

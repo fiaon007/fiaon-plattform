@@ -18,15 +18,16 @@
 // Auftrag — dieselbe Strecke, die Sprache kommt aus der Adresse.
 // ═══════════════════════════════════════════════════════════════════════════
 import { globalPaket } from "./fiaon-global";
+import { BUSINESS_START } from "./fiaon-business-grenze";
 
 export type GlobalSprache = "de" | "en";
 
-/** Die Seite FIAON Global. */
+/** Die Seite FIAON Global — seit E-461 (29.10.2026) die Startseite von fiaon.com (vorher /business und /en/business). */
 export function globalSeitePfad(sprache: GlobalSprache = "de"): string {
-  return sprache === "en" ? "/en/business" : "/business";
+  return BUSINESS_START[sprache === "en" ? "en" : "de"];
 }
 
-/** Die Pakete auf der Seite. */
+/** Die Pakete auf der Seite (/#pakete, /en#pakete). */
 export function globalPaketePfad(sprache: GlobalSprache = "de"): string {
   return `${globalSeitePfad(sprache)}#pakete`;
 }
@@ -61,7 +62,8 @@ export function globalStartUrl(key?: unknown): string {
  * Aufträge öffnen die englische Seite (/en/business/auftrag/…).
  */
 export function globalMeinAuftragPfad(ref: string, token: string, sprache: GlobalSprache = "de"): string {
-  return `${globalSeitePfad(sprache)}/auftrag/${encodeURIComponent(ref)}?t=${encodeURIComponent(token)}`;
+  // 29.10.2026 (E-461): fest unter /business — die Übersicht ist jetzt „/“, „Mein Auftrag“ behält seine Adresse.
+  return `${sprache === "en" ? "/en/business" : "/business"}/auftrag/${encodeURIComponent(ref)}?t=${encodeURIComponent(token)}`;
 }
 
 /** Derselbe Auftrag im Office — die Seite der zuständigen Person. */
@@ -77,5 +79,6 @@ export function globalChefMandatPfad(ref: string): string {
   return `/chef/global?mandat=${encodeURIComponent(ref)}`;
 }
 
-export const GLOBAL_SEITE_URL = "https://fiaon.com/business";
-export const GLOBAL_GESPRAECH_URL = "https://fiaon.com/business#gespraech";
+// 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — Mails und Signaturen verlinken die Startseite direkt (kein Umweg über die 301).
+export const GLOBAL_SEITE_URL = "https://fiaon.com/";
+export const GLOBAL_GESPRAECH_URL = "https://fiaon.com/#gespraech";

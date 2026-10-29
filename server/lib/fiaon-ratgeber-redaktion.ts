@@ -41,6 +41,7 @@ import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { sqlPool } from "./db-pool";
 import { openaiFetch, kiPausiert, istKiPause, kiSchluessel, kiLesenMoeglich } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
+import { kiModell } from "./fiaon-ki-kasse";
 import { berlinToday } from "./fiaon-time";
 import {
   AUTORIN, BEREICHE, BEREICH_LABEL, KATEGORIEN, THEMEN, hausstilFuer, kategorienFuer, bereichVonKategorie, pruefstand,
@@ -71,7 +72,9 @@ export const VERSUCHE_JE_LAUF = 3;
 /** Höchstens so viele KI-Aufrufe (Recherche + Schreiben) je Bereich und Tag — danach wartet der Bereich auf morgen. */
 export const VERSUCHE_JE_TAG = 9;
 /** Das Modell — dasselbe wie Mara und der Radar (Werkzeuge + Denken nur über /v1/responses). */
-export const MODELL = () => process.env.FIAON_RATGEBER_MODELL || "gpt-5.5";
+// E-458 / E-262 D (29.10.2026): Modell je Aufgabe — im Chefbüro umschaltbar (KI-Team › Einstellungen & Kasse,
+// ki_modell_ratgeber: gpt-5.5 oder gpt-5.4); FIAON_RATGEBER_MODELL bleibt die Notfall-Weiche.
+export const MODELL = () => kiModell("ratgeber");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE TABELLE
@@ -304,7 +307,8 @@ export function linkZiele(b: Bereich): LinkZiel[] {
     return GLOBAL_SEITEN
       .filter((s) => s.pfad.startsWith("/business") && !/\/(auftrag|angebot|widerrufsbelehrung|mustervertrag)(\/|$)/.test(s.pfad))
       .map((s) => ({ pfad: s.pfad, titel: `${s.h1}${s.h1b ? ` ${s.h1b}` : ""}`, text: s.seo.beschreibung }))
-      .concat([{ pfad: "/business", titel: "FIAON Global — Pakete und Erstgespräch", text: "Die Startseite von FIAON Global: vier Pakete mit Festpreis, „Erst sprechen“ (/business#gespraech), „Pakete“ (/business#pakete)." },
+      // 29.10.2026 (E-461): Die Startseite von FIAON Global ist fiaon.com/ (vorher /business, leitet per 301).
+      .concat([{ pfad: "/", titel: "FIAON Global — Pakete und Erstgespräch", text: "Die Startseite von FIAON Global: vier Pakete mit Festpreis, „Erst sprechen“ (/#gespraech), „Pakete“ (/#pakete)." },
         { pfad: "/business/start", titel: "Direkt beauftragen", text: "Den Auftrag in vier Schritten erteilen." }]);
   }
   return PRIVAT_PFADE.map((p) => SEO_SEITEN[p]).filter(Boolean).map((s) => ({ pfad: s.pfad, titel: s.h1, text: s.beschreibung }));
@@ -486,7 +490,7 @@ function angebotText(b: Bereich): string {
     const pakete = GLOBAL_PAKETE.map((p) => `- ${p.de.name} (${globalPreisText(p.key, "de")} Festpreis): ${p.de.fuer} Enthalten u. a.: ${p.de.leistungen.slice(0, 3).join("; ")}.`).join("\n");
     return `DAS ANGEBOT VON FIAON GLOBAL (für den Abschnitt „So übernimmt FIAON Global …“ — nur das, nichts dazu erfinden):
 ${pakete}
-Alle Pakete stehen auf /business#pakete, das Erstgespräch auf /business#gespraech. Leistungsseiten: /business/us-firmengruendung,
+Alle Pakete stehen auf der Startseite /#pakete, das Erstgespräch auf /#gespraech. Leistungsseiten: /business/us-firmengruendung,
 /business/ein-itin, /business/us-geschaeftskonto, /business/firmenkarten-kapital, /business/us-pflichten, /business/kosten.
 Nenne KEINEN Kapitalrahmen als Zahl, keine Zinsen, keine Dauer als Zusage.`;
   }

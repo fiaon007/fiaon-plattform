@@ -23,7 +23,7 @@ import { telefonGesperrt, nummerKern } from "./fiaon-aras-sperre";
 import { einwilligungGueltig, einwilligungMerken } from "./fiaon-telefon-einwilligung";
 import { STUFE_A_GEMELDET_TAGE } from "../../shared/fiaon-wiedervorlage";
 import {
-  ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile,
+  ARAS_SCHLUESSEL_LISTE, einstellungPruefen, einstellungenAnwenden, nummerLand, reihen, stundeFuer, fensterOffen, berlinTeile, globalErlaubt,
   PRIORITAET, RECHTSGRUND, SPIELARTEN, STUFE_B_FRISCH_STUNDEN, istSpielart, istWerbeSpielart, istVertragsFenster, stufenGrenzen, KEIN_VERTRAG_SATZ, KEIN_VERTRAG_MEHR_SATZ, istGesperrteSpielart, GESPERRT_TEXT, RATE_TAGE_BIS,
   VORRANG_SPIELARTEN, istVorrang, fensterAmWochentag, zusagePause, zusageSchwelle, zusageNachfassTag, SPIELART_TEXT,
   type ArasEinstellungen, type Spielart, type PlanStatus, type PlanZeile, type PlanLage, type Tagesplan, type Lernvorschlag, type Land,
@@ -404,7 +404,8 @@ export async function planEinreihen(e: EinreihenEin, lauf: Lauf = sqlPool): Prom
   if (e.personId && e.spielart !== "probe") {
     await globalKundeBereit();
     const [g] = (await lauf.unsafe(`SELECT ${globalKundeSql("p.id")} AS global, p.ist_test_am IS NOT NULL AS test, p.werbung_gesperrt_am IS NOT NULL AS werbesperre FROM fiaon_persons p WHERE p.id = ${Number(e.personId)}`)) as any[];
-    if (g?.global) return { ok: false, grund: "Firmenkunde (FIAON Global) — ARAS ruft nicht an." };
+    // E-458 (Justin 29.10.2026): Firmen nur mit Anruf-Wunsch (schriftliches Ja) oder zur Erinnerung vor ihrem Gespräch — nie sonst (E-272).
+    if (g?.global && !globalErlaubt(e.spielart)) return { ok: false, grund: "Firmenkunde (FIAON Global) — ARAS ruft nicht an." };
     if (g?.test) return { ok: false, grund: "Testperson." };
     if (g?.werbesperre && istWerbeSpielart(e.spielart)) return { ok: false, grund: "Werbesperre — keine Werbe-Spielart." };
     // Auftrag aus der Akte: NUR Kunden mit Vertrag (Justin 20.10.2026, 21:55: „Nein, nur Vertragskunden“) — Interessenten schreibt Mara.
@@ -545,7 +546,8 @@ async function rueckrufVerpasst(z: any, einst: ArasEinstellungen, grenzen: Retur
     : !grenzen.spielartErlaubt(spielart) ? `„${SPIELART_TEXT[spielart]}“ ist ausgeschaltet`
     : spielart === "termin" && wann && !fensterOffen("termin", (z.land as Land) || "DE", wann, { fenster: einst.fenster }).offen ? "die Zeit lag außerhalb 08–21 Uhr"
     : "ARAS kam in der Zeit nicht zum Anrufen";
-  const was = spielart === "termin" ? `Rückruf bei ARAS, vom Kunden selbst gebucht${zeit ? ` für ${zeit} Uhr` : ""}` : `Nachfassen zur Zahlungszusage${zeit ? ` (${zeit} Uhr)` : ""}`;
+  // E-458: Den Rückruf „bei ARAS“ hat Mara mit ihm vereinbart (WhatsApp/Mail) — nicht er selbst im Kalender.
+  const was = spielart === "termin" ? `Rückruf bei ARAS, ${z.erzeugt_von === "mara" ? "mit Mara vereinbart" : "vom Kunden selbst gebucht"}${zeit ? ` für ${zeit} Uhr` : ""}` : `Nachfassen zur Zahlungszusage${zeit ? ` (${zeit} Uhr)` : ""}`;
   // Ein früherer Grund (z. B. „Twilio: …“ bei einem hängen gebliebenen Eintrag) bleibt hinten stehen — für die Fehlersuche.
   await lauf`UPDATE fiaon_aras_plan SET verschoben_grund = LEFT(CONCAT_WS(' · ', ${`Rückruf verpasst (${grund}) — Team informiert`}::text, NULLIF(verschoben_grund, '')), 200),
                     updated_at = NOW() WHERE id = ${Number(z.id)}`;
@@ -592,7 +594,7 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
   const verfallenR = (await lauf`
     UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW()
      WHERE spaet_bis < NOW() AND (status = 'wartet' OR (status = 'verschoben' AND spielart = ANY(${[...VORRANG_SPIELARTEN] as string[]})))
-     RETURNING id, spielart, person_id, ref, nummer, land, anlass_am, frueh_ab, termin_id`) as any[];
+     RETURNING id, spielart, person_id, ref, nummer, land, anlass_am, frueh_ab, termin_id, erzeugt_von`) as any[];
   for (const z of verfallenR) {
     if (istVorrang(z.spielart)) await rueckrufVerpasst(z, einst, grenzen, lauf).catch((e) => console.error("[ARAS-PLAN] Rückruf verpasst — Meldung:", String((e as Error)?.message ?? e).slice(0, 200)));
   }
@@ -620,6 +622,15 @@ export async function planFuellen(lauf: Lauf = sqlPool): Promise<{ eingereiht: R
         erzeugtVon: "takt", fruehAb: new Date(beginn.getTime() - 60_000), spaetBis: new Date(beginn.getTime() + 30 * 60_000), terminId: Number(z.termin_id), einwilligungId: ew.id, anlassAm: beginn,
       }, lauf));
     }
+  }
+
+  // 1a. E-458 (Justin 29.10.2026): Erinnerung vor dem Global-Gespräch (nur mit dem Kästchen der Buchung) und Anruf-Wunsch (nur
+  //     mit schriftlichem Ja) — die Regeln stehen in fiaon-aras-wunsch.ts. Der Rückruf „bei ARAS“, den Mara einträgt, läuft oben
+  //     als „termin“ (sie reiht ihn mit seinem Fenster selbst ein).
+  if (an("erinnerung") || an("wunsch")) {
+    const w = await import("./fiaon-aras-wunsch");
+    if (an("erinnerung")) await w.erinnerungPlanen(einst, lauf, (r) => zaehl("erinnerung", r)).catch((e) => zaehl("erinnerung", { ok: false, grund: `Fehler: ${String((e as Error)?.message ?? e).slice(0, 30)}` }));
+    if (an("wunsch")) await w.wunschPlanen(einst, lauf, (r) => zaehl("wunsch", r)).catch((e) => zaehl("wunsch", { ok: false, grund: `Fehler: ${String((e as Error)?.message ?? e).slice(0, 30)}` }));
   }
 
   // 1b. Willkommen nach Antrag (Go-live 20.10.2026): EINMAL je Vertrag, 20 Minuten nach der Unterschrift (im Fenster), sonst zum

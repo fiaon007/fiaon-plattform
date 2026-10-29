@@ -21,8 +21,9 @@ const GRUPPEN: Gruppe[] = [
     titel: "Öffentliche Website",
     hinweis: "Was jeder Besucher sieht — Startseite, Themen, Rechtliches.",
     eintraege: [
-      ["/", "Startseite"], ["/was-ist-fiaon", "Was ist FIAON"], ["/privatkunden", "Privatkunden"],
-      ["/business", "Business"], ["/preise", "Preise & Pakete"], ["/team", "Team"],
+      // 29.10.2026 (E-461): fiaon.com/ ist FIAON Global, die Privat-Startseite heißt /privat.
+      ["/", "Startseite (FIAON Global)"], ["/privat", "Startseite Privatkunden"], ["/was-ist-fiaon", "Was ist FIAON"], ["/privatkunden", "Privatkunden"],
+      ["/preise", "Preise & Pakete"], ["/team", "Team"],
       ["/karriere", "Karriere"], ["/partner", "Partner"], ["/partnernetzwerk", "Partner-Netzwerk (5 Bereiche + Demo)"], ["/presse", "Presse"],
       ["/investoren", "Investoren (zweisprachig)"], ["/datenraum", "Datenraum"],
       ["/kontakt", "Kontakt & KI-Assistent"], ["/sicherheit", "Datenschutz & Sicherheit"],

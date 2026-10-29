@@ -138,7 +138,8 @@ async function main() {
   ok(!e5.ok && e5.status === 404, "unbekannt → 404");
   const sicht = await E.einstellungenLesen();
   ok(sicht.werte.mara_wa_tag_euro === "45" && sicht.gesetzt.mara_wa_tag_euro === true && sicht.werte.pruef_mara_tag_euro === "10", "Werte gelesen (gesetzt + Vorgabe)");
-  ok(sicht.werte.postmeister_tag_euro === "35" && sicht.arasVerbunden === false, "Vorgabe postmeister_tag_euro 35, Aras nicht verbunden");
+  // E-458 (29.10.2026): Der Postfach-Deckel zählt echte Dollar — Vorgabe 40 $ (vorher 35 in der ≈ 3,3-mal zu billigen Hausrechnung).
+  ok(sicht.werte.postmeister_tag_euro === "40" && sicht.arasVerbunden === false, "Vorgabe postmeister_tag_euro 40 $ (E-458), Aras nicht verbunden");
   const { werkzeugFinden } = await import("../server/lib/fiaon-mara-auftrag");
   const wSet = werkzeugFinden("einstellung_setzen")!;
   const a1 = await wSet.ausfuehren({ schluessel: "irgendwas_fremdes", wert: "1" }, "Prüfstand");

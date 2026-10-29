@@ -107,6 +107,29 @@ router.get("/chef/aras/stufe", wache, async (_req: ChefRequest, res: Response) =
   } catch (e) { fehler(res, 500, text(e)); }
 });
 
+// E-458 (Justin 29.10.2026): „ARAS telefoniert nur noch die Termine oder die Leute die einen Anruf wollen“ — die Karte
+// „Wen ARAS anruft“: Anruf-Wünsche (schriftliches Ja), Erinnerungen vor Global-Gesprächen, Rückrufe bei ARAS, die Schalter.
+router.get("/chef/aras/wunsch", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { wunschLage } = await import("../lib/fiaon-aras-wunsch");
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ ok: true, ...(await wunschLage(await arasEinstellungenLesen(true))) });
+  } catch (e) { console.error("[ARAS-CHEF] wunsch:", e); fehler(res, 500, "Die Anruf-Wünsche ließen sich nicht laden."); }
+});
+/** Eine Gesprächsart an oder aus (nur diese — die gesperrten bleiben im Code gesperrt, einstellungPruefen weist sie ab). */
+const KARTE_SPIELARTEN = new Set<string>(["termin", "wunsch", "erinnerung", "willkommen", "rate"]);
+router.post("/chef/aras/spielart", wache, async (req: ChefRequest, res: Response) => {
+  const spielart = String(req.body?.spielart ?? "");
+  if (!KARTE_SPIELARTEN.has(spielart)) return fehler(res, 400, `„${spielart.slice(0, 30)}“ lässt sich hier nicht schalten.`);
+  try {
+    const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'aras_spielarten'`) as any[];
+    let roh: Record<string, unknown> = {};
+    try { const j = JSON.parse(String(z?.value ?? "{}")); if (j && typeof j === "object" && !Array.isArray(j)) roh = j; } catch { /* leer = Vorgabe */ }
+    const neu = { ...roh, [spielart]: req.body?.an === true ? "an" : "aus" };
+    res.json({ ok: true, wert: await einstellungSetzen("aras_spielarten", JSON.stringify(neu), wer(req)) });
+  } catch (e) { fehler(res, 400, text(e)); }
+});
+
 /** Nur diese Schlüssel setzt die Probe-Seite — alles andere gehört in die Einstellungen des KI-Raums. */
 const PROBE_SCHLUESSEL = new Set<string>([...PROBE_TON_SCHLUESSEL, "aras_stimme", "aras_tag_euro"]);
 router.post("/chef/aras/probe/einstellung", wache, async (req: ChefRequest, res: Response) => {

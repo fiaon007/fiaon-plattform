@@ -35,6 +35,8 @@ const ERLAUBTE_SCHLUESSEL = new Set([
   "global_zustaendig_agent_id", // wer neue Global-Aufträge und den Start bekommt; leer = Vertriebsleitung
   "global_provision_prozent",   // Satz der Abschlussprovision für Global-Einmalpreise; Vorgabe 25, 0 = keine
   "rechnung_b2b_ust_modus",     // none | reverse_charge — gilt für NEUE Aufträge, steht danach fest an der Bestellung
+  // E-458 Nr. 11 (29.10.2026): wer einspringt, wenn die Person der Global-Gespräche nicht da ist — leer = niemand (dann die Leitung)
+  "global_vertretung_agent_id",
 ]);
 
 /**
@@ -48,8 +50,9 @@ async function sonderPruefung(key: string, value: string): Promise<string | null
   if (key === "global_provision_prozent") {
     return /^\d{1,2}$/.test(value) && Number(value) <= 50 ? null : "Bitte eine ganze Zahl von 0 bis 50.";
   }
-  if (key === "global_zustaendig_agent_id") {
-    if (value === "" || value === "0") return null; // leer = die Vertriebsleitung mit den wenigsten offenen Aufgaben
+  if (key === "global_zustaendig_agent_id" || key === "global_vertretung_agent_id") {
+    // leer = die Vertriebsleitung mit den wenigsten offenen Aufgaben bzw. (Vertretung) niemand — dann die Leitung
+    if (value === "" || value === "0") return null;
     if (!/^\d{1,6}$/.test(value)) return "Bitte eine Person aus der Liste wählen.";
     const { globalMitarbeiter } = await import("../lib/fiaon-global-auftrag");
     return (await globalMitarbeiter()).some((m) => m.id === Number(value)) ? null : "Diese Person ist nicht aktiv oder gehört nicht zu Vertrieb und Leitung.";
@@ -129,7 +132,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
         "rueckhol_pro_tag", "rueckhol_s1_an", "rueckhol_s2_an", "rueckhol_s3_an", "rueckhol_s4_an", "rueckhol_s5_an", "rueckhol_dauerpflege_abstand_tage",
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
         "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage",
-        "global_zustaendig_agent_id", "global_provision_prozent", "rechnung_b2b_ust_modus",
+        "global_zustaendig_agent_id", "global_provision_prozent", "rechnung_b2b_ust_modus", "global_vertretung_agent_id",
       ]),
       // Rückhol-Versand je Segment, heute und gesamt.
       sqlPool`

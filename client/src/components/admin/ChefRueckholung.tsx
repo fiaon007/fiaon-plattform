@@ -250,6 +250,16 @@ export default function ChefRueckholung() {
             </select>
             <small title="Wird Betreuer (falls keiner da), steht als Ansprechpartner in Kundenmails, bekommt nach Zahlung „US-Struktur starten“.">Bekommt jeden neuen Auftrag als Aufgabe mit Mail.</small>
           </label>
+          {/* E-458 Nr. 11 (29.10.2026): die Vertretung für die Global-Gespräche — den Namen entscheidet Justin. */}
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Vertretung für die Gespräche</span>
+            <select value={daten.schalter.global_vertretung_agent_id && daten.schalter.global_vertretung_agent_id !== "0" ? daten.schalter.global_vertretung_agent_id : ""}
+              onChange={(e) => speichern("global_vertretung_agent_id", e.target.value, e.target.value ? "Vertretung für die Global-Gespräche gespeichert." : "Keine Vertretung — fehlt die zuständige Person, geht die Ergebnis-Aufgabe an die Leitung.")}>
+              <option value="">Keine Vertretung (dann die Leitung)</option>
+              {(daten.mitarbeiter ?? []).map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
+            </select>
+            <small title="Ist die Person der Gespräche abwesend, inaktiv oder gesperrt, bekommt die Vertretung die Aufgabe „Ergebnis fehlt“ und sieht das Gespräch in ihrem Kalender. Fehlt das Ergebnis am nächsten Werktag um 9 Uhr noch, erinnert das System die Leitung.">Springt ein, wenn die Person der Gespräche nicht da ist.</small>
+          </label>
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Provision bei Global-Abschlüssen, in Prozent</span>
             <input type="number" min={0} max={50} defaultValue={daten.schalter.global_provision_prozent ?? ""} placeholder="25"

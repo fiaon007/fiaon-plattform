@@ -42,15 +42,16 @@ const WISSEN: [string, string][] = [
   ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
 ];
 
+// 29.10.2026 (E-461): Startseite der Privatkunden = /privat; fiaon.com/ ist FIAON Global.
 const PLATTFORM: [string, string][] = [
-  ["/", "Startseite"],
+  ["/privat", "Startseite"],
   ["/ratgeber", "Ratgeber"],
   ["/werkzeuge", "Kostenlose Werkzeuge"],
   ["/preise", "Preise & Pakete"],
   ["/kreditkarte", "Kreditkarte trotz Eintrag"],
   ["/partnerbank-dkb", "Konto & Karte mit der DKB"],
   ["/privatkunden", "Privatkunden Setup"],
-  ["/business", "FIAON Global"],
+  ["/", "FIAON Global"],
 ];
 
 const UNTERNEHMEN: [string, string][] = [

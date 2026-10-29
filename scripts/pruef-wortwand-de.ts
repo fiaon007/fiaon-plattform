@@ -105,7 +105,8 @@ sammle(GLOBAL_KAPITAL_FREI.de, "fiaon-global/kapital-frei", texte);
 sammle(GLOBAL_BUERGSCHAFT_SEITE.de, "fiaon-global/buergschaft-seite", texte);
 sammle(GLOBAL_FUSS_WOERTER.de, "i18n/global#fuss", texte);
 sammle(GLOBAL_SCHLAGZEILEN.meldungen.map((m) => ({ de: m.de, kurzDe: m.kurzDe, quelle: m.quelle })), "schlagzeilen", texte);
-for (const pfad of ["/business", "/business/start", "/business/auftrag"]) {
+// 29.10.2026 (E-461): Die Übersicht von FIAON Global steht unter „/“ (Startseite), vorher /business.
+for (const pfad of ["/", "/business/start", "/business/auftrag"]) {
   const e = (SEO_SEITEN as Record<string, any>)[pfad];
   if (!e) { console.log(`FEHLER: SEO-Eintrag ${pfad} fehlt`); process.exitCode = 1; continue; }
   const { en: _en, ...deutsch } = e;

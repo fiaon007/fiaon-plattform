@@ -94,6 +94,9 @@ async function main(): Promise<void> {
   await einstellungSetzen("aras_zuhoeren", "flott", "pruefstand");
   // Stufenplan: die Abschnitte 2–15 prüfen alles andere — dort in Stufe 3 („Voll“). Das Tor selbst prüft Abschnitt 16.
   await einstellungSetzen("aras_stufe", "3", "pruefstand");
+  // E-458 (29.10.2026): Anruf-Wunsch und Erinnerung haben ihren eigenen Prüfstand (pruef-aras-wunsch.ts) — hier aus, damit die
+  // Ja-Zeilen der Testpersonen (Zuruf-JA) nicht zusätzlich als Anruf-Wunsch eingereiht werden und Leitungen belegen.
+  await einstellungSetzen("aras_spielarten", JSON.stringify({ ...(await import("../shared/fiaon-aras")).SPIELARTEN_VORGABE, wunsch: "aus", erinnerung: "aus" }), "pruefstand");
   let wirft = false; try { await einstellungSetzen("mara_aktion_an", "an", "pruefstand"); } catch { wirft = true; }
   ok("Fremder Schlüssel wird abgelehnt", wirft);
   wirft = false; try { await einstellungSetzen("aras_tag_euro", "999", "pruefstand"); } catch { wirft = true; }
@@ -942,7 +945,7 @@ async function main(): Promise<void> {
     await einstellungSetzen("aras_an", "an", "pruefstand");
     await einstellungSetzen("aras_parallel", "3", "pruefstand");
     await einstellungSetzen("aras_tag_euro", "60", "pruefstand");
-    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an" }), "pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }), "pruefstand");
     // Saubere Reihe: nur die Einträge dieses Abschnitts warten — und ein „neuer Tag“: die Kundenanrufe der Abschnitte 4–15
     // zählen sonst schon gegen die Tagesmenge der Stufe 1 (nur in der Prüf-DB zurückdatiert).
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen', updated_at = NOW() WHERE status IN ('wartet', 'verschoben')`;
@@ -1757,7 +1760,7 @@ async function main(): Promise<void> {
   {
     const { willkommenEntfaellt } = await import("../server/lib/fiaon-aras-plan");
     await einstellungSetzen("aras_stufe", "1", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand");
-    await einstellungSetzen("aras_spielarten", JSON.stringify({ willkommen: "an", rate: "an", termin: "an", probe: "an" }), "pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ willkommen: "an", rate: "an", termin: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }), "pruefstand");
     await sqlPool`UPDATE fiaon_aras_plan SET status = 'verfallen' WHERE status IN ('wartet', 'verschoben')`;
     // Reste der Abschnitte davor (klingelnde Prüf-Anrufe) zählen sonst als „gleichzeitig“ (Stufe 1: einer)
     await sqlPool`UPDATE fiaon_calls SET status = 'beendet', ende = COALESCE(ende, NOW()) WHERE gefuehrt_von = 'aras' AND status IN ('gewaehlt', 'laeuft')`;
@@ -2068,7 +2071,7 @@ async function main(): Promise<void> {
     const { zusagePauseFuer, willkommenEntfaellt, rateEntfaellt, planVerschieben } = await import("../server/lib/fiaon-aras-plan");
     const { berlinZeitpunkt } = await import("../server/lib/fiaon-time");
     await einstellungSetzen("aras_stufe", "1", "pruefstand"); await einstellungSetzen("aras_an", "an", "pruefstand"); await start("pruefstand");
-    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", probe: "an" }), "pruefstand");
+    await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }), "pruefstand");
     // Abschnitt 22 (Go-live) stellt das Fenster auf Mo–Sa 09:30–21:00 — hier wieder jeden Tag 08–21 Uhr (wie Abschnitt 1).
     await einstellungSetzen("aras_fenster", JSON.stringify({ verkauf: { "1-7": ["08:00", "21:00"] }, rate: { "1-7": ["08:00", "21:00"] } }), "pruefstand");
     await einstellungSetzen("aras_je_stunde", "120", "pruefstand");

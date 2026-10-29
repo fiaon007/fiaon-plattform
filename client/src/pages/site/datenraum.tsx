@@ -1,4 +1,5 @@
 // /datenraum — Due Diligence. Zeigt, WIE das Unternehmen geführt wird, bevor jemand Zahlen sieht.
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
 
@@ -43,7 +44,7 @@ export default function Datenraum() {
         ]} />
       </Block>
 
-      <Zwischenruf text="Die Plattform selbst ist der beste Beleg. Der Kundenweg ist öffentlich – vom Antrag bis zum Bereich." knopf="Startseite ansehen" href="/" still={{ knopf: "Für Investoren", href: "/investoren" }} />
+      <Zwischenruf text="Die Plattform selbst ist der beste Beleg. Der Kundenweg ist öffentlich – vom Antrag bis zum Bereich." knopf="Startseite ansehen" href={PRIVAT_START.de} still={{ knopf: "Für Investoren", href: "/investoren" }} />
 
       <Block pille="Ablauf" titel={<>Vom ersten Kontakt zum <span className="dk-verlauf">Gespräch.</span></>}>
         <Schritte items={[

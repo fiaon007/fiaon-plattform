@@ -334,6 +334,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-382 (16.10.2026): Ist das KI-Guthaben leer, pausiert die KI automatisch — und schaltet sich jetzt auch selbst
     // wieder ein, sobald nach dem Aufladen eine Probe durchgeht (nur automatische Abrechnungs-Pausen, nie eine Hand-Pause).
     tageslauf('ki_selbstheilung', async () => await (await import('./lib/fiaon-ki-pause')).selbstHeilung(), 10 * 60 * 1000, { beimStartNach: 75_000 });
+    // E-458 (29.10.2026): die KI-Kasse — Stand auffrischen, die alten Deckel einmal auf echte Dollar umstellen und während
+    // der Nachhol-Bremse (6 Stunden nach einer Pause) alle 30 Minuten den nächsten Nachhol-Schub anstoßen.
+    tageslauf('ki_kasse', async () => await (await import('./lib/fiaon-ki-kasse')).kasseTakt(), 10 * 60 * 1000, { beimStartNach: 95_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
     tageslauf('meta_waechter', async () => await (await import('./lib/fiaon-meta-leads')).waechterLauf(), 15 * 60 * 1000, { beimStartNach: 180_000 });
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
@@ -630,6 +633,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    keine Kundenmail, kein Geld. Stündlich, wiederholbar über Marken-Spalten.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_angebot_lauf', async () => await (await import('./lib/fiaon-global-angebot')).globalAngebotLauf(), 60 * 60 * 1000, { beimStartNach: 660_000 });
+  });
+  // 🌐 FIAON Global — kein Gespräch geht mehr verloren (E-458 Nr. 11): Erinnerung am Vortag und eine Stunde vorher,
+  //    eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, am nächsten Werktag um 9 die Leitung. Alle zehn
+  //    Minuten (die Stunden-Mail braucht das Fenster); eine Historienzeile nur, wenn etwas geschah. Atomar über Marken.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_gespraeche', async () => await (await import('./lib/fiaon-global-gespraech')).globalGespraecheLauf(), 10 * 60 * 1000, { beimStartNach: 300_000, nurMitErgebnis: true });
   });
   // 🤝 E-386: Lieferstrecke der Partner-Kooperation — Übermittlungen nachholen, Partnerbereich-Mail nach der Annahme,
   //    Monatsrechnung für jeden abgeschlossenen Monat (genau einmal je Partner und Monat), eine Zahlungserinnerung.
@@ -1024,13 +1033,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 05.10.2026 (E-283): /terms zeigte einen fremden ARAS-Text (andere Firma, „garantiert“) — dauerhaft auf /agb.
   // Express nimmt die Pfade unabhängig von Groß/klein an (/TERMS, /Global) — der Schlüssel wird deshalb
   // klein geschrieben nachgeschlagen; vorher hieß das Ziel dort „undefined“. Alle Schlüssel sind klein.
+  // 29.10.2026 (E-461, Justin: „wenn man fiaon.com aufmacht sollte Business kommen nicht mehr Privat“): Die Übersicht von
+  // FIAON Global ist die Startseite fiaon.com/ (und /en). /business und /en/business ziehen dorthin um — mit Abfrage
+  // (utm_*, ?paket=), der Anker (#gespraech) bleibt im Browser. Die Unterseiten /business/… behalten ihre Adresse
+  // (Express trifft hier nur /business und /business/, nie /business/xyz). /global springt ohne Zwischenhalt.
   const UMGEZOGEN: Record<string, string> = {
-    '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
+    '/business': '/', '/en/business': '/en',
+    '/global': '/', '/en/global': '/en', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
     '/terms': '/agb',
     // 27.10.2026 (E-439): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
     '/about': '/ueber-uns',
   };
+  // 29.10.2026 (E-461): auch /business//, /en/business/// (doppelte Schrägstriche) gehen per 301 auf die Startseite —
+  // die Route oben trifft nur /business und /business/; vorher kam dort die nackte App-Hülle mit index,follow (Gegenprüfung).
+  app.get(/^\/(en\/)?(business|global)\/{2,}$/i, (req, res) => {
+    const abfrage = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+    res.redirect(301, (/^\/en\//i.test(req.path) ? '/en' : '/') + abfrage);
+  });
   app.get(Object.keys(UMGEZOGEN), (req, res, next) => {
     const pfad = req.path.replace(/\/+$/, '').toLowerCase();
     const ziel = UMGEZOGEN[pfad];

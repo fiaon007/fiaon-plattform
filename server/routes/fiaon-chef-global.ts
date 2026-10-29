@@ -390,11 +390,14 @@ router.get("/chef/global/einstellungen", requireChef("leitung"), async (req, res
     const { globalTerminProTag, globalZustaendig } = await import("../lib/fiaon-global-termin");
     const { GLOBAL_PRO_TAG } = await import("../lib/fiaon-global-zeiten");
     const { googleKalenderStand } = await import("../lib/fiaon-google-kalender");
-    const [proTag, z, google] = await Promise.all([globalTerminProTag(), globalZustaendig().catch(() => null), googleKalenderStand()]);
+    const { globalVertretung } = await import("../lib/fiaon-global-gespraech");
+    const [proTag, z, google, v] = await Promise.all([globalTerminProTag(), globalZustaendig().catch(() => null), googleKalenderStand(), globalVertretung().catch(() => null)]);
     const inhaber = (req as ChefRequest).chef?.stufe === "inhaber";
     res.json({
       ok: true, proTag, proTagVorgabe: GLOBAL_PRO_TAG,
       zustaendig: z ? { id: z.id, name: z.vorname || z.name } : null,
+      // E-458 Nr. 11: wer einspringt, wenn die zuständige Person nicht da ist (Ergebnis-Pflicht der Gespräche).
+      vertretung: v ? { id: v.id, name: v.vorname || v.name } : null,
       // Client-ID und Bereiche braucht nur der Inhaber (für die Freigabe in der Google-Admin-Konsole).
       google: inhaber ? google : { ...google, clientId: null, bereiche: "" },
     });
@@ -411,6 +414,53 @@ router.post("/chef/global/einstellungen", requireChef("geschaeftsfuehrung"), asy
     res.json({ ok: true, proTag: n, meldung: `Höchstens ${n} Global-Gespräche je Tag.` });
   } catch (e) { fehler(res, "einstellungen", e); }
 });
+// ── E-458 Nr. 11 (29.10.2026): DIE GESPRÄCHE — kein Global-Gespräch geht mehr verloren ──────────────
+// Die Leitung sieht, wo das Ergebnis fehlt, und trägt es mit einem Klick ein (stattgefunden / nicht erreicht /
+// verschoben) — dieselben Wege wie der Kalender der Mitarbeiter (globalTerminErgebnis, globalGespraechVerschieben).
+// Die Erinnerung an die Leitung führt hierher (GESPRAECHE_CHEF_LINK).
+router.get("/chef/global/gespraeche", requireChef("leitung"), async (_req, res) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { globalGespraecheListe, globalVertretung } = await import("../lib/fiaon-global-gespraech");
+    const [liste, v] = await Promise.all([globalGespraecheListe(), globalVertretung().catch(() => null)]);
+    res.json({ ok: true, ...liste, vertretung: v ? { id: v.id, name: v.name } : null });
+  } catch (e) { fehler(res, "gespraeche", e); }
+});
+router.post("/chef/global/gespraeche/:id/ergebnis", requireChef("leitung"), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const wahl = String(req.body?.ergebnis ?? "");
+    if (!Number.isInteger(id) || !["stattgefunden", "nicht_erreicht"].includes(wahl)) {
+      return res.status(400).json({ ok: false, error: "Bitte „Stattgefunden“ oder „Nicht erreicht“ wählen." });
+    }
+    const [t] = (await sqlPool`
+      SELECT id, person_id, beginn FROM fiaon_termine
+       WHERE id = ${id} AND quelle = 'global' AND (status = 'gebucht' OR (status = 'verpasst' AND erledigt_am IS NULL)) LIMIT 1`) as any[];
+    if (!t) return res.status(404).json({ ok: false, error: "Dieses Gespräch ist schon abgeschlossen oder abgesagt." });
+    const w = await wer(req);
+    const { globalTerminErgebnis } = await import("../lib/fiaon-global-termin");
+    const erg = await globalTerminErgebnis({
+      terminId: id, personId: Number(t.person_id), beginn: t.beginn, agent: { id: w.id, name: w.name },
+      ergebnis: wahl === "stattgefunden" ? "erledigt" : "verpasst", grund: wahl === "nicht_erreicht" ? "nicht_erschienen" : null,
+      notiz: req.body?.notiz ? String(req.body.notiz).slice(0, 2000) : null,
+    });
+    console.log(`[CHEF-GLOBAL] Gespräch ${id}: ${wahl} (${w.name})`);
+    res.json({ ok: true, meldung: erg.hinweis });
+  } catch (e) { fehler(res, "gespraech ergebnis", e); }
+});
+router.post("/chef/global/gespraeche/:id/verschieben", requireChef("leitung"), async (req, res) => {
+  try {
+    const { parseBerlinInput } = await import("../lib/fiaon-time");
+    const neu = parseBerlinInput(String(req.body?.beginn ?? ""));
+    if (!neu) return res.status(400).json({ ok: false, error: "Bitte Datum und Uhrzeit der neuen Zeit wählen." });
+    const w = await wer(req);
+    const { globalGespraechVerschieben } = await import("../lib/fiaon-global-gespraech");
+    const erg = await globalGespraechVerschieben(Number(req.params.id), neu, { id: w.id || null, name: w.name });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error });
+    res.json({ ok: true, meldung: `${erg.meldung} ${erg.hinweis}` });
+  } catch (e) { fehler(res, "gespraech verschieben", e); }
+});
+
 router.post("/chef/global/google-kalender", requireChef("inhaber"), async (req, res) => {
   try {
     const g = await import("../lib/fiaon-google-kalender");

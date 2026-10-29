@@ -309,7 +309,7 @@ async function teilB(): Promise<void> {
   await einstellungSetzen("aras_an", "an", "pruefstand");
   await einstellungSetzen("aras_stufe", "1", "pruefstand");
   await einstellungSetzen("aras_notaus", "aus", "pruefstand").catch(() => null);
-  await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", auftrag: "an", probe: "an" }), "pruefstand");
+  await einstellungSetzen("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", auftrag: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }), "pruefstand");
   arasEinstellungenVergessen();
   const agent = await L.briefingAgent(agentId, "Paula Prüfer", "agent");
   const fremd = await L.briefingAgent(fremdId, "Otto Fremd", "agent");

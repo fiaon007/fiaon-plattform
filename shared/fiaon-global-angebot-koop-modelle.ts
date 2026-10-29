@@ -6,7 +6,7 @@
 // shared/fiaon-global-angebot-koop.ts Wort für Wort unverändert; diese Datei liefert die zwei weiteren Modelle:
 //
 //   · „platz“     Recht und Steuern — ein fester Partnerplatz je Monat. NIE ein Entgelt je Mandat: § 49b Abs. 3 BRAO und
-//                 § 9 Abs. 2 StBerG verbieten Vergütungen für die Vermittlung von Aufträgen. Bezahlt wird Sichtbarkeit,
+//                 § 9 StBerG verbieten Vergütungen für die Vermittlung von Aufträgen. Bezahlt wird Sichtbarkeit,
 //                 Nennung und Terminorganisation — unabhängig von Zahl, Art und Ausgang der Mandate. Höchstens drei Partner
 //                 je Region und Gebiet, Mindestlaufzeit drei Monate, Beginn am Ersten des Folgemonats (bis dahin frei).
 //   · „abschluss“ Energie und Telefon & Internet — FIAON ist Tippgeber und wird nur für einen zustande gekommenen Vertrag

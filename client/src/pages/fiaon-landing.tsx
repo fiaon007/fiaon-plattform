@@ -203,7 +203,7 @@ function Hero() {
                 </a>
 
                 <a
-                  href="/business"
+                  href="/"
                   onClick={() => setShowModal(false)}
                   className="group relative block p-5 rounded-2xl fiaon-glass-panel hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
                 >
@@ -296,7 +296,7 @@ function Packages() {
   const [customerType, setCustomerType] = useState<"private" | "business">("private");
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const currentPacks = customerType === "private" ? PACKS : BUSINESS_PACKS;
-  const applicationUrl = customerType === "private" ? "/antrag" : "/business";
+  const applicationUrl = customerType === "private" ? "/antrag" : "/";
 
   return (
     <section id="pakete" className="py-20 sm:py-28 relative overflow-hidden" style={{

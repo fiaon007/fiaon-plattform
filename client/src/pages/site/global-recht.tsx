@@ -155,7 +155,7 @@ export function GlobalMustervertragSeite() {
               <p>{en ? "All clear? In the order you enter your details and sign on screen. Contract and invoice arrive by email." : "Passt alles? Im Auftrag tragen Sie Ihre Angaben ein und unterschreiben am Bildschirm. Vertrag und Rechnung kommen per E-Mail."}</p>
               <div className="fg-knoepfe" style={{ marginTop: 0 }}>
                 <a className="fg-knopf" href={globalStartPfad(paket, s, art === "privat" ? "privat" : undefined)}>{en ? "Place this order" : "Diesen Auftrag erteilen"}</a>
-                <a className="fg-knopf hell" href={en ? "/en/business#gespraech" : "/business#gespraech"}>{en ? "Talk first" : "Erst sprechen"}</a>
+                <a className="fg-knopf hell" href={en ? "/en#gespraech" : "/#gespraech"}>{en ? "Talk first" : "Erst sprechen"}</a>
               </div>
             </div>
             {en

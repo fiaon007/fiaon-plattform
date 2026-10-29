@@ -14,7 +14,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import MaintenanceBanner from "@/components/MaintenanceBanner";
 import { KundenansichtBanner } from "@/components/KundenansichtBanner";
-import FiaonHome from "@/pages/fiaon-home";
+// 29.10.2026 (E-461): Die Privat-Startseite wohnt unter /privat und lädt erst dort (mit ihr three.js für die
+// 3D-Szenen) — fiaon.com/ ist FIAON Global, das Hauptpaket trägt die Privat-Bühne nicht mehr mit.
+const FiaonHome = lazy(() => import("@/pages/fiaon-home"));
 import FiaonLanding from "@/pages/fiaon-landing";
 import StartPage from "@/pages/start";
 const BusinessPage = lazy(() => import("@/pages/site/business"));
@@ -406,7 +408,11 @@ function Router() {
     <Suspense fallback={<SeiteLaedt pfad={tabPfad} />}>
     <StartbuehneWeg />
     <Switch>
-      <Route path="/" component={FiaonHome} />
+      {/* 29.10.2026 (E-461, Justin: „wenn man fiaon.com aufmacht sollte Business kommen nicht mehr Privat“):
+          / und /en sind FIAON Global, die Privat-Startseite zieht auf /privat und /en/private. /business und
+          /en/business leitet der Server dauerhaft (301) auf / und /en; die Unterseiten /business/… bleiben. */}
+      <Route path="/" component={BusinessPage} />
+      <Route path="/privat" component={FiaonHome} />
       <Route path="/investoren" component={SiteInvestoren} />
       <Route path="/presse" component={SitePresse} />
       <Route path="/datenraum" component={SiteDatenraum} />
@@ -418,11 +424,12 @@ function Router() {
       <Route path="/kontakt" component={SiteKontakt} />
       <Route path="/preise" component={SitePreise} />
       {/* Englisch (02.09.2026): /en und /en/pricing — die Seite liest ihre Sprache aus der Adresse. */}
-      <Route path="/en" component={SiteEnStart} />
+      <Route path="/en" component={BusinessPage} />
+      <Route path="/en/private" component={SiteEnStart} />
       <Route path="/en/pricing" component={SitePreise} />
       <Route path="/en/what-is-fiaon" component={WasIstFiaonPage} />
       <Route path="/en/personal" component={SitePrivatkunden} />
-      <Route path="/en/business" component={BusinessPage} />
+      <Route path="/en/business"><Redirect to="/en" /></Route>
       <Route path="/en/business/start" component={BusinessStartPage} />
       <Route path="/en/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/en/business/login" component={BusinessKontoPage} />
@@ -548,7 +555,7 @@ function Router() {
       <Route path="/demo/produkt" component={MeinBereichPage} />
       <Route path="/start" component={StartPage} />
       <Route path="/karte-sichern" component={StartPage} />
-      <Route path="/business" component={BusinessPage} />
+      <Route path="/business"><Redirect to="/" /></Route>
       <Route path="/business/start" component={BusinessStartPage} />
       <Route path="/business/auftrag/:ref?" component={BusinessAuftragPage} />
       <Route path="/business/login" component={BusinessKontoPage} />
@@ -575,7 +582,7 @@ function Router() {
       <Route path="/business/privatpersonen" component={BusinessPrivatPage} />
       <Route path="/business/wissen/:slug" component={GlobalSeitePage} />
       <Route path="/business/:slug" component={GlobalSeitePage} />
-      <Route path="/global"><Redirect to="/business" /></Route>
+      <Route path="/global"><Redirect to="/" /></Route>
       <Route path="/privatkunden" component={SitePrivatkunden} />
       <Route path="/antrag" component={AntragPage} />
       <Route path="/antrag-neu" component={AntragNeuPage} />

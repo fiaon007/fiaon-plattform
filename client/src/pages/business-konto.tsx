@@ -410,8 +410,8 @@ export default function BusinessKonto() {
   return (
     <div className="gko" lang={s}>
       <header className="gko-kopf">
-        <a className="gko-logo" href={s === "en" ? "/en/business" : "/business"} aria-label="FIAON Global"><FiaonWortmarke variante="global" hoehe="22px" /></a>
-        <span className="gko-kopf-rechts"><a href={s === "en" ? "/en/business" : "/business"}>fiaon.com/business</a></span>
+        <a className="gko-logo" href={s === "en" ? "/en" : "/"} aria-label="FIAON Global"><FiaonWortmarke variante="global" hoehe="22px" /></a>
+        <span className="gko-kopf-rechts"><a href={s === "en" ? "/en" : "/"}>fiaon.com</a></span>
       </header>
       <main className="gko-mitte">
         <section className={`gko-karte${modus === "konto" ? " breit" : ""}`} aria-live="polite">{inhalt}</section>

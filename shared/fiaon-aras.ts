@@ -18,12 +18,17 @@ export const ARAS_VERSION = "1.0-2026-10-19";
 // E-408 Scheibe 2 (20.10.2026): „auftrag“ = ein Auftrag aus der Akte („Aras anrufen lassen“, „Offenes an Aras abgeben“) —
 // der Betreuer sagt, worum es geht; Rechtsgrund Vertrag (Kunde) oder seine Einwilligung (sonst kein Anruf).
 // E-408 Go-live (Justin 20.10.2026 abends): „willkommen“ = der Willkommens-Anruf 20 Minuten nach dem unterschriebenen Antrag.
-export const SPIELARTEN = ["termin", "willkommen", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"] as const;
+// E-458 (Justin 29.10.2026: „ARAS telefoniert nur noch die Termine oder die Leute die einen Anruf wollen“ + „go Plan“, Punkt 8):
+//   „wunsch“     = Anruf-Wunsch — nur, wer schriftlich und dokumentiert „Ja zum Anruf“ gesagt hat (Privat und Firma). ARAS klärt
+//                  das Anliegen, bucht einen Termin und verkauft nie (Fakten und Werkzeuge: shared/fiaon-aras-prompt.ts).
+//   „erinnerung“ = kurz vor einem gebuchten Global-Erstgespräch die Bestätigung per Anruf — nur mit dem Kästchen der Buchung.
+export const SPIELARTEN = ["termin", "wunsch", "erinnerung", "willkommen", "lead", "zuruf", "stufe_b", "stufe_a", "rate", "zusage", "rueckholung", "auftrag", "eingehend", "probe"] as const;
 export type Spielart = (typeof SPIELARTEN)[number];
 export function istSpielart(v: unknown): v is Spielart { return typeof v === "string" && (SPIELARTEN as readonly string[]).includes(v); }
 
 export const SPIELART_TEXT: Record<Spielart, string> = {
-  termin: "Termin bei ARAS", willkommen: "Willkommen nach Antrag", lead: "Lead frisch", zuruf: "Verkauf nach JA", stufe_b: "Antrag unbezahlt",
+  termin: "Termin bei ARAS", wunsch: "Anruf-Wunsch", erinnerung: "Erinnerung vor Gespräch", willkommen: "Willkommen nach Antrag", lead: "Lead frisch",
+  zuruf: "Verkauf nach JA", stufe_b: "Antrag unbezahlt",
   stufe_a: "Zahlung gemeldet", rate: "Rate offen", zusage: "Zusage nachfassen", rueckholung: "Rückholung",
   auftrag: "Auftrag vom Team", eingehend: "Eingehend", probe: "Probeanruf",
 };
@@ -32,6 +37,9 @@ export const SPIELART_TEXT: Record<Spielart, string> = {
 export type Rechtsgrund = "vertrag" | "einwilligung" | "kunde_ruft" | "intern";
 export const RECHTSGRUND: Record<Spielart, Rechtsgrund> = {
   termin: "einwilligung", lead: "einwilligung", zuruf: "einwilligung", stufe_b: "einwilligung",
+  // E-458: Beide neuen Arten nur mit einer Zeile in fiaon_telefon_einwilligung — der Anruf-Wunsch mit seinem schriftlichen Ja,
+  // die Erinnerung mit dem Kästchen genau dieser Gesprächsbuchung (Planer und Wähler prüfen beides).
+  wunsch: "einwilligung", erinnerung: "einwilligung",
   stufe_a: "vertrag", rate: "vertrag", zusage: "vertrag", rueckholung: "einwilligung", eingehend: "kunde_ruft", probe: "intern",
   // Willkommen (Koordination 20.10.2026 abends): Vertragsabwicklung, keine Werbung — nur wenn der Vertrag UNTERSCHRIEBEN ist
   // (consent_contract), und nur Onboarding: Willkommen, Kundenkonto, Aktivierung = erste Monatsrate mit Betrag, Kartenversand,
@@ -50,6 +58,9 @@ export const KEIN_VERTRAG_SATZ = "Noch kein Vertrag – ARAS ruft nur Kunden mit
  * Gesperrt IM CODE (Justin 20.10.2026: „nur Vertragskunden“ — gilt in JEDER Stufe): Gesprächsarten an Menschen ohne Vertrag.
  * Kein Schalter, keine Stufe und kein Einreihen von Hand schaltet sie frei — nur eine Code-Änderung. Der Aufstieg auf Stufe 2/3
  * bringt damit nur mehr Menge, nie neue Personengruppen. (Der Probeanruf an Justins eigene Nummer darf sie weiter spielen.)
+ * E-458 (Justin 29.10.2026, „go Plan“ Punkt 8): Die eine Tür für Menschen ohne Vertrag ist die eigene Gesprächsart „wunsch“
+ * (Anruf-Wunsch) — nur mit schriftlichem Ja (WUNSCH_EINWILLIGUNGEN), nur um sein Anliegen zu klären und einen Termin zu buchen,
+ * nie Verkauf. „zuruf“ (Verkauf nach JA) bleibt gesperrt.
  */
 export const GESPERRTE_SPIELARTEN: readonly Spielart[] = ["zuruf", "lead", "stufe_b", "rueckholung"];
 export const GESPERRT_TEXT = "gesperrt – nur Vertragskunden (Justin 20.10.)";
@@ -59,17 +70,48 @@ export const KEIN_VERTRAG_MEHR_SATZ = "Kein laufender Vertrag mehr – ARAS ruft
 export function istVertragsFenster(s: Spielart): boolean { return s === "rate" || s === "zusage" || s === "stufe_a" || s === "auftrag" || s === "willkommen"; }
 
 /** Priorität in der Warteschlange (1 = zuerst; 0 = außerhalb der Reihung). */
-export const PRIORITAET: Record<Spielart, number> = { termin: 1, willkommen: 2, lead: 2, zuruf: 2, auftrag: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
+export const PRIORITAET: Record<Spielart, number> = { termin: 1, erinnerung: 1, wunsch: 2, willkommen: 2, lead: 2, zuruf: 2, auftrag: 2, rate: 3, zusage: 3, stufe_a: 4, stufe_b: 5, rueckholung: 6, eingehend: 0, probe: 0 };
 /** Stufe B frisch (< 4 h nach Absenden, Einwilligung antrag_kaestchen/antrag_knopf) läuft als `zuruf` mit grund "antrag_frisch". */
 export const STUFE_B_FRISCH_STUNDEN = 4;
 
-/** Einwilligungs-Arten — keine entsteht per Stimme (ARAS holt nie eine Werbe-Einwilligung am Telefon ein). */
-export const EINWILLIGUNG_ARTEN = ["meta_kaestchen", "antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "rueckruf_buchung", "chef"] as const;
+/**
+ * Einwilligungs-Arten — keine entsteht per Stimme (ARAS holt nie eine Werbe-Einwilligung am Telefon ein).
+ * E-458: „termin_kaestchen“ = das Kästchen im Buchungsformular eines Global-Gesprächs (/business) — es deckt NUR den
+ * Erinnerungsanruf vor genau diesem Gespräch (quelle_art „global_termin“, quelle_id = Termin), keinen Anruf-Wunsch.
+ */
+export const EINWILLIGUNG_ARTEN = ["meta_kaestchen", "antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "rueckruf_buchung", "chef", "termin_kaestchen"] as const;
 export type EinwilligungArt = (typeof EINWILLIGUNG_ARTEN)[number];
+
+// ── Anruf-Wunsch und Erinnerung (E-458, Justin 29.10.2026) ─────────────────────────────────────────────────────────
+/**
+ * Welche Einwilligungen ein Anruf-Wunsch sind: nur SCHRIFTLICHE, deren Wortlaut ARAS als KI nennt — das Antrag-Kästchen
+ * (ANTRAG_NEU_ANRUF_TEXT), das Ja per WhatsApp oder Mail (JA_FRAGE_WA) und das Meta-Formular. Nicht: „chef“ (ein Mensch trägt
+ * ein mündliches Ja ein), „rueckruf_buchung“ (die entsteht erst aus einem gebuchten Anruf bei ARAS — der läuft als „termin“)
+ * und „termin_kaestchen“ (deckt nur die Erinnerung vor seinem Gespräch).
+ */
+export const WUNSCH_EINWILLIGUNGEN: readonly EinwilligungArt[] = ["antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "meta_kaestchen"];
+/** So frisch muss das Ja sein, damit ARAS von sich aus anruft (älter: nur auf Auftrag eines Menschen). */
+export const WUNSCH_TAGE = 30;
+/** So viele Versuche je Ja — danach übernimmt das Team (die Akte zeigt „nicht erreicht“). */
+export const WUNSCH_VERSUCHE = 3;
+/** Frühestens so viele Stunden nach dem letzten erfolglosen Versuch kommt der nächste (also an einem anderen Tag). */
+export const WUNSCH_PAUSE_STUNDEN = 20;
+/** Diese Gesprächsarten dürfen auch Firmen (FIAON Global) anrufen — Anruf-Wunsch und Erinnerung, nie etwas anderes (E-272). */
+export const GLOBAL_ERLAUBT: readonly Spielart[] = ["wunsch", "erinnerung"];
+export function globalErlaubt(s: string): boolean { return (GLOBAL_ERLAUBT as readonly string[]).includes(s); }
+/** Erinnerung: höchstens so viele Minuten vor dem Gespräch beginnt ARAS … */
+export const ERINNERUNG_AB_MINUTEN = 180;
+/** … und spätestens so viele Minuten vorher ist Schluss (danach erinnert nur noch die Mail eine Stunde vorher). */
+export const ERINNERUNG_BIS_MINUTEN = 30;
+/** Bleibt am Tag des Gesprächs kein Platz von mindestens so vielen Minuten (Gespräch früh am Morgen): am Vortag abends. */
+export const ERINNERUNG_MIN_FENSTER_MINUTEN = 15;
+export const ERINNERUNG_VORTAG_VON = "17:00", ERINNERUNG_VORTAG_BIS = "20:00";
 
 // ── Werkzeuge ──────────────────────────────────────────────────────────────
 export const WERKZEUGE = ["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "zahlungslink_senden", "zahlungszusage_merken", "zahlung_gemeldet",
-  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "aufgabe_fuer_justin", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken"] as const;
+  "ratenpause_setzen", "rueckruf_buchen", "notiz_schreiben", "aufgabe_fuer_justin", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden", "probe_feedback_merken",
+  // E-458: Global-Erstgespräch buchen (Anruf-Wunsch einer Firma) und die Erinnerung festhalten (bleibt / anders).
+  "gespraech_buchen", "gespraech_bestaetigen"] as const;
 /**
  * Go-live (Koordination 20.10.2026): Probleme, die Justin selbst klärt — je Kunde und Art GENAU EINE Aufgabe (TODO-Board).
  * Auswertung 21./22.10.: „streitfall“ — Betrug, Anzeige, Polizei, Anwalt, Verbraucherzentrale, Abzocke, „nie unterschrieben“;
@@ -116,6 +158,16 @@ export function istWerkzeug(v: unknown): v is Werkzeug { return typeof v === "st
 
 /** Was ein Global-Kunde bekommt: nur Zuhören, Notiz, Mensch, Sperre, Ende — nie Verkauf. */
 export const WERKZEUGE_GLOBAL: readonly Werkzeug[] = ["akte_nachsehen", "notiz_schreiben", "mensch_verbinden", "nicht_mehr_anrufen", "anruf_beenden"];
+/**
+ * E-458 — Anruf-Wunsch (Privat): klären, einen Termin buchen, nie verkaufen. Den Link schickt ARAS nur auf seine ausdrückliche
+ * Bitte; kein Zahltag-Eintrag, keine Ratenpause (das ist Raten-Arbeit, nicht sein Wunsch).
+ */
+export const WERKZEUGE_WUNSCH: readonly Werkzeug[] = ["akte_nachsehen", "aufnahme_starten", "aufnahme_abgelehnt", "zahlungslink_senden", "zahlung_gemeldet",
+  "rueckruf_buchen", "notiz_schreiben", "aufgabe_fuer_justin", "nicht_mehr_anrufen", "mensch_verbinden", "anruf_beenden"];
+/** E-458 — Anruf-Wunsch einer Firma: die Global-Werkzeuge plus das Erstgespräch buchen. */
+export const WERKZEUGE_WUNSCH_GLOBAL: readonly Werkzeug[] = [...WERKZEUGE_GLOBAL, "gespraech_buchen"];
+/** E-458 — Erinnerung vor dem Global-Gespräch: bestätigen oder den Wunsch nach einer anderen Zeit festhalten. */
+export const WERKZEUGE_ERINNERUNG: readonly Werkzeug[] = ["notiz_schreiben", "gespraech_bestaetigen", "mensch_verbinden", "nicht_mehr_anrufen", "anruf_beenden"];
 
 /** Werkzeug-Ampel für ARAS — eigene Form (nicht der geschlossene AmpelKey-Typ aus E-406 B3). */
 export type AmpelStufe = "gruen" | "gelb" | "rot";
@@ -136,6 +188,8 @@ export const ARAS_AMPEL: readonly ArasAmpelWerkzeug[] = [
   { key: "mensch_verbinden", label: "Mensch verbinden", satz: "Ins Softphone des Zuständigen, sonst Anruf eintragen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "anruf_beenden", label: "Anruf beenden", satz: "Ergebnis in die Akte, auflegen.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
   { key: "probe_feedback_merken", label: "Probe-Feedback merken", satz: "Nur im Probeanruf: dein Feedback für „Dein Feedback aus Probeanrufen“.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
+  { key: "gespraech_buchen", label: "Global-Gespräch buchen", satz: "Anruf-Wunsch einer Firma: ein freies Erstgespräch im Kalender der zuständigen Person.", stufen: ["gruen", "gelb", "rot"], vorgabe: "gruen", kanal: "alle" },
+  { key: "gespraech_bestaetigen", label: "Gespräch bestätigen", satz: "Erinnerung: „bleibt“ steht am Termin; eine andere Zeit wird eine Aufgabe für die zuständige Person.", stufen: ["gruen"], vorgabe: "gruen", fest: true, kanal: "alle" },
 ];
 export const ARAS_AMPEL_SCHALTER = "aras_ampel";
 export const DELEGATION = ["responses", "client"] as const;
@@ -255,6 +309,8 @@ export function aufnahmeFrageFehler(w: string): string | null {
 export const SPIELARTEN_VORGABE: Record<Spielart, "an" | "aus"> = {
   termin: "an", willkommen: "an", zuruf: "aus", stufe_a: "an", rate: "an", zusage: "an", auftrag: "an", probe: "an",
   lead: "aus", stufe_b: "aus", rueckholung: "aus", eingehend: "aus",
+  // E-458 (Justin 29.10.2026, „go Plan“ Punkt 8): an — gewählt wird trotzdem erst ab Stufe 1, und aus Stufe 0 schaltet nur Justin.
+  wunsch: "an", erinnerung: "an",
 };
 /** „an“, true, 1 → an. */
 const istAn = (v: unknown) => v === true || v === 1 || /^(an|true|1|ja)$/i.test(String(v ?? ""));
@@ -463,13 +519,14 @@ export const STUFEN: Record<Stufe, StufenRegel> = {
   0: { stufe: 0, name: "Probe", versucheJeTag: 0, parallel: 0, tagEuro: 0, spielarten: [], rateTage: null, zurufNurNachricht: true },
   // Stufe 1 „Test“: Rückrufe (gebuchter Anruf, Auftrag aus der Akte), Willkommen, Stufe A und Raten an Tag 1–45 (Koordination 20.10.).
   // Go-live 21.10.2026 (Koordination): 40 Anrufe am Tag, einer gleichzeitig, 20 € am Tag — damit beide Szenarien hineinpassen.
-  1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
+  // E-458 (Justin 29.10.2026): ab Stufe 1 auch Anruf-Wunsch und Erinnerung vor dem Global-Gespräch.
+  1: { stufe: 1, name: "Test", versucheJeTag: 40, parallel: 1, tagEuro: 20, spielarten: ["termin", "wunsch", "erinnerung", "willkommen", "auftrag", "stufe_a", "rate"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
   // Justin 20.10.2026 („nur Vertragskunden“, jede Stufe): Stufe 2/3 bringen nur MEHR MENGE — nie Interessenten (Zuruf, Lead,
   // Stufe B, Rückholung sind im Code gesperrt, GESPERRTE_SPIELARTEN).
   // Justin 22.10.2026 („Stufe 2“): auch in Stufe 2 und 3 nur ÜBERFÄLLIGE Raten (Tag 1–45). Die Rate-Anweisung sagt „Ihre Rate … war
   // am … fällig“ — vor oder am Fälligkeitstag wäre das falsch. Eine Erinnerung vorher braucht eigene, ehrliche Worte.
-  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
-  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: false },
+  2: { stufe: 2, name: "Leise", versucheJeTag: 150, parallel: 2, tagEuro: 60, spielarten: ["termin", "wunsch", "erinnerung", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: true },
+  3: { stufe: 3, name: "Voll", versucheJeTag: 430, parallel: 5, tagEuro: 150, spielarten: ["termin", "wunsch", "erinnerung", "willkommen", "auftrag", "stufe_a", "rate", "zusage"], rateTage: RATE_TAGE_1_BIS_45, zurufNurNachricht: false },
 };
 /** Die wirksamen Grenzen: immer das Engere aus Stufe und Schalter. Rein. */
 export function stufenGrenzen(e: { stufe: number; parallel: number; tagEuro: number; spielarten: Partial<Record<Spielart, boolean>> }): {
@@ -861,6 +918,44 @@ export function abschnittWahlBeste(e: {
     }
   }
   return { wahl: abschnittWahl(e), grund: "abschnitt" };
+}
+
+// ── Wann die Erinnerung anruft (E-458, rein) ──────────────────────────────────────────────────────────────────────
+const zuZeit = (datum: string, hhmm: string): Date => {
+  // Berliner Wandzeit → Zeitpunkt: erst als UTC lesen, dann um die Abweichung der Berliner Anzeige zurückrechnen (MEZ/MESZ).
+  const utc = new Date(`${datum}T${hhmm}:00Z`);
+  const b = berlinTeile(utc);
+  const versatz = (minutenAus(b.hhmm) + (b.datum === datum ? 0 : b.datum > datum ? 1440 : -1440)) - minutenAus(hhmm);
+  return new Date(utc.getTime() - versatz * 60_000);
+};
+/**
+ * Das Zeitfenster für den Erinnerungsanruf vor einem Global-Gespräch: zwischen ERINNERUNG_AB_MINUTEN und ERINNERUNG_BIS_MINUTEN
+ * vor dem Beginn, geschnitten mit dem Anruf-Fenster dieses Tages (Verkauf; Sonntag und Feiertag nie). Bleiben dort weniger als
+ * ERINNERUNG_MIN_FENSTER_MINUTEN (Gespräch früh am Morgen), ruft ARAS am Vortag zwischen 17 und 20 Uhr an — wenn der Vortag ein
+ * Fenster hat. Sonst null: dann erinnern nur die Mails. Rein.
+ */
+export function erinnerungFenster(beginn: Date, opt: { land?: Land; fenster?: { verkauf: Fenster; rate: Fenster }; feiertag?: (land: Land, datum: string) => boolean } = {}): { ab: Date; bis: Date; vortag: boolean } | null {
+  const f = opt.fenster ?? FENSTER_VORGABE;
+  const land = opt.land ?? "DE";
+  const feiertag = opt.feiertag ?? ((l: Land, d: string) => istFeiertag(l as FeiertagLand, d));
+  const tagFenster = (datum: string): [string, string] | null => {
+    const wt = new Date(`${datum}T12:00:00Z`).getUTCDay() || 7;
+    return feiertag(land, datum) ? null : fensterZeile(f.verkauf, wt);
+  };
+  const schnitt = (datum: string, von: Date, bis: Date): { ab: Date; bis: Date } | null => {
+    const z = tagFenster(datum);
+    if (!z) return null;
+    const ab = new Date(Math.max(von.getTime(), zuZeit(datum, z[0]).getTime()));
+    const ende = new Date(Math.min(bis.getTime(), zuZeit(datum, z[1]).getTime()));
+    return ende.getTime() - ab.getTime() >= ERINNERUNG_MIN_FENSTER_MINUTEN * 60_000 ? { ab, bis: ende } : null;
+  };
+  const tag = berlinTeile(beginn).datum;
+  const amTag = schnitt(tag, new Date(beginn.getTime() - ERINNERUNG_AB_MINUTEN * 60_000), new Date(beginn.getTime() - ERINNERUNG_BIS_MINUTEN * 60_000));
+  if (amTag) return { ...amTag, vortag: false };
+  const vortag = new Date(`${tag}T12:00:00Z`); vortag.setUTCDate(vortag.getUTCDate() - 1);
+  const v = vortag.toISOString().slice(0, 10);
+  const amVortag = schnitt(v, zuZeit(v, ERINNERUNG_VORTAG_VON), zuZeit(v, ERINNERUNG_VORTAG_BIS));
+  return amVortag ? { ...amVortag, vortag: true } : null;
 }
 
 /**

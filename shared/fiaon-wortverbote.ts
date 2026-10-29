@@ -405,7 +405,8 @@ export const WORTREGELN: Wortregel[] = [
   // Nachbesserung 28.09.: Die Frage-Ausnahme gilt nur, wenn der Satz als Frage BEGINNT
   // („Florentine ruft Sie morgen an, passt Ihnen das?" bleibt eine Zusage), bis zu fünf
   // Wörter zwischen „Sie" und „an" („ruft Sie heute um 20 Uhr an"), ohne Lookbehind.
-  { muster: /\b(ruf(t|e|en)?\s+sie(\s+[^\s.!?]+){0,5}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer"],
+  // E-458 (29.10.2026): auch der Rückruf „bei ARAS“ per Mail (rueckruf_bei_aras) plant den Anruf wirklich ein.
+  { muster: /\b(ruf(t|e|en)?\s+sie(\s+[^\s.!?]+){0,5}\s+an\b|meldet?\s+sich\s+(telefonisch|bei\s+ihnen)|rückruf)/i, art: "zusage", hinweis: "Nur sagen, wenn ein Rückruf eingeplant wurde.", gedecktDurch: ["notiz_an_betreuer", "aufgabe_an_betreuer", "rueckruf_bei_aras"],
     keineZusage: (satz, davor) => istEchteFrage(satz) || /\bkein(en)?\s+$/i.test(davor) },
   { muster: /\b(kündigung|vertrag)\b.{0,30}\b(vorgemerkt|vermerkt|aufgenommen|bestätigt|storniert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Kündigung im System steht.", gedecktDurch: ["kuendigung_vormerken"] },
   { muster: /\b(zugang|bereich|konto)\b.{0,25}\b(freigeschaltet|freigegeben|aktiviert)\b/i, art: "zusage", hinweis: "Nur sagen, wenn die Freischaltung ausgeführt wurde.", gedecktDurch: ["konto_freischalten"] },

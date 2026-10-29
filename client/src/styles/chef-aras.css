@@ -389,6 +389,21 @@ button.ar-fakt { cursor: pointer; }
   .ar .ar-tag input[type="date"] { width: 118px; }
 }
 
+/* E-458 (29.10.2026): Karte „Wen ARAS anruft“ (Reiter „Als Nächstes“, ArasWunsch.tsx) */
+.ar-wunsch { margin-bottom: 14px; }
+.ar-wunsch-stufe { margin: 0 0 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(242, 182, 76, .3); background: rgba(242, 182, 76, .06); color: var(--k-text-2); font-size: 13.5px; line-height: 1.5; }
+.ar-wunsch-schalter { display: grid; gap: 2px; }
+.ar-wunsch-zeile { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--k-linie); }
+.ar-wunsch-zeile:first-child { border-top: 0; }
+.ar-wunsch-zeile b { display: block; font-weight: 400; color: var(--k-text); font-size: 14px; }
+.ar-wunsch-zeile small { display: block; margin-top: 2px; color: var(--k-text-3); font-size: 12.5px; line-height: 1.45; }
+.ar-wunsch-block { margin-top: 18px; }
+.ar-wunsch-block h3 { margin: 0 0 8px; font-size: 14px; font-weight: 400; color: var(--k-text); }
+.ar-wunsch-erinnerung { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; color: var(--k-text-2); }
+.ar-wunsch-erinnerung .ar-marke { margin-left: 8px; }
+.ar-wunsch-probe { margin: 18px 0 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--k-text-3); font-size: 13px; }
+@media (max-width: 560px) { .ar-wunsch-zeile { align-items: flex-start; } }
+
 @media (prefers-reduced-motion: reduce) {
   .ar-cockpit, .ar-live, .ar-detail, .ar-hinweis { animation: none; }
   .ar-punkt.puls, .ar-live-marke i, .ar-welle.aktiv i, .ar-zeile-lade, .ar-hervor { animation: none; }

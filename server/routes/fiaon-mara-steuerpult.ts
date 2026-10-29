@@ -23,6 +23,7 @@ import { anweisungLesen, anweisungSetzen, anweisungVerlauf, anweisungZurueck, BE
 import { maraBilanz, geldSql, aktionWirkung14, danachSql } from "../lib/fiaon-mara-bilanz";
 import { istKiPause, kiPauseLesen, aktivieren as kiAktivieren, pausieren as kiPausieren } from "../lib/fiaon-ki-pause";
 import { waBremseLage, aktivieren as waAktivieren, pausieren as waPausieren, metaStandLesen, WA_FEHLER_ART } from "../lib/fiaon-wa-bremse";
+import { kasseTag } from "@shared/fiaon-ki-kasse";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -194,8 +195,10 @@ router.get("/chef/mara/stand", wache, async (_req: ChefRequest, res: Response) =
              COUNT(*) FILTER (WHERE gesendet_am > date_trunc('day', NOW()))::int AS heute_beantwortet,
              COUNT(*) FILTER (WHERE aktion = 'entwurf')::int AS entwuerfe
         FROM fiaon_postmeister WHERE empfangen_am > NOW() - INTERVAL '30 days'`.catch(() => [{}])) as any[];
+    // E-458: „heute“ ist der Berliner Tag (vorher UTC — er begann um 01:00/02:00 Uhr), die Summe echte Dollar.
+    const kasseHeute = kasseTag();
     const [kosten] = (await sqlPool`
-      SELECT COALESCE(SUM(kosten_cents) FILTER (WHERE created_at > date_trunc('day', NOW())), 0)::float AS heute,
+      SELECT COALESCE(SUM(kosten_cents) FILTER (WHERE created_at >= (${kasseHeute}::date::timestamp AT TIME ZONE 'Europe/Berlin')), 0)::float AS heute,
              COALESCE(SUM(kosten_cents), 0)::float AS woche
         FROM fiaon_ki_nutzung WHERE dienst = ${DIENST} AND created_at > NOW() - INTERVAL '7 days'`.catch(() => [{}])) as any[];
     res.json({

@@ -352,13 +352,15 @@ export function personaText(kanal: MaraKanal, opt: {
     // E-275 (02.10.2026): Hier stand „… wenn es um Anruf, Unterlagen, Termin oder Karte geht“ — und Mara schickte jede
     // Kartenfrage an den Betreuer („Nikita Boychenko schaut mit Ihnen nach“). Karte, Link, Zahlung und Unterlagen erledigt sie selbst.
     : b ? `· Sein fester Betreuer ist ${b} (mit/an: ${bn!.dat})${ohneAnrede(bn)}. Du nennst ${b} beim Namen, wenn er einen Anruf will, ein Termin steht oder du wirklich übergeben musst — Karte, Link, Zahlung und Unterlagen erledigst du selbst.` : `· Er hat noch keinen festen Betreuer — dann „jemand aus unserem Team“, nie ein erfundener Name.`;
+  // E-262 B (29.10.2026, Prompt-Caching): Die Zeile zu SEINEM Betreuer steht jetzt am Ende — alles davor ist für jeden
+  // Kunden Zeichen für Zeichen gleich (≈ 5.000 Token je Kanal), und OpenAI liest es für ein Zehntel des Preises aus dem
+  // Cache. Vorher stand sie mitten im Block, und ab dort war jeder Auftrag ein anderer.
   return [
     `═══ WER DU BIST ═══`,
     ...MARA_PERSONA.haltung,
     ``,
     `═══ BEZIEHUNG STATT ABFERTIGUNG ═══`,
     ...MARA_PERSONA.beziehung.map((s) => `· ${s}`),
-    betreuerZeile,
     ``,
     `═══ KEINE SYSTEMSPRACHE ═══`,
     ...MARA_PERSONA.nieSystemsprache.map((s) => `· ${s}`),
@@ -373,6 +375,9 @@ export function personaText(kanal: MaraKanal, opt: {
     ABSTREITEN_REGEL_TEXT,
     ``,
     formText(kanal),
+    ``,
+    `═══ SEIN BETREUER ═══`,
+    betreuerZeile,
   ].join("\n");
 }
 
@@ -1188,7 +1193,8 @@ export type LinkArt = "nackt" | "fremd" | "lage" | "unbekannt" | "ohne_antrag";
 export interface LinkBefund { art: LinkArt; schwere: TonSchwere; link: string; hinweis: string }
 
 /** Seiten, die für jeden gleich sind und so verlinkt werden dürfen. */
-const ALLGEMEIN = /^\/(login|mein-bereich|dashboard|app|business|global|en\/business|agb|datenschutz|impressum|widerruf\w*|ratgeber|kontakt|privatkunden|bonitaetsauskunft\w*|kreditkarte\w*)(\/|$|\?|#)/i;
+// 29.10.2026 (E-461): /privat (und /en/private) ist die Startseite der Privatkunden — für jeden gleich wie /privatkunden.
+const ALLGEMEIN = /^\/(login|mein-bereich|dashboard|app|business|global|en\/business|en\/private|privat|agb|datenschutz|impressum|widerruf\w*|ratgeber|kontakt|privatkunden|bonitaetsauskunft\w*|kreditkarte\w*)(\/|$|\?|#)/i;
 
 /**
  * Meldet jeden fiaon.com-Link, der nicht SEIN persönlicher ist:

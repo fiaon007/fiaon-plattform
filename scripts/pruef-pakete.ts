@@ -233,7 +233,8 @@ const mail = globalInfoMail({ ansprechpartner: "Frau Beispiel", firma: "Beispiel
   ok("Info-Mail: Sie-Form, kein Du", !/\b(du|dein|deine|dir|dich)\b/i.test(mail.text));
   ok("Info-Mail nennt jeden Preis als „einmalig“", GLOBAL_PAKETE.every((g) => mail.text.includes(`${globalPreisText(g.key)} einmalig`)));
   ok("Info-Mail nennt die drei Pflichthinweise", GLOBAL_PFLICHTHINWEIS.de.every((h) => mail.text.includes(h)));
-  ok("Info-Mail verlinkt /business/start und /business#gespraech", mail.text.includes("https://fiaon.com/business/start") && mail.text.includes("https://fiaon.com/business#gespraech"));
+  // 29.10.2026 (E-461): Das Erstgespräch steht auf der Startseite fiaon.com/ (vorher /business).
+  ok("Info-Mail verlinkt /business/start und /#gespraech", mail.text.includes("https://fiaon.com/business/start") && mail.text.includes("https://fiaon.com/#gespraech"));
   ok("Info-Mail: kein /business-antrag, keine Monatsrate, keine Bankdaten", !/business-antrag|im Monat|\/Monat|IBAN|\bBIC\b/i.test(mail.text));
   ok("Info-Mail: Anrede und Absender stehen drin", mail.text.startsWith("Guten Tag Frau Beispiel,") && mail.text.includes("Nikita Prüfstand") && mail.betreff.includes("Beispiel GmbH"));
   ok("Info-Mail ohne Ansprechpartner: neutrale Anrede", globalInfoMail({ firma: "X", agentName: "Y" }).text.startsWith("Guten Tag,"));
@@ -366,7 +367,7 @@ ok("globalWissen() ist Teil von wissenFakten()", wissen.includes(globalWissen())
 gleich("Weg: Direktauftrag mit Paket", globalStartPfad("global_vip"), "/business/start?paket=global_vip");
 gleich("Weg: unbekanntes Paket führt in den Auftrag ohne Vorauswahl", globalStartPfad("business_pro"), "/business/start");
 gleich("Weg: Englisch führt in den englischen Auftrag", globalStartPfad("global_vip", "en"), "/en/business/start?paket=global_vip");
-gleich("Weg: Seite, Pakete, Gespräch", [globalSeitePfad(), globalPaketePfad(), globalGespraechPfad(), globalSeitePfad("en")], ["/business", "/business#pakete", "/business#gespraech", "/en/business"]);
+gleich("Weg: Seite, Pakete, Gespräch", [globalSeitePfad(), globalPaketePfad(), globalGespraechPfad(), globalSeitePfad("en")], ["/", "/#pakete", "/#gespraech", "/en"]); // E-461: die Startseite
 gleich("Weg: volle Adresse für Mail und Zwischenablage", globalStartUrl("global_banking"), "https://fiaon.com/business/start?paket=global_banking");
 
 const MEINE_DATEIEN = [

@@ -39,7 +39,8 @@ interface Hoerprobe { id: number; stimme: string; text: string; dauerMs: number 
 const STIMME_TEXT: Record<string, string> = { flitz: "Flitz · männlich", nuri: "Nuri · weiblich", juni: "Juni · weiblich" };
 const stimmeName = (s: string | null | undefined) => (s ? (STIMME_TEXT[s] ?? (s.startsWith("eigene:") ? "eigene Stimme" : s)).split(" ·")[0] : "—");
 // Go-live (Justin 20.10.2026): die zwei Szenarien zuerst — „Willkommen nach Antrag“ und „Rate offen“.
-const PROBE_ARTEN: Spielart[] = ["willkommen", "rate", "zuruf", "stufe_a", "zusage", "termin", "auftrag", "lead"];
+// E-458 (Justin 29.10.2026, „ARAS nur noch Termine und Anruf-Wünsche“): jetzt zuerst Anruf-Wunsch und Erinnerung vor dem Gespräch.
+const PROBE_ARTEN: Spielart[] = ["wunsch", "erinnerung", "termin", "willkommen", "rate", "zuruf", "stufe_a", "zusage", "auftrag", "lead"];
 const GRUENDE = ["klingt nach KI", "zu langsam", "zu schnell", "zu viele Füllwörter", "wiederholt sich", "fällt mir ins Wort", "Unterbrechen hakt", "versteht schlecht", "zu aufdringlich", "Begrüßung holprig", "Schluss zu abrupt"];
 /** Die Ton-Regler — zwei ruhige Gruppen (wie er klingt · wie er führt). Schlüssel = PROBE_TON_SCHLUESSEL des Kerns. */
 const TON: { gruppe: string; key: string; label: string; werte: { w: string; t: string }[] }[] = [
@@ -76,7 +77,8 @@ export default function ChefArasProbe({ eingebettet = false, ohneSchalter = fals
   const testpersonen = useTakt<{ ok: boolean; zeilen: { id: number; name: string }[] }>("/chef/aras/probe/testpersonen", 0);
   const hinweis = useHinweis();
   const [busy, setBusy] = useState<string | null>(null);
-  const [spielart, setSpielart] = useState<Spielart>("willkommen");
+  // E-458: Vorgabe ist der Anruf-Wunsch — die Gesprächsart, mit der ARAS nach Justins Wort zur ersten Stufe startet.
+  const [spielart, setSpielart] = useState<Spielart>("wunsch");
   const [stimme, setStimme] = useState("");
   const [testperson, setTestperson] = useState("");
   const [nummer, setNummer] = useState("");

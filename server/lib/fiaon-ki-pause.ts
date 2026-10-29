@@ -47,6 +47,9 @@ import {
   responsesNachChat, chatNachResponses, chatAlsSse, claudeFehlerArt, alsOpenAiFehler, type KiAnbieter,
 } from "./fiaon-ki-claude";
 export { aktiverAnbieter, type KiAnbieter } from "./fiaon-ki-claude";
+// E-458 (29.10.2026): die KI-Kasse — Gesamtdeckel in echtem Geld, Anteile je Bereich, Nachhol-Bremse. Sie fragt hier,
+// in derselben Tür, vor jedem Netzaufruf (die Regeln: shared/fiaon-ki-kasse.ts).
+import { kassePruefen } from "./fiaon-ki-kasse";
 
 export const OPENAI_HOST = "api.openai.com";
 export const OPENAI_V1 = "https://api.openai.com/v1";
@@ -63,8 +66,12 @@ export const KI_PAUSE_MAIL_HINWEIS =
 /** Wo der Knopf steht — ein Band im Kopf jeder Chefbüro-Seite, dazu die Karte im Mara-Steuerpult. */
 export const KI_PAUSE_KLICKWEG = "/chef/s/mara";
 
-/** „drossel“ wird nie gespeichert: nur die Meldung eines Aufrufs, den Claudes Ratenlimit auch nach Wiederholungen abwies. */
-export type KiPauseArt = "abrechnung" | "zugang" | "hand" | "drossel";
+/**
+ * „drossel“ wird nie gespeichert: nur die Meldung eines Aufrufs, den Claudes Ratenlimit auch nach Wiederholungen abwies.
+ * E-458: „kasse“ ebenso nie — die KI-Kasse hat diesen einen Aufruf gebremst (Anteil, Tagesdeckel, Nachhol-Bremse). Der
+ * Aufrufer behandelt es wie eine Pause: liegen lassen, im nächsten Takt wieder — nie ein Ersatzsatz an Kunden.
+ */
+export type KiPauseArt = "abrechnung" | "zugang" | "hand" | "drossel" | "kasse";
 
 export interface KiPauseEreignis { am: string; was: "pausiert" | "aktiviert" | "probe_gescheitert"; von: string; grund: string | null }
 
@@ -120,15 +127,16 @@ export function schluesselFingerabdruck(schluessel: string | null | undefined): 
 // ── Der Fehler, an dem jeder Aufrufer „liegen lassen" erkennt ─────────────
 export class KiPausiertFehler extends Error {
   readonly kiPause = true;
-  constructor(readonly dienst: string, readonly art: KiPauseArt | null = null, readonly anbieter: KiAnbieter = "openai") {
-    super(kiPauseMeldung(art, anbieter));
+  constructor(readonly dienst: string, readonly art: KiPauseArt | null = null, readonly anbieter: KiAnbieter = "openai", grund?: string | null) {
+    super(kiPauseMeldung(art, anbieter, grund));
     this.name = "KiPausiertFehler";
   }
 }
 
 /** Die Meldung, die interaktive Stellen zeigen. Beginnt IMMER mit „KI pausiert" (Aufrufer prüfen darauf). */
-export function kiPauseMeldung(art: KiPauseArt | null, anbieter: KiAnbieter | null = "openai"): string {
+export function kiPauseMeldung(art: KiPauseArt | null, anbieter: KiAnbieter | null = "openai", grund?: string | null): string {
   const wer = anbieterName(anbieter);
+  if (art === "kasse") return `KI pausiert — KI-Kasse: ${grund || "für diesen Bereich ist heute kein Geld mehr frei."}`;
   if (art === "hand") return "KI pausiert — im Chefbüro von Hand angehalten. Justin aktiviert sie dort wieder.";
   if (art === "drossel") return `KI pausiert — ${wer} ist gerade ausgelastet (Ratenlimit); in wenigen Minuten geht es von selbst weiter.`;
   if (art === "zugang") return `KI pausiert — ${wer} lehnt den Zugang ab (Schlüssel oder Konto). Justin aktiviert sie im Chefbüro wieder.`;
@@ -245,6 +253,16 @@ export async function kiPausiert(anbieter: KiAnbieter = aktiverAnbieter()): Prom
 export async function kiBereit(dienst: string, anbieter: KiAnbieter = aktiverAnbieter()): Promise<void> {
   const z = await kiPauseRohLesen();
   if (pauseGilt(z, anbieter)) throw new KiPausiertFehler(dienst, z.art, (z.anbieter ?? "openai") as KiAnbieter);
+}
+
+/**
+ * E-458: Nach der Pause die Kasse — hat dieser Bereich heute noch Geld (Anteil, Tagesdeckel, Reserve, Nachhol-Bremse)?
+ * Nein → KiPausiertFehler der Art „kasse“ (nie gespeichert, kein Alarm, kein Band): Der Aufrufer lässt liegen und
+ * versucht es im nächsten Takt — genau wie in der Pause. Ohne lesbaren Stand sagt die Kasse ja.
+ */
+export async function kasseBereit(dienst: string, anbieter: KiAnbieter = aktiverAnbieter()): Promise<void> {
+  const u = await kassePruefen(dienst);
+  if (!u.erlaubt) throw new KiPausiertFehler(dienst, "kasse", anbieter, u.grund);
 }
 
 async function speichern(z: KiPauseZustand): Promise<void> {
@@ -645,6 +663,7 @@ export async function openaiFetch(dienst: string, pfad: string, init: RequestIni
   // E-279: Text, Bild, PDF → Claude, solange Claude trägt. Sprache (/audio) bleibt bei OpenAI.
   if (aktiverAnbieter() === "claude" && claudeKannPfad(url, init.method ?? "POST")) return claudeStatt(dienst, url, init);
   await kiBereit(dienst, "openai");
+  await kasseBereit(dienst, "openai");
   const res = await rohFetch()(url, init);
   if (!res.ok) await antwortPruefen(dienst, res, init);
   return res;
@@ -695,6 +714,7 @@ async function requestFetch(dienst: string, input: Request, init?: RequestInit):
     return claudeStatt(dienst, input.url, { method: "POST", body: koerper, signal: init?.signal ?? input.signal });
   }
   await kiBereit(dienst, "openai");
+  await kasseBereit(dienst, "openai");
   const res = await rohFetch()(input, init);
   if (!res.ok) {
     const kopf = new Headers(input.headers);
@@ -890,6 +910,7 @@ function jsonAntwort(x: unknown, status = 200): Response {
  */
 async function claudeStatt(dienst: string, url: string, init: RequestInit): Promise<Response> {
   await kiBereit(dienst, "claude");
+  await kasseBereit(dienst, "claude");
   if (!process.env.ANTHROPIC_API_KEY) return jsonAntwort({ error: { message: "Kein Claude-Schlüssel gesetzt (ANTHROPIC_API_KEY).", type: "claude_error", code: "kein_schluessel" } }, 500);
   let pfad = url;
   try { pfad = new URL(url).pathname; } catch { /* Pfad */ }

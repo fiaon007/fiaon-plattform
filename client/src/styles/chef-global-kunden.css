@@ -283,6 +283,37 @@
 .cgn-unten { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
 .cgn-unten > button { align-self: flex-start; border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .86); border-radius: 999px; min-height: 36px; padding: 0 16px; cursor: pointer; font: 400 13px/1 var(--cgn-schrift); }
 
+/* ── Gespräche (E-458 Nr. 11): eine Leiste unter dem Kopf — ohne Ergebnis, geplant, zuletzt ───────────────── */
+.cgg { border-bottom: 1px solid var(--cgn-linie); padding: 4px 30px 6px; }
+.cgg-kopf {
+  display: flex; align-items: baseline; gap: 6px 18px; flex-wrap: wrap; width: 100%; min-height: 44px; padding: 10px 0;
+  border: 0; background: none; cursor: pointer; text-align: left; color: var(--cgn-leise); font: 400 12.5px/1.3 var(--cgn-schrift);
+}
+.cgg-kopf .cgn-auge { display: inline; }
+.cgg-zahl b { font: 300 17px/1 var(--cgn-anzeige); color: var(--cgn-tinte); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.cgg-zahl b.an { color: var(--cgn-tiefe); }
+.cgg-pfeil { margin-left: auto; color: var(--cgn-tiefe); }
+.cgg-kopf:hover .cgg-pfeil { text-decoration: underline; text-underline-offset: 3px; }
+.cgg-inhalt { display: flex; flex-direction: column; gap: 14px; padding: 2px 0 14px; animation: cgn-ein .3s ease both; }
+.cgg-gruppe { display: flex; flex-direction: column; }
+.cgg-titel { font: 500 11px/1.2 var(--cgn-schrift); letter-spacing: .12em; text-transform: uppercase; color: var(--cgn-still); padding: 0 0 6px; }
+.cgg-zeile { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 0; border-top: 1px solid var(--cgn-linie); }
+.cgg-zeile.offen .cgg-wer b::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 8px 1px 0; border-radius: 50%; background: var(--cgn-licht); vertical-align: middle; }
+.cgg-wer { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 260px; }
+.cgg-wer b { font: 400 14px/1.35 var(--cgn-schrift); color: var(--cgn-tinte); overflow-wrap: anywhere; }
+.cgg-wer small { font: 400 12.5px/1.4 var(--cgn-schrift); color: var(--cgn-leise); overflow-wrap: anywhere; }
+.cgg-knoepfe { display: flex; flex-wrap: wrap; gap: 6px; }
+.cgg-ausgang { font: 400 12.5px/1.4 var(--cgn-schrift); color: var(--cgn-leise); }
+.cgg-zeile.still .cgg-wer b { color: var(--cgn-tinte-2); }
+.cgg-schieben { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 4px 0 2px; }
+.cgg-schieben input { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--cgn-linie-2); background: #fff; color: var(--cgn-tinte); font: 400 13px/1 var(--cgn-schrift); }
+.cgg-schieben small { flex: 1 0 100%; color: var(--cgn-still); font-size: 12px; }
+.cgg-leer { margin: 0; padding: 8px 0; color: var(--cgn-still); font-size: 13px; }
+.cgg-fuss { margin: 0; color: var(--cgn-still); font: 400 12px/1.5 var(--cgn-schrift); }
+.cgg-fuss a { color: var(--cgn-tiefe); }
+.cgg-meldung { margin: 0 0 10px; padding: 8px 12px; border-radius: 12px; background: rgba(198, 40, 40, .07); color: var(--cgn-rot); font: 400 13px/1.45 var(--cgn-schrift); }
+.cgg-meldung.gut { background: rgba(40, 141, 250, .08); color: var(--cgn-tiefe); }
+
 /* ── Bewegung ─────────────────────────────────────────────────────────────── */
 @keyframes cgn-hoch { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes cgn-ein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
@@ -302,6 +333,7 @@
   .cgn-akte { padding: 18px 16px 28px; gap: 16px; }
   .cgn-zurueck { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px; border: 0; background: none; cursor: pointer; color: var(--cgn-tiefe); font: 400 15px/1 var(--cgn-schrift); }
   .cgn-kopf { padding: 20px 18px 14px; }
+  .cgg { padding: 2px 18px 6px; }
 }
 @media (max-width: 640px) {
   .cgn-tafel { border-radius: 24px; }
@@ -329,5 +361,8 @@
   .cgn-eintrag { grid-template-columns: minmax(0, 1fr); }
   .cgn-eintrag-rechts { justify-content: flex-start; }
   .cgn-blase { max-width: 92%; }
+  .cgg-knoepfe { width: 100%; }
+  .cgg-knoepfe .cgn-knopf { flex: 1 1 auto; }
+  .cgg-schieben input { height: 44px; flex: 1 1 200px; }
 }
 .cgn-eintrag-rechts .cgn-sicht { font: 400 12px/1.3 var(--cgn-schrift); }

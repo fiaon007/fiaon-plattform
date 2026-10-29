@@ -2399,12 +2399,51 @@ function mitGlobalWand(w: Werkzeug): Werkzeug {
   };
 }
 
+// ── E-458 (Justin 29.10.2026): RÜCKRUF „BEI ARAS“ PER MAIL ────────────────
+// „ARAS telefoniert nur noch die Termine oder die Leute, die einen Anruf wollen.“ Will er angerufen werden, bietet Mara ihm
+// in ihrer Antwort ARAS an — mit dem KI-Hinweis und einem Zeitfenster —, und erst auf sein Ja (seine nächste Mail) trägt sie
+// ein. Der Server prüft dafür ihre letzte gesendete Antwort an ihn (ARAS und KI müssen darin stehen); sonst wird nichts
+// eingetragen. Angeboten nur, wenn ARAS Rückrufe annimmt (werkzeugeFuerLage, `arasRueckruf`; in Stufe 0 nie).
+const rueckrufBeiAras: Werkzeug = {
+  name: "rueckruf_bei_aras",
+  beschreibung: "Trägt einen Anruf von ARAS (unsere digitale Mitarbeiterin, eine KI) in einem Zeitfenster ein. NUR, wenn der Kunde angerufen werden will UND in dieser Mail Ja sagt auf dein früheres Angebot, dass ARAS (eine KI) ihn anruft. Hat er noch nicht zugestimmt, biete es ihm in deiner Antwort an, in EINER Frage: „Unsere digitale Mitarbeiterin ARAS – eine KI – kann Sie morgen zwischen 14 und 16 Uhr anrufen. Passt Ihnen das?“ (Montag bis Samstag, 09:30 bis 21 Uhr, ein bis zwei Stunden) — eingetragen wird erst nach seinem Ja. Will er lieber einen Menschen: aufgabe_an_betreuer mit rueckruf_am.",
+  stufe: "frei",
+  lagen: "alle",
+  parameter: {
+    type: "object", additionalProperties: false,
+    properties: {
+      von: { type: "string", description: "Fensterbeginn „YYYY-MM-DD HH:MM“ (Berlin) — das Fenster, dem er zugestimmt hat." },
+      bis: { type: "string", description: "Fensterende „YYYY-MM-DD HH:MM“ (Berlin)." },
+      anliegen: { type: "string", description: "Ein bis zwei Sätze für ARAS: worum es ihm geht." },
+    },
+    required: ["von", "bis", "anliegen"],
+  },
+  async ausfuehren(p, k) {
+    if (!k.personId) return { ok: false, ergebnis: "", fehler: "Ohne Kundendatensatz kein Anruf von ARAS — gib den Rückruf an den Betreuer (aufgabe_an_betreuer mit rueckruf_am)." };
+    const [angebot] = (await sqlPool`
+      SELECT antwort FROM fiaon_postmeister
+       WHERE person_id = ${k.personId} AND gesendet_am > NOW() - INTERVAL '7 days' AND antwort IS NOT NULL ${k.postmeisterId ? sqlPool`AND id <> ${k.postmeisterId}` : sqlPool``}
+       ORDER BY gesendet_am DESC LIMIT 1`.catch(() => [])) as any[];
+    const [pers] = (await sqlPool`SELECT primary_phone FROM fiaon_persons WHERE id = ${k.personId}`.catch(() => [])) as any[];
+    const { arasRueckrufEintragen } = await import("./fiaon-aras-wunsch");
+    const { wunschLesen } = await import("./fiaon-mara-termin");
+    const r = await arasRueckrufEintragen({
+      personId: k.personId, nummer: String(pers?.primary_phone ?? ""), kanal: "mail",
+      von: wunschLesen(p?.von), bis: wunschLesen(p?.bis), anliegen: String(p?.anliegen ?? ""),
+      angebot: angebot?.antwort ? String(angebot.antwort) : null, antwort: k.kundeText ?? null,
+    });
+    if (!r.ok) return { ok: false, ergebnis: "", fehler: r.meldung };
+    await protokoll(k, "rueckruf_bei_aras", `Rückruf bei ARAS (KI) eingetragen: ${r.text}.${p?.anliegen ? ` ${String(p.anliegen).slice(0, 200)}` : ""}`);
+    return { ok: true, ergebnis: `Eingetragen: Unsere digitale Mitarbeiterin ARAS ruft Sie ${r.text} an.`, daten: { rueckruf_termin: r.text, bei: "aras", termin_id: r.terminId } };
+  },
+};
+
 /** Alle Werkzeuge, in der Reihenfolge, in der das Modell sie sehen soll. */
 // E-275 (02.10.2026): karte_senden direkt nach der Zahlungsseite — Karte und Zahlung sind Maras eigene Arbeit.
 export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
   zahlungslinkBauen, karteSenden, rechnungAnhaengen, auskunftAnbieten, terminlinkBauen, notizAnBetreuer, aufgabeAnBetreuer, vermerkSchreiben,
   kuendigungVormerken, werbesperreSetzen, mahnstoppSetzen, eskalationVorbereiten, kontoFreischalten,
-  globalZugangSendenWerkzeug,
+  globalZugangSendenWerkzeug, rueckrufBeiAras,
 ].map(mitGlobalWand);
 
 /**
@@ -2412,16 +2451,18 @@ export const POSTMEISTER_WERKZEUGE: Werkzeug[] = [
  * `auskunftAntwort` = die Mail antwortet auf das Angebot der Auskunft oder der
  * Kunde fragt selbst danach — dann gibt es auskunft_anbieten auch bei einem
  * offenen Antrag oder einem Lead (AUSKUNFT_ANTWORT_LAGEN), sonst dort nie.
+ * E-458: `arasRueckruf` = ARAS nimmt gerade Rückrufe an — nur dann gibt es rueckruf_bei_aras.
  */
-export function werkzeugeFuerLage(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean } = {}): Werkzeug[] {
+export function werkzeugeFuerLage(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean; arasRueckruf?: boolean } = {}): Werkzeug[] {
   return POSTMEISTER_WERKZEUGE.filter((w) => w.lagen === "alle" || w.lagen.includes(lage)
     || (w.name === "auskunft_anbieten" && !!opts.auskunftAntwort && AUSKUNFT_ANTWORT_LAGEN.includes(lage)))
     // E-275 (02.10.2026): Werbesperre beim zahlenden Kunden — Service ja, Verkauf nein: kein Angebot der Auskunft.
-    .filter((w) => !(opts.werbesperre && w.name === "auskunft_anbieten"));
+    .filter((w) => !(opts.werbesperre && w.name === "auskunft_anbieten"))
+    .filter((w) => w.name !== "rueckruf_bei_aras" || opts.arasRueckruf === true);
 }
 
 /** Das Format, das OpenAI erwartet. */
-export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean } = {}): unknown[] {
+export function werkzeugeAlsTools(lage: Kundenlage, opts: { auskunftAntwort?: boolean; werbesperre?: boolean; arasRueckruf?: boolean } = {}): unknown[] {
   return werkzeugeFuerLage(lage, opts).map((w) => ({
     type: "function",
     function: { name: w.name, description: w.beschreibung, parameters: w.parameter },

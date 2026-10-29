@@ -331,11 +331,18 @@ export async function runStartgespraechEinladungen(): Promise<number> {
  * den niemand dokumentiert hat, ist ein vergessener Termin, kein
  * Kundenkontakt. Wer ihn wirklich als „nicht erschienen" wertet, tut das im
  * Onboarding-Bereich mit einem Klick — und DANN zählt es.
+ *
+ * E-458 Nr. 11 (29.10.2026): OHNE FIAON GLOBAL. Alle Global-Gespräche, die es je
+ * gab, standen so auf „verpasst“ — ob gesprochen wurde, wusste niemand. Ein
+ * Global-Gespräch bleibt „gebucht“, bis ein Mensch das Ergebnis einträgt; die
+ * Aufgabe dazu und die Erinnerung an die Leitung schickt der Lauf
+ * global_gespraeche (server/lib/fiaon-global-gespraech.ts).
  */
 export async function runVerpassteTermine(): Promise<number> {
   const rows = (await sqlPool`
     UPDATE fiaon_termine SET status = 'verpasst', updated_at = NOW()
     WHERE status = 'gebucht' AND beginn < NOW() - INTERVAL '12 hours'
+      AND quelle IS DISTINCT FROM 'global'
     RETURNING id
   `) as any[];
   if (rows.length) console.log(`[STARTGESPRAECH] ${rows.length} unerledigte Termine als verpasst markiert`);

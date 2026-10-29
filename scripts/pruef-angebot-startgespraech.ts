@@ -314,16 +314,18 @@ ok(verlaufF.some((v) => /Die Angebotsseite nennt Justin Schwarzott als Gespräch
 await verfuegbarkeitSetzen(gruender, JUSTIN_ZEITEN);
 
 // ═══ G ═════════════════════════════════════════════════════════════════════
-titel("G. Nach dem Termin: Aufräumlauf („verpasst“ ohne Ergebnis) ist „vorbei“ — erst „kam nicht zustande“ ist „persönlich“");
+titel("G. Nach dem Termin: ohne Ergebnis ist es „vorbei“ (seit E-458 bleibt es „gebucht“) — erst „kam nicht zustande“ ist „persönlich“");
 // Das Gespräch aus B liegt jetzt dreizehn Stunden zurück, niemand hat es im Kalender abgeschlossen (z. B. geführt, aber
-// nicht abgehakt). Der echte Aufräumlauf (runVerpassteTermine, im 20-Minuten-Takt) setzt dann „verpasst“ OHNE erledigt_am.
+// nicht abgehakt). Bis E-458 setzte der Aufräumlauf (runVerpassteTermine) dann „verpasst“ OHNE erledigt_am. Seit E-458 Nr. 11
+// (29.10.2026) lässt er Global-Gespräche stehen: Sie bleiben „gebucht“, bis ein Mensch das Ergebnis einträgt (Aufgabe
+// „Ergebnis fehlt“, fiaon-global-gespraech.ts). Für Seite und Mail gilt beides gleich: „vorbei“.
 await sqlPool`UPDATE fiaon_termine SET beginn = NOW() - INTERVAL '13 hours' WHERE id = ${bt.id}`;
 const { runVerpassteTermine } = await import("../server/routes/fiaon-startgespraech");
 await runVerpassteTermine();
 const [btV] = (await sqlPool`SELECT status, erledigt_am FROM fiaon_termine WHERE id = ${bt.id}`) as any[];
 const stG = await SG.startgespraechStand(b.id);
-ok(btV?.status === "verpasst" && !btV.erledigt_am && stG.stand === "vorbei" && SG.startgespraechFuerKunde(stG) === null && SG.startgespraechStartSatz(stG) === ST.mailStartVorbei,
-  "Aufräumlauf: „vorbei“ — Seite und „Mein Auftrag“ ohne „vereinbaren wir persönlich“, Startmail ohne „meldet sich … zu vereinbaren“", { termin: btV, stand: stG.stand });
+ok(btV?.status === "gebucht" && !btV.erledigt_am && stG.stand === "vorbei" && SG.startgespraechFuerKunde(stG) === null && SG.startgespraechStartSatz(stG) === ST.mailStartVorbei,
+  "ohne Ergebnis (E-458: bleibt „gebucht“): „vorbei“ — Seite und „Mein Auftrag“ ohne „vereinbaren wir persönlich“, Startmail ohne „meldet sich … zu vereinbaren“", { termin: btV, stand: stG.stand });
 const listeG = (await A.angebotListe()).find((x: any) => x.id === b.id) as any;
 ok(listeG?.startgespraech?.stand === "vorbei", "Chefbüro: „Zeit vorbei — im Kalender abschließen“ (der Kalender führt ihn weiter als offen)", listeG?.startgespraech?.stand);
 const { globalTerminErgebnis } = await import("../server/lib/fiaon-global-termin");

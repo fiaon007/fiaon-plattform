@@ -295,12 +295,82 @@ titel("8d. SCHEIBE 3, KUNDEN MIT VERTRAG (Koordination 22.10.): Zusage nachfasse
 }
 
 titel("9. KATALOGE");
-ok("14 Werkzeuge (13 + probe_feedback_merken, nur im Probeanruf; neu: aufgabe_fuer_justin), 12 Spielarten (mit „auftrag“ und „willkommen“)", WERKZEUGE.length === 14 && WERKZEUGE.includes("probe_feedback_merken") && WERKZEUGE.includes("aufgabe_fuer_justin") && SPIELARTEN.length === 12 && SPIELARTEN.includes("willkommen"));
+// E-458 (Justin 29.10.2026): dazu die Gesprächsarten „wunsch“ und „erinnerung“ und ihre zwei Werkzeuge (gespraech_buchen, gespraech_bestaetigen).
+ok("16 Werkzeuge (14 + gespraech_buchen, gespraech_bestaetigen — E-458), 14 Spielarten (mit „wunsch“ und „erinnerung“)", WERKZEUGE.length === 16 && WERKZEUGE.includes("probe_feedback_merken") && WERKZEUGE.includes("aufgabe_fuer_justin") && WERKZEUGE.includes("gespraech_buchen") && WERKZEUGE.includes("gespraech_bestaetigen") && SPIELARTEN.length === 14 && SPIELARTEN.includes("willkommen") && SPIELARTEN.includes("wunsch") && SPIELARTEN.includes("erinnerung"));
 ok("Ampel kennt jedes Werkzeug genau einmal", ARAS_AMPEL.length === WERKZEUGE.length && WERKZEUGE.every((w) => ARAS_AMPEL.filter((a) => a.key === w).length === 1));
 ok("Geld buchen / Erstattung / Storno / Kündigung sind KEIN Werkzeug", !(WERKZEUGE as readonly string[]).some((w) => /^(geld_buchen|erstattung|raten_storno|kuendigung_buchen|vertrag_schliessen|lastschrift)/.test(w)));
 ok("Werbe-Spielarten brauchen Einwilligung, Vertragssache nicht", istWerbeSpielart("zuruf") && istWerbeSpielart("lead") && !istWerbeSpielart("rate") && !istWerbeSpielart("stufe_a") && RECHTSGRUND.zusage === "vertrag");
 ok("Nummer → Land", nummerLand("+4917012345") === "DE" && nummerLand("+43664123") === "AT" && nummerLand("+4179123") === "CH" && nummerLand("+1212") === null);
 ok("Kosten: 10 Min GPT-Live ≈ 46 Cent, Telefon 10 Min ≈ 43,7 Cent", Math.abs(stimmKostenCents("gpt-live-1", 600) - 46) < 1 && Math.abs(telefonKostenCents(600) - 43.7) < 0.2, `${stimmKostenCents("gpt-live-1", 600)} / ${telefonKostenCents(600)}`);
+
+// ── E-458 (Justin 29.10.2026): „ARAS telefoniert nur noch die Termine oder die Leute die einen Anruf wollen“ ──────────
+titel("10. E-458: ANRUF-WUNSCH UND ERINNERUNG — Regeln, Stufen, Fenster");
+{
+  const S = await import("../shared/fiaon-aras");
+  // Der Stand der Produktion am 29.10.2026 (nur gelesen): Willkommen und Rate aus, Termin an — die neuen Arten fehlen im Wert.
+  const prod = JSON.stringify({ termin: "an", willkommen: "aus", lead: "aus", zuruf: "aus", stufe_b: "aus", stufe_a: "aus", rate: "aus", zusage: "aus", rueckholung: "aus", auftrag: "aus", eingehend: "aus", probe: "an" });
+  const e0 = S.einstellungenAnwenden({ aras_spielarten: prod, aras_stufe: "0" });
+  const e1 = S.einstellungenAnwenden({ aras_spielarten: prod, aras_stufe: "1" });
+  ok("Produktionswert: Anruf-Wunsch und Erinnerung gelten als an (Vorgabe), Willkommen und Rate bleiben aus, Zuruf gesperrt",
+    e1.spielarten.wunsch && e1.spielarten.erinnerung && e1.spielarten.termin && !e1.spielarten.willkommen && !e1.spielarten.rate && !e1.spielarten.zuruf);
+  const g0 = S.stufenGrenzen(e0), g1 = S.stufenGrenzen(e1);
+  ok("Stufe 0: weder Anruf-Wunsch noch Erinnerung noch Termin (nur Probe) — Rot-Probe des Stufen-Tors", !g0.spielartErlaubt("wunsch") && !g0.spielartErlaubt("erinnerung") && !g0.spielartErlaubt("termin") && g0.spielartErlaubt("probe"));
+  ok("Stufe 1: Termin, Anruf-Wunsch und Erinnerung erlaubt — Willkommen und Rate nicht (Schalter aus)", g1.spielartErlaubt("wunsch") && g1.spielartErlaubt("erinnerung") && g1.spielartErlaubt("termin") && !g1.spielartErlaubt("willkommen") && !g1.spielartErlaubt("rate"));
+  let wirft = false; try { S.einstellungPruefen("aras_spielarten", JSON.stringify({ zuruf: "an" })); } catch { wirft = true; }
+  ok("Rot-Probe: „Verkauf nach JA“ (zuruf) bleibt im Code gesperrt — auch per Einstellung nicht an", wirft && S.istGesperrteSpielart("zuruf") && !S.istGesperrteSpielart("wunsch") && !S.istGesperrteSpielart("erinnerung"));
+  ok("Rechtsgrund: beide nur mit Einwilligung (Werbe-Wand), Priorität Erinnerung 1, Anruf-Wunsch 2",
+    S.RECHTSGRUND.wunsch === "einwilligung" && S.RECHTSGRUND.erinnerung === "einwilligung" && S.istWerbeSpielart("wunsch") && S.PRIORITAET.erinnerung === 1 && S.PRIORITAET.wunsch === 2);
+  ok("Firmen (Global): nur Anruf-Wunsch und Erinnerung — Rot-Probe: Rate, Termin, Willkommen bleiben für Firmen zu",
+    S.globalErlaubt("wunsch") && S.globalErlaubt("erinnerung") && !S.globalErlaubt("rate") && !S.globalErlaubt("termin") && !S.globalErlaubt("willkommen"));
+  ok("Schriftliches Ja: Antrag-Kästchen, WhatsApp, Mail, Meta — nicht „chef“ (mündlich), nicht „rueckruf_buchung“, nicht das Buchungs-Kästchen",
+    (["antrag_kaestchen", "zuruf_whatsapp", "zuruf_mail", "meta_kaestchen"] as const).every((a) => S.WUNSCH_EINWILLIGUNGEN.includes(a))
+    && !S.WUNSCH_EINWILLIGUNGEN.includes("chef") && !S.WUNSCH_EINWILLIGUNGEN.includes("rueckruf_buchung") && !S.WUNSCH_EINWILLIGUNGEN.includes("termin_kaestchen")
+    && S.EINWILLIGUNG_ARTEN.includes("termin_kaestchen"));
+  ok("Werkzeuge: Anruf-Wunsch ohne Zahltag und Ratenpause, Firma mit Erstgespräch, Erinnerung mit Bestätigen — nie ein Zahlungslink an Firmen",
+    !S.WERKZEUGE_WUNSCH.includes("zahlungszusage_merken") && !S.WERKZEUGE_WUNSCH.includes("ratenpause_setzen") && S.WERKZEUGE_WUNSCH.includes("rueckruf_buchen")
+    && S.WERKZEUGE_WUNSCH_GLOBAL.includes("gespraech_buchen") && !S.WERKZEUGE_WUNSCH_GLOBAL.includes("zahlungslink_senden")
+    && S.WERKZEUGE_ERINNERUNG.includes("gespraech_bestaetigen") && !S.WERKZEUGE_ERINNERUNG.includes("zahlungslink_senden"));
+  ok("Fenster: Anruf-Wunsch Sa 11:00 offen, So zu, Erinnerung Di 09:29 zu (Verkaufs-Fenster Mo–Sa 09:30–21:00)",
+    fensterOffen("wunsch", "DE", berlin("2026-10-24 11:00")).offen && fensterOffen("wunsch", "DE", berlin("2026-10-25 11:00", "+01:00")).grund === "sonntag" && !fensterOffen("erinnerung", "DE", berlin("2026-10-20 09:29")).offen);
+
+  // Erinnerung: zwischen drei Stunden und 30 Minuten vor dem Gespräch, im Fenster — sonst am Vortag 17–20 Uhr — sonst keine.
+  const hm = (d: Date) => d.toLocaleTimeString("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" });
+  const tg = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+  const f14 = S.erinnerungFenster(berlin("2026-11-05 14:00", "+01:00"));
+  ok("Gespräch Do 05.11. 14:00 → Anruf 11:00–13:30 am selben Tag", !!f14 && !f14.vortag && hm(f14.ab) === "11:00" && hm(f14.bis) === "13:30" && tg(f14.ab) === "2026-11-05", f14 ? `${tg(f14.ab)} ${hm(f14.ab)}–${hm(f14.bis)}` : "null");
+  const f10 = S.erinnerungFenster(berlin("2026-11-06 10:00", "+01:00"));
+  ok("Gespräch Fr 06.11. 10:00 (vor 09:30 bleibt kein Platz) → am Vortag 17:00–20:00", !!f10 && f10.vortag && tg(f10.ab) === "2026-11-05" && hm(f10.ab) === "17:00" && hm(f10.bis) === "20:00", f10 ? `${tg(f10.ab)} ${hm(f10.ab)}–${hm(f10.bis)}` : "null");
+  const fSa = S.erinnerungFenster(berlin("2026-11-07 10:30", "+01:00"));
+  ok("Gespräch Sa 07.11. 10:30 → 09:30–10:00 (die halbe Stunde im Fenster genügt)", !!fSa && !fSa.vortag && hm(fSa.ab) === "09:30" && hm(fSa.bis) === "10:00", fSa ? `${hm(fSa.ab)}–${hm(fSa.bis)}` : "null");
+  ok("Rot-Probe: Gespräch Mo 09.11. 09:00 → kein Anruf (Vortag ist Sonntag) — dann erinnern nur die Mails", S.erinnerungFenster(berlin("2026-11-09 09:00", "+01:00")) === null);
+  const fFt = S.erinnerungFenster(berlin("2026-12-25 15:00", "+01:00"));
+  ok("Feiertag (25.12.): nie am Feiertag selbst — am Vortag abends", !!fFt && fFt.vortag && tg(fFt.ab) === "2026-12-24");
+  ok("Sommerzeit: Gespräch Do 22.10. 14:00 (MESZ) → 11:00–13:30", (() => { const f = S.erinnerungFenster(berlin("2026-10-22 14:00")); return !!f && hm(f.ab) === "11:00" && hm(f.bis) === "13:30"; })());
+
+  // Die reinen Regeln des Servers (fiaon-aras-wunsch.ts) — ohne Datenbank.
+  const W = await import("../server/lib/fiaon-aras-wunsch");
+  const F2 = S.FENSTER_VORGABE;
+  const jetztDi = berlin("2026-11-03 10:00", "+01:00");
+  const r1 = W.rueckrufFensterPruefen(berlin("2026-11-03 14:00", "+01:00"), berlin("2026-11-03 16:00", "+01:00"), F2, jetztDi);
+  ok("Rückruf bei ARAS: Di 14–16 Uhr geht", r1.ok && hm(r1.von) === "14:00" && hm(r1.bis) === "16:00");
+  const r2 = W.rueckrufFensterPruefen(berlin("2026-11-03 20:30", "+01:00"), berlin("2026-11-03 22:00", "+01:00"), F2, jetztDi);
+  ok("Rückruf bei ARAS: 20:30–22:00 wird auf 20:30–21:00 gekürzt", r2.ok && hm(r2.bis) === "21:00");
+  ok("Rot-Probe: Sonntag, zu kurz (20:45–22:00), zu lang (5 Stunden), über zwei Tage → nie eingetragen",
+    !W.rueckrufFensterPruefen(berlin("2026-11-08 14:00", "+01:00"), berlin("2026-11-08 16:00", "+01:00"), F2, jetztDi).ok
+    && !W.rueckrufFensterPruefen(berlin("2026-11-03 20:45", "+01:00"), berlin("2026-11-03 22:00", "+01:00"), F2, jetztDi).ok
+    && !W.rueckrufFensterPruefen(berlin("2026-11-03 10:00", "+01:00"), berlin("2026-11-03 15:00", "+01:00"), F2, jetztDi).ok
+    && !W.rueckrufFensterPruefen(berlin("2026-11-03 20:00", "+01:00"), berlin("2026-11-04 10:00", "+01:00"), F2, jetztDi).ok);
+  ok("Maras Angebot muss ARAS als KI nennen — Rot-Probe: ohne KI-Hinweis oder nur ein Mensch zählt nicht",
+    W.angebotNenntKi("Sehr gern! Unsere digitale Mitarbeiterin ARAS – eine KI – kann Sie heute zwischen 14 und 16 Uhr anrufen. Passt Ihnen das?")
+    && !W.angebotNenntKi("Herr Stripling ruft Sie heute um 14 Uhr an.") && !W.angebotNenntKi("ARAS ruft Sie heute an.") && !W.angebotNenntKi(null));
+  ok("So liest er das Fenster: „heute zwischen 14 und 16 Uhr“ / „morgen zwischen 9:30 und 11 Uhr“",
+    W.fensterText(berlin("2026-11-03 14:00", "+01:00"), berlin("2026-11-03 16:00", "+01:00"), jetztDi) === "heute zwischen 14 und 16 Uhr"
+    && W.fensterText(berlin("2026-11-04 09:30", "+01:00"), berlin("2026-11-04 11:00", "+01:00"), jetztDi) === "morgen zwischen 9:30 und 11 Uhr",
+    W.fensterText(berlin("2026-11-04 09:30", "+01:00"), berlin("2026-11-04 11:00", "+01:00"), jetztDi));
+  ok("Woher sein Ja kam, in Kundenworten (nie ein Systemwort)", W.wunschQuelleText("antrag_kaestchen") === "im Antrag" && W.wunschQuelleText("zuruf_whatsapp") === "per WhatsApp" && W.wunschQuelleText("zuruf_whatsapp", "mara_bei_aras") === "bei unserer Kollegin Mara");
+  const nf = W.naechstesFenster(F2, berlin("2026-11-07 21:30", "+01:00"));
+  ok("Nach Fensterende am Samstag: nächstes Fenster erst Montag 09:30 (Sonntag zu)", tg(nf.ab) === "2026-11-09" && hm(nf.ab) === "09:30" && hm(nf.bis) === "21:00", `${tg(nf.ab)} ${hm(nf.ab)}`);
+}
 
 log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);
 process.exit(schlecht === 0 ? 0 : 1);

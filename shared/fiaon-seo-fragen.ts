@@ -609,7 +609,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/partnernetzwerk/steuern": [
     {
       "f": "Warum zahle ich nicht je Mandat?",
-      "a": "Weil das berufsrechtlich unzulässig wäre: § 9 Abs. 2 StBerG verbietet Vergütungen für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation."
+      "a": "Weil das berufsrechtlich unzulässig wäre: § 9 StBerG verbietet Vergütungen für die Vermittlung von Aufträgen. Der Partnerplatz ist ein fester Preis für Sichtbarkeit und Terminorganisation."
     },
     {
       "f": "Was kostet der Partnerplatz?",
@@ -631,7 +631,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/en/partner-network/tax": [
     {
       "f": "Why do I not pay per mandate?",
-      "a": "Because it would breach professional rules: § 9(2) StBerG prohibits fees for introducing engagements. The partner seat is a fixed price for visibility and appointment organisation."
+      "a": "Because it would breach professional rules: § 9 StBerG prohibits fees for introducing engagements. The partner seat is a fixed price for visibility and appointment organisation."
     },
     {
       "f": "What does the partner seat cost?",

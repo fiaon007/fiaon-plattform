@@ -128,7 +128,8 @@ export default function GlobalNav() {
   const sprachHref = (() => {
     const loc = typeof window !== "undefined" ? window.location : null;
     // 29.10.2026 (E-459): Die Vertrauensseite liegt außerhalb von /business — ihr Paar kommt aus ihrer kleinen Quelle.
-    const serioes = pfad === SERIOES_PFAD.de || pfad === SERIOES_PFAD.en ? SERIOES_PFAD[en ? "de" : "en"] : null;
+    const pn = (pfad.replace(/\/+$/, "") || "/").toLowerCase();
+    const serioes = pn === SERIOES_PFAD.de || pn === SERIOES_PFAD.en ? SERIOES_PFAD[en ? "de" : "en"] : null;
     const ziel = serioes ?? globalSchwester(pfad, en ? "de" : "en") ?? globalSeitePfad(en ? "de" : "en");
     return ziel + (/\/business\/(start|auftrag)(\/|$)/.test(ziel) ? (loc?.search ?? "") : "") + (loc?.hash ?? "");
   })();

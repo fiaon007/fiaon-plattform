@@ -87,7 +87,10 @@ pruef("EIN wartet weiter", z("s07_ein_formular").zustand === "wartet");
 pruef("nächster überspringt Wartendes", st.naechster === "s10_notiz", st.naechster);
 pruef("Zahl 9 von 20", st.erledigt === 9, st.erledigt);
 const st2 = ablaufStand({ status: "gestartet", schritte: [], haken: { v_taetigkeit: h(), v_einverstanden: h() } });
-pruef("EIN frei mit Vorab", st2.schritte.find((s) => s.key === "s07_ein_formular")!.zustand === "offen");
+// E-462 Nachtrag: ohne US-Nummer wartet das EIN-Formular weiter — mit Nummer + Vorab ist es frei.
+pruef("EIN wartet ohne US-Nummer", st2.schritte.find((s) => s.key === "s07_ein_formular")!.zustand === "wartet");
+const st3 = ablaufStand({ status: "gestartet", schritte: [], plus: { usTelefon: "+1 555 0100" }, haken: { v_taetigkeit: h(), v_einverstanden: h() } });
+pruef("EIN frei mit Vorab + US-Nummer", st3.schritte.find((s) => s.key === "s07_ein_formular")!.zustand === "offen");
 
 console.log(`pruef-global-arbeitsablauf: ${gut} grün, ${schlecht} rot`);
 process.exit(schlecht ? 1 : 0);

@@ -78,6 +78,8 @@ export interface AblaufSchritt {
   quelle: AblaufQuelle;
   /** Erst, wenn diese Vorab-Dinge da sind (sonst „wartet auf den Kunden"). */
   braucht?: string[];
+  /** E-462 Nachtrag (29.10.2026, Justin): erst, wenn die US-Nummer des Kunden eingetragen ist (Schritt 12). */
+  brauchtUsTelefon?: boolean;
   /** Station, die der Knopf „Station öffnen" aufklappt (bei Station-Schritten automatisch). */
   station?: string;
 }
@@ -147,9 +149,12 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
           { feld: "Staat (Florida)", wert: "125 $", kopieren: false },
           { feld: "Summe", wert: "304 $", kopieren: false },
         ],
-        hinweise: [{ ton: "warnung", text: "Andere Summe als 304 $? Dann nicht bezahlen — erst prüfen, was dazugekommen ist." }] },
-      { nr: 7, key: "s07_ein_formular", titel: "EIN-Formular ausfüllen", wer: "du", quelle: { art: "haken" }, braucht: ["v_taetigkeit", "v_einverstanden"],
-        text: "EIN = die Steuernummer der Firma. Responsible Party (die verantwortliche Person) ist der Kunde. Alle 5 Kästchen bleiben leer. Unterschreiben darfst du nur mit dem schriftlichen „Einverstanden“ des Kunden.",
+        hinweise: [
+          { ton: "warnung", text: "Andere Summe als 304 $? Dann nicht bezahlen — erst prüfen, was dazugekommen ist." },
+          { ton: "info", text: "Nach dem Bezahlen öffnet Northwest zuerst das EIN-Formular. Fehlen US-Nummer, Tätigkeit oder „Einverstanden“: nichts eintragen, „Back to Filing Orders“ klicken und die Gründung (Schritt 8) öffnen. Bezahlt ist beides schon." },
+        ] },
+      { nr: 7, key: "s07_ein_formular", titel: "EIN-Formular ausfüllen", wer: "du", quelle: { art: "haken" }, braucht: ["v_taetigkeit", "v_einverstanden"], brauchtUsTelefon: true,
+        text: "EIN = die Steuernummer der Firma. Erst ausfüllen, wenn drei Dinge da sind: US-Nummer (Schritt 12), Tätigkeit und „Einverstanden“ — dann in einem Rutsch, 3 Minuten. Responsible Party (die verantwortliche Person) ist der Kunde. Alle 5 Kästchen bleiben leer. Unterschreiben darfst du nur mit dem schriftlichen „Einverstanden“ des Kunden.",
         felder: [
           { feld: "Responsible Party", wert: "{kunde}", hinweis: "der Kunde selbst" },
           { feld: "First name", wert: "{vorname}" },
@@ -162,14 +167,14 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
           { feld: "Purpose", wert: "Tätigkeit des Kunden (Vorab-Satz)", kopieren: false, hinweis: "z. B. „Business consulting services“" },
           { feld: "Start Date", wert: "{heuteUs}", hinweis: "heute" },
           { feld: "Members", wert: "1" },
-          { feld: "Firmen-Telefon", wert: "{usTelefon}", hinweis: "seine US-Nummer, falls schon da" },
+          { feld: "Firmen-Telefon", wert: "{usTelefon}", hinweis: "seine US-Nummer aus Schritt 12" },
           { feld: "Die 5 Kästchen", wert: "alle leer", kopieren: false },
           { feld: "Principal Address", wert: "Use our address" },
           { feld: "Mailing Address", wert: "Use our address" },
           { feld: "Unterschrift", wert: "nur mit „Einverstanden“ des Kunden", kopieren: false },
           { feld: "Dann", wert: "Save / Submit", kopieren: false },
         ],
-        hinweise: [{ ton: "info", text: "Fehlen Tätigkeit oder „Einverstanden“ noch? Dann mach erst Schritt 8 (Gründung) — das EIN-Formular kommt danach." }] },
+        hinweise: [{ ton: "info", text: "Fehlt noch etwas davon? Dann mach erst Schritt 8 (Gründung) — das EIN-Formular kommt danach. Die EIN beantragt Northwest ohnehin erst nach der Eintragung, es geht kein Tag verloren." }] },
       { nr: 8, key: "s08_formation", titel: "Formation-Formular absenden", wer: "du", quelle: { art: "station", schluessel: "articles" },
         text: "Formation = die Gründung selbst. Fülle das Formular so aus und klicke „Submit“. Danach setzt du die Station „Gründung eingereicht“ auf erledigt.",
         felder: [
@@ -209,7 +214,7 @@ export const ABLAUF_BLOECKE: AblaufBlock[] = [
     nr: 4, titel: "US-Nummer", wann: "Tag 0–1",
     schritte: [
       { nr: 12, key: "s12_tello", titel: "Tello-eSIM auf den Kunden", wer: "du", quelle: { art: "us_telefon" }, station: "adresse",
-        text: "eSIM = eine Handy-Karte zum Herunterladen. Kaufe sie bei Tello auf den Namen des Kunden. Das QR-PDF legst du in den Tresor. Die Nummer trägst du an der Station „US-Adresse und Telefonnummer“ ein. Dann schreibt Mara einen Entwurf mit Anleitung.",
+        text: "Am besten gleich am Tag 0 — das EIN-Formular (Schritt 7) braucht die Nummer. eSIM = eine Handy-Karte zum Herunterladen. Kaufe sie bei Tello auf den Namen des Kunden. Das QR-PDF legst du in den Tresor. Die Nummer trägst du an der Station „US-Adresse und Telefonnummer“ ein. Dann schreibt Mara einen Entwurf mit Anleitung.",
         felder: [{ feld: "Name auf der eSIM", wert: "{kunde}" }],
         links: [{ titel: "Tello", url: "https://tello.com" }, { titel: "Tresor", reiter: "tresor" }] },
     ],
@@ -444,10 +449,11 @@ export function ablaufStand(e: AblaufStandEin): AblaufStand {
       else if (art.status === "erledigt") { zustand = "in_arbeit"; quelle = "Gründung eingereicht — warten"; }
       else quelle = "erst nach der Gründung";
     }
-    if (zustand !== "erledigt" && s.braucht?.some((k) => !vorab[k]?.da)) {
-      zustand = "wartet";
-      quelle = `wartet auf: ${s.braucht.filter((k) => !vorab[k]?.da).map((k) => ABLAUF_VORAB.find((v) => v.key === k)?.titel ?? k).join(", ")}`;
-    }
+    const fehlt = [
+      ...(s.braucht ?? []).filter((k) => !vorab[k]?.da).map((k) => ABLAUF_VORAB.find((v) => v.key === k)?.titel ?? k),
+      ...(s.brauchtUsTelefon && !String(e.plus?.usTelefon ?? "").trim() ? ["US-Nummer (Schritt 12)"] : []),
+    ];
+    if (zustand !== "erledigt" && fehlt.length) { zustand = "wartet"; quelle = `wartet auf: ${fehlt.join(", ")}`; }
     return { key: s.key, zustand, datum, von, quelle, station: stationKey };
   });
   const erledigt = schritte.filter((s) => s.zustand === "erledigt").length;

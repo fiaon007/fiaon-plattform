@@ -58,6 +58,7 @@ import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { htmlAusText, maraSignatur, persoenlicheMailHtml, persoenlicheMailText, type SignaturDaten } from "./fiaon-signatur";
 import { entscheiderFinden } from "./fiaon-radar-entscheider";
+import { radarMailPruefKi } from "./fiaon-radar-pruef";
 
 /** Die Signaturkarte je Absender: Mara (digitale Assistentin) oder Justin (Gründer). */
 function karte(person: "mara" | "justin", en = false): SignaturDaten {
@@ -1056,7 +1057,13 @@ async function nachfassSchreiben(f: any, stufe: number): Promise<{ absaetze: str
       const absaetze = (daten.absaetze ?? []).map((x) => String(x).trim()).filter(Boolean).slice(0, 2);
       const frage = stufe === 1 ? String(daten.frage ?? "").trim() : "";
       const p = mailPruefen({ betreff: String(f.mail?.betreff ?? ""), absaetze, frage, ps: "" }, regeln);
-      if (absaetze.length && !p.sperrend.length) return { absaetze, frage, vorlage: false };
+      if (absaetze.length && !p.sperrend.length) {
+        // E-458 (Punkt 4): Auch das Nachfassen liest die Prüf-KI vor dem Versand — zweimal durchgefallen → feste Vorlage.
+        const pk = await radarMailPruefKi(f, { betreff: String(f.mail?.betreff ?? ""), absaetze, frage }, { strom, art: "nachfass" });
+        if (pk.bestanden) return { absaetze, frage, vorlage: false };
+        nachtrag = `\n\nDie Prüferin hat deinen Entwurf zurückgegeben — schreibe ihn neu: ${[pk.urteil?.neu_hinweis, ...pk.gruende.slice(0, 3)].filter(Boolean).join("; ")}`;
+        continue;
+      }
       nachtrag = `\n\nDein letzter Entwurf verletzte diese Regeln — schreibe ihn neu und vermeide sie: ${p.sperrend.join("; ")}`;
     } catch (e) {
       // KI-Pause oder Deckel: gleich die Vorlage (das Nachfassen hängt nicht an der KI).

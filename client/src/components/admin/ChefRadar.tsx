@@ -66,8 +66,11 @@ type Mail = {
   betreff: string; anrede: string; absaetze: string[]; frage: string; ps: string; paket: string | null; html: string; text: string;
   links: { gespraech: string; seite: string }; warnungen: string[]; sperrend: string[]; geaendert: boolean; erstellt_am: string;
 };
+type PruefKi = { ok: boolean; punkte: { regel: string; stelle: string; hinweis: string }[]; gruende?: string[]; ki_klang: number | null; modell: string; am: string; versuch: number };
 type Voll = Zeile & {
   impressum: any; notiz: string | null; gmail_entwurf_id: string | null;
+  // E-458: das Urteil der Prüf-KI zur gespeicherten Fassung, der Strom und der Stand in der Warteschlange.
+  pruef_ki?: PruefKi | null; strom?: string | null; motor_status?: string | null; motor_grund?: string | null;
   scan: { profil: any; aufhaenger: Aufhaenger[]; verworfen: number; seiten: { url: string; titel: string }[]; am: string } | null;
   mail: Mail | null;
   brief?: { betreff: string; erstellt_am: string } | null;
@@ -1231,6 +1234,18 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                     <>
                       {!!mail.sperrend?.length && <p className="cr-hinweis fehler">Sperrt Entwurf und Versand: {mail.sperrend.join(" · ")}</p>}
                       {!!mail.warnungen?.length && <p className="cr-hinweis warn">Hinweis: {mail.warnungen.join(" · ")}</p>}
+                      {/* E-458 (Punkt 4): ohne Freigabe der Prüf-KI geht keine erste Mail hinaus — auch nicht von hier. */}
+                      <div className={`cr-pruefki ${f.pruef_ki?.ok ? "gut" : f.pruef_ki ? "fehler" : "offen"}`}>
+                        <span>
+                          <b>Prüf-KI</b>{" "}
+                          {f.pruef_ki?.ok
+                            ? `freigegeben · KI-Klang ${f.pruef_ki.ki_klang ?? "—"} von 10 · Versuch ${f.pruef_ki.versuch}`
+                            : f.pruef_ki
+                              ? `nicht freigegeben: ${(f.pruef_ki.gruende ?? f.pruef_ki.punkte.map((x) => `${x.regel}: ${x.hinweis}`)).slice(0, 2).join(" · ")}`
+                              : "hat diese Fassung noch nicht gelesen — ohne Freigabe geht sie nicht hinaus."}
+                        </span>
+                        {!f.pruef_ki?.ok && <button type="button" className="cr-knopf hell" disabled={!!arbeit} onClick={() => tun("pruefen", () => rufen(`/chef/radar/firma/${id}/pruefen`, "POST", {}), "Die Prüf-KI hat gelesen.")}>{arbeit === "pruefen" ? "Prüft …" : "Prüfen lassen"}</button>}
+                      </div>
                       <div className="cr-betreff"><span>Betreff</span><b>{mail.betreff}</b></div>
                       {!bearbeiten ? (
                         <>
@@ -1246,7 +1261,6 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
                           <label title="Anrede und Gruß setzt der Radar."><span>Text — Leerzeile = neuer Absatz, letzter Absatz = Schlussfrage</span>
                             <textarea className="cr-feld" value={koerper} onChange={(e) => setKoerper(e.target.value)} rows={14} />
                           </label>
-                          <label><span>PS (optional)</span><input className="cr-feld" value={ps} onChange={(e) => setPs(e.target.value)} maxLength={400} /></label>
                           <div className="cr-fenster-zeile">
                             <button type="button" className="cr-knopf" disabled={!!arbeit} onClick={() => tun("speichern", () => rufen(`/chef/radar/firma/${id}/mail`, "PUT", { betreff, koerper, ps }), "Gespeichert.", () => setBearbeiten(false))}>Speichern</button>
                             <button type="button" className="cr-knopf hell" onClick={() => setBearbeiten(false)}>Abbrechen</button>

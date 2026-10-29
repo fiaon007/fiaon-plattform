@@ -537,3 +537,10 @@ select.cr-feld { cursor: pointer; }
 .cr-szenarien li i { font-style: normal; grid-row: span 2; color: #6ee7b7; }
 .cr-szenarien li.rot { background: rgba(248, 113, 113, .08); }
 .cr-szenarien li.rot i { color: #fca5a5; }
+
+/* ── E-458: Prüf-KI in der Akte ── */
+.cr-pruefki { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 9px 12px; border-radius: 9px; font-size: 12.5px; line-height: 1.5; border: 1px solid var(--cr-linie); background: var(--cr-matt); }
+.cr-pruefki b { font-weight: 500; color: var(--cr-hell); }
+.cr-pruefki.gut { border-color: rgba(52, 211, 153, .35); color: #a7f3d0; }
+.cr-pruefki.fehler { border-color: rgba(248, 113, 113, .4); color: #fecaca; }
+.cr-pruefki.offen { border-color: rgba(251, 191, 36, .35); color: #fde68a; }

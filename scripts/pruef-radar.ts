@@ -529,6 +529,68 @@ abschnitt("Text und Unterschrift: menschlich, nie nach KI (E-458)");
   ok(/Diese Mail ist nach alten Regeln geschrieben oder verletzt sie/.test(libQ) && /\{ streng: true, strom, gruppe: f\.mail\.gruppe \?\? null, anrede: f\.mail\.anrede \?\? null, schluss, mitLink \}/.test(libQ), "Beim Senden gelten die strengen Regeln — für Motor, Stapel und Akte");
 }
 
+abschnitt("Prüf-KI vor jeder Mail (E-458)");
+{
+  const lib = await import("../server/lib/fiaon-radar");
+  const pk = await import("../server/lib/fiaon-radar-pruef");
+  const gut = { ok: true, ki_klang: 1, bezug_konkret: true, nutzen_klar: true, eine_frage: true, zusage: false, erfunden: false, punkte: [], neu_hinweis: "" };
+  ok(sh8.radarPruefUrteil(gut, 3).bestanden, "Urteil: alles gut → bestanden");
+  ok(!sh8.radarPruefUrteil("{kaputt", 3).bestanden && !sh8.radarPruefUrteil(null, 3).bestanden && !sh8.radarPruefUrteil({}, 3).bestanden, "Urteil: kaputtes JSON oder leeres Urteil → nicht bestanden");
+  ok(!sh8.radarPruefUrteil({ ...gut, ki_klang: 4 }, 3).bestanden && sh8.radarPruefUrteil({ ...gut, ki_klang: 3 }, 3).bestanden, "Urteil: KI-Klang 4 → nicht bestanden, 3 → bestanden");
+  ok(!sh8.radarPruefUrteil({ ...gut, zusage: true }, 3).bestanden && !sh8.radarPruefUrteil({ ...gut, erfunden: true }, 3).bestanden && !sh8.radarPruefUrteil({ ...gut, zusage: undefined }, 3).bestanden, "Urteil: Zusage oder Erfundenes (auch unklar) → nicht bestanden");
+  ok(!sh8.radarPruefUrteil({ ...gut, ok: false }, 3).bestanden && !sh8.radarPruefUrteil({ ...gut, eine_frage: false }, 3).bestanden && !sh8.radarPruefUrteil({ ...gut, bezug_konkret: false }, 3).bestanden, "Urteil: ok = false, mehrere Fragen oder kein Bezug → nicht bestanden");
+  const m = { betreff: "Ihre neue Halle", absaetze: ["Satz eins.", "Satz zwei."], frage: "Passt das?" };
+  const h = lib.radarMailHash(m);
+  ok(h === lib.radarMailHash({ ...m }) && /^[0-9a-f]{64}$/.test(h), "Hash: stabil (sha256)");
+  ok(h !== lib.radarMailHash({ ...m, betreff: "Ihre neue Halle." }) && h !== lib.radarMailHash({ ...m, absaetze: ["Satz eins!", "Satz zwei."] }) && h !== lib.radarMailHash({ ...m, frage: "Passt das ?" }), "Hash: ändert sich bei jedem Zeichen in Betreff, Absätzen oder Frage");
+  const anw = pk.radarPruefAnweisung({ strom: "firma" });
+  ok(["Zusage", "Zinssatz", "Betrag", "Bürgschaft", "„bis zu“", "Bankname", "ERFUNDEN", "KI-KLANG", "Gedankenstrich", "Aufzählung", "Floskeln"].every((w) => anw.includes(w)), "Die Prüf-Anweisung nennt Zusage, Zinssatz, Betrag, Bürgschaft, „bis zu“, Bankname, Erfundenes, KI-Klang, Gedankenstrich, Aufzählung, Floskeln");
+  ok(/KEINE Provision/.test(pk.radarPruefAnweisung({ strom: "partner", provision: false })) && /Terminwunsch/.test(pk.radarPruefAnweisung({ strom: "partner", provision: true })), "Partner: Provision nur wo erlaubt, kein Treffen");
+  // Fingerabdruck
+  const kern = Object.values(sh8.RADAR_KERNSATZ).join(" ");
+  const a1 = `Ich habe gelesen, dass Ihre Werkstatt im Frühjahr einen zweiten Standort eröffnet hat. ${kern} Wäre das für Sie ein Thema?`;
+  const a2 = `Mir ist aufgefallen, dass Sie gerade drei neue Fahrzeuge für die Auslieferung anschaffen. ${kern} Passt das zu Ihren Plänen?`;
+  const f1 = "Ich habe gesehen, dass Sie dieses Jahr eine zweite Halle bauen. Genau dafür gründen wir Unternehmern eine eigene Gesellschaft in Amerika und kümmern uns um Konto und Karten. Wäre das gerade ein Thema?";
+  const f2 = "Ihr neuer Onlineshop für Kunden in Übersee ist mir aufgefallen. Für so einen Schritt bauen wir eine Firma vor Ort auf, samt Geschäftskonto, Firmenkarten und dem Weg zu frischem Kapital. Darf ich Ihnen dazu kurz schreiben, wie das abläuft?";
+  ok(sh8.radarAehnlichkeit(a2, [a1]) > 0.35, `Fingerabdruck: wörtlich gleicher Kernsatz > 0,35 (${sh8.radarAehnlichkeit(a2, [a1])}) — sperrt`);
+  ok(sh8.radarAehnlichkeit(f2, [f1]) < 0.35 && sh8.radarAehnlichkeit("", [f1]) === 0, `Fingerabdruck: frei formuliert < 0,35 (${sh8.radarAehnlichkeit(f2, [f1])})`);
+  // Der Ablauf mit Attrappen: einmal neu, nie ein drittes Mal, KI-Pause bricht ab.
+  const pruefung = (bestanden: boolean, extra: any = {}) => ({ bestanden, urteil: { ...gut, ok: bestanden, ki_klang: bestanden ? 1 : 6, punkte: bestanden ? [] : [{ regel: "KI-Klang", stelle: "nahtlos", hinweis: "Schreib es wie ein Mensch" }], neu_hinweis: bestanden ? "" : "Kürzer und konkreter." }, gruende: bestanden ? [] : ["Klingt nach KI (6 von 10)"], modell: "attrappe", hash: "h", ...extra });
+  const lauf = async (urteile: boolean[], o: { sperrend?: string[][]; aehnlich?: number[]; wirft?: boolean } = {}) => {
+    const hinweise: (string | null)[] = []; let geprueft = 0;
+    const erg = await pk.radarFertigAblauf({
+      schreiben: async (hw) => { hinweise.push(hw); return { sperrend: o.sperrend?.[hinweise.length - 1] ?? [], n: hinweise.length }; },
+      pruefen: async () => { if (o.wirft) throw new lib.RadarFehler("KI pausiert", 503); return pruefung(urteile[geprueft++] ?? false); },
+      aehnlich: () => o.aehnlich?.[hinweise.length - 1] ?? 0.1, aehnlichMax: 0.35,
+    });
+    return { erg, hinweise, geprueft };
+  };
+  let r = await lauf([true]);
+  ok(r.erg.ok && r.erg.versuche === 1 && r.hinweise.length === 1 && r.geprueft === 1, "Attrappe: Urteil ok → bereit nach einem Versuch");
+  r = await lauf([false, true]);
+  ok(r.erg.ok && r.erg.versuche === 2 && r.hinweise.length === 2 && r.hinweise[0] === null && /Schreib es wie ein Mensch/.test(String(r.hinweise[1])) && /Kürzer und konkreter/.test(String(r.hinweise[1])), "Attrappe: erstes Nein → genau ein Neuschreiben, die Punkte stehen im Nachtrag");
+  r = await lauf([false, false, true]);
+  ok(!r.erg.ok && r.hinweise.length === 2 && r.geprueft === 2 && /Klingt nach KI/.test(String(r.erg.grund)), "Attrappe: zweites Nein → verworfen mit Grund, kein drittes Schreiben");
+  r = await lauf([true], { sperrend: [["Gedankenstrich"]] });
+  ok(!r.erg.ok && r.geprueft === 0 && /Gedankenstrich/.test(String(r.erg.grund)), "Harte Regeln verletzt → die Prüf-KI wird gar nicht erst gefragt");
+  r = await lauf([true], { aehnlich: [0.6, 0.1] });
+  ok(r.erg.ok && r.hinweise.length === 2 && /Zu ähnlich/.test(String(r.hinweise[1])) && r.geprueft === 1, "Zu ähnlich zu einer früheren Mail → einmal neu, ohne die Prüf-KI zu bezahlen");
+  let warf: any = null;
+  try { await lauf([true], { wirft: true }); } catch (e) { warf = e; }
+  ok(warf?.status === 503, "KI-Pause in der Attrappe: der Ablauf bricht ab, nichts gilt als bestanden");
+  // Die Prüf-KI selbst, mit Attrappe statt Modell (kein Netz)
+  let gesehen = "";
+  pk.radarPruefModellSetzen(async (e) => { gesehen = `${e.anweisung}\n${e.eingabe}`; return JSON.stringify({ ...gut, ki_klang: 2 }); });
+  const pr = await pk.radarMailPruefKi({ name: "Beispiel Bau GmbH", domain: "beispiel-bau.example", scan: { aufhaenger: [{ text: "Neue Halle", beleg: "Wir bauen 2026 eine zweite Halle" }], profil: { zusammenfassung: "Bauunternehmen" } } }, { betreff: "Ihre neue Halle", absaetze: ["Ich habe gesehen, dass Sie bauen."], frage: "Passt das?" }, { strom: "firma" });
+  pk.radarPruefModellSetzen(null);
+  ok(pr.bestanden && pr.modell === "attrappe" && pr.hash === lib.radarMailHash({ betreff: "Ihre neue Halle", absaetze: ["Ich habe gesehen, dass Sie bauen."], frage: "Passt das?" }) && /Wir bauen 2026 eine zweite Halle/.test(gesehen), "Prüf-KI mit Attrappe: Urteil, Hash der Fassung, Aufhänger als Beleg in der Eingabe");
+  const libQ = lies("server/lib/fiaon-radar.ts");
+  ok(/if \(!f\.pruef_ki\?\.ok \|\| f\.pruef_ki\.hash !== radarMailHash\(f\.mail\)\) throw new RadarFehler/.test(libQ), "radarMailAusgeben verlangt pruef_ki.ok und denselben Hash — für Motor, Stapel und Akte");
+  ok(/radarMailAendern[\s\S]{0,3200}pruef_ki = NULL, pruef_ki_am = NULL/.test(libQ) && /mail_am = NOW\(\), pruef_ki = NULL, pruef_ki_am = NULL/.test(libQ), "Hand-Änderung und Neuschreiben setzen das Urteil zurück");
+  ok(/radarMailFertig, radarMailNurPruefen/.test(libQ) && /"\/chef\/radar\/firma\/:id\/pruefen", wache/.test(lies("server/routes/fiaon-radar.ts")) && /Prüfen lassen/.test(lies("client/src/components/admin/ChefRadar.tsx")), "Stapel prüft vor dem Senden; Akte: „Prüfen lassen“ hinter der Wache");
+  ok(/radarMailPruefKi\(f, \{ betreff: String\(f\.mail\?\.betreff \?\? ""\), absaetze, frage \}, \{ strom, art: "nachfass" \}\)/.test(lies("server/lib/fiaon-radar-faden.ts")), "Auch das Nachfassen liest die Prüf-KI (zweimal durchgefallen → feste Vorlage)");
+}
+
 abschnitt("Ergebnis");
 console.log(`  ${geprueft} Prüfungen, ${fehler} Fehler.`);
 process.exit(fehler ? 1 : 0);

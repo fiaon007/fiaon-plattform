@@ -470,14 +470,18 @@ export interface RadarMotor {
   haltbarTage: number;
   /** Firmen-Mails: ein Link „Einen Termin wählen“ nach der Frage — oder keiner. Partner-Mails tragen nie einen. */
   link: "termin" | "keiner";
+  /** Prüf-KI (Punkt 4): höchstens so viel KI-Klang (0 = klingt menschlich, 10 = klar KI) besteht. */
+  kiKlangMax: number;
+  /** Fingerabdruck (Punkt 4): Anteil der 5-Wort-Folgen, die schon in einer früheren Mail standen — darüber sperrt es. */
+  aehnlichMax: number;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
-export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin" };
+export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35 };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
-  link: "radar_motor_link",
+  link: "radar_motor_link", kiKlangMax: "radar_pruef_ki_klang_max", aehnlichMax: "radar_motor_aehnlich_max",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -523,6 +527,8 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
     puffer: zahl(roh[k.puffer], v.puffer, 0.1, 5),
     haltbarTage: Math.round(zahl(roh[k.haltbarTage], v.haltbarTage, 1, 30)),
     link: text(roh[k.link]) === "keiner" ? "keiner" : v.link,
+    kiKlangMax: Math.round(zahl(roh[k.kiKlangMax], v.kiKlangMax, 0, 10)),
+    aehnlichMax: zahl(roh[k.aehnlichMax], v.aehnlichMax, 0.05, 1),
   };
 }
 
@@ -601,6 +607,77 @@ export function radarLandFuer(f: { land?: unknown; impressum?: any; domain?: unk
 /** Darf in dieses Land eine Mail gehen? Rein. */
 export function radarMailErlaubt(land: unknown): boolean {
   return !(RADAR_NUR_BRIEF_LAENDER as readonly string[]).includes(alsRadarLand(land) ?? "DE");
+}
+
+// ── DIE PRÜF-KI VOR JEDER MAIL (E-458 Punkt 4) — die Regel, nach der ihr Urteil zählt ─────────
+export interface RadarPruefPunkt { regel: string; stelle: string; hinweis: string }
+export interface RadarPruefUrteil {
+  ok: boolean;
+  /** 0 = klingt wie ein Mensch, der genau diesem Menschen schreibt · 10 = klar KI oder Serienmail. */
+  ki_klang: number;
+  bezug_konkret: boolean; nutzen_klar: boolean; eine_frage: boolean;
+  /** Zusage (Finanzierung, Zinssatz, Betrag, Bürgschaft, „bis zu“, Bankname …) — dann nie. */
+  zusage: boolean;
+  /** Behauptung über die Firma, die nicht in Aufhängern oder Profil steht — dann nie. */
+  erfunden: boolean;
+  punkte: RadarPruefPunkt[];
+  neu_hinweis: string;
+}
+/**
+ * Liest das Urteil der Prüf-KI. Bestanden NUR bei ok && ki_klang ≤ max && bezug && nutzen && eine Frage && keine Zusage &&
+ * nichts erfunden. Kaputtes JSON, fehlende Felder oder Unklares zählen als durchgefallen. Rein.
+ */
+export function radarPruefUrteil(roh: unknown, maxKlang = RADAR_MOTOR_VORGABE.kiKlangMax): { bestanden: boolean; urteil: RadarPruefUrteil | null; gruende: string[] } {
+  let x: any = roh;
+  if (typeof x === "string") { try { x = JSON.parse(x); } catch { return { bestanden: false, urteil: null, gruende: ["Die Prüf-KI gab kein gültiges Urteil (JSON) zurück"] }; } }
+  if (!x || typeof x !== "object" || Array.isArray(x)) return { bestanden: false, urteil: null, gruende: ["Die Prüf-KI gab kein Urteil zurück"] };
+  const klang = Number(x.ki_klang);
+  const u: RadarPruefUrteil = {
+    ok: x.ok === true,
+    ki_klang: Number.isFinite(klang) ? Math.max(0, Math.min(10, Math.round(klang))) : 10,
+    bezug_konkret: x.bezug_konkret === true, nutzen_klar: x.nutzen_klar === true, eine_frage: x.eine_frage === true,
+    zusage: x.zusage !== false, erfunden: x.erfunden !== false,
+    punkte: (Array.isArray(x.punkte) ? x.punkte : []).slice(0, 8).map((p: any) => ({
+      regel: String(p?.regel ?? "").slice(0, 80), stelle: String(p?.stelle ?? "").slice(0, 200), hinweis: String(p?.hinweis ?? "").slice(0, 300),
+    })),
+    neu_hinweis: String(x.neu_hinweis ?? "").slice(0, 600),
+  };
+  const gruende: string[] = [];
+  if (u.zusage) gruende.push("Zusage oder Versprechen in der Mail");
+  if (u.erfunden) gruende.push("Behauptung über die Firma ohne Beleg");
+  if (u.ki_klang > maxKlang) gruende.push(`Klingt nach KI (${u.ki_klang} von 10)`);
+  if (!u.bezug_konkret) gruende.push("Kein konkreter Bezug zu genau dieser Firma");
+  if (!u.nutzen_klar) gruende.push("Der Nutzen wird nicht klar");
+  if (!u.eine_frage) gruende.push("Nicht genau eine Frage");
+  if (!u.ok && !gruende.length) gruende.push("Die Prüferin gibt die Mail nicht frei");
+  const bestanden = u.ok && !gruende.length;
+  if (!bestanden) for (const p of u.punkte.slice(0, 2)) gruende.push(`${p.regel}: ${p.hinweis}`.slice(0, 200));
+  return { bestanden, urteil: u, gruende };
+}
+
+/** Die 5-Wort-Folgen eines Textes (klein, ohne Akzente, ß → ss). Rein. */
+export function radarSchindeln(text: string, n = 5): Set<string> {
+  const woerter = String(text ?? "").toLowerCase().replace(/ß/g, "ss").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter(Boolean);
+  const aus = new Set<string>();
+  for (let i = 0; i + n <= woerter.length; i++) aus.add(woerter.slice(i, i + n).join(" "));
+  return aus;
+}
+/**
+ * Fingerabdruck gegen Massenmail-Muster: Welcher Anteil der 5-Wort-Folgen dieses Textes stand schon in EINER der früheren
+ * Mails? (Der höchste Wert zählt.) Spamfilter erkennen Serienmails an genau solchen Wiederholungen. Rein.
+ */
+export function radarAehnlichkeit(text: string, andere: readonly string[]): number {
+  const a = radarSchindeln(text);
+  if (!a.size) return 0;
+  let max = 0;
+  for (const t of andere) {
+    const b = radarSchindeln(t);
+    if (!b.size) continue;
+    let gleich = 0;
+    for (const x of Array.from(a)) if (b.has(x)) gleich++;
+    max = Math.max(max, gleich / a.size);
+  }
+  return Math.round(max * 1000) / 1000;
 }
 
 // ── DER TRICHTER ────────────────────────────────────────────────────────────

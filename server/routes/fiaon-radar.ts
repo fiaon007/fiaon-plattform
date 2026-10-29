@@ -10,7 +10,7 @@ import { Router, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import {
   RadarFehler, radarUebersicht, radarFirma, radarSucheStarten, radarLauf, radarFirmaManuell, radarScannen,
-  radarMailSchreiben, radarMailAendern, radarMailAusgeben, radarStatusSetzen, radarSperren, radarPostfachPruefen,
+  radarMailAendern, radarMailAusgeben, radarStatusSetzen, radarSperren, radarPostfachPruefen,
   radarKontaktNachsuchen, radarKontaktSetzen, radarStapelStarten, radarLaufAbbrechen,
 } from "../lib/fiaon-radar";
 import { alsRadarLand } from "@shared/fiaon-radar";
@@ -81,8 +81,23 @@ router.post("/chef/radar/firma/:id/scannen", wache, async (req: ChefRequest, res
   try { res.json({ ok: true, scan: await radarScannen(idAus(req.params.id)) }); } catch (e) { fehler(res, e); }
 });
 
+// E-458 (Punkt 4): „Mail schreiben“ = schreiben UND von der Prüf-KI lesen lassen (höchstens einmal neu) — ohne Urteil sendet nichts.
 router.post("/chef/radar/firma/:id/mail", wache, async (req: ChefRequest, res: Response) => {
-  try { res.json({ ok: true, mail: await radarMailSchreiben(idAus(req.params.id), { hinweis: req.body?.hinweis ? String(req.body.hinweis) : null }) }); } catch (e) { fehler(res, e); }
+  try {
+    const { radarMailFertig } = await import("../lib/fiaon-radar-pruef");
+    const r = await radarMailFertig(idAus(req.params.id), { hinweis: req.body?.hinweis ? String(req.body.hinweis) : null });
+    const f = await radarFirma(idAus(req.params.id));
+    res.json({ ok: true, mail: f?.mail ?? r.mail, pruefung: { ok: r.ok, grund: r.grund, versuche: r.versuche, urteil: f?.pruef_ki ?? null } });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Punkt 4): „Prüfen lassen“ — die Prüf-KI liest die gespeicherte Fassung (nach einer Änderung von Hand), ohne neu zu schreiben.
+router.post("/chef/radar/firma/:id/pruefen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { radarMailNurPruefen } = await import("../lib/fiaon-radar-pruef");
+    const p = await radarMailNurPruefen(idAus(req.params.id));
+    res.json({ ok: true, bestanden: p.bestanden, gruende: p.gruende, urteil: p.urteil, modell: p.modell });
+  } catch (e) { fehler(res, e); }
 });
 
 router.put("/chef/radar/firma/:id/mail", wache, async (req: ChefRequest, res: Response) => {

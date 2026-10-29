@@ -44,6 +44,7 @@
 // Tagesdeckel (RADAR_TAGESDECKEL_EUR, Vorgabe 25 €) sucht und schreibt der Radar
 // nicht mehr — bis zum nächsten Tag.
 // ═══════════════════════════════════════════════════════════════════════════
+import { createHash } from "node:crypto";
 import { sqlPool } from "./db-pool";
 import { nutzungMerken, kostenHeute } from "./fiaon-postmeister-schema";
 import { sicherAbrufen, NetzschutzFehler } from "./firmensuche/netzschutz";
@@ -56,7 +57,8 @@ import {
   RADAR_BEREICHE, RADAR_TAGESZIEL, RADAR_ZIELBILD, RADAR_PAKETE, RADAR_KAMPAGNE, RADAR_FREEMAIL, RADAR_GRUPPEN, RADAR_STAPEL_MAX,
   radarBereich, radarDomain, radarAdressePruefen, radarAdressePersoenlich, RADAR_ADRESSE_NIE, RADAR_ADRESSE_PLATZHALTER, RADAR_KERNSATZ, RADAR_SIGNALE, RADAR_SIGNAL_AB, RADAR_NEUES_MUSTER_AB, radarSignal, RADAR_NACHFASS_TAGE, RADAR_IM_GESPRAECH,
   radarLandFuer, radarMailErlaubt, RADAR_KI_FLOSKELN, RADAR_SCHLUSSSAETZE, radarSchlusssatz, radarGruss, alsRadarStrom,
-  type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom,
+  RADAR_MOTOR_SCHLUESSEL, radarMotorLesen,
+  type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
 import { globalWortPruefen } from "@shared/fiaon-global-wortregeln";
@@ -336,6 +338,8 @@ interface KiErgebnis<T> { daten: T; quellen: string[] }
 export async function radarKi<T>(ein: {
   zweck: string; anweisung: string; eingabe: string; schema: Record<string, unknown>;
   webSuche?: boolean; aufwand?: "low" | "medium" | "high"; maxTokens?: number;
+  /** E-458: eigenes Modell (Prüf-KI: RADAR_PRUEF_MODELL) — sonst RADAR_MODELL. */
+  modell?: string | null;
 }): Promise<KiErgebnis<T>> {
   const schluessel = SCHLUESSEL();
   if (!schluessel) throw new RadarFehler("Kein OpenAI-Schlüssel gesetzt (OPENAI_API_KEY).", 503);
@@ -345,7 +349,7 @@ export async function radarKi<T>(ein: {
   const heute = await kostenHeute("radar").catch(() => 0);
   if (heute >= deckel) throw new RadarFehler(`Der Tagesdeckel für den Radar ist erreicht (${deckel.toFixed(0)} € KI-Kosten heute). Morgen geht es weiter — oder RADAR_TAGESDECKEL_EUR anheben.`, 429);
 
-  const modell = MODELL();
+  const modell = ein.modell || MODELL();
   const start = Date.now();
   const rufen = async (werkzeug: "web_search" | "web_search_preview" | null) => {
     const body: any = {
@@ -1236,6 +1240,19 @@ export function mailPruefen(m: { betreff: string; absaetze: string[]; frage: str
   return { sperrend, warnungen };
 }
 
+/** Fingerabdruck einer Fassung (Betreff, Absätze, Frage) — das Urteil der Prüf-KI gilt nur für genau diesen Text. */
+export function radarMailHash(m: { betreff?: unknown; absaetze?: unknown; frage?: unknown } | null | undefined): string {
+  const absaetze = Array.isArray(m?.absaetze) ? (m!.absaetze as unknown[]).map((x) => String(x ?? "")) : [];
+  return createHash("sha256").update([String(m?.betreff ?? ""), ...absaetze, String(m?.frage ?? "")].join("\n")).digest("hex");
+}
+
+/** Alle Schalter des Mail-Motors (fiaon_settings) — Fenster, Ziele, Puffer, Prüf-KI. */
+export async function radarMotorEinstellung(): Promise<RadarMotor> {
+  const schluessel = Object.values(RADAR_MOTOR_SCHLUESSEL) as string[];
+  const zeilen = (await sqlPool`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schluessel})`.catch(() => [])) as any[];
+  return radarMotorLesen(Object.fromEntries(zeilen.map((z) => [String(z.key), z.value == null ? null : String(z.value)])));
+}
+
 /** Die Link-Einstellung des Motors (Firmen: „termin“ oder „keiner“) — eine Zeile aus fiaon_settings. */
 async function motorLinkLesen(): Promise<"termin" | "keiner"> {
   const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'radar_motor_link'`.catch(() => [])) as any[];
@@ -1414,6 +1431,9 @@ export async function radarMailAusgeben(id: number, ein: { art: "entwurf" | "sen
   const jetzt = mailPruefen({ betreff: String(f.mail.betreff ?? ""), absaetze: Array.isArray(f.mail.absaetze) ? f.mail.absaetze : [], frage: String(f.mail.frage ?? ""), ps: String(f.mail.ps ?? "") },
     { streng: true, strom, gruppe: f.mail.gruppe ?? null, anrede: f.mail.anrede ?? null, schluss, mitLink });
   if (jetzt.sperrend.length) throw new RadarFehler(`Diese Mail ist nach alten Regeln geschrieben oder verletzt sie (${jetzt.sperrend.join("; ")}) — bitte „Neu schreiben“.`);
+  // E-458 (Punkt 4): Nur was die Prüf-KI gelesen und freigegeben hat, geht hinaus — und nur genau dieser Text (Hash).
+  // Gilt für Motor, Stapel und Akte; eine Änderung von Hand setzt das Urteil zurück („Prüfen lassen“).
+  if (!f.pruef_ki?.ok || f.pruef_ki.hash !== radarMailHash(f.mail)) throw new RadarFehler("Die Prüf-KI hat diese Fassung noch nicht freigegeben — bitte „Prüfen lassen“ oder „Neu schreiben“.", 409);
   // E-337: Adress-Wand auch beim Versand — eine von Hand eingetragene Adresse darf bewusst abweichen (ein.an), die geprüfte nicht.
   const adresse = radarAdressePruefen(an, f.domain, f.name);
   if (!adresse.ok && !ein.an) throw new RadarFehler(`Diese Adresse erreicht niemanden, der entscheidet: ${adresse.grund}. Bitte „Adresse nachsuchen“ oder eine bessere eintragen.`);
@@ -1606,7 +1626,14 @@ async function stapelLauf(laufId: number, ids: number[], art: StapelArt, postfac
         const k = await radarKontaktNachsuchen(id);
         if (!k.email) throw new RadarFehler("keine E-Mail auffindbar — steht jetzt unter „Ohne E-Mail“");
       }
-      if (!f.mail) await radarMailSchreiben(id);
+      // E-458 (Punkt 4): Jede Mail liest vor dem Versand die Prüf-KI — ohne Mail: schreiben, prüfen, höchstens einmal neu;
+      // mit Mail ohne gültiges Urteil (z. B. von Hand geändert): nur prüfen, nie den Text eines Menschen überschreiben.
+      const { radarMailFertig, radarMailNurPruefen } = await import("./fiaon-radar-pruef");
+      if (!f.mail) { const r = await radarMailFertig(id); if (!r.ok) throw new RadarFehler(`Prüf-KI: ${r.grund ?? "nicht freigegeben"}`); }
+      else if (art !== "vorbereiten" && !(f.pruef_ki?.ok && f.pruef_ki.hash === radarMailHash(f.mail))) {
+        const r = await radarMailNurPruefen(id);
+        if (!r.bestanden) throw new RadarFehler(`Prüf-KI: ${r.gruende.slice(0, 2).join("; ") || "nicht freigegeben"}`);
+      }
       if (art !== "vorbereiten") {
         const mail = zeileLesen(((await sqlPool`SELECT mail FROM fiaon_radar_firmen WHERE id = ${id}`) as any[])[0]) as any;
         if (mail?.mail?.sperrend?.length) throw new RadarFehler(`Mail verletzt Regeln: ${mail.mail.sperrend.join("; ")}`);

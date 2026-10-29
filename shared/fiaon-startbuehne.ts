@@ -38,7 +38,7 @@ export function buehneMindestensMs(motiv: BuehnenMotiv): number {
 /** Skript für den Kopf von index.html: Welt wählen und Scrollen sperren, bevor irgendetwas gezeichnet wird. */
 function kopfSkript(): string {
   // Das Skript im Kopf kann nichts laden — die eigenen Business-Adressen stehen darum als Liste darin (aus derselben Quelle).
-  const eigene = JSON.stringify([...BUSINESS_EIGENE_PFADE]);
+  const eigene = JSON.stringify(Array.from(BUSINESS_EIGENE_PFADE));
   return `<script>(function(){var d=document.documentElement,p=(location.pathname.replace(/\\/+$/,"")||"/").toLowerCase();if(${BUSINESS_BUEHNE.toString()}.test(p)||${eigene}.indexOf(p)>-1||/[?&]bereich=business(&|$)/.test(location.search))d.className+=" ld-business";d.className+=" ld-an";setTimeout(function(){d.classList.remove("ld-an")},9000)})()</script>`;
 }
 

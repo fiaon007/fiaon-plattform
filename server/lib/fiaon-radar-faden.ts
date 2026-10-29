@@ -50,7 +50,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss, radarPartnerGruppe,
+  radarBuchungslink, radarRoboter, radarPlan, RADAR_NUR_BRIEF_LAENDER, radarGruss, radarPartnerGruppe, radarBeschwerde,
   type RadarAntwortArt, type RadarAutomatik,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -399,6 +399,8 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
     ON CONFLICT (gmail_id) DO NOTHING RETURNING id`) as any[];
   if (!post) return { art, ki, mara: false };
   const postId = Number(post.id);
+  // E-458 (Punkt 7): Beschwerden zählen für die Zustell-Bremse (Anwalt, Datenschutz, Absage mit „Spam“, „unverlangt“ …).
+  if (radarBeschwerde(art, kern)) await sqlPool`UPDATE fiaon_radar_post SET beschwerde = TRUE WHERE id = ${postId}`;
   const regel = RADAR_ANTWORT_ARTEN[art];
   const menschlich = !["automatisch", "abwesend", "unzustellbar"].includes(art);
 

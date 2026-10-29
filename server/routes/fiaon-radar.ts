@@ -339,7 +339,8 @@ router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) 
     const { radarMotorSetzen } = await import("../lib/fiaon-radar-motor");
     const b = req.body ?? {};
     const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe",
-      "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax", "postfachJeTag", "postfachRampe"];
+      "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax", "postfachJeTag", "postfachRampe",
+      "zustellRueckMax", "zustellBeschwerdeMax"];
     const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
     const einstellung = await radarMotorSetzen(teil);
     console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);
@@ -371,6 +372,17 @@ router.post("/chef/radar/postfach/:adresse/pruefen", wache, async (req: ChefRequ
     const a = String(req.params.adresse).toLowerCase();
     if (!radarPostfaecher().includes(a)) throw new RadarFehler("Dieses Postfach ist für den Radar nicht freigegeben.", 403);
     res.json({ ok: true, bereitschaft: await postfachBereitschaft(a, true) });
+  } catch (e) { fehler(res, e); }
+});
+
+// E-458 (Punkt 7): „Bremse lösen“ — volle Fahrt sofort, nur mit Bestätigung.
+router.post("/chef/radar/bremse/loesen", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (req.body?.bestaetigt !== true) throw new RadarFehler("Bitte bestätigen.");
+    const { radarBremseLoesen } = await import("../lib/fiaon-radar-motor");
+    await radarBremseLoesen();
+    console.log(`[MAIL-MOTOR] Bremse gelöst von #${req.chef?.agentId ?? "?"}`);
+    res.json({ ok: true });
   } catch (e) { fehler(res, e); }
 });
 

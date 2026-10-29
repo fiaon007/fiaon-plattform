@@ -37,6 +37,7 @@ import {
   RADAR_SIGNAL_AB, RADAR_STROEME, RADAR_NUR_BRIEF_LAENDER, RADAR_HOECHSTENS_JE_TAG, RADAR_MOTOR_STATUS, RADAR_NACHFASS_TAGE,
   radarMotorImFenster, radarMotorSoll, radarMotorFensterStunden, radarMotorReststunden, radarBerlinTagMinute,
   radarPostfachWaehlen, radarMoeglich, radarAdressePersoenlich, radarAdressePruefen, radarPostfachGrenze, radarPostfachBereit,
+  radarZustellWerte, radarBremseEntscheiden, type RadarZustellWerte, type RadarBremse,
   type RadarStrom, type RadarMotor, type RadarPostfachLage, type RadarMoeglich,
 } from "@shared/fiaon-radar";
 
@@ -499,6 +500,77 @@ export async function radarAbleitungWache(): Promise<{ quote: number | null; abg
   return { quote: u.quote, abgeschaltet: true };
 }
 
+// ── ZUSTELLUNG SCHÜTZEN (E-458 Punkt 7) ───────────────────────────────────────
+/** Die Bremse aus fiaon_settings (radar_motor_bremse). */
+export async function bremseLesen(): Promise<RadarBremse | null> {
+  const [z] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'radar_motor_bremse'`.catch(() => [])) as any[];
+  try { const b = JSON.parse(String(z?.value ?? "null")); return b && typeof b === "object" ? b : null; } catch { return null; }
+}
+
+/** Die Werte der letzten 7 Tage — gesamt und je Postfach: Sendungen des Radars, Rückläufer, Beschwerden. */
+export async function zustellWerte(m: RadarMotor): Promise<{ gesamt: RadarZustellWerte; je: Record<string, RadarZustellWerte> }> {
+  const zeilen = (await sqlPool`
+    SELECT postfach,
+           COUNT(*) FILTER (WHERE richtung = 'aus' AND art <> 'von_hand')::int AS gesendet,
+           COUNT(*) FILTER (WHERE richtung = 'ein' AND art = 'unzustellbar')::int AS rueck,
+           COUNT(*) FILTER (WHERE richtung = 'ein' AND beschwerde)::int AS beschwerden
+      FROM fiaon_radar_post WHERE datum > NOW() - INTERVAL '7 days' GROUP BY postfach`) as any[];
+  const summe = zeilen.reduce((a, z) => ({ gesendet: a.gesendet + Number(z.gesendet), rueck: a.rueck + Number(z.rueck), beschwerden: a.beschwerden + Number(z.beschwerden) }), { gesendet: 0, rueck: 0, beschwerden: 0 });
+  return {
+    gesamt: radarZustellWerte({ ...summe, basis: m.zustellBasis }),
+    je: Object.fromEntries(zeilen.map((z) => [String(z.postfach), radarZustellWerte({ gesendet: Number(z.gesendet), rueck: Number(z.rueck), beschwerden: Number(z.beschwerden), basis: m.zustellBasis })])),
+  };
+}
+
+/**
+ * Die Zustell-Wache (im 10-Minuten-Lauf radar_versand): Rückläufer über radar_zustell_rueck_max oder Beschwerden über
+ * radar_zustell_beschwerde_max in 7 Tagen → radar_motor_bremse halbiert beide Stundenziele (nach 48 h weiter drüber: ein
+ * Viertel) und Justin bekommt eine dringende Aufgabe (einmal je Tag). Ein Postfach, das ALLEIN drüber liegt, pausiert
+ * 48 Stunden. Drei Tage unter beiden Grenzen → volle Fahrt und eine Meldung.
+ */
+export async function radarZustellWache(jetzt: Date = new Date()): Promise<{ bremse: number; pausiert: string[] }> {
+  const m = await radarMotorEinstellung();
+  const werte = await zustellWerte(m);
+  const alt = await bremseLesen();
+  const grenzen = { rueckMax: m.zustellRueckMax, beschwerdeMax: m.zustellBeschwerdeMax };
+  const neu = radarBremseEntscheiden({ werte: werte.gesamt, bremse: alt, jetzt, grenzen });
+  const { neu: istNeu, geloest, ...speichern } = neu;
+  if (JSON.stringify(speichern) !== JSON.stringify(alt ?? {})) {
+    await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_motor_bremse', ${JSON.stringify(speichern)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  }
+  const zahl = (n: number | null) => (n == null ? "—" : `${String(n).replace(".", ",")} %`);
+  if (istNeu) {
+    await aufgabeMotor(`Mail-Motor gebremst auf ×${String(neu.faktor).replace(".", ",")} (Zustellung)`,
+      `${neu.grund}. 7 Tage: ${werte.gesamt.gesendet} Sendungen, ${werte.gesamt.rueck} Rückläufer (${zahl(werte.gesamt.rueckQuote)}), ${werte.gesamt.beschwerden} Beschwerden (${zahl(werte.gesamt.beschwerdeQuote)}). Der Motor sendet langsamer, bis die Werte drei Tage unter den Grenzen liegen. Prüfen: Adressen, Texte, Postfächer — „Bremse lösen“ unter Automatik › Zustellung.`,
+      `radar-zustellung:${berlinToday(jetzt)}`);
+  }
+  if (geloest) {
+    console.log("[MAIL-MOTOR] Zustell-Bremse gelöst — drei Tage unter beiden Grenzen.");
+    await aufgabeMotor("Mail-Motor: Bremse gelöst", "Rückläufer und Beschwerden liegen seit drei Tagen unter den Grenzen — der Mail-Motor fährt wieder mit vollem Takt.", `radar-zustellung-frei:${berlinToday(jetzt)}`);
+  }
+  // Ein Postfach, das allein über der Grenze liegt (das Ganze aber nicht), pausiert 48 Stunden.
+  const pausen = await postfachPausen();
+  const pausiert: string[] = [];
+  for (const [adresse, w] of Object.entries(werte.je)) {
+    const drueber = (w.rueckQuote != null && w.rueckQuote > grenzen.rueckMax) || (w.beschwerdeQuote != null && w.beschwerdeQuote > grenzen.beschwerdeMax);
+    const laeuft = pausen[adresse] && new Date(pausen[adresse]).getTime() > jetzt.getTime();
+    if (drueber && !laeuft) {
+      pausen[adresse] = new Date(jetzt.getTime() + 48 * 3_600_000).toISOString();
+      pausiert.push(adresse);
+      await aufgabeMotor(`Mail-Motor: Postfach ${adresse} pausiert (48 h)`,
+        `Aus ${adresse}: ${w.gesendet} Sendungen in 7 Tagen, Rückläufer ${zahl(w.rueckQuote)}, Beschwerden ${zahl(w.beschwerdeQuote)}. Das Postfach sendet 48 Stunden keine ersten Mails.`,
+        `radar-zustellung:${adresse}:${berlinToday(jetzt)}`);
+    }
+  }
+  if (pausiert.length) await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_postfach_pause', ${JSON.stringify(pausen)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  return { bremse: neu.faktor, pausiert };
+}
+
+/** „Bremse lösen“ (Chefbüro, mit Bestätigung): volle Fahrt sofort. */
+export async function radarBremseLoesen(): Promise<void> {
+  await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_motor_bremse', ${JSON.stringify({ faktor: 1, seit: null, grund: null, unterSeit: null })}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+}
+
 // ── FÜR DAS CHEFBÜRO ─────────────────────────────────────────────────────────
 /** Der Stand des Motors: Schalter, Fenster, Warteschlange je Strom, gesendet je Stunde, ehrliche Leistung. */
 export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
@@ -527,7 +599,9 @@ export async function radarMotorStand(jetzt: Date = new Date()): Promise<any> {
      WHERE motor_status IS NULL AND archiviert_am IS NULL AND versendet_am IS NULL AND status IN ('neu', 'gescannt', 'mail')
        AND (signal_staerke IS NULL OR signal_staerke >= ${RADAR_SIGNAL_AB}) GROUP BY strom`) as any[];
   const { minute } = radarBerlinTagMinute(jetzt);
+  const zustellung = await zustellWerte(m).catch(() => null);
   return {
+    zustellung: zustellung ? { ...zustellung, grenzen: { rueckMax: m.zustellRueckMax, beschwerdeMax: m.zustellBeschwerdeMax, basis: m.zustellBasis }, bremse: await bremseLesen(), pausen: await postfachPausen() } : null,
     einstellung: m, an: a.versand, abPassung: a.abPassung, imFenster: radarMotorImFenster(jetzt, m), jetztMinute: minute, bremse,
     leistung: { ziel: leistung.ziel, moeglich: leistung.moeglich, leistungJeStunde: leistung.leistung, je: leistung.je, tagJe: leistung.tagJe, satz: leistung.satz, postfaecherNoetig: leistung.postfaecherNoetig },
     postfaecher: leistung.postfaecher.map((p) => {
@@ -620,6 +694,13 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
     if (!r.length || r.length > 4 || r.some((n) => !Number.isInteger(n) || n < 1 || n > RADAR_HOECHSTENS_JE_TAG)) throw new RadarFehler(`Hochfahren: eine bis vier Zahlen von 1 bis ${RADAR_HOECHSTENS_JE_TAG} (Woche 1, Woche 2 …).`);
     setzen.push([k.postfachRampe, r.join(",")]);
   }
+  const prozent = (x: unknown, min: number, max: number, was: string, key: string) => {
+    const n = Number(String(x).replace(",", "."));
+    if (!Number.isFinite(n) || n < min || n > max) throw new RadarFehler(`${was}: ${String(min).replace(".", ",")} bis ${String(max).replace(".", ",")} Prozent.`);
+    setzen.push([key, String(n)]);
+  };
+  if (ein.zustellRueckMax !== undefined) prozent(ein.zustellRueckMax, 0.5, 20, "Rückläufer-Grenze", k.zustellRueckMax);
+  if (ein.zustellBeschwerdeMax !== undefined) prozent(ein.zustellBeschwerdeMax, 0.05, 5, "Beschwerde-Grenze", k.zustellBeschwerdeMax);
   if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
   if (ein.partnerProvisionText !== undefined) {
     const t = String(ein.partnerProvisionText).replace(/[\r\n]+/g, " ").trim();

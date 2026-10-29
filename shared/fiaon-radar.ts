@@ -639,12 +639,17 @@ export interface RadarMotor {
   postfachJeTag: number;
   postfachRampe: number[];
   postfachAus: string[];
+  /** Zustellung (Punkt 7): Rückläufer- und Beschwerde-Grenze in Prozent über 7 Tage, Mindestzahl Sendungen. */
+  zustellRueckMax: number;
+  zustellBeschwerdeMax: number;
+  zustellBasis: number;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
 export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30,
   partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang",
-  ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5, postfachJeTag: 60, postfachRampe: [20, 40], postfachAus: [] };
+  ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5, postfachJeTag: 60, postfachRampe: [20, 40], postfachAus: [],
+  zustellRueckMax: 3, zustellBeschwerdeMax: 0.3, zustellBasis: 50 };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
@@ -653,6 +658,7 @@ export const RADAR_MOTOR_SCHLUESSEL = {
   partnerGruppen: "radar_partner_gruppen", partnerTagesziel: "radar_partner_tagesziel", partnerProvisionText: "radar_partner_provision_text",
   ableitung: "radar_ableitung", ableitungAnteil: "radar_ableitung_anteil", ableitungRueckMax: "radar_ableitung_rueck_max",
   postfachJeTag: "radar_postfach_je_tag", postfachRampe: "radar_postfach_rampe", postfachAus: "radar_postfach_aus",
+  zustellRueckMax: "radar_zustell_rueck_max", zustellBeschwerdeMax: "radar_zustell_beschwerde_max", zustellBasis: "radar_zustell_basis",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -716,7 +722,53 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
       return r.length && r.length <= 4 && r.every((n) => Number.isInteger(n) && n >= 1 && n <= RADAR_HOECHSTENS_JE_TAG) ? r : [...v.postfachRampe];
     })(),
     postfachAus: text(roh[k.postfachAus]).toLowerCase().split(/[,;\s]+/).filter((a) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(a)),
+    zustellRueckMax: zahl(roh[k.zustellRueckMax], v.zustellRueckMax, 0.5, 20),
+    zustellBeschwerdeMax: zahl(roh[k.zustellBeschwerdeMax], v.zustellBeschwerdeMax, 0.05, 5),
+    zustellBasis: Math.round(zahl(roh[k.zustellBasis], v.zustellBasis, 10, 1000)),
   };
+}
+
+// ── ZUSTELLUNG SCHÜTZEN (E-458 Punkt 7) ─────────────────────────────────────
+// Rückläufer über 3 % oder Beschwerden über 0,3 % in 7 Tagen → der Motor halbiert seinen Takt (bleibt es 48 Stunden
+// drüber: ein Viertel, nie weniger) und Justin bekommt eine Aufgabe. Drei Tage in Folge unter beiden Grenzen → volle
+// Fahrt. Unter 50 Sendungen gibt es keine Quote — sonst schaltete ein einzelner Rückläufer die Bremse.
+export interface RadarZustellWerte { gesendet: number; rueck: number; beschwerden: number; rueckQuote: number | null; beschwerdeQuote: number | null }
+/** Quoten in Prozent (eine bzw. zwei Nachkommastellen) — unter der Mindestbasis null. Rein. */
+export function radarZustellWerte(e: { gesendet: number; rueck: number; beschwerden: number; basis?: number }): RadarZustellWerte {
+  const basis = e.basis ?? RADAR_MOTOR_VORGABE.zustellBasis;
+  const g = Math.max(0, Math.round(e.gesendet));
+  if (g < basis) return { gesendet: g, rueck: e.rueck, beschwerden: e.beschwerden, rueckQuote: null, beschwerdeQuote: null };
+  return { gesendet: g, rueck: e.rueck, beschwerden: e.beschwerden,
+    rueckQuote: Math.round((e.rueck / g) * 1000) / 10, beschwerdeQuote: Math.round((e.beschwerden / g) * 10000) / 100 };
+}
+export interface RadarBremse { faktor: number; seit: string | null; grund: string | null; unterSeit?: string | null; werte?: RadarZustellWerte | null }
+/** Ist eine Beschwerde? Anwalt/Abmahnung, Datenschutz-Antrag oder eine Absage mit Spam-Wort. Rein. */
+export function radarBeschwerde(art: string | null | undefined, text: string | null | undefined): boolean {
+  return art === "rechtlich" || art === "datenschutz" || (art === "kein_interesse" && /\bspam\w*|unverlangt|belästig|belaestig|unerwünscht|unerwuenscht/i.test(String(text ?? "")));
+}
+/**
+ * Die Bremse: über einer Grenze → 0,5; schon gebremst und nach 48 Stunden weiter drüber → 0,25 (nie weniger); drei Tage
+ * in Folge unter beiden Grenzen → 1. Rein — der Server schreibt das Ergebnis nach radar_motor_bremse.
+ */
+export function radarBremseEntscheiden(e: { werte: RadarZustellWerte; bremse: RadarBremse | null; jetzt: Date; grenzen: { rueckMax: number; beschwerdeMax: number } }):
+  RadarBremse & { neu: boolean; geloest: boolean } {
+  const w = e.werte;
+  const rueck = w.rueckQuote != null && w.rueckQuote > e.grenzen.rueckMax;
+  const beschwerde = w.beschwerdeQuote != null && w.beschwerdeQuote > e.grenzen.beschwerdeMax;
+  const alt = e.bremse && e.bremse.faktor > 0 && e.bremse.faktor <= 1 ? e.bremse : { faktor: 1, seit: null, grund: null, unterSeit: null };
+  const jetztIso = e.jetzt.toISOString();
+  const seitMs = alt.seit ? e.jetzt.getTime() - new Date(alt.seit).getTime() : 0;
+  const zahl = (n: number | null) => String(n ?? 0).replace(".", ",");
+  const grund = [rueck ? `Rückläufer ${zahl(w.rueckQuote)} % (Grenze ${zahl(e.grenzen.rueckMax)} %)` : "", beschwerde ? `Beschwerden ${zahl(w.beschwerdeQuote)} % (Grenze ${zahl(e.grenzen.beschwerdeMax)} %)` : ""].filter(Boolean).join(" · ");
+  if (rueck || beschwerde) {
+    if (alt.faktor >= 1) return { faktor: 0.5, seit: jetztIso, grund, unterSeit: null, werte: w, neu: true, geloest: false };
+    if (alt.faktor > 0.25 && seitMs >= 48 * 3_600_000) return { faktor: 0.25, seit: jetztIso, grund, unterSeit: null, werte: w, neu: true, geloest: false };
+    return { faktor: Math.max(0.25, alt.faktor), seit: alt.seit, grund, unterSeit: null, werte: w, neu: false, geloest: false };
+  }
+  if (alt.faktor >= 1) return { faktor: 1, seit: null, grund: null, unterSeit: null, werte: w, neu: false, geloest: false };
+  const unterSeit = alt.unterSeit ?? jetztIso;
+  if (e.jetzt.getTime() - new Date(unterSeit).getTime() >= 72 * 3_600_000) return { faktor: 1, seit: null, grund: null, unterSeit: null, werte: w, neu: false, geloest: true };
+  return { faktor: alt.faktor, seit: alt.seit, grund: alt.grund, unterSeit, werte: w, neu: false, geloest: false };
 }
 
 /**

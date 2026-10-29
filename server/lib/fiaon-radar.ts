@@ -280,6 +280,8 @@ export function ensureRadarTabellen(): Promise<void> {
           ADD COLUMN IF NOT EXISTS pruef_ki_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS partner_firma_id INTEGER`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_radar_firmen_motor_idx ON fiaon_radar_firmen (motor_status, strom, signal_staerke)`;
+      // E-458 (Punkt 7): Beschwerde = Anwalt/Abmahnung, Datenschutz-Antrag oder Absage mit Spam-Wort — für die Zustell-Bremse.
+      await sqlPool`ALTER TABLE fiaon_radar_post ADD COLUMN IF NOT EXISTS beschwerde BOOLEAN NOT NULL DEFAULT FALSE`;
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;

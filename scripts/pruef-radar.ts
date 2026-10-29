@@ -776,6 +776,20 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     const akte2 = akteId2 ? await pcrm.partnerAkte(akteId2) : null;
     const anzahlFirmen = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_partner_firmen WHERE name = ${"Beispiel 21 GmbH"}`) as any[])[0].n);
     ok(akteId2 === akteId && anzahlFirmen === 1 && (akte2?.verlauf.length ?? 0) >= 2, "Zweite Antwort: dieselbe Akte, nur Verlauf und Aufgabe dazu (keine Dublette)");
+    // 8. Zustellung: 100 Sendungen aus js@, 4 Rückläufer → 4 % → Bremse 0,5; ein Postfach allein drüber → Pause 48 h.
+    await sqlPool`DELETE FROM fiaon_radar_post`;
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_motor_bremse', 'radar_postfach_pause')`;
+    for (let i = 0; i < 100; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', ${`z-aus-${i}`}, 'aus', ${i % 3 ? "erstmail" : "nachfass1"}, NOW() - INTERVAL '2 days')`;
+    for (let i = 0; i < 4; i++) await sqlPool`INSERT INTO fiaon_radar_post (firma_id, postfach, gmail_id, richtung, art, datum) VALUES (0, 'js@fiaon.com', ${`z-rueck-${i}`}, 'ein', 'unzustellbar', NOW() - INTERVAL '1 day')`;
+    const zw = await mo.radarZustellWache();
+    const br = await mo.bremseLesen();
+    ok(zw.bremse === 0.5 && br?.faktor === 0.5 && /Rückläufer 4 %/.test(String(br?.grund)) && (await mo.bremseFaktor()) === 0.5, `Ende zu Ende: 4 % Rückläufer → Bremse 0,5 gespeichert (${br?.grund})`);
+    ok(zw.pausiert.includes("js@fiaon.com") && !!(await mo.postfachPausen())["js@fiaon.com"], "Das Postfach über der Grenze pausiert 48 Stunden");
+    const zw2 = await mo.radarZustellWache();
+    ok(zw2.bremse === 0.5 && !zw2.pausiert.length, "Zweiter Lauf: Bremse bleibt, keine doppelte Pause");
+    await mo.radarBremseLoesen();
+    await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('radar_motor_bremse', 'radar_postfach_pause')`;
+    ok((await mo.bremseFaktor()) === 1, "„Bremse lösen“: wieder volle Fahrt");
     const stand2 = await mo.radarMotorStand();
     ok(stand2.leistung && typeof stand2.leistung.satz === "string" && stand2.stroeme.partner.bereit >= 1, `Stand fürs Chefbüro: ${stand2.leistung.satz}`);
     await sqlPool.end({ timeout: 2 });
@@ -912,6 +926,30 @@ abschnitt("Postfächer: Rundlauf, Tagesgrenze, Hochfahren (E-458)");
   ok(/const lage = lagen\.find\(\(l\) => l\.adresse === String\(f\.postfach\)\);\s*if \(lage && lage\.heute >= lage\.grenze\) \{ erg\.uebersprungen\+\+; continue; \}/.test(fdQ), "Nachfass bleibt im Postfach der ersten Mail und wartet, wenn es voll ist");
   ok(/postfachJs: postfach === "js@fiaon\.com"/.test(fdQ) && /for \(const a of radarPostfaecher\(\)\) await postfachBereitschaft\(a\);\s*const genommen = await uebernehmen/.test(moQ), "Aus js@ antwortet Mara nie selbst (andere Postfächer dürfen); Bereitschaft vor der Sperre geprüft");
   ok(/"\/chef\/radar\/postfach\/:adresse\/pause", wache/.test(lies("server/routes/fiaon-radar.ts")) && /"\/chef\/radar\/postfach\/:adresse\/pruefen", wache/.test(lies("server/routes/fiaon-radar.ts")), "Postfach pausieren und prüfen hinter der Wache");
+}
+
+abschnitt("Zustellung schützen: Rückläufer und Beschwerden (E-458)");
+{
+  const w = (g: number, r: number, b = 0) => sh8.radarZustellWerte({ gesendet: g, rueck: r, beschwerden: b });
+  const grenzen = { rueckMax: 3, beschwerdeMax: 0.3 };
+  const jetzt = new Date("2026-10-29T12:00:00+01:00");
+  const ent = (werte: any, bremse: any = null, j = jetzt) => sh8.radarBremseEntscheiden({ werte, bremse, jetzt: j, grenzen });
+  ok(w(1000, 31).rueckQuote === 3.1 && ent(w(1000, 31)).faktor === 0.5, "1.000 gesendet, 31 Rückläufer → 3,1 % → Bremse 0,5");
+  ok(w(1000, 30).rueckQuote === 3 && ent(w(1000, 30)).faktor === 1, "30 Rückläufer → 3,0 % → keine Bremse");
+  ok(w(1000, 0, 4).beschwerdeQuote === 0.4 && ent(w(1000, 0, 4)).faktor === 0.5, "4 Beschwerden auf 1.000 → 0,4 % → Bremse");
+  ok(w(40, 10).rueckQuote === null && ent(w(40, 10)).faktor === 1, "40 Sendungen → keine Quote (Mindestbasis 50)");
+  const halb = { faktor: 0.5, seit: new Date(jetzt.getTime() - 49 * 3_600_000).toISOString(), grund: "x" };
+  ok(ent(w(1000, 40), halb).faktor === 0.25 && ent(w(1000, 40), { ...halb, seit: new Date(jetzt.getTime() - 10 * 3_600_000).toISOString() }).faktor === 0.5, "Schon 0,5 und nach 48 h weiter drüber → 0,25 (vorher bleibt 0,5)");
+  ok(ent(w(1000, 90), { faktor: 0.25, seit: new Date(jetzt.getTime() - 200 * 3_600_000).toISOString(), grund: "x" }).faktor === 0.25, "Nie unter 0,25");
+  const unter = ent(w(1000, 5), { ...halb, unterSeit: new Date(jetzt.getTime() - 73 * 3_600_000).toISOString() });
+  const nochNicht = ent(w(1000, 5), { ...halb, unterSeit: new Date(jetzt.getTime() - 30 * 3_600_000).toISOString() });
+  ok(unter.faktor === 1 && unter.geloest && nochNicht.faktor === 0.5 && !nochNicht.geloest && ent(w(1000, 5), halb).unterSeit === jetzt.toISOString(), "Drei Tage unter beiden Grenzen → 1 (vorher bleibt die Bremse, der Zähler startet)");
+  ok(sh8.radarBeschwerde("rechtlich", "") && sh8.radarBeschwerde("datenschutz", "") && sh8.radarBeschwerde("kein_interesse", "Das ist Spam, bitte nicht mehr.") && !sh8.radarBeschwerde("kein_interesse", "Kein Bedarf, danke."), "Beschwerde: Anwalt, Datenschutz und Absage mit „Spam“ zählen — eine normale Absage nicht");
+  const moQ = lies("server/lib/fiaon-radar-motor.ts");
+  ok(/const bremse = await bremseFaktor\(\);[\s\S]{0,400}uebernehmen\(jetzt, m, bremse,/.test(moQ) && /motorDran\(jetzt, m, st, bremse\)/.test(moQ) && /jeStunde: ziel\.firma \+ ziel\.partner,[\s\S]{0,200}bremse \}\)/.test(moQ), "Die Bremse wirkt beim Senden auf beide Stundenziele");
+  ok(/`radar-zustellung:\$\{berlinToday\(jetzt\)\}`/.test(moQ) && /pausen\[adresse\] = new Date\(jetzt\.getTime\(\) \+ 48 \* 3_600_000\)/.test(moQ), "Aufgabe für Justin einmal je Tag (radar-zustellung:<Tag>); ein Postfach über der Grenze pausiert 48 h");
+  ok(/if \(radarBeschwerde\(art, kern\)\) await sqlPool`UPDATE fiaon_radar_post SET beschwerde = TRUE/.test(lies("server/lib/fiaon-radar-faden.ts")) && /ADD COLUMN IF NOT EXISTS beschwerde BOOLEAN/.test(lies("server/lib/fiaon-radar.ts")), "Beschwerden werden am Eingang markiert (Spalte beschwerde)");
+  ok(/"\/chef\/radar\/bremse\/loesen", wache[\s\S]{0,120}bestaetigt !== true/.test(lies("server/routes/fiaon-radar.ts")), "„Bremse lösen“ nur mit Bestätigung, hinter der Wache");
 }
 
 abschnitt("Ergebnis");

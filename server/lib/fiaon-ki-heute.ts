@@ -12,9 +12,11 @@
 import { sqlPool } from "./db-pool";
 import { KI_DIENSTE, dienstLabel, dienstWer, TWILIO_MIN_CENTS, type KiHeute, type KostenDienst } from "@shared/fiaon-ki-team";
 import { REGISTER } from "@shared/fiaon-ki-schalter";
+import { bereichFuer, kasseTag } from "@shared/fiaon-ki-kasse";
 import { aras, arasVerbunden } from "./fiaon-ki-aras-anbindung";
 
-const berlinTag = (d = new Date()) => d.toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
+// E-458: der Berliner Tag aus EINER Quelle (formatToParts, shared/fiaon-ki-kasse.ts) — derselbe wie in Kasse und Deckeln.
+const berlinTag = (d = new Date()) => kasseTag(d);
 
 /** Deckel je Dienst aus dem Register (Vorgabe) bzw. fiaon_settings. */
 async function deckelLesen(): Promise<Record<string, number | null>> {
@@ -50,13 +52,15 @@ export async function kiKostenJeDienst(tag: string = berlinTag()): Promise<Koste
   // zweite Zählung aus fiaon_aras_anruf.kosten_telefon_cents; sobald Team 1 dort Ist-Preise schreibt, wird hier umgestellt.
   const telefonCents = (Number(tel?.sek ?? 0) / 60) * TWILIO_MIN_CENTS;
   const deckel = await deckelLesen();
-  const zeilen: KostenDienst[] = ki.map((z) => ({
+  // E-458: KI-Zeilen in echten Dollar (Listenpreis), die Telefon-Zeile in Euro — `waehrung` sagt es der Oberfläche.
+  const zeilen: KostenDienst[] = ki.filter((z) => Number(z.cents) > 0).map((z) => ({
     dienst: String(z.dienst), label: dienstLabel(String(z.dienst)), wer: dienstWer(String(z.dienst)),
-    euro: Math.round(Number(z.cents) || 0) / 100, deckel: deckel[String(z.dienst)] ?? null, anteil: 0,
+    euro: Math.round(Number(z.cents) || 0) / 100, deckel: deckel[String(z.dienst)] ?? null, anteil: 0, waehrung: "USD", bereich: bereichFuer(String(z.dienst)),
   }));
-  if (telefonCents > 0) zeilen.push({ dienst: "telefon", label: dienstLabel("telefon"), wer: "haus", euro: Math.round(telefonCents) / 100, deckel: null, anteil: 0 });
-  const summe = zeilen.reduce((s, z) => s + z.euro, 0);
-  for (const z of zeilen) z.anteil = summe ? Math.round((z.euro / summe) * 1000) / 10 : 0;
+  if (telefonCents > 0) zeilen.push({ dienst: "telefon", label: dienstLabel("telefon"), wer: "haus", euro: Math.round(telefonCents) / 100, deckel: null, anteil: 0, waehrung: "EUR" });
+  // Anteile nur unter den KI-Zeilen (Dollar) — Euro und Dollar zusammenzählen wäre wieder eine falsche Zahl.
+  const summe = zeilen.filter((z) => z.waehrung !== "EUR").reduce((s, z) => s + z.euro, 0);
+  for (const z of zeilen) z.anteil = summe && z.waehrung !== "EUR" ? Math.round((z.euro / summe) * 1000) / 10 : 0;
   return zeilen.sort((a, b) => b.euro - a.euro);
 }
 

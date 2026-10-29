@@ -622,9 +622,13 @@ export async function globalAnfrageAnnehmen(ein: {
 //
 // Deshalb endet ein Global-Gespräch hier: Status am Termin, eine Zeile im
 // Verlauf des Firmen-Leads, Wiedervorlage im Cockpit — und die zuständige
-// Person greift zum Telefon. Eine eigene, gesiezte „Wir haben Sie nicht
-// erreicht"-Mail für Unternehmen wäre der nächste Schritt; sie fehlt mit
-// Absicht, bis jemand den Text freigibt.
+// Person greift zum Telefon.
+//
+// E-458 Nr. 11 (29.10.2026): Die eigene, gesiezte „Wir haben Sie nicht
+// erreicht"-Mail gibt es jetzt (Text von Justin freigegeben): Wer „nicht
+// erreicht“ oder „Nummer falsch“ einträgt, löst sie GENAU EINMAL aus
+// (globalNichtErreichtSenden). Jeder Eintrag schließt auch die Aufgabe
+// „Ergebnis fehlt“ und die Erinnerung an die Leitung (fiaon-global-gespraech.ts).
 // ───────────────────────────────────────────────────────────────────────────
 
 const NICHT_ZUSTANDE_TEXT: Record<string, string> = {
@@ -652,10 +656,12 @@ export async function globalTerminErgebnis(ein: {
   // Anhängen, nicht ersetzen: In der Notiz steht, was das Unternehmen bei der
   // Buchung angegeben hat — das braucht auch der, der in drei Wochen nachliest.
   const notizZeile = notiz ? `${vermerk} ${notiz}` : vermerk;
+  // E-458 Nr. 11: der Grund steht jetzt auch als Wert am Termin (verpasst_grund war bei jedem Global-Gespräch leer).
   await sqlPool`
     UPDATE fiaon_termine
     SET status = ${ein.ergebnis}, erledigt_am = NOW(),
         notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${notizZeile}::text),
+        verpasst_grund = CASE WHEN ${ein.ergebnis} = 'verpasst' THEN ${ein.grund ?? "nicht_erschienen"}::text ELSE verpasst_grund END,
         updated_at = NOW()
     WHERE id = ${ein.terminId}
   `;
@@ -673,22 +679,24 @@ export async function globalTerminErgebnis(ein: {
     kontakt: ein.ergebnis === "erledigt",
   }).catch((e) => { console.error(`[GLOBAL-TERMIN] Ergebnis von Termin ${ein.terminId} nicht im Firmen-Topf vermerkt:`, e); return { firmaId: null }; });
 
-  // Der Auftrag zum Gespräch ist damit erledigt — sonst steht er weiter offen.
-  await sqlPool`
-    UPDATE fiaon_betreiber_todos
-    SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = ${ein.agent.name}, ergebnis = ${vermerk},
-        updated_at = NOW(), letzte_aktivitaet = NOW()
-    WHERE schluessel = ${`global-termin:${ein.terminId}`} AND status <> 'erledigt'
-  `.catch(() => {});
+  // Der Auftrag zum Gespräch ist damit erledigt — sonst steht er weiter offen. E-458 Nr. 11: dazu „Ergebnis fehlt“
+  // und die Erinnerung an die Leitung (ein Weg für Kalender, Chefbüro und Absage).
+  const { globalErgebnisAufgabenSchliessen, globalNichtErreichtSenden } = await import("./fiaon-global-gespraech");
+  await globalErgebnisAufgabenSchliessen(ein.terminId, { ergebnis: vermerk, wer: ein.agent.name, auchGespraech: true });
 
   const wo = lead.firmaId ? " Die Firma steht im Firmen-Cockpit" : " Im Firmen-Cockpit gibt es zu diesem Kontakt keine Firma";
   if (ein.ergebnis === "erledigt") {
     return { hinweis: `Erstgespräch als geführt vermerkt.${wo}${lead.firmaId ? " — mit Wiedervorlage morgen. Halte dort fest, wie es weitergeht." : "."}` };
   }
+  // E-458 Nr. 11: „nicht erreicht“ (auch wegen falscher Nummer) — einmal die gesiezte Mail mit dem Link für eine neue Zeit.
+  // „Abgesagt“ und „kein Interesse“ bekommen keine: Das Unternehmen weiß es selbst.
+  const mail = ein.grund === "nicht_erschienen" || ein.grund === "nummer_falsch" || !ein.grund
+    ? await globalNichtErreichtSenden(ein.terminId).catch((e) => ({ versandt: false, satz: ` Die Mail ging NICHT raus (${String(e).slice(0, 120)}) — bitte anrufen.` }))
+    : { versandt: false, satz: " Es geht keine Mail raus." };
   return {
     hinweis: keinInteresse
       ? `Vermerkt.${wo}${lead.firmaId ? " jetzt auf „kein Interesse“." : "."} Es geht keine Mail raus.`
-      : `Vermerkt.${wo}${lead.firmaId ? " wieder ganz oben — bitte heute noch einmal anrufen." : "."} Bei FIAON Global geht keine automatische Mail raus: Die Mails dieses Knopfes sind für Privatkunden geschrieben.`,
+      : `Vermerkt.${wo}${lead.firmaId ? " wieder ganz oben — bitte heute noch einmal anrufen." : "."}${mail.satz}`,
   };
 }
 
@@ -712,13 +720,11 @@ export async function globalTerminAbgesagt(ein: {
       ? `Erstgespräch (${wann}) vom Unternehmen abgesagt. Eine neue Zeit wählt es auf fiaon.com/business — oder du rufst an.`
       : `Erstgespräch (${wann}) von uns abgesagt. Das Unternehmen hat eine Mail mit dem Weg zu einer neuen Zeit bekommen.`,
   });
-  await sqlPool`
-    UPDATE fiaon_betreiber_todos
-    SET status = 'erledigt', erledigt_am = NOW(), erledigt_von = 'System',
-        ergebnis = ${`Gespräch abgesagt (${ein.wer === "kunde" ? "durch das Unternehmen" : "durch uns"}).`},
-        updated_at = NOW(), letzte_aktivitaet = NOW()
-    WHERE schluessel = ${`global-termin:${ein.terminId}`} AND status <> 'erledigt'
-  `.catch(() => {});
+  // E-458 Nr. 11: mit der Gesprächs-Aufgabe auch „Ergebnis fehlt“ und die Erinnerung an die Leitung.
+  const { globalErgebnisAufgabenSchliessen } = await import("./fiaon-global-gespraech");
+  await globalErgebnisAufgabenSchliessen(ein.terminId, {
+    ergebnis: `Gespräch abgesagt (${ein.wer === "kunde" ? "durch das Unternehmen" : "durch uns"}).`, wer: "System", auchGespraech: true,
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────

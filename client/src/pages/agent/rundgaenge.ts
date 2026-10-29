@@ -531,6 +531,11 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Steht auf einer Karte „FIAON Global“, hat ein Unternehmen über fiaon.com/business ein "
       + "Erstgespräch gebucht: 30 Minuten, du rufst an — und „Zur Akte“ führt dich ins "
       + "Firmen-Cockpit, wo Firma, Paketwunsch und Verlauf liegen. "
+      // 29.10.2026 (E-458 Nr. 11) mitgezogen: Erinnerungen und Ergebnis-Pflicht beim Global-Gespräch.
+      + "Das Unternehmen bekommt am Vortag und eine Stunde vorher eine Erinnerung. Ist das Gespräch vorbei, fragt die Karte "
+      + "nach dem Ergebnis: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine "
+      + "neue Zeit) oder „Verschoben“. Ohne Eintrag bekommst du eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, "
+      + "am nächsten Werktag um 9 Uhr erfährt es die Leitung — „verpasst“ setzt das System nicht mehr von selbst. "
       // 05.10.2026 (E-283) mitgezogen: Support heißt jetzt auch im Kalender so, dazu das Limit-Gespräch.
       + "„Support“ ist ein Hilfegespräch mit einem Bestandskunden nach dem Startgespräch. Violett ist ein "
       + "Limit-Gespräch: Kunden mit Pro, Ultra oder High-End buchen es alle drei Monate selbst in ihrem Bereich — "
@@ -1591,6 +1596,16 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     text: "Links stehen die Kunden, rechts die geöffnete Akte. Es sind dieselben Daten wie im Raum „Global-Mandate“ und im Kundenportal: "
       + "Was du hier änderst, sieht der Kunde sofort. Was er tut, erscheint hier von selbst — die Seite lädt jede Minute leise nach, "
       + "solange der Tab offen ist. Was du gerade tippst, bleibt stehen.",
+  },
+  // 29.10.2026 (E-458 Nr. 11): die Leiste „Gespräche“ — kein Global-Gespräch geht mehr verloren.
+  {
+    ziel: "[data-cgn='gespraeche']",
+    titel: "Gespräche: Kein Termin geht mehr verloren.",
+    text: "Hier stehen die Global-Gespräche: wo das Ergebnis fehlt, was geplant ist und was zuletzt war. Fehlt ein Ergebnis, trägst du es "
+      + "mit einem Klick ein: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit) "
+      + "oder „Verschoben“ (neue Zeit, die Bestätigung geht von selbst). Erinnerungen am Vortag und eine Stunde vorher laufen automatisch.",
+    tipp: "Eine halbe Stunde nach dem Gespräch bekommt die zuständige Person die Aufgabe „Ergebnis fehlt“ — ist sie nicht da, die Vertretung. "
+      + "Steht am nächsten Werktag um 9 Uhr noch nichts da, erinnert dich das System. Die Vertretung legst du unter Rückholung › FIAON Global fest.",
   },
   {
     ziel: ".cgn-filter",
@@ -2855,8 +2870,8 @@ export const RUNDGANG_KI_HEUTE: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"kosten\"]",
     titel: "Kosten heute, je Dienst.",
-    text: "KI-Kosten aller Dienste und das Telefon (geschätzt) — der Balken zeigt, wie viel vom Tagesdeckel verbraucht ist.",
-    tipp: "Deckel ändern: Einstellungen & Kasse.",
+    text: "KI-Kosten aller Dienste in echten Dollar (wie auf der OpenAI-Rechnung) und das Telefon in Euro (geschätzt) — der Balken zeigt, wie viel vom Tagesdeckel verbraucht ist.",
+    tipp: "Gesamtdeckel, Anteile und Deckel ändern: Einstellungen & Kasse.",
   },
   {
     ziel: "[data-ki=\"mara-heute\"]",
@@ -2979,11 +2994,35 @@ export const RUNDGANG_KI_QUALITAET: RundgangSchritt[] = [
   },
 ];
 
+// E-458 (29.10.2026): die ehrliche KI-Kasse — echte Dollar, Gesamtdeckel, Töpfe mit Anteil, Vorrang für Antworten,
+// Nachhol-Bremse, Modell je Aufgabe. Töpfe und Modelle erscheinen erst mit Daten — ohne sie steht die Karte mittig.
 export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
   {
     ziel: "[data-ki=\"kasse\"]",
-    titel: "Die Kasse.",
-    text: "KI-Kosten je Dienst heute, der Verlauf über 14 Tage (blau KI, grau Telefon) und der Deckel je Dienst. Der Anbieter steht daneben; die KI-Pause schaltest du im Mara-Steuerpult.",
+    titel: "Die Kasse — echte Dollar.",
+    text: "Oben: was die KI heute gekostet hat, in Dollar wie auf der OpenAI-Rechnung, gegen den Gesamtdeckel (Vorgabe 55 $ je Tag, ab 0 Uhr Berliner Zeit). Daneben steht, ob die Kasse gerade bremst.",
+    tipp: "Bis 29.10. rechnete die Anzeige rund 3,3-mal zu billig — die alten Tage sind mit den echten Preisen nachgerechnet.",
+  },
+  {
+    ziel: "[data-ki=\"kasse-toepfe\"]",
+    titel: "Jeder Bereich hat seinen Topf.",
+    text: "B2B-Neukunden bekommen 75 %, Antworten an Menschen 10 %, Privat-Mails und Haus je 5 %, dazu 5 % Reserve. Ist ein Topf leer, wartet dieser Bereich bis 0 Uhr — die Arbeit bleibt liegen und läuft dann weiter, nie geht etwas Falsches raus.",
+    tipp: "Antworten an Menschen haben Vorrang: Sie dürfen über ihren Topf hinaus, bekommen die Reserve und was die anderen übrig lassen.",
+  },
+  {
+    ziel: "[data-ki-schalter=\"ki_kasse_nachhol_je_stunde\"]",
+    titel: "Die Nachhol-Bremse.",
+    text: "Nach einer KI-Pause holt Mara nach — früher fraß diese Welle das frische Guthaben in 20 Minuten. Jetzt gilt 6 Stunden lang: höchstens 8 $ je Stunde, in der ersten halben Stunde nur Antworten an Menschen.",
+  },
+  {
+    ziel: "[data-ki-schalter=\"ki_kasse_anteile\"]",
+    titel: "Anteile ändern.",
+    text: "Fünf Zahlen, zusammen 100 %, dann OK. Gesamtdeckel und Bremse stehen darüber; die alten Deckel je Dienst bleiben als Notbremse.",
+  },
+  {
+    ziel: "[data-ki=\"kasse-modelle\"]",
+    titel: "Modell je Aufgabe.",
+    text: "Texte an Kunden bleiben auf gpt-5.5. Wo kein Kunde mitliest (Einordnen, Ratgeber), kannst du ein günstigeres Modell wählen.",
   },
   {
     ziel: "[data-ki=\"gruppe-mara_mail\"]",

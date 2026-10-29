@@ -3746,7 +3746,13 @@ router.get("/agent/calendar", requireAgent, async (req: AgentRequest, res) => {
              p.primary_phone AS phone, p.primary_email
       FROM fiaon_termine t
       JOIN fiaon_persons p ON p.id = t.person_id
-      WHERE t.agent_id = ${me}
+      WHERE (t.agent_id = ${me}
+        -- E-458 Nr. 11 (29.10.2026): Ein Global-Gespräch, dessen Aufgabe „Ergebnis fehlt“ bei MIR liegt (Vertretung),
+        -- steht auch in meinem Kalender — sonst hätte die Vertretung die Aufgabe und keinen Knopf dazu.
+        OR (t.quelle = 'global' AND EXISTS (
+          SELECT 1 FROM fiaon_betreiber_todos b
+           WHERE b.schluessel = 'global-ergebnis:' || t.id AND b.status <> 'erledigt'
+             AND b.zustaendig_art = 'agent' AND b.zustaendig_agent_id = ${me})))
         -- ══════════════════════════════════════════════════════════════════
         -- ABGESAGTE TERMINE VERSCHWINDEN NICHT MEHR
         --

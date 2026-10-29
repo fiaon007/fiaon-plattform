@@ -518,12 +518,15 @@ export async function runTerminErinnerungen(): Promise<number> {
   // „übersprungen (kein Kanal)" im Zustellprotokoll.
   if (!(await versandErlaubtOderProtokoll("Termin-Erinnerungen"))) return 0;
 
+  // E-458 Nr. 11 (29.10.2026): Global-Gespräche haben ihre eigene, gesiezte Erinnerung am Vortag und eine
+  // Stunde vorher (server/lib/fiaon-global-gespraech.ts) — hier bekamen Unternehmen bis heute die Privat-Mail.
   const faellig = (await sqlPool`
     UPDATE fiaon_termine SET erinnert_am = NOW()
     WHERE id IN (
       SELECT t.id FROM fiaon_termine t
       WHERE t.status = 'gebucht' AND t.erinnert_am IS NULL
         AND t.beginn BETWEEN NOW() AND NOW() + INTERVAL '24 hours'
+        AND t.quelle IS DISTINCT FROM 'global'
     )
     RETURNING id, person_id, agent_id, beginn, storno_token, quelle, dauer_min
   `) as any[];

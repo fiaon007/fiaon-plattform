@@ -8,7 +8,7 @@
 //   · je Kontakt bzw. je Abschluss — Vorsorge, Energie, Telefon & Internet: FIAON ist Tippgeber, fest je Kontakt, nie ein
 //     Anteil an einer Provision (§ 34d GewO bleibt beim Partner). Lieferung über die Strecke E-386 (Einwilligung am Telefon).
 //   · Partnerplatz je Monat — Recht und Steuern: Anwälte dürfen für die Vermittlung von Mandaten nichts zahlen
-//     (§ 49b Abs. 3 BRAO), Steuerberater ebenso nicht (§ 9 Abs. 2 StBerG). Ein fester Preis für Sichtbarkeit und
+//     (§ 49b Abs. 3 BRAO), Steuerberater ebenso nicht (§ 9 StBerG). Ein fester Preis für Sichtbarkeit und
 //     Terminorganisation, unabhängig davon, ob und wie viele Mandate entstehen, ist zulässig — und nur der steht hier.
 //   · Preise bewusst oben im Marktband angesetzt (Justin: „lieber höher“), netto, Reverse Charge, monatliche Rechnung.
 // Wer Preise ändert, ändert sie HIER — die FAQ-Antworten im Wörterbuch nennen sie wörtlich (Generator liest nur Zeichenketten)

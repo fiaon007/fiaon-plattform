@@ -81,6 +81,9 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
   termin_abgesagt: "FIAON Global — Gespräch abgesagt",
   gespraech_gefuehrt: "FIAON Global — Erstgespräch geführt",
   gespraech_nicht_zustande: "FIAON Global — Gespräch kam nicht zustande",
+  // E-458 Nr. 11 (29.10.2026): Verschieben und die Mails rund um das Gespräch (Erinnerung, „nicht erreicht“).
+  termin_verschoben: "FIAON Global — Gespräch verschoben",
+  gespraech_mail: "FIAON Global — Mail an das Unternehmen",
 };
 
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }

@@ -46,8 +46,8 @@ import {
 } from "@shared/fiaon-telefonkartei";
 
 const MODELL = () => process.env.KARTEI_KI_MODELL || process.env.POSTMEISTER_MODELL || "gpt-5.5";
-/** Tagesdeckel in Euro — eine Nachricht kostet wenige Cent. */
-const TAGESDECKEL_EUR = () => Number(process.env.KARTEI_KI_TAGESDECKEL_EUR || 5);
+/** Tagesdeckel — eine Nachricht kostet wenige Cent. E-458 (29.10.2026): echte Dollar; vorher 5 in der ≈ 3,3-mal zu billigen Hausrechnung, darum 15. */
+const TAGESDECKEL_EUR = () => Number(process.env.KARTEI_KI_TAGESDECKEL_EUR || 15);
 const ZEIT_MS = 45_000;
 
 const GRUSS = "Viele Grüße\nJustin Schwarzott";
@@ -151,7 +151,7 @@ async function modellFragen(eingabeText: string): Promise<{ ok: true; text: stri
   if (!schluessel) return { ok: false, grund: "Für die KI fehlt der Schlüssel OPENAI_API_KEY." };
   const { nutzungMerken, kostenHeute } = await import("./fiaon-postmeister-schema");
   const heute = await kostenHeute("telefonkartei").catch(() => 0);
-  if (heute >= TAGESDECKEL_EUR()) return { ok: false, grund: `Der Tagesdeckel für KI-Nachrichten ist erreicht (${TAGESDECKEL_EUR()} €). Morgen geht es weiter.` };
+  if (heute >= TAGESDECKEL_EUR()) return { ok: false, grund: `Der Tagesdeckel für KI-Nachrichten ist erreicht (${TAGESDECKEL_EUR()} $). Morgen geht es weiter.` };
 
   const modell = MODELL();
   const start = Date.now();

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: TERMINE (8 — E-401: dazu nicht_erreicht_zweimal) — Absender „FIAON Welcome"
+// VORLAGEN: TERMINE (8 — E-401: dazu nicht_erreicht_zweimal; E-458: die drei Global-Gesprächs-Mails) — Absender „FIAON Welcome"
 //
 // Schreibregeln: siehe konto.ts. Zusätzlich hier:
 // · Termin-Mails nennen Datum, Uhrzeit und Gesprächspartner im Datenkasten —
@@ -13,6 +13,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
+import { FIAON_FIRMA } from "@shared/fiaon-firma";
+
+// E-458 Nr. 11: die Unterschrift der Gesprächs-Mails (freigegebener Wortlaut, Abschnitt 6.1).
+const GLOBAL_FUSSZEILE = `FIAON Global · FIAON LTD, London · Companies House ${FIAON_FIRMA.companyNo}`;
 
 export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
 
@@ -76,6 +80,59 @@ export const TERMIN_VORLAGEN: Record<string, MailBaustein> = {
     // E-263: Google dazu — die Datei oben nimmt Apple und Outlook, Google braucht seinen eigenen Link.
     kalender: { google: "{{params.google_kalender_url}}" },
     fussnote: "Passt es doch nicht? Über „Termin verschieben oder absagen“ sagen Sie jederzeit ab und wählen auf fiaon.com/business eine neue Zeit.",
+  },
+
+  // ── E-458 Nr. 11 (29.10.2026): VOR UND NACH DEM GLOBAL-GESPRÄCH ───────────────────────────────────────────
+  // Der Wortlaut ist von Justin freigegeben (29.10., „go Plan“; Quelle 06_Marketing/KUNDENGEWINNUNG_2026-10-28/
+  // KI_SICHTBARKEIT_UND_CONVERSION.md, 6.1 und 6.2). Vorher bekam ein Unternehmen vor dem Erstgespräch die
+  // Privat-Erinnerung (termin_erinnerung: „Guten Tag {Vorname}“, Privat-Rahmen) und nach einem verpassten
+  // Gespräch nichts. Eine Abweichung mit Absicht: Der Link zum Verschieben bzw. zur neuen Zeit ist der Knopf
+  // unter der Mail — die Vorlagen-Mails tragen keine nackten Adressen. Der Lauf steht in
+  // server/lib/fiaon-global-gespraech.ts; {{params.betreuer_name}} ist der, der wirklich anruft.
+  global_termin_erinnerung: {
+    bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+    betreff: "Morgen um {{params.termin_uhrzeit}} Uhr: Ihr Gespräch mit FIAON Global",
+    preheader: "{{params.betreuer_name}} ruft Sie an — {{params.termin_dauer}} Minuten für Ihr Vorhaben in den USA.",
+    titel: "Ihr Gespräch ist morgen",
+    absaetze: [
+      "{{params.anrede_zeile}},",
+      "morgen, am {{params.termin_datum}}, um {{params.termin_uhrzeit}} Uhr (deutsche Zeit) ruft {{params.betreuer_name}} Sie unter {{params.telefon}} an. Wir nehmen uns {{params.termin_dauer}} Minuten Zeit für Ihr Vorhaben in den USA.",
+      "Damit das Gespräch Ihnen viel bringt, notieren Sie gern vorab:\n– was Sie in den USA vorhaben (zwei Sätze genügen),\n– wo Sie bzw. Ihr Unternehmen ansässig sind,\n– welches Ziel Sie für Ihren Kapitalrahmen haben.",
+      "Passt die Zeit nicht mehr? Mit dem Knopf unten verschieben Sie den Termin oder sagen ihn ab.\nStimmt die Nummer nicht? Antworten Sie einfach auf diese Mail.",
+      `Freundliche Grüße\n{{params.betreuer_name}}\n${GLOBAL_FUSSZEILE}`,
+    ],
+    knopf: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+  },
+
+  // Kurz vor dem Gespräch (eine Stunde vorher) — derselbe Lauf, ohne Anhang.
+  global_termin_kurz: {
+    bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+    betreff: "Um {{params.termin_uhrzeit}} Uhr rufen wir Sie an",
+    preheader: "Ihr Gespräch mit FIAON Global — falls etwas dazwischenkommt, verschieben Sie mit einem Klick.",
+    titel: "Gleich sprechen wir",
+    absaetze: [
+      "{{params.anrede_zeile}}, um {{params.termin_uhrzeit}} Uhr rufen wir Sie an.",
+      "Falls etwas dazwischenkommt: Mit dem Knopf unten verschieben Sie den Termin oder sagen ihn ab.",
+      "Freundliche Grüße, {{params.betreuer_vorname}}, FIAON Global",
+    ],
+    knopf: { text: "Termin verschieben oder absagen", url: "{{params.storno_link}}" },
+  },
+
+  // Nach einem verpassten Gespräch — genau einmal, wenn ein Mensch „nicht erreicht“ einträgt. Danach keine
+  // weitere automatische Mail; die zuständige Person ruft an. {{params.wann_satz}} ist „heute um 10:30 Uhr“ —
+  // oder das Datum, wenn das Ergebnis erst später eingetragen wird (dann stimmte „heute“ nicht mehr).
+  global_nicht_erreicht: {
+    bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+    betreff: "Wir haben Sie {{params.wann_kurz}} nicht erreicht",
+    preheader: "Das kommt vor — wählen Sie in Ruhe eine neue Zeit oder antworten Sie mit einer Zeit, die Ihnen passt.",
+    titel: "Wir haben Sie nicht erreicht",
+    absaetze: [
+      "{{params.anrede_zeile}},",
+      "{{params.wann_satz}} haben wir Sie unter {{params.telefon}} leider nicht erreicht. Das kommt vor — kein Problem.",
+      "Mit dem Knopf unten wählen Sie in Ruhe eine neue Zeit.\nLieber zurückgerufen werden? Antworten Sie kurz mit einer Zeit, die Ihnen passt.",
+      "Freundliche Grüße\n{{params.betreuer_name}}, FIAON Global",
+    ],
+    knopf: { text: "Neue Zeit wählen", url: "{{params.link_kalender}}" },
   },
 
   termin_erinnerung: {
@@ -203,5 +260,47 @@ export const GLOBAL_TERMIN_EN: Record<string, MailBaustein> = {
     knopf2: { text: "Reschedule or cancel", url: "{{params.storno_link}}" },
     kalender: { google: "{{params.google_kalender_url}}" },
     fussnote: "Does the time no longer suit you? Use “Reschedule or cancel” at any time and choose a new slot at fiaon.com/en/business.",
+  },
+
+  // E-458 Nr. 11: die drei Gesprächs-Mails auf Englisch — wer auf /en/business gebucht hat. Gleiche Platzhalter und
+  // Knöpfe wie oben, britisches Englisch.
+  global_termin_erinnerung: {
+    sprache: "en", bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+    betreff: "Tomorrow at {{params.termin_uhrzeit}}: your call with FIAON Global",
+    preheader: "{{params.betreuer_name}} will call you — {{params.termin_dauer}} minutes for your plans in the US.",
+    titel: "Your call is tomorrow",
+    absaetze: [
+      "{{params.anrede_zeile}},",
+      "Tomorrow, {{params.termin_datum}}, at {{params.termin_uhrzeit}} (German time), {{params.betreuer_name}} will call you on {{params.telefon}}. We are setting aside {{params.termin_dauer}} minutes for your plans in the US.",
+      "To get the most out of the call, you may like to note down beforehand:\n– what you plan to do in the US (two sentences are enough),\n– where you or your company are based,\n– what you are aiming for with your capital limit.",
+      "Does the time no longer suit you? Use the button below to reschedule or cancel.\nIs the number wrong? Simply reply to this email.",
+      `Kind regards\n{{params.betreuer_name}}\n${GLOBAL_FUSSZEILE}`,
+    ],
+    knopf: { text: "Reschedule or cancel", url: "{{params.storno_link}}" },
+  },
+  global_termin_kurz: {
+    sprache: "en", bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+    betreff: "We will call you at {{params.termin_uhrzeit}} (German time)",
+    preheader: "Your call with FIAON Global — if something comes up, reschedule with one click.",
+    titel: "We will speak shortly",
+    absaetze: [
+      "{{params.anrede_zeile}}, we will call you at {{params.termin_uhrzeit}} (German time).",
+      "If something comes up, use the button below to reschedule or cancel.",
+      "Kind regards, {{params.betreuer_vorname}}, FIAON Global",
+    ],
+    knopf: { text: "Reschedule or cancel", url: "{{params.storno_link}}" },
+  },
+  global_nicht_erreicht: {
+    sprache: "en", bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+    betreff: "We could not reach you {{params.wann_kurz}}",
+    preheader: "That happens — choose a new time at your convenience or reply with a time that suits you.",
+    titel: "We could not reach you",
+    absaetze: [
+      "{{params.anrede_zeile}},",
+      "We were unfortunately unable to reach you {{params.wann_satz}} on {{params.telefon}}. That happens — no problem at all.",
+      "Use the button below to choose a new time at your convenience.\nWould you rather we called you back? Simply reply with a time that suits you.",
+      "Kind regards\n{{params.betreuer_name}}, FIAON Global",
+    ],
+    knopf: { text: "Choose a new time", url: "{{params.link_kalender}}" },
   },
 };

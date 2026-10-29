@@ -19,13 +19,15 @@
  * nach 9 Sekunden geht sie von selbst (CSS), falls das Skript nie startet.
  */
 import { MOTIV_PRIVAT, MOTIV_BUSINESS, type BuehnenMotiv } from "./fiaon-startbuehne-motive";
+import { BUSINESS_EIGENE_PFADE, istBusinessPfad } from "./fiaon-business-grenze";
 
 /** Business-Adressen (FIAON Global) bekommen das Business-Motiv. */
 export const BUSINESS_BUEHNE = /^\/(en\/)?business(\/|$)/;
 
 /** Welches Motiv gilt für diese Adresse? `suche` = location.search (für ?bereich=business). */
 export function buehnenMotiv(pfad: string, suche = ""): BuehnenMotiv {
-  return BUSINESS_BUEHNE.test(pfad) || /[?&]bereich=business(&|$)/.test(suche) ? MOTIV_BUSINESS : MOTIV_PRIVAT;
+  // 29.10.2026 (E-459): dieselbe Grenze wie Kopf und Fuß (shared/fiaon-business-grenze.ts) — auch die Vertrauensseite.
+  return istBusinessPfad(pfad) || /[?&]bereich=business(&|$)/.test(suche) ? MOTIV_BUSINESS : MOTIV_PRIVAT;
 }
 
 /** Kleinste Standzeit ab Aufruf (ms) — je Motiv, damit der Auftakt nicht abreißt. */
@@ -35,7 +37,9 @@ export function buehneMindestensMs(motiv: BuehnenMotiv): number {
 
 /** Skript für den Kopf von index.html: Welt wählen und Scrollen sperren, bevor irgendetwas gezeichnet wird. */
 function kopfSkript(): string {
-  return `<script>(function(){var d=document.documentElement;if(${BUSINESS_BUEHNE.toString()}.test(location.pathname)||/[?&]bereich=business(&|$)/.test(location.search))d.className+=" ld-business";d.className+=" ld-an";setTimeout(function(){d.classList.remove("ld-an")},9000)})()</script>`;
+  // Das Skript im Kopf kann nichts laden — die eigenen Business-Adressen stehen darum als Liste darin (aus derselben Quelle).
+  const eigene = JSON.stringify(Array.from(BUSINESS_EIGENE_PFADE));
+  return `<script>(function(){var d=document.documentElement,p=(location.pathname.replace(/\\/+$/,"")||"/").toLowerCase();if(${BUSINESS_BUEHNE.toString()}.test(p)||${eigene}.indexOf(p)>-1||/[?&]bereich=business(&|$)/.test(location.search))d.className+=" ld-business";d.className+=" ld-an";setTimeout(function(){d.classList.remove("ld-an")},9000)})()</script>`;
 }
 
 /** Die Startbühne für den Körper von index.html — vor #root, beide Motive in einer Hülle. */

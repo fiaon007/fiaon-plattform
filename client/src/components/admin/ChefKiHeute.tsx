@@ -14,7 +14,7 @@
 import { useState } from "react";
 import { akteLink } from "@/lib/akte-link";
 import type { KiHeute, GelbSicht } from "@shared/fiaon-ki-team";
-import { Kopf, KiRundgang, NichtVerbunden, Fehler, Stand, Meldung, useMeldung, useTakt, senden, euro, zahl, seitKurz, tagZeit } from "./ki-teile";
+import { Kopf, KiRundgang, NichtVerbunden, Fehler, Stand, Meldung, useMeldung, useTakt, senden, euro, usd, betrag, zahl, seitKurz, tagZeit } from "./ki-teile";
 
 type Ton = "gut" | "neutral" | "vorsicht";
 interface Option { key: string; label: string; ton: Ton; link: string | null; titel: string | null }
@@ -87,7 +87,8 @@ export default function ChefKiHeute() {
   };
 
   const karten = ((d?.karten ?? []) as KarteSicht[]);
-  const kostenSumme = (d?.kosten ?? []).reduce((s, k) => s + k.euro, 0);
+  // E-458: KI in echten Dollar — die Telefon-Schätzung (Euro) zählt hier nicht mit.
+  const kostenSumme = (d?.kosten ?? []).filter((k) => k.waehrung !== "EUR").reduce((s, k) => s + k.euro, 0);
   const aus = notaus.wege.filter((w) => !w.an).length;
   const status = notaus.aktiv ? { ton: "krit", punkt: "krit", text: "angehalten" } : aus ? { ton: "", punkt: "gelb", text: `${aus} ${aus === 1 ? "Weg" : "Wege"} aus` } : { ton: "gut", punkt: "gut", text: "arbeitet" };
 
@@ -221,15 +222,15 @@ export default function ChefKiHeute() {
 
           <div className="ki-raster zwei ki-abstand">
             <section className="ki-karte" data-ki="kosten" aria-label="Kosten heute">
-              <h2>Kosten heute <span className="ki-still ki-klein">· {euro(kostenSumme)} · <a href="/chef/s/ki-einstellungen#kasse">Kasse</a></span></h2>
+              <h2>Kosten heute <span className="ki-still ki-klein">· KI {usd(kostenSumme)} · <a href="/chef/s/ki-einstellungen#kasse">Kasse</a></span></h2>
               {d.kosten.length === 0 ? <p className="ki-still">Heute noch keine KI-Kosten.</p> : (
                 <ul className="ki-liste">
                   {d.kosten.slice(0, 8).map((k) => {
                     const voll = k.deckel ? Math.min(100, Math.round((k.euro / k.deckel) * 100)) : null;
                     return (
-                      <li key={k.dienst} className="ki-zeile ki-zeile-rechts" title={k.deckel ? `Deckel ${euro(k.deckel)} je Tag` : "kein Deckel"}>
+                      <li key={k.dienst} className="ki-zeile ki-zeile-rechts" title={k.deckel ? `Deckel ${betrag(k.deckel, k.waehrung)} je Tag` : "kein Deckel"}>
                         <div className="ki-zeile-kopf"><b>{k.label}</b>{voll != null && voll >= 90 ? <span className="ki-pille"><span className="ki-punkt gelb" aria-hidden="true" />Deckel fast erreicht</span> : null}</div>
-                        <span className="ki-zahl">{euro(k.euro)}</span>
+                        <span className="ki-zahl">{betrag(k.euro, k.waehrung)}</span>
                         <span className="ki-zeile-satz"><span className="ki-balken"><i className={voll != null && voll >= 90 ? "voll" : ""} style={{ width: `${voll ?? Math.round(k.anteil)}%` }} /></span></span>
                       </li>
                     );

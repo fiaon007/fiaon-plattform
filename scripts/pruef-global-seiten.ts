@@ -276,7 +276,8 @@ for (const [pfad, e] of Object.entries(tabelle) as [string, any][]) {
 {
   const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
   const links = (html: string) => [...(html.split(/<div class="vorab[^"]*">/)[1] ?? "").matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
-  const erlaubt = /^(\/(en\/)?(business|impressum|datenschutz|cookie-einstellungen|privacy|legal-notice|cookie-settings)([/?#]|$)|tel:|mailto:|https?:)/;
+  // 29.10.2026 (E-459): Die Vertrauensseite gehört ganz zur Business-Welt (shared/fiaon-business-grenze.ts) — der Business-Fuß verlinkt sie.
+  const erlaubt = /^(\/(en\/)?(business|impressum|datenschutz|cookie-einstellungen|privacy|legal-notice|cookie-settings)([/?#]|$)|\/ist-fiaon-serioes$|\/en\/is-fiaon-legit$|tel:|mailto:|https?:)/;
   for (const pfad of ["/impressum", "/privacy"]) {
     const html = seitenHtml(pfad, { bereich: "business" }) ?? "";
     const fremd = links(html).filter((h) => !erlaubt.test(h));
@@ -432,7 +433,11 @@ abschnitt("Kapital auch in Europa (GLOBAL_KAPITAL_FREI)");
   }
   // Die Hauptseite liest die Quelle: am Kapitalrahmen im Kopf (mit Fußnote) und unter den Pakettafeln.
   const kopf = hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'));
-  ok(/GLOBAL_KAPITAL_FREI\[s\]/.test(hubSeite) && /\{frei\.kurz\}/.test(kopf) && /\{frei\.satz\} \{frei\.steuer\}/.test(kopf), "/business: der Hinweis am Kapitalrahmen oder seine Fußnote (GLOBAL_KAPITAL_FREI) fehlt im Kopf");
+  // 29.10.2026: Seit der Glas-Bühne (E-442, 27.10.) gibt /business den Hinweis als Eigenschaft an HeroGlas weiter
+  // (kapitalFrei: frei.kurz, fussnote: `${frei.satz} ${frei.steuer}`) — beide Schreibweisen zählen.
+  const kurzImKopf = /\{frei\.kurz\}/.test(kopf) || /kapitalFrei: frei\.kurz\b/.test(kopf);
+  const fussImKopf = /\{frei\.satz\} \{frei\.steuer\}/.test(kopf) || /fussnote: `\$\{frei\.satz\} \$\{frei\.steuer\}`/.test(kopf);
+  ok(/GLOBAL_KAPITAL_FREI\[s\]/.test(hubSeite) && kurzImKopf && fussImKopf, "/business: der Hinweis am Kapitalrahmen oder seine Fußnote (GLOBAL_KAPITAL_FREI) fehlt im Kopf");
   const tafelnFuss = hubSeite.slice(hubSeite.indexOf('className="fg-paket-fuss"'), hubSeite.indexOf('className="fg-inkl"'));
   ok(/fg-paket-europa/.test(tafelnFuss) && /\{frei\.satz\} \{frei\.steuer\}/.test(tafelnFuss), "/business: die Zeile unter den Pakettafeln (GLOBAL_KAPITAL_FREI) fehlt");
   // Die Unterseiten, auf denen Kapital Thema ist, tragen die Frage — von Firmenkarten und Kapital sammelt sie die Fragen-Seite.

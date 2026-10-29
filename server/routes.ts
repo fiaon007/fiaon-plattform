@@ -334,6 +334,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-382 (16.10.2026): Ist das KI-Guthaben leer, pausiert die KI automatisch — und schaltet sich jetzt auch selbst
     // wieder ein, sobald nach dem Aufladen eine Probe durchgeht (nur automatische Abrechnungs-Pausen, nie eine Hand-Pause).
     tageslauf('ki_selbstheilung', async () => await (await import('./lib/fiaon-ki-pause')).selbstHeilung(), 10 * 60 * 1000, { beimStartNach: 75_000 });
+    // E-458 (29.10.2026): die KI-Kasse — Stand auffrischen, die alten Deckel einmal auf echte Dollar umstellen und während
+    // der Nachhol-Bremse (6 Stunden nach einer Pause) alle 30 Minuten den nächsten Nachhol-Schub anstoßen.
+    tageslauf('ki_kasse', async () => await (await import('./lib/fiaon-ki-kasse')).kasseTakt(), 10 * 60 * 1000, { beimStartNach: 95_000 });
     tageslauf('meta_nachhol', async () => await (await import('./lib/fiaon-meta-leads')).nachholLauf(), 5 * 60 * 1000, { beimStartNach: 120_000 });
     tageslauf('meta_waechter', async () => await (await import('./lib/fiaon-meta-leads')).waechterLauf(), 15 * 60 * 1000, { beimStartNach: 180_000 });
     tageslauf('lead_willkommen_nachholen', async () => await (await import('./lib/fiaon-lead-willkommen')).willkommenNachholen(), 5 * 60 * 1000, { beimStartNach: 150_000 });
@@ -617,6 +620,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    keine Kundenmail, kein Geld. Stündlich, wiederholbar über Marken-Spalten.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_angebot_lauf', async () => await (await import('./lib/fiaon-global-angebot')).globalAngebotLauf(), 60 * 60 * 1000, { beimStartNach: 660_000 });
+  });
+  // 🌐 FIAON Global — kein Gespräch geht mehr verloren (E-458 Nr. 11): Erinnerung am Vortag und eine Stunde vorher,
+  //    eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, am nächsten Werktag um 9 die Leitung. Alle zehn
+  //    Minuten (die Stunden-Mail braucht das Fenster); eine Historienzeile nur, wenn etwas geschah. Atomar über Marken.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_gespraeche', async () => await (await import('./lib/fiaon-global-gespraech')).globalGespraecheLauf(), 10 * 60 * 1000, { beimStartNach: 300_000, nurMitErgebnis: true });
   });
   // 🤝 E-386: Lieferstrecke der Partner-Kooperation — Übermittlungen nachholen, Partnerbereich-Mail nach der Annahme,
   //    Monatsrechnung für jeden abgeschlossenen Monat (genau einmal je Partner und Monat), eine Zahlungserinnerung.

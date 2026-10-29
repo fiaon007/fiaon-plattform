@@ -41,6 +41,7 @@ import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { sqlPool } from "./db-pool";
 import { openaiFetch, kiPausiert, istKiPause, kiSchluessel, kiLesenMoeglich } from "./fiaon-ki-pause";
 import { nutzungMerken } from "./fiaon-postmeister-schema";
+import { kiModell } from "./fiaon-ki-kasse";
 import { berlinToday } from "./fiaon-time";
 import {
   AUTORIN, BEREICHE, BEREICH_LABEL, KATEGORIEN, THEMEN, hausstilFuer, kategorienFuer, bereichVonKategorie, pruefstand,
@@ -71,7 +72,9 @@ export const VERSUCHE_JE_LAUF = 3;
 /** Höchstens so viele KI-Aufrufe (Recherche + Schreiben) je Bereich und Tag — danach wartet der Bereich auf morgen. */
 export const VERSUCHE_JE_TAG = 9;
 /** Das Modell — dasselbe wie Mara und der Radar (Werkzeuge + Denken nur über /v1/responses). */
-export const MODELL = () => process.env.FIAON_RATGEBER_MODELL || "gpt-5.5";
+// E-458 / E-262 D (29.10.2026): Modell je Aufgabe — im Chefbüro umschaltbar (KI-Team › Einstellungen & Kasse,
+// ki_modell_ratgeber: gpt-5.5 oder gpt-5.4); FIAON_RATGEBER_MODELL bleibt die Notfall-Weiche.
+export const MODELL = () => kiModell("ratgeber");
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE TABELLE

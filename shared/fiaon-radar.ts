@@ -19,6 +19,16 @@ export const RADAR_TAGESZIEL = 50;
 
 export type RadarLand = "DE" | "AT" | "CH";
 export const RADAR_LAENDER: readonly RadarLand[] = ["DE", "AT", "CH"];
+/**
+ * E-458 (Justin 29.10.2026): „lass Österreich komplett weg, kein Brief, keine Email nur DE und CH – später erweitern wir passend“.
+ * Nur in diesen Ländern sucht der Radar, und nur hierhin schreibt die Automatik (erste Mail, Nachfass, Wiedervorlage, Brief).
+ * Österreich wieder aufnehmen = hier ergänzen.
+ */
+export const RADAR_LAENDER_AKTIV: readonly RadarLand[] = ["DE", "CH"];
+/** Ohne Angabe gilt Deutschland (wie beim Anlegen einer Firma). */
+export function radarLandAktiv(land: unknown): boolean {
+  return (RADAR_LAENDER_AKTIV as readonly string[]).includes(String(land || "DE").trim().toUpperCase());
+}
 
 export interface RadarBereich {
   key: string;

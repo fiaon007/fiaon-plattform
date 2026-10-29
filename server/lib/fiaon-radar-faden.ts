@@ -48,7 +48,7 @@ import { berlinToday } from "./fiaon-time";
 import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarSendefenster, radarAdressePruefen,
-  radarBuchungslink, radarRoboter, radarPlan,
+  radarBuchungslink, radarRoboter, radarPlan, RADAR_LAENDER_AKTIV,
   type RadarAntwortArt, type RadarAutomatik,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -1053,6 +1053,8 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
   await ensureRadarTabellen();
   const postfach = radarPostfaecher()[0];
   if (!postfach) return { ...erg, grund: "kein Radar-Postfach" };
+  // E-458 (Justin 29.10.2026): „lass Österreich komplett weg … nur DE und CH“ — gilt für erste Mail, Nachfass und Wiedervorlage.
+  const laender = [...RADAR_LAENDER_AKTIV] as string[];
 
   // ── Nachfassen: höchstens zwei je Lauf ──
   if (s.nachfass) {
@@ -1060,6 +1062,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
       SELECT * FROM fiaon_radar_firmen
        WHERE status = 'versendet' AND antwort_am IS NULL AND nachfass_faellig <= NOW() AND archiviert_am IS NULL
          AND nachfass_stufe < ${RADAR_NACHFASS_TAGE.length} AND COALESCE(gmail_thread_id, gmail_nachricht_id) IS NOT NULL AND postfach IS NOT NULL
+         AND COALESCE(land, 'DE') = ANY(${laender})
        ORDER BY nachfass_faellig ASC LIMIT 2`) as any[];
     for (const roh of faellig) {
       const f: any = zeileLesen(roh);
@@ -1094,6 +1097,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
              (SELECT p.id FROM fiaon_radar_post p WHERE p.firma_id = f.id AND p.richtung = 'ein' ORDER BY p.datum DESC NULLS LAST, p.id DESC LIMIT 1) AS post_id
         FROM fiaon_radar_firmen f
        WHERE f.wiedervorlage_am <= NOW() AND f.archiviert_am IS NULL AND f.status IN ('antwort', 'lead')
+         AND COALESCE(f.land, 'DE') = ANY(${laender})
        ORDER BY f.wiedervorlage_am ASC LIMIT 2`) as any[];
     for (const w of faellig) {
       try {
@@ -1130,6 +1134,7 @@ export async function radarVersandLauf(jetzt = new Date()): Promise<VersandErgeb
          WHERE ((r.status IN ('neu', 'gescannt', 'mail') AND r.versendet_am IS NULL)
                 OR (r.status = 'unzustellbar' AND r.email IS NOT NULL AND position(r.email in COALESCE(r.email_ungueltig, '')) = 0))
            AND r.email IS NOT NULL AND r.automatik_am IS NULL AND r.archiviert_am IS NULL
+           AND COALESCE(r.land, 'DE') = ANY(${laender})
            AND COALESCE(r.passung, 0) >= ${s.abPassung}
            -- E-337: nur mit Kapitalsignal ab Stärke 3 — oder noch ungeprüft (dann prüft der Scan unten, bevor geschrieben wird).
            AND (r.signal_staerke IS NULL OR r.signal_staerke >= ${RADAR_SIGNAL_AB})

@@ -45,7 +45,7 @@ const de: GlobalSeite = {
   blick: [
     ["Vertragspartner", `${F.name}, ${F.strasse}, ${F.ortZeile}, ${F.land}`],
     ["Handelsregister", `Companies House (England and Wales), Nr. ${F.companyNo} – öffentlich einsehbar`],
-    ["Geschäftsführung", `${F.director} (Director), Gründer`],
+    ["Leitung", `${F.director} (Director), Gründer`],
     ["Preis", "Festpreis je Paket, einmalig, alle Gebühren des Pakets inklusive"],
     ["Zahlung", `Per Rechnung, nur per Überweisung an ${BANK.empfaenger} – kein Abo, keine Abbuchung`],
     ["Vertrag", "Auf Deutsch, nach deutschem Recht; Mustervertrag vorab lesbar"],

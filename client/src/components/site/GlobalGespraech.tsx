@@ -34,6 +34,7 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { kampagne, messungsDaten, werbeKonversion } from "@/lib/werbung";
 import { visitenkarte, telefonLink } from "@shared/fiaon-visitenkarte";
 import { portraitAlt, portraitMitKi, portraitUrl, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
+import { GLOBAL_TERMIN_ARAS_TEXT } from "@shared/fiaon-ja-zum-anruf";
 
 type FreierTag = { tag: string; zeiten: string[] };
 type Frei = { ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string; kuerzel?: string | null } | null; rueckfall?: boolean };
@@ -50,6 +51,8 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const [f, setF] = useState(leer);
   const [sendet, setSendet] = useState(false);
   const [fehler, setFehler] = useState("");
+  // E-458: das freiwillige Kästchen „… auch durch unsere KI-Assistentin ARAS“ (nie vorangekreuzt, nur bei der Buchung).
+  const [arasJa, setArasJa] = useState(false);
   const [fertig, setFertig] = useState<null | { art: "termin" | "anfrage"; wann?: string; wer?: string }>(null);
 
   const laden = async () => {
@@ -113,7 +116,8 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
         return;
       }
       if (!tag || !zeit) return;
-      const r = await fetch("/api/fiaon/global/termine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined }) });
+      // E-458: Der Satz selbst geht mit — der Server speichert die Einwilligung nur, wenn es genau sein Satz ist.
+      const r = await fetch("/api/fiaon/global/termine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined, ...(arasJa ? { arasAnruf: GLOBAL_TERMIN_ARAS_TEXT[sp] } : {}) }) });
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) { setFehler(t.vergeben); setZeit(null); await laden(); return; }
       if (!r.ok || !j.ok) { setFehler(j.error || t.fehler); return; }
@@ -140,6 +144,12 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
       {formularRueckruf && feld("wunschzeit", t.wunschzeit)}
       {feld("thema", t.thema)}
       <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
+      {!formularRueckruf && (
+        <label className="fg-kaestchen">
+          <input type="checkbox" checked={arasJa} onChange={(e) => setArasJa(e.target.checked)} />
+          <span>{GLOBAL_TERMIN_ARAS_TEXT[sp]}</span>
+        </label>
+      )}
       {fehler && <p className="fehler" role="alert">{fehler}</p>}
       <button type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
       <p className="hinweis">{t.datenschutz}</p>

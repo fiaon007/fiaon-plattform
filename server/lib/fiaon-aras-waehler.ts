@@ -36,7 +36,7 @@ import { globalKundeSql, globalKundeBereit } from "./fiaon-global-kunde";
 import { anweisungBauen, nummerEndeGesprochen } from "../../shared/fiaon-aras-prompt";
 import { anweisungLesen } from "./fiaon-mara-anweisung";
 import {
-  fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT,
+  fensterOffen, darfVersuch, istWerbeSpielart, stufenGrenzen, rateTagErlaubt, berlinTeile, ANRUF_ZEITLIMIT_SEK, istGesperrteSpielart, GESPERRT_TEXT, globalErlaubt,
   VORRANG_SPIELARTEN, VORRANG_FREI_MINUTEN, TAG_EURO_HOECHSTENS, istVorrang, tagesFreigabe, mindestAbstandMs, abschnittWahlBeste, type Spielart, type Land, type Kandidat,
 } from "../../shared/fiaon-aras";
 
@@ -169,6 +169,22 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
       const [ew] = z.einwilligung_id ? ((await lauf`SELECT art FROM fiaon_telefon_einwilligung WHERE id = ${z.einwilligung_id}`) as any[]) : [];
       if (!["zuruf_whatsapp", "zuruf_mail"].includes(String(ew?.art ?? ""))) { merken("stufe:zuruf_kaestchen"); continue; }
     }
+    // E-458: Anruf-Wunsch — gilt sein Ja noch, hat inzwischen jemand mit ihm gesprochen, steht ein Termin? Erinnerung — steht das
+    // Gespräch noch zur selben Zeit, gilt das Kästchen? (Verschoben → der Eintrag rückt ins neue Fenster.)
+    if (k.spielart === "wunsch") {
+      const { wunschEntfaellt } = await import("./fiaon-aras-wunsch");
+      const nein = await wunschEntfaellt(z, lauf);
+      if (nein) { merken(`wunsch:${nein.slice(0, 30)}`); await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = ${`Anruf-Wunsch entfällt: ${nein}`.slice(0, 200)}, updated_at = NOW() WHERE id = ${k.id}`; continue; }
+    }
+    if (k.spielart === "erinnerung") {
+      const { erinnerungEntfaellt } = await import("./fiaon-aras-wunsch");
+      const weg = await erinnerungEntfaellt(z, einst, lauf);
+      if (weg) {
+        merken(`erinnerung:${weg.grund.slice(0, 30)}`);
+        if (weg.status === "verfallen") await lauf`UPDATE fiaon_aras_plan SET status = 'verfallen', verschoben_grund = ${`Erinnerung entfällt: ${weg.grund}`.slice(0, 200)}, updated_at = NOW() WHERE id = ${k.id} AND status = 'wartet'`;
+        continue;
+      }
+    }
     // Willkommen: vor dem Fenster noch einmal dieselbe Prüfung wie beim Planen (inzwischen bezahlt, angerufen, gekündigt …?) —
     // was nicht mehr passt, fällt sofort aus der Reihe (auch nachts), statt bis zum nächsten Fenster zu warten.
     if (k.spielart === "willkommen") {
@@ -188,7 +204,8 @@ async function takt(lauf: Lauf): Promise<TaktErgebnis> {
     if (personId) {
       await globalKundeBereit();
       const [g] = (await lauf.unsafe(`SELECT ${globalKundeSql("p.id")} AS global, p.ist_test_am IS NOT NULL AS test FROM fiaon_persons p WHERE p.id = ${personId}`)) as any[];
-      if (g?.global) { merken("global"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Global-Kunde', updated_at = NOW() WHERE id = ${k.id}`; continue; }
+      // E-458: Firmen nur mit Anruf-Wunsch oder zur Erinnerung vor ihrem Gespräch (globalErlaubt) — alles andere bleibt gesperrt (E-272).
+      if (g?.global && !globalErlaubt(k.spielart)) { merken("global"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Global-Kunde', updated_at = NOW() WHERE id = ${k.id}`; continue; }
       if (g?.test) { merken("testperson"); await lauf`UPDATE fiaon_aras_plan SET status = 'gesperrt', verschoben_grund = 'Testperson', updated_at = NOW() WHERE id = ${k.id}`; continue; }
       const v = await versucheHeute(personId, lauf);
       // Der zweite Willkommens-Versuch (Koordination 22.10.: genau einer, 2,5 h nach Mailbox/nicht erreicht) zählt bei den Grenzen

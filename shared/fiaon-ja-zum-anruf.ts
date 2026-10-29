@@ -52,6 +52,16 @@ export const ANRUF_SPERRE_WA = "Verstanden – wir rufen Sie nicht mehr an.";
 export const JA_AKTE_BESTAETIGUNG = "Der Kunde hat mir gerade im Gespräch gesagt, dass FIAON ihn anrufen darf, auch ARAS (KI)";
 /** Marke hinter Maras Namen, wenn der Knopf „Mara fragt nach dem Ja“ die Frage schickt (wie „(Nachfass)“). */
 export const JA_FRAGE_MARKE = "(Ja-Frage)";
+/**
+ * E-458 (Justin 29.10.2026, „go Plan“ Punkt 8): das Kästchen im Buchungsformular eines Global-Gesprächs (/business, „Gespräch
+ * vereinbaren“) — eigene Zeile, nie vorangekreuzt, freiwillig; die Buchung hängt nicht daran. EIN Wortlaut für Anzeige UND
+ * Nachweis: Die Seite zeigt genau diesen Satz, der Server speichert ihn (termin_kaestchen, quelle = der Termin) nur, wenn der
+ * Browser ihn unverändert zurückschickt. Er deckt NUR den Erinnerungsanruf vor diesem Gespräch.
+ */
+export const GLOBAL_TERMIN_ARAS_TEXT = {
+  de: "Ja, FIAON darf mich vor dem Gespräch kurz anrufen, um den Termin zu bestätigen – auch durch unsere KI-Assistentin ARAS. Freiwillig und jederzeit widerrufbar.",
+  en: "Yes, FIAON may call me shortly before the conversation to confirm the appointment – including through our AI assistant ARAS. Voluntary; you can withdraw this at any time.",
+} as const;
 
 /** Höchstens eine Frage je Mensch in so vielen Tagen (Auftrag E-408). */
 export const JA_FRAGE_ABSTAND_TAGE = 30;
@@ -64,6 +74,7 @@ export const JA_GESPRAECH_STUNDEN = 2;
 export const JA_QUELLE_TEXT: Record<EinwilligungArt, string> = {
   antrag_kaestchen: "Antrag-Kästchen", antrag_knopf: "Antrag-Knopf", zuruf_whatsapp: "WhatsApp", zuruf_mail: "Mail",
   meta_kaestchen: "Meta-Formular", rueckruf_buchung: "Rückruf gebucht", chef: "im Gespräch",
+  termin_kaestchen: "Gesprächsbuchung (Erinnerung)",
 };
 
 // ── Der JA-Erkenner ─────────────────────────────────────────────────────────────────────────────────────────────

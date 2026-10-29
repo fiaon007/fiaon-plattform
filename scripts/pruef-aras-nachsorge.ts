@@ -131,7 +131,7 @@ async function main(): Promise<void> {
   const ausweis = await arasAusweisId();
   const setze = async (k: string, v: string) => { await P.einstellungSetzen(k, v, "pruefstand"); P.arasEinstellungenVergessen(); };
   await setze("aras_an", "an"); await setze("aras_notaus", "aus"); await setze("aras_stufe", "3"); await setze("aras_adapter", "attrappe");
-  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "an", stufe_a: "an", auftrag: "an", probe: "an" }));
+  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "an", stufe_a: "an", auftrag: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }));
   await setze("aras_fenster", JSON.stringify({ verkauf: { "1-7": ["08:00", "21:00"] }, rate: { "1-7": ["08:00", "21:00"] } }));
   const { ensureTodoTabelle } = await import("../server/routes/fiaon-betreiber-todo").catch(() => ({ ensureTodoTabelle: null as any }));
   if (ensureTodoTabelle) await ensureTodoTabelle().catch(() => null);
@@ -416,7 +416,7 @@ async function main(): Promise<void> {
   ok("Probeanruf (trocken): derselbe ehrliche Satz, nichts eingetragen", tr.vorlesen === S.zusageNotiertSatz(datum));
 
   titel("B3b. SPIELART „ZUSAGE“ AUS (wie in der Produktion): nach der Pause rufen die normalen Rate-Anrufe wieder an — so stimmt ARAS' Satz");
-  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "aus", stufe_a: "an", auftrag: "an", probe: "an" }));
+  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "aus", stufe_a: "an", auftrag: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }));
   const einstAus = await P.arasEinstellungenLesen(true);
   // Die Zusage, deren Pause genau gestern endete (wiederAb = heute); gibt es heute keine (So/Mo), die jüngste schon beendete.
   let dEnde: string | null = null;
@@ -452,7 +452,7 @@ async function main(): Promise<void> {
   const r849 = await werkzeugAusfuehren(ctx(p849, a849, 849, ref849, einstAus) as any, "zahlungszusage_merken", { datum: datumAus }, "pruef-849");
   ok("ROT-PROBE: Zusage zur ERSTEN Zahlung (Willkommen, noch keine Rate), Spielart „Zusage“ aus → KEIN „melde ich mich“ — danach ruft ARAS nicht an",
     r849.ok && /^Notiert: Sie überweisen am \d{2}\.\d{2}\.$/.test(r849.vorlesen), r849.vorlesen);
-  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "an", stufe_a: "an", auftrag: "an", probe: "an" }));
+  await setze("aras_spielarten", JSON.stringify({ termin: "an", willkommen: "an", rate: "an", zusage: "an", stufe_a: "an", auftrag: "an", probe: "an", wunsch: "aus", erinnerung: "aus" }));
   const einstAn = await P.arasEinstellungenLesen(true);
   const a849b = await arasAnruf(p849, 849, ref849, null, { spielart: "willkommen", ergebnis: null });
   const r849b = await werkzeugAusfuehren(ctx(p849, a849b, 849, ref849, einstAn) as any, "zahlungszusage_merken", { datum: datumAus }, "pruef-849b");

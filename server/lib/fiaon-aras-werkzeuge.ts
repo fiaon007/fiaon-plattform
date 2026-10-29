@@ -365,6 +365,65 @@ const WERKZEUG: Record<Werkzeug, (ctx: WerkzeugKontext, e: any, lauf: Lauf) => P
     return { ok: true, vorlesen: "", still: "Feedback festgehalten — setz es sofort um und mach ganz normal weiter (keine Weiterleitung)." };
   },
 
+  // E-458 (Justin 29.10.2026): Anruf-Wunsch einer Firma — ein freies Erstgespräch bei der zuständigen Person von FIAON Global.
+  // Dieselbe Buchung wie der Kalender auf /business (globalTerminBuchen: Termin, Firmen-Lead, Bestätigung per Mail, Auftrag) —
+  // nur Zeiten, die er dort auch sähe. Ohne Zeitpunkt (oder ist er nicht frei) kommen die nächsten freien Zeiten zurück.
+  async gespraech_buchen(ctx, e, lauf) {
+    if (!ctx.personId) return { ok: false, vorlesen: "Dafür brauche ich erst Ihre Daten.", fehler: "ohne_person" };
+    const g = await import("./fiaon-global-termin");
+    const angebot = await g.globalAngebotLaden();
+    const frei = angebot.ergebnis.frei.slice(0, 40);
+    const zeitText = (beginn: Date | string) => new Date(beginn).toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const vorschlag = frei.slice(0, 3).map((f) => zeitText(f.beginn)).join(", ");
+    if (!angebot.person || !frei.length) {
+      await WERKZEUG.notiz_schreiben(ctx, { text: `Firma möchte ein Erstgespräch zu FIAON Global${e?.thema ? ` (${kurz(String(e.thema), 160)})` : ""} — im Kalender war keine Zeit frei.` }, lauf);
+      return { ok: false, vorlesen: "Im Kalender ist gerade keine Zeit frei — ich halte Ihren Wunsch fest, und die zuständige Person meldet sich mit einer Zeit.", fehler: "keine_zeit" };
+    }
+    const z = new Date(String(e?.zeitpunkt ?? ""));
+    const mitZeit = Number.isFinite(z.getTime());
+    const slot = mitZeit ? frei.find((f) => Math.abs(new Date(f.beginn).getTime() - z.getTime()) < 60_000) : null;
+    if (!slot) return { ok: !mitZeit, vorlesen: `${mitZeit ? "Die Zeit ist schon vergeben. " : ""}Frei wären zum Beispiel: ${vorschlag} Uhr.`, daten: { frei: frei.slice(0, 6).map((f) => f.beginn) } };
+    const [p] = (await lauf`SELECT first_name, last_name, company_name, primary_email, primary_phone, sprache FROM fiaon_persons WHERE id = ${ctx.personId}`) as any[];
+    const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim() || String(p?.company_name ?? "").trim();
+    const email = String(p?.primary_email ?? "").trim().toLowerCase();
+    if (!p || name.length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      await WERKZEUG.notiz_schreiben(ctx, { text: `Firma möchte ein Erstgespräch am ${zeitText(slot.beginn)} Uhr${e?.thema ? ` (${kurz(String(e.thema), 160)})` : ""} — ohne E-Mail-Adresse nicht gebucht.` }, lauf);
+      return { ok: false, vorlesen: "Für die Bestätigung fehlt mir Ihre E-Mail-Adresse — ich halte die Zeit als Wunsch fest, und die zuständige Person bestätigt sie Ihnen.", fehler: "ohne_mail" };
+    }
+    const kontakt = g.globalKontaktLesen({ name, firma: p.company_name ?? "", email, telefon: p.primary_phone || ctx.nummer, sprache: String(p.sprache ?? "").startsWith("en") ? "en" : "de" });
+    if ("error" in kontakt) return { ok: false, vorlesen: "Das konnte ich gerade nicht eintragen — ich halte es fest.", fehler: kontakt.feld };
+    const erg = await g.globalTerminBuchen({ kontakt, tag: slot.tag, zeit: slot.zeit, thema: e?.thema ? kurz(String(e.thema), 300) : "Erstgespräch, am Telefon mit ARAS vereinbart" });
+    if (!erg.ok) return { ok: false, vorlesen: `Die Zeit ist gerade weggegangen. Frei wären: ${vorschlag} Uhr.`, fehler: erg.grund };
+    await arasEreignis({ art: "aras_termin", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart, text: `Global-Erstgespräch gebucht: ${erg.datumText} ${erg.uhrzeit} (Termin ${erg.terminId})`, daten: { terminId: erg.terminId, global: true } });
+    return { ok: true, vorlesen: `Eingetragen: ${erg.datumText} um ${erg.uhrzeit} Uhr mit ${erg.ansprechpartner.vorname} — die Bestätigung kommt per Mail.`, daten: { terminId: erg.terminId } };
+  },
+
+  // E-458: Erinnerung vor dem Global-Gespräch — „bleibt“ steht am Termin; eine andere Zeit (oder Absage) wird eine Aufgabe für die
+  // Person des Gesprächs. Den Termin selbst verschiebt hier niemand (das macht die Person, Chefbüro › Global-Kunden › Gespräche).
+  async gespraech_bestaetigen(ctx, e, lauf) {
+    const [pl] = (await lauf`SELECT pl.termin_id, t.agent_id, t.beginn, p.company_name FROM fiaon_aras_anruf aa JOIN fiaon_aras_plan pl ON pl.id = aa.plan_id
+                              LEFT JOIN fiaon_termine t ON t.id = pl.termin_id LEFT JOIN fiaon_persons p ON p.id = t.person_id WHERE aa.id = ${ctx.arasAnrufId}`.catch(() => [])) as any[];
+    if (!pl?.termin_id) return { ok: false, vorlesen: "", fehler: "ohne_gespraech" };
+    const bleibt = e?.bleibt === true || e?.bleibt === "true";
+    const wunsch = kurz(String(e?.wunsch ?? ""), 300);
+    const jetzt = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    const zeile = bleibt ? `ARAS-Erinnerung ${jetzt}: bestätigt — es bleibt dabei.` : `ARAS-Erinnerung ${jetzt}: möchte eine andere Zeit${wunsch ? ` — „${wunsch}“` : ""}.`;
+    await lauf`UPDATE fiaon_termine SET notiz = CONCAT_WS(E'\n', NULLIF(notiz, ''), ${zeile}::text), updated_at = NOW() WHERE id = ${Number(pl.termin_id)}`;
+    if (!bleibt) {
+      const wann = pl.beginn ? new Date(pl.beginn).toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+      const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+      await auftragFuerKunden({
+        personId: null, ref: null, titel: `FIAON Global: ${pl.company_name ?? "Unternehmen"} möchte eine andere Zeit (Gespräch ${wann})`.slice(0, 160),
+        text: `ARAS hat vor dem Gespräch erinnert. Der Kunde möchte eine andere Zeit${wunsch ? `: „${wunsch}“` : ""}. Bitte neue Zeit vereinbaren (Chefbüro › Global-Kunden › Gespräche → Verschoben) oder absagen.`,
+        dringend: true, faelligAm: berlinToday(), schluessel: `aras:erinnerung:${Number(pl.termin_id)}`, bereich: "sonstiges",
+        link: "/agent/kalender", quelle: "aras", autorName: "ARAS", agentId: pl.agent_id != null ? Number(pl.agent_id) : undefined,
+        anlageText: "Angelegt von ARAS aus dem Erinnerungsanruf vor einem Global-Gespräch",
+      } as any);
+    }
+    await arasEreignis({ art: "aras_termin", callId: ctx.callId, arasAnrufId: ctx.arasAnrufId, personId: ctx.personId, spielart: ctx.spielart, text: zeile, daten: { terminId: Number(pl.termin_id), bleibt } });
+    return { ok: true, vorlesen: bleibt ? "" : "Ist weitergegeben — die zuständige Person meldet sich mit einer neuen Zeit.", still: bleibt ? "Bestätigt — am Termin vermerkt." : "Aufgabe für die zuständige Person angelegt." };
+  },
+
   async anruf_beenden(ctx, e) {
     const ergebnis: ArasErgebnis = istArasErgebnis(e?.ergebnis) ? e.ergebnis : "erreicht_sonstiges";
     const notiz = kurz(String(e?.notiz ?? ""), 400);
@@ -389,6 +448,11 @@ function trockenErgebnis(name: Werkzeug, e: any): WerkzeugErgebnis {
     case "nicht_mehr_anrufen": return { ok: true, vorlesen: "Verstanden — Sie bekommen von uns keine Anrufe mehr. Alles Weitere nur noch schriftlich.", still: "Probe: keine Sperre gesetzt." };
     case "mensch_verbinden": return { ok: false, vorlesen: "Gerade ist niemand aus dem Team frei — jemand ruft Sie zurück.", still: "Probe: niemand wurde verbunden.", fehler: "probe" };
     case "akte_nachsehen": return { ok: true, vorlesen: "" };
+    // E-458: Probe — erfundene freie Zeiten bzw. „gebucht“, nichts im Kalender; die Bestätigung nur gemeldet.
+    case "gespraech_buchen": return e?.zeitpunkt
+      ? { ok: true, vorlesen: "Eingetragen — die Bestätigung kommt per Mail.", still: "Probe: kein Gespräch gebucht." }
+      : { ok: true, vorlesen: "Frei wären zum Beispiel morgen um zehn Uhr oder morgen um vierzehn Uhr dreißig.", still: "Probe: erfundene Zeiten." };
+    case "gespraech_bestaetigen": return { ok: true, vorlesen: e?.bleibt === false ? "Ist weitergegeben — die zuständige Person meldet sich mit einer neuen Zeit." : "", still: "Probe: nichts am Termin vermerkt." };
     default: return { ok: true, vorlesen: "" };
   }
 }

@@ -29,6 +29,7 @@ import {
 import { GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE } from "../lib/fiaon-global-zeiten";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
 import { visitenkarteFuerAgent } from "@shared/fiaon-visitenkarte";
+import { GLOBAL_TERMIN_ARAS_TEXT } from "@shared/fiaon-ja-zum-anruf";
 
 const router = Router();
 
@@ -107,6 +108,14 @@ router.post("/termine", async (req: Request, res: Response) => {
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
+      // E-458 (Justin 29.10.2026): das freiwillige Kästchen für den Erinnerungsanruf (auch durch ARAS) — nur mit dem Satz,
+      // den diese Seite zeigt; die Buchung hängt nie daran (im Hintergrund, wirft nie).
+      if (b.arasAnruf) {
+        void import("../lib/fiaon-aras-wunsch").then((m) => m.globalTerminEinwilligungMerken({
+          terminId: erg.terminId, wortlautBrowser: b.arasAnruf, wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en],
+          telefon: kontakt.telefon, ip: ipVon(req), ua: String(req.headers["user-agent"] ?? ""), sprache: en ? "en" : "de",
+        })).catch((e) => console.error(`[GLOBAL-TERMIN] Einwilligung zu Termin ${erg.terminId}:`, e));
+      }
       const messRef = `global-termin-${erg.terminId}`;
       gespraechMelden(req, messRef, kontakt);
       return res.json({

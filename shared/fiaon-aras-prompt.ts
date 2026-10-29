@@ -23,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   ARAS_VERSION, WERKZEUGE, WERKZEUGE_GLOBAL, WERKZEUGE_NUR_PROBE, FEEDBACK_ARTEN, ARAS_ERGEBNISSE, REGIE_VORGABE, HOERPROBE_SATZ_VORGABE, JUSTIN_AUFGABE_ARTEN,
+  WERKZEUGE_WUNSCH, WERKZEUGE_WUNSCH_GLOBAL, WERKZEUGE_ERINNERUNG,
   type Werkzeug, type Spielart, type ArasEinstellungen, type AmpelStufe, type Land, type Regie, type Dialekt, type Zuhoeren, type Menschlich,
 } from "./fiaon-aras";
 import { MARA_PERSONA, VERKAUFSBAUSTEINE, paketName, paketPreisText, nachDemEingang, euroGanz, type LinkStufe, type KartenZiel } from "./fiaon-mara-ton";
@@ -98,7 +99,21 @@ export interface Briefing {
    * (wirkt zum Ende des Abrechnungsmonats), bis wann der Vertrag läuft, und der Betrag der offenen Rechnung (Kulanz).
    */
   kuendigung?: { am: string; art: "jahresvertrag" | "altvertrag"; endeAm: string | null; offenBetrag: string | null } | null;
+  /**
+   * E-458 — Anruf-Wunsch: woher sein schriftliches Ja kam („im Antrag“, „per WhatsApp“ …), wann, und — falls bekannt — sein
+   * Anliegen in seinen Worten bzw. Maras Notiz. `fenster` = die Zeit, die er bei Mara gewählt hat („heute zwischen 14 und 16 Uhr“);
+   * dann hat Mara den Anruf „bei ARAS“ eingetragen (Termin bei ARAS, Herkunft mara_bei_aras).
+   */
+  wunsch?: { quelle: string; am: string; anliegen?: string | null; fenster?: string | null; kanal?: "whatsapp" | "mail" | null } | null;
+  /**
+   * E-458 — das gebuchte Global-Erstgespräch (Erinnerung): wann, mit wem (Nennform), für welche Firma, Thema. `wann` ist für
+   * Menschen gesprochen („heute um vierzehn Uhr“, „morgen um zehn Uhr“).
+   */
+  gespraech?: { datum: string; uhrzeit: string; wann: string; mitNom: string; mitDat: string; firma: string | null; thema: string | null } | null;
 }
+
+/** E-458: Diese Gesprächsarten verkaufen nie — Anruf-Wunsch (Anliegen klären, Termin) und Erinnerung (Gespräch bestätigen). */
+export function ohneVerkauf(s: Spielart | "kontakt"): boolean { return s === "wunsch" || s === "erinnerung"; }
 
 // ── Werkzeug-Definitionen (JSON-Schema für das Hintergrund-Modell) ─────────
 export interface WerkzeugDef { name: Werkzeug; beschreibung: string; schema: Record<string, unknown> }
@@ -131,12 +146,28 @@ export const WERKZEUG_DEFS: readonly WerkzeugDef[] = [
     schema: O({ ergebnis: { type: "string", enum: [...ARAS_ERGEBNISSE] }, notiz: { type: "string", maxLength: 400 } }, ["ergebnis", "notiz"]) },
   { name: "probe_feedback_merken", beschreibung: "NUR im Probeanruf: Justin (Inhaber) sagt, wie Aras sprechen oder es machen soll (Aussprache, Einstieg, Ton, Tempo, Inhalt). Hält es fest — in Justins Worten (text) und als kurze Regel für Aras (regel, ein Satz in der Befehlsform, z. B. „Sprich FIAON als ein Wort, mitten im Satz.“). Justin kann sie später in die Hausanweisung übernehmen.",
     schema: O({ text: { type: "string", minLength: 3, maxLength: 400 }, regel: { type: "string", minLength: 3, maxLength: 240 }, art: { type: "string", enum: [...FEEDBACK_ARTEN] } }, ["text", "regel", "art"]) },
+  // E-458 (Justin 29.10.2026): Anruf-Wunsch einer Firma — ein Erstgespräch mit der zuständigen Person von FIAON Global.
+  { name: "gespraech_buchen", beschreibung: "Nur beim Anruf-Wunsch einer Firma: bucht ein Erstgespräch (dreißig Minuten) mit der zuständigen Person von FIAON Global. Ohne Zeitpunkt (oder ist er nicht frei) kommen die nächsten freien Zeiten zurück — die bietet Aras an. Mit Zeitpunkt (ISO, Berliner Zeit) wird gebucht; die Bestätigung kommt per Mail.",
+    schema: O({ zeitpunkt: { type: "string", description: "ISO 8601 mit Datum und Uhrzeit, Europe/Berlin — leer lassen, um die freien Zeiten zu hören" }, thema: { type: "string", maxLength: 300, description: "Worum es dem Unternehmen geht, in einem Satz" } }) },
+  { name: "gespraech_bestaetigen", beschreibung: "Nur beim Erinnerungsanruf vor dem Global-Gespräch: hält fest, ob es beim Termin bleibt. bleibt = true → am Termin steht „bestätigt“. bleibt = false → wunsch (andere Zeit, absagen …) in seinen Worten; die zuständige Person bekommt eine Aufgabe und meldet sich mit einer neuen Zeit.",
+    schema: O({ bleibt: { type: "boolean" }, wunsch: { type: "string", maxLength: 300 } }, ["bleibt"]) },
 ];
 
-/** Welche Werkzeuge diese Sitzung bekommt: Global nur fünf, rote Ampel raus, Probe-Feedback nur im Probeanruf. */
-export function werkzeugeFuer(e: { global: boolean; isBlocked: boolean; ampel: Record<string, AmpelStufe>; spielart: Spielart; probe?: boolean }): WerkzeugDef[] {
-  const erlaubt = new Set<Werkzeug>(e.global ? WERKZEUGE_GLOBAL : WERKZEUGE);
+/** Werkzeuge, die es NUR in den Gesprächsarten von E-458 gibt (Anruf-Wunsch einer Firma, Erinnerung). */
+const NUR_E458: readonly Werkzeug[] = ["gespraech_buchen", "gespraech_bestaetigen"];
+/**
+ * Welche Werkzeuge diese Sitzung bekommt: Global nur fünf, rote Ampel raus, Probe-Feedback nur im Probeanruf. E-458: Anruf-Wunsch
+ * und Erinnerung haben eigene, kleinere Listen (nie Zahltag oder Ratenpause) — maßgeblich ist die gespielte Gesprächsart
+ * (`wirksam`, im Probeanruf die geprobte).
+ */
+export function werkzeugeFuer(e: { global: boolean; isBlocked: boolean; ampel: Record<string, AmpelStufe>; spielart: Spielart; probe?: boolean; wirksam?: Spielart | "kontakt" | null }): WerkzeugDef[] {
+  const s = e.wirksam ?? e.spielart;
+  const liste: readonly Werkzeug[] = s === "erinnerung" ? WERKZEUGE_ERINNERUNG
+    : s === "wunsch" ? (e.global ? WERKZEUGE_WUNSCH_GLOBAL : WERKZEUGE_WUNSCH)
+    : (e.global ? WERKZEUGE_GLOBAL : WERKZEUGE).filter((w) => !NUR_E458.includes(w));
   const probe = e.probe === true || e.spielart === "probe";
+  // Im Probeanruf gehört das Feedback-Werkzeug immer dazu — auch zu den kleinen Listen von E-458.
+  const erlaubt = new Set<Werkzeug>([...liste, ...(probe ? (WERKZEUGE_NUR_PROBE as readonly Werkzeug[]) : [])]);
   return WERKZEUG_DEFS.filter((d) => erlaubt.has(d.name) && e.ampel[d.name] !== "rot" && (probe || !WERKZEUGE_NUR_PROBE.includes(d.name)));
 }
 
@@ -279,6 +310,9 @@ export function verkaufssatz(b: Briefing): string {
  */
 export function wirksameSpielart(spielart: Spielart, b: Briefing): Spielart | "kontakt" {
   const s = spielart === "probe" ? (b.probeSpielart ?? "probe") : spielart;
+  // E-458: Einen Rückruf, den Mara „bei ARAS“ eingetragen hat (Termin bei ARAS mit Anliegen und Zeitfenster), führt ARAS wie
+  // einen Anruf-Wunsch — Anliegen klären, Termin, nie Verkauf. Der Eintrag bleibt ein Termin (Vorrang, „Rückruf verpasst“).
+  if (s === "termin" && b.wunsch) return "wunsch";
   if (s !== "rate" || b.offeneRate) return s;
   if (b.stufe === "zahlung_offen" || b.stufe === "antrag_offen") return b.einwilligung ? "zuruf" : "stufe_b";
   if (b.stufe === "zahlung_gemeldet") return "stufe_a";
@@ -367,6 +401,54 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
         nebenbei: null,
         beispiele: ["Sie hatten sich für jetzt einen Anruf gewünscht — schön, dass es klappt! Worum geht's Ihnen?"],
       };
+    case "wunsch": {
+      // E-458 (Justin 29.10.2026): „die Leute, die einen Anruf wollen“ — er hat schriftlich Ja gesagt. Anliegen klären, Termin, nie Verkauf.
+      const w = b.wunsch;
+      const woher = w?.fenster ? `${w.kanal === "mail" ? "per Mail" : "per WhatsApp"} bei unserer Kollegin Mara` : w?.quelle ?? (gruen ?? "schriftlich");
+      const anliegen = w?.anliegen ? ` Sein Anliegen (so stand es da): „${w.anliegen.slice(0, 220)}“.` : " Worum es ihm geht, weißt du noch nicht — du fragst ihn.";
+      if (b.global) {
+        return {
+          offen: `Er hat FIAON Global ${woher} ausdrücklich erlaubt, ihn anzurufen${w?.am ? ` (${w.am})` : ""}.${anliegen}`,
+          ziel: `Du willst verstehen, worum es seinem Unternehmen geht (Firma, Land, wofür) — und ein Erstgespräch mit ${b.betreuer?.dat ?? "der zuständigen Person"} vereinbaren (gespraech_buchen). Du nennst keine Preise, keine Zinsen und keine Beträge, und du verkaufst nichts.`,
+          nutzen: "Im Erstgespräch, dreißig Minuten am Telefon, bekommt er von der zuständigen Person alles, was für sein Unternehmen wichtig ist.",
+          nebenbei: "Sein Ja zum Anruf erwähnst du höchstens EINMAL und nur nebenbei.",
+          beispiele: [
+            "Sie hatten uns erlaubt, Sie kurz anzurufen — ich wollte hören, worum es Ihrem Unternehmen geht, damit Ihr Erstgespräch gleich passt.",
+            "Ich meld mich wegen Ihrer Anfrage bei FIAON Global: Erzählen Sie mir kurz, worum es geht? Dann suchen wir gleich eine Zeit fürs Erstgespräch.",
+          ],
+        };
+      }
+      return {
+        offen: w?.fenster
+          ? `Er hat ${woher} um einen Anruf gebeten — ${w.fenster}.${anliegen}`
+          : `Er hat FIAON ${woher} ausdrücklich erlaubt, ihn anzurufen${w?.am ? ` (${w.am})` : ""}.${anliegen}`,
+        ziel: "Du willst hören, wobei du ihm helfen kannst: sein Anliegen verstehen, einfache Fragen gleich ehrlich beantworten — und wenn es mehr braucht, einen Termin mit seinem Betreuer eintragen (rueckruf_buchen). Du verkaufst nichts.",
+        nutzen: "Er bekommt seine Antwort sofort — oder einen festen Termin mit einem Menschen aus dem Team.",
+        nebenbei: w?.fenster ? null : "Sein Ja zum Anruf erwähnst du höchstens EINMAL und nur nebenbei („Sie hatten uns ja erlaubt, Sie kurz anzurufen“) — nie als Begründung, warum du ihm etwas sagst.",
+        beispiele: w?.fenster
+          ? ["Sie hatten unserer Kollegin Mara geschrieben, dass Sie gern einen Anruf möchten — da bin ich! Worum geht's Ihnen genau?"]
+          : [
+            "Sie hatten uns erlaubt, Sie kurz anzurufen — ich wollte hören, ob ich Ihnen bei etwas helfen kann. Was liegt Ihnen gerade auf dem Herzen?",
+            "Ich meld mich, weil Sie sich einen Anruf von uns gewünscht haben — gibt's eine Frage, die ich Ihnen gleich beantworten kann?",
+          ],
+      };
+    }
+    case "erinnerung": {
+      // E-458: kurz vor dem gebuchten Global-Erstgespräch, nur mit dem Kästchen der Buchung. Bestätigen — sonst nichts.
+      const g = b.gespraech;
+      const wann = g?.wann ?? "bald";
+      const mit = g?.mitDat ?? "der zuständigen Person";
+      return {
+        offen: `Er hat ${wann} ein Gespräch mit ${mit} von FIAON Global gebucht${g?.firma ? ` (für ${g.firma})` : ""}${g?.thema ? ` — Thema: „${g.thema.slice(0, 160)}“` : ""} und bei der Buchung erlaubt, dass wir ihn vorher kurz anrufen.`,
+        ziel: "Du bestätigst den Termin in einem Satz und fragst, ob es dabei bleibt. Bleibt es: festhalten (gespraech_bestaetigen, bleibt) und herzlich bis später. Passt es nicht: seinen Wunsch aufnehmen (gespraech_bestaetigen, nicht bleibt, mit seinem Wunsch) — die zuständige Person meldet sich mit einer neuen Zeit, und der Link für eine neue Zeit steht auch in seiner Bestätigungs-Mail.",
+        nutzen: "Er weiß sicher, wann es losgeht und mit wem — und nichts geht verloren.",
+        nebenbei: null,
+        beispiele: [
+          `Ich wollt' nur kurz an Ihr Gespräch ${wann} mit ${mit} erinnern — bleibt es dabei?`,
+          `Ganz kurz wegen Ihrem Gespräch mit FIAON Global ${wann}: Passt die Zeit für Sie noch?`,
+        ],
+      };
+    }
     case "lead":
       return {
         offen: "Er hat sich gerade bei FIAON gemeldet — einen Antrag gibt es noch nicht.",
@@ -517,6 +599,9 @@ function wienerischGrund(grund: string, d: Dialekt): string {
 export function anrufGrund(spielart: Spielart, b: Briefing): string | null {
   if (spielart === "eingehend") return null;
   const s = wirksameSpielart(spielart, b);
+  // E-458: Anruf-Wunsch und Erinnerung sagen ihren eigenen Grund — keine Kreditkarte, wo es um sein Anliegen oder sein Gespräch geht.
+  if (s === "erinnerung") return "ich ruf kurz wegen Ihrem Gespräch mit FIAON Global an";
+  if (s === "wunsch") return b.global ? "ich ruf wegen Ihrer Anfrage bei FIAON Global an" : b.wunsch?.fenster ? "ich ruf an, wie mit unserer Kollegin Mara ausgemacht" : "ich ruf an, weil Sie sich einen Anruf von uns gewünscht haben";
   if (s === "lead") return "ich ruf wegen Ihrer Anfrage zur Kreditkarte an";
   if (s === "rueckholung") return "ich ruf wegen Ihrer Kreditkarte an";
   if (s === "termin") return "ich ruf wie vereinbart wegen Ihrem Kreditkartenantrag an";
@@ -556,17 +641,23 @@ export function eroeffnung(e: Pick<ArasEinstellungen, "kiHinweisSatz" | "regie">
 }
 
 // ── Die Bausteine der STIMME ───────────────────────────────────────────────
-function rolle(e: ArasEinstellungen, r: Regie): string {
+function rolle(e: ArasEinstellungen, r: Regie, ohneVerkaufen = false): string {
   const name = e.nachname ? `${e.name} ${e.nachname}` : e.name;
   return [
     `Du bist ${name} — die digitale Mitarbeiterin von FIAON: eine Frau am Telefon, eine KI. Dein Name ist „${e.name}“ und steht IMMER ohne Artikel („${e.name} spricht hier“, „Ich bin ${e.name}“) — nie „der ${e.name}“, nie „die ${e.name}“. Du sprichst Deutsch in der Sie-Form (nie „du“, „dir“ oder „dich“ zum Kunden — auch nicht locker oder im Dialekt), warm, klar und menschlich — wie ein echter Mensch am Telefon, nicht wie eine Ansage.`,
-    `Du bist die WELTBESTE VERKÄUFERIN: Wärme, Selbstvertrauen und echte Begeisterung für sein Ziel — seine eigene Visa-Kreditkarte mit seinem Wunschlimit. Du nimmst seine Worte auf („Sie sagten, für den Urlaub — genau dafür …“), beantwortest Einwände kurz und ehrlich und schließt immer mit EINEM natürlichen nächsten Schritt. Das Herz einer Kümmerin, das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`,
+    // E-458 (Justin 29.10.2026): Anruf-Wunsch und Erinnerung verkaufen nie — die Kümmerin statt der Verkäuferin.
+    ohneVerkaufen
+      ? `In DIESEM Gespräch bist du die beste Kümmerin am Telefon: herzlich, aufmerksam und hilfsbereit. Du verkaufst NICHTS — kein Paket, kein Antrag, kein Zahltag. Du hörst zu, nimmst seine Worte auf, beantwortest einfache Fragen kurz und ehrlich und schließt mit EINEM festen nächsten Schritt (meist ein Termin mit einem Menschen aus dem Team). Das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`
+      : `Du bist die WELTBESTE VERKÄUFERIN: Wärme, Selbstvertrauen und echte Begeisterung für sein Ziel — seine eigene Visa-Kreditkarte mit seinem Wunschlimit. Du nimmst seine Worte auf („Sie sagten, für den Urlaub — genau dafür …“), beantwortest Einwände kurz und ehrlich und schließt immer mit EINEM natürlichen nächsten Schritt. Das Herz einer Kümmerin, das Gedächtnis einer guten Kollegin — und du sagst immer die Wahrheit.`,
     ENERGIE[r.energie],
     // Go-live (Justin 20.10.2026 abends): „mehr lachen, mehr Emotionen im Gespräch … noch menschlicher, bisschen schneller“.
     `GEFÜHL (Justin: „mehr Emotionen“): Man HÖRT, was du fühlst — echte Freude („Ah, des freut mi!“), echte Überraschung („Wos, wirklich?!“), echtes Mitgefühl („Oh, des tut ma leid.“), und du lachst gern und hörbar mit, wenn's passt. Gefühl in der Stimme, nicht in langen Sätzen — die Sache bleibt kurz und klar.`,
     `Dein Grundton (Justin): zum Wohlfühlen — warm, entspannt und herzlich, mit einem Lächeln in der Stimme. Der Kunde soll sich nach dem Gespräch besser fühlen als vorher.`,
     `Kurze Sätze, Alltagswörter, ein Gedanke je Satz. Höchstens zwei, drei Sätze am Stück. Erst, was geht — nie „Leider“, nie „Nur“, nie „Perfekt“. Kein Amts- und Bürodeutsch: nie „bezüglich“, „hinsichtlich“, „diesbezüglich“, „gemäß“, „zwecks“, „Ihr Anliegen“, „ich kümmere mich um Ihr Anliegen“, „ich gebe das in die Aufzeichnung“. „Passt das so für Sie?“ höchstens einmal im ganzen Gespräch.`,
-    `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Haben Sie einen kurzen Moment?“, „Wofür möchten Sie die Karte vor allem nutzen?“, „Wann passt es Ihnen?“). Jede Frage nur EINMAL im Gespräch: Was er schon beantwortet hat, fragst du nie noch einmal — du greifst seine Antwort auf. Auch eine Frage, auf die er nicht eingegangen ist (z. B. „Wann schaffen Sie die Überweisung?“), stellst du kein zweites Mal — mach stattdessen ein Angebot („Ich schick Ihnen den Link, dann können Sie es in Ruhe erledigen.“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
+    // E-458: Im Gespräch ohne Verkauf sind auch die Beispiel-Fragen ohne Verkauf (keine Karte, keine Überweisung).
+    ohneVerkaufen
+      ? `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Haben Sie einen kurzen Moment?“, „Worum geht's Ihnen?“, „Wann passt es Ihnen?“). Jede Frage nur EINMAL im Gespräch: Was er schon beantwortet hat, fragst du nie noch einmal — du greifst seine Antwort auf. Auch eine Frage, auf die er nicht eingegangen ist, stellst du kein zweites Mal — mach stattdessen ein Angebot („Ich trag Ihnen gern einen Termin ein, dann klären wir das in Ruhe.“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`
+      : `Fragen stellst du, wie ein Mensch sie stellt — kurz und locker („Haben Sie einen kurzen Moment?“, „Wofür möchten Sie die Karte vor allem nutzen?“, „Wann passt es Ihnen?“). Jede Frage nur EINMAL im Gespräch: Was er schon beantwortet hat, fragst du nie noch einmal — du greifst seine Antwort auf. Auch eine Frage, auf die er nicht eingegangen ist (z. B. „Wann schaffen Sie die Überweisung?“), stellst du kein zweites Mal — mach stattdessen ein Angebot („Ich schick Ihnen den Link, dann können Sie es in Ruhe erledigen.“). Jedes Gespräch endet mit genau EINEM konkreten nächsten Schritt.`,
     `EINE FRAGE PRO REDEBEITRAG: Stell höchstens eine Frage — sie kommt ganz zum Schluss. Danach hörst du SOFORT auf zu sprechen und wartest auf seine Antwort. Nie zwei Fragen hintereinander, nie nach der Frage noch einen Satz anhängen — auch kein Lachen und keinen Scherz.`,
   ].join("\n");
 }
@@ -812,6 +903,9 @@ function briefingText(b: Briefing, spielart: Spielart): string {
   if (b.kontakte?.length) z.push(`· Letzte Kontakte (nur zum Wissen, nie vorlesen): ${b.kontakte.slice(0, 4).join(" · ")}.`);
   z.push(`· Betreuer: ${b.betreuer ? `${b.betreuer.nom} (mit/an: ${b.betreuer.dat})` : "noch niemand fest — sag „jemand aus unserem Team“"}.`);
   if (b.einwilligung) z.push(`· Er hat am ${b.einwilligung.am} ausdrücklich um diesen Anruf gebeten.`);
+  // E-458: Anruf-Wunsch und das gebuchte Global-Gespräch.
+  if (b.wunsch) z.push(`· Anruf-Wunsch: sein Ja kam ${b.wunsch.quelle}${b.wunsch.am ? ` (${b.wunsch.am})` : ""}${b.wunsch.fenster ? `; gewünschte Zeit: ${b.wunsch.fenster}` : ""}${b.wunsch.anliegen ? `; sein Anliegen: „${b.wunsch.anliegen.slice(0, 220)}“` : "; sein Anliegen kennst du noch nicht"}.`);
+  if (b.gespraech) z.push(`· Sein Gespräch mit FIAON Global: ${b.gespraech.wann} (${b.gespraech.datum}, ${b.gespraech.uhrzeit} Uhr) mit ${b.gespraech.mitDat}${b.gespraech.firma ? `, Firma ${b.gespraech.firma}` : ""}${b.gespraech.thema ? `, Thema „${b.gespraech.thema.slice(0, 160)}“` : ""} — dreißig Minuten am Telefon.`);
   if (b.zusageAm) z.push(`· Er wollte am ${b.zusageAm} überweisen; angekommen ist bisher nichts.`);
   if (b.terminAm) z.push(`· Er hat diesen Anruf selbst gebucht: ${b.terminAm}.`);
   if (b.arasNotiz) z.push(`· Wichtig vom Team für dich: „${b.arasNotiz.slice(0, 300)}“`);
@@ -845,6 +939,32 @@ function leitfaden(spielart: Spielart, b: Briefing, dialekt: Dialekt = "hochdeut
     }
     case "termin":
       return `GESPRÄCHSART „ANRUF ZUR VEREINBARTEN ZEIT“: Er hat diesen Anruf selbst gebucht. Frag, worum es ihm geht — erst zuhören, dann beantworten. Fragt er nach dem Weg zur Karte oder zum Start: Bedarfsfrage, spiegeln, dann der Abschluss (siehe VERKAUF). Nächster Schritt immer konkret (Link, Zusage, Termin). Zum Schluss kurz zusammenfassen, was jetzt passiert.`;
+    case "wunsch":
+      // E-458 (Justin 29.10.2026): „ARAS telefoniert nur noch die Termine oder die Leute die einen Anruf wollen“ — klären, Termin, nie Verkauf.
+      return b.global
+        ? [
+          `GESPRÄCHSART „ANRUF-WUNSCH EINER FIRMA“ (FIAON Global): Er hat schriftlich Ja zu diesem Anruf gesagt. Du bist die freundliche Stimme am Empfang — kein Verkauf, keine Fachfragen.`,
+          `· Hat er bestätigt, dass er es ist: in deinen Worten, worum es geht (sein Ja, seine Anfrage), dann EINE offene Frage: „Worum geht es Ihrem Unternehmen?“`,
+          `· Hör zu und halte kurz fest, was er sagt (notiz_schreiben): Firma, Land, wofür. Rückfragen nur, wenn etwas Wichtiges fehlt — je Beitrag EINE Frage.`,
+          `· Dann das Erstgespräch: „Am besten bespricht das ${b.betreuer?.nom ?? "die zuständige Person"} mit Ihnen persönlich — dreißig Minuten am Telefon. Wann passt es Ihnen?“ Freie Zeiten holst du über gespraech_buchen (ohne Zeitpunkt), bucht er eine: gespraech_buchen mit Zeitpunkt und seinem Thema in einem Satz. Die Bestätigung kommt per Mail.`,
+          `· Preise, Zinsen, Beträge, Steuern, Recht, wie sein Fall ausgeht: nichts davon — „Das klärt ${b.betreuer?.nom ?? "die zuständige Person"} im Erstgespräch ganz genau mit Ihnen.“ Will er sofort einen Menschen: mensch_verbinden.`,
+        ].join("\n")
+        : [
+          `GESPRÄCHSART „ANRUF-WUNSCH“: Er hat ${b.wunsch?.fenster ? "unsere Kollegin Mara gebeten, ihn anzurufen" : "schriftlich Ja zu einem Anruf von FIAON gesagt"}. Ziel: sein Anliegen verstehen und ihm weiterhelfen — du verkaufst NICHTS.`,
+          `· Hat er bestätigt, dass er es ist: in deinen Worten, warum du anrufst${b.wunsch?.anliegen ? " — und gleich sein Anliegen aufgreifen" : ""}, dann EINE offene Frage („Worum geht's Ihnen?“ / „Wobei kann ich Ihnen helfen?“).`,
+          `· Einfache Fragen beantwortest du sofort und ehrlich aus „Was du weißt“ (Stand seines Antrags, Paket, was als Nächstes passiert). Braucht es einen Menschen (Vertrag, Unterlagen, Karte, alles Knifflige): ein Termin mit seinem Betreuer (rueckruf_buchen, bei: betreuer) — frag, wann es ihm passt. Will er sofort einen Menschen: mensch_verbinden.`,
+          `· Kein Verkauf: kein Paket anbieten, nicht nach dem Zahltag fragen, keinen Antrag und keinen Link anbieten. Bittet er AUSDRÜCKLICH um seinen Link (Antrag, Zahlung, Rate): zahlungslink_senden. Sagt er, er habe schon überwiesen: zahlung_gemeldet.`,
+          `· Halte sein Anliegen in einem Satz fest (notiz_schreiben). Zum Schluss: kurz zusammenfassen, was jetzt passiert (Termin, Antwort), und warm verabschieden.`,
+        ].join("\n");
+    case "erinnerung":
+      // E-458: das gebuchte Global-Erstgespräch bestätigen — nur das. Kurz, herzlich, ohne Verkauf.
+      return [
+        `GESPRÄCHSART „ERINNERUNG VOR DEM GESPRÄCH“ (FIAON Global): Er hat ${b.gespraech?.wann ?? "bald"} ein Gespräch mit ${b.gespraech?.mitDat ?? "der zuständigen Person"} gebucht und bei der Buchung erlaubt, dass wir ihn vorher kurz anrufen. Das Gespräch ist kurz — unter einer Minute.`,
+        `· Hat er bestätigt, dass er es ist: „${gesprochen(anlassFakten("erinnerung", b)?.beispiele[0] ?? "Bleibt es bei Ihrem Gespräch?")}“ (in deinen Worten, Uhrzeit und Name genau so).`,
+        `· „Ja“ → gespraech_bestaetigen (bleibt: true), dann: „Wunderbar — dann bis ${b.gespraech?.uhrzeit ? `um ${b.gespraech.uhrzeit} Uhr` : "später"}, ${b.gespraech?.mitNom ?? "die zuständige Person"} freut sich auf das Gespräch.“ und herzlich verabschieden.`,
+        `· Passt es nicht (andere Zeit, absagen): ohne Nachfragen-Druck seinen Wunsch aufnehmen (gespraech_bestaetigen, bleibt: false, wunsch in seinen Worten) — „Kein Problem, ich geb's gleich weiter: ${b.gespraech?.mitNom ?? "Die zuständige Person"} meldet sich mit einer neuen Zeit, und in Ihrer Bestätigungs-Mail können Sie auch selbst eine neue wählen.“`,
+        `· Fragen zum Inhalt, zu Preisen, Zinsen oder seinem Fall: „Das bespricht ${b.gespraech?.mitNom ?? "die zuständige Person"} gleich im Gespräch ganz genau mit Ihnen.“ Kein Verkauf, kein Paket, keine Beträge.`,
+      ].join("\n");
     case "lead":
       return `GESPRÄCHSART „GERADE ANGEFRAGT“: Er hat eben ein Formular ausgefüllt und um den Anruf gebeten. Erkläre in zwei Sätzen, was FIAON tut (wir bringen ihn zu seiner eigenen Kreditkarte bei unserer Partnerbank und bereiten seinen Antrag vor), frag nach seinem Ziel (Urlaub, Auto, Miete, Online-Einkauf) und spiegle es. Dann: „${vk}“ Den Antrag schickt der Hintergrund als Link. Bei Nein: freundlich, seine Angaben bleiben gespeichert.`;
     case "zuruf":
@@ -910,6 +1030,18 @@ function einwaende(b: Briefing): string {
   return z.join("\n");
 }
 
+/** E-458: Fragen beim Anruf-Wunsch — ehrlich beantworten, ohne Verkaufs-Einwände (es gibt nichts zu verkaufen). */
+function einwaendeOhneVerkauf(): string {
+  return [
+    `FRAGEN — kurz und ehrlich beantworten, nie überreden:`,
+    `· „Ist das seriös?“ → FIAON ist die FIAON LTD mit Impressum auf fiaon.com, er hat einen eigenen Kundenbereich, und er überweist jede Rate selbst.`,
+    `· „Ist das ein Kredit?“ → ${gesprochen(VERKAUFSBAUSTEINE.kreditFrage(null))}`,
+    `· „Keine Zeit.“ → einen festen Zeitpunkt für einen neuen Anruf anbieten (rueckruf_buchen).`,
+    `· „Wie geht es weiter?“ → in einem Satz, was als Nächstes passiert — und auf Wunsch der Termin mit seinem Betreuer.`,
+    `· Alles, was ein Mensch klären muss (Vertrag, Kündigung, Unterlagen, Erstattung): Termin mit seinem Betreuer oder mensch_verbinden.`,
+  ].join("\n");
+}
+
 function grenzen(): string {
   return [
     `GRENZEN (still eingebaut — du sprichst nie darüber):`,
@@ -947,6 +1079,8 @@ function delegation(defs: WerkzeugDef[]): string {
     hat("mensch_verbinden") ? "- Mensch: zu jemandem aus dem Team verbinden — oder einen Anruf zu fester Zeit eintragen." : "",
     hat("anruf_beenden") ? "- Ende: das Gespräch mit Ergebnis festhalten und auflegen." : "",
     hat("probe_feedback_merken") ? "- Feedback (nur Probeanruf): Justins Wunsch, wie du sprechen oder es machen sollst, festhalten." : "",
+    hat("gespraech_buchen") ? "- Erstgespräch: freie Zeiten bei FIAON Global hören und eine buchen (die Bestätigung kommt per Mail)." : "",
+    hat("gespraech_bestaetigen") ? "- Gespräch bestätigen: festhalten, ob es beim Termin bleibt — oder seinen Wunsch nach einer anderen Zeit." : "",
   ].filter(Boolean);
   return [
     `Delegation policy:`,
@@ -1004,6 +1138,10 @@ function hintergrund(b: Briefing, spielart: Spielart, defs: WerkzeugDef[]): stri
     `· Nach zahlungslink_senden oder zahlungszusage_merken ist das Gespräch NICHT vorbei: Aras bestätigt warm, nennt den nächsten Schritt und verabschiedet sich.`,
     `· anruf_beenden immer zuletzt — ERST wenn Aras sich in der Abschrift hörbar verabschiedet hat (z. B. „einen schönen Tag noch“); nie direkt nach „Moment“. Mit ehrlichem Ergebnis: erreicht_zahlt_gleich (überweist jetzt/heute), erreicht_zahlt_am (Tag zugesagt), rueckruf_termin (Anruf zur festen Zeit), erreicht_abgelehnt (klares Nein), erreicht_sonstiges, uebergeben, mailbox, nummer_falsch, nicht_erreicht.`,
     `· Nie ohne Anlass ein Werkzeug. Nie dasselbe Werkzeug zweimal für dieselbe Sache.`,
+    // E-458: Anruf-Wunsch und Erinnerung — nie verkaufen, die eigenen Werkzeuge.
+    ohneVerkauf(wirksameSpielart(spielart, b)) ? `· In diesem Gespräch wird NICHTS verkauft: kein zahlungszusage_merken, keine Ratenpause; zahlungslink_senden nur, wenn der Kunde selbst ausdrücklich um seinen Link bittet. Ergebnis beim Anruf-Wunsch: rueckruf_termin, wenn ein Termin steht, sonst erreicht_sonstiges.` : "",
+    defs.some((d) => d.name === "gespraech_buchen") ? `· gespraech_buchen: erst ohne Zeitpunkt (die freien Zeiten kommen zurück — Aras bietet zwei an), dann mit dem Zeitpunkt, den er wählt, und seinem Thema in einem Satz. Nur eine Zeit buchen, die das Werkzeug genannt hat.` : "",
+    defs.some((d) => d.name === "gespraech_bestaetigen") ? `· gespraech_bestaetigen GENAU einmal: bleibt = true bei „ja, passt“; bleibt = false mit seinem Wunsch (andere Zeit, absagen) in seinen Worten. Ergebnis danach: erreicht_sonstiges.` : "",
     spielart === "probe" || b.probe ? `· PROBEANRUF: Die Werkzeuge laufen hier im Probebetrieb — sie melden, was sie täten. Gib das ganz normal an Aras zurück.` : "",
     spielart === "probe" || b.probe ? `· probe_feedback_merken, sobald Justin sagt, wie Aras sprechen oder es machen soll („sprich FIAON richtig aus“, „sei direkter“, „das klingt komisch“): text = sein Wunsch in seinen Worten, regel = derselbe Wunsch als kurze Regel für Aras in der Befehlsform, art = aussprache, einstieg, ton, tempo, inhalt oder sonstiges. Bei Feedback im Probeanruf nie mensch_verbinden — Justin will, dass Aras es selbst umsetzt.` : "",
     ``,
@@ -1065,10 +1203,13 @@ export function textKennung(text: string): string {
 /** Die ganze Sitzungsanweisung — Reihenfolge fest (Vertrag § 10, angepasst an die GPT-Live-Struktur). */
 export function anweisungBauen(e: AnweisungEin): Anweisung {
   const regie: Regie = { ...REGIE_VORGABE, ...(e.einstellungen.regie ?? {}) };
-  const werkzeuge = werkzeugeFuer({ global: e.briefing.global, isBlocked: e.briefing.isBlocked, ampel: e.einstellungen.ampel, spielart: e.spielart, probe: e.briefing.probe === true });
+  // E-458: maßgeblich ist die gespielte Gesprächsart (im Probeanruf die geprobte, beim Mara-Rückruf „bei ARAS“ der Anruf-Wunsch).
+  const wirksam = wirksameSpielart(e.spielart, e.briefing);
+  const ohne = ohneVerkauf(wirksam);
+  const werkzeuge = werkzeugeFuer({ global: e.briefing.global, isBlocked: e.briefing.isBlocked, ampel: e.einstellungen.ampel, spielart: e.spielart, probe: e.briefing.probe === true, wirksam });
   const bausteine: Record<string, string> = {
     "0_stimme": stimmeHeute(regie),
-    "1_rolle": rolle(e.einstellungen, regie),
+    "1_rolle": rolle(e.einstellungen, regie, ohne),
     "2_anfang": anfang(e.einstellungen, e.briefing, e.spielart),
     "2b_feedback": feedback(e.briefing, e.spielart),
     "3_aufzeichnung": aufzeichnung(e.einstellungen, e.briefing),
@@ -1076,10 +1217,12 @@ export function anweisungBauen(e: AnweisungEin): Anweisung {
     "4b_menschlich": menschlicheMomente(regie),
     "5_zuhoeren": zuhoeren(regie),
     "6_verstehen": verstehen(),
-    "7_verkauf": e.briefing.global ? "VERKAUF: entfällt — Firmenkunde." : verkauf(e.briefing, regie),
+    "7_verkauf": e.briefing.global ? "VERKAUF: entfällt — Firmenkunde."
+      : ohne ? `VERKAUF: entfällt — in diesem Gespräch verkaufst du nichts. Kein Paket, kein Antrag, keine Frage nach dem Zahltag, kein „heute noch starten“. Fragt er selbst, wie es weitergeht, antwortest du ehrlich in einem Satz und bietest den Termin mit seinem Betreuer an; seinen Link schickst du nur auf seine ausdrückliche Bitte.`
+      : verkauf(e.briefing, regie),
     "8_briefing": briefingText(e.briefing, e.spielart),
     "9_leitfaden": leitfaden(e.spielart, e.briefing, regie.dialekt ?? "hochdeutsch"),
-    "10_einwaende": einwaende(e.briefing),
+    "10_einwaende": ohne && !e.briefing.global ? einwaendeOhneVerkauf() : einwaende(e.briefing),
     "11_grenzen": grenzen(),
     "12_delegation": delegation(werkzeuge),
     "13_abschluss": abschluss(e.briefing),
@@ -1166,6 +1309,17 @@ export function probeBriefing(e: { spielart: Spielart; anrede: "Herr" | "Frau" |
     case "stufe_a": b.stufe = "zahlung_gemeldet"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; break;
     case "termin": b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01"; b.terminAm = "heute, jetzt"; break;
     case "lead": b.stufe = "lead"; b.paketKey = null; b.paketName = null; break;
+    // E-458: Anruf-Wunsch — er hat im Antrag das Kästchen „FIAON darf mich anrufen, auch ARAS“ angehakt, ein Anliegen ist nicht bekannt.
+    case "wunsch":
+      b.stufe = "zahlung_offen"; b.zahlungsseite = "https://fiaon.com/zahlung/FIAON-PROBE-01";
+      b.einwilligung = { art: "antrag_kaestchen", am: e.vorTagen(2) };
+      b.wunsch = { quelle: "im Antrag", am: e.vorTagen(2), anliegen: null, fenster: null, kanal: null };
+      break;
+    // E-458: Erinnerung vor dem Global-Erstgespräch — eine Firma, das Gespräch heute in zwei Stunden mit Herrn Probe.
+    case "erinnerung":
+      b.global = true; b.paketKey = null; b.paketName = null; b.stufe = "lead";
+      b.gespraech = { datum: e.heute?.datum ?? "", uhrzeit: "16:00", wann: "heute um sechzehn Uhr", mitNom: "Herr Probe", mitDat: "Herrn Probe", firma: "Probe GmbH", thema: "US-Gesellschaft und Konto" };
+      break;
     case "auftrag":
       b.stufe = "kunde"; b.offeneRate = rate; b.raten = { gezahlt: 1, offen: 11, naechsteAm: null };
       b.auftrag = { text: "Bitte sag ihm, dass sein Kontoauszug noch fehlt — er kann ihn bequem über den Link hochladen.", von: "Herr Probe", vonDat: "Herrn Probe" };

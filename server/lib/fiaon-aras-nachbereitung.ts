@@ -98,7 +98,8 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
   await arasSchema(lauf);
   const [z] = (await lauf`SELECT aa.spielart, aa.call_id, aa.plan_id, aa.nachbereitet_am, aa.ki_hinweis_am, aa.angenommen_am, aa.aufnahme_ja_am, aa.aufnahme_nein_am, aa.aufnahme_gestartet_am,
                                  c.person_id, c.ref, c.nummer,
-                                 aa.briefing->>'nachname' AS b_nachname, aa.briefing->>'vorname' AS b_vorname, aa.briefing->>'anrede' AS b_anrede, pe.last_name AS p_nachname, pe.first_name AS p_vorname
+                                 aa.briefing->>'nachname' AS b_nachname, aa.briefing->>'vorname' AS b_vorname, aa.briefing->>'anrede' AS b_anrede, pe.last_name AS p_nachname, pe.first_name AS p_vorname,
+                                 COALESCE((aa.briefing->>'global')::boolean, FALSE) AS b_global
                             FROM fiaon_aras_anruf aa JOIN fiaon_calls c ON c.id = aa.call_id LEFT JOIN fiaon_persons pe ON pe.id = c.person_id WHERE aa.id = ${arasAnrufId}`) as any[];
   if (!z) throw new Error(`ARAS-Anruf ${arasAnrufId} fehlt.`);
   if (z.nachbereitet_am) return { ergebnis: (l.ergebnis ?? "erreicht_sonstiges"), pruefung: "schon" };
@@ -140,6 +141,25 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
                pruefung = COALESCE(${befund ? lauf.json(befund as any) : null}, pruefung), nachbereitet_am = NOW(), updated_at = NOW()
              WHERE id = ${arasAnrufId}`;
   if (z.plan_id) await lauf`UPDATE fiaon_aras_plan SET status = 'fertig', updated_at = NOW() WHERE id = ${z.plan_id} AND status IN ('gewaehlt', 'laeuft', 'wartet')`.catch(() => null);
+  // E-458 (29.10.2026): Ein Termin bei ARAS (auch der Rückruf „bei ARAS“, den Mara eingetragen hat) ist erledigt, wenn ARAS ihn
+  // erreicht hat — sonst setzte ihn der Aufräumlauf nach zwölf Stunden auf „verpasst“. Nicht erreicht beim Rückruf von Mara: genau
+  // ein zweiter Versuch im selben Fenster (frühestens in 30 Minuten) — er hat sich die Zeit ausgesucht.
+  if (!probe && z.plan_id && spielart === "termin" && z.person_id) {
+    try {
+      if (ergebnis.startsWith("erreicht") || ergebnis === "rueckruf_termin" || ergebnis === "uebergeben") {
+        const [t] = (await lauf`SELECT t.id, t.beginn, t.status FROM fiaon_aras_plan pl JOIN fiaon_termine t ON t.id = pl.termin_id WHERE pl.id = ${z.plan_id}`) as any[];
+        if (t?.status === "gebucht") {
+          const { terminErgebnisSetzen } = await import("./fiaon-termin-ergebnis");
+          await terminErgebnisSetzen({ terminId: Number(t.id), personId: Number(z.person_id), beginn: t.beginn, ergebnis: "erledigt", notiz: "ARAS hat zur vereinbarten Zeit angerufen und ihn erreicht.", akteur: { id: await arasAusweisId(lauf), name: "ARAS" } });
+        }
+      } else if (ergebnis === "mailbox" || ergebnis === "nicht_erreicht") {
+        await lauf`UPDATE fiaon_aras_plan p SET status = 'wartet', frueh_ab = NOW() + INTERVAL '30 minutes', versuch_nr = p.versuch_nr + 1,
+                          verschoben_grund = 'nicht erreicht — zweiter Versuch im gewählten Fenster', updated_at = NOW()
+                    WHERE p.id = ${z.plan_id} AND p.erzeugt_von = 'mara' AND p.versuch_nr < 2 AND p.spaet_bis > NOW() + INTERVAL '40 minutes'
+                      AND NOT EXISTS (SELECT 1 FROM fiaon_aras_plan x WHERE x.person_id = p.person_id AND x.spielart = 'termin' AND x.status = 'wartet')`;
+      }
+    } catch (e) { console.error("[ARAS-NACHBEREITUNG] Termin bei ARAS:", String((e as Error)?.message ?? e).slice(0, 200)); }
+  }
   // Scheibe 3 (Koordination 22.10.2026 — 41 % der 168 Anrufe landeten auf der Mailbox): ein Rate-Anruf ohne Gespräch → die
   // Raten-Erinnerung über denselben Weg wie im Gespräch (WhatsApp fiaon_kk_rate, sonst Mail), mit allen Bremsen
   // (fiaon-aras-erinnerung.ts). Nie bei Probe; die Entscheidung hängt am Gespräch (Cockpit, Protokoll).
@@ -153,8 +173,9 @@ export async function nachbereiten(arasAnrufId: number, l: NachbereitungLage, la
     await arasEreignis({ art: "aras_pruefung", callId: Number(z.call_id), arasAnrufId, personId: z.person_id != null ? Number(z.person_id) : null, spielart, ok: false,
       text: `Harte Regel im Gespräch: ${befund.punkte.filter((p) => p.schwere === "hart").map((p) => p.regel).join(", ")}`, daten: { punkte: befund.punkte } });
   }
-  // E-406 C2 (weiche Abhängigkeit): die Nacharbeits-Mail nach dem Gespräch — fehlt die Datei, läuft es ohne
-  if (!probe && z.person_id && ergebnis.startsWith("erreicht")) {
+  // E-406 C2 (weiche Abhängigkeit): die Nacharbeits-Mail nach dem Gespräch — fehlt die Datei, läuft es ohne.
+  // E-458: nie nach einem Gespräch mit einer Firma (Erinnerung, Anruf-Wunsch von FIAON Global) — Maras Privat-Mail gehört nicht dorthin (E-272).
+  if (!probe && z.person_id && ergebnis.startsWith("erreicht") && spielart !== "erinnerung" && !z.b_global) {
     try {
       const m: any = await import("./fiaon-mara-nacharbeit" as string).catch(() => null);
       if (m?.nacharbeitNachErgebnis) await m.nacharbeitNachErgebnis({ personId: Number(z.person_id), ref: z.ref, ergebnis, notiz: zusammen, akteur: "aras", callId: Number(z.call_id) });

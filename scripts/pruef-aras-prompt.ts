@@ -111,7 +111,8 @@ titel("2. VERKAUFSSATZ (E-373): Wunsch ohne Bank-Vorbehalt, keine Limit-Zusage")
 titel("3. WERKZEUGE JE LAGE");
 {
   const alle = werkzeugeFuer({ global: false, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
-  ok("Normal: alle 13 Kunden-Werkzeuge (mit aufgabe_fuer_justin; probe_feedback_merken gibt es nur im Probeanruf)", alle.length === 13 && alle.includes("aufgabe_fuer_justin") && WERKZEUGE.filter((w) => w !== "probe_feedback_merken").every((w) => alle.includes(w)) && !alle.includes("probe_feedback_merken"));
+  // E-458: gespraech_buchen und gespraech_bestaetigen gibt es nur im Anruf-Wunsch einer Firma bzw. in der Erinnerung (Abschnitt 8).
+  ok("Normal: alle 13 Kunden-Werkzeuge (mit aufgabe_fuer_justin; probe_feedback_merken gibt es nur im Probeanruf, die zwei Gesprächs-Werkzeuge nur in E-458)", alle.length === 13 && alle.includes("aufgabe_fuer_justin") && WERKZEUGE.filter((w) => w !== "probe_feedback_merken" && w !== "gespraech_buchen" && w !== "gespraech_bestaetigen").every((w) => alle.includes(w)) && !alle.includes("probe_feedback_merken") && !alle.includes("gespraech_buchen") && !alle.includes("gespraech_bestaetigen"));
   const global = werkzeugeFuer({ global: true, isBlocked: false, ampel: einstellungen.ampel, spielart: "rate" }).map((d) => d.name);
   ok("Global-Kunde: nur 5 (Akte, Notiz, Mensch, Sperre, Ende)", global.length === 5 && WERKZEUGE_GLOBAL.every((w) => global.includes(w)) && !global.includes("zahlungslink_senden"));
   const rot = werkzeugeFuer({ global: false, isBlocked: false, ampel: { ...einstellungen.ampel, ratenpause_setzen: "rot" }, spielart: "rate" }).map((d) => d.name);
@@ -187,7 +188,8 @@ titel("6. PROBE 20.10.2026 (Justins erster Anruf): Wahrheit, Anlass, Aufzeichnun
     ok(`Probe ${art}: keine Anzahl ohne Wort, kein „null Euro“, keine Freischalt-Zusage, keine Internetadresse im Gesprochenen`,
       zahlOhneEinheitFinden(alles) === null && nullBetragFinden(alles) === null,
       zahlOhneEinheitFinden(alles) ?? nullBetragFinden(alles) ?? "");
-    ok(`Probe ${art}: echtes Paket (FIAON Pro, 59,99 €), Betrag nur aus dem Feld`, (art === "lead" || /59,99 €/.test(a.text)) && !/plus/i.test(pb.paketKey ?? ""), pb.paketKey ?? "");
+    // E-458: Die Erinnerung gilt einer Firma (FIAON Global) — dort steht nie ein Paket oder ein Betrag.
+    ok(`Probe ${art}: echtes Paket (FIAON Pro, 59,99 €), Betrag nur aus dem Feld`, art === "erinnerung" ? pb.global && !pb.paketKey && !/59,99 €/.test(a.text) : (art === "lead" || /59,99 €/.test(a.text)) && !/plus/i.test(pb.paketKey ?? ""), pb.paketKey ?? "");
   }
   const leer = anweisungBauen({ spielart: "zuruf", briefing: { ...leeresBriefing("DE"), paketKey: "plus", paketName: "Plus", stufe: "zahlung_offen" }, einstellungen, hausanweisung: null });
   ok("Unbekanntes Paket (Preis 0 €): KEIN Betrag im Text, kein „0 €“", nullBetragFinden(`${leer.text}\n${leer.backend}`) === null && betragAusFeld({ ...leeresBriefing("DE"), paketKey: "plus" }) === null, nullBetragFinden(leer.text) ?? "");
@@ -268,7 +270,9 @@ titel("6b. JUSTIN 20.10. (nach seinen Tests): kein Dranbleiben, menschliche Wör
     ok(`${art}: kein „ich bleibe dran, während Sie überweisen“`, !/ich bleibe? (?:gern )?dran|dranbleib|während Sie überweisen/i.test(alles), (alles.match(/.{30}(?:ich bleibe? (?:gern )?dran|dranbleib|während Sie überweisen).{30}/i) ?? [""])[0]);
     ok(`${art}: keine Bürowörter als Vorlage (bezüglich, „ich kümmere mich wirklich um Ihr Anliegen“)`, !/\bbezüglich\b(?![“"]?,)/i.test(a.text.replace(/nie „bezüglich“[^\n]*/g, "")) && !/kümmere mich wirklich um Ihr Anliegen/.test(alles));
     ok(`${art}: Fragen wie ein Mensch („Haben Sie einen kurzen Moment?“), jede Frage nur einmal, kein „Bin ich richtig bei …?“ mehr`, art === "eingehend" || (/haben Sie einen kurzen Moment\?/i.test(a.text) && /Jede Frage nur EINMAL/.test(a.text) && !/Bin ich richtig bei/.test(a.text) && !/Haben Sie kurz zwei Minuten/.test(a.text)));
-    ok(`${art}: die weltbeste Verkäuferin (ARAS ohne Artikel) — Begeisterung für sein Ziel, seine Worte aufnehmen, EIN nächster Schritt, Gefühl hörbar`, /die WELTBESTE VERKÄUFERIN/.test(a.text) && /IMMER ohne Artikel/.test(a.text) && /nie „der ARAS“/.test(a.text) && /seine Worte auf/.test(a.text) && /EINEM natürlichen nächsten Schritt/.test(a.text) && /GEFÜHL/.test(a.text));
+    // E-458 (Justin 29.10.2026): Anruf-Wunsch und Erinnerung verkaufen nie — dort die Kümmerin, nicht die Verkäuferin.
+    const kuemmerin = art === "wunsch" || art === "erinnerung";
+    ok(`${art}: ${kuemmerin ? "die beste Kümmerin, verkauft NICHTS" : "die weltbeste Verkäuferin"} (ARAS ohne Artikel) — seine Worte aufnehmen, EIN nächster Schritt, Gefühl hörbar`, (kuemmerin ? /beste Kümmerin am Telefon/.test(a.text) && /Du verkaufst NICHTS/.test(a.text) && !/WELTBESTE VERKÄUFERIN/.test(a.text) : /die WELTBESTE VERKÄUFERIN/.test(a.text) && /EINEM natürlichen nächsten Schritt/.test(a.text)) && /IMMER ohne Artikel/.test(a.text) && /nie „der ARAS“/.test(a.text) && /seine Worte auf/.test(a.text) && /GEFÜHL/.test(a.text));
   }
   ok("KI-Hinweis: ARAS, die digitale Mitarbeiterin, sagt „KI“, leicht und charmant — FIAON mitten im Satz (Anruf 12: Aussprache)", /Ich bin eine KI, aber eine sehr nette\./.test(KI_HINWEIS_VORGABE) && /ARAS spricht hier, die digitale Mitarbeiterin von FIAON aus dem Kundenteam/.test(KI_HINWEIS_VORGABE) && !/FIAON\s*[—–-]/.test(KI_HINWEIS_VORGABE) && !/kümmere mich/.test(KI_HINWEIS_VORGABE) && KI_HINWEIS_VORGABE.length <= 150, KI_HINWEIS_VORGABE);
   ok("Abschluss: Link anbieten, dann den Tag nennen lassen, herzlich bestätigen", /zahlungslink_senden/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text) && /Wann schaffen Sie die Überweisung — heute noch\?/.test(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text));
@@ -643,6 +647,59 @@ titel("7. ROT-PROBE: die Prüfungen schlagen an, wenn etwas falsch ist");
   ok("Rot-Probe Wortwand trifft", hart(boese).length > 0);
   ok("Rot-Probe Druck trifft", druckFinden(boese) !== null);
   ok("Rot-Probe Vorname trifft", mitarbeiterVornameFunde("Daniel ruft Sie an.", TEAM).length > 0);
+}
+
+// ── E-458 (Justin 29.10.2026): „ARAS telefoniert nur noch die Termine oder die Leute die einen Anruf wollen“ ──────────
+titel("8. E-458: ANRUF-WUNSCH UND ERINNERUNG — klären, Termin, nie Verkauf");
+{
+  const heute = { datum: "29.10.2026", wochentag: "Donnerstag", uhrzeit: "14:00" };
+  const vor = () => "27.10.2026";
+  const P = await import("../shared/fiaon-aras-prompt");
+  const S = await import("../shared/fiaon-aras");
+  const namen = (a: { werkzeuge: { name: string }[] }) => a.werkzeuge.map((w) => w.name);
+  const ohneTagFrage = (t: string) => !t.includes("Wann schaffen Sie die Überweisung") && !/Geht sich des heute noch aus/.test(t);
+
+  // a) Anruf-Wunsch, Privat (sein Ja im Antrag)
+  const bw: Briefing = { ...briefing, einwilligung: { art: "antrag_kaestchen", am: "27.10.2026" }, wunsch: { quelle: "im Antrag", am: "27.10.", anliegen: null, fenster: null, kanal: null } };
+  const aw = anweisungBauen({ spielart: "wunsch", briefing: bw, einstellungen, hausanweisung: null });
+  ok("Anruf-Wunsch: Rolle Kümmerin, VERKAUF entfällt, Leitfaden „ANRUF-WUNSCH“, keine Frage nach dem Zahltag",
+    /beste Kümmerin am Telefon/.test(aw.text) && /VERKAUF: entfällt — in diesem Gespräch verkaufst du nichts/.test(aw.bausteine["7_verkauf"]) && /GESPRÄCHSART „ANRUF-WUNSCH“/.test(aw.bausteine["9_leitfaden"]) && ohneTagFrage(aw.text) && !/Justins Satz, wenn die erste Zahlung offen ist/.test(aw.text));
+  ok("Anruf-Wunsch: Werkzeuge ohne Zahltag und Ratenpause — Termin beim Betreuer, Link nur auf Bitte", (() => { const n = namen(aw); return n.includes("rueckruf_buchen") && n.includes("zahlungslink_senden") && !n.includes("zahlungszusage_merken") && !n.includes("ratenpause_setzen") && !n.includes("gespraech_buchen"); })(), namen(aw).join(","));
+  ok("Anruf-Wunsch: Grund nach seinem Ja „weil Sie sich einen Anruf von uns gewünscht haben“ — Identität zuerst", P.anrufGrund("wunsch", bw) === "ich ruf an, weil Sie sich einen Anruf von uns gewünscht haben" && P.eroeffnung(einstellungen, bw, "wunsch").frage === "Spreche ich mit Frau Musterfrau selbst?");
+  ok("Anruf-Wunsch: Hintergrund verbietet Zahltag und Ratenpause, Link nur auf seine ausdrückliche Bitte", /In diesem Gespräch wird NICHTS verkauft: kein zahlungszusage_merken, keine Ratenpause; zahlungslink_senden nur, wenn der Kunde selbst ausdrücklich um seinen Link bittet/.test(aw.backend));
+  ok("Anruf-Wunsch: Wortwand frei (Stimme, Hintergrund, Begrüßung) und kein Druck", hart(aw.text).length === 0 && hart(aw.backend).length === 0 && hart(aw.begruessung).length === 0 && druckFinden(aw.text) === null, [...hart(aw.text), ...hart(aw.backend)].map((x) => x.treffer).join(" | "));
+
+  // b) Anruf-Wunsch einer Firma (FIAON Global)
+  const bg: Briefing = { ...leeresBriefing("DE"), anrede: "Herr", nachname: "Firmenmann", global: true, heute, betreuer: { nom: "Herr Stripling", dat: "Herrn Stripling" }, wunsch: { quelle: "per Mail", am: "28.10.", anliegen: "US-Gesellschaft und Konto", fenster: null, kanal: null } };
+  const ag = anweisungBauen({ spielart: "wunsch", briefing: bg, einstellungen, hausanweisung: null });
+  ok("Firma: Global-Werkzeuge plus Erstgespräch — nie ein Zahlungslink, keine Raten", (() => { const n = namen(ag); return n.includes("gespraech_buchen") && n.includes("mensch_verbinden") && !n.includes("zahlungslink_senden") && !n.includes("rueckruf_buchen") && !n.includes("zahlungszusage_merken"); })(), namen(ag).join(","));
+  ok("Firma: Leitfaden „ANRUF-WUNSCH EINER FIRMA“, keine Preise/Zinsen, Grund ohne Kreditkarte", /ANRUF-WUNSCH EINER FIRMA/.test(ag.bausteine["9_leitfaden"]) && /Preise, Zinsen, Beträge/.test(ag.bausteine["9_leitfaden"]) && P.anrufGrund("wunsch", bg) === "ich ruf wegen Ihrer Anfrage bei FIAON Global an" && !/Kreditkarte/.test(P.anrufGrund("wunsch", bg) ?? ""));
+  ok("Firma: Wortwand frei", hart(ag.text).length === 0 && hart(ag.backend).length === 0, [...hart(ag.text), ...hart(ag.backend)].map((x) => x.treffer).join(" | "));
+
+  // c) Erinnerung vor dem Global-Gespräch (Probe-Briefing)
+  const pe = probeBriefing({ spielart: "erinnerung", anrede: "Herr", nachname: "Probe", heute, vorTagen: vor });
+  const ae = anweisungBauen({ spielart: "probe", briefing: pe, einstellungen, hausanweisung: null });
+  ok("Erinnerung: Werkzeuge nur bestätigen, Notiz, Mensch, Sperre, Ende (+ Probe-Feedback im Probeanruf)", (() => { const n = namen(ae); return n.includes("gespraech_bestaetigen") && n.includes("probe_feedback_merken") && !n.includes("zahlungslink_senden") && !n.includes("rueckruf_buchen") && !n.includes("gespraech_buchen"); })(), namen(ae).join(","));
+  ok("Erinnerung: Leitfaden nennt Zeit und Person, Grund „wegen Ihrem Gespräch mit FIAON Global“, nichts verkaufen",
+    /ERINNERUNG VOR DEM GESPRÄCH/.test(ae.bausteine["9_leitfaden"]) && /heute um sechzehn Uhr/.test(ae.text) && /Herrn Probe/.test(ae.text) && P.anrufGrund("probe", pe) === "ich ruf kurz wegen Ihrem Gespräch mit FIAON Global an" && /VERKAUF: entfällt/.test(ae.bausteine["7_verkauf"]) && ohneTagFrage(ae.text));
+  ok("Erinnerung: Wortwand frei, auch „meldet sich mit einer neuen Zeit“ ist keine ungedeckte Zusage", hart(ae.text).length === 0 && hart(ae.backend).length === 0, [...hart(ae.text), ...hart(ae.backend)].map((x) => x.treffer).join(" | "));
+
+  // d) Rückruf „bei ARAS“, den Mara eingetragen hat: läuft als Termin, gesprochen wie ein Anruf-Wunsch
+  const bm: Briefing = { ...briefing, terminAm: "Donnerstag, 29.10., 14:00", wunsch: { quelle: "bei unserer Kollegin Mara", am: "29.10.", anliegen: "Fragen zur Aktivierung", fenster: "heute zwischen 14 und 16 Uhr", kanal: "whatsapp" } };
+  const am2 = anweisungBauen({ spielart: "termin", briefing: bm, einstellungen, hausanweisung: null });
+  ok("Mara-Rückruf bei ARAS: als Anruf-Wunsch geführt (wirksame Art), Grund „wie mit unserer Kollegin Mara ausgemacht“, ohne Verkauf",
+    P.wirksameSpielart("termin", bm) === "wunsch" && P.anrufGrund("termin", bm) === "ich ruf an, wie mit unserer Kollegin Mara ausgemacht" && /VERKAUF: entfällt/.test(am2.bausteine["7_verkauf"]) && /unsere Kollegin Mara gebeten/.test(am2.bausteine["9_leitfaden"]) && /Fragen zur Aktivierung/.test(am2.text));
+  ok("Rot-Probe: ein Termin OHNE Mara-Wunsch bleibt der alte Termin (mit Verkauf, wie bisher)", P.wirksameSpielart("termin", briefing) === "termin" && /VERKAUF UND ABSCHLUSS/.test(anweisungBauen({ spielart: "termin", briefing, einstellungen, hausanweisung: null }).bausteine["7_verkauf"]));
+
+  // e) Probeanruf „Anruf-Wunsch“: wie beim Kunden (Kümmerin, kleine Liste) — plus Feedback-Werkzeug
+  const pw = probeBriefing({ spielart: "wunsch", anrede: "Herr", nachname: "Probe", heute, vorTagen: vor });
+  const ap = anweisungBauen({ spielart: "probe", briefing: pw, einstellungen, hausanweisung: null });
+  ok("Probe Anruf-Wunsch: Kümmerin, kein Zahltag-Werkzeug, Feedback-Werkzeug da", /beste Kümmerin am Telefon/.test(ap.text) && namen(ap).includes("probe_feedback_merken") && !namen(ap).includes("zahlungszusage_merken") && !!pw.wunsch && pw.einwilligung?.art === "antrag_kaestchen");
+  ok("Die Werkzeug-Definitionen der zwei neuen Werkzeuge: Objekt-Schema ohne Zusatzfelder, gespraech_bestaetigen verlangt „bleibt“",
+    (["gespraech_buchen", "gespraech_bestaetigen"] as const).every((n) => { const d = WERKZEUG_DEFS.find((x) => x.name === n); return !!d && (d.schema as any).additionalProperties === false; })
+    && JSON.stringify(WERKZEUG_DEFS.find((x) => x.name === "gespraech_bestaetigen")!.schema).includes("\"required\":[\"bleibt\"]"));
+  ok("Rot-Probe: die Tag-Frage im Verkauf würde erkannt; „ohne Verkauf“ gilt nur für Anruf-Wunsch und Erinnerung", !ohneTagFrage(anweisungBauen({ spielart: "zuruf", briefing, einstellungen, hausanweisung: null }).text)
+    && P.ohneVerkauf("wunsch") && P.ohneVerkauf("erinnerung") && !P.ohneVerkauf("termin") && !P.ohneVerkauf("rate") && S.SPIELARTEN.includes("wunsch"));
 }
 
 log(`\n${schlecht === 0 ? "GRÜN" : "ROT"}: ${gut} ok, ${schlecht} rot\n`);

@@ -2314,12 +2314,15 @@ export async function antwortErzeugen(ein: {
 
   // E-275 (02.10.2026): zahlender Kunde mit Werbesperre — die Lage ist seine echte (dossier.ts), Verkauf bleibt aus.
   const werbesperreZahlend = !!akte?.sperren?.werbung && !akte?.global && lage !== "gesperrt";
+  // E-458 (29.10.2026): Rückruf „bei ARAS“ nur, wenn ARAS gerade Rückrufe annimmt (in Stufe 0 nie), mit Person und nie bei Global.
+  const arasRueckruf = !!ein.personId && !akte?.global
+    && (await import("./fiaon-aras-wunsch").then((m) => m.arasRueckrufBereit()).catch(() => ({ bereit: false }))).bereit;
   // E-406 C1: Im Anliegen ohne die Werkzeuge, die dort nichts zu suchen haben (ANLIEGEN_OHNE_WERKZEUGE) — die Mail unverändert.
-  const werkzeuge = werkzeugeFuerLage(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend })
+  const werkzeuge = werkzeugeFuerLage(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend, arasRueckruf })
     .filter((w) => !anliegen || !ANLIEGEN_OHNE_WERKZEUGE.includes(w.name));
   const tools = anliegen
     ? werkzeuge.map((w) => ({ type: "function", function: { name: w.name, description: w.beschreibung, parameters: w.parameter } }))
-    : werkzeugeAlsTools(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend });
+    : werkzeugeAlsTools(lage, { auskunftAntwort: !!kontext.auskunftAntwort, werbesperre: werbesperreZahlend, arasRueckruf });
 
   // 04.09.2026 (E-118): Der ganze Weg des Kunden — aus zwanzig Quellen, als Zeitleiste.
   const { kundenwegLesen } = await import("./fiaon-kundenweg");

@@ -34,7 +34,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { createHash } from "crypto";
-import { promises as dns } from "dns";
+import { mailDomain } from "../lib/fiaon-mx";
 import { sqlPool } from "../lib/db-pool";
 import { antragAusCookie, antragCookieLoeschen, antragCookieSetzen, antragPasst, requireKundeOderAntrag } from "../lib/fiaon-antrag-sitzung";
 import { requireKunde, type KundeRequest } from "../lib/fiaon-kunde-session";
@@ -432,19 +432,8 @@ router.post("/antrag-neu/:ref/speichern", async (req: Request, res: Response) =>
 // (DE/AT/CH), ob die E-Mail-Domain Post empfangen kann (MX), ob schon ein
 // laufender Vertrag besteht. Jede Zeile, die der Kunde sieht, stammt von hier.
 // ═══════════════════════════════════════════════════════════════════════════
-async function mailDomain(domain: string): Promise<"mx" | "a" | "keine" | "unklar"> {
-  const zeitlich = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, nein) => setTimeout(() => nein(Object.assign(new Error("Zeit"), { code: "ETIMEOUT" })), 2500))]);
-  const endgueltig = (e: any) => ["ENOTFOUND", "ENODATA", "NXDOMAIN"].includes(String(e?.code));
-  try {
-    const mx = await zeitlich(dns.resolveMx(domain));
-    if (mx.some((m) => m.exchange && m.exchange !== ".")) return "mx";
-  } catch (e) { if (!endgueltig(e)) return "unklar"; }
-  try {
-    const a = await zeitlich(dns.resolve4(domain));
-    if (a.length) return "a";
-  } catch (e) { if (!endgueltig(e)) return "unklar"; }
-  return "keine";
-}
+// E-458 (29.10.2026): mailDomain steht jetzt in server/lib/fiaon-mx.ts — der Mail-Motor prüft damit dieselbe Frage
+// (nimmt die Domäne Post an?), bevor er eine Chef-Adresse ableitet. Hier unverändert dieselbe Funktion.
 
 async function anschriftImVerzeichnis(req: Request, d: AntragNeuDaten): Promise<"ja" | "nein" | "unklar"> {
   try {

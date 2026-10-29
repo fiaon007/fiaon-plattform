@@ -430,6 +430,11 @@ async function eingangVerarbeiten(firmaId: number, postfach: string, n: GmailNac
     const ungueltig = Array.from(new Set([...String(f.email_ungueltig ?? "").split(",").map((x: string) => x.trim()).filter(Boolean), String(f.email ?? "")].filter(Boolean)));
     await sqlPool`UPDATE fiaon_radar_firmen SET status = CASE WHEN status = 'versendet' THEN 'unzustellbar' ELSE status END,
                     email_ungueltig = ${ungueltig.join(",").slice(0, 500)}, nachfass_faellig = NULL, updated_at = NOW() WHERE id = ${firmaId}`;
+    // E-458 (Punkt 5): Kam eine ABGELEITETE Adresse zurück, ist das Muster widerlegt — nie wieder ableiten, die Firma
+    // geht in den Brief-Vorrat (radarBriefPruefen zählt die widerlegte Adresse nicht mehr als persönlich).
+    if (f.entscheider?.weg === "abgeleitet" && String(f.entscheider.email ?? "").toLowerCase() === String(f.email ?? "").toLowerCase()) {
+      await sqlPool`UPDATE fiaon_radar_firmen SET entscheider = ${sqlPool.json({ ...f.entscheider, muster_widerlegt: true })}, updated_at = NOW() WHERE id = ${firmaId}`;
+    }
     // Eine andere, geprüfte Adresse suchen — gefunden, darf die erste Mail EINMAL dorthin (radarMailAusgeben).
     await radarKontaktNachsuchen(firmaId).catch(() => {});
     return { art, ki, mara: false };
@@ -1121,6 +1126,7 @@ async function nachfassSchreiben(f: any, stufe: number): Promise<{ absaetze: str
 async function radarZustellWacheSicher(): Promise<void> {
   try {
     const mod: any = await import("./fiaon-radar-motor");
+    if (typeof mod.radarAbleitungWache === "function") await mod.radarAbleitungWache();
     if (typeof mod.radarZustellWache === "function") await mod.radarZustellWache();
   } catch (e: any) {
     console.error("[RADAR-VERSAND] Zustell-Wache:", e?.message || e);

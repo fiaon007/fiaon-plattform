@@ -631,17 +631,23 @@ export interface RadarMotor {
   partnerGruppen: string[];
   partnerTagesziel: number;
   partnerProvisionText: string;
+  /** Adress-Ableitung (Punkt 5): an/aus, höchstens so viel Prozent der Mails je Stunde, Rückläufer-Grenze in 7 Tagen. */
+  ableitung: boolean;
+  ableitungAnteil: number;
+  ableitungRueckMax: number;
 }
 /** Harte Obergrenze je Strom und Stunde — darüber wird aus persönlich Massenversand. */
 export const RADAR_MOTOR_HOECHSTENS_JE_STUNDE = 30;
 export const RADAR_MOTOR_VORGABE: RadarMotor = { tage: [1, 2, 3, 4, 5], von: "07:00", bis: "19:00", firmenJeStunde: 10, partnerJeStunde: 10, puffer: 1.2, haltbarTage: 7, link: "termin", kiKlangMax: 3, aehnlichMax: 0.35, sucheTagesziel: RADAR_TAGESZIEL, sucheLaeufe: 30,
-  partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang" };
+  partnerGruppen: RADAR_PARTNER_GRUPPEN.map((g) => g.key), partnerTagesziel: 100, partnerProvisionText: "30 Prozent unseres Honorars, ein Jahr lang",
+  ableitung: true, ableitungAnteil: 50, ableitungRueckMax: 5 };
 export const RADAR_MOTOR_SCHLUESSEL = {
   tage: "radar_motor_tage", von: "radar_motor_von", bis: "radar_motor_bis", firmenJeStunde: "radar_motor_firmen_je_stunde",
   partnerJeStunde: "radar_motor_partner_je_stunde", puffer: "radar_motor_puffer", haltbarTage: "radar_motor_haltbar_tage",
   link: "radar_motor_link", kiKlangMax: "radar_pruef_ki_klang_max", aehnlichMax: "radar_motor_aehnlich_max",
   sucheTagesziel: "radar_suche_tagesziel", sucheLaeufe: "radar_suche_laeufe",
   partnerGruppen: "radar_partner_gruppen", partnerTagesziel: "radar_partner_tagesziel", partnerProvisionText: "radar_partner_provision_text",
+  ableitung: "radar_ableitung", ableitungAnteil: "radar_ableitung_anteil", ableitungRueckMax: "radar_ableitung_rueck_max",
 } as const;
 
 /** Die Stände einer Mail in der Warteschlange (Spalte motor_status; der Radar-Stand der Firma bleibt daneben, wie er ist). */
@@ -696,6 +702,9 @@ export function radarMotorLesen(roh: Record<string, string | null | undefined>):
       : Array.from(new Set(text(roh[k.partnerGruppen]).split(/[,;\s]+/).filter((g) => !!radarPartnerGruppe(g)))),
     partnerTagesziel: Math.round(zahl(roh[k.partnerTagesziel], v.partnerTagesziel, 0, 500)),
     partnerProvisionText: /^[^\n]{10,120}$/.test(text(roh[k.partnerProvisionText])) && /prozent|%/i.test(text(roh[k.partnerProvisionText])) ? text(roh[k.partnerProvisionText]) : v.partnerProvisionText,
+    ableitung: roh[k.ableitung] != null ? text(roh[k.ableitung]) !== "aus" : v.ableitung,
+    ableitungAnteil: Math.round(zahl(roh[k.ableitungAnteil], v.ableitungAnteil, 0, 100)),
+    ableitungRueckMax: zahl(roh[k.ableitungRueckMax], v.ableitungRueckMax, 0.5, 50),
   };
 }
 
@@ -1047,6 +1056,103 @@ export function radarAdressePersoenlich(emailRoh: unknown, namen: (string | null
   return /^[a-z]{2,}[._-][a-z]{2,}$/.test(lokal);
 }
 
+// ── DIE CHEF-ADRESSE ABLEITEN — NUR MIT BELEGTEM MUSTER (E-458 Punkt 5) ─────────────
+// Den Namen der Geschäftsführung kennen wir aus dem Impressum fast immer, ihre persönliche Adresse steht aber nur bei
+// knapp der Hälfte irgendwo. Geraten wird trotzdem NIE: Abgeleitet wird nur, wenn auf den Seiten der Firma (Team,
+// Karriere, Presse, Datenschutz) mindestens eine persönliche Adresse eines anderen Menschen DERSELBEN Domäne mit Namen
+// steht, die genau einem Muster folgt — und keine andere widerspricht. Dazu muss die Domäne Post annehmen (MX).
+export const RADAR_ADRESS_MUSTER = [
+  "{vorname}.{nachname}", "{v}.{nachname}", "{vorname}{nachname}", "{v}{nachname}", "{nachname}", "{vorname}",
+  "{nachname}.{vorname}", "{vorname}-{nachname}", "{vorname}_{nachname}", "{v}{n}",
+] as const;
+export type RadarAdressMuster = (typeof RADAR_ADRESS_MUSTER)[number];
+
+const NAMEN_TITEL = /^(dr|prof|dipl|ing|mag|msc|mba|bsc|ba|ma|llm|rechtsanwalt|rechtsanwältin|ra|stb|wp|herr|frau)\.?$/i;
+const NAMEN_PARTIKEL_ABL = /^(von|van|vom|zu|zur|zum|de|del|der|den|di|da|le|la|du|ten|ter)$/i;
+const flach = (t: string) => String(t ?? "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+  .normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/g, "");
+
+/** Vor- und Nachname für Adressen (ä → ae, ß → ss, ohne Akzente); mehrteilig = Doppel-, Partikel- oder Mittelname. Rein. */
+export function radarNamensFormen(name: string | null | undefined): { vorname: string; nachname: string; mehrteilig: boolean } | null {
+  const teile = String(name ?? "").replace(/\(.*?\)/g, " ").replace(/,/g, " ").split(/\s+/).map((t) => t.trim()).filter((t) => t && !NAMEN_TITEL.test(t.replace(/-/g, "")));
+  if (teile.length < 2) return null;
+  const mehrteilig = teile.length > 2 || teile.some((t) => t.includes("-") || NAMEN_PARTIKEL_ABL.test(t));
+  const vorname = flach(teile[0]), nachname = flach(teile[teile.length - 1]);
+  if (vorname.length < 2 || nachname.length < 2) return null;
+  return { vorname, nachname, mehrteilig };
+}
+
+/** Der lokale Teil einer Adresse nach einem Muster. Rein. */
+export function radarMusterAnwenden(muster: RadarAdressMuster, f: { vorname: string; nachname: string }): string {
+  const v = f.vorname, n = f.nachname;
+  switch (muster) {
+    case "{vorname}.{nachname}": return `${v}.${n}`;
+    case "{v}.{nachname}": return `${v[0]}.${n}`;
+    case "{vorname}{nachname}": return `${v}${n}`;
+    case "{v}{nachname}": return `${v[0]}${n}`;
+    case "{nachname}": return n;
+    case "{vorname}": return v;
+    case "{nachname}.{vorname}": return `${n}.${v}`;
+    case "{vorname}-{nachname}": return `${v}-${n}`;
+    case "{vorname}_{nachname}": return `${v}_${n}`;
+    case "{v}{n}": return `${v[0]}${n[0]}`;
+  }
+}
+
+/** Welche Muster ergeben genau diesen lokalen Teil aus diesem Namen? Rein. */
+export function radarMusterVon(lokal: string, name: string): RadarAdressMuster[] {
+  const f = radarNamensFormen(name);
+  if (!f) return [];
+  const l = String(lokal ?? "").toLowerCase();
+  return RADAR_ADRESS_MUSTER.filter((m) => radarMusterAnwenden(m, f) === l);
+}
+
+export interface RadarAdressBeispiel { adresse: string; name: string; url?: string | null }
+
+/**
+ * Lernt das Adress-Muster einer Domäne aus Beispielen mit Namen. Nur Beispiele der EIGENEN Domäne, nie Sammeladressen.
+ * Ergebnis nur, wenn jedes verwertbare Beispiel genau einem Muster folgt und alle dasselbe zeigen — sonst null (nie raten).
+ */
+export function radarAdressMusterLernen(beispiele: readonly RadarAdressBeispiel[], domain: string): RadarAdressMuster | null {
+  const d = String(domain ?? "").toLowerCase().replace(/^www\./, "");
+  let gefunden: RadarAdressMuster | null = null;
+  let belege = 0;
+  for (const b of beispiele) {
+    const a = String(b?.adresse ?? "").trim().toLowerCase();
+    const [lokal, dom] = a.split("@");
+    if (!lokal || dom !== d) continue;
+    if (RADAR_ADRESSE_GENERISCH.test(lokal) || RADAR_ADRESSE_NIE.test(lokal)) continue;
+    if (!radarNamensFormen(b.name)) continue;
+    const muster = radarMusterVon(lokal, b.name);
+    if (muster.length !== 1) return null;
+    if (gefunden && gefunden !== muster[0]) return null;
+    gefunden = muster[0];
+    belege++;
+  }
+  return belege ? gefunden : null;
+}
+
+/**
+ * Leitet die Adresse eines Menschen aus Muster und Domäne ab — null bei Doppel-, Partikel- oder Mittelnamen, solange
+ * kein Beispiel genau diesen Fall zeigt (dann weiß niemand, wie die Firma ihn schreibt). Rein.
+ */
+export function radarAdresseAbleiten(name: string, muster: RadarAdressMuster | null, domain: string, beispiele: readonly RadarAdressBeispiel[] = []): string | null {
+  const f = radarNamensFormen(name);
+  const d = String(domain ?? "").toLowerCase().replace(/^www\./, "");
+  if (!f || !muster || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) return null;
+  if (f.mehrteilig && !beispiele.some((b) => radarNamensFormen(b.name)?.mehrteilig && String(b.adresse ?? "").toLowerCase().endsWith(`@${d}`))) return null;
+  const lokal = radarMusterAnwenden(muster, f);
+  return lokal.length >= 2 ? `${lokal}@${d}` : null;
+}
+
+/** Schutz der Ableitung: Rückläuferquote abgeleiteter Adressen in 7 Tagen über der Grenze (ab 30 Sendungen) → abschalten. Rein. */
+export function radarAbleitungUrteil(e: { gesendet: number; rueck: number; rueckMax: number; basis?: number }): { abschalten: boolean; quote: number | null } {
+  const basis = e.basis ?? 30;
+  if (e.gesendet < basis) return { abschalten: false, quote: null };
+  const quote = Math.round((e.rueck / e.gesendet) * 1000) / 10;
+  return { abschalten: quote > e.rueckMax, quote };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // E-339 (12.10.2026) — BRIEF STATT MAIL
 //
@@ -1205,7 +1311,7 @@ export function radarBriefAnschrift(impressum: any, opts: { firmenname?: string 
 
 export interface RadarBriefPruefFirma {
   status: string; land?: string | null; signal_staerke?: number | null; versendet_am?: unknown; brief_versendet_am?: unknown;
-  entscheider?: { name?: string | null; email?: string | null } | null; impressum?: any; name?: string | null; domain?: string | null;
+  entscheider?: { name?: string | null; email?: string | null; weg?: string | null; muster_widerlegt?: boolean | null } | null; impressum?: any; name?: string | null; domain?: string | null;
 }
 /**
  * Bekommt diese Firma einen Brief? Jede Bedingung einzeln — das Chefbüro zeigt sie als Liste mit Haken. Rein.
@@ -1215,7 +1321,9 @@ export interface RadarBriefPruefFirma {
 export function radarBriefPruefen(f: RadarBriefPruefFirma): { ok: boolean; punkte: { key: string; ok: boolean; text: string }[] } {
   const anschrift = radarBriefAnschrift(f.impressum, { firmenname: f.name, land: f.land });
   const nurBrief = !radarMailErlaubt(radarLandFuer(f));
-  const persoenlich = !nurBrief && !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
+  // E-458 (Punkt 5): Eine abgeleitete Adresse, die als unzustellbar zurückkam (muster_widerlegt), zählt nicht mehr.
+  const widerlegt = f.entscheider?.weg === "abgeleitet" && f.entscheider?.muster_widerlegt === true;
+  const persoenlich = !nurBrief && !widerlegt && !!f.entscheider?.email && radarAdressePersoenlich(f.entscheider.email, [f.entscheider.name]);
   const zu = ["gesperrt", "kein_interesse", "passt_nicht"].includes(f.status);
   const gespraech = (RADAR_IM_GESPRAECH as readonly string[]).includes(f.status);
   const punkte = [

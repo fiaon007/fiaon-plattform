@@ -331,16 +331,25 @@ async function uebernehmen(jetzt: Date, m: RadarMotor, bremse: number, nurStrom:
       : motorDran(jetzt, m, st, bremse).filter((d) => !nurStrom || d.strom === nurStrom);
     const aus: { id: number; strom: RadarStrom; postfach: string }[] = [];
     let lagen = await postfachLagen(jetzt, tx);
+    // E-458 (Punkt 5): höchstens radar_ableitung_anteil Prozent der Mails je Stunde an abgeleitete Adressen.
+    const [st1] = (await tx`
+      SELECT COUNT(*) FILTER (WHERE f.entscheider->>'weg' = 'abgeleitet')::int AS abg, COUNT(*)::int AS alle
+        FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id
+       WHERE p.richtung = 'aus' AND p.art = 'erstmail' AND p.datum > NOW() - INTERVAL '1 hour'`) as any[];
+    let abg = Number(st1?.abg ?? 0), alle = Number(st1?.alle ?? 0);
     for (const d of dran) {
       const p = radarPostfachWaehlen(lagen, jetzt);
       if (!p) break;
+      const abgeleitetErlaubt = ((abg + 1) / (alle + 1)) * 100 <= m.ableitungAnteil;
       const [z] = (await tx`
         UPDATE fiaon_radar_firmen SET motor_status = 'sendet', motor_am = NOW(), postfach = ${p.adresse}
          WHERE id = (SELECT id FROM fiaon_radar_firmen WHERE motor_status = 'bereit' AND strom = ${d.strom}
+                        AND (${abgeleitetErlaubt} OR COALESCE(entscheider->>'weg', '') <> 'abgeleitet')
                       ORDER BY COALESCE(signal_staerke, 0) DESC, passung DESC NULLS LAST, motor_am ASC LIMIT 1 FOR UPDATE SKIP LOCKED)
            AND motor_status = 'bereit'
-        RETURNING id`) as any[];
+        RETURNING id, (entscheider->>'weg') AS weg`) as any[];
       if (!z) continue;
+      alle++; if (z.weg === "abgeleitet") abg++;
       aus.push({ id: Number(z.id), strom: d.strom, postfach: p.adresse });
       lagen = lagen.map((x) => (x.adresse === p.adresse ? { ...x, heute: x.heute + 1, letzteAm: jetzt } : x));
     }
@@ -399,6 +408,43 @@ export async function radarMotorSendenTakt(): Promise<boolean> {
   if (r.gesendet > 0 || r.verworfen > 0 || r.zurueck > 0) { letzterPuls = Date.now(); return true; }
   if (Date.now() - letzterPuls >= 60 * 60_000) { letzterPuls = Date.now(); return true; }
   return false;
+}
+
+// ── SCHUTZ DER ABLEITUNG (E-458 Punkt 5) ──────────────────────────────────────
+/** Aufgabe für Justin über die TODO-Pipeline (einmal je Schlüssel). */
+async function aufgabeMotor(titel: string, text: string, schluessel: string): Promise<void> {
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    await auftragFuerKunden({
+      personId: null, ref: null, titel: titel.slice(0, 160), text: text.slice(0, 1500), dringend: true,
+      schluessel, quelle: "radar", bereich: "postmeister", anBetreiber: true,
+      link: "/chef/s/firmen-radar?reiter=automatik", autorName: "Mara (Mail-Motor)", anlageText: "Angelegt vom Mail-Motor (E-458).",
+    });
+  } catch (e: any) {
+    console.error("[MAIL-MOTOR] Aufgabe:", e?.message || e);
+  }
+}
+
+/**
+ * Prüft die Rückläufer der ABGELEITETEN Adressen (7 Tage, ab 30 Sendungen). Über radar_ableitung_rueck_max schaltet sie
+ * die Ableitung ab (radar_ableitung = aus) und legt eine dringende Aufgabe an. Läuft im 10-Minuten-Lauf radar_versand.
+ */
+export async function radarAbleitungWache(): Promise<{ quote: number | null; abgeschaltet: boolean }> {
+  const m = await radarMotorEinstellung();
+  if (!m.ableitung) return { quote: null, abgeschaltet: false };
+  const [z] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE p.richtung = 'aus' AND p.art = 'erstmail')::int AS gesendet,
+           COUNT(*) FILTER (WHERE p.richtung = 'ein' AND p.art = 'unzustellbar')::int AS rueck
+      FROM fiaon_radar_post p JOIN fiaon_radar_firmen f ON f.id = p.firma_id
+     WHERE f.entscheider->>'weg' = 'abgeleitet' AND p.datum > NOW() - INTERVAL '7 days'`) as any[];
+  const { radarAbleitungUrteil } = await import("@shared/fiaon-radar");
+  const u = radarAbleitungUrteil({ gesendet: Number(z?.gesendet ?? 0), rueck: Number(z?.rueck ?? 0), rueckMax: m.ableitungRueckMax });
+  if (!u.abschalten) return { quote: u.quote, abgeschaltet: false };
+  await sqlPool`INSERT INTO fiaon_settings (key, value) VALUES ('radar_ableitung', 'aus') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+  await aufgabeMotor("Mail-Motor: Adress-Ableitung abgeschaltet (Rückläufer)",
+    `Abgeleitete Chef-Adressen kamen in 7 Tagen zu ${String(u.quote).replace(".", ",")} % zurück (Grenze ${String(m.ableitungRueckMax).replace(".", ",")} %, ${z?.gesendet} Sendungen). Die Ableitung ist aus; Mails gehen nur noch an belegte Adressen. Wieder einschalten unter Automatik › Adressen, wenn die Ursache klar ist.`,
+    `radar-ableitung:${berlinToday()}`);
+  return { quote: u.quote, abgeschaltet: true };
 }
 
 // ── FÜR DAS CHEFBÜRO ─────────────────────────────────────────────────────────
@@ -490,6 +536,13 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
     const liste = (Array.isArray(ein.partnerGruppen) ? ein.partnerGruppen : String(ein.partnerGruppen).split(/[,;\s]+/)).map(String).filter(Boolean);
     if (liste.some((g) => !radarPartnerGruppe(g))) throw new RadarFehler("Unbekannte Partner-Gruppe.");
     setzen.push([k.partnerGruppen, Array.from(new Set(liste)).join(",")]);
+  }
+  if (ein.ableitung !== undefined) setzen.push([k.ableitung, ein.ableitung === true || ein.ableitung === "an" ? "an" : "aus"]);
+  if (ein.ableitungAnteil !== undefined) setzen.push([k.ableitungAnteil, ganz(ein.ableitungAnteil, 0, 100, "Anteil abgeleiteter Adressen")]);
+  if (ein.ableitungRueckMax !== undefined) {
+    const n = Number(String(ein.ableitungRueckMax).replace(",", "."));
+    if (!Number.isFinite(n) || n < 0.5 || n > 50) throw new RadarFehler("Rückläufer-Grenze der Ableitung: 0,5 bis 50 Prozent.");
+    setzen.push([k.ableitungRueckMax, String(n)]);
   }
   if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
   if (ein.partnerProvisionText !== undefined) {

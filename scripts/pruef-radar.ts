@@ -630,7 +630,7 @@ abschnitt("Warteschlange und Takt: der Mail-Motor (E-458)");
   ok(versandQ.length > 500 && !/radarMailAusgeben|radarMailSchreiben|automatik_am/.test(versandQ) && /art = 'erstmail'/.test(versandQ), "radarVersandLauf schickt keine ersten Mails mehr (kein zweiter Weg), zählt aber die des Motors");
   const sendenQ = motorQ.slice(motorQ.indexOf("export async function radarMotorSenden"), motorQ.indexOf("/** Für den Minutentakt"));
   ok(sendenQ.length > 500 && !/radarKi|kiPausiert/.test(sendenQ), "radarMotorSenden ruft keine KI und fragt die KI-Pause nicht (sendet aus der Warteschlange weiter)");
-  ok(/pg_advisory_xact_lock\(\$\{MOTOR_SPERRE\}\)/.test(motorQ) && /MOTOR_SPERRE = 458001/.test(motorQ) && /SET motor_status = 'sendet'[\s\S]{0,400}RETURNING id/.test(motorQ), "Übernahme unter pg_advisory_xact_lock mit motor_status = 'sendet' … RETURNING");
+  ok(/pg_advisory_xact_lock\(\$\{MOTOR_SPERRE\}\)/.test(motorQ) && /MOTOR_SPERRE = 458001/.test(motorQ) && /SET motor_status = 'sendet'[\s\S]{0,700}RETURNING id/.test(motorQ), "Übernahme unter pg_advisory_xact_lock mit motor_status = 'sendet' … RETURNING");
   const kandQ = motorQ.slice(motorQ.indexOf("export async function kandidatNehmen"), motorQ.indexOf("async function verwerfen"));
   ok(/r\.strom = \$\{strom\}/.test(kandQ) && /r\.signal_staerke >= \$\{RADAR_SIGNAL_AB\}/.test(kandQ) && /ORDER BY COALESCE\(r\.signal_staerke, \$\{RADAR_SIGNAL_AB\}\) DESC, r\.passung DESC/.test(kandQ) && /RADAR_NUR_BRIEF_LAENDER/.test(kandQ) && /r\.motor_status IS NULL/.test(kandQ) && /FOR UPDATE SKIP LOCKED/.test(kandQ), "Kandidaten: Strom-Filter, Signal ≥ 3, stärkstes Signal und Passung zuerst, ohne Österreich, über motor_status (nicht automatik_am)");
   ok(Object.keys(sh8.RADAR_STATUS).length === 16, "RADAR_STATUS bleibt bei 16 Ständen (die Warteschlange ist eine eigene Spalte)");
@@ -827,6 +827,47 @@ abschnitt("Partner-Strom: Steuerberater, Finanzierer, Kreditvermittler … (E-45
   ok(/Ziel: die Zusammenarbeit SCHRIFTLICH vereinbaren/.test(fdQ) && /const ohneLink = partner \|\|/.test(fdQ), "Maras Antwort an Partner: schriftlich, ohne Zeiten und ohne Link");
   ok(/radarPartnerSuchen\(\{ gruppe, land: PARTNER_LAENDER/.test(libQ) && /const PARTNER_LAENDER: RadarLand\[\] = \["DE", "DE", "CH"\]/.test(libQ) && /quote\("partner"\) < quote\("firma"\)/.test(libQ), "Tageslauf: Partner-Suche im selben Lauf, Vorrang für den knapperen Vorrat, Partner nur DE und CH");
   ok(/"\/chef\/radar\/partner\/suchen", wache/.test(lies("server/routes/fiaon-radar.ts")), "Partnersuche von Hand hinter der Wache");
+}
+
+abschnitt("Chef-Adresse ableiten — nur mit belegtem Muster und MX (E-458)");
+{
+  const d = "beispiel-gmbh.example";
+  ok(sh8.radarAdressMusterLernen([{ adresse: `a.schmidt@${d}`, name: "Anna Schmidt" }], d) === "{v}.{nachname}" && sh8.radarAdresseAbleiten("Max Müller", "{v}.{nachname}", d) === `m.mueller@${d}`, "a.schmidt@ + Anna Schmidt → {v}.{nachname}; Max Müller → m.mueller@");
+  ok(sh8.radarAdressMusterLernen([{ adresse: `jonas.weber@${d}`, name: "Jonas Weber" }], d) === "{vorname}.{nachname}" && sh8.radarAdresseAbleiten("Jürgen Groß", "{vorname}.{nachname}", d) === `juergen.gross@${d}`, "jonas.weber@ → {vorname}.{nachname}; Jürgen Groß → juergen.gross@ (Umlaute, ß)");
+  ok(sh8.radarAdressMusterLernen([{ adresse: `a.schmidt@${d}`, name: "Anna Schmidt" }, { adresse: `jonas.weber@${d}`, name: "Jonas Weber" }], d) === null, "Widersprechende Beispiele → kein Muster");
+  ok(sh8.radarAdressMusterLernen([], d) === null && sh8.radarAdresseAbleiten("Max Müller", null, d) === null, "Kein Beispiel → nichts (nie raten)");
+  ok(sh8.radarAdressMusterLernen([{ adresse: `info@${d}`, name: "Anna Schmidt" }, { adresse: `office@${d}`, name: "Jonas Weber" }], d) === null, "info@ und office@ zählen nie als Beispiel");
+  ok(sh8.radarAdressMusterLernen([{ adresse: "a.schmidt@andere-firma.example", name: "Anna Schmidt" }], d) === null, "Beispiel einer fremden Domäne zählt nicht");
+  ok(sh8.radarAdresseAbleiten("Claudius zur Linden", "{v}.{nachname}", d) === null && sh8.radarAdresseAbleiten("Hans-Peter Meier", "{v}.{nachname}", d) === null, "„Claudius zur Linden“ und „Hans-Peter Meier“ → nichts, solange kein Beispiel diesen Fall zeigt");
+  ok(sh8.radarAdresseAbleiten("Hans-Peter Meier", "{v}.{nachname}", d, [{ adresse: `e.roth@${d}`, name: "Eva-Maria Roth" }]) === `h.meier@${d}`, "Zeigt ein Beispiel einen Doppelnamen, darf auch einer abgeleitet werden");
+  const abg = sh8.radarAdresseAbleiten("Max Müller", "{v}.{nachname}", d)!;
+  ok(sh8.radarAdressePersoenlich(abg, ["Max Müller"]) && sh8.radarAdressePruefen(abg, d, "Beispiel GmbH").ok, "Die abgeleitete Adresse besteht die Adress-Wand (persönlich, eigene Domäne)");
+  const ent = await import("../server/lib/fiaon-radar-entscheider");
+  const bsp = ent.adressBeispiele([{ url: `https://${d}/team`, text: `Ihre Ansprechpartnerin im Vertrieb: Anna Schmidt, Telefon 0, a.schmidt@${d}. Allgemein: info@${d}`, html: "" }], d, ["Max Müller"]);
+  ok(bsp.length === 1 && bsp[0].name === "Anna Schmidt" && bsp[0].adresse === `a.schmidt@${d}` && sh8.radarAdressMusterLernen(bsp, d) === "{v}.{nachname}", `Beispiele aus dem Seitentext: Name rund um die Adresse (${JSON.stringify(bsp)})`);
+  const mx = await import("../server/lib/fiaon-mx");
+  const fehler = (code: string) => Promise.reject(Object.assign(new Error(code), { code }));
+  mx.mxAufloeserSetzen({ resolveMx: async () => [{ exchange: "mx.beispiel.example", priority: 10 }], resolve4: async () => [], resolveTxt: async () => [] });
+  const m1 = await mx.mailDomain(d);
+  mx.mxAufloeserSetzen({ resolveMx: () => fehler("ENOTFOUND"), resolve4: () => fehler("ENOTFOUND"), resolveTxt: () => fehler("ENOTFOUND") });
+  const m2 = await mx.mailDomain(d);
+  mx.mxAufloeserSetzen({ resolveMx: () => fehler("ETIMEOUT"), resolve4: () => fehler("ETIMEOUT"), resolveTxt: () => fehler("ETIMEOUT") });
+  const m3 = await mx.mailDomain(d);
+  mx.mxAufloeserSetzen(null);
+  ok(m1 === "mx" && m2 === "keine" && m3 === "unklar", `MX mit Attrappe (kein Netz): Eintrag → mx, ENOTFOUND → keine, Zeitüberschreitung → unklar (${m1}/${m2}/${m3})`);
+  const enQ = lies("server/lib/fiaon-radar-entscheider.ts");
+  ok(/if \(\(await mailDomain\(f\.domain\)\) !== "mx"\) return null;/.test(enQ) && /const muster = radarAdressMusterLernen\(liste, f\.domain\);/.test(enQ) && /weg: "abgeleitet"[\s\S]{0,200}muster, beleg: \{ adresse: beleg\.adresse, name: beleg\.name/.test(enQ), "Ableitung nur mit gelerntem Muster und MX „mx“; gespeichert mit weg „abgeleitet“, Muster und Beleg");
+  const iWeb = enQ.indexOf("// ── 1. Die Website ──"), iAbl = enQ.indexOf("// ── 1b. Die Ableitung"), iSuche = enQ.indexOf("// ── 2. Die Websuche ──");
+  ok(iWeb > 0 && iWeb < iAbl && iAbl < iSuche && /if \(!motor\.ableitung \|\| widerlegt \|\| !chef\) return null;/.test(enQ), "Reihenfolge Website → Ableitung (kostenlos) → Websuche (bezahlt); nie bei widerlegtem Muster oder abgeschalteter Ableitung");
+  ok(/f\.entscheider\?\.weg === "abgeleitet"[\s\S]{0,200}muster_widerlegt: true/.test(lies("server/lib/fiaon-radar-faden.ts")), "Rückläufer einer abgeleiteten Adresse → muster_widerlegt (keine zweite Ableitung)");
+  const briefBasis = { status: "gescannt", land: "DE", signal_staerke: 4, name: "Beispiel GmbH", domain: d, versendet_am: null, brief_versendet_am: null,
+    impressum: { name: "Beispiel GmbH", strasse: "Musterweg 1", plz: "10115", ort: "Berlin", land: "DE", vertreter: [{ name: "Max Müller", funktion: "Geschäftsführer" }] } };
+  ok(!sh8.radarBriefPruefen({ ...briefBasis, entscheider: { name: "Max Müller", email: abg, weg: "abgeleitet" } }).ok && sh8.radarBriefPruefen({ ...briefBasis, entscheider: { name: "Max Müller", email: abg, weg: "abgeleitet", muster_widerlegt: true } }).ok, "Brief: widerlegte abgeleitete Adresse zählt nicht als persönlich → Brief möglich");
+  ok(sh8.radarAbleitungUrteil({ gesendet: 30, rueck: 2, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 29, rueck: 9, rueckMax: 5 }).abschalten && !sh8.radarAbleitungUrteil({ gesendet: 100, rueck: 5, rueckMax: 5 }).abschalten, "Schutz: über 5 % Rückläufer abgeleiteter Adressen (ab 30 Sendungen) schaltet die Ableitung ab");
+  const moQ = lies("server/lib/fiaon-radar-motor.ts");
+  ok(/abgeleitetErlaubt = \(\(abg \+ 1\) \/ \(alle \+ 1\)\) \* 100 <= m\.ableitungAnteil/.test(moQ) && /INSERT INTO fiaon_settings \(key, value\) VALUES \('radar_ableitung', 'aus'\)/.test(moQ), "Je Stunde höchstens radar_ableitung_anteil Prozent an abgeleitete Adressen; Wache schaltet ab und legt eine Aufgabe an");
+  ok(/import \{ mailDomain \} from "\.\.\/lib\/fiaon-mx"/.test(lies("server/routes/fiaon-antrag-neu.ts")) && !/async function mailDomain/.test(lies("server/routes/fiaon-antrag-neu.ts")), "Der Antrag prüft MX über dieselbe Funktion (fiaon-mx.ts)");
+  ok(/WHERE motor_status IS NULL|r\.motor_status IS NULL/.test(moQ) && !/automatik_am IS NULL/.test(moQ), "Die früher einmal versuchten Firmen (automatik_am) kommen über motor_status wieder dran");
 }
 
 abschnitt("Ergebnis");

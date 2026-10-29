@@ -339,7 +339,7 @@ router.post("/chef/radar/motor", wache, async (req: ChefRequest, res: Response) 
     const { radarMotorSetzen } = await import("../lib/fiaon-radar-motor");
     const b = req.body ?? {};
     const erlaubt = ["tage", "von", "bis", "firmenJeStunde", "partnerJeStunde", "puffer", "haltbarTage", "link", "kiKlangMax", "aehnlichMax", "sucheTagesziel", "sucheLaeufe",
-      "partnerGruppen", "partnerTagesziel", "partnerProvisionText"];
+      "partnerGruppen", "partnerTagesziel", "partnerProvisionText", "ableitung", "ableitungAnteil", "ableitungRueckMax"];
     const teil = Object.fromEntries(Object.entries(b).filter(([k]) => erlaubt.includes(k)));
     const einstellung = await radarMotorSetzen(teil);
     console.log(`[MAIL-MOTOR] Schalter von #${req.chef?.agentId ?? "?"}: ${JSON.stringify(teil).slice(0, 300)}`);

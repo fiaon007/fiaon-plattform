@@ -1879,7 +1879,8 @@ export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
       + "Chef finden, Mail schreiben, von der Prüf-KI lesen lassen. Fertige Mails warten in der Warteschlange und gehen nur im Fenster hinaus, "
       + "gleichmäßig über die Stunde. Der Satz oben sagt ehrlich, was die Postfächer heute tragen: mehr Postfächer = mehr Tempo.",
     tipp: "Tage, Fenster und Ziele änderst du hier und drückst „Speichern“. „Warteschlange jetzt füllen“ startet die Vorbereitung sofort, "
-      + "„Jetzt eine senden …“ schickt die nächste geprüfte Mail (nur im Fenster, mit allen Wänden).",
+      + "„Jetzt eine senden …“ schickt die nächste geprüfte Mail (nur im Fenster, mit allen Wänden). Unter „Feineinstellungen“ "
+      + "liegen alle übrigen Schalter: Terminlink, Prüf-KI, Suche, Partner, Ableitung, Postfächer und Bremse.",
   },
   {
     ziel: ".cr-postfaecher",

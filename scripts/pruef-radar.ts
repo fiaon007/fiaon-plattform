@@ -792,6 +792,17 @@ if (process.env.PRUEF_MOTOR_DB === "an") {
     ok((await mo.bremseFaktor()) === 1, "„Bremse lösen“: wieder volle Fahrt");
     const stand2 = await mo.radarMotorStand();
     ok(stand2.leistung && typeof stand2.leistung.satz === "string" && stand2.stroeme.partner.bereit >= 1, `Stand fürs Chefbüro: ${stand2.leistung.satz}`);
+    // Feineinstellungen genau so, wie das Chefbüro sie schickt (Text, Komma als Dezimalzeichen).
+    const fein = await mo.radarMotorSetzen({ puffer: "1,5", haltbarTage: "5", link: "keiner", kiKlangMax: "2", aehnlichMax: "0,3", postfachRampe: "15,30",
+      zustellRueckMax: "2,5", zustellBasis: "80", partnerProvisionText: "30 Prozent unseres Honorars, zwei Jahre lang" });
+    ok(fein.puffer === 1.5 && fein.haltbarTage === 5 && fein.link === "keiner" && fein.kiKlangMax === 2 && fein.aehnlichMax === 0.3 && fein.postfachRampe.join(",") === "15,30"
+      && fein.zustellRueckMax === 2.5 && fein.zustellBasis === 80 && /zwei Jahre/.test(fein.partnerProvisionText), "Feineinstellungen: Werte mit Komma werden gespeichert und richtig gelesen");
+    let abgelehnt = "";
+    try { await mo.radarMotorSetzen({ haltbarTage: "9", aehnlichMax: "7" }); } catch (e: any) { abgelehnt = String(e?.message ?? e); }
+    ok(/Ähnlichkeit/.test(abgelehnt) && (await lib.radarMotorEinstellung()).haltbarTage === 5, `Falsche Eingabe: klare Meldung („${abgelehnt}“), auch der gültige Teil bleibt ungespeichert`);
+    let abgelehnt2 = "";
+    try { await mo.radarMotorSetzen({ partnerProvisionText: "Tippgeld nach Absprache" }); } catch (e: any) { abgelehnt2 = String(e?.message ?? e); }
+    ok(/Prozent/.test(abgelehnt2) && /zwei Jahre/.test((await lib.radarMotorEinstellung()).partnerProvisionText), "Provisions-Satz ohne „Prozent“ wird abgelehnt");
     await sqlPool.end({ timeout: 2 });
   }
 }
@@ -969,6 +980,19 @@ abschnitt("Chefbüro: alle Schalter im Raum Firmen-Radar › Automatik (E-458)")
   ok([".cr-motor", ".cr-postfaecher", ".cr-zustellung", ".cr-partner"].every((z) => rgFr.includes(`ziel: "${z}"`)) && !/8:30/.test(rgFr) && !/Abmeldesatz/.test(rgFr), "Rundgang: Schritte Mail-Motor, Postfächer, Zustellung, Partner; kein 8:30, kein Abmeldesatz");
   ok(ziele.every((k) => new RegExp(`className=[{"\`][^>]*\\b${k}\\b`).test(ui)), `Jedes Rundgang-Ziel steht als className im Chefbüro (${ziele.join(", ")})`);
   ok(!/gold|#c9a2|#d4af|#b8860b/i.test(lies("client/src/styles/chef-radar.css").replace(/\/\*[\s\S]*?\*\//g, "")), "Glasblau, kein Gold (Farben ohne Kommentare geprüft)");
+  // Jeder Schalter, den der Weg /chef/radar/motor annimmt, ist im Chefbüro bedienbar (Kachel, Feineinstellungen, Partner, Adressen);
+  // jeder Schlüssel des Motors ist über diesen Weg erreichbar — Postfach-Pausen über ihren eigenen Knopf.
+  const motorWeg = rt.slice(rt.indexOf('router.post("/chef/radar/motor", wache'), rt.indexOf('router.post("/chef/radar/partner/suchen"'));
+  const erlaubt = Array.from((motorWeg.match(/const erlaubt = \[([\s\S]*?)\];/)?.[1] ?? "").matchAll(/"([a-zA-Z]+)"/g)).map((m) => m[1]);
+  const felder = Array.from(ui.matchAll(/feld\("([a-zA-Z]+)"/g)).map((m) => m[1]);
+  const motorRufe = Array.from(ui.matchAll(/rufen\("\/chef\/radar\/motor", "POST", \{([^}]*)\}/g)).map((m) => m[1]).join(" ");
+  const fehltUi = erlaubt.filter((k) => !felder.includes(k) && !new RegExp(`\\b${k}\\b`).test(motorRufe) && !(k === "link" && /value=\{w\.link\}/.test(ui)));
+  ok(erlaubt.length >= 23 && !fehltUi.length, `Jeder Schalter des Motors ist im Chefbüro bedienbar (${erlaubt.length}${fehltUi.length ? `; fehlt: ${fehltUi.join(", ")}` : ""})`);
+  const fehltWeg = Object.keys(sh8.RADAR_MOTOR_SCHLUESSEL).filter((k) => k !== "postfachAus" && !erlaubt.includes(k));
+  ok(!fehltWeg.length && /<PostfachKachel /.test(ui) && /\/chef\/radar\/postfach\/\$\{encodeURIComponent\(/.test(ui), `Jeder Motor-Schlüssel ist einstellbar${fehltWeg.length ? ` (fehlt: ${fehltWeg.join(", ")})` : ""}; Postfach-Pausen über ihren Knopf`);
+  ok(/<summary>Feineinstellungen<\/summary>/.test(ui) && /const stand = JSON\.stringify\(e\)/.test(ui) && /\}\), \[stand\]\);/.test(ui) && /v !== \(start as Record<string, string>\)\[k\]/.test(ui),
+    "Feineinstellungen: aufklappbar, Eingaben überleben das Nachladen jede Minute, gespeichert wird nur, was sich geändert hat");
+  ok(/Unter „Feineinstellungen“/.test(rgFr), "Rundgang nennt die Feineinstellungen");
 }
 
 abschnitt("Ergebnis");

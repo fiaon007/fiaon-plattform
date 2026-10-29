@@ -741,6 +741,7 @@ export async function radarMotorSetzen(ein: Record<string, unknown>): Promise<Ra
   };
   if (ein.zustellRueckMax !== undefined) prozent(ein.zustellRueckMax, 0.5, 20, "Rückläufer-Grenze", k.zustellRueckMax);
   if (ein.zustellBeschwerdeMax !== undefined) prozent(ein.zustellBeschwerdeMax, 0.05, 5, "Beschwerde-Grenze", k.zustellBeschwerdeMax);
+  if (ein.zustellBasis !== undefined) setzen.push([k.zustellBasis, ganz(ein.zustellBasis, 10, 1000, "Bremse rechnet ab so vielen Mails")]);
   if (ein.partnerTagesziel !== undefined) setzen.push([k.partnerTagesziel, ganz(ein.partnerTagesziel, 0, 500, "Partner je Tag")]);
   if (ein.partnerProvisionText !== undefined) {
     const t = String(ein.partnerProvisionText).replace(/[\r\n]+/g, " ").trim();

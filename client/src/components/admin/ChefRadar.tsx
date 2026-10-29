@@ -92,6 +92,8 @@ type MotorStand = {
   einstellung: {
     tage: number[]; von: string; bis: string; firmenJeStunde: number; partnerJeStunde: number; puffer: number; haltbarTage: number; link: "termin" | "keiner";
     kiKlangMax: number; aehnlichMax: number; sucheTagesziel: number; sucheLaeufe: number; postfachJeTag: number; postfachRampe: number[];
+    partnerTagesziel: number; partnerProvisionText: string; ableitungAnteil: number; ableitungRueckMax: number; zustellRueckMax: number; zustellBeschwerdeMax: number;
+    zustellBasis: number;
   };
   an: boolean; abPassung: number; imFenster: boolean; bremse: number;
   leistung: { ziel: number; moeglich: number; leistungJeStunde: number; je: { firma: number; partner: number }; tagJe: { firma: number; partner: number }; satz: string; postfaecherNoetig: number };
@@ -735,7 +737,61 @@ function MotorKachel({ motor, onGeaendert }: { motor: MotorStand | null; onGeaen
           </div>
         </div>
       )}
+      <MotorFeinschalter e={e} onGeaendert={onGeaendert} />
     </article>
+  );
+}
+
+/**
+ * E-458: alle übrigen Schalter des Motors an einem Ort, aufgeklappt nur bei Bedarf — Puffer, Haltbarkeit, Terminlink,
+ * Prüf-KI, Nachschub, Partner, Ableitung, Postfächer, Zustellung. Gespeichert wird nur, was sich geändert hat.
+ */
+function MotorFeinschalter({ e, onGeaendert }: { e: MotorStand["einstellung"]; onGeaendert: () => void }) {
+  // Die Seite lädt jede Minute nach; die Eingaben werden nur neu gesetzt, wenn sich die gespeicherten Werte wirklich ändern.
+  const stand = JSON.stringify(e);
+  const start = useMemo(() => ({
+    puffer: String(e.puffer).replace(".", ","), haltbarTage: String(e.haltbarTage), link: e.link, kiKlangMax: String(e.kiKlangMax), aehnlichMax: String(e.aehnlichMax).replace(".", ","),
+    sucheTagesziel: String(e.sucheTagesziel), sucheLaeufe: String(e.sucheLaeufe), partnerTagesziel: String(e.partnerTagesziel), partnerProvisionText: e.partnerProvisionText,
+    ableitungAnteil: String(e.ableitungAnteil), ableitungRueckMax: String(e.ableitungRueckMax).replace(".", ","), postfachJeTag: String(e.postfachJeTag),
+    postfachRampe: e.postfachRampe.join(","), zustellRueckMax: String(e.zustellRueckMax).replace(".", ","), zustellBeschwerdeMax: String(e.zustellBeschwerdeMax).replace(".", ","),
+    zustellBasis: String(e.zustellBasis),
+  }), [stand]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [w, setW] = useState(start);
+  useEffect(() => setW(start), [start]);
+  const [arbeit, setArbeit] = useState(false);
+  const [meldung, setMeldung] = useState<{ art: "gut" | "fehler"; text: string } | null>(null);
+  const feld = (key: keyof typeof start, label: string, art: "text" | "number" = "number") => (
+    <label key={key}><span>{label}</span><input className="cr-feld" type={art} value={w[key]} onChange={(ev) => setW((alt) => ({ ...alt, [key]: ev.target.value }))} /></label>
+  );
+  const speichern = async () => {
+    const teil = Object.fromEntries(Object.entries(w).filter(([k, v]) => v !== (start as Record<string, string>)[k]));
+    if (!Object.keys(teil).length) { setMeldung({ art: "gut", text: "Nichts geändert." }); return; }
+    setArbeit(true); setMeldung(null);
+    try { await rufen("/chef/radar/motor", "POST", teil); onGeaendert(); setMeldung({ art: "gut", text: "Gespeichert." }); }
+    catch (err: any) { setMeldung({ art: "fehler", text: err.message }); }
+    finally { setArbeit(false); }
+  };
+  return (
+    <details className="cr-feinschalter">
+      <summary>Feineinstellungen</summary>
+      <div className="cr-kachel-feld cr-fein-raster">
+        {feld("puffer", "Warteschlange reicht für (Tage)", "text")}{feld("haltbarTage", "Fertige Mail haltbar (Tage)")}
+        <label><span>Link in Firmen-Mails</span>
+          <select className="cr-feld" value={w.link} onChange={(ev) => setW((alt) => ({ ...alt, link: ev.target.value as "termin" | "keiner" }))}>
+            <option value="termin">„Einen Termin wählen“</option><option value="keiner">kein Link</option>
+          </select>
+        </label>
+        {feld("kiKlangMax", "Prüf-KI: KI-Klang höchstens (0–10)")}{feld("aehnlichMax", "Ähnlichkeit höchstens (0,05–1)", "text")}
+        {feld("sucheTagesziel", "Suche: Firmen je Tag")}{feld("sucheLaeufe", "Suchläufe je Tag")}{feld("partnerTagesziel", "Partner-Funde je Tag")}
+        {feld("partnerProvisionText", "Provisions-Satz (nur Mailtext)", "text")}
+        {feld("ableitungAnteil", "Abgeleitete Adressen höchstens % je Stunde")}{feld("ableitungRueckMax", "Ableitung stoppt ab % Rückläufern", "text")}
+        {feld("postfachJeTag", "Mails je Postfach und Tag (≤ 60)")}{feld("postfachRampe", "Hochfahren (Woche 1, Woche 2)", "text")}
+        {feld("zustellRueckMax", "Bremse ab % Rückläufern", "text")}{feld("zustellBeschwerdeMax", "Bremse ab % Beschwerden", "text")}
+        {feld("zustellBasis", "Bremse rechnet ab … Mails (7 Tage)")}
+      </div>
+      {meldung && <p className={`cr-hinweis ${meldung.art}`}>{meldung.text}</p>}
+      <button type="button" className="cr-knopf hell" disabled={arbeit} onClick={() => void speichern()}>{arbeit ? "Speichert …" : "Feineinstellungen speichern"}</button>
+    </details>
   );
 }
 

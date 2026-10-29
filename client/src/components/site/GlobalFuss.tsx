@@ -56,9 +56,10 @@ export default function GlobalFuss() {
               <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a>
               <span aria-hidden="true">·</span>
               <a href={en ? "/en/business/login" : "/business/login"}>{w.auftrag}</a>
-              {/* 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — der leise Weg zur Startseite der Privatkunden. */}
+              {/* 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — der einzige, leise Weg zur Privat-Startseite, benannt nach dem Angebot.
+                  Justin: „Privatkunde“ oben verwirrt, weil auch Privatpersonen die US-Gesellschaft gründen — darum kein Band, kein Kopf-Link. */}
               <span aria-hidden="true">·</span>
-              <a href={en ? PRIVAT_START.en : PRIVAT_START.de}>{en ? "Personal customers" : "Privatkunden"}</a>
+              <a href={en ? PRIVAT_START.en : PRIVAT_START.de}>{en ? "Credit file, account and card" : "Bonität, Konto und Karte"}</a>
             </p>
             <SozialeLinks en={en} className="gf-sozial" />
           </div>

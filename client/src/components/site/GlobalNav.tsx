@@ -25,7 +25,7 @@ import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
 import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { globalSchwester } from "@shared/fiaon-global-pfade";
 import { SERIOES_PFAD } from "@shared/fiaon-serioes";
-import { BUSINESS_START, PRIVAT_START } from "@shared/fiaon-business-grenze";
+import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
@@ -135,8 +135,6 @@ export default function GlobalNav() {
     return ziel + (/\/business\/(start|auftrag)(\/|$)/.test(ziel) ? (loc?.search ?? "") : "") + (loc?.hash ?? "");
   })();
   const gespraechHref = en ? "/en#gespraech" : "/#gespraech";
-  // 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — ein leiser Weg zur Startseite der Privatkunden (/privat).
-  const privatHref = en ? PRIVAT_START.en : PRIVAT_START.de;
   // E-423: „Mein Auftrag“ führt zur Anmeldung — dort steht auch der Weg ohne Zugang (Link anfordern).
   const auftragHref = en ? "/en/business/login" : "/business/login";
   // Auf der Übersicht selbst gleitet „Gespräch vereinbaren" zum Kalender statt neu zu laden.
@@ -167,7 +165,6 @@ export default function GlobalNav() {
         </nav>
 
         <div className="gk-tun">
-          <a href={privatHref} className="gk-leise gk-privat">{en ? "Personal customers" : "Privatkunden"}</a>
           <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>{en ? "My order" : "Mein Auftrag"}</a>
           <a href={gespraechHref} onClick={zumGespraech} className={`gk-knopf${imAuftrag ? "" : " hell"}`}>{en ? "Arrange a call" : "Gespräch vereinbaren"}</a>
           {!imAuftrag && <a href={startHref} className="gk-knopf">{en ? "Order now" : "Beauftragen"}</a>}
@@ -248,7 +245,6 @@ export default function GlobalNav() {
             <div className="gk-mobil-zeile">
               <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a>
               <a href={auftragHref}>{en ? "My order" : "Mein Auftrag"}</a>
-              <a href={privatHref}>{en ? "Personal customers" : "Privatkunden"}</a>
               <a href={sprachHref} hrefLang={en ? "de" : "en"}>{en ? "Deutsch" : "English"}</a>
             </div>
           </div>

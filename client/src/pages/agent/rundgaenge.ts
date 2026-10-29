@@ -2984,7 +2984,7 @@ export const RUNDGANG_KI_EINSTELLUNGEN: RundgangSchritt[] = [
     ziel: "[data-ki=\"kasse\"]",
     titel: "Die Kasse — echte Dollar.",
     text: "Oben: was die KI heute gekostet hat, in Dollar wie auf der OpenAI-Rechnung, gegen den Gesamtdeckel (Vorgabe 55 $ je Tag, ab 0 Uhr Berliner Zeit). Daneben steht, ob die Kasse gerade bremst.",
-    tipp: "Bis 29.10. rechnete die Anzeige rund 3,3-mal zu billig. Ältere Tage im Verlauf stehen noch in der alten Rechnung.",
+    tipp: "Bis 29.10. rechnete die Anzeige rund 3,3-mal zu billig — die alten Tage sind mit den echten Preisen nachgerechnet.",
   },
   {
     ziel: "[data-ki=\"kasse-toepfe\"]",

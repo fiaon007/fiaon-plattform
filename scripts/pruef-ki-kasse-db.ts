@@ -145,6 +145,11 @@ try {
   await aufraeumen();
   await setzen("mara_aktion_tag_euro", "80");
   await setzen("postmeister_tag_euro", "5");
+  // Zwei alte Zeilen (vor E-458: ohne cached_tokens, alte Hausrechnung) und eine Claude-Zeile, die bleiben muss.
+  await sql`INSERT INTO fiaon_ki_nutzung (dienst, modell, prompt_tokens, completion_tokens, kosten_cents, ok, created_at) VALUES
+            ('postmeister-antwort', 'gpt-5.5', 20000, 800, 3.3, TRUE, NOW() - INTERVAL '2 hours'),
+            ('ocr', 'gpt-4.1-2025-04-14', 2000, 4000, 3.4, TRUE, NOW() - INTERVAL '3 hours'),
+            ('mara-whatsapp', 'claude-opus-5-5', 1000, 100, 7.7, TRUE, NOW() - INTERVAL '3 hours')`;
   neu();
   P.kiPauseProduktionSimulieren(false);
   await KS.kasseTakt();
@@ -155,6 +160,12 @@ try {
   const w = async (k: string) => String((await sql`SELECT value FROM fiaon_settings WHERE key = ${k}` as any[])[0]?.value ?? "");
   ok((await w("mara_aktion_tag_euro")) === "30" && (await w("postmeister_tag_euro")) === "17" && (await w("mara_wa_tag_euro")) === "", "umgestellt: Aktion 80 → 30 $, Postfach 5 → 17 $, WhatsApp ohne Wert bleibt bei der Vorgabe");
   ok(/"faktor":3\.3/.test(await w("ki_kasse_umgestellt")), "Marke ki_kasse_umgestellt mit Vorher→Nachher");
+  const alt = (await sql`SELECT modell, kosten_cents::float AS c FROM fiaon_ki_nutzung
+                           WHERE created_at BETWEEN NOW() - INTERVAL '4 hours' AND NOW() - INTERVAL '90 minutes' ORDER BY modell`) as any[];
+  const c = (m: string) => Number(alt.find((z) => z.modell === m)?.c);
+  ok(Math.abs(c("gpt-5.5") - 12.4) < 1e-6 && Math.abs(c("gpt-4.1-2025-04-14") - 3.6) < 1e-6, "alte Zeilen nachgerechnet: gpt-5.5 3,3 → 12,4 Cent, gpt-4.1 3,4 → 3,6 Cent", JSON.stringify(alt));
+  ok(Math.abs(c("claude-opus-5-5") - 7.7) < 1e-6, "Claude-Zeile bleibt, wie sie ist");
+  ok(/"nachgerechnet":\{"zeilen":\d+/.test(await w("ki_kasse_umgestellt")), "Marke nennt die nachgerechneten Zeilen", (await w("ki_kasse_umgestellt")).slice(0, 200));
   await setzen("mara_aktion_tag_euro", "12");
   KS.kasseZuruecksetzen();
   await KS.kasseTakt();

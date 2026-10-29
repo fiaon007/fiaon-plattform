@@ -201,7 +201,7 @@ export default function ChefKiEinstellungen() {
                 </div>
               ))}
             </div>
-            <p className="ki-still ki-klein ki-abstand">KI zu Listenpreis (ohne USt. auf die Aufladung); Tage vor dem 29.10. stehen in der alten, ≈ 3,3-mal zu billigen Rechnung. Telefon ist geschätzt (4,3 ct/Min).</p>
+            <p className="ki-still ki-klein ki-abstand">KI zu Listenpreis, ohne USt. auf die Aufladung. Die Tage vor dem 29.10. sind nachgerechnet (ohne Cache-Rabatt — den gab es damals nicht gemessen). Telefon ist geschätzt (4,3 ct/Min).</p>
             {k?.cache.length ? (
               <div className="ki-abstand" data-ki="kasse-cache" title="Prompt-Caching (E-262): Diesen Teil der Eingabe las OpenAI aus dem Cache — für ein Zehntel des Preises.">
                 <span className="ki-etikett">Cache heute</span>

@@ -256,6 +256,12 @@ export async function kasseLage(): Promise<KasseLage> {
  * Preisen griffen sie sonst 3–4-mal zu früh. Einmal je Datenbank (Marke ki_kasse_umgestellt): gespeicherter
  * Wert × 3,3, höchstens die neue Notbremse — sie liegt über jedem echten Tag der letzten 30 Tage (Postfach
  * höchstens 18,89 $, WhatsApp 18,02 $, Mail-Aktion 16,22 $). Ohne gespeicherten Wert gilt die neue Vorgabe.
+ *
+ * Im selben Zug werden die ALTEN Zeilen in fiaon_ki_nutzung mit den echten Preisen nachgerechnet (nur bekannte
+ * OpenAI-Modelle, nur Zeilen ohne cached_tokens = vor E-458 geschrieben; Claude, Stimme und unbekannte Modelle
+ * bleiben, wie sie sind). Sonst zählte die Kasse am Tag der Umstellung den Vormittag 3,3-mal zu billig, und
+ * Verlauf und Maras Bilanz zeigten weiter die alte Zahl. Ohne Cache-Angabe ist es der volle Listenpreis — die
+ * Obergrenze (den Rabatt kennt erst die neue Zählung).
  */
 export const UMSTELLUNG_SCHLUESSEL = "ki_kasse_umgestellt";
 export const UMSTELLUNG_FAKTOR = 3.3;
@@ -283,7 +289,8 @@ async function einmalUmstellen(): Promise<void> {
     const neu = deckelUmrechnen(k, alt.get(k));
     if (neu != null) protokoll[k] = { alt: alt.get(k)!, neu };
   }
-  const marke = JSON.stringify({ am: new Date().toISOString(), faktor: UMSTELLUNG_FAKTOR, protokoll });
+  const am = new Date().toISOString();
+  const marke = JSON.stringify({ am, faktor: UMSTELLUNG_FAKTOR, protokoll });
   // Erst die Marke beanspruchen (genau ein Prozess stellt um), dann umstellen.
   const r = (await sqlPool`
     INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${UMSTELLUNG_SCHLUESSEL}, ${marke}, NOW())
@@ -295,7 +302,29 @@ async function einmalUmstellen(): Promise<void> {
       INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${k}, ${String(p.neu)}, NOW())
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
   }
-  console.log(`[KI-KASSE] Deckel auf echte Dollar umgestellt: ${Object.entries(protokoll).map(([k, p]) => `${k} ${p.alt} → ${p.neu} $`).join(", ") || "nichts gespeichert — die neuen Vorgaben gelten"}.`);
+  const nachgerechnet = await alteZeilenNachrechnen(am).catch((e) => { console.error("[KI-KASSE] Nachrechnen:", String((e as Error)?.message ?? e).slice(0, 200)); return null; });
+  if (nachgerechnet) {
+    await sqlPool`UPDATE fiaon_settings SET value = ${JSON.stringify({ am, faktor: UMSTELLUNG_FAKTOR, protokoll, nachgerechnet })}, updated_at = NOW() WHERE key = ${UMSTELLUNG_SCHLUESSEL}`.catch(() => {});
+  }
+  zwischen = null;
+  console.log(`[KI-KASSE] Deckel auf echte Dollar umgestellt: ${Object.entries(protokoll).map(([k, p]) => `${k} ${p.alt} → ${p.neu} $`).join(", ") || "nichts gespeichert — die neuen Vorgaben gelten"}${nachgerechnet ? ` · ${nachgerechnet.zeilen} alte Zeilen nachgerechnet (${usdText(nachgerechnet.vorherCents)} → ${usdText(nachgerechnet.nachherCents)})` : ""}.`);
+}
+
+/** Die alten Zeilen (vor E-458, ohne cached_tokens) mit den echten Preisen nachrechnen — genau einmal, in einem Zug. */
+async function alteZeilenNachrechnen(bis: string): Promise<{ zeilen: number; vorherCents: number; nachherCents: number }> {
+  // Als TEXT übergeben und erst in der Datenbank zu jsonb machen — ein Parameter vom Typ jsonb würde die Bibliothek
+  // noch einmal verpacken (E-238: „cannot call jsonb_to_recordset on a non-array“ im Prüfstand).
+  const preise = JSON.stringify(Object.entries(KI_PREISE).map(([m, p]) => ({ m, ein: p.ein, gecacht: p.gecacht, aus: p.aus })));
+  const [r] = (await sqlPool`
+    WITH p AS (SELECT * FROM jsonb_to_recordset((${preise}::text)::jsonb) AS x(m text, ein float8, gecacht float8, aus float8)),
+         neu AS (
+           SELECT n.id, n.kosten_cents AS alt,
+                  (COALESCE(n.prompt_tokens, 0) * p.ein + COALESCE(n.completion_tokens, 0) * p.aus) / 1000.0 AS neu
+             FROM fiaon_ki_nutzung n JOIN p ON p.m = regexp_replace(n.modell, '-[0-9]{4}-[0-9]{2}-[0-9]{2}$', '')
+            WHERE n.cached_tokens IS NULL AND n.created_at < ${bis}::timestamptz),
+         u AS (UPDATE fiaon_ki_nutzung n SET kosten_cents = neu.neu FROM neu WHERE n.id = neu.id RETURNING neu.alt, neu.neu)
+    SELECT COUNT(*)::int AS zeilen, COALESCE(SUM(alt), 0)::float AS vorher, COALESCE(SUM(neu), 0)::float AS nachher FROM u`) as any[];
+  return { zeilen: Number(r?.zeilen) || 0, vorherCents: Number(r?.vorher) || 0, nachherCents: Number(r?.nachher) || 0 };
 }
 
 // ── Der Takt (alle 10 Minuten) ─────────────────────────────────────────────

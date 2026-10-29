@@ -58,7 +58,8 @@ export default function SeoDaten(angaben: SeoAngaben) {
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
         itemListElement: [
-          { "@type": "ListItem", position: 1, name: "FIAON", item: URSPRUNG + "/" },
+          // 29.10.2026 (E-461): Die Privat-Welt beginnt auf /privat — fiaon.com/ ist FIAON Global.
+          { "@type": "ListItem", position: 1, name: "FIAON", item: URSPRUNG + "/privat" },
           ...s.krumen.map((k, i) => ({
             "@type": "ListItem", position: i + 2, name: k.name, item: URSPRUNG + k.pfad,
           })),

@@ -60,7 +60,7 @@ const de: GlobalSeite = {
       karten: [
         { tag: "Register", titel: "Registereintrag prüfen", text: `Companies House · Nr. ${F.companyNo} – kostenlos und ohne Anmeldung.`, pfad: COMPANIES_HOUSE_URL },
         { tag: "Pflichtangaben", titel: "Impressum", text: `Alle Pflichtangaben der ${F.name}.`, pfad: "/impressum?bereich=business" },
-        { tag: "Team", titel: "Ihr Team", text: "Ihr Ansprechpartner und alle, die an Ihrem Auftrag mitarbeiten.", pfad: "/business#auf-einen-blick" },
+        { tag: "Team", titel: "Ihr Team", text: "Ihr Ansprechpartner und alle, die an Ihrem Auftrag mitarbeiten.", pfad: "/#auf-einen-blick" },
         { tag: "Privatkunden", titel: "FIAON für Bonität, Konto und Karte?", text: "Laufzeit, Monatsentgelt und Ablauf der Privatkunden-Pakete.", pfad: "/fiaon-erfahrungen" },
       ],
     },
@@ -173,7 +173,7 @@ const en: GlobalSeite = {
       karten: [
         { tag: "Register", titel: "Check the register entry", text: `Companies House · No. ${F.companyNo} — free of charge, no account needed.`, pfad: COMPANIES_HOUSE_URL },
         { tag: "Statutory details", titel: "Legal notice", text: `All statutory details of ${F.name}.`, pfad: "/impressum?bereich=business" },
-        { tag: "Team", titel: "Your team", text: "Your contact and everyone who works on your mandate.", pfad: "/en/business#auf-einen-blick" },
+        { tag: "Team", titel: "Your team", text: "Your contact and everyone who works on your mandate.", pfad: "/en#auf-einen-blick" },
         { tag: "Private customers", titel: "FIAON for credit standing, account and card?", text: "Term, monthly fee and process of the private customer plans.", pfad: "/en/how-fiaon-works" },
       ],
     },

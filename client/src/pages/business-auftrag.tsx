@@ -231,7 +231,7 @@ export default function BusinessAuftrag() {
                 )}
                 {/* E-423: Wer seinen persönlichen Zugang eingerichtet hat, meldet sich an — der Link wird dann nicht mehr gebraucht. */}
                 <p className="lead" style={{ marginTop: 18 }}>{kw.mitZugang} <a href={s === "en" ? "/en/business/login" : "/business/login"}>{kw.anmelden}</a></p>
-                <div className="gs-fuss"><a className="gs-zurueck" href={inSprache("/business", sprache)}>{t.zurSeite}</a><span /></div>
+                <div className="gs-fuss"><a className="gs-zurueck" href={inSprache("/", sprache)}>{t.zurSeite}</a><span /></div>
               </div>
             </div>
           )}

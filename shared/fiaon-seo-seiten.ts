@@ -160,13 +160,14 @@ export interface SeoEnglisch {
 // ── Die Navigation und die Fußzeile, wie sie auf der gerenderten Seite stehen.
 // Sie werden im Vorrendering mitgeliefert, damit jede Seite von jeder Seite
 // aus erreichbar ist — auch für einen Crawler, der kein JavaScript ausführt.
+// 29.10.2026 (E-461): Die Startseite der Privatkunden ist /privat; fiaon.com/ ist FIAON Global („Business“).
 export const SEO_NAV: [string, string][] = [
-  ["/", "Startseite"],
+  ["/privat", "Startseite"],
   ["/was-ist-fiaon", "Was ist FIAON"],
   ["/privatkunden", "Privatkunden"],
   // 25.09.2026 (E-241): wie GlassNav — der Menüpunkt führt auf die Übersicht der Seitenfamilie.
   ["/bonitaetsauskunft", "Bonitätsauskunft"],
-  ["/business", "Business"],
+  ["/", "Business"],
   ["/ratgeber", "Ratgeber"],
   ["/werkzeuge", "Kostenlose Werkzeuge"],
   ["/preise", "Preise & Pakete"],
@@ -192,14 +193,14 @@ export const SEO_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/glossar-bonitaet", "Bonitäts-Glossar A–Z"],
   ] },
   { titel: "Plattform", links: [
-    ["/", "Startseite"],
+    ["/privat", "Startseite"],
     ["/ratgeber", "Ratgeber"],
     ["/werkzeuge", "Kostenlose Werkzeuge"],
     ["/preise", "Preise & Pakete"],
     ["/kreditkarte", "Kreditkarte trotz Eintrag"],
     ["/partnerbank-dkb", "Konto & Karte mit der DKB"],
     ["/privatkunden", "Privatkunden"],
-    ["/business", "Business"],
+    ["/", "Business"],
     ["/oesterreich", "FIAON in Österreich"],
     ["/schweiz", "FIAON in der Schweiz"],
   ] },
@@ -285,8 +286,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // ═════════════════════════════════════════════════════════════════════════
   // START UND PRODUKT
   // ═════════════════════════════════════════════════════════════════════════
-  "/": {
-    pfad: "/", art: "start", stand: PFEILER, prio: 1.0,
+  // 29.10.2026 (E-461): Die Startseite der Privatkunden — bis heute fiaon.com/ und /en. Justin: „wenn man fiaon.com
+  // aufmacht sollte Business kommen nicht mehr Privat, wir tauschen es quasi aus“. Inhalt unverändert, nur die Adresse
+  // (/privat, englisch /en/private); fiaon.com/ trägt seither den Eintrag von FIAON Global (unten).
+  "/privat": {
+    pfad: "/privat", art: "start", stand: "2026-10-29", prio: 0.9,
     titel: "Bonität verstehen, Einträge löschen, Karte — FIAON",
     beschreibung: "FIAON zeigt Ihre Bonität aus Sicht einer Bank, erklärt jeden Eintrag Ihrer Datenkopie, versendet geprüfte Schreiben und öffnet die Tür zu Konto und Karte.",
     h1: "Das Betriebssystem für Bonität.",
@@ -301,7 +305,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     ],
     weiter: ["/was-ist-fiaon", "/privatkunden", "/preise", "/schufa-eintrag-loeschen", "/bonitaet-verbessern", "/werkzeuge", "/ratgeber", "/kreditkarte"],
     en: {
-      pfad: "/en",
+      pfad: "/en/private",
       titel: "FIAON in English: your credit file, explained and acted on",
       beschreibung: "FIAON explains the credit file you upload, sends reviewed letters and prepares account and card. Germany, Austria, Switzerland.",
       h1: "Your credit file, explained — and acted on.",
@@ -342,7 +346,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
         { h2: "The path from e-mail address to card", text: "Apply in about five minutes, an onboarding call with a person, your report explained entry by entry, letters approved and tracked stage by stage, then account and card prepared for partner banks. The bank always decides on the issue." },
       ],
-      weiter: ["/preise", "/"],
+      weiter: ["/preise", "/privat"],
       krumen: [{ name: "What is FIAON", pfad: "/en/what-is-fiaon" }],
     },
   },
@@ -390,8 +394,11 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // Bewusst so gelassen: „Was Sie vor dem Auftrag wissen müssen“ ist hier eine H2, auf der Seite die h3 im
   // Kleingedruckten (gleicher Wortlaut, eigener Abschnitt im Vorab-HTML). Die Mikrozeile „Dreißig Minuten …“
   // steht sichtbar nur im Hero und deshalb nicht mehr im Gesprächsabschnitt.
-  "/business": {
-    pfad: "/business", art: "produkt", stand: "2026-10-06", prio: 0.9,
+  // 29.10.2026 (E-461): Dieser Eintrag ist die Startseite von fiaon.com — vorher stand er unter /business und /en/business
+  // (beide leiten seither dauerhaft hierher, server/routes.ts UMGEZOGEN). Inhalt und Wortlaut unverändert; ohne Brotkrumen
+  // (die Startseite ist die Wurzel). Die Privat-Startseite steht unter /privat (oben).
+  "/": {
+    pfad: "/", art: "start", stand: "2026-10-29", prio: 1.0,
     // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
     titel: "US-Firma gründen ab 2.499 € — FIAON Global",
@@ -407,9 +414,8 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Erst sprechen, dann entscheiden.", text: "Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt." },
     ],
     weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
-    krumen: [{ name: "Business", pfad: "/business" }],
     en: {
-      pfad: "/en/business",
+      pfad: "/en",
       bild: GLOBAL_BILD_EN,
       titel: "Form a US company from €2,499 — FIAON Global",
       beschreibung: "The business consultancy for your US company: formation, EIN and ITIN, account and card applications, a team in Miami. Fixed price from €2,499.",
@@ -425,7 +431,6 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       // 19.09.2026: Kein Verweis mehr auf /preise und /privatkunden — die Business-Welt verlinkt nie die Privatkunden-Seiten.
       // 24.09.2026 (E-234): dieselben Ziele wie deutsch — weiterlesen() nimmt die englischen Schwestern.
       weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
-      krumen: [{ name: "Business", pfad: "/en/business" }],
     },
   },
   // 02.09.2026 (E-091, Entscheidung TFO/Justin): Alt-Seite in Du-Form, 973 Zeilen — wird nicht
@@ -459,7 +464,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Für Unternehmen: FIAON Global.", text: "FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet Steuernummern, Dokumente sowie Konto- und Kartenanträge vor. Vier Pakete zum Einmalpreis, kein Abo: Global Struktur 2.499 €, Global Banking 4.999 €, Global Kapital 6.999 €, Global VIP 35.999 €. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut." },
       { h2: "Wann Sie FIAON nicht brauchen", text: "Ein einziger, klar erledigter Eintrag: der kostenlose Löschantrag-Generator. Nur wissen, was drinsteht: die kostenlose Datenkopie. FIAON lohnt sich bei mehreren Einträgen, mehreren Ländern, Fristen und Antworten – oder wenn Konto und Karte das Ziel sind." },
     ],
-    weiter: ["/privatkunden", "/business", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
+    weiter: ["/privatkunden", "/", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
     krumen: [{ name: "Preise & Pakete", pfad: "/preise" }],
     en: {
       pfad: "/en/pricing",
@@ -472,7 +477,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "What doing it yourself costs", text: "Everything FIAON does you can do yourself — the data copy under Art. 15 GDPR is free and the law is public. The question is what your time is worth and how often you will have to chase. Our calculator on this page compares registered letters, hours and a lawyer's fee with a twelve-month plan." },
         { h2: "How you pay", text: "Every instalment by bank transfer, the first and all further ones (payment details with a QR code in your customer area and in every payment e-mail). No credit card needed. Prices include VAT. The bank decides on account, card and limit." },
       ],
-      weiter: ["/"],
+      weiter: ["/privat"],
       krumen: [{ name: "Pricing", pfad: "/en/pricing" }],
     },
   },
@@ -728,7 +733,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
         { h2: "What happens before a customer arrives with you", text: "Insight (report and bank statement analysis), action (letters approved by the customer, instalment agreements), access (introduction with consent and all documents)." },
         { h2: "Four steps to a pilot", text: "Enquiry, conversation with the platform on screen, pilot with a limited number of customers and joint evaluation after 90 days, then integration and scaling." },
       ],
-      weiter: ["/business", "/investoren", "/karriere"],
+      weiter: ["/", "/investoren", "/karriere"],
       krumen: [{ name: "Partners", pfad: "/en/partners" }],
     },
   },
@@ -1260,7 +1265,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Wie lange es dauert", text: auskunftLeistungszeit("firma") },
       { h2: "Kein Widerrufsrecht für Unternehmen", text: `${AUSKUNFT_KEIN_WIDERRUF} Bei der Bestellung bestätigen Sie, dass Sie für das Unternehmen zu gewerblichen Zwecken bestellen und es vertreten dürfen.` },
     ],
-    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/auskunfteien", "/business"],
+    weiter: ["/bonitaetsauskunft", "/bonitaetsauskunft/ablauf", "/bonitaetsauskunft/fragen", "/auskunfteien", "/"],
     krumen: [{ name: "Bonitätsauswertung", pfad: "/bonitaetsauskunft" }, { name: "Unternehmen", pfad: "/bonitaetsauskunft/unternehmen" }],
   },
   "/bonitaetsauskunft/ablauf": {

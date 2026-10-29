@@ -522,7 +522,7 @@ export default function BusinessStart() {
                     {status?.rechnungUrl && <a href={status.rechnungUrl} target="_blank" rel="noopener">{t.rechnungPdf}</a>}
                     {(status?.zahlungsseite || fertig.zahlungsseite) && <a href={status?.zahlungsseite || fertig.zahlungsseite}>{t.zahlungsseite}</a>}
                   </div>
-                  <div className="gs-fuss"><a className="gs-zurueck" href={zu("/business")} onClick={() => schreiben(ABSCHLUSS, null)}>{t.zurSeite}</a><span /></div>
+                  <div className="gs-fuss"><a className="gs-zurueck" href={zu("/")} onClick={() => schreiben(ABSCHLUSS, null)}>{t.zurSeite}</a><span /></div>
                 </>
               ) : (
                 <>
@@ -806,7 +806,7 @@ export default function BusinessStart() {
                 <h3>{t.soGehtEs}</h3>
                 <ol>{(privat ? t.ablaufPrivat : t.ablauf).map((x) => <li key={x}>{x}</li>)}</ol>
                 <ul className="gs-sicher">{[...(GLOBAL_GELD_ZURUECK.aktiv ? [GLOBAL_GELD_ZURUECK[s].kurz] : []), ...(privat ? t.sicherPrivat : t.sicher)].map((x) => <li key={x}>{x}</li>)}</ul>
-                {!fertig && <a className="gs-sprechen" href={`${zu("/business")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
+                {!fertig && <a className="gs-sprechen" href={`${zu("/")}${paket ? `?paket=${paket}` : ""}#gespraech`}>{t.lieberSprechen}</a>}
               </div>
             </aside>
           </div>

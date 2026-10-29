@@ -176,3 +176,6 @@ html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
   /* Der Bogen: die gezeichneten Pixel drucken (sonst gibt Chrome die Leinwand hell aus). */
   html .hb-c-leinwand { image-rendering: pixelated; }
 }
+
+/* E-461 (29.10.2026): „Privatkunden“ im Kopf — leise, und nur, wo die Leiste Platz hat (darunter steht der Weg im Menü). */
+@media (max-width: 1279px) { html .gk.gk .gk-privat { display: none; } }

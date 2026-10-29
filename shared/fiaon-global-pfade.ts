@@ -15,6 +15,9 @@
 
 /** Deutscher Pfad → englischer Pfad. */
 export const GLOBAL_EN_PFADE: Record<string, string> = {
+  // 29.10.2026 (E-461): Die Startseite von fiaon.com ist FIAON Global. /business ↔ /en/business bleibt als Paar
+  // (beide leiten per 301 auf / und /en), damit alte Links auch beim Sprachwechsel richtig ankommen.
+  "/": "/en",
   "/business": "/en/business",
   "/business/start": "/en/business/start",
   "/business/auftrag": "/en/business/auftrag",
@@ -117,7 +120,8 @@ export function globalSchwester(pfad: string, ziel: "de" | "en"): string | null 
   const kopf = auftrag ? auftrag[1] : basis;
   const rest = auftrag ? auftrag[2] : "";
   const klein = kopf.toLowerCase();
-  const istEn = klein.startsWith("/en/");
+  // 29.10.2026 (E-461): /en selbst ist englisch (die englische Startseite) — vorher galt nur /en/… als englisch.
+  const istEn = klein === "/en" || klein.startsWith("/en/");
   if ((ziel === "en") === istEn) return basis;
   const treffer = ziel === "en" ? GLOBAL_EN_PFADE[klein] : GLOBAL_DE_PFADE[klein];
   return treffer ? `${treffer}${rest}` : null;

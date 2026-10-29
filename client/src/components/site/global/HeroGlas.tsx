@@ -248,7 +248,13 @@ function Pfeil() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 }
 
-export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void }) {
+/**
+ * Das Band über der Bühne (E-461, 29.10.2026): Seit fiaon.com/ FIAON Global ist, kommen über die Markensuche („fiaon“,
+ * „fiaon kreditkarte“) vor allem Privatkunden auf die Startseite — ein leiser Weg zu ihrer Seite, wie Apples Band unter dem Kopf.
+ */
+export interface HeroBand { text: string; link: string; href: string }
+
+export default function HeroGlas({ t, en, onPakete, onGespraech, band }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void; band?: HeroBand }) {
   const [an, setAn] = useState(false);
   // Eine Quelle für Team-Kachel und Fußnote ² (auch wenn „weniger Bewegung“ später umgeschaltet wird).
   const ruhig = useRuhig();
@@ -266,8 +272,9 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
 
   return (
     <>
-    <section className="hg" data-an={an ? "1" : "0"}>
+    <section className={`hg${band ? " mit-band" : ""}`} data-an={an ? "1" : "0"}>
       <div className="hg-licht" aria-hidden="true" />
+      {band && <a className="hg-band" href={band.href}><span>{band.text}</span> <b>{band.link}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></b></a>}
       <div className="hg-inhalt">
         <p className="hg-auge">{t.auge}</p>
         {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}

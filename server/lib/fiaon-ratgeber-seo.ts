@@ -46,7 +46,7 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
       organisationLd(),
       { "@context": "https://schema.org", "@type": "CollectionPage", name: "FIAON Ratgeber", url: `${BASIS}/ratgeber`, inLanguage: "de",
         hasPart: rows.map((r) => ({ "@type": "Article", headline: r.titel, url: `${BASIS}/ratgeber/${r.slug}`, datePublished: r.published_at })) },
-      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: BASIS }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }] },
+      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "FIAON", item: `${BASIS}/privat` }, { "@type": "ListItem", position: 2, name: "Ratgeber", item: `${BASIS}/ratgeber` }] },
     ];
     return kopfEinsetzen(html, { titel: "Ratgeber: SCHUFA, Bonität, Inkasso erklärt | FIAON", beschreibung: "SCHUFA-Eintrag löschen, Auskunft kostenlos anfordern, Kreditkarte trotz Eintrag, KSV und CRIF – geprüfte Ratgeber von FIAON, ehrlich und ohne Versprechen.", url: `${BASIS}/ratgeber`, ld })
       .replace('<div id="root"></div>', `<div id="root"><div class="vorab">${seoRahmen().kopf}${inhalt}${seoRahmen().fuss}</div></div>`);
@@ -59,7 +59,8 @@ export async function ratgeberSeitenHtml(slug: string | null): Promise<string | 
   const kat = (KATEGORIEN as any)[a.kategorie]?.label || "Ratgeber";
   // E-379: Business-Artikel hängen in der Business-Welt — Brotkrumen FIAON Global › Wissen.
   const business = a.bereich === "business";
-  const krume1 = business ? { name: "FIAON Global", pfad: "/business" } : { name: "FIAON", pfad: "/" };
+  // 29.10.2026 (E-461): FIAON Global beginnt auf fiaon.com/, die Privat-Welt auf /privat.
+  const krume1 = business ? { name: "FIAON Global", pfad: "/" } : { name: "FIAON", pfad: "/privat" };
   const krume2 = business ? { name: "Wissen", pfad: "/business/wissen" } : { name: "Ratgeber", pfad: "/ratgeber" };
   const body = markdownZuHtml(a.inhalt);
   const faqHtml = faq.length ? `<section><h2>Häufige Fragen</h2>${faq.map((f: any) => `<h3>${esc(f.frage)}</h3><p>${esc(f.antwort)}</p>`).join("")}</section>` : "";
@@ -145,7 +146,8 @@ export async function businessArtikelHtml(slug: string, sprache: "de" | "en"): P
   const en = sp === "en";
   const pfad = businessArtikelPfad(slug, sp);
   const url = `${BASIS}${pfad}`;
-  const wurzel = en ? "/en/business" : "/business";
+  // 29.10.2026 (E-461): die Wurzel von FIAON Global ist die Startseite (/ und /en).
+  const wurzel = en ? "/en" : "/";
   const hub = en ? "/en/business/knowledge" : "/business/wissen";
   const faq = (typeof a.faq === "string" ? JSON.parse(a.faq) : a.faq) || [];
   const schlag = (typeof a.schlagworte === "string" ? JSON.parse(a.schlagworte) : a.schlagworte) || [];

@@ -25,6 +25,7 @@ import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
 import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiaon-global-wege";
 import { globalSchwester } from "@shared/fiaon-global-pfade";
 import { SERIOES_PFAD } from "@shared/fiaon-serioes";
+import { BUSINESS_START, PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
@@ -34,13 +35,13 @@ import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
 type Promo = Record<MenueGruppe, { titel: string; text: string; href: string; knopf: string }>;
 const PROMO: { de: Promo; en: Promo } = {
   de: {
-    leistungen: { titel: "Ein Vertrag. Ein Festpreis.", text: "Gesellschaft, Steuernummern, Konto- und Kartenanträge, Partner-Honorare — alles im Paket.", href: "/business#pakete", knopf: "Pakete vergleichen" },
+    leistungen: { titel: "Ein Vertrag. Ein Festpreis.", text: "Gesellschaft, Steuernummern, Konto- und Kartenanträge, Partner-Honorare — alles im Paket.", href: "/#pakete", knopf: "Pakete vergleichen" },
     fuerwen: { titel: "Auch ohne eigene Firma", text: "Gründer und Unternehmer, die privat buchen, beauftragen direkt — Vertrag auf den eigenen Namen.", href: "/business/privatpersonen", knopf: "Als Privatperson beauftragen" },
     preise: { titel: "", text: "", href: "", knopf: "" },
     wissen: { titel: "Welches Paket passt?", text: "Vier Fragen zu Vorhaben, Kapitalrahmen und Begleitung — das Ergebnis mit Begründung.", href: "/business/paket-finder", knopf: "Zum Paket-Finder" },
   },
   en: {
-    leistungen: { titel: "One contract. One fixed price.", text: "Company, tax numbers, account and card applications, partner fees — all in the package.", href: "/en/business#pakete", knopf: "Compare packages" },
+    leistungen: { titel: "One contract. One fixed price.", text: "Company, tax numbers, account and card applications, partner fees — all in the package.", href: "/en#pakete", knopf: "Compare packages" },
     fuerwen: { titel: "No company of your own needed", text: "Founders and business owners ordering privately order directly — the contract in their own name.", href: "/en/business/private-individuals", knopf: "Order as a private individual" },
     preise: { titel: "", text: "", href: "", knopf: "" },
     wissen: { titel: "Which package fits?", text: "Four questions on your plans, capital range and support — the result with its reasons.", href: "/en/business/package-finder", knopf: "To the package finder" },
@@ -54,10 +55,10 @@ function Winkel() {
   return <svg className="gk-winkel" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>;
 }
 
-/** Die Marke: FIAON + Global. Führt immer zur Startseite von Business. */
+/** Die Marke: FIAON + Global. Führt immer zur Startseite — seit E-461 (29.10.2026) fiaon.com/ selbst. */
 export function GlobalMarke({ en = false, hell = false }: { en?: boolean; hell?: boolean }) {
   return (
-    <a href={en ? "/en/business" : "/business"} className={`gk-marke${hell ? " hell" : ""}`} aria-label={en ? "FIAON Global — home" : "FIAON Global — Startseite"}>
+    <a href={en ? BUSINESS_START.en : BUSINESS_START.de} className={`gk-marke${hell ? " hell" : ""}`} aria-label={en ? "FIAON Global — home" : "FIAON Global — Startseite"}>
       <FiaonWortmarke variante="global" dekorativ hoehe={null} />
     </a>
   );
@@ -68,7 +69,7 @@ export default function GlobalNav() {
   useApfelBewegung();
   const sprache = useSprache();
   const en = sprache === "en";
-  const pfad = typeof window !== "undefined" ? window.location.pathname : "/business";
+  const pfad = typeof window !== "undefined" ? window.location.pathname : BUSINESS_START.de;
   const [offen, setOffen] = useState<MenueGruppe | null>(null);
   const [mobil, setMobil] = useState(false);
   const [mobilGruppe, setMobilGruppe] = useState<MenueGruppe | null>(null);
@@ -133,7 +134,9 @@ export default function GlobalNav() {
     const ziel = serioes ?? globalSchwester(pfad, en ? "de" : "en") ?? globalSeitePfad(en ? "de" : "en");
     return ziel + (/\/business\/(start|auftrag)(\/|$)/.test(ziel) ? (loc?.search ?? "") : "") + (loc?.hash ?? "");
   })();
-  const gespraechHref = en ? "/en/business#gespraech" : "/business#gespraech";
+  const gespraechHref = en ? "/en#gespraech" : "/#gespraech";
+  // 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — ein leiser Weg zur Startseite der Privatkunden (/privat).
+  const privatHref = en ? PRIVAT_START.en : PRIVAT_START.de;
   // E-423: „Mein Auftrag“ führt zur Anmeldung — dort steht auch der Weg ohne Zugang (Link anfordern).
   const auftragHref = en ? "/en/business/login" : "/business/login";
   // Auf der Übersicht selbst gleitet „Gespräch vereinbaren" zum Kalender statt neu zu laden.
@@ -164,6 +167,7 @@ export default function GlobalNav() {
         </nav>
 
         <div className="gk-tun">
+          <a href={privatHref} className="gk-leise gk-privat">{en ? "Personal customers" : "Privatkunden"}</a>
           <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>{en ? "My order" : "Mein Auftrag"}</a>
           <a href={gespraechHref} onClick={zumGespraech} className={`gk-knopf${imAuftrag ? "" : " hell"}`}>{en ? "Arrange a call" : "Gespräch vereinbaren"}</a>
           {!imAuftrag && <a href={startHref} className="gk-knopf">{en ? "Order now" : "Beauftragen"}</a>}
@@ -186,7 +190,7 @@ export default function GlobalNav() {
               <ul>
                 {g.eintraege.map((e) => (
                   <li key={e.pfad}>
-                    <a href={e.pfad} aria-current={e.pfad === pfad ? "page" : undefined} onClick={(ev) => { if (/^\/(en\/)?business#/.test(e.pfad)) { const id = e.pfad.split("#")[1]; const z = document.getElementById(id); if (z) { ev.preventDefault(); setOffen(null); z.scrollIntoView({ behavior: "smooth" }); } } }}>
+                    <a href={e.pfad} aria-current={e.pfad === pfad ? "page" : undefined} onClick={(ev) => { if (/^\/(en)?#/.test(e.pfad)) { const id = e.pfad.split("#")[1]; const z = document.getElementById(id); if (z) { ev.preventDefault(); setOffen(null); z.scrollIntoView({ behavior: "smooth" }); } } }}>
                       <b>{e.titel}</b><span>{e.text}</span>
                     </a>
                   </li>
@@ -244,6 +248,7 @@ export default function GlobalNav() {
             <div className="gk-mobil-zeile">
               <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a>
               <a href={auftragHref}>{en ? "My order" : "Mein Auftrag"}</a>
+              <a href={privatHref}>{en ? "Personal customers" : "Privatkunden"}</a>
               <a href={sprachHref} hrefLang={en ? "de" : "en"}>{en ? "Deutsch" : "English"}</a>
             </div>
           </div>

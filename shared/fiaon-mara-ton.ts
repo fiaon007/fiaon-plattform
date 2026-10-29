@@ -1193,7 +1193,8 @@ export type LinkArt = "nackt" | "fremd" | "lage" | "unbekannt" | "ohne_antrag";
 export interface LinkBefund { art: LinkArt; schwere: TonSchwere; link: string; hinweis: string }
 
 /** Seiten, die für jeden gleich sind und so verlinkt werden dürfen. */
-const ALLGEMEIN = /^\/(login|mein-bereich|dashboard|app|business|global|en\/business|agb|datenschutz|impressum|widerruf\w*|ratgeber|kontakt|privatkunden|bonitaetsauskunft\w*|kreditkarte\w*)(\/|$|\?|#)/i;
+// 29.10.2026 (E-461): /privat (und /en/private) ist die Startseite der Privatkunden — für jeden gleich wie /privatkunden.
+const ALLGEMEIN = /^\/(login|mein-bereich|dashboard|app|business|global|en\/business|en\/private|privat|agb|datenschutz|impressum|widerruf\w*|ratgeber|kontakt|privatkunden|bonitaetsauskunft\w*|kreditkarte\w*)(\/|$|\?|#)/i;
 
 /**
  * Meldet jeden fiaon.com-Link, der nicht SEIN persönlicher ist:

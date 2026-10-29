@@ -71,9 +71,10 @@ export const globalSprache = (s: GlobalSeite): "de" | "en" => (s.sprache === "en
  * Seite (global-seite.tsx), Inhaltsverzeichnis und Server (fiaon-global-seo.ts). Regel 1 der SEO-Tabelle:
  * Der Korpus sagt, was der Besucher sieht.
  */
+// 29.10.2026 (E-461): Die Wurzel von FIAON Global ist die Startseite von fiaon.com (/ und /en) — vorher /business.
 export const GLOBAL_SEITE_WORTE = {
-  de: { kurz: "Kurz beantwortet", fragen: "Häufige Fragen", wurzel: "/business", wissen: "Wissen", wissenPfad: "/business/wissen", rollen: ["FIAON", "Partner", "Sie"] },
-  en: { kurz: "In brief", fragen: "Frequently asked questions", wurzel: "/en/business", wissen: "Knowledge", wissenPfad: "/en/business/knowledge", rollen: ["FIAON", "Partners", "You"] },
+  de: { kurz: "Kurz beantwortet", fragen: "Häufige Fragen", wurzel: "/", wissen: "Wissen", wissenPfad: "/business/wissen", rollen: ["FIAON", "Partner", "Sie"] },
+  en: { kurz: "In brief", fragen: "Frequently asked questions", wurzel: "/en", wissen: "Knowledge", wissenPfad: "/en/business/knowledge", rollen: ["FIAON", "Partners", "You"] },
 } as const;
 
 /** Die Brotkrumen unterhalb der Startseite: Business → Gruppe → Seite (deutsch oder englisch). */

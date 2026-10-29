@@ -11,7 +11,8 @@ import { useEffect, useRef, useState } from "react";
 
 // 17.09.2026 (E-188): /business ist seit heute FIAON Global — eine Seite für Unternehmer, die
 // einen Auftrag über mehrere tausend Euro prüfen. Dort wirbt nichts um Bewerber.
-const ERLAUBT = ["/", "/was-ist-fiaon", "/privatkunden", "/plattform-konzept", "/bonitaet", "/bonitaet-service", "/team", "/partner", "/presse", "/investoren", "/datenraum"];
+// 29.10.2026 (E-461): die Privat-Startseite heißt /privat — fiaon.com/ ist FIAON Global (eigener Kopf, ohne dieses Fenster).
+const ERLAUBT = ["/privat", "/was-ist-fiaon", "/privatkunden", "/plattform-konzept", "/bonitaet", "/bonitaet-service", "/team", "/partner", "/presse", "/investoren", "/datenraum"];
 const KEY = "fiaon_karriere_popup";
 
 export default function KarrierePopup() {

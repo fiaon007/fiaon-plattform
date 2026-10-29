@@ -17,7 +17,7 @@ import { SozialeLinks } from "@/components/site/SozialeLinks";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { mitBereich } from "@/lib/bereich";
-import { istBusinessPfad } from "@shared/fiaon-business-grenze";
+import { istBusinessPfad, PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { GlobalMarke } from "@/components/site/GlobalNav";
 import GlobalOrte from "@/components/site/global/GlobalOrte";
 import "@/styles/global-rahmen.css";
@@ -47,7 +47,7 @@ export default function GlobalFuss() {
             <GlobalMarke en={en} hell />
             <p>{w.satz}</p>
             <div className="gf-tun">
-              <a href={en ? "/en/business#gespraech" : "/business#gespraech"} className="gf-knopf">{w.gespraech}</a>
+              <a href={en ? "/en#gespraech" : "/#gespraech"} className="gf-knopf">{w.gespraech}</a>
               <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
             </div>
             <p className="gf-kontakt">
@@ -56,6 +56,9 @@ export default function GlobalFuss() {
               <a href={`mailto:${FIAON_FIRMA.email}`}>{FIAON_FIRMA.email}</a>
               <span aria-hidden="true">·</span>
               <a href={en ? "/en/business/login" : "/business/login"}>{w.auftrag}</a>
+              {/* 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — der leise Weg zur Startseite der Privatkunden. */}
+              <span aria-hidden="true">·</span>
+              <a href={en ? PRIVAT_START.en : PRIVAT_START.de}>{en ? "Personal customers" : "Privatkunden"}</a>
             </p>
             <SozialeLinks en={en} className="gf-sozial" />
           </div>

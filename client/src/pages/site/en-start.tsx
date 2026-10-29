@@ -5,7 +5,8 @@
 // Schwester beginnt bewusst kompakt auf der dunklen Bühne: was FIAON ist, was
 // es kostet, wie es abläuft, wo die Grenzen liegen — und die Wege zu den
 // englischen Seiten, die es schon gibt. Wächst mit jeder übersetzten Seite.
-// Britisches Englisch. Kopf und Korpus: shared/fiaon-seo-seiten.ts ("/" → en).
+// Britisches Englisch. Kopf und Korpus: shared/fiaon-seo-seiten.ts ("/privat" → en).
+// 29.10.2026 (E-461): Adresse /en/private — /en ist seither die englische Startseite von FIAON Global.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Dunkel, Hero, Block, Licht, Knopf, Karten, Kennzahlen, Schritte, Fragen, Glas, Abschluss, Szenenbild } from "@/components/site/DunkleBuehne";
 import { PAKETE } from "@shared/fiaon-pakete";

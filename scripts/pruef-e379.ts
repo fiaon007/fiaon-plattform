@@ -157,7 +157,8 @@ async function main() {
   const links = r.linkZiele("privat").map((l) => l.pfad);
   const linksB = r.linkZiele("business").map((l) => l.pfad);
   ok(links.includes("/privatkunden") && links.includes("/bonitaetsauskunft") && !links.some((l) => l.startsWith("/business")), "Privat-Links: Angebote, keine Business-Seiten");
-  ok(linksB.includes("/business") && linksB.includes("/business/firmenkarten-kapital") && linksB.every((l) => l.startsWith("/business")), "Business-Links: nur die Business-Welt");
+  // 29.10.2026 (E-461): Die Startseite von FIAON Global ist „/“ (vorher /business).
+  ok(linksB.includes("/") && linksB.includes("/business/firmenkarten-kapital") && linksB.every((l) => l === "/" || l.startsWith("/business")), "Business-Links: nur die Business-Welt");
   const tor = (b: "privat" | "business", f?: any) => { const d = r.artikelNachbereiten(muster(b, { fehler: f }) as any, recherche(b, "T", "kredit") as any); return r.torPruefen(d, recherche(b, "T", "kredit") as any, b, r.linkZiele(b)); };
   ok(tor("privat").ok, "Musterartikel privat: Tor offen", tor("privat").punkte.filter((p) => p.art === "fehler").map((p) => p.text).join(" | "));
   ok(tor("business").ok, "Musterartikel business: Tor offen", tor("business").punkte.filter((p) => p.art === "fehler").map((p) => p.text).join(" | "));

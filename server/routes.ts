@@ -1020,8 +1020,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 05.10.2026 (E-283): /terms zeigte einen fremden ARAS-Text (andere Firma, „garantiert“) — dauerhaft auf /agb.
   // Express nimmt die Pfade unabhängig von Groß/klein an (/TERMS, /Global) — der Schlüssel wird deshalb
   // klein geschrieben nachgeschlagen; vorher hieß das Ziel dort „undefined“. Alle Schlüssel sind klein.
+  // 29.10.2026 (E-461, Justin: „wenn man fiaon.com aufmacht sollte Business kommen nicht mehr Privat“): Die Übersicht von
+  // FIAON Global ist die Startseite fiaon.com/ (und /en). /business und /en/business ziehen dorthin um — mit Abfrage
+  // (utm_*, ?paket=), der Anker (#gespraech) bleibt im Browser. Die Unterseiten /business/… behalten ihre Adresse
+  // (Express trifft hier nur /business und /business/, nie /business/xyz). /global springt ohne Zwischenhalt.
   const UMGEZOGEN: Record<string, string> = {
-    '/global': '/business', '/en/global': '/en/business', '/business-antrag': '/business/start',
+    '/business': '/', '/en/business': '/en',
+    '/global': '/', '/en/global': '/en', '/business-antrag': '/business/start',
     '/bonitaet': '/bonitaetsauskunft', '/bonitaet-service': '/bonitaetsauskunft',
     '/terms': '/agb',
     // 27.10.2026 (E-439): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.

@@ -55,7 +55,7 @@ export default function GlobalLandingPage() {
       {/* E-442 (27.10.2026): Kopf als schwebende Glaspille, Stile in global-apple.css (.lp-*) statt inline. */}
       <header className="lp-kopf">
         <div className="lp-kopf-innen">
-          <a href="/business" className="lp-marke">
+          <a href="/" className="lp-marke">
             <FiaonWortmarke variante="global" hoehe={20} farbe={MARKE_NAVY} />
           </a>
           <a className="fg-knopf lp-knopf" href="#gespraech" onClick={zumGespraech}>Gespräch vereinbaren</a>
@@ -152,7 +152,7 @@ export default function GlobalLandingPage() {
         <div className="fg-rahmen lp-fuss-innen">
           <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo} · FIAON ist keine Bank und keine Kanzlei.</span>
           <span className="lp-fuss-links">
-            <a href="/business">FIAON Global</a>
+            <a href="/">FIAON Global</a>
             {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}
             <a href="/impressum?bereich=business">Impressum</a>
             <a href="/datenschutz?bereich=business">Datenschutz</a>

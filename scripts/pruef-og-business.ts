@@ -60,7 +60,8 @@ for (const pfad of pflicht) {
 }
 
 // Das ausgelieferte HTML — für jede indexierbare Seite und die Übersichten.
-for (const pfad of [...GLOBAL_SEITEN.map((s) => s.pfad), ...GLOBAL_SEITEN_EN.map((s) => s.pfad), "/business", "/en/business"]) {
+// 29.10.2026 (E-461): Die Übersichten sind die Startseite (/ und /en) — /business und /en/business leiten per 301 dorthin.
+for (const pfad of [...GLOBAL_SEITEN.map((s) => s.pfad), ...GLOBAL_SEITEN_EN.map((s) => s.pfad), "/", "/en"]) {
   const html = seitenHtml(pfad, { bereich: "business" }) ?? "";
   const bild = ogBusinessBild(pfad);
   if (!bild) continue;

@@ -35,7 +35,8 @@ function globalZiel(suche: string, en: boolean): string | null {
   const p = new URLSearchParams(suche);
   if ((p.get("quelle") || "").trim().toLowerCase() !== "global") return null;
   const paket = globalPaket(p.get("paket"))?.key;
-  return `${en ? "/en/business" : "/business"}${paket ? `?paket=${paket}` : ""}#gespraech`;
+  // 29.10.2026 (E-461): der Kalender steht auf der Startseite fiaon.com/ (vorher /business).
+  return `${en ? "/en" : "/"}${paket ? `?paket=${paket}` : ""}#gespraech`;
 }
 
 export default function Termin() {

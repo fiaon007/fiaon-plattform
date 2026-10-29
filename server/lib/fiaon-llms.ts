@@ -30,7 +30,8 @@ const gruppe = (titel: string, seiten: GlobalSeite[]) => (seiten.length ? [`## $
 
 /** Die Privatkunden-Linie in drei Adressen — nur, was in der SEO-Tabelle steht und indexierbar ist. */
 function privatLinks(): string[] {
-  return ["/was-ist-fiaon", "/preise", "/ratgeber"]
+  // 29.10.2026 (E-461): die Startseite der Privatkunden zuerst (/privat) — fiaon.com/ ist FIAON Global.
+  return ["/privat", "/was-ist-fiaon", "/preise", "/ratgeber"]
     .map((p) => seoSeite(p))
     .filter((s): s is NonNullable<ReturnType<typeof seoSeite>> => !!s && !String(s.robots ?? "").includes("noindex"))
     .map((s) => `- [${s.titel.replace(/\s+[—–|-]\s+FIAON$/, "")}](${SEO_BASIS}${s.pfad === "/" ? "" : s.pfad}): ${s.beschreibung}`);
@@ -63,7 +64,8 @@ export function llmsTxt(): string {
     "## Pakete (einmaliger Festpreis, alle Gebühren für die Leistungen des Pakets inklusive)",
     "",
     ...GLOBAL_PAKETE.map((p) => `- ${p.de.name}, ${globalPreisText(p.key)}: ${p.de.fuer} ${p.de.dauer}.`),
-    `- Beauftragen: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/business · English: ${SEO_BASIS}/en/business`,
+    // 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite fiaon.com/ (vorher /business, leitet per 301).
+    `- Beauftragen: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/ · English: ${SEO_BASIS}/en`,
     "",
     ...gruppe("Leistungen", art("leistung")),
     ...gruppe("Preise, Ablauf und Vergleich", art("preise", "werkzeug")),
@@ -122,7 +124,7 @@ export function llmsFullTxt(): string {
   return [
     "# FIAON Global — Volltext",
     "",
-    "> Alle Seiten von FIAON Global (fiaon.com/business), deutsch und englisch, als reiner Text. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut. Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig.",
+    "> Alle Seiten von FIAON Global (fiaon.com und fiaon.com/business/…), deutsch und englisch, als reiner Text. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut. Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig.",
     "",
     ...GLOBAL_SEITEN.flatMap(seite),
     "# FIAON Global — full text in English",

@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Compass } from "lucide-react";
 import { istBusinessBereich } from "@/lib/bereich";
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -20,7 +21,8 @@ export default function NotFound() {
   const en = location.startsWith("/en/") || location === "/en";
 
   if (business) {
-    const start = en ? "/en/business" : "/business";
+    // 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite fiaon.com/ (und /en).
+    const start = en ? "/en" : "/";
     const NAVY = "#12284a";
     const wege = en
       ? [{ href: `${start}#pakete`, label: "Packages and prices" }, { href: `${start}#gespraech`, label: "Arrange a first call" }, { href: "/en/business/faq", label: "Questions and answers" }]
@@ -52,7 +54,7 @@ export default function NotFound() {
     ? { href: "/admin", label: "Zum Admin-Dashboard" }
     : isAgent
       ? { href: "/agent", label: "Zum Mitarbeiter-Portal" }
-      : { href: "/", label: "Zur Startseite" };
+      : { href: PRIVAT_START.de, label: "Zur Startseite" };
 
   const secondary = isAdmin
     ? [{ href: "/admin/zahlungen", label: "Zahlungszentrale" }, { href: "/admin/team", label: "Team" }, { href: "/", label: "Startseite" }]

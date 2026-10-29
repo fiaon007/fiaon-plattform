@@ -42,12 +42,13 @@ export function spracheVonPfad(pfad: string): Sprache {
 }
 
 /** Die englische Navigation — Ziel ist die englische Schwester, wo es sie gibt (siehe schwesterPfad). */
+// 29.10.2026 (E-461): "Home" is the personal start page (/privat → /en/private); fiaon.com/ is FIAON Global ("Business").
 export const EN_NAV: [string, string][] = [
-  ["/", "Home"],
+  ["/privat", "Home"],
   ["/was-ist-fiaon", "What is FIAON"],
   ["/privatkunden", "Personal"],
   ["/bonitaet", "Credit report"],
-  ["/business", "Business"],
+  ["/", "Business"],
   ["/ratgeber", "Guides"],
   ["/werkzeuge", "Free tools"],
   ["/preise", "Pricing & plans"],
@@ -71,14 +72,14 @@ export const EN_FUSS: { titel: string; links: [string, string][] }[] = [
     ["/glossar-bonitaet", "Credit glossary A–Z"],
   ] },
   { titel: "Platform", links: [
-    ["/", "Home"],
+    ["/privat", "Home"],
     ["/ratgeber", "Guides"],
     ["/werkzeuge", "Free tools"],
     ["/preise", "Pricing & plans"],
     ["/kreditkarte", "A credit card despite an entry"],
     ["/partnerbank-dkb", "Account & card with DKB"],
     ["/privatkunden", "Personal"],
-    ["/business", "Business"],
+    ["/", "Business"],
     ["/oesterreich", "FIAON in Austria"],
     ["/schweiz", "FIAON in Switzerland"],
   ] },

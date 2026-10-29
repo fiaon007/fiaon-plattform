@@ -8,6 +8,7 @@ import { globalMenue } from "@shared/fiaon-global-menue";
 import GlobalNav from "@/components/site/GlobalNav";
 import { useBusinessBereich } from "@/lib/bereich";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
+import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 
 interface GlassNavProps {
   /** Erzwingt den Rahmen von FIAON Global — z. B. die Zahlungsseite eines Firmenauftrags ohne ?bereich=business. */
@@ -87,17 +88,19 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
   const zu = (href: string) => inSprache(href, sprache);
   const aktuellerPfad = typeof window !== "undefined" ? window.location.pathname : "/";
   // Die Unterseiten von FIAON Global gibt es (noch) nur auf Deutsch — ihr englisches Gegenüber ist die Übersicht.
-  const andereSprache = en ? (schwesterPfad(aktuellerPfad, "de") ?? "/") : (schwesterPfad(aktuellerPfad, "en") ?? (aktuellerPfad.startsWith("/business") ? "/en/business" : "/en"));
+  // 29.10.2026 (E-461): Ohne Schwester führt der Umschalter auf die Startseite der Privatkunden (/privat, /en/private) —
+  // fiaon.com/ und /en sind seither FIAON Global.
+  const andereSprache = en ? (schwesterPfad(aktuellerPfad, "de") ?? PRIVAT_START.de) : (schwesterPfad(aktuellerPfad, "en") ?? (aktuellerPfad.startsWith("/business") ? "/en" : PRIVAT_START.en));
   const pages = en ? [
-    { label: "Home", href: "/en", key: "startseite" },
+    { label: "Home", href: PRIVAT_START.en, key: "startseite" },
     { label: "What is FIAON", href: zu("/was-ist-fiaon"), key: "was-ist-fiaon", hasGradient: true },
     { label: "Personal", href: zu("/privatkunden"), key: "privatkunden" },
-    { label: "Business", href: zu("/business"), key: "business" },
+    { label: "Business", href: "/en", key: "business" },
   ] : [
-    { label: "Startseite", href: "/", key: "startseite" },
+    { label: "Startseite", href: PRIVAT_START.de, key: "startseite" },
     { label: "Was ist FIAON", href: "/was-ist-fiaon", key: "was-ist-fiaon", hasGradient: true },
     { label: "Privatkunden", href: "/privatkunden", key: "privatkunden" },
-    { label: "Business", href: "/business", key: "business" },
+    { label: "Business", href: "/", key: "business" },
   ];
   // ── Das Handy-Menü in fünf Gruppen (E-289) ─────────────────────────────────
   // „gross“ = die zwei Wege mit Zweitzeile (Privatkunden, dann Unternehmen), „kompakt“ = Kacheln.
@@ -114,10 +117,10 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
       { href: zu("/werkzeuge/eintrag-pruefen"), label: "Check an entry", text: "Five questions — can your entry be challenged?", key: "werkzeuge" },
     ] },
     { titel: "For companies", zusatz: "FIAON Global", art: "gross", eintraege: [
-      { href: zu("/business"), label: "FIAON Global", text: "US company, banking and capital from one source", key: "business" },
+      { href: "/en", label: "FIAON Global", text: "US company, banking and capital from one source", key: "business" },
     ] },
     { titel: "Learn", art: "kompakt", eintraege: [
-      { href: "/en", label: "Home", text: "", key: "startseite" },
+      { href: PRIVAT_START.en, label: "Home", text: "", key: "startseite" },
       { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "", key: "was-ist-fiaon" },
       { href: zu("/ratgeber"), label: "Guides", text: "", key: "ratgeber" },
       { href: zu("/kontakt"), label: "Contact & support", text: "", key: "kontakt" },
@@ -137,11 +140,11 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
       { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
     ] },
     { titel: "Für Unternehmen", zusatz: "FIAON Global", art: "gross", eintraege: [
-      { href: "/business", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
+      { href: "/", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
       ...globalPunkte(["/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/paket-finder"]),
     ] },
     { titel: "Verstehen", art: "kompakt", eintraege: [
-      { href: "/", label: "Startseite", text: "", key: "startseite" },
+      { href: PRIVAT_START.de, label: "Startseite", text: "", key: "startseite" },
       { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "", key: "was-ist-fiaon" },
       { href: "/ratgeber", label: "Ratgeber", text: "", key: "ratgeber" },
       { href: "/vergleich", label: "Vergleich", text: "", key: "vergleich" },
@@ -202,7 +205,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 Fenstern nicht über Marke oder Knöpfe laufen. Unter 1024px: Hamburger. */}
             <div className="relative z-10 h-[72px] px-5 flex items-center justify-between gap-4">
               {/* Logo */}
-              <a href={en ? "/en" : "/"} className="flex items-center shrink-0">
+              <a href={en ? PRIVAT_START.en : PRIVAT_START.de} className="flex items-center shrink-0">
                 <FiaonWortmarke className="text-[18px] sm:text-xl" farbe={MARKE_NAVY} />
               </a>
 
@@ -264,7 +267,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                   <p className="nav-mega-titel" style={{ margin: 0 }}>FIAON Global</p>
                   <p className="nav-global-satz">US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alles inklusive.</p>
                 </div>
-                <a href="/business" className="nav-global-link">Zur Übersicht<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
+                <a href="/" className="nav-global-link">Zur Übersicht<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
               </div>
               {globalMenue().map((g) => (
                 <div key={g.gruppe} className="nav-mega-gruppe">
@@ -281,7 +284,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 <span className="orte"><b>London</b> Vertragspartner<i aria-hidden="true">·</i><b>Zürich</b> Kapital-Etappe<i aria-hidden="true">·</i><b>Miami</b> Team vor Ort</span>
                 <span className="tun">
                   <a href="/business/paket-finder" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Paket-Finder</a>
-                  <a href="/business#gespraech" className="nav-mega-knopf" tabIndex={mega ? 0 : -1}>Gespräch vereinbaren</a>
+                  <a href="/#gespraech" className="nav-mega-knopf" tabIndex={mega ? 0 : -1}>Gespräch vereinbaren</a>
                 </span>
               </div>
             </div>
@@ -289,12 +292,12 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
           <div className="nav-mega-innen">
             {(en ? [
               { titel: "For customers", eintraege: [
-                { href: "/en", label: "Home", text: "Insight · Action · Access" },
+                { href: PRIVAT_START.en, label: "Home", text: "Insight · Action · Access" },
                 { href: zu("/was-ist-fiaon"), label: "What is FIAON", text: "The vision, explained properly" },
                 { href: zu("/privatkunden"), label: "Personal", text: "Plans, process, pricing" },
                 // E-241: die englische Seite zur Auskunft (die Familie /bonitaetsauskunft gibt es nur auf Deutsch).
                 { href: zu("/bonitaetsauskunft-beantragen"), label: "Credit report", text: "Your report, obtained by FIAON" },
-                { href: zu("/business"), label: "Business", text: "FIAON Global: US company, banking, capital" },
+                { href: "/en", label: "Business", text: "FIAON Global: US company, banking, capital" },
               ] },
               { titel: "Company", eintraege: [
                 { href: zu("/team"), label: "Team", text: "Who builds FIAON" },
@@ -306,12 +309,12 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
               ] },
             ] : [
               { titel: "Für Kunden", eintraege: [
-                { href: "/", label: "Startseite", text: "Einsicht · Aktion · Zugang" },
+                { href: PRIVAT_START.de, label: "Startseite", text: "Einsicht · Aktion · Zugang" },
                 { href: "/was-ist-fiaon", label: "Was ist FIAON", text: "Die Vision, genau erklärt" },
                 { href: "/privatkunden", label: "Privatkunden", text: "Pakete, Ablauf, Preise" },
                 // 25.09.2026 (E-241): der Menüpunkt führt auf die Übersicht der Seitenfamilie (/bonitaet leitet dorthin).
                 { href: "/bonitaetsauskunft", label: "Bonitätsauskunft", text: "Ihre Bonität aus Sicht einer Bank – DE, AT, CH" },
-                { href: "/business", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital" },
+                { href: "/", label: "Business", text: "FIAON Global: US-Gesellschaft, Bankzugang, Kapital" },
                 { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos" },
                 { href: "/hilfe", label: "Hilfe-Center", text: "Antworten zu Antrag, Zahlung, Auskunft" },
                 { href: "/vergleich", label: "Vergleich", text: "Anwalt, App, selbst – oder FIAON?" },
@@ -331,7 +334,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
               <div key={g.titel} className="nav-mega-gruppe">
                 <p className="nav-mega-titel">{g.titel}</p>
                 {g.eintraege.map((e) => (
-                  <a key={e.href} href={e.href} className="nav-mega-eintrag" data-an={activePage === e.href.replace("/", "") || (e.href === "/" && activePage === "startseite") ? "1" : undefined}>
+                  <a key={e.href} href={e.href} className="nav-mega-eintrag" data-an={(e.href === PRIVAT_START.de || e.href === PRIVAT_START.en ? activePage === "startseite" : e.href !== "/" && e.href !== "/en" && activePage === e.href.replace("/", "")) ? "1" : undefined}>
                     <span className="label">{e.label}</span>
                     <span className="text">{e.text}</span>
                   </a>
@@ -478,7 +481,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
 
                 {/* Geschäftskunde */}
                 <Link
-                  href="/business"
+                  href="/"
                   onClick={() => setShowModal(false)}
                   className="group flex items-center gap-4 p-4 rounded-2xl border border-gray-100 bg-white hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-[0_12px_32px_rgba(37,99,235,.10)] active:scale-[.99] transition-all duration-300 cursor-pointer"
                 >

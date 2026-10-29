@@ -61,6 +61,7 @@ import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
 import { mitBegriffen } from "@/components/site/global/Begriff";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
+import { BUSINESS_START, PRIVAT_START } from "@shared/fiaon-business-grenze";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
@@ -105,7 +106,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const sprache = useSprache();
   const s = sprache === "en" ? "en" : "de";
   const start = (paket?: string) => globalStartPfad(paket, s, privat ? "privat" : undefined);
-  const seitePfad = privat ? (s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen") : s === "en" ? "/en/business" : "/business";
+  // 29.10.2026 (E-461): Die Übersicht ist die Startseite fiaon.com/ (und /en) — vorher /business.
+  const seitePfad = privat ? (s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen") : BUSINESS_START[s];
   const abPreis = globalPreisText("global_struktur", s);
   const begriff = (k: GlobalBegriff) => ({ wort: t.begriffWoerter[k], erklaerung: t.begriffe[k] });
 
@@ -289,7 +291,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           personTitel: buehne.person, teamTitel: buehne.teamAuge, teamHinweis: buehne.teamHinweis, teamAnhalten: buehne.teamAnhalten, teamFortsetzen: buehne.teamFortsetzen, vertragTitel: buehne.vertragAuge,
           vertrag: t.vertrauensleiste, mustervertragHref: s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag",
           weiter: buehne.weiterBlick, blickName: buehne.blickName,
-        }} />
+        }} band={privat ? undefined : s === "en"
+          ? { text: "For personal customers:", link: "credit file, account and card", href: PRIVAT_START.en }
+          : { text: "Für Privatkunden:", link: "Bonität, Konto und Karte", href: PRIVAT_START.de }} />
 
         {/* ── 1b Der Vorführraum (E-313): die Filme im iPhone, das Kino mit Ton, das Konzept als PDF-Mappe ── */}
         <GlobalVorfuehrraum />

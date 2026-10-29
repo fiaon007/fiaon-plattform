@@ -307,7 +307,8 @@ export function linkZiele(b: Bereich): LinkZiel[] {
     return GLOBAL_SEITEN
       .filter((s) => s.pfad.startsWith("/business") && !/\/(auftrag|angebot|widerrufsbelehrung|mustervertrag)(\/|$)/.test(s.pfad))
       .map((s) => ({ pfad: s.pfad, titel: `${s.h1}${s.h1b ? ` ${s.h1b}` : ""}`, text: s.seo.beschreibung }))
-      .concat([{ pfad: "/business", titel: "FIAON Global — Pakete und Erstgespräch", text: "Die Startseite von FIAON Global: vier Pakete mit Festpreis, „Erst sprechen“ (/business#gespraech), „Pakete“ (/business#pakete)." },
+      // 29.10.2026 (E-461): Die Startseite von FIAON Global ist fiaon.com/ (vorher /business, leitet per 301).
+      .concat([{ pfad: "/", titel: "FIAON Global — Pakete und Erstgespräch", text: "Die Startseite von FIAON Global: vier Pakete mit Festpreis, „Erst sprechen“ (/#gespraech), „Pakete“ (/#pakete)." },
         { pfad: "/business/start", titel: "Direkt beauftragen", text: "Den Auftrag in vier Schritten erteilen." }]);
   }
   return PRIVAT_PFADE.map((p) => SEO_SEITEN[p]).filter(Boolean).map((s) => ({ pfad: s.pfad, titel: s.h1, text: s.beschreibung }));
@@ -489,7 +490,7 @@ function angebotText(b: Bereich): string {
     const pakete = GLOBAL_PAKETE.map((p) => `- ${p.de.name} (${globalPreisText(p.key, "de")} Festpreis): ${p.de.fuer} Enthalten u. a.: ${p.de.leistungen.slice(0, 3).join("; ")}.`).join("\n");
     return `DAS ANGEBOT VON FIAON GLOBAL (für den Abschnitt „So übernimmt FIAON Global …“ — nur das, nichts dazu erfinden):
 ${pakete}
-Alle Pakete stehen auf /business#pakete, das Erstgespräch auf /business#gespraech. Leistungsseiten: /business/us-firmengruendung,
+Alle Pakete stehen auf der Startseite /#pakete, das Erstgespräch auf /#gespraech. Leistungsseiten: /business/us-firmengruendung,
 /business/ein-itin, /business/us-geschaeftskonto, /business/firmenkarten-kapital, /business/us-pflichten, /business/kosten.
 Nenne KEINEN Kapitalrahmen als Zahl, keine Zinsen, keine Dauer als Zusage.`;
   }

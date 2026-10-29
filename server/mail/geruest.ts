@@ -143,6 +143,8 @@ export interface MailBaustein {
    * Die Welt der Mail (19.09.2026, E-192): "business" = FIAON Global. Der Fuß verweist dann auf
    * fiaon.com/business und öffnet Impressum und Datenschutz im Business-Rahmen (?bereich=business) —
    * ein Geschäftskunde landet nicht auf der Startseite der Privatkunden. Ohne Angabe bleibt jede Mail, wie sie war.
+   * 29.10.2026 (E-461): fiaon.com/ IST FIAON Global — der Fuß einer Business-Mail verlinkt die Startseite selbst
+   * („fiaon.com“), der Fuß jeder anderen Mail die Startseite der Privatkunden (fiaon.com/privat).
    */
   bereich?: "business";
 }
@@ -359,7 +361,7 @@ export function mailHtml(b: MailBaustein): string {
             ${b.du ? "Fragen? Antworte einfach auf diese E-Mail — sie landet direkt bei uns." : r.fragen}
           </p>
           <p style="margin:0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">
-            FIAON LTD · <a href="${b.bereich === "business" ? `${BASIS_URL}/business` : BASIS_URL}" style="color:#9ca3af;">${b.bereich === "business" ? "fiaon.com/business" : "fiaon.com"}</a> ·
+            FIAON LTD · <a href="${b.bereich === "business" ? `${BASIS_URL}/` : `${BASIS_URL}/privat`}" style="color:#9ca3af;">fiaon.com</a> ·
             <a href="${BASIS_URL}/impressum${b.bereich === "business" ? "?bereich=business" : ""}" style="color:#9ca3af;">${r.impressum}</a> ·
             <a href="${BASIS_URL}/datenschutz${b.bereich === "business" ? "?bereich=business" : ""}" style="color:#9ca3af;">${r.datenschutz}</a><br />
             ${b.rechtsSatz ?? RECHTS_SATZ}
@@ -425,7 +427,8 @@ export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = 
     ...(b.karteZiel ? ["", KARTE_SATZ] : []),
     "",
     "—",
-    b.bereich === "business" ? r.textFuss.replace("fiaon.com ·", "fiaon.com/business ·") : r.textFuss,
+    // 29.10.2026 (E-461): „fiaon.com“ ist FIAON Global — Privat-Mails nennen die Startseite der Privatkunden.
+    b.bereich === "business" ? r.textFuss : r.textFuss.replace("fiaon.com ·", "fiaon.com/privat ·"),
     b.rechtsSatz ?? RECHTS_SATZ,
     ...(b.abmeldeUrl ? [`${r.abmeldenText}: ${b.abmeldeUrl}`] : []),
   ].join("\n").replace(/%%RATENLEISTE:[^%]*%%/g, "");

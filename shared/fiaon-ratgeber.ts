@@ -312,8 +312,9 @@ export function pruefstand(a: Pick<Artikel, "titel" | "teaser" | "inhalt" | "faq
     const intern = Array.from(a.inhalt.matchAll(/\]\((\/[^)\s]*)\)/g)).map((m) => m[1]);
     const fremd = intern.filter((l) => !erlaubt.has(l.replace(/[#?].*$/, "").replace(/\/+$/, "") || "/"));
     if (fremd.length) punkte.push({ art: schwer, text: `Links auf Seiten, die es nicht gibt: ${Array.from(new Set(fremd)).join(", ")}` });
-    const ziel = opt.bereich === "business" ? /^\/business(\/|#|\?|$)/ : /^\/(privatkunden|antrag|bonitaetsauskunft|bonitaet-antrag|bonitaet|partnerbank-dkb|preise)(\/|#|\?|$)/;
-    if (!intern.some((l) => ziel.test(l))) punkte.push({ art: schwer, text: opt.bereich === "business" ? "Kein Link auf FIAON Global (/business…)" : "Kein Link auf ein FIAON-Angebot (/privatkunden, /bonitaetsauskunft …)" });
+    // 29.10.2026 (E-461): FIAON Global ist auch die Startseite fiaon.com/ (/, /#gespraech) — sie zählt wie /business….
+    const ziel = opt.bereich === "business" ? /^\/(business(\/|#|\?|$)|$|#|\?)/ : /^\/(privatkunden|antrag|bonitaetsauskunft|bonitaet-antrag|bonitaet|partnerbank-dkb|preise)(\/|#|\?|$)/;
+    if (!intern.some((l) => ziel.test(l))) punkte.push({ art: schwer, text: opt.bereich === "business" ? "Kein Link auf FIAON Global (/ oder /business…)" : "Kein Link auf ein FIAON-Angebot (/privatkunden, /bonitaetsauskunft …)" });
   }
 
   if (a.faq.length < 4) punkte.push({ art: "fehler", text: `Nur ${a.faq.length} FAQ (mindestens 4)` });

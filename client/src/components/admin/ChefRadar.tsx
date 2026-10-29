@@ -614,7 +614,7 @@ function AutomatikTafel({ trichter, uebersicht, motor, onGeaendert }: {
         </article>
         <article className="cr-kachel">
           <header><b>Suche</b><span className="cr-chip">läuft täglich</span></header>
-          <p>Rund um die Uhr, bis 50 qualifizierte Firmen am Tag. Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
+          <p>Rund um die Uhr, bis {zahl(motor?.einstellung.sucheTagesziel ?? 50)} qualifizierte Firmen und {zahl(motor?.partner.tagesziel ?? 100)} Partner am Tag (höchstens {zahl(motor?.einstellung.sucheLaeufe ?? 30)} Suchläufe). Vorrat: <b>{zahl(trichter?.vorrat ?? 0)}</b>.</p>
         </article>
         <BriefKachel />
         <article className="cr-kachel breit">
@@ -1174,7 +1174,7 @@ function FirmenListe({ runde, postfach, lauf, setLauf, onFirma, offen, onSuchen,
                   </td>
                   <td><Passung wert={f.passung} /></td>
                   <td className="cr-firma"><b>{f.name}</b><span>{f.kurz || f.domain}</span></td>
-                  <td className="cr-leise-spalte"><SignalPunkte staerke={f.signal_staerke ?? null} titel={f.signal?.art ?? radarBereich(f.bereich)?.label ?? ""} /></td>
+                  <td className="cr-leise-spalte"><SignalPunkte staerke={f.signal_staerke ?? null} titel={f.signal?.art ?? radarBereich(f.bereich)?.label ?? radarPartnerGruppe(f.bereich)?.label ?? ""} /></td>
                   <td className="cr-leise-spalte">{[f.ort, f.land].filter(Boolean).join(", ")}</td>
                   <td className="cr-kontakt-spalte">
                     {f.entscheider
@@ -1446,7 +1446,7 @@ function Akte({ id, uebersicht, postfach, onPostfach, onZu, onGeaendert }: {
           <>
             <header className="cr-blatt-kopf">
               <div>
-                <span className="cr-auge">{radarBereich(f.bereich)?.label ?? f.bereich} · {LAND[f.land ?? ""] ?? f.land ?? "?"}{f.ort ? ` · ${f.ort}` : ""} · gefunden {datum(f.created_at)}</span>
+                <span className="cr-auge">{radarBereich(f.bereich)?.label ?? radarPartnerGruppe(f.bereich)?.label ?? f.bereich} · {LAND[f.land ?? ""] ?? f.land ?? "?"}{f.ort ? ` · ${f.ort}` : ""} · gefunden {datum(f.created_at)}</span>
                 <h2>{f.name}</h2>
                 <a href={f.website} target="_blank" rel="noopener noreferrer" className="cr-link">{f.domain} ↗</a>
               </div>

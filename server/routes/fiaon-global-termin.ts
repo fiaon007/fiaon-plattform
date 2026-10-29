@@ -29,7 +29,7 @@ import {
 import { GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE } from "../lib/fiaon-global-zeiten";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
 import { visitenkarteFuerAgent } from "@shared/fiaon-visitenkarte";
-import { GLOBAL_TERMIN_ARAS_TEXT } from "@shared/fiaon-ja-zum-anruf";
+import { GLOBAL_TERMIN_ARAS_HINWEIS, GLOBAL_TERMIN_ARAS_TEXT } from "@shared/fiaon-ja-zum-anruf";
 
 const router = Router();
 
@@ -108,11 +108,14 @@ router.post("/termine", async (req: Request, res: Response) => {
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
-      // E-458 (Justin 29.10.2026): das freiwillige Kästchen für den Erinnerungsanruf (auch durch ARAS) — nur mit dem Satz,
-      // den diese Seite zeigt; die Buchung hängt nie daran (im Hintergrund, wirft nie).
-      if (b.arasAnruf) {
+      // E-458 (Justin 29.10.2026): der Erinnerungsanruf vor dem Gespräch (auch durch ARAS). Seit dem Nachmittag („braucht kein
+      // eigenes Kreuz“) trägt die Buchung den Hinweis über dem Knopf (arasHinweis); ein Browser mit dem alten Stand schickt noch
+      // den Kästchen-Satz (arasAnruf). Gespeichert wird nur ein Satz, den diese Seite zeigt; die Buchung hängt nie daran.
+      const arasSatz = b.arasHinweis ?? b.arasAnruf;
+      if (arasSatz) {
         void import("../lib/fiaon-aras-wunsch").then((m) => m.globalTerminEinwilligungMerken({
-          terminId: erg.terminId, wortlautBrowser: b.arasAnruf, wortlautServer: [GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en],
+          terminId: erg.terminId, wortlautBrowser: arasSatz,
+          wortlautServer: [GLOBAL_TERMIN_ARAS_HINWEIS.de, GLOBAL_TERMIN_ARAS_HINWEIS.en, GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en],
           telefon: kontakt.telefon, ip: ipVon(req), ua: String(req.headers["user-agent"] ?? ""), sprache: en ? "en" : "de",
           seite: b.arasSeite, referer: req.headers.referer,
         })).catch((e) => console.error(`[GLOBAL-TERMIN] Einwilligung zu Termin ${erg.terminId}:`, e));

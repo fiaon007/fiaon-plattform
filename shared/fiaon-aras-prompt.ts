@@ -434,12 +434,13 @@ export function anlassFakten(spielart: Spielart, b: Briefing): AnlassFakten | nu
       };
     }
     case "erinnerung": {
-      // E-458: kurz vor dem gebuchten Global-Erstgespräch, nur mit dem Kästchen der Buchung. Bestätigen — sonst nichts.
+      // E-458: kurz vor dem gebuchten Global-Erstgespräch — beim Buchen stand der Hinweis, dass wir vorher kurz anrufen (seit
+      // 29.10. nachmittags ohne eigenes Kästchen, Justin). Bestätigen — sonst nichts.
       const g = b.gespraech;
       const wann = g?.wann ?? "bald";
       const mit = g?.mitDat ?? "der zuständigen Person";
       return {
-        offen: `Er hat ${wann} ein Gespräch mit ${mit} von FIAON Global gebucht${g?.firma ? ` (für ${g.firma})` : ""}${g?.thema ? ` — Thema: „${g.thema.slice(0, 160)}“` : ""} und bei der Buchung erlaubt, dass wir ihn vorher kurz anrufen.`,
+        offen: `Er hat ${wann} ein Gespräch mit ${mit} von FIAON Global gebucht${g?.firma ? ` (für ${g.firma})` : ""}${g?.thema ? ` — Thema: „${g.thema.slice(0, 160)}“` : ""}; beim Buchen stand dabei, dass wir ihn vorher kurz anrufen.`,
         ziel: "Du bestätigst den Termin in einem Satz und fragst, ob es dabei bleibt. Bleibt es: festhalten (gespraech_bestaetigen, bleibt) und herzlich bis später. Passt es nicht: seinen Wunsch aufnehmen (gespraech_bestaetigen, nicht bleibt, mit seinem Wunsch) — die zuständige Person meldet sich mit einer neuen Zeit, und der Link für eine neue Zeit steht auch in seiner Bestätigungs-Mail.",
         nutzen: "Er weiß sicher, wann es losgeht und mit wem — und nichts geht verloren.",
         nebenbei: null,
@@ -959,7 +960,7 @@ function leitfaden(spielart: Spielart, b: Briefing, dialekt: Dialekt = "hochdeut
     case "erinnerung":
       // E-458: das gebuchte Global-Erstgespräch bestätigen — nur das. Kurz, herzlich, ohne Verkauf.
       return [
-        `GESPRÄCHSART „ERINNERUNG VOR DEM GESPRÄCH“ (FIAON Global): Er hat ${b.gespraech?.wann ?? "bald"} ein Gespräch mit ${b.gespraech?.mitDat ?? "der zuständigen Person"} gebucht und bei der Buchung erlaubt, dass wir ihn vorher kurz anrufen. Das Gespräch ist kurz — unter einer Minute.`,
+        `GESPRÄCHSART „ERINNERUNG VOR DEM GESPRÄCH“ (FIAON Global): Er hat ${b.gespraech?.wann ?? "bald"} ein Gespräch mit ${b.gespraech?.mitDat ?? "der zuständigen Person"} gebucht; beim Buchen stand dabei, dass wir ihn vorher kurz anrufen. Das Gespräch ist kurz — unter einer Minute.`,
         `· Hat er bestätigt, dass er es ist: „${gesprochen(anlassFakten("erinnerung", b)?.beispiele[0] ?? "Bleibt es bei Ihrem Gespräch?")}“ (in deinen Worten, Uhrzeit und Name genau so).`,
         `· „Ja“ → gespraech_bestaetigen (bleibt: true), dann: „Wunderbar — dann bis ${b.gespraech?.uhrzeit ? `um ${b.gespraech.uhrzeit} Uhr` : "später"}, ${b.gespraech?.mitNom ?? "die zuständige Person"} freut sich auf das Gespräch.“ und herzlich verabschieden.`,
         `· Passt es nicht (andere Zeit, absagen): ohne Nachfragen-Druck seinen Wunsch aufnehmen (gespraech_bestaetigen, bleibt: false, wunsch in seinen Worten) — „Kein Problem, ich geb's gleich weiter: ${b.gespraech?.mitNom ?? "Die zuständige Person"} meldet sich mit einer neuen Zeit, und in Ihrer Bestätigungs-Mail können Sie auch selbst eine neue wählen.“`,

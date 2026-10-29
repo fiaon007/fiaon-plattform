@@ -69,6 +69,9 @@ export async function arasStarten(app: Express, httpServer: HttpServer): Promise
   // angekündigt, aber nicht getan hat (Link, Aufgabe für Justin, Rückruf), wird nachgeholt (Merker aras_nachholen_22_10).
   // Justin 22.10.2026 („Stufe 2“): EINMAL ab Fr 23.10. 09:30 Berlin — Stufe 2 (150/Tag, 2 gleichzeitig, 60 €), nur aus Stufe 1.
   tageslauf("aras_stufe2", async () => await (await import("./fiaon-aras-golive")).stufe2Pruefen(), 60_000, { beimStartNach: 40_000, nurMitErgebnis: true });
+  // Justin 29.10.2026 nachmittags („ARAS darf JEDEN im System anrufen“): EINMAL nach dem Deploy — die Vertragsarten wieder an,
+  // dazu Termin, Anruf-Wunsch und Erinnerung; die Stufe bleibt, wie sie ist (Merker aras_jeden_29_10).
+  tageslauf("aras_jeden", async () => await (await import("./fiaon-aras-golive")).jedenPruefen(), 60_000, { beimStartNach: 50_000, nurMitErgebnis: true });
   tageslauf("aras_nachholen", async () => await (await import("./fiaon-aras-nachholen")).nachholenPruefen(), 60_000, { beimStartNach: 120_000, nurMitErgebnis: true });
   // Scheibe 3, Kunden mit Vertrag (Koordination 22.10.2026): am zugesagten Zahltag 09:00–10:00 Berlin die Raten-Erinnerung — je
   // Zusage genau einmal (fiaon-aras-erinnerung.ts; die Erinnerung nach der Mailbox ruft die Nachbereitung selbst).

@@ -116,8 +116,11 @@ router.get("/chef/aras/wunsch", wache, async (_req: ChefRequest, res: Response) 
     res.json({ ok: true, ...(await wunschLage(await arasEinstellungenLesen(true))) });
   } catch (e) { console.error("[ARAS-CHEF] wunsch:", e); fehler(res, 500, "Die Anruf-Wünsche ließen sich nicht laden."); }
 });
-/** Eine Gesprächsart an oder aus (nur diese — die gesperrten bleiben im Code gesperrt, einstellungPruefen weist sie ab). */
-const KARTE_SPIELARTEN = new Set<string>(["termin", "wunsch", "erinnerung", "willkommen", "rate"]);
+/**
+ * Eine Gesprächsart an oder aus (nur diese — die gesperrten bleiben im Code gesperrt, einstellungPruefen weist sie ab). Seit
+ * Justin 29.10. nachmittags („ARAS darf JEDEN im System anrufen“) auch alle Vertragsarten: Zahlung gemeldet, Zusage, Auftrag.
+ */
+const KARTE_SPIELARTEN = new Set<string>(["termin", "wunsch", "erinnerung", "willkommen", "stufe_a", "rate", "zusage", "auftrag"]);
 router.post("/chef/aras/spielart", wache, async (req: ChefRequest, res: Response) => {
   const spielart = String(req.body?.spielart ?? "");
   if (!KARTE_SPIELARTEN.has(spielart)) return fehler(res, 400, `„${spielart.slice(0, 30)}“ lässt sich hier nicht schalten.`);

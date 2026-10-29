@@ -38,7 +38,7 @@ export type Rechtsgrund = "vertrag" | "einwilligung" | "kunde_ruft" | "intern";
 export const RECHTSGRUND: Record<Spielart, Rechtsgrund> = {
   termin: "einwilligung", lead: "einwilligung", zuruf: "einwilligung", stufe_b: "einwilligung",
   // E-458: Beide neuen Arten nur mit einer Zeile in fiaon_telefon_einwilligung — der Anruf-Wunsch mit seinem schriftlichen Ja,
-  // die Erinnerung mit dem Kästchen genau dieser Gesprächsbuchung (Planer und Wähler prüfen beides).
+  // die Erinnerung mit genau dieser Gesprächsbuchung (Hinweis im Formular, ERINNERUNG_GRUNDLAGEN; Planer und Wähler prüfen beides).
   wunsch: "einwilligung", erinnerung: "einwilligung",
   stufe_a: "vertrag", rate: "vertrag", zusage: "vertrag", rueckholung: "einwilligung", eingehend: "kunde_ruft", probe: "intern",
   // Willkommen (Koordination 20.10.2026 abends): Vertragsabwicklung, keine Werbung — nur wenn der Vertrag UNTERSCHRIEBEN ist
@@ -61,6 +61,10 @@ export const KEIN_VERTRAG_SATZ = "Noch kein Vertrag – ARAS ruft nur Kunden mit
  * E-458 (Justin 29.10.2026, „go Plan“ Punkt 8): Die eine Tür für Menschen ohne Vertrag ist die eigene Gesprächsart „wunsch“
  * (Anruf-Wunsch) — nur mit schriftlichem Ja (WUNSCH_EINWILLIGUNGEN), nur um sein Anliegen zu klären und einen Termin zu buchen,
  * nie Verkauf. „zuruf“ (Verkauf nach JA) bleibt gesperrt.
+ * Justin 29.10.2026 nachmittags: „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“ — umgesetzt für alle MIT
+ * Grundlage: Vertrag (alle Vertragsarten wieder an, fiaon-aras-golive.ts jedenPruefen), gebuchter Termin, Gesprächsbuchung
+ * (Hinweis statt Kästchen) und jedes schriftliche Ja. Diese vier bleiben gesperrt: Sie wären KI-Werbeanrufe an Menschen ohne
+ * jedes Ja (§ 7 Abs. 2 UWG, KI-Anruf ohne Einwilligung). Der Weg zu ihnen ist das Ja — dann laufen sie als Anruf-Wunsch.
  */
 export const GESPERRTE_SPIELARTEN: readonly Spielart[] = ["zuruf", "lead", "stufe_b", "rueckholung"];
 export const GESPERRT_TEXT = "gesperrt – nur Vertragskunden (Justin 20.10.)";
@@ -76,22 +80,31 @@ export const STUFE_B_FRISCH_STUNDEN = 4;
 
 /**
  * Einwilligungs-Arten — keine entsteht per Stimme (ARAS holt nie eine Werbe-Einwilligung am Telefon ein).
- * E-458: „termin_kaestchen“ = das Kästchen im Buchungsformular eines Global-Gesprächs (/business) — es deckt NUR den
- * Erinnerungsanruf vor genau diesem Gespräch (quelle_art „global_termin“, quelle_id = Termin), keinen Anruf-Wunsch.
+ * E-458: „termin_buchung“ = die Buchung eines Global-Gesprächs mit dem Hinweis „… auch durch unsere KI-Assistentin ARAS“ über
+ * dem Knopf (seit 29.10. nachmittags, Justin: „braucht kein eigenes Kreuz“); „termin_kaestchen“ = bis dahin das freiwillige
+ * Kästchen. Beide decken NUR den Erinnerungsanruf vor genau diesem Gespräch (quelle_art „global_termin“, quelle_id = Termin),
+ * keinen Anruf-Wunsch.
  */
-export const EINWILLIGUNG_ARTEN = ["meta_kaestchen", "antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "rueckruf_buchung", "chef", "termin_kaestchen"] as const;
+export const EINWILLIGUNG_ARTEN = ["meta_kaestchen", "antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "rueckruf_buchung", "chef", "termin_kaestchen", "termin_buchung"] as const;
 export type EinwilligungArt = (typeof EINWILLIGUNG_ARTEN)[number];
+/** Was eine Erinnerung vor dem Global-Gespräch trägt: die Buchung mit Hinweis (neu) oder das alte Kästchen. */
+export const ERINNERUNG_GRUNDLAGEN: readonly EinwilligungArt[] = ["termin_buchung", "termin_kaestchen"];
 
 // ── Anruf-Wunsch und Erinnerung (E-458, Justin 29.10.2026) ─────────────────────────────────────────────────────────
 /**
  * Welche Einwilligungen ein Anruf-Wunsch sind: nur SCHRIFTLICHE, deren Wortlaut ARAS als KI nennt — das Antrag-Kästchen
  * (ANTRAG_NEU_ANRUF_TEXT), das Ja per WhatsApp oder Mail (JA_FRAGE_WA) und das Meta-Formular. Nicht: „chef“ (ein Mensch trägt
  * ein mündliches Ja ein), „rueckruf_buchung“ (die entsteht erst aus einem gebuchten Anruf bei ARAS — der läuft als „termin“)
- * und „termin_kaestchen“ (deckt nur die Erinnerung vor seinem Gespräch).
+ * und „termin_kaestchen“/„termin_buchung“ (decken nur die Erinnerung vor seinem Gespräch). „chef“ bleibt draußen, obwohl
+ * Justin am 29.10. sagte „ARAS darf JEDEN im System anrufen“: Das Team trägt dieses Ja meist mitten im eigenen Gespräch ein —
+ * ARAS riefe sonst eine halbe Stunde später noch einmal an. Für diese Menschen bestellt das Team ARAS in der Akte (Auftrag).
  */
 export const WUNSCH_EINWILLIGUNGEN: readonly EinwilligungArt[] = ["antrag_kaestchen", "antrag_knopf", "zuruf_whatsapp", "zuruf_mail", "meta_kaestchen"];
-/** So frisch muss das Ja sein, damit ARAS von sich aus anruft (älter: nur auf Auftrag eines Menschen). */
-export const WUNSCH_TAGE = 30;
+/**
+ * So frisch muss das Ja sein, damit ARAS von sich aus anruft (älter: nur auf Auftrag eines Menschen). Bis 29.10. nachmittags
+ * 30 Tage — seit „ARAS darf JEDEN im System anrufen“ ein halbes Jahr: Ein Ja verfällt nicht, nur weil ARAS auf Stufe 0 stand.
+ */
+export const WUNSCH_TAGE = 180;
 /** So viele Versuche je Ja — danach übernimmt das Team (die Akte zeigt „nicht erreicht“). */
 export const WUNSCH_VERSUCHE = 3;
 /** Frühestens so viele Stunden nach dem letzten erfolglosen Versuch kommt der nächste (also an einem anderen Tag). */

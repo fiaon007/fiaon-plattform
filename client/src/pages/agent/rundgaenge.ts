@@ -2895,8 +2895,8 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"probe\"]",
     titel: "Probe: hier hörst du ARAS.",
     text: "„Mich anrufen“ — ARAS ruft nur deine Nummer an. Danach gibst du Daumen hoch oder runter, darunter stehen dein Feedback, der Ton und die Stimmen.",
-    // E-458 (29.10.2026) mitgezogen: „ARAS telefoniert nur noch die Termine oder die Leute, die einen Anruf wollen“.
-    tipp: "Kunden ruft sie erst an, wenn du „ARAS wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist — und dann nur Termine, Menschen mit schriftlichem „Ja zum Anruf“ und die Erinnerung vor Global-Gesprächen (Karte „Wen ARAS anruft“ unter „Als Nächstes“).",
+    // E-458 (29.10.2026) mitgezogen: am Nachmittag „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“.
+    tipp: "Kunden ruft sie erst an, wenn du „ARAS wählt“ einschaltest UND die Ausbaustufe mindestens 1 ist — und dann alle, bei denen sie darf: Kunden mit Vertrag, gebuchte Termine, die Erinnerung vor jedem Global-Gespräch und jeden mit „Ja zum Anruf“ (Karte „Wen ARAS anruft“ unter „Als Nächstes“).",
   },
   {
     ziel: "[data-ki=\"cockpit\"]",
@@ -2929,7 +2929,7 @@ export const RUNDGANG_ARAS: RundgangSchritt[] = [
     ziel: "[data-ki-reiter=\"warteschlange\"]",
     titel: "Als Nächstes: wer dran ist.",
     // E-458 (29.10.2026): oben die Karte „Wen ARAS anruft“.
-    text: "Oben die Karte „Wen ARAS anruft“: welche Gesprächsarten an sind (ein Klick schaltet), wer mit schriftlichem „Ja zum Anruf“ wartet — und warum jemand nicht dran ist —, die Erinnerungen vor Global-Gesprächen und die Rückrufe, die Mara „bei ARAS“ einträgt. Darunter die Warteschlange: je Person „Jetzt“, „Verschieben“ oder „Entfernen“; „Jetzt auffüllen“ holt Fällige sofort aus den Akten.",
+    text: "Oben die Karte „Wen ARAS anruft“: welche Gesprächsarten an sind — in zwei Gruppen, „Mit Termin, Gesprächsbuchung oder Ja zum Anruf“ und „Kunden mit Vertrag“; ein Klick schaltet —, wer mit schriftlichem „Ja zum Anruf“ wartet (und warum jemand nicht dran ist), die Erinnerungen vor Global-Gesprächen und die Rückrufe, die Mara „bei ARAS“ einträgt. Darunter die Warteschlange: je Person „Jetzt“, „Verschieben“ oder „Entfernen“; „Jetzt auffüllen“ holt Fällige sofort aus den Akten.",
     tipp: "Gewählt wird nur, was die Ausbaustufe erlaubt — in Stufe 0 bleibt die Warteschlange leer, und Mara bietet ARAS noch nicht an.",
   },
   {

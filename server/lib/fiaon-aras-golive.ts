@@ -89,3 +89,30 @@ export async function stufe2Pruefen(lauf: Lauf = sqlPool, jetzt: Date = new Date
   console.log("[ARAS] Stufe 2: 150 Anrufe am Tag, 2 gleichzeitig, 60 € am Tag — verteilt über das Fenster.");
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „ARAS darf JEDEN im System anrufen, braucht kein eigenes Kreuz“ (Justin 29.10.2026 nachmittags, E-458) — EINMAL nach dem
+// Deploy: die Gesprächsarten der Kunden mit Vertrag, die der B2B-Plan am Vormittag ausgeschaltet hatte, wieder an (Willkommen,
+// Zahlung gemeldet, Rate offen, Zusage nachfassen, Auftrag vom Team), dazu Termin, Anruf-Wunsch und Erinnerung. Alles andere in
+// aras_spielarten bleibt, wie es ist. Die Stufe rührt der Schalter NIE an (aus Stufe 0 schaltet nur Justin hoch) — er bestimmt
+// nur, WEN ARAS anruft, sobald sie wählt. Die vier Arten an Menschen ohne jedes Ja bleiben im Code gesperrt (GESPERRTE_SPIELARTEN).
+// Derselbe Einmal-Schalter wie Go-live und Stufe 2: Merker zuerst, dann die Werte über einstellungSetzen.
+// ═══════════════════════════════════════════════════════════════════════════
+export const JEDEN_MERKER = "aras_jeden_29_10";
+export const JEDEN_AN: readonly Spielart[] = ["termin", "wunsch", "erinnerung", "willkommen", "stufe_a", "rate", "zusage", "auftrag"];
+
+/** Einmal-Schalter „jeden anrufen“. Liefert true, wenn er JETZT gelaufen ist. */
+export async function jedenPruefen(lauf: Lauf = sqlPool, jetzt: Date = new Date()): Promise<boolean> {
+  const gesetzt = (await lauf`
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${JEDEN_MERKER}, ${jetzt.toISOString()}, NOW())
+    ON CONFLICT (key) DO NOTHING RETURNING key`) as any[];
+  if (!gesetzt.length) return false;
+  const [z] = (await lauf`SELECT value FROM fiaon_settings WHERE key = 'aras_spielarten'`) as any[];
+  let roh: Record<string, unknown> = {};
+  try { const j = JSON.parse(String(z?.value ?? "{}")); if (j && typeof j === "object" && !Array.isArray(j)) roh = j; } catch { /* leer = Vorgabe */ }
+  const neu = { ...roh, ...Object.fromEntries(JEDEN_AN.map((s) => [s, "an"])) };
+  await einstellungSetzen("aras_spielarten", JSON.stringify(neu), "Justin 29.10.2026: „ARAS darf JEDEN im System anrufen“", lauf);
+  arasEinstellungenVergessen();
+  console.log("[ARAS] Justin 29.10.: Vertragskunden-Arten + Termin, Anruf-Wunsch, Erinnerung an — die Stufe bleibt, wie sie ist.");
+  return true;
+}

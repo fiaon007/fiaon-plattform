@@ -398,7 +398,8 @@ router.get("/chef/global/einstellungen", requireChef("leitung"), async (req, res
     const { GLOBAL_PRO_TAG } = await import("../lib/fiaon-global-zeiten");
     const { googleKalenderStand } = await import("../lib/fiaon-google-kalender");
     const { globalVertretung } = await import("../lib/fiaon-global-gespraech");
-    const [proTag, z, google, v] = await Promise.all([globalTerminProTag(), globalZustaendig().catch(() => null), googleKalenderStand(), globalVertretung().catch(() => null)]);
+    const { globalNeuigkeitenMailEinstellung } = await import("../lib/fiaon-global-neuigkeiten-mail");
+    const [proTag, z, google, v, nm] = await Promise.all([globalTerminProTag(), globalZustaendig().catch(() => null), googleKalenderStand(), globalVertretung().catch(() => null), globalNeuigkeitenMailEinstellung().catch(() => null)]);
     const inhaber = (req as ChefRequest).chef?.stufe === "inhaber";
     res.json({
       ok: true, proTag, proTagVorgabe: GLOBAL_PRO_TAG,
@@ -407,8 +408,19 @@ router.get("/chef/global/einstellungen", requireChef("leitung"), async (req, res
       vertretung: v ? { id: v.id, name: v.vorname || v.name } : null,
       // Client-ID und Bereiche braucht nur der Inhaber (für die Freigabe in der Google-Admin-Konsole).
       google: inhaber ? google : { ...google, clientId: null, bereiche: "" },
+      // E-467: „Neu für Sie" auch per Mail (Vorgabe an).
+      neuigkeitenMail: nm ? { an: nm.an, seit: nm.seit } : null,
     });
   } catch (e) { fehler(res, "einstellungen", e); }
+});
+// E-467 (30.10.2026): die Neuigkeiten-Mail an/aus. Einschalten zählt nur, was ab dann neu ist (kein Nachmailen).
+router.post("/chef/global/neuigkeiten-mail", requireChef("geschaeftsfuehrung"), async (req, res) => {
+  try {
+    if (typeof req.body?.an !== "boolean") return res.status(400).json({ ok: false, error: "Bitte an oder aus wählen." });
+    const { globalNeuigkeitenMailSchalten } = await import("../lib/fiaon-global-neuigkeiten-mail");
+    const r = await globalNeuigkeitenMailSchalten(req.body.an, (await wer(req)).name);
+    res.json({ ok: true, neuigkeitenMail: { an: r.an, seit: r.seit }, meldung: r.meldung });
+  } catch (e) { fehler(res, "neuigkeiten-mail", e); }
 });
 router.post("/chef/global/einstellungen", requireChef("geschaeftsfuehrung"), async (req, res) => {
   try {

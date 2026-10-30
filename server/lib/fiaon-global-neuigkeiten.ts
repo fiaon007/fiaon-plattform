@@ -14,7 +14,7 @@ import { sqlPool } from "./db-pool";
 import { ensureGlobalBereich } from "./fiaon-global-bereich";
 import { globalAblehnungOffen, type BereichSprache, type GlobalDokumentStand } from "@shared/fiaon-global-bereich";
 import { globalPlusFuerKunde } from "@shared/fiaon-global-stationen";
-import { globalNeuigkeitenBauen, globalNeuigkeitenGrenze, type GlobalNeuigkeit } from "@shared/fiaon-global-neuigkeiten";
+import { globalNeuigkeitenBauen, globalNeuigkeitenGrenze, type GlobalNeuigkeit, type NeuigkeitenQuelle } from "@shared/fiaon-global-neuigkeiten";
 
 const iso = (v: unknown): string | null => (v ? new Date(v as any).toISOString() : null);
 function json<T>(v: unknown, leer: T): T {
@@ -34,6 +34,15 @@ export async function globalNeuigkeitenKunde(ref: string, sprache: BereichSprach
   if (!akte) return null;
   const stand = jetzt.toISOString();
   const seit = globalNeuigkeitenGrenze({ gesehenAm: iso(akte.neuigkeiten_gesehen_am), akteSeit: iso(akte.created_at), jetzt: stand });
+  const erg = globalNeuigkeitenBauen(await globalNeuigkeitenQuelleLesen(ref, seit, akte.gesellschaft_plus), sprache);
+  return { ...erg, stand, seit };
+}
+
+/**
+ * Die Quelle des Fensters ab `seit` — EINE Lesestelle für das Fenster im Portal und die Neuigkeiten-Mail (E-467,
+ * server/lib/fiaon-global-neuigkeiten-mail.ts). Liest nur; `gesellschaftPlus` ist die Spalte der Akte.
+ */
+export async function globalNeuigkeitenQuelleLesen(ref: string, seit: string, gesellschaftPlus: unknown): Promise<NeuigkeitenQuelle> {
   const [verlauf, dokumente, nachrichten] = await Promise.all([
     sqlPool`SELECT id, art, text, created_at FROM fiaon_global_verlauf
              WHERE ref = ${ref} AND sichtbar = TRUE AND created_at > ${seit} ORDER BY created_at DESC, id DESC LIMIT 200` as Promise<any[]>,
@@ -44,7 +53,7 @@ export async function globalNeuigkeitenKunde(ref: string, sprache: BereichSprach
              WHERE ref = ${ref} AND von = 'fiaon' AND created_at > ${seit} ORDER BY created_at DESC LIMIT 100` as Promise<any[]>,
   ]);
   const stand443: GlobalDokumentStand[] = dokumente.map((d) => ({ id: Number(d.id), art: String(d.art), am: iso(d.created_at), abgelehntAm: iso(d.abgelehnt_am), abgelehntGrund: d.abgelehnt_grund ?? null }));
-  const erg = globalNeuigkeitenBauen({
+  return {
     grenze: seit,
     verlauf: verlauf.map((v) => ({ id: Number(v.id), art: String(v.art), text: String(v.text), am: iso(v.created_at)! })),
     dokumente: dokumente.map((d, i) => ({
@@ -54,9 +63,8 @@ export async function globalNeuigkeitenKunde(ref: string, sprache: BereichSprach
       abgelehntAm: iso(d.abgelehnt_am), abgelehntGrund: d.abgelehnt_grund ?? null, ablehnungOffen: d.abgelehnt_am ? globalAblehnungOffen(stand443[i], stand443) : false,
     })),
     nachrichten: nachrichten.map((n) => ({ id: Number(n.id), von: "fiaon" as const, am: iso(n.created_at)!, gelesen: !!n.gelesen_kunde_am })),
-    plus: globalPlusFuerKunde(json(akte.gesellschaft_plus, {})),
-  }, sprache);
-  return { ...erg, stand, seit };
+    plus: globalPlusFuerKunde(json(gesellschaftPlus, {})),
+  };
 }
 
 /**

@@ -960,6 +960,21 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-467 (30.10.2026): „Neu für Sie" auch per Mail — gebündelt, die Punkte aus der Quelle des Fensters im Portal.
+    type: "global_neuigkeiten",
+    label: "FIAON Global: Neu in Ihrem Portal (Firmenkunde)",
+    description: "Geht automatisch aus dem Lauf global_neuigkeiten_mail, wenn im Portal Neues für den Kunden steht (Station mit Wert, Dokument, Post, Unterschrift, Antwort, Mitteilung, „bitte neu“), das er noch nicht gesehen hat und zu dem keine eigene Mail ging. Gebündelt: frühestens 10 Minuten nach der letzten neuen Sache, höchstens eine je Auftrag und Stunde, Berlin 8–20 Uhr, Mo–Sa. Nie an Test- und stornierte Aufträge. Schalter in Chefbüro › Global (Vorgabe an). Englische Fassung über sprache: \"en\".",
+    customerBound: false,
+    example: {
+      email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", ansprechpartner: "Herr Beispiel",
+      neuigkeit_titel: "Ihre US-Telefonnummer ist da",
+      neuigkeiten_html: "· <b>Ihre US-Telefonnummer ist da</b><br />Ihre Gesellschaft ist ab sofort unter dieser Nummer erreichbar.<br /><br />· <b>Ihre Gründungsurkunde liegt bereit</b><br />Die Articles of Organization Ihrer Gesellschaft — sicher in Ihrem Tresor.",
+      weitere_satz: "",
+      mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
+    },
+  },
+  {
     type: "global_zahlung_erinnerung",
     label: "FIAON Global: Zahlung steht noch aus — ruhige Erinnerung (Firmenkunde)",
     description: "Geht automatisch am dritten und am siebten Tag nach dem Auftrag, je Stufe genau einmal und nur solange der Auftrag offen ist (Lauf global_zahlung_takt, Berlin 8–20 Uhr, Mo–Sa). Ein Satz Anlass, Knopf zur Zahlungsseite, Vertrag und Rechnung über „Mein Auftrag“ — keine Mahnstufe, keine Bankdaten im Text. Am zehnten Tag folgt keine Mail, sondern eine dringende Aufgabe an die zuständige Person. Englische Fassung über sprache: \"en\".",

@@ -626,6 +626,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_zahlung_takt', async () => await (await import('./lib/fiaon-global-zahlungstakt')).globalZahlungTaktLauf(), 30 * 60 * 1000, { beimStartNach: 240_000 });
   });
+  // 🌐 FIAON Global — „Neu für Sie" auch per Mail (E-467, 30.10.2026): was im Portal neu ist, gebündelt in EINER Mail —
+  //    frühestens 10 Minuten nach der letzten neuen Sache, höchstens eine je Auftrag und Stunde, im Sendefenster
+  //    (Berlin 8–20 Uhr, Mo–Sa). Alle 5 Minuten; Historienzeile nur bei Versand und einmal je Stunde. Schalter im Chefbüro.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('global_neuigkeiten_mail', async () => await (await import('./lib/fiaon-global-neuigkeiten-mail')).globalNeuigkeitenMailTakt(), 5 * 60 * 1000, { beimStartNach: 330_000, nurMitErgebnis: true });
+  });
   // 🌐 FIAON Global — Privataufträge ohne den Wunsch nach sofortigem Beginn starten erst nach der
   //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

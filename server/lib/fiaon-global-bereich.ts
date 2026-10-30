@@ -106,8 +106,10 @@ export function ensureGlobalBereich(): Promise<void> {
             ADD COLUMN IF NOT EXISTS naechster_schritt_bis DATE,
             ADD COLUMN IF NOT EXISTS gesellschaft JSONB,
             ADD COLUMN IF NOT EXISTS abgeschlossen_am TIMESTAMPTZ,
-            ADD COLUMN IF NOT EXISTS neuigkeiten_gesehen_am TIMESTAMPTZ`;
+            ADD COLUMN IF NOT EXISTS neuigkeiten_gesehen_am TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS neuigkeiten_mail_am TIMESTAMPTZ`;
         // E-456 (29.10.2026): „Neu für Sie" — bis wann der Kunde die Neuigkeiten gesehen hat (server/lib/fiaon-global-neuigkeiten.ts).
+        // E-467 (30.10.2026): bis zu welchem Stand die Neuigkeiten gemailt sind (server/lib/fiaon-global-neuigkeiten-mail.ts).
       });
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_global_dokumente (

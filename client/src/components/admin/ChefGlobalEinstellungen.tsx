@@ -12,7 +12,7 @@
 // nimmt der Server an. Vorgabe: allein „Ihre Domain & E-Mail“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { CalendarCheck2, CalendarClock, Copy, Layers, RefreshCw, UserRound } from "lucide-react";
+import { CalendarCheck2, CalendarClock, Copy, Layers, Mail, RefreshCw, UserRound } from "lucide-react";
 
 interface GoogleStand {
   freigabe: "ok" | "fehlt" | "fehler" | "aus" | "kein_konto";
@@ -24,6 +24,8 @@ interface Stand {
   proTag: number; proTagVorgabe: number; zustaendig: { id: number; name: string } | null; google: GoogleStand;
   /** E-458 Nr. 11: wer einspringt, wenn die Person der Gespräche nicht da ist. */
   vertretung?: { id: number; name: string } | null;
+  /** E-467: „Neu für Sie" auch per Mail (Vorgabe an). */
+  neuigkeitenMail?: { an: boolean; seit: string } | null;
 }
 
 const STUFEN = [4, 6, 8, 10, 12];
@@ -72,6 +74,14 @@ export default function ChefGlobalEinstellungen() {
     try { const j = await json("/api/fiaon/chef/global/google-kalender", body); setS((x) => x && { ...x, google: j.google }); }
     catch (e: any) { setMeldung({ text: e.message, gut: false }); }
     finally { setLaeuft(false); }
+  };
+  // E-467: die Neuigkeiten-Mail an/aus — Einschalten mailt nur, was ab dann neu ist.
+  const [nmLaeuft, setNmLaeuft] = useState(false);
+  const neuigkeitenMail = async (an: boolean) => {
+    setNmLaeuft(true); setMeldung(null);
+    try { const j = await json("/api/fiaon/chef/global/neuigkeiten-mail", { an }); setS((x) => x && { ...x, neuigkeitenMail: j.neuigkeitenMail }); setMeldung({ text: j.meldung, gut: true }); }
+    catch (e: any) { setMeldung({ text: e.message, gut: false }); }
+    finally { setNmLaeuft(false); }
   };
   const kopieren = (t: string) => { void navigator.clipboard?.writeText(t).then(() => setMeldung({ text: "Kopiert.", gut: true })); };
 
@@ -129,6 +139,20 @@ export default function ChefGlobalEinstellungen() {
           )}
         </div>
       </div>
+
+      {s.neuigkeitenMail && (
+        <div className="cge-feld breit" data-fiaon="global-neuigkeiten-mail">
+          <span className="cge-titel"><Mail size={15} strokeWidth={1.75} /> Neuigkeiten per Mail</span>
+          <div className="cge-schalterreihe" role="group" aria-label="Neuigkeiten-Mail an Kunden">
+            <button type="button" role="switch" aria-checked={s.neuigkeitenMail.an} disabled={nmLaeuft}
+              className={`cge-schalter${s.neuigkeitenMail.an ? " an" : ""}`} onClick={() => void neuigkeitenMail(!s.neuigkeitenMail!.an)}
+              title={s.neuigkeitenMail.an ? "An — Klick schaltet die Mail aus. Das Fenster im Portal bleibt." : "Aus — Klick schaltet sie ein. Gemailt wird nur, was ab dann neu ist."}>
+              <i aria-hidden="true" />{s.neuigkeitenMail.an ? "An" : "Aus"}
+            </button>
+          </div>
+          <small>Was im Portal unter „Neu für Sie“ steht, bekommt der Kunde zusätzlich per Mail — gebündelt, höchstens eine je Stunde, Mo–Sa 8–20 Uhr. Gesendet steht im Verlauf des Mandats.</small>
+        </div>
+      )}
 
       <div className="cge-feld breit cge-dienste" data-fiaon="zusatz-freigabe">
         <span className="cge-titel"><Layers size={15} strokeWidth={1.75} /> Zusatzdienste für Kunden</span>

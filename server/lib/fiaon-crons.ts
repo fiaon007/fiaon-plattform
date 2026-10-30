@@ -541,6 +541,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
       + "die Erinnerungen der Privatkunden gelten für FIAON Global bewusst nicht.",
     fenster: 24,
   },
+  // E-467 (30.10.2026): Takt alle 5 Minuten, Historienzeile nur bei Versand und einmal je Stunde (nurMitErgebnis).
+  global_neuigkeiten_mail: {
+    zweck: "FIAON Global: was im Kundenportal neu ist („Neu für Sie“) gebündelt per Mail an den Kunden — frühestens 10 Minuten nach der letzten neuen Sache, höchstens eine je Auftrag und Stunde, Berlin 8–20 Uhr, Mo–Sa",
+    folge: "Firmenkunden erfahren erst beim nächsten Besuch im Portal von ihrer US-Nummer, EIN, Urkunde, Post oder einer Unterschrift, die auf sie wartet.",
+    fenster: 3,
+  },
   global_widerruf_start: {
     zweck: "FIAON Global: bezahlte Privataufträge ohne den Wunsch nach sofortigem Beginn nach Ablauf der Widerrufsfrist starten (Aufgabe „US-Struktur starten“, Startmail)",
     folge: "Ein bezahlter Privatauftrag bleibt nach der Widerrufsfrist liegen: keine Start-Aufgabe, keine Startmail, der Kunde wartet.",

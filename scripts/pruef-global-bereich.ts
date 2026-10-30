@@ -210,10 +210,11 @@ ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) 
 gleich(B.globalDokumentArtenFuer("kunde", "en").find((a) => a.art === "reisepass")?.titel, "Passport", "Auswahl englisch");
 
 // ═══ 5: MAILS ═══════════════════════════════════════════════════════════════
-abschnitt("Mails: global_zugang · global_etappe · global_frist · global_dokument · global_nachricht");
-const EREIGNISSE = ["global_zugang", "global_etappe", "global_frist", "global_dokument", "global_nachricht"];
+abschnitt("Mails: global_zugang · global_etappe · global_frist · global_dokument · global_nachricht · global_neuigkeiten");
+// E-467 (30.10.2026): dazu „Neu in Ihrem Portal" — die gebündelte Neuigkeiten-Mail.
+const EREIGNISSE = ["global_zugang", "global_etappe", "global_frist", "global_dokument", "global_nachricht", "global_neuigkeiten"];
 const platzhalter = (b: unknown) => Array.from(new Set(Array.from(JSON.stringify(b).matchAll(/\{\{params\.([a-z_0-9]+)\}\}/g), (m) => m[1]))).sort();
-gleich(Object.keys(GLOBAL_BEREICH_PAARE).sort(), [...EREIGNISSE].sort(), "fünf Paare");
+gleich(Object.keys(GLOBAL_BEREICH_PAARE).sort(), [...EREIGNISSE].sort(), "sechs Paare");
 for (const event of EREIGNISSE) {
   const paar = GLOBAL_BEREICH_PAARE[event];
   ok(hatVorlage(event), `${event}: fehlt im Motor`);

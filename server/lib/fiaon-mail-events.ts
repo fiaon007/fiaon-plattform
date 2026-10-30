@@ -307,6 +307,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false,
     klartext: "FIAON Global: FIAON hat ein Dokument im Dokumentenraum bereitgestellt. Das Dokument reist nie als Anhang.",
   },
+  // E-467 (30.10.2026): „Neu für Sie" gebündelt per Mail — nur aus dem Lauf global_neuigkeiten_mail, nie von Hand.
+  global_neuigkeiten: {
+    gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: was im Kundenportal neu ist, gebündelt in einer Mail — höchstens eine je Auftrag und Stunde. Geht automatisch.",
+  },
   // Querschnitt 17.09.2026: Beide entstehen aus der Auftragsakte (Token, Sprache, zuständige Person) —
   // von Hand aus einer Kundenakte fehlte ihnen der Link. Der Zugang geht über den Knopf im Office bzw.
   // die Leitungs-Seite raus, die Erinnerung über den Lauf global_zahlung_takt.

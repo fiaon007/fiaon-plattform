@@ -604,6 +604,8 @@ export type GlobalMail =
   | "global_zugang" | "global_etappe" | "global_frist" | "global_dokument"
   // E-338: Antwort im Gesprächsfaden (server/mail/vorlagen/global-bereich.ts).
   | "global_nachricht"
+  // E-467: „Neu für Sie" gebündelt per Mail (server/lib/fiaon-global-neuigkeiten-mail.ts).
+  | "global_neuigkeiten"
   // Individualangebot (01.10.2026, E-268) — server/mail/vorlagen/global-angebot.ts.
   | "global_angebot_angenommen" | "global_angebot_start" | "global_angebot_teil2"
   | "global_angebot_teil2_bezahlt" | "global_angebot_erstattung" | "global_angebot_hemmung"

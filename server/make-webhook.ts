@@ -121,6 +121,7 @@ export type MakeEventType =
   | "global_frist"           // Erinnerung aus dem Pflichtenkalender (rund einen Monat / eine Woche vorher)
   | "global_dokument"        // FIAON hat ein Dokument im Dokumentenraum bereitgestellt
   | "global_nachricht"       // E-338: FIAON hat im Gesprächsfaden geantwortet (Inhalt nur im Portal)
+  | "global_neuigkeiten"     // E-467: „Neu für Sie" gebündelt per Mail (Lauf global_neuigkeiten_mail)
   // ── Der persönliche Zugang (E-423, 22.10.2026) — nur Direktversand (server/mail/vorlagen/global-konto.ts,
   //    Auslöser in server/lib/fiaon-global-konto.ts), je deutsch und englisch, transaktional.
   | "global_zugang_einladung" // „Zugang einrichten“ — nach der Annahme oder von Hand (Link 7 Tage, einmal)

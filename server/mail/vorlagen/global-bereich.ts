@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: FIAON GLOBAL — „MEIN AUFTRAG" (4, je deutsch und englisch)
+// VORLAGEN: FIAON GLOBAL — „MEIN AUFTRAG" (je deutsch und englisch; E-467: dazu global_neuigkeiten)
 // (E-188, 17.09.2026)
 //
 // Die Mails des Bereichs, in dem ein Firmenkunde nach dem Kauf seinen Auftrag
@@ -44,6 +44,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { MailBaustein } from "../geruest";
 import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
+import { GLOBAL_NEUIGKEITEN_WOERTER } from "@shared/fiaon-global-neuigkeiten";
 
 export type GlobalBereichSprache = "de" | "en";
 
@@ -260,6 +261,48 @@ const PAARE: Record<string, Record<GlobalBereichSprache, MailBaustein>> = {
         { label: "Your contact", wert: "{{params.ansprechpartner}}" },
       ],
       knopf: { text: "Read the reply", url: "{{params.mein_auftrag_url}}" },
+    },
+  },
+  // E-467 (30.10.2026): „Neu für Sie" auch per Mail — gebündelt aus dem Lauf global_neuigkeiten_mail
+  // (server/lib/fiaon-global-neuigkeiten-mail.ts). Die Punkte kommen fertig aus der Quelle des Fensters im Portal
+  // (globalNeuigkeitenBauen → globalNeuigkeitenMailInhalt): Titel fett, Satz darunter, ohne Werte (keine EIN, keine
+  // Nummer, keine Adresse in der Mail). Der Titel ist der des Fensters.
+  global_neuigkeiten: {
+    de: {
+      bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
+      marke: "Ihr Portal",
+      betreff: "Neu in Ihrem Portal: {{params.neuigkeit_titel}}",
+      preheader: "Seit Ihrem letzten Besuch ist in Ihrem Portal etwas für Sie bereit.",
+      titel: GLOBAL_NEUIGKEITEN_WOERTER.de.titel,
+      absaetze: [
+        "{{params.anrede_zeile}}, in Ihrem Portal für <b>{{params.firma}}</b> ist Neues für Sie bereit:",
+        "{{params.neuigkeiten_html}}",
+        "{{params.weitere_satz}}",
+        "Alle Einzelheiten finden Sie im Portal — der Knopf unten führt dorthin.",
+      ],
+      daten: [
+        { label: "Auftrag", wert: "{{params.antrag_id}}" },
+        { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
+      ],
+      knopf: { text: "Portal öffnen", url: "{{params.mein_auftrag_url}}" },
+    },
+    en: {
+      ...RAHMEN_EN, bereich: "business", kopfSatz: KOPF, rechtsSatz: GLOBAL_ROLLEN.en.fiaon,
+      marke: "Your portal",
+      betreff: "New in your portal: {{params.neuigkeit_titel}}",
+      preheader: "Since your last visit, something is ready for you in your portal.",
+      titel: GLOBAL_NEUIGKEITEN_WOERTER.en.titel,
+      absaetze: [
+        "{{params.anrede_zeile}}, there is something new for you in your portal for <b>{{params.firma}}</b>:",
+        "{{params.neuigkeiten_html}}",
+        "{{params.weitere_satz}}",
+        "You will find all the details in your portal — the button below takes you there.",
+      ],
+      daten: [
+        { label: "Order", wert: "{{params.antrag_id}}" },
+        { label: "Your contact", wert: "{{params.ansprechpartner}}" },
+      ],
+      knopf: { text: "Open portal", url: "{{params.mein_auftrag_url}}" },
     },
   },
 };

@@ -772,7 +772,8 @@ export default function ZahlungPage() {
               <div className="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center">
                 <p className="text-[13px] font-semibold text-emerald-700">
                   {order.firmenauftrag
-                    ? w.gemeldetFirma
+                    // E-469: Nach einer Teilzahlung meldet der Kunde den REST — nicht „Ihr Auftrag beginnt“ über den vollen Betrag.
+                    ? (order.teilzahlung ? w.gemeldetRest : w.gemeldetFirma)
                     : auskunft
                       ? ta.gemeldet(auskunft.art)
                       : "Danke! Wir prüfen Ihren Zahlungseingang – meist innerhalb von 24 Stunden. Sie bekommen eine E-Mail, sobald Ihr Konto frei ist."}

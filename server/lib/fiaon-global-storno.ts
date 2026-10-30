@@ -97,7 +97,11 @@ export async function globalAuftragStornieren(
   const b = await globalBestellungLesen(ref);
   if (!b || !istGlobalPaket(b.pack_key)) return { ok: false, status: 404, error: "Zu dieser Nummer gibt es keinen Auftrag über FIAON Global." };
   const akte = await globalAkteLesen(ref);
-  const bezahlt = String(b.payment_status) === "paid";
+  // E-469 Nachtrag: Teilzahlungen sind gebuchtes Geld — ein teilbezahlter Auftrag gilt hier als „bezahlt“ (Grund in einem Satz,
+  // Erstattung möglich). Erstattet wird der TATSÄCHLICH gezahlte Betrag, nie der volle Rechnungsbetrag; Geld bewegt nur Justin.
+  const vollBezahlt = String(b.payment_status) === "paid";
+  const teilCents = vollBezahlt ? 0 : Number(b.teil_bezahlt_cents || 0);
+  const bezahlt = vollBezahlt || teilCents > 0;
   const schonStorniert = String(akte?.status) === "storniert" || !!b.cancelled_at || !!b.archived_at
     || ["cancelled", "superseded"].includes(String(b.payment_status));
   // E-271 (Garantiefall im Individualangebot): Auch ein vom Office abgeschlossener Auftrag wird storniert — die
@@ -111,17 +115,26 @@ export async function globalAuftragStornieren(
   const kat = katalogPaket(b.pack_key);
   const paketName = kat?.label ?? String(b.pack_name || b.pack_key);
   const betragCents = Math.round(Number(b.amount_due || 0) * 100);
+  const gezahltCents = vollBezahlt ? betragCents : teilCents;
+  const gezahltText = vollBezahlt ? globalEur(betragCents) : `${globalEur(teilCents)} (Teilzahlung${teilCents < betragCents ? ` von ${globalEur(betragCents)}` : ""})`;
 
   // ── 2. Die Bestellung — über den einen Storno-Weg des Hauses ───────────────
   // Bezahlt OHNE Erstattung: Die Zahlung bleibt gebucht (das Geld ist da und bleibt da), die Provision
   // bleibt stehen. Alles andere geht auf „cancelled", mit Rücknahme der Provisionen.
   let provisionSatz = "";
-  if (!bezahlt || erstattung) {
+  // Teilbezahlt: Die Bestellung geht immer auf „cancelled“ (sonst bliebe der Rest auf Zahlungsseite und Erinnerung offen).
+  // Ohne Erstattung bleibt das gezahlte Geld gebucht und zählt weiter (die Teilzahlungen bleiben); mit Erstattung fallen sie
+  // aus dem Umsatz (erstattung_am), wie eine stornierte Global-Zahlung.
+  if (!vollBezahlt || erstattung) {
     const { bestellungStornieren } = await import("../routes/fiaon-antrag");
     const erg = await bestellungStornieren({ ref }, wer);
     if (!erg) return { ok: false, status: 409, error: "Die Bestellung ließ sich nicht stornieren — sie ist bereits storniert oder in einem Stand, den der Storno nicht kennt." };
     provisionSatz = erg.commissions.cancelled + erg.commissions.clawback > 0
       ? ` Provisionen: ${erg.commissions.cancelled} storniert, ${erg.commissions.clawback} mit künftigen verrechnet.` : "";
+  }
+  if (erstattung && teilCents > 0) {
+    await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenErstattungVermerken(ref))
+      .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Teilzahlungen als erstattet vermerken:`, e));
   }
 
   // ── 3. Die Akte ────────────────────────────────────────────────────────────
@@ -161,7 +174,7 @@ export async function globalAuftragStornieren(
       terminSatz = ` Das Startgespräch am ${berlinDatumText(abgesagt[0].beginn)} um ${berlinUhrzeit(abgesagt[0].beginn)} Uhr ist abgesagt (ohne Mail an den Kunden).`;
     }
   }
-  await globalVerlauf(ref, `FIAON Global: Auftrag storniert von ${wer}. Grund: ${grund}.${bezahlt ? (erstattung ? ` Erstattung über ${globalEur(betragCents)} ist bei Justin beauftragt — überwiesen wird von Hand.` : " Keine Erstattung — die Zahlung bleibt gebucht.") : " Es war keine Zahlung gebucht."}${provisionSatz}${terminSatz}`);
+  await globalVerlauf(ref, `FIAON Global: Auftrag storniert von ${wer}. Grund: ${grund}.${bezahlt ? (erstattung ? ` Erstattung über ${gezahltText} ist bei Justin beauftragt — überwiesen wird von Hand.` : " Keine Erstattung — die Zahlung bleibt gebucht.") : " Es war keine Zahlung gebucht."}${provisionSatz}${terminSatz}`);
 
   // ── 4. Die zuständige Person erfährt es als Aufgabe ────────────────────────
   const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
@@ -192,11 +205,11 @@ export async function globalAuftragStornieren(
   } else if (erstattung) {
     const erg = await auftragFuerKunden({
       personId: b.person_id != null ? Number(b.person_id) : null, ref,
-      titel: `Erstattung veranlassen: ${globalEur(betragCents)} an ${firma}`,
+      titel: `Erstattung veranlassen: ${globalEur(gezahltCents)} an ${firma}`,
       text: [
         `FIAON Global, Auftrag ${ref} (${paketName}) wurde von ${wer} storniert — mit Erstattung.`,
         `Grund: ${grund}`,
-        `Zu erstatten: ${globalEur(betragCents)} an ${firma}. Eingegangen unter dem Verwendungszweck ${b.payment_reference ?? "—"}${b.invoice_number ? `, Rechnung ${b.invoice_number}` : ""}. Bitte auf das Konto zurücküberweisen, von dem die Zahlung kam (Bankbuch).`,
+        `Zu erstatten: ${gezahltText} an ${firma}. Eingegangen unter dem Verwendungszweck ${b.payment_reference ?? "—"}${b.invoice_number ? `, Rechnung ${b.invoice_number}` : ""}. Bitte auf das Konto zurücküberweisen, von dem die Zahlung kam (Bankbuch).`,
         "Das System hat KEIN Geld bewegt und keine Buchung geschrieben. Die Bestellung steht auf storniert; gebuchte Provisionen sind über den Storno-Weg zurückgenommen.",
         "Zur Rechnung gehört eine Stornorechnung bzw. Gutschrift — bitte mit der Buchhaltung klären.",
       ].join("\n"),

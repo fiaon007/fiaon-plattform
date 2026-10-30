@@ -1526,7 +1526,10 @@ router.get("/admin/payments/stats", async (_req, res) => {
     const { UMSATZ_QUELLE_SQL } = await import("../lib/fiaon-umsatz-quelle");
     const [erste] = (await sqlPool.unsafe(`
       WITH q AS (${UMSATZ_QUELLE_SQL})
-      SELECT COUNT(*)::int AS n, COALESCE(SUM(cents), 0)::bigint AS cents FROM q WHERE erste`)) as any[];
+      SELECT COUNT(*) FILTER (WHERE erste)::int AS n,
+             -- E-469: Ein in Teilen bezahlter Einmalkauf zählt mit ALLEN seinen Teilzahlungen (erste steht nur auf der letzten).
+             COALESCE(SUM(cents) FILTER (WHERE erste OR (rate_nr IS NULL AND ref IN (SELECT ref FROM q WHERE erste AND rate_nr IS NULL))), 0)::bigint AS cents
+        FROM q`)) as any[];
     const claimsTotal = Number(stats.claims_total);
     res.json({
       ok: true,
@@ -1746,6 +1749,16 @@ export async function alsBezahltBuchen(
   // Eingang in Berliner Anzeige der Vortag.
   const eingang = `${pruefung.datum}T12:00:00Z`;
 
+  // ── E-469 Nachtrag (30.10.2026): Teilzahlungen sperren jeden „bezahlt“-Weg ohne Betrag ──────────────────
+  // Hat die Rechnung Teilzahlungen und fehlt noch Geld, darf weder mark-paid noch die Vertriebsleitung noch die
+  // Automatik sie „bezahlt“ setzen — sonst stünde sie bezahlt da, obwohl Geld fehlt, und der Rest fiele aus dem Umsatz.
+  // Abschließen geht nur über den Teilzahlungs-Weg (der ruft hierher, wenn die Summe den Betrag erreicht). Zusätzlich
+  // steht dieselbe Bedingung im UPDATE unten — so bleibt kein Fenster zwischen Prüfen und Schreiben.
+  const { teilzahlungSperre, teilzahlungenBereit } = await import("../lib/fiaon-teilzahlung");
+  const sperre = await teilzahlungSperre({ paymentReference: paymentRef });
+  if (sperre) return { ok: false, status: 409, error: sperre };
+  const teilDa = await teilzahlungenBereit();
+
   // Paket Y: ATOMAR alles setzen, was der Login verlangt — kein zweiter Schritt.
   // payment_status='paid' + finaler Antragsstatus + Konto-Aktivierung. Ein bereits
   // suspendiertes Konto wird NICHT automatisch reaktiviert (Admin-Not-Aus bleibt).
@@ -1760,9 +1773,14 @@ export async function alsBezahltBuchen(
       paid_at = COALESCE(paid_at, ${eingang}),
       updated_at = NOW()
     WHERE payment_reference = ${paymentRef}
+      ${teilDa ? sqlPool`AND (SELECT COALESCE(SUM(tz.betrag_cents), 0) FROM fiaon_teilzahlungen tz WHERE tz.ref = fiaon_applications.ref) IN (0, ROUND(COALESCE(amount_due, 0) * 100))` : sqlPool``}
     RETURNING ref, payment_reference, payment_due_date, amount_due, first_name, contact_name, email, contact_email, billing_email, pack_name, pack_key, account_status, completed_at
   `;
-  if (rows.length === 0) return { ok: false, status: 404, error: "Bestellung nicht gefunden" };
+  if (rows.length === 0) {
+    const nochmal = await teilzahlungSperre({ paymentReference: paymentRef });
+    if (nochmal) return { ok: false, status: 409, error: nochmal };
+    return { ok: false, status: 404, error: "Bestellung nicht gefunden" };
+  }
 
   console.log(`[FIAON-PAYMENT] Als bezahlt markiert: ${paymentRef} (ref=${rows[0].ref}, Quelle: ${opts.quelle || "admin"})`);
   // Paket AD1: offene Schwester-Bestellungen derselben E-Mail automatisch superseden

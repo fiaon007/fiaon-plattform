@@ -825,7 +825,7 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     customerBound: false,
     example: {
       email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
-      betrag_text: "2.499,00 €", antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026",
+      betrag_text: "2.499,00 €", betrag_label: "Betrag, einmalig", antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026",
       zahlungsseite_url: "https://www.fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel",
     },
   },
@@ -981,7 +981,9 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     customerBound: false,
     example: {
       email: "m.muster@muster-gmbh.example", anrede_zeile: "Guten Tag Herr Muster", firma: "Muster GmbH", paket: "FIAON Global Struktur",
-      betrag_text: "2.499,00 €", antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3",
+      // E-469: mit Teilzahlung wären es „Noch offen“ und der Satz „Ihre Teilzahlung über … ist eingegangen — … offen … bis …“.
+      betrag_text: "2.499,00 €", betrag_label: "Betrag, einmalig", zahlung_stand_satz: "Ein Zahlungseingang ist dazu bisher nicht verbucht.",
+      antrag_id: "FIAON-MB2XK4LQ-7T9A", payment_reference: "FIAON-A1B2C3",
       zahlungsseite_url: "https://www.fiaon.com/zahlung/FIAON-A1B2C3",
       mein_auftrag_url: "https://www.fiaon.com/business/auftrag/FIAON-MB2XK4LQ-7T9A?t=1760000000000.0123456789abcdef0123456789abcdef",
       ansprechpartner: "Herr Beispiel", anlass: "Deshalb erinnern wir Sie kurz daran.",

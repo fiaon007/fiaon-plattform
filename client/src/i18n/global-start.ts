@@ -158,6 +158,9 @@ const de = {
   bic: "BIC",
   bank: "Bank",
   betrag: "Betrag",
+  // E-469: nach einer Teilzahlung — überwiesen wird nur noch der Rest.
+  betragOffen: "Noch offen",
+  bereitsBezahlt: "Bereits bezahlt",
   zweck: "Verwendungszweck",
   faellig: "Zahlbar bis",
   kopieren: "Kopieren",
@@ -307,6 +310,8 @@ const en: typeof de = {
   bic: "BIC",
   bank: "Bank",
   betrag: "Amount",
+  betragOffen: "Outstanding",
+  bereitsBezahlt: "Already paid",
   zweck: "Payment reference",
   faellig: "Payable by",
   kopieren: "Copy",

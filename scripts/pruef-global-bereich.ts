@@ -254,6 +254,8 @@ const NUTZLAST = {
   antrag_id: "FIAON-PRUEFSTAND-0001", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026", zahlungsseite_url: "https://fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel",
   // Seit E-191 füllt globalMailNutzlast die Liste je Auftraggeber — hier die des Unternehmens.
   unterlagen_liste: B.GLOBAL_UNTERLAGEN.map((u) => `· ${u}`).join("<br />"),
+  // E-469: globalMailNutzlast liefert die Beschriftung des Betrags immer mit („Betrag, einmalig“ bzw. nach Teilzahlung „Noch offen“).
+  betrag_label: "Betrag, einmalig",
 };
 for (const event of ["global_auftrag", "global_start"]) {
   const mit = mailRendern(event, { ...NUTZLAST, mein_auftrag_url: "https://fiaon.com/business/auftrag/FIAON-PRUEFSTAND-0001?t=1.abc" });

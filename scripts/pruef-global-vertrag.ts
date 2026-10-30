@@ -161,6 +161,8 @@ const NUTZLAST = {
   betrag_text: "2.499,00 €", antrag_id: "FIAON-PRUEFSTAND-0001", payment_reference: "FIAON-A1B2C3", faellig_am_text: "24.09.2026",
   zahlungsseite_url: "https://fiaon.com/zahlung/FIAON-A1B2C3", ansprechpartner: "Herr Beispiel", stichtag_text: "30.10.2026",
   unterlagen_liste: "· Reisepass<br />· Adressnachweis",
+  // E-469: globalMailNutzlast liefert die Beschriftung des Betrags immer mit („Betrag, einmalig“ bzw. nach Teilzahlung „Noch offen“).
+  betrag_label: "Betrag, einmalig",
 };
 // `global_start` sagt „Ihr Ansprechpartner … meldet sich bei Ihnen". Gedeckt ist das, weil der Versand
 // erst NACH der Aufgabe „US-Struktur starten" geschieht (globalNachZahlung) — hier wie dort dieselbe Deckung.

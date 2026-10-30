@@ -46,6 +46,13 @@ export const OHNE_RATEN = `NOT EXISTS (SELECT 1 FROM fiaon_abo_raten rx WHERE rx
 
 /** E-469: Diese Bestellung hat Teilzahlungen — dann zählt sie nur über fiaon_teilzahlungen, nie über amount_due. */
 export const OHNE_TEILZAHLUNG = `NOT EXISTS (SELECT 1 FROM fiaon_teilzahlungen tz WHERE tz.ref = a.ref)`;
+/**
+ * E-469 Nachtrag: Wann zählt eine Teilzahlung (Alias t = fiaon_teilzahlungen, a = Bestellung)? Wie eine Global-Einmalzahlung:
+ * NICHT nach einer Erstattung (payment_status 'refunded', POST /admin/payments/:ref/refund) und NICHT nach einem Storno MIT
+ * Erstattung (globalAuftragStornieren setzt t.erstattung_am) — auch nicht, wenn die Bestellung ersetzt wurde. Ein Storno OHNE
+ * Erstattung behält das Geld (wie „bezahlt, ohne Erstattung“) und zählt weiter.
+ */
+export const TEIL_ZAEHLT = `t.erstattung_am IS NULL AND COALESCE(a.payment_status, '') NOT IN ('refunded', 'superseded')`;
 
 /**
  * Jede gebuchte Zahlung einer echten Person — Spalten: cents, am, art (rate | auskunft | global), ref, person_id,
@@ -88,7 +95,7 @@ export const UMSATZ_QUELLE_SQL = `
       FROM fiaon_teilzahlungen t
       JOIN fiaon_applications a ON a.ref = t.ref
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
-     WHERE a.merged_into IS NULL AND ${ECHT}`;
+     WHERE a.merged_into IS NULL AND ${TEIL_ZAEHLT} AND ${ECHT}`;
 
 /** Berliner Kalendertag eines Zeitpunkts als SQL (für Vergleiche mit einem Datum). */
 export const BERLIN_TAG = (spalte: string) => `(${spalte} AT TIME ZONE 'Europe/Berlin')::date`;

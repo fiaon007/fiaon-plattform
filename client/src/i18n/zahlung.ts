@@ -32,6 +32,7 @@ const de = {
   // E-469: Nach einer Teilzahlung nennt die Seite nur noch den Rest.
   statusRest: ["Noch offen ", ", zahlbar bis zum ", ". Vielen Dank für Ihre Teilzahlung."],
   teilZeile: (rechnung: string, bezahlt: string, offen: string) => `Rechnungsbetrag ${rechnung} · bereits bezahlt ${bezahlt} · offen ${offen}`,
+  gemeldetRest: "Danke — wir prüfen den Eingang Ihres Restbetrags. Sobald er gebucht ist, erhalten Sie eine E-Mail.",
   einmalig: "einmalig",
   gemeldetFirma: "Danke — wir prüfen Ihren Zahlungseingang. Sobald er gebucht ist, erhalten Sie eine E-Mail, und Ihr Auftrag beginnt.",
   abgelaufen: "Die Zahlungsfrist ist abgelaufen. Bitte kontaktieren Sie unseren Support, um Ihren Antrag zu reaktivieren.",
@@ -70,6 +71,7 @@ const en: typeof de = {
   statusFirma: ["One-off ", ", payable by ", ". Work begins once your payment has arrived."],
   statusRest: ["Outstanding ", ", payable by ", ". Thank you for your part payment."],
   teilZeile: (rechnung: string, bezahlt: string, offen: string) => `Invoice total ${rechnung} · already paid ${bezahlt} · outstanding ${offen}`,
+  gemeldetRest: "Thank you — we are checking for your remaining payment. As soon as it has been recorded you will receive an email.",
   einmalig: "one-off",
   gemeldetFirma: "Thank you — we are checking for your payment. As soon as it has been recorded you will receive an email, and your order begins.",
   abgelaufen: "The payment period has ended. Please write to support@fiaon.com or reply to our email — we will reopen your order.",

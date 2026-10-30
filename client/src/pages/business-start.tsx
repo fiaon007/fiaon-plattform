@@ -64,7 +64,7 @@ type Person = { anrede: string; vorname: string; nachname: string; funktion: str
 type Treffer = { id: string; name: string; rechtsform?: string; ort?: string; plz?: string; register?: string; quelle?: string };
 type Vertreter = { vorname?: string; nachname?: string; name?: string; funktion?: string };
 type Fertig = { ref: string; token: string; email: string; zahlungsseite?: string; art?: Auftraggeber; sofort?: boolean; jahresbetreuung?: boolean };
-type Status = { betragCents: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string; jahresbetreuung?: boolean };
+type Status = { betragCents: number; teilBezahltCents?: number; offenCents?: number; paketName: string; zahlungsseite?: string; status?: string; zahlung?: { empfaenger: string; ibanAnzeige: string; bic: string; bank?: string; verwendungszweck: string; faelligAm?: string; qrDatenUrl?: string }; vertragUrl?: string; rechnungUrl?: string; jahresbetreuung?: boolean };
 
 const FIRMA_LEER: Firma = { land: "DE", name: "", rechtsform: "", registergericht: "", registernummer: "", strasse: "", plz: "", ort: "", ustId: "", website: "" };
 const PERSON_LEER: Person = { anrede: "", vorname: "", nachname: "", funktion: "", email: "", telefon: "" };
@@ -503,13 +503,15 @@ export default function BusinessStart() {
                           ["empfaenger", t.empfaenger, status.zahlung.empfaenger],
                           ["iban", t.iban, status.zahlung.ibanAnzeige],
                           ["bic", t.bic, status.zahlung.bic],
-                          ["betrag", t.betrag, euro(status.betragCents)],
+                          // E-469: Nach einer Teilzahlung zeigt (und kopiert) die Bestätigung nur den Rest — wie der GiroCode darunter.
+                          ...(status.teilBezahltCents ? [["bezahlt", t.bereitsBezahlt, euro(status.teilBezahltCents)]] : []),
+                          ["betrag", status.teilBezahltCents ? t.betragOffen : t.betrag, euro(status.offenCents ?? status.betragCents)],
                           ["zweck", t.zweck, status.zahlung.verwendungszweck],
                           ...(status.zahlung.faelligAm ? [["faellig", t.faellig, tagText(status.zahlung.faelligAm)]] : []),
                         ] as [string, string, string][]).map(([k, label, wert]) => (
                           <div className="zeile" key={k}>
                             <span>{label}</span><b>{wert}</b>
-                            {k !== "faellig" ? <button type="button" onClick={() => kopiere(k, k === "iban" ? wert.replace(/\s/g, "") : wert)}>{kopiert === k ? t.kopiert : t.kopieren}</button> : <i />}
+                            {k !== "faellig" && k !== "bezahlt" ? <button type="button" onClick={() => kopiere(k, k === "iban" ? wert.replace(/\s/g, "") : wert)}>{kopiert === k ? t.kopiert : t.kopieren}</button> : <i />}
                           </div>
                         ))}
                       </div>

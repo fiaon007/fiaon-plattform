@@ -40,7 +40,7 @@ import { KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
 const router = Router();
 
 /** Echte Kunden: keine Prüfstand-Referenzen, keine als Test markierten Personen. */
-import { ECHT, IST_AUSKUNFT, IST_GLOBAL, OHNE_RATEN, UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
+import { ECHT, IST_AUSKUNFT, IST_GLOBAL, OHNE_RATEN, OHNE_TEILZAHLUNG, TEIL_ZAEHLT, UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL IST UMSATZ — ABER KEIN ABO (17.09.2026, E-188)
@@ -349,8 +349,17 @@ router.get("/chef/zahlungszentrale", requireChef("geschaeftsfuehrung"), async (r
             FROM fiaon_applications a
             LEFT JOIN fiaon_persons p ON p.id = a.person_id
            WHERE a.payment_status = 'paid' AND a.merged_into IS NULL
-             AND ${IST_GLOBAL} AND ${OHNE_RATEN}
+             AND ${IST_GLOBAL} AND ${OHNE_RATEN} AND ${OHNE_TEILZAHLUNG}
              AND COALESCE(a.paid_at, a.completed_at) IS NOT NULL AND ${ECHT} ${suche}
+          UNION ALL
+          -- E-469: Teilzahlungen am Eingangstag — dieselbe Regel wie UMSATZ_QUELLE_SQL, damit Liste = Kopfzahl.
+          SELECT (t.eingang_am + TIME '12:00') AT TIME ZONE 'UTC', t.betrag_cents,
+                 CASE WHEN t.schliesst_ab THEN 'FIAON Global (Restzahlung)' ELSE 'FIAON Global (Teilzahlung)' END,
+                 a.ref, a.person_id, a.pack_name, a.payment_reference
+            FROM fiaon_teilzahlungen t
+            JOIN fiaon_applications a ON a.ref = t.ref
+            LEFT JOIN fiaon_persons p ON p.id = a.person_id
+           WHERE a.merged_into IS NULL AND ${TEIL_ZAEHLT} AND ${ECHT} ${suche}
         ) e
         LEFT JOIN fiaon_persons p2 ON p2.id = e.person_id`;
       const [[s1], rows] = await Promise.all([

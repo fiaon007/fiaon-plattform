@@ -21,3 +21,5 @@ CREATE TABLE IF NOT EXISTS fiaon_teilzahlungen (
 );
 CREATE INDEX IF NOT EXISTS fiaon_teilzahlungen_ref_idx ON fiaon_teilzahlungen (ref);
 CREATE UNIQUE INDEX IF NOT EXISTS fiaon_teilzahlungen_ein_abschluss ON fiaon_teilzahlungen (ref) WHERE schliesst_ab;
+-- E-469 Nachtrag: Storno MIT Erstattung — die Teilzahlung zählt ab da nicht mehr als Umsatz.
+ALTER TABLE fiaon_teilzahlungen ADD COLUMN IF NOT EXISTS erstattung_am TIMESTAMPTZ;

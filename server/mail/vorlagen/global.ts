@@ -92,7 +92,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       daten: [
         { label: "Auftrag", wert: "{{params.antrag_id}}" },
         { label: "Paket", wert: "{{params.paket}}" },
-        { label: "Betrag, einmalig", wert: "{{params.betrag_text}}" },
+        { label: "{{params.betrag_label}}", wert: "{{params.betrag_text}}" },
         { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
         { label: "Zahlbar bis", wert: "{{params.faellig_am_text}}" },
         { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
@@ -115,7 +115,7 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       daten: [
         { label: "Order", wert: "{{params.antrag_id}}" },
         { label: "Package", wert: "{{params.paket}}" },
-        { label: "Amount, one-off", wert: "{{params.betrag_text}}" },
+        { label: "{{params.betrag_label}}", wert: "{{params.betrag_text}}" },
         { label: "Payment reference", wert: "{{params.payment_reference}}" },
         { label: "Payable by", wert: "{{params.faellig_am_text}}" },
         { label: "Your contact", wert: "{{params.ansprechpartner}}" },

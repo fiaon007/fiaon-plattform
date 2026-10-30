@@ -615,6 +615,14 @@ export async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: b
   if (!txn) return { ok: false, error: "Eingang nicht gefunden" };
   if (txn.match_status === "ignored") return { ok: false, error: "Eingang ist als ignoriert markiert" };
   if (!txn.matched_ref) return { ok: false, error: "Kein Kunde zugeordnet" };
+  // E-469 Nachtrag: Ein verbuchter Eingang (auch eine Teilzahlung) wird nicht noch einmal angewandt; eine Rechnung mit
+  // Teilzahlungen, der noch Geld fehlt, setzt der Kontoabgleich nie „bezahlt“ (und gleicht ihren Betrag nie an).
+  if (txn.applied) return { ok: false, error: "Eingang ist schon verbucht" };
+  {
+    const { teilzahlungSperre } = await import("../lib/fiaon-teilzahlung");
+    const sperre = await teilzahlungSperre({ ref: String(txn.matched_ref) });
+    if (sperre) return { ok: false, error: sperre };
+  }
 
   const receivedCents = Number(txn.amount_cents);
   const eur = (receivedCents / 100).toFixed(2);

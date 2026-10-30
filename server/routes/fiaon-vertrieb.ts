@@ -1236,6 +1236,12 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
     if (app.payment_status === "paid") {
       return res.status(400).json({ ok: false, error: "Diese Bestellung ist bereits als bezahlt gebucht." });
     }
+    // E-469 Nachtrag: Teilzahlungen vorhanden und Geld fehlt → nicht hier (alsBezahltBuchen sperrt es auch; hier vor jedem Schritt).
+    {
+      const { teilzahlungSperre } = await import("../lib/fiaon-teilzahlung");
+      const sperre = await teilzahlungSperre({ ref: String(app.ref) });
+      if (sperre) return res.status(409).json({ ok: false, error: sperre });
+    }
 
     // Beim Bankeingang wird der Beleg GEPRÜFT, nicht geglaubt.
     let bank: any = null;
@@ -1246,6 +1252,8 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
         FROM fiaon_bank_txns WHERE id = ${bankId}
       `;
       if (!bank) return res.status(400).json({ ok: false, error: "Bankeingang nicht gefunden." });
+      // E-469 Nachtrag: Ein schon verbuchter Eingang (z. B. als Teilzahlung) belegt keine zweite Buchung.
+      if (bank.applied) return res.status(409).json({ ok: false, error: "Dieser Bankeingang ist schon verbucht — er kann nicht noch eine Zahlung belegen." });
       const zweck = `${bank.reference_raw || ""} ${bank.extracted_ref || ""} ${bank.matched_ref || ""}`.toUpperCase();
       const passt = zweck.includes(String(app.payment_reference || "\u0000").toUpperCase())
         || String(bank.matched_ref || "").toUpperCase() === String(app.ref).toUpperCase();

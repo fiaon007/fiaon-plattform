@@ -37,8 +37,10 @@ export function ensureTeilzahlungen(): Promise<void> {
   if (!bereit) {
     bereit = (async () => {
       // Steht die Tabelle schon, kein DDL — so läuft auch eine nur lesende Verbindung (Vorschau des Buchungs-Skripts).
-      const [da] = (await sqlPool`SELECT to_regclass('public.fiaon_teilzahlungen') AS t`) as any[];
-      if (da?.t) return;
+      const [da] = (await sqlPool`
+        SELECT to_regclass('public.fiaon_teilzahlungen') AS t,
+               EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'fiaon_teilzahlungen' AND column_name = 'erstattung_am') AS spalte`) as any[];
+      if (da?.t && da?.spalte) return;
       await sqlPool.begin(async (tx: any) => {
         await tx`SET LOCAL lock_timeout = '5s'`;
         await tx.unsafe(`
@@ -61,6 +63,8 @@ export function ensureTeilzahlungen(): Promise<void> {
           )`);
         await tx.unsafe(`CREATE INDEX IF NOT EXISTS fiaon_teilzahlungen_ref_idx ON fiaon_teilzahlungen (ref)`);
         await tx.unsafe(`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_teilzahlungen_ein_abschluss ON fiaon_teilzahlungen (ref) WHERE schliesst_ab`);
+        // E-469 Nachtrag: Storno MIT Erstattung — ab da zählt die Teilzahlung nicht mehr als Umsatz (wie eine stornierte Global-Zahlung).
+        await tx.unsafe(`ALTER TABLE fiaon_teilzahlungen ADD COLUMN IF NOT EXISTS erstattung_am TIMESTAMPTZ`);
       });
     })().catch((e) => { bereit = null; throw e; });
   }
@@ -391,6 +395,14 @@ export async function teilzahlungBuchen(
  * der Bezahlt-Weg nach der Buchung einmal scheiterte (Skript --nachholen).
  */
 export async function teilzahlungAbschliessen(ref: string, quelle: string): Promise<{ ok: boolean; fehler?: string }> {
+  // Wirft nie: Ein Fehler hier darf die schon verbuchte Teilzahlung nicht zurückdrehen (liveVerbuchen setzt im Fehlerfall den
+  // Bankvermerk neu) — er meldet sich als Ergebnis, nachholbar mit --nachholen.
+  try { return await abschliessenKern(ref, quelle); } catch (e: any) {
+    console.error(`[TEILZAHLUNG] ${ref}: Abschluss:`, e);
+    return { ok: false, fehler: String(e?.message || e).slice(0, 200) };
+  }
+}
+async function abschliessenKern(ref: string, quelle: string): Promise<{ ok: boolean; fehler?: string }> {
   const [a] = (await sqlPool`
     SELECT payment_reference, payment_status, ROUND(COALESCE(amount_due, 0) * 100)::int AS soll FROM fiaon_applications WHERE ref = ${ref} AND merged_into IS NULL`) as any[];
   if (!a) return { ok: false, fehler: "Bestellung nicht gefunden" };
@@ -410,6 +422,35 @@ export async function teilzahlungAbschliessen(ref: string, quelle: string): Prom
     console.error(`[TEILZAHLUNG] ${ref}: Bezahlt-Weg:`, e);
     return { ok: false, fehler: String(e?.message || e).slice(0, 200) };
   }
+}
+
+/**
+ * DIE SPERRE FÜR ALLE ANDEREN BEZAHLT-WEGE (E-469 Nachtrag, Gegenprüfung 30.10.2026).
+ * mark-paid, Vertriebsleitung, Kontoabgleich (applyTxn) und die Bank-Automatik kennen keinen gezahlten Betrag. Hat eine
+ * Rechnung Teilzahlungen und ist die Summe kleiner als der Rechnungsbetrag, würden sie sie „bezahlt“ setzen, obwohl Geld
+ * fehlt — und der Rest fiele aus dem Umsatz (keine abschließende Teilzahlung). Dann: klar ablehnen. null = frei.
+ */
+export async function teilzahlungSperre(refOderZweck: { ref?: string | null; paymentReference?: string | null }): Promise<string | null> {
+  if (!(await teilzahlungenBereit())) return null;
+  const [a] = (await sqlPool`
+    SELECT a.ref, ROUND(COALESCE(a.amount_due, 0) * 100)::int AS soll,
+           (SELECT COALESCE(SUM(tz.betrag_cents), 0)::int FROM fiaon_teilzahlungen tz WHERE tz.ref = a.ref) AS teil
+      FROM fiaon_applications a
+     WHERE a.merged_into IS NULL AND (a.ref = ${refOderZweck.ref ?? ""} OR a.payment_reference = ${refOderZweck.paymentReference ?? ""})
+     LIMIT 1`) as any[];
+  if (!a || !(Number(a.teil) > 0) || Number(a.teil) >= Number(a.soll)) return null;
+  return `Teilzahlungen vorhanden (${eur(Number(a.teil))} von ${eur(Number(a.soll))} gebucht, offen ${eur(Number(a.soll) - Number(a.teil))}) — bitte über „Als Teilzahlung buchen“ (Chefbüro › Konto › Zubuchen). Als „bezahlt“ gilt die Rechnung erst, wenn die Teilzahlungen den Betrag erreichen.`;
+}
+
+/**
+ * Storno MIT Erstattung (globalAuftragStornieren): die Teilzahlungen dieser Rechnung zählen ab jetzt nicht mehr als Umsatz —
+ * genau wie eine stornierte Global-Einmalzahlung. Bewegt kein Geld (das macht Justin von Hand). Liefert die erstattete Summe.
+ */
+export async function teilzahlungenErstattungVermerken(ref: string): Promise<number> {
+  if (!(await teilzahlungenBereit())) return 0;
+  const zeilen = (await sqlPool`
+    UPDATE fiaon_teilzahlungen SET erstattung_am = COALESCE(erstattung_am, NOW()) WHERE ref = ${ref} RETURNING betrag_cents`) as any[];
+  return zeilen.reduce((s, z) => s + Number(z.betrag_cents), 0);
 }
 
 /** Überzahlung: keine Buchung, eine Aufgabe an die Zahlungsstelle — derselbe Schlüssel wie bankeingangAufgabe (E-277). */

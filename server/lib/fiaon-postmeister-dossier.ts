@@ -548,6 +548,9 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       FROM fiaon_applications WHERE person_id = ${personId} AND merged_into IS NULL
      ORDER BY created_at DESC LIMIT 6
   `) as any[] : [];
+  // E-469: Teilzahlungen je Bestellung (dieselbe Quelle wie Zahlungsseite und Rechnung). Darf das Dossier nie kosten.
+  const teile = await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenLesen(bestellungen.map((b: any) => String(b.ref))))
+    .catch(() => new Map<string, { bezahltCents: number }>());
 
   const raten = ref ? (await sqlPool`
     SELECT rate_nr, betrag_cents, status, faellig_am, bezahlt_am, mahnstufe, zahlungsreferenz
@@ -733,6 +736,12 @@ export async function akteLesen(personId: number | null, ref: string | null): Pr
       return {
         ref: b.ref, paket: b.pack_name ? String(b.pack_name).split("\n")[0] : null,
         status: offenOhneAntrag ? "antrag_nicht_abgeschickt" : String(b.payment_status), betrag: b.amount_due != null ? String(b.amount_due) : null,
+        // E-469: Teilzahlungen auf eine offene Global-Rechnung — Mara nennt dann den Rest, nie den vollen Betrag.
+        ...(teile.get(String(b.ref)) && String(b.payment_status) !== "paid" ? (() => {
+          const t = teile.get(String(b.ref))!.bezahltCents;
+          const soll = Math.round(Number(b.amount_due || 0) * 100);
+          return { bereitsBezahlt: (t / 100).toFixed(2), offen: (Math.max(0, soll - t) / 100).toFixed(2) };
+        })() : {}),
         referenz: offenOhneAntrag ? null : (b.payment_reference ?? null), angelegt: b.created_at ? relativ(b.created_at) : null,
         abgeschickt,
       };

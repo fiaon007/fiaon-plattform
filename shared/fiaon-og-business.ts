@@ -19,7 +19,7 @@ export const OG_BUSINESS: Record<string, { datei: string; alt: string }> = {
   "/business/kosten": {"datei":"business--kosten","alt":"Was eine US-Firma kostet. Einmalig, jährlich — offen gesagt. — FIAON Global"},
   "/business/lp/ein-itin": {"datei":"business--lp--ein-itin","alt":"EIN und ITIN beantragen. Vorbereitet, eingereicht, verfolgt. — FIAON Global"},
   "/business/lp/tochtergesellschaft": {"datei":"business--lp--tochtergesellschaft","alt":"Ihre Tochtergesellschaft in den USA. Gegründet, gemeldet, vorbereitet. — FIAON Global"},
-  "/business/lp/us-firmengruendung": {"datei":"business--lp--us-firmengruendung","alt":"US-Firmengründung zum Festpreis. LLC oder Corporation — mit Team vor Ort. — FIAON Global"},
+  "/business/lp/us-firmengruendung": {"datei":"business--lp--us-firmengruendung","alt":"US-Firmengründung zum Festpreis. LLC oder Corporation — ein Ansprechpartner, ein Festpreis. — FIAON Global"},
   "/business/lp/us-pflichten": {"datei":"business--lp--us-pflichten","alt":"Form 5472 und US-Pflichten. Im Kalender, nicht im Hinterkopf. — FIAON Global"},
   "/business/miami": {"datei":"business--miami","alt":"Global VIP. Der Auftakt persönlich in Miami. — FIAON Global"},
   "/business/onlinehandel": {"datei":"business--onlinehandel","alt":"Onlinehandel in den USA. Mit eigener Gesellschaft vor Ort. — FIAON Global"},

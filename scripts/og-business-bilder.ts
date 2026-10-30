@@ -48,6 +48,8 @@ interface Bild {
   zeilen: [string, string][];
   kartenTitel: string;
   alt: string;
+  /** Eigene Leiste unten (sonst WORT[sprache].konzept) — für die Anzeigen-Landingpages (E-466). */
+  konzept?: readonly string[];
 }
 
 const WORT = {
@@ -57,6 +59,10 @@ const WORT = {
     konzeptKarte: "Ihr Auftrag",
     konzeptZeilen: [["Gründung", "LLC oder Corporation, Staat nach Wahl"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Konto und Karten", "Anträge vollständig vorbereitet"], ["Ansprechpartner", "Einer, von der Prüfung bis zum Kapital"]] as [string, string][],
     redaktion: "Aktuell aus der Redaktion",
+    // E-466 (30.10.2026): Hinter einer Meta-Anzeige darf im Blickfang nichts von Konto, Karte oder Kapital stehen (E-233),
+    // kein „Team vor Ort in Miami“ und „inklusive“ nur mit „erstes Jahr“.
+    lpKonzept: ["Ein Ansprechpartner statt acht", `Festpreis ab ${globalPreisText("global_struktur", "de")}, erstes Jahr inklusive`, "In der Regel ohne Reise"],
+    lpZeilen: [["Gründung", "LLC oder Corporation, Staat nach Wahl"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Ansprechpartner", "Einer, von der Prüfung bis zur Gründung"]] as [string, string][],
   },
   en: {
     konzept: ["One contact instead of eight", `Fixed price from ${globalPreisText("global_struktur", "en")}, all included`, "Team on the ground in Miami"],
@@ -132,7 +138,7 @@ h1 i{display:block;font-style:italic;font-weight:300;color:#12284a}
   <h1>${esc(b.h1)}${b.h1b ? `<i>${esc(b.h1b)}</i>` : ""}</h1>
 </div>
 <div class="unten">
-  <div class="konzept">${w.konzept.map((k) => `<span>${esc(k)}</span>`).join("")}</div>
+  <div class="konzept">${(b.konzept ?? w.konzept).map((k) => `<span>${esc(k)}</span>`).join("")}</div>
   <div class="land">DE · AT · CH</div>
 </div>
 <div class="karte">
@@ -153,7 +159,7 @@ function alleBilder(): Bild[] {
     kennung: "FIAON GLOBAL", kartenTitel: WORT.en.konzeptKarte, zeilen: WORT.en.konzeptZeilen.slice(0, 3), alt: "FIAON Global — form a US company, plan the path to capital. One contact instead of eight." });
   for (const lp of LANDINGPAGES) {
     liste.push({ pfad: lp.pfad, sprache: "de", auge: lp.auge, h1: lp.h1, h1b: lp.h1b, kennung: "FIAON GLOBAL",
-      kartenTitel: WORT.de.konzeptKarte, zeilen: WORT.de.konzeptZeilen.slice(0, 3), alt: `${lp.h1} ${lp.h1b ?? ""} — FIAON Global`.replace(/\s+/g, " ") });
+      kartenTitel: WORT.de.konzeptKarte, zeilen: WORT.de.lpZeilen, konzept: WORT.de.lpKonzept, alt: `${lp.h1} ${lp.h1b ?? ""} — FIAON Global`.replace(/\s+/g, " ") });
   }
   // Rückfallbild für Redaktionsartikel ohne eigenes Bild (neue Artikel des Tageslaufs).
   for (const sp of ["de", "en"] as const) {

@@ -22,7 +22,8 @@ import type { GlobalLandingpage } from "./typen";
 const ab = `ab ${globalPreisText("global_struktur")}`;
 
 const GRUND_FRAGEN = [
-  { f: "Muss ich dafür in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort in Miami reicht ein und nimmt Termine wahr; Sie unterschreiben digital. Verlangt ein Institut ausnahmsweise einen persönlichen Termin, begleitet Sie unser Team in Miami." },
+  // E-466 (30.10.2026): ohne „Team vor Ort in Miami“ — die Einreichung läuft über Partner, die ITIN über einen zertifizierten Acceptance Agent (E-422).
+  { f: "Muss ich dafür in die USA reisen?", a: "In der Regel nicht. Sie unterschreiben digital, wir bereiten alles vor und reichen über unsere Partner ein. Verlangt ein Institut ausnahmsweise einen persönlichen Termin, planen wir ihn rechtzeitig mit Ihnen." },
   { f: "Was ist im Festpreis enthalten?", a: "Staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN sowie die Honorare von Partner-Anwalt, Partner-Steuerberater und US-CPA für die Leistungen Ihres Pakets." },
   { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD in London, eingetragen im Companies House unter der Nummer 17318250. Vertrag und Rechnung erhalten Sie direkt nach der Unterschrift." },
   { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: "Nein. Wird sie aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig. Das prüft unser Partner-Steuerberater vor der Gründung." },
@@ -32,16 +33,17 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
   {
     pfad: "/business/lp/us-firmengruendung",
     quelle: "/business/us-firmengruendung",
-    seo: { titel: "US-Firmengründung zum Festpreis — FIAON Global", beschreibung: "LLC oder Corporation in den USA gründen — mit EIN, ITIN, Registered Agent und Team vor Ort. Festpreis, alle Gebühren inklusive." },
+    seo: { titel: "US-Firmengründung zum Festpreis — FIAON Global", beschreibung: "LLC oder Corporation in den USA gründen — mit EIN, ITIN, Registered Agent und einem festen Ansprechpartner. Festpreis, erstes Jahr inklusive." },
     auge: "US-Firmengründung",
     h1: "US-Firmengründung zum Festpreis.",
-    h1b: "LLC oder Corporation — mit Team vor Ort.",
-    lead: `Wir gründen Ihre US-Gesellschaft, beantragen EIN und ITIN und stellen Registered Agent, Adresse und Telefonnummer — aus Deutschland, Österreich oder der Schweiz, ohne Reise. ${ab}, alle Gebühren inklusive.`,
+    h1b: "LLC oder Corporation — ein Ansprechpartner, ein Festpreis.",
+    lead: `Wir gründen Ihre US-Gesellschaft, beantragen EIN und ITIN und stellen Registered Agent, Adresse und Telefonnummer — aus Deutschland, Österreich oder der Schweiz, in der Regel ohne Reise. ${ab}, erstes Jahr inklusive.`,
     vorteile: [
-      "Gründung, EIN und ITIN, Registered Agent, US-Adresse und Telefon",
+      "Gründung, EIN und ITIN, Registered Agent, US-Adresse und Telefon im ersten Jahr",
       "Partner-Anwalt, Partner-Steuerberater und US-CPA im Festpreis",
-      "Ein Ansprechpartner, ein Vertrag, Geld zurück, wenn wir nicht liefern",
-      "Ohne Reise und ohne Wohnsitz in den USA",
+      // E-466/E-233: „ein Ansprechpartner“, nicht „ein Vertrag“; „Geld zurück“ steht mit Bedingungen im Merkblatt daneben.
+      "Ein fester Ansprechpartner statt acht Anlaufstellen",
+      "In der Regel ohne Reise und ohne Wohnsitz in den USA",
     ],
     paket: "global_struktur",
     fragen: GRUND_FRAGEN,
@@ -49,7 +51,7 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
   {
     pfad: "/business/lp/tochtergesellschaft",
     quelle: "/business/tochtergesellschaft-usa",
-    seo: { titel: "Tochtergesellschaft in den USA — FIAON Global", beschreibung: "Ihre US-Tochter aus einer Hand: Gründung, EIN, erste US-Meldung, abgestimmt mit Ihrem Steuerberater. Festpreis, Team vor Ort in Miami." },
+    seo: { titel: "Tochtergesellschaft in den USA — FIAON Global", beschreibung: "Ihre US-Tochter aus einer Hand: Gründung, EIN, erste US-Meldung, abgestimmt mit Ihrem Steuerberater. Festpreis, ein fester Ansprechpartner." },
     auge: "US-Tochtergesellschaft",
     h1: "Ihre Tochtergesellschaft in den USA.",
     h1b: "Gegründet, gemeldet, vorbereitet.",
@@ -58,7 +60,7 @@ export const LANDINGPAGES: GlobalLandingpage[] = [
       "Ihre GmbH, AG oder Holding als Gesellschafterin",
       "Prüfung vor der Gründung durch unseren Partner-Steuerberater",
       "Operating Agreement oder Satzung durch unseren Partner-Anwalt",
-      "Team vor Ort in Miami für Termine und Einreichungen",
+      "Ein fester Ansprechpartner für Termine und Einreichungen",
     ],
     paket: "global_struktur",
     fragen: [

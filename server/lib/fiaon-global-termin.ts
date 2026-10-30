@@ -523,8 +523,16 @@ export function globalGoogleFeld(beginn: string | Date | null | undefined, sprac
 
 export async function globalAnfrageAnnehmen(ein: {
   kontakt: GlobalKontakt; wunschzeit: string | null; text: string | null; ip: string;
+  /**
+   * E-466 (30.10.2026): Woher die Anfrage kommt — Vorgabe ist die Website. Das
+   * Meta-Sofortformular („FIAON Global …“) kommt über denselben Weg herein
+   * (fiaon-meta-leads.ts), damit der Kontakt im Firmen-Cockpit landet und NIE in
+   * der Privat-Strecke (E-272). Nur die Wörter im Verlauf und in der Aufgabe ändern sich.
+   */
+  herkunft?: { wo: string; quelle: string; autor: string };
 }): Promise<{ anfrageId: number; zustaendigName: string | null; anBetreiber: boolean }> {
   const k = ein.kontakt;
+  const wo = ein.herkunft?.wo ?? "fiaon.com/business";
   const { ensureAnfragenSpalten } = await import("../routes/fiaon-bewerbungen");
   await ensureAnfragenSpalten();
   const person = await globalZustaendig();
@@ -559,7 +567,7 @@ export async function globalAnfrageAnnehmen(ein: {
       paketwunsch: k.paketText, personId: kunde?.person_id ? Number(kunde.person_id) : null,
       zustaendigAgentId: person?.id ?? null,
       status: "wiedervorlage", ereignis: "anfrage",
-      verlauf: `Bittet um einen Anruf (Anfrage #${anfrageId} von fiaon.com/business). `
+      verlauf: `Bittet um einen Anruf (Anfrage #${anfrageId} über ${wo}). `
         + `Paketwunsch: ${k.paketText ?? "noch offen"}.${ein.wunschzeit ? ` Wunschzeit: ${ein.wunschzeit}.` : ""}`
         + `${k.sprache === "en" ? " Sprache: Englisch." : ""}${ein.text ? ` Nachricht: ${ein.text.slice(0, 600)}` : ""}`,
     });
@@ -574,7 +582,7 @@ export async function globalAnfrageAnnehmen(ein: {
     personId: null, ref: kunde?.ref ?? null,
     titel: `FIAON Global: ${k.firma} bittet um einen Anruf`,
     text: [
-      `Anfrage #${anfrageId} von fiaon.com/business — das Unternehmen möchte ein Erstgespräch zu FIAON Global.`,
+      `Anfrage #${anfrageId} über ${wo} — das Unternehmen möchte ein Erstgespräch zu FIAON Global.`,
       `Firma: ${k.firma} · Ansprechpartner: ${k.name}`,
       `Telefon: ${k.telefon} · E-Mail: ${k.email}`,
       `Paketwunsch: ${k.paketText ?? "noch offen"}${k.land ? ` · Land: ${k.land}` : ""}${k.sprache === "en" ? " · Gespräch auf ENGLISCH" : ""}`,
@@ -588,10 +596,10 @@ export async function globalAnfrageAnnehmen(ein: {
     schluessel: `global-anfrage:${anfrageId}`,
     bereich: "sonstiges",
     link: firmaId ? `/agent/firmen?firma=${firmaId}` : "/agent/firmen",
-    quelle: "website",
-    autorName: "Website",
+    quelle: ein.herkunft?.quelle ?? "website",
+    autorName: ein.herkunft?.autor ?? "Website",
     agentId: person?.id ?? null,
-    anlageText: "Anfrage zu FIAON Global über fiaon.com/business eingegangen.",
+    anlageText: `Anfrage zu FIAON Global über ${wo} eingegangen.`,
   });
   if (erg.agentId && erg.agentId !== person?.id) {
     await sqlPool`UPDATE fiaon_anfragen SET zustaendig_agent_id = ${erg.agentId} WHERE id = ${anfrageId}`.catch(() => {});
@@ -600,7 +608,7 @@ export async function globalAnfrageAnnehmen(ein: {
     await sqlPool`
       INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
       VALUES (${kunde.ref}, ${kunde.person_id ?? null}, NULL, 'System', 'system',
-              ${`Anfrage zu FIAON Global über die Website eingegangen (${k.firma}).${erg.agentName ? ` Auftrag bei ${erg.agentName}.` : ""}`})
+              ${`Anfrage zu FIAON Global über ${ein.herkunft ? wo : "die Website"} eingegangen (${k.firma}).${erg.agentName ? ` Auftrag bei ${erg.agentName}.` : ""}`})
     `.catch(() => {});
   }
   console.log(`[GLOBAL-TERMIN] Anfrage #${anfrageId}: ${k.firma} (${k.email}) → ${erg.agentName ?? "Betreiber"}`);

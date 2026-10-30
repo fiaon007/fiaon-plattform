@@ -131,7 +131,8 @@ export default function GlobalLandingPage() {
       {/* ── Standorte, Fragen, Hinweise ─────────────────────────────────── */}
       <section className="fg-sek stein eng">
         <div className="fg-rahmen">
-          <span className="fg-auge">Drei Standorte, ein Vertrag</span>
+          {/* E-466/E-233: „ein Ansprechpartner“ statt „ein Vertrag“ (Partner arbeiten auf eigenes Mandat). */}
+          <span className="fg-auge">Drei Standorte, ein Ansprechpartner</span>
           <Standorte />
         </div>
       </section>

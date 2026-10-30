@@ -67,6 +67,8 @@ export async function metaTabellen(lauf: Lauf = sqlPool): Promise<void> {
       gesehen_am TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`;
   await lauf`CREATE INDEX IF NOT EXISTS fiaon_meta_leads_gesehen ON fiaon_meta_leads (gesehen_am)`;
+  // E-466 (30.10.2026): Ein Lead aus einem „FIAON Global …“-Formular wird eine Global-Anfrage, kein Privat-Lead.
+  await lauf`ALTER TABLE fiaon_meta_leads ADD COLUMN IF NOT EXISTS global_anfrage_id INTEGER`;
   await lauf`
     CREATE TABLE IF NOT EXISTS fiaon_meta_formulare (
       id TEXT PRIMARY KEY,
@@ -290,7 +292,7 @@ export async function anrufJaAusMetaMerken(roh: MetaRohLead, f: MetaLeadFelder, 
 // ═══════════════════════════════════════════════════════════════════════════
 // EINSPIELEN — idempotent über die Meta-Lead-ID
 // ═══════════════════════════════════════════════════════════════════════════
-export type EinspielErgebnis = { status: "neu" | "dublette" | "ungueltig" | "test"; leadId: number | null; grund?: string };
+export type EinspielErgebnis = { status: "neu" | "dublette" | "ungueltig" | "test"; leadId: number | null; grund?: string; globalAnfrageId?: number | null };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST-LEADS VON META (26.09.2026, E-244)
@@ -335,6 +337,89 @@ async function formularSichern(formularId: string | undefined, seiteId: string |
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — DIE WEICHE (30.10.2026, E-466)
+//
+// Bis heute wurde JEDER Meta-Lead über processIntake ein Privat-Lead: Begrüßung,
+// Kreditkarten-Strecke, WhatsApp-Vorlagen fiaon_kk_*. Für ein Unternehmen, das
+// über eine Anzeige von FIAON Global eine US-Gesellschaft anfragt, ist das falsch
+// (E-272: Global-Kunden raus aus allen Privat-Abläufen).
+//
+// Die Weiche: Beginnt der Formularname mit „FIAON Global“ (so heißen die Formulare
+// der Global-Anzeigen) oder steht die Formular-ID in der Einstellung
+// META_GLOBAL_FORMULARE (Rückfall, falls jemand ein Formular anders benennt) oder heißt
+// die Kampagne „FIAON Global …“ (falls Meta den Formularnamen gerade nicht liefert), dann
+// läuft der Lead über globalAnfrageAnnehmen — denselben Weg wie die Anfrage von
+// fiaon.com/business: Anfrage (fiaon_anfragen, art „global“), Firma ganz oben im
+// Firmen-Cockpit, dringende Aufgabe für die zuständige Person
+// (global_zustaendig_agent_id). Kein processIntake, keine Privat-Mail, kein WhatsApp.
+// Die Antworten der Auswahlfragen stehen in der Anfrage und in der Aufgabe.
+// ═══════════════════════════════════════════════════════════════════════════
+export const META_GLOBAL_FORMULARE = "meta_global_formular_ids";
+
+/** Gehört das Formular zu FIAON Global? Name „FIAON Global …“ oder ausdrücklich eingetragene ID. */
+export function istGlobalFormular(name: string | null | undefined, formularId?: string | null, ids: readonly string[] = []): boolean {
+  if (formularId && ids.includes(String(formularId).trim())) return true;
+  return /^\s*FIAON\s+Global(\b|\s|$)/i.test(String(name ?? ""));
+}
+
+/** Meta liefert eigene Fragen als Schlüssel („wann_möchten_sie_gründen?“) — lesbar machen. */
+export function frageLesbar(schluessel: string): string {
+  const t = String(schluessel).replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
+const FIRMA_FELD = ["company_name", "firma", "unternehmen", "firmenname", "name_des_unternehmens"];
+
+/** Die Nachricht der Global-Anfrage: Formular, Antworten, Anzeige — für die Person, die anruft. */
+export function globalMetaText(f: MetaLeadFelder, formularName: string | null, roh: MetaRohLead): string {
+  const antworten = Object.entries(f.fragen)
+    .filter(([k]) => !FIRMA_FELD.includes(k))
+    .map(([k, v]) => `${frageLesbar(k)}: ${v}`);
+  return [
+    `Über das Meta-Sofortformular${formularName ? ` „${formularName}“` : ""}${f.plattform ? ` (${f.plattform})` : ""}.`,
+    ...antworten,
+    roh.ad_name ? `Anzeige: ${roh.ad_name}` : null,
+    roh.campaign_name ? `Kampagne: ${roh.campaign_name}` : null,
+  ].filter(Boolean).join("\n").slice(0, 2000);
+}
+
+async function globalMetaLeadEinspielen(
+  roh: MetaRohLead, f: MetaLeadFelder, formularName: string | null, weg: string, lauf: Lauf,
+): Promise<EinspielErgebnis> {
+  const email = String(f.email ?? "").trim().toLowerCase();
+  const telefon = String(f.telefon ?? "").trim();
+  if (!email && !telefon) {
+    await lauf`
+      INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
+      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
+      ON CONFLICT (meta_lead_id) DO NOTHING`;
+    return { status: "ungueltig", leadId: null, grund: "Global-Formular ohne E-Mail und Telefon" };
+  }
+  const name = String(f.vollname ?? [f.vorname, f.nachname].filter(Boolean).join(" ")).trim() || "Kontakt aus Meta-Formular";
+  const firmaFeld = FIRMA_FELD.map((k) => f.fragen[k]).find((v) => v && v.trim());
+  const { globalAnfrageAnnehmen } = await import("./fiaon-global-termin");
+  const erg = await globalAnfrageAnnehmen({
+    kontakt: {
+      name, vorname: f.vorname, nachname: f.nachname,
+      // Das Formular fragt (bewusst) nicht nach der Firma — der Name steht dann für sie, bis das Gespräch sie klärt.
+      firma: (firmaFeld?.trim() || `${name} (Firma noch offen)`).slice(0, 200),
+      email, telefon,
+      paket: null, paketText: null,
+      land: f.land, sprache: "de",
+    },
+    wunschzeit: null,
+    text: globalMetaText(f, formularName, roh),
+    ip: "meta-sofortformular",
+    herkunft: { wo: "das Meta-Sofortformular (Instagram/Facebook)", quelle: "website", autor: "Meta-Sofortformular" },
+  });
+  await lauf`
+    INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg, global_anfrage_id)
+    VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg}, ${erg.anfrageId})
+    ON CONFLICT (meta_lead_id) DO NOTHING`;
+  return { status: "neu", leadId: null, globalAnfrageId: erg.anfrageId };
+}
+
 /** Einen abgerufenen Meta-Lead in die Plattform bringen. */
 export async function metaLeadEinspielen(
   roh: MetaRohLead,
@@ -358,6 +443,11 @@ export async function metaLeadEinspielen(
 
   const formular = await formularSichern(roh.form_id, seiteId, lauf);
   const f = leadAusMeta(roh, formular.einwilligungSchluessel);
+  // E-466: Global-Formular → Global-Anfrage, nie Privat-Lead (siehe „DIE WEICHE“ oben).
+  const globalIds = String((await einstellung(META_GLOBAL_FORMULARE, lauf)) ?? "").split(/[\s,;]+/).filter(Boolean);
+  // Zweites Zeichen: Kampagne „FIAON Global …“ — falls Meta den Formularnamen gerade nicht liefert (formularSichern fängt Fehler ab).
+  const globalKampagne = /^\s*FIAON\s+Global(\b|\s|$)/i.test(String(roh.campaign_name ?? ""));
+  if (istGlobalFormular(formular.name, roh.form_id, globalIds) || globalKampagne) return globalMetaLeadEinspielen(roh, f, formular.name, weg, lauf);
   const { processIntake } = await import("../routes/fiaon-leads");
   const erg = await processIntake({
     vorname: f.vorname ?? f.vollname, nachname: f.nachname,

@@ -1595,14 +1595,17 @@ export function erstattungPruefen(lage: { status: string; teil1Bezahlt: boolean;
 
 /** Was im Garantiefall mit Teil 2 geschieht — aus dem Stand der Bestellung (rein, der Prüfstand rechnet nach). */
 export type Teil2Fall = "nicht berechnet" | "offen → storniert" | "bezahlt → erstattet" | "schon storniert";
-export function garantiefallRechnen(lage: { teil1Cents: number; teil2Cents: number; teil2BestellRef: string | null; teil2Zahlung: string | null }):
-  { teil2Fall: Teil2Fall; summeCents: number } {
+export function garantiefallRechnen(lage: { teil1Cents: number; teil2Cents: number; teil2BestellRef: string | null; teil2Zahlung: string | null; teil2TeilCents?: number }):
+  { teil2Fall: Teil2Fall; summeCents: number; teil2GezahltCents: number } {
   const z = String(lage.teil2Zahlung ?? "");
   const teil2Fall: Teil2Fall = !lage.teil2BestellRef || z === "" || z === "pending" ? "nicht berechnet"
     : z === "paid" ? "bezahlt → erstattet"
     : ["cancelled", "superseded", "refunded"].includes(z) ? "schon storniert"
     : "offen → storniert";
-  return { teil2Fall, summeCents: lage.teil1Cents + (teil2Fall === "bezahlt → erstattet" ? lage.teil2Cents : 0) };
+  // E-469: Eine offene Teil-2-Rechnung kann schon Teilzahlungen haben — die sind „Gezahltes“ und gehören in die Erstattung.
+  const teil2GezahltCents = teil2Fall === "bezahlt → erstattet" ? lage.teil2Cents
+    : teil2Fall === "offen → storniert" ? Math.max(0, Math.min(lage.teil2Cents, Number(lage.teil2TeilCents || 0))) : 0;
+  return { teil2Fall, summeCents: lage.teil1Cents + teil2GezahltCents, teil2GezahltCents };
 }
 
 /**
@@ -1716,7 +1719,8 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   if (!frei) return nein("Der Garantiefall ist bereits vorgemerkt — oder die Garantie wurde gerade als erfüllt eingetragen.", 409);
   // Gegenprüfung (logik-7): den Stand von Teil 2 NACH dem Anspruch lesen — eine Zahlung dazwischen zählt mit.
   const b2jetzt = ref2 ? await globalBestellungLesen(ref2) : null;
-  const fall = garantiefallRechnen({ teil1Cents, teil2Cents, teil2BestellRef: ref2, teil2Zahlung: b2jetzt ? String(b2jetzt.payment_status ?? "") : null });
+  const fall = garantiefallRechnen({ teil1Cents, teil2Cents, teil2BestellRef: ref2, teil2Zahlung: b2jetzt ? String(b2jetzt.payment_status ?? "") : null,
+    teil2TeilCents: b2jetzt ? Number(b2jetzt.teil_bezahlt_cents || 0) : 0 });
   await sqlPool`UPDATE fiaon_global_angebote SET erstattung_cents = ${fall.summeCents} WHERE id = ${id}`;
   const zuruecksetzen = async () => {
     await sqlPool`UPDATE fiaon_global_angebote SET erstattung_ausgeloest_am = NULL, erstattung_ausgeloest_von = NULL, erstattung_cents = NULL WHERE id = ${id}`;
@@ -1733,6 +1737,11 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
         return nein("Die Rechnung über Teil 2 ließ sich nicht stornieren — es wurde nichts geändert. Bitte noch einmal versuchen.", 409);
       }
     }
+  }
+  // E-469: Teilzahlungen auf Teil 2 werden erstattet — ab jetzt kein Umsatz mehr (wie die stornierte Rechnung). Kein Geld bewegt.
+  if (ref2 && fall.teil2GezahltCents > 0) {
+    await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenErstattungVermerken(ref2))
+      .catch((e) => console.error(`[FIAON-ANGEBOT] ${d.ref}: Teilzahlungen Teil 2 als erstattet vermerken:`, e));
   }
   // Gegenprüfung (logik-8): Eine gebundene, aber nie berechnete Teil-2-Zeile (Status 'pending') direkt stornieren.
   if (fall.teil2Fall === "nicht berechnet" && ref2) {
@@ -1768,6 +1777,7 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   }
   // ── EINE Aufgabe an Justin mit der Summe ──
   const posten = [`Teil 1 ${angebotEur(teil1Cents)} (Zweck ${b1?.payment_reference ?? "—"}${b1?.invoice_number ? `, Rechnung ${b1.invoice_number}` : ""})`];
+  if (fall.teil2Fall === "offen → storniert" && fall.teil2GezahltCents > 0) posten.push(`Teil 2 bereits gezahlt (Teilzahlung) ${angebotEur(fall.teil2GezahltCents)} von ${angebotEur(teil2Cents)} (Zweck ${b2?.payment_reference ?? "—"}${b2?.invoice_number ? `, Rechnung ${b2.invoice_number}` : ""})`);
   if (fall.teil2Fall === "bezahlt → erstattet") posten.push(`Teil 2 ${angebotEur(teil2Cents)} (Zweck ${b2?.payment_reference ?? "—"}${b2?.invoice_number ? `, Rechnung ${b2.invoice_number}` : ""})`);
   await auftragFuerKunden({
     personId: b1?.person_id != null ? Number(b1.person_id) : null, ref: ref1,
@@ -1775,7 +1785,7 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
     text: [
       `GARANTIE (Ziffer 3 Absatz 1 und Ziffer 6 des Individualangebots ${d.ref}): Das Garantieziel (${angebotGarantieziel(d.parameter)}) ist bis zum Fristende ${angebotTag(fristEnde)} nicht vollständig erreicht.`,
       `Zu erstatten: alles Gezahlte, ${angebotEur(fall.summeCents)} — ${posten.join(" + ")} — vollständig und ohne Abzug binnen ${zahlwort(d.parameter.erstattungTage)} Tagen nach Fristende, also bis spätestens ${angebotTag(bis)}, auf das Konto, von dem gezahlt wurde.`,
-      fall.teil2Fall === "offen → storniert" ? `Die offene Rechnung über Teil 2 (${ref2}) ist storniert — der Kunde muss sie nicht zahlen.` : fall.teil2Fall === "nicht berechnet" ? "Teil 2 war noch nicht berechnet und entfällt." : "",
+      fall.teil2Fall === "offen → storniert" ? `Die offene Rechnung über Teil 2 (${ref2}) ist storniert — der Kunde muss den Rest nicht zahlen${fall.teil2GezahltCents > 0 ? `; die bereits gezahlten ${angebotEur(fall.teil2GezahltCents)} sind in der Erstattung enthalten` : ""}.` : fall.teil2Fall === "nicht berechnet" ? "Teil 2 war noch nicht berechnet und entfällt." : "",
       "Das System hat KEIN Geld bewegt. Gutschriften zu den Rechnungen bitte mit der Buchhaltung klären. Danach im Reiter „Individualangebote“ „Erstattung überwiesen“ eintragen.",
     ].filter(Boolean).join("\n"),
     dringend: true, anBetreiber: true, faelligAm: bis, schluessel: `global:${ref1}:erstattung`, bereich: "konten", quelle: "global", autorName: wer,
@@ -1787,7 +1797,9 @@ export async function angebotErstattungVormerken(id: number, wer: string): Promi
   if (akte1) {
     const z2 = (await angebotLesen({ id }))!;
     const teil2Satz = fall.teil2Fall === "bezahlt → erstattet" ? `Auch Ihre Zahlung für Teil 2 über ${angebotEur(teil2Cents)} erstatten wir.`
-      : fall.teil2Fall === "offen → storniert" ? "Die offene Rechnung über Teil 2 ist storniert — Sie müssen sie nicht bezahlen."
+      : fall.teil2Fall === "offen → storniert" ? (fall.teil2GezahltCents > 0
+        ? `Die Rechnung über Teil 2 ist storniert — den offenen Rest müssen Sie nicht bezahlen, und die bereits gezahlten ${angebotEur(fall.teil2GezahltCents)} erstatten wir.`
+        : "Die offene Rechnung über Teil 2 ist storniert — Sie müssen sie nicht bezahlen.")
       : "Teil 2 entfällt.";
     const mail = await globalMailSenden("global_angebot_erstattung", akte1, b1, { zusatz: angebotMailZusatz(z2, d, { erstattung_bis_text: angebotTag(bis), erstattung_betrag_text: angebotEur(fall.summeCents), teil2_satz_text: teil2Satz }), ausgeloestVon: wer });
     meldung += mail.ok ? " Der Kunde ist per Mail informiert." : ` Die Mail an den Kunden ging NICHT raus (${mail.grund}) — bitte schriftlich mitteilen.`;

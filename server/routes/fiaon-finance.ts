@@ -155,7 +155,11 @@ router.get("/admin/finance/overview", async (req: Request, res: Response) => {
         COALESCE(SUM(q.cents), 0)::bigint AS umsatz_cents,
         COUNT(*)::int AS zahlungen,
         COUNT(*) FILTER (WHERE q.erste)::int AS bezahlt_count,
-        COALESCE(SUM(q.cents) FILTER (WHERE q.erste), 0)::bigint AS erste_cents
+        -- E-469: wie /admin/payments/stats — ein in Teilen bezahlter Einmalkauf zählt mit ALLEN Teilzahlungen (auch aus dem
+        -- Vormonat), wenn sein Abschluss (erste, die letzte Teilzahlung) im Zeitraum liegt.
+        (COALESCE(SUM(q.cents) FILTER (WHERE q.erste AND q.rate_nr IS NOT NULL), 0)
+          + COALESCE((SELECT SUM(x.cents) FROM q x WHERE x.rate_nr IS NULL AND x.ref IN (
+              SELECT q.ref FROM q WHERE q.erste AND q.rate_nr IS NULL AND ${Q_ZEITRAUM})), 0))::bigint AS erste_cents
       FROM q
       WHERE ${Q_ZEITRAUM}
     `, [from, to]);

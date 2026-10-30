@@ -132,7 +132,9 @@ export async function globalAuftragStornieren(
     provisionSatz = erg.commissions.cancelled + erg.commissions.clawback > 0
       ? ` Provisionen: ${erg.commissions.cancelled} storniert, ${erg.commissions.clawback} mit künftigen verrechnet.` : "";
   }
-  if (erstattung && teilCents > 0) {
+  // Immer bei Erstattung — auch wenn die Rechnung über Teilzahlungen VOLL bezahlt wurde (dann ist teilCents 0, die Zeilen gibt es
+  // trotzdem). Ohne Teilzahlungs-Zeilen tut es nichts.
+  if (erstattung) {
     await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenErstattungVermerken(ref))
       .catch((e) => console.error(`[FIAON-GLOBAL] ${ref}: Teilzahlungen als erstattet vermerken:`, e));
   }

@@ -285,7 +285,7 @@ export async function teilzahlungPruefen(bank: number | string, zielRoh: unknown
 }
 
 /** Zu welcher Rechnung ist dieser Eingang schon als Teilzahlung gebucht? (null = keiner / Tabelle fehlt noch) */
-async function teilRefZuEingang(txnId: string): Promise<string | null> {
+export async function teilRefZuEingang(txnId: string): Promise<string | null> {
   const [da] = (await sqlPool`SELECT to_regclass('public.fiaon_teilzahlungen') AS t`) as any[];
   if (!da?.t) return null;
   const [r] = (await sqlPool`SELECT ref FROM fiaon_teilzahlungen WHERE txn_id = ${txnId} LIMIT 1`) as any[];
@@ -440,6 +440,30 @@ export async function teilzahlungSperre(refOderZweck: { ref?: string | null; pay
      LIMIT 1`) as any[];
   if (!a || !(Number(a.teil) > 0) || Number(a.teil) >= Number(a.soll)) return null;
   return `Teilzahlungen vorhanden (${eur(Number(a.teil))} von ${eur(Number(a.soll))} gebucht, offen ${eur(Number(a.soll) - Number(a.teil))}) — bitte über „Als Teilzahlung buchen“ (Chefbüro › Konto › Zubuchen). Als „bezahlt“ gilt die Rechnung erst, wenn die Teilzahlungen den Betrag erreichen.`;
+}
+
+/**
+ * DIESELBE SPERRE, ECHT ATOMAR — für Wege, die „bezahlt“ in einer Transaktion schreiben (alsBezahltBuchen, applyTxn).
+ * Sperrt die Bestellzeile(n) FOR UPDATE — dieselbe Reihenfolge wie teilzahlungBuchen (erst die Bestellung) — und liest die
+ * Summe der Teilzahlungen DANACH neu. Eine Teilzahlung, die parallel committet, ist damit entweder schon gezählt oder wartet,
+ * bis dieser Weg fertig ist (und findet die Rechnung dann bezahlt). Ohne Teilzahlungen ändert sich nichts außer der kurzen Sperre.
+ * Liefert den Ablehnungstext oder null.
+ */
+export async function teilzahlungSperreInTx(tx: any, wo: { ref?: string | null; paymentReference?: string | null }): Promise<string | null> {
+  const [da] = (await tx`SELECT to_regclass('public.fiaon_teilzahlungen') AS t`) as any[];
+  const zeilen = (await tx`
+    SELECT ref, ROUND(COALESCE(amount_due, 0) * 100)::int AS soll FROM fiaon_applications
+     WHERE ${wo.ref ? tx`ref = ${wo.ref} AND merged_into IS NULL` : tx`payment_reference = ${wo.paymentReference ?? ""}`}
+     FOR UPDATE`) as any[];
+  if (!da?.t) return null;
+  for (const a of zeilen) {
+    const [s] = (await tx`SELECT COALESCE(SUM(betrag_cents), 0)::int AS summe FROM fiaon_teilzahlungen WHERE ref = ${a.ref}`) as any[];
+    const teil = Number(s?.summe || 0);
+    if (teil > 0 && teil < Number(a.soll)) {
+      return `Teilzahlungen vorhanden (${eur(teil)} von ${eur(Number(a.soll))} gebucht, offen ${eur(Number(a.soll) - teil)}) — bitte über „Als Teilzahlung buchen“ (Chefbüro › Konto › Zubuchen). Als „bezahlt“ gilt die Rechnung erst, wenn die Teilzahlungen den Betrag erreichen.`;
+    }
+  }
+  return null;
 }
 
 /**

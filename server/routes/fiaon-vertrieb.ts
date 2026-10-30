@@ -1248,12 +1248,21 @@ router.post("/agent/vertrieb/zahlung/:paymentRef/bezahlt", requireAgent, nurLeit
     if (art === "bankeingang") {
       if (!bankId) return res.status(400).json({ ok: false, error: "Bitte den Bankeingang auswählen." });
       [bank] = await sqlPool`
-        SELECT id, amount_cents, reference_raw, extracted_ref, matched_ref, payer_name, booked_at, applied
+        SELECT id, txn_id, amount_cents, reference_raw, extracted_ref, matched_ref, payer_name, booked_at, applied
         FROM fiaon_bank_txns WHERE id = ${bankId}
       `;
       if (!bank) return res.status(400).json({ ok: false, error: "Bankeingang nicht gefunden." });
-      // E-469 Nachtrag: Ein schon verbuchter Eingang (z. B. als Teilzahlung) belegt keine zweite Buchung.
-      if (bank.applied) return res.status(409).json({ ok: false, error: "Dieser Bankeingang ist schon verbucht — er kann nicht noch eine Zahlung belegen." });
+      // E-469 Nachtrag: Ein Eingang, der schon einer ANDEREN Bestellung gehört oder als Teilzahlung gebucht ist, belegt keine
+      // zweite Buchung. Ein verbuchter Eingang, der ausdrücklich DIESER Bestellung zugeordnet ist (kundenlage bietet ihn
+      // bewusst an, z. B. nach „Nur zuordnen“ + Reaktivieren), bleibt wie bisher erlaubt.
+      if (bank.applied && String(bank.matched_ref || "").toUpperCase() !== String(app.ref).toUpperCase()) {
+        return res.status(409).json({ ok: false, error: "Dieser Bankeingang ist schon einer anderen Bestellung zugeordnet und verbucht — er kann diese Zahlung nicht belegen." });
+      }
+      {
+        const { teilRefZuEingang } = await import("../lib/fiaon-teilzahlung");
+        const teilRef = await teilRefZuEingang(String(bank.txn_id));
+        if (teilRef) return res.status(409).json({ ok: false, error: `Dieser Bankeingang ist schon als Teilzahlung zu ${teilRef} gebucht — er kann nicht noch eine Zahlung belegen.` });
+      }
       const zweck = `${bank.reference_raw || ""} ${bank.extracted_ref || ""} ${bank.matched_ref || ""}`.toUpperCase();
       const passt = zweck.includes(String(app.payment_reference || "\u0000").toUpperCase())
         || String(bank.matched_ref || "").toUpperCase() === String(app.ref).toUpperCase();

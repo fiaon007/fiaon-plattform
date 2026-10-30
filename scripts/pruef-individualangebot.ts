@@ -439,8 +439,11 @@ titel("6. Frist, Meilenstein, Erstattung — Regeln");
   ok(A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2: { bestell_ref: "X" } }).ok, "Garantiefall: auch nach dem Meilenstein (Kreditrahmen + Karten nicht vollständig)");
   ok(!A.erstattungPruefen({ ...el, heute: "2026-12-26", teil2: { bestell_ref: "X" }, garantieErfuelltAm: "2026-12-20" }).ok, "kein Garantiefall, wenn die Garantie erfüllt ist");
   const gf = (z: string | null, ref: string | null = "R2") => A.garantiefallRechnen({ teil1Cents: 465000, teil2Cents: 685000, teil2BestellRef: ref, teil2Zahlung: z });
-  ok(JSON.stringify(gf(null, null)) === JSON.stringify({ teil2Fall: "nicht berechnet", summeCents: 465000 }) && JSON.stringify(gf("pending_payment")) === JSON.stringify({ teil2Fall: "offen → storniert", summeCents: 465000 })
-    && JSON.stringify(gf("paid")) === JSON.stringify({ teil2Fall: "bezahlt → erstattet", summeCents: 1150000 }) && gf("cancelled").teil2Fall === "schon storniert", "Garantiefall: Betrag = Teil 1 + bezahlter Teil 2; offene Teil-2-Rechnung wird storniert");
+  ok(JSON.stringify(gf(null, null)) === JSON.stringify({ teil2Fall: "nicht berechnet", summeCents: 465000, teil2GezahltCents: 0 }) && JSON.stringify(gf("pending_payment")) === JSON.stringify({ teil2Fall: "offen → storniert", summeCents: 465000, teil2GezahltCents: 0 })
+    && JSON.stringify(gf("paid")) === JSON.stringify({ teil2Fall: "bezahlt → erstattet", summeCents: 1150000, teil2GezahltCents: 685000 }) && gf("cancelled").teil2Fall === "schon storniert", "Garantiefall: Betrag = Teil 1 + bezahlter Teil 2; offene Teil-2-Rechnung wird storniert");
+  // E-469: Teilzahlungen auf eine offene Teil-2-Rechnung gehören zur Erstattung („alles Gezahlte zurück“).
+  const gt = A.garantiefallRechnen({ teil1Cents: 465000, teil2Cents: 685000, teil2BestellRef: "R2", teil2Zahlung: "pending_payment", teil2TeilCents: 100000 });
+  ok(gt.teil2Fall === "offen → storniert" && gt.summeCents === 565000 && gt.teil2GezahltCents === 100000, "Garantiefall: teilbezahlter Teil 2 → gezahlter Teilbetrag in der Erstattungssumme");
   const gl = { status: "angenommen", teil1Bezahlt: true, teil2: { bestell_ref: "R2", meilenstein_am: "2026-11-02" }, fristEnde: "2026-12-25", heute: "2026-12-01", erstattungAusgeloest: false, erfuelltAm: null, ziel: { rahmenUsd: 800000, karten: 3 } };
   const gg = { erfuelltAm: "2026-11-30", rahmenUsd: 800000, karten: 3, beleg: "Kreditzusagen und drei Kartenbestätigungen liegen im Dokumentenraum." };
   ok(A.garantiePruefen(gl, gg).ok, "Garantie erfüllt: Rahmen und Karten erreicht, vor dem Fristende, mit Beleg");

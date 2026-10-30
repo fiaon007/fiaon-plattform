@@ -626,7 +626,14 @@ export async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: b
 
   const receivedCents = Number(txn.amount_cents);
   const eur = (receivedCents / 100).toFixed(2);
-  const updated = await sqlPool`
+  // E-469 Nachtrag: Bestellzeile sperren, Teilzahlungen NEU lesen, dann schreiben — in einer Transaktion (gleiche
+  // Sperrreihenfolge wie teilzahlungBuchen). Ohne Teilzahlungen läuft es wie bisher, nur mit der kurzen Sperre.
+  const { teilzahlungSperreInTx } = await import("../lib/fiaon-teilzahlung");
+  let sperreTx: string | null = null;
+  const updated = await sqlPool.begin(async (tx: any) => {
+    sperreTx = await teilzahlungSperreInTx(tx, { ref: String(txn.matched_ref) });
+    if (sperreTx) return [] as any[];
+    const u = await tx`
     UPDATE fiaon_applications SET
       payment_status = 'paid',
       status = CASE WHEN status = 'payment_completed' THEN status ELSE 'payment_completed' END,
@@ -637,11 +644,14 @@ export async function applyTxn(id: number, syncAmount: boolean): Promise<{ ok: b
     WHERE ref = ${txn.matched_ref} AND merged_into IS NULL
     RETURNING ref
   `;
+    // Optional: Betrag exakt an den Bankeingang angleichen (Kunden-EINGANG, brutto).
+    if (u.length && syncAmount) {
+      await tx`UPDATE fiaon_applications SET amount_due = ${eur}::numeric, updated_at = NOW() WHERE ref = ${txn.matched_ref} AND merged_into IS NULL`;
+    }
+    return u;
+  }) as any[];
+  if (sperreTx) return { ok: false, error: sperreTx };
   if (updated.length === 0) return { ok: false, error: "Antrag nicht gefunden/zusammengeführt" };
-  // Optional: Betrag exakt an den Bankeingang angleichen (Kunden-EINGANG, brutto).
-  if (syncAmount) {
-    await sqlPool`UPDATE fiaon_applications SET amount_due = ${eur}::numeric, updated_at = NOW() WHERE ref = ${txn.matched_ref} AND merged_into IS NULL`;
-  }
   await sqlPool`UPDATE fiaon_bank_txns SET applied = TRUE, applied_at = NOW(), updated_at = NOW() WHERE id = ${id}`;
   console.log(`[FIAON-RECONCILE] verbucht: ${txn.matched_ref} ← Bank ${txn.txn_id} (${eur} ${txn.currency})${syncAmount ? " [Betrag synchronisiert]" : ""}`);
   // Audit: jede Schreibaktion nachvollziehbar im Kontakt-Log.

@@ -174,9 +174,9 @@ async function main() {
   const fs = await import("node:fs");
   const vertrieb = fs.readFileSync("server/routes/fiaon-vertrieb.ts", "utf8");
   const vTeil = vertrieb.slice(vertrieb.indexOf('"/agent/vertrieb/zahlung/:paymentRef/bezahlt"'), vertrieb.indexOf("const { alsBezahltBuchen }", vertrieb.indexOf('"/agent/vertrieb/zahlung/:paymentRef/bezahlt"')));
-  ok("N1 Vertriebs-Weg: prüft `applied` des Bankeingangs und die Teilzahlungs-Sperre vor der Buchung (und bucht über alsBezahltBuchen)", /if \(bank\.applied\)/.test(vTeil) && /teilzahlungSperre/.test(vTeil));
-  const antragQ = fs.readFileSync("server/routes/fiaon-antrag.ts", "utf8");
-  ok("N1 alsBezahltBuchen: dieselbe Bedingung im UPDATE (kein Fenster zwischen Prüfen und Schreiben)", /FROM fiaon_teilzahlungen tz WHERE tz\.ref = fiaon_applications\.ref\) IN \(0, ROUND/.test(antragQ));
+  ok("N1 Vertriebs-Weg: sperrt nur Eingänge einer ANDEREN Bestellung oder schon gebuchte Teilzahlungen (nicht den dieser Bestellung zugeordneten, kundenlage) + Teilzahlungs-Sperre",
+    /bank\.applied && String\(bank\.matched_ref \|\| ""\)\.toUpperCase\(\) !== String\(app\.ref\)\.toUpperCase\(\)/.test(vTeil) && /teilRefZuEingang/.test(vTeil) && /teilzahlungSperre/.test(vTeil) && !/if \(bank\.applied\) return/.test(vTeil));
+  ok("N1 teilRefZuEingang: kennt den als Teilzahlung gebuchten Eingang, sonst null", (await T.teilRefZuEingang(e1.txnId)) === A.ref && (await T.teilRefZuEingang("AWX-gibt-es-nicht")) === null);
 
   logOrig("\nA  Anzeige: Zahlungsseite, GiroCode, Mail, Rechnung, Chefbüro");
   const z1 = await zahlungsauftragFinden(prA);
@@ -324,6 +324,65 @@ async function main() {
   ok("N4 D Storno OHNE Erstattung: Bestellung storniert (kein Rest mehr offen), gezahltes Geld zählt weiter", sd.ok && (await app(D.ref)).payment_status === "cancelled" && uD.length === 1 && Number(uD[0].cents) === 120000, uD);
   const zD = await zahlungsauftragFinden(`FIAON-${M}D1`);
   ok("N4 D Zahlungsseite bietet keinen Rest mehr an", zD?.status === "cancelled" && !zD.teilzahlung, zD?.status);
+
+  logOrig("\nN5 Rennen: Teilzahlung committet, während mark-paid / Kontoabgleich warten → beide lehnen ab");
+  for (const [x, weg] of [["E", "mark-paid"], ["F", "applyTxn"]] as const) {
+    const K = await kunde(x, { pr: `FIAON-${M}${x}1`, cents: 499900, pack: "global_banking", vorname: "Rennen", nachname: `Q${x}`, faellig });
+    const eK = await eingang(`${x.toLowerCase()}r`, tag(0), 499900, `FIAON-${M}${x}1`, `RENNEN Q${x}`);
+    await sql`UPDATE fiaon_bank_txns SET matched_ref = ${K.ref}, match_status = 'matched' WHERE id = ${eK.id}`;
+    let freigeben: () => void = () => {};
+    const halt = new Promise<void>((r) => { freigeben = r; });
+    const t1 = sql.begin(async (tx: any) => {
+      await tx`SELECT 1 FROM fiaon_applications WHERE ref = ${K.ref} FOR UPDATE`;
+      await tx`INSERT INTO fiaon_teilzahlungen (ref, bank_txn_id, txn_id, betrag_cents, eingang_am, soll_cents, summe_nachher_cents, gebucht_von)
+               VALUES (${K.ref}, ${-Number(eK.id)}, ${`AWX-${M.toLowerCase()}-rennen-${x}`}, 100000, CURRENT_DATE, 499900, 100000, 'Prüfstand Rennen')`;
+      await halt;
+    });
+    await warte(300);
+    const zweiter = weg === "mark-paid" ? alsBezahltBuchen(`FIAON-${M}${x}1`, { zahlungsdatum: tag(0), quelle: "admin" }) : applyTxn(eK.id, false);
+    await warte(800);
+    freigeben();
+    await t1;
+    const r: any = await zweiter;
+    ok(`N5 ${weg} wartet auf die Sperre und sieht die frische Teilzahlung → abgelehnt`, !r.ok && /Teilzahlungen vorhanden/.test(String(r.error)), r.error);
+    ok(`N5 ${weg}: Bestellung bleibt offen`, (await app(K.ref)).payment_status === "pending_payment");
+  }
+  const G0 = await kunde("G", { pr: `FIAON-${M}G1`, cents: 49900, pack: "global_banking", vorname: "Ohne", nachname: "Teilzahlung", faellig });
+  const ohneT = await alsBezahltBuchen(`FIAON-${M}G1`, { zahlungsdatum: tag(0), quelle: "admin" });
+  ok("N5 ohne Teilzahlungen: mark-paid wie bisher (bezahlt)", ohneT.ok && (await app(G0.ref)).payment_status === "paid", (ohneT as any).error);
+
+  logOrig("\nN6 Voll über Teilzahlungen bezahlt, dann Storno MIT Erstattung → erstattet vermerkt, raus aus dem Umsatz");
+  const H = await kunde("H", { pr: `FIAON-${M}H1`, cents: 499900, pack: "global_banking", vorname: "Hanna", nachname: "Quiring", faellig });
+  await akteNeu("H", H.ref);
+  const eh1 = await eingang("h1", tag(-1), 200000, "Teil", "HANNA QUIRING");
+  const eh2 = await eingang("h2", tag(0), 299900, "Rest", "HANNA QUIRING");
+  await T.teilzahlungBuchen(eh1.id, { ziel: H.ref, wer: "Prüfstand" });
+  const bh2 = await T.teilzahlungBuchen(eh2.id, { ziel: H.ref, wer: "Prüfstand" });
+  ok("N6 H voll bezahlt über zwei Teilzahlungen", bh2.ok && bh2.abschluss === true && (await app(H.ref)).payment_status === "paid");
+  await bis(async () => (await sql`SELECT status FROM fiaon_global_auftraege WHERE ref = ${H.ref}`)[0] as any, (x) => x?.status === "gestartet", 15_000);
+  const sh = await globalAuftragStornieren(H.ref, { grund: "Kunde kündigt, volle Rückzahlung vereinbart", erstattung: true }, "Prüfstand");
+  const [todoH] = await sql`SELECT titel FROM fiaon_betreiber_todos WHERE schluessel = ${`global:${H.ref}:erstattung`}`;
+  ok("N6 H Storno mit Erstattung: Aufgabe über 4.999 €", sh.ok && /4\.999,00 €/.test(String(todoH?.titel)), [sh.error, todoH?.titel]);
+  ok("N6 H beide Teilzahlungen als erstattet vermerkt, Bestellung storniert, Umsatz 0",
+    (await sql`SELECT COUNT(*)::int n FROM fiaon_teilzahlungen WHERE ref = ${H.ref} AND erstattung_am IS NOT NULL`)[0].n === 2
+    && (await app(H.ref)).payment_status === "cancelled" && (await umsatz(H.ref)).length === 0, await umsatz(H.ref));
+
+  logOrig("\nN7 Garantiefall: teilbezahlter Teil 2 — gezahlter Betrag in der Erstattung");
+  const { garantiefallRechnen } = await import("../server/lib/fiaon-global-angebot");
+  const gf = garantiefallRechnen({ teil1Cents: 300000, teil2Cents: 500000, teil2BestellRef: "R2", teil2Zahlung: "pending_payment", teil2TeilCents: 120000 });
+  ok("N7 Summe = Teil 1 + gezahlter Teilbetrag von Teil 2", gf.teil2Fall === "offen → storniert" && gf.summeCents === 420000 && gf.teil2GezahltCents === 120000, gf);
+  const angebotQ = fs.readFileSync("server/lib/fiaon-global-angebot.ts", "utf8");
+  ok("N7 Garantiefall: Teil-2-Teilzahlungen als erstattet vermerkt, Kundentext ehrlich („bereits gezahlten … erstatten wir“)",
+    /teilzahlungenErstattungVermerken\(ref2\)/.test(angebotQ) && /die bereits gezahlten \$\{angebotEur\(fall\.teil2GezahltCents\)\} erstatten wir/.test(angebotQ));
+
+  logOrig("\nN8 Kennzahl „Ø Abschluss“: ein in Teilen bezahlter Einmalkauf zählt mit allen Teilzahlungen");
+  const [aov] = await sql.unsafe(`WITH q AS (${UMSATZ_QUELLE_SQL})
+    SELECT COALESCE(SUM(q.cents) FILTER (WHERE q.erste AND q.rate_nr IS NOT NULL), 0)
+         + COALESCE((SELECT SUM(x.cents) FROM q x WHERE x.rate_nr IS NULL AND x.ref IN (SELECT q.ref FROM q WHERE q.erste AND q.rate_nr IS NULL AND q.ref = $1)), 0) AS erste_cents
+      FROM q WHERE q.ref = $1`, [A.ref]) as any[];
+  ok("N8 Abschlusswert von A = 3.900 € (nicht nur die letzte Teilzahlung)", Number(aov.erste_cents) === 390000, aov);
+  const fin = fs.readFileSync("server/routes/fiaon-finance.ts", "utf8");
+  ok("N8 /finance nutzt denselben erste-Filter wie /admin/payments/stats", /x\.rate_nr IS NULL AND x\.ref IN \(/.test(fin) && /rate_nr IS NULL AND ref IN \(SELECT ref FROM q WHERE erste AND rate_nr IS NULL\)/.test(fs.readFileSync("server/routes/fiaon-antrag.ts", "utf8")));
 
   // ═══ K ═════════════════════════════════════════════════════════════════════
   logOrig("\nK  Partner-Provision: Fast-Track-Abzug über Teilzahlungen genau einmal");

@@ -262,7 +262,7 @@ export async function lageLesen(ref: string): Promise<Lage | null> {
   const b = await globalBestellungLesen(ref);
   if (!b) return null;
   const [z] = (await sqlPool`
-    SELECT etappe, etappe_seit, etappen_seit, naechster_schritt, naechster_schritt_bis, gesellschaft, abgeschlossen_am
+    SELECT etappe, etappe_seit, etappen_seit, naechster_schritt, naechster_schritt_bis, gesellschaft, abgeschlossen_am, angebot_id
       FROM fiaon_global_auftraege WHERE ref = ${ref} LIMIT 1`) as any[];
   const [arch] = (await sqlPool`SELECT archived_at FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
   const voll = { ...akte, ...(z ?? {}) };
@@ -278,6 +278,14 @@ export async function lageLesen(ref: string): Promise<Lage | null> {
 
 const LAEUFT: GlobalBereichStatus[] = ["bezahlt", "gestartet"];
 const BEZAHLT: GlobalBereichStatus[] = ["bezahlt", "gestartet", "abgeschlossen"];
+// 30.10.2026: Aus einem angenommenen Individualangebot (angebot_id) verlangt der Vertrag die Unterlagen binnen 14 Tagen NACH DER
+// ANNAHME (z. B. Kapital-Angebot Ziffer 7) — also schon vor der Zahlung. Der Dokumentenraum ist deshalb bei „offen“ mit Angebot offen.
+function dokumenteKunde(l: { status: GlobalBereichStatus; akte: any }): boolean {
+  return LAEUFT.includes(l.status) || (l.status === "offen" && l.akte?.angebot_id != null);
+}
+function dokumenteOffice(l: { status: GlobalBereichStatus; akte: any }): boolean {
+  return BEZAHLT.includes(l.status) || (l.status === "offen" && l.akte?.angebot_id != null);
+}
 
 // ── Der Ansprechpartner, wie ihn der Kunde sieht ─────────────────────────────
 async function ansprechpartnerFuer(agentId: number | null): Promise<{ name: string; vorname: string; email: string; bild?: string; telefon?: string } | undefined> {
@@ -451,7 +459,7 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     })),
     verlauf: verlaufAlles.filter((v) => v.sichtbar).map((v) => ({ am: v.am, text: v.text })),
     // Dürfen jetzt Dokumente hochgeladen werden? (Kunde: nur bezahlt | gestartet; Office auch nach dem Abschluss)
-    uploadOffen: fuer === "office" ? BEZAHLT.includes(l.status) : LAEUFT.includes(l.status),
+    uploadOffen: fuer === "office" ? dokumenteOffice(l) : dokumenteKunde(l),
     // Die Auswahl beim Hochladen — der Kunde nur, was er liefern darf; das Office jede Art (in seiner Sprache: deutsch).
     dokumentArten: globalDokumentArtenFuer(fuer, fuer === "office" ? "de" : sprache),
     // 01.10.2026 (E-268): Akte aus einem Individualangebot — Teile, Frist, Bürgin (nur lesen). Darf scheitern:
@@ -942,7 +950,7 @@ export async function globalKundenDokument(ref: string, ein: { art: unknown; dat
   const l = await lageLesen(ref);
   if (!l) return nein(404, "Wir finden zu diesem Link keinen Auftrag.");
   const s = l.sprache;
-  if (!LAEUFT.includes(l.status)) {
+  if (!dokumenteKunde(l)) {
     return nein(409, l.status === "offen"
       ? t(s, "Ihr Dokumentenraum öffnet sich mit dem Zahlungseingang. Bis dahin müssen Sie nichts hochladen.", "Your document room opens once your payment has arrived. Until then there is nothing to upload.")
       : t(s, "Zu diesem Auftrag können keine Dokumente mehr hochgeladen werden. Bitte schreiben Sie Ihrem Ansprechpartner eine Nachricht.", "Documents can no longer be uploaded for this order. Please send your contact a message."));
@@ -975,7 +983,7 @@ export async function globalKundenDokument(ref: string, ein: { art: unknown; dat
 export async function globalOfficeDokument(ref: string, ein: { art: unknown; datei: DateiEin | null; sichtbarFuerKunde: boolean; mitteilen: boolean }, agent: BereichAgent): Promise<Erg<{ dokument: Record<string, unknown>; meldung: string }>> {
   const l = await lageLesen(ref);
   if (!l) return nein(404, "Diesen Auftrag gibt es nicht.");
-  if (!BEZAHLT.includes(l.status)) return nein(409, l.status === "storniert" ? "Der Auftrag ist storniert." : "Der Dokumentenraum öffnet sich mit dem Zahlungseingang.");
+  if (!dokumenteOffice(l)) return nein(409, l.status === "storniert" ? "Der Auftrag ist storniert." : "Der Dokumentenraum öffnet sich mit dem Zahlungseingang.");
   const art = globalDokumentArt(ein.art);
   if (!art) return nein(400, "Bitte die Art des Dokuments wählen.");
   const datei = ein.datei;
@@ -1046,7 +1054,7 @@ export async function globalKundenNachricht(ref: string, ein: { text: unknown; a
   if (artRoh) {
     const art = globalDokumentArt(artRoh);
     if (!art || !GLOBAL_TEXT_UNTERLAGEN.includes(art.art)) return nein(400, t(s, "Diese Unterlage lässt sich nicht als Text einreichen — bitte laden Sie eine Datei hoch.", "This document cannot be submitted as text — please upload a file."));
-    if (!LAEUFT.includes(l.status)) return nein(409, t(s, "Ihr Dokumentenraum öffnet sich mit dem Zahlungseingang.", "Your document room opens once your payment has arrived."));
+    if (!dokumenteKunde(l)) return nein(409, t(s, "Ihr Dokumentenraum öffnet sich mit dem Zahlungseingang.", "Your document room opens once your payment has arrived."));
     const [anz] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_dokumente WHERE ref = ${ref} AND von = 'kunde' AND geloescht_am IS NULL`) as any[];
     if (Number(anz?.n || 0) >= GLOBAL_DOKUMENTE_MAX) return nein(409, t(s, "In Ihrem Dokumentenraum liegen bereits vierzig Dokumente.", "Your document room already holds forty documents."));
     const name = `${art.art === "namenswunsch" ? t(s, "Namenswunsch", "Preferred-name") : t(s, "Geschaeftstaetigkeit", "Business-activity")}_${berlinToday()}.txt`;

@@ -338,7 +338,8 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const nachrichten: T[] = a.nachrichten ?? [];
   const ungeleseneAntworten = nachrichten.filter((n) => n.von === "fiaon" && !n.gelesen);
   const postNeu = post.filter((d) => !d.gelesen);
-  const darfHochladen = ["bezahlt", "gestartet", "abgeschlossen"].includes(a.status);
+  // 30.10.2026: der Server sagt, ob der Dokumentenraum offen ist (bei angenommenem Angebot schon vor der Zahlung — Vertrag Ziffer 7).
+  const darfHochladen = typeof a.uploadOffen === "boolean" ? a.uploadOffen : ["bezahlt", "gestartet", "abgeschlossen"].includes(a.status);
   const fehlend = darfHochladen ? (a.unterlagen ?? []).filter((u: T) => !u.vorhanden) : [];
   // E-443 (28.10.2026): Was das Team als „bitte neu“ markiert hat und nicht schon oben als fehlende Unterlage steht.
   const nachreichen: T[] = darfHochladen ? (a.nachreichen ?? []) : [];

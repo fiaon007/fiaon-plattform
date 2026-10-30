@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import {
   Globe2, Building2, FileText, MessageSquare, Landmark, CalendarClock, History, Eye, Copy, Check,
-  Upload, Trash2, PenLine, Lock, EyeOff, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers, ListChecks,
+  Upload, Trash2, PenLine, Lock, Send, Plus, Sparkles, ShieldCheck, Inbox, ExternalLink, FlaskConical, Layers, ListChecks,
 } from "lucide-react";
 import { API, Hochzaehler, zahl, datum, datumZeit, seit, Geruest, Fehlermeldung, useDaten } from "./chef-teile";
 import { GLOBAL_DOKUMENTARTEN, globalKundeDarfArt } from "@shared/fiaon-global-bereich";
@@ -288,7 +288,7 @@ function MandatAkte({ gref, onGeaendert }: { gref: string; onGeaendert: () => vo
           </p>
           <div className="cgr-akte-marken">
             <em className={`st-${m.status}`}>{STATUS_TEXT[m.status] ?? m.status}</em>
-            <em className={m.portal.neu ? "st-portal" : "st-leise"}>{m.portal.neu ? `Neues Portal seit ${datum(m.portal.seit)}` : "Bisheriges Portal"}</em>
+            <em className="st-portal">Neues Portal</em>
             {m.test && <em className="st-test">Test</em>}
             {/* E-451 (28.10.2026): immer sichtbar — auch, wenn niemand festgelegt ist (dann gehen die Aufgaben an die Vorgabe). */}
             <em className="st-leise">Zuständig: {m.zustaendig ? m.zustaendig.name : "nicht festgelegt"}</em>
@@ -494,19 +494,8 @@ function Ueberblick({ m, tun, setReiter }: { m: any; tun: Tun; setReiter: (r: Re
 
       <section className="cgr-block breit cgr-freigabe">
         <h3>Kundenportal</h3>
-        <p className="cgr-satz">
-          {m.portal.neu
-            ? <>Der Kunde sieht das <b>neue Portal</b> (freigeschaltet {datumZeit(m.portal.seit)}{m.portal.von ? ` von ${m.portal.von}` : ""}).</>
-            : <>Der Kunde sieht noch das <b>bisherige Portal</b>. Erst „Kundenportal ansehen“, dann freischalten.</>}
-        </p>
+        <p className="cgr-satz">Der Kunde sieht das <b>neue Portal</b> — das bisherige gibt es seit 30.10.2026 nicht mehr.</p>
         <div className="cgr-form zeile">
-          <button type="button" className={`cw-knopf${m.portal.neu ? "" : " cgr-haupt"}`} onClick={() => {
-            const an = !m.portal.neu;
-            if (an && !window.confirm(`Neues Portal für ${[m.kontakt?.vorname, m.kontakt?.nachname].filter(Boolean).join(" ") || "diesen Kunden"} freischalten? Er sieht es ab seinem nächsten Besuch.`)) return;
-            void tun("/portal", "POST", { an });
-          }}>
-            {m.portal.neu ? <><EyeOff size={14} /> Wieder bisheriges Portal</> : <><Sparkles size={14} /> Neues Portal freischalten</>}
-          </button>
           <button type="button" className="cw-knopf" onClick={() => { if (window.confirm("Den Link zu „Mein Auftrag“ jetzt per Mail an den Kunden schicken?")) void tun("/zugang-senden", "POST"); }}>
             <Send size={14} /> Link per Mail senden
           </button>

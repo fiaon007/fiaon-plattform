@@ -278,10 +278,10 @@ async function mandatZeile(ref: string): Promise<any | null> {
   return z ?? null;
 }
 
-/** Ist für diesen Auftrag das neue Portal freigeschaltet? */
-export async function globalPortalNeuFrei(ref: string): Promise<boolean> {
-  const z = await mandatZeile(ref).catch(() => null);
-  return !!z?.portal_neu_am;
+/** Ist für diesen Auftrag das neue Portal freigeschaltet? Seit 30.10.2026 (Justin): JEDER Kunde sieht das neue Portal —
+ *  das bisherige gibt es nicht mehr. Die Spalte portal_neu_am bleibt nur als Verlauf (wann von Hand freigeschaltet). */
+export async function globalPortalNeuFrei(_ref: string): Promise<boolean> {
+  return true;
 }
 
 /**
@@ -375,7 +375,7 @@ export async function globalMandateListe(): Promise<Record<string, unknown>> {
       zustaendig: a.zustaendig_name ? String(a.zustaendig_name) : null,
       anfragenNeu: Number(a.anfragen_neu || 0), uploadsNeu: Number(a.uploads_neu || 0),
       unterschriftenOffen: Number(a.unterschriften_offen || 0), postUngelesen: Number(a.post_ungelesen || 0),
-      test: !!a.ist_test_am, portalNeu: !!a.portal_neu_am, angelegtAm: iso(a.created_at),
+      test: !!a.ist_test_am, portalNeu: true, angelegtAm: iso(a.created_at),
     });
   }
   const angebote = (await sqlPool`
@@ -449,7 +449,7 @@ export async function globalMandatChefSicht(ref: string): Promise<Record<string,
     kontaktVorschlag: await globalKontaktVorschlag(ref),
     person,
     test: !!z?.ist_test_am,
-    portal: { neu: !!z?.portal_neu_am, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
+    portal: { neu: true, seit: iso(z?.portal_neu_am), von: z?.portal_neu_von ?? null },
     // E-451 (28.10.2026): EINE Quelle für „wer führt diese Akte“ — gesetzt, wohin die Aufgaben gehen, wen das Portal nennt.
     zustaendigkeit: await zustaendigkeitSicht(office),
     // E-462 (29.10.2026): die Haken des Arbeitsablaufs (Reiter „Arbeitsablauf“) — nur Schlüssel aus der festen Liste.
@@ -1164,6 +1164,8 @@ export async function globalMandatTest(ref: string, an: boolean, agent: BereichA
 
 export async function globalMandatPortal(ref: string, an: boolean, agent: BereichAgent): Promise<Erg<{ meldung: string }>> {
   await ensureGlobalMandat();
+  // 30.10.2026: Das bisherige Portal gibt es nicht mehr — Ausschalten ist nicht mehr möglich.
+  if (!an) return nein(400, "Das bisherige Portal gibt es nicht mehr — jeder Kunde sieht das neue Portal.");
   const [z] = (await sqlPool`
     UPDATE fiaon_global_auftraege SET portal_neu_am = CASE WHEN ${an} THEN COALESCE(portal_neu_am, NOW()) END, portal_neu_von = ${an ? agent.name : null}
      WHERE ref = ${ref} RETURNING ref`) as any[];

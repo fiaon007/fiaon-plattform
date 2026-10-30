@@ -56,9 +56,10 @@ export const MITARBEITER = [
 ] as const;
 
 export const INVESTOR = {
-  name: "Schwarzott Capital Partners AG",
-  adresse: ["Schifflände 26", "8001 Zürich", "Schweiz"],
-  email: "office@schwarzott-global.com",
+  name: "Schwarzott Group",
+  adresse: ["Zürich", "Schweiz"],
+  // 30.10.2026 (E-466, Justin): öffentlich „Schwarzott Group“ — ohne Anschrift und Postfach der Gesellschaft.
+  email: null as string | null,
   text: "Hat in FIAON investiert und damit den Aufbau ermöglicht – Partner seit dem ersten Tag.",
 };
 
@@ -118,7 +119,7 @@ export function Team({ kompakt = false }: { kompakt?: boolean }) {
             </div>
             <div className="dk-leise adresse" style={{ lineHeight: 1.7 }}>
               {INVESTOR.adresse.map((z) => <div key={z}>{z}</div>)}
-              <a href={`mailto:${INVESTOR.email}`} style={{ color: "#93c5fd", textDecoration: "none", wordBreak: "break-all" }}>{INVESTOR.email}</a>
+              {INVESTOR.email && <a href={`mailto:${INVESTOR.email}`} style={{ color: "#93c5fd", textDecoration: "none", wordBreak: "break-all" }}>{INVESTOR.email}</a>}
             </div>
           </div>
         </Auf>

@@ -60,7 +60,7 @@ export const STAATEN_EN: GlobalSeite[] = [
     auge: "Knowledge · US state",
     h1: "Florida.",
     h1b: "Home of our team on the ground.",
-    lead: `Florida is where our team on the ground is based: Schwarzott Global LLC in Miami. For companies that do business in Florida, need in-person appointments or plan the kick-off in the ${VIP} package, it is the obvious choice — with clear fees and a fixed deadline in spring. At present, though, Florida is registering more slowly than usual: often around two weeks, with no express option.`,
+    lead: `Florida is where our team on the ground is based: Schwarzott Group in Miami. For companies that do business in Florida, need in-person appointments or plan the kick-off in the ${VIP} package, it is the obvious choice — with clear fees and a fixed deadline in spring. At present, though, Florida is registering more slowly than usual: often around two weeks, with no express option.`,
     ziffern: [
       { wert: STAAT_EN.florida.gruendung, label: "Forming an LLC" },
       { wert: STAAT_EN.florida.jahr, label: "Annual report, 1 January to 1 May" },
@@ -73,9 +73,9 @@ export const STAATEN_EN: GlobalSeite[] = [
       ["Late filing", STAAT_EN.florida.jahrVerzug],
       ["Registered agent", STAAT_EN.florida.agent],
       ["State tax", STAAT_EN.florida.steuer],
-      ["On the ground", "Schwarzott Global LLC, 3119 Coral Way, Miami"],
+      ["On the ground", "Schwarzott Group, Miami"],
     ],
-    kurz: `Forming an LLC in Florida costs ${STAAT_EN.florida.gruendung} (${STAAT_EN.florida.gruendungDetail}). Every year, an annual report costing ${STAAT_EN.florida.jahr} is due between 1 January and 1 May; after 1 May, a further $400 is added. A registered agent with an address in Florida is mandatory. Florida is home to our team on the ground: Schwarzott Global LLC attends appointments in Miami.`,
+    kurz: `Forming an LLC in Florida costs ${STAAT_EN.florida.gruendung} (${STAAT_EN.florida.gruendungDetail}). Every year, an annual report costing ${STAAT_EN.florida.jahr} is due between 1 January and 1 May; after 1 May, a further $400 is added. A registered agent with an address in Florida is mandatory. Florida is home to our team on the ground: Schwarzott Group attends appointments in Miami.`,
     bloecke: [
       {
         typ: "tabelle", id: "fakten", h2: "Florida in figures",
@@ -112,7 +112,7 @@ export const STAATEN_EN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "The right package", lead: `Formation in Florida with everything needed to get started — or with an in-person kick-off in the ${VIP} package.`, paket: "global_struktur" },
-      { typ: "standorte", id: "standorte", h2: "Our team in Miami", lead: "Schwarzott Global LLC attends appointments on the ground; the contracting party is FIAON LTD." },
+      { typ: "standorte", id: "standorte", h2: "Our team in Miami", lead: "Schwarzott Group attends appointments on the ground; the contracting party is FIAON LTD." },
     ],
     fragen: [
       { f: "How much does a Florida LLC cost?", a: `Formation costs ${STAAT_EN.florida.gruendung}, and the annual report costs ${STAAT_EN.florida.jahr} a year. With FIAON Global, formation and the first year are included in the fixed price from ${AB_PREIS}.` },

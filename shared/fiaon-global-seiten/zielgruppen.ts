@@ -237,7 +237,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     auge: "Für wen · Bau und Immobilien",
     h1: "Bau und Immobilien.",
     h1b: "Projekte in den USA, sauber aufgestellt.",
-    lead: "Wer in den USA baut, saniert oder Objekte hält, trennt jedes Projekt in eine eigene Gesellschaft. Wir gründen sie, holen die Steuernummern, bereiten Konto und Kennzahlen vor — und begleiten mit unserem Team in Miami und der Schwarzott Capital Partners AG in Zürich die Kapital-Etappe.",
+    lead: "Wer in den USA baut, saniert oder Objekte hält, trennt jedes Projekt in eine eigene Gesellschaft. Wir gründen sie, holen die Steuernummern, bereiten Konto und Kennzahlen vor — und begleiten mit unserem Team in Miami und der Schwarzott Group in Zürich die Kapital-Etappe.",
     ziffern: [
       { wert: globalPlanungText("global_kapital"), label: "Kapitalrahmen Global Kapital, als Ziel" },
       { wert: "Miami", label: "Team vor Ort für Termine" },
@@ -247,7 +247,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Für", "Bauunternehmen, Projektentwickler, Bestandshalter"],
       ["Struktur", "Eine Gesellschaft je Projekt oder Objekt — meist LLC"],
       ["Kapital", "Kennzahlen und Unterlagen für Finanzierungsgespräche"],
-      ["Vor Ort", "Termine in Miami mit der Schwarzott Global LLC"],
+      ["Vor Ort", "Termine in Miami mit der Schwarzott Group"],
       ["Entscheidung", "Über jede Finanzierung entscheidet das Institut"],
       ["Paket", "Global Kapital oder Global VIP"],
     ],
@@ -257,7 +257,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         typ: "text", id: "warum", h2: "Eine Gesellschaft je Projekt",
         absaetze: [
           "In den USA ist es üblich, jedes Bauprojekt und jedes Objekt in einer eigenen Gesellschaft zu halten. Das trennt die Haftung, macht Finanzierungen und Verkäufe einfacher und hält die Zahlen je Projekt sauber.",
-          "Für Unternehmen aus Deutschland, Österreich oder der Schweiz kommt hinzu: Ein Team vor Ort, das Termine wahrnimmt und Unterlagen einreicht, spart Reisen — und die Schwarzott Capital Partners AG in Zürich, zu deren Geschäft Immobilieninvestitionen im Ausland gehören, begleitet die Kapital-Etappe.",
+          "Für Unternehmen aus Deutschland, Österreich oder der Schweiz kommt hinzu: Ein Team vor Ort, das Termine wahrnimmt und Unterlagen einreicht, spart Reisen — und die Schwarzott Group in Zürich, zu deren Geschäft Immobilieninvestitionen im Ausland gehören, begleitet die Kapital-Etappe.",
         ],
       },
       {
@@ -278,7 +278,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Kapital begleitet bis zur Kennzahlen-Mappe für ein Bankdarlehen — mit Vorrang bei Terminen vor Ort.", paket: "global_kapital" },
-      { typ: "standorte", id: "standorte", h2: "Miami und Zürich", lead: "Termine vor Ort mit der Schwarzott Global LLC, Kapital-Etappe mit der Schwarzott Capital Partners AG." },
+      { typ: "standorte", id: "standorte", h2: "Miami und Zürich", lead: "Termine vor Ort und die Kapital-Etappe mit der Schwarzott Group." },
     ],
     fragen: [
       { f: "Brauche ich für jedes Projekt eine eigene Gesellschaft?", a: "Üblich ist es: Eine Gesellschaft je Projekt trennt Haftung und Zahlen und erleichtert Finanzierung und Verkauf. Ob es in Ihrem Fall passt, klären wir im Startgespräch." },
@@ -379,16 +379,16 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     auge: "Für wen · Aus der Schweiz",
     h1: "Aus der Schweiz in die USA.",
     h1b: "Mit einem Partner in Zürich.",
-    lead: "Für Unternehmen aus der Schweiz ist der Weg in die USA kurz: Wir gründen Ihre US-Gesellschaft, holen die Steuernummern und bereiten das Konto vor — mit der Schwarzott Capital Partners AG in Zürich als Partner vor Ort und unserem Team in Miami.",
+    lead: "Für Unternehmen aus der Schweiz ist der Weg in die USA kurz: Wir gründen Ihre US-Gesellschaft, holen die Steuernummern und bereiten das Konto vor — mit der Schwarzott Group in Zürich als Partner vor Ort und unserem Team in Miami.",
     ziffern: [
-      { wert: "Zürich", label: "Partner vor Ort: Schwarzott Capital Partners AG" },
+      { wert: "Zürich", label: "Partner vor Ort: Schwarzott Group" },
       { wert: "Art. 50 DBG", label: "Steuerpflicht bei tatsächlicher Verwaltung" },
       { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig" },
     ],
     blick: [
       ["Steuerpflicht", "Bei Sitz oder tatsächlicher Verwaltung in der Schweiz (Art. 50 DBG)"],
-      ["Partner", "Schwarzott Capital Partners AG, Schifflände 26, Zürich"],
-      ["Vor Ort in den USA", "Schwarzott Global LLC, Miami"],
+      ["Partner", "Schwarzott Group, Zürich"],
+      ["Vor Ort in den USA", "Schwarzott Group, Miami"],
       ["Vor der Gründung", "Prüfung durch unseren Partner-Steuerberater — im Festpreis"],
       ["Laufend", "Steuererklärung in der Schweiz mit Ihrer Treuhand"],
       ["Vertragspartner", "FIAON LTD, London"],
@@ -405,7 +405,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       {
         typ: "text", id: "zuerich", h2: "Ein Partner in Zürich",
         absaetze: [
-          "Die Schwarzott Capital Partners AG mit Sitz an der Schifflände in Zürich begleitet für FIAON Global die Kapital-Etappe und ist Ansprechpartner für Unternehmen aus der Schweiz. Sie ist eine Beteiligungs- und Investmentgesellschaft — keine Bank, und sie vergibt keine Kredite.",
+          "Die Schwarzott Group in Zürich begleitet für FIAON Global die Kapital-Etappe und ist Ansprechpartner für Unternehmen aus der Schweiz. Sie ist eine Beteiligungs- und Investmentgruppe — keine Bank, und sie vergibt keine Kredite.",
         ],
       },
       {
@@ -414,7 +414,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
           "Eine US-Gesellschaft ist kein Weg, Steuern in der Schweiz zu vermeiden, wenn sie von hier aus verwaltet wird.",
           GLOBAL_PFLICHTHINWEIS.de[1],
           GLOBAL_PFLICHTHINWEIS.de[2],
-          "Die Schwarzott Capital Partners AG und die Schwarzott Global LLC sind mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.",
+          "Die Schwarzott Group ist mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.",
         ],
       },
       { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung, Steuernummern und die Prüfung vor der Gründung: Global Struktur.", paket: "global_struktur" },
@@ -423,7 +423,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     fragen: [
       { f: "Kann ich als Schweizer Unternehmer eine US-LLC gründen?", a: "Ja, ohne Wohnsitz in den USA. Sie brauchen einen Reisepass, einen Adressnachweis und bei einer Firma als Gesellschafterin deren Handelsregisterauszug." },
       { f: "Ist meine US-Gesellschaft in der Schweiz steuerpflichtig?", a: "Wenn sie tatsächlich von der Schweiz aus verwaltet wird, in der Regel ja (Art. 50 DBG). Unser Partner-Steuerberater prüft Ihren Fall vor der Gründung." },
-      { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD in London. Die Schwarzott Capital Partners AG in Zürich und die Schwarzott Global LLC in Miami sind Partner von FIAON Global." },
+      { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD in London. Die Schwarzott Group mit Standorten in Zürich und Miami ist Partner von FIAON Global." },
     ],
     paket: "global_struktur",
     weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-oesterreich", "/business/us-firmengruendung"],

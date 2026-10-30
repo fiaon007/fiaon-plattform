@@ -86,7 +86,7 @@ export default function GlobalLandingPage() {
               </div>
               <dl>
                 <div><dt>Vertragspartner</dt><dd>{FIAON_FIRMA.name}, London · Companies House {FIAON_FIRMA.companyNo}</dd></div>
-                <div><dt>Vor Ort</dt><dd>Schwarzott Global LLC, Miami</dd></div>
+                <div><dt>Vor Ort</dt><dd>Schwarzott Group, Miami</dd></div>
                 <div><dt>Begleitung</dt><dd>{paket.de.dauer}</dd></div>
                 <div><dt>{GLOBAL_GELD_ZURUECK.de.titel}</dt><dd>{GLOBAL_GELD_ZURUECK.de.text}</dd></div>
               </dl>

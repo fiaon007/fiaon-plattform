@@ -673,7 +673,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       lead: "FIAON is a team in sales, onboarding and collections — and three shareholders who work in the business themselves. We are building the operating system for creditworthiness in Germany, Austria and Switzerland.",
       abschnitte: [
         { h2: "The people you reach on the phone", text: "Sales explains the report and finds the right plan; onboarding leads the first fifteen minutes and the first weeks; collections keeps deadlines and negotiates with creditors. Many in the team were customers themselves and passed the Academy before their first call." },
-        { h2: "Who is responsible for what", text: "Justin Schwarzott, founder and managing director: product, strategy, partners. Florentine Lombardi, shareholder: people and onboarding. Daniel Stripling, shareholder: head of sales. Investor and partner: Schwarzott Capital Partners AG, Zurich." },
+        { h2: "Who is responsible for what", text: "Justin Schwarzott, founder and managing director: product, strategy, partners. Florentine Lombardi, shareholder: people and onboarding. Daniel Stripling, shareholder: head of sales. Investor and partner: Schwarzott Group, Zurich." },
         { h2: "What we hold to", text: "Courtesy always, no fantasy numbers, every decision on record, and a team that explains the path because it has walked it.", punkte: ["Get in touch: names, e-mail addresses and phone numbers on this page", "Careers: employed or freelance, remote in Germany, Austria and Switzerland"] },
       ],
       weiter: ["/ueber-uns", "/was-ist-fiaon"],

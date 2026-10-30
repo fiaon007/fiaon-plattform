@@ -45,7 +45,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Sie brauchen", "Reisepass, Adressnachweis, Namenswunsch, Tätigkeitsbeschreibung — als Unternehmen zusätzlich den Registerauszug"],
       ["Begleitung", `${dauer("global_struktur")} (Global Struktur)`],
       ["Festpreis", `ab ${globalPreisText("global_struktur")}, einmalig — Staatsgebühren und Partner-Honorare inklusive`],
-      ["Vertragspartner", "FIAON LTD, London · vor Ort: Schwarzott Global LLC, Miami"],
+      ["Vertragspartner", "FIAON LTD, London · vor Ort: Schwarzott Group, Miami"],
     ],
     kurz: "Eine US-Gesellschaft lässt sich vollständig aus dem Ausland gründen — ohne Wohnsitz in den USA, ohne Reise und ohne Mindestkapital. FIAON übernimmt Gründung, Steuernummern, Registered Agent, Adresse und Telefonnummer und die Abstimmung mit Anwalt, Steuerberater und US-CPA, zum Festpreis. Steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie tatsächlich geführt wird.",
     bloecke: [
@@ -86,7 +86,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         typ: "rollen", id: "wer-was-tut", h2: "Wer was tut",
         lead: GLOBAL_ROLLEN.de.fiaon,
         fiaon: ["Koordination aller Beteiligten, ein Ansprechpartner", "Gründung, Registered Agent, Adresse und Telefon", "Anträge für EIN und ITIN", "Konto- und Kartenantrag vorbereitet", "Pflichtenkalender und Dokumentenraum"],
-        partner: ["Partner-Steuerberater: Prüfung vor der Gründung", "Partner-Anwalt: Operating Agreement", "US-CPA: erste jährliche US-Meldung", "Schwarzott Global LLC, Miami: Termine und Einreichungen vor Ort"],
+        partner: ["Partner-Steuerberater: Prüfung vor der Gründung", "Partner-Anwalt: Operating Agreement", "US-CPA: erste jährliche US-Meldung", "Schwarzott Group, Miami: Termine und Einreichungen vor Ort"],
         sie: ["fünf Unterlagen hochladen", "Rechtsform und Namen entscheiden", "Anträge unterschreiben", "Ihre Gesellschaft im Heimatland melden — mit Ihrem Steuerberater"],
       },
       {
@@ -311,7 +311,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     ziffern: [
       { wert: globalKapitalSpanne(), label: "Kapitalrahmen je Paket — Ihr Ziel, über jeden Rahmen entscheidet das Institut" },
       { wert: "vier Etappen", label: "Gründung, erste Karte, Kartenleiter, Bankdarlehen" },
-      { wert: "Zürich", label: "Kapital-Etappe mit der Schwarzott Capital Partners AG" },
+      { wert: "Zürich", label: "Kapital-Etappe mit der Schwarzott Group" },
     ],
     blick: [
       ["Kapitalrahmen", `${globalKapitalSpanne()} — je nach Paket, als Ziel`],
@@ -377,7 +377,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Kapital begleitet über mehrere Herausgeber bis zum Bankdarlehen — mit Kennzahlen-Mappe und Vorrang bei Terminen vor Ort.", paket: "global_kapital" },
-      { typ: "standorte", id: "standorte", h2: "Die Kapital-Etappe", lead: "Die Schwarzott Capital Partners AG in Zürich begleitet die Kapital-Etappe: Kennzahlen und Unterlagen für Finanzierungsgespräche." },
+      { typ: "standorte", id: "standorte", h2: "Die Kapital-Etappe", lead: "Die Schwarzott Group in Zürich begleitet die Kapital-Etappe: Kennzahlen und Unterlagen für Finanzierungsgespräche." },
     ],
     fragen: [
       { f: "Wie hoch wird mein Kartenrahmen?", a: "Das entscheidet der Herausgeber nach seinen Regeln. Der Kapitalrahmen je Paket ist Ihr Ziel und richtet unsere Begleitung aus — er ist keine Zusage." },
@@ -489,7 +489,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     ziffern: [
       { wert: globalPlanungText("global_vip"), label: "Kapitalrahmen — Ihr Ziel, das Institut entscheidet" },
       { wert: globalPreisText("global_vip"), label: "Festpreis, einmalig — Flug und Hotel inklusive" },
-      { wert: "Miami", label: "Auftakt mit der Schwarzott Global LLC" },
+      { wert: "Miami", label: "Auftakt mit der Schwarzott Group" },
     ],
     blick: [
       ["Enthalten", "Alles aus Global Kapital — Gründung bis Kennzahlen-Mappe"],
@@ -505,7 +505,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         typ: "text", id: "warum", h2: "Warum vor Ort",
         absaetze: [
           "Die meisten Gründungen brauchen keine Reise. Wer aber eine größere Struktur aufbaut, mehrere Institute anspricht oder schlicht selbst sehen will, mit wem er arbeitet, gewinnt mit einem Auftakt vor Ort: Gespräche werden kürzer, Rückfragen verschwinden, und Sie lernen die Menschen kennen, die Ihre Gesellschaft in den USA begleiten.",
-          "Miami ist dafür kein Zufall: Hier sitzt unser Team vor Ort, die Schwarzott Global LLC, und von hier aus werden Termine bei Behörden und Instituten wahrgenommen.",
+          "Miami ist dafür kein Zufall: Hier sitzt unser Team vor Ort, die Schwarzott Group, und von hier aus werden Termine bei Behörden und Instituten wahrgenommen.",
         ],
       },
       {
@@ -526,7 +526,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "Das Paket", lead: "Alles aus Global Kapital, der Auftakt in Miami, Begleitung durch die Geschäftsführung.", paket: "global_vip" },
-      { typ: "standorte", id: "standorte", h2: "Ihr Team in Miami", lead: "Vertragspartner ist die FIAON LTD in London; vor Ort arbeitet die Schwarzott Global LLC." },
+      { typ: "standorte", id: "standorte", h2: "Ihr Team in Miami", lead: "Vertragspartner ist die FIAON LTD in London; vor Ort arbeitet die Schwarzott Group." },
     ],
     fragen: [
       { f: "Wer reist beim Paket Global VIP?", a: "Flug und Hotel für den Auftakt sind für eine von Ihnen benannte Person enthalten. Möchten weitere Personen mitreisen, stimmen wir das vorab gesondert mit Ihnen ab." },

@@ -66,7 +66,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["You need", "Passport, proof of address, preferred name, description of the business activity — for companies, the commercial register extract as well"],
       ["Support", `${dauer("global_struktur")} (${STRUKTUR})`],
       ["Fixed price", `from ${globalPreisText("global_struktur", "en")}, one-off — state fees and partner fees included`],
-      ["Contracting party", "FIAON LTD, London · on the ground: Schwarzott Global LLC, Miami"],
+      ["Contracting party", "FIAON LTD, London · on the ground: Schwarzott Group, Miami"],
     ],
     kurz: "A US company can be formed entirely from abroad — without living in the US, without travelling and without minimum capital. FIAON handles the formation, tax numbers, registered agent, address and phone number, as well as coordination with the lawyer, tax adviser and US CPA — at a fixed price. As a rule, the company remains taxable where it is actually managed.",
     bloecke: [
@@ -107,7 +107,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         typ: "rollen", id: "wer-was-tut", h2: "Who does what",
         lead: GLOBAL_ROLLEN.en.fiaon,
         fiaon: ["Coordination of everyone involved, one contact", "Formation, registered agent, address and phone", "EIN and ITIN applications", "Account and card application prepared", "Compliance calendar and document room"],
-        partner: ["Partner tax adviser: review before formation", "Partner lawyer: operating agreement", "US CPA: first annual US filing", "Schwarzott Global LLC, Miami: appointments and filings on the ground"],
+        partner: ["Partner tax adviser: review before formation", "Partner lawyer: operating agreement", "US CPA: first annual US filing", "Schwarzott Group, Miami: appointments and filings on the ground"],
         sie: ["Upload five documents", "Decide on the legal form and name", "Sign the applications", "Report your company in your home country — with your tax adviser"],
       },
       {
@@ -341,7 +341,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     ziffern: [
       { wert: globalKapitalSpanne("en"), label: "Capital range per package — your goal; the institution decides on every limit" },
       { wert: "four stages", label: "Formation, first card, card ladder, bank loan" },
-      { wert: "Zurich", label: "Capital stage with Schwarzott Capital Partners AG" },
+      { wert: "Zurich", label: "Capital stage with Schwarzott Group" },
     ],
     blick: [
       ["Capital range", `${globalKapitalSpanne("en")} — depending on the package, as a goal`],
@@ -407,7 +407,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "The right package", lead: `${KAPITAL} supports you across several issuers through to the bank loan — with a key-figures file and priority for appointments on the ground.`, paket: "global_kapital" },
-      { typ: "standorte", id: "standorte", h2: "The capital stage", lead: "Schwarzott Capital Partners AG in Zurich supports the capital stage: key figures and documents for financing discussions." },
+      { typ: "standorte", id: "standorte", h2: "The capital stage", lead: "Schwarzott Group in Zurich supports the capital stage: key figures and documents for financing discussions." },
     ],
     fragen: [
       { f: "What will my credit limit be?", a: "That is decided by the issuer under its own rules. The capital range per package is your goal and sets the direction of our support — it is not a promise." },
@@ -525,7 +525,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     ziffern: [
       { wert: VIP_RAHMEN, label: "Capital range — your goal; the institution decides" },
       { wert: globalPreisText("global_vip", "en"), label: "Fixed price, one-off — flights and hotel included" },
-      { wert: "Miami", label: "Kick-off with Schwarzott Global LLC" },
+      { wert: "Miami", label: "Kick-off with Schwarzott Group" },
     ],
     blick: [
       ["Included", `Everything in ${KAPITAL} — from formation to the key-figures file`],
@@ -541,7 +541,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         typ: "text", id: "warum", h2: "Why on the ground",
         absaetze: [
           "Most formations do not require any travel. But if you are building a larger structure, approaching several institutions or simply want to see for yourself who you are working with, you benefit from a kick-off on the ground: conversations become shorter, queries disappear, and you get to know the people who support your company in the US.",
-          "The choice of Miami is no coincidence: this is where our team on the ground, Schwarzott Global LLC, is based, and it is from here that the team attends appointments with authorities and institutions.",
+          "The choice of Miami is no coincidence: this is where our team on the ground, Schwarzott Group, is based, and it is from here that the team attends appointments with authorities and institutions.",
         ],
       },
       {
@@ -562,7 +562,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "The package", lead: `Everything in ${KAPITAL}, the kick-off in Miami, support from our management.`, paket: "global_vip" },
-      { typ: "standorte", id: "standorte", h2: "Your team in Miami", lead: "Your contracting party is FIAON LTD in London; Schwarzott Global LLC works on the ground." },
+      { typ: "standorte", id: "standorte", h2: "Your team in Miami", lead: "Your contracting party is FIAON LTD in London; Schwarzott Group works on the ground." },
     ],
     fragen: [
       { f: `Whose travel is included in the ${VIP} package?`, a: "Flights and hotel for the kick-off are included for one person named by you. If further people would like to travel with you, we agree this with you separately in advance." },

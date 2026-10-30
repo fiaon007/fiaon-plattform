@@ -52,7 +52,7 @@ export const STAATEN: GlobalSeite[] = [
     auge: "Wissen · Bundesstaat",
     h1: "Florida.",
     h1b: "Der Staat unseres Teams vor Ort.",
-    lead: "In Florida sitzt unser Team vor Ort, die Schwarzott Global LLC in Miami. Für Unternehmen mit Geschäft in Florida, mit Terminen vor Ort oder mit dem Auftakt im Paket Global VIP ist der Staat die naheliegende Wahl — mit klaren Gebühren und einer festen Frist im Frühjahr. Derzeit trägt Florida allerdings langsamer ein als gewohnt: oft rund zwei Wochen, ohne Express.",
+    lead: "In Florida sitzt unser Team vor Ort, die Schwarzott Group in Miami. Für Unternehmen mit Geschäft in Florida, mit Terminen vor Ort oder mit dem Auftakt im Paket Global VIP ist der Staat die naheliegende Wahl — mit klaren Gebühren und einer festen Frist im Frühjahr. Derzeit trägt Florida allerdings langsamer ein als gewohnt: oft rund zwei Wochen, ohne Express.",
     ziffern: [
       { wert: STAAT.florida.gruendung, label: "Gründung einer LLC" },
       { wert: STAAT.florida.jahr, label: "Annual Report, 1. Januar bis 1. Mai" },
@@ -65,9 +65,9 @@ export const STAATEN: GlobalSeite[] = [
       ["Verzug", STAAT.florida.jahrVerzug],
       ["Registered Agent", STAAT.florida.agent],
       ["Steuer des Staats", STAAT.florida.steuer],
-      ["Vor Ort", "Schwarzott Global LLC, 3119 Coral Way, Miami"],
+      ["Vor Ort", "Schwarzott Group, Miami"],
     ],
-    kurz: `Eine LLC in Florida kostet bei der Gründung ${STAAT.florida.gruendung} (${STAAT.florida.gruendungDetail}). Jedes Jahr ist zwischen 1. Januar und 1. Mai ein Annual Report über ${STAAT.florida.jahr} fällig; danach kommen 400 $ hinzu. Ein Registered Agent mit Anschrift in Florida ist Pflicht. Florida ist der Staat unseres Teams vor Ort — Termine in Miami nimmt die Schwarzott Global LLC wahr.`,
+    kurz: `Eine LLC in Florida kostet bei der Gründung ${STAAT.florida.gruendung} (${STAAT.florida.gruendungDetail}). Jedes Jahr ist zwischen 1. Januar und 1. Mai ein Annual Report über ${STAAT.florida.jahr} fällig; danach kommen 400 $ hinzu. Ein Registered Agent mit Anschrift in Florida ist Pflicht. Florida ist der Staat unseres Teams vor Ort — Termine in Miami nimmt die Schwarzott Group wahr.`,
     bloecke: [
       {
         typ: "tabelle", id: "fakten", h2: "Florida in Zahlen",
@@ -104,7 +104,7 @@ export const STAATEN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung in Florida mit allem, was zum Start gehört — oder mit Auftakt vor Ort im Paket Global VIP.", paket: "global_struktur" },
-      { typ: "standorte", id: "standorte", h2: "Unser Team in Miami", lead: "Die Schwarzott Global LLC nimmt Termine vor Ort wahr; Vertragspartner ist die FIAON LTD." },
+      { typ: "standorte", id: "standorte", h2: "Unser Team in Miami", lead: "Die Schwarzott Group nimmt Termine vor Ort wahr; Vertragspartner ist die FIAON LTD." },
     ],
     fragen: [
       { f: "Was kostet eine LLC in Florida?", a: `Die Gründung kostet ${STAAT.florida.gruendung}, der jährliche Annual Report ${STAAT.florida.jahr}. Bei FIAON Global sind Gründung und das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten.` },

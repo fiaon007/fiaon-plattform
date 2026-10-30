@@ -4,7 +4,12 @@
 // Justin (18.09.2026, spät): „Wir arbeiten hier mit der Schwarzott Global LLC
 // aus Miami zusammen und mit der Schwarzott Capital Partners AG aus Zürich."
 //
-// ── WAS HIER STEHT, IST GEPRÜFT ───────────────────────────────────────────
+// ── 30.10.2026 (E-466, Justin): „entferne Schwarzott Capital Partners AG bzw. Schwarzott Global LLC,
+// sondern eher Schwarzott Group“ — öffentlich heißen Zürich und Miami seither „Schwarzott Group“, ohne
+// Registernummer, Anschrift und Register-Links. Verträge, Angebote (Bürgschaft) und Buchhaltung nennen die
+// Gesellschaften weiter mit ihrem echten Namen (dort sind sie Vertragspartei) — das hier betrifft nur die Seite.
+//
+// ── WAS HIER STEHT, IST GEPRÜFT (Stand 19.09.2026, vor der Umbenennung) ────
 // · FIAON LTD — Companies House (England and Wales) No. 17318250, 128 City
 //   Road, London (shared/fiaon-firma.ts).
 // · Schwarzott Capital Partners AG — Handelsregister des Kantons Zürich,
@@ -84,23 +89,23 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     stadt: "Zürich",
     land: "Schweiz",
     zeitzone: "Europe/Zurich",
-    gesellschaft: "Schwarzott Capital Partners AG",
-    rechtsform: "Aktiengesellschaft",
-    adresse: ["Schifflände 26", "8001 Zürich"],
-    register: "UID CHE-102.119.428",
+    gesellschaft: "Schwarzott Group",
+    rechtsform: "Partner von FIAON Global",
+    adresse: ["Zürich, Schweiz"],
+    register: null,
     rolle: "Partner für die Kapital-Etappe und für Kunden aus der Schweiz",
     aufgaben: [
       "begleitet die Kapital-Etappe: Kennzahlen und Unterlagen für Finanzierungsgespräche",
       "Ansprechpartner vor Ort für Unternehmen aus der Schweiz",
-      "Beteiligungs- und Investmentgesellschaft — keine Bank, keine Kreditvergabe",
+      "Beteiligungs- und Investmentgruppe — keine Bank, keine Kreditvergabe",
     ],
     en: {
-      stadt: "Zurich", land: "Switzerland", rechtsform: "Aktiengesellschaft (Swiss company limited by shares)",
+      stadt: "Zurich", land: "Switzerland", rechtsform: "Partner of FIAON Global",
       rolle: "Partner for the capital stage and for clients from Switzerland",
       aufgaben: [
         "supports the capital stage: key figures and documents for financing discussions",
         "local contact for companies from Switzerland",
-        "an investment and holding company — not a bank, no lending",
+        "an investment and holding group — not a bank, no lending",
       ],
     },
   },
@@ -109,9 +114,9 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     stadt: "Miami",
     land: "Florida, USA",
     zeitzone: "America/New_York",
-    gesellschaft: "Schwarzott Global LLC",
-    rechtsform: "Limited Liability Company",
-    adresse: ["3119 Coral Way, Suite 200", "Miami, FL 33145"],
+    gesellschaft: "Schwarzott Group",
+    rechtsform: "Partner von FIAON Global",
+    adresse: ["Miami, Florida"],
     register: null,
     rolle: "Unser Team vor Ort — Termine, Einreichungen, Auftakt in Miami",
     aufgaben: [
@@ -120,7 +125,7 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       "richtet den Auftakt des Pakets Global VIP in Miami aus",
     ],
     en: {
-      stadt: "Miami", land: "Florida, USA", rechtsform: "Limited Liability Company",
+      stadt: "Miami", land: "Florida, USA", rechtsform: "Partner of FIAON Global",
       rolle: "Our team on the ground — appointments, filings and the kick-off in Miami",
       aufgaben: [
         "attends appointments with authorities and banks on the ground",
@@ -137,14 +142,15 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
  * eine vollständige Angabe, nie eine Lücke (19.09.2026, E-192).
  */
 export function standortNachweis(o: GlobalStandort): string {
-  if (o.register) return o.register;
-  return o.schluessel === "miami" ? "Florida Limited Liability Company" : o.rechtsform;
+  // Seit 30.10.2026 (E-466) tragen nur noch Gesellschaften mit eigener Registernummer einen Nachweis (FIAON LTD);
+  // die Schwarzott Group steht ohne Register und ohne Rechtsform auf der Seite.
+  return o.register ?? "";
 }
 
 /** Der Satz zur Verbindung — steht überall, wo die Partner genannt werden. */
 export const GLOBAL_VERBUNDEN =
-  "Die Schwarzott Capital Partners AG und die Schwarzott Global LLC sind mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.";
+  "Die Schwarzott Group ist mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.";
 
 /** Derselbe Satz auf Englisch (24.09.2026, E-234) — eine Quelle für Seite, Fuß und Register. */
 export const GLOBAL_VERBUNDEN_EN =
-  "Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.";
+  "Schwarzott Group is connected to FIAON through our founder Justin Schwarzott. Your contracting party is always FIAON LTD.";

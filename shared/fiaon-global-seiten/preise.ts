@@ -66,7 +66,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
       {
         typ: "rollen", id: "wer", h2: "Wer wann am Zug ist",
         fiaon: ["Startgespräch, Plan und Koordination", "Einreichungen beim Bundesstaat und bei der IRS", "Konto- und Kartenanträge vorbereitet", "Pflichtenkalender und Dokumentenraum"],
-        partner: ["Partner-Steuerberater: Prüfung vor der Gründung", "Partner-Anwalt: Operating Agreement", "US-CPA: erste jährliche US-Meldung", "Schwarzott Global LLC: Termine vor Ort in Miami"],
+        partner: ["Partner-Steuerberater: Prüfung vor der Gründung", "Partner-Anwalt: Operating Agreement", "US-CPA: erste jährliche US-Meldung", "Schwarzott Group: Termine vor Ort in Miami"],
         sie: ["Unterlagen hochladen", "Entscheidungen treffen und unterschreiben", "Anträge bei Herausgebern und Banken stellen", "Pünktlich abrechnen — das baut Ihre Historie"],
       },
       {

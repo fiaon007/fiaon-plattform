@@ -74,7 +74,7 @@ export const PREISE_UND_ABLAUF_EN: GlobalSeite[] = [
       {
         typ: "rollen", id: "wer", h2: "Who does what, and when",
         fiaon: ["Kick-off call, plan and coordination", "Filings with the state and with the IRS", "Preparation of account and card applications", "Compliance calendar and document room"],
-        partner: ["Partner tax adviser: review before formation", "Partner lawyer: operating agreement", "US CPA: first annual US filing", "Schwarzott Global LLC: appointments on the ground in Miami"],
+        partner: ["Partner tax adviser: review before formation", "Partner lawyer: operating agreement", "US CPA: first annual US filing", "Schwarzott Group: appointments on the ground in Miami"],
         sie: ["Upload documents", "Make decisions and sign", "Submit applications to issuers and banks", "Pay your statements on time — this builds your history"],
       },
       {

@@ -100,7 +100,7 @@ export default function GlobalOrte({ en, label, sie, sieZusatz, rollen, uhren }:
             {o.schluessel !== "zuerich" && <UhrMini zone={ZONE[o.schluessel as "london" | "miami"]} ort={en ? o.en.stadt : o.stadt} />}
             <span className="gf-stadt">{en ? o.en.stadt : o.stadt}</span>
             <b>{o.gesellschaft}</b>
-            <span>{rollen[o.schluessel as keyof typeof rollen]} · {standortNachweis(o)}</span>
+            <span>{rollen[o.schluessel as keyof typeof rollen]}{standortNachweis(o) ? ` · ${standortNachweis(o)}` : ""}</span>
           </li>
         ))}
       </ul>

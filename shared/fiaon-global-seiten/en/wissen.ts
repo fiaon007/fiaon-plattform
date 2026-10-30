@@ -554,12 +554,12 @@ export const WISSEN_EN: GlobalSeite[] = [
     fragen: [
       { f: "How can I tell whether a US formation provider is reputable?", a: "By a contracting party with a registration number you can check, a fixed price with a schedule of services, clear mandatory notices and the absence of any commitments on tax, cards and credit." },
       { f: "Is an LLC inherently dubious?", a: "No. The LLC is an ordinary legal form in the US. What decides whether a provider is reputable is how it works — not what legal form it has." },
-      { f: "How do I check FIAON’s registration number?", a: "At Companies House (England and Wales) under number 17318250. You will find Schwarzott Capital Partners AG in Zefix under CHE-102.119.428." },
+      { f: "How do I check FIAON’s registration number?", a: "At Companies House (England and Wales) under number 17318250." },
     ],
     weiter: ["/en/business/partners", "/en/business/comparison", "/en/business/costs", "/en/business/knowledge/us-business-credit-card"],
     quellen: [
       { titel: "Companies House — FIAON LTD", url: "https://find-and-update.company-information.service.gov.uk/company/17318250" },
-      { titel: "Zefix — Schwarzott Capital Partners AG", url: "https://www.zefix.ch/de/search/entity/list/firm/304048" },
+      { titel: "Zefix — Swiss Central Business Name Index", url: "https://www.zefix.ch/de/search/entity/welcome" },
     ],
   },
 ];

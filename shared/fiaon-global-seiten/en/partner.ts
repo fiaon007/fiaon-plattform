@@ -27,7 +27,7 @@ export const PARTNER_SEITE_EN: GlobalSeite = {
   art: "partner",
   seo: {
     titel: "Locations and partners: London, Zurich, Miami — FIAON Global",
-    beschreibung: "FIAON LTD in London, Schwarzott Capital Partners AG in Zurich, Schwarzott Global LLC in Miami: who your contracting party is and who works on the ground.",
+    beschreibung: "FIAON LTD in London, Schwarzott Group in Zurich and Miami: who your contracting party is and who works on the ground.",
   },
   stand: S,
   erschienen: S,
@@ -35,21 +35,21 @@ export const PARTNER_SEITE_EN: GlobalSeite = {
   auge: "Knowledge · Locations and partners",
   h1: "London, Zurich, Miami.",
   h1b: "Three locations, one contracting party.",
-  lead: `Your contract is with ${FIAON_FIRMA.name} in London. In Zurich, Schwarzott Capital Partners AG supports the capital stage; in Miami, Schwarzott Global LLC works as our team on the ground. In addition, tax advisers, US CPAs and lawyers from our partner network act under your engagement.`,
+  lead: `Your contract is with ${FIAON_FIRMA.name} in London. Schwarzott Group supports the capital stage in Zurich and works as our team on the ground in Miami. In addition, tax advisers, US CPAs and lawyers from our partner network act under your engagement.`,
   ziffern: [
     { wert: "London", label: `${FIAON_FIRMA.name} — contract, invoice, dedicated contact` },
-    { wert: "Zurich", label: "Schwarzott Capital Partners AG — capital stage" },
-    { wert: "Miami", label: "Schwarzott Global LLC — team on the ground" },
+    { wert: "Zurich", label: "Schwarzott Group — capital stage" },
+    { wert: "Miami", label: "Schwarzott Group — team on the ground" },
   ],
   blick: [
     ["Contracting party", `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, London · Companies House No. ${FIAON_FIRMA.companyNo}`],
-    ["Zurich", "Schwarzott Capital Partners AG, Schifflände 26 · UID CHE-102.119.428"],
-    ["Miami", "Schwarzott Global LLC, 3119 Coral Way, Suite 200"],
+    ["Zurich", "Schwarzott Group — capital stage"],
+    ["Miami", "Schwarzott Group — appointments on the ground"],
     ["Partner network", "Tax advisers, US CPAs and lawyers — under your engagement, fees paid by FIAON"],
     ["Connected", "Through our founder Justin Schwarzott"],
     ["Not a bank", "None of the companies grants or arranges loans"],
   ],
-  kurz: `FIAON Global works from three locations: ${FIAON_FIRMA.name} in London is your contracting party, Schwarzott Capital Partners AG in Zurich supports the capital stage, and Schwarzott Global LLC in Miami attends appointments as our team on the ground. All three companies are connected through our founder Justin Schwarzott. None of them is a bank or grants loans.`,
+  kurz: `FIAON Global works from three locations: ${FIAON_FIRMA.name} in London is your contracting party, and Schwarzott Group supports the capital stage in Zurich and attends appointments as our team on the ground in Miami. FIAON LTD and Schwarzott Group are connected through our founder Justin Schwarzott. None of them is a bank or grants loans.`,
   bloecke: [
     { typ: "standorte", id: "standorte", h2: "The three locations", lead: "Who your contracting party is, who works for you on the ground and who supports the capital stage." },
     {
@@ -68,19 +68,18 @@ export const PARTNER_SEITE_EN: GlobalSeite = {
       punkte: [
         GLOBAL_VERBUNDEN_EN,
         GLOBAL_ROLLEN.en.fiaon,
-        "None of the three companies is a bank, and none of them grants or arranges loans. Only the institution concerned decides on the account, the card, the limit and any loan.",
+        "Neither FIAON LTD nor Schwarzott Group is a bank, and neither grants or arranges loans. Only the institution concerned decides on the account, the card, the limit and any loan.",
       ],
     },
   ],
   fragen: [
     { f: "Who is my contracting party at FIAON Global?", a: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, London, registered at ${FIAON_FIRMA.register} under number ${FIAON_FIRMA.companyNo}. Your contract is with this company, and it issues your invoice.` },
-    { f: "What does Schwarzott Global LLC in Miami do?", a: `It is our team on the ground: it attends appointments with authorities and institutions, files documents, collects paperwork and hosts the kick-off of the ${VIP} package.` },
-    { f: "What does Schwarzott Capital Partners AG in Zurich do?", a: "It supports the capital stage with key figures and documents for financing discussions and is the contact for companies from Switzerland. It is an investment and holding company, not a bank." },
-    { f: "Are the partners independent of FIAON?", a: "No. Schwarzott Capital Partners AG and Schwarzott Global LLC are connected to FIAON through our founder Justin Schwarzott. We say so openly because it matters for your decision." },
+    { f: "What does Schwarzott Group in Miami do?", a: `It is our team on the ground: it attends appointments with authorities and institutions, files documents, collects paperwork and hosts the kick-off of the ${VIP} package.` },
+    { f: "What does Schwarzott Group in Zurich do?", a: "It supports the capital stage with key figures and documents for financing discussions and is the contact for companies from Switzerland. It is an investment and holding group, not a bank." },
+    { f: "Are the partners independent of FIAON?", a: "No. Schwarzott Group is connected to FIAON through our founder Justin Schwarzott. We say so openly because it matters for your decision." },
   ],
   weiter: ["/business/miami", "/business/aus-der-schweiz", "/business/firmenkarten-kapital", "/business/us-firmengruendung"].map(globalEnPfad),
   quellen: [
     { titel: `Companies House — ${FIAON_FIRMA.name}`, url: `https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}` },
-    { titel: "Zefix (Swiss Central Business Name Index) — Schwarzott Capital Partners AG", url: "https://www.zefix.ch/de/search/entity/list/firm/304048" },
   ],
 };

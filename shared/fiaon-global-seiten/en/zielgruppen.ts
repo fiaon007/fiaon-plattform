@@ -258,7 +258,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     auge: "Who it is for · Construction and property",
     h1: "Construction and property.",
     h1b: "Projects in the US, properly structured.",
-    lead: "If you build, refurbish or hold properties in the US, you put each project into a company of its own. We form it, obtain the tax numbers, prepare the account application and key figures — and, with our team in Miami and Schwarzott Capital Partners AG in Zurich, support the capital stage.",
+    lead: "If you build, refurbish or hold properties in the US, you put each project into a company of its own. We form it, obtain the tax numbers, prepare the account application and key figures — and, with our team in Miami and Schwarzott Group in Zurich, support the capital stage.",
     ziffern: [
       { wert: globalPlanungText("global_kapital", "en"), label: `capital range in ${name("global_kapital")}, as a target` },
       { wert: "Miami", label: "team on the ground for appointments" },
@@ -268,7 +268,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["For", "Construction companies, project developers, property holders"],
       ["Structure", "One company per project or property — usually an LLC"],
       ["Capital", "Key figures and documents for financing discussions"],
-      ["On the ground", "Appointments in Miami with Schwarzott Global LLC"],
+      ["On the ground", "Appointments in Miami with Schwarzott Group"],
       ["Decision", "The institution decides on any financing"],
       ["Package", `${name("global_kapital")} or ${name("global_vip")}`],
     ],
@@ -278,7 +278,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         typ: "text", id: "warum", h2: "One company per project",
         absaetze: [
           "In the US it is customary to hold each construction project and each property in a company of its own. This separates liability, makes financing and sales simpler and keeps the figures for each project clean.",
-          "For companies from Germany, Austria or Switzerland there is a further point: a team on the ground that attends appointments and files documents saves travel — and Schwarzott Capital Partners AG in Zurich, whose business includes property investments abroad, supports the capital stage.",
+          "For companies from Germany, Austria or Switzerland there is a further point: a team on the ground that attends appointments and files documents saves travel — and Schwarzott Group in Zurich, whose business includes property investments abroad, supports the capital stage.",
         ],
       },
       {
@@ -299,7 +299,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         ],
       },
       { typ: "paket", id: "paket", h2: "The right package", lead: `${name("global_kapital")} supports you through to the key-figures file for a bank loan — with priority for appointments on the ground.`, paket: "global_kapital" },
-      { typ: "standorte", id: "standorte", h2: "Miami and Zurich", lead: "Appointments on the ground with Schwarzott Global LLC, the capital stage with Schwarzott Capital Partners AG." },
+      { typ: "standorte", id: "standorte", h2: "Miami and Zurich", lead: "Appointments on the ground and the capital stage with Schwarzott Group." },
     ],
     fragen: [
       { f: "Do I need a separate company for each project?", a: "It is customary: one company per project separates liability and figures and makes financing and selling easier. Whether it suits your case is something we clarify in the kick-off call." },
@@ -406,16 +406,16 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     auge: "Who it is for · From Switzerland",
     h1: "From Switzerland to the US.",
     h1b: "With a partner in Zurich.",
-    lead: "For companies from Switzerland, the route to the US is short: we form your US company, obtain the tax numbers and prepare the account application — with Schwarzott Capital Partners AG in Zurich as our local partner and our team in Miami.",
+    lead: "For companies from Switzerland, the route to the US is short: we form your US company, obtain the tax numbers and prepare the account application — with Schwarzott Group in Zurich as our local partner and our team in Miami.",
     ziffern: [
-      { wert: "Zurich", label: "Local partner: Schwarzott Capital Partners AG" },
+      { wert: "Zurich", label: "Local partner: Schwarzott Group" },
       { wert: "Art. 50 DBG", label: "tax liability at the place of effective management" },
       { wert: AB, label: "Fixed price, one-off" },
     ],
     blick: [
       ["Tax liability", "If the registered office or place of effective management is in Switzerland (Art. 50 DBG)"],
-      ["Partner", "Schwarzott Capital Partners AG, Schifflände 26, Zurich"],
-      ["On the ground in the US", "Schwarzott Global LLC, Miami"],
+      ["Partner", "Schwarzott Group, Zurich"],
+      ["On the ground in the US", "Schwarzott Group, Miami"],
       ["Before formation", "Review by our partner tax adviser — included in the fixed price"],
       ["Ongoing", "Tax return in Switzerland with your fiduciary (Treuhand) firm"],
       ["Contracting party", "FIAON LTD, London"],
@@ -432,7 +432,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       {
         typ: "text", id: "zuerich", h2: "A partner in Zurich",
         absaetze: [
-          "Schwarzott Capital Partners AG, based at Schifflände in Zurich, supports the capital stage for FIAON Global and is the contact for companies from Switzerland. It is a holding and investment company — not a bank, and it does not grant loans.",
+          "Schwarzott Group in Zurich supports the capital stage for FIAON Global and is the contact for companies from Switzerland. It is a holding and investment group — not a bank, and it does not grant loans.",
         ],
       },
       {
@@ -450,7 +450,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     fragen: [
       { f: "Can I form a US LLC as a Swiss entrepreneur?", a: "Yes, without residence in the US. You need a passport, proof of address and, if a company is to be the shareholder, its commercial register extract." },
       { f: "Is my US company taxable in Switzerland?", a: "Generally yes, if it is in fact managed from Switzerland (Art. 50 DBG). Our partner tax adviser reviews your case before formation." },
-      { f: "Who is my contracting party?", a: "FIAON LTD in London. Schwarzott Capital Partners AG in Zurich and Schwarzott Global LLC in Miami are partners of FIAON Global." },
+      { f: "Who is my contracting party?", a: "FIAON LTD in London. Schwarzott Group, with locations in Zurich and Miami, is a partner of FIAON Global." },
     ],
     paket: "global_struktur",
     weiter: ["/business/partner", "/business/wissen/us-llc-steuern", "/business/aus-oesterreich", "/business/us-firmengruendung"].map(globalEnPfad),

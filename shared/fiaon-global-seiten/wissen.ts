@@ -537,12 +537,12 @@ export const WISSEN: GlobalSeite[] = [
     fragen: [
       { f: "Woran erkenne ich einen seriösen Anbieter für die US-Gründung?", a: "An einem prüfbaren Vertragspartner mit Registernummer, einem Festpreis mit Leistungsverzeichnis, klaren Pflichthinweisen und dem Verzicht auf Zusagen zu Steuern, Karten und Krediten." },
       { f: "Ist eine LLC an sich unseriös?", a: "Nein. Die LLC ist eine gewöhnliche Rechtsform in den USA. Über Seriosität entscheidet, wie ein Anbieter arbeitet — nicht, welche Rechtsform er hat." },
-      { f: "Wie prüfe ich die Registernummer von FIAON?", a: "Im Companies House (England and Wales) unter der Nummer 17318250. Die Schwarzott Capital Partners AG finden Sie in Zefix unter CHE-102.119.428." },
+      { f: "Wie prüfe ich die Registernummer von FIAON?", a: "Im Companies House (England and Wales) unter der Nummer 17318250." },
     ],
     weiter: ["/business/partner", "/business/vergleich", "/business/kosten", "/business/wissen/us-firmenkarte-beantragen"],
     quellen: [
       { titel: "Companies House — FIAON LTD", url: "https://find-and-update.company-information.service.gov.uk/company/17318250" },
-      { titel: "Zefix — Schwarzott Capital Partners AG", url: "https://www.zefix.ch/de/search/entity/list/firm/304048" },
+      { titel: "Zefix — Zentraler Firmenindex der Schweiz", url: "https://www.zefix.ch/de/search/entity/welcome" },
     ],
   },
 ];

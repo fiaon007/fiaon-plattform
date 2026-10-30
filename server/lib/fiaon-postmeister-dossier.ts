@@ -920,8 +920,9 @@ export async function vertragsfassung(ref: string | null): Promise<{ jahresvertr
         + "keine Lastschrift, keine Mindestlaufzeit, keine Mahnkette und keinen Kundenbereich mit Passwort. Der Kunde hat die Seite „Mein Auftrag“ "
         + "(Stand, Vertrag, Rechnung, Unterlagen, Fristen); den Link dorthin schickst du mit global_zugang_senden. Mit dem Zahlungseingang beginnt der "
         + "Auftrag, die zuständige Person führt das Startgespräch. Storno, Beendigung, Erstattung und die Geld-zurück-Zusage entscheidet die Leitung — "
-        + "sage dazu nichts zu, sondern gib das Anliegen mit aufgabe_an_betreuer an die zuständige Person. Über Konto, Karte, Rahmen und Darlehen "
-        + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
+        + "sage dazu nichts zu, sondern gib das Anliegen mit aufgabe_an_betreuer an die zuständige Person. Bei Konto, Karten und Finanzierung "
+        // Justin 30.10.2026: kein Institut-Satz mehr in Maras Mails — vorher „… entscheidet allein das jeweilige Institut“.
+        + "kümmert sich FIAON um alles bis zur Bankunterschrift (positiv sagen, nie als Vorbehalt); Steuer- und Rechtsfragen klären unsere Partner-Steuerberater und -Anwälte direkt mit ihm, FIAON koordiniert.",
     };
   }
   // ── E-272 (02.10.2026): DER VORGANG IST PRIVAT, DER MENSCH IST GLOBAL ─────
@@ -938,8 +939,8 @@ export async function vertragsfassung(ref: string | null): Promise<{ jahresvertr
         + "dafür keine Rechnung, keine Zahlung und keinen Antrag. Ein FIRMENAUFTRAG über FIAON Global (Einmalpreis, Zahlung per Überweisung auf "
         + "Rechnung) entsteht mit der Annahme seines Angebots; was dazu schon besteht, steht in der Akte unter global. Angebot, Preis, Ablauf, "
         + "Storno und Erstattung entscheidet die Leitung mit seiner Ansprechperson — sage dazu nichts zu, sondern gib das Anliegen mit "
-        + "aufgabe_an_betreuer weiter. Über Konto, Karte, Rahmen und Darlehen "
-        + "entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen beantworten Steuerberater und Anwälte auf eigenes Mandat, FIAON koordiniert.",
+        + "aufgabe_an_betreuer weiter. Bei Konto, Karten und Finanzierung "
+        + "kümmert sich FIAON um alles bis zur Bankunterschrift (positiv sagen, nie als Vorbehalt); Steuer- und Rechtsfragen klären unsere Partner-Steuerberater und -Anwälte direkt mit ihm, FIAON koordiniert.",
     };
   }
   // E-265 Nachbesserung: dieselbe Rechnung wie WhatsApp und Kundenbereich (shared/fiaon-antrag-stand.ts).

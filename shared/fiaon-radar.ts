@@ -158,7 +158,63 @@ export interface RadarPartnerGruppe {
 }
 /** Der Platzhalter für den Provisions-Satz aus dem Chefbüro (radar_partner_provision_text) — EINE Quelle für Mail, Prüf-KI, Mara und CRM. */
 export const RADAR_PROVISION_PLATZHALTER = "{PROVISION}";
-// E-458 (Befund): Über Konto und Karte entscheidet die Bank — wir „kümmern uns darum“, nie „Ihre Kunden bekommen bei uns“.
+
+// ── JUSTINS VERKAUFSGESCHICHTE (30.10.2026) ─────────────────────────────────
+// Justin: „hör auf in jeder … E-Mail, die Mara schreibt, sowas wie ‚Die Entscheidung liegt bei der Bank‘ — solche
+// Rechtstexte … führen dazu, dass niemand mit uns reden wird. … Es ist kein Geheimnis, dass in den USA das Geld günstiger
+// ist als hier bei uns in Europa. Finanzierungen sind leichter abwickelbar, meist ohne hohe Sicherheiten … Es ist noch immer
+// besser wie ein Investor, den sie Anteile abgeben müssen … Wir kümmern uns um alles von Anfang bis Ende, bis zur
+// Bankunterschrift.“ EINE Quelle für erste Mail, Nachfassen, Maras Antworten, Brief und Prüf-KI. Still eingebaut bleibt nur,
+// was keine Rechtsbelehrung ist: keine Zahl (Zins, Betrag, Limit), kein Bankname, nichts als sicher für genau diese Firma
+// („Sie bekommen …“), kein Steuerversprechen, nie „ohne Sicherheiten“ (die persönliche Haftung bleibt) — „meist ohne hohe“.
+// Als STICHWORTE, nicht als fertige Sätze: Die erste Probe (30.10., echte Schreib-KI) übernahm ganze Sätze wörtlich — drei
+// Mails mit demselben Satz sind eine Serienmail (Fingerabdruck, Spamfilter).
+export const RADAR_VERKAUF = {
+  /** Gehört in jede Nutzen-Stelle — als Inhalt, jedes Mal neu formuliert. */
+  kern: [
+    "eigene US-Gesellschaft mit Geschäftskonto außerhalb der EU",
+    "Geld in den USA meist günstiger als in Europa, bessere Zinsen",
+    "Finanzierung dort leichter, meist ohne hohe Sicherheiten",
+    "wir erledigen alles von Anfang bis Ende, bis zur Bankunterschrift",
+  ],
+  /** Je Mail höchstens einer davon, wenn er zur Firma passt. */
+  extra: [
+    "oft besser als ein Investor, der dafür Anteile will",
+    "Liquidität sichern für die nächsten Schritte",
+    "US-Finanzierung meist unkompliziert, läuft komplett über uns bis zum Abschluss",
+    "auf dem Weg dahin US-Firmenkreditkarten mit hohen Limits und starken Vorteilen",
+  ],
+} as const;
+/** Die Regel gegen Abschreiben — dieselbe für erste Mail, Partner-Mail und Nachfassen. */
+export const RADAR_VERKAUF_EIGENE_WORTE = "Inhalt, NICHT Wortlaut: Formuliere jeden Punkt für diese Firma neu, in eigener Reihenfolge, und übernimm keine Wortfolge von mehr als vier Wörtern aus dieser Anweisung. Jede Mail klingt anders.";
+
+// Der Satz, den Justin in keiner Mail mehr lesen will (30.10.2026), in jeder üblichen Form, deutsch und englisch:
+// „die Entscheidung liegt bei der Bank“, „über Konto, Karte und Rahmen entscheidet das jeweilige Institut“, „die Zusage gibt
+// die Partnerbank“, „das sagt Ihnen niemand seriös zu“, „wir sind keine Bank“, „keine Zusage“. Sperrt im Motor (erste Mail,
+// Nachfassen), hält Maras Antwort als Entwurf an und fliegt aus den Fakten, die Mara vorgelegt bekommt.
+export const RADAR_BANK_VORBEHALT = new RegExp([
+  String.raw`(?:entscheide[nt]|entscheidung)[^.?!\n]{0,60}\b(?:bank(?:en)?|partnerbank|institut\w*|herausgeber\w*|kreditgeber\w*)\b`,
+  String.raw`\b(?:bank(?:en)?|partnerbank|institut\w*|herausgeber\w*|kreditgeber\w*)\b[^.?!\n]{0,40}(?:entscheide[nt]|entscheidung)`,
+  String.raw`bankentscheidung|zusage\s+(?:gibt|erteilt)\s|zusage\s+der\s+(?:partner)?bank|bedingungen\s+des\s+jeweiligen\s+instituts`,
+  String.raw`\bkeine\s+zusagen?\b|niemand\s+(?:seriös|serioes)|\bwir\s+sind\s+keine\s+bank\b|(?:vermitteln|vergeben)\s+keine\s+kredite`,
+  String.raw`\b(?:bank|institution|issuer|lender)s?\s+(?:alone\s+)?decides?\b|\bdecision\s+(?:lies|rests|is)\s+(?:with|up\s+to)\s+the\b|\bwe\s+are\s+not\s+a\s+bank\b`,
+].join("|"), "i");
+/** Der erste Satz mit einem Bank-Vorbehalt (gekürzt), sonst null. Rein. */
+export function radarBankVorbehalt(text: unknown): string | null {
+  const t = String(text ?? "");
+  const m = RADAR_BANK_VORBEHALT.exec(t);
+  if (!m) return null;
+  const anfang = Math.max(t.lastIndexOf(".", m.index), t.lastIndexOf("?", m.index), t.lastIndexOf("!", m.index), t.lastIndexOf("\n", m.index)) + 1;
+  return (t.slice(anfang).trim().split(/(?<=[.?!])\s/)[0] || m[0]).slice(0, 120);
+}
+/** Jeder Satz mit Bank-Vorbehalt heraus — für Fakten, die Mara vorgelegt bekommt (Leitfaden, Pflichthinweise). Rein. */
+export function ohneBankVorbehalt(text: unknown): string {
+  const t = String(text ?? "").replace(/\s*[—–-]\s*im Rahmen der Bedingungen des jeweiligen Instituts/gi, "");
+  return t.split(/(?<=[.!?])\s+/).filter((s) => !RADAR_BANK_VORBEHALT.test(s)).join(" ").trim();
+}
+
+// E-458 (Befund): wir „kümmern uns darum“, nie „Ihre Kunden bekommen bei uns“ (ein Versprechen an genau diesen Kunden) —
+// und seit 30.10.2026 auch nie der Satz, dass die Bank entscheidet (RADAR_BANK_VORBEHALT).
 const ANGEBOT_PROVISION = "Wir gründen Ihren Kunden eine eigene US-Gesellschaft und kümmern uns um Geschäftskonto, Firmenkarten und den Weg zu US-Funding. Für jeden Kunden, den Sie uns vorstellen, bekommen Sie {PROVISION}.";
 export const RADAR_PARTNER_GRUPPEN: readonly RadarPartnerGruppe[] = [
   { key: "steuerberater", label: "Steuerberater und Steuerkanzleien", provision: false, crmArt: "kanzlei",
@@ -212,15 +268,15 @@ export function radarPartnerAngebotPunkte(g: RadarPartnerGruppe | null | undefin
   if (g && !g.provision) {
     const betreuung = g.key === "rechtsanwaelte" ? "rechtliche" : "steuerliche";
     return [
-      "wir gründen ihren Mandanten eine eigene Gesellschaft in den USA",
-      "wir kümmern uns um Geschäftskonto und Firmenkarten (darüber entscheidet die Bank, also nie „bekommen bei uns“)",
+      `für ihre Mandanten: ${RADAR_VERKAUF.kern[0]}, ${RADAR_VERKAUF.kern[3]}`,
+      `warum das für Mandanten zählt: ${RADAR_VERKAUF.kern[1]} · ${RADAR_VERKAUF.kern[2]}`,
       `die ${betreuung} Betreuung bleibt ganz bei der Kanzlei`,
       `ein echter Grund für die Kanzlei: Unsere Kunden brauchen für ihre US-Gesellschaft oft eine Kanzlei in Deutschland, die beide Seiten kennt`,
     ];
   }
   return [
-    "wir gründen ihren Kunden eine eigene Gesellschaft in den USA",
-    "wir kümmern uns um Geschäftskonto und Firmenkarten oder helfen dabei (darüber entscheidet die Bank, also nie „bekommen bei uns“)",
+    `für ihre Kunden: ${RADAR_VERKAUF.kern[0]}, ${RADAR_VERKAUF.kern[3]}`,
+    `warum das für die Kunden zählt: ${RADAR_VERKAUF.kern[1]} · ${RADAR_VERKAUF.kern[2]}`,
     `für jeden Kunden, den der Partner vorstellt, bekommt er wörtlich „${satz}“`,
     "sein eigenes Geschäft mit dem Kunden bleibt davon unberührt",
   ];
@@ -1290,10 +1346,12 @@ export const RADAR_TRICHTER: { key: string; label: string; satz: string }[] = [
 // E-458 (29.10.2026): ohne Gedankenstriche — Justin: „NIEMALS klingt sie nach KI“, und Gedankenstrich-Ketten sind das
 // erste Erkennungszeichen. Wirkt auch auf Brief, Nachfass und das Zitat im Chefbüro.
 // E-458 (Befund Prüf-KI 29.10.2026): „das Kapital lässt sich einsetzen“ las die Prüf-KI als sicheres Geld (Zusage) — der
-// Vorteil steht jetzt als Möglichkeit („wenn es klappt“). Inhalt und Hauswort bleiben, wie Justin sie freigab.
+// Vorteil stand danach als Möglichkeit („wenn es klappt“).
+// Justin 30.10.2026 (RADAR_VERKAUF): ohne Wenn und Aber — günstigeres Geld in den USA, leichtere Finanzierung, Konto außerhalb
+// der EU, und wir kümmern uns um alles bis zur Bankunterschrift. Vorher→Nachher steht im Verlauf der Notiz fiaon-b2b-fokus-x10.
 export const RADAR_KERNSATZ = {
-  was: "Wir gründen für Unternehmer eine eigene LLC in den USA, das US-Gegenstück zur GmbH, kümmern uns um Geschäftskonto und Firmenkreditkarten und ebnen den Weg zu US-Funding.",
-  vorteil: "Viele US-Firmenkarten starten mit einem Einführungszeitraum ohne Sollzins, und wenn es klappt, lässt sich das Kapital auch in Europa einsetzen.",
+  was: "Wir gründen für Unternehmer eine eigene LLC in den USA, das US-Gegenstück zur GmbH, mit Geschäftskonto außerhalb der EU, und kümmern uns um alles von Anfang bis Ende, bis zur Bankunterschrift.",
+  vorteil: "In den USA ist Geld meist günstiger als bei uns in Europa, und Finanzierungen laufen dort leichter, meist ohne hohe Sicherheiten.",
   vorOrt: "Alles Amerikanische erledigt unser Team vor Ort.",
 } as const;
 

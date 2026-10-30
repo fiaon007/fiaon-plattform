@@ -51,6 +51,7 @@ import {
   RADAR_ANTWORT_ARTEN, RADAR_ANTWORT_SCHLUESSEL, RADAR_AUTOMATIK_SCHLUESSEL, RADAR_NACHFASS_TAGE, RADAR_ZIEL,
   RADAR_HOECHSTENS_JE_TAG, RADAR_KERNSATZ, RADAR_SIGNAL_AB, radarAutomatikLesen, radarMotorImFenster, radarAdressePruefen,
   radarBuchungslink, radarRoboter, radarPlan, radarGruss, radarPartnerGruppe, radarBeschwerde, radarStartseiteLink, RADAR_LAENDER_AKTIV,
+  RADAR_VERKAUF, radarBankVorbehalt, ohneBankVorbehalt,
   type RadarAntwortArt, type RadarAutomatik, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
@@ -698,10 +699,10 @@ function maraFuss(): string {
 /** Was Mara je Art zusätzlich weiß (E-361). */
 const MARA_JE_ART: Partial<Record<RadarAntwortArt | "wiedervorlage", string>> = {
   interesse: "Die Firma ist offen. Greife EINEN Punkt auf, der zu ihr passt, und biete das Gespräch an.",
-  frage: "Beantworte die Frage zuerst — kurz, ehrlich, nur mit den Fakten unten. Was die Fakten nicht hergeben, klärt das Gespräch (sag das so).",
+  frage: "Beantworte die Frage zuerst — kurz, ehrlich, nur mit den Fakten unten. Was die Fakten nicht hergeben, klärt das Gespräch (sag das so). Fragt die Firma, ob die Finanzierung sicher klappt oder wer entscheidet: sag positiv, was wir tun (wir bereiten alles vor und kümmern uns um alles bis zur Bankunterschrift) und biete das Gespräch an — kein Vorbehalt, keine Zusage.",
   termin_wunsch: "Die Firma will ein Gespräch.",
   rueckruf: "Die Firma möchte angerufen werden. Bestätige, dass {PERSON} anruft. Ist keine Zeit eingetragen: bitte um eine passende Zeit aus der Liste. Fehlt eine Nummer: bitte darum.",
-  info: "Die Firma möchte Unterlagen. Fasse in drei sehr kurzen Sätzen zusammen, was FIAON Global macht (eigene US-Gesellschaft, Geschäftskonto und Firmenkarten, Weg zu US-Funding — mit Team vor Ort), sag, dass alles Weitere auf der Seite steht (den Link setzt der Server), und biete trotzdem das kurze Gespräch an, weil jede Lage anders ist.",
+  info: "Die Firma möchte Unterlagen. Fasse in drei sehr kurzen Sätzen zusammen, was FIAON Global macht (eigene US-Gesellschaft mit Konto außerhalb der EU, günstigeres Geld und leichtere Finanzierung in den USA, wir kümmern uns um alles bis zur Bankunterschrift, mit Team vor Ort), sag, dass alles Weitere auf der Seite steht (den Link setzt der Server), und biete trotzdem das kurze Gespräch an, weil jede Lage anders ist.",
   einwand: "Die Firma hat einen Einwand oder Zweifel. Nimm ihn ernst, gib ihr recht, wo sie recht hat, und antworte EINMAL mit einer ruhigen Tatsache aus der Liste. Kein Drängen; sag, dass es völlig in Ordnung ist, wenn es nicht passt. Biete das Gespräch nur als Möglichkeit an.",
   spaeter: "Die Firma möchte später wieder hören. Bestätige kurz und freundlich, dass du dich {SPAETER} wieder meldest. KEINE Zeiten anbieten, nichts verkaufen.",
   termin_abgesagt: "Die Firma hat einen Termin abgesagt oder will ihn verschieben. Zeig Verständnis in einem Halbsatz und biete neue Zeiten an.",
@@ -731,7 +732,8 @@ export async function maraTextSchreiben(ein: {
   // E-458 nach E-461: der Terminlink direkt auf die Startseite — fiaon.com/?…#gespraech, englisch fiaon.com/en?…#gespraech.
   // Auch ein vor E-461 gespeicherter Link (/business?…) geht so ohne 301 hin; utm und Anker bleiben (radarStartseiteLink).
   const link = radarStartseiteLink(f.mail?.links?.gespraech ?? "https://fiaon.com/#gespraech", en);
-  const kundensaetze = globalLeitfaden().flatMap((b) => b.s.filter((x) => x.kunde).map((x) => x.text)).join("\n");
+  // Justin 30.10.2026: aus den Fakten fliegt jeder Satz, dass eine Bank oder ein Institut entscheidet (Leitfaden, Pflichthinweise).
+  const kundensaetze = globalLeitfaden().flatMap((b) => b.s.filter((x) => x.kunde).map((x) => ohneBankVorbehalt(x.text))).filter(Boolean).join("\n");
   const spaeterText = eingang.spaeter_datum
     ? new Intl.DateTimeFormat(en ? "en-GB" : "de-DE", { month: "long", year: "numeric" }).format(new Date(`${eingang.spaeter_datum}T12:00:00Z`))
     : (en ? "in a few weeks" : "in ein paar Wochen");
@@ -750,8 +752,8 @@ export async function maraTextSchreiben(ein: {
     gruppe && !gruppe.provision
       ? "Diese Gruppe (Steuerberater, Rechtsanwälte) bekommt KEINE Provision: nie Provision, Prozente, Vergütung oder Tippgeld erwähnen. Die Kanzlei behält die steuerliche bzw. rechtliche Betreuung, wir stellen uns gegenseitig Mandanten vor."
       : `Zur Provision nur, wenn danach gefragt wird: ${provisionText}, für jeden vorgestellten Kunden — alles Weitere steht in der schriftlichen Vereinbarung.`,
-    "Was wir den Kunden des Partners bieten: Wir gründen ihnen eine eigene US-Gesellschaft und kümmern uns um Geschäftskonto und Firmenkarten. Über Konto und Karte entscheidet die Bank, also nie „bekommen bei uns“.",
-    "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; erfundene Fakten. Keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
+    `Was wir den Kunden des Partners bieten (selbstbewusst, Justin 30.10.2026): ${RADAR_VERKAUF.kern.join("; ")}. Nie „Ihre Kunden bekommen bei uns“.`,
+    "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; erfundene Fakten; jeder Satz, dass eine Bank oder ein Institut entscheidet, „keine Zusage“, „wir sind keine Bank“ und jeder andere Rechtsvorbehalt (Justin, 30.10.2026). Keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
     "Antworte ausschließlich im vorgegebenen JSON: absaetze = 1 bis 3 kurze Absätze.",
     `Kern in einem Satz (Justin): „${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}“`,
   ].filter(Boolean).join("\n") : [
@@ -768,7 +770,8 @@ export async function maraTextSchreiben(ein: {
           ? `Biete zwei bis drei dieser freien Gesprächszeiten an, wörtlich: ${zeiten.join(" · ")}. Bitte die Firma, mit einer Zeile zu antworten, welche passt (und unter welcher Nummer ${person ?? "wir"} sie erreichen) — oder direkt über den Link zu buchen (den Link setzt der Server darunter).`
           : "Es sind gerade keine Zeiten im Kalender frei: Biete an, dass sich das Team mit zwei Vorschlägen meldet, und nenne den Link zum Buchen (setzt der Server).",
     !gebucht && !ohneZeiten ? "Nennt die Firma eine Wunschzeit, die NICHT in der Liste steht: sag das freundlich und nenne die nächstliegenden freien Zeiten aus der Liste." : "",
-    "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; Fristen mit Ziffern; erfundene Fakten; der Satz, dass ein Institut entscheidet, ungefragt. Keine Ausrufezeichen-Ketten, keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
+    `Sprichst du über den Nutzen, dann mit Justins Geschichte, selbstbewusst und ohne Wenn und Aber: ${[...RADAR_VERKAUF.kern, ...RADAR_VERKAUF.extra].join("; ")}.`,
+    "VERBOTEN: Kapital, Kredit, Karte, Limit oder Betrag zusagen; „garantiert“; „bis zu“; Banknamen; „Steuern sparen“; „empfehlen“; dass FIAON berät; Fristen mit Ziffern; erfundene Fakten; jeder Satz, dass eine Bank oder ein Institut entscheidet (auch auf Nachfrage), „keine Zusage“, „wir sind keine Bank“ und jeder andere Rechtsvorbehalt (Justin, 30.10.2026). Keine Ausrufezeichen-Ketten, keine Emojis. Keine Anrede und keinen Gruß schreiben — die setzt der Server.",
     "Antworte ausschließlich im vorgegebenen JSON: absaetze = 1 bis 3 kurze Absätze.",
     `Kern in einem Satz (Justin): „${RADAR_KERNSATZ.was} ${RADAR_KERNSATZ.vorteil} ${RADAR_KERNSATZ.vorOrt}“`,
     "FAKTEN, die du sagen darfst (Sätze für Kunden):", kundensaetze,
@@ -793,7 +796,9 @@ export async function maraTextSchreiben(ein: {
     : [en ? `Book a time directly: ${link}` : `Direkt einen Termin wählen: ${link}`, ""];
   const text = [anrede, "", ...absaetze.flatMap((x) => [x, ""]), ...linkZeile, maraGruss(en), "", "—", maraFuss()].join("\n");
   const wand = en ? globalWortPruefenEn(absaetze.join("\n")) : globalWortPruefen(absaetze.join("\n"));
-  const pruefung = wand.map((x) => `${x.treffer}: ${x.hinweis}`);
+  // Justin 30.10.2026: ein Bank-Vorbehalt hält die Antwort als Entwurf an (sie geht dann nicht von selbst).
+  const vorbehalt = radarBankVorbehalt(absaetze.join("\n"));
+  const pruefung = [...wand.map((x) => `${x.treffer}: ${x.hinweis}`), ...(vorbehalt ? [`„${vorbehalt}“: kein Satz, dass die Bank entscheidet (Justin, 30.10.)`] : [])];
   return { text, absaetze, pruefung, en };
 }
 
@@ -1104,7 +1109,7 @@ const SCHEMA_NACHFASS = {
 export const NACHFASS_VORLAGEN: Record<"firma" | "partner", { absaetze: string[]; frage: string }[][]> = {
   firma: [
     [
-      { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. Eine eigene Gesellschaft in den USA öffnet Ihnen einen zweiten Weg zu Kapital, neben der Hausbank."], frage: "Ist das für Ihre nächsten Schritte gerade ein Thema?" },
+      { absaetze: ["ich wollte kurz nachhaken, ob meine Nachricht von neulich bei Ihnen angekommen ist. In den USA ist Geld meist günstiger als bei uns, und um alles bis zur Unterschrift bei der Bank kümmern wir uns."], frage: "Ist das für Ihre nächsten Schritte gerade ein Thema?" },
       { absaetze: ["ich melde mich noch einmal kurz zu meiner letzten Nachricht. Mit einer eigenen LLC in den USA, dem amerikanischen Gegenstück zur GmbH, haben Sie neben der Hausbank eine zweite Quelle für Kapital."], frage: "Soll ich Ihnen in zwei Sätzen schreiben, wie das bei Ihnen aussehen könnte?" },
       { absaetze: ["kurz noch einmal zu meiner Mail von neulich. Viele Unternehmer nutzen eine eigene Gesellschaft in den USA als zweiten Weg zu Kapital, und um alles Amerikanische kümmert sich unser Team vor Ort."], frage: "Wäre das für Sie einen kurzen Blick wert?" },
     ],
@@ -1167,11 +1172,11 @@ export async function nachfassSchreiben(f: any, stufe: number, m: RadarMotor, sc
           `Du schreibst in der ersten Person eine ${stufe === 1 ? "erste" : "zweite und letzte"} kurze Nachfass-Mail im selben Faden auf deine erste Mail (unten). Sie-Form, menschlich, ruhig. absaetze + frage zusammen 25 bis 60 Wörter. Name und Rolle stehen in der Unterschrift, nie im Text.`,
           stufe === 1
             ? (strom === "partner"
-              ? "Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke zur Zusammenarbeit (wir gründen ihren Mandanten oder Kunden eine US-Gesellschaft und kümmern uns um Konto und Firmenkarten; darüber entscheidet die Bank, also nie „bekommen bei uns“), und genau eine einfache Frage im Feld frage. Kein Termin, kein Anruf, kein Gespräch, kein Austausch anbieten."
-              : `Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke, der zur Firma passt, aus diesen Fakten: „${RADAR_KERNSATZ.vorteil}“ / „${RADAR_KERNSATZ.vorOrt}“ / die LLC ist das US-Gegenstück zur GmbH. „ohne Sollzins“ nur mit „Einführungszeitraum“. Dazu genau eine einfache Ja/Nein-Frage im Feld frage.`)
+              ? `Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke zur Zusammenarbeit, selbstbewusst (Justin 30.10.2026, z. B.: ${RADAR_VERKAUF.kern[1]}; ${RADAR_VERKAUF.extra[1]}; wir gründen ihren Mandanten oder Kunden die US-Gesellschaft und kümmern uns um alles bis zur Bankunterschrift; nie „bekommen bei uns“), und genau eine einfache Frage im Feld frage. Kein Termin, kein Anruf, kein Gespräch, kein Austausch anbieten.`
+              : `Inhalt: kurz und freundlich nachhaken, EIN neuer Gedanke, der zur Firma passt, selbstbewusst, aus diesen Fakten: „${RADAR_KERNSATZ.vorteil}“ / ${RADAR_VERKAUF.extra.map((x) => `„${x}“`).join(" / ")} / „${RADAR_KERNSATZ.vorOrt}“ / die LLC ist das US-Gegenstück zur GmbH. Den Gedanken in eigenen Worten, nie wörtlich. „ohne Sollzins“ nur mit „Einführungszeitraum“. Dazu genau eine einfache Ja/Nein-Frage im Feld frage.`)
             : "Inhalt: höflicher Abschluss. Du willst nicht weiter stören; wenn das Thema gerade nicht passt, schließt du es hier; falls doch, genügt eine Zeile. Keine neue Werbung. frage = leer.",
           provisionSatz,
-          "KEINE Gedankenstriche, keine Aufzählung, keine Emojis, kein Ausrufezeichen, kein Link. VERBOTEN: Beträge, Kapitalrahmen, Limits, Zinssätze, Prozentzahlen, „bis zu“, Banknamen, „garantiert“, Zusagen, Bürgschaft, Steuerversprechen, „empfehlen“, Floskeln („Ich wollte mich nur kurz melden“ ist erlaubt, „Ich hoffe, es geht Ihnen gut“ nicht), der Satz, dass ein Institut entscheidet. Keine Anrede, kein Gruß, die setzt der Server.",
+          "KEINE Gedankenstriche, keine Aufzählung, keine Emojis, kein Ausrufezeichen, kein Link. VERBOTEN: Beträge, Kapitalrahmen, Limits mit Zahl, Zinssätze als Zahl, Prozentzahlen, „bis zu“, Banknamen, „garantiert“, Zusagen, Bürgschaft, Steuerversprechen, „empfehlen“, Floskeln („Ich wollte mich nur kurz melden“ ist erlaubt, „Ich hoffe, es geht Ihnen gut“ nicht), jeder Satz, dass eine Bank oder ein Institut entscheidet, und jeder andere Rechtsvorbehalt (Justin, 30.10.2026). Keine Anrede, kein Gruß, die setzt der Server.",
           "Antworte ausschließlich im vorgegebenen JSON.",
         ].filter(Boolean).join("\n"),
         eingabe: `Firma: ${f.name}. Deine erste Mail:\n${String(f.mail?.text ?? "").slice(0, 2500)}${nachtrag}`,

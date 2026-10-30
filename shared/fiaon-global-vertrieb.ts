@@ -68,19 +68,20 @@ export function globalLeitfaden(): LeitfadenBlock[] {
       k("„Wir gründen die Gesellschaft mit unserem Team vor Ort, bereiten EIN und ITIN vor und reichen sie ein, stellen US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum — und bereiten jeden Konto- und Kartenantrag vollständig vor.“"),
       intern("NIE zusagen oder andeuten: eine Karte, ein Konto, einen Rahmen oder Dollarbetrag, einen Zinssatz, eine Frist, eine Steuerersparnis, ein Darlehen. KEINE Banknamen. Die Dollar-Zahl am Paket ist der Kapitalrahmen, den der Kunde anstrebt — kein Ergebnis, auch beim VIP-Paket („bis zu 1.000.000 $“) nicht. Über Konto, Karte und Rahmen entscheidet allein das Institut."),
       intern("Steuer und Recht beantwortest du NICHT — auch nicht „nur kurz“. Dein Satz dafür steht bei den Einwänden."),
-      intern("KAPITAL AUCH FÜR EUROPA (Justin, 19.09.2026): Das Kapital ist nicht an die USA gebunden — die Gesellschaft kann Mittel nach Europa überweisen oder in Europa investieren. Sag das offen als Vorteil, sobald es um Kapital geht, aber immer mit beiden Sätzen: Über Rahmen und Bedingungen entscheidet das Institut, und die steuerliche Behandlung klärt der Partner-Steuerberater vorab. Nie „steuerfrei“, nie „frei verfügbar“ — die fertige Antwort steht bei den Einwänden."),
+      intern("KAPITAL AUCH FÜR EUROPA (Justin, 19.09.2026): Das Kapital ist nicht an die USA gebunden — die Gesellschaft kann Mittel nach Europa überweisen oder in Europa investieren. Sag das offen als Vorteil, sobald es um Kapital geht; die steuerliche Behandlung klärt der Partner-Steuerberater vorab. Justin 30.10.2026: kein Satz mehr, dass das Institut entscheidet. Nie „steuerfrei“, nie „frei verfügbar“ — die fertige Antwort steht bei den Einwänden."),
       intern("Diese drei Sätze sagst du IMMER, bevor jemand beauftragt:"),
       ...GLOBAL_PFLICHTHINWEIS.de.map((h) => k(`„${h}“`)),
     ]},
     { t: "Einwände", s: [
       k(`„Was kostet das?“ — „Es ist ein Einmalpreis, kein Abo: ${globalPreisZeile()}. ${GLOBAL_ROLLEN.de.kosten}“`),
-      k("„Bekomme ich dann sicher eine Karte mit hohem Rahmen?“ — „Das sagt Ihnen niemand seriös zu. Über Konto, Karte und Rahmen entscheidet allein das Institut. Was wir zusagen, ist unsere eigene Leistung: vollständige Unterlagen, saubere Anträge und ein Team, das den Ablauf kennt.“"),
+      // Justin 30.10.2026: positiv statt „Das sagt Ihnen niemand seriös zu. Über Konto, Karte und Rahmen entscheidet allein das Institut.“
+      k("„Bekomme ich dann sicher eine Karte mit hohem Rahmen?“ — „Wir bereiten alles so vor, dass Ihre Anträge stark ankommen: vollständige Unterlagen, saubere Anträge und ein Team vor Ort, das den Ablauf kennt. US-Firmenkarten haben oft hohe Limits, und wir kümmern uns um alles bis zur Unterschrift bei der Bank.“"),
       k(`„Muss ich das Geld in den USA ausgeben?“ — „${GLOBAL_KAPITAL_FREI.de.antwort}“`),
       k("„Spare ich damit Steuern?“ — „Nein. Eine US-Gesellschaft, die von hier geführt wird, bleibt hier steuerpflichtig. Es geht um Zugang zu US-Banken und US-Kunden, nicht um einen niedrigeren Steuersatz. Die Einzelheiten klärt der Steuerberater aus unserem Partnernetz mit Ihnen — auf Ihr Mandat, das Honorar trägt FIAON.“"),
       k("„Muss ich in die USA reisen?“ — „In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Auftakt persönlich erleben möchte, wählt Global VIP.“"),
       k(GLOBAL_GELD_ZURUECK.aktiv
-        ? `„Seriös?“ — „Prüfen Sie uns an drei Punkten: Wir sagen keine Bankentscheidung zu. Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten. Und: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}“`
-        : "„Seriös?“ — „Prüfen Sie uns an zwei Punkten: Wir sagen keine Bankentscheidung zu, und Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten.“"),
+        ? `„Seriös?“ — „Prüfen Sie uns an drei Punkten: Sie haben einen festen Ansprechpartner und ein eigenes Team vor Ort in den USA. Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten. Und: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}“`
+        : "„Seriös?“ — „Prüfen Sie uns an zwei Punkten: Sie haben einen festen Ansprechpartner und ein eigenes Team vor Ort in den USA, und Steuerberater und Anwälte arbeiten auf Ihr Mandat, ihre Honorare sind im Festpreis enthalten.“"),
     ]},
     { t: "Der Abschluss", s: [
       k("„Ich schicke Ihnen jetzt die kurze Info-Mail mit den Paketen und dem Weg zum Auftrag. Möchten Sie direkt beauftragen — oder machen wir einen festen Gesprächstermin?“"),

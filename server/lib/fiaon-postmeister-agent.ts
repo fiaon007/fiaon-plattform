@@ -85,7 +85,7 @@ import {
   // E-272 (02.10.2026): die Kreditkarten-Formel der Persona — beim Global-Kunden ersetzt (systemPrompt).
   KARTE_REGEL_TEXT,
   // E-275 (02.10.2026): Bausteine für den Mail-Abschluss ohne Pflicht-Termin (mailAbschlussFormel).
-  BANK_SATZ, kartenzielText, ohneLimitUndBankSatz, type KartenZiel, bankZusatz, bankSatzNurAufNachfrage, bankSatzNurWennGefragt, bankSatzRegel,
+  BANK_SATZ, kartenzielText, ohneLimitUndBankSatz, type KartenZiel, bankZusatz, bankSatzNurAufNachfrage, bankSatzNurWennGefragt, bankSatzRegel, bankSatzAusMail,
   // E-275 Gegenprüfung Verkauf: ungefragter Termin und Abgabe an einen Kollegen — dieselbe Regel wie auf WhatsApp.
   selbstErledigtTreffer,
   // E-275 Ton (02.10.2026): die klare Aufforderung und der Nutzen — EINE Quelle für Mail und WhatsApp.
@@ -1059,7 +1059,7 @@ export const MAIL_KARTE_REGEL = [
   `· Wer uns schreibt, will seine eigene Visa-Kreditkarte. Sie steht früh in der Antwort (spätestens im zweiten Satz — dein erster Satz darf auf seine Worte eingehen).`,
   // E-373 (15.10.2026, Justin): „Wenn Mara das Paket verkauft, verkauft sie den Kunden den Wunsch am Limit … nicht mit ‚Wir
   // sind keine Bank‘ oder so ein Dreck, das steht alles im Vertrag und gehört NICHT zum Verkauf … wir dürfen nichts vermischen.“
-  `· VERKAUFEN HEISST SEINEN WUNSCH VERKAUFEN (Justin): Steht sein Wunschlimit in der Akte (Feld kartenziel), verkaufst du genau das — mit Justins Satz, WÖRTLICH: „Nach Ihrer Zahlung mit dem Verwendungszweck „[Verwendungszweck]“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ (ohne Wunschlimit in der Akte: „${NACH_DEM_EINGANG_SATZ}!“). Im Verkauf NIE „wir sind keine Bank“, nie „über den Rahmen entscheidet …“, nie „nach der Zusage der Bank“, nie „keine Garantie“ — das steht im Vertrag, nicht in der Mail. Den Satz über die Bank schreibst du NUR, wenn er ausdrücklich nach Sicherheit, Zusage oder Ablehnung fragt. Andere Zusagen als Justins Satz gibt es nicht („Sie bekommen 25.000 € sicher“, „garantiert“ bleiben verboten); Limit, Rahmen und Beträge ab 1.000 € nur in Justins Satz oder als „mit Ihrem Wunschlimit von X €“.`,
+  `· VERKAUFEN HEISST SEINEN WUNSCH VERKAUFEN (Justin): Steht sein Wunschlimit in der Akte (Feld kartenziel), verkaufst du genau das — mit Justins Satz, WÖRTLICH: „Nach Ihrer Zahlung mit dem Verwendungszweck „[Verwendungszweck]“ schalten wir umgehend Ihren Account frei, damit Sie schnellstmöglich Ihre Visa-Kreditkarte mit Ihrem Wunschlimit von [Wunschlimit] nutzen können!“ (ohne Wunschlimit in der Akte: „${NACH_DEM_EINGANG_SATZ}!“). Im Verkauf NIE „wir sind keine Bank“, nie „über den Rahmen entscheidet …“, nie „nach der Zusage der Bank“, nie „keine Garantie“ — das steht im Vertrag, nicht in der Mail. Den Satz über die Bank schreibst du NIE, auch nicht auf seine Frage (Justin 30.10.2026); fragt er nach Sicherheit, Zusage oder Ablehnung, sagst du positiv, was wir tun: Wir bereiten alles so vor, dass sein Antrag so stark wie möglich ankommt, und begleiten ihn auf dem ganzen Weg. Andere Zusagen als Justins Satz gibt es nicht („Sie bekommen 25.000 € sicher“, „garantiert“ bleiben verboten); Limit, Rahmen und Beträge ab 1.000 € nur in Justins Satz oder als „mit Ihrem Wunschlimit von X €“.`,
   // E-275 Ton (02.10.2026, Justin: „selbst TOP verkaufen, eher übermotiviert! … ‚Zahlen Sie die Aktivierung, wir kümmern uns
   // darum das die Karte schnell versendet wird. Ihr Account ist sofort nach Eingang aktiv!‘“) — die wahre Fassung: Die Karte
   // gibt die Partnerbank nach ihrer Zusage aus; FIAON sorgt dafür, dass der Kartenantrag sofort starten kann.
@@ -1468,7 +1468,9 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
 
     // E-275 (02.10.2026, Justin: „nicht immer sagen … ‚Wir sind keine Bank und können nichts wissen‘“): auch die
     // Abwehr-Formen („die Karte kommt von der Bank, nicht von uns“, „können wir nicht wissen“) sind gemeint.
-    `DER SATZ ÜBER DIE BANK GEHÖRT AN SEINEN PLATZ, NICHT IN JEDE MAIL. „Über Konto, Karte und Rahmen entscheidet die Bank" schreibst du, wenn der Kunde nach Geld, Auszahlung, Rahmen oder Zusage fragt — dann aber klar, freundlich und ohne Umschweife; neben einem Wunschlimit steht „über den Rahmen entscheidet unsere Partnerbank" immer. Fragt er etwas anderes, lässt du ihn weg. Nie abwehrend: kein „Wir sind keine Bank“, kein „Das können wir nicht wissen“, kein „Die Karte kommt von der Bank, nicht von FIAON“ — sag, was FIAON TUT und was jetzt passiert. In jeder Mail wiederholt klingt er wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die FIAON-Bonitätsauswertung ist ein Zusatz, den du ihm anbietest (auskunft_anbieten) — außer sie ist in seinem Paket enthalten (Akte, auskunft „inklusive"), dann nennst du keinen Preis.`,
+    // Justin 30.10.2026: „hör auf in jeder … E-Mail, die Mara schreibt, sowas wie ‚Die Entscheidung liegt bei der Bank‘ —
+    // solche Rechtstexte … führen dazu, dass niemand mit uns reden wird.“ Vorher (E-275/E-298): der Satz nur auf seine Frage.
+    `KEIN SATZ ÜBER DIE BANK IN DEINEN MAILS — auch nicht, wenn er fragt: weder „Über Konto, Karte und Rahmen entscheidet die Bank“ noch „über den Rahmen entscheidet unsere Partnerbank“, „die Zusage gibt die Partnerbank“, „die Entscheidung liegt bei der Bank“, „das kann Ihnen niemand seriös zusagen“, „Wir sind keine Bank“, „Das können wir nicht wissen“ oder „Die Karte kommt von der Bank, nicht von FIAON“. Fragt er nach Sicherheit, Zusage, Rahmen oder Auszahlung, antwortest du positiv mit dem, was FIAON TUT: Wir bereiten alles so vor, dass sein Antrag so stark wie möglich bei unserer Partnerbank ankommt, und begleiten ihn auf dem ganzen Weg; sein Wunschlimit ist unser Ziel. Nie etwas garantieren (kein „sicher“, „garantiert“, „100 %“, „genehmigt“) — aber auch nie ein Vorbehalt. So ein Satz klingt wie eine Warnung vor dem eigenen Angebot, und genau so liest ihn der Kunde. Positiv sagen, was FIAON TUT: Account, Startgespräch, Betreuer, Auswertung seiner Unterlagen, der fertige Link der Partnerbank — dafür zahlt er, und das bekommt er. Die FIAON-Bonitätsauswertung ist ein Zusatz, den du ihm anbietest (auskunft_anbieten) — außer sie ist in seinem Paket enthalten (Akte, auskunft „inklusive"), dann nennst du keinen Preis.`,
     // E-240: der Verkaufsblock zur Auskunft — je nach Lage ganz, knapp oder gar nicht.
     // E-272 (02.10.2026, Gegenprüfung): Beim Global-Kunden (Akte, Feld global) nie — der Block nannte ihm sonst je nach
     // Lage 74/149 € oder „nach der ersten Zahlung zum Kundenpreis“, gegen GLOBAL_AUFTRAG. Justin: „Er soll Global bleiben.“
@@ -1506,7 +1508,9 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // (Global Kapital, Individualangebot) — „Noch besser: Kreditkarten“ und „wofür die Rate ist“ wären falsch. Für ihn
     // der Satz aus dem Global-Vertrag (vertragsfassung): Über Darlehen entscheidet das Institut, FIAON koordiniert.
     ein.akte?.global
-      ? "WENN ER VON KREDIT, KAPITAL ODER FINANZIERUNG SPRICHT: Er ist Kunde von FIAON Global — für ihn gibt es keine Kreditkarte und keine Rate. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut, FIAON koordiniert (wie unter VERTRAG). Keine Zusage, kein Betrag, keine Frist — Fragen zu seinem Kapitalweg gibst du mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
+      // Justin 30.10.2026: „hör auf … ‚Die Entscheidung liegt bei der Bank‘ … Wir kümmern uns um alles von Anfang bis Ende,
+      // bis zur Bankunterschrift.“ Vorher stand hier „Über … Darlehen entscheidet allein das jeweilige Institut … Keine Zusage“.
+      ? "WENN ER VON KREDIT, KAPITAL ODER FINANZIERUNG SPRICHT: Er ist Kunde von FIAON Global — für ihn gibt es keine Kreditkarte der Privatlinie und keine Rate. Sag positiv und selbstbewusst, was läuft: Wir kümmern uns um alles von Anfang bis Ende, bis zur Bankunterschrift; in den USA ist Geld meist günstiger und Finanzierungen laufen dort leichter. Kein Satz darüber, wer entscheidet, kein „keine Zusage“, kein Vorbehalt (Justin, 30.10.2026). Nenne keinen Betrag und keine Frist, die nicht in seiner Akte stehen — konkrete Fragen zu seinem Kapitalweg gibst du mit aufgabe_an_betreuer an seine Ansprechperson bei FIAON Global weiter."
       : `WENN DER KUNDE VON „KREDIT" SPRICHT: Nie mit einem Nein anfangen. Beginne mit dem, was es Besseres gibt — sinngemäß: „${bausteinKreditFrage(null).replace(/\s*Soll ich Ihnen Ihren Antrag schicken\?$/, "")}" Dann in einem Satz, was er gebucht hat und wofür die Rate ist: Wir bringen ihn Schritt für Schritt zu Konto und Karte bei unserer Partnerbank. Geld zahlen wir nicht selbst aus — das sagst du nur, wenn er ausdrücklich nach Auszahlung fragt, und dann als Aussicht auf seinen Kartenrahmen, nie als Abwehr.`,
     // ═══════════════════════════════════════════════════════════════════
     // DAS RETTUNGSGESPRÄCH (04.09.2026, Justin): „Warum führt die KI keine
@@ -2747,8 +2751,9 @@ async function pruefenUndAbschliessen(roh: any, k: {
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
-  // E-298 (07.10.2026): der Satz über die Bank nur auf seine Frage (MARA_BANK_SATZ=nachfrage).
-  text = bankSatzNurWennGefragt(text, k.kundeText ?? "");
+  // E-298 (07.10.2026): der Satz über die Bank nur auf seine Frage (MARA_BANK_SATZ=nachfrage). Justin 30.10.2026: in der
+  // Mail und in der Antwort auf ein Anliegen nie — auch auf seine Frage nicht (bankSatzAusMail, mit derselben Limit-Sicherung).
+  text = bankSatzAusMail(text);
   // E-265 (29.09.2026): wessen Vorname nie allein in der Kundenmail steht (harte Prüfung unten).
   const mitarbeiterJetzt = await (await import("./fiaon-mitarbeiter-namen")).mitarbeiterListe().catch(() => []);
   // 02.09.2026: Im Entwurf an Herrn Munk endete der Brief mit dem Wort

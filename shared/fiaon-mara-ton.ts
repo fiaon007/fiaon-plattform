@@ -1051,9 +1051,12 @@ export function bausteinZuTeuer(): string {
   return `Verstehe ich. ${paketName("start")} gibt es schon ab ${paketPreisText("start")} im Monat, in zwölf Monatsraten, und jede Rate überweisen Sie selbst. Wofür möchten Sie die Karte vor allem nutzen?`;
 }
 
-/** „Bekomme ich die Karte sicher?": die Wahrheit, positiv, ohne Zusage. */
+/**
+ * „Bekomme ich die Karte sicher?": positiv, ohne Zusage — und seit Justin 30.10.2026 („hör auf … ‚Die Entscheidung liegt
+ * bei der Bank‘“) auch ohne den Vorbehalt „Die Zusage gibt die Partnerbank“ vorneweg.
+ */
 export function bausteinSicher(): string {
-  return "Die Zusage gibt die Partnerbank — und wir sorgen dafür, dass Ihr Antrag so stark wie möglich bei ihr ankommt. Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter. Legen wir los?";
+  return "Wir sorgen dafür, dass Ihr Antrag so stark wie möglich bei unserer Partnerbank ankommt, und begleiten Sie auf dem ganzen Weg. Mit Ihrem Antrag bei uns sind Sie einen großen Schritt weiter. Legen wir los?";
 }
 
 export const VERKAUFSBAUSTEINE = {
@@ -2041,7 +2044,7 @@ export function fragtNachRahmen(kunde: string | null | undefined): boolean {
   return FRAGT_NACH_RAHMEN.test(String(kunde ?? ""));
 }
 /** Der Satz über die Bank in jeder üblichen Form — für das Herausnehmen (ohneLimitUndBankSatz, bankSatzRaus). */
-const BANK_KLAUSEL = String.raw`(?:über\s+den\s+(?:genauen\s+)?(?:Kredit)?rahmen\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:allein\s+)?(?:die|unsere)\s+(?:Partner)?bank|den\s+(?:Kredit)?rahmen\s+legt\s+(?:am\s+Ende\s+)?(?:die|unsere)\s+(?:Partner)?bank\s+fest|die\s+Entscheidung\s+(?:über\s+den\s+Rahmen\s+)?trifft\s+(?:die|unsere)\s+Partnerbank)(?:\s+\(?DKB\)?)?`;
+const BANK_KLAUSEL = String.raw`(?:über\s+den\s+(?:genauen\s+)?(?:Kredit)?rahmen\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:allein\s+)?(?:die|unsere)\s+(?:Partner)?bank|den\s+(?:Kredit)?rahmen\s+legt\s+(?:am\s+Ende\s+)?(?:die|unsere)\s+(?:Partner)?bank\s+fest|die\s+Entscheidung\s+(?:über\s+den\s+Rahmen\s+)?trifft\s+(?:die|unsere)\s+Partnerbank|über\s+Konto(?:,\s*|\s+und\s+)Karte(?:\s+und\s+(?:Kredit)?rahmen)?\s+entscheide[nt]\s+(?:am\s+Ende\s+)?(?:immer\s+)?(?:allein\s+)?(?:die|unsere)\s+(?:Partner)?bank|am\s+Ende\s+entscheidet\s+(?:immer\s+)?(?:allein\s+)?(?:die|unsere)\s+(?:Partner)?bank)(?:\s+\(?DKB\)?)?`;
 /** Nur den Satz über die Bank heraus — Limits und alles andere bleiben. Rein. */
 export function bankSatzRaus(text: string): string {
   let t = String(text ?? "");
@@ -2049,6 +2052,18 @@ export function bankSatzRaus(text: string): string {
   t = t.replace(new RegExp(String.raw`\s*[,;:]\s*(?:und\s+)?${BANK_KLAUSEL}`, "giu"), "");
   t = t.replace(new RegExp(String.raw`(^|[.!?]\s+|\n)${BANK_KLAUSEL}\s*[.!]?\s*`, "giu"), (_m, v) => v);
   return t.replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1");
+}
+/**
+ * Justin 30.10.2026: „hör auf in jeder … E-Mail, die Mara schreibt, sowas wie ‚Die Entscheidung liegt bei der Bank‘“ — in
+ * Maras Mail (und ihrer Antwort auf ein Anliegen) fällt der Satz über die Bank IMMER heraus, auch auf seine Frage (vorher
+ * E-298: nur ungefragt). Dieselbe Sicherung wie dort: nur, wenn der Text danach die Limit-Prüfung genauso gut besteht. Rein.
+ */
+export function bankSatzAusMail(text: string): string {
+  const t = String(text ?? "");
+  if (!BANK_SATZ_MUSTER.test(t)) return t;
+  const ohne = bankSatzRaus(t);
+  if (!ohne.trim() || limitPruefen(ohne).length > limitPruefen(t).length) return t;
+  return ohne;
 }
 /**
  * Letzte Stelle vor dem Versand (E-298): Fragt er nicht nach Limit, Rahmen oder Sicherheit, fällt der Satz über die Bank

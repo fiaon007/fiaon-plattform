@@ -294,8 +294,9 @@ ok(!/Du bist ein Mensch am Schreibtisch, kein Automat/.test(qp), "Nie mehr „Du
 ok(!/Verwendungszweck und die IBAN — zum Ablesen/.test(qp), "Keine IBAN aus dem Kopf (Widerspruch zur Wortwand aufgelöst)");
 ok(!/FIAON vergibt keine Kredite und vermittelt keine\. Erkläre/.test(qp), "Kredit: kein Nein am Anfang mehr");
 ok(!/antrag: "\/antrag"/.test(qp), "Keine Knopf-Vorgabe „/antrag“ mehr");
-// E-265: „Wunschlimit" steht jetzt im Postfach-Auftrag — nur mit dem Satz über die Bank.
-ok(/Wunschlimit[^\n]{0,160}entscheidet unsere Partnerbank/.test(qp) || /kartenziel[^\n]{0,200}entscheidet unsere Partnerbank/.test(qp), "„Wunschlimit“ im Postfach-Auftrag nur mit „über den Rahmen entscheidet unsere Partnerbank“");
+// E-265: „Wunschlimit" stand im Postfach-Auftrag nur mit dem Satz über die Bank. Justin 30.10.2026: in der Mail nie ein
+// Satz über die Bank — das Wunschlimit bleibt Ziel, nie zugesagt (die Limit-Wände bleiben hart).
+ok(/KEIN SATZ ÜBER DIE BANK IN DEINEN MAILS — auch nicht, wenn er fragt/.test(qp) && /sein Wunschlimit ist unser Ziel\. Nie etwas garantieren/.test(qp) && !/neben einem Wunschlimit steht „über den Rahmen entscheidet unsere Partnerbank" immer/.test(qp), "Postfach-Auftrag: Wunschlimit als Ziel, nie garantiert, kein Satz über die Bank (Justin 30.10.)");
 ok(/kostenCentsAus\(MODELL\(\)/.test(qp), "Kosten je Zeile wie in der Nutzungstabelle (vorher Tokens/1000)");
 for (const b of [agent.AUSKUNFT_MUSTER_ANTWORT]) {
   ok(!tonPruefung(b, { kanal: "mail" }).some((x) => x.schwere === "hart"), "Musterantwort Auskunft: kein harter Ton-Treffer (kein „Limit“)");

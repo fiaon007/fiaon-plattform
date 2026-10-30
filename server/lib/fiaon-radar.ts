@@ -63,6 +63,7 @@ import {
   RADAR_MOTOR_SCHLUESSEL, radarMotorLesen, RADAR_PARTNER_SIGNALE, radarSignalFuer, radarPartnerGruppe, radarPartnerAngebot, radarUhrzeitMinuten,
   radarEmpfaengerName, radarAnredeName, radarTerminLink, radarKurzlink, radarStartseiteLink, radarLandAktiv,
   RADAR_LAENDER_AKTIV, RADAR_EINSTIEGE, radarEinstiegFuer, radarPartnerAngebotPunkte, radarAnredeAusRolle, radarPersonSchluessel, radarGleicherBetrieb,
+  RADAR_VERKAUF, RADAR_VERKAUF_EIGENE_WORTE, radarBankVorbehalt, ohneBankVorbehalt,
   type RadarLand, type RadarStatus, type RadarPaket, type RadarStrom, type RadarMotor, type RadarPartnerGruppe,
 } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, GLOBAL_KAPITAL_FREI, globalPreisText, globalKapital } from "@shared/fiaon-global";
@@ -1126,7 +1127,8 @@ export async function radarScannen(id: number): Promise<any> {
   const strom = alsRadarStrom(f.strom);
   const anweisung = strom === "partner" ? scanAnweisungPartner(radarPartnerGruppe(f.bereich)) : [
     "Du analysierst ein Unternehmen für eine sehr persönliche erste E-Mail von FIAON Global.",
-    "FIAON Global: US-Gesellschaft mit Team vor Ort, EIN und ITIN, Konto- und Kartenanträge vorbereitet, Begleitung bis zum Kapitalrahmen (Ziel — das Institut entscheidet), Festpreis, alle Gebühren inklusive. " + GLOBAL_KAPITAL_FREI.de.satz,
+    // Justin 30.10.2026: auch hier ohne Institut-Satz — die Analyse färbt sonst die Mail.
+    "FIAON Global: US-Gesellschaft mit Team vor Ort und Konto außerhalb der EU, EIN und ITIN, Konto- und Kartenanträge vorbereitet, Begleitung bis zur Finanzierung (wir kümmern uns um alles bis zur Bankunterschrift), Festpreis, alle Gebühren inklusive. " + ohneBankVorbehalt(GLOBAL_KAPITAL_FREI.de.satz),
     "Pakete:", paketeFuerKi(),
     "Aufgabe: Verstehe die Firma gründlich (was sie verkauft, an wen, wie groß, wohin sie will). Nutze die Seitentexte und — nur für aktuelle Meldungen zur Firma (Expansion, USA, Investitionen, Auszeichnungen, neue Produkte, Finanzierung) — die Websuche.",
     "aufhaenger: 3 bis 6 konkrete Anknüpfungspunkte für die Mail. text sagt NUR, was das Zitat belegt — keine zusätzlichen Fakten. beleg = ein WÖRTLICHES Zitat (mindestens 6 Wörter, exakt wie im Text), url = die Seite, auf der es steht. quelle = website, wenn das Zitat aus den gelieferten Seitentexten stammt; web nur für Funde aus der Websuche mit deren URL. Keine Vermutung als Aufhänger.",
@@ -1408,6 +1410,9 @@ export function radarMailStreng(m: { betreff: string; absaetze: string[]; frage:
   for (const f of RADAR_KI_FLOSKELN) if (f.muster.test(rumpf)) aus.push(`Floskel „${f.wort}“`);
   if (/\bbürg(e|en|in|schaft\w*)\b/i.test(rumpf)) aus.push("Bürgschaft — nie in der Akquise-Mail");
   if (/\b(wir|ich)\s+(sagen|sage|sichern|sichere)\b[^.?!]{0,60}\bzu\b|\bzugesagt\b|\bgesichert\b|\bgarantiert\w*|finanzierungszusage|kreditzusage/i.test(rumpf)) aus.push("Zusage — nie Finanzierung, Kapital oder Karte zusagen");
+  // Justin 30.10.2026: „hör auf … ‚Die Entscheidung liegt bei der Bank‘“ — kein Bank-Vorbehalt, keine Rechtsbelehrung.
+  const vorbehalt = radarBankVorbehalt(rumpf);
+  if (vorbehalt) aus.push(`Bank-Vorbehalt („${vorbehalt}“) — so ein Satz gehört in keine Mail (Justin, 30.10.)`);
   // E-458 (Befund): „ohne Sollzins“ nur im selben Satz wie der Einführungszeitraum (das Hauswort) — allein liest es sich
   // wie „diese Karten kosten keine Zinsen“, und keine andere Wand fängt das ab.
   if (rumpf.split(/(?<=[.?!])\s+|\n/).some((s) => /ohne\s+sollzins/i.test(s) && !/einf(ü|ue)hrungszeitraum/i.test(s))) aus.push("„ohne Sollzins“ nur mit „Einführungszeitraum“ — sonst klingt es nach einem Zins-Versprechen");
@@ -1460,9 +1465,14 @@ export function mailPruefen(m: { betreff: string; absaetze: string[]; frage: str
   // Akquise-Mail!“ Vorher (E-198) war der Satz Pflicht, sobald ein Rahmen oder Betrag fiel. Jetzt umgekehrt: In der
   // Akquise-Mail steht weder ein Kapitalrahmen noch ein Limit noch ein Dollarbetrag — dann gibt es nichts, was ein
   // Institut erst entscheiden müsste, und der Satz entfällt. Die Zahlen gehören ins Gespräch und ins Angebot.
-  if (/\b(kapitalrahmen|kreditrahmen|kreditlinie|limit|limits)\b/i.test(rumpf)) sperrend.push("Kapitalrahmen oder Limit gehört nicht in die Akquise-Mail");
+  // Justin 30.10.2026: „US-Kreditkarten … mit hohen Limits“ gehört zur Verkaufsgeschichte (RADAR_VERKAUF) — ohne Zahl.
+  // Gesperrt bleiben der Kapitalrahmen und jedes andere Limit.
+  const ohneHoheLimits = rumpf.replace(/\b(hohe[nmrs]?|sehr\s+hohe[nmrs]?|großzügige[nmrs]?)\s+(kredit)?limits?\b/gi, "");
+  if (/\b(kapitalrahmen|kreditrahmen|kreditlinie|limit|limits)\b/i.test(ohneHoheLimits)) sperrend.push("Kapitalrahmen oder Limit gehört nicht in die Akquise-Mail");
   if (/\d[\d.,]*\s?(\$|usd(?![a-z])|dollar|mio\.?(?![a-z])|millionen)|\$\s?\d/i.test(rumpf)) sperrend.push("Betrag gehört nicht in die Akquise-Mail");
-  if (/entscheidet (das|die|ein) (jeweilige|jeweiligen)? ?(institut|bank)|bedingungen des jeweiligen instituts/i.test(rumpf)) sperrend.push("Institut-Satz gehört nicht in die Akquise-Mail (Justin, 12.10.)");
+  // Justin 30.10.2026: „hör auf … ‚Die Entscheidung liegt bei der Bank‘“ — jede Form (RADAR_BANK_VORBEHALT), nicht nur
+  // „entscheidet das jeweilige Institut“ (die Form „die Entscheidung liegt bei der Bank“ ging am 30.10. noch durch).
+  if (radarBankVorbehalt(rumpf)) sperrend.push("Institut-Satz gehört in keine Mail (Justin, 12.10. und 30.10.)");
   const warnungen: string[] = [];
   const woerter = [...m.absaetze, m.frage].join(" ").split(/\s+/).filter(Boolean).length;
   // E-337: kurz ist persönlich — die 77 Mails mit 150–200 Wörtern brachten keine einzige Zusage.
@@ -1537,8 +1547,9 @@ export const RADAR_TON_BEISPIELE: readonly string[] = [
   "Sie bauen dieses Jahr eine zweite Halle, so steht es auf Ihrer Seite. Bis so ein Bau etwas einbringt, vergeht meist eine Weile.",
   "Ein neuer Markt und eine größere Fertigung kosten meist Geld, bevor sie etwas einbringen.",
   "Was wir machen, klingt erst einmal weit weg von einer Bäckerei.",
-  "Wenn es klappt, haben Sie damit einen zweiten Geldtopf neben Ihrer Bank.",
-  "Neben Bank und Investor hätten Sie damit einen zweiten Weg zu Kapital.",
+  // Justin 30.10.2026: selbstbewusst statt „wenn es klappt“ / „hätten Sie“ (die zwei Sätze davor).
+  "Für so einen Schritt ist das oft der schnellere Weg zu frischem Geld.",
+  "Anteile müssen Sie dafür keine abgeben.",
   "Den amerikanischen Teil erledigt unser Team vor Ort.",
   "Wäre das für die neue Halle eine Hilfe?",
 ];
@@ -1579,20 +1590,22 @@ function mailAnweisung(einstieg: string = RADAR_EINSTIEGE[2].anweisung): string 
     "AUFBAU: absaetze (zwei kurze Absätze) und frage zusammen 80 bis 110 Wörter. Anrede, Link, Schlusssatz, Gruß und Unterschrift setzt der Server.",
     "1. absaetze[0], der Anlass: EINE konkrete Beobachtung aus genau EINEM der geprüften Aufhänger (am liebsten das Kapitalsignal). bezug = die Nummer dieses Aufhängers.",
     ...anlassRegeln(einstieg),
-    "2. absaetze[1], der Nutzen, in EIGENEN Worten und mit eigenem Satzbau (nie einen Satz von hier übernehmen). Das muss drinstehen: wir gründen ihnen eine eigene LLC in den USA (das US-Gegenstück zur GmbH); wir kümmern uns um Geschäftskonto und Firmenkarten oder helfen dabei; der Weg zu Kapital aus den USA. Gern dazu, wenn es passt: viele US-Firmenkarten haben einen Einführungszeitraum ohne Sollzins; den amerikanischen Teil erledigt unser Team vor Ort.",
-    "   Sag in einem ehrlichen Satz, warum eine US-Firma auch einem Betrieb hier hilft: als MÖGLICHKEIT („wenn es klappt“, „hätten Sie“), nie als sicheres Geld (falsch: „das Kapital können Sie in Ihre Filialen stecken“).",
-    "   „ohne Sollzins“ nur zusammen mit „Einführungszeitraum“ im selben Satz. Keine Zahl, kein Prozent, kein Betrag.",
+    // Justin 30.10.2026 (RADAR_VERKAUF): seine Verkaufsgeschichte, selbstbewusst — statt „als MÖGLICHKEIT („wenn es klappt“)“.
+    `2. absaetze[1], der Nutzen, in EIGENEN Worten und mit eigenem Satzbau, selbstbewusst und ohne Wenn und Aber, wie jemand, der das jeden Tag macht. Das muss drinstehen: ${RADAR_VERKAUF.kern.join(" · ")} (die LLC ist das US-Gegenstück zur GmbH). ${RADAR_VERKAUF_EIGENE_WORTE}`,
+    `   Gern EINER dieser Gedanken dazu, wenn er zur Firma passt: ${RADAR_VERKAUF.extra.join(" · ")} · den amerikanischen Teil erledigt unser Team vor Ort.`,
+    "   Kein Satz darüber, wer am Ende entscheidet (nie „die Entscheidung liegt bei der Bank“, „das Institut entscheidet“, „keine Zusage“, „wir sind keine Bank“), kein Vorbehalt, keine Rechtsbelehrung: Das interessiert in der ersten Mail niemand (Justin, 30.10.2026).",
+    "   Kein Versprechen an DIESE Firma (nie „Sie bekommen …“). Günstigeres Geld und bessere Zinsen nur als allgemeiner Vergleich USA und Europa, ohne Zahl, ohne Prozent, ohne Betrag. „ohne Sollzins“ nur zusammen mit „Einführungszeitraum“.",
     "3. frage: GENAU EINE leichte Frage, auf die man mit einer Zeile antworten kann, mit „?“ am Ende. Sonst steht nirgends ein Fragezeichen. Kein Druck, keine Frist.",
     "",
     "TON-BEISPIELE (nur der Ton; nie einen dieser Sätze übernehmen, jede Mail klingt anders):",
     ...RADAR_TON_BEISPIELE.map((x) => `„${x}“`),
     "",
     "betreff = höchstens 45 Zeichen, wie eine Mail unter Kollegen, mit dem Anlass aus dem Aufhänger (z. B. „Ihre neue Halle“, „Ihr erster Stand in Chicago“). Er unterstellt nichts, was nicht im Aufhänger steht. Kein „Re:“, keine Versalien, kein Clickbait.",
-    "ps = leer. paket = leer. KEIN Paketname, KEIN Preis, KEIN Betrag, KEIN Zinssatz, KEIN Kapitalrahmen und KEIN Satz darüber, dass ein Institut oder eine Bank entscheidet.",
+    "ps = leer. paket = leer. KEIN Paketname, KEIN Preis, KEIN Betrag, KEIN Zinssatz als Zahl, KEIN Kapitalrahmen und KEIN Satz darüber, dass eine Bank oder ein Institut entscheidet.",
     "",
     "passt / passt_grund, die Kundensicht, bevor die Mail geht: passt = false, wenn die Firma das Angebot offensichtlich nicht braucht oder nicht nutzen kann: sie hat schon eine eigene US-Gesellschaft oder US-Fertigung, sie ist ein Konzern, börsennotiert oder hat mehr als etwa 250 Mitarbeiter, sie hat gerade eine große Finanzierungsrunde (über etwa 10 Mio. €) abgeschlossen und einen eigenen Finanzchef, sie ist in Insolvenz oder Liquidation, sie ist selbst Bank, Finanzdienstleister oder Gründungsdienst. Sonst passt = true. passt_grund = ein Satz.",
     "",
-    "VERBOTEN: Finanzierung, Kapital, Kredite, Karten oder Limits zusagen („sagen zu“, „gesichert“, „garantiert“); Bürgschaft; jeder Betrag, Rahmen, Zinssatz oder Limit; „bis zu“; Namen von Banken oder Kartenherausgebern; „Steuern sparen“; „empfehlen“; „Beratung“ oder „beraten“; „0 %“; „ohne Sicherheiten“; jede Behauptung über die Firma, die nicht in den geprüften Aufhängern oder im Profil steht; erfundene Zahlen.",
+    "VERBOTEN: Finanzierung, Kapital, Kredite, Karten oder Limits DIESER Firma zusagen („sagen zu“, „gesichert“, „garantiert“, „Sie bekommen“); Bürgschaft; jeder Betrag und jede Zahl zu Rahmen, Zins oder Limit („hohe Limits“ ohne Zahl ist erlaubt); „bis zu“; Namen von Banken oder Kartenherausgebern; „Steuern sparen“; „empfehlen“; „Beratung“ oder „beraten“; „0 %“; „ohne Sicherheiten“ (erlaubt ist „meist ohne hohe Sicherheiten“); jeder Satz, dass eine Bank, ein Institut oder ein Herausgeber entscheidet, und jeder andere Rechtsvorbehalt; jede Behauptung über die Firma, die nicht in den geprüften Aufhängern oder im Profil steht; erfundene Zahlen.",
     "Antworte ausschließlich im vorgegebenen JSON.",
   ].join("\n");
 }
@@ -1606,7 +1619,7 @@ function mailAnweisung(einstieg: string = RADAR_EINSTIEGE[2].anweisung): string 
 function mailAnweisungPartner(g: RadarPartnerGruppe | null, provisionText = "30 Prozent unseres Honorars, ein Jahr lang", einstieg: string = RADAR_EINSTIEGE[1].anweisung): string {
   const provision = g ? g.provision : true;
   return [
-    `Du schreibst für FIAON Global eine erste E-Mail an die Inhaberin oder den Partner ${g ? `einer Firma aus der Gruppe „${g.label}“` : "einer Kanzlei oder Beratungsfirma"}, in der ersten Person (ich, wir). Es ist eine Anfrage zur Zusammenarbeit: Der Partner stellt uns Kunden vor, wir gründen seinen Mandanten oder Kunden eine eigene US-Gesellschaft und kümmern uns um Konto und Karten (darüber entscheidet die Bank, also nie „bekommen bei uns“). Name und Rolle des Absenders stehen in der Unterschrift, NIE im Text. Ziel ist eine schriftliche Antwort, kein Termin.`,
+    `Du schreibst für FIAON Global eine erste E-Mail an die Inhaberin oder den Partner ${g ? `einer Firma aus der Gruppe „${g.label}“` : "einer Kanzlei oder Beratungsfirma"}, in der ersten Person (ich, wir). Es ist eine Anfrage zur Zusammenarbeit: Der Partner stellt uns Kunden vor, wir gründen seinen Mandanten oder Kunden eine eigene US-Gesellschaft mit Konto außerhalb der EU und kümmern uns um alles bis zur Bankunterschrift. Name und Rolle des Absenders stehen in der Unterschrift, NIE im Text. Ziel ist eine schriftliche Antwort, kein Termin.`,
     "",
     "SO KLINGT ES: wie ein Unternehmer, der einem Kollegen schreibt, den er respektiert. Niemand darf merken, dass eine KI geschrieben hat.",
     "- Kurze Sätze, höchstens 18 Wörter. Ein Gedanke pro Satz. Alltagssprache, aktiv, konkret. Sie-Form, warm, ruhig, selbstbewusst.",
@@ -1620,6 +1633,9 @@ function mailAnweisungPartner(g: RadarPartnerGruppe | null, provisionText = "30 
     "1. absaetze[0], der Anlass: EINE konkrete Beobachtung aus genau EINEM der geprüften Aufhänger (Schwerpunkt, Mandantenkreis). bezug = die Nummer dieses Aufhängers.",
     ...anlassRegeln(einstieg),
     `2. absaetze[1], das Angebot in EIGENEN Worten und mit eigenem Satzbau. Was drinstehen muss: ${radarPartnerAngebotPunkte(g, provisionText).join("; ")}.`,
+    // Justin 30.10.2026: „Deshalb wäre es für Ihre Mandanten vielleicht sinnvoll, sich Liquidität zu sichern und über uns den Weg zu gehen.“
+    "   Inhalt, NICHT Wortlaut (außer dem Provisions-Satz, der steht wörtlich): Formuliere jeden Punkt für diesen Partner neu und übernimm sonst keine Wortfolge von mehr als vier Wörtern aus dieser Anweisung. Jede Mail klingt anders.",
+    "   Sag das selbstbewusst und ohne Wenn und Aber. Kein Satz darüber, wer am Ende entscheidet (nie „die Entscheidung liegt bei der Bank“, „das Institut entscheidet“, „keine Zusage“), kein Vorbehalt, keine Rechtsbelehrung (Justin, 30.10.2026). Günstigeres Geld und bessere Zinsen nur als allgemeiner Vergleich USA und Europa, ohne Zahl.",
     provision
       ? `   Die Provision genau so und nicht anders, wörtlich: „${provisionText}“, für jeden Kunden, den der Partner vorstellt. Kein Betrag, keine andere Zahl, kein anderes Prozent.`
       : "   KEINE Provision, keine Prozente, keine Vergütung, kein Tippgeld: Für Steuerberater und Rechtsanwälte ist das berufsrechtlich nicht möglich.",
@@ -1633,7 +1649,7 @@ function mailAnweisungPartner(g: RadarPartnerGruppe | null, provisionText = "30 
     "",
     "passt / passt_grund: passt = false, wenn der Partner nicht zu uns passt: er gründet selbst US-Gesellschaften oder vermittelt Konten und Karten (Wettbewerber), er ist eine Großkanzlei, Big Four oder hat mehr als etwa 50 Berufsträger, er ist Bank, Versicherer oder Strukturvertrieb, er ist in Insolvenz, oder er betreut fast nur Privatpersonen. Sonst passt = true. passt_grund = ein Satz.",
     "",
-    "VERBOTEN: Finanzierung, Kapital, Karten oder Limits zusagen; jeder Betrag, Rahmen, Zinssatz oder Limit; Bürgschaft; „bis zu“; Namen von Banken oder Kartenherausgebern; „garantiert“; Steuerversprechen; jede Behauptung über den Partner oder seine Mandanten und Kunden, die nicht in den geprüften Aufhängern oder im Profil steht.",
+    "VERBOTEN: Finanzierung, Kapital, Karten oder Limits zusagen (nie „Ihre Kunden bekommen bei uns“); jeder Betrag und jede Zahl zu Rahmen, Zins oder Limit; Bürgschaft; „bis zu“; Namen von Banken oder Kartenherausgebern; „garantiert“; Steuerversprechen; „ohne Sicherheiten“ (erlaubt ist „meist ohne hohe Sicherheiten“); jeder Satz, dass eine Bank oder ein Institut entscheidet, und jeder andere Rechtsvorbehalt; jede Behauptung über den Partner oder seine Mandanten und Kunden, die nicht in den geprüften Aufhängern oder im Profil steht.",
     "Antworte ausschließlich im vorgegebenen JSON.",
   ].join("\n");
 }

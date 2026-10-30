@@ -78,9 +78,17 @@ async function main() {
   ok(!ton.BANK_SATZ_MUSTER.test(agent.mailAbschlussFormel("abbrecher", ziel)), "Mail-Abschluss Abbrecher ohne Bank-Satz");
   ok(!ton.BANK_SATZ_MUSTER.test(agent.mailAbschlussFormel("c", null)), "Mail-Abschluss C ohne Bank-Satz");
   // E-373 (15.10.2026, Justin: Verkauf ohne Vertragssätze): die Regel sagt es jetzt selbst — Bank-Satz nur auf seine ausdrückliche Frage.
-  ok(agent.MAIL_KARTE_REGEL.includes("Den Satz über die Bank schreibst du NUR, wenn er ausdrücklich") && agent.MAIL_KARTE_REGEL.includes("NIE „wir sind keine Bank“"), "MAIL_KARTE_REGEL: Bank-Satz nur auf seine Frage, nie „wir sind keine Bank“ (E-373)");
+  // Justin 30.10.2026: in der Mail NIE ein Satz über die Bank — auch nicht auf seine Frage (vorher hier: nur auf Frage).
+  ok(agent.MAIL_KARTE_REGEL.includes("Den Satz über die Bank schreibst du NIE, auch nicht auf seine Frage") && agent.MAIL_KARTE_REGEL.includes("NIE „wir sind keine Bank“"), "MAIL_KARTE_REGEL: Bank-Satz nie, auch nicht auf seine Frage; nie „wir sind keine Bank“ (Justin 30.10.)");
   const quelleMail = fs.readFileSync("server/lib/fiaon-postmeister-agent.ts", "utf8");
-  ok(/text = bankSatzNurWennGefragt\(text, k\.kundeText \?\? ""\)/.test(quelleMail), "Postfach: letzte Stelle nimmt den ungefragten Bank-Satz heraus");
+  ok(/text = bankSatzAusMail\(text\);/.test(quelleMail) && /KEIN SATZ ÜBER DIE BANK IN DEINEN MAILS — auch nicht, wenn er fragt/.test(quelleMail), "Postfach: letzte Stelle nimmt den Bank-Satz immer heraus, der Auftrag sagt „nie“ (Justin 30.10.)");
+  // bankSatzAusMail: auch auf seine Frage heraus — Karte und Ziel bleiben, eine Zusage wird nie sendbar.
+  const ausMail = ton.bankSatzAusMail(mitBank);
+  ok(!ton.BANK_SATZ_MUSTER.test(ausMail) && ausMail.includes("25.000 €") && /Kreditkarte/.test(ausMail), `Mail: Bank-Satz immer raus, Karte und Ziel bleiben („${ausMail}“)`);
+  const kontoKarte = "Wir bereiten Ihren Antrag vollständig vor. Über Konto, Karte und Rahmen entscheidet die Bank. Legen wir los?";
+  ok(ton.bankSatzAusMail(kontoKarte) === "Wir bereiten Ihren Antrag vollständig vor. Legen wir los?", `Mail: „Über Konto, Karte und Rahmen entscheidet die Bank.“ fällt sauber heraus („${ton.bankSatzAusMail(kontoKarte)}“)`);
+  ok(ton.limitPruefen(ton.bankSatzAusMail(zusageMitBank)).length >= ton.limitPruefen(zusageMitBank).length, "Mail: eine Zusage wird durch das Herausnehmen nie sendbar");
+  ok(!ton.BANK_SATZ_MUSTER.test(ton.bausteinSicher()) && !/Zusage gibt/.test(ton.bausteinSicher()) && /so stark wie möglich/.test(ton.bausteinSicher()), "„Bekomme ich die Karte sicher?“ ohne „Die Zusage gibt die Partnerbank“ (Justin 30.10.)");
   const quelleAktion = fs.readFileSync("server/lib/fiaon-mara-aktion.ts", "utf8");
   ok(/text = bankSatzNurWennGefragt\(text, ""\)/.test(quelleAktion), "Aktion: Bank-Satz heraus (er hat nichts gefragt)");
 

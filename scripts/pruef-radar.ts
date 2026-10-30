@@ -1542,10 +1542,11 @@ abschnitt("Nachbesserung nach Sicht, echter Prüf-KI und Go-live-Prüfung (E-458
   ok(/const einstieg = radarEinstiegFuer\(id\)\.anweisung;/.test(rq) && /mailAnweisung\(einstieg\)/.test(rq) && /mailAnweisungPartner\(radarPartnerGruppe\(f\.bereich\), motor\.partnerProvisionText, einstieg\)/.test(rq), "Schreib-KI bekommt den Einstieg dieser Firma");
   ok(!/Genau dafür bauen wir Unternehmern eine zweite Kapitalquelle auf/.test(rq) && !/das Kapital können Sie auch hier einsetzen/.test(rq) && /TON-BEISPIELE \(nur der Ton; nie einen dieser Sätze übernehmen/.test(rq),
     "Das alte Ton-Vorbild (abgeschrieben, von der Prüf-KI abgelehnt) ist weg; kurze, verschiedene Ton-Beispiele");
-  ok(/Folgerung als ALLGEMEINE Erfahrung mit „meist“, „oft“ oder „häufig“/.test(rq) && /als MÖGLICHKEIT \(„wenn es klappt“, „hätten Sie“\), nie als sicheres Geld/.test(rq) && /unterstellt keine Pläne, Wünsche oder Probleme/.test(rq),
-    "Anweisung: Folgerung allgemein (nie Unbelegtes über die Firma), Nutzen als Möglichkeit, Partner-Betreff ohne Unterstellung");
+  // Justin 30.10.2026: der Nutzen selbstbewusst (RADAR_VERKAUF) statt „als MÖGLICHKEIT („wenn es klappt“, „hätten Sie“)“.
+  ok(/Folgerung als ALLGEMEINE Erfahrung mit „meist“, „oft“ oder „häufig“/.test(rq) && !/als MÖGLICHKEIT \(„wenn es klappt“, „hätten Sie“\), nie als sicheres Geld/.test(rq) && /selbstbewusst und ohne Wenn und Aber/.test(rq) && /unterstellt keine Pläne, Wünsche oder Probleme/.test(rq),
+    "Anweisung: Folgerung allgemein (nie Unbelegtes über die Firma), Nutzen selbstbewusst (Justin 30.10.), Partner-Betreff ohne Unterstellung");
   ok(!/Ihre Mandanten mit Plänen in den USA/.test(rq) && /lieber „Kapital aus den USA“ als „Funding“/.test(rq), "Kein Betreff-Vorbild mehr, das Pläne unterstellt; kein Fachjargon");
-  ok(/wenn es klappt/.test(sh8.RADAR_KERNSATZ.vorteil) && !globalWortPruefen(sh8.RADAR_KERNSATZ.vorteil).length, "Kernsatz: der Vorteil als Möglichkeit („wenn es klappt“), besteht die Wortwand");
+  ok(/günstiger/.test(sh8.RADAR_KERNSATZ.vorteil) && !/wenn es klappt/.test(sh8.RADAR_KERNSATZ.vorteil) && !globalWortPruefen(sh8.RADAR_KERNSATZ.vorteil).length, "Kernsatz: Justins Verkaufsgeschichte ohne Wenn und Aber (30.10.), besteht die Wortwand");
   const punkteSt = sh8.radarPartnerAngebotPunkte(sh8.radarPartnerGruppe("steuerberater"), satz).join(" ");
   const punkteKv = sh8.radarPartnerAngebotPunkte(sh8.radarPartnerGruppe("kreditvermittler"), satz).join(" ");
   ok(!/provision|prozent|honorar/i.test(punkteSt) && /Kanzlei in Deutschland, die beide Seiten kennt/.test(punkteSt) && punkteKv.includes(satz) && /unberührt/.test(punkteKv),
@@ -1646,6 +1647,65 @@ abschnitt("Nachbesserung nach Sicht, echter Prüf-KI und Go-live-Prüfung (E-458
   ok(/Erste Mails je Stunde heute/.test(ui) && /cr-motor-ziel/.test(ui) && /Partnersignal/.test(ui) && /"Geschäftspartner"\]/.test(ui) && /sendenGesperrt/.test(ui) && /KI heute<\/dt><dd>[^<]*\$<\/dd>/.test(ui),
     "Chefbüro: Stunden-Leiste mit Überschrift und Ziel-Linie, Partner-Wörter, Senden nur mit Unterschrift und Freigabe, KI in Dollar");
   ok(/raum="firmen-radar-2"/.test(ui) && /Reiter „Automatik“/.test(rg), "Rundgang: neuer Merker (alle sehen die neuen Schritte einmal), Schritte nennen den Reiter „Automatik“");
+}
+
+abschnitt("Kein Bank-Satz, Justins Verkaufsgeschichte (30.10.2026)");
+{
+  const lib = await import("../server/lib/fiaon-radar");
+  const pk = await import("../server/lib/fiaon-radar-pruef");
+  const gv = await import("../shared/fiaon-global-vertrieb");
+  const { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI } = await import("../shared/fiaon-global");
+  const rq = lies("server/lib/fiaon-radar.ts"), fq = lies("server/lib/fiaon-radar-faden.ts");
+  const pa = lies("server/lib/fiaon-postmeister-agent.ts"), pd = lies("server/lib/fiaon-postmeister-dossier.ts");
+  // Die Formen, die Justin nicht mehr lesen will — die erste stand am 30.10. wörtlich in einer Partner-Mail.
+  const boese = [
+    "Wir kümmern uns um Geschäftskonto und Firmenkarten, die Entscheidung liegt bei der Bank.",
+    "Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+    "Die Zusage gibt die Partnerbank, und wir sorgen dafür, dass Ihr Antrag stark ankommt.",
+    "Eine 100-%-Genehmigung kann Ihnen niemand seriös zusagen.",
+    "Wir sind keine Bank und vermitteln keine Kredite.",
+    "Das ist keine Zusage.",
+    "Am Ende entscheidet die Bank über Ihren Rahmen.",
+    "In the end, the bank decides.",
+  ];
+  const gut = [
+    "Wir kümmern uns um alles von Anfang bis Ende, bis zur Bankunterschrift.",
+    "In den USA ist Geld meist günstiger, und um alles bis zur Unterschrift bei der Bank kümmern wir uns.",
+    "Ob das zu Ihren Plänen passt, entscheiden Sie ganz in Ruhe.",
+    "Finanzierungen laufen dort leichter und meist ohne hohe Sicherheiten.",
+  ];
+  const durch = boese.filter((s) => !sh8.radarBankVorbehalt(s)), falsch = gut.filter((s) => sh8.radarBankVorbehalt(s));
+  ok(!durch.length, `Bank-Vorbehalt: jede Form wird erkannt (auch „die Entscheidung liegt bei der Bank“)${durch.length ? ` — durch: ${durch.join(" | ")}` : ""}`);
+  ok(!falsch.length, `Bank-Vorbehalt: Justins Sätze und „Bankunterschrift“ bleiben frei${falsch.length ? ` — fälschlich: ${falsch.join(" | ")}` : ""}`);
+  const p3 = sh8.ohneBankVorbehalt(GLOBAL_PFLICHTHINWEIS.de[2]);
+  ok(/persönliche Haftung/.test(p3) && !sh8.radarBankVorbehalt(p3) && !/Institut/.test(sh8.ohneBankVorbehalt(GLOBAL_KAPITAL_FREI.de.satz)), `Mara-Fakten: Institut-Satz fliegt heraus, der Rest bleibt („${p3}“)`);
+  const leitfaden = gv.globalLeitfaden().flatMap((b) => b.s.filter((x) => x.kunde).map((x) => sh8.ohneBankVorbehalt(x.text))).join("\n");
+  ok(!sh8.radarBankVorbehalt(leitfaden) && /bis zur Unterschrift bei der Bank/.test(leitfaden) && !/niemand seriös|Bankentscheidung/.test(leitfaden), "Global-Leitfaden für Mara ohne Bank-Satz, mit „bis zur Unterschrift bei der Bank“");
+  ok(!sh8.radarBankVorbehalt(Object.values(sh8.RADAR_KERNSATZ).join(" ")) && /Bankunterschrift/.test(sh8.RADAR_KERNSATZ.was) && /außerhalb der EU/.test(sh8.RADAR_KERNSATZ.was), "Kernsatz: Konto außerhalb der EU, alles bis zur Bankunterschrift, kein Bank-Satz");
+  for (const key of ["steuerberater", "kreditvermittler"]) {
+    const punkte = sh8.radarPartnerAngebotPunkte(sh8.radarPartnerGruppe(key), "30 Prozent unseres Honorars, ein Jahr lang").join(" ");
+    ok(!sh8.radarBankVorbehalt(punkte) && /günstiger/.test(punkte) && /Bankunterschrift/.test(punkte), `Partner-Angebot (${key}): Verkaufsgeschichte statt „darüber entscheidet die Bank“`);
+  }
+  ok(!globalWortPruefen([...sh8.RADAR_VERKAUF.kern, ...sh8.RADAR_VERKAUF.extra].join(". ")).length, "Justins Verkaufsgeschichte besteht die Global-Wortwand");
+  // Die Wände des Motors: der Satz vom 30.10. sperrt, „hohe Limits“ ohne Zahl ist frei, jedes andere Limit nicht.
+  const basis = { betreff: "Ihre neue Halle", absaetze: ["Ich habe gelesen, dass Sie dieses Jahr eine neue Halle bauen. So ein Bau kostet meist Geld, bevor er etwas einbringt."], frage: "Wäre das eine Hilfe?", ps: "" };
+  ok(lib.radarMailStreng({ ...basis, absaetze: [...basis.absaetze, boese[0]] }).some((x) => /Bank-Vorbehalt/.test(x)), "Strenge Wand: der Satz vom 30.10. sperrt");
+  ok(lib.mailPruefen({ ...basis, absaetze: [...basis.absaetze, boese[0]] }).sperrend.some((x) => /Institut-Satz/.test(x)), "Wortwand des Motors: „die Entscheidung liegt bei der Bank“ sperrt");
+  ok(!lib.mailPruefen({ ...basis, absaetze: [...basis.absaetze, "Auf dem Weg dahin gibt es US-Firmenkreditkarten mit hohen Limits und sehr guten Vorteilen."] }).sperrend.some((x) => /Limit/.test(x)), "„hohe Limits“ ohne Zahl ist frei");
+  ok(lib.mailPruefen({ ...basis, absaetze: [...basis.absaetze, "Ihr Limit legen wir gemeinsam fest."] }).sperrend.some((x) => /Limit/.test(x)), "Jedes andere Limit sperrt weiter");
+  // Schreib-, Prüf- und Antwort-Anweisungen
+  const pf = pk.radarPruefAnweisung({ strom: "firma" }), pp = pk.radarPruefAnweisung({ strom: "partner", provision: true });
+  ok([pf, pp].every((t) => /Fehlt so ein Satz, ist das NIE ein Befund/.test(t) && /bis zur Bankunterschrift/.test(t) && /meist ohne hohe Sicherheiten/.test(t) && !/als MÖGLICHKEIT \(„wenn es klappt“/.test(t)),
+    "Prüf-KI: Bank-Satz ist ein Punkt, die Verkaufsgeschichte keine Zusage, „wenn es klappt“ nicht mehr verlangt");
+  ok(/RADAR_VERKAUF\.kern\.join\(" · "\)\} \(die LLC ist das US-Gegenstück zur GmbH\)\. \$\{RADAR_VERKAUF_EIGENE_WORTE\}/.test(rq) && /RADAR_VERKAUF\.extra\.join\(" · "\)/.test(rq) && /Inhalt, NICHT Wortlaut \(außer dem Provisions-Satz/.test(rq) && !/darüber entscheidet die Bank, also nie/.test(rq) && !/Ziel — das Institut entscheidet/.test(rq),
+    "Schreib-Anweisungen (Firma, Partner, Analyse): Verkaufsgeschichte als Stichworte mit Regel gegen Abschreiben, Bank-Satz raus");
+  // Erste Probe mit der echten Schreib-KI (30.10.): fertige Sätze wurden wörtlich übernommen — die Stichworte sind keine Sätze.
+  ok([...sh8.RADAR_VERKAUF.kern, ...sh8.RADAR_VERKAUF.extra].every((x) => !/[.!?]$/.test(x) && x.split(/\s+/).length <= 12) && /keine Wortfolge von mehr als vier Wörtern/.test(sh8.RADAR_VERKAUF_EIGENE_WORTE),
+    "Verkaufsgeschichte: kurze Stichworte (höchstens 12 Wörter, kein Satzende), Regel gegen Abschreiben");
+  ok(/ohneBankVorbehalt\(x\.text\)/.test(fq) && /radarBankVorbehalt\(absaetze\.join\("\\n"\)\)/.test(fq) && !/Über Konto und Karte entscheidet die Bank/.test(fq) && !/darüber entscheidet die Bank, also nie/.test(fq) && !/der Satz, dass ein Institut entscheidet, ungefragt/.test(fq),
+    "Maras Antworten und Nachfassen: Fakten ohne Bank-Satz, ein Bank-Satz hält die Antwort als Entwurf an");
+  ok(!/entscheidet allein das jeweilige Institut, FIAON koordiniert/.test(pa) && !/entscheidet allein das jeweilige Institut; Steuer- und Rechtsfragen/.test(pd) && /bis zur Bankunterschrift/.test(pa) && /bis zur Bankunterschrift/.test(pd),
+    "Mara für Global-Kunden: kein Institut-Satz mehr in Anweisung und Vertragstext");
 }
 
 abschnitt("Ergebnis");

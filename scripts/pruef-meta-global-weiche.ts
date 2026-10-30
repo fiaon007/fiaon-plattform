@@ -95,6 +95,10 @@ ok(!/alle Gebühren inklusive/i.test(alles), "„inklusive“ nur mit „erstes 
 ok(!/Geld zurück/i.test(lp.vorteile.join(" ")), "„Geld zurück“ nicht ohne Bedingung in der Vorteilsliste");
 ok(/ein Ansprechpartner/i.test(lp.h1b ?? ""), "Unterzeile nennt den einen Ansprechpartner");
 for (const t of lpTexte) { const f = globalWortPruefen(t); ok(!f.length, `Wortwand grün: „${t.slice(0, 50)}“ ${f.map((x) => x.treffer).join(", ")}`); }
+// Der Standort-Kasten im Fuß steht auch auf der Landingpage (im Browser gebaut, nicht im Server-HTML).
+const { GLOBAL_STANDORTE } = await import("../shared/fiaon-global-partner");
+for (const o of GLOBAL_STANDORTE) ok(!/Team vor Ort|team on the ground/i.test(`${o.rolle} ${o.en.rolle}`), `Fuß-Kasten ${o.stadt}: Rolle ohne „Team vor Ort“`);
+ok(GLOBAL_STANDORTE.every((o) => !/Schwarzott (Capital Partners|Global LLC)/.test(o.gesellschaft)), "Fuß-Kasten nennt nur „Schwarzott Group“, nie AG/LLC");
 const lpSeite = lies("client/src/pages/site/global-lp.tsx");
 ok(!/Drei Standorte, ein Vertrag/.test(lpSeite), "Seitenbaustein ohne „ein Vertrag“");
 const og = lies("shared/fiaon-og-business.ts");

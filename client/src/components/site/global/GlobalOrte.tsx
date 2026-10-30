@@ -4,7 +4,7 @@
 // Ersetzt zwei Dinge auf einmal: den Abschnitt „Deutschland, Florida, London“
 // mit drei großen Uhren (55 Wörter, 700 px) und die Standort-Liste im Fuß.
 // Eine ruhige Karte aus Haarlinien: Sie in Deutschland, Österreich oder der
-// Schweiz, die Bögen nach London (Vertragspartner) und Miami (Team vor Ort),
+// Schweiz, die Bögen nach London (Vertragspartner) und Miami (Partner vor Ort),
 // Zürich als kleiner Nebenpunkt ohne Uhr. An Sie, London und Miami je eine
 // Mini-Uhr (GlobalUhren.tsx, UhrMini) — die Zonen kommen aus
 // GLOBAL_WOERTER[sp].uhren (pruef-global-seiten.ts §9 prüft sie). Unter jedem

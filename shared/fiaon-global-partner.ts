@@ -118,7 +118,8 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     rechtsform: "Partner von FIAON Global",
     adresse: ["Miami, Florida"],
     register: null,
-    rolle: "Unser Team vor Ort — Termine, Einreichungen, Auftakt in Miami",
+    // E-466 (30.10.2026): Rolle ohne „Team vor Ort“ — der Kasten steht im Fuß jeder Global-Seite, auch der Anzeigen-Landingpage.
+    rolle: "Partner in Miami — Termine vor Ort und der Auftakt von Global VIP",
     aufgaben: [
       "nimmt Termine bei Behörden und Banken vor Ort wahr",
       "reicht Unterlagen ein und holt Dokumente ab",
@@ -126,7 +127,7 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     ],
     en: {
       stadt: "Miami", land: "Florida, USA", rechtsform: "Partner of FIAON Global",
-      rolle: "Our team on the ground — appointments, filings and the kick-off in Miami",
+      rolle: "Partner in Miami — on-site appointments and the Global VIP kick-off",
       aufgaben: [
         "attends appointments with authorities and banks on the ground",
         "files documents and collects paperwork",

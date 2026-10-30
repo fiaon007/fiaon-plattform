@@ -79,8 +79,9 @@ export type Sicherheit = "sicher" | "wahrscheinlich" | "unklar";
 /** E-277: Der Vorschlag zu einem Eingang — wird NIE selbst gebucht, ein Mensch bestätigt. */
 export interface NachholVorschlag {
   art: HandfallArt;
-  /** Was der Knopf tut: buchen (der eine Weg), zuordnen (keine Buchung), aufgabe — oder nichts (Mensch). */
-  aktion: "buchen" | "zuordnen" | "aufgabe" | null;
+  /** Was der Knopf tut: buchen (der eine Weg), zuordnen (keine Buchung), aufgabe — oder nichts (Mensch).
+   *  E-469: „teilzahlung“ — eine Global-Rechnung nimmt den Eingang als Teilzahlung (server/lib/fiaon-teilzahlung.ts). */
+  aktion: "buchen" | "zuordnen" | "aufgabe" | "teilzahlung" | null;
   /** Bestell- oder Ratenreferenz in der Schreibweise der Datenbank. */
   ziel: string | null;
   /** Muss das Ziel mitgeschickt werden? false = der Zweck trägt die Referenz selbst (buchbar wie bisher). */
@@ -185,7 +186,7 @@ export function genannteRate(zweck: string | null | undefined): number | null {
 }
 
 /** Nur die Zahlungs-Daten, keine Buchung: wer, wie viel, welche Referenz. */
-async function kopfLesen(id: number): Promise<{ status: number; ok: boolean; error?: string; z?: any; zeile?: NachholZeile }> {
+export async function kopfLesen(id: number): Promise<{ status: number; ok: boolean; error?: string; z?: any; zeile?: NachholZeile }> {
   const { refErkennen } = await import("../routes/fiaon-wise");
   const [z] = (await sqlPool`
     SELECT id, txn_id, booked_at, amount_cents, payer_name, reference_raw, extracted_ref, matched_ref, applied, note, match_status
@@ -897,7 +898,7 @@ async function stornoVorBuchungZuruecknehmen(
  * bankeingangAufgabe). Das Geld ist gebucht — eine stehengebliebene „Rückzahlung nötig“ hieße,
  * die Zahlungsstelle erstattet, was gerade verbucht wurde. Liefert, wie viele geschlossen wurden.
  */
-async function bankAufgabenSchliessen(txnIds: string[], anlass: string, text: string): Promise<number> {
+export async function bankAufgabenSchliessen(txnIds: string[], anlass: string, text: string): Promise<number> {
   try {
     const schluessel = txnIds.flatMap((t) => ["teilzahlung", "ueberzahlung", "rueckzahlung_noetig"].map((art) => `bank-nachholen:${art}:${t}`));
     if (!schluessel.length) return 0;
@@ -1276,7 +1277,8 @@ const tagText = (t: string) => `${t.slice(8, 10)}.${t.slice(5, 7)}.`;
 
 interface KApp {
   ref: string; pr: string; code: string | null; personId: number | null; zusammen: string | null;
-  status: string; soll: number; kunde: string; vornamen: string[]; nachnamen: string[];
+  /** E-469: teilBisher = schon gebuchte Teilzahlungen (Global-Rechnung); offen ist dann soll − teilBisher. teilbar = Global ohne Raten. */
+  status: string; soll: number; teilBisher: number; teilbar: boolean; kunde: string; vornamen: string[]; nachnamen: string[];
   belegNotiz: string; belegTag: string | null; gekuendigt: string | null; storniertAm: string | null;
 }
 interface KZeile { id: number; txnId: string; cents: number; datum: string; zahler: string; zweckCode: string; unterwegs: boolean }
@@ -1296,17 +1298,24 @@ export interface NachholKontext {
 }
 
 export async function kontextLaden(): Promise<NachholKontext> {
+  // E-469: Teilzahlungen je Bestellung (auf einer nur lesenden Verbindung vor dem ersten Deploy: keine).
+  const { teilzahlungenBereit, istTeilzahlbar } = await import("./fiaon-teilzahlung");
+  const teilDa = await teilzahlungenBereit();
   const roh = (await sqlPool`
     SELECT a.ref, a.payment_reference, a.person_id, COALESCE(a.merged_into, a.superseded_by) AS zusammen, a.payment_status,
            ROUND(COALESCE(a.amount_due, 0) * 100)::int AS soll, a.first_name, a.last_name, a.contact_name,
-           a.payment_proof_note, a.payment_proof_date, a.gekuendigt_am, a.cancelled_at,
+           a.payment_proof_note, a.payment_proof_date, a.gekuendigt_am, a.cancelled_at, a.pack_key,
+           COALESCE(tz.summe, 0)::int AS teil_bisher,
+           EXISTS (SELECT 1 FROM fiaon_abo_raten rr WHERE rr.ref = a.ref) AS hat_raten,
            p.first_name AS p_vorname, p.last_name AS p_nachname
       FROM fiaon_applications a LEFT JOIN fiaon_persons p ON p.id = a.person_id
+      LEFT JOIN ${teilDa ? sqlPool`(SELECT ref, SUM(betrag_cents) AS summe FROM fiaon_teilzahlungen GROUP BY ref)` : sqlPool`(SELECT NULL::varchar AS ref, 0 AS summe WHERE FALSE)`} tz ON tz.ref = a.ref
      WHERE a.payment_reference IS NOT NULL AND a.gdpr_deleted_at IS NULL`) as any[];
   const apps: KApp[] = roh.map((a) => ({
     ref: String(a.ref), pr: String(a.payment_reference), code: codeVon(a.payment_reference),
     personId: a.person_id != null ? Number(a.person_id) : null, zusammen: a.zusammen ? String(a.zusammen) : null,
     status: String(a.payment_status || ""), soll: Number(a.soll || 0),
+    teilBisher: Number(a.teil_bisher || 0), teilbar: istTeilzahlbar(a.pack_key) && !a.hat_raten,
     kunde: String([a.first_name, a.last_name].filter(Boolean).join(" ") || a.contact_name || [a.p_vorname, a.p_nachname].filter(Boolean).join(" ") || "").trim(),
     vornamen: Array.from(new Set([...namenWoerter(a.first_name), ...namenWoerter(a.p_vorname)])),
     nachnamen: Array.from(new Set([...namenWoerter(a.last_name), ...namenWoerter(a.p_nachname)])),
@@ -1500,26 +1509,35 @@ export async function vorschlagErmitteln(zeile: NachholZeile, k: NachholKontext)
     const partner = (ziel: number, mitUnterwegs = false) => sammelPartner(ziel, mitUnterwegs, app);
 
     // b) Erstzahlung einer offenen (auch abgelaufenen) Bestellung
-    if (unbezahlt && app.soll > 0) {
-      const diff = C - app.soll;
+    // E-469: Was ein Eingang noch decken kann, ist der Rest nach den gebuchten Teilzahlungen — nie der volle Rechnungsbetrag.
+    const offenRest = Math.max(0, app.soll - app.teilBisher);
+    if (unbezahlt && offenRest > 0) {
+      const diff = C - offenRest;
       const basis = { ziel: app.pr, gruende: [] as string[] };
       if (app.status === "expired") t.hinweise.push("Bestellung war abgelaufen (nur das Zahlungsfenster) — wird mit dem Geld bezahlt.");
-      if (diff >= 0 && diff <= 100) {
+      // E-469: Nach einer Teilzahlung ist nur der Rest auf den Cent eine Erstzahlung (Restzahlung) — darüber ist Überzahlung.
+      if (diff >= 0 && diff <= (app.teilBisher > 0 ? 0 : 100)) {
         return setze({ ...basis, art: "erstzahlung", aktion: "buchen", fit: diff === 0 ? 3 : 2,
-          gruende: [diff === 0 ? `Betrag = Bestellung (${eur(app.soll)})` : `Betrag ${eur(C)} auf ${eur(app.soll)} (+${eur(diff)})`],
-          text: `Erstzahlung ${app.pr} von ${name}` }), t;
+          gruende: [app.teilBisher > 0 ? `Betrag = Rest der Rechnung (${eur(offenRest)}, ${eur(app.teilBisher)} schon als Teilzahlung)` : diff === 0 ? `Betrag = Bestellung (${eur(offenRest)})` : `Betrag ${eur(C)} auf ${eur(offenRest)} (+${eur(diff)})`],
+          text: app.teilBisher > 0 ? `Restzahlung ${app.pr} von ${name} — schließt die Rechnung ab` : `Erstzahlung ${app.pr} von ${name}` }), t;
       }
       if (diff < 0) {
-        const p = partner(app.soll);
+        const p = app.teilBisher > 0 ? null : partner(offenRest);
         if (p) return sammelTreffer(t, p, app.pr, null, null, `Erstzahlung ${app.pr} von ${name}`, "erstzahlung");
         if (!c.stark) return null;
+        // E-469: Eine Global-Rechnung nimmt die Teilzahlung an (gebucht, Rest bleibt offen) — sonst wie bisher eine Aufgabe.
+        if (app.teilbar) {
+          return setze({ ...basis, art: "teilzahlung", aktion: "teilzahlung", fit: 1,
+            gruende: [`Teilzahlung ${eur(C)} von ${eur(offenRest)}${app.teilBisher > 0 ? " (Rest)" : ""}`],
+            text: `Teilzahlung zu ${app.pr} von ${name}: ${eur(C)} von ${eur(offenRest)} — als Teilzahlung buchbar, danach ${eur(-diff)} offen` }), t;
+        }
         return setze({ ...basis, art: "teilzahlung", aktion: "aufgabe", fit: 1,
-          gruende: [`Teilzahlung ${eur(C)} von ${eur(app.soll)}`],
-          text: `Teilzahlung zu ${app.pr} von ${name}: ${eur(C)} von ${eur(app.soll)} — es fehlen ${eur(-diff)}` }), t;
+          gruende: [`Teilzahlung ${eur(C)} von ${eur(offenRest)}`],
+          text: `Teilzahlung zu ${app.pr} von ${name}: ${eur(C)} von ${eur(offenRest)} — es fehlen ${eur(-diff)}` }), t;
       }
       if (!c.stark) return null;
-      return setze({ ...basis, art: "ueberzahlung", aktion: "aufgabe", fit: 1, gruende: [`${eur(C)} auf ${eur(app.soll)}`],
-        text: `Überzahlung bei ${name} (${app.pr}): ${eur(C)} auf ${eur(app.soll)}` }), t;
+      return setze({ ...basis, art: "ueberzahlung", aktion: "aufgabe", fit: 1, gruende: [`${eur(C)} auf ${eur(offenRest)}`],
+        text: `Überzahlung bei ${name} (${app.pr}): ${eur(C)} auf ${eur(offenRest)}` }), t;
     }
 
     // c) Bezahlt gebucht, aber ohne (vollständiges) Geld im Bankbuch → dieser Eingang ist das Geld: nur zuordnen
@@ -1721,7 +1739,7 @@ export async function vorschlagErmitteln(zeile: NachholZeile, k: NachholKontext)
   const aktion = sicherheit === "unklar" && best.aktion !== "aufgabe" ? null : best.aktion;
   return {
     art: best.art, aktion, ziel: best.ziel,
-    mitZiel: best.aktion === "buchen" || best.aktion === "zuordnen",
+    mitZiel: best.aktion === "buchen" || best.aktion === "zuordnen" || best.aktion === "teilzahlung",
     bestellung: best.app.ref, rateNr: best.rateNr, rateId: best.rateId, kunde: best.app.kunde || null, personId: best.app.personId, dazu: best.dazu,
     sicherheit, gruende: [...best.identGruende, ...best.gruende].slice(0, 6), text: best.text, hinweise,
     erwartet: aktion === "buchen"
@@ -1878,6 +1896,11 @@ export interface ZubuchenZiel {
   aktion: "buchen" | "zuordnen" | "storno" | null;
   faellig: string | null;
   bezahlt: string | null;
+  /** E-469: Global-Rechnung ohne Raten, offen — nimmt einen Eingang auch als Teilzahlung („Als Teilzahlung buchen“). */
+  teilzahlbar?: boolean;
+  /** E-469: schon als Teilzahlung gebucht und was danach offen ist (nur wenn es Teilzahlungen gibt). */
+  teilBezahltCents?: number | null;
+  offenCents?: number | null;
 }
 
 /** Die Ziele einer Person: offene/ bezahlte Bestellungen und ihre Raten — für „Prüfen“ im Zubuchen-Dialog. */
@@ -1903,6 +1926,9 @@ export async function zubuchenZiele(personIdRoh: unknown): Promise<{ person: Zub
   `) as any[];
   const ziele: ZubuchenZiel[] = [];
   const tagVon = (x: unknown) => (x ? new Date(x as any).toISOString().slice(0, 10) : null);
+  // E-469: Teilzahlungen je Bestellung — dieselbe Quelle wie Zahlungsseite und Rechnung.
+  const { teilzahlungenLesen, istTeilzahlbar } = await import("./fiaon-teilzahlung");
+  const teile = await teilzahlungenLesen(refs).catch(() => new Map());
   for (const a of apps) {
     if (!a.payment_reference) continue;
     const paket = String(a.pack_name || a.pack_key || "Bestellung");
@@ -1912,7 +1938,11 @@ export async function zubuchenZiele(personIdRoh: unknown): Promise<{ person: Zub
     const eigeneRaten = raten.filter((r) => String(r.ref) === String(a.ref));
     // Hat die Bestellung Raten, steht die Erstzahlung als Rate 1 — sie wird dort angeboten, nicht doppelt.
     if (!eigeneRaten.length || !bezahlt) {
+      const soll = a.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null;
+      const teil = teile.get(String(a.ref))?.bezahltCents ?? 0;
+      const teilzahlbar = offen && !eigeneRaten.length && istTeilzahlbar(a.pack_key) && (soll ?? 0) > 0;
       ziele.push({
+        teilzahlbar, teilBezahltCents: teil > 0 ? teil : null, offenCents: teil > 0 && soll != null ? Math.max(0, soll - teil) : null,
         art: "bestellung", ziel: String(a.payment_reference), bestellung: String(a.payment_reference),
         titel: `${paket} · Erstzahlung`, sollCents: a.amount_due != null ? Math.round(Number(a.amount_due) * 100) : null,
         status: zahlStatus === "superseded" ? "ersetzt" : zahlStatus || "—",

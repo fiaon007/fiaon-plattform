@@ -10,6 +10,9 @@
 //   2. Kunde suchen — über ALLE Kunden (Name, E-Mail, Telefon, Referenz); je Person ihre Bestellungen und Raten.
 //   3. Prüfen — wieder nur trocken: Ziel, Regel, Mails, Provision, Hinweise. Erst dann „Jetzt buchen“.
 //   4. „Kein Kundengeld“ — für Eingänge, die keinem Kunden gehören (z. B. 0,18 € Prüfbetrag von Google).
+//   E-469 (30.10.2026): „Als Teilzahlung buchen“ — nur bei FIAON-Global-Rechnungen (Ziel frei wählbar, auch bei „unmatched“).
+//   Der Eingang wird verbucht, die Rechnung zeigt „bezahlt X, offen Y“; erreicht die Summe den Betrag, läuft der normale
+//   Bezahlt-Weg genau einmal (server/lib/fiaon-teilzahlung.ts). Überzahlung → Aufgabe an die Zahlungsstelle.
 // Gebucht wird NUR über POST /admin/zahlungen/bankeingang-nachholen — derselbe Weg wie FIAON Banking › Bankbuch
 // (bankeingangBuchen / bankeingangZuordnen, server/lib/fiaon-bank-nachholen.ts): Bestätigungsmail, Ratenkette,
 // Provisionsschalter, Rückwärtssperre, Erwartungs-Stempel. Kein zweiter Buchungsweg.
@@ -27,8 +30,10 @@ interface Person { personId: number; name: string; email: string | null; telefon
 interface Ziel {
   art: "bestellung" | "rate"; ziel: string; bestellung: string; titel: string; sollCents: number | null; status: string;
   aktion: "buchen" | "zuordnen" | "storno" | null; faellig: string | null; bezahlt: string | null;
+  /** E-469: Global-Rechnung, offen, ohne Raten — „Als Teilzahlung buchen“ möglich; schon bezahlt / offen bei Teilzahlungen. */
+  teilzahlbar?: boolean; teilBezahltCents?: number | null; offenCents?: number | null;
 }
-type Modus = "buchen" | "zuordnen" | "aufgabe";
+type Modus = "buchen" | "zuordnen" | "aufgabe" | "teilzahlung";
 interface Pruefung { modus: Modus; ziel: string | null; dazu: number[]; storno: boolean; zeile: NachholZeile | null; fehler: string | null }
 
 const euro = (cents: number | null | undefined) =>
@@ -66,7 +71,7 @@ function VorschlagKarte({ v, onPruefen, gesperrt }: { v: NachholVorschlag; onPru
       {v.aktion && (v.ziel || v.aktion === "aufgabe") && (
         <button type="button" className="kz-knopf haupt" disabled={gesperrt}
           onClick={() => onPruefen({ modus: v.aktion as Modus, ziel: v.ziel, dazu: v.dazu || [] })}>
-          {v.aktion === "buchen" ? `Vorschlag prüfen: auf ${v.ziel} buchen` : v.aktion === "zuordnen" ? `Vorschlag prüfen: ${v.ziel} nur zuordnen` : "Aufgabe anlegen (nicht buchen)"}
+          {v.aktion === "buchen" ? `Vorschlag prüfen: auf ${v.ziel} buchen` : v.aktion === "zuordnen" ? `Vorschlag prüfen: ${v.ziel} nur zuordnen` : v.aktion === "teilzahlung" ? `Vorschlag prüfen: als Teilzahlung auf ${v.ziel} buchen` : "Aufgabe anlegen (nicht buchen)"}
         </button>
       )}
     </div>
@@ -140,8 +145,8 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
     if (p.modus === "aufgabe") { setPruefung(basis); return; }
     setLaeuft(true);
     try {
-      const j = await nachholen(p.modus === "zuordnen"
-        ? { id: eingang.id, trocken: true, modus: "zuordnen", ziel: p.ziel }
+      const j = await nachholen(p.modus === "zuordnen" || p.modus === "teilzahlung"
+        ? { id: eingang.id, trocken: true, modus: p.modus, ziel: p.ziel }
         : { id: eingang.id, trocken: true, ziel: p.ziel, dazu: p.dazu || [], stornoZuruecknehmen: !!p.storno });
       setPruefung({ ...basis, zeile: j.zeile ?? null });
     } catch (e: any) {
@@ -153,7 +158,9 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
   }, [eingang.id]);
 
   const bereit = !!pruefung && !pruefung.fehler && (
-    pruefung.modus === "aufgabe" || (pruefung.zeile && (pruefung.modus === "zuordnen" ? !!pruefung.zeile.zuordenbar : !!pruefung.zeile.buchen))
+    pruefung.modus === "aufgabe" || (pruefung.zeile && (pruefung.modus === "zuordnen" ? !!pruefung.zeile.zuordenbar
+      // E-469: Eine Überzahlung ist nicht buchbar — der Knopf legt dann die Aufgabe an die Zahlungsstelle an.
+      : pruefung.modus === "teilzahlung" ? (!!pruefung.zeile.buchen || !!pruefung.zeile.teilzahlung?.ueberzahlung) : !!pruefung.zeile.buchen))
   );
 
   const ausfuehren = async () => {
@@ -164,6 +171,17 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
       if (pruefung.modus === "aufgabe") {
         const j = await nachholen({ id: eingang.id, trocken: false, modus: "aufgabe" });
         onFertig(`Aufgabe angelegt${j.aufgabe ? ` — ${j.aufgabe}` : ""}. Eingang bleibt unverbucht.`);
+      } else if (pruefung.modus === "teilzahlung" && z) {
+        const tz = z.teilzahlung;
+        try {
+          const j = await nachholen({ id: eingang.id, trocken: false, modus: "teilzahlung", ziel: pruefung.ziel, erwartet: { ziel: z.ziel, bisherCents: tz?.bisherCents ?? 0 } });
+          onFertig(j.abschluss
+            ? `Teilzahlung gebucht: ${euro(tz?.dieserCents)} → ${z.ziel} — Rechnung voll bezahlt${j.bezahlt?.ok === false ? `, aber der Bezahlt-Weg meldete: ${j.bezahlt.fehler}` : ", Auftrag startet über den normalen Weg"}.`
+            : `Teilzahlung gebucht: ${euro(tz?.dieserCents)} → ${z.ziel} (${z.kunde ?? "—"}) — jetzt ${euro(tz?.nachherCents)} bezahlt, ${euro(tz?.offenCents)} offen.`);
+        } catch (e: any) {
+          if (tz?.ueberzahlung && /Überzahlung/.test(String(e.message))) onFertig(`Überzahlung — nicht gebucht. ${e.message}`);
+          else throw e;
+        }
       } else if (pruefung.modus === "zuordnen" && z) {
         await nachholen({ id: eingang.id, trocken: false, modus: "zuordnen", ziel: pruefung.ziel, erwartet: { ziel: z.ziel, rateId: z.rateId } });
         onFertig(`Zugeordnet: ${eingang.betrag} € → ${z.ziel} (${z.kunde ?? "—"}) — keine zweite Buchung.`);
@@ -261,10 +279,12 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
                       <tr key={`${z.art}-${z.ziel}`} className={pruefung?.ziel === z.ziel ? "an" : ""}>
                         <td>{z.titel}</td>
                         <td className="kz-ref">{z.ziel}</td>
-                        <td className="kz-zahl">{euro(z.sollCents)}</td>
-                        <td>{z.status}{z.faellig ? ` · fällig ${tag(z.faellig)}` : ""}{z.bezahlt ? ` · bezahlt ${tag(z.bezahlt)}` : ""}</td>
+                        <td className="kz-zahl">{euro(z.sollCents)}{z.offenCents != null ? <><br /><small>offen {euro(z.offenCents)}</small></> : null}</td>
+                        <td>{z.status}{z.faellig ? ` · fällig ${tag(z.faellig)}` : ""}{z.bezahlt ? ` · bezahlt ${tag(z.bezahlt)}` : ""}{z.teilBezahltCents ? ` · Teilzahlung ${euro(z.teilBezahltCents)}` : ""}</td>
                         <td>
                           {z.aktion === "buchen" && <button type="button" className="kz-knopf" disabled={laeuft} onClick={() => void pruefen({ modus: "buchen", ziel: z.ziel })}>Prüfen</button>}
+                          {z.teilzahlbar && <button type="button" className="kz-knopf still" disabled={laeuft} title="Nur FIAON Global: bucht den Eingang als Teil der Rechnung — der Rest bleibt offen."
+                            onClick={() => void pruefen({ modus: "teilzahlung", ziel: z.ziel })}>Als Teilzahlung buchen</button>}
                           {z.aktion === "zuordnen" && <button type="button" className="kz-knopf still" disabled={laeuft} onClick={() => void pruefen({ modus: "zuordnen", ziel: z.ziel })}>Nur zuordnen</button>}
                           {z.aktion === "storno" && <button type="button" className="kz-knopf still" disabled={laeuft} title="Rate storniert: nimmt den Storno zurück und bucht dann."
                             onClick={() => void pruefen({ modus: "buchen", ziel: z.ziel, storno: true })}>Storno zurück</button>}
@@ -281,7 +301,7 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
         {/* 3 · Prüfergebnis und der eine Knopf */}
         {pruefung && (
           <section className="kz-teil kz-ergebnis" ref={ergebnisRef}>
-            <h3>{pruefung.modus === "zuordnen" ? "Nur zuordnen?" : pruefung.modus === "aufgabe" ? "Aufgabe anlegen?" : "So buchen?"}</h3>
+            <h3>{pruefung.modus === "zuordnen" ? "Nur zuordnen?" : pruefung.modus === "aufgabe" ? "Aufgabe anlegen?" : pruefung.modus === "teilzahlung" ? "Als Teilzahlung buchen?" : "So buchen?"}</h3>
             {laeuft && !pruefung.zeile && <p className="kz-leise">Prüfe …</p>}
             {pruefung.fehler && <p className="kz-fehler">{pruefung.fehler}</p>}
             {pruefung.modus === "aufgabe" && (
@@ -292,6 +312,9 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
                 <div><dt>Ergebnis</dt><dd>{pruefung.zeile.ergebnis}</dd></div>
                 {pruefung.zeile.kunde && <div><dt>Kunde</dt><dd>{pruefung.zeile.kunde}</dd></div>}
                 {pruefung.zeile.ziel && <div><dt>Ziel</dt><dd>{pruefung.zeile.ziel}{pruefung.zeile.rateNr ? ` (Rate ${pruefung.zeile.rateNr})` : ""}</dd></div>}
+                {pruefung.zeile.teilzahlung && (() => { const t = pruefung.zeile.teilzahlung!; return (
+                  <div><dt>Rechnung</dt><dd>{t.rechnungsnummer ?? t.zahlungsreferenz}: {euro(t.sollCents)} · bisher {euro(t.bisherCents)} · dieser Eingang {euro(t.dieserCents)} · danach {t.ueberzahlung ? "überzahlt" : t.abschluss ? "voll bezahlt" : `offen ${euro(t.offenCents)}${t.faelligAm ? ` bis ${tag(t.faelligAm)}` : ""}`}</dd></div>
+                ); })()}
                 {pruefung.zeile.mails.length > 0 && <div><dt>Mail an Kunden</dt><dd>{pruefung.zeile.mails.join(" · ")}</dd></div>}
                 {pruefung.zeile.provision.length > 0 && <div><dt>Provision</dt><dd>{pruefung.zeile.provision.join(" · ")}</dd></div>}
                 {pruefung.zeile.stornoZurueck && <div><dt>Storno</dt><dd>{pruefung.zeile.stornoZurueck}</dd></div>}
@@ -302,7 +325,8 @@ export default function ChefKontoZubuchen({ eingang, onZu, onFertig }: {
               <p className="kz-leise">Bucht nichts — nur Haken und Beleg. Keine Mail, keine Provision, keine neue Rate.</p>
             )}
             <button type="button" className="kz-knopf haupt gross" disabled={!bereit || laeuft} onClick={() => void ausfuehren()}>
-              {laeuft ? "Läuft …" : pruefung.modus === "zuordnen" ? "Jetzt zuordnen" : pruefung.modus === "aufgabe" ? "Aufgabe anlegen" : "Jetzt buchen"}
+              {laeuft ? "Läuft …" : pruefung.modus === "zuordnen" ? "Jetzt zuordnen" : pruefung.modus === "aufgabe" ? "Aufgabe anlegen"
+                : pruefung.modus === "teilzahlung" ? (pruefung.zeile?.teilzahlung?.ueberzahlung ? "Aufgabe anlegen (Überzahlung)" : "Jetzt als Teilzahlung buchen") : "Jetzt buchen"}
             </button>
           </section>
         )}

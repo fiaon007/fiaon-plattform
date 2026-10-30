@@ -55,6 +55,11 @@ export interface Zahlungsauftrag {
   /** E-322: Diese Rechnung ist ersetzt — die Seite leitet auf die offene Nachfolgerin weiter. */
   weiterZu?: string;
   /**
+   * E-469 (30.10.2026): Teilzahlungen auf eine offene Global-Rechnung. Dann ist `amountDue` der RESTBETRAG (Seite,
+   * GiroCode, Mails, Mara) und hier steht, was die Rechnung kostet und was schon kam. Fehlt ohne Teilzahlung.
+   */
+  teilzahlung?: { rechnungsbetrag: string; bezahlt: string; offen: string; zahlungen: { am: string; betrag: string }[] };
+  /**
    * Nur beim Firmenauftrag: die Sprache, in der das Unternehmen seinen Auftrag geführt hat
    * (fiaon_global_auftraege.vertrag_sprache). Wer auf /en/business/start unterschrieben hat,
    * liest die Zahlungsseite englisch (kleines Wörterbuch in client/src/pages/zahlung.tsx).
@@ -182,7 +187,7 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     if (String(g?.vertrag_sprache ?? "").toLowerCase() === "en") sprache = "en";
   }
   const enName = sprache === "en" ? globalPaket(a.pack_key)?.en.name : null;
-  return {
+  const erg: Zahlungsauftrag = {
     art: "bestellung",
     paymentReference: a.payment_reference,
     status: a.payment_status,
@@ -204,6 +209,36 @@ export async function zahlungsauftragFinden(refRoh: string): Promise<Zahlungsauf
     // E-320 (09.10.2026): ein Teil eines Individualangebots (E-268) — derselbe Auftragsblock (Gesellschaft, Prüfliste, Unterlagen).
     ...(katalogPaket(a.pack_key)?.preisJeAngebot ? { auftrag: await import("./fiaon-global-angebot-begleit").then((m) => m.angebotTeilZahlungsKontext(a)).catch((e) => { console.error("[FIAON-ZAHLUNG] Angebotsteil zur Zahlung:", e); return null; }) } : {}),
   };
+  // E-469: Teilzahlungen — die Seite zeigt nur noch den Rest (Betrag, GiroCode), dazu Rechnungsbetrag und was schon kam.
+  // Darf nie die Zahlungsseite kosten: scheitert das Lesen, steht die Rechnung wie bisher da.
+  if (firmenauftrag && ["pending_payment", "claimed_paid", "expired"].includes(String(a.payment_status))) {
+    try {
+      const { teilzahlungenLesen, teilAnzeige } = await import("./fiaon-teilzahlung");
+      const soll = Math.round(Number(a.amount_due || 0) * 100);
+      const t = teilAnzeige(soll, (await teilzahlungenLesen([String(a.ref)])).get(String(a.ref)), a.payment_status);
+      if (t) {
+        const zahl = (c: number) => (c / 100).toFixed(2);
+        erg.amountDue = zahl(t.offenCents);
+        erg.teilzahlung = { rechnungsbetrag: zahl(t.sollCents), bezahlt: zahl(t.bezahltCents), offen: zahl(t.offenCents), zahlungen: t.zahlungen.map((z) => ({ am: z.am, betrag: zahl(z.cents) })) };
+        if (erg.auftrag?.pruefungen?.length) {
+          const de = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+          const tag = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
+          const p = [...erg.auftrag.pruefungen];
+          const letzte = p.length - 1;
+          p.splice(letzte, 0, {
+            titel: t.zahlungen.length > 1 ? "Teilzahlungen erhalten" : "Teilzahlung erhalten",
+            text: `${t.zahlungen.map((z) => `${de(z.cents)} am ${tag(z.am)}`).join(", ")} — vielen Dank`, stand: "ok",
+          });
+          const faellig = a.payment_due_date ? new Date(a.payment_due_date).toISOString() : null;
+          p[letzte + 1] = { ...p[letzte + 1], titel: "Nur noch: der Restbetrag", text: `${de(t.offenCents)}${faellig ? ` — bitte bis zum ${new Date(faellig).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Berlin" })} überweisen` : " — bitte überweisen"}`, stand: "offen" };
+          erg.auftrag = { ...erg.auftrag, pruefungen: p };
+        }
+      }
+    } catch (e) {
+      console.error("[FIAON-ZAHLUNG] Teilzahlungen:", e);
+    }
+  }
+  return erg;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

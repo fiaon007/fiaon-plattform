@@ -476,7 +476,13 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
 
   // ── „Für Sie zu tun" ──
   const tun: { key: string; ton: string; titel: string; text: string; knopf?: string; aktion?: () => void; href?: string }[] = [];
-  if (a.status === "offen" && a.zahlung?.zahlungsseite) tun.push({ key: "zahlung", ton: "navy", titel: t.zahlungOffenTitel, text: t.zahlungOffenText, knopf: t.zurZahlung, href: a.zahlung.zahlungsseite });
+  // E-469: Nach einer Teilzahlung nennt die Karte, was kam und was noch offen ist.
+  const teilText = a.zahlung?.teilBezahltCents
+    ? (s === "en"
+      ? `Thank you for your part payment of ${euroText(a.zahlung.teilBezahltCents)}. Outstanding: ${euroText(a.zahlung.offenCents)}${a.zahlung.faelligAm ? `, payable by ${tagKurz(a.zahlung.faelligAm)}` : ""}.`
+      : `Danke für Ihre Teilzahlung über ${euroText(a.zahlung.teilBezahltCents)}. Offen sind noch ${euroText(a.zahlung.offenCents)}${a.zahlung.faelligAm ? `, zahlbar bis zum ${tagKurz(a.zahlung.faelligAm)}` : ""}.`)
+    : null;
+  if (a.status === "offen" && a.zahlung?.zahlungsseite) tun.push({ key: "zahlung", ton: "navy", titel: t.zahlungOffenTitel, text: teilText ?? t.zahlungOffenText, knopf: t.zurZahlung, href: a.zahlung.zahlungsseite });
   // 22.10.2026: zuerst die Ergänzung zum Vertrag, dann Statement, Operating Agreement, IRS-Formulare, dann der Rest.
   const REIHE = ["fiaon_befugnisse", "us_organizer", "us_operating_agreement", "irs_ss4", "irs_8821"];
   const rang = (d: T) => { const i = REIHE.indexOf(String(d.pflichtKey ?? "")); return i < 0 ? REIHE.length : i; };
@@ -501,7 +507,7 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   }
   // Offene Rechnungen der Person (Einzelrechnungen wie Fast-Track, Angebotsteile) — die Paketrechnung steht schon oben.
   for (const r of rechnungen) {
-    if (r.zahlungsseite && r.art !== "paket" && r.art !== "zusatz" && !tun.some((x) => x.href === r.zahlungsseite)) tun.push({ key: `r${r.bestellRef}`, ton: "", titel: `${s === "en" ? "Invoice open" : "Rechnung offen"}: ${r.titel}`, text: [r.nummer, euroText(r.betragCents)].filter(Boolean).join(" · "), knopf: w.zurZahlung, href: r.zahlungsseite });
+    if (r.zahlungsseite && r.art !== "paket" && r.art !== "zusatz" && !tun.some((x) => x.href === r.zahlungsseite)) tun.push({ key: `r${r.bestellRef}`, ton: "", titel: `${s === "en" ? "Invoice open" : "Rechnung offen"}: ${r.titel}`, text: [r.nummer, r.offenCents != null ? `${s === "en" ? "outstanding" : "offen"} ${euroText(r.offenCents)}` : euroText(r.betragCents)].filter(Boolean).join(" · "), knopf: w.zurZahlung, href: r.zahlungsseite });
   }
   // Pflichtunterlagen, die schon zur Unterschrift bereitliegen, stehen über zuUnterschreiben oben; hier der Titel der Pflicht.
   // Pflichtfristen der nächsten dreißig Tage gehören zu „Für Sie zu tun".
@@ -1115,7 +1121,9 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
               <ul className="gp-rechnungen">
                 {rechnungen.map((r) => (
                   <li key={r.bestellRef} className={`st-${r.status}`}>
-                    <div><b>{r.titel}</b><small>{[r.nummer, r.datum ? tagKurz(r.datum) : ""].filter(Boolean).join(" · ")}</small></div>
+                    <div><b>{r.titel}</b><small>{[r.nummer, r.datum ? tagKurz(r.datum) : "",
+                      // E-469: Teilzahlung — bezahlt, offen, bis wann.
+                      r.teilBezahltCents ? (s === "en" ? `paid ${euroText(r.teilBezahltCents)}, outstanding ${euroText(r.offenCents)}${r.faelligAm ? ` by ${tagKurz(r.faelligAm)}` : ""}` : `bezahlt ${euroText(r.teilBezahltCents)}, offen ${euroText(r.offenCents)}${r.faelligAm ? ` bis ${tagKurz(r.faelligAm)}` : ""}`) : ""].filter(Boolean).join(" · ")}</small></div>
                     <span className="gp-betrag">{euroText(r.betragCents)}</span>
                     <span className={`gp-marke ${r.status === "bezahlt" ? "gruen" : r.status === "offen" ? "blau" : ""}`}>{r.statusText}</span>
                     <span className="gp-rechnung-wege">

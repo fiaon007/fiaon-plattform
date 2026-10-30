@@ -139,14 +139,16 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       preheader: "Ihr Auftrag liegt bereit. Mit dem Zahlungseingang beginnen wir.",
       titel: "Ihr Auftrag wartet auf die Zahlung",
       absaetze: [
-        "{{params.anrede_zeile}}, für <b>{{params.firma}}</b> liegt uns Ihr unterschriebener Auftrag über <b>{{params.paket}}</b> vor; ein Zahlungseingang ist dazu bisher nicht verbucht. {{params.anlass}}",
+        // E-469: Der Satz zum Zahlungsstand kommt aus der Nutzlast — ohne Teilzahlung „Ein Zahlungseingang ist … nicht verbucht.“,
+        // mit Teilzahlung Dank, Restbetrag und Frist (globalMailNutzlast).
+        "{{params.anrede_zeile}}, für <b>{{params.firma}}</b> liegt uns Ihr unterschriebener Auftrag über <b>{{params.paket}}</b> vor. {{params.zahlung_stand_satz}} {{params.anlass}}",
         "Bankverbindung, Verwendungszweck und ein QR-Code für Ihre Banking-App stehen auf Ihrer Zahlungsseite. Mit dem Zahlungseingang beginnen wir — Sie erhalten dann die Bestätigung mit der Liste der Unterlagen.",
         "Haben Sie bereits überwiesen, ist nichts weiter zu tun: Eine Überweisung braucht in der Regel ein bis zwei Bankarbeitstage, bis sie bei uns verbucht ist. Ihren Vertrag und die Rechnung finden Sie jederzeit unter „Mein Auftrag“.",
       ],
       daten: [
         { label: "Auftrag", wert: "{{params.antrag_id}}" },
         { label: "Paket", wert: "{{params.paket}}" },
-        { label: "Betrag, einmalig", wert: "{{params.betrag_text}}" },
+        { label: "{{params.betrag_label}}", wert: "{{params.betrag_text}}" },
         { label: "Verwendungszweck", wert: "{{params.payment_reference}}" },
         { label: "Ihr Ansprechpartner", wert: "{{params.ansprechpartner}}" },
       ],
@@ -161,14 +163,14 @@ const PAARE: Record<string, Record<GlobalMailSprache, MailBaustein>> = {
       preheader: "Your order is ready. Work begins once your payment has arrived.",
       titel: "Your order is waiting for payment",
       absaetze: [
-        "{{params.anrede_zeile}}, we hold your signed order for <b>{{params.paket}}</b> on behalf of <b>{{params.firma}}</b>; no payment has been recorded for it so far. {{params.anlass}}",
+        "{{params.anrede_zeile}}, we hold your signed order for <b>{{params.paket}}</b> on behalf of <b>{{params.firma}}</b>. {{params.zahlung_stand_satz}} {{params.anlass}}",
         "The bank details, the payment reference and a QR code for your banking app are on your payment page. Work begins once your payment has arrived — you will then receive the confirmation with the list of documents.",
         "If you have already made the transfer, there is nothing further to do: a transfer usually takes one to two banking days to be recorded with us. You can find your contract and the invoice at any time under “My order”.",
       ],
       daten: [
         { label: "Order", wert: "{{params.antrag_id}}" },
         { label: "Package", wert: "{{params.paket}}" },
-        { label: "Amount, one-off", wert: "{{params.betrag_text}}" },
+        { label: "{{params.betrag_label}}", wert: "{{params.betrag_text}}" },
         { label: "Payment reference", wert: "{{params.payment_reference}}" },
         { label: "Your contact", wert: "{{params.ansprechpartner}}" },
       ],

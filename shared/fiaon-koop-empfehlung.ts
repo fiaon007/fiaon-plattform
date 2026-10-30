@@ -21,8 +21,10 @@ export const KOOP_DURCHLAUF_SCHLUESSEL = ["llc_gruendung", "llc_gruendung_halb",
  * dort steckt er mit Gründung, Konto und Karten in EINER Bestellung (global_individuell). Von dieser ersten Zahlung zählt nur der
  * Teil ohne Fast-Track (parameter.fastTrackCents des Angebots, dessen auftrag_ref die Zahlung ist); spätere Zahlungen derselben
  * Person (Erfolgshonorar) zählen voll. SQL-Ausdruck über q (UMSATZ_QUELLE_SQL): der abzuziehende Betrag in Cent, nie mehr als q.cents.
+ * E-469 (30.10.2026): Kommt diese erste Rechnung in Teilen (fiaon_teilzahlungen), wird der Fast-Track vom ersten Geld abgezogen,
+ * bis er aufgebraucht ist (q.teil_vorher_cents = was vorher schon kam) — insgesamt genau einmal, wie bei einer Zahlung. Regel unverändert.
  */
-export const KOOP_DURCHLAUF_ABZUG_SQL = `COALESCE((SELECT LEAST(q.cents, GREATEST(0, COALESCE((ga.parameter->>'fastTrackCents')::int, 0))) FROM fiaon_global_angebote ga WHERE ga.auftrag_ref = q.ref AND ga.fassung LIKE 'IA-KAPITAL-%-C' LIMIT 1), 0)`;
+export const KOOP_DURCHLAUF_ABZUG_SQL = `COALESCE((SELECT LEAST(q.cents, GREATEST(0, COALESCE((ga.parameter->>'fastTrackCents')::int, 0) - COALESCE(q.teil_vorher_cents, 0))) FROM fiaon_global_angebote ga WHERE ga.auftrag_ref = q.ref AND ga.fassung LIKE 'IA-KAPITAL-%-C' LIMIT 1), 0)`;
 /** So lange zählen die Zahlungen eines empfohlenen Kunden ab der Meldung. */
 export const KOOP_PROVISION_MONATE = 12;
 

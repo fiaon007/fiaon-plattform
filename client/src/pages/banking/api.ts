@@ -76,12 +76,17 @@ export interface NachholZeile {
   zuordenbar?: boolean; zugeordnet?: string | null; vorschlag?: NachholVorschlag | null;
   // E-278: was „Storno zurücknehmen“ vorher tut, und der Verrechnungsvermerk „mit heutigem Datum“
   stornoZurueck?: string | null; verrechnung?: string | null;
+  // E-469: „Als Teilzahlung buchen“ — Rechnungsbetrag, bisher, dieser, danach offen, Abschluss, Überzahlung
+  teilzahlung?: {
+    ref: string; zahlungsreferenz: string; rechnungsnummer: string | null; sollCents: number; bisherCents: number; dieserCents: number;
+    nachherCents: number; offenCents: number; abschluss: boolean; ueberzahlung: boolean; faelligAm: string | null; eingangAm: string;
+  } | null;
 }
 
 /** E-277: Was ein Handfall ist und was der Knopf tut — gebucht wird erst nach dem Klick des Inhabers. */
 export type HandfallArt = "erstzahlung" | "rate" | "nur_zuordnen" | "teilzahlung" | "ueberzahlung" | "rueckzahlung_noetig" | "unbekannt";
 export interface NachholVorschlag {
-  art: HandfallArt; aktion: "buchen" | "zuordnen" | "aufgabe" | null; ziel: string | null; mitZiel: boolean;
+  art: HandfallArt; aktion: "buchen" | "zuordnen" | "aufgabe" | "teilzahlung" | null; ziel: string | null; mitZiel: boolean;
   bestellung: string | null; rateNr: number | null; rateId: number | null; kunde: string | null; personId: number | null;
   dazu: number[]; sicherheit: "sicher" | "wahrscheinlich" | "unklar"; gruende: string[]; text: string; hinweise: string[];
   /** Was die Trockenprobe beim Klick sagen muss — sonst bucht der Server nicht. */

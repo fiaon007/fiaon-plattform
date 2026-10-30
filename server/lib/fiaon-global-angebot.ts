@@ -2151,7 +2151,12 @@ export async function angebotSichtZurAkte(ref1: string): Promise<Record<string, 
   const teile = await Promise.all((z.teile as any[]).map(async (x) => {
     const b = x.bestell_ref ? await globalBestellungLesen(String(x.bestell_ref)) : null;
     const stand = z.erstattung_ausgeloest_am && x.bezahlt_am ? "erstattet" : x.entfallen_am ? "entfallen" : b ? (String(b.payment_status) === "paid" ? "bezahlt" : ["cancelled", "superseded", "refunded"].includes(String(b.payment_status)) ? "storniert" : "offen") : "noch nicht fällig";
-    return { nr: Number(x.nr), titel: String(x.titel), betragCents: Number(x.betrag_cents), stand, rechnungsnummer: b?.invoice_number ?? null, bestellRef: x.bestell_ref ?? null };
+    // E-469: Teilzahlung auf eine offene Rechnung — der Teil nennt, was kam und was offen ist (Portal zeigt `hinweis`).
+    const teil = stand === "offen" ? Number(b?.teil_bezahlt_cents || 0) : 0;
+    const eu = (c: number) => `${(c / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const bis = b?.payment_due_date ? isoTag(b.payment_due_date) : null;
+    const hinweis = teil > 0 ? `${eu(teil)} bezahlt, offen ${eu(Math.max(0, Math.round(Number(b?.amount_due || 0) * 100) - teil))}${bis ? ` bis ${bis.slice(8, 10)}.${bis.slice(5, 7)}.${bis.slice(0, 4)}` : ""}` : null;
+    return { nr: Number(x.nr), titel: String(x.titel), betragCents: Number(x.betrag_cents), stand, rechnungsnummer: b?.invoice_number ?? null, bestellRef: x.bestell_ref ?? null, ...(hinweis ? { hinweis } : {}) };
   }));
   return {
     ref: d.ref, teile, fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), buergin: d.buergin.name,

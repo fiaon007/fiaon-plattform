@@ -69,6 +69,7 @@ import QRCode from "qrcode";
 import { sqlPool } from "./db-pool";
 import { docHash, escapeHtml } from "./fiaon-html-pdf";
 import { berlinToday } from "./fiaon-time";
+import { teilzahlungSatz } from "@shared/fiaon-teilzahlung";
 import { signaturPruefen, isoTag } from "./fiaon-kuendigung-mitarbeiter";
 import { absoluteUrl } from "../fiaon-base-url";
 import { BANK } from "@shared/fiaon-bank";
@@ -518,12 +519,15 @@ export async function globalAkteLesen(ref: string): Promise<any | null> {
   return a ?? null;
 }
 async function bestellungLesen(ref: string): Promise<any | null> {
+  // E-469: teil_bezahlt_cents — Summe der gebuchten Teilzahlungen (fiaon_teilzahlungen, 0 ohne); Mails und Sichten nennen den Rest.
+  const teilDa = await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenBereit());
   const [a] = (await sqlPool`
     SELECT ref, person_id, pack_key, pack_name, payment_reference, payment_status, payment_due_date, amount_due, invoice_number,
            company_name, contact_name, contact_email, email, assigned_agent_id, completed_at, cancelled_at, merged_into,
            claimed_paid_at, archived_at,
            -- E-443 (28.10.2026): der Zahltag der Umsatz-Quelle (COALESCE(paid_at, completed_at)) — für „Bezahlt am“ im Chefbüro.
-           paid_at
+           paid_at,
+           ${teilDa ? sqlPool`(SELECT COALESCE(SUM(tz.betrag_cents), 0)::int FROM fiaon_teilzahlungen tz WHERE tz.ref = fiaon_applications.ref)` : sqlPool`0`} AS teil_bezahlt_cents
       FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
   return a ?? null;
 }
@@ -561,11 +565,14 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
   const status = statusAus(akte, b);
   const kat = katalogPaket(akte.paket_key);
   const betragCents = globalBetragCents(akte.paket_key, b.amount_due);
+  // E-469: Nach einer Teilzahlung zeigt der GiroCode nur noch den Rest.
+  const teilCents = status === "offen" ? Number(b.teil_bezahlt_cents || 0) : 0;
+  const offenCents = Math.max(0, betragCents - teilCents);
   const firma = json<Partial<GlobalFirma>>(akte.firma, {});
   let qrDatenUrl: string | null = null;
-  if (status === "offen" && b.payment_reference && betragCents > 0) {
+  if (status === "offen" && b.payment_reference && offenCents > 0) {
     qrDatenUrl = await QRCode.toDataURL(
-      epcQrNutzlast({ recipient: BANK.empfaenger, iban: BANK.iban, bic: BANK.bic, amount: betragCents / 100, remittance: String(b.payment_reference) }),
+      epcQrNutzlast({ recipient: BANK.empfaenger, iban: BANK.iban, bic: BANK.bic, amount: offenCents / 100, remittance: String(b.payment_reference) }),
       { errorCorrectionLevel: "M", width: 360, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } },
     ).catch(() => null);
   }
@@ -578,6 +585,8 @@ export async function globalAuftragSicht(ref: string, token: string): Promise<Re
     // Privatauftrag: bis wann widerrufen werden kann und ob die Arbeit erst danach beginnt.
     ...(frist ? { widerruf: { fristEnde: frist.fristEnde, startAb: frist.startAb, sofortBeginn: json<Record<string, unknown>>(akte.bestaetigungen, {}).sofortBeginn === true } } : {}),
     paket: akte.paket_key, paketName: (kat?.preisJeAngebot ? String(b.pack_name || "") : "") || kat?.label || String(b.pack_name || akte.paket_key), betragCents,
+    // E-469: schon als Teilzahlung bezahlt und was offen ist (nur mit Teilzahlung).
+    ...(teilCents > 0 ? { teilBezahltCents: teilCents, offenCents } : {}),
     // E-196: angekreuzt ja/nein und der Preis je Betreuungsjahr — heute berechnet wird nur betragCents.
     ...globalJahresbetreuungAus(akte),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || "") },
@@ -681,6 +690,11 @@ export function globalMailNutzlast(
   const kat = katalogPaket(paketKey);
   const gp = globalPaket(paketKey);
   const betragCents = globalBetragCents(paketKey, b?.amount_due);
+  // E-469: Mit Teilzahlungen nennt jede Zahlungsmail den RESTBETRAG und die (verlängerte) Frist — nie den vollen Betrag.
+  // Nach der Vollzahlung (paid) bleibt es der Rechnungsbetrag (Startmail: „Ihre Zahlung über …“).
+  const teilCents = String(b?.payment_status ?? "") !== "paid" ? Number(b?.teil_bezahlt_cents || 0) : 0;
+  const offenCents = Math.max(0, betragCents - teilCents);
+  const faelligIso = b?.payment_due_date ? berlinToday(new Date(b.payment_due_date)) : null;
   const ref = String(b?.ref || akte?.ref || "");
   const anrede = ap.nachname || ap.vorname
     ? (en ? anredeZeileEn(ap) : anredeZeile(ap))
@@ -693,7 +707,12 @@ export function globalMailNutzlast(
     // Englisch heißt das Paket, wie es im englischen Auftrag heißt („FIAON Global Capital").
     // E-268: Beim Individualangebot heißt die Zeile wie der Teil („… Teil 1: Gründung"), nicht wie der Katalogschlüssel.
     paket: escapeHtml(en && gp ? `FIAON ${gp.en.name}` : ((kat?.preisJeAngebot ? String(b?.pack_name || "") : "") || kat?.label || String(b?.pack_name || "FIAON Global"))),
-    betrag_text: en ? eurEn(betragCents) : eur(betragCents),
+    betrag_text: en ? eurEn(teilCents > 0 ? offenCents : betragCents) : eur(teilCents > 0 ? offenCents : betragCents),
+    betrag_label: teilCents > 0 ? (en ? "Outstanding" : "Noch offen") : (en ? "Amount, one-off" : "Betrag, einmalig"),
+    // Der Satz zum Zahlungsstand (Erinnerung): ohne Teilzahlung wie bisher, mit Teilzahlung Dank + Rest + Frist.
+    zahlung_stand_satz: escapeHtml(teilCents > 0
+      ? teilzahlungSatz({ bezahltCents: teilCents, offenCents }, faelligIso, sprache)
+      : (en ? "No payment has been recorded for it so far." : "Ein Zahlungseingang ist dazu bisher nicht verbucht.")),
     antrag_id: escapeHtml(ref),
     payment_reference: escapeHtml(String(b?.payment_reference || "")),
     faellig_am_text: b?.payment_due_date ? globalTagText(new Date(b.payment_due_date), sprache) : "",
@@ -1100,7 +1119,13 @@ export async function globalZahlungGemeldet(ref: string): Promise<void> {
   await auftragFuerKunden({
     personId: b.person_id != null ? Number(b.person_id) : null, ref,
     titel: `FIAON Global: neuer Auftrag — ${akte?.firma_name || b.company_name || ref}, ${String(b.pack_name || b.pack_key)}`,
-    text: `Der Kunde hat am ${tagDe(new Date())} auf der Zahlungsseite gemeldet, dass er ${eur(Math.round(Number(b.amount_due || 0) * 100))} überwiesen hat (Verwendungszweck ${b.payment_reference ?? "—"}). Den Eingang prüft die Zahlungsstelle; sobald er gebucht ist, startet der Auftrag von selbst.`,
+    text: (() => {
+      // E-469: Nach einer Teilzahlung ist nur noch der Rest offen — den hat der Kunde gemeldet.
+      const soll = Math.round(Number(b.amount_due || 0) * 100);
+      const teil = Number(b.teil_bezahlt_cents || 0);
+      const betrag = teil > 0 ? `den Restbetrag von ${eur(Math.max(0, soll - teil))} (${eur(teil)} schon als Teilzahlung gebucht)` : eur(soll);
+      return `Der Kunde hat am ${tagDe(new Date())} auf der Zahlungsseite gemeldet, dass er ${betrag} überwiesen hat (Verwendungszweck ${b.payment_reference ?? "—"}). Den Eingang prüft die Zahlungsstelle; sobald er gebucht ist, startet der Auftrag von selbst.`;
+    })(),
     schluessel: `global:${ref}:auftrag`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
     link: globalOfficeAuftragPfad(ref),
     // E-451 Nachtrag (Gutachten): dieselbe Regel wie alle Kunden-Aufgaben (globalAufgabenZiel) — Leitung als zuständig → Board der Leitung.
@@ -1371,9 +1396,13 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       begleitSumme.set(String(r.ref), { cents: Math.round(Number(s?.summe || 0) * 100), offenCents: Math.round(Number(s?.offen || 0) * 100), anzahl: Number(s?.n || 0) });
     }
   } catch (e) { console.error("[FIAON-GLOBAL] Liste: Begleit-Rechnungen nicht gelesen:", e); }
+  // E-469: Teilzahlungen je Bestellung — dieselbe Quelle wie Zahlungsseite, Portal und Rechnung.
+  const teile = await import("./fiaon-teilzahlung").then((m) => m.teilzahlungenLesen(rows.map((r) => String(r.ref))))
+    .catch((e) => { console.error("[FIAON-GLOBAL] Liste: Teilzahlungen nicht gelesen:", e); return new Map(); });
   const zeilen = rows.map((r) => {
     const firma = json<Partial<GlobalFirma>>(r.firma, {});
     const fassung = String(r.angebot_fassung ?? "");
+    const teil = String(r.payment_status) === "paid" ? null : teile.get(String(r.ref)) ?? null;
     const angebotArt: "individual" | "begleit" | "kapital" | "firma" | null = r.angebot_id == null ? null
       : fassung.startsWith("IA-BEGLEIT-") ? "begleit" : fassung.startsWith("IA-KAPITAL-") ? "kapital" : fassung.startsWith("IA-FIRMA-") ? "firma" : "individual";
     const begleit = angebotArt === "begleit" ? begleitSumme.get(String(r.ref)) ?? null : null;
@@ -1393,6 +1422,10 @@ export async function globalAuftraegeListe(): Promise<{ zeilen: Record<string, u
       paketName: angebotArt === "begleit" ? `Begleitvertrag · ${String(r.angebot_ref || "")}`.replace(/ · $/, "")
         : (kat?.preisJeAngebot ? String(r.pack_name || "") : "") || kat?.label || String(r.pack_name || r.pack_key),
       betragCents: begleit ? begleit.cents : Math.round(Number(r.amount_due || 0) * 100),
+      // E-469: als Teilzahlung gebucht, was offen ist, und die einzelnen Eingänge (nur mit Teilzahlung, nur offene Rechnung).
+      teilBezahltCents: teil ? teil.bezahltCents : null,
+      offenCents: teil ? Math.max(0, Math.round(Number(r.amount_due || 0) * 100) - teil.bezahltCents) : null,
+      teilzahlungen: teil ? teil.zahlungen.map((x: { am: string; cents: number }) => ({ am: x.am, cents: x.cents })) : [],
       katalogCents: begleit ? null : kat && !kat.preisJeAngebot ? kat.preisCents : null,
       angebotArt, angebotRef: r.angebot_ref ? String(r.angebot_ref) : null,
       rechnungenAnzahl: begleit ? begleit.anzahl : null, rechnungenOffenCents: begleit ? begleit.offenCents : null,

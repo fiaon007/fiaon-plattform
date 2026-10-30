@@ -76,11 +76,15 @@ async function mandatLesen(ref: string): Promise<Mandat | null> {
 }
 
 // ── 1 RECHNUNGEN ─────────────────────────────────────────────────────────────
-interface RechnungZeile { bestellRef: string; nummer: string | null; datum: string | null; betragCents: number; status: string; art: string; titel: string; zahlungsReferenz: string | null; zahlungOffen: boolean }
+interface RechnungZeile {
+  bestellRef: string; nummer: string | null; datum: string | null; betragCents: number; status: string; art: string; titel: string; zahlungsReferenz: string | null; zahlungOffen: boolean;
+  /** E-469: als Teilzahlung gebucht / offen / Frist — nur bei einer offenen Rechnung mit Teilzahlung. */
+  teilBezahltCents: number | null; offenCents: number | null; faelligAm: string | null;
+}
 async function rechnungenRoh(m: Mandat): Promise<RechnungZeile[]> {
   if (!m.personId && !m.email) return [];
   const zeilen = (await sqlPool`
-    SELECT ref, pack_key, pack_name, invoice_number, invoice_date, created_at, amount_due, payment_status, payment_reference, cancelled_at, refunded_at
+    SELECT ref, pack_key, pack_name, invoice_number, invoice_date, created_at, amount_due, payment_status, payment_reference, cancelled_at, refunded_at, payment_due_date
       FROM fiaon_applications
      WHERE merged_into IS NULL AND archived_at IS NULL
        AND (${m.personId}::int IS NOT NULL AND person_id = ${m.personId}::int
@@ -88,9 +92,14 @@ async function rechnungenRoh(m: Mandat): Promise<RechnungZeile[]> {
        -- Nur Rechnungen MIT Nummer: rechnungAlsPdf vergibt sonst beim ersten Abruf eine neue Nummer (Lücken, Nummern für Stornos).
        AND invoice_number IS NOT NULL
      ORDER BY COALESCE(invoice_date, created_at) DESC, ref DESC`) as any[];
+  // E-469: Teilzahlungen — dieselbe Quelle wie Zahlungsseite und Rechnung.
+  const teile = await import("./fiaon-teilzahlung").then((tz) => tz.teilzahlungenLesen(zeilen.map((z) => String(z.ref)))).catch(() => new Map());
   return zeilen.filter((z) => globalAkteRechnungGehoertDazu(z.pack_key)).map((z) => {
     const status = globalAkteRechnungStatus(z.payment_status, z.cancelled_at, z.refunded_at);
+    const teil = status === "offen" ? teile.get(String(z.ref))?.bezahltCents ?? 0 : 0;
     return {
+      teilBezahltCents: teil > 0 ? teil : null, offenCents: teil > 0 ? Math.max(0, cents(z.amount_due) - teil) : null,
+      faelligAm: z.payment_due_date ? iso(z.payment_due_date) : null,
       bestellRef: String(z.ref), nummer: z.invoice_number ? String(z.invoice_number) : null,
       datum: iso(z.invoice_date ?? z.created_at), betragCents: cents(z.amount_due), status, art: globalAkteRechnungArt(z.pack_key),
       titel: globalAkteRechnungTitel(z.pack_key, z.pack_name, m.sprache), zahlungsReferenz: z.payment_reference ? String(z.payment_reference) : null,
@@ -104,7 +113,8 @@ export async function globalAkteRechnungen(ref: string, pdfUrl: (bestellRef: str
   if (!m) return [];
   return (await rechnungenRoh(m)).map((r) => ({
     bestellRef: r.bestellRef, nummer: r.nummer, datum: r.datum, betragCents: r.betragCents, status: r.status, art: r.art, titel: r.titel,
-    statusText: AKTE_STATUS_TEXT[r.status as keyof typeof AKTE_STATUS_TEXT][m.sprache],
+    statusText: r.teilBezahltCents ? (m.sprache === "en" ? "Part-paid" : "Teilweise bezahlt") : AKTE_STATUS_TEXT[r.status as keyof typeof AKTE_STATUS_TEXT][m.sprache],
+    teilBezahltCents: r.teilBezahltCents, offenCents: r.offenCents, faelligAm: r.faelligAm,
     pdfUrl: r.zahlungsReferenz ? pdfUrl(r.bestellRef) : null,
     zahlungsseite: r.zahlungOffen ? `/zahlung/${encodeURIComponent(String(r.zahlungsReferenz))}?bereich=business` : null,
   }));

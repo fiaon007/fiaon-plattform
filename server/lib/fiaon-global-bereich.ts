@@ -436,7 +436,14 @@ async function sichtBauen(l: Lage, fuer: "kunde" | "office"): Promise<Record<str
     ...(jbPlan ? { jahresbetreuungRechnungAb: jbPlan.rechnungAb, jahresbetreuungJahrestag: jbPlan.jahrestag, jahresbetreuungBasis: jbPlan.basis } : {}),
     ...(widerruf ? { widerruf } : {}),
     firma: { name: String(firma.name || akte.firma_name || ""), ort: String(firma.ort || ""), land: String(firma.land || akte.land || "") },
-    zahlung: { status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}?bereich=business` } : {}) },
+    zahlung: {
+      status: bezahlt ? "bezahlt" : "offen", ...(!bezahlt && l.status === "offen" && b.payment_reference ? { zahlungsseite: `/zahlung/${b.payment_reference}?bereich=business` } : {}),
+      // E-469: Teilzahlung gebucht — was kam, was offen ist, bis wann (globalBestellungLesen.teil_bezahlt_cents).
+      ...(!bezahlt && Number(b.teil_bezahlt_cents || 0) > 0 ? {
+        teilBezahltCents: Number(b.teil_bezahlt_cents), offenCents: Math.max(0, Math.round(Number(b.amount_due || 0) * 100) - Number(b.teil_bezahlt_cents)),
+        faelligAm: b.payment_due_date ? berlinDatum(new Date(b.payment_due_date)) : null,
+      } : {}),
+    },
     etappe: l.etappe, etappen,
     ...(akte.stichtag ? { stichtag: isoTag(akte.stichtag) } : {}),
     ...(akte.naechster_schritt ? { naechsterSchritt: { text: String(akte.naechster_schritt), ...(akte.naechster_schritt_bis ? { bis: isoTag(akte.naechster_schritt_bis) } : {}) } } : {}),

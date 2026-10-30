@@ -43,6 +43,8 @@ interface PaymentOrder {
    */
   firmenauftrag?: boolean;
   firmenName?: string;
+  /** E-469: Teilzahlungen — amountDue ist dann der Rest; hier Rechnungsbetrag und was schon bezahlt ist. */
+  teilzahlung?: { rechnungsbetrag: string; bezahlt: string; offen: string; zahlungen: { am: string; betrag: string }[] };
   /** E-318: Rechnung zu einem Begleitvertrag — vom Server gebaut (shared/fiaon-zahlung-auftrag.ts). */
   auftrag?: ZahlungAuftragKontext | null;
   /** Nur beim Firmenauftrag: die Sprache des Auftrags (/en/business/start → "en"). */
@@ -723,9 +725,13 @@ export default function ZahlungPage() {
                   : auskunft
                     ? <>{ta.statusVor}<b className="text-slate-900">{betragText} €</b>{ta.statusNach}{order.dueDate ? <>{ta.statusFaellig}<b className="text-slate-900">{dueDateStr}</b>.</> : null}</>
                   : order.firmenauftrag
-                    ? <>{w.statusFirma[0]}<b className="text-slate-900">{englisch ? `€${betragText}` : `${betragText} €`}</b>{w.statusFirma[1]}<b className="text-slate-900">{dueDateStr}</b>{w.statusFirma[2]}</>
+                    ? (() => { const s = order.teilzahlung ? w.statusRest : w.statusFirma; return <>{s[0]}<b className="text-slate-900">{englisch ? `€${betragText}` : `${betragText} €`}</b>{s[1]}<b className="text-slate-900">{dueDateStr}</b>{s[2]}</>; })()
                     : <>Ihr Platz ist bis zum <b className="text-slate-900">{dueDateStr}</b> reserviert.</>}
               </p>
+              {order.firmenauftrag && order.teilzahlung && (() => {
+                const f = (v: string) => { const t = Number(v).toLocaleString(w.zahlen, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return englisch ? `€${t}` : `${t} €`; };
+                return <p className="text-[13px] text-slate-600 mt-1.5" data-fiaon="zahlung-teilzahlung">{w.teilZeile(f(order.teilzahlung.rechnungsbetrag), f(order.teilzahlung.bezahlt), f(order.teilzahlung.offen))}</p>;
+              })()}
               {order.firmenauftrag && (
                 <p className="text-[12px] text-slate-400 mt-1.5">
                   {order.firmenName ? `${order.firmenName} · ` : ""}{order.packName ? `${order.packName.replace(/\n/g, " ")} · ${w.einmalig} · ` : ""}{order.paymentReference}

@@ -589,6 +589,21 @@ async function seedSubscriptionPlans() {
   }
 
   // ============================================================================
+  // 💶 E-469: Teilzahlungen einer Global-Rechnung — die Umsatz-Quelle (UMSATZ_QUELLE_SQL) liest fiaon_teilzahlungen,
+  // also muss die Tabelle VOR der ersten Anfrage stehen (Migration 127, gleiche DDL). Nur im Produktionsbetrieb und
+  // gegen eine lokale Prüf-Datenbank — ein Entwicklungsserver gegen die Produktion legt beim Hochfahren nichts an.
+  // ============================================================================
+  if (process.env.NODE_ENV === 'production' || /@(127\.0\.0\.1|localhost)[:/]/.test(String(process.env.DATABASE_URL || ''))) {
+    try {
+      const { ensureTeilzahlungen } = await import('./lib/fiaon-teilzahlung');
+      await ensureTeilzahlungen();
+      log('✅ Teilzahlungen (fiaon_teilzahlungen) bereit');
+    } catch (error: any) {
+      log('⚠️ Teilzahlungen: Tabelle nicht angelegt:', error?.message || String(error));
+    }
+  }
+
+  // ============================================================================
   // CRITICAL: registerRoutes MUST run FIRST (sets up passport session)
   // Internal routes MUST be mounted AFTER so req.isAuthenticated() works
   // ============================================================================

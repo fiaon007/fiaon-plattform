@@ -63,6 +63,8 @@ interface Zeile {
   firma: string; ort: string; land: string | null;
   ansprechpartner: string; funktion: string | null; email: string | null; telefon: string | null;
   paket: string; paketName: string; betragCents: number; katalogCents: number | null;
+  /** E-469: Teilzahlungen auf die offene Rechnung (null ohne) — gebucht im Chefbüro › Konto › Zubuchen. */
+  teilBezahltCents?: number | null; offenCents?: number | null; teilzahlungen?: { am: string; cents: number }[];
   erstelltAm: string; alterTage: number; unterschriebenAm: string | null; zahlungGemeldetAm: string | null;
   bezahltAm: string | null; gestartetAm: string | null; faelligAm: string | null;
   verwendungszweck: string | null; rechnungsnummer: string | null; ustModus: string; ustHinweis: string | null;
@@ -149,7 +151,8 @@ function AuftraegeListe() {
     // E-268: Ein Individualangebot hat keinen Stichtag — es zählt hier nicht als Alarm.
     ohneStichtag: alle.filter((z) => z.status === "gestartet" && !z.stichtag && z.angebotId == null).length,
   };
-  const offenerWert = alle.filter((z) => z.status === "offen").reduce((s, z) => s + z.betragCents, 0);
+  // E-469: offen ist nach einer Teilzahlung nur der Rest.
+  const offenerWert = alle.filter((z) => z.status === "offen").reduce((s, z) => s + (z.offenCents ?? z.betragCents), 0);
   const sichtbar = alle.filter((z) =>
     filter === "alle" ? true : filter === "laufend" ? z.status !== "storniert" : z.status === filter);
   const zustaendigName = daten.mitarbeiter.find((m) => m.id === daten.einstellungen.zustaendigAgentId)?.name;
@@ -203,6 +206,7 @@ function AuftraegeListe() {
                     {z.angebotArt === "begleit"
                       ? <span className="cm-klartext cm-zahl">{eur(z.betragCents)} · {z.rechnungenAnzahl ?? 0} {z.rechnungenAnzahl === 1 ? "Rechnung" : "Rechnungen"}{z.rechnungenOffenCents ? ` · ${eur(z.rechnungenOffenCents)} offen` : " · alle bezahlt"}</span>
                       : <span className={`cm-klartext cm-zahl ${z.katalogCents != null && z.katalogCents !== z.betragCents ? "rot" : ""}`}>{eur(z.betragCents)} einmalig</span>}
+                    {z.teilBezahltCents ? <span className="cm-klartext cm-zahl" data-fiaon="global-teilzahlung">{eur(z.teilBezahltCents)} bezahlt · {eur(z.offenCents ?? 0)} offen{z.faelligAm ? ` bis ${datum(z.faelligAm)}` : ""}{z.teilzahlungen?.length ? ` (${z.teilzahlungen.map((t) => `${eur(t.cents)} am ${datum(t.am)}`).join(", ")})` : ""}</span> : null}
                     {z.katalogCents != null && z.katalogCents !== z.betragCents && <span className="cm-klartext cg-rot">Katalog sagt {eur(z.katalogCents)} — vor Buchung klären.</span>}
                     {z.ustHinweis && <span className="cm-klartext cg-rot">USt-IdNr. fehlt — Rechnung ohne Steuerausweis.</span>}
                     {z.jahresbetreuung === true && <span className="cm-klartext cg-jahr">{JAHRESBETREUUNG_MARKE}{z.jahresbetreuungPreisCents ? ` · ${eur(z.jahresbetreuungPreisCents)} je Betreuungsjahr` : ""}</span>}

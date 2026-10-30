@@ -404,6 +404,38 @@ export async function liveVerbuchen(
       return { gebucht: false, grund: `Status ${app.payment_status}`, ...basis };
     }
     const soll = Number(app.soll_cents);
+    // ── E-469 (30.10.2026): Rechnung mit Teilzahlungen — verglichen wird mit dem REST, nie mit dem vollen Betrag ──
+    // Sonst bucht ein Eingang über den vollen Rechnungsbetrag nach einer Teilzahlung die Rechnung „bezahlt“, und das Geld
+    // der Teilzahlung stünde doppelt da. Der Rest auf den Cent schließt die Rechnung über den Teilzahlungs-Weg ab
+    // (server/lib/fiaon-teilzahlung.ts → alsBezahltBuchen genau einmal); alles andere bleibt für den Menschen liegen.
+    {
+      const { teilSummeCents, teilzahlungBuchen } = await import("../lib/fiaon-teilzahlung");
+      const teilBisher = await teilSummeCents(String(app.ref));
+      if (teilBisher > 0) {
+        const e2 = (c: number) => `${(c / 100).toFixed(2)} €`;
+        const restCents = soll - teilBisher;
+        const stand = `${e2(teilBisher)} schon als Teilzahlung gebucht, offen ${e2(restCents)}`;
+        const [eigen] = (await sqlPool`SELECT amount_cents FROM fiaon_bank_txns WHERE txn_id = ${txnId} LIMIT 1`) as any[];
+        if (eigen && Number(eigen.amount_cents) !== cents) {
+          return { gebucht: false, grund: `Rechnung ${bestellRef} hat Teilzahlungen (${stand}) — eine Sammelzahlung bitte Eingang für Eingang „Als Teilzahlung buchen“`, ...basis };
+        }
+        if (cents !== restCents) {
+          const grund = cents < restCents
+            ? `Weitere Teilzahlung: ${e2(cents)} auf ${bestellRef} (${stand}) — bitte „Als Teilzahlung buchen“`
+            : `Überzahlung: ${e2(cents)} auf ${bestellRef} (${stand}) — wird nicht gebucht (Aufgabe)`;
+          await vermerk(`${wer}: ${grund}.`);
+          return { gebucht: false, grund, ...basis };
+        }
+        if (opts.trocken) return { gebucht: false, grund: `würde buchen: Restzahlung ${bestellRef} (${stand}) — schließt die Rechnung ab`, ...basis };
+        const t = await teilzahlungBuchen(txnId, { ziel: String(app.ref), wer, erwartet: { bisherCents: teilBisher } });
+        if (t.ok) {
+          console.log(`[WISE] LIVE verbucht: Restzahlung ${bestellRef} (${e2(cents)}) — Rechnung voll bezahlt`);
+          return { gebucht: true, grund: t.bezahlt?.ok === false ? `Restzahlung gebucht — Bezahlt-Weg meldete: ${t.bezahlt.fehler}` : "Restzahlung gebucht — Rechnung voll bezahlt", ...basis };
+        }
+        await vermerk(`${wer}: Restzahlung ${bestellRef} NICHT gebucht (${t.error}) — bitte prüfen.`);
+        return { gebucht: false, grund: String(t.error || "abgelehnt"), ...basis };
+      }
+    }
     const zuViel = cents - soll;
     const toleranz = toleranzCents;
     if (opts.zielVomMenschen && zuViel < 0) {
@@ -661,7 +693,7 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
   const ueberzahlungBisCents = Math.max(0, Math.min(100, Math.floor(Number(req.body?.ueberzahlungBisCents) || 0)));
   const ziel = typeof req.body?.ziel === "string" && req.body.ziel.trim() ? String(req.body.ziel).trim().slice(0, 40) : null;
   const dazu = (Array.isArray(req.body?.dazu) ? req.body.dazu : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 3);
-  const modus = ["zuordnen", "aufgabe", "kein_kunde", "kein_kunde_zurueck"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
+  const modus = ["zuordnen", "aufgabe", "kein_kunde", "kein_kunde_zurueck", "teilzahlung"].includes(String(req.body?.modus)) ? String(req.body.modus) : "buchen";
   const stornoZuruecknehmen = req.body?.stornoZuruecknehmen === true;
   const verrechnungHeute = req.body?.verrechnungHeute === true;
   // Wer freigegeben hat — steht in den Vermerken („Justin 03.10.2026“); Vorgabe „Justin“.
@@ -678,6 +710,18 @@ router.post("/admin/zahlungen/bankeingang-nachholen", async (req: Request, res: 
       const k = await nach.bankeingangKeinKunde(id, { wer, grund, zurueck: modus === "kein_kunde_zurueck" });
       if (!k.ok) return res.status(k.status).json({ ok: false, id, trocken, modus, error: k.error });
       return res.json({ ok: true, id, trocken, modus, matchStatus: k.matchStatus });
+    }
+    // E-469 (30.10.2026): „Als Teilzahlung buchen“ — nur Global-Rechnungen, Ziel frei wählbar (auch bei „unmatched“).
+    // Trocken = Prüfung (server/lib/fiaon-teilzahlung.ts teilzahlungPruefen), scharf = teilzahlungBuchen (der eine Weg;
+    // schließt die Rechnung beim Erreichen des Betrags über alsBezahltBuchen ab, Überzahlung → Aufgabe).
+    if (modus === "teilzahlung") {
+      if (!ziel) return res.status(400).json({ ok: false, id, trocken, modus, error: "„Als Teilzahlung buchen“ braucht ein Ziel (Bestellnummer oder Verwendungszweck)." });
+      const tz = await import("../lib/fiaon-teilzahlung");
+      const t = trocken
+        ? await tz.teilzahlungPruefen(id, ziel)
+        : await tz.teilzahlungBuchen(id, { ziel, wer, erwartet: req.body?.erwartet ?? null });
+      if (!t.ok) return res.status(t.status).json({ ok: false, id, trocken, modus, error: t.error, zeile: t.zeile ?? null, aufgabe: (t as any).aufgabe ?? null });
+      return res.json({ ok: true, id, trocken, modus, zeile: t.zeile ?? null, abschluss: (t as any).abschluss ?? false, bezahlt: (t as any).bezahlt ?? null, aufgabenErledigt: (t as any).aufgabenErledigt ?? 0 });
     }
     if (modus !== "buchen") {
       const b = modus === "zuordnen"

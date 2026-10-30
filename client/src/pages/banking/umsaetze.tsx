@@ -313,6 +313,8 @@ function HandfallKnoepfe({ z, inhaber, gesperrt, onWahl }: { z: NachholZeile; in
       {v?.aktion === "buchen" && v.mitZiel && v.ziel ? <Knopf art="primaer" zeichen="haken" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "buchen", ziel: v.ziel!, dazu: v.dazu })}>So buchen</Knopf> : null}
       {v?.aktion === "zuordnen" && v.ziel ? <Knopf art="primaer" zeichen="haken" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "zuordnen", ziel: v.ziel!, dazu: [] })}>Nur zuordnen</Knopf> : null}
       {v?.aktion === "aufgabe" ? <Knopf art="warnung" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "aufgabe", ziel: v.ziel ?? "", dazu: [] })}>Aufgabe anlegen</Knopf> : null}
+      {/* E-469: Global-Teilzahlung wird im Chefbüro gebucht (Konto › Zubuchen › „Als Teilzahlung buchen“) — eine Tür, ein Weg. */}
+      {v?.aktion === "teilzahlung" ? <span className="bk-leise">Teilzahlung einer Global-Rechnung — buchen im Chefbüro: Konto › Zubuchen › „Als Teilzahlung buchen“.</span> : null}
       <Knopf art="still" klein disabled={gesperrt} onClick={() => onWahl({ z, modus: "anders", ziel: v?.ziel ?? z.ziel ?? "", dazu: [] })}>Anderes Ziel …</Knopf>
     </div>
   );

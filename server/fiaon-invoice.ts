@@ -184,6 +184,12 @@ const LAND_NAME: Record<string, string> = { DE: "Deutschland", AT: "Österreich"
  * darf das die englische Zweitzeile nicht mitreißen. Ohne Akte oder ohne Haken: kein Feld, kein Hinweis.
  */
 export async function rechnungsSpracheSetzen(sqlPool: any, a: any): Promise<void> {
+  // E-469 (30.10.2026): Teilzahlungen an die Zeile hängen — der Zahlungsblock zeigt dann bezahlt / offen. Jeder Aufrufer
+  // ruft diese Funktion vor dem Zeichnen; scheitert das Lesen, steht die Rechnung wie bisher da.
+  try {
+    const { rechnungTeilzahlungenSetzen } = await import("./lib/fiaon-teilzahlung");
+    await rechnungTeilzahlungenSetzen(a);
+  } catch (e) { console.error(`[FIAON-INVOICE] ${a?.ref}: Teilzahlungen nicht gelesen:`, e); }
   // E-386: Monatsrechnung der Partner-Kooperation — Beschreibung (Anzahl × Preis, Gutschriften) und Zeitraum (Kalendermonat).
   if (a?.ref && istKoopRechnung(a.pack_key) && !a.beschreibung) {
     try {
@@ -463,6 +469,11 @@ export function renderInvoicePdf(doc: PDFKit.PDFDocument, a: any): void {
       ["IBAN", groupIban(FIAON_BANK_DETAILS.iban), ""],
       ["BIC", FIAON_BANK_DETAILS.bic, ""],
       ["Verwendungszweck", a.payment_reference || "—", "Payment reference"],
+      // E-469: Teilzahlungen (rechnungsSpracheSetzen hängt sie an) — bezahlt bis heute und der offene Rest.
+      ...(Number(a.teil_bezahlt_cents || 0) > 0 ? ([
+        ["Bereits bezahlt", `${eur(Number(a.teil_bezahlt_cents) / 100)}${Array.isArray(a.teilzahlungen) && a.teilzahlungen.length ? ` (${a.teilzahlungen.map((t: any) => `${eur(Number(t.cents) / 100)} am ${deDate(new Date(`${t.am}T12:00:00Z`))}`).join(", ")})` : ""}`, "Already paid"],
+        ["Offener Betrag", eur(Math.max(0, Math.round(Number(a.amount_due || 0) * 100) - Number(a.teil_bezahlt_cents)) / 100), "Amount outstanding"],
+      ] as Array<[string, string, string]>) : []),
       ["Zahlungsziel", dueDate ? deDate(dueDate) : "—", "Payment due"],
     ];
     const payStep = en ? 21 : 14;

@@ -307,7 +307,10 @@ async function aufgabeAnlegen(ref: string): Promise<"erledigt" | "nichts"> {
       personId: b.person_id != null ? Number(b.person_id) : null, ref,
       titel: `FIAON Global: offener Auftrag seit zehn Tagen — ${firma} anrufen`,
       text: [
-        `${firma} hat am ${tagText(akte.created_at)} ${kat?.label ?? String(b.pack_name || akte.paket_key)} für ${globalEur(Math.round(Number(b.amount_due || 0) * 100))} einmalig unterschrieben — ein Zahlungseingang ist bis heute nicht gebucht.`,
+        // E-469: Teilzahlungen gebucht? Dann nennt die Aufgabe, was kam und was offen ist (Rest, Frist) — nicht „kein Zahlungseingang“.
+        Number(b.teil_bezahlt_cents || 0) > 0
+          ? `${firma} hat am ${tagText(akte.created_at)} ${kat?.label ?? String(b.pack_name || akte.paket_key)} für ${globalEur(Math.round(Number(b.amount_due || 0) * 100))} einmalig unterschrieben — als Teilzahlung gebucht sind ${globalEur(Number(b.teil_bezahlt_cents))}, offen ${globalEur(Math.max(0, Math.round(Number(b.amount_due || 0) * 100) - Number(b.teil_bezahlt_cents)))}${b.payment_due_date ? ` (Frist ${tagText(b.payment_due_date)})` : ""}.`
+          : `${firma} hat am ${tagText(akte.created_at)} ${kat?.label ?? String(b.pack_name || akte.paket_key)} für ${globalEur(Math.round(Number(b.amount_due || 0) * 100))} einmalig unterschrieben — ein Zahlungseingang ist bis heute nicht gebucht.`,
         `Ansprechpartner: ${[ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ") || String(b.contact_name || "—")}${ap.funktion ? `, ${ap.funktion}` : ""} · ${ap.email ?? akte.email ?? "—"} · ${ap.telefon ?? "—"}`,
         erinnert ? `Per Mail erinnert: ${erinnert}. Weitere Erinnerungsmails gehen NICHT raus — ab jetzt zählt dein Anruf.` : "Per Mail wurde NICHT erinnert — ab jetzt zählt dein Anruf.",
         marken?.zahlung_takt_hinweis ? `Hinweis aus dem Takt: ${marken.zahlung_takt_hinweis}` : null,

@@ -269,6 +269,16 @@ export async function sendMakeWebhookMitGrund(
   if (aufgeloest.email !== payload.email) {
     payload = { ...payload, email: aufgeloest.email, empfaenger_quelle: aufgeloest.quelle };
   }
+  // ── KEINE KUNDENDATEN AN GESPERRTE MITARBEITER (31.10.2026) ─────────────
+  // Aufgaben, Rückruf- und Zahlungs-Erinnerungen und Finanzauswertungen fragten nur nach der Zuständigkeit und gingen
+  // weiter an die private Adresse eines gesperrten Kontos. Dieselbe Tür wie die Adresse: hier, nicht an den Aufrufstellen.
+  const gesperrt = await (await import("./lib/fiaon-gesperrt-mail")).gesperrtMailGrund(eventType, aufgeloest.email);
+  if (gesperrt) {
+    const erg: MakeVersand = { ok: false, grund: gesperrt };
+    protokollNebenbei(eventType, payload, erg);
+    console.warn(`[MAKE-WEBHOOK] '${eventType}' NICHT gesendet: ${gesperrt}`);
+    return erg;
+  }
 
   // ── FIAON GLOBAL BEKOMMT KEINE MAIL DER PRIVATKUNDENLINIE (17.09.2026, E-188) ──
   // Dieselbe Begründung wie bei der Adresse: EINE Tür statt 29 Aufrufstellen. Die Automatik

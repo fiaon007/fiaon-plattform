@@ -597,6 +597,10 @@ export async function mailDirektSenden(
   if (!adresseSiehtGueltigAus(an)) {
     return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${an}“ — bitte in der Akte korrigieren, vorher kommt dort keine Mail an.` };
   }
+  // 31.10.2026: Kundendaten gehen an kein gesperrtes Mitarbeiterkonto — auch nicht direkt über den Motor
+  // (die Finanzauswertung ruft ihn ohne make-webhook). Siehe server/lib/fiaon-gesperrt-mail.ts.
+  const gesperrt = await (await import("../lib/fiaon-gesperrt-mail")).gesperrtMailGrund(event, an);
+  if (gesperrt) return { ok: false, messageId: null, grund: gesperrt };
   const mail = mailRendern(event, payload);
   if (!mail) return { ok: false, messageId: null, grund: `Keine Vorlage für '${event}' im Motor.` };
 

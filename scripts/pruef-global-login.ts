@@ -165,8 +165,8 @@ abschnitt("4 · Keine Aufzählbarkeit: ein Satz, gleiche Sperre, gleiche Antwort
   for (let i = 0; i < G.KONTO_FEHLVERSUCHE; i++) { sp.fehlversuch("gibt-es@nicht.example", t + i); sp.fehlversuch("kunde@firma.example", t + i); }
   ok(sp.gesperrt("gibt-es@nicht.example", t + 10) && sp.gesperrt("kunde@firma.example", t + 10), "nach fünf Fehlversuchen: beide Adressen gesperrt");
   ok(!sp.gesperrt("kunde@firma.example", t + G.KONTO_SPERRE_MINUTEN * 60_000 + 10), "nach 15 Minuten wieder frei");
-  ok(G.KONTO_SAETZE.de.anmeldungFalsch === "E-Mail-Adresse oder Passwort stimmen nicht. Bitte prüfen Sie beides — oder legen Sie über „Passwort vergessen“ ein neues fest.", "Wortlaut des einen Satzes (de) buchstabengetreu");
-  ok(G.KONTO_SAETZE.en.anmeldungFalsch === "Email address or password is incorrect. Please check both — or set a new one via “Forgotten password”.", "Wortlaut des einen Satzes (en) buchstabengetreu");
+  ok(G.KONTO_SAETZE.de.anmeldungFalsch === "E-Mail-Adresse oder Passwort stimmen nicht. Bitte nutzen Sie die Adresse, an die Ihr Angebot ging — oder legen Sie über „Passwort vergessen“ ein neues Passwort fest.", "Wortlaut des einen Satzes (de) buchstabengetreu");
+  ok(G.KONTO_SAETZE.en.anmeldungFalsch === "Email address or password is incorrect. Please use the address your proposal was sent to — or set a new password via “Forgotten password”.", "Wortlaut des einen Satzes (en) buchstabengetreu");
   ok(/Wenn zu dieser Adresse ein Zugang gehört/.test(G.KONTO_SAETZE.de.vergessenOk) && /If this address belongs to an account/.test(G.KONTO_SAETZE.en.vergessenOk), "„vergessen“: Antwort im Konjunktiv, nie „Mail verschickt“");
   const fenster = R.kontoFenster(3, 1000);
   ok(!fenster.zuViel("a", 1) && !fenster.zuViel("a", 2) && !fenster.zuViel("a", 3) && fenster.zuViel("a", 4) && !fenster.zuViel("a", 1100), "Fenster-Bremse: drei je Fenster, danach frei");

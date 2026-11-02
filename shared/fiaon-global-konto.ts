@@ -105,7 +105,7 @@ export function passwortBewerten(pw: unknown, kontext: { email?: string | null; 
 // Ein Satz je Ausgang. ANMELDUNG_FALSCH gilt für unbekannte Adresse UND falsches Passwort (keine Aufzählbarkeit).
 export const KONTO_SAETZE = {
   de: {
-    anmeldungFalsch: "E-Mail-Adresse oder Passwort stimmen nicht. Bitte prüfen Sie beides — oder legen Sie über „Passwort vergessen“ ein neues fest.",
+    anmeldungFalsch: "E-Mail-Adresse oder Passwort stimmen nicht. Bitte nutzen Sie die Adresse, an die Ihr Angebot ging — oder legen Sie über „Passwort vergessen“ ein neues Passwort fest.",
     gesperrt: `Zu viele Versuche. Bitte warten Sie ${KONTO_SPERRE_MINUTEN} Minuten — oder legen Sie über „Passwort vergessen“ ein neues Passwort fest.`,
     zuViele: "Von Ihrem Anschluss kamen gerade viele Anfragen. Bitte versuchen Sie es in einigen Minuten noch einmal.",
     codeUnterwegs: (maske: string) => `Wir haben Ihnen einen Code an ${maske} geschickt. Er gilt ${KONTO_CODE_MINUTEN} Minuten.`,
@@ -115,7 +115,7 @@ export const KONTO_SAETZE = {
     codeNeuWarten: (sek: number) => `Einen neuen Code gibt es in ${sek} Sekunden.`,
     codeNeuGenug: "Wir haben Ihnen schon mehrere Codes geschickt. Bitte melden Sie sich noch einmal an.",
     codeNeuOk: "Ein neuer Code ist unterwegs. Der vorige gilt nicht mehr. Der neue kann zweimal ankommen — es ist derselbe Code. Bitte sehen Sie auch im Ordner „Werbung“ oder „Junk“ nach.",
-    vergessenOk: `Wenn zu dieser Adresse ein Zugang gehört, ist ein Link zum Festlegen eines neuen Passworts unterwegs. Er gilt ${KONTO_PASSWORT_LINK_MINUTEN} Minuten. Bitte sehen Sie auch im Spam-Ordner nach.`,
+    vergessenOk: `Wenn zu dieser Adresse ein Zugang gehört, ist ein Link zum Festlegen eines neuen Passworts unterwegs. Er gilt ${KONTO_PASSWORT_LINK_MINUTEN} Minuten. Bitte sehen Sie auch im Spam-Ordner nach. Kommt nichts an, nutzen Sie bitte die Adresse, an die Ihr Angebot ging, oder schreiben Sie uns an welcome@fiaon.com.`,
     linkUngueltig: "Dieser Link ist nicht mehr gültig. Fordern Sie über „Passwort vergessen“ einen neuen an — oder melden Sie sich an, wenn Ihr Zugang schon eingerichtet ist.",
     linkAbgelaufen: "Dieser Link ist abgelaufen. Fordern Sie über „Passwort vergessen“ einen neuen an.",
     passwort: {
@@ -131,7 +131,7 @@ export const KONTO_SAETZE = {
     abgemeldet: "Sie sind abgemeldet.",
   },
   en: {
-    anmeldungFalsch: "Email address or password is incorrect. Please check both — or set a new one via “Forgotten password”.",
+    anmeldungFalsch: "Email address or password is incorrect. Please use the address your proposal was sent to — or set a new password via “Forgotten password”.",
     gesperrt: `Too many attempts. Please wait ${KONTO_SPERRE_MINUTEN} minutes — or set a new password via “Forgotten password”.`,
     zuViele: "We received many requests from your connection. Please try again in a few minutes.",
     codeUnterwegs: (maske: string) => `We have sent a code to ${maske}. It is valid for ${KONTO_CODE_MINUTEN} minutes.`,
@@ -141,7 +141,7 @@ export const KONTO_SAETZE = {
     codeNeuWarten: (sek: number) => `You can request a new code in ${sek} seconds.`,
     codeNeuGenug: "We have already sent you several codes. Please sign in again.",
     codeNeuOk: "A new code is on its way. The previous one is no longer valid. The new one may arrive twice — it is the same code. Please also check your junk folder.",
-    vergessenOk: `If this address belongs to an account, a link to set a new password is on its way. It is valid for ${KONTO_PASSWORT_LINK_MINUTEN} minutes. Please also check your spam folder.`,
+    vergessenOk: `If this address belongs to an account, a link to set a new password is on its way. It is valid for ${KONTO_PASSWORT_LINK_MINUTEN} minutes. Please also check your spam folder. If nothing arrives, please use the address your proposal was sent to, or write to us at welcome@fiaon.com.`,
     linkUngueltig: "This link is no longer valid. Request a new one via “Forgotten password” — or sign in if your access is already set up.",
     linkAbgelaufen: "This link has expired. Request a new one via “Forgotten password”.",
     passwort: {

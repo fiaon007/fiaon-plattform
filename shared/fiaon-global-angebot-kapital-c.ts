@@ -205,7 +205,9 @@ export interface KapitalCParameter {
    * E-474 (Justin 02.11.2026): Der Kunde wählt den Fast-Track auf der Seite selbst (zwei Karten vor der Unterschrift). true = heute fällig
    * nur die Gründung, mit Fast-Track zusätzlich fastTrackCents; die Geld-zurück-Garantie bleibt garantieWochen, nur das ZIEL (zielWochen)
    * gilt mit Fast-Track. Die Wahl steht im Annahmevermerk (wie die Laufzeit) — der Vertragstext ist für beide Wahlen derselbe, die
-   * Prüfsumme hängt nicht an der Wahl. Ohne Fast-Track kein Sofortbeginn: FIAON beginnt nach Ablauf der Widerrufsfrist.
+   * Prüfsumme hängt nicht an der Wahl. E-475 (Justin 02.11.2026): In BEIDEN Fällen beginnt FIAON sofort mit dem Zahlungseingang
+   * (Bestätigung „sofort beginnen“ ist in beiden Fällen Pflicht) — ohne Fast-Track stehen Gesellschaft, EIN und ITIN in drei bis fünf
+   * Wochen, mit Fast-Track Gesellschaft und EIN in 72 Stunden (die ITIN folgt so schnell wie möglich; über sie entscheidet der IRS).
    * Vorgabe false: nur mit Fast-Track wie bisher (Bestand wortgleich).
    */
   fastTrackWahl: boolean;
@@ -556,6 +558,17 @@ export const KAPITAL_C_VERWENDUNG = {
   rat: "Unser Rat: Sagen Sie Zahlungen, die von der Finanzierung abhängen, erst nach der Auszahlung zu.",
 } as const;
 export const KAPITAL_C_SOFORT_TEXT = "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt (Fast-Track). Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.";
+/**
+ * E-475 (Justin 02.11.2026): die Bestätigung „sofort beginnen“ bei fastTrackWahl — ohne „(Fast-Track)“, denn sie gilt mit und ohne
+ * Fast-Track. Der Bestand (ohne Wahl) behält KAPITAL_C_SOFORT_TEXT wortgleich.
+ */
+export const KAPITAL_C_SOFORT_TEXT_WAHL = "Ich verlange ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Arbeit beginnt. Mir ist bekannt, dass ich bei einem Widerruf die bis dahin erbrachten Leistungen anteilig bezahle und dass mein Widerrufsrecht erlischt, wenn FIAON den Vertrag vollständig erfüllt hat.";
+/** E-475: die Zeiten der zwei Wahlen — EINE Quelle für Karten, Vertrag, Seite, Übersicht, Bestätigung und Aufgabe. */
+export const KAPITAL_C_TEMPO = {
+  ohne: "drei bis fünf Wochen",
+  mit: "72 Stunden",
+  itin: "Die ITIN folgt so schnell wie möglich.",
+} as const;
 export const KAPITAL_C_GELESEN_TEXT = "Ich habe den Vertrag, die Informationen vor Vertragsschluss und die Widerrufsbelehrung mit dem Muster-Widerrufsformular gelesen.";
 // Runde 2 (27.10.): „für die Finanzierung gilt …“ statt „für sie gilt …“ — „sie“ ließ sich auf Konto und Karten lesen (Ziffer 3 Abs. 2).
 export const KAPITAL_C_PFLICHT_ZUSATZ = "Über Konto, Karten und deren Rahmen entscheidet das jeweilige Institut, über die Finanzierung das finanzierende Institut; für die Finanzierung gilt die Geld-zurück-Garantie nach Ziffer 4.";
@@ -616,7 +629,7 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
   const FT = par.fastTrackWahl; const DK = par.datenVomKunden;
   const eingang = DK ? "dem Eingang der Vergütung nach Ziffer 6 Absatz 1 und des Reisepasses nach Ziffer 7 Absatz 1" : "dem Eingang der Vergütung nach Ziffer 6 Absatz 1";
   const fastTrackSatz = FT
-    ? `Fast-Track nach Wahl des Auftraggebers: Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag mit Vorrang — die Anmeldung beim Bundesstaat und der Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung — und reicht die Anmeldung binnen fünf Werktagen nach ${eingang} ein. Ohne Fast-Track beginnt FIAON nach Ablauf der Widerrufsfrist (Ziffer 10 Absatz 2); die fünf Werktage für die Anmeldung laufen dann ab diesem Tag, frühestens ab ${eingang}.`
+    ? `Fast-Track nach Wahl des Auftraggebers: In beiden Fällen beginnt FIAON mit ${eingang} und reicht die Anmeldung beim Bundesstaat spätestens binnen fünf Werktagen ein; ohne Fast-Track liegen Gesellschaft, EIN und ITIN in der Regel nach ${KAPITAL_C_TEMPO.ohne} vor. Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag mit Vorrang — Anmeldung und Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung; Ziel sind dann die Gesellschaft und ihre EIN binnen ${KAPITAL_C_TEMPO.mit}, die ITIN folgt so schnell wie möglich.`
     : `Fast-Track: FIAON bearbeitet den Auftrag mit Vorrang — die Anmeldung beim Bundesstaat und der Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung. FIAON reicht die Anmeldung binnen fünf Werktagen nach ${eingang} ein.`;
   const unterlagenSatz = DK
     ? "Die Frist ruht außerdem, bis der Reisepass nach Ziffer 7 Absatz 1 vorliegt."
@@ -625,13 +638,13 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
     ? `Wählt der Auftraggeber den Fast-Track, ist Ziel der Parteien die Auszahlung binnen ${zahlwort(par.zielWochen)} Wochen ab Auftragserteilung (Ziffer 2 Absatz 3). Verbindlich ist in jedem Fall allein die Frist der ${KAPITAL_C_GARANTIE_NAME} nach Absatz 5.`
     : `Ziel der Parteien ist die Auszahlung binnen ${zahlwort(par.zielWochen)} Wochen ab Auftragserteilung; diesem Ziel dient der Fast-Track (Ziffer 2 Absatz 3). Verbindlich ist allein die Frist der ${KAPITAL_C_GARANTIE_NAME} nach Absatz 5.`;
   const verguetungSatz = FT
-    ? `Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Gründung, Konto und Karten) zahlt der Auftraggeber einmalig ${kapitalCEur(par.gruendungCents)}; wählt er bei der Annahme den Fast-Track (Ziffer 2 Absatz 3), zahlt er dafür zusätzlich einmalig ${kapitalCEur(par.fastTrackCents)}, zusammen ${kapitalCEur(kapitalCHeuteCents(par))}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)} ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang, ohne Fast-Track nach Ablauf der Widerrufsfrist (Ziffer 10 Absatz 2).`
+    ? `Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Gründung, Konto und Karten) zahlt der Auftraggeber einmalig ${kapitalCEur(par.gruendungCents)}; wählt er bei der Annahme den Fast-Track (Ziffer 2 Absatz 3), zahlt er dafür zusätzlich einmalig ${kapitalCEur(par.fastTrackCents)}, zusammen ${kapitalCEur(kapitalCHeuteCents(par))}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)} ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang, mit und ohne Fast-Track (Ziffer 10 Absatz 2).`
     : `Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Gründung, Konto und Karten) zahlt der Auftraggeber einmalig ${kapitalCEur(par.gruendungCents)} und für den Fast-Track (Ziffer 2 Absatz 3) einmalig ${kapitalCEur(par.fastTrackCents)}, zusammen ${kapitalCEur(kapitalCHeuteCents(par))}. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)} ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang (Ziffer 10 Absatz 2).`;
   const erstesJahr = FT
     ? `insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par, false))} ohne Fast-Track oder ${kapitalCEur(kapitalCErstesJahrCents(par, true))} mit Fast-Track`
     : `insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}`;
   const sofortSatz = FT
-    ? "Wählt der Auftraggeber bei der Annahme den Fast-Track, verlangt er damit ausdrücklich, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt; ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat. Ohne Fast-Track beginnt FIAON erst nach Ablauf der Widerrufsfrist."
+    ? "Der Auftraggeber hat bei der Annahme ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt — mit und ohne Fast-Track. Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat."
     : "Der Auftraggeber hat bei der Annahme ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt (Fast-Track). Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat.";
   const mitwirkung1 = DK
     ? [p(`${unterlagen.length ? `Bei Vertragsschluss liegen FIAON vor: ${unterlagen.join(", ")}. ` : ""}Seinen gültigen Reisepass lädt der Auftraggeber binnen sieben Tagen nach Vertragsschluss zur Identifizierung hoch — auf seiner Angebotsseite oder in seinem Kundenbereich „Mein Auftrag“. Mit Anmeldungen und Anträgen beginnt FIAON erst, wenn er vorliegt.`)]
@@ -776,7 +789,7 @@ function annahmeBlock(d: KapitalCDaten, a: KapitalCAnnahmeVermerk | null): strin
   const par = d.parameter;
   const ftZeile = !par.fastTrackWahl ? "" : kapitalCMitFastTrack(par, w)
     ? `<li>Fast-Track (Ziffer 2 Absatz 3): <strong>gewählt</strong> — fällig mit dem Auftrag ${escHtml(kapitalCEur(kapitalCHeuteCents(par, true)))} (Gründung, Konto und Karten ${escHtml(kapitalCEur(par.gruendungCents))} und Fast-Track ${escHtml(kapitalCEur(par.fastTrackCents))})</li>`
-    : `<li>Fast-Track (Ziffer 2 Absatz 3): <strong>nicht gewählt</strong> — fällig mit dem Auftrag ${escHtml(kapitalCEur(kapitalCHeuteCents(par, false)))} (Gründung, Konto und Karten); FIAON beginnt nach Ablauf der Widerrufsfrist (Ziffer 10 Absatz 2)</li>`;
+    : `<li>Fast-Track (Ziffer 2 Absatz 3): <strong>nicht gewählt</strong> — fällig mit dem Auftrag ${escHtml(kapitalCEur(kapitalCHeuteCents(par, false)))} (Gründung, Konto und Karten)</li>`;
   return `
   <div class="gv-unterschriften">
     ${fiaon}
@@ -789,7 +802,7 @@ function annahmeBlock(d: KapitalCDaten, a: KapitalCAnnahmeVermerk | null): strin
     <ul>
       <li>Laufzeit der Finanzierung (Ziffer 4 Absatz 2): <strong>${escHtml(kapitalCLaufzeitSatz(d.parameter, w.laufzeitJahre))}</strong></li>
       <li>Name der Gesellschaft (Ziffer 2): Wunschname <strong>${escHtml(w.llc.wunsch)}</strong>${namen.length > 1 ? `; Ausweichnamen in dieser Reihenfolge: ${namen.slice(1).map(escHtml).join("; ")}` : "; keine Ausweichnamen"}</li>
-      ${ftZeile}${w.sofortBeginn !== false ? `<li>Beginn vor Ablauf der Widerrufsfrist (Ziffer 10 Absatz 2), ausdrücklich verlangt: „${escHtml(KAPITAL_C_SOFORT_TEXT)}“</li>` : ""}
+      ${ftZeile}${w.sofortBeginn !== false ? `<li>Beginn vor Ablauf der Widerrufsfrist (Ziffer 10 Absatz 2), ausdrücklich verlangt: „${escHtml(par.fastTrackWahl ? KAPITAL_C_SOFORT_TEXT_WAHL : KAPITAL_C_SOFORT_TEXT)}“</li>` : ""}
       <li>Mit der Unterschrift bestätigt: „${escHtml(KAPITAL_C_GELESEN_TEXT)}“</li>
     </ul>
     <p class="gv-leise">IP-Adresse ${escHtml(a.ip)} · Prüfsumme des Vertragstextes (SHA-256): <span class="hash">${escHtml(a.hash)}</span></p>
@@ -983,7 +996,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
     weg: {
       auge: "Ihr Weg",
       titel: FT ? `${gross(zahlwort(par.zielWochen))} Wochen mit Fast-Track. Das ist unser Ziel.` : `${gross(zahlwort(par.zielWochen))} Wochen. Das ist unser Ziel.`,
-      sub: FT ? `Mit dem Fast-Track laufen Gründung, Unterlagen und Bürgschaft parallel. Ohne Fast-Track beginnen wir nach Ablauf der Widerrufsfrist — Ihre Geld-zurück-Garantie bleibt bei ${achtWochen}.` : "Mit dem Fast-Track laufen Gründung, Unterlagen und Bürgschaft parallel.",
+      sub: FT ? `Wir beginnen in beiden Fällen sofort mit Ihrem Zahlungseingang. Mit Fast-Track stehen Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}, ohne in ${KAPITAL_C_TEMPO.ohne} — Ihre Geld-zurück-Garantie bleibt bei ${achtWochen}.` : "Mit dem Fast-Track laufen Gründung, Unterlagen und Bürgschaft parallel.",
       liste: [
         { nr: 1, titel: "Ihre Gesellschaft entsteht", dauer: staatT?.fahrplanDauer ?? "Woche eins", text: `Anmeldung in ${par.bundesstaat} unter Ihrem Wunschnamen, EIN mit Vorrang, US-Adresse, Telefonnummer und Assistenz. Sie unterschreiben, was wir vorbereiten.${staatT ? ` ${staatT.eintragungSatz}` : ""}${DK ? " Los geht es, sobald Ihr Reisepass da ist — Sie laden ihn direkt nach der Unterschrift hoch." : ""}` },
         { nr: 2, titel: "Alles für die Bank", dauer: "Wochen zwei und drei", text: "Geschäftskonto, Unterlagen und Bürgschaft — wir bereiten jeden Antrag vollständig vor und stimmen alles mit der finanzierenden Bank ab." },
@@ -1040,9 +1053,9 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
         { frage: "Muss das Geld in den USA bleiben?", antwort: [`Nein. ${KAPITAL_C_VERWENDUNG.seite} ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Eine US-Gesellschaft ist kein Steuermodell.`] },
         { frage: "Muss ich in die USA reisen?", antwort: ["Nein. Unsere Partner in den USA erledigen die Termine vor Ort; Sie steuern jeden Schritt von zu Hause. Für Ihre ITIN prüft unser zertifizierter Partner im DACH-Raum vorab die Voraussetzungen — persönlich oder im Videotermin."] },
         { frage: "Wem gehört die Gesellschaft?", antwort: ["Allein Ihnen. FIAON erwirbt keine Anteile. Eine US-Gesellschaft ist kein Steuermodell — wie sie steuerlich behandelt wird, klärt unser Partner-Steuerberater vorab mit Ihnen."] },
-        ...(FT ? [{ frage: "Was bringt der Fast-Track?", antwort: [`Vorrang bei Anmeldung und EIN, die Unterlagen für die Bank entstehen parallel — unser Ziel ist dann die Auszahlung in Woche ${zahlwort(par.zielWochen)}. Er kostet einmalig ${eurF}. Ihre Geld-zurück-Garantie bleibt mit und ohne Fast-Track bei ${achtWochen}.`] }] : []),
+        ...(FT ? [{ frage: "Was bringt der Fast-Track?", antwort: [`Vorrang: Ihre Gesellschaft und EIN stehen in ${KAPITAL_C_TEMPO.mit} statt in ${KAPITAL_C_TEMPO.ohne}, die Unterlagen für die Bank entstehen parallel — unser Ziel ist dann die Auszahlung in Woche ${zahlwort(par.zielWochen)}. ${KAPITAL_C_TEMPO.itin} Er kostet einmalig ${eurF}. Ihre Geld-zurück-Garantie bleibt mit und ohne Fast-Track bei ${achtWochen}.`] }] : []),
         ...(DK ? [{ frage: "Wofür brauchen Sie meine Angaben?", antwort: ["Für Ihren Vertrag und die gesetzlich vorgeschriebene Identifizierung. Geburtsdatum und Anschrift tragen Sie vor der Unterschrift ein; Ihren Reisepass laden Sie erst danach hoch. Ihre Angaben stehen nur in Ihrem Vertrag und in Ihrer Akte bei uns."] }] : []),
-        FT ? { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Wählen Sie den Fast-Track, verlangen Sie damit, dass wir sofort beginnen; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig. Ohne Fast-Track beginnen wir erst nach Ablauf der Widerrufsfrist."] }
+        FT ? { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Mit Ihrer Annahme verlangen Sie, dass wir sofort beginnen — mit und ohne Fast-Track; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig."] }
           : { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Dieses Angebot gibt es mit Fast-Track: Mit Ihrer Annahme verlangen Sie, dass wir sofort beginnen; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig."] },
       ],
     },
@@ -1071,11 +1084,11 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
         FT ? { titel: "Die Preise", text: `Mit Ihrem Auftrag fällig ${heuteOhne} (Gründung, Konto und Karten); mit Fast-Track zusätzlich ${eurF}, zusammen ${heuteMit}; mit der Eintragung Ihrer Gesellschaft ${kapitalCEur(par.erfolgCents)} Erfolgshonorar einschließlich Bürgschaft; im ersten Jahr insgesamt ${jahrOhne} ohne oder ${jahrMit} mit Fast-Track; ab dem zweiten Jahr ${kapitalCEur(par.jahresCents)} je Jahr. Alle Beträge sind Endpreise.` } :
         { titel: "Die Preise", text: `Mit Ihrem Auftrag fällig ${kapitalCEur(kapitalCHeuteCents(par))} (Gründung, Konto und Karten ${kapitalCEur(par.gruendungCents)}, Fast-Track ${kapitalCEur(par.fastTrackCents)}); mit der Eintragung Ihrer Gesellschaft ${kapitalCEur(par.erfolgCents)} Erfolgshonorar einschließlich Bürgschaft; im ersten Jahr insgesamt ${kapitalCEur(kapitalCErstesJahrCents(par))}; ab dem zweiten Jahr ${kapitalCEur(par.jahresCents)} je Jahr. Alle Beträge sind Endpreise.` },
         { titel: "Zahlung", text: FT ? `Per Überweisung auf Rechnung, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}. Die Rechnung über ${heuteOhne} — mit Fast-Track ${heuteMit} — kommt mit der Annahme.` : `Per Überweisung auf Rechnung, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}. Die Rechnung über ${kapitalCEur(kapitalCHeuteCents(par))} kommt mit der Annahme.` },
-        { titel: "Beginn und Zeitplan", text: `${FT ? `Mit Fast-Track mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist; unser Ziel ist dann die Auszahlung in Woche ${zahlwort(par.zielWochen)}. Ohne Fast-Track nach Ablauf der Widerrufsfrist.` : `Mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist (Fast-Track). Unser Ziel ist die Auszahlung in Woche ${zahlwort(par.zielWochen)}.`}${DK ? " Mit Anmeldungen und Anträgen beginnen wir, sobald Ihr Reisepass vorliegt." : ""}` },
+        { titel: "Beginn und Zeitplan", text: `${FT ? `Sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist, mit und ohne Fast-Track. Ohne Fast-Track stehen Ihre Gesellschaft, EIN und ITIN in ${KAPITAL_C_TEMPO.ohne}; mit Fast-Track Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit} (${KAPITAL_C_TEMPO.itin.replace(/\.$/, "")}), unser Ziel ist dann die Auszahlung in Woche ${zahlwort(par.zielWochen)}.` : `Mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist (Fast-Track). Unser Ziel ist die Auszahlung in Woche ${zahlwort(par.zielWochen)}.`}${DK ? " Mit Anmeldungen und Anträgen beginnen wir, sobald Ihr Reisepass vorliegt." : ""}` },
         { titel: KAPITAL_C_GARANTIE_NAME, text: G.info },
         { titel: "Sicherheiten und Bürgschaft", text: `Eine Bareinlage oder dingliche Sicherheit verlangen wir nicht. Die Bürgschaft gegenüber der Bank übernimmt unsere US-Partnergesellschaft, ein mit FIAON verbundenes Unternehmen (Ziffer 5)${buerginStand ? `, sobald sie im US-Register wieder als aktiv geführt wird; derzeit wird sie dort als inaktiv geführt` : ""}. ${KAPITAL_C_VERANTWORTUNG}` },
         { titel: "Vertragsdauer", text: `Die Begleitung läuft ${zahlwort(par.begleitMonate)} Monate ab der Eintragung. Die Jahresbetreuung ab dem zweiten Jahr — mit der Begleitung bei einer Aufstockung oder Umschuldung — beginnt nur mit Ihrer Zahlung und verlängert sich nicht von selbst. Die Finanzierung läuft über die Laufzeit, die Sie wählen.` },
-        { titel: "Widerrufsrecht", text: FT ? "Vierzehn Tage ab Vertragsschluss — Belehrung und Muster-Widerrufsformular in der Anlage. Mit Fast-Track zahlen Sie bei einem Widerruf nach Beginn die bis dahin erbrachten Leistungen anteilig." : "Vierzehn Tage ab Vertragsschluss — Belehrung und Muster-Widerrufsformular in der Anlage. Bei einem Widerruf nach Beginn zahlen Sie die bis dahin erbrachten Leistungen anteilig." },
+        { titel: "Widerrufsrecht", text: "Vierzehn Tage ab Vertragsschluss — Belehrung und Muster-Widerrufsformular in der Anlage. Bei einem Widerruf nach Beginn zahlen Sie die bis dahin erbrachten Leistungen anteilig." },
         { titel: "Gewährleistung und Beschwerden", text: `Es gilt die gesetzliche Mängelhaftung. Beschwerden an ${FIAON_FIRMA.email}. FIAON nimmt nicht an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teil.` },
         { titel: "Vertragstext und Sprache", text: "Deutsch. Wir speichern den Vertragstext; Sie erhalten ihn nach der Annahme als PDF mit Ihrem Annahmevermerk per E-Mail." },
       ],
@@ -1085,11 +1098,11 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
     fastTrack: FT ? {
       auge: "Ihr Tempo", titel: "Mit oder ohne Fast-Track?", sub: "Sie entscheiden. Ihre Geld-zurück-Garantie gilt in beiden Fällen.",
       karten: [
-        { schluessel: "ohne", titel: "Ohne Fast-Track", betrag: heuteOhne, zeile: "Wir beginnen nach Ablauf der Widerrufsfrist von vierzehn Tagen.", punkte: ["Gründung, Konto und Karten", `Geld-zurück-Garantie: ${achtWochen}`] },
-        { schluessel: "mit", titel: "Mit Fast-Track", betrag: heuteMit, zeile: "Wir beginnen mit Ihrem Zahlungseingang — mit Vorrang.", punkte: [`Gründung, Konto und Karten · Fast-Track${NB}${eurF}`, `Unser Ziel: Auszahlung in Woche ${zahlwort(par.zielWochen)}`, `Geld-zurück-Garantie: ${achtWochen}`] },
+        { schluessel: "ohne", titel: "Ohne Fast-Track", betrag: heuteOhne, zeile: `Wir beginnen sofort mit Ihrem Zahlungseingang. Ihre Gesellschaft, EIN und ITIN stehen in ${KAPITAL_C_TEMPO.ohne}.`, punkte: ["Gründung, Konto und Karten", `Geld-zurück-Garantie: ${achtWochen}`] },
+        { schluessel: "mit", titel: "Mit Fast-Track", betrag: heuteMit, zeile: `Wir beginnen sofort, mit Vorrang: Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}.`, punkte: [`Gründung, Konto und Karten · Fast-Track${NB}${eurF}`, KAPITAL_C_TEMPO.itin.replace(/\.$/, ""), `Unser Ziel: Auszahlung in Woche ${zahlwort(par.zielWochen)}`, `Geld-zurück-Garantie: ${achtWochen}`] },
       ],
       summeLabel: "Fällig mit Ihrem Auftrag",
-      garantie: `Die Geld-zurück-Garantie bleibt in beiden Fällen bei ${achtWochen} — mit dem Fast-Track ist nur unser Ziel schneller.`,
+      garantie: `Wir beginnen in beiden Fällen sofort. Mit Fast-Track stehen Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}, unser Ziel ist die Auszahlung in Woche ${zahlwort(par.zielWochen)}. Ihre Geld-zurück-Garantie gilt in beiden Fällen: ${achtWochen}.`,
       heuteCents: { ohne: kapitalCHeuteCents(par, false), mit: kapitalCHeuteCents(par, true) },
     } : null,
   };
@@ -1113,9 +1126,9 @@ export function kapitalCBestellUebersicht(d: KapitalCDaten, laufzeitJahre: numbe
     : `${kapitalCEur(kapitalCHeuteCents(par, false))} ohne Fast-Track oder ${kapitalCEur(kapitalCHeuteCents(par, true))} mit Fast-Track — bitte oben wählen; ${zahlbar}`;
   const jahr = !par.fastTrackWahl || fastTrack != null ? kapitalCEur(kapitalCErstesJahrCents(par, fastTrack !== false))
     : `${kapitalCEur(kapitalCErstesJahrCents(par, false))} ohne oder ${kapitalCEur(kapitalCErstesJahrCents(par, true))} mit Fast-Track`;
-  const beginn = !par.fastTrackWahl || fastTrack === true ? "sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist (Fast-Track)"
-    : fastTrack === false ? "nach Ablauf der Widerrufsfrist von vierzehn Tagen, frühestens mit Ihrem Zahlungseingang"
-    : "mit Fast-Track sofort mit Ihrem Zahlungseingang (auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist), ohne Fast-Track nach Ablauf der Widerrufsfrist";
+  // E-475: mit fastTrackWahl beginnt FIAON in BEIDEN Fällen sofort — die Wahl ändert nur das Tempo.
+  const beginn = !par.fastTrackWahl ? "sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist (Fast-Track)"
+    : `sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist${fastTrack === true ? `; mit Fast-Track Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}` : fastTrack === false ? `; Ihre Gesellschaft, EIN und ITIN in ${KAPITAL_C_TEMPO.ohne}` : ", mit und ohne Fast-Track"}`;
   // E-474: Solange der Kunde seine Anschrift noch nicht eingetragen hat (datenVomKunden), steht hier nur der Name mit dem Hinweis.
   const auftraggeber = k.strasse ? `${kapitalCName(k)}, ${k.strasse}, ${k.plz}${NB}${k.ort}` : `${kapitalCName(k)} — Geburtsdatum und Anschrift bitte oben eintragen`;
   return {
@@ -1179,16 +1192,16 @@ export function kapitalCAnnahmeTexte(d: KapitalCDaten): KapitalCAnnahmeTexte {
   return {
     auge: "Ihr Auftrag",
     titel: "Auftrag erteilen",
-    sub: FT || DK ? `${DK ? "Ihre Angaben, " : ""}Laufzeit, Name, ${FT ? "Ihre Wahl zum Fast-Track" : "ein Haken"} und Ihre Unterschrift — dann ist alles auf dem Weg.` : "Laufzeit, Name, ein Haken und Ihre Unterschrift — dann ist alles auf dem Weg.",
+    sub: FT || DK ? `${DK ? "Ihre Angaben, " : ""}Laufzeit, Name, ${FT ? "Ihre Wahl zum Fast-Track, ein Haken" : "ein Haken"} und Ihre Unterschrift — dann ist alles auf dem Weg.` : "Laufzeit, Name, ein Haken und Ihre Unterschrift — dann ist alles auf dem Weg.",
     laufzeit: KAPITAL_C_LAUFZEIT_LABEL, laufzeitAendern: "ändern",
     rateZeile: "Monatsrate {rate} (Rechenbeispiel)",
     name: "Ihre Gesellschaft", nameAendern: "ändern",
     gelesen: KAPITAL_C_GELESEN_TEXT,
     gelesenVorsatz: "Mit Ihrer Unterschrift bestätigen Sie:",
     gelesenLinks: { vertrag: "Vertrag", informationen: "Informationen vor Vertragsschluss", widerruf: "Widerrufsbelehrung" },
-    sofort: KAPITAL_C_SOFORT_TEXT,
+    sofort: FT ? KAPITAL_C_SOFORT_TEXT_WAHL : KAPITAL_C_SOFORT_TEXT,
     // Sein Grund ohne Projekt und Termin (Justin 27.10.2026, 17:40): unser Ziel, die Auszahlung in Woche vier.
-    sofortUnter: FT ? "Mit dem Fast-Track beginnen wir mit Ihrem Zahlungseingang. Dafür brauchen wir diese ausdrückliche Bestätigung — sonst dürften wir erst nach Ablauf der Widerrufsfrist beginnen." : `Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für unser Ziel, die Auszahlung in Woche ${zahlwort(par.zielWochen)}, zählt aber jede Woche. Ohne den Haken können Sie das Angebot deshalb nicht annehmen.`,
+    sofortUnter: FT ? "Wir beginnen sofort mit Ihrem Zahlungseingang — mit und ohne Fast-Track. Dafür brauchen wir diese ausdrückliche Bestätigung; ohne sie dürften wir erst nach Ablauf der Widerrufsfrist beginnen. Ohne den Haken können Sie das Angebot deshalb nicht annehmen." : `Dieses Angebot gibt es nur mit Fast-Track: Ohne diesen Haken dürften wir erst nach Ablauf der Widerrufsfrist beginnen — für unser Ziel, die Auszahlung in Woche ${zahlwort(par.zielWochen)}, zählt aber jede Woche. Ohne den Haken können Sie das Angebot deshalb nicht annehmen.`,
     unterschrift: {
       titel: "Ihre Unterschrift",
       sub: "Zeichnen Sie mit Finger oder Maus — oder tippen Sie Ihren Namen.",
@@ -1203,7 +1216,7 @@ export function kapitalCAnnahmeTexte(d: KapitalCDaten): KapitalCAnnahmeTexte {
     unterKnopf: `Mit dem Klick erteilen Sie den Auftrag. Fällig mit Ihrem Auftrag: ${kapitalCEur(kapitalCHeuteCents(par))} — ${par.zahlungszielTage > 0 ? `per Überweisung ${kapitalCZahlbar(par.zahlungszielTage)}` : "sofort per Überweisung"}. Ihren Vertrag als PDF und die Rechnung erhalten Sie per E-Mail.`,
     gesperrt: "Dieses Angebot wird gerade vervollständigt. Ihr Ansprechpartner gibt Ihnen Bescheid, sobald Sie es annehmen können.",
     leserKnopf: "Zur Annahme",
-    leserSatz: FT ? "Angenommen wird unten auf der Seite — mit Ihrer Wahl zum Fast-Track und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin." : "Angenommen wird unten auf der Seite — mit einem Haken für den Fast-Track und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin.",
+    leserSatz: FT ? "Angenommen wird unten auf der Seite — mit Ihrer Wahl zum Fast-Track, einem Haken und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin." : "Angenommen wird unten auf der Seite — mit einem Haken für den Fast-Track und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin.",
     ...(FT ? {
       unterKnopfOhne: `Mit dem Klick erteilen Sie den Auftrag. Fällig mit Ihrem Auftrag: ${kapitalCEur(kapitalCHeuteCents(par, false))} — ${zahlweg}. Ihren Vertrag als PDF und die Rechnung erhalten Sie per E-Mail.`,
       fehltFastTrack: KAPITAL_C_ANNAHME.fehltFastTrack,
@@ -1217,7 +1230,7 @@ export const KAPITAL_C_ANNAHME = {
   fehltSofort: "Dieses Angebot gibt es nur mit Fast-Track — bitte bestätigen Sie, dass wir vor Ablauf der Widerrufsfrist beginnen.",
   // E-474 (fastTrackWahl / datenVomKunden)
   fehltFastTrack: "Bitte wählen Sie: mit oder ohne Fast-Track.",
-  fehltSofortWahl: "Sie haben den Fast-Track gewählt — bitte bestätigen Sie, dass wir vor Ablauf der Widerrufsfrist beginnen.",
+  fehltSofortWahl: "Bitte bestätigen Sie, dass wir sofort — vor Ablauf der Widerrufsfrist — beginnen. Ohne diese Bestätigung können Sie das Angebot nicht annehmen.",
   angabenFehlen: "Bitte tragen Sie zuerst oben Ihre Angaben für den Vertrag ein — dann können Sie unterschreiben.",
   neuLaden: "Das Angebot wurde inzwischen geändert — bitte laden Sie die Seite neu und lesen Sie die aktuelle Fassung.",
   fertigTitel: (gruss: string) => `Willkommen bei FIAON Global, ${gruss}.`,
@@ -1250,8 +1263,11 @@ export const KAPITAL_C_BESTAETIGUNG = {
     ein.fastTrack === false
       ? "Im Anhang finden Sie Ihren Vertrag mit Annahmevermerk, der Widerrufsbelehrung und dem Muster-Widerrufsformular sowie die Rechnung über Gründung, Konto und Karten."
       : "Im Anhang finden Sie Ihren Vertrag mit Annahmevermerk, der Widerrufsbelehrung und dem Muster-Widerrufsformular sowie die Rechnung über Gründung, Konto und Karten und den Fast-Track.",
+    // E-475: mit fastTrackWahl beginnt FIAON in beiden Fällen sofort — der Satz nennt das Tempo der Wahl.
     ein.fastTrack === false
-      ? "Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen; die Einzelheiten stehen in der Widerrufsbelehrung im Anhang. Sie haben sich gegen den Fast-Track entschieden: Wir beginnen nach Ablauf der Widerrufsfrist."
+      ? `Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen; die Einzelheiten stehen in der Widerrufsbelehrung im Anhang. Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen: Wir beginnen mit Ihrem Zahlungseingang, und widerrufen Sie danach, zahlen Sie für die bis dahin erbrachten Leistungen einen angemessenen Betrag. Ihre Gesellschaft, EIN und ITIN stehen in ${KAPITAL_C_TEMPO.ohne}.`
+      : ein.fastTrack === true
+      ? `Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen; die Einzelheiten stehen in der Widerrufsbelehrung im Anhang. Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen: Wir beginnen mit Ihrem Zahlungseingang, und widerrufen Sie danach, zahlen Sie für die bis dahin erbrachten Leistungen einen angemessenen Betrag. Mit dem Fast-Track stehen Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}; ${KAPITAL_C_TEMPO.itin.replace(/^Die/, "die")}`
       : "Sie können den Vertrag binnen vierzehn Tagen ohne Angabe von Gründen widerrufen; die Einzelheiten stehen in der Widerrufsbelehrung im Anhang. Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen (Fast-Track): Wir beginnen mit Ihrem Zahlungseingang, und widerrufen Sie danach, zahlen Sie für die bis dahin erbrachten Leistungen einen angemessenen Betrag.",
     ...(ein.reisepass ? ["Bitte laden Sie noch Ihren Reisepass hoch (Seite mit Foto) — in „Mein Auftrag“ oder auf Ihrer Angebotsseite. Mit Anmeldungen und Anträgen beginnen wir, sobald er vorliegt (Ziffer 7 Ihres Vertrags)."] : []),
   ],
@@ -1608,8 +1624,8 @@ export function kapitalCStartAufgabe(ein: {
   frist: { beginn: string; ende: string } | null; llc: string | null; laufzeitJahre: number | null;
   /** Ist die Vertragsbestätigung (§ 312f BGB) beim Kunden? Ohne sie beginnt FIAON nicht — die Aufgabe sagt es dann zuerst. */
   bestaetigung?: { da: boolean; grund: string | null } | null;
-  /** E-474: ohne Fast-Track gewählt → erst nach der Widerrufsfrist beginnen (Tag, bis zu dem sie läuft) */
-  fastTrack?: boolean; widerrufBis?: string | null;
+  /** E-474/E-475: die Wahl zum Fast-Track (nur bei fastTrackWahl) — beide beginnen sofort, die Wahl ändert das Tempo */
+  fastTrack?: boolean;
   /** E-474: datenVomKunden — liegt der Reisepass schon in der Akte? false = erst anfordern, vorher nicht anmelden */
   reisepassDa?: boolean | null;
 }): { titel: string; text: string } {
@@ -1623,11 +1639,9 @@ export function kapitalCStartAufgabe(ein: {
       ...(ohneBestaetigung ? [`VERTRAGSBESTÄTIGUNG FEHLT (§ 312f BGB): Die Mail mit Vertrag (PDF) und Rechnung ist nicht nachweislich beim Kunden (${ein.bestaetigung?.grund ?? "unbekannt"}). Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Kam sie nachweislich an (Brevo „zugestellt“, oder von Hand geschickt und vom Kunden bestätigt), ist nichts zu tun. Erst wenn auch das Nachholen scheitert, von Hand schicken. Vorher nicht anmelden.`] : []),
       ft
         ? `${ein.name} hat Gründung und Fast-Track bezahlt (${kapitalEur(kapitalCHeuteCents(par))}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). Der Auftrag läuft — Fast-Track, Sofortbeginn ausdrücklich verlangt.`
-        : `${ein.name} hat die Gründung bezahlt (${kapitalEur(kapitalCHeuteCents(par, false))}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). OHNE Fast-Track: kein Sofortbeginn — erst nach Ablauf der Widerrufsfrist beginnen${ein.widerrufBis ? ` (sie läuft bis ${kapitalTag(ein.widerrufBis)})` : ""}.`,
+        : `${ein.name} hat die Gründung bezahlt (${kapitalEur(kapitalCHeuteCents(par, false))}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). Der Auftrag läuft — OHNE Fast-Track (kein Vorrang), Sofortbeginn ausdrücklich verlangt: Gesellschaft, EIN und ITIN in ${KAPITAL_C_TEMPO.ohne}.`,
       ...(ein.reisepassDa === false ? ["REISEPASS FEHLT NOCH (Ziffer 7 Absatz 1): Der Kunde lädt ihn nach der Annahme hoch (Angebotsseite oder „Mein Auftrag“). Bitte anfordern — vor dem Eingang NICHT anmelden; die Garantiefrist ruht so lange (Ziffer 4 Absatz 6)."] : []),
-      ft
-        ? `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — binnen fünf Werktagen nach Zahlungseingang einreichen, also bis ${kapitalTag(plusWerktageRein(ein.bezahltAm, 5))}. ${par.datenVomKunden ? "Den Reisepass bitte in der Akte prüfen." : `Die Unterlagen nach Ziffer 7 Absatz 1 liegen vor (${unterlagen}) — bitte in der Akte ablegen, falls noch nicht geschehen.`} ITIN nur nach ITIN-Check (Ziffer 2).`
-        : `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — binnen fünf Werktagen nach Ablauf der Widerrufsfrist einreichen${ein.widerrufBis ? `, also bis ${kapitalTag(plusWerktageRein(ein.widerrufBis > ein.bezahltAm ? ein.widerrufBis : ein.bezahltAm, 5))}` : ""}. ITIN nur nach ITIN-Check (Ziffer 2).`,
+      `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — binnen fünf Werktagen nach Zahlungseingang einreichen, also bis ${kapitalTag(plusWerktageRein(ein.bezahltAm, 5))}.${par.fastTrackWahl && ft ? ` FAST-TRACK gewählt: Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit} (Ziel) — sofort einreichen, EIN mit Vorrang; die ITIN so schnell wie möglich.` : ""} ${par.datenVomKunden ? "Den Reisepass bitte in der Akte prüfen." : `Die Unterlagen nach Ziffer 7 Absatz 1 liegen vor (${unterlagen}) — bitte in der Akte ablegen, falls noch nicht geschehen.`} ITIN nur nach ITIN-Check (Ziffer 2).`,
       ein.frist ? `GELD-ZURÜCK-GARANTIE (Ziffer 4): Auszahlung über ${kapitalEur(par.betragCents)} — die ${zahlwort(par.garantieWochen)} Wochen laufen seit dem ${kapitalTag(ein.frist.beginn)}, die Frist endet am ${kapitalTag(ein.frist.ende)}.${ft ? ` Ziel mit Fast-Track: Woche ${zahlwort(par.zielWochen)}.` : ""} Kommt sie nicht, erstattet FIAON alles Gezahlte binnen ${zahlwort(par.erstattungTage)} Tagen. Ruhezeiten (Tage, um die der Kunde die Frist für Unterlagen der Bank nach Ziffer 7 Absatz 2 überschreitet; nicht angenommenes Angebot ohne weitere Sicherheiten oder Kosten) bitte mit Datum im Verlauf festhalten.` : "GELD-ZURÜCK-GARANTIE: keine Frist gesetzt.",
       `LAUFZEIT: ${ein.laufzeitJahre ? kapitalCLaufzeitSatz(par, ein.laufzeitJahre) : "—"}.`,
       ...(par.buerginAktiv ? [] : ["BÜRGIN: im Register als inaktiv vermerkt — die Bürgschaft erst nach der Reaktivierung (Ziffer 5); Reinstatement mit Beleg in die Akte."]),

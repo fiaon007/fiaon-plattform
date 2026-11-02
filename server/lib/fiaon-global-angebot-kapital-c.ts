@@ -472,18 +472,18 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
   const llc = llcWahlPruefen(body?.llc);
   if (!llc.ok) return fehler(400, llc.error, { code: "LLC", feld: llc.feld });
   if (body?.gelesen !== true) return fehler(400, KAPITAL_C_ANNAHME.fehltGelesen, { code: "HAEKCHEN", fehlt: ["gelesen"] });
-  // E-474: Mit fastTrackWahl wählt der Kunde (true/false, nie vorbelegt — ein Aufpreis braucht seine ausdrückliche Wahl); der Haken
-  // „sofort beginnen“ gehört dann nur zum Fast-Track. Ohne fastTrackWahl: immer mit Fast-Track und Haken wie bisher.
+  // E-474: Mit fastTrackWahl wählt der Kunde (true/false, nie vorbelegt — ein Aufpreis braucht seine ausdrückliche Wahl).
+  // E-475 (Justin 02.11.2026): FIAON beginnt in BEIDEN Fällen sofort — der Haken „sofort beginnen“ ist immer Pflicht.
   const ft: unknown = d.parameter.fastTrackWahl ? body?.fastTrack : true;
   if (ft !== true && ft !== false) return fehler(400, KAPITAL_C_ANNAHME.fehltFastTrack, { code: "FASTTRACK" });
-  if (ft && body?.sofortBeginn !== true) return fehler(400, d.parameter.fastTrackWahl ? KAPITAL_C_ANNAHME.fehltSofortWahl : KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
+  if (body?.sofortBeginn !== true) return fehler(400, d.parameter.fastTrackWahl ? KAPITAL_C_ANNAHME.fehltSofortWahl : KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
   const u = firmaUnterschriftPruefen(body?.unterschrift, { vertretung: { nachname: d.kunde.nachname } } as unknown as FirmaKunde);
   if (!u.ok) return fehler(400, u.error, { code: u.code });
   const hash = kapitalCTextHash(d);
   if (!gleich(String(body?.textHash ?? ""), kapitalCSichtHash(d))) return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
 
   const jetzt = new Date();
-  const wahl: KapitalCWahl = { llc: llc.wahl, laufzeitJahre: jahre, sofortBeginn: ft, ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}) };
+  const wahl: KapitalCWahl = { llc: llc.wahl, laufzeitJahre: jahre, sofortBeginn: true, ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}) };
   const unterschrift: KapitalUnterschriftVermerk = { ...u.vermerk, am: jetzt.toISOString(), ip: kontext.ip };
   let pdf: Buffer;
   try {
@@ -507,7 +507,7 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
     if (neu && String(neu.status) === "offen") return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
-  await verlaufAngebot(Number(z.id), kapitalCName(d.kunde), `angenommen (${KAPITAL_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Laufzeit ${jahre} Jahre (Rate ${kapitalCEurCent(plan.monatsrateCents)}), LLC „${wahl.llc.wunsch}“${wahl.llc.alternative1 ? ` (Ausweich: ${[wahl.llc.alternative1, wahl.llc.alternative2].filter(Boolean).join(", ")})` : ""}, ${!d.parameter.fastTrackWahl ? "Sofortbeginn ausdrücklich verlangt" : ft ? `Fast-Track gewählt (${kapitalCEur(kapitalCHeuteCents(d.parameter, true))}), Sofortbeginn ausdrücklich verlangt` : `OHNE Fast-Track (${kapitalCEur(kapitalCHeuteCents(d.parameter, false))}, Beginn nach der Widerrufsfrist)`}, Unterschrift ${unterschrift.art}`);
+  await verlaufAngebot(Number(z.id), kapitalCName(d.kunde), `angenommen (${KAPITAL_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Laufzeit ${jahre} Jahre (Rate ${kapitalCEurCent(plan.monatsrateCents)}), LLC „${wahl.llc.wunsch}“${wahl.llc.alternative1 ? ` (Ausweich: ${[wahl.llc.alternative1, wahl.llc.alternative2].filter(Boolean).join(", ")})` : ""}, ${!d.parameter.fastTrackWahl ? "Sofortbeginn ausdrücklich verlangt" : ft ? `Fast-Track gewählt (${kapitalCEur(kapitalCHeuteCents(d.parameter, true))}), Sofortbeginn ausdrücklich verlangt` : `OHNE Fast-Track (${kapitalCEur(kapitalCHeuteCents(d.parameter, false))}), Sofortbeginn ausdrücklich verlangt`}, Unterschrift ${unterschrift.art}`);
   void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
     .catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Annahme in der Aufruf-Aufgabe:`, e));
   await kapitalCFertigstellen(Number(z.id)).catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Fertigstellen:`, e));
@@ -645,7 +645,7 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
   const zeilen = [
     `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung ${staatRegisterIntern(par.bundesstaat)} prüfen.`,
     `LAUFZEIT: ${w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCLaufzeitSatz(par, w.laufzeitJahre) : "—"}.`,
-    `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par, ft))} Endpreis (${ft ? `Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)}` : `Gründung ${kapitalEur(par.gruendungCents)}, OHNE Fast-Track — Beginn erst nach der Widerrufsfrist`})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
+    `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par, ft))} Endpreis (${ft ? `Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)}` : `Gründung ${kapitalEur(par.gruendungCents)}, OHNE Fast-Track — Sofortbeginn verlangt, Gesellschaft, EIN und ITIN in drei bis fünf Wochen`})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
     best.ok
       ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): an ${d.kunde.email} abgeschickt (welcome@, Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF) — Zustellung noch offen: Das System prüft stündlich bei Brevo und meldet sich, wenn sie nicht ankommt.`
       : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Nicht zusätzlich von Hand schicken (beim Zahlungseingang versucht das System es sonst noch einmal, und der Kunde bekäme sie doppelt). Erst wenn auch das Nachholen scheitert, von Hand — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
@@ -1038,12 +1038,11 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
     : String(akte.auftrag_mail_fehler ?? "").startsWith(NICHT_ZUGESTELLT)
       ? { ok: false, grund: String(akte.auftrag_mail_fehler) }
       : await kapitalCVertragsbestaetigung(Number(z.id)).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
-  // E-474: ohne Fast-Track erst nach der Widerrufsfrist (vierzehn Tage ab der Annahme); mit datenVomKunden der Stand des Reisepasses.
+  // E-474/E-475: die Wahl zum Fast-Track (beide beginnen sofort, sie ändert das Tempo); mit datenVomKunden der Stand des Reisepasses.
   const ft = kapitalCMitFastTrack(d.parameter, w);
-  const widerrufBis = !ft && angenommen ? (() => { const x = new Date(`${angenommen}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 14); return x.toISOString().slice(0, 10); })() : null;
   const reisepassDa = d.parameter.datenVomKunden ? await kapitalCReisepassDa(ref1) : null;
   const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null },
-    ...(d.parameter.fastTrackWahl ? { fastTrack: ft, widerrufBis } : {}), ...(reisepassDa != null ? { reisepassDa } : {}) });
+    ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}), ...(reisepassDa != null ? { reisepassDa } : {}) });
   let aufgabeId: number | null = null;
   try {
     const erg = await auftragFuerKunden({

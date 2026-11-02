@@ -15,7 +15,8 @@
 // Unterschrift, sie bestätigt ihn. Nach der Annahme die ruhige Fertig-Ansicht KapitalCFertig (ohne Website-Menü, Glasblau).
 // E-474 (Justin 02.11.2026), genau in dieser Reihenfolge: (1) „Ihre Angaben für den Vertrag“ (datenVomKunden — Name vorbelegt und
 // korrigierbar, Geburtsdatum, Anschrift mit Vorschlägen beim Tippen über /api/fiaon/adresse, selbst eintippen geht immer; KEIN Ausweis),
-// (2) Fast-Track ja/nein als zwei Karten (fastTrackWahl, nichts vorgewählt), (3) Unterschrift, (4) ERST DANACH der Reisepass in der
+// (2) Fast-Track ja/nein als zwei Karten (fastTrackWahl, nichts vorgewählt; E-475: beide beginnen sofort, der Haken „sofort
+// beginnen“ gilt für beide), (3) Unterschrift, (4) ERST DANACH der Reisepass in der
 // Fertig-Ansicht (Upload über die Angebotsseite in die Akte). Ohne beide Parameter sieht die Seite aus wie bisher.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -553,8 +554,8 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   const [nameHier, setNameHier] = useState(false);
   const [sofort, setSofort] = useState(false);
   // E-474: die Wahl der zwei Karten — null = noch nicht gewählt (nichts vorgewählt: ein Aufpreis braucht die ausdrückliche Wahl).
+  // E-475: Der Haken „sofort beginnen“ gilt mit und ohne Fast-Track (wir beginnen in beiden Fällen mit dem Zahlungseingang).
   const [ft, setFt] = useState<boolean | null>(null);
-  const mitSofort = !F || ft === true;
   const [sig, setSig] = useState<UnterschriftStand>({ da: false, eingabe: null });
   const [falle, setFalle] = useState("");
   const [zeigeFehlt, setZeigeFehlt] = useState(false);
@@ -614,7 +615,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   if (wunschFehler) fehlt.push({ id: "gkc-annahme-namen", text: wunschFehler });
   else if (ausweichFehler && ausweichFeld) fehlt.push({ id: `gkc-oben-${ausweichFeld}`, text: ausweichFehler });
   if (F && ft === null) fehlt.push({ id: "gkc-ft", text: A.fehltFastTrack ?? "Bitte wählen Sie: mit oder ohne Fast-Track." });
-  if (mitSofort && !sofort) fehlt.push({ id: "gkc-sofort", text: "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
+  if (!sofort) fehlt.push({ id: "gkc-sofort", text: F ? "Bitte bestätigen Sie, dass wir sofort beginnen (vor Ablauf der Widerrufsfrist)." : "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
   if (!sig.da || !sig.eingabe) fehlt.push({ id: "gaf-unterschrift", text: A.unterschrift.fehlt });
   const zeig = (id: string) => zeigeFehlt && fehlt.some((f) => f.id === id);
 
@@ -633,7 +634,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
     setSendet(true); setFehler(""); setGeaendert(false); setServerFeld(null);
     const eingabe: KapitalCAnnahmeEingabe & { falle: string } = {
       // „gelesen“: Die Unterschrift bestätigt den Satz direkt darüber (kein eigener Haken mehr, Runde 2).
-      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahreIm, gelesen: true, sofortBeginn: mitSofort, unterschrift: sig.eingabe!, falle,
+      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahreIm, gelesen: true, sofortBeginn: true, unterschrift: sig.eingabe!, falle,
       ...(F ? { fastTrack: ft === true } : {}),
     };
     try {
@@ -870,7 +871,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
         <section className="gaf-abschnitt" id="vertrag" aria-label={S.vertrag.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.vertrag.titel} sub={S.vertrag.sub} />
-            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.leserKnopf, satz: A.leserSatz, onAnnehmen: () => springen(AG?.fehlen ? "gkc-angaben" : !nameGut ? "gkc-annahme-namen" : F && ft === null ? "gkc-ft" : mitSofort ? "gkc-sofort" : "gaf-unterschrift") }}
+            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.leserKnopf, satz: A.leserSatz, onAnnehmen: () => springen(AG?.fehlen ? "gkc-angaben" : !nameGut ? "gkc-annahme-namen" : F && ft === null ? "gkc-ft" : "gkc-sofort") }}
               pdfs={[{ titel: WORTE.vertragPdf, href: sicht.vertragPdf }]} oeffner={leserOeffnen} />
             <div className="gkc-recht">
               <div className="gkc-recht-block" id="widerruf">
@@ -969,13 +970,13 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
                 <dl>{uebersicht.map((z) => <div key={z.label}><dt>{z.label}</dt><dd>{z.wert}</dd></div>)}</dl>
               </div>
 
-              {mitSofort && <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
+              <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
                 <label className={`gaf-haken-zeile${sofort ? " an" : ""}`} id="gkc-sofort">
                   <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} required aria-invalid={(zeig("gkc-sofort") && !sofort) || undefined} aria-describedby="gkc-sofort-unter" />
                   <span className="gaf-haken-kasten" aria-hidden="true"><Zeichen art="haken" groesse={14} /></span>
                   <span><OhneTrennung text={A.sofort} /><small className="gkc-haken-unter" id="gkc-sofort-unter"><OhneTrennung text={A.sofortUnter} /></small></span>
                 </label>
-              </div>}
+              </div>
 
               {/* Kein Haken „gelesen“ (Runde 2): Die Unterschrift bestätigt den Satz direkt darunter — die drei Wörter führen zum Text. */}
               <UnterschriftFeld t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig}

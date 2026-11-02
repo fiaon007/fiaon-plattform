@@ -13,6 +13,10 @@
 // Vertrag und Server (kapitalCPlan). Hart im Client stehen nur Bedienbeschriftungen. CI Glasblau, kein Gold (.gak/.gkp/.gkc).
 // Runde 2 (27.10.2026): Laufzeit, Name, EIN Haken (Fast-Track) und die Unterschrift — der Satz „… gelesen“ steht über der
 // Unterschrift, sie bestätigt ihn. Nach der Annahme die ruhige Fertig-Ansicht KapitalCFertig (ohne Website-Menü, Glasblau).
+// E-474 (Justin 02.11.2026), genau in dieser Reihenfolge: (1) „Ihre Angaben für den Vertrag“ (datenVomKunden — Name vorbelegt und
+// korrigierbar, Geburtsdatum, Anschrift mit Vorschlägen beim Tippen über /api/fiaon/adresse, selbst eintippen geht immer; KEIN Ausweis),
+// (2) Fast-Track ja/nein als zwei Karten (fastTrackWahl, nichts vorgewählt), (3) Unterschrift, (4) ERST DANACH der Reisepass in der
+// Fertig-Ansicht (Upload über die Angebotsseite in die Akte). Ohne beide Parameter sieht die Seite aus wie bisher.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ANGEBOT_AUFRUF_HINWEIS } from "@shared/fiaon-global-angebot";
@@ -20,7 +24,7 @@ import { llcVollname, llcNameFehler, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } fr
 import { globalWiderrufsbelehrung } from "@shared/fiaon-global-widerruf";
 import {
   kapitalCPlan, kapitalCLaufzeiten, kapitalCEurCent, kapitalCUsd, kapitalCProzent, kapitalCLaufzeitZeile, kapitalCLetzteRateAnders,
-  KAPITAL_C_LAUFZEIT_LABEL, KAPITAL_C_NB,
+  KAPITAL_C_LAUFZEIT_LABEL, KAPITAL_C_NB, KAPITAL_C_REISEPASS,
   type KapitalCKundenSicht, type KapitalCAnnahmeEingabe, type KapitalCPaketKachel, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
 import Glueckwunsch from "@/components/angebot-firma/Glueckwunsch";
@@ -361,10 +365,183 @@ function PaketKachel({ k, offen, onKlick, mehr, weniger }: { k: KapitalCPaketKac
   );
 }
 
-export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, onNeuLaden }: {
+// ── E-474: Anschrift mit Vorschlägen beim Tippen (Photon/OpenStreetMap über unseren Server, /api/fiaon/adresse — wie /antrag-neu) ──
+// Die Adresse des Kunden geht nie direkt an einen fremden Dienst; ohne Vorschläge tippt der Kunde einfach weiter (PLZ/Ort stehen immer da).
+interface AdressVorschlag { strasse: string; plz: string; ort: string; land: "DE" | "AT" | "CH"; vollstaendig: boolean }
+type AngabenSicht = NonNullable<KapitalCKundenSicht["angaben"]>;
+type AngabenWerte = AngabenSicht["werte"];
+type AngabenFeld = keyof AngabenWerte;
+function AdressFeld({ wert, land, t, fehler, onTippen, onWahl }: {
+  wert: string; land: string; t: AngabenSicht["texte"]; fehler: string | null;
+  onTippen: (v: string) => void; onWahl: (v: { strasse: string; plz: string; ort: string; land: "DE" | "AT" | "CH" }) => void;
+}) {
+  const [liste, setListe] = useState<AdressVorschlag[]>([]);
+  const [offen, setOffen] = useState(false);
+  const [aktiv, setAktiv] = useState(-1);
+  const wrap = useRef<HTMLDivElement>(null);
+  const timer = useRef<number | null>(null);
+  const ab = useRef<AbortController | null>(null);
+  const letzte = useRef("");
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOffen(false); };
+    document.addEventListener("mousedown", h);
+    return () => { document.removeEventListener("mousedown", h); if (timer.current) window.clearTimeout(timer.current); ab.current?.abort(); };
+  }, []);
+  const suchen = (q: string) => {
+    if (timer.current) window.clearTimeout(timer.current);
+    const frage = q.trim();
+    if (frage.length < 3) { setListe([]); setOffen(false); return; }
+    timer.current = window.setTimeout(async () => {
+      ab.current?.abort(); const c = new AbortController(); ab.current = c; letzte.current = frage;
+      try {
+        const r = await fetch(`/api/fiaon/adresse?q=${encodeURIComponent(frage)}&land=${encodeURIComponent(land || "DE")}`, { signal: c.signal });
+        const j = await r.json().catch(() => null);
+        if (letzte.current !== frage) return;
+        const l: AdressVorschlag[] = Array.isArray(j?.vorschlaege) ? j.vorschlaege : [];
+        setListe(l); setOffen(l.length > 0); setAktiv(l.length ? 0 : -1);
+      } catch { /* abgebrochen oder offline — der Kunde tippt weiter */ }
+    }, 180);
+  };
+  const waehlen = (v: AdressVorschlag) => {
+    // Hat der Vorschlag keine Hausnummer, bleibt die getippte („Löwengasse 20“ → Vorschlag „Löwengasse“ → „Löwengasse 20“).
+    const getippt = wert.match(/\s(\d+\s?[a-zA-Z]?(?:[\/-]\d+)?)\s*$/);
+    onWahl({ strasse: v.vollstaendig ? v.strasse : getippt ? `${v.strasse} ${getippt[1].trim()}` : `${v.strasse} `, plz: v.plz, ort: v.ort, land: v.land });
+    setOffen(false); setListe([]);
+  };
+  const taste = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!offen || !liste.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setAktiv((a) => Math.min(a + 1, liste.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setAktiv((a) => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); if (aktiv >= 0) waehlen(liste[aktiv]); }
+    else if (e.key === "Escape") setOffen(false);
+  };
+  return (
+    <div className={`gkc-eingabe gkc-eingabe-breit gkc-adresse${fehler ? " fehlt" : ""}`} ref={wrap}>
+      <label className="gkc-eingabe-label" htmlFor="gkc-ang-strasse">{t.felder.strasse}</label>
+      <input id="gkc-ang-strasse" type="text" value={wert} placeholder={t.strassePlatz} autoComplete="street-address" maxLength={160}
+        role="combobox" aria-autocomplete="list" aria-expanded={offen} aria-controls="gkc-adresse-liste" aria-invalid={!!fehler || undefined}
+        aria-describedby={fehler ? "gkc-ang-strasse-f" : undefined}
+        onChange={(e) => { onTippen(e.target.value); suchen(e.target.value); }} onKeyDown={taste} onFocus={() => { if (liste.length) setOffen(true); }} />
+      {offen && liste.length > 0 && (
+        <ul className="gkc-adresse-liste" id="gkc-adresse-liste" role="listbox">
+          {liste.map((v, i) => (
+            <li key={`${v.strasse}|${v.plz}|${v.ort}`} role="option" aria-selected={i === aktiv} className={i === aktiv ? "aktiv" : ""}
+              onMouseEnter={() => setAktiv(i)} onMouseDown={(e) => { e.preventDefault(); waehlen(v); }}>
+              <b>{v.strasse}</b><span>{[v.plz, v.ort].filter(Boolean).join(" ")} · {t.laender.find((x) => x.wert === v.land)?.text ?? v.land}</span>
+            </li>
+          ))}
+          <li className="gkc-adresse-quelle" aria-hidden="true">{t.quelle}</li>
+        </ul>
+      )}
+      {fehler && <span className="gkc-eingabe-fehler" id="gkc-ang-strasse-f">{fehler}</span>}
+    </div>
+  );
+}
+
+/**
+ * E-474: „Ihre Angaben für den Vertrag“ — vor der Unterschrift, nur bei datenVomKunden. Speichern schickt die Angaben an den Server
+ * (Prüfung kapitalCAngabenPruefen); die Antwort ist die neue Kundensicht (Vertragstext und Fingerabdruck mit den Angaben). Danach eine
+ * ruhige Zusammenfassung mit „ändern“ — bis zur Annahme. Nie ein Ausweisfeld: der Reisepass kommt nach der Unterschrift.
+ */
+function Angaben({ a, gesperrt, onNeu }: { a: AngabenSicht; gesperrt: boolean; onNeu: (s: KapitalCKundenSicht) => void }) {
+  const T = a.texte;
+  const [bearbeiten, setBearbeiten] = useState(false);
+  const [w, setW] = useState<AngabenWerte>(() => ({ ...a.werte }));
+  const [feld, setFeld] = useState<{ feld: AngabenFeld; text: string } | null>(null);
+  const [sendet, setSendet] = useState(false);
+  const [fehler, setFehler] = useState("");
+  const [falle, setFalle] = useState("");
+  const [danke, setDanke] = useState(false);
+  const offen = a.fehlen || bearbeiten;
+  // Kommt eine neue Sicht (gespeichert oder neu geladen), stehen ihre Werte im Formular — außer der Kunde tippt gerade.
+  useEffect(() => { if (!bearbeiten) setW({ ...a.werte }); }, [a.werte, bearbeiten]);
+  const setze = (teil: Partial<AngabenWerte>) => { setW((x) => ({ ...x, ...teil })); setFeld(null); setDanke(false); };
+  const speichern = async () => {
+    if (sendet || gesperrt) return;
+    setSendet(true); setFehler(""); setFeld(null);
+    try {
+      const r = await fetch(a.speichern, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...w, falle }) });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.ok) { setBearbeiten(false); setDanke(true); onNeu(j as KapitalCKundenSicht); return; }
+      if (j?.feld) {
+        setFeld({ feld: j.feld as AngabenFeld, text: String(j.error || T.fehler) });
+        window.setTimeout(() => document.getElementById(`gkc-ang-${j.feld}`)?.focus(), 30);
+        return;
+      }
+      setFehler(j?.error || T.fehler);
+    } catch { setFehler(T.fehler); } finally { setSendet(false); }
+  };
+  // Ein Eingabefeld — als Funktion, nicht als Komponente (sonst verlöre das Feld bei jedem Tastendruck den Fokus).
+  const eingabe = (k: AngabenFeld, opt: { frei?: boolean; typ?: string; auto?: string; platz?: string; liste?: string; breit?: boolean; modus?: "numeric" | "text" } = {}) => {
+    const f = feld?.feld === k ? feld.text : null;
+    return (
+      <div className={`gkc-eingabe${opt.breit ? " gkc-eingabe-breit" : ""}${f ? " fehlt" : ""}`}>
+        <label className="gkc-eingabe-label" htmlFor={`gkc-ang-${k}`}>{T.felder[k]}{opt.frei && <small> · {T.freiwillig}</small>}</label>
+        <input id={`gkc-ang-${k}`} type={opt.typ ?? "text"} value={w[k]} placeholder={opt.platz} autoComplete={opt.auto} list={opt.liste} inputMode={opt.modus}
+          maxLength={k === "plz" ? 5 : 120} aria-invalid={!!f || undefined} aria-describedby={f ? `gkc-ang-${k}-f` : undefined}
+          onChange={(e) => setze({ [k]: e.target.value } as Partial<AngabenWerte>)} />
+        {f && <span className="gkc-eingabe-fehler" id={`gkc-ang-${k}-f`}>{f}</span>}
+      </div>
+    );
+  };
+  const landName = T.laender.find((x) => x.wert === a.werte.land)?.text ?? a.werte.land;
+  return (
+    <div className={`gkc-angaben${offen ? "" : " fertig"}`} data-fiaon="kapital-c-angaben">
+      {offen ? (
+        <>
+          <div className="gkc-angaben-raster">
+            {eingabe("vorname", { auto: "given-name" })}
+            {eingabe("nachname", { auto: "family-name" })}
+            {eingabe("geburtsdatum", { typ: "date", auto: "bday" })}
+            {eingabe("geburtsort", { frei: true })}
+            {eingabe("staatsangehoerigkeit", { frei: true, platz: T.staatPlatz, liste: "gkc-staaten" })}
+            <datalist id="gkc-staaten">{T.staatVorschlaege.map((x) => <option key={x} value={x} />)}</datalist>
+            <div className={`gkc-eingabe${feld?.feld === "land" ? " fehlt" : ""}`}>
+              <label className="gkc-eingabe-label" htmlFor="gkc-ang-land">{T.felder.land}</label>
+              <select id="gkc-ang-land" value={w.land} onChange={(e) => setze({ land: e.target.value as AngabenWerte["land"] })} autoComplete="country">
+                {T.laender.map((x) => <option key={x.wert} value={x.wert}>{x.text}</option>)}
+              </select>
+              {feld?.feld === "land" && <span className="gkc-eingabe-fehler">{feld.text}</span>}
+            </div>
+            <AdressFeld wert={w.strasse} land={w.land} t={T} fehler={feld?.feld === "strasse" ? feld.text : null}
+              onTippen={(v) => setze({ strasse: v })} onWahl={(v) => setze({ strasse: v.strasse, plz: v.plz, ort: v.ort, land: v.land })} />
+            {eingabe("plz", { auto: "postal-code", modus: "numeric" })}
+            {eingabe("ort", { auto: "address-level2" })}
+          </div>
+          <input className="gaf-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} name="firma_webseite" />
+          <p className="gkc-angaben-schutz">{T.datenschutz} <a href="/datenschutz" target="_blank" rel="noreferrer">{T.datenschutzLink}</a></p>
+          {fehler && <div className="gaf-fehler" role="alert"><p>{fehler}</p></div>}
+          <div className="gkc-angaben-knoepfe">
+            <button type="button" className="gkp-knopf" onClick={speichern} disabled={gesperrt} aria-busy={sendet || undefined} data-fiaon="kapital-c-angaben-speichern">
+              {sendet ? T.sendet : T.knopf}{!sendet && <Zeichen art="pfeil" groesse={16} />}
+            </button>
+            {bearbeiten && !a.fehlen && <button type="button" className="gkc-link" onClick={() => { setBearbeiten(false); setW({ ...a.werte }); setFeld(null); }}>{T.abbrechen}</button>}
+          </div>
+        </>
+      ) : (
+        <div className="gkc-angaben-kurz">
+          <p className="gkc-auge-klein">{T.fertig}</p>
+          <p className="gkc-angaben-zeile"><b>{a.werte.vorname} {a.werte.nachname}</b> · {T.geboren} {tagDe(a.werte.geburtsdatum)}{a.werte.geburtsort ? ` ${T.in} ${a.werte.geburtsort}` : ""}</p>
+          <p className="gkc-angaben-zeile">{a.werte.strasse}, {a.werte.plz}{KAPITAL_C_NB}{a.werte.ort}, {landName}</p>
+          {danke && <p className="gkc-angaben-danke" role="status"><Zeichen art="haken" groesse={14} />{T.gespeichert}</p>}
+          {!gesperrt && <button type="button" className="gkc-link" onClick={() => { setBearbeiten(true); setDanke(false); }}>{T.aendern}</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, onAngenommen, onNeuLaden }: {
   sicht: KapitalCKundenSicht; token: string; onAngenommen: (antwort: unknown) => void; onNeuLaden: () => void;
 }) {
+  // E-474: Nach „Angaben übernehmen“ kommt die neue Sicht direkt aus der Antwort (Vertrag und Fingerabdruck mit den Angaben) —
+  // lädt die Seite neu, gilt wieder die vom Server.
+  const [sichtNeu, setSichtNeu] = useState<KapitalCKundenSicht | null>(null);
+  useEffect(() => { setSichtNeu(null); }, [sichtVomServer]);
+  const sicht = sichtNeu ?? sichtVomServer;
   const S = sicht.seite, A = sicht.annahme, T = S.llc, H = S.hero, I = S.investition;
+  const F = S.fastTrack ?? null;
+  const AG = sicht.angaben ?? null;
   const k = sicht.konditionen;
   // Ihr Team (wie Fassung A/B) — eine ältere Antwort ohne Team zeigt schlicht keinen Abschnitt.
   const team = S.ansprechpartner.team ?? [];
@@ -375,6 +552,9 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const [beruehrt, setBeruehrt] = useState<Partial<Record<NamenFeld, boolean>>>({});
   const [nameHier, setNameHier] = useState(false);
   const [sofort, setSofort] = useState(false);
+  // E-474: die Wahl der zwei Karten — null = noch nicht gewählt (nichts vorgewählt: ein Aufpreis braucht die ausdrückliche Wahl).
+  const [ft, setFt] = useState<boolean | null>(null);
+  const mitSofort = !F || ft === true;
   const [sig, setSig] = useState<UnterschriftStand>({ da: false, eingabe: null });
   const [falle, setFalle] = useState("");
   const [zeigeFehlt, setZeigeFehlt] = useState(false);
@@ -433,11 +613,14 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
   const fehlt: { id: string; text: string }[] = [];
   if (wunschFehler) fehlt.push({ id: "gkc-annahme-namen", text: wunschFehler });
   else if (ausweichFehler && ausweichFeld) fehlt.push({ id: `gkc-oben-${ausweichFeld}`, text: ausweichFehler });
-  if (!sofort) fehlt.push({ id: "gkc-sofort", text: "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
+  if (F && ft === null) fehlt.push({ id: "gkc-ft", text: A.fehltFastTrack ?? "Bitte wählen Sie: mit oder ohne Fast-Track." });
+  if (mitSofort && !sofort) fehlt.push({ id: "gkc-sofort", text: "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
   if (!sig.da || !sig.eingabe) fehlt.push({ id: "gaf-unterschrift", text: A.unterschrift.fehlt });
   const zeig = (id: string) => zeigeFehlt && fehlt.some((f) => f.id === id);
 
-  const uebersicht = sicht.uebersicht.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(k, jahreIm) } : z));
+  // E-474: Mit der Wahl zum Fast-Track zeigt die Übersicht genau deren Beträge (vom Server, beide Fassungen schon in der Sicht).
+  const uebersichtBasis = F && ft !== null && sicht.uebersichtJe ? sicht.uebersichtJe[ft ? "mit" : "ohne"] : sicht.uebersicht;
+  const uebersicht = uebersichtBasis.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(k, jahreIm) } : z));
   const zumText = {
     vertrag: () => leserOeffnen.current?.(null),
     informationen: () => { setInfoAuf(true); window.setTimeout(() => springen("informationen", false), 30); },
@@ -450,7 +633,8 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
     setSendet(true); setFehler(""); setGeaendert(false); setServerFeld(null);
     const eingabe: KapitalCAnnahmeEingabe & { falle: string } = {
       // „gelesen“: Die Unterschrift bestätigt den Satz direkt darüber (kein eigener Haken mehr, Runde 2).
-      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahreIm, gelesen: true, sofortBeginn: true, unterschrift: sig.eingabe!, falle,
+      textHash: sicht.textHash, llc: wahl, laufzeitJahre: jahreIm, gelesen: true, sofortBeginn: mitSofort, unterschrift: sig.eingabe!, falle,
+      ...(F ? { fastTrack: ft === true } : {}),
     };
     try {
       const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, {
@@ -466,6 +650,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
       }
       if (j?.code === "LAUFZEIT") springen("gkc-rechner", false);
       if (j?.code === "UNTERSCHRIFT") setZeigeFehlt(true);
+      if (j?.code === "FASTTRACK") { setZeigeFehlt(true); springen("gkc-ft"); }
     } catch {
       setFehler(WORTE.netz);
     } finally { setSendet(false); }
@@ -685,7 +870,7 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
         <section className="gaf-abschnitt" id="vertrag" aria-label={S.vertrag.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.vertrag.titel} sub={S.vertrag.sub} />
-            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.leserKnopf, satz: A.leserSatz, onAnnehmen: () => springen(nameGut ? "gkc-sofort" : "gkc-annahme-namen") }}
+            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.leserKnopf, satz: A.leserSatz, onAnnehmen: () => springen(AG?.fehlen ? "gkc-angaben" : !nameGut ? "gkc-annahme-namen" : F && ft === null ? "gkc-ft" : mitSofort ? "gkc-sofort" : "gaf-unterschrift") }}
               pdfs={[{ titel: WORTE.vertragPdf, href: sicht.vertragPdf }]} oeffner={leserOeffnen} />
             <div className="gkc-recht">
               <div className="gkc-recht-block" id="widerruf">
@@ -712,6 +897,16 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
             </div>
           </div>
         </section>
+
+        {/* 10b — E-474: Ihre Angaben für den Vertrag (vor der Unterschrift, nur mit datenVomKunden) */}
+        {AG && (
+          <section className="gaf-abschnitt gkc-abschnitt-angaben" id="gkc-angaben" aria-label={AG.texte.titel}>
+            <div className="gaf-rahmen gaf-rahmen-schmal">
+              <Kopf auge={AG.texte.auge} titel={AG.texte.titel} sub={AG.texte.sub} />
+              <Angaben a={AG} gesperrt={!!sicht.vorschauLeitung} onNeu={setSichtNeu} />
+            </div>
+          </section>
+        )}
 
         {/* 11 — Auftrag erteilen */}
         <section className="gaf-abschnitt gaf-abschnitt-annahme" id="annahme" aria-label={A.titel}>
@@ -744,18 +939,43 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                 )}
               </div>
 
+              {/* E-474: Fast-Track ja/nein — zwei Karten wie der Laufzeit-Rechner, die Summe folgt der Wahl. */}
+              {F && (
+                <div className={`gaf-annahme-feld gkc-ft-feld${zeig("gkc-ft") ? " fehlt" : ""}`} id="gkc-ft">
+                  <h3 className="gaf-h3">{F.titel}</h3>
+                  <p className="gkc-ft-sub">{F.sub}</p>
+                  <div className="gkc-ft" role="radiogroup" aria-label={F.titel}>
+                    {F.karten.map((c) => {
+                      const an = ft !== null && ft === (c.schluessel === "mit");
+                      return (
+                        <button key={c.schluessel} type="button" role="radio" aria-checked={an} className={`gkc-ft-karte${an ? " an" : ""}`} data-fiaon={`kapital-c-ft-${c.schluessel}`}
+                          onClick={() => setFt(c.schluessel === "mit")}
+                          onKeyDown={(e) => { if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) { e.preventDefault(); setFt(c.schluessel !== "mit"); } }}>
+                          <span className="gkc-ft-kopf"><span className="gkc-ft-titel"><OhneTrennung text={c.titel} /></span><span className="gkc-ft-punkt" aria-hidden="true" /></span>
+                          <span className="gkc-ft-betrag">{c.betrag}</span>
+                          <span className="gkc-ft-zeile">{c.zeile}</span>
+                          <span className="gkc-ft-punkte">{c.punkte.map((x) => <span key={x}><Teile text={x} /></span>)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="gkc-ft-summe" aria-live="polite">{F.summeLabel}: <b className="gkc-nb">{ft === null ? `${F.karten[0].betrag} / ${F.karten[1].betrag}` : ft ? F.karten[1].betrag : F.karten[0].betrag}</b></p>
+                  <p className="gaf-fein"><OhneTrennung text={F.garantie} /></p>
+                </div>
+              )}
+
               <div className="gaf-uebersicht">
                 <h3 className="gaf-h3">{sicht.uebersicht.titel}</h3>
                 <dl>{uebersicht.map((z) => <div key={z.label}><dt>{z.label}</dt><dd>{z.wert}</dd></div>)}</dl>
               </div>
 
-              <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
+              {mitSofort && <div className={`gaf-annahme-feld gaf-haken gkc-haken${zeig("gkc-sofort") ? " fehlt" : ""}`} role="group">
                 <label className={`gaf-haken-zeile${sofort ? " an" : ""}`} id="gkc-sofort">
                   <input type="checkbox" checked={sofort} onChange={(e) => setSofort(e.target.checked)} required aria-invalid={(zeig("gkc-sofort") && !sofort) || undefined} aria-describedby="gkc-sofort-unter" />
                   <span className="gaf-haken-kasten" aria-hidden="true"><Zeichen art="haken" groesse={14} /></span>
                   <span><OhneTrennung text={A.sofort} /><small className="gkc-haken-unter" id="gkc-sofort-unter"><OhneTrennung text={A.sofortUnter} /></small></span>
                 </label>
-              </div>
+              </div>}
 
               {/* Kein Haken „gelesen“ (Runde 2): Die Unterschrift bestätigt den Satz direkt darunter — die drei Wörter führen zum Text. */}
               <UnterschriftFeld t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig}
@@ -779,12 +999,13 @@ export default function BusinessAngebotKapitalC({ sicht, token, onAngenommen, on
                       <ul>{fehlt.map((f) => <li key={f.id}><a href={`#${f.id}`} onClick={(e) => { e.preventDefault(); springen(f.id); }}>{f.text}</a></li>)}</ul>
                     </div>
                   )}
-                  <p className="gaf-unterknopf">{A.unterKnopf}</p>
+                  <p className="gaf-unterknopf">{F && ft === false && A.unterKnopfOhne ? A.unterKnopfOhne : A.unterKnopf}</p>
                 </div>
               ) : (
                 <div className="gaf-knopf-block">
                   <button type="button" className="gaf-knopf-annehmen" disabled aria-describedby="gkc-gesperrt">{A.knopf}</button>
                   <p className="gaf-gesperrt" id="gkc-gesperrt">{sicht.vorschauLeitung ? WORTE.vorschauKnopf : (sicht.gesperrtGrund || A.gesperrt)}</p>
+                  {AG?.fehlen && !sicht.vorschauLeitung && <button type="button" className="gkc-link gkc-link-links" onClick={() => springen("gkc-angaben", false)}>{AG.texte.titel}</button>}
                 </div>
               )}
             </div>
@@ -821,7 +1042,45 @@ export interface KapitalCFertigDaten {
   privat: {
     auge: string; zweck: string | null; knopf: string; meinAuftragKnopf: string; dateien: { vertrag: string; rechnung: string };
     ansprechTitel: string; ansprechpartner: KapitalCKundenSicht["ansprechpartner"]; marke: string;
+    /** E-474: datenVomKunden — der Reisepass direkt nach der Annahme (über die Angebotsseite in die Akte); sonst null. */
+    reisepass?: { texte: typeof KAPITAL_C_REISEPASS; hochladen: string; da: boolean } | null;
   };
+}
+/** E-474: Reisepass hochladen — eine Datei je Klick (PDF/JPG/PNG, 15 MB), danach „angekommen“ und „weitere Seite“. */
+function ReisepassHochladen({ r }: { r: NonNullable<KapitalCFertigDaten["privat"]["reisepass"]> }) {
+  const T = r.texte;
+  const [da, setDa] = useState(r.da);
+  const [sendet, setSendet] = useState(false);
+  const [fehler, setFehler] = useState("");
+  const feld = useRef<HTMLInputElement>(null);
+  const senden = async (f: File | undefined) => {
+    if (!f || sendet) return;
+    setFehler("");
+    if (f.size > 15 * 1024 * 1024) { setFehler(T.zuGross); return; }
+    if (f.type && !["application/pdf", "image/jpeg", "image/png"].includes(f.type)) { setFehler(T.falscherTyp); return; }
+    setSendet(true);
+    try {
+      const fd = new FormData(); fd.append("datei", f);
+      const antwort = await fetch(r.hochladen, { method: "POST", credentials: "include", body: fd });
+      const j = await antwort.json().catch(() => null);
+      if (antwort.ok && j?.ok) setDa(true); else setFehler(j?.error || T.falscherTyp);
+    } catch { setFehler("Die Verbindung war kurz weg — bitte versuchen Sie es noch einmal."); }
+    finally { setSendet(false); if (feld.current) feld.current.value = ""; }
+  };
+  return (
+    <div className={`gkc-pass${da ? " da" : ""}`} data-fiaon="kapital-c-reisepass">
+      <p className="gaf-auge">{T.auge}</p>
+      <h2 className="gkc-pass-titel">{T.titel}</h2>
+      {da ? <p className="gkc-pass-da" role="status"><Zeichen art="haken" groesse={14} />{T.fertig}</p> : <p className="gkc-pass-text">{T.text}</p>}
+      <input ref={feld} id="gkc-pass-datei" type="file" accept="application/pdf,image/jpeg,image/png" className="gaf-nur-leser" tabIndex={-1} aria-hidden="true"
+        onChange={(e) => { void senden(e.target.files?.[0]); }} />
+      <button type="button" className={da ? "gkp-knopf-leise gkc-fertig-leise" : "gkp-knopf"} onClick={() => feld.current?.click()} aria-busy={sendet || undefined} disabled={sendet}>
+        {sendet ? T.sendet : da ? T.weitere : T.knopf}{!sendet && !da && <Zeichen art="pfeil" groesse={16} />}
+      </button>
+      <p className="gkc-pass-fein">{T.erlaubt}{da ? "" : ` ${T.spaeter}`}</p>
+      {fehler && <div className="gaf-fehler" role="alert"><p>{fehler}</p></div>}
+    </div>
+  );
 }
 const FERTIG_WORTE = { angebot: "Angebot", gesellschaft: "Ihre Gesellschaft", dateien: "Ihre Unterlagen", impressum: "Impressum", datenschutz: "Datenschutzerklärung" };
 export function KapitalCFertig({ f }: { f: KapitalCFertigDaten }) {
@@ -845,6 +1104,7 @@ export function KapitalCFertig({ f }: { f: KapitalCFertigDaten }) {
               <h1 className="gaf-h2 gkc-fertig-titel">{f.fertigTitel}</h1>
               <p className="gaf-sub">{f.fertigText}</p>
             </div>
+            {P.reisepass && <ReisepassHochladen r={P.reisepass} />}
             <div className="gkc-fertig-karte">
               <dl className="gkc-fertig-daten">
                 <div><dt>{FERTIG_WORTE.angebot}</dt><dd>{f.ref}</dd></div>

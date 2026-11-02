@@ -415,3 +415,78 @@
   .gkc-fertig-karte { padding:24px 20px 20px; border-radius:20px; }
   .gkc-fertig-knoepfe a { width:100%; }
 }
+
+/* ═══ E-474 (Justin 02.11.2026): „Ihre Angaben für den Vertrag“, Fast-Track ja/nein, Reisepass nach der Annahme ═══════════
+   Derselbe Glasblau-Look wie die Annahme: weiße Karten, Haarlinien, Fokus im Blau, Fehler ruhig (ein Rotton nur bei „falsch“).
+   Am Handy (360–430 px) eine Spalte, Felder mindestens 48 px hoch, Schrift 16 px (kein Zoom beim Tippen auf iOS). */
+.gkc-angaben { margin-top:6px; padding:26px 28px 22px; border-radius:22px; background:linear-gradient(170deg, #ffffff, #f5f9ff); border:1px solid rgba(40,141,250,.2);
+  box-shadow:0 24px 60px -44px rgba(29,78,216,.45); }
+.gkc-angaben.fertig { padding:20px 24px 16px; }
+.gkc-angaben-raster { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 18px; }
+.gkc-eingabe { position:relative; display:grid; gap:6px; align-content:start; min-width:0; }
+.gkc-eingabe-breit { grid-column:1 / -1; }
+.gkc-eingabe-label { font-size:13px; color:var(--text); font-weight:400; }
+.gkc-eingabe-label small { font-size:12px; color:var(--leise); }
+.gkc-eingabe input, .gkc-eingabe select { width:100%; min-width:0; min-height:48px; padding:11px 14px; border:1px solid var(--linie-2); border-radius:12px; background:#fff;
+  font:inherit; font-size:16px; color:var(--tinte); outline:0; transition:border-color .25s, box-shadow .25s; -webkit-appearance:none; appearance:none; }
+.gkc-eingabe select { background-image:linear-gradient(45deg, transparent 50%, #5b6576 50%), linear-gradient(135deg, #5b6576 50%, transparent 50%);
+  background-position:calc(100% - 20px) 21px, calc(100% - 15px) 21px; background-size:5px 5px; background-repeat:no-repeat; padding-right:38px; }
+.gkc-eingabe input:focus, .gkc-eingabe select:focus { border-color:#1d4ed8; box-shadow:0 0 0 4px rgba(40,141,250,.14); }
+.gkc-eingabe input::placeholder { color:#8a93a3; }
+.gkc-eingabe.fehlt input, .gkc-eingabe.fehlt select { border-color:#b42318; box-shadow:0 0 0 4px rgba(180,35,24,.08); }
+.gkc-eingabe-fehler { font-size:12.5px; line-height:1.5; color:#b42318; }
+.gkc-adresse-liste { position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); margin:0; padding:6px; list-style:none; border-radius:14px; background:#fff;
+  border:1px solid rgba(40,141,250,.22); box-shadow:0 22px 50px -24px rgba(12,26,46,.35); max-height:320px; overflow:auto; }
+.gkc-adresse-liste li { display:grid; gap:2px; padding:10px 12px; border-radius:10px; cursor:pointer; font-size:14.5px; color:var(--tinte); }
+.gkc-adresse-liste li b { font-weight:500; }
+.gkc-adresse-liste li span { font-size:13px; color:var(--leise); }
+.gkc-adresse-liste li.aktiv { background:#f2f8ff; }
+.gkc-adresse-liste li.gkc-adresse-quelle { cursor:default; font-size:11.5px; color:var(--leise); padding-top:8px; }
+.gkc-angaben-schutz { margin-top:16px; font-size:13px; line-height:1.55; color:var(--leise); }
+.gkc-angaben-schutz a { color:#1d4ed8; text-underline-offset:3px; }
+.gkc-angaben-knoepfe { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin-top:16px; }
+.gkc-angaben-knoepfe .gkc-link { margin-left:0; }
+.gkc-auge-klein { font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--gold-tief); }
+.gkc-angaben-kurz { position:relative; }
+.gkc-angaben-zeile { margin-top:6px; font-size:15.5px; line-height:1.5; color:var(--tinte); }
+.gkc-angaben-zeile b { font-weight:400; }
+.gkc-angaben-kurz .gkc-link { position:absolute; right:0; top:-10px; }
+.gkc-angaben-danke { display:flex; align-items:center; gap:8px; margin-top:10px; font-size:14px; color:#1d4ed8; }
+.gkc-link-links { margin:8px auto 0; }
+@media (max-width:560px) {
+  .gkc-angaben { padding:20px 16px 18px; border-radius:18px; }
+  .gkc-angaben-raster { grid-template-columns:1fr; gap:14px; }
+  .gkc-angaben-kurz .gkc-link { position:static; margin-top:4px; }
+  .gkc-angaben-knoepfe .gkp-knopf { width:100%; justify-content:center; }
+}
+
+/* ── Fast-Track ja/nein: zwei Karten — nichts vorgewählt, die gewählte im Blau-Verlauf-Rand ── */
+.gkc-ft-sub { margin-top:4px; font-size:14.5px; color:var(--leise); }
+.gkc-ft { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+.gkc-ft-karte { position:relative; display:grid; align-content:start; gap:6px; padding:18px 18px 16px; border-radius:18px; border:1px solid var(--linie-2); background:#fff;
+  text-align:left; font:inherit; color:inherit; cursor:pointer; transition:border-color .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease); }
+.gkc-ft-karte:focus-visible { outline:2px solid #1d4ed8; outline-offset:2px; }
+.gkc-ft-kopf { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.gkc-ft-titel { font-size:15px; font-weight:500; color:var(--tinte); }
+.gkc-ft-punkt { flex:0 0 auto; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--linie-2); background:#fff; transition:all .25s var(--ease); }
+.gkc-ft-betrag { font-family:var(--serif); font-weight:300; font-size:28px; line-height:1.1; letter-spacing:-.01em; color:var(--tinte); white-space:nowrap; }
+.gkc-ft-zeile { font-size:13.5px; line-height:1.5; color:var(--text); }
+.gkc-ft-punkte { display:grid; gap:3px; margin-top:4px; padding-top:8px; border-top:1px solid var(--linie); font-size:13px; line-height:1.45; color:var(--leise); }
+.gkc-ft-karte.an { border-color:#1d4ed8; background:linear-gradient(170deg, #ffffff, #f2f8ff); box-shadow:0 18px 40px -26px rgba(29,78,216,.6), inset 0 0 0 1px #1d4ed8; }
+.gkc-ft-karte.an .gkc-ft-punkt { border-color:#1d4ed8; background:radial-gradient(circle, #fff 0 3px, #1d4ed8 4px); }
+@media (hover:hover) { .gkc-ft-karte:hover { border-color:#288dfa; } }
+.gkc-ft-summe { margin-top:14px; font-size:15px; color:var(--tinte); }
+.gkc-ft-summe b { font-family:var(--serif); font-weight:300; font-size:22px; margin-left:4px; }
+.gkc .gkc-ft-feld.fehlt .gkc-ft-karte:not(.an) { box-shadow:inset 3px 0 0 #288dfa; }
+@media (max-width:560px) { .gkc-ft { grid-template-columns:1fr; } .gkc-ft-betrag { font-size:26px; } }
+@media (prefers-reduced-motion:reduce) { .gkc-ft-karte, .gkc-ft-punkt, .gkc-eingabe input, .gkc-eingabe select { transition:none; } }
+
+/* ── Nach der Annahme: der Reisepass (datenVomKunden) — eine ruhige Karte über der Fertig-Karte ── */
+.gkc-pass { margin-top:8px; margin-bottom:18px; padding:26px 28px 22px; border-radius:24px; background:#fff; border:1px solid rgba(40,141,250,.3);
+  box-shadow:0 24px 60px -40px rgba(29,78,216,.55); }
+.gkc-pass.da { border-color:rgba(40,141,250,.18); box-shadow:none; }
+.gkc-pass-titel { margin-top:4px; font-family:var(--serif); font-weight:300; font-size:26px; line-height:1.2; color:var(--tinte); }
+.gkc-pass-text { margin:8px 0 16px; font-size:15px; line-height:1.6; color:var(--text); max-width:52ch; }
+.gkc-pass-da { display:flex; align-items:center; gap:8px; margin:8px 0 16px; font-size:15px; color:#1d4ed8; }
+.gkc-pass-fein { margin-top:10px; font-size:13px; color:var(--leise); }
+@media (max-width:560px) { .gkc-pass { padding:22px 18px 18px; border-radius:20px; } .gkc-pass .gkp-knopf, .gkc-pass .gkp-knopf-leise { width:100%; justify-content:center; } }

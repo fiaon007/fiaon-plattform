@@ -920,11 +920,13 @@ export function kapitalStartAufgabe(ein: {
   };
 }
 /** Die Zeile auf der Rechnung nach Fassung — Fassung C (E-432) hat eigene Teile (Gründung + Fast-Track, Erfolgshonorar). */
-export function kapitalRechnungsTextNachFassung(z: { angebotRef: string; nr: number; auftragRef: string; ereignisAm?: string | null; fassung?: string | null }): { beschreibung: string; zeitraum: string } {
+export function kapitalRechnungsTextNachFassung(z: { angebotRef: string; nr: number; auftragRef: string; ereignisAm?: string | null; fassung?: string | null; teilTitel?: string | null }): { beschreibung: string; zeitraum: string } {
   if (istKapitalCFassung(z.fassung)) {
     const am = z.ereignisAm ? ` am ${kapitalTag(z.ereignisAm)}` : "";
     if (z.nr === 2) return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: Erfolgshonorar einschließlich Bürgschaft (Ziffer 6 Absatz 2) — Gesellschaft eingetragen${am} (Auftrag ${z.auftragRef})`, zeitraum: "einmalig" };
-    return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: US-Gesellschaft, Konto und Karten im ersten Jahr sowie Fast-Track (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
+    // E-474: Hat der Kunde den Fast-Track abgewählt (fastTrackWahl), trägt Teil 1 den Titel ohne „Fast-Track“ — dann auch die Rechnung.
+    const ohneFastTrack = z.teilTitel != null && !/Fast-Track/.test(String(z.teilTitel));
+    return { beschreibung: `FIAON Global, Angebot ${z.angebotRef}: US-Gesellschaft, Konto und Karten im ersten Jahr${ohneFastTrack ? "" : " sowie Fast-Track"} (Ziffer 6 Absatz 1), Auftrag ${z.auftragRef}`, zeitraum: "einmalig" };
   }
   return kapitalRechnungsText(z);
 }

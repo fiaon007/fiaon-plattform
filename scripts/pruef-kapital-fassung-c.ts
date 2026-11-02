@@ -23,7 +23,18 @@
 //     und vor allem: Vertrag, Prüfsumme und der Fingerabdruck für den Browser sind mit und ohne Team GLEICH (eine offene Seite muss
 //     nicht neu laden) — auch über die echte Kundensicht des Servers (kapitalCKundenSicht, ohne Datenbank)
 //
+//   10 E-474 (Justin 02.11.2026) — Angaben vom Kunden (datenVomKunden) und Fast-Track nach Wahl (fastTrackWahl), ohne Datenbank:
+//      Bestand byte-gleich (Prüfsumme über Vertrag, Seite, Übersicht, Annahme, Bestätigung, Aufgaben gegen die Grundlinie aus
+//      origin/main vor E-474), Anlage ohne Ausweis nur mit Parameter, Unterschrift gesperrt bis die Angaben da sind, ungültige Angaben
+//      abgewiesen (mit Feld), Vertrag ohne „ausgewiesen durch“ mit Reisepass-Satz, beide Wahlen (Betrag, Vertrag, Vermerk,
+//      Bestätigung, Aufgabe, „Mein Auftrag“, Rechnungstext), Annahme-Prüfungen des Servers, falscher Token 403, Wortwand der neuen Texte
+//   11 nur mit --lokal: derselbe Weg ECHT gegen eine Prüfstand-Kopie (127.0.0.1) und den lokalen Server (PRUEF_BASIS, gleiches
+//      SESSION_SECRET): Anlage, Angaben über die Route, Annahme ohne und mit Fast-Track (Teil 1, Rechnungstext, Akte), danach keine
+//      Änderung mehr, zweiter Skriptlauf überschreibt die Angaben nicht, Reisepass-Upload über die Route in die Akte
+//
 //   npx tsx scripts/pruef-kapital-fassung-c.ts
+//   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<kopie>?sslmode=require' SESSION_SECRET=<wie der Server> \
+//     PRUEF_BASIS=http://127.0.0.1:5474 PORT=5474 npx tsx scripts/pruef-kapital-fassung-c.ts --lokal
 //   … --privat <angebot.json>   prüft zusätzlich, dass KEIN Wert des echten Kunden und kein Name aus seinem Team in den Code-Dateien
 //                               steht (Repo öffentlich)
 //   … --mail <Mail.txt>         prüft den Mailtext (Wortwand, kein Bankname, {{LINK}} vorhanden, Kosten und Rate genannt)
@@ -32,8 +43,20 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
 for (const k of ["BREVO_API_KEY", "MAKE_WEBHOOK_URL", "OPENAI_API_KEY"]) if (process.env[k]) { console.error(`ABBRUCH: ${k} ist gesetzt.`); process.exit(3); }
-process.env.DATABASE_URL = "postgres://pruefstand:ohne@127.0.0.1:1/keine-datenbank";
-globalThis.fetch = (async () => { throw new Error("Prüfstand: kein Netz"); }) as typeof fetch;
+// E-474: --lokal fährt Abschnitt 11 gegen eine Prüfstand-Kopie auf 127.0.0.1 — nie gegen eine fremde Datenbank, Netz nur zu 127.0.0.1.
+const LOKAL = process.argv.includes("--lokal");
+if (LOKAL) {
+  let host = ""; try { host = new URL(String(process.env.DATABASE_URL)).hostname; } catch { /* unten */ }
+  if (!["127.0.0.1", "localhost"].includes(host)) { console.error("ABBRUCH: --lokal läuft nur gegen eine Datenbank auf 127.0.0.1/localhost."); process.exit(2); }
+  const echt = globalThis.fetch;
+  globalThis.fetch = (async (u: any, i?: any) => {
+    if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(String(u?.url ?? u))) throw new Error("Prüfstand: Netz nur zu 127.0.0.1");
+    return echt(u, i);
+  }) as typeof fetch;
+} else {
+  process.env.DATABASE_URL = "postgres://pruefstand:ohne@127.0.0.1:1/keine-datenbank";
+  globalThis.fetch = (async () => { throw new Error("Prüfstand: kein Netz"); }) as typeof fetch;
+}
 const arg = (n: string): string | null => { const i = process.argv.indexOf(n); return i > 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : null; };
 
 const WURZEL = path.resolve(import.meta.dirname ?? ".", "..");
@@ -576,6 +599,265 @@ abschnitt("7c Zahlungsziel sofort (0, 1 und 7 Tage)");
   ok(C.kapitalCHashEingabe(mit(7), C.kapitalCRumpfHtml(mit(7), null)) !== C.kapitalCHashEingabe(mit(0), C.kapitalCRumpfHtml(mit(0), null)), "0 und 7 Tage ergeben verschiedene Prüfsummen (ein offenes Angebot lädt nach einer Änderung neu)");
   const w = W.globalWortPruefen([t0.vertrag.match(/Der Betrag ist[^.]*\./)?.[0] ?? "", t0.info, t0.knopf].join(" "), ["aufgabe_an_betreuer"]);
   ok(w.length === 0, "0 Tage: Wortwand ohne Treffer", w);
+}
+
+// ═══ 10 E-474: ANGABEN VOM KUNDEN, FAST-TRACK NACH WAHL — OHNE DATENBANK ═══════════
+abschnitt("10 E-474 — Angaben vom Kunden, Fast-Track nach Wahl, Bestand byte-gleich");
+const KS10 = await import("../server/lib/fiaon-global-angebot-kapital-c");
+const KONTAKT = { art: "privat", anrede: "Frau", vorname: "Erika", nachname: "Musterfrau", email: "erika.musterfrau@beispiel.example" };
+const GUT = { vorname: "Erika", nachname: "Musterfrau", geburtsdatum: "1985-03-04", geburtsort: "", staatsangehoerigkeit: "deutsch", strasse: "Musterweg 7", plz: "12345", ort: "Musterstadt", land: "DE" };
+const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+const KONTEXT = { ip: "198.51.100.7", userAgent: UA, leitung: false };
+const PDK = C.kapitalCParameterAus({ ...C.KAPITAL_C_VORGABEN, datenVomKunden: true, fastTrackWahl: true, unterschriftFrei: true, buerginAktiv: true, buerginStandAm: "2026-11-01", unterlagen: [] });
+const annahmeBasis = (nachname = "Musterfrau") => ({ laufzeitJahre: 10, llc: { wunsch: "MUSTER VENTURES", alternative1: "", alternative2: "" }, gelesen: true, unterschrift: { art: "getippt", name: `Erika ${nachname}` } });
+{
+  // 10a — Bestand byte-gleich: dieselbe Rechnung wie vor E-474 (Grundlinie aus origin/main e26329ff, 02.11.2026). Ändert sich hier
+  // etwas, ändert sich der Text OFFENER und ANGENOMMENER Angebote — dann bewusst entscheiden, nie still die Zahl tauschen.
+  const GRUNDLINIE = "53e6f0498d92939a10b6d7f796b888bd10ace58c41838ecac4cb7c4935c5e85f";
+  const { createHash } = await import("node:crypto");
+  const ROH = [
+    { buerginAktiv: false, buerginStandAm: "2026-10-19", unterlagen: [{ titel: "Reisepass", am: "2026-10-27" }, { titel: "Kontoauszug Oktober 2026", am: "2026-10-27" }] },
+    { zahlungszielTage: 7, ddAbgeschlossen: false, unterlagen: [], buerginAktiv: true, buerginStandAm: "2026-10-30" },
+    { staatenFassung: "E-465", bundesstaat: "Delaware", unterlagen: [{ titel: "Reisepass", am: "2026-10-27" }] },
+  ];
+  const aus: unknown[] = [];
+  for (const r of ROH) {
+    const par = C.kapitalCParameterAus({ ...C.KAPITAL_C_VORGABEN, ...r } as any);
+    const d = { ...D, parameter: par };
+    const vermerk = { am: new Date("2026-10-28T10:00:00Z"), ip: "203.0.113.7", userAgent: "x", hash: "abc", wahl: { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "B LLC", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true }, unterschrift: { art: "getippt" as const, name: "Max Mustermann" } };
+    const seite: any = C.kapitalCSeite(d); delete seite.fastTrack;
+    aus.push(C.kapitalCRumpfHtml(d, null), C.kapitalCRumpfHtml(d, null, { ausweiseGekuerzt: true }), C.kapitalCRumpfHtml(d, vermerk), seite,
+      C.kapitalCBestellUebersicht(d, 10), C.kapitalCBestellUebersicht(d, null), C.kapitalCAnnahmeTexte(d), C.kapitalCGarantie(par),
+      C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC" }),
+      C.kapitalCStartAufgabe({ angebotRef: "R", name: "Max Mustermann", parameter: par, bezahltAm: "2026-10-29", zweck: "FIAON-X", frist: { beginn: "2026-10-29", ende: "2026-12-24" }, llc: "MUSTER LLC", laufzeitJahre: 10, bestaetigung: { da: false, grund: "x" } }),
+      C.kapitalCMeinAuftrag({ parameter: par, angenommenAm: "2026-10-28", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }),
+      C.kapitalCPflichtFehlen(d), C.kapitalCKundeZeile(D.kunde), C.kapitalCKundeZeile(D.kunde, { ausweiseGekuerzt: true }),
+      C.KAPITAL_C_ANNAHME.fertigZahlung("3.289 €"));
+  }
+  const ist = createHash("sha256").update(JSON.stringify(aus)).digest("hex");
+  ok(ist === GRUNDLINIE, "Bestand byte-gleich: Vertrag (voll, gekürzt, mit Vermerk), Seite, Übersicht, Annahme, Garantie, Bestätigung, Aufgabe, „Mein Auftrag“ wie vor E-474", ist);
+  ok(C.kapitalCSeite(D).fastTrack === null && KS10.kapitalCTextHash(D) === KS10.kapitalCTextHash({ ...D, parameter: C.kapitalCParameterAus({ ...PAR }) }), "Bestand: keine Fast-Track-Karten, Prüfsumme unverändert");
+  const bestandZeile = { id: 1, angebot_ref: D.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: KUNDE_ROH, parameter: { ...PAR, unterschriftFrei: true }, buergin: BUERGIN, gueltig_bis: D.gueltigBis } as any;
+  const sb = (await KS10.kapitalCKundenSicht("T", bestandZeile)).body as any;
+  ok(sb.angaben === null && sb.uebersichtJe === null && sb.annahmeBereit === true, "Bestand: Kundensicht ohne Angaben-Schritt und ohne Wahl");
+
+  // 10b — Parameter
+  const pv = C.kapitalCParameterAus({});
+  const pj = C.kapitalCParameterAus({ datenVomKunden: "ja" as any, fastTrackWahl: 1 as any });
+  ok(pv.datenVomKunden === false && pv.fastTrackWahl === false && !pj.datenVomKunden && !pj.fastTrackWahl && PDK.datenVomKunden && PDK.fastTrackWahl, "Parameter: Vorgabe aus, nur echte Wahrheitswerte schalten");
+
+  // 10c — Anlage: ohne Ausweis nur mit Parameter
+  ok(!C.kapitalCKundePruefen(KONTAKT).ok, "ohne datenVomKunden: Kontakt allein reicht nicht (wie bisher)");
+  ok(C.kapitalCKundePruefen(KONTAKT, { nurKontakt: true }).ok && !C.kapitalCKundePruefen({ ...KONTAKT, email: "kaputt" }, { nurKontakt: true }).ok, "mit datenVomKunden: Anrede, Name, E-Mail genügen — die E-Mail muss stimmen");
+  ok(!C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }).ok && C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }, { ohneAusweis: true }).ok, "Ausweis: Pflicht im Bestand, nicht mit datenVomKunden");
+
+  // 10d — Unterschrift gesperrt, bis die Angaben da sind
+  const kk = C.kapitalCKundePruefen(KONTAKT, { nurKontakt: true }); if (!kk.ok) throw new Error(kk.error);
+  const DDK = { ref: "FIAON-IA-CMUSTR2", fassung: C.KAPITAL_C_FASSUNG, kunde: kk.kunde, buergin: BUERGIN, parameter: PDK, gueltigBis: "2026-11-16" };
+  const fehlt0 = C.kapitalCPflichtFehlen(DDK);
+  ok(fehlt0.length === 1 && fehlt0[0].startsWith("Auftraggeber:") && C.kapitalCAngabenFehlen(DDK), "ohne Angaben: Pflicht fehlt (nur die Angaben)", fehlt0);
+  const zeileDK = (kunde: unknown, par: unknown = PDK) => ({ id: 2, angebot_ref: DDK.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde, parameter: par, buergin: BUERGIN, gueltig_bis: DDK.gueltigBis }) as any;
+  const s0 = (await KS10.kapitalCKundenSicht("T2", zeileDK(kk.kunde))).body as any;
+  ok(s0.annahmeBereit === false && s0.gesperrtGrund === C.KAPITAL_C_ANNAHME.angabenFehlen && s0.angaben?.fehlen === true && s0.angaben.werte.vorname === "Erika" && s0.angaben.speichern === "/api/fiaon/global/angebot/T2/kapital-angaben",
+    "Kundensicht ohne Angaben: gesperrt mit klarem Satz, Schritt „Ihre Angaben“, Name vorbelegt");
+  ok(!("ausweise" in s0.angaben.werte) && !/Nr\. /.test(JSON.stringify(s0.angaben)), "Kundensicht: kein Ausweisfeld, keine Nummer");
+  ok(/Erika Musterfrau \(Geburtsdatum und Anschrift trägt der Auftraggeber vor der Annahme auf seiner Angebotsseite ein\)/.test(ohneHtml(s0.html)) && !/wohnhaft ,/.test(ohneHtml(s0.html)), "Vertragsvorschau ohne Angaben: ein Satz statt Lücken");
+  ok(/Erika Musterfrau — Geburtsdatum und Anschrift bitte oben eintragen/.test(JSON.stringify(s0.uebersicht)), "Übersicht ohne Angaben: Hinweis statt leerer Anschrift");
+
+  // 10e — Angaben prüfen (kapitalCAngabenPruefen)
+  const HEUTE = "2026-11-02";
+  const g = C.kapitalCAngabenPruefen(kk.kunde, GUT, HEUTE);
+  ok(g.ok && g.kunde.email === KONTAKT.email && g.kunde.ausweise.length === 0 && g.kunde.geburtsdatum === "1985-03-04", "gültige Angaben: übernommen, E-Mail bleibt die des Angebots, kein Ausweis", g);
+  const FAELLE: [Record<string, unknown>, string, string][] = [
+    [{ ...GUT, geburtsdatum: "2010-01-01" }, "geburtsdatum", "minderjährig"], [{ ...GUT, geburtsdatum: "2027-01-01" }, "geburtsdatum", "Zukunft"],
+    [{ ...GUT, geburtsdatum: "1985-02-30" }, "geburtsdatum", "Tag gibt es nicht"], [{ ...GUT, geburtsdatum: "" }, "geburtsdatum", "fehlt"],
+    [{ ...GUT, geburtsdatum: "1850-01-01" }, "geburtsdatum", "vor 1900"], [{ ...GUT, plz: "1234" }, "plz", "PLZ DE vierstellig"],
+    [{ ...GUT, land: "AT", plz: "12345" }, "plz", "PLZ AT fünfstellig"], [{ ...GUT, strasse: "Musterweg" }, "strasse", "ohne Hausnummer"],
+    [{ ...GUT, strasse: "" }, "strasse", "Straße fehlt"], [{ ...GUT, vorname: "" }, "vorname", "Vorname fehlt"], [{ ...GUT, nachname: " " }, "nachname", "Nachname fehlt"],
+    [{ ...GUT, land: "FR" }, "land", "Land außerhalb DACH"], [{ ...GUT, staatsangehoerigkeit: "<b>x</b>" }, "staatsangehoerigkeit", "Staatsangehörigkeit Unsinn"],
+    [{ ...GUT, ort: "" }, "ort", "Ort fehlt"],
+  ];
+  for (const [roh, feld, text] of FAELLE) { const r = C.kapitalCAngabenPruefen(kk.kunde, roh, HEUTE); ok(!r.ok && r.feld === feld, `ungültig abgewiesen: ${text} → Feld ${feld}`, r); }
+  ok(C.kapitalCAngabenPruefen(kk.kunde, { ...GUT, geburtsdatum: "2008-11-02" }, HEUTE).ok && !C.kapitalCAngabenPruefen(kk.kunde, { ...GUT, geburtsdatum: "2008-11-03" }, HEUTE).ok, "18 Jahre genau heute: ja — morgen erst: nein");
+  ok(C.kapitalCAngabenPruefen(kk.kunde, { ...GUT, email: "fremd@beispiel.example", ausweise: [{ art: "reisepass", nummer: "X1234567", gueltigBis: "2030-01-01", behoerde: "y" }] }, HEUTE).ok
+    && (C.kapitalCAngabenPruefen(kk.kunde, { ...GUT, email: "fremd@beispiel.example" }, HEUTE) as any).kunde.email === KONTAKT.email
+    && (C.kapitalCAngabenPruefen(kk.kunde, { ...GUT, ausweise: [{ art: "reisepass", nummer: "X1234567" }] }, HEUTE) as any).kunde.ausweise.length === 0, "E-Mail und Ausweis lassen sich über die Angaben nicht unterschieben");
+  if (!g.ok) throw new Error("Angaben ungültig");
+  const DDK2 = { ...DDK, kunde: g.kunde };
+  ok(C.kapitalCPflichtFehlen(DDK2).length === 0 && !C.kapitalCAngabenFehlen(DDK2), "mit Angaben: Unterschrift frei — ohne Ausweis");
+  const s1 = (await KS10.kapitalCKundenSicht("T2", zeileDK(g.kunde))).body as any;
+  ok(s1.annahmeBereit === true && s1.gesperrtGrund === null && s1.angaben.fehlen === false && s1.textHash !== s0.textHash && s1.angaben.werte.strasse === "Musterweg 7", "Kundensicht mit Angaben: frei, neuer Fingerabdruck, Angaben vorbelegt");
+
+  // 10f — der Vertrag mit datenVomKunden
+  const v = flach(absText(C.kapitalCZiffern(DDK2)).join("\n"));
+  ok(!/ausgewiesen durch/.test(v) && /Seinen gültigen Reisepass lädt der Auftraggeber binnen sieben Tagen nach Vertragsschluss zur Identifizierung hoch — auf seiner Angebotsseite oder in seinem Kundenbereich „Mein Auftrag“\. Mit Anmeldungen und Anträgen beginnt FIAON erst, wenn er vorliegt\./.test(v),
+    "Vertrag: kein „ausgewiesen durch“, Ziffer 7 mit dem Reisepass nach Vertragsschluss");
+  ok(/Die Frist ruht außerdem, bis der Reisepass nach Ziffer 7 Absatz 1 vorliegt\./.test(v) && !/ihretwegen ruht die Frist nicht/.test(v) && /und des Reisepasses nach Ziffer 7 Absatz 1/.test(v), "Ziffer 2 und 4: Anmeldung und Frist erst mit dem Reisepass");
+  ok(/Erika Musterfrau, geboren am 04\.03\.1985, deutsche Staatsangehörige, wohnhaft Musterweg 7, 12345 Musterstadt, Deutschland \(nachfolgend „Auftraggeber“\)/.test(v), "Ziffer 1: die eingetragenen Angaben stehen im Vertrag", v.slice(v.indexOf("und Frau"), v.indexOf("und Frau") + 220));
+  ok(C.kapitalCGarantie(PDK).info.includes("solange die Vergütung mit Ihrem Auftrag nicht bezahlt ist, bis Ihr Reisepass nach Vertragsschluss vorliegt"), "Informationen: Ruhen nach Wahl und bis zum Reisepass");
+
+  // 10g — Fast-Track nach Wahl: beide Wahlen
+  ok(/zahlt der Auftraggeber einmalig 2\.790 €; wählt er bei der Annahme den Fast-Track \(Ziffer 2 Absatz 3\), zahlt er dafür zusätzlich einmalig 499 €, zusammen 3\.289 €/.test(v) && /insgesamt 9\.680 € ohne Fast-Track oder 10\.179 € mit Fast-Track/.test(v), "Ziffer 6: Preise beider Wahlen (Endpreise, erstes Jahr)");
+  ok(/Ohne Fast-Track beginnt FIAON erst nach Ablauf der Widerrufsfrist\./.test(v) && /Wählt der Auftraggeber den Fast-Track, ist Ziel der Parteien die Auszahlung binnen vier Wochen/.test(v) && /nicht binnen acht Wochen ab Auftragserteilung ausgezahlt/.test(v), "Ziffer 4/10: Ziel nur mit Fast-Track, Beginn nach Wahl — Garantie bleibt acht Wochen");
+  const am = new Date("2026-11-03T09:00:00Z");
+  const verm = (ft: boolean) => ({ am, ip: "198.51.100.7", userAgent: UA, hash: "abc", wahl: { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: ft, fastTrack: ft }, unterschrift: { art: "getippt" as const, name: "Erika Musterfrau" } });
+  const vm = ohneHtml(C.kapitalCRumpfHtml(DDK2, verm(true))); const vo = ohneHtml(C.kapitalCRumpfHtml(DDK2, verm(false)));
+  ok(/Fast-Track \(Ziffer 2 Absatz 3\): gewählt — fällig mit dem Auftrag 3\.289 €/.test(vm) && vm.includes(C.KAPITAL_C_SOFORT_TEXT), "Vermerk mit Fast-Track: 3.289 € und Sofortbeginn wörtlich");
+  ok(/Fast-Track \(Ziffer 2 Absatz 3\): nicht gewählt — fällig mit dem Auftrag 2\.790 €/.test(vo) && !vo.includes(C.KAPITAL_C_SOFORT_TEXT) && /Beginn nach Ablauf der Widerrufsfrist|beginnt nach Ablauf der Widerrufsfrist/.test(vo), "Vermerk ohne Fast-Track: 2.790 €, KEIN Sofortbeginn");
+  ok(KS10.kapitalCTextHash(DDK2) === KS10.kapitalCTextHash(DDK2) && C.kapitalCHashEingabe(DDK2, C.kapitalCRumpfHtml(DDK2, null)) === C.kapitalCHashEingabe(DDK2, C.kapitalCRumpfHtml({ ...DDK2 }, null)), "Prüfsumme ohne die Wahl (die Wahl steht nur im Vermerk)");
+  ok(C.kapitalCHeuteCents(PDK, false) === 279_000 && C.kapitalCHeuteCents(PDK, true) === 328_900 && C.kapitalCHeuteCents(PDK) === 328_900, "Beträge: ohne 2.790 €, mit 3.289 €");
+  ok(!C.kapitalCMitFastTrack(PDK, { fastTrack: false }) && C.kapitalCMitFastTrack(PDK, { fastTrack: true }) && C.kapitalCMitFastTrack(PDK, null) && C.kapitalCMitFastTrack(PAR, { fastTrack: false }), "Wahl zählt nur bei fastTrackWahl; ohne Wahl nie ein zu kleiner Betrag");
+  const ueb = (ft: boolean | null) => flach(C.kapitalCBestellUebersicht(DDK2, 10, ft).zeilen.map((z) => `${z.label}: ${z.wert}`).join(" | "));
+  ok(/Fällig mit Ihrem Auftrag: 2\.790 € \(Gründung, Konto und Karten, ohne Fast-Track\)/.test(ueb(false)) && /Im ersten Jahr insgesamt: 9\.680 €/.test(ueb(false)) && /Beginn: nach Ablauf der Widerrufsfrist/.test(ueb(false)), "Übersicht ohne Fast-Track");
+  ok(/Fällig mit Ihrem Auftrag: 3\.289 € \(Gründung, Konto und Karten 2\.790 € \+ Fast-Track 499 €\)/.test(ueb(true)) && /Im ersten Jahr insgesamt: 10\.179 €/.test(ueb(true)) && /Beginn: sofort mit Ihrem Zahlungseingang/.test(ueb(true)), "Übersicht mit Fast-Track");
+  ok(/2\.790 € ohne Fast-Track oder 3\.289 € mit Fast-Track — bitte oben wählen/.test(ueb(null)) && /Geld-zurück-Garantie \(Ziffer 4\): Kommt die Auszahlung nicht binnen acht Wochen/.test(ueb(null)), "Übersicht vor der Wahl: beide Beträge, Garantie gleich");
+  ok(/Fällig mit Ihrem Auftrag: 2\.790 €/.test(s1.uebersichtJe.ohne.zeilen.map((z: any) => `${z.label}: ${flach(z.wert)}`).join(" | ")) && /Fällig mit Ihrem Auftrag: 3\.289 €/.test(s1.uebersichtJe.mit.zeilen.map((z: any) => `${z.label}: ${flach(z.wert)}`).join(" | ")), "Kundensicht: Übersicht je Wahl");
+  const sFT = C.kapitalCSeite(DDK2).fastTrack!;
+  ok(sFT && flach(sFT.karten[0].betrag) === "2.790 €" && flach(sFT.karten[1].betrag) === "3.289 €" && /bleibt in beiden Fällen bei acht Wochen/.test(sFT.garantie) && sFT.heuteCents.ohne === 279_000, "Seite: zwei Karten mit Endpreisen, Garantie in beiden gleich");
+  const at = C.kapitalCAnnahmeTexte(DDK2);
+  ok(/Fällig mit Ihrem Auftrag: 2\.790 €/.test(flach(at.unterKnopfOhne ?? "")) && /Fällig mit Ihrem Auftrag: 3\.289 €/.test(flach(at.unterKnopf)) && at.fehltFastTrack === C.KAPITAL_C_ANNAHME.fehltFastTrack, "Satz unter dem Knopf je Wahl");
+  const bo = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: false, reisepass: true }).join(" ");
+  const bm = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: true }).join(" ");
+  ok(!/Fast-Track\./.test(bo.replace("gegen den Fast-Track entschieden", "")) && /Sie haben sich gegen den Fast-Track entschieden: Wir beginnen nach Ablauf der Widerrufsfrist\./.test(bo) && /Bitte laden Sie noch Ihren Reisepass hoch/.test(bo), "Vertragsbestätigung ohne Fast-Track (mit Reisepass-Bitte)");
+  ok(/und den Fast-Track\./.test(bm) && /Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen/.test(bm) && !/Reisepass/.test(bm), "Vertragsbestätigung mit Fast-Track wie bisher");
+  ok(C.KAPITAL_C_ANNAHME.fertigZahlung("2.790 €", false) === "Fällig mit Ihrem Auftrag: 2.790 € für Gründung, Konto und Karten.", "Fertig-Ansicht ohne Fast-Track");
+  const so = C.kapitalCStartAufgabe({ angebotRef: "R", name: "Erika Musterfrau", parameter: PDK, bezahltAm: "2026-11-04", zweck: "FIAON-X", frist: { beginn: "2026-11-04", ende: "2026-12-30" }, llc: "MUSTER VENTURES LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null }, fastTrack: false, widerrufBis: "2026-11-17", reisepassDa: false });
+  ok(/OHNE Fast-Track: kein Sofortbeginn — erst nach Ablauf der Widerrufsfrist beginnen \(sie läuft bis 17\.11\.2026\)/.test(so.text) && /REISEPASS FEHLT NOCH/.test(so.text) && /2\.790 €/.test(so.text) && !/Ziel mit Fast-Track/.test(so.text), "Aufgabe nach Zahlung ohne Fast-Track: Widerrufsfrist, Reisepass, Betrag", so.text);
+  const mo = C.kapitalCMeinAuftrag({ parameter: PDK, angenommenAm: "2026-11-03", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10, fastTrack: false });
+  const mm = C.kapitalCMeinAuftrag({ parameter: PDK, angenommenAm: "2026-11-03", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10, fastTrack: true });
+  ok(mo.teile[0].titel === "Gründung" && mo.teile[0].betragCents === 279_000 && mm.teile[0].titel === "Gründung und Fast-Track" && mm.teile[0].betragCents === 328_900, "„Mein Auftrag“: Teil 1 je Wahl");
+  const rt = (titel?: string) => K.kapitalRechnungsTextNachFassung({ angebotRef: "FIAON-IA-CMUSTR2", nr: 1, auftragRef: "FIAON-X", fassung: C.KAPITAL_C_FASSUNG, teilTitel: titel }).beschreibung;
+  ok(!/Fast-Track/.test(rt(C.KAPITAL_C_TEIL1_TITEL_OHNE)) && /sowie Fast-Track/.test(rt(C.KAPITAL_C_TEIL1_TITEL)) && /sowie Fast-Track/.test(rt()), "Rechnungstext Teil 1 je Wahl (ohne Titel wie bisher)");
+  ok(C.kapitalCTeil1Titel(false) === "Gründung, Konto und Karten" && C.kapitalCTeil1Titel(true) === C.KAPITAL_C_TEIL1_TITEL, "Titel von Teil 1 je Wahl");
+
+  // 10h — die Annahme des Servers prüft Wahl, Haken und Angaben (ohne Datenbank: falscher Fingerabdruck beendet den Weg vor dem PDF)
+  const helfer = { zuViel: () => false };
+  const a0 = await KS10.kapitalCAnnehmen(zeileDK(kk.kunde), { ...annahmeBasis(), fastTrack: true, sofortBeginn: true, textHash: s0.textHash }, KONTEXT, helfer);
+  ok(a0.status === 409 && a0.body.code === "PFLICHTFELDER", "Annahme ohne Angaben: 409 (Unterschrift gesperrt)", a0);
+  const a1 = await KS10.kapitalCAnnehmen(zeileDK(g.kunde), { ...annahmeBasis(), sofortBeginn: true, textHash: "falsch" }, KONTEXT, helfer);
+  ok(a1.status === 400 && a1.body.code === "FASTTRACK", "Annahme ohne Wahl: 400 FASTTRACK (nichts vorgewählt)", a1);
+  const a2 = await KS10.kapitalCAnnehmen(zeileDK(g.kunde), { ...annahmeBasis(), fastTrack: true, textHash: "falsch" }, KONTEXT, helfer);
+  ok(a2.status === 400 && a2.body.code === "HAEKCHEN" && a2.body.error === C.KAPITAL_C_ANNAHME.fehltSofortWahl, "mit Fast-Track ohne Haken „sofort“: 400", a2);
+  const a3 = await KS10.kapitalCAnnehmen(zeileDK(g.kunde), { ...annahmeBasis(), fastTrack: false, textHash: "falsch" }, KONTEXT, helfer);
+  ok(a3.status === 409 && a3.body.code === "GEAENDERT", "ohne Fast-Track braucht es keinen Haken (nur der falsche Fingerabdruck hält an)", a3);
+  const ab = await KS10.kapitalCAnnehmen(bestandZeile, { ...annahmeBasis("Mustermann"), unterschrift: { art: "getippt", name: "Max Mustermann" }, fastTrack: false, textHash: "falsch" }, KONTEXT, helfer);
+  ok(ab.status === 400 && ab.body.code === "HAEKCHEN", "Bestand: Haken „sofort“ bleibt Pflicht, ein „fastTrack: false“ ändert nichts", ab);
+
+  // 10i — falscher Link an den neuen Routen
+  const falsch = "FIAON-IA-CMUSTR2.1893456000000.0123456789abcdef0123456789abcdef";
+  ok((await KS10.kapitalCAngabenSpeichern(falsch, GUT, KONTEXT)).status === 403 && (await KS10.kapitalCAngabenSpeichern("Unsinn", GUT, KONTEXT)).status === 403, "Angaben mit falschem Token: 403");
+  const pz = await KS10.kapitalCReisepassZutritt(falsch, KONTEXT);
+  ok(!pz.ok && pz.antwort.status === 403, "Reisepass mit falschem Token: 403");
+
+  // 10j — Wortwand, kein Bankname und kein Bank-Satz (E-468) in allen Texten der neuen Wege
+  const texte10: { wo: string; text: string }[] = [];
+  const push10 = (wo: string, wert: unknown) => sammle(wert, []).forEach((t) => texte10.push({ wo, text: flach(t) }));
+  push10("vertrag", absText(C.kapitalCZiffern(DDK2))); push10("vertrag-leer", absText(C.kapitalCZiffern(DDK))); push10("seite", C.kapitalCSeite(DDK2)); push10("annahme", at);
+  push10("uebersicht", [ueb(true), ueb(false), ueb(null)]); const nurVermerk = (t: string) => t.slice(t.lastIndexOf("Annahmevermerk"), t.indexOf("IP-Adresse", t.lastIndexOf("Annahmevermerk")));
+  push10("vermerk", [nurVermerk(vm), nurVermerk(vo)]);
+  // Die Aufgabe an Justin ist intern (wie in Abschnitt 6 nicht an der Wand); sie läuft unten durch die Prüfung auf den Bank-Satz.
+  push10("bestaetigung", [bo, bm]); push10("mein-auftrag", [mo, mm]); push10("angaben", C.KAPITAL_C_ANGABEN); push10("reisepass", C.KAPITAL_C_REISEPASS);
+  push10("annahme-fest", [C.KAPITAL_C_ANNAHME.fehltFastTrack, C.KAPITAL_C_ANNAHME.fehltSofortWahl, C.KAPITAL_C_ANNAHME.angabenFehlen]);
+  const saetze10 = (t: string) => t.split(/(?<=[.!?])\s+(?=[A-ZÄÖÜ„])/);
+  const gebunden = (satz: string) => /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(satz) && !/\bgarantier/i.test(satz);
+  let wand = 0;
+  for (const { wo, text } of texte10) for (const satz of saetze10(text)) for (const f of W.globalWortPruefen(satz, ["aufgabe_an_betreuer"])) {
+    if (/garant/i.test(f.treffer) && gebunden(satz)) continue;
+    if (wo.startsWith("vertrag") && /verbotene Aussage 1/.test(f.hinweis) && /zinsfrei/.test(satz) && /siebzehnten Monat/.test(satz)) continue;
+    wand++; console.log(`  WAND  ${wo}: „${satz.slice(0, 110)}“ → ${f.hinweis}`);
+  }
+  ok(wand === 0, `Wortwand der neuen Wege: ${wand} Treffer in ${texte10.length} Texten`);
+  const neuTexte = sammle([C.KAPITAL_C_ANGABEN, C.KAPITAL_C_REISEPASS, sFT, at.unterKnopfOhne, at.fehltFastTrack, at.angabenFehlen, C.KAPITAL_C_ANNAHME.fehltSofortWahl, bo, so.text,
+    C.kapitalCSeite(DDK2).fragen.liste.filter((f) => /Fast-Track bringt|Angaben/.test(f.frage))], []).join(" ");
+  ok(!/(die|das|eine?)\s+(Bank|Institut)\s+entscheidet|entscheidet\s+(die|das)\s+(Bank|Institut)/i.test(neuTexte), "E-468: kein „die Bank/das Institut entscheidet“ in den neuen Texten");
+  ok(!/\bdu\b|\bdein/i.test(neuTexte) && /\bSie\b|\bIhre?\b/.test(neuTexte), "Kunden gesiezt");
+  ok(texte10.every((x) => !BANK.test(x.text)) && texte10.every((x) => !RAHMEN.test(ohneLeistungsname(x.text))) && texte10.every((x) => !/\bbis zu\b/i.test(x.text)), "kein Bankname, keine Kartenrahmen-Zahl, kein „bis zu“");
+}
+
+// ═══ 11 E-474 LOKAL: derselbe Weg echt — Prüfstand-DB auf 127.0.0.1 + lokaler Server ═══════════════════
+if (LOKAL) {
+  abschnitt("11 E-474 lokal — Anlage, Angaben, Annahme ohne und mit Fast-Track, Reisepass (Prüfstand-Kopie + lokaler Server)");
+  const A = await import("../server/lib/fiaon-global-angebot");
+  const { sqlPool } = await import("../server/lib/db-pool");
+  const BASIS = process.env.PRUEF_BASIS ?? "http://127.0.0.1:5474";
+  const http = async (pfad: string, init: RequestInit = {}) => {
+    const r = await fetch(`${BASIS}${pfad}`, { ...init, headers: { "X-Forwarded-For": "198.51.100.23", "User-Agent": UA, ...(init.headers as Record<string, string> ?? {}) } });
+    return { status: r.status, j: (await r.json().catch(() => null)) as any };
+  };
+  const post = (pfad: string, body: unknown) => http(pfad, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const zeit = Date.now().toString(36);
+  const PAR_LOKAL = { datenVomKunden: true, fastTrackWahl: true, unterschriftFrei: true, buerginAktiv: true, buerginStandAm: "2026-11-01" };
+  const lauf = async (ft: boolean) => {
+    const mail = `e474-${ft ? "mit" : "ohne"}-${zeit}@beispiel.example`;
+    const KONTAKT_L = { ...KONTAKT, email: mail };
+    const ohne = await KS10.kapitalCAnlegen({ kunde: KONTAKT_L, buergin: BUERGIN, parameter: { unterschriftFrei: true } }, "Prüfstand E-474");
+    ok(!ohne.ok && /Geburtsdatum fehlt/.test(ohne.error), `[${ft ? "mit" : "ohne"}] Anlage ohne Parameter: weiter Fehler`, ohne);
+    const an = await KS10.kapitalCAnlegen({ kunde: KONTAKT_L, buergin: BUERGIN, parameter: PAR_LOKAL }, "Prüfstand E-474");
+    ok(an.ok, `[${ft ? "mit" : "ohne"}] Anlage mit datenVomKunden: Anrede, Name und E-Mail genügen`, an);
+    if (!an.ok) return;
+    const z0 = (await A.angebotLesen({ id: an.id }))!;
+    const token = A.angebotTokenErzeugen(an.ref, String(z0.gueltig_bis instanceof Date ? z0.gueltig_bis.toISOString().slice(0, 10) : z0.gueltig_bis).slice(0, 10));
+    const T = encodeURIComponent(token);
+    const g0 = await http(`/api/fiaon/global/angebot/${T}`);
+    ok(g0.status === 200 && g0.j?.angaben?.fehlen === true && g0.j.annahmeBereit === false && g0.j.uebersichtJe?.mit, `[${ft ? "mit" : "ohne"}] Seite: Angaben fehlen, Unterschrift gesperrt`, g0.j?.error ?? g0.status);
+    const falsch = token.slice(0, -1) + (token.endsWith("0") ? "1" : "0");
+    ok((await post(`/api/fiaon/global/angebot/${encodeURIComponent(falsch)}/kapital-angaben`, GUT)).status === 403, `[${ft ? "mit" : "ohne"}] Angaben mit falschem Token: 403`);
+    const u1 = await post(`/api/fiaon/global/angebot/${T}/kapital-angaben`, { ...GUT, geburtsdatum: "2012-05-05" });
+    ok(u1.status === 400 && u1.j?.feld === "geburtsdatum", `[${ft ? "mit" : "ohne"}] ungültige Angaben: 400 mit Feld`, u1);
+    const anVorher = await post(`/api/fiaon/global/angebot/${T}/annehmen`, { ...annahmeBasis(), fastTrack: ft, sofortBeginn: ft, textHash: g0.j?.textHash });
+    ok(anVorher.status === 409 && anVorher.j?.code === "PFLICHTFELDER", `[${ft ? "mit" : "ohne"}] Annahme vor den Angaben: 409`, anVorher);
+    const s1 = await post(`/api/fiaon/global/angebot/${T}/kapital-angaben`, GUT);
+    ok(s1.status === 200 && s1.j?.gespeichert === true && s1.j.annahmeBereit === true && s1.j.angaben?.fehlen === false && s1.j.textHash !== g0.j?.textHash, `[${ft ? "mit" : "ohne"}] Angaben über die Route: gespeichert, Unterschrift frei, neuer Fingerabdruck`, s1.j?.error ?? s1.status);
+    // Name korrigieren (vor der Unterschrift)
+    const s2 = await post(`/api/fiaon/global/angebot/${T}/kapital-angaben`, { ...GUT, nachname: "Musterfrau-Probe" });
+    ok(s2.status === 200 && s2.j?.angaben?.werte?.nachname === "Musterfrau-Probe", `[${ft ? "mit" : "ohne"}] Korrektur vor der Unterschrift möglich (Name)`, s2.j?.error ?? s2.status);
+    const [db1] = (await sqlPool`SELECT kunde, verlauf FROM fiaon_global_angebote WHERE id = ${an.id}`) as any[];
+    const k1 = typeof db1.kunde === "string" ? JSON.parse(db1.kunde) : db1.kunde;
+    const verlauf = JSON.stringify(db1.verlauf);
+    ok(k1.geburtsdatum === "1985-03-04" && k1.strasse === "Musterweg 7" && k1.nachname === "Musterfrau-Probe" && k1.email === mail && Array.isArray(k1.ausweise) && k1.ausweise.length === 0, `[${ft ? "mit" : "ohne"}] Datenbank: Angaben im Kunden des Angebots, kein Ausweis`, k1);
+    ok(/Angaben für den Vertrag eingetragen/.test(verlauf) && /Angaben für den Vertrag geändert/.test(verlauf) && !/1985|Musterweg/.test(verlauf), `[${ft ? "mit" : "ohne"}] Verlauf: Vermerk ohne die Werte`);
+    // Zweiter Skriptlauf (Nachtragen mit der privaten Datei, nur Kontakt): die Angaben des Kunden bleiben
+    const nach = await KS10.kapitalCAendern(an.id, { kunde: KONTAKT_L, parameter: PAR_LOKAL }, "Prüfstand E-474");
+    const [db2] = (await sqlPool`SELECT kunde FROM fiaon_global_angebote WHERE id = ${an.id}`) as any[];
+    const k2 = typeof db2.kunde === "string" ? JSON.parse(db2.kunde) : db2.kunde;
+    ok(nach.ok && k2.geburtsdatum === "1985-03-04" && k2.nachname === "Musterfrau-Probe", `[${ft ? "mit" : "ohne"}] zweiter Skriptlauf überschreibt die Angaben des Kunden nicht`, k2);
+    const g1 = await http(`/api/fiaon/global/angebot/${T}`);
+    const annahme = await post(`/api/fiaon/global/angebot/${T}/annehmen`, { ...annahmeBasis("Musterfrau-Probe"), fastTrack: ft, sofortBeginn: ft, textHash: g1.j?.textHash });
+    ok(annahme.status === 200 && annahme.j?.ok === true, `[${ft ? "mit" : "ohne"}] Annahme ${ft ? "mit" : "ohne"} Fast-Track über die Route`, annahme.j?.error ?? annahme.status);
+    const z = (await A.angebotLesen({ id: an.id }))!;
+    const sch = typeof z.schalter === "string" ? JSON.parse(z.schalter) : z.schalter;
+    const [t1] = (await sqlPool`SELECT betrag_cents, titel, bestell_ref FROM fiaon_global_angebot_teile WHERE angebot_id = ${an.id} AND nr = 1`) as any[];
+    ok(String(z.status) === "angenommen" && sch?.fastTrack === ft && sch?.sofortBeginn === ft, `[${ft ? "mit" : "ohne"}] gespeichert: Wahl und Sofortbeginn im Annahmevermerk`, sch);
+    ok(Number(t1?.betrag_cents) === (ft ? 328_900 : 279_000) && t1?.titel === C.kapitalCTeil1Titel(ft), `[${ft ? "mit" : "ohne"}] Teil 1: ${ft ? "3.289 €" : "2.790 €"} mit passendem Titel`, t1);
+    if (t1?.bestell_ref) {
+      const rz = await A.angebotRechnungsZeile(String(t1.bestell_ref));
+      ok(!!rz && /sowie Fast-Track/.test(rz.beschreibung) === ft, `[${ft ? "mit" : "ohne"}] Rechnungstext Teil 1 je Wahl`, rz);
+      const [akte] = (await sqlPool`SELECT bestaetigungen FROM fiaon_global_auftraege WHERE ref = ${String(t1.bestell_ref)}`) as any[];
+      const be = typeof akte?.bestaetigungen === "string" ? JSON.parse(akte.bestaetigungen) : akte?.bestaetigungen;
+      ok(be?.fastTrack === ft && be?.sofortBeginn === ft, `[${ft ? "mit" : "ohne"}] Akte: Wahl in den Bestätigungen`, be);
+      const [app] = (await sqlPool`SELECT street, city, zip, first_name, last_name FROM fiaon_applications WHERE ref = ${String(t1.bestell_ref)}`) as any[];
+      ok(app?.street === "Musterweg 7" && app?.last_name === "Musterfrau-Probe", `[${ft ? "mit" : "ohne"}] Bestellzeile mit den eingetragenen Angaben (kein alter leerer Kunde)`, app);
+    } else ok(false, `[${ft ? "mit" : "ohne"}] Bestellzeile angelegt (Fertigstellen über den lokalen Server)`, z.nacharbeit_fehler);
+    const nachher = await post(`/api/fiaon/global/angebot/${T}/kapital-angaben`, { ...GUT, ort: "Anderswo" });
+    ok(nachher.status === 409 && nachher.j?.code === "NICHT_OFFEN", `[${ft ? "mit" : "ohne"}] nach der Annahme: keine Änderung (409)`, nachher);
+    const fertig = await http(`/api/fiaon/global/angebot/${T}`);
+    ok(fertig.j?.privat?.reisepass?.hochladen && fertig.j.privat.reisepass.da === false && flach(fertig.j.fertigZahlung ?? "").includes(ft ? "sowie Fast-Track" : "2.790 € für Gründung, Konto und Karten."), `[${ft ? "mit" : "ohne"}] Fertig-Ansicht: Reisepass-Schritt, Betrag je Wahl`, fertig.j?.fertigZahlung);
+    // Reisepass nach der Unterschrift über die Route in die Akte
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(200, 7)]);
+    const hoch = async (daten: Buffer, name: string, tk = T) => { const fd = new FormData(); fd.append("datei", new Blob([daten]), name); return http(`/api/fiaon/global/angebot/${tk}/reisepass`, { method: "POST", body: fd }); };
+    ok((await hoch(png, "pass.png", encodeURIComponent(falsch))).status === 403, `[${ft ? "mit" : "ohne"}] Reisepass mit falschem Token: 403`);
+    const txt = await hoch(Buffer.from("kein Bild"), "pass.txt");
+    ok(txt.status === 400, `[${ft ? "mit" : "ohne"}] Reisepass: nur PDF/JPG/PNG`, txt);
+    const ph = await hoch(png, "pass.png");
+    ok(ph.status === 200 && ph.j?.da === true, `[${ft ? "mit" : "ohne"}] Reisepass hochgeladen`, ph);
+    if (t1?.bestell_ref) {
+      const [dok] = (await sqlPool`SELECT art, von FROM fiaon_global_dokumente WHERE ref = ${String(t1.bestell_ref)} AND art = 'reisepass' AND geloescht_am IS NULL LIMIT 1`) as any[];
+      ok(dok?.von === "kunde" && (await KS10.kapitalCReisepassDa(String(t1.bestell_ref))), `[${ft ? "mit" : "ohne"}] Reisepass liegt in der Akte (vom Kunden)`, dok);
+    }
+  };
+  await lauf(false);
+  await lauf(true);
+  await sqlPool.end();
 }
 
 // ═══ OPTIONAL: KEINE ECHTEN KUNDENDATEN IM CODE / MAILTEXT ══════════════════

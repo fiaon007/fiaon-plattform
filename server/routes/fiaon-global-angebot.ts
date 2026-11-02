@@ -18,6 +18,7 @@
 // Ort aus Kopfzeilen, Meldung an Justin): server/lib/fiaon-global-angebot-aufrufe.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
+import multer from "multer";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef, readChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { hasAdminCode } from "./fiaon-admin-zugang";
@@ -95,6 +96,46 @@ router.post("/global/angebot/:token/annehmen", async (req: Request, res: Respons
   } catch (err) {
     console.error("[FIAON-ANGEBOT] annehmen:", err);
     res.status(500).json({ ok: false, error: "Da ist bei uns etwas schiefgelaufen — nicht bei Ihnen. Bitte versuchen Sie es in einer Minute noch einmal." });
+  }
+});
+
+// E-474 (Justin 02.11.2026): Kapital-Angebot Fassung C mit datenVomKunden — der Kunde trägt seine Angaben vor der Unterschrift selbst
+// ein und lädt den Reisepass NACH der Unterschrift hoch. Ablauf und Regeln: server/lib/fiaon-global-angebot-kapital-c.ts.
+router.post("/global/angebot/:token/kapital-angaben", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  try {
+    const KC = await import("../lib/fiaon-global-angebot-kapital-c");
+    const erg = await KC.kapitalCAngabenSpeichern(String(req.params.token), req.body ?? {}, { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || ""), leitung: istLeitung(req) });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] kapital-angaben:", err);
+    res.status(500).json({ ok: false, error: "Ihre Angaben ließen sich gerade nicht speichern — bitte versuchen Sie es noch einmal." });
+  }
+});
+// Erst der Zutritt (Link, angenommen, Bremse), dann multer — wer keinen gültigen Link hat, schickt keine 15 MB in den Speicher.
+const passUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 4, parts: 6 } }).single("datei");
+router.post("/global/angebot/:token/reisepass", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  try {
+    const KC = await import("../lib/fiaon-global-angebot-kapital-c");
+    const zutritt = await KC.kapitalCReisepassZutritt(String(req.params.token), { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || ""), leitung: istLeitung(req) });
+    if (!zutritt.ok) return res.status(zutritt.antwort.status).json(zutritt.antwort.body);
+    passUpload(req, res, async (err: any) => {
+      try {
+        if (err) {
+          return res.status(400).json({ ok: false, error: err?.code === "LIMIT_FILE_SIZE" ? "Die Datei ist größer als 15 MB. Bitte speichern Sie sie kleiner." : "Die Datei konnte nicht angenommen werden. Bitte versuchen Sie es noch einmal." });
+        }
+        const f = (req as any).file as Express.Multer.File | undefined;
+        const erg = await KC.kapitalCReisepassHochladen(zutritt, f?.buffer ? { buffer: f.buffer, originalname: String(f.originalname || "") } : null);
+        res.status(erg.status).json(erg.body);
+      } catch (e) {
+        console.error("[FIAON-ANGEBOT] reisepass:", e);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: "Ihr Reisepass ließ sich gerade nicht speichern — bitte versuchen Sie es gleich noch einmal." });
+      }
+    });
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] reisepass (Zutritt):", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Ihr Reisepass ließ sich gerade nicht speichern — bitte versuchen Sie es gleich noch einmal." });
   }
 });
 

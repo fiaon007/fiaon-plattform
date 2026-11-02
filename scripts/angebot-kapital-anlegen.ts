@@ -33,6 +33,9 @@
 // bleibt unberührt). Mit --schreiben --produktion bricht es ab, wenn SESSION_SECRET fehlt (der Link wäre in der Produktion ungültig)
 // oder der Registerstand einer inaktiven Bürgin älter als sieben Tage ist. Der Link für die Mail kommt am sichersten aus dem
 // Chefbüro („Link kopieren“, vom Server signiert); das Skript druckt ihn immer absolut.
+// E-474 (02.11.2026): zwei Schalter in parameter — "datenVomKunden": true (kunde braucht nur anrede, vorname, nachname, email;
+// Geburtsdatum/Anschrift trägt der Kunde selbst ein, den Reisepass lädt er nach der Unterschrift hoch; ein zweiter Lauf überschreibt
+// seine Angaben nie) und "fastTrackWahl": true (der Kunde wählt den Fast-Track auf der Seite). Ohne beide: alles wie bisher.
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import path from "node:path";
@@ -118,10 +121,14 @@ process.exit(0);
 async function fassungC(roh: any): Promise<boolean> {
   const KC = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const SC = await import("../shared/fiaon-global-angebot-kapital-c");
-  const k = SC.kapitalCKundePruefen(roh.kunde);
-  if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}`); await sqlPool.end(); process.exit(1); }
   const SB = await import("../shared/fiaon-global-bundesstaaten");
   const parameter = SC.kapitalCParameterAus(SB.neuesAngebotParameter(roh.parameter));
+  // E-474: parameter.datenVomKunden = true → beim Anlegen genügen Anrede, Vor-/Nachname und E-Mail (Telefon freiwillig); Geburtsdatum
+  // und Anschrift trägt der Kunde auf seiner Seite ein, den Reisepass lädt er nach der Unterschrift hoch. Ohne den Parameter: wie bisher.
+  const k = SC.kapitalCKundePruefen(roh.kunde, parameter.datenVomKunden ? { nurKontakt: true } : {});
+  if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}${parameter.datenVomKunden ? "" : " (Geburtsdatum, Anschrift und Ausweis trägt der Kunde selbst ein: parameter.datenVomKunden = true)"}`); await sqlPool.end(); process.exit(1); }
+  if (parameter.datenVomKunden) console.log("Angaben vom Kunden (E-474): Geburtsdatum und Anschrift trägt der Kunde auf seiner Seite ein, den Reisepass lädt er nach der Unterschrift hoch.");
+  if (parameter.fastTrackWahl) console.log(`Fast-Track nach Wahl (E-474): ohne ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, false))}, mit ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, true))} — der Kunde wählt auf der Seite.`);
   console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
   const pf = SC.kapitalCParameterFehler(parameter);
   if (pf) { console.error(`FEHLER Parameter: ${pf}`); await sqlPool.end(); process.exit(1); }

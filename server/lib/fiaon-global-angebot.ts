@@ -385,7 +385,7 @@ export async function angebotTeilZurBestellung(ref: string): Promise<{ betragCen
 /** Beschreibung und Zeitraum der Rechnungszeile eines Teils (shared: angebotRechnungsText). */
 export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung: string; zeitraum: string } | null> {
   const [t] = (await sqlPool`
-    SELECT t.nr, t.meilenstein_art, t.meilenstein_am, a.angebot_ref, a.auftrag_ref, a.fassung
+    SELECT t.nr, t.titel, t.meilenstein_art, t.meilenstein_am, a.angebot_ref, a.auftrag_ref, a.fassung
       FROM fiaon_global_angebot_teile t JOIN fiaon_global_angebote a ON a.id = t.angebot_id
      WHERE t.bestell_ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
   if (!t) return null;
@@ -393,7 +393,7 @@ export async function angebotRechnungsZeile(ref: string): Promise<{ beschreibung
   if (istFirmenFassung(t.fassung)) return (await import("./fiaon-global-angebot-firma")).firmaRechnungsZeile(ref);
   // E-401: Kapital-Angebot — Festpreis (Teil 1), Bürgschaftsgebühr (Teil 2), Vergütung bei Auszahlung (Teil 3).
   // E-432: Fassung C (Privatperson) — Gründung + Fast-Track (Teil 1), Erfolgshonorar (Teil 2).
-  if (istKapitalFassung(t.fassung)) return kapitalRechnungsTextNachFassung({ angebotRef: String(t.angebot_ref), nr: Number(t.nr), auftragRef: String(t.auftrag_ref || ref), ereignisAm: isoTag(t.meilenstein_am), fassung: String(t.fassung) });
+  if (istKapitalFassung(t.fassung)) return kapitalRechnungsTextNachFassung({ angebotRef: String(t.angebot_ref), nr: Number(t.nr), auftragRef: String(t.auftrag_ref || ref), ereignisAm: isoTag(t.meilenstein_am), fassung: String(t.fassung), teilTitel: t.titel ?? null });
   return angebotRechnungsText({ angebotRef: String(t.angebot_ref), nr: Number(t.nr) === 2 ? 2 : 1, auftragRef: String(t.auftrag_ref || ref), meilensteinArt: t.meilenstein_art, meilensteinAm: isoTag(t.meilenstein_am) });
 }
 

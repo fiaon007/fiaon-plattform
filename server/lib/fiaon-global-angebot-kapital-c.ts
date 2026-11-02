@@ -38,6 +38,7 @@ import { GLOBAL_VERTRAG_CSS } from "./fiaon-global-vertrag";
 import { ANGEBOT_VERTRAG_CSS } from "./fiaon-global-angebot-vertrag";
 import {
   ensureAngebotTabellen, angebotLesen, angebotTokenErzeugen, angebotKundenPfad, angebotStatusAus, verlaufAngebot, angebotGeheimFingerabdruck,
+  angebotTokenPruefen, angebotLinkAbgelaufen,
   ANGEBOT_PAKET_KEY, type AngebotZeile, type AnnahmeKontext,
 } from "./fiaon-global-angebot";
 import { portraitUrl, portraitMitKi, portraitAlt, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
@@ -58,6 +59,7 @@ import {
   kapitalCVertragTitel, kapitalCVertragUnterzeile, kapitalCRumpfHtml, kapitalCHashEingabe, kapitalCHeuteCents, kapitalCLaufzeitGueltig,
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
   kapitalCVertragsstand, kapitalCZahlbar,
+  kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -83,14 +85,16 @@ const RECHNUNG_STEHT = ["pending_payment", "claimed_paid", "paid"];
 // ═══════════════════════════════════════════════════════════════════════════
 export function kapitalCDatenAus(z: AngebotZeile): KapitalCDaten {
   const roh = json<any>(z.kunde, {});
-  const k = kapitalCKundePruefen(roh);
+  const parameter = kapitalCParameterAus(json<Partial<KapitalCParameter>>(z.parameter, {}));
+  // E-474: mit datenVomKunden gehört kein Ausweis zum Vertrag (der Reisepass kommt nach der Annahme) — sonst streng wie bisher.
+  const k = kapitalCKundePruefen(roh, kapitalCKundeStrenge(parameter));
   return {
     ref: String(z.angebot_ref),
     // Ein OFFENES Angebot zeigt immer den aktuellen Wortlaut der Fassung C; ein angenommenes behält seine.
     fassung: String(z.status) === "offen" ? KAPITAL_C_FASSUNG : String(z.fassung),
     kunde: k.ok ? k.kunde : ({ art: "privat", anrede: "", vorname: "", nachname: "", geburtsdatum: "", geburtsort: "", staatsangehoerigkeit: "", strasse: "", plz: "", ort: "", land: "DE", email: "", telefon: "", ausweise: [], ...roh } as KapitalCKunde),
     buergin: kapitalBuerginAus(json<any>(z.buergin, {})),
-    parameter: kapitalCParameterAus(json<Partial<KapitalCParameter>>(z.parameter, {})),
+    parameter,
     gueltigBis: isoTag(z.gueltig_bis) ?? berlinToday(),
   };
 }
@@ -100,7 +104,9 @@ export function kapitalCWahlAus(z: AngebotZeile): (KapitalCWahl & { unterschrift
   return {
     llc: { wunsch: String(s.llc.wunsch ?? ""), alternative1: String(s.llc.alternative1 ?? ""), alternative2: String(s.llc.alternative2 ?? "") },
     laufzeitJahre: Number(s.laufzeitJahre) || 0,
-    sofortBeginn: true,
+    // E-474: Bestand trägt immer „sofort“; mit fastTrackWahl steht die Wahl in schalter.fastTrack (ohne Fast-Track kein Sofortbeginn).
+    sofortBeginn: s.sofortBeginn !== false,
+    ...(typeof s.fastTrack === "boolean" ? { fastTrack: s.fastTrack } : {}),
     unterschrift: s.unterschrift && typeof s.unterschrift === "object" ? (s.unterschrift as KapitalUnterschriftVermerk) : null,
   };
 }
@@ -169,10 +175,11 @@ export async function kapitalCPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pru
 function kundeFuerDb(k: KapitalCKunde): Record<string, unknown> { return { ...k }; }
 export async function kapitalCAnlegen(ein: any, wer: string): Promise<Ergebnis<{ id: number; ref: string; link: string }>> {
   await ensureAngebotTabellen();
-  const k = kapitalCKundePruefen(ein?.kunde);
-  if (!k.ok) return nein(`Auftraggeber: ${k.error}`);
   // E-465: neue Angebote mit Staaten-Wahl (ohne Angabe Delaware) und den ehrlichen Zeiten; Bestand läuft nie hier durch.
   const parameter = kapitalCParameterAus(neuesAngebotParameter(ein?.parameter));
+  // E-474: mit datenVomKunden genügen Anrede, Name und E-Mail — Geburtsdatum und Anschrift trägt der Kunde auf seiner Seite ein.
+  const k = kapitalCKundePruefen(ein?.kunde, parameter.datenVomKunden ? { nurKontakt: true } : {});
+  if (!k.ok) return nein(`Auftraggeber: ${k.error}`);
   const pf = kapitalCParameterFehler(parameter);
   if (pf) return nein(pf);
   const buergin = kapitalBuerginAus(ein?.buergin);
@@ -204,7 +211,16 @@ export async function kapitalCAendern(id: number, ein: any, wer: string): Promis
   const alt = kapitalCDatenAus(z); const altHash = kapitalCTextHash(alt);
   const neu: KapitalCDaten = { ...alt }; const geaendert: string[] = [];
   if (ein?.parameter) { const par = { ...kapitalCParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung }; /* E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich */ const f = kapitalCParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
-  if (ein?.kunde) { const k = kapitalCKundePruefen(ein.kunde); if (!k.ok) return nein(`Auftraggeber: ${k.error}`); neu.kunde = k.kunde; geaendert.push("Kunde"); }
+  if (ein?.kunde) {
+    // E-474: Bei datenVomKunden kommt aus der privaten Datei nur der Kontakt — was der Kunde schon selbst eingetragen hat (Geburtsdatum,
+    // Anschrift, …), überschreibt ein zweiter Skriptlauf nie. Trägt die Datei die Angaben vollständig, gelten sie (wie bisher).
+    const k = neu.parameter.datenVomKunden ? kapitalCKundePruefen(ein.kunde, { nurKontakt: true }) : kapitalCKundePruefen(ein.kunde);
+    if (!k.ok) return nein(`Auftraggeber: ${k.error}`);
+    const voll = neu.parameter.datenVomKunden && kapitalCKundePruefen(k.kunde, { ohneAusweis: true }).ok;
+    neu.kunde = !neu.parameter.datenVomKunden || voll ? k.kunde
+      : { ...alt.kunde, anrede: k.kunde.anrede, vorname: alt.kunde.geburtsdatum ? alt.kunde.vorname : k.kunde.vorname, nachname: alt.kunde.geburtsdatum ? alt.kunde.nachname : k.kunde.nachname, email: k.kunde.email, telefon: k.kunde.telefon || alt.kunde.telefon };
+    geaendert.push("Kunde");
+  }
   if (ein?.buergin) { const b = kapitalBuerginAus(ein.buergin); const f = kapitalCBuerginFehler(b); if (f) return nein(`Fehlt: ${f}`); neu.buergin = b; geaendert.push("Bürgin"); }
   if (ein?.gueltigBis !== undefined) { const g = String(ein.gueltigBis); if (!ISO.test(g) || g < berlinToday()) return nein("„Gültig bis“: ein Datum ab heute."); neu.gueltigBis = g; geaendert.push("Gültigkeit"); }
   if (!geaendert.length) return nein("Es wurde nichts geändert.");
@@ -227,6 +243,9 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
   const k = d.kunde; const par = d.parameter;
   const annahme = kapitalCAnnahmeTexte(d);
   const t = encodeURIComponent(token);
+  // E-474: Fehlen NUR die Angaben, die der Kunde selbst einträgt, sagt die Seite genau das (nicht „wird gerade vervollständigt“).
+  const angabenFehlen = kapitalCAngabenFehlen(d);
+  const nurAngaben = angabenFehlen && fehlt.length === 1 && fehlt[0].startsWith("Auftraggeber:");
   const body: KapitalCKundenSicht = {
     ok: true, status: "offen", art: "kapital", variante: "privat", ref: d.ref, fassung: d.fassung, gueltigBis: d.gueltigBis,
     kunde: { anrede: k.anrede, vorname: k.vorname, nachname: k.nachname, email: k.email },
@@ -242,7 +261,14 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
     uebersicht: kapitalCBestellUebersicht(d, par.laufzeitVorschlagJahre),
     annahme,
     annahmeBereit: fehlt.length === 0 && !opts.leitung,
-    gesperrtGrund: fehlt.length ? annahme.gesperrt : null,
+    gesperrtGrund: fehlt.length ? (nurAngaben ? KAPITAL_C_ANNAHME.angabenFehlen : annahme.gesperrt) : null,
+    uebersichtJe: par.fastTrackWahl ? { mit: kapitalCBestellUebersicht(d, par.laufzeitVorschlagJahre, true), ohne: kapitalCBestellUebersicht(d, par.laufzeitVorschlagJahre, false) } : null,
+    // Nie ein Ausweis in dieser Antwort: Vor der Unterschrift gibt es keinen (E-474), und der Link kann weitergeleitet werden.
+    angaben: par.datenVomKunden ? {
+      fehlen: angabenFehlen, texte: KAPITAL_C_ANGABEN,
+      werte: { vorname: k.vorname, nachname: k.nachname, geburtsdatum: k.geburtsdatum, geburtsort: k.geburtsort, staatsangehoerigkeit: k.staatsangehoerigkeit, strasse: k.strasse, plz: k.plz, ort: k.ort, land: k.land },
+      speichern: `/api/fiaon/global/angebot/${t}/kapital-angaben`,
+    } : null,
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
     html: kapitalCVorschauHtml(d),
     textHash: kapitalCSichtHash(d),
@@ -256,6 +282,130 @@ function kapitalCAnsprechpartnerSicht(par: KapitalCParameter) {
     ...p, portrait: portraitUrl(p.kuerzel), alt: portraitAlt(p.kuerzel, p.name), kiHinweis: portraitMitKi(p.kuerzel) ? KI_PORTRAIT_HINWEIS.de : null,
   }));
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// E-474 (Justin 02.11.2026): DER KUNDE TRÄGT SEINE ANGABEN SELBST EIN — und lädt den Reisepass NACH der Unterschrift hoch
+//   POST /global/angebot/:token/kapital-angaben — Name (korrigierbar), Geburtsdatum, Anschrift, Geburtsort/Staatsangehörigkeit
+//     freiwillig. Nur mit gültigem Link, nur Fassung C mit datenVomKunden, nur solange offen, gebremst (je Anschluss und je Angebot),
+//     Honigtopf wie die Annahme, nie aus der Vorschau der Leitung. Geprüft mit kapitalCAngabenPruefen (darin kapitalCKundePruefen);
+//     gespeichert im Kunden des Angebots — Prüfsumme und Fingerabdruck folgen dem neuen Vertragstext, die Antwort ist die neue
+//     Kundensicht (die Seite tauscht sie ohne Neuladen). Vermerk im Verlauf (ohne die Werte), beim ersten Mal eine Aufgabe an Justin.
+//   POST /global/angebot/:token/reisepass — nach der Annahme, eine Datei (PDF/JPG/PNG, 15 MB), über den bestehenden Weg des
+//     Global-Bereichs (globalKundenDokument, Art „reisepass“) in die Akte; dort meldet der Eingang sich wie jeder Kunden-Upload.
+// ═══════════════════════════════════════════════════════════════════════════
+const bremsen = new Map<string, number[]>();
+/** Gleitendes Fenster je Schlüssel (Arbeitsspeicher der Instanz, wie jede Drossel im Haus). */
+function gebremst(schluessel: string, max: number, fensterMs: number): boolean {
+  const jetzt = Date.now();
+  const liste = (bremsen.get(schluessel) ?? []).filter((t) => jetzt - t < fensterMs);
+  if (liste.length >= max) { bremsen.set(schluessel, liste); return true; }
+  liste.push(jetzt); bremsen.set(schluessel, liste);
+  if (bremsen.size > 5000) { const erster = bremsen.keys().next().value; if (erster) bremsen.delete(erster); }
+  return false;
+}
+const ZU_VIEL = "Von Ihrem Anschluss kamen gerade mehrere Versuche. Bitte versuchen Sie es in einigen Minuten noch einmal.";
+type Antwort = { status: number; body: Record<string, unknown> };
+const antwortFehler = (status: number, error: string, extra: Record<string, unknown> = {}): Antwort => ({ status, body: { ok: false, error, ...extra } });
+/** Link und Angebot wie bei Seite und Annahme: Signatur, Ablauf, Fassung C. */
+async function kapitalCZeileFuerToken(token: string): Promise<{ z: AngebotZeile } | { fehler: Antwort }> {
+  const t = angebotTokenPruefen(token);
+  if (!t) return { fehler: antwortFehler(403, "Dieser Link ist ungültig. Bitte öffnen Sie den Link aus unserer Nachricht.") };
+  if (t.urteil === "abgelaufen") return { fehler: antwortFehler(410, "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com.") };
+  const z = await angebotLesen({ ref: t.ref });
+  if (!z || !istKapitalCFassung(z.fassung)) return { fehler: antwortFehler(404, "Zu diesem Link finden wir kein Angebot.") };
+  if (angebotLinkAbgelaufen(z)) return { fehler: antwortFehler(410, "Dieser Link ist abgelaufen. Schreiben Sie uns bitte an support@fiaon.com.") };
+  return { z };
+}
+
+export async function kapitalCAngabenSpeichern(token: string, body: any, kontext: AnnahmeKontext): Promise<Antwort> {
+  const t = angebotTokenPruefen(token);
+  if (t && (gebremst(`angaben-ip:${kontext.ip}`, 12, 15 * 60_000) || gebremst(`angaben-ref:${t.ref}`, 20, 60 * 60_000))) return antwortFehler(429, ZU_VIEL);
+  const l = await kapitalCZeileFuerToken(token);
+  if ("fehler" in l) return l.fehler;
+  const z = l.z;
+  const status = angebotStatusAus(z);
+  if (status !== "offen") {
+    return antwortFehler(409, status === "angenommen"
+      ? "Ihr Vertrag ist schon angenommen — Ihre Angaben lassen sich hier nicht mehr ändern. Hat sich etwas geändert, schreiben Sie uns bitte kurz."
+      : "Dieses Angebot gilt nicht mehr. Bei Fragen erreichen Sie uns unter support@fiaon.com.", { code: "NICHT_OFFEN" });
+  }
+  if (kontext.leitung) return antwortFehler(403, "Vorschau der Leitung — die Angaben trägt nur der Kunde ein.", { code: "VORSCHAU" });
+  if (String(body?.falle ?? "").trim()) return antwortFehler(400, "Ihre Angaben konnten nicht verarbeitet werden. Bitte laden Sie die Seite neu.");
+  const d = kapitalCDatenAus(z);
+  if (!d.parameter.datenVomKunden) return antwortFehler(409, "Ihre Angaben stehen schon in Ihrem Vertrag.", { code: "NICHT_VORGESEHEN" });
+  const heute = berlinToday();
+  const p = kapitalCAngabenPruefen(d.kunde, body, heute);
+  if (!p.ok) return antwortFehler(400, p.error, { code: "ANGABEN", feld: p.feld });
+  const erstmals = kapitalCAngabenFehlen(d);
+  const [frei] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET kunde = ${jsonb(kundeFuerDb(p.kunde))}, updated_at = NOW()
+     WHERE id = ${z.id} AND status = 'offen' AND gueltig_bis >= ${heute}::date
+     RETURNING id`) as any[];
+  if (!frei) return antwortFehler(409, "Das Angebot lässt sich gerade nicht ändern. Bitte laden Sie die Seite neu.", { code: "GEAENDERT" });
+  const name = kapitalCName(p.kunde);
+  const korrigiert = name !== kapitalCName(d.kunde);
+  // Im Verlauf nur, WAS eingetragen wurde — die Werte stehen im Kunden des Angebots (und nach der Annahme im Vertrag).
+  await verlaufAngebot(Number(z.id), "Kunde (Angebotsseite)", `${erstmals ? "Angaben für den Vertrag eingetragen" : "Angaben für den Vertrag geändert"}: Geburtsdatum, Anschrift${p.kunde.geburtsort ? ", Geburtsort" : ""}${p.kunde.staatsangehoerigkeit ? ", Staatsangehörigkeit" : ""}${korrigiert ? "; Name korrigiert" : ""}`, { ip: kontext.ip });
+  if (erstmals) {
+    const frei2 = kapitalCPflichtFehlen({ ...d, kunde: p.kunde }).length === 0;
+    void import("../routes/fiaon-betreiber-todo").then(({ auftragFuerKunden }) => auftragFuerKunden({
+      personId: z.person_id != null ? Number(z.person_id) : null, ref: null,
+      titel: `Kapital-Angebot ${d.ref}: ${name} hat seine Angaben eingetragen`,
+      text: [
+        `${name} hat auf der Angebotsseite Geburtsdatum und Anschrift für den Vertrag eingetragen${korrigiert ? " (und den Namen korrigiert)" : ""}.`,
+        frei2 ? "Die Unterschrift ist damit frei." : "Die Unterschrift wartet noch auf die Freigabe (Parameter unterschriftFrei).",
+        "Den Reisepass lädt der Kunde nach der Annahme hoch — dann die Angaben mit dem Pass abgleichen.",
+      ].join("\n"),
+      anBetreiber: true, schluessel: `global:${d.ref}:kapital-angaben`, bereich: "konten", quelle: "global", autorName: "FIAON Global", link: CHEF_LINK,
+    })).catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Aufgabe „Angaben eingetragen“:`, e));
+  }
+  const neu = await angebotLesen({ id: Number(z.id) });
+  if (!neu) return antwortFehler(500, KAPITAL_C_ANGABEN.fehler);
+  const sicht = await kapitalCKundenSicht(token, neu);
+  return { status: 200, body: { ...sicht.body, gespeichert: true } };
+}
+
+/** E-474: Liegt in der Akte schon ein Reisepass vom Kunden? */
+export async function kapitalCReisepassDa(ref: string): Promise<boolean> {
+  const [r] = (await sqlPool`SELECT 1 AS da FROM fiaon_global_dokumente WHERE ref = ${ref} AND art = 'reisepass' AND geloescht_am IS NULL LIMIT 1`.catch(() => [])) as any[];
+  return !!r;
+}
+/** Die Art am Dateikopf (die Endung kann lügen) — hier NUR PDF, PNG, JPEG (die Akte nimmt sonst auch HEIC). */
+function passArt(daten: Buffer): boolean {
+  if (daten.length >= 5 && daten.subarray(0, 5).toString("latin1") === "%PDF-") return true;
+  if (daten.length >= 8 && daten.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return true;
+  return daten.length >= 3 && daten[0] === 0xff && daten[1] === 0xd8 && daten[2] === 0xff;
+}
+export const KAPITAL_C_PASS_MAX_BYTES = 15 * 1024 * 1024;
+/** Vor dem Lesen des Körpers: Link, Angebot, Zustand, Bremse — die Route ruft das, BEVOR multer die Datei annimmt. */
+export async function kapitalCReisepassZutritt(token: string, kontext: AnnahmeKontext): Promise<{ ok: true; ref: string; angebotId: number } | { ok: false; antwort: Antwort }> {
+  const t = angebotTokenPruefen(token);
+  if (t && (gebremst(`pass-ip:${kontext.ip}`, 10, 10 * 60_000) || gebremst(`pass-ref:${t.ref}`, 10, 10 * 60_000))) return { ok: false, antwort: antwortFehler(429, ZU_VIEL) };
+  const l = await kapitalCZeileFuerToken(token);
+  if ("fehler" in l) return { ok: false, antwort: l.fehler };
+  let z = l.z;
+  if (kontext.leitung) return { ok: false, antwort: antwortFehler(403, "Vorschau der Leitung — hochladen kann hier nur der Kunde.", { code: "VORSCHAU" }) };
+  if (angebotStatusAus(z) !== "angenommen") return { ok: false, antwort: antwortFehler(409, "Ihren Reisepass laden Sie nach der Unterschrift hoch.", { code: "NICHT_ANGENOMMEN" }) };
+  if (!kapitalCDatenAus(z).parameter.datenVomKunden) return { ok: false, antwort: antwortFehler(404, "Bitte laden Sie Unterlagen in „Mein Auftrag“ hoch.") };
+  if (!z.auftrag_ref) {
+    await kapitalCFertigstellen(Number(z.id)).catch(() => null);
+    z = (await angebotLesen({ id: Number(z.id) })) ?? z;
+  }
+  if (!z.auftrag_ref) return { ok: false, antwort: antwortFehler(409, "Ihr Auftrag wird gerade angelegt — bitte versuchen Sie es in einer Minute noch einmal.") };
+  return { ok: true, ref: String(z.auftrag_ref), angebotId: Number(z.id) };
+}
+export async function kapitalCReisepassHochladen(zutritt: { ref: string; angebotId: number }, datei: { buffer: Buffer; originalname: string } | null): Promise<Antwort> {
+  if (!datei?.buffer?.length) return antwortFehler(400, "Es ist keine Datei angekommen. Bitte versuchen Sie es noch einmal.");
+  if (datei.buffer.length > KAPITAL_C_PASS_MAX_BYTES) return antwortFehler(400, KAPITAL_C_REISEPASS.zuGross);
+  if (!passArt(datei.buffer)) return antwortFehler(400, KAPITAL_C_REISEPASS.falscherTyp);
+  // Der bestehende Weg des Global-Bereichs: Typ am Inhalt, Name bereinigt, Doppel erkannt, Verlauf und Eingangsmeldung an das Team.
+  const { globalKundenDokument } = await import("./fiaon-global-bereich");
+  const erg = await globalKundenDokument(zutritt.ref, { art: "reisepass", datei });
+  if (!erg.ok) return antwortFehler(erg.status, erg.error);
+  await verlaufAngebot(zutritt.angebotId, "Kunde (Angebotsseite)", "Reisepass hochgeladen — liegt in der Akte (Tresor).");
+  const dok = erg.dokument as { name?: string; am?: string };
+  return { status: 200, body: { ok: true, da: true, dokument: { name: dok.name ?? null, am: dok.am ?? null } } };
+}
+
 export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record<string, unknown>> {
   const d = kapitalCDatenAus(z);
   const w = kapitalCWahlAus(z);
@@ -267,8 +417,14 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
   const zweck = b?.payment_reference ? String(b.payment_reference) : null;
   const bezahlt = String(b?.payment_status ?? "") === "paid";
   const ansprech = kapitalCAnsprechpartnerSicht(d.parameter);
-  const heute = kapitalCEur(kapitalCHeuteCents(d.parameter));
+  // E-474: der Betrag nach der Wahl des Kunden (ohne fastTrackWahl immer mit Fast-Track, wie bisher).
+  const ft = kapitalCMitFastTrack(d.parameter, w);
+  const heute = kapitalCEur(kapitalCHeuteCents(d.parameter, ft));
   const { signInvoiceUrl } = await import("../fiaon-invoice");
+  // E-474: datenVomKunden — direkt nach der Annahme der Reisepass, über die Angebotsseite in die Akte (kapitalCReisepassHochladen).
+  const reisepass = d.parameter.datenVomKunden && ref1
+    ? { texte: KAPITAL_C_REISEPASS, hochladen: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/reisepass`, da: await kapitalCReisepassDa(ref1) }
+    : null;
   return {
     art: "kapital", variante: "privat", startgespraech: null,
     // Runde 2 (Gestaltung + Kundensicht): die ruhige Fertig-Ansicht der Fassung C — ohne Website-Menü, nur der Ansprechpartner
@@ -279,10 +435,11 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
       dateien: { vertrag: KAPITAL_C_ANNAHME.fertigDateien.vertrag, rechnung: KAPITAL_C_ANNAHME.fertigDateien.rechnung(heute) },
       ansprechTitel: KAPITAL_C_ANNAHME.fertigAnsprech, ansprechpartner: ansprech,
       marke: KAPITAL_C_MARKE,
+      reisepass,
     },
     ref: d.ref, auftragRef: ref1, email: d.kunde.email, sofortBeginn: true,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
-    betragCents: kapitalCHeuteCents(d.parameter),
+    betragCents: kapitalCHeuteCents(d.parameter, ft),
     zahlungsseite: zweck ? `/zahlung/${encodeURIComponent(zweck)}?bereich=business` : null,
     meinAuftrag: ref1 && (await globalAkteLesen(ref1).catch(() => null)) ? globalMeinAuftragUrl(ref1) : null,
     // Die Rechnung über den signierten Link (wie die Zahlungsseite), 30 Tage gültig.
@@ -291,7 +448,7 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
     fertigTitel: KAPITAL_C_ANNAHME.fertigTitel(kapitalCGruss(d.kunde)),
     fertigText: KAPITAL_C_ANNAHME.fertigText(d.kunde.email, llc, laufzeit),
     teil1Bezahlt: bezahlt,
-    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(heute),
+    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(heute, ft),
     fertigFuss: ansprech[0] ? KAPITAL_C_ANNAHME.fertigFussMit(ansprech[0]) : KAPITAL_C_ANNAHME.fertigFuss,
     llc: w?.llc ?? null,
   };
@@ -315,14 +472,18 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
   const llc = llcWahlPruefen(body?.llc);
   if (!llc.ok) return fehler(400, llc.error, { code: "LLC", feld: llc.feld });
   if (body?.gelesen !== true) return fehler(400, KAPITAL_C_ANNAHME.fehltGelesen, { code: "HAEKCHEN", fehlt: ["gelesen"] });
-  if (body?.sofortBeginn !== true) return fehler(400, KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
+  // E-474: Mit fastTrackWahl wählt der Kunde (true/false, nie vorbelegt — ein Aufpreis braucht seine ausdrückliche Wahl); der Haken
+  // „sofort beginnen“ gehört dann nur zum Fast-Track. Ohne fastTrackWahl: immer mit Fast-Track und Haken wie bisher.
+  const ft: unknown = d.parameter.fastTrackWahl ? body?.fastTrack : true;
+  if (ft !== true && ft !== false) return fehler(400, KAPITAL_C_ANNAHME.fehltFastTrack, { code: "FASTTRACK" });
+  if (ft && body?.sofortBeginn !== true) return fehler(400, d.parameter.fastTrackWahl ? KAPITAL_C_ANNAHME.fehltSofortWahl : KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
   const u = firmaUnterschriftPruefen(body?.unterschrift, { vertretung: { nachname: d.kunde.nachname } } as unknown as FirmaKunde);
   if (!u.ok) return fehler(400, u.error, { code: u.code });
   const hash = kapitalCTextHash(d);
   if (!gleich(String(body?.textHash ?? ""), kapitalCSichtHash(d))) return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
 
   const jetzt = new Date();
-  const wahl: KapitalCWahl = { llc: llc.wahl, laufzeitJahre: jahre, sofortBeginn: true };
+  const wahl: KapitalCWahl = { llc: llc.wahl, laufzeitJahre: jahre, sofortBeginn: ft, ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}) };
   const unterschrift: KapitalUnterschriftVermerk = { ...u.vermerk, am: jetzt.toISOString(), ip: kontext.ip };
   let pdf: Buffer;
   try {
@@ -346,7 +507,7 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
     if (neu && String(neu.status) === "offen") return fehler(409, KAPITAL_C_ANNAHME.neuLaden, { code: "GEAENDERT" });
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
-  await verlaufAngebot(Number(z.id), kapitalCName(d.kunde), `angenommen (${KAPITAL_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Laufzeit ${jahre} Jahre (Rate ${kapitalCEurCent(plan.monatsrateCents)}), LLC „${wahl.llc.wunsch}“${wahl.llc.alternative1 ? ` (Ausweich: ${[wahl.llc.alternative1, wahl.llc.alternative2].filter(Boolean).join(", ")})` : ""}, Sofortbeginn ausdrücklich verlangt, Unterschrift ${unterschrift.art}`);
+  await verlaufAngebot(Number(z.id), kapitalCName(d.kunde), `angenommen (${KAPITAL_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, Laufzeit ${jahre} Jahre (Rate ${kapitalCEurCent(plan.monatsrateCents)}), LLC „${wahl.llc.wunsch}“${wahl.llc.alternative1 ? ` (Ausweich: ${[wahl.llc.alternative1, wahl.llc.alternative2].filter(Boolean).join(", ")})` : ""}, ${!d.parameter.fastTrackWahl ? "Sofortbeginn ausdrücklich verlangt" : ft ? `Fast-Track gewählt (${kapitalCEur(kapitalCHeuteCents(d.parameter, true))}), Sofortbeginn ausdrücklich verlangt` : `OHNE Fast-Track (${kapitalCEur(kapitalCHeuteCents(d.parameter, false))}, Beginn nach der Widerrufsfrist)`}, Unterschrift ${unterschrift.art}`);
   void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
     .catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Annahme in der Aufruf-Aufgabe:`, e));
   await kapitalCFertigstellen(Number(z.id)).catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Fertigstellen:`, e));
@@ -393,6 +554,13 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
   const sch = json<Record<string, any>>(z.schalter, {});
   const teil1 = ((z as any).teile as any[] | undefined)?.find((x) => Number(x.nr) === 1);
   if (!teil1) return { ok: false, grund: "Teil 1 fehlt" };
+  // E-474: Teil 1 nach der Wahl des Kunden (ohne Fast-Track nur die Gründung) — BEVOR Bestellzeile und Rechnung entstehen
+  // (angebotTeilZurBestellung liest Betrag und Titel aus dieser Zeile). Nur solange noch keine Bestellung daran hängt.
+  const ft = kapitalCMitFastTrack(d.parameter, w);
+  if (d.parameter.fastTrackWahl) {
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET betrag_cents = ${kapitalCHeuteCents(d.parameter, ft)}, titel = ${kapitalCTeil1Titel(ft)}
+                   WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL AND (betrag_cents <> ${kapitalCHeuteCents(d.parameter, ft)} OR titel <> ${kapitalCTeil1Titel(ft)})`;
+  }
   try {
     let ref1 = teil1.bestell_ref ? String(teil1.bestell_ref) : (z.auftrag_ref ? String(z.auftrag_ref) : null);
     if (!ref1) {
@@ -403,7 +571,7 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
     }
     const [da] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE ref = ${ref1} LIMIT 1`) as any[];
     if (!da) {
-      const ok = await bestellzeilePrivat(ref1, k, `${KAPITAL_C_MARKE} — ${KAPITAL_C_TEIL1_TITEL}`, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
+      const ok = await bestellzeilePrivat(ref1, k, `${KAPITAL_C_MARKE} — ${kapitalCTeil1Titel(ft)}`, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
       if (!ok) throw new Error("Bestellzeile ließ sich nicht anlegen");
     }
     await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref1} WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL`;
@@ -412,7 +580,7 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
       const [pdfZeile] = (await sqlPool`SELECT vertrag_pdf FROM fiaon_global_angebote WHERE id = ${id}`) as any[];
       const firma = { art: "privat", land: k.land, name: kapitalCName(k), rechtsform: "Privatperson", registergericht: null, registernummer: null, strasse: k.strasse, plz: k.plz, ort: k.ort, ustId: null, website: null, quelleRegister: null };
       const ansprechpartner = { anrede: k.anrede, vorname: k.vorname, nachname: k.nachname, funktion: "Privatperson", email: k.email, telefon: k.telefon };
-      const bestaetigungen = { annahme: KAPITAL_KNOPF, sofortBeginn: true, gelesen: true, am: new Date(z.angenommen_am).toISOString(), kapitalangebot: true, kapitalPrivat: true,
+      const bestaetigungen = { annahme: KAPITAL_KNOPF, sofortBeginn: w?.sofortBeginn ?? true, ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}), gelesen: true, am: new Date(z.angenommen_am).toISOString(), kapitalangebot: true, kapitalPrivat: true,
         laufzeitJahre: w?.laufzeitJahre ?? null,
         ...(sch.unterschrift ? { unterschrift: { art: sch.unterschrift.art, name: sch.unterschrift.name ?? null, am: sch.unterschrift.am ?? null } } : {}) };
       const pngM = String(sch.unterschrift?.png ?? "").match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
@@ -471,18 +639,20 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
   const z2 = (await angebotLesen({ id }))!;
   const d = kapitalCDatenAus(z2); const w = kapitalCWahlAus(z2); const par = d.parameter;
   const name = kapitalCName(d.kunde);
+  const ft = kapitalCMitFastTrack(par, w);
   const b = z2.auftrag_ref ? await globalBestellungLesen(String(z2.auftrag_ref)).catch(() => null) : null;
   const namen = w ? [w.llc.wunsch, w.llc.alternative1, w.llc.alternative2].filter(Boolean) : [];
   const zeilen = [
     `GESELLSCHAFT: ${namen[0] ?? "—"}${namen.length > 1 ? ` · Ausweichnamen: ${namen.slice(1).join(" · ")}` : ""} — vor der Anmeldung ${staatRegisterIntern(par.bundesstaat)} prüfen.`,
     `LAUFZEIT: ${w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? kapitalCLaufzeitSatz(par, w.laufzeitJahre) : "—"}.`,
-    `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
+    `RECHNUNG: ${kapitalEur(kapitalCHeuteCents(par, ft))} Endpreis (${ft ? `Gründung ${kapitalEur(par.gruendungCents)} + Fast-Track ${kapitalEur(par.fastTrackCents)}` : `Gründung ${kapitalEur(par.gruendungCents)}, OHNE Fast-Track — Beginn erst nach der Widerrufsfrist`})${b?.payment_reference ? ` · Zweck ${b.payment_reference} · Zahlungsseite ${absoluteUrl(`/zahlung/${b.payment_reference}?bereich=business`)}` : " — Bestellung hängt, Stundenlauf holt nach"}.`,
     best.ok
       ? `VERTRAGSBESTÄTIGUNG (§ 312f BGB): an ${d.kunde.email} abgeschickt (welcome@, Vertrag mit Annahmevermerk, Widerrufsbelehrung und Formular plus Rechnung als PDF) — Zustellung noch offen: Das System prüft stündlich bei Brevo und meldet sich, wenn sie nicht ankommt.`
       : `VERTRAGSBESTÄTIGUNG (§ 312f BGB) ging NICHT raus (${best.grund ?? "unbekannt"}): Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Nicht zusätzlich von Hand schicken (beim Zahlungseingang versucht das System es sonst noch einmal, und der Kunde bekäme sie doppelt). Erst wenn auch das Nachholen scheitert, von Hand — vor Beginn der Ausführung (Sofortbeginn ist verlangt).`,
     `BÜRGSCHAFT: Bedingungen Ziffer 5 — u. a. Bürgin im Register AKTIV${par.buerginAktiv ? "" : " (im Angebot als inaktiv offengelegt — erst nach dem Reinstatement)"}. ERFOLGSHONORAR ${kapitalEur(par.erfolgCents)} per Knopf „${KAPITAL_C_TEIL2.knopf}“, sobald die LLC eingetragen ist.`,
     // E-432 (28.10.2026): Vor dem Zahlungseingang nimmt nur der Tresor im Chefbüro Dokumente an (das Office antwortet 409) —
     // oder in einem Zug mit Metadaten-Bereinigung: scripts/global-auftrag-pflegen.ts --tresor <ordner>.
+    ...(par.datenVomKunden ? ["REISEPASS: lädt der Kunde nach der Annahme hoch (Angebotsseite oder „Mein Auftrag“) — vorher nicht anmelden (Ziffer 7). Geburtsdatum und Anschrift hat er selbst eingetragen: bitte mit dem Pass abgleichen."] : []),
     `UNTERLAGEN: ${par.unterlagen.map((u) => u.titel).join(", ") || "—"} — liegen vor; bitte in den Tresor legen: Chefbüro › Global-Mandat › Tresor${z2.auftrag_ref ? ` (${absoluteUrl(globalChefMandatPfad(String(z2.auftrag_ref)))})` : ""}, falls noch nicht geschehen.`,
     `JAHRESBETREUUNG: ${kapitalEur(par.jahresCents)} je Jahr ab dem zweiten Jahr (verlängert sich nicht von selbst).`,
     `Vertrag (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK}.`,
@@ -500,7 +670,7 @@ export async function kapitalCNacharbeit(id: number): Promise<void> {
      WHERE id = ${id} AND bestaetigung_mail_am IS NULL RETURNING id`) as any[];
   if (!marke) return;
   await import("./fiaon-global-angebot-aufrufe")
-    .then((A) => A.annahmeMelden({ ref: d.ref, name: `${name} (privat)`, art: "Kapital-Angebot", betrag: `${kapitalEur(kapitalCHeuteCents(par))} Endpreis (Rechnung mit der Annahme, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}${par.zahlungszielTage > 0 && b?.payment_due_date ? ` bis ${kapitalTag(berlinToday(new Date(b.payment_due_date)))}` : ""}), ${kapitalEur(par.erfolgCents)} bei Eintragung, ab Jahr 2 ${kapitalEur(par.jahresCents)} je Jahr`, zeilen }))
+    .then((A) => A.annahmeMelden({ ref: d.ref, name: `${name} (privat)`, art: "Kapital-Angebot", betrag: `${kapitalEur(kapitalCHeuteCents(par, ft))} Endpreis${par.fastTrackWahl ? (ft ? " mit Fast-Track" : " ohne Fast-Track") : ""} (Rechnung mit der Annahme, zahlbar ${kapitalCZahlbar(par.zahlungszielTage)}${par.zahlungszielTage > 0 && b?.payment_due_date ? ` bis ${kapitalTag(berlinToday(new Date(b.payment_due_date)))}` : ""}), ${kapitalEur(par.erfolgCents)} bei Eintragung, ab Jahr 2 ${kapitalEur(par.jahresCents)} je Jahr`, zeilen }))
     .then((s) => console.log(`[FIAON-KAPITAL-C] ${d.ref}: Annahme — ${s}`))
     .catch((e) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Annahme-Mail an Justin:`, e));
 }
@@ -540,9 +710,10 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     const zweck = b?.payment_reference ? String(b.payment_reference) : null;
     const zahlungsseite = zweck ? absoluteUrl(`/zahlung/${encodeURIComponent(zweck)}?bereich=business`) : null;
     const meinAuftrag = globalMeinAuftragUrl(ref1);
-    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc });
+    const ft = kapitalCMitFastTrack(par, w);
+    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc, ...(par.fastTrackWahl ? { fastTrack: ft } : {}), ...(par.datenVomKunden && !(await kapitalCReisepassDa(ref1)) ? { reisepass: true } : {}) });
     // E-432 (28.10.2026): Zahlungsziel null Tage → „Zahlbar: sofort“; sonst der Tag aus der Bestellung (bei sieben Tagen wie bisher).
-    const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par)), zweck, sofort: par.zahlungszielTage <= 0, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
+    const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par, ft)), zweck, sofort: par.zahlungszielTage <= 0, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
     // Runde 2: Brevo verwirft Mails an gesperrte Adressen still (auch Abmelder, auch Service-Mails). Die Vertragsbestätigung ist
     // Pflicht (§ 312f BGB) und vom Kunden eben ausgelöst — die Sperre wird vorher aufgehoben (204 = war gesperrt, 404 = war frei).
     if (process.env.BREVO_API_KEY) {
@@ -867,7 +1038,12 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
     : String(akte.auftrag_mail_fehler ?? "").startsWith(NICHT_ZUGESTELLT)
       ? { ok: false, grund: String(akte.auftrag_mail_fehler) }
       : await kapitalCVertragsbestaetigung(Number(z.id)).catch((e) => ({ ok: false, grund: e instanceof Error ? e.message : String(e) }));
-  const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null } });
+  // E-474: ohne Fast-Track erst nach der Widerrufsfrist (vierzehn Tage ab der Annahme); mit datenVomKunden der Stand des Reisepasses.
+  const ft = kapitalCMitFastTrack(d.parameter, w);
+  const widerrufBis = !ft && angenommen ? (() => { const x = new Date(`${angenommen}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + 14); return x.toISOString().slice(0, 10); })() : null;
+  const reisepassDa = d.parameter.datenVomKunden ? await kapitalCReisepassDa(ref1) : null;
+  const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null },
+    ...(d.parameter.fastTrackWahl ? { fastTrack: ft, widerrufBis } : {}), ...(reisepassDa != null ? { reisepassDa } : {}) });
   let aufgabeId: number | null = null;
   try {
     const erg = await auftragFuerKunden({
@@ -880,8 +1056,8 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
   if (!aufgabeId) return { gestartet: false, grund: "Aufgabe nicht angelegt" };
   await sqlPool`UPDATE fiaon_global_auftraege SET status = 'gestartet', gestartet_am = COALESCE(gestartet_am, NOW()), updated_at = NOW() WHERE ref = ${ref1} AND status IN ('offen', 'bezahlt')`;
   await import("./fiaon-global-bereich").then((m) => m.globalStartVermerken(ref1)).catch((e) => console.error(`[FIAON-KAPITAL-C] ${ref1}: Etappe 1:`, e));
-  await verlaufAngebot(Number(z.id), "System", `Gründung und Fast-Track bezahlt (${b.payment_reference ?? ref}) — Auftrag gestartet, Garantie (Ziffer 4) bis ${kapitalTag(frist.ende)}`);
-  await globalVerlauf(ref1, `FIAON Global: Gründung und Fast-Track des Kapital-Angebots ${d.ref} bezahlt, Auftrag gestartet — Garantie (Ziffer 4) bis ${kapitalTag(frist.ende)}.`).catch((e: unknown) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Verlauf der Akte:`, e));
+  await verlaufAngebot(Number(z.id), "System", `${ft ? "Gründung und Fast-Track" : "Gründung (ohne Fast-Track)"} bezahlt (${b.payment_reference ?? ref}) — Auftrag gestartet, Garantie (Ziffer 4) bis ${kapitalTag(frist.ende)}`);
+  await globalVerlauf(ref1, `FIAON Global: ${ft ? "Gründung und Fast-Track" : "Gründung"} des Kapital-Angebots ${d.ref} bezahlt, Auftrag gestartet — Garantie (Ziffer 4) bis ${kapitalTag(frist.ende)}.`).catch((e: unknown) => console.error(`[FIAON-KAPITAL-C] ${d.ref}: Verlauf der Akte:`, e));
   return { gestartet: true };
 }
 
@@ -910,6 +1086,7 @@ export async function kapitalCSichtZurAkte(z: AngebotZeile): Promise<Record<stri
     parameter: d.parameter, angenommenAm: isoTag(z.angenommen_am), teile: roh,
     garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
     gespeichert: { beginn: isoTag(z.frist_beginn), ende: isoTag(z.frist_ende) }, laufzeitJahre: w?.laufzeitJahre ?? null,
+    ...(d.parameter.fastTrackWahl ? { fastTrack: kapitalCMitFastTrack(d.parameter, w) } : {}),
   });
   return {
     art: "kapital", variante: "privat", ref: d.ref, buergin: d.buergin.name, erstattungAusgeloest: !!z.erstattung_ausgeloest_am,
@@ -936,11 +1113,14 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
   }, { datum: ext.heute });
   const pa = kapitalCAuszahlungPruefen({ status: String(z.status), angenommenAm: isoTag(z.angenommen_am), heute: ext.heute, garantieErfuelltAm: isoTag(z.garantie_erfuellt_am), erstattungAusgeloest: !!z.erstattung_ausgeloest_am, fristBeginn: isoTag(z.frist_beginn) }, { datum: ext.heute });
   const name = kapitalCName(d.kunde);
+  // E-474: Betrag nach der Wahl (offen und ohne fastTrackWahl: mit Fast-Track wie bisher) — die Leitung sieht die Wahl in der Zeile.
+  const ftL = kapitalCMitFastTrack(par, w);
+  const ftZeile = par.fastTrackWahl ? (w ? (ftL ? " · mit Fast-Track" : " · OHNE Fast-Track") : " · Fast-Track nach Wahl des Kunden") : "";
   const laufzeit = w && kapitalCLaufzeitGueltig(w.laufzeitJahre, par) ? ` · Laufzeit ${w.laufzeitJahre} J. (Rate ${kapitalCEurCent(kapitalCPlan(par, w.laufzeitJahre).monatsrateCents)})` : "";
   return {
     art: "kapital", variante: "privat",
     id: Number(z.id), ref: d.ref, status, fassung: d.fassung, personId: z.person_id ?? null,
-    kunde: d.kunde, kundeName: `${name} (privat)`, parameter: par, gesamtCents: kapitalCHeuteCents(par),
+    kunde: d.kunde, kundeName: `${name} (privat)`, parameter: par, gesamtCents: kapitalCHeuteCents(par, ftL),
     fehlt, annahmeBereit: fehlt.length === 0 && status === "offen", versandSperre: null,
     gueltigBis: d.gueltigBis, erstelltAm: new Date(z.created_at).toISOString(), erstelltVon: z.erstellt_von ?? null,
     link: status === "offen" || status === "angenommen" ? absoluteUrl(angebotKundenPfad(angebotTokenErzeugen(d.ref, d.gueltigBis))) : null,
@@ -948,7 +1128,7 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
     pruefberichtUrl: null, anlage1Url: null, pruefbericht: null, buergin: d.buergin,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
-    kapital: { llc: w?.llc ?? null, zeile: `LLC in ${par.bundesstaat} · ${kapitalEur(kapitalCHeuteCents(par))} heute + ${kapitalEur(par.erfolgCents)} bei Eintragung + ${kapitalEur(par.jahresCents)}/Jahr ab Jahr 2 (Endpreise) · Finanzierung ${kapitalEur(par.betragCents)} in USD${laufzeit} · Privatperson (Fassung C)` },
+    kapital: { llc: w?.llc ?? null, zeile: `LLC in ${par.bundesstaat} · ${kapitalEur(kapitalCHeuteCents(par, ftL))} heute + ${kapitalEur(par.erfolgCents)} bei Eintragung + ${kapitalEur(par.jahresCents)}/Jahr ab Jahr 2 (Endpreise) · Finanzierung ${kapitalEur(par.betragCents)} in USD${laufzeit}${ftZeile}${par.datenVomKunden ? (kapitalCAngabenFehlen(d) ? " · Angaben trägt der Kunde ein (noch offen)" : " · Angaben vom Kunden eingetragen") : ""} · Privatperson (Fassung C)` },
     auftragRef: z.auftrag_ref ?? null, officeLink: z.auftrag_ref ? globalOfficeAuftragPfad(String(z.auftrag_ref)) : null,
     teile: [...teile].sort((a, b) => Number(a.nr) - Number(b.nr)).map((t) => ({
       nr: Number(t.nr), titel: String(t.titel), betragCents: Number(t.betrag_cents), bestellRef: t.bestell_ref ?? null,

@@ -36,6 +36,8 @@ import {
 import { globalStartPfad, globalStartUrl, globalPaketePfad, globalGespraechPfad, globalSeitePfad } from "../shared/fiaon-global-wege";
 import { globalLeitfaden, globalInfoMail, globalVorbereitungSystem, globalPreisZeile } from "../shared/fiaon-global-vertrieb";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
+// E-476 Scheibe 4: die Info-Mail trägt die Pflichthinweise ohne ihren Bank-Vorbehalt (E-468).
+import { ohneBankVorbehalt } from "../shared/fiaon-radar";
 import { wissenFakten, globalWissen } from "../shared/fiaon-wissen";
 import { seoSeite } from "../shared/fiaon-seo-seiten";
 import { istKeinAboPaket, keinAboSql, KEIN_ABO_SQL } from "../server/lib/fiaon-kein-abo";
@@ -232,7 +234,10 @@ const mail = globalInfoMail({ ansprechpartner: "Frau Beispiel", firma: "Beispiel
   ok("Geist: Info-Mail nach dem Gespräch", geist.length === 0, geist.join(", "));
   ok("Info-Mail: Sie-Form, kein Du", !/\b(du|dein|deine|dir|dich)\b/i.test(mail.text));
   ok("Info-Mail nennt jeden Preis als „einmalig“", GLOBAL_PAKETE.every((g) => mail.text.includes(`${globalPreisText(g.key)} einmalig`)));
-  ok("Info-Mail nennt die drei Pflichthinweise", GLOBAL_PFLICHTHINWEIS.de.every((h) => mail.text.includes(h)));
+  // E-476 Scheibe 4 (05.11.2026), vorher → nachher: vorher stand jeder Pflichthinweis wörtlich in der Info-Mail, auch der Satz
+  // „Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.“ Nachher: wörtlich OHNE diesen Bank-Vorbehalt
+  // (E-468: kein „das Institut entscheidet“ in Mails; Plan Lead-Weg 2.0, 4.6) — Steuer- und Meldepflicht bleiben Wort für Wort.
+  ok("Info-Mail nennt die drei Pflichthinweise (ohne Bank-Vorbehalt, E-468)", GLOBAL_PFLICHTHINWEIS.de.every((h) => mail.text.includes(ohneBankVorbehalt(h))) && !/entscheidet allein das jeweilige Institut/.test(mail.text));
   // 29.10.2026 (E-461): Das Erstgespräch steht auf der Startseite fiaon.com/ (vorher /business).
   ok("Info-Mail verlinkt /business/start und /#gespraech", mail.text.includes("https://fiaon.com/business/start") && mail.text.includes("https://fiaon.com/#gespraech"));
   ok("Info-Mail: kein /business-antrag, keine Monatsrate, keine Bankdaten", !/business-antrag|im Monat|\/Monat|IBAN|\bBIC\b/i.test(mail.text));

@@ -281,7 +281,7 @@ export async function nachrichtLabeln(postfach: string, id: string,
 /** Ein Anhang für eine Antwort — z. B. die Rechnung als PDF. */
 export interface MailAnhang { dateiname: string; inhalt: Buffer; typ?: string }
 
-export function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null; anhaenge?: MailAnhang[] | null; neu?: boolean }): string {
+export function mimeAntwort(opts: { von: string; an: string; betreff: string; text: string; html?: string | null; inReplyTo?: string | null; references?: string | null; anhaenge?: MailAnhang[] | null; neu?: boolean; abmelden?: string | null }): string {
   // `neu` (13.10.2026): eine frische Mail mit Anhang — der Betreff bleibt, wie er ist (kein „Re:“).
   const betreff = opts.neu ? opts.betreff : opts.betreff.replace(/^((re|aw|fwd?):\s*)+/i, "");
   const kodiertBetreff = `=?UTF-8?B?${Buffer.from(opts.neu ? betreff : `Re: ${betreff}`).toString("base64")}?=`;
@@ -297,6 +297,8 @@ export function mimeAntwort(opts: { von: string; an: string; betreff: string; te
     `Subject: ${kodiertBetreff}`,
     opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
     references ? `References: ${references}` : null,
+    // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 13): wie mimeNeu — der „Abmelden“-Knopf des Mailprogramms statt „Spam“.
+    opts.abmelden ? `List-Unsubscribe: <mailto:${opts.abmelden.replace(/[\r\n<>]/g, "")}?subject=Stopp>` : null,
     "MIME-Version: 1.0",
   ].filter((z) => z !== null) as string[];
 
@@ -351,14 +353,14 @@ export function mimeAntwort(opts: { von: string; an: string; betreff: string; te
   return b64url(zeilen.join("\r\n"));
 }
 
-export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null, opts: { vonName?: string | null; an?: string | null } = {}): Promise<string> {
+export async function antwortSenden(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null, opts: { vonName?: string | null; an?: string | null; abmelden?: string | null } = {}): Promise<string> {
   // 12.10.2026 (E-337 Firmen-Radar): Absendername und Empfänger wahlweise — die Nachfass-Mail antwortet auf die EIGENE
   // erste Mail (dort steht der Empfänger im To, nicht im From) und trägt denselben Namen wie sie.
   const von = opts.vonName ? `=?UTF-8?B?${Buffer.from(opts.vonName.replace(/[\r\n"]/g, "")).toString("base64")}?= <${postfach}>` : postfach;
   const j = await api(postfach, "/messages/send", {
     method: "POST",
     body: JSON.stringify({
-      raw: mimeAntwort({ von, an: opts.an || original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
+      raw: mimeAntwort({ von, an: opts.an || original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge, abmelden: opts.abmelden ?? null }),
       threadId: original.threadId,
     }),
   });
@@ -428,13 +430,20 @@ export async function postfachProbe(postfach: string): Promise<{ ok: boolean; la
 // Mail in jedem Postfach lesbar ist. Als Entwurf landet sie im gewählten
 // Postfach und wartet dort auf den Menschen; senden geht nur über den Knopf
 // „Senden" im Chefbüro, der vorher fragt.
-export function mimeNeu(opts: { von: string; vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null }): string {
+export function mimeNeu(opts: {
+  von: string; vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null;
+  /** E-476 Scheibe 4: Antworten an eine andere Adresse (Info-Mail im Business-Rahmen → Justin). Ohne Angabe: keine Zeile. */
+  antwortAn?: { email: string; name?: string | null } | null;
+}): string {
   const kodiert = (s: string) => `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`;
   const von = opts.vonName ? `${kodiert(opts.vonName.replace(/[\r\n"]/g, ""))} <${opts.von}>` : opts.von;
   const grenze = `fiaon-neu-${Buffer.from(opts.an + opts.betreff).toString("hex").slice(0, 24)}`;
+  const antwortAn = opts.antwortAn?.email && /^[^\s@<>"]+@[^\s@<>"]+$/.test(opts.antwortAn.email)
+    ? `Reply-To: ${opts.antwortAn.name ? `${kodiert(opts.antwortAn.name.replace(/[\r\n"]/g, ""))} ` : ""}<${opts.antwortAn.email}>` : null;
   const zeilen = [
     `From: ${von}`,
     `To: ${opts.an.replace(/[\r\n]/g, "")}`,
+    antwortAn,
     `Subject: ${kodiert(opts.betreff.replace(/[\r\n]+/g, " "))}`,
     // 21.09.2026 (Mara-Aktion): Abmelden per Antwort — Mailprogramme zeigen dafür einen eigenen Knopf.
     opts.abmelden ? `List-Unsubscribe: <mailto:${opts.abmelden.replace(/[\r\n<>]/g, "")}?subject=Stopp>` : null,
@@ -476,7 +485,7 @@ export async function neueMailSenden(postfach: string, opts: { vonName?: string 
  * antwortet der Kunde, landet seine Mail im selben Faden, und Mara liest ihre
  * eigene Mail im Verlauf mit.
  */
-export async function neueMailSendenMitFaden(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null }): Promise<{ id: string; threadId: string }> {
+export async function neueMailSendenMitFaden(postfach: string, opts: { vonName?: string | null; an: string; betreff: string; text: string; html: string; abmelden?: string | null; antwortAn?: { email: string; name?: string | null } | null }): Promise<{ id: string; threadId: string }> {
   const j = await api(postfach, "/messages/send", { method: "POST", body: JSON.stringify({ raw: mimeNeu({ von: postfach, ...opts }) }) });
   return { id: String(j?.id || ""), threadId: String(j?.threadId || "") };
 }

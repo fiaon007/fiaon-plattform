@@ -60,6 +60,9 @@ export const JA_FRAGE_MARKE = "(Ja-Frage)";
  * (termin_buchung, quelle = der Termin) nur, wenn der Browser ihn unverändert zurückschickt. Er deckt NUR den Erinnerungsanruf
  * vor diesem Gespräch.
  */
+// E-476 Scheibe 3 (05.11.2026, Logbuch 03.11. 18:30 „kein ARAS für Leads“): Das Buchungsformular zeigt diesen Hinweis NICHT
+// mehr, die Buchungs-Tür speichert keinen Nachweis mehr, und der Erinnerungsanruf lässt Lead-Gespräche aus
+// (fiaon-aras-wunsch.ts). Die Sätze bleiben stehen, weil schon gespeicherte Nachweise ihren Wortlaut behalten.
 export const GLOBAL_TERMIN_ARAS_HINWEIS = {
   de: "Kurz vor dem Gespräch rufen wir Sie an, um den Termin zu bestätigen – auch durch unsere KI-Assistentin ARAS.",
   en: "Shortly before the conversation, we will call you to confirm the appointment – including through our AI assistant ARAS.",

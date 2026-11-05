@@ -33,13 +33,16 @@
 import { markeMailImg } from "@shared/fiaon-marke";
 
 /** Wer im Postfach als Absender steht. Alle senden über welcome@fiaon.com. */
-export type AbsenderRolle = "welcome" | "accounting" | "legal" | "team";
+// E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): „global“ — die Mails rund um das Gespräch mit einem Business-Lead stehen als
+// „FIAON Global“ im Postfach (nicht „FIAON Welcome“); Antworten gehen an Justin (ANTWORT_AN_JE_EVENT im Motor).
+export type AbsenderRolle = "welcome" | "accounting" | "legal" | "team" | "global";
 
 export const ABSENDER: Record<AbsenderRolle, { name: string; email: string }> = {
   welcome: { name: "FIAON Welcome", email: "welcome@fiaon.com" },
   accounting: { name: "FIAON Accounting", email: "welcome@fiaon.com" },
   legal: { name: "FIAON Legal", email: "welcome@fiaon.com" },
   team: { name: "FIAON Team", email: "welcome@fiaon.com" },
+  global: { name: "FIAON Global", email: "welcome@fiaon.com" },
 };
 
 /** Der EINE erlaubte Karten-Satz. Compliance: Ziel, nie Zusage. */
@@ -82,8 +85,12 @@ export interface MailBaustein {
   kalender?: { ics?: string; google?: string; du?: boolean; entfernen?: boolean };
   /** Optionales Bild über dem Knopf — bei Zahlungsmails der GiroCode (02.09.2026). */
   bild?: { url: string; alt: string; breite?: number; unterschrift?: string };
-  /** Optionaler Kasten mit Eckdaten (Beträge, Referenzen, Termine). */
-  daten?: { label: string; wert: string }[];
+  /**
+   * Optionaler Kasten mit Eckdaten (Beträge, Referenzen, Termine). E-476 Scheibe 4 (Gutachten 0, Mangel 19): Eine Zeile, deren
+   * Wert nur EIN Platzhalter ist, entfällt, wenn er leer bleibt (Motor) — sie zählt als Lücke, außer sie ist `wahlweise`
+   * (z. B. „Paketwunsch“, den ein Meta-Lead nie hat). Vorher stand dann „Paketwunsch: noch offen“ oder ein leerer Wert da.
+   */
+  daten?: { label: string; wert: string; wahlweise?: boolean }[];
   /** Kleiner Zusatz unter dem Knopf — Hinweis, Frist, Rückversicherung. */
   fussnote?: string;
   /**
@@ -145,6 +152,13 @@ export interface MailBaustein {
    * ein Geschäftskunde landet nicht auf der Startseite der Privatkunden. Ohne Angabe bleibt jede Mail, wie sie war.
    */
   bereich?: "business";
+  /**
+   * E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 17): eigener Satz statt „Diese Nachricht wurde automatisch zu Ihrem Vorgang
+   * erstellt.“ — ein Business-Lead hat keinen „Vorgang“. Ohne Angabe bleibt jede Mail, wie sie war.
+   */
+  automatischSatz?: string;
+  /** E-476 Nachbesserung (Mangel 17): der Fuß verweist auf fiaon.com statt fiaon.com/business (dort steht seit E-461 FIAON Global). */
+  fussStartseite?: boolean;
 }
 
 const KOPF_SATZ = "Bonität ist machbar.";
@@ -359,7 +373,7 @@ export function mailHtml(b: MailBaustein): string {
             ${b.du ? "Fragen? Antworte einfach auf diese E-Mail — sie landet direkt bei uns." : r.fragen}
           </p>
           <p style="margin:0;font:400 12px/1.6 ${SCHRIFT};color:#9ca3af;">
-            FIAON LTD · <a href="${b.bereich === "business" ? `${BASIS_URL}/business` : BASIS_URL}" style="color:#9ca3af;">${b.bereich === "business" ? "fiaon.com/business" : "fiaon.com"}</a> ·
+            FIAON LTD · <a href="${b.bereich === "business" && !b.fussStartseite ? `${BASIS_URL}/business` : BASIS_URL}" style="color:#9ca3af;">${b.bereich === "business" && !b.fussStartseite ? "fiaon.com/business" : "fiaon.com"}</a> ·
             <a href="${BASIS_URL}/impressum${b.bereich === "business" ? "?bereich=business" : ""}" style="color:#9ca3af;">${r.impressum}</a> ·
             <a href="${BASIS_URL}/datenschutz${b.bereich === "business" ? "?bereich=business" : ""}" style="color:#9ca3af;">${r.datenschutz}</a><br />
             ${b.rechtsSatz ?? RECHTS_SATZ}
@@ -369,7 +383,7 @@ export function mailHtml(b: MailBaustein): string {
 
       </table>
 
-      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">${b.du ? "Diese Nachricht wurde automatisch erstellt." : r.automatisch}</p>`}
+      ${b.persoenlich ? "" : `<p style="margin:18px 0 0;font:400 11px/1.5 ${SCHRIFT};color:#9aa7bd;">${b.du ? "Diese Nachricht wurde automatisch erstellt." : b.automatischSatz ?? r.automatisch}</p>`}
     </td></tr>
   </table>
 </body>
@@ -425,7 +439,7 @@ export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = 
     ...(b.karteZiel ? ["", KARTE_SATZ] : []),
     "",
     "—",
-    b.bereich === "business" ? r.textFuss.replace("fiaon.com ·", "fiaon.com/business ·") : r.textFuss,
+    b.bereich === "business" && !b.fussStartseite ? r.textFuss.replace("fiaon.com ·", "fiaon.com/business ·") : r.textFuss,
     b.rechtsSatz ?? RECHTS_SATZ,
     ...(b.abmeldeUrl ? [`${r.abmeldenText}: ${b.abmeldeUrl}`] : []),
   ].join("\n").replace(/%%RATENLEISTE:[^%]*%%/g, "");

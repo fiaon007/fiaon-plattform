@@ -553,6 +553,40 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Justin erfährt von neuen Business-Leads nichts und ruft ohne Vorwissen an — wer die Firma ist, ob sie seriös und wie groß sie ist, steht nirgends.",
     fenster: 3,
   },
+  // E-476 Scheibe 4 (05.11.2026): Takt alle 2 Minuten, nurMitErgebnis + Stundenpuls.
+  lead_post: {
+    zweck: "FIAON Global: Justins Willkommens-Mail an jeden neuen Business-Lead (aus js@, mit seinen Antworten und dem persönlichen Terminlink, "
+      + "nach 10 Minuten Ruhe, rund um die Uhr) und das Lesen der Antworten in js@ (Cockpit-Zeile, Nachfass-Stopp, Meldung an Justin, Rückruf-Auftrag)",
+    folge: "Ein neuer Business-Lead hört nach dem Formular nichts von uns (wie vor E-476), und eine Antwort an Justin bleibt ungesehen im Postfach — "
+      + "das Nachfassen liefe weiter, obwohl der Lead schon geantwortet hat.",
+    fenster: 3,
+  },
+  // E-476 Scheibe 4: Takt alle 10 Minuten mit Meldung (Verkaufslauf — „versandt“, „faellig“; Gutachten 0, Mangel 11).
+  lead_nachfass: {
+    zweck: "FIAON Global: Justins Nachfass-Mails N1–N3 an Business-Leads ohne Termin und ohne Antwort (+1/+3/+7 Werktage, Mo–Fr 9–18 Uhr, im selben Faden)",
+    folge: "Wer den Terminlink nicht gleich nutzt, hört nie wieder von uns — die meisten Leads buchen erst nach einer Erinnerung.",
+    fenster: 2,
+  },
+  // E-476 Scheibe 5 (05.11.2026): Takt alle 5 Minuten, Historienzeile nur bei Arbeit und einmal je Stunde (nurMitErgebnis + Puls;
+  // Gutachten 0, Mangel 11) — die Übersicht 18:30 über einen atomaren Tagesmerker.
+  lead_takt: {
+    zweck: "FIAON Global: Daniels Takt — die Lead-Meldung an die Adresse „Lead-Meldungen an“ nachholen, die Erinnerungen nach 15/60/120 "
+      + "Dienstminuten (Daniel, eine Zeile an Justin, Rückruf an die Vertretung, Zusage-Wächter), die Übersicht um 18:30 an Justin und Daniel "
+      + "und die Lead-Wächter im Lagezimmer (Kalender leer bei laufender Werbung, Lead ohne Dossier, Lead-Mail gescheitert)",
+    folge: "Ein Lead wartet, und niemand merkt es: keine Erinnerung an Daniel, keine Zeile an Justin, abends keine Übersicht — "
+      + "und ein leerer Kalender oder eine gescheiterte Lead-Mail fällt erst auf, wenn ein Kunde sich beschwert.",
+    fenster: 3,
+  },
+  // E-458 Nr. 11 + E-476 Scheibe 3 (05.11.2026): Takt alle 10 Minuten, Historienzeile nur bei Arbeit und einmal je Stunde
+  // (nurMitErgebnis + Puls — Gutachten 0, Mangel 11: sonst stand der Lauf an ruhigen Tagen auf Rot).
+  global_gespraeche: {
+    zweck: "FIAON Global: Erinnerung an das Unternehmen am Vortag und eine Stunde vorher, nach dem Gespräch die Aufgabe „Ergebnis fehlt“ "
+      + "(bei Lead-Gesprächen bei Justin am nächsten Werktag um 9 Uhr an die zuständige Person), dazu an Justin „Termin steht“ (nachholen) "
+      + "und 60 Minuten vor jedem Lead-Gespräch die Anruf-Karte",
+    folge: "Das Unternehmen wird nicht an sein Gespräch erinnert, kein Ergebnis wird nachgehalten — und Justin ruft einen Lead ohne Anruf-Karte an "
+      + "(keine Nummer, keine Antworten, nicht, was der Lead Daniel erzählt hat).",
+    fenster: 2,
+  },
   global_widerruf_start: {
     zweck: "FIAON Global: bezahlte Privataufträge ohne den Wunsch nach sofortigem Beginn nach Ablauf der Widerrufsfrist starten (Aufgabe „US-Struktur starten“, Startmail)",
     folge: "Ein bezahlter Privatauftrag bleibt nach der Widerrufsfrist liegen: keine Start-Aufgabe, keine Startmail, der Kunde wartet.",
@@ -687,6 +721,9 @@ export const VERKAUFSLAEUFE: Record<string, (e: any) => { versandt: Zahl; aus: b
   radar_versand: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || /Sendefenster|kein Radar-Postfach/.test(String(e?.grund ?? "")) }),
   // E-339: Im Testmodus geht kein echter Brief hinaus (versandt 0) — das ist gewollt, kein „stummer“ Lauf.
   radar_brief: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || Number(e?.test) > 0 || /Sendefenster|Versanddienst/.test(String(e?.grund ?? "")) }),
+  // E-476 Scheibe 4: „stumm“ heißt nur: fällige Nachfass-Mails gingen 24 h nicht hinaus. Nichts fällig, außerhalb Mo–Fr 9–18 Uhr
+  // oder Schalter aus zählt nicht (aus).
+  lead_nachfass: (e) => ({ versandt: zahl0(e?.versandt), aus: !!e?.aus || !(Number(e?.faellig) > 0) }),
 };
 
 /** Schlüssel, die eine Person oder einen Vorgang benennen können — sie stehen nie in der Meldung (auch nicht als Summe). */

@@ -1220,13 +1220,58 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
     titel: "Nach JEDEM Gespräch: ein Klick.",
     text: "Sieben Ausgänge, mehr gibt es nicht. Das System setzt Status und Wiedervorlage von "
       + "selbst: Nicht erreicht kommt in zwei Tagen wieder, Mailbox morgen, Interesse morgen. "
-      + "Du musst dir nichts merken — du musst nur ehrlich klicken.",
-    tipp: "",
+      + "Du musst dir nichts merken — du musst nur ehrlich klicken. "
+      // E-476 Scheibe 5 (05.11.2026) mitgezogen: Pflicht-Notiz und Termin-Regel bei Business-Leads.
+      + "Bei einem Business-Lead (FIAON Global) gilt dazu: Bei „erreicht — Interesse“ oder „Termin vereinbart“ sind zwei, drei Sätze "
+      + "Pflicht, was er selbst erzählt hat — Justin liest sie vor dem Gespräch. „Termin vereinbart“ gibt es nur mit einem Termin im "
+      + "Kalender: Der Knopf öffnet dann „Termin bei Justin eintragen“.",
+    tipp: "Trag auch „nicht erreicht“ immer ein — dein Auftrag bleibt dann offen bis zum nächsten Versuch, und Justins nächste Mail an den Lead passt dazu.",
+  },
+  // E-476 Scheibe 5 (05.11.2026): EIN Stand je Business-Lead — die Leiste erscheint nur bei Business-Leads (ohne `ziel`).
+  {
+    titel: "Ein Lead, ein Stand — oben auf der Karte.",
+    text: "Bei einem Business-Lead steht oben auf der Anruf-Karte die Stand-Leiste: Anfrage (wann, woher), Mail von Justin, deine "
+      + "Anrufe, der Termin bei Justin — und darunter, was jetzt dran ist („Jetzt: anrufen — wartet seit 20 Min.“). Anfrage, Auftrag "
+      + "und Kalender ziehen mit: Trägst du ein Ergebnis ein oder bucht der Lead, schließt sich dein Auftrag von selbst; sagt er ab, "
+      + "geht er wieder auf.",
+    tipp: "Jeder neue Lead kommt als kurze Lead-Meldung an deine Firmenadresse, nie mehr an eine private. Reagiert nach 15 Minuten "
+      + "(Dienstzeit) niemand, kommt eine Erinnerung; nach 60 Minuten erfährt es Justin, und die Vertretung bekommt den Rückruf.",
+  },
+  // E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): das Erstgespräch mit einem Business-Lead führt Justin.
+  {
+    ziel: ".fk-justin-knopf",
+    titel: "Interesse? Trag ihn direkt bei Justin ein.",
+    text: "Das erste Gespräch mit einem neuen Business-Lead führt Justin. Du rufst trotzdem sofort an — und wenn er "
+      + "Interesse hat, klickst du „Termin bei Justin eintragen“: Justins freie Zeiten erscheinen, du wählst mit dem Lead "
+      + "eine Zeit. Pflicht sind zwei, drei Sätze „Was er selbst erzählt hat“ (wer, was, wie groß, wie ernst) und deine "
+      + "Einschätzung heiß, warm oder kalt — Justin liest das vor dem Gespräch (das Feld ist mit deiner Anruf-Notiz vorbefüllt). "
+      + "Der Lead bekommt sofort die Bestätigung per Mail, dein Auftrag schließt sich von selbst, Justin bekommt „Termin steht“ — "
+      + "und dein Anruf „erreicht — Termin vereinbart“ ist automatisch mit eingetragen (kein zweiter Klick). Hat der Lead schon "
+      + "selbst über seinen persönlichen Link gebucht, ist dein Auftrag ebenfalls zu — dann musst du nichts tun.",
+    tipp: "Fehlt die Mail-Adresse, frag sie im Gespräch und trag sie im Feld ein — ohne Mail keine Bestätigung. Will er lieber "
+      + "selbst wählen, kopier seinen persönlichen Terminlink (Name und Nummer sind dort schon eingetragen).",
+  },
+  // E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): dem Lead schreibt Justin — aus js@, mit seinem Terminlink.
+  {
+    titel: "Was der Lead schon von Justin bekommen hat.",
+    text: "Sobald Justin die Lead-Mails im Lead-Motor einschaltet, bekommt jeder neue Business-Lead zehn Minuten nach dem Formular "
+      + "eine Mail von Justin aus js@ — mit seinem Vorhaben in einem Satz und seinem persönlichen Terminlink; darin steht auch, dass "
+      + "du anrufst. Sind sie aus, zeigt die Stand-Leiste „keine Mail von Justin“ — dann bist du sein erster Kontakt. Bucht er nicht "
+      + "und antwortet nicht, folgen höchstens drei kurze Nachfass-Mails von Justin (die erste erst nach deinem angekündigten Anruf). "
+      + "Im Verlauf siehst du jede davon. Sie hören von selbst auf, sobald er bucht, antwortet, „keine Mails\u201c schreibt — oder "
+      + "sobald du ein Anruf-Ergebnis „erreicht\u201c oder „Nummer falsch\u201c einträgst. Antwortet er Justin, bekommst du EINEN "
+      + "Auftrag „hat geschrieben\u201c (fällig zu seiner Wunschzeit, wenn er eine nennt). Schreibt er „kein Interesse\u201c, schließt "
+      + "sich dein Auftrag — dann bitte nicht mehr anrufen.",
+    tipp: "„Nicht erreicht\u201c einzutragen ist wichtig: Justins nächste Nachfass-Mail sagt dann genau das („mein Kollege hat "
+      + "versucht, Sie anzurufen\u201c) — so passt alles zusammen.",
   },
   {
     titel: "Interesse? Dann gibt es zwei Wege.",
-    text: "Weg 1: „Info-Mail senden\u201c — die Firma bekommt sofort eine persönliche Mail mit deinem "
-      + "Namen, den vier Paketen, den Pflichthinweisen und dem Link zum Auftrag. „Auftragslink "
+    // E-476 Scheibe 4 mitgezogen: Business-Rahmen „FIAON Global“, Antworten an Justin; bei einem Business-Lead ohne Preisliste.
+    text: "Weg 1: „Info-Mail senden\u201c — die Firma bekommt sofort eine Mail als „FIAON Global\u201c mit deinem "
+      + "Namen (Antworten: beim Business-Lead an Justin, bei Kaltakquise an deine Firmenadresse), den Pflichthinweisen und — bei Kaltakquise — den vier Paketen und dem Link zum "
+      + "Auftrag. Ein Business-Lead, der sich selbst gemeldet hat, bekommt keine Preise (die bespricht Justin), sondern seinen "
+      + "Terminlink; hat er schon einen Termin, geht keine Info-Mail. „Auftragslink "
       + "kopieren\u201c gibt dir denselben Link für WhatsApp: Dort wählt der Kunde das Paket, "
       + "unterschreibt den Vertrag selbst und überweist auf Rechnung. Weg 2: „Abschluss am Telefon\u201c — "
       + "ihr legt die Bestellung GEMEINSAM an, du wählst das Global-Paket (Einmalpreis aus dem Katalog), "
@@ -1625,6 +1670,20 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
       + "oder „Verschoben“ (neue Zeit, die Bestätigung geht von selbst). Erinnerungen am Vortag und eine Stunde vorher laufen automatisch.",
     tipp: "Eine halbe Stunde nach dem Gespräch bekommt die zuständige Person die Aufgabe „Ergebnis fehlt“ — ist sie nicht da, die Vertretung. "
       + "Steht am nächsten Werktag um 9 Uhr noch nichts da, erinnert dich das System. Die Vertretung legst du unter Rückholung › FIAON Global fest.",
+  },
+  // E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): die Erstgespräche mit Business-Leads führt Justin.
+  {
+    ziel: "[data-cgn='gespraeche']",
+    titel: "Lead-Gespräche führt Justin — ohne Aufgaben.",
+    text: "Neue Business-Leads buchen in Justins Zeiten (über den Kalender auf fiaon.com, ihren persönlichen Link, /justin oder Daniels "
+      + "Cockpit-Knopf). Justin bekommt keine Aufgabe, sondern zwei Mails im Faden des Leads: „Termin steht“ sofort und 60 Minuten vorher "
+      + "die Anruf-Karte mit Nummer, Antworten, Check, dem, was der Lead selbst erzählt hat, Einstieg, drei Fragen und Paket-Idee. "
+      + "Das Ergebnis trägst du hier ein. Fehlt es am nächsten Werktag um 9 Uhr, fragt die zuständige Person (heute Daniel) bei Justin nach. "
+      + "Kein ARAS-Anruf für Leads — die Erinnerungen an den Lead kommen per Mail.",
+    tipp: "Wer die Gespräche führt und wie viele es am Tag sein dürfen (Lead-Gespräche und gesamt), steht unter Rückholung › FIAON Global. "
+      // E-476 Scheibe 5 (05.11.2026, Entscheidung 3A) mitgezogen: die Adresse für Daniels Lead-Meldungen und die Übersicht.
+      + "Dort steht auch „Lead-Meldungen an“: Daniels Meldungen zu jedem Lead (und die Erinnerung, wenn ein Lead wartet) gehen an diese "
+      + "Firmenadresse — nie an eine private. Um 18:30 bekommst du die Übersicht des Tages.",
   },
   {
     ziel: ".cgn-filter",
@@ -2554,6 +2613,35 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "ein Check gleichzeitig) und die einmalige Sammel-Mail für die Leads vor dem Start. „Vorschau“ zeigt das Dossier zu einer "
       + "Anfrage-Nummer, ohne etwas zu senden; der Prüfversand (auch mit KI) geht nur an Justin.",
   },
+  // E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): Justins Lead-Mails.
+  {
+    ziel: ".lm-leadmails",
+    titel: "Dem Business-Lead schreibt Justin.",
+    text: "Jeder neue Business-Lead bekommt zehn Minuten nach dem Formular eine Mail von Justin aus js@ — mit Justins echter "
+      + "Unterschrift, seinen eigenen Antworten (ohne Betrag) und seinem persönlichen Terminlink, auch nachts. Wer nicht bucht und "
+      + "nicht antwortet, bekommt höchstens drei kurze Nachfass-Mails im selben Faden (N1 erst nach dem angekündigten Anruf, Mo–Fr 9–18 Uhr). "
+      + "Schluss ist bei Termin, Antwort, „keine Mails\u201c, einem Anruf-Ergebnis im Cockpit oder wenn er Kunde wird. Antworten "
+      + "landen bei Justin; das Cockpit bekommt eine Zeile, die zuständige Person EINEN Rückruf-Auftrag (keinen bei Termin oder wenn "
+      + "Justin selbst im Faden schreibt). „kein Interesse\u201c heißt auch: kein Anruf mehr. Führt gerade nicht Justin die Gespräche, "
+      + "gehen keine Lead-Mails. Höchstens 20 Willkommens-Mails am Tag (einstellbar) — darüber schlägt der Lead-Wächter an.",
+    tipp: "Zwei Schalter, Vorgabe aus (dazu der Not-Aus „Antworten in js@ lesen“). Erst den Prüfversand lesen, dann einschalten: Das Einschalten setzt den Zählbeginn — "
+      + "Leads von vorher bekommen nie eine automatische Mail (für sie gibt es Entwürfe in js@ per Skript). „Vorschau“ zeigt jede "
+      + "Fassung (Meta, Website, Bestandskunde, Österreich, Englisch) oder die Mail zu einer echten Anfrage — ohne zu senden.",
+  },
+  // E-476 Scheibe 5 (05.11.2026, Entscheidung 3A): Daniels Takt, die Übersicht 18:30, die Lead-Wächter.
+  {
+    ziel: ".lm-takt",
+    titel: "Daniels Takt: kein Lead wartet mehr unbemerkt.",
+    text: "Jeder neue Business-Lead geht als kurze Lead-Meldung an die Adresse „Lead-Meldungen an“ (Rückholung › FIAON Global, heute "
+      + "Daniels Firmenadresse) — nie an eine private; ein zweiter Eingang desselben Leads bekommt keine zweite. Reagiert niemand "
+      + "(Auftrag nicht geöffnet, kein Anruf), erinnert das System Daniel nach 15 Minuten in der Dienstzeit (Mo–Fr 9–18 Uhr; mehrere "
+      + "Leads in EINER Mail), schreibt dir nach 60 Minuten eine Zeile und gibt der Vertretung den Rückruf; nach 120 Minuten ohne "
+      + "Anruf meldet sich der Zusage-Wächter. Lead-Meldung und Erinnerungen haben je einen Schalter. Um 18:30 kommt die Übersicht "
+      + "des Tages. Die Lead-Wächter stehen im Lagezimmer: Kalender leer bei laufender Werbung, Lead ohne Dossier, Lead-Mail "
+      + "gescheitert, Meta-Lead ohne Anfrage, ungewöhnlich viele Buchungen oder Leads, keine Vertretung; „Meta-Webhook still“ kommt nur einmal.",
+    tipp: "„Vorschau“ zeigt die Übersicht (auch für einen vergangenen Tag), ohne zu senden. „Stand ableiten“ zeigt einmalig, wo der "
+      + "Altbestand nicht zum Cockpit passt — „Anwenden“ schreibt nur mit deinem Go.",
+  },
   {
     ziel: ".lm-verbindung",
     titel: "Die Prüfliste zeigt, was bei Meta steht.",
@@ -2940,6 +3028,9 @@ export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
     titel: "Aufgaben & Ampel.",
     text: "System-Alarme und Termintreue als Ampel, „heikel neu“ und Woche für Woche: neu gegen erledigt. Meldungen sind keine "
       + "Aufgaben mehr — sie gehen von selbst aus, wenn alles wieder gut ist.",
+    // E-476 Scheibe 5 (05.11.2026) mitgezogen: die Lead-Wächter.
+    tipp: "Seit dem 05.11. gibt es die Lead-Wächter: Kalender leer, während die Global-Werbung läuft; ein Lead seit über 10 Minuten "
+      + "ohne Dossier; eine Lead-Mail gescheitert oder nicht zugestellt. „Meta-Webhook still“ ist ein bekannter Zustand — einmal gelb, nicht täglich.",
   },
 ];
 

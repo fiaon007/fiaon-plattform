@@ -154,20 +154,23 @@ export interface PersoenlicheMail {
 
 // E-458 (Befund): Die leise Zeile trägt wieder die volle Sitzanschrift und das Register (England and Wales) — so wie jede
 // Geschäftsmail einer britischen Firma und wie der Fuß vorher. Werte aus FIAON_FIRMA.
-const IMPRESSUM = () => ({
-  sitz: `${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}`, register: `${FIAON_FIRMA.register} Nr. ${FIAON_FIRMA.companyNo}`,
+// E-476 Scheibe 4: auch britisch (Justins Lead-Mails an englischsprachige Leads) — Wörter wie der Fuß des Mail-Gerüsts
+// („Legal notice“, „Privacy“), dieselben Seiten. Ohne Angabe deutsch wie bisher.
+const IMPRESSUM = (sprache: "de" | "en" = "de") => ({
+  sitz: `${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}`, register: `${FIAON_FIRMA.register} ${sprache === "en" ? "No." : "Nr."} ${FIAON_FIRMA.companyNo}`,
   impressum: `${basis()}/impressum`, datenschutz: `${basis()}/datenschutz`,
+  impressumWort: sprache === "en" ? "Legal notice" : "Impressum", datenschutzWort: sprache === "en" ? "Privacy" : "Datenschutz",
 });
 
 /** Die leise Zeile unter der Signatur: Firma, Sitzanschrift, Register, Impressum, Datenschutz. */
-export function impressumZeileHtml(): string {
-  const i = IMPRESSUM();
+export function impressumZeileHtml(sprache: "de" | "en" = "de"): string {
+  const i = IMPRESSUM(sprache);
   const link = (url: string, text: string) => `<a href="${esc(url)}" style="color:#9aa0a6;text-decoration:underline;">${text}</a>`;
-  return `<div style="margin-top:14px;font-size:11px;line-height:1.5;color:#9aa0a6;">${esc(FIAON_FIRMA.name)} · ${esc(i.sitz)} · ${esc(i.register)} · ${link(i.impressum, "Impressum")} · ${link(i.datenschutz, "Datenschutz")}</div>`;
+  return `<div style="margin-top:14px;font-size:11px;line-height:1.5;color:#9aa0a6;">${esc(FIAON_FIRMA.name)} · ${esc(i.sitz)} · ${esc(i.register)} · ${link(i.impressum, i.impressumWort)} · ${link(i.datenschutz, i.datenschutzWort)}</div>`;
 }
-export function impressumZeileText(): string {
-  const i = IMPRESSUM();
-  return `${FIAON_FIRMA.name} · ${i.sitz} · ${i.register} · Impressum: ${i.impressum} · Datenschutz: ${i.datenschutz}`;
+export function impressumZeileText(sprache: "de" | "en" = "de"): string {
+  const i = IMPRESSUM(sprache);
+  return `${FIAON_FIRMA.name} · ${i.sitz} · ${i.register} · ${i.impressumWort}: ${i.impressum} · ${i.datenschutzWort}: ${i.datenschutz}`;
 }
 
 /** Eine Gmail-Signatur (HTML) als Text — Zeilenumbrüche aus <br>/<div>/<p>, Entitäten aufgelöst, Bilder weg. */

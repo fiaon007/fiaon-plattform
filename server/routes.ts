@@ -528,10 +528,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ✉️ E-458 (29.10.2026): der kurze, persönliche Terminlink der ersten Radar-Mail (fiaon.com/g/r<ID>) — statt einer langen
   //    Adresse mit „utm_campaign=firmen_radar“, an der jeder die Serienmail erkennt. Die Zuordnung (r<ID>) bleibt erhalten.
   //    Seit E-461 geht die eine 302 direkt auf die Startseite „/?utm_…#gespraech“ — keine zweite Weiterleitung über /business.
+  //    E-476 Scheibe 3 (05.11.2026, Gutachten 0, Mangel 1): /g/ teilt sich der Radar-Link (r<Ziffern>, schon verschickte
+  //    Kaltmails — unverändert) mit dem PERSÖNLICHEN Terminlink eines Business-Leads (10 Zeichen Zufall, 30 Tage). Der setzt
+  //    ein HttpOnly-Cookie nur für /api/fiaon/global und führt auf „/#gespraech“ (bzw. /en) — der Code steht danach nie in der
+  //    Adresse der Seite. Abgelaufen oder vertippt: die normale Fläche, ohne Fehlerseite.
   app.get('/g/:kennung', async (req, res) => {
-    const { radarKurzlinkZiel } = await import('@shared/fiaon-radar');
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('X-Robots-Tag', 'noindex');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    const { gPfadArt, LEAD_CODE_COOKIE, LEAD_COOKIE_PFAD } = await import('@shared/fiaon-lead-weg');
+    if (gPfadArt(req.params.kennung) === 'lead') {
+      try {
+        const { leadCodeLesen } = await import('./lib/fiaon-lead-weg');
+        const v = await leadCodeLesen(req.params.kennung, { klick: true });
+        if (v) {
+          const { leadCookieSetzen } = await import('./routes/fiaon-global-termin');
+          leadCookieSetzen(res, String(req.params.kennung));
+          return res.redirect(302, v.sprache === 'en' ? '/en#gespraech' : '/#gespraech');
+        }
+        res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
+      } catch (e: any) {
+        console.error('[LEAD-WEG] /g/:', String(e?.message || e).slice(0, 160));
+      }
+      return res.redirect(302, '/#gespraech');
+    }
+    const { radarKurzlinkZiel } = await import('@shared/fiaon-radar');
     res.redirect(302, radarKurzlinkZiel(req.params.kennung));
   });
   // 📞 Telefonkartei (21.09.2026, E-201): Justins eigene Anrufseite — alle Kunden als Kartei,
@@ -637,6 +658,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Sammel-Mail für den Altbestand. Alle 2 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('lead_dossier', async () => await (await import('./lib/fiaon-lead-dossier')).leadDossierLauf(), 2 * 60 * 1000, { beimStartNach: 150_000, nurMitErgebnis: true });
+  });
+  // 🌐 FIAON Global — Lead-Mails aus einem Guss (E-476 Scheibe 4, Entscheidung 2A): Justins Willkommen aus js@ (nach 10 Minuten
+  //    Ruhe, rund um die Uhr), Antworten in js@ (alle 6 Minuten: Cockpit, Nachfass-Stopp, Meldung an Justin, Rückruf-Auftrag),
+  //    Gesendet-Abgleich. Alle 2 Minuten, Historienzeile nur bei Arbeit und einmal je Stunde (Puls). Schalter im Lead-Motor.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('lead_post', async () => await (await import('./lib/fiaon-global-lead-post')).leadPostLauf(), 2 * 60 * 1000, { beimStartNach: 170_000, nurMitErgebnis: true });
+  });
+  // 🌐 … und der Nachfass N1–N3 (+1/+3/+7 Werktage, Mo–Fr 9–18 Uhr, im selben Faden). Alle 10 Minuten MIT Meldung
+  //    („versandt“, „faellig“) — der Wächter der Verkaufsläufe schlägt an, wenn fällige Mails 24 Stunden liegen bleiben.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('lead_nachfass', async () => await (await import('./lib/fiaon-global-lead-post')).leadNachfassLauf(), 10 * 60 * 1000, { beimStartNach: 330_000 });
+  });
+  // 🌐 … und Daniels Takt (E-476 Scheibe 5, Entscheidung 3A): die Lead-Meldung T1 an „Lead-Meldungen an“ nachholen, die Erinnerungen
+  //    nach 15/60/120 Dienstminuten (Mo–Fr 9–18 Uhr), die Übersicht um 18:30 (werktags, Tagesmerker) und die Lead-Wächter im
+  //    Lagezimmer. Alle 5 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls). Schalter im Lead-Motor.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('lead_takt', async () => await (await import('./lib/fiaon-lead-takt')).leadTaktLauf(), 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
   });
   // 🌐 FIAON Global — Privataufträge ohne den Wunsch nach sofortigem Beginn starten erst nach der
   //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).

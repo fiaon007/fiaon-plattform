@@ -51,6 +51,10 @@ import { GLOBAL_KONTO_WOERTER } from "../client/src/i18n/global-konto";
 import { KONTO_SAETZE } from "../shared/fiaon-global-konto";
 // E-432 (Nachprüfung 27.10.2026): das Kapital-Angebot der Fassung C (Privatperson) — Seite, Annahme, Übersicht, Bestätigung, „Mein Auftrag“.
 import * as KC from "../shared/fiaon-global-angebot-kapital-c";
+// E-476 Scheibe 4 (05.11.2026): Justins Lead-Mails (Willkommen, Nachfass N1–N3) und die Sätze der Bestätigung/Vortag-Mail —
+// jede deutsche Fassung mit Musterwerten (die Mail-Wand selbst prüft scripts/pruef-lead-mails.ts für ALLE Antwort-Kombinationen).
+import * as LT from "../shared/fiaon-global-lead-texte";
+import { KUNDEN_SATZ } from "../shared/fiaon-global-lead";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
@@ -131,6 +135,21 @@ sammle(RADAR_KERNSATZ, "radar-kernsatz", texte);
 for (const z of GLOBAL_ZUSATZ) sammle({ ...z.de, angabe: z.angabe?.de ?? null }, `zusatz/${z.key}`, texte);
 sammle(GLOBAL_ZUSATZ_GRUPPEN.map((g) => g.de), "zusatz/gruppen", texte);
 sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
+{
+  const A = (code: string) => ({ schluessel: code.replace(/_\d+$/, ""), frage: code, antwort: code, code });
+  const link = { url: "https://fiaon.com/g/AbCdEfGh23", anzeige: "fiaon.com/g/AbCdEfGh23", bis: new Date("2026-12-05T10:00:00Z") };
+  const jetzt = new Date("2026-11-05T14:00:00Z");
+  const basis = { sprache: "de" as const, name: "Max Mustermann", kanal: "meta" as const, antworten: ["vorhaben_3", "kapitalrahmen_ziel_2", "wann_starten_1"].map(A),
+    mitNachricht: false, paketName: null, oesterreich: false, bestandskunde: false, link, eingangAm: new Date(jetzt.getTime() - 12 * 60_000), jetzt,
+    ruf: { kollege: "Daniel Beispiel", art: "heute" as const } };
+  const w = [LT.willkommenText(basis), LT.willkommenText({ ...basis, kanal: "website", antworten: [], mitNachricht: true }),
+    LT.willkommenText({ ...basis, bestandskunde: true }), LT.willkommenText({ ...basis, oesterreich: true }),
+    LT.willkommenText({ ...basis, eingangAm: new Date(jetzt.getTime() - 3 * 3_600_000), ruf: { kollege: "Daniel Beispiel", art: "ab" as const, abTag: new Date("2026-11-09T09:00:00Z") } })];
+  const n = ([1, 2, 3] as const).map((st) => LT.nachfassText(st, { sprache: "de", name: "Max Mustermann", link, willkommenAm: jetzt, jetzt: new Date("2026-11-06T09:30:00Z"), angaben: "antworten", firma: "Muster Logistik GmbH" }));
+  for (const m of [...w, ...n]) sammle({ betreff: m.betreff, text: LT.leadMailKlartext(m), fuss: m.fussSatz }, `lead-mail/${m.art}`, texte);
+  sammle(KUNDEN_SATZ, "lead-mail/kunden-satz", texte);
+  sammle({ angaben: LT.angabenSatz(basis.antworten, "de"), vorbereitung: LT.VORBEREITUNG_FREIGEGEBEN.de, vorbereitungMit: LT.vorbereitungHtml(basis.antworten, "de").replace(/<br \/>/g, "\n") }, "lead-mail/bestaetigung", texte);
+}
 // E-432 (Nachprüfung 27.10.2026): Fassung C mit Musterdaten (Repo öffentlich). „Garantie“ ist dort NUR als Hauptwort der
 // vertraglichen Geld-zurück-Garantie erlaubt (Justin, E-432) — „garantiert/garantieren“ bleibt rot (siehe unten).
 {

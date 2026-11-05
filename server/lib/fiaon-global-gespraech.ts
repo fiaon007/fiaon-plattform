@@ -46,6 +46,10 @@ import {
   vortagFaellig, kurzFaellig, ergebnisFaellig, leitungAb, gespraechAnrede, gespraechDatum, gespraechUhrzeit,
   nichtErreichtWann, type GespraechSprache,
 } from "./fiaon-global-gespraech-regeln";
+import { istLeadGespraech } from "@shared/fiaon-lead-weg";
+// E-476 Scheibe 4 (05.11.2026): die Vortag-Mail spiegelt SEINE Antworten und fragt nur, was fehlt.
+import { vorbereitungHtml, angabenSatz } from "@shared/fiaon-global-lead-texte";
+import type { LeadAntwort } from "@shared/fiaon-global-lead";
 
 export const SETTING_VERTRETUNG = "global_vertretung_agent_id";
 /** Die Mail „nicht erreicht“ geht nur zu Gesprächen, die höchstens so viele Tage zurückliegen. */
@@ -73,6 +77,8 @@ export function ensureGlobalGespraechSpalten(): Promise<boolean> {
           ADD COLUMN IF NOT EXISTS kurz_erinnert_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS ergebnis_aufgabe_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS ergebnis_leitung_am TIMESTAMPTZ`;
+      // E-476 Scheibe 3: die Marke der Anruf-Karte (D3) — dieselbe Spalte wie die allgemeine Termin-Erinnerung.
+      await sqlPool`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS agent_erinnert_am TIMESTAMPTZ`;
       return true;
     })().catch((e) => {
       spaltenBereit = null;
@@ -200,12 +206,16 @@ type GespraechMail = "global_termin_erinnerung" | "global_termin_kurz" | "global
 /** Die Nutzlast — REIN bis auf die Eingaben, damit das Prüfskript dieselbe Mail rendert, die rausgeht. */
 export function globalGespraechNutzlast(g: GlobalGespraech, ein: {
   anrufer: { name: string; vorname: string }; jetzt: Date; stornoLink: string; linkKalender?: string | null;
+  /** E-476 Scheibe 4: SEINE Formular-Antworten (Lead-Gespräch) — die Vortag-Mail fragt dann nur, was fehlt. */
+  antworten?: LeadAntwort[] | null;
 }): Record<string, string> {
   const en = g.sprache === "en";
   const wann = nichtErreichtWann(g.beginn, ein.jetzt, g.sprache);
   return {
     email: String(g.email || ""),
     ...(en ? { sprache: "en" } : {}),
+    // Ohne Antworten Wort für Wort der freigegebene Vorbereitungs-Absatz (E-458); nur feste Sätze, nichts vom Lead.
+    vorbereitung_html: vorbereitungHtml(ein.antworten ?? null, g.sprache),
     anrede_zeile: escapeHtml(gespraechAnrede(g, g.sprache)),
     termin_datum: gespraechDatum(g.beginn, g.sprache),
     termin_uhrzeit: gespraechUhrzeit(g.beginn),
@@ -226,21 +236,39 @@ async function stornoLinkFuer(g: GlobalGespraech): Promise<string> {
   return `${stornoLink(g.stornoToken)}?anrede=sie&bereich=business`;
 }
 
-/** Wo das Unternehmen eine neue Zeit wählt: beim Startgespräch Justins Seite mit seinen Daten, sonst der Kalender auf /business. */
+/**
+ * Wo das Unternehmen eine neue Zeit wählt: beim Startgespräch Justins Seite mit seinen Daten; bei einem Lead-Gespräch (E-476
+ * Scheibe 4) sein persönlicher Link (vorausgefüllt, Plan: „global_nicht_erreicht mit persönlichem Link“); sonst der Kalender.
+ */
 async function neueZeitLink(g: GlobalGespraech): Promise<string> {
   const { absoluteUrl } = await import("../fiaon-base-url");
   const start = await import("./fiaon-global-angebot-startgespraech")
     .then((m) => m.startgespraechNeuBuchenLink(g.id)).catch(() => null);
-  return start ?? absoluteUrl(g.sprache === "en" ? "/en/business#gespraech" : "/business#gespraech");
+  if (start) return start;
+  const [lg] = (await sqlPool`SELECT anfrage_id FROM fiaon_lead_gespraech WHERE termin_id = ${g.id} AND anfrage_id IS NOT NULL`.catch(() => [])) as any[];
+  if (lg?.anfrage_id) {
+    const link = await import("./fiaon-lead-weg").then((m) => m.leadLinkFuerAnfrage(Number(lg.anfrage_id))).catch(() => null);
+    if (link) return link;
+  }
+  return absoluteUrl(g.sprache === "en" ? "/en/business#gespraech" : "/business#gespraech");
 }
 
 async function gespraechMailSenden(art: GespraechMail, g: GlobalGespraech, jetzt: Date, verlaufText: string): Promise<{ status: string; grund?: string | null }> {
   const anrufer = await globalZustaendigFuer(g.agentId, g.beginn);
-  const nutzlast = globalGespraechNutzlast(g, {
-    anrufer: { name: anrufer.name || anrufer.gebucht?.name || "FIAON Global", vorname: anrufer.vorname || anrufer.gebucht?.vorname || "" },
-    jetzt, stornoLink: await stornoLinkFuer(g),
-    linkKalender: art === "global_nicht_erreicht" ? await neueZeitLink(g) : null,
-  });
+  const antworten = art === "global_termin_erinnerung"
+    ? await import("./fiaon-global-lead-post").then((m) => m.antwortenZumTermin(g.id)).catch(() => [] as LeadAntwort[])
+    : null;
+  const nutzlast = {
+    ...globalGespraechNutzlast(g, {
+      anrufer: { name: anrufer.name || anrufer.gebucht?.name || "FIAON Global", vorname: anrufer.vorname || anrufer.gebucht?.vorname || "" },
+      jetzt, stornoLink: await stornoLinkFuer(g),
+      linkKalender: art === "global_nicht_erreicht" ? await neueZeitLink(g) : null,
+      antworten,
+    }),
+    // E-476 Nachbesserung (Gutachten Technik, Mangel 9): Antworten an Justin (js@) nur bei einem LEAD-Gespräch — das Startgespräch
+    // zahlender Kunden antwortet weiter an welcome@ (Mara).
+    ...(istLeadGespraech({ quelle: "global", herkunft: g.herkunft }) ? { antwort_an: "js@fiaon.com" } : {}),
+  };
   const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
   const erg = await versendenUndProtokollieren(art, nutzlast as any, { personId: g.personId, verlaufText });
   await firmenVerlauf(g, `${verlaufText}${erg.status === "versandt" ? "" : ` — NICHT versandt (${erg.grund ?? erg.status}).`}`);
@@ -369,12 +397,17 @@ async function globalBestaetigungNeu(g: GlobalGespraech): Promise<{ status: stri
   const { globalTerminPayload } = await import("./fiaon-global-termin");
   const { berlinDatumText } = await import("./fiaon-termine");
   const name = [g.vorname, g.nachname].filter(Boolean).join(" ") || g.firma || "";
+  // E-476 Scheibe 4: bei einem Lead-Gespräch SEINE Sätze (wie die erste Bestätigung).
+  const antworten = await import("./fiaon-global-lead-post").then((m) => m.antwortenZumTermin(g.id)).catch(() => [] as LeadAntwort[]);
+  // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 1): globalTerminPayload macht die Werte selbst unschädlich — hier roh,
+  // sonst stünde „&amp;amp;“ in der Mail.
   const nutzlast = globalTerminPayload({
-    email: g.email, name: escapeHtml(name), firma: escapeHtml(g.firma ?? name), telefon: escapeHtml(g.telefon ?? ""),
-    paketText: paketText ? escapeHtml(paketText) : null,
-    ansprechpartner: escapeHtml(anrufer.name || anrufer.gebucht?.name || "FIAON Global"),
+    email: g.email, name, firma: g.firma ?? name, telefon: g.telefon ?? "",
+    paketText: paketText || null,
+    ansprechpartner: anrufer.name || anrufer.gebucht?.name || "FIAON Global",
     datumText: berlinDatumText(g.beginn), uhrzeit: gespraechUhrzeit(g.beginn), stornoToken: g.stornoToken,
-    sprache: g.sprache, beginn: g.beginn, paket: null,
+    sprache: g.sprache, beginn: g.beginn, paket: null, angabenSatz: angabenSatz(antworten, g.sprache),
+    lead: istLeadGespraech({ quelle: "global", herkunft: g.herkunft }),
   });
   const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
   const erg = await versendenUndProtokollieren("global_termin", nutzlast as any, {
@@ -425,16 +458,23 @@ async function erinnern(jetzt: Date, art: "vortag" | "kurz"): Promise<number> {
 
 async function ergebnisAufgaben(jetzt: Date): Promise<number> {
   const kandidaten = (await sqlPool`
-    SELECT id, beginn, COALESCE(dauer_min, 30) AS dauer_min FROM fiaon_termine
+    SELECT id, beginn, COALESCE(dauer_min, 30) AS dauer_min, agent_id, herkunft FROM fiaon_termine
      WHERE quelle = 'global' AND status = 'gebucht' AND ergebnis_aufgabe_am IS NULL
        AND beginn < ${jetzt} AND beginn > ${new Date(jetzt.getTime() - 14 * 86_400_000)}
      ORDER BY beginn LIMIT 50`) as any[];
   let angelegt = 0;
+  const gruender = await gruenderId();
   for (const k of kandidaten) {
     if (!ergebnisFaellig({ jetzt, beginn: new Date(k.beginn), dauerMin: Number(k.dauer_min) })) continue;
+    // E-476 Scheibe 3 (Plan Nr. 10, „keine Aufgaben an Justin“): Ein Lead-Gespräch bei Justin bekommt KEINE Aufgabe auf
+    // seinem Brett — die Anruf-Karte (D3) trägt den Link „Ergebnis eintragen“. Fehlt das Ergebnis am nächsten Werktag um
+    // 9 Uhr noch, fragt die zuständige Person (heute Daniel) bei Justin nach.
+    const leadBeiJustin = Number(k.agent_id) === gruender && istLeadGespraech({ quelle: "global", herkunft: k.herkunft });
+    if (leadBeiJustin && jetzt.getTime() < leitungAb(new Date(k.beginn)).getTime()) continue;
     if (!(await markeNehmen(Number(k.id), "ergebnis_aufgabe_am"))) continue;
     const g = await globalGespraechLesen(Number(k.id));
     if (!g) continue;
+    if (leadBeiJustin && (await ergebnisBeiJustinErfragen(g, jetzt))) { angelegt++; continue; }
     const wer = await globalZustaendigFuer(g.agentId, jetzt);
     const datum = gespraechDatum(g.beginn, "de"); const uhr = gespraechUhrzeit(g.beginn);
     const name = gespraechName(g);
@@ -468,6 +508,42 @@ async function ergebnisAufgaben(jetzt: Date): Promise<number> {
     });
   }
   return angelegt;
+}
+
+/**
+ * E-476 Scheibe 3: „Ergebnis bei Justin erfragen“ — die Aufgabe für die zuständige Person (globalZustaendig), nie für
+ * Justin. true = angelegt; false = niemand zuständig (dann der alte Weg aufs Betreiber-Brett).
+ */
+async function ergebnisBeiJustinErfragen(g: GlobalGespraech, jetzt: Date): Promise<boolean> {
+  const { globalZustaendig } = await import("./fiaon-global-termin");
+  const z = await globalZustaendig().catch(() => null);
+  if (!z || z.id === g.agentId) return false;
+  const datum = gespraechDatum(g.beginn, "de"); const uhr = gespraechUhrzeit(g.beginn);
+  const name = gespraechName(g);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  try {
+    await auftragFuerKunden({
+      personId: g.personId, ref: null,
+      titel: `Ergebnis bei Justin erfragen: Gespräch mit ${name} am ${datum}, ${uhr} Uhr`,
+      text: [
+        `Justin hatte am ${datum} um ${uhr} Uhr das Erstgespräch mit ${name} (Business-Lead). Ein Ergebnis ist noch nicht eingetragen.`,
+        "Bitte kurz bei Justin nachfragen, wie es ausging, und es eintragen: Chefbüro › Global-Kunden › Gespräche — oder im Firmen-Cockpit festhalten, wie es weitergeht.",
+        "· Stattgefunden → die Firma steht im Firmen-Cockpit mit Wiedervorlage morgen.",
+        "· Nicht erreicht → das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit; bitte heute noch einmal anrufen.",
+      ].join("\n"),
+      faelligAm: berlinToday(jetzt), dringend: true,
+      schluessel: aufgabeSchluessel.ergebnis(g.id), bereich: "sonstiges", quelle: "global", autorName: "FIAON Global",
+      link: `/agent/firmen?person=${g.personId}`, agentId: z.id,
+      anlageText: "Lead-Gespräch bei Justin vorbei — das Ergebnis fehlt noch.",
+      // E-476 Scheibe 5 (Entscheidung 3A): die Meldung an „Lead-Meldungen an“, nie an die private Login-Adresse.
+      meldung: await import("./fiaon-lead-takt").then((m) => m.leadAuftragMeldung()).catch(() => null),
+    });
+    return true;
+  } catch (e) {
+    console.error(`[GLOBAL-GESPRAECH] „Ergebnis bei Justin erfragen“ zu Termin ${g.id} nicht angelegt:`, String(e).slice(0, 200));
+    await sqlPool`UPDATE fiaon_termine SET ergebnis_aufgabe_am = NULL WHERE id = ${g.id}`.catch(() => {});
+    return true;
+  }
 }
 
 async function leitungErinnern(jetzt: Date): Promise<number> {
@@ -514,6 +590,7 @@ async function leitungErinnern(jetzt: Date): Promise<number> {
  * Der Lauf. Gibt `true` zurück, wenn er etwas getan hat (stillerLauf schreibt nur dann eine Historienzeile).
  * `jetzt` nur für den Prüfstand. Ohne Mail-Kanal laufen Aufgaben weiter, die Mails warten (keine Marke verbraucht).
  */
+let letzterPuls = 0;
 export async function globalGespraecheLauf(jetzt: Date = new Date()): Promise<boolean> {
   if (!(await ensureGlobalGespraechSpalten())) return false;
   const { versandErlaubtOderProtokoll } = await import("./fiaon-versandkanal");
@@ -522,9 +599,18 @@ export async function globalGespraecheLauf(jetzt: Date = new Date()): Promise<bo
   const kurz = mailsDuerfen ? await erinnern(jetzt, "kurz") : 0;
   const ergebnis = await ergebnisAufgaben(jetzt);
   const leitung = await leitungErinnern(jetzt);
-  const summe = vortag + kurz + ergebnis + leitung;
-  if (summe) console.log(`[GLOBAL-GESPRAECH] Vortag ${vortag} · kurz ${kurz} · Ergebnis-Aufgaben ${ergebnis} · Leitung ${leitung}`);
-  return summe > 0;
+  // E-476 Scheibe 3: an Justin — „Termin steht“ (D2) nachholen und die Anruf-Karte (D3) 60 Minuten vor jedem
+  // Lead-Gespräch bei ihm. Interne Mails an js@ (Brevo, wie das Lead-Dossier) — nie ARAS. Eine Störung hält den Lauf nicht an.
+  const lw = await import("./fiaon-lead-weg");
+  await lw.leadWegSchema().catch((e) => console.error("[GLOBAL-GESPRAECH] Lead-Weg-Tabellen:", String(e).slice(0, 160)));
+  const d2 = await lw.terminStehtNachholen().catch((e) => { console.error("[GLOBAL-GESPRAECH] D2 nachholen:", String(e).slice(0, 160)); return 0; });
+  const d3 = await lw.anrufKartenSenden(jetzt).catch((e) => { console.error("[GLOBAL-GESPRAECH] Anruf-Karten:", String(e).slice(0, 160)); return 0; });
+  const summe = vortag + kurz + ergebnis + leitung + d2 + d3;
+  if (summe) console.log(`[GLOBAL-GESPRAECH] Vortag ${vortag} · kurz ${kurz} · Ergebnis-Aufgaben ${ergebnis} · Leitung ${leitung} · Termin steht ${d2} · Anruf-Karten ${d3}`);
+  // Gutachten 0, Mangel 11: nurMitErgebnis braucht einen Stundenpuls — sonst meldete die Ampel den Lauf an ruhigen Tagen als ausgefallen.
+  if (summe > 0) { letzterPuls = Date.now(); return true; }
+  if (Date.now() - letzterPuls >= 60 * 60_000) { letzterPuls = Date.now(); return true; }
+  return false;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

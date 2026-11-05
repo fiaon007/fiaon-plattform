@@ -34,6 +34,11 @@ import { istKlaresJa } from "../../shared/fiaon-ja-zum-anruf";
 import {
   metaAntworten, antwortZeile, schluesselLesbar, firmaOffenPlatzhalter, type MetaFrageDef, type LeadAntwort,
 } from "../../shared/fiaon-global-lead";
+// E-476 Scheibe 5 (05.11.2026): der Merker des bekannten Zustands „Webhook still“ — ein Schlüssel, eine Stelle.
+import { LEAD_TAKT_SCHLUESSEL } from "../../shared/fiaon-lead-takt";
+
+/** E-476 Nachbesserung: der Weg-Wert einer Zeile ohne Mail und Telefon (nie eine verwaiste Beanspruchung, nie neu versucht). */
+export const META_UNGUELTIG = "meta_ungueltig";
 
 type Lauf = typeof sqlPool;
 
@@ -422,55 +427,83 @@ async function globalMetaLeadEinspielen(
   const email = String(f.email ?? "").trim().toLowerCase();
   const telefon = String(f.telefon ?? "").trim();
   if (!email && !telefon) {
+    // Nachbesserung (Gutachten Technik, Mangel 4): ein eigener Weg-Wert „meta_ungueltig“ — sonst sähe die Zeile aus wie eine
+    // verwaiste Beanspruchung und liefe alle fünf Minuten neu.
     await lauf`
       INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
-      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
-      ON CONFLICT (meta_lead_id) DO NOTHING`;
+      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${META_UNGUELTIG})
+      ON CONFLICT (meta_lead_id) DO UPDATE SET weg = ${META_UNGUELTIG}
+       WHERE fiaon_meta_leads.lead_id IS NULL AND fiaon_meta_leads.global_anfrage_id IS NULL`;
     return { status: "ungueltig", leadId: null, grund: "Global-Formular ohne E-Mail und Telefon" };
   }
   const name = String(f.vollname ?? [f.vorname, f.nachname].filter(Boolean).join(" ")).trim() || "Kontakt aus Meta-Formular";
   const firmaFeld = FIRMA_FELD.map((k) => f.fragen[k]).find((v) => v && v.trim());
+  // E-476 Scheibe 3 (Gutachten 0, Mangel 4): ERST BEANSPRUCHEN, DANN ANNEHMEN. Der Danke-Knopf (/gb, Weg „meta_danke“)
+  // und der Nachhol-Lauf können denselben Lead gleichzeitig holen — vorher entstanden dann zwei Anfragen, zwei Aufträge,
+  // zwei Dossiers. Jetzt gewinnt genau einer die Zeile (PRIMARY KEY meta_lead_id); der andere ist „dublette“. Scheitert die
+  // Annahme, wird die Beanspruchung zurückgenommen — der nächste Lauf versucht es neu, nichts geht verloren.
+  // Nachbesserung (Gutachten Technik, Mangel 4): Starb ein Prozess zwischen Beanspruchen und Annehmen (Deploy, Neustart), blieb
+  // die Zeile ohne Ziel stehen — jeder spätere Lauf meldete „dublette“, der Lead kam nie an. Eine Beanspruchung ohne Ziel, die
+  // älter als drei Minuten ist (eine Annahme dauert Sekunden; der Danke-Knopf wartet genauso lange), wird deshalb neu
+  // beansprucht — atomar, nur EIN Lauf gewinnt sie. Drei statt zehn Minuten, damit der nächste 5-Minuten-Nachhol-Lauf den Lead
+  // noch in seinem Fenster hat.
+  const [frei] = (await lauf`
+    INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
+    VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
+    ON CONFLICT (meta_lead_id) DO UPDATE SET gesehen_am = NOW(), weg = EXCLUDED.weg
+     WHERE fiaon_meta_leads.global_anfrage_id IS NULL AND fiaon_meta_leads.lead_id IS NULL
+       AND fiaon_meta_leads.weg NOT IN ('meta_test', ${META_UNGUELTIG}) AND fiaon_meta_leads.gesehen_am < NOW() - INTERVAL '3 minutes'
+    RETURNING meta_lead_id`) as any[];
+  if (!frei) return { status: "dublette", leadId: null };
   const { globalAnfrageAnnehmen } = await import("./fiaon-global-termin");
-  const erg = await globalAnfrageAnnehmen({
-    kontakt: {
-      name, vorname: f.vorname, nachname: f.nachname,
-      // Das Kapital-Formular fragt die Firma (company_name), das US-Gesellschaft-Formular nicht — dann steht der Name für
-      // sie, bis das Gespräch sie klärt. Der Platzhalter kommt aus EINER Konstante (E-476: das Dossier erkennt ihn daran).
-      firma: (firmaFeld?.trim() || firmaOffenPlatzhalter(name)).slice(0, 200),
-      email, telefon,
-      paket: null, paketText: null,
-      land: f.land, sprache: "de",
-    },
-    wunschzeit: null,
-    text: globalMetaText(f, formularName, roh, fragen),
-    ip: "meta-sofortformular",
-    // E-476: Quelle „meta“ (Herkunft im Auftrag: „Meta-Formular“) statt „website“.
-    herkunft: { wo: "das Meta-Sofortformular (Instagram/Facebook)", quelle: "meta", autor: "Meta-Sofortformular" },
-    lead: {
-      kanal: "meta", antworten: globalMetaAntworten(f, fragen), formular: formularName, plattform: f.plattform,
-      anzeige: roh.ad_name ?? null, kampagne: roh.campaign_name ?? null, metaLeadId: String(roh.id),
-      // Nachbesserung: der echte Eingang und der Weg — ein alter Lead aus „Rückstand nachholen“ kommt nicht einzeln.
-      metaErstellt: roh.created_time ?? null, weg,
-    },
-  });
-  await lauf`
-    INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg, global_anfrage_id)
-    VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg}, ${erg.anfrageId})
-    ON CONFLICT (meta_lead_id) DO NOTHING`;
+  let erg: Awaited<ReturnType<typeof globalAnfrageAnnehmen>>;
+  try {
+    erg = await globalAnfrageAnnehmen({
+      kontakt: {
+        name, vorname: f.vorname, nachname: f.nachname,
+        // Das Kapital-Formular fragt die Firma (company_name), das US-Gesellschaft-Formular nicht — dann steht der Name für
+        // sie, bis das Gespräch sie klärt. Der Platzhalter kommt aus EINER Konstante (E-476: das Dossier erkennt ihn daran).
+        firma: (firmaFeld?.trim() || firmaOffenPlatzhalter(name)).slice(0, 200),
+        email, telefon,
+        paket: null, paketText: null,
+        land: f.land, sprache: "de",
+      },
+      wunschzeit: null,
+      text: globalMetaText(f, formularName, roh, fragen),
+      ip: "meta-sofortformular",
+      // E-476: Quelle „meta“ (Herkunft im Auftrag: „Meta-Formular“) statt „website“.
+      herkunft: { wo: "das Meta-Sofortformular (Instagram/Facebook)", quelle: "meta", autor: "Meta-Sofortformular" },
+      lead: {
+        kanal: "meta", antworten: globalMetaAntworten(f, fragen), formular: formularName, plattform: f.plattform,
+        anzeige: roh.ad_name ?? null, kampagne: roh.campaign_name ?? null, metaLeadId: String(roh.id),
+        // Nachbesserung: der echte Eingang und der Weg — ein alter Lead aus „Rückstand nachholen“ kommt nicht einzeln.
+        metaErstellt: roh.created_time ?? null, weg,
+      },
+    });
+  } catch (e) {
+    await lauf`DELETE FROM fiaon_meta_leads WHERE meta_lead_id = ${String(roh.id)} AND global_anfrage_id IS NULL AND lead_id IS NULL`.catch(() => {});
+    throw e;
+  }
+  await lauf`UPDATE fiaon_meta_leads SET global_anfrage_id = ${erg.anfrageId} WHERE meta_lead_id = ${String(roh.id)}`;
   return { status: "neu", leadId: null, globalAnfrageId: erg.anfrageId };
 }
 
 /** Einen abgerufenen Meta-Lead in die Plattform bringen. */
 export async function metaLeadEinspielen(
   roh: MetaRohLead,
-  weg: "meta_webhook" | "meta_nachhol" | "meta_rueckstand",
+  // E-476 Scheibe 3: „meta_danke“ = der Danke-Knopf der Global-Formulare (/gb) — kein falscher „Webhook“-Treffer.
+  weg: "meta_webhook" | "meta_nachhol" | "meta_rueckstand" | "meta_danke",
   seiteId: string | null = null,
   lauf: Lauf = sqlPool,
 ): Promise<EinspielErgebnis> {
   await metaTabellen(lauf);
   if (!roh?.id) return { status: "ungueltig", leadId: null, grund: "Lead ohne ID" };
-  const [schon] = (await lauf`SELECT lead_id FROM fiaon_meta_leads WHERE meta_lead_id = ${String(roh.id)}`) as any[];
-  if (schon) return { status: "dublette", leadId: schon.lead_id ?? null };
+  const [schon] = (await lauf`SELECT lead_id, global_anfrage_id, weg, gesehen_am FROM fiaon_meta_leads WHERE meta_lead_id = ${String(roh.id)}`) as any[];
+  // Nachbesserung (Gutachten Technik, Mangel 4): eine verwaiste Beanspruchung (ohne Lead, ohne Anfrage, älter als drei Minuten)
+  // ist KEINE Dublette — der Weg unten beansprucht sie neu (atomar).
+  const verwaist = !!schon && !schon.lead_id && !schon.global_anfrage_id && !["meta_test", META_UNGUELTIG].includes(String(schon.weg))
+    && Date.now() - new Date(schon.gesehen_am).getTime() > 3 * 60_000;
+  if (schon && !verwaist) return { status: "dublette", leadId: schon.lead_id ?? null };
 
   if (istTestLead(roh)) {
     // Kein processIntake: kein Lead, keine Person, keine Zuteilung, keine Mail.
@@ -506,17 +539,18 @@ export async function metaLeadEinspielen(
   });
   if (!erg.ok) {
     // Ohne Mail und Telefon ist ein Lead nicht erreichbar — gemerkt wird er trotzdem,
-    // damit der Nachhol-Lauf ihn nicht alle fünf Minuten erneut versucht.
+    // damit der Nachhol-Lauf ihn nicht alle fünf Minuten erneut versucht (E-476: mit eigenem Weg-Wert, s. oben).
     await lauf`
       INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
-      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
-      ON CONFLICT (meta_lead_id) DO NOTHING`;
+      VALUES (${String(roh.id)}, NULL, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${META_UNGUELTIG})
+      ON CONFLICT (meta_lead_id) DO UPDATE SET weg = ${META_UNGUELTIG}
+       WHERE fiaon_meta_leads.lead_id IS NULL AND fiaon_meta_leads.global_anfrage_id IS NULL`;
     return { status: "ungueltig", leadId: null, grund: erg.error };
   }
   await lauf`
     INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg)
     VALUES (${String(roh.id)}, ${erg.id}, ${roh.form_id ?? null}, ${roh.created_time ?? null}, ${weg})
-    ON CONFLICT (meta_lead_id) DO NOTHING`;
+    ON CONFLICT (meta_lead_id) DO UPDATE SET lead_id = EXCLUDED.lead_id WHERE fiaon_meta_leads.lead_id IS NULL`;
   // E-408 (Scheibe 3): Hat das Formular nach dem Ja zum Anruf gefragt und er Ja gesagt → meta_kaestchen. Wirft nie.
   await anrufJaAusMetaMerken(roh, f, { leadId: erg.id, personId: erg.personId ?? null }, weg, lauf);
   return { status: erg.deduped ? "dublette" : "neu", leadId: erg.id };
@@ -1329,11 +1363,10 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
   aktiv.push(...(await waechterLeadRegeln(lauf)));
 
   // Webhook schweigt, Nachhol-Lauf findet: Das Abo ist weg oder gestört.
-  const [w] = (await lauf`
-    SELECT COUNT(*) FILTER (WHERE weg = 'meta_webhook')::int AS webhook,
-           COUNT(*) FILTER (WHERE weg = 'meta_nachhol')::int AS nachhol
-      FROM fiaon_meta_leads WHERE gesehen_am > NOW() - INTERVAL '3 hours'`) as any[];
-  const webhookStumm = Number(w?.nachhol || 0) >= 2 && Number(w?.webhook || 0) === 0;
+  // E-476 Scheibe 5 (05.11.2026, Gutachten 0, Mangel 22): Seit dem 20.10. ist das ein BEKANNTER Zustand. Das alte 3-Stunden-
+  // Fenster ging jede Nacht aus und jeden Morgen wieder an (Lagezimmer täglich rot). Jetzt
+  // meldet webhookStilleWaechter (unten) EINMAL, gelb, und erst wieder, nachdem der Webhook einmal geliefert hat.
+  const webhookStumm = await webhookStilleWaechter(lauf);
   // ══════════════════════════════════════════════════════════════════════
   // DER ALARM MUSS SAGEN, WAS ZU TUN IST (23.09.2026, E-226)
   //
@@ -1359,16 +1392,8 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
   // auf „Live" gestellt. Ursache 2 ist über die Schnittstelle ausgeschlossen:
   // Beide Lead-Anzeigen nutzen Formulare der abonnierten Seite FIAON. Die
   // Frage nach dem Live-Modus fällt deshalb aus dem Text; stattdessen stehen
-  // dort die drei Stellen, an denen man den Webhook bei Meta selbst sieht.
+  // dort die drei Stellen, an denen man den Webhook bei Meta selbst sieht (WEBHOOK_STILL_TEXT, unten).
   // ══════════════════════════════════════════════════════════════════════
-  await alarm("webhook", webhookStumm,
-    "Der Webhook meldet keine Leads — der Nachhol-Lauf fängt sie auf (bis zu 5 Minuten später), es geht also nichts verloren. "
-    + "Adresse und Token stimmen: Über dieselbe Adresse kommen WhatsApp-Ereignisse an. "
-    + "Prüfen: 1. developers.facebook.com/tools/lead-ads-testing → Seite FIAON → Formular → „Lead erstellen“ — kommt die Meldung, springt hier die Kopfzeile auf „Webhook bestätigt“ "
-    + "(der Test-Lead wird erkannt: kein Kunde, keine Zuteilung, keine Mail). "
-    + "2. App-Dashboard → Webhooks → Objekt „Page“: Feld „leadgen“ abonniert, Adresse wie unten unter „Verbindung zu Meta“. "
-    + "3. Seite FIAON → Einstellungen → Integrationen → Leadzugriff: Die App „FIAON Ltd.“ ist zugelassen.",
-    lauf);
   if (webhookStumm) aktiv.push("webhook");
 
   // Meldungen, die trotz Wiederholung nicht abrufbar sind.
@@ -1388,6 +1413,60 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
     if (kaputt.length) aktiv.push("verbindung");
   }
   return { alarme: aktiv };
+}
+
+/** Der Merker des bekannten Zustands „Webhook still“ (seit wann; leer = der Webhook liefert). */
+export const WEBHOOK_STILL_MERKER = LEAD_TAKT_SCHLUESSEL.webhookStill;
+/** Was der Alarm sagt — mit den drei Stellen, an denen man den Webhook bei Meta selbst sieht (E-226/E-244). */
+export const WEBHOOK_STILL_TEXT =
+  "Der Webhook meldet keine Leads (bekannter Zustand) — der Nachhol-Lauf fängt jeden Lead nach spätestens 5 Minuten auf, es geht also nichts verloren. "
+  + "Diese Meldung kommt einmal — und erst wieder, nachdem der Webhook einmal geliefert hat. "
+  + "Adresse und Token stimmen: Über dieselbe Adresse kommen WhatsApp-Ereignisse an. "
+  + "Prüfen: 1. developers.facebook.com/tools/lead-ads-testing → Seite FIAON → Formular → „Lead erstellen“ — kommt die Meldung, springt hier die Kopfzeile auf „Webhook bestätigt“ "
+  + "(der Test-Lead wird erkannt: kein Kunde, keine Zuteilung, keine Mail). "
+  + "2. App-Dashboard → Webhooks → Objekt „Page“: Feld „leadgen“ abonniert, Adresse wie unten unter „Verbindung zu Meta“. "
+  + "3. Seite FIAON → Einstellungen → Integrationen → Leadzugriff: Die App „FIAON Ltd.“ ist zugelassen.";
+
+/**
+ * E-476 Scheibe 5 (Gutachten 0, Mangel 22): „Meta-Webhook still“ als BEKANNTER Zustand — nicht täglich melden.
+ *   · 24 Stunden Fenster (statt 3): Nachts ohne Leads ändert sich nichts — der Zustand bleibt, wie er ist.
+ *   · Kamen Leads nur über den Nachhol-Lauf und ist der Zustand noch nicht bekannt: Merker setzen (atomar) und EINMAL
+ *     melden — im Lead-Motor (fiaon_meta_alarme, bis „Erledigt“) und gelb im Lagezimmer (geht nach 24 Stunden von selbst
+ *     aus). Danach keine neue Meldung, auch nicht nach „Erledigt“.
+ *   · Liefert der Webhook wieder (ein Lead über meta_webhook in 24 Stunden): Merker leer, beide Meldungen aus. Fällt er
+ *     später wieder aus, gibt es genau eine neue Meldung.
+ * `true` = der Zustand besteht.
+ */
+export async function webhookStilleWaechter(lauf: Lauf = sqlPool): Promise<boolean> {
+  const [w] = (await lauf`
+    SELECT COUNT(*) FILTER (WHERE weg = 'meta_webhook')::int AS webhook,
+           COUNT(*) FILTER (WHERE weg = 'meta_nachhol')::int AS nachhol
+      FROM fiaon_meta_leads WHERE gesehen_am > NOW() - INTERVAL '24 hours'`) as any[];
+  const [m] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${WEBHOOK_STILL_MERKER}`.catch(() => [])) as any[];
+  const seit = String(m?.value ?? "").trim();
+  const { alarmMelden, alarmVorbei } = await import("./fiaon-system-alarme");
+  if (Number(w?.webhook || 0) > 0) {
+    if (seit) await lauf`UPDATE fiaon_settings SET value = '', updated_at = NOW() WHERE key = ${WEBHOOK_STILL_MERKER}`;
+    await lauf`UPDATE fiaon_meta_alarme SET erledigt_am = NOW() WHERE art = 'webhook' AND erledigt_am IS NULL`;
+    await alarmVorbei("lead-motor:webhook", "der Webhook liefert wieder Leads", lauf, { auftraege: { quelle: "lead-motor", schluesselWie: "lead-motor:webhook:%" } });
+    return false;
+  }
+  if (Number(w?.nachhol || 0) < 1) return !!seit;
+  if (seit) return true;
+  await lauf`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${WEBHOOK_STILL_MERKER}, '', NOW()) ON CONFLICT (key) DO NOTHING`;
+  const [frei] = (await lauf`
+    UPDATE fiaon_settings SET value = ${new Date().toISOString()}, updated_at = NOW()
+     WHERE key = ${WEBHOOK_STILL_MERKER} AND COALESCE(value, '') = '' RETURNING key`) as any[];
+  if (!frei) return true;
+  await lauf`
+    INSERT INTO fiaon_meta_alarme (art, text) VALUES ('webhook', ${WEBHOOK_STILL_TEXT})
+    ON CONFLICT (art) DO UPDATE SET text = EXCLUDED.text, zuletzt_am = NOW(), zaehler = 1, erstellt_am = NOW(), erledigt_am = NULL`;
+  await alarmMelden("lead-motor:webhook", {
+    quelle: "lead-motor", titel: "Lead-Motor: Meta-Webhook still (bekannter Zustand) — der Nachhol-Lauf fängt alles auf", text: WEBHOOK_STILL_TEXT,
+    stufe: "gelb", link: "/chef/s/lead-motor", endetNachStunden: 24, neueEpisode: true,
+  }, lauf);
+  console.warn("[LEAD-MOTOR] Meta-Webhook still — einmal gemeldet (bekannter Zustand).");
+  return true;
 }
 
 /**

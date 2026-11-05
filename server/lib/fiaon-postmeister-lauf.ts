@@ -1219,6 +1219,23 @@ export async function mailBearbeiten(ein: {
       }
     }
 
+    // 0c. E-476 Scheibe 3 (05.11.2026, Entscheidung 2A): Ein offener BUSINESS-LEAD (Global-Anfrage der letzten 60 Tage oder
+    //     ein Lead-Gespräch) bekommt keine Mara-Antwort, auch keinen Entwurf — dem Lead schreibt Justin aus js@. Die Mail
+    //     bleibt ungelesen (Ordner „FIAON/Global-Lead“), das Cockpit bekommt eine Zeile, Justin eine kurze Mail im Faden
+    //     des Leads (keine Aufgabe). AUSNAHME (Gutachten 0, Mangel 7; Gutachten 1, Mangel 1): Hat der Absender eine
+    //     BEZAHLTE Privat-Bestellung, antwortet Mara wie bisher — ihre Fragen zu Karte, Zahlung oder Kündigung bleiben nie
+    //     liegen. Stört die Prüfung, wirft sie (Muster 0b): die Zeile geht auf „fehler“, nie „im Zweifel antworten“.
+    {
+      const { globalLeadAbsender, leadAntwortVermerken } = await import("./fiaon-lead-weg");
+      const antwortAn = String(mail.antwortAn?.match(/<([^>]+)>/)?.[1] ?? mail.antwortAn ?? "");
+      const lead = (await globalLeadAbsender(String(mail.vonAdresse || ""))) || (antwortAn ? await globalLeadAbsender(antwortAn) : null);
+      if (lead) {
+        await ablegen(postfach, gmailId, "FIAON/Global-Lead");
+        await leadAntwortVermerken(lead, { postfach, betreff: String(mail.betreff || "(ohne Betreff)"), auszug: neuerText || mail.snippet || "", von: String(mail.von || "") });
+        return fertig({ ...basis, kategorie: "intern", aktion: "ignoriert", begruendung: "Business-Lead (E-476): keine Mara-Antwort — Justin antwortet aus js@" }, "Global-Lead");
+      }
+    }
+
     // 1. Fremdpost — eigener Ordner, nie beantworten.
     // ── UNGELESEN BLEIBT UNGELESEN (09.09.2026, E-171) ──────────────────
     // Justin: „ALLE Emails die hinein kommen und NICHT Support sind, müssen

@@ -111,6 +111,69 @@ router.get("/fb", async (req: Request, res: Response) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// /gb — DER DANKE-KNOPF DER GLOBAL-FORMULARE (E-476 Scheibe 3, 05.11.2026)
+//
+// Die Meta-Formular-Fassung 2 („FIAON Global · …“) führt mit „Termin wählen“ auf /gb?lid={{lead_id}}. Anders als /fb
+// wartet der Mensch hier auf NICHTS (Gutachten 0, Mangel 17): Die Kennung kommt in ein HttpOnly-Cookie nur für
+// /api/fiaon/global, der Klick geht sofort auf den Kalender („/#gespraech“), und die Seite lädt die Vorlage nach, sobald
+// die Anfrage da ist. Den Lead holt diese Tür im Hintergrund selbst bei Meta (Weg „meta_danke“ — kein falscher
+// „Webhook“-Treffer) — gleichzeitig mit dem 5-Minuten-Nachhol-Lauf entsteht trotzdem nur EINE Anfrage (Beanspruchung in
+// fiaon-meta-leads.ts, Gutachten 0, Mangel 4). Ohne Kennung (Meta hat sie nicht ersetzt): einfach der Kalender.
+// Bremse: höchstens sechs Abrufe je Adresse in zehn Minuten — eine erfundene Kennung kostet uns sonst einen Meta-Aufruf.
+// Nachbesserung 05.11.2026 (Gutachten Sicherheit Mangel 8, Technik Mangel 10): die echte Adresse (cf-connecting-ip, nie der erste
+// X-Forwarded-For-Eintrag), abgelaufene Einträge werden einzeln gelöscht (kein clear() für alle), höchstens 20 Echtzeit-Abrufe
+// je zehn Minuten für ALLE zusammen (darüber holt nur der 5-Minuten-Nachhol-Lauf), eine unbekannte Kennung zehn Minuten nicht
+// erneut — und das Cookie ist gestempelt (gbCookieWert), damit niemand eine fremde Kennung einsetzt.
+// ═══════════════════════════════════════════════════════════════════════════
+const gbJeIp = new Map<string, number[]>();
+const gbAlle: number[] = [];
+const gbUnbekannt = new Map<string, number>();
+export function gbZuViel(ip: string, jetzt: number = Date.now()): boolean {
+  const liste = (gbJeIp.get(ip) ?? []).filter((z) => jetzt - z < 10 * 60_000);
+  if (liste.length >= 6) { gbJeIp.set(ip, liste); return true; }
+  liste.push(jetzt); gbJeIp.set(ip, liste);
+  if (gbJeIp.size > 5000) for (const [k, v] of Array.from(gbJeIp.entries())) if (!v.some((z) => jetzt - z < 10 * 60_000)) gbJeIp.delete(k);
+  return false;
+}
+/** Darf jetzt ein Echtzeit-Abruf bei Meta laufen (globaler Deckel, Negativ-Merker)? Bucht den Abruf, wenn ja. */
+export function gbAbrufErlaubt(lid: string, jetzt: number = Date.now()): boolean {
+  if ((gbUnbekannt.get(lid) ?? 0) > jetzt) return false;
+  while (gbAlle.length && jetzt - gbAlle[0] > 10 * 60_000) gbAlle.shift();
+  if (gbAlle.length >= 20) return false;
+  gbAlle.push(jetzt);
+  return true;
+}
+function gbUnbekanntMerken(lid: string, jetzt: number = Date.now()): void {
+  gbUnbekannt.set(lid, jetzt + 10 * 60_000);
+  if (gbUnbekannt.size > 5000) for (const [k, bis] of Array.from(gbUnbekannt.entries())) if (bis < jetzt) gbUnbekannt.delete(k);
+}
+
+router.get("/gb", async (req: Request, res: Response) => {
+  schutzKoepfe(res);
+  const { metaLeadKennung, LEAD_GB_COOKIE, LEAD_COOKIE_PFAD, LEAD_WEG_VORGABE } = await import("../../shared/fiaon-lead-weg");
+  const lid = metaLeadKennung(req.query.lid);
+  if (!lid) { res.redirect(302, "/#gespraech"); return; }
+  const { aufrufClientIp } = await import("../lib/fiaon-global-angebot-aufrufe");
+  const { gbCookieWert } = await import("../lib/fiaon-lead-weg");
+  const ip = aufrufClientIp(req as any);
+  res.cookie(LEAD_GB_COOKIE, gbCookieWert(lid), {
+    httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+    maxAge: LEAD_WEG_VORGABE.cookieStunden * 3_600_000, path: LEAD_COOKIE_PFAD,
+  });
+  if (!gbZuViel(ip) && gbAbrufErlaubt(lid)) {
+    // Im Hintergrund: Lead bei Meta holen und als Global-Anfrage anlegen (einmal — die Beanspruchung schützt).
+    void import("../lib/fiaon-lead-weg")
+      .then((m) => m.metaDankeAufloesen(lid, { holen: true }))
+      .then((r) => {
+        if (!r) gbUnbekanntMerken(lid);
+        console.log(`[GB-DANKE] Meta-Lead ${lid}: ${r && typeof r === "object" ? `Anfrage #${r.anfrageId}` : r ?? "nicht gefunden"}`);
+      })
+      .catch((e) => { gbUnbekanntMerken(lid); console.error(`[GB-DANKE] Meta-Lead ${lid}:`, String(e?.message ?? e).slice(0, 200)); });
+  }
+  res.redirect(302, "/#gespraech");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // /e/:code — WER HAT WEN GEBRACHT (23.09.2026, E-214)
 //
 // Florentine: „Michaela Schneider hat gefragt, ob es Provisionen für Neukunden

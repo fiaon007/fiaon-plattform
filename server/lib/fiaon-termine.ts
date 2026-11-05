@@ -146,6 +146,10 @@ export const HERKUENFTE = {
   gruender_link: "Persönlicher Terminlink von Justin (WhatsApp)",
   // 17.09.2026 (E-188): der Gesprächskalender auf /business (FIAON Global).
   global_seite: "Gesprächskalender FIAON Global (/business)",
+  // E-476 Scheibe 3 (05.11.2026): die drei neuen Wege eines Business-Leads ins Erstgespräch (shared/fiaon-lead-weg.ts).
+  global_link: "Persönlicher Terminlink des Business-Leads (fiaon.com/g/…)",
+  agent_global: "Im Firmen-Cockpit eingetragen („Termin bei Justin eintragen“)",
+  gruender_global: "Business-Lead über fiaon.com/justin — als Global-Gespräch gebucht",
   // 24.09.2026 (E-236): Mara handelt selbst. Justin: „Ich muss sehen, was Mara
   // gemacht hat" — deshalb eigene Wege statt „agent", sonst sähe ein von Mara
   // vereinbarter Rückruf aus wie vom Mitarbeiter selbst eingetragen.
@@ -1704,7 +1708,7 @@ export async function terminAbsagen(
     SET status = 'abgesagt', abgesagt_am = NOW(), abgesagt_von = ${wer}, updated_at = NOW()
     WHERE storno_token = ${stornoToken} AND status = 'gebucht'
       AND (${auchBegonnene} OR beginn > NOW())
-    RETURNING id, person_id, agent_id, beginn, quelle
+    RETURNING id, person_id, agent_id, beginn, quelle, herkunft, notiz
   `) as any[];
   if (!termin) return { ok: false };
   // E-342: Die Absage verschwindet auch aus dem Google-Kalender — in Sekunden statt im Minutentakt.
@@ -1767,6 +1771,41 @@ export async function terminAbsagen(
         const beginnDatum = new Date(termin.beginn);
         const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
         const { absoluteUrl } = await import("../fiaon-base-url");
+        // ── E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 3): ein GLOBAL-Gespräch bekommt die Business-Absage ─────────
+        // (Rahmen „FIAON Global“, Sie-Form, ohne „Akte“) statt der Privat-Vorlage. Neue Zeit: Lead → sein persönlicher Link,
+        // Startgespräch → Justins Seite mit seinen Daten, sonst der Kalender. Antworten an Justin nur bei einem Lead-Gespräch.
+        if (String(termin.quelle) === "global") {
+          const { istLeadGespraech } = await import("@shared/fiaon-lead-weg");
+          const { escapeHtml } = await import("./fiaon-html-pdf");
+          const { leadAnredeZeile } = await import("@shared/fiaon-global-lead-texte");
+          const lead = istLeadGespraech({ quelle: "global", herkunft: termin.herkunft ?? null });
+          const en = /Sprache:\s*Englisch/i.test(String(termin.notiz ?? ""));
+          const [lg] = lead ? ((await lauf`SELECT anfrage_id FROM fiaon_lead_gespraech WHERE termin_id = ${termin.id} AND anfrage_id IS NOT NULL`.catch(() => [])) as any[]) : [];
+          const persoenlich = lg?.anfrage_id ? await import("./fiaon-lead-weg").then((m) => m.leadLinkFuerAnfrage(Number(lg.anfrage_id))).catch(() => null) : null;
+          const start = persoenlich ? null : await import("./fiaon-global-angebot-startgespraech").then((m) => m.startgespraechNeuBuchenLink(Number(termin.id))).catch(() => null);
+          const [ag] = (await lauf`SELECT name FROM fiaon_agents WHERE id = ${termin.agent_id}`.catch(() => [])) as any[];
+          const name = [k.vorname, k.nachname].filter(Boolean).join(" ");
+          await versendenUndProtokollieren(
+            "global_termin_absage",
+            {
+              email: String(k.email), ...(en ? { sprache: "en" } : {}), ...(lead ? { antwort_an: "js@fiaon.com" } : {}),
+              anrede_zeile: escapeHtml(leadAnredeZeile(name, en ? "en" : "de").replace(/,\s*$/, "")),
+              termin_datum: en
+                ? beginnDatum.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" })
+                : berlinDatumText(beginnDatum),
+              termin_uhrzeit: berlinUhrzeit(beginnDatum),
+              agent_name: escapeHtml(String(ag?.name || "FIAON Global")),
+              neu_buchen_link: persoenlich ?? start ?? absoluteUrl(en ? "/en/business#gespraech" : "/business#gespraech"),
+              kalender_url: absoluteUrl(`/api/fiaon/global/termine/kalender/${stornoToken}.ics${en ? "?sprache=en" : ""}`),
+            },
+            {
+              personId: Number(termin.person_id),
+              verlaufRef: k.ref || null,
+              verlaufText: `Absage-Mail (FIAON Global) an das Unternehmen versandt (Termin ${berlinDatumText(beginnDatum)}, ${berlinUhrzeit(beginnDatum)} Uhr, abgesagt durch den Mitarbeiter).`,
+            },
+          );
+          return;
+        }
         await versendenUndProtokollieren(
           "termin_absage",
           {

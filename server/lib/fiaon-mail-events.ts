@@ -210,6 +210,28 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     klartext: "FIAON Global: „Wir haben Sie nicht erreicht“ — einmal je Gespräch, mit Link für eine neue Zeit.",
     vonHand: false, pflichtFelder: ["wann_satz", "link_kalender"],
   },
+  // E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 3): unsere Absage eines Global-Gesprächs — nie die Privat-Vorlage.
+  global_termin_absage: {
+    gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Wir müssen das Gespräch verschieben — Business-Rahmen, Knopf „Neue Zeit wählen“ (persönlicher Link).",
+    vonHand: false, pflichtFelder: ["termin_datum", "termin_uhrzeit", "neu_buchen_link"],
+  },
+  // E-476 Scheibe 4 (05.11.2026): Justins Lead-Mails aus js@ und die Info-Mail im Business-Rahmen — nie aus dem Sende-Menü.
+  global_lead_willkommen: {
+    gruppe: "lead", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Justins Willkommen an einen neuen Business-Lead (js@, mit seinem Terminlink) — nur automatisch.",
+    vonHand: false,
+  },
+  global_lead_nachfass: {
+    gruppe: "lead", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Justins Nachfass N1–N3 im selben Faden (js@) — nur automatisch, Stopp bei Termin oder Antwort.",
+    vonHand: false,
+  },
+  global_info: {
+    gruppe: "lead", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "FIAON Global: Info-Mail nach dem Anruf — nur über den Knopf im Firmen-Cockpit (Business-Rahmen, Antworten an Justin).",
+    vonHand: false,
+  },
   termin_absage: {
     gruppe: "termin", zielgruppe: "kunde", rollen: ["admin"],
     klartext: "Absage durch den Mitarbeiter — der Kunde erfaehrt es sofort, mit Link auf eine neue Zeit.",

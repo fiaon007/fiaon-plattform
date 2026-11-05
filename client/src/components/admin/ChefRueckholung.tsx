@@ -34,6 +34,10 @@ interface Antwort {
   laeufe: { name: string; letzteMeldung: string | null; letzterErfolg: string | null; stundenHer: number | null; ampel: string }[];
   /** E-188: Auswahl für die zuständige Person bei FIAON Global. */
   mitarbeiter?: { id: number; name: string; rolle: string }[];
+  /** E-476 Scheibe 3: wer die Lead-Gespräche gerade führt, Justins Konto, die Deckel, freie Zeiten (gestreut). */
+  kalender?: { gruender: { id: number; name: string } | null; person: { id: number; name: string } | null; modus: string; leadProTag: number; gesamtProTag: number; freieZeiten: number; vorgabeUmgebung?: string | null; vertretung?: { id: number; name: string } | null } | null;
+  /** E-476 Scheibe 5 (Entscheidung 3A): wohin Daniels Lead-Meldungen gerade gehen. */
+  leadMeldung?: { an: string; quelle: "einstellung" | "visitenkarte" | "vorgabe" | "anmeldung" | "team"; karte: string | null; fuer: string | null } | null;
 }
 
 // Was jedes Segment IST und WARUM es so behandelt wird — die Messung steht
@@ -82,6 +86,17 @@ export default function ChefRueckholung() {
       .then((d) => setFaelle(d.ok ? d.faelle : []))
       .catch(() => setFaelle([]));
   }, [offen]);
+
+  // E-476 Scheibe 3 (Gutachten 0, Mangel 16): die vier Global-Gesprächsmails einmal an Justin — vor dem Scharfschalten lesen.
+  const [pruefLaeuft, setPruefLaeuft] = useState(false);
+  const globalPruefversand = async () => {
+    setMeldung(null); setPruefLaeuft(true);
+    const r = await fetch(`${API}/chef/rueckholung/global-pruefversand`, {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}",
+    }).then((x) => x.json()).catch(() => ({ ok: false, meldung: "Netzwerkfehler" }));
+    setPruefLaeuft(false);
+    setMeldung(r.meldung ?? (r.ok ? "Prüfversand raus." : `Prüfversand nicht raus: ${r.error ?? "unbekannt"}`));
+  };
 
   const speichern = async (key: string, value: string, hinweis?: string) => {
     setMeldung(null);
@@ -238,9 +253,44 @@ export default function ChefRueckholung() {
           /chef/s/global-auftraege. */}
       <section className="cz-block">
         <header className="cz-block-kopf"><h3>FIAON Global — Bestellweg Firmen</h3>
-          <p>Zuständigkeit, Provision, Umsatzsteuer. Wirkt sofort. Aufträge: <a href="/chef/s/global-auftraege">Global-Aufträge</a>.</p>
+          <p>Wer die Erstgespräche führt, Zuständigkeit, Provision, Umsatzsteuer. Wirkt sofort. Aufträge: <a href="/chef/s/global-auftraege">Global-Aufträge</a>.</p>
         </header>
         <div className="cr-schalter">
+          {/* E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): das Erstgespräch mit einem Business-Lead führt Justin. */}
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Gespräche führt (Business-Leads)</span>
+            <select value={daten.schalter.global_kalender_agent_id ?? ""}
+              onChange={(e) => speichern("global_kalender_agent_id", e.target.value, e.target.value === "zustaendig"
+                ? "Erstgespräche wieder bei der zuständigen Person (wie vor E-476)." : "Gespräche führt: gespeichert — der Kalender auf fiaon.com zeigt ab sofort diese Zeiten.")}>
+              <option value="">{daten.kalender?.gruender?.name ?? "Justin"} (Vorgabe)</option>
+              <option value="zustaendig">Die zuständige Person (wie vor dem 05.11.)</option>
+              {(daten.mitarbeiter ?? []).map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
+            </select>
+            <small title="Der Kalender auf fiaon.com, der persönliche Terminlink der Leads, /justin für Business-Leads und Daniels Cockpit-Knopf buchen in den Zeiten dieser Person. Die Firma im Cockpit bleibt bei der zuständigen Person. Führt Justin die Gespräche, bekommt er keine Aufgabe, sondern „Termin steht“ und 60 Minuten vorher die Anruf-Karte.">
+              Jetzt: {daten.kalender?.person?.name ?? "niemand"}{daten.kalender ? ` · ${daten.kalender.freieZeiten} Zeiten im Kalender sichtbar` : ""}.
+              {/* E-476 Nachbesserung: eine Vorgabe aus der Umgebung gilt, solange hier nichts gewählt ist (nach dem Prüfversand umstellen). */}
+              {!daten.schalter.global_kalender_agent_id && daten.kalender?.vorgabeUmgebung ? ` Vorgabe aus der Umgebung: „${daten.kalender.vorgabeUmgebung}“ — nach dem Prüfversand hier Justin wählen.` : ""}
+            </small>
+          </label>
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Lead-Gespräche je Tag</span>
+            <input type="number" min={1} max={12} defaultValue={daten.schalter.global_lead_pro_tag ?? ""} placeholder="3"
+              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (daten.schalter.global_lead_pro_tag ?? "")) speichern("global_lead_pro_tag", v, `Höchstens ${v || "3"} Lead-Gespräche je Tag.`); }} />
+            <small title="Zählt nur Erstgespräche mit Business-Leads (Kalender, persönlicher Link, Cockpit). Startgespräche zahlender Kunden zählen nie mit — sie sind immer buchbar.">Vorgabe 3. Startgespräche zahlender Kunden zählen nicht mit.</small>
+          </label>
+          <label className="cr-schalter-feld">
+            <span className="cr-schalter-label">Gespräche je Tag gesamt (/justin + Leads)</span>
+            <input type="number" min={1} max={12} defaultValue={daten.schalter.global_kalender_gesamt_pro_tag ?? ""} placeholder="5"
+              onBlur={(e) => { const v = e.target.value.trim(); if (v !== (daten.schalter.global_kalender_gesamt_pro_tag ?? "")) speichern("global_kalender_gesamt_pro_tag", v, `Höchstens ${v || "5"} Gespräche je Tag zusammen.`); }} />
+            <small title="Damit ein Tag mit /justin-Gesprächen und Lead-Gesprächen nicht überläuft — dein Kalender kennt deine privaten Termine noch nicht (Google-Abgleich).">Vorgabe 5. Schützt deinen Tag.</small>
+          </label>
+          <div className="cr-schalter-feld">
+            <span className="cr-schalter-label">Prüfversand Global-Gesprächsmails</span>
+            <button type="button" className="cr-knopf" disabled={pruefLaeuft} onClick={() => void globalPruefversand()}>
+              {pruefLaeuft ? "Sende …" : "Die 4 Mails (DE + EN) an mich"}
+            </button>
+            <small title="Bestätigung, Erinnerung am Vortag, eine Stunde vorher und „nicht erreicht“ — je deutsch und englisch, mit Beispieldaten, an js@. Einmal lesen, dann die Absage-Seite im Mail-Knopf durchklicken.">Acht Beispiel-Mails an dich — einmal lesen.</small>
+          </div>
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Zuständige Person</span>
             <select value={daten.schalter.global_zustaendig_agent_id && daten.schalter.global_zustaendig_agent_id !== "0" ? daten.schalter.global_zustaendig_agent_id : ""}
@@ -250,6 +300,21 @@ export default function ChefRueckholung() {
             </select>
             <small title="Wird Betreuer (falls keiner da), steht als Ansprechpartner in Kundenmails, bekommt nach Zahlung „US-Struktur starten“.">Bekommt jeden neuen Auftrag als Aufgabe mit Mail.</small>
           </label>
+          {/* E-476 Scheibe 5 (05.11.2026, Entscheidung 3A): Daniels Lead-Meldungen an seine Firmenadresse — nie an ein privates Postfach. */}
+          <label className="cr-schalter-feld cr-lead-meldung">
+            <span className="cr-schalter-label">Lead-Meldungen an</span>
+            <input type="email" inputMode="email" autoComplete="off" defaultValue={daten.schalter.global_lead_meldung_an ?? ""}
+              placeholder={daten.leadMeldung?.an ?? "vorname@fiaon.com"}
+              onBlur={(e) => {
+                const v = e.target.value.trim().toLowerCase();
+                if (v === (daten.schalter.global_lead_meldung_an ?? "")) return;
+                if (v && !/^[a-z0-9._%+-]+@fiaon\.com$/.test(v)) { setMeldung("Nur eine Adresse @fiaon.com — Kundendaten gehören nie in ein privates Postfach."); return; }
+                speichern("global_lead_meldung_an", v, v ? `Lead-Meldungen gehen jetzt an ${v}.` : "Lead-Meldungen an die Vorgabe (Visitenkarte der zuständigen Person).");
+              }} />
+            <small title="Jeder neue Business-Lead kommt als kurze Lead-Meldung an diese Adresse (Antworten im Klartext, wann anrufen, Link ins Cockpit) — dazu die Erinnerung nach 15 Minuten, die Übersicht um 18:30 und die Meldungen „hat Justin geantwortet“ und „Ergebnis bei Justin erfragen“. Die Anmeldung des Kontos bleibt, wie sie ist. Leer = die Adresse auf der öffentlichen Visitenkarte der zuständigen Person.">
+              Jetzt: {daten.leadMeldung?.an ?? "—"}{daten.leadMeldung ? (daten.leadMeldung.quelle === "einstellung" ? " (eingetragen)" : daten.leadMeldung.quelle === "visitenkarte" ? ` (Vorgabe: Visitenkarte ${daten.leadMeldung.karte ?? ""})` : ` (Vorgabe — ${daten.leadMeldung.fuer ?? "die zuständige Person"} hat keine Visitenkarte: bitte Adresse eintragen)`) : ""}. Nur @fiaon.com.
+            </small>
+          </label>
           {/* E-458 Nr. 11 (29.10.2026): die Vertretung für die Global-Gespräche — den Namen entscheidet Justin. */}
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Vertretung für die Gespräche</span>
@@ -258,7 +323,7 @@ export default function ChefRueckholung() {
               <option value="">Keine Vertretung (dann die Leitung)</option>
               {(daten.mitarbeiter ?? []).map((m) => <option key={m.id} value={String(m.id)}>{m.name}{m.rolle === "vertriebsleiter" ? " · Vertriebsleitung" : ""}</option>)}
             </select>
-            <small title="Ist die Person der Gespräche abwesend, inaktiv oder gesperrt, bekommt die Vertretung die Aufgabe „Ergebnis fehlt“ und sieht das Gespräch in ihrem Kalender. Fehlt das Ergebnis am nächsten Werktag um 9 Uhr noch, erinnert das System die Leitung.">Springt ein, wenn die Person der Gespräche nicht da ist.</small>
+            <small title="Ist die Person der Gespräche abwesend, inaktiv oder gesperrt, bekommt die Vertretung die Aufgabe „Ergebnis fehlt“ und sieht das Gespräch in ihrem Kalender. Fehlt das Ergebnis am nächsten Werktag um 9 Uhr noch, erinnert das System die Leitung. Seit E-476 bekommt sie auch den Rückruf, wenn ein Business-Lead 60 Minuten (Dienstzeit) wartet.">Springt ein, wenn die Person der Gespräche nicht da ist.{!daten.kalender?.vertretung ? " Ohne Vertretung bekommt bei einem wartenden Lead (60/120 Min.) niemand den Rückruf — bitte einmal wählen." : ""}</small>
           </label>
           <label className="cr-schalter-feld">
             <span className="cr-schalter-label">Provision bei Global-Abschlüssen, in Prozent</span>

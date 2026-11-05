@@ -177,6 +177,22 @@ export function globalZeitenRechnen(ein: GlobalZeitenEingabe): GlobalZeitenErgeb
 }
 
 /**
+ * E-476 Scheibe 3 (05.11.2026): ein ZWEITER Deckel je Tag — der Gesamtdeckel der Gesprächsperson (/justin-Gespräche
+ * und Lead-Gespräche zusammen, Gutachten 0, Mangel 2). `restZwei[tag]` = wie viele dieser Tag nach dem zweiten Deckel
+ * noch aufnimmt (fehlt der Tag: kein zweiter Deckel). Der Rest je Tag ist das Minimum beider; ein Tag mit Rest 0 fällt
+ * samt seinen Zeiten weg. Rein — Anzeige und Annahme rufen dieselbe Funktion.
+ */
+export function zweitenDeckelAnwenden(erg: GlobalZeitenErgebnis, restZwei: Record<string, number>): GlobalZeitenErgebnis {
+  const restJeTag: Record<string, number> = {};
+  for (const [tag, rest] of Object.entries(erg.restJeTag)) {
+    const zwei = restZwei[tag];
+    const r = zwei === undefined ? rest : Math.min(rest, Math.max(0, zwei));
+    if (r > 0) restJeTag[tag] = r;
+  }
+  return { ...erg, frei: erg.frei.filter((f) => (restJeTag[f.tag] ?? 0) > 0), restJeTag };
+}
+
+/**
  * Nimmt `n` Einträge gleichmäßig über die Liste — erste, letzte und die
  * dazwischen. Dieselbe Idee wie `slotsVerknappen` (fiaon-termine.ts, 18.08.):
  * Achtzehn freie Zeiten an einem Tag sagen „hier ist nichts los", vier sagen

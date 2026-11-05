@@ -108,6 +108,12 @@ export type MakeEventType =
   | "global_termin_erinnerung" // am Vortag: „Morgen um … Uhr: Ihr Gespräch mit FIAON Global“
   | "global_termin_kurz"       // eine Stunde vorher
   | "global_nicht_erreicht"    // einmal, wenn ein Mensch „nicht erreicht“ einträgt — mit Link für eine neue Zeit
+  | "global_termin_absage"     // E-476 Nachbesserung: WIR sagen ein Global-Gespräch ab — Business-Rahmen, Knopf „Neue Zeit wählen“
+  // E-476 Scheibe 4 (05.11.2026): Justins Lead-Mails aus js@ (Gmail, nie über Make/Brevo) und die Info-Mail im Business-Rahmen —
+  // registriert für Protokoll, Frequenzbremse und Mailwerk; ausgelöst nur von server/lib/fiaon-global-lead-post.ts bzw. dem Cockpit.
+  | "global_lead_willkommen"   // Willkommen an einen neuen Business-Lead (js@, Justins Unterschrift, persönlicher Terminlink)
+  | "global_lead_nachfass"     // Nachfass N1–N3 im selben Faden (js@)
+  | "global_info"              // Info-Mail nach dem Anruf (welcome@ als „FIAON Global“, Antworten an js@)
   // ── FIAON Global (E-188, 17.09.2026) — Firmenkunden, US-Struktur. Gehen NIE über Make:
   //    `global_auftrag` trägt Vertrag und Rechnung als PDF; der Bestellweg sendet alle drei
   //    direkt über den Motor (server/lib/fiaon-global-auftrag.ts) und protokolliert selbst.

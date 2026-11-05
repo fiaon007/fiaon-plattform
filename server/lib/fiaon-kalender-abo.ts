@@ -321,6 +321,15 @@ function terminZeile(r: any): TerminZeileKal {
   };
 }
 
+/** E-476 Scheibe 3: die Zusatzzeilen der Lead-Gespräche (Firma, Rahmen, Cockpit) — wirft nie, ohne Tabellen leer. */
+async function leadZusatz(zeilen: TerminZeileKal[], lauf: Lauf): Promise<Map<number, string[]>> {
+  if (!zeilen.some((t) => t.quelle === "global")) return new Map();
+  try {
+    const { leadKalenderZusatz } = await import("./fiaon-lead-weg");
+    return await leadKalenderZusatz(zeilen.map((t) => ({ id: t.id, quelle: t.quelle, herkunft: t.herkunft, person_id: t.person_id })), lauf);
+  } catch { return new Map(); }
+}
+
 /** Der Link zur Akte — Global ins Firmen-Cockpit, sonst die Kundenakte. */
 export function akteLink(quelle: string, personId: number): string {
   return quelle === "global" ? absoluteUrl(`/agent/firmen?person=${personId}`) : absoluteUrl(`/agent/kunden?person=${personId}`);
@@ -333,7 +342,7 @@ const ende = (t: Pick<TerminZeileKal, "beginn" | "dauer">) => new Date(t.beginn.
  * Mitarbeiter davor („Daniel · Rückruf: …"), Mara-Termine mit „(Mara)",
  * Vergangenes mit „Erledigt – …" / „Nicht zustande gekommen – …".
  */
-export function terminEreignis(t: TerminZeileKal, opts: { team?: boolean } = {}): IcsEreignis {
+export function terminEreignis(t: TerminZeileKal, opts: { team?: boolean; zusatz?: string[] | null } = {}): IcsEreignis {
   const art = terminArtAusQuelle(t.quelle);
   const mara = maraMarke(t.herkunft);
   const name = t.quelle === "global" ? (t.firma ?? t.name ?? `Firma #${t.person_id}`) : (t.name ?? `Kunde #${t.person_id}`);
@@ -346,6 +355,8 @@ export function terminEreignis(t: TerminZeileKal, opts: { team?: boolean } = {})
   const akte = akteLink(t.quelle, t.person_id);
   const beschreibung = [
     `${art.text}${t.bei_vorname ? ` bei ${t.bei_vorname}` : ""}`,
+    // E-476 Scheibe 3: Lead-Gespräche tragen Firma, Rahmen (sein Ziel) und den Link ins Firmen-Cockpit (leadKalenderZusatz).
+    ...(opts.zusatz ?? []),
     weg ? `Weg: ${weg}` : null,
     t.status === "erledigt" ? "Stand: erledigt" : t.status === "verpasst" ? "Stand: nicht zustande gekommen" : null,
     "Anrufen über das FIAON-Telefon in der Akte (nicht vom Privathandy).",
@@ -409,7 +420,8 @@ export async function termineFuerGoogle(agentIds: number[], lauf: Lauf = sqlPool
        AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.abgesagt_am IS NULL
      ORDER BY t.beginn
      LIMIT ${ABO_HOECHSTENS}`) as any[]).map(terminZeile);
-  return zeilen.map((t) => ({ id: t.id, agent_id: t.agent_id, kal_sequenz: t.kal_sequenz, stand: t.stand, ereignis: terminEreignis(t) }));
+  const zusatz = await leadZusatz(zeilen, lauf);
+  return zeilen.map((t) => ({ id: t.id, agent_id: t.agent_id, kal_sequenz: t.kal_sequenz, stand: t.stand, ereignis: terminEreignis(t, { zusatz: zusatz.get(t.id) }) }));
 }
 
 /** Gibt es die Google-Tabelle? (Ohne sie lässt das Abo nichts weg.) Einmal ja = für immer ja. */
@@ -465,7 +477,8 @@ export async function aboFeed(z: AboZeile, lauf: Lauf = sqlPool): Promise<AboFee
        ${lauf.unsafe(ohneGoogle ? `AND ${GOOGLE_ABO_AUSNAHME}` : "")}
      ORDER BY t.beginn DESC, t.id DESC
      LIMIT ${ABO_HOECHSTENS}`) as any[]).map(terminZeile).reverse();
-  const ereignisse = zeilen.map((t) => terminEreignis(t, { team }));
+  const zusatz = await leadZusatz(zeilen, lauf);
+  const ereignisse = zeilen.map((t) => terminEreignis(t, { team, zusatz: zusatz.get(t.id) }));
   const ics = icsKalender({
     abo: team
       ? { name: ABO_NAMEN.team, beschreibung: "Die Termine der Mitarbeiter (deine eigenen stehen in „FIAON · meine Termine“) — hält sich selbst aktuell." }
@@ -547,7 +560,7 @@ export async function einzelIcs(datei: string, opts: { absage?: boolean } = {}, 
   // Dieselbe Regel wie beim Abo: Ein gesperrtes oder deaktiviertes Konto bekommt keine Datei mehr.
   if (!kontoDarfAbo("eigene", kontoAus(r))) return null;
   const abgesagt = t.status === "abgesagt" || !!t.abgesagt_am || opts.absage === true;
-  const e = terminEreignis(t);
+  const e = terminEreignis(t, { zusatz: (await leadZusatz([t], lauf)).get(t.id) });
   if (!abgesagt) return { ics: icsKalender({ ereignisse: [e] }), abgesagt: false };
   return {
     abgesagt: true,

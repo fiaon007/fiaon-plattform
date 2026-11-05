@@ -39,6 +39,7 @@ import {
   nummerLand, stufenGrenzen, type ArasEinstellungen, type EinwilligungArt, type Land, type Fenster,
 } from "../../shared/fiaon-aras";
 import { JA_QUELLE_TEXT, GLOBAL_TERMIN_ARAS_HINWEIS } from "../../shared/fiaon-ja-zum-anruf";
+import { istLeadGespraech, LEAD_GESPRAECH_HERKUENFTE } from "../../shared/fiaon-lead-weg";
 
 type Lauf = typeof sqlPool;
 
@@ -220,6 +221,8 @@ export async function erinnerungKandidaten(einst: ArasEinstellungen, lauf: Lauf 
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
      WHERE t.quelle = 'global' AND t.status = 'gebucht'
        AND t.beginn > NOW() + INTERVAL '30 minutes' AND t.beginn < NOW() + INTERVAL '40 hours'
+       -- E-476 Scheibe 3 (Logbuch 03.11. 18:30): kein ARAS für Business-Leads — ihre Erstgespräche bekommen nur die Mails.
+       AND COALESCE(t.herkunft, '') NOT IN (${LEAD_GESPRAECH_HERKUENFTE.map((h) => `'${h}'`).join(", ")})
        AND ${echtePersonSql("p")}
      ORDER BY t.beginn, t.id, e.id DESC`)) as any[];
   return zeilen.map((z) => {
@@ -257,8 +260,10 @@ export async function erinnerungPlanen(einst: ArasEinstellungen, lauf: Lauf, zae
 export async function erinnerungEntfaellt(z: { id: number; termin_id?: number | null; einwilligung_id?: number | null; anlass_am?: Date | string | null; land?: string | null },
   einst: ArasEinstellungen, lauf: Lauf = sqlPool): Promise<{ status: "verfallen" | "verschoben"; grund: string } | null> {
   if (!z.termin_id) return { status: "verfallen", grund: "ohne Gespräch" };
-  const [t] = (await lauf`SELECT status, beginn FROM fiaon_termine WHERE id = ${Number(z.termin_id)}`) as any[];
+  const [t] = (await lauf`SELECT status, beginn, quelle, herkunft FROM fiaon_termine WHERE id = ${Number(z.termin_id)}`) as any[];
   if (!t || t.status !== "gebucht") return { status: "verfallen", grund: `Gespräch ${t?.status ?? "fehlt"}` };
+  // E-476 Scheibe 3: kein ARAS für Business-Leads — auch ein schon geplanter Erinnerungsanruf fällt weg.
+  if (istLeadGespraech(t)) return { status: "verfallen", grund: "Business-Lead — kein ARAS (E-476)" };
   if (z.einwilligung_id) {
     const [e] = (await lauf`SELECT widerrufen_am FROM fiaon_telefon_einwilligung WHERE id = ${Number(z.einwilligung_id)}`) as any[];
     if (!e || e.widerrufen_am) return { status: "verfallen", grund: "Einwilligung zurückgenommen" };

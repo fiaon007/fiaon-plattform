@@ -31,6 +31,8 @@ import {
   globalKatalog, globalPreisText,
 } from "./fiaon-global";
 import { GLOBAL_GESPRAECH_URL, GLOBAL_SEITE_URL, globalStartUrl } from "./fiaon-global-wege";
+// E-476 Scheibe 4: der Bank-Vorbehalt fliegt aus der Info-Mail (E-468) — dieselbe Regel wie für Maras Fakten.
+import { ohneBankVorbehalt } from "./fiaon-radar";
 
 /** „Global Struktur 2.499 €, Global Banking 4.999 €, …" — aus dem Katalog. */
 export function globalPreisZeile(): string {
@@ -91,32 +93,54 @@ export function globalLeitfaden(): LeitfadenBlock[] {
 }
 
 // ── DIE INFO-MAIL NACH DEM GESPRÄCH ─────────────────────────────────────────
-// Reiner Text, Sie-Form, passiert die Wortwand. Versendet wird sie wie bisher
-// von der Route /agent/firmen/:id/mail über das Dienstkonto (höchstens eine je
-// Firma je sieben Tage, Frequenzbremse) — hier steht nur, WAS drinsteht.
-export function globalInfoMail(opts: { ansprechpartner?: string | null; firma: string; agentName: string }): { betreff: string; text: string } {
+// Reiner Text, Sie-Form, passiert die Wortwand. Versendet wird sie von der Route /agent/firmen/:id/mail — E-476 Scheibe 4
+// (05.11.2026, Entscheidung 2A): im Business-Rahmen „FIAON Global“ (Absendername FIAON Global, Antworten an Justin, js@),
+// höchstens eine je Firma je sieben Tage, Frequenzbremse. Hier steht nur, WAS drinsteht.
+//
+// E-476 Scheibe 4 (Plan 4.6, Gutachten 0 Mangel 6, Gutachten 1 Mangel 9):
+//   · „danke für das Gespräch eben“ nur nach einem ERREICHTEN Anruf; nach „nicht erreicht“ die eigene Fassung; ohne Anruf neutral.
+//   · Den Institut-Satz ersetzt Justins Satz „Wir kümmern uns um alles bis zur Unterschrift bei der Bank.“ (E-468); die
+//     Hinweise zu Steuer und Meldepflichten bleiben (ohne ihren Bank-Vorbehalt).
+//   · Ein Business-Lead VOR Justins Gespräch bekommt keine Preisliste (sie nähme das Gespräch vorweg), sondern seinen
+//     persönlichen Terminlink.
+export type InfoMailArt = "erreicht" | "nicht_erreicht" | "neutral";
+/** Die Fragen-Seite (alle Antworten an einem Ort) — die Lead-Fassung verweist mit EINEM Satz darauf. */
+export const GLOBAL_FRAGEN_URL = "https://fiaon.com/business/fragen";
+
+export function globalInfoMail(opts: {
+  ansprechpartner?: string | null; firma: string; agentName: string;
+  art?: InfoMailArt;
+  /** Ein Business-Lead vor dem Gespräch mit Justin: ohne Preisliste, mit seinem persönlichen Link. */
+  lead?: { link: string; gespraechMit: string } | null;
+}): { betreff: string; text: string } {
+  const art = opts.art ?? "erreicht";
   const anrede = opts.ansprechpartner ? `Guten Tag ${String(opts.ansprechpartner).trim()},` : "Guten Tag,";
+  const einstieg = art === "erreicht"
+    ? "danke für das Gespräch eben. Wie besprochen in aller Kürze, worum es bei FIAON Global geht:"
+    : art === "nicht_erreicht"
+      ? "ich habe heute versucht, Sie zu erreichen — hier in Kürze, worum es bei FIAON Global geht:"
+      : "hier in Kürze, worum es bei FIAON Global geht:";
   const pakete = GLOBAL_PAKETE.map((g) => `- ${globalKatalog(g.key)?.label ?? g.de.name}: ${globalPreisText(g.key)} einmalig — ${g.de.fuer}`).join("\n");
-  const geldZurueck = GLOBAL_GELD_ZURUECK.aktiv
+  // Nachbesserung E-476 (Gutachten Sicherheit Mangel 5, Lead-Sicht Mangel 11): Die Lead-Fassung (vor Justins Gespräch) trägt
+  // KEINEN Geld-zurück-Absatz — seine Bedingungen enthalten einen Bank-Satz (E-468), und Preis und Vertrag bespricht ohnehin
+  // Justin im Gespräch; der Umfang der Zusage (Vertrag Ziffer 6) bleibt unangetastet. Die Pflichthinweise stehen dort als EIN
+  // Satz mit Link, die Kaltakquise-Fassung bleibt, wie sie ist.
+  const geldZurueck = GLOBAL_GELD_ZURUECK.aktiv && !opts.lead
+    // Die Bedingungen der Zusage bleiben vollständig (Vertrag Ziffer 6) — sie sind keine Verkaufsformel, sondern ihr Umfang.
     ? `\n${GLOBAL_GELD_ZURUECK.de.titel}: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}\n`
     : "";
-  const text = `${anrede}
+  const hinweise = opts.lead
+    ? `- Was Sie zu Steuern und Meldepflichten wissen sollten, steht hier: ${GLOBAL_FRAGEN_URL}`
+    : GLOBAL_PFLICHTHINWEIS.de.map((h) => ohneBankVorbehalt(h)).filter(Boolean).map((h) => `- ${h}`).join("\n");
+  const kapital = `${ohneBankVorbehalt(GLOBAL_KAPITAL_FREI.de.satz)} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
+  const wege = opts.lead
+    ? `Die Pakete und den Festpreis für Ihr Vorhaben bespricht ${opts.lead.gespraechMit} mit Ihnen im Gespräch. Ihren Termin wählen Sie hier — Ihre Angaben sind schon eingetragen:
+${opts.lead.link}
 
-danke für das Gespräch eben. Wie besprochen in aller Kürze, worum es bei FIAON Global geht:
-
-FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Ihre Konto- und Kartenanträge vollständig vor. Sie haben dabei einen festen Ansprechpartner.
-
-${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}
-
-Vier Pakete, jedes zum Einmalpreis — kein Abo, keine Monatsraten:
+Oder antworten Sie einfach auf diese E-Mail.`
+    : `Vier Pakete, jedes zum Einmalpreis — kein Abo, keine Monatsraten:
 ${pakete}
 
-Was Sie wissen sollten, bevor Sie entscheiden:
-- Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. ${GLOBAL_ROLLEN.de.fiaon}
-- ${GLOBAL_ROLLEN.de.partner}
-- ${GLOBAL_ROLLEN.de.kosten}
-${GLOBAL_PFLICHTHINWEIS.de.map((h) => `- ${h}`).join("\n")}
-${geldZurueck}
 Alle Pakete mit ihren Leistungen finden Sie hier:
 ${GLOBAL_SEITE_URL}#pakete
 
@@ -124,13 +148,31 @@ Wenn Sie direkt beauftragen möchten — Paket wählen, Unternehmen angeben, Ver
 ${globalStartUrl()}
 
 Wenn Sie lieber erst Fragen klären: Antworten Sie einfach auf diese E-Mail oder buchen Sie ein Gespräch:
-${GLOBAL_GESPRAECH_URL}
+${GLOBAL_GESPRAECH_URL}`;
+  const text = `${anrede}
+
+${einstieg}
+
+FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet die Steuernummern (EIN, ITIN) vor und reicht sie ein, stellt US-Geschäftsadresse, US-Telefonnummer, Registered Agent und Dokumentenraum und bereitet Ihre Konto- und Kartenanträge vollständig vor. Sie haben dabei einen festen Ansprechpartner — wir kümmern uns um alles bis zur Unterschrift bei der Bank.
+
+${kapital}
+
+Was Sie wissen sollten, bevor Sie entscheiden:
+- ${GLOBAL_ROLLEN.de.fiaon}
+- ${GLOBAL_ROLLEN.de.partner}
+- ${GLOBAL_ROLLEN.de.kosten}
+${hinweise}
+${geldZurueck}
+${wege}
 
 Freundliche Grüße
 ${opts.agentName}
 FIAON Global — US-Struktur aus einer Hand
-welcome@fiaon.com · fiaon.com/business`;
-  return { betreff: `FIAON Global — die Unterlagen zu unserem Gespräch (${opts.firma})`, text };
+fiaon.com`;
+  const betreff = art === "erreicht"
+    ? `FIAON Global — die Unterlagen zu unserem Gespräch (${opts.firma})`
+    : `FIAON Global — in Kürze, worum es geht (${opts.firma})`;
+  return { betreff, text };
 }
 
 // ── DIE ANWEISUNG FÜR DIE KI-VORBEREITUNG ───────────────────────────────────

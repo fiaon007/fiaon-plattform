@@ -108,13 +108,13 @@ export async function angebot(): Promise<Angebot> {
   const roh = await rohSlots([{ id: g.id, vorname: g.vorname }], DAUER, sqlPool, e.vorlaufStunden * 3600_000);
 
   const termine = (await sqlPool`
-    SELECT beginn, COALESCE(dauer_min, 20) AS dauer_min, quelle, status,
+    SELECT beginn, COALESCE(dauer_min, 20) AS dauer_min, quelle, status, herkunft,
            (beginn AT TIME ZONE 'Europe/Berlin')::date::text AS tag
     FROM fiaon_termine
     WHERE agent_id = ${g.id}
       AND (status IN ('gebucht', 'erledigt', 'verpasst') OR (status = 'abgesagt' AND abgesagt_von = 'agent'))
       AND beginn > NOW() - INTERVAL '1 day' AND beginn < NOW() + INTERVAL '16 days'
-  `) as { beginn: Date; dauer_min: number; quelle: string; status: string; tag: string }[];
+  `) as { beginn: Date; dauer_min: number; quelle: string; status: string; herkunft: string | null; tag: string }[];
 
   const frei = roh.filter((s) => {
     const b = Date.parse(s.beginn);
@@ -132,6 +132,14 @@ export async function angebot(): Promise<Angebot> {
     if (t.quelle !== "gruender" || t.status !== "gebucht") continue;
     gebucht.set(t.tag, (gebucht.get(t.tag) ?? 0) + 1);
   }
+  // E-476 Scheibe 3 (Gutachten 0, Mangel 2): der GESAMTDECKEL — /justin-Gespräche und Lead-Gespräche (Global-Kalender,
+  // persönlicher Link, Cockpit, /justin-Weiche) zusammen höchstens global_kalender_gesamt_pro_tag (Vorgabe 5) je Tag.
+  // Startgespräche zahlender Kunden zählen nicht mit (sie sperren nur ihre Zeit — oben, Überschneidung).
+  const { zaehltAufGesamtDeckel } = await import("@shared/fiaon-lead-weg");
+  const { leadWegEinstellungen } = await import("../lib/fiaon-lead-weg");
+  const gesamtProTag = (await leadWegEinstellungen().catch(() => null))?.gesamtProTag ?? null;
+  const gesamt = new Map<string, number>();
+  for (const t of termine) if (zaehltAufGesamtDeckel(t)) gesamt.set(t.tag, (gesamt.get(t.tag) ?? 0) + 1);
 
   const jeTag = new Map<string, Slot[]>();
   for (const s of frei) {
@@ -141,7 +149,7 @@ export async function angebot(): Promise<Angebot> {
 
   const slots: Slot[] = [];
   for (const datum of Array.from(jeTag.keys()).sort()) {
-    const rest = e.proTag - (gebucht.get(datum) ?? 0);
+    const rest = Math.min(e.proTag - (gebucht.get(datum) ?? 0), gesamtProTag == null ? Infinity : gesamtProTag - (gesamt.get(datum) ?? 0));
     if (rest <= 0) continue;
     slots.push(...slotsVerknappen(jeTag.get(datum)!, rest));
   }
@@ -229,6 +237,149 @@ function zuViel(ip: string, email: string): boolean {
   return false;
 }
 
+// ── E-476 Scheibe 3: die /justin-Weiche — ein Business-Lead bucht als Global-Gespräch ──────────────
+type WeicheErgebnis =
+  | { ok: true; termin: { beginn: string; datumText: string; uhrzeit: string; stornoToken: string; agentName: string } }
+  | { ok: false; status: number; error: string; grund: string };
+
+async function weicheBuchen(ein: {
+  gruender: Gruender; slot: Slot; anfrageId: number; firmaId: number | null;
+  anrede: string | null; vorname: string; nachname: string; email: string; telefon: string; thema: string; nachricht: string;
+  personIdAusLink: number | null;
+}): Promise<WeicheErgebnis> {
+  const { firmaBrauchbar } = await import("@shared/fiaon-global-lead");
+  const lw = await import("../lib/fiaon-lead-weg");
+  const { LEAD_GESPRAECH_HERKUENFTE, LEAD_DECKEL_HERKUENFTE, JUSTIN_WEICHE_HERKUNFT, tagesRest } = await import("@shared/fiaon-lead-weg");
+  const { ensureHerkunftSpalte, berlinDatumText, berlinUhrzeit } = await import("../lib/fiaon-termine");
+  const [anfrage] = (await sqlPool`SELECT name, firma, text FROM fiaon_anfragen WHERE id = ${ein.anfrageId}`) as any[];
+  const name = `${ein.vorname} ${ein.nachname}`.trim();
+  const firmaRoh = String(anfrage?.firma ?? "").trim();
+  const firma = firmaRoh && firmaBrauchbar(firmaRoh, name).brauchbar ? firmaRoh : "";
+  const en = /^Sprache:\s*Englisch/m.test(String(anfrage?.text ?? ""));
+
+  const zu = ein.personIdAusLink
+    ? { personId: ein.personIdAusLink, angelegt: false }
+    : await personFuerZeile({
+      emails: [ein.email], phones: [ein.telefon],
+      stammdaten: {
+        kind: "business", first_name: ein.vorname, last_name: ein.nachname, company_name: firma || null,
+        contact_name: name, primary_email: ein.email, primary_phone: ein.telefon,
+      },
+      quelle: "gruender-seite-global", firstSeenAt: new Date(),
+    });
+  if (!zu) return { ok: false, status: 400, error: "Bitte geben Sie eine E-Mail-Adresse und eine Telefonnummer an.", grund: "eingabe" };
+
+  // Hat er schon ein kommendes Gespräch (über die Person ODER Mail/Nummer — Gutachten Betreiber, Mangel 1)? Datum und Uhrzeit nur
+  // mit Justins persönlichem Link — sonst neutral (Gutachten Sicherheit, Mangel 11: kein Orakel über fremde Termine).
+  const schonGebucht = async (q: any) => {
+    const [schon] = (await q`
+      SELECT id, beginn FROM fiaon_termine
+       WHERE person_id = ${zu.personId} AND quelle IN ('gruender', 'global') AND status = 'gebucht' AND beginn > NOW()
+       ORDER BY beginn LIMIT 1`) as any[];
+    if (schon) return schon as { beginn: Date };
+    return await lw.kommenderTerminFuerKontakt(ein.email, ein.telefon, q).catch(() => null);
+  };
+  const schonFehler = (schon: { beginn: Date }): WeicheErgebnis => ({
+    ok: false, status: 409, grund: "schon_gebucht",
+    error: ein.personIdAusLink
+      ? `Sie haben bereits einen Termin mit Justin am ${berlinDatumText(schon.beginn)} um ${berlinUhrzeit(schon.beginn)} Uhr. Zum Verschieben nutzen Sie bitte den Link in Ihrer Bestätigungs-E-Mail.`
+      : "Zu Ihren Angaben ist schon ein Termin eingetragen — den Link zum Verschieben finden Sie in Ihrer Bestätigungs-E-Mail.",
+  });
+  const schon = await schonGebucht(sqlPool);
+  if (schon) return schonFehler(schon);
+
+  const e = await lw.leadWegEinstellungen();
+  await ensureHerkunftSpalte();
+  let buchung;
+  let schonInTx: { beginn: Date } | null = null;
+  try {
+    buchung = await sqlPool.begin(async (tx: any) => {
+      // Nachbesserung (Gutachten Technik, Mangel 6): zuerst die Sperre je LEAD — zwei gleichzeitige Buchungen derselben Anfrage
+      // laufen nacheinander, die zweite sieht die erste.
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${`global-lead:${ein.anfrageId}`}))`;
+      const nochmal = await schonGebucht(tx);
+      if (nochmal) { schonInTx = nochmal; throw new TerminFehler("schon_gebucht", "Er hat schon ein Gespräch."); }
+      // Dieselbe Sperre je Person und Tag wie der Global-Kalender und das Startgespräch (Gutachten 0, Mangel 2).
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${`global-termin:${ein.gruender.id}:${ein.slot.datum}`}))`;
+      // Nachbesserung (Gutachten Technik, Mangel 5; Entscheidung 1A „höchstens drei Global-Gespräche am Tag“): die Weiche zählt
+      // auf den Lead-Deckel UND den Gesamtdeckel (tagesRest) — wie der Kalender auf fiaon.com.
+      const [z] = (await tx`
+        SELECT COUNT(*) FILTER (WHERE quelle = 'global' AND COALESCE(herkunft, '') = ANY(${LEAD_DECKEL_HERKUENFTE as unknown as string[]}))::int AS lead,
+               COUNT(*) FILTER (WHERE quelle = 'gruender' OR (quelle = 'global' AND COALESCE(herkunft, '') = ANY(${LEAD_GESPRAECH_HERKUENFTE as unknown as string[]})))::int AS gesamt
+          FROM fiaon_termine
+         WHERE agent_id = ${ein.gruender.id} AND status IN ('gebucht', 'erledigt', 'verpasst')
+           AND (beginn AT TIME ZONE 'Europe/Berlin')::date = ${ein.slot.datum}::date`) as any[];
+      if (tagesRest({ leadProTag: e.leadProTag, gesamtProTag: e.gesamtProTag, leadGebucht: Number(z?.lead ?? 0), gesamtGebucht: Number(z?.gesamt ?? 0) }) <= 0) {
+        throw new TerminFehler("tag_voll", "An diesem Tag sind alle Gespräche vergeben.");
+      }
+      const neu = await terminBuchen({ personId: zu.personId, agentId: ein.gruender.id, beginn: ein.slot.beginn, quelle: "global", herkunft: JUSTIN_WEICHE_HERKUNFT }, tx);
+      // Die Zeile des Lead-Gesprächs gleich mit (Sicherungspunkt — fehlt die Tabelle, bleibt der Termin).
+      await tx.savepoint(async (sp: any) => sp`
+        INSERT INTO fiaon_lead_gespraech (termin_id, anfrage_id, firma_id, person_id, weg) VALUES (${neu.id}, ${ein.anfrageId}, ${ein.firmaId}, ${zu.personId}, 'justin')
+        ON CONFLICT (termin_id) DO NOTHING`).catch(() => {});
+      return neu;
+    });
+  } catch (err) {
+    if (err instanceof TerminFehler && err.code === "schon_gebucht" && schonInTx) return schonFehler(schonInTx);
+    if (err instanceof TerminFehler) {
+      return { ok: false, status: 409, grund: err.code, error: err.code === "tag_voll"
+        ? "An diesem Tag sind alle Gespräche vergeben — bitte wählen Sie einen anderen Tag."
+        : err.code === "belegt" ? "Diese Zeit ist gerade vergeben worden — bitte wählen Sie eine andere." : err.message };
+    }
+    throw err;
+  }
+
+  // Ab hier steht der Termin — nichts Folgendes darf ihn kippen.
+  const notiz = [
+    `Firma: ${firma || `${name} (Firma offen)`}`,
+    `Ansprechpartner: ${ein.anrede ? `${ein.anrede} ` : ""}${name} · ${ein.telefon} · ${ein.email}`,
+    ein.thema ? `Anliegen: ${ein.thema}` : "",
+    ein.nachricht,
+    en ? "Sprache: Englisch" : "",
+    `Business-Lead (Anfrage #${ein.anfrageId}) — über fiaon.com/justin gebucht und als Global-Gespräch geführt (${zu.angelegt ? "neuer Kontakt" : "bekannte Person"}).`,
+  ].filter(Boolean).join("\n");
+  await sqlPool`UPDATE fiaon_termine SET notiz = ${notiz}, updated_at = NOW() WHERE id = ${buchung.id}`.catch(() => {});
+
+  let firmaId = ein.firmaId;
+  try {
+    const { globalLeadAufnehmen } = await import("./fiaon-firmen");
+    const { globalZustaendig } = await import("../lib/fiaon-global-termin");
+    const z = await globalZustaendig().catch(() => null);
+    const f = await globalLeadAufnehmen({
+      firma: firma || `${name} (Firma offen)`, ansprechpartner: name, telefon: ein.telefon, email: ein.email, personId: zu.personId,
+      zustaendigAgentId: z?.id ?? null, status: "termin", ereignis: "termin_gebucht", firmaId: ein.firmaId,
+      verlauf: `Gespräch mit ${ein.gruender.name} über fiaon.com/justin gebucht: ${buchung.datumText} um ${buchung.uhrzeit} Uhr (Global-Gespräch).${ein.thema ? ` Anliegen: ${ein.thema}.` : ""}`,
+    });
+    firmaId = f.firmaId;
+  } catch (e) {
+    console.error(`[GRUENDER-TERMIN] Weiche: Termin ${buchung.id} steht, aber der Firmen-Lead fehlt:`, e);
+  }
+
+  const { globalTerminPayload } = await import("../lib/fiaon-global-termin");
+  // E-476 Scheibe 4: SEINE Sätze aus dem Formular (Sie-Form, ohne Betrag) — wie bei jeder Lead-Bestätigung.
+  const angaben = await import("../lib/fiaon-global-lead-post")
+    .then((m) => m.antwortenDerAnfrage(ein.anfrageId))
+    .then(async (a) => (await import("@shared/fiaon-global-lead-texte")).angabenSatz(a, en ? "en" : "de"))
+    .catch(() => "");
+  await versendenUndProtokollieren(
+    "global_termin",
+    globalTerminPayload({
+      email: ein.email, name, firma: firma || name, telefon: ein.telefon, paketText: null,
+      ansprechpartner: ein.gruender.name, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit,
+      stornoToken: buchung.stornoToken, sprache: en ? "en" : "de", beginn: buchung.beginn, paket: null, angabenSatz: angaben, lead: true,
+    }) as any,
+    { personId: zu.personId, verlaufText: `Terminbestätigung (FIAON Global, Gespräch mit dem Gründer) versandt: ${buchung.datumText} um ${buchung.uhrzeit} Uhr.` },
+  ).catch((e) => console.error("[GRUENDER-TERMIN] Weiche: Bestätigung:", e));
+
+  // Nachbesserung (Gutachten Technik, Mangel 7): angestoßen, nie abgewartet (Eingang), ohne Tabellen-Anweisung — die Zeile steht
+  // schon (Transaktion). Danach „Termin steht“ (D2) im Faden des Leads statt der üblichen Termin-Meldung (Gutachten 0, Mangel 19).
+  void lw.leadGespraechVerknuepfen({ terminId: buchung.id, anfrageId: ein.anfrageId, firmaId, personId: zu.personId, weg: "justin", beginn: buchung.beginn, schema: false })
+    .then(() => lw.terminStehtAnstossen(buchung.id))
+    .catch((e) => console.error(`[GRUENDER-TERMIN] Weiche: Lead-Gespräch ${buchung.id} nicht vermerkt:`, String(e).slice(0, 160)));
+  console.log(`[GRUENDER-TERMIN] #${buchung.id}: Business-Lead (Anfrage #${ein.anfrageId}) über /justin → Global-Gespräch am ${buchung.datumText} ${buchung.uhrzeit}`);
+  return { ok: true, termin: { beginn: buchung.beginn, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit, stornoToken: buchung.stornoToken, agentName: ein.gruender.name } };
+}
+
 // ── POST /gruender-termin/buchen ────────────────────────────────────────────
 router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
   const b = req.body || {};
@@ -252,7 +403,9 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
   if (telefon.replace(/\D/g, "").length < 6) return fehl("Bitte geben Sie eine Telefonnummer an — Justin ruft Sie an.");
   if (!beginn || isNaN(Date.parse(beginn))) return fehl("Bitte wählen Sie zuerst eine Zeit.");
 
-  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+  // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 7): die echte Adresse (cf-connecting-ip) — X-Forwarded-For setzt der Aufrufer selbst.
+  const { aufrufClientIp } = await import("../lib/fiaon-global-angebot-aufrufe");
+  const ip = aufrufClientIp(req as any);
   if (zuViel(ip, email)) return fehl("Bitte versuchen Sie es in einer Minute noch einmal.", 429, "zu_schnell");
 
   try {
@@ -270,6 +423,22 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
     // Die Person: aus Justins persönlichem Link (E-201), sonst bekannt über
     // E-Mail oder Telefon, sonst neu — ohne Betreuer.
     const ausLink = b.k ? await vorlageAusLink(b.k) : null;
+
+    // ── E-476 Scheibe 3: DIE /justin-WEICHE ─────────────────────────────────
+    // Passt Mail ODER Telefon zu einer Global-Anfrage der letzten 60 Tage, ist das ein Business-Lead — die Buchung wird
+    // ein Global-Gespräch bei Justin (Person „business“, Bestätigung im FIAON-Global-Rahmen in Sie-Form, Erinnerungen am
+    // Vortag und eine Stunde vorher, Ergebnis-Pflicht, Anruf-Karte an Justin) und hängt an der Anfrage; Daniels Auftrag
+    // schließt sich selbst. Sonst bleibt /justin, wie es ist. Dieselbe Sperre je Person und Tag wie der Global-Kalender.
+    const { offeneAnfrageFuer } = await import("../lib/fiaon-lead-weg");
+    const weiche = await offeneAnfrageFuer(email, telefon).catch(() => null);
+    if (weiche) {
+      const w = await weicheBuchen({
+        gruender: a.gruender, slot, anfrageId: weiche.anfrageId, firmaId: weiche.firmaId,
+        anrede, vorname, nachname, email, telefon, thema, nachricht, personIdAusLink: ausLink?.personId ?? null,
+      });
+      if (!w.ok) return fehl(w.error, w.status, w.grund);
+      return res.json({ ok: true, termin: w.termin });
+    }
     const zu = ausLink
       ? { personId: ausLink.personId, angelegt: false }
       : await personFuerZeile({
@@ -293,12 +462,30 @@ router.post("/gruender-termin/buchen", async (req: Request, res: Response) => {
         + "Zum Verschieben nutzen Sie bitte den Link in Ihrer Bestätigungs-E-Mail.", 409, "schon_gebucht");
     }
 
-    const buchung = await terminBuchen({
-      personId: zu.personId,
-      agentId: a.gruender.id,
-      beginn: slot.beginn,
-      quelle: "gruender",
-      herkunft: ausLink ? "gruender_link" : "gruender_seite",
+    // E-476 Nachbesserung (Gutachten Technik, Mangel 5): dieselbe Sperre je Person und Tag wie der Global-Kalender und die Weiche,
+    // und der Gesamtdeckel (/justin + Lead-Gespräche) neu gezählt IN der Transaktion — zwei gleichzeitige Buchungen überschreiten
+    // ihn nie.
+    const { ensureHerkunftSpalte } = await import("../lib/fiaon-termine");
+    const { LEAD_GESPRAECH_HERKUENFTE } = await import("@shared/fiaon-lead-weg");
+    const gesamtProTag = (await (await import("../lib/fiaon-lead-weg")).leadWegEinstellungen().catch(() => null))?.gesamtProTag ?? null;
+    await ensureHerkunftSpalte();
+    const buchung = await sqlPool.begin(async (tx: any) => {
+      await tx`SELECT pg_advisory_xact_lock(hashtext(${`global-termin:${a.gruender!.id}:${slot.datum}`}))`;
+      if (gesamtProTag != null) {
+        const [z] = (await tx`
+          SELECT COUNT(*)::int AS n FROM fiaon_termine
+           WHERE agent_id = ${a.gruender!.id} AND status IN ('gebucht', 'erledigt', 'verpasst')
+             AND (quelle = 'gruender' OR (quelle = 'global' AND COALESCE(herkunft, '') = ANY(${LEAD_GESPRAECH_HERKUENFTE as unknown as string[]})))
+             AND (beginn AT TIME ZONE 'Europe/Berlin')::date = ${slot.datum}::date`) as any[];
+        if (Number(z?.n ?? 0) >= gesamtProTag) throw new TerminFehler("tag_voll", "An diesem Tag sind alle Gespräche vergeben — bitte wählen Sie einen anderen Tag.");
+      }
+      return terminBuchen({
+        personId: zu.personId,
+        agentId: a.gruender!.id,
+        beginn: slot.beginn,
+        quelle: "gruender",
+        herkunft: ausLink ? "gruender_link" : "gruender_seite",
+      }, tx);
     });
 
     const notiz = [

@@ -263,7 +263,11 @@ const DECKUNG = ["aufgabe_an_betreuer"];
     ok("Betreff und Text bestehen die Wortwand", funde.length === 0, funde.map((f) => `${f.art}: „${f.treffer}“`).join(" / "));
     ok("die Mail siezt", !/\b(du|dich|dir|dein\w*)\b/i.test(mail.text), mail.text.match(/\b(du|dich|dir|dein\w*)\b/i)?.[0]);
     ok("Firma, Paketwunsch, Datum und Uhrzeit stehen drin", ["Beispiel GmbH", "Global Banking", "22.09.2026", "10:30"].every((w) => mail.text.includes(w)));
-    ok("der Satz zur Entscheidung des Instituts steht drin", /entscheidet das jeweilige Institut/.test(mail.text));
+    // E-476 Scheibe 3 (05.11.2026), bewusst umgestellt — VORHER: der Institut-Satz musste drinstehen; NACHHER: er muss FEHLEN
+    // (Justins Regel E-468 „kein Bank-Satz in Mails“, Gutachten 0, Mangel 18). An seiner Stelle Justins eigene Worte.
+    ok("KEIN Satz „das Institut entscheidet“ (E-468)", !/entscheidet das jeweilige Institut|Institut entscheidet|Bank entscheidet/i.test(mail.text));
+    ok("Justins Satz „bis zur Unterschrift bei der Bank“ steht drin", /bis zur Unterschrift bei der Bank/.test(mail.text));
+    ok("die Fußnote nennt fiaon.com (nicht mehr /business)", /wählen auf fiaon\.com eine neue Zeit/.test(mail.text) && !/wählen auf fiaon\.com\/business/.test(mail.text));
     ok("beide Wege stehen drin: Kalenderdatei und Storno-Link", mail.text.includes(".ics") && mail.text.includes("/termin/absagen/"));
     const ohneKalender = mailRendern("global_termin", { ...def!.example, kalender_url: "" });
     ok("fehlt die Kalenderdatei, rückt der Storno-Knopf auf — kein toter Knopf", !!ohneKalender && !ohneKalender.html.includes("In den Kalender eintragen") && ohneKalender.html.includes("Termin verschieben oder absagen"));

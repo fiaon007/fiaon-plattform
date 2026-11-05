@@ -48,6 +48,14 @@ ok(!M.istGlobalFormular(null), "rot: ohne Namen");
 ok(M.istGlobalFormular("Lead Form 3", "123456", ["123456"]), "Rückfall: Formular-ID in der Einstellung");
 ok(!M.istGlobalFormular("Lead Form 3", "999", ["123456"]), "rot: andere ID");
 gleich(M.META_GLOBAL_FORMULARE, "meta_global_formular_ids", "Name der Rückfall-Einstellung");
+// E-476 Scheibe 3 (Gutachten 0, Mangel 22): Die Formular-Fassung 2 mit dem Danke-Knopf /gb MUSS mit „FIAON Global“ beginnen,
+// sonst greift die Weiche nicht und der Lead würde ein Privat-Lead.
+{
+  const { META_FASSUNG2_NAMEN, META_DANKE_URL } = await import("../shared/fiaon-lead-weg");
+  ok(M.istGlobalFormular(META_FASSUNG2_NAMEN.kapital), "Fassung 2 Kapital → Global-Weiche");
+  ok(M.istGlobalFormular(META_FASSUNG2_NAMEN.us), "Fassung 2 US-Gesellschaft → Global-Weiche");
+  ok(META_DANKE_URL === "https://fiaon.com/gb?lid={{lead_id}}", "Danke-Knopf der Fassung 2 zeigt auf /gb mit der Lead-Kennung");
+}
 
 abschnitt("A2 Fragen und Text der Anfrage");
 gleich(M.frageLesbar("wann_möchten_sie_gründen?"), "Wann möchten sie gründen?", "Meta-Schlüssel lesbar");
@@ -158,6 +166,30 @@ if (LOKAL_DB) {
   gleich(e1b.status, "dublette", "zweiter Durchlauf (Nachhol-Lauf) = Dublette");
   const anzahl = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_anfragen WHERE email = ${mail(1)}`) as any[];
   gleich(anzahl[0]?.n, 1, "keine zweite Anfrage");
+
+  // E-476 Nachbesserung (Gutachten Technik, Mangel 4): eine verwaiste Beanspruchung (Prozess starb zwischen Beanspruchen und
+  // Annehmen) — frisch = „in Arbeit“ (Dublette), älter als drei Minuten = neu beansprucht, der Lead kommt an.
+  await sql`INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, weg, gesehen_am) VALUES (${`PRUEF${LAUF}4`}, NULL, ${formG}, 'meta_webhook', NOW())`;
+  const e4a = await M.metaLeadEinspielen(lead(4, formG), "meta_nachhol", null);
+  ok(e4a.status === "dublette" && !e4a.globalAnfrageId, "frische Beanspruchung ohne Ziel: „in Arbeit“ (Dublette, keine zweite Annahme)");
+  await sql`UPDATE fiaon_meta_leads SET gesehen_am = NOW() - INTERVAL '5 minutes' WHERE meta_lead_id = ${`PRUEF${LAUF}4`}`;
+  const e4b = await M.metaLeadEinspielen(lead(4, formG), "meta_nachhol", null);
+  ok(e4b.status === "neu" && Number(e4b.globalAnfrageId) > 0, `verwaiste Beanspruchung (älter als 3 Min.): neu beansprucht, der Lead kommt an (${e4b.status})`);
+  const [ml4] = (await sql`SELECT global_anfrage_id, weg FROM fiaon_meta_leads WHERE meta_lead_id = ${`PRUEF${LAUF}4`}`) as any[];
+  ok(Number(ml4?.global_anfrage_id) === Number(e4b.globalAnfrageId) && ml4?.weg === "meta_nachhol", "… die Zeile trägt jetzt die Anfrage und den Weg");
+  gleich(((await sql`SELECT COUNT(*)::int AS n FROM fiaon_anfragen WHERE email = ${mail(4)}`) as any[])[0]?.n, 1, "… genau eine Anfrage");
+  // Webhook und Nachhol-Lauf gleichzeitig: genau einer nimmt an.
+  const [p5a, p5b] = await Promise.all([M.metaLeadEinspielen(lead(5, formG), "meta_webhook", null), M.metaLeadEinspielen(lead(5, formG), "meta_nachhol", null)]);
+  ok([p5a.status, p5b.status].sort().join("+") === "dublette+neu", `gleichzeitig: einer „neu“, einer „Dublette“ (${p5a.status}+${p5b.status})`);
+  gleich(((await sql`SELECT COUNT(*)::int AS n FROM fiaon_anfragen WHERE email = ${mail(5)}`) as any[])[0]?.n, 1, "… genau eine Anfrage");
+  // Ohne Mail und Telefon: eigener Weg-Wert — nie als verwaist neu versucht.
+  const ohne = { ...lead(6, formG), field_data: lead(6, formG).field_data.filter((x) => x.name !== "email" && x.name !== "phone_number") };
+  const e6 = await M.metaLeadEinspielen(ohne, "meta_webhook", null);
+  gleich(e6.status, "ungueltig", "Global-Formular ohne Mail und Telefon: ungültig");
+  await sql`UPDATE fiaon_meta_leads SET gesehen_am = NOW() - INTERVAL '1 hour' WHERE meta_lead_id = ${`PRUEF${LAUF}6`}`;
+  const [ml6] = (await sql`SELECT weg FROM fiaon_meta_leads WHERE meta_lead_id = ${`PRUEF${LAUF}6`}`) as any[];
+  gleich(ml6?.weg, M.META_UNGUELTIG, "… Weg „meta_ungueltig“");
+  gleich((await M.metaLeadEinspielen(ohne, "meta_nachhol", null)).status, "dublette", "… und der Nachhol-Lauf versucht ihn nicht alle fünf Minuten neu");
 
   // Kampagnen-Rückfall: Formular unbekannt (Meta liefert den Namen nicht), Kampagne heißt „FIAON Global …“
   const e2 = await M.metaLeadEinspielen({ ...lead(2, `UNBEKANNT${LAUF}`, "FIAON Global · US-Gründung · Okt") }, "meta_webhook", null);

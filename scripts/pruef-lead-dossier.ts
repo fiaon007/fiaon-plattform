@@ -1013,6 +1013,10 @@ if (LOKAL_DB) {
   ok(!!logSelbst, "Cockpit-Zeile „Justin ruft selbst an“");
   const s2 = await D.selbstAnrufen(Number(z6?.id));
   ok(s2.ok && /Schon erledigt/.test(s2.text), "zweiter Klick: „schon erledigt“, nichts doppelt");
+  // E-476 Nachbesserung (Gutachten Betreiber, Mangel 2): die Stand-Leiste im Cockpit sagt es auch — nicht mehr „anrufen“.
+  const TK = await import("../server/lib/fiaon-lead-takt");
+  const leiste = z6?.firma_id ? await TK.leadStandAnsicht(Number(z6.firma_id)) : null;
+  ok(/Justin ruft selbst an/.test(String(leiste?.jetzt ?? "")), `Stand-Leiste: „Justin ruft selbst an — für dich nichts zu tun“ (${String(leiste?.jetzt ?? "keine Leiste")})`);
 
   // ── 15. Ein zweiter Anfragender derselben Firma erbt nicht die Rolle des ersten (Gutachten Technik) ──
   const [zRolle] = (await sql`SELECT id, firma_id, ki FROM fiaon_lead_dossier WHERE anlass = 'anfrage' AND anlass_id = ${e1.globalAnfrageId ?? 0}`) as any[];

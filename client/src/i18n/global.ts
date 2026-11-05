@@ -632,6 +632,10 @@ const gespraechDe = {
   anrufen: (name: string) => `${name} anrufen`,
   zurueck: "Zurück",
   rueckrufStatt: "Rückruf statt Termin",
+  // E-476 Scheibe 3 (05.11.2026): der persönliche Terminlink — Name, Firma, Mail und Telefon sind schon eingetragen.
+  persoenlich: "Ihre Angaben sind schon eingetragen — wählen Sie nur noch Tag und Uhrzeit.",
+  persoenlichPruefen: "Ihre Angaben sind schon eingetragen — bitte kurz prüfen.",
+  persoenlichLaedt: "Ihre Angaben werden geladen …",
 };
 
 const gespraechEn: typeof gespraechDe = {
@@ -675,6 +679,9 @@ const gespraechEn: typeof gespraechDe = {
   anrufen: (name: string) => `Call ${name}`,
   zurueck: "Back",
   rueckrufStatt: "Call me back instead",
+  persoenlich: "Your details are already filled in — simply choose a day and a time.",
+  persoenlichPruefen: "Your details are already filled in — please check them briefly.",
+  persoenlichLaedt: "Loading your details …",
 };
 
 export const GLOBAL_GESPRAECH_WOERTER = { de: gespraechDe, en: gespraechEn };

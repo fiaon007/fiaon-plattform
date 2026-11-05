@@ -22,6 +22,8 @@ import { schufaRequestedSaetze } from "./mail/vorlagen/auskunft-lead";
 import { VERTRAG_BEGINN_SATZ } from "./mail/vorlagen/vertrag";
 import { paketPreisCents } from "@shared/fiaon-pakete";
 import { euroCent } from "@shared/fiaon-antrag-neu-vertrag";
+// E-476 Scheibe 4 (05.11.2026): der Vorbereitungs-Absatz der Vortag-Mail — das Beispiel zeigt den freigegebenen Wortlaut.
+import { vorbereitungHtml } from "@shared/fiaon-global-lead-texte";
 
 export interface MakeEventDef {
   type: MakeEventType;
@@ -1013,6 +1015,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       telefon: "+49 30 1234567",
       paket: "Global Banking (4.999 €)",
       agent_vorname: "Nikita Boychenko", // E-265: ohne gepflegte Anrede der volle Name
+      // E-476 Scheibe 4: SEINE Sätze aus dem Formular (Sie-Form, ohne Betrag) — nur bei Lead-Gesprächen, sonst entfällt der Absatz.
+      angaben_satz: "Ihre Angaben aus dem Formular liegen uns vor. Sie möchten so bald wie möglich starten.",
       termin_datum: "22.09.2026",
       termin_uhrzeit: "10:30",
       termin_art: "FIAON Global – Erstgespräch",
@@ -1032,6 +1036,8 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       email: "m.beispiel@beispiel-gmbh.de", anrede_zeile: "Guten Tag Frau Beispiel", termin_datum: "30.10.2026", termin_uhrzeit: "10:30",
       termin_dauer: "30", betreuer_name: "Daniel Beispiel", betreuer_vorname: "Daniel", telefon: "+49 30 1234567",
       storno_link: "https://www.fiaon.com/termin/absagen/9b2c…?anrede=sie&bereich=business", wann_satz: "heute um 10:30 Uhr", wann_kurz: "heute",
+      // E-476 Scheibe 4: ohne Formular-Antworten der freigegebene Absatz (mit Antworten fragt die Mail nur, was fehlt).
+      vorbereitung_html: vorbereitungHtml(null, "de"),
     },
   },
   {
@@ -1054,6 +1060,40 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       betreuer_name: "Daniel Beispiel", wann_satz: "heute um 10:30 Uhr", wann_kurz: "heute",
       link_kalender: "https://www.fiaon.com/business#gespraech",
     },
+  },
+  {
+    type: "global_termin_absage",
+    label: "FIAON Global: Wir müssen das Gespräch verschieben (Unternehmen)",
+    description: "E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 3): Sagt ein Mitarbeiter (Kalender, Chefbüro) ein Global-Gespräch ab, bekommt das Unternehmen diese Mail im Business-Rahmen „FIAON Global“ (Sie-Form, ohne „Akte“) statt der Privat-Vorlage termin_absage. Knopf „Neue Zeit wählen“: Lead-Gespräch → sein persönlicher Link; Startgespräch → Justins Seite mit seinen Daten; sonst der Kalender. Antworten an Justin (js@) nur bei einem Lead-Gespräch. Englisch über sprache: \"en\".",
+    customerBound: false,
+    example: {
+      email: "m.beispiel@beispiel-gmbh.example", anrede_zeile: "Guten Tag Frau Beispiel", termin_datum: "Donnerstag, 12.11.2026", termin_uhrzeit: "10:30",
+      agent_name: "Justin Schwarzott", neu_buchen_link: "https://fiaon.com/g/AbCdEfGh23",
+      kalender_url: "https://www.fiaon.com/api/fiaon/global/termine/kalender/9b2c.ics",
+    },
+  },
+  // ── E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): Justins Lead-Mails aus js@ und die Info-Mail im Business-Rahmen ──
+  // Sie gehen über Gmail (nie Make, nie Brevo) — registriert, damit Protokoll, Frequenzbremse und Mailwerk sie kennen.
+  {
+    type: "global_lead_willkommen",
+    label: "FIAON Global: Willkommen von Justin (Business-Lead)",
+    description: "E-476 Scheibe 4: zehn Minuten nach dem Formular (rund um die Uhr) eine Mail von Justin aus js@ mit seiner echten Unterschrift, den Antworten des Leads in Sie-Form (ohne Betrag) und seinem persönlichen Terminlink fiaon.com/g/<code>. Nur für Anfragen ab dem Zählbeginn (Schalter lead_global_willkommen_an im Lead-Motor), nie bei Termin, Kunde, Privat-Weg, Handmail in 14 Tagen. Vorlage: shared/fiaon-global-lead-texte.ts; Versand: server/lib/fiaon-global-lead-post.ts.",
+    customerBound: false,
+    example: { email: "lead@beispiel.example", art: "willkommen", betreff: "Ihre Anfrage bei FIAON Global", versandweg: "google" },
+  },
+  {
+    type: "global_lead_nachfass",
+    label: "FIAON Global: Nachfass von Justin (N1–N3)",
+    description: "E-476 Scheibe 4: höchstens drei kurze Mails im selben Faden (+1/+3/+7 Werktage, Mo–Fr 9–18 Uhr), wenn der Lead weder gebucht noch geantwortet hat. Stopp bei Termin, Antwort, „keine Mails“, Anruf-Ergebnis im Cockpit, Info-Mail oder Kunde; Mail-Budget 1 je Tag, 5 gesamt. Schalter lead_global_nachfass_an im Lead-Motor.",
+    customerBound: false,
+    example: { email: "lead@beispiel.example", art: "n1", betreff: "Re: Ihre Anfrage bei FIAON Global", versandweg: "google" },
+  },
+  {
+    type: "global_info",
+    label: "FIAON Global: Info-Mail nach dem Anruf (Firmen-Cockpit)",
+    description: "E-476 Scheibe 4: der Knopf „Info-Mail senden“ im Firmen-Cockpit — aus welcome@ als „FIAON Global“, Antworten an Justin (js@). Einstieg passend zum letzten Anruf (erreicht / nicht erreicht / ohne Anruf), ohne Institut-Satz. Einem Business-Lead vor Justins Gespräch ohne Preisliste, mit seinem Terminlink; nie bei einem Termin; nach „nicht erreicht“ übernimmt Justins Nachfass.",
+    customerBound: false,
+    example: { email: "firma@beispiel.example", versandweg: "google", postfach: "welcome@fiaon.com" },
   },
   // ── DIE BONITÄTSAUSKUNFT (24.09.2026, E-240) ─────────────────────────────
   // Bis heute standen alle drei als „EMPFEHLUNG (noch kein Auto-Versand)" hier,

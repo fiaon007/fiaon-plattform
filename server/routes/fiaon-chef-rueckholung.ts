@@ -37,6 +37,12 @@ const ERLAUBTE_SCHLUESSEL = new Set([
   "rechnung_b2b_ust_modus",     // none | reverse_charge — gilt für NEUE Aufträge, steht danach fest an der Bestellung
   // E-458 Nr. 11 (29.10.2026): wer einspringt, wenn die Person der Global-Gespräche nicht da ist — leer = niemand (dann die Leitung)
   "global_vertretung_agent_id",
+  // E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): wer die Erstgespräche mit Business-Leads führt (leer = Justin,
+  // „zustaendig“ = wie vor E-476) und die zwei Tagesdeckel (Lead-Gespräche; /justin + Leads zusammen).
+  "global_kalender_agent_id", "global_lead_pro_tag", "global_kalender_gesamt_pro_tag",
+  // E-476 Scheibe 5 (05.11.2026, Entscheidung 3A): wohin Daniels Lead-Meldungen gehen (nur @fiaon.com; leer = Vorgabe aus der
+  // Visitenkarte der zuständigen Person). Das Login des Kontos bleibt, wie es ist.
+  "global_lead_meldung_an",
 ]);
 
 /**
@@ -49,6 +55,23 @@ async function sonderPruefung(key: string, value: string): Promise<string | null
   }
   if (key === "global_provision_prozent") {
     return /^\d{1,2}$/.test(value) && Number(value) <= 50 ? null : "Bitte eine ganze Zahl von 0 bis 50.";
+  }
+  if (key === "global_kalender_agent_id") {
+    // leer = Vorgabe (Justins Konto), „zustaendig“ = die zuständige Person wie vor E-476, sonst ein Konto aus der Liste.
+    if (value === "" || value === "zustaendig") return null;
+    if (!/^\d{1,6}$/.test(value)) return "Bitte eine Person aus der Liste wählen.";
+    const { gruenderAgentId } = await import("./fiaon-gruender-termin");
+    if (Number(value) === await gruenderAgentId()) return null;
+    const { globalMitarbeiter } = await import("../lib/fiaon-global-auftrag");
+    return (await globalMitarbeiter()).some((m) => m.id === Number(value)) ? null : "Diese Person ist nicht aktiv oder gehört nicht zu Vertrieb und Leitung.";
+  }
+  if (key === "global_lead_meldung_an") {
+    // Kundendaten von Leads gehören nie in ein privates Postfach (Entscheidung 3A) — nur ein Postfach des Hauses.
+    const { meldeAdresseGueltig } = await import("@shared/fiaon-lead-takt");
+    return value === "" || meldeAdresseGueltig(value) ? null : "Nur eine Adresse @fiaon.com (z. B. vorname@fiaon.com) — leer = Vorgabe.";
+  }
+  if (key === "global_lead_pro_tag" || key === "global_kalender_gesamt_pro_tag") {
+    return value === "" || (/^\d{1,2}$/.test(value) && Number(value) >= 1 && Number(value) <= 12) ? null : "Bitte eine ganze Zahl von 1 bis 12 (leer = Vorgabe).";
   }
   if (key === "global_zustaendig_agent_id" || key === "global_vertretung_agent_id") {
     // leer = die Vertriebsleitung mit den wenigsten offenen Aufgaben bzw. (Vertretung) niemand — dann die Leitung
@@ -133,6 +156,7 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
         "frequenzbremse_an", "frequenz_pro_tag", "frequenz_pro_woche", "frequenz_pro_monat",
         "max_reminders", "mahn_takte_pro_tag", "mahn_dauer_tage",
         "global_zustaendig_agent_id", "global_provision_prozent", "rechnung_b2b_ust_modus", "global_vertretung_agent_id",
+        "global_kalender_agent_id", "global_lead_pro_tag", "global_kalender_gesamt_pro_tag", "global_lead_meldung_an",
       ]),
       // Rückhol-Versand je Segment, heute und gesamt.
       sqlPool`
@@ -179,9 +203,53 @@ router.get("/chef/rueckholung", requireChef("geschaeftsfuehrung"), async (_req: 
       laeufe,
       // E-188: die Auswahl für „zuständige Person FIAON Global" — aktive Mitarbeiter aus Vertrieb und Leitung.
       mitarbeiter: await import("../lib/fiaon-global-auftrag").then((m) => m.globalMitarbeiter()).catch(() => []),
+      // E-476 Scheibe 3: wer die Lead-Gespräche gerade führt (nach Einstellung, Vorgabe und Rückfall) und Justins Konto.
+      kalender: await kalenderStand().catch(() => null),
+      // E-476 Scheibe 5: wohin Daniels Lead-Meldungen gerade gehen (Einstellung, sonst die Visitenkarte der zuständigen Person).
+      leadMeldung: await import("../lib/fiaon-lead-takt").then((m) => m.leadMeldungZiel()).then((z) => ({ an: z.an, quelle: z.quelle, karte: z.karte, fuer: z.fuerName })).catch(() => null),
     });
   } catch (err) {
     console.error("[CHEF-RUECKHOLUNG] lesen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/** E-476 Scheibe 3: der Stand von „Gespräche führt“ für den Leitstand. */
+async function kalenderStand(): Promise<{ gruender: { id: number; name: string } | null; person: { id: number; name: string } | null; modus: string; leadProTag: number; gesamtProTag: number; freieZeiten: number; vorgabeUmgebung: string | null; vertretung: { id: number; name: string } | null }> {
+  const { gruenderAgentId } = await import("./fiaon-gruender-termin");
+  const gid = await gruenderAgentId();
+  const [g] = (await sqlPool`SELECT id, name FROM fiaon_agents WHERE id = ${gid}`.catch(() => [])) as any[];
+  const { globalAngebotLaden } = await import("../lib/fiaon-global-termin");
+  const a = await globalAngebotLaden();
+  return {
+    gruender: g ? { id: Number(g.id), name: String(g.name) } : null,
+    person: a.person ? { id: a.person.id, name: a.person.name } : null,
+    modus: a.kalender?.modus ?? "alt",
+    leadProTag: a.kalender?.leadProTag ?? 3, gesamtProTag: a.kalender?.gesamtProTag ?? 5,
+    freieZeiten: a.tage.reduce((n, t) => n + t.zeiten.length, 0),
+    // E-476 Nachbesserung (Gutachten Technik Mangel 11 / Betreiber Mangel 7): eine Vorgabe aus der Umgebung (Render) — gilt nur,
+    // solange „Gespräche führt“ leer ist (der Leitstand zeigt sie an).
+    vorgabeUmgebung: await import("../lib/fiaon-lead-weg").then((m) => m.kalenderVorgabeAusUmgebung()).catch(() => null),
+    // E-476 Nachbesserung (Gutachten Betreiber, Mangel 5): die Vertretung für die Gespräche — ohne sie bekommt bei 60/120 Min. niemand den Rückruf.
+    vertretung: await import("../lib/fiaon-global-gespraech").then((m) => m.globalVertretung()).then((v) => (v ? { id: v.id, name: v.name } : null)).catch(() => null),
+  };
+}
+
+/**
+ * POST /chef/rueckholung/global-pruefversand {an?} — E-476 Scheibe 3 (Gutachten 0, Mangel 16): die vier Global-
+ * Gesprächsmails (Bestätigung, Vortag, eine Stunde vorher, nicht erreicht), je deutsch und englisch, mit Beispieldaten an
+ * Justin — vor dem Scharfschalten einmal lesen. Ziel: {an} oder die Adresse des Lead-Dossiers (js@). Art „test“ im Protokoll.
+ */
+router.post("/chef/rueckholung/global-pruefversand", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    const { dossierEinstellungen } = await import("../lib/fiaon-lead-dossier");
+    const wunsch = String(req.body?.an || "").trim().toLowerCase();
+    const an = /^[a-z0-9._%+-]+@fiaon\.com$/.test(wunsch) ? wunsch : (await dossierEinstellungen()).anAdresse;
+    const { gespraechMailsPruefversand } = await import("../lib/fiaon-lead-weg");
+    const r = await gespraechMailsPruefversand(an, "Chefbüro");
+    res.json({ ok: r.ok, meldung: r.ok ? `Prüfversand an ${an}: ${r.gesendet.length} Mails (deutsch und englisch).` : `Prüfversand an ${an}: ${r.gesendet.length} raus, nicht raus: ${r.fehler.join("; ")}`, gesendet: r.gesendet, fehler: r.fehler });
+  } catch (err) {
+    console.error("[CHEF-RUECKHOLUNG] Global-Prüfversand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
@@ -216,9 +284,15 @@ router.post("/chef/rueckholung/einstellung", requireChef("geschaeftsfuehrung"), 
     const sonder = await sonderPruefung(key, value);
     if (sonder) return res.status(400).json({ ok: false, error: sonder });
     if (sonder === undefined && !/^[0-9]{0,6}$/.test(value)) return res.status(400).json({ ok: false, error: "Nur ganze Zahlen." });
+    if ((key === "global_kalender_agent_id" || key === "global_lead_meldung_an") && value === "") {
+      // Vorgabe = keine Zeile (sonst stünde „leer“ statt Justin bzw. der Visitenkarte) — Löschen statt leerem Wert.
+      await sqlPool`DELETE FROM fiaon_settings WHERE key = ${key}`;
+      return res.json({ ok: true });
+    }
+    const wert = key === "global_lead_meldung_an" ? value.trim().toLowerCase() : value;
     await sqlPool`
-      INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${key}, ${value}, NOW())
-      ON CONFLICT (key) DO UPDATE SET value = ${value}, updated_at = NOW()
+      INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${key}, ${wert}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = ${wert}, updated_at = NOW()
     `;
     res.json({ ok: true });
   } catch (err) {

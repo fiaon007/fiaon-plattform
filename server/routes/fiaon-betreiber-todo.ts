@@ -242,6 +242,15 @@ export interface AuftragEin {
    * Standard: 'neu'.
    */
   anlass?: "neu" | "zustand";
+  /**
+   * E-476 Scheibe 5 (05.11.2026, Entscheidung 3A): die Mail „Neuer Auftrag für dich“ bei Aufträgen zu Business-Leads.
+   *   "eigene"            KEINE Make-Mail — der Erzeuger schickt seine eigene Meldung (die Lead-Meldung T1 an die Adresse
+   *                       „Lead-Meldungen an“). Portal-Aufgabe und Ereignis bleiben.
+   *   { an, fuerAgentId } die Mail an diese Adresse (nur @fiaon.com) statt an die Login-Adresse — aber nur, wenn der
+   *                       Auftrag bei genau dieser Person landet (sonst wie bisher).
+   * Ohne Angabe bleibt alles, wie es war. Kundendaten von Leads gehören nie in ein privates Postfach.
+   */
+  meldung?: "eigene" | { an: string; fuerAgentId: number } | null;
 }
 
 /** Ein bestimmter aktiver Mitarbeiter als Empfänger. */
@@ -508,12 +517,52 @@ async function kannArbeiten(agentId: number): Promise<boolean> {
   } catch { return true; }
 }
 
+/**
+ * E-476 Scheibe 5 (Entscheidung 3A): wohin die Mail „Neuer Auftrag für dich“ geht. "eigene" = keine Make-Mail (der Erzeuger
+ * schickt seine eigene, T1); eine Umleitung (nur @fiaon.com) gilt nur, wenn der Auftrag bei genau dieser Person landet;
+ * sonst die Login-Adresse wie bisher. Rein (Prüfstand).
+ * Nachbesserung (Gutachten Sicherheit, Mangel 10): Bei einem LEAD-Auftrag (meldung gesetzt) geht nie eine Mail an ein privates
+ * Postfach — passt die Umleitung nicht zur tatsächlichen Person, gilt ihre Anmeldung nur, wenn sie auf @fiaon.com endet; sonst
+ * KEINE Mail an sie, sondern ein Hinweis an die Lead-Meldungen-Adresse (`team`) — der Auftrag steht im Portal.
+ */
+export function zuweisungZiel(meldung: AuftragEin["meldung"], wer: Pick<Empfaenger, "id" | "email">): { eigene: boolean; ziel: string | null; team?: string | null } {
+  const FIAON = /^[a-z0-9._%+-]+@fiaon\.com$/i;
+  if (meldung === "eigene") return { eigene: true, ziel: wer.email ?? null };
+  if (meldung && typeof meldung === "object") {
+    const an = String(meldung.an || "").trim().toLowerCase();
+    if (wer.id != null && Number(meldung.fuerAgentId) === Number(wer.id) && FIAON.test(an)) return { eigene: false, ziel: an };
+    const login = String(wer.email ?? "").trim().toLowerCase();
+    if (FIAON.test(login)) return { eigene: false, ziel: login };
+    return { eigene: true, ziel: null, team: FIAON.test(an) ? an : null };
+  }
+  return { eigene: false, ziel: wer.email ?? null };
+}
+
 /** Die Mail „Neuer Auftrag für dich" und das Ereignis — nur bei einer ECHTEN Zuweisung, nie beim Anhängen. */
 async function zuweisungMelden(id: number, wer: Empfaenger, ein: AuftragEin, titel: string, text: string, faelligAm: string, quelle: string): Promise<void> {
   if (!wer.id) return;
   {
-    // Die Mail an den Mitarbeiter — derselbe Weg wie bei /admin/vermerke.
-    if (wer.email) {
+    // E-476 Scheibe 5 (Entscheidung 3A): Bei Business-Leads geht die Meldung an die Adresse „Lead-Meldungen an“ — oder gar
+    // nicht über Make, wenn der Erzeuger seine eigene schickt (T1). Nie an eine private Login-Adresse.
+    const { eigene, ziel, team } = zuweisungZiel(ein.meldung, wer);
+    // Nachbesserung (Gutachten Sicherheit, Mangel 10): ein Lead-Auftrag bei jemandem ohne Firmenadresse — kein privates
+    // Postfach, sondern ein kurzer Hinweis an die Lead-Meldungen-Adresse (der Auftrag steht im Portal der Person).
+    if (team) {
+      try {
+        const { sendMakeWebhook } = await import("../make-webhook");
+        const { absoluteUrl } = await import("../fiaon-base-url");
+        await sendMakeWebhook("aufgabe_zugewiesen", {
+          email: team, vorname: "Team",
+          aufgabe: `Für ${wer.name || "das Team"} (im Portal): ${titel}`.slice(0, 300), kunde: "Business-Lead",
+          faellig_am: faelligAm,
+          faellig_am_text: new Date(`${faelligAm}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }),
+          dringend: !!ein.dringend, portal_url: absoluteUrl("/agent/aufgaben"),
+        });
+      } catch { /* die Aufgabe steht — die Mail ist ein Zusatz */ }
+    }
+    // Die Mail an den Mitarbeiter — derselbe Weg wie bei /admin/vermerke. Das Ereignis (Portal-Hinweis) bleibt wie vorher an
+    // jeder echten Zuweisung mit Adresse — auch wenn die Mail zu einem Lead-Auftrag bewusst nicht an sie geht.
+    if (wer.email || ziel || team) {
       let kunde: string | null = null;
       if (ein.ref) {
         const [k] = (await sqlPool`SELECT TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS n FROM fiaon_applications WHERE ref = ${ein.ref} LIMIT 1`.catch(() => [])) as any[];
@@ -526,11 +575,11 @@ async function zuweisungMelden(id: number, wer: Empfaenger, ein: AuftragEin, tit
         kunde = p?.n || null;
       }
       if (!kunde) kunde = "ohne Kundenbezug";
-      try {
+      if (!eigene && ziel) try {
         const { sendMakeWebhook } = await import("../make-webhook");
         const { absoluteUrl } = await import("../fiaon-base-url");
         await sendMakeWebhook("aufgabe_zugewiesen", {
-          email: wer.email, vorname: wer.vorname || wer.name,
+          email: ziel, vorname: wer.vorname || wer.name,
           aufgabe: `${titel}${text ? ` — ${text.slice(0, 600)}` : ""}`, kunde,
           faellig_am: faelligAm,
           faellig_am_text: new Date(`${faelligAm}T12:00:00Z`).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }),

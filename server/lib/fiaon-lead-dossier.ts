@@ -1021,8 +1021,18 @@ export async function selbstAnrufen(dossierId: number, lauf: Lauf = sqlPool): Pr
   const cockpitUrl = z.firma_id ? absoluteUrl(`/agent/firmen?firma=${z.firma_id}`) : null;
   const [t] = (await lauf`SELECT id, zustaendig_name FROM fiaon_betreiber_todos WHERE schluessel = ${`global-anfrage:${z.anfrage_id}`} AND status <> 'erledigt'`.catch(() => [])) as any[];
   let wer = "das Team";
-  if (t) {
-    wer = t.zustaendig_name || wer;
+  if (t) wer = t.zustaendig_name || wer;
+  // Nachbesserung E-476 (Gutachten Betreiber, Mangel 2): „Ich rufe selbst an“ ist ein Ereignis des EINEN Stands — er schließt den
+  // Anruf-Auftrag, den Rückruf der Vertretung und die Aufträge weiterer Anfragen derselben Firma, die Stand-Leiste und die
+  // Übersicht sagen „Justin ruft selbst an“, und die Meldeadresse bekommt einen Nachtrag im Faden der Lead-Meldung.
+  if (z.anfrage_id) {
+    await import("./fiaon-lead-takt")
+      .then((m) => m.leadStandSetzen({ anfrageId: Number(z.anfrage_id), firmaId: z.firma_id ? Number(z.firma_id) : null, ereignis: "selbst", wer: { id: null, name: "Justin Schwarzott" } }, lauf))
+      .catch((e) => console.error(`[LEAD-DOSSIER] Stand „selbst“ zu #${dossierId}:`, String(e).slice(0, 160)));
+  }
+  // Rückfall: steht der Auftrag noch offen (Störung oben), schließt er sich hier.
+  const [noch] = t ? ((await lauf`SELECT status FROM fiaon_betreiber_todos WHERE id = ${t.id}`.catch(() => [])) as any[]) : [];
+  if (t && noch?.status !== "erledigt") {
     const { auftragErledigen } = await import("./fiaon-auftraege");
     await auftragErledigen(Number(t.id), {
       art: "verwaltung", von: "Justin Schwarzott", autorArt: "betreiber",
@@ -1059,6 +1069,8 @@ export interface MailOptionen {
   jetzt?: Date;
   /** Der signierte Link „Ich rufe selbst an“ (nur mit Dossier-Zeile, nie in der Vorschau). */
   selbstUrl?: string | null;
+  /** E-476 Scheibe 4: ein Satz, was der Lead von Justin bekommt (Willkommens-Mail aus js@) — leadMailHinweis. */
+  leadMail?: string | null;
 }
 
 const FAKT_ZEICHEN: Record<Fakt, string> = { ja: "✓", nein: "✗", unklar: "?" };
@@ -1243,6 +1255,7 @@ export function leadDossierMail(b: DossierBasis, ki: HintergrundErgebnis | null,
     t.push("");
     t.push("ANRUF");
     t.push(b.anruf.text + (b.anruf.auftrag && opt.art !== "termin" && b.anruf.offen ? ` (${b.anruf.auftrag})` : ""));
+    if (opt.leadMail && opt.art !== "termin") t.push(opt.leadMail);
     if (opt.selbstUrl && b.anruf.offen && opt.art !== "termin") t.push(`Rufst du selbst an? Der Knopf „Ich rufe selbst an“ schließt den Auftrag an ${b.anruf.wer ?? "das Team"} — dann klingelt es nicht doppelt.`);
     t.push("");
   }
@@ -1282,9 +1295,16 @@ export async function fadenLesen(firmaId: number | null, lauf: Lauf = sqlPool): 
     SELECT faden_betreff, mail_basis_id, mail_ki_id FROM fiaon_lead_dossier
      WHERE firma_id = ${firmaId} AND mail_basis_am IS NOT NULL
      ORDER BY mail_basis_am ASC LIMIT 20`.catch(() => [])) as any[];
-  if (!zeilen.length) return { stamm: null, kopfzeilen: null, erste: true };
-  const ids = zeilen.flatMap((z) => [z.mail_basis_id, z.mail_ki_id]).filter((x): x is string => !!x && /^<[^<>\s]+>$/.test(String(x)));
-  const stamm = String(zeilen.find((z) => z.faden_betreff)?.faden_betreff ?? "") || null;
+  // E-476 Scheibe 3: „Termin steht“ (D2) und die Anruf-Karte (D3) gehören zum selben Faden — auch, wenn es (noch) kein
+  // Dossier gab (Cockpit-Knopf bei einer Firma ohne Anfrage). Ohne Tabelle (vor dem ersten Lead-Weg-Lauf): nur die Dossiers.
+  const lw = (await lauf`
+    SELECT faden_betreff, d2_id, d3_id FROM fiaon_lead_gespraech
+     WHERE firma_id = ${firmaId} AND (d2_am IS NOT NULL OR d3_am IS NOT NULL) AND faden_betreff IS NOT NULL
+     ORDER BY COALESCE(d2_am, d3_am) ASC LIMIT 10`.catch(() => [])) as any[];
+  if (!zeilen.length && !lw.length) return { stamm: null, kopfzeilen: null, erste: true };
+  const ids = [...zeilen.flatMap((z) => [z.mail_basis_id, z.mail_ki_id]), ...lw.flatMap((z) => [z.d2_id, z.d3_id])]
+    .filter((x): x is string => !!x && /^<[^<>\s]+>$/.test(String(x)));
+  const stamm = String(zeilen.find((z) => z.faden_betreff)?.faden_betreff ?? lw.find((z) => z.faden_betreff)?.faden_betreff ?? "") || null;
   if (!ids.length) return { stamm, kopfzeilen: null, erste: false };
   return { stamm, kopfzeilen: { "In-Reply-To": ids[ids.length - 1], References: ids.slice(-10).join(" ") }, erste: false };
 }
@@ -1468,7 +1488,11 @@ async function verarbeiten(id: number, opt: { kiJetzt: boolean }, lauf: Lauf = s
     const art: DossierArt = z.anlass === "termin" ? "termin" : faden.erste ? "neu" : "weitere";
     const selbstUrl = z.anlass === "anfrage" ? selbstLink(id) : null;
     const zeigeKi = ki && (kiStatus === "fertig" || kiStatus === "leer") ? ki : null;
-    const mail = leadDossierMail(b, zeigeKi, { art, stamm: faden.stamm, erste: faden.erste, kiStatus, kiGrund, selbstUrl });
+    // E-476 Scheibe 4: was der Lead von Justin bekommt (Willkommens-Mail aus js@) — ein Satz unter ANRUF. Wirft nie.
+    const leadMail = z.anlass === "anfrage"
+      ? await import("./fiaon-global-lead-post").then((m) => m.leadMailHinweis(b.anfrageId, lauf)).catch(() => null)
+      : null;
+    const mail = leadDossierMail(b, zeigeKi, { art, stamm: faden.stamm, erste: faden.erste, kiStatus, kiGrund, selbstUrl, leadMail });
     const versand = await mailSenden({
       an: einst.anAdresse, name: "Justin", betreff: mail.betreff, text: mail.text, knoepfe: mail.knoepfe,
       kopfzeilen: faden.kopfzeilen ?? undefined, antwortAn: { email: einst.anAdresse, name: "Justin" }, verlinken: mail.links, abschnitteFett: true,
@@ -1669,11 +1693,15 @@ export async function leadDossierLauf(lauf: Lauf = sqlPool): Promise<boolean> {
       }
     }
     // 2. Global-Buchungen ab dem Zählbeginn ohne Zeile (Gutachten 0, Mangel 3: wer selbst bucht, bekommt auch ein Dossier).
+    //    E-476 Scheibe 3: nicht, wenn die Buchung an einer Anfrage hängt — deren Dossier gibt es schon, Justin bekommt
+    //    „Termin steht“ (D2) im selben Faden.
+    await import("./fiaon-lead-weg").then((m) => m.leadWegSchema(lauf)).catch(() => {});
     const buchungen = (await lauf`
       SELECT t.id FROM fiaon_termine t
        WHERE t.quelle = 'global' AND COALESCE(t.herkunft, '') = 'global_seite'
          AND t.created_at >= ${ab}::timestamptz AND t.created_at > NOW() - INTERVAL '3 days'
          AND NOT EXISTS (SELECT 1 FROM fiaon_lead_dossier d WHERE d.anlass = 'termin' AND d.anlass_id = t.id)
+         AND NOT EXISTS (SELECT 1 FROM fiaon_lead_gespraech g WHERE g.termin_id = t.id AND g.anfrage_id IS NOT NULL)
        ORDER BY t.id LIMIT 5`.catch(() => [])) as any[];
     for (const t of buchungen) await zeileAnlegen({ anlass: "termin", anlassId: Number(t.id) }, lauf);
     // 3. Offene, fehlgeschlagene (nach ihrer Wartezeit) und hängende Zeilen — höchstens drei je Takt. Höchstens EIN
@@ -1947,7 +1975,9 @@ export async function globalLeadZuTermin(terminId: number, lauf: Lauf = sqlPool)
  * der Buchungsmeldung (anlass „termin“) kennt die Firma — daraus Stamm und Kopfzeilen. null = kein Faden.
  */
 export async function leadFadenZuTermin(terminId: number, lauf: Lauf = sqlPool): Promise<{ faden: Faden; stamm: string } | null> {
-  const [z] = (await lauf`SELECT firma_id, faden_betreff FROM fiaon_lead_dossier WHERE anlass = 'termin' AND anlass_id = ${terminId}`.catch(() => [])) as any[];
+  let [z] = (await lauf`SELECT firma_id, faden_betreff FROM fiaon_lead_dossier WHERE anlass = 'termin' AND anlass_id = ${terminId}`.catch(() => [])) as any[];
+  // E-476 Scheibe 3: ein Lead-Gespräch (Link, Kalender, Cockpit, /justin-Weiche) kennt seine Firma aus fiaon_lead_gespraech.
+  if (!z?.firma_id) [z] = (await lauf`SELECT firma_id, faden_betreff FROM fiaon_lead_gespraech WHERE termin_id = ${terminId}`.catch(() => [])) as any[];
   if (!z?.firma_id) return null;
   const faden = await fadenLesen(Number(z.firma_id), lauf);
   const stamm = faden.stamm || (z.faden_betreff ? String(z.faden_betreff) : null);

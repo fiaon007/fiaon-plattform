@@ -74,6 +74,7 @@ import {
   TerminFehler, berlinDatumText, berlinUhrzeit, type Zeitfenster,
 } from "./fiaon-termine";
 import { globalZustaendig, globalTerminProTag, globalKalenderUrl } from "./fiaon-global-termin";
+import { istLeadGespraech, LEAD_GESPRAECH_HERKUENFTE } from "@shared/fiaon-lead-weg";
 import { googleKalenderLink } from "./fiaon-ics";
 import { absoluteUrl } from "../fiaon-base-url";
 import { angebotTag, angebotKundeName, zahlwort, type AngebotSchalter, type AngebotKunde } from "@shared/fiaon-global-angebot";
@@ -470,13 +471,15 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
     const proTag = await globalTerminProTag();
     const vonAb = new Date(fr.ab.getTime() - 86_400_000); const bisAb = new Date(fr.ab.getTime() + (GLOBAL_HORIZONT_TAGE + 2) * 86_400_000);
     const termine = (await sqlPool`
-      SELECT beginn, COALESCE(dauer_min, 20) AS dauer_min, quelle, status FROM fiaon_termine
+      SELECT beginn, COALESCE(dauer_min, 20) AS dauer_min, quelle, status, herkunft FROM fiaon_termine
        WHERE agent_id = ${person.id}
          AND (status IN ('gebucht', 'erledigt', 'verpasst') OR (status = 'abgesagt' AND abgesagt_von = 'agent'))
          AND beginn > ${vonAb} AND beginn < ${bisAb}`) as any[];
+    // E-476 Scheibe 3 (Gutachten 0, Mangel 2): Lead-Gespräche (Erstgespräche mit Business-Leads bei Justin) sperren ihre
+    // ZEIT, aber nie den PLATZ eines Startgesprächs — ein zahlender Kunde bucht immer, auch an einem Tag voller Leads.
     const { frei } = startgespraechZeitenRechnen({
       ab: fr.ab, fenster: person.fenster, proTag,
-      belegt: termine.map((t) => ({ beginn: t.beginn, dauerMin: Number(t.dauer_min), zaehltAlsGlobal: t.quelle === "global" && t.status !== "abgesagt" })),
+      belegt: termine.map((t) => ({ beginn: t.beginn, dauerMin: Number(t.dauer_min), zaehltAlsGlobal: t.quelle === "global" && t.status !== "abgesagt" && !istLeadGespraech(t) })),
     });
     // Auch ohne freie Zeit geht es durch die Sperre: Hat ein paralleler Lauf (Annahme, Kundenlink, Stundenlauf) gerade
     // gebucht, ist sein Termin der Grund, warum hier nichts mehr frei ist — dann „schon", nicht „kein Platz".
@@ -499,6 +502,7 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
         const [n] = (await tx`
           SELECT COUNT(*)::int AS n FROM fiaon_termine
            WHERE agent_id = ${person.id} AND quelle = 'global' AND status IN ('gebucht', 'erledigt', 'verpasst')
+             AND NOT (COALESCE(herkunft, '') = ANY(${LEAD_GESPRAECH_HERKUENFTE as unknown as string[]}))
              AND (beginn AT TIME ZONE 'Europe/Berlin')::date = ${slot.tag}::date`) as any[];
         if (Number(n?.n ?? 0) >= proTag) { voll.add(slot.tag); continue; }
         const tage = Math.ceil((new Date(slot.beginn).getTime() - Date.now()) / 86_400_000) + 1;

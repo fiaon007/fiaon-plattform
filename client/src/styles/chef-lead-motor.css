@@ -315,3 +315,6 @@ a.lm-name:hover { text-decoration: underline; }
 @media (hover: hover) {
   .lm-klapp > summary:hover { background: rgba(148, 163, 184, .05); }
 }
+
+/* E-476 Scheibe 5: Karte „Daniels Takt & Wächter“ — der Text eines Wächters bzw. einer Ableitung unter der Zeile. */
+.lm-takt-text { margin: 6px 0 0; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }

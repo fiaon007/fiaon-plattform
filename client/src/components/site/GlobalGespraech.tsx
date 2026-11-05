@@ -25,6 +25,13 @@
 // 08.10.2026 (E-309, Justin): „Daniel Stripling, E-Mail, Nummer, Bild — einladend, verdammt hochwertig.“ Steht die
 // zuständige Person auf /team, zeigt die Karte ihr echtes Website-Porträt (dasselbe wie auf /team), Rolle, Mail und
 // Nummer aus shared/fiaon-visitenkarte.ts; ruhig animiert (Einschweben, Ring, Atmen), prefers-reduced-motion beachtet.
+//
+// E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): Die Zeiten sind die der Person aus „Gespräche führt“ (Vorgabe Justin) —
+// die Karte zeigt sie (Porträt aus /team). Kam der Besucher über seinen persönlichen Link (fiaon.com/g/<code>) oder den
+// Danke-Knopf des Meta-Formulars, liefert der Server Name, Firma, Mail und Telefon mit (aus einem HttpOnly-Cookie — der
+// Code steht nie in dieser Adresse); die Felder sind dann schon ausgefüllt. Beim Danke-Knopf ist die Anfrage oft noch
+// unterwegs („vorlageFolgt“) — dann fragt die Fläche ein paar Sekunden lang nach. Der ARAS-Hinweis ist weg: kein ARAS
+// für Leads (Logbuch 03.11.); die Erinnerungen kommen per Mail.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useWoerter, useSprache } from "@/i18n/sprache";
@@ -34,10 +41,14 @@ import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { kampagne, messungsDaten, werbeKonversion } from "@/lib/werbung";
 import { visitenkarte, telefonLink } from "@shared/fiaon-visitenkarte";
 import { portraitAlt, portraitMitKi, portraitUrl, KI_PORTRAIT_HINWEIS } from "@shared/fiaon-portraits";
-import { GLOBAL_TERMIN_ARAS_HINWEIS } from "@shared/fiaon-ja-zum-anruf";
 
 type FreierTag = { tag: string; zeiten: string[] };
-type Frei = { ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string; kuerzel?: string | null } | null; rueckfall?: boolean };
+type Vorlage = { name?: string; firma?: string; email?: string; telefon?: string };
+type Frei = {
+  ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string; kuerzel?: string | null } | null; rueckfall?: boolean;
+  /** E-476 Scheibe 3: der persönliche Link — die Angaben des Leads. */
+  vorlage?: Vorlage | null; persoenlich?: boolean; vorlageFolgt?: boolean;
+};
 
 const leer = { name: "", firma: "", email: "", telefon: "", thema: "", wunschzeit: "", falle: "" };
 
@@ -52,24 +63,61 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const [sendet, setSendet] = useState(false);
   const [fehler, setFehler] = useState("");
   const [fertig, setFertig] = useState<null | { art: "termin" | "anfrage"; wann?: string; wer?: string }>(null);
+  const [persoenlich, setPersoenlich] = useState(false);
+  const [vorlageFolgt, setVorlageFolgt] = useState(false);
+
+  // E-476 Scheibe 3: Angaben aus dem persönlichen Link übernehmen — nur in leere Felder, nie über Getipptes.
+  const vorlageUebernehmen = (v: Vorlage | null | undefined) => {
+    if (!v) return;
+    setF((alt) => ({
+      ...alt,
+      name: alt.name.trim() ? alt.name : String(v.name ?? ""),
+      firma: alt.firma.trim() ? alt.firma : String(v.firma ?? ""),
+      email: alt.email.trim() ? alt.email : String(v.email ?? ""),
+      telefon: alt.telefon.trim() ? alt.telefon : String(v.telefon ?? ""),
+    }));
+    setPersoenlich(true);
+  };
 
   const laden = async () => {
     try {
-      const r = await fetch("/api/fiaon/global/termine/frei?tage=14");
+      const r = await fetch("/api/fiaon/global/termine/frei?tage=14", { credentials: "same-origin" });
       const j: Frei = await r.json();
       const tage = (j.tage || []).filter((x) => x.zeiten?.length);
       setFrei({ ...j, tage });
       setTag((alt) => (alt && tage.some((x) => x.tag === alt) ? alt : tage[0]?.tag ?? null));
+      vorlageUebernehmen(j.vorlage);
+      setVorlageFolgt(!!j.vorlageFolgt && !j.vorlage);
+      return j;
     } catch {
       setFrei({ ok: false, tage: [], rueckfall: true });
+      return null;
     }
   };
   useEffect(() => { laden(); }, []);
+  // Danke-Knopf des Meta-Formulars: die Anfrage ist noch unterwegs — ein paar Mal nachfragen (höchstens ~15 Sekunden).
+  const nachgefragt = useRef(0);
+  useEffect(() => {
+    if (!vorlageFolgt) return;
+    // Nach sechs Versuchen aufgeben: die normale Fläche, ohne „wird geladen“ — die Buchung hängt sich dann per Mail an die Anfrage.
+    if (nachgefragt.current >= 6) { setVorlageFolgt(false); return; }
+    const t = setTimeout(() => { nachgefragt.current += 1; void laden(); }, 2500);
+    return () => clearTimeout(t);
+  }, [vorlageFolgt, frei]); // eslint-disable-line react-hooks/exhaustive-deps
   // Der Knopf „Persönliches Angebot besprechen" füllt das Thema vor (überschreibt nichts, was schon getippt ist).
   useEffect(() => { if (thema) setF((alt) => (alt.thema.trim() ? alt : { ...alt, thema })); }, [thema]);
-  // Schritt 2 gleitet herein — der Fokus springt ins erste Feld.
+  // Schritt 2 gleitet herein — der Fokus springt ins erste Feld. E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 12): Über den
+  // persönlichen Link ist schon alles ausgefüllt — dann KEIN Fokus (am Handy öffnete er die Tastatur über dem Knopf), sondern
+  // der Absende-Knopf rollt in den Blick: Uhrzeit tippen, „vereinbaren“ tippen, fertig.
   const erstesFeld = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (zeit && !rueckruf) requestAnimationFrame(() => erstesFeld.current?.focus({ preventScroll: true })); }, [zeit, rueckruf]);
+  const absendeKnopf = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!zeit || rueckruf) return;
+    requestAnimationFrame(() => {
+      if (persoenlich) absendeKnopf.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      else erstesFeld.current?.focus({ preventScroll: true });
+    });
+  }, [zeit, rueckruf, persoenlich]);
 
   const tage = frei?.tage || [];
   const ohneKalender = !!frei && (frei.rueckfall || !frei.ok || tage.length === 0);
@@ -114,10 +162,8 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
         return;
       }
       if (!tag || !zeit) return;
-      // E-458: Der Hinweis über dem Knopf geht mit — der Server speichert den Nachweis für den Erinnerungsanruf nur, wenn es genau
-      // sein Satz ist (Justin 29.10.: „braucht kein eigenes Kreuz“ — die Buchung selbst ist die Grundlage). Dazu der Pfad dieser
-      // Seite für den Nachweis (seit E-461 liegt das Formular auf /, /en, Unterseiten und Landingpages).
-      const r = await fetch("/api/fiaon/global/termine", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined, arasHinweis: GLOBAL_TERMIN_ARAS_HINWEIS[sp], arasSeite: window.location.pathname }) });
+      // E-476 Scheibe 3: kein ARAS-Hinweis mehr (kein ARAS für Leads). Der persönliche Link reist im Cookie mit (same-origin).
+      const r = await fetch("/api/fiaon/global/termine", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, tag, zeit, thema: f.thema.trim() || undefined }) });
       const j = await r.json().catch(() => ({}));
       if (r.status === 409) { setFehler(t.vergeben); setZeit(null); await laden(); return; }
       if (!r.ok || !j.ok) { setFehler(j.error || t.fehler); return; }
@@ -139,14 +185,14 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const formular = (
     <div className="fg-form">
       {paketName && <p className="hinweis" style={{ margin: 0 }}>{t.paketGewaehlt(paketName)}</p>}
+      {persoenlich && <p className="hinweis" style={{ margin: 0 }}>{t.persoenlichPruefen}</p>}
       <div className="zwei">{feld("name", t.name, "text", "name")}{feld("firma", t.firma, "text", "organization")}</div>
       <div className="zwei">{feld("email", t.email, "email", "email")}{feld("telefon", t.telefon, "tel", "tel")}</div>
       {formularRueckruf && feld("wunschzeit", t.wunschzeit)}
       {feld("thema", t.thema)}
       <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
-      {!formularRueckruf && <p className="hinweis" style={{ margin: 0 }}>{GLOBAL_TERMIN_ARAS_HINWEIS[sp]}</p>}
       {fehler && <p className="fehler" role="alert">{fehler}</p>}
-      <button type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
+      <button ref={absendeKnopf} type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
       <p className="hinweis">{t.datenschutz}</p>
     </div>
   );
@@ -230,6 +276,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
             ) : (
               // ── Schritt 1: Tag und Uhrzeit ──
               <div className="fg-schritt eins">
+                {(persoenlich || vorlageFolgt) && <p className="hinweis" style={{ marginTop: 0, marginBottom: 14 }}>{persoenlich ? t.persoenlich : t.persoenlichLaedt}</p>}
                 <h3>{t.tagWaehlen}</h3>
                 <div className="fg-tage" role="group" aria-label={t.tagWaehlen}>
                   {tage.map((x) => {

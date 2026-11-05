@@ -635,6 +635,184 @@ router.post("/chef/lead-motor/dossier/sammel", wache, async (req: ChefRequest, r
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — JUSTINS LEAD-MAILS (E-476 Scheibe 4, 05.11.2026, Entscheidung 2A)
+//
+// Kein neuer Raum: Die Karte „Lead-Mails von Justin“ steht hier neben dem Dossier. Zwei Schalter (Willkommen, Nachfass —
+// Vorgabe AUS; Willkommen EIN setzt den Zählbeginn: KEINE Flut alter Leads), der Stand der letzten Leads, Vorschau (Muster
+// oder echte Anfrage, sendet nie) und der Prüfversand an Justins Adresse. Regeln: server/lib/fiaon-global-lead-post.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/lead-mails", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { leadPostStand } = await import("../lib/fiaon-global-lead-post");
+    res.json({ ok: true, ...(await leadPostStand()) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-mails:", err);
+    res.status(500).json({ ok: false, error: "Der Stand der Lead-Mails ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/lead-mails/schalter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const welcher = String(req.body?.schalter ?? "");
+    if (welcher !== "willkommen" && welcher !== "nachfass" && welcher !== "antworten") return res.status(400).json({ ok: false, error: "Unbekannter Schalter." });
+    const an = req.body?.an === true;
+    const { leadPostSchalten } = await import("../lib/fiaon-global-lead-post");
+    const e = await leadPostSchalten(welcher, an);
+    console.log(`[LEAD-MOTOR] Lead-Mails ${welcher} ${an ? "AN" : "AUS"}${welcher === "willkommen" && an ? ` — Zählbeginn ${e.ab}` : ""} (${wer(req)})`);
+    res.json({ ok: true, schalter: welcher, an, einstellungen: e });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-mails/schalter:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+/** E-476 Nachbesserung (Gutachten Betreiber, Mangel 9 d): die Ruhe nach dem Eingang (5–120 Min.) und der Tagesdeckel (1–200). */
+router.post("/chef/lead-motor/lead-mails/zahl", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const welche = String(req.body?.welche ?? "");
+    if (welche !== "ruhe" && welche !== "max_tag") return res.status(400).json({ ok: false, error: "Unbekannte Zahl." });
+    const { leadPostZahlSetzen } = await import("../lib/fiaon-global-lead-post");
+    const e = await leadPostZahlSetzen(welche, Number(req.body?.wert));
+    console.log(`[LEAD-MOTOR] Lead-Mails ${welche} = ${welche === "ruhe" ? e.ruheMin : e.willkommenMaxTag} (${wer(req)})`);
+    res.json({ ok: true, einstellungen: e });
+  } catch (err) {
+    res.status(400).json({ ok: false, error: err instanceof Error ? err.message : "Die Zahl ließ sich nicht setzen." });
+  }
+});
+
+/** Vorschau: art willkommen|n1|n2|n3; mit anfrage = echte Anfrage (nur lesen), sonst der Musterlead (Fassung, Sprache). */
+router.get("/chef/lead-motor/lead-mails/vorschau", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const art = String(req.query.art ?? "willkommen");
+    if (!["willkommen", "n1", "n2", "n3"].includes(art)) return res.status(400).json({ ok: false, error: "Unbekannte Mail." });
+    const anfrage = Math.floor(Number(req.query.anfrage));
+    const variante = String(req.query.variante ?? "meta");
+    const { leadMailVorschau } = await import("../lib/fiaon-global-lead-post");
+    const v = await leadMailVorschau({
+      art: art as any, anfrageId: anfrage > 0 ? anfrage : null, sprache: req.query.sprache === "en" ? "en" : "de",
+      variante: (["meta", "website", "bestandskunde", "oesterreich"].includes(variante) ? variante : "meta") as any,
+    });
+    res.json({ ok: true, ...v });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-mails/vorschau:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Die Vorschau ließ sich nicht bauen." });
+  }
+});
+
+/** Prüfversand: W (deutsch, englisch, Website), N1, N2, N3 mit dem Musterlead aus js@ an Justins Dossier-Adresse. */
+router.post("/chef/lead-motor/lead-mails/pruefversand", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { leadMailsPruefversand } = await import("../lib/fiaon-global-lead-post");
+    const { dossierEinstellungen } = await import("../lib/fiaon-lead-dossier");
+    const an = (await dossierEinstellungen()).anAdresse;
+    const e = await leadMailsPruefversand(an, wer(req));
+    console.log(`[LEAD-MOTOR] Lead-Mails Prüfversand an ${an}: ${e.gesendet.length} gesendet${e.fehler.length ? `, Fehler: ${e.fehler.join(" | ")}` : ""} (${wer(req)})`);
+    res.status(e.ok ? 200 : 502).json({ ok: e.ok, an, gesendet: e.gesendet, fehler: e.fehler, ...(e.ok ? {} : { error: e.fehler.join(" · ") || "Nichts gesendet." }) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-mails/pruefversand:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Der Prüfversand ist abgebrochen." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DANIELS TAKT & WÄCHTER (E-476 Scheibe 5, 05.11.2026 — Entscheidung 3A)
+//
+// Lead-Meldung T1 an die Adresse „Lead-Meldungen an“ (Chefbüro › Rückholung › FIAON Global), Erinnerungen 15/60/120,
+// Übersicht 18:30, die Lead-Wächter. Zwei Schalter (Vorgabe AN — interne Meldungen, keine Kundenmail), die Übersicht als
+// Vorschau (sendet nie) und als Prüfversand an Justin, „Wächter jetzt prüfen“ und die einmalige Ableitung des Altbestands
+// (Vorschau liest; „Anwenden“ schreibt — nur mit Justins Go). Regeln: server/lib/fiaon-lead-takt.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/takt", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { leadTaktStand } = await import("../lib/fiaon-lead-takt");
+    res.json({ ok: true, ...(await leadTaktStand()) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt:", err);
+    res.status(500).json({ ok: false, error: "Der Stand von Daniels Takt ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/takt/schalter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const welcher = String(req.body?.schalter ?? "");
+    if (welcher !== "takt" && welcher !== "uebersicht" && welcher !== "meldung") return res.status(400).json({ ok: false, error: "Unbekannter Schalter." });
+    const an = req.body?.an === true;
+    const { taktSchalten } = await import("../lib/fiaon-lead-takt");
+    const e = await taktSchalten(welcher, an);
+    console.log(`[LEAD-MOTOR] Daniels Takt: ${welcher} ${an ? "AN" : "AUS"} (${wer(req)})`);
+    res.json({ ok: true, schalter: welcher, an, einstellungen: e });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/schalter:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+/** Die Übersicht 18:30 als Vorschau — heute oder ein Tag (?tag=JJJJ-MM-TT), an Justin oder ans Team (?fuer=team). Sendet nie. */
+router.get("/chef/lead-motor/takt/uebersicht", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const tag = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.tag ?? "")) ? String(req.query.tag) : undefined;
+    const { uebersichtVorschau } = await import("../lib/fiaon-lead-takt");
+    res.json({ ok: true, ...(await uebersichtVorschau({ tag, fuer: req.query.fuer === "team" ? "team" : "justin" })) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/uebersicht:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Die Übersicht ließ sich nicht bauen." });
+  }
+});
+
+router.post("/chef/lead-motor/takt/uebersicht-pruefversand", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { uebersichtPruefversand } = await import("../lib/fiaon-lead-takt");
+    const { dossierEinstellungen } = await import("../lib/fiaon-lead-dossier");
+    const an = (await dossierEinstellungen()).anAdresse;
+    const r = await uebersichtPruefversand(an);
+    console.log(`[LEAD-MOTOR] Übersicht-Prüfversand an ${an}: ${r.ok ? "gesendet" : r.grund} (${wer(req)})`);
+    res.status(r.ok ? 200 : 502).json({ ok: r.ok, an, ...(r.ok ? { betreff: r.betreff } : { error: r.grund }) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/uebersicht-pruefversand:", err);
+    res.status(500).json({ ok: false, error: "Der Prüfversand ist abgebrochen." });
+  }
+});
+
+router.post("/chef/lead-motor/takt/waechter", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { leadWaechterPruefen } = await import("../lib/fiaon-lead-takt");
+    const w = await leadWaechterPruefen({ immer: true });
+    res.json({ ok: true, aktiv: w.aktiv, neu: w.neu, vorbei: w.vorbei });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/waechter:", err);
+    res.status(500).json({ ok: false, error: "Die Wächter ließen sich nicht prüfen." });
+  }
+});
+
+const ABLEITUNG_AB_VORGABE = "2026-11-01";
+/** Vorschau der Ableitung: was sich am Altbestand ändern würde (nur Lesen). */
+router.get("/chef/lead-motor/takt/altbestand", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const ab = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.ab ?? "")) ? String(req.query.ab) : ABLEITUNG_AB_VORGABE;
+    const { altbestandAbleiten } = await import("../lib/fiaon-lead-takt");
+    res.json({ ok: true, ab, ...(await altbestandAbleiten({ ab, anwenden: false, wer: wer(req) })) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/altbestand:", err);
+    res.status(500).json({ ok: false, error: "Die Vorschau ließ sich nicht bauen." });
+  }
+});
+
+/** Die Ableitung anwenden — schreibt in die Produktion, deshalb nur mit ausdrücklichem „JA“ (Justins Go). */
+router.post("/chef/lead-motor/takt/altbestand", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    if (String(req.body?.go ?? "") !== "JA") return res.status(400).json({ ok: false, error: "Nur mit Justins ausdrücklichem Go (JA)." });
+    const ab = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.ab ?? "")) ? String(req.body.ab) : ABLEITUNG_AB_VORGABE;
+    const { altbestandAbleiten } = await import("../lib/fiaon-lead-takt");
+    const r = await altbestandAbleiten({ ab, anwenden: true, wer: wer(req) });
+    console.log(`[LEAD-MOTOR] Altbestand abgeleitet (ab ${ab}): ${r.geaendert} von ${r.geprueft} Anfragen geändert (${wer(req)})`);
+    res.json({ ok: true, ab, ...r });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] takt/altbestand anwenden:", err);
+    res.status(500).json({ ok: false, error: "Die Ableitung ist abgebrochen." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // „ICH RUFE SELBST AN“ — der Knopf im Lead-Dossier (E-476 Nachbesserung, 05.11.2026)
 //
 // Statt „Rufst du selbst an, sag Daniel kurz Bescheid“ (eine Aufgabe an Justin) ein Knopf: Er schließt Daniels Auftrag

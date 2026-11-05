@@ -30,6 +30,16 @@
 // Karte und der Buchung im Verlauf. Kalender, Startseite und der Auftrag
 // springen direkt auf die Firma: /agent/firmen?firma=<id> bzw. ?person=<id>
 // (der Termin hängt am Firmenkontakt, die Arbeit liegt hier).
+//
+// E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): „Termin bei Justin eintragen“ — Daniel ruft den Lead an und trägt ihn
+// im Gespräch in Justins freie Zeiten ein (Pflicht: was der Lead selbst erzählt hat + heiß/warm/kalt). Bestätigung an
+// den Lead, Auftrag zu, „Termin steht“ an Justin — alles serverseitig (POST /agent/firmen/:id/justin-termin).
+//
+// E-476 Scheibe 5 (05.11.2026): EIN Stand je Lead. Bei einem Business-Lead zeigt die Karte oben die Stand-Leiste
+// (Anfrage · Mail von Justin · Anrufe · Termin) und was jetzt dran ist. Bei „erreicht — Interesse/Termin“ sind zwei, drei
+// Sätze „Was er selbst erzählt hat“ Pflicht (sie gehen in Justins „Termin steht“ und die Anruf-Karte); „Termin
+// vereinbart“ gibt es nur mit einem Termin im Kalender — der Knopf öffnet dann „Termin bei Justin eintragen“.
+// Kaltakquise-Firmen bleiben, wie sie waren.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
@@ -39,7 +49,15 @@ import { RUNDGAENGE } from "./rundgaenge";
 import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
+import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } from "@shared/fiaon-lead-weg";
+import { PFLICHT_NOTIZ_ERGEBNISSE } from "@shared/fiaon-lead-takt";
 import "@/styles/office-firmen.css";
+
+/** E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (vom Server, server/lib/fiaon-lead-takt.ts). */
+interface LeadStand {
+  anfrageId: number; status: string; statusWort: string; jetzt: string; wartetMin: number | null; terminGebucht: boolean;
+  schritte: { key: string; text: string; ton: "gut" | "warte" | "still" | "rot" }[];
+}
 
 async function api(pfad: string, init?: RequestInit) {
   const res = await fetch(`/api/fiaon${pfad}`, {
@@ -88,7 +106,23 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
   dossier: "FIAON Global — Lead-Dossier an Justin",
   // E-476 Nachbesserung: Justin hat im Dossier „Ich rufe selbst an“ gedrückt — der Auftrag ans Team ist geschlossen.
   selbst: "FIAON Global — Justin ruft selbst an",
+  // E-476 Scheibe 3: Termin bei Justin, was der Lead erzählt hat, „Termin steht“ an Justin, Antwort des Leads an welcome@.
+  termin_eingetragen: "FIAON Global — Termin bei Justin eingetragen",
+  erzaehlt: "FIAON Global — was er selbst erzählt hat",
+  termin_steht: "FIAON Global — Justin hat „Termin steht“",
+  antwort: "FIAON Global — der Lead hat geschrieben",
+  // E-476 Scheibe 4: Justins Lead-Mails aus js@ (Willkommen, Nachfass) und warum keine weitere kommt.
+  lead_mail: "FIAON Global — Mail von Justin an den Lead",
+  lead_stopp: "FIAON Global — keine weiteren Lead-Mails",
+  abgemeldet: "FIAON Global — möchte keine Mails mehr",
+  ruecklaeufer: "FIAON Global — Mail kam unzustellbar zurück",
+  // E-476 Scheibe 5: Daniels Takt (Lead-Meldung, Erinnerung) und eine Stand-Korrektur aus der Ableitung.
+  lead_meldung: "FIAON Global — Lead-Meldung an das Team",
+  erinnerung: "FIAON Global — Erinnerung: der Lead wartet",
+  stand: "FIAON Global — Stand korrigiert",
 };
+
+const tagKurz = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
 
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }
 
@@ -112,6 +146,18 @@ function FirmenInnen() {
   const [abschlussAuf, setAbschlussAuf] = useState(false);
   const [ab, setAb] = useState<Record<string, string>>({});
   const [abErgebnis, setAbErgebnis] = useState<any | null>(null);
+  // E-476 Scheibe 3: „Termin bei Justin eintragen“ — Zeiten, Wahl, Pflicht-Notiz, Einschätzung, Kontakt.
+  const [justin, setJustin] = useState<any | null>(null);
+  const [jWahl, setJWahl] = useState<{ tag: string | null; zeit: string | null }>({ tag: null, zeit: null });
+  const [jText, setJText] = useState("");
+  const [jFelder, setJFelder] = useState<Record<string, string>>({});
+  const [jEinsch, setJEinsch] = useState("");
+  const [jKontakt, setJKontakt] = useState<{ name: string; email: string; telefon: string }>({ name: "", email: "", telefon: "" });
+  const [jFehler, setJFehler] = useState("");
+  // E-476 Scheibe 5: der EINE Stand (nur Business-Leads) und die kurzen Felder zur Pflicht-Notiz.
+  const [lead, setLead] = useState<LeadStand | null>(null);
+  const [notizFelder, setNotizFelder] = useState<Record<string, string>>({});
+  const [felderAuf, setFelderAuf] = useState(false);
 
   const sag = (t: string) => { setMeldung(t); setTimeout(() => setMeldung(null), 6000); };
 
@@ -122,11 +168,11 @@ function FirmenInnen() {
   useEffect(() => { const t = setTimeout(() => void laden(), 250); return () => clearTimeout(t); }, [laden]);
 
   const oeffnen = async (f: any) => {
-    setAktiv(f); setVerlauf(null); setNotiz("");
-    setVorbereitung(null); setAbschlussAuf(false); setAbErgebnis(null);
+    setAktiv(f); setVerlauf(null); setNotiz(""); setLead(null); setNotizFelder({}); setFelderAuf(false);
+    setVorbereitung(null); setAbschlussAuf(false); setAbErgebnis(null); setJustin(null);
     setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: ERSTES_PAKET });
     const r = await api(`/agent/firmen/${f.id}`);
-    if (r.ok) { setAktiv(r.json.firma); setVerlauf(r.json.verlauf || []); }
+    if (r.ok) { setAktiv(r.json.firma); setVerlauf(r.json.verlauf || []); setLead(r.json.lead ?? null); }
   };
 
   // ── E-188: DER SPRUNG AUS KALENDER UND AUFTRAG ───────────────────────────
@@ -144,27 +190,43 @@ function FirmenInnen() {
       const r = await api(firma > 0 ? `/agent/firmen/${firma}` : `/agent/firmen/zu-person/${person}`);
       if (r.ok && r.json?.firma) {
         const f = r.json.firma;
-        setAktiv(f); setVerlauf(r.json.verlauf || []);
+        setAktiv(f); setVerlauf(r.json.verlauf || []); setLead(r.json.lead ?? null);
         setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: ERSTES_PAKET });
       } else sag(r.json?.error || "Diese Firma wurde nicht gefunden — bitte such sie über das Suchfeld.");
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // E-476 Scheibe 5: „Termin vereinbart“ ohne Termin im Kalender gibt es bei einem Business-Lead nicht — dann öffnet sich
+  // „Termin bei Justin eintragen“, die Notiz wandert als „Was er selbst erzählt hat“ mit.
+  const zuJustinTermin = async (text: string) => {
+    if (!justin) await justinOeffnen();
+    if (text.trim()) setJText(text.trim());
+    sag("Erst den Termin bei Justin eintragen (die Zeit, die ihr eben vereinbart habt) — dann ist er wirklich im Kalender, er bekommt die Bestätigung und Justin die Anruf-Karte.");
+  };
+
   const ergebnis = async (wert: string) => {
     if (!aktiv) return;
+    // Business-Lead: bei „erreicht — Interesse/Termin“ zwei, drei Sätze Pflicht (Justin liest sie vor dem Gespräch).
+    if (lead && (PFLICHT_NOTIZ_ERGEBNISSE as readonly string[]).includes(wert) && notiz.trim().length < ERZAEHLT_MIN) {
+      return sag("Bitte zuerst zwei, drei Sätze ins Notizfeld: Was hat er selbst erzählt? Wer ist er, was will er, wie groß, wie ernst?");
+    }
+    if (lead && wert === "erreicht_termin" && !lead.terminGebucht) return void zuJustinTermin(notiz);
     setLaeuft(wert);
     const r = await api(`/agent/firmen/${aktiv.id}/anruf`, {
       method: "POST",
-      body: JSON.stringify({ ergebnis: wert, notiz: notiz.trim() || undefined }),
+      body: JSON.stringify({ ergebnis: wert, notiz: notiz.trim() || undefined, felder: lead ? notizFelder : undefined }),
     });
     setLaeuft(null);
-    if (!r.ok) return sag(r.json?.error || "Konnte das Ergebnis nicht speichern.");
-    setNotiz("");
-    sag("Festgehalten — nächster Anruf.");
+    if (!r.ok) {
+      if (r.json?.feld === "termin") return void zuJustinTermin(notiz);
+      return sag(r.json?.error || "Konnte das Ergebnis nicht speichern.");
+    }
+    setNotiz(""); setNotizFelder({}); setFelderAuf(false);
+    sag(lead && /^erreicht_/.test(wert) ? "Festgehalten — Justin liest deine Sätze vor dem Gespräch. Nächster Anruf." : "Festgehalten — nächster Anruf.");
     if (wert === "erreicht_antrag") sag("Stark! Status „Antrag läuft“ — schick ihm gleich die Info-Mail mit dem Link.");
     await laden();
     const neu = await api(`/agent/firmen/${aktiv.id}`);
-    if (neu.ok) { setAktiv(neu.json.firma); setVerlauf(neu.json.verlauf || []); }
+    if (neu.ok) { setAktiv(neu.json.firma); setVerlauf(neu.json.verlauf || []); setLead(neu.json.lead ?? null); }
   };
 
   const infoMail = async () => {
@@ -172,8 +234,59 @@ function FirmenInnen() {
     setLaeuft("mail");
     const r = await api(`/agent/firmen/${aktiv.id}/mail`, { method: "POST", body: "{}" });
     setLaeuft(null);
-    sag(r.ok ? "Info-Mail ist raus — mit deinem Namen als Ansprechpartner." : (r.json?.error || "Mail fehlgeschlagen."));
+    // E-476 Scheibe 4: als „FIAON Global“ — Antworten gehen an Justin; ein Business-Lead bekommt keine Preisliste, sondern seinen Terminlink.
+    sag(r.ok
+      ? (r.json?.lead ? "Info-Mail ist raus (FIAON Global, ohne Preisliste, mit seinem Terminlink bei Justin) — Justins Nachfass endet damit." : "Info-Mail ist raus — als FIAON Global mit deinem Namen; Antworten gehen an Justin.")
+      : (r.json?.error || "Mail fehlgeschlagen."));
     if (r.ok) void oeffnen(aktiv);
+  };
+
+  // ── E-476 Scheibe 3: „Termin bei Justin eintragen“ ─────────────────────────
+  const justinOeffnen = async () => {
+    if (!aktiv) return;
+    if (justin) { setJustin(null); return; }
+    setLaeuft("justin");
+    const r = await api(`/agent/firmen/${aktiv.id}/justin-zeiten`);
+    setLaeuft(null);
+    if (!r.ok) return sag(r.json?.error || "Die freien Zeiten konnten nicht geladen werden.");
+    setJustin(r.json);
+    setJWahl({ tag: r.json.tage?.[0]?.tag ?? null, zeit: null });
+    // E-476 Nachbesserung (Gutachten Betreiber, Mangel 4): „Was er selbst erzählt hat“ vorbefüllt — mit dem, was schon im
+    // Notizfeld steht, sonst der letzten Anruf-Notiz (keine zweite Notiz tippen).
+    const letzteAnrufNotiz = String((verlauf ?? []).find((v: any) => v?.art === "anruf" && String(v?.notiz ?? "").trim())?.notiz ?? "");
+    setJText(notiz.trim() || letzteAnrufNotiz); setJFelder({}); setJEinsch(""); setJFehler("");
+    setJKontakt({ name: aktiv.ansprechpartner || "", email: aktiv.email || "", telefon: aktiv.telefon || "" });
+  };
+
+  const justinEintragen = async () => {
+    if (!aktiv || !jWahl.tag || !jWahl.zeit) return setJFehler("Bitte zuerst Tag und Uhrzeit wählen.");
+    if (jText.trim().length < ERZAEHLT_MIN) return setJFehler("Bitte zwei, drei Sätze: Wer ist er, was will er, wie groß, wie ernst? Justin liest das vor dem Gespräch.");
+    if (!jEinsch) return setJFehler("Bitte die Einschätzung wählen: heiß, warm oder kalt.");
+    setJFehler(""); setLaeuft("justin-eintragen");
+    const r = await api(`/agent/firmen/${aktiv.id}/justin-termin`, {
+      method: "POST",
+      body: JSON.stringify({ tag: jWahl.tag, zeit: jWahl.zeit, erzaehlt: jText, felder: jFelder, einschaetzung: jEinsch, ...jKontakt }),
+    });
+    setLaeuft(null);
+    if (!r.ok) {
+      setJFehler(r.json?.error || "Der Termin ist NICHT eingetragen. Bitte noch einmal versuchen.");
+      if (r.json?.grund && ["nicht_angeboten", "belegt", "tag_voll"].includes(r.json.grund)) {
+        const neu = await api(`/agent/firmen/${aktiv.id}/justin-zeiten`);
+        if (neu.ok) { setJustin(neu.json); setJWahl({ tag: neu.json.tage?.[0]?.tag ?? null, zeit: null }); }
+      }
+      return;
+    }
+    setJustin(null); setNotiz(""); setNotizFelder({}); setFelderAuf(false);
+    // E-476 Nachbesserung (Gutachten Betreiber, Mangel 4): der Anruf zählt mit — kein zweiter Klick auf „Termin vereinbart“.
+    sag(`Eingetragen: ${r.json.datumText}, ${r.json.uhrzeit} Uhr bei ${r.json.bei}. Der Lead hat die Bestätigung, dein Auftrag ist zu, ${r.json.bei} bekommt „Termin steht“${r.json.anrufEingetragen ? " — und dein Anruf „erreicht — Termin vereinbart“ ist mit eingetragen" : ""}.`);
+    await laden();
+    const neu = await api(`/agent/firmen/${aktiv.id}`);
+    if (neu.ok) { setAktiv(neu.json.firma); setVerlauf(neu.json.verlauf || []); setLead(neu.json.lead ?? null); }
+  };
+
+  const linkKopierenLead = async (link: string) => {
+    try { await navigator.clipboard.writeText(link); sag("Persönlicher Terminlink kopiert — z. B. für WhatsApp. Name und Nummer sind dort schon eingetragen."); }
+    catch { sag(`Kopieren nicht möglich — Link: ${link}`); }
   };
 
   const vorbereiten = async (erzwingen = false) => {
@@ -311,6 +424,15 @@ function FirmenInnen() {
                 </div>
                 {(() => { const [st, ton] = STATUS_TEXT[aktiv.status] || [aktiv.status, "still"]; return <span className={`fk-marke ${ton}`}>{st}</span>; })()}
               </header>
+              {/* E-476 Scheibe 5: EIN Stand je Business-Lead — Anfrage, Mail von Justin, Anrufe, Termin; darunter, was jetzt dran ist. */}
+              {lead && (
+                <div className="fk-stand" aria-label="Stand dieses Business-Leads">
+                  <ol className="fk-stand-schritte">
+                    {lead.schritte.map((s) => <li key={s.key} className={`fk-stand-schritt ${s.ton}`}>{s.text}</li>)}
+                  </ol>
+                  <p className={`fk-stand-jetzt${lead.wartetMin != null && lead.wartetMin >= 15 ? " warte" : ""}`}>{lead.jetzt}</p>
+                </div>
+              )}
               <div className="fk-kontakt">
                 {aktiv.telefon
                   ? <a className="fk-tel" href={`tel:${String(aktiv.telefon).replace(/[^0-9+]/g, "")}`}>{aktiv.telefon}</a>
@@ -324,8 +446,27 @@ function FirmenInnen() {
               {aktiv.paketwunsch && <p className="fk-notizen"><b>FIAON Global · Paketwunsch:</b> {aktiv.paketwunsch}</p>}
               {aktiv.notiz && <p className="fk-notizen">{aktiv.notiz}</p>}
 
-              <textarea className="fk-notiz-feld" rows={2} value={notiz} onChange={(e) => setNotiz(e.target.value)}
-                        placeholder="Notiz zum Gespräch (wird mit dem Ergebnis gespeichert) …" />
+              {lead && (
+                <p className="fk-pflicht">Bei „erreicht“: zwei, drei Sätze, <b>was er selbst erzählt hat</b> (Pflicht) — Justin liest sie vor dem Gespräch.</p>
+              )}
+              <textarea className="fk-notiz-feld" rows={lead ? 3 : 2} value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                        placeholder={lead ? "Wer ist er, was will er, wie groß ist die Firma, wie ernst ist es? Nur, was ER gesagt hat …" : "Notiz zum Gespräch (wird mit dem Ergebnis gespeichert) …"} />
+              {lead && (
+                <div className="fk-felder-klapp">
+                  <button type="button" className="fk-knopf still klein" onClick={() => setFelderAuf(!felderAuf)}>
+                    {felderAuf ? "Kurze Felder zuklappen" : "Kurze Felder (freiwillig): Wohnort, Rolle, wer noch, US-Bezug, Größe"}
+                  </button>
+                  {felderAuf && (
+                    <div className="fk-j-felder">
+                      {ERZAEHLT_FELDER.map((f) => (
+                        <label key={f.key}>{f.label}
+                          <input value={notizFelder[f.key] || ""} onChange={(e) => setNotizFelder({ ...notizFelder, [f.key]: e.target.value })} />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="fk-ergebnisse">
                 {ERGEBNIS_KNOEPFE.map(([wert, label, ton]) => (
@@ -333,6 +474,71 @@ function FirmenInnen() {
                           onClick={() => void ergebnis(wert)}>{laeuft === wert ? "…" : label}</button>
                 ))}
               </div>
+
+              {/* ── E-476 Scheibe 3: im Gespräch direkt bei Justin eintragen (Entscheidung 1A) ── */}
+              <button type="button" className="fk-knopf gut fk-justin-knopf" disabled={laeuft === "justin"}
+                      onClick={() => void justinOeffnen()}>
+                {laeuft === "justin" ? "Lade Justins Zeiten …" : justin ? "Termin-Eintrag zuklappen" : "Termin bei Justin eintragen"}
+              </button>
+              {justin && (
+                <div className="fk-justin">
+                  <header>
+                    <b>Termin bei {justin.person?.vorname || "Justin"} eintragen — 30 Minuten, {justin.person?.vorname || "Justin"} ruft an</b>
+                    <small>Frag im Gespräch, wann es ihm passt, und wähl die Zeit. Er bekommt sofort die Bestätigung per Mail (Sie-Form), dein Auftrag schließt sich, {justin.person?.vorname || "Justin"} bekommt „Termin steht“ mit deiner Notiz.</small>
+                  </header>
+                  {!justin.tage?.length ? (
+                    <p className="fk-j-fehler">Gerade keine freie Zeit{justin.grund === "keine_zeiten" ? " — es sind keine Zeitfenster gepflegt" : " — die nächsten Tage sind voll"}. Halte das Interesse fest und sag ihm, dass sich {justin.person?.vorname || "Justin"} meldet.</p>
+                  ) : (
+                    <>
+                      <div className="fk-j-tage" role="group" aria-label="Tag wählen">
+                        {justin.tage.map((t: any) => (
+                          <button key={t.tag} type="button" className="fk-j-tag" aria-pressed={jWahl.tag === t.tag}
+                                  onClick={() => setJWahl({ tag: t.tag, zeit: null })}>{tagKurz(t.tag)}</button>
+                        ))}
+                      </div>
+                      <div className="fk-j-zeiten" role="group" aria-label="Uhrzeit wählen">
+                        {(justin.tage.find((t: any) => t.tag === jWahl.tag)?.zeiten ?? []).map((z: string) => (
+                          <button key={z} type="button" className="fk-j-zeit" aria-pressed={jWahl.zeit === z}
+                                  onClick={() => setJWahl({ ...jWahl, zeit: z })}>{z}</button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <label className="fk-j-pflicht">Was er selbst erzählt hat (Pflicht — 2, 3 Sätze)
+                    <textarea className="fk-notiz-feld" rows={3} value={jText} onChange={(e) => setJText(e.target.value)}
+                              placeholder="Wer ist er, was will er, wie groß ist die Firma, wie ernst ist es? Nur, was ER gesagt hat." />
+                  </label>
+                  <div className="fk-j-felder">
+                    {ERZAEHLT_FELDER.map((f) => (
+                      <label key={f.key}>{f.label}
+                        <input value={jFelder[f.key] || ""} onChange={(e) => setJFelder({ ...jFelder, [f.key]: e.target.value })} />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="fk-j-einsch" role="group" aria-label="Einschätzung">
+                    {EINSCHAETZUNGEN.map((e) => (
+                      <button key={e} type="button" aria-pressed={jEinsch === e} onClick={() => setJEinsch(e)}>{EINSCHAETZUNG_WORT[e]}</button>
+                    ))}
+                  </div>
+                  <div className="fk-j-felder">
+                    <label>Name<input value={jKontakt.name} onChange={(e) => setJKontakt({ ...jKontakt, name: e.target.value })} /></label>
+                    <label>E-Mail (für die Bestätigung)<input type="email" value={jKontakt.email} onChange={(e) => setJKontakt({ ...jKontakt, email: e.target.value })} /></label>
+                    <label>Telefon<input value={jKontakt.telefon} onChange={(e) => setJKontakt({ ...jKontakt, telefon: e.target.value })} /></label>
+                  </div>
+                  {jFehler && <p className="fk-j-fehler" role="alert">{jFehler}</p>}
+                  <button type="button" className="fk-knopf" disabled={laeuft === "justin-eintragen" || !jWahl.zeit}
+                          onClick={() => void justinEintragen()}>
+                    {laeuft === "justin-eintragen" ? "Trage ein …" : jWahl.tag && jWahl.zeit ? `Eintragen: ${tagKurz(jWahl.tag)}, ${jWahl.zeit} Uhr` : "Erst Tag und Uhrzeit wählen"}
+                  </button>
+                  {justin.link && (
+                    <div className="fk-j-link">
+                      <span>Lieber selbst wählen lassen? Sein persönlicher Terminlink (Angaben schon eingetragen):</span>
+                      <code>{justin.link}</code>
+                      <button type="button" className="fk-knopf still klein" onClick={() => void linkKopierenLead(justin.link)}>Link kopieren</button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── KI-Vorbereitung: ein Klick, alles wissen ── */}
               {!vorbereitung && (
@@ -361,7 +567,7 @@ function FirmenInnen() {
 
               <div className="fk-aktionen">
                 <button type="button" className="fk-knopf" disabled={laeuft === "mail" || !aktiv.email}
-                        title={aktiv.email ? "Info-Mail mit deinem Namen (max. 1× je 7 Tage)" : "Keine E-Mail hinterlegt"}
+                        title={aktiv.email ? "Info-Mail als FIAON Global mit deinem Namen (max. 1× je 7 Tage; nicht bei einem Termin bei Justin)" : "Keine E-Mail hinterlegt"}
                         onClick={() => void infoMail()}>{laeuft === "mail" ? "Sende …" : "Info-Mail senden"}</button>
                 <button type="button" className="fk-knopf gut" onClick={() => { setAbschlussAuf(!abschlussAuf); setAbErgebnis(null); }}>
                   {abschlussAuf ? "Abschluss zuklappen" : "Abschluss am Telefon"}

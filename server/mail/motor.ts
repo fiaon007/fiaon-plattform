@@ -158,7 +158,25 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   // 05.10.2026 (E-282): Die Vertragsbestätigung des neuen Antrags ist Vertragspost wie Kündigung und
   // Vertragsende — sie kommt von „FIAON Legal“; die Zahlungsdaten daneben weiter aus der Buchhaltung.
   vertrag_bestaetigung: "legal",
+  // E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): die vier Mails rund um das Gespräch mit einem Business-Lead — im
+  // Business-Rahmen „FIAON Global“ statt „FIAON Welcome“ (eine Stimme: Justin; ein Rahmen: FIAON Global).
+  global_termin: "global",
+  global_termin_erinnerung: "global",
+  global_termin_kurz: "global",
+  global_nicht_erreicht: "global",
+  // E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 3): die Absage eines Global-Gesprächs durch uns — derselbe Rahmen.
+  global_termin_absage: "global",
 };
+
+/**
+ * E-476 Scheibe 4 (05.11.2026, Entscheidung 2A): Antworten auf die Gesprächsmails eines Business-LEADS gehen an Justin (js@),
+ * nicht in Maras Postfach — der Lead spricht mit Justin, und Mara schreibt Leads nicht. Nachbesserung (Gutachten Technik,
+ * Mangel 9): je MAIL statt je Ereignis — die Nutzlast trägt `antwort_an` (nur eine @fiaon.com-Adresse), sonst antwortet die Mail
+ * an den Absender. So bleiben Rückfragen zum Startgespräch zahlender Kunden bei welcome@ (Mara). Diese Tafel bleibt für
+ * Ereignisse, die IMMER an eine feste Adresse antworten (heute keines).
+ */
+export const ANTWORT_AN_JE_EVENT: Record<string, { name: string; email: string }> = {};
+const ANTWORT_AN_NAMEN: Record<string, string> = { "js@fiaon.com": "Justin Schwarzott" };
 
 /**
  * Werbung an Menschen ohne Vertrag — hier ist der Abmeldelink Pflicht
@@ -191,6 +209,13 @@ export const KNOPF_DARF_FEHLEN = new Set<string>(["mein_auftrag_url", "knopf2_ur
 
 export function absenderFuer(event: string): { name: string; email: string } {
   return ABSENDER[ROLLE_JE_EVENT[event] ?? "welcome"];
+}
+
+/** Wohin eine Antwort geht: `antwort_an` der Nutzlast (nur @fiaon.com), sonst die Tafel, sonst der Absender (E-476). */
+export function antwortAnFuer(event: string, payload?: Record<string, unknown> | null): { name: string; email: string } {
+  const wunsch = String(payload?.antwort_an ?? "").trim().toLowerCase();
+  if (/^[a-z0-9._%+-]+@fiaon\.com$/.test(wunsch)) return { name: ANTWORT_AN_NAMEN[wunsch] ?? "FIAON Global", email: wunsch };
+  return ANTWORT_AN_JE_EVENT[event] ?? absenderFuer(event);
 }
 
 export function hatVorlage(event: string): boolean {
@@ -278,6 +303,8 @@ export interface GerenderteMail {
   html: string;
   text: string;
   absender: { name: string; email: string };
+  /** E-476 Scheibe 4: wohin eine Antwort geht (Reply-To) — ohne Angabe der Absender. */
+  antwortAn?: { name: string; email: string };
   /** Platzhalter, die die Nutzlast nicht mitbrachte — seit 18.09.2026 auch die eines weggelassenen Knopfs, Bilds oder Abmeldelinks. */
   fehlend: string[];
   /**
@@ -427,6 +454,18 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
     if (absaetze.length !== vorlage.absaetze.length || (fussP && ohneWert(fussP))) {
       vorlage = { ...vorlage, absaetze, fussnote: fussP && ohneWert(fussP) ? undefined : vorlage.fussnote };
     }
+    // ── DATENZEILEN, DIE NUR AUS EINEM PLATZHALTER BESTEHEN (E-476 Scheibe 4, Gutachten 0, Mangel 19) ──
+    // Bleibt der Wert leer, entfällt die Zeile (vorher: ein leerer Wert im Kasten). Als Lücke zählt sie weiter — außer sie
+    // ist ausdrücklich `wahlweise` (z. B. der Paketwunsch, den ein Meta-Lead nie hat). Ohne leere Zeile: keine Änderung.
+    if (vorlage.daten?.length) {
+      const daten = vorlage.daten.filter((z) => {
+        const p = nurPlatzhalter(z.wert);
+        if (!p || !ohneWert(p)) return true;
+        if (!z.wahlweise) fehlend.add(p);
+        return false;
+      });
+      if (daten.length !== vorlage.daten.length) vorlage = { ...vorlage, daten };
+    }
   }
   // ── DIE KALENDER-ZEILE NUR MIT ZIEL (29.09.2026, E-263) ──────────────────
   // „In Ihren Kalender: Apple / Outlook · Google Kalender" ist eine Zugabe, kein
@@ -462,10 +501,13 @@ export function mailRendern(event: string, payload: Record<string, unknown>): Ge
   // E-273: Werte mit HTML (…_html) im Text-Teil als Klartext — ohne solche Schlüssel dieselbe Nutzlast.
   const textNutzlast = htmlWerteAlsText(payload);
   const text = fuellen(mailText(vorlage, (s) => fuellen(s, textNutzlast, fehlend)), textNutzlast, fehlend)
-    .replace(/%%RATENLEISTE[^%]*%%/g, "");
+    .replace(/%%RATENLEISTE[^%]*%%/g, "")
+    // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 1): Werte, die für den HTML-Teil unschädlich gemacht wurden („&amp;“),
+    // stehen im Text-Teil wieder als Zeichen — Klartext kennt keine Entitäten.
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
   const betreff = fuellen(vorlage.betreff, payload, fehlend);
   return {
-    betreff, html, text, absender: absenderFuer(event), fehlend: Array.from(fehlend).sort(),
+    betreff, html, text, absender: absenderFuer(event), antwortAn: antwortAnFuer(event, payload), fehlend: Array.from(fehlend).sort(),
     knopfEntfallen: entfalleneKnoepfe.length > 0, entfalleneKnoepfe,
   };
 }
@@ -612,7 +654,8 @@ export async function mailDirektSenden(
       headers: { "api-key": key, "Content-Type": "application/json", accept: "application/json" },
       body: JSON.stringify({
         sender: mail.absender,
-        replyTo: mail.absender,
+        // E-476 Scheibe 4: die Global-Gesprächsmails antworten an Justin (js@) — alles andere wie bisher an den Absender.
+        replyTo: mail.antwortAn ?? mail.absender,
         to: [{ email: an }],
         subject: mail.betreff,
         htmlContent: mail.html,

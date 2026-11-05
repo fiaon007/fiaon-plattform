@@ -46,7 +46,8 @@ export const QUELLE_TEXT: Record<string, string> = {
   gruender: "Gespräch mit dem Gründer — gebucht über fiaon.com/justin",
   // E-188: Die BUCHUNG eines Global-Gesprächs meldet der Auftrag
   // (fiaon-global-termin.ts), nicht diese Datei — die ABSAGE läuft hier durch.
-  global: "FIAON Global – Erstgespräch mit einem Unternehmen (gebucht über fiaon.com/business)",
+  // E-476 Scheibe 3: Erstgespräche entstehen jetzt auch über den persönlichen Link, /justin und den Cockpit-Knopf.
+  global: "FIAON Global – Erstgespräch mit einem Unternehmen",
   // 05.10.2026 (E-283): Ohne Eintrag stand in der Mail an den Mitarbeiter der rohe Wert.
   support: "Support-Gespräch — Bestandskunde braucht Hilfe (kein Verkauf, kein Startgespräch)",
   limit_gespraech: "Limit-Gespräch — alle drei Monate: Zahlungsnachweis, Stand der Akte, nächster Schritt zu einem höheren Limit (keine Limit-Zusage)",
@@ -160,7 +161,8 @@ async function melden(opts: {
     ? await import("./fiaon-lead-dossier").then((m) => m.globalLeadZuTermin(opts.terminId, opts.lauf)).catch(() => null)
     : null;
   // E-476 Nachbesserung (Gutachten Justin-Sicht 05.11.2026): Die Absage eines solchen Termins gehört in denselben Faden.
-  const leadAbsage = opts.art === "absage" && opts.quelle === "gruender"
+  // E-476 Scheibe 3: ebenso die Absage eines Lead-Gesprächs (quelle „global“) — Justin liest sie im Faden des Leads.
+  const leadAbsage = opts.art === "absage" && (opts.quelle === "gruender" || opts.quelle === "global")
     ? await import("./fiaon-lead-dossier").then((m) => m.leadFadenZuTermin(opts.terminId, opts.lauf)).catch(() => null)
     : null;
   const faden = lead ? { faden: lead.faden, stamm: lead.stamm } : leadAbsage;
@@ -174,7 +176,7 @@ async function melden(opts: {
   // Im Faden heißt der Betreff „Re: Lead: …“ — damit ein neuer Termin im Posteingang trotzdem sofort auffällt, steht er
   // in der ersten Zeile (Gmail zeigt sie als Vorschau).
   const fadenKopf = lead ? `TERMIN STEHT: ${wann} (über fiaon.com/justin)\n\n`
-    : leadAbsage ? `TERMIN ${verschoben ? "VERSCHOBEN" : "ABGESAGT"}: ${wann} (über fiaon.com/justin)\n\n` : "";
+    : leadAbsage ? `TERMIN ${verschoben ? "VERSCHOBEN" : "ABGESAGT"}: ${wann}${opts.quelle === "gruender" ? " (über fiaon.com/justin)" : ""}\n\n` : "";
 
   const text = fadenKopf + (verschoben
     ? `Hallo ${b.agentVorname},\n\n`

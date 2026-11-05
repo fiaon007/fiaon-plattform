@@ -30,9 +30,20 @@ export interface GlobalTerminTexte {
   zeitVergeben: string;
   zeitVergebenKeineWeitere: string;
   keinAngebot: string;
-  /** Platzhalter: {datum}, {uhrzeit}. */
+  /** Platzhalter: {datum}, {uhrzeit}. Nur, wenn die Zuordnung über den persönlichen Link (oder das Cockpit) kam. */
   schonGebucht: string;
-  /** Antwort auf die Anfrage. Platzhalter: {name} — die Person, bei der der Auftrag liegt. */
+  /**
+   * Nachbesserung E-476 (Gutachten Sicherheit, Mangel 11): ohne persönlichen Link nennt die Seite KEIN Datum — sonst verriete
+   * sie zu einer fremden Nummer oder Mail, ob und wann jemand mit Justin spricht.
+   */
+  schonGebuchtNeutral: string;
+  /** Nachbesserung E-476 (Mangel 7): der Tagesdeckel für Buchungen ohne Link und ohne Anfrage ist erreicht → „Anfrage senden“. */
+  onlineVoll: string;
+  /**
+   * Antwort auf die Anfrage. E-476 Scheibe 4 (Gutachten 1, Mangel 6): für ALLE gleich und neutral — die Seite ist öffentlich und
+   * verrät nie, ob jemand schon Kunde ist (die Privatkunden-Weiche arbeitet nur intern). Vorher „{name} ruft Sie an.“ — bei
+   * einer Beschwerde wäre das der Name der Betreuerin gewesen, über die sich die Kundin beschwert.
+   */
   anfrageDanke: string;
   /** Dieselbe Antwort, wenn der Auftrag (noch) bei niemandem mit Namen liegt. */
   anfrageDankeOhneName: string;
@@ -52,8 +63,10 @@ export const GLOBAL_TEXTE: { de: GlobalTerminTexte; en: GlobalTerminTexte } = {
     zeitVergebenKeineWeitere: "Diese Zeit ist gerade vergeben worden, und im Moment ist keine weitere frei. Bitte senden Sie uns Ihre Anfrage — wir rufen Sie an.",
     keinAngebot: "Im Moment ist keine Zeit frei. Bitte senden Sie uns Ihre Anfrage — wir rufen Sie an.",
     schonGebucht: "Sie haben bereits ein Gespräch am {datum} um {uhrzeit} Uhr. Zum Verschieben nutzen Sie bitte den Link in Ihrer Bestätigungs-E-Mail.",
-    anfrageDanke: "Danke — Ihre Anfrage ist angekommen. {name} ruft Sie an.",
-    anfrageDankeOhneName: "Danke — Ihre Anfrage ist angekommen. Wir rufen Sie an.",
+    schonGebuchtNeutral: "Zu Ihren Angaben ist schon ein Gespräch eingetragen — den Link zum Verschieben finden Sie in Ihrer Bestätigungs-E-Mail.",
+    onlineVoll: "Online können wir heute keine weitere Zeit vergeben. Bitte senden Sie uns Ihre Anfrage — wir rufen Sie an.",
+    anfrageDanke: "Danke — Ihre Anfrage ist angekommen. Wir melden uns persönlich bei Ihnen.",
+    anfrageDankeOhneName: "Danke — Ihre Anfrage ist angekommen. Wir melden uns persönlich bei Ihnen.",
   },
   en: {
     fehlerLaden: "The available times could not be loaded. Please reload the page.",
@@ -68,8 +81,10 @@ export const GLOBAL_TEXTE: { de: GlobalTerminTexte; en: GlobalTerminTexte } = {
     zeitVergebenKeineWeitere: "This time has just been taken and no other time is free at the moment. Please send us your request and we will call you.",
     keinAngebot: "No time is free at the moment. Please send us your request and we will call you.",
     schonGebucht: "You already have a call booked on {datum} at {uhrzeit} (German time). To reschedule, please use the link in your confirmation email.",
-    anfrageDanke: "Thank you — your request has arrived. {name} will call you.",
-    anfrageDankeOhneName: "Thank you — your request has arrived. We will call you.",
+    schonGebuchtNeutral: "A call is already booked for your details — you will find the link to reschedule in your confirmation email.",
+    onlineVoll: "We cannot offer any further time online today. Please send us your request and we will call you.",
+    anfrageDanke: "Thank you — your request has arrived. We will be in touch with you personally.",
+    anfrageDankeOhneName: "Thank you — your request has arrived. We will be in touch with you personally.",
   },
 };
 

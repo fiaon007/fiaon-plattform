@@ -6,9 +6,10 @@
 // wenn keine Zeit frei ist, ein Anfrageformular. KEIN LOGIN, KEIN TOKEN, wie
 // bei /justin (E-124): Wer die Seite sieht, darf buchen.
 //
-//   GET  /termine/frei?tage=14   freie Zeiten, Ansprechpartner, rueckfall
+//   GET  /termine/frei?tage=14   freie Zeiten, Ansprechpartner, rueckfall — E-476 Scheibe 3: mit dem
+//                                persönlichen Link (HttpOnly-Cookie fiaon_g) dazu die Vorlage des Leads
 //   POST /termine                Termin buchen (409 mit frischen Zeiten, wenn
-//                                die Zeit inzwischen vergeben ist)
+//                                die Zeit inzwischen vergeben ist) — mit Link an DIESER Anfrage
 //   POST /anfrage                Rückfall und „lieber ein Anruf" → { ok, meldung }
 //   GET  /termine/kalender/<storno-token>.ics   der Termin als Kalenderdatei
 //
@@ -29,7 +30,9 @@ import {
 import { GLOBAL_DAUER_MIN, GLOBAL_HORIZONT_TAGE } from "../lib/fiaon-global-zeiten";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
 import { visitenkarteFuerAgent } from "@shared/fiaon-visitenkarte";
-import { GLOBAL_TERMIN_ARAS_HINWEIS, GLOBAL_TERMIN_ARAS_TEXT } from "@shared/fiaon-ja-zum-anruf";
+// E-476 Scheibe 3: der persönliche Link — der Code kommt im Cookie (nie in der Adresse der Seite).
+import { LEAD_CODE_COOKIE, LEAD_GB_COOKIE, LEAD_COOKIE_PFAD, LEAD_WEG_VORGABE, leadCodeForm, metaLeadKennung } from "@shared/fiaon-lead-weg";
+import { aufrufClientIp } from "../lib/fiaon-global-angebot-aufrufe";
 
 const router = Router();
 
@@ -48,8 +51,10 @@ function angebotAntwort(a: GlobalAngebotStand) {
   };
 }
 
+// E-476 Nachbesserung (Gutachten Sicherheit, Mangel 2 und 7): die ECHTE Adresse des Aufrufers — cf-connecting-ip setzt Cloudflare
+// selbst; den ersten X-Forwarded-For-Eintrag setzt der Aufrufer frei (die Bremse ließe sich sonst umgehen).
 function ipVon(req: Request): string {
-  return String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+  return aufrufClientIp(req as any);
 }
 
 // ── Die Messung an Meta (23.09.2026, E-231) ─────────────────────────────────
@@ -67,6 +72,55 @@ function gespraechMelden(req: Request, messRef: string, kontakt: GlobalKontakt):
     .catch((e) => console.error(`[GLOBAL-TERMIN] Messung ${messRef} nicht gemeldet:`, e));
 }
 
+// ── E-476 Scheibe 3: der persönliche Link ─────────────────────────────────────
+// /g/<code> (server/routes.ts) und der Meta-Danke-Knopf /gb?lid=… (fiaon-kurzlink.ts) setzen ein HttpOnly-Cookie NUR für
+// /api/fiaon/global und leiten auf die Seite — der Code steht nie in der Adresse der Seite (kein Pixel, keine Statistik,
+// kein Verlauf sieht ihn). Diese Tür liest ihn: GET /termine/frei liefert die Vorlage (Name, Firma, Mail, Telefon — nur,
+// was der Lead selbst angegeben hat), POST /termine bucht an DIESER Anfrage. `?code=` geht auch (Prüfstand, Cockpit).
+function schutzKoepfe(res: Response): void {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+}
+function codeAus(req: Request): string | null {
+  const roh = String((req.query?.code as string) ?? (req as any).cookies?.[LEAD_CODE_COOKIE] ?? "").trim();
+  return leadCodeForm(roh) ? roh : null;
+}
+export function leadCookieSetzen(res: Response, code: string): void {
+  res.cookie(LEAD_CODE_COOKIE, code, {
+    httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production",
+    maxAge: LEAD_WEG_VORGABE.cookieStunden * 3_600_000, path: LEAD_COOKIE_PFAD,
+  });
+}
+
+/** Die Vorlage aus dem Link — oder (Danke-Knopf) „folgt“, solange die Anfrage aus Meta noch unterwegs ist. */
+async function vorlageFuer(req: Request, res: Response): Promise<{ vorlage: { name: string; firma: string; email: string; telefon: string } | null; folgt: boolean }> {
+  const { leadCodeLesen, leadCodeSichern, metaDankeAufloesen } = await import("../lib/fiaon-lead-weg");
+  let code = codeAus(req);
+  if (!code) {
+    // Nachbesserung (Gutachten Technik Mangel 10, Sicherheit Mangel 9): nur ein von /gb GESTEMPELTES Cookie zählt, und nur für
+    // einen frischen Lead (2 Stunden) — danach gilt nur der persönliche Link aus der Mail.
+    const { gbCookieLesen } = await import("../lib/fiaon-lead-weg");
+    const lid = metaLeadKennung(gbCookieLesen((req as any).cookies?.[LEAD_GB_COOKIE]));
+    if (!lid) return { vorlage: null, folgt: false };
+    const auf = await metaDankeAufloesen(lid, { holen: false, nurFrisch: true }).catch(() => null);
+    if (auf === "folgt") return { vorlage: null, folgt: true };
+    res.clearCookie(LEAD_GB_COOKIE, { path: LEAD_COOKIE_PFAD });
+    if (!auf) return { vorlage: null, folgt: false };
+    const link = await leadCodeSichern(auf.anfrageId).catch(() => null);
+    if (!link) return { vorlage: null, folgt: false };
+    leadCookieSetzen(res, link.code);
+    code = link.code;
+  }
+  const v = await leadCodeLesen(code).catch(() => null);
+  if (!v) {
+    // Abgelaufen oder unbekannt: die normale Fläche — und das Cookie weg.
+    res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
+    return { vorlage: null, folgt: false };
+  }
+  return { vorlage: { name: v.name, firma: v.firma, email: v.email, telefon: v.telefon }, folgt: false };
+}
+
 // ── GET /termine/frei ───────────────────────────────────────────────────────
 router.get("/termine/frei", async (req: Request, res: Response) => {
   try {
@@ -74,9 +128,11 @@ router.get("/termine/frei", async (req: Request, res: Response) => {
     const tage = Number.isFinite(wunsch) && wunsch >= 1 ? Math.min(wunsch, GLOBAL_HORIZONT_TAGE) : GLOBAL_HORIZONT_TAGE;
     const a = await globalAngebotLaden(tage);
     if (a.rueckfall) console.log(`[GLOBAL-TERMIN] Rückfall auf die Anfrage: ${a.grund}${a.person ? ` (${a.person.name})` : ""}`);
-    // Freie Zeiten sind flüchtig — kein Zwischenspeicher darf sie festhalten.
-    res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, ...angebotAntwort(a) });
+    // Die Vorlage hängt nie am Kalender: eine Störung hier = die normale Fläche.
+    const v = await vorlageFuer(req, res).catch((e) => { console.error("[GLOBAL-TERMIN] Vorlage:", String(e).slice(0, 160)); return { vorlage: null, folgt: false }; });
+    // Freie Zeiten sind flüchtig — kein Zwischenspeicher darf sie festhalten; die Vorlage gehört niemandem sonst.
+    schutzKoepfe(res);
+    res.json({ ok: true, ...angebotAntwort(a), ...(v.vorlage ? { vorlage: v.vorlage, persoenlich: true } : {}), ...(v.folgt ? { vorlageFolgt: true } : {}) });
   } catch (err) {
     console.error("[GLOBAL-TERMIN] frei:", err);
     res.status(500).json({ ok: false, error: GLOBAL_TEXTE.de.fehlerLaden });
@@ -105,21 +161,14 @@ router.post("/termine", async (req: Request, res: Response) => {
 
   try {
     const thema = String(b.thema ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || null;
-    const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema });
+    // E-476 Scheibe 3: der persönliche Link (Cookie) — die Buchung hängt dann an DIESER Anfrage.
+    const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema, code: codeAus(req) });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
-      // E-458 (Justin 29.10.2026): der Erinnerungsanruf vor dem Gespräch (auch durch ARAS). Seit dem Nachmittag („braucht kein
-      // eigenes Kreuz“) trägt die Buchung den Hinweis über dem Knopf (arasHinweis); ein Browser mit dem alten Stand schickt noch
-      // den Kästchen-Satz (arasAnruf). Gespeichert wird nur ein Satz, den diese Seite zeigt; die Buchung hängt nie daran.
-      const arasSatz = b.arasHinweis ?? b.arasAnruf;
-      if (arasSatz) {
-        void import("../lib/fiaon-aras-wunsch").then((m) => m.globalTerminEinwilligungMerken({
-          terminId: erg.terminId, wortlautBrowser: arasSatz,
-          wortlautServer: [GLOBAL_TERMIN_ARAS_HINWEIS.de, GLOBAL_TERMIN_ARAS_HINWEIS.en, GLOBAL_TERMIN_ARAS_TEXT.de, GLOBAL_TERMIN_ARAS_TEXT.en],
-          telefon: kontakt.telefon, ip: ipVon(req), ua: String(req.headers["user-agent"] ?? ""), sprache: en ? "en" : "de",
-          seite: b.arasSeite, referer: req.headers.referer,
-        })).catch((e) => console.error(`[GLOBAL-TERMIN] Einwilligung zu Termin ${erg.terminId}:`, e));
-      }
+      // E-476 Scheibe 3 (Logbuch 03.11. 18:30, „kein ARAS für Leads“): Das Buchungsformular trägt keinen ARAS-Hinweis mehr,
+      // und diese Tür speichert keinen Nachweis für einen Erinnerungsanruf. Schickt ein Browser mit altem Stand den Satz
+      // noch mit, wird er übergangen — die Erinnerung kommt per Mail (Vortag, eine Stunde vorher).
+      res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
       const messRef = `global-termin-${erg.terminId}`;
       gespraechMelden(req, messRef, kontakt);
       return res.json({
@@ -143,6 +192,17 @@ router.post("/termine", async (req: Request, res: Response) => {
 // Eine Anfrage je Adresse und Minute — dieselbe Bremse wie fiaon-anfragen.ts:
 // Der Doppelklick bekommt ein Ja, aber keinen zweiten Auftrag.
 const letzteAnfrage = new Map<string, number>();
+// E-476 Nachbesserung (Gutachten Sicherheit, Mangel 2): dazu je ANSCHLUSS höchstens 3 Anfragen in 15 Minuten und 10 am Tag —
+// sonst ließe sich über das öffentliche Formular eine Flut fremder Adressen einspielen (jede bekäme Justins Willkommen).
+const anfragenJeIp = new Map<string, number[]>();
+export function anfrageZuViel(ip: string, jetzt: number = Date.now()): boolean {
+  if (!ip) return false;
+  const liste = (anfragenJeIp.get(ip) ?? []).filter((z) => jetzt - z < 86_400_000);
+  if (liste.filter((z) => jetzt - z < 15 * 60_000).length >= 3 || liste.length >= 10) { anfragenJeIp.set(ip, liste); return true; }
+  liste.push(jetzt); anfragenJeIp.set(ip, liste);
+  if (anfragenJeIp.size > 5000) for (const [k, v] of Array.from(anfragenJeIp.entries())) if (!v.some((z) => jetzt - z < 86_400_000)) anfragenJeIp.delete(k);
+  return false;
+}
 
 router.post("/anfrage", async (req: Request, res: Response) => {
   const b = req.body || {};
@@ -154,9 +214,29 @@ router.post("/anfrage", async (req: Request, res: Response) => {
   if ("error" in kontakt) return res.status(400).json({ ok: false, error: kontakt.error, feld: kontakt.feld });
   const jetzt = Date.now();
   if (jetzt - (letzteAnfrage.get(kontakt.email) ?? 0) < 60_000) return res.json({ ok: true, meldung: T.anfrageDankeOhneName });
+  if (anfrageZuViel(ipVon(req), jetzt)) return res.status(429).json({ ok: false, error: T.fehlerZuSchnell });
   letzteAnfrage.set(kontakt.email, jetzt);
 
   try {
+    // E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 8): Kommt er über seinen persönlichen Link (Cookie) und bittet um einen
+    // Rückruf, entsteht KEINE zweite Anfrage — DIESE Anfrage bekommt seine Wunschzeit, der Anruf-Auftrag hängt sie an.
+    const code = codeAus(req);
+    if (code) {
+      const { leadCodeLesen } = await import("../lib/fiaon-lead-weg");
+      const v = await leadCodeLesen(code, { schema: false }).catch(() => null);
+      if (v) {
+        const { leadRueckrufWunsch } = await import("../lib/fiaon-global-lead-post");
+        const r = await leadRueckrufWunsch(v.anfrageId, {
+          wunschzeit: String(b.wunschzeit ?? "").replace(/\s+/g, " ").trim().slice(0, 200) || null,
+          text: String(b.text ?? "").trim().slice(0, 4000) || null,
+          firma: kontakt.firma, name: kontakt.name, telefon: kontakt.telefon, email: kontakt.email,
+        });
+        if (r.ok) {
+          res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
+          return res.json({ ok: true, meldung: r.zustaendigName ? globalText(T.anfrageDanke, { name: r.zustaendigName }) : T.anfrageDankeOhneName });
+        }
+      }
+    }
     const erg = await globalAnfrageAnnehmen({
       kontakt,
       wunschzeit: String(b.wunschzeit ?? "").replace(/\s+/g, " ").trim().slice(0, 200) || null,

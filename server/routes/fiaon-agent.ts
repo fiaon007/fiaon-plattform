@@ -1844,10 +1844,16 @@ export async function runCallbackReminders(): Promise<number> {
   // (`agent_callback_reminder`), eine eigene Spalte gegen Doppelversand.
   // ══════════════════════════════════════════════════════════════════════
   await sqlPool`ALTER TABLE fiaon_termine ADD COLUMN IF NOT EXISTS agent_erinnert_am TIMESTAMPTZ`.catch(() => {});
+  // E-476 Scheibe 3 (05.11.2026): Lead-Gespräche bei Justin lässt diese allgemeine Erinnerung aus — Justin bekommt dazu
+  // 60 Minuten vorher die Anruf-Karte (D3, Lauf global_gespraeche, dieselbe Marke agent_erinnert_am), nicht zwei Mails.
+  const { gruenderAgentId } = await import("./fiaon-gruender-termin");
+  const { LEAD_GESPRAECH_HERKUENFTE } = await import("../../shared/fiaon-lead-weg");
+  const gruender = await gruenderAgentId().catch(() => 0);
   const termine = await sqlPool`
     UPDATE fiaon_termine SET agent_erinnert_am = NOW()
     WHERE beginn BETWEEN NOW() AND NOW() + INTERVAL '60 minutes'
       AND status = 'gebucht' AND abgesagt_am IS NULL AND agent_erinnert_am IS NULL AND agent_id IS NOT NULL
+      AND NOT (quelle = 'global' AND agent_id = ${gruender} AND COALESCE(herkunft, '') = ANY(${LEAD_GESPRAECH_HERKUENFTE as unknown as string[]}))
     RETURNING id, agent_id, person_id, beginn, quelle, dauer_min
   `.catch(() => [] as any[]);
   for (const t of termine as any[]) {

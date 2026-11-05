@@ -76,6 +76,8 @@ export const PFLICHTMAILS = new Set<string>([
   // E-458 Nr. 11: Erinnerungen an die selbst gebuchte Zeit und „nicht erreicht“ zu genau diesem Gespräch (einmal je
   // Gespräch) — wie termin_erinnerung. Ein Unternehmen, das gestern eine Mail des Firmen-Radars bekam, muss sie trotzdem bekommen.
   "global_termin_erinnerung", "global_termin_kurz", "global_nicht_erreicht",
+  // E-476 Nachbesserung: unsere Absage eines Global-Gesprächs — wie termin_absage (gehört zu genau diesem Gespräch).
+  "global_termin_absage",
   "termin_erinnerung",
   "termin_absage",
   "claim_received",          // „Wir prüfen Ihre Zahlung" — Antwort auf seine Meldung.

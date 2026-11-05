@@ -253,6 +253,12 @@ export default function ChefLeadMotor() {
           {/* E-476: das Lead-Dossier an Justin — Schalter, KI-Deckel, Vorschau, Prüfversand, Sammel-Mail. */}
           <DossierKarte melden={melden} zeigen={(betreff, html) => setVorschau({ betreff, html, beispiel: false, titel: "So bekäme Justin das Dossier (nur Vorschau, nichts gesendet)" })} />
 
+          {/* E-476 Scheibe 4: Justins Lead-Mails — Willkommen, Nachfass, Antworten; Schalter, Stand, Vorschau, Prüfversand. */}
+          <LeadMailsKarte melden={melden} zeigen={(betreff, html) => setVorschau({ betreff, html, beispiel: false, titel: "So bekäme der Lead die Mail von Justin (nur Vorschau, nichts gesendet)" })} />
+
+          {/* E-476 Scheibe 5: Daniels Takt — Lead-Meldung, Erinnerung 15/60/120, Übersicht 18:30, Lead-Wächter, Altbestand ableiten. */}
+          <TaktKarte melden={melden} zeigen={(betreff, html, titel) => setVorschau({ betreff, html, beispiel: false, titel })} />
+
           <details className="lm-karte lm-klapp lm-verbindung"><summary>Verbindung zu Meta<span className="lm-klapp-still">Webhook, Rechte, Seite, Formulare</span></summary>
             <div className="lm-karte-kopf">
               <div>
@@ -1040,6 +1046,336 @@ function DossierKarte({ melden, zeigen }: { melden: (t: string) => void; zeigen:
               ))}
             </ul>
           )}
+        </>
+      )}
+    </details>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// JUSTINS LEAD-MAILS (E-476 Scheibe 4, 05.11.2026, Entscheidung 2A)
+//
+// Dem Business-Lead schreibt Justin — aus js@ mit seiner echten Unterschrift: das Willkommen nach zehn Minuten Ruhe (auch
+// nachts), höchstens drei Nachfass-Mails (+1/+3/+7 Werktage) im selben Faden, Schluss bei Termin, Antwort, „keine Mails“,
+// Anruf-Ergebnis oder Kunde. Zwei Schalter (Vorgabe AUS); Willkommen EIN setzt den Zählbeginn — alte Leads bekommen nie
+// eine automatische Mail (dafür das Entwurf-Skript). Regeln: server/lib/fiaon-global-lead-post.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+interface LeadMailsStand {
+  einstellungen: { willkommenAn: boolean; nachfassAn: boolean; ab: string | null; ruheMin: number; antwortenAn?: boolean; willkommenMaxTag?: number };
+  justinFuehrt?: boolean;
+  zahlen: { willkommen?: number; nachfass?: number; antworten?: number; stopps?: number; fehler?: number; offen?: number };
+  letzte: { anfrageId: number; name: string; willkommenAm: string | null; willkommenStatus: string | null; willkommenGrund: string | null;
+    nachfassStufe: number; nachfassFaellig: string | null; stopp: string | null; antwortAm: string | null; abgemeldetAm: string | null }[];
+}
+const WILLKOMMEN_STATUS: Record<string, string> = { gesendet: "Willkommen raus", ausgelassen: "kein Willkommen", fehler: "Fehler", laeuft: "sendet", unklar: "wird abgeglichen" };
+
+function LeadMailsKarte({ melden, zeigen }: { melden: (t: string) => void; zeigen: (betreff: string, html: string) => void }) {
+  const d = useDaten<LeadMailsStand>("/chef/lead-motor/lead-mails");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [anfrage, setAnfrage] = useState("");
+  const [art, setArt] = useState<"willkommen" | "n1" | "n2" | "n3">("willkommen");
+  const [variante, setVariante] = useState<"meta" | "website" | "bestandskunde" | "oesterreich" | "en">("meta");
+  const s = d.daten;
+  const nummer = anfrage.replace(/\D/g, "");
+  const [ruhe, setRuhe] = useState("");
+  const [maxTag, setMaxTag] = useState("");
+
+  const zahlSetzen = async (welche: "ruhe" | "max_tag", roh: string) => {
+    const wert = Number(roh.replace(/\D/g, ""));
+    if (!wert) return;
+    setBusy(`zahl-${welche}`);
+    try { await senden("/chef/lead-motor/lead-mails/zahl", { welche, wert }); melden("Gespeichert."); setRuhe(""); setMaxTag(""); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+
+  const schalten = async (schalter: "willkommen" | "nachfass" | "antworten", an: boolean) => {
+    if (schalter === "willkommen" && an && !window.confirm("Justins Willkommens-Mail einschalten?\n\nAb jetzt bekommt jeder NEUE Business-Lead zehn Minuten nach dem Formular eine Mail aus js@ (mit Justins Unterschrift und seinem Terminlink) — auch nachts.\n\nLeads von vorher bekommen keine automatische Mail. Bitte vorher den Prüfversand lesen.")) return;
+    if (schalter === "nachfass" && an && !window.confirm("Nachfass einschalten?\n\nWer nicht bucht und nicht antwortet, bekommt höchstens drei kurze Mails von Justin (+1/+3/+7 Werktage, Mo–Fr 9–18 Uhr) im selben Faden.")) return;
+    if (schalter === "antworten" && !an && !window.confirm("Den Antwort-Leser in js@ ausschalten?\n\nDann landen Antworten von Leads nur noch in Justins Postfach — kein Rückruf-Auftrag, keine Zeile im Cockpit.")) return;
+    setBusy(`schalter-${schalter}`);
+    try { await senden("/chef/lead-motor/lead-mails/schalter", { schalter, an }); melden(an ? "Eingeschaltet." : "Ausgeschaltet."); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const vorschau = async () => {
+    setBusy("vorschau");
+    try {
+      const q = new URLSearchParams({ art });
+      if (nummer) q.set("anfrage", nummer);
+      else if (variante === "en") q.set("sprache", "en");
+      else q.set("variante", variante);
+      const r = await fetch(`${API}/chef/lead-motor/lead-mails/vorschau?${q.toString()}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Die Vorschau ließ sich nicht bauen.");
+      zeigen(j.betreff, j.html);
+      if (j.funde?.length) melden(`Achtung — die Wand hält diese Mail an: ${j.funde.join("; ")}`);
+    } catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const pruefversand = async () => {
+    if (!window.confirm("Prüfversand: Willkommen (deutsch, englisch, Website) und Nachfass 1–3 mit einem erfundenen Musterlead aus js@ an Justins Adresse?\n\nAn keinen Lead geht etwas.")) return;
+    setBusy("pruef");
+    try { const j = await senden("/chef/lead-motor/lead-mails/pruefversand", {}); melden(`Prüfversand an ${j.an}: ${j.gesendet.length} Mails.`); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const schalter = (welcher: "willkommen" | "nachfass" | "antworten", an: boolean, text: string) => (
+    <div className="lm-reihe">
+      <button className={`lm-schalter${an ? " an" : ""}`} onClick={() => schalten(welcher, !an)} disabled={!!busy} aria-pressed={an} aria-label={text}>
+        <span className="lm-schalter-knopf" aria-hidden="true" />{an ? "An" : "Aus"}
+      </button>
+      <span>{text}</span>
+    </div>
+  );
+
+  return (
+    <details className="lm-karte lm-klapp lm-leadmails"><summary>Lead-Mails von Justin<span className="lm-klapp-still">FIAON Global · Willkommen, Nachfass, Antworten in js@</span></summary>
+      {d.fehler && <Fehlermeldung text={d.fehler} erneut={d.neu} />}
+      {d.laedt && !s && <Geruest zeilen={3} />}
+      {s && (
+        <>
+          <div className="lm-karte-kopf">
+            <p className="lm-still">
+              Jeder neue Business-Lead bekommt {s.einstellungen.ruheMin} Minuten nach dem Formular eine Mail von Justin aus js@ — mit seinen
+              Antworten (ohne Betrag) und seinem persönlichen Terminlink. Wer nicht bucht und nicht antwortet, bekommt höchstens drei kurze
+              Nachfass-Mails im selben Faden. Schluss bei Termin, Antwort, „keine Mails“, Anruf-Ergebnis im Cockpit oder Kunde. Antworten landen
+              bei Justin; das Cockpit bekommt eine Zeile, die zuständige Person einen Rückruf-Auftrag.
+              {s.einstellungen.ab ? ` Zählbeginn: ${zeit(s.einstellungen.ab)} — ältere Leads bekommen nie eine automatische Mail.` : " Noch kein Zählbeginn — er wird beim Einschalten gesetzt."}
+            </p>
+          </div>
+          {s.justinFuehrt === false && (
+            <p className="lm-hinweis">Die Gespräche führt gerade nicht Justin (Chefbüro › Rückholung › FIAON Global, „Gespräche führt“) — solange gehen keine Lead-Mails in seiner Stimme hinaus. Daniels Anruf-Aufträge stehen trotzdem.</p>
+          )}
+          {schalter("willkommen", s.einstellungen.willkommenAn, "Willkommen sofort (auch nachts, aus js@)")}
+          {schalter("nachfass", s.einstellungen.nachfassAn, "Nachfass 1–3 (N1 frühestens am Werktag nach dem angekündigten Anruf, Mo–Fr 9–18 Uhr)")}
+          {schalter("antworten", s.einstellungen.antwortenAn !== false, "Antworten in js@ lesen (Rückruf-Auftrag, Cockpit-Zeile) — nur mit Willkommen an")}
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-lm-ruhe">Ruhe (Min.)</label>
+            <input id="lm-lm-ruhe" className="lm-feld" inputMode="numeric" placeholder={String(s.einstellungen.ruheMin)} value={ruhe} onChange={(e) => setRuhe(e.target.value)} />
+            <button className="lm-knopf" onClick={() => zahlSetzen("ruhe", ruhe)} disabled={!!busy || !ruhe}>Speichern</button>
+            <label className="lm-etikett" htmlFor="lm-lm-max">Höchstens je Tag</label>
+            <input id="lm-lm-max" className="lm-feld" inputMode="numeric" placeholder={String(s.einstellungen.willkommenMaxTag ?? 20)} value={maxTag} onChange={(e) => setMaxTag(e.target.value)} />
+            <button className="lm-knopf" onClick={() => zahlSetzen("max_tag", maxTag)} disabled={!!busy || !maxTag}>Speichern</button>
+          </div>
+          <p className="lm-ergebnis">
+            7 Tage: <b>{s.zahlen.willkommen ?? 0}</b> Willkommen · <b>{s.zahlen.nachfass ?? 0}</b> Nachfass · <b>{s.zahlen.antworten ?? 0}</b> Antworten ·{" "}
+            {s.zahlen.stopps ?? 0} gestoppt · {s.zahlen.offen ?? 0} Nachfass offen{(s.zahlen.fehler ?? 0) > 0 ? ` · ${s.zahlen.fehler} mit Fehler` : ""}
+          </p>
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-lm-art">Mail</label>
+            <select id="lm-lm-art" className="lm-feld" value={art} onChange={(e) => setArt(e.target.value as any)}>
+              <option value="willkommen">Willkommen</option><option value="n1">Nachfass 1</option><option value="n2">Nachfass 2</option><option value="n3">Nachfass 3 (letzte)</option>
+            </select>
+            <label className="lm-etikett" htmlFor="lm-lm-variante">Fassung</label>
+            <select id="lm-lm-variante" className="lm-feld" value={variante} onChange={(e) => setVariante(e.target.value as any)} disabled={!!nummer}>
+              <option value="meta">Meta-Formular</option><option value="website">Website-Anfrage</option><option value="bestandskunde">Bestandskunde</option>
+              <option value="oesterreich">Österreich</option><option value="en">Englisch</option>
+            </select>
+            <label className="lm-etikett" htmlFor="lm-lm-anfrage">oder Anfrage-Nr.</label>
+            <input id="lm-lm-anfrage" className="lm-feld" inputMode="numeric" placeholder="z. B. 56" value={anfrage} onChange={(e) => setAnfrage(e.target.value)} />
+            <button className="lm-knopf" onClick={vorschau} disabled={!!busy}>{busy === "vorschau" ? "Baut …" : "Vorschau"}</button>
+            <button className="lm-knopf" onClick={pruefversand} disabled={!!busy}>{busy === "pruef" ? "Sendet …" : "Prüfversand an Justin"}</button>
+          </div>
+          {s.letzte.length === 0 ? <p className="lm-leer">Noch keine Lead-Mail.</p> : (
+            <ul className="lm-liste">
+              {s.letzte.map((z) => (
+                <li key={z.anfrageId} className="lm-zeile">
+                  <div className="lm-zeile-kopf">
+                    <span className="lm-name">{z.name}</span>
+                    <span className="lm-chip">Anfrage #{z.anfrageId}</span>
+                    {z.willkommenStatus && <span className={`lm-chip${z.willkommenStatus === "gesendet" ? " gruen" : z.willkommenStatus === "fehler" ? " rot" : ""}`} title={z.willkommenGrund ?? ""}>{WILLKOMMEN_STATUS[z.willkommenStatus] ?? z.willkommenStatus}</span>}
+                    {z.nachfassStufe > 0 && <span className="lm-chip blau">N{z.nachfassStufe}</span>}
+                    {z.antwortAm && <span className="lm-chip gruen">hat geantwortet</span>}
+                    {z.stopp && <span className="lm-chip" title="keine weitere Lead-Mail">{z.stopp}</span>}
+                    <span className="lm-still">{z.nachfassFaellig && !z.stopp ? `nächste Mail ${zeit(z.nachfassFaellig)}` : zeit(z.willkommenAm)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </details>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DANIELS TAKT & WÄCHTER (E-476 Scheibe 5, 05.11.2026 — Entscheidung 3A)
+//
+// Jeder neue Business-Lead geht als kurze Lead-Meldung an die Adresse „Lead-Meldungen an“ (Chefbüro › Rückholung › FIAON
+// Global; Vorgabe die Visitenkarte der zuständigen Person) — nie an eine private Adresse. Reagiert niemand: Erinnerung an
+// Daniel nach 15 Dienstminuten, eine Zeile an Justin nach 60 (im Faden des Leads) und der Rückruf an die Vertretung, nach 120
+// ohne Anruf der Zusage-Wächter. Um 18:30 die Übersicht. Dazu die Lead-Wächter (Lagezimmer) und die einmalige Ableitung des
+// Altbestands (Vorschau liest, „Anwenden“ nur mit Justins Go). Regeln: server/lib/fiaon-lead-takt.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+interface TaktStand {
+  einstellungen: { taktAn: boolean; meldungT1An?: boolean; uebersichtAn: boolean; ab: string | null; uebersichtTag: string | null; webhookStill: string | null };
+  meldung: { an: string; quelle: string; karte: string | null; fuer: string | null } | null;
+  zahlen: { t1?: number; t1_fehler?: number; e15?: number; e60?: number; e120?: number; vertretung?: number };
+  letzte: { anfrageId: number; name: string; eingangAm: string; t1Status: string | null; t1Am: string | null; t1Grund: string | null;
+    geoeffnetAm: string | null; geoeffnetVon: string | null; e15: boolean; e60: boolean; e120: boolean; vertretung: string | null }[];
+  alarme: { schluessel: string; titel: string; text: string | null; stufe: string; seit: string; zuletzt: string; vorbeiAm: string | null }[];
+  vorgaben: { erinnerungMin: number; justinMin: number; zusageMin: number; dienst: string };
+}
+interface AbleitungZeile { anfrageId: number; anzeige: string; vorher: string; nachher: string; auftragSchliessen: boolean; firma: { vorher: string; nachher: string; grund: string } | null; warum: string }
+const T1_STATUS: Record<string, string> = { gesendet: "Meldung raus", fehler: "Meldung gescheitert", nicht_noetig: "keine Meldung nötig", laeuft: "sendet" };
+
+function TaktKarte({ melden, zeigen }: { melden: (t: string) => void; zeigen: (betreff: string, html: string, titel: string) => void }) {
+  const d = useDaten<TaktStand>("/chef/lead-motor/takt");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [tag, setTag] = useState("");
+  const [ab, setAb] = useState("2026-11-01");
+  const [ableitung, setAbleitung] = useState<{ zeilen: AbleitungZeile[]; geprueft: number } | null>(null);
+  const s = d.daten;
+
+  const schalten = async (schalter: "meldung" | "takt" | "uebersicht", an: boolean) => {
+    if (!an && !window.confirm(schalter === "meldung"
+      ? "Die Lead-Meldung ausschalten?\n\nDann geht zu jedem neuen Lead wieder die kurze Auftrag-Mail — an dieselbe Firmenadresse, nie an ein privates Postfach."
+      : schalter === "takt"
+        ? "Die Erinnerungen 15/60/120 ausschalten?\n\nDie Lead-Meldung bleibt. Beim Wiedereinschalten zählen nur neue Leads (keine Erinnerung auf einmal für die Aus-Zeit)."
+        : "Die Übersicht um 18:30 ausschalten?")) return;
+    setBusy(`schalter-${schalter}`);
+    try { await senden("/chef/lead-motor/takt/schalter", { schalter, an }); melden(an ? "Eingeschaltet." : "Ausgeschaltet."); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const uebersicht = async (fuer: "justin" | "team") => {
+    setBusy(`uebersicht-${fuer}`);
+    try {
+      const q = new URLSearchParams({ fuer });
+      if (/^\d{4}-\d{2}-\d{2}$/.test(tag)) q.set("tag", tag);
+      const r = await fetch(`${API}/chef/lead-motor/takt/uebersicht?${q.toString()}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Die Übersicht ließ sich nicht bauen.");
+      zeigen(j.betreff, j.html, j.leer ? "Übersicht (heute wäre sie leer — es ginge keine Mail; nur Vorschau)" : `So käme die Übersicht ${fuer === "team" ? "beim Team" : "bei dir"} an (nur Vorschau, nichts gesendet)`);
+    } catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const pruefversand = async () => {
+    if (!window.confirm("Die heutige Übersicht jetzt als Prüfversand an dich?")) return;
+    setBusy("pruef");
+    try { const j = await senden("/chef/lead-motor/takt/uebersicht-pruefversand", {}); melden(`Prüfversand an ${j.an}: ${j.betreff}`); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const waechter = async () => {
+    setBusy("waechter");
+    try { const j = await senden("/chef/lead-motor/takt/waechter", {}); melden(j.aktiv.length ? `Wächter: ${j.aktiv.join(" · ")}` : "Wächter: alles ruhig."); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const ableitungVorschau = async () => {
+    setBusy("ableitung");
+    try {
+      const r = await fetch(`${API}/chef/lead-motor/takt/altbestand?ab=${encodeURIComponent(ab)}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Die Vorschau ließ sich nicht bauen.");
+      setAbleitung({ zeilen: j.zeilen, geprueft: j.geprueft });
+    } catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const ableitungAnwenden = async () => {
+    if (!ableitung?.zeilen.length) return;
+    const go = window.prompt(`Den Stand von ${ableitung.zeilen.length} Anfrage(n) aus dem Cockpit übernehmen?\n\nDas schreibt in die Datenbank (Anfrage-Stand, offene Anruf-Aufträge schließen, „Termin“ ohne Termin zurück auf Wiedervorlage). An Leads geht nichts.\n\nNur mit Justins Go: tippe JA.`);
+    if (go !== "JA") return;
+    setBusy("anwenden");
+    try { const j = await senden("/chef/lead-motor/takt/altbestand", { ab, go: "JA" }); melden(`Übernommen: ${j.geaendert} von ${j.geprueft} Anfragen.`); setAbleitung(null); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const schalter = (welcher: "meldung" | "takt" | "uebersicht", an: boolean, text: string) => (
+    <div className="lm-reihe">
+      <button className={`lm-schalter${an ? " an" : ""}`} onClick={() => schalten(welcher, !an)} disabled={!!busy} aria-pressed={an} aria-label={text}>
+        <span className="lm-schalter-knopf" aria-hidden="true" />{an ? "An" : "Aus"}
+      </button>
+      <span>{text}</span>
+    </div>
+  );
+
+  return (
+    <details className="lm-karte lm-klapp lm-takt"><summary>Daniels Takt &amp; Wächter<span className="lm-klapp-still">Lead-Meldung, Erinnerung 15/60/120, Übersicht 18:30, Lagezimmer</span></summary>
+      {d.fehler && <Fehlermeldung text={d.fehler} erneut={d.neu} />}
+      {d.laedt && !s && <Geruest zeilen={3} />}
+      {s && (
+        <>
+          <div className="lm-karte-kopf">
+            <p className="lm-still">
+              Jeder neue Business-Lead geht als kurze Lead-Meldung an <b>{s.meldung?.an ?? "—"}</b>
+              {s.meldung ? (s.meldung.quelle === "einstellung" ? " (eingetragen)" : ` (Vorgabe${s.meldung.karte ? `: Visitenkarte ${s.meldung.karte}` : ""})`) : ""} — nie an eine
+              private Adresse; ändern unter Chefbüro › Rückholung › FIAON Global. Reagiert niemand, erinnert das System {s.meldung?.fuer?.split(" ")[0] ?? "die zuständige Person"} nach{" "}
+              {s.vorgaben.erinnerungMin} Minuten (Dienstzeit Mo–Fr {s.vorgaben.dienst}), schreibt dir nach {s.vorgaben.justinMin} Minuten eine Zeile im Faden des Leads und gibt
+              der Vertretung den Rückruf; nach {s.vorgaben.zusageMin} Minuten ohne eingetragenen Anruf schlägt der Zusage-Wächter an. Um 18:30 kommt die Übersicht.
+              {s.einstellungen.ab ? ` Zählbeginn: ${zeit(s.einstellungen.ab)} — ältere Leads bekommen keine Meldung.` : ""}
+            </p>
+          </div>
+          {schalter("meldung", s.einstellungen.meldungT1An !== false, "Lead-Meldung an Daniel (Vorgabe an)")}
+          {schalter("takt", s.einstellungen.taktAn, "Erinnerungen 15/60/120 Minuten (Vorgabe an)")}
+          {schalter("uebersicht", s.einstellungen.uebersichtAn, "Übersicht um 18:30 an dich und das Team (werktags)")}
+          <p className="lm-ergebnis">
+            7 Tage: <b>{s.zahlen.t1 ?? 0}</b> Lead-Meldungen · <b>{s.zahlen.e15 ?? 0}</b> Erinnerungen nach 15 Min. · <b>{s.zahlen.e60 ?? 0}</b> an dich nach 60 Min. ·{" "}
+            {s.zahlen.e120 ?? 0} Zusage-Wächter · {s.zahlen.vertretung ?? 0} Rückrufe an die Vertretung{(s.zahlen.t1_fehler ?? 0) > 0 ? ` · ${s.zahlen.t1_fehler} Meldung(en) gescheitert` : ""}
+            {s.einstellungen.uebersichtTag ? ` · letzte Übersicht: ${s.einstellungen.uebersichtTag.split("#")[0].split("-").reverse().join(".")}` : ""}
+          </p>
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-takt-tag">Übersicht vom</label>
+            <input id="lm-takt-tag" className="lm-feld" type="date" value={tag} onChange={(e) => setTag(e.target.value)} />
+            <button className="lm-knopf" onClick={() => uebersicht("justin")} disabled={!!busy}>{busy === "uebersicht-justin" ? "Baut …" : "Vorschau (an dich)"}</button>
+            <button className="lm-knopf" onClick={() => uebersicht("team")} disabled={!!busy}>{busy === "uebersicht-team" ? "Baut …" : "Vorschau (ans Team)"}</button>
+            <button className="lm-knopf" onClick={pruefversand} disabled={!!busy}>{busy === "pruef" ? "Sendet …" : "Heute als Prüfversand an mich"}</button>
+          </div>
+          <div className="lm-reihe">
+            <span className="lm-etikett">Lead-Wächter (Lagezimmer)</span>
+            <button className="lm-knopf" onClick={waechter} disabled={!!busy}>{busy === "waechter" ? "Prüft …" : "Jetzt prüfen"}</button>
+            {s.einstellungen.webhookStill && <span className="lm-chip" title="Bekannter Zustand — einmal gemeldet, nicht täglich. Der Nachhol-Lauf fängt jeden Lead nach spätestens 5 Minuten auf.">Meta-Webhook still seit {zeit(s.einstellungen.webhookStill)} (bekannt)</span>}
+          </div>
+          {s.alarme.length === 0 ? <p className="lm-leer">Kein Lead-Wächter hat angeschlagen.</p> : (
+            <ul className="lm-liste">
+              {s.alarme.map((a) => (
+                <li key={a.schluessel} className="lm-zeile">
+                  <div className="lm-zeile-kopf">
+                    <span className={`lm-chip${a.vorbeiAm ? " gruen" : a.stufe === "rot" ? " rot" : ""}`}>{a.vorbeiAm ? "vorbei" : a.stufe === "rot" ? "rot" : "gelb"}</span>
+                    <span className="lm-name">{a.titel}</span>
+                    <span className="lm-still">seit {zeit(a.seit)}</span>
+                  </div>
+                  {a.text && !a.vorbeiAm && <p className="lm-still lm-takt-text">{a.text}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {s.letzte.length > 0 && (
+            <ul className="lm-liste">
+              {s.letzte.map((z) => (
+                <li key={z.anfrageId} className="lm-zeile">
+                  <div className="lm-zeile-kopf">
+                    <span className="lm-name">{z.name}</span>
+                    <span className="lm-chip">Anfrage #{z.anfrageId}</span>
+                    {z.t1Status && <span className={`lm-chip${z.t1Status === "gesendet" ? " gruen" : z.t1Status === "fehler" ? " rot" : ""}`} title={z.t1Grund ?? ""}>{T1_STATUS[z.t1Status] ?? z.t1Status}</span>}
+                    {z.geoeffnetAm && <span className="lm-chip blau" title={`geöffnet ${zeit(z.geoeffnetAm)}`}>geöffnet{z.geoeffnetVon ? ` (${z.geoeffnetVon.split(" ")[0]})` : ""}</span>}
+                    {z.e15 && <span className="lm-chip">15 Min.</span>}
+                    {z.e60 && <span className="lm-chip rot">60 Min.</span>}
+                    {z.e120 && <span className="lm-chip rot">Zusage</span>}
+                    {z.vertretung && <span className="lm-chip">Rückruf: {z.vertretung.split(" ")[0]}</span>}
+                    <span className="lm-still">{zeit(z.eingangAm)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-takt-ab">Altbestand ab</label>
+            <input id="lm-takt-ab" className="lm-feld" type="date" value={ab} onChange={(e) => setAb(e.target.value)} />
+            <button className="lm-knopf" onClick={ableitungVorschau} disabled={!!busy}>{busy === "ableitung" ? "Prüft …" : "Stand ableiten (Vorschau)"}</button>
+            {ableitung && ableitung.zeilen.length > 0 && (
+              <button className="lm-knopf" onClick={ableitungAnwenden} disabled={!!busy}>{busy === "anwenden" ? "Schreibt …" : "Anwenden (nur mit Justins Go)"}</button>
+            )}
+          </div>
+          {ableitung && (ableitung.zeilen.length === 0 ? <p className="lm-leer">{ableitung.geprueft} Anfragen geprüft — der Stand stimmt überall.</p> : (
+            <ul className="lm-liste">
+              {ableitung.zeilen.map((z) => (
+                <li key={z.anfrageId} className="lm-zeile">
+                  <div className="lm-zeile-kopf">
+                    <span className="lm-name">{z.anzeige}</span>
+                    <span className="lm-chip">Anfrage #{z.anfrageId}</span>
+                    {z.vorher !== z.nachher && <span className="lm-chip blau">{z.vorher} → {z.nachher}</span>}
+                    {z.auftragSchliessen && <span className="lm-chip gruen">Auftrag schließen</span>}
+                    {z.firma && <span className="lm-chip rot" title={z.firma.grund}>Cockpit {z.firma.vorher} → {z.firma.nachher}</span>}
+                  </div>
+                  <p className="lm-still lm-takt-text">{z.warum}</p>
+                </li>
+              ))}
+            </ul>
+          ))}
         </>
       )}
     </details>

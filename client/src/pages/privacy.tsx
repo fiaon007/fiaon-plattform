@@ -58,6 +58,11 @@
 // ANWALT: ob das Lesen von document.referrer durch das Skript unter § 25 Abs. 1 TDDDG fällt (strenge Lesart
 // EDSA-Leitlinien 2/2023) — Fensterbreite und Sprache liest das Skript bewusst NICHT, sie kommen aus den Kopfzeilen.
 //
+// 05.11.2026 (E-476, Entscheidung 4A, Justins Wortlaut mit seinem Go): VII a Nr. 6 neu — der Hintergrund-Check vor dem
+// Erstgespräch (öffentliche Angaben zum Unternehmen und zur geschäftlichen Rolle, Websuche über OpenAI), deutsch und in
+// britischem Englisch aus shared/fiaon-lead-weg.ts. Dazu VII c: kein ARAS-Erinnerungsanruf mehr vor Global-Gesprächen
+// (Scheibe 3, „kein ARAS für Leads“) — die Erinnerung kommt per Mail. ANWALT: prüft beides nachträglich.
+//
 // 22.10.2026 (E-408, Justin „mach alles fertig und go“): VII c neu — Telefonate, ARAS (KI) und Gesprächsaufzeichnung. Die Seite
 // nannte Telefonate gar nicht. Beschrieben ist, was der Code tut: Vertragskunden zu ihrem Vertrag; alle anderen nur mit
 // dokumentierter Einwilligung (fiaon_telefon_einwilligung, § 7a UWG: Nachweis fünf Jahre); KI-Hinweis zu Beginn; Twilio + OpenAI
@@ -69,6 +74,7 @@ import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import { ANTRAG_NEU_ANRUF_TEXT } from "@shared/fiaon-antrag-neu";
+import { LEAD_HINTERGRUND_DATENSCHUTZ } from "@shared/fiaon-lead-weg";
 
 // VII c Nr. 4: Aufnahmen und Abschriften von ARAS-Gesprächen — 90 Tage, umgesetzt vom täglichen Lauf aras_aufbewahrung
 // (server/lib/fiaon-aras-aufbewahrung.ts: Twilio-Aufnahme löschen, dann Abschriften leeren; offener Streitfall/Beschwerde → behalten).
@@ -510,6 +516,15 @@ export default function PrivacyPage() {
                     <h3 className="font-semibold mb-2">5. Dauer der Speicherung</h3>
                     <p className="text-sm">Auftrag, Rechnung, Zahlungsdaten und die dazugehörige Korrespondenz bewahren wir nach den handels- und steuerrechtlichen Fristen auf. Unterlagen im Dokumentenraum bewahren wir für die Dauer des Auftrags auf; danach gelten dieselben Fristen, soweit die Unterlagen zu den Geschäftsunterlagen gehören. Unterlagen, für die keine Aufbewahrungspflicht besteht, löschen wir auf Ihren Wunsch — eine Nachricht an support@fiaon.com genügt.</p>
                   </div>
+                  {/* E-476 (05.11.2026, Entscheidung 4A, Justins Wortlaut mit seinem Go — der Anwalt prüft nachträglich): der
+                      Hintergrund-Check zur Vorbereitung des Erstgesprächs (server/lib/fiaon-lead-hintergrund.ts). Der Satz steht
+                      an EINER Stelle (shared/fiaon-lead-weg.ts), deutsch und in britischem Englisch.
+                      LEGAL REVIEW REQUIRED: Rechtsgrundlage (Art. 6 Abs. 1 lit. f DSGVO), Drittlandübermittlung OpenAI. */}
+                  <div id="gespraech-vorbereitung">
+                    <h3 className="font-semibold mb-2">6. Vorbereitung Ihres Gesprächs</h3>
+                    <p className="text-sm">{LEAD_HINTERGRUND_DATENSCHUTZ.de}</p>
+                    <p className="text-sm mt-2" lang="en-GB"><span className="font-semibold">Preparing your call (English):</span> {LEAD_HINTERGRUND_DATENSCHUTZ.en}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -554,8 +569,10 @@ export default function PrivacyPage() {
                 <div className="space-y-4 text-gray-700">
                   <div>
                     <h3 className="font-semibold mb-2">1. Wer anruft und warum</h3>
-                    {/* E-458 (29.10.2026): der Erinnerungsanruf vor gebuchten Global-Gesprächen — Hinweis im Buchungsformular statt Kästchen (Justin). */}
-                    <p className="text-sm">Kunden mit Vertrag rufen wir zu ihrem Vertrag an: zur Begrüßung nach dem unterschriebenen Antrag, zu offenen oder zugesagten Raten, zu Rückrufen, die Sie selbst gebucht haben, und zu Anliegen aus Ihrer Akte. Buchen Sie ein Gespräch mit FIAON Global, rufen wir Sie kurz vorher an, um den Termin zu bestätigen — auch durch ARAS; darauf weist das Buchungsformular hin (Grundlage ist Ihre Buchung, Art. 6 Abs. 1 lit. b DSGVO). Alle anderen — etwa Interessenten oder Antragsteller ohne Vertrag — rufen wir nur an, wenn sie vorher ausdrücklich eingewilligt haben, zum Beispiel mit dem Kästchen im Antrag, mit „JA“ in einer WhatsApp-Nachricht oder im Gespräch mit unserem Team. Neben unserem Team ruft auch ARAS an, die digitale Mitarbeiterin von FIAON — eine künstliche Intelligenz. ARAS sagt das zu Beginn jedes Gesprächs. Rechtsgrundlage ist bei Kunden Art. 6 Abs. 1 lit. b DSGVO (Vertrag), bei Anrufen auf Grund Ihrer Einwilligung Art. 6 Abs. 1 lit. a DSGVO und § 7 Abs. 2 Nr. 1 UWG.</p>
+                    {/* E-458 (29.10.2026): der Erinnerungsanruf vor gebuchten Global-Gesprächen — Hinweis im Buchungsformular statt Kästchen (Justin).
+                        E-476 Scheibe 3 (05.11.2026, Logbuch 03.11. 18:30 „kein ARAS für Leads“): der Erinnerungsanruf ist abgeschaltet,
+                        der Hinweis im Formular weg — die Erinnerung kommt per Mail. Der Satz sagt jetzt, was der Code tut. */}
+                    <p className="text-sm">Kunden mit Vertrag rufen wir zu ihrem Vertrag an: zur Begrüßung nach dem unterschriebenen Antrag, zu offenen oder zugesagten Raten, zu Rückrufen, die Sie selbst gebucht haben, und zu Anliegen aus Ihrer Akte. Buchen Sie ein Gespräch mit FIAON Global, erinnern wir Sie per E-Mail daran — am Vortag und eine Stunde vorher (Grundlage ist Ihre Buchung, Art. 6 Abs. 1 lit. b DSGVO); ARAS ruft dafür nicht an. Alle anderen — etwa Interessenten oder Antragsteller ohne Vertrag — rufen wir nur an, wenn sie vorher ausdrücklich eingewilligt haben, zum Beispiel mit dem Kästchen im Antrag, mit „JA“ in einer WhatsApp-Nachricht oder im Gespräch mit unserem Team. Neben unserem Team ruft auch ARAS an, die digitale Mitarbeiterin von FIAON — eine künstliche Intelligenz. ARAS sagt das zu Beginn jedes Gesprächs. Rechtsgrundlage ist bei Kunden Art. 6 Abs. 1 lit. b DSGVO (Vertrag), bei Anrufen auf Grund Ihrer Einwilligung Art. 6 Abs. 1 lit. a DSGVO und § 7 Abs. 2 Nr. 1 UWG.</p>
                   </div>
                   <div>
                     <h3 className="font-semibold mb-2">2. Technik und Dienstleister</h3>
@@ -662,7 +679,7 @@ export default function PrivacyPage() {
               <div className="relative z-10">
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">X. Aktualität und Änderung dieser Datenschutzerklärung</h2>
                 <p className="text-gray-700 leading-relaxed">
-                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 22. Oktober 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
+                  Diese Datenschutzerklärung ist aktuell gültig und hat den Stand 5. November 2026. Durch die Weiterentwicklung unserer SaaS-Plattform, die Implementierung neuer KI-Features oder aufgrund geänderter gesetzlicher bzw. behördlicher Vorgaben kann es notwendig werden, diese Datenschutzerklärung zu ändern. Die jeweils aktuelle Datenschutzerklärung kann jederzeit auf unserer Website unter <a href="/privacy" className="text-blue-600 hover:text-blue-700 underline">fiaon.com/privacy</a> von Ihnen abgerufen und ausgedruckt werden.
                 </p>
               </div>
             </div>

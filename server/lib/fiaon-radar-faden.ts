@@ -284,6 +284,9 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
         FROM fiaon_radar_firmen WHERE (postfach = ${postfach} AND versendet_am IS NOT NULL) OR (${briefPostfach} AND brief_versendet_am IS NOT NULL)`) as any[];
     if (!firmen.length) continue;
     const faeden = new Map<string, number>(firmen.filter((x) => x.faden).map((x) => [String(x.faden), Number(x.id)]));
+    // E-476 Scheibe 4 (05.11.2026): Die Fäden von Justins Lead-Mails (Willkommen/Nachfass an Business-Leads) gehören dem
+    // Lead-Weg (fiaon-global-lead-post.ts) — der Radar liest sie nie, auch wenn die Domäne zufällig eine Radar-Domäne ist.
+    const leadFaeden = new Set(((await sqlPool`SELECT gmail_faden FROM fiaon_lead_weg WHERE gmail_faden IS NOT NULL`.catch(() => [])) as any[]).map((r) => String(r.gmail_faden)));
     const ersteMails = new Set<string>(firmen.filter((x) => x.gmail_nachricht_id).map((x) => String(x.gmail_nachricht_id)));
     const domaenen = new Map<string, number>();
     for (const x of firmen) { domaenen.set(String(x.domain), Number(x.id)); if (x.email) domaenen.set(String(x.email).split("@")[1], Number(x.id)); }
@@ -314,7 +317,7 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
         const liste: { nachrichten: { id: string; threadId: string }[]; nextPageToken: string | null } =
           await nachrichtenMitFaden(postfach, abfrage.q, 200, token);
         token = liste.nextPageToken; seiten++;
-        const kandidaten = liste.nachrichten.filter((m) => !gesehen.has(m.id) && (abfrage.art === "domaene" || faeden.has(m.threadId)));
+        const kandidaten = liste.nachrichten.filter((m) => !gesehen.has(m.id) && !leadFaeden.has(m.threadId) && (abfrage.art === "domaene" || faeden.has(m.threadId)));
         for (const m of kandidaten) gesehen.add(m.id);
         const ids = kandidaten.map((m) => m.id);
         const bekannt = new Set(((ids.length ? await sqlPool`SELECT gmail_id FROM fiaon_radar_post WHERE gmail_id = ANY(${ids})` : []) as any[]).map((r) => String(r.gmail_id)));

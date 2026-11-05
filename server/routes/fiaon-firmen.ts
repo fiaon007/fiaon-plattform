@@ -48,7 +48,7 @@
 import { Router, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
-import { gmailBereit, mailNeuSenden } from "../lib/fiaon-gmail";
+import { gmailBereit } from "../lib/fiaon-gmail";
 import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalInfoMail, globalVorbereitungSystem } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
@@ -153,6 +153,11 @@ export async function globalLeadAufnehmen(ein: {
   ereignis: GlobalLeadEreignis;
   /** Die Zeile für den Verlauf — was gebucht oder gewünscht wurde. */
   verlauf: string;
+  /**
+   * E-476 Scheibe 3: Die Firma ist schon bekannt (persönlicher Link, Zuordnung zur Anfrage, Cockpit-Knopf) — dann diese,
+   * auch wenn der Lead beim Buchen eine andere Mail oder einen anderen Firmennamen tippt (sonst entstünde eine zweite Firma).
+   */
+  firmaId?: number | null;
 }): Promise<{ firmaId: number; neu: boolean }> {
   await ensureFirmen();
   const firma = ein.firma.trim().slice(0, 200);
@@ -163,8 +168,9 @@ export async function globalLeadAufnehmen(ein: {
   // zuständige Person zuerst. Das Ausführliche steht im Verlauf.
   const notizZeile = `FIAON Global (${heute.split("-").reverse().join(".")}): ${ein.verlauf}`.slice(0, 600);
 
-  // Dubletten vermeiden: erst die Person, dann die E-Mail, dann der Firmenname.
-  const [da] = (await sqlPool`
+  // Dubletten vermeiden: erst die bekannte Firma (E-476), dann die Person, dann die E-Mail, dann der Firmenname.
+  const [bekannt] = ein.firmaId ? ((await sqlPool`SELECT id FROM fiaon_firmen_leads WHERE id = ${ein.firmaId}`) as any[]) : [];
+  const [da] = bekannt ? [bekannt] : (await sqlPool`
     SELECT id FROM fiaon_firmen_leads
     WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
        OR (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email})
@@ -257,6 +263,30 @@ export async function globalLeadFortschreiben(ein: {
             ${ein.ereignis}, ${ein.verlauf.slice(0, 2000)})
   `;
   return { firmaId };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-476 Scheibe 5 (05.11.2026): EIN STAND JE LEAD
+//
+// VORHER (04.11.): Anfragen auf „neu“, Aufträge auf „offen“, eine Firma auf „termin“ ohne Termin — drei Wahrheiten.
+// NACHHER: Der Stand steht im Firmen-Cockpit. Nach jedem Ereignis — Anruf-Ergebnis, Buchung, Cockpit-Knopf,
+// Gesprächsergebnis, Absage — zieht globalLeadStandSetzen die Anfrage nach (abgeleitet aus Cockpit, Kalender und
+// Anrufen: „termin“ nur mit Termin), und der Anruf-Auftrag schließt sich (erreicht, Termin, Abschluss), bleibt offen
+// (nicht erreicht: Fälligkeit = Wiedervorlage) oder geht wieder auf (abgesagt, Justin hat ihn nicht erreicht).
+// Die Regeln: shared/fiaon-lead-takt.ts, die Arbeit: server/lib/fiaon-lead-takt.ts. Nur für Business-Leads (eine offene
+// Global-Anfrage) — Kaltakquise-Listen bleiben, wie sie sind (Gutachten 0, Mangel 9). Wirft nie.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function globalLeadStandSetzen(ein: {
+  firmaId?: number | null; anfrageId?: number | null; ereignis: import("@shared/fiaon-lead-takt").LeadStandEreignis;
+  wer?: { id: number | null; name: string } | null; wiedervorlage?: string | null;
+}): Promise<{ anfrageId: number | null; anfrageStatus: string | null; auftrag: string | null }> {
+  try {
+    const { leadStandSetzen } = await import("../lib/fiaon-lead-takt");
+    return await leadStandSetzen(ein);
+  } catch (e) {
+    console.error("[FIRMEN] Stand:", String(e).slice(0, 160));
+    return { anfrageId: null, anfrageStatus: null, auftrag: null };
+  }
 }
 
 const HEUTE_BERLIN = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
@@ -365,9 +395,26 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
     const id = Number(req.params.id);
     const ergebnis = String(req.body?.ergebnis || "");
     if (!ERGEBNISSE.has(ergebnis)) return res.status(400).json({ ok: false, error: "Unbekanntes Ergebnis" });
-    const notiz = String(req.body?.notiz || "").slice(0, 2000) || null;
+    let notiz = String(req.body?.notiz || "").slice(0, 2000) || null;
     const [firma] = (await sqlPool`SELECT * FROM fiaon_firmen_leads WHERE id = ${id}`) as any[];
     if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
+
+    // ── E-476 Scheibe 5: Business-Lead? Dann Pflicht-Notiz bei „erreicht“ und „Termin“ nur mit Termin ───────────────
+    // Nur für Firmen mit offener Global-Anfrage oder Quelle „global“ (Gutachten 0, Mangel 9) — Kaltakquise wie bisher.
+    const takt = await import("../lib/fiaon-lead-takt");
+    await takt.leadTaktBereit();
+    const lead = await takt.istBusinessLead(firma).catch(() => ({ lead: false, anfrageId: null }));
+    let erzaehlt: string | null = null;
+    if (lead.lead) {
+      const { anrufNotizPruefen, TERMIN_OHNE_KALENDER } = await import("@shared/fiaon-lead-takt");
+      const p = anrufNotizPruefen({ ergebnis, istLead: true, text: req.body?.notiz, felder: req.body?.felder, einschaetzung: req.body?.einschaetzung });
+      if (!p.ok) return res.status(400).json({ ok: false, error: p.error, feld: p.feld });
+      if (ergebnis === "erreicht_termin" && !(await takt.terminGebuchtFuerFirma(id))) {
+        return res.status(400).json({ ok: false, error: TERMIN_OHNE_KALENDER, feld: "termin", ohneTermin: true });
+      }
+      notiz = p.text;
+      erzaehlt = p.erzaehlt;
+    }
 
     // Wiedervorlage: Termin/Interesse → morgen; nicht erreicht → +2 Tage
     // (Staffel per Anrufzahl wäre die nächste Scheibe); Mailbox → +1.
@@ -403,7 +450,18 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
       VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', ${ergebnis}, ${notiz})
     `;
-    res.json({ ok: true, status });
+    // E-476 Scheibe 5: Was er selbst erzählt hat, steht in „Termin steht“ und in der Anruf-Karte an Justin — und der EINE
+    // Stand zieht nach (Anfrage, Anruf-Auftrag, Rückruf der Vertretung).
+    let stand: { anfrageStatus: string | null; auftrag: string | null } | null = null;
+    if (lead.lead) {
+      if (erzaehlt) {
+        const { erzaehltVermerken } = await import("../lib/fiaon-lead-weg");
+        await erzaehltVermerken(id, erzaehlt, { id: req.agent!.id, name: req.agent!.name });
+      }
+      const wvTag = wv === "+1" ? berlinPlusTage(1) : wv === "+2" ? berlinPlusTage(2) : wv && /^\d{4}-\d{2}-\d{2}$/.test(wv) ? wv : null;
+      stand = await globalLeadStandSetzen({ firmaId: id, anfrageId: lead.anfrageId, ereignis: `anruf:${ergebnis}` as any, wer: { id: req.agent!.id, name: req.agent!.name }, wiedervorlage: wvTag });
+    }
+    res.json({ ok: true, status, lead: lead.lead, stand });
   } catch (err) {
     console.error("[FIRMEN] anruf:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -431,19 +489,62 @@ router.post("/agent/firmen/:id/mail", requireAgent, async (req: AgentRequest, re
     `) as any[];
     if (schon) return res.status(409).json({ ok: false, error: "Diese Firma hat in den letzten 7 Tagen schon eine Info-Mail bekommen." });
 
+    // ── E-476 Scheibe 4 (05.11.2026): die Regeln für Business-Leads und die Fassung nach dem letzten Anruf ──────────
+    // Ein Global-Lead (offene Anfrage): nie bei einem Termin (die Bestätigung hat er), nach „nicht erreicht“ übernimmt
+    // Justins Nachfass (N1), das Mail-Budget gilt; vor Justins Gespräch ohne Preisliste, mit seinem persönlichen Link.
+    // Kaltakquise ohne Anfrage: wie bisher, nur ohne Institut-Satz und mit dem Einstieg passend zum Anruf.
+    const [letzter] = (await sqlPool`
+      SELECT ergebnis FROM fiaon_firmen_log WHERE firma_id = ${id} AND art = 'anruf' ORDER BY created_at DESC LIMIT 1`) as any[];
+    const lp = await import("../lib/fiaon-global-lead-post");
+    const urteil = await lp.infoMailUrteil({ email: firma.email ?? null, telefon: firma.telefon ?? null }, letzter?.ergebnis ? String(letzter.ergebnis) : null);
+    if (urteil.sperre) return res.status(409).json({ ok: false, error: urteil.sperre });
+    const gespraechMit = urteil.lead
+      ? (await (await import("../lib/fiaon-lead-weg")).globalKalenderPerson().catch(() => null))?.person?.name || "Justin Schwarzott"
+      : "";
+
     // E-188: Der Text steht in shared/fiaon-global-vertrieb.ts — dieselben
     // Sätze wie auf /business, Preise aus dem Katalog, durch die Wortwand geprüft.
+    const istLeadFassung = urteil.lead && !!urteil.link;
     const { betreff, text } = globalInfoMail({
       ansprechpartner: firma.ansprechpartner, firma: String(firma.firma), agentName: req.agent!.name,
+      art: urteil.art, lead: istLeadFassung ? { link: urteil.link!, gespraechMit } : null,
     });
+    // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 5): die Lead-Fassung geht nie mit einem Bank-Satz hinaus (E-468) —
+    // die Wand prüft den fertigen Text; ein Fund ist ein Fehler im Code, kein Versand.
+    if (istLeadFassung) {
+      const { radarBankVorbehalt } = await import("@shared/fiaon-radar");
+      const bank = radarBankVorbehalt(text);
+      if (bank) return res.status(409).json({ ok: false, error: `Die Info-Mail enthält einen Bank-Satz („${bank.slice(0, 80)}“) — sie geht so nicht hinaus. Bitte melden.` });
+    }
 
-    await mailNeuSenden("welcome@fiaon.com", String(firma.email).trim(), betreff, text);
+    // E-476 Scheibe 4 (Entscheidung 2A): im Business-Rahmen — Absendername „FIAON Global“. Nachbesserung (Gutachten Betreiber,
+    // Mangel 11): Antworten an Justin (js@) nur bei einem Business-Lead (dort liest sie der Antwort-Leser); bei Kaltakquise an
+    // die Firmenadresse der sendenden Person (Visitenkarte), sonst welcome@ wie bisher.
+    const an = String(firma.email).trim();
+    const { visitenkarteFuerAgent } = await import("@shared/fiaon-visitenkarte");
+    const karte = visitenkarteFuerAgent(req.agent!.id);
+    const antwortAn = urteil.lead ? { email: "js@fiaon.com", name: "Justin Schwarzott" }
+      : karte?.email && /^[a-z0-9._%+-]+@fiaon\.com$/i.test(karte.email) ? { email: karte.email.toLowerCase(), name: karte.name }
+        : { email: "welcome@fiaon.com", name: "FIAON Global" };
+    // Nachbesserung (Gutachten Sicherheit, Mangel 4): jedes Zeichen unschädlich (auch „"“), klickbar nur fiaon.com-Adressen.
+    const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const html = `<div dir="ltr">${text.split("\n").map((z) => `<div>${esc(z)
+      .replace(/(https:\/\/(?:www\.)?fiaon\.com(?:\/[^\s<&]*)?)/g, (u) => `<a href="${u}">${u}</a>`) || "<br>"}</div>`).join("")}</div>`;
+    const { neueMailSendenMitFaden } = await import("../lib/fiaon-gmail");
+    await neueMailSendenMitFaden("welcome@fiaon.com", { vonName: "FIAON Global", an, betreff, text, html, antwortAn });
     await sqlPool`
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, notiz)
-      VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'mail', 'Info-Mail nach Gespräch (welcome@) versendet')
+      VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'mail',
+              ${`Info-Mail ${urteil.art === "erreicht" ? "nach dem Gespräch" : urteil.art === "nicht_erreicht" ? "nach „nicht erreicht“" : ""} (FIAON Global, Antworten an ${urteil.lead ? "Justin" : antwortAn.email})${urteil.lead ? " — ohne Preisliste, mit seinem Terminlink" : ""} versendet`})
     `;
     await sqlPool`UPDATE fiaon_firmen_leads SET updated_at = NOW(), zustaendig_agent_id = COALESCE(zustaendig_agent_id, ${req.agent!.id}) WHERE id = ${id}`;
-    res.json({ ok: true });
+    // Im Versandprotokoll (Budget, Frequenzbremse) — und beim Global-Lead endet Justins Nachfass (eine Stimme, kein Doppel).
+    if (urteil.anfrageId) await lp.infoMailVermerken(urteil.anfrageId, an, betreff).catch(() => {});
+    else {
+      const { mailProtokoll } = await import("../lib/fiaon-mail-log");
+      await mailProtokoll({ event: "global_info", empfaenger: an, status: "versandt", ausgeloestVon: req.agent!.name, ausgeloestAgentId: req.agent!.id, payload: { versandweg: "google", postfach: "welcome@fiaon.com", firma_id: id } });
+    }
+    res.json({ ok: true, lead: urteil.lead });
   } catch (err: any) {
     console.error("[FIRMEN] mail:", err);
     res.status(502).json({ ok: false, error: String(err?.message || err).slice(0, 200) });
@@ -470,7 +571,7 @@ router.get("/agent/firmen/zu-person/:personId", requireAgent, async (req: AgentR
       FROM fiaon_firmen_log WHERE firma_id = ${firma.id}
       ORDER BY created_at DESC LIMIT 40
     `) as any[];
-    res.json({ ok: true, firma, verlauf });
+    res.json({ ok: true, firma, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
   } catch (err) {
     console.error("[FIRMEN] zu-person:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -488,10 +589,112 @@ router.get("/agent/firmen/:id", requireAgent, async (req: AgentRequest, res: Res
       FROM fiaon_firmen_log WHERE firma_id = ${firma.id}
       ORDER BY created_at DESC LIMIT 40
     `) as any[];
-    res.json({ ok: true, firma, verlauf });
+    res.json({ ok: true, firma, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
   } catch (err) {
     console.error("[FIRMEN] detail:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+/**
+ * E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (null = Kaltakquise) — und „geöffnet“ für Daniels Takt (zählt als
+ * Reaktion wie ein geöffneter Auftrag; nicht Justin, nicht die Nur-Ansicht). Wirft nie.
+ */
+async function leadStandFuerKarte(firmaId: number, req: AgentRequest): Promise<unknown> {
+  try {
+    const takt = await import("../lib/fiaon-lead-takt");
+    await takt.leadTaktBereit();
+    void takt.geoeffnetMerken(firmaId, req.agent ? { id: req.agent.id, name: req.agent.name, ansicht: !!req.agent.ansicht } : null);
+    return await takt.leadStandAnsicht(firmaId);
+  } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): „TERMIN BEI JUSTIN EINTRAGEN“
+// Daniel ruft den Lead sofort an und trägt ihn im Gespräch bei Justin ein — mit einem Klick, in Justins freien Zeiten
+// (dieselben Regeln wie der Kalender auf fiaon.com: Lead-Deckel, Gesamtdeckel, Überschneidung). Pflicht ist, was der
+// Lead selbst erzählt hat (zwei, drei Sätze) und die Einschätzung heiß/warm/kalt — Justin liest es in „Termin steht“
+// und in der Anruf-Karte. Danach: Bestätigung an den Lead (FIAON-Global-Rahmen, Sie-Form), Daniels Auftrag zu, D2 an
+// Justin. Der persönliche Terminlink des Leads (falls er angefragt hat) steht zum Kopieren dabei (z. B. für WhatsApp).
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/agent/firmen/:id/justin-zeiten", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureFirmen();
+    res.setHeader("Cache-Control", "private, no-store");
+    const [firma] = (await sqlPool`SELECT id, email, telefon FROM fiaon_firmen_leads WHERE id = ${Number(req.params.id)}`) as any[];
+    if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
+    const { globalAngebotLaden } = await import("../lib/fiaon-global-termin");
+    const a = await globalAngebotLaden();
+    // ALLE freien Zeiten (nicht die gestreute Auswahl der Website) — Daniel nimmt die, die dem Lead passt.
+    const jeTag = new Map<string, string[]>();
+    for (const f of a.ergebnis.frei) { if (!jeTag.has(f.tag)) jeTag.set(f.tag, []); jeTag.get(f.tag)!.push(f.zeit); }
+    const lw = await import("../lib/fiaon-lead-weg");
+    const anfrage = await lw.offeneAnfrageFuer(firma.email, firma.telefon).catch(() => null);
+    const link = anfrage ? await lw.leadLinkFuerAnfrage(anfrage.anfrageId).catch(() => null) : null;
+    res.json({
+      ok: true,
+      person: a.person ? { id: a.person.id, vorname: a.person.vorname, name: a.person.name } : null,
+      modus: a.kalender?.modus ?? "alt",
+      tage: Array.from(jeTag.entries()).sort(([x], [y]) => x.localeCompare(y)).map(([tag, zeiten]) => ({ tag, zeiten, rest: a.ergebnis.restJeTag[tag] ?? 0 })),
+      grund: a.grund, anfrageId: anfrage?.anfrageId ?? null, link,
+    });
+  } catch (err) {
+    console.error("[FIRMEN] justin-zeiten:", err);
+    res.status(500).json({ ok: false, error: "Die freien Zeiten konnten nicht geladen werden." });
+  }
+});
+
+router.post("/agent/firmen/:id/justin-termin", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    await ensureFirmen();
+    const [firma] = (await sqlPool`SELECT * FROM fiaon_firmen_leads WHERE id = ${Number(req.params.id)}`) as any[];
+    if (!firma) return res.status(404).json({ ok: false, error: "Firma nicht gefunden" });
+    const b = req.body || {};
+    const { erzaehltPruefen } = await import("@shared/fiaon-lead-weg");
+    const pruef = erzaehltPruefen({ text: b.erzaehlt, felder: b.felder, einschaetzung: b.einschaetzung });
+    if (!pruef.ok) return res.status(400).json({ ok: false, error: pruef.error, feld: pruef.feld });
+    const tag = String(b.tag ?? "").trim();
+    const zeit = String(b.zeit ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || !/^\d{2}:\d{2}$/.test(zeit)) return res.status(400).json({ ok: false, error: "Bitte eine freie Zeit wählen.", feld: "zeit" });
+    // Mail und Nummer aus dem Cockpit — im Gespräch ergänzbar (eine Firma aus einer Liste hat oft keine Mail).
+    const { globalKontaktLesen, globalTerminBuchen } = await import("../lib/fiaon-global-termin");
+    const kontakt = globalKontaktLesen({
+      name: String(b.name ?? firma.ansprechpartner ?? "").trim() || String(firma.firma),
+      firma: String(firma.firma ?? ""),
+      email: String(b.email ?? firma.email ?? ""),
+      telefon: String(b.telefon ?? firma.telefon ?? ""),
+      land: firma.ort ?? null,
+    });
+    if ("error" in kontakt) {
+      const satz = kontakt.feld === "email" ? "Für die Bestätigung braucht es eine E-Mail-Adresse — bitte im Gespräch erfragen und eintragen."
+        : kontakt.feld === "telefon" ? "Bitte eine Telefonnummer eintragen — Justin ruft an." : "Bitte den Namen des Ansprechpartners eintragen.";
+      return res.status(400).json({ ok: false, error: satz, feld: kontakt.feld });
+    }
+    // Hat der Lead angefragt? Dann hängt der Termin an SEINER Anfrage (über seinen Link), egal welche Mail Daniel tippt.
+    const lw = await import("../lib/fiaon-lead-weg");
+    const anfrage = await lw.offeneAnfrageFuer(firma.email, firma.telefon).catch(() => null)
+      ?? await lw.offeneAnfrageFuer(kontakt.email, kontakt.telefon).catch(() => null);
+    const link = anfrage ? await lw.leadCodeSichern(anfrage.anfrageId, { firmaId: Number(firma.id) }).catch(() => null) : null;
+    const erg = await globalTerminBuchen({
+      kontakt, tag, zeit, thema: null, code: link?.code ?? null,
+      durch: { agentId: req.agent!.id, name: req.agent!.name, erzaehlt: pruef.text, einschaetzung: pruef.einschaetzung, firmaId: Number(firma.id) },
+    });
+    if (!erg.ok) return res.status(erg.status).json({ ok: false, error: erg.error, grund: erg.grund, feld: erg.feld });
+    await sqlPool`
+      INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+      VALUES (${Number(firma.id)}, ${req.agent!.id}, ${req.agent!.name}, 'global', 'termin_eingetragen',
+              ${`Termin bei ${erg.ansprechpartner.vorname} eingetragen: ${erg.datumText} um ${erg.uhrzeit} Uhr.`})`.catch(() => {});
+    // E-476 Nachbesserung (Gutachten Betreiber, Mangel 4): Wer im Gespräch einträgt, HAT angerufen und erreicht — das zählt als
+    // Anruf „erreicht — Termin vereinbart“ (Tempo-Zahl, Übersicht, Stand-Leiste), ohne zweiten Klick und ohne zweite Notiz.
+    // „Was er selbst erzählt hat“ steht schon einmal (globalTerminBuchen) — hier nicht noch einmal.
+    await sqlPool`
+      INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+      VALUES (${Number(firma.id)}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', 'erreicht_termin', ${pruef.text.slice(0, 2000)})`.catch(() => {});
+    await sqlPool`UPDATE fiaon_firmen_leads SET status = 'termin', letzter_kontakt = NOW(), updated_at = NOW() WHERE id = ${Number(firma.id)}`.catch(() => {});
+    res.json({ ok: true, terminId: erg.terminId, datumText: erg.datumText, uhrzeit: erg.uhrzeit, bei: erg.ansprechpartner.vorname, anrufEingetragen: true });
+  } catch (err) {
+    console.error("[FIRMEN] justin-termin:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler — der Termin ist NICHT eingetragen. Bitte noch einmal versuchen." });
   }
 });
 

@@ -520,11 +520,16 @@ const VORLAGE = {
 } as const;
 const WILLKOMMEN_MAX_TAG = 40;
 
-/** Hat das Meta-Formular dieser Anfrage den WhatsApp-Satz (Fassung mit „WhatsApp“ im Namen)? */
+/**
+ * Hat das Meta-Formular dieser Anfrage den WhatsApp-Satz? Das sind die Formular-Fassung 2 (E-476 Danke-Knopf + E-481
+ * WhatsApp-Satz, Namen aus META_FASSUNG2_NAMEN) und jede spätere Fassung mit „WhatsApp“ im Namen.
+ */
 async function formularMitWhatsapp(anfrageId: number, lauf: Lauf): Promise<boolean> {
+  const { META_FASSUNG2_NAMEN } = await import("@shared/fiaon-lead-weg");
+  const namen = Object.values(META_FASSUNG2_NAMEN) as string[];
   const [f] = (await lauf`
     SELECT 1 AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare f ON f.id = m.formular_id
-     WHERE m.global_anfrage_id = ${anfrageId} AND f.name ILIKE '%WhatsApp%' LIMIT 1`.catch(() => [])) as any[];
+     WHERE m.global_anfrage_id = ${anfrageId} AND (f.name ILIKE '%WhatsApp%' OR f.name = ANY(${namen})) LIMIT 1`.catch(() => [])) as any[];
   return !!f;
 }
 

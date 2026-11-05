@@ -33,8 +33,24 @@ import { visitenkarteFuerAgent } from "@shared/fiaon-visitenkarte";
 // E-476 Scheibe 3: der persönliche Link — der Code kommt im Cookie (nie in der Adresse der Seite).
 import { LEAD_CODE_COOKIE, LEAD_GB_COOKIE, LEAD_COOKIE_PFAD, LEAD_WEG_VORGABE, leadCodeForm, metaLeadKennung } from "@shared/fiaon-lead-weg";
 import { aufrufClientIp } from "../lib/fiaon-global-angebot-aufrufe";
+// E-481 (Mara Business): der WhatsApp-Satz im Formular (Ja zu WhatsApp) und die Wahl des Gesprächswegs.
+import { globalWaHinweisGezeigt } from "@shared/fiaon-whatsapp-erlaubnis";
 
 const router = Router();
+
+/** E-481: Ja zu WhatsApp aus dem Formular merken (nur bei wortgleichem Satz). Wirft nie, wartet nicht. */
+function waJaMerken(b: any, telefon: string): void {
+  if (!globalWaHinweisGezeigt(b?.waHinweis)) return;
+  void import("../lib/fiaon-mara-business").then((mb) => mb.websiteOptinMerken(null, telefon)).catch(() => {});
+}
+/** E-481: der WhatsApp-Link zu Mara (mit Kennung des persönlichen Links, sonst mit „FIAON Global“) — null, wenn Mara Business aus ist. */
+async function waLinkFuer(req: Request, sprache: "de" | "en"): Promise<string | null> {
+  try {
+    const mb = await import("../lib/fiaon-mara-business");
+    if (!(await mb.mbAn())) return null;
+    return await mb.mbWaLink(codeAus(req), sprache);
+  } catch { return null; }
+}
 
 /** Das, was die Oberfläche vom Angebot wissen muss — an einer Stelle gebaut. */
 function angebotAntwort(a: GlobalAngebotStand) {
@@ -130,9 +146,11 @@ router.get("/termine/frei", async (req: Request, res: Response) => {
     if (a.rueckfall) console.log(`[GLOBAL-TERMIN] Rückfall auf die Anfrage: ${a.grund}${a.person ? ` (${a.person.name})` : ""}`);
     // Die Vorlage hängt nie am Kalender: eine Störung hier = die normale Fläche.
     const v = await vorlageFuer(req, res).catch((e) => { console.error("[GLOBAL-TERMIN] Vorlage:", String(e).slice(0, 160)); return { vorlage: null, folgt: false }; });
+    // E-481: die Wahl „lieber schriftlich“ — der WhatsApp-Link zu Mara (mit Kennung, wenn der persönliche Link mitkam).
+    const waLink = await waLinkFuer(req, String(req.query.sprache ?? "").toLowerCase().startsWith("en") ? "en" : "de");
     // Freie Zeiten sind flüchtig — kein Zwischenspeicher darf sie festhalten; die Vorlage gehört niemandem sonst.
     schutzKoepfe(res);
-    res.json({ ok: true, ...angebotAntwort(a), ...(v.vorlage ? { vorlage: v.vorlage, persoenlich: true } : {}), ...(v.folgt ? { vorlageFolgt: true } : {}) });
+    res.json({ ok: true, ...angebotAntwort(a), ...(v.vorlage ? { vorlage: v.vorlage, persoenlich: true } : {}), ...(v.folgt ? { vorlageFolgt: true } : {}), ...(waLink ? { waLink } : {}) });
   } catch (err) {
     console.error("[GLOBAL-TERMIN] frei:", err);
     res.status(500).json({ ok: false, error: GLOBAL_TEXTE.de.fehlerLaden });
@@ -165,6 +183,7 @@ router.post("/termine", async (req: Request, res: Response) => {
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema, code: codeAus(req) });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
+      waJaMerken(b, kontakt.telefon);
       // E-476 Scheibe 3 (Logbuch 03.11. 18:30, „kein ARAS für Leads“): Das Buchungsformular trägt keinen ARAS-Hinweis mehr,
       // und diese Tür speichert keinen Nachweis für einen Erinnerungsanruf. Schickt ein Browser mit altem Stand den Satz
       // noch mit, wird er übergangen — die Erinnerung kommt per Mail (Vortag, eine Stunde vorher).
@@ -232,6 +251,7 @@ router.post("/anfrage", async (req: Request, res: Response) => {
           firma: kontakt.firma, name: kontakt.name, telefon: kontakt.telefon, email: kontakt.email,
         });
         if (r.ok) {
+          waJaMerken(b, kontakt.telefon);
           res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
           return res.json({ ok: true, meldung: r.zustaendigName ? globalText(T.anfrageDanke, { name: r.zustaendigName }) : T.anfrageDankeOhneName });
         }
@@ -244,6 +264,7 @@ router.post("/anfrage", async (req: Request, res: Response) => {
       ip: ipVon(req),
     });
     void kampagneSpeichern("anfrage", erg.anfrageId, b.kampagne);
+    waJaMerken(b, kontakt.telefon);
     // Die Rückruf-Bitte zählt wie das Gespräch (Schedule) — so meldete es der Pixel schon immer.
     const messRef = `global-anfrage-${erg.anfrageId}`;
     gespraechMelden(req, messRef, kontakt);
@@ -261,6 +282,26 @@ router.post("/anfrage", async (req: Request, res: Response) => {
     letzteAnfrage.delete(kontakt.email);
     console.error("[GLOBAL-TERMIN] anfrage:", err);
     res.status(500).json({ ok: false, error: T.fehlerServer });
+  }
+});
+
+// ── POST /gespraechsweg ─────────────────────────────────────────────────────
+// E-481 (Mara Business, Justin: „der Kunde sich aussuchen kann, telefonische Beratung, Beratung via Mail … WhatsApp“): Auf der
+// Seite hinter dem persönlichen Link wählt er „Per E-Mail“ oder tippt „Auf WhatsApp mit Mara“. Nur mit seinem Code (Cookie) —
+// ohne Link weiß niemand, wer er ist. E-Mail: Justin schreibt ihm aus js@ (Mail an Justin), Daniels Anruf-Auftrag schließt sich.
+router.post("/gespraechsweg", async (req: Request, res: Response) => {
+  try {
+    const weg = String(req.body?.weg ?? "");
+    if (weg !== "mail" && weg !== "whatsapp") return res.status(400).json({ ok: false });
+    const code = codeAus(req);
+    if (!code) return res.json({ ok: false, grund: "ohne_link" });
+    const { wegAusWebsite } = await import("../lib/fiaon-mara-business");
+    const erg = await wegAusWebsite(code, weg);
+    schutzKoepfe(res);
+    res.json({ ok: erg.ok, ...(weg === "mail" && erg.email ? { email: erg.email } : {}) });
+  } catch (err) {
+    console.error("[GLOBAL-TERMIN] gespraechsweg:", err);
+    res.status(500).json({ ok: false });
   }
 });
 

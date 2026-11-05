@@ -152,7 +152,10 @@ export type LeadStandEreignis =
   | "termin_gebucht" | "termin_abgesagt" | "gespraech_gefuehrt" | "gespraech_nicht_zustande" | "gespraech_kein_interesse"
   | "selbst" | "ableitung"
   // Nachbesserung E-476 (Gutachten Sicherheit, Mangel 6): eine schriftliche Absage („kein Interesse“) — der Auftrag schließt sich.
-  | "schriftlich_abgesagt";
+  | "schriftlich_abgesagt"
+  // E-481 (Mara Business): er wählt das Gespräch per E-Mail (Justin schreibt aus js@) oder auf WhatsApp (Mara) — der
+  // Wunsch des Kunden zählt, Daniels Anruf-Auftrag schließt sich mit Vermerk.
+  | "weg_mail" | "weg_whatsapp";
 
 /** Was mit dem Anruf-Auftrag („bitte anrufen“, global-anfrage:<id>, und dem Rückruf der Vertretung) passiert. */
 export type AuftragFolge = "schliessen" | "offen_lassen" | "wieder_oeffnen" | null;

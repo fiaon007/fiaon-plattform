@@ -2906,6 +2906,24 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       return { gesendet: false, grund: "STOPP bestätigt (liegt bereit)." };
     }
 
+    // ── E-481 (05.11.2026): MARA BUSINESS — EIN BUSINESS-LEAD BEKOMMT JUSTINS DIGITALE ASSISTENTIN ──────────────────
+    // Justin: „Mara komplett neu trainieren auf den Business Kontext … für das haben wir es ja (also WhatsApp)“. Bis heute
+    // bekam ein Business-Lead hier die Privat-Lage (Antrag, Kreditkarte). Nach den allgemeinen Wachen (Global-Kunde E-272,
+    // Schweigen, Übernahme, Fenster, STOPP) und vor allem Privaten: offene Global-Anfrage (60 Tage, nicht Privat-Weg) oder
+    // als Business gemerkt → shared/fiaon-mara-business.ts (Stimme, Wissen, Wand) und server/lib/fiaon-mara-business.ts.
+    // Zahlende Privatkunden bleiben bei der Privat-Mara (businessKontakt gibt dann null).
+    {
+      const mb = await import("./fiaon-mara-business");
+      const biz = await mb.businessKontakt(nummer, personId ? Number(personId) : null).catch(() => null);
+      if (biz) {
+        return await mb.maraBusinessAntwortet({
+          nummer, kontakt: biz, verlauf, offeneRein, neuesteRein,
+          vorbereiten: (n, antwort, aufId, frage, meta) => vorbereiten(n, antwort, aufId, frage, meta),
+          anJustinUebergeben: (grund) => aufgabeFuerMenschen(nummer, personId ?? null, leadId ?? null, grund, true, "global", { betreiber: true }),
+        });
+      }
+    }
+
     // ── E-408 (Scheibe 3, 22.10.2026): SEINE ANTWORT AUF DIE FRAGE NACH DEM JA ZUM ANRUF ───────────────────────────
     // Gespeichert (oder zurückgenommen, oder die Telefonsperre gesetzt) hat es schon der Eingang (waEingang →
     // jaAusWhatsApp, fiaon-ja-zum-anruf.ts). Feste Sätze ohne Modell — also auch in der KI-Pause:

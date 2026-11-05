@@ -162,6 +162,8 @@ const ZUORDNUNG: Readonly<Record<string, KasseBereich>> = {
   "radar-antwort": "menschen", "global-berater": "menschen", "lead-dossier": "menschen",
   "postmeister-antwort": "menschen", "postmeister-einordnen": "menschen", "postmeister-alt": "menschen",
   "mara-whatsapp": "menschen", "mara-anliegen": "menschen", "mara-nacharbeit": "menschen", "kontakt-chat": "menschen",
+  // E-481: Mara Business antwortet Business-Leads auf WhatsApp — ein Mensch hat uns geschrieben.
+  "mara-business": "menschen",
   "mara-aktion": "privat", "mara-auftrag": "privat",
 };
 

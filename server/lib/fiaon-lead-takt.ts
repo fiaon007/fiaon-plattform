@@ -767,6 +767,8 @@ const EREIGNIS_SATZ: Readonly<Record<string, string>> = {
   gespraech_nicht_zustande: "Gespräch kam nicht zustande", gespraech_kein_interesse: "kein Interesse (nach dem Gespräch)",
   selbst: "Justin ruft selbst an", ableitung: "Stand aus dem Cockpit übernommen",
   schriftlich_abgesagt: "schriftlich abgesagt (kein Interesse) — bitte nicht anrufen",
+  weg_mail: "wünscht das Gespräch per E-Mail (Justin schreibt aus js@) — bitte nicht anrufen",
+  weg_whatsapp: "spricht auf WhatsApp mit Mara — bitte nicht anrufen",
 };
 
 /**

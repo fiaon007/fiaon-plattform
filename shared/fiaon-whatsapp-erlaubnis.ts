@@ -258,3 +258,20 @@ export const WHATSAPP_MOEGLICH_SQL = (alias = "l") => `(
     OR regexp_replace(${alias}.telefon, '[^0-9]', '', 'g') ~ '^(41)?07[4-9]|^(41)7[4-9]'
   )
 )`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — DER WHATSAPP-SATZ IM GESPRÄCHS-FORMULAR (E-481, 05.11.2026)
+//
+// Justin: „alles an … vollautomatisiert“ (Entscheidung 2 A): Mara darf einen neuen Business-Lead einmal zuerst auf WhatsApp
+// anschreiben — dafür nennt das Formular FIAON und WhatsApp (Meta verlangt beides). Die Seite schickt genau diesen Satz mit;
+// der Server merkt das Ja nur, wenn er wortgleich ist (websiteOptinMerken). Widerruf: „STOPP“ (istStopp).
+// ═══════════════════════════════════════════════════════════════════════════
+export const GLOBAL_WA_HINWEIS = {
+  de: "Mit dem Absenden erlauben Sie der FIAON LTD, Sie zu Ihrer Anfrage auch per WhatsApp zu kontaktieren – jederzeit widerrufbar, z. B. mit „STOPP“.",
+  en: "By sending, you allow FIAON LTD to contact you about your enquiry on WhatsApp as well – you can withdraw this at any time, e.g. by replying “STOP”.",
+} as const;
+/** Hat die Seite genau den Satz gezeigt und mitgeschickt? Rein. */
+export function globalWaHinweisGezeigt(roh: unknown): boolean {
+  const t = String(roh ?? "").trim();
+  return t === GLOBAL_WA_HINWEIS.de || t === GLOBAL_WA_HINWEIS.en;
+}

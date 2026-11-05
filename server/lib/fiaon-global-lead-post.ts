@@ -556,7 +556,22 @@ export async function willkommenFuer(lage: LeadLage, link: { url: string; bis?: 
     paketName: lage.paketName, oesterreich: lage.oesterreich, bestandskunde: lage.bestandskunde,
     link: linkTeil(link), eingangAm: lage.echterEingang && lage.echterEingang < lage.eingangAm ? lage.echterEingang : lage.eingangAm,
     jetzt, ruf: await rufLageFuer(lage, jetzt), wunschzeit: lage.wunschzeit, kalenderLeer: !!opt.kalenderLeer,
+    whatsapp: await maraWhatsappLink(link.url, lage.sprache),
   });
+}
+
+/**
+ * E-481 (Mara Business): der WhatsApp-Link zu Mara mit der Kennung aus dem persönlichen Link — nur, wenn Mara Business an ist
+ * und eine Nummer hinterlegt ist. Eine Störung = keine Zeile (die Mail geht trotzdem).
+ */
+async function maraWhatsappLink(leadUrl: string, sprache: LeadSprache): Promise<{ url: string } | null> {
+  try {
+    const code = /\/g\/([A-Za-z0-9]{10})(?:[/?#]|$)/.exec(String(leadUrl ?? ""))?.[1] ?? null;
+    const mb = await import("./fiaon-mara-business");
+    if (!(await mb.mbAn())) return null;
+    const url = await mb.mbWaLink(code, sprache);
+    return url ? { url } : null;
+  } catch { return null; }
 }
 
 /** Zeigt der Kalender gerade freie Zeiten (Gutachten Lead-Sicht, Mangel 8)? Eine Störung = „ja“ (der bisherige Text). */

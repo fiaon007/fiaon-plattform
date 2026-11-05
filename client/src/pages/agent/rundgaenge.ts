@@ -2628,6 +2628,18 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "Leads von vorher bekommen nie eine automatische Mail (für sie gibt es Entwürfe in js@ per Skript). „Vorschau“ zeigt jede "
       + "Fassung (Meta, Website, Bestandskunde, Österreich, Englisch) oder die Mail zu einer echten Anfrage — ohne zu senden.",
   },
+  // E-481 (05.11.2026): Mara Business — Justins digitale Assistentin für Business-Leads auf WhatsApp.
+  {
+    ziel: ".lm-mara-business",
+    titel: "Auf WhatsApp antwortet Mara — Justins digitale Assistentin.",
+    text: "Jeder neue Business-Lead mit Ja zu WhatsApp bekommt einmal eine ruhige Begrüßung (8–20 Uhr, ohne Termin) und wählt selbst: "
+      + "Telefonat mit Justin, E-Mail oder hier auf WhatsApp. Mara stellt sich als digitale Assistentin vor, beantwortet Fragen zur "
+      + "eigenen US-Gesellschaft, trägt das Gespräch bei Justin ein und gibt alles Individuelle (Vertrag, Steuer im Einzelfall, "
+      + "Beschwerde) an Justin weiter. Wer E-Mail oder WhatsApp wählt, bekommt keinen Anruf von Daniel. Ein Business-Lead wird nie "
+      + "mehr ein Privat-Lead; Global-Kunden mit Vertrag bleiben bei Justin.",
+    tipp: "Zwei Schalter (Vorgabe an). Die Tabelle zeigt den Stand der sechs Vorlagen bei Meta — gesendet wird erst, was Meta freigegeben "
+      + "hat. „Mara testen“: eine Frage eintippen und Maras Antwort lesen — mit einem erfundenen Musterlead, nichts wird gesendet.",
+  },
   // E-476 Scheibe 5 (05.11.2026, Entscheidung 3A): Daniels Takt, die Übersicht 18:30, die Lead-Wächter.
   {
     ziel: ".lm-takt",

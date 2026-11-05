@@ -553,6 +553,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Justin erfährt von neuen Business-Leads nichts und ruft ohne Vorwissen an — wer die Firma ist, ob sie seriös und wie groß sie ist, steht nirgends.",
     fenster: 3,
   },
+  // E-481 (05.11.2026): Takt alle 5 Minuten, nurMitErgebnis + Stundenpuls.
+  wa_global_takt: {
+    zweck: "FIAON Global auf WhatsApp (Mara Business): die Begrüßung neuer Business-Leads mit der Wahl des Gesprächswegs, die Bestätigung "
+      + "und Erinnerung des Gesprächs mit Justin, „nicht erreicht“ mit dem persönlichen Link und eine einzige Nachfrage — nur mit Ja zu WhatsApp",
+    folge: "Business-Leads hören auf WhatsApp nichts von Mara: keine Wahl Telefon/E-Mail/WhatsApp, keine Termin-Nachricht, keine Nachfrage.",
+    fenster: 3,
+  },
   // E-476 Scheibe 4 (05.11.2026): Takt alle 2 Minuten, nurMitErgebnis + Stundenpuls.
   lead_post: {
     zweck: "FIAON Global: Justins Willkommens-Mail an jeden neuen Business-Lead (aus js@, mit seinen Antworten und dem persönlichen Terminlink, "

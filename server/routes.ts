@@ -676,6 +676,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('lead_takt', async () => await (await import('./lib/fiaon-lead-takt')).leadTaktLauf(), 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
   });
+  // 🌐 FIAON Global auf WhatsApp — Mara Business (E-481, Justin „alles an … GOGO“): Begrüßung mit der Wahl Telefon/E-Mail/WhatsApp
+  //    (nur mit Ja zu WhatsApp, 8–20 Uhr, ohne Termin), Termin-Bestätigung, Erinnerung am Vortag, „nicht erreicht“, eine Nachfrage.
+  //    Vorlagen erst nach Metas Freigabe. Alle 5 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls).
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('wa_global_takt', async () => await (await import('./lib/fiaon-mara-business')).waGlobalTaktLauf(), 5 * 60 * 1000, { beimStartNach: 420_000, nurMitErgebnis: true });
+  });
   // 🌐 FIAON Global — Privataufträge ohne den Wunsch nach sofortigem Beginn starten erst nach der
   //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

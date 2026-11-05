@@ -99,6 +99,11 @@
 .fg-textknopf{background:none;border:0;padding:6px 0;font:400 13.5px/1.4 var(--sans);color:var(--navy);cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(18,40,74,.3)}
 .fg-textknopf:hover{text-decoration-color:var(--navy)}
 .fg-knoepfe{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
+/* E-481 (Mara Business): „Lieber schriftlich?“ — E-Mail oder WhatsApp mit Mara, ruhig unter der Visitenkarte */
+.fg-wege{margin-top:22px;padding-top:16px;border-top:1px solid rgba(18,40,74,.1);font:400 13.5px/1.55 var(--sans);color:#5b6b80}
+.fg-wege > span{display:block;margin-bottom:2px;color:#2a3b52}
+.fg-wege p{margin:0}
+.fg-wege a.fg-textknopf{display:inline;padding:6px 0}
 
 /* Haken und Striche */
 .fg-haken{flex:0 0 auto;color:var(--blau)}

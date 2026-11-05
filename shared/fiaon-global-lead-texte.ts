@@ -519,6 +519,8 @@ export interface WillkommenEingang {
   wunschzeit?: string | null;
   /** Nachbesserung (Mangel 8): Der Kalender zeigt gerade keine freie Zeit — dann kein Versprechen „hier wählen Sie“. */
   kalenderLeer?: boolean;
+  /** E-481 (Mara Business): der WhatsApp-Link zu Mara mit Anfrage-Kennung — die Wahl „lieber schriftlich“. Ohne: keine Zeile. */
+  whatsapp?: { url: string } | null;
 }
 
 /**
@@ -624,6 +626,18 @@ export function willkommenText(e: WillkommenEingang): LeadMailText {
     bloecke.push({
       art: "absatz",
       text: `${en ? "None of the times suit you? Reply with two or three times that work for you and we will arrange the call with you." : "Passt Ihnen keine der Zeiten? Nennen Sie mir in einer kurzen Antwort zwei, drei Zeiten, dann stimmen wir den Termin mit Ihnen ab."} ${rufSatz(e.ruf, e.sprache)}`,
+    });
+  }
+
+  // 5. E-481 (Mara Business): Der Lead wählt selbst, wie er das Gespräch führt — Telefon (Link oben), E-Mail (einfach
+  //    antworten) oder WhatsApp mit Mara (Link mit Anfrage-Kennung; ein Tipp darauf ist zugleich sein Ja zu WhatsApp).
+  if (e.whatsapp?.url) {
+    bloecke.push({
+      art: "link",
+      text: en
+        ? "Prefer to write? Simply reply to this email, or message my digital assistant Mara on WhatsApp:"
+        : "Lieber schriftlich? Antworten Sie einfach auf diese Mail oder schreiben Sie meiner digitalen Assistentin Mara auf WhatsApp:",
+      url: e.whatsapp.url, anzeige: en ? "Message Mara on WhatsApp" : "Mara auf WhatsApp schreiben",
     });
   }
 

@@ -48,6 +48,8 @@ type Frei = {
   ok: boolean; tage?: FreierTag[]; ansprechpartner?: { vorname?: string; kuerzel?: string | null } | null; rueckfall?: boolean;
   /** E-476 Scheibe 3: der persönliche Link — die Angaben des Leads. */
   vorlage?: Vorlage | null; persoenlich?: boolean; vorlageFolgt?: boolean;
+  /** E-481 (Mara Business): der WhatsApp-Link zu Mara (mit Anfrage-Kennung, wenn der persönliche Link mitkam). */
+  waLink?: string | null;
 };
 
 const leer = { name: "", firma: "", email: "", telefon: "", thema: "", wunschzeit: "", falle: "" };
@@ -65,6 +67,8 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const [fertig, setFertig] = useState<null | { art: "termin" | "anfrage"; wann?: string; wer?: string }>(null);
   const [persoenlich, setPersoenlich] = useState(false);
   const [vorlageFolgt, setVorlageFolgt] = useState(false);
+  // E-481: „Lieber schriftlich?“ — die Bestätigung nach „Per E-Mail“.
+  const [wegMail, setWegMail] = useState<string | null>(null);
 
   // E-476 Scheibe 3: Angaben aus dem persönlichen Link übernehmen — nur in leere Felder, nie über Getipptes.
   const vorlageUebernehmen = (v: Vorlage | null | undefined) => {
@@ -81,7 +85,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
 
   const laden = async () => {
     try {
-      const r = await fetch("/api/fiaon/global/termine/frei?tage=14", { credentials: "same-origin" });
+      const r = await fetch(`/api/fiaon/global/termine/frei?tage=14${sprache === "en" ? "&sprache=en" : ""}`, { credentials: "same-origin" });
       const j: Frei = await r.json();
       const tage = (j.tage || []).filter((x) => x.zeiten?.length);
       setFrei({ ...j, tage });
@@ -143,6 +147,16 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const [bildFehlt, setBildFehlt] = useState(false);
   const sp = sprache === "en" ? "en" : "de";
 
+  // E-481 (Mara Business): Er wählt selbst, wie er das Gespräch führt. E-Mail → Justin schreibt ihm (nur mit persönlichem Link,
+  // sonst weiß niemand, wer er ist); WhatsApp → der Link öffnet den Chat mit Mara, die Kennung reist im fertigen Satz mit.
+  const wegMelden = (weg: "mail" | "whatsapp") => fetch("/api/fiaon/global/gespraechsweg", {
+    method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weg }),
+  }).then((r) => r.json()).catch(() => null);
+  const mailWaehlen = async () => {
+    const j = await wegMelden("mail");
+    setWegMail(j?.ok ? t.wegMailFertig(String(j.email || f.email || "")) : t.wegMailOhne);
+  };
+
   const absenden = async (e: FormEvent) => {
     e.preventDefault();
     setFehler("");
@@ -152,7 +166,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
     try {
       // messung (E-231): fbp/fbc und die Einwilligung — der Server meldet das Gespräch damit selbst an Meta,
       // unter der Kennung, die er als `messRef` zurückgibt. Dieselbe Kennung nimmt der Pixel unten.
-      const gemeinsam = { name: f.name.trim(), firma: f.firma.trim(), email: f.email.trim(), telefon: f.telefon.trim(), paket: paket || undefined, sprache, falle: f.falle, kampagne: kampagne(), messung: messungsDaten() };
+      const gemeinsam = { name: f.name.trim(), firma: f.firma.trim(), email: f.email.trim(), telefon: f.telefon.trim(), paket: paket || undefined, sprache, falle: f.falle, kampagne: kampagne(), messung: messungsDaten(), waHinweis: t.waHinweis };
       if (formularRueckruf) {
         const r = await fetch("/api/fiaon/global/anfrage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...gemeinsam, wunschzeit: f.wunschzeit.trim() || undefined, text: f.thema.trim() || undefined }) });
         const j = await r.json().catch(() => ({}));
@@ -193,6 +207,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
       <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
       {fehler && <p className="fehler" role="alert">{fehler}</p>}
       <button ref={absendeKnopf} type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
+      <p className="hinweis">{t.waHinweis}</p>
       <p className="hinweis">{t.datenschutz}</p>
     </div>
   );
@@ -245,6 +260,20 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
           <ul className="fg-punkte">
             {t.punkte.map((p) => <li key={p}><svg className="fg-haken" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="7.25" stroke="currentColor" strokeOpacity=".28" /><path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>{p}</li>)}
           </ul>
+        )}
+        {/* E-481 (Mara Business): Telefon ist der Kalender rechts — wer lieber schreibt, wählt E-Mail oder WhatsApp mit Mara. */}
+        {frei?.waLink && !fertig && (
+          <div className="fg-wege">
+            <span>{t.wegeTitel}</span>
+            {wegMail ? (
+              <p role="status">{wegMail}</p>
+            ) : (
+              <p>
+                {persoenlich && <><button type="button" className="fg-textknopf" onClick={mailWaehlen}>{t.wegMail}</button>{" · "}</>}
+                <a className="fg-textknopf" href={frei.waLink} target="_blank" rel="noopener noreferrer" onClick={() => { if (persoenlich) void wegMelden("whatsapp"); }}>{t.wegWhatsapp}</a>
+              </p>
+            )}
+          </div>
         )}
       </div>
 

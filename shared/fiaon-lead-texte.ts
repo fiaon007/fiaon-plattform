@@ -837,13 +837,83 @@ export const WA_VORLAGEN_BILD: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGE
   ...(v.nachfolgerVon ? { nachfolgerVon: bildName(v.nachfolgerVon) } : {}),
 }));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — MARA BUSINESS (05.11.2026, E-481)
+//
+// Justin: „WhatsApp Vorlagen einreichen (sehr edle, also das es wirklich 100% zu unserer exklusiven Unternehmensberatung
+// passt!)“. Kopf „FIAON Global“ wie ein Briefkopf, die Fußzeile ist zugleich der KI-Hinweis, kein Bild, keine Emojis,
+// Sie-Form, „Gespräch“ statt „Beratung“ (Wortwand). Gleiche Zeichen wie MB_KOPF/MB_FUSS in shared/fiaon-mara-business.ts
+// (der Prüfstand hält beide gleich). Gesendet nur an Business-Kontakte (vorlageWeltSperre) vom Takt in
+// server/lib/fiaon-mara-business.ts. Bewusst OHNE Bildfassung — darum nicht in WA_VORLAGEN_BILD.
+// ═══════════════════════════════════════════════════════════════════════════
+const GL_KOPF = "FIAON Global";
+const GL_FUSS = "Mara · Digitale Assistentin von Justin Schwarzott";
+export const WA_VORLAGEN_GLOBAL: WaVorlage[] = [
+  {
+    name: "fiaon_gl_willkommen", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "MARKETING",
+    zweck: "Begrüßung eines neuen Business-Leads mit der Wahl des Gesprächswegs (Telefon, E-Mail, WhatsApp) — KI-Hinweis im Text.",
+    wann: "Einmal nach der Global-Anfrage (8–20 Uhr, ≥ 10 Minuten danach, ohne Termin), nur mit seinem Ja zu WhatsApp.",
+    text: "Guten Tag {{1}},\n\nvielen Dank für Ihre Anfrage. Ich bin Mara, die digitale Assistentin von Justin Schwarzott.\n\n"
+      + "Sie interessieren sich für eine eigene US-Gesellschaft mit Zugang zum größten Finanzmarkt der Welt. Den passenden Weg legt "
+      + "Herr Schwarzott persönlich und individuell mit Ihnen fest.\n\nWie möchten Sie das Gespräch führen?",
+    beispiele: ["Herr Muster"],
+    knoepfe: [{ typ: "QUICK_REPLY", text: "Telefonat vereinbaren" }, { typ: "QUICK_REPLY", text: "Per E-Mail" }, { typ: "QUICK_REPLY", text: "Hier auf WhatsApp" }],
+  },
+  {
+    name: "fiaon_gl_termin", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "UTILITY",
+    zweck: "Bestätigung des Gesprächs mit Justin Schwarzott.",
+    wann: "Nach der Buchung, wenn der Lead auf WhatsApp schreibt oder WhatsApp gewählt hat und das 24-Stunden-Fenster zu ist.",
+    text: "Guten Tag {{1}},\n\nIhr Gespräch mit Justin Schwarzott ist fest eingetragen: {{2}}.\n\n"
+      + "Herr Schwarzott ruft Sie zur vereinbarten Zeit an. Vorbereiten müssen Sie nichts. Sollte Ihnen etwas dazwischenkommen, "
+      + "schreiben Sie mir einfach hier.",
+    beispiele: ["Herr Muster", "Donnerstag, 12.11., 14:00 Uhr"],
+    knoepfe: [{ typ: "QUICK_REPLY", text: "Termin verschieben" }],
+  },
+  {
+    name: "fiaon_gl_erinnerung", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "UTILITY",
+    zweck: "Erinnerung am Vortag des Gesprächs.",
+    wann: "Am Vortag 17–20 Uhr — nur wer WhatsApp als Weg gewählt hat (die Mail-Erinnerung läuft ohnehin).",
+    text: "Guten Tag {{1}},\n\neine kurze Erinnerung an Ihr Gespräch mit Justin Schwarzott: {{2}}.\n\n"
+      + "Passt Ihnen die Zeit weiterhin? Falls nicht, schreiben Sie mir einfach – ich finde gern eine neue.",
+    beispiele: ["Herr Muster", "Donnerstag, 12.11., 14:00 Uhr"],
+    knoepfe: [{ typ: "QUICK_REPLY", text: "Passt" }, { typ: "QUICK_REPLY", text: "Bitte verschieben" }],
+  },
+  {
+    name: "fiaon_gl_nicht_erreicht", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "UTILITY",
+    zweck: "Wir haben ihn zum Gespräch nicht erreicht — mit seinem persönlichen Link für eine neue Zeit.",
+    wann: "Nach einem verpassten Gespräch (Weg WhatsApp), einmal.",
+    text: "Guten Tag {{1}},\n\nwir haben eben versucht, Sie telefonisch zu erreichen – leider ohne Erfolg.\n\n"
+      + "Wählen Sie gern eine Zeit, die Ihnen besser passt, oder nennen Sie mir hier Ihren Wunschtermin.",
+    beispiele: ["Herr Muster"],
+    knoepfe: [{ typ: "URL", text: "Neue Zeit wählen", url: "https://fiaon.com/g/{{1}}", beispiel: "https://fiaon.com/g/Ab3dEf7hJk" }],
+  },
+  {
+    name: "fiaon_gl_nachfrage", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "MARKETING",
+    zweck: "Eine einzige Nachfrage, wenn der Chat still ist und noch kein Gespräch steht.",
+    wann: "Einmal, wenn zwei Tage nichts kam, kein Termin steht und er nicht „Später“ gewählt hat.",
+    text: "Guten Tag {{1}},\n\nhier ist noch einmal Mara aus dem Büro von Justin Schwarzott. Ihre Anfrage zu Ihrer eigenen "
+      + "US-Gesellschaft liegt weiterhin bei uns.\n\nMöchten Sie, dass wir ein persönliches Gespräch mit Herrn Schwarzott für Sie festhalten?",
+    beispiele: ["Herr Muster"],
+    knoepfe: [{ typ: "QUICK_REPLY", text: "Ja, gern" }, { typ: "QUICK_REPLY", text: "Später" }, { typ: "QUICK_REPLY", text: "Keine Nachrichten mehr" }],
+  },
+  {
+    name: "fiaon_gl_antwort", kopf: GL_KOPF, fuss: GL_FUSS, kategorie: "UTILITY",
+    zweck: "Justin hat geantwortet, das 24-Stunden-Fenster ist aber zu — öffnet es wieder.",
+    wann: "Von Hand aus dem WhatsApp-Raum, wenn Justin eine Antwort schicken will.",
+    text: "Guten Tag {{1}},\n\nHerr Schwarzott hat Ihre Frage persönlich beantwortet. Möchten Sie die Antwort hier auf WhatsApp lesen?",
+    beispiele: ["Herr Muster"],
+    knoepfe: [{ typ: "QUICK_REPLY", text: "Ja, bitte" }],
+  },
+];
+
 /**
  * ALLE Vorlagen des Hauses: erst die Textfassungen (die Aufrufer nennen),
  * dann die Bildfassungen. Einreichen, Aufräumen und die Prüfstände sehen
  * beide — Aufräumen darf die Bildfassungen nie für Altlast halten.
  * E-374: Die neuen Fassungen stehen mittendrin — WA_VORLAGEN[0] bleibt der erste Kontakt (fiaon_kk_anfrage).
+ * E-481: Die Business-Vorlagen (FIAON Global) hinten — ohne Bildfassung.
  */
-export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_NEU, ...WA_VORLAGEN_AUSKUNFT, ...WA_VORLAGEN_BILD];
+export const WA_VORLAGEN: WaVorlage[] = [...WA_VORLAGEN_TEXT, ...WA_VORLAGEN_NEU, ...WA_VORLAGEN_AUSKUNFT, ...WA_VORLAGEN_BILD, ...WA_VORLAGEN_GLOBAL];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FASSUNGEN EINER VORLAGE (15.10.2026, E-374)

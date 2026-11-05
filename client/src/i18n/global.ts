@@ -31,6 +31,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+// E-481 (Mara Business): der WhatsApp-Satz im Gesprächs-Formular — wortgleich mit dem Server (globalWaHinweisGezeigt).
+import { GLOBAL_WA_HINWEIS } from "@shared/fiaon-whatsapp-erlaubnis";
 
 // 19.09.2026 (E-192) — Justin: „Die Business Seite muss PERFEKT sein, dass sie konvertieren
 // kann." FAQ-Antworten bleiben reine Zeichenketten in "…" — scripts/seo-fragen-erzeugen.ts liest
@@ -636,6 +638,13 @@ const gespraechDe = {
   persoenlich: "Ihre Angaben sind schon eingetragen — wählen Sie nur noch Tag und Uhrzeit.",
   persoenlichPruefen: "Ihre Angaben sind schon eingetragen — bitte kurz prüfen.",
   persoenlichLaedt: "Ihre Angaben werden geladen …",
+  // E-481 (Mara Business): Der Kunde wählt selbst, wie er das Gespräch führt — Telefon (Kalender), E-Mail oder WhatsApp mit Mara.
+  wegeTitel: "Lieber schriftlich?",
+  wegMail: "Per E-Mail",
+  wegWhatsapp: "Auf WhatsApp mit Mara, der digitalen Assistentin",
+  wegMailFertig: (email: string) => `Sehr gern — Justin Schwarzott schreibt Ihnen persönlich${email ? ` an ${email}` : ""}.`,
+  wegMailOhne: "Sehr gern — antworten Sie einfach auf unsere E-Mail, dann schreibt Ihnen Justin Schwarzott persönlich.",
+  waHinweis: GLOBAL_WA_HINWEIS.de as string,
 };
 
 const gespraechEn: typeof gespraechDe = {
@@ -682,6 +691,12 @@ const gespraechEn: typeof gespraechDe = {
   persoenlich: "Your details are already filled in — simply choose a day and a time.",
   persoenlichPruefen: "Your details are already filled in — please check them briefly.",
   persoenlichLaedt: "Loading your details …",
+  wegeTitel: "Prefer to write?",
+  wegMail: "By email",
+  wegWhatsapp: "On WhatsApp with Mara, the digital assistant",
+  wegMailFertig: (email: string) => `Of course — Justin Schwarzott will write to you personally${email ? ` at ${email}` : ""}.`,
+  wegMailOhne: "Of course — simply reply to our email and Justin Schwarzott will write to you personally.",
+  waHinweis: GLOBAL_WA_HINWEIS.en,
 };
 
 export const GLOBAL_GESPRAECH_WOERTER = { de: gespraechDe, en: gespraechEn };

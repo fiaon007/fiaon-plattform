@@ -255,6 +255,7 @@ export default function ChefLeadMotor() {
 
           {/* E-476 Scheibe 4: Justins Lead-Mails — Willkommen, Nachfass, Antworten; Schalter, Stand, Vorschau, Prüfversand. */}
           <LeadMailsKarte melden={melden} zeigen={(betreff, html) => setVorschau({ betreff, html, beispiel: false, titel: "So bekäme der Lead die Mail von Justin (nur Vorschau, nichts gesendet)" })} />
+          <MaraBusinessKarte melden={melden} />
 
           {/* E-476 Scheibe 5: Daniels Takt — Lead-Meldung, Erinnerung 15/60/120, Übersicht 18:30, Lead-Wächter, Altbestand ableiten. */}
           <TaktKarte melden={melden} zeigen={(betreff, html, titel) => setVorschau({ betreff, html, beispiel: false, titel })} />
@@ -1068,6 +1069,93 @@ interface LeadMailsStand {
     nachfassStufe: number; nachfassFaellig: string | null; stopp: string | null; antwortAm: string | null; abgemeldetAm: string | null }[];
 }
 const WILLKOMMEN_STATUS: Record<string, string> = { gesendet: "Willkommen raus", ausgelassen: "kein Willkommen", fehler: "Fehler", laeuft: "sendet", unklar: "wird abgeglichen" };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA BUSINESS AUF WHATSAPP (E-481, 05.11.2026 — Justin: „alles an … vollautomatisiert“)
+//
+// Justins digitale Assistentin für Business-Leads: begrüßt einmal mit der Wahl Telefon/E-Mail/WhatsApp (nur mit Ja zu
+// WhatsApp), beantwortet Fragen, trägt das Gespräch bei Justin ein, übergibt alles Individuelle an Justin. E-Mail bleibt
+// Justins Stimme (js@). Zwei Schalter (Vorgabe AN), der Stand der sechs Vorlagen bei Meta und „Mara testen“ (nichts gesendet).
+// ═══════════════════════════════════════════════════════════════════════════
+interface MaraBusinessStand {
+  an: boolean; taktAn: boolean; nummer: string | null; ab: string | null;
+  vorlagen: { name: string; kategorie: string; status: string }[];
+  zahlen: { kontakte: number; willkommen7: number; mail: number; whatsapp: number; telefon: number; antworten7: number };
+}
+const MB_STATUS: Record<string, string> = { APPROVED: "freigegeben", PENDING: "in Prüfung bei Meta", REJECTED: "abgelehnt", PAUSED: "pausiert", DISABLED: "abgeschaltet" };
+
+function MaraBusinessKarte({ melden }: { melden: (t: string) => void }) {
+  const d = useDaten<MaraBusinessStand>("/chef/lead-motor/mara-business");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [frage, setFrage] = useState("");
+  const [test, setTest] = useState<{ antwort: string; funde: string[]; weg: string | null; uebergabe: string | null } | null>(null);
+  const s = d.daten;
+  const schalten = async (welcher: "an" | "takt", an: boolean) => {
+    if (!an && !window.confirm(welcher === "an"
+      ? "Mara Business ausschalten?\n\nDann antwortet Mara Business-Leads auf WhatsApp nicht mehr — jede Nachricht wird eine Aufgabe für Justin."
+      : "Den WhatsApp-Takt ausschalten?\n\nDann gehen keine Begrüßungen, Termin-Nachrichten, Erinnerungen und Nachfragen mehr hinaus.")) return;
+    setBusy(`schalter-${welcher}`);
+    try { await senden("/chef/lead-motor/mara-business/schalter", { schalter: welcher, an }); melden(an ? "Eingeschaltet." : "Ausgeschaltet."); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const testen = async () => {
+    if (!frage.trim()) return;
+    setBusy("test"); setTest(null);
+    try { const j = await senden("/chef/lead-motor/mara-business/test", { frage }); setTest(j); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const schalter = (welcher: "an" | "takt", an: boolean, text: string) => (
+    <div className="lm-reihe">
+      <button className={`lm-schalter${an ? " an" : ""}`} onClick={() => schalten(welcher, !an)} disabled={!!busy} aria-pressed={an} aria-label={text}>
+        <span className="lm-schalter-knopf" aria-hidden="true" />{an ? "An" : "Aus"}
+      </button>
+      <span>{text}</span>
+    </div>
+  );
+  return (
+    <details className="lm-karte lm-klapp lm-mara-business"><summary>Mara Business auf WhatsApp<span className="lm-klapp-still">FIAON Global · Justins digitale Assistentin</span></summary>
+      {d.fehler && <Fehlermeldung text={d.fehler} erneut={d.neu} />}
+      {d.laedt && !s && <Geruest zeilen={3} />}
+      {s && (
+        <>
+          <div className="lm-karte-kopf">
+            <p className="lm-still">
+              Mara begrüßt jeden neuen Business-Lead einmal auf WhatsApp (nur mit seinem Ja zu WhatsApp, 8–20 Uhr, ohne Termin) und lässt ihn
+              wählen: Telefonat mit Justin, E-Mail oder hier auf WhatsApp. Sie beantwortet Fragen, trägt das Gespräch bei Justin ein und gibt
+              alles Individuelle an Justin weiter. Die E-Mails schreibt Justin aus js@. Ein Business-Lead wird nie mehr ein Privat-Lead.
+              {s.ab ? ` Begrüßungen für Anfragen ab ${zeit(s.ab)}.` : " Der Zählbeginn wird beim ersten Takt gesetzt — ältere Leads bekommen keine Begrüßung."}
+            </p>
+          </div>
+          {schalter("an", s.an, "Mara antwortet Business-Leads auf WhatsApp (aus: jede Nachricht wird eine Aufgabe für Justin)")}
+          {schalter("takt", s.taktAn, "Begrüßung mit Wahl · Termin · Erinnerung am Vortag · „nicht erreicht“ · eine Nachfrage")}
+          <table className="lm-tabelle">
+            <thead><tr><th>Vorlage</th><th>Art</th><th>Stand bei Meta</th></tr></thead>
+            <tbody>{s.vorlagen.map((v) => (
+              <tr key={v.name}><td>{v.name}</td><td>{v.kategorie === "MARKETING" ? "Marketing" : v.kategorie === "UTILITY" ? "Service" : v.kategorie}</td><td>{MB_STATUS[v.status] ?? v.status}</td></tr>
+            ))}</tbody>
+          </table>
+          <p className="lm-ergebnis">
+            <b>{s.zahlen.kontakte}</b> Business-Nummern · <b>{s.zahlen.willkommen7}</b> Begrüßungen (7 Tage) · Wege: {s.zahlen.telefon} Telefon,{" "}
+            {s.zahlen.mail} E-Mail, {s.zahlen.whatsapp} WhatsApp · {s.zahlen.antworten7} Mara-Antworten (7 Tage){s.nummer ? "" : " · Achtung: keine WhatsApp-Nummer hinterlegt"}
+          </p>
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-mb-frage">Mara testen</label>
+            <input id="lm-mb-frage" className="lm-feld" placeholder="z. B. Bekomme ich sofort einen Kredit?" value={frage} onChange={(e) => setFrage(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void testen(); }} />
+            <button className="lm-knopf" onClick={testen} disabled={!!busy || !frage.trim()}>{busy === "test" ? "Mara denkt …" : "Antwort ansehen"}</button>
+          </div>
+          {test && (
+            <div className="lm-hinweis">
+              <p style={{ margin: 0 }}><b>Mara:</b> {test.antwort}</p>
+              <p className="lm-still" style={{ margin: "6px 0 0" }}>
+                {test.funde.length ? `Die Wand hielte das an: ${test.funde.join(" · ")}` : "Geht durch alle Wände."}{test.weg ? ` · Weg: ${test.weg}` : ""}{test.uebergabe ? " · würde an Justin übergeben" : ""} · Nur Vorschau, nichts gesendet (Musterlead).
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </details>
+  );
+}
 
 function LeadMailsKarte({ melden, zeigen }: { melden: (t: string) => void; zeigen: (betreff: string, html: string) => void }) {
   const d = useDaten<LeadMailsStand>("/chef/lead-motor/lead-mails");

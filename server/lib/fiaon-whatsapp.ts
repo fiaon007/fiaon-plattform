@@ -918,6 +918,11 @@ export async function waSenden(
   if (inhalt.vorlage) {
     const sperre = await waVorlagenSperre(inhalt.vorlage, nummer, zusatz, lauf);
     if (sperre) return { ok: false, grund: sperre };
+    // E-481: Business-Vorlagen nur an Business-Kontakte, Privat-Vorlagen nie an einen Business-Lead (Mara Business).
+    const welt = await import("./fiaon-mara-business")
+      .then((mb) => mb.vorlageWeltSperre(inhalt.vorlage!, nummer, zusatz.personId ?? null, lauf))
+      .catch(() => (/^fiaon_gl_/.test(inhalt.vorlage!) ? "Business-Vorlage: Prüfung gestört — nicht gesendet." : null));
+    if (welt) return { ok: false, grund: welt };
   }
 
   const katalog = await alleVorlagen();
@@ -1276,6 +1281,8 @@ export async function verwaisteNachziehen(hoechstens = 25, lauf: Lauf = sqlPool)
     }
     const [erste] = (await lauf`
       SELECT text FROM fiaon_whatsapp WHERE nummer = ${nummer} AND richtung = 'rein' ORDER BY id ASC LIMIT 1`.catch(() => [])) as any[];
+    // E-481: Business-Kontakte bleiben ohne Privat-Lead (Mara Business, fiaon-mara-business.ts).
+    if (await import("./fiaon-mara-business").then((mb) => mb.businessEingang(nummer, String(erste?.text ?? ""), lauf)).catch(() => false)) continue;
     const neu = await leadAusEingang(nummer, String(erste?.text ?? ""));
     if (!neu.leadId && !neu.personId) continue;
     angelegt++;
@@ -1313,8 +1320,11 @@ export async function waEingang(wert: any, lauf: Lauf = sqlPool): Promise<{ neu:
     let gehoert = await wemGehoert(nummer, lauf);
     // E-214: Kennen wir die Nummer nicht, legen wir einen Lead an — sonst
     // landet der Mensch in einem Chat, den niemand besitzt.
+    // E-481: außer es ist ein Business-Kontakt (offene Global-Anfrage, Anfrage-Kennung im Text, „FIAON Global“) — der wird
+    // nie ein Privat-Lead (vorher: processIntake → Kreditkarten-Pitch); Mara Business übernimmt.
     if (!gehoert.personId && !gehoert.leadId) {
-      gehoert = await leadAusEingang(nummer, text);
+      const business = await import("./fiaon-mara-business").then((mb) => mb.businessEingang(nummer, text, lauf)).catch(() => false);
+      if (!business) gehoert = await leadAusEingang(nummer, text);
     }
     const knopf = String(m?.button?.payload ?? m?.interactive?.button_reply?.id ?? "") || null;
     const zeilen = (await lauf`

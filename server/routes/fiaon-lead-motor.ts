@@ -666,6 +666,50 @@ router.post("/chef/lead-motor/lead-mails/schalter", wache, async (req: ChefReque
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — MARA BUSINESS AUF WHATSAPP (E-481, 05.11.2026, Justin „alles an … GOGO“)
+//
+// Kein neuer Raum: Karte „Mara Business“ neben den Lead-Mails. Zwei Schalter (Mara antwortet Business-Leads; der Takt mit
+// Begrüßung, Termin, Erinnerung, „nicht erreicht“, Nachfrage — Vorgabe AN), der Stand der sechs Vorlagen bei Meta, die Wege,
+// und „Mara testen“ (eine Frage → Maras Antwort mit einem erfundenen Musterlead, nichts gesendet). Regeln: fiaon-mara-business.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/mara-business", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { mbStand } = await import("../lib/fiaon-mara-business");
+    res.json({ ok: true, ...(await mbStand()) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] mara-business:", err);
+    res.status(500).json({ ok: false, error: "Der Stand von Mara Business ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/mara-business/schalter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const welcher = String(req.body?.schalter ?? "");
+    if (welcher !== "an" && welcher !== "takt") return res.status(400).json({ ok: false, error: "Unbekannter Schalter." });
+    const an = req.body?.an === true;
+    const { mbSchalten } = await import("../lib/fiaon-mara-business");
+    const s = await mbSchalten(welcher, an);
+    console.log(`[LEAD-MOTOR] Mara Business ${welcher} ${an ? "AN" : "AUS"} (${wer(req)})`);
+    res.json({ ok: true, ...s });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] mara-business/schalter:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+router.post("/chef/lead-motor/mara-business/test", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const frage = String(req.body?.frage ?? "").trim();
+    if (!frage) return res.status(400).json({ ok: false, error: "Bitte eine Frage eingeben." });
+    const { mbTrockenlauf } = await import("../lib/fiaon-mara-business");
+    res.json({ ok: true, ...(await mbTrockenlauf(frage)) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] mara-business/test:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error && /pausiert|kasse/i.test(err.message) ? "Die KI ist gerade pausiert." : "Der Test ist abgebrochen." });
+  }
+});
+
 /** E-476 Nachbesserung (Gutachten Betreiber, Mangel 9 d): die Ruhe nach dem Eingang (5–120 Min.) und der Tagesdeckel (1–200). */
 router.post("/chef/lead-motor/lead-mails/zahl", wache, async (req: ChefRequest, res: Response) => {
   try {

@@ -62,9 +62,16 @@ const felder = M.leadAusMeta({
 });
 const text = M.globalMetaText(felder, "FIAON Global · US-Gesellschaft · drei Fragen", { id: "x", ad_name: "A2 Leistungs-Tafel", campaign_name: "FIAON Global · US-Gründung" });
 ok(text.includes("Meta-Sofortformular „FIAON Global · US-Gesellschaft · drei Fragen“"), "Formular steht in der Anfrage");
-ok(text.includes("Wann möchten sie gründen?: In den nächsten drei Monaten"), "Antwort 1 in der Anfrage");
-ok(text.includes("Wofür planen sie die us-gesellschaft?: Kunden oder Partner in den USA"), "Antwort 2 in der Anfrage");
-ok(text.includes("Was beschreibt sie am besten?: Geschäftsführer/in"), "Antwort 3 in der Anfrage");
+// E-476 (05.11.2026), bewusst umgestellt — VORHER: „Frage?: Antwort“ (z. B. „Wann möchten sie gründen?: In den nächsten
+// drei Monaten“); NACHHER: „Frage? — Antwort“, dieselbe Zeile wie im Lead-Dossier (antwortZeile). Ohne gespeicherte
+// Formular-Definition bleibt es beim lesbaren Schlüssel; MIT Definition kommen Fragetext und Antwort im Klartext aus
+// fiaon_meta_formulare (statt „vorhaben_3“) — geprüft in scripts/pruef-lead-dossier.ts (alle Kombinationen).
+ok(text.includes("Wann möchten sie gründen? — In den nächsten drei Monaten"), "Antwort 1 in der Anfrage");
+ok(text.includes("Wofür planen sie die us-gesellschaft? — Kunden oder Partner in den USA"), "Antwort 2 in der Anfrage");
+ok(text.includes("Was beschreibt sie am besten? — Geschäftsführer/in"), "Antwort 3 in der Anfrage");
+const mitDef = M.globalMetaText(M.leadAusMeta({ id: "z", field_data: [{ name: "vorhaben", values: ["vorhaben_3"] }] }), null, { id: "z" },
+  [{ key: "vorhaben", label: "Was planen Sie mit Ihrer US-Gesellschaft?", options: [{ key: "vorhaben_3", value: "Beides" }] }]);
+ok(mitDef.includes("Was planen Sie mit Ihrer US-Gesellschaft? — Beides") && !mitDef.includes("vorhaben_3"), "mit Formular-Definition: Klartext statt Code (E-476)");
 ok(text.includes("Anzeige: A2 Leistungs-Tafel"), "Anzeige steht in der Anfrage");
 ok(!/erika@example\.com/.test(text), "Mailadresse steht nicht doppelt im Freitext");
 

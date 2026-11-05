@@ -532,4 +532,156 @@ router.post("/chef/lead-motor/kosten/abrufen", wache, async (req: ChefRequest, r
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON GLOBAL — DAS LEAD-DOSSIER AN JUSTIN (E-476, 05.11.2026)
+//
+// Kein neuer Raum: Schalter, Deckel, Vorschau, Prüfversand und die Sammel-Mail stehen hier im Lead-Motor. Die Regeln
+// stehen in server/lib/fiaon-lead-dossier.ts (Basis, Mail, Lauf) und fiaon-lead-hintergrund.ts (KI mit Quellen).
+//   · Dossier an/aus: Wer einschaltet, setzt den Zählbeginn neu — es kommt KEINE Flut von Leads aus der Aus-Zeit.
+//   · KI an/aus = Not-Aus des Hintergrund-Checks; Tagesdeckel in Dollar (Vorgabe 8 $).
+//   · Vorschau rendert nur (kein Versand); der Prüfversand geht nur an Justin, nie an den Lead.
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/lead-motor/dossier", wache, async (_req: ChefRequest, res: Response) => {
+  try {
+    const { leadDossierStand } = await import("../lib/fiaon-lead-dossier");
+    res.json({ ok: true, ...(await leadDossierStand()) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier:", err);
+    res.status(500).json({ ok: false, error: "Der Stand des Lead-Dossiers ließ sich nicht laden." });
+  }
+});
+
+router.post("/chef/lead-motor/dossier/schalter", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { dossierEinstellungSetzen } = await import("../lib/fiaon-lead-dossier");
+    const { LEAD_DOSSIER_SCHLUESSEL: K } = await import("../../shared/fiaon-global-lead");
+    const welcher = String(req.body?.schalter ?? "");
+    const an = req.body?.an === true;
+    const key = welcher === "an" ? K.an : welcher === "ki" ? K.kiAn : welcher === "sammel" ? K.sammelAn : null;
+    if (!key) return res.status(400).json({ ok: false, error: "Unbekannter Schalter." });
+    await dossierEinstellungSetzen(key, an ? "1" : "0");
+    // Einschalten = neuer Zählbeginn: Leads aus der Aus-Zeit kommen nicht einzeln hinterher.
+    if (welcher === "an" && an) await dossierEinstellungSetzen(K.ab, new Date().toISOString());
+    console.log(`[LEAD-MOTOR] Lead-Dossier ${welcher} ${an ? "AN" : "AUS"} (${wer(req)})`);
+    res.json({ ok: true, schalter: welcher, an });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier/schalter:", err);
+    res.status(500).json({ ok: false, error: "Der Schalter ließ sich nicht setzen." });
+  }
+});
+
+router.post("/chef/lead-motor/dossier/deckel", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const usd = Number(req.body?.usd);
+    if (!Number.isFinite(usd) || usd < 0 || usd > 50) return res.status(400).json({ ok: false, error: "Tagesdeckel: 0 bis 50 $." });
+    const { dossierEinstellungSetzen } = await import("../lib/fiaon-lead-dossier");
+    const { LEAD_DOSSIER_SCHLUESSEL: K } = await import("../../shared/fiaon-global-lead");
+    await dossierEinstellungSetzen(K.kiDeckelUsd, String(Math.round(usd * 100) / 100));
+    console.log(`[LEAD-MOTOR] Lead-Dossier KI-Tagesdeckel ${usd} $ (${wer(req)})`);
+    res.json({ ok: true, usd });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier/deckel:", err);
+    res.status(500).json({ ok: false, error: "Der Deckel ließ sich nicht speichern." });
+  }
+});
+
+/** Vorschau für eine echte Anfrage-Nummer — rendert nur, sendet nie, ruft keine KI. */
+router.get("/chef/lead-motor/dossier/vorschau", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const anfrage = Math.floor(Number(req.query.anfrage));
+    if (!(anfrage > 0)) return res.status(400).json({ ok: false, error: "Bitte eine Anfrage-Nummer angeben." });
+    const { leadDossierVorschau } = await import("../lib/fiaon-lead-dossier");
+    const v = await leadDossierVorschau(anfrage, { netz: true, schreiben: true });
+    res.json({ ok: true, betreff: v.betreff, html: v.html, text: v.text });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier/vorschau:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Die Vorschau ließ sich nicht bauen." });
+  }
+});
+
+/**
+ * Prüfversand: das Dossier einer Anfrage an Justin (Betreff „Prüfversand …“), ohne Zeile. Mit `mitKi` (Nachbesserung
+ * 05.11.2026) ein echter Hintergrund-Check — unter Not-Aus, Deckel und Sperre, Kosten gebucht — damit der KI-Teil vor
+ * dem ersten echten Lead abgenommen werden kann.
+ */
+router.post("/chef/lead-motor/dossier/pruefversand", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const anfrage = Math.floor(Number(req.body?.anfrage));
+    if (!(anfrage > 0)) return res.status(400).json({ ok: false, error: "Bitte eine Anfrage-Nummer angeben." });
+    const mitKi = req.body?.mitKi === true;
+    const { leadDossierPruefversand } = await import("../lib/fiaon-lead-dossier");
+    const e = await leadDossierPruefversand(anfrage, { mitKi });
+    console.log(`[LEAD-MOTOR] Lead-Dossier Prüfversand${mitKi ? " mit KI" : ""} zu Anfrage #${anfrage}: ${e.ok ? `gesendet${e.kiStatus ? ` (KI ${e.kiStatus})` : ""}, Faden ${e.faden ?? "—"}` : e.grund} (${wer(req)})`);
+    res.status(e.ok ? 200 : 502).json({ ok: e.ok, kiStatus: e.kiStatus ?? null, faden: e.faden ?? null, ...(e.ok ? {} : { error: e.grund ?? "Der Versand ist gescheitert." }) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier/pruefversand:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Der Prüfversand ist abgebrochen." });
+  }
+});
+
+/** Die Sammel-Mail für offene Alt-Leads noch einmal (auf ausdrücklichen Knopfdruck) — an Justin, nie an die Leads. */
+router.post("/chef/lead-motor/dossier/sammel", wache, async (req: ChefRequest, res: Response) => {
+  try {
+    const { altbestandSammelmail, zaehlbeginnSichern, leadDossierSchema } = await import("../lib/fiaon-lead-dossier");
+    await leadDossierSchema();
+    const ab = await zaehlbeginnSichern();
+    const e = await altbestandSammelmail({ ab, erzwingen: true });
+    console.log(`[LEAD-MOTOR] Lead-Dossier Sammel-Mail: ${e.gesendet ? `${e.anzahl} Leads gesendet` : e.grund} (${wer(req)})`);
+    res.status(e.gesendet ? 200 : 409).json({ ok: e.gesendet, anzahl: e.anzahl, ...(e.gesendet ? {} : { error: e.grund ?? "Nichts gesendet." }) });
+  } catch (err) {
+    console.error("[LEAD-MOTOR] dossier/sammel:", err);
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : "Die Sammel-Mail ist abgebrochen." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// „ICH RUFE SELBST AN“ — der Knopf im Lead-Dossier (E-476 Nachbesserung, 05.11.2026)
+//
+// Statt „Rufst du selbst an, sag Daniel kurz Bescheid“ (eine Aufgabe an Justin) ein Knopf: Er schließt Daniels Auftrag
+// und schreibt eine Zeile ins Firmen-Cockpit. Der Link ist je Dossier signiert (wie der Abmeldelink) und steht nur in
+// Justins Mail. GET zeigt nur eine Frage — ein Link-Scanner im Postfach löst nichts aus; erst der Knopf (POST) handelt.
+// Einmal je Dossier; ein zweiter Klick sagt „schon erledigt“.
+// ═══════════════════════════════════════════════════════════════════════════
+function selbstSeite(titel: string, text: string, knopf: { aktion: string; text: string } | null, link: string | null): string {
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>${esc(titel)} · FIAON</title>
+<style>body{margin:0;background:#f6f7f9;font:16px/1.6 -apple-system,Segoe UI,Arial,sans-serif;color:#16213a}
+main{max-width:520px;margin:12vh auto;padding:32px;background:#fff;border:1px solid #d9dee7;border-radius:14px}h1{font-size:21px;margin:0 0 12px;font-weight:600}
+p{margin:0 0 14px}button{font:inherit;background:#1d4ed8;color:#fff;border:0;border-radius:10px;padding:12px 18px;cursor:pointer}a{color:#1d4ed8}</style></head>
+<body><main><h1>${esc(titel)}</h1><p>${esc(text)}</p>${knopf ? `<form method="post" action="${esc(knopf.aktion)}"><button type="submit">${esc(knopf.text)}</button></form>` : ""}${link ? `<p style="margin-top:18px"><a href="${esc(link)}">Im Firmen-Cockpit öffnen</a></p>` : ""}</main></body></html>`;
+}
+
+router.get("/lead-dossier/selbst/:token", async (req, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  try {
+    const { selbstPruefen } = await import("../lib/fiaon-lead-dossier");
+    const id = selbstPruefen(String(req.params.token || ""));
+    if (!id) return res.status(400).send(selbstSeite("Dieser Link ist ungültig", "Bitte öffne den Lead im Firmen-Cockpit.", null, null));
+    return res.send(selbstSeite("Rufst du selbst an?", "Dann schließt dieser Knopf den Auftrag an das Team — es ruft niemand zusätzlich an. Im Firmen-Cockpit steht danach eine Zeile dazu.",
+      { aktion: `/api/fiaon/lead-dossier/selbst/${encodeURIComponent(String(req.params.token))}`, text: "Ja, ich rufe selbst an" }, null));
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-dossier/selbst (GET):", err);
+    return res.status(500).send(selbstSeite("Das hat gerade nicht geklappt", "Bitte später noch einmal.", null, null));
+  }
+});
+
+router.post("/lead-dossier/selbst/:token", async (req, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  try {
+    const { selbstPruefen, selbstAnrufen } = await import("../lib/fiaon-lead-dossier");
+    const id = selbstPruefen(String(req.params.token || ""));
+    if (!id) return res.status(400).send(selbstSeite("Dieser Link ist ungültig", "Bitte öffne den Lead im Firmen-Cockpit.", null, null));
+    const e = await selbstAnrufen(id);
+    return res.status(e.ok ? 200 : 404).send(selbstSeite(e.ok ? "Erledigt" : "Nicht gefunden", e.text, null, e.cockpitUrl));
+  } catch (err) {
+    console.error("[LEAD-MOTOR] lead-dossier/selbst (POST):", err);
+    return res.status(500).send(selbstSeite("Das hat gerade nicht geklappt", "Bitte später noch einmal — oder den Auftrag im Firmen-Cockpit schließen.", null, null));
+  }
+});
+
 export default router;

@@ -547,6 +547,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Firmenkunden erfahren erst beim nächsten Besuch im Portal von ihrer US-Nummer, EIN, Urkunde, Post oder einer Unterschrift, die auf sie wartet.",
     fenster: 3,
   },
+  // E-476 (05.11.2026): Takt alle 2 Minuten, Historienzeile nur bei Arbeit und einmal je Stunde (nurMitErgebnis + Puls).
+  lead_dossier: {
+    zweck: "FIAON Global: das Lead-Dossier an Justin — zu jedem Business-Lead (Meta-Formular, Website-Anfrage, Global-Buchung) eine Mail an js@ mit Klartext, Kontakt, kostenlosem Check (Register, Impressum, Mail, Telefon-Land), Bestand und KI-Hintergrund mit Quellen; holt Fehlversuche und den KI-Nachtrag nach, schickt einmal die Sammel-Mail für den Altbestand",
+    folge: "Justin erfährt von neuen Business-Leads nichts und ruft ohne Vorwissen an — wer die Firma ist, ob sie seriös und wie groß sie ist, steht nirgends.",
+    fenster: 3,
+  },
   global_widerruf_start: {
     zweck: "FIAON Global: bezahlte Privataufträge ohne den Wunsch nach sofortigem Beginn nach Ablauf der Widerrufsfrist starten (Aufgabe „US-Struktur starten“, Startmail)",
     folge: "Ein bezahlter Privatauftrag bleibt nach der Widerrufsfrist liegen: keine Start-Aufgabe, keine Startmail, der Kunde wartet.",

@@ -84,6 +84,10 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
   // E-458 Nr. 11 (29.10.2026): Verschieben und die Mails rund um das Gespräch (Erinnerung, „nicht erreicht“).
   termin_verschoben: "FIAON Global — Gespräch verschoben",
   gespraech_mail: "FIAON Global — Mail an das Unternehmen",
+  // E-476 (05.11.2026): das Lead-Dossier an Justin (Check und Hintergrund in einer Zeile).
+  dossier: "FIAON Global — Lead-Dossier an Justin",
+  // E-476 Nachbesserung: Justin hat im Dossier „Ich rufe selbst an“ gedrückt — der Auftrag ans Team ist geschlossen.
+  selbst: "FIAON Global — Justin ruft selbst an",
 };
 
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }

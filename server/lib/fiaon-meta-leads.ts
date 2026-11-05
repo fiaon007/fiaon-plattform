@@ -30,6 +30,10 @@ import {
 import { absoluteUrl } from "../fiaon-base-url";
 // E-408 (Scheibe 3, 22.10.2026): „Ja zum Anruf“ aus dem Formular — derselbe JA-Erkenner wie auf WhatsApp.
 import { istKlaresJa } from "../../shared/fiaon-ja-zum-anruf";
+// E-476 (05.11.2026): Klartext der Antworten und der Platzhalter „(Firma noch offen)“ — an EINER Stelle.
+import {
+  metaAntworten, antwortZeile, schluesselLesbar, firmaOffenPlatzhalter, type MetaFrageDef, type LeadAntwort,
+} from "../../shared/fiaon-global-lead";
 
 type Lauf = typeof sqlPool;
 
@@ -321,19 +325,29 @@ export function istTestLead(roh: MetaRohLead | null | undefined): boolean {
   return false;
 }
 
-/** Das Formular kennen wir? Sonst jetzt laden (Name, Kästchen) — für Anzeige und Einwilligung. */
-async function formularSichern(formularId: string | undefined, seiteId: string | null, lauf: Lauf): Promise<{ name: string | null; einwilligungSchluessel: string | null }> {
-  if (!formularId) return { name: null, einwilligungSchluessel: null };
-  const [da] = (await lauf`SELECT name, einwilligung_schluessel FROM fiaon_meta_formulare WHERE id = ${formularId}`) as any[];
-  if (da) return { name: da.name ?? null, einwilligungSchluessel: da.einwilligung_schluessel ?? null };
+/** E-476: die gespeicherten Fragen eines Formulars (mit Optionen) — JSONB, zur Sicherheit auch als Text gelesen. */
+function fragenAus(v: unknown): MetaFrageDef[] | null {
+  let o: any = v;
+  if (typeof o === "string") { try { o = JSON.parse(o); } catch { o = null; } }
+  return Array.isArray(o) ? (o as MetaFrageDef[]) : null;
+}
+
+/**
+ * Das Formular kennen wir? Sonst jetzt laden (Name, Kästchen) — für Anzeige und Einwilligung. E-476 (05.11.2026): dazu
+ * die Fragen samt Optionen — daraus wird der Klartext der Antworten (statt „vorhaben_3“).
+ */
+async function formularSichern(formularId: string | undefined, seiteId: string | null, lauf: Lauf): Promise<{ name: string | null; einwilligungSchluessel: string | null; fragen: MetaFrageDef[] | null }> {
+  if (!formularId) return { name: null, einwilligungSchluessel: null, fragen: null };
+  const [da] = (await lauf`SELECT name, einwilligung_schluessel, fragen FROM fiaon_meta_formulare WHERE id = ${formularId}`) as any[];
+  if (da) return { name: da.name ?? null, einwilligungSchluessel: da.einwilligung_schluessel ?? null, fragen: fragenAus(da.fragen) };
   try {
     const token = seiteId ? await seitenToken(seiteId) : undefined;
     const f = await formularLesen(formularId, token);
     await formularSpeichern(f, seiteId, lauf);
-    const [neu] = (await lauf`SELECT name, einwilligung_schluessel FROM fiaon_meta_formulare WHERE id = ${formularId}`) as any[];
-    return { name: neu?.name ?? null, einwilligungSchluessel: neu?.einwilligung_schluessel ?? null };
+    const [neu] = (await lauf`SELECT name, einwilligung_schluessel, fragen FROM fiaon_meta_formulare WHERE id = ${formularId}`) as any[];
+    return { name: neu?.name ?? null, einwilligungSchluessel: neu?.einwilligung_schluessel ?? null, fragen: fragenAus(neu?.fragen) };
   } catch {
-    return { name: null, einwilligungSchluessel: null };
+    return { name: null, einwilligungSchluessel: null, fragen: null };
   }
 }
 
@@ -354,6 +368,12 @@ async function formularSichern(formularId: string | undefined, seiteId: string |
 // Firmen-Cockpit, dringende Aufgabe für die zuständige Person
 // (global_zustaendig_agent_id). Kein processIntake, keine Privat-Mail, kein WhatsApp.
 // Die Antworten der Auswahlfragen stehen in der Anfrage und in der Aufgabe.
+//
+// E-476 (05.11.2026): IM KLARTEXT. Bis heute stand dort der Options-Schlüssel („Vorhaben: vorhaben_3“), obwohl
+// formularSpeichern Fragetext und Optionen längst in fiaon_meta_formulare.fragen ablegt. Jetzt: „Was planen Sie mit
+// Ihrer US-Gesellschaft? — Beides“ (Frage bis zum ersten „?“, damit fällt der Institut-Satz des Rahmen-Labels weg) —
+// in Anfrage, Cockpit-Verlauf und Daniels Auftrag. Ohne gespeichertes Formular: lesbarer Schlüssel + Wert wie bisher.
+// Dazu geht das Lead-Dossier an Justin (fiaon-lead-dossier.ts) — angestoßen in globalAnfrageAnnehmen.
 // ═══════════════════════════════════════════════════════════════════════════
 export const META_GLOBAL_FORMULARE = "meta_global_formular_ids";
 
@@ -365,17 +385,29 @@ export function istGlobalFormular(name: string | null | undefined, formularId?: 
 
 /** Meta liefert eigene Fragen als Schlüssel („wann_möchten_sie_gründen?“) — lesbar machen. */
 export function frageLesbar(schluessel: string): string {
-  const t = String(schluessel).replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+  return schluesselLesbar(schluessel);
 }
 
 const FIRMA_FELD = ["company_name", "firma", "unternehmen", "firmenname", "name_des_unternehmens"];
 
-/** Die Nachricht der Global-Anfrage: Formular, Antworten, Anzeige — für die Person, die anruft. */
-export function globalMetaText(f: MetaLeadFelder, formularName: string | null, roh: MetaRohLead): string {
-  const antworten = Object.entries(f.fragen)
-    .filter(([k]) => !FIRMA_FELD.includes(k))
-    .map(([k, v]) => `${frageLesbar(k)}: ${v}`);
+/**
+ * E-476: die Antworten eines Global-Leads in Klartext (shared/fiaon-global-lead.ts — dieselbe Übersetzung wie im Dossier).
+ * Nachbesserung (Gutachten Technik 05.11.2026): Der Eingang darf hier nie werfen — eine kaputte Formular-Definition
+ * fällt auf den alten Weg zurück (lesbarer Schlüssel + Rohwert), sonst bliebe der Lead in keinem Nachhol-Lauf hängen.
+ */
+export function globalMetaAntworten(f: MetaLeadFelder, fragen: MetaFrageDef[] | null): LeadAntwort[] {
+  const ohneFirma = Object.fromEntries(Object.entries(f.fragen ?? {}).filter(([k]) => !FIRMA_FELD.includes(k)));
+  try {
+    return metaAntworten(ohneFirma, Array.isArray(fragen) ? fragen : null);
+  } catch {
+    return Object.entries(ohneFirma).filter(([, v]) => String(v ?? "").trim())
+      .map(([k, v]) => ({ schluessel: k, frage: schluesselLesbar(k), antwort: String(v).trim(), code: null }));
+  }
+}
+
+/** Die Nachricht der Global-Anfrage: Formular, Antworten im Klartext, Anzeige — für die Person, die anruft. */
+export function globalMetaText(f: MetaLeadFelder, formularName: string | null, roh: MetaRohLead, fragen: MetaFrageDef[] | null = null): string {
+  const antworten = globalMetaAntworten(f, fragen).map(antwortZeile);
   return [
     `Über das Meta-Sofortformular${formularName ? ` „${formularName}“` : ""}${f.plattform ? ` (${f.plattform})` : ""}.`,
     ...antworten,
@@ -385,7 +417,7 @@ export function globalMetaText(f: MetaLeadFelder, formularName: string | null, r
 }
 
 async function globalMetaLeadEinspielen(
-  roh: MetaRohLead, f: MetaLeadFelder, formularName: string | null, weg: string, lauf: Lauf,
+  roh: MetaRohLead, f: MetaLeadFelder, formularName: string | null, weg: string, lauf: Lauf, fragen: MetaFrageDef[] | null = null,
 ): Promise<EinspielErgebnis> {
   const email = String(f.email ?? "").trim().toLowerCase();
   const telefon = String(f.telefon ?? "").trim();
@@ -402,16 +434,24 @@ async function globalMetaLeadEinspielen(
   const erg = await globalAnfrageAnnehmen({
     kontakt: {
       name, vorname: f.vorname, nachname: f.nachname,
-      // Das Formular fragt (bewusst) nicht nach der Firma — der Name steht dann für sie, bis das Gespräch sie klärt.
-      firma: (firmaFeld?.trim() || `${name} (Firma noch offen)`).slice(0, 200),
+      // Das Kapital-Formular fragt die Firma (company_name), das US-Gesellschaft-Formular nicht — dann steht der Name für
+      // sie, bis das Gespräch sie klärt. Der Platzhalter kommt aus EINER Konstante (E-476: das Dossier erkennt ihn daran).
+      firma: (firmaFeld?.trim() || firmaOffenPlatzhalter(name)).slice(0, 200),
       email, telefon,
       paket: null, paketText: null,
       land: f.land, sprache: "de",
     },
     wunschzeit: null,
-    text: globalMetaText(f, formularName, roh),
+    text: globalMetaText(f, formularName, roh, fragen),
     ip: "meta-sofortformular",
-    herkunft: { wo: "das Meta-Sofortformular (Instagram/Facebook)", quelle: "website", autor: "Meta-Sofortformular" },
+    // E-476: Quelle „meta“ (Herkunft im Auftrag: „Meta-Formular“) statt „website“.
+    herkunft: { wo: "das Meta-Sofortformular (Instagram/Facebook)", quelle: "meta", autor: "Meta-Sofortformular" },
+    lead: {
+      kanal: "meta", antworten: globalMetaAntworten(f, fragen), formular: formularName, plattform: f.plattform,
+      anzeige: roh.ad_name ?? null, kampagne: roh.campaign_name ?? null, metaLeadId: String(roh.id),
+      // Nachbesserung: der echte Eingang und der Weg — ein alter Lead aus „Rückstand nachholen“ kommt nicht einzeln.
+      metaErstellt: roh.created_time ?? null, weg,
+    },
   });
   await lauf`
     INSERT INTO fiaon_meta_leads (meta_lead_id, lead_id, formular_id, erstellt_am, weg, global_anfrage_id)
@@ -447,7 +487,7 @@ export async function metaLeadEinspielen(
   const globalIds = String((await einstellung(META_GLOBAL_FORMULARE, lauf)) ?? "").split(/[\s,;]+/).filter(Boolean);
   // Zweites Zeichen: Kampagne „FIAON Global …“ — falls Meta den Formularnamen gerade nicht liefert (formularSichern fängt Fehler ab).
   const globalKampagne = /^\s*FIAON\s+Global(\b|\s|$)/i.test(String(roh.campaign_name ?? ""));
-  if (istGlobalFormular(formular.name, roh.form_id, globalIds) || globalKampagne) return globalMetaLeadEinspielen(roh, f, formular.name, weg, lauf);
+  if (istGlobalFormular(formular.name, roh.form_id, globalIds) || globalKampagne) return globalMetaLeadEinspielen(roh, f, formular.name, weg, lauf, formular.fragen);
   const { processIntake } = await import("../routes/fiaon-leads");
   const erg = await processIntake({
     vorname: f.vorname ?? f.vollname, nachname: f.nachname,

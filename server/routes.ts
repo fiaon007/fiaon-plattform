@@ -632,6 +632,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('global_neuigkeiten_mail', async () => await (await import('./lib/fiaon-global-neuigkeiten-mail')).globalNeuigkeitenMailTakt(), 5 * 60 * 1000, { beimStartNach: 330_000, nurMitErgebnis: true });
   });
+  // 🌐 FIAON Global — Lead-Dossier an Justin (E-476, 05.11.2026): Sicherheitsnetz hinter dem Anstoß im Eingang —
+  //    fehlende Dossiers ab dem Zählbeginn, Fehlversuche, KI-Nachtrag (höchstens EIN KI-Aufruf je Takt), einmal die
+  //    Sammel-Mail für den Altbestand. Alle 2 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls).
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('lead_dossier', async () => await (await import('./lib/fiaon-lead-dossier')).leadDossierLauf(), 2 * 60 * 1000, { beimStartNach: 150_000, nurMitErgebnis: true });
+  });
   // 🌐 FIAON Global — Privataufträge ohne den Wunsch nach sofortigem Beginn starten erst nach der
   //    Widerrufsfrist (E-191). Stündlich; der Lauf hält sich ans Sendefenster (die Startmail geht mit).
   import('./lib/fiaon-crons').then(({ tageslauf }) => {

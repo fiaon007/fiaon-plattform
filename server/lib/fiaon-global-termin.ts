@@ -55,6 +55,9 @@ import { googleKalenderLink } from "./fiaon-ics";
 import { absoluteUrl } from "../fiaon-base-url";
 import { globalPaket, globalPreisText } from "@shared/fiaon-global";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
+// E-476 (05.11.2026): der Platzhalter „Privatperson · <Name>“ aus EINER Konstante — das Lead-Dossier erkennt ihn daran.
+import { privatpersonPlatzhalter } from "@shared/fiaon-global-lead";
+import type { EingangsHinweis } from "./fiaon-lead-dossier";
 
 const SETTING_ZUSTAENDIG = "global_zustaendig_agent_id";
 const SETTING_PRO_TAG = "global_termin_pro_tag";
@@ -215,7 +218,7 @@ export function globalKontaktLesen(b: any): GlobalKontakt | GlobalFeldFehler {
   const email = String(b?.email ?? "").trim().toLowerCase().slice(0, 160);
   const telefon = String(b?.telefon ?? "").trim().slice(0, 40);
   if (name.length < 2) return { feld: "name", error: T.fehlerName };
-  const firma = firmaRoh.length >= 2 ? firmaRoh : `${en ? "Private individual" : "Privatperson"} · ${name}`;
+  const firma = firmaRoh.length >= 2 ? firmaRoh : privatpersonPlatzhalter(name, en ? "en" : "de");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { feld: "email", error: T.fehlerEmail };
   if (telefon.replace(/\D/g, "").length < 6) return { feld: "telefon", error: T.fehlerTelefon };
   // Ein unbekanntes Paket ist kein Fehler des Menschen: Der Wunsch bleibt
@@ -439,6 +442,11 @@ export async function globalTerminBuchen(ein: {
   }
 
   console.log(`[GLOBAL-TERMIN] #${buchung.id}: ${k.firma} (${k.email}) am ${buchung.datumText} ${buchung.uhrzeit} bei ${person.name}${k.paket ? ` — ${k.paket}` : ""}`);
+  // E-476 (Gutachten 0, Mangel 3): Wer selbst bucht, ist der heißeste Lead — auch er bekommt sein Dossier an Justin.
+  // Angestoßen, nie abgewartet; nur im Betrieb (CRONS_AN). Die Buchung ist hier schon fertig.
+  void import("./fiaon-lead-dossier")
+    .then((m) => m.leadDossierAnstossen({ anlass: "termin", anlassId: buchung.id, firmaId, personId: zu.personId, hinweis: { kanal: "buchung" } }))
+    .catch((e) => console.error(`[GLOBAL-TERMIN] Lead-Dossier zu Termin ${buchung.id} nicht angestoßen:`, e));
   return {
     ok: true, terminId: buchung.id, wann: buchung.beginn, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit,
     ansprechpartner: { vorname: person.vorname }, kalenderUrl: globalKalenderUrl(buchung.stornoToken, k.sprache),
@@ -521,6 +529,31 @@ export function globalGoogleFeld(beginn: string | Date | null | undefined, sprac
 // Die Anfrage — Rückfall ohne freie Zeit und „lieber ein Anruf"
 // ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * Der Text von Daniels Auftrag zu einer Global-Anfrage (rein, für den Prüfstand herausgezogen). E-476 Nachbesserung
+ * (Gutachten Technik 05.11.2026): Die Auftrag-Mail schneidet nach 600 Zeichen ab — der Klartext ist länger als die alten
+ * Codes, die dritte Antwort fiel weg. Die Antworten stehen deshalb als EINE kurze Zeile ganz oben; der ganze Text bleibt
+ * unten in „Nachricht“ und im Portal.
+ */
+export function globalAnfrageAuftragText(ein: {
+  anfrageId: number; wo: string; kontakt: GlobalKontakt; wunschzeit: string | null; kundeRef: string | null; text: string | null;
+  antworten?: { antwort: string }[] | null;
+}): string {
+  const k = ein.kontakt;
+  const antworten = (ein.antworten ?? []).map((a) => String(a.antwort ?? "").trim()).filter(Boolean);
+  return [
+    `Anfrage #${ein.anfrageId} über ${ein.wo} — das Unternehmen möchte ein Erstgespräch zu FIAON Global.`,
+    antworten.length ? `Antworten: ${antworten.join(" · ").slice(0, 240)}` : null,
+    `Firma: ${k.firma} · Ansprechpartner: ${k.name}`,
+    `Telefon: ${k.telefon} · E-Mail: ${k.email}`,
+    `Paketwunsch: ${k.paketText ?? "noch offen"}${k.land ? ` · Land: ${k.land}` : ""}${k.sprache === "en" ? " · Gespräch auf ENGLISCH" : ""}`,
+    ein.wunschzeit ? `Wunschzeit: ${ein.wunschzeit}` : null,
+    ein.kundeRef ? `Ist bereits Kunde (${ein.kundeRef}).` : null,
+    ein.text ? `\nNachricht: ${ein.text.slice(0, 1200)}` : null,
+    "\nBitte heute anrufen. Die Firma steht ganz oben im Firmen-Cockpit — dort das Ergebnis festhalten.",
+  ].filter(Boolean).join("\n");
+}
+
 export async function globalAnfrageAnnehmen(ein: {
   kontakt: GlobalKontakt; wunschzeit: string | null; text: string | null; ip: string;
   /**
@@ -530,6 +563,11 @@ export async function globalAnfrageAnnehmen(ein: {
    * der Privat-Strecke (E-272). Nur die Wörter im Verlauf und in der Aufgabe ändern sich.
    */
   herkunft?: { wo: string; quelle: string; autor: string };
+  /**
+   * E-476 (05.11.2026): was der Eingang über den Lead weiß (Kanal, Antworten im Klartext, Formular, Anzeige) — für das
+   * Lead-Dossier an Justin. Ohne Angabe liest das Dossier alles aus der Anfrage selbst.
+   */
+  lead?: EingangsHinweis | null;
 }): Promise<{ anfrageId: number; zustaendigName: string | null; anBetreiber: boolean }> {
   const k = ein.kontakt;
   const wo = ein.herkunft?.wo ?? "fiaon.com/business";
@@ -581,16 +619,7 @@ export async function globalAnfrageAnnehmen(ein: {
   const erg = await auftragFuerKunden({
     personId: null, ref: kunde?.ref ?? null,
     titel: `FIAON Global: ${k.firma} bittet um einen Anruf`,
-    text: [
-      `Anfrage #${anfrageId} über ${wo} — das Unternehmen möchte ein Erstgespräch zu FIAON Global.`,
-      `Firma: ${k.firma} · Ansprechpartner: ${k.name}`,
-      `Telefon: ${k.telefon} · E-Mail: ${k.email}`,
-      `Paketwunsch: ${k.paketText ?? "noch offen"}${k.land ? ` · Land: ${k.land}` : ""}${k.sprache === "en" ? " · Gespräch auf ENGLISCH" : ""}`,
-      ein.wunschzeit ? `Wunschzeit: ${ein.wunschzeit}` : null,
-      kunde?.ref ? `Ist bereits Kunde (${kunde.ref}).` : null,
-      ein.text ? `\nNachricht: ${ein.text.slice(0, 1200)}` : null,
-      "\nBitte heute anrufen. Die Firma steht ganz oben im Firmen-Cockpit — dort das Ergebnis festhalten.",
-    ].filter(Boolean).join("\n"),
+    text: globalAnfrageAuftragText({ anfrageId, wo, kontakt: k, wunschzeit: ein.wunschzeit, kundeRef: kunde?.ref ?? null, text: ein.text, antworten: ein.lead?.antworten ?? null }),
     faelligAm: berlinToday(),
     dringend: true,
     schluessel: `global-anfrage:${anfrageId}`,
@@ -612,6 +641,14 @@ export async function globalAnfrageAnnehmen(ein: {
     `.catch(() => {});
   }
   console.log(`[GLOBAL-TERMIN] Anfrage #${anfrageId}: ${k.firma} (${k.email}) → ${erg.agentName ?? "Betreiber"}`);
+  // E-476 (05.11.2026): das Lead-Dossier an Justin — angestoßen, NIE abgewartet: Der Eingang ist hier fertig und darf an
+  // der Dossier-Mail nie scheitern. Nur im Betrieb (CRONS_AN) — ein lokaler Prüflauf verschickt nichts.
+  void import("./fiaon-lead-dossier")
+    .then((m) => m.leadDossierAnstossen({
+      anlass: "anfrage", anlassId: anfrageId, firmaId, personId: kunde?.person_id ? Number(kunde.person_id) : null,
+      hinweis: ein.lead ?? { kanal: ein.herkunft?.quelle === "meta" ? "meta" : "website" },
+    }))
+    .catch((e) => console.error(`[GLOBAL-TERMIN] Lead-Dossier zu Anfrage #${anfrageId} nicht angestoßen:`, e));
   return { anfrageId, zustaendigName: erg.agentName, anBetreiber: erg.anBetreiber };
 }
 

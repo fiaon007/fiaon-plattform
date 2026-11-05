@@ -505,6 +505,21 @@ export interface EigeneMail {
   hinweis?: string;
   /** Kleiner Satz UNTER den Knöpfen (z. B. „Google: bitte nur einmal klicken …"). */
   knopfFuss?: string;
+  /**
+   * E-476 (05.11.2026, Lead-Dossier): zusätzliche Kopfzeilen — In-Reply-To/References halten alle Meldungen zu
+   * einem Lead in EINEM Faden. Ohne Angabe geht keine Kopfzeile mit (jede andere Mail bleibt, wie sie war).
+   */
+  kopfzeilen?: Record<string, string>;
+  /** E-476: Antwort-an statt welcome@ (Gutachten 0, Mangel 19 — eine Antwort auf das Dossier soll nicht in Maras Postfach landen). */
+  antwortAn?: { email: string; name?: string };
+  /**
+   * E-476: Adressen (https://…, tel:…) im Text klickbar machen. Ohne Angabe bleibt der Text Byte für Byte, wie er war.
+   * Nachbesserung (Gutachten Sicherheit 05.11.2026): Eine LISTE heißt „nur genau diese Adressen“ — eine Adresse aus dem
+   * Text eines Fremden (Lead, Webseite) wird nie ein Link.
+   */
+  verlinken?: boolean | string[];
+  /** E-476 Nachbesserung: Zeilen, die mit einem Wort in GROSSBUCHSTABEN beginnen („KONTAKT“, „CHECK“), fett setzen. */
+  abschnitteFett?: boolean;
 }
 
 /**
@@ -517,23 +532,37 @@ export interface EigeneMail {
  */
 export async function eigeneMailSenden(
   mail: EigeneMail,
-): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
-  const r = await brevo<{ messageId?: string }>("/smtp/email", {
-    method: "POST",
-    body: JSON.stringify({
-      // Absendername ist die MARKE, nicht die Domain — im Posteingang steht
-      // dann „FIAON" und nicht „welcome@fiaon.com".
-      sender: { name: "FIAON", email: "welcome@fiaon.com" },
-      replyTo: { name: "FIAON", email: "welcome@fiaon.com" },
-      to: [{ email: mail.an, ...(mail.name ? { name: mail.name } : {}) }],
-      subject: mail.betreff,
-      htmlContent: rahmen(mail.betreff, mail.text, mail.gruppe === true, mail),
-      // Mehrteilig: Wer HTML abgeschaltet hat, sähe sonst eine leere Mail —
-      // und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter.
-      textContent: rahmenText(mail.text, mail.gruppe === true, mail),
-    }),
+): Promise<{ ok: boolean; messageId: string | null; grund?: string; ohneKopfzeilen?: boolean }> {
+  const koerper = (mitKopf: boolean) => JSON.stringify({
+    // Absendername ist die MARKE, nicht die Domain — im Posteingang steht
+    // dann „FIAON" und nicht „welcome@fiaon.com".
+    sender: { name: "FIAON", email: "welcome@fiaon.com" },
+    replyTo: mail.antwortAn?.email
+      ? { name: mail.antwortAn.name || "FIAON", email: mail.antwortAn.email }
+      : { name: "FIAON", email: "welcome@fiaon.com" },
+    to: [{ email: mail.an, ...(mail.name ? { name: mail.name } : {}) }],
+    subject: mail.betreff,
+    htmlContent: rahmen(mail.betreff, mail.text, mail.gruppe === true, mail),
+    // Mehrteilig: Wer HTML abgeschaltet hat, sähe sonst eine leere Mail —
+    // und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter.
+    textContent: rahmenText(mail.text, mail.gruppe === true, mail),
+    ...(mitKopf && mail.kopfzeilen && Object.keys(mail.kopfzeilen).length ? { headers: mail.kopfzeilen } : {}),
   });
-  if (!r.ok) return { ok: false, messageId: null, grund: r.grund };
+  const mitKopf = !!(mail.kopfzeilen && Object.keys(mail.kopfzeilen).length);
+  const r = await brevo<{ messageId?: string }>("/smtp/email", { method: "POST", body: koerper(mitKopf) });
+  if (!r.ok) {
+    // E-476 Nachbesserung (Gutachten Technik 05.11.2026): Brevo beschreibt `headers` für EIGENE Kopfzeilen; In-Reply-To
+    // und References sind Standard-Kopfzeilen. Lehnt Brevo die Anfrage deshalb ab (400/404/422 — „unsere Anfrage ist
+    // falsch“), geht dieselbe Mail sofort OHNE Kopfzeilen raus: Der gleiche Betreff hält den Faden dann trotzdem
+    // zusammen, und keine Meldung (auch nicht die Terminmeldung von /justin) scheitert an einem Faden.
+    if (mitKopf && r.klartext.wer === "wir") {
+      console.warn(`[BREVO] Kopfzeilen abgelehnt (${r.grund.slice(0, 160)}) — sende ohne In-Reply-To/References.`);
+      const r2 = await brevo<{ messageId?: string }>("/smtp/email", { method: "POST", body: koerper(false) });
+      if (r2.ok) return { ok: true, messageId: r2.daten.messageId ?? null, ohneKopfzeilen: true };
+      return { ok: false, messageId: null, grund: r2.grund };
+    }
+    return { ok: false, messageId: null, grund: r.grund };
+  }
   return { ok: true, messageId: r.daten.messageId ?? null };
 }
 
@@ -583,11 +612,38 @@ export function rahmenText(text: string, gruppe = false, zusatz: Pick<EigeneMail
   ].join("\n");
 }
 
-export function rahmen(betreff: string, text: string, gruppe = false, zusatz: Pick<EigeneMail, "knoepfe" | "hinweis" | "knopfFuss"> = {}): string {
+/**
+ * E-476: Adressen im (schon maskierten) Text klickbar machen — https://… und eine Nummer hinter „Telefon: +49 …“
+ * (als tel:-Link). Nur, wenn die Mail es ausdrücklich will (`verlinken`); sonst bleibt jede Mail, wie sie war. Ein
+ * Satzzeichen am Ende gehört nicht zur Adresse.
+ */
+export function textVerlinken(maskiert: string, erlaubt: readonly string[] | null = null): string {
+  const liste = erlaubt ? new Set(erlaubt.map((u) => u.trim())) : null;
+  const mitAdressen = maskiert.replace(/https:\/\/[^\s<>"']+/g, (ganz) => {
+    const ende = /[.,;:!?)\]]+$/.exec(ganz)?.[0] ?? "";
+    const url = ende ? ganz.slice(0, -ende.length) : ganz;
+    // Mit Erlaubt-Liste: nur genau diese Adressen (im maskierten Text steht „&amp;“ statt „&“).
+    if (liste && !liste.has(url.replace(/&amp;/g, "&"))) return ganz;
+    return `<a href="${url.replace(/"/g, "&quot;")}" style="color:#1d4ed8;">${url}</a>${ende}`;
+  });
+  return mitAdressen.replace(/(Telefon:\s)(\+[0-9][0-9 ]{5,22}[0-9])/g, (_g, vor: string, nummer: string) =>
+    `${vor}<a href="tel:${nummer.replace(/\s+/g, "")}" style="color:#1d4ed8;">${nummer}</a>`);
+}
+
+/** E-476 Nachbesserung: „KONTAKT“, „CHECK“, „ACHTUNG — …“ am Zeilenanfang fett (nur mit `abschnitteFett`). */
+function koepfeFett(absatz: string): string {
+  return absatz.split("\n").map((z) => z.replace(/^([A-ZÄÖÜ]{3,}(?: [A-ZÄÖÜ]{2,})*)(?=$|[\s:—(])/, "<b>$1</b>")).join("\n");
+}
+
+export function rahmen(betreff: string, text: string, gruppe = false, zusatz: Pick<EigeneMail, "knoepfe" | "hinweis" | "knopfFuss" | "verlinken" | "abschnitteFett"> = {}): string {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const html = esc(text)
     .split(/\n{2,}/)
-    .map((absatz) => `<p style="margin:0 0 16px;line-height:1.65;">${absatz.replace(/\n/g, "<br>")}</p>`)
+    .map((absatz) => {
+      let a = zusatz.verlinken ? textVerlinken(absatz, Array.isArray(zusatz.verlinken) ? zusatz.verlinken : null) : absatz;
+      if (zusatz.abschnitteFett) a = koepfeFett(a);
+      return `<p style="margin:0 0 16px;line-height:1.65;">${a.replace(/\n/g, "<br>")}</p>`;
+    })
     .join("")
     + knopfZeile(zusatz, esc);
   return `<!doctype html><html lang="de"><head><meta charset="utf-8">

@@ -24,6 +24,7 @@
 
 import { sqlPool } from "./db-pool";
 import { berlinDatumText, berlinUhrzeit } from "./fiaon-termine";
+import { fadenAntwortBetreff } from "@shared/fiaon-global-lead";
 
 /** „Donnerstag" — Wochentag eines Zeitpunkts in Berlin. */
 export function berlinWochentagName(at: Date | string): string {
@@ -35,12 +36,14 @@ import { absoluteUrl } from "../fiaon-base-url";
 type Lauf = typeof sqlPool;
 
 /** Die Quelle im Klartext — der Zuständige soll wissen, woher der Termin kommt. */
-const QUELLE_TEXT: Record<string, string> = {
+/** Die Art eines Termins im Klartext — E-476: auch das Lead-Dossier liest sie (Bestand „Termin …“). */
+export const QUELLE_TEXT: Record<string, string> = {
   onboarding_call: "Startgespräch (Pflichttermin nach der Zahlung)",
   onboarding: "Onboarding-Termin",
   nichterreicht_mail: "Rückruf-Termin (zweimal nicht erreicht)",
   agent_manuell: "Rückruf/Termin, von Hand eingetragen",
-  gruender: "Gespräch mit dem Gründer — selbst gebucht über fiaon.com/justin",
+  // E-476 (05.11.2026): „selbst gebucht“ stimmte oft nicht — Daniel trägt Leads nach seinem Anruf hier ein.
+  gruender: "Gespräch mit dem Gründer — gebucht über fiaon.com/justin",
   // E-188: Die BUCHUNG eines Global-Gesprächs meldet der Auftrag
   // (fiaon-global-termin.ts), nicht diese Datei — die ABSAGE läuft hier durch.
   global: "FIAON Global – Erstgespräch mit einem Unternehmen (gebucht über fiaon.com/business)",
@@ -133,7 +136,11 @@ async function melden(opts: {
         ? `Ein Kollege hat mit ${b.kunde} ein Gespräch mit dir vereinbart und es aus seiner Gesprächsnotiz in deinen Kalender eingetragen — die Notiz steht unten.`
       : opts.quelle === "agent_manuell"
         ? `Für ${b.kunde} wurde ein Termin bei dir eingetragen.`
-        : `${b.kunde} hat sich selbst einen Termin bei dir ausgesucht.`;
+        // E-476 (05.11.2026): Über /justin buchen Leads selbst — und Daniel nach seinem Anruf für sie. Wer getippt hat,
+        // sieht die Seite nicht; die Mail sagt deshalb nur, was sicher ist.
+        : opts.quelle === "gruender"
+          ? `Neuer Termin über fiaon.com/justin: ${b.kunde}.`
+          : `${b.kunde} hat sich selbst einen Termin bei dir ausgesucht.`;
   // E-188: Ein Global-Gespräch hängt an einem Firmen-Lead — seine „Akte" ist
   // das Firmen-Cockpit, die Kundenakte wäre für einen Firmenkontakt leer.
   const akte = !b.personId ? absoluteUrl("/agent/kalender")
@@ -146,11 +153,30 @@ async function melden(opts: {
   // der neue kommt als eigene Buchungsmail. Kein „ABGESAGT", kein „Der Kunde hat
   // einen Link bekommen" (er bekommt keinen: Er hat die neue Zeit ja schon).
   const verschoben = opts.art === "absage" && String(opts.wer ?? "").startsWith("verschoben");
-  const betreff = opts.art === "buchung"
+  // E-476 (05.11.2026): Gehört ein /justin-Termin zu einer Global-Anfrage (Mail ODER Telefon, 60 Tage)? Dann trägt die
+  // Meldung die Kurzfassung des Leads (Firma, Antworten im Klartext, Check, Cockpit-Link) und läuft im Mail-Faden des
+  // Leads („Lead: …“) — eine Meldung, kein zweites Dossier. Nur Lesen und schnell: die Buchung wartet auf diese Mail.
+  const lead = opts.art === "buchung" && opts.quelle === "gruender"
+    ? await import("./fiaon-lead-dossier").then((m) => m.globalLeadZuTermin(opts.terminId, opts.lauf)).catch(() => null)
+    : null;
+  // E-476 Nachbesserung (Gutachten Justin-Sicht 05.11.2026): Die Absage eines solchen Termins gehört in denselben Faden.
+  const leadAbsage = opts.art === "absage" && opts.quelle === "gruender"
+    ? await import("./fiaon-lead-dossier").then((m) => m.leadFadenZuTermin(opts.terminId, opts.lauf)).catch(() => null)
+    : null;
+  const faden = lead ? { faden: lead.faden, stamm: lead.stamm } : leadAbsage;
+  const betreff = lead
+    ? (lead.faden.erste ? lead.stamm : fadenAntwortBetreff(lead.stamm))
+    : leadAbsage
+    ? fadenAntwortBetreff(leadAbsage.stamm)
+    : opts.art === "buchung"
     ? `Neuer Termin${vonMara || genannt ? " (von Mara)" : ""}: ${b.kunde} — ${wann}`
     : verschoben ? `Termin verschoben (Mara): ${b.kunde} — war ${wann}` : `Termin ABGESAGT: ${b.kunde} — ${wann}`;
+  // Im Faden heißt der Betreff „Re: Lead: …“ — damit ein neuer Termin im Posteingang trotzdem sofort auffällt, steht er
+  // in der ersten Zeile (Gmail zeigt sie als Vorschau).
+  const fadenKopf = lead ? `TERMIN STEHT: ${wann} (über fiaon.com/justin)\n\n`
+    : leadAbsage ? `TERMIN ${verschoben ? "VERSCHOBEN" : "ABGESAGT"}: ${wann} (über fiaon.com/justin)\n\n` : "";
 
-  const text = verschoben
+  const text = fadenKopf + (verschoben
     ? `Hallo ${b.agentVorname},\n\n`
       + `Mara hat den Termin mit ${b.kunde} auf Wunsch des Kunden verschoben.\n\n`
       + `Der alte Termin war: ${wann}\n`
@@ -164,6 +190,7 @@ async function melden(opts: {
       + (b.kundeTelefon ? `Telefon: ${b.kundeTelefon}\n` : "")
       + (b.ref ? `Bestellung: ${b.ref}\n` : "")
       + (b.notiz ? `\n${genannt ? "Beleg" : vonMara ? "Worum es geht" : "Anliegen"}:\n${b.notiz}\n` : "")
+      + (lead ? `\n${lead.kurz}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
       // E-263: „in deinem Kalender" stand direkt über den Knöpfen „In Apple-/Outlook-Kalender" — gemeint ist das Portal.
       + `Der Termin steht im FIAON-Calendar (Portal) und meldet sich dort 30 Minuten vorher.`
@@ -174,7 +201,7 @@ async function melden(opts: {
       + (b.kundeTelefon ? `Telefon: ${b.kundeTelefon}\n` : "")
       + `\nZur Akte: ${akte}\n\n`
       + `Die Zeit ist bei dir wieder frei. Der Kunde hat einen Link bekommen, `
-      + `um neu zu buchen — wenn er sich nicht meldet, ruf ihn an.`;
+      + `um neu zu buchen — wenn er sich nicht meldet, ruf ihn an.`);
 
   // Der Verlaufseintrag steht IMMER, auch wenn die Mail scheitert. Sonst
   // verschwindet die Absage doppelt: erst aus der Ansicht, dann aus der Akte.
@@ -202,6 +229,9 @@ async function melden(opts: {
     const erg = await eigeneMailSenden({
       an: b.agentMail, name: b.agentVorname, betreff, text,
       ...(kalender ?? {}),
+      // Lehnt Brevo die Faden-Kopfzeilen ab, sendet eigeneMailSenden dieselbe Mail ohne sie (E-476 Nachbesserung) —
+      // die Meldung scheitert nie am Faden.
+      ...(faden?.faden.kopfzeilen ? { kopfzeilen: faden.faden.kopfzeilen } : {}),
     });
     if (erg.ok) {
       await opts.lauf`
@@ -210,6 +240,14 @@ async function melden(opts: {
             updated_at = NOW()
         WHERE id = ${opts.terminId}
       `.catch((e) => console.error(`[TERMIN-MELDUNG] Merker fuer Termin ${opts.terminId} nicht gesetzt — die Meldung geht beim naechsten Lauf ERNEUT raus:`, e));
+      // E-476: Diese Mail gehört jetzt zum Faden des Leads — damit spätere Meldungen sich auf sie beziehen. Ohne Tabelle
+      // (vor dem ersten Dossier-Lauf) bleibt es bei der Mail; hier läuft bewusst KEINE Tabellen-Anweisung (Buchungsweg).
+      if (lead) {
+        await opts.lauf`
+          INSERT INTO fiaon_lead_dossier (anlass, anlass_id, termin_id, firma_id, kanal, status, grund, faden_betreff, mail_basis_am, mail_basis_id)
+          VALUES ('termin', ${opts.terminId}, ${opts.terminId}, ${lead.firmaId}, 'justin', 'gesendet', 'Termin-Meldung /justin im Faden des Leads', ${lead.stamm}, NOW(), ${erg.messageId})
+          ON CONFLICT (anlass, anlass_id) DO NOTHING`.catch(() => {});
+      }
       return { gemeldet: true };
     }
     return { gemeldet: false, grund: erg.grund };

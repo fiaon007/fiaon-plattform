@@ -162,6 +162,8 @@ const REGISTER: [string, string, Gruppe][] = [
   ["fiaon_global_dokumente", "Global — Dokumente", "FIAON Global"],
   ["fiaon_global_fristen", "Global — Fristen", "FIAON Global"],
   ["fiaon_global_verlauf", "Global — Verlauf", "FIAON Global"],
+  // E-476 (05.11.2026): das Lead-Dossier an Justin (Check und Hintergrund zur Firma) — gehört in jede Auskunft.
+  ["fiaon_lead_dossier", "Global — Lead-Dossier", "FIAON Global"],
 ];
 
 /** Nie in einer Akte — mit Grund (erscheint als Fußnote). */

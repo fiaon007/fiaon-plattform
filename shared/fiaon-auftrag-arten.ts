@@ -701,6 +701,8 @@ export function auftragHerkunft(quelle: unknown): { vonMara: boolean; kanal: str
     antrag: "Antrag", abo: "Zahlungen", bonitaet: "Bonität", global: "FIAON Global",
     website: "Website", hand: "Verwaltung", system: "System", meldung: "Meldung",
     bestellung: "Bestellung", kundenbereich: "Kundenbereich", bankbuch: "Bankbuch", kontakt: "Kontaktformular",
+    // E-476 (05.11.2026): Global-Leads aus dem Meta-Sofortformular tragen jetzt ihre echte Quelle (vorher „website“).
+    meta: "Meta-Formular",
   };
   return { vonMara: false, kanal: HAUS[q] ?? "Verwaltung" };
 }

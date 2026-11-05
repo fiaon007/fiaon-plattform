@@ -526,17 +526,18 @@ router.post("/agent/firmen/:id/notiz", requireAgent, async (req: AgentRequest, r
 // schätzt — sie erfindet keine Fakten über die Firma.
 // ═══════════════════════════════════════════════════════════════════════════
 
+// E-476 (05.11.2026, Gutachten 0, Mangel 14): Die Website kommt aus Listen und Formularen — der Abruf läuft deshalb über
+// den Netzschutz der Firmensuche (nur http/https auf 80/443, keine private oder interne Adresse, jede Weiterleitung neu
+// geprüft, 6 s, 600 KB, nur Textformate) statt über ein rohes fetch mit „redirect: follow“ (das wäre ein Fernrohr ins
+// eigene Netz, SSRF). Ergebnis und Kürzung bleiben wie vorher.
 async function websiteText(roh: string | null): Promise<string | null> {
   if (!roh) return null;
   const url = /^https?:\/\//.test(roh) ? roh : `https://${roh}`;
   try {
-    const abbruch = new AbortController();
-    const wecker = setTimeout(() => abbruch.abort(), 6000);
-    const res = await fetch(url, { signal: abbruch.signal, redirect: "follow", headers: { "User-Agent": "Mozilla/5.0 (FIAON Vorbereitung)" } });
-    clearTimeout(wecker);
-    if (!res.ok) return null;
-    const html = (await res.text()).slice(0, 300_000);
-    return html
+    const { sicherAbrufen } = await import("../lib/firmensuche/netzschutz");
+    const seite = await sicherAbrufen(url, { fristMs: 6000, maxBytes: 300_000 });
+    if (seite.status < 200 || seite.status >= 300) return null;
+    return seite.text
       .replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 7000) || null;
   } catch { return null; }

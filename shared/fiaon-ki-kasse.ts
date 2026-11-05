@@ -151,10 +151,15 @@ export const KASSE_SCHLUESSEL = {
  * Was hier fehlt, ist „Haus“. Der Firmen-Radar (und mit ihm der Mail-Motor) zahlt Suche, Scan, Mail, Prüf-KI und Nachfassen
  * aus B2B. E-458 (Befund Go-live): Das Einordnen von Antworten und Maras Antwort („radar-antwort“) und der Fach-Chat der
  * zahlenden Global-Kunden („global-berater“) sind Antworten an Menschen — mit Vorrang, nie hinter der Vorbereitung.
+ * E-476 (05.11.2026): Der Hintergrund-Check zum Lead-Dossier („lead-dossier“) ebenso — ein Mensch hat uns angefragt, Justin
+ * ruft ihn an; der Radar-Topf ist früh am Tag leer. Er hat dazu einen EIGENEN Tagesdeckel (8 $, lead_dossier_ki_deckel_usd),
+ * einen Stundendeckel (6 Checks) und einen Not-Aus (lead_dossier_ki_an); es läuft immer nur EIN Check gleichzeitig, und
+ * jeder bucht seine Kosten, bevor der nächste den Deckel liest (fiaon-lead-dossier.ts). So nimmt er dem Topf höchstens
+ * diese 8 $ am Tag — auch bei einer Flut von Anfragen (Gutachten Sicherheit 05.11.2026).
  */
 const ZUORDNUNG: Readonly<Record<string, KasseBereich>> = {
   radar: "b2b", "partner-crm": "b2b", firmen: "b2b", impressum: "b2b", ratgeber: "b2b",
-  "radar-antwort": "menschen", "global-berater": "menschen",
+  "radar-antwort": "menschen", "global-berater": "menschen", "lead-dossier": "menschen",
   "postmeister-antwort": "menschen", "postmeister-einordnen": "menschen", "postmeister-alt": "menschen",
   "mara-whatsapp": "menschen", "mara-anliegen": "menschen", "mara-nacharbeit": "menschen", "kontakt-chat": "menschen",
   "mara-aktion": "privat", "mara-auftrag": "privat",

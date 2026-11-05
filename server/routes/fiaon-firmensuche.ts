@@ -112,6 +112,13 @@ async function cacheSchreiben(schluessel: string, antwort: unknown): Promise<voi
   }
 }
 
+/**
+ * E-476 (05.11.2026): Das Lead-Dossier (server/lib/fiaon-lead-dossier.ts) liest und füllt DENSELBEN Cache mit denselben
+ * Schlüsseln („suche:DE:…“, „detail:DE:openregister:…“) — eine Abfrage kostet so nur einmal Credits, egal wer zuerst fragt.
+ */
+export const firmensucheCacheLesen = cacheLesen;
+export const firmensucheCacheSchreiben = cacheSchreiben;
+
 // ── Bremse je IP-Adresse (Muster: fiaon-gruender-termin.ts) ─────────────────
 const toepfe: Record<string, Map<string, number[]>> = { suche: new Map(), detail: new Map(), impressum: new Map(), ustid: new Map() };
 const GRENZEN: Record<string, { max: number; fensterMs: number }> = {

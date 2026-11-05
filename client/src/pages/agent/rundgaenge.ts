@@ -1199,7 +1199,11 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
       + "Ganz oben stehen außerdem Unternehmen, die sich SELBST gemeldet haben: Wer auf "
       + "fiaon.com/business ein Erstgespräch zu FIAON Global bucht oder um einen Anruf bittet, "
       + "erscheint hier mit dem Zusatz „FIAON Global\u201c — mit Paketwunsch auf der Karte und der "
-      + "Buchung im Verlauf. Das gebuchte Gespräch steht zusätzlich in deinem Kalender.",
+      + "Buchung im Verlauf. Das gebuchte Gespräch steht zusätzlich in deinem Kalender. "
+      // E-476 (05.11.2026) mitgezogen: Antworten im Klartext und das Lead-Dossier an Justin.
+      + "Die Antworten aus dem Meta-Formular stehen im Klartext da (nicht mehr als Code), und im Verlauf "
+      + "siehst du die Zeile „Lead-Dossier an Justin\u201c — Justin hat den Lead mit dem Check schon auf dem Tisch. "
+      + "Steht dort „Justin ruft selbst an\u201c, ist dein Auftrag dazu geschlossen.",
     tipp: "Wiedervorlagen zuerst. Ein gehaltenes Versprechen verkauft besser als zehn Kaltanrufe.",
   },
   {
@@ -2536,6 +2540,19 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "zahlenden Kunden, steht genau das da — keine erfundene Zahl.",
     tipp: "Die alte Kampagne „DE Kampagne 2“ lief über ein anderes Werbekonto: Ihre Leads und Zahlenden stehen da, ihre Kosten nicht. "
       + "„Kosten jetzt abrufen“ holt den gewählten Zeitraum sofort.",
+  },
+  // E-476 (05.11.2026): das Lead-Dossier an Justin.
+  {
+    ziel: ".lm-dossier",
+    titel: "Zu jedem Business-Lead eine Mail an Justin.",
+    text: "Meldet sich ein Unternehmen (Meta-Formular, Website-Anfrage oder Global-Buchung), bekommt Justin binnen Minuten eine Mail: "
+      + "die Antworten im Klartext (Paketwunsch zuerst), Kontakt mit Telefon-Land, ein kostenloser Check (steht die Firma im Register? "
+      + "passt die Mail zur Firma?), was wir schon über den Kontakt wissen und wer wann anruft — mit dem Knopf „Ich rufe selbst an“, der "
+      + "den Auftrag ans Team schließt. Dazu ein KI-Hintergrund mit Websuche — jede Aussage mit Quelle, sonst „unbekannt“; Privates wird "
+      + "nie recherchiert. Alle Meldungen zu einem Lead stehen in einem Mail-Faden.",
+    tipp: "Drei Schalter: Dossier, KI (erst einschalten, wenn der Satz in der Datenschutzerklärung steht; eigener Tagesdeckel, höchstens "
+      + "ein Check gleichzeitig) und die einmalige Sammel-Mail für die Leads vor dem Start. „Vorschau“ zeigt das Dossier zu einer "
+      + "Anfrage-Nummer, ohne etwas zu senden; der Prüfversand (auch mit KI) geht nur an Justin.",
   },
   {
     ziel: ".lm-verbindung",

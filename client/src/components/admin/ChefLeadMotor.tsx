@@ -98,7 +98,7 @@ export default function ChefLeadMotor() {
   const [beschaeftigt, setBeschaeftigt] = useState<string | null>(null);
   const [seitDatum, setSeitDatum] = useState("2026-09-21");
   const [nachholErgebnis, setNachholErgebnis] = useState<any | null>(null);
-  const [vorschau, setVorschau] = useState<{ betreff: string; html: string; beispiel: boolean } | null>(null);
+  const [vorschau, setVorschau] = useState<{ betreff: string; html: string; beispiel: boolean; titel?: string } | null>(null);
   const [datensatzFeld, setDatensatzFeld] = useState("");
   const [testCode, setTestCode] = useState("");
   const [ereignisseOffen, setEreignisseOffen] = useState(false);
@@ -249,6 +249,9 @@ export default function ChefLeadMotor() {
 
           {/* E-239: Werbekosten neben echtem Geld — was kostet ein zahlender Kunde? */}
           <KostenKarte melden={melden} />
+
+          {/* E-476: das Lead-Dossier an Justin — Schalter, KI-Deckel, Vorschau, Prüfversand, Sammel-Mail. */}
+          <DossierKarte melden={melden} zeigen={(betreff, html) => setVorschau({ betreff, html, beispiel: false, titel: "So bekäme Justin das Dossier (nur Vorschau, nichts gesendet)" })} />
 
           <details className="lm-karte lm-klapp lm-verbindung"><summary>Verbindung zu Meta<span className="lm-klapp-still">Webhook, Rechte, Seite, Formulare</span></summary>
             <div className="lm-karte-kopf">
@@ -502,11 +505,11 @@ export default function ChefLeadMotor() {
       )}
 
       {vorschau && (
-        <div className="lm-schleier" role="dialog" aria-modal="true" aria-label="Vorschau der Begrüßungsmail" onClick={() => setVorschau(null)}>
+        <div className="lm-schleier" role="dialog" aria-modal="true" aria-label={vorschau.titel ? "Vorschau des Lead-Dossiers" : "Vorschau der Begrüßungsmail"} onClick={() => setVorschau(null)}>
           <div className="lm-fenster" onClick={(e) => e.stopPropagation()}>
             <div className="lm-fenster-kopf">
               <div>
-                <span className="lm-still">{vorschau.beispiel ? "Beispiel (Maria Muster)" : "So bekäme dieser Lead die Mail"}</span>
+                <span className="lm-still">{vorschau.titel ?? (vorschau.beispiel ? "Beispiel (Maria Muster)" : "So bekäme dieser Lead die Mail")}</span>
                 <h2>{vorschau.betreff}</h2>
               </div>
               <button className="lm-klein" onClick={() => setVorschau(null)}>Schließen</button>
@@ -892,6 +895,154 @@ function Werkstatt({ melden }: { melden: (t: string) => void }) {
         </div>
       )}
     </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAS LEAD-DOSSIER AN JUSTIN (E-476, 05.11.2026)
+//
+// Justin: „Ich möchte für jeden Business-Kunden, der sich einträgt, eine E-Mail bekommen mit allen Details … und
+// kurzen Backcheck.“ Kein neuer Raum — die Karte steht hier: drei Schalter (Dossier, KI-Hintergrund, Sammel-Mail für
+// den Altbestand), der KI-Tagesdeckel, die Register-Credits des Monats, Vorschau und Prüfversand für eine echte
+// Anfrage-Nummer und die letzten Dossiers. Regeln: server/lib/fiaon-lead-dossier.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+interface DossierStand {
+  einstellungen: {
+    an: boolean; kiAn: boolean; sammelAn: boolean; ab: string | null; sammelAm: string | null; kiDeckelUsd: number; kiFristS: number; kiStundeMax?: number; anAdresse: string;
+    sammel?: { gesendetAm: string | null; fehlversuche: number; letzterVersuch: string | null; laeuftSeit: string | null; nichtsAm?: string | null };
+  };
+  kiHeuteUsd: number;
+  register: { verbraucht: number; budget: number; monat: number; reserve: number };
+  letzte: { id: number; anlass: string; anlassId: number; kanal: string | null; status: string; grund: string | null; temperatur: string | null;
+    kiStatus: string | null; kiGrund: string | null; kiKostenCents: number; gesendetAm: string | null; kiAm: string | null; am: string; versuche: number; name: string | null }[];
+}
+
+const DOSSIER_STATUS: Record<string, string> = { gesendet: "gesendet", offen: "wartet", laeuft: "läuft", fehler: "Fehler", sammel: "in der Sammel-Mail", doppelt: "doppelt (keine eigene Mail)" };
+const KI_STATUS: Record<string, string> = {
+  fertig: "Hintergrund belegt", leer: "nichts Verlässliches", folgt: "KI folgt", pausiert: "KI pausiert", frist: "KI zu langsam",
+  unvollstaendig: "KI unvollständig", fehler: "KI-Fehler", anbieter: "KI-Rückweg ohne Quellen", deckel: "Tagesdeckel", aus: "KI aus",
+  keine_firma: "kein Beleg für eine Firma", laeuft: "KI läuft", gebremst: "gebremst (viele Anfragen)", entfallen: "entfallen (KI 48 h aus)",
+};
+const TEMPERATUR: Record<string, string> = { heiss: "heiß", warm: "warm", kalt: "kalt", offen: "offen" };
+const dollar = (usd: number) => `${usd.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+
+function DossierKarte({ melden, zeigen }: { melden: (t: string) => void; zeigen: (betreff: string, html: string) => void }) {
+  const d = useDaten<DossierStand>("/chef/lead-motor/dossier");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [anfrage, setAnfrage] = useState("");
+  const [deckel, setDeckel] = useState("");
+  const s = d.daten;
+  const nummer = anfrage.replace(/\D/g, "");
+
+  const schalten = async (schalter: "an" | "ki" | "sammel", an: boolean) => {
+    if (schalter === "an" && an && !window.confirm("Lead-Dossier einschalten?\n\nAb jetzt kommt zu jedem neuen Business-Lead eine Mail an Justin. Leads aus der Aus-Zeit kommen nicht einzeln hinterher.")) return;
+    // E-476 Nachbesserung: Die KI prüft öffentliche Firmendaten über einen Dienstleister — erst mit dem Satz in der Datenschutzerklärung.
+    if (schalter === "ki" && an && !window.confirm("KI-Hintergrund einschalten?\n\nDie Websuche prüft öffentliche Angaben zur Firma und zur geschäftlichen Rolle (Dienstleister: OpenAI). Vorher muss der Satz dazu in der Datenschutzerklärung stehen.\n\nEigener Tagesdeckel, höchstens ein Check gleichzeitig.")) return;
+    setBusy(`schalter-${schalter}`);
+    try { await senden("/chef/lead-motor/dossier/schalter", { schalter, an }); melden(an ? "Eingeschaltet." : "Ausgeschaltet."); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const deckelSpeichern = async () => {
+    setBusy("deckel");
+    try { await senden("/chef/lead-motor/dossier/deckel", { usd: Number(deckel.replace(",", ".")) }); melden("Tagesdeckel gespeichert."); setDeckel(""); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const vorschau = async () => {
+    setBusy("vorschau");
+    try {
+      const r = await fetch(`${API}/chef/lead-motor/dossier/vorschau?anfrage=${encodeURIComponent(nummer)}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) throw new Error(j?.error || "Die Vorschau ließ sich nicht bauen.");
+      zeigen(j.betreff, j.html);
+    } catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const pruefversand = async (mitKi: boolean) => {
+    if (!window.confirm(`Das Dossier zu Anfrage #${nummer} als Prüfversand an ${s?.einstellungen.anAdresse ?? "Justin"} schicken?${mitKi ? "\n\nMit echtem KI-Hintergrund-Check (Websuche, Kosten aus dem Tagesdeckel)." : ""}\n\nAn den Lead geht nichts.`)) return;
+    setBusy(mitKi ? "pruef-ki" : "pruef");
+    try {
+      const j = await senden("/chef/lead-motor/dossier/pruefversand", { anfrage: Number(nummer), mitKi });
+      const faden = j?.faden === "angenommen" ? " Faden-Test: Brevo nimmt die Faden-Kopfzeilen." : j?.faden === "abgelehnt" ? " Faden-Test: Brevo lehnt die Kopfzeilen ab — der gleiche Betreff hält den Faden." : "";
+      melden(`${mitKi ? `Prüfversand mit KI gesendet${j?.kiStatus ? ` (KI: ${KI_STATUS[j.kiStatus] ?? j.kiStatus})` : ""}.` : "Prüfversand gesendet."}${faden}`);
+      if (mitKi) d.neu();
+    }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const sammel = async () => {
+    if (!window.confirm("Die Sammel-Mail mit den offenen Alt-Leads (letzte 14 Tage) jetzt an Justin schicken?\n\nAn die Leads geht nichts.")) return;
+    setBusy("sammel");
+    try { const j = await senden("/chef/lead-motor/dossier/sammel", {}); melden(`Sammel-Mail mit ${j.anzahl} Leads gesendet.`); d.neu(); }
+    catch (err: any) { melden(err.message); } finally { setBusy(null); }
+  };
+  const schalter = (welcher: "an" | "ki" | "sammel", an: boolean, text: string) => (
+    <div className="lm-reihe">
+      <button className={`lm-schalter${an ? " an" : ""}`} onClick={() => schalten(welcher, !an)} disabled={!!busy} aria-pressed={an} aria-label={text}>
+        <span className="lm-schalter-knopf" aria-hidden="true" />{an ? "An" : "Aus"}
+      </button>
+      <span>{text}</span>
+    </div>
+  );
+
+  return (
+    <details className="lm-karte lm-klapp lm-dossier"><summary>Lead-Dossier an Justin<span className="lm-klapp-still">FIAON Global · Mail je Business-Lead, Check, KI mit Quellen</span></summary>
+      {d.fehler && <Fehlermeldung text={d.fehler} erneut={d.neu} />}
+      {d.laedt && !s && <Geruest zeilen={3} />}
+      {s && (
+        <>
+          <div className="lm-karte-kopf">
+            <p className="lm-still">
+              Zu jedem Business-Lead (Meta-Formular, Website-Anfrage, Global-Buchung) binnen Minuten eine Mail an {s.einstellungen.anAdresse}:
+              Antworten im Klartext, Kontakt, kostenloser Check (Register, Impressum, Mail, Telefon-Land), Bestand, wer anruft — dazu ein
+              KI-Hintergrund, in dem jede Aussage eine Quelle hat. Alle Meldungen zu einem Lead stehen in einem Mail-Faden.
+              {s.einstellungen.ab ? ` Zählbeginn: ${zeit(s.einstellungen.ab)}.` : " Der Zählbeginn wird beim ersten Lauf gesetzt."}
+            </p>
+          </div>
+          {schalter("an", s.einstellungen.an, "Dossier-Mail an Justin")}
+          {schalter("ki", s.einstellungen.kiAn, "KI-Hintergrund (Websuche mit Quellen) — erst mit dem Satz in der Datenschutzerklärung")}
+          {schalter("sammel", s.einstellungen.sammelAn, s.einstellungen.sammelAm
+            ? `Sammel-Mail für den Altbestand (gesendet ${zeit(s.einstellungen.sammelAm)})`
+            : s.einstellungen.sammel?.nichtsAm
+              ? `Sammel-Mail für den Altbestand — es gab keine offenen Alt-Leads (geprüft ${zeit(s.einstellungen.sammel.nichtsAm)})`
+            : (s.einstellungen.sammel?.fehlversuche ?? 0) >= 3
+              ? "Sammel-Mail für den Altbestand — drei Versuche gescheitert, bitte von Hand senden"
+              : (s.einstellungen.sammel?.fehlversuche ?? 0) > 0
+                ? `Sammel-Mail für den Altbestand (${s.einstellungen.sammel?.fehlversuche}. Versuch gescheitert, nächster folgt)`
+                : "Sammel-Mail für den Altbestand (einmal)")}
+          <p className="lm-ergebnis">
+            KI heute: <b>{dollar(s.kiHeuteUsd)}</b> von {dollar(s.einstellungen.kiDeckelUsd)} Tagesdeckel (höchstens {s.einstellungen.kiStundeMax ?? 6} Checks je Stunde, immer nur einer gleichzeitig) · Register-Credits diesen Monat: <b>{s.register.verbraucht}</b> von {s.register.budget}
+            {" "}(Reserve für den Bestellweg: {s.register.reserve} von {s.register.monat})
+          </p>
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-dossier-deckel">KI-Tagesdeckel ($)</label>
+            <input id="lm-dossier-deckel" className="lm-feld" inputMode="decimal" placeholder={String(s.einstellungen.kiDeckelUsd)} value={deckel} onChange={(e) => setDeckel(e.target.value)} />
+            <button className="lm-knopf" onClick={deckelSpeichern} disabled={!!busy || !deckel.trim()}>{busy === "deckel" ? "Speichert …" : "Speichern"}</button>
+          </div>
+          <div className="lm-reihe">
+            <label className="lm-etikett" htmlFor="lm-dossier-anfrage">Anfrage-Nr.</label>
+            <input id="lm-dossier-anfrage" className="lm-feld" inputMode="numeric" placeholder="z. B. 56" value={anfrage} onChange={(e) => setAnfrage(e.target.value)} />
+            <button className="lm-knopf" onClick={vorschau} disabled={!!busy || !nummer}>{busy === "vorschau" ? "Baut …" : "Vorschau"}</button>
+            <button className="lm-knopf" onClick={() => pruefversand(false)} disabled={!!busy || !nummer}>{busy === "pruef" ? "Sendet …" : "Prüfversand an Justin"}</button>
+            <button className="lm-knopf" onClick={() => pruefversand(true)} disabled={!!busy || !nummer || !s.einstellungen.kiAn} title={s.einstellungen.kiAn ? "" : "Erst den KI-Hintergrund einschalten"}>{busy === "pruef-ki" ? "Prüft und sendet …" : "Prüfversand mit KI"}</button>
+            <button className="lm-knopf" onClick={sammel} disabled={!!busy}>{busy === "sammel" ? "Sendet …" : "Sammel-Mail Altbestand senden"}</button>
+          </div>
+          {s.letzte.length === 0 ? <p className="lm-leer">Noch kein Dossier.</p> : (
+            <ul className="lm-liste">
+              {s.letzte.map((z) => (
+                <li key={z.id} className="lm-zeile">
+                  <div className="lm-zeile-kopf">
+                    <span className="lm-name">{z.name ?? (z.anlass === "termin" ? `Termin #${z.anlassId}` : `Anfrage #${z.anlassId}`)}</span>
+                    <span className="lm-chip">{z.anlass === "termin" ? `Termin #${z.anlassId}` : `Anfrage #${z.anlassId}`}</span>
+                    {z.temperatur && <span className={`lm-chip${z.temperatur === "heiss" ? " rot" : z.temperatur === "warm" ? " gelb" : ""}`}>{TEMPERATUR[z.temperatur] ?? z.temperatur}</span>}
+                    <span className={`lm-chip${z.status === "gesendet" ? " gruen" : z.status === "fehler" ? " rot" : ""}`} title={z.grund ?? ""}>{DOSSIER_STATUS[z.status] ?? z.status}{z.status === "fehler" ? ` (${z.versuche}/3)` : ""}</span>
+                    {z.kiStatus && <span className={`lm-chip${z.kiStatus === "fertig" ? " blau" : ""}`} title={z.kiGrund ?? ""}>{KI_STATUS[z.kiStatus] ?? z.kiStatus}{z.kiKostenCents ? ` · ${dollar(z.kiKostenCents / 100)}` : ""}</span>}
+                    <span className="lm-still">{zeit(z.gesendetAm ?? z.am)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </details>
   );
 }
 

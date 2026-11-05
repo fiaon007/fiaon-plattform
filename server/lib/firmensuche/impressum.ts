@@ -399,7 +399,9 @@ export function firmaBilden(text: string, ki: KiAntwort | null, wunsch: Land | n
 
 // ── Der Ablauf: höchstens drei Seiten ───────────────────────────────────────
 export type ImpressumErgebnis =
-  | { ok: true; firma: ImpressumFirma; belege: Record<string, string>; seite: string; seiten: string[]; warnungen: string[] }
+  // E-476 (05.11.2026): `text` = der gelesene Text (höchstens TEXT_MAX) — das Lead-Dossier prüft daran, ob die Firma und der
+  // Anfragende im Impressum stehen. Die öffentliche Route gibt ihn NICHT weiter (sie wählt ihre Felder einzeln).
+  | { ok: true; firma: ImpressumFirma; belege: Record<string, string>; seite: string; seiten: string[]; warnungen: string[]; text?: string }
   | { ok: false; error: string; grund: string };
 
 const SIEHT_NACH_IMPRESSUM = /impressum|imprint|legal|anbieterkennzeichnung|offenlegung|kontakt|contact/i;
@@ -513,5 +515,5 @@ export async function impressumLesen(rohUrl: unknown, landRoh: unknown, wunsch: 
 
   const erkannt = Object.keys(firma).filter((f) => !["land", "website", "quelleRegister", "quelleText", "abgerufenAm"].includes(f));
   if (!erkannt.length) return { ok: false, error: "Auf der Website ließ sich kein Impressum erkennen. Bitte tragen Sie die Angaben von Hand ein.", grund: "nichts_erkannt" };
-  return { ok: true, firma, belege, seite, seiten: seiten.map((s) => s.url), warnungen };
+  return { ok: true, firma, belege, seite, seiten: seiten.map((s) => s.url), warnungen, text };
 }

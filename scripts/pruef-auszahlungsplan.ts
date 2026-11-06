@@ -1287,7 +1287,16 @@ async function rotProbeRennen(): Promise<void> {
       EXCLUDE USING gist (${element}, tstzrange(ausgeloest_am, sperre_bis, '[)') WITH &&)`);
     const [da] = await sql`SELECT 1 AS da FROM pg_constraint WHERE conname = 'fiaon_auszahlungsplan_takt_kein_doppel'`;
     console.log(da ? "Takt-Netz wieder eingebaut." : "ACHTUNG: Takt-Netz NICHT wieder eingebaut — Server neu starten (planSchema baut es ein).");
-    await sql`UPDATE fiaon_auszahlungsplan SET status = 'beendet', status_von = 'pruefstand', status_am = NOW(), status_grund = 'Prüfstand: Rot-Probe' WHERE id = ${plan.id}`;
+    // Regulär beenden (mit TAN): Das zieht die eingereichten Teilbeträge zurück — nichts bleibt offen liegen.
+    const vorEnde = marke();
+    await js.ruf(`/buchhaltung/auszahlungsplan/${plan.id}/ende/tan`, {});
+    let endeTan = "";
+    await warteAuf(() => !!(endeTan = tanAus(neueMails(vorEnde).filter((x) => x.an === JS && /^TAN /.test(x.betreff)).pop())), 4000);
+    const ende = await js.ruf(`/buchhaltung/auszahlungsplan/${plan.id}/ende`, { grund: "Prüfstand: Rot-Probe", tan: endeTan });
+    if (ende.status !== 200) {
+      console.log(`Plan nicht regulär beendet (${ende.status} ${ende.j?.error ?? ""}) — Status wird direkt gesetzt.`);
+      await sql`UPDATE fiaon_auszahlungsplan SET status = 'beendet', status_von = 'pruefstand', status_am = NOW(), status_grund = 'Prüfstand: Rot-Probe' WHERE id = ${plan.id}`;
+    }
     await kontoStilllegen(sql, sicht, R);
   }
 }

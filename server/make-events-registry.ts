@@ -630,6 +630,30 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       grund: "Bankdaten unvollständig — bitte IBAN im Profil prüfen",
     },
   },
+  // ── E-484 (06.11.2026): der Auszahlungsplan meldet gesammelt ───────────────
+  // Teilbeträge eines Auszahlungsplans laufen leise (keine agent_payout_done, keine commission_statement_issued je
+  // Teil). Stattdessen alle zehn ausgeführten Teilbeträge und beim letzten diese Sammelmitteilung — ausgelöst nur von
+  // server/lib/fiaon-auszahlungsplan.ts (meilensteinMelden), nur über den Motor (nurMotor in make-webhook.ts).
+  {
+    type: "agent_auszahlungsplan_stand",
+    label: "Auszahlungsplan: neuer Stand (Mitarbeiter)",
+    description: "Feuert automatisch, wenn die Buchhaltung den 10., 20., 30. … Teilbetrag eines Auszahlungsplans als überwiesen bestätigt hat, und beim letzten (Plan abgeschlossen). Eine Sammelmitteilung statt einer Mail je Teilbetrag; die genannten Abrechnungen gelten danach als zugestellt. Nicht von Hand — die Zahlen kennt nur der Plan.",
+    customerBound: false,
+    example: {
+      email: "anna.schmidt@example.com",
+      vorname: "Anna",
+      plan_nummer: "AP-2026-001",
+      anzahl_neu: 10,
+      teilbetrag: "25,00",
+      stand_anzahl: 30,
+      gesamt_anzahl: 50,
+      stand_betrag: "750,00",
+      anspruch: "1.250,00",
+      abgeschlossen: false,
+      abrechnungen: "FIAON-COM-2026-0101, FIAON-COM-2026-0102, FIAON-COM-2026-0103",
+      abrechnungen_url: "https://www.fiaon.com/agent/wallet",
+    },
+  },
   {
     type: "agent_bank_reminder",
     label: "Bankdaten fehlen (Mitarbeiter)",

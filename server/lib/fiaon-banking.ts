@@ -35,7 +35,7 @@
 
 import { sqlPool } from "./db-pool";
 import { BANK, BANK_ALT_GESPERRT } from "@shared/fiaon-bank";
-import { anfangsbestand, bankabgleich, buchSchema, type Anfangsbestand, type Bankabgleich } from "./fiaon-buchhaltung";
+import { anfangsbestand, bankabgleich, buchSchema, KIND_AUSZAHLUNGSPLAN, planAuszahlungSql, type Anfangsbestand, type Bankabgleich } from "./fiaon-buchhaltung";
 
 export type KontoSchluessel = "geschaeft" | "wise";
 
@@ -436,7 +436,8 @@ export interface Auszahlung {
   name: string;
   cents: number;
   status: string;
-  art: "Gehalt" | "Provision";
+  /** E-484: „Auszahlungsplan“ = Teilbetrag eines Auszahlungsplans (nur in Journal und Beleg — die Liste blendet sie aus). */
+  art: "Gehalt" | "Provision" | "Auszahlungsplan";
   ibanMaskiert: string | null;
   angefordertAm: string | null;
   ausgezahltAm: string | null;
@@ -453,13 +454,20 @@ export interface Auszahlung {
   gfAbgelehnt: boolean;
 }
 
-export async function auszahlungen(): Promise<Auszahlung[]> {
+/**
+ * Die Mitarbeiter-Auszahlungen. E-484: Teilbeträge eines Auszahlungsplans stehen standardmäßig NICHT darin („ohne“) —
+ * sie haben ihren eigenen Reiter, und „Anweisen“/„Alle anweisen“ dürfen sie nicht fassen. Journal und Auszahlungsbeleg
+ * nehmen „alle“: Jede Überweisung gehört ins Journal, auch ein Teilbetrag.
+ */
+export async function auszahlungen(opts: { plan?: "ohne" | "nur" | "alle" } = {}): Promise<Auszahlung[]> {
   await buchSchema();
+  const plan = opts.plan ?? "ohne";
   const rows = (await sqlPool`
     SELECT p.id, p.agent_id, p.amount_cents, p.status, p.iban_masked, p.requested_at, p.processed_at, p.reject_reason,
            COALESCE(NULLIF(TRIM(ag.name), ''), 'Mitarbeiter ' || p.agent_id) AS name,
            st.id AS abrechnung_id, st.statement_no, COALESCE(st.hat_pdf, FALSE) AS hat_pdf,
            EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = 'gehalt') AS ist_gehalt,
+           pl.ist_plan,
            o.id AS auftrag_id, o.nummer AS auftrag_nr, o.status AS auftrag_status, o.ausfuehrung_extern, o.freigabe_mail_am,
            (z.status = 'abgelehnt' AND z.ausfuehrung_extern IS NOT NULL) AS gf_abgelehnt
       FROM fiaon_payouts p
@@ -476,6 +484,10 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
       LEFT JOIN LATERAL (
         SELECT status, ausfuehrung_extern FROM fiaon_buch_auftrag WHERE payout_id = p.id ORDER BY id DESC LIMIT 1
       ) z ON TRUE
+      CROSS JOIN LATERAL (
+        SELECT EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = ${KIND_AUSZAHLUNGSPLAN}) AS ist_plan
+      ) pl
+     WHERE ${plan}::text = 'alle' OR pl.ist_plan = (${plan}::text = 'nur')
      ORDER BY COALESCE(p.processed_at, p.requested_at) DESC NULLS LAST, p.id DESC`) as any[];
   return rows.map((r) => ({
     id: Number(r.id),
@@ -483,7 +495,7 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
     name: String(r.name),
     cents: Number(r.amount_cents),
     status: String(r.status),
-    art: r.ist_gehalt ? "Gehalt" : "Provision",
+    art: r.ist_gehalt ? "Gehalt" : r.ist_plan ? "Auszahlungsplan" : "Provision",
     ibanMaskiert: r.iban_masked ?? null,
     angefordertAm: r.requested_at ? new Date(r.requested_at).toISOString() : null,
     ausgezahltAm: r.status === "ausgezahlt" && r.processed_at ? new Date(r.processed_at).toISOString() : null,
@@ -499,6 +511,21 @@ export async function auszahlungen(): Promise<Auszahlung[]> {
     freigabeMailAm: r.freigabe_mail_am ? new Date(r.freigabe_mail_am).toISOString() : null,
     gfAbgelehnt: !!r.gf_abgelehnt,
   }));
+}
+
+/**
+ * E-484: Die Zahlen für die Hinweiszeilen in „Aufträge“, „Auszahlungen“ und im Chefbüro — wie viele Teilbeträge eines
+ * Auszahlungsplans gerade laufen. Liest nur fiaon_payouts, fiaon_commissions und fiaon_buch_auftrag (die Plan-Tabellen
+ * gibt es vielleicht noch nicht).
+ */
+export async function planHinweisZahlen(): Promise<{ auszahlungenOffen: number; auszahlungenOffenCents: number; auftraegeLaufend: number }> {
+  await buchSchema();
+  const [p] = (await sqlPool.unsafe(`
+    SELECT COUNT(*)::int AS n, COALESCE(SUM(p.amount_cents), 0)::bigint AS c
+      FROM fiaon_payouts p WHERE p.status = 'angefordert' AND ${planAuszahlungSql("p")}`)) as any[];
+  const [o] = (await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_buch_auftrag WHERE plan_teil_id IS NOT NULL AND status IN ('eingereicht', 'freigegeben')`) as any[];
+  return { auszahlungenOffen: Number(p?.n || 0), auszahlungenOffenCents: Number(p?.c || 0), auftraegeLaufend: Number(o?.n || 0) };
 }
 
 export async function abrechnungPdf(id: number): Promise<{ name: string; daten: Buffer } | null> {

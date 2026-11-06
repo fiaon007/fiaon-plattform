@@ -24,6 +24,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { KEIN_ABO_SQL } from "../lib/fiaon-kein-abo";
+import { planAuszahlungSql } from "../lib/fiaon-buchhaltung";
 
 const router = Router();
 
@@ -364,11 +365,13 @@ router.get("/chef/werkzeug/freigaben", requireChef("geschaeftsfuehrung"), async 
            AND (p.id IS NULL OR p.ist_test_am IS NULL)
            AND r.mahnstufe >= 3 AND r.faellig_am < ${HEUTE}`;
     const [auszahlungen, abrechnungen, entscheidung, [entscheidungGesamt], belegeFehlen] = await Promise.all([
+      // E-484: ohne Teilbeträge eines Auszahlungsplans — die gibt man im FIAON Banking frei (Reiter „Auszahlungsplan“);
+      // hier gäbe es für sie kein Ja und kein Nein (/admin/payouts weist sie ab).
       zeilen(`
         SELECT po.id, po.amount_cents, po.requested_at, po.iban_masked,
                ag.name AS mitarbeiter, ag.email
           FROM fiaon_payouts po JOIN fiaon_agents ag ON ag.id = po.agent_id
-         WHERE po.status IN ('requested','angefordert','offen')
+         WHERE po.status IN ('requested','angefordert','offen') AND NOT ${planAuszahlungSql("po")}
          ORDER BY po.requested_at ASC NULLS LAST`),
       zeilen(`
         SELECT s.id, s.statement_no, s.payout_id, s.issued_at,

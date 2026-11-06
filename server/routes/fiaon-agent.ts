@@ -33,6 +33,9 @@ import { terminArtAusQuelle, terminArtRueckruf, absageSatz } from "../../shared/
 // Individualangebot (01.10.2026): Teile eines Angebots melden nichts an Meta (istAngebotsPaket, onCustomerPaid).
 import { istGlobalPaket, istAngebotsPaket, istKoopRechnung, paket as katalogPaketZeile } from "../../shared/fiaon-pakete";
 import { ECHT } from "../lib/fiaon-umsatz-quelle";
+// E-484: Provisionszeilen eines Auszahlungsplans erkennen (eine Definition im Banking-Kern) und den Plan-Block im Wallet.
+import { KIND_AUSZAHLUNGSPLAN } from "../lib/fiaon-buchhaltung";
+import type { PlanMitarbeiter } from "../lib/fiaon-auszahlungsplan";
 
 const router = Router();
 
@@ -3359,7 +3362,17 @@ export function naechsterAuszahlungstag(heuteISO = berlinHeuteISO()): string {
   return `${nj}-${String(nm).padStart(2, "0")}-${tag}`;
 }
 
-/** Eine Anforderung über das volle bestätigte Guthaben — der eine Weg, den Klick und Lauf teilen. */
+/**
+ * Eine Anforderung über das volle bestätigte Guthaben — der eine Weg, den Klick und Lauf teilen.
+ *
+ * E-484 (06.11.2026), der Riegel an dieser Stelle:
+ *   · Provisionszeilen eines Auszahlungsplans (Art „auszahlungsplan“) fasst dieser Weg NIE an — jeder Teilbetrag läuft
+ *     nur über seinen Plan (Takt, Freigabe mit TAN, Buchhaltung). Sie sind nie „bestätigt“; die Bedingung hält trotzdem,
+ *     falls eine je auf „bestätigt“ zurückfiele.
+ *   · Lesen, Anlegen und Umbuchen in EINER Transaktion mit Zeilensperre: Klick und Sammellauf zur selben Sekunde legten
+ *     sonst zwei Auszahlungen über dasselbe Guthaben an (beide lasen „bestätigt“, beide schrieben den vollen Betrag).
+ *     Umgebucht werden genau die gelesenen Zeilen — der Betrag der Auszahlung ist immer ihre Summe.
+ */
 async function anforderungAnlegen(
   agentId: number, quelle: "klick" | "lauf" | "kuendigung",
   opts: { ohneMindestbetrag?: boolean } = {},
@@ -3369,21 +3382,26 @@ async function anforderungAnlegen(
   const minCents = opts.ohneMindestbetrag ? 1 : Number(settings.payout_min_cents);
   const [ag] = await sqlPool`SELECT bank_holder_enc, bank_iban_enc, bank_bic_enc, bank_iban_masked FROM fiaon_agents WHERE id = ${agentId}`;
   if (!ag?.bank_iban_enc) return { fehler: "Bitte zuerst Auszahlungsdaten (IBAN) im Profil hinterlegen" };
-  const rows = await sqlPool`SELECT id, amount_cents FROM fiaon_commissions WHERE agent_id = ${agentId} AND status = 'bestaetigt'`;
-  const total = rows.reduce((s: number, r: any) => s + Number(r.amount_cents), 0);
-  if (total < minCents) return { fehler: `Mindestbetrag ${(minCents / 100).toFixed(2)} € nicht erreicht` };
-  const payout = await sqlPool`
-    INSERT INTO fiaon_payouts (agent_id, amount_cents, bank_holder_enc, bank_iban_enc, bank_bic_enc, iban_masked)
-    VALUES (${agentId}, ${total}, ${ag.bank_holder_enc}, ${ag.bank_iban_enc}, ${ag.bank_bic_enc}, ${ag.bank_iban_masked})
-    RETURNING id, amount_cents, requested_at
-  `;
-  await sqlPool`
-    UPDATE fiaon_commissions SET status = 'in_auszahlung', payout_id = ${payout[0].id}, updated_at = NOW()
-    WHERE agent_id = ${agentId} AND status = 'bestaetigt'
-  `;
-  await logAgentEvent(agentId, "payout_requested", { payout_id: payout[0].id, amount_cents: total, quelle });
-  console.log(`[FIAON-PAYOUT] Anforderung #${payout[0].id} (${quelle}): Agent ${agentId}, ${(total / 100).toFixed(2)} €`);
-  return { payoutId: Number(payout[0].id), amountCents: total };
+  const erg = await sqlPool.begin(async (tx: any) => {
+    const rows = (await tx`
+      SELECT id, amount_cents FROM fiaon_commissions
+       WHERE agent_id = ${agentId} AND status = 'bestaetigt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
+       ORDER BY id FOR UPDATE`) as any[];
+    const total = rows.reduce((s: number, r: any) => s + Number(r.amount_cents), 0);
+    if (total < minCents) return { fehler: `Mindestbetrag ${(minCents / 100).toFixed(2)} € nicht erreicht` };
+    const [payout] = (await tx`
+      INSERT INTO fiaon_payouts (agent_id, amount_cents, bank_holder_enc, bank_iban_enc, bank_bic_enc, iban_masked)
+      VALUES (${agentId}, ${total}, ${ag.bank_holder_enc}, ${ag.bank_iban_enc}, ${ag.bank_bic_enc}, ${ag.bank_iban_masked})
+      RETURNING id`) as any[];
+    await tx`
+      UPDATE fiaon_commissions SET status = 'in_auszahlung', payout_id = ${payout.id}, updated_at = NOW()
+       WHERE id = ANY(${rows.map((r: any) => Number(r.id))}) AND status = 'bestaetigt'`;
+    return { payoutId: Number(payout.id), amountCents: total };
+  });
+  if ("fehler" in erg) return erg;
+  await logAgentEvent(agentId, "payout_requested", { payout_id: erg.payoutId, amount_cents: erg.amountCents, quelle });
+  console.log(`[FIAON-PAYOUT] Anforderung #${erg.payoutId} (${quelle}): Agent ${agentId}, ${(erg.amountCents / 100).toFixed(2)} €`);
+  return erg;
 }
 
 export interface AuszahlungstagErgebnis {
@@ -3427,7 +3445,7 @@ export async function auszahlungstagLauf(opts: { trocken?: boolean } = {}): Prom
   for (const s of schluss) {
     const [guthaben] = (await sqlPool`
       SELECT COALESCE(SUM(amount_cents), 0)::bigint AS s FROM fiaon_commissions
-       WHERE agent_id = ${s.agentId} AND status = 'bestaetigt'`) as any[];
+       WHERE agent_id = ${s.agentId} AND status = 'bestaetigt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}`) as any[];
     const summe = Number(guthaben?.s || 0);
     if (summe <= 0) {
       await schlussabrechnungAbschliessen(s.id, null, 0);
@@ -3466,7 +3484,8 @@ export async function auszahlungstagLauf(opts: { trocken?: boolean } = {}): Prom
     const minCents = Number(settings.payout_min_cents);
     const kandidaten = (await sqlPool`
       SELECT a.id, COALESCE(NULLIF(a.first_name, ''), a.name) AS name, (a.bank_iban_enc IS NOT NULL) AS bank,
-             COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c WHERE c.agent_id = a.id AND c.status = 'bestaetigt'), 0)::bigint AS guthaben
+             COALESCE((SELECT SUM(c.amount_cents) FROM fiaon_commissions c
+                        WHERE c.agent_id = a.id AND c.status = 'bestaetigt' AND COALESCE(c.kind, '') <> ${KIND_AUSZAHLUNGSPLAN}), 0)::bigint AS guthaben
       FROM fiaon_agents a
       -- E-185: Gekündigte mit abgeschlossener Schlussabrechnung bleiben drin, auch wenn
       -- das Konto inzwischen deaktiviert ist — spätere Raten gehören ihnen trotzdem.
@@ -3503,13 +3522,16 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
   try {
     const me = req.agent!.id;
     const settings = await getSettings();
+    // E-484: Teilbeträge eines Auszahlungsplans zählen hier nicht mit — weder im Guthaben noch in „In Auszahlung“ noch
+    // im Verlauf (dort stünden sonst bis zu 120 Zeilen à 50 €). Sie stehen gesammelt im Block `plan` (unten).
     const balance = await sqlPool`
       SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
-      WHERE agent_id = ${me} AND status = 'bestaetigt'
+      WHERE agent_id = ${me} AND status = 'bestaetigt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
     `;
     const inAuszahlung = await sqlPool`
-      SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_payouts
-      WHERE agent_id = ${me} AND status = 'angefordert'
+      SELECT COALESCE(SUM(p.amount_cents),0) AS s FROM fiaon_payouts p
+      WHERE p.agent_id = ${me} AND p.status = 'angefordert'
+        AND NOT EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
     `;
     const vorgemerkt = (await sqlPool`
       SELECT id, amount_cents, kind, note, auszahlbar_ab, created_at FROM fiaon_commissions
@@ -3518,9 +3540,23 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
     `) as any[];
     const bank = await sqlPool`SELECT bank_iban_masked FROM fiaon_agents WHERE id = ${me}`;
     const history = await sqlPool`
-      SELECT id, amount_cents, status, iban_masked, reject_reason, requested_at, processed_at
-      FROM fiaon_payouts WHERE agent_id = ${me} ORDER BY requested_at DESC LIMIT 50
+      SELECT p.id, p.amount_cents, p.status, p.iban_masked, p.reject_reason, p.requested_at, p.processed_at
+      FROM fiaon_payouts p
+      WHERE p.agent_id = ${me}
+        AND NOT EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
+      ORDER BY p.requested_at DESC LIMIT 50
     `;
+    // E-484: der Auszahlungsplan (nur lesen) — Fortschritt, unterwegs, offen. Ist er gerade nicht lesbar, lädt das
+    // Wallet trotzdem; der Fehler steht im Log und `planFehler` sagt es der Oberfläche.
+    let plaene: PlanMitarbeiter[] = [];
+    let planFehler: string | null = null;
+    try {
+      const { planeFuerMitarbeiter } = await import("../lib/fiaon-auszahlungsplan");
+      plaene = await planeFuerMitarbeiter(me);
+    } catch (e) {
+      console.error("[FIAON-AGENT] payouts: Auszahlungsplan nicht lesbar:", e);
+      planFehler = "Dein Auszahlungsplan ist gerade nicht lesbar. Bitte später neu laden.";
+    }
     res.json({
       ok: true,
       balanceCents: Number(balance[0].s),
@@ -3537,6 +3573,10 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
       naechsteAuszahlung: naechsterAuszahlungstag(),
       regel: `Ab dem ${AUSZAHLUNGSTAG}. jeden Monats wird ausgebucht: Alles Bestätigte geht automatisch in die Auszahlung, du musst nichts beantragen. Vorgemerktes wird am genannten Tag frei.`,
       history,
+      // E-484: der laufende (sonst der jüngste) Auszahlungsplan und alle Pläne dieser Person, der laufende zuerst.
+      plan: plaene[0] ?? null,
+      plaene,
+      planFehler,
     });
   } catch (err) {
     console.error("[FIAON-AGENT] payouts:", err);

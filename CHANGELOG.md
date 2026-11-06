@@ -5,6 +5,39 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Teil 2, Server-Rest): Auszahlungsplan — Routen, Riegel gegen Doppelzahlung, Wallet-Daten, Beleg, Sammelmail
+
+- **Warum:** Der Server-Kern aus Teil 1 war noch nicht erreichbar. Dazu kamen die Seitenwege, über die eine Auszahlung am
+  Plan oder an einem laufenden Buchhaltungs-Auftrag vorbei doppelt bezahlt werden konnte (gemessen am 06.11.: eine
+  Auszahlung war schon als überwiesen gebucht, ihr Auftrag lag trotzdem mit gültigem Link bei der Buchhaltung).
+- **Was jetzt gilt (Server — die Seite im Banking folgt im nächsten Teil, noch nicht bedienbar):**
+  - Neue Banking-Routen unter `/api/fiaon/buchhaltung/auszahlungsplan…`: Lage für den Reiter, Kandidaten, Vorschau vor der
+    TAN (je Empfänger Teile, Konto und genau die Altposten, die verrechnet würden), TAN und Anlage, Auslösen, Pausieren,
+    Fortsetzen, Beenden (TAN), Hinweis-Mail an/aus, neues Konto bestätigen (TAN). Anlegen, Fortsetzen, Beenden und Konto
+    nur der Inhaber; Auslösen und Pausieren beide. Fehler kommen mit Kennung und Klartext (bei „zu früh“ mit Uhrzeit).
+  - Neu für jeden Auftrag über die Buchhaltung: `auftrag/:id/zurueckrufen` (nur Inhaber, mit Grund). Die TAN-Anforderung
+    einer Freigabe prüft jetzt auch den Plan: Für einen pausierten oder beendeten Plan geht keine TAN-Mail mehr raus.
+  - Die Buchhaltung kann beim Bestätigen eine Bank-Referenz mitgeben (freiwillig, nie zweimal dieselbe).
+  - **Riegel im Chefbüro** („Als überwiesen markieren“ und „Ablehnen“ in /admin/payouts): Teilbeträge eines Plans → 409
+    `AUSZAHLUNGSPLAN`; läuft zur Auszahlung ein Auftrag bei der Buchhaltung → 409 `BEI_BUCHHALTUNG` (erst im Banking
+    zurückrufen); läuft einer im Banking → 409 `IM_BANKING`. Ohne laufenden Auftrag bleibt alles wie bisher.
+  - Teilbeträge eines Plans stehen nicht mehr in /admin/payouts, im Banking-Reiter „Auszahlungen“, im Freigabestapel
+    des Chefbüros und in den Zählern „Auszahlungen warten“ — dafür eine Hinweiszeile mit ihrer Zahl. Journal und
+    Auszahlungsbeleg führen sie weiter (Art „Auszahlungsplan“).
+  - Auszahlung anfordern (Wallet-Klick, Sammellauf am 15., Schlussabrechnung) fasst Plan-Provisionen nie an und läuft
+    jetzt in einer Transaktion mit Zeilensperre: Zwei gleichzeitige Anforderungen ergeben genau eine Auszahlung.
+  - `GET /agent/payouts`: Verlauf und „In Auszahlung“ ohne Plan-Teilbeträge, neu der Block `plan` (Fortschritt,
+    unterwegs, offen, letzte Teile, verrechnete Altposten, Ablauf in zwei Sätzen).
+  - Durchführungsbeleg: beim Teilbetrag die Kette „Plan angelegt (TAN) → Teilbetrag ausgelöst → Freigegeben“, die
+    Selbstfreigabe ausdrücklich vermerkt, zwei Referenzen (FIAON-Referenz und Bank-Referenz laut Buchhaltung), und die
+    Freigabe-Art steht so da, wie sie war (vorher stand immer „Vier-Augen-Prinzip“, auch bei Einzelzeichnung).
+  - Neue Mailwerk-Vorlage `agent_auszahlungsplan_stand` (Team, du): die Sammelmitteilung an den Empfänger alle zehn
+    ausgeführten Teilbeträge und zum Schluss — nur über den Mail-Motor, nicht von Hand.
+- **Wo:** server/routes/fiaon-buchhaltung.ts, server/routes/fiaon-team.ts, server/routes/fiaon-agent.ts,
+  server/lib/fiaon-banking.ts, server/lib/fiaon-banking-pdf.ts, server/lib/fiaon-auszahlungsplan.ts (Kurzlage, Wallet),
+  server/routes/fiaon-chef-werkzeuge.ts, server/lib/fiaon-marken.ts, server/routes/fiaon-admin-hub.ts, server/mail/…,
+  server/make-webhook.ts, server/make-events-registry.ts, server/lib/fiaon-mail-events.ts.
+
 ## 06.11.2026 — E-484 (Teil 1, Server-Kern): Auszahlungsplan im FIAON Banking — Teilbeträge mit Wartezeit, Freigabe mit TAN, Ausführung über die Buchhaltung
 
 - **Warum:** Ein zugesagter Betrag soll in festen Teilbeträgen ausgezahlt werden — je Teilbetrag eine Überweisung, zwischen zwei

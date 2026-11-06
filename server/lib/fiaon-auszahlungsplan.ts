@@ -1107,8 +1107,8 @@ export async function planTeilAusgefuehrt(a: Auftrag, lauf: Lauf = sqlPool): Pro
   return { neu: true, fertig, gesamt, abgeschlossen };
 }
 
-/** Die Mailwerk-Vorlage der Sammelmitteilung an den Empfänger (Gruppe „team“, du). */
-const VORLAGE_STAND: string = "agent_auszahlungsplan_stand";
+/** Die Mailwerk-Vorlage der Sammelmitteilung an den Empfänger (Gruppe „team“, du) — server/mail/vorlagen/team.ts. */
+const VORLAGE_STAND: MakeEventType = "agent_auszahlungsplan_stand";
 
 async function meilensteinMelden(planId: number, vorher: number, marke: number, abgeschlossen: boolean): Promise<void> {
   const [p] = (await sqlPool`
@@ -1173,7 +1173,7 @@ async function meilensteinMelden(planId: number, vorher: number, marke: number, 
     console.warn(`[AUSZAHLUNGSPLAN] Abrechnungen zu ${p.nummer} nicht lesbar:`, String(e).slice(0, 140));
   }
   const { sendMakeWebhookMitGrund } = await import("../make-webhook");
-  const erg = await sendMakeWebhookMitGrund(VORLAGE_STAND as MakeEventType, {
+  const erg = await sendMakeWebhookMitGrund(VORLAGE_STAND, {
     email: String(p.ag_email || ""),
     vorname: String(p.first_name || name.split(" ")[0] || ""),
     plan_nummer: String(p.nummer),
@@ -1502,11 +1502,16 @@ export interface PlanLage {
 
 const PRO_SEITE = 20;
 
-/** Alles für den Reiter. Knopf-Zustände kommen nur von hier (AGENTS.md, Neubau-Checkliste Nr. 3). */
-export async function planLage(ich: BuchPerson, opts: { seite?: number } = {}): Promise<PlanLage> {
+/**
+ * Alles für den Reiter. Knopf-Zustände kommen nur von hier (AGENTS.md, Neubau-Checkliste Nr. 3).
+ * `kurz` (für die Übersicht und den Zähler am Menüpunkt): dieselben Zustände aus derselben Rechnung, aber ohne die Liste
+ * „Ausgeführt“, ohne Verlauf und ohne die Altposten je Empfänger — die braucht nur der Reiter selbst.
+ */
+export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: boolean } = {}): Promise<PlanLage> {
   await planSchema();
   const entschl = await entschluessler();
   const istInhaber = ich.rolle === "inhaber";
+  const kurz = opts.kurz === true;
   const [{ jetzt: jetztRoh }] = (await sqlPool`SELECT NOW() AS jetzt`) as any[];
   const jetzt = new Date(jetztRoh);
   const seite = Math.max(0, Math.floor(Number(opts.seite) || 0));
@@ -1551,12 +1556,12 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number } = {}): 
     SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag
      WHERE plan_teil_id IS NOT NULL AND status IN ('eingereicht', 'freigegeben')
      ORDER BY id ASC`)) as any[]).map(zuAuftrag);
-  const ausgefuehrtIds = (await sqlPool`
+  const ausgefuehrtIds = kurz ? [] : (await sqlPool`
     SELECT t.auftrag_id FROM fiaon_auszahlungsplan_teil t
      WHERE t.plan_id = ANY(${idListe}) AND t.ausgefuehrt_am IS NOT NULL
      ORDER BY t.ausgefuehrt_am DESC, t.id DESC
      LIMIT ${PRO_SEITE} OFFSET ${seite * PRO_SEITE}`) as any[];
-  const [gesamtAus] = (await sqlPool`
+  const [gesamtAus] = kurz ? [{ n: 0 }] : (await sqlPool`
     SELECT COUNT(*)::int AS n FROM fiaon_auszahlungsplan_teil WHERE plan_id = ANY(${idListe}) AND ausgefuehrt_am IS NOT NULL`) as any[];
   const ausIds = ausgefuehrtIds.map((r) => zahl(r.auftrag_id)).filter((x) => x > 0);
   const ausgefuehrtAuftraege = ausIds.length
@@ -1633,9 +1638,12 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number } = {}): 
     if (zustand === "konto" && !p.konto_hinweis_am) {
       const [neu] = (await sqlPool`UPDATE fiaon_auszahlungsplan SET konto_hinweis_am = NOW() WHERE id = ${id} AND konto_hinweis_am IS NULL RETURNING id`) as any[];
       if (neu) benachrichtigen(inhaber().email, `Auszahlungsplan angehalten: ${p.nummer}`, [`${p.nummer}: ${konto.grund}`, "", REITER]);
+    } else if (laeuft && konto.ok && p.konto_hinweis_am) {
+      // Wieder in Ordnung (Sperre aufgehoben, altes Konto zurück) — die nächste Änderung meldet sich dann wieder.
+      await sqlPool`UPDATE fiaon_auszahlungsplan SET konto_hinweis_am = NULL WHERE id = ${id}`;
     }
     let ausserhalb: AltpostenStand | null = null;
-    if (laeuft && p.ag_id) ausserhalb = altpostenAussen(await altpostenLesen(zahl(p.agent_id), sqlPool, false));
+    if (laeuft && p.ag_id && !kurz) ausserhalb = altpostenAussen(await altpostenLesen(zahl(p.agent_id), sqlPool, false));
     let detail: unknown = null;
     try { detail = p.altposten_detail ? JSON.parse(String(p.altposten_detail)) : null; } catch { detail = null; }
     plaene.push({
@@ -1667,7 +1675,7 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number } = {}): 
     });
   }
 
-  const verlaufRoh = (await sqlPool`
+  const verlaufRoh = kurz ? [] : (await sqlPool`
     SELECT k.id, k.plan_id, k.teil_id, k.auftrag_id, k.von, k.ausgeloest_am, k.sperre_bis,
            t.nr, pl.nummer AS plan_nummer, o.nummer AS auftrag_nummer, o.status AS auftrag_status, o.zurueckgerufen_am
       FROM fiaon_auszahlungsplan_takt k
@@ -1704,4 +1712,100 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number } = {}): 
     verlauf,
     badge: plaene.filter((p) => p.darfAusloesen).length + zurFreigabe.filter((a) => a.darfFreigeben).length,
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WALLET — was der Empfänger von seinem Plan sieht (nur lesen, ohne Interna)
+// ═══════════════════════════════════════════════════════════════════════════
+export interface PlanMitarbeiter {
+  nummer: string;
+  status: PlanStatus;
+  /** Der Zustand in einem Satz für den Empfänger — ohne den internen Grund einer Pause. */
+  statusText: string;
+  anspruchCents: number;
+  teilCents: number;
+  anzahlTeile: number;
+  /** Von der Buchhaltung als überwiesen bestätigt. */
+  ausgefuehrt: { anzahl: number; cents: number };
+  /** Ausgelöst, aber noch nicht bestätigt (Freigabe oder Buchhaltung). */
+  unterwegs: { anzahl: number; cents: number };
+  /** Noch nicht ausgelöst. */
+  offen: { anzahl: number; cents: number };
+  ibanMasked: string | null;
+  angelegtAm: string;
+  letzteAusfuehrungAm: string | null;
+  altposten: AltpostenModus;
+  /** Bei „verrechnet“: was beim Anlegen an offenen Posten im Anspruch aufging. */
+  verrechnet: { anzahl: number; cents: number };
+  /** Die letzten zehn ausgelösten Teilbeträge, der jüngste zuerst. */
+  letzte: { nr: number; cents: number; stand: "ausgefuehrt" | "unterwegs"; am: string | null }[];
+  /** Die Regel in zwei Sätzen — eine Quelle für Wallet und Sammelmail. */
+  hinweis: string;
+}
+
+/** Der Satz zum Ablauf, den der Empfänger im Wallet liest. */
+export const PLAN_HINWEIS_EMPFAENGER =
+  "Die Buchhaltung überweist jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. "
+  + "Alle zehn ausgeführten Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht.";
+
+/**
+ * Die Pläne eines Mitarbeiters für sein Wallet (GET /agent/payouts), der laufende zuerst. Legt nichts an: Gibt es die
+ * Tabelle noch nicht (kein Plan je angelegt), ist die Antwort leer — die Agenten-Route macht keine Tabellen-Anweisung.
+ */
+export async function planeFuerMitarbeiter(agentId: number, lauf: Lauf = sqlPool): Promise<PlanMitarbeiter[]> {
+  const [t] = (await lauf`SELECT to_regclass('public.fiaon_auszahlungsplan_teil') IS NOT NULL AS da`) as any[];
+  if (t?.da !== true) return [];
+  const plaene = (await lauf`
+    SELECT id, nummer, status, anspruch_cents, teil_cents, anzahl_teile, iban_masked, angelegt_am, altposten,
+           altposten_cents, altposten_anzahl
+      FROM fiaon_auszahlungsplan WHERE agent_id = ${agentId}
+     ORDER BY CASE WHEN status IN ('aktiv', 'pausiert') THEN 0 ELSE 1 END, id DESC
+     LIMIT 5`) as any[];
+  if (!plaene.length) return [];
+  const ids = plaene.map((p) => zahl(p.id));
+  const stand = (await lauf`
+    SELECT plan_id,
+           COUNT(*) FILTER (WHERE ausgefuehrt_am IS NOT NULL)::int AS fertig,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE ausgefuehrt_am IS NOT NULL), 0)::bigint AS fertig_cents,
+           COUNT(*) FILTER (WHERE payout_id IS NOT NULL AND ausgefuehrt_am IS NULL)::int AS unterwegs,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NOT NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS unterwegs_cents,
+           COUNT(*) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL)::int AS offen,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS offen_cents,
+           MAX(ausgefuehrt_am) AS letzte_am
+      FROM fiaon_auszahlungsplan_teil WHERE plan_id = ANY(${ids}) GROUP BY plan_id`) as any[];
+  const standJe = new Map<number, any>();
+  stand.forEach((s) => standJe.set(zahl(s.plan_id), s));
+  const teile = (await lauf`
+    SELECT plan_id, nr, betrag_cents, ausgefuehrt_am, ausgeloest_am
+      FROM fiaon_auszahlungsplan_teil
+     WHERE plan_id = ANY(${ids}) AND payout_id IS NOT NULL
+     ORDER BY COALESCE(ausgefuehrt_am, ausgeloest_am) DESC NULLS LAST, nr DESC
+     LIMIT 200`) as any[];
+  const STATUS_TEXT: Record<PlanStatus, string> = {
+    aktiv: "Läuft — die Teilbeträge werden nacheinander freigegeben und von der Buchhaltung überwiesen.",
+    pausiert: "Pausiert — es geht weiter, sobald die Geschäftsleitung den Plan fortsetzt.",
+    fertig: "Abgeschlossen — alle Teilbeträge sind überwiesen.",
+    beendet: "Beendet.",
+  };
+  return plaene.map((p) => {
+    const id = zahl(p.id);
+    const s = standJe.get(id);
+    const status = String(p.status) as PlanStatus;
+    const verrechnet = String(p.altposten) === "verrechnet";
+    return {
+      nummer: String(p.nummer), status, statusText: STATUS_TEXT[status] ?? String(p.status),
+      anspruchCents: zahl(p.anspruch_cents), teilCents: zahl(p.teil_cents), anzahlTeile: zahl(p.anzahl_teile),
+      ausgefuehrt: { anzahl: zahl(s?.fertig), cents: zahl(s?.fertig_cents) },
+      unterwegs: { anzahl: zahl(s?.unterwegs), cents: zahl(s?.unterwegs_cents) },
+      offen: { anzahl: zahl(s?.offen), cents: zahl(s?.offen_cents) },
+      ibanMasked: p.iban_masked ?? null, angelegtAm: iso(p.angelegt_am)!, letzteAusfuehrungAm: iso(s?.letzte_am),
+      altposten: verrechnet ? "verrechnet" : "zusaetzlich",
+      verrechnet: { anzahl: verrechnet ? zahl(p.altposten_anzahl) : 0, cents: verrechnet ? zahl(p.altposten_cents) : 0 },
+      letzte: teile.filter((x) => zahl(x.plan_id) === id).slice(0, 10).map((x) => ({
+        nr: zahl(x.nr), cents: zahl(x.betrag_cents), stand: x.ausgefuehrt_am ? "ausgefuehrt" as const : "unterwegs" as const,
+        am: iso(x.ausgefuehrt_am ?? x.ausgeloest_am),
+      })),
+      hinweis: PLAN_HINWEIS_EMPFAENGER,
+    };
+  });
 }

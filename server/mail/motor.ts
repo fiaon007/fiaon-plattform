@@ -124,6 +124,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   agent_payment_reminder: "team",
   agent_payout_done: "team",
   agent_payout_rejected: "team",
+  // E-484: die Sammelmitteilung eines Auszahlungsplans — Post über das eigene Geld, vom Team wie agent_payout_done.
+  agent_auszahlungsplan_stand: "team",
   agent_bank_reminder: "team",
   agent_callback_reminder: "team",
   agent_feedback_rewarded: "team",

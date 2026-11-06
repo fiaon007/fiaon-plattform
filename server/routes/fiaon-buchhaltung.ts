@@ -25,8 +25,8 @@ import {
   anfangsbestandSetzen, bankabgleichSetzen, uebergabe, uebergabeSetzen,
   bewegungBuchen, bewegungStornieren, BEWEGUNG_ARTEN, type BewegungArt,
   auftraege, auftrag, auftragAnlegen, auftragEinreichen, auftragZurueckziehen,
-  auftragFreigeben, auftragAblehnen, auftragAusfuehren, auftragAusAuszahlung,
-  freigabeMoeglich, freigabeZiel, freigabeBeschreibung, tanZweck,
+  auftragFreigeben, auftragAblehnen, auftragAusfuehren, auftragAusAuszahlung, auftragZurueckrufen,
+  freigabePruefen, freigabeZiel, freigabeBeschreibung, tanZweck,
   zurFreigabeSenden, alleZurFreigabeSenden, freigabeMailSenden, externBeauftragen, externLesen, externBestaetigen,
   durchfuehrungsbelegSenden, BUCHHALTUNG_AUSFUEHRUNG, mailProbe,
   empfaengerSuchen, empfaengerKartei, empfaengerLoeschen,
@@ -35,8 +35,14 @@ import {
 } from "../lib/fiaon-buchhaltung";
 import {
   KONTEN, umsaetze, umsatz, umsaetzeCsv, kasse, monatsfluss, offenePosten, auszahlungen, abrechnungPdf,
-  airwallexProbe, type UmsatzArt, type KontoSchluessel,
+  airwallexProbe, planHinweisZahlen, type UmsatzArt, type KontoSchluessel,
 } from "../lib/fiaon-banking";
+import {
+  planLage, planKandidaten, planEingabeLesen, planVorschau, planTanAnfordern, planAnlegen, teilAusloesen,
+  planPausieren, planFortsetzen, planEndeTanAnfordern, planBeenden, planKontoTanAnfordern, planKontoBestaetigen,
+  planHinweisSetzen, VORGABE_TEIL_CENTS, VORGABE_ABSTAND_MIN, VORGABE_MAX_OFFEN, GRENZEN,
+  type PlanFehler, type PlanVorschau,
+} from "../lib/fiaon-auszahlungsplan";
 import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
 
@@ -273,10 +279,12 @@ router.post("/buchhaltung/abmelden", async (req: Request, res: Response) => {
 router.get("/buchhaltung/lage", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
     const { nachholZahl, NACHHOLEN_SEIT_AELTESTE } = await import("../lib/fiaon-bank-nachholen");
-    const [k, offen, fluss, letzte, alle, u, dauer, ausz, nachholen0, aeltere] = await Promise.all([
+    const [k, offen, fluss, letzte, alle, u, dauer, ausz, nachholen0, aeltere, plan] = await Promise.all([
       kasse(), offenePosten(), monatsfluss(),
       umsaetze({ konto: "alle", limit: 8 }),
+      // E-484: Aufträge und Auszahlungen OHNE die Teilbeträge eines Auszahlungsplans — die haben ihren eigenen Reiter.
       auftraege(200), uebergabe(), dauerauftraege(), auszahlungen(), nachholZahl(), nachholZahl(NACHHOLEN_SEIT_AELTESTE),
+      planKurzlage(req.buch!),
     ]);
     // E-277: Auch ältere liegengebliebene Eingänge (seit 15.08.) zählen — „lass kein über".
     const nachholen = { ...nachholen0, gesamtAnzahl: aeltere.anzahl, gesamtCents: aeltere.cents };
@@ -299,10 +307,53 @@ router.get("/buchhaltung/lage", requireBuch(), async (req: BuchRequest, res: Res
         cents: offeneAuszahlungen.reduce((s, p) => s + p.cents, 0),
         ohneAuftrag: offeneAuszahlungen.filter((p) => !p.auftragId).length,
       },
+      // E-484: der Auszahlungsplan in Kurzform — Zähler am Menüpunkt, „Zu tun“ und die Hinweiszeilen in Aufträge und
+      // Auszahlungen. null, wenn er gerade nicht lesbar ist (der Fehler steht im Log; die Übersicht lädt trotzdem).
+      auszahlungsplan: plan,
       leute: BUCH_LEUTE,
     });
   } catch (err) { fehler(res, "lage")(err); }
 });
+
+/** E-484: Die Zahlen für die Hinweiszeilen — fehlen sie, lädt die Liste trotzdem (null; der Fehler steht im Log). */
+async function planHinweisZahlenSicher(): Promise<Awaited<ReturnType<typeof planHinweisZahlen>> | null> {
+  try { return await planHinweisZahlen(); } catch (e) {
+    console.error("[BANKING] Auszahlungsplan-Zahlen für die Hinweiszeile nicht lesbar:", e);
+    return null;
+  }
+}
+
+/**
+ * E-484: Der Auszahlungsplan für die Übersicht — dieselben Zustände wie im Reiter (planLage, kurz), dazu die Zahlen
+ * für die Hinweiszeilen „Teilbeträge des Auszahlungsplans: im Reiter Auszahlungsplan (n)“.
+ */
+async function planKurzlage(ich: BuchPerson) {
+  try {
+    const [l, zahlen] = await Promise.all([planLage(ich, { kurz: true }), planHinweisZahlen()]);
+    return {
+      jetzt: l.jetzt,
+      badge: l.badge,
+      zurFreigabe: l.zurFreigabe.length,
+      darfFreigeben: l.zurFreigabe.filter((a) => a.darfFreigeben).length,
+      beiBuchhaltung: l.beiBuchhaltung.length,
+      ueberfaellig: l.beiBuchhaltung.filter((a) => a.ueberfaellig).length,
+      auftraegeLaufend: zahlen.auftraegeLaufend,
+      auszahlungenOffen: zahlen.auszahlungenOffen,
+      auszahlungenOffenCents: zahlen.auszahlungenOffenCents,
+      plaene: l.plaene
+        .filter((p) => p.status === "aktiv" || p.status === "pausiert")
+        .map((p) => ({
+          id: p.id, nummer: p.nummer, empfaengerName: p.empfaengerName, ichBinEmpfaenger: p.ichBinEmpfaenger,
+          status: p.status, zustand: p.zustand, darfAusloesen: p.darfAusloesen, sperrGrund: p.sperrGrund,
+          naechsteAb: p.naechsteAb, naechsterTeil: p.naechsterTeil, anzahlTeile: p.anzahlTeile,
+          ausgefuehrt: p.ausgefuehrt.anzahl,
+        })),
+    };
+  } catch (e) {
+    console.error("[BANKING] Auszahlungsplan (Kurzlage):", e);
+    return null;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UMSÄTZE
@@ -504,7 +555,11 @@ router.post("/buchhaltung/nachholen/alle-buchen", requireBuch("inhaber"), async 
 // ÜBERWEISUNGEN — Zahlungsaufträge
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/buchhaltung/auftraege", requireBuch(), async (_req: Request, res: Response) => {
-  try { res.json({ ok: true, auftraege: await auftraege(300) }); }
+  try {
+    // E-484: ohne Teilbeträge des Auszahlungsplans (eigener Reiter) — die Zahl steht für die Hinweiszeile dabei.
+    const [liste, plan] = await Promise.all([auftraege(300), planHinweisZahlenSicher()]);
+    res.json({ ok: true, auftraege: liste, planAuftraegeLaufend: plan?.auftraegeLaufend ?? null });
+  }
   catch (err) { fehler(res, "auftraege")(err); }
 });
 
@@ -557,13 +612,15 @@ router.post("/buchhaltung/auftrag/:id/zurueckziehen", requireBuch(), async (req:
  * TAN für eine Freigabe anfordern — die Mail nennt Betrag, Empfänger und IBAN.
  * 13.10.2026: Aufträge über die Buchhaltung gibt die Geschäftsführung frei (jede TAN gehört zu genau einem Auftrag);
  * alle anderen weiterhin nur der Inhaber.
+ * E-484: freigabePruefen statt freigabeMoeglich — für den Teilbetrag eines pausierten oder beendeten Auszahlungsplans
+ * geht gar keine TAN-Mail raus (die Freigabe selbst wiese ihn ohnehin ab).
  */
 router.post("/buchhaltung/auftrag/:id/tan", requireBuch(), async (req: BuchRequest, res: Response) => {
   try {
     const a = await auftrag(Number(req.params.id));
     if (!a) return res.status(404).json({ ok: false, error: "Auftrag nicht gefunden." });
     if (req.buch!.rolle !== "inhaber" && !a.ausfuehrungExtern) return res.status(403).json({ ok: false, code: "NUR_INHABER", error: "Das darf nur der Inhaber." });
-    const darf = freigabeMoeglich(a, req.buch!);
+    const darf = await freigabePruefen(a, req.buch!);
     if (!darf.ok) return res.status(400).json({ ok: false, error: darf.grund });
     const t = await tanAnfordern(req.buch!, tanZweck(a), freigabeZiel(a), freigabeBeschreibung(a));
     if (!t.ok) return res.status(503).json({ ok: false, error: t.grund });
@@ -676,7 +733,11 @@ router.post("/buchhaltung/dauerauftrag/:id/beenden", requireBuch(), async (req: 
 // AUSZAHLUNGEN AN MITARBEITER
 // ═══════════════════════════════════════════════════════════════════════════
 router.get("/buchhaltung/auszahlungen", requireBuch(), async (_req: Request, res: Response) => {
-  try { res.json({ ok: true, auszahlungen: await auszahlungen() }); }
+  try {
+    // E-484: ohne Teilbeträge des Auszahlungsplans — sie laufen über ihren Reiter; die Zahl steht für die Hinweiszeile dabei.
+    const [liste, plan] = await Promise.all([auszahlungen(), planHinweisZahlenSicher()]);
+    res.json({ ok: true, auszahlungen: liste, planTeile: plan ? { offen: plan.auszahlungenOffen, offenCents: plan.auszahlungenOffenCents } : null });
+  }
   catch (err) { fehler(res, "auszahlungen")(err); }
 });
 
@@ -759,6 +820,189 @@ router.post("/buchhaltung/auftrag/:id/beleg-senden", requireBuch(), async (req: 
 });
 
 /**
+ * E-484: Inhaber — einen freigegebenen Auftrag bei der Buchhaltung zurückrufen (Link ungültig, „Bitte NICHT ausführen“).
+ * Für JEDEN Auftrag über die Buchhaltung, nicht nur für Teilbeträge — solange sie noch nicht bestätigt hat.
+ */
+router.post("/buchhaltung/auftrag/:id/zurueckrufen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const erg = await auftragZurueckrufen(Number(req.params.id), req.buch!, text((req.body as any)?.grund, 300));
+    if (!erg.ok) {
+      // 400 = Eingabe fehlt, 404 = gibt es nicht, 409 = der Zustand lässt es nicht (mehr) zu — z. B. gerade bestätigt.
+      const status = /braucht einen Grund/.test(erg.grund) ? 400 : /nicht gefunden/.test(erg.grund) ? 404 : 409;
+      return res.status(status).json({ ok: false, error: erg.grund });
+    }
+    res.json({ ok: true, auftrag: erg.auftrag, mail: erg.mail !== false, hinweis: erg.hinweis ?? null });
+  } catch (err) { fehler(res, "zurueckrufen")(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUSZAHLUNGSPLAN (E-484, 06.11.2026) — die Regeln stehen in server/lib/fiaon-auszahlungsplan.ts
+//
+// Ein zugesagter Betrag in festen Teilbeträgen, je Empfänger ein eigener Plan mit eigener Wartezeit. Anlegen, Fortsetzen,
+// Beenden und das Konto bestätigen darf nur der Inhaber (mit TAN); auslösen und pausieren dürfen beide. Freigegeben wird
+// über die bestehenden Auftrags-Routen (auftrag/:id/tan, /freigeben, /ablehnen) — danach geht jeder Teilbetrag an die
+// Buchhaltung. Ob ein Knopf geht, sagt nur der Server (planLage): Die Routen prüfen jede Regel selbst noch einmal.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Die Plan-Nummer aus der Adresse — eine positive ganze Zahl, sonst null. */
+const planIdAus = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+/** Ein Fehlschlag aus der Plan-Logik als Antwort: Status, Kennung, Klartext — bei „zu früh“ auch der Zeitpunkt. */
+function planFehlerSenden(res: Response, f: PlanFehler) {
+  return res.status(f.status).json({ ok: false, code: f.code, error: f.grund, ...(f.naechsteAb ? { naechsteAb: f.naechsteAb } : {}) });
+}
+
+/** Die Vorschau ohne die TAN-Bindung — die bleibt im Server. */
+const vorschauAussen = (v: PlanVorschau) => {
+  const { ziel: _ziel, ...rest } = v;
+  return rest;
+};
+
+/** Alles für den Reiter: Pläne mit Knopf-Zuständen, zur Freigabe, bei der Buchhaltung, Ausgeführt (20 je Seite), Verlauf. */
+router.get("/buchhaltung/auszahlungsplan", requireBuch(), async (req: BuchRequest, res: Response) => {
+  try {
+    const seite = Math.max(0, Math.floor(Number(req.query.seite) || 0));
+    res.json({ ok: true, ...(await planLage(req.buch!, { seite })) });
+  } catch (err) { fehler(res, "auszahlungsplan")(err); }
+});
+
+/** Inhaber: wer einen Plan bekommen kann (aktive, echte Mitarbeiter), mit ihren offenen Altposten und den Vorgaben. */
+router.get("/buchhaltung/auszahlungsplan/kandidaten", requireBuch("inhaber"), async (_req: BuchRequest, res: Response) => {
+  try {
+    res.json({
+      ok: true,
+      kandidaten: await planKandidaten(),
+      vorgaben: { teilCents: VORGABE_TEIL_CENTS, abstandMin: VORGABE_ABSTAND_MIN, maxOffen: VORGABE_MAX_OFFEN, altposten: "verrechnet", hinweisAnInhaber: true },
+      grenzen: GRENZEN,
+    });
+  } catch (err) { fehler(res, "auszahlungsplan kandidaten")(err); }
+});
+
+/** Inhaber: die Vorschau VOR der TAN — je Empfänger Teile, Konto und genau die Altposten, die verrechnet würden. */
+router.post("/buchhaltung/auszahlungsplan/neu/vorschau", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const ein = planEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    res.json({ ok: true, vorschau: vorschauAussen(await planVorschau(ein.ein)) });
+  } catch (err) { fehler(res, "auszahlungsplan vorschau")(err); }
+});
+
+/** Inhaber: TAN für die Anlage anfordern — die Mail nennt alle Pläne, den Takt und die Summe der verrechneten Altposten. */
+router.post("/buchhaltung/auszahlungsplan/neu/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const ein = planEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const t = await planTanAnfordern(ein.ein, req.buch!);
+    if (!t.ok) return planFehlerSenden(res, t);
+    res.json({ ok: true, an: t.an, vorschau: vorschauAussen(t.vorschau) });
+  } catch (err) { fehler(res, "auszahlungsplan tan")(err); }
+});
+
+/** Inhaber: Pläne anlegen — dieselbe Eingabe wie bei der TAN-Anforderung, dazu die TAN. Alles oder nichts. */
+router.post("/buchhaltung/auszahlungsplan/neu", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const ein = planEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const erg = await planAnlegen(ein.ein, req.buch!, String((req.body as any)?.tan || ""));
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, plaene: erg.plaene, zurueckgerufen: erg.zurueckgerufen, hinweise: erg.hinweise });
+  } catch (err) { fehler(res, "auszahlungsplan anlegen")(err); }
+});
+
+/** Inhaber oder Geschäftsführung: den nächsten Teilbetrag auslösen. Empfänger, Betrag und Konto stehen im Plan fest. */
+router.post("/buchhaltung/auszahlungsplan/:id/ausloesen", requireBuch(), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await teilAusloesen(id, req.buch!);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, schon: erg.schon, auftrag: erg.auftrag, plan: erg.plan, teil: erg.teil, naechsteAb: erg.naechsteAb });
+  } catch (err) { fehler(res, "auszahlungsplan ausloesen")(err); }
+});
+
+/** Beide Rollen: pausieren (mit Grund). Danach wird nichts ausgelöst und nichts freigegeben, bis der Inhaber fortsetzt. */
+router.post("/buchhaltung/auszahlungsplan/:id/pause", requireBuch(), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await planPausieren(id, req.buch!, text((req.body as any)?.grund, 300));
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true });
+  } catch (err) { fehler(res, "auszahlungsplan pause")(err); }
+});
+
+/** Inhaber: fortsetzen. */
+router.post("/buchhaltung/auszahlungsplan/:id/weiter", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await planFortsetzen(id, req.buch!);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true });
+  } catch (err) { fehler(res, "auszahlungsplan weiter")(err); }
+});
+
+/** Inhaber: TAN zum Beenden anfordern. */
+router.post("/buchhaltung/auszahlungsplan/:id/ende/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await planEndeTanAnfordern(id, req.buch!);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, an: erg.an, beschreibung: erg.beschreibung });
+  } catch (err) { fehler(res, "auszahlungsplan ende tan")(err); }
+});
+
+/** Inhaber: beenden (Grund + TAN). Eingereichte Teilbeträge werden zurückgezogen; was bei der Buchhaltung liegt, kommt als Liste zurück. */
+router.post("/buchhaltung/auszahlungsplan/:id/ende", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const b = req.body as any;
+    const erg = await planBeenden(id, req.buch!, text(b?.grund, 300), String(b?.tan || ""));
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, zurueckgezogen: erg.zurueckgezogen, beiBuchhaltung: erg.beiBuchhaltung });
+  } catch (err) { fehler(res, "auszahlungsplan ende")(err); }
+});
+
+/** Inhaber: die Hinweis-Mail „Bitte freigeben“ (nach jeder Auslösung durch die Geschäftsführung) an- oder abschalten. */
+router.post("/buchhaltung/auszahlungsplan/:id/hinweis", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const an = (req.body as any)?.an;
+    if (typeof an !== "boolean") return res.status(400).json({ ok: false, code: "EINGABE", error: "Bitte an oder aus wählen." });
+    const erg = await planHinweisSetzen(id, req.buch!, an);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, an });
+  } catch (err) { fehler(res, "auszahlungsplan hinweis")(err); }
+});
+
+/** Inhaber: TAN anfordern, um nach einer Kontoänderung des Empfängers das neue Konto zu übernehmen. */
+router.post("/buchhaltung/auszahlungsplan/:id/konto/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await planKontoTanAnfordern(id, req.buch!);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, an: erg.an, beschreibung: erg.beschreibung });
+  } catch (err) { fehler(res, "auszahlungsplan konto tan")(err); }
+});
+
+/** Inhaber: das neue Konto mit TAN übernehmen — künftige Teilbeträge gehen darauf, unterwegs bleibt unterwegs. */
+router.post("/buchhaltung/auszahlungsplan/:id/konto", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.id);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Diesen Auszahlungsplan gibt es nicht." });
+    const erg = await planKontoBestaetigen(id, req.buch!, String((req.body as any)?.tan || ""));
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, ibanMasked: erg.ibanMasked, unterwegs: erg.unterwegs });
+  } catch (err) { fehler(res, "auszahlungsplan konto")(err); }
+});
+
+/**
  * ÖFFENTLICH, nur mit dem Bestätigungslink der Buchhaltung: Auftrag ansehen und die ausgeführte SEPA-Überweisung
  * bestätigen. Kein Banking-Zugang nötig — der Link (24 Zufallsbytes, gespeichert nur als Hash) ist der Nachweis.
  */
@@ -780,7 +1024,10 @@ router.post("/buchhaltung/extern/:token/bestaetigen", async (req: Request, res: 
     const warte = gesperrtFuer(`extern:${ip}`);
     if (warte > 0) return res.status(429).json({ ok: false, error: "Zu viele Versuche. Bitte später erneut." });
     const b = req.body as any;
-    const erg = await externBestaetigen(String(req.params.token || ""), { wertAm: istTag(b?.wertAm) ? String(b.wertAm) : null, notiz: text(b?.notiz, 200) || null });
+    // E-484: die Bank-Referenz der Buchhaltung — freiwillig; wenn angegeben, prüft die Lib Form und Eindeutigkeit.
+    const erg = await externBestaetigen(String(req.params.token || ""), {
+      wertAm: istTag(b?.wertAm) ? String(b.wertAm) : null, notiz: text(b?.notiz, 200) || null, bankReferenz: text(b?.bankReferenz, 200) || null,
+    });
     if (!erg.ok) {
       if (/ungültig/.test(erg.grund)) bremse(`extern:${ip}`);
       return res.status(400).json({ ok: false, error: erg.grund });

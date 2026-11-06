@@ -326,7 +326,45 @@ export async function bestaetigungErzeugen(id: number): Promise<Buffer> {
 const ART_POSITION: Record<string, string> = {
   own: "Eigene Provision", eigen: "Eigene Provision", team: "Team-Provision", override: "Team-Provision",
   gehalt: "Gehalt", praemie: "Prämie", bonus: "Bonus", korrektur: "Korrektur",
+  // E-484: der Teilbetrag eines Auszahlungsplans (eine Pauschalposition je Teil).
+  auszahlungsplan: "Auszahlungsplan (Teilbetrag)",
 };
+
+/**
+ * E-484: Wie die Freigabe zustande kam — vorher stand hier fest „Vier-Augen-Prinzip“, auch bei der Einzelzeichnung des
+ * Inhabers. Beim Teilbetrag eines Auszahlungsplans mit dem Plan als erstem Auge; hat die empfangende Person selbst
+ * freigegeben, steht das ausdrücklich da.
+ */
+function freigabeNachweis(a: Auftrag, plan: { selbstfreigabe: boolean } | null): string {
+  if (plan?.selbstfreigabe) return "TAN bestätigt · Freigabe durch die empfangende Person im Rahmen des vom Inhaber mit TAN angelegten Plans";
+  if (a.freigabeArt === "einzel") return plan ? "TAN bestätigt · Einzelzeichnung des Inhabers (Plan mit TAN angelegt)" : "TAN bestätigt · Einzelzeichnung des Inhabers";
+  return plan ? "TAN bestätigt · Vier-Augen-Prinzip (Plan vom Inhaber mit TAN angelegt)" : "TAN bestätigt · Vier-Augen-Prinzip";
+}
+
+/** E-484: Plan und Teil hinter einem Auftrag — für die Kette im Durchführungsbeleg. null bei jedem anderen Auftrag. */
+async function planZumBeleg(a: Auftrag): Promise<{
+  nummer: string; nr: number; anzahl: number; angelegtVon: string; angelegtAm: string | null;
+  ausgeloestVon: string | null; ausgeloestAm: string | null; selbstfreigabe: boolean;
+} | null> {
+  if (!a.planTeilId) return null;
+  try {
+    const [r] = (await sqlPool`
+      SELECT t.nr, t.ausgeloest_von, t.ausgeloest_am, t.selbstfreigabe, p.nummer, p.anzahl_teile, p.angelegt_von, p.angelegt_am
+        FROM fiaon_auszahlungsplan_teil t JOIN fiaon_auszahlungsplan p ON p.id = t.plan_id
+       WHERE t.id = ${a.planTeilId}`) as any[];
+    if (!r) return null;
+    const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
+    return {
+      nummer: String(r.nummer), nr: Number(r.nr), anzahl: Number(r.anzahl_teile), angelegtVon: String(r.angelegt_von || ""),
+      angelegtAm: iso(r.angelegt_am), ausgeloestVon: r.ausgeloest_von ?? null, ausgeloestAm: iso(r.ausgeloest_am),
+      selbstfreigabe: r.selbstfreigabe === true,
+    };
+  } catch (e) {
+    // Ohne Plan-Angaben entsteht der Beleg trotzdem (mit der allgemeinen Kette) — der Fehler steht im Log.
+    console.error(`[BANKING] Durchführungsbeleg ${a.nummer}: Plan-Angaben nicht lesbar:`, e);
+    return null;
+  }
+}
 
 /** Ostersonntag (gregorianisch, Meeus/Jones/Butcher) als UTC-Datum. */
 function ostersonntag(j: number): Date {
@@ -368,7 +406,10 @@ async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
   const jetzt = new Date().toISOString();
   const belegNr = a.nummer.replace(/^ZA-/, "DB-");
   const ausfuehrungstag = a.externWertAm || (a.ausgefuehrtAm ? a.ausgefuehrtAm.slice(0, 10) : null);
-  const pruef = pruefwert({ b: belegNr, n: a.nummer, c: a.betragCents, i: a.iban, r: a.bankReferenz, w: ausfuehrungstag, f: a.entschiedenAm, x: a.externBestaetigtAm });
+  // E-484: die Bank-Referenz der Buchhaltung (freiwillig) gehört mit in den Prüfwert — sie ist Teil der Sachdaten.
+  const pruef = pruefwert({ b: belegNr, n: a.nummer, c: a.betragCents, i: a.iban, r: a.bankReferenz, w: ausfuehrungstag, f: a.entschiedenAm, x: a.externBestaetigtAm, ...(a.externBankReferenz ? { e: a.externBankReferenz } : {}) });
+  const plan = await planZumBeleg(a);
+  const bankRefBuchhaltung = a.externBankReferenz?.trim() || null;
 
   // Positionen und Abrechnung der Mitarbeiter-Auszahlung — dieselbe Wahrheit wie die Abrechnung.
   let positionen: any[] = [];
@@ -383,12 +424,21 @@ async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
   const summePos = positionen.reduce((x, p) => x + Number(p.amount_cents || 0), 0);
   const zeigePos = positionen.length > 0 && positionen.length <= 40;
 
+  const person = (e: string | null) => `${name(e)}${titelVon(e) ? `, ${titelVon(e)}` : ""}`;
+  // E-484: Beim Teilbetrag eines Auszahlungsplans beginnt die Kette beim Plan (vom Inhaber mit TAN angelegt) und beim
+  // Auslösen — der Auftrag selbst entsteht dabei automatisch im Namen des Inhabers.
+  const anfang: { schritt: string; wer: string; werZusatz?: string; wann: string; nachweis: string }[] = plan
+    ? [
+      { schritt: "Auszahlungsplan angelegt", wer: person(plan.angelegtVon), wann: wann(plan.angelegtAm), nachweis: `Plan ${plan.nummer} mit TAN angelegt · Betrag, Empfänger und Konto fest` },
+      { schritt: `Teilbetrag ${plan.nr} von ${plan.anzahl} ausgelöst`, wer: person(plan.ausgeloestVon), wann: wann(plan.ausgeloestAm), nachweis: "FIAON Banking, angemeldete Sitzung · Wartezeit des Plans eingehalten" },
+    ]
+    : [{ schritt: "Auftrag erfasst", wer: person(a.erstelltVon), wann: wann(a.erstelltAm), nachweis: "FIAON Banking, angemeldete Sitzung" }];
   const kette: { schritt: string; wer: string; werZusatz?: string; wann: string; nachweis: string }[] = [
-    { schritt: "Auftrag erfasst", wer: `${name(a.erstelltVon)}${titelVon(a.erstelltVon) ? `, ${titelVon(a.erstelltVon)}` : ""}`, wann: wann(a.erstelltAm), nachweis: "FIAON Banking, angemeldete Sitzung" },
+    ...anfang,
     ...(a.freigabeMailAm ? [{ schritt: "Zur Freigabe übermittelt", wer: `an ${name(a.entschiedenVon)}`, wann: wann(a.freigabeMailAm), nachweis: "Mitteilung mit vorgangsgebundener TAN" }] : []),
-    { schritt: "Freigegeben", wer: `${name(a.entschiedenVon)}${titelVon(a.entschiedenVon) ? `, ${titelVon(a.entschiedenVon)}` : ""}`, wann: wann(a.entschiedenAm), nachweis: "TAN bestätigt · Vier-Augen-Prinzip" },
+    { schritt: "Freigegeben", wer: person(a.entschiedenVon), wann: wann(a.entschiedenAm), nachweis: freigabeNachweis(a, plan) },
     { schritt: "Zur Ausführung beauftragt", wer: "Buchhaltung", werZusatz: a.ausfuehrungExtern || "", wann: wann(a.externGesendetAm), nachweis: "Zahlungsauftrag mit Bestätigungslink" },
-    { schritt: "Ausführung bestätigt", wer: "Buchhaltung", werZusatz: a.ausfuehrungExtern || "", wann: wann(a.externBestaetigtAm), nachweis: `SEPA-Überweisung ausgeführt am ${datum(ausfuehrungstag)}` },
+    { schritt: "Ausführung bestätigt", wer: "Buchhaltung", werZusatz: a.ausfuehrungExtern || "", wann: wann(a.externBestaetigtAm), nachweis: `SEPA-Überweisung ausgeführt am ${datum(ausfuehrungstag)}${bankRefBuchhaltung ? ` · Bank-Referenz ${bankRefBuchhaltung}` : ""}` },
     { schritt: "Ausgebucht", wer: "FIAON Banking", wann: wann(a.ausgefuehrtAm), nachweis: a.payoutId ? `Auszahlung FIAON-AUS-${a.payoutId} und ihre Positionen auf „ausgezahlt“` : "Zahlungsauftrag abgeschlossen" },
   ];
 
@@ -396,12 +446,12 @@ async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
     <p class="lead">Die ${FIRMA} bestätigt die Ausführung der nachstehenden Auszahlung. Die Überweisung wurde nach Freigabe
     mit TAN von der beauftragten Buchhaltung als SEPA-Überweisung ausgeführt; die Ausführung ist von der Buchhaltung bestätigt.</p>
     <div class="kopfgitter">
-      <div><div class="l">Transaktionsreferenz</div><div class="w mono">${esc(a.bankReferenz || "—")}</div></div>
+      <div><div class="l">FIAON-Referenz</div><div class="w mono">${esc(a.bankReferenz || "—")}</div></div>
+      <div><div class="l">Bank-Referenz (laut Buchhaltung)</div><div class="w mono">${esc(bankRefBuchhaltung || "nicht angegeben")}</div></div>
       <div><div class="l">Zahlungsauftrag</div><div class="w mono">${esc(a.nummer)}</div></div>
       <div><div class="l">Beleg</div><div class="w mono">${esc(belegNr)}</div></div>
       <div><div class="l">Ausführungstag</div><div class="w">${esc(datum(ausfuehrungstag, true))}</div></div>
-      <div><div class="l">Zahlungsart</div><div class="w">SEPA-Überweisung (SCT)</div></div>
-      <div><div class="l">Währung</div><div class="w">EUR</div></div>
+      <div><div class="l">Zahlungsart · Währung</div><div class="w">SEPA-Überweisung (SCT) · EUR</div></div>
     </div>
     <div class="parteien" style="margin-top:5mm">
       <div class="partei">
@@ -429,7 +479,9 @@ async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
     <h2>Zahlungsdetails</h2>
     <table class="kv">
       <tr><th>Verwendungszweck (an die Bank)</th><td>${esc(bankZweck(a))}</td></tr>
-      ${a.kategorie ? `<tr><th>Art der Zahlung</th><td>${esc(a.kategorie)}</td></tr>` : ""}
+      ${plan
+        ? `<tr><th>Art der Zahlung</th><td>${a.kategorie ? `${esc(a.kategorie)} · ` : ""}Auszahlungsplan <span class="mono">${esc(plan.nummer)}</span> · Teilbetrag ${plan.nr} von ${plan.anzahl}</td></tr>`
+        : a.kategorie ? `<tr><th>Art der Zahlung</th><td>${esc(a.kategorie)}</td></tr>` : ""}
       ${a.payoutId ? `<tr><th>Mitarbeiter-Auszahlung</th><td class="mono">FIAON-AUS-${a.payoutId}</td></tr>` : ""}
       ${abrechnung ? `<tr><th>Abrechnung</th><td class="mono">${esc(abrechnung)}</td></tr>` : ""}
       <tr><th>Ausführung bestätigt</th><td>${esc(wann(a.externBestaetigtAm))} · <span style="white-space:nowrap">${esc(a.ausfuehrungExtern)}</span></td></tr>
@@ -465,7 +517,7 @@ async function durchfuehrungsbelegErzeugen(a: Auftrag): Promise<Buffer> {
     <div class="vermerk">
       <b>Hinweis zur Gutschrift.</b> Die Zahlung wurde als SEPA-Überweisung (SEPA Credit Transfer) ausgeführt, nicht als
       Echtzeitüberweisung. Die Gutschrift auf dem Konto des Empfängers erfolgt in der Regel innerhalb von 1–3 Bankarbeitstagen
-      nach dem Ausführungstag. Maßgeblich ist die Buchung beim Empfänger unter der oben genannten Transaktionsreferenz.
+      nach dem Ausführungstag. Maßgeblich ist die Buchung beim Empfänger — erkennbar an der FIAON-Referenz im Verwendungszweck${bankRefBuchhaltung ? " und an der Bank-Referenz, die die Buchhaltung angegeben hat" : ""}.
     </div>
     <div class="siegelzeile">
       <p class="fein" style="margin:0;max-width:128mm">
@@ -578,7 +630,8 @@ export async function kassenbuchauszug(konto: KontoSchluessel, monat: string): P
 // AUSZAHLUNGEN AN MITARBEITER
 // ═══════════════════════════════════════════════════════════════════════════
 export async function auszahlungsbeleg(id: number): Promise<Buffer> {
-  const alle = await auszahlungen();
+  // E-484: „alle“ — auch ein Teilbetrag eines Auszahlungsplans hat seinen Auszahlungsbeleg.
+  const alle = await auszahlungen({ plan: "alle" });
   const p = alle.find((x) => x.id === id);
   if (!p) throw new Error("Auszahlung nicht gefunden");
   if (p.status !== "ausgezahlt") throw new Error("Ein Beleg entsteht erst, wenn die Auszahlung überwiesen ist");
@@ -624,7 +677,8 @@ export async function auszahlungsbeleg(id: number): Promise<Buffer> {
 }
 
 export async function auszahlungsjournal(von: string | null, bis: string | null): Promise<Buffer> {
-  const alle = await auszahlungen();
+  // E-484: „alle“ — jede Überweisung gehört ins Journal, auch die Teilbeträge eines Auszahlungsplans (Art „Auszahlungsplan“).
+  const alle = await auszahlungen({ plan: "alle" });
   const imZeitraum = (iso: string | null) => {
     if (!iso) return false;
     const t = new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
@@ -736,6 +790,8 @@ export async function zugangsblatt(fuer: BuchPerson): Promise<Buffer> {
            <li>Zugänge sperren und Sitzungen beenden.</li>`
         : `<li>Alle Konten, Umsätze, Auszahlungen und Auszüge einsehen.</li>
            <li>Zahlungsaufträge und Mitarbeiter-Auszahlungen vorbereiten und zur Freigabe einreichen.</li>
+           <li>Auszahlungen über die Buchhaltung mit TAN freigeben, die ein anderer angelegt hat.</li>
+           <li>Im Auszahlungsplan Teilbeträge auslösen, mit TAN freigeben oder ablehnen und den Plan pausieren — anlegen, fortsetzen und beenden darf nur der Inhaber.</li>
            <li>Den Kontostand bewegt ausschließlich der Inhaber.</li>`}
     </ul>
     <h2>Regeln</h2>

@@ -32,6 +32,7 @@
 
 import { sqlPool } from "./db-pool";
 import { ZAHLUNGSPOST_FREIGABE_EVENT } from "./fiaon-mail-frequenz";
+import { planAuszahlungSql } from "./fiaon-buchhaltung";
 
 type Lauf = typeof sqlPool;
 
@@ -116,11 +117,14 @@ export async function markeZahlungen(lauf: Lauf = sqlPool): Promise<MarkenStand>
   };
 }
 
-/** Auszahlungs-Anforderungen. */
+/**
+ * Auszahlungs-Anforderungen. E-484: ohne Teilbeträge eines Auszahlungsplans — sie stehen nicht in /admin/auszahlungen
+ * (sie laufen über das FIAON Banking); eine Marke, deren Zeilen das Ziel nicht zeigt, schickte auf die falsche Suche.
+ */
 export async function markeAuszahlungen(lauf: Lauf = sqlPool): Promise<MarkenStand> {
-  const [z] = (await lauf`
-    SELECT COUNT(*)::int AS n FROM fiaon_payouts WHERE status = 'angefordert'
-  `) as any[];
+  const [z] = (await lauf.unsafe(`
+    SELECT COUNT(*)::int AS n FROM fiaon_payouts p WHERE p.status = 'angefordert' AND NOT ${planAuszahlungSql("p")}
+  `)) as any[];
   return {
     wert: Number(z.n), ziel: "/admin/auszahlungen",
     text: `${z.n} Auszahlung(en) warten auf Freigabe`,

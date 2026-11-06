@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// VORLAGEN: AN DAS TEAM (12) — Absender „FIAON Team"
+// VORLAGEN: AN DAS TEAM (13) — Absender „FIAON Team"
 //
 // Schreibregeln: siehe konto.ts — mit EINEM Unterschied: Mitarbeiter werden
 // geduzt (so spricht das Haus intern), Kunden IMMER gesiezt. Der karteZiel-
@@ -150,6 +150,28 @@ export const TEAM_VORLAGEN: Record<string, MailBaustein> = {
       { label: "Prüfsumme", wert: "{{params.doc_hash}}" },
     ],
     knopf: { text: "Vertrag herunterladen", url: "{{params.download_url}}" },
+  },
+
+  // E-484 (06.11.2026): die Sammelmitteilung eines Auszahlungsplans — alle zehn ausgeführten Teilbeträge und beim letzten.
+  // Statt einer Mail je Teilbetrag (agent_payout_done und commission_statement_issued laufen dort leise). Nach dem Versand
+  // gelten die genannten Abrechnungen als zugestellt (server/lib/fiaon-auszahlungsplan.ts, meilensteinMelden).
+  agent_auszahlungsplan_stand: {
+    betreff: "Dein Auszahlungsplan: {{params.stand_anzahl}} von {{params.gesamt_anzahl}} Teilbeträgen überwiesen",
+    preheader: "Stand {{params.stand_betrag}} € von {{params.anspruch}} € — deine Abrechnungen liegen im Portal.",
+    titel: "Neuer Stand deines Auszahlungsplans",
+    absaetze: [
+      "Hallo {{params.vorname}}, die Buchhaltung hat {{params.anzahl_neu}} weitere Teilbeträge à {{params.teilbetrag}} € als überwiesen gemeldet.",
+      "Stand jetzt: <b>{{params.stand_anzahl}} von {{params.gesamt_anzahl}}</b> Teilbeträgen, zusammen <b>{{params.stand_betrag}} € von {{params.anspruch}} €</b>.",
+      "Die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Zu jedem Teilbetrag gibt es eine Abrechnung — alle liegen in deinem Portal unter Wallet.",
+    ],
+    daten: [
+      { label: "Plan", wert: "{{params.plan_nummer}}" },
+      { label: "Überwiesen", wert: "{{params.stand_anzahl}} von {{params.gesamt_anzahl}} Teilbeträgen" },
+      { label: "Betrag", wert: "{{params.stand_betrag}} € von {{params.anspruch}} €" },
+      { label: "Abrechnungen", wert: "{{params.abrechnungen}}", wahlweise: true },
+    ],
+    knopf: { text: "Zu meinem Wallet", url: "{{params.abrechnungen_url}}" },
+    fussnote: "Einzelne Mails je Teilbetrag gibt es nicht: Du bekommst alle zehn Teilbeträge und zum Schluss eine Sammelmitteilung wie diese.",
   },
 
   commission_statement_issued: {

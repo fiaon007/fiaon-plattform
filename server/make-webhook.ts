@@ -31,6 +31,8 @@ export type MakeEventType =
   | "agent_password_reset"
   | "agent_payout_done"
   | "agent_payout_rejected"
+  // E-484 (06.11.2026): Sammelmitteilung eines Auszahlungsplans (alle zehn ausgeführten Teilbeträge und zum Schluss) — nur über den Motor.
+  | "agent_auszahlungsplan_stand"
   | "agent_callback_reminder"
   // Erinnerung an fehlende Bankdaten (20.08.2026): Ohne IBAN kann der Betreiber
   // nicht ueberweisen — und der Mensch wartet auf sein Geld, ohne zu wissen warum.
@@ -510,7 +512,9 @@ export async function sendMakeWebhookMitGrund(
   // E-244 (26.09.2026): die Zahlungserinnerung der Auskunft ebenso — sie trägt die Belehrung, und Make kennt sie nicht.
   // 05.10.2026 (E-282): vertrag_bestaetigung ebenso — Make kennt sie nicht. Durch diese Tür kommt sie nur als
   // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit", "finanzauswertung_mitarbeiter"].includes(eventType)
+  // E-484 (06.11.2026): die Sammelmitteilung des Auszahlungsplans ebenso — ohne Make-Szenario. Über Make antwortete
+  // dort womöglich ein Router mit 200 ohne Zweig, und die Abrechnungen stünden als zugestellt, ohne dass eine Mail kam.
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit", "finanzauswertung_mitarbeiter", "agent_auszahlungsplan_stand"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");

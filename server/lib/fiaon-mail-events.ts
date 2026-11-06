@@ -93,6 +93,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     // 18.09.2026: Monat und Bericht kennt nur der Monatslauf (fiaon-monatsbericht.ts).
     vonHand: false, pflichtFelder: ["monat_text", "bericht_url"],
   },
+  // E-484 (06.11.2026): Plan-Nummer, Stand und Abrechnungen kennt nur der Auszahlungsplan — nicht aus dem Sende-Menü.
+  agent_auszahlungsplan_stand: {
+    gruppe: "team", zielgruppe: "mitarbeiter", rollen: ["admin"],
+    klartext: "Sammelmitteilung eines Auszahlungsplans an den Empfänger — alle zehn ausgeführten Teilbeträge und zum Schluss, automatisch.",
+    vonHand: false, pflichtFelder: ["plan_nummer", "stand_anzahl", "gesamt_anzahl"],
+  },
   // ── „WILLKOMMEN" IST NICHT „ZUGANG" (18.09.2026) ──────────────────────────
   // VORHER: rollen admin, vertriebsleiter, agent, onboarding und der Satz
   //   „Begrüßung mit dem Weg ins Konto. Geht automatisch nach der

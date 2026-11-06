@@ -20,6 +20,7 @@ import { MAKE_EVENT_REGISTRY, getEventDef } from "../make-events-registry";
 import { signInvoiceUrl } from "../fiaon-invoice";
 import { berlinToday } from "../lib/fiaon-time";
 import { produktkategorieSql } from "../lib/fiaon-produktkategorie";
+import { KIND_AUSZAHLUNGSPLAN } from "../lib/fiaon-buchhaltung";
 
 const router = Router();
 
@@ -41,8 +42,10 @@ router.get("/admin/hub/stats", async (_req, res) => {
         COUNT(*) FILTER (WHERE invoice_number IS NOT NULL AND merged_into IS NULL) AS invoice_count
       FROM fiaon_applications
     `;
+    // E-484: ohne Teilbeträge eines Auszahlungsplans — die stehen nicht in /admin/auszahlungen (FIAON Banking).
     const [payouts] = await sqlPool`
-      SELECT COUNT(*) AS open FROM fiaon_payouts WHERE status = 'angefordert'
+      SELECT COUNT(*) AS open FROM fiaon_payouts p WHERE p.status = 'angefordert'
+         AND NOT EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
     `.catch(() => [{ open: 0 }] as any);
     const [agents] = await sqlPool`
       SELECT COUNT(*) FILTER (WHERE active) AS active,
@@ -114,8 +117,10 @@ async function computeBadges(): Promise<any> {
   } catch (err) {
     console.error("[FIAON-HUB] dubletten-kandidaten:", err);
   }
+  // E-484: ohne Teilbeträge eines Auszahlungsplans — die stehen nicht in /admin/auszahlungen (FIAON Banking).
   const [payouts] = await sqlPool`
-    SELECT COUNT(*)::int AS c FROM fiaon_payouts WHERE status = 'angefordert'
+    SELECT COUNT(*)::int AS c FROM fiaon_payouts p WHERE p.status = 'angefordert'
+       AND NOT EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
   `.catch(() => [{ c: 0 }] as any);
   // #18: „Lange bezahlt, nie bestätigt" — Kunden, die seit > 7 Tagen „Ich habe
   // überwiesen" gemeldet haben (claimed_paid), aber nie auf 'paid' bestätigt

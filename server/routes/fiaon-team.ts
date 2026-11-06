@@ -22,6 +22,8 @@ import { katalogpreisCents } from "../lib/fiaon-massgebliche-bestellung";
 import { BELEGT_GEFUEHRT_SQL, NUMMER_PASST_SQL } from "../lib/fiaon-anruf-pruefung";
 import { abrechnungZustand } from "./fiaon-abrechnungen";
 import { ratenStornieren } from "../lib/fiaon-raten-storno";
+// E-484: Teilbeträge eines Auszahlungsplans erkennen — eine Definition im Banking-Kern.
+import { KIND_AUSZAHLUNGSPLAN, buchSchema, istPlanAuszahlung, PLAN_RIEGEL_GRUND } from "../lib/fiaon-buchhaltung";
 
 const router = Router();
 
@@ -2120,16 +2122,29 @@ router.post("/admin/team/milestones/:id/done", async (req, res) => {
 router.get("/admin/payouts", async (_req, res) => {
   try {
     await ensureAgentTables();
+    // E-484: Teilbeträge eines Auszahlungsplans stehen NICHT in dieser Liste — sie laufen nur über das FIAON Banking
+    // (Reiter „Auszahlungsplan“: Takt, Freigabe mit TAN, Ausführung durch die Buchhaltung). „Als überwiesen markieren“
+    // und „Ablehnen“ weisen sie ab (Riegel unten). Damit niemand sie sucht, kommt ihre Zahl als Hinweiszeile mit.
     const payouts = await sqlPool`
       SELECT p.*, a.name AS agent_name, a.email AS agent_email
       FROM fiaon_payouts p JOIN fiaon_agents a ON a.id = p.agent_id
+      WHERE NOT EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
       ORDER BY (p.status = 'angefordert') DESC, p.requested_at DESC
       LIMIT 200
     `;
     const entries = await sqlPool`
       SELECT payout_id, id, ref, payment_reference, pack_name, amount_cents, rate_bp, status, created_at
-      FROM fiaon_commissions WHERE payout_id IS NOT NULL ORDER BY created_at ASC
+      FROM fiaon_commissions WHERE payout_id IS NOT NULL AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN} ORDER BY created_at ASC
     `;
+    const [plan] = (await sqlPool`
+      SELECT COUNT(*) FILTER (WHERE p.status = 'angefordert')::int AS offen,
+             COALESCE(SUM(p.amount_cents) FILTER (WHERE p.status = 'angefordert'), 0)::bigint AS offen_cents,
+             COUNT(*) FILTER (WHERE p.status = 'ausgezahlt')::int AS ausgezahlt
+        FROM fiaon_payouts p
+       WHERE EXISTS (SELECT 1 FROM fiaon_commissions pc WHERE pc.payout_id = p.id AND pc.kind = ${KIND_AUSZAHLUNGSPLAN})
+    `) as any[];
+    const planOffen = Number(plan?.offen || 0);
+    const planAusgezahlt = Number(plan?.ausgezahlt || 0);
     const byPayout: Record<number, any[]> = {};
     for (const e of entries) {
       (byPayout[e.payout_id] ||= []).push(e);
@@ -2157,6 +2172,16 @@ router.get("/admin/payouts", async (_req, res) => {
     }
     res.json({
       ok: true,
+      // E-484: die Hinweiszeile zu den Teilbeträgen eines Auszahlungsplans (null, wenn es keine gibt).
+      planHinweis: planOffen + planAusgezahlt > 0
+        ? {
+          offen: planOffen,
+          offenCents: Number(plan?.offen_cents || 0),
+          ausgezahlt: planAusgezahlt,
+          text: `Teilbeträge eines Auszahlungsplans stehen nicht in dieser Liste — sie laufen über das FIAON Banking (Reiter „Auszahlungsplan“): `
+            + `${planOffen} unterwegs, ${planAusgezahlt} ausgeführt.`,
+        }
+        : null,
       data: payouts.map((p: any) => ({
         ...p,
         abrechnung: jeAuszahlung[Number(p.id)] ?? null,
@@ -2290,9 +2315,53 @@ export async function auszahlungUeberwiesen(
   return { ok: true };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER RIEGEL VOR „ALS ÜBERWIESEN MARKIEREN“ UND „ABLEHNEN“ (E-484, 06.11.2026)
+//
+// Gemessen am 06.11.2026: Eine Auszahlung wurde am 29.10. hier als überwiesen markiert, während ihr Zahlungsauftrag
+// freigegeben bei der Buchhaltung lag — mit gültigem Bestätigungslink. Führt die Buchhaltung ihn aus, fließt das Geld
+// zweimal. Und „Ablehnen“ setzt die Provisionen zurück auf „bestätigt“: Läuft daneben ein Auftrag, zahlt der nächste
+// Sammellauf sie ein zweites Mal. Deshalb gibt es für eine Auszahlung genau EINEN laufenden Weg:
+//   · Teilbetrag eines Auszahlungsplans → nur über den Reiter „Auszahlungsplan“ im FIAON Banking (AUSZAHLUNGSPLAN);
+//   · laufender Auftrag über die Buchhaltung → erst im Banking zurückrufen bzw. ablehnen (BEI_BUCHHALTUNG);
+//   · laufender Auftrag im Banking (ohne Buchhaltung) → erst dort abschließen oder zurückziehen (IM_BANKING).
+// Ohne laufenden Auftrag bleibt beides, wie es war (Handbuchung = Tatsache). Harte Sperre, weil es um doppeltes Geld
+// geht (AGENTS.md: Sperren nur bei Sicherheit oder Recht); der Grund steht als Klartext in der Antwort.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function auszahlungWegRiegel(id: number): Promise<{ code: "AUSZAHLUNGSPLAN" | "BEI_BUCHHALTUNG" | "IM_BANKING"; error: string; auftrag?: string } | null> {
+  await buchSchema();
+  if (await istPlanAuszahlung(id)) {
+    return { code: "AUSZAHLUNGSPLAN", error: `${PLAN_RIEGEL_GRUND} Freigabe, Ablehnung und Ausführung laufen dort — mit TAN und über die Buchhaltung.` };
+  }
+  const [o] = (await sqlPool`
+    SELECT nummer, status, ausfuehrung_extern, extern_bestaetigt_am FROM fiaon_buch_auftrag
+     WHERE payout_id = ${id} AND status IN ('entwurf', 'eingereicht', 'freigegeben')
+     ORDER BY id DESC LIMIT 1`) as any[];
+  if (!o) return null;
+  const nr = String(o.nummer);
+  if (o.ausfuehrung_extern) {
+    if (o.status === "freigegeben" && o.extern_bestaetigt_am) {
+      return { code: "BEI_BUCHHALTUNG", auftrag: nr, error: `Die Buchhaltung hat den Zahlungsauftrag ${nr} gerade bestätigt — die Auszahlung wird jetzt ausgebucht. Bitte gleich neu laden.` };
+    }
+    if (o.status === "freigegeben") {
+      return { code: "BEI_BUCHHALTUNG", auftrag: nr, error: `Zu dieser Auszahlung liegt der Zahlungsauftrag ${nr} bei der Buchhaltung (${o.ausfuehrung_extern}), ihr Bestätigungslink gilt. Erst im FIAON Banking zurückrufen — sonst kann sie ihn noch ausführen, und das Geld fließt zweimal.` };
+    }
+    return { code: "BEI_BUCHHALTUNG", auftrag: nr, error: `Zu dieser Auszahlung wartet der Zahlungsauftrag ${nr} im FIAON Banking auf die Freigabe (Ausführung über die Buchhaltung). Erst dort ablehnen oder zurückziehen.` };
+  }
+  return {
+    code: "IM_BANKING", auftrag: nr,
+    error: o.status === "freigegeben"
+      ? `Zu dieser Auszahlung ist der Zahlungsauftrag ${nr} im FIAON Banking freigegeben. Bitte dort „Überweisung eintragen“ (das bucht die Auszahlung aus) oder den Auftrag zurückziehen — zwei Wege für eine Auszahlung zahlen doppelt.`
+      : `Zu dieser Auszahlung läuft im FIAON Banking der Zahlungsauftrag ${nr} (${o.status === "entwurf" ? "Entwurf" : "eingereicht"}). Erst dort freigeben und ausführen oder zurückziehen — zwei Wege für eine Auszahlung zahlen doppelt.`,
+  };
+}
+
 /** H2: „Als überwiesen markieren" — setzt Einträge auf ausgezahlt + Make `agent_payout_done`. */
 router.post("/admin/payouts/:id/mark-paid", async (req, res) => {
   try {
+    // E-484: erst der Riegel — Plan-Teilbetrag oder laufender Auftrag im Banking/bei der Buchhaltung → 409 mit Grund.
+    const riegel = await auszahlungWegRiegel(Number(req.params.id));
+    if (riegel) return res.status(409).json({ ok: false, ...riegel });
     const erg = await auszahlungUeberwiesen(Number(req.params.id));
     if (erg.ok) return res.json({ ok: true });
     if (erg.code === "NICHT_GEFUNDEN") return res.status(404).json({ ok: false, error: erg.error });
@@ -2310,6 +2379,10 @@ router.post("/admin/payouts/:id/reject", async (req, res) => {
     const id = Number(req.params.id);
     const reason = String(req.body?.reason || "").trim();
     if (!reason) return res.status(400).json({ ok: false, error: "Ablehnungsgrund erforderlich" });
+    // E-484: Ablehnen setzt die Provisionen zurück auf „bestätigt“ — bei einem Plan-Teilbetrag oder neben einem
+    // laufenden Auftrag hieße das: der nächste Sammellauf zahlt sie ein zweites Mal. Erst der Riegel.
+    const riegel = await auszahlungWegRiegel(id);
+    if (riegel) return res.status(409).json({ ok: false, ...riegel });
     const rows = await sqlPool`
       UPDATE fiaon_payouts SET status = 'abgelehnt', reject_reason = ${reason}, processed_at = NOW()
       WHERE id = ${id} AND status = 'angefordert'

@@ -5,6 +5,24 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Teil 4a, Prüfstand): Auszahlungsplan — dauerhafte Wache gegen doppelte Zahlung
+
+- **Warum:** Der Auszahlungsplan bewegt Geld. Jede Regel, die eine doppelte Zahlung verhindert, braucht eine Prüfung, die rot
+  wird, sobald jemand sie später bricht — nicht nur ein Gedächtnis.
+- **Was jetzt gilt:** Ein neuer Prüfstand spielt den ganzen Weg gegen den lokalen Server durch — echtes HTTP mit zwei
+  Banking-Sitzungen (Inhaber, Geschäftsführung), die TAN aus der Mail, der Link der Buchhaltung aus ihrer Mail. Über 170
+  Prüfungen in rund 35 Sekunden, wiederholbar (eigene Konten je Lauf, am Ende stillgelegt):
+  - Plan anlegen mit EINER TAN (je Empfänger ein eigener Plan), Vorschau der Altposten vor der TAN; „verrechnet“ schließt alles
+    Offene in derselben Transaktion (Vormerkungen, Provisionen, Auszahlungen, Aufträge — nichts gelöscht, genau eine Mail
+    „Bitte NICHT ausführen“ mit genau den Aufträgen, die bei der Buchhaltung lagen); „zusätzlich“ lässt alles stehen. „Alles oder
+    nichts“ ist mit einer echten Sperre in der Datenbank geprüft: Ändert sich mitten in der Anlage etwas, bleibt nichts stehen.
+  - Wartezeit je Plan (zwei Pläne blockieren sich nicht), Rennen zweier Personen, Doppelklick, Takt-Netz, Stau-Grenze,
+    Freigabe (vier Augen, Einzelzeichnung, Selbstfreigabe), Bestätigung mit und ohne Bank-Referenz, doppelte Referenz,
+    Ablehnen, Rückruf, Pause, Kontowechsel, Sperre, Beenden, Sammelmitteilung alle zehn Teile, Obergrenze bis „fertig“.
+  - Seitenwege (Chefbüro, „Alle …“, Anweisen), Sammellauf am 15. (neue Provisionen laufen normal, Plan-Teilbeträge nie) und Wallet.
+  - Rot-Probe eingebaut (`--rot-probe=rennen`): ohne Zeilensperre und ohne Takt-Netz wird das Rennen rot.
+- **Wo:** scripts/pruef-auszahlungsplan.ts (Aufruf und Sicherungen im Kopf der Datei; läuft nur gegen den lokalen Prüfstand).
+
 ## 06.11.2026 — E-484 (Teil 2, Server-Rest): Auszahlungsplan — Routen, Riegel gegen Doppelzahlung, Wallet-Daten, Beleg, Sammelmail
 
 - **Warum:** Der Server-Kern aus Teil 1 war noch nicht erreichbar. Dazu kamen die Seitenwege, über die eine Auszahlung am

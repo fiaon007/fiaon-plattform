@@ -33,6 +33,13 @@
 //   · eine Ablehnung storniert die Provision (nie zurück auf „bestätigt“, sonst
 //     nähme sie der nächste Sammellauf mit) und gibt den Teil frei, der Takt
 //     bleibt verbraucht;
+//   · ein Rückruf bei der Buchhaltung gibt den Teil NICHT sofort frei: Er bleibt
+//     „in Klärung“, bis der Inhaber bestätigt, ob die Buchhaltung schon überwiesen
+//     hat (nicht ausgeführt → Teil frei; doch ausgeführt → mit TAN ausgebucht);
+//   · verrechnete Altposten tragen den Plan als Merker und zählen in allen
+//     Provisionswegen als vorhanden (server/lib/fiaon-provision-automatik.ts);
+//     meldet die Buchhaltung, ein zurückgerufener Altposten sei doch überwiesen,
+//     kürzt der Inhaber den Plan um genau diesen Betrag (mit TAN);
 //   · die Seitenwege („Anweisen“, „Zur Freigabe“, „Alle …“) weisen
 //     Plan-Teilbeträge ab (istPlanAuszahlung in fiaon-buchhaltung.ts).
 //
@@ -44,10 +51,11 @@ import { createHash } from "crypto";
 import { sqlPool } from "./db-pool";
 import {
   buchSchema, buchProtokoll, benachrichtigen, gmailSenden, nichtAusfuehrenMelden, inhaber, geschaeftsfuehrung, buchPerson,
-  tanAnfordern, tanPruefen, freigabeMoeglich, naechsteNummer, auftrag, zuAuftrag, AUFTRAG_FELDER,
+  tanAnfordern, tanPruefen, freigabeMoeglich, naechsteNummer, auftrag, zuAuftrag, AUFTRAG_FELDER, istInhaber, bankReferenzLesen,
   ibanSauber, ibanGueltig, ibanMaskiert, ibanPruefwert, BUCHHALTUNG_AUSFUEHRUNG, KIND_AUSZAHLUNGSPLAN,
   type Auftrag, type BuchPerson, type BuchRolle,
 } from "./fiaon-buchhaltung";
+import { vormerkungSchema } from "./fiaon-provision-automatik";
 import { istTestkontoSql } from "./fiaon-mitarbeiter-sicht";
 import type { MakeEventType } from "../make-webhook";
 
@@ -146,6 +154,8 @@ export function planSchema(): Promise<void> {
       // fiaon_commissions und fiaon_payouts — beide beschreibt das Auslösen in seiner Transaktion.
       const { ensureAgentTables } = await import("../routes/fiaon-agent");
       await ensureAgentTables();
+      // Die Vormerkungen samt Merker „verrechnet“ — die Anlage schließt sie in ihrer Transaktion.
+      await vormerkungSchema();
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_auszahlungsplan (
           id BIGSERIAL PRIMARY KEY,
@@ -213,6 +223,14 @@ export function planSchema(): Promise<void> {
           CHECK (sperre_bis > ausgeloest_am)
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_auszahlungsplan_takt_plan_idx ON fiaon_auszahlungsplan_takt (plan_id, id DESC)`;
+      // Nachbesserung E-484 (Prüfer GELD): Ein bei der Buchhaltung zurückgerufener Teil bleibt „in Klärung“, bis der
+      // Inhaber sagt, ob sie schon überwiesen hatte. Meldet sie das für einen verrechneten Altposten, kürzt der Inhaber
+      // den Plan um genau diesen Betrag: Teile vom Ende her „entfallen“ (nichts gelöscht), höchstens einer wird kleiner.
+      await sqlPool`ALTER TABLE fiaon_auszahlungsplan_teil ADD COLUMN IF NOT EXISTS klaerung_seit TIMESTAMPTZ`;
+      await sqlPool`ALTER TABLE fiaon_auszahlungsplan_teil ADD COLUMN IF NOT EXISTS entfallen_am TIMESTAMPTZ`;
+      await sqlPool`ALTER TABLE fiaon_auszahlungsplan_teil ADD COLUMN IF NOT EXISTS entfallen_grund TEXT`;
+      await sqlPool`ALTER TABLE fiaon_auszahlungsplan_teil ADD COLUMN IF NOT EXISTS betrag_vorher_cents INTEGER`;
+      await sqlPool`ALTER TABLE fiaon_auszahlungsplan ADD COLUMN IF NOT EXISTS gekuerzt_cents INTEGER NOT NULL DEFAULT 0`;
       await taktNetz();
     })().catch((e) => { bereit = null; throw e; });
   }
@@ -399,8 +417,12 @@ interface AltpostenGeschlossen {
   vormerkungen: number; provisionen: number; auszahlungen: number[]; auftraege: AltpostenIntern["auftragZeilen"];
 }
 
-/** Schließt GENAU die gesperrt gelesenen Altposten — in der Transaktion der Plananlage. */
-async function altpostenSchliessen(alt: AltpostenIntern, planNummer: string, von: BuchPerson, tx: any): Promise<AltpostenGeschlossen> {
+/**
+ * Schließt GENAU die gesperrt gelesenen Altposten — in der Transaktion der Plananlage. Jede geschlossene Zeile trägt
+ * den Plan als Merker (verrechnet_plan_id): Damit zählt sie in allen Provisionswegen als vorhanden und kommt über einen
+ * zweiten Durchlauf derselben Kundenzahlung nicht zurück (server/lib/fiaon-provision-automatik.ts).
+ */
+async function altpostenSchliessen(alt: AltpostenIntern, planId: number, planNummer: string, von: BuchPerson, tx: any): Promise<AltpostenGeschlossen> {
   const vermerk = ` · im Auszahlungsplan ${planNummer} verrechnet`;
   const grund = `Im Auszahlungsplan ${planNummer} verrechnet`;
   const leer = (l: number[]) => (l.length ? l : [0]);
@@ -411,7 +433,7 @@ async function altpostenSchliessen(alt: AltpostenIntern, planNummer: string, von
   if (alt.ids.vormerkungen.length) {
     const r = (await tx`
       UPDATE fiaon_provision_vormerkung
-         SET status = 'verworfen', erledigt_am = NOW(), erledigt_von = ${von.email},
+         SET status = 'verworfen', erledigt_am = NOW(), erledigt_von = ${von.email}, verrechnet_plan_id = ${planId},
              note = TRIM(COALESCE(note, '') || ${vermerk})
        WHERE id = ANY(${leer(alt.ids.vormerkungen)}) AND status = 'offen'
       RETURNING id`) as any[];
@@ -421,7 +443,8 @@ async function altpostenSchliessen(alt: AltpostenIntern, planNummer: string, von
   let provisionen = 0;
   if (alt.ids.provisionen.length) {
     const r = (await tx`
-      UPDATE fiaon_commissions SET status = 'storniert', updated_at = NOW(), note = TRIM(COALESCE(note, '') || ${vermerk})
+      UPDATE fiaon_commissions SET status = 'storniert', updated_at = NOW(), verrechnet_plan_id = ${planId},
+             note = TRIM(COALESCE(note, '') || ${vermerk})
        WHERE id = ANY(${leer(alt.ids.provisionen)}) AND status IN ('bestaetigt', 'vorgemerkt')
       RETURNING id`) as any[];
     pruefe("Provisionen", alt.ids.provisionen.length, r.length);
@@ -434,7 +457,7 @@ async function altpostenSchliessen(alt: AltpostenIntern, planNummer: string, von
         : grund;
       const r = (await tx`
         UPDATE fiaon_buch_auftrag
-           SET status = 'zurueckgezogen', extern_token_hash = NULL,
+           SET status = 'zurueckgezogen', extern_token_hash = NULL, verrechnet_plan_id = ${planId},
                zurueckgerufen_am = NOW(), zurueckgerufen_von = ${von.email}, rueckruf_grund = ${g}
          WHERE id = ${o.id} AND status IN ('entwurf', 'eingereicht', 'freigegeben') AND extern_bestaetigt_am IS NULL
         RETURNING id`) as any[];
@@ -451,7 +474,8 @@ async function altpostenSchliessen(alt: AltpostenIntern, planNummer: string, von
       RETURNING id, agent_id, amount_cents`) as any[];
     pruefe("Auszahlungen", alt.ids.auszahlungen.length, r.length);
     await tx`
-      UPDATE fiaon_commissions SET status = 'storniert', updated_at = NOW(), note = TRIM(COALESCE(note, '') || ${vermerk})
+      UPDATE fiaon_commissions SET status = 'storniert', updated_at = NOW(), verrechnet_plan_id = ${planId},
+             note = TRIM(COALESCE(note, '') || ${vermerk})
        WHERE payout_id = ANY(${leer(alt.ids.auszahlungen)}) AND status = 'in_auszahlung'`;
     for (const p of r) {
       await tx`
@@ -700,7 +724,7 @@ async function offeneTanZiel(person: BuchPerson, zweck: string): Promise<string 
 
 /** Inhaber: TAN für die Plananlage anfordern. Gibt die Vorschau mit — genau sie bindet die TAN. */
 export async function planTanAnfordern(ein: PlanEingabe, von: BuchPerson): Promise<{ ok: true; an: string; vorschau: PlanVorschau } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Einen Auszahlungsplan legt nur der Inhaber an.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Einen Auszahlungsplan legt nur der Inhaber an.");
   const vorschau = await planVorschau(ein);
   if (vorschau.fehler.length) return fehler(400, "EMPFAENGER", vorschau.fehler.join(" "));
   const t = await tanAnfordern(von, ZWECK_ANLEGEN, vorschau.ziel, vorschau.beschreibung);
@@ -717,7 +741,7 @@ export interface AngelegterPlan { id: number; nummer: string; agentId: number; n
 export async function planAnlegen(
   ein: PlanEingabe, von: BuchPerson, tan: string,
 ): Promise<{ ok: true; plaene: AngelegterPlan[]; zurueckgerufen: string[]; hinweise: string[] } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Einen Auszahlungsplan legt nur der Inhaber an.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Einen Auszahlungsplan legt nur der Inhaber an.");
   await planSchema();
   const { vorschau, pruefJe } = await vorschauIntern(ein);
   if (vorschau.fehler.length) return fehler(400, "EMPFAENGER", vorschau.fehler.join(" "));
@@ -784,7 +808,7 @@ export async function planAnlegen(
         if (zahl(summe.s) !== anspruchJe.get(e.agentId) || zahl(summe.n) !== e.anzahlTeile) {
           throw new PlanAbbruch(500, "TEILE", `Die Teilbeträge von ${nummer} ergeben nicht den Anspruch — nichts angelegt.`);
         }
-        if (alt) geschlossen.push({ nummer, g: await altpostenSchliessen(alt, nummer, von, tx) });
+        if (alt) geschlossen.push({ nummer, g: await altpostenSchliessen(alt, planId, nummer, von, tx) });
         plaene.push({ id: planId, nummer, agentId: e.agentId, name: e.name, anzahlTeile: e.anzahlTeile, altpostenCents: alt ? alt.cents : 0, altpostenAnzahl: alt ? alt.anzahl : 0 });
       }
       return { plaene, geschlossen };
@@ -833,7 +857,7 @@ export async function planAnlegen(
     `Je Plan ist alle ${ein.abstandMin} Minuten ein Teilbetrag möglich. So geht es:`,
     "  1. Im FIAON Banking anmelden und den Reiter „Auszahlungsplan“ öffnen.",
     "  2. Steht dort „Bereit“: „Teilbetrag auslösen“ drücken. Empfänger, Betrag und Konto stehen fest im Plan.",
-    "  3. „Jetzt mit TAN freigeben“ — die TAN kommt per Mail und gilt 5 Minuten. Sie können die Freigabe auch dem Inhaber überlassen.",
+    "  3. „Mit TAN freigeben“ (direkt nach dem Auslösen oder unter „Zur Freigabe“) — die TAN kommt per Mail und gilt 5 Minuten. Sie können die Freigabe auch dem Inhaber überlassen.",
     `  4. Mit der Freigabe geht der Auftrag automatisch an die Buchhaltung (${BUCHHALTUNG_AUSFUEHRUNG}).`,
     "  5. Erst deren Bestätigung bucht aus — dann steht „Ausgeführt“ da, und der Durchführungsbeleg kommt per Mail.",
     "  6. Wirkt etwas falsch: „Pausieren“ (mit Grund). Dann steht der Plan still, bis der Inhaber ihn fortsetzt.",
@@ -888,29 +912,36 @@ export async function teilAusloesen(planId: number, von: BuchPerson, lauf: Lauf 
           }
           return fehler(409, "ZU_FRUEH", `Der nächste Teilbetrag geht ab ${uhr(p.naechste_ab)} Uhr.`, { naechsteAb: iso(p.naechste_ab)! });
         }
+        // Unterwegs zählt auch, was nach einem Rückruf in Klärung ist — dort kann das Geld schon geflossen sein.
         const [stau] = (await tx`
-          SELECT COUNT(*)::int AS n FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.id = o.plan_teil_id
-           WHERE t.plan_id = ${planId} AND o.status IN ('eingereicht', 'freigegeben')`) as any[];
+          SELECT (SELECT COUNT(*)::int FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.id = o.plan_teil_id
+                   WHERE t.plan_id = ${planId} AND o.status IN ('eingereicht', 'freigegeben'))
+               + (SELECT COUNT(*)::int FROM fiaon_auszahlungsplan_teil k
+                   WHERE k.plan_id = ${planId} AND k.klaerung_seit IS NOT NULL AND k.ausgefuehrt_am IS NULL) AS n`) as any[];
         if (zahl(stau?.n) >= zahl(p.max_offen)) {
-          return fehler(409, "STAU", `${zahl(stau.n)} Teilbeträge sind unterwegs (zur Freigabe oder bei der Buchhaltung). Der nächste geht, sobald einer davon ausgeführt oder abgelehnt ist.`);
+          return fehler(409, "STAU", `${zahl(stau.n)} Teilbeträge sind unterwegs (zur Freigabe, bei der Buchhaltung oder nach einem Rückruf in Klärung). Der nächste geht, sobald einer davon ausgeführt, abgelehnt oder geklärt ist.`);
         }
         const ag = await agentLesen(zahl(p.agent_id), tx);
         const konto = kontoLage(ag, String(p.iban_pruef), entschl);
         if (!konto.ok) return fehler(409, "KONTO", konto.grund || "Das Konto des Empfängers ist nicht verwendbar.");
         const [teil] = (await tx`
           SELECT id, nr, betrag_cents FROM fiaon_auszahlungsplan_teil
-           WHERE plan_id = ${planId} AND payout_id IS NULL AND ausgefuehrt_am IS NULL
+           WHERE plan_id = ${planId} AND payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL
            ORDER BY nr LIMIT 1 FOR UPDATE`) as any[];
         if (!teil) {
           const [rest] = (await tx`
-            SELECT COUNT(*) FILTER (WHERE ausgefuehrt_am IS NULL)::int AS offen FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId}`) as any[];
+            SELECT COUNT(*) FILTER (WHERE ausgefuehrt_am IS NULL AND entfallen_am IS NULL)::int AS offen,
+                   COUNT(*) FILTER (WHERE klaerung_seit IS NOT NULL AND ausgefuehrt_am IS NULL)::int AS klaerung
+              FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId}`) as any[];
           if (zahl(rest?.offen) === 0) {
             await tx`
               UPDATE fiaon_auszahlungsplan SET status = 'fertig', status_am = NOW(), status_von = 'system', status_grund = 'Alle Teilbeträge ausgeführt'
                WHERE id = ${planId} AND status IN ('aktiv', 'pausiert')`;
             return fehler(409, "FERTIG", `Alle ${zahl(p.anzahl_teile)} Teilbeträge von ${p.nummer} sind ausgeführt.`);
           }
-          return fehler(409, "UNTERWEGS", "Alle übrigen Teilbeträge sind unterwegs. Der nächste geht, sobald einer zurückkommt oder ausgeführt ist.");
+          return fehler(409, "UNTERWEGS", zahl(rest?.klaerung) > 0
+            ? "Alle übrigen Teilbeträge sind unterwegs oder nach einem Rückruf in Klärung. Der nächste geht, sobald einer zurückkommt, geklärt oder ausgeführt ist."
+            : "Alle übrigen Teilbeträge sind unterwegs. Der nächste geht, sobald einer zurückkommt oder ausgeführt ist.");
         }
         const name = agentName(ag);
         const betrag = zahl(teil.betrag_cents);
@@ -956,7 +987,7 @@ export async function teilAusloesen(planId: number, von: BuchPerson, lauf: Lauf 
           RETURNING naechste_ab`) as any[];
         return {
           ok: true, schon: false, auftragId, planNummer: String(p.nummer), nr, anzahl, betragCents: betrag, naechsteAb: iso(neu.naechste_ab)!,
-          neu: { agentId: zahl(p.agent_id), payoutId, name, hinweis: p.hinweis_an_inhaber === true && von.rolle !== "inhaber" },
+          neu: { agentId: zahl(p.agent_id), payoutId, name, hinweis: p.hinweis_an_inhaber === true && !istInhaber(von) },
         };
       });
       if (!r.ok) return r;
@@ -1009,8 +1040,14 @@ const ART_TEXT: Record<TeilZurueckArt, string> = {
  * Ein Teilbetrag geht zurück in den Plan — aufgerufen beim Ablehnen, Zurückziehen, Zurückrufen und Beenden, IMMER in
  * der Transaktion, die den Auftrag schließt (`tx`). Die Auszahlung wird abgelehnt, ihre Provision storniert (nie
  * zurück auf „bestätigt“), der Teil wieder frei. Die Takt-Zeile bleibt: Die Wartezeit ist verbraucht.
+ *
+ * Ausnahme RÜCKRUF (Nachbesserung E-484, Prüfer GELD): Der Auftrag lag schon bei der Buchhaltung — sie kann vor der
+ * Mail „Bitte NICHT ausführen“ überwiesen haben. Der Teil wird deshalb NICHT frei, sondern bleibt „in Klärung“
+ * (Auszahlung angefordert, Provision in Auszahlung, Teil gebunden): Neu auslösen lässt er sich erst, wenn der Inhaber
+ * bestätigt, dass nichts überwiesen wurde (planKlaerungNichtAusgefuehrt); sonst bucht er ihn mit TAN als ausgeführt
+ * (planKlaerungAusgefuehrt). Sonst flösse das Geld für denselben Teil zweimal.
  */
-export async function planTeilZurueck(auftragId: number, art: TeilZurueckArt, grund: string, wer: string, tx: any): Promise<{ planNummer: string; nr: number } | null> {
+export async function planTeilZurueck(auftragId: number, art: TeilZurueckArt, grund: string, wer: string, tx: any): Promise<{ planNummer: string; nr: number; klaerung?: boolean } | null> {
   const [t] = (await tx`
     SELECT t.id, t.nr, t.payout_id, p.nummer, p.agent_id
       FROM fiaon_auszahlungsplan_teil t JOIN fiaon_auszahlungsplan p ON p.id = t.plan_id
@@ -1027,6 +1064,17 @@ export async function planTeilZurueck(auftragId: number, art: TeilZurueckArt, gr
     console.error(`[AUSZAHLUNGSPLAN] ${t.nummer} Teil ${t.nr}: Auszahlung #${payoutId} stand schon auf „ausgezahlt“ — Teil als ausgeführt gezählt, nicht freigegeben.`);
     buchProtokoll(wer, "Teilbetrag bereits ausgezahlt", String(t.nummer), `Teil ${t.nr}: Auszahlung #${payoutId} war schon gebucht — zählt als ausgeführt.`);
     return { planNummer: String(t.nummer), nr: zahl(t.nr) };
+  }
+  if (art === "zurueckgerufen") {
+    const r = (await tx`
+      UPDATE fiaon_auszahlungsplan_teil SET klaerung_seit = NOW()
+       WHERE id = ${zahl(t.id)} AND auftrag_id = ${auftragId} AND ausgefuehrt_am IS NULL
+      RETURNING id`) as any[];
+    if (r.length) {
+      buchProtokoll(wer, "Teilbetrag in Klärung (Rückruf)", String(t.nummer),
+        `Teil ${t.nr}: wird nicht neu ausgelöst, bis der Inhaber bestätigt, ob die Buchhaltung schon überwiesen hat${grund ? ` — ${text(grund, 200)}` : ""}`);
+      return { planNummer: String(t.nummer), nr: zahl(t.nr), klaerung: true };
+    }
   }
   if (po && po.status !== "abgelehnt") {
     await tx`
@@ -1080,13 +1128,14 @@ export async function planTeilAusgefuehrt(a: Auftrag, lauf: Lauf = sqlPool): Pro
   if (!a.planTeilId) return { neu: false };
   await planSchema();
   const [t] = (await lauf`
-    UPDATE fiaon_auszahlungsplan_teil SET ausgefuehrt_am = NOW()
+    UPDATE fiaon_auszahlungsplan_teil SET ausgefuehrt_am = NOW(), klaerung_seit = NULL
      WHERE auftrag_id = ${a.id} AND ausgefuehrt_am IS NULL
     RETURNING id, plan_id, nr`) as any[];
   if (!t) return { neu: false };
   const planId = zahl(t.plan_id);
+  // Entfallene Teile (Plan gekürzt) zählen nicht mit — der Plan ist fertig, wenn alle übrigen ausgeführt sind.
   const [s] = (await lauf`
-    SELECT COUNT(*)::int AS gesamt, COUNT(*) FILTER (WHERE ausgefuehrt_am IS NOT NULL)::int AS fertig
+    SELECT COUNT(*) FILTER (WHERE entfallen_am IS NULL)::int AS gesamt, COUNT(*) FILTER (WHERE ausgefuehrt_am IS NOT NULL)::int AS fertig
       FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId}`) as any[];
   const gesamt = zahl(s?.gesamt), fertig = zahl(s?.fertig);
   const abgeschlossen = gesamt > 0 && fertig >= gesamt;
@@ -1124,9 +1173,11 @@ async function meilensteinMelden(planId: number, vorher: number, marke: number, 
   const [s] = (await sqlPool`
     SELECT COUNT(*) FILTER (WHERE ausgefuehrt_am IS NOT NULL)::int AS fertig,
            COALESCE(SUM(betrag_cents) FILTER (WHERE ausgefuehrt_am IS NOT NULL), 0)::bigint AS fertig_cents,
-           COUNT(*)::int AS gesamt
+           COUNT(*) FILTER (WHERE entfallen_am IS NULL)::int AS gesamt
       FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId}`) as any[];
   const fertig = zahl(s?.fertig), gesamt = zahl(s?.gesamt), fertigCents = zahl(s?.fertig_cents);
+  // Der Plan-Betrag: der Anspruch, abzüglich dessen, was nach einem Rückruf doch außerhalb des Plans überwiesen wurde.
+  const planCents = zahl(p.anspruch_cents) - zahl(p.gekuerzt_cents);
   const seit = Math.max(1, marke - vorher);
   // Wer hat im letzten Abschnitt freigegeben — und wie oft die empfangende Person selbst?
   const abschnitt = (await sqlPool`
@@ -1147,7 +1198,7 @@ async function meilensteinMelden(planId: number, vorher: number, marke: number, 
   const freigeber = Array.from(jeFreigeber.entries()).map(([k, v]) => `${k} ${v}`).join(", ") || "—";
   const m = await gmailSenden(inhaber().email,
     abgeschlossen ? `${p.nummer} abgeschlossen: alle ${gesamt} Teilbeträge ausgeführt` : `${p.nummer}: ${fertig} von ${gesamt} Teilbeträgen ausgeführt`, [
-      `${p.nummer} · ${name}: ${fertig} von ${gesamt} Teilbeträgen ausgeführt (${geld(fertigCents)} von ${geld(zahl(p.anspruch_cents))}).`,
+      `${p.nummer} · ${name}: ${fertig} von ${gesamt} Teilbeträgen ausgeführt (${geld(fertigCents)} von ${geld(planCents)}${zahl(p.gekuerzt_cents) > 0 ? `; ${geld(zahl(p.gekuerzt_cents))} des Anspruchs gingen nach einem Rückruf außerhalb des Plans raus` : ""}).`,
       "",
       `Seit der letzten Meldung: ${seit}. Freigegeben von ${freigeber}${selbst ? `; davon ${selbst} durch die empfangende Person selbst` : ""}.`,
       `Bei der Buchhaltung offen: ${zahl(offen?.n)}${offen?.aeltester ? ` (ältester gesendet ${zeitpunkt(offen.aeltester)})` : ""}.`,
@@ -1187,7 +1238,7 @@ async function meilensteinMelden(planId: number, vorher: number, marke: number, 
     stand_anzahl: fertig,
     gesamt_anzahl: gesamt,
     stand_betrag: euroZahl(fertigCents),
-    anspruch: euroZahl(zahl(p.anspruch_cents)),
+    anspruch: euroZahl(planCents),
     abgeschlossen,
     abrechnungen: belege.map((b) => String(b.statement_no)).join(", "),
     abrechnungen_url: `${SEITE}/agent/wallet`,
@@ -1204,6 +1255,326 @@ async function meilensteinMelden(planId: number, vorher: number, marke: number, 
        WHERE id = ANY(${belege.map((b) => zahl(b.id))}) AND gesendet_am IS NULL`
       .catch((e: unknown) => console.warn(`[AUSZAHLUNGSPLAN] Abrechnungen zu ${p.nummer} nicht als zugestellt vermerkt:`, String(e).slice(0, 140)));
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACH EINEM RÜCKRUF: KLÄRUNG — und „die Buchhaltung hat doch überwiesen“ (Nachbesserung E-484, Prüfer GELD)
+//
+// Die Mail „Bitte NICHT ausführen“ bittet die Buchhaltung ausdrücklich: Falls schon überwiesen, bitte mit der
+// Bank-Referenz antworten. Für diese Antwort braucht es einen Weg — sonst flösse das Geld doppelt:
+//   · Teilbetrag des Plans zurückgerufen → er bleibt „in Klärung“ (planTeilZurueck). Der Inhaber bestätigt
+//       „nicht ausgeführt“ (mit Grund) → Teil wieder frei, oder „doch ausgeführt“ (mit TAN) → ausgebucht, Teil fertig.
+//   · Altposten beim Anlegen „verrechnet“ und dabei zurückgerufen → „doch überwiesen“ (mit TAN): Die alte Auszahlung
+//       gilt als ausgezahlt, und der Plan wird um genau diesen Betrag gekürzt (Teile vom Ende her entfallen, nichts
+//       gelöscht). Reicht der offene Rest des Plans dafür nicht, wird der Rest mit künftigen Provisionen verrechnet.
+// Der Auftrag bleibt jeweils „zurückgezogen“ (er WAR zurückgerufen) und trägt den Vermerk doch_ausgefuehrt_*.
+// Einen Durchführungsbeleg gibt es dafür nicht — der bestätigt nur, was die Buchhaltung über ihren Link bestätigt hat.
+// ═══════════════════════════════════════════════════════════════════════════
+const ZWECK_KLAERUNG = "plan-klaerung";
+const ZWECK_ALTPOSTEN = "plan-altposten";
+
+/** Was der Inhaber zu „doch überwiesen“ angibt: woher er es weiß (Pflicht), Bank-Referenz und Datum (beides freiwillig). */
+export interface DochEingabe { notiz: string; bankReferenz: string | null; bankReferenzKern: string | null; wertAm: string | null }
+
+export function dochEingabeLesen(roh: unknown): { ok: true; ein: DochEingabe } | PlanFehler {
+  const b = (roh ?? {}) as any;
+  const notiz = text(b.notiz, 300);
+  if (notiz.length < 3) return fehler(400, "GRUND", "Bitte kurz sagen, woher du es weißt (z. B. „Antwort der Buchhaltung vom …“) — der Satz steht im Protokoll.");
+  const ref = bankReferenzLesen(b.bankReferenz);
+  if (!ref.ok) return fehler(400, "BANKREFERENZ", ref.grund);
+  const heute = berlinTag(new Date());
+  const wertAm = typeof b.wertAm === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.wertAm) ? b.wertAm : null;
+  if (wertAm && wertAm > heute) return fehler(400, "DATUM", "Das Überweisungsdatum liegt in der Zukunft.");
+  return { ok: true, ein: { notiz, bankReferenz: ref.wert, bankReferenzKern: ref.kern, wertAm } };
+}
+
+/** Der Teilbetrag in Klärung zu einem Auftrag — mit Plan und Auszahlung (ohne Sperre; die Transaktionen sperren selbst). */
+async function klaerungLesen(auftragId: number, lauf: Lauf = sqlPool): Promise<{ a: Auftrag; t: any } | PlanFehler> {
+  const a = await auftrag(auftragId, lauf);
+  if (!a) return fehler(404, "NICHT_GEFUNDEN", "Auftrag nicht gefunden.");
+  if (!a.planTeilId) return fehler(409, "KEIN_PLAN", "Das ist kein Teilbetrag eines Auszahlungsplans.");
+  const [t] = (await lauf`
+    SELECT t.id, t.nr, t.payout_id, t.klaerung_seit, t.ausgefuehrt_am, p.id AS plan_id, p.nummer, p.agent_id,
+           (SELECT status FROM fiaon_payouts WHERE id = t.payout_id) AS payout_status
+      FROM fiaon_auszahlungsplan_teil t JOIN fiaon_auszahlungsplan p ON p.id = t.plan_id
+     WHERE t.id = ${a.planTeilId} AND t.auftrag_id = ${a.id}`) as any[];
+  if (!t || !t.klaerung_seit || t.ausgefuehrt_am) return fehler(409, "KEINE_KLAERUNG", "Dieser Teilbetrag ist nicht (mehr) in Klärung. Bitte neu laden.");
+  if (a.dochAusgefuehrtAm) return fehler(409, "SCHON_GEBUCHT", "„Doch ausgeführt“ ist schon gebucht — die Ausbuchung läuft. Bitte neu laden.");
+  return { a, t };
+}
+
+/** Inhaber: Die Buchhaltung hat den zurückgerufenen Teilbetrag NICHT überwiesen — der Teil wird wieder frei. */
+export async function planKlaerungNichtAusgefuehrt(auftragId: number, von: BuchPerson, grund: string): Promise<{ ok: true; planNummer: string; nr: number } | PlanFehler> {
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Die Klärung nach einem Rückruf entscheidet nur der Inhaber.");
+  const g = text(grund, 300);
+  if (g.length < 3) return fehler(400, "GRUND", "Bitte kurz sagen, woher du weißt, dass nicht überwiesen wurde (z. B. Antwort der Buchhaltung).");
+  await planSchema();
+  try {
+    const erg = await sqlPool.begin(async (tx: any) => {
+      const [t] = (await tx`
+        SELECT t.id, t.nr, t.payout_id, p.nummer, p.agent_id FROM fiaon_auszahlungsplan_teil t JOIN fiaon_auszahlungsplan p ON p.id = t.plan_id
+         WHERE t.auftrag_id = ${auftragId} AND t.klaerung_seit IS NOT NULL AND t.ausgefuehrt_am IS NULL
+         FOR UPDATE OF t`) as any[];
+      if (!t) throw new PlanAbbruch(409, "KEINE_KLAERUNG", "Dieser Teilbetrag ist nicht (mehr) in Klärung. Bitte neu laden.");
+      const [o] = (await tx`SELECT doch_ausgefuehrt_am FROM fiaon_buch_auftrag WHERE id = ${auftragId} FOR UPDATE`) as any[];
+      if (o?.doch_ausgefuehrt_am) throw new PlanAbbruch(409, "SCHON_GEBUCHT", "„Doch ausgeführt“ ist für diesen Teilbetrag schon gebucht.");
+      const payoutId = zahl(t.payout_id);
+      const [po] = (await tx`SELECT status FROM fiaon_payouts WHERE id = ${payoutId} FOR UPDATE`) as any[];
+      if (po?.status === "ausgezahlt") throw new PlanAbbruch(409, "SCHON_AUSGEZAHLT", "Die Auszahlung dazu ist inzwischen als überwiesen gebucht — der Teil zählt als ausgeführt. Bitte neu laden.");
+      const vermerk = `Auszahlungsplan ${t.nummer}: Teilbetrag ${t.nr} nach Rückruf nicht ausgeführt — ${g}`;
+      await tx`
+        UPDATE fiaon_payouts SET status = 'abgelehnt', reject_reason = ${vermerk}, processed_at = NOW()
+         WHERE id = ${payoutId} AND status IN ('angefordert', 'requested')`;
+      await tx`
+        UPDATE fiaon_commissions SET status = 'storniert', updated_at = NOW(), note = TRIM(COALESCE(note, '') || ' · nach Rückruf nicht ausgeführt')
+         WHERE payout_id = ${payoutId} AND status = 'in_auszahlung'`;
+      const frei = (await tx`
+        UPDATE fiaon_auszahlungsplan_teil
+           SET payout_id = NULL, auftrag_id = NULL, ausgeloest_von = NULL, ausgeloest_am = NULL, selbstfreigabe = FALSE, klaerung_seit = NULL
+         WHERE id = ${zahl(t.id)} AND auftrag_id = ${auftragId} AND ausgefuehrt_am IS NULL
+        RETURNING id`) as any[];
+      if (!frei.length) throw new PlanAbbruch(409, "ZUSTAND", "Der Teilbetrag hat sich gerade verändert. Bitte neu laden.");
+      await tx`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta)
+        VALUES (${zahl(t.agent_id)}, 'payout_rejected', ${JSON.stringify({ payout_id: payoutId, reason: vermerk, quelle: "auszahlungsplan", plan: String(t.nummer), teil: zahl(t.nr), von: von.email })})`;
+      return { planNummer: String(t.nummer), nr: zahl(t.nr) };
+    });
+    buchProtokoll(von.email, "Klärung: nicht ausgeführt — Teilbetrag wieder frei", erg.planNummer, `Teil ${erg.nr} · ${g}`);
+    return { ok: true, ...erg };
+  } catch (e) {
+    if (e instanceof PlanAbbruch) return fehler(e.status, e.code, e.grund);
+    throw e;
+  }
+}
+
+const klaerungZiel = (a: Auftrag, ein: DochEingabe) => `klaerung:${a.id}:${a.betragCents}:${ein.bankReferenzKern ?? "-"}`;
+
+/** Inhaber: TAN anfordern, um einen zurückgerufenen Teilbetrag als „doch ausgeführt“ zu buchen. */
+export async function planKlaerungTanAnfordern(auftragId: number, von: BuchPerson, ein: DochEingabe): Promise<{ ok: true; an: string; beschreibung: string } | PlanFehler> {
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Die Klärung nach einem Rückruf entscheidet nur der Inhaber.");
+  await planSchema();
+  const k = await klaerungLesen(auftragId);
+  if ("ok" in k) return k;
+  const beschreibung = `Nach Rückruf doch ausgeführt buchen: ${k.a.nummer} · ${geld(k.a.betragCents)} an ${k.a.empfaenger} (${k.t.nummer}, Teil ${k.t.nr})`
+    + `${ein.bankReferenz ? ` · Bank-Referenz ${ein.bankReferenz}` : ""} — die Auszahlung wird ausgebucht, der Teilbetrag zählt als ausgeführt.`;
+  const t = await tanAnfordern(von, ZWECK_KLAERUNG, klaerungZiel(k.a, ein), beschreibung);
+  if (!t.ok) return fehler(503, "TAN_VERSAND", t.grund);
+  return { ok: true, an: von.email, beschreibung };
+}
+
+/**
+ * Inhaber: Die Buchhaltung hat den zurückgerufenen Teilbetrag doch überwiesen — mit TAN. Erst der Vermerk am Auftrag
+ * (Bank-Referenz eindeutig), dann die Ausbuchung (leise, wie bei der Bestätigung über den Link), dann der Teil.
+ * Bricht ein Schritt nach dem Vermerk ab, holt der Reiter den Rest beim nächsten Öffnen nach (planLage).
+ */
+export async function planKlaerungAusgefuehrt(auftragId: number, von: BuchPerson, tan: string, ein: DochEingabe): Promise<{ ok: true; planNummer: string; nr: number; hinweis: string | null } | PlanFehler> {
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Die Klärung nach einem Rückruf entscheidet nur der Inhaber.");
+  await planSchema();
+  const k = await klaerungLesen(auftragId);
+  if ("ok" in k) return k;
+  const t = await tanPruefen(von, ZWECK_KLAERUNG, klaerungZiel(k.a, ein), tan);
+  if (!t.ok) return fehler(400, "TAN", t.grund);
+  try {
+    await sqlPool.begin(async (tx: any) => {
+      const [teil] = (await tx`
+        SELECT id FROM fiaon_auszahlungsplan_teil WHERE id = ${k.a.planTeilId} AND auftrag_id = ${auftragId}
+           AND klaerung_seit IS NOT NULL AND ausgefuehrt_am IS NULL FOR UPDATE`) as any[];
+      if (!teil) throw new PlanAbbruch(409, "KEINE_KLAERUNG", "Dieser Teilbetrag ist nicht (mehr) in Klärung. Bitte neu laden.");
+      const r = (await tx`
+        UPDATE fiaon_buch_auftrag
+           SET doch_ausgefuehrt_am = NOW(), doch_ausgefuehrt_von = ${von.email}, doch_ausgefuehrt_notiz = ${ein.notiz},
+               extern_wert_am = COALESCE(${ein.wertAm}::date, extern_wert_am),
+               extern_bank_referenz = COALESCE(${ein.bankReferenz}, extern_bank_referenz),
+               extern_bank_referenz_kern = COALESCE(${ein.bankReferenzKern}, extern_bank_referenz_kern)
+         WHERE id = ${auftragId} AND status = 'zurueckgezogen' AND doch_ausgefuehrt_am IS NULL
+        RETURNING id`) as any[];
+      if (!r.length) throw new PlanAbbruch(409, "ZUSTAND", "Der Auftrag hat sich gerade verändert. Bitte neu laden.");
+    });
+  } catch (e: any) {
+    if (e instanceof PlanAbbruch) return fehler(e.status, e.code, e.grund);
+    if (e?.code === "23505") return fehler(409, "BANKREFERENZ", "Diese Bank-Referenz ist schon bei einem anderen Auftrag vermerkt. Bitte prüfen — oder das Feld leer lassen.");
+    throw e;
+  }
+  buchProtokoll(von.email, "Klärung: doch ausgeführt (mit TAN)", k.a.nummer,
+    `${k.t.nummer} Teil ${k.t.nr} · ${ein.notiz}${ein.bankReferenz ? ` · Bank-Referenz ${ein.bankReferenz}` : ""}`);
+  const hinweis = await klaerungAusbuchen(k.a);
+  return { ok: true, planNummer: String(k.t.nummer), nr: zahl(k.t.nr), hinweis };
+}
+
+/**
+ * Bucht einen nach dem Rückruf „doch ausgeführten“ Teilbetrag aus — wiederholbar: Auszahlung leise auf „ausgezahlt“
+ * (nur solange sie angefordert ist), dann der Teil als ausgeführt. Gibt einen Hinweis zurück, wenn etwas offen blieb.
+ */
+async function klaerungAusbuchen(a: Auftrag): Promise<string | null> {
+  if (!a.payoutId) return "Der Auftrag hat keine Auszahlung — nichts ausgebucht.";
+  try {
+    const [po] = (await sqlPool`SELECT status FROM fiaon_payouts WHERE id = ${a.payoutId}`) as any[];
+    if (po?.status === "angefordert") {
+      const { auszahlungUeberwiesen } = await import("../routes/fiaon-team");
+      const erg = await auszahlungUeberwiesen(a.payoutId, { leise: true });
+      if (!erg.ok && erg.code !== "BELEG_FEHLT") return `Die Auszahlung ließ sich noch nicht ausbuchen (${erg.error}). Der Reiter holt das beim nächsten Öffnen nach.`;
+    }
+    const [nach] = (await sqlPool`SELECT status FROM fiaon_payouts WHERE id = ${a.payoutId}`) as any[];
+    if (nach?.status !== "ausgezahlt") return `Die Auszahlung steht auf „${nach?.status ?? "?"}“ — der Teilbetrag ist noch nicht als ausgeführt vermerkt.`;
+    await planTeilAusgefuehrt(a);
+    return null;
+  } catch (e) {
+    console.error(`[AUSZAHLUNGSPLAN] ${a.nummer}: Ausbuchung nach „doch ausgeführt“ unvollständig:`, e);
+    return "Die Ausbuchung ist unvollständig — der Reiter holt sie beim nächsten Öffnen nach.";
+  }
+}
+
+/** Ein beim Anlegen verrechneter Auftrag, der bei der Buchhaltung lag — mit seiner Auszahlung (ohne Sperre). */
+async function altpostenAuftragLesen(planId: number, auftragId: number, lauf: Lauf = sqlPool): Promise<{ a: Auftrag; plan: any; payout: any } | PlanFehler> {
+  const [plan] = (await lauf`SELECT id, nummer, agent_id, status FROM fiaon_auszahlungsplan WHERE id = ${planId}`) as any[];
+  if (!plan) return fehler(404, "NICHT_GEFUNDEN", "Diesen Auszahlungsplan gibt es nicht.");
+  const a = await auftrag(auftragId, lauf);
+  if (!a || a.verrechnetPlanId !== planId) return fehler(404, "NICHT_GEFUNDEN", "Dieser Auftrag wurde nicht beim Anlegen dieses Plans verrechnet.");
+  if (a.dochAusgefuehrtAm) return fehler(409, "SCHON_GEBUCHT", "„Doch überwiesen“ ist für diesen Auftrag schon gebucht.");
+  if (a.status !== "zurueckgezogen" || !a.externGesendetAm) return fehler(409, "NICHT_BEI_BUCHHALTUNG", "Dieser Auftrag lag nie bei der Buchhaltung — sie kann ihn nicht überwiesen haben.");
+  if (!a.payoutId) return fehler(409, "KEINE_AUSZAHLUNG", "Zu diesem Auftrag gibt es keine Auszahlung.");
+  const [payout] = (await lauf`SELECT id, status, amount_cents, agent_id FROM fiaon_payouts WHERE id = ${a.payoutId}`) as any[];
+  if (!payout) return fehler(409, "KEINE_AUSZAHLUNG", "Zu diesem Auftrag gibt es keine Auszahlung.");
+  if (payout.status === "ausgezahlt") {
+    return fehler(409, "SCHON_AUSGEZAHLT", "Diese Auszahlung war schon vor dem Plan als überwiesen gebucht — sie steckt nicht im Plan, es gibt nichts zu kürzen.");
+  }
+  if (payout.status !== "abgelehnt") return fehler(409, "ZUSTAND", `Die Auszahlung steht auf „${payout.status}“ — erwartet war „abgelehnt“ (im Plan verrechnet).`);
+  return { a, plan, payout };
+}
+
+const altpostenZiel = (planId: number, a: Auftrag, ein: DochEingabe) => `altposten:${planId}:${a.id}:${a.betragCents}:${ein.bankReferenzKern ?? "-"}`;
+
+/** Inhaber: TAN anfordern — ein verrechneter Altposten wurde trotz Rückruf überwiesen, der Plan wird gekürzt. */
+export async function altpostenDochTanAnfordern(planId: number, auftragId: number, von: BuchPerson, ein: DochEingabe): Promise<{ ok: true; an: string; beschreibung: string } | PlanFehler> {
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Das bucht nur der Inhaber.");
+  await planSchema();
+  const x = await altpostenAuftragLesen(planId, auftragId);
+  if ("ok" in x) return x;
+  const beschreibung = `Altposten ${x.a.nummer} (${geld(x.a.betragCents)} an ${x.a.empfaenger}) wurde trotz Rückruf überwiesen`
+    + `${ein.bankReferenz ? ` · Bank-Referenz ${ein.bankReferenz}` : ""} — die Auszahlung gilt als ausgezahlt, ${x.plan.nummer} wird um ${geld(x.a.betragCents)} gekürzt.`;
+  const t = await tanAnfordern(von, ZWECK_ALTPOSTEN, altpostenZiel(planId, x.a, ein), beschreibung);
+  if (!t.ok) return fehler(503, "TAN_VERSAND", t.grund);
+  return { ok: true, an: von.email, beschreibung };
+}
+
+/**
+ * Kürzt einen Plan um `cents` — in der Transaktion des Aufrufers. Nur freie Teile (nicht ausgelöst, nicht ausgeführt),
+ * vom Ende her: Ein Teil, der ganz hineinpasst, entfällt (bleibt als Zeile stehen); höchstens einer wird kleiner.
+ * Gibt zurück, wie viel gekürzt wurde und was übrig blieb (wenn der offene Rest nicht reicht).
+ */
+async function planKuerzen(tx: any, planId: number, cents: number, grund: string): Promise<{ gekuerzt: number; rest: number; entfallen: number[]; verkleinert: number | null }> {
+  const frei = (await tx`
+    SELECT id, nr, betrag_cents FROM fiaon_auszahlungsplan_teil
+     WHERE plan_id = ${planId} AND payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL
+     ORDER BY nr DESC FOR UPDATE`) as any[];
+  let rest = Math.max(0, Math.round(cents));
+  const entfallen: number[] = [];
+  let verkleinert: number | null = null;
+  for (const t of frei) {
+    if (rest <= 0) break;
+    const b = zahl(t.betrag_cents);
+    if (b <= rest) {
+      const r = (await tx`
+        UPDATE fiaon_auszahlungsplan_teil SET entfallen_am = NOW(), entfallen_grund = ${grund}
+         WHERE id = ${zahl(t.id)} AND payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL RETURNING id`) as any[];
+      if (!r.length) throw new PlanAbbruch(409, "ZUSTAND", "Der Plan hat sich gerade verändert. Bitte neu laden.");
+      rest -= b;
+      entfallen.push(zahl(t.nr));
+    } else {
+      const r = (await tx`
+        UPDATE fiaon_auszahlungsplan_teil SET betrag_vorher_cents = COALESCE(betrag_vorher_cents, betrag_cents), betrag_cents = betrag_cents - ${rest}
+         WHERE id = ${zahl(t.id)} AND payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL RETURNING id`) as any[];
+      if (!r.length) throw new PlanAbbruch(409, "ZUSTAND", "Der Plan hat sich gerade verändert. Bitte neu laden.");
+      verkleinert = zahl(t.nr);
+      rest = 0;
+    }
+  }
+  const gekuerzt = Math.max(0, Math.round(cents)) - rest;
+  // „Teil x von n“: n zählt nur noch die Teile, die nicht entfallen sind (mindestens 1 — die Spalte prüft das).
+  await tx`
+    UPDATE fiaon_auszahlungsplan
+       SET gekuerzt_cents = gekuerzt_cents + ${gekuerzt},
+           anzahl_teile = GREATEST(1, (SELECT COUNT(*)::int FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId} AND entfallen_am IS NULL))
+     WHERE id = ${planId}`;
+  return { gekuerzt, rest, entfallen, verkleinert };
+}
+
+/**
+ * Inhaber (mit TAN): Ein beim Anlegen verrechneter Altposten-Auftrag wurde trotz Rückruf überwiesen. In EINER
+ * Transaktion: Vermerk am Auftrag, alte Auszahlung und ihre Provisionen auf „ausgezahlt“ (das Geld ist geflossen),
+ * Plan um genau den Betrag gekürzt; reicht der offene Rest nicht, wird der Unterschied mit künftigen Provisionen
+ * verrechnet. Danach die Abrechnung zur alten Auszahlung (leise).
+ */
+export async function altpostenDochUeberwiesen(
+  planId: number, auftragId: number, von: BuchPerson, tan: string, ein: DochEingabe,
+): Promise<{ ok: true; gekuerztCents: number; restCents: number; entfallen: number; planNummer: string } | PlanFehler> {
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Das bucht nur der Inhaber.");
+  await planSchema();
+  const x = await altpostenAuftragLesen(planId, auftragId);
+  if ("ok" in x) return x;
+  const t = await tanPruefen(von, ZWECK_ALTPOSTEN, altpostenZiel(planId, x.a, ein), tan);
+  if (!t.ok) return fehler(400, "TAN", t.grund);
+  const betrag = x.a.betragCents;
+  let erg: { gekuerzt: number; rest: number; entfallen: number[]; verkleinert: number | null };
+  try {
+    erg = await sqlPool.begin(async (tx: any) => {
+      await tx`SELECT id FROM fiaon_auszahlungsplan WHERE id = ${planId} FOR UPDATE`;
+      const o = (await tx`
+        UPDATE fiaon_buch_auftrag
+           SET doch_ausgefuehrt_am = NOW(), doch_ausgefuehrt_von = ${von.email}, doch_ausgefuehrt_notiz = ${ein.notiz},
+               extern_wert_am = COALESCE(${ein.wertAm}::date, extern_wert_am),
+               extern_bank_referenz = COALESCE(${ein.bankReferenz}, extern_bank_referenz),
+               extern_bank_referenz_kern = COALESCE(${ein.bankReferenzKern}, extern_bank_referenz_kern)
+         WHERE id = ${auftragId} AND verrechnet_plan_id = ${planId} AND status = 'zurueckgezogen' AND doch_ausgefuehrt_am IS NULL
+        RETURNING id`) as any[];
+      if (!o.length) throw new PlanAbbruch(409, "ZUSTAND", "Der Auftrag hat sich gerade verändert. Bitte neu laden.");
+      const p = (await tx`
+        UPDATE fiaon_payouts SET status = 'ausgezahlt', processed_at = NOW(), reject_reason = NULL
+         WHERE id = ${x.payout.id} AND status = 'abgelehnt' RETURNING id`) as any[];
+      if (!p.length) throw new PlanAbbruch(409, "ZUSTAND", "Die Auszahlung hat sich gerade verändert. Bitte neu laden.");
+      await tx`
+        UPDATE fiaon_commissions
+           SET status = 'ausgezahlt', updated_at = NOW(), verrechnet_plan_id = NULL,
+               note = TRIM(COALESCE(note, '') || ${` · trotz Rückruf überwiesen (${x.a.nummer}) — ${x.plan.nummer} gekürzt`})
+         WHERE payout_id = ${x.payout.id} AND status = 'storniert' AND verrechnet_plan_id = ${planId}`;
+      const k = await planKuerzen(tx, planId, betrag, `Altposten ${x.a.nummer} trotz Rückruf überwiesen`);
+      if (k.rest > 0) {
+        await tx`
+          INSERT INTO fiaon_commissions (agent_id, ref, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, note)
+          VALUES (${zahl(x.plan.agent_id)}, ${`${x.plan.nummer}-AP-${x.a.nummer}`}, 'Auszahlungsplan', ${k.rest}, 0, ${-k.rest}, 'bestaetigt', 'korrektur',
+                  ${`Altposten ${x.a.nummer} trotz Rückruf überwiesen — im Plan ${x.plan.nummer} waren nur ${geld(k.gekuerzt)} offen; der Rest wird mit künftigen Provisionen verrechnet`})`;
+      }
+      // Bleibt nichts mehr offen oder unterwegs, ist der Plan fertig.
+      const [rest] = (await tx`
+        SELECT COUNT(*) FILTER (WHERE ausgefuehrt_am IS NULL AND entfallen_am IS NULL)::int AS offen
+          FROM fiaon_auszahlungsplan_teil WHERE plan_id = ${planId}`) as any[];
+      if (zahl(rest?.offen) === 0) {
+        await tx`
+          UPDATE fiaon_auszahlungsplan SET status = 'fertig', status_am = NOW(), status_von = 'system', status_grund = 'Alle Teilbeträge ausgeführt'
+           WHERE id = ${planId} AND status IN ('aktiv', 'pausiert')`;
+      }
+      await tx`
+        INSERT INTO fiaon_agent_events (agent_id, type, meta)
+        VALUES (${zahl(x.payout.agent_id)}, 'payout_paid', ${JSON.stringify({ payout_id: zahl(x.payout.id), amount_cents: zahl(x.payout.amount_cents), quelle: "auszahlungsplan", plan: String(x.plan.nummer), nach_rueckruf: true })})`;
+      return k;
+    });
+  } catch (e: any) {
+    if (e instanceof PlanAbbruch) return fehler(e.status, e.code, e.grund);
+    if (e?.code === "23505") return fehler(409, "BANKREFERENZ", "Diese Bank-Referenz ist schon bei einem anderen Auftrag vermerkt. Bitte prüfen — oder das Feld leer lassen.");
+    throw e;
+  }
+  buchProtokoll(von.email, "Altposten trotz Rückruf überwiesen — Plan gekürzt (mit TAN)", x.plan.nummer,
+    `${x.a.nummer} · ${geld(betrag)} · gekürzt ${geld(erg.gekuerzt)}${erg.entfallen.length ? ` (entfallen: Teil ${erg.entfallen.slice().sort((p, q) => p - q).join(", ")})` : ""}`
+    + `${erg.verkleinert ? ` · Teil ${erg.verkleinert} verkleinert` : ""}${erg.rest > 0 ? ` · Rest ${geld(erg.rest)} mit künftigen Provisionen verrechnet` : ""} · ${ein.notiz}`);
+  // Die Abrechnung zur alten Auszahlung — leise (keine Mail je Posten); fehlt sie, holt die Abrechnungs-Zentrale sie nach.
+  try {
+    const { generateCommissionStatement } = await import("../routes/fiaon-onboarding");
+    const st = await generateCommissionStatement(zahl(x.payout.id), { leise: true });
+    if (!st.ok) console.warn(`[AUSZAHLUNGSPLAN] Abrechnung zur Auszahlung #${x.payout.id} nicht angelegt.`);
+  } catch (e) {
+    console.warn(`[AUSZAHLUNGSPLAN] Abrechnung zur Auszahlung #${x.payout.id}:`, String(e).slice(0, 160));
+  }
+  return { ok: true, gekuerztCents: erg.gekuerzt, restCents: erg.rest, entfallen: erg.entfallen.length, planNummer: String(x.plan.nummer) };
 }
 
 export interface PlanBezug {
@@ -1259,7 +1630,7 @@ export async function planPausieren(id: number, von: BuchPerson, grund: string, 
     RETURNING nummer`) as any[];
   if (!r) return planNichtAenderbar(id, "pausieren", lauf);
   buchProtokoll(von.email, "Auszahlungsplan pausiert", String(r.nummer), g);
-  if (von.rolle !== "inhaber") {
+  if (!istInhaber(von)) {
     benachrichtigen(inhaber().email, `Auszahlungsplan pausiert: ${r.nummer}`, [
       `${von.name} hat den Auszahlungsplan ${r.nummer} pausiert:`,
       "",
@@ -1273,7 +1644,7 @@ export async function planPausieren(id: number, von: BuchPerson, grund: string, 
 
 /** Nur der Inhaber setzt fort — Fortsetzen ist eine bewusste Entscheidung. */
 export async function planFortsetzen(id: number, von: BuchPerson, lauf: Lauf = sqlPool): Promise<Einfach> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Fortsetzen darf nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Fortsetzen darf nur der Inhaber.");
   await planSchema();
   const [r] = (await lauf`
     UPDATE fiaon_auszahlungsplan SET status = 'aktiv', status_von = ${von.email}, status_am = NOW(), status_grund = NULL
@@ -1292,7 +1663,7 @@ async function planNichtAenderbar(id: number, was: string, lauf: Lauf): Promise<
 
 /** Inhaber: TAN zum Beenden anfordern. */
 export async function planEndeTanAnfordern(id: number, von: BuchPerson): Promise<{ ok: true; an: string; beschreibung: string } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Beenden darf nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Beenden darf nur der Inhaber.");
   await planSchema();
   const [p] = (await sqlPool`SELECT p.nummer, p.status, a.name, a.first_name, a.last_name, a.id FROM fiaon_auszahlungsplan p LEFT JOIN fiaon_agents a ON a.id = p.agent_id WHERE p.id = ${id}`) as any[];
   if (!p) return fehler(404, "NICHT_GEFUNDEN", "Diesen Auszahlungsplan gibt es nicht.");
@@ -1310,7 +1681,7 @@ export async function planEndeTanAnfordern(id: number, von: BuchPerson): Promise
 export async function planBeenden(
   id: number, von: BuchPerson, grund: string, tan: string,
 ): Promise<{ ok: true; zurueckgezogen: string[]; beiBuchhaltung: { id: number; nummer: string; betragCents: number }[] } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Beenden darf nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Beenden darf nur der Inhaber.");
   const g = text(grund, 300);
   if (g.length < 3) return fehler(400, "GRUND", "Bitte einen Grund angeben.");
   await planSchema();
@@ -1349,7 +1720,7 @@ export async function planBeenden(
 
 /** Inhaber: TAN anfordern, um nach einer Kontoänderung das neue Konto des Empfängers zu übernehmen. */
 export async function planKontoTanAnfordern(id: number, von: BuchPerson): Promise<{ ok: true; an: string; beschreibung: string } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Ein neues Konto bestätigt nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Ein neues Konto bestätigt nur der Inhaber.");
   await planSchema();
   const [p] = (await sqlPool`SELECT * FROM fiaon_auszahlungsplan WHERE id = ${id}`) as any[];
   if (!p) return fehler(404, "NICHT_GEFUNDEN", "Diesen Auszahlungsplan gibt es nicht.");
@@ -1366,7 +1737,7 @@ export async function planKontoTanAnfordern(id: number, von: BuchPerson): Promis
 
 /** Inhaber: das neue Konto mit TAN übernehmen. Teilbeträge, die schon unterwegs sind, behalten ihr Konto. */
 export async function planKontoBestaetigen(id: number, von: BuchPerson, tan: string, lauf: Lauf = sqlPool): Promise<{ ok: true; ibanMasked: string; unterwegs: number } | PlanFehler> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Ein neues Konto bestätigt nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Ein neues Konto bestätigt nur der Inhaber.");
   await planSchema();
   const [p] = (await lauf`SELECT * FROM fiaon_auszahlungsplan WHERE id = ${id}`) as any[];
   if (!p) return fehler(404, "NICHT_GEFUNDEN", "Diesen Auszahlungsplan gibt es nicht.");
@@ -1391,7 +1762,7 @@ export async function planKontoBestaetigen(id: number, von: BuchPerson, tan: str
 
 /** Inhaber: die Hinweis-Mail („Bitte freigeben“) nach jeder Auslösung durch die Geschäftsführung an- oder abschalten. */
 export async function planHinweisSetzen(id: number, von: BuchPerson, an: boolean, lauf: Lauf = sqlPool): Promise<Einfach> {
-  if (von.rolle !== "inhaber") return fehler(403, "NUR_INHABER", "Das darf nur der Inhaber.");
+  if (!istInhaber(von)) return fehler(403, "NUR_INHABER", "Das darf nur der Inhaber.");
   await planSchema();
   const [r] = (await lauf`UPDATE fiaon_auszahlungsplan SET hinweis_an_inhaber = ${an} WHERE id = ${id} RETURNING nummer`) as any[];
   if (!r) return fehler(404, "NICHT_GEFUNDEN", "Diesen Auszahlungsplan gibt es nicht.");
@@ -1424,6 +1795,25 @@ export interface PlanAuftrag extends Auftrag {
   /** Bei der Buchhaltung seit (ISO), und ob schon mehr als zwei Bankarbeitstage vergangen sind. */
   beiBuchhaltungSeit: string | null;
   ueberfaellig: boolean;
+  /** Nach einem Rückruf in Klärung seit (ISO) — der Teil wird erst nach der Klärung durch den Inhaber wieder frei. */
+  klaerungSeit: string | null;
+  /** Inhaber: „nicht ausgeführt“ (Teil frei) bzw. „doch ausgeführt“ (mit TAN) — nur bei einem Teil in Klärung. */
+  darfKlaeren: boolean;
+}
+
+/** Ein beim Anlegen verrechneter Auftrag, der bei der Buchhaltung lag — für „Buchhaltung hat doch überwiesen“. */
+export interface PlanAltpostenAuftrag {
+  id: number;
+  nummer: string;
+  betragCents: number;
+  zurueckgerufenAm: string | null;
+  dochAusgefuehrtAm: string | null;
+  dochAusgefuehrtVonName: string | null;
+  bankReferenz: string | null;
+  /** Stand der zugehörigen Auszahlung — „ausgezahlt“ heißt: schon vor dem Plan gebucht, steckt nicht im Plan. */
+  auszahlungStatus: string | null;
+  /** Inhaber, Auszahlung noch „abgelehnt“ (im Plan verrechnet), noch nicht als „doch überwiesen“ gebucht. */
+  darfDochUeberwiesen: boolean;
 }
 
 export interface PlanZeile {
@@ -1468,6 +1858,14 @@ export interface PlanZeile {
   zurFreigabe: { anzahl: number; cents: number };
   beiBuchhaltung: { anzahl: number; cents: number };
   offen: { anzahl: number; cents: number };
+  /** Nach einem Rückruf in Klärung (nicht neu auslösbar, bis der Inhaber klärt). */
+  klaerung: { anzahl: number; cents: number };
+  /** Um so viel ist der Plan gekürzt — ein verrechneter Altposten ging trotz Rückruf außerhalb des Plans raus. */
+  gekuerztCents: number;
+  /** Teile, die dabei entfallen sind (sie bleiben als Zeile stehen). */
+  entfallen: { anzahl: number; cents: number };
+  /** Beim Anlegen verrechnete Aufträge, die bei der Buchhaltung lagen (zurückgerufen). */
+  altpostenAuftraege: PlanAltpostenAuftrag[];
   selbstfreigaben: number;
   /** Was beim Empfänger außerhalb des Plans offen ist — neue Provisionen laufen normal (bei „verrechnet“ seit der Anlage). */
   ausserhalb: AltpostenStand | null;
@@ -1488,7 +1886,7 @@ export interface TaktZeile {
   sperreBis: string;
   auftragId: number | null;
   auftragNummer: string | null;
-  ergebnis: "zur_freigabe" | "bei_buchhaltung" | "ausgefuehrt" | "abgelehnt" | "zurueckgezogen" | "zurueckgerufen" | "unbekannt";
+  ergebnis: "zur_freigabe" | "bei_buchhaltung" | "ausgefuehrt" | "abgelehnt" | "zurueckgezogen" | "zurueckgerufen" | "in_klaerung" | "unbekannt";
   ergebnisText: string;
 }
 
@@ -1501,6 +1899,8 @@ export interface PlanLage {
   plaene: PlanZeile[];
   zurFreigabe: PlanAuftrag[];
   beiBuchhaltung: PlanAuftrag[];
+  /** Nach einem Rückruf in Klärung — der Inhaber bestätigt „nicht ausgeführt“ oder bucht „doch ausgeführt“ (TAN). */
+  inKlaerung: PlanAuftrag[];
   ausgefuehrt: { zeilen: PlanAuftrag[]; gesamt: number; seite: number; proSeite: number };
   verlauf: TaktZeile[];
   /** Für den Menüpunkt: bereite Pläne plus Teilbeträge, die die angemeldete Person freigeben kann. */
@@ -1517,7 +1917,7 @@ const PRO_SEITE = 20;
 export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: boolean } = {}): Promise<PlanLage> {
   await planSchema();
   const entschl = await entschluessler();
-  const istInhaber = ich.rolle === "inhaber";
+  const ichInhaber = istInhaber(ich);
   const kurz = opts.kurz === true;
   const [{ jetzt: jetztRoh }] = (await sqlPool`SELECT NOW() AS jetzt`) as any[];
   const jetzt = new Date(jetztRoh);
@@ -1531,29 +1931,50 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
   const ids = zeilen.map((z) => zahl(z.id));
   const idListe = ids.length ? ids : [0];
 
-  // Selbstheilung: Ein Auftrag ist ausgeführt, sein Teil aber nicht vermerkt (ausfuehrenKern brach nach der Buchung ab).
+  // Selbstheilung — wiederholbar, jeder Schritt nur, wenn er noch fehlt:
+  //   · Auszahlung ausgezahlt, Teil nicht vermerkt (ausfuehrenKern oder „doch ausgeführt“ brach nach der Buchung ab);
+  //   · Auftrag von der Buchhaltung bestätigt (oder nach Rückruf „doch ausgeführt“ gebucht), aber die Auszahlung steht
+  //     noch auf „angefordert“ (auszahlungUeberwiesen warf nach dem Beanspruchen) — ohne diesen Schritt bliebe der Teil
+  //     hängen: in /admin/payouts ist ein Plan-Teilbetrag ausgeblendet und „Als überwiesen markieren“ gesperrt.
   const verwaist = (await sqlPool`
-    SELECT o.id FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.auftrag_id = o.id
+    SELECT o.id, po.status AS payout_status FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.auftrag_id = o.id
       JOIN fiaon_payouts po ON po.id = o.payout_id
-     WHERE t.plan_id = ANY(${idListe}) AND o.status = 'ausgefuehrt' AND t.ausgefuehrt_am IS NULL AND po.status = 'ausgezahlt'`) as any[];
+     WHERE t.plan_id = ANY(${idListe}) AND t.ausgefuehrt_am IS NULL
+       AND (po.status = 'ausgezahlt'
+            OR (po.status = 'angefordert' AND (o.status = 'ausgefuehrt' OR o.doch_ausgefuehrt_am IS NOT NULL)))`) as any[];
   for (const v of verwaist) {
     const a = await auftrag(zahl(v.id));
-    if (a) await planTeilAusgefuehrt(a).catch((e) => console.error(`[AUSZAHLUNGSPLAN] Selbstheilung ${a.nummer}:`, e));
+    if (!a) continue;
+    try {
+      if (v.payout_status === "angefordert" && a.payoutId) {
+        const { auszahlungUeberwiesen } = await import("../routes/fiaon-team");
+        const erg = await auszahlungUeberwiesen(a.payoutId, { leise: true });
+        if (!erg.ok && erg.code !== "BELEG_FEHLT") { console.error(`[AUSZAHLUNGSPLAN] Selbstheilung ${a.nummer}: Ausbuchung — ${erg.error}`); continue; }
+        console.warn(`[AUSZAHLUNGSPLAN] Selbstheilung ${a.nummer}: Auszahlung nachträglich ausgebucht.`);
+      }
+      await planTeilAusgefuehrt(a);
+    } catch (e) {
+      console.error(`[AUSZAHLUNGSPLAN] Selbstheilung ${a.nummer}:`, e);
+    }
   }
 
   const stand = (await sqlPool`
     SELECT plan_id,
            COUNT(*) FILTER (WHERE ausgefuehrt_am IS NOT NULL)::int AS fertig,
            COALESCE(SUM(betrag_cents) FILTER (WHERE ausgefuehrt_am IS NOT NULL), 0)::bigint AS fertig_cents,
-           COUNT(*) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL)::int AS offen,
-           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS offen_cents,
+           COUNT(*) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL)::int AS offen,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL), 0)::bigint AS offen_cents,
+           COUNT(*) FILTER (WHERE klaerung_seit IS NOT NULL AND ausgefuehrt_am IS NULL)::int AS klaerung,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE klaerung_seit IS NOT NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS klaerung_cents,
+           COUNT(*) FILTER (WHERE entfallen_am IS NOT NULL)::int AS entfallen,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE entfallen_am IS NOT NULL), 0)::bigint AS entfallen_cents,
            COUNT(*) FILTER (WHERE selbstfreigabe AND ausgefuehrt_am IS NOT NULL)::int AS selbst
       FROM fiaon_auszahlungsplan_teil WHERE plan_id = ANY(${idListe}) GROUP BY plan_id`) as any[];
   const standJe = new Map<number, any>();
   stand.forEach((s) => standJe.set(zahl(s.plan_id), s));
   const naechste = (await sqlPool`
     SELECT DISTINCT ON (plan_id) plan_id, nr, betrag_cents FROM fiaon_auszahlungsplan_teil
-     WHERE plan_id = ANY(${idListe}) AND payout_id IS NULL AND ausgefuehrt_am IS NULL
+     WHERE plan_id = ANY(${idListe}) AND payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL
      ORDER BY plan_id, nr`) as any[];
   const naechsteJe = new Map<number, any>();
   naechste.forEach((s) => naechsteJe.set(zahl(s.plan_id), s));
@@ -1563,6 +1984,12 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
     SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag
      WHERE plan_teil_id IS NOT NULL AND status IN ('eingereicht', 'freigegeben')
      ORDER BY id ASC`)) as any[]).map(zuAuftrag);
+  // Nach einem Rückruf in Klärung: der Auftrag ist zurückgezogen, der Teil hängt noch an ihm.
+  const klaerungAuftraege = ((await sqlPool.unsafe(`
+    SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag
+     WHERE id IN (SELECT t.auftrag_id FROM fiaon_auszahlungsplan_teil t
+                   WHERE t.plan_id = ANY($1::bigint[]) AND t.klaerung_seit IS NOT NULL AND t.ausgefuehrt_am IS NULL)
+     ORDER BY id ASC`, [idListe])) as any[]).map(zuAuftrag);
   const ausgefuehrtIds = kurz ? [] : (await sqlPool`
     SELECT t.auftrag_id FROM fiaon_auszahlungsplan_teil t
      WHERE t.plan_id = ANY(${idListe}) AND t.ausgefuehrt_am IS NOT NULL
@@ -1574,10 +2001,10 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
   const ausgefuehrtAuftraege = ausIds.length
     ? ((await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag WHERE id = ANY($1::bigint[])`, [ausIds])) as any[]).map(zuAuftrag)
     : [];
-  const teilIds = laufend.concat(ausgefuehrtAuftraege).map((a) => a.planTeilId!).filter((x) => !!x);
+  const teilIds = laufend.concat(ausgefuehrtAuftraege, klaerungAuftraege).map((a) => a.planTeilId!).filter((x) => !!x);
   const teile = teilIds.length
     ? ((await sqlPool`
-        SELECT t.id, t.plan_id, t.nr, t.ausgeloest_von, t.ausgeloest_am, t.selbstfreigabe
+        SELECT t.id, t.plan_id, t.nr, t.ausgeloest_von, t.ausgeloest_am, t.selbstfreigabe, t.klaerung_seit, t.auftrag_id
           FROM fiaon_auszahlungsplan_teil t WHERE t.id = ANY(${teilIds})`) as any[])
     : [];
   const teilJe = new Map<number, any>();
@@ -1603,15 +2030,25 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
       selbstfreigabe: t.selbstfreigabe === true,
       darfFreigeben,
       freigabeGrund: a.status !== "eingereicht" ? null : !planLaeuft ? planStatusSatz(planBezugAusZeile(p)) : darf.ok ? null : darf.grund,
-      darfAblehnen: a.status === "eingereicht" && (istInhaber || (!!a.ausfuehrungExtern && ich.rolle === "buchhaltung" && a.erstelltVon !== ich.email)),
-      darfZurueckrufen: istInhaber && extern,
+      darfAblehnen: a.status === "eingereicht" && (ichInhaber || (!!a.ausfuehrungExtern && !ichInhaber && a.erstelltVon !== ich.email)),
+      darfZurueckrufen: ichInhaber && extern,
       darfErneutSenden: extern,
       beiBuchhaltungSeit: seit,
       ueberfaellig: !!seit && bankarbeitstageDazwischen(seit, jetzt) >= 2,
+      klaerungSeit: t.klaerung_seit && zahl(t.auftrag_id) === a.id ? iso(t.klaerung_seit) : null,
+      darfKlaeren: ichInhaber && !!t.klaerung_seit && zahl(t.auftrag_id) === a.id && !a.dochAusgefuehrtAm,
     };
   };
   const zurFreigabe = laufend.filter((a) => a.status === "eingereicht").map(planAuftrag).filter((x): x is PlanAuftrag => !!x);
   const beiBuchhaltung = laufend.filter((a) => a.status === "freigegeben").map(planAuftrag).filter((x): x is PlanAuftrag => !!x);
+  const inKlaerung = klaerungAuftraege.map(planAuftrag).filter((x): x is PlanAuftrag => !!x);
+  // Beim Anlegen verrechnete Aufträge, die bei der Buchhaltung lagen — für „Buchhaltung hat doch überwiesen“.
+  const altpostenRoh = kurz ? [] : ((await sqlPool`
+    SELECT o.id, o.nummer, o.betrag_cents, o.verrechnet_plan_id, o.zurueckgerufen_am, o.doch_ausgefuehrt_am, o.doch_ausgefuehrt_von,
+           o.extern_bank_referenz, po.status AS payout_status
+      FROM fiaon_buch_auftrag o LEFT JOIN fiaon_payouts po ON po.id = o.payout_id
+     WHERE o.verrechnet_plan_id = ANY(${idListe}) AND o.extern_gesendet_am IS NOT NULL
+     ORDER BY o.id`) as any[]);
   const ausReihenfolge = new Map<number, number>();
   ausIds.forEach((id, i) => ausReihenfolge.set(id, i));
   const ausgefuehrt = ausgefuehrtAuftraege
@@ -1631,18 +2068,26 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
     const konto = laeuft ? kontoLage(p.ag_id ? ag : null, String(p.iban_pruef), entschl) : { ok: true, art: "ok" as const, grund: null, ibanMasked: null, pruef: null, iban: null };
     const zf = zurFreigabe.filter((a) => a.planId === id);
     const bb = beiBuchhaltung.filter((a) => a.planId === id);
-    const unterwegsAnzahl = zf.length + bb.length;
+    const klaerungAnzahl = zahl(s?.klaerung);
+    // Unterwegs zählt auch, was nach einem Rückruf in Klärung ist (dort kann das Geld schon geflossen sein).
+    const unterwegsAnzahl = zf.length + bb.length + klaerungAnzahl;
     let zustand: PlanZustand;
     let sperrGrund: string | null = null;
     if (p.status === "beendet") { zustand = "beendet"; sperrGrund = planStatusSatz(planBezugAusZeile(p)); }
     else if (p.status === "fertig") { zustand = "fertig"; sperrGrund = planStatusSatz(planBezugAusZeile(p)); }
     else if (p.status === "pausiert") { zustand = "pausiert"; sperrGrund = planStatusSatz(planBezugAusZeile(p)); }
     else if (!konto.ok) { zustand = "konto"; sperrGrund = konto.grund; }
-    else if (!nt) { zustand = zahl(s?.offen) === 0 && unterwegsAnzahl === 0 ? "fertig" : "unterwegs"; sperrGrund = zustand === "fertig" ? "Alle Teilbeträge sind ausgeführt." : "Alle übrigen Teilbeträge sind unterwegs."; }
+    else if (!nt) {
+      zustand = zahl(s?.offen) === 0 && unterwegsAnzahl === 0 ? "fertig" : "unterwegs";
+      sperrGrund = zustand === "fertig" ? "Alle Teilbeträge sind ausgeführt."
+        : klaerungAnzahl > 0 ? "Alle übrigen Teilbeträge sind unterwegs oder nach einem Rückruf in Klärung."
+          : "Alle übrigen Teilbeträge sind unterwegs.";
+    }
     else if (unterwegsAnzahl >= zahl(p.max_offen)) {
       // Sichtprüfung E-484: Der Stau kann auch an der Freigabe liegen, nicht nur an der Buchhaltung — der Satz nennt beides.
       zustand = "stau";
-      sperrGrund = `${unterwegsAnzahl} Teilbeträge sind unterwegs (${zf.length} zur Freigabe, ${bb.length} bei der Buchhaltung). Der nächste geht, sobald einer davon ausgeführt oder abgelehnt ist.`;
+      sperrGrund = `${unterwegsAnzahl} Teilbeträge sind unterwegs (${zf.length} zur Freigabe, ${bb.length} bei der Buchhaltung`
+        + `${klaerungAnzahl ? `, ${klaerungAnzahl} nach einem Rückruf in Klärung` : ""}). Der nächste geht, sobald einer davon ausgeführt, abgelehnt oder geklärt ist.`;
     }
     else if (new Date(p.naechste_ab).getTime() > jetzt.getTime()) { zustand = "wartet"; sperrGrund = `Der nächste Teilbetrag geht ab ${uhr(p.naechste_ab)} Uhr.`; }
     else zustand = "bereit";
@@ -1677,19 +2122,29 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
       zurFreigabe: { anzahl: zf.length, cents: zf.reduce((x, a) => x + a.betragCents, 0) },
       beiBuchhaltung: { anzahl: bb.length, cents: bb.reduce((x, a) => x + a.betragCents, 0) },
       offen: { anzahl: zahl(s?.offen), cents: zahl(s?.offen_cents) },
+      klaerung: { anzahl: klaerungAnzahl, cents: zahl(s?.klaerung_cents) },
+      gekuerztCents: zahl(p.gekuerzt_cents),
+      entfallen: { anzahl: zahl(s?.entfallen), cents: zahl(s?.entfallen_cents) },
+      altpostenAuftraege: altpostenRoh.filter((o) => zahl(o.verrechnet_plan_id) === id).map((o) => ({
+        id: zahl(o.id), nummer: String(o.nummer || ""), betragCents: zahl(o.betrag_cents), zurueckgerufenAm: iso(o.zurueckgerufen_am),
+        dochAusgefuehrtAm: iso(o.doch_ausgefuehrt_am), dochAusgefuehrtVonName: o.doch_ausgefuehrt_von ? nameVon(o.doch_ausgefuehrt_von) : null,
+        bankReferenz: o.extern_bank_referenz ?? null, auszahlungStatus: o.payout_status ?? null,
+        darfDochUeberwiesen: ichInhaber && !o.doch_ausgefuehrt_am && o.payout_status === "abgelehnt",
+      })),
       selbstfreigaben: zahl(s?.selbst),
       ausserhalb,
       darfPausieren: p.status === "aktiv",
-      darfFortsetzen: istInhaber && p.status === "pausiert",
-      darfBeenden: istInhaber && laeuft,
-      darfKontoBestaetigen: istInhaber && laeuft && konto.art === "geaendert",
-      darfHinweisSchalten: istInhaber && laeuft,
+      darfFortsetzen: ichInhaber && p.status === "pausiert",
+      darfBeenden: ichInhaber && laeuft,
+      darfKontoBestaetigen: ichInhaber && laeuft && konto.art === "geaendert",
+      darfHinweisSchalten: ichInhaber && laeuft,
     });
   }
 
   const verlaufRoh = kurz ? [] : (await sqlPool`
     SELECT k.id, k.plan_id, k.teil_id, k.auftrag_id, k.von, k.ausgeloest_am, k.sperre_bis,
-           t.nr, pl.nummer AS plan_nummer, o.nummer AS auftrag_nummer, o.status AS auftrag_status, o.zurueckgerufen_am
+           t.nr, pl.nummer AS plan_nummer, o.nummer AS auftrag_nummer, o.status AS auftrag_status, o.zurueckgerufen_am,
+           o.doch_ausgefuehrt_am, (t.klaerung_seit IS NOT NULL AND t.auftrag_id = k.auftrag_id AND t.ausgefuehrt_am IS NULL) AS in_klaerung
       FROM fiaon_auszahlungsplan_takt k
       LEFT JOIN fiaon_auszahlungsplan_teil t ON t.id = k.teil_id
       LEFT JOIN fiaon_auszahlungsplan pl ON pl.id = k.plan_id
@@ -1700,10 +2155,12 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
     const st = String(k.auftrag_status || "");
     const ergebnis: TaktZeile["ergebnis"] = st === "eingereicht" ? "zur_freigabe" : st === "freigegeben" ? "bei_buchhaltung"
       : st === "ausgefuehrt" ? "ausgefuehrt" : st === "abgelehnt" ? "abgelehnt"
-        : st === "zurueckgezogen" ? (k.zurueckgerufen_am ? "zurueckgerufen" : "zurueckgezogen") : "unbekannt";
+        : st === "zurueckgezogen" ? (k.doch_ausgefuehrt_am ? "ausgefuehrt" : k.in_klaerung === true ? "in_klaerung" : k.zurueckgerufen_am ? "zurueckgerufen" : "zurueckgezogen")
+          : "unbekannt";
     const ergebnisText = {
-      zur_freigabe: "wartet auf Freigabe", bei_buchhaltung: "bei der Buchhaltung", ausgefuehrt: "ausgeführt", abgelehnt: "abgelehnt",
-      zurueckgezogen: "zurückgezogen", zurueckgerufen: "zurückgerufen", unbekannt: "—",
+      zur_freigabe: "wartet auf Freigabe", bei_buchhaltung: "bei der Buchhaltung",
+      ausgefuehrt: k.doch_ausgefuehrt_am ? "nach Rückruf ausgeführt" : "ausgeführt", abgelehnt: "abgelehnt",
+      zurueckgezogen: "zurückgezogen", zurueckgerufen: "zurückgerufen", in_klaerung: "in Klärung", unbekannt: "—",
     }[ergebnis];
     return {
       id: zahl(k.id), planId: zahl(k.plan_id), planNummer: String(k.plan_nummer || ""), teilNr: k.nr != null ? zahl(k.nr) : null,
@@ -1715,14 +2172,16 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
   return {
     jetzt: jetzt.toISOString(),
     ich: { email: ich.email, name: ich.name, rolle: ich.rolle },
-    istInhaber,
+    istInhaber: ichInhaber,
     buchhaltung: BUCHHALTUNG_AUSFUEHRUNG,
     plaene,
     zurFreigabe,
     beiBuchhaltung,
+    inKlaerung,
     ausgefuehrt: { zeilen: ausgefuehrt, gesamt: zahl(gesamtAus?.n), seite, proSeite: PRO_SEITE },
     verlauf,
-    badge: plaene.filter((p) => p.darfAusloesen).length + zurFreigabe.filter((a) => a.darfFreigeben).length,
+    badge: plaene.filter((p) => p.darfAusloesen).length + zurFreigabe.filter((a) => a.darfFreigeben).length
+      + inKlaerung.filter((a) => a.darfKlaeren).length,
   };
 }
 
@@ -1749,6 +2208,8 @@ export interface PlanMitarbeiter {
   altposten: AltpostenModus;
   /** Bei „verrechnet“: was beim Anlegen an offenen Posten im Anspruch aufging. */
   verrechnet: { anzahl: number; cents: number };
+  /** So viel des Anspruchs ging nach einem Rückruf doch außerhalb des Plans raus — der Plan ist darum kürzer. */
+  vorabCents: number;
   /** Die letzten zehn ausgelösten Teilbeträge, der jüngste zuerst. */
   letzte: { nr: number; cents: number; stand: "ausgefuehrt" | "unterwegs"; am: string | null }[];
   /** Die Regel in zwei Sätzen — eine Quelle für Wallet und Sammelmail. */
@@ -1769,7 +2230,7 @@ export async function planeFuerMitarbeiter(agentId: number, lauf: Lauf = sqlPool
   if (t?.da !== true) return [];
   const plaene = (await lauf`
     SELECT id, nummer, status, anspruch_cents, teil_cents, anzahl_teile, iban_masked, angelegt_am, altposten,
-           altposten_cents, altposten_anzahl
+           altposten_cents, altposten_anzahl, COALESCE(gekuerzt_cents, 0) AS gekuerzt_cents
       FROM fiaon_auszahlungsplan WHERE agent_id = ${agentId}
      ORDER BY CASE WHEN status IN ('aktiv', 'pausiert') THEN 0 ELSE 1 END, id DESC
      LIMIT 5`) as any[];
@@ -1781,8 +2242,8 @@ export async function planeFuerMitarbeiter(agentId: number, lauf: Lauf = sqlPool
            COALESCE(SUM(betrag_cents) FILTER (WHERE ausgefuehrt_am IS NOT NULL), 0)::bigint AS fertig_cents,
            COUNT(*) FILTER (WHERE payout_id IS NOT NULL AND ausgefuehrt_am IS NULL)::int AS unterwegs,
            COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NOT NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS unterwegs_cents,
-           COUNT(*) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL)::int AS offen,
-           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL), 0)::bigint AS offen_cents,
+           COUNT(*) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL)::int AS offen,
+           COALESCE(SUM(betrag_cents) FILTER (WHERE payout_id IS NULL AND ausgefuehrt_am IS NULL AND entfallen_am IS NULL), 0)::bigint AS offen_cents,
            MAX(ausgefuehrt_am) AS letzte_am
       FROM fiaon_auszahlungsplan_teil WHERE plan_id = ANY(${ids}) GROUP BY plan_id`) as any[];
   const standJe = new Map<number, any>();
@@ -1813,6 +2274,7 @@ export async function planeFuerMitarbeiter(agentId: number, lauf: Lauf = sqlPool
       ibanMasked: p.iban_masked ?? null, angelegtAm: iso(p.angelegt_am)!, letzteAusfuehrungAm: iso(s?.letzte_am),
       altposten: verrechnet ? "verrechnet" : "zusaetzlich",
       verrechnet: { anzahl: verrechnet ? zahl(p.altposten_anzahl) : 0, cents: verrechnet ? zahl(p.altposten_cents) : 0 },
+      vorabCents: zahl(p.gekuerzt_cents),
       letzte: teile.filter((x) => zahl(x.plan_id) === id).slice(0, 10).map((x) => ({
         nr: zahl(x.nr), cents: zahl(x.betrag_cents), stand: x.ausgefuehrt_am ? "ausgefuehrt" as const : "unterwegs" as const,
         am: iso(x.ausgefuehrt_am ?? x.ausgeloest_am),

@@ -976,10 +976,19 @@ export async function praemieBuchen(
   if (cents <= 0) return { gebucht: false, grund: "Prämie ist null." };
 
   const ref = `RATE-${rate.id}`;
+  // E-484 (06.11.2026): Eine im Auszahlungsplan verrechnete Prämie (storniert mit Merker, oder ihre Vormerkung) zählt als
+  // gebucht — sie ist im zugesagten Betrag des Plans schon bezahlt (server/lib/fiaon-provision-automatik.ts).
+  const { verrechnetBereit, provisionVorhandenSql, vormerkungVerrechnetSql } = await import("./fiaon-provision-automatik");
+  const mitVerrechnet = await verrechnetBereit(lauf);
   const [schon] = (await lauf`
-    SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND status <> 'storniert'
+    SELECT c.id FROM fiaon_commissions c WHERE c.ref = ${ref} AND ${lauf.unsafe(provisionVorhandenSql("c", mitVerrechnet))}
   `) as any[];
   if (schon) return { gebucht: false, grund: "Prämie für diese Rate ist schon gebucht." };
+  if (mitVerrechnet) {
+    const [verrechnet] = (await lauf`
+      SELECT v.id FROM fiaon_provision_vormerkung v WHERE v.ref = ${ref} AND ${lauf.unsafe(vormerkungVerrechnetSql("v"))} LIMIT 1`) as any[];
+    if (verrechnet) return { gebucht: false, grund: "Prämie für diese Rate ist im Auszahlungsplan schon verrechnet." };
+  }
 
   const notiz = `Eingezogene Rate ${rate.rate_nr} zu ${rate.ref} — zuletzt bearbeitet von `
     + `${arbeit.agent_name} (${arbeit.ergebnis}).`;

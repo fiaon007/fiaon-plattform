@@ -271,13 +271,18 @@ interface PlanImWallet {
   ausgefuehrt: { anzahl: number; cents: number }; unterwegs: { anzahl: number; cents: number }; offen: { anzahl: number; cents: number };
   ibanMasked: string | null; angelegtAm: string; letzteAusfuehrungAm: string | null;
   altposten: "verrechnet" | "zusaetzlich"; verrechnet: { anzahl: number; cents: number };
+  /** Nachbesserung E-484: so viel des Anspruchs ging nach einem Rückruf doch außerhalb des Plans raus (Plan gekürzt). */
+  vorabCents?: number;
   letzte: { nr: number; cents: number; stand: "ausgefuehrt" | "unterwegs"; am: string | null }[];
   hinweis: string;
 }
 
 function PlanKarte({ p }: { p: PlanImWallet }) {
   const laeuft = p.status === "aktiv" || p.status === "pausiert";
-  const anteil = p.anspruchCents > 0 ? Math.min(100, Math.round((p.ausgefuehrt.cents / p.anspruchCents) * 100)) : 0;
+  const vorab = Number(p.vorabCents) || 0;
+  // Der Plan-Betrag: der Anspruch ohne das, was schon außerhalb des Plans überwiesen wurde.
+  const planCents = p.anspruchCents - vorab;
+  const anteil = planCents > 0 ? Math.min(100, Math.round((p.ausgefuehrt.cents / planCents) * 100)) : 0;
   return (
     <section className={`wa-block${laeuft ? "" : " leicht"}`} data-fiaon="wallet-plan">
       <div className="wa-block-kopf">
@@ -287,7 +292,7 @@ function PlanKarte({ p }: { p: PlanImWallet }) {
       <p className="wa-text">{p.statusText}</p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
         <span className="wa-gross">{fmtCents(p.ausgefuehrt.cents)}</span>
-        <span className="wa-hinweis">von {fmtCents(p.anspruchCents)} überwiesen{p.letzteAusfuehrungAm ? ` · zuletzt ${fmtDT(p.letzteAusfuehrungAm)}` : ""}</span>
+        <span className="wa-hinweis">von {fmtCents(planCents)} überwiesen{p.letzteAusfuehrungAm ? ` · zuletzt ${fmtDT(p.letzteAusfuehrungAm)}` : ""}</span>
       </div>
       <div className="wa-balken" role="img" aria-label={`${p.ausgefuehrt.anzahl} von ${p.anzahlTeile} Teilbeträgen überwiesen`}><i style={{ width: `${anteil}%` }} /></div>
       <div className="wa-team" style={{ marginTop: 14 }}>
@@ -297,6 +302,7 @@ function PlanKarte({ p }: { p: PlanImWallet }) {
       </div>
       <p className="wa-hinweis" style={{ marginTop: 12 }}>
         {p.anzahlTeile} Teilbeträge à {fmtCents(p.teilCents)}.
+        {vorab > 0 ? ` Vom zugesagten Betrag (${fmtCents(p.anspruchCents)}) wurden ${fmtCents(vorab)} schon außerhalb des Plans überwiesen — der Plan ist um diesen Betrag kürzer.` : ""}
         {p.altposten === "verrechnet" && p.verrechnet.anzahl > 0
           ? ` Beim Anlegen sind ${p.verrechnet.anzahl} offene Posten (${fmtCents(p.verrechnet.cents)}) im zugesagten Betrag verrechnet worden — sie werden nicht zusätzlich ausgezahlt.`
           : ""}

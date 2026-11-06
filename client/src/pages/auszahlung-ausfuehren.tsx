@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
+import { bankReferenzPruefen } from "@shared/fiaon-bankreferenz";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import "@/styles/auszahlung-ausfuehren.css";
 
@@ -31,15 +32,13 @@ interface Ansicht {
 }
 
 /**
- * E-484: Die Bank-Referenz ist freiwillig (Entscheidung des Inhabers vom 06.11.2026). Ist sie angegeben, prüft der
- * Server Form und Eindeutigkeit; hier nur die Länge, damit ein Tippfehler nicht erst nach dem Absenden auffällt.
+ * E-484: Die Bank-Referenz ist freiwillig (Entscheidung des Inhabers vom 06.11.2026). Ist sie angegeben, gilt die
+ * EINE Regel aus shared/fiaon-bankreferenz.ts — dieselbe, die der Server prüft. So fällt ein Zeichen, das der Server
+ * nicht annimmt, schon beim Tippen auf und nicht erst nach dem Absenden.
  */
 const bankRefHinweis = (s: string): string | null => {
-  const t = s.replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  if (t.length < 4) return "Die Bank-Referenz ist sehr kurz — bitte prüfen oder das Feld leer lassen.";
-  if (t.length > 60) return "Die Bank-Referenz hat mehr als 60 Zeichen — bitte kürzen oder das Feld leer lassen.";
-  return null;
+  const r = bankReferenzPruefen(s);
+  return r.ok ? null : r.grund;
 };
 
 type Lage =
@@ -236,7 +235,7 @@ export default function AuszahlungAusfuehrenPage() {
             <span>Ich bestätige, dass die SEPA-Überweisung über <strong>{euro(a.betragCents)}</strong> an <strong>{a.empfaenger}</strong> ({a.iban}) am angegebenen Tag ausgeführt wurde.</span>
           </label>
           {fehler ? <p className="aa-fehler" role="alert">{fehler}</p> : null}
-          <button type="submit" className="aa-knopf" disabled={!zugesagt || laeuft}>
+          <button type="submit" className="aa-knopf" disabled={!zugesagt || laeuft || !!bankRefHinweis(bankRef)}>
             {laeuft ? "Wird bestätigt …" : "Überweisung ausgeführt — bestätigen"}
           </button>
         </form>

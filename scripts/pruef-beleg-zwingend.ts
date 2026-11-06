@@ -90,8 +90,11 @@ async function main(): Promise<void> {
     /=== "ausgezahlt" && r\.pdf_base64/.test(abr));
 
   // ── DER KERN: DIE FREIGABE WARTET AUF DEN BELEG ──────────────────────────
+  // E-484 (06.11.2026): Der Aufruf trägt seither die Option „leise“ (Teilbeträge eines Auszahlungsplans — keine Mail je
+  // Teilbetrag): „await generateCommissionStatement(id, { leise: … })“. Geprüft wird weiter genau das await vor dem
+  // Aufruf mit der Auszahlungs-ID — mit oder ohne Optionen. Alt: /await generateCommissionStatement\(id\)/
   ok("Die Freigabe WARTET auf die Abrechnung (await)",
-    /await generateCommissionStatement\(id\)/.test(team),
+    /await generateCommissionStatement\(id[,)]/.test(team),
     "sie feuert wieder ohne await — genau die Ursache von 0011");
   ok("Sie wertet aus, ob das PDF fehlt",
     /erg\.pdfFehlt/.test(team));

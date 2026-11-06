@@ -1063,6 +1063,8 @@ router.post("/admin/agents/:id/commissions/manual", async (req, res) => {
  */
 export async function backfillCandidates(): Promise<any[]> {
   await ensureAgentTables();
+  // E-484: Im Auszahlungsplan verrechnet zählt als gebucht — sonst stünde eine schon bezahlte Provision als „nachbuchbar“ da.
+  const verrechnet = await provisionVerrechnetFilter();
   const rows = await sqlPool`
     SELECT
       a.ref, a.payment_reference, a.pack_name, a.assigned_agent_id,
@@ -1121,8 +1123,9 @@ export async function backfillCandidates(): Promise<any[]> {
       AND COALESCE(a.commission_basis, '') <> 'direktzahler'
       AND NOT EXISTS (
         SELECT 1 FROM fiaon_commissions c
-        WHERE c.ref = a.ref AND c.amount_cents > 0 AND c.status != 'storniert'
+        WHERE c.ref = a.ref AND c.amount_cents > 0 AND ${sqlPool.unsafe(verrechnet.provision)}
       )
+      ${sqlPool.unsafe(verrechnet.ohneVormerkung)}
     ORDER BY paid_at DESC NULLS LAST
   `;
   const settings = await getSettings();
@@ -1177,14 +1180,17 @@ router.get("/admin/commission-backfill/candidates", async (_req, res) => {
 /** Reine Zahl für die Dashboard-Warnkachel (Selbstcheck). */
 router.get("/admin/commission-backfill/count", async (_req, res) => {
   try {
+    await ensureAgentTables();
+    const verrechnet = await provisionVerrechnetFilter();
     const [row] = await sqlPool`
       SELECT COUNT(*)::int AS c
       FROM fiaon_applications a
       WHERE a.payment_status = 'paid' AND a.merged_into IS NULL AND a.assigned_agent_id IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM fiaon_commissions c
-          WHERE c.ref = a.ref AND c.amount_cents > 0 AND c.status != 'storniert'
+          WHERE c.ref = a.ref AND c.amount_cents > 0 AND ${sqlPool.unsafe(verrechnet.provision)}
         )
+        ${sqlPool.unsafe(verrechnet.ohneVormerkung)}
     `;
     res.json({ ok: true, count: Number(row.c) });
   } catch (err) {
@@ -1197,13 +1203,37 @@ router.get("/admin/commission-backfill/count", async (_req, res) => {
  *  Fehlt der Betrag, kann er einmalig manuell gesetzt werden (manualAmountCents),
  *  sonst wird die belastbare Quelle (Donor/Bank) automatisch ergänzt. Jede
  *  Betrags-Ergänzung + Buchung wird im Kontakt-Log protokolliert (Audit). */
-async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?: number): Promise<{ ok: boolean; error?: string; alreadyBooked?: boolean; amountCents?: number; source?: string }> {
-  // Bereits gebucht? → idempotent, nichts tun.
+/**
+ * E-484 (06.11.2026): Die Filter des Nachbuchungs-Centers — eine im Auszahlungsplan verrechnete Provision oder
+ * Vormerkung zählt als gebucht (Regel: server/lib/fiaon-provision-automatik.ts). Ohne die Spalte (frischer Start)
+ * gilt die alte Bedingung; dann kann auch nichts verrechnet sein.
+ */
+async function provisionVerrechnetFilter(): Promise<{ provision: string; ohneVormerkung: string; mit: boolean }> {
+  const { verrechnetBereit, provisionVorhandenSql, vormerkungVerrechnetSql, vormerkungSchema } = await import("../lib/fiaon-provision-automatik");
+  await vormerkungSchema().catch((e) => console.warn("[FIAON-BACKFILL] Vormerkungs-Tabelle nicht sichergestellt:", String(e).slice(0, 140)));
+  const mit = await verrechnetBereit();
+  return {
+    mit,
+    provision: provisionVorhandenSql("c", mit),
+    ohneVormerkung: mit
+      ? `AND NOT EXISTS (SELECT 1 FROM fiaon_provision_vormerkung vv WHERE vv.ref = a.ref AND vv.kind IN ('own', 'override') AND ${vormerkungVerrechnetSql("vv")})`
+      : "",
+  };
+}
+
+async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?: number): Promise<{ ok: boolean; error?: string; alreadyBooked?: boolean; verrechnet?: boolean; amountCents?: number; source?: string }> {
+  // Bereits gebucht? → idempotent, nichts tun. E-484: im Auszahlungsplan verrechnet zählt als gebucht.
+  const verrechnet = await provisionVerrechnetFilter();
   const existing = await sqlPool`
-    SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents > 0 AND status != 'storniert'
-      AND kind IN ('own', 'override') -- 02.09.: Prämien (onboarding/inkasso) sind keine Abschluss-Provision
+    SELECT c.id FROM fiaon_commissions c WHERE c.ref = ${ref} AND c.amount_cents > 0 AND ${sqlPool.unsafe(verrechnet.provision)}
+      AND c.kind IN ('own', 'override') -- 02.09.: Prämien (onboarding/inkasso) sind keine Abschluss-Provision
   `;
   if (existing.length > 0) return { ok: true, alreadyBooked: true };
+  if (verrechnet.mit) {
+    const [v] = (await sqlPool`
+      SELECT id FROM fiaon_provision_vormerkung WHERE ref = ${ref} AND kind IN ('own', 'override') AND verrechnet_plan_id IS NOT NULL LIMIT 1`) as any[];
+    if (v) return { ok: true, alreadyBooked: true, verrechnet: true };
+  }
 
   const apps = await sqlPool`
     SELECT ref, amount_due, assigned_agent_id, email, pack_key, type

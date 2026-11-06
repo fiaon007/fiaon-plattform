@@ -66,6 +66,14 @@ function tabelle(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS fiaon_provision_vormerkung_einmal
           ON fiaon_provision_vormerkung (payment_reference, agent_id, kind)
           WHERE payment_reference IS NOT NULL AND status = 'offen'`;
+      // E-484 (06.11.2026): Im Auszahlungsplan verrechnet — die Vormerkung steht auf „verworfen“ UND trägt den Plan.
+      // Der Merker ist dauerhaft: Dieselbe Zahlung ergibt danach keine neue Vormerkung mehr (zweiter Index, der auch
+      // die verrechneten Zeilen einschließt; vormerken() fängt den Konflikt mit ON CONFLICT DO NOTHING ab).
+      await sqlPool`ALTER TABLE fiaon_provision_vormerkung ADD COLUMN IF NOT EXISTS verrechnet_plan_id BIGINT`;
+      await sqlPool`
+        CREATE UNIQUE INDEX IF NOT EXISTS fiaon_provision_vormerkung_einmal_verrechnet
+          ON fiaon_provision_vormerkung (payment_reference, agent_id, kind)
+          WHERE payment_reference IS NOT NULL AND (status = 'offen' OR verrechnet_plan_id IS NOT NULL)`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -78,6 +86,48 @@ function tabelle(): Promise<void> {
 
 /** Wer liest und schreibt — der Pool oder eine laufende Transaktion (praemieBuchen(rateId, tx)). */
 type Lauf = typeof sqlPool;
+
+/** E-484: Die Tabelle samt Merker „im Auszahlungsplan verrechnet“ — für den Auszahlungsplan vor seiner Transaktion. */
+export const vormerkungSchema = (): Promise<void> => tabelle();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IM AUSZAHLUNGSPLAN VERRECHNET (E-484, 06.11.2026)
+//
+// Legt der Inhaber einen Auszahlungsplan „verrechnet“ an, enthält der zugesagte Betrag die offenen Altposten des
+// Empfängers. Sie werden geschlossen: Vormerkungen „verworfen“, Provisionen „storniert“ — beides mit dem Merker
+// verrechnet_plan_id. Genau diese Status gelten sonst überall als „nicht vorhanden“: Ohne den Merker legte ein
+// zweiter Durchlauf derselben Kundenzahlung (Nachbuchungs-Center, Kontoabgleich, „Override nachtragen“) die
+// Provision neu an, und der Sammellauf am 15. zahlte sie ZUSÄTZLICH zum Plan aus (Prüfer GELD, 06.11.2026).
+//
+// Deshalb zählt jede Idempotenz-Prüfung eine verrechnete Zeile als VORHANDEN — eine Definition, hier:
+//   provisionVorhandenSql("c") für fiaon_commissions, VORMERKUNG_VERRECHNET für fiaon_provision_vormerkung.
+// Gibt es die Spalten noch nicht (frischer Start, besetzte Tabelle), kann auch nichts verrechnet sein — dann gilt
+// die alte Prüfung (verrechnetBereit). Der Zahlungsweg bricht also nie an einer fehlenden Spalte.
+// ═══════════════════════════════════════════════════════════════════════════
+let verrechnetDa = false;
+
+/** Gibt es den Merker an beiden Tabellen? Einmal ja, bleibt ja (Spalten verschwinden nicht). */
+export async function verrechnetBereit(lauf: Lauf = sqlPool): Promise<boolean> {
+  if (verrechnetDa) return true;
+  try {
+    const [r] = (await lauf`
+      SELECT COUNT(*)::int AS n FROM information_schema.columns
+       WHERE table_schema = current_schema() AND column_name = 'verrechnet_plan_id'
+         AND table_name IN ('fiaon_commissions', 'fiaon_provision_vormerkung')`) as any[];
+    verrechnetDa = Number(r?.n) === 2;
+  } catch (e) {
+    console.warn("[PROVISION] Merker „verrechnet“ nicht prüfbar — es gilt die Prüfung ohne ihn:", String(e).slice(0, 140));
+  }
+  return verrechnetDa;
+}
+
+/** Eine Provisionszeile (Kürzel `c`) zählt als vorhanden: nicht storniert — oder storniert, weil im Plan verrechnet. */
+export function provisionVorhandenSql(c = "c", mitVerrechnet = true): string {
+  return mitVerrechnet ? `(${c}.status <> 'storniert' OR ${c}.verrechnet_plan_id IS NOT NULL)` : `${c}.status <> 'storniert'`;
+}
+
+/** Eine Vormerkung (Kürzel `v`), die im Auszahlungsplan verrechnet wurde. */
+export const vormerkungVerrechnetSql = (v = "v") => `${v}.verrechnet_plan_id IS NOT NULL`;
 
 /** Läuft die Automatik? Vorgabe seit 23.09.2026: AUS. `lauf`: innerhalb einer Transaktion deren Sicht. */
 export async function automatikAn(lauf: Lauf = sqlPool): Promise<boolean> {
@@ -185,32 +235,85 @@ export async function vormerkungJeMitarbeiter(): Promise<Array<{ agentId: number
 /**
  * Eine Vormerkung nachbuchen — sie wird zu einer echten Provision. Derselbe
  * Weg wie die Automatik, nur von Hand ausgelöst.
+ *
+ * E-484 (06.11.2026): in EINER Transaktion mit Zeilensperre auf die Vormerkung. Vorher las sie ohne Sperre, legte
+ * die Provision an und setzte danach ohne Statusbedingung „gebucht“ — lief das gleichzeitig mit der Anlage eines
+ * Auszahlungsplans, überschrieb es dessen „verworfen“, und eine schon verrechnete Provision wurde trotzdem gebucht.
+ * Jetzt: erst sperren, dann prüfen, dann buchen, und „gebucht“ nur, solange sie noch offen ist. Ist dieselbe Zahlung
+ * im Auszahlungsplan schon verrechnet, wird nichts gebucht — die Vormerkung schließt sich mit Vermerk.
  */
 export async function nachbuchen(id: number, von: string): Promise<{ ok: boolean; grund?: string; commissionId?: number }> {
   await tabelle();
-  const [v] = (await sqlPool`SELECT * FROM fiaon_provision_vormerkung WHERE id = ${id} AND status = 'offen'`) as any[];
-  if (!v) return { ok: false, grund: "Diese Vormerkung gibt es nicht mehr." };
-  // Doppelt buchen ist ausgeschlossen: Dieselbe Zahlung, derselbe Mensch, dieselbe Art.
-  const [da] = (await sqlPool`
-    SELECT id FROM fiaon_commissions
-     WHERE payment_reference = ${v.payment_reference} AND agent_id = ${v.agent_id} AND kind = ${v.kind}
-       AND status <> 'storniert' LIMIT 1`.catch(() => [])) as any[];
-  if (da) {
-    await sqlPool`UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(da.id)} WHERE id = ${id}`;
-    return { ok: true, commissionId: Number(da.id), grund: "Es gab sie schon — die Vormerkung ist erledigt." };
+  const mitV = await verrechnetBereit();
+  try {
+    return await sqlPool.begin(async (tx: any) => {
+      const [v] = (await tx`SELECT * FROM fiaon_provision_vormerkung WHERE id = ${id} AND status = 'offen' FOR UPDATE`) as any[];
+      if (!v) return { ok: false, grund: "Diese Vormerkung gibt es nicht mehr." };
+      // Schon im Auszahlungsplan verrechnet (als Provision oder als Vormerkung derselben Zahlung)? Dann nie buchen.
+      if (mitV) {
+        const [verr] = (await tx`
+          SELECT verrechnet_plan_id AS plan FROM fiaon_commissions
+           WHERE agent_id = ${v.agent_id} AND kind = ${v.kind} AND amount_cents > 0 AND verrechnet_plan_id IS NOT NULL
+             AND (payment_reference = ${v.payment_reference} OR (${v.payment_reference}::text IS NULL AND ref = ${v.ref}))
+          UNION ALL
+          SELECT verrechnet_plan_id FROM fiaon_provision_vormerkung
+           WHERE id <> ${id} AND agent_id = ${v.agent_id} AND kind = ${v.kind} AND verrechnet_plan_id IS NOT NULL
+             AND (payment_reference = ${v.payment_reference} OR (${v.payment_reference}::text IS NULL AND ref = ${v.ref}))
+          LIMIT 1`) as any[];
+        if (verr) {
+          // Verworfen OHNE eigenen Merker: Verrechnet ist schon die ursprüngliche Zeile derselben Zahlung — trüge diese
+          // Doppelung den Merker auch, entstünden bei einer Erstattung zwei Gegenbuchungen für eine Zahlung.
+          const r = (await tx`
+            UPDATE fiaon_provision_vormerkung
+               SET status = 'verworfen', erledigt_am = NOW(), erledigt_von = ${von},
+                   note = TRIM(COALESCE(note, '') || ${` · schon im Auszahlungsplan verrechnet (Plan #${Number(verr.plan)}) — nicht gebucht`})
+             WHERE id = ${id} AND status = 'offen' RETURNING id`) as any[];
+          if (!r.length) return { ok: false, grund: "Die Vormerkung hat sich gerade verändert. Bitte neu laden." };
+          console.log(`[PROVISION] Vormerkung ${id}: dieselbe Zahlung ist im Auszahlungsplan verrechnet — nicht gebucht (${von}).`);
+          return { ok: true, grund: "Dieselbe Zahlung ist schon im Auszahlungsplan verrechnet — nichts gebucht, die Vormerkung ist erledigt." };
+        }
+      }
+      // Doppelt buchen ist ausgeschlossen: Dieselbe Zahlung, derselbe Mensch, dieselbe Art.
+      const [da] = (await tx`
+        SELECT id FROM fiaon_commissions
+         WHERE payment_reference = ${v.payment_reference} AND agent_id = ${v.agent_id} AND kind = ${v.kind}
+           AND status <> 'storniert' LIMIT 1`) as any[];
+      if (da) {
+        const r = (await tx`
+          UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(da.id)}
+           WHERE id = ${id} AND status = 'offen' RETURNING id`) as any[];
+        if (!r.length) return { ok: false, grund: "Die Vormerkung hat sich gerade verändert. Bitte neu laden." };
+        return { ok: true, commissionId: Number(da.id), grund: "Es gab sie schon — die Vormerkung ist erledigt." };
+      }
+      // 01.10.2026: Status 'bestaetigt' wie bei der Automatik. Vorher stand hier 'offen' — diesen
+      // Status kennt fiaon_commissions nicht (bestaetigt | in_auszahlung | ausgezahlt | storniert |
+      // vorgemerkt), und der Auszahlungslauf liest nur 'bestaetigt': Nachgebuchtes wäre im Wallet
+      // aufgetaucht und am 15. nie ausgezahlt worden. Bis heute wurde keine Vormerkung nachgebucht.
+      const [neu] = (await tx`
+        INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+        VALUES (${v.agent_id}, ${v.ref}, ${v.payment_reference}, ${v.pack_name}, ${v.base_amount_cents}, ${v.rate_bp}, ${v.amount_cents},
+                'bestaetigt', ${v.kind}, ${v.source_agent_id}, ${`${v.note ?? ""} (von Hand gebucht am ${new Date().toLocaleDateString("de-DE")} durch ${von}, ${v.anlass})`.trim()})
+        RETURNING id`) as any[];
+      const r = (await tx`
+        UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(neu.id)}
+         WHERE id = ${id} AND status = 'offen' RETURNING id`) as any[];
+      // Trifft das nichts, hat jemand die Vormerkung inzwischen geschlossen — dann rollt die Buchung mit zurück.
+      if (!r.length) throw new NachbuchenAbbruch("Die Vormerkung wurde gerade anderweitig erledigt — nichts gebucht. Bitte neu laden.");
+      console.log(`[PROVISION] Vormerkung ${id} nachgebucht von ${von} (${(Number(v.amount_cents) / 100).toFixed(2)} €).`);
+      return { ok: true, commissionId: Number(neu.id) };
+    });
+  } catch (e) {
+    if (e instanceof NachbuchenAbbruch) return { ok: false, grund: e.message };
+    throw e;
   }
-  // 01.10.2026: Status 'bestaetigt' wie bei der Automatik. Vorher stand hier 'offen' — diesen
-  // Status kennt fiaon_commissions nicht (bestaetigt | in_auszahlung | ausgezahlt | storniert |
-  // vorgemerkt), und der Auszahlungslauf liest nur 'bestaetigt': Nachgebuchtes wäre im Wallet
-  // aufgetaucht und am 15. nie ausgezahlt worden. Bis heute wurde keine Vormerkung nachgebucht.
-  const [neu] = (await sqlPool`
-    INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
-    VALUES (${v.agent_id}, ${v.ref}, ${v.payment_reference}, ${v.pack_name}, ${v.base_amount_cents}, ${v.rate_bp}, ${v.amount_cents},
-            'bestaetigt', ${v.kind}, ${v.source_agent_id}, ${`${v.note ?? ""} (von Hand gebucht am ${new Date().toLocaleDateString("de-DE")} durch ${von}, ${v.anlass})`.trim()})
-    RETURNING id`) as any[];
-  await sqlPool`UPDATE fiaon_provision_vormerkung SET status = 'gebucht', erledigt_am = NOW(), erledigt_von = ${von}, commission_id = ${Number(neu.id)} WHERE id = ${id}`;
-  console.log(`[PROVISION] Vormerkung ${id} nachgebucht von ${von} (${(Number(v.amount_cents) / 100).toFixed(2)} €).`);
-  return { ok: true, commissionId: Number(neu.id) };
+}
+
+/** Abbruch in der Nachbuch-Transaktion — rollt zurück und wird außen zur Antwort. */
+class NachbuchenAbbruch extends Error {
+  constructor(grund: string) {
+    super(grund);
+    Object.setPrototypeOf(this, NachbuchenAbbruch.prototype);
+  }
 }
 
 /** Eine Vormerkung verwerfen — sie bleibt als Spur stehen. */

@@ -42,6 +42,8 @@ export interface Auftrag {
   // E-484: Teilbetrag eines Auszahlungsplans, Bank-Referenz der Buchhaltung (freiwillig), Rückruf
   planTeilId?: number | null; externBankReferenz?: string | null;
   zurueckgerufenAm?: string | null; zurueckgerufenVon?: string | null; rueckrufGrund?: string | null;
+  // E-484 (Nachbesserung): nach dem Rückruf „doch ausgeführt“ — vom Inhaber mit TAN gebucht; beim Anlegen verrechnet
+  dochAusgefuehrtAm?: string | null; dochAusgefuehrtVon?: string | null; dochAusgefuehrtNotiz?: string | null; verrechnetPlanId?: number | null;
 }
 
 export interface Auszahlung {
@@ -151,6 +153,18 @@ export interface PlanAuftrag extends Auftrag {
   beiBuchhaltungSeit: string | null;
   /** Länger als zwei Bankarbeitstage bei der Buchhaltung. */
   ueberfaellig: boolean;
+  /** Nach einem Rückruf in Klärung seit — erst die Klärung durch den Inhaber gibt den Teil frei (oder bucht ihn aus). */
+  klaerungSeit: string | null;
+  darfKlaeren: boolean;
+}
+
+/** Ein beim Anlegen verrechneter Auftrag, der bei der Buchhaltung lag (zurückgerufen). */
+export interface PlanAltpostenAuftrag {
+  id: number; nummer: string; betragCents: number; zurueckgerufenAm: string | null;
+  dochAusgefuehrtAm: string | null; dochAusgefuehrtVonName: string | null; bankReferenz: string | null;
+  /** „ausgezahlt“: schon vor dem Plan als überwiesen gebucht — steckt nicht im Plan, der Auftrag wurde nur geschlossen. */
+  auszahlungStatus: string | null;
+  darfDochUeberwiesen: boolean;
 }
 
 export interface PlanZeile {
@@ -172,6 +186,12 @@ export interface PlanZeile {
   zurFreigabe: { anzahl: number; cents: number };
   beiBuchhaltung: { anzahl: number; cents: number };
   offen: { anzahl: number; cents: number };
+  /** Nach einem Rückruf in Klärung. */
+  klaerung: { anzahl: number; cents: number };
+  /** Um so viel ist der Plan gekürzt (ein verrechneter Altposten ging trotz Rückruf raus); entfallene Teile dazu. */
+  gekuerztCents: number;
+  entfallen: { anzahl: number; cents: number };
+  altpostenAuftraege: PlanAltpostenAuftrag[];
   selbstfreigaben: number;
   /** Was außerhalb des Plans neu offen ist — läuft normal über „Auszahlungen“. */
   ausserhalb: Altposten | null;
@@ -181,7 +201,7 @@ export interface PlanZeile {
 export interface PlanTakt {
   id: number; planId: number; planNummer: string; teilNr: number | null; vonName: string; am: string; sperreBis: string;
   auftragId: number | null; auftragNummer: string | null;
-  ergebnis: "zur_freigabe" | "bei_buchhaltung" | "ausgefuehrt" | "abgelehnt" | "zurueckgezogen" | "zurueckgerufen" | "unbekannt";
+  ergebnis: "zur_freigabe" | "bei_buchhaltung" | "ausgefuehrt" | "abgelehnt" | "zurueckgezogen" | "zurueckgerufen" | "in_klaerung" | "unbekannt";
   ergebnisText: string;
 }
 
@@ -195,6 +215,8 @@ export interface PlanLage {
   plaene: PlanZeile[];
   zurFreigabe: PlanAuftrag[];
   beiBuchhaltung: PlanAuftrag[];
+  /** Nach einem Rückruf in Klärung. */
+  inKlaerung: PlanAuftrag[];
   ausgefuehrt: { zeilen: PlanAuftrag[]; gesamt: number; seite: number; proSeite: number };
   verlauf: PlanTakt[];
   badge: number;
@@ -204,6 +226,8 @@ export interface PlanLage {
 export interface PlanKurz {
   jetzt: string; badge: number;
   zurFreigabe: number; darfFreigeben: number; beiBuchhaltung: number; ueberfaellig: number;
+  /** Nach einem Rückruf in Klärung (und davon vom Inhaber zu klären). */
+  inKlaerung?: number; darfKlaeren?: number;
   auftraegeLaufend: number; auszahlungenOffen: number; auszahlungenOffenCents: number;
   plaene: {
     id: number; nummer: string; empfaengerName: string; ichBinEmpfaenger: boolean; status: PlanStatus; zustand: PlanZustand;
@@ -259,11 +283,16 @@ export class BankFehler extends Error {
   constructor(message: string, public status: number, public code: string | null = null, public naechsteAb: string | null = null) { super(message); }
 }
 
-export async function ruf<T = any>(pfad: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function ruf<T = any>(pfad: string, init?: { method?: string; body?: unknown; hintergrund?: boolean }): Promise<T> {
+  // E-484: `hintergrund` — ein Abruf ohne menschliche Eingabe (Auffrischen im Takt). Der Server zählt ihn nicht als
+  // Aktivität, sonst griffe die Leerlauf-Grenze bei offenem Reiter nie.
+  const kopf: Record<string, string> = {};
+  if (init?.body !== undefined) kopf["Content-Type"] = "application/json";
+  if (init?.hintergrund) kopf["X-Banking-Hintergrund"] = "1";
   const res = await fetch(`/api/fiaon${pfad}`, {
     method: init?.method ?? (init?.body !== undefined ? "POST" : "GET"),
     credentials: "include",
-    headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers: Object.keys(kopf).length ? kopf : undefined,
     body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
   const j = await res.json().catch(() => null);

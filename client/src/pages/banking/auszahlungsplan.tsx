@@ -16,10 +16,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import {
   BankFehler, ruf,
-  type Altposten, type AltpostenModus, type Auftrag, type PlanAltpostenDetail, type PlanAuftrag, type PlanEingabe,
+  type Altposten, type AltpostenModus, type Auftrag, type PlanAltpostenAuftrag, type PlanAltpostenDetail, type PlanAuftrag, type PlanEingabe,
   type PlanGrenzen, type PlanKandidat, type PlanLage, type PlanTakt, type PlanVorgaben, type PlanVorschau, type PlanZeile, type PlanZustand,
 } from "./api";
-import { centsAus, geld, tag, uhr, zeit } from "./format";
+import { centsAus, geld, heute, tag, uhr, zeit } from "./format";
+import { bankReferenzPruefen } from "@shared/fiaon-bankreferenz";
 import { Chip, Feld, Guilloche, Knopf, KnopfLink, Laden, Meldung, Zeichen, type ChipArt } from "./ui";
 import { TanDialog } from "./tan";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -82,7 +83,8 @@ const ZUSTAND: Record<PlanZustand, { kurz: string; text: string; art: ChipArt }>
 const AUSZAHLUNG_STAND: Record<string, string> = { angefordert: "angefordert", requested: "Altbestand", ausgezahlt: "ausgezahlt", abgelehnt: "abgelehnt" };
 const AUFTRAG_STAND: Record<string, string> = { entwurf: "Entwurf", eingereicht: "wartet auf Freigabe", freigegeben: "freigegeben" };
 const TAKT_ART: Record<PlanTakt["ergebnis"], ChipArt> = {
-  zur_freigabe: "warn", bei_buchhaltung: "info", ausgefuehrt: "gut", abgelehnt: "fehler", zurueckgezogen: "still", zurueckgerufen: "still", unbekannt: "still",
+  zur_freigabe: "warn", bei_buchhaltung: "info", ausgefuehrt: "gut", abgelehnt: "fehler", zurueckgezogen: "still", zurueckgerufen: "still",
+  in_klaerung: "warn", unbekannt: "still",
 };
 
 /**
@@ -113,20 +115,26 @@ const hatAltposten = (a: Altposten | null) => !!a && (a.anzahl > 0 || a.auftraeg
 // KLEINE BAUSTEINE
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Die Uhr zählt nur herunter. Bei 0 bittet sie die Seite, neu zu laden — auslösen tut nur ein Mensch. */
+/**
+ * Die Uhr zählt nur herunter. Bei 0 bittet sie die Seite, neu zu laden — auslösen tut nur ein Mensch. Steht sie danach
+ * immer noch (der Server sagte noch „wartet“, oder das Neuladen ging nicht), meldet sie sich alle 15 Sekunden wieder.
+ */
 function PlanUhr({ bis, versatz, onNull }: { bis: string; versatz: number; onNull: () => void }) {
   const ziel = Date.parse(bis);
   const [rest, setRest] = useState(() => ziel - (Date.now() + versatz));
-  const gemeldet = useRef(false);
+  const gemeldetAm = useRef(0);
   const onNullRef = useRef(onNull);
   onNullRef.current = onNull;
   useEffect(() => {
-    gemeldet.current = false;
+    gemeldetAm.current = 0;
     const tick = () => {
       const r = ziel - (Date.now() + versatz);
       setRest(r);
       // Eine Sekunde Luft: Die Server-Uhr soll sicher schon „bereit“ sagen, wenn die Seite neu fragt.
-      if (r <= 0 && !gemeldet.current) { gemeldet.current = true; window.setTimeout(() => onNullRef.current(), 1200); }
+      if (r <= 0 && Date.now() - gemeldetAm.current >= 15_000) {
+        gemeldetAm.current = Date.now();
+        window.setTimeout(() => onNullRef.current(), 1200);
+      }
     };
     tick();
     const t = window.setInterval(tick, 1000);
@@ -150,7 +158,9 @@ function GrundEingabe({ id, label, knopf, art = "warnung", min = 3, hinweis, onS
   };
   return (
     <div className="bk-plan-grund">
-      <Feld id={id} l={label} hinweis={hinweis ?? (zuKurz ? `Bitte mindestens ${min} Zeichen — der Grund steht im Protokoll.` : "Der Grund steht im Protokoll.")}>
+      <Feld id={id} l={label} hinweis={zuKurz
+        ? `${hinweis ? `${hinweis} · ` : ""}noch ${min - grund.trim().length} Zeichen — der Grund steht im Protokoll.`
+        : hinweis ?? "Der Grund steht im Protokoll."}>
         <input id={id} value={grund} maxLength={300} autoFocus autoComplete="off"
           onChange={(e) => setGrund(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void senden(); } else if (e.key === "Escape") onAbbrechen(); }} />
@@ -183,12 +193,49 @@ function Aufklapp({ titel, neben, offen, onUm, children, id }: { titel: string; 
   );
 }
 
+/** Was der Inhaber zu „doch überwiesen“ angibt — dieselben Felder für den Teilbetrag in Klärung und den Altposten. */
+interface DochDaten { notiz: string; bankReferenz: string; wertAm: string }
+
+/**
+ * Nach einem Rückruf: Die Buchhaltung hat doch überwiesen. Woher man es weiß (Pflicht), Bank-Referenz und Datum
+ * (freiwillig — dieselbe Regel wie auf der Seite der Buchhaltung), dann weiter zur TAN.
+ */
+function DochFormular({ id, satz, onWeiter, onAbbrechen }: {
+  id: string; satz: string; onWeiter: (d: DochDaten) => void; onAbbrechen: () => void;
+}) {
+  const [notiz, setNotiz] = useState("");
+  const [ref, setRef] = useState("");
+  const [wertAm, setWertAm] = useState("");
+  const refPruef = bankReferenzPruefen(ref);
+  const fehlt = Math.max(0, 3 - notiz.trim().length);
+  const geht = fehlt === 0 && refPruef.ok;
+  return (
+    <div className="bk-plan-grund bk-plan-doch" data-fiaon={`plan-doch-${id}`}>
+      <p className="bk-plan-doch-satz">{satz}</p>
+      <Feld id={`${id}-notiz`} l="Woher weißt du es?" hinweis={fehlt ? `noch ${fehlt} Zeichen — der Satz steht im Protokoll.` : "Der Satz steht im Protokoll."}>
+        <input id={`${id}-notiz`} value={notiz} maxLength={300} autoFocus autoComplete="off" placeholder="z. B. Antwort der Buchhaltung vom …"
+          onChange={(e) => setNotiz(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") onAbbrechen(); }} />
+      </Feld>
+      <Feld id={`${id}-ref`} l="Bank-Referenz (falls zur Hand)" hinweis={refPruef.ok ? "Freiwillig — hilft, die Überweisung eindeutig zuzuordnen." : refPruef.grund}>
+        <input id={`${id}-ref`} value={ref} maxLength={80} autoComplete="off" spellCheck={false} onChange={(e) => setRef(e.target.value)} />
+      </Feld>
+      <Feld id={`${id}-am`} l="Überwiesen am (falls bekannt)" hinweis="Freiwillig.">
+        <input id={`${id}-am`} type="date" value={wertAm} max={heute()} onChange={(e) => setWertAm(e.target.value)} />
+      </Feld>
+      <div className="bk-knopfreihe">
+        <Knopf art="primaer" zeichen="schloss" disabled={!geht} onClick={() => onWeiter({ notiz: notiz.trim(), bankReferenz: ref.trim(), wertAm })}>Weiter zur TAN</Knopf>
+        <Knopf art="still" onClick={onAbbrechen}>Abbrechen</Knopf>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE TAKT-PLATTE — das eine Navy-Glas: je laufendem Plan eine Zeile mit eigener Uhr und eigenem Knopf
 // ═══════════════════════════════════════════════════════════════════════════
 function TaktZeile({ p, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, onKonto }: {
   p: PlanZeile; versatz: number; laeuft: string | null;
-  onAusloesen: (p: PlanZeile) => void; onUhrNull: () => void; onFortsetzen: (p: PlanZeile) => void; onKonto: (p: PlanZeile) => void;
+  onAusloesen: (p: PlanZeile) => void; onUhrNull: (planId: number) => void; onFortsetzen: (p: PlanZeile) => void; onKonto: (p: PlanZeile) => void;
 }) {
   const z = p.zustand;
   const betrag = p.naechsterTeil?.betragCents ?? p.teilCents;
@@ -202,7 +249,7 @@ function TaktZeile({ p, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, o
           <i className={`bk-plan-punkt ${z}`} aria-hidden="true" />
           <span>{ZUSTAND[z].kurz}</span>
           <span className="bk-mono bk-plan-nr">{p.nummer}</span>
-          {p.ichBinEmpfaenger ? <span className="bk-plan-selbst">Selbst Empfängerin</span> : null}
+          {p.ichBinEmpfaenger ? <span className="bk-plan-selbst">Plan für dich</span> : null}
         </span>
         <span className="bk-plan-betrag">{geld(betrag)}</span>
         <span className="bk-plan-an">
@@ -211,13 +258,13 @@ function TaktZeile({ p, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, o
           {p.ibanMasked ? <> · Konto <span className="bk-mono">{p.ibanMasked}</span></> : null}
         </span>
         <div className="bk-plan-balken" aria-hidden="true"><i style={{ width: `${anteil}%` }} /></div>
-        <span className="bk-plan-fein">{p.ausgefuehrt.anzahl} von {p.anzahlTeile} ausgeführt · {geld(p.ausgefuehrt.cents)} von {geld(p.anspruchCents)}</span>
+        <span className="bk-plan-fein">{p.ausgefuehrt.anzahl} von {p.anzahlTeile} ausgeführt · {geld(p.ausgefuehrt.cents)} von {geld(p.anspruchCents - p.gekuerztCents)}</span>
       </div>
       <div className="bk-plan-rechts">
         {z === "wartet" ? (
           <>
             <span className="bk-plan-satz" id={grundId}>Nächster Teilbetrag ab {uhr(p.naechsteAb)} Uhr</span>
-            <PlanUhr key={p.naechsteAb} bis={p.naechsteAb} versatz={versatz} onNull={onUhrNull} />
+            <PlanUhr key={p.naechsteAb} bis={p.naechsteAb} versatz={versatz} onNull={() => onUhrNull(p.id)} />
             {p.letzteAusloesungAm ? (
               <span className="bk-plan-fein">Zuletzt ausgelöst um {uhr(p.letzteAusloesungAm)} Uhr{p.letzteAusloesungVonName ? ` von ${p.letzteAusloesungVonName}` : ""}.</span>
             ) : null}
@@ -244,27 +291,33 @@ function TaktZeile({ p, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, o
   );
 }
 
-function TaktPlatte({ plaene, inhaber, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, onKonto, onAnlegen }: {
-  plaene: PlanZeile[]; inhaber: boolean; versatz: number; laeuft: string | null;
-  onAusloesen: (p: PlanZeile) => void; onUhrNull: () => void; onFortsetzen: (p: PlanZeile) => void; onKonto: (p: PlanZeile) => void; onAnlegen: () => void;
+function TaktPlatte({ plaene, abgeschlossen, aeltereFertig, inhaber, versatz, laeuft, onAusloesen, onUhrNull, onFortsetzen, onKonto, onAnlegen }: {
+  plaene: PlanZeile[]; abgeschlossen: PlanZeile[]; aeltereFertig: boolean; inhaber: boolean; versatz: number; laeuft: string | null;
+  onAusloesen: (p: PlanZeile) => void; onUhrNull: (planId: number) => void; onFortsetzen: (p: PlanZeile) => void; onKonto: (p: PlanZeile) => void; onAnlegen: () => void;
 }) {
   return (
     <section className="bk-plan-takt" aria-label="Takt der Auszahlungspläne" data-fiaon="plan-takt">
       <Guilloche className="bk-plan-band" linien={18} />
-      {plaene.length === 0 ? (
+      {plaene.length === 0 && abgeschlossen.length === 0 ? (
         <div className="bk-plan-leer-takt">
           <span className="bk-plan-auge"><i className="bk-plan-punkt" aria-hidden="true" /><span>Auszahlungsplan</span></span>
-          <strong>Es läuft gerade kein Auszahlungsplan.</strong>
+          <strong>{aeltereFertig ? "Alle Auszahlungspläne sind abgeschlossen." : "Es läuft gerade kein Auszahlungsplan."}</strong>
           <span className="bk-plan-satz">
             {inhaber
               ? "Leg unten einen an — je Empfänger ein eigener Plan mit eigener Uhr, alle mit einer TAN."
-              : "Den legt der Inhaber an. Sobald es einen gibt, steht er hier mit seiner Uhr."}
+              : "Einen neuen legt der Inhaber an. Sobald es einen gibt, steht er hier mit seiner Uhr."}
           </span>
           {inhaber ? (
             <div><button type="button" className="bk-plan-hauptknopf" onClick={onAnlegen}><Zeichen n="plus" g={16} /><span>Plan anlegen</span></button></div>
           ) : null}
         </div>
-      ) : plaene.map((p) => (
+      ) : null}
+      {plaene.map((p) => (
+        <TaktZeile key={p.id} p={p} versatz={versatz} laeuft={laeuft}
+          onAusloesen={onAusloesen} onUhrNull={onUhrNull} onFortsetzen={onFortsetzen} onKonto={onKonto} />
+      ))}
+      {/* Frisch abgeschlossene Pläne bleiben als ruhige Zeile stehen — sonst stünde dort „es läuft keiner“, als wäre nie einer gelaufen. */}
+      {abgeschlossen.map((p) => (
         <TaktZeile key={p.id} p={p} versatz={versatz} laeuft={laeuft}
           onAusloesen={onAusloesen} onUhrNull={onUhrNull} onFortsetzen={onFortsetzen} onKonto={onKonto} />
       ))}
@@ -278,16 +331,22 @@ function TaktPlatte({ plaene, inhaber, versatz, laeuft, onAusloesen, onUhrNull, 
 interface Ausgeloest {
   planId: number; planNummer: string; auftragId: number; nummer: string; betragCents: number; empfaengerName: string;
   teilNr: number; anzahl: number; schon: boolean;
+  /** Wann ausgelöst (eigene Uhr) — ist der angezeigte Stand älter, sagt die Karte „lädt“ statt „nicht mehr offen“. */
+  am: number;
 }
 
-function ErgebnisKarte({ x, lage, versatz, laeuft, onFreigeben, onZu }: {
-  x: Ausgeloest; lage: PlanLage; versatz: number; laeuft: string | null; onFreigeben: (a: PlanAuftrag) => void; onZu: () => void;
+function ErgebnisKarte({ x, lage, lageAm, ladeFehler, versatz, laeuft, onFreigeben, onZu }: {
+  x: Ausgeloest; lage: PlanLage; lageAm: number; ladeFehler: string | null; versatz: number; laeuft: string | null;
+  onFreigeben: (a: PlanAuftrag) => void; onZu: () => void;
 }) {
   const zf = lage.zurFreigabe.find((a) => a.id === x.auftragId);
   const bb = lage.beiBuchhaltung.find((a) => a.id === x.auftragId);
   const aus = lage.ausgefuehrt.zeilen.find((a) => a.id === x.auftragId);
+  const kl = lage.inKlaerung.find((a) => a.id === x.auftragId);
   const plan = lage.plaene.find((p) => p.id === x.planId);
   const inhaber = lage.istInhaber;
+  // Der angezeigte Stand stammt von VOR der Auslösung (das Neuladen danach ging nicht) — dann ist „nicht gefunden“ kein Befund.
+  const standAlt = !!ladeFehler || lageAm < x.am;
   return (
     <section className="bk-karte bk-plan-ergebnis" data-fiaon="plan-ergebnis" aria-live="polite">
       <div className="bk-plan-ergebnis-kopf">
@@ -305,7 +364,7 @@ function ErgebnisKarte({ x, lage, versatz, laeuft, onFreigeben, onZu }: {
         zf.darfFreigeben ? (
           <div className="bk-plan-ergebnis-tun">
             <Knopf art="primaer" zeichen="schloss" disabled={laeuft !== null} onClick={() => onFreigeben(zf)}>
-              {inhaber ? "Selbst mit TAN freigeben" : "Jetzt mit TAN freigeben"}
+              {inhaber ? "Selbst mit TAN freigeben" : "Mit TAN freigeben"}
             </Knopf>
             <span className="bk-leise">
               {inhaber ? "Oder die Geschäftsführung gibt frei."
@@ -319,6 +378,10 @@ function ErgebnisKarte({ x, lage, versatz, laeuft, onFreigeben, onZu }: {
         </p>
       ) : aus ? (
         <p className="bk-plan-ergebnis-satz bk-gut-text"><Zeichen n="haken" g={14} /> Ausgeführt — der Beleg steht unter „Ausgeführt“.</p>
+      ) : kl ? (
+        <p className="bk-plan-ergebnis-satz">Zurückgerufen — der Teilbetrag ist in Klärung (Abschnitt „In Klärung nach Rückruf“).</p>
+      ) : standAlt ? (
+        <p className="bk-plan-ergebnis-satz">Angelegt — der aktuelle Stand lädt gerade nicht. Bitte oben „Aktualisieren“ drücken.</p>
       ) : (
         <p className="bk-plan-ergebnis-satz">Dieser Auftrag ist nicht mehr offen. Was mit ihm geschah, steht unten im Verlauf.</p>
       )}
@@ -329,14 +392,17 @@ function ErgebnisKarte({ x, lage, versatz, laeuft, onFreigeben, onZu }: {
 // ═══════════════════════════════════════════════════════════════════════════
 // JE EMPFÄNGER — Fortschritt, Konto, Altposten, Steuerung
 // ═══════════════════════════════════════════════════════════════════════════
-function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, setGrundOffen, onPausieren, onFortsetzen, onBeenden, onKonto, onHinweisMail }: {
+function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, setGrundOffen, onPausieren, onFortsetzen, onBeenden, onKonto, onHinweisMail, onAltpostenDoch }: {
   p: PlanZeile; inhaber: boolean; laeuft: string | null; hinweis?: Hinweis; onHinweisZu: () => void;
   grundOffen: string | null; setGrundOffen: (s: string | null) => void;
   onPausieren: (p: PlanZeile, grund: string) => Promise<void>; onFortsetzen: (p: PlanZeile) => void;
   onBeenden: (p: PlanZeile, grund: string) => void; onKonto: (p: PlanZeile) => void; onHinweisMail: (p: PlanZeile) => void;
+  onAltpostenDoch: (p: PlanZeile, o: PlanAltpostenAuftrag, d: DochDaten) => void;
 }) {
   const laeuftPlan = p.status === "aktiv" || p.status === "pausiert";
-  const anteil = p.anspruchCents > 0 ? Math.min(100, Math.round((p.ausgefuehrt.cents / p.anspruchCents) * 100)) : 0;
+  // Der Plan-Betrag: der Anspruch ohne das, was nach einem Rückruf doch außerhalb des Plans überwiesen wurde.
+  const planCents = p.anspruchCents - p.gekuerztCents;
+  const anteil = planCents > 0 ? Math.min(100, Math.round((p.ausgefuehrt.cents / planCents) * 100)) : 0;
   const letzter = p.anspruchCents - p.teilCents * (p.anzahlTeile - 1);
   const ausserhalb = altpostenZeilen(p.ausserhalb, "offen");
   const verrechnetZa = (p.altpostenDetail?.auftraege ?? []).map((o) => o.nummer);
@@ -353,16 +419,18 @@ function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, set
         </div>
         <div className="bk-plan-chips">
           <Chip art={ZUSTAND[p.zustand].art}>{ZUSTAND[p.zustand].text}</Chip>
-          {p.ichBinEmpfaenger ? <Chip art="tief" zeichen="person">Selbst Empfängerin</Chip> : null}
+          {p.ichBinEmpfaenger ? <Chip art="tief" zeichen="person">Plan für dich</Chip> : null}
         </div>
       </header>
 
       <div className="bk-plan-anspruch-zeile">
         <span className="bk-plan-anspruch">{geld(p.anspruchCents)}</span>
         <span className="bk-leise">
-          Anspruch · {letzter !== p.teilCents && p.anzahlTeile > 1
-            ? `${p.anzahlTeile - 1} × ${geld(p.teilCents)} + 1 × ${geld(letzter)}`
-            : `${p.anzahlTeile} × ${geld(p.teilCents)}`}
+          {p.gekuerztCents > 0
+            ? `Anspruch · davon ${geld(p.gekuerztCents)} außerhalb des Plans überwiesen · im Plan ${geld(planCents)} in ${mehrzahl(p.anzahlTeile, "Teilbetrag", "Teilbeträgen")}`
+            : `Anspruch · ${letzter !== p.teilCents && p.anzahlTeile > 1
+              ? `${p.anzahlTeile - 1} × ${geld(p.teilCents)} + 1 × ${geld(letzter)}`
+              : `${p.anzahlTeile} × ${geld(p.teilCents)}`}`}
         </span>
       </div>
       <div className="bk-plan-hellbalken" role="img" aria-label={`${p.ausgefuehrt.anzahl} von ${p.anzahlTeile} Teilbeträgen ausgeführt`}>
@@ -400,18 +468,30 @@ function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, set
         {verrechnetZa.length ? (
           <li><span>Geschlossene Aufträge</span><span className="bk-mono">{verrechnetZa.join(", ")}</span></li>
         ) : null}
+        {p.klaerung.anzahl > 0 ? (
+          <li className="bk-plan-zeile-warn">
+            <span>In Klärung</span>
+            <span><i className="bk-plan-warnpunkt" aria-hidden="true" />{mehrzahl(p.klaerung.anzahl, "Teilbetrag", "Teilbeträge")} · {geld(p.klaerung.cents)} nach einem Rückruf — der Inhaber klärt, ob die Buchhaltung schon überwiesen hat.</span>
+          </li>
+        ) : null}
+        {p.gekuerztCents > 0 ? (
+          <li>
+            <span>Gekürzt</span>
+            <span>um {geld(p.gekuerztCents)} — ein verrechneter Altposten ging trotz Rückruf außerhalb des Plans raus{p.entfallen.anzahl ? ` · ${mehrzahl(p.entfallen.anzahl, "Teilbetrag entfällt", "Teilbeträge entfallen")}` : ""}.</span>
+          </li>
+        ) : null}
         {laeuftPlan ? (
           <li>
             <span>Außerhalb des Plans</span>
             <span>
               {ausserhalb.length
                 ? <>{ausserhalb.join(" · ")} — das läuft ganz normal über „Auszahlungen“, nicht über diesen Plan.</>
-                : "Außerhalb des Plans ist gerade nichts offen."}
+                : "nichts offen"}
             </span>
           </li>
         ) : null}
         {p.selbstfreigaben > 0 ? (
-          <li><span>Selbstfreigaben</span><span>{mehrzahl(p.selbstfreigaben, "Teilbetrag", "Teilbeträge")} von der Empfängerin selbst mit TAN freigegeben</span></li>
+          <li><span>Selbstfreigaben</span><span>{mehrzahl(p.selbstfreigaben, "Teilbetrag", "Teilbeträge")} von der empfangenden Person selbst mit TAN freigegeben</span></li>
         ) : null}
         <li><span>Angelegt</span><span>von {p.angelegtVonName} am {tag(p.angelegtAm)} (mit TAN){p.grund ? ` · ${p.grund}` : ""}</span></li>
         {!laeuftPlan || p.status === "pausiert" ? (p.sperrGrund ? <li><span>Stand</span><span>{p.sperrGrund}</span></li> : null) : null}
@@ -427,6 +507,36 @@ function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, set
           </li>
         ) : null}
       </ul>
+
+      {p.altpostenAuftraege.length ? (
+        <div className="bk-plan-altauftraege" data-fiaon={`plan-altauftraege-${p.id}`}>
+          <span className="bk-plan-altauftraege-t">Beim Anlegen bei der Buchhaltung zurückgerufen</span>
+          {p.altpostenAuftraege.map((o) => (
+            <div key={o.id} className="bk-plan-altauftrag">
+              <div className="bk-plan-altauftrag-t">
+                <span><span className="bk-mono">{o.nummer}</span> · {geld(o.betragCents)}</span>
+                <span className="bk-leise">
+                  {o.dochAusgefuehrtAm
+                    ? `trotz Rückruf überwiesen — gebucht am ${tag(o.dochAusgefuehrtAm)}${o.dochAusgefuehrtVonName ? ` von ${o.dochAusgefuehrtVonName}` : ""}${o.bankReferenz ? ` · Bank-Referenz ${o.bankReferenz}` : ""}; der Plan ist um diesen Betrag gekürzt.`
+                    : o.auszahlungStatus === "ausgezahlt"
+                      ? "Die Auszahlung war schon vor dem Plan als überwiesen gebucht — sie steckt nicht im Plan; der Auftrag wurde nur geschlossen, damit sie nicht zweimal überwiesen wird."
+                      : "„Bitte NICHT ausführen“ ist raus. Meldet die Buchhaltung, dass sie schon überwiesen hatte, wird der Plan um diesen Betrag gekürzt."}
+                </span>
+              </div>
+              {o.darfDochUeberwiesen && grundOffen !== `doch-alt-${o.id}` ? (
+                <Knopf klein art="still" disabled={laeuft !== null} onClick={() => setGrundOffen(`doch-alt-${o.id}`)}>Buchhaltung hat doch überwiesen</Knopf>
+              ) : null}
+              {grundOffen === `doch-alt-${o.id}` ? (
+                <div className="bk-plan-reihe-voll">
+                  <DochFormular id={`alt-${o.id}`}
+                    satz={`${o.nummer} gilt dann als ausgezahlt, und ${p.nummer} wird um ${geld(o.betragCents)} gekürzt (Teilbeträge vom Ende her entfallen). Bestätigt wird mit TAN.`}
+                    onWeiter={(d) => onAltpostenDoch(p, o, d)} onAbbrechen={() => setGrundOffen(null)} />
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <HinweisZeile h={hinweis} onZu={onHinweisZu} />
       {grundOffen === `pause-${p.id}` ? (
@@ -459,10 +569,10 @@ function Anleitung({ buchhaltung }: { buchhaltung: string }) {
     <ol className="bk-plan-schritte">
       <li><div><strong>Auslösen.</strong> Steht in einer Zeile oben „Bereit“, drückst du dort „Teilbetrag auslösen“. Dabei entsteht genau ein Zahlungsauftrag. Empfänger, Betrag und Konto stehen fest im Plan — jeder Empfänger hat seinen eigenen Plan und seine eigene Uhr.</div></li>
       <li><div><strong>Warten.</strong> Danach ist der Knopf dieses Plans für die Wartezeit gesperrt (sie steht im Plan, meist 90 Minuten). Die Uhr zeigt, ab wann es weitergeht. Der Server zählt, nicht dein Browser. Die anderen Pläne laufen unabhängig weiter.</div></li>
-      <li><div><strong>Freigeben.</strong> Drück „Jetzt mit TAN freigeben“. Die TAN kommt per Mail, gilt 5 Minuten und passt nur zu diesem Teilbetrag. Stimmt in der Mail etwas nicht, gibst du sie nicht ein und lehnst ab. Du kannst die Freigabe auch dem Inhaber überlassen.</div></li>
+      <li><div><strong>Freigeben.</strong> Drück „Mit TAN freigeben“ — direkt nach dem Auslösen oder unter „Zur Freigabe“. Die TAN kommt per Mail, gilt 5 Minuten und passt nur zu diesem Teilbetrag. Stimmt in der Mail etwas nicht, gibst du sie nicht ein und lehnst ab. Du kannst die Freigabe auch dem Inhaber überlassen.</div></li>
       <li><div><strong>Buchhaltung.</strong> Mit der Freigabe geht der Auftrag automatisch an die Buchhaltung (<span className="bk-mono">{buchhaltung}</span>). Sie überweist per SEPA und bestätigt über ihren Link. Die Bank-Referenz gibt sie an, wenn sie sie zur Hand hat — Pflicht ist sie nicht.</div></li>
       <li><div><strong>Beleg.</strong> Erst nach ihrer Bestätigung steht „Ausgeführt“ da. Der Durchführungsbeleg kommt per Mail an die Person, die freigegeben hat, und steht unter „Ausgeführt“.</div></li>
-      <li><div><strong>Wenn etwas hakt.</strong> Liegt ein Auftrag länger als 2 Bankarbeitstage bei der Buchhaltung, drückst du „Erneut an die Buchhaltung“. Wirkt etwas falsch, drückst du „Pausieren“ (mit Grund) — dann steht der Plan still, bis der Inhaber fortsetzt. Nach 10 Minuten ohne Eingabe meldet dich das Banking ab. Jede Handlung steht im Verlauf.</div></li>
+      <li><div><strong>Wenn etwas hakt.</strong> Liegt ein Auftrag länger als 2 Bankarbeitstage bei der Buchhaltung, drückst du „Erneut an die Buchhaltung“. Wirkt etwas falsch, drückst du „Pausieren“ (mit Grund) — dann steht der Plan still, bis der Inhaber fortsetzt. Ruft der Inhaber einen Auftrag bei der Buchhaltung zurück, bleibt der Teilbetrag „in Klärung“, bis er weiß, ob sie schon überwiesen hatte. Nach 10 Minuten ohne Eingabe meldet dich das Banking ab. Jede Handlung steht mit Name und Uhrzeit im Protokoll unter „Sicherheit“.</div></li>
       <li><div><strong>Gut zu wissen.</strong> Beim Anlegen hat der Inhaber entschieden, ob offene Altposten des Empfängers (Vormerkungen, bestätigte Provisionen, angeforderte Auszahlungen) im Plan verrechnet wurden — das ist der Standard — oder zusätzlich bestehen blieben. Was gilt, steht bei jedem Empfänger. Neue Provisionen nach dem Anlegen laufen immer ganz normal über „Auszahlungen“.</div></li>
     </ol>
   );
@@ -535,8 +645,11 @@ function PlanAnlegen({ offen, setOffen, kastenRef, onAngelegt }: {
     }
     const empfaenger = ids.map((id) => {
       const name = daten.kandidaten.find((k) => k.agentId === id)?.name ?? `#${id}`;
-      const cents = centsAus(gewaehlt[id] ?? "");
-      if (!Number.isFinite(cents)) p.push(`Anspruch für ${name} fehlt.`);
+      const roh = gewaehlt[id] ?? "";
+      const cents = centsAus(roh);
+      // Leer und unlesbar sind zwei Sätze — „fehlt“ bei einer Eingabe schickt auf die falsche Suche.
+      if (!roh.trim()) p.push(`Anspruch für ${name} fehlt.`);
+      else if (!Number.isFinite(cents)) p.push(`Anspruch für ${name} ist nicht lesbar — bitte z. B. 1500 oder 1.500,00 schreiben.`);
       else if (cents < g.anspruchCents.min || cents > g.anspruchCents.max) p.push(`Anspruch für ${name} zwischen ${geld(g.anspruchCents.min)} und ${geld(g.anspruchCents.max)}.`);
       else if (Number.isFinite(teilCents) && teilCents > 0 && Math.ceil(cents / teilCents) > g.teile.max) p.push(`Für ${name} wären es mehr als ${g.teile.max} Teilbeträge — bitte den Teilbetrag erhöhen.`);
       return { agentId: id, anspruchCents: cents };
@@ -806,7 +919,12 @@ function VorschauBlock({ v, veraltet }: { v: PlanVorschau; veraltet: boolean }) 
 type TanFall =
   | { art: "freigabe"; a: PlanAuftrag }
   | { art: "ende"; plan: PlanZeile; grund: string }
-  | { art: "konto"; plan: PlanZeile };
+  | { art: "konto"; plan: PlanZeile }
+  | { art: "klaerung"; a: PlanAuftrag; d: DochDaten }
+  | { art: "altposten"; plan: PlanZeile; o: PlanAltpostenAuftrag; d: DochDaten };
+
+/** Frisch abgeschlossene Pläne bleiben so lange in der Takt-Platte stehen. */
+const ABGESCHLOSSEN_ZEIGEN_MS = 30 * 86_400_000;
 
 interface AusloesenAntwort {
   schon: boolean; auftrag: Auftrag; plan: { id: number; nummer: string }; teil: { nr: number; anzahl: number; betragCents: number }; naechsteAb: string;
@@ -815,11 +933,13 @@ interface AusloesenAntwort {
 export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
   /** Aus dem Hinweis-Link (…?reiter=auszahlungsplan&auftrag=ID): diese Zeile ansteuern und — wenn erlaubt — die Freigabe öffnen. */
   fokusAuftrag?: number | null;
-  /** Lädt die Lage der Hülle neu (Zähler am Menüpunkt, „Zu tun“). */
-  onNeu: () => void;
+  /** Lädt die Lage der Hülle neu (Zähler am Menüpunkt, „Zu tun“) — `hintergrund`: ohne Eingabe eines Menschen. */
+  onNeu: (hintergrund?: boolean) => void;
 }) {
   // AGENTS.md: alle Haken oben, vor dem ersten return.
   const [lage, setLage] = useState<PlanLage | null>(null);
+  /** Wann der angezeigte Stand geladen wurde (eigene Uhr). */
+  const [lageAm, setLageAm] = useState(0);
   const [versatz, setVersatz] = useState(0);
   const [ladeFehler, setLadeFehler] = useState<string | null>(null);
   const [langsam, setLangsam] = useState(false);
@@ -836,7 +956,8 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
   const [anlegenOffen, setAnlegenOffen] = useState(false);
   const anfrage = useRef(0);
   const seite = useRef(0);
-  const letzteUhrLadung = useRef(0);
+  /** Je Plan, wann seine Uhr zuletzt neu laden ließ — eine Bremse je Plan, nicht eine für alle (zwei Uhren enden oft kurz nacheinander). */
+  const letzteUhrLadung = useRef<Map<number, number>>(new Map());
   const fokusErledigt = useRef(false);
   const tanOffen = useRef(false);
   const onNeuRef = useRef(onNeu);
@@ -856,16 +977,17 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
     });
   }, []);
 
-  const laden = useCallback(async (neueSeite?: number) => {
+  /** `hintergrund`: ohne menschliche Eingabe (Takt, Sichtbarkeit) — verlängert die Banking-Sitzung nicht. */
+  const laden = useCallback(async (neueSeite?: number, hintergrund = false) => {
     if (typeof neueSeite === "number") seite.current = Math.max(0, neueSeite);
     const nr = ++anfrage.current;
     setLaedt(true);
     const grenze = window.setTimeout(() => { if (nr === anfrage.current) setLangsam(true); }, ZEITGRENZE_MS);
     try {
-      const j = await ruf<PlanLage>(`/buchhaltung/auszahlungsplan?seite=${seite.current}`);
+      const j = await ruf<PlanLage>(`/buchhaltung/auszahlungsplan?seite=${seite.current}`, { hintergrund });
       if (nr !== anfrage.current) return;
       const v = Date.parse(j.jetzt) - Date.now();
-      setLage(j); setVersatz(Number.isFinite(v) ? v : 0); setLadeFehler(null); setLangsam(false);
+      setLage(j); setLageAm(Date.now()); setVersatz(Number.isFinite(v) ? v : 0); setLadeFehler(null); setLangsam(false);
     } catch (e) {
       if (nr !== anfrage.current) return;
       setLadeFehler(fehlerText(e, "Der Auszahlungsplan konnte nicht geladen werden."));
@@ -875,17 +997,19 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
     }
   }, []);
   const nachAktion = useCallback(async () => { await laden(); onNeuRef.current(); }, [laden]);
-  const uhrAbgelaufen = useCallback(() => {
-    if (Date.now() - letzteUhrLadung.current < 10_000) return;
-    letzteUhrLadung.current = Date.now();
-    void nachAktion();
-  }, [nachAktion]);
+  const uhrAbgelaufen = useCallback((planId: number) => {
+    const zuletzt = letzteUhrLadung.current.get(planId) ?? 0;
+    if (Date.now() - zuletzt < 10_000) return;
+    letzteUhrLadung.current.set(planId, Date.now());
+    // Eine abgelaufene Uhr ist kein Lebenszeichen eines Menschen — die Sitzung verlängert das nicht.
+    void laden(undefined, true).then(() => onNeuRef.current(true));
+  }, [laden]);
 
   useEffect(() => { void laden(); }, [laden]);
   useEffect(() => { tanOffen.current = tanFall !== null; }, [tanFall]);
   useEffect(() => {
     // Neuer Stand, wenn der Reiter wieder sichtbar wird, und alle zwei Minuten — nie über einem offenen TAN-Dialog.
-    const auffrischen = () => { if (document.visibilityState === "visible" && !tanOffen.current) void laden(); };
+    const auffrischen = () => { if (document.visibilityState === "visible" && !tanOffen.current) void laden(undefined, true); };
     const takt = window.setInterval(auffrischen, AUFFRISCHEN_MS);
     document.addEventListener("visibilitychange", auffrischen);
     return () => { window.clearInterval(takt); document.removeEventListener("visibilitychange", auffrischen); };
@@ -896,7 +1020,8 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
     const zf = lage.zurFreigabe.find((a) => a.id === fokusAuftrag);
     const bb = lage.beiBuchhaltung.find((a) => a.id === fokusAuftrag);
     const aus = lage.ausgefuehrt.zeilen.find((a) => a.id === fokusAuftrag);
-    const a = zf ?? bb ?? aus;
+    const kl = lage.inKlaerung.find((a) => a.id === fokusAuftrag);
+    const a = zf ?? bb ?? kl ?? aus;
     if (!a) {
       sage("global", "info", "Der Auftrag aus dem Link ist nicht mehr offen — was mit ihm geschah, steht unten im Verlauf.");
       return;
@@ -913,10 +1038,11 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
     setLaeuft(`ausloesen-${p.id}`); vergiss(k);
     try {
       const j = await ruf<AusloesenAntwort>(`/buchhaltung/auszahlungsplan/${p.id}/ausloesen`, { body: {} });
+      const am = Date.now();
       await laden();
       setAusgeloest((liste) => [{
         planId: p.id, planNummer: j.plan.nummer, auftragId: j.auftrag.id, nummer: j.auftrag.nummer, betragCents: j.auftrag.betragCents,
-        empfaengerName: p.empfaengerName, teilNr: j.teil.nr, anzahl: j.teil.anzahl, schon: j.schon,
+        empfaengerName: p.empfaengerName, teilNr: j.teil.nr, anzahl: j.teil.anzahl, schon: j.schon, am,
       }, ...liste.filter((x) => x.planId !== p.id)]);
       onNeuRef.current();
     } catch (e) {
@@ -957,6 +1083,21 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
     }
   };
 
+  /** Klärung nach einem Rückruf: „nicht ausgeführt“ — der Teil wird wieder frei (nur der Inhaber, mit Grund). */
+  const klaerungNein = async (a: PlanAuftrag, grund: string) => {
+    setLaeuft(`klaerung-${a.id}`); vergiss("klaerung");
+    try {
+      await ruf(`/buchhaltung/auszahlungsplan/klaerung/${a.id}/nicht-ausgefuehrt`, { body: { grund } });
+      sage("klaerung", "gut", `${a.nummer}: als nicht ausgeführt bestätigt — Teilbetrag ${a.teilNr} ist wieder frei und geht mit der nächsten Auslösung neu raus.`);
+      setGrundOffen(null);
+    } catch (e) {
+      sage("klaerung", "fehler", `${a.nummer}: ${fehlerText(e, "Das ging nicht durch.")}`);
+    } finally {
+      setLaeuft(null);
+      void nachAktion();
+    }
+  };
+
   const oeffneAnlegen = () => {
     setAnlegenOffen(true);
     window.setTimeout(() => anlegenKasten.current?.scrollIntoView({ behavior: reduziert() ? "auto" : "smooth", block: "start" }), 60);
@@ -990,6 +1131,37 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
         },
       };
     }
+    if (f.art === "klaerung") {
+      const a = f.a, d = f.d;
+      const koerper = { notiz: d.notiz, bankReferenz: d.bankReferenz || null, wertAm: d.wertAm || null };
+      return {
+        schluessel: `klaerung-${a.id}`, titel: `${a.nummer} doch ausgeführt`, knopf: "Buchen",
+        anfordern: () => ruf<{ an: string; beschreibung: string }>(`/buchhaltung/auszahlungsplan/klaerung/${a.id}/tan`, { body: koerper }),
+        bestaetigen: async (t: string) => {
+          const j = await ruf<{ hinweis: string | null }>(`/buchhaltung/auszahlungsplan/klaerung/${a.id}/ausgefuehrt`, { body: { ...koerper, tan: t } });
+          setGrundOffen(null);
+          sage("klaerung", j.hinweis ? "warn" : "gut", j.hinweis
+            ? `${a.nummer}: „doch ausgeführt“ ist gebucht. ${j.hinweis}`
+            : `${a.nummer}: doch ausgeführt — die Auszahlung ist ausgebucht, Teilbetrag ${a.teilNr} zählt als ausgeführt.`);
+        },
+      };
+    }
+    if (f.art === "altposten") {
+      const p = f.plan, o = f.o, d = f.d;
+      const koerper = { notiz: d.notiz, bankReferenz: d.bankReferenz || null, wertAm: d.wertAm || null };
+      return {
+        schluessel: `altposten-${o.id}`, titel: `${o.nummer} doch überwiesen`, knopf: "Buchen und kürzen",
+        anfordern: () => ruf<{ an: string; beschreibung: string }>(`/buchhaltung/auszahlungsplan/${p.id}/altposten/${o.id}/tan`, { body: koerper }),
+        bestaetigen: async (t: string) => {
+          const j = await ruf<{ gekuerztCents: number; restCents: number; entfallen: number }>(
+            `/buchhaltung/auszahlungsplan/${p.id}/altposten/${o.id}/ueberwiesen`, { body: { ...koerper, tan: t } });
+          setGrundOffen(null);
+          sage(`plan-${p.id}`, j.restCents > 0 ? "warn" : "gut",
+            `${o.nummer} gilt als ausgezahlt. ${p.nummer} ist um ${geld(j.gekuerztCents)} gekürzt${j.entfallen ? ` (${mehrzahl(j.entfallen, "Teilbetrag entfällt", "Teilbeträge entfallen")})` : ""}.`
+            + `${j.restCents > 0 ? ` Im Plan war nicht genug offen — ${geld(j.restCents)} werden mit künftigen Provisionen verrechnet.` : ""}`);
+        },
+      };
+    }
     const p = f.plan;
     return {
       schluessel: `konto-${p.id}`, titel: `Neues Konto für ${p.nummer}`, knopf: "Konto übernehmen",
@@ -1020,6 +1192,9 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
   const inhaber = lage.istInhaber;
   const laufend = lage.plaene.filter((p) => p.status === "aktiv" || p.status === "pausiert");
   const andere = lage.plaene.filter((p) => p.status !== "aktiv" && p.status !== "pausiert");
+  const jetztMs = Date.parse(lage.jetzt);
+  const abgeschlossen = andere.filter((p) => p.status === "fertig" && (!p.statusAm || jetztMs - Date.parse(p.statusAm) < ABGESCHLOSSEN_ZEIGEN_MS));
+  const aeltereFertig = andere.some((p) => p.status === "fertig");
   const summe = (l: PlanAuftrag[]) => l.reduce((s, a) => s + a.betragCents, 0);
   const seiten = Math.max(1, Math.ceil(lage.ausgefuehrt.gesamt / Math.max(1, lage.ausgefuehrt.proSeite)));
   const td = tanFall ? tanDaten(tanFall) : null;
@@ -1045,7 +1220,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
       {langsam && !ladeFehler ? <Meldung art="warn">Der Auszahlungsplan antwortet gerade langsam — angezeigt ist der Stand von {uhr(lage.jetzt)} Uhr.</Meldung> : null}
       <HinweisZeile h={hinweise.global} onZu={() => vergiss("global")} />
 
-      <TaktPlatte plaene={laufend} inhaber={inhaber} versatz={versatz} laeuft={laeuft}
+      <TaktPlatte plaene={laufend} abgeschlossen={abgeschlossen} aeltereFertig={aeltereFertig} inhaber={inhaber} versatz={versatz} laeuft={laeuft}
         onAusloesen={(p) => void ausloesen(p)} onUhrNull={uhrAbgelaufen}
         onFortsetzen={(p) => void planTun(p, "weiter", {}, `${p.nummer} läuft wieder.`, `takt-${p.id}`)}
         onKonto={(p) => setTanFall({ art: "konto", plan: p })}
@@ -1054,7 +1229,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
       {/* Je Plan die Meldung zum Auslösen — auch für einen Plan, der dabei gerade fertig geworden ist. */}
       {lage.plaene.map((p) => (hinweise[`takt-${p.id}`] ? <HinweisZeile key={p.id} h={hinweise[`takt-${p.id}`]} onZu={() => vergiss(`takt-${p.id}`)} /> : null))}
       {ausgeloest.map((x) => (
-        <ErgebnisKarte key={x.planId} x={x} lage={lage} versatz={versatz} laeuft={laeuft}
+        <ErgebnisKarte key={x.planId} x={x} lage={lage} lageAm={lageAm} ladeFehler={ladeFehler} versatz={versatz} laeuft={laeuft}
           onFreigeben={(a) => setTanFall({ art: "freigabe", a })}
           onZu={() => setAusgeloest((l) => l.filter((y) => y.planId !== x.planId))} />
       ))}
@@ -1124,7 +1299,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                     {teilZeile(a)} · {a.beiBuchhaltungSeit ? `bei der Buchhaltung ${seitText(a.beiBuchhaltungSeit, versatz)}` : "noch nicht übermittelt"}
                     {a.entschiedenAm ? ` · freigegeben ${zeit(a.entschiedenAm)} Uhr${a.entschiedenVon === lage.ich.email ? " von dir" : a.entschiedenVonName ? ` von ${a.entschiedenVonName}` : ""}` : ""}
                     {a.freigabeArt === "einzel" ? " (Einzelzeichnung)" : a.freigabeArt === "vier_augen" ? " (vier Augen)" : ""}
-                    {a.selbstfreigabe ? " · Selbstfreigabe der Empfängerin" : ""}
+                    {a.selbstfreigabe ? " · Selbstfreigabe der empfangenden Person" : ""}
                   </span>
                   {a.ueberfaellig ? <span className="bk-plan-grundtext">Länger als 2 Bankarbeitstage offen — erneut an die Buchhaltung senden oder dort nachfragen.</span> : null}
                   {!a.externGesendetAm ? <span className="bk-plan-grundtext">Freigegeben, aber noch nicht bei der Buchhaltung angekommen.</span> : null}
@@ -1142,10 +1317,10 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                 {grundOffen === `zurueckrufen-${a.id}` ? (
                   <div className="bk-plan-reihe-voll">
                     <GrundEingabe id={`bk-plan-rueckruf-${a.id}`} label={`Warum wird ${a.nummer} zurückgerufen?`} knopf="Zurückrufen"
-                      hinweis="Der Link der Buchhaltung wird ungültig, sie bekommt „Bitte NICHT ausführen“. Der Teilbetrag geht zurück in den Plan."
+                      hinweis="Der Link der Buchhaltung wird ungültig, sie bekommt „Bitte NICHT ausführen“. Der Teilbetrag bleibt in Klärung, bis du weißt, ob sie schon überwiesen hatte."
                       onSenden={(g) => auftragTun(a, "buchhaltung", "zurueckrufen", { grund: g }, (j) => (j?.mail === false
                         ? { art: "warn", text: j?.hinweis || `${a.nummer} ist zurückgerufen, aber die Mail an die Buchhaltung ging nicht raus — bitte direkt Bescheid geben.` }
-                        : { art: "gut", text: `${a.nummer} ist zurückgerufen: Der Link der Buchhaltung ist ungültig, die Mail „Bitte NICHT ausführen“ ist raus. Der Teilbetrag geht zurück in den Plan.` }))}
+                        : { art: "gut", text: `${a.nummer} ist zurückgerufen: Der Link der Buchhaltung ist ungültig, die Mail „Bitte NICHT ausführen“ ist raus. Der Teilbetrag steht jetzt unter „In Klärung nach Rückruf“.` }))}
                       onAbbrechen={() => setGrundOffen(null)} />
                   </div>
                 ) : null}
@@ -1154,6 +1329,58 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
           </div>
         )}
       </section>
+
+      {/* ── In Klärung nach Rückruf — nur, wenn es etwas zu klären gibt ── */}
+      {lage.inKlaerung.length ? (
+        <section className="bk-karte bk-plan-klaerung" data-fiaon="plan-klaerung">
+          <header className="bk-karte-kopf">
+            <h2>In Klärung nach Rückruf</h2>
+            <span className="bk-leise">{lage.inKlaerung.length} · {geld(summe(lage.inKlaerung))}</span>
+          </header>
+          <p className="bk-plan-leer">
+            Diese Teilbeträge wurden bei der Buchhaltung zurückgerufen. Sie werden nicht neu ausgelöst, bis klar ist, ob die
+            Buchhaltung schon überwiesen hatte — sie antwortet dazu auf die Mail „Bitte NICHT ausführen“.{inhaber ? "" : " Die Klärung bucht der Inhaber."}
+          </p>
+          <HinweisZeile h={hinweise.klaerung} onZu={() => vergiss("klaerung")} />
+          <div className="bk-plan-liste">
+            {lage.inKlaerung.map((a) => (
+              <div key={a.id} id={`bk-plan-auftrag-${a.id}`} className={reiheKlasse(a)}>
+                <div className="bk-plan-reihe-t">
+                  <strong><i className="bk-plan-warnpunkt" aria-hidden="true" /><span className="bk-mono">{a.nummer}</span> · {geld(a.betragCents)} an {a.empfaengerName}</strong>
+                  <span className="bk-leise">
+                    {teilZeile(a)} · zurückgerufen {a.zurueckgerufenAm ? `${zeit(a.zurueckgerufenAm)} Uhr` : ""}
+                    {a.zurueckgerufenVon ? ` von ${a.zurueckgerufenVon === lage.ich.email ? "dir" : "dem Inhaber"}` : ""}
+                    {a.rueckrufGrund ? ` · ${a.rueckrufGrund}` : ""}
+                  </span>
+                  {a.dochAusgefuehrtAm ? <span className="bk-plan-grundtext">„Doch ausgeführt“ ist gebucht — die Ausbuchung läuft; der Reiter holt sie beim nächsten Laden nach.</span> : null}
+                </div>
+                <div className="bk-plan-reihe-k">
+                  {a.darfKlaeren && grundOffen !== `klaerung-nein-${a.id}` && grundOffen !== `klaerung-ja-${a.id}` ? (
+                    <>
+                      <Knopf klein disabled={laeuft !== null} onClick={() => setGrundOffen(`klaerung-nein-${a.id}`)}>Nicht ausgeführt</Knopf>
+                      <Knopf klein art="primaer" zeichen="schloss" disabled={laeuft !== null} onClick={() => setGrundOffen(`klaerung-ja-${a.id}`)}>Doch ausgeführt</Knopf>
+                    </>
+                  ) : null}
+                </div>
+                {grundOffen === `klaerung-nein-${a.id}` ? (
+                  <div className="bk-plan-reihe-voll">
+                    <GrundEingabe id={`bk-plan-klaerung-${a.id}`} label={`Woher weißt du, dass ${a.nummer} nicht überwiesen wurde?`} knopf="Teil wieder freigeben" art="primaer"
+                      hinweis="Die Auszahlung wird abgelehnt, der Teilbetrag ist wieder frei und geht mit der nächsten Auslösung neu raus."
+                      onSenden={(g) => klaerungNein(a, g)} onAbbrechen={() => setGrundOffen(null)} />
+                  </div>
+                ) : null}
+                {grundOffen === `klaerung-ja-${a.id}` ? (
+                  <div className="bk-plan-reihe-voll">
+                    <DochFormular id={`kl-${a.id}`}
+                      satz={`Die Buchhaltung hat ${a.nummer} trotz Rückruf überwiesen: Die Auszahlung wird ausgebucht, Teilbetrag ${a.teilNr} zählt als ausgeführt. Bestätigt wird mit TAN.`}
+                      onWeiter={(d) => setTanFall({ art: "klaerung", a, d })} onAbbrechen={() => setGrundOffen(null)} />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* ── Je Empfänger ── */}
       <section className="bk-plan-leute" data-fiaon="plan-leute" aria-label="Je Empfänger">
@@ -1170,7 +1397,8 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                 onFortsetzen={(q) => void planTun(q, "weiter", {}, `${q.nummer} läuft wieder.`)}
                 onBeenden={(q, g) => { setGrundOffen(null); setTanFall({ art: "ende", plan: q, grund: g }); }}
                 onKonto={(q) => setTanFall({ art: "konto", plan: q })}
-                onHinweisMail={(q) => void planTun(q, "hinweis", { an: !q.hinweisAnInhaber }, `Hinweis-Mail für ${q.nummer} ${q.hinweisAnInhaber ? "ausgeschaltet" : "eingeschaltet"}.`)} />
+                onHinweisMail={(q) => void planTun(q, "hinweis", { an: !q.hinweisAnInhaber }, `Hinweis-Mail für ${q.nummer} ${q.hinweisAnInhaber ? "ausgeschaltet" : "eingeschaltet"}.`)}
+                onAltpostenDoch={(q, o, d) => setTanFall({ art: "altposten", plan: q, o, d })} />
             ))}
           </div>
         )}
@@ -1192,7 +1420,14 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                 <div key={a.id} id={`bk-plan-auftrag-${a.id}`} className={reiheKlasse(a)}>
                   <div className="bk-plan-reihe-t">
                     <strong><span className="bk-mono">{a.nummer}</span> · {geld(a.betragCents)} an {a.empfaengerName}</strong>
-                    <span className="bk-leise">{teilZeile(a)} · überwiesen am {tag(a.externWertAm ?? a.ausgefuehrtAm)}{a.externBestaetigtAm ? ` · bestätigt ${zeit(a.externBestaetigtAm)} Uhr` : ""}</span>
+                    {a.dochAusgefuehrtAm ? (
+                      <span className="bk-leise">
+                        {teilZeile(a)} · nach dem Rückruf doch überwiesen{a.externWertAm ? ` am ${tag(a.externWertAm)}` : ""} — vom Inhaber mit TAN gebucht am {tag(a.dochAusgefuehrtAm)}
+                        {a.dochAusgefuehrtNotiz ? ` · ${a.dochAusgefuehrtNotiz}` : ""}
+                      </span>
+                    ) : (
+                      <span className="bk-leise">{teilZeile(a)} · überwiesen am {tag(a.externWertAm ?? a.ausgefuehrtAm)}{a.externBestaetigtAm ? ` · bestätigt ${zeit(a.externBestaetigtAm)} Uhr` : ""}</span>
+                    )}
                     <span className="bk-leise">
                       {a.externBankReferenz ? <>Bank-Referenz <span className="bk-mono">{a.externBankReferenz}</span></> : "ohne Bank-Referenz der Buchhaltung"}
                       {a.bankReferenz ? <> · FIAON-Referenz <span className="bk-mono">{a.bankReferenz}</span></> : null}
@@ -1200,14 +1435,19 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                       {a.selbstfreigabe ? " (Selbstfreigabe)" : ""}
                     </span>
                   </div>
-                  <div className="bk-plan-reihe-k">
-                    <KnopfLink href={`/api/fiaon/buchhaltung/auftrag/${a.id}/bestaetigung.pdf`} zeichen="pdf" klein>Durchführungsbeleg</KnopfLink>
-                    <Knopf klein art="still" disabled={laeuft !== null}
-                      onClick={() => void auftragTun(a, "erledigt", "beleg-senden", {},
-                        () => ({ art: "gut", text: `Der Durchführungsbeleg zu ${a.nummer} ist erneut an die Person gegangen, die freigegeben hat.` }))}>
-                      {laeuft === `beleg-senden-${a.id}` ? "Sende …" : "Beleg erneut senden"}
-                    </Knopf>
-                  </div>
+                  {a.status === "ausgefuehrt" ? (
+                    <div className="bk-plan-reihe-k">
+                      <KnopfLink href={`/api/fiaon/buchhaltung/auftrag/${a.id}/bestaetigung.pdf`} zeichen="pdf" klein>Durchführungsbeleg</KnopfLink>
+                      <Knopf klein art="still" disabled={laeuft !== null}
+                        onClick={() => void auftragTun(a, "erledigt", "beleg-senden", {},
+                          () => ({ art: "gut", text: `Der Durchführungsbeleg zu ${a.nummer} ist erneut an die Person gegangen, die freigegeben hat.` }))}>
+                        {laeuft === `beleg-senden-${a.id}` ? "Sende …" : "Beleg erneut senden"}
+                      </Knopf>
+                    </div>
+                  ) : (
+                    // Nach einem Rückruf hat die Buchhaltung nichts über ihren Link bestätigt — dafür gibt es keinen Durchführungsbeleg.
+                    <div className="bk-plan-reihe-k"><span className="bk-leise">ohne Durchführungsbeleg</span></div>
+                  )}
                 </div>
               ))}
             </div>

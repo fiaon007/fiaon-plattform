@@ -42,7 +42,10 @@ export function tagesKopf(iso: string): string {
 export function centsAus(eingabe: string): number {
   const s = String(eingabe || "").trim().replace(/\s|€/g, "");
   if (!s) return NaN;
-  const norm = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
+  // E-484: „1.500“ (deutsch, ohne Komma) ist eintausendfünfhundert — ein Punkt mit genau drei Ziffern danach ist ein
+  // Tausenderpunkt. Für Geld gibt es keine drei Nachkommastellen; vorher wurde daraus „nicht lesbar“.
+  const tausender = !s.includes(",") && /^-?\d{1,3}(\.\d{3})+$/.test(s);
+  const norm = s.includes(",") || tausender ? s.replace(/\./g, "").replace(",", ".") : s;
   if (!/^-?\d+(\.\d{1,2})?$/.test(norm)) return NaN;
   return Math.round(Number(norm) * 100);
 }

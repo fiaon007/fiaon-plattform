@@ -933,11 +933,13 @@ export const RUNDGANG_WALLET: RundgangSchritt[] = [
   {
     // E-484 (06.11.2026) mitgezogen: die Karte „Dein Auszahlungsplan“ unter „Auszahlung“. Ohne Ziel — sie erscheint
     // nur bei den Menschen, für die ein Plan angelegt ist (Rundgang-Pflege: bedingt Sichtbares bekommt kein ziel).
-    titel: "Dein Auszahlungsplan — falls es einen gibt.",
-    text: "Hat die Geschäftsleitung für dich einen Auszahlungsplan angelegt, steht er unter „Auszahlung“ als eigene Karte: "
+    // Nachbesserung E-484: neutral gehalten — der Schritt geht an alle; ob es für jemanden einen Plan gibt, steht nur in
+    // seiner eigenen Karte.
+    titel: "Feste Auszahlungen in Teilbeträgen.",
+    text: "Wird mit dir eine feste Auszahlung in Teilbeträgen vereinbart, steht sie unter „Auszahlung“ als eigene Karte: "
       + "der zugesagte Betrag, was schon überwiesen ist, was unterwegs ist und was noch offen ist. Die Buchhaltung überweist "
       + "jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Alle zehn ausgeführten "
-      + "Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht. "
+      + "Teilbeträge kommt eine Sammelmail mit den Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht. "
       + "Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte — und sie zählen nicht als "
       + "Verdienst: nicht in den Kacheln unter „Guthaben & Provisionen“, nicht in „Provisionen je Rate“, nicht im Monatsziel.",
     tipp: "Neue Provisionen laufen daneben ganz normal über dein Guthaben — der Plan ändert daran nichts.",
@@ -970,14 +972,14 @@ export const RUNDGANG_AUSZAHLUNGSPLAN: RundgangSchritt[] = [
     ziel: ".bk-plan-ausloesen",
     titel: "Teilbetrag auslösen.",
     text: "Ein Klick legt genau einen Zahlungsauftrag an: den nächsten Teilbetrag dieses Plans, an das Konto aus dem Plan. "
-      + "Danach ist der Knopf für die Wartezeit gesperrt, und darunter steht der neue Auftrag mit „Jetzt mit TAN freigeben“.",
+      + "Danach ist der Knopf für die Wartezeit gesperrt, und darunter steht der neue Auftrag mit „Mit TAN freigeben“.",
   },
   {
     ziel: ".bk-plan-freigabe",
     titel: "Freigeben mit TAN.",
     text: "Die TAN kommt per Mail, gilt 5 Minuten und passt nur zu diesem einen Teilbetrag. Du kannst die Freigabe auch "
-      + "dem Inhaber überlassen — er bekommt nach jeder Auslösung einen Hinweis. Mit der Freigabe geht der Auftrag "
-      + "automatisch an die Buchhaltung.",
+      + "dem Inhaber überlassen — ist seine Hinweis-Mail im Plan eingeschaltet, bekommt er nach deiner Auslösung eine Mail. "
+      + "Mit der Freigabe geht der Auftrag automatisch an die Buchhaltung.",
     tipp: "Stimmt in der TAN-Mail etwas nicht — Betrag, Empfänger, Konto —, gib die TAN nicht ein und lehne ab.",
   },
   {
@@ -1004,7 +1006,9 @@ export const RUNDGANG_AUSZAHLUNGSPLAN: RundgangSchritt[] = [
     titel: "Gut zu wissen.",
     text: "Wirkt etwas falsch, pausierst du den Plan mit einem Grund — dann wird nichts ausgelöst und nichts freigegeben, "
       + "bis der Inhaber fortsetzt. Anlegen, Fortsetzen, Beenden und ein neues Konto bestätigen darf nur der Inhaber. "
-      + "Nach 10 Minuten ohne Eingabe meldet dich das Banking ab, und jede Handlung steht im Verlauf.",
+      + "Ruft er einen Auftrag bei der Buchhaltung zurück, bleibt der Teilbetrag „in Klärung“, bis klar ist, ob sie schon "
+      + "überwiesen hatte. Nach 10 Minuten ohne Eingabe meldet dich das Banking ab, und jede Handlung steht mit Name und "
+      + "Uhrzeit im Protokoll unter „Sicherheit“.",
     tipp: "Die ganze Anleitung steht unten unter „So funktioniert die Auszahlung“.",
   },
 ];

@@ -5,6 +5,45 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Nachbesserung nach vier Prüfungen): Auszahlungsplan — Verrechnung hält dauerhaft, Rückruf mit Klärung
+
+- **Warum:** Vier Prüfer (Geld, Rechte/öffentliches Repo, Oberfläche, Rückfall) haben den Bau gelesen und nachgestellt. Der
+  wichtigste Befund: Verrechnete Altposten kamen über einen zweiten Durchlauf derselben Kundenzahlung zurück (Nachbuchungs-Center,
+  Kontoabgleich, „Override nachtragen“) und wären zusätzlich zum Plan ausgezahlt worden. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Verrechnet ist dauerhaft.** Jede beim Anlegen geschlossene Vormerkung, Provision und jeder Auftrag trägt den Plan als Merker.
+    Neue Buchung derselben Zahlung (onCustomerPaid, Raten, Inkasso-Prämie, Nachbuchungs-Center, „buchen“, „Override nachtragen“,
+    Nachbuchen) erkennt ihn und legt nichts an; ein zweiter Datenbank-Index verhindert eine neue Vormerkung derselben Zahlung.
+    Erstattet ein Kunde später, entsteht wie nach einer Auszahlung eine Gegenbuchung (einmal je Posten).
+  - **Nachbuchen** läuft jetzt in einer Transaktion mit Zeilensperre — gleichzeitige Klicks können eine verrechnete Vormerkung
+    nicht mehr überschreiben.
+  - **Rückruf mit Klärung:** Ein bei der Buchhaltung zurückgerufener Teilbetrag wird nicht sofort neu ausgelöst, sondern steht
+    „in Klärung“, bis der Inhaber bestätigt: „nicht ausgeführt“ (Teil wieder frei) oder „doch ausgeführt“ (mit TAN — ausgebucht,
+    Teil fertig); „Zu tun“ in der Übersicht und der Zähler am Menüpunkt erinnern den Inhaber daran. Meldet die Buchhaltung,
+    dass ein beim Anlegen zurückgerufener Altposten schon überwiesen war, bucht der Inhaber
+    das mit TAN: die alte Auszahlung gilt als ausgezahlt, der Plan wird um genau diesen Betrag gekürzt (Teile vom Ende her
+    entfallen, nichts gelöscht; reicht der offene Rest nicht, wird der Unterschied mit künftigen Provisionen verrechnet).
+  - **Bank-Referenz:** verglichen wird der Kern (Großschrift, nur Buchstaben und Ziffern) — „AB 1234“ und „ab-1234“ sind dieselbe.
+    Die SEPA-Zeichen ( ) ? ' sind erlaubt; die Seite der Buchhaltung prüft mit derselben Regel schon beim Tippen
+    (shared/fiaon-bankreferenz.ts). Interne Hinweise nach einer Bestätigung gehen ins Protokoll und an den Inhaber, nicht mehr auf
+    die Seite der Buchhaltung.
+  - **Selbstheilung:** Bricht die Ausbuchung nach der Bestätigung ab, holt der Reiter sie beim nächsten Öffnen nach.
+  - **Oberfläche:** jede Uhr lädt für sich neu (die zweite blieb sonst bei 0:00 stehen); abgeschlossene Pläne bleiben als ruhige
+    Zeile stehen; Abrufe im Hintergrund verlängern die Banking-Sitzung nicht mehr; ein Link aus einer Mail fokussiert nur den
+    Reiter, den er nennt; ein Betrag mit Tausenderpunkt ohne Komma (z. B. „1.500“) wird richtig gelesen; der Grund-Zähler zeigt die fehlenden Zeichen auch bei eigenem
+    Hinweis; die Übersicht zählt nur Teilbeträge, die man freigeben kann; Warnsätze in normaler Schrift mit Punkt;
+    Beleg-Mail und Anleitung nennen den richtigen Ort und Knopf; neutrale Texte ohne Person („Plan für dich“, „empfangende Person“).
+  - **Öffentliches Repo:** Zahlen aus dem Auftrag aus Kommentaren entfernt, Prüfbeträge im Prüfstand neu gewählt; die
+    Neuigkeit und der Wallet-Rundgang für alle sind neutral gehalten.
+  - **Prüfstand pruef-beleg-zwingend:** erkennt das abgewartete `generateCommissionStatement(id, { leise })` wieder (vorher
+    fälschlich rot, obwohl weiter gewartet wird).
+- **Wo:** server/lib/fiaon-auszahlungsplan.ts, server/lib/fiaon-buchhaltung.ts, server/lib/fiaon-provision-automatik.ts,
+  server/lib/fiaon-inkasso.ts, server/routes/fiaon-agent.ts, server/routes/fiaon-team.ts, server/routes/fiaon-provisionen.ts,
+  server/routes/fiaon-buchhaltung.ts, shared/fiaon-bankreferenz.ts, client/src/pages/banking/ (auszahlungsplan, index,
+  uebersicht, api, format), client/src/pages/auszahlung-ausfuehren.tsx, client/src/pages/agent/ (wallet, rundgaenge,
+  updates-data), client/src/styles/banking.css, scripts/pruef-auszahlungsplan.ts (neu: T23 Verrechnung hält, T24 Altposten
+  doch überwiesen, Klärung nach Rückruf), scripts/pruef-beleg-zwingend.ts.
+
 ## 06.11.2026 — E-484 (Teil 4b, Zusammenführung und Sichtprüfung): Auszahlungsplan — im Browser geprüft, Mängel behoben
 
 - **Warum:** Oberfläche (Teil 3) und Server-Tests (Teil 4a) sind parallel entstanden. Was ein Mensch wirklich sieht, zeigt erst

@@ -41,7 +41,8 @@ import {
   planLage, planKandidaten, planEingabeLesen, planVorschau, planTanAnfordern, planAnlegen, teilAusloesen,
   planPausieren, planFortsetzen, planEndeTanAnfordern, planBeenden, planKontoTanAnfordern, planKontoBestaetigen,
   planHinweisSetzen, VORGABE_TEIL_CENTS, VORGABE_ABSTAND_MIN, VORGABE_MAX_OFFEN, GRENZEN,
-  type PlanFehler, type PlanVorschau,
+  planKlaerungNichtAusgefuehrt, planKlaerungTanAnfordern, planKlaerungAusgefuehrt, altpostenDochTanAnfordern, altpostenDochUeberwiesen,
+  dochEingabeLesen, type PlanFehler, type PlanVorschau,
 } from "../lib/fiaon-auszahlungsplan";
 import { sqlPool } from "../lib/db-pool";
 import { tageslauf } from "../lib/fiaon-crons";
@@ -337,6 +338,9 @@ async function planKurzlage(ich: BuchPerson) {
       darfFreigeben: l.zurFreigabe.filter((a) => a.darfFreigeben).length,
       beiBuchhaltung: l.beiBuchhaltung.length,
       ueberfaellig: l.beiBuchhaltung.filter((a) => a.ueberfaellig).length,
+      // Nachbesserung E-484: nach einem Rückruf in Klärung — „Zu tun“ für den Inhaber.
+      inKlaerung: l.inKlaerung.length,
+      darfKlaeren: l.inKlaerung.filter((a) => a.darfKlaeren).length,
       auftraegeLaufend: zahlen.auftraegeLaufend,
       auszahlungenOffen: zahlen.auszahlungenOffen,
       auszahlungenOffenCents: zahlen.auszahlungenOffenCents,
@@ -1002,6 +1006,72 @@ router.post("/buchhaltung/auszahlungsplan/:id/konto", requireBuch("inhaber"), as
   } catch (err) { fehler(res, "auszahlungsplan konto")(err); }
 });
 
+// ── Nach einem Rückruf (Nachbesserung E-484): Klärung eines Teilbetrags, „doch überwiesen“ bei einem Altposten ──
+/**
+ * Inhaber: Ein zurückgerufener Teilbetrag wurde von der Buchhaltung NICHT überwiesen — der Teil wird wieder frei (Grund).
+ */
+router.post("/buchhaltung/auszahlungsplan/klaerung/:auftragId/nicht-ausgefuehrt", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.auftragId);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Auftrag nicht gefunden." });
+    const erg = await planKlaerungNichtAusgefuehrt(id, req.buch!, text((req.body as any)?.grund, 300));
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, planNummer: erg.planNummer, nr: erg.nr });
+  } catch (err) { fehler(res, "klaerung nicht ausgefuehrt")(err); }
+});
+
+/** Inhaber: TAN anfordern, um einen zurückgerufenen Teilbetrag als „doch ausgeführt“ zu buchen. */
+router.post("/buchhaltung/auszahlungsplan/klaerung/:auftragId/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.auftragId);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Auftrag nicht gefunden." });
+    const ein = dochEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const erg = await planKlaerungTanAnfordern(id, req.buch!, ein.ein);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, an: erg.an, beschreibung: erg.beschreibung });
+  } catch (err) { fehler(res, "klaerung tan")(err); }
+});
+
+/** Inhaber: „doch ausgeführt“ mit TAN — Auszahlung ausgebucht, Teilbetrag fertig. */
+router.post("/buchhaltung/auszahlungsplan/klaerung/:auftragId/ausgefuehrt", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const id = planIdAus(req.params.auftragId);
+    if (!id) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Auftrag nicht gefunden." });
+    const ein = dochEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const erg = await planKlaerungAusgefuehrt(id, req.buch!, String((req.body as any)?.tan || ""), ein.ein);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, planNummer: erg.planNummer, nr: erg.nr, hinweis: erg.hinweis });
+  } catch (err) { fehler(res, "klaerung ausgefuehrt")(err); }
+});
+
+/** Inhaber: TAN anfordern — ein beim Anlegen verrechneter Altposten wurde trotz Rückruf überwiesen. */
+router.post("/buchhaltung/auszahlungsplan/:id/altposten/:auftragId/tan", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const planId = planIdAus(req.params.id), auftragId = planIdAus(req.params.auftragId);
+    if (!planId || !auftragId) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Nicht gefunden." });
+    const ein = dochEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const erg = await altpostenDochTanAnfordern(planId, auftragId, req.buch!, ein.ein);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, an: erg.an, beschreibung: erg.beschreibung });
+  } catch (err) { fehler(res, "altposten doch tan")(err); }
+});
+
+/** Inhaber (mit TAN): verrechneter Altposten doch überwiesen — alte Auszahlung ausgezahlt, Plan um den Betrag gekürzt. */
+router.post("/buchhaltung/auszahlungsplan/:id/altposten/:auftragId/ueberwiesen", requireBuch("inhaber"), async (req: BuchRequest, res: Response) => {
+  try {
+    const planId = planIdAus(req.params.id), auftragId = planIdAus(req.params.auftragId);
+    if (!planId || !auftragId) return res.status(404).json({ ok: false, code: "NICHT_GEFUNDEN", error: "Nicht gefunden." });
+    const ein = dochEingabeLesen(req.body);
+    if (!ein.ok) return planFehlerSenden(res, ein);
+    const erg = await altpostenDochUeberwiesen(planId, auftragId, req.buch!, String((req.body as any)?.tan || ""), ein.ein);
+    if (!erg.ok) return planFehlerSenden(res, erg);
+    res.json({ ok: true, gekuerztCents: erg.gekuerztCents, restCents: erg.restCents, entfallen: erg.entfallen, planNummer: erg.planNummer });
+  } catch (err) { fehler(res, "altposten doch ueberwiesen")(err); }
+});
+
 /**
  * ÖFFENTLICH, nur mit dem Bestätigungslink der Buchhaltung: Auftrag ansehen und die ausgeführte SEPA-Überweisung
  * bestätigen. Kein Banking-Zugang nötig — der Link (24 Zufallsbytes, gespeichert nur als Hash) ist der Nachweis.
@@ -1032,7 +1102,9 @@ router.post("/buchhaltung/extern/:token/bestaetigen", async (req: Request, res: 
       if (/ungültig/.test(erg.grund)) bremse(`extern:${ip}`);
       return res.status(400).json({ ok: false, error: erg.grund });
     }
-    res.json({ ok: true, hinweis: erg.hinweis ?? null, auftrag: await externLesen(String(req.params.token || "")) });
+    // E-484: Kein interner Hinweis auf der Seite der fremden Buchhaltung — er steht im Protokoll und geht an den
+    // Inhaber (externBestaetigen). Die Buchhaltung sieht nur „bestätigt“.
+    res.json({ ok: true, hinweis: null, auftrag: await externLesen(String(req.params.token || "")) });
   } catch (err) { fehler(res, "extern bestaetigen")(err); }
 });
 

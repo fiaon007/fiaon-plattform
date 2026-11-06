@@ -761,7 +761,9 @@
 [data-fiaon-banking] .bk-plan-reihe-t strong { font-weight: 500; color: var(--tinte); font-size: 13.5px; overflow-wrap: anywhere; }
 [data-fiaon-banking] .bk-plan-reihe-k { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 [data-fiaon-banking] .bk-plan-reihe-voll { grid-column: 1 / -1; }
-[data-fiaon-banking] .bk-plan-grundtext { color: var(--warn); font-size: 12px; }
+/* Farbe nur als Punkt (Gestaltungsregel des Hauses): der Satz in normaler Schrift, davor der Warnpunkt. */
+[data-fiaon-banking] .bk-plan-grundtext { color: var(--text); font-size: 12px; }
+[data-fiaon-banking] .bk-plan-grundtext::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #e9a23b; margin-right: 7px; vertical-align: 1px; }
 [data-fiaon-banking] .bk-plan-warnpunkt { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #e9a23b; margin-right: 7px; vertical-align: 1px; }
 [data-fiaon-banking] .bk-plan-grund { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--linie); border-radius: var(--r-m); background: var(--flaeche-2); }
 [data-fiaon-banking] .bk-plan-grund .bk-knopfreihe { margin-top: 8px; }
@@ -812,7 +814,17 @@
 [data-fiaon-banking] .bk-plan-zeilen li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
 [data-fiaon-banking] .bk-plan-zeilen li > span:first-child { color: var(--leise); }
 [data-fiaon-banking] .bk-plan-zeilen li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
-[data-fiaon-banking] .bk-plan-zeile-warn > span:last-child { color: var(--warn); }
+[data-fiaon-banking] .bk-plan-zeile-warn > span:last-child { color: var(--text); }
+/* Nach einem Rückruf (E-484 Nachbesserung): Klärung, „doch überwiesen“ und die zurückgerufenen Altposten-Aufträge. */
+[data-fiaon-banking] .bk-plan-doch { gap: 8px; }
+[data-fiaon-banking] .bk-plan-doch-satz { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+[data-fiaon-banking] .bk-plan-altauftraege { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--linie); }
+[data-fiaon-banking] .bk-plan-altauftraege-t { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--leise); font-weight: 500; }
+[data-fiaon-banking] .bk-plan-altauftrag { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; align-items: center; font-size: 12.5px; line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-altauftrag-t { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  [data-fiaon-banking] .bk-plan-altauftrag { grid-template-columns: minmax(0, 1fr); }
+}
 [data-fiaon-banking] .bk-plan-steuer { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--linie); padding-top: 12px; }
 
 /* Plan anlegen (nur Inhaber) */

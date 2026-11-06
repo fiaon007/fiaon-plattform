@@ -267,6 +267,9 @@ export async function ensureAgentTables(): Promise<void> {
       -- E-166 (08.09.2026): vorgemerkte Buchungen (Gehalt, Zusagen) mit Freigabedatum
       ADD COLUMN IF NOT EXISTS auszahlbar_ab DATE
   `).catch(sperrfest);
+  // E-484 (06.11.2026): „im Auszahlungsplan verrechnet“ — storniert, aber als vorhanden gezählt (Regel und Gründe:
+  // server/lib/fiaon-provision-automatik.ts, provisionVorhandenSql). Dieselbe Spalte trägt fiaon_provision_vormerkung.
+  await sqlPool`ALTER TABLE fiaon_commissions ADD COLUMN IF NOT EXISTS verrechnet_plan_id BIGINT`.catch(sperrfest);
   // Paket AE3: Partner-Programm — erreichte Meilensteine + Prämien-Aufgaben für den Admin
   await sqlPool`
     CREATE TABLE IF NOT EXISTS fiaon_partner_milestones (
@@ -1138,16 +1141,34 @@ async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number;
   // Onboarding-Prämie (kind='onboarding') die Abschluss-Provision — andere
   // Vergütungsarten (onboarding, inkasso) sind KEINE Abschluss-Provision und
   // dürfen sie nicht verhindern.
+  // E-484 (06.11.2026): Eine im Auszahlungsplan verrechnete Provision oder Vormerkung zählt als vorhanden — sie ist im
+  // zugesagten Betrag schon bezahlt. Sonst entstünde sie hier neu und der Sammellauf zahlte sie ein zweites Mal.
+  const { verrechnetBereit, provisionVorhandenSql, vormerkungVerrechnetSql, vormerkungSchema } = await import("../lib/fiaon-provision-automatik");
+  // Die Tabelle samt Merker sicherstellen — scheitert das (besetzte Tabelle), läuft die Buchung trotzdem: Ohne Spalte
+  // kann nichts verrechnet sein, verrechnetBereit() sagt dann „nein“.
+  await vormerkungSchema().catch((e) => console.warn("[FIAON-COMMISSION] Vormerkungs-Tabelle nicht sichergestellt:", String(e).slice(0, 140)));
+  const mitVerrechnet = await verrechnetBereit();
   const existing = await sqlPool`
-    SELECT id FROM fiaon_commissions
-    WHERE ref = ${ref} AND kind IN ('own', 'override') AND amount_cents > 0 AND status != 'storniert'
+    SELECT c.id FROM fiaon_commissions c
+    WHERE c.ref = ${ref} AND c.kind IN ('own', 'override') AND c.amount_cents > 0 AND ${sqlPool.unsafe(provisionVorhandenSql("c", mitVerrechnet))}
       -- Abnahme-Fund 02.09.: Ratenprovisionen tragen dieselbe ref (nur die
       -- payment_reference hat den -N-Suffix). Eine zuerst gebuchte RATE darf
       -- die ABSCHLUSS-Provision nicht verhindern — hier zählt nur die
       -- Basis-Zahlungsreferenz.
-      AND (payment_reference IS NULL OR payment_reference = ${app.payment_reference})
+      AND (c.payment_reference IS NULL OR c.payment_reference = ${app.payment_reference})
   `;
   if (existing.length > 0) return;
+  if (mitVerrechnet) {
+    const [verrechnet] = (await sqlPool`
+      SELECT v.id FROM fiaon_provision_vormerkung v
+       WHERE v.ref = ${ref} AND v.kind IN ('own', 'override') AND ${sqlPool.unsafe(vormerkungVerrechnetSql("v"))}
+         AND (v.payment_reference IS NULL OR v.payment_reference = ${app.payment_reference})
+       LIMIT 1`) as any[];
+    if (verrechnet) {
+      console.log(`[FIAON-COMMISSION] ${ref}: im Auszahlungsplan verrechnet — keine neue Provision, keine neue Vormerkung.`);
+      return;
+    }
+  }
 
   // ── P2-B (Stichtag: gilt nur für Abschlüsse AB Deploy; bestehende Provisionen
   // bleiben unangetastet — kein Clawback): PROVISION WIRD VERDIENT, NICHT VERLOST.
@@ -1351,12 +1372,26 @@ export async function onRatePaid(rateId: number): Promise<void> {
     .catch(() => {});
   if (!(Number(rate.rate_nr) >= 2)) return;
 
+  // E-484: Im Auszahlungsplan verrechnet zählt als vorhanden (Begründung in abschlussNachZahlung).
+  const { verrechnetBereit, provisionVorhandenSql, vormerkungVerrechnetSql, vormerkungSchema } = await import("../lib/fiaon-provision-automatik");
+  await vormerkungSchema().catch((e) => console.warn("[FIAON-COMMISSION] Vormerkungs-Tabelle nicht sichergestellt:", String(e).slice(0, 140)));
+  const mitVerrechnet = await verrechnetBereit();
   const existing = await sqlPool`
-    SELECT id FROM fiaon_commissions
-    WHERE payment_reference = ${rate.zahlungsreferenz}
-      AND kind IN ('own', 'override') AND amount_cents > 0 AND status != 'storniert'
+    SELECT c.id FROM fiaon_commissions c
+    WHERE c.payment_reference = ${rate.zahlungsreferenz}
+      AND c.kind IN ('own', 'override') AND c.amount_cents > 0 AND ${sqlPool.unsafe(provisionVorhandenSql("c", mitVerrechnet))}
   `;
   if (existing.length > 0) return;
+  if (mitVerrechnet) {
+    const [verrechnet] = (await sqlPool`
+      SELECT v.id FROM fiaon_provision_vormerkung v
+       WHERE v.payment_reference = ${rate.zahlungsreferenz} AND v.kind IN ('own', 'override') AND ${sqlPool.unsafe(vormerkungVerrechnetSql("v"))}
+       LIMIT 1`) as any[];
+    if (verrechnet) {
+      console.log(`[FIAON-COMMISSION] Rate ${rate.zahlungsreferenz}: im Auszahlungsplan verrechnet — keine neue Ratenprovision.`);
+      return;
+    }
+  }
 
   const [app] = await sqlPool`
     SELECT ref, pack_name, assigned_agent_id FROM fiaon_applications WHERE ref = ${rate.ref}
@@ -1476,6 +1511,46 @@ export async function onCustomerRefunded(ref: string): Promise<{ cancelled: numb
       }
     }
     await logAgentEvent(c.agent_id, "commission_cancelled", { ref, amount_cents: c.amount_cents, was_status: c.status });
+  }
+  // ── E-484 (06.11.2026): IM AUSZAHLUNGSPLAN VERRECHNET ZÄHLT WIE AUSGEZAHLT ──────────────────────────────────
+  // Eine verrechnete Provision (storniert mit Merker) und eine verrechnete Vormerkung sind im zugesagten Betrag des
+  // Plans schon bezahlt. Erstattet der Kunde, entsteht deshalb dieselbe Gegenbuchung wie nach einer Auszahlung: ein
+  // negativer Eintrag, der künftige Provisionen mindert. Einmal je Ursprung (der Vermerk nennt ihn).
+  const { verrechnetBereit } = await import("../lib/fiaon-provision-automatik");
+  if (await verrechnetBereit()) {
+    const verrechnet = (await sqlPool`
+      SELECT 'provision' AS art, c.id, c.agent_id, c.payment_reference, c.pack_name, c.base_amount_cents, c.rate_bp, c.amount_cents,
+             c.kind, c.source_agent_id, c.verrechnet_plan_id
+        FROM fiaon_commissions c
+       WHERE c.ref = ${ref} AND c.amount_cents > 0 AND c.status = 'storniert' AND c.verrechnet_plan_id IS NOT NULL
+      UNION ALL
+      SELECT * FROM (
+        -- Eine Gegenbuchung je Zahlung, Mensch und Art — auch wenn dieselbe Zahlung zweimal vorgemerkt war. Steht sie
+        -- zusätzlich als Provision da (verrechnet oder nicht), bucht der Provisionsweg oben bzw. hier darüber gegen.
+        SELECT DISTINCT ON (v.agent_id, v.kind, COALESCE(v.payment_reference, v.ref))
+               'vormerkung' AS art, v.id::int AS id, v.agent_id, v.payment_reference, v.pack_name, v.base_amount_cents, v.rate_bp, v.amount_cents,
+               v.kind, v.source_agent_id, v.verrechnet_plan_id
+          FROM fiaon_provision_vormerkung v
+         WHERE v.ref = ${ref} AND v.amount_cents > 0 AND v.verrechnet_plan_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM fiaon_commissions c
+                            WHERE c.ref = v.ref AND c.agent_id = v.agent_id AND c.kind = v.kind AND c.amount_cents > 0
+                              AND c.payment_reference IS NOT DISTINCT FROM v.payment_reference
+                              AND (c.status <> 'storniert' OR c.verrechnet_plan_id IS NOT NULL))
+         ORDER BY v.agent_id, v.kind, COALESCE(v.payment_reference, v.ref), v.id
+      ) einmal`) as any[];
+    for (const c of verrechnet) {
+      const ursprung = c.art === "provision" ? `Ursprung #${c.id}` : `Vormerkung #${c.id}`;
+      const [schon] = (await sqlPool`
+        SELECT id FROM fiaon_commissions WHERE ref = ${ref} AND amount_cents < 0 AND note LIKE ${`%(${ursprung}, im Auszahlungsplan verrechnet)%`} LIMIT 1`) as any[];
+      if (schon) continue;
+      await sqlPool`
+        INSERT INTO fiaon_commissions (agent_id, ref, payment_reference, pack_name, base_amount_cents, rate_bp, amount_cents, status, kind, source_agent_id, note)
+        VALUES (${c.agent_id}, ${ref}, ${c.payment_reference}, ${c.pack_name}, ${Number(c.base_amount_cents) || 0}, ${Number(c.rate_bp) || 0},
+                ${-Number(c.amount_cents)}, 'bestaetigt', ${c.kind || "own"}, ${c.source_agent_id || null},
+                ${`Storno nach Verrechnung im Auszahlungsplan — Verrechnung mit künftigen Provisionen (${ursprung}, im Auszahlungsplan verrechnet)`})`;
+      result.clawback++;
+      await logAgentEvent(c.agent_id, "commission_cancelled", { ref, amount_cents: Number(c.amount_cents), was_status: "verrechnet", plan_id: Number(c.verrechnet_plan_id) });
+    }
   }
   return result;
 }
@@ -3540,7 +3615,7 @@ router.get("/agent/payouts", requireAgent, async (req: AgentRequest, res) => {
     const me = req.agent!.id;
     const settings = await getSettings();
     // E-484: Teilbeträge eines Auszahlungsplans zählen hier nicht mit — weder im Guthaben noch in „In Auszahlung“ noch
-    // im Verlauf (dort stünden sonst bis zu 120 Zeilen à 50 €). Sie stehen gesammelt im Block `plan` (unten).
+    // im Verlauf (dort stünden sonst sehr viele gleichartige Zeilen). Sie stehen gesammelt im Block `plan` (unten).
     const balance = await sqlPool`
       SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
       WHERE agent_id = ${me} AND status = 'bestaetigt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}

@@ -96,10 +96,13 @@ export default function BankingPage() {
 function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet: string } | null; abmelden: (grund?: string) => Promise<void> }) {
   const [reiter, setReiter] = useState<Reiter>(reiterAusAdresse);
   // 13.10.2026: Der Link aus der Freigabe-Mail nennt den Auftrag (…&auftrag=ID) — einmal ansteuern.
-  const [fokusAuftrag] = useState<number | null>(() => {
+  // E-484: nur in dem Reiter, den der Link nennt, und nur beim ersten Betreten. Vorher bekam auch der Auszahlungsplan den
+  // Auftrag aus einem Link in „Aufträge“ und meldete bei jedem Reiterwechsel „nicht mehr offen“ (und umgekehrt).
+  const [fokus, setFokus] = useState<{ reiter: Reiter; id: number } | null>(() => {
     const n = Number(new URLSearchParams(window.location.search).get("auftrag"));
-    return Number.isInteger(n) && n > 0 ? n : null;
+    return Number.isInteger(n) && n > 0 ? { reiter: reiterAusAdresse(), id: n } : null;
   });
+  const fokusAuftrag = fokus && fokus.reiter === reiter ? fokus.id : null;
   const [lage, setLage] = useState<Lage | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [breit, setBreit] = useState(() => { try { return localStorage.getItem(MENUE_KEY) === "breit"; } catch { return false; } });
@@ -109,8 +112,9 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
   const zuletzt = useRef(Date.now());
   const letztesZeichen = useRef(Date.now());
 
-  const laden = useCallback(async () => {
-    try { setLage(await ruf<Lage>("/buchhaltung/lage")); setFehler(null); }
+  /** `hintergrund`: ohne Eingabe eines Menschen (Ende einer Wartezeit) — verlängert die Sitzung nicht. */
+  const laden = useCallback(async (hintergrund = false) => {
+    try { setLage(await ruf<Lage>("/buchhaltung/lage", { hintergrund })); setFehler(null); }
     catch (e: any) { setFehler(e.message); }
   }, []);
   useEffect(() => { void laden(); }, [laden]);
@@ -125,7 +129,7 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
     if (!enden.length || !Number.isFinite(versatz)) return;
     const ms = Math.min(...enden) - (Date.now() + versatz) + 1500;
     if (ms <= 0 || ms > 6 * 3600_000) return;
-    const t = window.setTimeout(() => { void laden(); }, ms);
+    const t = window.setTimeout(() => { void laden(true); }, ms);
     return () => window.clearTimeout(t);
   }, [lage, laden]);
 
@@ -150,8 +154,11 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
 
   const gehe = useCallback((r: Reiter) => {
     setReiter(r); setHandyMenue(false);
+    // E-484: Der Auftrag aus dem Link ist mit dem ersten Reiterwechsel verbraucht — auch aus der Adresse.
+    setFokus(null);
     const u = new URL(window.location.href);
     if (r === "start") u.searchParams.delete("reiter"); else u.searchParams.set("reiter", r);
+    u.searchParams.delete("auftrag");
     window.history.replaceState(null, "", u.toString());
     window.scrollTo({ top: 0 });
   }, []);
@@ -254,7 +261,7 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
                 <Auszahlungen ich={ich} onZuAuftraegen={() => { void laden(); gehe("auftraege"); }}
                   planAktiv={!!lage.auszahlungsplan?.plaene.length} onZuPlan={() => gehe("auszahlungsplan")} />
               ) : null}
-              {reiter === "auszahlungsplan" ? <Auszahlungsplan fokusAuftrag={fokusAuftrag} onNeu={() => void laden()} /> : null}
+              {reiter === "auszahlungsplan" ? <Auszahlungsplan fokusAuftrag={fokusAuftrag} onNeu={(hintergrund) => void laden(hintergrund === true)} /> : null}
               {reiter === "dauer" ? <Dauerauftraege liste={lage.dauerauftraege} ich={ich} onNeu={() => void laden()} /> : null}
               {reiter === "auszuege" ? <Auszuege lage={lage} onNeu={() => void laden()} /> : null}
               {reiter === "empfaenger" ? <EmpfaengerSeite /> : null}

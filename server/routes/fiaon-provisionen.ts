@@ -113,8 +113,11 @@ router.post("/chef/provisionen/override-nachtragen", wache, async (req: ChefRequ
   try {
     const trocken = req.body?.trocken !== false;
     const { werberOverride, getSettings } = await import("./fiaon-agent");
-    const { vormerken } = await import("../lib/fiaon-provision-automatik");
+    const { vormerken, verrechnetBereit } = await import("../lib/fiaon-provision-automatik");
     const settings = await getSettings();
+    // E-484 (06.11.2026): Eine im Auszahlungsplan verrechnete Override-Vormerkung (verworfen mit Merker) oder -Provision
+    // (storniert mit Merker) ist schon bezahlt — sie zählt als vorhanden, sonst legte dieser Weg sie neu an.
+    const mitV = await verrechnetBereit();
     const offen = (await vormerkungen("offen", 500)).filter((v) => v.kind === "own" && v.payment_reference);
     const liste: Array<{
       vormerkung: number; zahlung: string; betreuer: number; werber: number;
@@ -125,13 +128,23 @@ router.post("/chef/provisionen/override-nachtragen", wache, async (req: ChefRequ
       if (!ag) continue;
       const ov = await werberOverride(ag, settings, Number(v.base_amount_cents) || 0);
       if (!ov) continue;
-      const [da] = (await sqlPool`
-        SELECT 1 AS da FROM fiaon_provision_vormerkung
-         WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'verworfen'
-        UNION ALL
-        SELECT 1 FROM fiaon_commissions
-         WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'storniert'
-        LIMIT 1`) as any[];
+      const [da] = (mitV
+        ? await sqlPool`
+          SELECT 1 AS da FROM fiaon_provision_vormerkung
+           WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override'
+             AND (status <> 'verworfen' OR verrechnet_plan_id IS NOT NULL)
+          UNION ALL
+          SELECT 1 FROM fiaon_commissions
+           WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override'
+             AND (status <> 'storniert' OR verrechnet_plan_id IS NOT NULL)
+          LIMIT 1`
+        : await sqlPool`
+          SELECT 1 AS da FROM fiaon_provision_vormerkung
+           WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'verworfen'
+          UNION ALL
+          SELECT 1 FROM fiaon_commissions
+           WHERE payment_reference = ${v.payment_reference} AND agent_id = ${ov.werberId} AND kind = 'override' AND status <> 'storniert'
+          LIMIT 1`) as any[];
       const zeile = {
         vormerkung: Number(v.id), zahlung: String(v.payment_reference), betreuer: Number(v.agent_id), werber: ov.werberId,
         betragEuro: ov.cents / 100, satz: ov.bp / 100, schonDa: !!da, angelegt: false,

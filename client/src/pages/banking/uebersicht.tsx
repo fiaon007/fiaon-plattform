@@ -199,6 +199,8 @@ function ZuTun({ lage, onGehe }: { lage: Lage; onGehe: (r: Reiter) => void }) {
     }
     if (plan.darfFreigeben) punkte.push({ z: "schild", t: plan.darfFreigeben === 1 ? "1 Teilbetrag wartet auf deine Freigabe" : `${plan.darfFreigeben} Teilbeträge warten auf deine Freigabe`, x: "", r: "auszahlungsplan", art: "warn" });
     if (plan.ueberfaellig) punkte.push({ z: "warnung", t: plan.ueberfaellig === 1 ? "1 Teilbetrag liegt länger als 2 Bankarbeitstage bei der Buchhaltung" : `${plan.ueberfaellig} Teilbeträge liegen länger als 2 Bankarbeitstage bei der Buchhaltung`, x: "", r: "auszahlungsplan", art: "warn" });
+    // Nachbesserung E-484: Nach einem Rückruf wartet der Teilbetrag auf die Klärung durch den Inhaber.
+    if (plan.darfKlaeren) punkte.push({ z: "warnung", t: plan.darfKlaeren === 1 ? "1 Teilbetrag nach Rückruf in Klärung — hat die Buchhaltung schon überwiesen?" : `${plan.darfKlaeren} Teilbeträge nach Rückruf in Klärung — hat die Buchhaltung schon überwiesen?`, x: "", r: "auszahlungsplan", art: "warn" });
   }
   // E-277: auch die älteren seit 15.08. — „lass kein über".
   const nachholAnzahl = Math.max(lage.nachholen?.anzahl ?? 0, lage.nachholen?.gesamtAnzahl ?? 0);
@@ -233,6 +235,8 @@ export default function Uebersicht({ lage, onGehe, onNeu }: { lage: Lage; onGehe
   const einMonat = diesen.reduce((s, f) => s + f.einCents, 0);
   const ausMonat = diesen.reduce((s, f) => s + f.ausCents, 0);
   const wartend = lage.auftraege.filter((a) => a.status === "eingereicht");
+  // E-484: Teilbeträge des Auszahlungsplans, die die angemeldete Person freigeben kann (vom Server gezählt).
+  const planFreigeben = lage.auszahlungsplan?.darfFreigeben ?? 0;
   const wise = lage.konten.find((k) => k.schluessel === "wise");
   const wiseSumme = lage.fluss.filter((f) => f.konto === "wise").reduce((s, f) => s + f.einCents, 0);
 
@@ -255,10 +259,16 @@ export default function Uebersicht({ lage, onGehe, onNeu }: { lage: Lage; onGehe
           <div className="bk-kacheln">
             <div className="bk-kachel"><span>Eingänge {monatName(monat).split(" ")[0]}</span><strong className="bk-plus">{geld(einMonat)}</strong></div>
             <div className="bk-kachel"><span>Ausgänge {monatName(monat).split(" ")[0]}</span><strong>{geld(ausMonat)}</strong></div>
-            <button type="button" className="bk-kachel bk-kachel-knopf" onClick={() => onGehe("auftraege")}>
-              <span>Wartet auf Freigabe</span><strong>{wartend.length}</strong>
-              {/* E-484: Teilbeträge des Auszahlungsplans stehen nicht in den Aufträgen — hier nur ihre Zahl, damit „nichts offen“ nicht täuscht. */}
-              <em>{wartend.length ? geld(wartend.reduce((s, a) => s + a.betragCents, 0)) : "nichts offen"}{lage.auszahlungsplan?.zurFreigabe ? ` · dazu ${lage.auszahlungsplan.zurFreigabe} im Auszahlungsplan` : ""}</em>
+            {/* E-484: Teilbeträge des Auszahlungsplans stehen nicht in den Aufträgen. Gezählt wird, was DU freigeben kannst
+                (dieselbe Zahl wie „Zu tun“) — ein pausierter Plan gibt nichts frei. Liegen nur Teilbeträge an, führt der Klick dorthin. */}
+            <button type="button" className="bk-kachel bk-kachel-knopf"
+              onClick={() => onGehe(!wartend.length && planFreigeben ? "auszahlungsplan" : "auftraege")}>
+              <span>Wartet auf Freigabe</span><strong>{wartend.length + planFreigeben}</strong>
+              <em>
+                {wartend.length ? `${geld(wartend.reduce((s, a) => s + a.betragCents, 0))}${planFreigeben ? ` · dazu ${planFreigeben} im Auszahlungsplan` : ""}`
+                  : planFreigeben ? `keine Aufträge · ${planFreigeben === 1 ? "1 Teilbetrag" : `${planFreigeben} Teilbeträge`} im Auszahlungsplan`
+                    : "nichts offen"}
+              </em>
             </button>
             <button type="button" className="bk-kachel bk-kachel-knopf" onClick={() => onGehe("umsaetze")}>
               <span>Nicht zugeordnet</span><strong>{lage.offen.offenAnzahl}</strong><em>{geld(lage.offen.offenCents)}</em>

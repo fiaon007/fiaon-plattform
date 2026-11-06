@@ -942,7 +942,17 @@ export async function ermittleProvisionsAnspruch(
  * Vertriebssystemen. Diese Regel ist bewusst und darf nicht aufgeweicht werden.
  */
 export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {
-  await abschlussNachZahlung(ref, opts);
+  // E-484, Endprüfung (06.11.2026): Scheitert die Provisionsfrage (z. B. eine Tabelle beim Deploy besetzt), laufen die
+  // übrigen Schritte trotzdem — Meta, Begleit-Akte, Auskunft-Lieferung und Bündel hängen nicht an der Provision. Der
+  // Fehler geht am Ende unverändert an den Aufrufer (mark-paid, Kontoabgleich, Vertriebsleitung und Nachbuchungs-Center
+  // sehen ihn wie bisher). Nur der Global-Start wartet weiter auf die Provisionsfrage — Begründung im Global-Block unten.
+  let provisionsFehler: unknown = null;
+  try {
+    await abschlussNachZahlung(ref, opts);
+  } catch (e) {
+    provisionsFehler = e;
+    console.error(`[FIAON-COMMISSION] ${ref}: Provision/Vormerkung nach Zahlungseingang fehlgeschlagen — die übrigen Schritte laufen weiter; das Nachbuchungs-Center holt die Provision nach:`, e);
+  }
   // E-IT-F (08.10.2026): Die Zahlung erledigt „Erstzahlung: E-Mail unzustellbar" dieser Bestellung.
   // Nach der Buchung, entkoppelt — ein Fehler hier hält nie eine Buchung auf.
   void import("../lib/fiaon-auftraege")
@@ -999,7 +1009,10 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   // ══════════════════════════════════════════════════════════════════════════
   try {
     const [g] = (await sqlPool`SELECT pack_key FROM fiaon_applications WHERE ref = ${ref} LIMIT 1`) as any[];
-    if (istGlobalPaket(g?.pack_key)) {
+    if (istGlobalPaket(g?.pack_key) && provisionsFehler) {
+      // E-484, Endprüfung: Die Provisionsfrage ist nicht entschieden — der Start (er trägt den Betreuer ein) wartet, wie bisher.
+      console.error(`[FIAON-GLOBAL] ${ref}: Start nach Zahlungseingang NICHT angestoßen, weil die Provisionsfrage fehlschlug — nach dem Nachbuchen unter /chef/s/global-auftraege „Start anstoßen“.`);
+    } else if (istGlobalPaket(g?.pack_key)) {
       const { globalNachZahlung } = await import("../lib/fiaon-global-auftrag");
       await globalNachZahlung(ref);
     }
@@ -1059,6 +1072,8 @@ export async function onCustomerPaid(ref: string, opts?: { forceAgentId?: number
   } catch (e) {
     console.error(`[AUSKUNFT-BUENDEL] ${ref}: Bündel nach Zahlungseingang nicht geprüft — die Auskunft zum Kundenpreis fehlt ggf.; von Hand bestellen (Akte → Bonitätsauskunft):`, e);
   }
+  // E-484, Endprüfung: der Fehler der Provisionsfrage — erst jetzt, nach allen unabhängigen Schritten, an den Aufrufer.
+  if (provisionsFehler) throw provisionsFehler;
 }
 
 async function abschlussNachZahlung(ref: string, opts?: { forceAgentId?: number; forceReason?: string }): Promise<void> {

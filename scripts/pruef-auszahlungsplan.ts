@@ -27,6 +27,13 @@
 // entfernen, Server neu starten, dann mit „--rot-probe=rennen“ laufen lassen: Der Lauf nimmt das Takt-Netz (EXCLUDE)
 // aus der Prüf-Datenbank, lässt nur das Rennen laufen — es muss ROT werden — und baut das Netz danach wieder ein.
 // Ohne den Eingriff im Code bleibt das Rennen grün (die Zeilensperre allein hält). Danach den Code zurückbauen.
+//
+// DIE DEPLOY-FRAGE (Endprüfung E-484): S0 legt das Schema im EIGENEN Prozess an, falls es fehlt. Ob der SERVER die neuen
+// Tabellen-Anweisungen auf dem alten Schema schafft, beweist der Lauf nur, wenn der Server sie vorher selbst ausgeführt
+// hat — also auf frischer Kopie zuerst pruef-auszahlung-buchhaltung laufen lassen (oder im Server GET /admin/payouts
+// aufrufen). S0 sagt in seiner ersten Zeile, welcher Fall vorlag.
+// T25 startet sich selbst ein zweites Mal als Teilprozess (--teilprobe=merker, frische Module): die erste Kundenzahlung
+// nach dem Deploy bei besetzter Vormerkungs-Tabelle. Von Hand nie mit diesem Schalter starten.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import postgres from "postgres";
@@ -43,6 +50,7 @@ const PROBE = process.env.BANKING_MAIL_PROBE ?? "";
 const PW = "pruefstand-buch-2026";
 const ADMIN_CODE = process.env.ADMIN_ACCESS_CODE || "20032017";
 const ROT_PROBE = (process.argv.find((a) => a.startsWith("--rot-probe=")) ?? "").slice("--rot-probe=".length);
+const TEILPROBE = (process.argv.find((a) => a.startsWith("--teilprobe=")) ?? "").slice("--teilprobe=".length);
 
 function abbruch(grund: string): never {
   console.error(`ABBRUCH: ${grund}`);
@@ -60,6 +68,7 @@ for (const k of ["GOOGLE_SA_KEY", "BREVO_API_KEY", "MAKE_WEBHOOK_URL"]) {
   if (process.env[k]) abbruch(`${k} ist gesetzt — der Prüfstand darf keine echte Mail verschicken.`);
 }
 if (ROT_PROBE && ROT_PROBE !== "rennen") abbruch(`Unbekannte Rot-Probe „${ROT_PROBE}“ (bekannt: rennen).`);
+if (TEILPROBE && TEILPROBE !== "merker") abbruch(`Unbekannte Teilprobe „${TEILPROBE}“ (bekannt: merker — startet nur T25 selbst).`);
 if (!process.env.SESSION_SECRET) process.env.SESSION_SECRET = "pruefstand-sitzung";
 
 // ── Ergebnis ────────────────────────────────────────────────────────────────
@@ -213,6 +222,11 @@ async function main(): Promise<void> {
 
   // ═══ S0 Prüfstand vorbereiten ═══════════════════════════════════════════
   abschnitt("S0 Prüfstand vorbereiten");
+  const [vorS0] = await sql`
+    SELECT to_regclass('public.fiaon_auszahlungsplan_takt') IS NOT NULL AS plan, to_regclass('public.fiaon_buch_auftrag') IS NOT NULL AS buch`;
+  console.log(vorS0?.plan && vorS0?.buch
+    ? "   Schema lag vor S0 schon an (vom Server angelegt) — die Deploy-Frage ist mit beantwortet."
+    : "   HINWEIS: Schema fehlte vor S0 — dieser Lauf legt es im eigenen Prozess an. Für die Deploy-Frage vorher pruef-auszahlung-buchhaltung laufen lassen.");
   // Tabellen vor jeder Transaktion (AGENTS.md: DDL wartet sonst auf die eigene offene Transaktion).
   await bh.buchSchema();
   await ap.planSchema();
@@ -583,6 +597,7 @@ async function main(): Promise<void> {
   const planC = (anC.j?.plaene ?? []).find((p: any) => p.agentId === C) ?? { id: 0, nummer: "?" };
   const planG = (anC.j?.plaene ?? []).find((p: any) => p.agentId === G) ?? { id: 0, nummer: "?" };
   let planV: { id: number; nummer: string } = { id: 0, nummer: "?" }; // T23
+  let planR: { id: number; nummer: string } = { id: 0, nummer: "?" }; // T25
   pruefe("Zwei weitere Pläne (C, G) mit einer TAN", anC.status === 200 && planC.id > 0 && planG.id > 0, `${anC.status} ${anC.j?.error ?? ""}`);
   const [stC] = await sql`
     SELECT (SELECT status FROM fiaon_provision_vormerkung WHERE id = ${vC1}) AS v, (SELECT status FROM fiaon_commissions WHERE id = ${kC1}) AS k,
@@ -1418,16 +1433,124 @@ async function main(): Promise<void> {
     await automatik(String(automatikVorher || ""));
   }
 
+  // ═══ T25 Endprüfung E-484 (06.11.2026) ════════════════════════════════
+  abschnitt("T25 Endprüfung: Zahlung bei besetzter Tabelle, Rückruf vor dem Plan, Raten-Vormerkung, Wallet ohne Spalte");
+  const [{ v: automatikVorT25 }] = await sql`SELECT COALESCE((SELECT value FROM fiaon_settings WHERE key = 'provision_automatik'), '') AS v`;
+  try {
+    // (a) G2-1 — im EIGENEN Prozess (frische Module, frisches Gedächtnis der DDL-Wache): Die Merker-Spalte der Vormerkungen
+    //     ist vorübergehend umbenannt (wie vor dem Deploy: es gibt sie noch nicht), und eine Lesung hält die Tabelle.
+    //     onCustomerPaid muss trotzdem durchlaufen und vormerken. Vorher warf es nach rund 3 s mit 55P03 (Vormerkungen 0).
+    await automatik("aus");
+    const refM = await bestellung("M-1", V);
+    const [{ n: merkerVorher }] = await sql`SELECT COUNT(*)::int AS n FROM fiaon_provision_vormerkung WHERE verrechnet_plan_id IS NOT NULL`;
+    await sql.begin(async (tx: any) => {
+      await tx`SET LOCAL lock_timeout = '5s'`;
+      await tx`ALTER TABLE fiaon_provision_vormerkung RENAME COLUMN verrechnet_plan_id TO verrechnet_plan_id_t25`;
+    });
+    let probe: any = null;
+    try {
+      const aus = execFileSync(process.execPath,
+        [join(process.cwd(), "node_modules/tsx/dist/cli.mjs"), "scripts/pruef-auszahlungsplan.ts", "--teilprobe=merker", `--ref=${refM}`],
+        { env: process.env, encoding: "utf8", timeout: 120_000, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 32 * 1024 * 1024 });
+      probe = JSON.parse((aus.match(/^TEILPROBE (.+)$/m) || [])[1] ?? "null");
+    } catch (e: any) {
+      probe = { fehler: `Teilprobe abgebrochen: ${String(e?.stdout ?? e).slice(-300)}` };
+    } finally {
+      await sql.begin(async (tx: any) => {
+        await tx`SET LOCAL lock_timeout = '5s'`;
+        // Hat die Wache im Teilprozess die Spalte schon neu (leer) angelegt, weicht diese der ursprünglichen.
+        await tx`ALTER TABLE fiaon_provision_vormerkung DROP COLUMN IF EXISTS verrechnet_plan_id`;
+        await tx`ALTER TABLE fiaon_provision_vormerkung RENAME COLUMN verrechnet_plan_id_t25 TO verrechnet_plan_id`;
+      });
+    }
+    const [merkerNach] = await sql`
+      SELECT (SELECT COUNT(*)::int FROM fiaon_provision_vormerkung WHERE verrechnet_plan_id IS NOT NULL) AS merker,
+             to_regclass('public.fiaon_provision_vormerkung_einmal_verrechnet') IS NOT NULL AS index_da`;
+    pruefe("Erste Zahlung nach dem Deploy bei besetzter Vormerkungs-Tabelle (Merker fehlt noch): onCustomerPaid läuft durch und merkt vor",
+      probe?.fehler === null && probe?.vormerkungen === 1 && probe?.bereit === false, JSON.stringify(probe));
+    pruefe("Danach stehen Merker und zweiter Vormerkungs-Index wieder, kein Merker verloren",
+      merkerNach?.merker === merkerVorher && merkerNach?.index_da === true, `${merkerVorher} → ${merkerNach?.merker} · Index ${merkerNach?.index_da}`);
+
+    // (b) G2-2 — ein Auftrag, der VOR der Plananlage bei der Buchhaltung zurückgerufen wurde (Antwort offen, Auszahlung noch
+    //     angefordert): Er wird mit dem Plan verknüpft; meldet die Buchhaltung „schon überwiesen“, kürzt der Inhaber den Plan.
+    const R = await neuerAgent("r", IBAN.R);
+    const pR1 = await auszahlung(R, "R-P1", 3150, IBAN.R);
+    const oR1 = await zurBuchhaltung(pR1);
+    const rrR = await js.ruf(`/buchhaltung/auftrag/${oR1.id}/zurueckrufen`, { grund: "Prüfstand: Rückruf vor dem Plan" });
+    const altR = await ap.planAltposten(R);
+    pruefe("Rückruf vor dem Plan: die Altposten zeigen die Auszahlung UND den zurückgerufenen Auftrag",
+      rrR.status === 200 && altR.auszahlungen.some((x: any) => x.id === pR1) && altR.auftraege.some((o: any) => o.id === oR1.id && o.status === "zurueckgezogen"),
+      `${rrR.status} ${rrR.j?.error ?? ""} · ${JSON.stringify(altR.auftraege)}`);
+    const einR = { empfaenger: [{ agentId: R, anspruchCents: 9000 }], teilCents: 1000, abstandMin: 15, maxOffen: 5, grund: `Prüfstand Rückruf vor dem Plan ${lauf}` };
+    const vorAnlageR = marke();
+    const tR = await neueTan(js, JS, "/buchhaltung/auszahlungsplan/neu/tan", einR);
+    const anR = await js.ruf("/buchhaltung/auszahlungsplan/neu", { ...einR, tan: tR.tan });
+    planR = (anR.j?.plaene ?? [])[0] ?? planR;
+    const [oRn] = await sql`SELECT status, verrechnet_plan_id, zurueckgerufen_am IS NOT NULL AS rr FROM fiaon_buch_auftrag WHERE id = ${oR1.id}`;
+    const zweiteMail = neueMails(vorAnlageR).filter((m) => m.an === EXT && m.betreff.startsWith("Bitte NICHT ausführen") && m.text.includes(oR1.nummer));
+    pruefe("Plan angelegt: der zurückgerufene Auftrag ist mit dem Plan verknüpft (bleibt „zurückgezogen“), keine zweite „Bitte NICHT ausführen“-Mail",
+      anR.status === 200 && planR.id > 0 && Number(oRn?.verrechnet_plan_id) === planR.id && oRn?.status === "zurueckgezogen" && oRn?.rr === true
+        && !(anR.j?.zurueckgerufen ?? []).includes(oR1.nummer) && zweiteMail.length === 0,
+      `${anR.status} ${anR.j?.error ?? ""} ${JSON.stringify(oRn)} · Mails ${zweiteMail.length}`);
+    const lR = await js.ruf("/buchhaltung/auszahlungsplan");
+    const altRz = (((lR.j?.plaene ?? []).find((p: any) => p.id === planR.id)?.altpostenAuftraege) ?? []).find((o: any) => o.id === oR1.id);
+    pruefe("Reiter: der vor dem Plan zurückgerufene Auftrag steht in der Plan-Karte, Inhaber darf „doch überwiesen“ buchen",
+      altRz?.darfDochUeberwiesen === true, JSON.stringify(altRz ?? null));
+    const dochR = { notiz: "Prüfstand: Buchhaltung hatte vor dem Rückruf schon überwiesen", bankReferenz: `PRUEF-${lauf}-RR`, wertAm: null };
+    const tRd = await neueTan(js, JS, `/buchhaltung/auszahlungsplan/${planR.id}/altposten/${oR1.id}/tan`, dochR);
+    const jaR = await js.ruf(`/buchhaltung/auszahlungsplan/${planR.id}/altposten/${oR1.id}/ueberwiesen`, { ...dochR, tan: tRd.tan });
+    const [kR] = await sql`
+      SELECT p.gekuerzt_cents,
+             (SELECT COALESCE(SUM(betrag_cents), 0)::int FROM fiaon_auszahlungsplan_teil WHERE plan_id = p.id AND entfallen_am IS NULL) AS im_plan,
+             (SELECT status FROM fiaon_payouts WHERE id = ${pR1}) AS ps
+        FROM fiaon_auszahlungsplan p WHERE p.id = ${planR.id}`;
+    pruefe("„Doch überwiesen“ (TAN): Plan um genau 31,50 € gekürzt (im Plan 58,50 €), die alte Auszahlung gilt als ausgezahlt",
+      tRd.r.status === 200 && jaR.status === 200 && jaR.j?.gekuerztCents === 3150 && kR?.gekuerzt_cents === 3150 && kR?.im_plan === 5850 && kR?.ps === "ausgezahlt",
+      `${jaR.status} ${jaR.j?.error ?? ""} ${JSON.stringify(kR)}`);
+
+    // (c) G2-3/B3 — eine verrechnete RATEN-Vormerkung (Zahlungsreferenz „…-2“) blendet die fehlende Abschluss-Provision desselben
+    //     Kunden nicht aus: Kandidat im Nachbuchungs-Center, „buchen“ bucht sie (dieselbe Regel wie in onCustomerPaid).
+    const refR8 = await bestellung("V-R8", V);
+    await sql`
+      INSERT INTO fiaon_provision_vormerkung (agent_id, ref, payment_reference, amount_cents, kind, anlass, status, verrechnet_plan_id)
+      VALUES (${V}, ${refR8}, ${`${refR8}-2`}, 2475, 'own', 'Prüfstand Rate 2', 'verworfen', ${planV.id})`;
+    const kandR8 = (await team.backfillCandidates()).some((c: any) => c.ref === refR8);
+    await automatik("an");
+    const bkR8 = await adm2.ruf(`/admin/commission-backfill/${encodeURIComponent(refR8)}/book`, {});
+    await automatik("aus");
+    const [cR8] = await sql`
+      SELECT COUNT(*)::int AS n FROM fiaon_commissions
+       WHERE ref = ${refR8} AND payment_reference = ${refR8} AND kind = 'own' AND amount_cents > 0 AND status = 'bestaetigt'`;
+    pruefe("Verrechnete Raten-Vormerkung: die fehlende Abschluss-Provision bleibt Kandidat, „buchen“ bucht sie (kein „schon gebucht“)",
+      kandR8 && bkR8.status === 200 && bkR8.j?.ok === true && !bkR8.j?.alreadyBooked && cR8?.n === 1,
+      `Kandidat ${kandR8} · ${bkR8.status} ${JSON.stringify(bkR8.j)} · Provision ${cR8?.n}`);
+
+    // (d) B2 — Wallet, solange die zuletzt angelegte Plan-Spalte noch fehlt (erster Start): leer statt Fehler 42703.
+    //     In einer Transaktion, die zurückrollt — der Server sieht davon nichts.
+    let ohneSpalte: any = "nicht gelaufen";
+    await sql.begin(async (tx: any) => {
+      await tx`SET LOCAL lock_timeout = '5s'`;
+      await tx`ALTER TABLE fiaon_auszahlungsplan RENAME COLUMN gekuerzt_cents TO gekuerzt_cents_t25`;
+      try { ohneSpalte = await ap.planeFuerMitarbeiter(V, tx); } catch (e: any) { ohneSpalte = `WARF ${e?.code ?? ""} ${String(e?.message ?? e).slice(0, 80)}`; }
+      throw new Error("T25-ZURUECK");
+    }).catch((e: unknown) => { if (!/T25-ZURUECK/.test(String(e))) throw e; });
+    const mitSpalte = await ap.planeFuerMitarbeiter(V);
+    pruefe("Wallet ohne die zuletzt angelegte Plan-Spalte: leer statt Fehler; mit Spalte wieder der Plan",
+      Array.isArray(ohneSpalte) && ohneSpalte.length === 0 && mitSpalte.length > 0, `${JSON.stringify(ohneSpalte)} · danach ${mitSpalte.length}`);
+  } finally {
+    await automatik(String(automatikVorT25 || ""));
+  }
+
   // ═══ Ende des Laufs: offene Pläne regulär beenden (mit TAN, wie ein Mensch) ═══  // ═══ Ende des Laufs: offene Pläne regulär beenden (mit TAN, wie ein Mensch) ═══
   abschnitt("Ende des Laufs: offene Pläne mit TAN beenden");
-  for (const p of [planB, planG, planV].filter((x) => x.id > 0)) {
+  for (const p of [planB, planG, planV, planR].filter((x) => x.id > 0)) {
     const t = await neueTan(js, JS, `/buchhaltung/auszahlungsplan/${p.id}/ende/tan`, {});
     const e = await js.ruf(`/buchhaltung/auszahlungsplan/${p.id}/ende`, { grund: "Prüfstand: Ende des Laufs", tan: t.tan });
     pruefe(`${p.nummer} beendet (eingereichte Teilbeträge zurückgezogen: ${(e.j?.zurueckgezogen ?? []).length})`, e.status === 200, `${e.status} ${e.j?.error ?? ""}`);
   }
   const [rest] = await sql`
     SELECT COUNT(*)::int AS n FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.id = o.plan_teil_id
-     WHERE t.plan_id = ANY(${[planA.id, planB.id, planC.id, planG.id, planV.id]}) AND o.status IN ('entwurf', 'eingereicht', 'freigegeben')`;
+     WHERE t.plan_id = ANY(${[planA.id, planB.id, planC.id, planG.id, planV.id, planR.id]}) AND o.status IN ('entwurf', 'eingereicht', 'freigegeben')`;
   pruefe("Kein laufender Plan-Auftrag dieses Laufs bleibt zurück", rest?.n === 0, String(rest?.n));
 }
 
@@ -1533,10 +1656,43 @@ async function rotProbeRennen(): Promise<void> {
   }
 }
 
+/**
+ * T25 (a), Endprüfung E-484: im EIGENEN Prozess gestartet (frische Module, frisches Gedächtnis der DDL-Wache), nie von Hand.
+ * Eine Lesung hält die Vormerkungs-Tabelle, die Merker-Spalte fehlt (der Hauptlauf hat sie umbenannt) — onCustomerPaid für
+ * die genannte Prüf-Bestellung muss durchlaufen und vormerken. Gibt eine Zeile „TEILPROBE {…}“ aus.
+ */
+async function teilprobeMerker(): Promise<void> {
+  const ref = (process.argv.find((a) => a.startsWith("--ref=")) ?? "").slice("--ref=".length);
+  if (!/^PRUEF-PLAN-/.test(ref)) abbruch("Teilprobe merker: --ref=PRUEF-PLAN-… fehlt.");
+  const { sqlPool: sql } = (await import("../server/lib/db-pool")) as any;
+  const agentMod: any = await import("../server/routes/fiaon-agent");
+  const auto: any = await import("../server/lib/fiaon-provision-automatik");
+  const halter = postgres(DB, { max: 1, onnotice: () => {} });
+  let frei: () => void = () => {};
+  const tor = new Promise<void>((r) => { frei = r; });
+  const halten = halter.begin(async (tx: any) => { await tx`SELECT COUNT(*) FROM fiaon_provision_vormerkung`; await tor; }).catch(() => {});
+  await warte(400);
+  const t0 = Date.now();
+  let fehler: string | null = null;
+  try {
+    await agentMod.onCustomerPaid(ref);
+  } catch (e: any) {
+    fehler = `${e?.code ?? ""} ${String(e?.message ?? e).slice(0, 160)}`.trim();
+  }
+  const ms = Date.now() - t0;
+  const bereit = await auto.verrechnetBereit();
+  frei();
+  await halten;
+  await halter.end({ timeout: 5 }).catch(() => {});
+  const [v] = await sql`SELECT COUNT(*)::int AS n FROM fiaon_provision_vormerkung WHERE ref = ${ref} AND status = 'offen'`;
+  console.log(`TEILPROBE ${JSON.stringify({ fehler, ms, vormerkungen: Number(v?.n ?? -1), bereit })}`);
+}
+
 async function start(): Promise<void> {
   const { sqlPool: sql } = (await import("../server/lib/db-pool")) as any;
   try {
-    if (ROT_PROBE === "rennen") await rotProbeRennen();
+    if (TEILPROBE === "merker") await teilprobeMerker();
+    else if (ROT_PROBE === "rennen") await rotProbeRennen();
     else await mainMitAufraeumen();
   } finally {
     await sql.end({ timeout: 5 }).catch(() => {});

@@ -66,14 +66,6 @@ function tabelle(): Promise<void> {
         CREATE UNIQUE INDEX IF NOT EXISTS fiaon_provision_vormerkung_einmal
           ON fiaon_provision_vormerkung (payment_reference, agent_id, kind)
           WHERE payment_reference IS NOT NULL AND status = 'offen'`;
-      // E-484 (06.11.2026): Im Auszahlungsplan verrechnet — die Vormerkung steht auf „verworfen“ UND trägt den Plan.
-      // Der Merker ist dauerhaft: Dieselbe Zahlung ergibt danach keine neue Vormerkung mehr (zweiter Index, der auch
-      // die verrechneten Zeilen einschließt; vormerken() fängt den Konflikt mit ON CONFLICT DO NOTHING ab).
-      await sqlPool`ALTER TABLE fiaon_provision_vormerkung ADD COLUMN IF NOT EXISTS verrechnet_plan_id BIGINT`;
-      await sqlPool`
-        CREATE UNIQUE INDEX IF NOT EXISTS fiaon_provision_vormerkung_einmal_verrechnet
-          ON fiaon_provision_vormerkung (payment_reference, agent_id, kind)
-          WHERE payment_reference IS NOT NULL AND (status = 'offen' OR verrechnet_plan_id IS NOT NULL)`;
     })().catch((e) => {
       const code = String((e as any)?.code ?? "");
       if (code === "23505" || code === "42P07") return;
@@ -84,11 +76,55 @@ function tabelle(): Promise<void> {
   return anlegen;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DER MERKER „IM AUSZAHLUNGSPLAN VERRECHNET“ — EIGENER SCHRITT (E-484, Endprüfung 06.11.2026)
+//
+// Die Vormerkung steht auf „verworfen“ UND trägt den Plan. Der Merker ist dauerhaft: Dieselbe Zahlung ergibt danach
+// keine neue Vormerkung mehr (zweiter Index, der auch die verrechneten Zeilen einschließt; vormerken() fängt den
+// Konflikt mit ON CONFLICT DO NOTHING ab).
+//
+// Bewusst NICHT in tabelle(): Die steht im Weg JEDER Kundenzahlung (vormerken()). Das ALTER braucht die stärkste
+// Sperre; hält beim Deploy eine Lesung die Tabelle länger als 3 s, gibt die DDL-Wache mit 55P03 auf. Stünde es in
+// tabelle(), würfe vormerken() — und mit ihm onCustomerPaid: keine Vormerkung, kein Global-Start, keine Auskunft
+// (Endprüfung, gemessen: „onCustomerPaid WARF nach 2984 ms: 55P03 … Vormerkungen 0“). vormerken() braucht die Spalte
+// nicht; ohne sie kann nichts verrechnet sein (verrechnetBereit() → alte Prüfung), und die Wache holt sie nach.
+// ═══════════════════════════════════════════════════════════════════════════
+let merkerAnlegen: Promise<void> | null = null;
+function merker(): Promise<void> {
+  if (!merkerAnlegen) {
+    merkerAnlegen = (async () => {
+      await tabelle();
+      await sqlPool`ALTER TABLE fiaon_provision_vormerkung ADD COLUMN IF NOT EXISTS verrechnet_plan_id BIGINT`;
+      try {
+        await sqlPool`
+          CREATE UNIQUE INDEX IF NOT EXISTS fiaon_provision_vormerkung_einmal_verrechnet
+            ON fiaon_provision_vormerkung (payment_reference, agent_id, kind)
+            WHERE payment_reference IS NOT NULL AND (status = 'offen' OR verrechnet_plan_id IS NOT NULL)`;
+      } catch (e) {
+        // 23505/42P07 kommen auch, wenn ein zweiter Prozess denselben Index gleichzeitig anlegt — dann steht er.
+        // Steht er NICHT (z. B. Dubletten in den Daten), nie still schlucken: laut melden, beim nächsten Aufruf neu versuchen.
+        const code = String((e as any)?.code ?? "");
+        const [da] = (code === "23505" || code === "42P07"
+          ? await sqlPool`SELECT to_regclass('public.fiaon_provision_vormerkung_einmal_verrechnet') IS NOT NULL AS da`.catch(() => [])
+          : []) as any[];
+        if (da?.da === true) return;
+        console.error("[PROVISION] Index fiaon_provision_vormerkung_einmal_verrechnet NICHT angelegt — es schützen weiter die "
+          + "Vorab-Prüfungen in onCustomerPaid, onRatePaid und praemieBuchen:", code, String((e as any)?.message ?? e).slice(0, 200));
+        throw e;
+      }
+    })().catch((e) => { merkerAnlegen = null; throw e; });
+  }
+  return merkerAnlegen;
+}
+
 /** Wer liest und schreibt — der Pool oder eine laufende Transaktion (praemieBuchen(rateId, tx)). */
 type Lauf = typeof sqlPool;
 
-/** E-484: Die Tabelle samt Merker „im Auszahlungsplan verrechnet“ — für den Auszahlungsplan vor seiner Transaktion. */
-export const vormerkungSchema = (): Promise<void> => tabelle();
+/**
+ * E-484: Die Tabelle samt Merker „im Auszahlungsplan verrechnet“ — streng (wirft, wenn der Merker fehlt). Für den
+ * Auszahlungsplan vor seiner Transaktion; die Zahlungswege rufen es mit .catch() und laufen ohne den Merker weiter.
+ */
+export const vormerkungSchema = (): Promise<void> => merker();
 
 // ═══════════════════════════════════════════════════════════════════════════
 // IM AUSZAHLUNGSPLAN VERRECHNET (E-484, 06.11.2026)

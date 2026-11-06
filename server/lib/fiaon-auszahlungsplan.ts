@@ -364,11 +364,16 @@ async function altpostenLesen(agentId: number, lauf: Lauf, sperren: boolean): Pr
      WHERE p.agent_id = $1 AND p.status IN ('angefordert', 'requested')
        AND NOT EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = '${KIND_AUSZAHLUNGSPLAN}')
      ORDER BY p.id ${sperren ? "FOR UPDATE OF p" : ""}`, [agentId])) as any[];
+  // Endprüfung E-484 (06.11.2026): auch ein Auftrag, der VOR dem Plan bei der Buchhaltung zurückgerufen wurde und dessen
+  // Antwort noch offen ist (Auszahlung noch angefordert). Seine Auszahlung geht im Plan auf; ohne Verknüpfung gäbe es
+  // keinen Weg, „hatte doch schon überwiesen“ zu buchen — der Plan zahlte denselben Betrag ein zweites Mal.
   const auft = (await lauf.unsafe(`
     SELECT o.id, o.nummer, o.status, o.betrag_cents, o.empfaenger, o.ausfuehrung_extern, o.payout_id, p.status AS payout_status
       FROM fiaon_buch_auftrag o JOIN fiaon_payouts p ON p.id = o.payout_id
-     WHERE p.agent_id = $1 AND o.plan_teil_id IS NULL
-       AND o.status IN ('entwurf', 'eingereicht', 'freigegeben') AND o.extern_bestaetigt_am IS NULL
+     WHERE p.agent_id = $1 AND o.plan_teil_id IS NULL AND o.extern_bestaetigt_am IS NULL
+       AND (o.status IN ('entwurf', 'eingereicht', 'freigegeben')
+            OR (o.status = 'zurueckgezogen' AND o.zurueckgerufen_am IS NOT NULL AND o.doch_ausgefuehrt_am IS NULL
+                AND o.verrechnet_plan_id IS NULL AND o.ausfuehrung_extern IS NOT NULL AND p.status IN ('angefordert', 'requested')))
        AND NOT EXISTS (SELECT 1 FROM fiaon_commissions c WHERE c.payout_id = p.id AND c.kind = '${KIND_AUSZAHLUNGSPLAN}')
      ORDER BY o.id ${sperren ? "FOR UPDATE OF o" : ""}`, [agentId])) as any[];
   const summe = (z: any[], feld: string) => z.reduce((s, r) => s + zahl(r[feld]), 0);
@@ -452,6 +457,17 @@ async function altpostenSchliessen(alt: AltpostenIntern, planId: number, planNum
   }
   if (alt.ids.auftraege.length) {
     for (const o of alt.auftragZeilen) {
+      if (o.status === "zurueckgezogen") {
+        // Schon vor dem Plan zurückgerufen, Antwort der Buchhaltung offen: nur mit dem Plan verknüpfen (Status, Rückruf-
+        // Vermerk und Zeitpunkt bleiben). Damit steht er in der Plan-Karte, und „doch überwiesen“ kürzt den Plan.
+        const r = (await tx`
+          UPDATE fiaon_buch_auftrag SET verrechnet_plan_id = ${planId}
+           WHERE id = ${o.id} AND status = 'zurueckgezogen' AND zurueckgerufen_am IS NOT NULL AND doch_ausgefuehrt_am IS NULL
+             AND extern_bestaetigt_am IS NULL AND verrechnet_plan_id IS NULL
+          RETURNING id`) as any[];
+        pruefe(`Auftrag ${o.nummer}`, 1, r.length);
+        continue;
+      }
       const g = o.auszahlungStatus === "ausgezahlt"
         ? `Auszahlung bereits als überwiesen gebucht — Auftrag beim Anlegen von ${planNummer} geschlossen`
         : grund;
@@ -829,9 +845,11 @@ export async function planAnlegen(
   }
   const zurueck: { an: string; plan: string; nummer: string; betragCents: number; empfaenger: string }[] = [];
   for (const { nummer, g } of ergebnis.geschlossen) {
-    const za = g.auftraege.map((o) => o.nummer);
+    const za = g.auftraege.filter((o) => o.status !== "zurueckgezogen").map((o) => o.nummer);
+    const zv = g.auftraege.filter((o) => o.status === "zurueckgezogen").map((o) => o.nummer);
     buchProtokoll(von.email, "Altposten im Auszahlungsplan verrechnet", nummer,
-      `${g.vormerkungen} Vormerkungen verworfen · ${g.provisionen} Provisionen storniert · ${g.auszahlungen.length} Auszahlungen abgelehnt${za.length ? ` · Aufträge geschlossen: ${za.join(", ")}` : ""}`);
+      `${g.vormerkungen} Vormerkungen verworfen · ${g.provisionen} Provisionen storniert · ${g.auszahlungen.length} Auszahlungen abgelehnt${za.length ? ` · Aufträge geschlossen: ${za.join(", ")}` : ""}`
+      + `${zv.length ? ` · schon zurückgerufen, Antwort der Buchhaltung offen (mit dem Plan verknüpft): ${zv.join(", ")}` : ""}`);
     for (const o of g.auftraege) {
       if (o.extern && o.status === "freigegeben") zurueck.push({ an: o.extern, plan: nummer, nummer: o.nummer, betragCents: o.cents, empfaenger: o.empfaenger });
     }
@@ -2226,8 +2244,14 @@ export const PLAN_HINWEIS_EMPFAENGER =
  * Tabelle noch nicht (kein Plan je angelegt), ist die Antwort leer — die Agenten-Route macht keine Tabellen-Anweisung.
  */
 export async function planeFuerMitarbeiter(agentId: number, lauf: Lauf = sqlPool): Promise<PlanMitarbeiter[]> {
-  const [t] = (await lauf`SELECT to_regclass('public.fiaon_auszahlungsplan_teil') IS NOT NULL AS da`) as any[];
-  if (t?.da !== true) return [];
+  // Endprüfung E-484: nicht nur die Tabelle, sondern die zuletzt angelegten Spalten (planSchema legt sie per ALTER nach
+  // den CREATE TABLE an). Fehlen sie noch, gibt es auch noch keinen Plan — leer statt Fehler 42703 im Wallet.
+  const [t] = (await lauf`
+    SELECT COUNT(*)::int AS n FROM pg_attribute
+     WHERE attnum > 0 AND NOT attisdropped
+       AND ((attrelid = to_regclass('public.fiaon_auszahlungsplan') AND attname = 'gekuerzt_cents')
+         OR (attrelid = to_regclass('public.fiaon_auszahlungsplan_teil') AND attname = 'entfallen_am'))`) as any[];
+  if (zahl(t?.n) !== 2) return [];
   const plaene = (await lauf`
     SELECT id, nummer, status, anspruch_cents, teil_cents, anzahl_teile, iban_masked, angelegt_am, altposten,
            altposten_cents, altposten_anzahl, COALESCE(gekuerzt_cents, 0) AS gekuerzt_cents

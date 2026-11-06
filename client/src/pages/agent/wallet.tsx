@@ -21,7 +21,7 @@ import { AgentShell, api, fmtCents, fmtDT, fmtD, useFragen } from "./shared";
 import { useOffice } from "./OfficeShell";
 import "@/styles/office-wallet.css";
 import { Rundgang } from "@/components/agent/Rundgang";
-import { RUNDGAENGE } from "./rundgaenge";
+import { RUNDGAENGE, RUNDGANG_WALLET_PLAN } from "./rundgaenge";
 import "@/styles/office-rundgang.css";
 
 type Reiter = "guthaben" | "auszahlung" | "leistung" | "partner";
@@ -61,6 +61,14 @@ function WalletInnen() {
   }, []);
   useEffect(laden, [laden]);
   const satzText = satz != null ? `${Math.round(satz * 100)} %` : earnings ? `${prozent(earnings.rateBp)} %` : "25 %";
+  // E-484, Endprüfung: Der Rundgang-Schritt zur Plan-Karte erreicht nur, wer die Karte wirklich hat — der Reiter
+  // „Auszahlung“ meldet sie, sobald sie auf dem Bildschirm steht (danach bleibt der Schritt für diesen Besuch).
+  const [planKarte, setPlanKarte] = useState(false);
+  const planKarteDa = useCallback(() => setPlanKarte(true), []);
+  const rundgangSchritte = useMemo(
+    () => (planKarte ? [...RUNDGAENGE.wallet.schritte, RUNDGANG_WALLET_PLAN] : RUNDGAENGE.wallet.schritte),
+    [planKarte],
+  );
 
   return (
     <div className="wa">
@@ -84,11 +92,11 @@ function WalletInnen() {
       {fehler && <p className="wa-fehler">{fehler} <button type="button" className="wa-link" onClick={laden}>Erneut versuchen</button></p>}
 
       {reiter === "guthaben" && <Guthaben earnings={earnings} onWechsel={wechseln} />}
-      {reiter === "auszahlung" && <Auszahlung />}
+      {reiter === "auszahlung" && <Auszahlung onPlanKarte={planKarteDa} />}
       {reiter === "leistung" && <Leistung />}
       {reiter === "partner" && <Partner />}
       {/* 24.08.2026: Rundgang je Raum (E-063). */}
-      <Rundgang raum="wallet" titel={RUNDGAENGE.wallet.titel} schritte={RUNDGAENGE.wallet.schritte} />
+      <Rundgang raum="wallet" titel={RUNDGAENGE.wallet.titel} schritte={rundgangSchritte} />
     </div>
   );
 }
@@ -326,13 +334,16 @@ function PlanKarte({ p }: { p: PlanImWallet }) {
 // ── Reiter 2: Auszahlung ───────────────────────────────────────────────────
 // Der Knopf erzeugt NUR eine Anforderung – er löst nie eine Überweisung aus.
 // Immer das volle Guthaben, nur mit Bankdaten und ab Mindestbetrag.
-function Auszahlung() {
+function Auszahlung({ onPlanKarte }: { onPlanKarte?: () => void }) {
   const fragen = useFragen();
   const [data, setData] = useState<any>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const laden = useCallback(() => { api("/agent/payouts").then((r) => { if (r.ok) setData(r.json); else setMeldung({ art: "schlecht", text: r.json?.error || "Auszahlungsdaten konnten nicht geladen werden." }); }).catch(() => setMeldung({ art: "schlecht", text: "Keine Verbindung." })); }, []);
   useEffect(laden, [laden]);
+  // E-484, Endprüfung: Steht eine Plan-Karte da, bekommt der Rundgang seinen Schritt dazu (sonst nie).
+  const hatPlanKarte = !!data && (Array.isArray(data.plaene) ? data.plaene.length > 0 : !!data.plan);
+  useEffect(() => { if (hatPlanKarte) onPlanKarte?.(); }, [hatPlanKarte, onPlanKarte]);
   if (!data) return <p className="wa-laedt">{meldung?.text || "Lade …"}</p>;
   // E-166 (08.09.2026): Anfordern geht jederzeit; was angefordert ist, wird ab dem 15. ausgebucht.
   const inAuszahlung = Number(data.inAuszahlungCents || 0);

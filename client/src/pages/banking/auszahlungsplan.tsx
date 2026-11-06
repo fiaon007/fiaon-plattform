@@ -99,11 +99,14 @@ function altpostenZeilen(a: Altposten | PlanAltpostenDetail | null, art: "vorsch
   for (const p of a.auszahlungen ?? []) z.push(`Auszahlung Nr. ${p.id} · ${geld(p.cents)} (${AUSZAHLUNG_STAND[p.status] ?? p.status})`);
   for (const o of a.auftraege ?? []) {
     const schon = o.auszahlungStatus === "ausgezahlt" ? " · die Auszahlung ist schon als überwiesen gebucht und bleibt so" : "";
+    // Endprüfung E-484: schon vor dem Plan bei der Buchhaltung zurückgerufen, ihre Antwort steht noch aus.
+    const rueckruf = o.status === "zurueckgezogen";
     const was = art === "vorschau"
-      ? (o.beiBuchhaltung ? "liegt bei der Buchhaltung — wird zurückgerufen („Bitte NICHT ausführen“)" : `${AUFTRAG_STAND[o.status] ?? o.status} — wird geschlossen`)
+      ? (rueckruf ? "schon zurückgerufen, Antwort der Buchhaltung offen — meldet sie „schon überwiesen“, wird der Plan um diesen Betrag gekürzt"
+        : o.beiBuchhaltung ? "liegt bei der Buchhaltung — wird zurückgerufen („Bitte NICHT ausführen“)" : `${AUFTRAG_STAND[o.status] ?? o.status} — wird geschlossen`)
       : art === "verrechnet"
-        ? (o.beiBuchhaltung ? "bei der Buchhaltung zurückgerufen" : "geschlossen")
-        : (o.beiBuchhaltung ? "liegt bei der Buchhaltung" : AUFTRAG_STAND[o.status] ?? o.status);
+        ? (rueckruf ? "vor dem Plan zurückgerufen" : o.beiBuchhaltung ? "bei der Buchhaltung zurückgerufen" : "geschlossen")
+        : (rueckruf ? "zurückgerufen, Antwort der Buchhaltung offen" : o.beiBuchhaltung ? "liegt bei der Buchhaltung" : AUFTRAG_STAND[o.status] ?? o.status);
     z.push(`${o.nummer} · ${geld(o.cents)} · ${was}${schon}`);
   }
   return z;

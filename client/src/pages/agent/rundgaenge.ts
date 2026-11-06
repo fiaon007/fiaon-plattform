@@ -930,21 +930,23 @@ export const RUNDGANG_WALLET: RundgangSchritt[] = [
       + "siehst du ihn, kannst ihn aber noch nicht anfordern.",
     tipp: "Ohne IBAN im Profil bleibt dein Guthaben stehen. Trag sie einmal ein, dann läuft es von selbst.",
   },
-  {
-    // E-484 (06.11.2026) mitgezogen: die Karte „Dein Auszahlungsplan“ unter „Auszahlung“. Ohne Ziel — sie erscheint
-    // nur bei den Menschen, für die ein Plan angelegt ist (Rundgang-Pflege: bedingt Sichtbares bekommt kein ziel).
-    // Nachbesserung E-484: neutral gehalten — der Schritt geht an alle; ob es für jemanden einen Plan gibt, steht nur in
-    // seiner eigenen Karte.
-    titel: "Feste Auszahlungen in Teilbeträgen.",
-    text: "Wird mit dir eine feste Auszahlung in Teilbeträgen vereinbart, steht sie unter „Auszahlung“ als eigene Karte: "
-      + "der zugesagte Betrag, was schon überwiesen ist, was unterwegs ist und was noch offen ist. Die Buchhaltung überweist "
-      + "jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Alle zehn ausgeführten "
-      + "Teilbeträge kommt eine Sammelmail mit den Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht. "
-      + "Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte — und sie zählen nicht als "
-      + "Verdienst: nicht in den Kacheln unter „Guthaben & Provisionen“, nicht in „Provisionen je Rate“, nicht im Monatsziel.",
-    tipp: "Neue Provisionen laufen daneben ganz normal über dein Guthaben — der Plan ändert daran nichts.",
-  },
 ];
+
+/**
+ * E-484 (06.11.2026) mitgezogen: die Karte „Dein Auszahlungsplan“ unter „Auszahlung“. NICHT in RUNDGANG_WALLET — der
+ * Schritt erreicht nur, wer die Karte gerade wirklich sieht: wallet.tsx hängt ihn an, solange die Plan-Karte auf dem
+ * Bildschirm steht (Endprüfung E-484). Ohne Ziel: bedingt Sichtbares bekommt kein ziel (Rundgang-Pflege).
+ */
+export const RUNDGANG_WALLET_PLAN: RundgangSchritt = {
+  titel: "Dein Auszahlungsplan.",
+  text: "Die Karte „Dein Auszahlungsplan“ zeigt den zugesagten Betrag, was schon überwiesen ist, was unterwegs ist und was "
+    + "noch offen ist. Die Buchhaltung überweist jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 "
+    + "Bankarbeitstage. Alle zehn ausgeführten Teilbeträge kommt eine Sammelmail mit den Abrechnungen — einzelne Mails je "
+    + "Teilbetrag gibt es nicht. Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte — und sie "
+    + "zählen nicht als Verdienst: nicht in den Kacheln unter „Guthaben & Provisionen“, nicht in „Provisionen je Rate“, "
+    + "nicht im Monatsziel.",
+  tipp: "Neue Provisionen laufen daneben ganz normal über dein Guthaben — der Plan ändert daran nichts.",
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON BANKING › AUSZAHLUNGSPLAN (E-484, 06.11.2026) — /buchhaltung?reiter=auszahlungsplan

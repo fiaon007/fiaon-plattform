@@ -83,29 +83,9 @@ export interface AgentUpdate {
 
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
-  {
-    // E-484 (06.11.2026): Auszahlungsplan — die Karte im Wallet (nur bei den Menschen, für die ein Plan angelegt ist).
-    // Nachbesserung: neutral gehalten — die Neuigkeit geht an alle; wer einen Plan hat, sieht es nur in seiner Karte.
-    id: "2026-11-06-wallet-auszahlungsplan",
-    date: "2026-11-06",
-    category: "Neu",
-    title: "Wallet: neue Karte für feste Auszahlungen",
-    summary:
-      "Wird mit dir eine feste Auszahlung in Teilbeträgen vereinbart, steht sie unter Wallet › Auszahlung als eigene Karte: "
-      + "zugesagt, überwiesen, unterwegs und noch offen.",
-    changes: [
-      "Ein Auszahlungsplan zahlt einen zugesagten Betrag in festen Teilbeträgen aus. Jeder Teilbetrag wird mit TAN freigegeben und von der Buchhaltung einzeln überwiesen.",
-      "Die Karte zeigt den Fortschritt und die letzten zehn Teilbeträge. Im Verlauf darunter stehen sie nicht — dort bleiben deine normalen Anforderungen.",
-      "Teilbeträge stehen nur in der Plan-Karte: Sie zählen nicht in „Provisionen je Rate“, nicht in den Kacheln „In Auszahlung“ und „Ausgezahlt“, nicht ins Monatsziel und nicht in „heute / diese Woche verdient“ auf der Startseite — sie zahlen einen schon zugesagten Betrag aus.",
-      "Alle zehn ausgeführten Teilbeträge kommt eine Sammelmail mit den Abrechnungen; einzelne Mails je Teilbetrag gibt es nicht.",
-      "Neue Provisionen laufen daneben ganz normal über dein Guthaben.",
-    ],
-    howto: [
-      "Office → Wallet → Reiter „Auszahlung“ → Karte „Dein Auszahlungsplan“ (nur sichtbar, wenn eine solche Auszahlung vereinbart ist).",
-      "Die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Fehlt etwas länger, sag der Geschäftsleitung Bescheid.",
-    ],
-    link: { href: "/agent/wallet/auszahlung", label: "Zum Wallet" },
-  },
+  // E-484 (06.11.2026): Zum Auszahlungsplan gibt es bewusst KEINE Neuigkeit. Diese Liste geht an alle und kennt keinen
+  // Ziel-Filter; die Karte im Wallet betrifft nur die Menschen, für die ein Plan angelegt ist — sie erklärt sich dort
+  // selbst (Karte und Rundgang-Schritt erscheinen nur bei ihnen).
   {
     // E-432 (28.10.2026): Global-Akte — Sätze je Bundesstaat, neue Dokumentarten, Zahlung „fällig mit Ihrem Auftrag“.
     id: "2026-10-28-global-bundesstaat-unterlagen",

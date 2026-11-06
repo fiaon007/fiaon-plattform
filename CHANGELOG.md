@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Endprüfung): Auszahlungsplan — Zahlungsweg ohne neue Tabellen-Sperre, Rückruf vor dem Plan verknüpft
+
+- **Warum:** Die Endprüfung vor dem Push hat die Nachbesserung gegengelesen und nachgestellt. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Kundenzahlung hängt nicht am neuen Merker.** Die neue Spalte „im Auszahlungsplan verrechnet“ samt zweitem Index wird in
+    einem eigenen Schritt angelegt, nicht mehr im Weg jeder Vormerkung. Vorher: War die Vormerkungs-Tabelle beim Deploy länger als
+    3 s besetzt, warf die erste Kundenzahlung — keine Vormerkung, kein Global-Start, keine Auskunft-Lieferung. Jetzt läuft die
+    Zahlung ohne den Merker weiter (dann kann auch nichts verrechnet sein), die DDL-Wache holt die Spalte nach.
+  - **onCustomerPaid:** Scheitert die Provisionsfrage, laufen Meta-Meldung, Begleit-Akte, Auskunft-Lieferung und Bündel trotzdem;
+    der Fehler geht danach wie bisher an den Aufrufer. Der Global-Start wartet weiter auf die Provisionsfrage (er trägt den Betreuer ein).
+  - **Rückruf vor dem Plan:** Ein Auftrag, der schon vor der Plananlage bei der Buchhaltung zurückgerufen wurde und dessen Antwort
+    noch offen ist, wird beim Anlegen mit dem Plan verknüpft (seine Auszahlung geht im Plan auf). Meldet die Buchhaltung danach
+    „war schon überwiesen“, bucht der Inhaber das mit TAN — der Plan wird um genau diesen Betrag gekürzt. Vorher gab es dafür keinen
+    Weg, und der Plan hätte denselben Betrag ein zweites Mal gezahlt.
+  - **Nachbuchungs-Center:** Eine verrechnete Raten-Vormerkung blendet eine fehlende Abschluss-Provision desselben Kunden nicht mehr
+    aus (dieselbe Regel wie onCustomerPaid: nur die Basis-Zahlung zählt).
+  - **Zweiter Vormerkungs-Index:** Scheitert er (z. B. an Dubletten), steht das laut im Log und wird beim nächsten Aufruf neu versucht.
+  - **Wallet:** solange die zuletzt angelegte Plan-Spalte fehlt, leer statt Fehler.
+  - **Neuigkeit und Rundgang:** Die Neuigkeit zum Auszahlungsplan ist gestrichen (die Liste geht an alle und kennt keinen Ziel-Filter).
+    Der Wallet-Rundgang zeigt den Schritt zur Plan-Karte nur, wenn die Karte wirklich auf dem Bildschirm steht.
+  - **Prüfstand:** neuer Abschnitt T25 (Zahlung bei besetzter Tabelle im eigenen Prozess, Rückruf vor dem Plan, Raten-Vormerkung,
+    Wallet ohne Spalte); S0 sagt, ob der Server das Schema schon selbst angelegt hatte (die Deploy-Frage).
+- **Wo:** server/lib/fiaon-provision-automatik.ts, server/routes/fiaon-agent.ts, server/lib/fiaon-auszahlungsplan.ts,
+  server/routes/fiaon-team.ts, client/src/pages/banking/auszahlungsplan.tsx, client/src/pages/agent/ (wallet, rundgaenge,
+  updates-data), scripts/pruef-auszahlungsplan.ts.
+
 ## 06.11.2026 — E-484 (Nachbesserung nach vier Prüfungen): Auszahlungsplan — Verrechnung hält dauerhaft, Rückruf mit Klärung
 
 - **Warum:** Vier Prüfer (Geld, Rechte/öffentliches Repo, Oberfläche, Rückfall) haben den Bau gelesen und nachgestellt. Der

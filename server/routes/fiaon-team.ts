@@ -1215,8 +1215,11 @@ async function provisionVerrechnetFilter(): Promise<{ provision: string; ohneVor
   return {
     mit,
     provision: provisionVorhandenSql("c", mit),
+    // Endprüfung E-484: nur Vormerkungen der BASIS-Zahlung (wie in abschlussNachZahlung) — eine verrechnete RATEN-Vormerkung
+    // (Zahlungsreferenz „…-N“) darf eine fehlende Abschluss-Provision desselben Kunden nicht ausblenden.
     ohneVormerkung: mit
-      ? `AND NOT EXISTS (SELECT 1 FROM fiaon_provision_vormerkung vv WHERE vv.ref = a.ref AND vv.kind IN ('own', 'override') AND ${vormerkungVerrechnetSql("vv")})`
+      ? `AND NOT EXISTS (SELECT 1 FROM fiaon_provision_vormerkung vv WHERE vv.ref = a.ref AND vv.kind IN ('own', 'override') AND ${vormerkungVerrechnetSql("vv")}
+           AND (vv.payment_reference IS NULL OR vv.payment_reference = a.payment_reference))`
       : "",
   };
 }
@@ -1230,8 +1233,13 @@ async function bookRef(ref: string, manualAmountCents?: number, agentIdOverride?
   `;
   if (existing.length > 0) return { ok: true, alreadyBooked: true };
   if (verrechnet.mit) {
+    // Endprüfung E-484: nur die Basis-Zahlung der Bestellung zählt (dieselbe Regel wie abschlussNachZahlung) — eine
+    // verrechnete Raten-Vormerkung blockiert den Admin-Entscheid zur Abschluss-Provision nicht.
     const [v] = (await sqlPool`
-      SELECT id FROM fiaon_provision_vormerkung WHERE ref = ${ref} AND kind IN ('own', 'override') AND verrechnet_plan_id IS NOT NULL LIMIT 1`) as any[];
+      SELECT v.id FROM fiaon_provision_vormerkung v
+       WHERE v.ref = ${ref} AND v.kind IN ('own', 'override') AND v.verrechnet_plan_id IS NOT NULL
+         AND (v.payment_reference IS NULL OR v.payment_reference IN (SELECT a.payment_reference FROM fiaon_applications a WHERE a.ref = ${ref}))
+       LIMIT 1`) as any[];
     if (v) return { ok: true, alreadyBooked: true, verrechnet: true };
   }
 

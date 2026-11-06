@@ -12,7 +12,7 @@ import { geld, geldVz, heute, monatKurz, monatName, tag, uhr, zahl } from "./for
 import { Chip, Guilloche, Knopf, Kopieren, Zeichen } from "./ui";
 import { UmsatzDetail, UmsatzListe } from "./umsaetze";
 
-export type Reiter = "start" | "umsaetze" | "ueberweisung" | "auftraege" | "auszahlungen" | "dauer" | "auszuege" | "empfaenger" | "sicherheit" | "kontostand";
+export type Reiter = "start" | "umsaetze" | "ueberweisung" | "auftraege" | "auszahlungen" | "auszahlungsplan" | "dauer" | "auszuege" | "empfaenger" | "sicherheit" | "kontostand";
 
 // ── Die Kontoplatte ─────────────────────────────────────────────────────────
 function Kontoplatte({ lage, onGehe }: { lage: Lage; onGehe: (r: Reiter) => void }) {
@@ -187,6 +187,19 @@ function ZuTun({ lage, onGehe }: { lage: Lage; onGehe: (r: Reiter) => void }) {
   if (ueberweisen.length) punkte.push({ z: "senden", t: inhaber ? `${ueberweisen.length} freigegeben — überweisen und Bankreferenz eintragen` : `${ueberweisen.length} freigegeben — Überweisung durch den Inhaber`, x: geld(ueberweisen.reduce((s, a) => s + a.betragCents, 0)), r: "auftraege", art: inhaber ? "warn" : "info" });
   if (entwuerfe.length) punkte.push({ z: "dokument", t: `${entwuerfe.length} eigene Entwürfe noch nicht eingereicht`, x: "", r: "auftraege", art: "still" });
   if (lage.auszahlungOffen.ohneAuftrag) punkte.push({ z: "team", t: `${lage.auszahlungOffen.ohneAuftrag} Mitarbeiter-Auszahlungen angefordert, noch nicht angewiesen`, x: geld(lage.auszahlungOffen.cents), r: "auszahlungen", art: "warn" });
+  // E-484: je laufendem Auszahlungsplan der nächste Schritt — der Zustand kommt vom Server, hier steht nur der Satz.
+  const plan = lage.auszahlungsplan;
+  if (plan) {
+    for (const p of plan.plaene) {
+      if (p.darfAusloesen) punkte.push({ z: "uhr", t: `Nächster Teilbetrag bereit: ${p.nummer} an ${p.empfaengerName}`, x: p.naechsterTeil ? geld(p.naechsterTeil.betragCents) : "", r: "auszahlungsplan", art: "warn" });
+      else if (p.zustand === "wartet") punkte.push({ z: "uhr", t: `Nächster Teilbetrag ${p.nummer} ab ${uhr(p.naechsteAb)} Uhr`, x: "", r: "auszahlungsplan", art: "still" });
+      else if (p.zustand === "pausiert") punkte.push({ z: "uhr", t: `${p.nummer} ist pausiert — weiter geht es, wenn der Inhaber fortsetzt`, x: "", r: "auszahlungsplan", art: "info" });
+      else if (p.zustand === "konto") punkte.push({ z: "warnung", t: `${p.nummer} angehalten: Konto des Empfängers geändert oder gesperrt`, x: "", r: "auszahlungsplan", art: "warn" });
+      else if (p.zustand === "stau") punkte.push({ z: "uhr", t: `${p.nummer}: Stau-Grenze erreicht — wartet auf die Buchhaltung`, x: "", r: "auszahlungsplan", art: "info" });
+    }
+    if (plan.darfFreigeben) punkte.push({ z: "schild", t: plan.darfFreigeben === 1 ? "1 Teilbetrag wartet auf deine Freigabe" : `${plan.darfFreigeben} Teilbeträge warten auf deine Freigabe`, x: "", r: "auszahlungsplan", art: "warn" });
+    if (plan.ueberfaellig) punkte.push({ z: "warnung", t: plan.ueberfaellig === 1 ? "1 Teilbetrag liegt länger als 2 Bankarbeitstage bei der Buchhaltung" : `${plan.ueberfaellig} Teilbeträge liegen länger als 2 Bankarbeitstage bei der Buchhaltung`, x: "", r: "auszahlungsplan", art: "warn" });
+  }
   // E-277: auch die älteren seit 15.08. — „lass kein über".
   const nachholAnzahl = Math.max(lage.nachholen?.anzahl ?? 0, lage.nachholen?.gesamtAnzahl ?? 0);
   if (nachholAnzahl) punkte.push({ z: "rein", t: `${nachholAnzahl} Eingänge warten auf Buchung oder Zuordnung — unter Umsätze prüfen, je Eingang ein Vorschlag`, x: geld(Math.max(lage.nachholen.cents, lage.nachholen.gesamtCents ?? 0)), r: "umsaetze", art: "warn" });
@@ -264,6 +277,7 @@ export default function Uebersicht({ lage, onGehe, onNeu }: { lage: Lage; onGehe
           <div className="bk-schnell">
             <Knopf art="primaer" zeichen="senden" onClick={() => onGehe("ueberweisung")}>Neue Überweisung</Knopf>
             <Knopf zeichen="team" onClick={() => onGehe("auszahlungen")}>Auszahlungen</Knopf>
+            {lage.auszahlungsplan?.plaene.length ? <Knopf zeichen="uhr" onClick={() => onGehe("auszahlungsplan")}>Auszahlungsplan</Knopf> : null}
             <Knopf zeichen="dokument" onClick={() => onGehe("auszuege")}>Auszüge</Knopf>
           </div>
         </div>

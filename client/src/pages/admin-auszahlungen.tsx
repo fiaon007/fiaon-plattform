@@ -56,6 +56,11 @@ export default function AdminAuszahlungenPage() {
   const [kopiert, setKopiert] = useState<string | null>(null);
   const [auditOffen, setAuditOffen] = useState(false);
   const [audit, setAudit] = useState<any[]>([]);
+  // E-484: Fehler bleiben stehen (der Riegel nennt z. B. die ZA-Nummer bei der Buchhaltung — das darf nicht
+  // nach sechs Sekunden verschwinden). Dazu der Hinweis, dass Teilbeträge eines Auszahlungsplans im Banking laufen.
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [ladeFehler, setLadeFehler] = useState<string | null>(null);
+  const [planHinweis, setPlanHinweis] = useState<{ text: string } | null>(null);
 
   const sagen = (t: string) => { setMeldung(t); setTimeout(() => setMeldung(null), 6000); };
 
@@ -65,6 +70,8 @@ export default function AdminAuszahlungenPage() {
       const j = await fetch("/api/fiaon/admin/payouts", { credentials: "include" })
         .then((r) => r.json()).catch(() => null);
       setListe(j?.ok ? j.data : []);
+      setPlanHinweis(j?.ok && j.planHinweis?.text ? { text: String(j.planHinweis.text) } : null);
+      setLadeFehler(j?.ok ? null : j?.error ? `Die Auszahlungen konnten nicht geladen werden: ${j.error}` : "Die Auszahlungen konnten nicht geladen werden. Bitte „Aktualisieren“ drücken.");
     } finally { setLaedt(false); }
   }, []);
 
@@ -97,8 +104,8 @@ export default function AdminAuszahlungenPage() {
     try {
       const res = await fetch(`/api/fiaon/admin/payouts/${p.id}/mark-paid`, { method: "POST", credentials: "include" });
       const j = await res.json().catch(() => null);
-      if (res.ok && j?.ok) { sagen(`Auszahlung #${p.id} als überwiesen markiert.`); await laden(); }
-      else sagen(`Fehler: ${j?.error || res.status}`);
+      if (res.ok && j?.ok) { setFehler(null); sagen(`Auszahlung #${p.id} als überwiesen markiert.`); await laden(); }
+      else setFehler(`Auszahlung #${p.id} nicht als überwiesen markiert: ${j?.error || `Fehler ${res.status}`}`);
     } finally { setBusy(null); }
   };
 
@@ -112,8 +119,8 @@ export default function AdminAuszahlungenPage() {
         credentials: "include", body: JSON.stringify({ reason: grund }),
       });
       const j = await res.json().catch(() => null);
-      if (res.ok && j?.ok) { sagen(`Auszahlung #${p.id} abgelehnt — die Provisionen sind wieder verfügbar.`); await laden(); }
-      else sagen(`Fehler: ${j?.error || res.status}`);
+      if (res.ok && j?.ok) { setFehler(null); sagen(`Auszahlung #${p.id} abgelehnt — die Provisionen sind wieder verfügbar.`); await laden(); }
+      else setFehler(`Auszahlung #${p.id} nicht abgelehnt: ${j?.error || `Fehler ${res.status}`}`);
     } finally { setBusy(null); }
   };
 
@@ -230,6 +237,21 @@ export default function AdminAuszahlungenPage() {
         <div className="mb-4 px-4 py-3 rounded-xl text-[13px] font-semibold"
           style={{ background: "rgba(29,78,216,.05)", border: "1px solid rgba(29,78,216,.2)", color: "#1e40af" }}>
           {meldung}
+        </div>
+      )}
+      {(fehler || ladeFehler) && (
+        <div role="alert" className="mb-4 px-4 py-3 rounded-xl text-[13px] flex items-start gap-3"
+          style={{ background: "#fff1ef", border: "1px solid #f1cdc8", color: "#8f2a24" }}>
+          <span className="flex-1">{[ladeFehler, fehler].filter(Boolean).join(" · ")}</span>
+          {fehler ? <button type="button" className="shrink-0 text-[12px] underline" onClick={() => setFehler(null)}>Schließen</button> : null}
+        </div>
+      )}
+      {/* E-484: Teilbeträge eines Auszahlungsplans stehen nicht in dieser Liste — sie laufen über das FIAON Banking. */}
+      {planHinweis && (
+        <div className="mb-4 px-4 py-3 rounded-xl text-[12.5px] flex flex-wrap items-center gap-x-3 gap-y-1" data-fiaon="admin-plan-hinweis"
+          style={{ background: "#f5f8fd", border: "1px solid var(--a3-linie,#e4e9f2)", color: "#334155" }}>
+          <span className="flex-1 min-w-[220px]">{planHinweis.text}</span>
+          <a href="/buchhaltung?reiter=auszahlungsplan" className="font-semibold whitespace-nowrap" style={{ color: ACCENT }}>Zum Auszahlungsplan</a>
         </div>
       )}
 

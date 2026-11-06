@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ruf, type Auszahlung, type Ich } from "./api";
 import { geld, tag } from "./format";
-import { Chip, Knopf, KnopfLink, Laden, Leer, Meldung, type ChipArt } from "./ui";
+import { Chip, Knopf, KnopfLink, Laden, Leer, Meldung, Zeichen, type ChipArt } from "./ui";
 
 const STATUS: Record<string, { text: string; art: ChipArt }> = {
   angefordert: { text: "Angefordert", art: "warn" },
@@ -30,16 +30,24 @@ const EXTERN_TEXT: Record<string, string> = {
   ausgefuehrt: "ausgeführt", abgelehnt: "abgelehnt", zurueckgezogen: "zurückgezogen",
 };
 
-export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAuftraegen: () => void }) {
+export default function Auszahlungen({ ich, onZuAuftraegen, planAktiv = false, onZuPlan }: {
+  ich: Ich; onZuAuftraegen: () => void;
+  /** E-484: Läuft ein Auszahlungsplan? Seine Teilbeträge stehen im eigenen Reiter, nicht in dieser Liste. */
+  planAktiv?: boolean;
+  onZuPlan?: () => void;
+}) {
   const [liste, setListe] = useState<Auszahlung[] | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [wer, setWer] = useState<string>("");
   const [status, setStatus] = useState<string>("alle");
   const [laeuft, setLaeuft] = useState<number | "alle" | null>(null);
+  const [planTeile, setPlanTeile] = useState<{ offen: number; offenCents: number } | null>(null);
 
   const laden = useCallback(() => {
-    ruf<{ auszahlungen: Auszahlung[] }>("/buchhaltung/auszahlungen").then((j) => setListe(j.auszahlungen)).catch((e) => setFehler(e.message));
+    ruf<{ auszahlungen: Auszahlung[]; planTeile?: { offen: number; offenCents: number } | null }>("/buchhaltung/auszahlungen")
+      .then((j) => { setListe(j.auszahlungen); setPlanTeile(j.planTeile ?? null); })
+      .catch((e) => setFehler(e.message));
   }, []);
   useEffect(() => { laden(); }, [laden]);
 
@@ -144,6 +152,16 @@ export default function Auszahlungen({ ich, onZuAuftraegen }: { ich: Ich; onZuAu
         ) : null}
       </div>
 
+      {planAktiv || (planTeile && planTeile.offen > 0) ? (
+        <p className="bk-fussnote" data-fiaon="auszahlungen-plan-hinweis">
+          <Zeichen n="uhr" g={14} />
+          <span>
+            Teilbeträge des Auszahlungsplans stehen nicht in dieser Liste
+            {planTeile && planTeile.offen > 0 ? ` (${planTeile.offen} unterwegs · ${geld(planTeile.offenCents)})` : ""} — sie laufen im Reiter „Auszahlungsplan“.
+            {onZuPlan ? <> <button type="button" className="bk-link-knopf" onClick={onZuPlan}>Zum Auszahlungsplan</button></> : null}
+          </span>
+        </p>
+      ) : null}
       {meldung ? <Meldung art="gut" onZu={() => setMeldung(null)}>{meldung} <button type="button" className="bk-link-knopf" onClick={onZuAuftraegen}>Zu den Aufträgen</button></Meldung> : null}
       {fehler ? <Meldung art="fehler" onZu={() => setFehler(null)}>{fehler}</Meldung> : null}
 

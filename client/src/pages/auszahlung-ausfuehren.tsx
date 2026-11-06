@@ -10,6 +10,10 @@
 // ist der Ausweis (nur die Buchhaltung hat es; Florentine nie, Vier-Augen). Die Seite
 // liest nur per GET; bestätigt wird ausschließlich per POST von derselben Herkunft, so
 // lösen Link-Vorschauen der Mailprogramme nichts aus. Gesiezt. Immer hell.
+//
+// E-484 (06.11.2026): Die Bank-Referenz hat ein eigenes Feld — freiwillig, nie Pflicht
+// („falls zur Hand“); ist sie angegeben, nimmt der Server jede nur einmal an. Bei
+// Teilbeträgen eines Auszahlungsplans steht oben „Teilbetrag n von m · Auszahlungsplan …“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useParams } from "wouter";
@@ -20,7 +24,23 @@ interface Ansicht {
   nummer: string; empfaenger: string; iban: string; bic: string | null; betragCents: number; verwendungszweck: string;
   art: string | null; auszahlung: string | null; erfasst: string; freigegeben: string;
   stand: "offen" | "bestaetigt" | "ungueltig"; bestaetigtAm: string | null; wertAm: string | null;
+  /** E-484: Teilbetrag eines Auszahlungsplans („n von m“) — null bei jedem anderen Auftrag. */
+  plan?: { nummer: string; teil: string } | null;
+  /** E-484: die Bank-Referenz, mit der bestätigt wurde (freiwillig, deshalb oft leer). */
+  bankReferenz?: string | null;
 }
+
+/**
+ * E-484: Die Bank-Referenz ist freiwillig (Entscheidung des Inhabers vom 06.11.2026). Ist sie angegeben, prüft der
+ * Server Form und Eindeutigkeit; hier nur die Länge, damit ein Tippfehler nicht erst nach dem Absenden auffällt.
+ */
+const bankRefHinweis = (s: string): string | null => {
+  const t = s.replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  if (t.length < 4) return "Die Bank-Referenz ist sehr kurz — bitte prüfen oder das Feld leer lassen.";
+  if (t.length > 60) return "Die Bank-Referenz hat mehr als 60 Zeichen — bitte kürzen oder das Feld leer lassen.";
+  return null;
+};
 
 type Lage =
   | { art: "laedt" }
@@ -74,6 +94,7 @@ export default function AuszahlungAusfuehrenPage() {
   const [lage, setLage] = useState<Lage>({ art: "laedt" });
   const [wertAm, setWertAm] = useState(heute);
   const [notiz, setNotiz] = useState("");
+  const [bankRef, setBankRef] = useState("");
   const [zugesagt, setZugesagt] = useState(false);
   const [laeuft, setLaeuft] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
@@ -102,7 +123,9 @@ export default function AuszahlungAusfuehrenPage() {
     try {
       const r = await fetch(`/api/fiaon/buchhaltung/extern/${encodeURIComponent(token)}/bestaetigen`, {
         method: "POST", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wertAm, notiz: notiz.trim() || null }),
+        headers: { "Content-Type": "application/json" },
+        // E-484: Die Bank-Referenz ist freiwillig — leer geht als null, dann bestätigt der Server ohne sie.
+        body: JSON.stringify({ wertAm, notiz: notiz.trim() || null, bankReferenz: bankRef.replace(/\s+/g, " ").trim() || null }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.ok) { setFehler(j?.error || "Die Bestätigung ging nicht durch. Bitte erneut versuchen."); return; }
@@ -143,6 +166,8 @@ export default function AuszahlungAusfuehrenPage() {
       <>
         {zustand("gut", "Ausführung bestätigt", [
           `${a.nummer} · ${euro(a.betragCents)} an ${a.empfaenger} — SEPA-Überweisung ausgeführt am ${tag(a.wertAm)}.`,
+          ...(a.plan ? [`Teilbetrag ${a.plan.teil} · Auszahlungsplan ${a.plan.nummer}.`] : []),
+          ...(a.bankReferenz ? [`Bank-Referenz: ${a.bankReferenz}`] : []),
           lage.art === "fertig"
             ? "Die Auszahlung ist ausgebucht. Die Geschäftsführung erhält jetzt den Durchführungsbeleg. Für Sie ist nichts weiter zu tun."
             : `Bestätigt am ${zeit(a.bestaetigtAm)}. Für Sie ist nichts weiter zu tun.`,
@@ -161,6 +186,9 @@ export default function AuszahlungAusfuehrenPage() {
       <div className="aa-inhalt">
         <p className="aa-auge">SEPA-Überweisung zur Ausführung</p>
         <h1>Auszahlung <span className="aa-nw">{a.nummer}</span> ausführen</h1>
+        {a.plan ? (
+          <p className="aa-teil" data-fiaon="aa-plan-teil">Teilbetrag <b>{a.plan.teil}</b> · Auszahlungsplan <span className="aa-nw">{a.plan.nummer}</span></p>
+        ) : null}
         <p className="aa-unter">Von der Geschäftsführung mit TAN freigegeben. Bitte überweisen Sie den Betrag per SEPA-Überweisung und bestätigen Sie die Ausführung danach hier.</p>
 
         <div className="aa-betrag">
@@ -193,10 +221,16 @@ export default function AuszahlungAusfuehrenPage() {
               <input type="date" value={wertAm} max={heute()} required onChange={(e) => setWertAm(e.target.value)} />
             </label>
             <label className="aa-eingabe aa-breit">
-              <span>Bankreferenz oder Notiz <em>(optional)</em></span>
-              <input type="text" value={notiz} maxLength={200} placeholder="z. B. Referenz aus dem Onlinebanking" onChange={(e) => setNotiz(e.target.value)} />
+              <span>Bank-Referenz <em>(falls zur Hand — freiwillig)</em></span>
+              <input type="text" value={bankRef} maxLength={80} autoComplete="off" spellCheck={false}
+                placeholder="aus Ihrem Onlinebanking" onChange={(e) => setBankRef(e.target.value)} data-fiaon="aa-bank-referenz" />
+              <em className="aa-feld-hinweis">{bankRefHinweis(bankRef) ?? "Hilft, die Zahlung später eindeutig zuzuordnen. Sie können auch ohne bestätigen."}</em>
             </label>
           </div>
+          <label className="aa-eingabe">
+            <span>Notiz <em>(optional)</em></span>
+            <input type="text" value={notiz} maxLength={200} autoComplete="off" placeholder="z. B. Hinweis zur Überweisung" onChange={(e) => setNotiz(e.target.value)} />
+          </label>
           <label className="aa-zusage">
             <input type="checkbox" checked={zugesagt} onChange={(e) => setZugesagt(e.target.checked)} />
             <span>Ich bestätige, dass die SEPA-Überweisung über <strong>{euro(a.betragCents)}</strong> an <strong>{a.empfaenger}</strong> ({a.iban}) am angegebenen Tag ausgeführt wurde.</span>

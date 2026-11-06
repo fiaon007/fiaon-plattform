@@ -29,6 +29,9 @@ function AuftragKarte({ a, ich, onNeu, fokus = false }: { a: Auftrag; ich: Ich; 
   const [hinweis, setHinweis] = useState<string | null>(null);
   const [ablehnen, setAblehnen] = useState(false);
   const [grund, setGrund] = useState("");
+  // E-484: Rückruf eines Auftrags, der schon bei der Buchhaltung liegt (nur Inhaber, mit Grund).
+  const [rueckruf, setRueckruf] = useState(false);
+  const [rueckGrund, setRueckGrund] = useState("");
   const [ref, setRef] = useState("");
   const [wertAm, setWertAm] = useState(heute());
   const [tan, setTan] = useState(false);
@@ -94,6 +97,8 @@ function AuftragKarte({ a, ich, onNeu, fokus = false }: { a: Auftrag; ich: Ich; 
         {extern && a.externGesendetAm ? <li className="fertig"><span>An die Buchhaltung</span>{zeit(a.externGesendetAm)}</li> : null}
         {extern && a.externBestaetigtAm ? <li className="fertig"><span>Ausführung bestätigt</span>{zeit(a.externBestaetigtAm)}{a.externWertAm ? ` · ausgeführt am ${tag(a.externWertAm)}` : ""}</li> : null}
         {a.ausgefuehrtAm ? <li className="fertig"><span>{extern ? "Ausgebucht" : "Überwiesen"}</span>{zeit(a.ausgefuehrtAm)}{a.bankReferenz ? <> · <span className="bk-mono">{a.bankReferenz}</span></> : null}</li> : null}
+        {a.externBankReferenz ? <li className="fertig"><span>Bank-Referenz der Buchhaltung</span><span className="bk-mono">{a.externBankReferenz}</span></li> : null}
+        {a.zurueckgerufenAm ? <li className="fehler"><span>Bei der Buchhaltung zurückgerufen</span>{zeit(a.zurueckgerufenAm)}{a.rueckrufGrund ? ` · ${a.rueckrufGrund}` : ""}</li> : null}
       </ol>
       {a.entscheidungNotiz ? <p className="bk-auftrag-notiz">Grund: {a.entscheidungNotiz}</p> : null}
 
@@ -111,7 +116,19 @@ function AuftragKarte({ a, ich, onNeu, fokus = false }: { a: Auftrag; ich: Ich; 
             ? <>Freigegeben — der Auftrag liegt seit {zeit(a.externGesendetAm)} bei der Buchhaltung ({a.ausfuehrungExtern}). Sobald sie die SEPA-Überweisung bestätigt, wird ausgebucht und der Durchführungsbeleg geht an die Geschäftsführung.</>
             : <>Freigegeben, aber noch nicht an die Buchhaltung übermittelt.</>}
           {" "}<button type="button" className="bk-link-knopf" disabled={laeuft} onClick={() => void tu("an-buchhaltung")}>{a.externGesendetAm ? "Erneut an die Buchhaltung" : "Jetzt an die Buchhaltung"}</button>
+          {inhaber && !a.externBestaetigtAm ? <>{" · "}<button type="button" className="bk-link-knopf" disabled={laeuft} onClick={() => setRueckruf(true)}>Zurückrufen</button></> : null}
         </Meldung>
+      ) : null}
+      {rueckruf && extern && a.status === "freigegeben" && inhaber ? (
+        <div className="bk-auftrag-aktion">
+          <Feld id={`rueck-${a.id}`} l="Grund des Rückrufs" hinweis="Der Link der Buchhaltung wird sofort ungültig, sie bekommt eine Mail „Bitte NICHT ausführen“ — mit der Bitte, die Bank-Referenz zu nennen, falls schon überwiesen.">
+            <input id={`rueck-${a.id}`} value={rueckGrund} onChange={(e) => setRueckGrund(e.target.value)} autoFocus />
+          </Feld>
+          <div className="bk-knopfreihe">
+            <Knopf art="warnung" disabled={rueckGrund.trim().length < 3 || laeuft} onClick={() => void tu("zurueckrufen", { grund: rueckGrund })}>Zurückrufen</Knopf>
+            <Knopf art="still" onClick={() => setRueckruf(false)}>Abbrechen</Knopf>
+          </div>
+        </div>
       ) : null}
       {a.status === "freigegeben" && inhaber && !extern ? (
         <div className="bk-auftrag-aktion">
@@ -186,10 +203,13 @@ function AuftragKarte({ a, ich, onNeu, fokus = false }: { a: Auftrag; ich: Ich; 
   );
 }
 
-export default function Auftraege({ auftraege, ich, onNeu, onNeueUeberweisung, fokusId = null }: {
+export default function Auftraege({ auftraege, ich, onNeu, onNeueUeberweisung, fokusId = null, planLaufend = 0, onZuPlan }: {
   auftraege: Auftrag[]; ich: Ich; onNeu: () => void; onNeueUeberweisung: () => void;
   /** 13.10.2026: Aus der Freigabe-Mail (…?reiter=auftraege&auftrag=ID) — diese Karte ansteuern. */
   fokusId?: number | null;
+  /** E-484: laufende Teilbeträge eines Auszahlungsplans — sie stehen im eigenen Reiter, nicht in dieser Liste. */
+  planLaufend?: number;
+  onZuPlan?: () => void;
 }) {
   const fokusOffen = fokusId == null || auftraege.some((a) => a.id === fokusId && ["entwurf", "eingereicht", "freigegeben"].includes(a.status));
   const [sicht, setSicht] = useState<"offen" | "erledigt" | "alle">(fokusOffen ? "offen" : "alle");
@@ -212,6 +232,15 @@ export default function Auftraege({ auftraege, ich, onNeu, onNeueUeberweisung, f
       </div>
       {ich.rolle === "buchhaltung" ? (
         <p className="bk-fussnote bk-oben"><Zeichen n="schild" g={14} /> Jede Zahlung hat zwei Namen: Du bereitest vor, der Inhaber gibt mit TAN frei und überweist. Auszahlungen „über die Buchhaltung“ gibst du mit der TAN aus der Mail frei — die Buchhaltung führt aus.</p>
+      ) : null}
+      {planLaufend > 0 ? (
+        <p className="bk-fussnote bk-oben" data-fiaon="auftraege-plan-hinweis">
+          <Zeichen n="uhr" g={14} />
+          <span>
+            {planLaufend === 1 ? "1 Teilbetrag des Auszahlungsplans läuft" : `${planLaufend} Teilbeträge des Auszahlungsplans laufen`} — sie stehen im Reiter „Auszahlungsplan“, nicht in dieser Liste.
+            {onZuPlan ? <> <button type="button" className="bk-link-knopf" onClick={onZuPlan}>Zum Auszahlungsplan</button></> : null}
+          </span>
+        </p>
       ) : null}
       {liste.length === 0 ? (
         <Leer titel={sicht === "offen" ? "Nichts offen" : "Noch keine Aufträge"} text={sicht === "offen" ? "Alle Aufträge sind erledigt." : "Der erste entsteht über „Neue Überweisung“."} />

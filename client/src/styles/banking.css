@@ -677,3 +677,212 @@
   [data-fiaon-banking] .bk-nz-kopf { grid-template-columns: auto auto; }
   [data-fiaon-banking] .bk-nz-zweck { grid-column: 1 / -1; }
 }
+
+/* ══ Auszahlungsplan (E-484, 06.11.2026) ═══════════════════════════════════
+   Je Empfänger ein eigener Plan mit eigener Uhr. Die Takt-Platte ist das EINE
+   Navy-Glas dieser Ansicht, darunter helle Karten. Schrift höchstens 500, die
+   große Zahl 200. Farbe nur als Punkt, Rot nur bei Fehler oder Ablehnung.
+   Handy (unter 760 px): nur Karten, Knöpfe mindestens 44 px, Eingaben 16 px
+   (sonst zoomt das iPhone beim Antippen), nichts Klebendes. */
+[data-fiaon-banking] .bk-tan-w { white-space: pre-line; }
+[data-fiaon-banking] .bk-plan { gap: 16px; }
+[data-fiaon-banking] .bk-plan-kopf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--linie-stark); background: var(--flaeche); color: var(--text); font-size: 12.5px; font-weight: 400; cursor: pointer;
+  transition: border-color 120ms var(--kurve), color 120ms var(--kurve);
+}
+[data-fiaon-banking] .bk-plan-chip:hover { border-color: var(--tiefe); color: var(--tiefe); }
+[data-fiaon-banking] .bk-plan-stand { font-size: 12px; }
+[data-fiaon-banking] .bk-plan-titel { font-family: var(--anzeige); font-weight: 400; font-size: 17px; color: var(--tinte); margin: 6px 0 0; }
+[data-fiaon-banking] .bk-plan-leer { margin: 0; color: var(--leise); font-size: 13px; line-height: 1.55; }
+
+/* Die Takt-Platte — Navy-Glas mit Guilloche, je Plan eine Zeile */
+[data-fiaon-banking] .bk-plan-takt {
+  position: relative; overflow: hidden; border-radius: var(--r-xl); padding: 6px 26px; color: #e7eefb;
+  background: linear-gradient(158deg, var(--navy-1) 0%, #13203a 55%, var(--navy-2) 100%);
+  border: 1px solid rgba(156, 203, 255, .14);
+  box-shadow: var(--tief-2), inset 0 1px 0 rgba(170, 210, 255, .16);
+}
+[data-fiaon-banking] .bk-plan-band { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 120px; color: var(--licht-hell); opacity: .08; pointer-events: none; }
+[data-fiaon-banking] .bk-plan-takt > *:not(.bk-plan-band) { position: relative; }
+[data-fiaon-banking] .bk-plan-zeile { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 28px; align-items: center; padding: 20px 0; }
+[data-fiaon-banking] .bk-plan-zeile + .bk-plan-zeile { border-top: 1px solid rgba(156, 203, 255, .13); }
+[data-fiaon-banking] .bk-plan-links { display: grid; gap: 6px; min-width: 0; }
+[data-fiaon-banking] .bk-plan-auge { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--licht-hell); font-weight: 500; }
+[data-fiaon-banking] .bk-plan-nr { letter-spacing: .02em; text-transform: none; color: #a9bdd8; font-weight: 400; }
+[data-fiaon-banking] .bk-plan-punkt { width: 7px; height: 7px; border-radius: 50%; background: #64789a; flex: none; }
+[data-fiaon-banking] .bk-plan-punkt.bereit, [data-fiaon-banking] .bk-plan-punkt.fertig { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, .18); }
+[data-fiaon-banking] .bk-plan-punkt.wartet, [data-fiaon-banking] .bk-plan-punkt.unterwegs { background: var(--licht-hell); }
+[data-fiaon-banking] .bk-plan-punkt.stau, [data-fiaon-banking] .bk-plan-punkt.konto { background: #e9a23b; }
+[data-fiaon-banking] .bk-plan-punkt.pausiert, [data-fiaon-banking] .bk-plan-punkt.beendet { background: #94a3b8; }
+[data-fiaon-banking] .bk-plan-selbst { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; border: 1px solid rgba(156, 203, 255, .32); color: #cfe2ff; font-size: 10.5px; letter-spacing: .04em; text-transform: none; font-weight: 400; }
+[data-fiaon-banking] .bk-plan-betrag { font-family: var(--anzeige); font-weight: 200; font-size: 42px; line-height: 1.05; color: #fff; letter-spacing: -.01em; }
+[data-fiaon-banking] .bk-plan-an { font-size: 13px; color: #a9bdd8; line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-an strong { color: #e7eefb; font-weight: 500; }
+[data-fiaon-banking] .bk-plan-balken { height: 3px; border-radius: 2px; background: rgba(156, 203, 255, .14); overflow: hidden; max-width: 380px; margin-top: 4px; }
+[data-fiaon-banking] .bk-plan-balken i { display: block; height: 100%; border-radius: 2px; background: var(--licht); }
+[data-fiaon-banking] .bk-plan-fein { font-size: 11.5px; color: #8fa6c4; line-height: 1.45; }
+[data-fiaon-banking] .bk-plan-rechts { display: grid; gap: 8px; justify-items: end; text-align: right; max-width: 380px; }
+[data-fiaon-banking] .bk-plan-satz { font-size: 13px; color: #cfe0f5; line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-uhr { font-family: var(--mono); font-weight: 300; font-size: 28px; line-height: 1.1; color: #fff; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+[data-fiaon-banking] .bk-plan-ausloesen, [data-fiaon-banking] .bk-plan-hauptknopf {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 22px; border-radius: var(--r-m);
+  border: 1px solid transparent; background: var(--licht); color: #04101f; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  transition: filter 120ms var(--kurve), background 120ms var(--kurve);
+}
+[data-fiaon-banking] .bk-plan-ausloesen:hover:not(:disabled), [data-fiaon-banking] .bk-plan-hauptknopf:hover { filter: brightness(1.08); }
+/* Gesperrt sieht gesperrt aus — und der Grund steht als Text darüber (AGENTS.md). */
+[data-fiaon-banking] .bk-plan-ausloesen:disabled { background: rgba(156, 203, 255, .07); border-color: rgba(156, 203, 255, .22); color: #8fa6c4; cursor: default; }
+[data-fiaon-banking] .bk-plan-hell {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: var(--r-s);
+  border: 1px solid rgba(156, 203, 255, .32); background: rgba(5, 11, 22, .25); color: #e7eefb; font-size: 13px; font-weight: 400; cursor: pointer;
+}
+[data-fiaon-banking] .bk-plan-hell:hover:not(:disabled) { border-color: var(--licht-hell); }
+[data-fiaon-banking] .bk-plan-hell:disabled { opacity: .5; cursor: default; }
+[data-fiaon-banking] .bk-plan-leer-takt { display: grid; gap: 10px; padding: 24px 0; max-width: 60ch; }
+[data-fiaon-banking] .bk-plan-leer-takt strong { font-family: var(--anzeige); font-weight: 300; font-size: 24px; line-height: 1.25; color: #fff; }
+
+/* Nach dem Auslösen — bleibt stehen */
+[data-fiaon-banking] .bk-plan-ergebnis { display: grid; gap: 12px; border-color: var(--info-l); }
+[data-fiaon-banking] .bk-plan-ergebnis-kopf { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 12px; align-items: start; }
+[data-fiaon-banking] .bk-plan-siegel { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--gut-f); color: var(--gut); border: 1px solid var(--gut-l); }
+[data-fiaon-banking] .bk-plan-ergebnis-t { display: grid; gap: 3px; min-width: 0; }
+[data-fiaon-banking] .bk-plan-ergebnis-t strong { font-weight: 500; color: var(--tinte); font-size: 14px; line-height: 1.45; }
+[data-fiaon-banking] .bk-plan-ergebnis-tun { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-left: 44px; }
+[data-fiaon-banking] .bk-plan-ergebnis-satz { margin: 0; padding-left: 44px; font-size: 13px; color: var(--text); line-height: 1.5; }
+
+/* Listen: zur Freigabe, bei der Buchhaltung, ausgeführt */
+[data-fiaon-banking] .bk-plan-liste { display: grid; }
+[data-fiaon-banking] .bk-plan-reihe { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--linie); scroll-margin-top: 90px; }
+[data-fiaon-banking] .bk-plan-reihe:last-child { border-bottom: 0; }
+[data-fiaon-banking] .bk-plan-reihe.bk-fokus { background: var(--info-f); border-radius: var(--r-m); padding-left: 12px; padding-right: 12px; box-shadow: 0 0 0 3px rgba(40, 141, 250, .14); border-bottom-color: transparent; }
+[data-fiaon-banking] .bk-plan-reihe-t { display: grid; gap: 3px; min-width: 0; font-size: 12.5px; line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-reihe-t strong { font-weight: 500; color: var(--tinte); font-size: 13.5px; overflow-wrap: anywhere; }
+[data-fiaon-banking] .bk-plan-reihe-k { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+[data-fiaon-banking] .bk-plan-reihe-voll { grid-column: 1 / -1; }
+[data-fiaon-banking] .bk-plan-grundtext { color: var(--warn); font-size: 12px; }
+[data-fiaon-banking] .bk-plan-warnpunkt { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #e9a23b; margin-right: 7px; vertical-align: 1px; }
+[data-fiaon-banking] .bk-plan-grund { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--linie); border-radius: var(--r-m); background: var(--flaeche-2); }
+[data-fiaon-banking] .bk-plan-grund .bk-knopfreihe { margin-top: 8px; }
+[data-fiaon-banking] .bk-plan-blaettern { justify-content: center; }
+[data-fiaon-banking] .bk-plan-erledigt-kopf { margin: 4px 0 6px; }
+
+/* Aufklappen (Ausgeführt, Verlauf, Anleitung) */
+[data-fiaon-banking] .bk-plan-auf-h { margin: 0; }
+[data-fiaon-banking] .bk-plan-auf { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 2px 0; cursor: pointer; text-align: left; color: var(--tinte); min-height: 32px; }
+[data-fiaon-banking] .bk-plan-auf > svg { flex: none; color: var(--leise); transition: transform 160ms var(--kurve); }
+[data-fiaon-banking] .bk-plan-auf[aria-expanded="true"] > svg { transform: rotate(90deg); }
+[data-fiaon-banking] .bk-plan-auf-t { font-family: var(--anzeige); font-weight: 400; font-size: 17px; }
+[data-fiaon-banking] .bk-plan-auf-neben { margin-left: auto; color: var(--leise); font-size: 12.5px; font-family: var(--schrift); font-weight: 400; }
+[data-fiaon-banking] .bk-plan-auf-inhalt { display: grid; gap: 10px; margin-top: 12px; }
+[data-fiaon-banking] .bk-plan-verlauf-liste { list-style: none; margin: 0; padding: 0; display: grid; }
+[data-fiaon-banking] .bk-plan-verlauf-liste li { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--linie); font-size: 12.5px; }
+[data-fiaon-banking] .bk-plan-verlauf-liste li:last-child { border-bottom: 0; }
+[data-fiaon-banking] .bk-plan-verlauf-zeit { color: var(--leise); font-size: 12px; }
+[data-fiaon-banking] .bk-plan-verlauf-was { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+[data-fiaon-banking] .bk-plan-schritte { list-style: none; margin: 0; padding: 0; counter-reset: plan-schritt; display: grid; gap: 12px; max-width: 78ch; }
+[data-fiaon-banking] .bk-plan-schritte li { counter-increment: plan-schritt; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; font-size: 13px; line-height: 1.6; color: var(--text); }
+[data-fiaon-banking] .bk-plan-schritte li::before {
+  content: counter(plan-schritt); width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid var(--info-l); background: var(--info-f); color: var(--tiefe); font-size: 11.5px; font-weight: 500; margin-top: 1px;
+}
+[data-fiaon-banking] .bk-plan-schritte strong { font-weight: 500; color: var(--tinte); }
+
+/* Je Empfänger */
+[data-fiaon-banking] .bk-plan-leute { display: grid; gap: 12px; }
+[data-fiaon-banking] .bk-plan-leute-gitter { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+[data-fiaon-banking] .bk-plan-person { display: grid; gap: 12px; }
+[data-fiaon-banking] .bk-plan-person-alt { background: var(--flaeche-2); }
+[data-fiaon-banking] .bk-plan-person-kopf { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
+[data-fiaon-banking] .bk-plan-person-wer { display: grid; gap: 2px; min-width: 0; }
+[data-fiaon-banking] .bk-plan-person-name { font-family: var(--anzeige); font-weight: 400; font-size: 18px; color: var(--tinte); }
+[data-fiaon-banking] .bk-plan-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-anspruch-zeile { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-anspruch { font-family: var(--anzeige); font-weight: 300; font-size: 28px; color: var(--tinte); line-height: 1.1; }
+[data-fiaon-banking] .bk-plan-hellbalken { height: 6px; border-radius: 3px; background: #e4ebf5; overflow: hidden; }
+[data-fiaon-banking] .bk-plan-hellbalken i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--licht), var(--tiefe)); }
+[data-fiaon-banking] .bk-plan-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+[data-fiaon-banking] .bk-plan-zahlen div { border: 1px solid var(--linie); border-radius: var(--r-s); padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
+[data-fiaon-banking] .bk-plan-zahlen span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--leise); font-weight: 500; }
+[data-fiaon-banking] .bk-plan-zahlen strong { font-weight: 400; color: var(--tinte); font-size: 14px; }
+[data-fiaon-banking] .bk-plan-zahlen em { font-style: normal; font-size: 11.5px; color: var(--leise); white-space: nowrap; }
+[data-fiaon-banking] .bk-plan-zeilen { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 12.5px; color: var(--text); line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-zeilen li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; }
+[data-fiaon-banking] .bk-plan-zeilen li > span:first-child { color: var(--leise); }
+[data-fiaon-banking] .bk-plan-zeilen li > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+[data-fiaon-banking] .bk-plan-zeile-warn > span:last-child { color: var(--warn); }
+[data-fiaon-banking] .bk-plan-steuer { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--linie); padding-top: 12px; }
+
+/* Plan anlegen (nur Inhaber) */
+[data-fiaon-banking] .bk-plan-verwaltung { display: grid; gap: 12px; }
+[data-fiaon-banking] .bk-plan-verwaltung > .bk-karte-kopf { margin-bottom: 0; }
+[data-fiaon-banking] .bk-plan-anlegen-zu { margin-top: 0; }
+[data-fiaon-banking] .bk-plan-anlegen-laden { display: grid; gap: 10px; }
+[data-fiaon-banking] .bk-plan-formular { display: grid; gap: 18px; }
+[data-fiaon-banking] .bk-plan-wahl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+[data-fiaon-banking] .bk-plan-wahl li { border: 1px solid var(--linie); border-radius: var(--r-m); padding: 10px 12px; display: grid; gap: 10px; background: var(--flaeche); }
+[data-fiaon-banking] .bk-plan-wahl li.an { border-color: var(--info-l); background: var(--info-f); }
+[data-fiaon-banking] .bk-plan-wahl li.aus { background: var(--flaeche-2); }
+[data-fiaon-banking] .bk-plan-wahl li.aus .bk-plan-wahl-name strong { color: var(--leise); }
+[data-fiaon-banking] .bk-plan-wahl .bk-plan-wahl-kopf { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); font-weight: 400; }
+[data-fiaon-banking] .bk-plan-wahl input[type="checkbox"], [data-fiaon-banking] .bk-plan-haken input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--tiefe); margin: 0; }
+[data-fiaon-banking] .bk-plan-wahl-name { display: grid; gap: 2px; min-width: 0; }
+[data-fiaon-banking] .bk-plan-wahl-name strong { font-weight: 500; color: var(--tinte); }
+[data-fiaon-banking] .bk-plan-wahl-name .bk-mono { font-size: 12px; }
+[data-fiaon-banking] .bk-plan-wahl-alt { font-size: 12px; text-align: right; }
+[data-fiaon-banking] .bk-plan-wahl .bk-feld { max-width: 280px; }
+[data-fiaon-banking] .bk-plan-segment { flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-haken { font-size: 13px; color: var(--text); font-weight: 400; gap: 10px !important; }
+[data-fiaon-banking] .bk-plan-probleme { display: grid; gap: 4px; padding: 10px 14px; border-radius: var(--r-m); background: var(--flaeche-2); border: 1px solid var(--linie); color: var(--text); font-size: 12.5px; line-height: 1.6; }
+[data-fiaon-banking] .bk-plan-probleme > span { color: var(--leise); }
+[data-fiaon-banking] .bk-plan-probleme ul { margin: 0; padding-left: 18px; }
+[data-fiaon-banking] .bk-plan-fuss-satz { margin: -8px 0 0; }
+[data-fiaon-banking] .bk-plan-vorschau { border: 1px solid var(--linie-stark); border-radius: var(--r-m); background: var(--flaeche-2); padding: 14px 16px; display: grid; gap: 14px; }
+[data-fiaon-banking] .bk-plan-vorschau.veraltet { opacity: .62; }
+[data-fiaon-banking] .bk-plan-vorschau-kopf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-vorschau-kopf strong { font-family: var(--anzeige); font-weight: 400; font-size: 16px; color: var(--tinte); }
+[data-fiaon-banking] .bk-plan-vorschau-person { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--linie); }
+[data-fiaon-banking] .bk-plan-vorschau-wer { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+[data-fiaon-banking] .bk-plan-vorschau-wer strong { font-weight: 500; color: var(--tinte); }
+[data-fiaon-banking] .bk-plan-vorschau-teile { font-size: 13px; color: var(--tinte); line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-alt { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--info-l); font-size: 12.5px; color: var(--text); line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-alt strong { font-weight: 500; color: var(--tinte); }
+[data-fiaon-banking] .bk-plan-alt ul { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+[data-fiaon-banking] .bk-plan-vorschau-summe { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--linie-stark); font-size: 12.5px; color: var(--text); line-height: 1.5; }
+[data-fiaon-banking] .bk-plan-vorschau-summe > span:first-child { font-weight: 500; color: var(--tinte); font-size: 13.5px; }
+
+@media (max-width: 1180px) {
+  [data-fiaon-banking] .bk-plan-zahlen { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  [data-fiaon-banking] .bk-plan-takt { padding: 2px 18px; border-radius: var(--r-l); }
+  [data-fiaon-banking] .bk-plan-zeile { grid-template-columns: minmax(0, 1fr); padding: 18px 0; }
+  [data-fiaon-banking] .bk-plan-rechts { justify-items: stretch; text-align: left; max-width: none; }
+  [data-fiaon-banking] .bk-plan-betrag { font-size: 36px; }
+  [data-fiaon-banking] .bk-plan-uhr { font-size: 26px; }
+  [data-fiaon-banking] .bk-plan-ausloesen, [data-fiaon-banking] .bk-plan-hauptknopf { width: 100%; min-height: 50px; height: auto; white-space: normal; }
+  [data-fiaon-banking] .bk-plan-hell { width: 100%; min-height: 44px; height: auto; }
+  [data-fiaon-banking] .bk-plan-ergebnis-tun, [data-fiaon-banking] .bk-plan-ergebnis-satz { padding-left: 0; }
+  [data-fiaon-banking] .bk-plan-reihe { grid-template-columns: minmax(0, 1fr); }
+  [data-fiaon-banking] .bk-plan-reihe-k { justify-content: flex-start; }
+  [data-fiaon-banking] .bk-plan-leute-gitter { grid-template-columns: minmax(0, 1fr); }
+  [data-fiaon-banking] .bk-plan-zeilen li { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  [data-fiaon-banking] .bk-plan-verlauf-liste li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  [data-fiaon-banking] .bk-plan-verlauf-zeit { grid-column: 1 / -1; }
+  [data-fiaon-banking] .bk-plan-wahl .bk-plan-wahl-kopf { grid-template-columns: 20px minmax(0, 1fr); }
+  [data-fiaon-banking] .bk-plan-wahl-alt { grid-column: 2; text-align: left; }
+  [data-fiaon-banking] .bk-plan-wahl .bk-feld { max-width: none; }
+  [data-fiaon-banking] .bk-plan-auf { flex-wrap: wrap; row-gap: 2px; }
+  [data-fiaon-banking] .bk-plan-auf-neben { flex-basis: 100%; margin-left: 25px; }
+  [data-fiaon-banking] .bk-plan .bk-knopf, [data-fiaon-banking] .bk-plan .bk-knopf.bk-knopf-klein,
+  [data-fiaon-banking] .bk-plan-chip { min-height: 44px; height: auto; }
+  [data-fiaon-banking] .bk-plan .bk-link-knopf { min-height: 44px; }
+  [data-fiaon-banking] .bk-plan .bk-segment button { height: 40px; }
+  [data-fiaon-banking] .bk-plan-auf { min-height: 44px; }
+  [data-fiaon-banking] .bk-plan input:not([type="checkbox"]):not([type="radio"]):not(.bk-seg),
+  [data-fiaon-banking] .bk-plan select, [data-fiaon-banking] .bk-plan textarea { font-size: 16px; min-height: 44px; }
+  [data-fiaon-banking] .bk-plan .bk-betrag-feld input { font-size: 16px !important; }
+  [data-fiaon-banking] .bk-plan .bk-form-fuss { flex-direction: column-reverse; align-items: stretch; }
+  [data-fiaon-banking] .bk-plan .bk-form-fuss .bk-knopfreihe { flex-direction: column; align-items: stretch; }
+}

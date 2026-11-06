@@ -23,6 +23,7 @@ import Umsaetze from "./umsaetze";
 import Ueberweisung, { Dauerauftraege } from "./ueberweisung";
 import Auftraege from "./auftraege";
 import Auszahlungen from "./auszahlungen";
+import Auszahlungsplan from "./auszahlungsplan";
 import Auszuege from "./auszuege";
 import { EmpfaengerSeite, KontostandSeite, SicherheitSeite } from "./verwaltung";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
@@ -36,6 +37,8 @@ const REITER: { r: Reiter; t: string; z: string; titel: string; satz: string; nu
   { r: "ueberweisung", t: "Überweisung", z: "senden", titel: "Neue Überweisung", satz: "Erfassen, prüfen, freigeben — jede Zahlung trägt zwei Namen." },
   { r: "auftraege", t: "Aufträge", z: "auftraege", titel: "Aufträge und Freigaben", satz: "Alle Zahlungsaufträge mit dem jeweils nächsten Schritt." },
   { r: "auszahlungen", t: "Auszahlungen", z: "team", titel: "Auszahlungen an Mitarbeiter", satz: "Provision und Gehalt — mit Abrechnung und Beleg." },
+  // E-484 (06.11.2026): feste Teilbeträge mit Wartezeit — je Empfänger ein eigener Plan mit eigener Uhr.
+  { r: "auszahlungsplan", t: "Auszahlungsplan", z: "uhr", titel: "Auszahlungsplan", satz: "Feste Teilbeträge mit Wartezeit — je Empfänger ein eigener Plan, freigegeben mit TAN, ausgeführt von der Buchhaltung." },
   { r: "dauer", t: "Daueraufträge", z: "wiederholen", titel: "Daueraufträge", satz: "Wiederkehrende Zahlungen, die sich selbst zur Freigabe vorlegen." },
   { r: "auszuege", t: "Auszüge", z: "dokument", titel: "Auszüge und Dokumente", satz: "Monatsauszüge, CSV für die Steuerberatung, alle Papiere." },
   { r: "empfaenger", t: "Empfänger", z: "kartei", titel: "Empfänger-Kartei", satz: "Wer schon bezahlt wurde — für das nächste Mal in Sekunden." },
@@ -112,6 +115,20 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
   }, []);
   useEffect(() => { void laden(); }, [laden]);
 
+  // E-484: Läuft bei einem Auszahlungsplan die Wartezeit ab, soll der Zähler am Menüpunkt es zeigen — einmal neu
+  // laden, wenn die nächste endet (in Server-Zeit, mit dem Versatz zur eigenen Uhr). Ausgelöst wird hier nie etwas.
+  useEffect(() => {
+    const plan = lage?.auszahlungsplan;
+    if (!plan) return;
+    const versatz = Date.parse(plan.jetzt) - Date.now();
+    const enden = plan.plaene.filter((p) => p.zustand === "wartet").map((p) => Date.parse(p.naechsteAb)).filter((t) => Number.isFinite(t));
+    if (!enden.length || !Number.isFinite(versatz)) return;
+    const ms = Math.min(...enden) - (Date.now() + versatz) + 1500;
+    if (ms <= 0 || ms > 6 * 3600_000) return;
+    const t = window.setTimeout(() => { void laden(); }, ms);
+    return () => window.clearTimeout(t);
+  }, [lage, laden]);
+
   // ── Untätigkeit ─────────────────────────────────────────────────────────
   useEffect(() => {
     const aktiv = () => {
@@ -154,6 +171,8 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
             || (a.status === "eingereicht" && !!a.ausfuehrungExtern && a.erstelltVon !== ich.email)).length;
     }
     if (r === "auszahlungen") return lage.auszahlungOffen.ohneAuftrag;
+    // E-484: bereite Pläne plus Teilbeträge, die die angemeldete Person freigeben darf — gezählt vom Server.
+    if (r === "auszahlungsplan") return lage.auszahlungsplan?.badge ?? 0;
     return 0;
   };
   const min = Math.floor(rest / 60), sek = String(rest % 60).padStart(2, "0");
@@ -227,8 +246,15 @@ function App({ ich, letzte, abmelden }: { ich: Ich; letzte: { am: string; geraet
               {reiter === "start" ? <Uebersicht lage={lage} onGehe={gehe} onNeu={() => void laden()} /> : null}
               {reiter === "umsaetze" ? <Umsaetze ich={ich} nachholen={lage.nachholen} onGebucht={() => void laden()} /> : null}
               {reiter === "ueberweisung" ? <Ueberweisung ich={ich} onFertig={() => void laden()} /> : null}
-              {reiter === "auftraege" ? <Auftraege auftraege={lage.auftraege} ich={ich} onNeu={() => void laden()} onNeueUeberweisung={() => gehe("ueberweisung")} fokusId={fokusAuftrag} /> : null}
-              {reiter === "auszahlungen" ? <Auszahlungen ich={ich} onZuAuftraegen={() => { void laden(); gehe("auftraege"); }} /> : null}
+              {reiter === "auftraege" ? (
+                <Auftraege auftraege={lage.auftraege} ich={ich} onNeu={() => void laden()} onNeueUeberweisung={() => gehe("ueberweisung")} fokusId={fokusAuftrag}
+                  planLaufend={lage.auszahlungsplan?.auftraegeLaufend ?? 0} onZuPlan={() => gehe("auszahlungsplan")} />
+              ) : null}
+              {reiter === "auszahlungen" ? (
+                <Auszahlungen ich={ich} onZuAuftraegen={() => { void laden(); gehe("auftraege"); }}
+                  planAktiv={!!lage.auszahlungsplan?.plaene.length} onZuPlan={() => gehe("auszahlungsplan")} />
+              ) : null}
+              {reiter === "auszahlungsplan" ? <Auszahlungsplan fokusAuftrag={fokusAuftrag} onNeu={() => void laden()} /> : null}
               {reiter === "dauer" ? <Dauerauftraege liste={lage.dauerauftraege} ich={ich} onNeu={() => void laden()} /> : null}
               {reiter === "auszuege" ? <Auszuege lage={lage} onNeu={() => void laden()} /> : null}
               {reiter === "empfaenger" ? <EmpfaengerSeite /> : null}

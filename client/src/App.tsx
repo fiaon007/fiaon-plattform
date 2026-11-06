@@ -765,6 +765,8 @@ function Router() {
       {/* /banking gehört dem Investoren-Portal (weiter unten) — die zweite Adresse der Buchhaltung
           hatte seit E-228 dessen Anmeldung verdeckt. */}
       <Route path="/buchhaltung" component={BuchhaltungPage} />
+      {/* E-484 (06.11.2026): Kurzlink zum Reiter „Auszahlungsplan“ im FIAON Banking — keine eigene Seite, nur die Adresse. */}
+      <Route path="/auszahlungsplan"><Redirect to="/buchhaltung?reiter=auszahlungsplan" replace /></Route>
       {/* E-315 (09.10.2026): DIE EINE Akte — Tür nach Sitzung (Chefbüro / Office), shared/fiaon-akte-aufloesung.ts */}
       <Route path="/akte/:kennung" component={AkteTuerPage} />
       <Route path="/chef" component={ChefPage} />

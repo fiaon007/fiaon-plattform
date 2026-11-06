@@ -167,12 +167,14 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
         {e && e.entries.map((k: any) => {
           const bonus = k.kind === "feedback_bonus";
           const gehalt = k.kind === "gehalt";
-          const name = gehalt ? (k.note || "Gehalt") : bonus ? "Feedback-Dankeschön" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
+          // E-484: Teilbetrag eines Auszahlungsplans — keine Rate mit Prozentsatz, sondern ein fester Teil des zugesagten Betrags.
+          const planTeil = k.kind === "auszahlungsplan";
+          const name = gehalt ? (k.note || "Gehalt") : bonus ? "Feedback-Dankeschön" : planTeil ? "Auszahlungsplan" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
           return (
             <div key={k.id} className="wa-zeile">
               <div className="wa-wer">
-                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}{gehalt && <span className="wa-marke">Gehalt</span>}</b>
-                <small>{gehalt ? `Gehalt · ${k.status === "vorgemerkt" && k.auszahlbar_ab ? `auszahlbar ab ${fmtD(k.auszahlbar_ab)}` : `gebucht ${fmtDT(k.created_at)}`}` : bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
+                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}{gehalt && <span className="wa-marke">Gehalt</span>}{planTeil && <span className="wa-marke">Teilbetrag</span>}</b>
+                <small>{gehalt ? `Gehalt · ${k.status === "vorgemerkt" && k.auszahlbar_ab ? `auszahlbar ab ${fmtD(k.auszahlbar_ab)}` : `gebucht ${fmtDT(k.created_at)}`}` : bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : planTeil ? `${k.note || k.ref} · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
               </div>
               <div className="wa-geld"><b>{fmtCents(k.amount_cents)}</b><Status status={k.status} /></div>
             </div>
@@ -250,6 +252,64 @@ function Wunschgehalt() {
   );
 }
 
+// ── E-484 (06.11.2026): Der Auszahlungsplan — nur lesen ─────────────────────
+// Hat die Geschäftsleitung für diese Person einen Auszahlungsplan angelegt,
+// steht er hier als eigene Karte. Seine Teilbeträge stehen bewusst NICHT im
+// Verlauf darunter (das wären bis zu hundert Zeilen), sondern gesammelt hier.
+// Alle Zahlen und der Satz zum Ablauf kommen vom Server (GET /agent/payouts,
+// Block `plaene`) — eine Quelle für Wallet und Sammelmail.
+interface PlanImWallet {
+  nummer: string; status: "aktiv" | "pausiert" | "fertig" | "beendet"; statusText: string;
+  anspruchCents: number; teilCents: number; anzahlTeile: number;
+  ausgefuehrt: { anzahl: number; cents: number }; unterwegs: { anzahl: number; cents: number }; offen: { anzahl: number; cents: number };
+  ibanMasked: string | null; angelegtAm: string; letzteAusfuehrungAm: string | null;
+  altposten: "verrechnet" | "zusaetzlich"; verrechnet: { anzahl: number; cents: number };
+  letzte: { nr: number; cents: number; stand: "ausgefuehrt" | "unterwegs"; am: string | null }[];
+  hinweis: string;
+}
+
+function PlanKarte({ p }: { p: PlanImWallet }) {
+  const laeuft = p.status === "aktiv" || p.status === "pausiert";
+  const anteil = p.anspruchCents > 0 ? Math.min(100, Math.round((p.ausgefuehrt.cents / p.anspruchCents) * 100)) : 0;
+  return (
+    <section className={`wa-block${laeuft ? "" : " leicht"}`} data-fiaon="wallet-plan">
+      <div className="wa-block-kopf">
+        <b>Dein Auszahlungsplan <span className="wa-marke">{p.nummer}</span></b>
+        <small>angelegt am {fmtD(p.angelegtAm)}{p.ibanMasked ? ` · auf ${p.ibanMasked}` : ""}</small>
+      </div>
+      <p className="wa-text">{p.statusText}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+        <span className="wa-gross">{fmtCents(p.ausgefuehrt.cents)}</span>
+        <span className="wa-hinweis">von {fmtCents(p.anspruchCents)} überwiesen{p.letzteAusfuehrungAm ? ` · zuletzt ${fmtDT(p.letzteAusfuehrungAm)}` : ""}</span>
+      </div>
+      <div className="wa-balken" role="img" aria-label={`${p.ausgefuehrt.anzahl} von ${p.anzahlTeile} Teilbeträgen überwiesen`}><i style={{ width: `${anteil}%` }} /></div>
+      <div className="wa-team" style={{ marginTop: 14 }}>
+        <div><b>{p.ausgefuehrt.anzahl}</b><small>überwiesen · {fmtCents(p.ausgefuehrt.cents)}</small></div>
+        <div><b>{p.unterwegs.anzahl}</b><small>unterwegs · {fmtCents(p.unterwegs.cents)}</small></div>
+        <div><b>{p.offen.anzahl}</b><small>noch offen · {fmtCents(p.offen.cents)}</small></div>
+      </div>
+      <p className="wa-hinweis" style={{ marginTop: 12 }}>
+        {p.anzahlTeile} Teilbeträge à {fmtCents(p.teilCents)}.
+        {p.altposten === "verrechnet" && p.verrechnet.anzahl > 0
+          ? ` Beim Anlegen sind ${p.verrechnet.anzahl} offene Posten (${fmtCents(p.verrechnet.cents)}) im zugesagten Betrag verrechnet worden — sie werden nicht zusätzlich ausgezahlt.`
+          : ""}
+        {" "}Neue Provisionen laufen daneben ganz normal über dein Guthaben.
+      </p>
+      {p.letzte.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          {p.letzte.map((t) => (
+            <div key={t.nr} className="wa-zeile">
+              <div className="wa-wer"><b>Teilbetrag {t.nr}</b><small>{t.stand === "ausgefuehrt" ? `von der Buchhaltung als überwiesen gemeldet · ${fmtDT(t.am)}` : `unterwegs seit ${fmtDT(t.am)}`}</small></div>
+              <div className="wa-geld"><b>{fmtCents(t.cents)}</b><Status status={t.stand === "ausgefuehrt" ? "ausgezahlt" : "in_auszahlung"} /></div>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="wa-hinweis" style={{ marginTop: 10 }}>{p.hinweis}</p>
+    </section>
+  );
+}
+
 // ── Reiter 2: Auszahlung ───────────────────────────────────────────────────
 // Der Knopf erzeugt NUR eine Anforderung – er löst nie eine Überweisung aus.
 // Immer das volle Guthaben, nur mit Bankdaten und ab Mindestbetrag.
@@ -264,6 +324,8 @@ function Auszahlung() {
   // E-166 (08.09.2026): Anfordern geht jederzeit; was angefordert ist, wird ab dem 15. ausgebucht.
   const inAuszahlung = Number(data.inAuszahlungCents || 0);
   const vorgemerkt: any[] = Array.isArray(data.vorgemerkt) ? data.vorgemerkt : [];
+  // E-484: Auszahlungspläne dieser Person (der laufende zuerst) — nur lesen.
+  const plaene: PlanImWallet[] = Array.isArray(data.plaene) ? data.plaene : data.plan ? [data.plan] : [];
   const kann = data.hasBank && data.balanceCents >= data.minCents;
   const beantragen = async () => {
     const ja = await fragen({ titel: "Auszahlung beantragen?", text: `Du forderst dein gesamtes verfügbares Guthaben von ${fmtCents(data.balanceCents)} an.`, folge: `Es wird nur eine Anforderung erstellt – es fließt noch kein Geld. Nach der Prüfung überweist FIAON manuell${data.ibanMasked ? ` auf ${data.ibanMasked}` : ""}, ab dem ${data.auszahlungstag || 15}. des Monats. Du erhältst dann eine E-Mail.`, ja: "Auszahlung beantragen" });
@@ -277,6 +339,8 @@ function Auszahlung() {
   return (
     <>
       {meldung && <p className={`wa-meldung ${meldung.art === "schlecht" ? "schlecht" : ""}`}>{meldung.text}</p>}
+      {data.planFehler && <p className="wa-meldung schlecht">{data.planFehler}</p>}
+      {plaene.map((p) => <PlanKarte key={p.nummer} p={p} />)}
       <section className="wa-kacheln" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
         <div className="wa-kachel hervor"><i><Wallet size={18} strokeWidth={1.75} /></i><small>Verfügbares Guthaben</small><b>{fmtCents(data.balanceCents)}</b><span>Summe bankbestätigter Provisionen</span></div>
         <div className="wa-kachel"><i><HandCoins size={18} strokeWidth={1.75} /></i><small>Nächste Auszahlung</small><b>{data.naechsteAuszahlung ? fmtD(data.naechsteAuszahlung) : `am ${data.auszahlungstag || 15}.`}</b><span>ab dem {data.auszahlungstag || 15}. jeden Monats wird ausgebucht</span></div>
@@ -306,6 +370,7 @@ function Auszahlung() {
       )}
       <section className="wa-block leicht">
         <div className="wa-block-kopf"><b>Verlauf</b><small>{data.history.length} Anforderung(en)</small></div>
+        {plaene.length > 0 && <p className="wa-hinweis" style={{ marginBottom: 8 }}>Die Teilbeträge deines Auszahlungsplans stehen oben in der Plan-Karte, nicht in diesem Verlauf.</p>}
         {data.history.length === 0 && <p className="wa-leer">Noch keine Auszahlungen.</p>}
         {data.history.map((h: any) => (
           <div key={h.id} className="wa-zeile">

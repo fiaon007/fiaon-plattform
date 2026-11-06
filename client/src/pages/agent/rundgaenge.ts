@@ -930,6 +930,82 @@ export const RUNDGANG_WALLET: RundgangSchritt[] = [
       + "siehst du ihn, kannst ihn aber noch nicht anfordern.",
     tipp: "Ohne IBAN im Profil bleibt dein Guthaben stehen. Trag sie einmal ein, dann läuft es von selbst.",
   },
+  {
+    // E-484 (06.11.2026) mitgezogen: die Karte „Dein Auszahlungsplan“ unter „Auszahlung“. Ohne Ziel — sie erscheint
+    // nur bei den Menschen, für die ein Plan angelegt ist (Rundgang-Pflege: bedingt Sichtbares bekommt kein ziel).
+    titel: "Dein Auszahlungsplan — falls es einen gibt.",
+    text: "Hat die Geschäftsleitung für dich einen Auszahlungsplan angelegt, steht er unter „Auszahlung“ als eigene Karte: "
+      + "der zugesagte Betrag, was schon überwiesen ist, was unterwegs ist und was noch offen ist. Die Buchhaltung überweist "
+      + "jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Alle zehn ausgeführten "
+      + "Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht. "
+      + "Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte.",
+    tipp: "Neue Provisionen laufen daneben ganz normal über dein Guthaben — der Plan ändert daran nichts.",
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIAON BANKING › AUSZAHLUNGSPLAN (E-484, 06.11.2026) — /buchhaltung?reiter=auszahlungsplan
+// Je Empfänger ein eigener Plan mit eigener Uhr. Ziele nur auf Teile, die immer stehen
+// (Takt-Platte, Zur Freigabe, Bei der Buchhaltung, Je Empfänger, Ausgeführt). Der Knopf
+// „Teilbetrag auslösen“ steht nur bei einem laufenden Plan — fehlt er, steht die Karte mittig.
+// Keine Namen, keine Beträge: Die stehen nur in den Daten.
+// ═══════════════════════════════════════════════════════════════════════════
+export const RUNDGANG_AUSZAHLUNGSPLAN: RundgangSchritt[] = [
+  {
+    titel: "Große Beträge in kleinen Schritten.",
+    text: "Ein Auszahlungsplan zahlt einen zugesagten Betrag in festen Teilbeträgen aus — je Empfänger ein eigener Plan "
+      + "mit eigener Uhr. Angelegt hat ihn der Inhaber mit TAN: Empfänger, Betrag je Teil, Konto und Wartezeit stehen fest. "
+      + "Du wählst hier nichts aus — du löst aus und gibst frei.",
+  },
+  {
+    ziel: ".bk-plan-takt",
+    titel: "Die Uhr.",
+    text: "Für jeden Plan eine eigene Zeile mit eigener Uhr. Steht dort „Bereit“, kann der nächste Teilbetrag raus; sonst "
+      + "zählt die Uhr bis zur nächsten Möglichkeit herunter. Ob es geht, entscheidet der Server, nicht dein Browser — auch "
+      + "zwei Klicks gleichzeitig ergeben nur einen Auftrag.",
+    tipp: "Auslösen, sobald „Bereit“ dasteht — die Wartezeit beginnt erst mit dem Klick.",
+  },
+  {
+    ziel: ".bk-plan-ausloesen",
+    titel: "Teilbetrag auslösen.",
+    text: "Ein Klick legt genau einen Zahlungsauftrag an: den nächsten Teilbetrag dieses Plans, an das Konto aus dem Plan. "
+      + "Danach ist der Knopf für die Wartezeit gesperrt, und darunter steht der neue Auftrag mit „Jetzt mit TAN freigeben“.",
+  },
+  {
+    ziel: ".bk-plan-freigabe",
+    titel: "Freigeben mit TAN.",
+    text: "Die TAN kommt per Mail, gilt 5 Minuten und passt nur zu diesem einen Teilbetrag. Du kannst die Freigabe auch "
+      + "dem Inhaber überlassen — er bekommt nach jeder Auslösung einen Hinweis. Mit der Freigabe geht der Auftrag "
+      + "automatisch an die Buchhaltung.",
+    tipp: "Stimmt in der TAN-Mail etwas nicht — Betrag, Empfänger, Konto —, gib die TAN nicht ein und lehne ab.",
+  },
+  {
+    ziel: ".bk-plan-buchhaltung",
+    titel: "Bei der Buchhaltung.",
+    text: "Hier liegt, was freigegeben ist und auf die Bestätigung der Buchhaltung wartet. Sie überweist per SEPA und "
+      + "bestätigt über ihren Link; die Bank-Referenz trägt sie ein, wenn sie sie zur Hand hat. Erst ihre Bestätigung bucht aus.",
+    tipp: "Ein Warnpunkt heißt: länger als 2 Bankarbeitstage offen. Dann „Erneut an die Buchhaltung“ drücken.",
+  },
+  {
+    ziel: ".bk-plan-leute",
+    titel: "Je Empfänger.",
+    text: "Je Plan der Fortschritt: ausgeführt, zur Freigabe, bei der Buchhaltung, noch offen — dazu das Konto aus dem Plan. "
+      + "Darunter steht, was beim Anlegen verrechnet wurde und was außerhalb des Plans neu offen ist. Neue Provisionen "
+      + "laufen ganz normal über „Auszahlungen“, damit nichts doppelt läuft.",
+  },
+  {
+    ziel: ".bk-plan-erledigt",
+    titel: "Ausgeführt und Belege.",
+    text: "Jeder bestätigte Teilbetrag mit Datum, Bank-Referenz (falls angegeben) und dem Durchführungsbeleg als PDF. "
+      + "Der Beleg geht automatisch an die Person, die freigegeben hat; „Beleg erneut senden“ schickt ihn noch einmal.",
+  },
+  {
+    titel: "Gut zu wissen.",
+    text: "Wirkt etwas falsch, pausierst du den Plan mit einem Grund — dann wird nichts ausgelöst und nichts freigegeben, "
+      + "bis der Inhaber fortsetzt. Anlegen, Fortsetzen, Beenden und ein neues Konto bestätigen darf nur der Inhaber. "
+      + "Nach 10 Minuten ohne Eingabe meldet dich das Banking ab, und jede Handlung steht im Verlauf.",
+    tipp: "Die ganze Anleitung steht unten unter „So funktioniert die Auszahlung“.",
+  },
 ];
 
 export const RUNDGANG_TICKETS: RundgangSchritt[] = [
@@ -3280,6 +3356,8 @@ export const RUNDGANG_BESUCHER: RundgangSchritt[] = [
 ];
 
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  // E-484 (06.11.2026): FIAON Banking › Auszahlungsplan.
+  auszahlungsplan: { titel: "Auszahlungsplan", schritte: RUNDGANG_AUSZAHLUNGSPLAN },
   // E-454 (28.10.2026): Chefbüro › Besucher (mit Google).
   besucher:    { titel: "Besucher", schritte: RUNDGANG_BESUCHER },
   // E-406 B3 (19.10.2026): Lagezimmer („Mara heute“). Die Schulung-Stichprobe ist weg (E-409 × E-406, 20.10.2026).

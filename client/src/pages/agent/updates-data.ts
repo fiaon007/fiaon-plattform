@@ -84,6 +84,27 @@ export interface AgentUpdate {
 // Neueste zuerst.
 export const AGENT_UPDATES: AgentUpdate[] = [
   {
+    // E-484 (06.11.2026): Auszahlungsplan — die Karte im Wallet (nur bei den Menschen, für die ein Plan angelegt ist).
+    id: "2026-11-06-wallet-auszahlungsplan",
+    date: "2026-11-06",
+    category: "Neu",
+    title: "Wallet: Dein Auszahlungsplan auf einen Blick",
+    summary:
+      "Hat die Geschäftsleitung für dich einen Auszahlungsplan angelegt, steht er unter Wallet › Auszahlung als eigene Karte: "
+      + "zugesagt, überwiesen, unterwegs und noch offen.",
+    changes: [
+      "Ein Auszahlungsplan zahlt einen zugesagten Betrag in festen Teilbeträgen aus. Jeder Teilbetrag wird mit TAN freigegeben und von der Buchhaltung einzeln überwiesen.",
+      "Die Karte zeigt den Fortschritt und die letzten zehn Teilbeträge. Im Verlauf darunter stehen sie nicht — dort bleiben deine normalen Anforderungen.",
+      "Alle zehn ausgeführten Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen; einzelne Mails je Teilbetrag gibt es nicht.",
+      "Neue Provisionen laufen daneben ganz normal über dein Guthaben.",
+    ],
+    howto: [
+      "Office → Wallet → Reiter „Auszahlung“ → Karte „Dein Auszahlungsplan“ (nur sichtbar, wenn für dich ein Plan angelegt ist).",
+      "Die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Fehlt etwas länger, sag der Geschäftsleitung Bescheid.",
+    ],
+    link: { href: "/agent/wallet/auszahlung", label: "Zum Wallet" },
+  },
+  {
     // E-432 (28.10.2026): Global-Akte — Sätze je Bundesstaat, neue Dokumentarten, Zahlung „fällig mit Ihrem Auftrag“.
     id: "2026-10-28-global-bundesstaat-unterlagen",
     date: "2026-10-28",

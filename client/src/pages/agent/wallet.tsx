@@ -163,18 +163,25 @@ function Guthaben({ earnings, onWechsel }: { earnings: any; onWechsel: (r: Reite
           <button type="button" className="wa-link" onClick={() => onWechsel("auszahlung")}>Auszahlung beantragen →</button>
         </div>
         {!e && <p className="wa-laedt">Lade …</p>}
+        {/* E-484: Teilbeträge eines Auszahlungsplans sind kein Verdienst je Rate — der Server lässt sie aus Kacheln und Liste
+            heraus (sonst verdrängten bis zu hundert kleine Zeilen die echten Provisionen) und nennt nur ihre Zahl. */}
+        {e && Number(e.planTeile) > 0 && (
+          <p className="wa-hinweis" style={{ marginBottom: 8 }}>
+            {Number(e.planTeile) === 1 ? "Der Teilbetrag deines Auszahlungsplans zählt" : `Die ${e.planTeile} Teilbeträge deines Auszahlungsplans zählen`} hier nicht mit — weder in den Kacheln oben noch in dieser Liste.
+            Ihr Stand steht gesammelt unter{" "}
+            <button type="button" className="wa-link" onClick={() => onWechsel("auszahlung")}>Auszahlung › Dein Auszahlungsplan</button>.
+          </p>
+        )}
         {e && e.entries.length === 0 && <p className="wa-leer">Hier erscheint jede Rate, sobald sie auf dem Konto angekommen ist.</p>}
         {e && e.entries.map((k: any) => {
           const bonus = k.kind === "feedback_bonus";
           const gehalt = k.kind === "gehalt";
-          // E-484: Teilbetrag eines Auszahlungsplans — keine Rate mit Prozentsatz, sondern ein fester Teil des zugesagten Betrags.
-          const planTeil = k.kind === "auszahlungsplan";
-          const name = gehalt ? (k.note || "Gehalt") : bonus ? "Feedback-Dankeschön" : planTeil ? "Auszahlungsplan" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
+          const name = gehalt ? (k.note || "Gehalt") : bonus ? "Feedback-Dankeschön" : k.company_name || [k.first_name, k.last_name].filter(Boolean).join(" ") || k.contact_name || k.payment_reference || k.ref;
           return (
             <div key={k.id} className="wa-zeile">
               <div className="wa-wer">
-                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}{gehalt && <span className="wa-marke">Gehalt</span>}{planTeil && <span className="wa-marke">Teilbetrag</span>}</b>
-                <small>{gehalt ? `Gehalt · ${k.status === "vorgemerkt" && k.auszahlbar_ab ? `auszahlbar ab ${fmtD(k.auszahlbar_ab)}` : `gebucht ${fmtDT(k.created_at)}`}` : bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : planTeil ? `${k.note || k.ref} · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
+                <b>{name}{k.kind === "override" && <span className="wa-marke">Team-Beteiligung</span>}{bonus && <span className="wa-marke">Feedback-Bonus</span>}{gehalt && <span className="wa-marke">Gehalt</span>}</b>
+                <small>{gehalt ? `Gehalt · ${k.status === "vorgemerkt" && k.auszahlbar_ab ? `auszahlbar ab ${fmtD(k.auszahlbar_ab)}` : `gebucht ${fmtDT(k.created_at)}`}` : bonus ? `Einmalige Gutschrift · ${fmtDT(k.created_at)}` : `${(k.pack_name || "—").replace(/\n/g, " ")} · ${fmtCents(k.base_amount_cents)} Rate · ${prozent(k.rate_bp)} % · ${fmtDT(k.created_at)}`}</small>
               </div>
               <div className="wa-geld"><b>{fmtCents(k.amount_cents)}</b><Status status={k.status} /></div>
             </div>

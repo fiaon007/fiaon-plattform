@@ -803,8 +803,9 @@
 [data-fiaon-banking] .bk-plan-hellbalken { height: 6px; border-radius: 3px; background: #e4ebf5; overflow: hidden; }
 [data-fiaon-banking] .bk-plan-hellbalken i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--licht), var(--tiefe)); }
 [data-fiaon-banking] .bk-plan-zahlen { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-[data-fiaon-banking] .bk-plan-zahlen div { border: 1px solid var(--linie); border-radius: var(--r-s); padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
-[data-fiaon-banking] .bk-plan-zahlen span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--leise); font-weight: 500; }
+[data-fiaon-banking] .bk-plan-zahlen div { border: 1px solid var(--linie); border-radius: var(--r-s); padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* Bricht eine Überschrift um („Bei der Buchhaltung“), stehen Zahl und Betrag trotzdem auf einer Linie mit den Nachbarn (Sichtprüfung E-484). */
+[data-fiaon-banking] .bk-plan-zahlen span { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--leise); font-weight: 500; margin-bottom: auto; padding-bottom: 2px; }
 [data-fiaon-banking] .bk-plan-zahlen strong { font-weight: 400; color: var(--tinte); font-size: 14px; }
 [data-fiaon-banking] .bk-plan-zahlen em { font-style: normal; font-size: 11.5px; color: var(--leise); white-space: nowrap; }
 [data-fiaon-banking] .bk-plan-zeilen { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: 12.5px; color: var(--text); line-height: 1.5; }
@@ -834,6 +835,11 @@
 [data-fiaon-banking] .bk-plan-wahl .bk-feld { max-width: 280px; }
 [data-fiaon-banking] .bk-plan-segment { flex-wrap: wrap; }
 [data-fiaon-banking] .bk-plan-haken { font-size: 13px; color: var(--text); font-weight: 400; gap: 10px !important; }
+/* E-484 Sichtprüfung: „.bk-feld > label“ (Großbuchstaben, 600) ist spezifischer als die Klassen oben — der Haken-Satz las sich als
+   Großbuchstaben-Zeile. Und im neuen Reiter höchstens Schriftgewicht 500 (Hausregel Gestaltung), auch für die Feld-Überschriften. */
+[data-fiaon-banking] .bk-plan .bk-feld > label { font-weight: 500; }
+[data-fiaon-banking] .bk-plan .bk-feld > label.bk-plan-haken { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; color: var(--text); line-height: 1.45; align-items: flex-start; }
+[data-fiaon-banking] .bk-plan .bk-feld > label.bk-plan-haken input { margin-top: 1px; flex: none; }
 [data-fiaon-banking] .bk-plan-probleme { display: grid; gap: 4px; padding: 10px 14px; border-radius: var(--r-m); background: var(--flaeche-2); border: 1px solid var(--linie); color: var(--text); font-size: 12.5px; line-height: 1.6; }
 [data-fiaon-banking] .bk-plan-probleme > span { color: var(--leise); }
 [data-fiaon-banking] .bk-plan-probleme ul { margin: 0; padding-left: 18px; }
@@ -878,7 +884,10 @@
   [data-fiaon-banking] .bk-plan .bk-knopf, [data-fiaon-banking] .bk-plan .bk-knopf.bk-knopf-klein,
   [data-fiaon-banking] .bk-plan-chip { min-height: 44px; height: auto; }
   [data-fiaon-banking] .bk-plan .bk-link-knopf { min-height: 44px; }
-  [data-fiaon-banking] .bk-plan .bk-segment button { height: 40px; }
+  [data-fiaon-banking] .bk-plan .bk-segment button { height: 44px; }
+  /* Zwei lange Wahlmöglichkeiten untereinander statt halb umgebrochen (Sichtprüfung E-484). */
+  [data-fiaon-banking] .bk-plan .bk-plan-segment { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; }
+  [data-fiaon-banking] .bk-plan .bk-plan-segment button { width: 100%; text-align: left; padding: 0 14px; }
   [data-fiaon-banking] .bk-plan-auf { min-height: 44px; }
   [data-fiaon-banking] .bk-plan input:not([type="checkbox"]):not([type="radio"]):not(.bk-seg),
   [data-fiaon-banking] .bk-plan select, [data-fiaon-banking] .bk-plan textarea { font-size: 16px; min-height: 44px; }

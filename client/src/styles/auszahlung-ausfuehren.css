@@ -126,6 +126,8 @@
   .aa-meta, .aa-reihe { grid-template-columns:minmax(0,1fr); }
   .aa-knopf { width:100%; }
   /* 16 px in Eingaben: sonst zoomt das iPhone beim Antippen (E-484). */
+  /* Bricht die Teilbetrag-Zeile um, wird aus der Pille eine ruhige Fläche statt eines Ovals (Sichtprüfung E-484). */
+  .aa-teil { border-radius:14px; }
   .aa-eingabe input { font-size:16px; }
   .aa-fuss { flex-direction:column; }
 }

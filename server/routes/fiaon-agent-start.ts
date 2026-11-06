@@ -30,6 +30,9 @@ import { sqlPool } from "../lib/db-pool";
 import { aufbereiten } from "../lib/fiaon-buchungen";
 import { requireAgent, type AgentRequest, getSettings, normalizeSearchDigits } from "./fiaon-agent";
 import { ECHT } from "../lib/fiaon-umsatz-quelle";
+// E-484 (06.11.2026): Teilbeträge eines Auszahlungsplans zahlen Zugesagtes aus — sie zählen in keiner Provisions-Zahl
+// (wie GET /agent/payouts); ihren Stand zeigt die Plan-Karte im Wallet.
+import { KIND_AUSZAHLUNGSPLAN } from "../lib/fiaon-buchhaltung";
 import { waehlbareNummer, nichtWaehlbarSql } from "../lib/fiaon-telefon";
 import { hinweisFuer, type TierGrund } from "../lib/tier-hinweise";
 import { ensureBetreuungSpalte } from "../lib/tier";
@@ -460,11 +463,11 @@ router.get("/agent/start", requireAgent, async (req: AgentRequest, res: Response
       getSettings(),
       sqlPool`
       SELECT
-        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'bestaetigt'), 0)::bigint AS guthaben,
-        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'in_auszahlung'), 0)::bigint AS angefordert,
-        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'ausgezahlt'), 0)::bigint AS ausgezahlt,
+        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'bestaetigt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}), 0)::bigint AS guthaben,
+        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'in_auszahlung' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}), 0)::bigint AS angefordert,
+        COALESCE(SUM(amount_cents) FILTER (WHERE status = 'ausgezahlt' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}), 0)::bigint AS ausgezahlt,
         -- E-343 (13.10.2026): Monatsanfang in Berliner Zeit, nicht UTC-Mitternacht.
-        COALESCE(SUM(amount_cents) FILTER (WHERE status <> 'storniert'
+        COALESCE(SUM(amount_cents) FILTER (WHERE status <> 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
           AND created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'), 0)::bigint AS monat
       FROM fiaon_commissions WHERE agent_id = ${me}
     `,

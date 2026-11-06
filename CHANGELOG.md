@@ -5,6 +5,37 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Teil 4b, Zusammenführung und Sichtprüfung): Auszahlungsplan — im Browser geprüft, Mängel behoben
+
+- **Warum:** Oberfläche (Teil 3) und Server-Tests (Teil 4a) sind parallel entstanden. Was ein Mensch wirklich sieht, zeigt erst
+  die echte Seite — mit beiden Rollen, am Desktop und am Handy, in jedem Zustand. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Ein Teilbetrag ist kein Verdienst.** Im Wallet (Liste „Provisionen je Rate“, Kacheln „In Auszahlung“ und „Ausgezahlt“,
+    Monatsziel), auf der Startseite im Office (heute / Woche / Monat, Abschlüsse, Boni, Neuigkeiten, Wunschgehalt-Rechner), in
+    der Leistungs-Übersicht und in der Vergütungs-Vorschau zählen Teilbeträge eines Auszahlungsplans nicht mehr mit — dieselbe
+    Regel, die der Reiter „Auszahlung“ im Wallet schon hatte. Vorher standen im selben Wallet für „In Auszahlung“ zwei
+    verschiedene Zahlen. Stattdessen nennt das Wallet die Zahl der Teilbeträge und zeigt den Weg zur Plan-Karte.
+  - Bei der Buchhaltung und unter „Ausgeführt“ steht jetzt, wer freigegeben hat (mit Namen, nicht nur „von dir“).
+  - Plan anlegen: wählbare Empfänger stehen oben; ein gesperrter Zugang sagt vor der Anlage, dass dafür kein Plan angelegt wird
+    (statt „Teilbeträge sind angehalten“); Feld-Überschriften höchstens Schriftgewicht 500; der Haken für die Hinweis-Mail liest
+    sich als Satz statt in Großbuchstaben; „verrechnen / zusätzlich“ steht am Handy untereinander, 44 px hoch.
+  - Texte: „Stau“ nennt, wo es hängt (zur Freigabe oder bei der Buchhaltung); „seit weniger als 1 Min.“ statt „seit 0 Min..“;
+    „die letzte Auslösung“ statt „die letzten 1 Auslösungen“; der Inhaber liest bei einer Pause „mit Fortsetzen geht es weiter“;
+    die Kachel „Wartet auf Freigabe“ in der Übersicht nennt auch die Teilbeträge im Auszahlungsplan.
+  - Ist ein Grund-Feld offen (Pausieren, Beenden, Ablehnen, Zurückrufen), steht sein Knopf nur noch einmal da.
+  - Kacheln je Empfänger: Zahl und Betrag stehen auf einer Linie, auch wenn eine Überschrift umbricht. Seite der Buchhaltung:
+    die Zeile „Teilbetrag n von m“ ist am Handy eine ruhige Fläche statt eines gequetschten Ovals.
+- **Geprüft:** die drei Prüfstände gegen den zusammengeführten Stand (Auszahlungsplan, Auszahlung über die Buchhaltung,
+  Buchhaltung — alle grün); Sichtprüfung mit headless Chromium als Geschäftsführung und als Inhaber, 1280 px und 375 × 812:
+  kein Plan, Formular mit Altposten-Vorschau, Anlage mit TAN, bereit (zwei Pläne), wartet (zwei Uhren), Freigabe mit TAN,
+  Bestätigung der Buchhaltung am Handy ohne Bank-Referenz, ausgeführt, pausiert, Stau, Rundgang ganz durch, Anleitung,
+  Wallet-Karte. Automatische Messungen dabei: kein Querscrollen, kein Schriftgewicht über 500, Knöpfe am Handy ab 44 px.
+- **Wo:** server/routes/fiaon-agent.ts, server/routes/fiaon-agent-portal.ts, server/routes/fiaon-agent-start.ts,
+  server/routes/fiaon-leistung.ts, server/lib/fiaon-verguetung.ts, server/lib/fiaon-auszahlungsplan.ts,
+  client/src/pages/banking/auszahlungsplan.tsx, client/src/pages/banking/api.ts, client/src/pages/banking/uebersicht.tsx,
+  client/src/styles/banking.css, client/src/styles/auszahlung-ausfuehren.css, client/src/pages/agent/wallet.tsx,
+  client/src/pages/agent/updates-data.ts, client/src/pages/agent/rundgaenge.ts (Wallet-Rundgang: Teilbeträge zählen nicht als Verdienst).
+
 ## 06.11.2026 — E-484 (Teil 4a, Prüfstand): Auszahlungsplan — dauerhafte Wache gegen doppelte Zahlung
 
 - **Warum:** Der Auszahlungsplan bewegt Geld. Jede Regel, die eine doppelte Zahlung verhindert, braucht eine Prüfung, die rot
@@ -22,6 +53,36 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   - Seitenwege (Chefbüro, „Alle …“, Anweisen), Sammellauf am 15. (neue Provisionen laufen normal, Plan-Teilbeträge nie) und Wallet.
   - Rot-Probe eingebaut (`--rot-probe=rennen`): ohne Zeilensperre und ohne Takt-Netz wird das Rennen rot.
 - **Wo:** scripts/pruef-auszahlungsplan.ts (Aufruf und Sicherungen im Kopf der Datei; läuft nur gegen den lokalen Prüfstand).
+
+## 06.11.2026 — E-484 (Teil 3, Oberfläche): Auszahlungsplan — der Reiter im FIAON Banking, Rundgang, Bank-Referenz-Feld, Wallet-Karte
+
+- **Warum:** Server-Kern und Routen (Teil 1 und 2) waren fertig, aber noch nicht bedienbar. Eine Funktion ist erst geliefert,
+  wenn ein Mensch sie anklicken kann. (Nachgetragen im Teil 4b — der Eintrag fehlte im Commit von Teil 3.)
+- **Was jetzt gilt (noch nicht live):**
+  - Neuer Reiter „Auszahlungsplan“ im FIAON Banking (`/buchhaltung?reiter=auszahlungsplan`, Kurzlink `/auszahlungsplan`).
+    Oben die Takt-Platte, das eine Navy-Glas der Seite: je Plan eine Zeile mit eigener Uhr und eigenem Knopf „Teilbetrag
+    auslösen“. Ob ein Knopf geht, sagt nur der Server; ist er gesperrt, steht der Grund daneben. Die Uhr zählt nur herunter
+    und löst nie selbst aus.
+  - Nach dem Auslösen bleibt eine Karte mit „Jetzt mit TAN freigeben“ stehen. Darunter: Zur Freigabe; Bei der Buchhaltung
+    (Warnpunkt nach 2 Bankarbeitstagen, „Erneut an die Buchhaltung“, „Zurückrufen“ für den Inhaber); Je Empfänger
+    (Fortschritt, Konto, verrechnete Altposten, Pausieren, Fortsetzen, Beenden mit TAN, neues Konto mit TAN, Hinweis-Mail
+    an/aus); Ausgeführt (Durchführungsbeleg, Beleg erneut senden); Verlauf; die Anleitung „So funktioniert die Auszahlung“.
+  - Plan anlegen (nur Inhaber): Empfänger wählen (je Empfänger ein eigener Plan, alle mit einer TAN), Anspruch, Teilbetrag,
+    Abstand, Stau-Grenze, Altposten „verrechnet“ (Standard) oder „zusätzlich“, Hinweis-Mail, Grund. Vor der TAN eine Vorschau
+    je Empfänger mit genau den Altposten (Anzahl, Summe, Auftragsnummern), die verrechnet und zurückgerufen werden. Ändert
+    man danach etwas, ist die TAN gesperrt, bis die Vorschau neu geprüft ist.
+  - Einbindung: Zähler am Menüpunkt, Punkte in „Zu tun“, Schnellknopf in der Übersicht, Hinweiszeilen in „Aufträge“,
+    „Auszahlungen“ und Chefbüro › Auszahlungen; der Link aus der Hinweis-Mail öffnet direkt die Freigabe.
+  - Seite der Buchhaltung: eigenes Feld „Bank-Referenz (falls zur Hand — freiwillig)“ und die Zeile „Teilbetrag n von m ·
+    Auszahlungsplan …“.
+  - Wallet › Auszahlung: Karte „Dein Auszahlungsplan“ (zugesagt, überwiesen, unterwegs, offen, letzte Teilbeträge).
+    Rundgang mit 8 Schritten (Start über „So funktioniert’s“), ein neuer Schritt im Wallet-Rundgang. `robots.txt` sperrt
+    `/buchhaltung` und `/auszahlungsplan`.
+  - Handy ab 375 px: nur Karten, Knöpfe mindestens 44 px, Eingaben 16 px.
+- **Wo:** client/src/pages/banking/auszahlungsplan.tsx (neu), client/src/pages/banking/api.ts, index.tsx, uebersicht.tsx,
+  auftraege.tsx, auszahlungen.tsx, client/src/styles/banking.css, client/src/pages/auszahlung-ausfuehren.tsx (mit CSS),
+  client/src/pages/agent/wallet.tsx, client/src/pages/admin-auszahlungen.tsx, client/src/pages/agent/rundgaenge.ts,
+  client/src/pages/agent/updates-data.ts, client/src/App.tsx, client/public/robots.txt.
 
 ## 06.11.2026 — E-484 (Teil 2, Server-Rest): Auszahlungsplan — Routen, Riegel gegen Doppelzahlung, Wallet-Daten, Beleg, Sammelmail
 

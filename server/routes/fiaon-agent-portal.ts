@@ -30,6 +30,8 @@ import {
   requireAgent, logAgentEvent, type AgentRequest,
 } from "./fiaon-agent";
 import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
+// E-484 (06.11.2026): Teilbeträge eines Auszahlungsplans zahlen Zugesagtes aus — sie sind kein Verdienst, kein Bonus, kein Ereignis.
+import { KIND_AUSZAHLUNGSPLAN } from "../lib/fiaon-buchhaltung";
 
 const router = Router();
 
@@ -167,7 +169,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
         COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_VORWOCHE)}
                                              AND created_at <  ${U(B_WOCHE)}), 0) AS prev_week,
         COALESCE(SUM(amount_cents) FILTER (WHERE created_at >= ${U(B_MONAT)}), 0) AS month
-      FROM fiaon_commissions WHERE agent_id = ${me} AND status != 'storniert'
+      FROM fiaon_commissions WHERE agent_id = ${me} AND status != 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
     `;
 
     // Abschlüsse (E-343: Rate 1 oder Einmalkauf aus der Umsatzquelle): Monat, heute, bester Tag
@@ -197,7 +199,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
              ap.first_name, ap.last_name, ap.contact_name, ap.company_name
       FROM fiaon_commissions c
       LEFT JOIN fiaon_applications ap ON ap.ref = c.ref
-      WHERE c.agent_id = ${me} AND c.amount_cents > 0 AND c.status != 'storniert'
+      WHERE c.agent_id = ${me} AND c.amount_cents > 0 AND c.status != 'storniert' AND COALESCE(c.kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
       ORDER BY c.created_at DESC LIMIT 12
     `;
     // Boni des laufenden Monats getrennt ausweisen — sie zaehlen zum Verdienst,
@@ -205,7 +207,7 @@ router.get("/agent/dashboard", requireAgent, async (req: AgentRequest, res) => {
     const monthBonus = await sqlPool`
       SELECT COUNT(*)::int AS c, COALESCE(SUM(amount_cents), 0) AS s
       FROM fiaon_commissions
-      WHERE agent_id = ${me} AND kind <> 'own' AND amount_cents > 0 AND status != 'storniert'
+      WHERE agent_id = ${me} AND kind <> 'own' AND kind <> ${KIND_AUSZAHLUNGSPLAN} AND amount_cents > 0 AND status != 'storniert'
         AND created_at >= ${U(B_MONAT)}
     `;
 
@@ -267,7 +269,7 @@ router.get("/agent/feed", requireAgent, async (req: AgentRequest, res) => {
              ap.first_name, ap.last_name, ap.contact_name, ap.company_name
       FROM fiaon_commissions c
       LEFT JOIN fiaon_applications ap ON ap.ref = c.ref
-      WHERE c.agent_id = ${me} AND c.amount_cents > 0 AND c.status != 'storniert'
+      WHERE c.agent_id = ${me} AND c.amount_cents > 0 AND c.status != 'storniert' AND COALESCE(c.kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
         AND c.created_at >= NOW() - INTERVAL '30 days'
       ORDER BY c.created_at DESC LIMIT 15
     `;
@@ -426,7 +428,7 @@ router.get("/agent/wunschgehalt", requireAgent, async (req: AgentRequest, res) =
     // Monatsverdienst bisher (alle nicht-stornierten Einträge, wie Guthaben-Logik)
     const month = await sqlPool`
       SELECT COALESCE(SUM(amount_cents), 0) AS s FROM fiaon_commissions
-      WHERE agent_id = ${me} AND status != 'storniert' AND created_at >= ${U(B_MONAT)}
+      WHERE agent_id = ${me} AND status != 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN} AND created_at >= ${U(B_MONAT)}
     `;
     const monthCents = Number(month[0].s);
 

@@ -3252,17 +3252,28 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
         AND a.merged_into IS NULL AND a.payment_status IN ('pending_payment','claimed_paid')
         AND ${sqlPool.unsafe(ECHT)} -- E-343 (13.10.2026): Testbestellungen sind kein möglicher Verdienst
     `;
+    // E-484: ohne Teilbeträge eines Auszahlungsplans — dieselbe Regel wie GET /agent/payouts (siehe unten).
     const sums = await sqlPool`
       SELECT status, COALESCE(SUM(amount_cents),0) AS s, COUNT(*) AS c
-      FROM fiaon_commissions WHERE agent_id = ${me} GROUP BY status
+      FROM fiaon_commissions WHERE agent_id = ${me} AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN} GROUP BY status
     `;
     const byStatus: Record<string, { sum: number; count: number }> = {};
     for (const r of sums) byStatus[r.status] = { sum: Number(r.s), count: Number(r.c) };
     // Monatsziel-Fortschritt: nicht-stornierte Einträge dieses Kalendermonats
     // (E-343: Monatsanfang in Berliner Zeit — `date_trunc('month', NOW())` ist UTC-Mitternacht).
+    //
+    // ── E-484 (06.11.2026): EIN TEILBETRAG IST KEIN VERDIENST ─────────────────
+    // Die Teilbeträge eines Auszahlungsplans (Art „auszahlungsplan“) zahlen einen
+    // schon zugesagten Betrag aus. VORHER hätten sie das Monatsziel gefüllt („diesen
+    // Monat verdient“), die Liste „Provisionen je Rate“ (LIMIT 50) mit bis zu hundert
+    // kleinen Zeilen verdrängt und „In Auszahlung“ anders gezählt als der Reiter
+    // „Auszahlung“ im selben Wallet (GET /agent/payouts zählt sie dort nicht — zwei
+    // verschiedene Zahlen für dasselbe Wort, in der Sichtprüfung gesehen).
+    // NACHHER zählen alle Provisions-Zahlen hier ohne sie; ihren Stand (überwiesen,
+    // unterwegs, offen) zeigt die Plan-Karte, und `planTeile` nennt ihre Zahl.
     const month = await sqlPool`
       SELECT COALESCE(SUM(amount_cents),0) AS s FROM fiaon_commissions
-      WHERE agent_id = ${me} AND status != 'storniert'
+      WHERE agent_id = ${me} AND status != 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
         AND created_at >= date_trunc('month', NOW() AT TIME ZONE 'Europe/Berlin') AT TIME ZONE 'Europe/Berlin'
     `;
     const entries = await sqlPool`
@@ -3271,7 +3282,8 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
              a.first_name, a.last_name, a.contact_name, a.company_name
       FROM fiaon_commissions c
       LEFT JOIN fiaon_applications a ON a.ref = c.ref
-      WHERE c.agent_id = ${me} ORDER BY c.created_at DESC LIMIT 50
+      WHERE c.agent_id = ${me} AND COALESCE(c.kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
+      ORDER BY c.created_at DESC LIMIT 50
     `;
     // ── 24.08.2026: „N BUCHUNGEN" WAR IN WAHRHEIT „DIE ERSTEN 50" ──────────
     // Das Wallet schrieb über die Liste `entries.length` und nannte es
@@ -3279,8 +3291,11 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
     // GEMESSEN: Daniel Stripling (Konto 8) hat 276 Provisionsbuchungen — die
     // Überschrift sagte 50. NACHHER reist die echte Gesamtzahl mit, und die
     // Oberfläche schreibt „50 von 276".
+    // E-484: Die Gesamtzahl zählt wie die Liste ohne Plan-Teilbeträge; deren Zahl reist getrennt mit (Hinweis im Wallet).
     const [entriesGesamtR] = (await sqlPool`
-      SELECT COUNT(*)::int AS n FROM fiaon_commissions WHERE agent_id = ${me}
+      SELECT COUNT(*) FILTER (WHERE COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN})::int AS n,
+             COUNT(*) FILTER (WHERE kind = ${KIND_AUSZAHLUNGSPLAN} AND status <> 'storniert')::int AS plan
+        FROM fiaon_commissions WHERE agent_id = ${me}
     `) as any[];
     // Paket AE2: Team-Umsatzbeteiligung getrennt ausweisen (fließt ins selbe Guthaben)
     const overrides = await sqlPool`
@@ -3302,6 +3317,8 @@ router.get("/agent/earnings", requireAgent, async (req: AgentRequest, res) => {
       entries,
       // Wie viele es insgesamt sind — `entries` zeigt nur die jüngsten 50.
       entriesGesamt: Number(entriesGesamtR?.n ?? 0),
+      // E-484: Teilbeträge eines Auszahlungsplans (laufend oder überwiesen) — sie stehen nicht in `entries`.
+      planTeile: Number(entriesGesamtR?.plan ?? 0),
     });
   } catch (err) {
     console.error("[FIAON-AGENT] earnings:", err);

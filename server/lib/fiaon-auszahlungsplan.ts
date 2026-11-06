@@ -273,7 +273,12 @@ function kontoLage(ag: any, planPruef: string | null, entschluesseln: (enc: stri
   const name = agentName(ag);
   if (ag.ist_test) return nein("testkonto", `${name} ist ein Testkonto.`);
   if (ag.active !== true) return nein("inaktiv", `Das Konto von ${name} ist nicht aktiv.`);
-  if (ag.zugang_gesperrt_am) return nein("gesperrt", `Der Zugang von ${name} ist gesperrt — Teilbeträge sind angehalten, bis der Inhaber entscheidet.`);
+  // Vor der Anlage (kein Prüfwert eines Plans) gibt es noch keine Teilbeträge, die angehalten sein könnten.
+  if (ag.zugang_gesperrt_am) {
+    return nein("gesperrt", planPruef
+      ? `Der Zugang von ${name} ist gesperrt — Teilbeträge sind angehalten, bis der Inhaber entscheidet.`
+      : `Der Zugang von ${name} ist gesperrt — für einen gesperrten Zugang wird kein Plan angelegt.`);
+  }
   if (!ag.bank_iban_enc) return nein("ohne_iban", `Für ${name} ist keine Bankverbindung hinterlegt.`);
   const iban = ibanSauber(entschluesseln(ag.bank_iban_enc) || "");
   if (!ibanGueltig(iban)) return nein("iban_unlesbar", `Die hinterlegte IBAN von ${name} ist nicht lesbar oder hat eine falsche Prüfziffer.`);
@@ -887,7 +892,7 @@ export async function teilAusloesen(planId: number, von: BuchPerson, lauf: Lauf 
           SELECT COUNT(*)::int AS n FROM fiaon_buch_auftrag o JOIN fiaon_auszahlungsplan_teil t ON t.id = o.plan_teil_id
            WHERE t.plan_id = ${planId} AND o.status IN ('eingereicht', 'freigegeben')`) as any[];
         if (zahl(stau?.n) >= zahl(p.max_offen)) {
-          return fehler(409, "STAU", `${zahl(stau.n)} Teilbeträge sind unterwegs. Der nächste geht, sobald die Buchhaltung einen bestätigt (oder einer zurückkommt).`);
+          return fehler(409, "STAU", `${zahl(stau.n)} Teilbeträge sind unterwegs (zur Freigabe oder bei der Buchhaltung). Der nächste geht, sobald einer davon ausgeführt oder abgelehnt ist.`);
         }
         const ag = await agentLesen(zahl(p.agent_id), tx);
         const konto = kontoLage(ag, String(p.iban_pruef), entschl);
@@ -1407,6 +1412,8 @@ export interface PlanAuftrag extends Auftrag {
   ausgeloestVon: string | null;
   ausgeloestVonName: string | null;
   ausgeloestAm: string | null;
+  /** Wer freigegeben (oder abgelehnt) hat — als Name, für die Zeile „freigegeben … von …“. */
+  entschiedenVonName: string | null;
   selbstfreigabe: boolean;
   darfFreigeben: boolean;
   /** Warum (noch) nicht — damit kein Knopf ohne Grund grau ist. */
@@ -1592,7 +1599,8 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
       planId: zahl(p.id), planNummer: String(p.nummer), teilNr: zahl(t.nr), anzahlTeile: zahl(p.anzahl_teile),
       agentId: zahl(p.agent_id), empfaengerName: agentName({ id: p.agent_id, name: p.ag_name, first_name: p.ag_first_name, last_name: p.ag_last_name }),
       ausgeloestVon: t.ausgeloest_von ?? null, ausgeloestVonName: t.ausgeloest_von ? nameVon(t.ausgeloest_von) : null,
-      ausgeloestAm: iso(t.ausgeloest_am), selbstfreigabe: t.selbstfreigabe === true,
+      ausgeloestAm: iso(t.ausgeloest_am), entschiedenVonName: a.entschiedenVon ? nameVon(a.entschiedenVon) : null,
+      selbstfreigabe: t.selbstfreigabe === true,
       darfFreigeben,
       freigabeGrund: a.status !== "eingereicht" ? null : !planLaeuft ? planStatusSatz(planBezugAusZeile(p)) : darf.ok ? null : darf.grund,
       darfAblehnen: a.status === "eingereicht" && (istInhaber || (!!a.ausfuehrungExtern && ich.rolle === "buchhaltung" && a.erstelltVon !== ich.email)),
@@ -1631,7 +1639,11 @@ export async function planLage(ich: BuchPerson, opts: { seite?: number; kurz?: b
     else if (p.status === "pausiert") { zustand = "pausiert"; sperrGrund = planStatusSatz(planBezugAusZeile(p)); }
     else if (!konto.ok) { zustand = "konto"; sperrGrund = konto.grund; }
     else if (!nt) { zustand = zahl(s?.offen) === 0 && unterwegsAnzahl === 0 ? "fertig" : "unterwegs"; sperrGrund = zustand === "fertig" ? "Alle Teilbeträge sind ausgeführt." : "Alle übrigen Teilbeträge sind unterwegs."; }
-    else if (unterwegsAnzahl >= zahl(p.max_offen)) { zustand = "stau"; sperrGrund = `${unterwegsAnzahl} Teilbeträge sind unterwegs. Der nächste geht, sobald die Buchhaltung einen bestätigt.`; }
+    else if (unterwegsAnzahl >= zahl(p.max_offen)) {
+      // Sichtprüfung E-484: Der Stau kann auch an der Freigabe liegen, nicht nur an der Buchhaltung — der Satz nennt beides.
+      zustand = "stau";
+      sperrGrund = `${unterwegsAnzahl} Teilbeträge sind unterwegs (${zf.length} zur Freigabe, ${bb.length} bei der Buchhaltung). Der nächste geht, sobald einer davon ausgeführt oder abgelehnt ist.`;
+    }
     else if (new Date(p.naechste_ab).getTime() > jetzt.getTime()) { zustand = "wartet"; sperrGrund = `Der nächste Teilbetrag geht ab ${uhr(p.naechste_ab)} Uhr.`; }
     else zustand = "bereit";
     // Einmal je Kontoänderung (oder Sperre) ein Hinweis an den Inhaber — nicht bei jedem Öffnen.

@@ -938,7 +938,8 @@ export const RUNDGANG_WALLET: RundgangSchritt[] = [
       + "der zugesagte Betrag, was schon überwiesen ist, was unterwegs ist und was noch offen ist. Die Buchhaltung überweist "
       + "jeden Teilbetrag einzeln; die Gutschrift dauert je Überweisung 1–3 Bankarbeitstage. Alle zehn ausgeführten "
       + "Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen — einzelne Mails je Teilbetrag gibt es nicht. "
-      + "Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte.",
+      + "Die Teilbeträge stehen nicht im Verlauf darunter, sondern gesammelt in der Karte — und sie zählen nicht als "
+      + "Verdienst: nicht in den Kacheln unter „Guthaben & Provisionen“, nicht in „Provisionen je Rate“, nicht im Monatsziel.",
     tipp: "Neue Provisionen laufen daneben ganz normal über dein Guthaben — der Plan ändert daran nichts.",
   },
 ];

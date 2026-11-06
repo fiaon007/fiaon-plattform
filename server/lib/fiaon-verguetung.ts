@@ -28,6 +28,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
+// E-484 (06.11.2026): Teilbeträge eines Auszahlungsplans zahlen Zugesagtes aus — kein Verdienst dieses Monats.
+import { KIND_AUSZAHLUNGSPLAN } from "./fiaon-buchhaltung";
 
 export type BausteinTyp = "fixum" | "provision" | "pauschale" | "stundensatz" | "einmalig";
 
@@ -309,7 +311,7 @@ export async function monatsVorschau(
    WHERE agent_id = ${agentId}
      -- E-343 (13.10.2026): Stornostatus heißt 'storniert' ('cancelled' gibt es nicht — Stornos
      -- zählten mit); Monatsgrenzen in Berliner Zeit statt UTC-Mitternacht.
-     AND status <> 'storniert'
+     AND status <> 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN}
      AND created_at >= ${von}::date::timestamp AT TIME ZONE 'Europe/Berlin'
      AND created_at < (${von}::date + INTERVAL '1 month') AT TIME ZONE 'Europe/Berlin'
   `.catch(() => [{ provision_cents: 0, provision_n: 0, pauschal_cents: 0, pauschal_n: 0 }] as any[])) as any[];

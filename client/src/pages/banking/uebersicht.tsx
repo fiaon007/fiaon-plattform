@@ -193,9 +193,9 @@ function ZuTun({ lage, onGehe }: { lage: Lage; onGehe: (r: Reiter) => void }) {
     for (const p of plan.plaene) {
       if (p.darfAusloesen) punkte.push({ z: "uhr", t: `Nächster Teilbetrag bereit: ${p.nummer} an ${p.empfaengerName}`, x: p.naechsterTeil ? geld(p.naechsterTeil.betragCents) : "", r: "auszahlungsplan", art: "warn" });
       else if (p.zustand === "wartet") punkte.push({ z: "uhr", t: `Nächster Teilbetrag ${p.nummer} ab ${uhr(p.naechsteAb)} Uhr`, x: "", r: "auszahlungsplan", art: "still" });
-      else if (p.zustand === "pausiert") punkte.push({ z: "uhr", t: `${p.nummer} ist pausiert — weiter geht es, wenn der Inhaber fortsetzt`, x: "", r: "auszahlungsplan", art: "info" });
+      else if (p.zustand === "pausiert") punkte.push({ z: "uhr", t: inhaber ? `${p.nummer} ist pausiert — mit „Fortsetzen“ geht es weiter` : `${p.nummer} ist pausiert — weiter geht es, wenn der Inhaber fortsetzt`, x: "", r: "auszahlungsplan", art: inhaber ? "warn" : "info" });
       else if (p.zustand === "konto") punkte.push({ z: "warnung", t: `${p.nummer} angehalten: Konto des Empfängers geändert oder gesperrt`, x: "", r: "auszahlungsplan", art: "warn" });
-      else if (p.zustand === "stau") punkte.push({ z: "uhr", t: `${p.nummer}: Stau-Grenze erreicht — wartet auf die Buchhaltung`, x: "", r: "auszahlungsplan", art: "info" });
+      else if (p.zustand === "stau") punkte.push({ z: "uhr", t: `${p.nummer}: Stau-Grenze erreicht — erst Offenes freigeben bzw. auf die Buchhaltung warten`, x: "", r: "auszahlungsplan", art: "info" });
     }
     if (plan.darfFreigeben) punkte.push({ z: "schild", t: plan.darfFreigeben === 1 ? "1 Teilbetrag wartet auf deine Freigabe" : `${plan.darfFreigeben} Teilbeträge warten auf deine Freigabe`, x: "", r: "auszahlungsplan", art: "warn" });
     if (plan.ueberfaellig) punkte.push({ z: "warnung", t: plan.ueberfaellig === 1 ? "1 Teilbetrag liegt länger als 2 Bankarbeitstage bei der Buchhaltung" : `${plan.ueberfaellig} Teilbeträge liegen länger als 2 Bankarbeitstage bei der Buchhaltung`, x: "", r: "auszahlungsplan", art: "warn" });
@@ -256,7 +256,9 @@ export default function Uebersicht({ lage, onGehe, onNeu }: { lage: Lage; onGehe
             <div className="bk-kachel"><span>Eingänge {monatName(monat).split(" ")[0]}</span><strong className="bk-plus">{geld(einMonat)}</strong></div>
             <div className="bk-kachel"><span>Ausgänge {monatName(monat).split(" ")[0]}</span><strong>{geld(ausMonat)}</strong></div>
             <button type="button" className="bk-kachel bk-kachel-knopf" onClick={() => onGehe("auftraege")}>
-              <span>Wartet auf Freigabe</span><strong>{wartend.length}</strong><em>{wartend.length ? geld(wartend.reduce((s, a) => s + a.betragCents, 0)) : "nichts offen"}</em>
+              <span>Wartet auf Freigabe</span><strong>{wartend.length}</strong>
+              {/* E-484: Teilbeträge des Auszahlungsplans stehen nicht in den Aufträgen — hier nur ihre Zahl, damit „nichts offen“ nicht täuscht. */}
+              <em>{wartend.length ? geld(wartend.reduce((s, a) => s + a.betragCents, 0)) : "nichts offen"}{lage.auszahlungsplan?.zurFreigabe ? ` · dazu ${lage.auszahlungsplan.zurFreigabe} im Auszahlungsplan` : ""}</em>
             </button>
             <button type="button" className="bk-kachel bk-kachel-knopf" onClick={() => onGehe("umsaetze")}>
               <span>Nicht zugeordnet</span><strong>{lage.offen.offenAnzahl}</strong><em>{geld(lage.offen.offenCents)}</em>

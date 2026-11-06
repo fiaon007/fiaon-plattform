@@ -62,6 +62,7 @@ function seitText(iso: string | null, versatz: number): string {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return "";
   const min = Math.max(0, Math.floor((Date.now() + versatz - t) / 60_000));
+  if (min < 1) return "seit weniger als 1 Min.";
   if (min < 60) return `seit ${min} Min.`;
   const std = Math.floor(min / 60);
   return std < 48 ? `seit ${std} Std.` : `seit ${Math.floor(std / 24)} Tagen`;
@@ -314,7 +315,7 @@ function ErgebnisKarte({ x, lage, versatz, laeuft, onFreigeben, onZu }: {
         ) : <p className="bk-plan-ergebnis-satz">{zf.freigabeGrund ?? "Die Freigabe ist gerade nicht möglich."}</p>
       ) : bb ? (
         <p className="bk-plan-ergebnis-satz bk-gut-text">
-          <Zeichen n="haken" g={14} /> Freigegeben — liegt bei der Buchhaltung{bb.externGesendetAm ? ` ${seitText(bb.externGesendetAm, versatz)}` : ""}. Ausgebucht wird mit ihrer Bestätigung.
+          <Zeichen n="haken" g={14} /> Freigegeben — liegt bei der Buchhaltung{bb.externGesendetAm ? ` (${seitText(bb.externGesendetAm, versatz)})` : ""}. Ausgebucht wird mit ihrer Bestätigung.
         </p>
       ) : aus ? (
         <p className="bk-plan-ergebnis-satz bk-gut-text"><Zeichen n="haken" g={14} /> Ausgeführt — der Beleg steht unter „Ausgeführt“.</p>
@@ -339,7 +340,10 @@ function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, set
   const letzter = p.anspruchCents - p.teilCents * (p.anzahlTeile - 1);
   const ausserhalb = altpostenZeilen(p.ausserhalb, "offen");
   const verrechnetZa = (p.altpostenDetail?.auftraege ?? []).map((o) => o.nummer);
-  const steuerung = p.darfPausieren || p.darfFortsetzen || p.darfKontoBestaetigen || p.darfBeenden;
+  // Ist ein Grund-Feld offen, steht sein Knopf dort — nicht ein zweites Mal in der Fußzeile.
+  const zeigPause = p.darfPausieren && grundOffen !== `pause-${p.id}`;
+  const zeigEnde = p.darfBeenden && grundOffen !== `ende-${p.id}`;
+  const steuerung = zeigPause || p.darfFortsetzen || p.darfKontoBestaetigen || zeigEnde;
   return (
     <article className={`bk-karte bk-plan-person${laeuftPlan ? "" : " bk-plan-person-alt"}`} data-fiaon={`plan-person-${p.id}`}>
       <header className="bk-plan-person-kopf">
@@ -436,11 +440,11 @@ function PersonKarte({ p, inhaber, laeuft, hinweis, onHinweisZu, grundOffen, set
       ) : null}
       {steuerung ? (
         <footer className="bk-plan-steuer">
-          {p.darfPausieren ? <Knopf klein disabled={laeuft !== null} onClick={() => setGrundOffen(`pause-${p.id}`)}>Pausieren</Knopf> : null}
+          {zeigPause ? <Knopf klein disabled={laeuft !== null} onClick={() => setGrundOffen(`pause-${p.id}`)}>Pausieren</Knopf> : null}
           {p.darfFortsetzen ? <Knopf klein art="primaer" disabled={laeuft !== null} onClick={() => onFortsetzen(p)}>Fortsetzen</Knopf> : null}
           {p.darfKontoBestaetigen ? <Knopf klein art="primaer" zeichen="schloss" disabled={laeuft !== null} onClick={() => onKonto(p)}>Neues Konto bestätigen</Knopf> : null}
           <span className="bk-flex" />
-          {p.darfBeenden ? <Knopf klein art="still" disabled={laeuft !== null} onClick={() => setGrundOffen(`ende-${p.id}`)}>Plan beenden</Knopf> : null}
+          {zeigEnde ? <Knopf klein art="still" disabled={laeuft !== null} onClick={() => setGrundOffen(`ende-${p.id}`)}>Plan beenden</Knopf> : null}
         </footer>
       ) : null}
     </article>
@@ -613,7 +617,8 @@ function PlanAnlegen({ offen, setOffen, kastenRef, onAngelegt }: {
             <label id="bk-plan-wahl-l">Empfänger — je Empfänger ein eigener Plan</label>
             <ul className="bk-plan-wahl" aria-labelledby="bk-plan-wahl-l">
               {daten.kandidaten.length === 0 ? <li className="aus"><span className="bk-leise">Es gibt keine aktiven Mitarbeiter mit Bankverbindung.</span></li> : null}
-              {daten.kandidaten.map((k) => {
+              {/* Wählbare zuerst (sonst sucht man am Handy unter gesperrten Konten), in sich nach Namen wie vom Server. */}
+              {daten.kandidaten.slice().sort((a, b) => Number(b.auswaehlbar) - Number(a.auswaehlbar)).map((k) => {
                 const an = k.agentId in gewaehlt;
                 const id = `bk-plan-anspruch-${k.agentId}`;
                 return (
@@ -1075,7 +1080,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                   {!a.darfFreigeben && a.freigabeGrund ? <span className="bk-plan-grundtext">{a.freigabeGrund}</span> : null}
                 </div>
                 <div className="bk-plan-reihe-k">
-                  {a.darfAblehnen ? <Knopf klein disabled={laeuft !== null} onClick={() => setGrundOffen(`ablehnen-${a.id}`)}>Ablehnen</Knopf> : null}
+                  {a.darfAblehnen && grundOffen !== `ablehnen-${a.id}` ? <Knopf klein disabled={laeuft !== null} onClick={() => setGrundOffen(`ablehnen-${a.id}`)}>Ablehnen</Knopf> : null}
                   {a.darfFreigeben ? (
                     <Knopf klein art="primaer" zeichen="schloss" disabled={laeuft !== null} onClick={() => setTanFall({ art: "freigabe", a })}>
                       {inhaber ? "Selbst mit TAN freigeben" : "Mit TAN freigeben"}
@@ -1117,7 +1122,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                   </strong>
                   <span className="bk-leise">
                     {teilZeile(a)} · {a.beiBuchhaltungSeit ? `bei der Buchhaltung ${seitText(a.beiBuchhaltungSeit, versatz)}` : "noch nicht übermittelt"}
-                    {a.entschiedenAm ? ` · freigegeben ${zeit(a.entschiedenAm)} Uhr${a.entschiedenVon === lage.ich.email ? " von dir" : ""}` : ""}
+                    {a.entschiedenAm ? ` · freigegeben ${zeit(a.entschiedenAm)} Uhr${a.entschiedenVon === lage.ich.email ? " von dir" : a.entschiedenVonName ? ` von ${a.entschiedenVonName}` : ""}` : ""}
                     {a.freigabeArt === "einzel" ? " (Einzelzeichnung)" : a.freigabeArt === "vier_augen" ? " (vier Augen)" : ""}
                     {a.selbstfreigabe ? " · Selbstfreigabe der Empfängerin" : ""}
                   </span>
@@ -1132,7 +1137,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                       {laeuft === `an-buchhaltung-${a.id}` ? "Sende …" : a.externGesendetAm ? "Erneut an die Buchhaltung" : "Jetzt an die Buchhaltung"}
                     </Knopf>
                   ) : null}
-                  {a.darfZurueckrufen ? <Knopf klein art="still" disabled={laeuft !== null} onClick={() => setGrundOffen(`zurueckrufen-${a.id}`)}>Zurückrufen</Knopf> : null}
+                  {a.darfZurueckrufen && grundOffen !== `zurueckrufen-${a.id}` ? <Knopf klein art="still" disabled={laeuft !== null} onClick={() => setGrundOffen(`zurueckrufen-${a.id}`)}>Zurückrufen</Knopf> : null}
                 </div>
                 {grundOffen === `zurueckrufen-${a.id}` ? (
                   <div className="bk-plan-reihe-voll">
@@ -1191,7 +1196,8 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
                     <span className="bk-leise">
                       {a.externBankReferenz ? <>Bank-Referenz <span className="bk-mono">{a.externBankReferenz}</span></> : "ohne Bank-Referenz der Buchhaltung"}
                       {a.bankReferenz ? <> · FIAON-Referenz <span className="bk-mono">{a.bankReferenz}</span></> : null}
-                      {a.selbstfreigabe ? " · Selbstfreigabe" : ""}
+                      {a.entschiedenVonName ? ` · freigegeben von ${a.entschiedenVon === lage.ich.email ? "dir" : a.entschiedenVonName}` : ""}
+                      {a.selbstfreigabe ? " (Selbstfreigabe)" : ""}
                     </span>
                   </div>
                   <div className="bk-plan-reihe-k">
@@ -1219,7 +1225,7 @@ export default function Auszahlungsplan({ fokusAuftrag = null, onNeu }: {
       {/* ── Verlauf ── */}
       <section className="bk-karte bk-plan-verlauf" data-fiaon="plan-verlauf">
         <Aufklapp id="bk-plan-verlauf-inhalt" titel="Verlauf" offen={verlaufOffen} onUm={() => setVerlaufOffen((o) => !o)}
-          neben={lage.verlauf.length ? `die letzten ${lage.verlauf.length} Auslösungen` : "noch keine Auslösung"}>
+          neben={lage.verlauf.length === 1 ? "die letzte Auslösung" : lage.verlauf.length ? `die letzten ${lage.verlauf.length} Auslösungen` : "noch keine Auslösung"}>
           {lage.verlauf.length === 0 ? <p className="bk-plan-leer">Noch nichts ausgelöst.</p> : (
             <ol className="bk-plan-verlauf-liste">
               {lage.verlauf.map((t) => (

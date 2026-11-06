@@ -95,6 +95,7 @@ export const AGENT_UPDATES: AgentUpdate[] = [
     changes: [
       "Ein Auszahlungsplan zahlt einen zugesagten Betrag in festen Teilbeträgen aus. Jeder Teilbetrag wird mit TAN freigegeben und von der Buchhaltung einzeln überwiesen.",
       "Die Karte zeigt den Fortschritt und die letzten zehn Teilbeträge. Im Verlauf darunter stehen sie nicht — dort bleiben deine normalen Anforderungen.",
+      "Teilbeträge stehen nur in der Plan-Karte: Sie zählen nicht in „Provisionen je Rate“, nicht in den Kacheln „In Auszahlung“ und „Ausgezahlt“, nicht ins Monatsziel und nicht in „heute / diese Woche verdient“ auf der Startseite — sie zahlen einen schon zugesagten Betrag aus.",
       "Alle zehn ausgeführten Teilbeträge bekommst du eine Sammelmail mit deinen Abrechnungen; einzelne Mails je Teilbetrag gibt es nicht.",
       "Neue Provisionen laufen daneben ganz normal über dein Guthaben.",
     ],

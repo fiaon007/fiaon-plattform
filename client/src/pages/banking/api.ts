@@ -142,6 +142,8 @@ export interface PlanAltpostenDetail {
 export interface PlanAuftrag extends Auftrag {
   planId: number; planNummer: string; teilNr: number; anzahlTeile: number; agentId: number; empfaengerName: string;
   ausgeloestVon: string | null; ausgeloestVonName: string | null; ausgeloestAm: string | null; selbstfreigabe: boolean;
+  /** Wer freigegeben hat — als Name (vom Server). */
+  entschiedenVonName: string | null;
   darfFreigeben: boolean;
   /** Warum (noch) nicht freigegeben werden kann — kein grauer Knopf ohne Grund. */
   freigabeGrund: string | null;

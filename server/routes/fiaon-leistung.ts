@@ -21,6 +21,8 @@ import { sqlPool } from "../lib/db-pool";
 import { requireAgent, getSettings, setSetting, type AgentRequest } from "./fiaon-agent";
 import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 import { UMSATZ_QUELLE_SQL } from "../lib/fiaon-umsatz-quelle";
+// E-484 (06.11.2026): Teilbeträge eines Auszahlungsplans zahlen Zugesagtes aus — keine Provision im Zeitraum, keine Leistung.
+import { KIND_AUSZAHLUNGSPLAN } from "../lib/fiaon-buchhaltung";
 
 const router = Router();
 
@@ -92,7 +94,7 @@ export async function computeLeistung(from: Date, to: Date): Promise<any> {
   const commissions = await sqlPool`
     SELECT agent_id, COALESCE(SUM(amount_cents), 0)::bigint AS provision_cents
     FROM fiaon_commissions
-    WHERE status <> 'storniert' AND created_at BETWEEN ${from} AND ${to}
+    WHERE status <> 'storniert' AND COALESCE(kind, '') <> ${KIND_AUSZAHLUNGSPLAN} AND created_at BETWEEN ${from} AND ${to}
     GROUP BY agent_id
   `;
   // 6) Reaktionsschnelligkeit: Lead-Eingang → erster dokumentierter Kontakt des

@@ -65,7 +65,8 @@ export function globalAkteRechnungTitel(packKey: unknown, packName: unknown, s: 
 // Nach der rechtlichen Prüfung (22.10.2026): KEINE eigene „Umfassende Vollmacht“ — was FIAON für den Kunden tun darf,
 // steht im Vertrag (Ziffer „Befugnisse von FIAON“, shared/fiaon-global-befugnisse.ts) bzw. für ältere Fassungen in der
 // Ergänzung, die der Kunde digital unterschreibt. Nach der Gründung der LLC: die vorausgefüllten amtlichen Formulare
-// IRS SS-4 (FIAON als Third Party Designee) und, wo nötig, IRS 8821 (von Hand), dazu Statement of Organizer (FIAON
+// IRS SS-4 (vom Registered Agent oder im Office über „Formular erzeugen“ — nur dieses nennt FIAON als Third Party Designee)
+// und, wo nötig, IRS 8821 (von Hand), dazu Statement of Organizer (FIAON
 // unterschreibt als Organizer, das Mitglied bestätigt) und Operating Agreement (digital). Das eigene, E-SIGN-konforme
 // Unterschreiben steht in shared/fiaon-global-unterschrift.ts und server/lib/fiaon-global-unterschrift.ts (seit 22.10.2026
 // abends): Nachweis je Unterschrift in unterschrift_nachweis, Zertifikatsseite, Siegel.
@@ -100,7 +101,7 @@ export interface PflichtUnterlage {
 export const GLOBAL_PFLICHT_UNTERLAGEN: PflichtUnterlage[] = [
   { key: "irs_ss4", art: "steuer", abGruendung: true, modus: "handschriftlich",
     titel: { de: "IRS Form SS-4 (EIN)", en: "IRS Form SS-4 (EIN)" },
-    text: { de: "Der Antrag auf die EIN Ihrer Gesellschaft — vorausgefüllt, mit FIAON als Third Party Designee.", en: "The application for your company's EIN — prefilled, with FIAON as third party designee." } },
+    text: { de: "Der Antrag auf die EIN Ihrer Gesellschaft — vorausgefüllt, Sie unterschreiben von Hand.", en: "The application for your company's EIN — pre-filled, you sign by hand." } },
   { key: "irs_8821", art: "steuer", abGruendung: true, modus: "handschriftlich", abschaltbar: true,
     titel: { de: "IRS Form 8821 (Steuerauskunft)", en: "IRS Form 8821 (tax information authorization)" },
     text: { de: "Erlaubt uns, bei der US-Steuerbehörde Auskunft zu Ihrer Gesellschaft einzuholen.", en: "Allows us to obtain information about your company from the US tax authority." } },

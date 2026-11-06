@@ -105,6 +105,7 @@ gleich(S.stationKontaktWarnungen("Seestrasse 4\n8001 Zürich", "30 N Gould St"),
 gleich([S.stationStatusName("ein", "in_arbeit"), S.stationStatusName("ein", "beantragt"), S.stationStatusName("ein", "erledigt")], ["SS-4 zur Unterschrift", "Eingereicht (Fax)", "EIN erteilt"], "EIN per Fax: drei eigene Status-Namen");
 ok(S.stationStatusName("ein", "offen") === null && S.stationStatusName("itin", "beantragt") === null, "sonst gilt der allgemeine Name");
 ok(S.GLOBAL_STATION_UNTERSCHRIFT.ein?.pflichtKey === "irs_ss4", "SS-4 an der EIN ist das Formular irs_ss4");
+ok(!/designee/i.test(S.GLOBAL_STATION_UNTERSCHRIFT.ein?.titel ?? ""), "SS-4-Feld an der EIN neutral — dort liegt auch das SS-4 vom Registered Agent (ohne Designee)");
 {
   const g = await import("../shared/fiaon-global");
   ok(/Inhaber/.test(g.GLOBAL_AGENT.de.kontakt) && !/übernehmen wir das für Sie/.test(g.GLOBAL_AGENT.de.kontakt), "Kundensatz aus GLOBAL_AGENT (E-424): der Inhaber, nicht FIAON");

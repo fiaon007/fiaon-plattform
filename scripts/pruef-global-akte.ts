@@ -56,6 +56,8 @@ abschnitt("2 Dokumente zur Unterschrift");
 // Weiter gilt: KEINE eigene „Umfassende Vollmacht“ (die Befugnisse stehen im Vertrag bzw. in der Ergänzung).
 gleich(A.GLOBAL_PFLICHT_UNTERLAGEN.map((p) => p.key), ["irs_ss4", "irs_8821", "fiaon_befugnisse", "us_organizer", "us_operating_agreement"], "Formulare: IRS SS-4/8821 + Ergänzung, Statement of Organizer, Operating Agreement — keine eigene Vollmacht");
 ok(!JSON.stringify(A.GLOBAL_PFLICHT_UNTERLAGEN).toLowerCase().includes("umfassende vollmacht"), "keine „Umfassende Vollmacht“ mehr");
+// 06.11.2026: Das SS-4 kann vom Registered Agent kommen — dort steht kein Third Party Designee. Der Kundentext bleibt neutral.
+ok(!/designee/i.test(JSON.stringify(A.GLOBAL_PFLICHT_UNTERLAGEN.find((p) => p.key === "irs_ss4")?.text ?? {})), "SS-4-Kundentext neutral (kein Third Party Designee)");
 ok(A.GLOBAL_PFLICHT_UNTERLAGEN.every((p) => p.abGruendung || p.nurErgaenzung), "jedes Formular erst nach der Gründung — die Ergänzung nur bei älterer Fassung");
 gleich(A.globalPflichtFuer(null, { gegruendet: false, bereit: [] }).length, 0, "vor der Gründung (ohne Ergänzung): nichts");
 gleich(A.globalPflichtFuer(null, { gegruendet: true, bereit: [] }).map((p) => p.key), ["irs_ss4", "irs_8821", "us_organizer", "us_operating_agreement"], "nach der Gründung: SS-4, 8821, Statement, Operating Agreement");

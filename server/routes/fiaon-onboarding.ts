@@ -642,7 +642,11 @@ router.get("/agent/documents/statement/:id.pdf", requireAgent, async (req: Agent
  * weiterhin — eine Abrechnung ohne PDF ist besser als keine Abrechnung, weil sie
  * die Nummer und die Positionen festhält und nachträglich gedruckt werden kann.
  */
-export async function generateCommissionStatement(payoutId: number): Promise<{
+export async function generateCommissionStatement(
+  payoutId: number,
+  /** E-484: `leise` = keine Mitteilung je Abrechnung (Teilbetrag eines Auszahlungsplans — der Plan meldet gesammelt). */
+  opts: { leise?: boolean } = {},
+): Promise<{
   ok: boolean; statementNo?: string; skipped?: boolean; pdfFehlt?: boolean; pdfGrund?: string;
 }> {
   await ensureOnboardingTables();
@@ -783,8 +787,8 @@ export async function generateCommissionStatement(payoutId: number): Promise<{
        ${JSON.stringify(vars)}, ${JSON.stringify(lines)}, ${hash}, ${pdfBase64})
     ON CONFLICT (payout_id) DO NOTHING
   `;
-  await logAgentEvent(payout.agent_id, "commission_statement_issued", { statement_no: statementNo, payout_id: payoutId, net_cents: netCents });
-  sendMakeWebhook("commission_statement_issued", {
+  await logAgentEvent(payout.agent_id, "commission_statement_issued", { statement_no: statementNo, payout_id: payoutId, net_cents: netCents, ...(opts.leise ? { leise: true } : {}) });
+  if (!opts.leise) sendMakeWebhook("commission_statement_issued", {
     email: agent.email,
     vorname: agent.first_name || agent.name,
     statement_no: statementNo,

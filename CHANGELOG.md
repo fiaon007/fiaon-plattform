@@ -5,6 +5,35 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 06.11.2026 — E-484 (Teil 1, Server-Kern): Auszahlungsplan im FIAON Banking — Teilbeträge mit Wartezeit, Freigabe mit TAN, Ausführung über die Buchhaltung
+
+- **Warum:** Ein zugesagter Betrag soll in festen Teilbeträgen ausgezahlt werden — je Teilbetrag eine Überweisung, zwischen zwei
+  Überweisungen eine feste Wartezeit, jede mit TAN freigegeben (Inhaber oder Geschäftsführung) und immer von der Buchhaltung
+  ausgeführt. Und nie doppelt. Entscheidungen des Inhabers (06.11.): der Anspruch schließt alle offenen Altposten ein
+  („verrechnet“, wahlweise „zusätzlich“); je Empfänger ein eigener Plan mit eigenem Takt; die Bank-Referenz der Buchhaltung ist freiwillig.
+- **Was jetzt gilt (Server, die Seite folgt in den nächsten Teilen — noch nicht bedienbar):**
+  - Neue Tabellen `fiaon_auszahlungsplan` (ein Plan je Empfänger, höchstens ein laufender je Person), `fiaon_auszahlungsplan_teil`
+    (feste Teil-Zeilen — die Summe kann den Anspruch nie überschreiten) und `fiaon_auszahlungsplan_takt` (jede Auslösung mit
+    Sperrfenster; zwei Fenster desselben Plans können sich in der Datenbank nicht überlappen).
+  - Plan anlegen nur der Inhaber, mit EINER TAN für alle gewählten Empfänger. Die TAN-Mail nennt Empfänger, Konten, Takt und die Summe
+    der verrechneten Altposten. Beim Anlegen schließen in derselben Transaktion: offene Vormerkungen (verworfen), bestätigte Provisionen
+    (storniert), offene Auszahlungen (abgelehnt, ihre Provisionen storniert) und offene Aufträge bei der Buchhaltung (zurückgerufen,
+    Link ungültig) — nie gelöscht, immer mit Grund „im Auszahlungsplan AP-… verrechnet“. Eine Mail „Bitte NICHT ausführen“ geht an die
+    Buchhaltung. Ändert sich zwischen TAN und Anlage etwas an den Altposten, passt die TAN nicht mehr (klarer Hinweis).
+  - Auslösen (Inhaber oder Geschäftsführung) in EINER Transaktion: Plan gesperrt, Wartezeit in Datenbank-Zeit, Stau-Grenze je Plan,
+    Konto-Prüfung (geänderte IBAN hält den Plan an, bis der Inhaber das neue Konto mit TAN bestätigt). Es entstehen Auszahlung,
+    Provisionszeile (Art „auszahlungsplan“) und Zahlungsauftrag im Namen des Inhabers, über die Buchhaltung. Doppelklick = derselbe Auftrag.
+  - Freigabe mit TAN wie bisher; danach geht der Teilbetrag immer an die Buchhaltung (IBAN in der Mail maskiert, voll auf der Link-Seite).
+    Keine Freigabebestätigung und keine Einzelmails je Teilbetrag an den Empfänger; alle zehn Teilbeträge eine Sammelmeldung.
+  - Ablehnen, Zurückziehen, Zurückrufen und Beenden geben den Teil frei (Auszahlung abgelehnt, Provision storniert — nie zurück auf
+    „bestätigt“), die Wartezeit bleibt verbraucht. Pausieren dürfen beide, fortsetzen nur der Inhaber.
+  - Neu für ALLE Aufträge über die Buchhaltung: „Zurückrufen“ (nur Inhaber, solange die Buchhaltung nicht bestätigt hat) und die
+    freiwillige, eindeutige Bank-Referenz bei der Bestätigung. Je Auszahlung höchstens ein laufender Auftrag (Index).
+  - Die Seitenwege „Anweisen“, „Zur Freigabe“, „Alle zur Freigabe“ und die 72-h-Freigabe-Mail weisen Plan-Teilbeträge ab;
+    die Auftragsliste zeigt sie nicht mehr (eigener Reiter folgt).
+- **Wo:** server/lib/fiaon-auszahlungsplan.ts (neu), server/lib/fiaon-buchhaltung.ts (Schema, Haken, Rückruf, Bank-Referenz),
+  server/routes/fiaon-team.ts und server/routes/fiaon-onboarding.ts (Option „leise“ für Teilbeträge).
+
 ## 28.10.2026 — E-454: Österreich-Seite ohne „Unternehmensberatung“, Verwechslungs-Schutz im Schema und in /llms.txt
 
 - **Warum:** E-439 erlaubt „Unternehmensberatung“ als Selbstbezeichnung — nur nicht auf der Österreich-Seite (dort ist das ein

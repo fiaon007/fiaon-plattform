@@ -2198,7 +2198,11 @@ export type AuszahlungErgebnis =
   | { ok: false; code: "NICHT_GEFUNDEN"; error: string }
   | { ok: false; code: "BELEG_FEHLT"; auszahlungGebucht: true; error: string };
 
-export async function auszahlungUeberwiesen(id: number): Promise<AuszahlungErgebnis> {
+export async function auszahlungUeberwiesen(
+  id: number,
+  /** E-484: `leise` = Teilbetrag eines Auszahlungsplans — keine Einzelmail je Teilbetrag (der Plan schickt Sammelmitteilungen). */
+  opts: { leise?: boolean } = {},
+): Promise<AuszahlungErgebnis> {
   await ensureAgentTables();
   const rows = await sqlPool`
     UPDATE fiaon_payouts SET status = 'ausgezahlt', processed_at = NOW()
@@ -2247,7 +2251,7 @@ export async function auszahlungUeberwiesen(id: number): Promise<AuszahlungErgeb
   const { generateCommissionStatement } = await import("./fiaon-onboarding");
   let belegFehler: string | null = null;
   try {
-    const erg = await generateCommissionStatement(id);
+    const erg = await generateCommissionStatement(id, { leise: opts.leise === true });
     if (!erg.ok) belegFehler = "Die Abrechnung konnte nicht angelegt werden.";
     else if (erg.pdfFehlt) {
       belegFehler = `Die Abrechnung ${erg.statementNo} ist angelegt, aber das PDF `
@@ -2259,7 +2263,7 @@ export async function auszahlungUeberwiesen(id: number): Promise<AuszahlungErgeb
   }
   if (belegFehler) {
     console.error(`[FIAON-PAYOUT] #${id} überwiesen markiert, aber OHNE Beleg: ${belegFehler}`);
-    sendMakeWebhook("agent_payout_done", {
+    if (!opts.leise) sendMakeWebhook("agent_payout_done", {
       email: agent[0].email,
       vorname: agent[0].first_name || agent[0].name,
       betrag: (rows[0].amount_cents / 100).toFixed(2),
@@ -2276,13 +2280,13 @@ export async function auszahlungUeberwiesen(id: number): Promise<AuszahlungErgeb
         + "ohne Beleg darf nicht stehen bleiben.",
     };
   }
-  sendMakeWebhook("agent_payout_done", {
+  if (!opts.leise) sendMakeWebhook("agent_payout_done", {
     email: agent[0].email,
     vorname: agent[0].first_name || agent[0].name,
     betrag: (rows[0].amount_cents / 100).toFixed(2),
     iban_masked: rows[0].iban_masked,
   }).catch(() => {});
-  console.log(`[FIAON-PAYOUT] Überwiesen markiert: #${id} (${(rows[0].amount_cents / 100).toFixed(2)} €)`);
+  console.log(`[FIAON-PAYOUT] Überwiesen markiert: #${id} (${(rows[0].amount_cents / 100).toFixed(2)} €)${opts.leise ? " — leise (Auszahlungsplan)" : ""}`);
   return { ok: true };
 }
 

@@ -159,6 +159,25 @@ export function buchSchema(): Promise<void> {
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_auftrag_extern_idx ON fiaon_buch_auftrag (extern_token_hash) WHERE extern_token_hash IS NOT NULL`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_auftrag_status_idx ON fiaon_buch_auftrag (status, id DESC)`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_buch_auftrag_payout_idx ON fiaon_buch_auftrag (payout_id)`;
+      // E-484 (Auszahlungsplan): der Teilbetrag hinter einem Auftrag, die Bank-Referenz der Buchhaltung (freiwillig,
+      // aber nie zweimal dieselbe) und der Rückruf eines Auftrags, der schon bei der Buchhaltung liegt.
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS plan_teil_id BIGINT`;
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS extern_bank_referenz TEXT`;
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS zurueckgerufen_am TIMESTAMPTZ`;
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS zurueckgerufen_von TEXT`;
+      await sqlPool`ALTER TABLE fiaon_buch_auftrag ADD COLUMN IF NOT EXISTS rueckruf_grund TEXT`;
+      // Groß/klein zählt nicht: „ab12" und „AB12" sind dieselbe Überweisung.
+      await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_buch_auftrag_extref_uq ON fiaon_buch_auftrag (UPPER(extern_bank_referenz)) WHERE extern_bank_referenz IS NOT NULL`;
+      // Je Teilbetrag höchstens ein laufender Auftrag.
+      await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_buch_auftrag_planteil_uq ON fiaon_buch_auftrag (plan_teil_id) WHERE plan_teil_id IS NOT NULL AND status NOT IN ('abgelehnt', 'zurueckgezogen')`;
+      // Je Auszahlung höchstens ein laufender Auftrag — schließt die Lücke „erst prüfen, dann anlegen" in
+      // auftragAusAuszahlung. Bewusst mit eigenem Fehlerweg: Stünde im Bestand doch ein Doppel, darf das Banking
+      // trotzdem starten. Gemessen am 06.11.2026 in Produktion: 0 Verstöße.
+      try {
+        await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_buch_auftrag_payout_aktiv_uq ON fiaon_buch_auftrag (payout_id) WHERE payout_id IS NOT NULL AND status NOT IN ('abgelehnt', 'zurueckgezogen')`;
+      } catch (e) {
+        console.error("[BANKING] Index „ein laufender Auftrag je Auszahlung“ nicht angelegt (Doppel im Bestand?):", String(e).slice(0, 200));
+      }
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_buch_pin (
           id BIGSERIAL PRIMARY KEY,
@@ -259,9 +278,12 @@ export function buchProtokoll(person: string | null, aktion: string, ziel?: stri
 export function benachrichtigen(an: string, betreff: string, zeilen: string[]): void {
   void (async () => {
     try {
+      const text = [...zeilen, "", "FIAON Banking · https://fiaon.com/buchhaltung"].join("\n");
+      // Lokaler Prüfstand (nie Produktion): der Hinweis landet im Probe-Ordner und lässt sich prüfen.
+      if (await mailProbe(an, betreff, text)) return;
       const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
       if (!gmailBereit()) { console.warn("[BANKING] Hinweis nicht versendbar — GOOGLE_SA_KEY fehlt"); return; }
-      await mailNeuSenden(ABSENDER, an, betreff, [...zeilen, "", "FIAON Banking · https://fiaon.com/buchhaltung"].join("\n"));
+      await mailNeuSenden(ABSENDER, an, betreff, text);
     } catch (e) { console.warn("[BANKING] Hinweis an", an, String(e).slice(0, 140)); }
   })();
 }
@@ -535,9 +557,8 @@ async function tanErzeugen(person: BuchPerson, zweck: string, ziel: string, ttlS
 export async function tanAnfordern(person: BuchPerson, zweck: string, ziel: string, beschreibung: string): Promise<{ ok: true } | { ok: false; grund: string }> {
   const tan = await tanErzeugen(person, zweck, ziel, TAN_TTL_S);
   try {
-    const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
-    if (!gmailBereit()) return { ok: false, grund: "Der TAN-Versand ist gerade nicht möglich (Mailzugang fehlt)." };
-    await mailNeuSenden(ABSENDER, person.email, `TAN ${tan.slice(0, 3)} ${tan.slice(3)} · FIAON Banking`, [
+    const betreff = `TAN ${tan.slice(0, 3)} ${tan.slice(3)} · FIAON Banking`;
+    const text = [
       `Hallo ${person.name.split(" ")[0]},`,
       "",
       "deine TAN für diesen Vorgang:",
@@ -550,7 +571,14 @@ export async function tanAnfordern(person: BuchPerson, zweck: string, ziel: stri
       "Stimmt der Vorgang nicht mit dem überein, was du gerade tun wolltest: TAN nicht eingeben.",
       "",
       "FIAON Banking",
-    ].join("\n"));
+    ].join("\n");
+    // E-484: Auf dem lokalen Prüfstand (nie Produktion) liest der Prüfstand die TAN aus dem Probe-Ordner — so, wie
+    // ein Mensch sie aus der Mail liest. Vorher kam dort mangels Mailzugang ein Fehler.
+    if (!(await mailProbe(person.email, betreff, text))) {
+      const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
+      if (!gmailBereit()) return { ok: false, grund: "Der TAN-Versand ist gerade nicht möglich (Mailzugang fehlt)." };
+      await mailNeuSenden(ABSENDER, person.email, betreff, text);
+    }
   } catch (e) {
     console.error("[BANKING] TAN-Versand:", String(e).slice(0, 160));
     return { ok: false, grund: "Die TAN konnte nicht versendet werden." };
@@ -667,6 +695,14 @@ export function ibanMaskiert(roh: string): string {
   const s = ibanSauber(roh);
   if (s.length < 8) return s;
   return `${s.slice(0, 4)} •••• •••• ${s.slice(-4)}`;
+}
+
+/**
+ * E-484: Ein Prüfwert der IBAN (HMAC mit dem Server-Schlüssel) — damit ein Auszahlungsplan merkt, wenn sich die
+ * Bankverbindung des Empfängers seit der Anlage geändert hat, ohne die IBAN ein zweites Mal im Klartext zu speichern.
+ */
+export function ibanPruefwert(roh: string): string {
+  return createHmac("sha256", secret()).update(`iban:${ibanSauber(roh)}`).digest("hex");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -810,9 +846,17 @@ export interface Auftrag {
   externGesendetAm: string | null;
   externBestaetigtAm: string | null;
   externWertAm: string | null;
+  /** E-484: Teilbetrag eines Auszahlungsplans (fiaon_auszahlungsplan_teil.id) — null bei jedem anderen Auftrag. */
+  planTeilId: number | null;
+  /** E-484: Die Bank-Referenz, die die Buchhaltung bei der Bestätigung angegeben hat (freiwillig). */
+  externBankReferenz: string | null;
+  /** E-484: Rückruf eines Auftrags, der schon bei der Buchhaltung lag (Link ungültig, „Bitte NICHT ausführen"). */
+  zurueckgerufenAm: string | null;
+  zurueckgerufenVon: string | null;
+  rueckrufGrund: string | null;
 }
 
-function zuAuftrag(r: any): Auftrag {
+export function zuAuftrag(r: any): Auftrag {
   return {
     id: Number(r.id),
     nummer: String(r.nummer || ""),
@@ -843,36 +887,80 @@ function zuAuftrag(r: any): Auftrag {
     externGesendetAm: r.extern_gesendet_am ? new Date(r.extern_gesendet_am).toISOString() : null,
     externBestaetigtAm: r.extern_bestaetigt_am ? new Date(r.extern_bestaetigt_am).toISOString() : null,
     externWertAm: r.extern_wert_am ? new Date(r.extern_wert_am).toISOString().slice(0, 10) : null,
+    planTeilId: r.plan_teil_id != null ? Number(r.plan_teil_id) : null,
+    externBankReferenz: r.extern_bank_referenz ?? null,
+    zurueckgerufenAm: r.zurueckgerufen_am ? new Date(r.zurueckgerufen_am).toISOString() : null,
+    zurueckgerufenVon: r.zurueckgerufen_von ?? null,
+    rueckrufGrund: r.rueckruf_grund ?? null,
   };
 }
 
-const AUFTRAG_FELDER = `id, nummer, empfaenger, iban, bic, betrag_cents, zweck, kategorie, faellig_am,
+/** Die Spalten für zuAuftrag — ohne Tabellenkürzel, also nur in Abfragen auf fiaon_buch_auftrag allein. */
+export const AUFTRAG_FELDER = `id, nummer, empfaenger, iban, bic, betrag_cents, zweck, kategorie, faellig_am,
   beleg_name, (beleg_base64 IS NOT NULL) AS hat_beleg, status, erstellt_von, erstellt_am, eingereicht_am,
   entschieden_von, entschieden_am, entscheidung_notiz, freigabe_art, ausgefuehrt_von, ausgefuehrt_am,
   bank_referenz, (bestaetigung_base64 IS NOT NULL) AS hat_bestaetigung, payout_id,
-  ausfuehrung_extern, freigabe_mail_am, extern_gesendet_am, extern_bestaetigt_am, extern_wert_am`;
+  ausfuehrung_extern, freigabe_mail_am, extern_gesendet_am, extern_bestaetigt_am, extern_wert_am,
+  plan_teil_id, extern_bank_referenz, zurueckgerufen_am, zurueckgerufen_von, rueckruf_grund`;
 
-export async function auftraege(limit = 200): Promise<Auftrag[]> {
+/** Wer liest und schreibt — der Pool oder eine laufende Transaktion. */
+type Lauf = typeof sqlPool;
+
+/**
+ * Die Auftragsliste. E-484: Teilbeträge eines Auszahlungsplans stehen standardmäßig NICHT darin („ohne“) — sie
+ * haben ihren eigenen Reiter. Sonst stünden dort bis zu 240 gleichartige Karten, und die Grenze von 200 Zeilen
+ * verdrängte die echten Aufträge. „nur“ liefert ausschließlich Plan-Aufträge, „alle“ beides.
+ */
+export async function auftraege(limit = 200, opts: { plan?: "ohne" | "nur" | "alle" } = {}): Promise<Auftrag[]> {
   await buchSchema();
   const n = Math.min(500, Math.max(1, limit));
-  const rows = (await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag ORDER BY id DESC LIMIT ${n}`)) as any[];
+  const plan = opts.plan ?? "ohne";
+  const wo = plan === "nur" ? "WHERE plan_teil_id IS NOT NULL" : plan === "ohne" ? "WHERE plan_teil_id IS NULL" : "";
+  const rows = (await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag ${wo} ORDER BY id DESC LIMIT ${n}`)) as any[];
   return rows.map(zuAuftrag);
 }
 
-export async function auftrag(id: number): Promise<Auftrag | null> {
+export async function auftrag(id: number, lauf: Lauf = sqlPool): Promise<Auftrag | null> {
   await buchSchema();
-  const [r] = (await sqlPool.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag WHERE id = $1`, [id])) as any[];
+  const [r] = (await lauf.unsafe(`SELECT ${AUFTRAG_FELDER} FROM fiaon_buch_auftrag WHERE id = $1`, [id])) as any[];
   return r ? zuAuftrag(r) : null;
 }
 
-/** ZA-2026-0001 — fortlaufend je Jahr, aus der Tabelle, nicht aus einem Zähler. */
-async function naechsteNummer(): Promise<string> {
+/**
+ * ZA-2026-0001 — fortlaufend je Jahr, aus der Tabelle, nicht aus einem Zähler. E-484: mit `lauf`, damit ein
+ * Auftrag, der in einer Transaktion entsteht (Teilbetrag eines Auszahlungsplans), seine Nummer in derselben
+ * Transaktion zieht. Zwei gleichzeitige Aufträge können dieselbe Nummer ziehen — die Spalte ist UNIQUE, der zweite
+ * scheitert mit 23505 und wird vom Aufrufer neu versucht.
+ */
+export async function naechsteNummer(lauf: Lauf = sqlPool): Promise<string> {
   const jahr = new Date().getFullYear();
-  const [r] = (await sqlPool`
+  const [r] = (await lauf`
     SELECT COALESCE(MAX(SUBSTRING(nummer FROM '[0-9]{4}$')::int), 0) AS n
       FROM fiaon_buch_auftrag WHERE nummer LIKE ${`ZA-${jahr}-%`}`) as any[];
   return `ZA-${jahr}-${String(Number(r?.n || 0) + 1).padStart(4, "0")}`;
 }
+
+// ── E-484: Teilbeträge eines Auszahlungsplans erkennen ──────────────────────
+/** Die Provisionsart, unter der jeder Teilbetrag eines Auszahlungsplans steht. */
+export const KIND_AUSZAHLUNGSPLAN = "auszahlungsplan";
+
+/**
+ * Ist diese Auszahlung (fiaon_payouts, Kürzel `p`) ein Teilbetrag eines Auszahlungsplans? — als SQL-Ausdruck für
+ * Listen, die Plan-Teilbeträge ausblenden oder abweisen. Erkannt an der Provisionszeile; das hält auch nach einer
+ * Ablehnung (die Zeile bleibt, nur storniert).
+ */
+export function planAuszahlungSql(p = "p"): string {
+  return `EXISTS (SELECT 1 FROM fiaon_commissions plan_c WHERE plan_c.payout_id = ${p}.id AND plan_c.kind = '${KIND_AUSZAHLUNGSPLAN}')`;
+}
+
+export async function istPlanAuszahlung(payoutId: number, lauf: Lauf = sqlPool): Promise<boolean> {
+  const [r] = (await lauf`
+    SELECT EXISTS (SELECT 1 FROM fiaon_commissions WHERE payout_id = ${payoutId} AND kind = ${KIND_AUSZAHLUNGSPLAN}) AS ja`) as any[];
+  return r?.ja === true;
+}
+
+/** Der Satz, mit dem jeder Seitenweg einen Plan-Teilbetrag abweist. */
+export const PLAN_RIEGEL_GRUND = "Teilbetrag eines Auszahlungsplans — er läuft nur über den Reiter „Auszahlungsplan“.";
 
 export interface AuftragEingabe {
   empfaenger: string; iban: string; bic?: string | null;
@@ -929,7 +1017,23 @@ export async function auftragZurueckziehen(id: number, von: BuchPerson): Promise
     return { ok: false, grund: "Nur Entwürfe und eingereichte Aufträge lassen sich zurückziehen." };
   }
   if (a.erstelltVon !== von.email && von.rolle !== "inhaber") return { ok: false, grund: "Zurückziehen kann nur, wer den Auftrag angelegt hat." };
-  await sqlPool`UPDATE fiaon_buch_auftrag SET status = 'zurueckgezogen' WHERE id = ${id}`;
+  if (a.planTeilId) {
+    // E-484: Ein Teilbetrag geht in derselben Transaktion zurück in den Plan (Auszahlung abgelehnt, Provision
+    // storniert, Teil wieder frei) — sonst stünde eine angeforderte Auszahlung ohne Auftrag herum.
+    const plan = await import("./fiaon-auszahlungsplan");
+    await plan.planSchema();
+    const erledigt = await sqlPool.begin(async (tx: any) => {
+      const r = (await tx`
+        UPDATE fiaon_buch_auftrag SET status = 'zurueckgezogen'
+         WHERE id = ${id} AND status IN ('entwurf', 'eingereicht') RETURNING id`) as any[];
+      if (!r.length) return false;
+      await plan.planTeilZurueck(id, "zurueckgezogen", `zurückgezogen von ${von.name}`, von.email, tx);
+      return true;
+    });
+    if (!erledigt) return { ok: false, grund: "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  } else {
+    await sqlPool`UPDATE fiaon_buch_auftrag SET status = 'zurueckgezogen' WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')`;
+  }
   await freigabeTanVerwerfen(id);
   buchProtokoll(von.email, "Auftrag zurückgezogen", a.nummer, null);
   return { ok: true, auftrag: (await auftrag(id))! };
@@ -941,7 +1045,9 @@ export function freigabeZiel(a: Auftrag): string {
 }
 
 export function freigabeBeschreibung(a: Auftrag): string {
-  return `Freigabe ${a.nummer}: ${geldText(a.betragCents)} an ${a.empfaenger} (${ibanMaskiert(a.iban)})`;
+  // E-484: Bei einem Teilbetrag nennt die TAN-Mail auch Plan und Teil (steht im Verwendungszweck).
+  const plan = a.planTeilId ? ` · ${a.zweck}` : "";
+  return `Freigabe ${a.nummer}: ${geldText(a.betragCents)} an ${a.empfaenger} (${ibanMaskiert(a.iban)})${plan}`;
 }
 
 /**
@@ -976,10 +1082,24 @@ export function freigabeMoeglich(a: Auftrag, von: BuchPerson): { ok: true; art: 
   return { ok: true, art: "vier_augen" };
 }
 
+/**
+ * E-484: freigabeMoeglich plus der Zustand des Auszahlungsplans — den Teilbetrag eines pausierten oder beendeten
+ * Plans gibt niemand frei. Für die TAN-Anforderung und die Freigabe selbst (freigabeMoeglich bleibt ohne Datenbank).
+ */
+export async function freigabePruefen(a: Auftrag, von: BuchPerson): Promise<ReturnType<typeof freigabeMoeglich>> {
+  const darf = freigabeMoeglich(a, von);
+  if (!darf.ok || !a.planTeilId) return darf;
+  const { planZuAuftrag, planStatusSatz } = await import("./fiaon-auszahlungsplan");
+  const bezug = await planZuAuftrag(a);
+  if (!bezug) return { ok: false, grund: "Der Auszahlungsplan zu diesem Teilbetrag ist nicht auffindbar." };
+  if (bezug.status !== "aktiv") return { ok: false, grund: planStatusSatz(bezug) };
+  return darf;
+}
+
 export async function auftragFreigeben(id: number, von: BuchPerson, tan: string): Promise<Schritt> {
   const a = await auftrag(id);
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
-  const darf = freigabeMoeglich(a, von);
+  const darf = await freigabePruefen(a, von);
   if (!darf.ok) return darf;
   const t = await tanPruefen(von, tanZweck(a), freigabeZiel(a), tan);
   if (!t.ok) return t;
@@ -987,15 +1107,40 @@ export async function auftragFreigeben(id: number, von: BuchPerson, tan: string)
   // kopiert sie und hinterlegt sie bei Airwallex. Payout-Aufträge tragen die
   // vorhandene Referenz weiter, sonst wird eine frische erzeugt.
   const referenz = a.bankReferenz?.trim() || (await freieBankReferenz());
-  const rows = (await sqlPool`
-    UPDATE fiaon_buch_auftrag
-       SET status = 'freigegeben', entschieden_von = ${von.email}, entschieden_am = NOW(),
-           freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW()),
-           bank_referenz = COALESCE(bank_referenz, ${referenz})
-     WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')
-    RETURNING id`) as any[];
-  if (!rows.length) return { ok: false, grund: "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  // E-484: Ein Teilbetrag wird nur freigegeben, solange er noch an diesem Auftrag hängt und sein Plan läuft — die
+  // Bedingung steht im UPDATE selbst, damit ein gleichzeitiges Pausieren nicht durchrutscht.
+  const rows = (a.planTeilId
+    ? await sqlPool`
+      UPDATE fiaon_buch_auftrag
+         SET status = 'freigegeben', entschieden_von = ${von.email}, entschieden_am = NOW(),
+             freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW()),
+             bank_referenz = COALESCE(bank_referenz, ${referenz})
+       WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')
+         AND EXISTS (SELECT 1 FROM fiaon_auszahlungsplan_teil t JOIN fiaon_auszahlungsplan pl ON pl.id = t.plan_id
+                      WHERE t.id = ${a.planTeilId} AND t.auftrag_id = ${id} AND pl.status = 'aktiv')
+      RETURNING id`
+    : await sqlPool`
+      UPDATE fiaon_buch_auftrag
+         SET status = 'freigegeben', entschieden_von = ${von.email}, entschieden_am = NOW(),
+             freigabe_art = ${darf.art}, eingereicht_am = COALESCE(eingereicht_am, NOW()),
+             bank_referenz = COALESCE(bank_referenz, ${referenz})
+       WHERE id = ${id} AND status IN ('entwurf', 'eingereicht')
+      RETURNING id`) as any[];
+  if (!rows.length) {
+    return { ok: false, grund: a.planTeilId
+      ? "Der Teilbetrag oder sein Auszahlungsplan hat sich inzwischen verändert (pausiert, abgelehnt oder zurückgezogen). Bitte neu laden."
+      : "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  }
   buchProtokoll(von.email, darf.art === "einzel" ? "Auftrag freigegeben (Einzelzeichnung)" : "Auftrag freigegeben", a.nummer, `TAN bestätigt · ${geldText(a.betragCents)}`);
+  // E-484: Ein Teilbetrag geht nach der Freigabe immer an die Buchhaltung. Keine Freigabebestätigung je Teilbetrag
+  // (bei bis zu 240 Teilbeträgen wären das 240 Mails ohne neue Auskunft) — der Durchführungsbeleg folgt.
+  if (a.planTeilId) {
+    const { planTeilFreigegeben } = await import("./fiaon-auszahlungsplan");
+    await planTeilFreigegeben(a, von);
+    const b = await externBeauftragen(id);
+    if (!b.ok) console.warn(`[BANKING] ${a.nummer}: Teilbetrag nicht an die Buchhaltung versendet — ${b.grund}`);
+    return { ok: true, auftrag: (await auftrag(id))! };
+  }
   // Über die Buchhaltung: Auftrag an die Buchhaltung, Freigabebestätigung an den Freigebenden. Scheitert der
   // Versand, bleibt die Freigabe stehen — „Erneut an die Buchhaltung senden" holt ihn nach.
   if (a.ausfuehrungExtern) {
@@ -1024,10 +1169,27 @@ export async function auftragAblehnen(id: number, von: BuchPerson, notiz: string
   if (!darfAblehnen) return { ok: false, grund: "Ablehnen darf nur der Inhaber." };
   if (a.status !== "eingereicht") return { ok: false, grund: "Es lassen sich nur eingereichte Aufträge ablehnen." };
   if (!String(notiz || "").trim()) return { ok: false, grund: "Eine Ablehnung braucht einen Grund." };
-  await sqlPool`
-    UPDATE fiaon_buch_auftrag
-       SET status = 'abgelehnt', entschieden_von = ${von.email}, entschieden_am = NOW(), entscheidung_notiz = ${notiz}
-     WHERE id = ${id} AND status = 'eingereicht'`;
+  if (a.planTeilId) {
+    // E-484: Abgelehnter Teilbetrag → in derselben Transaktion zurück in den Plan. Die Provision wird storniert,
+    // nie zurück auf „bestätigt“ (sonst nähme sie der nächste Sammellauf mit), der Takt bleibt verbraucht.
+    const plan = await import("./fiaon-auszahlungsplan");
+    await plan.planSchema();
+    const erledigt = await sqlPool.begin(async (tx: any) => {
+      const r = (await tx`
+        UPDATE fiaon_buch_auftrag
+           SET status = 'abgelehnt', entschieden_von = ${von.email}, entschieden_am = NOW(), entscheidung_notiz = ${notiz}
+         WHERE id = ${id} AND status = 'eingereicht' RETURNING id`) as any[];
+      if (!r.length) return false;
+      await plan.planTeilZurueck(id, "abgelehnt", notiz, von.email, tx);
+      return true;
+    });
+    if (!erledigt) return { ok: false, grund: "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  } else {
+    await sqlPool`
+      UPDATE fiaon_buch_auftrag
+         SET status = 'abgelehnt', entschieden_von = ${von.email}, entschieden_am = NOW(), entscheidung_notiz = ${notiz}
+       WHERE id = ${id} AND status = 'eingereicht'`;
+  }
   await freigabeTanVerwerfen(id);
   buchProtokoll(von.email, "Auftrag abgelehnt", a.nummer, notiz);
   const ersteller = buchPerson(a.erstelltVon);
@@ -1088,7 +1250,9 @@ async function ausfuehrenKern(a: Auftrag, wer: string, ref: string, tag: string)
     if (p.status === "angefordert") {
       try {
         const { auszahlungUeberwiesen } = await import("../routes/fiaon-team");
-        const erg = await auszahlungUeberwiesen(a.payoutId);
+        // E-484: Teilbeträge eines Auszahlungsplans laufen leise — keine Einzelmail je Teilbetrag an den Empfänger;
+        // er bekommt alle zehn Teilbeträge eine Sammelmitteilung (planTeilAusgefuehrt). Die Abrechnung entsteht trotzdem.
+        const erg = await auszahlungUeberwiesen(a.payoutId, { leise: !!a.planTeilId });
         if (!erg.ok) hinweis = erg.error;
       } catch (e) {
         hinweis = `Die Überweisung ist eingetragen, aber die Auszahlung ließ sich nicht abschließen: ${String(e).slice(0, 160)}. Bitte in /admin/payouts „Als überwiesen markieren“ drücken.`;
@@ -1096,6 +1260,22 @@ async function ausfuehrenKern(a: Auftrag, wer: string, ref: string, tag: string)
       }
     } else {
       hinweis = "Die Auszahlung war bereits als überwiesen gebucht — der Auftrag wird nur abgeschlossen.";
+    }
+    // E-484: Der Teilbetrag zählt als ausgeführt, sobald seine Auszahlung ausgebucht ist — auch wenn nur der Beleg
+    // fehlt (BELEG_FEHLT bucht die Auszahlung trotzdem). Wiederholbar: zählt jeden Teil höchstens einmal.
+    if (a.planTeilId) {
+      try {
+        const [nach] = (await sqlPool`SELECT status FROM fiaon_payouts WHERE id = ${a.payoutId}`) as any[];
+        if (nach?.status === "ausgezahlt") {
+          const { planTeilAusgefuehrt } = await import("./fiaon-auszahlungsplan");
+          await planTeilAusgefuehrt(a);
+        } else {
+          console.error(`[BANKING] ${a.nummer}: Auszahlung steht nach der Ausführung auf „${nach?.status ?? "?"}“ — Teilbetrag nicht als ausgeführt gezählt.`);
+        }
+      } catch (e) {
+        console.error(`[BANKING] ${a.nummer}: Teilbetrag nicht als ausgeführt vermerkt:`, e);
+        hinweis = [hinweis, "Der Teilbetrag ist ausgebucht, aber im Auszahlungsplan noch nicht als ausgeführt vermerkt — der Reiter holt das beim nächsten Öffnen nach."].filter(Boolean).join(" ");
+      }
     }
   } else {
     const erfolgt = await sqlPool.begin(async (tx: any) => {
@@ -1131,6 +1311,9 @@ async function ausfuehrenKern(a: Auftrag, wer: string, ref: string, tag: string)
  */
 export async function auftragAusAuszahlung(payoutId: number, von: BuchPerson): Promise<Schritt> {
   await buchSchema();
+  // E-484: Ein Plan-Teilbetrag hat seinen Auftrag schon (im Namen des Plan-Inhabers, über die Buchhaltung) — ein
+  // zweiter Weg daneben („Anweisen“, „Alle anweisen“) würde den Takt umgehen.
+  if (await istPlanAuszahlung(payoutId)) return { ok: false, grund: PLAN_RIEGEL_GRUND };
   const [offen] = (await sqlPool`
     SELECT id FROM fiaon_buch_auftrag
      WHERE payout_id = ${payoutId} AND status NOT IN ('abgelehnt', 'zurueckgezogen')
@@ -1228,7 +1411,8 @@ export async function mailProbe(an: string, betreff: string, text: string, anhan
   return true;
 }
 
-async function gmailSenden(an: string, betreff: string, text: string): Promise<{ ok: true } | { ok: false; grund: string }> {
+/** Eine Banking-Mail aus js@ (auf dem Prüfstand in den Probe-Ordner). E-484: exportiert für den Auszahlungsplan. */
+export async function gmailSenden(an: string, betreff: string, text: string): Promise<{ ok: true } | { ok: false; grund: string }> {
   try {
     if (await mailProbe(an, betreff, text)) return { ok: true };
     const { mailNeuSenden, gmailBereit } = await import("./fiaon-gmail");
@@ -1243,6 +1427,8 @@ async function gmailSenden(an: string, betreff: string, text: string): Promise<{
 
 /** „Bitte geben Sie folgende Auszahlung frei“ — Details, TAN und Link ins Banking an die Geschäftsführung. */
 export async function freigabeMailSenden(a: Auftrag): Promise<{ ok: true } | { ok: false; grund: string }> {
+  // E-484: Teilbeträge gibt man im Reiter „Auszahlungsplan“ mit einer TAN auf Abruf (5 Minuten) frei — keine 72-h-TAN per Mail.
+  if (a.planTeilId) return { ok: false, grund: PLAN_RIEGEL_GRUND };
   if (!a.ausfuehrungExtern || a.status !== "eingereicht") return { ok: false, grund: "Nur eingereichte Aufträge über die Buchhaltung gehen zur Freigabe." };
   const gf = geschaeftsfuehrung();
   const tan = await tanErzeugen(gf, tanZweck(a), freigabeZiel(a), FREIGABE_TAN_TTL_S);
@@ -1291,6 +1477,8 @@ export async function freigabeMailSenden(a: Auftrag): Promise<{ ok: true } | { o
 export async function zurFreigabeSenden(payoutId: number, von: BuchPerson): Promise<(Schritt & { mail?: boolean; hinweis?: string })> {
   if (von.rolle !== "inhaber") return { ok: false, grund: "Zur Freigabe schicken darf nur der Inhaber." };
   await buchSchema();
+  // E-484: Sonst zöge dieser Weg den Plan-Auftrag zurück oder schickte ihn mit einer 72-h-TAN am Takt vorbei.
+  if (await istPlanAuszahlung(payoutId)) return { ok: false, grund: PLAN_RIEGEL_GRUND };
   const [o] = (await sqlPool`
     SELECT id FROM fiaon_buch_auftrag
      WHERE payout_id = ${payoutId} AND status NOT IN ('abgelehnt', 'zurueckgezogen', 'ausgefuehrt')
@@ -1321,9 +1509,13 @@ export async function zurFreigabeSenden(payoutId: number, von: BuchPerson): Prom
 }
 
 /** Alle angeforderten Auszahlungen, die noch nicht bei der Geschäftsführung oder der Buchhaltung liegen. */
-export async function alleZurFreigabeSenden(von: BuchPerson): Promise<{ gesendet: string[]; ohneMail: string[]; uebersprungen: { id: number; grund: string }[] }> {
+export async function alleZurFreigabeSenden(von: BuchPerson): Promise<{ gesendet: string[]; ohneMail: string[]; uebersprungen: { id: number; grund: string }[]; planTeile: number }> {
   await buchSchema();
-  const offen = (await sqlPool`
+  // E-484: Teilbeträge eines Auszahlungsplans fasst „Alle“ nie an — sie laufen über ihren Reiter. Gezählt werden sie
+  // trotzdem, damit die Antwort sagt, was liegen blieb und warum.
+  const [plan] = (await sqlPool.unsafe(`SELECT COUNT(*)::int AS n FROM fiaon_payouts p WHERE p.status = 'angefordert' AND ${planAuszahlungSql("p")}`)) as any[];
+  const planTeile = Number(plan?.n || 0);
+  const offen = (await sqlPool.unsafe(`
     SELECT p.id, o.status AS auftrag_status, o.ausfuehrung_extern, o.freigabe_mail_am, z.status AS zuletzt_status, z.ausfuehrung_extern AS zuletzt_extern
       FROM fiaon_payouts p
       LEFT JOIN LATERAL (
@@ -1333,8 +1525,8 @@ export async function alleZurFreigabeSenden(von: BuchPerson): Promise<{ gesendet
       LEFT JOIN LATERAL (
         SELECT status, ausfuehrung_extern FROM fiaon_buch_auftrag WHERE payout_id = p.id ORDER BY id DESC LIMIT 1
       ) z ON TRUE
-     WHERE p.status = 'angefordert'
-     ORDER BY p.id`) as any[];
+     WHERE p.status = 'angefordert' AND NOT ${planAuszahlungSql("p")}
+     ORDER BY p.id`)) as any[];
   const gesendet: string[] = [], ohneMail: string[] = [];
   const uebersprungen: { id: number; grund: string }[] = [];
   for (const p of offen) {
@@ -1346,8 +1538,8 @@ export async function alleZurFreigabeSenden(von: BuchPerson): Promise<{ gesendet
     if (!erg.ok) { uebersprungen.push({ id: Number(p.id), grund: erg.grund }); continue; }
     (erg.mail ? gesendet : ohneMail).push(erg.auftrag.nummer);
   }
-  buchProtokoll(von.email, "Auszahlungen zur Freigabe an die Geschäftsführung", null, `${gesendet.length} gesendet, ${ohneMail.length} ohne Mail, ${uebersprungen.length} übersprungen`);
-  return { gesendet, ohneMail, uebersprungen };
+  buchProtokoll(von.email, "Auszahlungen zur Freigabe an die Geschäftsführung", null, `${gesendet.length} gesendet, ${ohneMail.length} ohne Mail, ${uebersprungen.length} übersprungen${planTeile ? `, ${planTeile} Plan-Teilbeträge ausgelassen` : ""}`);
+  return { gesendet, ohneMail, uebersprungen, planTeile };
 }
 
 /** Den freigegebenen Auftrag an die Buchhaltung: alle Details und ein eigener Bestätigungslink (jedes Mal neu). */
@@ -1356,9 +1548,13 @@ export async function externBeauftragen(id: number): Promise<{ ok: true } | { ok
   if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
   if (!a.ausfuehrungExtern) return { ok: false, grund: "Dieser Auftrag wird nicht über die Buchhaltung ausgeführt." };
   if (a.status !== "freigegeben") return { ok: false, grund: "Nur freigegebene Aufträge gehen an die Buchhaltung." };
+  // E-484: Bei einem Teilbetrag steht die IBAN in der Mail nur maskiert — bis zu 240 Mails mit derselben vollen
+  // Bankverbindung an ein fremdes Postfach wären unnötig. Vollständig steht sie auf der Seite hinter dem Link.
+  const plan = a.planTeilId ? await (await import("./fiaon-auszahlungsplan")).planZuAuftrag(a) : null;
   const token = randomBytes(24).toString("base64url");
   await sqlPool`UPDATE fiaon_buch_auftrag SET extern_token_hash = ${externHash(token)} WHERE id = ${id} AND status = 'freigegeben'`;
   const link = `${SEITE}/auszahlung-ausfuehren/${token}`;
+  const person = (email: string | null) => `${nameVon(email)}${titelVon(email) ? `, ${titelVon(email)}` : ""}`;
   const text = [
     "Guten Tag,",
     "",
@@ -1366,16 +1562,21 @@ export async function externBeauftragen(id: number): Promise<{ ok: true } | { ok
     "",
     zeile("Auftrag", a.nummer),
     zeile("Empfänger", a.empfaenger),
-    zeile("IBAN", ibanHuebsch(a.iban)),
+    zeile("IBAN", a.planTeilId ? `${ibanMaskiert(a.iban)} (vollständig unter Ihrem Link)` : ibanHuebsch(a.iban)),
     zeile("BIC", a.bic || "nicht angegeben"),
     zeile("Betrag", `${(a.betragCents / 100).toFixed(2).replace(".", ",")} EUR`),
     zeile("Verwendungszweck", bankZweck(a)),
-    ...(a.payoutId ? [zeile("Art", `${a.kategorie || "Auszahlung"} · Mitarbeiter-Auszahlung FIAON-AUS-${a.payoutId}`)] : []),
+    ...(plan
+      ? [zeile("Art", `Teilbetrag ${plan.nr} von ${plan.anzahl} · Auszahlungsplan ${plan.nummer}`)]
+      : a.payoutId ? [zeile("Art", `${a.kategorie || "Auszahlung"} · Mitarbeiter-Auszahlung FIAON-AUS-${a.payoutId}`)] : []),
     "",
-    zeile("Erfasst", `${nameVon(a.erstelltVon)}${titelVon(a.erstelltVon) ? `, ${titelVon(a.erstelltVon)}` : ""} · ${zeitText(a.erstelltAm)}`),
-    zeile("Freigegeben", `${nameVon(a.entschiedenVon)}${titelVon(a.entschiedenVon) ? `, ${titelVon(a.entschiedenVon)}` : ""} · ${zeitText(a.entschiedenAm)} (mit TAN)`),
+    plan
+      ? zeile("Ausgelöst", `${person(plan.ausgeloestVon)} · ${zeitText(plan.ausgeloestAm)}`)
+      : zeile("Erfasst", `${person(a.erstelltVon)} · ${zeitText(a.erstelltAm)}`),
+    zeile("Freigegeben", `${person(a.entschiedenVon)} · ${zeitText(a.entschiedenAm)} (mit TAN)`),
     "",
-    "Bitte führen Sie die Überweisung aus und bestätigen Sie sie anschließend hier:",
+    ...(a.planTeilId ? ["Die vollständige Bankverbindung steht unter Ihrem Link."] : []),
+    "Bitte führen Sie die Überweisung aus und bestätigen Sie sie anschließend hier — die Bank-Referenz aus Ihrem Onlinebanking tragen Sie dort bitte mit ein, falls sie zur Hand ist:",
     `  ${link}`,
     "",
     "Erst mit Ihrer Bestätigung wird die Auszahlung bei FIAON ausgebucht und der Durchführungsbeleg ausgestellt.",
@@ -1416,10 +1617,96 @@ function freigabeBestaetigen(id: number, von: BuchPerson, beauftragt: boolean): 
   })().catch((e) => console.warn("[BANKING] Freigabebestätigung:", String(e).slice(0, 140)));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RÜCKRUF (E-484, 06.11.2026)
+//
+// Ein freigegebener Auftrag liegt mit einem gültigen Bestätigungslink bei der Buchhaltung. „Zurückziehen“ ging bis
+// hierher nur bei Entwurf und eingereicht — einen Auftrag, den die Buchhaltung schon hatte, konnte niemand mehr
+// stoppen. Gemessen am 06.11.2026: ein solcher Auftrag lag freigegeben bei der Buchhaltung, obwohl seine Auszahlung
+// auf einem anderen Weg längst als überwiesen gebucht war — führt die Buchhaltung ihn aus, fließt das Geld zweimal.
+//
+// Der Rückruf schließt den Auftrag in EINEM bedingten UPDATE (nur solange die Buchhaltung noch nicht bestätigt hat),
+// macht den Link ungültig und schreibt der Buchhaltung „Bitte NICHT ausführen“. Die Auszahlung bleibt, wie sie ist —
+// außer bei einem Plan-Teilbetrag: der geht zurück in seinen Plan.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** „Bitte NICHT ausführen“ an die Buchhaltung — eine Mail für alle genannten Aufträge. */
+export async function nichtAusfuehrenMelden(
+  an: string, liste: { nummer: string; betragCents: number; empfaenger: string }[], grund?: string | null,
+): Promise<{ ok: true } | { ok: false; grund: string }> {
+  if (!liste.length) return { ok: true };
+  const nummern = liste.map((x) => x.nummer).join(", ");
+  const text = [
+    "Guten Tag,",
+    "",
+    liste.length === 1
+      ? "bitte führen Sie folgenden Zahlungsauftrag NICHT aus — er ist zurückgerufen:"
+      : "bitte führen Sie folgende Zahlungsaufträge NICHT aus — sie sind zurückgerufen:",
+    "",
+    ...liste.map((x) => zeile(x.nummer, `${(x.betragCents / 100).toFixed(2).replace(".", ",")} EUR an ${x.empfaenger}`)),
+    ...(grund ? ["", zeile("Grund", grund)] : []),
+    "",
+    liste.length === 1 ? "Der Bestätigungslink dieses Auftrags ist ungültig." : "Die Bestätigungslinks dieser Aufträge sind ungültig.",
+    "Falls Sie bereits überwiesen haben: Bitte antworten Sie kurz auf diese Mail und nennen Sie die Bank-Referenz der Überweisung.",
+    "",
+    "Mit freundlichen Grüßen",
+    "FIAON LTD · Zahlungsverkehr",
+  ].join("\n");
+  const m = await gmailSenden(an, `Bitte NICHT ausführen: ${nummern}`, text);
+  if (m.ok) buchProtokoll(null, "„Bitte NICHT ausführen“ an die Buchhaltung", nummern, an);
+  else buchProtokoll(null, "„Bitte NICHT ausführen“ fehlgeschlagen", nummern, m.grund);
+  return m;
+}
+
+/**
+ * Einen freigegebenen Auftrag bei der Buchhaltung zurückrufen. Nur der Inhaber, nur mit Grund, nur solange die
+ * Buchhaltung noch nicht bestätigt hat.
+ */
+export async function auftragZurueckrufen(id: number, von: BuchPerson, grund: string): Promise<Schritt & { mail?: boolean; hinweis?: string }> {
+  if (von.rolle !== "inhaber") return { ok: false, grund: "Zurückrufen darf nur der Inhaber." };
+  const g = String(grund || "").replace(/\s+/g, " ").trim().slice(0, 300);
+  if (g.length < 3) return { ok: false, grund: "Ein Rückruf braucht einen Grund." };
+  const a = await auftrag(id);
+  if (!a) return { ok: false, grund: "Auftrag nicht gefunden." };
+  if (!a.ausfuehrungExtern) return { ok: false, grund: "Dieser Auftrag liegt nicht bei der Buchhaltung — zurückrufen lässt sich nur ein Auftrag über die Buchhaltung." };
+  if (a.status === "ausgefuehrt" || a.externBestaetigtAm) return { ok: false, grund: "Die Buchhaltung hat diesen Auftrag bereits bestätigt — ein Rückruf ist nicht mehr möglich." };
+  if (a.status !== "freigegeben") return { ok: false, grund: `Ein Auftrag im Zustand „${a.status}“ liegt nicht bei der Buchhaltung. Eingereichte Aufträge lassen sich ablehnen oder zurückziehen.` };
+  const plan = a.planTeilId ? await import("./fiaon-auszahlungsplan") : null;
+  if (plan) await plan.planSchema();
+  const erledigt = await sqlPool.begin(async (tx: any) => {
+    const r = (await tx`
+      UPDATE fiaon_buch_auftrag
+         SET status = 'zurueckgezogen', extern_token_hash = NULL,
+             zurueckgerufen_am = NOW(), zurueckgerufen_von = ${von.email}, rueckruf_grund = ${g}
+       WHERE id = ${id} AND status = 'freigegeben' AND ausfuehrung_extern IS NOT NULL AND extern_bestaetigt_am IS NULL
+      RETURNING id`) as any[];
+    if (!r.length) return false;
+    if (plan) await plan.planTeilZurueck(id, "zurueckgerufen", g, von.email, tx);
+    return true;
+  });
+  if (!erledigt) {
+    const jetzt = await auftrag(id);
+    return { ok: false, grund: jetzt?.externBestaetigtAm || jetzt?.status === "ausgefuehrt"
+      ? "Die Buchhaltung hat diesen Auftrag gerade bestätigt — ein Rückruf ist nicht mehr möglich."
+      : "Der Auftrag hat sich inzwischen verändert. Bitte neu laden." };
+  }
+  await freigabeTanVerwerfen(id);
+  buchProtokoll(von.email, "Auftrag bei der Buchhaltung zurückgerufen", a.nummer, `${geldText(a.betragCents)} an ${a.empfaenger} · ${g}`);
+  const m = await nichtAusfuehrenMelden(a.ausfuehrungExtern, [{ nummer: a.nummer, betragCents: a.betragCents, empfaenger: a.empfaenger }], g);
+  return {
+    ok: true, auftrag: (await auftrag(id))!, mail: m.ok,
+    ...(m.ok ? {} : { hinweis: `Der Auftrag ist zurückgerufen und der Link ungültig — aber die Mail „Bitte NICHT ausführen“ ging nicht raus (${m.grund}). Bitte die Buchhaltung direkt informieren.` }),
+  };
+}
+
 export interface ExternAnsicht {
   nummer: string; empfaenger: string; iban: string; bic: string | null; betragCents: number; verwendungszweck: string;
   art: string | null; auszahlung: string | null; erfasst: string; freigegeben: string;
   stand: "offen" | "bestaetigt" | "ungueltig"; bestaetigtAm: string | null; wertAm: string | null;
+  /** E-484: Teilbetrag eines Auszahlungsplans („Teilbetrag 19 von 120“) — null bei jedem anderen Auftrag. */
+  plan: { nummer: string; teil: string } | null;
+  /** E-484: die Bank-Referenz, mit der die Buchhaltung bestätigt hat (freiwillig, daher oft null). */
+  bankReferenz: string | null;
 }
 
 async function externFinden(token: string): Promise<Auftrag | null> {
@@ -1434,25 +1721,49 @@ async function externFinden(token: string): Promise<Auftrag | null> {
 export async function externLesen(token: string): Promise<ExternAnsicht | null> {
   const a = await externFinden(token);
   if (!a || !a.ausfuehrungExtern) return null;
+  const plan = a.planTeilId ? await (await import("./fiaon-auszahlungsplan")).planZuAuftrag(a) : null;
   return {
     nummer: a.nummer, empfaenger: a.empfaenger, iban: ibanHuebsch(a.iban), bic: a.bic, betragCents: a.betragCents,
     verwendungszweck: bankZweck(a), art: a.kategorie, auszahlung: a.payoutId ? `FIAON-AUS-${a.payoutId}` : null,
-    erfasst: `${nameVon(a.erstelltVon)} · ${zeitText(a.erstelltAm)}`,
+    erfasst: plan
+      ? `${nameVon(plan.ausgeloestVon)} · ${zeitText(plan.ausgeloestAm)} (ausgelöst im Auszahlungsplan ${plan.nummer})`
+      : `${nameVon(a.erstelltVon)} · ${zeitText(a.erstelltAm)}`,
     freigegeben: `${nameVon(a.entschiedenVon)} · ${zeitText(a.entschiedenAm)} (mit TAN)`,
     stand: a.status === "ausgefuehrt" ? "bestaetigt" : a.status === "freigegeben" ? "offen" : "ungueltig",
     bestaetigtAm: a.externBestaetigtAm, wertAm: a.externWertAm,
+    plan: plan ? { nummer: plan.nummer, teil: `${plan.nr} von ${plan.anzahl}` } : null,
+    bankReferenz: a.externBankReferenz,
   };
+}
+
+/**
+ * E-484: Die Bank-Referenz der Buchhaltung — freiwillig (Entscheidung des Inhabers vom 06.11.2026). Ist sie
+ * angegeben, wird sie gesäubert und geprüft; zweimal dieselbe lässt der Index fiaon_buch_auftrag_extref_uq nicht zu.
+ * Die Sätze enthalten bewusst nicht das Wort „ungültig“ — darauf bremst die Route Fehlversuche am Link.
+ */
+export function bankReferenzLesen(roh: unknown): { ok: true; wert: string | null } | { ok: false; grund: string } {
+  const s = String(roh ?? "").replace(/\s+/g, " ").trim();
+  if (!s) return { ok: true, wert: null };
+  if (s.length < 4 || s.length > 60) return { ok: false, grund: "Die Bank-Referenz hat weniger als 4 oder mehr als 60 Zeichen. Bitte prüfen — oder das Feld leer lassen." };
+  if (!/^[A-Za-z0-9ÄÖÜäöüß .,\/_:+#-]+$/.test(s)) {
+    return { ok: false, grund: "Die Bank-Referenz enthält Zeichen, die wir nicht übernehmen können (erlaubt: Buchstaben, Ziffern, Leerzeichen und . , / _ : + # -). Bitte prüfen — oder das Feld leer lassen." };
+  }
+  return { ok: true, wert: s };
 }
 
 /**
  * Die Buchhaltung bestätigt: Die SEPA-Überweisung ist ausgeführt. Erst jetzt wird ausgebucht (der eine Weg), der
  * Durchführungsbeleg entsteht und geht an die Geschäftsführung.
  */
-export async function externBestaetigen(token: string, ein: { wertAm?: string | null; notiz?: string | null }): Promise<Schritt & { hinweis?: string }> {
+export async function externBestaetigen(
+  token: string, ein: { wertAm?: string | null; notiz?: string | null; bankReferenz?: string | null },
+): Promise<Schritt & { hinweis?: string }> {
   const a = await externFinden(token);
   if (!a || !a.ausfuehrungExtern) return { ok: false, grund: "Dieser Link ist ungültig oder abgelaufen." };
   if (a.status === "ausgefuehrt") return { ok: false, grund: `Bereits bestätigt am ${zeitText(a.externBestaetigtAm || a.ausgefuehrtAm)}.` };
   if (a.status !== "freigegeben") return { ok: false, grund: "Dieser Auftrag ist nicht (mehr) zur Ausführung freigegeben." };
+  const bankRef = bankReferenzLesen(ein.bankReferenz);
+  if (!bankRef.ok) return bankRef;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   const wert = ein.wertAm && /^\d{4}-\d{2}-\d{2}$/.test(ein.wertAm) ? ein.wertAm : heute;
   if (wert > heute) return { ok: false, grund: "Das Ausführungsdatum liegt in der Zukunft — bitte erst nach der Überweisung bestätigen." };
@@ -1460,18 +1771,28 @@ export async function externBestaetigen(token: string, ein: { wertAm?: string | 
     return { ok: false, grund: "Das Ausführungsdatum liegt vor der Freigabe." };
   }
   const notiz = ein.notiz ? String(ein.notiz).trim().slice(0, 200) : null;
-  const vermerkt = (await sqlPool`
-    UPDATE fiaon_buch_auftrag SET extern_bestaetigt_am = NOW(), extern_wert_am = ${wert}, extern_notiz = ${notiz}
-     WHERE id = ${a.id} AND status = 'freigegeben' AND extern_bestaetigt_am IS NULL
-    RETURNING id`) as any[];
+  let vermerkt: any[];
+  try {
+    vermerkt = (await sqlPool`
+      UPDATE fiaon_buch_auftrag
+         SET extern_bestaetigt_am = NOW(), extern_wert_am = ${wert}, extern_notiz = ${notiz}, extern_bank_referenz = ${bankRef.wert}
+       WHERE id = ${a.id} AND status = 'freigegeben' AND extern_bestaetigt_am IS NULL
+      RETURNING id`) as any[];
+  } catch (e: any) {
+    if (e?.code === "23505") return { ok: false, grund: "Diese Bank-Referenz wurde schon für einen anderen Auftrag bestätigt. Bitte prüfen Sie die Referenz — oder lassen Sie das Feld leer." };
+    throw e;
+  }
   if (!vermerkt.length) return { ok: false, grund: "Dieser Auftrag wird gerade schon bestätigt." };
   const ref = (a.bankReferenz && a.bankReferenz.trim()) || (await freieBankReferenz());
   const erg = await ausfuehrenKern((await auftrag(a.id))!, a.ausfuehrungExtern, ref, wert);
   if (!erg.ok) {
-    await sqlPool`UPDATE fiaon_buch_auftrag SET extern_bestaetigt_am = NULL, extern_wert_am = NULL, extern_notiz = NULL WHERE id = ${a.id} AND status = 'freigegeben'`;
+    await sqlPool`
+      UPDATE fiaon_buch_auftrag SET extern_bestaetigt_am = NULL, extern_wert_am = NULL, extern_notiz = NULL, extern_bank_referenz = NULL
+       WHERE id = ${a.id} AND status = 'freigegeben'`;
     return erg;
   }
-  buchProtokoll(a.ausfuehrungExtern, "SEPA-Überweisung bestätigt (Buchhaltung)", a.nummer, `ausgeführt am ${tagText(wert)}${notiz ? ` · ${notiz}` : ""}`);
+  buchProtokoll(a.ausfuehrungExtern, "SEPA-Überweisung bestätigt (Buchhaltung)", a.nummer,
+    `ausgeführt am ${tagText(wert)}${bankRef.wert ? ` · Bank-Referenz ${bankRef.wert}` : ""}${notiz ? ` · ${notiz}` : ""}`);
   await durchfuehrungsbelegSenden(a.id).catch((e) => console.warn("[BANKING] Durchführungsbeleg-Mail:", String(e).slice(0, 140)));
   return erg;
 }

@@ -4,7 +4,8 @@
 // Justin: „er soll durch die Räume geführt werden wie bei einer 3D-Tour."
 //
 //   · Bühnen für den Gast (GET /api/fiaon/datenraum/buehnen): NUR nach unterzeichneter Vereinbarung und nur für
-//     die Themen, die sie nennt — dieselbe Regel wie für Dokumente (fiaon-datenraum-tour-regeln.ts).
+//     die Themen, die sie in ihrer heutigen Fassung deckt — dieselbe Regel und dieselbe Abdeckung wie für Dokumente
+//     (fiaon-datenraum-tour-regeln.ts, drAbgedeckteProjekte in fiaon-datenraum.ts). Protokoll nur über drProtokoll (Kette).
 //   · Bühne speichern (scripts/datenraum.ts raum-anlegen → projekte[].buehne): geprüft mit drBuehnePruefen.
 //   · Anfragen aus dem Raum (POST /api/fiaon/datenraum/anfrage): „Vertragsentwurf anfordern“ und „Frage stellen“ →
 //     Zugriffsprüfung, Bremse, Protokollzeile, Meldung an Justin über den Mailweg des Datenraums (Brevo; mit
@@ -15,7 +16,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
-import { DR_PROTOKOLL_TEXT, drProtokoll, drSchema, drStandardSender, type drSitzungGast, type DrKontext, type DrSender } from "./fiaon-datenraum";
+import { drAbgedeckteProjekte, drProtokoll, drSchema, drStandardSender, type drSitzungGast, type DrKontext, type DrSender } from "./fiaon-datenraum";
 import { drAnfrageGebremst, drAnfrageZugriff, drBuehnenFreigeben, DR_ANFRAGE_BREMSE, type DrTourLage } from "./fiaon-datenraum-tour-regeln";
 import { drAnfragePruefen, drBuehneKurz, drBuehnePruefen, type DrBuehne } from "@shared/fiaon-datenraum-buehne";
 import { NDA_FIAON, drVollName } from "@shared/fiaon-datenraum-nda";
@@ -32,21 +33,15 @@ function jsonWert(v: unknown): unknown {
 }
 const escHtml = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// Die Texte der neuen Protokoll-Arten für die Akte im Chefbüro (DR_PROTOKOLL_TEXT liest drRaumAkte bei jedem Aufruf).
-Object.assign(DR_PROTOKOLL_TEXT, {
-  tour: "Rundgang geöffnet", vertrag_angefordert: "Vertragsentwurf angefordert", frage_gestellt: "Frage gestellt",
-  anfrage_gebremst: "Anfrage gebremst", mail_anfrage: "Meldung an Justin (Anfrage)",
-  buehne_gespeichert: "Bühne gespeichert", buehne_entfernt: "Bühne entfernt",
-});
+// Die Texte der Protokoll-Arten der Tour (Rundgang geöffnet, Vertragsentwurf angefordert …) stehen in DR_PROTOKOLL_TEXT
+// in fiaon-datenraum.ts — Akte und CSV kennen sie dann auch, wenn dieses Modul nicht geladen ist.
 
-/** Projekte, die eine der unterzeichneten Vereinbarungen des Gastes nennt — null = noch keine (wie abgedeckt() in fiaon-datenraum.ts). */
-async function ndaProjekte(gastId: number): Promise<number[] | null> {
-  const z = (await sqlPool`SELECT projekt_ids FROM fiaon_dr_nda WHERE gast_id = ${gastId}`) as any[];
-  if (!z.length) return null;
-  const ids = new Set<number>();
-  for (const r of z) for (const i of Array.isArray(r.projekt_ids) ? r.projekt_ids : []) { const n = Number(i); if (Number.isInteger(n) && n > 0) ids.add(n); }
-  return Array.from(ids);
-}
+/**
+ * Die Projekte, die der Gast heute offen hat — null = noch keine Vereinbarung. DIESELBE Abdeckung wie bei Dokumenten
+ * (Projekt-Nr. + Prüfsumme der §-1-Fassung): Ändert sich ein Thema nach der Unterschrift, ist auch seine Bühne zu, bis
+ * der Gast den Nachtrag unterschreibt (vorher hing die Tour nur an der Projekt-Nr. und zeigte die Bühne weiter).
+ */
+const ndaProjekte = (g: Gast) => drAbgedeckteProjekte(g.id, g.raumId);
 const lageVon = (g: Gast, nda: number[] | null): DrTourLage => ({ angemeldet: true, gastRaumId: g.raumId, gastGesperrt: g.gesperrt, raumArchiviert: g.raumArchiviert, ndaProjektIds: nda });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -54,7 +49,7 @@ const lageVon = (g: Gast, nda: number[] | null): DrTourLage => ({ angemeldet: tr
 // ═══════════════════════════════════════════════════════════════════════════
 export async function drBuehnenFuerGast(g: Gast, ctx: DrKontext): Promise<Erg<{ buehnen: Record<string, DrBuehne> }>> {
   await drSchema();
-  const nda = await ndaProjekte(g.id);
+  const nda = await ndaProjekte(g);
   if (!nda) return nein(403, "Bitte unterzeichnen Sie zuerst die Vertraulichkeitsvereinbarung.", "NDA");
   const zeilen = (await sqlPool`
     SELECT id, buchstabe, buehne FROM fiaon_dr_projekte WHERE raum_id = ${g.raumId} AND entfernt_am IS NULL ORDER BY length(buchstabe), buchstabe, id`) as any[];
@@ -106,7 +101,7 @@ export async function drAnfrage(g: Gast, body: unknown, ctx: DrKontext, opt: { s
   const a = drAnfragePruefen(body);
   if (!a.ok) return nein(400, a.error, "EINGABE");
   const { art, text } = a.wert;
-  const nda = await ndaProjekte(g.id);
+  const nda = await ndaProjekte(g);
   const projekte = (await sqlPool`SELECT id, buchstabe, titel FROM fiaon_dr_projekte WHERE raum_id = ${g.raumId} AND entfernt_am IS NULL`) as any[];
   const p = a.wert.projekt ? projekte.find((x) => String(x.buchstabe).toUpperCase() === a.wert.projekt) : null;
   const z = drAnfrageZugriff(lageVon(g, nda), a.wert.projekt ? (p ? { id: zahl(p.id), raumId: g.raumId, buchstabe: String(p.buchstabe) } : "unbekannt") : null);

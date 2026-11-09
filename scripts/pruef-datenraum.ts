@@ -28,8 +28,9 @@
 //     Mails mit vollen Prüfsummen, Nachtrag (neues und geändertes Thema, erst nach Freigabe), Sperren, neuer Code,
 //     Verwaltung nur Inhaber (Ansichten im Protokoll, Vorschau, Freigabe, Einladung erst nach Freigabe, Entwurf in js@,
 //     CSV), Wiedervorlage in der Partner-Akte, und scripts/datenraum.ts.
-//     Raumtour über HTTP: Bühnen aus raum.json, 401/403 vor Sitzung/Vereinbarung, nur abgedeckte Themen, Vertragsentwurf
-//     und Frage mit Protokoll, Doppelklick-Schutz, Meldung an Justin mit Antwort an den Gast (Attrappe), Bremse 429.
+//     Raumtour über HTTP (B13): Bühnen aus raum.json, Einladung erst nach der Freigabe, 401/403 vor Sitzung/Vereinbarung,
+//     nur abgedeckte Themen, Vertragsentwurf und Frage mit Protokoll (Kette), Doppelklick-Schutz, Meldung an Justin mit
+//     Antwort an den Gast (Attrappe), Bremse 429, geändertes Thema → Bühne zu bis zum Nachtrag (wie die Dokumente).
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import os from "node:os";
@@ -59,7 +60,13 @@ function ok(name: string, bedingung: boolean, info = ""): void {
 }
 async function abschnitt(titel: string, f: () => Promise<void> | void): Promise<void> {
   console.log(`\n── ${titel}`);
-  try { await f(); } catch (e) { ok(`${titel}: lief ohne Ausnahme durch`, false, e instanceof Error ? `${e.message}\n${e.stack?.split("\n").slice(1, 4).join("\n")}` : String(e)); }
+  try { await f(); } catch (e) { ok(`${titel}: lief ohne Ausnahme durch`, false, e instanceof Error ? `${e.message}\n${stapel(e)}` : String(e)); }
+}
+/** Die ersten Stellen der Stack-Spur — eigene Dateien zuerst (die Zeilen aus node_modules sagen selten, wo es klemmt). */
+function stapel(e: Error): string {
+  const rahmen = (e.stack ?? "").split("\n").slice(1);
+  const eigen = rahmen.filter((z) => !z.includes("node_modules"));
+  return (eigen.length ? eigen : rahmen).slice(0, 4).join("\n");
 }
 const ohneLeer = (s: string) => s.replace(/\s+/g, "");
 
@@ -487,7 +494,7 @@ async function teilA(): Promise<void> {
     ok("Kein Begriff des ersten Falls in den Dateien dieses Baus", funde.length === 0, funde.join(", "));
   });
 
-  await abschnitt("A11 Raumtour: das Bühnen-Schema", () => {
+  await abschnitt("A15 Raumtour: das Bühnen-Schema", () => {
     const m = drBuehnePruefen(BUEHNE_MUSTER);
     ok("Erfundenes Muster gültig, alles übernommen", m.ok && !!m.wert && m.wert.hauptprojekt === true && m.wert.kennzahlen.length === 3 && m.wert.kurve?.reihen.length === 2 && m.wert.kapitel.length === 2 && m.wert.abschluss?.knopf === "Vertragsentwurf anfordern" && m.warnungen.length === 0, m.ok ? "" : m.fehler.join(" | "));
     ok("Kurzform für Listen", m.ok && drBuehneKurz(m.wert) === "Hauptprojekt · 3 Kennzahlen · Kurve (2 Reihen) · 2 Kapitel", m.ok ? drBuehneKurz(m.wert) : "");
@@ -520,7 +527,7 @@ async function teilA(): Promise<void> {
     ok("Unbekanntes Feld (Tippfehler) → Warnung, nicht gezeigt", tipp.ok && tipp.warnungen.some((w) => w.includes("kennzahl")) && !("kennzahl" in (tipp.wert ?? {})));
   });
 
-  await abschnitt("A12 Raumtour: ohne Vereinbarung keine Bühne", () => {
+  await abschnitt("A16 Raumtour: ohne Vereinbarung keine Bühne", () => {
     const lage: DrTourLage = { angemeldet: true, gastRaumId: 1, gastGesperrt: false, raumArchiviert: false, ndaProjektIds: [10, 11] };
     const projekte = [
       { id: 10, raumId: 1, buchstabe: "A", buehne: BUEHNE_MUSTER },
@@ -539,7 +546,7 @@ async function teilA(): Promise<void> {
     ok("Projekt ohne Bühne → kein Eintrag (der Raum zeigt Titel und Unterlagen)", Object.keys(drBuehnenFreigeben(lage, [{ id: 10, raumId: 1, buchstabe: "A", buehne: null }]).buehnen).length === 0);
   });
 
-  await abschnitt("A13 Raumtour: Anfragen nur aus einer Sitzung mit Vereinbarung", () => {
+  await abschnitt("A17 Raumtour: Anfragen nur aus einer Sitzung mit Vereinbarung", () => {
     const lage: DrTourLage = { angemeldet: true, gastRaumId: 1, gastGesperrt: false, raumArchiviert: false, ndaProjektIds: [10, 11] };
     const pA = { id: 10, raumId: 1, buchstabe: "A" }; const pC = { id: 12, raumId: 1, buchstabe: "C" };
     const z = (l: Partial<DrTourLage>, p: typeof pA | null | "unbekannt") => { const r = drAnfrageZugriff({ ...lage, ...l }, p); return r.erlaubt ? 200 : `${r.status}/${r.grund}`; };
@@ -1056,7 +1063,7 @@ async function teilB(): Promise<void> {
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
 
-  await abschnitt("B11 Raumtour über HTTP: Bühnen nach der Vereinbarung, Vertragsentwurf und Frage", async () => {
+  await abschnitt("B13 Raumtour über HTTP: Bühnen nach der Vereinbarung, Vertragsentwurf und Frage, Nachtrag", async () => {
     const T = await import("../server/lib/fiaon-datenraum-tour");
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dr-tour-"));
     try {
@@ -1086,7 +1093,12 @@ async function teilB(): Promise<void> {
       const li = lauf(["liste", "--raum", String(tr?.id ?? 0)]);
       ok("liste nennt die Bühne je Projekt", li.status === 0 && /Bühne: Hauptprojekt/.test(li.stdout) && /Bühne: keine Bühne/.test(li.stdout));
       await L.drDokumentAblegen({ projektId: Number(zeilen[0].id), buffer: await probePdf("Tour A1"), dateiname: "TourA1.pdf", titel: "A1 Tour", nr: 1 }, WER);
+      // Wie in jedem Raum (Nachbesserung): erst die Vereinbarung freigeben, dann einladen.
+      const zuFrueh = await L.drGastEinladen(Number(tr.id), { vorname: "Zu", nachname: "Frueh", email: "tour.frueh@example.invalid" }, WER) as any;
+      const frei = await L.drNdaFreigeben(Number(tr.id), WER) as any;
       const ein = await L.drGastEinladen(Number(tr.id), { anrede: "frau", vorname: "Erika", nachname: "Beispiel", email: "erika.beispiel@example.invalid" }, WER) as any;
+      ok("Tour-Raum: einladen erst nach der Freigabe der Vereinbarung (vorher 409 FREIGABE), dann Code", !zuFrueh.ok && zuFrueh.code === "FREIGABE" && frei.ok && ein.ok && /^DR-/.test(ein.code ?? ""), `${zuFrueh.code ?? ""} · ${ein.error ?? ""}`);
+      if (!ein.ok) throw new Error(`Einladung in den Tour-Raum fehlgeschlagen: ${ein.error}`);
       const ohne = new Sitzung("203.0.113.30");
       const o1 = await ohne.ruf("/datenraum/buehnen"); const o2 = await ohne.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "A" });
       ok("Ohne Sitzung: Bühnen 401, Anfrage 401", o1.status === 401 && o2.status === 401);
@@ -1099,7 +1111,7 @@ async function teilB(): Promise<void> {
       const erika = { ...GAST, anrede: "frau" as const, vorname: "Erika", nachname: "Beispiel", email: "erika.beispiel@example.invalid" };
       const ang = await g.ruf("/datenraum/angaben", { angaben: erika });
       const un = await g.ruf("/datenraum/unterzeichnen", { textHash: ang.j?.nda?.hash, gelesen: true, name: "Erika Beispiel", png: dataUrl(pngBild(320, 100)) });
-      ok("Angaben und Unterschrift", ang.status === 200 && un.status === 200 && un.j?.schritt === "raum");
+      ok("Angaben (mit Vereinbarung) und Unterschrift", ang.status === 200 && /^[0-9a-f]{64}$/.test(ang.j?.nda?.hash ?? "") && un.status === 200 && un.j?.schritt === "raum", `${ang.status} ${ang.j?.error ?? ang.j?.hinweis ?? ""} · ${un.status} ${un.j?.error ?? ""}`);
       const b1 = await g.ruf("/datenraum/buehnen");
       ok("Nach der Vereinbarung: Bühnen von A und B (C hat keine)", b1.status === 200 && Object.keys(b1.j?.buehnen ?? {}).sort().join() === "A,B" && b1.j.buehnen.A.hauptprojekt === true && b1.j.buehnen.A.kennzahlen.length === 3 && b1.j.buehnen.A.kurve.reihen.length === 2);
       ok("Antwort ohne Speicher (no-store), noindex", /no-store/.test(b1.kopf.get("cache-control") ?? "") && /noindex/.test(b1.kopf.get("x-robots-tag") ?? ""));
@@ -1128,6 +1140,18 @@ async function teilB(): Promise<void> {
       let letzte = 0;
       for (let i = 0; i < 6; i++) letzte = (await g.ruf("/datenraum/anfrage", { art: "frage", text: `Erfundene Frage Nummer ${i + 1}?` })).status;
       ok("Bremse: die neunte Anfrage in einer Stunde → 429 (und im Protokoll)", letzte === 429 && (await anzahl("anfrage_gebremst", ein.id)) === 1, String(letzte));
+      // Ein Thema ändert sich nach der Unterschrift (neue §-1-Fassung von B, neu freigegeben): Die Bühne von B ist zu, bis
+      // der Gast den Nachtrag unterschreibt — dieselbe Abdeckung wie bei den Dokumenten (Projekt-Nr. + Prüfsumme der Fassung).
+      const aend = await L.drProjektSpeichern(Number(tr.id), { schluessel: "beta", titel: "Projekt Beta", beschreibung: "Erfunden.", ndaText: "ein erfundenes, umgewidmetes Vorhaben" }, WER) as any;
+      await L.drNdaFreigeben(Number(tr.id), WER);
+      const b2 = await g.ruf("/datenraum/buehnen");
+      const vB = await g.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "B" });
+      ok("Geändertes Thema B (Nachtrag offen): keine Bühne von B mehr, Vertragsentwurf zu B → 403 NACHTRAG, A bleibt",
+        aend.ok && b2.status === 200 && Object.keys(b2.j?.buehnen ?? {}).join() === "A" && vB.status === 403 && vB.j?.code === "NACHTRAG", `${Object.keys(b2.j?.buehnen ?? {}).join()} · ${vB.status} ${vB.j?.code ?? ""}`);
+      const nB = await g.ruf("/datenraum/nda");
+      const uB = await g.ruf("/datenraum/unterzeichnen", { textHash: nB.j?.nda?.hash, gelesen: true, name: "Erika Beispiel", png: dataUrl(pngBild(320, 100)) });
+      const b3 = await g.ruf("/datenraum/buehnen");
+      ok("Nachtrag unterschrieben → Bühne von B wieder da", uB.status === 200 && uB.j?.nachtrag === false && Object.keys(b3.j?.buehnen ?? {}).sort().join() === "A,B", `${uB.status} ${uB.j?.error ?? ""} · ${Object.keys(b3.j?.buehnen ?? {}).join()}`);
       const akte: any = await L.drRaumAkte(Number(tr.id));
       ok("Akte im Chefbüro zeigt die neuen Zeilen mit Klartext", akte.protokoll.some((p: any) => p.artText === "Vertragsentwurf angefordert") && akte.protokoll.some((p: any) => p.artText === "Rundgang geöffnet"));
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }

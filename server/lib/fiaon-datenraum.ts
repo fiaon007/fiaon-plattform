@@ -314,6 +314,10 @@ export const DR_PROTOKOLL_TEXT: Record<string, string> = {
   dokument_ersetzt: "Dokument ersetzt", dokument_geaendert: "Dokument geändert", dokument_entfernt: "Dokument entfernt",
   dokument_sichtbar: "Sichtbar geschaltet", dokument_unsichtbar: "Unsichtbar geschaltet", chef_angesehen: "Original im Chefbüro geöffnet",
   chef_nda: "NDA im Chefbüro geöffnet", protokoll_export: "Protokoll exportiert", nachgesiegelt: "Nachträglich versiegelt",
+  // Raumtour (fiaon-datenraum-tour.ts) — hier, damit Akte und CSV sie kennen, egal welches Modul zuerst geladen ist.
+  tour: "Rundgang geöffnet", vertrag_angefordert: "Vertragsentwurf angefordert", frage_gestellt: "Frage gestellt",
+  anfrage_gebremst: "Anfrage gebremst", mail_anfrage: "Meldung an Justin (Anfrage)",
+  buehne_gespeichert: "Bühne gespeichert", buehne_entfernt: "Bühne entfernt",
 };
 const KETTE_SCHLOSS = 489_489_001;
 const KETTE_START = "fiaon-dr-protokoll.v1";
@@ -494,6 +498,14 @@ async function abdeckung(gastId: number, projekte: ProjektZeile[], lauf: Lauf = 
   const ids = projekte.filter((p) => { const h = projektHash(p); return hashes.some((m) => m[String(p.id)] === h); }).map((p) => p.id);
   const fest = json<{ gast?: DrGastAngaben }>(z[0].angaben, {}).gast ?? null;
   return { ids, letzte: z[0], erste: z[z.length - 1], fest, anzahl: z.length };
+}
+/**
+ * Die Projekte, die der Gast heute offen hat (null = noch keine Vereinbarung) — dieselbe Abdeckung wie bei Dokumenten.
+ * Für die Raumtour (Bühnen, Anfragen): Ein Thema, dessen §-1-Fassung sich seit der Unterschrift geändert hat, ist zu,
+ * bis der Gast den Nachtrag unterschreibt.
+ */
+export async function drAbgedeckteProjekte(gastId: number, raumId: number, lauf: Lauf = sqlPool): Promise<number[] | null> {
+  return (await abdeckung(gastId, await projekteLesen(raumId, lauf), lauf)).ids;
 }
 const DATEI_TYP_TEXT = (mime: string, dateiname: string) => {
   if (mime === "application/pdf") return "PDF";

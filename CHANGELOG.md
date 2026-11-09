@@ -65,6 +65,18 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   client/src/components/admin/ (MailwerkVorsorge, ChefMailwerk), client/src/pages/privacy.tsx,
   db/migrations/132_vorsorge_ueberblick.sql, scripts/pruef-vorsorge.ts.
 
+## 09.11.2026 — E-489 (Raumtour + Nachbesserung zusammengeführt): Die Raumtour folgt derselben Abdeckung wie die Unterlagen
+
+- **Warum:** Die Raumtour wurde parallel zur Nachbesserung gebaut. Nach dem Zusammenführen prüfte sie die Vereinbarung noch auf
+  die alte Art (nur über die Projekt-Nr.): Hatte sich ein Thema nach der Unterschrift geändert, waren seine Unterlagen zu
+  (Nachtrag), seine Bühne und „Vertragsentwurf anfordern“ aber weiter offen. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:** Bühnen und Anfragen fragen dieselbe Abdeckung wie die Dokumente (Projekt-Nr. + Prüfsumme der
+  §-1-Fassung) — ein geändertes Thema ist auch in der Tour zu, bis der Gast den Nachtrag unterschreibt. Die Klartexte der
+  Tour-Zeilen im Protokoll („Rundgang geöffnet“ …) stehen in der gemeinsamen Liste, damit Akte und CSV sie immer kennen.
+  Der Prüfstand der Tour gibt die Vereinbarung vor der Einladung frei (wie jeder Raum seit der Nachbesserung) und prüft den Nachtrag.
+- **Wo:** server/lib/fiaon-datenraum.ts (drAbgedeckteProjekte, DR_PROTOKOLL_TEXT), server/lib/fiaon-datenraum-tour.ts,
+  scripts/pruef-datenraum.ts (B13).
+
 ## 09.11.2026 — E-489 (Nachbesserung nach drei Gutachten): Datenraum — keine Messung, echte IP, Vertrag ohne Freitext, Freigabe vor der ersten Einladung
 
 - **Warum:** Drei Gutachten (Sicherheit, Vereinbarung, Bedienung) haben den Datenraum vor dem Livegang geprüft. Wichtigste Funde:

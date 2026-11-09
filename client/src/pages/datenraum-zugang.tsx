@@ -4,20 +4,25 @@
 // Justin: „Wenn er eintritt, muss er alle Infos für die NDA angeben, dann diese direkt unterzeichnen und dann
 // soll er direkt Zugriff haben."
 //
-//   Eintritt   persönlicher Link (?c=<Code>) oder Code eintippen
-//   Schritt 1  Angaben für die Vereinbarung (vorbefüllt, änderbar)
-//   Schritt 2  Vereinbarung lesen → „gelesen und einverstanden“
+//   Eintritt   persönlicher Link (#c=<Code>) oder Code eintippen — als Sperrbildschirm im Glas
+//   Schritt 1  Angaben für die Vereinbarung (vorbefüllt, änderbar; eine neue E-Mail bestätigt ein Code)
+//   Schritt 2  Vereinbarung lesen (auch als Entwurf im PDF) → „gelesen und einverstanden“
 //   Schritt 3  zeichnen (Finger/Maus) + vollen Namen tippen → „Jetzt verbindlich unterzeichnen“
 //   Raum       Projekte als Ordner, Dokumente ansehen/herunterladen, eigenes Exemplar als PDF
 //
-// Der Code steht nur kurz in der Adresse: Die Seite liest ihn und nimmt ihn sofort heraus (replaceState).
+// Der Code steht nur kurz in der Adresse (im Anker #c=, der nie an den Server geht): Die Seite liest ihn und nimmt
+// ihn sofort heraus (replaceState). Auf dieser Seite läuft keine Messung (EinwilligungsHinweis, OHNE_MESSUNG).
 // Alle Inhalte (Raum, Projekte, Dokumente, Vereinbarung) liefert der Server erst nach dem Eintritt — in
 // dieser Datei steht kein Name und kein Projekt. Gesiezt, wenig Text, geführt. Server: server/routes/fiaon-datenraum.ts.
+//
+// Nachbesserung (Gutachten 09.11.2026): Nach Schritt 1 übernimmt die Seite die GESPEICHERTEN Angaben (vorher prüfte
+// die Unterschrift gegen den alten Namen und hing fest); die Schrittleiste ist kurz; die Nummern der Unterlagen sind
+// ihre eigenen (00, 01 …), nicht die Position.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import {
-  DR_ANREDEN, DR_FELD_TEXT, DR_GAST_LEER, DR_LAENDER, drAnredeKurz, drAnredeName, drFesteLeerzeichen, drFettStuecke, drNamePasst, drVollName,
+  DR_ANREDEN, DR_FELD_TEXT, DR_GAST_LEER, DR_LAENDER, DR_ZUSTIMMUNG, drAnredeKurz, drFesteLeerzeichen, drFettStuecke, drNamePasst,
   type DrAnrede, type DrGastAngaben, type DrNdaBlock,
 } from "@shared/fiaon-datenraum-nda";
 import "@/styles/datenraum-gast.css";
@@ -25,9 +30,10 @@ import "@/styles/datenraum-gast.css";
 const API = "/api/fiaon/datenraum";
 type Dok = { kennung: string; nr: number; titel: string; beschreibung: string; groesse: number; seiten: number | null; typ: string; ansehen: boolean };
 type Projekt = { buchstabe: string; titel: string; beschreibung: string; abgedeckt: boolean; dokumente: Dok[]; anzahl: number | null };
+type GastStand = DrGastAngaben & { angabenAm: string | null; fest?: boolean };
 type Stand = {
   ok: boolean; angemeldet: boolean; schritt?: "angaben" | "vereinbarung" | "raum"; nachtrag?: boolean;
-  gast?: DrGastAngaben & { angabenAm: string | null }; raum?: { titel: string }; projekte?: Projekt[];
+  gast?: GastStand; raum?: { titel: string }; projekte?: Projekt[];
   nda?: { unterzeichnetAm: string; fassung: string; hashKurz: string } | null; kontakt?: { name: string; email: string };
 };
 type Nda = { bloecke: DrNdaBlock[]; hash: string; fassung: string };
@@ -54,11 +60,11 @@ const zeitText = (iso: string | null | undefined) => {
 const groesse = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const zweistellig = (n: number) => String(n).padStart(2, "0");
 
-/** Den Code aus der Adresse lesen (?c= oder #c=) und sofort herausnehmen. */
+/** Den Code aus der Adresse lesen (#c= oder ?c=) und sofort herausnehmen. */
 function codeAusAdresse(): string {
   try {
     const u = new URL(window.location.href);
-    const aus = u.searchParams.get("c") || new URLSearchParams(u.hash.replace(/^#/, "")).get("c") || "";
+    const aus = new URLSearchParams(u.hash.replace(/^#/, "")).get("c") || u.searchParams.get("c") || "";
     if (aus) { u.searchParams.delete("c"); u.hash = ""; window.history.replaceState(null, "", u.pathname + (u.search || "")); }
     return aus.trim().slice(0, 40);
   } catch { return ""; }
@@ -78,6 +84,9 @@ export default function DatenraumZugang() {
     let m = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
     if (!m) { m = document.createElement("meta"); m.name = "robots"; document.head.appendChild(m); }
     m.content = "noindex,nofollow";
+    let r = document.querySelector('meta[name="referrer"]') as HTMLMetaElement | null;
+    if (!r) { r = document.createElement("meta"); r.name = "referrer"; document.head.appendChild(r); }
+    r.content = "no-referrer";
   }, []);
 
   const zeigen = useCallback((a: Ansicht) => {
@@ -89,7 +98,7 @@ export default function DatenraumZugang() {
     const r = await ruf("/nda");
     if (r.j?.ok && r.j.nda) { setNda(r.j.nda as Nda); return true; }
     if (r.status === 401) { setStand(null); zeigen("code"); setMeldung({ art: "info", text: r.j?.error || "Bitte melden Sie sich erneut an." }); return false; }
-    setMeldung({ art: "schlecht", text: r.j?.error || "Die Vereinbarung ließ sich nicht laden." });
+    setMeldung({ art: r.j?.code === "LEER" ? "info" : "schlecht", text: r.j?.error || "Die Vereinbarung ließ sich nicht laden." });
     return false;
   }, [zeigen]);
 
@@ -126,12 +135,14 @@ export default function DatenraumZugang() {
     await ruf("/abmelden", {});
     setStand(null); setNda(null); setMeldung({ art: "info", text: "Sie sind abgemeldet." }); zeigen("code");
   };
+  const abgelaufen = () => { setStand(null); zeigen("code"); setMeldung({ art: "info", text: "Bitte melden Sie sich erneut an." }); };
 
   const schritt = ansicht === "angaben" ? 1 : ansicht === "vereinbarung" ? 2 : ansicht === "unterschrift" ? 3 : 0;
   const ergaenzung = !!stand?.nda && (ansicht === "vereinbarung" || ansicht === "unterschrift");
+  const sperre = ansicht === "code" || ansicht === "laedt";
 
   return (
-    <div className="drg" data-fiaon="datenraum-gast" ref={oben}>
+    <div className={`drg${sperre ? " drg-sperre" : ""}`} data-fiaon="datenraum-gast" ref={oben}>
       <header className="drg-kopf">
         <div className="drg-kopf-innen">
           <span className="drg-kopf-marke"><FiaonWortmarke hoehe="21px" farbe="#fff" /><span>Datenraum</span></span>
@@ -140,13 +151,16 @@ export default function DatenraumZugang() {
       </header>
       <main className="drg-blatt">
         {schritt > 0 && !ergaenzung && (
-          <ol className="drg-schritte" aria-label="Fortschritt">
-            {["Ihre Angaben", "Vereinbarung lesen", "Unterzeichnen"].map((t, i) => (
-              <li key={t} className={i + 1 < schritt ? "fertig" : i + 1 === schritt ? "aktiv" : ""} aria-current={i + 1 === schritt ? "step" : undefined}>
-                <span>Schritt {i + 1} von 3 · <b>{t}</b></span>
-              </li>
-            ))}
-          </ol>
+          <div className="drg-schritte-rahmen">
+            <p className="drg-schritt-zahl">Schritt {schritt} von 3</p>
+            <ol className="drg-schritte" aria-label="Fortschritt">
+              {["Angaben", "Lesen", "Unterzeichnen"].map((t, i) => (
+                <li key={t} className={i + 1 < schritt ? "fertig" : i + 1 === schritt ? "aktiv" : ""} aria-current={i + 1 === schritt ? "step" : undefined}>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
         {meldung && <p className={`drg-meldung ${meldung.art === "info" ? "" : meldung.art}`} role={meldung.art === "schlecht" ? "alert" : "status"}>{meldung.text}</p>}
 
@@ -154,33 +168,39 @@ export default function DatenraumZugang() {
         {ansicht === "code" && <CodeEingabe weiter={async (s) => { setMeldung(null); await uebernehmen(s); }} fehler={(t) => setMeldung({ art: "schlecht", text: t })} />}
         {ansicht === "angaben" && stand?.gast && (
           <Angaben gast={stand.gast} raumTitel={stand.raum?.titel ?? ""} projekte={stand.projekte ?? []}
-            fertig={(n) => { setMeldung(null); setNda(n); setGelesen(false); zeigen("vereinbarung"); }}
-            abgelaufen={() => { setStand(null); zeigen("code"); setMeldung({ art: "info", text: "Bitte melden Sie sich erneut an." }); }} />
+            fertig={(n, gast) => {
+              // Die gespeicherten Angaben übernehmen — Vertrag, Zusammenfassung und Namensprüfung lesen alle dieselbe Quelle.
+              setStand((s) => (s ? { ...s, gast: gast ?? s.gast, schritt: "vereinbarung" } : s));
+              setMeldung(null); setNda(n); setGelesen(false); zeigen("vereinbarung");
+            }}
+            gespeichert={(gast) => setStand((s) => (s ? { ...s, gast: gast ?? s.gast } : s))}
+            abgelaufen={abgelaufen} />
         )}
         {ansicht === "vereinbarung" && nda && (
           <section>
             <p className="drg-auge">{ergaenzung ? "Ergänzte Vereinbarung" : "Vertraulichkeit"}</p>
-            <h1>{ergaenzung ? "Ein Thema ist hinzugekommen." : "Bitte lesen Sie die Vereinbarung."}</h1>
+            <h1>{ergaenzung ? "Ihre Vereinbarung wird ergänzt." : "Bitte lesen Sie die Vereinbarung."}</h1>
             <p className="drg-lead">{ergaenzung
-              ? "Die Vereinbarung nennt jetzt alle Themen des Datenraums. Mit Ihrer Unterschrift öffnen sich die Unterlagen zu dem neuen Thema."
+              ? "Ein Thema ist hinzugekommen oder genauer beschrieben. Die Vereinbarung nennt jetzt alle Themen des Datenraums — mit Ihrer Unterschrift öffnen sich die Unterlagen dazu."
               : "Ihre Angaben stehen als Partei 3 darin, die Themen des Datenraums in § 1. Danach unterzeichnen Sie im nächsten Schritt."}</p>
+            <p className="drg-fein"><a href={`${API}/nda-entwurf.pdf`} target="_blank" rel="noopener" data-fiaon="dr-entwurf">Als PDF ansehen</a> — zum Gegenlesen, zum Beispiel durch Ihren Anwalt (Entwurf, nicht unterzeichnet).</p>
             <Vereinbarung bloecke={nda.bloecke} />
             <label className={`drg-haken${gelesen ? " an" : ""}`}>
               <input type="checkbox" checked={gelesen} onChange={(e) => setGelesen(e.target.checked)} data-fiaon="nda-gelesen" />
-              <span>Ich habe die Vereinbarung gelesen und bin einverstanden.</span>
+              <span>{DR_ZUSTIMMUNG}</span>
             </label>
             <div className="drg-knoepfe">
               <button type="button" className="drg-knopf breit" disabled={!gelesen} onClick={() => { setMeldung(null); zeigen("unterschrift"); }}>Weiter zur Unterschrift</button>
-              {!ergaenzung && <button type="button" className="drg-link" onClick={() => zeigen("angaben")}>Angaben ändern</button>}
+              {!ergaenzung && !stand?.gast?.fest && <button type="button" className="drg-link" onClick={() => zeigen("angaben")}>Angaben ändern</button>}
             </div>
           </section>
         )}
         {ansicht === "unterschrift" && nda && stand?.gast && (
-          <Unterschrift gast={stand.gast} nda={nda} gelesen={gelesen}
+          <Unterschrift nda={nda} gelesen={gelesen}
             zurueck={() => zeigen("vereinbarung")}
             fertig={(s) => { setMeldung({ art: "gut", text: "Vereinbarung unterzeichnet — Ihr Datenraum ist freigeschaltet. Eine Kopie kommt per E-Mail." }); setStand(s); zeigen("raum"); }}
             geaendert={async (t) => { setMeldung({ art: "info", text: t }); if (await ndaHolen()) { setGelesen(false); zeigen("vereinbarung"); } }}
-            abgelaufen={() => { setStand(null); zeigen("code"); setMeldung({ art: "info", text: "Bitte melden Sie sich erneut an." }); }} />
+            abgelaufen={abgelaufen} />
         )}
         {ansicht === "raum" && stand && (
           <Raum stand={stand} abmelden={abmelden}
@@ -189,7 +209,7 @@ export default function DatenraumZugang() {
       </main>
       <footer className="drg-fuss">
         <span>FIAON LTD · 128 City Road, London EC1V 2NX</span>
-        <span><a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a></span>
+        <span><a href="/impressum">Impressum</a> · <a href="/datenschutz#datenraum">Datenschutz</a></span>
       </footer>
     </div>
   );
@@ -208,7 +228,8 @@ function CodeEingabe({ weiter, fehler }: { weiter: (s: Stand) => Promise<void>; 
     if (r.j?.ok) await weiter(r.j as Stand); else fehler(r.j?.error || "Der Code ließ sich nicht prüfen.");
   };
   return (
-    <section>
+    <section className="drg-eintritt">
+      <span className="drg-eintritt-schloss" aria-hidden="true"><Schloss /></span>
       <p className="drg-auge">Persönliche Einladung</p>
       <h1>Willkommen im Datenraum.</h1>
       <p className="drg-lead">Bitte geben Sie Ihren Einladungscode ein. Sie finden ihn in Ihrer Einladung.</p>
@@ -226,25 +247,38 @@ function CodeEingabe({ weiter, fehler }: { weiter: (s: Stand) => Promise<void>; 
 }
 
 // ── Schritt 1: Angaben ─────────────────────────────────────────────────────
-function Angaben({ gast, raumTitel, projekte, fertig, abgelaufen }: {
-  gast: DrGastAngaben; raumTitel: string; projekte: Projekt[]; fertig: (n: Nda) => void; abgelaufen: () => void;
+function Angaben({ gast, raumTitel, projekte, fertig, gespeichert, abgelaufen }: {
+  gast: GastStand; raumTitel: string; projekte: Projekt[]; fertig: (n: Nda, gast: GastStand | null) => void; gespeichert: (gast: GastStand | null) => void; abgelaufen: () => void;
 }) {
   const [w, setW] = useState<DrGastAngaben>(() => ({ ...DR_GAST_LEER, ...gast }));
   const [fehler, setFehler] = useState<Partial<Record<keyof DrGastAngaben, string>>>({});
-  const [satz, setSatz] = useState<string | null>(null);
+  const [satz, setSatz] = useState<{ text: string; art: "schlecht" | "info" } | null>(null);
   const [laeuft, setLaeuft] = useState(false);
-  const setze = (k: keyof DrGastAngaben, v: string) => { setW((x) => ({ ...x, [k]: v })); if (fehler[k]) setFehler((f) => ({ ...f, [k]: undefined })); };
+  // Eine andere E-Mail als die der Einladung: Der Server schickt einen Code an genau diese Adresse.
+  const [codeFeld, setCodeFeld] = useState(false);
+  const [emailCode, setEmailCode] = useState("");
+  const setze = (k: keyof DrGastAngaben, v: string) => {
+    setW((x) => ({ ...x, [k]: v }));
+    if (fehler[k]) setFehler((f) => ({ ...f, [k]: undefined }));
+    if (k === "email") { setCodeFeld(false); setEmailCode(""); }
+  };
   const senden = async (e: React.FormEvent) => {
     e.preventDefault();
     if (laeuft) return;
     setLaeuft(true); setSatz(null);
-    const r = await ruf("/angaben", { angaben: w });
+    const r = await ruf("/angaben", { angaben: w, ...(codeFeld && emailCode.trim() ? { emailCode: emailCode.trim() } : {}) });
     setLaeuft(false);
     if (r.status === 401) return abgelaufen();
-    if (r.j?.ok && r.j.nda) return fertig(r.j.nda as Nda);
-    if (r.j?.ok) { setSatz(r.j.hinweis || "Ihre Angaben sind gespeichert. Die Vereinbarung ist gerade nicht verfügbar — bitte versuchen Sie es etwas später noch einmal."); return; }
+    if (r.j?.ok && r.j.nda) return fertig(r.j.nda as Nda, (r.j.gast as GastStand) ?? null);
+    if (r.j?.ok) { gespeichert((r.j.gast as GastStand) ?? null); setSatz({ art: "info", text: r.j.hinweis || "Ihre Angaben sind gespeichert. Die Vereinbarung ist gerade nicht verfügbar — bitte versuchen Sie es etwas später noch einmal." }); return; }
+    if (r.j?.code === "EMAIL_CODE" || r.j?.code === "EMAIL_CODE_FALSCH") {
+      setCodeFeld(true);
+      setSatz({ art: r.j.code === "EMAIL_CODE" ? "info" : "schlecht", text: r.j.error });
+      window.setTimeout(() => (document.querySelector('[data-fiaon="dr-email-code"]') as HTMLInputElement | null)?.focus(), 30);
+      return;
+    }
     setFehler((r.j?.fehler ?? {}) as Partial<Record<keyof DrGastAngaben, string>>);
-    setSatz(r.j?.error || "Bitte prüfen Sie Ihre Angaben.");
+    setSatz({ art: "schlecht", text: r.j?.error || "Bitte prüfen Sie Ihre Angaben." });
     window.setTimeout(() => (document.querySelector(".drg-feld.fehlt input") as HTMLInputElement | null)?.focus(), 30);
   };
   const feld = (k: keyof DrGastAngaben, klasse: string, opt: { typ?: string; auto?: string; pflicht?: boolean; liste?: string; modus?: React.HTMLAttributes<HTMLInputElement>["inputMode"] } = {}) => (
@@ -278,17 +312,26 @@ function Angaben({ gast, raumTitel, projekte, fertig, abgelaufen }: {
           {feld("ort", "drg-s2", { auto: "address-level2" })}
           {feld("land", "drg-s2", { auto: "country-name", liste: "drg-laender" })}
           {feld("email", "drg-s3", { typ: "email", auto: "email", modus: "email" })}
-          {feld("telefon", "drg-s3", { typ: "tel", auto: "tel", modus: "tel" })}
+          {feld("telefon", "drg-s3", { typ: "tel", auto: "tel", modus: "tel", pflicht: false })}
+          {codeFeld && (
+            <label className={`drg-feld drg-s6${satz?.art === "schlecht" ? " fehlt" : ""}`}>
+              <span>Bestätigungscode aus der E-Mail an {w.email}</span>
+              <input value={emailCode} onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code"
+                placeholder="6 Ziffern" maxLength={6} data-fiaon="dr-email-code" />
+              <span className="drg-fein" style={{ margin: 0 }}>Kein Code angekommen? Feld leer lassen und erneut auf „Weiter“ — dann kommt ein neuer.</span>
+            </label>
+          )}
           <label className={`drg-feld drg-s6${fehler.weitergabe ? " fehlt" : ""}`}>
             <span>{DR_FELD_TEXT.weitergabe}<em> · optional</em></span>
-            <input value={w.weitergabe} onChange={(e) => setze("weitergabe", e.target.value)} maxLength={300} data-fiaon="dr-weitergabe" />
-            <span className="drg-fein" style={{ margin: 0 }}>Nur ausfüllen, wenn Informationen zu den Themen schon an andere gingen als an Ihre Mitarbeitenden oder Berater (§ 8). Sonst leer lassen.</span>
+            <input value={w.weitergabe} onChange={(e) => setze("weitergabe", e.target.value)} maxLength={600} data-fiaon="dr-weitergabe" placeholder="leer lassen, wenn niemand" />
+            {fehler.weitergabe && <small>{fehler.weitergabe}</small>}
+            <span className="drg-fein" style={{ margin: 0 }}>Nur ausfüllen, wenn Informationen zu den Themen schon an andere gingen als an Ihre Mitarbeitenden oder Berater. Die Namen stehen dann in Anlage 1 (§ 8).</span>
           </label>
         </div>
         <datalist id="drg-laender">{DR_LAENDER.map((l) => <option key={l} value={l} />)}</datalist>
-        {satz && <p className="drg-meldung schlecht" role="alert">{satz}</p>}
-        <div className="drg-knoepfe"><button type="submit" className="drg-knopf breit" disabled={laeuft} data-fiaon="dr-angaben-weiter">{laeuft ? "Wird gespeichert …" : "Weiter zur Vereinbarung"}</button></div>
-        <p className="drg-fein">Ihre Angaben nutzen wir nur für diese Vereinbarung und den Datenraum.</p>
+        {satz && <p className={`drg-meldung ${satz.art === "schlecht" ? "schlecht" : ""}`} role={satz.art === "schlecht" ? "alert" : "status"}>{satz.text}</p>}
+        <div className="drg-knoepfe"><button type="submit" className="drg-knopf breit" disabled={laeuft || (codeFeld && emailCode.length > 0 && emailCode.length < 6)} data-fiaon="dr-angaben-weiter">{laeuft ? "Wird gespeichert …" : "Weiter zur Vereinbarung"}</button></div>
+        <p className="drg-fein">Ihre Angaben nutzen wir nur für diese Vereinbarung und den Datenraum — <a href="/datenschutz#datenraum" target="_blank" rel="noopener">Datenschutz</a>.</p>
       </form>
     </section>
   );
@@ -332,6 +375,12 @@ function Vereinbarung({ bloecke }: { bloecke: DrNdaBlock[] }) {
               {b.liste.map((t) => <div key={t.bu} className="drg-thema"><span className="bu">{t.bu}</span><span><b>{t.titel}</b> – {t.text}</span></div>)}
             </div>
           );
+          case "anlage": return (
+            <div key={i} className="drg-anlage">
+              <h3><span className="nr">{b.nr}</span>{b.titel}</h3>
+              {b.zeilen.map((z, j) => <p key={j}>{z}</p>)}
+            </div>
+          );
           default: return null;
         }
       })}
@@ -340,15 +389,20 @@ function Vereinbarung({ bloecke }: { bloecke: DrNdaBlock[] }) {
 }
 
 // ── Schritt 3: Unterschrift ────────────────────────────────────────────────
-function Unterschrift({ gast, nda, gelesen, zurueck, fertig, geaendert, abgelaufen }: {
-  gast: DrGastAngaben; nda: Nda; gelesen: boolean; zurueck: () => void; fertig: (s: Stand) => void; geaendert: (t: string) => void; abgelaufen: () => void;
+function Unterschrift({ nda, gelesen, zurueck, fertig, geaendert, abgelaufen }: {
+  nda: Nda; gelesen: boolean; zurueck: () => void; fertig: (s: Stand) => void; geaendert: (t: string) => void; abgelaufen: () => void;
 }) {
   const [png, setPng] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [laeuft, setLaeuft] = useState(false);
   const [satz, setSatz] = useState<string | null>(null);
-  const soll = drVollName(gast);
-  const namePasst = drNamePasst(name, gast);
+  // Partei 3 genau so, wie sie in DIESER Vereinbarung steht (dieselbe Quelle wie der Text darüber).
+  const partei3 = nda.bloecke.find((b): b is Extract<DrNdaBlock, { art: "partei" }> => b.art === "partei" && b.nr === "Partei 3");
+  const p3Name = (partei3?.name ?? "").replace(/^(Herr|Frau)\s+/, "");
+  const teile = p3Name.trim().split(/\s+/);
+  const p3 = { vorname: teile.slice(0, -1).join(" ") || teile[0] || "", nachname: teile.length > 1 ? teile[teile.length - 1] : "" };
+  const soll = p3Name.trim();
+  const namePasst = !!soll && drNamePasst(name, p3);
   const themen = nda.bloecke.filter((b): b is Extract<DrNdaBlock, { art: "thema" }> => b.art === "thema");
   const unterzeichnen = async () => {
     if (!png || !namePasst || laeuft) return;
@@ -366,7 +420,7 @@ function Unterschrift({ gast, nda, gelesen, zurueck, fertig, geaendert, abgelauf
       <h1>Ihre Unterschrift.</h1>
       <p className="drg-lead">Zeichnen Sie im Feld und tragen Sie Ihren vollen Namen ein. Danach ist Ihr Datenraum sofort geöffnet.</p>
       <dl className="drg-zusammen">
-        <div><dt>Partei 3</dt><dd>{drAnredeName(gast)}{gast.firma ? ` · ${gast.firma}` : ""}</dd></div>
+        <div><dt>Partei 3</dt><dd>{partei3?.name ?? ""}</dd></div>
         <div><dt>Themen</dt><dd>{themen.map((t) => `${t.bu} · ${t.titel}`).join(", ")}</dd></div>
         <div><dt>Fassung</dt><dd>{nda.fassung}</dd></div>
       </dl>
@@ -378,9 +432,9 @@ function Unterschrift({ gast, nda, gelesen, zurueck, fertig, geaendert, abgelauf
         <label className={`drg-feld${name && !namePasst ? " fehlt" : ""}`}>
           <span>Ihr voller Name</span>
           <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder={soll} maxLength={160} disabled={laeuft} data-fiaon="dr-name" />
-          {name && !namePasst && <small>Bitte so eintragen, wie Sie in der Vereinbarung stehen: {soll}.</small>}
+          {name && !namePasst && <small>Bitte genau so eintragen, wie Sie in der Vereinbarung stehen: {soll}.</small>}
         </label>
-        <p className="drg-hinweis">Sie unterzeichnen mit einer einfachen elektronischen Unterschrift. Gespeichert werden Ihre Zeichnung, Ihr Name, Zeitpunkt, IP-Adresse und Browser sowie die Prüfsumme des Wortlauts. Die FIAON-Seite nimmt die Vereinbarung mit der Freischaltung des Datenraums an.</p>
+        <p className="drg-hinweis">Sie unterzeichnen mit einer einfachen elektronischen Unterschrift. Gespeichert werden Ihre Zeichnung, Ihr Name, Zeitpunkt, IP-Adresse und Browser sowie der Wortlaut mit seiner Prüfsumme. Die FIAON-Seite nimmt die Vereinbarung mit der Freischaltung des Datenraums an.</p>
         {satz && <p className="drg-meldung schlecht" role="alert">{satz}</p>}
         <div className="drg-knoepfe">
           <button type="button" className="drg-knopf breit" disabled={!png || !namePasst || !gelesen || laeuft} onClick={() => void unterzeichnen()} data-fiaon="dr-unterzeichnen">
@@ -395,6 +449,8 @@ function Unterschrift({ gast, nda, gelesen, zurueck, fertig, geaendert, abgelauf
 }
 
 const TINTE = "#12284a";
+/** Höchstens so groß schickt die Seite die Zeichnung (der Server nimmt bis 2400 × 1000 Punkte und 300 KB an). */
+const BILD_MAX = { breite: 2000, hoehe: 800 } as const;
 /** Zeichenfeld: Finger, Stift, Maus (Pointer-Ereignisse), scharf auf jedem Bildschirm; meldet ein zugeschnittenes PNG. */
 function Zeichenfeld({ melden, gesperrt }: { melden: (png: string | null) => void; gesperrt: boolean }) {
   const feld = useRef<HTMLDivElement | null>(null);
@@ -430,7 +486,7 @@ function Zeichenfeld({ melden, gesperrt }: { melden: (png: string | null) => voi
     return () => ro.disconnect();
   }, [groesse]);
 
-  /** Zugeschnitten auf die Tinte (mit Rand), damit die Unterschrift im PDF groß und klar steht. */
+  /** Zugeschnitten auf die Tinte (mit Rand) und höchstens BILD_MAX groß, damit die Unterschrift im PDF groß und klar steht. */
   const bild = (): string | null => {
     const { w, h, dpr } = masse.current;
     let laenge = 0; let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
@@ -444,9 +500,10 @@ function Zeichenfeld({ melden, gesperrt }: { melden: (png: string | null) => voi
     const bx = Math.max(0, x0 - rand); const by = Math.max(0, y0 - rand);
     const bw = Math.min(w, x1 + rand) - bx; const bh = Math.min(h, y1 + rand) - by;
     const breite = Math.max(160, bw); const hoehe = Math.max(60, bh);
+    const f = Math.min(1, BILD_MAX.breite / (breite * dpr), BILD_MAX.hoehe / (hoehe * dpr));
     try {
-      const z = document.createElement("canvas"); z.width = Math.round(breite * dpr); z.height = Math.round(hoehe * dpr);
-      z.getContext("2d")!.drawImage(cv.current, Math.round(bx * dpr), Math.round(by * dpr), Math.round(bw * dpr), Math.round(bh * dpr), 0, 0, Math.round(bw * dpr), Math.round(bh * dpr));
+      const z = document.createElement("canvas"); z.width = Math.round(breite * dpr * f); z.height = Math.round(hoehe * dpr * f);
+      z.getContext("2d")!.drawImage(cv.current, Math.round(bx * dpr), Math.round(by * dpr), Math.round(bw * dpr), Math.round(bh * dpr), 0, 0, Math.round(bw * dpr * f), Math.round(bh * dpr * f));
       return z.toDataURL("image/png");
     } catch { return null; }
   };
@@ -509,16 +566,18 @@ function Raum({ stand, abmelden, nachtrag }: { stand: Stand; abmelden: () => voi
         <span className="gruen"><Haken />Vereinbarung unterzeichnet{stand.nda ? ` am ${zeitText(stand.nda.unterzeichnetAm)}` : ""}</span>
         <a href={`${API}/nda.pdf`} target="_blank" rel="noopener">Ihr Exemplar (PDF)</a>
       </div>
-      <p className="drg-fein">Alle Unterlagen sind vertraulich und tragen Ihren Namen. Jede Ansicht wird protokolliert.</p>
+      <p className="drg-fein">Alle Unterlagen sind vertraulich; jede PDF-Seite trägt Ihren Namen und eine Vorgangsnummer. Jeder Abruf wird protokolliert.</p>
       {stand.nachtrag && (
         <div className="drg-nachtrag">
-          <p>Zu einem weiteren Thema liegen Unterlagen bereit. Dafür ergänzen wir Ihre Vereinbarung um dieses Thema.</p>
+          <p>Zu einem weiteren oder genauer beschriebenen Thema liegen Unterlagen bereit. Dafür ergänzen wir Ihre Vereinbarung.</p>
           <button type="button" className="drg-knopf klein" onClick={nachtrag}>Ergänzte Vereinbarung ansehen</button>
         </div>
       )}
       {offen.length === 0 && <p className="drg-meldung">Die Unterlagen werden gerade eingestellt. Bitte schauen Sie etwas später wieder vorbei.</p>}
       {offen.map((p) => {
         const auf = !zu[p.buchstabe];
+        // Die eigenen Nummern der Unterlagen (00, 01 …) — die Projektübersicht verweist darauf. Nur ohne Nummern zählt die Position.
+        const mitNummer = p.dokumente.some((d) => d.nr > 0);
         return (
           <section key={p.buchstabe} className="drg-ordner" data-fiaon="dr-ordner">
             <button type="button" className="drg-ordner-kopf" aria-expanded={auf} onClick={() => setZu((z) => ({ ...z, [p.buchstabe]: auf }))}>
@@ -530,7 +589,7 @@ function Raum({ stand, abmelden, nachtrag }: { stand: Stand; abmelden: () => voi
               <ol>
                 {p.dokumente.map((d, i) => (
                   <li key={d.kennung} className="drg-dok">
-                    <span className="nr">{zweistellig(i + 1)}</span>
+                    <span className="nr">{zweistellig(mitNummer ? d.nr : i + 1)}</span>
                     <div>
                       <b>{d.titel}</b>
                       {d.beschreibung && <p>{d.beschreibung}</p>}

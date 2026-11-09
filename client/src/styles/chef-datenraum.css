@@ -50,3 +50,14 @@
   .dr-dok-wege { grid-column: 2; justify-content: flex-start; }
   .dr-protokoll li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* Nachbesserung 09.11.2026: Freigabe der Vereinbarung, Ordner hochladen (Plan), Hinweise in Rot, Unterlage bearbeiten. */
+.dr-freigabe { border-color: rgba(250, 204, 21, .32) !important; }
+.dr-freigabe.frei { border-color: rgba(74, 222, 128, .28) !important; }
+.gp-marke.dr-status-eingeladen { color: #fde68a; background: rgba(113, 63, 18, .3); border-color: rgba(250, 204, 21, .3); }
+.dr-hinweis-rot { margin: 4px 0 0; padding: 7px 10px; border-radius: 9px; font-size: 12.5px; color: #fecaca; background: rgba(127, 29, 29, .26); border: 1px solid rgba(248, 113, 113, .3); }
+.dr-plan { display: grid; gap: 10px; }
+.dr-dok-edit .gp-raster { margin: 0; }
+.dr-p-alarm_bremse .dr-p-was b, .dr-p-gebremst_dokument .dr-p-was b, .dr-p-gebremst_unterschrift .dr-p-was b, .dr-p-angaben_abgewiesen .dr-p-was b { color: #fca5a5; }
+.dr-p-nda_freigegeben .dr-p-was b, .dr-p-email_bestaetigt .dr-p-was b { color: #86efac; }
+.dr-p-chef_angesehen .dr-p-was b, .dr-p-chef_nda .dr-p-was b, .dr-p-chef_vorschau .dr-p-was b { color: #bfdbfe; }

@@ -24,6 +24,11 @@
 // Gesellschaften mit Projektkontakten) sind Zusätze des Raums oder der Projekte;
 // fehlen sie, stehen allgemeine Sätze da. Schreibweise wie die Vorlage: Schweizer
 // Rechtschreibung (ss statt ß).
+// Nachbesserung (Gutachten 09.11.2026): Freitext des Gastes wird nie Vertragstext.
+// Das Feld der Papierfassung in § 8 Abs. 1 („ausser an: …“) ist hier fest
+// formuliert („… ausser an die in Anlage 1 genannten Empfänger“); die Angabe des
+// Gastes steht als Liste von Namen in Anlage 1. Namen, Firma, Funktion und Anschrift
+// lassen nur Zeichen zu, die in einen Namen gehören (kein §, kein *, kein ; oder :).
 //
 // ── FASSUNG ───────────────────────────────────────────────────────────────
 // Wer einen Satz ändert, erhöht NDA_FASSUNG. Der Prüfstand rechnet die
@@ -33,8 +38,10 @@
 import { emailSauber, telefonSauber, zeile } from "./fiaon-partner-crm";
 
 /** Stand des Wortlauts. Jede Änderung am Text erhöht die Nummer hinter dem Punkt (oder das Datum). */
-export const NDA_FASSUNG = "2026-11-09.1";
+export const NDA_FASSUNG = "2026-11-09.2";
 export const NDA_TITEL = "Vertraulichkeits- und Nichtumgehungsvereinbarung";
+/** Der Satz am Häkchen vor der Unterschrift — Seite, Speicherung und PDF-Nachweis nutzen genau diesen Wortlaut. */
+export const DR_ZUSTIMMUNG = "Ich habe die Vereinbarung gelesen und bin einverstanden.";
 
 /** Die FIAON-Seite — fest. Ansprechpartner für Zustimmungen und Mitteilungen (§ 9) und für Fragen im Raum. */
 export const NDA_FIAON = {
@@ -65,15 +72,19 @@ export interface DrGastAngaben {
   land: string;
   email: string;
   telefon: string;
-  /** § 8 Abs. 1: an wen vor der Unterzeichnung schon Informationen gingen (ausser Personen nach § 3 Abs. 2) — freiwillig. */
+  /**
+   * § 8 Abs. 1 / Anlage 1: an wen vor der Unterzeichnung schon Informationen gingen (ausser Personen nach § 3 Abs. 2) —
+   * freiwillig, NUR eine Liste von Namen oder Firmen (getrennt mit „;“), nie Vertragstext.
+   */
   weitergabe: string;
 }
 export const DR_GAST_LEER: DrGastAngaben = { anrede: "", vorname: "", nachname: "", firma: "", funktion: "", strasse: "", plz: "", ort: "", land: "", email: "", telefon: "", weitergabe: "" };
-export const DR_PFLICHT: (keyof DrGastAngaben)[] = ["vorname", "nachname", "strasse", "plz", "ort", "land", "email", "telefon"];
+/** Pflicht für die Vereinbarung. Telefon steht nicht darin (§ 9 nennt nur die E-Mail) — darum freiwillig. */
+export const DR_PFLICHT: (keyof DrGastAngaben)[] = ["vorname", "nachname", "strasse", "plz", "ort", "land", "email"];
 export const DR_FELD_TEXT: Record<keyof DrGastAngaben, string> = {
   anrede: "Anrede", vorname: "Vorname", nachname: "Nachname", firma: "Firma mit Rechtsform", funktion: "Ihre Funktion",
   strasse: "Straße und Hausnummer", plz: "PLZ", ort: "Ort", land: "Land", email: "E-Mail", telefon: "Telefon",
-  weitergabe: "Vor der Unterzeichnung schon weitergegeben an",
+  weitergabe: "Vor der Unterzeichnung schon weitergegeben an (Namen, mit ; getrennt)",
 };
 /** Vorschläge im Feld „Land“ — frei eintragbar bleibt es. */
 export const DR_LAENDER = [
@@ -116,7 +127,8 @@ export type DrNdaBlock =
   | { art: "paragraf"; nr: string; titel: string }
   | { art: "abs"; z: string; text: string }
   | { art: "punkt"; z: string; text: string }
-  | { art: "thema"; bu: string; titel: string; text: string };
+  | { art: "thema"; bu: string; titel: string; text: string }
+  | { art: "anlage"; nr: string; titel: string; zeilen: string[] };
 
 // ── Kleine Sprachhelfer ────────────────────────────────────────────────────
 const MONATE = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
@@ -167,7 +179,7 @@ export function drBriefAnrede(g: Pick<DrGastAngaben, "anrede" | "vorname" | "nac
   return g.anrede === "herr" ? `Sehr geehrter Herr ${n},` : g.anrede === "frau" ? `Sehr geehrte Frau ${n},` : `Guten Tag ${drVollName(g)},`;
 }
 /**
- * „die Zielgesellschaft“, „die App-Gesellschaft“ → „Ziel- und App-Gesellschaft“ (Ergänzungsstrich wie in der Papierfassung);
+ * „die Zielgesellschaft“, „die Beta-Gesellschaft“ → „Ziel- und Beta-Gesellschaft“ (Ergänzungsstrich wie in der Papierfassung);
  * enden nicht alle auf „Gesellschaft“, die Namen ohne Artikel, aufgezählt.
  */
 function welcheSind(namen: string[]): string {
@@ -214,7 +226,7 @@ export function drNdaBloecke(e: DrNdaEingabe): DrNdaBlock[] {
     : kb.length === 1 ? `die Projektkontakte zu ${kb[0]} gelten als ein Kontakt`
       : `die Projektkontakte zu ${kb[0]}${kb.slice(1, -1).map((b) => `, die zu ${b}`).join("")} und die zu ${kb[kb.length - 1]} gelten jeweils als ein Kontakt`;
   const benanntVon = dat ? `von ${dat}` : "von Partei 3";
-  const weitergabe = ohneSchluss(zeile(g.weitergabe ?? "", 300));
+  const weitergabe = drWeitergabeListe(g.weitergabe);
 
   const b: DrNdaBlock[] = [];
   b.push({ art: "auge", text: `Gegenseitige Vereinbarung (NDA) · ${n === 1 ? "Thema" : "Themen"} ${drAufzaehlung(buchstaben)}` });
@@ -285,7 +297,8 @@ export function drNdaBloecke(e: DrNdaEingabe): DrNdaBlock[] {
 
   b.push({ art: "paragraf", nr: "§ 8", titel: "Inkrafttreten und Dauer" });
   // Elektronisch statt drei Unterschriften: Partei 3 unterzeichnet im Datenraum, die FIAON-Seite nimmt mit der Freischaltung an.
-  b.push({ art: "abs", z: "(1)", text: `Diese Vereinbarung tritt in Kraft, sobald Partei 3 sie im Online-Datenraum der FIAON-Seite elektronisch unterzeichnet und die FIAON-Seite sie durch die Freischaltung des Datenraums für Partei 3 angenommen hat; die Freischaltung gilt als Unterzeichnung durch die Parteien 1 und 2. Sie gilt auch für zuvor ausgetauschte Informationen (§ 2 Abs. 1). Jede Seite bestätigt, vor Unterzeichnung erhaltene Informationen nur an Personen nach § 3 Abs. 2 weitergegeben zu haben${weitergabe ? `, ausser an: ${weitergabe}; diese gelten als ihre Empfänger nach § 3` : ""}.` });
+  // Das Feld der Papierfassung („ausser an: …“) ist fest formuliert — die Namen stehen in Anlage 1, nie als Freitext im Satz.
+  b.push({ art: "abs", z: "(1)", text: "Diese Vereinbarung tritt in Kraft, sobald Partei 3 sie im Online-Datenraum der FIAON-Seite elektronisch unterzeichnet und die FIAON-Seite sie durch die Freischaltung des Datenraums für Partei 3 angenommen hat; die Freischaltung gilt als Unterzeichnung durch die Parteien 1 und 2. Sie gilt auch für zuvor ausgetauschte Informationen (§ 2 Abs. 1). Jede Seite bestätigt, vor Unterzeichnung erhaltene Informationen nur an Personen nach § 3 Abs. 2 weitergegeben zu haben, ausser an die in Anlage 1 genannten Empfänger; diese gelten als ihre Empfänger nach § 3." });
   b.push({ art: "abs", z: "(2)", text: `Die Vertraulichkeit gilt drei Jahre ab der letzten Offenlegung vertraulicher Informationen zum jeweiligen Thema; für Geschäftsgeheimnisse, Analysen und Berichte ${zuUnd} gilt sie, solange diese nicht öffentlich bekannt sind; die Nichtumgehung gilt nach § 4 Abs. 2. Das Ende der Gespräche oder die Rückgabe von Informationen berührt diese Fristen nicht. Regelt ein später unterzeichneter Vertrag zu einem Thema die Vertraulichkeit, geht er insoweit vor.` });
 
   b.push({ art: "paragraf", nr: "§ 9", titel: "Mitteilungen und Zustimmungen" });
@@ -297,7 +310,23 @@ export function drNdaBloecke(e: DrNdaEingabe): DrNdaBlock[] {
   b.push({ art: "abs", z: "(3)", text: "Ist eine Bestimmung unwirksam, bleibt der Rest wirksam; an ihre Stelle tritt eine wirksame Regelung, die dem Gewollten am nächsten kommt." });
   b.push({ art: "abs", z: "(4)", text: "Rechte und Pflichten aus dieser Vereinbarung dürfen nur mit vorheriger Zustimmung der anderen Seite (§ 9) abgetreten oder übertragen werden. Eine von einer Partei beherrschte Gesellschaft, über die ein Thema umgesetzt wird, kann der Vereinbarung auf deren Seite durch schriftliche Erklärung (Scan genügt) beitreten; die Parteien stimmen dem schon jetzt zu." });
   b.push({ art: "abs", z: "(5)", text: "Diese Vereinbarung und ihre Änderungen können in Gegenstücken unterzeichnet werden. Eingescannte, über eine gängige Signaturplattform oder im Online-Datenraum der FIAON-Seite elektronisch unterzeichnete Exemplare gelten als Original und wahren die Schriftform." });
+
+  // Anlage 1 — nur eine Liste von Namen (geprüft in drGastAngabenPruefen), nie ein Satz des Gastes.
+  b.push({
+    art: "anlage", nr: "Anlage 1", titel: "Empfänger vor Unterzeichnung (§ 8 Abs. 1)",
+    zeilen: [weitergabe.length ? `Die ${seite} nennt: ${weitergabe.join("; ")}.` : `Die ${seite} nennt keine.`],
+  });
   return b;
+}
+
+/** „Muster AG; Erika Beispiel“ (oder mit Zeilenumbrüchen) → ["Muster AG", "Erika Beispiel"] — höchstens zehn Namen. */
+export function drWeitergabeListe(roh: unknown): string[] {
+  return String(roh ?? "").split(/[;\n\r]+/).map((x) => zeile(x, 120).replace(/[\s.,]+$/g, "")).filter(Boolean).slice(0, 10);
+}
+
+/** Der Teil eines Projekts, der in der Vereinbarung steht — der Server bildet daraus die Prüfsumme, die eine Vereinbarung deckt. */
+export function drProjektKanon(p: DrNdaProjekt): string {
+  return JSON.stringify([zeile(p.buchstabe, 4), zeile(p.titel, 200), ohneSchluss(p.text), zeile(p.geschuetzt ?? "", 400)]);
 }
 
 /** Wie Partei 3 unterschreibt (Zeile unter der Unterschrift): „persönlich, für <Firma> und die von ihm benannten Gesellschaften“. */
@@ -326,28 +355,65 @@ export function drFettStuecke(text: string): { text: string; fett: boolean }[] {
 
 // ── Die Angaben des Gastes prüfen ──────────────────────────────────────────
 // Als RegExp-Objekt wie in fiaon-anrede.ts: TypeScript prüft Literale mit „u“ gegen das Sprachziel.
+// Nachbesserung (Gutachten 09.11.2026): Was der Gast einträgt, steht wörtlich in der Vereinbarung, die ohne
+// menschlichen Blick gilt. Darum lässt jedes Feld nur zu, was in einen Namen, eine Firma oder eine Anschrift
+// gehört — kein „§“, kein „*“ (Fettschrift), kein „;“ oder „:“ (Satzbau), keine Anführungszeichen. Nur lateinische
+// Schrift: Die PDF-Schrift kann anderes nicht darstellen (Buchstaben wie „Ł“ oder „č“ stehen dort ohne Akzent).
 const BUCHSTABE = new RegExp("\\p{L}", "u");
+const NICHT_BUCHSTABE = new RegExp("[^\\p{L}]", "gu");
+const LATEIN = new RegExp("^[\\p{Script=Latin}\\p{Script=Common}\\p{Script=Inherited}]*$", "u");
+/** Vor- und Nachname: Buchstaben, Leerzeichen, Bindestrich, Apostroph, Punkt (Dr.). */
+const NAME = new RegExp("^\\p{L}(?:[\\p{L}\\p{M} .'’-]*[\\p{L}\\p{M}.])?$", "u");
+/** Ort und Land: dazu Ziffern, Klammern und Schrägstrich („Frankfurt (Oder)“). */
+const ORT = new RegExp("^\\p{L}[\\p{L}\\p{M}0-9 .'’()/-]*$", "u");
+/** Straße: Buchstaben, Ziffern und was eine Anschrift braucht („Rue de l’Église 12/3“, „Am Hof 1–3“). */
+const STRASSE = new RegExp("^[\\p{L}\\p{M}0-9][\\p{L}\\p{M}0-9 .,'’()/&+–-]*$", "u");
+/** Firma, Funktion, Namen in Anlage 1: kein Zeichen, das Vertragstext bauen oder formatieren könnte. */
+const FREMD = /[§*_~`<>{}[\]|\\^=;:#@$%"„“”]|https?:|www\./i;
+const ZEICHEN_SATZ = "Bitte ohne Sonderzeichen wie § * ; : oder Anführungszeichen.";
+/** Wörter, die in keinen Namen gehören, wohl aber in Vertragstext (Firma, Funktion, Anlage 1). */
+const VERTRAGSWORT = /\b(partei|parteien|vereinbarung|konventionalstrafe|strafe|haftung|haftet|haften|schuldet|schulden|abweichend|ausgeschlossen|entf[aä]llt|verzicht\w*|gilt|gelten|paragraph|paragraf|absatz|vorbehalt\w*)\b/i;
+/** Ein Name in Anlage 1: höchstens sieben Wörter mit Buchstaben — „Muster & Partner – Beratung & Bewertung“ hat vier. */
+const zuVieleWoerter = (s: string) => s.split(/\s+/).filter((w) => BUCHSTABE.test(w)).length > 7;
 /** Prüft und säubert die Angaben. Fehler je Feld im Klartext (Sie). */
 export function drGastAngabenPruefen(roh: unknown): { ok: true; wert: DrGastAngaben } | { ok: false; fehler: Partial<Record<keyof DrGastAngaben, string>> } {
   const r = (roh && typeof roh === "object" ? roh : {}) as Record<string, unknown>;
   const anrede: DrAnrede = r.anrede === "herr" || r.anrede === "frau" ? r.anrede : "";
+  const telRoh = zeile(r.telefon, 40);
+  const liste = drWeitergabeListe(r.weitergabe);
   const w: DrGastAngaben = {
     anrede,
     vorname: zeile(r.vorname, 80), nachname: zeile(r.nachname, 80),
     firma: zeile(r.firma, 160), funktion: zeile(r.funktion, 80),
     strasse: zeile(r.strasse, 120), plz: zeile(r.plz, 12).toUpperCase(), ort: zeile(r.ort, 80), land: zeile(r.land, 60),
-    email: emailSauber(r.email), telefon: telefonSauber(r.telefon), weitergabe: zeile(r.weitergabe, 300),
+    email: emailSauber(r.email), telefon: telefonSauber(telRoh), weitergabe: liste.join("; "),
   };
   const f: Partial<Record<keyof DrGastAngaben, string>> = {};
   if (!w.vorname || !BUCHSTABE.test(w.vorname)) f.vorname = "Bitte Ihren Vornamen angeben.";
-  if (!w.nachname || w.nachname.length < 2 || !BUCHSTABE.test(w.nachname)) f.nachname = "Bitte Ihren Nachnamen angeben.";
-  if (w.strasse.length < 3) f.strasse = "Bitte Straße und Hausnummer angeben.";
+  else if (!NAME.test(w.vorname)) f.vorname = "Bitte nur Buchstaben, Leerzeichen, Bindestrich oder Punkt.";
+  if (!w.nachname || w.nachname.replace(NICHT_BUCHSTABE, "").length < 2) f.nachname = "Bitte Ihren Nachnamen angeben.";
+  else if (!NAME.test(w.nachname)) f.nachname = "Bitte nur Buchstaben, Leerzeichen, Bindestrich oder Punkt.";
+  if (w.strasse.length < 3 || !BUCHSTABE.test(w.strasse)) f.strasse = "Bitte Straße und Hausnummer angeben.";
+  else if (!STRASSE.test(w.strasse)) f.strasse = ZEICHEN_SATZ;
   if (!/^[A-Z0-9][A-Z0-9 -]{1,11}$/.test(w.plz)) f.plz = "Bitte eine gültige Postleitzahl angeben.";
   if (w.ort.length < 2 || !BUCHSTABE.test(w.ort)) f.ort = "Bitte den Ort angeben.";
+  else if (!ORT.test(w.ort)) f.ort = ZEICHEN_SATZ;
   if (w.land.length < 2 || !BUCHSTABE.test(w.land)) f.land = "Bitte das Land angeben.";
+  else if (!ORT.test(w.land)) f.land = ZEICHEN_SATZ;
   if (!w.email) f.email = "Bitte eine gültige E-Mail-Adresse angeben.";
-  if ((w.telefon.match(/\d/g)?.length ?? 0) < 7) f.telefon = "Bitte eine erreichbare Telefonnummer angeben.";
+  if (telRoh && (w.telefon.match(/\d/g)?.length ?? 0) < 7) f.telefon = "Bitte eine gültige Telefonnummer angeben — oder das Feld leer lassen.";
   if (r.firma != null && zeile(r.firma, 400).length > 160) f.firma = "Bitte höchstens 160 Zeichen.";
+  else if (w.firma && (FREMD.test(w.firma) || !BUCHSTABE.test(w.firma))) f.firma = ZEICHEN_SATZ;
+  else if (w.firma && VERTRAGSWORT.test(w.firma)) f.firma = "Bitte nur den Namen der Firma mit Rechtsform.";
+  if (w.funktion && (FREMD.test(w.funktion) || !BUCHSTABE.test(w.funktion))) f.funktion = ZEICHEN_SATZ;
+  else if (w.funktion && (VERTRAGSWORT.test(w.funktion) || zuVieleWoerter(w.funktion))) f.funktion = "Bitte nur Ihre Funktion, zum Beispiel „Geschäftsführer“.";
+  const rohListe = String(r.weitergabe ?? "").split(/[;\n\r]+/).map((x) => zeile(x, 400)).filter(Boolean);
+  if (rohListe.length > 10) f.weitergabe = "Bitte höchstens zehn Namen.";
+  else if (rohListe.some((x) => x.length > 120)) f.weitergabe = "Bitte nur Namen oder Firmen, je höchstens 120 Zeichen, mit ; getrennt.";
+  else if (liste.some((x) => FREMD.test(x) || !BUCHSTABE.test(x) || VERTRAGSWORT.test(x) || zuVieleWoerter(x))) f.weitergabe = "Bitte nur Namen oder Firmen, mit ; getrennt — ohne Sonderzeichen wie § * : oder Anführungszeichen und ohne Sätze.";
+  for (const k of ["vorname", "nachname", "firma", "funktion", "strasse", "ort", "land", "weitergabe"] as const) {
+    if (!f[k] && !LATEIN.test(w[k])) f[k] = "Bitte in lateinischer Schrift angeben.";
+  }
   return Object.keys(f).length ? { ok: false, fehler: f } : { ok: true, wert: w };
 }
 
@@ -365,12 +431,16 @@ export function drVorbefuellungPruefen(roh: unknown): { ok: true; wert: DrGastAn
   return { ok: true, wert: w };
 }
 
-/** Passt der getippte Name zur Partei 3? Vor- und Nachname müssen darin stehen (ohne Akzente, ohne Groß/Klein). */
+/**
+ * Passt der getippte Name zur Partei 3? Er muss dem vollen Namen GLEICHEN — ohne Akzente, Groß/Klein und Satzzeichen
+ * verglichen, sonst Wort für Wort. „Max Muster unter Vorbehalt …“ ist nicht „Max Muster“ (Gutachten 09.11.2026).
+ */
 export function drNamePasst(getippt: string, g: Pick<DrGastAngaben, "vorname" | "nachname">): boolean {
-  const k = (t: string) => ` ${String(t ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim()} `;
-  const t = k(getippt); const v = k(g.vorname).trim(); const n = k(g.nachname).trim();
-  if (!v || !n) return false;
-  return t.includes(` ${v} `) && t.includes(` ${n} `);
+  const k = (t: string) => String(t ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/ß/g, "ss")
+    .replace(/ł/g, "l").replace(/đ/g, "d").replace(/ø/g, "o").replace(/[^a-z0-9]+/g, " ").trim();
+  const soll = k(`${g.vorname} ${g.nachname}`);
+  if (!k(g.vorname) || !k(g.nachname)) return false;
+  return k(getippt) === soll;
 }
 
 // ── Einladungscodes ────────────────────────────────────────────────────────

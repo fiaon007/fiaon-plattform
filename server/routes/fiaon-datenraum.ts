@@ -6,26 +6,34 @@
 //
 // GAST (öffentlich, Sitzungs-Plätzchen fiaon_dr — signiert, httpOnly, SameSite=Strict, nur /api/fiaon/datenraum):
 //   POST /datenraum/eintreten        { code }                      → Plätzchen + Stand
-//   GET  /datenraum/stand            Schritt, Angaben, Projekte (mit Dokumenten erst nach der Vereinbarung)
-//   POST /datenraum/angaben          Angaben für die Vereinbarung  → Vereinbarung (Blöcke + Prüfsumme)
-//   GET  /datenraum/nda              die Vereinbarung mit den gespeicherten Angaben
+//   GET  /datenraum/stand            Schritt, Angaben, Projekte (Beschreibung und Dokumente erst nach der Vereinbarung)
+//   POST /datenraum/angaben          Angaben (+ emailCode)         → Vereinbarung (Blöcke + Prüfsumme) und die gespeicherten Angaben
+//   GET  /datenraum/nda              die Vereinbarung zum Lesen
+//   GET  /datenraum/nda-entwurf.pdf  die Vereinbarung als Entwurf (zum Gegenlesen, ohne Unterschrift)
 //   POST /datenraum/unterzeichnen    { textHash, gelesen, name, png } → Freischaltung
-//   GET  /datenraum/dokument/:kennung[?laden=1]   ansehen / herunterladen (PDF mit Vermerk)
+//   GET  /datenraum/dokument/:kennung[?laden=1]   ansehen / herunterladen (PDF mit Vermerk + Vorgangsnummer)
 //   GET  /datenraum/nda.pdf          das eigene Exemplar
 //   POST /datenraum/abmelden
 // Jede Anfrage prüft die Sitzung neu (Gast ↔ Raum, Sitzungsstand, gesperrt, Raum offen); Dokumente
-// zusätzlich Vereinbarung, Sichtbarkeit und Thema (drZugriff).
+// zusätzlich Vereinbarung, Sichtbarkeit und Thema (drZugriff). HEAD auf Dokumente: 405 (zählt nie als Ansicht).
 //
-// VERWALTUNG (requireChef("geschaeftsfuehrung") an JEDER Route — Inhaber und Geschäftsführung):
+// VERWALTUNG (requireChef("inhaber") an JEDER Route — Nachbesserung 09.11.2026: der Raum enthält Original-Unterlagen,
+// unterschriebene Vereinbarungen mit Anschrift und Unterschriftsbild und private Beteiligungen; wie die Aufsicht des
+// anderen Datenraums nur für den Inhaber. Erweitern ist eine Zeile — Justins Entscheidung):
 //   GET  /chef/datenraum[?firma=]                 Räume eines Partners + Räume ohne Partner
-//   GET  /chef/datenraum/raum/:id                 die ganze Akte (Projekte, Dokumente, Gäste, Protokoll)
+//   GET  /chef/datenraum/raum/:id                 die ganze Akte (Projekte, Dokumente, Gäste, Protokoll, Freigabe)
 //   POST /chef/datenraum/raum                     anlegen        POST …/raum/:id  ändern (Titel, Partner, Zusätze, archivieren)
+//   GET  /chef/datenraum/raum/:id/vorschau[.pdf][?gast=]   die Vereinbarung, wie der Gast sie sieht (Entwurf)
+//   POST /chef/datenraum/raum/:id/freigeben       { hash } den angesehenen Wortlaut freigeben
 //   POST /chef/datenraum/raum/:id/projekt         Projekt anlegen/ändern ({ id? })   POST …/projekt/:id/entfernen
 //   POST /chef/datenraum/raum/:id/gast            einladen → Code + Link EINMAL
 //   POST /chef/datenraum/gast/:id/code            neuer Code → EINMAL    POST …/gast/:id/sperren { sperren, grund }
-//   POST /chef/datenraum/projekt/:id/dokument     hochladen (multipart „datei“, 25 MB)
+//   POST /chef/datenraum/gast/:id/entwurf         { code } Einladung als Gmail-Entwurf in js@ (nichts wird gesendet)
+//   GET  /chef/datenraum/gast/:id/protokoll.csv   Protokoll des Gastes als Liste
+//   POST /chef/datenraum/projekt/:id/dokument     hochladen (multipart „datei“, 25 MB; titel, beschreibung, nr, sichtbar, quelle)
 //   POST /chef/datenraum/dokument/:id             Titel, Beschreibung, Reihenfolge, sichtbar   POST …/dokument/:id/entfernen
 //   GET  /chef/datenraum/dokument/:id[?laden=1]   Original ansehen   GET /chef/datenraum/nda/:id   unterschriebenes PDF
+//   (jede Ansicht im Chefbüro steht mit Namen im Protokoll des Raums)
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
@@ -33,28 +41,31 @@ import { sqlPool } from "../lib/db-pool";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { DR_DATEI_MAX_BYTES } from "@shared/fiaon-datenraum-nda";
 import {
-  DR_COOKIE, DR_COOKIE_PFAD, DR_SITZUNG_TAGE, DR_AUSLIEFERBAR, drDispositionKopf, drGeheimnis, drTokenBauen, drTokenPruefen,
+  DR_COOKIE, DR_COOKIE_PFAD, DR_SITZUNG_TAGE, DR_AUSLIEFERBAR, drClientIp, drDispositionKopf, drGeheimnis, drTokenBauen, drTokenPruefen,
 } from "../lib/fiaon-datenraum-regeln";
 import {
   DR_TEXTE, drAngabenSpeichern, drDokumentAblegen, drDokumentAendern, drDokumentEntfernen, drDokumentFuerGast, drDokumentLesen,
-  drEintreten, drGastCodeNeu, drGastEinladen, drGastSperren, drNdaFuerGast, drNdaPdfFuerGast, drNdaPdfLesen, drProjektEntfernen,
-  drProjektSpeichern, drProtokoll, drRaeume, drRaumAendern, drRaumAkte, drRaumAnlegen, drSchema, drSitzungGast, drStand, drUnterzeichnen,
+  drEinladungEntwurf, drEintreten, drGastCodeNeu, drGastEinladen, drGastSperren, drNdaEntwurfPdf, drNdaFreigeben, drNdaPdfFuerGast,
+  drNdaPdfLesen, drNdaVorschau, drNdaVorschauPdf, drNdaZeigen, drProjektEntfernen, drProjektSpeichern, drProtokoll, drProtokollCsv,
+  drRaeume, drRaumAendern, drRaumAkte, drRaumAnlegen, drSchema, drSitzungGast, drStand, drUnterzeichnen,
   type DrKontext,
 } from "../lib/fiaon-datenraum";
 
 const router = Router();
-const wache = requireChef("geschaeftsfuehrung");
+const wache = requireChef("inhaber");
 
-const kontext = (req: Request): DrKontext => ({
-  ip: String(req.ip || String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket?.remoteAddress || "").slice(0, 80),
-  ua: String(req.headers["user-agent"] || "").slice(0, 300),
-});
+/** IP des Gastes hinter Cloudflare (cf-connecting-ip nur vom Rand von Cloudflare), rohe Kette, Bremsen-Schlüssel, Browser. */
+const kontext = (req: Request): DrKontext => {
+  const c = drClientIp(req.headers as Record<string, string | string[] | undefined>, req.ip, req.socket?.remoteAddress ?? null);
+  return { ip: c.ip, kette: c.kette, anschluss: c.anschluss, ua: String(req.headers["user-agent"] || "").slice(0, 300) };
+};
 const idAus = (v: unknown) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : 0; };
 function keinSpeicher(res: Response): void {
   res.setHeader("Cache-Control", "private, no-store, max-age=0");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
 }
 function fehler(res: Response, wo: string, err: unknown): void {
   console.error(`[DATENRAUM] ${wo}:`, err);
@@ -64,6 +75,12 @@ function antwort(res: Response, erg: { ok: boolean; status?: number; error?: str
   if (!erg.ok) { res.status(Number(erg.status) || 400).json({ ok: false, error: erg.error, ...(erg.fehler ? { fehler: erg.fehler } : {}), ...(erg.code ? { code: erg.code } : {}) }); return; }
   const { ok: _ok, status: _s, ...rest } = erg;
   res.json({ ok: true, ...rest });
+}
+function pdfSenden(res: Response, pdf: Buffer, dateiname: string, laden: boolean): void {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", drDispositionKopf(laden ? "attachment" : "inline", dateiname));
+  res.setHeader("Content-Length", String(pdf.length));
+  res.end(pdf);
 }
 
 // ── Sitzung ────────────────────────────────────────────────────────────────
@@ -107,7 +124,7 @@ router.post("/datenraum/angaben", async (req, res) => {
     keinSpeicher(res);
     const g = await gastAusSitzung(req);
     if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
-    antwort(res, await drAngabenSpeichern(g, req.body?.angaben ?? req.body, kontext(req)));
+    antwort(res, await drAngabenSpeichern(g, req.body ?? {}, kontext(req)));
   } catch (err) { fehler(res, "angaben", err); }
 });
 
@@ -116,11 +133,20 @@ router.get("/datenraum/nda", async (req, res) => {
     keinSpeicher(res);
     const g = await gastAusSitzung(req);
     if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
-    const n = await drNdaFuerGast(g);
-    if (!n.ok) return antwort(res, n);
-    await drProtokoll({ raumId: g.raumId, gastId: g.id, art: "nda_gelesen", detail: n.nda.hash.slice(0, 16) }, kontext(req));
-    res.json({ ok: true, nda: { bloecke: n.nda.bloecke, hash: n.nda.hash, fassung: n.nda.fassung } });
+    antwort(res, await drNdaZeigen(g, kontext(req)));
   } catch (err) { fehler(res, "nda", err); }
+});
+
+router.get("/datenraum/nda-entwurf.pdf", async (req, res) => {
+  try {
+    keinSpeicher(res);
+    if (req.method === "HEAD") return res.status(405).end();
+    const g = await gastAusSitzung(req);
+    if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
+    const p = await drNdaEntwurfPdf(g, kontext(req));
+    if (!p.ok) return antwort(res, p);
+    pdfSenden(res, p.pdf, p.dateiname, req.query.laden === "1");
+  } catch (err) { fehler(res, "nda-entwurf", err); }
 });
 
 router.post("/datenraum/unterzeichnen", async (req, res) => {
@@ -138,6 +164,8 @@ router.post("/datenraum/unterzeichnen", async (req, res) => {
 router.get("/datenraum/dokument/:kennung", async (req, res) => {
   try {
     keinSpeicher(res);
+    // Express beantwortet HEAD mit der GET-Route — eine Prüfanfrage ohne Inhalt darf nie als „angesehen“ zählen.
+    if (req.method === "HEAD") return res.status(405).end();
     const g = await gastAusSitzung(req);
     const laden = req.query.laden === "1";
     const d = await drDokumentFuerGast(g, String(req.params.kennung ?? ""), laden, kontext(req));
@@ -148,7 +176,7 @@ router.get("/datenraum/dokument/:kennung", async (req, res) => {
     res.setHeader("Content-Type", d.mime);
     res.setHeader("Content-Disposition", drDispositionKopf(art, d.dateiname));
     res.setHeader("Content-Length", String(d.inhalt.length));
-    res.setHeader("Referrer-Policy", "no-referrer");
+    res.setHeader("X-Datenraum-Vorgang", d.vorgang);
     res.end(d.inhalt);
   } catch (err) { fehler(res, "dokument", err); }
 });
@@ -156,13 +184,12 @@ router.get("/datenraum/dokument/:kennung", async (req, res) => {
 router.get("/datenraum/nda.pdf", async (req, res) => {
   try {
     keinSpeicher(res);
+    if (req.method === "HEAD") return res.status(405).end();
     const g = await gastAusSitzung(req);
     if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
     const p = await drNdaPdfFuerGast(g, kontext(req));
     if (!p) return res.status(404).json({ ok: false, error: "Es liegt noch keine unterzeichnete Vereinbarung vor." });
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", drDispositionKopf(req.query.laden === "1" ? "attachment" : "inline", p.dateiname));
-    res.end(p.pdf);
+    pdfSenden(res, p.pdf, p.dateiname, req.query.laden === "1");
   } catch (err) { fehler(res, "nda.pdf", err); }
 });
 
@@ -219,6 +246,25 @@ router.post("/chef/datenraum/raum", wache, async (req, res) => {
 router.post("/chef/datenraum/raum/:id", wache, async (req, res) => {
   try { keinSpeicher(res); antwort(res, await drRaumAendern(idAus(req.params.id), req.body ?? {}, await wer(req))); } catch (err) { fehler(res, "raum ändern", err); }
 });
+router.get("/chef/datenraum/raum/:id/vorschau", wache, async (req, res) => {
+  try {
+    keinSpeicher(res);
+    const v = await drNdaVorschau(idAus(req.params.id), idAus(req.query.gast) || null);
+    if (!v.ok) return antwort(res, v);
+    res.json({ ok: true, bloecke: v.bloecke, hash: v.hash, raumHash: v.raumHash, freigegeben: v.freigegeben, freigabe: v.freigabe });
+  } catch (err) { fehler(res, "vorschau", err); }
+});
+router.get("/chef/datenraum/raum/:id/vorschau.pdf", wache, async (req, res) => {
+  try {
+    keinSpeicher(res);
+    const p = await drNdaVorschauPdf(idAus(req.params.id), idAus(req.query.gast) || null, await wer(req));
+    if (!p.ok) return antwort(res, p);
+    pdfSenden(res, p.pdf, p.dateiname, req.query.laden === "1");
+  } catch (err) { fehler(res, "vorschau pdf", err); }
+});
+router.post("/chef/datenraum/raum/:id/freigeben", wache, async (req, res) => {
+  try { keinSpeicher(res); antwort(res, await drNdaFreigeben(idAus(req.params.id), await wer(req), req.body?.hash ? String(req.body.hash) : null)); } catch (err) { fehler(res, "freigeben", err); }
+});
 router.post("/chef/datenraum/raum/:id/projekt", wache, async (req, res) => {
   try {
     keinSpeicher(res);
@@ -238,6 +284,19 @@ router.post("/chef/datenraum/gast/:id/code", wache, async (req, res) => {
 router.post("/chef/datenraum/gast/:id/sperren", wache, async (req, res) => {
   try { keinSpeicher(res); antwort(res, await drGastSperren(idAus(req.params.id), req.body?.sperren !== false, req.body?.grund, await wer(req))); } catch (err) { fehler(res, "sperren", err); }
 });
+router.post("/chef/datenraum/gast/:id/entwurf", wache, async (req, res) => {
+  try { keinSpeicher(res); antwort(res, await drEinladungEntwurf(idAus(req.params.id), req.body?.code, await wer(req))); } catch (err) { fehler(res, "entwurf", err); }
+});
+router.get("/chef/datenraum/gast/:id/protokoll.csv", wache, async (req, res) => {
+  try {
+    keinSpeicher(res);
+    const c = await drProtokollCsv(idAus(req.params.id), await wer(req));
+    if (!c) return res.status(404).json({ ok: false, error: "Diesen Gast gibt es nicht." });
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", drDispositionKopf("attachment", c.dateiname));
+    res.end(c.csv);
+  } catch (err) { fehler(res, "protokoll csv", err); }
+});
 router.post("/chef/datenraum/projekt/:id/dokument", wache, dateiAnnehmen, async (req, res) => {
   try {
     keinSpeicher(res);
@@ -246,6 +305,7 @@ router.post("/chef/datenraum/projekt/:id/dokument", wache, dateiAnnehmen, async 
     antwort(res, await drDokumentAblegen({
       projektId: idAus(req.params.id), buffer: f.buffer, dateiname: f.originalname, titel: req.body?.titel, beschreibung: req.body?.beschreibung,
       sichtbar: String(req.body?.sichtbar ?? "1") !== "0", nr: Number.isInteger(Number(req.body?.nr)) ? Number(req.body.nr) : 0,
+      quelle: req.body?.quelle ? String(req.body.quelle) : null,
     }, await wer(req)));
   } catch (err) { fehler(res, "hochladen", err); }
 });
@@ -258,7 +318,8 @@ router.post("/chef/datenraum/dokument/:id/entfernen", wache, async (req, res) =>
 router.get("/chef/datenraum/dokument/:id", wache, async (req, res) => {
   try {
     keinSpeicher(res);
-    const d = await drDokumentLesen(idAus(req.params.id));
+    if (req.method === "HEAD") return res.status(405).end();
+    const d = await drDokumentLesen(idAus(req.params.id), await wer(req), kontext(req));
     if (!d) return res.status(404).json({ ok: false, error: "Dieses Dokument gibt es nicht." });
     if (!DR_AUSLIEFERBAR.has(d.mime)) return res.status(415).json({ ok: false, error: "Dieses Dokument lässt sich nicht ausliefern." });
     const art = req.query.laden === "1" || !(d.mime === "application/pdf" || d.mime.startsWith("image/")) ? "attachment" : "inline";
@@ -270,11 +331,10 @@ router.get("/chef/datenraum/dokument/:id", wache, async (req, res) => {
 router.get("/chef/datenraum/nda/:id", wache, async (req, res) => {
   try {
     keinSpeicher(res);
-    const p = await drNdaPdfLesen(idAus(req.params.id));
+    if (req.method === "HEAD") return res.status(405).end();
+    const p = await drNdaPdfLesen(idAus(req.params.id), await wer(req), kontext(req));
     if (!p) return res.status(404).json({ ok: false, error: "Diese Vereinbarung gibt es nicht." });
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", drDispositionKopf(req.query.laden === "1" ? "attachment" : "inline", p.dateiname));
-    res.end(p.pdf);
+    pdfSenden(res, p.pdf, p.dateiname, req.query.laden === "1");
   } catch (err) { fehler(res, "chef nda", err); }
 });
 

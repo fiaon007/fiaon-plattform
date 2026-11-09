@@ -65,6 +65,46 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   client/src/components/admin/ (MailwerkVorsorge, ChefMailwerk), client/src/pages/privacy.tsx,
   db/migrations/132_vorsorge_ueberblick.sql, scripts/pruef-vorsorge.ts.
 
+## 09.11.2026 — E-489 (Nachbesserung nach drei Gutachten): Datenraum — keine Messung, echte IP, Vertrag ohne Freitext, Freigabe vor der ersten Einladung
+
+- **Warum:** Drei Gutachten (Sicherheit, Vereinbarung, Bedienung) haben den Datenraum vor dem Livegang geprüft. Wichtigste Funde:
+  Auf den Gastseiten liefen nach einer früheren Einwilligung Clarity und der Meta-Pixel mit; gespeichert wurde die IP von
+  Cloudflare statt die des Gastes; freier Text des Gastes wurde ungeprüft Vertragstext; nach Schritt 1 prüfte die Seite die
+  Unterschrift gegen den alten Namen. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Keine Messung im Datenraum:** /datenraum/zugang und /datenraum/raum laden kein Clarity, kein Analytics, keinen Pixel und
+    zeigen keinen Cookie-Hinweis. Kopfzeilen noindex, no-referrer, no-store wie bei „Zugang übergeben“; robots.txt sperrt beide.
+    Der persönliche Link trägt den Code im Anker (#c=…) — er geht nie an einen Server und steht in keinem Protokoll.
+  - **Die IP des Gastes:** cf-connecting-ip zählt nur, wenn die Anfrage wirklich von Cloudflare kommt; die rohe Kette steht im
+    Nachweis. Die Bremse zählt je Anschluss (IPv6 je /64). Sehr viele falsche Codes sperren niemanden mehr, Justin bekommt einen Alarm.
+  - **Vertrag ohne Freitext:** § 8 Abs. 1 ist fest formuliert; frühere Empfänger stehen nur als Liste von Namen in Anlage 1 (und ganz
+    oben in Justins Meldung). Namen, Firma, Funktion und Anschrift nehmen keine Zeichen wie § * ; : und keine Vertragsworte an.
+    Der getippte Name muss dem vollen Namen gleichen. Nach der ersten Unterschrift sind die Angaben fest (Änderungen per E-Mail).
+    Eine andere E-Mail als die der Einladung bestätigt der Gast mit einem Code. Telefon ist freiwillig.
+  - **Freigabe vor der ersten Einladung:** Im Chefbüro „Vereinbarung ansehen“ (Entwurf als PDF) und „Freigeben“. Ändern sich
+    Zusätze oder Projekte, gilt die Freigabe nicht mehr — kein Gast unterschreibt einen ungeprüften Wortlaut. Ändert sich der
+    §-1-Text eines unterschriebenen Projekts, sind seine Unterlagen bis zum Nachtrag zu.
+  - **Nachweis:** gespeichert werden zusätzlich der Wortlaut selbst, die Zustimmung (Häkchen-Satz), wann die Fassung angezeigt
+    wurde, Code-Hinweis, Sitzungsstand und die E-Mail mit Herkunft; beide Mails tragen die vollen Prüfsummen von Wortlaut und PDF.
+    Das Protokoll ist eine Kette aus Prüfsummen (eine nachträglich geänderte Zeile fällt auf), jede Auslieferung wird VOR dem
+    Senden protokolliert, ihre Nummer steht als „DR-1234“ im Vermerk jeder PDF-Seite. Protokoll je Gast als CSV.
+  - **Schutz des Servers:** Unterschriftsbild höchstens 2400 × 1000 Punkte und 300 KB, entpackt wird nie mehr als die Maße
+    erlauben; Bremsen auf Unterschrift (10 Fehlversuche je 10 Minuten) und Abruf (60 je 10 Minuten, 4 gleichzeitig, 3 Vermerke
+    gleichzeitig im Server); der Inhalt eines Dokuments wird erst nach der Zugriffsprüfung geladen. Codes als HMAC.
+  - **Verwaltung nur für den Inhaber**, jede Ansicht im Chefbüro steht im Protokoll. „Ordner hochladen“ liest den Datenraum-Ordner
+    mit manifest.json je Projekt (und raum.json); „Einladung als Entwurf in js@“; die Einladung legt in der Partner-Akte eine
+    Wiedervorlage in drei Werktagen an, die Unterschrift erledigt sie und schreibt den Verlauf. Unterlagen lassen sich bearbeiten
+    und mehrfach hochladen, die Nummern der Unterlagen (00, 01 …) bleiben ihre eigenen.
+  - **Seite des Gastes:** übernimmt nach Schritt 1 die gespeicherten Angaben, kurze Schrittleiste, Vereinbarung auch als Entwurf
+    im PDF, Ordnerbeschreibung erst nach der Unterschrift, Eintritt als Sperrbildschirm im Glas. Datenschutzerklärung VII d neu.
+  - **scripts/datenraum.ts:** nda-aus-papier und nda-vorschau vergleichen die Vorlage Abschnitt für Abschnitt mit einer
+    Papierfassung (gewollt anders nur § 8 Abs. 1, § 10 Abs. 5, Anlage 1); Raum-Abgleich nur über den Titel; gegen die Produktion
+    Codes nur in eine Datei. Für die Produktion gilt das Chefbüro.
+- **Wo:** shared/fiaon-datenraum-nda.ts, server/lib/fiaon-datenraum.ts (+ -regeln, -pdf, -vergleich), server/routes/fiaon-datenraum.ts,
+  server/routes.ts, client/src/pages/datenraum-zugang.tsx, client/src/components/admin/ChefDatenraum.tsx,
+  client/src/components/site/EinwilligungsHinweis.tsx, client/src/pages/privacy.tsx, client/public/robots.txt,
+  client/src/pages/agent/rundgaenge.ts, scripts/datenraum.ts, scripts/pruef-datenraum.ts.
+
 ## 09.11.2026 — E-489: Datenraum für Investoren — Einladungscode, Vertraulichkeitsvereinbarung unterzeichnen, sofort Zugriff
 
 - **Warum:** Justin: „Wenn er eintritt, muss er alle Infos für die NDA angeben, dann diese direkt unterzeichnen und dann soll
@@ -78,7 +118,7 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
     vollen Namen tippen, „Jetzt verbindlich unterzeichnen“. Danach sieht er sofort die Projekte als Ordner mit allen
     sichtbaren Unterlagen: ansehen oder herunterladen, sein eigenes Exemplar als PDF.
   - **Die Vereinbarung** (shared/fiaon-datenraum-nda.ts) ist der Wortlaut der freigegebenen Fassung (Schweizer Recht,
-    Gerichtsstand Zürich, Nichtumgehung 24 Monate, Konventionalstrafe CHF 50’000 je Fall, Vertraulichkeit drei Jahre). Fest ist nur die FIAON-Seite; Gast, Projekte und drei Zusätze des Raums kommen aus der Datenbank. Die FIAON-Seite
+    Gerichtsstand Zürich, Nichtumgehung 24 Monate, Konventionalstrafe CHF 50’000 je Fall, Vertraulichkeit drei Jahre). Fest ist nur die FIAON-Seite; Gast, Projekte (mit geschützter Gesellschaft je Projekt) und fünf Zusätze des Raums kommen aus der Datenbank. Die FIAON-Seite
     nimmt mit der Freischaltung des Datenraums an (§ 8, im PDF vermerkt). Gespeichert werden Zeichnung, Name, Zeitpunkt,
     IP, Browser, Fassung und Prüfsumme des Wortlauts; das unterschriebene PDF liegt in der Datenbank (mit PAdES-Siegel der
     FIAON LTD, sobald der Siegel-Schlüssel hinterlegt ist). Einfache elektronische Unterschrift — das sagt auch die Seite.

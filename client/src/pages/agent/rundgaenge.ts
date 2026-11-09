@@ -1541,14 +1541,16 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
   },
   {
     // E-489 (09.11.2026): der Datenraum für Investoren — ein Reiter in der Partner-Akte, ohne „ziel“ (die Akte ist eine Schublade).
+    // Nachbesserung 09.11.2026: nur Inhaber; Vereinbarung ansehen + freigeben vor der ersten Einladung; Ordner hochladen; Entwurf in js@.
     titel: "Datenraum: Unterlagen für Investoren — erst nach der Vertraulichkeitsvereinbarung.",
-    text: "In der Akte eines Partners steht der Reiter „Datenraum“ (nur Inhaber und Geschäftsführung). Dort legst du den Raum an: Projekte mit "
-      + "Titel und kurzer Beschreibung — sie werden die Ordner und die Themen in § 1 der Vereinbarung. Dann lädst du die Unterlagen je Projekt "
-      + "hoch und lädst den Gast ein: Code und persönlicher Link stehen genau einmal da, zum Kopieren. Der Gast tritt mit dem Link ein, prüft "
-      + "seine Angaben, liest die Vereinbarung, zeichnet und tippt seinen Namen — und sieht sofort alle sichtbaren Unterlagen. Jede PDF-Seite "
-      + "trägt seinen Namen, jede Ansicht steht im Protokoll. Du bekommst das unterschriebene PDF per Mail und einmal am Tag eine Meldung, "
-      + "wenn er liest. Sichtbarkeit je Dokument, neuer Code und Sperren gehen mit einem Klick.",
-    tipp: "Kommt später ein Projekt mit Unterlagen dazu, bestätigt der Gast eine ergänzte Fassung der Vereinbarung, bevor er die neuen Unterlagen sieht.",
+    text: "In der Akte eines Partners steht der Reiter „Datenraum“ (nur der Inhaber). Dort legst du den Raum an und lädst mit „Ordner hochladen“ "
+      + "den ganzen Datenraum-Ordner auf einmal hoch (je Projekt ein Unterordner mit manifest.json, dazu raum.json). Dann „Vereinbarung ansehen“ "
+      + "und „Freigeben“ — erst danach kann ein Gast eingeladen werden und unterschreiben. Beim Einladen stehen Code und persönlicher Link genau "
+      + "einmal da; ein Klick legt die Einladung als Entwurf in js@ an, du drückst nur noch „Senden“, die Wiedervorlage steht in der Akte. Der Gast "
+      + "prüft seine Angaben, liest die Vereinbarung, zeichnet und tippt seinen Namen — und sieht sofort alle sichtbaren Unterlagen. Jede PDF-Seite "
+      + "trägt seinen Namen und eine Vorgangsnummer, jeder Abruf steht im Protokoll (als Liste herunterladbar). Du bekommst das unterschriebene PDF "
+      + "per Mail und einmal am Tag eine Meldung, wenn er liest.",
+    tipp: "Ändert sich ein Projekt oder kommt eines mit Unterlagen dazu, gibst du die Vereinbarung neu frei; der Gast bestätigt eine ergänzte Fassung, bevor er die Unterlagen dazu sieht.",
   },
   {
     ziel: ".cg-zahlen",

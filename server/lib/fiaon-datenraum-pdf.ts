@@ -6,19 +6,27 @@
 //    Wortmarke, Serife für Überschriften, Blocksatz, auf der letzten Seite die
 //    elektronische Unterschrift (gezeichnetes Bild + getippter Name), der
 //    Annahmevermerk der FIAON-Seite und der Nachweis (Fassung, Prüfsumme des
-//    Wortlauts, Zeitpunkt, IP, Browser). Fuß auf jeder Seite: Fassung,
-//    Kurz-Prüfsumme, „Seite x von y“. Liegt ein Siegel-Schlüssel vor, bekommt die
-//    Datei das PAdES-Siegel der FIAON LTD (fiaon-global-siegel.ts) — sonst bleibt
-//    die Prüfsumme der Datei der Nachweis.
-// 2. drPdfVermerken: „Vertraulich · <Name> · <Datum>“ dezent am unteren Rand
-//    jeder Seite, beim Ausliefern — gedreht, wo die Seite gedreht ist.
+//    Wortlauts, Zeitpunkt, IP, Browser, Zustimmung, Zugang, E-Mail). Fuß auf jeder
+//    Seite: Fassung, Kurz-Prüfsumme, „Seite x von y“. Liegt ein Siegel-Schlüssel
+//    vor, bekommt die Datei das PAdES-Siegel der FIAON LTD (fiaon-global-siegel.ts)
+//    — sonst bleibt die Prüfsumme der Datei der Nachweis.
+//    Als ENTWURF (Gutachten 09.11.2026: zum Gegenlesen durch den Anwalt des Gastes
+//    und zur Prüfung im Chefbüro): ohne Unterschriftsblock und Nachweis, auf jeder
+//    Seite deutlich „Entwurf — nicht unterzeichnet“.
+// 2. drPdfVermerken: „Vertraulich · <Name> · <Datum> · DR-<Vorgang>“ dezent am
+//    unteren Rand jeder Seite, beim Ausliefern — gedreht, wo die Seite gedreht ist;
+//    die Vorgangsnummer steht auch in den Stichwörtern der Datei.
 //    Verschlüsselte PDFs lassen sich nicht verändern: Die Verwaltung sieht das
 //    schon beim Hochladen („ohne Vermerk“).
+// Schrift: die Standardschriften von pdf-lib (WinAnsi). Lateinische Buchstaben, die
+// sie nicht kennen (Ł, ő, č …), stehen ohne Akzent da — der Nachweis sagt das;
+// massgeblich ist der Wortlaut mit Prüfsumme. Andere Schriften nimmt die Seite gar
+// nicht erst an (drGastAngabenPruefen).
 // ═══════════════════════════════════════════════════════════════════════════
 import { PDFDocument, StandardFonts, degrees, rgb, setCharacterSpacing, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 import { MARKE_BOX, MARKE_PFAD } from "@shared/fiaon-marke";
 import { NDA_FIAON, NDA_TITEL, drFesteLeerzeichen, drFettStuecke, type DrNdaBlock } from "@shared/fiaon-datenraum-nda";
-import { metadaten, sicher } from "./fiaon-global-pdf-satz";
+import { metadaten, sicher as sicherBasis } from "./fiaon-global-pdf-satz";
 import { drBerlinZeitLang } from "./fiaon-datenraum-regeln";
 
 const SEITE_B = 595.28;
@@ -34,6 +42,26 @@ const TEXT = rgb(0.184, 0.227, 0.298);
 const LEISE = rgb(0.42, 0.459, 0.529);
 const LINIE = rgb(0.84, 0.866, 0.902);
 const GLAS = rgb(0.937, 0.957, 0.992);
+const ROT = rgb(0.62, 0.11, 0.11);
+
+/** Lateinische Buchstaben ohne Zerlegung in Grundbuchstabe + Akzent — für die Standardschrift umschreiben. */
+const UMSCHRIFT: Record<string, string> = { "Ł": "L", "ł": "l", "Đ": "D", "đ": "d", "Ħ": "H", "ħ": "h", "ı": "i", "Ŀ": "L", "ŀ": "l", "Ŋ": "N", "ŋ": "n", "Ŧ": "T", "ŧ": "t", "ẞ": "SS", "ĸ": "k" };
+/** Zeichen, die sicher() bewusst ersetzt, ohne dass ein Name anders aussähe (Leerraum, Pfeile, Haken). */
+const HARMLOS = new Set(["→", "≥", "≤", "✓", "‑"]);
+/** Wie sicher() aus fiaon-global-pdf-satz.ts, mit Umschrift; `ersetzt` merkt, ob ein Buchstabe anders aussieht. */
+function sicherMit(font: PDFFont, s: string, ersetzt?: { ja: boolean }): string {
+  let umgeschrieben = false;
+  const vor = Array.from(String(s ?? "")).map((c) => { const u = UMSCHRIFT[c]; if (u !== undefined) { umgeschrieben = true; return u; } return c; }).join("");
+  const nach = sicherBasis(font, vor);
+  if (ersetzt && !ersetzt.ja) {
+    if (umgeschrieben) ersetzt.ja = true;
+    else for (const c of Array.from(vor)) {
+      if (c.charCodeAt(0) < 0x80 || HARMLOS.has(c) || /\s/.test(c)) continue;
+      if (sicherBasis(font, c) !== c) { ersetzt.ja = true; break; }
+    }
+  }
+  return nach;
+}
 
 export interface NdaPdfEingabe {
   bloecke: DrNdaBlock[];
@@ -42,19 +70,26 @@ export interface NdaPdfEingabe {
   /** „Muster-Seite“ */
   seite: string;
   raumTitel: string;
-  partei3: { name: string; rolle?: string; getippt: string; unterschriftPng: Buffer };
-  unterzeichnetAm: Date;
-  freigeschaltetAm: Date;
-  ip: string;
-  userAgent: string;
+  /** Entwurf: ohne Unterschrift und Nachweis, auf jeder Seite als Entwurf gekennzeichnet. */
+  entwurf?: boolean;
+  partei3?: { name: string; rolle?: string; getippt: string; unterschriftPng: Buffer };
+  unterzeichnetAm?: Date;
+  freigeschaltetAm?: Date;
+  ip?: string;
+  userAgent?: string;
+  /** Weitere Zeilen des Nachweises (Zustimmung, Zugang, E-Mail …) — Bezeichnung und Wert. */
+  nachweis?: [string, string][];
 }
 
 /** Ein Wort aus Teilen mit eigener Schrift — „**FIAON-Seite**,“ ist EIN Wort (fett + Komma ohne Leerraum davor). */
 interface Wort { teile: { text: string; fett: boolean }[] }
 interface Schriften { n: PDFFont; f: PDFFont; s: PDFFont; si: PDFFont }
 
-/** Die Vereinbarung mit Unterschrift, Annahmevermerk und Nachweis. */
+/** Die Vereinbarung mit Unterschrift, Annahmevermerk und Nachweis — oder als Entwurf. */
 export async function ndaPdfErzeugen(e: NdaPdfEingabe): Promise<Uint8Array> {
+  if (!e.entwurf && (!e.partei3 || !e.unterzeichnetAm || !e.freigeschaltetAm)) throw new Error("Unterschrift fehlt");
+  const umschrift = { ja: false };
+  const sicher = (font: PDFFont, s: string) => sicherMit(font, s, umschrift);
   const pdf = await PDFDocument.create();
   const sch: Schriften = {
     n: await pdf.embedFont(StandardFonts.Helvetica),
@@ -62,12 +97,14 @@ export async function ndaPdfErzeugen(e: NdaPdfEingabe): Promise<Uint8Array> {
     s: await pdf.embedFont(StandardFonts.TimesRoman),
     si: await pdf.embedFont(StandardFonts.TimesRomanItalic),
   };
+  const kennwort = e.entwurf ? "ENTWURF — NICHT UNTERZEICHNET" : "VERTRAULICH";
+  const kennFarbe = e.entwurf ? ROT : LEISE;
   let seite: PDFPage = pdf.addPage([SEITE_B, SEITE_H]);
   let y = SEITE_H - OBEN;
   const kopfErste = () => {
     const h = 15; const m = MARKE_BOX.fiaon; const s = h / m.h;
     seite.drawSvgPath(MARKE_PFAD.fiaon, { x: RL - m.x * s, y: y - h + 14 * s, scale: s, color: NAVY });
-    gesperrt(seite, "VERTRAULICH", SEITE_B - RR - sperrBreite("VERTRAULICH", sch.n, 7.2, 1.4), y - 11, 7.2, sch.n, LEISE, 1.4);
+    gesperrt(seite, kennwort, SEITE_B - RR - sperrBreite(kennwort, sch.n, 7.2, 1.4), y - 11, 7.2, sch.n, kennFarbe, 1.4);
     y -= 24;
     seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.6, color: LINIE });
     y -= 20;
@@ -76,7 +113,7 @@ export async function ndaPdfErzeugen(e: NdaPdfEingabe): Promise<Uint8Array> {
     seite = pdf.addPage([SEITE_B, SEITE_H]);
     y = SEITE_H - OBEN;
     seite.drawText(sicher(sch.n, NDA_TITEL), { x: RL, y: y - 8, size: 7.2, font: sch.n, color: LEISE });
-    gesperrt(seite, "VERTRAULICH", SEITE_B - RR - sperrBreite("VERTRAULICH", sch.n, 7.2, 1.4), y - 8, 7.2, sch.n, LEISE, 1.4);
+    gesperrt(seite, kennwort, SEITE_B - RR - sperrBreite(kennwort, sch.n, 7.2, 1.4), y - 8, 7.2, sch.n, kennFarbe, 1.4);
     y -= 16;
     seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.4, color: LINIE });
     y -= 18;
@@ -216,73 +253,101 @@ export async function ndaPdfErzeugen(e: NdaPdfEingabe): Promise<Uint8Array> {
         }
         break;
       }
+      case "anlage": {
+        // Die Anlage steht nach § 10 — mit Haarlinie davor, Titel in der Serife, darunter die Zeilen.
+        const h = 30 + b.zeilen.reduce((s2, z) => s2 + hoehe(z, { breite: B - 22 }), 0);
+        platz(Math.min(h, 120));
+        y -= 8;
+        seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.5, color: LINIE });
+        y -= 10;
+        const g = 11.4;
+        seite.drawText(sicher(sch.s, b.nr), { x: RL, y: y - g, size: g, font: sch.s, color: LEISE });
+        const nb = sch.s.widthOfTextAtSize(sicher(sch.s, b.nr), g) + 7;
+        seite.drawText(sicher(sch.s, b.titel), { x: RL + nb, y: y - g, size: g, font: sch.s, color: TINTE });
+        y -= g + 6;
+        for (const z of b.zeilen) { absatz(z, { x: RL + 22, breite: B - 22, block: false }); y -= 2; }
+        break;
+      }
     }
   }
 
-  // ── Unterschriften ──
-  const img = await pdf.embedPng(e.partei3.unterschriftPng);
-  const spalte = (B - 26) / 2;
-  const zeitU = drBerlinZeitLang(e.unterzeichnetAm);
-  const zeitF = drBerlinZeitLang(e.freigeschaltetAm);
-  const annahme = `Angenommen durch ${NDA_FIAON.partei1Name} und Justin Schwarzott mit der Freischaltung des Datenraums am ${zeitF} (§ 8 Abs. 1).`;
-  const blockH = 22 + 12 + 64 + 8 + 16 + 3 * 11 + 10;
-  platz(blockH + 24);
-  y -= 14;
-  seite.drawText(sicher(sch.s, "Unterschriften"), { x: RL, y: y - 13, size: 13, font: sch.s, color: TINTE });
-  y -= 24;
-  const oben = y;
-  // Partei 3 (links)
-  sperr(`Partei 3 · ${e.seite}`, RL, 6.8, NAVY, sch.f);
-  const feldH = 64; const feldUnten = oben - 14 - feldH;
-  const skal = Math.min((spalte - 8) / img.width, (feldH - 4) / img.height, 1);
-  const iw = img.width * skal; const ih = img.height * skal;
-  seite.drawImage(img, { x: RL + 4, y: feldUnten + 3, width: iw, height: ih });
-  seite.drawLine({ start: { x: RL, y: feldUnten }, end: { x: RL + spalte, y: feldUnten }, thickness: 0.8, color: TINTE });
-  y = feldUnten - 4;
-  seite.drawText(sicher(sch.s, e.partei3.name), { x: RL, y: y - 11.5, size: 11.5, font: sch.s, color: TINTE });
-  y -= 16;
-  if (e.partei3.rolle) absatz(e.partei3.rolle, { x: RL, breite: spalte, g: 7.8, farbe: TEXT, block: false });
-  absatz(`Elektronisch unterzeichnet am ${zeitU}. Name getippt: „${e.partei3.getippt}“.`, { x: RL, breite: spalte, g: 7.8, farbe: LEISE, block: false });
-  const linksUnten = y;
-  // FIAON-Seite (rechts)
-  y = oben;
-  const xr = RL + spalte + 26;
-  sperr("Partei 1 und 2 · FIAON-Seite", xr, 6.8, NAVY, sch.f);
-  const boxH = feldH - 6;
-  seite.drawRectangle({ x: xr, y: feldUnten + 2, width: spalte, height: boxH, color: GLAS, borderColor: LINIE, borderWidth: 0.5 });
-  y = feldUnten + 2 + boxH - 7;
-  absatz(annahme, { x: xr + 9, breite: spalte - 18, g: 8.2, farbe: TEXT, block: false });
-  seite.drawLine({ start: { x: xr, y: feldUnten }, end: { x: xr + spalte, y: feldUnten }, thickness: 0.8, color: TINTE });
-  y = feldUnten - 4;
-  seite.drawText(sicher(sch.s, "Justin Schwarzott"), { x: xr, y: y - 11.5, size: 11.5, font: sch.s, color: TINTE });
-  y -= 16;
-  absatz("Director, für die FIAON LTD, und persönlich", { x: xr, breite: spalte, g: 7.8, farbe: LEISE, block: false });
-  y = Math.min(y, linksUnten) - 14;
+  if (!e.entwurf) {
+    const p3 = e.partei3!;
+    const unterzeichnetAm = e.unterzeichnetAm!; const freigeschaltetAm = e.freigeschaltetAm!;
+    // ── Unterschriften ──
+    const img = await pdf.embedPng(p3.unterschriftPng);
+    const spalte = (B - 26) / 2;
+    const zeitU = drBerlinZeitLang(unterzeichnetAm);
+    const zeitF = drBerlinZeitLang(freigeschaltetAm);
+    const annahme = `Angenommen durch ${NDA_FIAON.partei1Name} und Justin Schwarzott mit der Freischaltung des Datenraums am ${zeitF} (§ 8 Abs. 1).`;
+    const blockH = 22 + 12 + 64 + 8 + 16 + 3 * 11 + 10;
+    platz(blockH + 24);
+    y -= 14;
+    seite.drawText(sicher(sch.s, "Unterschriften"), { x: RL, y: y - 13, size: 13, font: sch.s, color: TINTE });
+    y -= 24;
+    const oben = y;
+    // Partei 3 (links)
+    sperr(`Partei 3 · ${e.seite}`, RL, 6.8, NAVY, sch.f);
+    const feldH = 64; const feldUnten = oben - 14 - feldH;
+    const skal = Math.min((spalte - 8) / img.width, (feldH - 4) / img.height, 1);
+    const iw = img.width * skal; const ih = img.height * skal;
+    seite.drawImage(img, { x: RL + 4, y: feldUnten + 3, width: iw, height: ih });
+    seite.drawLine({ start: { x: RL, y: feldUnten }, end: { x: RL + spalte, y: feldUnten }, thickness: 0.8, color: TINTE });
+    y = feldUnten - 4;
+    seite.drawText(sicher(sch.s, p3.name), { x: RL, y: y - 11.5, size: 11.5, font: sch.s, color: TINTE });
+    y -= 16;
+    if (p3.rolle) absatz(p3.rolle, { x: RL, breite: spalte, g: 7.8, farbe: TEXT, block: false });
+    absatz(`Elektronisch unterzeichnet am ${zeitU}. Name getippt: „${p3.getippt}“.`, { x: RL, breite: spalte, g: 7.8, farbe: LEISE, block: false });
+    const linksUnten = y;
+    // FIAON-Seite (rechts)
+    y = oben;
+    const xr = RL + spalte + 26;
+    sperr("Partei 1 und 2 · FIAON-Seite", xr, 6.8, NAVY, sch.f);
+    const boxH = feldH - 6;
+    seite.drawRectangle({ x: xr, y: feldUnten + 2, width: spalte, height: boxH, color: GLAS, borderColor: LINIE, borderWidth: 0.5 });
+    y = feldUnten + 2 + boxH - 7;
+    absatz(annahme, { x: xr + 9, breite: spalte - 18, g: 8.2, farbe: TEXT, block: false });
+    seite.drawLine({ start: { x: xr, y: feldUnten }, end: { x: xr + spalte, y: feldUnten }, thickness: 0.8, color: TINTE });
+    y = feldUnten - 4;
+    seite.drawText(sicher(sch.s, "Justin Schwarzott"), { x: xr, y: y - 11.5, size: 11.5, font: sch.s, color: TINTE });
+    y -= 16;
+    absatz("Director, für die FIAON LTD, und persönlich", { x: xr, breite: spalte, g: 7.8, farbe: LEISE, block: false });
+    y = Math.min(y, linksUnten) - 14;
 
-  // ── Nachweis ──
-  const zeilen: [string, string][] = [
-    ["Vereinbarung", `${NDA_TITEL} · Fassung ${e.fassung}`],
-    ["Prüfsumme des Wortlauts", `SHA-256 ${e.textHash}`],
-    ["Unterzeichnet", `${zeitU} (${e.unterzeichnetAm.toISOString()})`],
-    ["Unterschrift", `von Hand gezeichnet (Bild oben) und Name getippt: „${e.partei3.getippt}“ — einfache elektronische Signatur`],
-    ["IP-Adresse", e.ip || "unbekannt"],
-    ["Browser", (e.userAgent || "unbekannt").slice(0, 220)],
-    ["Annahme FIAON-Seite", `mit der Freischaltung des Datenraums am ${zeitF}`],
-    ["Datenraum", e.raumTitel],
-    ["Form", "Die Parteien vereinbaren in § 10 Abs. 5, dass elektronisch unterzeichnete Exemplare als Original gelten und die Schriftform wahren."],
-  ];
-  const lb = 118;
-  const nachweisH = 22 + zeilen.reduce((s, [, v]) => s + hoehe(v, { g: 7.8, breite: B - lb, zl: 11 }) + 3, 0);
-  platz(Math.min(nachweisH, 200));
-  seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.5, color: LINIE });
-  y -= 10;
-  sperr("Elektronischer Nachweis", RL, 6.8, LEISE, sch.f);
-  y -= 14;
-  for (const [k, v] of zeilen) {
-    platz(hoehe(v, { g: 7.8, breite: B - lb, zl: 11 }));
-    seite.drawText(sicher(sch.f, k), { x: RL, y: y - 7.8, size: 7.4, font: sch.f, color: TEXT });
-    absatz(v, { x: RL + lb, breite: B - lb, g: 7.8, zl: 11, farbe: TEXT, block: false });
-    y -= 3;
+    // ── Nachweis ──
+    const zeilen: [string, string][] = [
+      ["Vereinbarung", `${NDA_TITEL} · Fassung ${e.fassung}`],
+      ["Prüfsumme des Wortlauts", `SHA-256 ${e.textHash}`],
+      ["Unterzeichnet", `${zeitU} (${unterzeichnetAm.toISOString()})`],
+      ["Unterschrift", `von Hand gezeichnet (Bild oben) und Name getippt: „${p3.getippt}“ — einfache elektronische Signatur`],
+      ...(e.nachweis ?? []),
+      ["IP-Adresse", e.ip || "unbekannt"],
+      ["Browser", (e.userAgent || "unbekannt").slice(0, 220)],
+      ["Annahme FIAON-Seite", `mit der Freischaltung des Datenraums am ${zeitF}`],
+      ["Datenraum", e.raumTitel],
+      ["Form", "Die Parteien vereinbaren in § 10 Abs. 5, dass elektronisch unterzeichnete Exemplare als Original gelten und die Schriftform wahren."],
+    ];
+    // Erst NACH allen Blöcken steht fest, ob ein Zeichen umgeschrieben wurde (Namen stehen in Parteien, § 1, § 9).
+    const lb = 118;
+    const alle = () => (umschrift.ja ? [...zeilen, ["Schreibweise", "Zeichen, die die PDF-Schrift nicht darstellen kann, stehen ohne Akzent; massgeblich ist der elektronisch gespeicherte Wortlaut (Prüfsumme oben)."] as [string, string]] : zeilen);
+    const nachweisH = 22 + alle().reduce((s, [, v]) => s + hoehe(v, { g: 7.8, breite: B - lb, zl: 11 }) + 3, 0);
+    platz(Math.min(nachweisH, 200));
+    seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.5, color: LINIE });
+    y -= 10;
+    sperr("Elektronischer Nachweis", RL, 6.8, LEISE, sch.f);
+    y -= 14;
+    for (const [k, v] of alle()) {
+      platz(hoehe(v, { g: 7.8, breite: B - lb, zl: 11 }));
+      seite.drawText(sicher(sch.f, k), { x: RL, y: y - 7.8, size: 7.4, font: sch.f, color: TEXT });
+      absatz(v, { x: RL + lb, breite: B - lb, g: 7.8, zl: 11, farbe: TEXT, block: false });
+      y -= 3;
+    }
+  } else {
+    platz(60);
+    y -= 16;
+    seite.drawLine({ start: { x: RL, y }, end: { x: SEITE_B - RR, y }, thickness: 0.5, color: LINIE });
+    y -= 12;
+    absatz(`Entwurf zum Lesen — nicht unterzeichnet. Verbindlich wird die Vereinbarung erst mit der elektronischen Unterzeichnung im Datenraum und der Freischaltung durch die FIAON-Seite (§ 8 Abs. 1). Prüfsumme dieses Wortlauts: SHA-256 ${e.textHash}.`, { g: 8.2, farbe: ROT, block: false });
   }
 
   // ── Fuß ──
@@ -291,14 +356,20 @@ export async function ndaPdfErzeugen(e: NdaPdfEingabe): Promise<Uint8Array> {
     p.drawLine({ start: { x: RL, y: 48 }, end: { x: SEITE_B - RR, y: 48 }, thickness: 0.4, color: LINIE });
     const rechts = `Seite ${i + 1} von ${seiten.length}`;
     const rb = sch.n.widthOfTextAtSize(rechts, 7);
-    const links = kuerzen(sicher(sch.n, `FIAON LTD · ${NDA_TITEL} · Fassung ${e.fassung} · ${e.textHash.slice(0, 16)}`), sch.n, 7, B - rb - 16);
-    p.drawText(links, { x: RL, y: 36, size: 7, font: sch.n, color: LEISE });
+    const links = kuerzen(sicher(sch.n, `${e.entwurf ? "ENTWURF · " : ""}FIAON LTD · ${NDA_TITEL} · Fassung ${e.fassung} · ${e.textHash.slice(0, 16)}`), sch.n, 7, B - rb - 16);
+    p.drawText(links, { x: RL, y: 36, size: 7, font: sch.n, color: e.entwurf ? ROT : LEISE });
     p.drawText(rechts, { x: SEITE_B - RR - rb, y: 36, size: 7, font: sch.n, color: LEISE });
+    if (e.entwurf) {
+      // Schräg und blass über die Seite: Ein Entwurf ist nie mit einem unterzeichneten Exemplar zu verwechseln.
+      const t = "ENTWURF"; const g = 92; const w = sch.f.widthOfTextAtSize(t, g);
+      p.drawText(t, { x: SEITE_B / 2 - (w / 2) * Math.cos(Math.PI / 5), y: SEITE_H / 2 - (w / 2) * Math.sin(Math.PI / 5), size: g, font: sch.f, color: ROT, opacity: 0.06, rotate: degrees(36) });
+    }
   });
-  metadaten(pdf, `${NDA_TITEL} — ${e.partei3.name}`, e.unterzeichnetAm);
+  const name = e.partei3?.name ?? e.seite;
+  metadaten(pdf, `${NDA_TITEL}${e.entwurf ? " (Entwurf)" : ""} — ${name}`, e.unterzeichnetAm ?? new Date());
   pdf.setCreator("FIAON Datenraum");
   pdf.setProducer("FIAON Datenraum");
-  pdf.setSubject(`Fassung ${e.fassung} · SHA-256 ${e.textHash}`);
+  pdf.setSubject(`${e.entwurf ? "Entwurf · " : ""}Fassung ${e.fassung} · SHA-256 ${e.textHash}`);
   return pdf.save({ useObjectStreams: false });
 }
 
@@ -315,7 +386,7 @@ function umbrechenEinfach(text: string, font: PDFFont, g: number, breite: number
   const out: string[] = []; let z = "";
   for (const w of String(text).split(/\s+/)) {
     const t = z ? `${z} ${w}` : w;
-    if (font.widthOfTextAtSize(sicher(font, t), g) > breite && z) { out.push(z); z = w; } else z = t;
+    if (font.widthOfTextAtSize(sicherMit(font, t), g) > breite && z) { out.push(z); z = w; } else z = t;
   }
   if (z) out.push(z);
   return out;
@@ -328,12 +399,12 @@ function kuerzen(s: string, font: PDFFont, g: number, max: number): string {
 }
 
 /** Versiegeln, wenn ein Schlüssel da ist — sonst bleibt die Datei, wie sie ist (nie ein Fehler für den Gast). */
-export async function drVersiegeln(pdf: Uint8Array, am: Date): Promise<{ pdf: Buffer; siegel: string }> {
+export async function drVersiegeln(pdf: Uint8Array, am: Date, grund?: string): Promise<{ pdf: Buffer; siegel: string }> {
   const { siegelSchluessel, pdfVersiegeln } = await import("./fiaon-global-siegel");
   const s = siegelSchluessel();
   if ("fehlt" in s) return { pdf: Buffer.from(pdf), siegel: `ausstehend: ${s.fehlt}` };
   try {
-    return { pdf: await pdfVersiegeln(pdf, s, { grund: `Elektronisch unterzeichnet im FIAON-Datenraum — ${NDA_TITEL}`, am }), siegel: "versiegelt" };
+    return { pdf: await pdfVersiegeln(pdf, s, { grund: grund ?? `Elektronisch unterzeichnet im FIAON-Datenraum — ${NDA_TITEL}`, am }), siegel: "versiegelt" };
   } catch (e) {
     console.error("[DATENRAUM] Siegel fehlgeschlagen — die Prüfsumme bleibt der Nachweis:", e);
     return { pdf: Buffer.from(pdf), siegel: `ausstehend: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300) };
@@ -345,12 +416,13 @@ export async function drVersiegeln(pdf: Uint8Array, am: Date): Promise<{ pdf: Bu
 // ═══════════════════════════════════════════════════════════════════════════
 /**
  * Schreibt `text` dezent an den unteren Rand jeder Seite — an den Rand, der beim Lesen unten liegt (auch bei
- * gedrehten Seiten), innerhalb des sichtbaren Ausschnitts (CropBox). Wirft bei verschlüsselten oder kaputten PDFs.
+ * gedrehten Seiten), innerhalb des sichtbaren Ausschnitts (CropBox). Die Vorgangsnummer kommt zusätzlich in die
+ * Stichwörter der Datei. Wirft bei verschlüsselten oder kaputten PDFs.
  */
-export async function drPdfVermerken(roh: Uint8Array, text: string): Promise<Buffer> {
+export async function drPdfVermerken(roh: Uint8Array, text: string, vorgang?: string | null): Promise<Buffer> {
   const pdf = await PDFDocument.load(roh, { updateMetadata: false });
   const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const t = sicher(font, text);
+  const t = sicherMit(font, text);
   const g = 7.2;
   const breite = font.widthOfTextAtSize(t, g);
   const farbe = rgb(0.36, 0.4, 0.47);
@@ -368,6 +440,7 @@ export async function drPdfVermerken(roh: Uint8Array, text: string): Promise<Buf
       p.drawText(t, { x: box.x + (box.width - breite) / 2, y: box.y + rand - g * 0.25, size: g, font, color: farbe, opacity: 0.8 });
     }
   }
+  if (vorgang) pdf.setKeywords([`FIAON-Datenraum ${vorgang}`]);
   return Buffer.from(await pdf.save());
 }
 
@@ -382,7 +455,7 @@ export async function drPdfPruefen(roh: Uint8Array): Promise<{ seiten: number | 
     return { seiten, vermerkMoeglich: false, grund: `Das PDF lässt sich nicht lesen (${e instanceof Error ? e.message.slice(0, 120) : "unbekannt"}) — es wird ohne Vermerk ausgeliefert.` };
   }
   try {
-    await drPdfVermerken(roh, "Vertraulich · Probe · 01.01.2026");
+    await drPdfVermerken(roh, "Vertraulich · Probe · 01.01.2026 · DR-1");
     return { seiten, vermerkMoeglich: true, grund: null };
   } catch (e) {
     return { seiten, vermerkMoeglich: false, grund: `Der Vermerk lässt sich nicht setzen (${e instanceof Error ? e.message.slice(0, 120) : "unbekannt"}) — es wird ohne Vermerk ausgeliefert.` };

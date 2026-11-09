@@ -1079,6 +1079,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.setHeader('Cache-Control', 'private, no-store');
     next();
   });
+  // E-489 (09.11.2026, Nachbesserung): der Datenraum für Investoren — der Einladungscode steht kurz in der Adresse (#c=…),
+  // die Seite zeigt Vereinbarung und Unterlagen. Derselbe Schutz: kein Index, kein Referer, kein Zwischenspeicher.
+  app.get(['/datenraum/zugang', '/datenraum/zugang/*', '/datenraum/raum', '/datenraum/raum/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
   // E-386: der Partnerbereich der Kooperation (/partner/<signierter Link>) — wie die Angebotsseiten nie im Index, kein Referrer.
   // E-423: die Seiten des persönlichen Zugangs (Anmeldung, Code, Zugang einrichten, Übersicht) — ebenso nie im Index.
   app.get(['/business/auftrag', '/business/auftrag/*', '/en/business/auftrag', '/en/business/auftrag/*', '/business/angebot/*', '/partner/*',

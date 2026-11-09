@@ -177,3 +177,40 @@
 .drg-fuss { max-width: 860px; margin: 18px auto 0; padding: 0 16px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; font-size: 11.5px; color: var(--drg-leise); }
 .drg-fuss a { color: var(--drg-leise); }
 .drg-laedt { display: grid; place-items: center; min-height: 260px; color: var(--drg-leise); font-size: 14px; }
+
+/* ── Nachbesserung 09.11.2026 ─────────────────────────────────────────────
+   Schrittleiste kurz (am Handy kein Umbruch): „Schritt x von 3“ einmal darüber, darunter drei Wörter.
+   Anlage 1 der Vereinbarung. Der Eintritt als Sperrbildschirm im Apple-Glas (Vorlage /banking, investor-glas.css):
+   eine blaue Bühne, darauf eine Karte aus Milchglas; das Vertragsblatt danach bleibt Papier. */
+.drg-schritte-rahmen { margin: 0 0 22px; }
+.drg-schritt-zahl { margin: 0 0 8px !important; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--drg-leise); font-weight: 500; }
+.drg-schritte-rahmen .drg-schritte { margin: 0; }
+.drg-schritte-rahmen .drg-schritte li { font-size: 12.5px; white-space: nowrap; }
+.drg-anlage { margin-top: 26px; padding-top: 6px; border-top: 1px solid var(--drg-linie); }
+.drg-anlage h3 { margin-top: 14px !important; }
+.drg-anlage p { margin: 6px 0 0 28px !important; }
+@media (max-width: 480px) { .drg-anlage p { margin-left: 0 !important; } }
+
+.drg.drg-sperre {
+  background:
+    radial-gradient(70% 60% at 88% -4%, rgba(166, 210, 255, .55), rgba(166, 210, 255, 0) 64%),
+    radial-gradient(60% 70% at -2% 46%, rgba(40, 141, 250, .5), rgba(40, 141, 250, 0) 66%),
+    radial-gradient(90% 50% at 50% 135%, rgba(127, 182, 255, .38), rgba(127, 182, 255, 0) 62%),
+    linear-gradient(172deg, #0b2150 0%, #13377f 42%, #1b4fbd 82%, #2f6fe0 118%);
+}
+.drg-sperre .drg-kopf { background: transparent; }
+.drg-sperre .drg-kopf::after { display: none; }
+.drg-sperre .drg-blatt {
+  max-width: 460px; margin: 28px 16px 0; border-radius: 22px; padding: 30px 22px 26px;
+  background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .88);
+  -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .95), 0 1px 2px rgba(18, 40, 74, .05), 0 24px 52px -30px rgba(8, 20, 48, .6);
+}
+@media (min-width: 520px) { .drg-sperre .drg-blatt { margin: 9vh auto 0; padding: 36px 34px 30px; } }
+.drg-sperre .drg-fuss, .drg-sperre .drg-fuss a { color: rgba(226, 236, 252, .82); }
+.drg-sperre .drg-laedt { min-height: 180px; }
+.drg-eintritt { text-align: left; }
+.drg-eintritt-schloss { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-bottom: 14px; border-radius: 14px; color: #fff; background: linear-gradient(150deg, #1d4ed8, #12284a); box-shadow: 0 10px 22px -12px rgba(29, 78, 216, .7); }
+.drg-eintritt-schloss svg { width: 22px; height: 22px; }
+.drg-sperre .drg-feld input { background: rgba(255, 255, 255, .92); }
+.drg-sperre .drg-meldung { margin: 0 0 18px; }

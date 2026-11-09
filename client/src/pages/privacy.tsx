@@ -69,6 +69,10 @@
 // (gpt-live, store: false); Aufnahme und Abschrift nur nach hörbarem Ja; ohne Ja nur Zeiten, Ergebnis und eine Notiz aus den letzten
 // Sätzen; automatische Qualitätsprüfung (Prüf-Mara, OpenAI); „nicht mehr anrufen“ sperrt sofort. Der Kästchen-Satz kommt aus
 // ANTRAG_NEU_ANRUF_TEXT (dieselbe Konstante wie im Antrag). ANWALT: Rechtsträger von OpenAI für API-Kunden im EWR, Drittland-Garantien.
+//
+// 09.11.2026 (E-489, Nachbesserung): VII d neu — der Datenraum für Investoren (Angaben für die Vertraulichkeitsvereinbarung,
+// Unterschrift mit Nachweis, Bestätigungscode bei neuer E-Mail, Protokoll jedes Abrufs, Vermerk mit Vorgangsnummer, Cookie fiaon_dr,
+// keine Messung). Beschrieben ist, was server/lib/fiaon-datenraum.ts tut. ANWALT: Rechtsgrundlagen und Aufbewahrung prüfen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import GlassNav from "@/components/GlassNav";
@@ -618,6 +622,33 @@ export default function PrivacyPage() {
                   <div>
                     <h3 className="font-semibold mb-2">6. Das Kästchen im Antrag</h3>
                     <p className="text-sm">Im Antrag können Sie freiwillig ankreuzen: „{ANTRAG_NEU_ANRUF_TEXT}“ Das Kästchen ist nie vorangekreuzt und keine Bedingung für den Vertrag. Kreuzen Sie es an, speichern wir den Wortlaut, den Zeitpunkt, die Antragsnummer und Ihre Telefonnummer als Nachweis (Art. 6 Abs. 1 lit. a DSGVO, § 7 Abs. 2 Nr. 1 UWG). Widerrufen können Sie wie unter Nr. 5 beschrieben.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* VII d. Datenraum für Investoren (E-489, 09.11.2026) */}
+            {/* LEGAL REVIEW REQUIRED: Rechtsgrundlagen (lit. b/f), Aufbewahrung der unterschriebenen Vereinbarung und des Protokolls, Empfänger. */}
+            <div id="datenraum" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+                animation: "limitGlow 6s ease-in-out infinite"
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">VII d. Datenraum für Investoren</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Was wir verarbeiten</h3>
+                    <p className="text-sm">Laden wir Sie persönlich in unseren Datenraum ein, verarbeiten wir die Angaben aus der Einladung (Name, E-Mail-Adresse, gegebenenfalls Firma und Anschrift) und die Angaben, die Sie für die Vertraulichkeitsvereinbarung machen: Anrede, Vor- und Nachname, Firma und Funktion (freiwillig), Anschrift, E-Mail-Adresse, Telefonnummer (freiwillig) und gegebenenfalls die Namen früherer Empfänger von Informationen (Anlage 1). Bei der Unterzeichnung speichern wir Ihre gezeichnete Unterschrift als Bild, den getippten Namen, Zeitpunkt, IP-Adresse und Browser-Kennung, den Wortlaut der Vereinbarung mit seinem Prüfwert (Hash), Ihre Bestätigung und das unterschriebene PDF. Ändern Sie die E-Mail-Adresse aus der Einladung, senden wir einen Bestätigungscode an die neue Adresse. Im Datenraum protokollieren wir jeden Abruf einer Unterlage (Zeitpunkt, Unterlage, IP-Adresse, Browser-Kennung); jede ausgelieferte PDF-Seite trägt Ihren Namen, das Datum und eine Vorgangsnummer. Ein Sitzungs-Cookie (fiaon_dr, nur für den Datenraum) hält Sie bis zu sieben Tage angemeldet. Statistik- oder Marketing-Dienste laufen im Datenraum nicht.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Zweck und Rechtsgrundlage</h3>
+                    <p className="text-sm">Die Verarbeitung dient dem Abschluss und der Durchführung der Vertraulichkeitsvereinbarung und der Prüfung einer möglichen Zusammenarbeit (Art. 6 Abs. 1 lit. b DSGVO). Unterschriftsbild, Zeitpunkt, IP-Adresse, Prüfwert und das Protokoll der Abrufe dienen dem Nachweis, wer die Vereinbarung wann in welcher Fassung geschlossen und welche Unterlagen erhalten hat, und dem Schutz vertraulicher Informationen (Art. 6 Abs. 1 lit. f DSGVO, unser berechtigtes Interesse an der Durchsetzung der Vereinbarung). Eine Kopie der Vereinbarung erhalten Sie per E-Mail; über Ihre Unterzeichnung und Ihre Abrufe wird Justin Schwarzott als Ansprechpartner per E-Mail informiert.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Empfänger und Speicherdauer</h3>
+                    <p className="text-sm">Zugriff hat im Haus nur die Inhaberebene. Für Hosting (Server in der Europäischen Union, siehe Abschnitt IV) und E-Mail-Versand setzen wir technische Dienstleister ein, die nur nach unserer Weisung verarbeiten. Die unterschriebene Vereinbarung, ihren Nachweis und das Protokoll bewahren wir auf, solange Pflichten aus der Vereinbarung bestehen (Vertraulichkeit bis drei Jahre nach der letzten Offenlegung, Nichtumgehung 24 Monate) und darüber hinaus bis zum Ablauf der Verjährung möglicher Ansprüche. Angaben eines Gastes, der nie unterzeichnet hat, löschen wir auf Wunsch — eine Nachricht an js@fiaon.com genügt.</p>
                   </div>
                 </div>
               </div>

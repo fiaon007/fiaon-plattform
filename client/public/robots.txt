@@ -23,6 +23,9 @@ Disallow: /zugang/
 Disallow: /api/
 Disallow: /vereinbarung
 Disallow: /scp-datenraum
+# 09.11.2026 (E-489): der Datenraum für Investoren — persönlicher Zugang mit Einladungscode, nichts für Suchmaschinen.
+Disallow: /datenraum/zugang
+Disallow: /datenraum/raum
 Disallow: /uploads/
 
 Sitemap: https://fiaon.com/sitemap.xml

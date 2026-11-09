@@ -1469,6 +1469,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/fiaon', fiaonVereinbarung.default);
   fiaonVereinbarung.ensureVereinbarungTabellen().catch((e) => console.error('[VEREINBARUNG] Tabellen:', e));
 
+  // 🗂 E-489 (09.11.2026): FIAONs Datenraum für Investoren — Einladungscode → Angaben → Vertraulichkeitsvereinbarung
+  //    unterzeichnen → sofort Zugriff auf die Unterlagen je Projekt (/datenraum/zugang). Verwaltung im Chefbüro
+  //    › Geschäftspartner › Akte › Datenraum. Eigene Tabellen fiaon_dr_*, eigene Sitzung (server/lib/fiaon-datenraum.ts).
+  //    Der Lauf schickt alle 5 Minuten die gebündelte Tagesmeldung je Gast an Justin und holt gescheiterte Mails nach.
+  const fiaonDatenraum = await import('./routes/fiaon-datenraum');
+  app.use('/api/fiaon', fiaonDatenraum.default);
+  fiaonDatenraum.ensureDatenraumTabellen().catch((e) => console.error('[DATENRAUM] Tabellen:', e));
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('datenraum-meldungen', async () => await (await import('./lib/fiaon-datenraum')).drMeldungenLauf(),
+      5 * 60 * 1000, { beimStartNach: 240_000, nurMitErgebnis: true });
+  });
+
   // 🎫 Anliegen (Tickets) — Hilfe im Kundenbereich als internes System.
   const fiaonTickets = await import('./routes/fiaon-tickets');
   app.use('/api/fiaon', fiaonTickets.default);

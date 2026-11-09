@@ -583,6 +583,11 @@ export async function freitextSenden(ein: {
   absender?: AbsenderRolle;
   /** E-421: Teile des Bausteins (siehe freitextRendern). */
   baustein?: Partial<MailBaustein>;
+  /**
+   * E-489 (09.11.2026, Datenraum): Antwort-an statt des Absenders — ein Investor, der auf die Kopie seiner Vereinbarung
+   * antwortet, landet bei Justin (js@), nicht in Maras Postfach. Ohne Angabe bleibt jede Mail, wie sie war.
+   */
+  antwortAn?: { email: string; name?: string };
 }): Promise<{ ok: boolean; messageId: string | null; grund?: string }> {
   if (!adresseSiehtGueltigAus(String(ein.an || "").trim())) {
     return { ok: false, messageId: null, grund: `Empfängeradresse ungültig: „${ein.an}“ — bitte in der Akte korrigieren.` };
@@ -595,7 +600,7 @@ export async function freitextSenden(ein: {
       method: "POST",
       headers: { "api-key": key, "Content-Type": "application/json", accept: "application/json" },
       body: JSON.stringify({
-        sender: mail.absender, replyTo: mail.absender,
+        sender: mail.absender, replyTo: ein.antwortAn?.email ? { name: ein.antwortAn.name || mail.absender.name, email: ein.antwortAn.email } : mail.absender,
         to: [{ email: ein.an }],
         subject: mail.betreff, htmlContent: mail.html, textContent: mail.text,
         tags: ["frei_text"],

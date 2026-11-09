@@ -1540,6 +1540,17 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     tipp: "Die Einwilligung, die der Kunde ankreuzt, nennt den Partner immer „selbstständigen Berater“ — die Bezeichnung ändert nur die Zeile unter dem Namen.",
   },
   {
+    // E-489 (09.11.2026): der Datenraum für Investoren — ein Reiter in der Partner-Akte, ohne „ziel“ (die Akte ist eine Schublade).
+    titel: "Datenraum: Unterlagen für Investoren — erst nach der Vertraulichkeitsvereinbarung.",
+    text: "In der Akte eines Partners steht der Reiter „Datenraum“ (nur Inhaber und Geschäftsführung). Dort legst du den Raum an: Projekte mit "
+      + "Titel und kurzer Beschreibung — sie werden die Ordner und die Themen in § 1 der Vereinbarung. Dann lädst du die Unterlagen je Projekt "
+      + "hoch und lädst den Gast ein: Code und persönlicher Link stehen genau einmal da, zum Kopieren. Der Gast tritt mit dem Link ein, prüft "
+      + "seine Angaben, liest die Vereinbarung, zeichnet und tippt seinen Namen — und sieht sofort alle sichtbaren Unterlagen. Jede PDF-Seite "
+      + "trägt seinen Namen, jede Ansicht steht im Protokoll. Du bekommst das unterschriebene PDF per Mail und einmal am Tag eine Meldung, "
+      + "wenn er liest. Sichtbarkeit je Dokument, neuer Code und Sperren gehen mit einem Klick.",
+    tipp: "Kommt später ein Projekt mit Unterlagen dazu, bestätigt der Gast eine ergänzte Fassung der Vereinbarung, bevor er die neuen Unterlagen sieht.",
+  },
+  {
     ziel: ".cg-zahlen",
     titel: "Vier Zahlen, zwei davon sind Alarm.",
     text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Ohne Stichtag“ "

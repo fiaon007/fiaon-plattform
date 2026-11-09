@@ -1,0 +1,52 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO · GESCHÄFTSPARTNER · AKTE · DATENRAUM (E-489, 09.11.2026)
+   Steht in der dunklen Schublade der Partner-Akte und nimmt deren Bausteine
+   (gp-feld-block, gp-raster, cg-knopf). Hier nur, was der Datenraum zusätzlich braucht:
+   die Einmal-Anzeige des Codes, Projekt-Buchstaben, die Dokumentzeilen mit Schalter,
+   das Protokoll. Keine Backticks in Kommentaren (pruef-backticks liest auch CSS).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dr { display: grid; gap: 16px; }
+.dr-zahlen { margin-top: 2px; }
+.dr-einmal { display: grid; gap: 10px; padding: 16px; border-radius: 14px; background: rgba(40, 141, 250, .1); border: 1px solid rgba(147, 197, 253, .45); box-shadow: 0 10px 30px rgba(2, 6, 23, .35); }
+.dr-einmal h3 { margin: 0; font-size: 14px; font-weight: 600; color: #f1f5f9; }
+.dr-einmal-zeile { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.dr-einmal-zeile > span { font-size: 12px; color: rgba(191, 219, 254, .9); }
+.dr-einmal code { font: 500 16px/1.3 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .06em; color: #fff; padding: 7px 10px; border-radius: 9px; background: rgba(2, 6, 23, .5); border: 1px solid rgba(148, 163, 184, .25); overflow-wrap: anywhere; user-select: all; }
+.dr-einmal code.lang { font-size: 12.5px; letter-spacing: 0; }
+.dr-projekt-form { display: grid; gap: 10px; padding: 12px; border-radius: 12px; background: rgba(2, 6, 23, .28); border: 1px solid rgba(148, 163, 184, .14); }
+.dr-projekt-form b { font-size: 13px; color: #e2e8f0; }
+.dr-bu { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 9px; border-radius: 7px; font: 500 13px/1 "Newsreader", Georgia, serif; color: #fff; background: linear-gradient(150deg, #2a4a86, #12284a); border: 1px solid rgba(147, 197, 253, .3); vertical-align: -6px; }
+.dr-doks { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-top: 1px solid rgba(148, 163, 184, .12); }
+.dr-doks li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 2px; border-bottom: 1px solid rgba(148, 163, 184, .1); }
+.dr-doks li.aus .dr-dok-text { opacity: .55; }
+.dr-nr { font: 400 13px/1 "Newsreader", Georgia, serif; color: rgba(148, 163, 184, .85); font-variant-numeric: tabular-nums; }
+.dr-dok-text { display: grid; gap: 2px; min-width: 0; }
+.dr-dok-text b { font-size: 13.5px; font-weight: 600; color: #f1f5f9; overflow-wrap: anywhere; }
+.dr-dok-text span { font-size: 12.5px; color: rgba(203, 213, 225, .88); }
+.dr-dok-text small { font-size: 11.5px; color: rgba(148, 163, 184, .9); }
+.dr-dok-text em { font-style: normal; color: #fde68a; }
+.dr-dok-wege { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; }
+.dr-schalter { display: inline-flex !important; align-items: center; gap: 7px; cursor: pointer; font-size: 12px !important; color: rgba(203, 213, 225, .9) !important; }
+.dr-schalter input { appearance: none; -webkit-appearance: none; width: 34px; height: 20px; margin: 0; border-radius: 999px; background: rgba(148, 163, 184, .3); position: relative; cursor: pointer; transition: background .15s; }
+.dr-schalter input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.dr-schalter input:checked { background: #288dfa; }
+.dr-schalter input:checked::after { transform: translateX(14px); }
+.dr-hochladen { display: grid; gap: 10px; padding-top: 12px; border-top: 1px dashed rgba(148, 163, 184, .2); }
+.dr-nda-zeile { color: #bbf7d0 !important; font-size: 12.5px !important; }
+.gp-marke.dr-status-unterzeichnet { color: #bbf7d0; background: rgba(20, 83, 45, .35); border-color: rgba(74, 222, 128, .35); }
+.gp-marke.dr-status-angaben { color: #fde68a; background: rgba(113, 63, 18, .35); border-color: rgba(250, 204, 21, .3); }
+.gp-marke.dr-status-gesperrt { color: #fecaca; background: rgba(127, 29, 29, .3); border-color: rgba(248, 113, 113, .35); }
+.dr-protokoll { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.dr-protokoll li { display: grid; grid-template-columns: 128px minmax(0, 1fr) minmax(0, 220px); gap: 10px; padding: 7px 0; border-top: 1px solid rgba(148, 163, 184, .1); font-size: 12.5px; color: rgba(203, 213, 225, .9); }
+.dr-protokoll li:first-child { border-top: 0; }
+.dr-p-zeit { color: rgba(148, 163, 184, .9); font-variant-numeric: tabular-nums; }
+.dr-p-was b { color: #e2e8f0; font-weight: 600; }
+.dr-p-wer { color: rgba(148, 163, 184, .9); overflow-wrap: anywhere; }
+.dr-p-code_falsch .dr-p-was b, .dr-p-zugriff_verweigert .dr-p-was b, .dr-p-gebremst .dr-p-was b, .dr-p-gesperrt_versuch .dr-p-was b { color: #fca5a5; }
+.dr-p-nda_unterzeichnet .dr-p-was b { color: #86efac; }
+@media (max-width: 640px) {
+  .dr-einmal-zeile { grid-template-columns: minmax(0, 1fr); }
+  .dr-doks li { grid-template-columns: 24px minmax(0, 1fr); }
+  .dr-dok-wege { grid-column: 2; justify-content: flex-start; }
+  .dr-protokoll li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

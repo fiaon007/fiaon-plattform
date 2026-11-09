@@ -1,4 +1,5 @@
 // /datenraum — Due Diligence. Zeigt, WIE das Unternehmen geführt wird, bevor jemand Zahlen sieht.
+// E-489 (09.11.2026): dezent „Zugang mit Einladungscode“ → /datenraum/zugang (Vereinbarung unterzeichnen, dann die Unterlagen).
 import { PRIVAT_START } from "@shared/fiaon-business-grenze";
 import { Dunkel, Hero, Block, Karten, Kennzahlen, Schritte, Glas, Fragen, Zwischenruf, Abschluss, Anfrage, Knopf, Auf } from "@/components/site/DunkleBuehne";
 import SchichtenSzene from "@/components/home3d/SchichtenSzene";
@@ -11,7 +12,7 @@ export default function Datenraum() {
         pille="Due Diligence"
         titel={<>Geführt, als würde <span className="dk-verlauf">morgen verkauft.</span></>}
         lead="Seit dem ersten Tag hält FIAON jede Entscheidung, jede Änderung und jede Zahl fest – nicht für den Verkauf, sondern weil ein Unternehmen, das jederzeit geprüft werden kann, besser geführt wird. Der Datenraum ist die Folge davon."
-        knoepfe={<><Knopf href="#anfrage">Zugang anfragen</Knopf><Knopf href="#kapitel" still>Die sechs Kapitel</Knopf></>}
+        knoepfe={<><Knopf href="#anfrage">Zugang anfragen</Knopf><Knopf href="#kapitel" still>Die sechs Kapitel</Knopf><Knopf href="/datenraum/zugang" still>Zugang mit Einladungscode</Knopf></>}
         szene={<SchichtenSzene namen={["Entscheidungen", "Logbuch", "Kennzahlen"]} className="absolute inset-0" />}
       />
 
@@ -71,7 +72,7 @@ export default function Datenraum() {
       </Block>
 
       <Block id="anfrage" pille="Zugang" titel={<>Zugang <span className="dk-verlauf">anfragen.</span></>}
-             lead="Bitte nennen Sie uns den Zweck Ihrer Anfrage. Der Zugang wird nach Unterzeichnung einer Vertraulichkeitsvereinbarung freigeschaltet." schmal>
+             lead="Bitte nennen Sie uns den Zweck Ihrer Anfrage. Der Zugang wird nach Unterzeichnung einer Vertraulichkeitsvereinbarung freigeschaltet. Sie haben schon eine Einladung? Dann öffnen Sie den Datenraum mit Ihrem Einladungscode." schmal>
         <Anfrage art="datenraum" knopf="Zugang anfragen" hinweis="Vertraulich. Antwort innerhalb von zwei Werktagen."
                  felder={[
                    { name: "name", label: "Ihr Name", pflicht: true },

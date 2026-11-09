@@ -229,6 +229,8 @@ const AgentGlobalPage = lazy(() => import("@/pages/agent/global"));
 const AgentGlobalAktePage = lazy(() => import("@/pages/agent/global-akte"));
 const SitePresse = lazy(() => import("@/pages/site/presse"));
 const SiteDatenraum = lazy(() => import("@/pages/site/datenraum"));
+// E-489 (09.11.2026): der Datenraum für Investoren — Einladungscode, Vereinbarung unterzeichnen, Unterlagen je Projekt.
+const DatenraumZugangPage = lazy(() => import("@/pages/datenraum-zugang"));
 const SitePartner = lazy(() => import("@/pages/site/partner"));
 const SiteKarriere = lazy(() => import("@/pages/site/karriere"));
 const SiteTeam = lazy(() => import("@/pages/site/team"));
@@ -418,6 +420,8 @@ function Router() {
       <Route path="/investoren" component={SiteInvestoren} />
       <Route path="/presse" component={SitePresse} />
       <Route path="/datenraum" component={SiteDatenraum} />
+      <Route path="/datenraum/zugang" component={DatenraumZugangPage} />
+      <Route path="/datenraum/raum" component={DatenraumZugangPage} />
       <Route path="/partner" component={SitePartner} />
       <Route path="/karriere" component={SiteKarriere} />
       <Route path="/team" component={SiteTeam} />

@@ -15,9 +15,11 @@
 //   · „Aus E-Mail übernehmen“: Vorschau zum Prüfen — gespeichert wird erst mit
 //     „Übernehmen“. Ohne KI werten Regeln aus, und die Seite sagt warum.
 //   · IA-KOOP-Partner ohne Akte stehen oben mit „als Partner-Akte anlegen“.
+//   · E-489 (09.11.2026): Reiter „Datenraum“ in der Akte — Datenraum für Investoren mit Vertraulichkeits-
+//     vereinbarung, Gästen, Unterlagen je Projekt und Protokoll (ChefDatenraum.tsx).
 // Server: server/routes/fiaon-partner-crm.ts · Regeln: shared/fiaon-partner-crm.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { API, datum, datumZeit, Geruest, Fehlermeldung } from "./chef-teile";
 import {
@@ -25,6 +27,8 @@ import {
   type Kondition, type LageHinweis, type MailVorschlag, type Treffer, type AdressVorschlag,
 } from "@shared/fiaon-partner-crm";
 import "@/styles/chef-partner-crm.css";
+// E-489 (09.11.2026): der Datenraum für Investoren als Reiter der Akte — erst geladen, wenn er geöffnet wird.
+const ChefDatenraum = lazy(() => import("./ChefDatenraum"));
 
 // ── Antwortformen (wie der Server sie liefert) ─────────────────────────────
 type Karte = {
@@ -57,7 +61,7 @@ type Akte = { firma: Firma; kontakte: Kontakt[]; verlauf: Verlauf[]; dokumente: 
 type Antwort = { ok: boolean; error?: string; meldung?: string; [k: string]: any };
 type Meldung = { gut: boolean; text: string } | null;
 type Schublade = { art: "akte"; id: number; tab?: Reiter } | { art: "firma-neu" } | { art: "kontakt-neu"; firmaId?: number | null; kontakt?: Kontakt } | { art: "mail"; firmaId?: number | null };
-type Reiter = "ueberblick" | "kontakte" | "verlauf" | "dokumente" | "aufgaben";
+type Reiter = "ueberblick" | "kontakte" | "verlauf" | "dokumente" | "aufgaben" | "datenraum";
 
 // ── Netz ───────────────────────────────────────────────────────────────────
 async function holen(pfad: string): Promise<Antwort> {
@@ -117,7 +121,11 @@ export default function ChefGeschaeftspartner() {
   const [runde, setRunde] = useState(0);
   const [meldung, setMeldung] = useState<Meldung>(null);
   const [schublade, setSchubladeRoh] = useState<Schublade | null>(() => {
-    try { const id = Number(new URLSearchParams(window.location.search).get("partner")); return id > 0 ? { art: "akte", id } : null; } catch { return null; }
+    // E-489: ?akte=datenraum öffnet die Akte gleich im Reiter „Datenraum“ (Link aus der Meldung „NDA unterschrieben“).
+    try {
+      const q = new URLSearchParams(window.location.search); const id = Number(q.get("partner"));
+      return id > 0 ? { art: "akte", id, ...(q.get("akte") === "datenraum" ? { tab: "datenraum" as Reiter } : {}) } : null;
+    } catch { return null; }
   });
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -144,6 +152,7 @@ export default function ChefGeschaeftspartner() {
     try {
       const u = new URL(window.location.href);
       if (s?.art === "akte") u.searchParams.set("partner", String(s.id)); else u.searchParams.delete("partner");
+      u.searchParams.delete("akte");
       window.history.replaceState(null, "", u.pathname + u.search);
     } catch { /* Adresse bleibt — die Schublade öffnet trotzdem */ }
   }, []);
@@ -602,7 +611,7 @@ function AkteAnsicht({ id, startTab, liste, schliessen, geaendert, oeffne }: {
   const offen = akte.aufgaben.filter((a) => !a.erledigtAm).length;
   const tabs: [Reiter, string, number | null][] = [
     ["ueberblick", "Überblick", null], ["kontakte", "Kontakte", akte.kontakte.length], ["verlauf", "Verlauf", akte.verlauf.length],
-    ["dokumente", "Dokumente", akte.dokumente.length], ["aufgaben", "Aufgaben", offen],
+    ["dokumente", "Dokumente", akte.dokumente.length], ["aufgaben", "Aufgaben", offen], ["datenraum", "Datenraum", null],
   ];
   return (
     <>
@@ -623,6 +632,7 @@ function AkteAnsicht({ id, startTab, liste, schliessen, geaendert, oeffne }: {
         {tab === "verlauf" && <VerlaufTab akte={akte} tun={tun} />}
         {tab === "dokumente" && <DokumenteTab akte={akte} tun={tun} />}
         {tab === "aufgaben" && <AufgabenTab akte={akte} tun={tun} />}
+        {tab === "datenraum" && <Suspense fallback={<Geruest zeilen={4} />}><ChefDatenraum firmaId={f.id} firmaName={f.name} kontakte={akte.kontakte} /></Suspense>}
       </div>
     </>
   );

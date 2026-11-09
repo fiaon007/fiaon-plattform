@@ -65,6 +65,44 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   client/src/components/admin/ (MailwerkVorsorge, ChefMailwerk), client/src/pages/privacy.tsx,
   db/migrations/132_vorsorge_ueberblick.sql, scripts/pruef-vorsorge.ts.
 
+## 09.11.2026 — E-489: Datenraum für Investoren — Einladungscode, Vertraulichkeitsvereinbarung unterzeichnen, sofort Zugriff
+
+- **Warum:** Justin: „Wenn er eintritt, muss er alle Infos für die NDA angeben, dann diese direkt unterzeichnen und dann soll
+  er direkt Zugriff haben. Stelle ihm alles hoch, gut geordnet zu jedem Projekt." Bisher gab es dafür keinen Weg: Unterlagen
+  gingen als Anhang raus, die Vereinbarung als PDF zum Ausdrucken. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Der Gast** öffnet seinen persönlichen Link (fiaon.com/datenraum/zugang?c=…) oder tippt den Einladungscode ein.
+    Schritt 1: seine Angaben für die Vereinbarung (vorbefüllt, änderbar, Pflichtfelder geprüft). Schritt 2: die
+    gegenseitige Vertraulichkeits- und Nichtumgehungsvereinbarung lesen — mit seinen Angaben als Partei 3 und den Projekten
+    des Raums als Themen in § 1 — und „gelesen und einverstanden“ anhaken. Schritt 3: im Feld zeichnen (Finger oder Maus),
+    vollen Namen tippen, „Jetzt verbindlich unterzeichnen“. Danach sieht er sofort die Projekte als Ordner mit allen
+    sichtbaren Unterlagen: ansehen oder herunterladen, sein eigenes Exemplar als PDF.
+  - **Die Vereinbarung** (shared/fiaon-datenraum-nda.ts) ist der Wortlaut der freigegebenen Fassung (Schweizer Recht,
+    Gerichtsstand Zürich, Nichtumgehung 24 Monate, Konventionalstrafe CHF 50’000 je Fall, Vertraulichkeit drei Jahre). Fest ist nur die FIAON-Seite; Gast, Projekte und drei Zusätze des Raums kommen aus der Datenbank. Die FIAON-Seite
+    nimmt mit der Freischaltung des Datenraums an (§ 8, im PDF vermerkt). Gespeichert werden Zeichnung, Name, Zeitpunkt,
+    IP, Browser, Fassung und Prüfsumme des Wortlauts; das unterschriebene PDF liegt in der Datenbank (mit PAdES-Siegel der
+    FIAON LTD, sobald der Siegel-Schlüssel hinterlegt ist). Einfache elektronische Unterschrift — das sagt auch die Seite.
+  - **Jede PDF-Seite** bekommt beim Ausliefern unten „Vertraulich · Name des Gastes · Datum“. Jede Ansicht und jeder
+    Download steht im Protokoll. Ohne Vereinbarung, bei unsichtbaren oder fremden Unterlagen und für gesperrte Gäste gibt
+    es nichts — geprüft bei jeder Anfrage. Codes stehen nur als Prüfsumme in der Datenbank; nach fünf Fehlversuchen von
+    einem Anschluss ist 15 Minuten Pause.
+  - **Kommt ein Projekt mit Unterlagen dazu**, bestätigt der Gast eine ergänzte Fassung, bevor er die neuen Unterlagen sieht.
+  - **Mails** (über den Brevo-Weg des Hauses): an den Gast die Kopie der Vereinbarung als PDF mit Link zum Raum (Antworten
+    gehen an Justin), an Justin „… hat die NDA unterschrieben“ mit PDF und einmal am Tag je Gast eine gebündelte Meldung,
+    wenn er Unterlagen öffnet. Gescheiterte Mails holt der Lauf „datenraum-meldungen“ nach.
+  - **Verwaltung im Chefbüro** (keine neue Seite): Global-Aufträge › Geschäftspartner › Akte eines Partners › Reiter
+    „Datenraum“ — Raum und Projekte anlegen, Gast einladen (Code und Link stehen genau einmal da), Unterlagen je Projekt
+    hochladen, Sichtbarkeit umschalten, NDA-PDF laden, neuer Code, sperren, Protokoll. Nur Inhaber und Geschäftsführung.
+    Der Rundgang des Raums erklärt es.
+  - **Befüllen von Justins Rechner:** scripts/datenraum.ts (raum-anlegen, gast-anlegen, hochladen mit manifest.json je
+    Projektordner, sichtbar, liste) — ohne --schreiben nur Vorschau, gegen die Produktion nur mit --produktion.
+  - Auf fiaon.com/datenraum steht dezent „Zugang mit Einladungscode“.
+- **Wo:** shared/fiaon-datenraum-nda.ts, server/lib/fiaon-datenraum.ts (+ -regeln, -pdf), server/routes/fiaon-datenraum.ts,
+  client/src/pages/datenraum-zugang.tsx, client/src/components/admin/ChefDatenraum.tsx (Reiter in ChefGeschaeftspartner.tsx),
+  client/src/pages/agent/rundgaenge.ts, client/src/pages/site/datenraum.tsx, server/mail/motor.ts (Antwort-an für
+  Freitext-Mails), scripts/datenraum.ts, scripts/pruef-datenraum.ts. Tabellen fiaon_dr_raeume, _projekte, _dokumente,
+  _gaeste, _nda, _protokoll, _tagesmeldung — legt der Server beim Start an.
+
 ## 06.11.2026 — E-484 (Endprüfung): Auszahlungsplan — Zahlungsweg ohne neue Tabellen-Sperre, Rückruf vor dem Plan verknüpft
 
 - **Warum:** Die Endprüfung vor dem Push hat die Nachbesserung gegengelesen und nachgestellt. Noch nicht live (eigener Zweig, kein Push).

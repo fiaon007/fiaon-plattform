@@ -460,6 +460,12 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Kontakte erreichen den Partner nicht, und die Monatsrechnung für gelieferte Kontakte entsteht nicht — Geld bleibt liegen.",
     fenster: 3,
   },
+  // E-487 (09.11.2026): Ohne diesen Lauf bleibt eine Partner-Empfehlung ohne Person — ihre Zahlungen zählen nicht für die Provision.
+  koop_empfehlung_zuordnen: {
+    zweck: "Partner-Empfehlungen ohne Person zuordnen (Anfrage, E-Mail, Telefon, Name, Angebot); unklare Fälle als Aufgabe an Justin; alte Empfehlungen mit Telefon einmal an die zuständige Person",
+    folge: "Zahlende Kunden aus einer Empfehlung stehen im Partnerbereich mit 0,00 € — die Provision des Partners fehlt in der Gutschrift.",
+    fenster: 3,
+  },
   ki_selbstheilung: {
     zweck: "Automatische KI-Pause (Guthaben leer) alle 10 Minuten per Probe prüfen und von selbst aufheben, sobald wieder abgebucht wird",
     folge: "Nach dem Aufladen bleibt die KI pausiert — Mara, Postmeister, Ratgeber und Belegerkennung stehen, bis jemand „KI wieder aktivieren“ drückt.",

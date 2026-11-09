@@ -56,6 +56,8 @@ import {
 import { leadWegSchema, leadCodeSichern } from "./fiaon-lead-weg";
 import type { GmailNachricht } from "./fiaon-gmail";
 import type { EigeneMail } from "./fiaon-brevo";
+// E-487 (09.11.2026): Empfehlung eines Partners als Lead (Willkommens-Mail „Empfehlung“, keine Flut-Regel).
+import { KOOP_EMPFEHLUNG_IP } from "@shared/fiaon-koop-empfehlung";
 
 type Lauf = typeof sqlPool;
 export const LEAD_POSTFACH = "js@fiaon.com";
@@ -331,6 +333,8 @@ export interface LeadLage {
   zustaendig: { id: number; name: string; weiblich: boolean } | null;
   letzterAnruf: { ergebnis: string; am: Date; wer: string | null } | null;
   budget: { letzte24h: number; gesamt: number };
+  /** E-487: Empfehlung eines Partners (ip KOOP_EMPFEHLUNG_IP) — wer empfohlen hat; sonst null. */
+  empfehler?: { name: string; nachname: string | null; anrede: "Herr" | "Frau" | null } | null;
 }
 
 const d = (v: unknown): Date | null => (v ? new Date(v as any) : null);
@@ -391,6 +395,10 @@ export async function leadLageLesen(anfrageId: number, lauf: Lauf = sqlPool, jet
   const firmaRoh = String(a.firma ?? "").trim();
   const text = String(a.text ?? "");
   const meta = a.ip === "meta-sofortformular" || !!a.meta_lead_id;
+  // E-487 (09.11.2026): Empfehlung eines Partners — der Text der Anfrage ist die Notiz des Partners (keine Nachricht des Leads),
+  // der erste Satz der Willkommens-Mail nennt den Empfehlenden.
+  const empfehlung = a.ip === KOOP_EMPFEHLUNG_IP;
+  const empfehler = empfehlung ? await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlerFuerAnfrage(anfrageId, lauf)).catch(() => null) : null;
   const defsRoh = jsonObjekt(a.formular_fragen);
   const defs: MetaFrageDef[] | null = Array.isArray(defsRoh) ? defsRoh : null;
   const gespeichert = jsonObjekt(a.dossier_antworten);
@@ -475,7 +483,7 @@ export async function leadLageLesen(anfrageId: number, lauf: Lauf = sqlPool, jet
 
   return {
     anfrageId, firmaId, name, email, telefon, firmaRoh, firmaBrauchbar: fb, sprache, kanal: meta ? "meta" : "website", antworten,
-    mitNachricht: !meta && rumpf.length >= 3, paketName: paketwunschAus(kopf),
+    mitNachricht: !meta && !empfehlung && rumpf.length >= 3, paketName: paketwunschAus(kopf), empfehler,
     eingangAm: eingang, echterEingang: d(a.meta_erstellt), metaWeg: a.meta_weg ?? null, istTest: !!a.ist_test, status: String(a.status),
     land, oesterreich: land === "AT", bestandskunde: !!k?.privat_bestand,
     ip: a.ip ? String(a.ip) : null, wunschzeit: (/^Wunschzeit:\s*(.+)$/m.exec(kopf)?.[1] ?? "").trim() || null,
@@ -571,7 +579,7 @@ export async function willkommenFuer(lage: LeadLage, link: { url: string; bis?: 
     paketName: lage.paketName, oesterreich: lage.oesterreich, bestandskunde: lage.bestandskunde,
     link: linkTeil(link), eingangAm: lage.echterEingang && lage.echterEingang < lage.eingangAm ? lage.echterEingang : lage.eingangAm,
     jetzt, ruf: await rufLageFuer(lage, jetzt), wunschzeit: lage.wunschzeit, kalenderLeer: !!opt.kalenderLeer,
-    whatsapp: await maraWhatsappLink(link.url, lage.sprache),
+    whatsapp: await maraWhatsappLink(link.url, lage.sprache), empfehler: lage.empfehler ?? null,
   });
 }
 
@@ -705,7 +713,7 @@ async function willkommenBuchen(lage: LeadLage, gesendet: { id: string; threadId
      WHERE anfrage_id = ${lage.anfrageId}`;
   await postMerken(lage.anfrageId, { richtung: "aus", art: "willkommen", gmailId: gesendet.id, threadId: gesendet.threadId || gesendet.id, betreff: m.betreff, auszug: text }, lauf);
   await protokollieren(EV.willkommen, lage.email, "willkommen", lage.anfrageId, m.betreff, lauf);
-  await cockpitZeile(lage.firmaId, "lead_mail", `Willkommens-Mail von Justin (js@) mit seinem persönlichen Terminlink — ${m.sprache === "en" ? "auf Englisch" : "deutsch"}${lage.bestandskunde ? ", Fassung „Bestandskunde“" : ""}.`, lauf);
+  await cockpitZeile(lage.firmaId, "lead_mail", `Willkommens-Mail von Justin (js@) mit seinem persönlichen Terminlink — ${m.sprache === "en" ? "auf Englisch" : "deutsch"}${lage.empfehler ? ", Fassung „Empfehlung“" : lage.bestandskunde ? ", Fassung „Bestandskunde“" : ""}.`, lauf);
 }
 
 /**
@@ -747,7 +755,8 @@ export async function willkommenSenden(anfrageId: number, opt: { jetzt?: Date; l
     }
     // Nachbesserung (Gutachten Sicherheit, Mangel 2): ein Website-Anschluss, der in 24 Stunden mehr als zwei Anfragen schickt,
     // bekommt kein Willkommen aus js@ (sonst würde unser Postfach zum Spam-Relais). Der Anruf-Auftrag steht trotzdem.
-    if (lage.kanal === "website" && lage.ip && !/^meta/.test(lage.ip)) {
+    // E-487: Eine Empfehlung kommt über den signierten Link des Partners, nicht über das offene Formular — keine Flut-Regel.
+    if (lage.kanal === "website" && lage.ip && !/^meta/.test(lage.ip) && lage.ip !== KOOP_EMPFEHLUNG_IP) {
       const [fl] = (await lauf`
         SELECT COUNT(*)::int AS n FROM fiaon_anfragen
          WHERE art = 'global' AND ip = ${lage.ip}

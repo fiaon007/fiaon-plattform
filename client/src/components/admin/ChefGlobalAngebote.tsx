@@ -152,15 +152,23 @@ type KoopAngebot = {
   empfehlungen?: KoopEmpfehlungen | null;
 };
 // E-419: Empfehlungen des Partners an FIAON und seine Provision (der Partner sieht dieselbe Liste in seinem Partnerbereich).
+// E-487 (09.11.2026): Stufe mit Datum, Anfrage (die Empfehlung läuft wie ein Lead), automatische Zuordnung und der offene Nachtrag
+// mit „Nachtrag jetzt abrechnen“ (Gutschrift + Mail an den Partner, Zahlungsauftrag nur als Entwurf).
 type KoopEmpfehlung = { id: number; name: string; telefon: string | null; email: string | null; notiz: string | null; quelle: string; personId: number | null;
-  gemeldetText: string; bisText: string; standText: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; ausgezahltCents: number };
+  gemeldetText: string; bisText: string; standText: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; ausgezahltCents: number;
+  stand?: string; standAmText?: string | null; anfrageId?: number | null; zuordnungText?: string | null };
+type KoopNachtrag = { bisMonat: string | null; bisText: string | null; summeCents: number; summe: string; schonDa: { nummer: string } | null; hinweis: string | null;
+  posten: { name: string; amText: string; umsatz: string; faellig: string; schon: string; nachtrag: string; nachtragCents: number }[];
+  zuViel: { name: string; amText: string; faellig: string; schon: string }[] };
 type KoopEmpfehlungen = { prozent: number | null; berechnungAusgesetzt: boolean; monate: number; liste: KoopEmpfehlung[];
   summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string };
-  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string }[]; bank?: { inhaber: string; maske: string } | null; letzterBericht?: { monatText: string; am: string } | null };
+  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string; art?: string }[]; bank?: { inhaber: string; maske: string } | null; letzterBericht?: { monatText: string; am: string } | null;
+  nachtrag?: KoopNachtrag | null };
 function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string | null; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
   const e = a.empfehlungen;
   const [prozent, setProzent] = useState<string>(e?.prozent != null ? String(e.prozent).replace(".", ",") : "");
-  const [neu, setNeu] = useState<{ name: string; telefon: string; personId: string; notiz: string }>({ name: "", telefon: "", personId: "", notiz: "" });
+  const [neu, setNeu] = useState<{ name: string; telefon: string; email: string; personId: string; notiz: string }>({ name: "", telefon: "", email: "", personId: "", notiz: "" });
+  const n = e?.nachtrag ?? null;
   const [zeile, setZeile] = useState<Record<number, { personId: string; ausgezahlt: string }>>({});
   const basis = `/admin/global/angebote/${a.id}/koop`;
   const wert = (x: KoopEmpfehlung) => zeile[x.id] ?? { personId: x.personId != null ? String(x.personId) : "", ausgezahlt: (x.ausgezahltCents / 100).toFixed(2).replace(".", ",") };
@@ -183,11 +191,12 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
           <tbody>
             {e.liste.map((x) => (
               <tr key={x.id}>
-                <td><b>{x.name}</b>{x.telefon ? ` · ${x.telefon}` : ""}{x.notiz ? <span className="cm-fein"><br />{x.notiz}</span> : null}<span className="cm-fein"><br />{x.quelle === "partner" ? "vom Partner gemeldet" : "von FIAON eingetragen"}</span></td>
+                <td><b>{x.name}</b>{x.telefon ? ` · ${x.telefon}` : ""}{x.email ? ` · ${x.email}` : ""}{x.notiz ? <span className="cm-fein"><br />{x.notiz}</span> : null}<span className="cm-fein"><br />{x.quelle === "partner" ? "vom Partner gemeldet" : "von FIAON eingetragen"}{x.anfrageId ? ` · läuft als Lead (Anfrage #${x.anfrageId})` : ""}</span></td>
                 <td>{x.gemeldetText}<span className="cm-fein"><br />zählt bis {x.bisText}</span></td>
                 <td><input style={{ width: 80 }} inputMode="numeric" value={wert(x).personId} placeholder="Nr." onChange={(ev) => setZeile({ ...zeile, [x.id]: { ...wert(x), personId: ev.target.value } })} />
-                  <button type="button" className="cg-knopf" disabled={busy === `ke${x.id}`} onClick={() => aktion(`ke${x.id}`, `${basis}/empfehlung/${x.id}`, { personId: wert(x).personId.trim() === "" ? null : Number(wert(x).personId) })}>Zuordnen</button></td>
-                <td>{x.standText}</td><td>{x.umsatz}</td><td><b>{x.provision}</b></td>
+                  <button type="button" className="cg-knopf" disabled={busy === `ke${x.id}`} onClick={() => aktion(`ke${x.id}`, `${basis}/empfehlung/${x.id}`, { personId: wert(x).personId.trim() === "" ? null : Number(wert(x).personId) })}>Zuordnen</button>
+                  {x.zuordnungText ? <span className="cm-fein"><br />{x.zuordnungText}</span> : null}</td>
+                <td>{x.standText}{x.stand !== "gemeldet" && x.standAmText ? <span className="cm-fein"><br />seit {x.standAmText}</span> : null}</td><td>{x.umsatz}</td><td><b>{x.provision}</b></td>
                 <td><input style={{ width: 80 }} inputMode="decimal" value={wert(x).ausgezahlt} onChange={(ev) => setZeile({ ...zeile, [x.id]: { ...wert(x), ausgezahlt: ev.target.value } })} />
                   <button type="button" className="cg-knopf" disabled={busy === `kz${x.id}`} onClick={() => aktion(`kz${x.id}`, `${basis}/empfehlung/${x.id}`, { ausgezahltCents: Math.round(Number(wert(x).ausgezahlt.replace(/\./g, "").replace(",", ".")) * 100) })}>Speichern</button></td>
                 <td>{x.offen}</td>
@@ -198,16 +207,36 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
           <tfoot><tr><td colSpan={4}><b>Summe</b></td><td>{e.summe.umsatz}</td><td><b>{e.summe.provision}</b></td><td>{e.summe.ausgezahlt}</td><td><b>{e.summe.offen}</b></td><td></td></tr></tfoot>
         </table></div>
       )}
-      <p className="cm-klartext"><b>Gutschriften</b> (automatisch zum 3. des Folgemonats, Mail an den Partner, Zahlungsauftrag im Banking): {e?.gutschriften?.length ? e.gutschriften.map((g) => <span key={g.id}> <a href={`${API}${basis}/gutschrift/${g.id}.pdf`} target="_blank" rel="noreferrer">{g.nummer}</a> {g.monatText} · {g.betrag} · {g.stand};</span>) : " noch keine"} · Bankverbindung: {e?.bank ? `${e.bank.inhaber} · ${e.bank.maske}` : "noch nicht hinterlegt (trägt der Partner selbst ein)"}</p>
+      <p className="cm-klartext"><b>Gutschriften</b> (automatisch zum 3. des Folgemonats, Mail an den Partner, Zahlungsauftrag im Banking): {e?.gutschriften?.length ? e.gutschriften.map((g) => <span key={g.id}> <a href={`${API}${basis}/gutschrift/${g.id}.pdf`} target="_blank" rel="noreferrer">{g.nummer}</a> {g.monatText}{g.art === "nachtrag" ? " (Nachtrag)" : ""} · {g.betrag} · {g.stand};</span>) : " noch keine"} · Bankverbindung: {e?.bank ? `${e.bank.inhaber} · ${e.bank.maske}` : "noch nicht hinterlegt (trägt der Partner selbst ein)"}</p>
+      {n && (
+        <div className="cg-koop-nachtrag" data-fiaon="koop-nachtrag">
+          <p className="cm-klartext"><b>Nachtrag</b>{n.bisText ? ` (Zahlungen bis ${n.bisText})` : ""}: {n.posten.length ? <>offen <b>{n.summe}</b> — Provision, die noch in keiner Gutschrift steht (späte Zuordnung oder eine Regel, die sich erhöht hat).</> : n.hinweis}</p>
+          {n.posten.length > 0 && (
+            <div className="cm-tab-halter"><table className="cm-tab cg-teile">
+              <thead><tr><th>Empfehlung</th><th>Zahlungseingang</th><th>Zahlung</th><th>Provision nach Regel</th><th>schon gutgeschrieben</th><th>Nachtrag</th></tr></thead>
+              <tbody>{n.posten.map((p, i) => <tr key={i}><td>{p.name}</td><td>{p.amText}</td><td>{p.umsatz}</td><td>{p.faellig}</td><td>{p.schon}</td><td><b>{p.nachtrag}</b></td></tr>)}</tbody>
+              <tfoot><tr><td colSpan={5}><b>Summe</b></td><td><b>{n.summe}</b></td></tr></tfoot>
+            </table></div>
+          )}
+          {n.zuViel.length > 0 && <p className="cm-fein">Mehr gutgeschrieben, als die Regel heute ergibt (nichts verrechnet): {n.zuViel.map((z) => `${z.name} (${z.amText}: ${z.schon} statt ${z.faellig})`).join(" · ")}</p>}
+          {n.posten.length > 0 && (n.schonDa ? <p className="cm-fein">{n.hinweis}</p> : (
+            <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kg${a.id}`} onClick={() => {
+              if (window.confirm(`Nachtrags-Gutschrift über ${n.summe} anlegen und an den Partner schicken? Der Zahlungsauftrag entsteht nur als Entwurf im Banking — Geld bewegt das System nicht.`)) void aktion(`kg${a.id}`, `${basis}/gutschrift-nachtrag`, {});
+            }}>Nachtrag jetzt abrechnen</button><span className="cm-fein">Sonst kommt der Nachtrag automatisch mit der nächsten Monatsabrechnung.</span></div>
+          ))}
+        </div>
+      )}
       <p className="cm-klartext"><b>Monatsbericht</b> (automatisch zum 3., mit Empfehlungen, Stand und Provision; die Gutschrift hängt an): {e?.letzterBericht ? `zuletzt ${e.letzterBericht.monatText}, verschickt am ${e.letzterBericht.am}` : "noch keiner verschickt"} · <a href={`${API}${basis}/monatsbericht.html`} target="_blank" rel="noreferrer">Vorschau laufender Monat</a></p>
       <div className="cg-form cg-form-breit" data-form="koop-empfehlung">
         <label>Name (Person oder Firma)<input value={neu.name} onChange={(ev) => setNeu({ ...neu, name: ev.target.value })} /></label>
-        <label>Telefon (freiwillig)<input value={neu.telefon} onChange={(ev) => setNeu({ ...neu, telefon: ev.target.value })} /></label>
+        <label>Telefon<input value={neu.telefon} onChange={(ev) => setNeu({ ...neu, telefon: ev.target.value })} /></label>
+        <label>E-Mail<input type="email" value={neu.email} onChange={(ev) => setNeu({ ...neu, email: ev.target.value })} /></label>
         <label>Personen-Nr. (wenn schon bei uns)<input inputMode="numeric" value={neu.personId} onChange={(ev) => setNeu({ ...neu, personId: ev.target.value })} /></label>
         <label>Notiz<input value={neu.notiz} placeholder="z. B. Selbständig, 4 Firmen, braucht Liquidität" onChange={(ev) => setNeu({ ...neu, notiz: ev.target.value })} /></label>
+        <span className="cm-fein">Ohne Personen-Nr. und mit Telefon oder E-Mail läuft die Empfehlung wie ein Lead: Anfrage, Anruf-Auftrag, Dossier — mit E-Mail auch Justins Einladung.</span>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kn${a.id}` || neu.name.trim().length < 3} onClick={async () => {
-          const r = await aktion(`kn${a.id}`, `${basis}/empfehlung`, { name: neu.name, telefon: neu.telefon, notiz: neu.notiz, personId: neu.personId.trim() === "" ? null : Number(neu.personId) });
-          if (r.ok) setNeu({ name: "", telefon: "", personId: "", notiz: "" });
+          const r = await aktion(`kn${a.id}`, `${basis}/empfehlung`, { name: neu.name, telefon: neu.telefon, email: neu.email, notiz: neu.notiz, personId: neu.personId.trim() === "" ? null : Number(neu.personId) });
+          if (r.ok) setNeu({ name: "", telefon: "", email: "", personId: "", notiz: "" });
         }}>Empfehlung eintragen</button></div>
       </div>
     </div>

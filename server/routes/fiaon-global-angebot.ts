@@ -364,6 +364,17 @@ router.get("/admin/global/angebote/:id/koop/gutschrift/:gid.pdf", requireChef("l
     res.send(p.pdf);
   } catch (err) { console.error("[FIAON-ANGEBOT] koop/gutschrift:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
+// E-487 (09.11.2026): „Nachtrag jetzt abrechnen“ — Nachtrags-Gutschrift (PDF, Mail an den Partner), Zahlungsauftrag nur als
+// ENTWURF im Banking, Aufgabe „im Banking freigeben“. Die Vorschau der Posten kommt mit der Liste (empfehlungen.nachtrag).
+router.post("/admin/global/angebote/:id/koop/gutschrift-nachtrag", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const z = await koopZeile(req, res); if (!z) return;
+    const { koopNachtragAbrechnen } = await import("../lib/fiaon-koop-empfehlung");
+    const r = await koopNachtragAbrechnen(z, await chefName(req));
+    if (!r.ok) return res.status(r.status ?? 400).json(r);
+    res.json({ ...r, meldung: `Nachtrag ${r.nummer} über ${r.betrag} angelegt${r.mail ? " und an den Partner geschickt" : " — die Mail an den Partner holt der Stundenlauf nach"}. ${r.auftrag ? "Der Zahlungsauftrag liegt als Entwurf im Banking." : "Ohne Bankverbindung entsteht der Zahlungsauftrag, sobald der Partner sie hinterlegt."}` });
+  } catch (err) { console.error("[FIAON-ANGEBOT] koop/gutschrift-nachtrag:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
+});
 // E-421: Vorschau des Monatsberichts (ohne Versand) — ?monat=JJJJ-MM, Vorgabe der laufende Monat bis heute.
 router.get("/admin/global/angebote/:id/koop/monatsbericht.html", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {

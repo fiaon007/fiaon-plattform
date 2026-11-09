@@ -7,6 +7,9 @@
 // CI Glasblau (#288DFA / #1D4ED8), Navy-Glas an EINER Stelle (der Stand oben), dünne Schrift, am Handy gestapelt.
 // E-388 (16.10.2026): „Ihr Jahr in Zahlen“ (sechs Monate) und der DEMO-ZUGANG /partner/demo?bereich=… — derselbe Bereich
 // mit Beispieldaten aus client/src/lib/koop-partner-demo.ts, ohne Server, ohne Speichern, klar gekennzeichnet.
+// E-487 (09.11.2026): „Jemanden empfehlen“ verlangt Telefon ODER E-Mail (mit E-Mail geht Justins Einladung hinaus); je Empfehlung
+// steht nur die Stufe mit Datum (gemeldet → Kontakt aufgenommen → Gespräch vereinbart → Angebot → Kunde / kein Interesse), keine
+// Inhalte; eine Nachtrags-Gutschrift trägt die Marke „Nachtrag“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { useRoute } from "wouter";
@@ -35,9 +38,10 @@ interface Sicht {
 }
 interface Empfehlungen {
   prozent: number | null; monate: number;
-  liste: { id: number; name: string; gemeldetText: string; bisText: string; standText: string; stand: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; quelle: string }[];
+  // E-487: Stufe mit Datum (gemeldet → Kontakt aufgenommen → Gespräch vereinbart → Angebot → Kunde / kein Interesse) — keine Inhalte.
+  liste: { id: number; name: string; gemeldetText: string; bisText: string; standText: string; stand: string; standAmText?: string | null; umsatz: string; provision: string; ausgezahlt: string; offen: string; quelle: string }[];
   summe: { umsatz: string; provision: string; ausgezahlt: string; offen: string };
-  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string }[];
+  gutschriften?: { id: number; nummer: string; monatText: string; betrag: string; stand: string; art?: string }[];
   bank?: { inhaber: string; maske: string } | null;
 }
 /** E-420: Ihre Auszahlungen — Gutschriften (automatisch zum Monatsanfang) und die Bankverbindung für die Überweisung. */
@@ -54,7 +58,7 @@ function IhreAuszahlungen({ e, token, laeuft, senden }: { e: Empfehlungen; token
         <ul className="kpb-rechnungen">
           {gs.map((g) => (
             <li key={g.id}>
-              <span><b>{g.monatText}</b> · {g.nummer}</span>
+              <span><b>{g.monatText}</b>{g.art === "nachtrag" ? " · Nachtrag" : ""} · {g.nummer}</span>
               <span>{g.betrag} · <em className={g.stand === "ausgezahlt" ? "gut" : "offen"}>{g.stand}</em></span>
               <span className="kpb-reihe"><a href={`/api/fiaon/koop/partner/${encodeURIComponent(token)}/gutschrift/${g.id}.pdf`} target="_blank" rel="noreferrer">PDF</a></span>
             </li>
@@ -104,7 +108,7 @@ function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: stri
           {e.liste.map((x) => (
             <li key={x.id}>
               <span><b>{x.name}</b> · gemeldet {x.gemeldetText}</span>
-              <span><em className={x.stand === "kunde" ? "gut" : x.stand === "im_gespraech" ? "offen" : ""}>{x.standText}</em> · Umsatz {x.umsatz}</span>
+              <span><em className={x.stand === "kunde" ? "gut" : x.stand === "gemeldet" || x.stand === "kein_interesse" ? "" : "offen"}>{x.standText}</em>{x.stand !== "gemeldet" && x.standAmText ? <small className="kpb-fein"> seit {x.standAmText}</small> : null} · Umsatz {x.umsatz}</span>
               <span>Provision <b>{x.provision}</b>{x.ausgezahlt !== "0,00 €" ? ` · ausgezahlt ${x.ausgezahlt}` : ""}<small className="kpb-fein"> · zählt bis {x.bisText}</small></span>
             </li>
           ))}
@@ -118,10 +122,11 @@ function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: stri
           <label>Telefon<input type="tel" value={form.telefon} onChange={(ev) => setForm({ ...form, telefon: ev.target.value })} /></label>
           <label>E-Mail<input type="email" value={form.email} onChange={(ev) => setForm({ ...form, email: ev.target.value })} /></label>
         </div>
+        <p className="kpb-fein">{T.kontaktHinweis}</p>
         <label className="kpb-voll">Worum geht es? (freiwillig)<textarea rows={2} maxLength={500} value={form.notiz} onChange={(ev) => setForm({ ...form, notiz: ev.target.value })} /></label>
         <label className="kpb-haken"><input type="checkbox" checked={form.einverstanden} onChange={(ev) => setForm({ ...form, einverstanden: ev.target.checked })} /> {T.einverstanden}</label>
         <div className="kpb-tun">
-          <button type="button" className="kpb-knopf" disabled={laeuft === "empf" || form.name.trim().length < 3 || !form.einverstanden}
+          <button type="button" className="kpb-knopf" disabled={laeuft === "empf" || form.name.trim().length < 3 || !form.einverstanden || (!form.telefon.trim() && !form.email.trim())}
             onClick={() => void senden("empf", "/empfehlung", form).then((j) => { if (j) setForm({ name: "", telefon: "", email: "", notiz: "", einverstanden: false }); })}>
             {laeuft === "empf" ? "Speichert …" : "Empfehlung senden"}
           </button>

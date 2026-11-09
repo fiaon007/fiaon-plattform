@@ -388,7 +388,7 @@ async function main() {
   logOrig("\nK  Partner-Provision: Fast-Track-Abzug über Teilzahlungen genau einmal");
   const { KOOP_DURCHLAUF_ABZUG_SQL } = await import("../shared/fiaon-koop-empfehlung");
   const abzug = await sql.begin(async (tx: any) => {
-    await tx.unsafe(`CREATE TEMP TABLE fiaon_global_angebote (auftrag_ref TEXT, fassung TEXT, parameter JSONB) ON COMMIT DROP`);
+    await tx.unsafe(`CREATE TEMP TABLE fiaon_global_angebote (auftrag_ref TEXT, fassung TEXT, parameter JSONB, schalter JSONB) ON COMMIT DROP`);
     await tx.unsafe(`INSERT INTO fiaon_global_angebote VALUES ($1, 'IA-KAPITAL-2026-10-01-C', '{"fastTrackCents": 200000}')`, [A.ref]);
     return tx.unsafe(`WITH q AS (${UMSATZ_QUELLE_SQL}) SELECT q.cents, (${KOOP_DURCHLAUF_ABZUG_SQL})::int AS abzug FROM q WHERE q.ref = $1 ORDER BY q.am`, [A.ref]);
   }) as any[];

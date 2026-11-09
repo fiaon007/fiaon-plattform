@@ -1957,8 +1957,8 @@ export async function angebotListe(opts: { betrachterAgentId?: number | null } =
     for (let i = 0; i < zeilen.length; i++) {
       if (!istKoopFassung(zeilen[i].fassung) || String(zeilen[i].status) !== "angenommen") continue;
       liste[i].lieferung = await L.koopListenLieferung(zeilen[i]).catch((e) => { console.error("[FIAON-KOOP] Lieferung für die Liste:", e); return null; });
-      // E-419: Empfehlungen des Partners an FIAON und seine Provision.
-      liste[i].empfehlungen = await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlungSicht(zeilen[i])).catch((e) => { console.error("[FIAON-KOOP] Empfehlungen für die Liste:", e); return null; });
+      // E-419: Empfehlungen des Partners an FIAON und seine Provision. E-487: intern — mit Anfrage, Zuordnung und offenem Nachtrag.
+      liste[i].empfehlungen = await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlungSicht(zeilen[i], { intern: true })).catch((e) => { console.error("[FIAON-KOOP] Empfehlungen für die Liste:", e); return null; });
     }
   }
   // E-423: Kunde und Geschäftspartner sind zwei Rollen. Ist dieselbe Person (Personen-Nummer oder E-Mail) auf der anderen

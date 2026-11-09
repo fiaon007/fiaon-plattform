@@ -1515,6 +1515,15 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     tipp: "Ist die KI aus, wertet „Aus E-Mail übernehmen“ mit festen Regeln aus (E-Mail, Telefon, Website, Adresse, Signatur) — alles andere funktioniert ohne KI.",
   },
   {
+    // E-487 (09.11.2026): Empfehlungen und Provision. Ohne „ziel“ — der Block steht nur am angenommenen Kooperationsvertrag.
+    titel: "Empfehlungen der Partner: Lead, Zuordnung, Nachtrag.",
+    text: "Meldet ein Partner jemanden mit Telefon oder E-Mail, läuft die Empfehlung wie ein Lead: Anfrage, Anruf-Auftrag, Dossier an Justin, "
+      + "mit E-Mail auch Justins Einladung. Die Person ordnet sich jede Stunde selbst zu. Ist das nicht eindeutig, bekommt Justin eine Aufgabe. "
+      + "Kam eine Zahlung erst nach der Monatsabrechnung dazu, steht sie unter „Nachtrag“. Du kannst sie mit „Nachtrag jetzt abrechnen“ sofort "
+      + "gutschreiben, sonst kommt sie mit der nächsten Monatsabrechnung.",
+    tipp: "Der Zahlungsauftrag zur Gutschrift ist immer nur ein Entwurf im Banking. Geld bewegt erst die Buchhaltung mit TAN.",
+  },
+  {
     ziel: ".cg-zahlen",
     titel: "Vier Zahlen, zwei davon sind Alarm.",
     text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Ohne Stichtag“ "

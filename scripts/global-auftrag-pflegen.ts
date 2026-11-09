@@ -293,7 +293,7 @@ if (empfehlungRoh) {
     else if (e.person_id != null && Number(e.person_id) === personId) { zeile("schon", `Empfehlung ${eid} (Kooperation ${e.angebot_ref}) ist schon Person ${personId} zugeordnet.`); schritt("schon"); }
     else if (e.person_id != null) { zeile("nein", `Empfehlung ${eid} gehört schon zu Person ${e.person_id} — nichts geändert.`); schritt("nein"); }
     else if (!namePasst) { zeile("nein", `Der Name der Empfehlung ${eid} passt nicht zu Person ${personId} — bitte im Chefbüro prüfen. Nichts geändert.`); schritt("nein"); }
-    else if (!schreiben) { zeile("neu", `Empfehlung ${eid} (Kooperation ${e.angebot_ref}): Person — → ${personId} · Name passt · danach „im Gespräch“, mit der bankbestätigten Zahlung „Kunde“; keine Mail an den Partner.`); schritt("neu"); }
+    else if (!schreiben) { zeile("neu", `Empfehlung ${eid} (Kooperation ${e.angebot_ref}): Person — → ${personId} · Name passt · danach „Angebot“ (Stufe mit Datum, E-487), mit der bankbestätigten Zahlung „Kunde“; keine Mail an den Partner.`); schritt("neu"); }
     else {
       const { angebotLesen } = await import("../server/lib/fiaon-global-angebot");
       const { koopEmpfehlungAendern } = await import("../server/lib/fiaon-koop-empfehlung");

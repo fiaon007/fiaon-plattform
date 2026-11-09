@@ -827,9 +827,11 @@ export async function globalAnfrageAnnehmen(ein: {
   ].filter(Boolean).join("\n");
 
   // Ist der Absender ein Kunde? Dann hängt die Anfrage an seiner Person.
+  // E-487 (09.11.2026): Ohne E-Mail (Empfehlung nur mit Telefon, Meta-Lead nur mit Nummer) passte '' auf jede Bestellung ohne
+  // Mail (gemessen: über tausend) — die Anfrage hing dann an einem fremden Kunden. Leere Adresse = kein Treffer.
   const [kunde] = (await sqlPool`
     SELECT person_id, ref FROM fiaon_applications
-    WHERE LOWER(email) = ${k.email} AND merged_into IS NULL
+    WHERE ${k.email} <> '' AND LOWER(email) = ${k.email} AND merged_into IS NULL
     ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1
   `.catch(() => [])) as any[];
 
@@ -848,7 +850,7 @@ export async function globalAnfrageAnnehmen(ein: {
       LEFT JOIN fiaon_persons p ON p.id = a.person_id
       LEFT JOIN fiaon_agents ag ON ag.id = COALESCE(p.assigned_agent_id, a.assigned_agent_id)
      WHERE a.merged_into IS NULL AND NOT COALESCE(a.ist_entwurf, FALSE)
-       AND (LOWER(COALESCE(a.email, '')) = ${k.email}
+       AND ((${k.email} <> '' AND LOWER(COALESCE(a.email, '')) = ${k.email})
          OR (${k9Gueltig} <> '' AND RIGHT(REGEXP_REPLACE(COALESCE(a.phone, ''), '\\D', '', 'g'), 9) = ${k9Gueltig}))
      ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 5
   `.catch(() => [])) as any[];

@@ -320,7 +320,7 @@ abschnitt("4", "Schreiben: Tresor, Name geprüft, Akte, Empfehlung — und die Z
   ok(zahl && zahl.text === `fällig mit Ihrem Auftrag — bitte jetzt überweisen, spätestens bis zum ${bis.slice(8, 10)}.${bis.slice(5, 7)}.${bis.slice(0, 4)}; mit dem Eingang melden wir Ihre Gesellschaft an` && !/binnen \d/.test(zahl.text), "Zahlungsseite: „fällig mit Ihrem Auftrag — bitte jetzt überweisen, spätestens bis zum …“", zahl);
   const heuteFaellig: any = await B.angebotTeilZahlungsKontext({ ...b, payment_due_date: new Date() });
   ok((heuteFaellig?.pruefungen ?? []).some((x: any) => x.text === "fällig mit Ihrem Auftrag — bitte heute überweisen; mit dem Eingang melden wir Ihre Gesellschaft an"), "Zahlungsseite bei „sofort“: „bitte heute überweisen“ (nie „überfällig“)");
-  // Partnerbereich (E-432): Nach dem Zuordnen steht die Empfehlung „im Gespräch“ — und das JSON der Partnerseite trägt keine
+  // Partnerbereich (E-432): Nach dem Zuordnen steht die Empfehlung „Angebot“ (E-487, vorher „im Gespräch“) — und das JSON der Partnerseite trägt keine
   // interne Notiz, kein Telefon, keine E-Mail und keine Personennummer (Tippgeber-Vereinbarung Ziffer 5 Abs. 1).
   try {
     const KL: any = await import("../server/lib/fiaon-koop-lieferung");
@@ -328,7 +328,8 @@ abschnitt("4", "Schreiben: Tresor, Name geprüft, Akte, Empfehlung — und die Z
     const zk = await G.angebotLesen({ id: Number(koop.id) });
     const ps: any = await KL.koopPartnerSicht(zk);
     const x = (ps?.empfehlungen?.liste ?? []).find((y: any) => Number(y.id) === EID);
-    ok(!!x && x.stand === "im_gespraech", "Partnerbereich: Empfehlung jetzt „im Gespräch“", x);
+    // E-487 (09.11.2026): feinere Stufen — eine Bestellung der Person nach der Meldung ist die Stufe „Angebot“ (vorher „im Gespräch“).
+    ok(!!x && x.stand === "angebot" && !!x.standAmText, "Partnerbereich: Empfehlung jetzt „Angebot“ mit Datum", x);
     ok(!!x && !("notiz" in x) && !("telefon" in x) && !("email" in x) && !("personId" in x) && !JSON.stringify(ps.empfehlungen).includes(String(PID)) && !JSON.stringify(ps.empfehlungen).includes("interne Notiz"),
       "Partnerbereich-JSON ohne Notiz, Telefon, E-Mail und Personennummer", x);
     const intern: any = await K.koopEmpfehlungSicht(zk);

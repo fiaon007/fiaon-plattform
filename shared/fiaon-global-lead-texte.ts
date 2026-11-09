@@ -521,6 +521,17 @@ export interface WillkommenEingang {
   kalenderLeer?: boolean;
   /** E-481 (Mara Business): der WhatsApp-Link zu Mara mit Anfrage-Kennung — die Wahl „lieber schriftlich“. Ohne: keine Zeile. */
   whatsapp?: { url: string } | null;
+  /** E-487 (09.11.2026): Empfehlung eines Partners — wer empfohlen hat (erster Satz). Ohne: die übliche Fassung. */
+  empfehler?: { name: string; nachname?: string | null; anrede?: "Herr" | "Frau" | null } | null;
+}
+
+/** E-487: der Empfehlende im ersten Satz — „Herr Muster“ bzw. der volle Name; nie etwas, das nach Adresse oder Code aussieht. Rein. */
+function empfehlerText(p: WillkommenEingang["empfehler"], sprache: LeadSprache): string | null {
+  const voll = String(p?.name ?? "").replace(/\s+/g, " ").trim();
+  const nach = String(p?.nachname ?? "").replace(/\s+/g, " ").trim();
+  if (voll.length < 2 || siehtNachAdresseAus(voll) || /[<>"{}[\]]/.test(voll)) return null;
+  if (p?.anrede && nach) return sprache === "en" ? `${p.anrede === "Frau" ? "Ms" : "Mr"} ${nach}` : `${p.anrede} ${nach}`;
+  return voll;
 }
 
 /**
@@ -537,8 +548,15 @@ export function willkommenText(e: WillkommenEingang): LeadMailText {
   const wunschzeit = e.kanal === "website" ? wunschzeitFuerText(e.wunschzeit) : null;
 
   // 1. Einstieg — „angekommen“, nie „gelesen“; der Nachtrag entschuldigt sich erst ab dem nächsten Tag bzw. nach 12 Stunden.
+  // E-487: Empfehlung — die Person hat selbst nichts angefragt: Der erste Satz nennt den Empfehlenden (kein „Dank für Ihre
+  // Anfrage“, kein Nachtrag-Satz), Absatz 2 (Vorhaben) entfällt; danach wie W: Gespräch, Link, wer anruft, Mara.
+  const empfehler = empfehlerText(e.empfehler, e.sprache);
   let einstieg: string;
-  if (nachtrag) {
+  if (empfehler) {
+    einstieg = en
+      ? `${empfehler} passed your details on to me and thought a conversation with us could be of interest to you. I am glad to be in touch.`
+      : `${empfehler} hat mir Ihren Kontakt gegeben und meinte, ein Gespräch mit uns könnte für Sie interessant sein. Schön, dass ich mich bei Ihnen melden darf.`;
+  } else if (nachtrag) {
     const spaet = !tagBezug(e.eingangAm, e.jetzt, e.sprache).heute
       || e.jetzt.getTime() - e.eingangAm.getTime() > LEAD_POST_VORGABE.entschuldigungAbStunden * 3_600_000;
     const bezug = meldeBezug(e.eingangAm, e.jetzt, e.sprache);
@@ -561,7 +579,7 @@ export function willkommenText(e: WillkommenEingang): LeadMailText {
   const v = e.kanal === "meta" ? vorhabenSatz(e.antworten, e.sprache) : { satz: "", folge: "" };
   if (v.satz) {
     bloecke.push({ art: "absatz", text: [v.satz, v.folge].filter(Boolean).join(" ") });
-  } else {
+  } else if (!empfehler) {
     const paket = String(e.paketName ?? "").replace(/\s*\([^)]*\)\s*$/, "").trim();
     const website = paket
       ? (en ? `You are interested in ${paket}.` : `Sie interessieren sich für ${paket}.`)

@@ -713,6 +713,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('koop_liefer_lauf', async () => await (await import('./lib/fiaon-koop-lieferung')).koopLieferLauf(), 60 * 60 * 1000, { beimStartNach: 720_000 });
   });
+  // 🤝 E-487 (09.11.2026): Partner-Empfehlungen der richtigen Person zuordnen (eindeutig → zuordnen + Info an Justin, mehrdeutig →
+  //    Aufgabe an Justin), Altbestand mit Telefon einmal an die zuständige Person. Stündlich, eigener Lauf (nicht im Lieferlauf).
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('koop_empfehlung_zuordnen', async () => await (await import('./lib/fiaon-koop-empfehlung')).koopEmpfehlungenZuordnen(), 60 * 60 * 1000, { beimStartNach: 780_000 });
+  });
 
   // 🤝 FIAON Onboarding — eigener Bereich fuer die Startgespraeche. 404 fuer
   //    alle ohne die Rolle, 403 ohne angenommene Verpflichtungserklaerung.

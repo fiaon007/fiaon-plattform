@@ -133,6 +133,8 @@ if (!url) { console.error("ABBRUCH: DATABASE_URL fehlt."); process.exit(2); }
 if (!lokal && !produktion) { console.error(`ABBRUCH: DATABASE_URL zeigt auf ${host || "?"} — gegen eine fremde Datenbank nur mit --produktion (Justins Go). Für die Produktion gilt das Chefbüro (Akte › Datenraum).`); process.exit(2); }
 // Code und Link gehören nie in den Sitzungsverlauf: gegen die Produktion nur in eine Datei — geprüft, BEVOR verbunden wird.
 if (befehl === "gast-anlegen" && !lokal && !arg("--code-datei")) { console.error("ABBRUCH: Gegen die Produktion nur mit --code-datei <pfad> — Code und Link gehören nicht in den Sitzungsverlauf. Besser: im Chefbüro einladen (Code einmal, Entwurf in js@)."); process.exit(2); }
+// Codes sind ein HMAC mit SESSION_SECRET (fiaon-datenraum-regeln.ts): Ohne den Schlüssel der Produktion passt der Code dort nie.
+if (befehl === "gast-anlegen" && !lokal && !process.env.SESSION_SECRET) { console.error("ABBRUCH: SESSION_SECRET der Produktion fehlt — ein Code mit einem anderen Schlüssel öffnet den Datenraum nicht. Besser: im Chefbüro einladen."); process.exit(2); }
 const schreibt = befehl !== "liste" && schreiben;
 console.log(`Datenbank: ${lokal ? "lokal" : `PRODUKTION (${host})`} · ${befehl === "liste" ? "nur lesen" : schreibt ? "SCHREIBT" : "Vorschau (ohne --schreiben wird nichts geschrieben)"}`);
 

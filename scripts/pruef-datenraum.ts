@@ -881,6 +881,8 @@ async function teilB(): Promise<void> {
       ok("Fremde Datenbank ohne --produktion → Abbruch (Code 2)", schutz.status === 2 && /--produktion/.test(schutz.stderr), schutz.stderr.trim().slice(0, 120));
       const codeProd = lauf(["gast-anlegen", "--raum", "1", "--vorname", "A", "--nachname", "Be", "--email", "a@example.invalid", "--produktion"], "postgresql://x@db.example.invalid:5432/x?sslmode=require");
       ok("Gegen die Produktion: gast-anlegen nur mit --code-datei (nie in den Sitzungsverlauf)", codeProd.status === 2 && /--code-datei/.test(codeProd.stderr));
+      const ohneGeheimnis = spawnSync(path.join(process.cwd(), "node_modules/.bin/tsx"), ["scripts/datenraum.ts", "gast-anlegen", "--raum", "1", "--vorname", "A", "--nachname", "Be", "--email", "a@example.invalid", "--code-datei", path.join(tmp, "c.txt"), "--produktion"], { cwd: process.cwd(), encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", DATABASE_URL: "postgresql://x@db.example.invalid:5432/x?sslmode=require" }, timeout: 60_000 });
+      ok("Gegen die Produktion: gast-anlegen nur mit dem SESSION_SECRET der Produktion (sonst passt der Code nie)", ohneGeheimnis.status === 2 && /SESSION_SECRET/.test(ohneGeheimnis.stderr));
       fs.writeFileSync(path.join(tmp, "raum.json"), JSON.stringify({ titel: "Skript-Raum PRUEFSTAND", nda: { vorgestellt: "zuletzt am 9. November 2026" }, projekte: [{ schluessel: "eins", titel: "Projekt Eins", beschreibung: "Erstes" }, { schluessel: "zwei", titel: "Projekt Zwei", beschreibung: "Zweites" }] }));
       const raeumeVorher = Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_dr_raeume`) as any[])[0].n);
       const vorschau = lauf(["raum-anlegen", "--datei", path.join(tmp, "raum.json")]);

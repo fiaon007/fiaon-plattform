@@ -119,6 +119,20 @@ ok(B.GLOBAL_VERLAUF_TEXT.de.hinweis("x") === "Gut zu wissen: x" && B.GLOBAL_VERL
   ok(/ADD COLUMN IF NOT EXISTS justin_gemeldet_am TIMESTAMPTZ/.test(auftrag)
      && /SET justin_gemeldet_am = NOW\(\)\s+WHERE ref = \$\{ref\} AND justin_gemeldet_am IS NULL RETURNING ref/.test(auftrag)
      && /Neuer Kunde \(Selbstkauf\)/.test(auftrag) && /justin_gemeldet_am = NULL WHERE ref/.test(auftrag), "Selbstkauf-Meldung an Justin: Marke, genau einmal, bei Fehlschlag wieder frei");
+  // E-487: Telefon in der Akte — Normalisierung rein, Route und Feld da.
+  // Nur erfundene Nummern (Repo öffentlich).
+  const { globalTelefonNormal: tn } = await import("../server/lib/fiaon-global-bereich");
+  const telFaelle: [string, string, string | null][] = [
+    ["+49 170 1112233", "DE", "+491701112233"], ["0151 2223344", "DE", "+491512223344"], ["0049 160 3334455", "DE", "+491603334455"],
+    ["+49 (0)152 4445566", "DE", "+491524445566"], ["044 555 66 77", "CH", "+41445556677"], ["0660 7778899", "AT", "+436607778899"],
+    ["15512345678", "DE", "+4915512345678"], ["4915512345678", "DE", "+4915512345678"], ["+1 305 555 0100", "DE", "+13055550100"],
+    ["123", "DE", null], ["", "DE", null],
+  ];
+  for (const [ein, land, soll] of telFaelle) ok(tn(ein, land) === soll, `Telefon „${ein}“ (${land}) → ${soll}`);
+  const routeG = readFileSync(new URL("../server/routes/fiaon-global-bereich.ts", import.meta.url), "utf8");
+  const akteS = readFileSync(new URL("../client/src/pages/agent/global-akte.tsx", import.meta.url), "utf8");
+  ok(/\/agent\/global\/auftraege\/:ref\/telefon/.test(routeG) && /globalTelefonSetzen\(ref, \{ telefon: b\.telefon \}, agent\)/.test(routeG), "Route Telefon eintragen");
+  ok(/tun\("telefon", "\/telefon"/.test(akteS) && /aria-label="Telefonnummer des Kunden"/.test(akteS), "Akte: Feld „Eintragen/Ändern“ bei Telefon");
 }
 
 // ═══ 2: MONATLICHER DURCHGANG ═══════════════════════════════════════════════

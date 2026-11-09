@@ -38,7 +38,7 @@ import { globalTokenPruefen, globalTokenErzeugen, globalVertragPdfLesen, globalR
 import {
   globalBereichKundenSicht, globalBereichOfficeSicht, globalBereichListe, globalBereichZustaendig, globalKundenDokument, globalOfficeDokument,
   globalDokumentLesen, globalDokumentEntfernen, globalKundenNachricht, globalZugangAnfordern, globalEtappeSetzen, globalNaechsterSchrittSetzen,
-  globalGesellschaftSetzen, globalFristAnlegen, globalFristAendern, globalFristLoeschen, globalNotizSchreiben, globalBereichStichtag,
+  globalGesellschaftSetzen, globalFristAnlegen, globalFristAendern, globalFristLoeschen, globalNotizSchreiben, globalTelefonSetzen, globalBereichStichtag,
   globalZugangSenden, globalAbschliessen, globalBereichRaumLage, type BereichAgent, type DateiEin,
 } from "../lib/fiaon-global-bereich";
 import {
@@ -721,6 +721,8 @@ router.post("/agent/global/auftraege/:ref/dokument/:id/scan", requireAgent, asyn
 router.post("/agent/global/auftraege/:ref/kapital", requireAgent, aktion("kapital", async (ref, b, agent) => (await import("../lib/fiaon-global-mandat")).globalKapitalSpeichern(ref, b, agent)));
 router.delete("/agent/global/auftraege/:ref/kapital/:id", requireAgent, aktion("kapital entfernen", async (ref, _b, agent, req) => (await import("../lib/fiaon-global-mandat")).globalKapitalEntfernen(ref, req.params.id, agent)));
 router.post("/agent/global/auftraege/:ref/notiz", requireAgent, aktion("notiz", (ref, b, agent) => globalNotizSchreiben(ref, { text: b.text, sichtbar: b.sichtbar }, agent)));
+// E-487 (09.11.2026): Telefon des Kunden in der Akte eintragen/ändern (vorher gab es dafür kein Feld).
+router.post("/agent/global/auftraege/:ref/telefon", requireAgent, aktion("telefon", (ref, b, agent) => globalTelefonSetzen(ref, { telefon: b.telefon }, agent)));
 router.post("/agent/global/auftraege/:ref/zugang-senden", requireAgent, aktion("zugang-senden", (ref, _b, agent) => globalZugangSenden(ref, agent)));
 router.post("/agent/global/auftraege/:ref/abschliessen", requireAgent, aktion("abschliessen", (ref, b, agent) => globalAbschliessen(ref, { text: b.text, mitteilen: b.mitteilen }, agent)));
 router.post("/agent/global/auftraege/:ref/stichtag", requireAgent, aktion("stichtag", async (ref, b, agent) => {

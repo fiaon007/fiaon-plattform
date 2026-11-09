@@ -1126,6 +1126,57 @@ export async function globalNotizSchreiben(ref: string, ein: { text?: unknown; s
   return { ok: true, meldung: sichtbar ? "Notiz gespeichert — der Kunde sieht sie in seinem Verlauf." : "Interne Notiz gespeichert." };
 }
 
+/**
+ * E-487 (09.11.2026): Die Telefonnummer des Kunden in der Akte eintragen oder ändern. Vorher gab es dafür kein Feld — bei
+ * Kunden aus persönlichen Angeboten stand keine Nummer im System, das Team konnte sie nicht anrufen. Schreibt
+ * ansprechpartner.telefon im Auftrag, die Person (primary_phone + phone_key9 für die Anrufzuordnung; die alte Nummer bleibt
+ * als Alias) und eine INTERNE Zeile im Verlauf. Nummern ohne Ländervorwahl bekommen die des Auftragslandes (DE/AT/CH).
+ */
+export async function globalTelefonSetzen(ref: string, ein: { telefon?: unknown }, agent: BereichAgent): Promise<Erg<{ meldung: string; telefon: string }>> {
+  const l = await lageLesen(ref);
+  if (!l) return nein(404, "Diesen Auftrag gibt es nicht.");
+  const tel = globalTelefonNormal(ein.telefon, l.akte.land);
+  if (!tel) return nein(400, "Bitte eine vollständige Telefonnummer eingeben, z. B. +49 171 1234567.");
+  await sqlPool`
+    UPDATE fiaon_global_auftraege
+       SET ansprechpartner = jsonb_set(COALESCE(ansprechpartner, '{}'::jsonb), '{telefon}', to_jsonb(${tel}::text), true), updated_at = NOW()
+     WHERE ref = ${ref}`;
+  const [p] = (await sqlPool`
+    SELECT p.id, p.primary_phone FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id WHERE a.ref = ${ref} LIMIT 1`.catch(() => [])) as any[];
+  if (p && String(p.primary_phone ?? "") !== tel) {
+    const alt = String(p.primary_phone ?? "").trim();
+    const altNorm = alt.replace(/[^\d+]/g, "");
+    if (altNorm) {
+      await sqlPool`
+        INSERT INTO fiaon_person_aliases (person_id, kind, value_norm, value_raw, source)
+        SELECT ${p.id}, 'phone', ${altNorm}, ${alt}, ${`edit:${ref}`}
+         WHERE NOT EXISTS (SELECT 1 FROM fiaon_person_aliases WHERE person_id = ${p.id} AND kind = 'phone' AND value_norm = ${altNorm})`.catch(() => {});
+    }
+    await sqlPool`UPDATE fiaon_persons SET primary_phone = ${tel}, phone_key9 = ${tel.replace(/\D/g, "").slice(-9) || null}, updated_at = NOW() WHERE id = ${p.id}`;
+  }
+  await verlaufSchreiben(ref, { art: "notiz", text: `Telefon eingetragen: ${tel}`, sichtbar: false, agentId: agent.id });
+  return { ok: true, meldung: "Telefonnummer gespeichert.", telefon: tel };
+}
+
+/**
+ * E-487: „0171 …“, „0049 171 …“, „+49 (0)171 …“ → „+491711234567“. Ohne Ländervorwahl gilt das Land des Auftrags (DE/AT/CH,
+ * sonst DE). Weniger als 8 oder mehr als 15 Ziffern → null. Rein.
+ */
+export function globalTelefonNormal(roh: unknown, land?: unknown): string | null {
+  let t = String(roh ?? "").trim().replace(/\(0\)/g, "").replace(/[^\d+]/g, "");
+  if (!t) return null;
+  if (t.startsWith("00")) t = `+${t.slice(2)}`;
+  if (!t.startsWith("+")) {
+    const vorwahl = ({ DE: "49", AT: "43", CH: "41" } as Record<string, string>)[String(land ?? "").trim().toUpperCase()] ?? "49";
+    // Deutsche Handynummer ohne 0 und ohne +49 („1761234567“) nie als +1 lesen.
+    t = t.startsWith("0") ? `+${vorwahl}${t.replace(/^0+/, "")}`
+      : vorwahl === "49" && /^1[5-7]\d{8,9}$/.test(t) ? `+49${t}` : `+${t}`;
+  }
+  t = `+${t.slice(1).replace(/\+/g, "")}`;
+  const ziffern = t.slice(1);
+  return ziffern.length >= 8 && ziffern.length <= 15 ? t : null;
+}
+
 /** Der Stichtag über die EINE Funktion des Bestellwegs — und danach die Zeile im Verlauf, die der Kunde liest. */
 export async function globalBereichStichtag(ref: string, stichtag: unknown, wer: string, mitteilen: boolean, agentId: number | null = null): Promise<{ ok: boolean; error?: string; meldung?: string }> {
   const erg = await globalStichtagSetzen(ref, stichtag, wer, mitteilen);

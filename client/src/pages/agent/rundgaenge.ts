@@ -1890,6 +1890,9 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     titel: "Anrufen, schreiben, mit den Augen des Kunden sehen.",
     text: "„Kundenansicht öffnen“ zeigt dir in einem neuen Fenster genau das, was der Kunde sieht. „Zugang senden“ schickt ihm "
       + "einen frischen Link per E-Mail — dafür ist der Knopf da, wenn er seinen Link nicht mehr findet oder der alte abgelaufen ist.",
+    // E-487 (09.11.2026) mitgezogen: das Telefon-Feld in der Kontakt-Karte.
+    tipp: "Ist „Anrufen“ blass, fehlt die Nummer: rechts in der Karte „Kontakt“ bei Telefon auf „Eintragen“ — speichern, fertig. "
+      + "Die Nummer gilt dann auch für die Anruf-Erkennung.",
   },
   {
     ziel: ".gl-etappen",

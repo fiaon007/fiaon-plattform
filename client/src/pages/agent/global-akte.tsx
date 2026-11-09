@@ -795,6 +795,18 @@ function Kontext({ akte, tun, laeuft }: Werk) {
   const bekannt = new Set(FIRMA_FELDER.map(([s]) => s));
   const weitere = Object.entries(akte.firmaVoll).filter(([s]) => !bekannt.has(s) && s !== "ustId" && s !== "art");
   const kannAbschliessen = akte.status === "gestartet";
+  // E-487 (09.11.2026): Telefon eintragen/ändern — vorher gab es dafür kein Feld (Kunden aus Angeboten hatten keine Nummer).
+  const [telAuf, setTelAuf] = useState(false);
+  const [telNeu, setTelNeu] = useState("");
+  const telSpeichern = async () => {
+    const roh = telNeu.trim();
+    if (!roh) return;
+    const ok = await tun("telefon", "/telefon", {
+      body: { telefon: roh }, gut: "Telefon gespeichert", gutText: "Die Nummer steht jetzt in der Akte; „Anrufen“ geht direkt.",
+      lokal: (a) => ({ ...a, kontakt: { ...a.kontakt, telefon: roh } }),
+    });
+    if (ok) { setTelAuf(false); setTelNeu(""); }
+  };
   const abschliessen = async () => {
     if (!abschluss) return;
     const ok = await tun("abschluss", "/abschliessen", {
@@ -811,7 +823,21 @@ function Kontext({ akte, tun, laeuft }: Werk) {
           <div><dt>Person</dt><dd>{[k.anrede, k.vorname, k.nachname].filter(Boolean).join(" ") || "—"}</dd></div>
           <div><dt>Funktion</dt><dd>{akte.auftraggeber === "privat" ? "beauftragt selbst, als Privatperson" : k.funktion || "—"}</dd></div>
           <div><dt>E-Mail</dt><dd>{k.email ? <a href={`mailto:${k.email}`}>{k.email}</a> : "—"}</dd></div>
-          <div><dt>Telefon</dt><dd>{k.telefon ? <a href={telLink(k.telefon)}>{k.telefon}</a> : "—"}</dd></div>
+          <div><dt>Telefon</dt><dd>
+            {k.telefon ? <a href={telLink(k.telefon)}>{k.telefon}</a> : "—"}{" "}
+            <button type="button" className="gl-textknopf" aria-expanded={telAuf} onClick={() => { setTelAuf(!telAuf); setTelNeu(k.telefon || ""); }}>
+              {telAuf ? "Schließen" : k.telefon ? "Ändern" : "Eintragen"}
+            </button>
+            {telAuf && (
+              <span className="gl-tel-feld" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                <input type="tel" inputMode="tel" autoComplete="off" value={telNeu} placeholder="+49 171 1234567" aria-label="Telefonnummer des Kunden"
+                       onChange={(e) => setTelNeu(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void telSpeichern(); }} />
+                <button type="button" className="pi-knopf" disabled={laeuft === "telefon" || !telNeu.trim()} onClick={() => void telSpeichern()}>
+                  {laeuft === "telefon" ? "Speichert …" : "Speichern"}
+                </button>
+              </span>
+            )}
+          </dd></div>
           <div><dt>Sprache</dt><dd>{akte.sprache === "en" ? "Englisch" : "Deutsch"}</dd></div>
           {akte.ansprechpartner && <div><dt>Zuständig</dt><dd>{akte.ansprechpartner.name}</dd></div>}
         </dl>

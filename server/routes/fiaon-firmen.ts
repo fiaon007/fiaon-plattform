@@ -171,12 +171,18 @@ export async function globalLeadAufnehmen(ein: {
   const notizZeile = `FIAON Global (${heute.split("-").reverse().join(".")}): ${ein.verlauf}`.slice(0, 600);
 
   // Dubletten vermeiden: erst die bekannte Firma (E-476), dann die Person, dann die E-Mail, dann der Firmenname.
+  // E-487 (09.11.2026): Der Firmenname zählt nur, wenn er wirklich einer ist (firmaBrauchbar, shared/fiaon-global-lead.ts).
+  // Vorher landeten drei verschiedene Menschen mit „Selbständig“ im Firmenfeld auf EINER Karte — mit den Notizen des
+  // ersten („Justin führt selbst — bitte nicht anrufen“) bei allen. Platzhalter („Selbständig“, „GmbH“, „privat“, der
+  // eigene Name …) verbinden jetzt nur noch über Person oder E-Mail.
+  const { firmaBrauchbar } = await import("@shared/fiaon-global-lead");
+  const nameTaugt = firmaBrauchbar(firma, ein.ansprechpartner).brauchbar;
   const [bekannt] = ein.firmaId ? ((await sqlPool`SELECT id FROM fiaon_firmen_leads WHERE id = ${ein.firmaId}`) as any[]) : [];
   const [da] = bekannt ? [bekannt] : (await sqlPool`
     SELECT id FROM fiaon_firmen_leads
     WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
        OR (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email})
-       OR LOWER(TRIM(firma)) = ${firma.toLowerCase()}
+       OR (${nameTaugt} AND LOWER(TRIM(firma)) = ${firma.toLowerCase()})
     ORDER BY COALESCE(person_id = ${personId}::int, FALSE) DESC,
              (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email}) DESC, id ASC
     LIMIT 1

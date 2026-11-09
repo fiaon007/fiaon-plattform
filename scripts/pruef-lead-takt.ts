@@ -324,6 +324,21 @@ abschnitt("A10 E-487 Rückruf selbst eintragen (rein)");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+abschnitt("A11 E-487 Platzhalter im Firmenfeld verschmelzen keine Menschen (rein)");
+{
+  const { firmaBrauchbar } = await import("../shared/fiaon-global-lead");
+  for (const p of ["Selbständig", "selbstständig", "Selbstaendig", "GmbH", "UG", "privat", "Freiberufler", "Einzelunternehmen", "-", "keine"]) {
+    ok(!firmaBrauchbar(p, "Erika Beispiel").brauchbar, `„${p}“ ist kein Firmenname (verbindet keine Karten)`);
+  }
+  ok(!firmaBrauchbar("Erika Beispiel", "Erika Beispiel").brauchbar, "der eigene Name im Firmenfeld verbindet keine Karten");
+  ok(firmaBrauchbar("Muster Logistik GmbH", "Erika Beispiel").brauchbar, "ein echter Firmenname verbindet weiter (zwei Menschen derselben Firma)");
+  const route = lies("server/routes/fiaon-firmen.ts");
+  ok(/OR \(\$\{nameTaugt\} AND LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\)/.test(route) && !/\n\s+OR LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\n/.test(route), "globalLeadAufnehmen: Name zählt nur, wenn firmaBrauchbar");
+  const seite = lies("client/src/pages/agent/firmen.tsx");
+  ok(/<b>\{firmaAnzeige\(f\)\}<\/b>/.test(seite) && /<h2>\{firmaAnzeige\(aktiv\)\}<\/h2>/.test(seite), "Cockpit zeigt bei Platzhaltern den Menschen („Name (Selbständig)“)");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // B — LOKALE WEGWERF-DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
 if (LOKAL_DB) {

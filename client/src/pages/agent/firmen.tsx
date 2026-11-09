@@ -51,6 +51,7 @@ import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } from "@shared/fiaon-lead-weg";
 import { PFLICHT_NOTIZ_ERGEBNISSE, RUECKRUF_ERGEBNISSE, RUECKRUF_ZEITEN, rueckrufTage } from "@shared/fiaon-lead-takt";
+import { firmaBrauchbar } from "@shared/fiaon-global-lead";
 import "@/styles/office-firmen.css";
 
 /** E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (vom Server, server/lib/fiaon-lead-takt.ts). */
@@ -123,6 +124,16 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
 };
 
 const tagKurz = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+/**
+ * E-487: Steht im Firmenfeld nur ein Platzhalter („Selbständig“, „GmbH“, der eigene Name), zeigt die Karte den Menschen —
+ * „Max Muster (Selbständig)“ statt drei gleich lautender Karten „Selbständig“.
+ */
+const firmaAnzeige = (f: { firma?: string | null; ansprechpartner?: string | null }): string => {
+  const firma = String(f?.firma ?? "").trim();
+  const wer = String(f?.ansprechpartner ?? "").trim();
+  if (!wer || firmaBrauchbar(firma, wer).brauchbar) return firma || wer || "—";
+  return firma && firma.toLowerCase() !== wer.toLowerCase() ? `${wer} (${firma})` : wer;
+};
 /** E-487: der Berliner Kalendertag (JJJJ-MM-TT) — über formatToParts, nie über die Gerätezeit. */
 const berlinHeute = (): string => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" })
@@ -425,7 +436,7 @@ function FirmenInnen() {
               return (
                 <li key={f.id}>
                   <button type="button" className={aktiv?.id === f.id ? "an" : ""} onClick={() => void oeffnen(f)}>
-                    <span className="fk-liste-wer"><b>{f.firma}</b><small>{[f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
+                    <span className="fk-liste-wer"><b>{firmaAnzeige(f)}</b><small>{[f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
                     <span className={`fk-marke ${ton}`}>{rueckrufKurz(f.rueckruf_um) ?? st}</span>
                   </button>
                 </li>
@@ -442,7 +453,7 @@ function FirmenInnen() {
             <div className="fk-karte">
               <header>
                 <div>
-                  <h2>{aktiv.firma}</h2>
+                  <h2>{firmaAnzeige(aktiv)}</h2>
                   <small>{[aktiv.ansprechpartner, aktiv.ort, aktiv.branche].filter(Boolean).join(" · ") || "—"}</small>
                 </div>
                 {(() => { const [st, ton] = STATUS_TEXT[aktiv.status] || [aktiv.status, "still"]; return <span className={`fk-marke ${ton}`}>{st}</span>; })()}

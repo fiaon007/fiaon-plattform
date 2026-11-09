@@ -144,10 +144,11 @@ export default function ChefLeadMotor() {
   const formulareNeu = async () => {
     setBeschaeftigt("formulare");
     // E-490 F1: Neue Formulare nennt die Antwort mit — ihre Leads holt der nächste Nachhol-Lauf (≤ 5 Minuten) ab der Anlage.
+    // Nachbesserung (Gutachten): Einzahl „seine“, Mehrzahl „ihre“; von selbst höchstens 3 Tage zurück (Älteres meldet das Lagezimmer).
     try {
       const j = await senden("/chef/lead-motor/formulare", {});
       const neu = Array.isArray(j.ergebnis?.neu) ? j.ergebnis.neu.length : 0;
-      melden(`${j.ergebnis?.formulare ?? 0} Formulare geladen.${neu ? ` ${neu === 1 ? "Ein Formular ist neu" : `${neu} Formulare sind neu`} — der nächste Nachhol-Lauf (in höchstens 5 Minuten) holt ihre Leads ab der Anlage.` : ""}`);
+      melden(`${j.ergebnis?.formulare ?? 0} Formulare geladen.${neu ? ` ${neu === 1 ? "Ein Formular ist neu" : `${neu} Formulare sind neu`} — der nächste Nachhol-Lauf (in höchstens 5 Minuten) holt ${neu === 1 ? "seine" : "ihre"} Leads ab der Anlage (höchstens 3 Tage zurück; ist ein Formular älter, nennt das Lagezimmer den Tag für „Rückstand nachholen“).` : ""}`);
       stand.neu();
     }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
@@ -393,7 +394,7 @@ export default function ChefLeadMotor() {
           <details className="lm-karte lm-klapp lm-rueckstand"><summary>Rückstand nachholen<span className="lm-klapp-still">Leads bei Meta abholen</span></summary>
             <div className="lm-karte-kopf">
               <div>
-                <p className="lm-still" title="Der Nachhol-Lauf fragt alle 5 Minuten jedes bekannte Formular ab; ein neues kennt er erst nach „Verbindung einrichten“ oder der nächsten Prüfung (alle 6 Stunden).">Holt alles ab einem Tag nach, ohne Doppelte. Meta hält Leads 90 Tage. {s.nachholBis ? `Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
+                <p className="lm-still" title="Der Nachhol-Lauf fragt alle 5 Minuten jedes bekannte Formular ab und sucht alle 15 Minuten selbst nach neuen (deren Leads holt er bis 3 Tage zurück; Älteres meldet das Lagezimmer mit dem Tag für diesen Knopf).">Holt alles ab einem Tag nach, ohne Doppelte. Meta hält Leads 90 Tage. {s.nachholBis ? `Nachhol-Lauf steht bei ${zeit(s.nachholBis)}.` : ""}</p>
               </div>
             </div>
             <div className="lm-reihe">

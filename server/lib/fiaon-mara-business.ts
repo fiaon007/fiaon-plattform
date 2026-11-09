@@ -744,6 +744,64 @@ async function textSenden(nummer: string, text: string): Promise<{ ok: boolean }
   return { ok: !!erg?.ok };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-490 NACHBESSERUNG (Gutachten 09.11.2026): „NICHT ERREICHT“ AUF WHATSAPP — UND DER HAKEN „SCHON PERSÖNLICH ANGESCHRIEBEN“
+//
+// Schritt 4 des Takts schickt Kunden mit Weg „whatsapp“ die Nachricht „Wir haben eben versucht, Sie telefonisch zu erreichen …“,
+// sobald ihr Global-Gespräch der letzten 24 Stunden auf „verpasst“ steht. Der Haken „Kunde schon persönlich angeschrieben“ beim
+// Knopf „Nicht erreicht“ (E-490 F6) ließ bisher nur die MAIL weg — wer WhatsApp gewählt hatte, bekam doch eine zweite
+// automatische Nachricht. Jetzt setzt globalTerminErgebnis mit dem Haken die Marke nicht_erreicht_id = dieses Gespräch an jeder
+// WhatsApp-Zeile des Kontakts (waNichtErreichtSperren) — genau die Marke, an der Schritt 4 „schon gemeldet“ erkennt.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Steht für diese Nummer die WhatsApp „nicht erreicht“ an? Das jüngste Global-Gespräch der letzten 24 Stunden auf „verpasst“
+ * (gefunden über die letzten neun Ziffern der Person oder ihre Mail) — außer zu genau diesem Gespräch steht schon die Marke
+ * nicht_erreicht_id (die Nachricht ging raus, oder jemand hat „schon persönlich angeschrieben“ angehakt). Gibt das Gespräch
+ * zurück, sonst null. Wirft nie (Lesefehler = null).
+ * Mitgefunden bei der Nachbesserung: nur mit dem Grund „nicht erreicht“ oder „Nummer falsch“ (oder ohne Grund) — dieselbe Regel
+ * wie die Mail (nichtErreichtMailGrund). Vorher bekam auch, wer „abgesagt“ oder „kein Interesse“ eingetragen bekam, die WhatsApp
+ * „Wir haben eben versucht, Sie telefonisch zu erreichen“.
+ */
+export async function waNichtErreichtFaellig(
+  ein: { nummer: string; email: string | null; nichtErreichtId: number | string | null }, lauf: Lauf = sqlPool, jetzt: Date = new Date(),
+): Promise<number | null> {
+  const email = String(ein.email ?? "").trim();
+  const [v] = (await lauf`
+    SELECT t.id FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+     WHERE t.quelle = 'global' AND t.status = 'verpasst' AND t.beginn > ${jetzt}::timestamptz - INTERVAL '24 hours' AND t.beginn < ${jetzt}::timestamptz
+       AND COALESCE(t.verpasst_grund, 'nicht_erschienen') IN ('nicht_erschienen', 'nummer_falsch')
+       AND (RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${String(ein.nummer).slice(-9)}
+         OR (${email} <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(${email})))
+     ORDER BY t.beginn DESC LIMIT 1`.catch(() => [])) as any[];
+  if (!v) return null;
+  return Number(ein.nichtErreichtId ?? 0) === Number(v.id) ? null : Number(v.id);
+}
+
+/**
+ * Der Haken „Kunde schon persönlich angeschrieben“: Für dieses Gespräch geht auch auf WhatsApp kein „nicht erreicht“ — die Marke
+ * nicht_erreicht_id an jeder Zeile des Kontakts (letzte neun Ziffern der Person, oder eine Anfrage mit ihrer Mail). Gibt die Zahl
+ * der markierten Zeilen zurück (0 = er hat keine WhatsApp-Zeile — dann schickt der Takt ihm ohnehin nichts). Wirft nie.
+ */
+export async function waNichtErreichtSperren(terminId: number, lauf: Lauf = sqlPool): Promise<number> {
+  try {
+    await mbSchema(lauf);
+    const r = (await lauf`
+      UPDATE fiaon_wa_global g SET nicht_erreicht_id = t.id, updated_at = NOW()
+        FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+       WHERE t.id = ${terminId}
+         AND ((LENGTH(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g')) >= 9
+               AND RIGHT(g.nummer, 9) = RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9))
+           OR (TRIM(COALESCE(p.primary_email, '')) <> '' AND g.anfrage_id IN (
+                SELECT a.id FROM fiaon_anfragen a WHERE LOWER(TRIM(COALESCE(a.email, ''))) = LOWER(TRIM(p.primary_email)))))
+       RETURNING g.nummer`) as any[];
+    return r.length;
+  } catch (e) {
+    console.error(`[MARA-BUSINESS] „nicht erreicht“ auf WhatsApp für Gespräch ${terminId} nicht gesperrt:`, String((e as Error)?.message || e).slice(0, 200));
+    return 0;
+  }
+}
+
 export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string, number>> {
   const zahl = { verknuepft: 0, willkommen: 0, termin: 0, erinnerung: 0, nichtErreicht: 0, nachfrage: 0 };
   try {
@@ -781,10 +839,13 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
         LEFT JOIN LATERAL (
           SELECT TRUE AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare mf ON mf.id = m.formular_id
            WHERE m.global_anfrage_id = a.id AND (mf.name ILIKE '%WhatsApp%' OR mf.name = ANY(${namen})) LIMIT 1) f ON TRUE
+        -- E-490 Nachbesserung (Gutachten): der ECHTE Eingang bei Meta. Die Anfrage entsteht erst beim Einspielen (created_at = jetzt);
+        -- ein Lead aus „Rückstand nachholen“ oder einem spät gefundenen Formular ist aber Wochen alt — er bekommt keine Begrüßung.
+        LEFT JOIN LATERAL (SELECT MIN(m.erstellt_am) AS erstellt FROM fiaon_meta_leads m WHERE m.global_anfrage_id = a.id) me ON TRUE
        WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE)
          AND COALESCE(a.status, '') NOT IN ('privat', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
          AND a.created_at < NOW() - INTERVAL '10 minutes' AND a.created_at > NOW() - INTERVAL '60 days'
-         AND ((a.created_at > ${new Date(ab)} AND a.created_at > NOW() - INTERVAL '3 days') OR COALESCE(g.ja_frisch, FALSE))
+         AND ((a.created_at > ${new Date(ab)} AND LEAST(a.created_at, COALESCE(me.erstellt, a.created_at)) > NOW() - INTERVAL '3 days') OR COALESCE(g.ja_frisch, FALSE))
          AND COALESCE(a.telefon, '') <> ''
          AND NOT COALESCE(g.begruesst, FALSE) AND (COALESCE(g.ja, FALSE) OR COALESCE(f.ja, FALSE))
        ORDER BY a.created_at DESC LIMIT ${WA_KANDIDATEN}`.catch((e: unknown) => {
@@ -900,19 +961,15 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
         }
       }
 
-      // 4. Nicht erreicht (Gespräch der letzten 24 h auf „verpasst“) — mit seinem persönlichen Link.
+      // 4. Nicht erreicht (Gespräch der letzten 24 h auf „verpasst“) — mit seinem persönlichen Link. E-490 Nachbesserung
+      //    (Gutachten): die Prüfung steht in waNichtErreichtFaellig — dort zählt auch der Haken „schon persönlich angeschrieben“.
       if (fenster && z.weg === "whatsapp" && k.code) {
-        const [v] = (await lauf`
-          SELECT t.id FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
-           WHERE t.quelle = 'global' AND t.status = 'verpasst' AND t.beginn > NOW() - INTERVAL '24 hours' AND t.beginn < NOW()
-             AND (RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${nummer.slice(-9)}
-               OR (${k.email} <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(${k.email})))
-           ORDER BY t.beginn DESC LIMIT 1`.catch(() => [])) as any[];
-        if (v && Number(z.nicht_erreicht_id ?? 0) !== Number(v.id)) {
+        const vId = await waNichtErreichtFaellig({ nummer, email: k.email, nichtErreichtId: z.nicht_erreicht_id ?? null }, lauf);
+        if (vId) {
           const ok = offen
             ? (await textSenden(nummer, k.englisch ? `We tried to reach you by phone just now, unfortunately without success. You can choose a new time here: ${k.link}` : `Wir haben eben versucht, Sie telefonisch zu erreichen – leider ohne Erfolg. Eine neue Zeit wählen Sie hier: ${k.link}`)).ok
             : (nutzbar(VORLAGE.nichtErreicht) ? (await vorlageSenden(nummer, VORLAGE.nichtErreicht, [k.anrede || "und willkommen"], k.code)).ok : false);
-          if (ok) { zahl.nichtErreicht++; await lauf`UPDATE fiaon_wa_global SET nicht_erreicht_id = ${Number(v.id)}, updated_at = NOW() WHERE nummer = ${nummer}`; }
+          if (ok) { zahl.nichtErreicht++; await lauf`UPDATE fiaon_wa_global SET nicht_erreicht_id = ${vId}, updated_at = NOW() WHERE nummer = ${nummer}`; }
         }
       }
 

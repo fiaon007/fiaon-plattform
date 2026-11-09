@@ -986,9 +986,11 @@ export async function globalAnfrageAnnehmen(ein: {
     .catch((e) => console.error(`[GLOBAL-TERMIN] Lead-Dossier zu Anfrage #${anfrageId} nicht angestoßen:`, e));
   // E-476 Scheibe 5: Daniels Lead-Meldung T1 (an „Lead-Meldungen an“, nie an ein privates Postfach) — angestoßen, NIE abgewartet;
   // nur im Betrieb. Kein Privat-Weg, kein schon gebuchtes Gespräch (dann gibt es keinen Anruf-Auftrag). Der Lauf lead_takt holt nach.
+  // E-490 Nachbesserung (Gutachten): mit dem echten Eingang bei Meta — ein Lead, der dort älter als 3 Tage ist, bekommt keine T1
+  // (der Anstoß läuft, bevor fiaon_meta_leads die Anfrage kennt; darum geht die Zeit mit).
   if (!privatWeg && !schonTermin) {
     void import("./fiaon-lead-takt")
-      .then((m) => m.leadTaktAnstossen(anfrageId))
+      .then((m) => m.leadTaktAnstossen(anfrageId, { echterEingang: ein.lead?.metaErstellt ?? null }))
       .catch((e) => console.error(`[GLOBAL-TERMIN] Lead-Meldung zu Anfrage #${anfrageId} nicht angestoßen:`, e));
   }
   return { anfrageId, zustaendigName: erg.agentName, anBetreiber: erg.anBetreiber };
@@ -1024,6 +1026,11 @@ export async function globalAnfrageAnnehmen(ein: {
 // Gespräche und Kalender). Dann geht global_nicht_erreicht nicht hinaus, und
 // Termin-Notiz, Firmen-Verlauf und die geschlossene Aufgabe sagen, wer das
 // Unternehmen schon selbst angeschrieben hat.
+// Nachbesserung (Gutachten 09.11.2026): Der Haken sperrt auch die WhatsApp
+// „Wir haben Sie nicht erreicht“ (Takt-Schritt 4, nur wer WhatsApp gewählt hat —
+// waNichtErreichtSperren setzt die Marke nicht_erreicht_id), und der Vermerk
+// schreibt das Anschreiben nicht mehr dem zu, der klickt („vermerkt von …“):
+// Am 09.11. hatte jemand anderes geschrieben.
 // ───────────────────────────────────────────────────────────────────────────
 
 const NICHT_ZUSTANDE_TEXT: Record<string, string> = {
@@ -1038,9 +1045,12 @@ export function nichtErreichtMailGrund(ergebnis: "erledigt" | "verpasst", grund:
   return ergebnis === "verpasst" && (!grund || grund === "nicht_erschienen" || grund === "nummer_falsch");
 }
 
-/** E-490 F6: der Satz für Notiz, Verlauf und Aufgabe, wenn der Haken „schon persönlich angeschrieben“ gesetzt war. Rein. */
+/**
+ * E-490 F6: der Satz für Notiz, Verlauf und Aufgabe, wenn der Haken „schon persönlich angeschrieben“ gesetzt war. Nachbesserung
+ * (Gutachten): Der Haken fragt nicht, WER geschrieben hat — der Satz nennt nur, wer es vermerkt hat. Rein.
+ */
 export function ohneMailVermerk(wer: string): string {
-  return `Keine Mail „nicht erreicht“ — ${String(wer || "das Team").trim()} hat das Unternehmen schon persönlich angeschrieben.`;
+  return `Keine Mail und keine WhatsApp „nicht erreicht“ — das Unternehmen wurde schon persönlich angeschrieben (vermerkt von ${String(wer || "dem Team").trim()}).`;
 }
 
 export async function globalTerminErgebnis(ein: {
@@ -1065,6 +1075,13 @@ export async function globalTerminErgebnis(ein: {
   const mailGrund = nichtErreichtMailGrund(ein.ergebnis, ein.grund);
   const ohneMail = mailGrund && ein.ohneMail === true;
   const ohneMailSatz = ohneMail ? ohneMailVermerk(ein.agent.name) : "";
+
+  // E-490 Nachbesserung (Gutachten): Haken „schon persönlich angeschrieben“ → auch keine WhatsApp „nicht erreicht“ (Takt-Schritt 4).
+  // VOR dem Stand „verpasst“ gesetzt — sonst könnte der Takt genau dazwischen schicken.
+  if (ohneMail) {
+    const { waNichtErreichtSperren } = await import("./fiaon-mara-business");
+    await waNichtErreichtSperren(ein.terminId);
+  }
 
   // Anhängen, nicht ersetzen: In der Notiz steht, was das Unternehmen bei der
   // Buchung angegeben hat — das braucht auch der, der in drei Wochen nachliest.
@@ -1106,11 +1123,12 @@ export async function globalTerminErgebnis(ein: {
   }
   // E-458 Nr. 11: „nicht erreicht“ (auch wegen falscher Nummer) — einmal die gesiezte Mail mit dem Link für eine neue Zeit.
   // „Abgesagt“ und „kein Interesse“ bekommen keine: Das Unternehmen weiß es selbst.
-  // E-490 F6: Haken „schon persönlich angeschrieben“ → keine Mail (vermerkt oben in Notiz, Verlauf und Aufgabe).
+  // E-490 F6: Haken „schon persönlich angeschrieben“ → keine Mail (vermerkt oben in Notiz, Verlauf und Aufgabe). Nachbesserung
+  // (Gutachten): und keine WhatsApp „nicht erreicht“ — die Marke nicht_erreicht_id an seinen WhatsApp-Zeilen hält Takt-Schritt 4 an.
   const mail = !mailGrund
     ? { versandt: false, satz: " Es geht keine Mail raus." }
     : ohneMail
-      ? { versandt: false, satz: " Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben (steht im Verlauf)." }
+      ? { versandt: false, satz: " Es geht keine Mail und keine WhatsApp raus — das Unternehmen wurde schon persönlich angeschrieben (steht im Verlauf)." }
       : await globalNichtErreichtSenden(ein.terminId).catch((e) => ({ versandt: false, satz: ` Die Mail ging NICHT raus (${String(e).slice(0, 120)}) — bitte anrufen.` }));
   return {
     hinweis: keinInteresse

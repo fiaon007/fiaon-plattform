@@ -12,7 +12,8 @@
 // Dieselben Wege wie der Kalender: globalTerminErgebnis, globalGespraechVerschieben.
 // E-490 F6 (09.11.2026): „Nicht erreicht“ fragt in einer Zeile unter dem Gespräch
 // statt in einem Bestätigungsfenster — mit dem Haken „Kunde schon persönlich
-// angeschrieben — keine Mail“ (Standard aus, geht als ohneMail an den Server).
+// angeschrieben — keine Mail und keine WhatsApp“ (Standard aus, geht als ohneMail
+// an den Server; seit der Nachbesserung sperrt er auch die WhatsApp „nicht erreicht“).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
@@ -106,7 +107,7 @@ export default function ChefGlobalGespraeche() {
         <span>{OHNE_MAIL_HAKEN}</span>
       </label>
       <button type="button" className="cgn-knopf klein haupt" disabled={laeuft === z.id} onClick={() => void eintragen(z, "nicht_erreicht", nichtErreicht.ohneMail)}>
-        {nichtErreicht.ohneMail ? "Nicht erreicht — ohne Mail eintragen" : "Nicht erreicht eintragen"}
+        {nichtErreicht.ohneMail ? "Nicht erreicht — ohne Nachricht eintragen" : "Nicht erreicht eintragen"}
       </button>
       <button type="button" className="cgn-link leise" onClick={() => setNichtErreicht(null)}>abbrechen</button>
       <small>{nichtErreicht.ohneMail ? OHNE_MAIL_HINWEIS : folge("nicht_erreicht")}</small>

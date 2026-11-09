@@ -24,7 +24,9 @@
 //     WhatsApp)? Rote Fälle zusätzlich als kurze Mail an Justin (einmal je Fall, danach höchstens alle 4 Stunden).
 //     E-490 (09.11.2026): „je Fall“ wirklich je Fall (F2), der Wächter liest erst nach wa_global_takt und mailt WhatsApp-Fälle
 //     erst nach dem zweiten roten Lauf (F3), „Termin ohne Terminnachricht“ 60 Tage zurück (F4), die alte Formular-Fassung
-//     fragt Meta direkt (F5).
+//     fragt Meta direkt (F5 — nach dem Gutachten ein eigener gelber Alarm im Lauf meta_waechter, nicht mehr in diesem Takt).
+//     Nachbesserung (Gutachten): Die Mail nennt nur bestätigte Fälle, die neuen zuerst; T1 und Erinnerungsleiter nur für Leads,
+//     die bei Meta höchstens 3 Tage alt sind (ein alter Lead aus „Rückstand nachholen“ ist kein frischer Lead).
 //
 // Schema: Migration 131 + dieselbe DDL hier (leadTaktSchema) — nie im Eingang. Mails nur im Betrieb (CRONS_AN) oder über
 // die Prüfstand-Attrappe. Repo öffentlich: keine Kundendaten im Code.
@@ -50,6 +52,7 @@ import {
   wLueckeUrteil, nLueckeUrteil, waLueckeUrteil, waErwartet, ketteMailPlan, ketteMerkerLesen, ketteMerkerText, ketteMail, KETTE_VORGABE,
   type TaktMail, type UebersichtDaten, type UebersichtLead, type TelefonTeil, type EskStufe, type SammelZeile,
   type KetteAlarm, type KetteWZeile, type KetteNZeile, type KetteWaZeile, type KetteJaOhneAnfrage, type KetteNummerFalsch,
+  type KetteMailEintrag,
 } from "./fiaon-lead-takt-regeln";
 import type { EigeneMail } from "./fiaon-brevo";
 
@@ -254,6 +257,11 @@ export interface TaktLage {
   wunschzeit: string | null; englisch: boolean;
   /** „keine Mails“ (anrufen erlaubt) und die schriftliche Absage (kein Anruf mehr) — Gutachten Sicherheit, Mangel 6. */
   keineMails: boolean; abgesagt: boolean;
+  /**
+   * E-490 Nachbesserung (Gutachten): der ECHTE Eingang eines Meta-Leads (fiaon_meta_leads.erstellt_am) — die Anfrage entsteht erst
+   * beim Einspielen (created_at = jetzt), ein Lead aus „Rückstand nachholen“ ist aber Wochen alt. null = kein Meta-Lead / unbekannt.
+   */
+  echterEingang: Date | null;
 }
 
 /** Die Firma (Cockpit) zu einer Anfrage: aus Lead-Weg/Takt/Gespräch, sonst über die Person oder die Mail. */
@@ -276,10 +284,11 @@ export async function taktLageLesen(anfrageId: number, lauf: Lauf = sqlPool): Pr
   const [a] = (await lauf`
     SELECT a.id, a.name, a.email, a.firma, a.telefon, a.text, a.ip, a.person_id, a.created_at, COALESCE(a.status, 'neu') AS status,
            COALESCE(a.ist_test, FALSE) AS ist_test,
-           (SELECT meta_lead_id FROM fiaon_meta_leads m WHERE m.global_anfrage_id = a.id LIMIT 1) AS meta_lead_id
+           (SELECT meta_lead_id FROM fiaon_meta_leads m WHERE m.global_anfrage_id = a.id LIMIT 1) AS meta_lead_id,
+           (SELECT MIN(m.erstellt_am) FROM fiaon_meta_leads m WHERE m.global_anfrage_id = a.id) AS meta_erstellt
       FROM fiaon_anfragen a WHERE a.id = ${anfrageId} AND a.art = 'global'`.catch(async () => (await lauf`
     SELECT a.id, a.name, a.email, a.firma, a.telefon, a.text, a.ip, a.person_id, a.created_at, COALESCE(a.status, 'neu') AS status,
-           COALESCE(a.ist_test, FALSE) AS ist_test, NULL AS meta_lead_id
+           COALESCE(a.ist_test, FALSE) AS ist_test, NULL AS meta_lead_id, NULL AS meta_erstellt
       FROM fiaon_anfragen a WHERE a.id = ${anfrageId} AND a.art = 'global'`))) as any[];
   if (!a) return null;
   const email = String(a.email ?? "").trim().toLowerCase();
@@ -348,6 +357,7 @@ export async function taktLageLesen(anfrageId: number, lauf: Lauf = sqlPool): Pr
     wunschzeit: (/^Wunschzeit:\s*(.+)$/m.exec(kopf)?.[1] ?? "").trim() || null,
     englisch: /^Sprache:\s*Englisch/m.test(text),
     keineMails: !!w?.abgemeldet_am, abgesagt: !!takt?.abgesagt_am,
+    echterEingang: d(a.meta_erstellt),
   };
 }
 
@@ -416,7 +426,14 @@ async function t1Nachtrag(l: TaktLage, art: "selbst" | "gebucht" | "abgesagt" | 
  * 05.11.2026: eigener Schalter (getrennt von den Erinnerungen), der Zählbeginn nie nach dem auslösenden Eingang, ein zweiter
  * Eingang desselben Leads bekommt keine zweite Meldung, Tagesdeckel gegen eine Flut. Wirft nie.
  */
-export async function t1Senden(anfrageId: number, opt: { jetzt?: Date; lauf?: Lauf } = {}): Promise<{ ergebnis: T1Ergebnis; grund: string | null }> {
+export async function t1Senden(anfrageId: number, opt: {
+  jetzt?: Date; lauf?: Lauf;
+  /**
+   * E-490 Nachbesserung: der echte Eingang bei Meta, vom Eingang mitgegeben (globalAnfrageAnnehmen) — der Anstoß läuft, bevor
+   * fiaon_meta_leads die Anfrage kennt. Später (Lauf lead_takt) liest taktLageLesen ihn selbst.
+   */
+  echterEingang?: Date | string | null;
+} = {}): Promise<{ ergebnis: T1Ergebnis; grund: string | null }> {
   const lauf = opt.lauf ?? sqlPool;
   const jetzt = opt.jetzt ?? new Date();
   try {
@@ -437,6 +454,17 @@ export async function t1Senden(anfrageId: number, opt: { jetzt?: Date; lauf?: La
     if (z?.t1_status === "gesendet" || z?.t1_status === "nicht_noetig") return { ergebnis: "uebersprungen", grund: `schon ${z.t1_status}` };
     if (Number(z?.t1_versuche) >= V.t1Versuche) return { ergebnis: "fehler", grund: "drei Versuche" };
     if (l.istTest) { await t1Merken(anfrageId, "nicht_noetig", "Test-Anfrage", lauf); return { ergebnis: "nicht_noetig", grund: "Test-Anfrage" }; }
+    // E-490 Nachbesserung (Gutachten): Ein Meta-Lead, der bei Meta älter als 3 Tage ist (aus „Rückstand nachholen“ oder einem spät
+    // gefundenen Formular), ist kein frischer Lead — keine „Neuer Lead, bitte in 15 Minuten anrufen“-Meldung und keine
+    // Erinnerungsleiter (sie lässt „nicht nötig“ aus). Wie Willkommen und Dossier (echter Eingang, 3 Tage); der Anruf-Auftrag steht.
+    const echtMitgegeben = opt.echterEingang ? new Date(opt.echterEingang) : null;
+    const echt = [echtMitgegeben, l.echterEingang].filter((x): x is Date => !!x && Number.isFinite(x.getTime())).sort((x, y) => x.getTime() - y.getTime())[0] ?? null;
+    if (echt && jetzt.getTime() - echt.getTime() > V.hoechstensTage * 86_400_000) {
+      const tag = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(echt);
+      const grund = `Meta-Lead vom ${tag} — bei Meta älter als ${V.hoechstensTage} Tage (Rückstand); der Anruf-Auftrag steht`;
+      await t1Merken(anfrageId, "nicht_noetig", grund, lauf);
+      return { ergebnis: "nicht_noetig", grund };
+    }
     if (l.status === "privat") { await t1Merken(anfrageId, "nicht_noetig", "Privat-Weg (kein Business-Lead)", lauf); return { ergebnis: "nicht_noetig", grund: "Privat-Weg" }; }
     if (!l.auftrag) { await t1Merken(anfrageId, "nicht_noetig", "kein Anruf-Auftrag (er hatte schon gebucht)", lauf); return { ergebnis: "nicht_noetig", grund: "kein Anruf-Auftrag" }; }
     if (l.auftrag.status === "erledigt") { await t1Merken(anfrageId, "nicht_noetig", "der Anruf-Auftrag ist schon zu (gebucht oder Justin ruft selbst an)", lauf); return { ergebnis: "nicht_noetig", grund: "Auftrag schon zu" }; }
@@ -517,10 +545,10 @@ function anrufWannKurz(jetzt: Date): string {
 }
 
 /** Der Anstoß nach einem Eingang — angestoßen, NIE abgewartet (der Eingang darf daran nicht scheitern). Nur im Betrieb. */
-export function leadTaktAnstossen(anfrageId: number): void {
+export function leadTaktAnstossen(anfrageId: number, opt: { echterEingang?: string | null } = {}): void {
   if (!CRONS_AN) return;
   void (async () => {
-    try { await t1Senden(anfrageId); } catch (err) { console.error(`[LEAD-TAKT] Anstoß #${anfrageId}:`, String((err as Error)?.message ?? err).slice(0, 200)); }
+    try { await t1Senden(anfrageId, { echterEingang: opt.echterEingang ?? null }); } catch (err) { console.error(`[LEAD-TAKT] Anstoß #${anfrageId}:`, String((err as Error)?.message ?? err).slice(0, 200)); }
   })();
 }
 
@@ -1255,9 +1283,11 @@ export async function leadWaechterPruefen(opt: { jetzt?: Date; lauf?: Lauf; imme
   //    WhatsApp)? Je ein Alarm (w-luecke, n-luecke, wa-luecke), der von selbst ausgeht; rote zusätzlich als Mail an Justin.
   //    E-490 F2/F3: JEDER angeschlagene Alarm geht an ketteMailSchicken (auch gelb) — der Merker führt je Fall, was gemailt
   //    ist und seit wann ein Fall rot ist (ketteMailPlan); gemailt wird nur Rotes.
+  //    E-490 Nachbesserung (Gutachten): Der Knopf „Wächter prüfen“ (immer) wartet höchstens 5 Sekunden auf den WhatsApp-Takt
+  //    (vorher bis zu 30 ohne Rückmeldung) — vor einer Fehl-Mail schützt ohnehin die Bestätigung im zweiten Lauf.
   try {
     const angeschlagen: { alarm: KetteAlarm; neu: boolean }[] = [];
-    for (const a of await leadKetteLesen(jetzt, lauf)) {
+    for (const a of await leadKetteLesen(jetzt, lauf, { warteMs: opt.immer ? 5_000 : 30_000 })) {
       if (a.an === null) continue;
       if (a.an) {
         const r = await alarmMelden(a.schluessel, { quelle: "lead-takt", titel: a.titel, text: a.text, stufe: a.stufe, link: "/chef/s/lead-motor" }, lauf);
@@ -1279,8 +1309,11 @@ export async function leadWaechterPruefen(opt: { jetzt?: Date; lauf?: Lauf; imme
 // ═══════════════════════════════════════════════════════════════════════════
 const K9_SQL = "RIGHT(REGEXP_REPLACE(COALESCE(a.telefon, ''), '\\D', '', 'g'), 9)";
 
-/** Liest W, N und WhatsApp je Lead und gibt die drei Urteile zurück. Ein Lesefehler = keine Aussage (der Alarm bleibt, wie er ist). */
-export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlPool): Promise<KetteAlarm[]> {
+/**
+ * Liest W, N und WhatsApp je Lead und gibt die drei Urteile zurück. Ein Lesefehler = keine Aussage (der Alarm bleibt, wie er ist).
+ * `warteMs`: so lange wartet der WhatsApp-Block höchstens auf wa_global_takt (Lauf 30 s, Knopf 5 s).
+ */
+export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlPool, opt: { warteMs?: number } = {}): Promise<KetteAlarm[]> {
   const alarme: KetteAlarm[] = [];
   const post = await import("./fiaon-global-lead-post").then((m) => m.leadPostEinstellungen(lauf)).catch(() => null);
   const keineAussage = (schluessel: KetteAlarm["schluessel"]): KetteAlarm => ({ schluessel, an: null, stufe: "rot", titel: "", text: "", faelle: [], vorbeiGrund: "" });
@@ -1297,11 +1330,13 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
          AND a.created_at < ${jetzt}::timestamptz - ${post!.ruheMin + KETTE_VORGABE.wNachRuheMin}::int * INTERVAL '1 minute'
          AND COALESCE(a.email, '') <> '' AND w.willkommen_am IS NULL
          AND COALESCE(w.willkommen_status, '') NOT IN ('gesendet', 'ausgelassen')
-       ORDER BY a.id LIMIT 30`) as any[]).map((r) => ({
+       ORDER BY a.created_at DESC, a.id DESC LIMIT ${KETTE_VORGABE.zeilenHoechstens}`) as any[]).map((r) => ({
       anfrageId: Number(r.id), eingangAm: new Date(r.created_at), status: r.willkommen_status ? String(r.willkommen_status) : null,
       grund: r.willkommen_grund ? String(r.willkommen_grund) : null, versuche: Number(r.versuche) || 0,
     }));
-    alarme.push(wLueckeUrteil(zeilen, jetzt, { an: wAn, ruheMin: post?.ruheMin ?? 10 }));
+    // E-490 Nachbesserung (Gutachten): die NEUESTEN zuerst (vorher die ältesten 30 — bei mehr offenen Fällen fehlten gerade die
+    // neuen in der Mail); abgeschnitten = „… und mindestens n weitere“.
+    alarme.push(wLueckeUrteil(zeilen, jetzt, { an: wAn, ruheMin: post?.ruheMin ?? 10, abgeschnitten: zeilen.length >= KETTE_VORGABE.zeilenHoechstens }));
   } catch (e) {
     console.error("[LEAD-TAKT] Lead-Kette W:", String((e as Error)?.message ?? e).slice(0, 160));
     alarme.push(keineAussage("lead-takt:w-luecke"));
@@ -1315,10 +1350,10 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
         FROM fiaon_lead_weg w JOIN fiaon_anfragen a ON a.id = w.anfrage_id
        WHERE w.willkommen_status = 'gesendet' AND w.stopp_am IS NULL AND w.nachfass_stufe < 3
          AND w.nachfass_faellig IS NOT NULL AND w.nachfass_faellig < ${jetzt}::timestamptz - INTERVAL '2 hours'
-       ORDER BY w.nachfass_faellig LIMIT 30`) as any[]).map((r) => ({
+       ORDER BY w.nachfass_faellig DESC, w.anfrage_id DESC LIMIT ${KETTE_VORGABE.zeilenHoechstens}`) as any[]).map((r) => ({
       anfrageId: Number(r.anfrage_id), faellig: new Date(r.nachfass_faellig), stufe: Number(r.nachfass_stufe) || 0, land: r.land ? String(r.land) : null,
     }));
-    alarme.push(nLueckeUrteil(zeilen, jetzt, { an: nAn }));
+    alarme.push(nLueckeUrteil(zeilen, jetzt, { an: nAn, abgeschnitten: zeilen.length >= KETTE_VORGABE.zeilenHoechstens }));
   } catch (e) {
     console.error("[LEAD-TAKT] Lead-Kette N:", String((e as Error)?.message ?? e).slice(0, 160));
     alarme.push(keineAussage("lead-takt:n-luecke"));
@@ -1331,7 +1366,7 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
     // Fälle (09.11.: 0,5 s vor dem Versand). Er wartet deshalb, bis wa_global_takt in diesem Prozess fertig ist (alle 200 ms
     // geprüft, höchstens 30 s), und liest dann. NICHT „läuft der Takt → keine Aussage“: Das machte den Wächter fast immer stumm.
     // Gegen einen zweiten Prozess (Deploy) hilft die Bestätigung im zweiten Lauf (ketteMailPlan, waBestaetigtMin).
-    const gewartet = await warteBisLaufFertig("wa_global_takt", { hoechstensMs: 30_000, schrittMs: 200 });
+    const gewartet = await warteBisLaufFertig("wa_global_takt", { hoechstensMs: opt.warteMs ?? 30_000, schrittMs: 200 });
     if (!gewartet.fertig) console.warn(`[LEAD-TAKT] Lead-Kette: wa_global_takt nach ${Math.round(gewartet.gewartetMs / 1000)} s noch nicht fertig — der Wächter liest trotzdem.`);
     const mb = await import("./fiaon-mara-business");
     const an = (await mb.mbAn(lauf)) && (await mb.mbTaktAn(lauf));
@@ -1348,7 +1383,10 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
              (SELECT ARRAY_AGG(w4.nummer) FROM fiaon_wa_global w4 WHERE w4.anfrage_id = a.id OR RIGHT(w4.nummer, 9) = ${K9_SQL}) AS schluessel,
              EXISTS (SELECT 1 FROM fiaon_whatsapp x
                       WHERE (RIGHT(x.nummer, 9) = ${K9_SQL} OR x.nummer IN (SELECT w2.nummer FROM fiaon_wa_global w2 WHERE w2.anfrage_id = a.id))
-                        AND (x.richtung = 'rein' OR COALESCE(x.status, '') <> 'fehler') AND x.created_at > a.created_at - INTERVAL '1 day') AS kontakt,
+                        AND (x.richtung = 'rein' OR COALESCE(x.status, '') <> 'fehler')
+                        -- E-490 Nachbesserung (Gutachten): beim kommenden Termin zählt nur eine WhatsApp NACH der Buchung (eine Begrüßung
+                        -- vor zwei Wochen ersetzt keine Terminnachricht); sonst wie bisher ab einem Tag vor der Anfrage.
+                        AND x.created_at > CASE WHEN tk.id IS NOT NULL THEN tk.created_at - INTERVAL '1 minute' ELSE a.created_at - INTERVAL '1 day' END) AS kontakt,
              (SELECT BOOL_OR(w3.willkommen_am IS NOT NULL) FROM fiaon_wa_global w3
                WHERE w3.anfrage_id = a.id OR RIGHT(w3.nummer, 9) = ${K9_SQL}) AS begruesst,
              (SELECT w3.willkommen_status FROM fiaon_wa_global w3
@@ -1359,9 +1397,7 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
                WHERE (RIGHT(x.nummer, 9) = ${K9_SQL} OR x.nummer IN (SELECT w2.nummer FROM fiaon_wa_global w2 WHERE w2.anfrage_id = a.id))
                  AND x.richtung = 'raus' AND x.status = 'fehler' AND x.created_at > a.created_at - INTERVAL '1 day'
                ORDER BY x.id DESC LIMIT 1) AS raus_fehler,
-             tk.id AS termin_kommend_id, tk.created_at AS termin_gebucht_am,
-             EXISTS (SELECT 1 FROM fiaon_wa_global w5
-                      WHERE (w5.anfrage_id = a.id OR RIGHT(w5.nummer, 9) = ${K9_SQL}) AND w5.termin_gemeldet_id = tk.id) AS termin_gemeldet,
+             tk.id AS termin_kommend_id, tk.created_at AS termin_gebucht_am, tg.gemeldet AS termin_gemeldet,
              EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
                       WHERE t.quelle IN ('global', 'gruender') AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.beginn <= NOW()
                         AND t.created_at > a.created_at - INTERVAL '1 day'
@@ -1379,17 +1415,25 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
                               AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
                                 OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})
                             ORDER BY t.beginn LIMIT 1) tk ON TRUE
+        LEFT JOIN LATERAL (SELECT EXISTS (SELECT 1 FROM fiaon_wa_global w5
+                                           WHERE (w5.anfrage_id = a.id OR RIGHT(w5.nummer, 9) = ${K9_SQL}) AND w5.termin_gemeldet_id = tk.id) AS gemeldet) tg ON TRUE
+        -- E-490 Nachbesserung (Gutachten): der ECHTE Eingang bei Meta — „drei Tage“ zählt wie im Takt ab ihm (ein alter Lead aus
+        -- „Rückstand nachholen“ bekommt keine Begrüßung, also meldet der Wächter auch keine).
+        LEFT JOIN LATERAL (SELECT MIN(m.erstellt_am) AS erstellt FROM fiaon_meta_leads m WHERE m.global_anfrage_id = a.id) me ON TRUE
        WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE)
          AND COALESCE(a.status, '') NOT IN ('privat', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
          AND COALESCE(a.telefon, '') <> '' AND a.created_at < $2::timestamptz - INTERVAL '10 minutes'
          AND a.created_at > $2::timestamptz - INTERVAL '${KETTE_VORGABE.terminTage} days'
-         AND ((a.created_at > $3::timestamptz AND a.created_at > $2::timestamptz - INTERVAL '${KETTE_VORGABE.tage} days')
+         AND ((a.created_at > $3::timestamptz AND LEAST(a.created_at, COALESCE(me.erstellt, a.created_at)) > $2::timestamptz - INTERVAL '${KETTE_VORGABE.tage} days')
               OR g.ja_am > $2::timestamptz - INTERVAL '${KETTE_VORGABE.tage} days'
               -- E-490 F4: Termin steht → wie der Takt (Schritte 2–5) 60 Tage zurück — nur ein KOMMENDER Termin (tk) und nur mit
               -- Ja-Zeile (fiaon_wa_global, die liest auch der Takt). Ein altes Ja mit vergangenem Termin bleibt still.
               OR (tk.id IS NOT NULL AND g.ja_am IS NOT NULL))
          AND (g.ja_am IS NOT NULL OR f.ja IS TRUE)
-       ORDER BY (tk.id IS NOT NULL AND g.ja_am IS NOT NULL) DESC, a.created_at DESC LIMIT 100`, [namen, jetzt.toISOString(), ab.toISOString()])) as any[];
+       -- E-490 Nachbesserung (Gutachten): vorn nur Termine, deren Terminnachricht noch NICHT verbucht ist — dann die neuesten. Vorher
+       -- standen alle kommenden Termine vorn (auch längst gemeldete); bei vielen Leads fielen die ältesten Fälle im 3-Tage-Fenster
+       -- unten aus der Liste.
+       ORDER BY (tk.id IS NOT NULL AND g.ja_am IS NOT NULL AND NOT tg.gemeldet) DESC, a.created_at DESC LIMIT ${KETTE_VORGABE.zeilenHoechstens}`, [namen, jetzt.toISOString(), ab.toISOString()])) as any[];
     const zeilen: KetteWaZeile[] = [];
     const falsch: KetteNummerFalsch[] = [];
     const { nummerFalschGelesen } = await import("@shared/fiaon-whatsapp-erlaubnis");
@@ -1439,11 +1483,11 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
        WHERE g.optin_am IS NOT NULL AND g.anfrage_id IS NULL AND g.created_at > NOW() - INTERVAL '60 days'
          AND g.nummer ~ '^[0-9]{8,15}$' AND COALESCE(g.optin_quelle, '') NOT LIKE 'whatsapp%'
        ORDER BY g.created_at DESC LIMIT 10`.catch(() => [])) as any[]).map((r) => ({ nummer: String(r.nummer), anfrageId: Number(r.anfrage_id), seit: new Date(r.created_at) }));
-    // E-490 F5: Welche LAUFENDE Anzeige nutzt noch ein Global-Formular ohne WhatsApp-Satz? Meta gefragt (höchstens stündlich,
-    // nur GET; null = keine Aussage) — statt der Quote der letzten 24 Stunden, die nach jedem Formulartausch bis zu einen Tag
-    // lang falsch gelb stand.
-    const alteFassung = await import("./fiaon-meta-leads").then((m) => m.alteFassungInAnzeigen(lauf, { jetzt, waNamen: namen })).catch(() => null);
-    alarme.push(waLueckeUrteil({ an, pausiert, zeilen, ohneAnfrage, falsch, alteFassung }, jetzt));
+    // E-490 F5 steht seit der Nachbesserung (Gutachten) NICHT mehr hier: Die Frage „nutzt eine laufende Anzeige noch die alte
+    // Formular-Fassung?“ geht an Meta — sie läuft im Lauf meta_waechter mit ihrem eigenen gelben Alarm „lead-motor:alte-fassung“
+    // (fiaon-meta-leads.ts). Dieser Takt (mit Daniels T1) wartet so nie auf Meta, und ein Meta-Fehler lässt den WhatsApp-Alarm nicht
+    // mehr flattern.
+    alarme.push(waLueckeUrteil({ an, pausiert, zeilen, ohneAnfrage, falsch }, jetzt));
   } catch (e) {
     console.error("[LEAD-TAKT] Lead-Kette WhatsApp:", String((e as Error)?.message ?? e).slice(0, 160));
     alarme.push(keineAussage("lead-takt:wa-luecke"));
@@ -1466,13 +1510,14 @@ async function ketteMerkerLoeschen(schluessel: string, lauf: Lauf): Promise<void
  * der noch in keiner Mail stand, geht sofort hinaus (auch wenn eine gelbe Zeile die Episode offen hielt); dieselben Fälle
  * höchstens alle 4 Stunden; ein WhatsApp-Fall erst, wenn er auch im vorigen Wächterlauf rot war (ketteMailPlan). Jeder
  * angeschlagene Alarm kommt hierher (auch gelb), damit der Merker weiß, seit wann ein Fall rot ist. Atomarer Merker: nur wer
- * ihn vom gelesenen Stand dreht, schickt — kein Mail-Sturm, auch nicht bei zwei Prozessen. Scheitert der Versand, gehen „am“ und
- * „gemailt“ zurück (der nächste Wächter versucht es wieder). Nur im Betrieb. Wirft nie.
+ * ihn vom gelesenen Stand dreht, schickt — kein Mail-Sturm, auch nicht bei zwei Prozessen. Scheitert der Versand (auch mit einer
+ * Ausnahme), gehen „am“ und „gemailt“ zurück (der nächste Wächter versucht es wieder). Nachbesserung (Gutachten): In der Mail stehen
+ * nur bestätigte Fälle, die neuen zuerst und markiert (ketteMail). Nur im Betrieb. Wirft nie.
  */
 async function ketteMailSchicken(angeschlagen: readonly { alarm: KetteAlarm; neu: boolean }[], jetzt: Date, lauf: Lauf): Promise<boolean> {
   try {
     if (!versandErlaubt()) return false;
-    const faellig: KetteAlarm[] = [];
+    const faellig: KetteMailEintrag[] = [];
     const gedreht: { key: string; neu: string; zurueck: string }[] = [];
     for (const r of angeschlagen) {
       const key = ketteMerkerSchluessel(r.alarm.schluessel);
@@ -1483,17 +1528,28 @@ async function ketteMailSchicken(angeschlagen: readonly { alarm: KetteAlarm; neu
       const neu = ketteMerkerText(plan.merker);
       if (neu === alt) continue;
       const [frei] = (await lauf`UPDATE fiaon_settings SET value = ${neu}, updated_at = NOW() WHERE key = ${key} AND COALESCE(value, '') = ${alt} RETURNING key`) as any[];
-      if (frei && plan.mailen) { faellig.push(r.alarm); gedreht.push({ key, neu, zurueck: ketteMerkerText(plan.merkerOhneMail) }); }
+      if (frei && plan.mailen) {
+        // E-490 Nachbesserung (Gutachten): in die Mail nur die BESTÄTIGTEN Fälle, die neuen markiert (ketteMail).
+        faellig.push({ alarm: r.alarm, faelle: plan.mailFaelle, neu: plan.neueFaelle, unbestaetigt: plan.unbestaetigt });
+        gedreht.push({ key, neu, zurueck: ketteMerkerText(plan.merkerOhneMail) });
+      }
     }
     if (!faellig.length) return false;
-    const an = await justinAdresse(lauf);
-    const v = await mailSenden(alsMail(ketteMail(faellig, absoluteUrl("/chef/s/lead-motor")), an, "Justin", an));
+    // E-490 Nachbesserung (Gutachten): Der Versand hat sein eigenes try — wirft justinAdresse oder mailSenden (statt {ok:false}
+    // zu melden), gehen „am“ und „gemailt“ genauso zurück. Vorher galt der Fall dann als gemailt, und es blieb bis zu 4 Stunden still.
+    let v: { ok: boolean; grund?: string };
+    try {
+      const an = await justinAdresse(lauf);
+      v = await mailSenden(alsMail(ketteMail(faellig, absoluteUrl("/chef/s/lead-motor")), an, "Justin", an));
+    } catch (e) {
+      v = { ok: false, grund: `Ausnahme: ${String((e as Error)?.message ?? e).slice(0, 160)}` };
+    }
     if (!v.ok) {
       for (const g of gedreht) await lauf`UPDATE fiaon_settings SET value = ${g.zurueck}, updated_at = NOW() WHERE key = ${g.key} AND COALESCE(value, '') = ${g.neu}`.catch(() => {});
       console.error(`[LEAD-TAKT] Lead-Kette: Mail an Justin nicht gesendet: ${v.grund ?? "unbekannt"}`);
       return false;
     }
-    console.log(`[LEAD-TAKT] Lead-Kette: Mail an Justin (${faellig.map((a) => a.schluessel).join(", ")}).`);
+    console.log(`[LEAD-TAKT] Lead-Kette: Mail an Justin (${faellig.map((e) => `${e.alarm.schluessel}${e.neu.length ? ` neu ${e.neu.map((f) => `#${f}`).join(",")}` : ""}`).join("; ")}).`);
     return true;
   } catch (e) {
     console.error("[LEAD-TAKT] Lead-Kette Mail:", String((e as Error)?.message ?? e).slice(0, 160));

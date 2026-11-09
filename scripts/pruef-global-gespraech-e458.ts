@@ -15,6 +15,9 @@
 // lassen Global stehen. Brevo ist eine Attrappe im Prozess (fetch abgefangen):
 // Keine Mail verlässt den Rechner, jede gerenderte Mail wird geprüft.
 //
+// E-490 F6 (A7/B8): „Nicht erreicht“ mit dem Haken „schon persönlich angeschrieben“ — Nachbesserung (Gutachten): auch keine
+// WhatsApp (Marke nicht_erreicht_id, Takt-Schritt 4), der Vermerk nennt, wer es vermerkt hat; „abgesagt“ bekommt keine WhatsApp.
+//
 //   env -i HOME=$HOME PATH=$PATH TZ=Europe/Berlin node_modules/.bin/tsx scripts/pruef-global-gespraech-e458.ts
 //   … mit PRUEF_DB=postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_e458g für Teil B
 // ═══════════════════════════════════════════════════════════════════════════
@@ -210,21 +213,31 @@ titel("A7 · E-490 F6: „Nicht erreicht“ mit dem Haken „Kunde schon persön
 {
   const S = await import("../shared/fiaon-global-gespraech");
   const T = await import("../server/lib/fiaon-global-termin");
-  ok("der Haken heißt genau so (Standard aus)", S.OHNE_MAIL_HAKEN === "Kunde schon persönlich angeschrieben — keine Mail");
+  ok("der Haken heißt genau so (Standard aus) — Nachbesserung (Gutachten): er sperrt auch die WhatsApp", S.OHNE_MAIL_HAKEN === "Kunde schon persönlich angeschrieben — keine Mail und keine WhatsApp"
+    && /weder die automatische Mail noch die WhatsApp/.test(S.OHNE_MAIL_HINWEIS) && /keine Mail und keine WhatsApp/i.test(S.OHNE_MAIL_FOLGE));
   ok("Mail-Gründe: nicht erreicht, Nummer falsch, ohne Grund — nicht abgesagt, kein Interesse, nicht stattgefunden",
     T.nichtErreichtMailGrund("verpasst", "nicht_erschienen") && T.nichtErreichtMailGrund("verpasst", "nummer_falsch") && T.nichtErreichtMailGrund("verpasst", null)
     && !T.nichtErreichtMailGrund("verpasst", "abgesagt") && !T.nichtErreichtMailGrund("verpasst", "kein_interesse") && !T.nichtErreichtMailGrund("erledigt", null));
   ok("dieselben Gründe im Kalender (der Haken zählt nur bei ihnen)", S.GLOBAL_GRUENDE_MIT_MAIL.join() === "nicht_erschienen,nummer_falsch"
     && S.GLOBAL_GRUENDE.filter((g) => S.GLOBAL_GRUENDE_MIT_MAIL.includes(g.key)).every((g) => /außer mit dem Haken/.test(g.folge)));
-  ok("der Vermerk nennt, wer schon angeschrieben hat", T.ohneMailVermerk("Justin Schwarzott") === "Keine Mail „nicht erreicht“ — Justin Schwarzott hat das Unternehmen schon persönlich angeschrieben.");
+  ok("der Vermerk schreibt das Anschreiben NICHT dem zu, der klickt — er nennt, wer es vermerkt hat (Nachbesserung, Gutachten)",
+    T.ohneMailVermerk("Pruef Person") === "Keine Mail und keine WhatsApp „nicht erreicht“ — das Unternehmen wurde schon persönlich angeschrieben (vermerkt von Pruef Person).");
   const lib = quelle("server/lib/fiaon-global-termin.ts");
   const erg = lib.split("export async function globalTerminErgebnis(")[1]?.split("\n}\n")[0] ?? "";
   ok("Server: ohneMail nur mit Mail-Grund und echtem true; dann KEIN globalNichtErreichtSenden",
-    /const ohneMail = mailGrund && ein\.ohneMail === true;/.test(erg) && /: ohneMail\s*\? \{ versandt: false, satz: " Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben/.test(erg)
+    /const ohneMail = mailGrund && ein\.ohneMail === true;/.test(erg) && /: ohneMail\s*\? \{ versandt: false, satz: " Es geht keine Mail und keine WhatsApp raus — das Unternehmen wurde schon persönlich angeschrieben/.test(erg)
     && erg.indexOf("ohneMail\n      ? {") < erg.indexOf("await globalNichtErreichtSenden(ein.terminId)"));
   ok("Server: der Vermerk steht in Notiz, Firmen-Verlauf und der geschlossenen Aufgabe",
     /const notizZeile = \[vermerk, notiz, ohneMailSatz\]\.filter\(Boolean\)\.join\(" "\);/.test(erg) && /\$\{ohneMailSatz \? ` \$\{ohneMailSatz\}` : ""\}`,/.test(erg)
     && /ergebnis: ohneMailSatz \? `\$\{vermerk\} \$\{ohneMailSatz\}` : vermerk/.test(erg));
+  ok("Server (Gutachten): mit dem Haken wird auch die WhatsApp „nicht erreicht“ gesperrt — VOR dem Stand „verpasst“ (sonst könnte der Takt dazwischen schicken)",
+    /if \(ohneMail\) \{\s*const \{ waNichtErreichtSperren \} = await import\("\.\/fiaon-mara-business"\);\s*await waNichtErreichtSperren\(ein\.terminId\);/.test(erg)
+    && erg.indexOf("await waNichtErreichtSperren(ein.terminId)") < erg.indexOf("UPDATE fiaon_termine"));
+  const mbq = quelle("server/lib/fiaon-mara-business.ts");
+  const takt4 = mbq.split("export async function waGlobalTakt(")[1] ?? "";
+  ok("Takt-Schritt 4 fragt waNichtErreichtFaellig (dort zählen die Marke nicht_erreicht_id und — mitgefunden — nur die Mail-Gründe)",
+    /const vId = await waNichtErreichtFaellig\(\{ nummer, email: k\.email, nichtErreichtId: z\.nicht_erreicht_id \?\? null \}, lauf\);/.test(takt4)
+    && /COALESCE\(t\.verpasst_grund, 'nicht_erschienen'\) IN \('nicht_erschienen', 'nummer_falsch'\)/.test(mbq.split("export async function waNichtErreichtFaellig(")[1] ?? ""));
   const chef = quelle("server/routes/fiaon-chef-global.ts");
   ok("Chefbüro-Route reicht ohneMail durch (nur bei „nicht erreicht“, nur true)", /const ohneMail = wahl === "nicht_erreicht" && req\.body\?\.ohneMail === true;/.test(chef) && /notiz: req\.body\?\.notiz [^\n]*\n\s*ohneMail,\n/.test(chef));
   const kal = quelle("server/routes/fiaon-termin.ts");
@@ -241,7 +254,7 @@ titel("A7 · E-490 F6: „Nicht erreicht“ mit dem Haken „Kunde schon persön
   const RG = await import("../client/src/pages/agent/rundgaenge");
   const satz = (l: { text?: string; tipp?: string }[]) => l.map((s) => `${s.text ?? ""} ${s.tipp ?? ""}`).join(" ");
   ok("Rundgänge nachgezogen (Kalender und Chefbüro › Global-Kunden › Gespräche)",
-    /Haken „Kunde schon persönlich angeschrieben — keine Mail“/.test(satz(RG.RUNDGANG_CALENDAR)) && /Haken „Kunde schon persönlich angeschrieben — keine Mail“/.test(satz(RG.RUNDGANG_CHEF_GLOBAL_KUNDEN)));
+    /Haken „Kunde schon persönlich angeschrieben — keine Mail und keine WhatsApp“/.test(satz(RG.RUNDGANG_CALENDAR)) && /Haken „Kunde schon persönlich angeschrieben — keine Mail und keine WhatsApp“/.test(satz(RG.RUNDGANG_CHEF_GLOBAL_KUNDEN)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -451,29 +464,47 @@ if (!mitDb) {
   titel("B8 · E-490 F6: „Nicht erreicht“ mit dem Haken „schon persönlich angeschrieben“ — keine Mail, Vermerk im Verlauf");
   // ─────────────────────────────────────────────────────────────────────────
   // (am Ende, damit die festen Beispiel-Nummern der Abschnitte davor gleich bleiben)
+  // Nachbesserung (Gutachten): Wer WhatsApp als Weg gewählt hat, bekäme sonst trotzdem die WhatsApp „nicht erreicht“ (Takt-Schritt 4).
+  const MB = await import("../server/lib/fiaon-mara-business");
+  await MB.mbSchema();
+  const waZeile = async (n: number) => {
+    const ziffern = tel(n).replace(/\D/g, "");
+    await sqlPool`INSERT INTO fiaon_wa_global (nummer, weg, weg_am) VALUES (${ziffern}, 'whatsapp', NOW()) ON CONFLICT (nummer) DO UPDATE SET weg = 'whatsapp', nicht_erreicht_id = NULL`;
+    return ziffern;
+  };
   const pO = await firma(); const mailO = `m.beispiel${nr}@beispiel-gmbh.example`;
+  const waO = await waZeile(nr);
   const tO = await gespraech(pO, h(-7), h(-48), 8, "ohne-mail");
   gefangen.length = 0;
   const eO = await globalTerminErgebnis({ terminId: tO, personId: pO, beginn: h(-7), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "nicht_erschienen", ohneMail: true });
   ok("KEINE Mail an das Unternehmen (es wurde schon persönlich angeschrieben)", !gefangen.some((m) => m.an === mailO), gefangen.map((m) => m.an).join(", "));
-  ok("Hinweis: keine Mail, schon persönlich angeschrieben", /Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben/.test(eO.hinweis), eO.hinweis);
+  ok("Hinweis: keine Mail und keine WhatsApp, schon persönlich angeschrieben", /Es geht keine Mail und keine WhatsApp raus — das Unternehmen wurde schon persönlich angeschrieben/.test(eO.hinweis), eO.hinweis);
   const zO = await zeile(tO);
   ok("Termin: verpasst (nicht erreicht), OHNE Marke der Mail", zO.status === "verpasst" && zO.verpasst_grund === "nicht_erschienen" && !zO.verpasst_mail_am);
-  ok("Termin-Notiz vermerkt, wer schon angeschrieben hat", /Keine Mail „nicht erreicht“ — Daniel Stripling hat das Unternehmen schon persönlich angeschrieben\./.test(String(zO.notiz)), String(zO.notiz));
+  ok("Termin-Notiz: schon persönlich angeschrieben — vermerkt von (nicht „hat angeschrieben“)", /Keine Mail und keine WhatsApp „nicht erreicht“ — das Unternehmen wurde schon persönlich angeschrieben \(vermerkt von Daniel Stripling\)\./.test(String(zO.notiz)), String(zO.notiz));
+  const [wO] = (await sqlPool`SELECT nicht_erreicht_id FROM fiaon_wa_global WHERE nummer = ${waO}`) as any[];
+  ok("WhatsApp gesperrt: die Marke nicht_erreicht_id steht an seiner WhatsApp-Zeile", Number(wO?.nicht_erreicht_id) === tO, String(wO?.nicht_erreicht_id));
+  ok("… und Takt-Schritt 4 (waNichtErreichtFaellig) schickt ihm nichts", (await MB.waNichtErreichtFaellig({ nummer: waO, email: mailO, nichtErreichtId: wO?.nicht_erreicht_id ?? null }, sqlPool, h(0))) === null);
   const [logO] = (await sqlPool`
     SELECT l.notiz FROM fiaon_firmen_log l JOIN fiaon_firmen_leads f ON f.id = l.firma_id
      WHERE f.person_id = ${pO} AND l.ergebnis = 'gespraech_nicht_zustande' ORDER BY l.id DESC LIMIT 1`) as any[];
   ok("Firmen-Verlauf vermerkt es", /schon persönlich angeschrieben/.test(String(logO?.notiz)), String(logO?.notiz));
   const [mlO] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = 'global_nicht_erreicht' AND LOWER(COALESCE(empfaenger, '')) = ${mailO}`) as any[];
   ok("Mail-Protokoll: keine „nicht erreicht“-Mail an das Unternehmen", Number(mlO?.n) === 0, String(mlO?.n));
-  const pA3 = await firma(); const tA3 = await gespraech(pA3, h(-8), h(-48), 8, "abgesagt-haken");
+  const pA3 = await firma(); const waA3 = await waZeile(nr); const tA3 = await gespraech(pA3, h(-8), h(-48), 8, "abgesagt-haken");
   const eA3 = await globalTerminErgebnis({ terminId: tA3, personId: pA3, beginn: h(-8), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "abgesagt", ohneMail: true });
   ok("Haken bei „abgesagt“: wirkungslos, kein Vermerk (dort geht ohnehin keine Mail)", !/persönlich angeschrieben/.test(String((await zeile(tA3)).notiz)) && /Es geht keine Mail raus\.$/.test(eA3.hinweis), eA3.hinweis);
+  ok("mitgefunden: „abgesagt“ bekommt auch keine WhatsApp „Wir haben eben versucht, Sie zu erreichen“ (vorher jedes „verpasst“)",
+    (await MB.waNichtErreichtFaellig({ nummer: waA3, email: "", nichtErreichtId: null }, sqlPool, h(0))) === null);
   const pN = await firma(); const mailN = `m.beispiel${nr}@beispiel-gmbh.example`;
+  const waN = await waZeile(nr);
   const tN = await gespraech(pN, h(-9), h(-48), 8, "ohne-haken");
   gefangen.length = 0;
   await globalTerminErgebnis({ terminId: tN, personId: pN, beginn: h(-9), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "nicht_erschienen", ohneMail: false });
   ok("Gegenprobe ohne Haken: die Mail geht wie bisher genau einmal", gefangen.filter((m) => m.an === mailN).length === 1, gefangen.map((m) => m.an).join(", "));
+  const [wN] = (await sqlPool`SELECT nicht_erreicht_id FROM fiaon_wa_global WHERE nummer = ${waN}`) as any[];
+  ok("… und die WhatsApp „nicht erreicht“ steht für Takt-Schritt 4 an (keine Marke gesetzt)",
+    !wN?.nicht_erreicht_id && (await MB.waNichtErreichtFaellig({ nummer: waN, email: mailN, nichtErreichtId: null }, sqlPool, h(0))) === tN);
 
   await sqlPool.end({ timeout: 2 }).catch(() => {});
 }

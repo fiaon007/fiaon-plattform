@@ -12,7 +12,7 @@ export type GlobalErgebnisWahl = "stattgefunden" | "nicht_erreicht" | "verschobe
 
 export const GLOBAL_ERGEBNIS_WAHL: { key: GlobalErgebnisWahl; text: string; folge: string }[] = [
   { key: "stattgefunden", text: "Stattgefunden", folge: "Die Firma steht im Firmen-Cockpit, Wiedervorlage morgen." },
-  { key: "nicht_erreicht", text: "Nicht erreicht", folge: "Das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit — außer du hast es schon persönlich angeschrieben (Haken). Bitte heute noch einmal anrufen." },
+  { key: "nicht_erreicht", text: "Nicht erreicht", folge: "Das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit (hat es WhatsApp gewählt, auch dort) — außer es wurde schon persönlich angeschrieben (Haken). Bitte heute noch einmal anrufen." },
   { key: "verschoben", text: "Verschoben", folge: "Neue Zeit eintragen — das Unternehmen bekommt die Bestätigung, die Erinnerungen laufen neu." },
 ];
 
@@ -20,12 +20,16 @@ export const GLOBAL_ERGEBNIS_WAHL: { key: GlobalErgebnisWahl; text: string; folg
 // Vorher fragte ein Bestätigungsfenster nur „Nicht erreicht?“ — die Mail ging immer. Hatte jemand das Unternehmen schon selbst
 // angeschrieben (am 09.11. so passiert), bekam es zwei Mails. Jetzt fragt die Seite in einer Zeile, mit dem Haken (Standard
 // aus); der Server lässt die Mail dann weg und vermerkt es im Verlauf (globalTerminErgebnis, ohneMail).
+// Nachbesserung (Gutachten 09.11.2026): Der Haken sperrt auch die WhatsApp „nicht erreicht“ (wer WhatsApp gewählt hat, bekam
+// sonst trotzdem eine zweite automatische Nachricht) — die Texte sagen jetzt „keine Mail und keine WhatsApp“.
 /** Der Satz in der Rückfrage vor „Nicht erreicht“ — der Klick schickt (ohne Haken) eine Kundenmail. */
-export const NICHT_ERREICHT_SATZ = "Das Unternehmen bekommt EINMAL eine gesiezte Mail „Wir haben Sie nicht erreicht“ mit dem Link für eine neue Zeit. Danach rufst du an.";
+export const NICHT_ERREICHT_SATZ = "Das Unternehmen bekommt EINMAL eine gesiezte Mail „Wir haben Sie nicht erreicht“ mit dem Link für eine neue Zeit (hat es WhatsApp gewählt, auch dort eine Nachricht). Danach rufst du an.";
 /** Der Haken (Standard aus). */
-export const OHNE_MAIL_HAKEN = "Kunde schon persönlich angeschrieben — keine Mail";
+export const OHNE_MAIL_HAKEN = "Kunde schon persönlich angeschrieben — keine Mail und keine WhatsApp";
 /** Was der Haken bewirkt. */
-export const OHNE_MAIL_HINWEIS = "Dann geht keine automatische Mail raus, und im Verlauf steht, dass das Unternehmen schon persönlich angeschrieben wurde.";
+export const OHNE_MAIL_HINWEIS = "Dann geht weder die automatische Mail noch die WhatsApp „nicht erreicht“ raus, und im Verlauf steht, dass das Unternehmen schon persönlich angeschrieben wurde.";
+/** Die Folge eines Mail-Grunds im Kalender, wenn der Haken sitzt. */
+export const OHNE_MAIL_FOLGE = "Keine Mail und keine WhatsApp — das Unternehmen wurde schon persönlich angeschrieben.";
 
 /** Warum ein Global-Gespräch nicht zustande kam — die Gründe des X im Kalender, mit der Folge für das Unternehmen. */
 export const GLOBAL_GRUENDE: { key: string; label: string; folge: string }[] = [

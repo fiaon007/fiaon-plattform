@@ -15,9 +15,10 @@
 //   2. Nachhol-Lauf: alle 5 Minuten fragt die Plattform jedes Formular nach
 //      neuen Leads. Fällt der Webhook aus (Abo weg, Server im Neustart), fängt
 //      dieser Weg jeden Lead auf. Meta hält Leads 90 Tage abrufbar.
-//      E-490 F1 (09.11.2026): Er findet auch NEUE Formulare selbst (höchstens
-//      stündlich, Seiten-Token) und holt deren Leads ab der Anlage nach — siehe
-//      „NACHHOL-LAUF UND RÜCKSTAND“.
+//      E-490 F1 (09.11.2026): Er findet auch NEUE Formulare selbst (alle 15
+//      Minuten, Seiten-Token) und holt deren Leads ab der Anlage nach — von
+//      selbst höchstens 3 Tage zurück, Älteres meldet ein gelber Alarm für
+//      „Rückstand nachholen“ (Nachbesserung) — siehe „NACHHOL-LAUF UND RÜCKSTAND“.
 // Beide laufen gegen fiaon_meta_leads (Meta-Lead-ID → unser Lead): Ein Lead,
 // der auf beiden Wegen kommt, wird einmal angelegt.
 //
@@ -699,7 +700,24 @@ export function einwilligungErkennen(f: MetaFormular): string | null {
   return treffer?.key ? String(treffer.key) : null;
 }
 
-async function formularSpeichern(f: MetaFormular, seiteId: string | null, lauf: Lauf): Promise<void> {
+async function formularSpeichern(f: MetaFormular, seiteId: string | null, lauf: Lauf, opt: { nurKopf?: boolean } = {}): Promise<void> {
+  if (opt.nurKopf) {
+    // E-490 Nachbesserung (Gutachten): NUR DER KOPF (Name, Status, Sprache, Anlage) — wenn das volle Formular nicht lesbar war
+    // (Zeitüberschreitung, Bremse) oder bei der Suche alle 15 Minuten ein bekanntes Formular nur kurz gesehen wird. Vorher
+    // überschrieb die Kurzfassung Fragen, Kästchen und die erkannte Einwilligung mit leer — bis zum nächsten vollen Laden standen
+    // die Global-Antworten nur als Rohschlüssel in Anfrage, Auftrag und Dossier. Fragen, Kästchen und Einwilligung bleiben stehen.
+    await lauf`
+      INSERT INTO fiaon_meta_formulare (id, seite_id, name, status, sprache, fragen, kaestchen, erstellt_am, geladen_am)
+      VALUES (${f.id}, ${seiteId}, ${f.name ?? null}, ${f.status ?? null}, ${f.locale ?? null}, ${lauf.json([] as any)}, ${lauf.json([] as any)}, ${f.created_time ?? null}, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        seite_id = COALESCE(EXCLUDED.seite_id, fiaon_meta_formulare.seite_id),
+        name = COALESCE(EXCLUDED.name, fiaon_meta_formulare.name),
+        status = COALESCE(EXCLUDED.status, fiaon_meta_formulare.status),
+        sprache = COALESCE(EXCLUDED.sprache, fiaon_meta_formulare.sprache),
+        erstellt_am = COALESCE(fiaon_meta_formulare.erstellt_am, EXCLUDED.erstellt_am),
+        geladen_am = NOW()`;
+    return;
+  }
   const kaestchen = f.legal_content?.custom_disclaimer?.checkboxes ?? [];
   const erkannt = einwilligungErkennen(f);
   await lauf`
@@ -716,26 +734,42 @@ async function formularSpeichern(f: MetaFormular, seiteId: string | null, lauf: 
                                      THEN fiaon_meta_formulare.einwilligung_schluessel
                                      ELSE EXCLUDED.einwilligung_schluessel END,
       einwilligung_von = CASE WHEN fiaon_meta_formulare.einwilligung_von = 'hand' THEN 'hand' ELSE EXCLUDED.einwilligung_von END,
+      -- E-490 Nachbesserung (Gutachten): die Anlage-Zeit wird nachgezogen, wenn sie noch fehlt (sie ändert sich bei Meta nie).
+      erstellt_am = COALESCE(fiaon_meta_formulare.erstellt_am, EXCLUDED.erstellt_am),
       geladen_am = NOW()`;
 }
 
 /**
  * Alle Formulare aller Seiten neu laden. {seite}/leadgen_forms braucht den SEITEN-Token — mit dem Systemnutzer-Token kommt
  * Fehler #190. E-490 F1: gibt dazu die Kennungen zurück, die vorher noch nicht in fiaon_meta_formulare standen.
+ * E-490 Nachbesserung (Gutachten): `nurNeueVoll` (die Suche alle 15 Minuten im Nachhol-Lauf) lädt nur NEUE Formulare ganz
+ * (Fragen, Kästchen) und bekannte, deren Fragen noch fehlen — die übrigen bekommen nur den Kopf aus der Liste (ein Aufruf je
+ * Seite statt einer je Formular). Der Knopf „Formulare neu laden“ und die Prüfliste (alle 6 Stunden) laden weiter alles. Ist
+ * ein Formular nicht ganz lesbar, wird nur sein Kopf gespeichert (Fragen und Einwilligung bleiben stehen); die Anlage-Zeit kommt
+ * notfalls aus der Liste.
  */
-export async function formulareLaden(lauf: Lauf = sqlPool): Promise<{ seiten: number; formulare: number; neu: string[] }> {
+export async function formulareLaden(lauf: Lauf = sqlPool, opt: { nurNeueVoll?: boolean } = {}): Promise<{ seiten: number; formulare: number; neu: string[] }> {
   await metaTabellen(lauf);
   const seiten = await seitenIds(lauf);
-  const bekannt = new Set(((await lauf`SELECT id FROM fiaon_meta_formulare`) as any[]).map((r) => String(r.id)));
+  // Bekannte Formulare — und ob ihre Fragen noch fehlen (dann lädt auch die schnelle Suche sie ganz).
+  const bekannt = new Map<string, boolean>(((await lauf`
+    SELECT id, (fragen IS NULL OR fragen::text IN ('[]', '"[]"', 'null')) AS ohne_fragen FROM fiaon_meta_formulare`) as any[])
+    .map((r) => [String(r.id), !!r.ohne_fragen]));
   let n = 0;
   const neu: string[] = [];
   for (const seite of seiten) {
     const token = await seitenToken(seite);
     const liste = await graphAlle(`${seite}/leadgen_forms`, { params: { fields: "id,name,status,locale,created_time", limit: 100 }, app: "leads", token, hoechstens: 500 });
-    for (const kurz of liste) {
-      const f = await formularLesen(String(kurz.id), token).catch(() => kurz as MetaFormular);
-      await formularSpeichern(f, seite, lauf);
-      if (!bekannt.has(String(kurz.id))) { bekannt.add(String(kurz.id)); neu.push(String(kurz.id)); }
+    for (const kurz of liste as MetaFormular[]) {
+      const id = String(kurz.id);
+      const istNeu = !bekannt.has(id);
+      if (opt.nurNeueVoll && !istNeu && !bekannt.get(id)) {
+        await formularSpeichern(kurz, seite, lauf, { nurKopf: true });
+      } else {
+        const voll = await formularLesen(id, token).catch(() => null);
+        await formularSpeichern(voll ? { ...kurz, ...voll, created_time: voll.created_time ?? kurz.created_time } : kurz, seite, lauf, { nurKopf: !voll });
+      }
+      if (istNeu) { bekannt.set(id, false); neu.push(id); }
       n++;
     }
   }
@@ -758,20 +792,32 @@ export async function einwilligungZuordnen(formularId: string, schluessel: strin
 // „Formulare neu laden“ in die Tabelle — die Leads zwischen Anlage und Laden fehlten STILL. Am 09.11. lagen so beim Tausch
 // auf die Formular-Fassung 2 fast vier Stunden zwischen Anlage und Laden (von Hand; verloren ging diesmal nichts).
 // Jetzt:
-//   · Höchstens stündlich lädt der Lauf alle Formulare der Seiten selbst (formulareLaden mit Seiten-Token; atomar über den
-//     Merker META_FORMULARE_GESUCHT — beim Deploy laden nicht zwei Prozesse).
+//   · Alle 15 Minuten (FORMULAR_SUCHE_MIN; vorher stündlich) sucht der Lauf neue Formulare der Seiten selbst (formulareLaden
+//     mit Seiten-Token, neue ganz, bekannte nur der Kopf; atomar über den Merker META_FORMULARE_GESUCHT — beim Deploy laden
+//     nicht zwei Prozesse).
 //   · Ein Formular, dessen Leads noch nie AB SEINER ANLAGE geholt wurden (nicht in META_FORMULARE_AB_ANLAGE — egal, ob der
-//     Lauf, die Prüfliste, der Knopf oder ein ankommender Lead es in die Tabelle brachte), fragt er einmal ab created_time
-//     (höchstens 89 Tage zurück) — mit dem Weg „meta_nachhol“, NIE „meta_rueckstand“: Ein Rückstand-Lead bekäme weder Justins
-//     Willkommen (fiaon-global-lead-post.ts, willkommenSenden) noch ein Einzel-Dossier (shared/fiaon-global-lead.ts,
-//     einzelDossierFaellig). Beide verfallen ohnehin nach drei Tagen — ein alter Lead bekommt also auch so keine Mail.
-//   · Erst wenn das gelingt, steht das Formular in der Liste; scheitert es, versucht es der nächste Lauf wieder.
+//     Lauf, die Prüfliste, der Knopf oder ein ankommender Lead es in die Tabelle brachte), fragt er einmal ab created_time —
+//     mit dem Weg „meta_nachhol“, NIE „meta_rueckstand“: Ein Rückstand-Lead bekäme weder Justins Willkommen
+//     (fiaon-global-lead-post.ts, willkommenSenden) noch ein Einzel-Dossier (shared/fiaon-global-lead.ts, einzelDossierFaellig).
+//   · Nachbesserung (Gutachten 09.11.): VON SELBST höchstens NACHHOL_AB_ANLAGE_TAGE (3) Tage zurück — dieselben drei Tage wie
+//     Willkommen, Dossier, Daniels T1 und die WhatsApp-Begrüßung. Vorher bis 89 Tage: Bekam der Systemnutzer eine weitere Seite
+//     (meta_seite_ids schreibt die Prüfliste alle 6 Stunden aus seinen Rechten neu), galten ALLE ihre Formulare als neu, und
+//     Leads bis 89 Tage zurück wären als frische Anfragen gekommen (T1 an Daniel, dringender Anruf-Auftrag, Erinnerungen,
+//     WhatsApp-Begrüßung; Privat-Formulare in die Verteilung). Ist das Formular älter, meldet ein GELBER Alarm
+//     (RUECKSTAND_ALARM, im Lagezimmer) Formular, Seite, Anlage und den Tag für „Rückstand nachholen“ — den Rest entscheidet
+//     Justin mit dem Knopf. Läuft „Rückstand nachholen“ ab diesem Tag (oder früher) ohne Fehler, geht der Alarm von selbst aus.
+//   · Erst wenn das Holen gelingt, steht das Formular in der Liste; scheitert es, versucht es der nächste Lauf wieder. Ohne
+//     Anlage-Zeit (Meta nannte keine) kommt es NICHT in die Liste (Nachbesserung) — es läuft im normalen Fenster, bis die Suche
+//     die Zeit nachzieht (formularSpeichern zieht erstellt_am nach, wenn sie fehlt).
+//   · Schneidet die Abfrage bei `hoechstens` Leads ab, steht das nie mehr still da: Der gelbe Alarm nennt die Lücke und den Tag
+//     für „Rückstand nachholen“ (das Formular kommt trotzdem in die Liste — sonst holte der Lauf alle 5 Minuten wieder dieselben
+//     Leads).
 //   · Die Grundlinie: Fehlt die Liste (erster Lauf nach dem Deploy), gelten alle Formulare, die DANN in der Tabelle stehen,
 //     als nachgeholt — sie liefen bisher schon durch diesen Lauf (die Prüfliste lädt alle 6 Stunden jedes Formular der Seite).
 // Für die Anleitung zum Formulartausch (liegt außerhalb des Repos): Nach dem Tausch muss niemand mehr „Formulare neu laden“
-// drücken — spätestens nach einer Stunde (plus fünf Minuten) steht das neue Formular da, und seine Leads sind ab der Anlage
-// geholt. Wer nicht warten will, drückt den Knopf: Dann holt der nächste Lauf (≤ 5 Minuten) die Leads ab der Anlage.
-// Der Rückstand von Hand (Datum gewählt, Weg „meta_rueckstand“) bleibt, wie er war — er sucht nicht und führt die Liste nicht.
+// drücken — spätestens nach 15 Minuten (plus fünf) steht das neue Formular da, und seine Leads sind ab der Anlage geholt. Wer
+// nicht warten will, drückt den Knopf: Dann holt der nächste Lauf (≤ 5 Minuten) die Leads ab der Anlage.
+// Der Rückstand von Hand (Datum gewählt, Weg „meta_rueckstand“) sucht nicht und führt die Liste nicht.
 // ═══════════════════════════════════════════════════════════════════════════
 let nachholLaeuft = false;
 
@@ -779,29 +825,114 @@ let nachholLaeuft = false;
 export const META_FORMULARE_GESUCHT = "meta_formulare_gesucht_am";
 /** E-490 F1: Formulare, deren Leads ab der Anlage geholt sind (Komma-Liste der Kennungen). */
 export const META_FORMULARE_AB_ANLAGE = "meta_formulare_ab_anlage";
-export const FORMULAR_SUCHE_MIN = 60;
+/** E-490 Nachbesserung (Gutachten): alle 15 Minuten suchen (vorher 60 — Leads eines brandneuen Formulars kamen bis ~65 Minuten spät). */
+export const FORMULAR_SUCHE_MIN = 15;
 /** Meta hält Leads 90 Tage — gefragt wird höchstens 89 Tage zurück (wie beim Rückstand). */
 export const NACHHOL_HOECHSTENS_TAGE = 89;
+/** E-490 Nachbesserung (Gutachten): so weit holt der Lauf die Leads eines neuen Formulars VON SELBST — wie Willkommen, Dossier, T1. */
+export const NACHHOL_AB_ANLAGE_TAGE = 3;
+/** E-490 Nachbesserung: der gelbe Alarm „ältere Leads bitte über Rückstand nachholen“ (Lagezimmer) und sein Merker (ab welchem Tag). */
+export const RUECKSTAND_ALARM = "lead-motor:formular-rueckstand";
+export const META_RUECKSTAND_AB = "meta_rueckstand_ab";
+/** Ohne neue Meldung geht der Alarm nach einer Woche von selbst aus (wer ihn nicht braucht, muss nichts tun). */
+export const RUECKSTAND_ALARM_STUNDEN = 7 * 24;
 
 /** Eine Komma-Liste von Kennungen (Ziffern, Buchstaben, _-) → eindeutige Liste. Rein. */
 export function kennungsListe(roh: unknown): string[] {
   return Array.from(new Set(String(roh ?? "").split(/[\s,;]+/).map((s) => s.trim()).filter((s) => /^[A-Za-z0-9_-]{1,64}$/.test(s))));
 }
 
-/** E-490 F1: Ist die stündliche Formular-Suche fällig? Ohne (gültigen) Merker: ja. Rein. */
+/** E-490 F1: Ist die Formular-Suche fällig (alle FORMULAR_SUCHE_MIN Minuten)? Ohne (gültigen) Merker: ja. Rein. */
 export function formularSucheFaellig(letzte: unknown, jetzt: Date): boolean {
   const t = Date.parse(String(letzte ?? ""));
   return !Number.isFinite(t) || jetzt.getTime() - t >= FORMULAR_SUCHE_MIN * 60_000;
 }
 
+export interface AbAnlage {
+  /** Ab hier fragt der Lauf von selbst (Anlage minus eine Minute, höchstens NACHHOL_AB_ANLAGE_TAGE zurück). */
+  ab: Date;
+  /** Die Anlage des Formulars bei Meta. */
+  anlage: Date;
+  /** true = das Formular ist älter — der Rest gehört in „Rückstand nachholen“ (gelber Alarm). */
+  gekappt: boolean;
+}
+
 /**
- * E-490 F1: Ab wann die Leads eines neuen Formulars geholt werden — seine Anlage (eine Minute Spielraum), höchstens 89 Tage
- * zurück. Ohne gültige Anlage: null (dann nur das normale Fenster — nie blind 89 Tage für ein Formular unbekannten Alters). Rein.
+ * E-490 F1: Ab wann die Leads eines neuen Formulars VON SELBST geholt werden — seine Anlage (eine Minute Spielraum), höchstens
+ * NACHHOL_AB_ANLAGE_TAGE zurück (Nachbesserung, Gutachten; vorher 89). Ohne gültige Anlage: null (dann nur das normale Fenster —
+ * nie blind zurück für ein Formular unbekannten Alters). Rein.
  */
-export function abAnlageZeit(erstelltAm: unknown, jetzt: Date): Date | null {
+export function abAnlageZeit(erstelltAm: unknown, jetzt: Date): AbAnlage | null {
   const t = erstelltAm instanceof Date ? erstelltAm.getTime() : Date.parse(String(erstelltAm ?? ""));
   if (!Number.isFinite(t)) return null;
-  return new Date(Math.max(t - 60_000, jetzt.getTime() - NACHHOL_HOECHSTENS_TAGE * 86_400_000));
+  const grenze = jetzt.getTime() - NACHHOL_AB_ANLAGE_TAGE * 86_400_000;
+  // Gekappt nur, wenn die Anlage SELBST vor der Grenze liegt — vorher kann es keine Leads geben (die Minute ist nur Spielraum).
+  return { ab: new Date(Math.max(t - 60_000, grenze)), anlage: new Date(t), gekappt: t < grenze };
+}
+
+/** Eine Lücke, die nur „Rückstand nachholen“ schließt: ein älteres neu gefundenes Formular oder eine abgeschnittene Abfrage. */
+export interface RueckstandLuecke {
+  formularId: string; name: string | null; seiteId: string | null;
+  /** Ab diesem Zeitpunkt bitte „Rückstand nachholen“ (ISO). */
+  ab: string;
+  grund: "aelter" | "abgeschnitten";
+  /** aelter: die Anlage des Formulars (ISO). abgeschnitten: wie viele Leads auf einmal abrufbar waren. */
+  anlage?: string | null; anzahl?: number | null;
+}
+
+/** „09.11.2026“ (Berlin). */
+function berlinTag(d: Date | string): string {
+  return new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(d));
+}
+
+/** Die Zeile im gelben Alarm zu einer Lücke — ohne Kundendaten (Formularname, Seiten-Kennung, Tage). Rein. */
+export function rueckstandZeile(l: RueckstandLuecke): string {
+  const name = l.name ? `„${String(l.name).replace(/\s+/g, " ").trim().slice(0, 90)}“` : `mit der Kennung ${l.formularId}`;
+  const seite = l.seiteId ? ` (Seite ${l.seiteId})` : "";
+  return l.grund === "aelter"
+    ? `Formular ${name}${seite}, angelegt am ${berlinTag(l.anlage ?? l.ab)}, ist neu aufgetaucht — seine Leads der letzten ${NACHHOL_AB_ANLAGE_TAGE} Tage sind geholt. Ältere bitte im Lead-Motor über „Rückstand nachholen“ ab dem ${berlinTag(l.ab)} holen.`
+    : `Formular ${name}${seite}: mehr Leads, als auf einmal abrufbar sind (${l.anzahl ?? "?"}) — nur die neuesten sind geholt. Den Rest bitte im Lead-Motor über „Rückstand nachholen“ ab dem ${berlinTag(l.ab)} holen.`;
+}
+
+/** E-490 Nachbesserung: die Lücken als EIN gelber Alarm (Zeilen angehängt) + der Merker, ab welchem Tag der Rückstand alles schließt. Wirft nie. */
+async function rueckstandMelden(luecken: readonly RueckstandLuecke[], lauf: Lauf): Promise<void> {
+  try {
+    if (!luecken.length) return;
+    const { alarmMelden } = await import("./fiaon-system-alarme");
+    const frueh = Math.min(...luecken.map((l) => Date.parse(l.ab)).filter((t) => Number.isFinite(t)));
+    if (!Number.isFinite(frueh)) return;
+    // Läuft der Alarm schon, gilt der frühere der beiden Tage; sonst beginnt der Merker neu (nie ein Tag aus einer alten Episode).
+    const [offen] = (await lauf`SELECT 1 AS an FROM fiaon_system_alarme WHERE schluessel = ${RUECKSTAND_ALARM} AND vorbei_am IS NULL`.catch(() => [])) as any[];
+    const vorher = offen ? Date.parse(String((await einstellung(META_RUECKSTAND_AB, lauf)) ?? "")) : NaN;
+    await einstellungSetzen(META_RUECKSTAND_AB, new Date(Number.isFinite(vorher) && vorher < frueh ? vorher : frueh).toISOString(), lauf);
+    await alarmMelden(RUECKSTAND_ALARM, {
+      quelle: "lead-motor", stufe: "gelb", link: "/chef/s/lead-motor", anhaengen: true, endetNachStunden: RUECKSTAND_ALARM_STUNDEN,
+      titel: "Lead-Motor: ältere Meta-Leads bitte über „Rückstand nachholen“ holen", text: luecken.map(rueckstandZeile).join("\n"),
+    }, lauf);
+    console.warn(`[META] Rückstand gemeldet (gelb): ${luecken.map((l) => `${l.formularId} ${l.grund} ab ${l.ab}`).join("; ")}`);
+  } catch (e) {
+    console.error("[META] Rückstand-Hinweis nicht gemeldet:", String((e as Error)?.message ?? e).slice(0, 200));
+  }
+}
+
+/**
+ * E-490 Nachbesserung: Ein Rückstand von Hand ohne Fehler ab dem gemeldeten Tag (oder früher; höchstens 89 Tage zählen) schließt
+ * den gelben Alarm und leert den Merker. true = geschlossen. Wirft nie.
+ */
+async function rueckstandErledigtPruefen(seit: Date, jetzt: Date, lauf: Lauf): Promise<boolean> {
+  try {
+    const ab = Date.parse(String((await einstellung(META_RUECKSTAND_AB, lauf)) ?? ""));
+    if (!Number.isFinite(ab)) return false;
+    const noetig = Math.max(ab, jetzt.getTime() - NACHHOL_HOECHSTENS_TAGE * 86_400_000);
+    if (seit.getTime() > noetig + 60_000) return false;
+    const { alarmVorbei } = await import("./fiaon-system-alarme");
+    await alarmVorbei(RUECKSTAND_ALARM, `Rückstand ab ${berlinTag(seit)} nachgeholt`, lauf);
+    await lauf`DELETE FROM fiaon_settings WHERE key = ${META_RUECKSTAND_AB}`;
+    return true;
+  } catch (e) {
+    console.error("[META] Rückstand-Hinweis nicht geschlossen:", String((e as Error)?.message ?? e).slice(0, 200));
+    return false;
+  }
 }
 
 /** E-490 F1: die Liste der ab der Anlage geholten Formulare — fehlt sie, wird der heutige Bestand die Grundlinie (einmal). */
@@ -818,10 +949,11 @@ async function abAnlageListe(lauf: Lauf): Promise<Set<string>> {
 }
 
 /**
- * E-490 F1: höchstens stündlich alle Formulare der Seiten laden (formulareLaden, Seiten-Token) — atomar beansprucht. Wirft
- * nie: Scheitert Meta, fragt der Lauf trotzdem die bekannten Formulare (und die Suche ist in einer Stunde wieder dran).
+ * E-490 F1: alle FORMULAR_SUCHE_MIN Minuten die Formulare der Seiten laden (formulareLaden, Seiten-Token; neue ganz, bekannte nur
+ * der Kopf) — atomar beansprucht. Wirft nie: Scheitert Meta, fragt der Lauf trotzdem die bekannten Formulare (und die Suche ist in
+ * 15 Minuten wieder dran).
  */
-async function formulareStuendlichSuchen(lauf: Lauf, jetzt: Date): Promise<{ gesucht: boolean; neu: number; fehler: string | null }> {
+async function formulareSuchen(lauf: Lauf, jetzt: Date): Promise<{ gesucht: boolean; neu: number; fehler: string | null }> {
   try {
     await lauf`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${META_FORMULARE_GESUCHT}, '', NOW()) ON CONFLICT (key) DO NOTHING`;
     const [m] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${META_FORMULARE_GESUCHT}`) as any[];
@@ -831,8 +963,8 @@ async function formulareStuendlichSuchen(lauf: Lauf, jetzt: Date): Promise<{ ges
       UPDATE fiaon_settings SET value = ${jetzt.toISOString()}, updated_at = NOW()
        WHERE key = ${META_FORMULARE_GESUCHT} AND COALESCE(value, '') = ${alt} RETURNING key`) as any[];
     if (!frei) return { gesucht: false, neu: 0, fehler: null };
-    const f = await formulareLaden(lauf);
-    if (f.neu.length) console.log(`[META] ${f.neu.length} neue(s) Formular(e) gefunden: ${f.neu.join(", ")} — der Nachhol-Lauf holt ihre Leads ab der Anlage.`);
+    const f = await formulareLaden(lauf, { nurNeueVoll: true });
+    if (f.neu.length) console.log(`[META] ${f.neu.length} neue(s) Formular(e) gefunden: ${f.neu.join(", ")} — der Nachhol-Lauf holt ihre Leads ab der Anlage (höchstens ${NACHHOL_AB_ANLAGE_TAGE} Tage zurück).`);
     return { gesucht: true, neu: f.neu.length, fehler: null };
   } catch (err) {
     const text = err instanceof MetaFehler ? err.klartext : err instanceof Error ? err.message : String(err);
@@ -840,6 +972,9 @@ async function formulareStuendlichSuchen(lauf: Lauf, jetzt: Date): Promise<{ ges
     return { gesucht: true, neu: 0, fehler: text.slice(0, 300) };
   }
 }
+
+/** Formulare ohne Anlage-Zeit, die schon im Log gewarnt sind (einmal je Prozess — der Lauf kommt alle 5 Minuten). */
+const ohneAnlageGewarnt = new Set<string>();
 
 /**
  * Jedes Formular nach Leads seit `seit` fragen und fehlende einspielen.
@@ -851,10 +986,14 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
   formulare: number; gefunden: number; neu: number; schonDa: number; ungueltig: number; test: number; fehler: string[]; seit: string;
   /** E-490 F1: Formulare, deren Leads in diesem Lauf ab der Anlage geholt wurden (Anzahl und Kennungen). */
   abAnlage: number; abAnlageFormulare: string[];
-  /** E-490 F1: Lief die stündliche Formular-Suche, und was fand sie? (fehlt beim Rückstand von Hand) */
+  /** E-490 F1: Lief die Formular-Suche, und was fand sie? (fehlt beim Rückstand von Hand) */
   suche: { gesucht: boolean; neu: number; fehler: string | null } | null;
+  /** E-490 Nachbesserung: Lücken, die nur „Rückstand nachholen“ schließt (gelber Alarm) — nur im regulären Lauf. */
+  luecken: RueckstandLuecke[];
+  /** E-490 Nachbesserung: Hat dieser Rückstand von Hand den gelben Rückstand-Alarm geschlossen? */
+  rueckstandErledigt: boolean;
 }> {
-  const leer = { formulare: 0, gefunden: 0, neu: 0, schonDa: 0, ungueltig: 0, test: 0, fehler: [] as string[], seit: "", abAnlage: 0, abAnlageFormulare: [] as string[], suche: null };
+  const leer = { formulare: 0, gefunden: 0, neu: 0, schonDa: 0, ungueltig: 0, test: 0, fehler: [] as string[], seit: "", abAnlage: 0, abAnlageFormulare: [] as string[], suche: null, luecken: [] as RueckstandLuecke[], rueckstandErledigt: false };
   if (nachholLaeuft) return { ...leer, fehler: ["Ein Nachhol-Lauf läuft bereits."] };
   if (!metaKonfig().bereit) return { ...leer, fehler: ["Meta-Zugang fehlt noch."] };
   nachholLaeuft = true;
@@ -862,31 +1001,34 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
     await metaTabellen(lauf);
     const jetzt = opts.jetzt ?? new Date();
     const regulaer = !opts.seit;
+    const hoechstens = opts.hoechstens ?? 2000;
     // E-490 F1: erst die Grundlinie (vor der Suche — sonst gälte ein eben gefundenes Formular als längst nachgeholt), dann suchen.
     const abAnlage = regulaer ? await abAnlageListe(lauf) : null;
-    const suche = regulaer ? await formulareStuendlichSuchen(lauf, jetzt) : null;
+    const suche = regulaer ? await formulareSuchen(lauf, jetzt) : null;
     const gemerkt = await einstellung(META_NACHHOL_BIS, lauf);
     const neunzig = new Date(jetzt.getTime() - NACHHOL_HOECHSTENS_TAGE * 86_400_000);
     let seit = opts.seit ?? (gemerkt ? new Date(new Date(gemerkt).getTime() - 10 * 60_000) : new Date(jetzt.getTime() - 2 * 86_400_000));
     if (seit < neunzig) seit = neunzig;
     const ab = Math.floor(seit.getTime() / 1000);
     const formulare = (await lauf`
-      SELECT id, seite_id, erstellt_am FROM fiaon_meta_formulare
+      SELECT id, seite_id, name, erstellt_am FROM fiaon_meta_formulare
        WHERE status IS NULL OR UPPER(status) IN ('ACTIVE', 'ARCHIVED') OR ${!!opts.seit}
        ORDER BY geladen_am DESC`) as any[];
     const erg = { ...leer, formulare: formulare.length, seit: seit.toISOString(), suche };
     let juengster = gemerkt ? new Date(gemerkt).getTime() : 0;
     const startLauf = Date.now();
     for (const f of formulare) {
-      // E-490 F1: Ein Formular, dessen Leads noch nie ab der Anlage geholt wurden, fragt dieser Lauf ab created_time.
+      // E-490 F1: Ein Formular, dessen Leads noch nie ab der Anlage geholt wurden, fragt dieser Lauf ab created_time — VON SELBST
+      // höchstens NACHHOL_AB_ANLAGE_TAGE zurück (Nachbesserung); Älteres meldet der gelbe Rückstand-Alarm.
       const neuesFormular = !!abAnlage && !abAnlage.has(String(f.id));
-      const seitAnlage = neuesFormular ? abAnlageZeit(f.erstellt_am, jetzt) : null;
-      const abF = seitAnlage && seitAnlage.getTime() < seit.getTime() ? Math.floor(seitAnlage.getTime() / 1000) : ab;
+      const anlage = neuesFormular ? abAnlageZeit(f.erstellt_am, jetzt) : null;
+      const abF = anlage && anlage.ab.getTime() < seit.getTime() ? Math.floor(anlage.ab.getTime() / 1000) : ab;
+      const kopf = { formularId: String(f.id), name: f.name ? String(f.name) : null, seiteId: f.seite_id ? String(f.seite_id) : null };
       try {
         const token = f.seite_id ? await seitenToken(String(f.seite_id)) : undefined;
         const leads = await graphAlle(`${f.id}/leads`, {
           params: { fields: LEAD_FELDER, limit: 100, filtering: JSON.stringify([{ field: "time_created", operator: "GREATER_THAN", value: abF }]) },
-          app: "leads", token, hoechstens: opts.hoechstens ?? 2000,
+          app: "leads", token, hoechstens,
         });
         erg.gefunden += leads.length;
         for (const roh of leads) {
@@ -896,9 +1038,25 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
           const t = Date.parse(String(roh.created_time ?? ""));
           if (!Number.isNaN(t) && t > juengster) juengster = t;
         }
+        // E-490 Nachbesserung (Gutachten): eine abgeschnittene Abfrage (mehr als `hoechstens` Leads) steht nie mehr still da.
+        if (leads.length >= hoechstens) {
+          if (regulaer) erg.luecken.push({ ...kopf, ab: new Date(abF * 1000).toISOString(), grund: "abgeschnitten", anzahl: hoechstens });
+          else erg.fehler.push(`Formular ${f.id}: mehr als ${hoechstens} Leads seit dem gewählten Tag — nur die neuesten ${hoechstens} geholt.`);
+        }
         if (neuesFormular) {
-          abAnlage!.add(String(f.id));
-          erg.abAnlageFormulare.push(String(f.id));
+          if (!anlage) {
+            // Nachbesserung (Gutachten): ohne Anlage-Zeit NICHT merken — sonst gälte es still als „ab der Anlage geholt“.
+            if (!ohneAnlageGewarnt.has(String(f.id))) {
+              ohneAnlageGewarnt.add(String(f.id));
+              console.warn(`[META] Formular ${f.id}: Meta nennt keine Anlage-Zeit — es läuft im normalen Fenster und wird ab der Anlage geholt, sobald die Suche sie nachzieht.`);
+            }
+          } else {
+            abAnlage!.add(String(f.id));
+            erg.abAnlageFormulare.push(String(f.id));
+            if (anlage.gekappt) {
+              erg.luecken.push({ ...kopf, ab: new Date(Math.max(anlage.anlage.getTime() - 60_000, neunzig.getTime())).toISOString(), grund: "aelter", anlage: anlage.anlage.toISOString() });
+            }
+          }
         }
       } catch (err) {
         erg.fehler.push(`Formular ${f.id}: ${err instanceof MetaFehler ? err.klartext : err instanceof Error ? err.message : String(err)}`);
@@ -912,6 +1070,8 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
          WHERE key = ${META_FORMULARE_AB_ANLAGE}`;
       console.log(`[META] Leads ab der Anlage geholt: Formular ${erg.abAnlageFormulare.join(", ")}.`);
     }
+    if (regulaer && erg.luecken.length) await rueckstandMelden(erg.luecken, lauf);
+    if (!regulaer && opts.weg === "meta_rueckstand" && !erg.fehler.length) erg.rueckstandErledigt = await rueckstandErledigtPruefen(seit, jetzt, lauf);
     // Den Stand nur weiterschieben, wenn kein Formular scheiterte — sonst fehlt
     // dessen Lücke beim nächsten Lauf.
     if (!erg.fehler.length) await einstellungSetzen(META_NACHHOL_BIS, new Date(Math.max(juengster, startLauf - 60_000)).toISOString(), lauf);
@@ -926,14 +1086,25 @@ export async function nachholLauf(opts: { seit?: Date; weg?: "meta_nachhol" | "m
 //
 // Der Wächter „Lead-Kette“ (fiaon-lead-takt.ts) fragte bisher: Kamen die letzten drei Meta-Leads (24 Stunden) alle über ein
 // Formular OHNE WhatsApp-Satz? Diese Regel kannte den Tausch auf die Formular-Fassung 2 nicht — nach jedem Tausch stand sie
-// bis zu 24 Stunden gelb, obwohl längst die neue Fassung lief (am 09.11. noch Stunden nach dem Tausch). Jetzt fragt sie Meta
-// direkt, wie der Kostenabruf (Werbekonto aus META_WERBEKONTO bzw. der Einstellung meta_werbekonto, nur GET): die Anzeigen
-// mit effective_status ACTIVE, IN_PROCESS, PENDING_REVIEW oder WITH_ISSUES und je Anzeige die Formular-Kennungen
+// bis zu 24 Stunden gelb, obwohl längst die neue Fassung lief (am 09.11. noch Stunden nach dem Tausch). Jetzt fragt Meta selbst,
+// wie der Kostenabruf (Werbekonto aus META_WERBEKONTO bzw. der Einstellung meta_werbekonto, nur GET): die Anzeigen mit
+// effective_status ACTIVE, IN_PROCESS, PENDING_REVIEW oder WITH_ISSUES und je Anzeige die Formular-Kennungen
 // (lead_gen_form_id) aus dem Motiv (object_story_spec und asset_feed_spec). Nutzt eine davon ein Global-Formular ohne
-// Fassung-2-Namen und ohne „WhatsApp“ im Namen, steht die Anzeige mit ihrem NAMEN im gelben Alarm. Höchstens stündlich
-// (Zwischenspeicher ANZEIGEN_FORMULARE_STAND). Scheitert Meta: keine Aussage — nie ein Alarm aus einer Vermutung.
+// Fassung-2-Namen und ohne „WhatsApp“ im Namen, steht die Anzeige mit ihrem NAMEN im gelben Alarm.
+// Nachbesserung (Gutachten 09.11.):
+//   · Ein EIGENER gelber Alarm ALTE_FASSUNG_ALARM im Lauf meta_waechter (alle 15 Minuten; Meta höchstens stündlich, atomar
+//     beansprucht über ANZEIGEN_FORMULARE_GEFRAGT — beim Deploy fragen nicht zwei Prozesse). Vorher hing die Zeile im
+//     WhatsApp-Alarm der Lead-Kette: Ein Meta-Fehler ließ ihn ausgehen („jeder Lead … hat seine Nachricht“) und eine Stunde
+//     später als neue Episode wieder an, und die Abfrage (bis ~90 s bei langsamem Meta) saß im Takt mit Daniels T1.
+//   · Scheitert Meta: keine Aussage — der Alarm bleibt, wie er ist (kein Flattern, nie ein Alarm aus einer Vermutung).
+//   · Eine Anzeige in einer pausierten oder abgelaufenen Anzeigengruppe (end_time vorbei) zählt nicht — Meta nennt sie weiter
+//     ACTIVE, sie liefert aber nichts aus (dieselbe Regel wie utmSperre, shared/fiaon-social-meta.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 export const ANZEIGEN_FORMULARE_STAND = "meta_anzeigen_formulare_stand";
+/** E-490 Nachbesserung: der atomare Merker der Anzeigen-Abfrage (wann zuletzt beansprucht, ISO). */
+export const ANZEIGEN_FORMULARE_GEFRAGT = "meta_anzeigen_formulare_gefragt_am";
+/** E-490 Nachbesserung: der eigene gelbe Alarm „eine laufende Anzeige nutzt noch die alte Formular-Fassung“. */
+export const ALTE_FASSUNG_ALARM = "lead-motor:alte-fassung";
 /** Diese Anzeigen laufen (oder gehen gleich live) — nur sie zählen. */
 export const ANZEIGEN_LAUFEND = ["ACTIVE", "IN_PROCESS", "PENDING_REVIEW", "WITH_ISSUES"] as const;
 export const ANZEIGEN_ABFRAGE_MIN = 60;
@@ -963,17 +1134,23 @@ export interface AlteFassungAnzeige { anzeigeId: string; anzeige: string; formul
 
 /**
  * Die laufenden Anzeigen, die ein Global-Formular OHNE WhatsApp-Satz nutzen (alte Fassung). Ein Formular ohne bekannten Namen
- * zählt nicht (über es gibt es keine Aussage). Rein.
+ * zählt nicht (über es gibt es keine Aussage). Nachbesserung (Gutachten): eine Anzeige in einer pausierten oder abgelaufenen
+ * Anzeigengruppe (end_time ≤ jetzt) zählt nicht — sie liefert nichts aus. Rein.
  */
 export function alteFassungAnzeigen(
-  anzeigen: readonly { id?: unknown; name?: unknown; effective_status?: unknown; creative?: unknown }[],
+  anzeigen: readonly { id?: unknown; name?: unknown; effective_status?: unknown; adset?: unknown; creative?: unknown }[],
   formulare: ReadonlyMap<string, string | null>,
-  opt: { globalIds?: readonly string[]; waNamen: readonly string[] },
+  opt: { globalIds?: readonly string[]; waNamen: readonly string[]; jetztMs: number },
 ): AlteFassungAnzeige[] {
   const laufend = new Set<string>(ANZEIGEN_LAUFEND);
   const aus: AlteFassungAnzeige[] = [];
   for (const a of anzeigen) {
     if (!laufend.has(String(a?.effective_status ?? "").toUpperCase())) continue;
+    const gruppe = (a?.adset && typeof a.adset === "object" ? a.adset : {}) as { effective_status?: unknown; end_time?: unknown };
+    const gruppeStatus = String(gruppe.effective_status ?? "").toUpperCase();
+    if (gruppeStatus && !laufend.has(gruppeStatus)) continue;
+    const ende = gruppe.end_time ? Date.parse(String(gruppe.end_time)) : NaN;
+    if (Number.isFinite(ende) && ende <= opt.jetztMs) continue;
     for (const id of formularIdsAusMotiv(a?.creative)) {
       const name = formulare.get(id);
       if (!name || !istGlobalFormular(name, id, opt.globalIds ?? []) || formularMitWaSatz(name, opt.waNamen)) continue;
@@ -1011,41 +1188,99 @@ async function formularNamen(ids: readonly string[], lauf: Lauf): Promise<Map<st
 }
 
 /**
- * E-490 F5: Welche laufenden Anzeigen nutzen noch die alte Formular-Fassung (Global-Formular ohne WhatsApp-Satz)? Höchstens
- * stündlich gefragt (Zwischenspeicher), nur GET. `waNamen` = die Namen der Fassung 2 (waFormularNamen). null = keine Aussage
- * (kein Meta-Zugang, kein Werbekonto, Meta-Fehler). Wirft nie.
+ * E-490 F5: Meta fragen, welche laufenden Anzeigen noch die alte Formular-Fassung nutzen, und den Zwischenspeicher schreiben —
+ * höchstens alle ANZEIGEN_ABFRAGE_MIN Minuten (`immer` = sofort), atomar beansprucht (Nachbesserung: beim Deploy fragt nur ein
+ * Prozess). Nur GET. Gibt den NEUEN Stand zurück — null, wenn nicht gefragt wurde (nicht fällig, ein anderer Prozess fragt, kein
+ * Meta-Zugang, kein Werbekonto). Ein Meta-Fehler steht als { ok: false } darin. Wirft nie.
  */
-export async function alteFassungInAnzeigen(lauf: Lauf = sqlPool, opt: { jetzt?: Date; waNamen: readonly string[]; immer?: boolean }): Promise<AlteFassungAnzeige[] | null> {
+export async function anzeigenFormulareAuffrischen(lauf: Lauf = sqlPool, opt: { jetzt?: Date; waNamen: readonly string[]; immer?: boolean }): Promise<AnzeigenFormularStand | null> {
   const jetzt = opt.jetzt ?? new Date();
   try {
-    const [m] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${ANZEIGEN_FORMULARE_STAND}`.catch(() => [])) as any[];
-    const stand = anzeigenStandLesen(m?.value);
-    if (stand && !opt.immer && jetzt.getTime() - Date.parse(stand.am) < ANZEIGEN_ABFRAGE_MIN * 60_000) return stand.ok ? stand.alt : null;
     if (!metaKonfig().bereit) return null;
     const { gespeicherteWerbekonten } = await import("./fiaon-meta-kosten");
     const konten = await gespeicherteWerbekonten(lauf);
     if (!konten.length) return null;
+    await lauf`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${ANZEIGEN_FORMULARE_GEFRAGT}, '', NOW()) ON CONFLICT (key) DO NOTHING`;
+    const [m] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${ANZEIGEN_FORMULARE_GEFRAGT}`) as any[];
+    const alt = String(m?.value ?? "");
+    const zuletzt = Date.parse(alt);
+    if (!opt.immer && Number.isFinite(zuletzt) && jetzt.getTime() - zuletzt < ANZEIGEN_ABFRAGE_MIN * 60_000) return null;
+    const [frei] = (await lauf`
+      UPDATE fiaon_settings SET value = ${jetzt.toISOString()}, updated_at = NOW()
+       WHERE key = ${ANZEIGEN_FORMULARE_GEFRAGT} AND COALESCE(value, '') = ${alt} RETURNING key`) as any[];
+    if (!frei) return null;
     let neu: AnzeigenFormularStand;
     try {
       const anzeigen: any[] = [];
       for (const konto of konten) {
         anzeigen.push(...(await graphAlle(`${konto}/ads`, {
-          params: { fields: "id,name,effective_status,creative{object_story_spec,asset_feed_spec}", effective_status: JSON.stringify(ANZEIGEN_LAUFEND), limit: 100 },
+          params: { fields: "id,name,effective_status,adset{effective_status,end_time},creative{object_story_spec,asset_feed_spec}", effective_status: JSON.stringify(ANZEIGEN_LAUFEND), limit: 100 },
           hoechstens: 1000, zeitMs: 30_000,
         })));
       }
       const namen = await formularNamen(Array.from(new Set(anzeigen.flatMap((a) => formularIdsAusMotiv(a?.creative)))), lauf);
       const globalIds = kennungsListe(await einstellung(META_GLOBAL_FORMULARE, lauf));
-      neu = { am: jetzt.toISOString(), ok: true, anzeigen: anzeigen.length, alt: alteFassungAnzeigen(anzeigen, namen, { globalIds, waNamen: opt.waNamen }), fehler: null };
+      neu = { am: jetzt.toISOString(), ok: true, anzeigen: anzeigen.length, alt: alteFassungAnzeigen(anzeigen, namen, { globalIds, waNamen: opt.waNamen, jetztMs: jetzt.getTime() }), fehler: null };
     } catch (err) {
       const text = err instanceof MetaFehler ? err.klartext : err instanceof Error ? err.message : String(err);
       console.warn("[META] Anzeigen-Formulare nicht lesbar:", text.slice(0, 200));
       neu = { am: jetzt.toISOString(), ok: false, anzeigen: 0, alt: [], fehler: text.slice(0, 300) };
     }
     await einstellungSetzen(ANZEIGEN_FORMULARE_STAND, JSON.stringify(neu), lauf).catch(() => {});
-    return neu.ok ? neu.alt : null;
+    return neu;
   } catch (e) {
     console.warn("[META] Anzeigen-Formulare:", String((e as Error)?.message ?? e).slice(0, 200));
+    return null;
+  }
+}
+
+/**
+ * E-490 F5: Welche laufenden Anzeigen nutzen noch die alte Formular-Fassung? Fragt Meta, wenn es fällig ist
+ * (anzeigenFormulareAuffrischen), und liest dann den Zwischenspeicher. null = keine Aussage (kein Meta-Zugang, kein Werbekonto,
+ * der letzte Abruf scheiterte). Wirft nie.
+ */
+export async function alteFassungInAnzeigen(lauf: Lauf = sqlPool, opt: { jetzt?: Date; waNamen: readonly string[]; immer?: boolean }): Promise<AlteFassungAnzeige[] | null> {
+  try {
+    if (!metaKonfig().bereit) return null;
+    const { gespeicherteWerbekonten } = await import("./fiaon-meta-kosten");
+    if (!(await gespeicherteWerbekonten(lauf)).length) return null;
+    const neu = await anzeigenFormulareAuffrischen(lauf, opt);
+    const stand = neu ?? anzeigenStandLesen(((await lauf`SELECT value FROM fiaon_settings WHERE key = ${ANZEIGEN_FORMULARE_STAND}`.catch(() => [])) as any[])[0]?.value);
+    return stand && stand.ok ? stand.alt : null;
+  } catch {
+    return null;
+  }
+}
+
+/** E-490 Nachbesserung: Titel und Text des gelben Alarms „alte Formular-Fassung“ (mit den NAMEN der Anzeigen). Rein. */
+export function alteFassungUrteil(alt: readonly AlteFassungAnzeige[]): { an: boolean; titel: string; text: string } {
+  const kurz = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, 90);
+  const zeilen = alt.slice(0, 5).map((a) => `Die Anzeige „${kurz(a.anzeige)}“ läuft noch mit dem Formular „${kurz(a.formular)}“ OHNE WhatsApp-Satz (alte Fassung) — bitte im Werbeanzeigenmanager auf die Fassung 2 tauschen.`);
+  if (alt.length > 5) zeilen.push(`… und ${alt.length - 5} weitere Anzeigen mit der alten Formular-Fassung.`);
+  return {
+    an: alt.length > 0,
+    titel: `Lead-Motor: ${alt.length === 1 ? "eine laufende Anzeige nutzt" : `${alt.length} laufende Anzeigen nutzen`} noch die alte Formular-Fassung (ohne WhatsApp-Satz)`,
+    text: [...zeilen, "Leads aus der alten Fassung haben kein Ja zu WhatsApp im Formular — sie bekommen keine WhatsApp-Begrüßung. Meta wird stündlich gefragt; nach dem Tausch geht dieser Hinweis von selbst aus."].join("\n"),
+  };
+}
+
+/**
+ * E-490 Nachbesserung (Gutachten): der eigene gelbe Alarm „alte Formular-Fassung“ — im Lauf meta_waechter. Nur ein FRISCHER,
+ * erfolgreicher Abruf ändert ihn (an mit den Anzeigen / aus); nicht gefragt (nicht fällig, kein Zugang) oder Meta-Fehler = keine
+ * Aussage, der Alarm bleibt, wie er ist. true = an, false = aus, null = keine Aussage. Wirft nie.
+ */
+export async function alteFassungWaechter(lauf: Lauf = sqlPool, opt: { jetzt?: Date; immer?: boolean } = {}): Promise<boolean | null> {
+  try {
+    const { waFormularNamen } = await import("./fiaon-mara-business");
+    const neu = await anzeigenFormulareAuffrischen(lauf, { jetzt: opt.jetzt, immer: opt.immer, waNamen: await waFormularNamen() });
+    if (!neu || !neu.ok) return null;
+    const u = alteFassungUrteil(neu.alt);
+    const { alarmMelden, alarmVorbei } = await import("./fiaon-system-alarme");
+    if (u.an) await alarmMelden(ALTE_FASSUNG_ALARM, { quelle: "lead-motor", stufe: "gelb", titel: u.titel, text: u.text, link: "/chef/s/lead-motor" }, lauf);
+    else await alarmVorbei(ALTE_FASSUNG_ALARM, "keine laufende Anzeige nutzt mehr die alte Formular-Fassung", lauf);
+    return u.an;
+  } catch (e) {
+    console.warn("[META] Wächter alte Formular-Fassung:", String((e as Error)?.message ?? e).slice(0, 200));
     return null;
   }
 }
@@ -1614,6 +1849,10 @@ export async function waechterLauf(lauf: Lauf = sqlPool): Promise<{ alarme: stri
 
   // Stille und Auslieferung (E-244) — siehe waechterLeadRegeln.
   aktiv.push(...(await waechterLeadRegeln(lauf)));
+
+  // E-490 Nachbesserung (Gutachten): F5 — nutzt eine LAUFENDE Anzeige noch die alte Formular-Fassung? Eigener gelber Alarm,
+  // Meta höchstens stündlich gefragt (atomar beansprucht); bei Meta-Fehler keine Aussage — der Alarm bleibt, wie er ist.
+  if ((await alteFassungWaechter(lauf)) === true) aktiv.push("alte-fassung");
 
   // Webhook schweigt, Nachhol-Lauf findet: Das Abo ist weg oder gestört.
   // E-476 Scheibe 5 (05.11.2026, Gutachten 0, Mangel 22): Seit dem 20.10. ist das ein BEKANNTER Zustand. Das alte 3-Stunden-

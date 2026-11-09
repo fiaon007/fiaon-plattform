@@ -40,7 +40,7 @@ import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { maraMarke, MARA_NEU_STUNDEN, type MaraMarke } from "@shared/fiaon-mara-marke";
 import { LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
 import {
-  GLOBAL_ERGEBNIS_WAHL, GLOBAL_GRUENDE, GLOBAL_GRUENDE_MIT_MAIL, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS,
+  GLOBAL_ERGEBNIS_WAHL, GLOBAL_GRUENDE, GLOBAL_GRUENDE_MIT_MAIL, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS, OHNE_MAIL_FOLGE,
 } from "@shared/fiaon-global-gespraech";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
@@ -469,7 +469,7 @@ function CalendarInnen() {
    */
   const nichtZustande = async (a: Termin, grund: string, opt: { ohneMail?: boolean } = {}): Promise<boolean> => {
     // E-490 F6: Beim Global-Gespräch fragen „Nicht erreicht“ und „Nummer falsch“ vorher in der Karte — mit dem Haken
-    // „Kunde schon persönlich angeschrieben — keine Mail“ (ohneMail). Der Server wertet ihn nur bei diesen Gründen.
+    // „Kunde schon persönlich angeschrieben — keine Mail und keine WhatsApp“ (ohneMail). Der Server wertet ihn nur bei diesen Gründen.
     const ohneMail = tIstGlobal(a) && GLOBAL_GRUENDE_MIT_MAIL.includes(grund) && opt.ohneMail === true;
     // E-458 Nr. 11: Beim Global-Gespräch sperrt „kein Interesse“ niemanden — die Firma geht im Cockpit auf „kein Interesse“.
     if (grund === "kein_interesse" && tIstGlobal(a)) {
@@ -948,7 +948,7 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
           <div className="ca-ne-knoepfe">
             <button type="button" className="ca-knopf klein rot" disabled={busy}
                     onClick={() => { setNeOffen(false); onNichtZustande("nicht_erschienen", { ohneMail }); }}>
-              {ohneMail ? "Nicht erreicht — ohne Mail" : "Nicht erreicht eintragen"}
+              {ohneMail ? "Nicht erreicht — ohne Nachricht" : "Nicht erreicht eintragen"}
             </button>
             <button type="button" className="ca-link-klein" onClick={() => setNeOffen(false)}>zurück</button>
           </div>
@@ -967,7 +967,7 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
           {GLOBAL_GRUENDE.map((g) => (
             <button key={g.key} type="button" className={`ca-grund${g.key === "kein_interesse" ? " rot" : ""}`} disabled={busy}
                     onClick={() => { setGrundOffen(false); onNichtZustande(g.key, GLOBAL_GRUENDE_MIT_MAIL.includes(g.key) ? { ohneMail } : {}); }}>
-              <b>{g.label}</b><small>{ohneMail && GLOBAL_GRUENDE_MIT_MAIL.includes(g.key) ? "Keine Mail — du hast das Unternehmen schon persönlich angeschrieben." : g.folge}</small>
+              <b>{g.label}</b><small>{ohneMail && GLOBAL_GRUENDE_MIT_MAIL.includes(g.key) ? OHNE_MAIL_FOLGE : g.folge}</small>
             </button>
           ))}
           <button type="button" className="ca-grund" disabled={busy || a.status !== "gebucht"} onClick={() => { setGrundOffen(false); onVerschieben(); }}>
@@ -1214,7 +1214,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             </label>
             {ohneMail && <p className="ca-haken-hinweis">{OHNE_MAIL_HINWEIS}</p>}
             <div className="ca-form-knoepfe">
-              <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => onVerpasst({ ohneMail })}>{busy ? "Trägt ein …" : ohneMail ? "Nicht erreicht — ohne Mail" : "Nicht erreicht eintragen"}</button>
+              <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => onVerpasst({ ohneMail })}>{busy ? "Trägt ein …" : ohneMail ? "Nicht erreicht — ohne Nachricht" : "Nicht erreicht eintragen"}</button>
               <button type="button" className="ca-knopf still" onClick={() => setModus(null)}>Abbrechen</button>
             </div>
           </div>

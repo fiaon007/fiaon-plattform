@@ -536,9 +536,10 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "nach dem Ergebnis: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine "
       + "neue Zeit) oder „Verschoben“. Ohne Eintrag bekommst du eine halbe Stunde nach dem Ende die Aufgabe „Ergebnis fehlt“, "
       + "am nächsten Werktag um 9 Uhr erfährt es die Leitung — „verpasst“ setzt das System nicht mehr von selbst. "
-      // 09.11.2026 (E-490 F6) mitgezogen: der Haken „schon persönlich angeschrieben“.
-      + "Hast du dem Unternehmen schon selbst geschrieben, setz bei „Nicht erreicht“ den Haken „Kunde schon persönlich angeschrieben — "
-      + "keine Mail“: Dann geht keine zweite Mail raus, und im Verlauf steht, dass du es persönlich angeschrieben hast. "
+      // 09.11.2026 (E-490 F6) mitgezogen: der Haken „schon persönlich angeschrieben“ (Nachbesserung: auch keine WhatsApp).
+      + "Wurde das Unternehmen schon persönlich angeschrieben, setz bei „Nicht erreicht“ den Haken „Kunde schon persönlich angeschrieben — "
+      + "keine Mail und keine WhatsApp“: Dann geht keine zweite Nachricht raus (auch nicht auf WhatsApp), und im Verlauf steht, dass es "
+      + "schon persönlich angeschrieben wurde. "
       // 05.10.2026 (E-283) mitgezogen: Support heißt jetzt auch im Kalender so, dazu das Limit-Gespräch.
       + "„Support“ ist ein Hilfegespräch mit einem Bestandskunden nach dem Startgespräch. Violett ist ein "
       + "Limit-Gespräch: Kunden mit Pro, Ultra oder High-End buchen es alle drei Monate selbst in ihrem Bereich — "
@@ -1794,9 +1795,9 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     text: "Hier stehen die Global-Gespräche: wo das Ergebnis fehlt, was geplant ist und was zuletzt war. Fehlt ein Ergebnis, trägst du es "
       + "mit einem Klick ein: „Stattgefunden“, „Nicht erreicht“ (das Unternehmen bekommt einmal eine Mail mit dem Link für eine neue Zeit) "
       + "oder „Verschoben“ (neue Zeit, die Bestätigung geht von selbst). Erinnerungen am Vortag und eine Stunde vorher laufen automatisch. "
-      // 09.11.2026 (E-490 F6) mitgezogen: der Haken „schon persönlich angeschrieben“.
-      + "„Nicht erreicht“ fragt in einer Zeile nach: Hast du dem Unternehmen schon selbst geschrieben, setz den Haken „Kunde schon "
-      + "persönlich angeschrieben — keine Mail“ — dann geht keine zweite Mail raus, und der Verlauf vermerkt es.",
+      // 09.11.2026 (E-490 F6) mitgezogen: der Haken „schon persönlich angeschrieben“ (Nachbesserung: auch keine WhatsApp).
+      + "„Nicht erreicht“ fragt in einer Zeile nach: Wurde das Unternehmen schon persönlich angeschrieben, setz den Haken „Kunde schon "
+      + "persönlich angeschrieben — keine Mail und keine WhatsApp“ — dann geht keine zweite Nachricht raus, und der Verlauf vermerkt es.",
     tipp: "Eine halbe Stunde nach dem Gespräch bekommt die zuständige Person die Aufgabe „Ergebnis fehlt“ — ist sie nicht da, die Vertretung. "
       + "Steht am nächsten Werktag um 9 Uhr noch nichts da, erinnert dich das System. Die Vertretung legst du unter Rückholung › FIAON Global fest.",
   },
@@ -2708,9 +2709,11 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
     text: "Meta meldet jeden neuen Lead in Sekunden an die Plattform. Alle fünf Minuten fragt die Plattform zusätzlich jedes "
       + "Formular nach — fällt die Meldung einmal aus, geht trotzdem kein Lead verloren. Ein Lead, der auf beiden Wegen kommt, "
       + "wird einmal angelegt. "
-      // 09.11.2026 (E-490 F1) mitgezogen: neue Formulare findet der Nachhol-Lauf selbst.
-      + "Ein NEUES Formular findet die Plattform selbst (spätestens nach einer Stunde) und holt seine Leads ab der Anlage nach — "
-      + "nach einem Formulartausch musst du „Formulare neu laden“ nicht mehr drücken (wer nicht warten will, drückt ihn trotzdem).",
+      // 09.11.2026 (E-490 F1) mitgezogen: neue Formulare findet der Nachhol-Lauf selbst (Nachbesserung: alle 15 Minuten, 3 Tage).
+      + "Ein NEUES Formular findet die Plattform selbst (spätestens nach 15 Minuten) und holt seine Leads ab der Anlage nach — "
+      + "nach einem Formulartausch musst du „Formulare neu laden“ nicht mehr drücken (wer nicht warten will, drückt ihn trotzdem). "
+      + "Von selbst holt sie höchstens 3 Tage zurück; ist ein Formular älter (z. B. eine weitere Seite), sagt dir ein gelber Hinweis im "
+      + "Lagezimmer, ab welchem Tag du „Rückstand nachholen“ drückst.",
   },
   // E-244 (26.09.2026): Kopfzeile sagt, ob der Webhook bewiesen ist und ob Meta überhaupt ausliefert.
   {
@@ -2798,8 +2801,8 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "Ein NEUER roter Fall kommt sofort per Mail, auch wenn der Alarm schon offen ist; ein WhatsApp-Fall erst, wenn er auch beim "
       + "nächsten Prüflauf (15 Minuten) noch rot ist. Ein kommender Termin ohne Terminnachricht fällt auch bei älteren Anfragen auf "
       + "(bis 60 Tage, wie Maras Takt). Ob eine "
-      + "laufende Anzeige noch die alte Formular-Fassung (ohne WhatsApp-Satz) nutzt, fragt der Wächter stündlich bei Meta — gelb, "
-      + "mit dem Namen der Anzeige.",
+      + "laufende Anzeige noch die alte Formular-Fassung (ohne WhatsApp-Satz) nutzt, fragt der Wächter stündlich bei Meta — als eigener "
+      + "gelber Hinweis im Lagezimmer, mit dem Namen der Anzeige. Die Mail sagt dir, welcher Fall NEU ist.",
     tipp: "„Vorschau“ zeigt die Übersicht (auch für einen vergangenen Tag), ohne zu senden. „Stand ableiten“ zeigt einmalig, wo der "
       + "Altbestand nicht zum Cockpit passt — „Anwenden“ schreibt nur mit deinem Go.",
   },

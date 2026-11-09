@@ -106,6 +106,23 @@ export function firmaBrauchbar(firmaRoh: unknown, personName?: unknown): FirmaUr
   return { brauchbar: true, grund: null, rechtsform };
 }
 
+/** Rollen- und Füllwörter, die auch in längeren Angaben nie eine Firma benennen („Selbständig / Freiberufler“, „Kleingewerbe“). */
+const ROLLE_IM_FELD = /selbst(?:st)?(?:ä|ae|a)ndig|freiberuf|freelanc|einzelunternehm|kleingewerb|gewerbetreib|nebengewerb|privat|rentner|angestellt|inhaber|gesch(?:ä|ae)ftsf(?:ü|ue)hr|unternehmer|siehe oben|noch offen|keine angabe/i;
+
+/**
+ * E-487 (09.11.2026): Darf der Firmenname ALLEIN zwei Eingänge auf EINE Firmen-Karte legen? Nur, wenn er eindeutig eine
+ * Firma benennt: firmaBrauchbar, mit Rechtsform (GmbH, UG, AG, KG, e. K., Ltd, LLC …) und ohne Rollen-/Füllwort.
+ * Alles andere („Selbständig“, „Selbständig / Freiberufler“, „Kleingewerbe“, „Immobilien“, „GmbH“ allein, der eigene
+ * Name) verbindet nur über Person, E-Mail oder Telefon — lieber zwei Karten derselben Person als fremde Menschen
+ * auf einer Karte (vorher: drei Leads mit „Selbständig“ teilten Karte, Notizen und „bitte nicht anrufen“). Rein.
+ */
+export function firmaNameVerbindet(firmaRoh: unknown, personName?: unknown): boolean {
+  const firma = String(firmaRoh ?? "").replace(/\s+/g, " ").trim();
+  const u = firmaBrauchbar(firma, personName);
+  if (!u.brauchbar || !u.rechtsform) return false;
+  return !ROLLE_IM_FELD.test(firma);
+}
+
 // ── Freemail: nie eine Firmen-Website ───────────────────────────────────────
 /** RADAR_FREEMAIL plus die Anbieter, die am 04.11. fehlten (aol.com, seznam.cz) und die üblichen in DACH/Europa. */
 export const LEAD_FREEMAIL: ReadonlySet<string> = new Set([

@@ -175,16 +175,20 @@ export async function globalLeadAufnehmen(ein: {
   // Vorher landeten drei verschiedene Menschen mit „Selbständig“ im Firmenfeld auf EINER Karte — mit den Notizen des
   // ersten („Justin führt selbst — bitte nicht anrufen“) bei allen. Platzhalter („Selbständig“, „GmbH“, „privat“, der
   // eigene Name …) verbinden jetzt nur noch über Person oder E-Mail.
-  const { firmaBrauchbar } = await import("@shared/fiaon-global-lead");
-  const nameTaugt = firmaBrauchbar(firma, ein.ansprechpartner).brauchbar;
+  const { firmaNameVerbindet } = await import("@shared/fiaon-global-lead");
+  const nameTaugt = firmaNameVerbindet(firma, ein.ansprechpartner);
+  // Dieselbe Mobilnummer (letzte 9 Ziffern) ist dieselbe Person — auch mit neuer Mail (vorher: zweite Karte).
+  const tel9 = String(ein.telefon ?? "").replace(/\D/g, "").slice(-9);
   const [bekannt] = ein.firmaId ? ((await sqlPool`SELECT id FROM fiaon_firmen_leads WHERE id = ${ein.firmaId}`) as any[]) : [];
   const [da] = bekannt ? [bekannt] : (await sqlPool`
     SELECT id FROM fiaon_firmen_leads
     WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
        OR (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email})
+       OR (LENGTH(${tel9}) = 9 AND RIGHT(regexp_replace(COALESCE(telefon, ''), '[^0-9]', '', 'g'), 9) = ${tel9})
        OR (${nameTaugt} AND LOWER(TRIM(firma)) = ${firma.toLowerCase()})
     ORDER BY COALESCE(person_id = ${personId}::int, FALSE) DESC,
-             (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email}) DESC, id ASC
+             (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email}) DESC,
+             (LENGTH(${tel9}) = 9 AND RIGHT(regexp_replace(COALESCE(telefon, ''), '[^0-9]', '', 'g'), 9) = ${tel9}) DESC, id ASC
     LIMIT 1
   `) as any[];
 

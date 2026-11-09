@@ -332,8 +332,15 @@ abschnitt("A11 E-487 Platzhalter im Firmenfeld verschmelzen keine Menschen (rein
   }
   ok(!firmaBrauchbar("Erika Beispiel", "Erika Beispiel").brauchbar, "der eigene Name im Firmenfeld verbindet keine Karten");
   ok(firmaBrauchbar("Muster Logistik GmbH", "Erika Beispiel").brauchbar, "ein echter Firmenname verbindet weiter (zwei Menschen derselben Firma)");
+  const { firmaNameVerbindet } = await import("../shared/fiaon-global-lead");
+  for (const p of ["Selbständig / Freiberufler", "Selbstständig (Einzelunternehmer)", "Solo-Selbstständig", "Kleingewerbe", "Gewerbetreibender", "Immobilien", "Beratung", "GmbH", "Siehe oben", "noch offen"]) {
+    ok(!firmaNameVerbindet(p, "Erika Beispiel"), `„${p}“ verbindet keine Karten über den Namen`);
+  }
+  ok(firmaNameVerbindet("Muster Logistik GmbH", "Erika Beispiel") && firmaNameVerbindet("Beispiel Holding AG", "Max Muster"), "echter Firmenname mit Rechtsform verbindet weiter");
+  ok(!firmaNameVerbindet("Selbständig GmbH i. G.", "Erika Beispiel"), "Rollenwort trotz Rechtsform verbindet nicht");
   const route = lies("server/routes/fiaon-firmen.ts");
-  ok(/OR \(\$\{nameTaugt\} AND LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\)/.test(route) && !/\n\s+OR LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\n/.test(route), "globalLeadAufnehmen: Name zählt nur, wenn firmaBrauchbar");
+  ok(/OR \(\$\{nameTaugt\} AND LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\)/.test(route) && /const nameTaugt = firmaNameVerbindet\(firma, ein\.ansprechpartner\)/.test(route) && !/\n\s+OR LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\n/.test(route), "globalLeadAufnehmen: Name zählt nur, wenn firmaNameVerbindet");
+  ok(/RIGHT\(regexp_replace\(COALESCE\(telefon, ''\), '\[\^0-9\]', '', 'g'\), 9\) = \$\{tel9\}/.test(route), "dieselbe Mobilnummer (9 Ziffern) verbindet");
   const seite = lies("client/src/pages/agent/firmen.tsx");
   ok(/<b>\{firmaAnzeige\(f\)\}<\/b>/.test(seite) && /<h2>\{firmaAnzeige\(aktiv\)\}<\/h2>/.test(seite), "Cockpit zeigt bei Platzhaltern den Menschen („Name (Selbständig)“)");
 }

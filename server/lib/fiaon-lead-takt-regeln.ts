@@ -517,9 +517,16 @@ export function kalenderWaechter(ein: { tage: number; grund: string | null; pers
 //                   steht oder auf „wartet“).
 //   N-Lücke   rot   Willkommen gesendet, kein Stopp, ein Nachfass seit 2 Dienststunden fällig — geprüft nur Mo–Fr 9–18 Uhr.
 //   WhatsApp  rot   Ja zu WhatsApp (Website, Formular-Fassung 2, am Telefon), Handynummer, kein vergangenes Gespräch — nach
-//                   30 Minuten im Fenster 8–20 Uhr noch keine WhatsApp (Begrüßung oder Terminnachricht) und keine von ihm.
+//                   30 Minuten im Fenster 8–20 Uhr noch keine WhatsApp (Begrüßung oder Terminnachricht) und keine von ihm,
+//                   UND der Takt hat es nie versucht.
 //             gelb  eine Ja-Zeile ohne Anfrage, obwohl es am selben Anschluss eine gibt · eine falsch gelesene Nummer (gleicher
-//                   Anschluss, andere Landesvorwahl) · drei Meta-Leads in 24 Stunden, keiner mit WhatsApp-Satz · Takt aus.
+//                   Anschluss, andere Landesvorwahl) · drei Meta-Leads in 24 Stunden, keiner mit WhatsApp-Satz · Takt aus ·
+//                   (Nachbesserung) der Takt hat es versucht, und es scheiterte (Meta, Sperre) oder wartet (Bremse) · WhatsApp
+//                   ist pausiert (die Pause hat ihren eigenen roten Alarm „wa-pause“).
+//             —     (Nachbesserung, Gutachten 09.11.) bewusst ausgelassen wie im Takt (waAuslassGrund: STOPP, kein WhatsApp
+//                   laut Meta 131026, Werbung abbestellt, Werbegrenze, schon ein Verlauf, zahlender Privatkunde) — kein Alarm.
+//                   Vorher meldete der Wächter genau diese Fälle rot (drei Tage lang, alle 4 Stunden eine Mail), obwohl sie nie
+//                   lösbar sind; mit Formular-Fassung 2 (jeder Meta-Lead mit Handynummer = Ja) wäre er praktisch dauerhaft rot.
 // Rote Fälle bekommt Justin zusätzlich als kurze Mail (ketteMail): einmal je Fall, danach höchstens alle 4 Stunden.
 // ═══════════════════════════════════════════════════════════════════════════
 export const KETTE_VORGABE = {
@@ -639,38 +646,88 @@ export interface KetteWaZeile {
   jaSeit: Date | null;
   /** Ein kommendes Gespräch (dann ist die Terminnachricht fällig) bzw. ein schon vergangenes (dann nichts mehr). */
   terminKommend: boolean; terminVorbei: boolean;
-  /** Ging an ihn schon eine WhatsApp (Begrüßung, Terminnachricht) — oder schrieb er selbst (auch „STOPP“)? */
+  /** Ging an ihn schon eine WhatsApp (Begrüßung, Terminnachricht), die nicht scheiterte — oder schrieb er selbst? */
   kontakt: boolean;
-  /** Die Begrüßung ist gescheitert (Text aus willkommen_status) — sonst null. */
+  /**
+   * Was zuletzt scheiterte: „fehler: …“ aus willkommen_status (Begrüßung) oder Metas Fehler an der letzten WhatsApp an ihn
+   * seit der Anfrage — auch nachträglich vom Status-Webhook (Meta nahm an, stellte nicht zu). Sonst null.
+   */
   begruessungFehler: string | null;
+  /**
+   * E-487 Nachbesserung (Gutachten): Hat der Takt es schon versucht? Begrüßung verbucht (willkommen_am — gesendet oder
+   * gescheitert, auch zu einer früheren Anfrage derselben Nummer) bzw. die Terminnachricht zu GENAU diesem Termin
+   * (termin_gemeldet_id). Fehlt = nein.
+   */
+  versucht?: boolean;
+  /** E-487 Nachbesserung: Die Begrüßung wartet („wartet: …“ — die Bremse hielt an, der Takt versucht es wieder). Sonst null. */
+  wartet?: string | null;
+  /**
+   * E-487 Nachbesserung: Warum der Takt bewusst nichts schickt — derselbe Grund wie im Takt (waAuslassGrund: STOPP, laut Meta
+   * kein WhatsApp, Werbung abbestellt, Werbegrenze, schon ein Verlauf, zahlender Privatkunde). Dann gibt es keinen Alarm.
+   */
+  ausgelassen?: string | null;
 }
 export interface KetteJaOhneAnfrage { nummer: string; anfrageId: number; seit: Date }
 export interface KetteNummerFalsch { anfrageId: number; schluessel: string; erwartet: string }
 
-/** Erwartet der Takt bei dieser Anfrage jetzt eine WhatsApp (Begrüßung oder Terminnachricht)? Rein. */
+/** Erwartet der Takt bei dieser Anfrage jetzt eine WhatsApp (Begrüßung oder Terminnachricht)? Bewusst ausgelassen = nein. Rein. */
 export function waErwartet(z: KetteWaZeile, jetzt: Date): boolean {
-  if (!z.ja || !z.nummer || z.kontakt) return false;
+  if (!z.ja || !z.nummer || z.kontakt || z.ausgelassen) return false;
   if (!z.terminKommend && (z.terminVorbei || z.status === "termin")) return false;
   const ab = new Date(Math.max(z.eingangAm.getTime(), (z.jaSeit ?? z.eingangAm).getTime()) + 10 * 60_000);
   return waFensterMinuten(ab, jetzt) >= KETTE_VORGABE.waFensterMin;
 }
 
-/** WhatsApp-Lücke: rot (Ja, aber keine WhatsApp), gelb (Zuordnung, Nummer, Formular ohne WhatsApp-Satz, Takt aus). Rein. */
+/**
+ * E-487 Nachbesserung (Gutachten, 09.11.2026): Wie wird ein erwarteter Fall gemeldet? ROT nur, wenn der Takt es nie versucht
+ * hat (dann hängt wirklich etwas). GELB, ohne Mail: der Takt hat es versucht, und es scheiterte (Meta, Sperre) — ein neuer
+ * Versuch kommt nicht —, oder die Begrüßung wartet auf das Ende der Bremse. null: versucht, kein Fehler bekannt (z. B. die
+ * Begrüßung ging schon zu einer früheren Anfrage derselben Nummer hinaus) — nichts zu melden. Rein.
+ */
+export function waFallStufe(z: KetteWaZeile): "rot" | "gelb" | null {
+  if (z.wartet) return "gelb";
+  if (!z.versucht) return "rot";
+  return z.begruessungFehler ? "gelb" : null;
+}
+
+const waGrund = (s: unknown) => kurzGrund(String(s ?? "").replace(/^(fehler|wartet):\s*/i, "")).slice(0, 100) || "ohne Angabe";
+
+/**
+ * WhatsApp-Lücke: rot (Ja, aber keine WhatsApp, und der Takt hat es nie versucht), gelb (gescheitert oder wartend, WhatsApp
+ * pausiert, Zuordnung, Nummer, Formular ohne WhatsApp-Satz, Takt aus). Bewusst Ausgelassenes meldet sie nicht. Rein.
+ */
 export function waLueckeUrteil(ein: {
   /** Mara Business UND der WhatsApp-Takt sind an. */
   an: boolean;
+  /**
+   * E-487 Nachbesserung: WhatsApp ist pausiert (Notbremse, fiaon-wa-bremse.ts) — die Pause hat ihren eigenen roten Alarm
+   * „wa-pause“; wartende Leads stehen hier dann gelb (keine zweite Mail an Justin).
+   */
+  pausiert?: boolean;
   zeilen: readonly KetteWaZeile[]; ohneAnfrage: readonly KetteJaOhneAnfrage[]; falsch: readonly KetteNummerFalsch[];
   quote: { metaLeads: number; mitJa: number } | null;
 }, jetzt: Date): KetteAlarm {
   const schluessel = "lead-takt:wa-luecke" as const;
   const warten = ein.zeilen.filter((z) => waErwartet(z, jetzt));
-  const rot = ein.an ? warten : [];
-  const zeilen: string[] = rot.slice(0, 10).map((z) => `Anfrage #${z.anfrageId} (Ja: ${kurzGrund(z.ja).slice(0, 60)}): ${z.begruessungFehler
-    ? `Begrüßung gescheitert (${kurzGrund(z.begruessungFehler.replace(/^fehler:\s*/, "")).slice(0, 100)})`
-    : z.terminKommend ? "Termin steht, aber keine Terminnachricht auf WhatsApp" : "noch keine WhatsApp-Begrüßung"}`);
+  const offen = warten.filter((z) => waFallStufe(z) === "rot");
+  const gescheitert = warten.filter((z) => waFallStufe(z) === "gelb");
+  const rot = ein.an && !ein.pausiert ? offen : [];
+  const zeilen: string[] = rot.slice(0, 10).map((z) => `Anfrage #${z.anfrageId} (Ja: ${kurzGrund(z.ja).slice(0, 60)}): ${z.terminKommend
+    ? "Termin steht, aber keine Terminnachricht auf WhatsApp" : "noch keine WhatsApp-Begrüßung"}${z.begruessungFehler ? ` (zuletzt gescheitert: ${waGrund(z.begruessungFehler)})` : ""}`);
   if (rot.length > 10) zeilen.push(`… und ${rot.length - 10} weitere.`);
   const gelb: string[] = [];
   if (!ein.an && warten.length) gelb.push(`Mara Business oder der WhatsApp-Takt ist aus — ${mehr(warten.length, "ein Lead", "Leads")} mit Ja zu WhatsApp bekommt keine Nachricht.`);
+  if (ein.an && ein.pausiert && offen.length) {
+    gelb.push(`WhatsApp ist pausiert (eigener Alarm im Lagezimmer) — ${mehr(offen.length, "ein Lead", "Leads")} mit Ja zu WhatsApp ${offen.length === 1 ? "wartet" : "warten"} auf die Nachricht; der Takt schickt sie nach dem Aktivieren.`);
+  }
+  if (ein.an) {
+    for (const z of gescheitert.slice(0, 5)) {
+      gelb.push(`Anfrage #${z.anfrageId} (Ja: ${kurzGrund(z.ja).slice(0, 60)}): ${z.wartet
+        ? `Begrüßung wartet (${waGrund(z.wartet)}) — der Takt versucht es wieder.`
+        : `${z.terminKommend ? "Terminnachricht" : "Begrüßung"} gescheitert (${waGrund(z.begruessungFehler)}) — kein neuer Versuch; Mail und Anruf laufen weiter.`}`);
+    }
+    if (gescheitert.length > 5) gelb.push(`… und ${gescheitert.length - 5} weitere gescheiterte oder wartende WhatsApp.`);
+  }
   const alt = ein.ohneAnfrage.filter((o) => jetzt.getTime() - o.seit.getTime() >= 30 * 60_000);
   for (const o of alt.slice(0, 5)) gelb.push(`Ja zu WhatsApp (Nummer …${o.nummer.slice(-4)}) ohne Anfrage, obwohl Anfrage #${o.anfrageId} denselben Anschluss hat — der Takt verknüpft sie nicht.`);
   for (const f of ein.falsch.slice(0, 5)) gelb.push(`Anfrage #${f.anfrageId}: eine Nummer ist falsch gelesen (+${f.schluessel.slice(0, 2)}… statt +${f.erwartet.slice(0, 2)}…, derselbe Anschluss …${f.schluessel.slice(-4)}) — bitte im Lead-Motor prüfen.`);

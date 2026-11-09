@@ -198,7 +198,8 @@ abschnitt("A8 E-487 (09.11.2026): Nummern mit Land, das Ja findet seine Anfrage,
   gleich(MBS.anfrageNummer("0664 1234567"), null, "… ohne Land gilt Deutschland (0664 = Festnetz) → kein WhatsApp");
   gleich(MBS.anfrageNummer("079 123 45 67", "Schweiz"), "41791234567", "Schweizer Handynummer mit 0 und Land");
   gleich(MBS.anfrageNummer("+1 305 555 0100", "USA"), "13055550100", "eine echte US-Nummer (+1, Land USA) bleibt +1");
-  gleich(MBS.anfrageNummer("12485302707", null, { ausWhatsapp: true }), "12485302707", "Anfrage aus WhatsApp: die Nummer bleibt, wie WhatsApp sie lieferte");
+  // Nachbesserung (Gutachten): eine erfundene US-Nummer (NANP-Prüfbereich 555-01xx), nie die aus einem echten Vorfall.
+  gleich(MBS.anfrageNummer("13055550123", null, { ausWhatsapp: true }), "13055550123", "Anfrage aus WhatsApp: die Nummer bleibt, wie WhatsApp sie lieferte");
   // Welche Nummer bekommt das Ja?
   gleich(ER.waJaNummer({ anfrage: "4915500000123", eingabe: "15500000123" }), "4915500000123", "derselbe Anschluss → die Nummer der Anfrage („deren Meta-Nummer nehmen“)");
   gleich(ER.waJaNummer({ anfrage: "4915500000123", eingabe: "4915500000456" }), "4915500000456", "ein anderer Anschluss → seine Eingabe (für sie gab er das Ja)");
@@ -220,7 +221,7 @@ abschnitt("A8 E-487 (09.11.2026): Nummern mit Land, das Ja findet seine Anfrage,
   ok(/FIAON LTD/.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && /WhatsApp/.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && /STOPP/.test(ER.GLOBAL_WA_TELEFON_SATZ.de), "Satz am Telefon nennt FIAON LTD, WhatsApp und STOPP (Meta verlangt Firma + Kanal)");
   ok(/FIAON LTD/.test(ER.GLOBAL_WA_TELEFON_SATZ.en) && /WhatsApp/.test(ER.GLOBAL_WA_TELEFON_SATZ.en) && /STOP/.test(ER.GLOBAL_WA_TELEFON_SATZ.en), "… englisch ebenso");
   ok(!/\b(du|dich|dir|dein\w*)\b/i.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && sendePruefung(ER.GLOBAL_WA_TELEFON_SATZ.de, { namen: [] }).length === 0, `Satz am Telefon: Sie-Form, Hauswand grün (${sendePruefung(ER.GLOBAL_WA_TELEFON_SATZ.de, { namen: [] }).join(" · ")})`);
-  gleich((MBS.TELEFON_JA_ERGEBNISSE as readonly string[]).join(","), "erreicht_interesse,erreicht_termin,erreicht_antrag", "das Ja am Telefon zählt nur nach einem Gespräch (nie bei „kein Interesse“, „nicht erreicht“)");
+  gleich((MBS.TELEFON_JA_ERGEBNISSE as readonly string[]).join(","), "erreicht_interesse,erreicht_termin", "das Ja am Telefon zählt nur nach „Interesse“ oder „Termin“ (nie bei „kein Interesse“, „nicht erreicht“ — und nicht bei „macht den Antrag“, dort schreibt Mara nicht)");
   ok(MBS.WA_KANDIDATEN >= 60, `Begrüßung: höheres Limit (${MBS.WA_KANDIDATEN}, vorher 30)`);
 
   // Quelltext-Wände: die Stellen aus dem Befund.
@@ -233,7 +234,7 @@ abschnitt("A8 E-487 (09.11.2026): Nummern mit Land, das Ja findet seine Anfrage,
   ok(/const bald = termin\.beginn\.getTime\(\) - Date\.now\(\) < 30 \* 3_600_000;/.test(takt8) && /erinnert_id = CASE WHEN \$\{erinnerungErsetzt\} THEN/.test(takt8), "kommt die Bestätigung unter 30 Stunden vor dem Gespräch, ersetzt sie die Erinnerung (nie zwei Nachrichten in Minuten)");
   ok(/fenster && nutzbar\(VORLAGE\.termin\)/.test(takt8) && !/if \(ok \|\| !offen\)/.test(takt8), "Terminnachricht: Vorlage nur 8–20 Uhr und erst nach Metas Freigabe — außerhalb des Fensters wartet sie (gilt nicht mehr als erledigt)");
   ok(!/Number\(new Intl\.DateTimeFormat/.test(mbs8) && /berlinMinuten\(new Date\(\)\)/.test(takt8), "Berliner Stunde über berlinMinuten — nie Number(Intl.format())");
-  ok(/imVersandfenster\(/.test(takt8) && /WILLKOMMEN_MAX_TAG/.test(takt8) && /hatStopp\(/.test(takt8) && /vorlageNutzbar\(n, frei\)/.test(takt8) && /async function vorlageSenden[\s\S]{0,200}waSenden\(/.test(mbs8), "die Sperren bleiben: Fenster 8–20 Uhr, Tagesdeckel, STOPP, nur freigegebene Vorlagen, alles über waSenden (Bremse, Welten-Sperre)");
+  ok(/imVersandfenster\(/.test(takt8) && /WILLKOMMEN_MAX_TAG/.test(takt8) && /waAuslassGrund\(/.test(takt8) && /hatStopp\(nummer, lauf\)/.test(mbs8.split("export async function waAuslassGrund(")[1] ?? "") && /vorlageNutzbar\(n, frei\)/.test(takt8) && /async function vorlageSenden[\s\S]{0,400}waSenden\(/.test(mbs8), "die Sperren bleiben: Fenster 8–20 Uhr, Tagesdeckel, STOPP (in waAuslassGrund), nur freigegebene Vorlagen, alles über waSenden (Bremse, Welten-Sperre)");
   ok(/nummer ~ '\^\(49\|43\|41\)'/.test(takt8), "Direktbucher ohne Anfrage: nur eine DACH-Handynummer (nie eine falsch gelesene)");
   const verkn = mbs8.split("async function jaVerknuepfen(")[1]?.split("\n}\n")[0] ?? "";
   ok(/NOT LIKE 'whatsapp%'/.test(verkn) && /RIGHT\(REGEXP_REPLACE\(COALESCE\(telefon, ''\), '\\\\D', '', 'g'\), 9\) = \$\{k9\}/.test(verkn) && /willkommen_am IS NULL AND weg IS NULL/.test(verkn), "Verknüpfen: nur Formular-/Telefon-Jas, über die letzten neun Ziffern; die falsche Zeile fällt nur ohne eigenen Verlauf weg");
@@ -243,6 +244,64 @@ abschnitt("A8 E-487 (09.11.2026): Nummern mit Land, das Ja findet seine Anfrage,
   const route8 = lies("server/routes/fiaon-global-termin.ts");
   ok((route8.match(/waJaMerken\(b, kontakt, erg\.anfrageId\)/g) ?? []).length === 2 && /waJaMerken\(b, kontakt, v\.anfrageId\)/.test(route8) && !/websiteOptinMerken\(null/.test(route8), "Website-Ja: alle drei Stellen geben die Anfrage mit (Buchung, Rückruf über den Link, Anfrage)");
   ok(/anfrageId: lead\?\.anfrageId \?\? null,/.test(lies("server/lib/fiaon-global-termin.ts")), "die Buchung nennt ihre Anfrage (Link oder offene Anfrage)");
+}
+
+// ═══ A9 E-487 Nachbesserung (Gutachten) ═════════════════════════════════════
+abschnitt("A9 E-487 Nachbesserung (Gutachten 09.11.2026): kein leeres Versprechen, EINE Auslass-Prüfung für Takt und Wächter, Schritte 2–5 ohne stilles Herausfallen");
+{
+  const MBS = await import("../server/lib/fiaon-mara-business");
+  // 1. „Macht den Antrag“ zählt nicht (Stand „Antrag läuft“: Begrüßung, Takt und Wächter lassen ihn aus) — EINE Liste.
+  ok(MBS.TELEFON_JA_ERGEBNISSE === ER.TELEFON_JA_ERGEBNISSE, "Server und Cockpit lesen dieselbe Liste (shared/fiaon-whatsapp-erlaubnis.ts)");
+  ok(!(ER.TELEFON_JA_ERGEBNISSE as readonly string[]).includes("erreicht_antrag"), "„macht den Antrag“ ist kein WhatsApp-Ja (vorher: gespeichert, nie verschickt, das Cockpit versprach es)");
+  const seite9 = lies("client/src/pages/agent/firmen.tsx");
+  ok(/TELEFON_JA_ERGEBNISSE \} from "@shared\/fiaon-whatsapp-erlaubnis"/.test(seite9) && !/"erreicht_termin", "erreicht_antrag"\]/.test(seite9), "Cockpit: keine eigene Liste mehr (vorher mit „erreicht_antrag“)");
+  ok(/wert === "erreicht_antrag" \? " Das WhatsApp-Ja ist nicht gemerkt/.test(seite9) && /nicht bei „macht den Antrag“/.test(seite9), "Cockpit sagt bei „macht den Antrag“ ehrlich: nicht gemerkt, die Info-Mail führt ihn (auch im Hinweis am Häkchen)");
+  const route9 = lies("server/routes/fiaon-firmen.ts");
+  const telJa9 = route9.split("async function telefonJaMerken(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/ein\.ergebnis === "erreicht_antrag"/.test(telJa9) && /String\(ein\.telefon \?\? ""\)\.trim\(\) \|\| \(ein\.firma\.telefon/.test(telJa9), "Server: eigener Satz bei „macht den Antrag“; eine übergebene Nummer geht vor der Firmennummer");
+  const jt9 = route9.split('router.post("/agent/firmen/:id/justin-termin"')[1]?.split("\n});\n")[0] ?? "";
+  ok(/telefon: kontakt\.telefon \}\)/.test(jt9), "„Termin bei Justin eintragen“: das Ja an der Nummer aus dem Dialog (mit ihr ist gebucht), nicht an der alten der Firma");
+  ok(/bei „macht den Antrag“ schreibt Mara nicht/i.test(lies("client/src/pages/agent/rundgaenge.ts")), "Rundgang Firmenkunden nachgezogen");
+
+  // 2. EINE Auslass-Prüfung (waAuslassGrund) — gegen eine erfundene Datenbank im Speicher (kein Netz, keine echte DB).
+  const fakeLauf = (o: { stopp?: boolean; unzustellbar?: boolean; abbestellt?: boolean; werbegrenze?: boolean; verlauf?: boolean; privat?: boolean }): any => {
+    const f: any = (s: TemplateStringsArray) => {
+      const q = s.join("?");
+      if (/richtung = 'rein' ORDER BY id DESC LIMIT 60/.test(q)) return Promise.resolve(o.stopp ? [{ text: "Hallo" }, { text: "STOPP", knopf: null }] : [{ text: "Hallo", knopf: null }]);
+      if (/AS unzustellbar/.test(q)) return Promise.resolve([{ unzustellbar: !!o.unzustellbar, abbestellt: !!o.abbestellt, werbegrenze: !!o.werbegrenze, verlauf: !!o.verlauf }]);
+      return Promise.resolve([]);
+    };
+    f.unsafe = () => Promise.resolve(o.privat ? [{ ja: 1 }] : []);
+    return f;
+  };
+  const N9 = "4915500000951";
+  gleich(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({})), null, "nichts spricht dagegen → null (die Begrüßung darf)");
+  ok(/STOPP/.test(String(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({ stopp: true })))) && /STOPP/.test(String(await MBS.waAuslassGrund(N9, "folge", fakeLauf({ stopp: true })))), "STOPP (jemals, auch vor der Anfrage) → ausgelassen, für alles");
+  ok(/kein WhatsApp/.test(String(await MBS.waAuslassGrund(N9, "folge", fakeLauf({ unzustellbar: true })))), "Meta 131026 („kein WhatsApp“, auch nachträglich vom Status-Webhook) → ausgelassen, auch für die Terminnachricht");
+  gleich(await MBS.waAuslassGrund(N9, "folge", fakeLauf({ abbestellt: true, werbegrenze: true, verlauf: true, privat: true })), null, "Terminnachricht: Werbung abbestellt, Werbegrenze, Verlauf, Privatkunde halten sie nicht an (ein Text im offenen Fenster darf hinaus)");
+  ok(/abbestellt/.test(String(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({ abbestellt: true })))), "Begrüßung: Werbung abbestellt (131050) → ausgelassen");
+  ok(/Werbegrenze/.test(String(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({ werbegrenze: true })))), "Begrüßung: Metas Werbegrenze (131049, 7 Tage) → ausgelassen");
+  ok(/Verlauf/.test(String(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({ verlauf: true })))), "Begrüßung: schon ein WhatsApp-Verlauf (30 Tage) → ausgelassen (wie vorher schonWa)");
+  ok(/Privatkunde/.test(String(await MBS.waAuslassGrund(N9, "begruessung", fakeLauf({ privat: true })))), "Begrüßung: zahlender Privatkunde → ausgelassen (Mara Privat ist zuständig)");
+  const kaputt: any = () => Promise.reject(new Error("Prüfstand: Datenbank absichtlich weg")); kaputt.unsafe = kaputt;
+  gleich(await MBS.waAuslassGrund(N9, "begruessung", kaputt), null, "Lesefehler → null (wirft nie; waSenden prüft seine Sperren ohnehin) — die Fehlerzeile darüber ist gewollt");
+  const mbs9 = lies("server/lib/fiaon-mara-business.ts");
+  const ag9 = mbs9.split("export async function waAuslassGrund(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/NOT EXISTS \(SELECT 1 FROM fiaon_whatsapp wl/.test(ag9) && /wl\.richtung = 'rein' AND wl\.created_at > wu\.created_at/.test(ag9) && /GREATEST\(wl\.zugestellt_am, wl\.gelesen_am\) > wu\.created_at/.test(ag9), "131026 wie WA_GESPERRTE_NUMMERN_SQL (E-244): wieder frei, sobald er schreibt oder eine Nachricht zugestellt wurde");
+  ok(/NOT \(COALESCE\(wv\.vorlage, ''\) LIKE 'fiaon_gl_%' AND COALESCE\(wv\.status, ''\) = 'fehler'\)/.test(ag9), "Verlauf ohne Maras eigene gescheiterte Business-Vorlage (ein Fehlschlag ist kein Gespräch — der Wächter zeigt ihn gelb)");
+  ok(ag9.indexOf('if (art === "folge") return null;') > ag9.indexOf("s?.unzustellbar") && ag9.indexOf('if (art === "folge") return null;') < ag9.indexOf("s?.abbestellt"), "Reihenfolge: STOPP und 131026 für alles, der Rest nur vor der Begrüßung");
+
+  // 3. Der Takt fragt dieselbe Prüfung; die Bremse ist kein Versuch.
+  const takt9 = mbs9.split("export async function waGlobalTakt(")[1]?.split("\nlet letzterPuls")[0] ?? "";
+  ok(/await waAuslassGrund\(ziel\.nummer, "begruessung", lauf\)/.test(takt9) && /await waAuslassGrund\(nummer, "folge", lauf\)/.test(takt9) && !/const \[schonWa\]/.test(takt9), "Takt: Begrüßung und Schritte 2–5 fragen waAuslassGrund — dieselbe Prüfung wie der Wächter");
+  ok(/if \(erg\.gebremst\) \{[\s\S]{0,600}willkommen_status = \$\{`wartet: /.test(takt9) && /WHERE nummer = \$\{ziel\.nummer\} AND willkommen_am IS NULL`;\s*continue;/.test(takt9), "Bremse (WhatsApp pausiert): „wartet“, nicht als begrüßt verbucht — der nächste Takt versucht es wieder (vorher „fehler“ für immer)");
+  ok(/if \(!erg\.gebremst\) \{\s*erinnerungErsetzt = ok && bald;\s*await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id/.test(takt9), "Terminnachricht: hielt die Bremse an, zählt das nicht als der eine Versuch je Termin");
+  ok(/gebremst: !!erg\?\.gebremst, code: /.test(mbs9), "vorlageSenden gibt Bremse und Metas Code weiter");
+  // 4. Schritte 2–5: nur Zeilen mit anstehender Arbeit — ab 200 Leads mit Ja fiel vorher still heraus, wer später buchte.
+  ok(/LEFT JOIN fiaon_anfragen an ON an\.id = g\.anfrage_id/.test(takt9)
+    && /\(t\.status = 'gebucht' AND t\.beginn > NOW\(\)\) OR \(t\.status = 'verpasst' AND t\.beginn > NOW\(\) - INTERVAL '24 hours'\)/.test(takt9)
+    && /BETWEEN NOW\(\) - INTERVAL '10 days' AND NOW\(\) - INTERVAL '2 days'/.test(takt9), "Schritte 2–5: nur Zeilen mit kommendem oder eben verpasstem Gespräch oder möglicher Nachfrage");
+  ok(/an\.id IS NULL OR an\.art IS DISTINCT FROM 'global' OR COALESCE\(an\.status, ''\) = 'privat'/.test(takt9), "… Zeilen ohne gültige Anfrage prüft der Takt immer (businessKontakt sucht dann selbst)");
 }
 
 // ═══ B ═════════════════════════════════════════════════════════════════════

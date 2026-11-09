@@ -399,8 +399,25 @@ abschnitt("A12 E-487 Ergebnis-Wächter „Lead-Kette“ — W, N, WhatsApp (rein
   ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ terminVorbei: true })], ...leer }, um("2026-11-09", 12)).an === false, "Gespräch schon vorbei → keine Begrüßung mehr");
   ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ nummer: null }), Z({ anfrageId: 922, ja: null })], ...leer }, um("2026-11-09", 12)).an === false, "Festnetz oder kein Ja → nichts (ohne Ja schreibt Mara nie zuerst)");
   ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ eingangAm: um("2026-11-02", 10), jaSeit: um("2026-11-09", 11, 50), ja: "telefon:Daniel Beispiel" })], ...leer }, um("2026-11-09", 12, 15)).an === false, "Ja am Telefon zu einer älteren Anfrage: gezählt ab dem Ja (25 Minuten → noch nichts)");
-  const waf = R.waLueckeUrteil({ an: true, zeilen: [Z({ begruessungFehler: "fehler: (#131026) Message undeliverable" })], ...leer }, um("2026-11-09", 12));
-  ok(waf.an === true && /Begrüßung gescheitert \(\(#131026\) Message undeliverable\)/.test(waf.text), "Begrüßung gescheitert → rot, mit Metas Grund");
+  // E-487 Nachbesserung (Gutachten): rot nur, wenn der Takt es NIE versucht hat. Gescheitert → gelb (ohne Mail), mit dem Grund.
+  const waf = R.waLueckeUrteil({ an: true, zeilen: [Z({ versucht: true, begruessungFehler: "fehler: (#131042) Business eligibility payment issue" })], ...leer }, um("2026-11-09", 12));
+  ok(waf.an === true && waf.stufe === "gelb" && waf.faelle.length === 0 && /Begrüßung gescheitert \(\(#131042\) Business eligibility payment issue\) — kein neuer Versuch/.test(waf.text), "Begrüßung versucht und gescheitert → gelb mit Metas Grund, keine Mail an Justin (vorher rot, drei Tage lang alle 4 Stunden)");
+  // Die Gründe, aus denen der Takt bewusst nichts schickt (waAuslassGrund) → kein Alarm.
+  for (const grund of ["er hat STOPP geschrieben", "auf WhatsApp nicht erreichbar (Meta: kein WhatsApp)", "hat Werbung auf WhatsApp abbestellt (Meta)", "schon ein WhatsApp-Verlauf (30 Tage)", "zahlender Privatkunde (Mara Privat ist zuständig)"]) {
+    ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ ausgelassen: grund }), Z({ anfrageId: 923, status: "termin", terminKommend: true, ausgelassen: grund })], ...leer }, um("2026-11-09", 12)).an === false, `bewusst ausgelassen („${grund}“) → kein Alarm, auch mit Termin`);
+  }
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ versucht: true, begruessungFehler: null })], ...leer }, um("2026-11-09", 12)).an === false, "versucht, kein Fehler bekannt (z. B. begrüßt zu einer früheren Anfrage derselben Nummer) → nichts");
+  const watF = R.waLueckeUrteil({ an: true, zeilen: [Z({ status: "termin", terminKommend: true, versucht: true, begruessungFehler: "fehler: (#131000) Something went wrong" })], ...leer }, um("2026-11-09", 12));
+  ok(watF.stufe === "gelb" && watF.faelle.length === 0 && /Terminnachricht gescheitert \(\(#131000\) Something went wrong\)/.test(watF.text), "Terminnachricht versucht und gescheitert → gelb");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ status: "termin", terminKommend: true, versucht: false, begruessungFehler: "fehler: (#131042) alt" })], ...leer }, um("2026-11-09", 12)).stufe === "rot", "Terminnachricht zu DIESEM Termin nie versucht (ein alter Fehler zählt nicht als Versuch) → rot");
+  const waW = R.waLueckeUrteil({ an: true, zeilen: [Z({ wartet: "wartet: WhatsApp pausiert (Meta-Zahlung)" })], ...leer }, um("2026-11-09", 12));
+  ok(waW.an === true && waW.stufe === "gelb" && waW.faelle.length === 0 && /Begrüßung wartet \(WhatsApp pausiert \(Meta-Zahlung\)\) — der Takt versucht es wieder/.test(waW.text), "Begrüßung wartet (Bremse) → gelb, der Takt versucht es wieder");
+  const waP = R.waLueckeUrteil({ an: true, pausiert: true, zeilen: [Z()], ...leer }, um("2026-11-09", 12));
+  ok(waP.an === true && waP.stufe === "gelb" && waP.faelle.length === 0 && /WhatsApp ist pausiert \(eigener Alarm im Lagezimmer\)/.test(waP.text), "WhatsApp pausiert → nie versuchte Fälle gelb (die Pause hat ihren eigenen roten Alarm — keine zweite Mail)");
+  const waM = R.waLueckeUrteil({ an: true, zeilen: [Z(), Z({ anfrageId: 924, versucht: true, begruessungFehler: "fehler: Werbesperre" }), Z({ anfrageId: 925, ausgelassen: "er hat STOPP geschrieben" })], ...leer }, um("2026-11-09", 12));
+  ok(waM.stufe === "rot" && waM.faelle.join() === "921" && /Anfrage #924/.test(waM.text) && !/Anfrage #925/.test(waM.text), "gemischt: rot nur der nie versuchte Fall (Mail nur dafür), der gescheiterte steht gelb dabei, der ausgelassene gar nicht");
+  ok(R.waErwartet(Z({ ausgelassen: "er hat STOPP geschrieben" }), um("2026-11-09", 12)) === false && R.waErwartet(Z(), um("2026-11-09", 12)) === true, "waErwartet: ausgelassen = nichts zu erwarten");
+  ok(R.waFallStufe(Z()) === "rot" && R.waFallStufe(Z({ versucht: true })) === null && R.waFallStufe(Z({ versucht: true, begruessungFehler: "fehler: x" })) === "gelb" && R.waFallStufe(Z({ wartet: "wartet: x" })) === "gelb", "waFallStufe: nie versucht = rot, versucht ohne Fehler = nichts, gescheitert oder wartend = gelb");
   const waAus = R.waLueckeUrteil({ an: false, zeilen: [Z()], ...leer }, um("2026-11-09", 12));
   ok(waAus.an === true && waAus.stufe === "gelb" && waAus.faelle.length === 0 && /WhatsApp-Takt ist aus/.test(waAus.text), "Takt aus, aber Leads mit Ja warten → gelb (keine Mail an Justin)");
   const waO = R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [{ nummer: "4915500000931", anfrageId: 931, seit: um("2026-11-09", 10) }], falsch: [], quote: null }, um("2026-11-09", 10, 31));
@@ -434,6 +451,13 @@ abschnitt("A12 E-487 Ergebnis-Wächter „Lead-Kette“ — W, N, WhatsApp (rein
   ok(/lead_kette_mail:/.test(takt) && /lead-takt:w-luecke/.test(regeln) && /lead-takt:n-luecke/.test(regeln) && /lead-takt:wa-luecke/.test(regeln), "feste Schlüssel je Alarm und je Merker");
   const lesen = takt.split("export async function leadKetteLesen(")[1]?.split("\n}\n")[0] ?? "";
   ok(/willkommen_am IS NULL[\s\S]*NOT IN \('gesendet', 'ausgelassen'\)/.test(lesen) && /nachfass_faellig < \$\{jetzt\}::timestamptz - INTERVAL '2 hours'/.test(lesen) && /mb\.nummerDerAnfrage\(r\)/.test(lesen), "die Zahlen: W ohne Ergebnis, N seit 2 Stunden fällig, WhatsApp mit der Nummer der Anfrage (Land)");
+  // E-487 Nachbesserung (Gutachten): der Wächter liest, was der Takt verbucht hat, und fragt DIESELBE Auslass-Prüfung.
+  ok(/BOOL_OR\(w3\.willkommen_am IS NOT NULL\)[\s\S]*AS begruesst/.test(lesen) && /w3\.willkommen_status LIKE 'wartet%'/.test(lesen)
+    && /AS raus_fehler/.test(lesen) && /w5\.termin_gemeldet_id = tk\.id\) AS termin_gemeldet/.test(lesen) && /ORDER BY t\.beginn LIMIT 1\) tk ON TRUE/.test(lesen),
+    "Wächter liest: Begrüßung verbucht, ihr Stand (fehler/wartet), Metas letzter Fehler seit der Anfrage, Terminnachricht zu GENAU diesem Termin");
+  ok(/if \(nummer && waErwartet\(zeile, jetzt\)\)/.test(lesen) && /mb\.waZielFuerAnfrage\(/.test(lesen) && /await mb\.waAuslassGrund\(ziel\?\.nummer \?\? nummer, terminKommend \? "folge" : "begruessung", lauf\)/.test(lesen),
+    "nur wo sonst ein Alarm käme: waAuslassGrund an der Nummer, an die der Takt schreiben würde (dieselbe Prüfung wie der Takt)");
+  ok(/waPauseLesen\(\)\)\.then\(\(p\) => !!p\.an\)/.test(lesen) && /waLueckeUrteil\(\{ an, pausiert,/.test(lesen), "WhatsApp-Pause wird gelesen und mitgegeben (die Pause hat ihren eigenen roten Alarm)");
 
   // ── Cockpit: das Ja am Telefon ──
   const seite = lies("client/src/pages/agent/firmen.tsx");
@@ -443,7 +467,7 @@ abschnitt("A12 E-487 Ergebnis-Wächter „Lead-Kette“ — W, N, WhatsApp (rein
   const anruf = route.split('router.post("/agent/firmen/:id/anruf"')[1]?.split("\n});\n")[0] ?? "";
   const telJa = route.split("async function telefonJaMerken(")[1]?.split("\n}\n")[0] ?? "";
   ok(/whatsappJaGewaehlt\(req\.body\?\.felder\)/.test(anruf) && /telefonJaMerken\(\{ firma, anfrageId: lead\.lead \? lead\.anfrageId : null, ergebnis/.test(anruf), "Anruf-Route: felder.whatsapp_ja geht mit dem Ergebnis an telefonJaMerken");
-  ok(/if \(!ein\.anfrageId\) return \{ gemerkt: false/.test(telJa) && /TELEFON_JA_ERGEBNISSE/.test(telJa) && /telefonOptinMerken\(/.test(telJa) && /'whatsapp_ja'/.test(telJa), "… nur mit Anfrage, nur nach „erreicht“, gemerkt über telefonOptinMerken, Zeile im Verlauf");
+  ok(/if \(!ein\.anfrageId\) return \{ gemerkt: false/.test(telJa) && /TELEFON_JA_ERGEBNISSE/.test(telJa) && /telefonOptinMerken\(/.test(telJa) && /'whatsapp_ja'/.test(telJa), "… nur mit Anfrage, nur nach „Erreicht — Interesse“ oder „Termin vereinbart“ (TELEFON_JA_ERGEBNISSE), gemerkt über telefonOptinMerken, Zeile im Verlauf");
   const jt = route.split('router.post("/agent/firmen/:id/justin-termin"')[1]?.split("\n});\n")[0] ?? "";
   ok(/whatsappJaGewaehlt\(b\.felder\)/.test(jt) && /ergebnis: "erreicht_termin"/.test(jt) && /mitWa \? \{ whatsapp_ja: true \}/.test(seite.split("const justinEintragen")[1] ?? ""), "… auch bei „Termin bei Justin eintragen“ (dann kommt die Bestätigung auch auf WhatsApp)");
   const rund = lies("client/src/pages/agent/rundgaenge.ts");

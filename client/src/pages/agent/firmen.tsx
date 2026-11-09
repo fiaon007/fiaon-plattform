@@ -44,7 +44,9 @@
 // E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): Bei einem Business-Lead steht über den Ergebnis-Knöpfen das Häkchen
 // „Möchte auch per WhatsApp (am Telefon gefragt)“ mit dem Satz zum Vorlesen (GLOBAL_WA_TELEFON_SATZ). Es geht mit dem
 // Ergebnis als felder.whatsapp_ja an POST /agent/firmen/:id/anruf (bzw. mit „Termin bei Justin eintragen“); der Server merkt
-// das Ja (Quelle „telefon:<Name>“, Zeit, Satz), Maras Takt schickt die Begrüßung (8–20 Uhr). Nur nach „erreicht“.
+// das Ja (Quelle „telefon:<Name>“, Zeit, Satz), Maras Takt schickt die Begrüßung (8–20 Uhr). Nur nach „Erreicht — Interesse“
+// oder „Termin vereinbart“ — Nachbesserung (Gutachten): nicht nach „macht den Antrag“ (dort schreibt Mara nicht; vorher sagte
+// das Cockpit „Mara schreibt ihm“, und es kam nie etwas).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
@@ -57,11 +59,14 @@ import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } from "@shared/fiaon-lead-weg";
 import { PFLICHT_NOTIZ_ERGEBNISSE, RUECKRUF_ERGEBNISSE, RUECKRUF_ZEITEN, rueckrufTage } from "@shared/fiaon-lead-takt";
 import { firmaBrauchbar } from "@shared/fiaon-global-lead";
-import { GLOBAL_WA_TELEFON_SATZ } from "@shared/fiaon-whatsapp-erlaubnis";
+import { GLOBAL_WA_TELEFON_SATZ, TELEFON_JA_ERGEBNISSE } from "@shared/fiaon-whatsapp-erlaubnis";
 import "@/styles/office-firmen.css";
 
-/** E-487 (09.11.2026): Nach diesen Ergebnissen zählt das WhatsApp-Ja am Telefon (wie TELEFON_JA_ERGEBNISSE im Server). */
-const WA_JA_ERGEBNISSE = ["erreicht_interesse", "erreicht_termin", "erreicht_antrag"];
+/**
+ * E-487 (09.11.2026): Nach diesen Ergebnissen zählt das WhatsApp-Ja am Telefon — dieselbe Liste wie im Server (shared).
+ * Nachbesserung (Gutachten): ohne „macht den Antrag“.
+ */
+const WA_JA_ERGEBNISSE: readonly string[] = TELEFON_JA_ERGEBNISSE;
 
 /** E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (vom Server, server/lib/fiaon-lead-takt.ts). */
 interface LeadStand {
@@ -256,7 +261,8 @@ function FirmenInnen() {
     if (lead && wert === "erreicht_termin" && !lead.terminGebucht) return void zuJustinTermin(notiz);
     // E-487: Der eingetragene Rückruf fährt nur bei „Erreicht — Interesse“, „Nicht erreicht“ und „Mailbox“ mit.
     const mitRueckruf = !!rueckruf?.tag && (RUECKRUF_ERGEBNISSE as readonly string[]).includes(wert);
-    // E-487: Das WhatsApp-Ja fährt nur nach einem Gespräch mit (erreicht — Interesse, Termin, Antrag).
+    // E-487: Das WhatsApp-Ja fährt nur nach „Erreicht — Interesse“ oder „Termin vereinbart“ mit (Nachbesserung: nicht nach
+    // „macht den Antrag“ — dort schreibt Mara nicht).
     const mitWa = !!lead && waJa && WA_JA_ERGEBNISSE.includes(wert);
     setLaeuft(wert);
     const r = await api(`/agent/firmen/${aktiv.id}/anruf`, {
@@ -274,7 +280,9 @@ function FirmenInnen() {
     setNotiz(""); setNotizFelder({}); setFelderAuf(false); setRueckruf(null); setWaJa(false);
     const waSatz = mitWa
       ? (r.json?.whatsapp?.gemerkt ? " WhatsApp-Ja ist gemerkt — Mara schreibt ihm (8–20 Uhr)." : ` WhatsApp-Ja NICHT gemerkt: ${r.json?.whatsapp?.grund || "bitte noch einmal"}`)
-      : waJa && lead ? " Das WhatsApp-Ja zählt nur nach einem Gespräch („erreicht“) — es ist nicht gemerkt." : "";
+      : !(waJa && lead) ? ""
+      : wert === "erreicht_antrag" ? " Das WhatsApp-Ja ist nicht gemerkt: Bei „macht den Antrag“ schreibt Mara nicht auf WhatsApp — ihn führt die Info-Mail mit dem Link."
+      : " Das WhatsApp-Ja zählt nur nach „Erreicht — Interesse“ oder „Termin vereinbart“ — es ist nicht gemerkt.";
     if (mitRueckruf) sag(`Festgehalten — Rückruf am ${tagKurz(rueckruf!.tag!)}${rueckruf!.zeit ? `, ${rueckruf!.zeit} Uhr (10 Minuten vorher kommt eine Mail)` : ""}. Bis dahin ist die Firma aus „Jetzt dran“ raus. Nächster Anruf.${waSatz}`);
     else sag(lead && /^erreicht_/.test(wert) ? `Festgehalten — Justin liest deine Sätze vor dem Gespräch.${waSatz} Nächster Anruf.` : `Festgehalten — nächster Anruf.${waSatz}`);
     if (wert === "erreicht_antrag") sag(`Stark! Status „Antrag läuft“ — schick ihm gleich die Info-Mail mit dem Link.${waSatz}`);
@@ -567,7 +575,7 @@ function FirmenInnen() {
                   <input type="checkbox" checked={waJa} onChange={(e) => setWaJa(e.target.checked)} />
                   <span>
                     <b>Möchte auch per WhatsApp (am Telefon gefragt)</b>
-                    <small>Erst vorlesen: „{lead.englisch ? GLOBAL_WA_TELEFON_SATZ.en : GLOBAL_WA_TELEFON_SATZ.de}“ Sagt er Ja: haken, dann das Ergebnis klicken (nach „erreicht“) oder den Termin bei Justin eintragen. Mara schreibt ihm auf WhatsApp (8–20 Uhr).</small>
+                    <small>Erst vorlesen: „{lead.englisch ? GLOBAL_WA_TELEFON_SATZ.en : GLOBAL_WA_TELEFON_SATZ.de}“ Sagt er Ja: haken, dann „Erreicht — Interesse“ klicken oder den Termin bei Justin eintragen. Mara schreibt ihm auf WhatsApp (8–20 Uhr) — nicht bei „macht den Antrag“, da führt ihn die Info-Mail.</small>
                   </span>
                 </label>
               )}

@@ -44,7 +44,7 @@ import { isoPlus, wunschzeitErkennen } from "@shared/fiaon-global-lead-texte";
 import {
   t1Mail, erinnerungMail, justinEskalationMail, vertretungAuftragText, eskalationPlanen, uebersichtFaellig, uebersichtMail,
   kalenderWaechter, dienstMinuten, imDienst, feiertagDE, antwortenKurz, tagUhr, uhr, erinnerungSammelMail, justinSammelMail, t1NachtragMail,
-  wLueckeUrteil, nLueckeUrteil, waLueckeUrteil, ketteMailFaellig, ketteMail, KETTE_VORGABE,
+  wLueckeUrteil, nLueckeUrteil, waLueckeUrteil, waErwartet, ketteMailFaellig, ketteMail, KETTE_VORGABE,
   type TaktMail, type UebersichtDaten, type UebersichtLead, type TelefonTeil, type EskStufe, type SammelZeile,
   type KetteAlarm, type KetteWZeile, type KetteNZeile, type KetteWaZeile, type KetteJaOhneAnfrage, type KetteNummerFalsch,
 } from "./fiaon-lead-takt-regeln";
@@ -1326,29 +1326,47 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
     const ab = (await mb.mbTaktAb(lauf)) ?? jetzt;
     const namen = await mb.waFormularNamen();
     await mb.mbSchema(lauf);
+    // E-487 Nachbesserung (Gutachten): dazu, was der Takt verbucht hat — die Begrüßung (willkommen_am: gesendet oder
+    // gescheitert, auch zu einer früheren Anfrage derselben Nummer), ihr Stand („fehler: …“, „wartet: …“), die Terminnachricht
+    // zu GENAU dem kommenden Termin (termin_gemeldet_id, derselbe Termin wie kommenderTerminFuerKontakt) — und Metas letzter
+    // Fehler an ihn seit der Anfrage (raus_fehler, auch nachträglich vom Status-Webhook: Meta nahm an, stellte nicht zu).
     const roh = (await lauf.unsafe(`
-      SELECT a.id, a.created_at, a.telefon, a.land, a.ip, COALESCE(a.status, 'neu') AS status, g.ja_quelle, g.ja_am, COALESCE(f.ja, FALSE) AS formular,
+      SELECT a.id, a.created_at, a.telefon, a.land, a.ip, COALESCE(a.status, 'neu') AS status,
+             g.ja_quelle, g.ja_am, g.ja_nummer, g.ja_anfrage_id, COALESCE(f.ja, FALSE) AS formular,
              (SELECT ARRAY_AGG(w4.nummer) FROM fiaon_wa_global w4 WHERE w4.anfrage_id = a.id OR RIGHT(w4.nummer, 9) = ${K9_SQL}) AS schluessel,
              EXISTS (SELECT 1 FROM fiaon_whatsapp x
                       WHERE (RIGHT(x.nummer, 9) = ${K9_SQL} OR x.nummer IN (SELECT w2.nummer FROM fiaon_wa_global w2 WHERE w2.anfrage_id = a.id))
                         AND (x.richtung = 'rein' OR COALESCE(x.status, '') <> 'fehler') AND x.created_at > a.created_at - INTERVAL '1 day') AS kontakt,
+             (SELECT BOOL_OR(w3.willkommen_am IS NOT NULL) FROM fiaon_wa_global w3
+               WHERE w3.anfrage_id = a.id OR RIGHT(w3.nummer, 9) = ${K9_SQL}) AS begruesst,
              (SELECT w3.willkommen_status FROM fiaon_wa_global w3
-               WHERE w3.willkommen_status LIKE 'fehler%' AND (w3.anfrage_id = a.id OR RIGHT(w3.nummer, 9) = ${K9_SQL}) LIMIT 1) AS begruessung_fehler,
-             EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
-                      WHERE t.quelle IN ('global', 'gruender') AND t.status = 'gebucht' AND t.beginn > NOW()
-                        AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
-                          OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})) AS termin_kommend,
+               WHERE (w3.willkommen_status LIKE 'fehler%' OR w3.willkommen_status LIKE 'wartet%')
+                 AND (w3.anfrage_id = a.id OR RIGHT(w3.nummer, 9) = ${K9_SQL})
+               ORDER BY w3.updated_at DESC NULLS LAST LIMIT 1) AS begruessung_stand,
+             (SELECT x.fehler FROM fiaon_whatsapp x
+               WHERE (RIGHT(x.nummer, 9) = ${K9_SQL} OR x.nummer IN (SELECT w2.nummer FROM fiaon_wa_global w2 WHERE w2.anfrage_id = a.id))
+                 AND x.richtung = 'raus' AND x.status = 'fehler' AND x.created_at > a.created_at - INTERVAL '1 day'
+               ORDER BY x.id DESC LIMIT 1) AS raus_fehler,
+             tk.id AS termin_kommend_id,
+             EXISTS (SELECT 1 FROM fiaon_wa_global w5
+                      WHERE (w5.anfrage_id = a.id OR RIGHT(w5.nummer, 9) = ${K9_SQL}) AND w5.termin_gemeldet_id = tk.id) AS termin_gemeldet,
              EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
                       WHERE t.quelle IN ('global', 'gruender') AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.beginn <= NOW()
                         AND t.created_at > a.created_at - INTERVAL '1 day'
                         AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
                           OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})) AS termin_vorbei
         FROM fiaon_anfragen a
-        LEFT JOIN LATERAL (SELECT w.optin_quelle AS ja_quelle, w.optin_am AS ja_am FROM fiaon_wa_global w
+        LEFT JOIN LATERAL (SELECT w.optin_quelle AS ja_quelle, w.optin_am AS ja_am, w.nummer AS ja_nummer, w.anfrage_id AS ja_anfrage_id
+                             FROM fiaon_wa_global w
                             WHERE w.optin_am IS NOT NULL AND (w.anfrage_id = a.id OR RIGHT(w.nummer, 9) = ${K9_SQL})
                             ORDER BY w.optin_am DESC LIMIT 1) g ON TRUE
         LEFT JOIN LATERAL (SELECT TRUE AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare mf ON mf.id = m.formular_id
                             WHERE m.global_anfrage_id = a.id AND (mf.name ILIKE '%WhatsApp%' OR mf.name = ANY($1::text[])) LIMIT 1) f ON TRUE
+        LEFT JOIN LATERAL (SELECT t.id FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+                            WHERE t.quelle IN ('global', 'gruender') AND t.status = 'gebucht' AND t.beginn > NOW()
+                              AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
+                                OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})
+                            ORDER BY t.beginn LIMIT 1) tk ON TRUE
        WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE)
          AND COALESCE(a.status, '') NOT IN ('privat', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
          AND COALESCE(a.telefon, '') <> '' AND a.created_at < $2::timestamptz - INTERVAL '10 minutes'
@@ -1360,14 +1378,36 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
     const zeilen: KetteWaZeile[] = [];
     const falsch: KetteNummerFalsch[] = [];
     const { nummerFalschGelesen } = await import("@shared/fiaon-whatsapp-erlaubnis");
+    // E-487 Nachbesserung: Ist WhatsApp pausiert (Notbremse)? Die Pause hat ihren eigenen roten Alarm „wa-pause“ — hier dann gelb.
+    const pausiert = await import("./fiaon-wa-bremse").then((m) => m.waPauseLesen()).then((p) => !!p.an).catch(() => false);
     for (const r of roh) {
+      const anfrageId = Number(r.id);
       const nummer = mb.nummerDerAnfrage(r);
       const ja = r.ja_quelle ? String(r.ja_quelle) : r.formular ? "formular" : null;
-      zeilen.push({
-        anfrageId: Number(r.id), eingangAm: new Date(r.created_at), status: String(r.status), nummer, ja,
-        jaSeit: r.ja_am ? new Date(r.ja_am) : null, terminKommend: !!r.termin_kommend, terminVorbei: !!r.termin_vorbei,
-        kontakt: !!r.kontakt, begruessungFehler: r.begruessung_fehler ? String(r.begruessung_fehler) : null,
-      });
+      const terminKommend = r.termin_kommend_id != null;
+      const stand = r.begruessung_stand ? String(r.begruessung_stand) : null;
+      const rausFehler = r.raus_fehler ? `fehler: ${String(r.raus_fehler)}` : null;
+      const zeile: KetteWaZeile = {
+        anfrageId, eingangAm: new Date(r.created_at), status: String(r.status), nummer, ja,
+        jaSeit: r.ja_am ? new Date(r.ja_am) : null, terminKommend, terminVorbei: !!r.termin_vorbei, kontakt: !!r.kontakt,
+        // Terminnachricht: Metas Fehler an der letzten WhatsApp; Begrüßung: zuerst ihr eigener Stand („fehler: …“).
+        begruessungFehler: terminKommend ? rausFehler : (stand && /^fehler/i.test(stand) ? stand : rausFehler),
+        versucht: terminKommend ? !!r.termin_gemeldet : !!r.begruesst,
+        wartet: !terminKommend && stand && /^wartet/i.test(stand) ? stand : null,
+        ausgelassen: null,
+      };
+      // E-487 Nachbesserung (Gutachten): Stünde sonst ein Alarm an, fragt der Wächter DIESELBE Prüfung wie der Takt
+      // (waAuslassGrund: STOPP jemals, laut Meta kein WhatsApp, Werbung abbestellt, schon ein Verlauf …) — an der Nummer, an
+      // die der Takt schreiben würde (waZielFuerAnfrage mit dem jüngsten Ja). Ausgelassen = kein Alarm.
+      if (nummer && waErwartet(zeile, jetzt)) {
+        const jaZeilen = r.ja_nummer && r.ja_am ? [{
+          nummer: String(r.ja_nummer), anfrageId: r.ja_anfrage_id ? Number(r.ja_anfrage_id) : null, optinAm: new Date(r.ja_am),
+          optinQuelle: r.ja_quelle ? String(r.ja_quelle) : null, optinText: null,
+        }] : [];
+        const ziel = mb.waZielFuerAnfrage({ anfrageId, nummer, ja: jaZeilen, formular: !!r.formular });
+        zeile.ausgelassen = await mb.waAuslassGrund(ziel?.nummer ?? nummer, terminKommend ? "folge" : "begruessung", lauf);
+      }
+      zeilen.push(zeile);
       for (const s of Array.isArray(r.schluessel) ? r.schluessel : []) {
         if (nummer && nummerFalschGelesen(s, nummer)) falsch.push({ anfrageId: Number(r.id), schluessel: String(s), erwartet: nummer });
       }
@@ -1387,7 +1427,7 @@ export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlP
         FROM fiaon_meta_leads m JOIN fiaon_meta_formulare f ON f.id = m.formular_id
        WHERE m.global_anfrage_id IS NOT NULL AND m.gesehen_am > ${jetzt}::timestamptz - INTERVAL '24 hours'
          AND COALESCE(f.name, '') ILIKE 'FIAON Global%'`.catch(() => [])) as any[];
-    alarme.push(waLueckeUrteil({ an, zeilen, ohneAnfrage, falsch, quote: q ? { metaLeads: Number(q.meta) || 0, mitJa: Number(q.mit_ja) || 0 } : null }, jetzt));
+    alarme.push(waLueckeUrteil({ an, pausiert, zeilen, ohneAnfrage, falsch, quote: q ? { metaLeads: Number(q.meta) || 0, mitJa: Number(q.mit_ja) || 0 } : null }, jetzt));
   } catch (e) {
     console.error("[LEAD-TAKT] Lead-Kette WhatsApp:", String((e as Error)?.message ?? e).slice(0, 160));
     alarme.push(keineAussage("lead-takt:wa-luecke"));

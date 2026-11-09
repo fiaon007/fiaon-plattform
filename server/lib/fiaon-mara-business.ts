@@ -23,10 +23,14 @@
 //   Ziffern (falsch gelesene ziehen um), das Ja am Telefon aus dem Cockpit (telefonOptinMerken: wer, wann, welcher Satz).
 // · Ja + Termin → die Terminnachricht (fiaon_gl_termin) und am Vortag die Erinnerung (fiaon_gl_erinnerung) — Bedingung
 //   optin_am statt nur Weg „whatsapp“. Die Begrüßung prüft nur Anfragen MIT Ja und OHNE Begrüßung, die neuesten zuerst.
+// · Nachbesserung (Gutachten, 09.11.2026): waAuslassGrund — EINE Prüfung „bewusst nicht“ für Takt und Wächter (STOPP,
+//   kein WhatsApp laut Meta, Werbung abbestellt …); hält die Bremse an, wartet die Begrüßung bzw. Terminnachricht (kein
+//   „fehler“ für immer); Schritte 2–5 laden nur Zeilen mit anstehender Arbeit; „macht den Antrag“ ist kein WhatsApp-Ja.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { waSenden, fensterOffen, freigegebeneVorlagen, waKonfig } from "./fiaon-whatsapp";
-import { waKanonisch, formularNummer, waJaNummer, nummerKey9, GLOBAL_WA_TELEFON_SATZ } from "@shared/fiaon-whatsapp-erlaubnis";
+import { waKanonisch, formularNummer, waJaNummer, nummerKey9, GLOBAL_WA_TELEFON_SATZ, TELEFON_JA_ERGEBNISSE } from "@shared/fiaon-whatsapp-erlaubnis";
+import { WA_CODE_UNZUSTELLBAR, WA_CODE_MARKETING_GRENZE, WA_MARKETING_PAUSE_TAGE, WA_CODE_WERBUNG_ABBESTELLT } from "./fiaon-wa-unzustellbar";
 import { vorlageNutzbar } from "@shared/fiaon-lead-texte";
 import {
   MB_DIENST, MB_VON, MB_SCHEMA, businessAuftrag, businessWand, knopfAktion, kennungAusText, istGlobalEinstieg, vorstellungVoran,
@@ -680,9 +684,60 @@ async function hatStopp(nummer: string, lauf: Lauf): Promise<boolean> {
   return zeilen.some((z) => istStopp(z.text, z.knopf));
 }
 
-async function vorlageSenden(nummer: string, vorlage: string, werte: string[], knopfWert?: string): Promise<{ ok: boolean; grund?: string }> {
+/**
+ * E-487 Nachbesserung (Gutachten, 09.11.2026): WARUM MARA AN DIESE NUMMER BEWUSST NICHTS ZUERST SCHICKT — EINE Prüfung für
+ * den Takt (Schritt 1 Begrüßung, Schritte 2–5) und den Wächter „Lead-Kette“. Vorher kannte nur der Takt die Gründe; der
+ * Wächter meldete solche Leads rot — bis zu drei Tage lang, alle 4 Stunden eine Mail an Justin, für Fälle, die nie lösbar
+ * sind. Die Gründe:
+ *   · STOPP von dieser Nummer — jemals (hatStopp);
+ *   · auf WhatsApp nicht erreichbar: Meta 131026 („undeliverable“: kein WhatsApp, alte App), seitdem weder eine Nachricht von
+ *     ihm noch eine zugestellte von uns — dieselbe Regel wie WA_GESPERRTE_NUMMERN_SQL (E-244), auch wenn Meta die Begrüßung
+ *     erst annahm und der Status-Webhook sie danach auf „fehler“ setzte;
+ *   · nur vor der Begrüßung (Werbe-Vorlage): Werbung abbestellt (131050), Metas Werbegrenze je Empfänger (131049, 7 Tage),
+ *     schon ein WhatsApp-Verlauf in den letzten 30 Tagen (ohne Maras eigene gescheiterte Business-Vorlage — die ist ein
+ *     Fehlschlag, kein Gespräch) und ein zahlender Privatkunde (Mara Privat ist zuständig; businessKontakt gäbe null).
+ *     Für Terminnachricht und Co. („folge“) zählen nur STOPP und 131026: ein Text im offenen 24-Stunden-Fenster darf auch
+ *     nach 131050 hinaus, eine Vorlage hält waSenden dann selbst an (waVorlagenSperre).
+ * null = nichts davon. Wirft nie (ein Lesefehler = null: der Takt versucht es, waSenden prüft seine Sperren ohnehin).
+ */
+export async function waAuslassGrund(nummer: string, art: "begruessung" | "folge", lauf: Lauf = sqlPool): Promise<string | null> {
+  try {
+    if (await hatStopp(nummer, lauf)) return "er hat STOPP geschrieben";
+    const [s] = (await lauf`
+      SELECT
+        EXISTS (SELECT 1 FROM fiaon_whatsapp wu
+                 WHERE wu.nummer = ${nummer} AND wu.richtung = 'raus' AND wu.status = 'fehler'
+                   AND (wu.fehler LIKE ${`(#${WA_CODE_UNZUSTELLBAR})%`} OR wu.fehler ILIKE '%undeliverable%')
+                   AND NOT EXISTS (SELECT 1 FROM fiaon_whatsapp wl WHERE wl.nummer = wu.nummer
+                                    AND ((wl.richtung = 'rein' AND wl.created_at > wu.created_at)
+                                      OR (wl.richtung = 'raus' AND GREATEST(wl.zugestellt_am, wl.gelesen_am) > wu.created_at)))) AS unzustellbar,
+        EXISTS (SELECT 1 FROM fiaon_whatsapp wa
+                 WHERE wa.nummer = ${nummer} AND wa.richtung = 'raus' AND wa.status = 'fehler'
+                   AND wa.fehler LIKE ${`(#${WA_CODE_WERBUNG_ABBESTELLT})%`}) AS abbestellt,
+        EXISTS (SELECT 1 FROM fiaon_whatsapp wm
+                 WHERE wm.nummer = ${nummer} AND wm.richtung = 'raus' AND wm.status = 'fehler'
+                   AND wm.fehler LIKE ${`(#${WA_CODE_MARKETING_GRENZE})%`}
+                   AND wm.created_at > NOW() - ${WA_MARKETING_PAUSE_TAGE}::int * INTERVAL '1 day') AS werbegrenze,
+        EXISTS (SELECT 1 FROM fiaon_whatsapp wv
+                 WHERE wv.nummer = ${nummer} AND wv.created_at > NOW() - INTERVAL '30 days'
+                   AND NOT (COALESCE(wv.vorlage, '') LIKE 'fiaon_gl_%' AND COALESCE(wv.status, '') = 'fehler')) AS verlauf`) as any[];
+    if (s?.unzustellbar) return "auf WhatsApp nicht erreichbar (Meta: kein WhatsApp)";
+    if (art === "folge") return null;
+    if (s?.abbestellt) return "hat Werbung auf WhatsApp abbestellt (Meta)";
+    if (s?.werbegrenze) return "Metas Werbegrenze für diese Nummer (7 Tage Pause)";
+    if (s?.verlauf) return "schon ein WhatsApp-Verlauf (30 Tage)";
+    if (await zahlenderPrivatkunde(nummer, null, lauf)) return "zahlender Privatkunde (Mara Privat ist zuständig)";
+    return null;
+  } catch (e) {
+    console.error("[MARA-BUSINESS] Auslass-Grund:", String((e as Error)?.message || e).slice(0, 160));
+    return null;
+  }
+}
+
+/** E-487 Nachbesserung: dazu gebremst (die Bremse hielt an — nichts ging an Meta) und Metas Code (Meta lehnte synchron ab). */
+async function vorlageSenden(nummer: string, vorlage: string, werte: string[], knopfWert?: string): Promise<{ ok: boolean; grund?: string; gebremst: boolean; code: number | null }> {
   const erg: any = await waSenden(nummer, { vorlage, werte, ...(knopfWert ? { knopfWert } : {}) }, { personId: null, leadId: null, von: "Mara", frischerLead: vorlage === VORLAGE.willkommen });
-  return { ok: !!erg?.ok, grund: erg?.grund };
+  return { ok: !!erg?.ok, grund: erg?.grund, gebremst: !!erg?.gebremst, code: erg?.code ? Number(erg.code) : null };
 }
 async function textSenden(nummer: string, text: string): Promise<{ ok: boolean }> {
   const erg: any = await waSenden(nummer, { text }, { personId: null, leadId: null, von: MB_VON });
@@ -746,13 +801,19 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
       if (!fenster || !nutzbar(VORLAGE.willkommen) || rest <= 0 || a.status === "termin") continue;
       const [z] = (await lauf`SELECT willkommen_am FROM fiaon_wa_global WHERE nummer = ${ziel.nummer}`) as any[];
       if (z?.willkommen_am) continue;
-      const [schonWa] = (await lauf`SELECT 1 AS ja FROM fiaon_whatsapp WHERE nummer = ${ziel.nummer} AND created_at > NOW() - INTERVAL '30 days' LIMIT 1`) as any[];
-      if (schonWa) continue;
-      if (await hatStopp(ziel.nummer, lauf)) continue;
+      // E-487 Nachbesserung (Gutachten): die Gründe für „bewusst nicht“ (STOPP, kein WhatsApp, Werbung abbestellt, schon ein
+      // Verlauf, zahlender Privatkunde) aus EINER Prüfung — derselben, die der Wächter „Lead-Kette“ liest.
+      if (await waAuslassGrund(ziel.nummer, "begruessung", lauf)) continue;
       const k = await businessKontakt(ziel.nummer, null, lauf);
       if (!k || !k.anfrageId) continue;
       if (await kommendesGespraech(k, lauf).catch(() => null)) continue;
       const erg = await vorlageSenden(ziel.nummer, VORLAGE.willkommen, [k.anrede || "und willkommen"]);
+      if (erg.gebremst) {
+        // E-487 Nachbesserung: Die Bremse hielt an (WhatsApp pausiert) — nichts ging an Meta. Nicht als begrüßt verbuchen
+        // (vorher „fehler“ für immer), sondern „wartet“: der nächste Takt versucht es wieder, sobald die Pause vorbei ist.
+        await lauf`UPDATE fiaon_wa_global SET willkommen_status = ${`wartet: ${String(erg.grund ?? "WhatsApp gebremst").slice(0, 120)}`}, updated_at = NOW() WHERE nummer = ${ziel.nummer} AND willkommen_am IS NULL`;
+        continue;
+      }
       await lauf`UPDATE fiaon_wa_global SET willkommen_am = NOW(), willkommen_status = ${erg.ok ? "gesendet" : `fehler: ${String(erg.grund ?? "").slice(0, 120)}`}, updated_at = NOW() WHERE nummer = ${ziel.nummer}`;
       if (erg.ok) { zahl.willkommen++; rest--; }
     }
@@ -760,17 +821,38 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
     // 2.–5. Für alle Business-Nummern mit Weg WhatsApp, Ja zu WhatsApp (E-487) oder WhatsApp-Verlauf: Termin, Erinnerung,
     //       nicht erreicht, Nachfrage. E-487: auch ein Website-Ja aus einer Buchung ohne Anfrage (Direktbucher) — nur eine
     //       DACH-Handynummer (49/43/41), nie eine falsch gelesene.
+    //       E-487 Nachbesserung (Gutachten): nur Zeilen, bei denen Arbeit ansteht — ein kommendes Gespräch (Terminnachricht,
+    //       Erinnerung) oder eines, das in den letzten 24 Stunden verpasst wurde („nicht erreicht“; gesucht wie
+    //       kommenderTerminFuerKontakt: Mail oder letzte neun Ziffern der Anfrage bzw. der Nummer), oder eine mögliche Nachfrage
+    //       (schon im Gespräch mit Mara, letzte Nachricht 2–10 Tage alt). Zeilen ohne gültige Anfrage prüft der Takt immer
+    //       (selten). Vorher kamen alle Zeilen mit Ja (60 Tage) nach updated_at, höchstens 200 — ab etwa 200 Leads mit Ja
+    //       fielen ältere still heraus und bekamen bei einer späten Buchung weder Terminnachricht noch Erinnerung.
     const zeilen = (await lauf`
       SELECT g.*, EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein') AS eingang
         FROM fiaon_wa_global g
+        LEFT JOIN fiaon_anfragen an ON an.id = g.anfrage_id
        WHERE g.created_at > NOW() - INTERVAL '60 days' AND g.nummer ~ '^[0-9]{8,15}$'
          AND (g.anfrage_id IS NOT NULL OR (g.optin_am IS NOT NULL AND g.optin_quelle = 'website' AND g.nummer ~ '^(49|43|41)'))
          AND (g.weg = 'whatsapp' OR g.optin_am IS NOT NULL OR g.willkommen_status = 'gesendet'
               OR EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein'))
+         AND (an.id IS NULL OR an.art IS DISTINCT FROM 'global' OR COALESCE(an.status, '') = 'privat' OR COALESCE(an.ist_test, FALSE)
+              OR EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+                          WHERE t.quelle IN ('global', 'gruender')
+                            AND ((t.status = 'gebucht' AND t.beginn > NOW()) OR (t.status = 'verpasst' AND t.beginn > NOW() - INTERVAL '24 hours'))
+                            AND (RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9)
+                                   IN (RIGHT(g.nummer, 9), NULLIF(RIGHT(REGEXP_REPLACE(COALESCE(an.telefon, ''), '\\D', '', 'g'), 9), ''))
+                              OR (TRIM(COALESCE(an.email, '')) <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(TRIM(an.email)))))
+              OR (g.nachfrage_am IS NULL AND g.spaeter_am IS NULL
+                  AND (g.weg = 'whatsapp' OR g.willkommen_status = 'gesendet'
+                       OR EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein'))
+                  AND (SELECT MAX(w.created_at) FROM fiaon_whatsapp w WHERE w.nummer = g.nummer)
+                      BETWEEN NOW() - INTERVAL '10 days' AND NOW() - INTERVAL '2 days'))
        ORDER BY g.updated_at DESC LIMIT 200`) as any[];
     for (const z of zeilen) {
       const nummer = String(z.nummer);
-      if (await hatStopp(nummer, lauf)) continue;
+      // E-487 Nachbesserung: STOPP oder auf WhatsApp nicht erreichbar (131026) — dieselbe Prüfung wie die Begrüßung und der
+      // Wächter (vorher nur STOPP; die Terminnachricht ging an eine Nummer ohne WhatsApp und scheiterte erneut).
+      if (await waAuslassGrund(nummer, "folge", lauf)) continue;
       const k = await businessKontakt(nummer, null, lauf);
       if (!k) continue;
       const offen = await fensterOffen(nummer, lauf).catch(() => false);
@@ -793,10 +875,14 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
             await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, erinnert_id = CASE WHEN ${bald} THEN ${termin.id}::int ELSE erinnert_id END, updated_at = NOW() WHERE nummer = ${nummer}`;
           }
         } else if (fenster && nutzbar(VORLAGE.termin)) {
-          const ok = (await vorlageSenden(nummer, VORLAGE.termin, [k.anrede || "und willkommen", termin.text])).ok;
-          // Ein Versuch je Termin — ein Fehler wird nicht alle fünf Minuten wiederholt.
-          erinnerungErsetzt = ok && bald;
-          await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, erinnert_id = CASE WHEN ${erinnerungErsetzt} THEN ${termin.id}::int ELSE erinnert_id END, updated_at = NOW() WHERE nummer = ${nummer}`;
+          const erg = await vorlageSenden(nummer, VORLAGE.termin, [k.anrede || "und willkommen", termin.text]);
+          const ok = erg.ok;
+          // Ein Versuch je Termin — ein Fehler wird nicht alle fünf Minuten wiederholt. E-487 Nachbesserung (Gutachten): hielt
+          // die Bremse an (WhatsApp pausiert, nichts ging an Meta), ist das kein Versuch — der nächste Takt schickt sie.
+          if (!erg.gebremst) {
+            erinnerungErsetzt = ok && bald;
+            await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, erinnert_id = CASE WHEN ${erinnerungErsetzt} THEN ${termin.id}::int ELSE erinnert_id END, updated_at = NOW() WHERE nummer = ${nummer}`;
+          }
           if (ok) zahl.termin++;
         }
       }
@@ -919,8 +1005,11 @@ export async function websiteOptinMerken(ein: { anfrageId: number | null; telefo
   }
 }
 
-/** E-487: Ergebnisse, nach denen ein Ja am Telefon zählt — nur ein Gespräch mit ihm (erreicht), nie „kein Interesse“. */
-export const TELEFON_JA_ERGEBNISSE = ["erreicht_interesse", "erreicht_termin", "erreicht_antrag"] as const;
+/**
+ * E-487: Ergebnisse, nach denen ein Ja am Telefon zählt — EINE Liste mit dem Cockpit (shared/fiaon-whatsapp-erlaubnis.ts).
+ * Nachbesserung (Gutachten): ohne „macht den Antrag“ — dort schreibt Mara nicht (Stand „Antrag läuft“), das Cockpit versprach es.
+ */
+export { TELEFON_JA_ERGEBNISSE };
 
 /**
  * E-487 (09.11.2026): DAS JA AM TELEFON — im Firmen-Cockpit hakt die anrufende Person „Möchte auch per WhatsApp (am Telefon

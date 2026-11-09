@@ -149,7 +149,7 @@ export const NUMMER_FUER_VERSAND_SQL = (telefon: string, land: string) => `(SELE
  * nicht mit 49/43/41 beginnt, bekommt dort ein +49 vorangestellt. Für Nummern,
  * die schon fertig sind — die Absender-ID von Meta (immer mit Landesvorwahl,
  * ohne Plus), `fiaon_whatsapp.nummer`, das Ergebnis von nummerFuerWhatsApp —
- * ist genau das falsch: Aus der US-Nummer 12485302707 wurde 4912485302707,
+ * ist genau das falsch: Aus einer US-Nummer (Muster: 13055550123) wurde 4913055550123,
  * aus der türkischen 905321234567 die 49905321234567. Antworten gingen an eine
  * Nummer, die es nicht gibt („Message undeliverable"), und Mara blieb stumm.
  *
@@ -294,6 +294,17 @@ export const GLOBAL_WA_TELEFON_SATZ = {
   de: "Dürfen wir, die FIAON LTD, Sie zu Ihrer Anfrage auch per WhatsApp kontaktieren? Das können Sie jederzeit widerrufen, z. B. mit „STOPP“.",
   en: "May we, FIAON LTD, also contact you about your enquiry on WhatsApp? You can withdraw this at any time, e.g. by replying “STOP”.",
 } as const;
+
+/**
+ * Nach diesen Anruf-Ergebnissen zählt das Ja am Telefon — EINE Liste für das Cockpit (Häkchen, Satz danach) und den Server
+ * (telefonJaMerken). Nur ein Gespräch, nach dem Mara ihm auch wirklich schreibt: „Interesse“ (die Begrüßung) und „Termin
+ * vereinbart“ (die Terminbestätigung, am Vortag die Erinnerung).
+ * E-487 Nachbesserung (Gutachten, 09.11.2026): NICHT „Erreicht — macht den Antrag“. Dann steht der Lead auf „Antrag läuft“ —
+ * Begrüßung, Takt und Wächter lassen diesen Stand bewusst aus (die Begrüßung fragt „Wie möchten Sie das Gespräch führen?“,
+ * das passt nach dem Antrag nicht; ihn führt die Info-Mail mit dem Link). Vorher sagte das Cockpit „Mara schreibt ihm“, und
+ * es kam nie etwas.
+ */
+export const TELEFON_JA_ERGEBNISSE = ["erreicht_interesse", "erreicht_termin"] as const;
 
 /** Eine Telefonnummer aus einem FORMULAR (Website, Meta, Cockpit) in WhatsApp-Form — mit dem Land der Anfrage. Rein. */
 export function formularNummer(roh: unknown, land?: string | null): string | null {

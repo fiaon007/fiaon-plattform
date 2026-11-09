@@ -408,20 +408,32 @@ router.post("/agent/firmen/import", requireAgent, async (req: AgentRequest, res:
 // Satz vor (GLOBAL_WA_TELEFON_SATZ) und hakt „Möchte auch per WhatsApp (am Telefon gefragt)“ — das Häkchen geht mit dem
 // Ergebnis (felder.whatsapp_ja) bzw. mit „Termin bei Justin eintragen“ mit. Der Server merkt das Ja an der Nummer der Anfrage
 // (Quelle „telefon:<Name>“, Zeit, Satz — telefonOptinMerken); die Begrüßung bzw. mit Termin die Terminnachricht schickt Maras
-// Takt (8–20 Uhr, alle Sperren). Nur bei einem Business-Lead mit Anfrage und nur nach einem erreichten Gespräch.
+// Takt (8–20 Uhr, alle Sperren). Nur bei einem Business-Lead mit Anfrage und nur nach „Erreicht — Interesse“ oder „Termin
+// vereinbart“ (TELEFON_JA_ERGEBNISSE, Nachbesserung: nicht nach „macht den Antrag“).
 function whatsappJaGewaehlt(felder: unknown): boolean {
   const w = (felder && typeof felder === "object" ? (felder as Record<string, unknown>).whatsapp_ja : null);
   return w === true || w === "ja";
 }
 
-async function telefonJaMerken(ein: { firma: any; anfrageId: number | null; ergebnis: string; agent: { id: number; name: string } }): Promise<{ gemerkt: boolean; grund: string | null }> {
+// E-487 Nachbesserung (Gutachten, 09.11.2026): `telefon` = die Nummer, die gerade gilt — bei „Termin bei Justin eintragen“ die
+// im Dialog eingetragene (mit ihr ist gebucht, ggf. korrigiert), sonst die angerufene Nummer der Firma. „Macht den Antrag“
+// zählt nicht (TELEFON_JA_ERGEBNISSE): dort schreibt Mara nicht, das Cockpit versprach es aber.
+async function telefonJaMerken(ein: { firma: any; anfrageId: number | null; ergebnis: string; agent: { id: number; name: string }; telefon?: string | null }): Promise<{ gemerkt: boolean; grund: string | null }> {
   try {
     const mb = await import("../lib/fiaon-mara-business");
     if (!ein.anfrageId) return { gemerkt: false, grund: "Das WhatsApp-Ja gibt es nur bei einem Business-Lead mit Anfrage." };
-    if (!(mb.TELEFON_JA_ERGEBNISSE as readonly string[]).includes(ein.ergebnis)) return { gemerkt: false, grund: "Das WhatsApp-Ja zählt nur nach einem Gespräch („erreicht“)." };
+    if (!(mb.TELEFON_JA_ERGEBNISSE as readonly string[]).includes(ein.ergebnis)) {
+      return {
+        gemerkt: false,
+        grund: ein.ergebnis === "erreicht_antrag"
+          ? "Bei „macht den Antrag“ schreibt Mara nicht auf WhatsApp — ihn führt die Info-Mail mit dem Link."
+          : "Das WhatsApp-Ja zählt nur nach „Erreicht — Interesse“ oder „Termin vereinbart“.",
+      };
+    }
     const [sp] = (await sqlPool`SELECT text FROM fiaon_anfragen WHERE id = ${ein.anfrageId}`.catch(() => [])) as any[];
+    const telefon = String(ein.telefon ?? "").trim() || (ein.firma.telefon ? String(ein.firma.telefon) : "");
     const r = await mb.telefonOptinMerken({
-      anfrageId: ein.anfrageId, firmaId: Number(ein.firma.id), telefon: ein.firma.telefon ? String(ein.firma.telefon) : null, wer: ein.agent.name,
+      anfrageId: ein.anfrageId, firmaId: Number(ein.firma.id), telefon: telefon || null, wer: ein.agent.name,
       englisch: /^Sprache:\s*Englisch/m.test(String(sp?.text ?? "")),
     });
     if (r.ok) {
@@ -758,8 +770,9 @@ router.post("/agent/firmen/:id/justin-termin", requireAgent, async (req: AgentRe
       VALUES (${Number(firma.id)}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', 'erreicht_termin', ${pruef.text.slice(0, 2000)})`.catch(() => {});
     await sqlPool`UPDATE fiaon_firmen_leads SET status = 'termin', letzter_kontakt = NOW(), updated_at = NOW() WHERE id = ${Number(firma.id)}`.catch(() => {});
     // E-487: das Häkchen „Möchte auch per WhatsApp“ fährt auch hier mit — dann kommt die Terminbestätigung auch auf WhatsApp.
+    // Nachbesserung (Gutachten): an der Nummer aus dem Dialog (kontakt.telefon — mit ihr ist gebucht), nicht an der alten der Firma.
     const whatsapp = whatsappJaGewaehlt(b.felder)
-      ? await telefonJaMerken({ firma, anfrageId: erg.anfrageId ?? anfrage?.anfrageId ?? null, ergebnis: "erreicht_termin", agent: { id: req.agent!.id, name: req.agent!.name } })
+      ? await telefonJaMerken({ firma, anfrageId: erg.anfrageId ?? anfrage?.anfrageId ?? null, ergebnis: "erreicht_termin", agent: { id: req.agent!.id, name: req.agent!.name }, telefon: kontakt.telefon })
       : null;
     res.json({ ok: true, terminId: erg.terminId, datumText: erg.datumText, uhrzeit: erg.uhrzeit, bei: erg.ansprechpartner.vorname, anrufEingetragen: true, whatsapp });
   } catch (err) {

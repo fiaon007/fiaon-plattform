@@ -1319,12 +1319,14 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
     tipp: "Ein Termin, bei dem Justin anruft, bleibt „Termin bei Justin eintragen“. Der Rückruf ist für dich.",
   },
   // E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): das Ja zu WhatsApp am Telefon — das Häkchen steht nur bei Business-Leads (ohne `ziel`).
+  // Nachbesserung (Gutachten, 09.11.2026) mitgezogen: zählt nur nach „Erreicht — Interesse“ oder dem Termin, nicht nach „macht den Antrag“.
   {
     titel: "Darf Mara ihm schreiben? Frag am Telefon.",
     text: "Bei einem Business-Lead steht direkt über den Ergebnis-Knöpfen das Häkchen „Möchte auch per WhatsApp (am Telefon gefragt)“. "
-      + "Lies ihm im Gespräch den Satz darunter vor (er nennt FIAON, WhatsApp und „STOPP“). Sagt er Ja, hakst du es und klickst das Ergebnis "
-      + "oder trägst den Termin bei Justin ein — es zählt nur nach „erreicht“. Das System merkt sich dein Ja mit deinem Namen, der Uhrzeit und dem Satz; Mara schickt ihm dann "
-      + "auf WhatsApp die Begrüßung (8–20 Uhr), hat er einen Termin, die Terminbestätigung und am Vortag die Erinnerung.",
+      + "Lies ihm im Gespräch den Satz darunter vor (er nennt FIAON, WhatsApp und „STOPP“). Sagt er Ja, hakst du es und klickst „Erreicht — Interesse“ "
+      + "oder trägst den Termin bei Justin ein. Das System merkt sich dein Ja mit deinem Namen, der Uhrzeit und dem Satz; Mara schickt ihm dann "
+      + "auf WhatsApp die Begrüßung (8–20 Uhr), hat er einen Termin, die Terminbestätigung und am Vortag die Erinnerung. "
+      + "Bei „macht den Antrag“ schreibt Mara nicht — da führt ihn die Info-Mail mit dem Link.",
     tipp: "Kein Ja, kein Haken: Ohne sein Ja schreibt Mara nie zuerst. Mit „STOPP“ kann er jederzeit aufhören.",
   },
   // E-476 Scheibe 5 (05.11.2026): EIN Stand je Business-Lead — die Leiste erscheint nur bei Business-Leads (ohne `ziel`).
@@ -2754,7 +2756,11 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       // E-487 (09.11.2026) mitgezogen: der Ergebnis-Wächter „Lead-Kette“.
       + "Seit dem 09.11. prüft die Lead-Kette, ob beim Lead wirklich etwas ankommt: Willkommens-Mail (nach 30 Minuten), fälliger Nachfass "
       + "(nach 2 Dienststunden) und seine WhatsApp, wenn er Ja gesagt hat (nach 30 Minuten zwischen 8 und 20 Uhr). Hängt etwas, wird es "
-      + "rot — und du bekommst eine kurze Mail, einmal je Fall und danach höchstens alle 4 Stunden.",
+      + "rot — und du bekommst eine kurze Mail, einmal je Fall und danach höchstens alle 4 Stunden. "
+      // E-487 Nachbesserung (Gutachten, 09.11.2026) mitgezogen: was bei WhatsApp rot, gelb oder gar nicht gemeldet wird.
+      + "Bei WhatsApp heißt rot: Mara hat es noch nie versucht. Ist eine WhatsApp gescheitert oder wartet sie auf das Ende einer "
+      + "WhatsApp-Pause, steht sie gelb da (ohne Mail). Schreibt Mara mit Absicht nicht — STOPP, laut Meta kein WhatsApp, Werbung "
+      + "abbestellt —, gibt es keinen Alarm.",
     tipp: "„Vorschau“ zeigt die Übersicht (auch für einen vergangenen Tag), ohne zu senden. „Stand ableiten“ zeigt einmalig, wo der "
       + "Altbestand nicht zum Cockpit passt — „Anwenden“ schreibt nur mit deinem Go.",
   },
@@ -3148,7 +3154,9 @@ export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
     tipp: "Seit dem 05.11. gibt es die Lead-Wächter: Kalender leer, während die Global-Werbung läuft; ein Lead seit über 10 Minuten "
       + "ohne Dossier; eine Lead-Mail gescheitert oder nicht zugestellt. „Meta-Webhook still“ ist ein bekannter Zustand — einmal gelb, nicht täglich. "
       // E-487 (09.11.2026) mitgezogen: die Lead-Kette.
-      + "Seit dem 09.11. dazu die Lead-Kette: Willkommens-Mail, Nachfass oder WhatsApp hängt bei einem Lead — rot, mit einer Mail an dich.",
+      + "Seit dem 09.11. dazu die Lead-Kette: Willkommens-Mail, Nachfass oder WhatsApp hängt bei einem Lead — rot, mit einer Mail an dich. "
+      // E-487 Nachbesserung (Gutachten, 09.11.2026) mitgezogen.
+      + "Eine gescheiterte WhatsApp ist nur gelb; STOPP oder „kein WhatsApp“ meldet sie gar nicht.",
   },
 ];
 

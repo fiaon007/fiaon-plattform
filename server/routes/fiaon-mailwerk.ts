@@ -9,13 +9,19 @@
 //   · Der Versandweg-Schalter (make | direkt) und die Ausnahmenliste
 //   · Die Takte der Automatik (Mahnungen 2×/Tag, Lead-Strecke 2×/Tag)
 //   · Prüfversand jeder Vorlage an eine Adresse deiner Wahl
+//   · E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — Justin drückt den Knopf (server/lib/fiaon-vorsorge-einladung.ts):
+//       GET  /chef/mailwerk/vorsorge                 Zahlen je Kreis, gesperrt je Grund, heute/Deckel, Partner, Trichter, Protokoll
+//       GET  /chef/mailwerk/vorsorge/vorschau?kreis= die echte Mail des Nächsten im Kreis als HTML — sendet NIE
+//       POST /chef/mailwerk/vorsorge/pruefversand    { kreis, an? } — dieselbe Mail an die Testadresse (art = test)
+//       POST /chef/mailwerk/vorsorge/freigeben       { kreis } — Schalter an + Kreis in EINER Buchung, im Protokoll
+//       POST /chef/mailwerk/vorsorge/anhalten        Schalter aus — ab sofort nichts mehr
 //
 // Verändert wird NUR über die Whitelist unten — ein Tippfehler im Schlüssel
 // kann so keine fremde Einstellung überschreiben.
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { requireChef } from "./fiaon-chef-zugang";
+import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugang";
 import { mailEvents } from "../lib/fiaon-mail-events";
 import { ZAHLUNGSPOST_FREIGABE_EVENT } from "../lib/fiaon-mail-frequenz";
 
@@ -184,6 +190,85 @@ router.post("/chef/mailwerk/pruefversand/:event", requireChef("geschaeftsfuehrun
   } catch (err) {
     console.error("[MAILWERK] Prüfversand:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): „IHR VORSORGE-ÜBERBLICK“ — DER KNOPF FÜR JUSTIN
+// Nichts an Kunden geht ohne „Freigeben“. Vorschau und Prüfversand senden nie an Kunden (Knopf und Abmeldelink führen dort
+// auf die Vorschau-Seite). Wer wann freigegeben oder angehalten hat, steht in fiaon_admin_log (chefProtokoll).
+// ═══════════════════════════════════════════════════════════════════════════
+async function chefName(req: ChefRequest): Promise<string> {
+  const id = req.chef?.agentId ?? null;
+  if (id) {
+    const [a] = (await sqlPool`SELECT name FROM fiaon_agents WHERE id = ${id} LIMIT 1`.catch(() => [])) as any[];
+    if (a?.name && String(a.name).trim()) return String(a.name).trim().slice(0, 80);
+  }
+  return id ? `Chef #${id}` : "Inhaber";
+}
+
+router.get("/chef/mailwerk/vorsorge", requireChef("geschaeftsfuehrung"), async (_req: Request, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    const { vorsorgeChefStand } = await import("../lib/fiaon-vorsorge-einladung");
+    res.json({ ok: true, ...(await vorsorgeChefStand()) });
+  } catch (err) {
+    console.error("[MAILWERK] Vorsorge-Stand:", err);
+    res.status(500).json({ ok: false, error: "Der Stand des Vorsorge-Überblicks ließ sich gerade nicht laden." });
+  }
+});
+
+router.get("/chef/mailwerk/vorsorge/vorschau", requireChef("geschaeftsfuehrung"), async (req: Request, res: Response) => {
+  try {
+    const { vorsorgeVorschau } = await import("../lib/fiaon-vorsorge-einladung");
+    const v = await vorsorgeVorschau(req.query.kreis);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
+    res.send(v.html);
+  } catch (err) {
+    console.error("[MAILWERK] Vorsorge-Vorschau:", err);
+    res.status(500).type("text/plain").send("Die Vorschau ließ sich gerade nicht erzeugen.");
+  }
+});
+
+router.post("/chef/mailwerk/vorsorge/pruefversand", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const { vorsorgePruefversand } = await import("../lib/fiaon-vorsorge-einladung");
+    const r = await vorsorgePruefversand(req.body?.kreis, req.body?.an);
+    if (r.ok) await chefProtokoll(req, "vorsorge-mail:pruefversand", r.meldung);
+    res.status(r.ok ? 200 : 400).json(r);
+  } catch (err) {
+    console.error("[MAILWERK] Vorsorge-Prüfversand:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
+router.post("/chef/mailwerk/vorsorge/freigeben", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const V = await import("../lib/fiaon-vorsorge-einladung");
+    const wer = await chefName(req);
+    const r = await V.vorsorgeFreigeben(req.body?.kreis, wer);
+    if (!r.ok) return res.status(400).json(r);
+    await chefProtokoll(req, "vorsorge-mail:freigabe", `Freigegeben durch ${wer}: ${V.freigabeSatz(r.nachher.kreis, r.offen)}${r.vorher.an ? ` (vorher an, Kreis ${r.vorher.kreis})` : ""}.`);
+    console.log(`[MAILWERK] Vorsorge-Mail freigegeben durch ${wer}: Kreis ${r.nachher.kreis}, ${r.offen} offen.`);
+    res.json({ ok: true, meldung: `Freigegeben — ${V.freigabeSatz(r.nachher.kreis, r.offen)}. Der Takt beginnt mit seinem nächsten Lauf.`, einstellungen: r.nachher });
+  } catch (err) {
+    console.error("[MAILWERK] Vorsorge-Freigabe:", err);
+    res.status(500).json({ ok: false, error: "Freigeben ging nicht — es wurde nichts geändert." });
+  }
+});
+
+router.post("/chef/mailwerk/vorsorge/anhalten", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const V = await import("../lib/fiaon-vorsorge-einladung");
+    const wer = await chefName(req);
+    const r = await V.vorsorgeAnhalten(wer);
+    await chefProtokoll(req, "vorsorge-mail:anhalten", `Angehalten durch ${wer} — ab sofort geht keine Vorsorge-Mail mehr raus.`);
+    res.json({ ok: true, meldung: "Angehalten — ab sofort geht keine Vorsorge-Mail mehr raus.", einstellungen: r.nachher });
+  } catch (err) {
+    console.error("[MAILWERK] Vorsorge-Anhalten:", err);
+    res.status(500).json({ ok: false, error: "Anhalten ging nicht — bitte gleich noch einmal." });
   }
 });
 

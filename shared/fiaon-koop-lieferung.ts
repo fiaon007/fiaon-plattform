@@ -9,6 +9,9 @@
 //   1. Interesse (freiwillig, Kundenbereich): „Ich möchte ein kostenloses Gespräch“ → Aufgabe an den Betreuer.
 //   2. Telefonat: Der Mitarbeiter liest den Einwilligungstext MIT dem Namen des Partners vor; der Kunde sagt Ja.
 //      Gespeichert: Datum, Uhrzeit, Wortlaut, Kanal, Mitarbeiter. OHNE dieses Ja gibt es keinen Kontakt.
+//      E-487 (09.11.2026): ODER der Kunde bucht selbst (Kundenbereich-Karte, Seite /vorsorge/<persönlicher Link>): Er liest
+//      den Wortlaut in Ich-Form (shared/fiaon-vorsorge.ts) und setzt ein eigenes, nie vorangekreuztes Kästchen — Kanal
+//      „kundenbereich“ mit IP und Browser-Kennung. Derselbe Kern (koopKontaktAnlegen), dieselbe Übermittlung.
 //   3. Qualifizierungsmaske (Akte): Thema aus den Themen des Partners, Termin in seinen freigegebenen Zeiten, Notiz.
 //   4. Übermittlung per Mail an den Partner sofort beim Speichern — spätestens am Werktag vor dem Termin (Ziffer 4).
 //   5. Monatsrechnung am Ersten des Folgemonats, Reklamation im Partnerbereich (Gutschrift oder Ersatz).
@@ -16,7 +19,8 @@
 // ── WAS NIE PASSIERT ──────────────────────────────────────────────────────
 //   · Kein Kontakt ohne Ja am Telefon, kein Kontakt an Gesperrte, Werbegesperrte oder Global-Kunden.
 //   · FIAON empfiehlt nichts — die Maske fragt nur das Thema. Gesundheit, Einkommen, Bonität stehen NIE in der Übermittlung.
-//   · Keine Werbemail an Kunden: Gefragt wird im Gespräch oder im eigenen Kundenbereich.
+//   · Keine Werbemail MIT Partner: Gefragt wird im Gespräch oder im eigenen Kundenbereich. E-487: Maras Mail „Ihr
+//     Vorsorge-Überblick“ wirbt für FIAONs EIGENE Leistung (ohne Partnernamen); Partner und Einwilligung erst auf der Seite.
 // DATENSCHUTZ: Das Repo ist öffentlich (E-242) — hier stehen KEINE Partner- oder Kundendaten.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -98,7 +102,9 @@ export const KOOP_EINWILLIGUNG_FRAGE = "Sind Sie damit einverstanden?";
 /** Der Satz im Kundenbereich (Interesse, noch ohne Partner): Er erlaubt nur, dass FIAON den Kunden dazu anruft. */
 export const KOOP_INTERESSE = {
   titel: "Vorsorge und Absicherung — ein kostenloses Gespräch",
-  text: "Viele unserer Kunden möchten neben ihren Finanzen auch Vorsorge und Absicherung angehen. Auf Wunsch vermitteln wir Ihnen ein kostenloses Gespräch mit einem unabhängigen Berater — Sie entscheiden danach in Ruhe. Ihre FIAON-Leistungen hängen davon nicht ab.",
+  // E-487 (09.11.2026): „unabhängigen“ → „selbstständigen“ — ein Vermögensberater eines Vertriebs ist kein unabhängiger
+  // Makler; der Einwilligungstext sagt seit E-386 „selbstständigen Berater“ (Plan p2, Risiko 2).
+  text: "Viele unserer Kunden möchten neben ihren Finanzen auch Vorsorge und Absicherung angehen. Auf Wunsch vermitteln wir Ihnen ein kostenloses Gespräch mit einem selbstständigen Berater — Sie entscheiden danach in Ruhe. Ihre FIAON-Leistungen hängen davon nicht ab.",
   wortlaut: "Ja, ich wünsche ein kostenloses Gespräch zu Vorsorge und Absicherung. FIAON darf mich dazu anrufen, um mein Wunschthema und einen Termin abzustimmen. Meine Daten gehen erst an einen Berater, wenn ich im Telefonat ausdrücklich zustimme. Ich kann das jederzeit widerrufen.",
   knopf: "Ja, ich möchte ein Gespräch",
   nein: "Kein Interesse",

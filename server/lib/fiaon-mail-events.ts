@@ -454,6 +454,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
   // Kunde es wollte. Nicht im allgemeinen Menü: Preis, Kauflink und Abmeldelink
   // baut auskunftAngebotNutzlast; der Aufrufer gibt sie als `zusatz` mit. Die Tür
   // (make-webhook.ts) lehnt bei Werbesperre auch den Handversand ab.
+  // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ — nie von Hand aus einem Menü; nur der Takt nach Justins Freigabe.
+  vorsorge_ueberblick: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    klartext: "Werbung (FIAON-eigene Leistung): Maras Einladung zum Vorsorge-Überblick mit persönlichem Link (30 Tage) — dort auf Wunsch ein Termin beim Vorsorge-Partner. Nur nach Freigabe im Mailwerk, je Mensch einmal, nur bezahlt, Deutschland, ungekündigt, ohne Sperre.",
+    vonHand: false, pflichtFelder: ["link", "abmelde_url"],
+  },
   auskunft_angebot: {
     gruppe: "dokumente", zielgruppe: "kunde", rollen: ["admin", "vertriebsleiter", "agent", "onboarding", "inkasso"],
     klartext: "Werbung: das Angebot der Bonitätsauskunft (Preis je Paketstand, Auskunfteien je Land, Knopf zum Beauftragen). Nie an Käufer, nie bei Werbe- oder Vertriebssperre oder Kündigung; automatisch nur an Kunden ab dem 02.09.2026 (§ 7 Abs. 3 UWG).",

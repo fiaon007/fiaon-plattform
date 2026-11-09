@@ -5,6 +5,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.11.2026 — E-487: „Ihr Vorsorge-Überblick“ — Kunden buchen das Partner-Gespräch selbst, Mara lädt ein (erst nach Justins Knopf)
+
+- **Warum:** Justin (09.11.): Alle Privatkunden sollen per E-Mail gefragt werden, ob sie sich passend absichern möchten, und
+  direkt einen Termin beim Partner buchen können. Bisher ging ein Partner-Termin nur über einen Anruf des Betreuers, der den
+  Einwilligungstext vorlas. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Eigene Seite mit persönlichem Link** `/vorsorge/<Link>`: ohne Anmeldung, 30 Tage gültig, nicht bei Google (noindex,
+    robots.txt), gedrosselt, ohne Finanzdaten. Schritt 1: Themen ankreuzen — gespeichert als „Ihr Vorsorge-Überblick“. Schritt 2
+    auf Wunsch: der Partner mit Name und Rolle, Gesprächsart, freie Zeiten aus seinem Partnerbereich, ein eigenes, nie
+    vorangekreuztes Kästchen zum Einwilligungstext in Ich-Form (neue Fassung KOOP-EW-SELBST-2026-11-09) → „Termin buchen“.
+  - **Dieselbe Buchung in der Karte im Kundenbereich** (/app › Heute) — statt „Ja“ und Rückruf. Ein offener Rückruf-Auftrag
+    „Kunde wünscht ein Gespräch …“ schließt sich, sobald der Kunde selbst bucht.
+  - **Gespeichert wird wie beim Telefon-Weg:** Einwilligung mit Kanal „kundenbereich“, IP und Browser-Kennung, Wortlaut genau wie
+    gezeigt. Übermittlung an den Partner und Bestätigung an den Kunden laufen sofort; der Partnerbrief sagt „im FIAON-Kundenbereich
+    selbst erteilt“, die Kundenbestätigung „Sie haben … gebucht“. Alle Sperren des Telefon-Wegs gelten (Vertriebssperre,
+    Werbesperre, Test, Global, Ausland, minderjährig, Kontakt fehlt, Exklusivität beim Partner).
+  - **Rolle des Partners** kommt nie aus dem Code: Vorgabe „selbstständiger Berater“, eigene Bezeichnung je Partner in
+    Chefbüro › Geschäftspartner (Feld „Bezeichnung auf der Kundenseite“).
+  - **Mara-Mail „Ihr Vorsorge-Überblick“** (welcome@, Maras Signatur, Sie-Form, Abmeldelink und List-Unsubscribe, kein Bank-Satz,
+    keine Produktempfehlung — FIAON ist nur Tippgeber). Takt: alle 30 Minuten, 9–19 Uhr Berliner Zeit, höchstens 60 am Tag, je
+    Mensch genau eine Mail, Sperren vor jeder Mail neu geprüft, Protokoll im Mailprotokoll und im Akte-Verlauf. Nie an A/B/C, nie
+    nach Österreich/Schweiz/Ausland, nie an Global, Gesperrte, Abgemeldete, Gekündigte, Kunden mit offener Rate.
+  - **Justin drückt den Knopf:** neue Karte im Chefbüro › Mailwerk — Zahlen je Kreis („Grün“ = Widerspruchs-Hinweis stand schon
+    bei der Erhebung, „Grün + Gelb“ = alle ohne Sperrgrund), Vorschau mit echten Daten (verschickt nie), Prüfversand an die
+    Testadresse, EIN „Freigeben“ und „Anhalten“. Vorgabe: AUS. Der Rundgang des Mailwerks erklärt die Karte.
+  - **Datenschutzerklärung:** neuer Abschnitt „IV b. Ihr Vorsorge-Überblick und Gespräche mit einem Partner von FIAON“.
+  - **Prüfstand:** neu `scripts/pruef-vorsorge.ts` (Link, Kästchen, Kreis, Wortwand, Abmeldelink, Takt); die Koop-Prüfstände haben
+    jetzt einen reinen Teil A ohne Datenbank.
+- **Wo:** shared/fiaon-vorsorge.ts, server/lib/fiaon-vorsorge.ts, server/lib/fiaon-vorsorge-einladung.ts,
+  server/lib/fiaon-koop-lieferung.ts, server/routes/fiaon-koop.ts, server/routes/fiaon-mailwerk.ts, server/mail/vorlagen/vorsorge.ts,
+  client/src/pages/vorsorge.tsx, client/src/components/kunde/ (VorsorgeBuchung, PartnerGespraechKarte),
+  client/src/components/admin/ (MailwerkVorsorge, ChefMailwerk), client/src/pages/privacy.tsx,
+  db/migrations/132_vorsorge_ueberblick.sql, scripts/pruef-vorsorge.ts.
+
 ## 06.11.2026 — E-484 (Endprüfung): Auszahlungsplan — Zahlungsweg ohne neue Tabellen-Sperre, Rückruf vor dem Plan verknüpft
 
 - **Warum:** Die Endprüfung vor dem Push hat die Nachbesserung gegengelesen und nachgestellt. Noch nicht live (eigener Zweig, kein Push).

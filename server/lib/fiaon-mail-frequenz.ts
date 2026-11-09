@@ -470,6 +470,8 @@ export const AUSKUNFT_ANGEBOT = "auskunft_angebot";
  */
 const WERBUNG_IMMER = new Set<string>([
   "lead_followup", "lead_application_link", "followup_48h", "antrag_erinnerung", AUSKUNFT_ANGEBOT,
+  // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ — auch von Hand nie an eine Werbesperre.
+  "vorsorge_ueberblick",
 ]);
 export function istWerbungImmer(event: string): boolean {
   return WERBUNG_IMMER.has(event) || event.startsWith("rueckhol_");

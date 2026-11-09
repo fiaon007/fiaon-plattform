@@ -1,10 +1,20 @@
 // Prüfstand E-390 (16.10.2026): Vertragsvorlagen Recht, Steuern (Partnerplatz) und Energie, Telefon (je Abschluss) — vom
-// Angebot über Annahme, Einwilligung, Übermittlung und Abschluss-Meldung bis zur Monatsrechnung. NUR lokal, Brevo abgefangen.
-//   env -i HOME=$HOME PATH=$PATH BREVO_API_KEY=pruef SESSION_SECRET=pruef \
-//     DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<lokale Kopie>' node_modules/.bin/tsx scripts/pruef-koop-modelle.ts
+// Angebot über Annahme, Einwilligung, Übermittlung und Abschluss-Meldung bis zur Monatsrechnung.
+// E-487 (09.11.2026): zwei Teile.
+//   A  REIN (immer, ohne Datenbank): Vorsorge bleibt Wort für Wort, die Pflichtfelder der Modelle, Fassungen und Wortlaute je
+//      Bereich — und die Selbstbuchung (Kanal „kundenbereich“) ändert an Recht, Steuern, Energie und Telefon kein Wort.
+//        env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus BREVO_API_KEY=pruef node_modules/.bin/tsx scripts/pruef-koop-modelle.ts
+//   B  NUR lokal (PG 127.0.0.1:54329), Brevo abgefangen:
+//        env -i HOME=$HOME PATH=$PATH BREVO_API_KEY=pruef SESSION_SECRET=pruef \
+//          DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/<lokale Kopie>' node_modules/.bin/tsx scripts/pruef-koop-modelle.ts
 let gut = 0, schlecht = 0;
 function ok(b: unknown, was: string) { if (b) { gut++; console.log(`  ✓ ${was}`); } else { schlecht++; console.log(`  ✗ ${was}`); } }
-if (!/127\.0\.0\.1|localhost/.test(String(process.env.DATABASE_URL))) { console.error("Nur gegen den lokalen Prüfstand."); process.exit(3); }
+const TEIL_B = /127\.0\.0\.1|localhost/.test(String(process.env.DATABASE_URL ?? ""));
+if (!TEIL_B) {
+  if (process.env.DATABASE_URL) console.error("Teil B nur gegen den lokalen Prüfstand — es läuft nur Teil A.");
+  // db-pool verlangt beim Laden eine Adresse — Teil A verbindet nie.
+  process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+}
 
 const mails: { an: string; betreff: string; text: string; anhaenge: string[] }[] = [];
 const echtFetch = globalThis.fetch;
@@ -24,6 +34,32 @@ async function main() {
   const S = await import("../shared/fiaon-global-angebot-koop");
   const L = await import("../server/lib/fiaon-koop-lieferung");
   const { katalogpreiseSyncen } = await import("../server/lib/fiaon-katalogpreise");
+  const KL = await import("../shared/fiaon-koop-lieferung");
+
+  console.log("Teil A — reine Regeln");
+  {
+    const vorA = S.koopParameterAus({});
+    ok(vorA.bereich === "vorsorge" && vorA.preisCents === 5900 && S.koopFassungFuer("vorsorge") === "IA-KOOP-2026-10-16-A", "Altangebot ohne Bereich = Vorsorge, 59 €, Fassung A");
+    const pA = { anrede: "Frau", vorname: "Petra", nachname: "Muster", firma: "Muster GmbH" };
+    ok(KL.koopEinwilligungFassung("vorsorge") === "KOOP-EW-2026-10-16" && KL.koopEinwilligungFassung("recht") === "KOOP-EW-RECHT-2026-10-16" && KL.koopEinwilligungFassung("energie") === "KOOP-EW-ENERGIE-2026-10-16", "Fassungen je Bereich unverändert");
+    ok(/Kosten des Erstgesprächs nennt Ihnen die Kanzlei/.test(KL.koopEinwilligungText(pA, "Mietrecht", "recht")) && /Anschrift/.test(KL.koopEinwilligungText(pA, "Strom", "energie")) && /erhält keine Provision/.test(KL.koopEinwilligungText(pA, "Vermögensaufbau", "vorsorge")), "Wortlaute je Bereich: Kosten vorab (Recht), Anschrift (Energie), keine Provision (Vorsorge)");
+    ok(KL.koopNotizGesperrt("Schulden aus 2021", "vorsorge") && !KL.koopNotizGesperrt("Inkasso, Schulden aus 2021", "recht") && KL.koopNotizGesperrt("Therapie läuft", "recht"), "Notiz-Sperre: Vorsorge sperrt Schulden, Recht erlaubt sie, Gesundheit nie");
+    // E-487: „Sie haben … gebucht“ gibt es nur bei Vorsorge (Modell „kontakt“) — Recht und Energie bleiben Wort für Wort, auch mit Kanal „kundenbereich“.
+    const kA = { vorname: "Rita", nachname: "Recht", telefon: "+49 170 0000002", email: "rita@pruefstand.test", thema: "Mietrecht", termin_beginn: new Date("2026-11-20T10:00:00+01:00"), termin_dauer_min: 60, termin_art: "telefon", notiz: null, ersatz_fuer_id: null, anschrift: "Musterweg 3, 10115 Berlin" };
+    const dRecht = { ref: "FIAON-IA-KPRUEF2", fassung: "IA-KOOP-PLATZ-2026-10-16", partner: { ...pA, art: "unternehmer", strasse: "X 1", plz: "10115", ort: "Berlin", land: "DE", email: "p@pruefstand.test", telefon: "" }, parameter: S.koopParameterAus({ bereich: "recht" }), gueltigBis: "2026-12-31" } as any;
+    const dEnergie = { ...dRecht, ref: "FIAON-IA-KPRUEF3", fassung: "IA-KOOP-ABSCHLUSS-2026-10-16", parameter: S.koopParameterAus({ bereich: "energie" }) } as any;
+    const rTel = L.koopKundeBestaetigungText(dRecht, kA, "telefon"); const rSelbst = L.koopKundeBestaetigungText(dRecht, kA, "kundenbereich");
+    const eTel = L.koopKundeBestaetigungText(dEnergie, { ...kA, thema: "Strom" }, "telefon"); const eSelbst = L.koopKundeBestaetigungText(dEnergie, { ...kA, thema: "Strom" }, "kundenbereich");
+    ok(rTel.text === rSelbst.text && /^wie besprochen haben wir für Sie ein Erstgespräch/.test(rTel.text), "Recht: Bestätigung unverändert (Selbstbuchung gibt es nur bei Vorsorge)");
+    ok(eTel.text === eSelbst.text && /Ein Vertrag entsteht nur/.test(eTel.text) && /^Ihr Rückruf am/.test(eTel.betreff), "Energie: Bestätigung und Betreff unverändert");
+  }
+
+  if (!TEIL_B) {
+    console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (Teil A, rein — Teil B nur gegen den lokalen Prüfstand)`);
+    process.exit(schlecht ? 1 : 0);
+  }
+
+  console.log("\nTeil B — gegen den lokalen Prüfstand");
   await A.ensureAngebotTabellen(); await L.ensureKoopTabellen(); await katalogpreiseSyncen();
   const [spalten] = (await sqlPool`SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_name = 'fiaon_koop_kontakte' AND column_name IN ('anschrift', 'abschluss_am', 'abschluss_art', 'kein_abschluss_am')`) as any[];
   ok(Number(spalten.n) === 4, "Migration 112: vier neue Spalten am Kontakt");

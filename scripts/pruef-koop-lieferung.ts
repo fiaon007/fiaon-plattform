@@ -1,12 +1,23 @@
 // Prüfstand E-386 (16.10.2026): Lieferstrecke des Kooperationsvertrags — ein Kontakt von der Einwilligung bis zur Monatsrechnung.
-// NUR gegen eine LOKALE Kopie (Prüfstand, PG 127.0.0.1:54329). Mails gehen nie raus: fetch zu api.brevo.com wird hier
-// abgefangen und protokolliert. Aufruf:
-//   env -i HOME=$HOME PATH=$PATH BREVO_API_KEY=pruef SESSION_SECRET=pruef \
-//     DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_koop?sslmode=require' node_modules/.bin/tsx scripts/pruef-koop-lieferung.ts
+// E-487 (09.11.2026): zwei Teile.
+//   A  REIN (immer, ohne Datenbank): Werktag-/Feiertagsregeln, Zeiten, Katalog, Produktkategorie — und die Kanal-Texte der
+//      Selbstbuchung (Partnerbrief „im FIAON-Kundenbereich selbst erteilt“, Kundenbestätigung „Sie haben … gebucht“), der
+//      Telefon-Weg Wort für Wort wie bisher, kein Kontakt ohne Ja.
+//        env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus BREVO_API_KEY=pruef node_modules/.bin/tsx scripts/pruef-koop-lieferung.ts
+//   B  NUR gegen eine LOKALE Kopie (Prüfstand, PG 127.0.0.1:54329) — der ganze Weg mit Datenbank. Mails gehen nie raus: fetch
+//      zu api.brevo.com wird hier abgefangen und protokolliert. Aufruf:
+//        env -i HOME=$HOME PATH=$PATH BREVO_API_KEY=pruef SESSION_SECRET=pruef \
+//          DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_koop?sslmode=require' node_modules/.bin/tsx scripts/pruef-koop-lieferung.ts
 let gut = 0, schlecht = 0;
 function ok(b: unknown, was: string) { if (b) { gut++; console.log(`  ✓ ${was}`); } else { schlecht++; console.log(`  ✗ ${was}`); } }
 
-if (!/127\.0\.0\.1|localhost/.test(String(process.env.DATABASE_URL))) { console.error("Nur gegen den lokalen Prüfstand."); process.exit(3); }
+// Teil B nur gegen den lokalen Prüfstand. Jede andere Adresse (auch keine) heißt: nur Teil A — und db-pool bekommt dann eine
+// Adresse, zu der nie verbunden wird (postgres verbindet erst bei der ersten Abfrage).
+const TEIL_B = /127\.0\.0\.1|localhost/.test(String(process.env.DATABASE_URL ?? ""));
+if (!TEIL_B) {
+  if (process.env.DATABASE_URL) console.error("Teil B nur gegen den lokalen Prüfstand — es läuft nur Teil A.");
+  process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+}
 
 // ── Brevo abfangen ──────────────────────────────────────────────────────────
 const mails: { an: string; betreff: string; text: string; anhaenge: string[] }[] = [];
@@ -28,12 +39,8 @@ async function main() {
   const S = await import("../shared/fiaon-koop-lieferung");
   const P = await import("../shared/fiaon-pakete");
   const { katalogpreiseSyncen } = await import("../server/lib/fiaon-katalogpreise");
-  await A.ensureAngebotTabellen();
-  await L.ensureKoopTabellen();
-  await katalogpreiseSyncen();
-  const stempel = Date.now().toString(36);
 
-  console.log("Reine Regeln");
+  console.log("Teil A — reine Regeln");
   ok(S.koopLetzterWerktagVor("2026-10-19") === "2026-10-16", "letzter Werktag vor Montag 19.10. = Freitag 16.10.");
   ok(S.koopTerminTagMoeglich("2026-10-19", "2026-10-16") && !S.koopTerminTagMoeglich("2026-10-19", "2026-10-17"), "Montagstermin: Freitag ja, Samstag nein (Ziffer 4)");
   ok(S.koopLetzterWerktagVor("2026-10-05") === "2026-10-02", "Feiertag 03.10. zählt (Samstag), Montag 05.10. → Freitag 02.10.");
@@ -42,6 +49,36 @@ async function main() {
   ok(P.paket("koop_kontakte")?.preisJeAngebot === true && P.paket("koop_kontakte")?.abo === false && P.paket("koop_kontakte")?.zahlungsseite === "global" && !P.istGlobalPaket("koop_kontakte"), "Katalog: koop_kontakte — kein Abo, Betrag aus dem Vertrag, Global-Kategorie, kein Global-Start");
   const { produktkategorie } = await import("../server/lib/fiaon-produktkategorie");
   ok(produktkategorie({ type: "business", ref: "FIAON-KOOP-X", pack_key: "koop_kontakte" }) === "global", "Produktkategorie der Monatsrechnung = global (nie Privat-Erinnerung/Rückholung)");
+
+  // E-487 (09.11.2026): Selbstbuchung im Kundenbereich — dieselbe Strecke, eigene Sätze je Kanal (rein, ohne Datenbank).
+  const V = await import("../shared/fiaon-vorsorge");
+  const { koopParameterAus } = await import("../shared/fiaon-global-angebot-koop");
+  const dV = { ref: "FIAON-IA-KPRUEF1", fassung: "IA-KOOP-2026-10-16-A", partner: { art: "unternehmer", anrede: "Herr", vorname: "Paul", nachname: "Partner", firma: "", strasse: "Teststraße 1", plz: "10115", ort: "Berlin", land: "DE", email: "paul@pruefstand.test", telefon: "" }, parameter: koopParameterAus({}), gueltigBis: "2026-12-31" } as any;
+  const kV = { vorname: "Klara", nachname: "Kundin", telefon: "+49 170 0000001", email: "klara@pruefstand.test", thema: "Vermögensaufbau", termin_beginn: new Date("2026-11-20T10:00:00+01:00"), termin_dauer_min: 60, termin_art: "telefon", notiz: null, ersatz_fuer_id: null, anschrift: null };
+  const ewTel = { kanal: "telefon", erteilt_am: new Date("2026-11-10T09:00:00+01:00"), fassung: S.KOOP_EINWILLIGUNG_FASSUNG };
+  const ewSelbst = { kanal: "kundenbereich", erteilt_am: new Date("2026-11-10T09:00:00+01:00"), fassung: V.VORSORGE_FASSUNG };
+  const bTel = L.koopPartnerBriefText(dV, kV, ewTel, "https://fiaon.com/partner/x");
+  const bSelbst = L.koopPartnerBriefText(dV, kV, ewSelbst, "https://fiaon.com/partner/x");
+  ok(/am Telefon erteilt \(Fassung KOOP-EW-2026-10-16\) — sie umfasst Ihren Anruf/.test(bTel.text) && !/selbst/.test(bTel.text), "Partnerbrief am Telefon: Wort für Wort wie bisher");
+  ok(/im FIAON-Kundenbereich selbst erteilt \(Fassung KOOP-EW-SELBST-2026-11-09\)/.test(bSelbst.text) && bSelbst.betreff === bTel.betreff, "Partnerbrief der Selbstbuchung: „im FIAON-Kundenbereich selbst erteilt“, derselbe Betreff");
+  const kTel = L.koopKundeBestaetigungText(dV, kV, "telefon");
+  const kSelbst = L.koopKundeBestaetigungText(dV, kV, "kundenbereich");
+  ok(/^wie besprochen haben wir für Sie ein kostenloses Gespräch zum Thema „Vermögensaufbau“ vereinbart\./.test(kTel.text) && /Antworten Sie einfach auf diese E-Mail/.test(kTel.text), "Kundenbestätigung am Telefon: wie bisher");
+  ok(/^Sie haben ein kostenloses Gespräch zum Thema „Vermögensaufbau“ gebucht/.test(kSelbst.text) && /widerrufen wir Ihre Einwilligung/.test(kSelbst.text), "Kundenbestätigung der Selbstbuchung: „Sie haben … gebucht“, mit Widerruf");
+  ok(S.KOOP_INTERESSE.text.includes("selbstständigen Berater") && !S.KOOP_INTERESSE.text.includes("unabhängig"), "Kundenbereich: „selbstständigen Berater“ (ein Vermögensberater ist kein unabhängiger Makler)");
+  const ohneJa = await L.koopKontaktAnlegen(1, { angebotId: 1, thema: "x", termin: "x", art: "telefon", einwilligung: false }, { name: "Prüf", agentId: null });
+  ok(!ohneJa.ok && ohneJa.status === 400 && /ausdrückliches Ja/.test(ohneJa.error), "ohne ausdrückliches Ja kein Kontakt — geprüft vor jeder Datenbankarbeit");
+
+  if (!TEIL_B) {
+    console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (Teil A, rein — Teil B nur gegen den lokalen Prüfstand)`);
+    process.exit(schlecht ? 1 : 0);
+  }
+
+  console.log("\nTeil B — gegen den lokalen Prüfstand");
+  await A.ensureAngebotTabellen();
+  await L.ensureKoopTabellen();
+  await katalogpreiseSyncen();
+  const stempel = Date.now().toString(36);
 
   console.log("\nPersonen und Vertrag");
   const person = async (vor: string, nach: string, extra: Record<string, unknown> = {}) => {

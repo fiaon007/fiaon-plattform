@@ -122,6 +122,8 @@ const TerminPage = lazy(() => import("@/pages/termin"));
 const ZustimmungPage = lazy(() => import("@/pages/zustimmung"));
 // E-IT-D (08.10.2026, 4c): Unterlagen hochladen ohne Anmeldung — signierter Link aus der Akte (14 Tage).
 const UnterlagenLinkPage = lazy(() => import("@/pages/unterlagen-link"));
+// E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — persönlicher Link aus Maras Mail, ohne Anmeldung (Selbstbuchung beim Partner).
+const VorsorgePage = lazy(() => import("@/pages/vorsorge"));
 // Abschluss der Mitarbeiterzeit (13.09.2026): Kündigung lesen, Erhalt unterschreiben,
 // Ausfertigung per Mail — ohne Login, der Token aus dem Login-Schirm ist der Ausweis.
 const MitarbeiterAbschlussPage = lazy(() => import("@/pages/mitarbeiter-abschluss"));
@@ -875,6 +877,7 @@ function Router() {
       <Route path="/termin/:token" component={TerminPage} />
       <Route path="/zustimmung/:token" component={ZustimmungPage} />
       <Route path="/unterlagen/:token" component={UnterlagenLinkPage} />
+      <Route path="/vorsorge/:token" component={VorsorgePage} />
       <Route path="/mitarbeiter/abschluss/:token" component={MitarbeiterAbschlussPage} />
       <Route path="/zahlung/:paymentRef/danke" component={ZahlungDankePage} />
       <Route path="/zahlung/:paymentRef" component={ZahlungPage} />

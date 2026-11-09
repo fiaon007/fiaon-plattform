@@ -904,6 +904,9 @@ const WERBLICHE_EVENTS = [
   // Gegenlesen 25.09.2026: Die Einladung zu Konto & Karte bewirbt ein Partnerprodukt (E-206) — sie geht
   // automatisch an zahlende Kunden (Segment A) und wäre sonst die zweite Werbemail desselben Tages.
   "konto_karte_einladung",
+  // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ an zahlende Kunden — umgekehrt wartet ihr Takt ebenso 20 h
+  // nach einem Auskunft-Angebot (server/lib/fiaon-vorsorge-einladung.ts).
+  "vorsorge_ueberblick",
 ];
 
 /**

@@ -17,6 +17,8 @@ Disallow: /mein-bereich
 Disallow: /app
 Disallow: /zahlung/
 Disallow: /termin/
+# 09.11.2026 (E-487): der persönliche Link zum Vorsorge-Überblick — steht nur in Kundenmails, gehört in keinen Index.
+Disallow: /vorsorge/
 Disallow: /zugang/
 Disallow: /api/
 Disallow: /vereinbarung

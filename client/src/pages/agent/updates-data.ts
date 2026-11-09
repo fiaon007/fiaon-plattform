@@ -87,6 +87,26 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   // Ziel-Filter; die Karte im Wallet betrifft nur die Menschen, für die ein Plan angelegt ist — sie erklärt sich dort
   // selbst (Karte und Rundgang-Schritt erscheinen nur bei ihnen).
   {
+    // E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — Kunden buchen das Gespräch beim Vorsorge-Partner selbst.
+    id: "2026-11-09-vorsorge-selbst-buchen",
+    date: "2026-11-09",
+    category: "Neu",
+    title: "Vorsorge-Partner: Kunden buchen den Termin jetzt selbst",
+    summary:
+      "Im Kundenbereich (Heute) gibt es die Karte „Ihr Vorsorge-Überblick“: Der Kunde kreuzt seine Themen an und bucht auf Wunsch "
+      + "selbst einen Termin beim Partner — mit eigenem Häkchen zur Einwilligung. Du musst dafür nicht mehr anrufen und vorlesen.",
+    changes: [
+      "Bucht der Kunde selbst, steht in der Akte: „Einwilligung im FIAON-Kundenbereich selbst erteilt“ — mit Thema, Termin und Partner. Partner und Kunde bekommen ihre Bestätigung automatisch.",
+      "Ein offener Auftrag „Kunde wünscht ein Gespräch zu Vorsorge und Absicherung“ schließt sich von selbst, sobald der Kunde gebucht hat.",
+      "Der Weg am Telefon (Einwilligung vorlesen, Termin in der Akte unter „Partner-Termin“ festhalten) bleibt unverändert.",
+    ],
+    howto: [
+      "Fragt ein Kunde nach der Karte oder nach einer E-Mail „Ihr Vorsorge-Überblick“: Er findet alles im Kundenbereich unter „Heute“. Thema wählen, Termin wählen, Häkchen setzen, „Termin buchen“.",
+      "Du berätst nicht zu Versicherungen oder Geldanlagen und empfiehlst keine Produkte — das Gespräch führt der Partner.",
+      "Will der Kunde den Termin nicht mehr: Er tippt in der Karte auf „Termin nicht mehr gewünscht“ — oder du trägst den Widerruf wie bisher in der Akte ein.",
+    ],
+  },
+  {
     // E-432 (28.10.2026): Global-Akte — Sätze je Bundesstaat, neue Dokumentarten, Zahlung „fällig mit Ihrem Auftrag“.
     id: "2026-10-28-global-bundesstaat-unterlagen",
     date: "2026-10-28",

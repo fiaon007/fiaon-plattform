@@ -7,8 +7,16 @@
 //   POST /agent/kunden/:personId/koop/interesse      { ja: boolean }  — Interesse / kein Interesse aus dem Gespräch
 //   POST /agent/kunden/:personId/koop/widerruf       { grund? }       — Einwilligung widerrufen (Partner erfährt es)
 // Kunde (requireKunde — signiertes Cookie):
-//   GET  /kunde/:ref/app/partner-gespraech           die ruhige Karte im Kundenbereich
-//   POST /kunde/:ref/app/partner-gespraech           { ja: boolean }
+//   GET  /kunde/:ref/app/partner-gespraech           die ruhige Karte im Kundenbereich — E-487: { lage } („Ihr Vorsorge-Überblick“)
+//   POST /kunde/:ref/app/partner-gespraech           { ja: boolean }  (Altweg: Interesse / kein Interesse)
+//   E-487 (09.11.2026) — Vorsorge-Überblick und Selbstbuchung (server/lib/fiaon-vorsorge.ts), dieselben Wege wie die Seite:
+//   POST /kunde/:ref/app/partner-gespraech/ueberblick      { themen: string[] }
+//   POST /kunde/:ref/app/partner-gespraech/buchen          { angebotId, thema, termin, art, einwilligung: true, bestaetigt[] }
+//   POST /kunde/:ref/app/partner-gespraech/kein-interesse
+//   POST /kunde/:ref/app/partner-gespraech/absagen
+// Persönlicher Link (E-487, ohne Anmeldung, signiert, 30 Tage, gedrosselt, noindex — Knopf in Maras Mail):
+//   GET  /koop/vorsorge/:token                       { lage } — oder { code: abgelaufen | ungueltig }
+//   POST /koop/vorsorge/:token/ueberblick | /buchen | /kein-interesse | /absagen   (wie oben; die Vorschau speichert nie)
 // Partner (signierter Link ohne Ablauf, widerrufbar — server/lib/fiaon-koop-lieferung.ts):
 //   GET  /koop/partner/:token                        Stand, Zeiten, Kontakte, Rechnungen
 //   POST /koop/partner/:token/zeiten                 { tage, von, bis, dauerMin, arten }
@@ -29,6 +37,8 @@ import {
 import { koopDatenAus } from "../lib/fiaon-global-angebot-koop";
 import { koopPartnerName } from "@shared/fiaon-global-angebot-koop";
 import { fensterDrossel } from "../lib/fiaon-global-bereich-regeln";
+import { KOOP_INTERESSE } from "@shared/fiaon-koop-lieferung";
+import { VORSORGE_TEXTE } from "@shared/fiaon-vorsorge";
 
 const router = Router();
 
@@ -89,15 +99,18 @@ router.post("/agent/kunden/:personId/koop/widerruf", requireAgent, async (req: A
 });
 
 // ── Kundenbereich ───────────────────────────────────────────────────────────
+// E-487 (09.11.2026): Die Karte heißt „Ihr Vorsorge-Überblick“ und bucht direkt — dieselbe Lage und dieselben Wege wie die
+// Seite des persönlichen Links (server/lib/fiaon-vorsorge.ts). `texte` reist für eine noch offene alte Seite mit.
 router.get("/kunde/:ref/app/partner-gespraech", requireKunde, async (req: KundeRequest, res: Response) => {
   try {
     const p = await personFuerRef(req.kundeRef!);
     if (!p) return keinePerson(res);
     res.setHeader("Cache-Control", "no-store");
-    res.json({ ok: true, ...(await koopKundeLage(p.personId)) });
+    const { vorsorgeLage } = await import("../lib/fiaon-vorsorge");
+    res.json({ ok: true, lage: await vorsorgeLage(p.personId, { kontext: "karte" }), texte: KOOP_INTERESSE });
   } catch (err) {
     console.error("[KOOP] Kundenbereich:", err);
-    res.json({ ok: true, zeigen: false });
+    res.json({ ok: true, lage: null, zeigen: false });
   }
 });
 router.post("/kunde/:ref/app/partner-gespraech", requireKunde, async (req: KundeRequest, res: Response) => {
@@ -118,6 +131,92 @@ router.post("/kunde/:ref/app/partner-gespraech", requireKunde, async (req: Kunde
     res.status(500).json({ ok: false, error: "Das ließ sich gerade nicht speichern. Bitte versuchen Sie es gleich noch einmal." });
   }
 });
+
+// ── E-487: Vorsorge-Überblick und Selbstbuchung — Kundenbereich ────────────
+type VorsorgeAktion = "ueberblick" | "buchen" | "kein-interesse" | "absagen";
+const VORSORGE_AKTIONEN: VorsorgeAktion[] = ["ueberblick", "buchen", "kein-interesse", "absagen"];
+/** Eine Handlung des Kunden — derselbe Weg für Kundenbereich und persönlichen Link. Antwort: { ok, meldung, lage } oder { ok: false, error }. */
+async function vorsorgeHandlung(aktion: VorsorgeAktion, personId: number, name: string, req: Request, quelle: "link" | "kundenbereich"): Promise<{ status: number; body: Record<string, unknown> }> {
+  const V = await import("../lib/fiaon-vorsorge");
+  const meta = { quelle, ip: ipVon(req), userAgent: String(req.headers["user-agent"] ?? "").slice(0, 300) || null };
+  const b = (req.body ?? {}) as Record<string, unknown>;
+  if (aktion === "ueberblick") {
+    const r = await V.vorsorgeUeberblickSpeichern(personId, b.themen, meta);
+    return r.ok ? { status: 200, body: r } : { status: r.status, body: { ok: false, error: r.error } };
+  }
+  if (aktion === "buchen") {
+    const r = await V.vorsorgeBuchen(personId, b, meta);
+    return r.ok ? { status: 200, body: r } : { status: r.status, body: { ok: false, error: r.error, lage: r.lage ?? null } };
+  }
+  if (aktion === "kein-interesse") {
+    return { status: 200, body: { ok: true, meldung: VORSORGE_TEXTE.keinInteresseDanke, lage: await V.vorsorgeKeinInteresse(personId, name, meta) } };
+  }
+  return { status: 200, body: { ok: true, meldung: VORSORGE_TEXTE.abgesagt, lage: await V.vorsorgeAbsagen(personId, name, meta) } };
+}
+for (const aktion of VORSORGE_AKTIONEN) {
+  router.post(`/kunde/:ref/app/partner-gespraech/${aktion}`, requireKunde, async (req: KundeRequest, res: Response) => {
+    try {
+      const p = await personFuerRef(req.kundeRef!);
+      if (!p) return keinePerson(res);
+      res.setHeader("Cache-Control", "no-store");
+      const r = await vorsorgeHandlung(aktion, p.personId, p.name, req, "kundenbereich");
+      res.status(r.status).json(r.body);
+    } catch (err) {
+      console.error(`[VORSORGE] Kundenbereich ${aktion}:`, err);
+      res.status(500).json({ ok: false, error: VORSORGE_TEXTE.fehler });
+    }
+  });
+}
+
+// ── E-487: der persönliche Link /vorsorge/<signiert> — ohne Anmeldung ──────
+const vorsorgeDrossel = fensterDrossel(60, 10 * 60_000);
+const vorsorgeSchreibDrossel = fensterDrossel(20, 10 * 60_000);
+/** Link prüfen, drosseln, Kopfzeilen setzen. null = Antwort ist schon geschrieben. */
+async function vorsorgeZugang(req: Request, res: Response, schreiben: boolean): Promise<{ art: "person"; personId: number; name: string } | { art: "vorschau" } | null> {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Robots-Tag", "noindex, nofollow");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  const ip = ipVon(req) ?? "?";
+  if (vorsorgeDrossel(ip) || (schreiben && vorsorgeSchreibDrossel(ip))) {
+    res.status(429).json({ ok: false, error: "Zu viele Anfragen — bitte in ein paar Minuten noch einmal." });
+    return null;
+  }
+  const { vorsorgeTokenPruefen } = await import("../lib/fiaon-vorsorge");
+  const t = vorsorgeTokenPruefen(req.params.token);
+  if (!t) { res.status(404).json({ ok: false, code: "ungueltig", error: VORSORGE_TEXTE.linkUngueltig }); return null; }
+  if (t.abgelaufen) { res.status(410).json({ ok: false, code: "abgelaufen", error: VORSORGE_TEXTE.linkAbgelaufen }); return null; }
+  if (t.art === "vorschau") return { art: "vorschau" };
+  const { sqlPool } = await import("../lib/db-pool");
+  const [p] = (await sqlPool`SELECT first_name, last_name FROM fiaon_persons WHERE id = ${t.personId} AND merged_into_person_id IS NULL`) as any[];
+  if (!p) { res.status(404).json({ ok: false, code: "ungueltig", error: VORSORGE_TEXTE.linkUngueltig }); return null; }
+  return { art: "person", personId: t.personId, name: `${String(p.first_name ?? "").trim()} ${String(p.last_name ?? "").trim()}`.trim() };
+}
+router.get("/koop/vorsorge/:token", async (req: Request, res: Response) => {
+  try {
+    const z = await vorsorgeZugang(req, res, false); if (!z) return;
+    const V = await import("../lib/fiaon-vorsorge");
+    if (z.art === "vorschau") return res.json({ ok: true, lage: await V.vorsorgeVorschauLage() });
+    // „Geöffnet“ zählt für den Trichter im Mailwerk — scheitert das, lädt die Seite trotzdem.
+    await V.vorsorgeLinkGeoeffnet(z.personId).catch((e) => console.error("[VORSORGE] geöffnet:", e));
+    res.json({ ok: true, lage: await V.vorsorgeLage(z.personId, { kontext: "seite" }) });
+  } catch (err) {
+    console.error("[VORSORGE] Seite:", err);
+    res.status(500).json({ ok: false, error: VORSORGE_TEXTE.fehler });
+  }
+});
+for (const aktion of VORSORGE_AKTIONEN) {
+  router.post(`/koop/vorsorge/:token/${aktion}`, async (req: Request, res: Response) => {
+    try {
+      const z = await vorsorgeZugang(req, res, true); if (!z) return;
+      if (z.art === "vorschau") return res.status(403).json({ ok: false, error: VORSORGE_TEXTE.vorschau });
+      const r = await vorsorgeHandlung(aktion, z.personId, z.name, req, "link");
+      res.status(r.status).json(r.body);
+    } catch (err) {
+      console.error(`[VORSORGE] Seite ${aktion}:`, err);
+      res.status(500).json({ ok: false, error: VORSORGE_TEXTE.fehler });
+    }
+  });
+}
 
 // ── Partnerbereich ──────────────────────────────────────────────────────────
 const drossel = fensterDrossel(60, 10 * 60_000);

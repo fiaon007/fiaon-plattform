@@ -1324,6 +1324,21 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
       bericht_url: "https://www.fiaon.com/app/geld/bericht/2026-08",
     },
   },
+  // ── E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ ──────────────
+  {
+    type: "vorsorge_ueberblick",
+    label: "Ihr Vorsorge-Überblick (Mara, Werbung)",
+    description: "WERBUNG für die FIAON-eigene Leistung „Ihr Vorsorge-Überblick“ an zahlende Kunden in Deutschland (ungekündigt; Kreis „gruen“ nur mit Widerspruchs-Hinweis bei der Erhebung, „gruen_gelb“ ohne diese Grenze — vorsorge_mail_kreis). Absender FIAON Welcome mit Maras Karte, ohne Partnernamen; ein Knopf zur persönlichen Seite /vorsorge/<signierter Link> (30 Tage): Themen festhalten und auf Wunsch selbst einen Termin beim Vorsorge-Partner buchen (Einwilligung im Wortlaut erst dort). Geht NUR über den Takt (server/lib/fiaon-vorsorge-einladung.ts) und NUR, wenn im Chefbüro › Mailwerk freigegeben ist (vorsorge_mail_an = 1) — je Mensch genau eine, höchstens 60 am Tag, 09–19 Uhr. Abmeldelink und Widerspruchs-Hinweis Pflicht; die Tür lehnt ohne Freigabe, außerhalb des Kreises und bei jeder Sperre ab.",
+    customerBound: false,
+    example: {
+      email: "max.mustermann@example.com",
+      person_id: 4711,
+      vorname: "Max",
+      nachname: "Mustermann",
+      link: "https://www.fiaon.com/vorsorge/4711.1799999999000.0f3a9b7c2e4d0f3a9b7c2e4d0f3a9b7c",
+      abmelde_url: "https://www.fiaon.com/api/fiaon/abmelden/p/4711.0f3a9b7c2e4d",
+    },
+  },
 ];
 
 export function getEventDef(type: string): MakeEventDef | undefined {

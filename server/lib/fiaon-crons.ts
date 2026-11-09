@@ -466,6 +466,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Zahlende Kunden aus einer Empfehlung stehen im Partnerbereich mit 0,00 € — die Provision des Partners fehlt in der Gutschrift.",
     fenster: 3,
   },
+  // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“. Ohne Freigabe läuft der Takt leer (Erfolg) — er gehört trotzdem
+  // in den Katalog: Fällt er nach der Freigabe aus, geht keine Einladung raus, und niemand merkt es.
+  vorsorge_mail: {
+    zweck: "Maras Mail „Ihr Vorsorge-Überblick“ nach Justins Freigabe: alle 30 Minuten, 09–19 Uhr, höchstens 60 am Tag, je Mensch eine",
+    folge: "Nach der Freigabe im Mailwerk geht keine Einladung raus — der Vorsorge-Überblick und die Termine beim Partner bleiben ungenutzt.",
+    fenster: 2,
+  },
   ki_selbstheilung: {
     zweck: "Automatische KI-Pause (Guthaben leer) alle 10 Minuten per Probe prüfen und von selbst aufheben, sobald wieder abgebucht wird",
     folge: "Nach dem Aufladen bleibt die KI pausiert — Mara, Postmeister, Ratgeber und Belegerkennung stehen, bis jemand „KI wieder aktivieren“ drückt.",

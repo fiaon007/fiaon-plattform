@@ -313,6 +313,31 @@ export default function PrivacyPage() {
               </div>
             </div>
 
+            {/* IV b. Vorsorge-Überblick und Gespräch mit einem Partner — E-487 (09.11.2026) */}
+            <div id="vorsorge" className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden" data-datenschutz="vorsorge">
+              <div className="absolute inset-0 opacity-15 pointer-events-none" style={{
+                background: "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(147,197,253,0.2), rgba(37,99,235,0.1))",
+                backgroundSize: "200% 200%",
+              }} />
+              <div className="relative z-10">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">IV b. Ihr Vorsorge-Überblick und Gespräche mit einem Partner von FIAON</h2>
+                <div className="space-y-4 text-gray-700">
+                  <div>
+                    <h3 className="font-semibold mb-2">1. Ihr Vorsorge-Überblick</h3>
+                    <p className="text-sm">In Ihrem Kundenbereich oder über einen persönlichen Link, den wir Ihnen per E-Mail schicken (30 Tage gültig), können Sie festhalten, welche Vorsorge-Themen Ihnen wichtig sind. Wir speichern nur diese Auswahl und den Zeitpunkt in Ihrer Akte — keine Angaben zu Gesundheit, Einkommen oder Verträgen. FIAON fragt nur das Thema und empfiehlt keine Produkte. Rechtsgrundlage ist die Erbringung unserer Leistung (Art. 6 Abs. 1 lit. b DSGVO). Ob und wie oft der persönliche Link geöffnet wurde, zählen wir, um die Einladung zu verbessern (Art. 6 Abs. 1 lit. f DSGVO).</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">2. Ein kostenloses Gespräch mit einem Partner — nur mit Ihrer Einwilligung</h3>
+                    <p className="text-sm">Auf Wunsch buchen Sie dort selbst einen Termin bei einem selbstständigen Berater aus unserem Partner-Netzwerk, dessen Namen Sie vor der Buchung sehen. Erst mit Ihrer ausdrücklichen Einwilligung (eigenes, nicht vorangekreuztes Kästchen) übermitteln wir an diesen Berater Ihren Vor- und Nachnamen, Ihre Telefonnummer, Ihre E-Mail-Adresse, Ihr Wunschthema und den gebuchten Termin, damit er Sie zu diesem Gespräch telefonisch und per E-Mail kontaktiert (Art. 6 Abs. 1 lit. a DSGVO). Zum Nachweis speichern wir den Wortlaut der Einwilligung, ihre Fassung, Datum und Uhrzeit, Ihre IP-Adresse und die Kennung Ihres Browsers. Der Berater ist für seine eigene Verarbeitung selbst verantwortlich und informiert Sie bei seinem ersten Kontakt.</p>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">3. Widerruf und Speicherdauer</h3>
+                    <p className="text-sm">Sie können die Einwilligung jederzeit mit Wirkung für die Zukunft widerrufen — mit einem Klick auf „Termin nicht mehr gewünscht“, per E-Mail an support@fiaon.com oder telefonisch. Wir sagen dem Berater dann sofort Bescheid. Den Nachweis der Einwilligung bewahren wir auf, solange wir ihn zum Nachweis brauchen, längstens bis die gesetzlichen Verjährungsfristen abgelaufen sind (Art. 6 Abs. 1 lit. c und f DSGVO). Die E-Mail mit dem persönlichen Link ist eine Information über eine eigene ähnliche Leistung (§ 7 Abs. 3 UWG); Sie können ihr jederzeit über den Abmeldelink widersprechen.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* V. Zahlungsabwicklung */}
             <div className="fiaon-glass-panel rounded-2xl p-8 relative overflow-hidden">
               <div className="absolute inset-0 opacity-15 pointer-events-none" style={{

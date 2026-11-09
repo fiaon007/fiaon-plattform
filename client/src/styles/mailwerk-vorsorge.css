@@ -1,0 +1,77 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO › MAILWERK — Karte „Ihr Vorsorge-Überblick“ (E-487 (09.11.2026)). Dieselbe dunkle Bühne wie chef-mailwerk.css
+   (cz-block, cm-fein, cm-schleier, cm-fenster kommen von dort). Am Handy: eine Spalte, Knöpfe ≥ 44 px, keine Tabelle.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mv { display: grid; gap: 16px; }
+.mv > header { margin-bottom: 2px !important; }
+
+.mv-meldung {
+  padding: 12px 16px; border-radius: 12px; font-size: 13.5px; line-height: 1.55; color: #dcfce7;
+  background: rgba(20, 83, 45, .45); border: 1px solid rgba(74, 222, 128, .35);
+}
+.mv-meldung.schlecht { color: #fee2e2; background: rgba(127, 29, 29, .45); border-color: rgba(248, 113, 113, .4); }
+
+.mv-status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: 13px; color: rgba(203, 213, 225, .9); }
+.mv-an {
+  padding: 6px 14px; border-radius: 999px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em;
+  background: rgba(51, 65, 85, .55); border: 1px solid rgba(148, 163, 184, .3); color: #cbd5e1;
+}
+.mv-an.ja { background: rgba(20, 83, 45, .45); border-color: rgba(74, 222, 128, .45); color: #86efac; }
+
+.mv-partner { display: grid; gap: 8px; }
+.mv-partner > div {
+  padding: 12px 14px; border-radius: 12px; background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .12);
+  font-size: 13.5px; color: #e2e8f0;
+}
+.mv-partner > div > span { color: rgba(148, 163, 184, .9); }
+.mv-partner small { display: block; margin-top: 3px; font-size: 12px; color: rgba(148, 163, 184, .85); }
+.mv-partner .mv-warn { color: #fecaca; border-color: rgba(248, 113, 113, .35); }
+
+.mv-kreise { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.mv-kreis {
+  display: grid; gap: 4px; text-align: left; padding: 16px 18px; border-radius: 14px; cursor: pointer; font: inherit;
+  background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .16); color: #e2e8f0;
+  transition: border-color .15s, background .15s;
+}
+.mv-kreis b { font-size: 14px; color: #f1f5f9; }
+.mv-kreis.an {
+  border-color: rgba(96, 165, 250, .6);
+  background: linear-gradient(160deg, rgba(30, 58, 138, .38), rgba(15, 23, 42, .6));
+  box-shadow: 0 0 24px rgba(37, 99, 235, .18);
+}
+.mv-zahl { font-size: 30px; font-weight: 300; line-height: 1.1; color: #f8fafc; font-variant-numeric: tabular-nums; }
+.mv-klein { font-size: 12px; color: rgba(148, 163, 184, .9); }
+.mv-text { margin-top: 4px; font-size: 12px; line-height: 1.5; color: rgba(148, 163, 184, .85); }
+
+.mv-naechste { font-size: 13px; color: #e2e8f0; }
+.mv-naechste ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.mv-naechste li span { margin-left: 6px; font-size: 12px; color: rgba(148, 163, 184, .8); }
+
+.mv-tun { display: flex; flex-wrap: wrap; gap: 10px; }
+.mv-knopf {
+  min-height: 44px; padding: 0 18px; border-radius: 12px; cursor: pointer; font: inherit; font-size: 13.5px;
+  border: 1px solid rgba(96, 165, 250, .35); background: rgba(30, 58, 138, .3); color: #dbeafe;
+}
+.mv-knopf:hover:not(:disabled) { background: rgba(30, 58, 138, .5); }
+.mv-knopf.haupt { border-color: rgba(96, 165, 250, .7); background: linear-gradient(180deg, #288dfa, #1d4ed8); color: #fff; }
+.mv-knopf.warn { border-color: rgba(248, 113, 113, .5); background: rgba(127, 29, 29, .45); color: #fecaca; }
+.mv-knopf:disabled { cursor: default; opacity: .45; }
+.mv-grund { color: #fecaca !important; }
+
+.mv-trichter { display: flex; flex-wrap: wrap; gap: 8px; }
+.mv-trichter span {
+  flex: 1 1 140px; padding: 10px 12px; border-radius: 12px; font-size: 12px; color: rgba(148, 163, 184, .9);
+  background: rgba(15, 23, 42, .55); border: 1px solid rgba(148, 163, 184, .12);
+}
+.mv-trichter b { display: block; font-size: 20px; font-weight: 300; color: #f1f5f9; font-variant-numeric: tabular-nums; }
+
+.mv-details { font-size: 12.5px; color: rgba(203, 213, 225, .9); }
+.mv-details summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
+.mv-details ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.mv-details li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: 8px; background: rgba(15, 23, 42, .45); }
+.mv-details li b { color: #f1f5f9; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  .mv-tun { flex-direction: column; }
+  .mv-knopf { width: 100%; }
+}

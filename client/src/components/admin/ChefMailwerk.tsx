@@ -12,10 +12,17 @@
 //
 // Die Vorschau lädt ÜBER DEN SERVER gerendertes HTML (dieselbe Funktion, die
 // auch versendet) — sie kann also nicht vom echten Versand abweichen.
+//
+// E-487 (09.11.2026): Karte „Ihr Vorsorge-Überblick“ zwischen Versandweg und Takten (MailwerkVorsorge) — Justin drückt
+// dort den Knopf für Maras Mail. Dazu der Rundgang des Raums (RUNDGANG_MAILWERK in pages/agent/rundgaenge.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { Eye, Send, X, CheckCircle2, AlertTriangle } from "lucide-react";
+import MailwerkVorsorge from "@/components/admin/MailwerkVorsorge";
+import { Rundgang } from "@/components/agent/Rundgang";
+import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/chef-mailwerk.css";
+import "@/styles/office-rundgang.css";
 
 interface Ereignis {
   type: string; label: string; gruppe: string; zielgruppe: string; klartext: string;
@@ -123,6 +130,9 @@ export default function ChefMailwerk() {
           </label>
         </div>
       </section>
+
+      {/* ── E-487: Ihr Vorsorge-Überblick — Justin drückt den Knopf ─────── */}
+      <MailwerkVorsorge testAdresse={testAdresse} />
 
       {/* ── 2. Die Takte ──────────────────────────────────────────────── */}
       <section className="cz-block">
@@ -274,6 +284,7 @@ export default function ChefMailwerk() {
       <p className="cz-stand">
         <CheckCircle2 size={13} style={{ verticalAlign: "-2px" }} /> Jede Mail steht im Protokoll. Notbremse: Versandweg auf „Make".
       </p>
+      <Rundgang raum="mailwerk" titel="Mailwerk" schritte={RUNDGAENGE.mailwerk.schritte} />
     </div>
   );
 }

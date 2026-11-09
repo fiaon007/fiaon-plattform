@@ -500,6 +500,15 @@ export async function koopProvisionSetzen(z: { [k: string]: any }, roh: any, wer
     neu.berechnungAusgesetzt = roh.berechnungAusgesetzt === true;
     teile.push(roh.berechnungAusgesetzt === true ? "Berechnung der Kontakte ausgesetzt (0 €, keine Monatsrechnung)" : "Berechnung der Kontakte wieder aktiv");
   }
+  // E-487 (09.11.2026): wie der Partner auf der Kundenseite „Ihr Vorsorge-Überblick“ heißt („selbstständiger Vermögensberater“).
+  // Was nur für EINEN Partner gilt, steht am Vertrag, nie im Code. Leer = die Vorgabe aus der Einwilligung („selbstständiger Berater“).
+  if (roh?.rolle !== undefined) {
+    const { vorsorgeRolleGueltig } = await import("@shared/fiaon-vorsorge");
+    const r = String(roh.rolle ?? "").replace(/\s+/g, " ").trim();
+    if (!vorsorgeRolleGueltig(r)) return nein("Die Bezeichnung bitte nur mit Buchstaben, höchstens 60 Zeichen (z. B. „selbstständiger Vermögensberater“).");
+    neu.rolle = r || null;
+    teile.push(r ? `Bezeichnung auf der Kundenseite: „${r}“` : "Bezeichnung auf der Kundenseite: Vorgabe");
+  }
   if (!teile.length) return bleibt ? { ok: true, meldung: bleibt } : nein("Nichts zu ändern.");
   await sqlPool`UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${sqlPool.json(neu as any)}, updated_at = NOW() WHERE id = ${Number(z.id)}`;
   const { verlaufAngebot } = await import("./fiaon-global-angebot");

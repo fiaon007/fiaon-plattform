@@ -3408,7 +3408,55 @@ export const RUNDGANG_BESUCHER: RundgangSchritt[] = [
   },
 ];
 
+// E-487 (09.11.2026): Chefbüro › Mailwerk — bis heute ohne Rundgang; mit der Karte „Ihr Vorsorge-Überblick“ (Justins Knopf
+// für Maras Mail) erklärt sich der Raum selbst. Ziele: .cm-weg, [data-mailwerk-vorsorge], .mv-kreise, .mv-tun, .cm-takte,
+// .cm-laeufe, .cm-tab (ChefMailwerk.tsx, MailwerkVorsorge.tsx).
+export const RUNDGANG_MAILWERK: RundgangSchritt[] = [
+  {
+    titel: "Das Mailwerk.",
+    text: "Hier siehst und steuerst du jede Mail des Hauses: über welchen Weg sie geht, wie oft die Automatik schreibt, ob die Läufe laufen — und jede Vorlage zum Ansehen und Testen.",
+  },
+  {
+    ziel: ".cm-weg",
+    titel: "Versandweg und Testadresse.",
+    text: "„Direkt“ schickt die Vorlagen aus dem Quelltext über Brevo, „Make“ ist die Notbremse. Rechts die Testadresse: Dorthin gehen alle Prüfversände — nie an Kunden.",
+  },
+  {
+    ziel: "[data-mailwerk-vorsorge]",
+    titel: "Ihr Vorsorge-Überblick: dein Knopf.",
+    text: "Maras Einladung an zahlende Kunden in Deutschland: ein persönlicher Link, dort Themen festhalten und auf Wunsch selbst einen Termin beim Vorsorge-Partner buchen. Ohne deine Freigabe geht keine einzige Mail raus.",
+    tipp: "Erst „Vorschau ansehen“ und „Prüfversand“ — dann freigeben. „Anhalten“ stoppt sofort, auch mitten im Lauf.",
+  },
+  {
+    ziel: ".mv-kreise",
+    titel: "Grün oder Grün + Gelb.",
+    text: "Grün: Kunden, bei denen der Widerspruchs-Hinweis schon im Antrag stand. Grün + Gelb: alle zahlenden, ungekündigten Kunden in Deutschland ohne Sperre. Die große Zahl ist, wer die Mail noch nicht hat — je Mensch gibt es genau eine.",
+  },
+  {
+    ziel: ".mv-tun",
+    titel: "Vorschau, Prüfversand, Freigeben.",
+    text: "Die Vorschau zeigt die echte Mail des Nächsten im Kreis und sendet nie. Der Prüfversand geht an die Testadresse — Knopf und Abmeldelink führen dort auf die Vorschau-Seite. „Freigeben“ schaltet ein: höchstens 60 am Tag, 09–19 Uhr, gleichmäßig verteilt.",
+  },
+  {
+    ziel: ".cm-takte",
+    titel: "Die Takte der Automatik.",
+    text: "Zahlungserinnerungen und Lead-Strecke: an oder aus, wie oft am Tag, in welchem Fenster. Wer bezahlt, sich abmeldet oder unzustellbar ist, bekommt nichts mehr — diese Regeln sind immer an.",
+  },
+  {
+    ziel: ".cm-laeufe",
+    titel: "Läuft die Automatik?",
+    text: "Je Lauf eine Ampel mit dem letzten Erfolg. Grün heißt: Er hat zuletzt fehlerfrei gearbeitet.",
+  },
+  {
+    ziel: ".cm-tab",
+    titel: "Jede Mail.",
+    text: "Alle Vorlagen nach Volumen der letzten 30 Tage, mit Problemen und letztem Versand. Das Auge zeigt die echte Mail mit Beispieldaten, der Pfeil schickt sie an die Testadresse.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  // E-487 (09.11.2026): Chefbüro › Mailwerk.
+  mailwerk: { titel: "Mailwerk", schritte: RUNDGANG_MAILWERK },
   // E-484 (06.11.2026): FIAON Banking › Auszahlungsplan.
   auszahlungsplan: { titel: "Auszahlungsplan", schritte: RUNDGANG_AUSZAHLUNGSPLAN },
   // E-454 (28.10.2026): Chefbüro › Besucher (mit Google).

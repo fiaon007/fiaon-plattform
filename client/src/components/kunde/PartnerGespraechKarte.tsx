@@ -1,60 +1,32 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /APP — „Vorsorge und Absicherung — ein kostenloses Gespräch“ (E-386, 16.10.2026)
+// /APP › HEUTE — „IHR VORSORGE-ÜBERBLICK“ MIT DIREKTER BUCHUNG (E-386, 16.10.2026 · E-487 (09.11.2026))
 //
-// Eine ruhige Karte, kein Band: Nichts daran ist dringend. Der Kunde kann ein Gespräch wünschen (Interesse — FIAON darf
-// ihn dazu anrufen) oder „kein Interesse“ wählen (dann fragt niemand mehr). Seine Daten gehen erst an einen Berater,
-// wenn er im Telefonat ausdrücklich zustimmt. Der Server zeigt die Karte nur, wenn es einen aktiven Partner gibt und
-// der Kunde weder gesperrt noch werbegesperrt noch Global-Kunde ist. Nie in der Demo.
+// Eine ruhige Karte, kein Band: Nichts daran ist dringend. Bis E-487 konnte der Kunde hier nur Interesse melden („Ihr
+// FIAON-Team ruft Sie an“) — der Termin entstand erst im Telefonat, und die Aufgabe an den Betreuer blieb tagelang offen.
+// Jetzt bucht er selbst, über denselben Weg wie die Seite des persönlichen Links (VorsorgeBuchung, server/lib/fiaon-vorsorge.ts):
+// Themen festhalten, Partner mit Name und Rolle, Terminart, freie Zeit, eigenes Kästchen zum Wortlaut, „Termin buchen“.
+// Der Server zeigt die Karte nur mit aktivem Vorsorge-Partner, ohne Sperre (Werbe-/Vertriebssperre, Global, AT/CH …), mit
+// bezahltem Paket und nicht nach „kein Interesse“. Heute.tsx zeigt sie nur bei bezahlt und ohne überfällige Rate. Nie in der Demo.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { api } from "@/pages/app/Bausteine";
-
-interface Lage {
-  ok: boolean; zeigen: boolean; stand: "frage" | "gewuenscht" | "termin" | "abgelehnt"; termin?: string | null;
-  texte: { titel: string; text: string; wortlaut: string; knopf: string; nein: string; danke: string; zurueck: string; abgelehnt: string };
-}
+import { VorsorgeBuchung } from "@/components/kunde/VorsorgeBuchung";
+import { VORSORGE_TEXTE, type VorsorgeLage } from "@shared/fiaon-vorsorge";
 
 export function PartnerGespraechKarte({ kundeRef, demo }: { kundeRef: string; demo: boolean }) {
-  const [lage, setLage] = useState<Lage | null>(null);
-  const [laeuft, setLaeuft] = useState(false);
-  const [meldung, setMeldung] = useState<string | null>(null);
+  const [lage, setLage] = useState<VorsorgeLage | null>(null);
+  const [ende, setEnde] = useState<string | null>(null);
+  const basis = `/kunde/${encodeURIComponent(kundeRef)}/app/partner-gespraech`;
   useEffect(() => {
     if (demo) return;
-    api(`/kunde/${encodeURIComponent(kundeRef)}/app/partner-gespraech`).then((r) => setLage(r.ok && r.json?.ok ? r.json : null)).catch(() => setLage(null));
-  }, [kundeRef, demo]);
-  if (demo || !lage?.zeigen) return meldung ? <p className="ap-fuss">{meldung}</p> : null;
-  const t = lage.texte;
-  async function senden(ja: boolean) {
-    setLaeuft(true);
-    const r = await api(`/kunde/${encodeURIComponent(kundeRef)}/app/partner-gespraech`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ja }) });
-    setLaeuft(false);
-    if (r.ok && r.json?.ok) { setLage(r.json); setMeldung(ja ? t.danke : t.abgelehnt); }
-    else setMeldung(r.json?.error ?? "Das ließ sich gerade nicht speichern.");
-  }
+    api(basis).then((r) => setLage(r.ok && r.json?.ok && r.json.lage ? (r.json.lage as VorsorgeLage) : null)).catch(() => setLage(null));
+  }, [basis, demo]);
+  if (demo || !lage?.zeigen) return ende ? <p className="ap-fuss">{ende}</p> : null;
   return (
     <section className="ap-karte ap-auf v3" data-fiaon="heute-partner-gespraech">
-      <h3>{t.titel}</h3>
-      {lage.stand === "termin" ? (
-        <>
-          <p>Ihr Gespräch ist vereinbart: {lage.termin} Uhr. Die Einzelheiten stehen in unserer E-Mail.</p>
-          <button type="button" className="ap-knopf still" style={{ marginTop: 12 }} disabled={laeuft} onClick={() => void senden(false)}>{t.zurueck}</button>
-        </>
-      ) : lage.stand === "gewuenscht" ? (
-        <>
-          <p>{meldung ?? t.danke}</p>
-          <button type="button" className="ap-link" style={{ marginTop: 8, background: "none", border: 0, padding: 0 }} disabled={laeuft} onClick={() => void senden(false)}>{t.zurueck}</button>
-        </>
-      ) : (
-        <>
-          <p>{t.text}</p>
-          <p style={{ fontSize: 13, marginTop: 8, color: "var(--fi-text-leise)" }}>{t.wortlaut}</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <button type="button" className="ap-knopf" disabled={laeuft} onClick={() => void senden(true)}>{t.knopf}</button>
-            <button type="button" className="ap-knopf still" disabled={laeuft} onClick={() => void senden(false)}>{t.nein}</button>
-          </div>
-          {meldung && <p className="ap-fuss">{meldung}</p>}
-        </>
-      )}
+      <h3>{VORSORGE_TEXTE.karteTitel}</h3>
+      <p>{VORSORGE_TEXTE.karteText}</p>
+      <VorsorgeBuchung basis={basis} lage={lage} setLage={setLage} kontext="karte" onEnde={(text) => { setEnde(text); setLage(null); }} />
     </section>
   );
 }

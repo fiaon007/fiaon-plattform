@@ -161,7 +161,10 @@ export type MakeEventType =
   // E-IT-D (08.10.2026, 4b): die freigegebene FIAON Finanz- und Bonitätsauswertung liegt im Bereich — nur über den Motor.
   | "finanzauswertung_bereit"   // Vertrag angenommen: Bestätigung mit Vertrags-PDF (Leistung, Widerrufsbelehrung, Nachweis)
   // E-357 (14.10.2026): an den Mitarbeiter — „Die Bonitätsauswertung für Ihren Kunden … ist da“, PDF + Link. Nur über den Motor.
-  | "finanzauswertung_mitarbeiter";
+  | "finanzauswertung_mitarbeiter"
+  // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ — WERBUNG für die FIAON-eigene Leistung (persönlicher Link zur
+  // Selbstbuchung beim Partner). Nur über den Motor, nur nach Justins Freigabe im Mailwerk (Tür unten: vorsorgeTuerSperre).
+  | "vorsorge_ueberblick";
 
 export interface MakeWebhookPayload {
   email: string;
@@ -414,6 +417,29 @@ export async function sendMakeWebhookMitGrund(
     }
   }
 
+  // ── „IHR VORSORGE-ÜBERBLICK“ NUR MIT FREIGABE (09.11.2026, E-487) ─────────
+  // Justin drückt den Knopf (Chefbüro › Mailwerk): Ohne Freigabe geht KEINE echte Mail dieses Ereignisses raus — weder aus
+  // dem Takt noch von Hand —, mit Freigabe nur an Menschen im eingestellten Kreis ohne Sperre (vorsorgeTuerSperre in
+  // server/lib/fiaon-vorsorge-einladung.ts: dieselben Fakten und dieselbe reine Entscheidung wie Takt und Zählung, dazu
+  // koopKandidat und die Werbe-Regel des Menschen). Anders als beim Auskunft-Angebot lässt diese Tür bei einer Störung NICHT
+  // durch: Die Mail ist nie dringend — im Zweifel geht sie morgen.
+  if (!payload.test && eventType === "vorsorge_ueberblick") {
+    let sperre: string | null;
+    try {
+      const { vorsorgeTuerSperre } = await import("./lib/fiaon-vorsorge-einladung");
+      const personId = payload.person_id != null && Number(payload.person_id) > 0 ? Number(payload.person_id) : await personAusNutzlast(payload);
+      sperre = await vorsorgeTuerSperre(personId);
+    } catch (e) {
+      sperre = `Sperre: Prüfung nicht möglich (${e instanceof Error ? e.message.slice(0, 120) : "unbekannt"}) — nicht verschickt.`;
+    }
+    if (sperre) {
+      const erg: MakeVersand = { ok: false, grund: sperre };
+      protokollNebenbei(eventType, payload, erg);
+      console.warn(`[MAKE-WEBHOOK] 'vorsorge_ueberblick' NICHT gesendet an ${payload.email || "?"}: ${sperre}`);
+      return erg;
+    }
+  }
+
   // ── ZAHLUNGSMAILS EINER AUSKUNFT (24.09.2026, E-240) ──────────────────────
   // payment_details und payment_confirmed kommen aus sechs Aufrufstellen, keine
   // sagt, WAS bestellt wurde. Die Tür schaut an der Bestellung nach: Ist es eine
@@ -514,7 +540,8 @@ export async function sendMakeWebhookMitGrund(
   // Prüfversand (Wand oben); der echte Versand mit PDF läuft direkt am Motor.
   // E-484 (06.11.2026): die Sammelmitteilung des Auszahlungsplans ebenso — ohne Make-Szenario. Über Make antwortete
   // dort womöglich ein Router mit 200 ohne Zweig, und die Abrechnungen stünden als zugestellt, ohne dass eine Mail kam.
-  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit", "finanzauswertung_mitarbeiter", "agent_auszahlungsplan_stand"].includes(eventType)
+  // E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ ebenso — Make hat kein Szenario dafür (ein 200 ohne Zweig wäre eine Mail, die nie kam).
+  const nurMotor = ["auskunft_angebot", "auskunft_kundenpreis", "auskunft_zahlung_erinnerung", "schufa_requested", "schufa_approved", "schufa_rejected", "vertrag_bestaetigung", "finanzauswertung_bereit", "finanzauswertung_mitarbeiter", "agent_auszahlungsplan_stand", "vorsorge_ueberblick"].includes(eventType)
     || ((eventType === "payment_details" || eventType === "payment_confirmed" || eventType === "claim_received") && auskunftZeile);
   if ((schalter.weg === "direkt" && !schalter.ausnahmen.has(eventType)) || nurMotor) {
     const motor = await import("./mail/motor");
@@ -635,8 +662,8 @@ const PRIVATLINIE_PERSON = new Set<string>([
   "rueckhol_s1", "rueckhol_s2", "rueckhol_s3", "rueckhol_s4", "rueckhol_s5", "rueckhol_s5b", "rueckhol_s5c", "rueckhol_s5d",
   // Leistungen und Fragen eines bezahlten Stufenpakets — das hat ein Global-Kunde per Regel nicht
   "onboarding_einladung", "konto_karte_einladung", "abo_verlaengerung_frage",
-  // Werbung der Privatlinie
-  "auskunft_angebot", "nicht_erreicht_termin", "lead_followup", "lead_application_link",
+  // Werbung der Privatlinie (E-487: dazu „Ihr Vorsorge-Überblick“ — der Kreis schließt Global schon aus; das hier fängt jeden Weg)
+  "auskunft_angebot", "nicht_erreicht_termin", "lead_followup", "lead_application_link", "vorsorge_ueberblick",
   // E-401 (5/6): Maras Terminlink nach 2× nicht erreicht — Privatberatung, nie an Global-Kunden.
   "nicht_erreicht_zweimal",
   // E-406 B1: Maras Mail zur frisch fälligen Rate (mit Rückruf-Angebot) — Zusatz zur Zahlungspost, nie an Global-Kunden.

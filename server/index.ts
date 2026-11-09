@@ -70,13 +70,17 @@ app.use((req, res, next) => {
         .replace(/\/auskunft\/auftrag\/[^/?]+/, "/auskunft/auftrag/…")
         // E-IT-D (08.10.2026, 4c): der Upload-Link ohne Anmeldung (Token im Pfad, fiaon-unterlagen-link.ts).
         .replace(/\/unterlagen\/\d+\.\d+\.[^/?]+/, "/unterlagen/…")
+        // E-487 (09.11.2026): der persönliche Vorsorge-Link (Token im Pfad, server/routes/fiaon-koop.ts).
+        .replace(/\/koop\/vorsorge\/[^/?]+/, "/koop/vorsorge/…")
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
         .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.
       // 08.10.2026: Zugang übergeben — die Antworten tragen Link und Code (Chefbüro) oder das Start-Passwort
       // (Empfängerseite). Für diese Pfade steht nur die Anfrage-Zeile im Protokoll, nie die Antwort.
       // E-423: auch die Chefbüro-Wege (/chef/global/…) — „Nur Link erzeugen“ antwortet mit dem Einladungslink.
-      const ohneAntwort = /\/api\/fiaon\/((agent|admin|chef)\/)?global\//.test(path) || /\/zugang-uebergabe(\/|$)/i.test(path);
+      // E-487: die Vorsorge-Seite antwortet mit Name und Terminen des Kunden — nur die Anfrage-Zeile ins Protokoll.
+      const ohneAntwort = /\/api\/fiaon\/((agent|admin|chef)\/)?global\//.test(path) || /\/zugang-uebergabe(\/|$)/i.test(path)
+        || /\/api\/fiaon\/koop\/vorsorge\//.test(path);
       let logLine = `${req.method} ${pfadOhneToken} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse && !ohneAntwort) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;

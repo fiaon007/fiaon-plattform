@@ -7,6 +7,9 @@
 // ── DIE TÜREN ─────────────────────────────────────────────────────────────
 //   Akte (Mitarbeiter):  koopAkteLage · koopKontaktAnlegen · koopWiderruf · koopInteresseVermerken
 //   Kundenbereich:       koopKundeLage · koopKundeInteresse
+//   Selbstbuchung:       E-487 (09.11.2026) server/lib/fiaon-vorsorge.ts (vorsorgeLage, vorsorgeBuchen → koopKontaktAnlegen mit
+//                        Kanal „kundenbereich“) — Kundenbereich-Karte und persönlicher Link /vorsorge/<signiert>
+//   Mail:                E-487 server/lib/fiaon-vorsorge-einladung.ts („Ihr Vorsorge-Überblick“, nur nach Freigabe im Mailwerk)
 //   Partnerbereich:      koopPartnerSicht · koopZeitenSetzen · koopWunschSetzen · koopReklamieren · koopKeinKontakt
 //   Stundenlauf:         koopLieferLauf (Übermittlung nachholen, Partnerbereich-Mail, Monatsrechnung, Erinnerung)
 //
@@ -32,11 +35,16 @@ import {
   koopFeiertage, koopTagPlus, koopWochentag, koopWocheMontag, koopMonatText, koopMonatEnde, koopVormonat, koopKuerzel,
   koopReklamationGrundText, KOOP_STATUS_TEXT,
   type KoopZeiten, type KoopTerminArt, type KoopLieferStand, type KoopReklamationGrund, type KoopReklamationWahl, type KoopKontaktStatus,
+  type KoopKanal,
 } from "@shared/fiaon-koop-lieferung";
+// E-487 (09.11.2026): die Selbstbuchung — Wortlaut in Ich-Form und seine Fassung (eine Quelle für Seite, Karte und Server).
+import { VORSORGE_FASSUNG, vorsorgeEinwilligungText, vorsorgeWortlaut } from "@shared/fiaon-vorsorge";
 
 type Lauf = any;
-type Ergebnis<T = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; status: number; error: string };
-const nein = (error: string, status = 400) => ({ ok: false as const, status, error });
+// E-487 (09.11.2026): `code` — eine Kennung je Ablehnung, damit die Selbstbuchung dem Kunden einen eigenen Satz zeigt
+// (shared/fiaon-vorsorge.ts, vorsorgeFehlerText) statt des Satzes für den Mitarbeiter. Die Sätze selbst bleiben, wie sie waren.
+type Ergebnis<T = Record<string, unknown>> = ({ ok: true } & T) | { ok: false; status: number; error: string; code?: string };
+const nein = (error: string, status = 400, code?: string) => ({ ok: false as const, status, error, ...(code ? { code } : {}) });
 const text = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 const jsonb = (v: unknown) => sqlPool.json(v as any);
 function json<T>(v: unknown, leer: T): T {
@@ -109,6 +117,8 @@ function tokenPruefen(token: unknown): { ref: string; version: number } | null {
   return { ref, version: Number(v) };
 }
 function schalterAus(z: AngebotZeile): Record<string, any> { return json<Record<string, any>>(z.schalter, {}); }
+/** E-487: die Schalter eines Vertrags für andere Module (z. B. schalter.rolle — die Rolle des Partners auf der Kundenseite). */
+export function koopSchalterAus(z: AngebotZeile): Record<string, any> { return schalterAus(z); }
 function schluesselVersion(z: AngebotZeile): number { const v = Number(schalterAus(z).partnerSchluessel); return Number.isInteger(v) && v > 0 ? v : 1; }
 export function koopPartnerLink(z: AngebotZeile): string {
   return absoluteUrl(koopPartnerPfad(String(z.angebot_ref), schluesselVersion(z)));
@@ -187,6 +197,15 @@ async function koopPartnerAlle(): Promise<AngebotZeile[]> {
   for (const r of zeilen) { const z = await angebotLesen({ id: Number(r.id) }); if (z) aus.push(z); }
   return aus;
 }
+/**
+ * E-487 (09.11.2026): Die aktiven Vorsorge-Partner (Bereich „vorsorge“, Vertrag angenommen und nicht beendet) — nur sie
+ * bieten die Selbstbuchung an und nur für sie wirbt die Mail „Ihr Vorsorge-Überblick“ (server/lib/fiaon-vorsorge*.ts).
+ */
+export async function koopVorsorgePartner(jetzt = new Date()): Promise<AngebotZeile[]> {
+  await ensureKoopTabellen();
+  const heute = berlinToday(jetzt);
+  return (await koopPartnerAlle()).filter((z) => koopDatenAus(z).parameter.bereich === "vorsorge" && vertragAktiv(z, heute));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FREIE TERMINE IN DEN ZEITEN DES PARTNERS
@@ -224,10 +243,16 @@ export interface KoopKandidat {
   anschrift: string | null;
   /** Harte Gründe: kein Kontakt möglich. */
   sperren: string[];
+  /**
+   * E-487 (09.11.2026): dieselben Gründe als Kennung (gleiche Reihenfolge) — die Selbstbuchung zeigt dem Kunden je Kennung
+   * einen eigenen Satz (Kontaktdaten fehlen, Wohnsitz) statt des Satzes für den Mitarbeiter.
+   */
+  sperrCodes: KoopSperrCode[];
   /** Was der Mitarbeiter im Gespräch bestätigen muss, weil es in der Akte fehlt. */
   bestaetigen: ("wohnsitz_de" | "volljaehrig")[];
   hinweise: string[];
 }
+export type KoopSperrCode = "zusammengefuehrt" | "vertriebssperre" | "werbesperre" | "test" | "global" | "partner" | "kontakt" | "ausland" | "minderjaehrig";
 function alterAm(geburt: unknown, heute: string): number | null {
   const s = geburt instanceof Date ? geburt.toISOString().slice(0, 10) : String(geburt ?? "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
@@ -247,23 +272,25 @@ export async function koopKandidat(personId: number, l: Lauf = sqlPool, jetzt = 
      ORDER BY (payment_status = 'paid') DESC, created_at DESC LIMIT 1`) as any[];
   const heute = berlinToday(jetzt);
   const sperren: string[] = []; const hinweise: string[] = []; const bestaetigen: KoopKandidat["bestaetigen"] = [];
+  const sperrCodes: KoopSperrCode[] = [];
+  const sperre = (code: KoopSperrCode, satz: string) => { sperrCodes.push(code); sperren.push(satz); };
   const telefonA = a ? (String(a.phone ?? "").startsWith("+") ? a.phone : a.phone ? `${a.phone_country_code ?? ""}${a.phone}` : a.contact_phone) : null;
   const telefon = text(p.primary_phone || telefonA, 40) || null;
   const email = text(p.primary_email || a?.email, 160).toLowerCase() || null;
-  if (p.merged_into_person_id) sperren.push("Diese Akte ist zusammengeführt — bitte die Hauptakte öffnen.");
-  if (p.is_blocked) sperren.push("Vertriebssperre: Dieser Kunde wird nicht angesprochen.");
-  if (p.werbung_gesperrt_am) sperren.push("Werbesperre: Dieser Kunde möchte keine Angebote.");
-  if (p.ist_test_am) sperren.push("Testkonto.");
+  if (p.merged_into_person_id) sperre("zusammengefuehrt", "Diese Akte ist zusammengeführt — bitte die Hauptakte öffnen.");
+  if (p.is_blocked) sperre("vertriebssperre", "Vertriebssperre: Dieser Kunde wird nicht angesprochen.");
+  if (p.werbung_gesperrt_am) sperre("werbesperre", "Werbesperre: Dieser Kunde möchte keine Angebote.");
+  if (p.ist_test_am) sperre("test", "Testkonto.");
   const { istGlobalKunde } = await import("./fiaon-global-kunde");
-  if (await istGlobalKunde(personId, l).catch(() => false)) sperren.push("Global-Kunde: Partner-Termine nur für Privatkunden.");
+  if (await istGlobalKunde(personId, l).catch(() => false)) sperre("global", "Global-Kunde: Partner-Termine nur für Privatkunden.");
   const [partner] = (await l`SELECT 1 AS ja FROM fiaon_global_angebote WHERE person_id = ${personId} AND fassung LIKE 'IA-KOOP-%' LIMIT 1`) as any[];
-  if (partner) sperren.push("Diese Person ist selbst Partner.");
-  if (!telefon || !email) sperren.push("Für die Übermittlung braucht es Telefonnummer UND E-Mail-Adresse in der Akte.");
+  if (partner) sperre("partner", "Diese Person ist selbst Partner.");
+  if (!telefon || !email) sperre("kontakt", "Für die Übermittlung braucht es Telefonnummer UND E-Mail-Adresse in der Akte.");
   const land = String(p.country || a?.country || "").trim().toUpperCase();
-  if (land && !["DE", "DEU", "DEUTSCHLAND", "GERMANY"].includes(land)) sperren.push("Wohnt nicht in Deutschland (Ziffer 3 des Vertrags).");
+  if (land && !["DE", "DEU", "DEUTSCHLAND", "GERMANY"].includes(land)) sperre("ausland", "Wohnt nicht in Deutschland (Ziffer 3 des Vertrags).");
   if (!land) bestaetigen.push("wohnsitz_de");
   const alter = alterAm(p.birthdate ?? a?.birthdate, heute);
-  if (alter !== null && alter < 18) sperren.push("Minderjährig.");
+  if (alter !== null && alter < 18) sperre("minderjaehrig", "Minderjährig.");
   if (alter === null) bestaetigen.push("volljaehrig");
   const [letzte] = (await l`
     SELECT art, erteilt_am, widerrufen_am FROM fiaon_koop_einwilligungen WHERE person_id = ${personId}
@@ -272,10 +299,13 @@ export async function koopKandidat(personId: number, l: Lauf = sqlPool, jetzt = 
   if (letzte?.widerrufen_am) hinweise.push(`Einwilligung am ${formatBerlin(new Date(letzte.widerrufen_am), false)} widerrufen — nur mit neuem, ausdrücklichem Ja.`);
   const strasse = text(p.street || a?.street, 160); const plz = text(p.zip || a?.zip, 10); const ort = text(p.city || a?.city, 120);
   const anschrift = strasse && plz && ort ? `${strasse}, ${plz} ${ort}` : null;
-  return { personId, vorname: text(p.first_name, 80), nachname: text(p.last_name, 80), telefon, email, anschrift, sperren, bestaetigen, hinweise };
+  return { personId, vorname: text(p.first_name, 80), nachname: text(p.last_name, 80), telefon, email, anschrift, sperren, sperrCodes, bestaetigen, hinweise };
 }
 
 /** Exklusivität (Ziffer 3): derselbe Interessent zum selben Thema — an keinen Partner, solange die Frist läuft. */
+export async function koopExklusivBelegt(personId: number, thema: string, monate: number, l: Lauf = sqlPool): Promise<{ am: string; bis: string } | null> {
+  return exklusivBelegt(personId, thema, monate, l);
+}
 async function exklusivBelegt(personId: number, thema: string, monate: number, l: Lauf): Promise<{ am: string; bis: string } | null> {
   const [r] = (await l`
     SELECT created_at FROM fiaon_koop_kontakte
@@ -347,59 +377,81 @@ export async function koopAkteLage(personId: number): Promise<Record<string, unk
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KoopKontaktEingabe {
   angebotId: number; thema: string; termin: string; art: string; notiz?: string;
-  /** Der Mitarbeiter hat den Text vorgelesen und der Kunde hat „Ja“ gesagt. */
+  /** Der Mitarbeiter hat den Text vorgelesen und der Kunde hat „Ja“ gesagt — bzw. (Selbstbuchung) das Kästchen gesetzt. */
   einwilligung: boolean;
   /** Bestätigungen für fehlende Akten-Angaben (Wohnsitz Deutschland, volljährig). */
   bestaetigt?: string[];
+  /**
+   * E-487 (09.11.2026): Wo das Ja gegeben wurde. „telefon“ (Vorgabe): der Mitarbeiter liest vor. „kundenbereich“: der Kunde
+   * bucht selbst (Kundenbereich-Karte oder persönlicher Link /vorsorge/…) — Wortlaut in Ich-Form, eigene Fassung, IP und
+   * Browser-Kennung, keine Notiz, nur bei Vorsorge-Partnern.
+   */
+  kanal?: KoopKanal;
+  ip?: string | null;
+  userAgent?: string | null;
+  /** Nur Selbstbuchung: woher der Kunde kam — für den Verlauf der Akte. */
+  quelle?: "link" | "kundenbereich";
 }
 export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEingabe, wer: { name: string; agentId: number | null }, jetzt = new Date()): Promise<Ergebnis<{ id: number; uebermittelt: boolean; meldung: string }>> {
+  const selbst = ein?.kanal === "kundenbereich";
+  // E-487: Das Ja zuerst — vor jeder Datenbankarbeit (ohne Ja entsteht nichts, auch keine Tabelle).
+  if (ein?.einwilligung !== true) {
+    return nein(selbst ? "Ohne das Kästchen zur Einwilligung gibt es keinen Termin." : "Ohne ausdrückliches Ja des Kunden gibt es keinen Kontakt — bitte den Text vorlesen und die Antwort bestätigen.", 400, "einwilligung");
+  }
   await ensureKoopTabellen();
-  if (ein?.einwilligung !== true) return nein("Ohne ausdrückliches Ja des Kunden gibt es keinen Kontakt — bitte den Text vorlesen und die Antwort bestätigen.");
   const z = await angebotLesen({ id: Number(ein?.angebotId) });
-  if (!z || !String(z.fassung).startsWith("IA-KOOP-") || String(z.status) !== "angenommen") return nein("Diesen Partner gibt es nicht (oder sein Vertrag ist nicht angenommen).", 404);
+  if (!z || !String(z.fassung).startsWith("IA-KOOP-") || String(z.status) !== "angenommen") return nein("Diesen Partner gibt es nicht (oder sein Vertrag ist nicht angenommen).", 404, "partner");
   const d = koopDatenAus(z);
+  // E-487: Selbst gebucht wird nur bei Vorsorge (Modell „kontakt“) — der Wortlaut in Ich-Form gibt es nur dafür.
+  if (selbst && d.parameter.bereich !== "vorsorge") return nein("Selbst buchen geht nur bei einem Vorsorge-Partner.", 409, "partner");
   const thema = d.parameter.themen.find((t) => t === String(ein.thema ?? ""));
-  if (!thema) return nein("Bitte ein Thema aus der Liste des Partners wählen.");
+  if (!thema) return nein("Bitte ein Thema aus der Liste des Partners wählen.", 400, "thema");
   const kandidat = await koopKandidat(personId, sqlPool, jetzt);
-  if (!kandidat) return nein("Diese Akte gibt es nicht.", 404);
-  if (kandidat.sperren.length) return nein(kandidat.sperren[0], 409);
+  if (!kandidat) return nein("Diese Akte gibt es nicht.", 404, "kandidat");
+  if (kandidat.sperren.length) return nein(kandidat.sperren[0], 409, "kandidat");
   const bestaetigt = Array.isArray(ein.bestaetigt) ? ein.bestaetigt.map(String) : [];
   const fehlt = kandidat.bestaetigen.filter((b) => !bestaetigt.includes(b));
-  if (fehlt.length) return nein(fehlt.includes("wohnsitz_de") ? "Bitte bestätigen: Der Kunde wohnt in Deutschland." : "Bitte bestätigen: Der Kunde ist volljährig.");
-  const notiz = String(ein.notiz ?? "").replace(/\r/g, "").trim().slice(0, 600);
+  if (fehlt.length) return nein(fehlt.includes("wohnsitz_de") ? "Bitte bestätigen: Der Kunde wohnt in Deutschland." : "Bitte bestätigen: Der Kunde ist volljährig.", 400, "bestaetigen");
+  // E-487: Bei der Selbstbuchung gibt es keine Notiz — es geht nur, was im Wortlaut steht.
+  const notiz = selbst ? "" : String(ein.notiz ?? "").replace(/\r/g, "").trim().slice(0, 600);
   // Gesundheit, Einkommen, Bonität gehören nicht in die Übermittlung (Ziffer 3 Absatz 2).
   const bereich = d.parameter.bereich; const modell = koopModellVon(bereich);
   if (koopNotizGesperrt(notiz, bereich)) {
     return nein(bereich === "recht" || bereich === "steuern"
       ? "Die Notiz geht an die Kanzlei — bitte nichts zu Gesundheit hineinschreiben."
-      : "Die Notiz geht an den Partner — bitte nichts zu Gesundheit, Einkommen, Schulden oder Bonität hineinschreiben.");
+      : "Die Notiz geht an den Partner — bitte nichts zu Gesundheit, Einkommen, Schulden oder Bonität hineinschreiben.", 400, "notiz");
   }
-  if (modell === "abschluss" && !kandidat.anschrift) return nein("Für ein Angebot braucht der Partner die Anschrift — bitte erst in der Akte nachtragen.");
+  if (modell === "abschluss" && !kandidat.anschrift) return nein("Für ein Angebot braucht der Partner die Anschrift — bitte erst in der Akte nachtragen.", 400, "anschrift");
   const zeitenRoh = zeitenAus(z);
   const art = String(ein.art ?? "") as KoopTerminArt;
-  if (!zeitenRoh || !zeitenRoh.arten.includes(art)) return nein("Bitte eine Terminart wählen, die der Partner anbietet.");
+  if (!zeitenRoh || !zeitenRoh.arten.includes(art)) return nein("Bitte eine Terminart wählen, die der Partner anbietet.", 400, "art");
   const termin = new Date(String(ein.termin ?? ""));
-  if (Number.isNaN(termin.getTime())) return nein("Bitte einen Termin wählen.");
-  const wortlaut = `${koopEinwilligungText(d.partner, thema, bereich)} ${KOOP_EINWILLIGUNG_FRAGE} — Antwort des Kunden: Ja.`;
-  const ewFassung = koopEinwilligungFassung(bereich);
+  if (Number.isNaN(termin.getTime())) return nein("Bitte einen Termin wählen.", 400, "termin");
+  const wortlaut = selbst
+    ? vorsorgeWortlaut(vorsorgeEinwilligungText(d.partner, thema), bestaetigt)
+    : `${koopEinwilligungText(d.partner, thema, bereich)} ${KOOP_EINWILLIGUNG_FRAGE} — Antwort des Kunden: Ja.`;
+  const ewFassung = selbst ? VORSORGE_FASSUNG : koopEinwilligungFassung(bereich);
+  const kanal: KoopKanal = selbst ? "kundenbereich" : "telefon";
+  const ip = selbst ? text(ein.ip, 64) || null : null;
+  const userAgent = selbst ? text(ein.userAgent, 300) || null : null;
   // Je Kontakt berechnet wird nur Vorsorge; Abschlüsse bekommen ihren Preis bei der Meldung, der Partnerplatz nie je Kontakt.
   // E-419: „Berechnung ausgesetzt“ (Justin an den ersten Partner 22.10.: „verrechnen tun wir einstweilen nichts“) — Kontakte kosten 0 €.
   const kontaktPreis = modell === "kontakt" && !koopBerechnungAusgesetzt(schalterAus(z)) ? d.parameter.preisCents : 0;
 
-  let ergebnis: { id: number; ersatz: boolean } | { fehler: string; status: number };
+  let ergebnis: { id: number; ersatz: boolean } | { fehler: string; status: number; code: string };
   try {
     ergebnis = await sqlPool.begin(async (tx: any) => {
       await tx`SELECT pg_advisory_xact_lock(${SPERRE_KLASSE}, ${Number(z.id)})`;
       const stand = await koopLieferStand(z, tx, jetzt);
-      if (stand.sperre) return { fehler: stand.sperre, status: 409 };
+      if (stand.sperre) return { fehler: stand.sperre, status: 409, code: "sperre" };
       // Der Termin muss einer der freien Termine sein (Zeiten, Werktag-Regel, nicht belegt) — neu gerechnet unter der Sperre.
       const frei = await koopFreieTermine(z, tx, jetzt);
-      if (!frei.some((s) => s.iso === termin.toISOString())) return { fehler: "Dieser Termin ist nicht (mehr) frei — bitte einen anderen wählen.", status: 409 };
+      if (!frei.some((s) => s.iso === termin.toISOString())) return { fehler: "Dieser Termin ist nicht (mehr) frei — bitte einen anderen wählen.", status: 409, code: "nicht_frei" };
       const belegt = await exklusivBelegt(personId, thema, d.parameter.exklusivMonate, tx);
-      if (belegt) return { fehler: `Zum Thema „${thema}“ wurde dieser Kunde am ${formatBerlin(belegt.am, false)} schon übermittelt — exklusiv bis ${formatBerlin(belegt.bis, false)}.`, status: 409 };
+      if (belegt) return { fehler: `Zum Thema „${thema}“ wurde dieser Kunde am ${formatBerlin(belegt.am, false)} schon übermittelt — exklusiv bis ${formatBerlin(belegt.bis, false)}.`, status: 409, code: "exklusiv" };
       const [e] = (await tx`
-        INSERT INTO fiaon_koop_einwilligungen (person_id, art, angebot_id, thema, kanal, wortlaut, fassung, erteilt_am, erteilt_von, agent_id)
-        VALUES (${personId}, 'uebermittlung', ${Number(z.id)}, ${thema}, 'telefon', ${wortlaut}, ${ewFassung}, ${jetzt}, ${wer.name}, ${wer.agentId})
+        INSERT INTO fiaon_koop_einwilligungen (person_id, art, angebot_id, thema, kanal, wortlaut, fassung, erteilt_am, erteilt_von, agent_id, ip, user_agent)
+        VALUES (${personId}, 'uebermittlung', ${Number(z.id)}, ${thema}, ${kanal}, ${wortlaut}, ${ewFassung}, ${jetzt}, ${wer.name}, ${wer.agentId}, ${ip}, ${userAgent})
         RETURNING id`) as any[];
       // Ersatz für einen berechtigt reklamierten Kontakt geht vor (zählt nicht gegen Wunschmenge und Start-Rahmen).
       let ersatzFuer: number | null = null;
@@ -422,14 +474,20 @@ export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEinga
     });
   } catch (e) {
     console.error("[KOOP] Kontakt anlegen:", e);
-    return nein("Der Kontakt ließ sich gerade nicht speichern — bitte gleich noch einmal.", 500);
+    return nein("Der Kontakt ließ sich gerade nicht speichern — bitte gleich noch einmal.", 500, "speichern");
   }
-  if ("fehler" in ergebnis) return nein(ergebnis.fehler, ergebnis.status);
-  await verlauf(personId, `Partner-Termin (Kooperation ${d.ref}): ${thema} am ${formatBerlin(termin)} (${koopTerminArtText(art)}) mit ${koopPartnerImSatz(d.partner)}. Einwilligung am Telefon erteilt (Fassung ${ewFassung}).${ergebnis.ersatz ? " Ersatz für einen reklamierten Kontakt." : ""}`, wer);
+  if ("fehler" in ergebnis) return nein(ergebnis.fehler, ergebnis.status, ergebnis.code);
+  const wieErteilt = selbst
+    ? `Einwilligung im FIAON-Kundenbereich selbst erteilt (${ein.quelle === "link" ? "über den persönlichen Link aus der E-Mail" : "im Kundenbereich"}, Fassung ${ewFassung})`
+    : `Einwilligung am Telefon erteilt (Fassung ${ewFassung})`;
+  await verlauf(personId, `Partner-Termin (Kooperation ${d.ref}): ${thema} am ${formatBerlin(termin)} (${koopTerminArtText(art)}) mit ${koopPartnerImSatz(d.partner)}. ${wieErteilt}.${ergebnis.ersatz ? " Ersatz für einen reklamierten Kontakt." : ""}`, wer);
   const u = await koopUebermitteln(ergebnis.id);
   return {
     ok: true, id: ergebnis.id, uebermittelt: u.ok,
-    meldung: u.ok ? `Übermittelt an ${koopPartnerImSatz(d.partner)} — der Kunde bekommt eine Bestätigung per E-Mail.` : `Gespeichert. Die Mail an den Partner ging noch nicht raus (${u.grund}) — der Stundenlauf versucht es erneut.`,
+    meldung: selbst
+      // E-487: Diesen Satz liest der KUNDE (Sie-Form, ohne Betriebsinterna).
+      ? (u.ok ? "Gebucht — Sie bekommen gleich eine Bestätigung per E-Mail." : "Gebucht — die Bestätigung kommt in Kürze per E-Mail.")
+      : u.ok ? `Übermittelt an ${koopPartnerImSatz(d.partner)} — der Kunde bekommt eine Bestätigung per E-Mail.` : `Gespeichert. Die Mail an den Partner ging noch nicht raus (${u.grund}) — der Stundenlauf versucht es erneut.`,
   };
 }
 
@@ -443,14 +501,25 @@ async function freitext(an: string, betreff: string, textInhalt: string, opts: {
   await mailProtokoll({ event: opts.event, personId: opts.personId ?? null, empfaenger: an, status: r.ok ? "versandt" : "fehlgeschlagen", grund: r.grund ?? null, payload: { betreff }, ausgeloestVon: "Kooperation (Automatik)", brevoMessageId: r.messageId });
   return r;
 }
+/**
+ * Die Mail an den Partner. E-487 (09.11.2026): Bei einer Selbstbuchung (ew.kanal „kundenbereich“) sagt die Einwilligungs-Zeile
+ * „im FIAON-Kundenbereich selbst erteilt“ statt „am Telefon erteilt“ — alles andere bleibt Wort für Wort. Exportiert für den
+ * Prüfstand (rein, ohne Datenbank).
+ */
+export function koopPartnerBriefText(d: KoopDaten, k: any, ew: any, link: string): { betreff: string; text: string } {
+  return partnerBriefText(d, k, ew, link);
+}
 function partnerBriefText(d: KoopDaten, k: any, ew: any, link: string): { betreff: string; text: string } {
   const termin = formatBerlin(new Date(k.termin_beginn));
+  const selbst = String(ew?.kanal ?? "") === "kundenbereich";
   const zeilen = [
     `FIAON übermittelt Ihnen einen neuen Kontakt aus dem Kooperationsvertrag ${d.ref}${k.ersatz_fuer_id ? " — als Ersatz für einen reklamierten Kontakt (ohne Berechnung gegen Ihre Wunschmenge)" : ""}.`,
     [`Interessent: ${k.vorname} ${k.nachname}`, ...(k.anschrift ? [`Anschrift: ${k.anschrift}`] : []), `Telefon: ${k.telefon}`, `E-Mail: ${k.email}`, `${koopModellVon(d.parameter.bereich) === "abschluss" ? "Sparte" : "Thema"}: ${k.thema}`,
       `${koopModellVon(d.parameter.bereich) === "abschluss" ? "Rückruf" : "Termin"}: ${termin} (${k.termin_dauer_min} Minuten, ${koopTerminArtText(k.termin_art)})`, ...(k.notiz ? [`Notiz aus unserem Gespräch: ${k.notiz}`] : [])].join("\n"),
     ...(koopModellVon(d.parameter.bereich) === "abschluss" ? ["Kommt ein Vertrag zustande, melden Sie den Abschluss bitte im Partnerbereich (Ziffer 6) — erst dann wird berechnet."] : []),
-    `Einwilligung: am ${formatBerlin(new Date(ew.erteilt_am))} am Telefon erteilt (Fassung ${ew.fassung}) — sie umfasst Ihren Anruf und Ihre E-Mail zu diesem Gespräch. Den Wortlaut weisen wir Ihnen auf Anfrage nach.`,
+    selbst
+      ? `Einwilligung: am ${formatBerlin(new Date(ew.erteilt_am))} im FIAON-Kundenbereich selbst erteilt (Fassung ${ew.fassung}) — der Interessent hat den Termin selbst gebucht; sie umfasst Ihren Anruf und Ihre E-Mail zu diesem Gespräch. Den Wortlaut weisen wir Ihnen auf Anfrage nach.`
+      : `Einwilligung: am ${formatBerlin(new Date(ew.erteilt_am))} am Telefon erteilt (Fassung ${ew.fassung}) — sie umfasst Ihren Anruf und Ihre E-Mail zu diesem Gespräch. Den Wortlaut weisen wir Ihnen auf Anfrage nach.`,
     "Bitte informieren Sie den Interessenten bei Ihrem ersten Kontakt nach Art. 14 DSGVO, nutzen Sie die Daten nur für dieses Gespräch und nehmen Sie Rücksicht auf seine finanzielle Lage (Ziffer 5). Wünscht er keinen Kontakt mehr, melden Sie es bitte in Ihrem Partnerbereich.",
     `Alle Termine, Ihre Zeiten, Reklamationen und Rechnungen: ${link}`,
   ];
@@ -498,10 +567,22 @@ export async function koopUebermitteln(kontaktId: number): Promise<{ ok: boolean
 async function koopKundeBestaetigen(kontaktId: number, d: KoopDaten): Promise<void> {
   const [k] = (await sqlPool`UPDATE fiaon_koop_kontakte SET kunde_mail_am = NOW() WHERE id = ${kontaktId} AND kunde_mail_am IS NULL RETURNING *`) as any[];
   if (!k?.email) return;
+  // E-487: Selbst gebucht? Dann sagt die Bestätigung „Sie haben … gebucht“ statt „wie besprochen“.
+  const [ew] = (await sqlPool`SELECT kanal FROM fiaon_koop_einwilligungen WHERE id = ${Number(k.einwilligung_id)}`) as any[];
+  const brief = koopKundeBestaetigungText(d, k, String(ew?.kanal ?? "telefon") === "kundenbereich" ? "kundenbereich" : "telefon");
+  await freitext(String(k.email), brief.betreff, brief.text, { anrede: `Guten Tag ${k.vorname} ${k.nachname},`, absender: "welcome", event: "koop_kontakt_kunde", personId: Number(k.person_id) });
+}
+/**
+ * Die Bestätigung an den Kunden — rein (Prüfstand). Am Telefon vereinbart: Wort für Wort wie seit E-386 („wie besprochen …“).
+ * E-487 (09.11.2026): selbst gebucht (Kanal „kundenbereich“, nur Vorsorge): „Sie haben … gebucht“ und der Hinweis, dass er den
+ * Termin auch im Kundenbereich absagen kann.
+ */
+export function koopKundeBestaetigungText(d: KoopDaten, k: any, kanal: KoopKanal): { betreff: string; text: string } {
   const termin = formatBerlin(new Date(k.termin_beginn));
   const bereich = d.parameter.bereich; const modell = koopModellVon(bereich);
   const wie = k.termin_art === "telefon" ? `Der Anruf kommt zum Termin unter ${k.telefon}.` : k.termin_art === "video" ? "Den Link für das Videogespräch erhalten Sie vorher per E-Mail." : "Den Ort stimmt der Partner vorher mit Ihnen ab.";
   const wer = koopPartnerImSatz(d.partner);
+  const selbst = kanal === "kundenbereich" && modell === "kontakt";
   const absaetze = modell === "platz" ? [
     `wie besprochen haben wir für Sie ein Erstgespräch zum Thema „${k.thema}“ vereinbart.`,
     `Termin: ${termin} (${koopTerminArtText(k.termin_art)})\nMit: ${wer}. ${wie}`,
@@ -511,15 +592,19 @@ async function koopKundeBestaetigen(kontaktId: number, d: KoopDaten): Promise<vo
     `Rückruf: ${termin} (${koopTerminArtText(k.termin_art)}). ${wie}`,
     "Ein Vertrag entsteht nur, wenn Sie ihn selbst abschließen — prüfen Sie das Angebot in Ruhe. FIAON erhält vom Partner eine Vergütung, wenn ein Vertrag zustande kommt; für Sie entstehen dadurch keine Kosten.",
   ] : [
-    `wie besprochen haben wir für Sie ein kostenloses Gespräch zum Thema „${k.thema}“ vereinbart.`,
+    selbst
+      ? `Sie haben ein kostenloses Gespräch zum Thema „${k.thema}“ gebucht — danke für Ihr Vertrauen.`
+      : `wie besprochen haben wir für Sie ein kostenloses Gespräch zum Thema „${k.thema}“ vereinbart.`,
     `Termin: ${termin} (${koopTerminArtText(k.termin_art)})\nMit: ${wer}, selbstständiger Berater und Partner von FIAON. ${wie}`,
     "FIAON berät nicht zu Versicherungen oder Geldanlagen und erhält keine Provision. Sie entscheiden nach dem Gespräch in Ruhe — Ihre FIAON-Leistungen hängen davon nicht ab.",
   ];
   const textInhalt = [
     ...absaetze,
-    "Sie möchten das doch nicht? Antworten Sie einfach auf diese E-Mail oder schreiben Sie an support@fiaon.com — dann widerrufen wir Ihre Einwilligung und sagen dem Partner Bescheid.",
+    selbst
+      ? "Sie möchten das doch nicht? Sagen Sie den Termin in Ihrem FIAON-Kundenbereich ab, antworten Sie auf diese E-Mail oder schreiben Sie an support@fiaon.com — dann widerrufen wir Ihre Einwilligung und sagen dem Partner Bescheid."
+      : "Sie möchten das doch nicht? Antworten Sie einfach auf diese E-Mail oder schreiben Sie an support@fiaon.com — dann widerrufen wir Ihre Einwilligung und sagen dem Partner Bescheid.",
   ].join("\n\n");
-  await freitext(String(k.email), modell === "abschluss" ? `Ihr Rückruf am ${termin}` : `Ihr Gesprächstermin am ${termin}`, textInhalt, { anrede: `Guten Tag ${k.vorname} ${k.nachname},`, absender: "welcome", event: "koop_kontakt_kunde", personId: Number(k.person_id) });
+  return { betreff: modell === "abschluss" ? `Ihr Rückruf am ${termin}` : `Ihr Gesprächstermin am ${termin}`, text: textInhalt };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1015,7 +1100,9 @@ export async function koopLieferLauf(jetzt = new Date()): Promise<{ uebermittelt
 }
 
 /** Für die Liste der Leitung (Reiter „Individualangebote“): Lieferung in einer Zeile + Partnerbereich-Link. */
-export async function koopListenLieferung(z: AngebotZeile): Promise<{ zeile: string; partnerLink: string } | null> {
+// E-487 (09.11.2026): dazu `rolle` (schalter.rolle — wie der Partner auf der Kundenseite heißt, leer = Vorgabe) und `bereich`,
+// damit die Leitung die Rolle im Chefbüro › Geschäftspartner setzen kann (nur bei Vorsorge sichtbar).
+export async function koopListenLieferung(z: AngebotZeile): Promise<{ zeile: string; partnerLink: string; rolle: string | null; bereich: string } | null> {
   if (String(z.status) !== "angenommen") return null;
   const s = await koopLieferStand(z).catch(() => null);
   if (!s) return null;
@@ -1027,5 +1114,6 @@ export async function koopListenLieferung(z: AngebotZeile): Promise<{ zeile: str
     s.zeiten ? `Zeiten: ${koopZeitenText(s.zeiten)}` : "Zeiten fehlen (trägt der Partner im Partnerbereich ein)",
     ...(s.ruht ? [`RUHT: Rechnung ${s.ruht.rechnung} offen`] : []),
   ];
-  return { zeile: teile.join(" · "), partnerLink: koopPartnerLink(z) };
+  const rolle = String(schalterAus(z).rolle ?? "").trim();
+  return { zeile: teile.join(" · "), partnerLink: koopPartnerLink(z), rolle: rolle || null, bereich: koopDatenAus(z).parameter.bereich };
 }

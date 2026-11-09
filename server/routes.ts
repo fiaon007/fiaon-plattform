@@ -712,6 +712,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Monatsrechnung für jeden abgeschlossenen Monat (genau einmal je Partner und Monat), eine Zahlungserinnerung.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('koop_liefer_lauf', async () => await (await import('./lib/fiaon-koop-lieferung')).koopLieferLauf(), 60 * 60 * 1000, { beimStartNach: 720_000 });
+    // 🛡 E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ — alle 30 Minuten, 09–19 Uhr Berlin, höchstens 60 am Tag,
+    //    je Mensch eine. Tut NICHTS, bis Justin im Chefbüro › Mailwerk freigibt (vorsorge_mail_an = 1).
+    tageslauf('vorsorge_mail', async () => await (await import('./lib/fiaon-vorsorge-einladung')).vorsorgeTakt(), 30 * 60 * 1000, { beimStartNach: 780_000 });
   });
   // 🤝 E-487 (09.11.2026): Partner-Empfehlungen der richtigen Person zuordnen (eindeutig → zuordnen + Info an Justin, mehrdeutig →
   //    Aufgabe an Justin), Altbestand mit Telefon einmal an die zuständige Person. Stündlich, eigener Lauf (nicht im Lieferlauf).
@@ -1063,6 +1066,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
   app.get(['/zugang/uebergabe', '/zugang/uebergabe/*'], (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Cache-Control', 'private, no-store');
+    next();
+  });
+  // E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ (/vorsorge/<persönlicher Link>) — der Link bucht im Namen des Kunden:
+  // nie im Index, kein Referer an fremde Hosts, nichts im Zwischenspeicher.
+  app.get(['/vorsorge', '/vorsorge/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');

@@ -148,7 +148,8 @@ type KoopAngebot = {
   link: string | null; vertragUrl: string; angenommenAm: string | null; ip: string | null; textHash: string | null; fehlt: string[];
   kunde: { email: string };
   koop: { wunschWoche: number | null; zeile: string };
-  lieferung?: { zeile: string; partnerLink: string } | null;
+  // E-487 (09.11.2026): `rolle` (wie der Partner auf der Kundenseite „Ihr Vorsorge-Überblick“ heißt, leer = Vorgabe) und `bereich`.
+  lieferung?: { zeile: string; partnerLink: string; rolle?: string | null; bereich?: string } | null;
   aufrufe: Aufrufe | null;
   empfehlungen?: KoopEmpfehlungen | null;
 };
@@ -247,6 +248,8 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
   );
 }
 function KoopAngebotBlock({ a, aktion, busy, kopieren }: { a: KoopAngebot; busy: string | null; kopieren: (t: string) => void; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
+  // E-487 (09.11.2026): die Rolle auf der Kundenseite — nur bei Vorsorge (dort bucht der Kunde selbst, Name und Rolle stehen da).
+  const [rolle, setRolle] = useState<string>(a.lieferung?.rolle ?? "");
   return (
     <section className={`cz-block cg-angebot cg-${a.status}`} data-angebot={a.ref} data-art="koop">
       <header className="cg-angebot-kopf">
@@ -266,6 +269,18 @@ function KoopAngebotBlock({ a, aktion, busy, kopieren }: { a: KoopAngebot; busy:
         <div className="cg-begleit-annahme">
           <p className="cm-klartext"><b>Lieferung:</b> {a.lieferung?.zeile ?? "— (nicht ladbar)"}</p>
           <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Kontakte halten Mitarbeiter in der Akte unter „Partner-Termin“ fest; Rechnung automatisch am Monatsersten.</p>
+          {a.lieferung?.bereich === "vorsorge" && (
+            <div className="cg-form cg-form-breit" data-koop-rolle>
+              <label>Bezeichnung auf der Kundenseite „Ihr Vorsorge-Überblick“
+                <input value={rolle} maxLength={60} placeholder="leer = „selbstständiger Berater“" onChange={(ev) => setRolle(ev.target.value)} />
+              </label>
+              <div className="cg-form-knoepfe">
+                <button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kr${a.id}` || rolle.trim() === (a.lieferung?.rolle ?? "")}
+                  onClick={() => aktion(`kr${a.id}`, `/admin/global/angebote/${a.id}/koop/provision`, { rolle: rolle.trim() })}>Bezeichnung speichern</button>
+              </div>
+              <span className="cm-fein">Steht unter dem Namen des Partners, wenn ein Kunde selbst bucht: „{rolle.trim() || "selbstständiger Berater"}, Partner von FIAON“. Die Einwilligung nennt ihn weiter „selbstständigen Berater“.</span>
+            </div>
+          )}
         </div>
       )}
       {a.status === "angenommen" && <KoopEmpfehlungBlock a={a} aktion={aktion} busy={busy} />}

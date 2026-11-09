@@ -66,6 +66,12 @@ export interface MailBaustein {
    * Mail Byte für Byte, wie sie war — Rechnungen, Mahnungen und Systemmails tragen keine Karte.
    */
   signatur?: string;
+  /**
+   * E-487 (09.11.2026): die Unterschrift zur Karte im TEXT-Teil (`signatur` ist nur HTML) — z. B. „Mara Lindner · Digitale
+   * Assistentin · FIAON Welcome-Team“. Steht im Text-Teil direkt hinter den Absätzen. Ohne Angabe bleibt jede Mail Byte für
+   * Byte, wie sie war.
+   */
+  signaturText?: string;
   /** Der eine Knopf. Fehlt er, ist es eine reine Mitteilung. */
   knopf?: { text: string; url: string };
   /** Zweiter, leiserer Knopf unter dem ersten. */
@@ -427,6 +433,8 @@ export function mailText(b: MailBaustein, titelFuellen: (s: string) => string = 
     titelFuellen(b.titel).toUpperCase(),
     "",
     ...b.absaetze.map(ohneTags),
+    // E-487: die Unterschrift zur Karte (nur wenn die Vorlage sie trägt — sonst kein Byte anders).
+    ...(b.signaturText ? [b.signaturText] : []),
     ...(b.daten?.length ? ["", ...b.daten.map((d) => `${d.label}: ${ohneTags(d.wert)}`)] : []),
     ...(b.knopf ? ["", `${b.knopf.text}: ${b.knopf.url}`] : []),
     ...(b.knopf2 ? [`${b.knopf2.text}: ${b.knopf2.url}`] : []),

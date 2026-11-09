@@ -1,0 +1,190 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   „IHR VORSORGE-ÜBERBLICK“ (E-487 (09.11.2026)) — Seite /vorsorge/<persönlicher Link> und die Karte im Kundenbereich.
+
+   Glasblau-CI wie die übrigen Kundenseiten (Justin, Design-Regeln): hell, blaustichig, #288DFA (Licht) + #1D4ED8 (Tiefe),
+   Navy #12284a/#0b1c36 für Text, dünne Schrift (Überschriften 300/400, Knöpfe 400), viel Luft, kein Gold, keine Icons aus
+   Bibliotheken. Das EINE Navy-Glas der Seite ist die Partner-Karte (.vs-partner.dunkel) — in der Kundenbereich-Karte bleibt
+   sie hell (dort ist die Zielkarte das Navy-Glas). Handy zuerst: 16 px Rand, Felder ab 16 px (kein Zoom am iPhone),
+   Knöpfe ≥ 48 px, keine klebenden Leisten, kein seitliches Scrollen der Seite. Kein Dunkelmodus (Kundenbereich ist hell).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.vs-seite {
+  color-scheme: light;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: linear-gradient(180deg, #f2f7ff 0%, #f6f9fd 38%, #ffffff 100%);
+  color: #12284a;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  padding: 0 16px 56px;
+  overflow-x: hidden;
+}
+.vs-seite *, .vs-buchung *, .vs-buchung *::before, .vs-buchung *::after { box-sizing: border-box; }
+/* Alles im Baustein trägt den Vorsatz .vs-buchung — in der Karte des Kundenbereichs gelten sonst „.ap-karte p“ und
+   „.ap-root button“ (gleiche oder höhere Gewichtung) und überschrieben Abstände, Farben und Schriftgrößen. */
+.vs-innen { max-width: 600px; margin: 0 auto; }
+
+.vs-kopf { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 0 6px; }
+.vs-marke { display: inline-flex; height: 22px; font-size: 22px; color: #0b1c36; }
+.vs-kopf-pille {
+  font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: #1d4ed8;
+  background: rgba(40, 141, 250, .1); border: 1px solid rgba(40, 141, 250, .22); border-radius: 999px; padding: 6px 12px;
+}
+
+.vs-titel { margin: 26px 0 0; font-size: 28px; line-height: 1.22; font-weight: 300; letter-spacing: -.012em; color: #0b1c36; }
+.vs-titel span { display: block; font-weight: 400; color: #1d4ed8; }
+.vs-titel.klein { margin: 0 0 8px; font-size: 22px; }
+.vs-lead { margin: 12px 0 0; font-size: 17px; line-height: 1.55; font-weight: 300; color: #34465f; }
+.vs-laedt { margin: 40px 0; color: #5b6b82; }
+
+.vs-karte {
+  margin-top: 22px; background: #fff; border: 1px solid #e1e8f2; border-radius: 20px; padding: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 14px 36px rgba(29, 78, 216, .07);
+}
+.vs-karte > p { margin: 0; font-size: 16px; line-height: 1.55; color: #34465f; }
+.vs-karte > .vs-knopf { margin-top: 16px; }
+
+/* ── Die Buchung (Seite und Karte) ───────────────────────────────────────── */
+.vs-buchung { display: grid; gap: 22px; }
+.vs-buchung.vs-karte-kontext { gap: 18px; margin-top: 12px; }
+.vs-buchung .vs-block { display: grid; gap: 12px; }
+.vs-buchung .vs-block + .vs-block { padding-top: 20px; border-top: 1px solid #e8eef7; }
+.vs-buchung .vs-schritt { margin: 0; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: #1d4ed8; }
+.vs-buchung .vs-h2 { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 400; color: #0b1c36; letter-spacing: -.005em; }
+.vs-buchung .vs-text { margin: 0; font-size: 16px; line-height: 1.55; color: #34465f; }
+.vs-buchung .vs-fein { margin: 0; font-size: 14px; line-height: 1.55; color: #5b6b82; }
+.vs-buchung .vs-frage { margin: 0 0 8px; font-size: 15px; font-weight: 500; color: #12284a; }
+.vs-buchung .vs-feld { display: grid; }
+.vs-buchung .vs-hinweis {
+  margin: 0; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5;
+  background: #f4f8ff; border: 1px solid #dbe7fb; color: #1e3a6e;
+}
+
+.vs-buchung .vs-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.vs-buchung .vs-chip {
+  position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-height: 48px; max-width: 100%; padding: 12px 14px 12px 42px; border-radius: 14px; cursor: pointer;
+  border: 1px solid #cfdcf0; background: #fff; color: #12284a; font: inherit; font-size: 16px; font-weight: 400; line-height: 1.35;
+  text-align: left; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.vs-buchung .vs-chip::before {
+  content: ""; position: absolute; left: 14px; top: 14px; width: 18px; height: 18px; border-radius: 6px;
+  border: 1.5px solid #9fb6d9; background: #fff;
+}
+.vs-buchung .vs-chip.an { border-color: #288dfa; background: #eef5ff; box-shadow: 0 0 0 3px rgba(40, 141, 250, .12); }
+.vs-buchung .vs-chip.an::before {
+  border-color: #1d4ed8; background: #1d4ed8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 18'%3E%3Cpath d='M4.5 9.2l3 3 6-6.4' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat;
+}
+.vs-buchung .vs-chips.einzeln .vs-chip::before { border-radius: 50%; }
+.vs-buchung .vs-chip:disabled { cursor: default; opacity: .6; }
+.vs-buchung .vs-chip small { font-size: 13px; color: #5b6b82; }
+
+.vs-knopf, .vs-buchung .vs-knopf {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 52px; padding: 0 18px;
+  border: 0; border-radius: 14px; cursor: pointer; text-decoration: none;
+  background: linear-gradient(180deg, #288dfa 0%, #1d4ed8 100%); color: #fff; font: inherit; font-size: 17px; font-weight: 400;
+  box-shadow: 0 10px 24px rgba(29, 78, 216, .25), inset 0 1px 0 rgba(255, 255, 255, .25);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .15s ease;
+}
+.vs-knopf:active, .vs-buchung .vs-knopf:active { transform: translateY(1px) scale(.995); }
+.vs-knopf:disabled, .vs-buchung .vs-knopf:disabled { cursor: default; background: #c9d6ea; color: #fff; box-shadow: none; }
+.vs-knopf.still, .vs-buchung .vs-knopf.still { background: #fff; color: #1d4ed8; border: 1px solid #b9cdee; box-shadow: none; }
+.vs-knopf.still:disabled, .vs-buchung .vs-knopf.still:disabled { color: #8aa0c2; border-color: #dbe5f3; background: #fff; }
+.vs-buchung .vs-leise {
+  justify-self: start; min-height: 44px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: 15px; color: #5b6b82; text-decoration: underline; text-underline-offset: 3px;
+}
+.vs-buchung .vs-leise:disabled { cursor: default; opacity: .6; }
+
+.vs-buchung .vs-maske { display: grid; gap: 18px; }
+.vs-buchung .vs-arten { display: flex; flex-wrap: wrap; gap: 8px; }
+.vs-buchung .vs-pille {
+  min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 15px; font-weight: 400;
+  border: 1px solid #cfdcf0; background: #fff; color: #12284a;
+}
+.vs-buchung .vs-pille.an { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+
+/* Partner — hell in der Karte, Navy-Glas auf der Seite (das eine dunkle Element der Seite). */
+.vs-buchung .vs-partner {
+  display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px;
+  background: #f6f9ff; border: 1px solid #dce6f5; color: #12284a;
+}
+.vs-buchung .vs-partner.dunkel {
+  position: relative; overflow: hidden; color: #fff; border-color: rgba(255, 255, 255, .08);
+  background: linear-gradient(160deg, #16305a 0%, #0b1c36 100%);
+  box-shadow: 0 18px 40px rgba(11, 28, 54, .28), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.vs-buchung .vs-partner.dunkel::after {
+  content: ""; position: absolute; inset: 0 auto auto -40%; width: 70%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(147, 197, 253, .7), transparent);
+}
+.vs-buchung .vs-partner-zeichen {
+  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(160deg, #288dfa, #1d4ed8); color: #fff; font-size: 16px; font-weight: 500; letter-spacing: .02em;
+  box-shadow: 0 0 0 3px rgba(40, 141, 250, .18);
+}
+.vs-buchung .vs-partner b, .vs-buchung .vs-partner-name { display: block; font-size: 18px; font-weight: 400; line-height: 1.3; }
+.vs-buchung .vs-partner-rolle { display: block; font-size: 14px; line-height: 1.45; color: #34465f; }
+.vs-buchung .vs-partner-fein { display: block; margin-top: 4px; font-size: 13px; color: #5b6b82; }
+.vs-buchung .vs-partner.dunkel .vs-partner-rolle { color: #c9dcfb; }
+.vs-buchung .vs-partner.dunkel .vs-partner-fein { color: #93b4e6; }
+
+/* Tage: eine Reihe zum Wischen (nur die Reihe scrollt, nie die Seite), Zeiten als Raster. */
+.vs-buchung .vs-tage {
+  display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+  padding: 2px 2px 8px; margin: 0 -2px; -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+}
+.vs-buchung .vs-tag {
+  flex: none; min-width: 72px; min-height: 58px; padding: 8px 10px; border-radius: 14px; cursor: pointer; scroll-snap-align: start;
+  display: grid; place-items: center; gap: 1px; font: inherit; border: 1px solid #cfdcf0; background: #fff; color: #12284a;
+}
+.vs-buchung .vs-tag span { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #5b6b82; }
+.vs-buchung .vs-tag b { font-size: 16px; font-weight: 400; }
+.vs-buchung .vs-tag.an { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+.vs-buchung .vs-tag.an span { color: #dbe7fb; }
+.vs-buchung .vs-zeiten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.vs-buchung .vs-zeit {
+  min-height: 48px; border-radius: 12px; cursor: pointer; font: inherit; font-size: 16px; font-weight: 400;
+  border: 1px solid #cfdcf0; background: #fff; color: #12284a;
+}
+.vs-buchung .vs-zeit.an { border-color: #1d4ed8; background: #1d4ed8; color: #fff; }
+
+.vs-buchung .vs-einwilligung { display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: #f7f9fc; border: 1px solid #e1e8f2; }
+.vs-buchung .vs-einwilligung .vs-frage { margin: 0; }
+.vs-buchung .vs-wortlaut { margin: 0; font-size: 14.5px; line-height: 1.6; color: #22324a; }
+.vs-buchung .vs-haken { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; font-size: 16px; line-height: 1.45; color: #12284a; }
+.vs-buchung .vs-haken input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: #1d4ed8; cursor: pointer; }
+.vs-buchung .vs-fehlt { margin-top: -8px; }
+
+.vs-buchung .vs-meldung { margin: 0; padding: 12px 14px; border-radius: 14px; font-size: 15px; line-height: 1.5; }
+.vs-buchung .vs-meldung.gut { background: #e8f6ef; border: 1px solid #bfe6d2; color: #0f5a40; }
+.vs-buchung .vs-meldung.schlecht { background: #fdecec; border: 1px solid #f5c2c2; color: #8f1d16; }
+
+.vs-buchung .vs-gebucht { display: flex; gap: 14px; align-items: flex-start; }
+.vs-buchung .vs-gebucht svg { flex: none; width: 40px; height: 40px; color: #1d4ed8; }
+.vs-buchung .vs-gebucht b { display: block; font-size: 19px; font-weight: 400; color: #0b1c36; }
+.vs-buchung .vs-gebucht p { margin: 6px 0 0; font-size: 16px; line-height: 1.55; color: #34465f; }
+
+.vs-buchung .vs-vorschau-band {
+  margin: 0; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.5;
+  background: #eef5ff; border: 1px dashed #9fc3f7; color: #1d4ed8;
+}
+.vs-buchung .vs-fiaon { margin-top: 4px; }
+.vs-fuss { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-top: 28px; font-size: 13px; }
+.vs-fuss a { color: #5b6b82; }
+
+/* Sanftes Erscheinen — einmal, nie an die Scrollposition gekoppelt. */
+.vs-auf { animation: vs-auf .6s cubic-bezier(.32, .72, 0, 1) both; }
+@keyframes vs-auf { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .vs-auf { animation: none; }
+  .vs-knopf, .vs-buchung .vs-knopf, .vs-buchung .vs-chip { transition: none; }
+}
+
+@media (min-width: 520px) {
+  .vs-titel { font-size: 34px; }
+  .vs-karte { padding: 28px; }
+  .vs-buchung .vs-zeiten { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

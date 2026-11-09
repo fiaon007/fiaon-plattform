@@ -60,6 +60,8 @@ import { VERTRAG_VORLAGEN } from "./vorlagen/vertrag";
 import { FINANZAUSWERTUNG_VORLAGEN } from "./vorlagen/finanzauswertung";
 // E-406 C2 (19.10.2026): Maras Nacharbeit nach dem Anruf — eine Vorlage, drei Fassungen (nacharbeitBaustein).
 import { NACHARBEIT_VORLAGEN, nacharbeitBaustein } from "./vorlagen/nacharbeit";
+// E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ (Werbung für die FIAON-eigene Leistung, nur nach Freigabe im Mailwerk).
+import { VORSORGE_VORLAGEN } from "./vorlagen/vorsorge";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -83,6 +85,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...VERTRAG_VORLAGEN,
   ...FINANZAUSWERTUNG_VORLAGEN,
   ...NACHARBEIT_VORLAGEN,
+  ...VORSORGE_VORLAGEN,
 };
 
 /**
@@ -193,6 +196,9 @@ export const ABMELDEPFLICHT = new Set<string>([
   "auskunft_angebot",
   // Mara-Topsales 08.10.2026 (Justin): die Abbruch-Kette (E-023) geht an Menschen ohne Vertrag — Werbung, also nur mit Ausgang.
   "antrag_erinnerung",
+  // E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — Werbung an zahlende Kunden (§ 7 Abs. 3 UWG), persönlicher Abmeldelink und
+  // One-Click-Kopfzeilen Pflicht.
+  "vorsorge_ueberblick",
 ]);
 
 /**

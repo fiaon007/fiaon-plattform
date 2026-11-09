@@ -594,6 +594,60 @@ abschnitt("A19 Quelltext-Wände");
   ok(!/kein_interesse\b[^\n]*\|\|[^\n]*keineMailsGewuenscht/.test(post) || post.includes('vorab === "kein_interesse" || keineMailsGewuenscht(kern)'), "Abmeldung: Radar-Regel ODER der eindeutige Lead-Satz");
 }
 
+abschnitt("A20 E-487 (09.11.2026): Maras WhatsApp-Link auch in N1–N3; das Willkommen hängt nie mehr still");
+{
+  const MB = await import("../shared/fiaon-mara-business");
+  const nr = "4915100000000", kennung = "AbCdEfGh23";
+  const WAM = new Date("2026-11-05T09:30:00Z");
+  const N = (stufe: 1 | 2 | 3, over: Record<string, unknown> = {}) => T.nachfassText(stufe, {
+    sprache: "de", name: "Max Mustermann", link: LINK, willkommenAm: WAM, jetzt: new Date("2026-11-06T09:30:00Z"),
+    anrufVersuch: null, angaben: "antworten", firma: "Muster Logistik GmbH", ...over,
+  } as any);
+  for (const sprache of ["de", "en"] as const) {
+    const url = MB.waGlobalLink(nr, kennung, sprache)!;
+    for (const stufe of [1, 2, 3] as const) {
+      const m = N(stufe, { sprache, whatsapp: { url } });
+      const k = klar(m);
+      const block = m.bloecke.find((b: any) => b.art === "link" && b.url === url) as any;
+      pruefe(!!block && k.includes(url), "N mit WhatsApp-Block enthält Maras Link", `N${stufe} ${sprache}`);
+      pruefe(block?.anzeige === (sprache === "en" ? "Message Mara on WhatsApp" : "Mara auf WhatsApp schreiben"), "Anzeige wie in W („Mara auf WhatsApp schreiben“)", `N${stufe} ${sprache}`);
+      const funde = await LP.leadMailPruefen(m, { maraNummer: nr });
+      pruefe(funde.length === 0, "die Wand-Ausnahme aus d395d8cf (eigenerWaSatz) gilt auch im Nachfass — kein Fund", `N${stufe} ${sprache}: ${funde.join("; ")}`);
+      pruefe((k.match(/[–—]/g) ?? []).length <= 1, "höchstens ein Gedankenstrich (die WhatsApp-Zeile bringt keinen)", `N${stufe} ${sprache}`);
+      pruefe(T.platzhalterWache(k).length === 0, "Platzhalter-Wache still", `N${stufe} ${sprache}`);
+      pruefe(sprache !== "de" || !/\b(du|dich|dir|dein\w*)\b/i.test(k), "Sie-Form", `N${stufe} ${sprache}`);
+      const fremd = N(stufe, { sprache, whatsapp: { url: MB.waGlobalLink("4915199999999", kennung, sprache)! } });
+      pruefe((await LP.leadMailPruefen(fremd, { maraNummer: nr })).some((f: string) => /fremde Adresse/.test(f)), "ein Link zu einer anderen Nummer bleibt eine fremde Adresse", `N${stufe} ${sprache}`);
+      pruefe((await LP.leadMailPruefen(m, { maraNummer: null })).length > 0, "ohne bekannte Mara-Nummer bleibt die Wand streng", `N${stufe} ${sprache}`);
+    }
+  }
+  sammelAus(6);
+  const n1 = klar(N(1, { whatsapp: { url: MB.waGlobalLink(nr, kennung, "de")! } }));
+  ok(n1.includes("Lieber schriftlich? Schreiben Sie meiner digitalen Assistentin Mara auf WhatsApp:"), "N1: „Lieber schriftlich?“ wie in W");
+  const n3 = N(3, { whatsapp: { url: MB.waGlobalLink(nr, kennung, "de")! } });
+  const i3 = n3.bloecke.findIndex((b: any) => b.art === "link" && /wa\.me/.test(b.url));
+  ok(i3 > 0 && i3 === n3.bloecke.length - 2 && /Auch auf WhatsApp erreichen Sie meine digitale Assistentin Mara:/.test(klar(n3)), "N3: die WhatsApp-Zeile vor dem Gruß „viel Erfolg“");
+  for (const stufe of [1, 2, 3] as const) ok(!klar(N(stufe)).includes("wa.me") && !klar(N(stufe)).includes("WhatsApp"), `N${stufe} ohne Link (Mara Business aus): Wortlaut wie bisher`);
+  const lage = { ...LP.musterLage("de"), weg: { code: null, codeBis: null, willkommenAm: WAM, willkommenStatus: "gesendet", willkommenVersuche: 1, willkommenLaeuft: null, gmailFaden: "f", gmailErsteId: "f", nachfassStufe: 0, nachfassAm: null, nachfassFaellig: null, nachfassLaeuft: null, stoppAm: null, stoppGrund: null, abgemeldetAm: null, antwortAm: null } };
+  ok(klar(LP.nachfassFuer(1, lage as any, LINK, new Date("2026-11-06T09:30:00Z"), { whatsapp: { url: MB.waGlobalLink(nr, kennung, "de")! } })).includes("wa.me/4915100000000"), "nachfassFuer reicht Maras Link durch");
+
+  // Das Willkommen hängt nie mehr still (Befund 05.–09.11.: 0 Willkommens-Mails, kein Alarm).
+  const post = lies("server/lib/fiaon-global-lead-post.ts");
+  const fehler = post.split("async function willkommenFehler(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/willkommen_versuche = willkommen_versuche \+ CASE WHEN \$\{wand\} THEN 1 ELSE 0 END/.test(fehler) && /if \(wand \|\| versuche >= 3\)/.test(fehler) && /alarmMelden\("lead-takt:lead-mail"/.test(fehler), "ein Fund der Wand zählt einen Versuch und meldet SOFORT (wie beim Nachfass)");
+  ok(/willkommenFehler\(anfrageId, `Wand: \$\{funde\.join\("; "\)\}`, lauf, "wand"\)/.test(post), "W: die Wand ruft willkommenFehler mit „wand“");
+  const laufW = post.split("export async function leadPostLauf(")[1]?.split("\n}\n")[0] ?? "";
+  const laufCode = laufW.split("\n").filter((z) => !z.trim().startsWith("//")).join("\n");
+  ok(!/ORDER BY a\.id LIMIT 5/.test(laufCode) && /ORDER BY COALESCE\(w\.updated_at, a\.created_at\) ASC, a\.id ASC LIMIT \$\{WILLKOMMEN_KANDIDATEN\}/.test(laufW), "Kandidaten: nach COALESCE(updated_at, Eingang), nicht mehr „ORDER BY a.id LIMIT 5“ (fünf kaputte Zeilen sperrten alle)");
+  ok(/NOT \(w\.willkommen_status = 'fehler' AND w\.updated_at > \$\{jetzt\}::timestamptz - \$\{WILLKOMMEN_PAUSE_MIN\}::int \* INTERVAL '1 minute'\)/.test(laufW), "eine Zeile mit „fehler“ macht 30 Minuten Pause statt alle 2 Minuten vorn zu stehen");
+  gleich(LP.WILLKOMMEN_PAUSE_MIN, 30, "Pause 30 Minuten");
+  ok(LP.WILLKOMMEN_KANDIDATEN >= 20, `höheres Limit (${LP.WILLKOMMEN_KANDIDATEN}, vorher 5)`);
+  ok(laufW.indexOf("willkommenMitTerminAuslassen(lauf)") > 0 && laufW.indexOf("willkommenMitTerminAuslassen(lauf)") < laufW.indexOf("const kandidaten"), "Anfragen mit Termin bleiben nicht als „fehler“ stehen — vor den Kandidaten aufgeräumt");
+  const termin = post.split("async function willkommenMitTerminAuslassen(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/willkommen_status = 'ausgelassen', willkommen_grund = \$\{STOPP_TEXT\.termin\}/.test(termin) && /IN \('', 'fehler', 'wartet'\)/.test(termin) && /COALESCE\(a\.status, ''\) = 'termin' OR EXISTS \(SELECT 1 FROM fiaon_lead_gespraech g WHERE g\.anfrage_id = a\.id\)/.test(termin), "… „ausgelassen“ mit dem Grund „hat ein Gespräch (Termin)“ — nie eine gesendete Zeile");
+  ok(/whatsapp: await maraWhatsappLink\(link\.url, lage\.sprache\)/.test(post.split("export async function nachfassSenden(")[1] ?? ""), "N1–N3 im Betrieb: mit Maras WhatsApp-Link (wie W)");
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 if (LOKAL_DB) {
   abschnitt("B0 Aufbau (Wegwerf-Kopie, erfundene Menschen, Attrappen)");

@@ -184,6 +184,67 @@ ok(/imVersandfenster/.test(mbs), "Takt: Begrüßung nur 8–20 Uhr");
 ok(/formularMitWhatsapp|optin_am/.test(mbs), "Takt: Begrüßung nur mit Ja zu WhatsApp");
 ok(!/processIntake\(|leadEingang\(|fiaon-leads["']/.test(mbs), "Mara Business legt nie einen Privat-Lead an");
 
+// ═══ A8 E-487 ══════════════════════════════════════════════════════════════
+abschnitt("A8 E-487 (09.11.2026): Nummern mit Land, das Ja findet seine Anfrage, Ja + Termin, das Ja am Telefon");
+{
+  const MBS = await import("../server/lib/fiaon-mara-business");
+  // Die Nummer aus dem Formular — mit dem Land, nie als +1 (Befund: Ja-Zeile „15…“ aus dem Buchungsformular).
+  gleich(ER.formularNummer("15500000123"), "4915500000123", "„15…“ ohne 0 und ohne +49 → deutsche Handynummer (nie +1)");
+  gleich(MBS.anfrageNummer("15500000123"), "4915500000123", "anfrageNummer: dieselbe Nummer");
+  gleich(MBS.anfrageNummer("1550 0000123"), "4915500000123", "… auch mit Leerzeichen");
+  gleich(MBS.anfrageNummer("+15500000123"), "4915500000123", "„+15…“ mit 11 Ziffern (Meta-Formular, ohne 0 getippt) → +49");
+  gleich(MBS.anfrageNummer("0664 1234567", "Österreich"), "436641234567", "österreichische Handynummer mit 0 und Land „Österreich“");
+  gleich(MBS.anfrageNummer("0664 1234567", "AT"), "436641234567", "… mit Land „AT“");
+  gleich(MBS.anfrageNummer("0664 1234567"), null, "… ohne Land gilt Deutschland (0664 = Festnetz) → kein WhatsApp");
+  gleich(MBS.anfrageNummer("079 123 45 67", "Schweiz"), "41791234567", "Schweizer Handynummer mit 0 und Land");
+  gleich(MBS.anfrageNummer("+1 305 555 0100", "USA"), "13055550100", "eine echte US-Nummer (+1, Land USA) bleibt +1");
+  gleich(MBS.anfrageNummer("12485302707", null, { ausWhatsapp: true }), "12485302707", "Anfrage aus WhatsApp: die Nummer bleibt, wie WhatsApp sie lieferte");
+  // Welche Nummer bekommt das Ja?
+  gleich(ER.waJaNummer({ anfrage: "4915500000123", eingabe: "15500000123" }), "4915500000123", "derselbe Anschluss → die Nummer der Anfrage („deren Meta-Nummer nehmen“)");
+  gleich(ER.waJaNummer({ anfrage: "4915500000123", eingabe: "4915500000456" }), "4915500000456", "ein anderer Anschluss → seine Eingabe (für sie gab er das Ja)");
+  gleich(ER.waJaNummer({ anfrage: "4915500000123", eingabe: null }), "4915500000123", "Eingabe Festnetz/leer → die Handynummer der Anfrage");
+  gleich(ER.waJaNummer({ anfrage: null, eingabe: null }), null, "keine Handynummer → kein Ja");
+  ok(ER.nummerFalschGelesen("15500000123", "4915500000123") && !ER.nummerFalschGelesen("4915500000123", "4915500000123") && !ER.nummerFalschGelesen("4915500000456", "4915500000123") && !ER.nummerFalschGelesen("anfrage-12", "4915500000123"), "falsch gelesen = gleicher Anschluss, andere Landesvorwahl");
+  gleich(ER.nummerKey9("+49 155 00000123"), "500000123", "die letzten neun Ziffern");
+  // Das Ja findet seine Anfrage (rein): an welche Nummer, mit welchem Ja?
+  const ja = (o: Partial<import("../server/lib/fiaon-mara-business").WaJaZeile>) => ({ nummer: "15500000123", anfrageId: null, optinAm: new Date("2026-11-05T15:14:00Z"), optinQuelle: "website", optinText: null, ...o });
+  const z1 = MBS.waZielFuerAnfrage({ anfrageId: 9061, nummer: "4915500000123", ja: [ja({})], formular: false });
+  ok(z1?.nummer === "4915500000123" && z1?.quelle === "website" && z1?.am?.toISOString() === "2026-11-05T15:14:00.000Z", "Ja an einer falsch gelesenen Zeile (gleicher Anschluss) → die Nummer der Anfrage, Zeit und Quelle des Jas bleiben");
+  const z2 = MBS.waZielFuerAnfrage({ anfrageId: 9062, nummer: "4915500000124", ja: [ja({ nummer: "4915500000456", anfrageId: 9062 })], formular: false });
+  gleich(z2?.nummer, "4915500000456", "Ja an DIESER Anfrage für einen anderen Anschluss → genau diese Nummer");
+  gleich(MBS.waZielFuerAnfrage({ anfrageId: 9063, nummer: "4915500000125", ja: [], formular: true })?.quelle, "formular", "Formular-Fassung 2 (WhatsApp-Satz) → Ja an der Nummer der Anfrage");
+  gleich(MBS.waZielFuerAnfrage({ anfrageId: 9064, nummer: "4915500000126", ja: [ja({ nummer: "4915500000999", anfrageId: 9099 })], formular: false }), null, "ein fremdes Ja (andere Anfrage, anderer Anschluss) → kein Ja");
+  gleich(MBS.waZielFuerAnfrage({ anfrageId: 9065, nummer: "4915500000127", ja: [], formular: false }), null, "ohne Ja schreibt Mara nie zuerst");
+  gleich(MBS.waZielFuerAnfrage({ anfrageId: 9066, nummer: null, ja: [ja({ nummer: "4915500000777", anfrageId: 9066 })], formular: true })?.nummer, "4915500000777", "Anfrage mit Festnetz, Ja für eine Handynummer → an diese");
+  // Der Satz am Telefon.
+  ok(/FIAON LTD/.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && /WhatsApp/.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && /STOPP/.test(ER.GLOBAL_WA_TELEFON_SATZ.de), "Satz am Telefon nennt FIAON LTD, WhatsApp und STOPP (Meta verlangt Firma + Kanal)");
+  ok(/FIAON LTD/.test(ER.GLOBAL_WA_TELEFON_SATZ.en) && /WhatsApp/.test(ER.GLOBAL_WA_TELEFON_SATZ.en) && /STOP/.test(ER.GLOBAL_WA_TELEFON_SATZ.en), "… englisch ebenso");
+  ok(!/\b(du|dich|dir|dein\w*)\b/i.test(ER.GLOBAL_WA_TELEFON_SATZ.de) && sendePruefung(ER.GLOBAL_WA_TELEFON_SATZ.de, { namen: [] }).length === 0, `Satz am Telefon: Sie-Form, Hauswand grün (${sendePruefung(ER.GLOBAL_WA_TELEFON_SATZ.de, { namen: [] }).join(" · ")})`);
+  gleich((MBS.TELEFON_JA_ERGEBNISSE as readonly string[]).join(","), "erreicht_interesse,erreicht_termin,erreicht_antrag", "das Ja am Telefon zählt nur nach einem Gespräch (nie bei „kein Interesse“, „nicht erreicht“)");
+  ok(MBS.WA_KANDIDATEN >= 60, `Begrüßung: höheres Limit (${MBS.WA_KANDIDATEN}, vorher 30)`);
+
+  // Quelltext-Wände: die Stellen aus dem Befund.
+  const mbs8 = lies("server/lib/fiaon-mara-business.ts");
+  const takt8 = mbs8.split("export async function waGlobalTakt(")[1]?.split("\nlet letzterPuls")[0] ?? "";
+  ok(takt8.indexOf("jaVerknuepfen(lauf)") > 0 && takt8.indexOf("jaVerknuepfen(lauf)") < takt8.indexOf("VORLAGE.willkommen"), "Takt: zuerst die Ja-Zeilen verknüpfen (anfrage_id / letzte neun Ziffern), dann die Begrüßung");
+  ok(/LEFT JOIN LATERAL \([\s\S]*?FROM fiaon_wa_global w[\s\S]*?\) g ON TRUE/.test(takt8) && /NOT COALESCE\(g\.begruesst, FALSE\)/.test(takt8) && /ORDER BY a\.created_at DESC LIMIT \$\{WA_KANDIDATEN\}/.test(takt8) && !/ORDER BY a\.created_at ASC LIMIT 30/.test(takt8), "Begrüßung: LEFT JOIN fiaon_wa_global (nur ohne willkommen_am), Ja im SQL, die neuesten zuerst, höheres Limit — niemand verhungert");
+  ok(/AND \(g\.weg = 'whatsapp' OR g\.optin_am IS NOT NULL OR g\.willkommen_status = 'gesendet'/.test(takt8), "Schritte 2–5: auch mit Ja zu WhatsApp (optin_am), nicht nur mit Weg „whatsapp“");
+  ok(/termin && !erinnerungErsetzt && \(z\.weg === "whatsapp" \|\| \(!!z\.optin_am && z\.weg !== "mail"\)\)/.test(takt8), "Erinnerung am Vortag: Weg WhatsApp ODER Ja zu WhatsApp (nicht bei „Per E-Mail“)");
+  ok(/const bald = termin\.beginn\.getTime\(\) - Date\.now\(\) < 30 \* 3_600_000;/.test(takt8) && /erinnert_id = CASE WHEN \$\{erinnerungErsetzt\} THEN/.test(takt8), "kommt die Bestätigung unter 30 Stunden vor dem Gespräch, ersetzt sie die Erinnerung (nie zwei Nachrichten in Minuten)");
+  ok(/fenster && nutzbar\(VORLAGE\.termin\)/.test(takt8) && !/if \(ok \|\| !offen\)/.test(takt8), "Terminnachricht: Vorlage nur 8–20 Uhr und erst nach Metas Freigabe — außerhalb des Fensters wartet sie (gilt nicht mehr als erledigt)");
+  ok(!/Number\(new Intl\.DateTimeFormat/.test(mbs8) && /berlinMinuten\(new Date\(\)\)/.test(takt8), "Berliner Stunde über berlinMinuten — nie Number(Intl.format())");
+  ok(/imVersandfenster\(/.test(takt8) && /WILLKOMMEN_MAX_TAG/.test(takt8) && /hatStopp\(/.test(takt8) && /vorlageNutzbar\(n, frei\)/.test(takt8) && /async function vorlageSenden[\s\S]{0,200}waSenden\(/.test(mbs8), "die Sperren bleiben: Fenster 8–20 Uhr, Tagesdeckel, STOPP, nur freigegebene Vorlagen, alles über waSenden (Bremse, Welten-Sperre)");
+  ok(/nummer ~ '\^\(49\|43\|41\)'/.test(takt8), "Direktbucher ohne Anfrage: nur eine DACH-Handynummer (nie eine falsch gelesene)");
+  const verkn = mbs8.split("async function jaVerknuepfen(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/NOT LIKE 'whatsapp%'/.test(verkn) && /RIGHT\(REGEXP_REPLACE\(COALESCE\(telefon, ''\), '\\\\D', '', 'g'\), 9\) = \$\{k9\}/.test(verkn) && /willkommen_am IS NULL AND weg IS NULL/.test(verkn), "Verknüpfen: nur Formular-/Telefon-Jas, über die letzten neun Ziffern; die falsche Zeile fällt nur ohne eigenen Verlauf weg");
+  const tel8 = mbs8.split("export async function telefonOptinMerken(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/optinQuelle: `telefon:\$\{wer\}`/.test(tel8) && /GLOBAL_WA_TELEFON_SATZ/.test(tel8), "Ja am Telefon: Quelle „telefon:<Name>“ und der vorgelesene Satz");
+  ok(/ALTER TABLE fiaon_wa_global ADD COLUMN IF NOT EXISTS optin_text TEXT/.test(mbs8) && /optin_text = CASE WHEN fiaon_wa_global\.optin_am IS NULL/.test(mbs8), "der Satz steht beim Ja (optin_text) — das erste Ja bleibt stehen");
+  const route8 = lies("server/routes/fiaon-global-termin.ts");
+  ok((route8.match(/waJaMerken\(b, kontakt, erg\.anfrageId\)/g) ?? []).length === 2 && /waJaMerken\(b, kontakt, v\.anfrageId\)/.test(route8) && !/websiteOptinMerken\(null/.test(route8), "Website-Ja: alle drei Stellen geben die Anfrage mit (Buchung, Rückruf über den Link, Anfrage)");
+  ok(/anfrageId: lead\?\.anfrageId \?\? null,/.test(lies("server/lib/fiaon-global-termin.ts")), "die Buchung nennt ihre Anfrage (Link oder offene Anfrage)");
+}
+
 // ═══ B ═════════════════════════════════════════════════════════════════════
 if (LOKAL_DB) {
   abschnitt("B Lokale Datenbank (Wegwerf-Kopie)");

@@ -303,7 +303,7 @@ export function globalZuViel(ip: string, email: string): boolean {
 // ───────────────────────────────────────────────────────────────────────────
 
 export type GlobalBuchungErgebnis =
-  | { ok: true; terminId: number; wann: string; datumText: string; uhrzeit: string; ansprechpartner: { vorname: string }; kalenderUrl: string }
+  | { ok: true; terminId: number; wann: string; datumText: string; uhrzeit: string; ansprechpartner: { vorname: string }; kalenderUrl: string; anfrageId?: number | null }
   | { ok: false; status: number; grund: string; error: string; feld?: string; angebot?: GlobalAngebotStand };
 
 /** Die Kalenderdatei des Gesprächs. `en` hängt ?sprache=en an — die Datei ist dann englisch (Gegenprüfung E-263). */
@@ -641,6 +641,8 @@ export async function globalTerminBuchen(ein: {
   return {
     ok: true, terminId: buchung.id, wann: buchung.beginn, datumText: buchung.datumText, uhrzeit: buchung.uhrzeit,
     ansprechpartner: { vorname: person.vorname }, kalenderUrl: globalKalenderUrl(buchung.stornoToken, k.sprache),
+    // E-487 (09.11.2026): die Anfrage dieser Buchung (Link oder offene Anfrage) — das Ja zu WhatsApp hängt sich daran.
+    anfrageId: lead?.anfrageId ?? null,
   };
 }
 

@@ -40,6 +40,11 @@
 // Sätze „Was er selbst erzählt hat“ Pflicht (sie gehen in Justins „Termin steht“ und die Anruf-Karte); „Termin
 // vereinbart“ gibt es nur mit einem Termin im Kalender — der Knopf öffnet dann „Termin bei Justin eintragen“.
 // Kaltakquise-Firmen bleiben, wie sie waren.
+//
+// E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): Bei einem Business-Lead steht über den Ergebnis-Knöpfen das Häkchen
+// „Möchte auch per WhatsApp (am Telefon gefragt)“ mit dem Satz zum Vorlesen (GLOBAL_WA_TELEFON_SATZ). Es geht mit dem
+// Ergebnis als felder.whatsapp_ja an POST /agent/firmen/:id/anruf (bzw. mit „Termin bei Justin eintragen“); der Server merkt
+// das Ja (Quelle „telefon:<Name>“, Zeit, Satz), Maras Takt schickt die Begrüßung (8–20 Uhr). Nur nach „erreicht“.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { AgentShell } from "./shared";
@@ -52,12 +57,18 @@ import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } from "@shared/fiaon-lead-weg";
 import { PFLICHT_NOTIZ_ERGEBNISSE, RUECKRUF_ERGEBNISSE, RUECKRUF_ZEITEN, rueckrufTage } from "@shared/fiaon-lead-takt";
 import { firmaBrauchbar } from "@shared/fiaon-global-lead";
+import { GLOBAL_WA_TELEFON_SATZ } from "@shared/fiaon-whatsapp-erlaubnis";
 import "@/styles/office-firmen.css";
+
+/** E-487 (09.11.2026): Nach diesen Ergebnissen zählt das WhatsApp-Ja am Telefon (wie TELEFON_JA_ERGEBNISSE im Server). */
+const WA_JA_ERGEBNISSE = ["erreicht_interesse", "erreicht_termin", "erreicht_antrag"];
 
 /** E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (vom Server, server/lib/fiaon-lead-takt.ts). */
 interface LeadStand {
   anfrageId: number; status: string; statusWort: string; jetzt: string; wartetMin: number | null; terminGebucht: boolean;
   schritte: { key: string; text: string; ton: "gut" | "warte" | "still" | "rot" }[];
+  /** E-487: Er hat auf Englisch angefragt (der WhatsApp-Satz zum Vorlesen ist dann englisch). */
+  englisch?: boolean;
 }
 
 async function api(pfad: string, init?: RequestInit) {
@@ -112,6 +123,8 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
   erzaehlt: "FIAON Global — was er selbst erzählt hat",
   termin_steht: "FIAON Global — Justin hat „Termin steht“",
   antwort: "FIAON Global — der Lead hat geschrieben",
+  // E-487 (09.11.2026): das Ja zu WhatsApp, am Telefon gefragt (Häkchen bei den Ergebnis-Knöpfen).
+  whatsapp_ja: "FIAON Global — Ja zu WhatsApp (am Telefon)",
   // E-476 Scheibe 4: Justins Lead-Mails aus js@ (Willkommen, Nachfass) und warum keine weitere kommt.
   lead_mail: "FIAON Global — Mail von Justin an den Lead",
   lead_stopp: "FIAON Global — keine weiteren Lead-Mails",
@@ -186,6 +199,8 @@ function FirmenInnen() {
   const [felderAuf, setFelderAuf] = useState(false);
   // E-487 (09.11.2026, Daniels Wunsch): Rückruf selbst eintragen — Tag und auf Wunsch Uhrzeit, das nächste Ergebnis nimmt ihn mit.
   const [rueckruf, setRueckruf] = useState<{ tag: string | null; zeit: string | null } | null>(null);
+  // E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): das Ja zu WhatsApp, am Telefon gefragt — geht mit dem Ergebnis mit.
+  const [waJa, setWaJa] = useState(false);
 
   const sag = (t: string) => { setMeldung(t); setTimeout(() => setMeldung(null), 6000); };
 
@@ -196,7 +211,7 @@ function FirmenInnen() {
   useEffect(() => { const t = setTimeout(() => void laden(), 250); return () => clearTimeout(t); }, [laden]);
 
   const oeffnen = async (f: any) => {
-    setAktiv(f); setVerlauf(null); setNotiz(""); setLead(null); setNotizFelder({}); setFelderAuf(false);
+    setAktiv(f); setVerlauf(null); setNotiz(""); setLead(null); setNotizFelder({}); setFelderAuf(false); setWaJa(false);
     setVorbereitung(null); setAbschlussAuf(false); setAbErgebnis(null); setJustin(null);
     setAb({ email: f.email || "", telefon: f.telefon || "", ort: f.ort || "", paket: ERSTES_PAKET });
     const r = await api(`/agent/firmen/${f.id}`);
@@ -241,11 +256,13 @@ function FirmenInnen() {
     if (lead && wert === "erreicht_termin" && !lead.terminGebucht) return void zuJustinTermin(notiz);
     // E-487: Der eingetragene Rückruf fährt nur bei „Erreicht — Interesse“, „Nicht erreicht“ und „Mailbox“ mit.
     const mitRueckruf = !!rueckruf?.tag && (RUECKRUF_ERGEBNISSE as readonly string[]).includes(wert);
+    // E-487: Das WhatsApp-Ja fährt nur nach einem Gespräch mit (erreicht — Interesse, Termin, Antrag).
+    const mitWa = !!lead && waJa && WA_JA_ERGEBNISSE.includes(wert);
     setLaeuft(wert);
     const r = await api(`/agent/firmen/${aktiv.id}/anruf`, {
       method: "POST",
       body: JSON.stringify({
-        ergebnis: wert, notiz: notiz.trim() || undefined, felder: lead ? notizFelder : undefined,
+        ergebnis: wert, notiz: notiz.trim() || undefined, felder: lead ? { ...notizFelder, ...(mitWa ? { whatsapp_ja: true } : {}) } : undefined,
         wiedervorlage: mitRueckruf ? rueckruf!.tag : undefined, rueckrufZeit: mitRueckruf ? (rueckruf!.zeit || undefined) : undefined,
       }),
     });
@@ -254,10 +271,13 @@ function FirmenInnen() {
       if (r.json?.feld === "termin") return void zuJustinTermin(notiz);
       return sag(r.json?.error || "Konnte das Ergebnis nicht speichern.");
     }
-    setNotiz(""); setNotizFelder({}); setFelderAuf(false); setRueckruf(null);
-    if (mitRueckruf) sag(`Festgehalten — Rückruf am ${tagKurz(rueckruf!.tag!)}${rueckruf!.zeit ? `, ${rueckruf!.zeit} Uhr (10 Minuten vorher kommt eine Mail)` : ""}. Bis dahin ist die Firma aus „Jetzt dran“ raus. Nächster Anruf.`);
-    else sag(lead && /^erreicht_/.test(wert) ? "Festgehalten — Justin liest deine Sätze vor dem Gespräch. Nächster Anruf." : "Festgehalten — nächster Anruf.");
-    if (wert === "erreicht_antrag") sag("Stark! Status „Antrag läuft“ — schick ihm gleich die Info-Mail mit dem Link.");
+    setNotiz(""); setNotizFelder({}); setFelderAuf(false); setRueckruf(null); setWaJa(false);
+    const waSatz = mitWa
+      ? (r.json?.whatsapp?.gemerkt ? " WhatsApp-Ja ist gemerkt — Mara schreibt ihm (8–20 Uhr)." : ` WhatsApp-Ja NICHT gemerkt: ${r.json?.whatsapp?.grund || "bitte noch einmal"}`)
+      : waJa && lead ? " Das WhatsApp-Ja zählt nur nach einem Gespräch („erreicht“) — es ist nicht gemerkt." : "";
+    if (mitRueckruf) sag(`Festgehalten — Rückruf am ${tagKurz(rueckruf!.tag!)}${rueckruf!.zeit ? `, ${rueckruf!.zeit} Uhr (10 Minuten vorher kommt eine Mail)` : ""}. Bis dahin ist die Firma aus „Jetzt dran“ raus. Nächster Anruf.${waSatz}`);
+    else sag(lead && /^erreicht_/.test(wert) ? `Festgehalten — Justin liest deine Sätze vor dem Gespräch.${waSatz} Nächster Anruf.` : `Festgehalten — nächster Anruf.${waSatz}`);
+    if (wert === "erreicht_antrag") sag(`Stark! Status „Antrag läuft“ — schick ihm gleich die Info-Mail mit dem Link.${waSatz}`);
     await laden();
     const neu = await api(`/agent/firmen/${aktiv.id}`);
     if (neu.ok) { setAktiv(neu.json.firma); setVerlauf(neu.json.verlauf || []); setLead(neu.json.lead ?? null); }
@@ -297,9 +317,11 @@ function FirmenInnen() {
     if (jText.trim().length < ERZAEHLT_MIN) return setJFehler("Bitte zwei, drei Sätze: Wer ist er, was will er, wie groß, wie ernst? Justin liest das vor dem Gespräch.");
     if (!jEinsch) return setJFehler("Bitte die Einschätzung wählen: heiß, warm oder kalt.");
     setJFehler(""); setLaeuft("justin-eintragen");
+    // E-487: das Häkchen „Möchte auch per WhatsApp“ fährt mit — dann kommt die Terminbestätigung auch auf WhatsApp.
+    const mitWa = !!lead && waJa;
     const r = await api(`/agent/firmen/${aktiv.id}/justin-termin`, {
       method: "POST",
-      body: JSON.stringify({ tag: jWahl.tag, zeit: jWahl.zeit, erzaehlt: jText, felder: jFelder, einschaetzung: jEinsch, ...jKontakt }),
+      body: JSON.stringify({ tag: jWahl.tag, zeit: jWahl.zeit, erzaehlt: jText, felder: { ...jFelder, ...(mitWa ? { whatsapp_ja: true } : {}) }, einschaetzung: jEinsch, ...jKontakt }),
     });
     setLaeuft(null);
     if (!r.ok) {
@@ -310,9 +332,10 @@ function FirmenInnen() {
       }
       return;
     }
-    setJustin(null); setNotiz(""); setNotizFelder({}); setFelderAuf(false);
+    setJustin(null); setNotiz(""); setNotizFelder({}); setFelderAuf(false); setWaJa(false);
+    const waSatz = mitWa ? (r.json?.whatsapp?.gemerkt ? " WhatsApp-Ja ist gemerkt — die Bestätigung kommt auch auf WhatsApp (8–20 Uhr)." : ` WhatsApp-Ja NICHT gemerkt: ${r.json?.whatsapp?.grund || "bitte noch einmal"}`) : "";
     // E-476 Nachbesserung (Gutachten Betreiber, Mangel 4): der Anruf zählt mit — kein zweiter Klick auf „Termin vereinbart“.
-    sag(`Eingetragen: ${r.json.datumText}, ${r.json.uhrzeit} Uhr bei ${r.json.bei}. Der Lead hat die Bestätigung, dein Auftrag ist zu, ${r.json.bei} bekommt „Termin steht“${r.json.anrufEingetragen ? " — und dein Anruf „erreicht — Termin vereinbart“ ist mit eingetragen" : ""}.`);
+    sag(`Eingetragen: ${r.json.datumText}, ${r.json.uhrzeit} Uhr bei ${r.json.bei}. Der Lead hat die Bestätigung, dein Auftrag ist zu, ${r.json.bei} bekommt „Termin steht“${r.json.anrufEingetragen ? " — und dein Anruf „erreicht — Termin vereinbart“ ist mit eingetragen" : ""}.${waSatz}`);
     await laden();
     const neu = await api(`/agent/firmen/${aktiv.id}`);
     if (neu.ok) { setAktiv(neu.json.firma); setVerlauf(neu.json.verlauf || []); setLead(neu.json.lead ?? null); }
@@ -538,6 +561,16 @@ function FirmenInnen() {
                 )}
               </div>
 
+              {/* ── E-487 (09.11.2026): das Ja zu WhatsApp, am Telefon gefragt — direkt bei den Ergebnis-Knöpfen, geht mit dem Ergebnis mit ── */}
+              {lead && (
+                <label className="fk-wa-ja">
+                  <input type="checkbox" checked={waJa} onChange={(e) => setWaJa(e.target.checked)} />
+                  <span>
+                    <b>Möchte auch per WhatsApp (am Telefon gefragt)</b>
+                    <small>Erst vorlesen: „{lead.englisch ? GLOBAL_WA_TELEFON_SATZ.en : GLOBAL_WA_TELEFON_SATZ.de}“ Sagt er Ja: haken, dann das Ergebnis klicken (nach „erreicht“) oder den Termin bei Justin eintragen. Mara schreibt ihm auf WhatsApp (8–20 Uhr).</small>
+                  </span>
+                </label>
+              )}
               <div className="fk-ergebnisse">
                 {ERGEBNIS_KNOEPFE.map(([wert, label, ton]) => (
                   <button key={wert} type="button" className={`fk-erg ${ton}`} disabled={!!laeuft}

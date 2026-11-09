@@ -664,6 +664,19 @@ export interface NachfassEingang {
   dauerMin?: number;
   /** Nachbesserung (Gutachten Lead-Sicht, Mangel 8): Der Kalender zeigt gerade keine freie Zeit. */
   kalenderLeer?: boolean;
+  /**
+   * E-487 (09.11.2026): Maras WhatsApp-Link (wie in W, mit Anfrage-Kennung) — auch in N1–N3, damit er jederzeit schriftlich
+   * weitermachen kann. Ohne Link (Mara Business aus, keine Nummer): keine Zeile.
+   */
+  whatsapp?: { url: string } | null;
+}
+
+/** E-487: die WhatsApp-Zeile im Nachfass — N1/N2 „Lieber schriftlich?“, N3 als letzter Weg. Ohne Gedankenstrich. Rein. */
+function nachfassWhatsappBlock(stufe: 1 | 2 | 3, url: string, en: boolean): LeadBlock {
+  const text = stufe === 3
+    ? (en ? "You can also reach my digital assistant Mara on WhatsApp:" : "Auch auf WhatsApp erreichen Sie meine digitale Assistentin Mara:")
+    : (en ? "Prefer to write? Message my digital assistant Mara on WhatsApp:" : "Lieber schriftlich? Schreiben Sie meiner digitalen Assistentin Mara auf WhatsApp:");
+  return { art: "link", text, url, anzeige: en ? "Message Mara on WhatsApp" : "Mara auf WhatsApp schreiben" };
 }
 
 /** N1 (+1 Werktag) · N2 (+3) · N3 (+7, letzte) — im selben Faden, mit dem persönlichen Link. Höchstens ein Gedankenstrich. Rein. */
@@ -691,6 +704,7 @@ export function nachfassText(stufe: 1 | 2 | 3, e: NachfassEingang): LeadMailText
       bloecke.push({ art: "link", text: en ? "Booking a time with me takes a minute; your details are already filled in:" : "Ihr Termin mit mir ist in einer Minute gebucht, Ihre Angaben sind schon eingetragen:", url: e.link.url, anzeige: e.link.anzeige });
       bloecke.push({ art: "absatz", text: en ? "Or reply with two or three times that suit you and we will arrange the call with you." : "Oder nennen Sie mir in einer kurzen Antwort zwei, drei Zeiten, dann stimmen wir den Termin mit Ihnen ab." });
     }
+    if (e.whatsapp?.url) bloecke.push(nachfassWhatsappBlock(1, e.whatsapp.url, en));
   } else if (stufe === 2) {
     const schon = e.angaben === "antworten"
       ? (en ? " (I already have the details from your form)" : " (Ihre Angaben aus dem Formular habe ich schon)")
@@ -713,6 +727,7 @@ export function nachfassText(stufe: 1 | 2 | 3, e: NachfassEingang): LeadMailText
     const dreissig = dauer === 30 ? (en ? "Thirty minutes" : "Dreißig Minuten") : (en ? `${dauer} minutes` : `${dauer} Minuten`);
     if (e.kalenderLeer) bloecke.push({ art: "absatz", text: en ? `${dreissig}, free of charge, by phone. ${zeitenBitte}` : `${dreissig}, kostenlos, am Telefon. ${zeitenBitte}` });
     else bloecke.push({ art: "link", text: en ? `${dreissig}, free of charge, by phone:` : `${dreissig}, kostenlos, am Telefon:`, url: e.link.url, anzeige: e.link.anzeige });
+    if (e.whatsapp?.url) bloecke.push(nachfassWhatsappBlock(2, e.whatsapp.url, en));
   } else {
     bloecke.push({ art: "absatz", text: en ? "I do not want to flood you with emails – this is my last message about your enquiry." : "ich möchte Sie nicht mit Mails überhäufen – das ist meine letzte Nachricht zu Ihrer Anfrage." });
     const bis = e.link.bis ? datumText(e.link.bis, e.sprache) : null;
@@ -724,6 +739,7 @@ export function nachfassText(stufe: 1 | 2 | 3, e: NachfassEingang): LeadMailText
         ? `${bis ? ` is valid until ${bis}` : " stays valid for a while"}, and a short reply to this email is enough.`
         : `${bis ? ` gilt noch bis ${bis}` : " gilt noch eine Weile"}, und eine kurze Antwort auf diese Mail genügt.`,
     });
+    if (e.whatsapp?.url) bloecke.push(nachfassWhatsappBlock(3, e.whatsapp.url, en));
     // Die Firma nur, wenn sie keine Adresse ist (Gutachten Sicherheit, Mangel 4) — sonst der Satz ohne sie.
     const firma = firmaFuerText(e.firma);
     bloecke.push({ art: "absatz", text: en ? `I wish you every success${firma ? ` with ${firma}` : ""}.` : `Ich wünsche Ihnen viel Erfolg${firma ? ` mit ${firma}` : ""}.` });

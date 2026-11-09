@@ -1318,6 +1318,15 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
       + "Bis dahin ist die Firma aus „Jetzt dran“ raus, am Tag steht sie oben mit „Rückruf 10:00“, und 10 Minuten vorher kommt eine Mail an dich.",
     tipp: "Ein Termin, bei dem Justin anruft, bleibt „Termin bei Justin eintragen“. Der Rückruf ist für dich.",
   },
+  // E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): das Ja zu WhatsApp am Telefon — das Häkchen steht nur bei Business-Leads (ohne `ziel`).
+  {
+    titel: "Darf Mara ihm schreiben? Frag am Telefon.",
+    text: "Bei einem Business-Lead steht direkt über den Ergebnis-Knöpfen das Häkchen „Möchte auch per WhatsApp (am Telefon gefragt)“. "
+      + "Lies ihm im Gespräch den Satz darunter vor (er nennt FIAON, WhatsApp und „STOPP“). Sagt er Ja, hakst du es und klickst das Ergebnis "
+      + "oder trägst den Termin bei Justin ein — es zählt nur nach „erreicht“. Das System merkt sich dein Ja mit deinem Namen, der Uhrzeit und dem Satz; Mara schickt ihm dann "
+      + "auf WhatsApp die Begrüßung (8–20 Uhr), hat er einen Termin, die Terminbestätigung und am Vortag die Erinnerung.",
+    tipp: "Kein Ja, kein Haken: Ohne sein Ja schreibt Mara nie zuerst. Mit „STOPP“ kann er jederzeit aufhören.",
+  },
   // E-476 Scheibe 5 (05.11.2026): EIN Stand je Business-Lead — die Leiste erscheint nur bei Business-Leads (ohne `ziel`).
   {
     titel: "Ein Lead, ein Stand — oben auf der Karte.",
@@ -2741,7 +2750,11 @@ export const RUNDGANG_LEAD_MOTOR: RundgangSchritt[] = [
       + "Leads in EINER Mail), schreibt dir nach 60 Minuten eine Zeile und gibt der Vertretung den Rückruf; nach 120 Minuten ohne "
       + "Anruf meldet sich der Zusage-Wächter. Lead-Meldung und Erinnerungen haben je einen Schalter. Um 18:30 kommt die Übersicht "
       + "des Tages. Die Lead-Wächter stehen im Lagezimmer: Kalender leer bei laufender Werbung, Lead ohne Dossier, Lead-Mail "
-      + "gescheitert, Meta-Lead ohne Anfrage, ungewöhnlich viele Buchungen oder Leads, keine Vertretung; „Meta-Webhook still“ kommt nur einmal.",
+      + "gescheitert, Meta-Lead ohne Anfrage, ungewöhnlich viele Buchungen oder Leads, keine Vertretung; „Meta-Webhook still“ kommt nur einmal. "
+      // E-487 (09.11.2026) mitgezogen: der Ergebnis-Wächter „Lead-Kette“.
+      + "Seit dem 09.11. prüft die Lead-Kette, ob beim Lead wirklich etwas ankommt: Willkommens-Mail (nach 30 Minuten), fälliger Nachfass "
+      + "(nach 2 Dienststunden) und seine WhatsApp, wenn er Ja gesagt hat (nach 30 Minuten zwischen 8 und 20 Uhr). Hängt etwas, wird es "
+      + "rot — und du bekommst eine kurze Mail, einmal je Fall und danach höchstens alle 4 Stunden.",
     tipp: "„Vorschau“ zeigt die Übersicht (auch für einen vergangenen Tag), ohne zu senden. „Stand ableiten“ zeigt einmalig, wo der "
       + "Altbestand nicht zum Cockpit passt — „Anwenden“ schreibt nur mit deinem Go.",
   },
@@ -3133,7 +3146,9 @@ export const RUNDGANG_LAGEZIMMER: RundgangSchritt[] = [
       + "Aufgaben mehr — sie gehen von selbst aus, wenn alles wieder gut ist.",
     // E-476 Scheibe 5 (05.11.2026) mitgezogen: die Lead-Wächter.
     tipp: "Seit dem 05.11. gibt es die Lead-Wächter: Kalender leer, während die Global-Werbung läuft; ein Lead seit über 10 Minuten "
-      + "ohne Dossier; eine Lead-Mail gescheitert oder nicht zugestellt. „Meta-Webhook still“ ist ein bekannter Zustand — einmal gelb, nicht täglich.",
+      + "ohne Dossier; eine Lead-Mail gescheitert oder nicht zugestellt. „Meta-Webhook still“ ist ein bekannter Zustand — einmal gelb, nicht täglich. "
+      // E-487 (09.11.2026) mitgezogen: die Lead-Kette.
+      + "Seit dem 09.11. dazu die Lead-Kette: Willkommens-Mail, Nachfass oder WhatsApp hängt bei einem Lead — rot, mit einer Mail an dich.",
   },
 ];
 

@@ -346,6 +346,111 @@ abschnitt("A11 E-487 Platzhalter im Firmenfeld verschmelzen keine Menschen (rein
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+abschnitt("A12 E-487 Ergebnis-Wächter „Lead-Kette“ — W, N, WhatsApp (rein, erfundene Anfragen)");
+{
+  // 2026-11-09 ist ein Montag, 2026-11-06 ein Freitag, 2026-11-08 ein Sonntag; 2026-12-08 (Dienstag) ist in Österreich Feiertag.
+  gleich(R.waFensterMinuten(um("2026-11-09", 7), um("2026-11-09", 8, 30)), 30, "WhatsApp-Fenster: 7:00 → 8:30 = 30 Minuten (ab 8 Uhr)");
+  gleich(R.waFensterMinuten(um("2026-11-08", 19, 50), um("2026-11-09", 8, 20)), 30, "über Nacht: 19:50 → 8:20 = 10 + 20 (auch sonntags)");
+  gleich(R.waFensterMinuten(um("2026-11-09", 21), um("2026-11-09", 22)), 0, "nach 20 Uhr: 0");
+
+  // ── W ──
+  const W = (o: Partial<import("../server/lib/fiaon-lead-takt-regeln").KetteWZeile> = {}) => ({ anfrageId: 901, eingangAm: um("2026-11-09", 10), status: null, grund: null, versuche: 0, ...o });
+  const wAn = { an: true, ruheMin: 10 };
+  const w1 = R.wLueckeUrteil([W()], um("2026-11-09", 10, 31), wAn);
+  ok(w1.an === true && w1.stufe === "rot" && w1.faelle.join() === "901" && w1.schluessel === "lead-takt:w-luecke", "W-Lücke: 31 Minuten ohne Willkommen (keine Zeile) → rot");
+  ok(/Anfrage #901/.test(w1.text) && /noch kein Ergebnis/.test(w1.text) && /Daniels Anruf-Aufträge stehen trotzdem/.test(w1.text), "W-Lücke: Text nennt die Anfrage und den Stand");
+  ok(R.wLueckeUrteil([W()], um("2026-11-09", 10, 29), wAn).an === false, "29 Minuten (Ruhe 10 + 20): noch nichts");
+  ok(R.wLueckeUrteil([W()], um("2026-11-09", 10, 39), { an: true, ruheMin: 20 }).an === false && R.wLueckeUrteil([W()], um("2026-11-09", 10, 40), { an: true, ruheMin: 20 }).an === true, "Ruhe 20 → Grenze 40 Minuten");
+  const w0 = R.wLueckeUrteil([W({ status: "fehler", grund: "Wand: Prozentzahl", versuche: 0 })], um("2026-11-09", 11), wAn);
+  ok(w0.an === true && /gescheitert \(0 von 3 Versuchen: Wand: Prozentzahl\)/.test(w0.text), "„fehler“ mit 0 Versuchen → rot (Befund 05.–09.11.: genau das blieb stumm)");
+  ok(R.wLueckeUrteil([W({ status: "wartet", grund: "Postfach gestört" })], um("2026-11-09", 11), wAn).an === true, "„wartet“ nach 30 Minuten → rot");
+  ok(R.wLueckeUrteil([W({ status: "gesendet" }), W({ anfrageId: 902, status: "ausgelassen" })], um("2026-11-09", 11), wAn).an === false, "gesendet oder bewusst ausgelassen → grün");
+  ok(R.wLueckeUrteil([W({ eingangAm: um("2026-11-05", 10) })], um("2026-11-09", 11), wAn).an === false, "älter als 3 Tage → nicht mehr (das Willkommen verfällt ohnehin)");
+  const wAus = R.wLueckeUrteil([W()], um("2026-11-09", 11), { an: false, ruheMin: 10 });
+  ok(wAus.an === false && /ausgeschaltet/.test(wAus.vorbeiGrund), "Lead-Mails aus → kein Alarm (bewusst)");
+
+  // ── N ──
+  const N = (o: Partial<import("../server/lib/fiaon-lead-takt-regeln").KetteNZeile> = {}) => ({ anfrageId: 911, faellig: um("2026-11-09", 10), stufe: 0, land: "DE", ...o });
+  const n1 = R.nLueckeUrteil([N()], um("2026-11-09", 12, 1), { an: true });
+  ok(n1.an === true && n1.faelle.join() === "911" && /N1 fällig seit Mo 09\.11\., 10:00/.test(n1.text), "N-Lücke: N1 seit 2 Dienststunden fällig → rot");
+  ok(R.nLueckeUrteil([N()], um("2026-11-09", 11, 59), { an: true }).an === false, "nach 1 Stunde 59: noch nichts");
+  ok(R.nLueckeUrteil([N({ faellig: um("2026-11-06", 17, 30) })], um("2026-11-09", 9, 30), { an: true }).an === false, "Fr 17:30 fällig, Mo 9:30: erst 60 Dienstminuten — kein Fehlalarm am Montagmorgen");
+  ok(R.nLueckeUrteil([N()], um("2026-11-07", 12), { an: true }).an === null, "Samstag: keine Aussage (der Alarm bleibt, wie er ist)");
+  ok(R.nLueckeUrteil([N({ faellig: um("2026-12-08", 10), land: "AT" })], um("2026-12-08", 13), { an: true }).an === false, "Österreich-Feiertag (08.12.): der Nachfass ruht dort — kein Alarm");
+  ok(R.nLueckeUrteil([N({ faellig: um("2026-12-08", 10), land: "DE" })], um("2026-12-08", 13), { an: true }).an === true, "… in Deutschland ist der 08.12. ein Werktag → rot");
+  ok(R.nLueckeUrteil([N({ stufe: 3 })], um("2026-11-09", 13), { an: true }).an === false, "alle drei gesendet → nichts");
+  ok(R.nLueckeUrteil([N()], um("2026-11-09", 13), { an: false }).an === false, "Nachfass aus → kein Alarm");
+
+  // ── WhatsApp ──
+  const Z = (o: Partial<import("../server/lib/fiaon-lead-takt-regeln").KetteWaZeile> = {}) => ({
+    anfrageId: 921, eingangAm: um("2026-11-09", 10), status: "neu", nummer: "4915500000921", ja: "website", jaSeit: um("2026-11-09", 10),
+    terminKommend: false, terminVorbei: false, kontakt: false, begruessungFehler: null, ...o,
+  });
+  const leer = { ohneAnfrage: [], falsch: [], quote: null };
+  const wa1 = R.waLueckeUrteil({ an: true, zeilen: [Z()], ...leer }, um("2026-11-09", 10, 41));
+  ok(wa1.an === true && wa1.stufe === "rot" && wa1.faelle.join() === "921" && /noch keine WhatsApp-Begrüßung/.test(wa1.text), "Ja (Website), Handy, ohne Termin: 30 Minuten im Fenster ohne WhatsApp → rot");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z()], ...leer }, um("2026-11-09", 10, 39)).an === false, "nach 29 Fensterminuten: noch nichts");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ eingangAm: um("2026-11-08", 22), jaSeit: um("2026-11-08", 22) })], ...leer }, um("2026-11-09", 8, 25)).an === false
+    && R.waLueckeUrteil({ an: true, zeilen: [Z({ eingangAm: um("2026-11-08", 22), jaSeit: um("2026-11-08", 22) })], ...leer }, um("2026-11-09", 8, 31)).an === true, "Ja um 22 Uhr: gezählt ab 8 Uhr — 8:25 noch nichts, 8:31 rot");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ kontakt: true })], ...leer }, um("2026-11-09", 12)).an === false, "eine WhatsApp ging hinaus (oder er schrieb selbst, auch „STOPP“) → grün");
+  const wat = R.waLueckeUrteil({ an: true, zeilen: [Z({ status: "termin", terminKommend: true })], ...leer }, um("2026-11-09", 12));
+  ok(wat.an === true && /Termin steht, aber keine Terminnachricht/.test(wat.text), "Ja + Termin ohne Terminnachricht → rot (Justin 09.11.: „ALLES … WhatsApp“)");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ status: "termin" })], ...leer }, um("2026-11-09", 12)).an === false, "Stand „termin“ ohne kommendes Gespräch → nichts zu erwarten");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ terminVorbei: true })], ...leer }, um("2026-11-09", 12)).an === false, "Gespräch schon vorbei → keine Begrüßung mehr");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ nummer: null }), Z({ anfrageId: 922, ja: null })], ...leer }, um("2026-11-09", 12)).an === false, "Festnetz oder kein Ja → nichts (ohne Ja schreibt Mara nie zuerst)");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [Z({ eingangAm: um("2026-11-02", 10), jaSeit: um("2026-11-09", 11, 50), ja: "telefon:Daniel Beispiel" })], ...leer }, um("2026-11-09", 12, 15)).an === false, "Ja am Telefon zu einer älteren Anfrage: gezählt ab dem Ja (25 Minuten → noch nichts)");
+  const waf = R.waLueckeUrteil({ an: true, zeilen: [Z({ begruessungFehler: "fehler: (#131026) Message undeliverable" })], ...leer }, um("2026-11-09", 12));
+  ok(waf.an === true && /Begrüßung gescheitert \(\(#131026\) Message undeliverable\)/.test(waf.text), "Begrüßung gescheitert → rot, mit Metas Grund");
+  const waAus = R.waLueckeUrteil({ an: false, zeilen: [Z()], ...leer }, um("2026-11-09", 12));
+  ok(waAus.an === true && waAus.stufe === "gelb" && waAus.faelle.length === 0 && /WhatsApp-Takt ist aus/.test(waAus.text), "Takt aus, aber Leads mit Ja warten → gelb (keine Mail an Justin)");
+  const waO = R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [{ nummer: "4915500000931", anfrageId: 931, seit: um("2026-11-09", 10) }], falsch: [], quote: null }, um("2026-11-09", 10, 31));
+  ok(waO.an === true && waO.stufe === "gelb" && /ohne Anfrage, obwohl Anfrage #931/.test(waO.text) && !/4915500000931/.test(waO.text), "Ja-Zeile ohne Anfrage (30 Minuten) → gelb, ohne volle Nummer");
+  ok(R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [{ nummer: "4915500000931", anfrageId: 931, seit: um("2026-11-09", 10) }], falsch: [], quote: null }, um("2026-11-09", 10, 20)).an === false, "… nach 20 Minuten noch nicht (der Takt verknüpft alle 5 Minuten)");
+  const waF = R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [], falsch: [{ anfrageId: 941, schluessel: "15500000941", erwartet: "4915500000941" }], quote: null }, um("2026-11-09", 12));
+  ok(waF.an === true && waF.stufe === "gelb" && /falsch gelesen \(\+15… statt \+49…/.test(waF.text), "falsch gelesene Nummer (gleicher Anschluss, +1 statt +49) → gelb");
+  ok(/alte Formular-Fassung/.test(R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [], falsch: [], quote: { metaLeads: 3, mitJa: 0 } }, um("2026-11-09", 12)).text)
+    && R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [], falsch: [], quote: { metaLeads: 3, mitJa: 1 } }, um("2026-11-09", 12)).an === false
+    && R.waLueckeUrteil({ an: true, zeilen: [], ohneAnfrage: [], falsch: [], quote: { metaLeads: 2, mitJa: 0 } }, um("2026-11-09", 12)).an === false, "Ja-Quote 0 % bei drei Meta-Leads in 24 Stunden → gelb (Formular ohne WhatsApp-Satz); sonst nichts");
+
+  // ── Mail an Justin ──
+  ok(R.ketteMailFaellig({ neu: true, letzte: um("2026-11-09", 11, 59), jetzt: um("2026-11-09", 12) }), "neuer Fall → sofort eine Mail");
+  ok(R.ketteMailFaellig({ neu: false, letzte: null, jetzt: um("2026-11-09", 12) }), "noch nie gemeldet → eine Mail");
+  ok(!R.ketteMailFaellig({ neu: false, letzte: um("2026-11-09", 8, 1), jetzt: um("2026-11-09", 12) }) && R.ketteMailFaellig({ neu: false, letzte: um("2026-11-09", 8), jetzt: um("2026-11-09", 12) }), "danach höchstens alle 4 Stunden (3:59 nein, 4:00 ja) — kein Mail-Sturm");
+  const km = R.ketteMail([w1, wa1], "https://fiaon.com/chef/s/lead-motor");
+  ok(/^Lead-Kette rot: Willkommens-Mail hängt · WhatsApp hängt \(#901, #921\)$/.test(km.betreff), `Mail-Betreff nennt was und welche Anfragen (${km.betreff})`);
+  ok(/Hallo Justin/.test(km.text) && /höchstens alle 4 Stunden/.test(km.text) && /ANFRAGE OHNE WILLKOMMENS-MAIL/.test(km.text.toUpperCase()), "Mail: du-Form, Hinweis auf die 4 Stunden, je Alarm ein Abschnitt");
+  ok(km.links.length === 1 && km.knoepfe.length === 1 && km.knoepfe[0].url === "https://fiaon.com/chef/s/lead-motor", "Mail: klickbar nur der Lead-Motor");
+  ok(!BANK_SATZ.test(km.text) && !radarBankVorbehalt(km.text) && !/@|\+49\s?1[5-7]/.test(km.text), "Mail: kein Bank-Satz, keine Adresse, keine Nummer");
+
+  // ── Quelltext-Wände ──
+  const regeln = lies("server/lib/fiaon-lead-takt-regeln.ts");
+  const takt = lies("server/lib/fiaon-lead-takt.ts");
+  const kette = regeln.split("DER ERGEBNIS-WÄCHTER „LEAD-KETTE“")[1] ?? "";
+  ok(kette.length > 1000 && !/sqlPool|db-pool|fetch\(|new Date\(\)/.test(kette), "die Urteile sind rein (keine Datenbank, kein Netz, keine Uhr — jetzt kommt als Parameter)");
+  const waechter = takt.split("export async function leadWaechterPruefen(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/leadKetteLesen\(jetzt, lauf\)/.test(waechter) && /a\.stufe === "rot"\) rotNeu\.push/.test(waechter) && /ketteMailSchicken\(rotNeu, jetzt, lauf\)/.test(waechter) && /ketteMerkerLoeschen\(a\.schluessel, lauf\)/.test(waechter), "Wächter Block 7: Lead-Kette melden, rot → Mail, vorbei → Merker frei");
+  const schicken = takt.split("async function ketteMailSchicken(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/if \(!versandErlaubt\(\)\) return false;/.test(schicken) && /justinAdresse\(lauf\)/.test(schicken) && /COALESCE\(value, ''\) = \$\{alt\} RETURNING key/.test(schicken) && /ketteMailFaellig\(/.test(schicken), "Mail an Justin: nur im Betrieb, an justinAdresse, atomarer Merker, höchstens alle 4 Stunden");
+  ok(/lead_kette_mail:/.test(takt) && /lead-takt:w-luecke/.test(regeln) && /lead-takt:n-luecke/.test(regeln) && /lead-takt:wa-luecke/.test(regeln), "feste Schlüssel je Alarm und je Merker");
+  const lesen = takt.split("export async function leadKetteLesen(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/willkommen_am IS NULL[\s\S]*NOT IN \('gesendet', 'ausgelassen'\)/.test(lesen) && /nachfass_faellig < \$\{jetzt\}::timestamptz - INTERVAL '2 hours'/.test(lesen) && /mb\.nummerDerAnfrage\(r\)/.test(lesen), "die Zahlen: W ohne Ergebnis, N seit 2 Stunden fällig, WhatsApp mit der Nummer der Anfrage (Land)");
+
+  // ── Cockpit: das Ja am Telefon ──
+  const seite = lies("client/src/pages/agent/firmen.tsx");
+  ok(/Möchte auch per WhatsApp \(am Telefon gefragt\)/.test(seite) && /whatsapp_ja: true/.test(seite) && /GLOBAL_WA_TELEFON_SATZ/.test(seite), "Cockpit: Häkchen mit dem Satz zum Vorlesen, geht als felder.whatsapp_ja mit");
+  ok(seite.indexOf("fk-wa-ja") > 0 && seite.indexOf("fk-wa-ja") < seite.indexOf('<div className="fk-ergebnisse">'), "das Häkchen steht direkt über den Ergebnis-Knöpfen");
+  const route = lies("server/routes/fiaon-firmen.ts");
+  const anruf = route.split('router.post("/agent/firmen/:id/anruf"')[1]?.split("\n});\n")[0] ?? "";
+  const telJa = route.split("async function telefonJaMerken(")[1]?.split("\n}\n")[0] ?? "";
+  ok(/whatsappJaGewaehlt\(req\.body\?\.felder\)/.test(anruf) && /telefonJaMerken\(\{ firma, anfrageId: lead\.lead \? lead\.anfrageId : null, ergebnis/.test(anruf), "Anruf-Route: felder.whatsapp_ja geht mit dem Ergebnis an telefonJaMerken");
+  ok(/if \(!ein\.anfrageId\) return \{ gemerkt: false/.test(telJa) && /TELEFON_JA_ERGEBNISSE/.test(telJa) && /telefonOptinMerken\(/.test(telJa) && /'whatsapp_ja'/.test(telJa), "… nur mit Anfrage, nur nach „erreicht“, gemerkt über telefonOptinMerken, Zeile im Verlauf");
+  const jt = route.split('router.post("/agent/firmen/:id/justin-termin"')[1]?.split("\n});\n")[0] ?? "";
+  ok(/whatsappJaGewaehlt\(b\.felder\)/.test(jt) && /ergebnis: "erreicht_termin"/.test(jt) && /mitWa \? \{ whatsapp_ja: true \}/.test(seite.split("const justinEintragen")[1] ?? ""), "… auch bei „Termin bei Justin eintragen“ (dann kommt die Bestätigung auch auf WhatsApp)");
+  const rund = lies("client/src/pages/agent/rundgaenge.ts");
+  ok(/Darf Mara ihm schreiben\? Frag am Telefon\./.test(rund) && /Lead-Kette/.test(rund), "Rundgänge nachgezogen (Firmenkunden: das Ja am Telefon; Lead-Motor und Lagezimmer: die Lead-Kette)");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // B — LOKALE WEGWERF-DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
 if (LOKAL_DB) {

@@ -403,6 +403,40 @@ router.post("/agent/firmen/import", requireAgent, async (req: AgentRequest, res:
   }
 });
 
+// ── E-487 (09.11.2026): DAS JA ZU WHATSAPP AM TELEFON ─────────────────────────
+// Justin: „ALLES, sodass jeder neue Lead auch ne Mail, WhatsApp und co bekommt“. Die anrufende Person liest im Gespräch den
+// Satz vor (GLOBAL_WA_TELEFON_SATZ) und hakt „Möchte auch per WhatsApp (am Telefon gefragt)“ — das Häkchen geht mit dem
+// Ergebnis (felder.whatsapp_ja) bzw. mit „Termin bei Justin eintragen“ mit. Der Server merkt das Ja an der Nummer der Anfrage
+// (Quelle „telefon:<Name>“, Zeit, Satz — telefonOptinMerken); die Begrüßung bzw. mit Termin die Terminnachricht schickt Maras
+// Takt (8–20 Uhr, alle Sperren). Nur bei einem Business-Lead mit Anfrage und nur nach einem erreichten Gespräch.
+function whatsappJaGewaehlt(felder: unknown): boolean {
+  const w = (felder && typeof felder === "object" ? (felder as Record<string, unknown>).whatsapp_ja : null);
+  return w === true || w === "ja";
+}
+
+async function telefonJaMerken(ein: { firma: any; anfrageId: number | null; ergebnis: string; agent: { id: number; name: string } }): Promise<{ gemerkt: boolean; grund: string | null }> {
+  try {
+    const mb = await import("../lib/fiaon-mara-business");
+    if (!ein.anfrageId) return { gemerkt: false, grund: "Das WhatsApp-Ja gibt es nur bei einem Business-Lead mit Anfrage." };
+    if (!(mb.TELEFON_JA_ERGEBNISSE as readonly string[]).includes(ein.ergebnis)) return { gemerkt: false, grund: "Das WhatsApp-Ja zählt nur nach einem Gespräch („erreicht“)." };
+    const [sp] = (await sqlPool`SELECT text FROM fiaon_anfragen WHERE id = ${ein.anfrageId}`.catch(() => [])) as any[];
+    const r = await mb.telefonOptinMerken({
+      anfrageId: ein.anfrageId, firmaId: Number(ein.firma.id), telefon: ein.firma.telefon ? String(ein.firma.telefon) : null, wer: ein.agent.name,
+      englisch: /^Sprache:\s*Englisch/m.test(String(sp?.text ?? "")),
+    });
+    if (r.ok) {
+      await sqlPool`
+        INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+        VALUES (${Number(ein.firma.id)}, ${ein.agent.id}, ${ein.agent.name}, 'global', 'whatsapp_ja',
+                ${`Ja zu WhatsApp — am Telefon gefragt von ${ein.agent.name} (Satz vorgelesen). Mara schreibt ihm auf WhatsApp (8–20 Uhr).`})`.catch(() => {});
+    }
+    return { gemerkt: r.ok, grund: r.grund };
+  } catch (e) {
+    console.error("[FIRMEN] WhatsApp-Ja am Telefon:", String((e as Error)?.message ?? e).slice(0, 160));
+    return { gemerkt: false, grund: "Das Ja konnte gerade nicht gespeichert werden — bitte noch einmal." };
+  }
+}
+
 // ── Anruf-Ergebnis: EIN Klick hält alles fest ───────────────────────────────
 router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
@@ -487,7 +521,13 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
       const wvTag = wv === "+1" ? berlinPlusTage(1) : wv === "+2" ? berlinPlusTage(2) : wv && /^\d{4}-\d{2}-\d{2}$/.test(wv) ? wv : null;
       stand = await globalLeadStandSetzen({ firmaId: id, anfrageId: lead.anfrageId, ereignis: `anruf:${ergebnis}` as any, wer: { id: req.agent!.id, name: req.agent!.name }, wiedervorlage: wvTag });
     }
-    res.json({ ok: true, status, lead: lead.lead, stand });
+
+    // E-487 (09.11.2026, Justin: „ALLES … WhatsApp“): das Ja am Telefon (felder.whatsapp_ja) — nur bei einem Business-Lead mit
+    // Anfrage und nur nach einem erreichten Gespräch (telefonJaMerken).
+    const whatsapp = whatsappJaGewaehlt(req.body?.felder)
+      ? await telefonJaMerken({ firma, anfrageId: lead.lead ? lead.anfrageId : null, ergebnis, agent: { id: req.agent!.id, name: req.agent!.name } })
+      : null;
+    res.json({ ok: true, status, lead: lead.lead, stand, whatsapp });
   } catch (err) {
     console.error("[FIRMEN] anruf:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -717,7 +757,11 @@ router.post("/agent/firmen/:id/justin-termin", requireAgent, async (req: AgentRe
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
       VALUES (${Number(firma.id)}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', 'erreicht_termin', ${pruef.text.slice(0, 2000)})`.catch(() => {});
     await sqlPool`UPDATE fiaon_firmen_leads SET status = 'termin', letzter_kontakt = NOW(), updated_at = NOW() WHERE id = ${Number(firma.id)}`.catch(() => {});
-    res.json({ ok: true, terminId: erg.terminId, datumText: erg.datumText, uhrzeit: erg.uhrzeit, bei: erg.ansprechpartner.vorname, anrufEingetragen: true });
+    // E-487: das Häkchen „Möchte auch per WhatsApp“ fährt auch hier mit — dann kommt die Terminbestätigung auch auf WhatsApp.
+    const whatsapp = whatsappJaGewaehlt(b.felder)
+      ? await telefonJaMerken({ firma, anfrageId: erg.anfrageId ?? anfrage?.anfrageId ?? null, ergebnis: "erreicht_termin", agent: { id: req.agent!.id, name: req.agent!.name } })
+      : null;
+    res.json({ ok: true, terminId: erg.terminId, datumText: erg.datumText, uhrzeit: erg.uhrzeit, bei: erg.ansprechpartner.vorname, anrufEingetragen: true, whatsapp });
   } catch (err) {
     console.error("[FIRMEN] justin-termin:", err);
     res.status(500).json({ ok: false, error: "Serverfehler — der Termin ist NICHT eingetragen. Bitte noch einmal versuchen." });

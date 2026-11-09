@@ -38,10 +38,16 @@ import { globalWaHinweisGezeigt } from "@shared/fiaon-whatsapp-erlaubnis";
 
 const router = Router();
 
-/** E-481: Ja zu WhatsApp aus dem Formular merken (nur bei wortgleichem Satz). Wirft nie, wartet nicht. */
-function waJaMerken(b: any, telefon: string): void {
+/**
+ * E-481: Ja zu WhatsApp aus dem Formular merken (nur bei wortgleichem Satz). Wirft nie, wartet nicht. E-487 (09.11.2026): MIT
+ * der Anfrage (Buchung über den Link bzw. eine offene Anfrage, „lieber ein Anruf“) und dem Land des Formulars — vorher immer
+ * ohne Anfrage: Die Website-Ja vom 05.–07.11. verpufften, die Terminnachricht auf WhatsApp erreichte keinen.
+ */
+function waJaMerken(b: any, kontakt: { telefon: string; land?: string | null }, anfrageId: number | null | undefined): void {
   if (!globalWaHinweisGezeigt(b?.waHinweis)) return;
-  void import("../lib/fiaon-mara-business").then((mb) => mb.websiteOptinMerken(null, telefon)).catch(() => {});
+  void import("../lib/fiaon-mara-business")
+    .then((mb) => mb.websiteOptinMerken({ anfrageId: anfrageId ?? null, telefon: kontakt.telefon, land: kontakt.land ?? null, satz: String(b.waHinweis).trim() }))
+    .catch(() => {});
 }
 /** E-481: der WhatsApp-Link zu Mara (mit Kennung des persönlichen Links, sonst mit „FIAON Global“) — null, wenn Mara Business aus ist. */
 async function waLinkFuer(req: Request, sprache: "de" | "en"): Promise<string | null> {
@@ -183,7 +189,7 @@ router.post("/termine", async (req: Request, res: Response) => {
     const erg = await globalTerminBuchen({ kontakt, tag, zeit, thema, code: codeAus(req) });
     if (erg.ok) {
       void kampagneSpeichern("termin", erg.terminId, b.kampagne);
-      waJaMerken(b, kontakt.telefon);
+      waJaMerken(b, kontakt, erg.anfrageId);
       // E-476 Scheibe 3 (Logbuch 03.11. 18:30, „kein ARAS für Leads“): Das Buchungsformular trägt keinen ARAS-Hinweis mehr,
       // und diese Tür speichert keinen Nachweis für einen Erinnerungsanruf. Schickt ein Browser mit altem Stand den Satz
       // noch mit, wird er übergangen — die Erinnerung kommt per Mail (Vortag, eine Stunde vorher).
@@ -251,7 +257,7 @@ router.post("/anfrage", async (req: Request, res: Response) => {
           firma: kontakt.firma, name: kontakt.name, telefon: kontakt.telefon, email: kontakt.email,
         });
         if (r.ok) {
-          waJaMerken(b, kontakt.telefon);
+          waJaMerken(b, kontakt, v.anfrageId);
           res.clearCookie(LEAD_CODE_COOKIE, { path: LEAD_COOKIE_PFAD });
           return res.json({ ok: true, meldung: r.zustaendigName ? globalText(T.anfrageDanke, { name: r.zustaendigName }) : T.anfrageDankeOhneName });
         }
@@ -264,7 +270,7 @@ router.post("/anfrage", async (req: Request, res: Response) => {
       ip: ipVon(req),
     });
     void kampagneSpeichern("anfrage", erg.anfrageId, b.kampagne);
-    waJaMerken(b, kontakt.telefon);
+    waJaMerken(b, kontakt, erg.anfrageId);
     // Die Rückruf-Bitte zählt wie das Gespräch (Schedule) — so meldete es der Pixel schon immer.
     const messRef = `global-anfrage-${erg.anfrageId}`;
     gespraechMelden(req, messRef, kontakt);

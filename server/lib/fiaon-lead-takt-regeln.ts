@@ -26,6 +26,7 @@ import {
 } from "@shared/fiaon-global-lead";
 import { istWerktag, isoPlus } from "@shared/fiaon-global-lead-texte";
 import { LEAD_TAKT_VORGABE as V, ANFRAGE_STAND_WORT } from "@shared/fiaon-lead-takt";
+import { versandLand } from "@shared/fiaon-whatsapp-erlaubnis";
 
 /** Deutsche Feiertage (der Absender sitzt hier — dieselbe Regel wie beim Nachfass). */
 export const feiertagDE = (iso: string): boolean => istFeiertag("DE", iso);
@@ -501,5 +502,217 @@ export function kalenderWaechter(ein: { tage: number; grund: string | null; pers
     an: ein.tage === 0 && werbung,
     text: `Der Kalender auf fiaon.com zeigt keine freie Zeit (${warum}${ein.person ? `, Gespräche führt ${ein.person}` : ""}), während die Global-Werbung läuft (gestern ${euro(ein.ausgabenGesternCents)}, heute ${euro(ein.ausgabenHeuteCents)}). `
       + "Leads können nicht selbst buchen. Bitte Zeitfenster pflegen (Portal › Verfügbarkeit) oder die Deckel prüfen (Chefbüro › Rückholung › FIAON Global).",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): DER ERGEBNIS-WÄCHTER „LEAD-KETTE“ — die reinen Urteile (die Zahlen liest fiaon-lead-takt.ts)
+//
+// Justin (09.11.2026): „ALLES, sodass jeder neue Lead auch ne Mail, WhatsApp und co bekommt — nichts darf still hängen“.
+// Befund (Produktion nur gelesen): Vom 05.11. bis 09.11. ging keine einzige Willkommens-Mail hinaus, und kein Wächter schlug
+// an — sie fragten, ob ein LAUF läuft („lead_post 2.558× erfolg“), nicht, ob beim LEAD etwas ankommt. Dieser Wächter misst
+// das Ergebnis je Lead:
+//   W-Lücke   rot   Anfrage ab dem Zählbeginn, älter als Ruhe + 20 Minuten, jünger als 3 Tage, mit Mail-Adresse, ohne Termin —
+//                   und kein Willkommen „gesendet“ oder „ausgelassen“ (egal ob die Zeile fehlt, auf „fehler“ mit 0 Versuchen
+//                   steht oder auf „wartet“).
+//   N-Lücke   rot   Willkommen gesendet, kein Stopp, ein Nachfass seit 2 Dienststunden fällig — geprüft nur Mo–Fr 9–18 Uhr.
+//   WhatsApp  rot   Ja zu WhatsApp (Website, Formular-Fassung 2, am Telefon), Handynummer, kein vergangenes Gespräch — nach
+//                   30 Minuten im Fenster 8–20 Uhr noch keine WhatsApp (Begrüßung oder Terminnachricht) und keine von ihm.
+//             gelb  eine Ja-Zeile ohne Anfrage, obwohl es am selben Anschluss eine gibt · eine falsch gelesene Nummer (gleicher
+//                   Anschluss, andere Landesvorwahl) · drei Meta-Leads in 24 Stunden, keiner mit WhatsApp-Satz · Takt aus.
+// Rote Fälle bekommt Justin zusätzlich als kurze Mail (ketteMail): einmal je Fall, danach höchstens alle 4 Stunden.
+// ═══════════════════════════════════════════════════════════════════════════
+export const KETTE_VORGABE = {
+  /** W: so viele Minuten nach der Ruhe (Vorgabe Ruhe 10 → 30 Minuten nach dem Eingang). */
+  wNachRuheMin: 20,
+  /** N: so viele Dienstminuten nach der Fälligkeit. */
+  nDienstMin: 120,
+  /** WhatsApp: so viele Minuten im Fenster 8–20 Uhr, gezählt ab 10 Minuten nach dem Eingang bzw. dem Ja. */
+  waFensterMin: 30,
+  /** Das WhatsApp-Fenster (Berlin, jeden Tag) — wie imVersandfenster. */
+  waVon: 8, waBis: 20,
+  /** Mail an Justin: höchstens so oft (Stunden) je Alarm, solange er rot ist. */
+  mailAlleStunden: 4,
+  /** Nur Leads der letzten so vielen Tage (wie das Willkommen). */
+  tage: 3,
+  /** Ja-Quote: ab so vielen Meta-Leads in 24 Stunden ohne einen mit WhatsApp-Satz → gelb. */
+  quoteAb: 3,
+} as const;
+
+export type KetteSchluessel = "lead-takt:w-luecke" | "lead-takt:n-luecke" | "lead-takt:wa-luecke";
+export interface KetteAlarm {
+  schluessel: KetteSchluessel;
+  /** true = an, false = aus, null = jetzt keine Aussage (N außerhalb der Dienstzeit, Lesefehler) — der Stand bleibt. */
+  an: boolean | null;
+  stufe: "rot" | "gelb";
+  titel: string;
+  text: string;
+  /** Die Anfrage-Nummern der ROTEN Fälle (für die Mail an Justin). */
+  faelle: number[];
+  vorbeiGrund: string;
+}
+
+/** Minuten im WhatsApp-Fenster (8–20 Uhr Berlin, jeden Tag) zwischen zwei Zeitpunkten, abgerundet. Höchstens 40 Tage. Rein. */
+export function waFensterMinuten(von: Date, bis: Date): number {
+  if (!(bis.getTime() > von.getTime())) return 0;
+  let summe = 0;
+  const ende = berlinZeit(bis).iso;
+  let iso = berlinZeit(von).iso;
+  for (let i = 0; i < 40 && iso <= ende; i++, iso = isoPlus(iso, 1)) {
+    const a = Math.max(von.getTime(), berlinZeitpunkt(iso, KETTE_VORGABE.waVon * 60).getTime());
+    const b = Math.min(bis.getTime(), berlinZeitpunkt(iso, KETTE_VORGABE.waBis * 60).getTime());
+    if (b > a) summe += (b - a) / 60_000;
+  }
+  return Math.floor(summe);
+}
+
+/** Feiertage für den Nachfass: Deutschland immer, dazu das Land des Leads (wie feiertagFuer im Lead-Post). Rein. */
+export function feiertagLand(land: unknown): (iso: string) => boolean {
+  const l = versandLand(land);
+  return (iso) => istFeiertag("DE", iso) || (l === "AT" && istFeiertag("AT", iso)) || (l === "CH" && istFeiertag("CH", iso));
+}
+
+const mehr = (n: number, eins: string, viele: string) => (n === 1 ? eins : `${n} ${viele}`);
+const kurzGrund = (s: unknown) => linksEntschaerfen(String(s ?? "").replace(/\s+/g, " ").trim()).slice(0, 140);
+
+// ── W ─────────────────────────────────────────────────────────────────────────
+export interface KetteWZeile { anfrageId: number; eingangAm: Date; status: string | null; grund: string | null; versuche: number }
+
+function wStandText(z: KetteWZeile): string {
+  const grund = kurzGrund(z.grund);
+  if (!z.status) return "noch kein Ergebnis — der Lauf lead_post hat sie nicht geschickt (Gmail gestört, Tagesdeckel oder der Lauf steht)";
+  if (z.status === "fehler") return `gescheitert (${z.versuche} von 3 Versuchen${grund ? `: ${grund}` : ""})`;
+  if (z.status === "wartet") return `wartet${grund ? ` (${grund})` : ""}`;
+  if (z.status === "laeuft" || z.status === "unklar") return "hängt im Versand — der Gesendet-Abgleich entscheidet";
+  return `${z.status}${grund ? ` (${grund})` : ""}`;
+}
+
+/** W-Lücke: welche Anfragen haben nach Ruhe + 20 Minuten noch kein Willkommen „gesendet“ oder „ausgelassen“? Rein. */
+export function wLueckeUrteil(zeilen: readonly KetteWZeile[], jetzt: Date, e: { an: boolean; ruheMin: number }): KetteAlarm {
+  const schluessel = "lead-takt:w-luecke" as const;
+  if (!e.an) return { schluessel, an: false, stufe: "rot", titel: "Lead-Kette: Willkommens-Mail", text: "", faelle: [], vorbeiGrund: "Lead-Mails sind ausgeschaltet" };
+  const grenze = (e.ruheMin + KETTE_VORGABE.wNachRuheMin) * 60_000;
+  const offen = zeilen.filter((z) => {
+    const alter = jetzt.getTime() - z.eingangAm.getTime();
+    return !["gesendet", "ausgelassen"].includes(String(z.status ?? "")) && alter >= grenze && alter < KETTE_VORGABE.tage * 86_400_000;
+  });
+  const zeilenText = offen.slice(0, 10).map((z) => `Anfrage #${z.anfrageId} (Eingang ${tagUhr(z.eingangAm)}): ${wStandText(z)}`);
+  return {
+    schluessel, an: offen.length > 0, stufe: "rot", faelle: offen.map((z) => z.anfrageId),
+    titel: `Lead-Kette: ${mehr(offen.length, "eine Anfrage", "Anfragen")} ohne Willkommens-Mail`,
+    text: [...zeilenText, offen.length > 10 ? `… und ${offen.length - 10} weitere.` : null,
+      "Daniels Anruf-Aufträge stehen trotzdem. Den Grund je Anfrage zeigt der Lead-Motor (Karte „Lead-Mails“)."].filter(Boolean).join("\n"),
+    vorbeiGrund: "jede Anfrage hat ihr Willkommen (gesendet oder bewusst ausgelassen)",
+  };
+}
+
+// ── N ─────────────────────────────────────────────────────────────────────────
+export interface KetteNZeile { anfrageId: number; faellig: Date; stufe: number; land: string | null }
+
+/** N-Lücke: ein Nachfass seit 2 Dienststunden fällig, aber nicht gesendet. Außerhalb Mo–Fr 9–18 Uhr keine Aussage. Rein. */
+export function nLueckeUrteil(zeilen: readonly KetteNZeile[], jetzt: Date, e: { an: boolean }, feiertag: (iso: string) => boolean = feiertagDE): KetteAlarm {
+  const schluessel = "lead-takt:n-luecke" as const;
+  const basis = { schluessel, stufe: "rot" as const, titel: "Lead-Kette: Nachfass-Mail", text: "", faelle: [] as number[] };
+  if (!e.an) return { ...basis, an: false, vorbeiGrund: "Nachfass ist ausgeschaltet" };
+  if (!imDienst(jetzt, feiertag)) return { ...basis, an: null, vorbeiGrund: "" };
+  const offen = zeilen.filter((z) => z.stufe < 3 && dienstMinuten(z.faellig, jetzt, feiertagLand(z.land)) >= KETTE_VORGABE.nDienstMin);
+  return {
+    ...basis, an: offen.length > 0, faelle: offen.map((z) => z.anfrageId),
+    titel: `Lead-Kette: ${mehr(offen.length, "eine Nachfass-Mail", "Nachfass-Mails")} seit über 2 Dienststunden fällig`,
+    text: [...offen.slice(0, 10).map((z) => `Anfrage #${z.anfrageId}: N${Math.min(3, z.stufe + 1)} fällig seit ${tagUhr(z.faellig)}`),
+      offen.length > 10 ? `… und ${offen.length - 10} weitere.` : null,
+      "Der Lauf lead_nachfass (alle 10 Minuten, Mo–Fr 9–18 Uhr) hat sie nicht geschickt — bitte im Lead-Motor nachsehen."].filter(Boolean).join("\n"),
+    vorbeiGrund: "kein fälliger Nachfass hängt mehr",
+  };
+}
+
+// ── WhatsApp ──────────────────────────────────────────────────────────────────
+export interface KetteWaZeile {
+  anfrageId: number; eingangAm: Date;
+  /** Stand der Anfrage (neu, in_arbeit, termin …). */
+  status: string;
+  /** Die WhatsApp-Nummer der Anfrage (Handy) — null = Festnetz oder keine. */
+  nummer: string | null;
+  /** Woher das Ja kommt (website, formular, telefon:<Name> …) — null = kein Ja. */
+  ja: string | null;
+  /** Seit wann das Ja gilt (ein Formular-Ja: der Eingang). */
+  jaSeit: Date | null;
+  /** Ein kommendes Gespräch (dann ist die Terminnachricht fällig) bzw. ein schon vergangenes (dann nichts mehr). */
+  terminKommend: boolean; terminVorbei: boolean;
+  /** Ging an ihn schon eine WhatsApp (Begrüßung, Terminnachricht) — oder schrieb er selbst (auch „STOPP“)? */
+  kontakt: boolean;
+  /** Die Begrüßung ist gescheitert (Text aus willkommen_status) — sonst null. */
+  begruessungFehler: string | null;
+}
+export interface KetteJaOhneAnfrage { nummer: string; anfrageId: number; seit: Date }
+export interface KetteNummerFalsch { anfrageId: number; schluessel: string; erwartet: string }
+
+/** Erwartet der Takt bei dieser Anfrage jetzt eine WhatsApp (Begrüßung oder Terminnachricht)? Rein. */
+export function waErwartet(z: KetteWaZeile, jetzt: Date): boolean {
+  if (!z.ja || !z.nummer || z.kontakt) return false;
+  if (!z.terminKommend && (z.terminVorbei || z.status === "termin")) return false;
+  const ab = new Date(Math.max(z.eingangAm.getTime(), (z.jaSeit ?? z.eingangAm).getTime()) + 10 * 60_000);
+  return waFensterMinuten(ab, jetzt) >= KETTE_VORGABE.waFensterMin;
+}
+
+/** WhatsApp-Lücke: rot (Ja, aber keine WhatsApp), gelb (Zuordnung, Nummer, Formular ohne WhatsApp-Satz, Takt aus). Rein. */
+export function waLueckeUrteil(ein: {
+  /** Mara Business UND der WhatsApp-Takt sind an. */
+  an: boolean;
+  zeilen: readonly KetteWaZeile[]; ohneAnfrage: readonly KetteJaOhneAnfrage[]; falsch: readonly KetteNummerFalsch[];
+  quote: { metaLeads: number; mitJa: number } | null;
+}, jetzt: Date): KetteAlarm {
+  const schluessel = "lead-takt:wa-luecke" as const;
+  const warten = ein.zeilen.filter((z) => waErwartet(z, jetzt));
+  const rot = ein.an ? warten : [];
+  const zeilen: string[] = rot.slice(0, 10).map((z) => `Anfrage #${z.anfrageId} (Ja: ${kurzGrund(z.ja).slice(0, 60)}): ${z.begruessungFehler
+    ? `Begrüßung gescheitert (${kurzGrund(z.begruessungFehler.replace(/^fehler:\s*/, "")).slice(0, 100)})`
+    : z.terminKommend ? "Termin steht, aber keine Terminnachricht auf WhatsApp" : "noch keine WhatsApp-Begrüßung"}`);
+  if (rot.length > 10) zeilen.push(`… und ${rot.length - 10} weitere.`);
+  const gelb: string[] = [];
+  if (!ein.an && warten.length) gelb.push(`Mara Business oder der WhatsApp-Takt ist aus — ${mehr(warten.length, "ein Lead", "Leads")} mit Ja zu WhatsApp bekommt keine Nachricht.`);
+  const alt = ein.ohneAnfrage.filter((o) => jetzt.getTime() - o.seit.getTime() >= 30 * 60_000);
+  for (const o of alt.slice(0, 5)) gelb.push(`Ja zu WhatsApp (Nummer …${o.nummer.slice(-4)}) ohne Anfrage, obwohl Anfrage #${o.anfrageId} denselben Anschluss hat — der Takt verknüpft sie nicht.`);
+  for (const f of ein.falsch.slice(0, 5)) gelb.push(`Anfrage #${f.anfrageId}: eine Nummer ist falsch gelesen (+${f.schluessel.slice(0, 2)}… statt +${f.erwartet.slice(0, 2)}…, derselbe Anschluss …${f.schluessel.slice(-4)}) — bitte im Lead-Motor prüfen.`);
+  if (ein.quote && ein.quote.metaLeads >= KETTE_VORGABE.quoteAb && ein.quote.mitJa === 0) {
+    gelb.push(`Die letzten ${ein.quote.metaLeads} Meta-Leads (24 Stunden) kamen alle über ein Formular OHNE WhatsApp-Satz — läuft noch die alte Formular-Fassung in einer Anzeige?`);
+  }
+  const n = rot.length;
+  const titel = n
+    ? `Lead-Kette: ${mehr(n, "ein Lead", "Leads")} mit Ja zu WhatsApp ohne WhatsApp`
+    : gelb.length ? "Lead-Kette: WhatsApp — bitte prüfen" : "Lead-Kette: WhatsApp";
+  return {
+    schluessel, an: n > 0 || gelb.length > 0, stufe: n ? "rot" : "gelb", faelle: rot.map((z) => z.anfrageId), titel,
+    text: [...zeilen,
+      ...(n ? ["Die Begrüßung bzw. Terminnachricht schickt der Takt wa_global_takt (8–20 Uhr, nur freigegebene Vorlagen). Bitte im Lead-Motor (Karte „Mara Business“) nachsehen."] : []),
+      ...(n && gelb.length ? [""] : []), ...gelb].join("\n"),
+    vorbeiGrund: "jeder Lead mit Ja zu WhatsApp hat seine Nachricht",
+  };
+}
+
+// ── Die Mail an Justin ────────────────────────────────────────────────────────
+/** Kommt jetzt eine Mail an Justin? Ein neuer Fall → ja; sonst höchstens alle 4 Stunden, solange der Alarm rot ist. Rein. */
+export function ketteMailFaellig(ein: { neu: boolean; letzte: Date | null; jetzt: Date }): boolean {
+  if (ein.neu || !ein.letzte) return true;
+  return ein.jetzt.getTime() - ein.letzte.getTime() >= KETTE_VORGABE.mailAlleStunden * 3_600_000;
+}
+
+const KETTE_KURZ: Readonly<Record<KetteSchluessel, string>> = {
+  "lead-takt:w-luecke": "Willkommens-Mail hängt", "lead-takt:n-luecke": "Nachfass hängt", "lead-takt:wa-luecke": "WhatsApp hängt",
+};
+
+/** Die kurze Mail an Justin zu den roten Alarmen der Lead-Kette (du-Form, nur Anfrage-Nummern, ein Knopf). Rein. */
+export function ketteMail(alarme: readonly KetteAlarm[], leadMotorUrl: string): TaktMail {
+  const faelle = Array.from(new Set(alarme.flatMap((a) => a.faelle))).sort((a, b) => a - b);
+  const was = alarme.map((a) => KETTE_KURZ[a.schluessel]).join(" · ");
+  const t: string[] = [];
+  t.push(`LEAD-KETTE ROT: ${was}`, "");
+  t.push("Hallo Justin,", "");
+  t.push(`bei ${faelle.length === 1 ? "diesem Lead" : "diesen Leads"} kommt gerade nichts an, obwohl es sollte:`, "");
+  for (const a of alarme) t.push(linksEntschaerfen(a.titel).replace(/^Lead-Kette:\s*/, "").toUpperCase(), linksEntschaerfen(a.text), "");
+  t.push(`Diese Mail kommt einmal je Fall und danach höchstens alle ${KETTE_VORGABE.mailAlleStunden} Stunden, solange es rot ist. Ist es gelöst, geht der Alarm von selbst aus.`);
+  return {
+    betreff: `Lead-Kette rot: ${was}${faelle.length ? ` (${faelle.slice(0, 6).map((f) => `#${f}`).join(", ")}${faelle.length > 6 ? " …" : ""})` : ""}`.slice(0, 150),
+    text: t.join("\n"), knoepfe: [{ text: "Lead-Motor öffnen", url: leadMotorUrl }], links: [leadMotorUrl],
   };
 }

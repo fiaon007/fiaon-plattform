@@ -30,6 +30,10 @@
 //     darfAnEmpfaenger (Werbesperre, unzustellbar, Frequenzbremse), die Wand für Firmenangebots-Kundinnen (E-301), die
 //     Platzhalter-Wache und die Wortwand (kein Bank-Satz, keine Zahl, kein „Geschenk“, kein Partnername, Sie-Form).
 //   · Jede Lead-Mail steht im Versandprotokoll (fiaon_mail_log, versandweg google) und in fiaon_lead_post.
+//   · E-487 (09.11.2026, Befund: vom 05.11. bis 09.11. ging kein Willkommen hinaus, ohne Alarm): Ein Fund der Wand zählt
+//     einen Versuch und meldet sofort; eine Zeile mit „fehler“ macht 30 Minuten Pause, dran ist, wer am längsten nicht
+//     angefasst wurde (nie mehr „ORDER BY a.id LIMIT 5“); Anfragen mit Termin bleiben nicht als „fehler“ stehen; N1–N3
+//     tragen Maras WhatsApp-Link wie W. Ob beim Lead etwas ankommt, misst der Wächter „Lead-Kette“ (fiaon-lead-takt.ts).
 //   · Schema: Migration 130 + dieselbe DDL hier (leadPostSchema) — nie im Eingang.
 // Repo öffentlich: keine Kundendaten im Code.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -595,7 +599,7 @@ async function justinFuehrt(): Promise<boolean> {
   try { return (await (await import("./fiaon-lead-weg")).globalKalenderPerson()).modus === "justin"; } catch { return true; }
 }
 
-export function nachfassFuer(stufe: 1 | 2 | 3, lage: LeadLage, link: { url: string; bis?: Date | null }, jetzt: Date, opt: { kalenderLeer?: boolean } = {}): LeadMailText {
+export function nachfassFuer(stufe: 1 | 2 | 3, lage: LeadLage, link: { url: string; bis?: Date | null }, jetzt: Date, opt: { kalenderLeer?: boolean; whatsapp?: { url: string } | null } = {}): LeadMailText {
   const versuch = lage.letzterAnruf && ["nicht_erreicht", "mailbox"].includes(lage.letzterAnruf.ergebnis) && lage.zustaendig
     && (!lage.weg?.willkommenAm || lage.letzterAnruf.am > lage.weg.willkommenAm)
     ? { am: lage.letzterAnruf.am, kollege: lage.zustaendig.name, weiblich: lage.zustaendig.weiblich } : null;
@@ -604,6 +608,8 @@ export function nachfassFuer(stufe: 1 | 2 | 3, lage: LeadLage, link: { url: stri
     anrufVersuch: stufe === 1 ? versuch : null,
     angaben: lage.antworten.length ? "antworten" : lage.mitNachricht ? "nachricht" : null,
     firma: lage.firmaBrauchbar ? lage.firmaRoh : null, kalenderLeer: !!opt.kalenderLeer,
+    // E-487 (09.11.2026): Maras WhatsApp-Link wie in W — die Wand prüft ihn über eigenerWaSatz (Ausnahme aus d395d8cf).
+    whatsapp: opt.whatsapp ?? null,
   });
 }
 
@@ -654,21 +660,34 @@ async function willkommenAuslassen(anfrageId: number, grund: string, lauf: Lauf)
   return "ausgelassen";
 }
 
-async function willkommenFehler(anfrageId: number, grund: string, lauf: Lauf, unklar = false): Promise<LeadPostErgebnis> {
-  await lauf`
+/**
+ * Ein Willkommen ist gescheitert. `art`: „fehler“ (Versand oder Störung), „unklar“ (der Gesendet-Abgleich entscheidet) oder
+ * „wand“ — E-487 (09.11.2026): Ein Fund der Wand ZÄHLT jetzt einen Versuch und meldet SOFORT (wie beim Nachfass). Vorher kam
+ * die Wand vor dem Zählen: Die Zeile stand mit 0 Versuchen auf „fehler“, der Alarm (erst ab drei Versuchen) kam nie, und
+ * vom 05.11. bis 09.11. ging keine einzige Willkommens-Mail hinaus. Nach drei Funden ist Schluss (der Lead-Wächter
+ * „Lead-Kette“ hält die Lücke rot, bis sie gelöst ist).
+ */
+async function willkommenFehler(anfrageId: number, grund: string, lauf: Lauf, art: "fehler" | "unklar" | "wand" = "fehler"): Promise<LeadPostErgebnis> {
+  const unklar = art === "unklar";
+  const wand = art === "wand";
+  const [z] = (await lauf`
     UPDATE fiaon_lead_weg SET willkommen_status = ${unklar ? "unklar" : "fehler"}, willkommen_grund = ${grund.slice(0, 300)},
-           willkommen_laeuft = CASE WHEN ${unklar} THEN willkommen_laeuft ELSE NULL END, updated_at = NOW()
-     WHERE anfrage_id = ${anfrageId} AND willkommen_am IS NULL`.catch(() => {});
+           willkommen_laeuft = CASE WHEN ${unklar} THEN willkommen_laeuft ELSE NULL END,
+           willkommen_versuche = willkommen_versuche + CASE WHEN ${wand} THEN 1 ELSE 0 END, updated_at = NOW()
+     WHERE anfrage_id = ${anfrageId} AND willkommen_am IS NULL
+    RETURNING willkommen_versuche`.catch(() => [])) as any[];
   if (!unklar) {
-    const [z] = (await lauf`SELECT willkommen_versuche FROM fiaon_lead_weg WHERE anfrage_id = ${anfrageId}`.catch(() => [])) as any[];
-    if (Number(z?.willkommen_versuche) >= 3) {
+    const versuche = Number(z?.willkommen_versuche) || 0;
+    if (wand || versuche >= 3) {
       // E-476 Scheibe 5: EIN Alarm für alle Lead-Mails (statt einer Zeile je Anfrage) — der Lead-Wächter (fiaon-lead-takt.ts)
       // schreibt ihn fort und schaltet ihn aus, wenn 24 Stunden lang keine Lead-Mail mehr scheitert.
       const { alarmMelden } = await import("./fiaon-system-alarme");
       await alarmMelden("lead-takt:lead-mail", {
         quelle: "lead-takt", stufe: "rot", link: "/chef/s/lead-motor", anhaengen: true,
         titel: "Lead-Wächter: eine Lead-Mail gescheitert oder nicht zugestellt",
-        text: `Anfrage #${anfrageId}: Justins Willkommen ging nach drei Versuchen nicht hinaus (${grund.slice(0, 200)}) — Daniels Anruf-Auftrag steht trotzdem.`,
+        text: wand
+          ? `Anfrage #${anfrageId}: Justins Willkommen hielt an der Wand an (Versuch ${versuche} von 3${versuche < 3 ? ", nächster in 30 Minuten" : ""}) — ${grund.slice(0, 200)}. Daniels Anruf-Auftrag steht trotzdem.`
+          : `Anfrage #${anfrageId}: Justins Willkommen ging nach drei Versuchen nicht hinaus (${grund.slice(0, 200)}) — Daniels Anruf-Auftrag steht trotzdem.`,
       }, lauf).catch(() => ({ neu: false }));
     }
   }
@@ -771,7 +790,8 @@ export async function willkommenSenden(anfrageId: number, opt: { jetzt?: Date; l
     if (!absender) return { ergebnis: "wartet", grund: "Justins Unterschrift gerade nicht lesbar (Gmail gestört)" };
     const m = await willkommenFuer(lage, link, jetzt, { kalenderLeer: await kalenderLeer() });
     const funde = await leadMailPruefen(m);
-    if (funde.length) return { ergebnis: await willkommenFehler(anfrageId, `Wand: ${funde.join("; ")}`, lauf), grund: funde.join("; ") };
+    // E-487: ein Fund der Wand zählt einen Versuch und meldet sofort (willkommenFehler „wand“).
+    if (funde.length) return { ergebnis: await willkommenFehler(anfrageId, `Wand: ${funde.join("; ")}`, lauf, "wand"), grund: funde.join("; ") };
     const html = await leadMailHtml(m, absender.signaturHtml);
     const text = await leadMailText(m, absender.signaturText);
 
@@ -798,7 +818,7 @@ export async function willkommenSenden(anfrageId: number, opt: { jetzt?: Date; l
            WHERE anfrage_id = ${anfrageId} AND willkommen_am IS NULL`.catch(() => {});
         return { ergebnis: "wartet", grund: `Postfach gestört: ${grund}` };
       }
-      return { ergebnis: await willkommenFehler(anfrageId, grund, lauf, art === "unklar"), grund };
+      return { ergebnis: await willkommenFehler(anfrageId, grund, lauf, art === "unklar" ? "unklar" : "fehler"), grund };
     }
     await willkommenBuchen(lage, gesendet, m, text, lauf);
     console.log(`[LEAD-POST] Anfrage #${anfrageId}: Willkommen aus js@ gesendet (${m.sprache})`);
@@ -891,7 +911,8 @@ export async function nachfassSenden(anfrageId: number, opt: { jetzt?: Date; lau
     if (!absender) return { ergebnis: "wartet", grund: "Justins Unterschrift gerade nicht lesbar (Gmail gestört)", stufe };
     const link = await leadCodeSichern(anfrageId, { firmaId: lage.firmaId, lauf });
     if (!link) return { ergebnis: "fehler", grund: "kein persönlicher Link", stufe };
-    const m = nachfassFuer(stufe, lage, link, jetzt, { kalenderLeer: await kalenderLeer() });
+    // E-487 (09.11.2026): Maras WhatsApp-Link auch in N1–N3 (wie in W) — eine Störung = keine Zeile, die Mail geht trotzdem.
+    const m = nachfassFuer(stufe, lage, link, jetzt, { kalenderLeer: await kalenderLeer(), whatsapp: await maraWhatsappLink(link.url, lage.sprache) });
     const funde = await leadMailPruefen(m);
     if (funde.length) {
       // Ein fester Text, der an der Wand hängt, ist ein Fehler im Code — kein Versand, kein zweiter Versuch, ein Alarm.
@@ -1391,6 +1412,28 @@ export async function leadRueckrufWunsch(anfrageId: number, ein: { wunschzeit: s
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE LÄUFE
 // ═══════════════════════════════════════════════════════════════════════════
+/** E-487 (09.11.2026): Eine Zeile mit „fehler“ wartet so lange, bis sie wieder dran ist (statt alle 2 Minuten vorn zu stehen). */
+export const WILLKOMMEN_PAUSE_MIN = 30;
+/** E-487: so viele Kandidaten je Lauf (vorher 5 — fünf kaputte Zeilen sperrten alle neuen Leads). */
+export const WILLKOMMEN_KANDIDATEN = 20;
+
+/**
+ * E-487 (09.11.2026): Eine Anfrage mit Termin bekommt kein Willkommen (die Bestätigung hat er). Stand ihre Zeile noch auf
+ * „fehler“ oder „wartet“ (vor der Buchung gescheitert), blieb sie bisher für immer rot — die Kandidaten lassen „termin“ aus.
+ * Jetzt wird sie „ausgelassen“ mit dem Grund „hat ein Gespräch (Termin)“. Wirft nie.
+ */
+async function willkommenMitTerminAuslassen(lauf: Lauf): Promise<number> {
+  const r = (await lauf`
+    UPDATE fiaon_lead_weg w SET willkommen_status = 'ausgelassen', willkommen_grund = ${STOPP_TEXT.termin}, willkommen_laeuft = NULL, updated_at = NOW()
+      FROM fiaon_anfragen a
+     WHERE a.id = w.anfrage_id AND a.art = 'global' AND w.willkommen_am IS NULL AND w.willkommen_laeuft IS NULL
+       AND COALESCE(w.willkommen_status, '') IN ('', 'fehler', 'wartet')
+       AND (COALESCE(a.status, '') = 'termin' OR EXISTS (SELECT 1 FROM fiaon_lead_gespraech g WHERE g.anfrage_id = a.id))
+    RETURNING w.anfrage_id`.catch(() => [])) as any[];
+  if (r.length) console.log(`[LEAD-POST] Willkommen ausgelassen (Termin): ${r.map((x) => `#${x.anfrage_id}`).join(", ")}`);
+  return r.length;
+}
+
 let letzterPuls = 0;
 /**
  * lead_post (2 Minuten, rund um die Uhr): Willkommen, Gesendet-Abgleich, Antworten in js@ (alle 6 Minuten — nur mit Willkommen
@@ -1404,6 +1447,10 @@ export async function leadPostLauf(jetzt: Date = new Date(), lauf: Lauf = sqlPoo
   gearbeitet += await willkommenAbgleichen(lauf);
   gearbeitet += await nachfassAbgleichen(lauf);
   if (einst.willkommenAn && einst.ab) {
+    gearbeitet += await willkommenMitTerminAuslassen(lauf);
+    // E-487 (09.11.2026): Kandidaten mit Pause statt fester Reihenfolge. Vorher „ORDER BY a.id LIMIT 5“ — fünf dauerhaft
+    // scheiternde Zeilen sperrten alle neueren Leads (vom 05.11. bis 09.11. kam keiner dran). Jetzt: eine Zeile mit
+    // „fehler“ wartet 30 Minuten, dran ist, wer am längsten nicht angefasst wurde (COALESCE(updated_at, Eingang)), bis zu 20.
     const kandidaten = (await lauf`
       SELECT a.id FROM fiaon_anfragen a
         LEFT JOIN fiaon_lead_weg w ON w.anfrage_id = a.id
@@ -1412,8 +1459,9 @@ export async function leadPostLauf(jetzt: Date = new Date(), lauf: Lauf = sqlPoo
          AND a.created_at <= ${jetzt}::timestamptz - ${einst.ruheMin}::int * INTERVAL '1 minute'
          AND COALESCE(a.email, '') <> ''
          AND (w.anfrage_id IS NULL OR (w.willkommen_am IS NULL AND COALESCE(w.willkommen_status, '') NOT IN ('gesendet', 'ausgelassen')
-              AND w.willkommen_laeuft IS NULL AND w.willkommen_versuche < 3))
-       ORDER BY a.id LIMIT 5`.catch(() => [])) as any[];
+              AND w.willkommen_laeuft IS NULL AND w.willkommen_versuche < 3
+              AND NOT (w.willkommen_status = 'fehler' AND w.updated_at > ${jetzt}::timestamptz - ${WILLKOMMEN_PAUSE_MIN}::int * INTERVAL '1 minute')))
+       ORDER BY COALESCE(w.updated_at, a.created_at) ASC, a.id ASC LIMIT ${WILLKOMMEN_KANDIDATEN}`.catch(() => [])) as any[];
     let deckel = false;
     for (const k of kandidaten) {
       const r = await willkommenSenden(Number(k.id), { jetzt, lauf });
@@ -1585,7 +1633,8 @@ export async function leadMailVorschau(ein: { anfrageId?: number | null; art: "w
     if (l.weg?.code) link = { url: `https://fiaon.com/g/${l.weg.code}`, bis: l.weg.codeBis };
   } else lage = musterLage(ein.sprache ?? "de", ein.variante ?? "meta");
   const m = ein.art === "willkommen" ? await willkommenFuer(lage, link, jetzt)
-    : nachfassFuer(ein.art === "n1" ? 1 : ein.art === "n2" ? 2 : 3, { ...lage, weg: lage.weg ?? { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 86_400_000) } }, link, jetzt);
+    : nachfassFuer(ein.art === "n1" ? 1 : ein.art === "n2" ? 2 : 3, { ...lage, weg: lage.weg ?? { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 86_400_000) } }, link, jetzt,
+      { whatsapp: await maraWhatsappLink(link.url, lage.sprache) });
   const absender = await gmail().absender().catch(() => null);
   const { radarKarteAbsender } = await import("./fiaon-radar");
   const sig = absender ?? (() => { const k = radarKarteAbsender(null); return { name: k.name, signaturHtml: k.signaturHtml, signaturText: k.signaturText }; })();
@@ -1612,13 +1661,15 @@ export async function leadMailsPruefversand(anRoh: string, wer: string): Promise
   if (!absender) return { ok: false, gesendet: [], fehler: ["Justins Unterschrift ist gerade nicht lesbar (Gmail)"] };
   const jetzt = new Date();
   const gesendet: string[] = []; const fehler: string[] = [];
+  // E-487: der Prüfversand zeigt N1–N3 wie der Lead sie bekommt — mit Maras WhatsApp-Zeile, wenn Mara Business an ist.
+  const wa = await maraWhatsappLink(MUSTER_LINK.url, "de");
   const faelle: { name: string; m: LeadMailText }[] = [
     { name: "W deutsch", m: await willkommenFuer(musterLage("de"), MUSTER_LINK, jetzt) },
     { name: "W englisch", m: await willkommenFuer(musterLage("en"), MUSTER_LINK, jetzt) },
     { name: "W Website", m: await willkommenFuer(musterLage("de", "website"), MUSTER_LINK, jetzt) },
-    { name: "N1", m: nachfassFuer(1, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 86_400_000) } }, MUSTER_LINK, jetzt) },
-    { name: "N2", m: nachfassFuer(2, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 3 * 86_400_000) } }, MUSTER_LINK, jetzt) },
-    { name: "N3", m: nachfassFuer(3, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 9 * 86_400_000) } }, MUSTER_LINK, jetzt) },
+    { name: "N1", m: nachfassFuer(1, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 86_400_000) } }, MUSTER_LINK, jetzt, { whatsapp: wa }) },
+    { name: "N2", m: nachfassFuer(2, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 3 * 86_400_000) } }, MUSTER_LINK, jetzt, { whatsapp: wa }) },
+    { name: "N3", m: nachfassFuer(3, { ...musterLage("de"), weg: { ...leereWeg(), willkommenAm: new Date(jetzt.getTime() - 9 * 86_400_000) } }, MUSTER_LINK, jetzt, { whatsapp: wa }) },
   ];
   const { mailProtokoll } = await import("./fiaon-mail-log");
   for (const f of faelle) {

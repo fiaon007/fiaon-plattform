@@ -20,6 +20,8 @@
 //   · Der EINE Stand (leadStandSetzen — im Cockpit als globalLeadStandSetzen): Die Anfrage folgt dem Cockpit, der
 //     Anruf-Auftrag schließt sich, bleibt offen oder geht wieder auf. Dazu die Stand-Leiste des Cockpits und die einmalige
 //     Ableitung des Altbestands (nur auf Knopf, mit Justins Go).
+//   · E-487 (09.11.2026): der Ergebnis-Wächter „Lead-Kette“ — kommt beim Lead an, was ankommen soll (Willkommen, Nachfass,
+//     WhatsApp)? Rote Fälle zusätzlich als kurze Mail an Justin (einmal je Fall, danach höchstens alle 4 Stunden).
 //
 // Schema: Migration 131 + dieselbe DDL hier (leadTaktSchema) — nie im Eingang. Mails nur im Betrieb (CRONS_AN) oder über
 // die Prüfstand-Attrappe. Repo öffentlich: keine Kundendaten im Code.
@@ -42,7 +44,9 @@ import { isoPlus, wunschzeitErkennen } from "@shared/fiaon-global-lead-texte";
 import {
   t1Mail, erinnerungMail, justinEskalationMail, vertretungAuftragText, eskalationPlanen, uebersichtFaellig, uebersichtMail,
   kalenderWaechter, dienstMinuten, imDienst, feiertagDE, antwortenKurz, tagUhr, uhr, erinnerungSammelMail, justinSammelMail, t1NachtragMail,
+  wLueckeUrteil, nLueckeUrteil, waLueckeUrteil, ketteMailFaellig, ketteMail, KETTE_VORGABE,
   type TaktMail, type UebersichtDaten, type UebersichtLead, type TelefonTeil, type EskStufe, type SammelZeile,
+  type KetteAlarm, type KetteWZeile, type KetteNZeile, type KetteWaZeile, type KetteJaOhneAnfrage, type KetteNummerFalsch,
 } from "./fiaon-lead-takt-regeln";
 import type { EigeneMail } from "./fiaon-brevo";
 
@@ -895,6 +899,8 @@ export interface StandSchritt { key: "eingang" | "mail" | "anruf" | "termin"; te
 export interface LeadStandAnsicht {
   anfrageId: number; status: string; statusWort: string; schritte: StandSchritt[]; jetzt: string; wartetMin: number | null;
   terminGebucht: boolean; pflichtNotiz: boolean;
+  /** E-487: Er hat auf Englisch angefragt — das Cockpit zeigt den WhatsApp-Satz zum Vorlesen dann englisch. */
+  englisch: boolean;
 }
 
 /** Die Stand-Leiste einer Firma — null, wenn sie kein Business-Lead mit Anfrage ist (Kaltakquise: keine Leiste). */
@@ -935,7 +941,7 @@ export async function leadStandAnsicht(firmaId: number, lauf: Lauf = sqlPool, je
   else if (["nicht_erreicht", "mailbox"].includes(l.letzterAnruf!.ergebnis)) naechster = "Nächster Versuch laut Wiedervorlage — trag jeden Versuch ein.";
   else if (l.letzterAnruf!.ergebnis === "erreicht_interesse") naechster = "Interesse: „Termin bei Justin eintragen“.";
   else naechster = `Stand: ${ANFRAGE_STAND_WORT[stand] ?? stand}.`;
-  return { anfrageId, status: stand, statusWort: ANFRAGE_STAND_WORT[stand] ?? stand, schritte, jetzt: naechster, wartetMin, terminGebucht: l.terminGebucht, pflichtNotiz: true };
+  return { anfrageId, status: stand, statusWort: ANFRAGE_STAND_WORT[stand] ?? stand, schritte, jetzt: naechster, wartetMin, terminGebucht: l.terminGebucht, pflichtNotiz: true, englisch: l.englisch };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1113,6 +1119,8 @@ export interface WaechterErgebnis { geprueft: boolean; aktiv: string[]; neu: num
  *   lead-takt:dossier    Ein Lead ist seit über 10 Minuten ohne Dossier an Justin.
  *   lead-takt:lead-mail  Eine Lead-Mail ist gescheitert oder kam nicht an (Willkommen, Nachfass, Bestätigung, Erinnerung,
  *                        Lead-Meldung T1; Brevo „blockiert/zurück“; Rückläufer in js@).
+ * E-487 (09.11.2026) dazu der Ergebnis-Wächter „Lead-Kette“ (Block 7): lead-takt:w-luecke, lead-takt:n-luecke und
+ * lead-takt:wa-luecke — kommt beim Lead an, was ankommen soll? Rote Fälle zusätzlich als Mail an Justin.
  * Höchstens alle 15 Minuten (`immer` = sofort, für Prüfstand und Steuerpult).
  */
 export async function leadWaechterPruefen(opt: { jetzt?: Date; lauf?: Lauf; immer?: boolean } = {}): Promise<WaechterErgebnis> {
@@ -1239,7 +1247,195 @@ export async function leadWaechterPruefen(opt: { jetzt?: Date; lauf?: Lauf; imme
     const v = await import("./fiaon-global-gespraech").then((m) => m.globalVertretung()).catch(() => null);
     if (v && (await alarmVorbei("lead-takt:vertretung", "eine Vertretung ist eingetragen", lauf))) erg.vorbei++;
   } catch { /* nur ein Hinweis */ }
+
+  // 7) E-487 (09.11.2026): DER ERGEBNIS-WÄCHTER „LEAD-KETTE“ — kommt beim Lead an, was ankommen soll (Willkommen, Nachfass,
+  //    WhatsApp)? Je ein Alarm (w-luecke, n-luecke, wa-luecke), der von selbst ausgeht; rote zusätzlich als Mail an Justin.
+  try {
+    const rotNeu: { alarm: KetteAlarm; neu: boolean }[] = [];
+    for (const a of await leadKetteLesen(jetzt, lauf)) {
+      if (a.an === null) continue;
+      if (a.an) {
+        const r = await alarmMelden(a.schluessel, { quelle: "lead-takt", titel: a.titel, text: a.text, stufe: a.stufe, link: "/chef/s/lead-motor" }, lauf);
+        if (r.neu) erg.neu++;
+        erg.aktiv.push(a.titel);
+        if (a.stufe === "rot") rotNeu.push({ alarm: a, neu: r.neu });
+      } else {
+        if (await alarmVorbei(a.schluessel, a.vorbeiGrund, lauf)) erg.vorbei++;
+        await ketteMerkerLoeschen(a.schluessel, lauf);
+      }
+    }
+    if (rotNeu.length) await ketteMailSchicken(rotNeu, jetzt, lauf);
+  } catch (e) { console.error("[LEAD-TAKT] Wächter Lead-Kette:", String((e as Error)?.message ?? e).slice(0, 160)); }
   return erg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): DIE LEAD-KETTE — die Zahlen aus der Datenbank (die Urteile stehen rein in fiaon-lead-takt-regeln.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+const K9_SQL = "RIGHT(REGEXP_REPLACE(COALESCE(a.telefon, ''), '\\D', '', 'g'), 9)";
+
+/** Liest W, N und WhatsApp je Lead und gibt die drei Urteile zurück. Ein Lesefehler = keine Aussage (der Alarm bleibt, wie er ist). */
+export async function leadKetteLesen(jetzt: Date = new Date(), lauf: Lauf = sqlPool): Promise<KetteAlarm[]> {
+  const alarme: KetteAlarm[] = [];
+  const post = await import("./fiaon-global-lead-post").then((m) => m.leadPostEinstellungen(lauf)).catch(() => null);
+  const keineAussage = (schluessel: KetteAlarm["schluessel"]): KetteAlarm => ({ schluessel, an: null, stufe: "rot", titel: "", text: "", faelle: [], vorbeiGrund: "" });
+
+  // W — jede Anfrage ab dem Zählbeginn hat nach Ruhe + 20 Minuten ihr Willkommen (gesendet oder bewusst ausgelassen).
+  try {
+    const wAn = !!(post?.willkommenAn && post.ab);
+    const zeilen: KetteWZeile[] = !wAn ? [] : ((await lauf`
+      SELECT a.id, a.created_at, w.willkommen_status, w.willkommen_grund, COALESCE(w.willkommen_versuche, 0)::int AS versuche
+        FROM fiaon_anfragen a LEFT JOIN fiaon_lead_weg w ON w.anfrage_id = a.id
+       WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE) AND COALESCE(a.status, 'neu') NOT IN ('privat', 'termin')
+         AND a.created_at >= ${post!.ab}::timestamptz
+         AND a.created_at > ${jetzt}::timestamptz - ${KETTE_VORGABE.tage}::int * INTERVAL '1 day'
+         AND a.created_at < ${jetzt}::timestamptz - ${post!.ruheMin + KETTE_VORGABE.wNachRuheMin}::int * INTERVAL '1 minute'
+         AND COALESCE(a.email, '') <> '' AND w.willkommen_am IS NULL
+         AND COALESCE(w.willkommen_status, '') NOT IN ('gesendet', 'ausgelassen')
+       ORDER BY a.id LIMIT 30`) as any[]).map((r) => ({
+      anfrageId: Number(r.id), eingangAm: new Date(r.created_at), status: r.willkommen_status ? String(r.willkommen_status) : null,
+      grund: r.willkommen_grund ? String(r.willkommen_grund) : null, versuche: Number(r.versuche) || 0,
+    }));
+    alarme.push(wLueckeUrteil(zeilen, jetzt, { an: wAn, ruheMin: post?.ruheMin ?? 10 }));
+  } catch (e) {
+    console.error("[LEAD-TAKT] Lead-Kette W:", String((e as Error)?.message ?? e).slice(0, 160));
+    alarme.push(keineAussage("lead-takt:w-luecke"));
+  }
+
+  // N — ein fälliger Nachfass geht in der Dienstzeit hinaus (oder rückt mit Grund weiter).
+  try {
+    const nAn = !!post?.nachfassAn;
+    const zeilen: KetteNZeile[] = !nAn ? [] : ((await lauf`
+      SELECT w.anfrage_id, w.nachfass_faellig, w.nachfass_stufe, a.land
+        FROM fiaon_lead_weg w JOIN fiaon_anfragen a ON a.id = w.anfrage_id
+       WHERE w.willkommen_status = 'gesendet' AND w.stopp_am IS NULL AND w.nachfass_stufe < 3
+         AND w.nachfass_faellig IS NOT NULL AND w.nachfass_faellig < ${jetzt}::timestamptz - INTERVAL '2 hours'
+       ORDER BY w.nachfass_faellig LIMIT 30`) as any[]).map((r) => ({
+      anfrageId: Number(r.anfrage_id), faellig: new Date(r.nachfass_faellig), stufe: Number(r.nachfass_stufe) || 0, land: r.land ? String(r.land) : null,
+    }));
+    alarme.push(nLueckeUrteil(zeilen, jetzt, { an: nAn }));
+  } catch (e) {
+    console.error("[LEAD-TAKT] Lead-Kette N:", String((e as Error)?.message ?? e).slice(0, 160));
+    alarme.push(keineAussage("lead-takt:n-luecke"));
+  }
+
+  // WhatsApp — wer Ja gesagt hat, bekommt seine WhatsApp (Begrüßung oder Terminnachricht).
+  try {
+    const mb = await import("./fiaon-mara-business");
+    const an = (await mb.mbAn(lauf)) && (await mb.mbTaktAn(lauf));
+    const ab = (await mb.mbTaktAb(lauf)) ?? jetzt;
+    const namen = await mb.waFormularNamen();
+    await mb.mbSchema(lauf);
+    const roh = (await lauf.unsafe(`
+      SELECT a.id, a.created_at, a.telefon, a.land, a.ip, COALESCE(a.status, 'neu') AS status, g.ja_quelle, g.ja_am, COALESCE(f.ja, FALSE) AS formular,
+             (SELECT ARRAY_AGG(w4.nummer) FROM fiaon_wa_global w4 WHERE w4.anfrage_id = a.id OR RIGHT(w4.nummer, 9) = ${K9_SQL}) AS schluessel,
+             EXISTS (SELECT 1 FROM fiaon_whatsapp x
+                      WHERE (RIGHT(x.nummer, 9) = ${K9_SQL} OR x.nummer IN (SELECT w2.nummer FROM fiaon_wa_global w2 WHERE w2.anfrage_id = a.id))
+                        AND (x.richtung = 'rein' OR COALESCE(x.status, '') <> 'fehler') AND x.created_at > a.created_at - INTERVAL '1 day') AS kontakt,
+             (SELECT w3.willkommen_status FROM fiaon_wa_global w3
+               WHERE w3.willkommen_status LIKE 'fehler%' AND (w3.anfrage_id = a.id OR RIGHT(w3.nummer, 9) = ${K9_SQL}) LIMIT 1) AS begruessung_fehler,
+             EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+                      WHERE t.quelle IN ('global', 'gruender') AND t.status = 'gebucht' AND t.beginn > NOW()
+                        AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
+                          OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})) AS termin_kommend,
+             EXISTS (SELECT 1 FROM fiaon_termine t JOIN fiaon_persons p ON p.id = t.person_id
+                      WHERE t.quelle IN ('global', 'gruender') AND t.status IN ('gebucht', 'erledigt', 'verpasst') AND t.beginn <= NOW()
+                        AND t.created_at > a.created_at - INTERVAL '1 day'
+                        AND ((COALESCE(a.email, '') <> '' AND LOWER(COALESCE(p.primary_email, '')) = LOWER(a.email))
+                          OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${K9_SQL})) AS termin_vorbei
+        FROM fiaon_anfragen a
+        LEFT JOIN LATERAL (SELECT w.optin_quelle AS ja_quelle, w.optin_am AS ja_am FROM fiaon_wa_global w
+                            WHERE w.optin_am IS NOT NULL AND (w.anfrage_id = a.id OR RIGHT(w.nummer, 9) = ${K9_SQL})
+                            ORDER BY w.optin_am DESC LIMIT 1) g ON TRUE
+        LEFT JOIN LATERAL (SELECT TRUE AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare mf ON mf.id = m.formular_id
+                            WHERE m.global_anfrage_id = a.id AND (mf.name ILIKE '%WhatsApp%' OR mf.name = ANY($1::text[])) LIMIT 1) f ON TRUE
+       WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE)
+         AND COALESCE(a.status, '') NOT IN ('privat', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
+         AND COALESCE(a.telefon, '') <> '' AND a.created_at < $2::timestamptz - INTERVAL '10 minutes'
+         AND a.created_at > $2::timestamptz - INTERVAL '60 days'
+         AND ((a.created_at > $3::timestamptz AND a.created_at > $2::timestamptz - INTERVAL '${KETTE_VORGABE.tage} days')
+              OR g.ja_am > $2::timestamptz - INTERVAL '${KETTE_VORGABE.tage} days')
+         AND (g.ja_am IS NOT NULL OR f.ja IS TRUE)
+       ORDER BY a.created_at DESC LIMIT 60`, [namen, jetzt.toISOString(), ab.toISOString()])) as any[];
+    const zeilen: KetteWaZeile[] = [];
+    const falsch: KetteNummerFalsch[] = [];
+    const { nummerFalschGelesen } = await import("@shared/fiaon-whatsapp-erlaubnis");
+    for (const r of roh) {
+      const nummer = mb.nummerDerAnfrage(r);
+      const ja = r.ja_quelle ? String(r.ja_quelle) : r.formular ? "formular" : null;
+      zeilen.push({
+        anfrageId: Number(r.id), eingangAm: new Date(r.created_at), status: String(r.status), nummer, ja,
+        jaSeit: r.ja_am ? new Date(r.ja_am) : null, terminKommend: !!r.termin_kommend, terminVorbei: !!r.termin_vorbei,
+        kontakt: !!r.kontakt, begruessungFehler: r.begruessung_fehler ? String(r.begruessung_fehler) : null,
+      });
+      for (const s of Array.isArray(r.schluessel) ? r.schluessel : []) {
+        if (nummer && nummerFalschGelesen(s, nummer)) falsch.push({ anfrageId: Number(r.id), schluessel: String(s), erwartet: nummer });
+      }
+    }
+    const ohneAnfrage: KetteJaOhneAnfrage[] = ((await lauf`
+      SELECT g.nummer, g.created_at, x.id AS anfrage_id FROM fiaon_wa_global g
+        JOIN LATERAL (SELECT an.id FROM fiaon_anfragen an
+                       WHERE an.art = 'global' AND NOT COALESCE(an.ist_test, FALSE) AND COALESCE(an.status, '') <> 'privat'
+                         AND an.created_at > NOW() - INTERVAL '60 days'
+                         AND RIGHT(REGEXP_REPLACE(COALESCE(an.telefon, ''), '\\D', '', 'g'), 9) = RIGHT(g.nummer, 9)
+                       ORDER BY an.created_at DESC LIMIT 1) x ON TRUE
+       WHERE g.optin_am IS NOT NULL AND g.anfrage_id IS NULL AND g.created_at > NOW() - INTERVAL '60 days'
+         AND g.nummer ~ '^[0-9]{8,15}$' AND COALESCE(g.optin_quelle, '') NOT LIKE 'whatsapp%'
+       ORDER BY g.created_at DESC LIMIT 10`.catch(() => [])) as any[]).map((r) => ({ nummer: String(r.nummer), anfrageId: Number(r.anfrage_id), seit: new Date(r.created_at) }));
+    const [q] = (await lauf`
+      SELECT COUNT(*)::int AS meta, COUNT(*) FILTER (WHERE f.name ILIKE '%WhatsApp%' OR f.name = ANY(${namen}))::int AS mit_ja
+        FROM fiaon_meta_leads m JOIN fiaon_meta_formulare f ON f.id = m.formular_id
+       WHERE m.global_anfrage_id IS NOT NULL AND m.gesehen_am > ${jetzt}::timestamptz - INTERVAL '24 hours'
+         AND COALESCE(f.name, '') ILIKE 'FIAON Global%'`.catch(() => [])) as any[];
+    alarme.push(waLueckeUrteil({ an, zeilen, ohneAnfrage, falsch, quote: q ? { metaLeads: Number(q.meta) || 0, mitJa: Number(q.mit_ja) || 0 } : null }, jetzt));
+  } catch (e) {
+    console.error("[LEAD-TAKT] Lead-Kette WhatsApp:", String((e as Error)?.message ?? e).slice(0, 160));
+    alarme.push(keineAussage("lead-takt:wa-luecke"));
+  }
+  return alarme;
+}
+
+/** Der Merker der Mail an Justin je Alarm (fiaon_settings): die Zeit der letzten Mail, leer = noch keine in diesem Fall. */
+const ketteMerkerSchluessel = (s: string) => `lead_kette_mail:${s}`;
+
+async function ketteMerkerLoeschen(schluessel: string, lauf: Lauf): Promise<void> {
+  await lauf`UPDATE fiaon_settings SET value = '', updated_at = NOW() WHERE key = ${ketteMerkerSchluessel(schluessel)} AND COALESCE(value, '') <> ''`.catch(() => {});
+}
+
+/**
+ * Rote Alarme der Lead-Kette als EINE kurze Mail an Justin (Dossier-Adresse) — je Alarm einmal je Fall, danach höchstens alle
+ * 4 Stunden (atomarer Merker: nur wer ihn vom gelesenen Stand dreht, schickt — kein Mail-Sturm, auch nicht bei zwei Prozessen).
+ * Scheitert der Versand, wird der Merker zurückgesetzt (der nächste Wächter versucht es wieder). Nur im Betrieb. Wirft nie.
+ */
+async function ketteMailSchicken(rot: readonly { alarm: KetteAlarm; neu: boolean }[], jetzt: Date, lauf: Lauf): Promise<boolean> {
+  try {
+    if (!versandErlaubt()) return false;
+    const faellig: KetteAlarm[] = [];
+    const gedreht: { key: string; alt: string }[] = [];
+    for (const r of rot) {
+      const key = ketteMerkerSchluessel(r.alarm.schluessel);
+      await lauf`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${key}, '', NOW()) ON CONFLICT (key) DO NOTHING`;
+      const [m] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${key}`) as any[];
+      const alt = String(m?.value ?? "");
+      const letzte = Number.isFinite(Date.parse(alt)) ? new Date(alt) : null;
+      if (!ketteMailFaellig({ neu: r.neu, letzte, jetzt })) continue;
+      const [frei] = (await lauf`UPDATE fiaon_settings SET value = ${jetzt.toISOString()}, updated_at = NOW() WHERE key = ${key} AND COALESCE(value, '') = ${alt} RETURNING key`) as any[];
+      if (frei) { faellig.push(r.alarm); gedreht.push({ key, alt }); }
+    }
+    if (!faellig.length) return false;
+    const an = await justinAdresse(lauf);
+    const v = await mailSenden(alsMail(ketteMail(faellig, absoluteUrl("/chef/s/lead-motor")), an, "Justin", an));
+    if (!v.ok) {
+      for (const g of gedreht) await lauf`UPDATE fiaon_settings SET value = ${g.alt}, updated_at = NOW() WHERE key = ${g.key}`.catch(() => {});
+      console.error(`[LEAD-TAKT] Lead-Kette: Mail an Justin nicht gesendet: ${v.grund ?? "unbekannt"}`);
+      return false;
+    }
+    console.log(`[LEAD-TAKT] Lead-Kette: Mail an Justin (${faellig.map((a) => a.schluessel).join(", ")}).`);
+    return true;
+  } catch (e) {
+    console.error("[LEAD-TAKT] Lead-Kette Mail:", String((e as Error)?.message ?? e).slice(0, 160));
+    return false;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -16,10 +16,17 @@
 // · Lead-Mails: schreibt Justin aus js@ (E-476). Mara schreibt nie Mails an Leads.
 //
 // Vorlagen gehen erst raus, wenn Meta sie freigegeben hat (vorlageNutzbar). Alles über waSenden (Bremse, Sperren).
+//
+// ── E-487 (09.11.2026, Justin: „ALLES … WhatsApp — nichts darf still hängen“) ──
+// · Nummern aus Formularen mit dem Land (anfrageNummer → formularNummer): „15…“ ist nie eine +1-Nummer.
+// · Das Ja findet seine Anfrage: Website-Ja mit anfrage_id, der Takt verknüpft offene Ja-Zeilen über die letzten neun
+//   Ziffern (falsch gelesene ziehen um), das Ja am Telefon aus dem Cockpit (telefonOptinMerken: wer, wann, welcher Satz).
+// · Ja + Termin → die Terminnachricht (fiaon_gl_termin) und am Vortag die Erinnerung (fiaon_gl_erinnerung) — Bedingung
+//   optin_am statt nur Weg „whatsapp“. Die Begrüßung prüft nur Anfragen MIT Ja und OHNE Begrüßung, die neuesten zuerst.
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { waSenden, fensterOffen, freigegebeneVorlagen, waKonfig } from "./fiaon-whatsapp";
-import { waKanonisch } from "@shared/fiaon-whatsapp-erlaubnis";
+import { waKanonisch, formularNummer, waJaNummer, nummerKey9, GLOBAL_WA_TELEFON_SATZ } from "@shared/fiaon-whatsapp-erlaubnis";
 import { vorlageNutzbar } from "@shared/fiaon-lead-texte";
 import {
   MB_DIENST, MB_VON, MB_SCHEMA, businessAuftrag, businessWand, knopfAktion, kennungAusText, istGlobalEinstieg, vorstellungVoran,
@@ -27,7 +34,7 @@ import {
   waGlobalLink, type Gespraechsweg,
 } from "@shared/fiaon-mara-business";
 import { antwortZeile, type LeadAntwort } from "@shared/fiaon-global-lead";
-import { imVersandfenster } from "@shared/fiaon-nicht-erreicht-nachfass";
+import { imVersandfenster, berlinMinuten } from "@shared/fiaon-nicht-erreicht-nachfass";
 import { berlinHeuteIso } from "@shared/fiaon-geburtsdatum";
 
 type Lauf = typeof sqlPool;
@@ -62,6 +69,13 @@ async function einstellungSetzen(key: string, wert: string, lauf: Lauf = sqlPool
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
 }
 export async function mbAn(lauf: Lauf = sqlPool): Promise<boolean> { return istAn(await einstellung(MB_SCHLUESSEL.an, lauf)); }
+/** E-487: Ist der WhatsApp-Takt an (Begrüßung, Termin, Erinnerung …)? Für den Lead-Wächter „Lead-Kette“. */
+export async function mbTaktAn(lauf: Lauf = sqlPool): Promise<boolean> { return istAn(await einstellung(MB_SCHLUESSEL.taktAn, lauf)); }
+/** E-487: der Zählbeginn der Begrüßung (wa_global_ab) — null, solange der Takt nie lief. */
+export async function mbTaktAb(lauf: Lauf = sqlPool): Promise<Date | null> {
+  const ab = String((await einstellung(MB_SCHLUESSEL.ab, lauf)) ?? "").trim();
+  return ab && Number.isFinite(Date.parse(ab)) ? new Date(ab) : null;
+}
 
 /** Die Mara-Nummer für den wa.me-Link (Lead-Mail, Website). */
 export async function mbNummer(lauf: Lauf = sqlPool): Promise<string | null> {
@@ -99,30 +113,60 @@ export function mbSchema(lauf: Lauf = sqlPool): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
       await lauf`CREATE INDEX IF NOT EXISTS fiaon_wa_global_anfrage_idx ON fiaon_wa_global (anfrage_id)`;
+      // E-487 (09.11.2026): der Satz, zu dem er Ja gesagt hat (Website-Hinweis oder der am Telefon vorgelesene Satz) —
+      // zusammen mit optin_am (wann) und optin_quelle (wo, „telefon:<Name>“ = wer) der Nachweis des Jas. Scheitert die Spalte
+      // (Sperre), läuft alles andere weiter — die DDL-Wache holt sie nach, zeileMerken schreibt so lange ohne den Satz.
+      await lauf`ALTER TABLE fiaon_wa_global ADD COLUMN IF NOT EXISTS optin_text TEXT`
+        .catch((e: unknown) => console.error("[MARA-BUSINESS] Spalte optin_text:", String((e as Error)?.message ?? e).slice(0, 160)));
     })().catch((e) => { schema = null; throw e; });
   }
   return schema;
 }
 
-/** Zeile anlegen oder ergänzen (nur leere Felder werden gefüllt, außer `ueberschreiben`). */
+/**
+ * Zeile anlegen oder ergänzen (nur leere Felder werden gefüllt — das erste Ja bleibt stehen). E-487: `optinAm` übernimmt die
+ * Zeit eines früheren Jas (Verknüpfen einer falsch gelesenen Zeile), `optinText` den Satz, zu dem er Ja gesagt hat.
+ */
 async function zeileMerken(nummer: string, w: {
-  anfrageId?: number | null; firmaId?: number | null; optinQuelle?: string | null;
+  anfrageId?: number | null; firmaId?: number | null; optinQuelle?: string | null; optinAm?: Date | null; optinText?: string | null;
 }, lauf: Lauf = sqlPool): Promise<void> {
   await mbSchema(lauf);
-  await lauf`
-    INSERT INTO fiaon_wa_global (nummer, anfrage_id, firma_id, optin_am, optin_quelle)
-    VALUES (${nummer}, ${w.anfrageId ?? null}, ${w.firmaId ?? null}, ${w.optinQuelle ? new Date() : null}, ${w.optinQuelle ?? null})
-    ON CONFLICT (nummer) DO UPDATE SET
-      anfrage_id = COALESCE(fiaon_wa_global.anfrage_id, EXCLUDED.anfrage_id),
-      firma_id = COALESCE(fiaon_wa_global.firma_id, EXCLUDED.firma_id),
-      optin_am = COALESCE(fiaon_wa_global.optin_am, EXCLUDED.optin_am),
-      optin_quelle = COALESCE(fiaon_wa_global.optin_quelle, EXCLUDED.optin_quelle),
-      updated_at = NOW()`;
+  const optinAm = w.optinQuelle ? (w.optinAm ?? new Date()) : null;
+  const optinText = w.optinQuelle ? (w.optinText ?? null) : null;
+  try {
+    await lauf`
+      INSERT INTO fiaon_wa_global (nummer, anfrage_id, firma_id, optin_am, optin_quelle, optin_text)
+      VALUES (${nummer}, ${w.anfrageId ?? null}, ${w.firmaId ?? null}, ${optinAm}, ${w.optinQuelle ?? null}, ${optinText})
+      ON CONFLICT (nummer) DO UPDATE SET
+        anfrage_id = COALESCE(fiaon_wa_global.anfrage_id, EXCLUDED.anfrage_id),
+        firma_id = COALESCE(fiaon_wa_global.firma_id, EXCLUDED.firma_id),
+        optin_text = CASE WHEN fiaon_wa_global.optin_am IS NULL THEN EXCLUDED.optin_text ELSE fiaon_wa_global.optin_text END,
+        optin_am = COALESCE(fiaon_wa_global.optin_am, EXCLUDED.optin_am),
+        optin_quelle = COALESCE(fiaon_wa_global.optin_quelle, EXCLUDED.optin_quelle),
+        updated_at = NOW()`;
+  } catch (e: any) {
+    if (String(e?.code) !== "42703") throw e;
+    // Die Spalte optin_text fehlt noch (die DDL-Wache holt sie nach) — das Ja zählt trotzdem.
+    await lauf`
+      INSERT INTO fiaon_wa_global (nummer, anfrage_id, firma_id, optin_am, optin_quelle)
+      VALUES (${nummer}, ${w.anfrageId ?? null}, ${w.firmaId ?? null}, ${optinAm}, ${w.optinQuelle ?? null})
+      ON CONFLICT (nummer) DO UPDATE SET
+        anfrage_id = COALESCE(fiaon_wa_global.anfrage_id, EXCLUDED.anfrage_id),
+        firma_id = COALESCE(fiaon_wa_global.firma_id, EXCLUDED.firma_id),
+        optin_am = COALESCE(fiaon_wa_global.optin_am, EXCLUDED.optin_am),
+        optin_quelle = COALESCE(fiaon_wa_global.optin_quelle, EXCLUDED.optin_quelle),
+        updated_at = NOW()`;
+  }
 }
 
-/** Die WhatsApp-Nummer einer Anfrage (Handy, WhatsApp-fähig) — null bei Festnetz oder Unsinn. */
-export function anfrageNummer(telefon: unknown): string | null {
-  const n = waKanonisch(telefon);
+/**
+ * Die WhatsApp-Nummer einer Anfrage (Handy, WhatsApp-fähig) — null bei Festnetz oder Unsinn. E-487 (09.11.2026): Die Nummer
+ * kommt aus einem FORMULAR und wird mit dem Land gelesen (formularNummer): „15…“ ohne 0 und ohne +49 ist eine deutsche
+ * Handynummer, nie eine +1-Nummer (Befund 09.11.: die Ja-Zeile einer Buchung). Nur eine Anfrage, die aus WhatsApp kam
+ * (`ausWhatsapp`), trägt schon die fertige WhatsApp-Nummer — die bleibt, wie sie ist (waKanonisch).
+ */
+export function anfrageNummer(telefon: unknown, land?: string | null, opt: { ausWhatsapp?: boolean } = {}): string | null {
+  const n = opt.ausWhatsapp ? waKanonisch(telefon) : formularNummer(telefon, land);
   if (!n) return null;
   // Festnetz kann kein WhatsApp (DE 1x, AT 6x, CH 7x sind Handys; andere Länder lassen wir durch — Meta lehnt sonst ab).
   if (n.startsWith("49")) return /^491[5-7]/.test(n) ? n : null;
@@ -512,25 +556,121 @@ export async function maraBusinessAntwortet(ein: MbEin): Promise<{ gesendet: boo
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DER TAKT (alle 5 Minuten): Begrüßung, Termin, Erinnerung, nicht erreicht, eine Nachfrage
+// DER TAKT (alle 5 Minuten): Ja verknüpfen, Begrüßung, Termin, Erinnerung, nicht erreicht, eine Nachfrage
 // ═══════════════════════════════════════════════════════════════════════════
 const VORLAGE = {
   willkommen: "fiaon_gl_willkommen", termin: "fiaon_gl_termin", erinnerung: "fiaon_gl_erinnerung",
   nichtErreicht: "fiaon_gl_nicht_erreicht", nachfrage: "fiaon_gl_nachfrage",
 } as const;
 const WILLKOMMEN_MAX_TAG = 40;
+/** E-487 (09.11.2026): so viele Anfragen prüft die Begrüßung je Takt — die neuesten zuerst (vorher 30, die ältesten zuerst). */
+export const WA_KANDIDATEN = 60;
 
 /**
- * Hat das Meta-Formular dieser Anfrage den WhatsApp-Satz? Das sind die Formular-Fassung 2 (E-476 Danke-Knopf + E-481
- * WhatsApp-Satz, Namen aus META_FASSUNG2_NAMEN) und jede spätere Fassung mit „WhatsApp“ im Namen.
+ * Die Formular-Namen mit WhatsApp-Satz: die Formular-Fassung 2 (E-476 Danke-Knopf + E-481 WhatsApp-Satz, Namen aus
+ * META_FASSUNG2_NAMEN) und jede spätere Fassung mit „WhatsApp“ im Namen (das prüft die Abfrage mit ILIKE).
  */
-async function formularMitWhatsapp(anfrageId: number, lauf: Lauf): Promise<boolean> {
+export async function waFormularNamen(): Promise<string[]> {
   const { META_FASSUNG2_NAMEN } = await import("@shared/fiaon-lead-weg");
-  const namen = Object.values(META_FASSUNG2_NAMEN) as string[];
-  const [f] = (await lauf`
-    SELECT 1 AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare f ON f.id = m.formular_id
-     WHERE m.global_anfrage_id = ${anfrageId} AND (f.name ILIKE '%WhatsApp%' OR f.name = ANY(${namen})) LIMIT 1`.catch(() => [])) as any[];
-  return !!f;
+  return Object.values(META_FASSUNG2_NAMEN) as string[];
+}
+
+/** Die WhatsApp-Nummer einer Anfrage-Zeile (telefon, land, ip): Formular mit Land; aus WhatsApp so, wie sie kam. Rein. */
+export function nummerDerAnfrage(a: { telefon?: unknown; land?: unknown; ip?: unknown } | null | undefined): string | null {
+  if (!a) return null;
+  return anfrageNummer(a.telefon, a.land ? String(a.land) : null, { ausWhatsapp: String(a.ip ?? "") === "whatsapp" });
+}
+
+export interface WaJaZeile { nummer: string; anfrageId: number | null; optinAm: Date | null; optinQuelle: string | null; optinText: string | null }
+
+/**
+ * E-487 (09.11.2026): An welche Nummer geht die Nachricht zu einer Anfrage, und auf welches Ja stützt sie sich? Rein.
+ *   1. Ein Ja am selben Anschluss (gleiche letzte neun Ziffern — auch eine früher als „+1“ gelesene Zeile) → die Nummer der Anfrage.
+ *   2. Ein Ja an DIESER Anfrage für einen anderen Anschluss (z. B. im Buchungsformular eine zweite Nummer) → genau diese Nummer.
+ *   3. Das Meta-Formular mit WhatsApp-Satz (Fassung 2) → die Nummer der Anfrage.
+ * Sonst null: ohne Ja schreibt Mara nie zuerst.
+ */
+export function waZielFuerAnfrage(ein: { anfrageId: number; nummer: string | null; ja: readonly WaJaZeile[]; formular: boolean }): { nummer: string; quelle: string; am: Date | null; text: string | null } | null {
+  const k9 = ein.nummer ? nummerKey9(ein.nummer) : "";
+  const amAnschluss = ein.nummer ? ein.ja.find((z) => !!z.optinAm && (z.nummer === ein.nummer || (!!k9 && nummerKey9(z.nummer) === k9))) : undefined;
+  if (ein.nummer && amAnschluss) return { nummer: ein.nummer, quelle: amAnschluss.optinQuelle || "website", am: amAnschluss.optinAm, text: amAnschluss.optinText };
+  const anAnfrage = ein.ja.find((z) => !!z.optinAm && z.anfrageId === ein.anfrageId && /^\d{8,15}$/.test(z.nummer));
+  if (anAnfrage) return { nummer: anAnfrage.nummer, quelle: anAnfrage.optinQuelle || "website", am: anAnfrage.optinAm, text: anAnfrage.optinText };
+  if (ein.formular && ein.nummer) return { nummer: ein.nummer, quelle: "formular", am: null, text: null };
+  return null;
+}
+
+function jaZeile(z: any): WaJaZeile {
+  return {
+    nummer: String(z.nummer), anfrageId: z.anfrage_id ? Number(z.anfrage_id) : null, optinAm: z.optin_am ? new Date(z.optin_am) : null,
+    optinQuelle: z.optin_quelle ? String(z.optin_quelle) : null, optinText: z.optin_text ? String(z.optin_text) : null,
+  };
+}
+
+/** Alle Ja-Zeilen, die zu einer Anfrage gehören können (Nummer, Anfrage, gleicher Anschluss). */
+async function jaZeilenFuer(anfrageId: number, nummer: string | null, lauf: Lauf): Promise<WaJaZeile[]> {
+  const k9 = nummer ? nummerKey9(nummer) : "";
+  const zeilen = (await lauf`
+    SELECT * FROM fiaon_wa_global
+     WHERE optin_am IS NOT NULL
+       AND (anfrage_id = ${anfrageId} OR (${nummer ?? ""} <> '' AND nummer = ${nummer ?? ""}) OR (${k9} <> '' AND RIGHT(nummer, 9) = ${k9}))
+     ORDER BY optin_am`.catch(() => [])) as any[];
+  return zeilen.map(jaZeile);
+}
+
+/**
+ * E-487 (09.11.2026): Ja-Zeilen ohne Anfrage verknüpfen — „der Takt findet das Ja per anfrage_id oder letzten 9 Ziffern“.
+ * Befund (Produktion nur gelesen): Die Website-Ja der Buchungen vom 05.–07.11. trugen anfrage_id NULL, eine davon eine als
+ * +1 gelesene Nummer — die Terminnachricht auf WhatsApp erreichte keinen. Gesucht wird die jüngste Global-Anfrage (60 Tage,
+ * kein Test, kein Privat-Weg) am selben Anschluss. Gleiche Nummer → verknüpfen. Falsch gelesene Nummer → die Zeile zieht
+ * auf die richtige Nummer um; steht die richtige schon da, übernimmt sie das Ja, und die falsche fällt weg (nur ohne eigenen
+ * Verlauf). Nur Formular- und Telefon-Jas — nie eine Nummer, die uns selbst auf WhatsApp geschrieben hat. Wirft nie.
+ */
+async function jaVerknuepfen(lauf: Lauf): Promise<number> {
+  const offen = (await lauf`
+    SELECT * FROM fiaon_wa_global
+     WHERE optin_am IS NOT NULL AND anfrage_id IS NULL AND created_at > NOW() - INTERVAL '60 days'
+       AND COALESCE(optin_quelle, '') NOT LIKE 'whatsapp%' AND nummer ~ '^[0-9]{8,15}$'
+     ORDER BY created_at DESC LIMIT 50`.catch(() => [])) as any[];
+  let n = 0;
+  for (const g of offen) {
+    try {
+      const alt = String(g.nummer);
+      const k9 = nummerKey9(alt);
+      if (!k9) continue;
+      const [a] = (await lauf`
+        SELECT id, telefon, land, ip FROM fiaon_anfragen
+         WHERE art = 'global' AND NOT COALESCE(ist_test, FALSE) AND COALESCE(status, '') <> 'privat'
+           AND created_at > NOW() - INTERVAL '60 days'
+           AND RIGHT(REGEXP_REPLACE(COALESCE(telefon, ''), '\\D', '', 'g'), 9) = ${k9}
+         ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+      if (!a) continue;
+      const richtig = nummerDerAnfrage(a);
+      if (!richtig || nummerKey9(richtig) !== k9) continue;
+      const anfrageId = Number(a.id);
+      if (richtig === alt) {
+        await lauf`UPDATE fiaon_wa_global SET anfrage_id = ${anfrageId}, updated_at = NOW() WHERE nummer = ${alt} AND anfrage_id IS NULL`;
+        n++;
+        continue;
+      }
+      const [umgezogen] = (await lauf`
+        UPDATE fiaon_wa_global SET nummer = ${richtig}, anfrage_id = ${anfrageId}, updated_at = NOW()
+         WHERE nummer = ${alt} AND anfrage_id IS NULL AND NOT EXISTS (SELECT 1 FROM fiaon_wa_global x WHERE x.nummer = ${richtig})
+        RETURNING nummer`.catch(() => [])) as any[];
+      if (!umgezogen) {
+        await zeileMerken(richtig, { anfrageId, optinQuelle: g.optin_quelle ? String(g.optin_quelle) : "website", optinAm: new Date(g.optin_am), optinText: g.optin_text ? String(g.optin_text) : null }, lauf);
+        await lauf`
+          DELETE FROM fiaon_wa_global
+           WHERE nummer = ${alt} AND anfrage_id IS NULL AND willkommen_am IS NULL AND weg IS NULL AND termin_gemeldet_id IS NULL
+             AND erinnert_id IS NULL AND nicht_erreicht_id IS NULL AND nachfrage_am IS NULL`.catch(() => {});
+      }
+      console.log(`[MARA-BUSINESS] Ja zu WhatsApp verknüpft: Anfrage #${anfrageId} (Nummer …${alt.slice(-4)}${richtig !== alt ? ", falsch gelesen — umgezogen" : ""}).`);
+      n++;
+    } catch (e) {
+      console.error("[MARA-BUSINESS] Ja verknüpfen:", String((e as Error)?.message || e).slice(0, 160));
+    }
+  }
+  return n;
 }
 
 /** Ein STOPP von dieser Nummer, jemals? (Werbesperre und Sperren prüft waSenden zusätzlich.) */
@@ -550,55 +690,83 @@ async function textSenden(nummer: string, text: string): Promise<{ ok: boolean }
 }
 
 export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string, number>> {
-  const zahl = { willkommen: 0, termin: 0, erinnerung: 0, nichtErreicht: 0, nachfrage: 0 };
+  const zahl = { verknuepft: 0, willkommen: 0, termin: 0, erinnerung: 0, nichtErreicht: 0, nachfrage: 0 };
   try {
     if (!istAn(await einstellung(MB_SCHLUESSEL.taktAn, lauf)) || !(await mbAn(lauf))) return zahl;
     const { CRONS_AN } = await import("./fiaon-crons");
     if (!CRONS_AN) return zahl;
     await mbSchema(lauf);
     // Zählbeginn: der erste Lauf setzt ihn — Anfragen davor bekommen nie eine Begrüßung (Alt-Leads, E-481 Entscheidung 2).
+    // E-487: Ein frisches Ja (Telefon, Website, in den letzten drei Tagen) gilt auch für eine ältere Anfrage — es ist neu.
     let ab = String((await einstellung(MB_SCHLUESSEL.ab, lauf)) ?? "").trim();
     if (!ab || !Number.isFinite(Date.parse(ab))) { ab = new Date().toISOString(); await einstellungSetzen(MB_SCHLUESSEL.ab, ab, lauf); }
     const frei = await freigegebeneVorlagen().catch(() => new Set<string>());
     const nutzbar = (n: string) => vorlageNutzbar(n, frei);
     const fenster = imVersandfenster(new Date());
 
-    // 1. Begrüßung — einmal, 8–20 Uhr, ≥ 10 Minuten nach der Anfrage, ohne Termin, nur mit Ja zu WhatsApp.
-    if (fenster && nutzbar(VORLAGE.willkommen)) {
-      const [heute] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_wa_global WHERE willkommen_am > NOW() - INTERVAL '20 hours' AND willkommen_status = 'gesendet'`) as any[];
-      let rest = Math.max(0, WILLKOMMEN_MAX_TAG - Number(heute?.n ?? 0));
-      const kandidaten = rest > 0 ? (await lauf`
-        SELECT a.id, a.telefon, a.email FROM fiaon_anfragen a
-         WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE) AND COALESCE(a.status, '') NOT IN ('privat', 'termin', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
-           AND a.created_at > ${new Date(ab)} AND a.created_at < NOW() - INTERVAL '10 minutes' AND a.created_at > NOW() - INTERVAL '3 days'
-           AND COALESCE(a.telefon, '') <> ''
-         ORDER BY a.created_at ASC LIMIT 30`) as any[] : [];
-      for (const a of kandidaten) {
-        if (rest <= 0) break;
-        const nummer = anfrageNummer(a.telefon);
-        if (!nummer) continue;
-        const [z] = (await lauf`SELECT willkommen_am, optin_am FROM fiaon_wa_global WHERE nummer = ${nummer}`) as any[];
-        if (z?.willkommen_am) continue;
-        const optin = !!z?.optin_am || await formularMitWhatsapp(Number(a.id), lauf);
-        if (!optin) continue;
-        const [schonWa] = (await lauf`SELECT 1 AS ja FROM fiaon_whatsapp WHERE nummer = ${nummer} AND created_at > NOW() - INTERVAL '30 days' LIMIT 1`) as any[];
-        if (schonWa) continue;
-        if (await hatStopp(nummer, lauf)) continue;
-        const k = await businessKontakt(nummer, null, lauf);
-        if (!k || !k.anfrageId) continue;
-        if (await kommendesGespraech(k, lauf).catch(() => null)) continue;
-        await zeileMerken(nummer, { anfrageId: Number(a.id), optinQuelle: z?.optin_am ? null : "formular" }, lauf);
-        const erg = await vorlageSenden(nummer, VORLAGE.willkommen, [k.anrede || "und willkommen"]);
-        await lauf`UPDATE fiaon_wa_global SET willkommen_am = NOW(), willkommen_status = ${erg.ok ? "gesendet" : `fehler: ${String(erg.grund ?? "").slice(0, 120)}`}, updated_at = NOW() WHERE nummer = ${nummer}`;
-        if (erg.ok) { zahl.willkommen++; rest--; }
-      }
+    // 0. E-487: Ja-Zeilen ohne Anfrage verknüpfen (letzte neun Ziffern) — falsch gelesene Nummern ziehen um.
+    zahl.verknuepft += await jaVerknuepfen(lauf);
+
+    // 1. E-487 (09.11.2026): Anfragen MIT Ja zu WhatsApp und OHNE Begrüßung — verknüpfen, dann die Begrüßung (einmal,
+    //    8–20 Uhr, ≥ 10 Minuten nach der Anfrage, ohne Termin). Vorher kamen die ältesten 30 Anfragen dran, Ja und Begrüßung
+    //    erst in der Schleife geprüft — ab 30 Anfragen in drei Tagen verhungerten die neuesten. Jetzt: LEFT JOIN
+    //    fiaon_wa_global (nur ohne willkommen_am, das Ja gleich im SQL), die neuesten zuerst, bis zu WA_KANDIDATEN. Eine
+    //    Anfrage mit Termin wird nur verknüpft: Schritt 2 schickt ihr die Terminnachricht (fiaon_gl_termin).
+    const namen = await waFormularNamen();
+    const [heute] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_wa_global WHERE willkommen_am > NOW() - INTERVAL '20 hours' AND willkommen_status = 'gesendet'`) as any[];
+    let rest = Math.max(0, WILLKOMMEN_MAX_TAG - Number(heute?.n ?? 0));
+    const kandidaten = (await lauf`
+      SELECT a.id, a.telefon, a.email, a.land, a.ip, COALESCE(a.status, '') AS status, COALESCE(f.ja, FALSE) AS formular
+        FROM fiaon_anfragen a
+        LEFT JOIN LATERAL (
+          SELECT BOOL_OR(w.willkommen_am IS NOT NULL) AS begruesst, BOOL_OR(w.optin_am IS NOT NULL) AS ja,
+                 BOOL_OR(w.optin_am > NOW() - INTERVAL '3 days') AS ja_frisch
+            FROM fiaon_wa_global w
+           WHERE w.anfrage_id = a.id OR RIGHT(w.nummer, 9) = RIGHT(REGEXP_REPLACE(COALESCE(a.telefon, ''), '\\D', '', 'g'), 9)) g ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT TRUE AS ja FROM fiaon_meta_leads m JOIN fiaon_meta_formulare mf ON mf.id = m.formular_id
+           WHERE m.global_anfrage_id = a.id AND (mf.name ILIKE '%WhatsApp%' OR mf.name = ANY(${namen})) LIMIT 1) f ON TRUE
+       WHERE a.art = 'global' AND NOT COALESCE(a.ist_test, FALSE)
+         AND COALESCE(a.status, '') NOT IN ('privat', 'kein_interesse', 'ungueltig', 'kunde', 'antrag')
+         AND a.created_at < NOW() - INTERVAL '10 minutes' AND a.created_at > NOW() - INTERVAL '60 days'
+         AND ((a.created_at > ${new Date(ab)} AND a.created_at > NOW() - INTERVAL '3 days') OR COALESCE(g.ja_frisch, FALSE))
+         AND COALESCE(a.telefon, '') <> ''
+         AND NOT COALESCE(g.begruesst, FALSE) AND (COALESCE(g.ja, FALSE) OR COALESCE(f.ja, FALSE))
+       ORDER BY a.created_at DESC LIMIT ${WA_KANDIDATEN}`.catch((e: unknown) => {
+      console.error("[MARA-BUSINESS] Kandidaten der Begrüßung:", String((e as Error)?.message ?? e).slice(0, 200));
+      return [];
+    })) as any[];
+    for (const a of kandidaten) {
+      const anfrageId = Number(a.id);
+      const nummerA = nummerDerAnfrage(a);
+      const ziel = waZielFuerAnfrage({ anfrageId, nummer: nummerA, ja: await jaZeilenFuer(anfrageId, nummerA, lauf), formular: !!a.formular });
+      if (!ziel) continue;
+      // Verknüpfen — auch mit Termin und außerhalb 8–20 Uhr (Schritt 2 braucht die Zeile mit Anfrage und Ja).
+      await zeileMerken(ziel.nummer, { anfrageId, optinQuelle: ziel.quelle, optinAm: ziel.am, optinText: ziel.text }, lauf);
+      if (!fenster || !nutzbar(VORLAGE.willkommen) || rest <= 0 || a.status === "termin") continue;
+      const [z] = (await lauf`SELECT willkommen_am FROM fiaon_wa_global WHERE nummer = ${ziel.nummer}`) as any[];
+      if (z?.willkommen_am) continue;
+      const [schonWa] = (await lauf`SELECT 1 AS ja FROM fiaon_whatsapp WHERE nummer = ${ziel.nummer} AND created_at > NOW() - INTERVAL '30 days' LIMIT 1`) as any[];
+      if (schonWa) continue;
+      if (await hatStopp(ziel.nummer, lauf)) continue;
+      const k = await businessKontakt(ziel.nummer, null, lauf);
+      if (!k || !k.anfrageId) continue;
+      if (await kommendesGespraech(k, lauf).catch(() => null)) continue;
+      const erg = await vorlageSenden(ziel.nummer, VORLAGE.willkommen, [k.anrede || "und willkommen"]);
+      await lauf`UPDATE fiaon_wa_global SET willkommen_am = NOW(), willkommen_status = ${erg.ok ? "gesendet" : `fehler: ${String(erg.grund ?? "").slice(0, 120)}`}, updated_at = NOW() WHERE nummer = ${ziel.nummer}`;
+      if (erg.ok) { zahl.willkommen++; rest--; }
     }
 
-    // 2.–5. Für alle Business-Nummern mit Weg WhatsApp oder WhatsApp-Verlauf: Termin, Erinnerung, nicht erreicht, Nachfrage.
+    // 2.–5. Für alle Business-Nummern mit Weg WhatsApp, Ja zu WhatsApp (E-487) oder WhatsApp-Verlauf: Termin, Erinnerung,
+    //       nicht erreicht, Nachfrage. E-487: auch ein Website-Ja aus einer Buchung ohne Anfrage (Direktbucher) — nur eine
+    //       DACH-Handynummer (49/43/41), nie eine falsch gelesene.
     const zeilen = (await lauf`
-      SELECT g.* FROM fiaon_wa_global g
-       WHERE g.anfrage_id IS NOT NULL AND g.created_at > NOW() - INTERVAL '60 days'
-         AND (g.weg = 'whatsapp' OR g.willkommen_status = 'gesendet' OR EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein'))
+      SELECT g.*, EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein') AS eingang
+        FROM fiaon_wa_global g
+       WHERE g.created_at > NOW() - INTERVAL '60 days' AND g.nummer ~ '^[0-9]{8,15}$'
+         AND (g.anfrage_id IS NOT NULL OR (g.optin_am IS NOT NULL AND g.optin_quelle = 'website' AND g.nummer ~ '^(49|43|41)'))
+         AND (g.weg = 'whatsapp' OR g.optin_am IS NOT NULL OR g.willkommen_status = 'gesendet'
+              OR EXISTS (SELECT 1 FROM fiaon_whatsapp w WHERE w.nummer = g.nummer AND w.richtung = 'rein'))
        ORDER BY g.updated_at DESC LIMIT 200`) as any[];
     for (const z of zeilen) {
       const nummer = String(z.nummer);
@@ -607,21 +775,38 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
       if (!k) continue;
       const offen = await fensterOffen(nummer, lauf).catch(() => false);
       const termin = await kommendesGespraech(k, lauf).catch(() => null);
+      // Ist er schon im Gespräch mit Mara (Weg WhatsApp, Begrüßung, eigene Nachricht)? Nur dann gibt es die Nachfrage (5.).
+      const imGespraech = z.weg === "whatsapp" || z.willkommen_status === "gesendet" || !!z.eingang;
 
-      // 2. Termin bestätigt (nur einmal je Termin; Maras eigene Buchung ist schon bestätigt).
+      // 2. Termin bestätigt (nur einmal je Termin; Maras eigene Buchung ist schon bestätigt). E-487: auch für ein Ja zu
+      //    WhatsApp ohne gewählten Weg (Justin 09.11.: „ALLES … WhatsApp“). Die Vorlage nur 8–20 Uhr und erst nach Metas
+      //    Freigabe — bis dahin wartet die Meldung (vorher galt sie außerhalb des Fensters als erledigt und kam nie).
+      // Kommt die Bestätigung erst kurz vor dem Gespräch (unter 30 Stunden), ersetzt sie die Erinnerung am Vortag — nie zwei
+      // Nachrichten zum selben Termin innerhalb von Minuten.
+      let erinnerungErsetzt = false;
       if (termin && Number(z.termin_gemeldet_id ?? 0) !== termin.id) {
-        const ok = offen
-          ? (await textSenden(nummer, satzGebucht(termin.text, k.englisch))).ok
-          : (fenster && nutzbar(VORLAGE.termin) ? (await vorlageSenden(nummer, VORLAGE.termin, [k.anrede || "und willkommen", termin.text])).ok : false);
-        if (ok || !offen) await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, updated_at = NOW() WHERE nummer = ${nummer}`;
-        if (ok) zahl.termin++;
+        const bald = termin.beginn.getTime() - Date.now() < 30 * 3_600_000;
+        if (offen) {
+          const ok = (await textSenden(nummer, satzGebucht(termin.text, k.englisch))).ok;
+          if (ok) {
+            zahl.termin++; erinnerungErsetzt = bald;
+            await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, erinnert_id = CASE WHEN ${bald} THEN ${termin.id}::int ELSE erinnert_id END, updated_at = NOW() WHERE nummer = ${nummer}`;
+          }
+        } else if (fenster && nutzbar(VORLAGE.termin)) {
+          const ok = (await vorlageSenden(nummer, VORLAGE.termin, [k.anrede || "und willkommen", termin.text])).ok;
+          // Ein Versuch je Termin — ein Fehler wird nicht alle fünf Minuten wiederholt.
+          erinnerungErsetzt = ok && bald;
+          await lauf`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${termin.id}, erinnert_id = CASE WHEN ${erinnerungErsetzt} THEN ${termin.id}::int ELSE erinnert_id END, updated_at = NOW() WHERE nummer = ${nummer}`;
+          if (ok) zahl.termin++;
+        }
       }
 
-      // 3. Erinnerung am Vortag (17–20 Uhr) — nur wer WhatsApp gewählt hat (die Mail-Erinnerung läuft ohnehin, E-458).
-      if (termin && z.weg === "whatsapp" && Number(z.erinnert_id ?? 0) !== termin.id) {
+      // 3. Erinnerung am Vortag (17–20 Uhr) — wer WhatsApp gewählt hat oder (E-487) Ja zu WhatsApp gesagt hat und nicht
+      //    „Per E-Mail“ wählte (die Mail-Erinnerung läuft ohnehin, E-458). Die Berliner Stunde über berlinMinuten.
+      if (termin && !erinnerungErsetzt && (z.weg === "whatsapp" || (!!z.optin_am && z.weg !== "mail")) && Number(z.erinnert_id ?? 0) !== termin.id) {
         const morgen = berlinHeuteIso(new Date(Date.now() + 24 * 3_600_000));
-        const stunde = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
-        if (berlinHeuteIso(termin.beginn) === morgen && stunde >= 17 && stunde < 20) {
+        const minuten = berlinMinuten(new Date());
+        if (berlinHeuteIso(termin.beginn) === morgen && minuten >= 17 * 60 && minuten < 20 * 60) {
           const ok = offen
             ? (await textSenden(nummer, k.englisch ? `A short reminder: your call with Mr Schwarzott is tomorrow, ${termin.text}. Does the time still suit you?` : `Eine kurze Erinnerung: Ihr Gespräch mit Herrn Schwarzott ist morgen, ${termin.text}. Passt Ihnen die Zeit weiterhin?`)).ok
             : (nutzbar(VORLAGE.erinnerung) ? (await vorlageSenden(nummer, VORLAGE.erinnerung, [k.anrede || "und willkommen", termin.text])).ok : false);
@@ -646,7 +831,8 @@ export async function waGlobalTakt(lauf: Lauf = sqlPool): Promise<Record<string,
       }
 
       // 5. Eine Nachfrage — einmal, wenn der Chat zwei Tage still ist, kein Termin steht und er nicht „Später“ sagte.
-      if (fenster && !termin && !offen && !z.nachfrage_am && !z.spaeter_am && nutzbar(VORLAGE.nachfrage)) {
+      //    E-487: nur, wenn er schon mit Mara im Gespräch war (ein Ja allein, z. B. nur mit Terminnachricht, reicht nicht).
+      if (fenster && imGespraech && !termin && !offen && !z.nachfrage_am && !z.spaeter_am && nutzbar(VORLAGE.nachfrage)) {
         const [letzte] = (await lauf`SELECT MAX(created_at) AS am FROM fiaon_whatsapp WHERE nummer = ${nummer}`) as any[];
         const still = letzte?.am ? Date.now() - new Date(letzte.am).getTime() : 0;
         if (still > 2 * 24 * 3_600_000 && still < 10 * 24 * 3_600_000) {
@@ -682,7 +868,9 @@ export async function wegAusWebsite(code: string, weg: Gespraechsweg, lauf: Lauf
     const { leadCodeLesen } = await import("./fiaon-lead-weg");
     const v = await leadCodeLesen(code, { lauf }).catch(() => null);
     if (!v) return { ok: false, email: null };
-    const schluessel = anfrageNummer(v.telefon) ?? `anfrage-${v.anfrageId}`;
+    // E-487: die Nummer der Anfrage mit ihrem Land (nie eine als +1 gelesene deutsche Handynummer).
+    const [a] = (await lauf`SELECT telefon, land, ip FROM fiaon_anfragen WHERE id = ${v.anfrageId}`.catch(() => [])) as any[];
+    const schluessel = nummerDerAnfrage(a ?? { telefon: v.telefon }) ?? `anfrage-${v.anfrageId}`;
     await zeileMerken(schluessel, { anfrageId: v.anfrageId, firmaId: v.firmaId, optinQuelle: weg === "whatsapp" ? "website_whatsapp" : null }, lauf);
     await wegSetzen(schluessel, weg, "website", lauf);
     return { ok: true, email: v.email || null };
@@ -707,14 +895,55 @@ export async function vorlageWeltSperre(vorlage: string, nummer: string, personI
   return null;
 }
 
-/** Website-Formular mit WhatsApp-Satz: das Ja zu WhatsApp an der Nummer merken (Begrüßung darf dann raus). Wirft nie. */
-export async function websiteOptinMerken(anfrageId: number | null, telefon: string, lauf: Lauf = sqlPool): Promise<void> {
+/**
+ * Website-Formular mit WhatsApp-Satz: das Ja zu WhatsApp an der Nummer merken (Begrüßung bzw. Terminnachricht darf dann raus).
+ * E-487 (09.11.2026): MIT der Anfrage (Buchung über den Link oder eine offene Anfrage, „lieber ein Anruf“) — vorher immer
+ * NULL, die Terminnachricht erreichte keinen. Die Nummer wird mit dem Land gelesen; ist es derselbe Anschluss wie die Nummer
+ * der Anfrage, gilt die Nummer der Anfrage („deren Meta-Nummer nehmen“). Gibt die gemerkte Nummer zurück. Wirft nie.
+ */
+export async function websiteOptinMerken(ein: { anfrageId: number | null; telefon: string; land?: string | null; satz?: string | null }, lauf: Lauf = sqlPool): Promise<string | null> {
   try {
-    const nummer = anfrageNummer(telefon);
-    if (!nummer) return;
-    await zeileMerken(nummer, { anfrageId, optinQuelle: "website" }, lauf);
+    const eingabe = anfrageNummer(ein.telefon, ein.land ?? null);
+    let anfrage: string | null = null;
+    if (ein.anfrageId) {
+      const [a] = (await lauf`SELECT telefon, land, ip FROM fiaon_anfragen WHERE id = ${ein.anfrageId} AND art = 'global'`.catch(() => [])) as any[];
+      anfrage = nummerDerAnfrage(a);
+    }
+    const nummer = waJaNummer({ anfrage, eingabe });
+    if (!nummer) return null;
+    await zeileMerken(nummer, { anfrageId: ein.anfrageId, optinQuelle: "website", optinText: ein.satz ?? null }, lauf);
+    return nummer;
   } catch (e) {
     console.error("[MARA-BUSINESS] Website-Ja:", String((e as Error)?.message || e).slice(0, 160));
+    return null;
+  }
+}
+
+/** E-487: Ergebnisse, nach denen ein Ja am Telefon zählt — nur ein Gespräch mit ihm (erreicht), nie „kein Interesse“. */
+export const TELEFON_JA_ERGEBNISSE = ["erreicht_interesse", "erreicht_termin", "erreicht_antrag"] as const;
+
+/**
+ * E-487 (09.11.2026): DAS JA AM TELEFON — im Firmen-Cockpit hakt die anrufende Person „Möchte auch per WhatsApp (am Telefon
+ * gefragt)“, nachdem sie GLOBAL_WA_TELEFON_SATZ vorgelesen hat. Gemerkt an der Nummer der Anfrage (die angerufene Nummer,
+ * wenn es ein anderer Anschluss ist) mit Quelle „telefon:<Name>“ (wer), Zeit (wann) und dem vorgelesenen Satz (was). Die
+ * Begrüßung schickt der Takt (8–20 Uhr, alle Sperren wie immer); mit Termin die Terminnachricht. Wirft nie.
+ */
+export async function telefonOptinMerken(ein: { anfrageId: number; firmaId: number | null; telefon: string | null; wer: string; englisch?: boolean }, lauf: Lauf = sqlPool): Promise<{ ok: boolean; nummer: string | null; grund: string | null }> {
+  try {
+    const [a] = (await lauf`SELECT telefon, land, ip FROM fiaon_anfragen WHERE id = ${ein.anfrageId} AND art = 'global'`.catch(() => [])) as any[];
+    if (!a) return { ok: false, nummer: null, grund: "Zu dieser Firma gibt es keine Global-Anfrage." };
+    const eingabe = ein.telefon ? anfrageNummer(ein.telefon, a.land ? String(a.land) : null) : null;
+    const nummer = waJaNummer({ anfrage: nummerDerAnfrage(a), eingabe });
+    if (!nummer) return { ok: false, nummer: null, grund: "Keine Handynummer — auf ein Festnetz geht kein WhatsApp." };
+    const wer = String(ein.wer || "Team").replace(/\s+/g, " ").trim().slice(0, 80) || "Team";
+    await zeileMerken(nummer, {
+      anfrageId: ein.anfrageId, firmaId: ein.firmaId, optinQuelle: `telefon:${wer}`,
+      optinText: ein.englisch ? GLOBAL_WA_TELEFON_SATZ.en : GLOBAL_WA_TELEFON_SATZ.de,
+    }, lauf);
+    return { ok: true, nummer, grund: null };
+  } catch (e) {
+    console.error("[MARA-BUSINESS] Ja am Telefon:", String((e as Error)?.message || e).slice(0, 160));
+    return { ok: false, nummer: null, grund: "Das Ja konnte gerade nicht gespeichert werden — bitte noch einmal." };
   }
 }
 

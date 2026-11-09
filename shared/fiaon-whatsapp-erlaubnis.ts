@@ -275,3 +275,57 @@ export function globalWaHinweisGezeigt(roh: unknown): boolean {
   const t = String(roh ?? "").trim();
   return t === GLOBAL_WA_HINWEIS.de || t === GLOBAL_WA_HINWEIS.en;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): DAS JA AM TELEFON UND DIE NUMMER AUS DEM FORMULAR
+//
+// Justin (09.11.2026): „ALLES, sodass jeder neue Lead auch ne Mail, WhatsApp und co bekommt — nichts darf still hängen“.
+// Befund (Produktion nur gelesen): Die Ja-Zeile zu einer Buchung trug „15…“ (11 Ziffern, im Buchungsformular ohne 0 und
+// ohne +49 getippt) — waKanonisch hielt sie für eine fertige +1-Nummer (USA). Das Ja passte nicht zur Anfrage, die
+// Begrüßung wäre an eine fremde Nummer gegangen. Formularnummern laufen deshalb durch nummerFuerVersand MIT dem Land
+// (DE/AT/CH-Handynummer ohne + oder 00 nie als +1; 15x/16x/17x mit 10–11 Ziffern → 49). Nur eine Nummer, die wir von
+// WhatsApp selbst haben (Absender-ID, Anfrage aus WhatsApp), bleibt waKanonisch.
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Der Satz, den die anrufende Person vorliest, bevor sie im Firmen-Cockpit „Möchte auch per WhatsApp“ hakt — er nennt
+ * FIAON und WhatsApp (Meta verlangt beides) und den Widerruf. Er wird mit Wer und Wann an der Nummer gespeichert.
+ */
+export const GLOBAL_WA_TELEFON_SATZ = {
+  de: "Dürfen wir, die FIAON LTD, Sie zu Ihrer Anfrage auch per WhatsApp kontaktieren? Das können Sie jederzeit widerrufen, z. B. mit „STOPP“.",
+  en: "May we, FIAON LTD, also contact you about your enquiry on WhatsApp? You can withdraw this at any time, e.g. by replying “STOP”.",
+} as const;
+
+/** Eine Telefonnummer aus einem FORMULAR (Website, Meta, Cockpit) in WhatsApp-Form — mit dem Land der Anfrage. Rein. */
+export function formularNummer(roh: unknown, land?: string | null): string | null {
+  return nummerFuerVersand(roh, land);
+}
+
+/** Die letzten neun Ziffern (der Teilnehmer ohne Landesvorwahl) — leer bei weniger als sieben Ziffern. Rein. */
+export function nummerKey9(roh: unknown): string {
+  const d = String(roh ?? "").replace(/\D/g, "");
+  return d.length >= 7 ? d.slice(-9) : "";
+}
+
+/**
+ * Welche Nummer bekommt das Ja? `anfrage` = die WhatsApp-Nummer der Anfrage (Meta/Website), `eingabe` = die Nummer, die er
+ * beim Ja angegeben hat (Buchungsformular, die angerufene Nummer). Derselbe Anschluss (gleiche letzte neun Ziffern) → die
+ * Nummer der Anfrage (sie ist sauber erfasst); ein anderer Anschluss → seine Eingabe (für genau diese Nummer gab er das Ja).
+ * Rein.
+ */
+export function waJaNummer(ein: { anfrage: string | null; eingabe: string | null }): string | null {
+  const a = ein.anfrage || null;
+  const e = ein.eingabe || null;
+  if (a && e && nummerKey9(a) === nummerKey9(e)) return a;
+  return e ?? a;
+}
+
+/**
+ * Wurde eine Nummer falsch gelesen? Gleicher Anschluss (letzte neun Ziffern) wie die Nummer der Anfrage, aber eine andere
+ * Landesvorwahl — z. B. „15…“ (als +1 gelesen) statt „4915…“. Rein.
+ */
+export function nummerFalschGelesen(schluessel: unknown, erwartet: unknown): boolean {
+  const s = String(schluessel ?? "");
+  const e = String(erwartet ?? "");
+  if (!/^\d{8,15}$/.test(s) || !/^\d{8,15}$/.test(e) || s === e) return false;
+  return nummerKey9(s) === nummerKey9(e);
+}

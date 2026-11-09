@@ -204,3 +204,66 @@ export const ANFRAGE_STAND_WORT: Readonly<Record<string, string>> = {
   neu: "neu", in_arbeit: "in Arbeit", termin: "Termin steht", kein_interesse: "kein Interesse", ungueltig: "Nummer falsch",
   antrag: "Antrag läuft", kunde: "Kunde", privat: "Privat-Weg",
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026, Wunsch aus dem Vertrieb): RÜCKRUF SELBST EINTRAGEN — im Cockpit Tag und auf Wunsch Uhrzeit wählen,
+// das nächste Ergebnis („Erreicht — Interesse“, „Nicht erreicht“, „Mailbox“) nimmt ihn mit. Bis dahin ist die Firma aus
+// „Jetzt dran“ verschwunden, am Tag steht sie oben, 10 Minuten vor der Uhrzeit kommt eine kurze Mail. Rein.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Die Ergebnisse, die einen eigenen Rückruf mitnehmen — bei allen anderen gilt die feste Regel des Cockpits. */
+export const RUECKRUF_ERGEBNISSE = ["erreicht_interesse", "nicht_erreicht", "mailbox"] as const;
+/** So weit voraus darf ein Rückruf liegen (Tage). */
+export const RUECKRUF_MAX_TAGE = 120;
+/** Die Uhrzeiten zur Wahl (halbstündlich, 8:00–20:00). */
+export const RUECKRUF_ZEITEN: readonly string[] = Array.from({ length: 25 }, (_, i) => `${String(8 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
+
+const ISO_TAG = /^(\d{4})-(\d{2})-(\d{2})$/;
+const tagZahl = (iso: string): number | null => {
+  const m = ISO_TAG.exec(iso);
+  if (!m) return null;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(t);
+  // Kein 31.02.: das Datum muss nach dem Umrechnen gleich bleiben.
+  if (d.getUTCFullYear() !== Number(m[1]) || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) return null;
+  return Math.round(t / 86_400_000);
+};
+
+/**
+ * Prüft einen eingetragenen Rückruf. `heute` ist der Berliner Kalendertag (JJJJ-MM-TT, vom Server). Leer = kein Rückruf.
+ * Liefert den Tag (und die Uhrzeit) oder einen Satz für die Person am Telefon.
+ */
+export function rueckrufLesen(tagRoh: unknown, zeitRoh: unknown, heute: string): { tag: string | null; zeit: string | null; fehler: string | null } {
+  // Kein Abschneiden: „2026-11-16; …“ ist kein Tag (genau JJJJ-MM-TT und HH:MM aus der Liste).
+  const tag = String(tagRoh ?? "").trim().slice(0, 40);
+  const zeit = String(zeitRoh ?? "").trim().slice(0, 20);
+  if (!tag) return { tag: null, zeit: null, fehler: zeit ? "Bitte zuerst den Tag für den Rückruf wählen." : null };
+  const t = tagZahl(tag), h = tagZahl(heute);
+  if (t === null || h === null) return { tag: null, zeit: null, fehler: "Der Tag für den Rückruf ist ungültig — bitte neu wählen." };
+  if (t < h) return { tag: null, zeit: null, fehler: "Der Rückruf liegt in der Vergangenheit — bitte einen Tag ab heute wählen." };
+  if (t - h > RUECKRUF_MAX_TAGE) return { tag: null, zeit: null, fehler: `Ein Rückruf geht höchstens ${RUECKRUF_MAX_TAGE} Tage voraus.` };
+  if (zeit && !RUECKRUF_ZEITEN.includes(zeit)) return { tag: null, zeit: null, fehler: "Die Uhrzeit für den Rückruf ist ungültig — bitte neu wählen." };
+  return { tag, zeit: zeit || null, fehler: null };
+}
+
+/** „Rückruf vereinbart: Mo., 16.11.2026, 10:00 Uhr“ — die Zeile für Verlauf und Notiz. Rein. */
+export function rueckrufSatz(tag: string, zeit: string | null): string {
+  const t = tagZahl(tag);
+  if (t === null) return "";
+  const d = new Date(t * 86_400_000);
+  const wt = ["So.", "Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa."][d.getUTCDay()];
+  const datum = `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}.${d.getUTCFullYear()}`;
+  return `Rückruf vereinbart: ${wt}, ${datum}${zeit ? `, ${zeit} Uhr` : " (ohne feste Uhrzeit)"}`;
+}
+
+/** Die Tage zur Wahl ab heute (Sonntage ausgelassen) — `heute` ist der Berliner Kalendertag. Rein. */
+export function rueckrufTage(heute: string, anzahl = 12): string[] {
+  const h = tagZahl(heute);
+  if (h === null) return [];
+  const aus: string[] = [];
+  for (let i = 0; aus.length < anzahl && i < 31; i++) {
+    const d = new Date((h + i) * 86_400_000);
+    if (d.getUTCDay() === 0) continue;
+    aus.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`);
+  }
+  return aus;
+}

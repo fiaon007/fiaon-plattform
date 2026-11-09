@@ -50,7 +50,7 @@ import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } from "@shared/fiaon-lead-weg";
-import { PFLICHT_NOTIZ_ERGEBNISSE } from "@shared/fiaon-lead-takt";
+import { PFLICHT_NOTIZ_ERGEBNISSE, RUECKRUF_ERGEBNISSE, RUECKRUF_ZEITEN, rueckrufTage } from "@shared/fiaon-lead-takt";
 import "@/styles/office-firmen.css";
 
 /** E-476 Scheibe 5: die Stand-Leiste eines Business-Leads (vom Server, server/lib/fiaon-lead-takt.ts). */
@@ -123,6 +123,21 @@ const GLOBAL_EREIGNIS: Record<string, string> = {
 };
 
 const tagKurz = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+/** E-487: der Berliner Kalendertag (JJJJ-MM-TT) — über formatToParts, nie über die Gerätezeit. */
+const berlinHeute = (): string => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date()).map((x) => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+};
+/** E-487: „Rückruf 10:00“ für die Liste — nur am Tag selbst mit Uhrzeit, sonst mit Datum. */
+const rueckrufKurz = (iso: unknown): string | null => {
+  if (!iso) return null;
+  const d = new Date(String(iso));
+  if (!Number.isFinite(d.getTime())) return null;
+  const tag = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const zeit = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", hour: "2-digit", minute: "2-digit" }).format(d);
+  return tag === berlinHeute() ? `Rückruf ${zeit}` : `Rückruf ${tagKurz(tag)}, ${zeit}`;
+};
 
 export default function AgentFirmenPage() { return <AgentShell><FirmenInnen /></AgentShell>; }
 
@@ -158,6 +173,8 @@ function FirmenInnen() {
   const [lead, setLead] = useState<LeadStand | null>(null);
   const [notizFelder, setNotizFelder] = useState<Record<string, string>>({});
   const [felderAuf, setFelderAuf] = useState(false);
+  // E-487 (09.11.2026, Daniels Wunsch): Rückruf selbst eintragen — Tag und auf Wunsch Uhrzeit, das nächste Ergebnis nimmt ihn mit.
+  const [rueckruf, setRueckruf] = useState<{ tag: string | null; zeit: string | null } | null>(null);
 
   const sag = (t: string) => { setMeldung(t); setTimeout(() => setMeldung(null), 6000); };
 
@@ -211,18 +228,24 @@ function FirmenInnen() {
       return sag("Bitte zuerst zwei, drei Sätze ins Notizfeld: Was hat er selbst erzählt? Wer ist er, was will er, wie groß, wie ernst?");
     }
     if (lead && wert === "erreicht_termin" && !lead.terminGebucht) return void zuJustinTermin(notiz);
+    // E-487: Der eingetragene Rückruf fährt nur bei „Erreicht — Interesse“, „Nicht erreicht“ und „Mailbox“ mit.
+    const mitRueckruf = !!rueckruf?.tag && (RUECKRUF_ERGEBNISSE as readonly string[]).includes(wert);
     setLaeuft(wert);
     const r = await api(`/agent/firmen/${aktiv.id}/anruf`, {
       method: "POST",
-      body: JSON.stringify({ ergebnis: wert, notiz: notiz.trim() || undefined, felder: lead ? notizFelder : undefined }),
+      body: JSON.stringify({
+        ergebnis: wert, notiz: notiz.trim() || undefined, felder: lead ? notizFelder : undefined,
+        wiedervorlage: mitRueckruf ? rueckruf!.tag : undefined, rueckrufZeit: mitRueckruf ? (rueckruf!.zeit || undefined) : undefined,
+      }),
     });
     setLaeuft(null);
     if (!r.ok) {
       if (r.json?.feld === "termin") return void zuJustinTermin(notiz);
       return sag(r.json?.error || "Konnte das Ergebnis nicht speichern.");
     }
-    setNotiz(""); setNotizFelder({}); setFelderAuf(false);
-    sag(lead && /^erreicht_/.test(wert) ? "Festgehalten — Justin liest deine Sätze vor dem Gespräch. Nächster Anruf." : "Festgehalten — nächster Anruf.");
+    setNotiz(""); setNotizFelder({}); setFelderAuf(false); setRueckruf(null);
+    if (mitRueckruf) sag(`Festgehalten — Rückruf am ${tagKurz(rueckruf!.tag!)}${rueckruf!.zeit ? `, ${rueckruf!.zeit} Uhr (10 Minuten vorher kommt eine Mail)` : ""}. Bis dahin ist die Firma aus „Jetzt dran“ raus. Nächster Anruf.`);
+    else sag(lead && /^erreicht_/.test(wert) ? "Festgehalten — Justin liest deine Sätze vor dem Gespräch. Nächster Anruf." : "Festgehalten — nächster Anruf.");
     if (wert === "erreicht_antrag") sag("Stark! Status „Antrag läuft“ — schick ihm gleich die Info-Mail mit dem Link.");
     await laden();
     const neu = await api(`/agent/firmen/${aktiv.id}`);
@@ -403,7 +426,7 @@ function FirmenInnen() {
                 <li key={f.id}>
                   <button type="button" className={aktiv?.id === f.id ? "an" : ""} onClick={() => void oeffnen(f)}>
                     <span className="fk-liste-wer"><b>{f.firma}</b><small>{[f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
-                    <span className={`fk-marke ${ton}`}>{st}</span>
+                    <span className={`fk-marke ${ton}`}>{rueckrufKurz(f.rueckruf_um) ?? st}</span>
                   </button>
                 </li>
               );
@@ -423,6 +446,7 @@ function FirmenInnen() {
                   <small>{[aktiv.ansprechpartner, aktiv.ort, aktiv.branche].filter(Boolean).join(" · ") || "—"}</small>
                 </div>
                 {(() => { const [st, ton] = STATUS_TEXT[aktiv.status] || [aktiv.status, "still"]; return <span className={`fk-marke ${ton}`}>{st}</span>; })()}
+                {rueckrufKurz(aktiv.rueckruf_um) && <span className="fk-marke warte">{rueckrufKurz(aktiv.rueckruf_um)}</span>}
               </header>
               {/* E-476 Scheibe 5: EIN Stand je Business-Lead — Anfrage, Mail von Justin, Anrufe, Termin; darunter, was jetzt dran ist. */}
               {lead && (
@@ -467,6 +491,41 @@ function FirmenInnen() {
                   )}
                 </div>
               )}
+
+              {/* ── E-487: Rückruf selbst eintragen (Daniels Wunsch 09.11.) — vor den Ergebnis-Knöpfen, die ihn mitnehmen ── */}
+              <div className="fk-felder-klapp">
+                <button type="button" className="fk-knopf still klein" onClick={() => setRueckruf(rueckruf ? null : { tag: null, zeit: null })}>
+                  {rueckruf ? "Rückruf zuklappen" : "Rückruf vereinbart? Tag und Uhrzeit eintragen"}
+                </button>
+                {rueckruf && (
+                  <div className="fk-justin">
+                    <header>
+                      <b>Rückruf eintragen — du rufst an</b>
+                      <small>Wähl den Tag (und die Uhrzeit, wenn ihr eine ausgemacht habt). Dann klickst du das Ergebnis — meist „Erreicht — Interesse“, auch „Nicht erreicht“ oder „Mailbox“. Bis dahin ist die Firma aus „Jetzt dran“ raus, am Tag steht sie oben, 10 Minuten vor der Uhrzeit kommt eine Mail an dich.</small>
+                    </header>
+                    <div className="fk-j-tage" role="group" aria-label="Tag für den Rückruf">
+                      {rueckrufTage(berlinHeute(), 12).map((t) => (
+                        <button key={t} type="button" className="fk-j-tag" aria-pressed={rueckruf.tag === t}
+                                onClick={() => setRueckruf({ ...rueckruf, tag: t })}>{tagKurz(t)}</button>
+                      ))}
+                    </div>
+                    {rueckruf.tag && (
+                      <div className="fk-j-zeiten" role="group" aria-label="Uhrzeit für den Rückruf">
+                        <button type="button" className="fk-j-zeit" aria-pressed={!rueckruf.zeit} onClick={() => setRueckruf({ ...rueckruf, zeit: null })}>ohne Uhrzeit</button>
+                        {RUECKRUF_ZEITEN.map((z) => (
+                          <button key={z} type="button" className="fk-j-zeit" aria-pressed={rueckruf.zeit === z}
+                                  onClick={() => setRueckruf({ ...rueckruf, zeit: z })}>{z}</button>
+                        ))}
+                      </div>
+                    )}
+                    <p className="fk-j-link" role="status">
+                      {rueckruf.tag
+                        ? `Rückruf: ${tagKurz(rueckruf.tag)}${rueckruf.zeit ? `, ${rueckruf.zeit} Uhr` : " (ohne Uhrzeit)"} — jetzt das Ergebnis klicken.`
+                        : "Erst den Tag wählen."}
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div className="fk-ergebnisse">
                 {ERGEBNIS_KNOEPFE.map(([wert, label, ton]) => (

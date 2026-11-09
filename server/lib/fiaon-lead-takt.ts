@@ -1243,6 +1243,52 @@ export async function leadWaechterPruefen(opt: { jetzt?: Date; lauf?: Lauf; imme
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): DER EINGETRAGENE RÜCKRUF — 10 bis 15 Minuten vor der Uhrzeit eine kurze Mail an die zuständige Person
+// (Lead-Meldungen-Adresse wie T1), einmal je Eintrag (rueckruf_erinnert_am, beansprucht vor dem Senden). Wirft nie.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function rueckrufErinnern(jetzt: Date = new Date(), lauf: Lauf = sqlPool): Promise<number> {
+  let n = 0;
+  try {
+    const faellig = (await lauf`
+      UPDATE fiaon_firmen_leads SET rueckruf_erinnert_am = NOW()
+       WHERE id IN (SELECT id FROM fiaon_firmen_leads
+                     WHERE rueckruf_um IS NOT NULL AND rueckruf_erinnert_am IS NULL
+                       AND rueckruf_um <= ${jetzt}::timestamptz + INTERVAL '15 minutes'
+                       AND rueckruf_um > ${jetzt}::timestamptz - INTERVAL '2 hours'
+                       AND COALESCE(status, '') NOT IN ('kein_interesse', 'ungueltig', 'antrag')
+                     ORDER BY rueckruf_um LIMIT 10 FOR UPDATE SKIP LOCKED)
+       RETURNING id, firma, ansprechpartner, telefon, rueckruf_um, zustaendig_agent_id,
+                 to_char(rueckruf_um AT TIME ZONE 'Europe/Berlin', 'HH24:MI') AS uhrzeit`.catch(() => [])) as any[];
+    if (!faellig.length) return 0;
+    const antwortAn = await justinAdresse(lauf);
+    const basis = String(process.env.APP_BASE_URL || "https://fiaon.com").replace(/\/+$/, "").replace("://www.", "://");
+    for (const f of faellig) {
+      const ziel = await leadMeldungZiel(lauf, f.zustaendig_agent_id ? Number(f.zustaendig_agent_id) : null);
+      const wer = [String(f.ansprechpartner ?? "").trim(), String(f.firma ?? "").trim()].filter(Boolean).join(", ") || `Firma #${f.id}`;
+      const url = `${basis}/agent/firmen?firma=${Number(f.id)}`;
+      const m: TaktMail = {
+        betreff: `Rückruf um ${f.uhrzeit} Uhr: ${wer}`.slice(0, 160),
+        text: [
+          `Hallo ${ziel.fuerVorname || "zusammen"},`,
+          "",
+          `um ${f.uhrzeit} Uhr steht dein eingetragener Rückruf an: ${wer}${f.telefon ? ` · Telefon ${String(f.telefon).trim()}` : ""}.`,
+          "",
+          "Ein Klick öffnet die Firma im Cockpit — mit deiner Notiz und dem Verlauf. Danach wie immer das Ergebnis klicken.",
+        ].join("\n"),
+        knoepfe: [{ text: "Firma im Cockpit öffnen", url }],
+        links: [url],
+      };
+      const v = await mailSenden(alsMail(m, ziel.an, ziel.fuerName ?? "Team", antwortAn)).catch(() => ({ ok: false }) as { ok: boolean });
+      if (v.ok) n++;
+      else await lauf`UPDATE fiaon_firmen_leads SET rueckruf_erinnert_am = NULL WHERE id = ${f.id} AND rueckruf_um > NOW()`.catch(() => {});
+    }
+  } catch (e) {
+    console.error("[LEAD-TAKT] Rückruf-Erinnerung:", String(e).slice(0, 160));
+  }
+  return n;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DER LAUF lead_takt (alle 5 Minuten, nurMitErgebnis + Stundenpuls)
 // ═══════════════════════════════════════════════════════════════════════════
 let letzterPuls = 0;
@@ -1275,6 +1321,8 @@ export async function leadTaktLauf(jetzt: Date = new Date(), lauf: Lauf = sqlPoo
     await zaehlbeginnSichern(lauf);
     gearbeitet += await eskalationenPruefen(jetzt, lauf);
   }
+  // E-487: den selbst eingetragenen Rückruf erinnern — unabhängig vom Takt-Schalter (die Person hat ihn selbst gewollt).
+  if (versandErlaubt()) gearbeitet += await rueckrufErinnern(jetzt, lauf);
   const u = await uebersichtSenden({ jetzt, lauf });
   if (u === "gesendet" || u === "leer" || u === "fehler") gearbeitet++;
   const w = await leadWaechterPruefen({ jetzt, lauf });

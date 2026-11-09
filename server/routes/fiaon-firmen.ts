@@ -102,7 +102,9 @@ function ensureFirmen(): Promise<void> {
         await tx`ALTER TABLE fiaon_firmen_leads
           ADD COLUMN IF NOT EXISTS person_id INTEGER,
           ADD COLUMN IF NOT EXISTS paketwunsch TEXT,
-          ADD COLUMN IF NOT EXISTS global_am TIMESTAMPTZ`;
+          ADD COLUMN IF NOT EXISTS global_am TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS rueckruf_um TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS rueckruf_erinnert_am TIMESTAMPTZ`;
       });
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_firmen_person_idx ON fiaon_firmen_leads (person_id) WHERE person_id IS NOT NULL`;
     })().catch((e) => { bereit = null; throw e; });
@@ -323,6 +325,9 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
           )
         END
       ORDER BY (f.wiedervorlage IS NOT NULL AND f.wiedervorlage <= ${HEUTE_BERLIN}) DESC,
+               -- E-487: eingetragene Rückrufe des Tages in ihrer Reihenfolge (die nächste Uhrzeit zuerst).
+               (f.rueckruf_um IS NOT NULL AND (f.rueckruf_um AT TIME ZONE 'Europe/Berlin')::date <= ${HEUTE_BERLIN}) DESC,
+               f.rueckruf_um ASC NULLS LAST,
                (f.global_am IS NOT NULL AND f.status IN ('termin', 'wiedervorlage')) DESC,
                f.status = 'termin' DESC, f.status = 'in_arbeit' DESC,
                f.created_at ASC
@@ -416,10 +421,17 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
       erzaehlt = p.erzaehlt;
     }
 
+    // E-487 (09.11.2026): Rückruf selbst eintragen — Tag (heute bis 120 Tage) und auf Wunsch Uhrzeit, nur bei „Erreicht —
+    // Interesse“, „Nicht erreicht“, „Mailbox“ (shared/fiaon-lead-takt.ts). Vorher nahm die Route jeden Text als Datum.
+    const { rueckrufLesen, rueckrufSatz, RUECKRUF_ERGEBNISSE } = await import("@shared/fiaon-lead-takt");
+    const rr = rueckrufLesen(req.body?.wiedervorlage, req.body?.rueckrufZeit, berlinToday());
+    if (rr.fehler) return res.status(400).json({ ok: false, error: rr.fehler, feld: "rueckruf" });
+    const eigenerRueckruf = rr.tag && (RUECKRUF_ERGEBNISSE as readonly string[]).includes(ergebnis) ? { tag: rr.tag, zeit: rr.zeit } : null;
+    if (eigenerRueckruf) notiz = [notiz, rueckrufSatz(eigenerRueckruf.tag, eigenerRueckruf.zeit)].filter(Boolean).join(" — ").slice(0, 2000);
+
     // Wiedervorlage: Termin/Interesse → morgen; nicht erreicht → +2 Tage
-    // (Staffel per Anrufzahl wäre die nächste Scheibe); Mailbox → +1.
-    const wv = req.body?.wiedervorlage
-      ? String(req.body.wiedervorlage).slice(0, 10)
+    // (Staffel per Anrufzahl wäre die nächste Scheibe); Mailbox → +1. Ein eingetragener Rückruf geht vor.
+    const wv = eigenerRueckruf ? eigenerRueckruf.tag
       : ergebnis === "nicht_erreicht" ? "+2"
       : ergebnis === "mailbox" ? "+1"
       : ergebnis === "erreicht_interesse" ? "+1"
@@ -429,6 +441,7 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
       : ergebnis === "erreicht_termin" ? "termin"
       : ergebnis === "erreicht_kein_interesse" ? "kein_interesse"
       : ergebnis === "nummer_falsch" ? "ungueltig"
+      : eigenerRueckruf ? "wiedervorlage"
       : ergebnis === "erreicht_interesse" ? "in_arbeit"
       : firma.status === "neu" ? "in_arbeit" : firma.status;
 
@@ -443,9 +456,12 @@ router.post("/agent/firmen/:id/anruf", requireAgent, async (req: AgentRequest, r
           WHEN $4 = '+2' THEN ${HEUTE_BERLIN} + 2
           ELSE $4::date END,
         notiz = CASE WHEN $5::text IS NULL THEN notiz ELSE CONCAT_WS(E'\n', NULLIF(notiz, ''), $5) END,
+        rueckruf_um = CASE WHEN $6::text IS NULL OR $7::text IS NULL THEN NULL
+                           ELSE (($6::date + $7::time) AT TIME ZONE 'Europe/Berlin') END,
+        rueckruf_erinnert_am = NULL,
         updated_at = NOW()
       WHERE id = $1
-    `, [id, status, req.agent!.id, wv, notiz]);
+    `, [id, status, req.agent!.id, wv, notiz, eigenerRueckruf?.tag ?? null, eigenerRueckruf?.zeit ?? null]);
     await sqlPool`
       INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
       VALUES (${id}, ${req.agent!.id}, ${req.agent!.name}, 'anruf', ${ergebnis}, ${notiz})

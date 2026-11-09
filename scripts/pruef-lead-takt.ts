@@ -290,6 +290,40 @@ abschnitt("A9 Quelltext-Wände");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+abschnitt("A10 E-487 Rückruf selbst eintragen (rein)");
+{
+  const L = ST.rueckrufLesen;
+  const leer = L(undefined, undefined, "2026-11-09");
+  ok(leer.tag === null && leer.zeit === null && leer.fehler === null, "nichts gewählt → kein Rückruf, kein Fehler");
+  const nurZeit = L("", "10:00", "2026-11-09");
+  ok(nurZeit.tag === null && !!nurZeit.fehler, "Uhrzeit ohne Tag → Satz „erst den Tag wählen“");
+  const gut = L("2026-11-16", "10:00", "2026-11-09");
+  ok(gut.tag === "2026-11-16" && gut.zeit === "10:00" && gut.fehler === null, "Tag + Uhrzeit in einer Woche → gilt");
+  const ohne = L("2026-11-09", "", "2026-11-09");
+  ok(ohne.tag === "2026-11-09" && ohne.zeit === null && ohne.fehler === null, "heute ohne Uhrzeit → gilt");
+  ok(!!L("2026-11-08", null, "2026-11-09").fehler, "gestern → Fehler (Vergangenheit)");
+  ok(!!L("2027-04-01", null, "2026-11-09").fehler, "mehr als 120 Tage voraus → Fehler");
+  ok(!!L("2026-02-31", null, "2026-02-01").fehler && !!L("16.11.2026", null, "2026-11-09").fehler && !!L("2026-11-16'; DROP", null, "2026-11-09").fehler, "kein echtes Datum / falsches Format / Einschleusung → Fehler");
+  ok(!!L("2026-11-16", "10:15", "2026-11-09").fehler && !!L("2026-11-16", "7:30", "2026-11-09").fehler && !!L("2026-11-16", "21:00", "2026-11-09").fehler, "Uhrzeit nur aus der Liste (halbstündlich 8–20 Uhr)");
+  ok(ST.RUECKRUF_ZEITEN[0] === "08:00" && ST.RUECKRUF_ZEITEN.at(-1) === "20:00" && ST.RUECKRUF_ZEITEN.length === 25, "Uhrzeiten 08:00 … 20:00 halbstündlich");
+  gleich(ST.rueckrufSatz("2026-11-16", "10:00"), "Rückruf vereinbart: Mo., 16.11.2026, 10:00 Uhr", "Satz mit Uhrzeit");
+  gleich(ST.rueckrufSatz("2026-11-16", null), "Rückruf vereinbart: Mo., 16.11.2026 (ohne feste Uhrzeit)", "Satz ohne Uhrzeit");
+  const tage = ST.rueckrufTage("2026-11-14", 3);
+  ok(tage.join() === "2026-11-14,2026-11-16,2026-11-17", "Tage zur Wahl ab heute, Sonntag ausgelassen (Sa 14.11. → Mo 16.11.)");
+  ok(ST.rueckrufTage("2026-03-28", 2).join() === "2026-03-28,2026-03-30" && ST.rueckrufTage("2026-12-31", 2).join() === "2026-12-31,2027-01-01", "Zeitumstellung und Jahreswechsel");
+  ok((ST.RUECKRUF_ERGEBNISSE as readonly string[]).join() === "erreicht_interesse,nicht_erreicht,mailbox", "nur Interesse / nicht erreicht / Mailbox nehmen den Rückruf mit");
+  const route = lies("server/routes/fiaon-firmen.ts");
+  ok(/rueckrufLesen\(req\.body\?\.wiedervorlage, req\.body\?\.rueckrufZeit, berlinToday\(\)\)/.test(route) && !/String\(req\.body\.wiedervorlage\)\.slice\(0, 10\)/.test(route), "Anruf-Route prüft den Rückruf (kein ungeprüfter Text mehr als Datum)");
+  ok(/AT TIME ZONE 'Europe\/Berlin'\) END,\s*rueckruf_erinnert_am = NULL/.test(route), "Rückruf-Uhrzeit wird als Berliner Zeit gespeichert, Erinnerung neu gestellt");
+  const takt = lies("server/lib/fiaon-lead-takt.ts");
+  ok(/if \(versandErlaubt\(\)\) gearbeitet \+= await rueckrufErinnern\(jetzt, lauf\)/.test(takt) && /FOR UPDATE SKIP LOCKED/.test(takt), "Erinnerung im Takt, beansprucht vor dem Senden (keine Doppelmail)");
+  const seite = lies("client/src/pages/agent/firmen.tsx");
+  ok(/Rückruf vereinbart\? Tag und Uhrzeit eintragen/.test(seite) && /rueckrufZeit: mitRueckruf/.test(seite), "Cockpit: Knopf „Rückruf vereinbart?“ und Übergabe an die Route");
+  const rund2 = lies("client/src/pages/agent/rundgaenge.ts");
+  ok(/Rückruf ausgemacht\? Selbst eintragen\./.test(rund2), "Rundgang „Firmenkunden“ nachgezogen");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // B — LOKALE WEGWERF-DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
 if (LOKAL_DB) {

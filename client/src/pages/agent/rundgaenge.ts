@@ -1310,6 +1310,14 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
       + "Kalender: Der Knopf öffnet dann „Termin bei Justin eintragen“.",
     tipp: "Trag auch „nicht erreicht“ immer ein — dein Auftrag bleibt dann offen bis zum nächsten Versuch, und Justins nächste Mail an den Lead passt dazu.",
   },
+  // E-487 (09.11.2026): Rückruf selbst eintragen — der Knopf steht direkt über den Ergebnis-Knöpfen (ohne `ziel`, er ist eingeklappt).
+  {
+    titel: "Rückruf ausgemacht? Selbst eintragen.",
+    text: "Sagt dir jemand „Rufen Sie mich nächste Woche an“, klappst du über den Ergebnis-Knöpfen „Rückruf vereinbart?“ auf und "
+      + "wählst den Tag — und die Uhrzeit, wenn ihr eine ausgemacht habt. Dann klickst du das Ergebnis (meist „Erreicht — Interesse“). "
+      + "Bis dahin ist die Firma aus „Jetzt dran“ raus, am Tag steht sie oben mit „Rückruf 10:00“, und 10 Minuten vorher kommt eine Mail an dich.",
+    tipp: "Ein Termin, bei dem Justin anruft, bleibt „Termin bei Justin eintragen“. Der Rückruf ist für dich.",
+  },
   // E-476 Scheibe 5 (05.11.2026): EIN Stand je Business-Lead — die Leiste erscheint nur bei Business-Leads (ohne `ziel`).
   {
     titel: "Ein Lead, ein Stand — oben auf der Karte.",

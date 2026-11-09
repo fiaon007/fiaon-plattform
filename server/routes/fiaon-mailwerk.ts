@@ -10,11 +10,12 @@
 //   · Die Takte der Automatik (Mahnungen 2×/Tag, Lead-Strecke 2×/Tag)
 //   · Prüfversand jeder Vorlage an eine Adresse deiner Wahl
 //   · E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — Justin drückt den Knopf (server/lib/fiaon-vorsorge-einladung.ts):
-//       GET  /chef/mailwerk/vorsorge                 Zahlen je Kreis, gesperrt je Grund, heute/Deckel, Partner, Trichter, Protokoll
+//       GET  /chef/mailwerk/vorsorge                 Zahlen je Kreis, gesperrt je Grund, heute/Deckel, Partner, Trichter, Protokoll,
+//                                                    darfFreigeben (nur der Inhaber)
 //       GET  /chef/mailwerk/vorsorge/vorschau?kreis= die echte Mail des Nächsten im Kreis als HTML — sendet NIE
-//       POST /chef/mailwerk/vorsorge/pruefversand    { kreis, an? } — dieselbe Mail an die Testadresse (art = test)
-//       POST /chef/mailwerk/vorsorge/freigeben       { kreis } — Schalter an + Kreis in EINER Buchung, im Protokoll
-//       POST /chef/mailwerk/vorsorge/anhalten        Schalter aus — ab sofort nichts mehr
+//       POST /chef/mailwerk/vorsorge/pruefversand    { an? } — die Mail mit Beispielnamen NUR an die gespeicherte Testadresse (art = test)
+//       POST /chef/mailwerk/vorsorge/freigeben       { kreis } — Schalter an + Kreis in EINER Buchung, im Protokoll — NUR INHABER
+//       POST /chef/mailwerk/vorsorge/anhalten        Schalter aus — ab sofort nichts mehr (auch die Geschäftsführung)
 //
 // Verändert wird NUR über die Whitelist unten — ein Tippfehler im Schlüssel
 // kann so keine fremde Einstellung überschreiben.
@@ -207,11 +208,12 @@ async function chefName(req: ChefRequest): Promise<string> {
   return id ? `Chef #${id}` : "Inhaber";
 }
 
-router.get("/chef/mailwerk/vorsorge", requireChef("geschaeftsfuehrung"), async (_req: Request, res: Response) => {
+router.get("/chef/mailwerk/vorsorge", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
   try {
     res.setHeader("Cache-Control", "no-store");
     const { vorsorgeChefStand } = await import("../lib/fiaon-vorsorge-einladung");
-    res.json({ ok: true, ...(await vorsorgeChefStand()) });
+    // Gutachten 09.11.: „Freigeben“ ist Justins Knopf — die Karte zeigt der Geschäftsführung den Grund statt eines 403.
+    res.json({ ok: true, ...(await vorsorgeChefStand()), darfFreigeben: req.chef?.stufe === "inhaber" });
   } catch (err) {
     console.error("[MAILWERK] Vorsorge-Stand:", err);
     res.status(500).json({ ok: false, error: "Der Stand des Vorsorge-Überblicks ließ sich gerade nicht laden." });
@@ -235,7 +237,8 @@ router.get("/chef/mailwerk/vorsorge/vorschau", requireChef("geschaeftsfuehrung")
 router.post("/chef/mailwerk/vorsorge/pruefversand", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
   try {
     const { vorsorgePruefversand } = await import("../lib/fiaon-vorsorge-einladung");
-    const r = await vorsorgePruefversand(req.body?.kreis, req.body?.an);
+    // Gutachten 09.11.: nur an die gespeicherte Testadresse, immer mit Beispielnamen (vorsorgePruefAdresse, VORSORGE_MUSTER).
+    const r = await vorsorgePruefversand(req.body?.an);
     if (r.ok) await chefProtokoll(req, "vorsorge-mail:pruefversand", r.meldung);
     res.status(r.ok ? 200 : 400).json(r);
   } catch (err) {
@@ -244,7 +247,9 @@ router.post("/chef/mailwerk/vorsorge/pruefversand", requireChef("geschaeftsfuehr
   }
 });
 
-router.post("/chef/mailwerk/vorsorge/freigeben", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
+// Gutachten 09.11. (E-487 Nachbesserung): „Freigeben“ ist Justins Knopf — nur die Stufe Inhaber (vorher Geschäftsführung).
+// „Anhalten“ bleibt bei der Geschäftsführung: Stoppen darf jeder in der Leitung, starten nur Justin.
+router.post("/chef/mailwerk/vorsorge/freigeben", requireChef("inhaber"), async (req: ChefRequest, res: Response) => {
   try {
     const V = await import("../lib/fiaon-vorsorge-einladung");
     const wer = await chefName(req);

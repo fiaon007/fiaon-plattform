@@ -11,6 +11,12 @@
 //     Mailwerk setzt an = 1 und den Kreis in EINER Buchung; „Anhalten“ setzt an = 0 — ein laufender Lauf fragt vor jeder Mail neu.
 //   · Vorschau und Prüfversand senden NIE an Kunden: Die Vorschau rendert nur, der Prüfversand geht an die Testadresse des
 //     Mailwerks, und in beiden führen Knopf und Abmeldelink auf die Vorschau-Seite (kein Kundenlink, keine fremde Abmeldung).
+//     Gutachten 09.11. (E-487 Nachbesserung): Der Prüfversand geht NUR an die GESPEICHERTE Testadresse und trägt immer den
+//     Beispielnamen „Max Mustermann“ — nie den Namen eines Kunden (vorher: nächster Kunde im Kreis, an jede Adresse).
+//   · „Freigeben“ drückt nur der Inhaber (requireChef("inhaber"), server/routes/fiaon-mailwerk.ts); „Anhalten“ darf auch die
+//     Geschäftsführung.
+//   · Gemailt wird nur, solange wirklich ein Gespräch buchbar ist (vorsorgePartnerBuchbar: ein aktiver Partner ohne Sperre mit
+//     freiem Termin) — sonst wartet der Takt von selbst, und die Tür lässt keine Mail durch.
 //
 // ── DER KREIS (vorsorge_mail_kreis) ───────────────────────────────────────
 //   „gruen“ (Vorgabe, der engere): bezahlt, Deutschland, ungekündigt, und der Hinweis nach § 7 Abs. 3 UWG stand schon bei der
@@ -39,7 +45,7 @@ import {
 import {
   VORSORGE_KREISE, VORSORGE_KREIS_TEXT, VORSORGE_SCHALTER, VORSORGE_SPERRGRUND_TEXT, VORSORGE_TAGESDECKEL, VORSORGE_SENDE_AB_MIN, VORSORGE_SENDE_BIS_MIN,
   VORSORGE_FASSUNG, imVorsorgeKreis, vorsorgeEinstellungenAus, vorsorgeEmpfaenger, vorsorgeHeuteNicht, vorsorgeKreisAus, vorsorgeLaufDeckel,
-  vorsorgeSendezeit, vorsorgeSperrgrund, vorsorgeRollenZeile, vorsorgePartnerName,
+  vorsorgeSendezeit, vorsorgeSperrgrund, vorsorgeRollenZeile, vorsorgePartnerName, vorsorgePartnerBuchbar,
   type VorsorgeEinstellungen, type VorsorgeKreis, type VorsorgeMerkmale, type VorsorgeRuecksicht, type VorsorgeSperrgrund,
 } from "@shared/fiaon-vorsorge";
 import { ensureVorsorgeTabellen, vorsorgeLink, vorsorgeVorschauLink, VORSORGE_LINK_TAGE } from "./fiaon-vorsorge";
@@ -222,17 +228,38 @@ const maske = (mail: string) => mail.replace(/^(.{2}).*(@.*)$/, "$1…$2");
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE TÜR — eine Regel für Takt und Mail-Motor (make-webhook.ts)
 // ═══════════════════════════════════════════════════════════════════════════
-/** Ist ein aktiver Vorsorge-Partner da? Ohne ihn hätte die Seite nichts zu buchen — dann keine Mail. */
-async function partnerDa(jetzt?: Date): Promise<boolean> {
+/** Ist ein aktiver Vorsorge-Partner da (Vertrag angenommen, nicht beendet)? Die Voraussetzung fürs Freigeben. */
+async function partnerAktiv(jetzt?: Date): Promise<boolean> {
   const { koopVorsorgePartner } = await import("./fiaon-koop-lieferung");
   return (await koopVorsorgePartner(jetzt)).length > 0;
 }
 
 /**
+ * Gutachten 09.11. (E-487 Nachbesserung): Kann man gerade WIRKLICH buchen? Ein aktiver Vorsorge-Partner ohne Sperre (keine
+ * Zeiten, Wunschmenge der Woche, Start-Rahmen, Ruhen) mit mindestens einem freien Termin — dieselbe Regel wie die Seite
+ * (vorsorgePartnerBuchbar). Vorher prüften Takt und Tür nur „aktiver Partner“: Dann gingen bis zu 60 Mails am Tag raus, und
+ * jeder Empfänger las „alle Gesprächsplätze vergeben“. Freigeben bleibt mit einem aktiven Partner möglich — ist gerade kein
+ * Termin frei, wartet der Takt von selbst (sonst müsste Justin nach jeder vollen Woche neu freigeben).
+ */
+async function partnerBuchbar(jetzt = new Date()): Promise<boolean> {
+  const { koopVorsorgePartner, koopLieferStand, koopFreieTermine } = await import("./fiaon-koop-lieferung");
+  const staende: { sperre: string | null; freieTermine: number }[] = [];
+  for (const z of await koopVorsorgePartner(jetzt)) {
+    const stand = await koopLieferStand(z, sqlPool, jetzt);
+    staende.push({ sperre: stand.sperre, freieTermine: stand.sperre ? 0 : (await koopFreieTermine(z, sqlPool, jetzt)).length });
+    if (vorsorgePartnerBuchbar(staende)) return true;
+  }
+  return false;
+}
+/** Der Satz, wenn gerade kein Termin frei ist — der Takt erkennt ihn und hält an, statt den Menschen für heute zu überspringen. */
+export const VORSORGE_KEIN_TERMIN = "Sperre: Gerade ist bei keinem Vorsorge-Partner ein Termin frei — die Seite hätte nichts zu buchen.";
+
+/**
  * Darf die Mail an diesen Menschen — frisch geprüft, BEVOR eine Nutzlast entsteht: Grundmenge und Sperrgrund, Kreis, noch
  * nie bekommen, die Sperren von koopKandidat und die Werbe-Regel des Menschen (menschSperre: Familie, Stopp, Test,
- * Vertriebssperre, gekündigt) und ein aktiver Vorsorge-Partner. null = darf. Jeder Grund beginnt mit „Sperre:“ — ein Urteil
- * über den Menschen, keine Störung des Versands.
+ * Vertriebssperre, gekündigt) und ein buchbarer Vorsorge-Partner (Gutachten 09.11.: mit freiem Termin, ohne Sperre). null = darf.
+ * Jeder Grund beginnt mit „Sperre:“ — ein Urteil über den Menschen, keine Störung des Versands (außer VORSORGE_KEIN_TERMIN:
+ * Das betrifft alle, der Takt hält dann an).
  */
 export async function vorsorgeSperre(personId: number, kreis: VorsorgeKreis): Promise<string | null> {
   if (!Number.isInteger(personId) || personId <= 0) return "Sperre: ohne Person kein Vorsorge-Überblick.";
@@ -249,7 +276,7 @@ export async function vorsorgeSperre(personId: number, kreis: VorsorgeKreis): Pr
   const { menschSperre, werbungVerboten } = await import("./fiaon-mail-frequenz");
   const verboten = werbungVerboten(await menschSperre(personId));
   if (verboten) return `Sperre: ${verboten} — kein Vorsorge-Überblick.`;
-  if (!(await partnerDa())) return "Sperre: kein aktiver Vorsorge-Partner — die Seite hätte nichts zu buchen.";
+  if (!(await partnerBuchbar())) return VORSORGE_KEIN_TERMIN;
   return null;
 }
 
@@ -316,7 +343,8 @@ export async function vorsorgeTakt(opts: { jetzt?: Date; trocken?: boolean; nurP
   if (!opts.trocken && !vorsorgeSendezeit(opts.jetzt)) return leer("außerhalb des Fensters 09–19 Uhr (Berlin)");
   if (!opts.trocken) taktLaeuft = true;
   try {
-    if (!(await partnerDa(opts.jetzt))) return leer("kein aktiver Vorsorge-Partner — kein Versand");
+    // Gutachten 09.11.: nicht nur „ein aktiver Partner“, sondern ein freier Termin ohne Sperre — sonst wartet der Takt.
+    if (!(await partnerBuchbar(opts.jetzt))) return leer("gerade kein freier Termin bei einem Vorsorge-Partner — der Takt wartet");
     const heute = await vorsorgeHeuteVersandt();
     const rest = Math.max(0, VORSORGE_TAGESDECKEL - heute);
     if (rest <= 0) return leer(`Tagesdeckel erreicht (${heute}/${VORSORGE_TAGESDECKEL})`);
@@ -341,6 +369,8 @@ export async function vorsorgeTakt(opts: { jetzt?: Date; trocken?: boolean; nurP
       if (adressenImLauf.has(f.email)) { zaehle("Adresse in diesem Lauf schon angeschrieben"); continue; }
       try {
         const nein = await vorsorgeSperre(f.personId, e.kreis);
+        // Kein freier Termin mehr (Wunschmenge eben erreicht …) betrifft alle — anhalten, niemanden für heute überspringen.
+        if (nein === VORSORGE_KEIN_TERMIN) { erg.grund = "kein freier Termin mehr beim Partner — Rest nicht gesendet"; break; }
         if (nein) { heuteNicht.set(f.personId, tag); zaehle(nein); continue; }
         adressenImLauf.add(f.email);
         const nutzlast = await vorsorgeNutzlast(f);
@@ -349,6 +379,7 @@ export async function vorsorgeTakt(opts: { jetzt?: Date; trocken?: boolean; nurP
           verlaufText: `Vorsorge-Überblick: Maras Einladung per E-Mail (Kreis „${VORSORGE_KREIS_TEXT[e.kreis].titel}“, persönlicher Link ${VORSORGE_LINK_TAGE} Tage gültig). Werbung für die FIAON-eigene Leistung, ohne Partnernamen.`,
         });
         if (v.status === "versandt") { erg.mails++; platz--; fehlerInFolge = 0; }
+        else if (v.grund === VORSORGE_KEIN_TERMIN) { erg.grund = "kein freier Termin mehr beim Partner — Rest nicht gesendet"; break; }
         else if (/^(Sperre|Frequenzbremse)/.test(String(v.grund ?? ""))) { heuteNicht.set(f.personId, tag); zaehle(`Tür: ${v.grund}`); }
         else {
           zaehle(`Mail: ${v.grund ?? v.status}`);
@@ -470,17 +501,36 @@ export async function vorsorgeVorschau(kreisRoh: unknown): Promise<{ html: strin
   return { html: r.html, betreff: r.betreff, fuer: m.echt ? `${m.vorname} ${m.nachname} (${maske(m.email)})` : "Beispiel (niemand im Kreis offen)", fehlend: r.fehlend };
 }
 
-/** PRÜFVERSAND an die Testadresse — dieselbe Mail wie die Vorschau, als Test im Protokoll, nie an einen Kunden. */
-export async function vorsorgePruefversand(kreisRoh: unknown, anRoh: unknown): Promise<{ ok: true; meldung: string } | { ok: false; error: string }> {
-  const kreis = vorsorgeKreisAus(kreisRoh);
-  let an = String(anRoh ?? "").trim();
-  if (!an) {
-    const [s] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'mail_test_adresse'`) as any[];
-    an = String(s?.value || process.env.BETREIBER_MAIL || "").trim();
+/** Der erfundene Mensch des Prüfversands — nie ein Kunde (Gutachten 09.11.). */
+export const VORSORGE_MUSTER = { personId: 0, email: "max.mustermann@example.com", vorname: "Max", nachname: "Mustermann" } as const;
+
+/**
+ * Wohin der Prüfversand geht — rein (Prüfstand). Gutachten 09.11. (E-487 Nachbesserung): NUR an die gespeicherte Testadresse des
+ * Mailwerks (sonst BETREIBER_MAIL des Servers). `gewuenscht` ist, was die Karte schickt (das Eingabefeld oben); weicht es ab, ist
+ * die neue Adresse noch nicht gespeichert — dann geht nichts raus. Vorher ging der Prüfversand an jede Adresse aus der Anfrage.
+ */
+export function vorsorgePruefAdresse(gewuenscht: unknown, gespeichert: unknown): { ok: true; an: string } | { ok: false; error: string } {
+  const an = String(gespeichert ?? "").trim();
+  const wunsch = String(gewuenscht ?? "").trim();
+  if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(an)) return { ok: false, error: "Keine gültige Testadresse — bitte oben im Mailwerk eintragen und speichern." };
+  if (wunsch && wunsch.toLowerCase() !== an.toLowerCase()) {
+    return { ok: false, error: `Der Prüfversand geht nur an die gespeicherte Testadresse (${an}) — bitte die neue Adresse oben erst speichern.` };
   }
-  if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(an)) return { ok: false, error: "Keine gültige Testadresse — bitte oben im Mailwerk eintragen." };
-  const m = await vorschauMensch(kreis);
-  const nutzlast = { ...(await vorsorgeNutzlast(m, { vorschau: true, an })), test: true };
+  return { ok: true, an };
+}
+
+/** Die Nutzlast des Prüfversands: Beispielname, Knopf und Abmeldelink auf die Vorschau-Seite, als Test markiert. */
+export async function vorsorgePruefNutzlast(an: string): Promise<MakeWebhookPayload> {
+  return { ...(await vorsorgeNutzlast(VORSORGE_MUSTER, { vorschau: true, an })), test: true };
+}
+
+/** PRÜFVERSAND an die gespeicherte Testadresse — dieselbe Mail wie die Vorschau mit Beispielnamen, als Test im Protokoll, nie an einen Kunden. */
+export async function vorsorgePruefversand(anRoh: unknown): Promise<{ ok: true; meldung: string } | { ok: false; error: string }> {
+  const [s] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'mail_test_adresse'`) as any[];
+  const wahl = vorsorgePruefAdresse(anRoh, String(s?.value ?? "").trim() || process.env.BETREIBER_MAIL || "");
+  if (!wahl.ok) return wahl;
+  const an = wahl.an;
+  const nutzlast = await vorsorgePruefNutzlast(an);
   const motor = await import("../mail/motor");
   const r = await motor.mailDirektSenden(VORSORGE_EVENT, nutzlast);
   const { mailProtokoll } = await import("./fiaon-mail-log");
@@ -491,18 +541,19 @@ export async function vorsorgePruefversand(kreisRoh: unknown, anRoh: unknown): P
   // Als Test markieren — zählt gegen keinen Deckel und nicht als „schon bekommen“ (Muster Prüfversand im Mailwerk).
   await sqlPool`UPDATE fiaon_mail_log SET art = 'test' WHERE id = (SELECT MAX(id) FROM fiaon_mail_log WHERE event = ${VORSORGE_EVENT} AND empfaenger = ${an})`.catch(() => {});
   return r.ok
-    ? { ok: true, meldung: `Prüfversand an ${an} raus (Brevo ${r.messageId ?? "ohne Id"}). Knopf und Abmeldelink führen auf die Vorschau-Seite.` }
+    ? { ok: true, meldung: `Prüfversand an ${an} raus (Brevo ${r.messageId ?? "ohne Id"}), mit dem Beispielnamen Max Mustermann. Knopf und Abmeldelink führen auf die Vorschau-Seite.` }
     : { ok: false, error: r.grund ?? "Prüfversand fehlgeschlagen." };
 }
 
 /**
- * „FREIGEBEN“ — Justins Knopf: Kreis und Schalter in EINER Buchung, dazu wer und wann. Ohne aktiven Vorsorge-Partner oder
- * ohne offenen Empfänger im Kreis geht es nicht (die Seite hätte nichts zu buchen bzw. es gäbe nichts zu senden).
+ * „FREIGEBEN“ — Justins Knopf (Route: nur Inhaber): Kreis und Schalter in EINER Buchung, dazu wer und wann. Ohne aktiven
+ * Vorsorge-Partner oder ohne offenen Empfänger im Kreis geht es nicht (die Seite hätte nichts zu buchen bzw. es gäbe nichts zu
+ * senden). Ist beim aktiven Partner gerade kein Termin frei, geht Freigeben trotzdem — der Takt wartet dann (partnerBuchbar).
  */
 export async function vorsorgeFreigeben(kreisRoh: unknown, wer: string): Promise<{ ok: true; vorher: VorsorgeEinstellungen; nachher: VorsorgeEinstellungen; offen: number } | { ok: false; error: string }> {
   if (!(VORSORGE_KREISE as readonly string[]).includes(String(kreisRoh ?? ""))) return { ok: false, error: "Bitte zuerst einen Kreis wählen: Grün oder Grün + Gelb." };
   const kreis = vorsorgeKreisAus(kreisRoh);
-  if (!(await partnerDa())) return { ok: false, error: "Es gibt keinen aktiven Vorsorge-Partner — ohne Partner hätte die Seite nichts zu buchen." };
+  if (!(await partnerAktiv())) return { ok: false, error: "Es gibt keinen aktiven Vorsorge-Partner — ohne Partner hätte die Seite nichts zu buchen." };
   const offen = (await vorsorgeKandidaten(kreis, 100_000, { ruecksicht: false })).length;
   if (!offen) return { ok: false, error: `Im Kreis „${VORSORGE_KREIS_TEXT[kreis].titel}“ wartet niemand mehr auf die Mail.` };
   const vorher = await vorsorgeEinstellungen();

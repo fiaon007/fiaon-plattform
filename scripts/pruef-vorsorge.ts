@@ -12,15 +12,31 @@
 //      5. Takt: Fenster 09–19 Uhr Berlin (Winter und Sommer), Tagesdeckel 60, gleichmäßig über 20 Läufe, Aufholbremse.
 //      6. Tür und Verdrahtung: Freigabe-Pflicht in make-webhook.ts (schließt bei Störung), nur Motor, Global-Wand, Werbung
 //         immer, Takt im Tageslauf, Chefbüro-Wege, Kanal-Texte (Partnerbrief, Kundenbestätigung), Kundentexte ohne Interna.
+//      7. Nachbesserung nach dem Gutachten (09.11.): offener Termin = Einwilligung nicht widerrufen, Widerruf genau einmal
+//         gemeldet, je Kunde ein offener Termin (auch im Server), Rückruf-Auftrag über auftragErledigen, gemailt nur mit
+//         buchbarem Partner, Prüfversand mit Beispielnamen nur an die gespeicherte Testadresse, Freigeben nur Inhaber.
 //
 //   env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus BREVO_API_KEY=pruef node_modules/.bin/tsx scripts/pruef-vorsorge.ts
+//
+//   B  NUR gegen eine LOKALE Kopie (Prüfstand, PG 127.0.0.1:54329) — der Weg mit Datenbank (Gutachten 09.11., Mangel 8):
+//      erfundene Kundin bucht über den persönlichen Link → Rückruf-Auftrag „auto“ geschlossen → zweite Buchung abgelehnt (Seite
+//      und Kern) → „Termin nicht mehr gewünscht“: kein gebuchter Termin mehr, genau EINE Widerruf-Mail, zweiter Klick nichts →
+//      neu buchbar → „Kein Gespräch gewünscht“ → Takt und Tür (test: false) ohne Freigabe geschlossen. Räumt nur eigene Zeilen
+//      auf und stellt die Schalter zurück. Aufruf:
+//        env -i HOME=$HOME PATH=$PATH TZ=Europe/Berlin CRONS=aus BREVO_API_KEY=pruef SESSION_SECRET=pruef \
+//          DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_…?sslmode=require' node_modules/.bin/tsx scripts/pruef-vorsorge.ts
 //
 // Nichts wird versendet: fetch zu api.brevo.com wird abgefangen und nur protokolliert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { readFileSync } from "node:fs";
 
-// db-pool verlangt beim Laden eine Adresse — Teil A verbindet nie.
-if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+// Teil B nur gegen den lokalen Prüfstand. Jede andere Adresse (auch keine) heißt: nur Teil A — und db-pool bekommt dann eine
+// Adresse, zu der nie verbunden wird (postgres verbindet erst bei der ersten Abfrage).
+const TEIL_B = /@(127\.0\.0\.1|localhost):54329\//.test(String(process.env.DATABASE_URL ?? ""));
+if (!TEIL_B) {
+  if (process.env.DATABASE_URL) console.error("Teil B nur gegen den lokalen Prüfstand (127.0.0.1:54329) — es läuft nur Teil A.");
+  process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+}
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || "pruef-vorsorge";
 process.env.CRONS = "aus";
 
@@ -275,7 +291,7 @@ async function main() {
   ok(/if \(!e\.an\) return "Sperre: Die Mail „Ihr Vorsorge-Überblick“ ist nicht freigegeben/.test(tuer) && /werbungVerboten\(await menschSperre\(personId\)\)/.test(tuer) && /k\.sperren\.length/.test(tuer), "Tür prüft Freigabe, Kreis, koopKandidat und die Werbe-Regel des Menschen");
   const mailwerk = ohneKommentare(lies("server/routes/fiaon-mailwerk.ts"));
   ok(["/chef/mailwerk/vorsorge\"", "/chef/mailwerk/vorsorge/vorschau", "/chef/mailwerk/vorsorge/pruefversand", "/chef/mailwerk/vorsorge/freigeben", "/chef/mailwerk/vorsorge/anhalten"].every((p) => mailwerk.includes(p))
-    && (mailwerk.match(/requireChef\("geschaeftsfuehrung"\)/g) ?? []).length >= 8, "Chefbüro › Mailwerk: Stand, Vorschau, Prüfversand, Freigeben, Anhalten — nur Leitung");
+    && (mailwerk.match(/requireChef\("geschaeftsfuehrung"\)/g) ?? []).length >= 7 && (mailwerk.match(/requireChef\("inhaber"\)/g) ?? []).length === 1, "Chefbüro › Mailwerk: Stand, Vorschau, Prüfversand, Anhalten — Leitung; Freigeben — Inhaber");
   ok(/chefProtokoll\(req, "vorsorge-mail:freigabe"/.test(mailwerk) && /chefProtokoll\(req, "vorsorge-mail:anhalten"/.test(mailwerk), "wer freigibt oder anhält, steht im Protokoll");
   const vorschauFn = takt.slice(takt.indexOf("export async function vorsorgeVorschau("), takt.indexOf("export async function vorsorgePruefversand("));
   ok(vorschauFn.length > 100 && /mailRendern\(VORSORGE_EVENT/.test(vorschauFn) && !/mailDirektSenden|versendenUndProtokollieren|fetch\(/.test(vorschauFn), "die Vorschau rendert nur — kein Versandaufruf");
@@ -300,7 +316,7 @@ async function main() {
   ok(/^Sie haben ein kostenloses Gespräch zum Thema „Krankenzusatzversicherung“ gebucht/.test(kSelbst.text) && !/wie besprochen/.test(kSelbst.text) && /Kundenbereich ab/.test(kSelbst.text), "Kundenbestätigung: „Sie haben … gebucht“ und Absage im Kundenbereich");
   ok(/^wie besprochen haben wir für Sie ein kostenloses Gespräch/.test(kTel.text) && kTel.betreff === kSelbst.betreff, "am Telefon: „wie besprochen …“ wie bisher, derselbe Betreff");
   ok(KL.KOOP_INTERESSE.text.includes("selbstständigen Berater") && !KL.KOOP_INTERESSE.text.includes("unabhängig"), "Kundenbereich-Text: „selbstständigen Berater“ statt „unabhängigen“");
-  const codes = ["einwilligung", "thema", "art", "termin", "nicht_frei", "sperre", "exklusiv", "bestaetigen", "partner", "kandidat", "speichern", undefined];
+  const codes = ["einwilligung", "thema", "art", "termin", "nicht_frei", "sperre", "exklusiv", "termin_offen", "bestaetigen", "partner", "kandidat", "speichern", undefined];
   ok(codes.every((c) => { const t = S.vorsorgeFehlerText(c, ["wohnsitz_de"]); return !!t && !/\bder Kunde\b|Akte|Wunschmenge|Start-Rahmen|Vertriebssperre|Werbesperre/.test(t); }), "jeder Fehler hat einen Kundensatz — nie „der Kunde“, Wunschmenge oder Sperr-Interna");
   const seitenTexte = Object.values(S.VORSORGE_TEXTE).join("\n");
   const seitenWand = vorsorgeMailWand(seitenTexte);
@@ -314,8 +330,247 @@ async function main() {
   const oeffentlich = [lies("shared/fiaon-vorsorge.ts"), lies("server/lib/fiaon-vorsorge.ts"), lies("server/lib/fiaon-vorsorge-einladung.ts"), lies("server/mail/vorlagen/vorsorge.ts"), lies("client/src/pages/vorsorge.tsx"), lies("client/src/components/kunde/VorsorgeBuchung.tsx")].join("\n");
   ok(!/FIAON-IA-K[A-Z0-9]{6}|FIAON-[A-Z0-9]{8}-[A-Z0-9]{4}|Person \d{3,}/.test(oeffentlich), "öffentliches Repo: keine Vertrags-, Antrags- oder Personennummern in den neuen Dateien");
 
+  // ═════════════════════════════════════════════════════════════════════════
+  console.log("\n7 · Nachbesserung nach dem Gutachten (09.11.)");
+  // ═════════════════════════════════════════════════════════════════════════
+  // Mangel 1 — ein widerrufener Termin ist kein offener Termin; ein Widerruf wird genau einmal gemeldet (Verhalten: Teil B).
+  const kernQ2 = ohneKommentare(lies("server/lib/fiaon-koop-lieferung.ts"));
+  const vorsorgeQ = ohneKommentare(lies("server/lib/fiaon-vorsorge.ts"));
+  const offenerFn = kernQ2.slice(kernQ2.indexOf("export async function koopOffenerTermin("), kernQ2.indexOf("export async function koopExklusivBelegt("));
+  ok(offenerFn.length > 100 && /JOIN fiaon_koop_einwilligungen e ON e\.id = k\.einwilligung_id AND e\.widerrufen_am IS NULL/.test(offenerFn)
+    && /k\.status IN \('geplant', 'uebermittelt'\) AND k\.termin_beginn > NOW\(\)/.test(offenerFn), "offener Termin = geplant/übermittelt, künftig UND Einwilligung nicht widerrufen (eine Quelle)");
+  const standFn = vorsorgeQ.slice(vorsorgeQ.indexOf("async function standLesen("), vorsorgeQ.indexOf("function hinweisFuer("));
+  ok(/await koopOffenerTermin\(personId\)/.test(standFn) && !/fiaon_koop_kontakte/.test(standFn), "Seite und Karte lesen den Termin nur aus koopOffenerTermin");
+  const kundeLageFn = kernQ2.slice(kernQ2.indexOf("export async function koopKundeLage("), kernQ2.indexOf("function reklamationBis("));
+  ok(/await koopOffenerTermin\(personId\)/.test(kundeLageFn) && !/FROM fiaon_koop_kontakte/.test(kundeLageFn), "auch der Altweg der Karte (koopKundeLage) — derselbe offene Termin");
+  const widerrufFn = kernQ2.slice(kernQ2.indexOf("export async function koopWiderruf("), kernQ2.indexOf("export async function koopInteresseVermerken("));
+  ok(/einwilligung_id = ANY\(\$\{beendet\}::bigint\[\]\)/.test(widerrufFn) && /const offen = beendet\.length \?/.test(widerrufFn), "Widerruf meldet nur Partner, deren Einwilligung mit DIESEM Aufruf endet (nie ein zweites Mal)");
+  const absagenFn = vorsorgeQ.slice(vorsorgeQ.indexOf("export async function vorsorgeAbsagen("));
+  ok(/if \(await koopOffenerTermin\(personId\)\) \{\s*await koopWiderruf\(/.test(absagenFn), "„Termin nicht mehr gewünscht“ ohne offenen Termin tut nichts (keine zweite Partner-Mail, kein Akte-Eintrag)");
+  // Mangel 3 — je Kunde ein offener Termin, auch im Server.
+  const anlegenFn = kernQ2.slice(kernQ2.indexOf("export async function koopKontaktAnlegen("), kernQ2.indexOf("async function freitext("));
+  const iPerson = anlegenFn.indexOf("pg_advisory_xact_lock(${SPERRE_KLASSE_PERSON}, ${personId})");
+  const iPartner = anlegenFn.indexOf("pg_advisory_xact_lock(${SPERRE_KLASSE}, ${Number(z.id)})");
+  ok(iPerson > 0 && iPartner > iPerson && /if \(selbst\) \{[\s\S]{0,200}koopOffenerTermin\(personId, tx\)\) return \{ fehler: [^}]*code: "termin_offen" \}/.test(anlegenFn)
+    && /const SPERRE_KLASSE_PERSON = SPERRE_KLASSE \+ 2;/.test(kernQ2), "Kern: Selbstbuchung unter der Personen-Sperre (vor der Partner-Sperre) — ein zweiter offener Termin → „termin_offen“");
+  const buchenFn = vorsorgeQ.slice(vorsorgeQ.indexOf("export async function vorsorgeBuchen("), vorsorgeQ.indexOf("async function rueckrufAuftraegeSchliessen("));
+  ok(/\(await standLesen\(personId\)\)\.stand === "termin"[\s\S]{0,220}status: 409, error: vorsorgeFehlerText\("termin_offen"\), lage/.test(buchenFn)
+    && buchenFn.indexOf("standLesen(personId)") < buchenFn.indexOf("koopKontaktAnlegen("), "vorsorgeBuchen: offener Termin → 409 vor dem Kern, mit der Lage (der Kunde sieht seinen Termin)");
+  ok(S.vorsorgeFehlerText("termin_offen") === S.VORSORGE_TEXTE.terminOffen && /zuerst ab/.test(S.VORSORGE_TEXTE.terminOffen), "eigener Kundensatz für „termin_offen“");
+  // (ohneKommentare lässt von einem JSX-Kommentar „{}“ stehen)
+  const gebuchtAnsicht = buchung.slice(buchung.indexOf('data-vorsorge="gebucht"'), buchung.indexOf('data-vorsorge="buchung"'));
+  ok(/\{hinweis\("ende"\)\}\s*(\{\}\s*)?\{hinweis\("buchen"\)\}/.test(gebuchtAnsicht), "die gebuchte Ansicht zeigt auch den Satz einer abgelehnten zweiten Buchung");
+  // Mangel 2 — der Rückruf-Auftrag über DEN einen Weg.
+  const schliessFn = vorsorgeQ.slice(vorsorgeQ.indexOf("async function rueckrufAuftraegeSchliessen("), vorsorgeQ.indexOf("export async function vorsorgeKeinInteresse("));
+  ok(/auftragErledigen\(Number\(t\.id\), \{ art: "auto", von: "System", autorArt: "system", ereignis: "Kunde hat selbst gebucht"/.test(schliessFn) && !/UPDATE fiaon_betreiber_todos/.test(vorsorgeQ)
+    && /await rueckrufAuftraegeSchliessen\(personId, meta\.quelle\)/.test(buchenFn), "Rückruf-Auftrag schließt über auftragErledigen (Art „auto“, von „System“, Zeitleiste) — kein rohes UPDATE mehr");
+  // Mangel 4 — gemailt wird nur, wenn wirklich gebucht werden kann.
+  ok(!S.vorsorgePartnerBuchbar([]) && !S.vorsorgePartnerBuchbar([{ sperre: "Die Wunschmenge dieser Woche ist erreicht (5 von 5).", freieTermine: 12 }])
+    && !S.vorsorgePartnerBuchbar([{ sperre: null, freieTermine: 0 }]) && S.vorsorgePartnerBuchbar([{ sperre: "Die Übermittlung ruht.", freieTermine: 0 }, { sperre: null, freieTermine: 3 }]),
+  "buchbar = ein Partner ohne Sperre MIT freiem Termin (Wunschmenge, Start-Rahmen, Ruhen, keine Zeiten → nein)");
+  const einl = ohneKommentare(lies("server/lib/fiaon-vorsorge-einladung.ts"));
+  const sperreFn = einl.slice(einl.indexOf("export async function vorsorgeSperre("), einl.indexOf("export async function vorsorgeTuerSperre("));
+  const taktFn = einl.slice(einl.indexOf("export async function vorsorgeTakt("), einl.indexOf("export interface VorsorgeChefStand"));
+  const freigebenFn = einl.slice(einl.indexOf("export async function vorsorgeFreigeben("), einl.indexOf("export async function vorsorgeAnhalten("));
+  ok(/if \(!\(await partnerBuchbar\(\)\)\) return VORSORGE_KEIN_TERMIN/.test(sperreFn) && /if \(!\(await partnerBuchbar\(opts\.jetzt\)\)\) return leer\(/.test(taktFn)
+    && /if \(vorsorgePartnerBuchbar\(staende\)\) return true/.test(einl), "Tür und Takt: nur mit buchbarem Partner (dieselbe reine Regel)");
+  ok(/if \(nein === VORSORGE_KEIN_TERMIN\) \{[^}]*break; \}/.test(taktFn) && /v\.grund === VORSORGE_KEIN_TERMIN\) \{[^}]*break; \}/.test(taktFn)
+    && taktFn.indexOf("nein === VORSORGE_KEIN_TERMIN") < taktFn.indexOf("heuteNicht.set(f.personId, tag); zaehle(nein)"), "kein freier Termin mitten im Lauf: anhalten — niemand wird für heute übersprungen");
+  ok(/partnerAktiv\(\)/.test(freigebenFn) && !/partnerDa/.test(einl), "Freigeben braucht einen aktiven Partner (ohne freien Termin wartet der Takt)");
+  ok(/const buchbar = vorsorgePartnerBuchbar\(stand\.partner\)/.test(karte) && /Der Takt wartet/.test(karte), "Karte im Mailwerk: dieselbe Regel, „Der Takt wartet“");
+  // Mangel 5 — Prüfversand: Beispielname, nur die gespeicherte Testadresse.
+  const a1 = E.vorsorgePruefAdresse("", "test@pruefstand.test");
+  const a2 = E.vorsorgePruefAdresse("TEST@Pruefstand.test", "test@pruefstand.test");
+  const a3 = E.vorsorgePruefAdresse("fremd@example.com", "test@pruefstand.test");
+  const a4 = E.vorsorgePruefAdresse("test@pruefstand.test", "");
+  ok(a1.ok && a1.an === "test@pruefstand.test" && a2.ok && !a3.ok && !a4.ok, "Prüfversand nur an die gespeicherte Testadresse — eine fremde oder ungespeicherte wird abgelehnt", { a1, a2, a3, a4 });
+  const pn = await E.vorsorgePruefNutzlast("test@pruefstand.test");
+  ok(pn.email === "test@pruefstand.test" && pn.vorname === "Max" && pn.nachname === "Mustermann" && pn.test === true && !("person_id" in pn) && String(pn.link).includes("/vorsorge/v."),
+    "Prüfversand mit dem Beispielnamen Max Mustermann — nie ein Kunde, kein Kundenlink", pn);
+  const pruefFn = einl.slice(einl.indexOf("export async function vorsorgePruefversand("), einl.indexOf("export async function vorsorgeFreigeben("));
+  ok(/vorsorgePruefAdresse\(anRoh,/.test(pruefFn) && /vorsorgePruefNutzlast\(an\)/.test(pruefFn) && !/vorschauMensch/.test(pruefFn)
+    && /vorsorgePruefversand\(req\.body\?\.an\)/.test(mailwerk), "vorsorgePruefversand nutzt genau diese beiden (kein Kunde im Kreis, kein Kreis aus der Anfrage)");
+  // Mangel 6 — Rundgang
+  const rg = lies("client/src/pages/agent/rundgaenge.ts");
+  const rgAb = rg.indexOf("export const RUNDGANG_GLOBAL_AUFTRAEGE");
+  const rgGlobal = rg.slice(rgAb, rg.indexOf("export const", rgAb + 10));
+  ok(rgAb > 0 && /Bezeichnung auf der Kundenseite/.test(rgGlobal), "Rundgang Geschäftspartner: das Feld „Bezeichnung auf der Kundenseite“");
+  // Mangel 7 — Freigeben nur Inhaber
+  ok(/router\.post\("\/chef\/mailwerk\/vorsorge\/freigeben", requireChef\("inhaber"\)/.test(mailwerk) && /router\.post\("\/chef\/mailwerk\/vorsorge\/anhalten", requireChef\("geschaeftsfuehrung"\)/.test(mailwerk)
+    && /darfFreigeben: req\.chef\?\.stufe === "inhaber"/.test(mailwerk), "Freigeben nur Inhaber, Anhalten auch die Geschäftsführung; die Karte erfährt es (darfFreigeben)");
+  ok(/const darf = stand\.darfFreigeben === true/.test(karte) && /Freigeben kann nur Justin/.test(karte), "Karte: die Geschäftsführung sieht den Grund statt eines 403");
+  // Die Handlungen im Kundenbereich sind gedrosselt (eine Absage schickt dem Partner eine Mail).
+  ok(/vorsorgeKundeDrossel = fensterDrossel\(20, 10 \* 60_000\)/.test(koopRoute) && /if \(vorsorgeKundeDrossel\(`p\$\{p\.personId\}`\)\) return res\.status\(429\)/.test(koopRoute), "Kundenbereich: 20 Handlungen je Person in 10 Minuten");
+
   ok(brevo.length === 1 && brevo[0].an === "pruef@pruefstand.test", `Mails abgefangen: ${brevo.length} (nur der Prüfversand an die Prüfadresse, keine ging raus)`);
-  console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (Teil A, rein)`);
+  if (!TEIL_B) {
+    console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (Teil A, rein — Teil B nur gegen den lokalen Prüfstand)`);
+    process.exit(schlecht ? 1 : 0);
+  }
+  await teilB(V, E, L, S);
+  console.log(`\n${schlecht ? "✗" : "✓"} ${gut}/${gut + schlecht} Prüfungen bestanden (Teil A und B)`);
   process.exit(schlecht ? 1 : 0);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEIL B — gegen den lokalen Prüfstand (Gutachten 09.11., Mangel 8): der Weg mit Datenbank, mit erfundenen Menschen
+// ═══════════════════════════════════════════════════════════════════════════
+async function teilB(
+  V: typeof import("../server/lib/fiaon-vorsorge"), E: typeof import("../server/lib/fiaon-vorsorge-einladung"),
+  L: typeof import("../server/lib/fiaon-koop-lieferung"), S: typeof import("../shared/fiaon-vorsorge"),
+): Promise<void> {
+  console.log("\nTeil B — gegen den lokalen Prüfstand");
+  const { sqlPool } = await import("../server/lib/db-pool");
+  const A = await import("../server/lib/fiaon-global-angebot");
+  const K = await import("../server/lib/fiaon-global-angebot-koop");
+  const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  await A.ensureAngebotTabellen();
+  await L.ensureKoopTabellen();
+  await V.ensureVorsorgeTabellen();
+  // Merkmale je Lauf einmalig (AGENTS.md): Zeitstempel in Name, Adresse und Nummer.
+  const stempel = Date.now().toString(36);
+  const ids: number[] = [];
+  let angebotId = 0;
+  const schalterKeys = [S.VORSORGE_SCHALTER.an, S.VORSORGE_SCHALTER.kreis, S.VORSORGE_SCHALTER.freigabe];
+  const altSchalter = (await sqlPool`SELECT key, value FROM fiaon_settings WHERE key = ANY(${schalterKeys})`) as any[];
+  const setzeAn = (wert: "0" | "1") => sqlPool`
+    INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${S.VORSORGE_SCHALTER.an}, ${wert}, NOW())
+    ON CONFLICT (key) DO UPDATE SET value = ${wert}, updated_at = NOW()`;
+  const adresse = (vor: string) => `${vor.toLowerCase()}.${stempel}@pruefstand.test`;
+  const partnerMail = adresse("paul");
+  const partnerMails = () => brevo.filter((m) => m.an === partnerMail);
+  try {
+    console.log("\n  Menschen, Paket, Vertrag");
+    const person = async (vor: string, nach: string) => {
+      const [p] = (await sqlPool`
+        INSERT INTO fiaon_persons (person_ref, first_name, last_name, primary_email, primary_phone, country, birthdate, is_blocked, werbung_gesperrt_am, created_at, updated_at)
+        VALUES (${`PRUEF-${stempel}-${vor}`.toUpperCase()}, ${vor}, ${nach}, ${adresse(vor)}, ${"+49176" + String(Date.now()).slice(-7) + String(ids.length)},
+                'DE', '1985-04-02', FALSE, NULL, NOW(), NOW())
+        RETURNING id`) as any[];
+      ids.push(Number(p.id));
+      return Number(p.id);
+    };
+    const paket = async (personId: number, vor: string) => {
+      await sqlPool`
+        INSERT INTO fiaon_applications (ref, type, status, current_step, pack_key, payment_status, person_id, first_name, last_name, email, country,
+                                        created_at, updated_at, paid_at, payment_reference)
+        VALUES (${`FIAON-PRUEFV-${stempel}-${personId}`.toUpperCase()}, 'private', 'submitted', 8, 'pro', 'paid', ${personId}, ${vor}, 'Prüfstand', ${adresse(vor)}, 'DE',
+                NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days', NOW() - INTERVAL '29 days', ${`PV${stempel}${personId}`.toUpperCase()})`;
+    };
+    const partnerId = await person("Paul", "Partner");
+    const kunde = await person("Klara", "Kundin");
+    const kunde2 = await person("Karl", "Zweiter");
+    await paket(kunde, "Klara");
+    await paket(kunde2, "Karl");
+    const anlage = await K.koopAnlegen({
+      personId: partnerId,
+      partner: { anrede: "Herr", vorname: "Paul", nachname: "Partner", firma: "", strasse: "Teststraße 1", plz: "10115", ort: "Berlin", land: "DE", email: partnerMail, telefon: "+49 30 1234567" },
+      parameter: { startDeckel: 5 },
+    }, "Prüfstand Vorsorge");
+    ok(anlage.ok, `Vorsorge-Vertrag angelegt${anlage.ok ? "" : ` — ${anlage.error}`}`);
+    if (!anlage.ok) return;
+    angebotId = anlage.id;
+    // Angenommen (2 Kontakte je Woche) — die Annahme selbst prüft pruef-koop-lieferung; hier zählt der angenommene Vertrag.
+    await sqlPool`UPDATE fiaon_global_angebote SET status = 'angenommen', angenommen_am = NOW(), schalter = ${sqlPool.json({ wunschWoche: 2, unternehmer: true, gelesen: true } as any)}, updated_at = NOW() WHERE id = ${angebotId}`;
+    const z0 = await A.angebotLesen({ id: angebotId });
+    const zs = z0 ? await L.koopZeitenSetzen(z0, { tage: [1, 2, 3, 4, 5], von: "09:00", bis: "17:00", dauerMin: 60, arten: ["telefon", "video"] }, "Prüfstand") : null;
+    ok(!!zs?.ok && K.koopDatenAus(z0!).parameter.bereich === "vorsorge", "Partner im Bereich Vorsorge mit freigegebenen Zeiten");
+
+    console.log("\n  Buchen über den persönlichen Link");
+    const meta = { quelle: "link" as const, ip: "84.1.2.3", userAgent: "Prüfstand (Mozilla/5.0)" };
+    await L.koopInteresseVermerken(kunde, { ja: true, kanal: "kundenbereich", von: "Klara Kundin (Kundenbereich)", ip: "84.1.2.3", userAgent: "Prüfstand" });
+    const [auftragVorher] = (await sqlPool`SELECT status FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`koop:interesse:${kunde}:%`} ORDER BY id DESC LIMIT 1`) as any[];
+    ok(auftragVorher && auftragVorher.status !== "erledigt", "vorher: Rückruf-Auftrag „Kunde wünscht ein Gespräch“ offen");
+    const l0 = await V.vorsorgeLage(kunde, { kontext: "seite" });
+    const p = l0.partner.find((x) => x.angebotId === angebotId);
+    ok(l0.zeigen && l0.buchbar && !!p && p.termine.length > 3 && l0.stand === "gewuenscht", `Seite zeigt den Partner mit ${p?.termine.length ?? 0} freien Terminen`, { stand: l0.stand, hinweis: l0.hinweis });
+    const art = p?.arten[0]?.key ?? "telefon";
+    const r1 = await V.vorsorgeBuchen(kunde, { angebotId, thema: p?.themen[0], termin: p?.termine[0]?.iso, art, einwilligung: true, bestaetigt: [] }, meta);
+    await warte(1500); // die Bestätigung an die Kundin läuft nebenher
+    ok(r1.ok && r1.lage.stand === "termin", "gebucht — die Seite zeigt den Termin", r1.ok ? "" : r1.error);
+    ok(partnerMails().length === 1 && /^Neuer Termin:/.test(partnerMails()[0]?.betreff ?? ""), "der Partner bekommt genau eine Mail (neuer Termin)", partnerMails().map((m) => m.betreff));
+    ok(brevo.some((m) => m.an === adresse("klara") && /Gesprächstermin/.test(m.betreff)), "die Kundin bekommt ihre Bestätigung");
+    const [auftrag] = (await sqlPool`
+      SELECT id, status, erledigt_art, erledigt_von, erledigt_ereignis FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`koop:interesse:${kunde}:%`} ORDER BY id DESC LIMIT 1`) as any[];
+    ok(auftrag?.status === "erledigt" && auftrag.erledigt_art === "auto" && auftrag.erledigt_von === "System" && auftrag.erledigt_ereignis === "Kunde hat selbst gebucht",
+      "Rückruf-Auftrag geschlossen: Art „auto“, von „System“ (nicht als Menschenarbeit gezählt)", auftrag);
+    const [beitrag] = (await sqlPool`SELECT text FROM fiaon_betreiber_todo_beitraege WHERE todo_id = ${Number(auftrag?.id ?? 0)} ORDER BY id DESC LIMIT 1`) as any[];
+    ok(/selbst gebucht/.test(String(beitrag?.text ?? "")), "… mit Eintrag in der Zeitleiste", beitrag);
+
+    console.log("\n  Kein zweiter offener Termin");
+    const r2 = await V.vorsorgeBuchen(kunde, { angebotId, thema: p?.themen[1], termin: p?.termine[1]?.iso, art, einwilligung: true, bestaetigt: [] }, meta);
+    ok(!r2.ok && r2.status === 409 && r2.error === S.VORSORGE_TEXTE.terminOffen && r2.lage?.stand === "termin", "zweite Buchung (zweiter Tab, Link): 409 mit Kundensatz und der Lage", r2);
+    const k2 = await L.koopKontaktAnlegen(kunde, {
+      angebotId, thema: String(p?.themen[1] ?? ""), termin: String(p?.termine[1]?.iso ?? ""), art, einwilligung: true, kanal: "kundenbereich", quelle: "link", ip: "84.1.2.3", userAgent: "Prüfstand",
+    }, { name: "Prüfstand", agentId: null });
+    ok(!k2.ok && k2.status === 409 && k2.code === "termin_offen", "auch der Kern lehnt ab (Personen-Sperre, „termin_offen“)", k2);
+    ok(partnerMails().length === 1, "… und der Partner bekommt keine zweite Mail");
+
+    console.log("\n  Absagen");
+    const l2 = await V.vorsorgeAbsagen(kunde, "Klara Kundin", meta);
+    ok(l2.stand !== "termin" && l2.termin === null, `nach „Termin nicht mehr gewünscht“: kein „Ihr Termin ist gebucht“ mehr (Stand ${l2.stand})`);
+    ok(partnerMails().length === 2 && /^Widerruf:/.test(partnerMails()[1]?.betreff ?? ""), "der Partner erfährt den Widerruf — genau eine Mail", partnerMails().map((m) => m.betreff));
+    ok(l2.buchbar, "eine neue Buchung ist sofort möglich (nicht erst nach dem alten Termin)", { hinweis: l2.hinweis });
+    const l3 = await V.vorsorgeAbsagen(kunde, "Klara Kundin", meta);
+    ok(l3.stand !== "termin" && partnerMails().length === 2, "zweiter Klick: nichts — keine zweite Widerruf-Mail");
+    const w2 = await L.koopWiderruf(kunde, { name: "Prüfstand", kanal: "telefon" });
+    ok(w2.partnerInformiert === 0 && partnerMails().length === 2, "auch ein Widerruf in der Akte meldet ihn nicht noch einmal", w2);
+    ok((await L.koopKundeLage(kunde)).stand !== "termin", "Altweg der Karte (koopKundeLage): kein Termin mehr");
+
+    console.log("\n  Neu buchen, dann „Kein Gespräch gewünscht“");
+    const p2 = l2.partner.find((x) => x.angebotId === angebotId);
+    const r3 = await V.vorsorgeBuchen(kunde, { angebotId, thema: p?.themen[1], termin: p2?.termine[0]?.iso, art, einwilligung: true, bestaetigt: [] }, meta);
+    await warte(1500);
+    ok(r3.ok && r3.lage.stand === "termin" && partnerMails().length === 3, "neu gebucht (anderes Thema) — der abgesagte Termin hält nichts mehr auf", r3.ok ? "" : r3.error);
+    const lk = await V.vorsorgeKeinInteresse(kunde, "Klara Kundin", meta);
+    ok(lk.stand === "abgelehnt" && partnerMails().length === 4 && /^Widerruf:/.test(partnerMails()[3]?.betreff ?? ""),
+      "„Kein Gespräch gewünscht“ mit Termin: abgesagt (eine Widerruf-Mail — nur für den neuen Termin), danach „abgelehnt“", partnerMails().map((m) => m.betreff));
+    const lk2 = await V.vorsorgeKeinInteresse(kunde, "Klara Kundin", meta);
+    ok(lk2.stand === "abgelehnt" && partnerMails().length === 4, "… ein zweites Mal: keine weitere Mail");
+
+    console.log("\n  Takt und Tür ohne Freigabe");
+    await setzeAn("0");
+    const vorTakt = brevo.length;
+    const t0 = await E.vorsorgeTakt({ nurPersonen: [kunde2] });
+    ok(t0.mails === 0 && /nicht freigegeben/.test(String(t0.grund)) && brevo.length === vorTakt, "Takt ohne Freigabe: nichts", t0);
+    const { sendMakeWebhookMitGrund } = await import("../server/make-webhook");
+    const tuer0 = await sendMakeWebhookMitGrund("vorsorge_ueberblick", {
+      email: adresse("karl"), person_id: kunde2, vorname: "Karl", nachname: "Zweiter", link: "https://fiaon.com/vorsorge/pruef", abmelde_url: "https://fiaon.com/api/fiaon/abmelden/pruef",
+    });
+    ok(!tuer0.ok && /nicht freigegeben/.test(String(tuer0.grund)) && brevo.length === vorTakt, "Tür (test: false) ohne Freigabe: geschlossen, keine Mail", tuer0);
+    await setzeAn("1");
+    const s1 = await E.vorsorgeTuerSperre(kunde2);
+    ok(!/nicht freigegeben/.test(String(s1)), `mit Freigabe prüft die Tür den Menschen (${s1 ?? "darf"})`);
+  } catch (e) {
+    ok(false, "Teil B brach ab", String((e as Error)?.stack ?? e).slice(0, 600));
+  } finally {
+    // Schalter zurück, nur eigene Zeilen weg.
+    try {
+      await sqlPool`DELETE FROM fiaon_settings WHERE key = ANY(${schalterKeys})`;
+      for (const z of altSchalter) {
+        await sqlPool`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${String(z.key)}, ${z.value}, NOW())
+                      ON CONFLICT (key) DO UPDATE SET value = ${z.value}, updated_at = NOW()`;
+      }
+      if (ids.length) {
+        await warte(1000);
+        await sqlPool`DELETE FROM fiaon_koop_kontakte WHERE person_id = ANY(${ids}::int[])`;
+        await sqlPool`DELETE FROM fiaon_koop_einwilligungen WHERE person_id = ANY(${ids}::int[])`;
+        if (angebotId) {
+          await sqlPool`DELETE FROM fiaon_koop_kontakte WHERE angebot_id = ${angebotId}`;
+          await sqlPool`DELETE FROM fiaon_koop_rechnungen WHERE angebot_id = ${angebotId}`;
+          await sqlPool`DELETE FROM fiaon_global_angebote WHERE id = ${angebotId}`;
+        }
+        await sqlPool`DELETE FROM fiaon_vorsorge_ueberblick WHERE person_id = ANY(${ids}::int[])`;
+        await sqlPool`DELETE FROM fiaon_betreiber_todos WHERE person_id = ANY(${ids}::int[])`;
+        await sqlPool`DELETE FROM fiaon_contact_log WHERE person_id = ANY(${ids}::int[])`;
+        await sqlPool`DELETE FROM fiaon_mail_log WHERE person_id = ANY(${ids}::int[]) OR empfaenger LIKE ${`%.${stempel}@pruefstand.test`}`;
+        await sqlPool`DELETE FROM fiaon_applications WHERE person_id = ANY(${ids}::int[])`;
+        await sqlPool`DELETE FROM fiaon_persons WHERE id = ANY(${ids}::int[])`;
+      }
+      console.log("  (aufgeräumt: nur die Zeilen dieses Laufs, Schalter wie vorher)");
+    } catch (e) {
+      ok(false, "Aufräumen im Prüfstand", String((e as Error)?.message ?? e).slice(0, 300));
+    }
+  }
 }
 main().catch((e) => { console.error(e); process.exit(2); });

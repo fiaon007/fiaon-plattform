@@ -53,6 +53,11 @@ function json<T>(v: unknown, leer: T): T {
 }
 /** Sperrschlüssel je Partner: zwei Mitarbeiter können den letzten freien Platz nie gleichzeitig vergeben. */
 const SPERRE_KLASSE = 7385;
+/**
+ * E-487 Nachbesserung (09.11.2026): Sperrschlüssel je PERSON für die Selbstbuchung (SPERRE_KLASSE + 1 hält die Monatsrechnung).
+ * Immer VOR der Partner-Sperre genommen — dieselbe Reihenfolge überall, nie ein Verklemmen.
+ */
+const SPERRE_KLASSE_PERSON = SPERRE_KLASSE + 2;
 
 /** Eintrag im Verlauf der Akte. fiaon_contact_log verlangt eine Bestellzeile (ref) — die jüngste der Person; ohne Bestellzeile kein Eintrag. */
 async function verlauf(personId: number, notiz: string, wer: { name: string; agentId?: number | null }): Promise<void> {
@@ -302,6 +307,26 @@ export async function koopKandidat(personId: number, l: Lauf = sqlPool, jetzt = 
   return { personId, vorname: text(p.first_name, 80), nachname: text(p.last_name, 80), telefon, email, anschrift, sperren, sperrCodes, bestaetigen, hinweise };
 }
 
+/**
+ * E-487 Nachbesserung (09.11.2026, Gutachten): DER offene Termin einer Person — geplant oder übermittelt, in der Zukunft, und
+ * die Einwilligung dazu ist NICHT widerrufen. Vorher zählte ein übermittelter Termin auch nach dem Widerruf weiter (ein Widerruf
+ * storniert nur „geplant“): Seite und Karte zeigten „Ihr Termin ist gebucht“ unter „Erledigt — der Termin ist abgesagt“, jeder
+ * weitere Klick schickte dem Partner eine neue Widerruf-Mail, und eine neue Buchung blieb bis zum alten Termin gesperrt.
+ * Eine Quelle für die Karte (koopKundeLage), die Seite (fiaon-vorsorge.ts) und die Sperre der Selbstbuchung (koopKontaktAnlegen).
+ */
+export interface KoopOffenerTermin { id: number; termin_beginn: Date; termin_art: string; thema: string; partner: unknown }
+export async function koopOffenerTermin(personId: number, l: Lauf = sqlPool): Promise<KoopOffenerTermin | null> {
+  const [t] = (await l`
+    SELECT k.id, k.termin_beginn, k.termin_art, k.thema, g.kunde AS partner
+      FROM fiaon_koop_kontakte k
+      JOIN fiaon_koop_einwilligungen e ON e.id = k.einwilligung_id AND e.widerrufen_am IS NULL
+      JOIN fiaon_global_angebote g ON g.id = k.angebot_id
+     WHERE k.person_id = ${personId} AND k.status IN ('geplant', 'uebermittelt') AND k.termin_beginn > NOW()
+     ORDER BY k.termin_beginn LIMIT 1`) as any[];
+  if (!t) return null;
+  return { id: Number(t.id), termin_beginn: new Date(t.termin_beginn), termin_art: String(t.termin_art ?? ""), thema: String(t.thema ?? ""), partner: t.partner };
+}
+
 /** Exklusivität (Ziffer 3): derselbe Interessent zum selben Thema — an keinen Partner, solange die Frist läuft. */
 export async function koopExklusivBelegt(personId: number, thema: string, monate: number, l: Lauf = sqlPool): Promise<{ am: string; bis: string } | null> {
   return exklusivBelegt(personId, thema, monate, l);
@@ -441,6 +466,14 @@ export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEinga
   let ergebnis: { id: number; ersatz: boolean } | { fehler: string; status: number; code: string };
   try {
     ergebnis = await sqlPool.begin(async (tx: any) => {
+      // E-487 Nachbesserung (09.11.2026, Gutachten): Selbstbuchung — je Person höchstens EIN offener Termin, wie die Seite es
+      // zeigt. Vorher galt das nur im Browser: Ein zweiter Tab oder ein direkter Aufruf des Links buchte je Thema einen weiteren
+      // Kontakt (jeder kostet den Partner und schickt zwei Mails). Unter der Personen-Sperre, die VOR der Partner-Sperre kommt.
+      // Der Telefon-Weg bleibt, wie er ist (dort hält der Mitarbeiter mehrere Themen in einem Gespräch fest).
+      if (selbst) {
+        await tx`SELECT pg_advisory_xact_lock(${SPERRE_KLASSE_PERSON}, ${personId})`;
+        if (await koopOffenerTermin(personId, tx)) return { fehler: "Es gibt schon einen offenen Termin — erst absagen, dann neu buchen.", status: 409, code: "termin_offen" };
+      }
       await tx`SELECT pg_advisory_xact_lock(${SPERRE_KLASSE}, ${Number(z.id)})`;
       const stand = await koopLieferStand(z, tx, jetzt);
       if (stand.sperre) return { fehler: stand.sperre, status: 409, code: "sperre" };
@@ -619,12 +652,17 @@ export async function koopWiderruf(personId: number, wer: { name: string; kanal:
   const st = (await sqlPool`
     UPDATE fiaon_koop_kontakte SET status = 'storniert', storniert_am = NOW(), storniert_grund = 'Einwilligung widerrufen'
      WHERE person_id = ${personId} AND status = 'geplant' RETURNING id`) as any[];
-  // Ziffer 8: Die andere Partei erfährt den Widerruf binnen drei Werktagen — wir sagen es sofort, für jeden Partner, der
-  // den Kunden in den letzten sechs Monaten bekommen hat.
-  const offen = (await sqlPool`
+  // Ziffer 8: Die andere Partei erfährt den Widerruf binnen drei Werktagen — wir sagen es sofort, jedem Partner, der den
+  // Kunden in den letzten sechs Monaten bekommen hat und dessen Einwilligung mit DIESEM Aufruf endet.
+  // E-487 Nachbesserung (09.11.2026, Gutachten): Vorher bekam jeder Partner der letzten sechs Monate bei JEDEM Aufruf eine neue
+  // Widerruf-Mail — auch wenn die Einwilligung längst beendet war (zweiter Klick auf „Termin nicht mehr gewünscht“, Widerruf
+  // nach „kein Kontakt mehr“ des Partners). Ein Widerruf wird jetzt genau einmal gemeldet.
+  const beendet = w.map((r) => Number(r.id)).filter((n) => Number.isInteger(n) && n > 0);
+  const offen = beendet.length ? (await sqlPool`
     SELECT DISTINCT ON (angebot_id) id, angebot_id, vorname, nachname, thema, termin_beginn FROM fiaon_koop_kontakte
-     WHERE person_id = ${personId} AND status IN ('uebermittelt', 'reklamiert') AND uebermittelt_am > NOW() - INTERVAL '6 months'
-     ORDER BY angebot_id, uebermittelt_am DESC`) as any[];
+     WHERE person_id = ${personId} AND einwilligung_id = ANY(${beendet}::bigint[]) AND status IN ('uebermittelt', 'reklamiert')
+       AND uebermittelt_am > NOW() - INTERVAL '6 months'
+     ORDER BY angebot_id, uebermittelt_am DESC`) as any[] : [];
   let informiert = 0;
   for (const k of offen) {
     const z = await angebotLesen({ id: Number(k.angebot_id) });
@@ -673,8 +711,9 @@ export async function koopKundeLage(personId: number): Promise<{ zeigen: boolean
   if (!(await koopPartnerAlle()).length) return leer;
   const k = await koopKandidat(personId);
   if (!k || k.sperren.length) return leer;
-  const [t] = (await sqlPool`SELECT termin_beginn FROM fiaon_koop_kontakte WHERE person_id = ${personId} AND status IN ('geplant', 'uebermittelt') AND termin_beginn > NOW() ORDER BY termin_beginn LIMIT 1`) as any[];
-  if (t) return { zeigen: true, stand: "termin", termin: formatBerlin(new Date(t.termin_beginn)), texte: KOOP_INTERESSE };
+  // E-487 Nachbesserung (09.11.2026): ein widerrufener Termin ist kein offener Termin mehr (koopOffenerTermin).
+  const t = await koopOffenerTermin(personId);
+  if (t) return { zeigen: true, stand: "termin", termin: formatBerlin(t.termin_beginn), texte: KOOP_INTERESSE };
   const [e] = (await sqlPool`SELECT art, widerrufen_am FROM fiaon_koop_einwilligungen WHERE person_id = ${personId} AND art IN ('interesse', 'abgelehnt') ORDER BY erteilt_am DESC LIMIT 1`) as any[];
   if (e?.art === "abgelehnt") return { zeigen: false, stand: "abgelehnt", texte: KOOP_INTERESSE };
   if (e?.art === "interesse" && !e.widerrufen_am) return { zeigen: true, stand: "gewuenscht", texte: KOOP_INTERESSE };

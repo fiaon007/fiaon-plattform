@@ -130,6 +130,8 @@ export const VORSORGE_TEXTE = {
   keinInteresse: "Kein Gespräch gewünscht",
   keinInteresseDanke: "In Ordnung — wir fragen nicht mehr danach. Ihr Vorsorge-Überblick bleibt gespeichert.",
   voll: "Gerade sind alle Gesprächsplätze vergeben. Bitte schauen Sie in ein paar Tagen wieder vorbei — Ihr Überblick bleibt gespeichert.",
+  // E-487 Nachbesserung (09.11.2026): Je Kunde ein offener Termin — auch der Server lehnt einen zweiten ab (Tab, Link).
+  terminOffen: "Sie haben schon einen Gesprächstermin gebucht. Für einen neuen Termin sagen Sie den bisherigen bitte zuerst ab.",
   keinPartner: "Gerade ist kein Gespräch buchbar. Ihr Überblick bleibt gespeichert.",
   nichtMoeglich: "Ein Gespräch über FIAON ist für Ihr Konto gerade nicht möglich. Bei Fragen erreichen Sie uns unter support@fiaon.com.",
   nurDeutschland: "Gespräche mit unseren Partnern gibt es derzeit nur bei Wohnsitz in Deutschland.",
@@ -150,11 +152,22 @@ export function vorsorgeFehlerText(code: string | undefined, bestaetigen: readon
     case "termin": case "nicht_frei": return "Dieser Termin ist gerade vergeben worden. Bitte wählen Sie einen anderen.";
     case "sperre": return VORSORGE_TEXTE.voll;
     case "exklusiv": return "Zu diesem Thema haben Sie schon ein Gespräch gebucht.";
+    case "termin_offen": return VORSORGE_TEXTE.terminOffen;
     case "bestaetigen": return bestaetigen.includes("wohnsitz_de") ? "Bitte bestätigen Sie noch, dass Sie in Deutschland wohnen." : "Bitte bestätigen Sie noch, dass Sie volljährig sind.";
     case "partner": return "Dieses Gespräch ist gerade nicht buchbar. Bitte laden Sie die Seite neu.";
     case "kandidat": return VORSORGE_TEXTE.nichtMoeglich;
     default: return VORSORGE_TEXTE.fehler;
   }
+}
+
+/**
+ * E-487 Nachbesserung (09.11.2026, Gutachten): Ist gerade WIRKLICH ein Gespräch buchbar? Mindestens ein aktiver Vorsorge-Partner
+ * ohne Sperre (keine Zeiten, Wunschmenge der Woche, Start-Rahmen, Ruhen) und mit mindestens einem freien Termin. Vorher reichte
+ * „ein aktiver Partner“ — dann gingen Mails raus, deren Empfänger nur „alle Gesprächsplätze vergeben“ lasen. Eine Regel für
+ * Takt und Tür (server/lib/fiaon-vorsorge-einladung.ts) und die Karte im Mailwerk.
+ */
+export function vorsorgePartnerBuchbar(partner: readonly { sperre: string | null; freieTermine: number }[]): boolean {
+  return partner.some((p) => !p.sperre && p.freieTermine > 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -5,6 +5,32 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 09.11.2026 — E-487 Nachbesserung (Gutachten): Vorsorge-Überblick — Absage hält, ein Termin je Kunde, Mail nur mit freiem Termin, Freigeben nur Justin
+
+- **Warum:** Ein Gutachter hat den Vorsorge-Überblick geprüft: 8 Befunde, einer mittel (die Absage hielt nicht), sieben klein.
+  Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **„Termin nicht mehr gewünscht“ hält:** Danach steht nicht mehr „Ihr Termin ist gebucht“ auf Seite und Karte, ein zweiter
+    Klick schickt dem Partner keine zweite Widerruf-Mail, und der Kunde kann sofort neu buchen. Auch ein Widerruf in der Akte
+    meldet jedem Partner nur das, was gerade endet — nie zweimal.
+  - **Ein offener Termin je Kunde — jetzt auch im Server:** Ein zweiter Tab oder ein direkter Aufruf des Links bucht keinen
+    zweiten Termin mehr (der Kunde liest „Sie haben schon einen Gesprächstermin gebucht …“).
+  - **Rückruf-Auftrag:** „Kunde wünscht ein Gespräch“ schließt sich nach der Selbstbuchung über den normalen Weg — zählt als
+    Automatik (nicht als Arbeit eines Mitarbeiters) und steht in der Zeitleiste.
+  - **Maras Mail nur mit freiem Termin:** Ist beim Vorsorge-Partner gerade nichts frei (Wochenmenge erreicht, keine Zeiten,
+    Start-Rahmen, Ruhen), wartet der Takt von selbst — die Karte im Mailwerk sagt es.
+  - **Prüfversand:** nur an die gespeicherte Testadresse und immer mit dem Beispielnamen Max Mustermann (vorher: Name des
+    nächsten Kunden, an jede Adresse).
+  - **„Freigeben“ kann nur Justin (Inhaber).** „Anhalten“ darf weiter auch die Geschäftsführung; die Karte zeigt den Grund.
+  - **Kundenbereich:** die Handlungen der Karte sind gedrosselt (20 in 10 Minuten je Kunde).
+  - **Rundgänge:** Geschäftspartner (Feld „Bezeichnung auf der Kundenseite“) und Mailwerk mitgezogen.
+  - **Prüfstand:** `scripts/pruef-vorsorge.ts` mit neuem Teil B gegen die lokale Prüf-Datenbank (buchen → absagen → Lage,
+    Zahl der Partner-Mails, zweite Buchung, Takt und Tür ohne Freigabe).
+- **Wo:** server/lib/fiaon-koop-lieferung.ts (koopOffenerTermin, Personen-Sperre, Widerruf), server/lib/fiaon-vorsorge.ts,
+  server/lib/fiaon-vorsorge-einladung.ts, server/routes/fiaon-mailwerk.ts, server/routes/fiaon-koop.ts, shared/fiaon-vorsorge.ts,
+  client/src/components/admin/MailwerkVorsorge.tsx, client/src/components/kunde/VorsorgeBuchung.tsx,
+  client/src/pages/agent/rundgaenge.ts, scripts/pruef-vorsorge.ts.
+
 ## 09.11.2026 — E-487: „Ihr Vorsorge-Überblick“ — Kunden buchen das Partner-Gespräch selbst, Mara lädt ein (erst nach Justins Knopf)
 
 - **Warum:** Justin (09.11.): Alle Privatkunden sollen per E-Mail gefragt werden, ob sie sich passend absichern möchten, und

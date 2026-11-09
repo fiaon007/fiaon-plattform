@@ -5,13 +5,16 @@
 // passiert (AGENTS.md: „Ein Massenversand braucht die Grenze VOR dem Klick“): Empfänger je Kreis, wer als Nächstes dran ist,
 // Staffel (höchstens 60 am Tag, 09–19 Uhr, je Mensch eine Mail), der aktive Partner mit freien Terminen. Dann:
 //   · Vorschau — die echte Mail des Nächsten im Kreis, gerendert vom Motor; sendet NIE.
-//   · Prüfversand — dieselbe Mail an die Testadresse des Mailwerks (Knopf und Abmeldelink führen auf die Vorschau-Seite).
-//   · EIN Knopf „Freigeben“ (Schalter an + Kreis in einer Buchung) und „Anhalten“ (ab sofort nichts mehr).
-// Ohne aktiven Vorsorge-Partner oder ohne offenen Empfänger ist „Freigeben“ gesperrt — mit sichtbarem Grund.
+//   · Prüfversand — dieselbe Mail mit dem Beispielnamen „Max Mustermann“, NUR an die gespeicherte Testadresse des Mailwerks
+//     (Knopf und Abmeldelink führen auf die Vorschau-Seite). Gutachten 09.11.: vorher mit dem Namen des nächsten Kunden.
+//   · EIN Knopf „Freigeben“ (Schalter an + Kreis in einer Buchung) — nur Justin (Stufe Inhaber, darfFreigeben) — und
+//     „Anhalten“ (ab sofort nichts mehr; darf auch die Geschäftsführung).
+// Ohne aktiven Vorsorge-Partner oder ohne offenen Empfänger ist „Freigeben“ gesperrt — mit sichtbarem Grund. Ist beim Partner
+// gerade kein Termin frei (vorsorgePartnerBuchbar), sagt die Karte, dass der Takt wartet.
 // Keine eigene Chef-Seite: eine Karte im bestehenden Raum Mailwerk. Rundgang: RUNDGANG_MAILWERK (pages/agent/rundgaenge.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
-import { VORSORGE_KREISE, VORSORGE_KREIS_TEXT, type VorsorgeKreis } from "@shared/fiaon-vorsorge";
+import { VORSORGE_KREISE, VORSORGE_KREIS_TEXT, vorsorgePartnerBuchbar, type VorsorgeKreis } from "@shared/fiaon-vorsorge";
 import "@/styles/mailwerk-vorsorge.css";
 
 interface Freigabe { am: string; von: string; kreis: VorsorgeKreis; angehaltenAm: string | null; angehaltenVon: string | null }
@@ -27,6 +30,8 @@ interface Stand {
   naechste: Record<VorsorgeKreis, { name: string; mail: string }[]>;
   trichter: { versandt: number; geoeffnet: number; ueberblick: number; gebucht: number };
   protokoll: { zeit: string; text: string; wer: string }[];
+  /** Gutachten 09.11.: nur der Inhaber gibt frei. */
+  darfFreigeben?: boolean;
 }
 
 const wann = (iso: string | null | undefined) => (iso
@@ -66,9 +71,17 @@ export default function MailwerkVorsorge({ testAdresse }: { testAdresse: string 
   const zahlen = stand.kreise[kreis];
   const titel = VORSORGE_KREIS_TEXT[kreis].titel;
   const partnerDa = stand.partner.length > 0;
-  const gesperrtGrund = !partnerDa
-    ? "Freigeben ist gesperrt: Es gibt keinen aktiven Vorsorge-Partner — die Seite hätte nichts zu buchen."
-    : zahlen.offen === 0 ? `Freigeben ist gesperrt: Im Kreis „${titel}“ wartet niemand mehr auf die Mail.` : null;
+  // Gutachten 09.11.: dieselbe Regel wie Takt und Tür — ein Partner ohne Sperre mit freiem Termin.
+  const buchbar = vorsorgePartnerBuchbar(stand.partner);
+  const darf = stand.darfFreigeben === true;
+  const gesperrtGrund = !darf
+    ? "Freigeben kann nur Justin (Inhaber). Vorschau, Prüfversand und Anhalten gehen auch für dich."
+    : !partnerDa
+      ? "Freigeben ist gesperrt: Es gibt keinen aktiven Vorsorge-Partner — die Seite hätte nichts zu buchen."
+      : zahlen.offen === 0 ? `Freigeben ist gesperrt: Im Kreis „${titel}“ wartet niemand mehr auf die Mail.` : null;
+  const wartetGrund = !partnerDa || buchbar ? null : e.an
+    ? "Der Takt wartet: Gerade ist bei keinem Vorsorge-Partner ein Termin frei. Sobald wieder Termine frei sind, geht es von selbst weiter."
+    : "Gerade ist bei keinem Vorsorge-Partner ein Termin frei — nach dem Freigeben wartet der Takt, bis wieder Termine frei sind.";
   const gesperrtSumme = stand.gesperrt.reduce((n, g) => n + g.anzahl, 0);
 
   async function pruefversand() {
@@ -165,9 +178,11 @@ export default function MailwerkVorsorge({ testAdresse }: { testAdresse: string 
           </button>
         )}
       </div>
-      {gesperrtGrund && !e.an && <p className="cm-fein mv-grund">{gesperrtGrund}</p>}
+      {gesperrtGrund && (!e.an || !darf) && <p className="cm-fein mv-grund">{gesperrtGrund}</p>}
+      {wartetGrund && <p className="cm-fein mv-grund">{wartetGrund}</p>}
       <p className="cm-fein">
-        Vorschau und Prüfversand senden nie an Kunden — dort führen Knopf und Abmeldelink auf die Vorschau-Seite. Nie an A, B
+        Vorschau und Prüfversand senden nie an Kunden — dort führen Knopf und Abmeldelink auf die Vorschau-Seite; der Prüfversand
+        geht nur an die gespeicherte Testadresse und trägt den Beispielnamen Max Mustermann. Nie an A, B
         oder C, Österreich/Schweiz, FIAON Global, Gesperrte, Abgemeldete oder Gekündigte. Jede Mail trägt den persönlichen
         Abmeldelink und steht im Protokoll und in der Akte.
       </p>

@@ -35,7 +35,7 @@ import {
 } from "@shared/fiaon-vorsorge";
 import {
   ensureKoopTabellen, koopKandidat, koopVorsorgePartner, koopLieferStand, koopFreieTermine, koopExklusivBelegt, koopKontaktAnlegen,
-  koopWiderruf, koopInteresseVermerken, koopSchalterAus, type KoopSperrCode,
+  koopWiderruf, koopInteresseVermerken, koopSchalterAus, koopOffenerTermin, type KoopSperrCode,
 } from "./fiaon-koop-lieferung";
 import { koopDatenAus } from "./fiaon-global-angebot-koop";
 import type { AngebotZeile } from "./fiaon-global-angebot";
@@ -197,16 +197,17 @@ async function partnerFuerKunde(z: AngebotZeile, jetzt: Date): Promise<VorsorgeP
   };
 }
 
+/**
+ * Der Stand des Kunden. Gutachten 09.11. (E-487 Nachbesserung): Der Termin kommt aus koopOffenerTermin — ein übermittelter Termin,
+ * dessen Einwilligung widerrufen ist („Termin nicht mehr gewünscht“, „Kein Gespräch gewünscht“, Widerruf in der Akte, „kein
+ * Kontakt mehr“ vom Partner), ist kein gebuchter Termin mehr.
+ */
 async function standLesen(personId: number): Promise<{ stand: VorsorgeStand; termin: VorsorgeLage["termin"] }> {
-  const [t] = (await sqlPool`
-    SELECT k.termin_beginn, k.termin_art, k.thema, g.kunde AS partner
-      FROM fiaon_koop_kontakte k JOIN fiaon_global_angebote g ON g.id = k.angebot_id
-     WHERE k.person_id = ${personId} AND k.status IN ('geplant', 'uebermittelt') AND k.termin_beginn > NOW()
-     ORDER BY k.termin_beginn LIMIT 1`) as any[];
+  const t = await koopOffenerTermin(personId);
   if (t) {
     return {
       stand: "termin",
-      termin: { text: formatBerlin(new Date(t.termin_beginn)), art: koopTerminArtText(t.termin_art), thema: String(t.thema ?? ""), partner: koopPartnerImSatz(json<any>(t.partner, {})) },
+      termin: { text: formatBerlin(t.termin_beginn), art: koopTerminArtText(t.termin_art), thema: t.thema, partner: koopPartnerImSatz(json<any>(t.partner, {})) },
     };
   }
   const [e] = (await sqlPool`SELECT art, widerrufen_am FROM fiaon_koop_einwilligungen WHERE person_id = ${personId} AND art IN ('interesse', 'abgelehnt') ORDER BY erteilt_am DESC LIMIT 1`) as any[];
@@ -300,7 +301,8 @@ export async function vorsorgeUeberblickSpeichern(personId: number, themenRoh: u
 
 /**
  * „Termin buchen“ — derselbe Kern wie in der Akte (koopKontaktAnlegen), Kanal „kundenbereich“, IP, Browser-Kennung, keine
- * Notiz. Sperre gegen Doppelbuchung, Exklusivität und Wunschmenge prüft der Kern unter der Partner-Sperre.
+ * Notiz. Sperre gegen Doppelbuchung, Exklusivität und Wunschmenge prüft der Kern unter der Partner-Sperre; „je Kunde ein
+ * offener Termin“ prüft er unter der Personen-Sperre (Gutachten 09.11.) — hier vorab, damit der Kunde gleich seinen Termin sieht.
  */
 export async function vorsorgeBuchen(personId: number, roh: Record<string, unknown>, meta: VorsorgeMeta): Promise<{ ok: true; meldung: string; lage: VorsorgeLage } | { ok: false; status: number; error: string; lage?: VorsorgeLage }> {
   // Nur ein echtes `true` aus dem Kästchen zählt — kein „true“ als Text, kein fehlendes Feld. Vor jeder Datenbankarbeit.
@@ -314,6 +316,12 @@ export async function vorsorgeBuchen(personId: number, roh: Record<string, unkno
   const k = await koopKandidat(personId, sqlPool, jetzt);
   if (!k) return { ok: false, status: 404, error: VORSORGE_TEXTE.nichtMoeglich };
   if (k.sperrCodes.length) return { ok: false, status: 409, error: hinweisFuer(k.sperrCodes) };
+  // Gutachten 09.11.: Die Seite bietet „Termin buchen“ nur ohne offenen Termin an — der Server hält dieselbe Regel (zweiter Tab,
+  // direkter Aufruf des Links). Der Kern prüft sie noch einmal unter der Personen-Sperre (zwei Klicks im selben Augenblick).
+  if ((await standLesen(personId)).stand === "termin") {
+    const lage = await vorsorgeLage(personId, { kontext: kontextVon(meta.quelle), jetzt }).catch(() => undefined);
+    return { ok: false, status: 409, error: vorsorgeFehlerText("termin_offen"), lage };
+  }
   const thema = String(roh.thema ?? "");
   const r = await koopKontaktAnlegen(personId, {
     angebotId, thema, termin: String(roh.termin ?? ""), art: String(roh.art ?? ""), einwilligung: true,
@@ -327,11 +335,28 @@ export async function vorsorgeBuchen(personId: number, roh: Record<string, unkno
   // Das gebuchte Thema gehört zum Überblick; eine offene Aufgabe „Kunde wünscht ein Gespräch“ hat sich erledigt.
   const alt = await ueberblickLesen(personId);
   if (!alt.themen.includes(thema)) await ueberblickSpeichern(personId, [...alt.themen, thema], themenAusPartnern(partnerZeilen), meta.quelle).catch((e) => console.error("[VORSORGE] Überblick ergänzen:", e));
-  await sqlPool`
-    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()), erledigt_von = 'System (Kunde hat selbst gebucht)',
-           ergebnis = COALESCE(ergebnis, 'Der Kunde hat den Partner-Termin selbst gebucht (Vorsorge-Überblick, E-487).'), updated_at = NOW()
-     WHERE schluessel LIKE ${`koop:interesse:${personId}:%`} AND status <> 'erledigt'`.catch((e: unknown) => console.error("[VORSORGE] Aufgabe schließen:", e));
+  await rueckrufAuftraegeSchliessen(personId, meta.quelle);
   return { ok: true, meldung: r.meldung, lage: await vorsorgeLage(personId, { kontext: kontextVon(meta.quelle), jetzt }) };
+}
+
+/**
+ * Der offene Auftrag „Kunde wünscht ein Gespräch zu Vorsorge und Absicherung“ (koopInteresseVermerken) hat sich mit der
+ * Selbstbuchung erledigt. Gutachten 09.11.: über DEN einen Weg (auftragErledigen, fiaon-auftraege.ts) — Art „auto“, von „System“,
+ * mit Ereignis und Eintrag in der Zeitleiste. Vorher schloss ein rohes UPDATE ihn: Die Wand (Trigger fiaon_todo_status_wand)
+ * schrieb dann „hand“, und die Aufgaben-Lage zählte die Buchung des Kunden als Arbeit eines Menschen.
+ * Ein Fehler hier hält die Buchung nie auf.
+ */
+async function rueckrufAuftraegeSchliessen(personId: number, quelle: VorsorgeQuelle): Promise<void> {
+  try {
+    const offen = (await sqlPool`
+      SELECT id FROM fiaon_betreiber_todos WHERE schluessel LIKE ${`koop:interesse:${personId}:%`} AND status <> 'erledigt'`) as any[];
+    if (!offen.length) return;
+    const { auftragErledigen } = await import("./fiaon-auftraege");
+    const ergebnis = `Der Kunde hat den Partner-Termin selbst gebucht (${quelle === "link" ? "über den persönlichen Link aus der E-Mail" : "im Kundenbereich"}) — der Rückruf entfällt.`;
+    for (const t of offen) {
+      await auftragErledigen(Number(t.id), { art: "auto", von: "System", autorArt: "system", ereignis: "Kunde hat selbst gebucht", ergebnis });
+    }
+  } catch (e) { console.error("[VORSORGE] Aufgabe schließen:", e); }
 }
 
 /** „Kein Gespräch gewünscht“ — ein gebuchter Termin wird vorher abgesagt (Widerruf, der Partner erfährt es). */
@@ -344,12 +369,18 @@ export async function vorsorgeKeinInteresse(personId: number, name: string, meta
   return vorsorgeLage(personId, { kontext: kontextVon(meta.quelle), jetzt: meta.jetzt });
 }
 
-/** „Termin nicht mehr gewünscht“ — Widerruf: geplante Übermittlung zurück, der Partner erfährt es sofort. */
+/**
+ * „Termin nicht mehr gewünscht“ — Widerruf: geplante Übermittlung zurück, der Partner erfährt es sofort.
+ * Gutachten 09.11.: Nur ein OFFENER Termin wird abgesagt. Ein zweiter Klick, ein alter Tab oder ein Aufruf ohne Termin tut nichts
+ * mehr — keine zweite Mail an den Partner, kein zweiter Eintrag in der Akte (koopWiderruf meldet zudem nur, was eben endete).
+ */
 export async function vorsorgeAbsagen(personId: number, name: string, meta: VorsorgeMeta): Promise<VorsorgeLage> {
   await ensureVorsorgeTabellen();
-  await koopWiderruf(personId, {
-    name: `${name || "Kunde"} (${meta.quelle === "link" ? "persönlicher Link" : "Kundenbereich"})`, kanal: "kundenbereich",
-    grund: meta.quelle === "link" ? "Über den persönlichen Link: Termin nicht mehr gewünscht" : "Im Kundenbereich: Termin nicht mehr gewünscht",
-  });
+  if (await koopOffenerTermin(personId)) {
+    await koopWiderruf(personId, {
+      name: `${name || "Kunde"} (${meta.quelle === "link" ? "persönlicher Link" : "Kundenbereich"})`, kanal: "kundenbereich",
+      grund: meta.quelle === "link" ? "Über den persönlichen Link: Termin nicht mehr gewünscht" : "Im Kundenbereich: Termin nicht mehr gewünscht",
+    });
+  }
   return vorsorgeLage(personId, { kontext: kontextVon(meta.quelle), jetzt: meta.jetzt });
 }

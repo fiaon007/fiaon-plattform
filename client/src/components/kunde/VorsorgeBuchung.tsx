@@ -137,6 +137,8 @@ export function VorsorgeBuchung({ basis, lage, setLage, kontext, onEnde }: {
     return (
       <div className={`vs-buchung vs-${kontext}-kontext`} data-vorsorge="gebucht">
         {hinweis("ende")}
+        {/* Gutachten 09.11.: Lehnt der Server eine zweite Buchung ab (zweiter Tab), steht sein Satz über dem gebuchten Termin. */}
+        {hinweis("buchen")}
         <div className="vs-gebucht">
           <Haken />
           <div>

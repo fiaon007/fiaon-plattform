@@ -1527,6 +1527,15 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
     tipp: "Ein neuer Provisions-Satz gilt ab heute, frühere Zahlungen behalten ihren Satz. Der Zahlungsauftrag zur Gutschrift ist immer nur ein Entwurf im Banking. Geld bewegt erst die Buchhaltung mit TAN.",
   },
   {
+    // E-487 Nachbesserung (09.11.2026, Gutachten): das Feld „Bezeichnung auf der Kundenseite“. Ohne „ziel“ — es steht nur bei
+    // angenommenen Kooperationsverträgen im Bereich Vorsorge (ChefGlobalAngebote.tsx, data-koop-rolle).
+    titel: "Vorsorge-Partner: wie er auf der Kundenseite heißt.",
+    text: "Bei einem angenommenen Vorsorge-Vertrag steht unter „Lieferung“ das Feld „Bezeichnung auf der Kundenseite“. Was dort steht, liest "
+      + "der Kunde unter dem Namen des Partners, wenn er im „Vorsorge-Überblick“ selbst einen Termin bucht — mit dem Zusatz „Partner von FIAON“. "
+      + "Leer heißt „selbstständiger Berater“. Höchstens 60 Zeichen (Buchstaben, Leerzeichen, Bindestrich, Punkt, „&“); gespeichert wird mit „Bezeichnung speichern“.",
+    tipp: "Die Einwilligung, die der Kunde ankreuzt, nennt den Partner immer „selbstständigen Berater“ — die Bezeichnung ändert nur die Zeile unter dem Namen.",
+  },
+  {
     ziel: ".cg-zahlen",
     titel: "Vier Zahlen, zwei davon sind Alarm.",
     text: "„Bezahlt, nicht gestartet“ heißt: Das Geld ist da, aber die Aufgabe oder die Startmail hing. „Ohne Stichtag“ "
@@ -3423,9 +3432,9 @@ export const RUNDGANG_MAILWERK: RundgangSchritt[] = [
   },
   {
     ziel: "[data-mailwerk-vorsorge]",
-    titel: "Ihr Vorsorge-Überblick: dein Knopf.",
-    text: "Maras Einladung an zahlende Kunden in Deutschland: ein persönlicher Link, dort Themen festhalten und auf Wunsch selbst einen Termin beim Vorsorge-Partner buchen. Ohne deine Freigabe geht keine einzige Mail raus.",
-    tipp: "Erst „Vorschau ansehen“ und „Prüfversand“ — dann freigeben. „Anhalten“ stoppt sofort, auch mitten im Lauf.",
+    titel: "Ihr Vorsorge-Überblick: Justins Knopf.",
+    text: "Maras Einladung an zahlende Kunden in Deutschland: ein persönlicher Link, dort Themen festhalten und auf Wunsch selbst einen Termin beim Vorsorge-Partner buchen. Ohne Justins Freigabe geht keine einzige Mail raus — „Freigeben“ kann nur der Inhaber drücken.",
+    tipp: "Erst „Vorschau ansehen“ und „Prüfversand“ — dann freigeben. „Anhalten“ stoppt sofort, auch mitten im Lauf, und darf auch die Geschäftsführung.",
   },
   {
     ziel: ".mv-kreise",
@@ -3435,7 +3444,8 @@ export const RUNDGANG_MAILWERK: RundgangSchritt[] = [
   {
     ziel: ".mv-tun",
     titel: "Vorschau, Prüfversand, Freigeben.",
-    text: "Die Vorschau zeigt die echte Mail des Nächsten im Kreis und sendet nie. Der Prüfversand geht an die Testadresse — Knopf und Abmeldelink führen dort auf die Vorschau-Seite. „Freigeben“ schaltet ein: höchstens 60 am Tag, 09–19 Uhr, gleichmäßig verteilt.",
+    text: "Die Vorschau zeigt die echte Mail des Nächsten im Kreis und sendet nie. Der Prüfversand geht nur an die gespeicherte Testadresse und trägt den Beispielnamen Max Mustermann — Knopf und Abmeldelink führen dort auf die Vorschau-Seite. „Freigeben“ schaltet ein: höchstens 60 am Tag, 09–19 Uhr, gleichmäßig verteilt.",
+    tipp: "Ist beim Partner gerade kein Termin frei (Wunschmenge der Woche erreicht, keine Zeiten), wartet der Takt von selbst — die Karte sagt es.",
   },
   {
     ziel: ".cm-takte",

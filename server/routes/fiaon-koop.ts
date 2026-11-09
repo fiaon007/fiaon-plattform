@@ -153,12 +153,16 @@ async function vorsorgeHandlung(aktion: VorsorgeAktion, personId: number, name: 
   }
   return { status: 200, body: { ok: true, meldung: VORSORGE_TEXTE.abgesagt, lage: await V.vorsorgeAbsagen(personId, name, meta) } };
 }
+// Gutachten 09.11. (E-487 Nachbesserung): auch die Handlungen im Kundenbereich gedrosselt — je Person, wie die Seite je IP
+// (eine Buchung oder Absage schickt dem Partner eine Mail).
+const vorsorgeKundeDrossel = fensterDrossel(20, 10 * 60_000);
 for (const aktion of VORSORGE_AKTIONEN) {
   router.post(`/kunde/:ref/app/partner-gespraech/${aktion}`, requireKunde, async (req: KundeRequest, res: Response) => {
     try {
       const p = await personFuerRef(req.kundeRef!);
       if (!p) return keinePerson(res);
       res.setHeader("Cache-Control", "no-store");
+      if (vorsorgeKundeDrossel(`p${p.personId}`)) return res.status(429).json({ ok: false, error: "Zu viele Anfragen — bitte in ein paar Minuten noch einmal." });
       const r = await vorsorgeHandlung(aktion, p.personId, p.name, req, "kundenbereich");
       res.status(r.status).json(r.body);
     } catch (err) {

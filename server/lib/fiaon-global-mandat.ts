@@ -1148,10 +1148,16 @@ export async function globalMandatAntwort(ref: string, ein: { text?: unknown; mi
 export async function globalMandatAnfragenGelesen(ref: string): Promise<void> {
   await ensureGlobalMandat();
   await sqlPool`UPDATE fiaon_global_nachrichten SET gelesen_fiaon_am = NOW() WHERE ref = ${ref} AND von = 'kunde' AND gelesen_fiaon_am IS NULL`;
-  // E-443 (28.10.2026): Gelesen im Chefbüro erledigt die Nachrichten-Aufgaben — wie das Beantworten (globalMandatAntwort).
+  // E-487 (09.11.2026): GELESEN ist nicht BEANTWORTET. Vorher (E-443) schloss schon das Aufklappen der Nachrichten im
+  // Chefbüro die Nachrichten-Aufgaben — eine Kundenfrage zur Überweisung blieb so drei Tage ohne Antwort, die Aufgabe
+  // stand auf „erledigt“. Jetzt schließt sie nur die Antwort (globalMandatAntwort) oder die Person von Hand mit Notiz;
+  // das Lesen vermerkt nur, dass jemand sie gesehen hat (einmal je Aufgabe).
   await sqlPool`
-    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()), ergebnis = COALESCE(ergebnis, 'Im Chefbüro gelesen.'), updated_at = NOW()
-     WHERE schluessel LIKE ${`global:${ref}:nachricht:%`} AND status <> 'erledigt'`.catch(() => {});
+    INSERT INTO fiaon_betreiber_todo_beitraege (todo_id, autor_art, autor_name, art, text)
+    SELECT t.id, 'system', 'System', 'kommentar', 'Im Chefbüro gelesen — noch NICHT beantwortet. Die Aufgabe schließt sich mit der Antwort unter „Anfragen“ (oder von Hand mit Notiz, wenn per Telefon/Mail geantwortet wurde).'
+      FROM fiaon_betreiber_todos t
+     WHERE t.schluessel LIKE ${`global:${ref}:nachricht:%`} AND t.status <> 'erledigt'
+       AND NOT EXISTS (SELECT 1 FROM fiaon_betreiber_todo_beitraege b WHERE b.todo_id = t.id AND b.text LIKE 'Im Chefbüro gelesen — noch NICHT beantwortet%')`.catch(() => {});
 }
 
 export async function globalMandatTest(ref: string, an: boolean, agent: BereichAgent): Promise<Erg<{ meldung: string }>> {

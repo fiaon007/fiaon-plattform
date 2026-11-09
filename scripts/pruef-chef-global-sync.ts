@@ -127,7 +127,9 @@ ok(/'irs_ss4'/.test(erledigen) && /= 'scan'/.test(erledigen), "SS-4-Scan bleibt 
 ok(/status = 'erledigt', erledigt_am = COALESCE\(t\.erledigt_am, NOW\(\)\)/.test(erledigen) && /AND t\.status <> 'erledigt'/.test(erledigen), "Muster der Erledigung wie bei der Anfragen-Antwort");
 ok((erledigen.match(/\.catch\(/g) ?? []).length >= 2, "Erledigen hält keinen Weg auf (Fehler nur ins Log)");
 const gelesen = koerper(mandat, "export async function globalMandatAnfragenGelesen(");
-ok(/LIKE \$\{`global:\$\{ref\}:nachricht:%`\}/.test(gelesen) && /status = 'erledigt'/.test(gelesen), "Nachricht im Chefbüro gelesen → Nachrichten-Aufgabe erledigt");
+// E-487 (09.11.2026): GELESEN ist nicht BEANTWORTET — das Lesen schließt die Nachrichten-Aufgabe NICHT mehr (vorher E-443),
+// es vermerkt nur einmal „gelesen — noch nicht beantwortet“. Schließen tut die Antwort (oder die Person von Hand).
+ok(/LIKE \$\{`global:\$\{ref\}:nachricht:%`\}/.test(gelesen) && !/SET status = 'erledigt'/.test(gelesen) && /noch NICHT beantwortet/.test(gelesen), "Nachricht im Chefbüro gelesen → Aufgabe bleibt offen, Vermerk „noch nicht beantwortet“");
 ok(/LIKE \$\{`global:\$\{ref\}:nachricht:%`\}/.test(koerper(mandat, "export async function globalMandatAntwort(")), "beantwortet → erledigt (bestehend)");
 ok(/anfragen-gelesen`, "POST"\)\.then\(\(\) => \{ neu\(\); onGeaendert\(\); \}\)/.test(chef), "nach „gelesen“ lädt auch die Akte neu (Zahl am Reiter stimmt)");
 

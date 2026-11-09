@@ -261,7 +261,8 @@ if (!ROT) {
     const t2 = (await todos(REF2)).filter((x) => /:eingang:/.test(x.schluessel));
     await sicher("globalMandatAnfragenGelesen", () => M.globalMandatAnfragenGelesen(REF));
     const t3 = (await todos(REF)).filter((x) => /:nachricht:/.test(x.schluessel));
-    ok(t3.length === 1 && t3[0].status === "erledigt", "nach „gelesen“: Nachrichten-Aufgabe erledigt", t3.map((x) => x.status));
+    // E-487 (09.11.2026): gelesen ist nicht beantwortet — die Aufgabe bleibt offen, bis jemand antwortet.
+    ok(t3.length === 1 && t3[0].status === "offen", "nach „gelesen“: Nachrichten-Aufgabe bleibt offen (E-487)", t3.map((x) => x.status));
     const g = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_nachrichten WHERE ref = ${REF} AND von = 'kunde' AND gelesen_fiaon_am IS NULL`) as any[];
     ok(Number(g[0].n) === 0, "DB: Kundennachricht gelesen_fiaon_am gesetzt", g[0]);
     const t4 = (await todos(REF2)).filter((x) => /:eingang:/.test(x.schluessel));

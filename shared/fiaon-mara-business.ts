@@ -85,6 +85,21 @@ export function waGlobalLink(nummer: string | null | undefined, code: string | n
   if (ziffern.length < 8) return null;
   return `https://wa.me/${ziffern}?text=${encodeURIComponent(waGlobalSatz(code, sprache))}`;
 }
+/**
+ * Ist das genau Maras eigener WhatsApp-Link (wa.me/<Mara-Nummer>?text=<der feste Satz, mit oder ohne Kennung>)? Dann der
+ * Satz im Klartext, sonst null. Die Lead-Wand prüft statt der Adresse diesen Satz: „%20“ im Link galt ihr als Prozentzahl,
+ * wa.me als fremde Adresse — deshalb ging seit dem 05.11.2026 keine Willkommens-Mail hinaus (Fix 09.11.2026). Rein.
+ */
+export function eigenerWaSatz(url: unknown, nummer: string | null | undefined): string | null {
+  const u = String(url ?? "");
+  const m = /^https:\/\/wa\.me\/\d{8,15}\?text=([^\s#&]+)$/.exec(u);
+  if (!m) return null;
+  let satz: string;
+  try { satz = decodeURIComponent(m[1]); } catch { return null; }
+  const code = kennungAusText(satz);
+  for (const sprache of ["de", "en"] as const) if (waGlobalLink(nummer, code, sprache) === u) return satz;
+  return null;
+}
 /** Die Anfrage-Kennung aus seiner ersten Nachricht („(Anfrage Ab3dEf7hJk)“). Rein. */
 export function kennungAusText(text: unknown): string | null {
   const m = new RegExp(`\\((?:Anfrage|enquiry|Enquiry)\\s+([A-Za-z0-9]{${LEAD_CODE_LAENGE}})\\)`).exec(String(text ?? ""));

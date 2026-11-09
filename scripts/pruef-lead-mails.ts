@@ -227,6 +227,29 @@ abschnitt("A3b Die Link-Wand: was der Lead tippt, wird nie zur fremden Adresse i
   ok(T.fremdeAdressen("Treffen am 12.11. um 14.30 Uhr, z. B. bei der U.S. Bank") .length === 0, "Datum, Uhrzeit, Abkürzungen sind keine Adressen");
   const boese = { ...W(), anrede: "Guten Tag Gewinn Jetzt www.preis-sofort.example," };
   ok((await LP.leadMailPruefen(boese as any)).some((f: string) => /fremde Adresse/.test(f)), "die Wand hält eine Mail mit fremder Adresse an");
+  // Fix 09.11.2026 (E-481): Maras eigener WhatsApp-Link (wa.me mit dem festen Satz) hielt jede Willkommens-Mail an — „%20“ galt als
+  // Prozentzahl, wa.me als fremde Adresse. Jetzt prüft die Wand den Satz; ein Link zu einer anderen Nummer oder mit anderem Text bleibt ein Fund.
+  {
+    const MB = await import("../shared/fiaon-mara-business");
+    const nr = "4915100000000", kennung = "AbCdEfGh23";
+    for (const sprache of ["de", "en"] as const) {
+      const eigen = MB.waGlobalLink(nr, kennung, sprache)!;
+      const mitWa = W({ sprache, whatsapp: { url: eigen } });
+      ok(klar(mitWa).includes(eigen), `W mit WhatsApp-Block enthält Maras Link (${sprache})`);
+      const funde = await LP.leadMailPruefen(mitWa, { maraNummer: nr });
+      ok(funde.length === 0, `W mit Maras eigenem WhatsApp-Link geht durch die Wand (${sprache}): ${funde.join("; ")}`);
+      gleich(MB.eigenerWaSatz(eigen, nr), MB.waGlobalSatz(kennung, sprache), `eigenerWaSatz liefert den Satz im Klartext (${sprache})`);
+      ok((await LP.leadMailPruefen(W({ sprache, whatsapp: { url: MB.waGlobalLink(nr, null, sprache)! } }), { maraNummer: nr })).length === 0, `auch ohne Kennung (${sprache})`);
+      const andereNr = W({ sprache, whatsapp: { url: MB.waGlobalLink("4915199999999", kennung, sprache)! } });
+      ok((await LP.leadMailPruefen(andereNr, { maraNummer: nr })).some((f: string) => /fremde Adresse/.test(f)), `Link zu einer anderen Nummer bleibt eine fremde Adresse (${sprache})`);
+      const andererText = W({ sprache, whatsapp: { url: `https://wa.me/${nr}?text=${encodeURIComponent("Kredit 100% sicher, ruf an")}` } });
+      ok((await LP.leadMailPruefen(andererText, { maraNummer: nr })).length > 0, `Link mit fremdem Text bleibt ein Fund (${sprache})`);
+      ok((await LP.leadMailPruefen(mitWa, { maraNummer: null })).some((f: string) => /fremde Adresse|Prozentzahl/.test(f)), `ohne bekannte Mara-Nummer bleibt die Wand streng (${sprache})`);
+    }
+    gleich(MB.eigenerWaSatz("https://wa.me/4915100000000?text=Hallo&foo=1", nr), null, "Zusatz-Parameter: kein eigener Link");
+    gleich(MB.eigenerWaSatz("http://wa.me/4915100000000?text=x", nr), null, "nur https");
+    gleich(MB.eigenerWaSatz("https://wa.me/4915100000000?text=%E0%A4%A", nr), null, "kaputte Kodierung: kein eigener Link");
+  }
   gleich(T.firmaFuerText("https://evil.example/login"), null, "Firma als Adresse: nie in N3");
   gleich(T.firmaFuerText("Muster Logistik GmbH"), "Muster Logistik GmbH", "echte Firma: bleibt");
   gleich(T.wunschzeitFuerText("Di 14–16 Uhr"), "Di 14–16 Uhr", "Wunschzeit: harmlos bleibt");

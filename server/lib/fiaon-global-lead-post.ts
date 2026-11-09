@@ -271,12 +271,23 @@ export async function leadMailText(m: LeadMailText, signaturText: string): Promi
  * (kein „bis zu“, kein Bankname, keine Frist mit Ziffer …), kein Bank-Satz (E-468), kein Betrag, keine Prozentzahl, kein
  * „Geschenk“, kein Partnername, Sie-Form. Leer = sendbar.
  */
-export async function leadMailPruefen(m: LeadMailText): Promise<string[]> {
-  const [{ wandPruefen }, { globalWortPruefen }, { radarBankVorbehalt }] = await Promise.all([
-    import("@shared/fiaon-wortverbote"), import("@shared/fiaon-global-wortregeln"), import("@shared/fiaon-radar"),
+export async function leadMailPruefen(m: LeadMailText, opt: { maraNummer?: string | null } = {}): Promise<string[]> {
+  const [{ wandPruefen }, { globalWortPruefen }, { radarBankVorbehalt }, { eigenerWaSatz }] = await Promise.all([
+    import("@shared/fiaon-wortverbote"), import("@shared/fiaon-global-wortregeln"), import("@shared/fiaon-radar"), import("@shared/fiaon-mara-business"),
   ]);
   const klar = leadMailKlartext(m);
-  const text = `${m.betreff}\n${klar}\n${m.fussSatz}`;
+  // Fix 09.11.2026 (E-481): Maras eigener WhatsApp-Link ist keine fremde Adresse — geprüft wird statt der URL der feste Satz
+  // darin. Vorher hielt die Wand JEDE Willkommens-Mail an („%20“ = Prozentzahl, wa.me = fremde Adresse). Die Nummer wird nur
+  // gelesen, wenn überhaupt ein wa.me-Link in der Mail steht (der reine Prüfstand braucht keine Datenbank).
+  const waLinks = m.bloecke.flatMap((b) => (b.art === "link" && /^https:\/\/wa\.me\//.test(b.url) ? [b.url] : []));
+  const nummer = !waLinks.length ? null : opt.maraNummer !== undefined ? opt.maraNummer
+    : await import("./fiaon-mara-business").then((mb) => mb.mbNummer()).catch(() => null);
+  let pruefKlar = klar;
+  for (const url of waLinks) {
+    const satz = eigenerWaSatz(url, nummer);
+    if (satz) pruefKlar = pruefKlar.split(url).join(satz);
+  }
+  const text = `${m.betreff}\n${pruefKlar}\n${m.fussSatz}`;
   const funde: string[] = platzhalterWache(klar).map((w) => `Platzhalter-Wache: ${w}`);
   // Die Zusage „ruft Sie an“/„meldet sich“ deckt der Auftrag an die zuständige Person (er entsteht mit der Anfrage).
   for (const f of wandPruefen(text, ["aufgabe_an_betreuer", "notiz_an_betreuer"])) if (f.art !== "floskel") funde.push(`Wortwand: „${f.treffer}“`);

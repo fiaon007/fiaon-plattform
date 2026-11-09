@@ -676,6 +676,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('lead_takt', async () => await (await import('./lib/fiaon-lead-takt')).leadTaktLauf(), 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
   });
+  // 🌐 FIAON Global — falsch zusammengelegte Firmen-Karten trennen (E-487, 09.11.2026): Karten mit Platzhalter im Firmenfeld
+  //    („Selbständig“, „GmbH“ …), auf denen Anfragen fremder Menschen liegen, bekommen je Person eine eigene Karte (Auftrag, Dossier,
+  //    Lead-Weg, Takt, Notiz ziehen mit). Einmal 4 Minuten nach dem Deploy (die Reparatur), danach stündlich als Netz. Schalter
+  //    fiaon_settings „firmen_trennen“ (an | trocken | aus). Die Historienzeile mit Zahlen schreibt der Lauf selbst (bei Arbeit,
+  //    sonst alle 6 Stunden) — darum nurMitErgebnis; ein Fehler steht wie immer in der Historie.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('firmen_trennen', async () => await (await import('./lib/fiaon-firmen-trennen')).firmenTrennenTakt(), 60 * 60 * 1000, { beimStartNach: 240_000, nurMitErgebnis: true });
+  });
   // 🌐 FIAON Global auf WhatsApp — Mara Business (E-481, Justin „alles an … GOGO“): Begrüßung mit der Wahl Telefon/E-Mail/WhatsApp
   //    (nur mit Ja zu WhatsApp, 8–20 Uhr, ohne Termin), Termin-Bestätigung, Erinnerung am Vortag, „nicht erreicht“, eine Nachfrage.
   //    Vorlagen erst nach Metas Freigabe. Alle 5 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls).

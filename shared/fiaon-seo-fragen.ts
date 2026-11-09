@@ -25,7 +25,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Bekomme ich eine Kreditkarte?",
-      "a": "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind."
+      "a": "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: In Deutschland führt Ihr Weg zu Girokonto und Kreditkarte unserer Partnerbank; den Antrag stellen Sie selbst. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind."
     },
     {
       "f": "Wie arbeitet die FIAON-Analyse?",
@@ -761,7 +761,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Kann ich trotz Eintrag ein Konto eröffnen?",
-      "a": "Ja. Auf ein Basiskonto besteht nach dem Verbraucherzahlungskontogesetz ein Rechtsanspruch. FIAON bereitet die Eröffnung bei einer Partnerbank vor."
+      "a": "Ja. Auf ein Basiskonto besteht nach dem Verbraucherzahlungskontogesetz ein Rechtsanspruch. Den Antrag stellen Sie selbst bei einer Bank Ihrer Wahl – FIAON erklärt Ihnen vorher, worauf es ankommt."
     },
     {
       "f": "Arbeitet FIAON mit österreichischem Recht?",
@@ -783,7 +783,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I open an account despite an entry?",
-      "a": "Yes. There is a legal right to a basic account under the Consumer Payment Accounts Act (Verbraucherzahlungskontogesetz). FIAON prepares the opening with a partner bank."
+      "a": "Yes. There is a legal right to a basic account under the Consumer Payment Accounts Act (Verbraucherzahlungskontogesetz). You apply yourself at a bank of your choice – FIAON explains beforehand what matters."
     },
     {
       "f": "Does FIAON work under Austrian law?",
@@ -805,7 +805,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Bekomme ich mit Betreibungen ein Konto?",
-      "a": "Banken dürfen ablehnen; PostFinance führt Konten für Personen mit Wohnsitz in der Schweiz weitgehend unabhängig von Betreibungen. FIAON bereitet die Eröffnung vor."
+      "a": "Banken dürfen ablehnen; PostFinance führt Konten für Personen mit Wohnsitz in der Schweiz weitgehend unabhängig von Betreibungen. Den Antrag stellen Sie selbst – FIAON erklärt Ihnen vorher, worauf es ankommt."
     },
     {
       "f": "Wie lange dauert die Nichtbekanntgabe nach Art. 8a?",
@@ -827,7 +827,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I get an account with enforcements?",
-      "a": "Banks may refuse; PostFinance runs accounts for people resident in Switzerland largely regardless of enforcements. FIAON prepares the opening."
+      "a": "Banks may refuse; PostFinance runs accounts for people resident in Switzerland largely regardless of enforcements. You apply yourself – FIAON explains beforehand what matters."
     },
     {
       "f": "How long does non-disclosure under Art. 8a take?",

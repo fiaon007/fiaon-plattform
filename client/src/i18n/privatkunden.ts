@@ -25,7 +25,7 @@ const betragEn = (zahl: string, l: Land) => (LAENDER[l].waehrungVorn ? `${LAENDE
 
 const de = {
   metaTitel: "Privatkunden · Bonität, Konto, Kreditkarte",
-  metaBeschreibung: "Einträge bereinigen, Girokonto eröffnen, Kreditkarte bis 25.000 € – FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, versendet die Schreiben und öffnet die Tür. Pakete ab 7,99 € im Monat.",
+  metaBeschreibung: "Einträge bereinigen, der Weg zu Konto und Karte unserer Partnerbank – FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, versendet die Schreiben und öffnet die Tür. Pakete ab 7,99 € im Monat.",
   pille: "Für Privatkunden · Deutschland, Österreich, Schweiz",
   h1a: "Die Kreditkarte, die am Ende ", h1b: "Ihrer Bonität wartet.",
   lead: "Ein Eintrag ist kein Urteil. FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
@@ -54,7 +54,7 @@ const de = {
   tut: [
     { tag: "Schicht 1 · Einsicht", titel: "Ihre Bonität, erklärt.", text: "FIAON wertet Ihre Kontoauszüge aus und zeigt Ihre Bonität aus Sicht einer Bank. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an und laden sie hoch – Sie sehen, was gespeichert ist und was sich ändern lässt. Ohne Fachsprache." },
     { tag: "Schicht 2 · Aktion", titel: "Schreiben, die wirken.", text: "Für jeden angreifbaren Eintrag liegt das passende Schreiben bereit. Sie geben frei, FIAON versendet per Einschreiben, verfolgt Antwort und Frist – bis zur Datenschutzbehörde." },
-    { tag: "Schicht 3 · Zugang", titel: "Konto, Karte, Finanzierung.", text: "Girokonto für jeden Kunden, Kreditkarte, sobald Ihre Readiness die Schwelle erreicht, Finanzierung später. Jeder hat ein nächstes Ziel." },
+    { tag: "Schicht 3 · Zugang", titel: "Konto und Karte.", text: "In Deutschland Girokonto und Kreditkarte unserer Partnerbank, sobald Ihre Readiness die Schwelle erreicht – den Antrag stellen Sie selbst. Jeder hat ein nächstes Ziel." },
   ],
   vergleichPille: "Ehrlicher Vergleich", vergleichH2a: "Was andere tun – ", vergleichH2b: "und was FIAON tut.",
   vergleichKopf: ["", "Score-App", "Anwalt", "FIAON"],
@@ -104,7 +104,7 @@ const de = {
 
 const en: typeof de = {
   metaTitel: "Personal · credit file, account, credit card",
-  metaBeschreibung: "Clean up entries, open a current account, a credit card up to €25,000 — FIAON explains every entry in your credit report, sends the letters and opens the door. Plans from €7.99 a month.",
+  metaBeschreibung: "Clean up entries, the route to our partner bank's account and card — FIAON explains every entry in your credit report, sends the letters and opens the door. Plans from €7.99 a month.",
   pille: "For personal customers · Germany, Austria, Switzerland",
   h1a: "The credit card waiting at the end ", h1b: "of your credit file.",
   lead: "An entry is not a verdict. FIAON explains every entry in your credit report, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
@@ -142,7 +142,7 @@ const en: typeof de = {
   tut: [
     { tag: "Layer 1 · Insight", titel: "Your creditworthiness, explained.", text: "FIAON analyses your bank statements and shows your creditworthiness as a bank sees it. You request your free data copy from SCHUFA, KSV or CRIF yourself and upload it — you see what is stored and what can be changed. Without jargon." },
     { tag: "Layer 2 · Action", titel: "Letters that work.", text: "For every challengeable entry the right letter is ready. You approve, FIAON sends by registered post, tracks reply and deadline — up to the data protection authority." },
-    { tag: "Layer 3 · Access", titel: "Account, card, finance.", text: "A current account for every customer, a credit card as soon as your readiness reaches the threshold, finance later. Everyone has a next goal." },
+    { tag: "Layer 3 · Access", titel: "Account and card.", text: "In Germany our partner bank's current account and credit card, as soon as your readiness reaches the threshold – you make the application yourself. Everyone has a next goal." },
   ],
   vergleichPille: "Honest comparison", vergleichH2a: "What others do — ", vergleichH2b: "and what FIAON does.",
   vergleichKopf: ["", "Score app", "Lawyer", "FIAON"],

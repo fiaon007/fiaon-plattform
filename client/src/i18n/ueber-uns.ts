@@ -17,7 +17,7 @@ const de = {
   stand: "Stand 2. September 2026.",
   warumH2a: "Warum es FIAON ", warumH2b: "gibt.", warumLead: "Eine Beobachtung, die jeder kennt, der je eine Ablehnung ohne Erklärung bekommen hat.",
   warum1: "100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Die meisten wissen nicht, was dort steht. Wer es herausfindet, steht vor einem Berg: Paragrafen, Fristen, Formulare, Briefe, die niemand zurückverfolgt. Score-Apps zeigen die Zahl und lassen einen dann allein. Anwälte sind für die Klage da, nicht für den zwölften Nachfass-Brief. Schuldnerberatungen sind wertvoll – und haben Wartelisten.",
-  warum2: "FIAON besetzt den Platz dazwischen: Einsicht (die Auskunft, erklärt), Aktion (Schreiben, die rausgehen und verfolgt werden), Zugang (das Konto, die Karte, später die Finanzierung). Ein Betriebssystem für Bonität – gebaut wie eine Bank, gesprochen wie ein Mensch.",
+  warum2: "FIAON besetzt den Platz dazwischen: Einsicht (die Auskunft, erklärt), Aktion (Schreiben, die rausgehen und verfolgt werden), Zugang (in Deutschland Konto und Karte unserer Partnerbank). Ein Betriebssystem für Bonität – gebaut wie eine Bank, gesprochen wie ein Mensch.",
   meilH2a: "Was seit der Gründung ", meilH2b: "passiert ist.", meilLead: "Jeder Punkt lässt sich belegen – im Handelsregister, im Logbuch, in der Datenbank.",
   meilensteine: [
     { zeit: "2025", titel: "Gründung als FIAON LTD", text: "Eintragung im britischen Handelsregister (Company No. 17318250). Die Idee: Der Platz zwischen Auskunftei und Bank ist unbesetzt – Score-Apps zeigen, Banken entscheiden, dazwischen hilft niemand." },
@@ -63,7 +63,7 @@ const en: typeof de = {
   stand: "As of 2 September 2026.",
   warumH2a: "Why FIAON ", warumH2b: "exists.", warumLead: "An observation familiar to anyone who has ever received a rejection without an explanation.",
   warum1: "100 million people in Germany, Austria and Switzerland have an entry with SCHUFA, KSV or CRIF. Most do not know what it says. Those who find out face a mountain: sections of law, deadlines, forms, letters nobody follows up. Score apps show the number and then leave you alone. Lawyers are there for the lawsuit, not for the twelfth follow-up letter. Debt counselling is valuable — and has waiting lists.",
-  warum2: "FIAON takes the place in between: insight (the report, explained), action (letters that go out and are followed up), access (the account, the card, later finance). An operating system for creditworthiness — built like a bank, spoken like a person.",
+  warum2: "FIAON takes the place in between: insight (the report, explained), action (letters that go out and are followed up), access (in Germany, the account and card of our partner bank). An operating system for creditworthiness — built like a bank, spoken like a person.",
   meilH2a: "What has happened ", meilH2b: "since we were founded.", meilLead: "Every point can be verified — in the companies register, in the logbook, in the database.",
   meilensteine: [
     { zeit: "2025", titel: "Founded as FIAON LTD", text: "Registered at Companies House (Company No. 17318250). The idea: the place between credit bureau and bank is empty — score apps display, banks decide, nobody helps in between." },

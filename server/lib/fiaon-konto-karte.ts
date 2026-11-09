@@ -43,6 +43,8 @@ import {
   zustellProblem, ZUSTELL_PROBLEM_SQL, KARTE_ZUSTELL_WEICH_TEXT, BREVO_SPERRGRUND_TEXT, KARTE_ADRESSE_KUNDE,
   karteAdresseHinweis, karteSperreLeitungMoeglich, brevoAbmeldung, ruecklaeuferWeich, KARTE_SPERRE_AUFGEHOBEN_TEXT, karteHeuteSchonSatz,
   KARTE_NACHFASSEN, KARTE_NACHFASSEN_REIHENFOLGE, KARTE_NICHT_GEKLICKT_TAGE,
+  // E-488 (09.11.2026): Partnerbank-Link nur für Kunden mit Wohnsitz in Deutschland.
+  KARTE_LAENDER_DEUTSCHLAND,
   type KarteFlags, type KarteZweck, type KarteAusschluss, type KarteAusschlussCode, type KarteNachfassZustand,
 } from "@shared/fiaon-karten-weg";
 import {
@@ -816,11 +818,29 @@ export interface EinladungPruefung {
 // Vertragsende aus der Ratenkette und steht deshalb nur in TypeScript.
 // Der Prüfstand scripts/pruef-it-b.ts vergleicht beide Fassungen.
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * E-488 (09.11.2026, FMA-Ersuchen): Wohnt der Mensch laut Landangabe NICHT in Deutschland? boolean.
+ * Unsere einzige Partnerbank (PARTNERBANKEN oben: die DKB) ist eine deutsche Bank — Konto und Karte gibt es über
+ * FIAON nur für Kunden mit Wohnsitz in Deutschland. Maßgeblich ist das Land der Person, sonst das der jüngsten
+ * lebenden Bestellung. Ohne Landangabe bleibt es beim bisherigen Weg (kein Ausschluss); aus der Postleitzahl wird
+ * bewusst nichts geschlossen — eine deutsche PLZ mit verlorener führender Null sähe sonst österreichisch aus.
+ * Dieselbe Regel wie karteLandAusland (shared/fiaon-karten-weg.ts), dieselbe Länderliste.
+ */
+const LAENDER_DE_SQL = ["", ...KARTE_LAENDER_DEUTSCHLAND].map((l) => `'${l.replace(/'/g, "''")}'`).join(", ");
+export const AUSLAND_SQL = (p: string): string => `COALESCE((
+    SELECT UPPER(TRIM(COALESCE(NULLIF(TRIM(ka_lp.country), ''),
+             (SELECT NULLIF(TRIM(ka_la.country), '') FROM fiaon_applications ka_la
+               WHERE ka_la.person_id = ${p} AND ka_la.merged_into IS NULL
+               ORDER BY ka_la.created_at DESC LIMIT 1),
+             ''))) NOT IN (${LAENDER_DE_SQL})
+      FROM fiaon_persons ka_lp WHERE ka_lp.id = ${p}), FALSE)`;
+
 const KARTE_PRAEDIKAT: Record<Exclude<KarteAusschlussCode, "vertrag_beendet">, (p: string) => string> = {
   test: (p) => `EXISTS (SELECT 1 FROM fiaon_persons ka_t WHERE ka_t.id = ${p} AND ka_t.ist_test_am IS NOT NULL)`,
   vertriebssperre: (p) => `EXISTS (SELECT 1 FROM fiaon_persons ka_v WHERE ka_v.id = ${p} AND COALESCE(ka_v.is_blocked, FALSE))`,
   stufe_minus1: (p) => `EXISTS (SELECT 1 FROM fiaon_persons ka_s WHERE ka_s.id = ${p} AND COALESCE(ka_s.priority_tier, 0) = -1)`,
   global: (p) => globalKundeSql(p),
+  ausland: (p) => AUSLAND_SQL(p),
   dsgvo: (p) => `EXISTS (SELECT 1 FROM fiaon_applications ka_d WHERE ka_d.person_id = ${p} AND ka_d.merged_into IS NULL AND ka_d.gdpr_deleted_at IS NOT NULL)`,
   gekuendigt: (p) => KUENDIGUNG_WIRKSAM_SQL(p),
   storniert: (p) => `EXISTS (SELECT 1 FROM fiaon_telefonkartei_storno ka_st WHERE ka_st.person_id = ${p} AND ka_st.zurueck_am IS NULL)`,
@@ -950,6 +970,8 @@ async function einladungPruefen(ids: number[], opt: { mitPhase?: boolean } = {})
            -- Global bleiben, also keine unnötigen Mails“. Seit paket_bezahlt oben nur Privatpakete zählt,
            -- ist er dort praktisch nie bereit — diese Spalte hält es fest, auch wenn sich dort etwas ändert.
            ${sqlPool.unsafe(globalKundeSql("p.id"))} AS global,
+           -- E-488 (09.11.2026): Partnerbank-Link nur für Kunden mit Wohnsitz in Deutschland (AUSLAND_SQL).
+           ${sqlPool.unsafe(AUSLAND_SQL("p.id"))} AS ausland,
            (COALESCE(p.primary_email, '') <> '' OR EXISTS (
               SELECT 1 FROM fiaon_applications ae WHERE ae.person_id = p.id AND COALESCE(ae.email, '') <> '')) AS hat_email,
            -- DSGVO-Löschung gilt an jeder lebenden Bestellung — ein eigener Grund, keine Kündigung (E-IT-B).
@@ -979,7 +1001,7 @@ async function einladungPruefen(ids: number[], opt: { mitPhase?: boolean } = {})
   for (const z of zeilen) {
     const flags: KarteFlags = {
       test: !!z.test, vertriebssperre: !!z.vertriebssperre, stufeMinus1: !!z.ausgeschlossen,
-      global: z.global ? true : false, dsgvo: !!z.dsgvo, gekuendigt: !!z.gekuendigt,
+      global: z.global ? true : false, ausland: !!z.ausland, dsgvo: !!z.dsgvo, gekuendigt: !!z.gekuendigt,
       gekuendigtAm: z.gekuendigt && z.gekuendigt_am ? new Date(z.gekuendigt_am).toISOString() : null,
       storniert: !!z.storniert, hatEmail: !!z.hat_email, bonitaetDa: !!z.bonitaet_da,
     };

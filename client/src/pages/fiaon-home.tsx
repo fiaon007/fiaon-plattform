@@ -139,7 +139,7 @@ export default function FiaonHome() {
   const chooseSetup = useCallback((t: "privat" | "business") => { setTab(t); document.getElementById("setups")?.scrollIntoView({ behavior: "smooth" }); }, []);
 
   return (
-    <Dunkel seite="startseite" titel="Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.">
+    <Dunkel seite="startseite" titel="Das Betriebssystem für Bonität" beschreibung="FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, und repariert es mit Ihnen – für Deutschland, Österreich und die Schweiz. In Deutschland begleiten wir Sie danach zu Konto und Karte unserer Partnerbank.">
       <FlugHero knoepfe={<><Knopf onClick={openModal}>Jetzt starten</Knopf><Knopf href="#aras" still>So funktioniert es</Knopf></>} />
 
       <Block eng>
@@ -173,7 +173,7 @@ export default function FiaonHome() {
           <div style={{ display: "grid", gap: 18 }}>
             <Auf><Glas tag="Schicht 1" titel="Einsicht – zuerst Klarheit.">FIAON liest Ihre Kontoauszüge und zeigt Ihre Bonität aus Sicht einer Bank: Einnahmen, Fixkosten, Ampel und Ihren monatlichen Spielraum. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag.</Glas></Auf>
             <Auf verzoegerung={100}><Glas tag="Schicht 2" titel="Aktion – dann Bewegung.">Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet. FIAON erinnert Sie an jede Frist und verfolgt jede Antwort.</Glas></Auf>
-            <Auf verzoegerung={200}><Glas tag="Schicht 3" titel="Zugang – dann die Tür.">Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Niemand geht leer aus. Jeder hat ein nächstes Ziel.</Glas></Auf>
+            <Auf verzoegerung={200}><Glas tag="Schicht 3" titel="Zugang – dann die Tür.">In Deutschland Girokonto und Kreditkarte unserer Partnerbank – den Antrag stellen Sie selbst, mit Ihrer Bonität im Rücken. Jeder hat ein nächstes Ziel.</Glas></Auf>
             <Auf verzoegerung={300}><p className="dk-leise" style={{ borderLeft: "2px solid rgba(96,165,250,.4)", paddingLeft: 14 }}>FIAON liefert Analysen und vorbereitete Schreiben, keine Rechts- oder Steuerberatung. Jedes Schreiben geht erst hinaus, wenn Sie es freigeben.</p></Auf>
           </div>
         </div>
@@ -205,7 +205,7 @@ export default function FiaonHome() {
             { tag: "Die Datenkopie", titel: "Ihre Auskunft, erklärt", text: "Ihre Datenkopie von SCHUFA, KSV oder CRIF steht Ihnen kostenlos zu – Sie fordern sie selbst an, unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir jeden Eintrag." },
             { tag: "Die Aktion", titel: "Löschanträge und Widersprüche", text: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar, angreifbar. Das Schreiben ist vorbereitet – Sie geben frei, FIAON versendet." },
             { tag: "Die Einigung", titel: "Ratenvereinbarungen", text: "Offene Forderungen werden zu Plänen: FIAON schlägt Raten vor, die zu Ihrem Spielraum passen, und verfolgt die Antwort des Gläubigers." },
-            { tag: "Der Zugang", titel: "Konto und Karte", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch davon entfernt sind." },
+            { tag: "Der Zugang", titel: "Konto und Karte", text: "In Deutschland Girokonto und Kreditkarte unserer Partnerbank. Ihr Fahrplan zeigt, wie weit Sie noch davon entfernt sind." },
             { tag: "Der Mensch", titel: "Startgespräch und Betreuung", text: "Ein Startgespräch zu Beginn, ein fester Ansprechpartner danach. Fragen beantwortet ein Mensch – am Telefon oder in Ihrem Bereich." },
           ]} />
         </div>
@@ -214,7 +214,7 @@ export default function FiaonHome() {
       <Block pille="Für wen" titel={<>Eine Plattform. <span className="dk-verlauf">Zwei Welten.</span></>} mitte>
         <div className="dk-raster zwei" style={{ textAlign: "left" }}>
           {[
-            { key: "privat" as const, titel: "Für Privatkunden", text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.", ziele: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · Kreditkarte bis 25.000 €" },
+            { key: "privat" as const, titel: "Für Privatkunden", text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.", ziele: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · eigene Kreditkarte" },
             { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Vier Pakete zum Einmalpreis · Steuerberater und Anwälte im Partnernetz auf eigenes Mandat · Über Konto, Karte und Rahmen entscheidet das Institut" },
           ].map((w, i) => (
             <Auf key={w.key} verzoegerung={i * 120}>
@@ -235,7 +235,7 @@ export default function FiaonHome() {
           <Schritte items={[
             { titel: "Antrag stellen", text: "Ihre Angaben in rund fünf Minuten, die Prüfung direkt im Antrag, dann Paket und Vertrag. Danach ist Ihr Bereich eingerichtet – am Handy wie am Rechner." },
             { titel: "Bonität sehen", text: "Sie laden Ausweis und Kontoauszüge hoch, wir entwickeln Ihre Bonitätsauswertung: was eine Bank sieht – und was sich ändern lässt. Ihre kostenlose Datenkopie der Auskunfteien laden Sie gern dazu." },
-            { titel: "Handeln und Zugang erhalten", text: "Schreiben freigeben, Raten vereinbaren, Etappen abschließen. Am Ende stehen Konto, Karte und – wenn Sie möchten – die Finanzierung." },
+            { titel: "Handeln und Zugang erhalten", text: "Schreiben freigeben, Raten vereinbaren, Etappen abschließen. Am Ende stehen in Deutschland Konto und Karte unserer Partnerbank." },
           ]} />
         </div>
         <Auf><p className="dk-leise" style={{ marginTop: 36 }}>Kein Papierkram. Keine Filiale. Ein Ansprechpartner, der Ihre Akte kennt.</p></Auf>
@@ -250,7 +250,7 @@ export default function FiaonHome() {
         <Fragen items={[
           { f: "Fordert FIAON meine Auskunft bei SCHUFA, KSV oder CRIF an?", a: "Nein. Ihre Datenkopie steht Ihnen bei jeder Auskunftei kostenlos zu – Sie fordern sie selbst an, unser Generator schreibt den Brief. Laden Sie sie hoch, erklären wir jeden Eintrag. Ihre FIAON-Bonitätsauswertung entsteht aus Ihrem Ausweis und Ihren Kontoauszügen: Ihre Bonität aus Sicht einer Bank. Sie ist keine Auskunft einer Auskunftei und kein Score." },
           { f: "Was passiert mit meinen Einträgen?", a: "Jeder Eintrag bekommt eine Einschätzung: erledigt, löschbar, berichtigbar oder angreifbar. Für alles, was sich ändern lässt, bereitet FIAON das Schreiben vor. Sie geben es frei – FIAON versendet es und verfolgt die Antwort." },
-          { f: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: Ein Girokonto ist für jeden Kunden erreichbar, eine Kreditkarte mit Rahmen bis 25.000 € bei guter Bonität. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
+          { f: "Bekomme ich eine Kreditkarte?", a: "Über die Vergabe entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor: In Deutschland führt Ihr Weg zu Girokonto und Kreditkarte unserer Partnerbank; den Antrag stellen Sie selbst. Ihr Fahrplan zeigt, wie weit Sie noch entfernt sind." },
           { f: "Wie arbeitet die FIAON-Analyse?", a: "Sie liest Auskünfte und Kontoauszüge, erklärt Einträge in Klartext und bereitet Schreiben vor. Sie ersetzt keine Rechts- oder Steuerberatung – jedes Schreiben ist anwaltlich geprüft und geht erst hinaus, wenn Sie es freigeben." },
           { f: "Wie lange läuft ein Paket?", a: "Zwölf monatliche Raten per Überweisung. Nach der zwölften Rate fragen wir Sie, ob Sie bleiben möchten – keine stille Verlängerung." },
           { f: "Wo liegen meine Daten?", a: "Verschlüsselt auf Servern in der EU, DSGVO-konform. Sie entscheiden, was Sie hochladen, und können es jederzeit löschen lassen." },

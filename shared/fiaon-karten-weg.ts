@@ -85,8 +85,22 @@ export const KARTE_ZEIT_KURZ = "in der Regel 2–5 Werktage nach der Zusage der 
 export type KarteZweck = "liste" | "automatik" | "mara" | "mensch";
 
 export type KarteAusschlussCode =
-  | "test" | "vertriebssperre" | "stufe_minus1" | "global" | "dsgvo" | "gekuendigt" | "vertrag_beendet" | "storniert" | "ohne_email"
+  | "test" | "vertriebssperre" | "stufe_minus1" | "global" | "ausland" | "dsgvo" | "gekuendigt" | "vertrag_beendet" | "storniert" | "ohne_email"
   | "bonitaet_offen";
+
+/**
+ * E-488 (09.11.2026, FMA-Ersuchen): Unsere einzige Partnerbank (PARTNERBANKEN in server/lib/fiaon-konto-karte.ts, die DKB)
+ * ist eine deutsche Bank. Den Link zu Konto und Karte bekommen deshalb nur Kunden mit Wohnsitz in Deutschland — für
+ * Österreich, die Schweiz und jedes andere Land gibt es keinen Partnerbank-Weg (Website: Österreich-/Schweiz-Seite).
+ * Diese Schreibweisen gelten als Deutschland; ein leeres Land auch (bisheriger Weg). Eine Quelle für TS und SQL.
+ */
+export const KARTE_LAENDER_DEUTSCHLAND: readonly string[] = ["DE", "DEU", "DEUTSCHLAND", "GERMANY"];
+
+/** E-488: Wohnt der Mensch laut Landangabe NICHT in Deutschland? Leeres Land = kein Ausschluss. Rein. */
+export function karteLandAusland(land: string | null | undefined): boolean {
+  const l = String(land ?? "").trim().toUpperCase();
+  return l !== "" && !KARTE_LAENDER_DEUTSCHLAND.includes(l);
+}
 
 /** Was die Regel über einen Menschen wissen muss — die Server-Abfrage liefert genau diese Felder. */
 export interface KarteFlags {
@@ -105,6 +119,8 @@ export interface KarteFlags {
   vertragEnde?: string | null;
   storniert: boolean;
   hatEmail: boolean;
+  /** E-488: Wohnsitz laut Landangabe nicht in Deutschland (karteLandAusland) — dann gibt es keinen Partnerbank-Link. */
+  ausland?: boolean;
   /**
    * E-363: Liegt die FIAON-Bonitätsauswertung beim Kunden (freigegeben) — ODER ging der Link schon vorher raus (dann behält
    * er ihn) — ODER sagt sein Vertrag den Link nach der ersten Rate zu (KARTE_ZUSAGE_ERSTE_RATE)? false = kein neuer Link.
@@ -114,7 +130,7 @@ export interface KarteFlags {
 
 /** Die Reihenfolge ist Bedeutung: Der ERSTE zutreffende Grund steht in der Akte. Eine Quelle für TS und SQL. */
 export const KARTE_AUSSCHLUSS_REIHENFOLGE: readonly KarteAusschlussCode[] = [
-  "test", "vertriebssperre", "stufe_minus1", "global", "dsgvo", "gekuendigt", "storniert", "ohne_email", "bonitaet_offen",
+  "test", "vertriebssperre", "stufe_minus1", "global", "ausland", "dsgvo", "gekuendigt", "storniert", "ohne_email", "bonitaet_offen",
 ];
 
 /** Gründe, die Liste, Automatik und Mara sperren, den MENSCHEN aber nicht (nur auf Wunsch, mit Hinweis). */
@@ -126,6 +142,7 @@ export const KARTE_AUSSCHLUSS_TEXT: Record<KarteAusschlussCode, string> = {
   vertriebssperre: "Vertriebssperre — der Kunde wollte keinen Kontakt",
   stufe_minus1: "Vom Vertrieb ausgeschlossen (Einstufung −1)",
   global: "Kunde von FIAON Global — keine Post der Privatlinie (E-272)",
+  ausland: "Wohnsitz nicht in Deutschland — unsere Partnerbank (DKB) gibt es nur für Kunden in Deutschland, kein Link (E-488)",
   dsgvo: "Daten gelöscht (DSGVO)",
   gekuendigt: "Stufenpaket gekündigt — kein Link aus Liste, Automatik oder Mara",
   vertrag_beendet: "Vertrag beendet — kein Link mehr aus dem Vertrag",
@@ -147,6 +164,7 @@ export const KARTE_AUSSCHLUSS_KUNDE: Record<KarteAusschlussCode, string> = {
   vertriebssperre: "Zum Link unserer Partnerbank sprechen Sie uns bitte direkt an.",
   stufe_minus1: "Den Link unserer Partnerbank schickt Ihnen Ihr Ansprechpartner auf Wunsch.",
   global: "Der Link unserer Partnerbank gehört zu den Privatpaketen.",
+  ausland: "Konto und Karte unserer Partnerbank gibt es nur für Kunden mit Wohnsitz in Deutschland. Ihr Ansprechpartner erklärt Ihnen gern, wie Sie Ihr Recht auf ein Konto in Ihrem Land wahrnehmen.",
   dsgvo: "Ihre Daten sind auf Ihren Wunsch gelöscht.",
   gekuendigt: "Ihr Vertrag ist gekündigt. Den Link unserer Partnerbank schickt Ihnen Ihr Ansprechpartner bis zum Vertragsende auf Wunsch.",
   vertrag_beendet: "Ihr Vertrag ist beendet — der Link unserer Partnerbank gehörte zu seinen Leistungen.",
@@ -179,6 +197,7 @@ export function karteAusschluss(f: KarteFlags, zweck: KarteZweck): KarteAusschlu
       : code === "vertriebssperre" ? f.vertriebssperre
       : code === "stufe_minus1" ? f.stufeMinus1
       : code === "global" ? f.global
+      : code === "ausland" ? !!f.ausland
       : code === "dsgvo" ? f.dsgvo
       : code === "gekuendigt" ? f.gekuendigt && (zweck !== "mensch" || f.phase === "beendet")
       : code === "storniert" ? f.storniert

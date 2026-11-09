@@ -103,6 +103,13 @@ pruef("gekündigt, Vertrag beendet: auch der Mensch nicht — „Vertrag beendet
 pruef("… und für die Liste ebenfalls „Vertrag beendet“", code({ gekuendigt: true, phase: "beendet" }, "liste") === "vertrag_beendet");
 pruef("ohne E-Mail ist ein Ausschluss mit Satz", weg.karteAusschluss({ ...leer, hatEmail: false }, "mensch")?.text.includes("E-Mail") === true);
 pruef("Global vor DSGVO vor gekündigt", code({ global: true, dsgvo: true, gekuendigt: true }, "liste") === "global" && code({ dsgvo: true, gekuendigt: true }, "liste") === "dsgvo");
+// E-488 (09.11.2026, FMA-Ersuchen): Partnerbank-Link nur für Kunden mit Wohnsitz in Deutschland.
+pruef("E-488: Wohnsitz außerhalb Deutschlands sperrt Liste, Automatik, Mara UND Mensch", ["liste", "automatik", "mara", "mensch"].every((z) => code({ ausland: true }, z) === "ausland"));
+pruef("E-488: Ausland steht vor fehlender Bonität und vor gekündigt", code({ ausland: true, bonitaetDa: false, gekuendigt: true }, "automatik") === "ausland");
+pruef("E-488: ohne Angabe (alte Fälle) kein Ausschluss", code({ ausland: undefined }, "mensch") === null);
+pruef("E-488: Länder — AT/CH/BG ja, DE/Deutschland/leer nein", weg.karteLandAusland("AT") && weg.karteLandAusland(" ch ") && weg.karteLandAusland("BG")
+  && !weg.karteLandAusland("DE") && !weg.karteLandAusland("Deutschland") && !weg.karteLandAusland("") && !weg.karteLandAusland(null));
+pruef("E-488: Kundensatz Ausland ohne Versprechen „auf Wunsch“, nennt Deutschland", !/auf Wunsch/.test(weg.KARTE_AUSSCHLUSS_KUNDE.ausland) && /Deutschland/.test(weg.KARTE_AUSSCHLUSS_KUNDE.ausland));
 {
   const a = weg.karteAusschluss({ ...leer, gekuendigt: true, gekuendigtAm: "2026-09-16T10:00:00Z", vertragEnde: "2026-09-30", phase: "beendet" }, "mensch");
   pruef("Satz nennt Kündigungstag und Vertragsende", !!a && a.text.includes("16.09.2026") && a.text.includes("30.09.2026"), a);

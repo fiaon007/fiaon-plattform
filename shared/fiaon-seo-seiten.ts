@@ -294,12 +294,12 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     titel: "Bonität verstehen, Einträge löschen, Karte — FIAON",
     beschreibung: "FIAON zeigt Ihre Bonität aus Sicht einer Bank, erklärt jeden Eintrag Ihrer Datenkopie, versendet geprüfte Schreiben und öffnet die Tür zu Konto und Karte.",
     h1: "Das Betriebssystem für Bonität.",
-    lead: "FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, repariert es mit Ihnen – und öffnet die Tür zu Konto, Karte und Finanzierung. Für Deutschland, Österreich und die Schweiz.",
+    lead: "FIAON zeigt Ihnen, was SCHUFA, KSV und CRIF über Sie wissen, und repariert es mit Ihnen – für Deutschland, Österreich und die Schweiz. In Deutschland begleiten wir Sie danach zu Konto und Karte unserer Partnerbank.",
     abschnitte: [
       { h2: "Ihre Bonität entscheidet über Konto, Karte und Kredit. Nur Sie selbst sehen sie nie.", text: "100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Allein in Deutschland gelten sechs Millionen als überschuldet. Die meisten wissen nicht, was dort steht – und niemand hilft ihnen, es zu ändern." },
-      { h2: "Drei Schichten. Ein Weg.", text: "Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir ändern es mit Ihnen – und wir öffnen danach die Tür. Im Kern arbeitet die FIAON-Analyse, gebaut für Bonität im DACH-Raum.", punkte: ["Einsicht: FIAON liest Ihre Kontoauszüge und zeigt Ihre Bonität aus Sicht einer Bank – Einnahmen, Fixkosten, Ampel und Spielraum. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag.", "Aktion: Löschanträge, Widersprüche und Ratenvereinbarungen aus fertigen Vorlagen – Sie geben frei, FIAON versendet und verfolgt die Antwort.", "Zugang: Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."] },
+      { h2: "Drei Schichten. Ein Weg.", text: "Score-Apps zeigen Ihnen eine Zahl. FIAON geht drei Schritte weiter: Wir zeigen, was dahintersteht, wir ändern es mit Ihnen – und wir öffnen danach die Tür. Im Kern arbeitet die FIAON-Analyse, gebaut für Bonität im DACH-Raum.", punkte: ["Einsicht: FIAON liest Ihre Kontoauszüge und zeigt Ihre Bonität aus Sicht einer Bank – Einnahmen, Fixkosten, Ampel und Spielraum. Ihre kostenlose Datenkopie von SCHUFA, KSV oder CRIF fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag.", "Aktion: Löschanträge, Widersprüche und Ratenvereinbarungen aus fertigen Vorlagen – Sie geben frei, FIAON versendet und verfolgt die Antwort.", "Zugang: in Deutschland Girokonto und Kreditkarte unserer Partnerbank – den Antrag stellen Sie selbst, über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor."] },
       { h2: "In drei Schritten zu Ihrer Bonität.", text: "Antrag stellen: Ihre Angaben in rund fünf Minuten, die Prüfung direkt im Antrag, dann Paket und Vertrag. Bonität sehen: Sie laden Ausweis und Kontoauszüge hoch, wir entwickeln Ihre Bonitätsauswertung – was eine Bank sieht und was sich ändern lässt. Handeln und Zugang erhalten: Schreiben freigeben, Raten vereinbaren, Etappen abschließen – am Ende stehen Konto und Karte." },
-      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: `${AUSW_INKLUSIVE_NEU} Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Pakete ab 7,99 € im Monat, zwölf Raten, keine versteckten Posten. Nur die Bonitätsauswertung: ${AUSK_EINZELN} einmalig, mit laufendem Paket ${AUSK_MIT_PAKET}.` },
+      { h2: "Wählen Sie, wie weit Sie gehen. Nicht, ob.", text: `${AUSW_INKLUSIVE_NEU} Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – in Deutschland bis zum Kartenantrag bei unserer Partnerbank. Pakete ab 7,99 € im Monat, zwölf Raten, keine versteckten Posten. Nur die Bonitätsauswertung: ${AUSK_EINZELN} einmalig, mit laufendem Paket ${AUSK_MIT_PAKET}.` },
       { h2: "Geführt wie ein Finanzinstitut. Gebaut wie eine App.", text: "FIAON LTD mit Sitz in London, Kunden in Deutschland, Österreich und der Schweiz. Jedes Schreiben, das Sie über FIAON versenden, geben Sie vorher frei. Jede Zahlung läuft per Überweisung auf das Geschäftskonto der FIAON LTD. Ihre Daten liegen verschlüsselt auf Servern in der EU." },
       { h2: "Kostenlos, sofort, ohne Anmeldung.", text: "Zehn Werkzeuge, die Ihnen heute schon etwas bringen – keine Anfrage bei einer Auskunftei, keine Spur im Score, nichts wird gespeichert: Datenkopie anfordern, Eintrag prüfen, Löschfrist und Verjährung berechnen, Inkassokosten nachrechnen, Kredit- und Umschuldungsrechner, Schulden-Check, Spielraum und Karten-Check." },
     ],
@@ -324,13 +324,13 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     titel: "Was ist FIAON? Einsicht, Aktion, Zugang erklärt",
     beschreibung: "Von der ersten Auskunft bis zum bereinigten Eintrag: Wie FIAON arbeitet, was in jedem Schritt passiert und woran Sie erkennen, dass es vorangeht.",
     h1: "Das Betriebssystem für Bonität.",
-    lead: "FIAON zeigt Ihnen, was Auskunfteien über Sie wissen, repariert es mit Ihnen – und öffnet Ihnen dann die Tür zu echten Finanzprodukten. Ein Satz, drei Schichten, ein Weg.",
+    lead: "FIAON zeigt Ihnen, was Auskunfteien über Sie wissen, repariert es mit Ihnen – und begleitet Sie in Deutschland dann zu Konto und Karte unserer Partnerbank. Ein Satz, drei Schichten, ein Weg.",
     abschnitte: [
       { h2: "Bonität ist kein Urteil. Sie ist ein Zustand.", text: "Und Zustände kann man ändern. Heute entscheidet eine Auskunft, die Sie nie gesehen haben, über Konto, Karte, Wohnung und Kredit. FIAON dreht das um: Zuerst sehen Sie, was gespeichert ist. Dann ändern Sie es. Dann bekommen Sie Zugang." },
       { h2: "Ein Markt, der nur anzeigt.", text: "100 Millionen Menschen in Deutschland, Österreich und der Schweiz haben einen Eintrag bei SCHUFA, KSV oder CRIF. Score-Apps zeigen eine Zahl, dann nichts. Schuldnerberatungen sind wertvoll – und analog. Banken entscheiden nach der Akte, nicht nach dem Menschen." },
       { h2: "FIAON tut wirklich etwas.", text: "Das ist der Unterschied zu allem, was es bisher gab – und der Grund, warum FIAON ein Betriebssystem ist und keine App: Aus jeder Einsicht wird ein Schreiben, das hinausgeht. Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen – vorbereitet, geprüft, von Ihnen freigegeben." },
       { h2: "Niemand geht leer aus. Jeder hat ein nächstes Ziel.", text: "Die Logik ist einfach und ehrlich: Bonität gut – Karte sofort. Bonität schlecht – FIAON-Programm, Karte später. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor und begleitet Sie." },
-      { h2: "Von der E-Mail-Adresse zur Karte.", text: "Antrag stellen, Startgespräch, Einsicht mit jedem Eintrag erklärt, Aktion Etappe für Etappe mit festem Ansprechpartner, Zugang zu Konto, Karte und später Finanzierung – vorgestellt bei Partnerbanken, die eine dokumentierte Bonität sehen." },
+      { h2: "Von der E-Mail-Adresse zur Karte.", text: "Antrag stellen, Startgespräch, Einsicht mit jedem Eintrag erklärt, Aktion Etappe für Etappe mit festem Ansprechpartner, in Deutschland Zugang zu Konto und Karte unserer Partnerbank – beantragt von Ihnen selbst, mit dokumentierter Bonität." },
       { h2: "Gesellschafter, die selbst im Betrieb stehen.", text: "FIAON wird nicht von einer Zentrale geführt. Die drei Gesellschafter sehen täglich Kunden – im Startgespräch, im Vertrieb, in der Akte. Sie-Form immer, keine Fantasiezahlen, jede Entscheidung ein Eintrag im Register." },
     ],
     weiter: ["/privatkunden", "/plattform-konzept", "/fiaon-erfahrungen", "/team", "/preise", "/sicherheit"],
@@ -338,9 +338,9 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/what-is-fiaon",
       titel: "What is FIAON? The operating system for creditworthiness",
-      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and opens the door to an account, a card and finance. Three layers, one path.",
+      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and, in Germany, guides you to the account and card of our partner bank. Three layers, one path.",
       h1: "The operating system for creditworthiness.",
-      lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then opens the door to real financial products. One sentence, three layers, one path.",
+      lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then, in Germany, guides you to the account and card of our partner bank. One sentence, three layers, one path.",
       abschnitte: [
         { h2: "Creditworthiness is not a verdict — it is a state", text: "Today a report you have never seen decides on your account, your card, your flat and your loan. FIAON turns that around: first you see what is stored, then you change it, then the door opens.", punkte: ["Layer 1 · Insight: your credit assessment from your bank statements, plus the data copy you request yourself, explained in plain language", "Layer 2 · Action: deletion requests, corrections, objections and instalment agreements — prepared, reviewed, sent", "Layer 3 · Access: a current account, a credit card, later finance — the bank decides"] },
         { h2: "Why FIAON exists", text: "100 million people in Germany, Austria and Switzerland have an entry with a credit bureau; six million in Germany alone are considered over-indebted. Score apps show a number, debt counselling is analogue, banks decide by the file. FIAON occupies the layer in between." },
@@ -353,7 +353,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/privatkunden": {
     pfad: "/privatkunden", art: "produkt", stand: PFEILER, prio: 0.9,
     titel: "Bonität verbessern & Kreditkarte für Privatkunden",
-    beschreibung: "Einträge bereinigen, Girokonto eröffnen, Kreditkarte bis 25.000 €: FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft und versendet die Schreiben.",
+    beschreibung: "Einträge bereinigen, der Weg zu Konto und Karte unserer Partnerbank: FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft und versendet die Schreiben.",
     h1: "Die Kreditkarte, die am Ende Ihrer Bonität wartet.",
     lead: "Ein Eintrag ist kein Urteil. FIAON erklärt jeden Eintrag Ihrer Bonitätsauskunft, lässt angreifbare löschen – und öffnet dann die Tür: Girokonto sofort, Kreditkarte, sobald Ihr Wert reicht.",
     abschnitte: [
@@ -517,7 +517,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "Bonität in Österreich, Klartext.",
     lead: "KSV1870, CRIF, die Warnlisten der Banken: In Österreich entscheiden andere Stellen über Konto, Karte und Handyvertrag als in Deutschland – mit eigenen Regeln und eigenen Fristen. FIAON kennt sie.",
     abschnitte: [
-      { h2: "Von der Auskunft zur Karte.", text: "Vier Etappen nach österreichischem Recht.", punkte: ["Bonitätsauswertung und Selbstauskunft: Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Ihre kostenlose Selbstauskunft bei KSV1870 und CRIF fordern Sie selbst an – unser Generator schreibt den Brief – und laden sie hoch.", "Jeder Eintrag erklärt: Was steht da, wer hat es gemeldet, ist es berechtigt, wann ist es weg.", "Schreiben nach österreichischem Recht: Richtigstellung, Löschung, Widerspruch – mit den richtigen Paragraphen, per Einschreiben, mit Frist.", "Konto und Karte: Girokonto über Partnerbanken, die auch bei Einträgen eröffnen; Kreditkarte, sobald die Auskunft trägt. Die Bank entscheidet."] },
+      { h2: "Von der Auskunft zur sauberen Akte.", text: "Vier Etappen nach österreichischem Recht.", punkte: ["Bonitätsauswertung und Selbstauskunft: Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Ihre kostenlose Selbstauskunft bei KSV1870 und CRIF fordern Sie selbst an – unser Generator schreibt den Brief – und laden sie hoch.", "Jeder Eintrag erklärt: Was steht da, wer hat es gemeldet, ist es berechtigt, wann ist es weg.", "Schreiben nach österreichischem Recht: Richtigstellung, Löschung, Widerspruch – mit den richtigen Paragraphen, per Einschreiben, mit Frist.", "Ihr Recht auf ein Konto: Auf ein Basiskonto haben Sie nach dem Verbraucherzahlungskontogesetz einen Rechtsanspruch. Wir erklären Ihnen, worauf es beim Antrag ankommt – stellen Sie ihn dann selbst bei einer Bank Ihrer Wahl."] },
       { h2: "Kostenlos, sofort.", text: "Datenkopie-Generator für KSV1870 und CRIF, Eintrag-Prüfer und Löschfrist-Rechner – alles im Browser, ohne Anmeldung, nichts wird gespeichert." },
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/eintrag-pruefen", "/preise", "/schweiz"],
@@ -525,12 +525,12 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/austria",
       titel: "FIAON in Austria: KSV1870, CRIF and your rights",
-      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists — and how FIAON prepares account and card.",
+      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists — and how FIAON helps you exercise your rights.",
       h1: "Creditworthiness in Austria, in plain terms.",
       lead: "KSV1870, CRIF, the banks' warning lists: in Austria, different bodies decide on account, card and mobile contract than in Germany — with their own rules and their own deadlines. FIAON knows them.",
       abschnitte: [
         { h2: "Who stores what", text: "KSV1870, the country's largest credit bureau; CRIF, strong in telecommunications and mail order; the banks' joint warning lists. Free self-disclosure under Art. 15 GDPR from all of them within one month." },
-        { h2: "Your rights and the path with FIAON", text: "Access, rectification, erasure and objection under the GDPR, Section 152 GewO for credit bureaus, complaint to the Data Protection Authority in Vienna. You request your free self-disclosure yourself; FIAON explains every entry, writes under Austrian law and prepares account and card with partner banks. The bank decides." },
+        { h2: "Your rights and the path with FIAON", text: "Access, rectification, erasure and objection under the GDPR, Section 152 GewO for credit bureaus, complaint to the Data Protection Authority in Vienna. You request your free self-disclosure yourself; FIAON explains every entry and writes under Austrian law. You apply for a basic account yourself at a bank of your choice." },
       ],
       weiter: ["/auskunfteien", "/schweiz"],
       krumen: [{ name: "FIAON in Austria", pfad: "/en/austria" }],
@@ -543,7 +543,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "Bonität in der Schweiz, Klartext.",
     lead: "Betreibungsregister, CRIF, Intrum: In der Schweiz entscheidet oft ein Auszug vom Betreibungsamt über Wohnung, Handy und Karte – und fünf Jahre sind lang. FIAON kennt die Wege, ihn zu bereinigen.",
     abschnitte: [
-      { h2: "Vom Registerauszug zur Karte.", text: "Vier Etappen nach Schweizer Recht.", punkte: ["Bonitätsauswertung und Auszug: Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Den Betreibungsregisterauszug bestellen Sie beim Amt, die kostenlosen Auskünfte bei CRIF und Intrum fordern Sie selbst an – und laden alles hoch.", "Jede Betreibung erklärt: Gläubiger, Betrag, Stand, Rechtsvorschlag, Frist. Welche lässt sich sperren, welche zurückziehen, welche bleibt.", "Gesuche und Schreiben: Nichtbekanntgabe nach Art. 8a SchKG, Rückzugserklärung vom Gläubiger, Berichtigung bei CRIF und Intrum – per Einschreiben, mit Frist.", "Konto und Karte: Konto bei einer Partnerbank, Kreditkarte, sobald der Auszug trägt. Die Bank entscheidet – FIAON bereitet vor."] },
+      { h2: "Vom Registerauszug zur sauberen Akte.", text: "Vier Etappen nach Schweizer Recht.", punkte: ["Bonitätsauswertung und Auszug: Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen. Den Betreibungsregisterauszug bestellen Sie beim Amt, die kostenlosen Auskünfte bei CRIF und Intrum fordern Sie selbst an – und laden alles hoch.", "Jede Betreibung erklärt: Gläubiger, Betrag, Stand, Rechtsvorschlag, Frist. Welche lässt sich sperren, welche zurückziehen, welche bleibt.", "Gesuche und Schreiben: Nichtbekanntgabe nach Art. 8a SchKG, Rückzugserklärung vom Gläubiger, Berichtigung bei CRIF und Intrum – per Einschreiben, mit Frist.", "Konto trotz Betreibung: PostFinance führt Konten für Personen mit Wohnsitz in der Schweiz weitgehend unabhängig von Betreibungen. Den Antrag stellen Sie selbst – FIAON erklärt Ihnen vorher, worauf es ankommt."] },
       { h2: "Kostenlos, sofort.", text: "Datenkopie-Generator für CRIF und Intrum, Verjährungs-Prüfer und Löschfrist-Rechner – im Browser, ohne Anmeldung." },
     ],
     weiter: ["/auskunfteien", "/werkzeuge/selbstauskunft", "/werkzeuge/verjaehrung", "/preise", "/oesterreich"],
@@ -556,7 +556,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       lead: "Debt enforcement register, CRIF, Intrum: in Switzerland an extract from the enforcement office often decides on flat, phone and card — and five years is a long time. FIAON knows the routes to clean it up.",
       abschnitte: [
         { h2: "Who stores what", text: "The debt enforcement register at your place of residence (every enforcement visible for five years, extract CHF 17), CRIF as the private bureau and Intrum with debt collection and its own credit data. Access under Art. 25 DSG within 30 days." },
-        { h2: "Your rights and the path with FIAON", text: "Block an unjustified enforcement under Art. 8a SchKG, withdrawal declaration from the creditor after payment, rectification and erasure at CRIF and Intrum under Art. 32 DSG, complaint to the FDPIC. You get the extract and the reports yourself; FIAON explains every enforcement, drafts requests and letters and prepares account and card. The bank decides." },
+        { h2: "Your rights and the path with FIAON", text: "Block an unjustified enforcement under Art. 8a SchKG, withdrawal declaration from the creditor after payment, rectification and erasure at CRIF and Intrum under Art. 32 DSG, complaint to the FDPIC. You get the extract and the reports yourself; FIAON explains every enforcement and drafts requests and letters. You apply for an account yourself." },
       ],
       weiter: ["/auskunfteien", "/oesterreich"],
       krumen: [{ name: "FIAON in Switzerland", pfad: "/en/switzerland" }],
@@ -597,7 +597,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     h1: "Bonität, zu Ende gedacht.",
     lead: "Einsicht, Aktion, Zugang: FIAON zeigt Ihre Bonität aus Sicht einer Bank, bereinigt, was angreifbar ist, und öffnet Konto und Karte. Hier ist die ganze Plattform – Schicht für Schicht, Tag für Tag.",
     abschnitte: [
-      { h2: "Eine Plattform, drei Schichten.", text: "Jede Schicht baut auf der vorigen auf. Die meisten Anbieter hören nach der ersten auf: Einsicht (Auskunft und Kontoauszug erklärt), Aktion (Schreiben, die hinausgehen), Zugang (Konto, Karte, Finanzierung)." },
+      { h2: "Eine Plattform, drei Schichten.", text: "Jede Schicht baut auf der vorigen auf. Die meisten Anbieter hören nach der ersten auf: Einsicht (Auskunft und Kontoauszug erklärt), Aktion (Schreiben, die hinausgehen), Zugang (in Deutschland Konto und Karte unserer Partnerbank)." },
       { h2: "Was passiert, Tag für Tag.", text: "Antrag in rund fünf Minuten, Startgespräch in 15 Minuten, Unterlagen per Link hochladen, Bonitätsauswertung, jeder Eintrag Ihrer Datenkopie erklärt, Schreiben gehen raus, Antworten und Löschungen, Girokonto, Kreditkarte – und nach zwölf Raten entscheiden Sie, ob Sie bleiben." },
       { h2: "Drei Länder, drei Systeme.", text: "FIAON kennt die Auskunfteien, Fristen und Rechte in Deutschland, Österreich und der Schweiz – und schreibt die Schreiben so, wie sie dort gelesen werden." },
       { h2: "Gebaut wie eine Bank, gesprochen wie ein Mensch.", text: "Nur, was Sie hochladen: FIAON fordert nichts bei Auskunfteien an. Kein Schreiben ohne Sie: Jedes Schreiben sehen Sie vor dem Versand. Ihre Daten, Ihr Ende: Nach Vertragsende löschen wir auf Wunsch vollständig." },
@@ -742,7 +742,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     titel: "Presse: Fakten, Zahlen, Bildmaterial, Ansprechpartner",
     beschreibung: "FIAON in den Medien: Kurzprofil, Marktzahlen zum Zitieren, Themen für Interviews und Gastbeiträge, Bildmaterial und ein Ansprechpartner für Anfragen.",
     h1: "FIAON in den Medien.",
-    lead: "Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und öffnet danach die Tür zu Konto, Karte und Finanzierung. Hier finden Sie alles für Ihre Recherche.",
+    lead: "Das Betriebssystem für Bonität: FIAON zeigt Menschen in Deutschland, Österreich und der Schweiz, was Auskunfteien über sie wissen – repariert es mit ihnen und begleitet sie in Deutschland zu Konto und Karte unserer Partnerbank. Hier finden Sie alles für Ihre Recherche.",
     abschnitte: [
       { h2: "In drei Sätzen erzählt.", text: "Wer FIAON in einem Absatz beschreiben will, braucht nur die drei Schichten: Einsicht, Aktion, Zugang." },
       { h2: "Worüber wir sprechen können.", text: "Justin Schwarzott steht für Interviews, Hintergrundgespräche und Gastbeiträge zur Verfügung: Was steht eigentlich in meiner SCHUFA? Warum Score-Apps nicht reichen. KI, die Kontoauszüge liest. Kunden werden Mitarbeiter." },
@@ -755,7 +755,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       titel: "Press: facts, figures, imagery, contact — FIAON",
       beschreibung: "FIAON in the media: short profile, market figures to quote, topics for interviews and guest articles, imagery and a named contact for enquiries.",
       h1: "FIAON in the media.",
-      lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and then opens the door to account, card and financing.",
+      lead: "The operating system for creditworthiness: FIAON shows people in Germany, Austria and Switzerland what credit bureaus know about them – repairs it with them and, in Germany, guides them to the account and card of our partner bank.",
       abschnitte: [
         { h2: "Facts at a glance", text: "FIAON LTD, London; founder and director Justin Schwarzott; markets Germany, Austria, Switzerland; product insight, action, access; payment by bank transfer in twelve instalments; press contact presse@fiaon.com." },
         { h2: "Told in three sentences", text: "People see for the first time how a bank sees them; then they change what is wrong with letters they approve; and they get what was denied to them before – via partner banks that see a documented credit file." },

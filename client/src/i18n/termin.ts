@@ -19,7 +19,7 @@ const de = {
   ablauf: [
     { titel: "Ihre Lage", text: "Was ist passiert – Ablehnung, Brief, Eintrag, Kündigung? Welche Auskunftei, welches Land? Zwei Minuten, keine Formulare." },
     { titel: "Was die Auskunft hergibt", text: "Wir erklären, was ein Eintrag rechtlich bedeutet, ob er angreifbar sein könnte und welche Frist läuft – ohne Versprechen, mit Paragrafen." },
-    { titel: "Ihr Ziel", text: "Nur Klarheit? Einträge weg? Konto, Karte, Finanzierung? Das Ziel bestimmt den Weg – und ob FIAON überhaupt der richtige ist." },
+    { titel: "Ihr Ziel", text: "Nur Klarheit? Einträge weg? Konto und Karte? Das Ziel bestimmt den Weg – und ob FIAON überhaupt der richtige ist." },
     { titel: "Der ehrliche Vorschlag", text: "Kostenlose Werkzeuge, die Bonitätsauswertung für 149 € oder ein Paket (für neue Paketkunden ist sie darin enthalten) – wir nennen das, was zu Ihrem Fall passt, nicht das teuerste." },
     { titel: "Die nächsten Schritte", text: "Wenn Sie wollen: Paket, erste Rate, Ausweis und Kontoauszüge per Link hochladen. Wenn nicht: eine Zusammenfassung per E-Mail und die Links zu den Werkzeugen." },
   ],
@@ -66,7 +66,7 @@ const en: typeof de = {
   ablauf: [
     { titel: "Your situation", text: "What has happened — a rejection, a letter, an entry, a termination? Which credit bureau, which country? Two minutes, no forms." },
     { titel: "What the report shows", text: "We explain what an entry means legally, whether it might be challengeable and which deadline is running — without promises, with the relevant sections." },
-    { titel: "Your goal", text: "Just clarity? Entries gone? Account, card, finance? The goal determines the path — and whether FIAON is the right choice at all." },
+    { titel: "Your goal", text: "Just clarity? Entries gone? Account and card? The goal determines the path — and whether FIAON is the right choice at all." },
     { titel: "The honest suggestion", text: "Free tools, the credit assessment for €149 or a plan (for new plan customers it is included) — we name what fits your case, not the most expensive option." },
     { titel: "The next steps", text: "If you want: plan, first instalment, upload your ID and bank statements via a link. If not: a summary by e-mail and the links to the tools." },
   ],

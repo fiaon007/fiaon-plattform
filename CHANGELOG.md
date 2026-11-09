@@ -171,6 +171,14 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
     bricht schon in der Vorschau ab. Der Server zeigt eine Bühne erst nach der unterschriebenen Vereinbarung und nur für
     die Themen, die sie nennt (dieselbe Regel wie für Dokumente). Ohne Bühne zeigt ein Raum Titel, Beschreibung und
     Unterlagen.
+  - **Politur nach dem Klicktest im Browser** (375 px und 1440 px, erfundener Raum): Beim Raumwechsel ist der alte Raum
+    schneller fort, kurz geht Licht aus der Tür auf, der neue Raum kommt aus der Tiefe — kein Doppelbild mehr. Am
+    Rechner steht der Gang im Auftakt hochkant rechts bis an den Rand, mit langsamer Kamerafahrt; „Willkommen im
+    Datenraum.“ auf zwei Zeilen. Kopf eines Raums ohne doppeltes „Raum 1 von 3“; ein Gedankenstrich beginnt nie eine
+    Zeile; Jahreszahlen zählen nicht hoch. Unterlagen als ruhige Zeilen (die Zeile öffnet, daneben nur das Zeichen zum
+    Herunterladen). Abschluss mit dem persönlichen Kontakt; im letzten Raum stehen die Kennzahlen des gewählten
+    Projekts daneben, unten rechts ist „Alle Unterlagen“ nur noch leise (der Vertragsentwurf ist das Ziel); die
+    Bestätigung rückt nach dem Anfordern in den Blick.
 - **Wo:** client/src/components/datenraum/Raumtour.tsx, client/src/styles/datenraum-tour.css,
   client/src/pages/datenraum-zugang.tsx (Einhängen), shared/fiaon-datenraum-buehne.ts (Schema),
   server/lib/fiaon-datenraum-tour.ts und -tour-regeln.ts, server/routes/fiaon-datenraum.ts (GET /datenraum/buehnen,

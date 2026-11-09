@@ -62,6 +62,22 @@ const grosseLeinwand = () => { try { return window.matchMedia("(min-width: 900px
 const zweistellig = (n: number) => String(n).padStart(2, "0");
 const v = (i: number): CSSProperties => ({ "--i": i } as CSSProperties);
 const ZAHLWORT = ["keinen", "einen", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
+/** Ein Gedankenstrich beginnt nie eine Zeile: festes Leerzeichen davor. */
+const satz = (t: string) => t.replace(/ ([—–]) /g, "\u00a0$1 ");
+const initialen = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+/** Breiter Bildschirm (Auftakt: der Gang steht rechts, hochkant)? Folgt der Fenstergröße. */
+function useBreit(q = "(min-width: 1000px)"): boolean {
+  const [an, setAn] = useState(() => { try { return window.matchMedia(q).matches; } catch { return false; } });
+  useEffect(() => {
+    let m: MediaQueryList;
+    try { m = window.matchMedia(q); } catch { return; }
+    const f = () => setAn(m.matches);
+    f();
+    m.addEventListener?.("change", f);
+    return () => m.removeEventListener?.("change", f);
+  }, [q]);
+  return an;
+}
 const dokUrl = (d: TourDok) => `${API}/dokument/${encodeURIComponent(d.kennung)}`;
 const groesse = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const dokMeta = (d: TourDok) => [d.typ, d.seiten ? `${d.seiten} ${d.seiten === 1 ? "Seite" : "Seiten"}` : "", groesse(d.groesse)].filter(Boolean).join(" · ");
@@ -160,7 +176,7 @@ export default function Raumtour({ stand, frisch = false, alleUnterlagen, nachtr
 
   useEffect(() => {
     if (!weg) return;
-    const t = window.setTimeout(() => setWeg(null), ruhig ? 420 : 1080);
+    const t = window.setTimeout(() => setWeg(null), ruhig ? 420 : 1320);
     return () => window.clearTimeout(t);
   }, [weg, ruhig]);
   useEffect(() => { try { window.sessionStorage.setItem(MERKER, String(aktiv)); } catch { /* privat — egal */ } }, [aktiv]);
@@ -249,7 +265,7 @@ export default function Raumtour({ stand, frisch = false, alleUnterlagen, nachtr
     if (st.art === "auftakt") {
       inhalt = <Auftakt stand={stand} raeume={raeume} frisch={frisch} beginnen={() => gehe(1)} alleUnterlagen={alleUnterlagen} nachtrag={nachtrag} />;
     } else if (st.art === "raum") {
-      inhalt = <RaumBuehne r={st} gesamt={raeume.length} gesehen={gesehen.current} oeffnen={oeffnen} anfragen={anfragen} senden={senden} zuruecksetzen={zuruecksetzen} kontakt={kontakt} email={stand.gast?.email ?? ""} />;
+      inhalt = <RaumBuehne r={st} gesehen={gesehen.current} oeffnen={oeffnen} anfragen={anfragen} senden={senden} zuruecksetzen={zuruecksetzen} kontakt={kontakt} email={stand.gast?.email ?? ""} />;
     } else {
       inhalt = <Schritt raeume={raeume} anfragen={anfragen} senden={senden} zuruecksetzen={zuruecksetzen} kontakt={kontakt} email={stand.gast?.email ?? ""} gehe={gehe} alleUnterlagen={alleUnterlagen} abmelden={abmelden} />;
     }
@@ -297,6 +313,8 @@ export default function Raumtour({ stand, frisch = false, alleUnterlagen, nachtr
           <>
             {weg && weg.von !== aktiv && zeigeStation(weg.von, weg.richtung > 0 ? "geht-vor" : "geht-zurueck")}
             {zeigeStation(aktiv, weg ? (weg.richtung > 0 ? "kommt-vor" : "kommt-zurueck") : "steht")}
+            {/* Der Durchgang: kurz Licht aus der Tür, während man hindurchgeht (nicht bei „weniger Bewegung“). */}
+            {weg && !ruhig ? <span key={weg.nr} className={`drt-durchgang ${weg.richtung > 0 ? "vor" : "zurueck"}`} aria-hidden="true" /> : null}
           </>
         )}
       </main>
@@ -309,7 +327,7 @@ export default function Raumtour({ stand, frisch = false, alleUnterlagen, nachtr
             Weiter{naechsterName ? <span className="drt-weiter-ziel"> · {naechsterName}</span> : null}<Pfeil />
           </button>
         ) : (
-          <button type="button" className="drt-weiter" onClick={alleUnterlagen} data-fiaon="drt-weiter">Alle Unterlagen<Pfeil /></button>
+          <button type="button" className="drt-weiter still" onClick={alleUnterlagen} data-fiaon="drt-weiter">Alle Unterlagen<Pfeil /></button>
         )}
       </footer>
       <p className="drt-unsichtbar" aria-live="polite">{buehnen === null ? "" : `${fortschritt}${titel ? ` · ${titel}` : ""}`}</p>
@@ -334,7 +352,7 @@ function Auftakt({ stand, raeume, frisch, beginnen, alleUnterlagen, nachtrag }: 
       <div className="drt-auftakt-glas drt-schicht" style={v(0)}>
         <span className="drt-auftakt-licht" aria-hidden="true" />
         <p className="drt-auge hell drt-schicht" style={v(1)}>{stand.raum?.titel || "Datenraum"}</p>
-        <h1 className="drt-auftakt-titel drt-schicht" style={v(2)} data-kopf tabIndex={-1}>Willkommen im Datenraum.</h1>
+        <h1 className="drt-auftakt-titel drt-schicht" style={v(2)} data-kopf tabIndex={-1}>Willkommen im{"\u00a0"}Datenraum.</h1>
         <p className="drt-auftakt-lead drt-schicht" style={v(3)}>
           {anrede ? `${anrede}, Ihr` : "Ihr"} Rundgang führt durch {zahl} {n === 1 ? "Raum" : "Räume"}{haupt ? <> — zuerst <b>{haupt.projekt.titel}</b></> : null}.
         </p>
@@ -370,10 +388,12 @@ function Auftakt({ stand, raeume, frisch, beginnen, alleUnterlagen, nachtrag }: 
 /** Die Flucht: ein Portal je Raum, in Zentralperspektive — das Hauptprojekt vorn und leuchtend. */
 function Flucht({ raeume }: { raeume: Raum[] }) {
   const gid = `drt-f-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const W = 600; const H = 300; const cx = W / 2; const cy = H / 2;
+  // Schmal: ein breiter Gang unter dem Text. Breit: hochkant rechts neben dem Text, bis an den Rand der Fläche.
+  const hoch = useBreit();
+  const W = hoch ? 520 : 600; const H = hoch ? 600 : 300; const cx = W / 2; const cy = hoch ? H * 0.47 : H / 2;
   const portale = raeume.slice(0, 8).map((r, i) => {
     const s = 1 / (1 + i * 0.82);
-    const w = 360 * s; const h = 180 * s;
+    const w = (hoch ? 300 : 360) * s; const h = (hoch ? 330 : 180) * s;
     return { r, i, s, x: cx - w / 2, y: cy - h / 2, w, h };
   });
   const hinten = portale[portale.length - 1] ?? { x: cx - 40, y: cy - 20, w: 80, h: 40, s: 0.2 };
@@ -383,7 +403,7 @@ function Flucht({ raeume }: { raeume: Raum[] }) {
     return `M${x0.toFixed(1)} ${H}L${(x0 + (cx - x0) * k).toFixed(1)} ${(tief.y + tief.h).toFixed(1)}`;
   }).join("");
   return (
-    <svg className="drt-flucht drt-schicht" style={v(4)} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Ein Gang durch ${raeume.length} Räume`}>
+    <svg className={`drt-flucht drt-schicht${hoch ? " hoch" : ""}`} style={v(4)} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio={hoch ? "xMidYMid slice" : "xMidYMid meet"} role="img" aria-label={`Ein Gang durch ${raeume.length} Räume`}>
       <defs>
         <radialGradient id={gid} cx="50%" cy="50%" r="50%">
           <stop offset="0" stopColor="#e3efff" stopOpacity="0.9" />
@@ -391,6 +411,7 @@ function Flucht({ raeume }: { raeume: Raum[] }) {
           <stop offset="1" stopColor="#7fb4ff" stopOpacity="0" />
         </radialGradient>
       </defs>
+      <g className="drt-flucht-fahrt">
       <ellipse className="drt-flucht-licht" cx={cx} cy={cy} rx={Math.max(60, tief.w * 1.15)} ry={Math.max(34, tief.h * 1.2)} fill={`url(#${gid})`} />
       <rect className="drt-flucht-tiefe" x={tief.x} y={tief.y} width={tief.w} height={tief.h} rx="2" />
       <g className="drt-flucht-kanten">
@@ -403,6 +424,7 @@ function Flucht({ raeume }: { raeume: Raum[] }) {
           <text x={p.x + 14 * p.s} y={p.y + 34 * p.s} fontSize={30 * p.s}>{p.r.projekt.buchstabe}</text>
         </g>
       ))}
+      </g>
     </svg>
   );
 }
@@ -429,8 +451,8 @@ function Raumlinien() {
 // ═══════════════════════════════════════════════════════════════════════════
 // EIN RAUM — die Bühne eines Projekts
 // ═══════════════════════════════════════════════════════════════════════════
-function RaumBuehne({ r, gesamt, gesehen, oeffnen, anfragen, senden, zuruecksetzen, kontakt, email }: {
-  r: Raum; gesamt: number; gesehen: Set<string>; oeffnen: Oeffnen; anfragen: Record<string, AnfrageStand>; senden: Senden;
+function RaumBuehne({ r, gesehen, oeffnen, anfragen, senden, zuruecksetzen, kontakt, email }: {
+  r: Raum; gesehen: Set<string>; oeffnen: Oeffnen; anfragen: Record<string, AnfrageStand>; senden: Senden;
   zuruecksetzen: (k: string) => void; kontakt: { name: string; email: string }; email: string;
 }) {
   const b = r.buehne;
@@ -448,12 +470,12 @@ function RaumBuehne({ r, gesamt, gesehen, oeffnen, anfragen, senden, zuruecksetz
         <span className="drt-riese" aria-hidden="true">{p.buchstabe}</span>
         <p className="drt-meta drt-schicht" style={v(0)}>
           <span className="drt-bu" aria-hidden="true">{p.buchstabe}</span>
-          <span>Raum {r.nr} von {gesamt} · {p.titel}</span>
+          <span className="drt-meta-titel">{p.titel}</span>
           {r.haupt ? <span className="drt-pille">Hauptprojekt</span> : null}
         </p>
         {b?.kicker ? <p className="drt-auge drt-schicht" style={v(1)}>{b.kicker}</p> : null}
-        <h2 className="drt-claim drt-schicht" style={v(2)} data-kopf tabIndex={-1}>{claim}</h2>
-        {unter ? <p className="drt-unter drt-schicht" style={v(3)}>{unter}</p> : null}
+        <h2 className="drt-claim drt-schicht" style={v(2)} data-kopf tabIndex={-1}>{satz(claim)}</h2>
+        {unter ? <p className="drt-unter drt-schicht" style={v(3)}>{satz(unter)}</p> : null}
       </header>
       {b && b.kennzahlen.length > 0 ? <Kennzahlen liste={b.kennzahlen} navy={r.haupt} zaehlen={zaehlen} /> : null}
       {b?.kurve ? <Kurve kurve={b.kurve} /> : null}
@@ -466,6 +488,7 @@ function RaumBuehne({ r, gesamt, gesehen, oeffnen, anfragen, senden, zuruecksetz
               <div className="drt-abschluss-text">
                 <p className="drt-auge">Vertragsentwurf</p>
                 <h3>Der nächste Schritt zu {p.titel}.</h3>
+                {kontakt.name ? <Person name={kontakt.name} /> : null}
               </div>
               <div className="drt-abschluss-wege">
                 <AbschlussKnopf r={r} anfragen={anfragen} senden={senden} kontakt={kontakt} />
@@ -494,7 +517,7 @@ function Kennzahlen({ liste, navy, zaehlen }: { liste: DrBuehneKennzahl[]; navy:
     <Block klasse={`drt-kennzahlen${navy ? " navy" : ""} n${Math.min(6, liste.length)}`} label="Kennzahlen">
       {(da) => liste.map((k, i) => (
         <div key={i} className="drt-kachel" style={{ "--j": i } as CSSProperties}>
-          <Zahl wert={k.wert} los={da && zaehlen} verzug={260 + i * 120} />
+          <Zahl wert={k.wert} los={da && zaehlen} verzug={720 + i * 140} />
           <span className="drt-kachel-label">{k.label}</span>
           {k.hinweis ? <span className="drt-kachel-hinweis">{k.hinweis}</span> : null}
         </div>
@@ -527,7 +550,8 @@ function Zahl({ wert, los, verzug }: { wert: string; los: boolean; verzug: numbe
   const teile = useMemo(() => zahlTeile(wert), [wert]);
   const [anzeige, setAnzeige] = useState<string | null>(null);
   useEffect(() => {
-    if (!los || !teile || ruhigGewuenscht()) { setAnzeige(null); return; }
+    // Eine Jahreszahl („2028“) zählt nicht hoch — sie steht einfach da.
+    if (!los || !teile || ruhigGewuenscht() || /^(1[89]|20)\d{2}$/.test(teile.roh)) { setAnzeige(null); return; }
     let f = 0; let t0 = 0;
     setAnzeige(zahlSchreiben(0, teile));
     const schritt = (t: number) => {
@@ -690,9 +714,9 @@ function Kapitel({ liste, nachNr, oeffnen }: { liste: DrBuehneKapitel[]; nachNr:
             {() => (
               <>
                 <span className="drt-kapitel-nr" aria-hidden="true">{zweistellig(i + 1)}</span>
-                <h3>{k.titel}</h3>
+                <h3>{satz(k.titel)}</h3>
                 <div className="drt-kapitel-text">
-                  {k.text.split(/\n+/).map((t, j) => <p key={j}>{t}</p>)}
+                  {k.text.split(/\n+/).map((t, j) => <p key={j}>{satz(t)}</p>)}
                   {passend.length ? (
                     <div className="drt-chips">
                       {passend.map((d) => (
@@ -725,16 +749,16 @@ function Unterlagen({ docs, titel, oeffnen }: { docs: TourDok[]; titel: string; 
             <ol>
               {docs.map((d, i) => (
                 <li key={d.kennung} className="drt-dok">
-                  <span className="nr" aria-hidden="true">{zweistellig(i + 1)}</span>
-                  <div className="drt-dok-text">
-                    <b>{d.titel}</b>
-                    {d.beschreibung ? <p>{d.beschreibung}</p> : null}
-                    <span className="meta">{dokMeta(d)}</span>
-                  </div>
-                  <div className="drt-dok-wege">
-                    {d.ansehen ? <DokLink d={d} oeffnen={oeffnen} klasse="drt-knopf klein still">Ansehen</DokLink> : null}
-                    <a className="drt-knopf klein still" href={`${dokUrl(d)}?laden=1`} download>Herunterladen</a>
-                  </div>
+                  <DokLink d={d} oeffnen={oeffnen} klasse="drt-dok-zeile">
+                    <span className="nr" aria-hidden="true">{zweistellig(i + 1)}</span>
+                    <span className="drt-dok-text">
+                      <b>{d.titel}</b>
+                      {d.beschreibung ? <span className="be">{d.beschreibung}</span> : null}
+                      <span className="meta">{dokMeta(d)}</span>
+                    </span>
+                    <span className="drt-dok-ansehen">{d.ansehen ? "Ansehen" : "Herunterladen"}<Pfeil /></span>
+                  </DokLink>
+                  {d.ansehen ? <a className="drt-dok-laden" href={`${dokUrl(d)}?laden=1`} download aria-label={`${d.titel} herunterladen`} title="Herunterladen"><Laden /></a> : null}
                 </li>
               ))}
             </ol>
@@ -750,9 +774,13 @@ function AbschlussKnopf({ r, anfragen, senden, kontakt, hell = false }: {
   r: Raum; anfragen: Record<string, AnfrageStand>; senden: Senden; kontakt: { name: string; email: string }; hell?: boolean;
 }) {
   const st = anfragen[`vertrag:${r.projekt.buchstabe}`];
+  const bestaetigt = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (st?.fertig) bestaetigt.current?.scrollIntoView({ block: "nearest", behavior: ruhigGewuenscht() ? "auto" : "smooth" });
+  }, [st?.fertig]);
   const text = r.buehne?.abschluss?.knopf || DR_TOUR_TEXTE.abschlussKnopf;
   const satz = r.buehne?.abschluss?.satz || (kontakt.name ? `Unverbindlich — Sie erhalten den Entwurf persönlich von ${kontakt.name}.` : "Unverbindlich — Sie erhalten den Entwurf persönlich.");
-  if (st?.fertig) return <div className={`drt-bestaetigt${hell ? " hell" : ""}`} role="status"><Haken /><p>{st.fertig}</p></div>;
+  if (st?.fertig) return <div ref={bestaetigt} className={`drt-bestaetigt${hell ? " hell" : ""}`} role="status"><Haken /><p>{st.fertig}</p></div>;
   return (
     <div className="drt-abschluss-knopf">
       <button type="button" className={`drt-knopf gross${hell ? " hell" : ""}`} disabled={!!st?.laeuft} onClick={() => void senden("vertrag", r.projekt.buchstabe)} data-fiaon="drt-vertrag">
@@ -806,6 +834,7 @@ function Schritt({ raeume, anfragen, senden, zuruecksetzen, kontakt, email, gehe
 }) {
   const [wahl, setWahl] = useState<string>(() => (raeume.find((r) => r.haupt) ?? raeume[0])?.projekt.buchstabe ?? "");
   const gewaehlt = raeume.find((r) => r.projekt.buchstabe === wahl) ?? raeume[0];
+  const blick = (gewaehlt?.buehne?.kennzahlen ?? []).slice(0, 3);
   return (
     <article className="drt-raum-inhalt schritt">
       <header className="drt-raum-kopf">
@@ -814,8 +843,9 @@ function Schritt({ raeume, anfragen, senden, zuruecksetzen, kontakt, email, gehe
         <p className="drt-unter drt-schicht" style={v(2)}>Fordern Sie den Vertragsentwurf an oder stellen Sie Ihre Frage{kontakt.name ? ` — ${kontakt.name} antwortet persönlich` : ""}.</p>
       </header>
       {gewaehlt ? (
-        <section className="drt-schritt-glas drt-schicht" style={v(3)} aria-label="Vertragsentwurf anfordern">
+        <section className={`drt-schritt-glas drt-schicht${blick.length ? " mit-blick" : ""}`} style={v(3)} aria-label="Vertragsentwurf anfordern">
           <span className="drt-auftakt-licht" aria-hidden="true" />
+          <div className="drt-schritt-haupt">
           <p className="drt-auge hell">Vertragsentwurf</p>
           {raeume.length > 1 ? (
             <div className="drt-wahl" role="radiogroup" aria-label="Projekt">
@@ -827,8 +857,14 @@ function Schritt({ raeume, anfragen, senden, zuruecksetzen, kontakt, email, gehe
             </div>
           ) : null}
           <h3 className="drt-schritt-titel">{gewaehlt.projekt.titel}</h3>
-          {gewaehlt.buehne?.claim ? <p className="drt-schritt-claim">{gewaehlt.buehne.claim}</p> : null}
+          {gewaehlt.buehne?.claim ? <p className="drt-schritt-claim">{satz(gewaehlt.buehne.claim)}</p> : null}
           <AbschlussKnopf r={gewaehlt} anfragen={anfragen} senden={senden} kontakt={kontakt} hell />
+          </div>
+          {blick.length ? (
+            <dl className="drt-schritt-blick" aria-label={`${gewaehlt.projekt.titel} auf einen Blick`}>
+              {blick.map((k, i) => <div key={`${gewaehlt.projekt.buchstabe}-${i}`}><dt>{k.label}</dt><dd>{k.wert}</dd></div>)}
+            </dl>
+          ) : null}
         </section>
       ) : null}
       <Block klasse="drt-frage-karte" label="Frage stellen">
@@ -848,7 +884,7 @@ function Schritt({ raeume, anfragen, senden, zuruecksetzen, kontakt, email, gehe
                 <li key={r.projekt.buchstabe}>
                   <button type="button" onClick={() => gehe(i + 1)}>
                     <span className="bu" aria-hidden="true">{r.projekt.buchstabe}</span>
-                    <span><b>{r.projekt.titel}</b>{r.buehne?.claim ? <small>{r.buehne.claim}</small> : null}</span>
+                    <span><b>{r.projekt.titel}</b>{r.buehne?.claim ? <small>{satz(r.buehne.claim)}</small> : null}</span>
                     <Pfeil />
                   </button>
                 </li>
@@ -894,10 +930,21 @@ function Leinwand({ dok, zu }: { dok: TourDok; zu: () => void }) {
   );
 }
 
+/** Der persönliche Kontakt im Abschluss: Initialen, Name — nichts weiter. */
+function Person({ name }: { name: string }) {
+  return (
+    <p className="drt-person">
+      <span className="ini" aria-hidden="true">{initialen(name)}</span>
+      <span><b>{name}</b><small>Ihr persönlicher Kontakt</small></span>
+    </p>
+  );
+}
+
 // ── Zeichen (selbst gezeichnet, 1,5 px, currentColor) ──────────────────────
 function Pfeil({ links = false }: { links?: boolean }) { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true" className="drt-pfeil">{links ? <path d="M14.5 6.5L9 12l5.5 5.5" /> : <path d="M9.5 6.5L15 12l-5.5 5.5" />}</svg>; }
 function Schloss() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" /></svg>; }
 function Haken() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8 12.4l2.7 2.6L16.2 9.5" /></svg>; }
 function Raster() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></svg>; }
 function Blatt() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z" /><path d="M14 3.5V8h4" /></svg>; }
+function Laden() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 4.5v10.5M7.5 10.8L12 15.3l4.5-4.5" /><path d="M5.5 19.5h13" /></svg>; }
 function Kreuz() { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></svg>; }

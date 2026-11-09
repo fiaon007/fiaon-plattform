@@ -81,14 +81,23 @@
 @media (min-width: 900px) { .drt-raum-innen { padding: 54px 40px 40px; } }
 
 /* Weitergehen = durch die Tür in den nächsten Raum; zurück = rückwärts hinaus. */
-.drt-station.kommt-vor { animation: drtKommtVor 1s var(--t-ease) both; }
-.drt-station.geht-vor { animation: drtGehtVor .85s cubic-bezier(.5, 0, .75, .35) both; }
-.drt-station.kommt-zurueck { animation: drtKommtZurueck 1s var(--t-ease) both; }
-.drt-station.geht-zurueck { animation: drtGehtZurueck .85s cubic-bezier(.5, 0, .75, .35) both; }
-@keyframes drtKommtVor { 0% { opacity: 0; transform: translate3d(0, 0, -620px); } 55% { opacity: 1; } 100% { opacity: 1; transform: translate3d(0, 0, 0); } }
-@keyframes drtGehtVor { 0% { opacity: 1; transform: translate3d(0, 0, 0); } 62% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, 480px); } }
-@keyframes drtKommtZurueck { 0% { opacity: 0; transform: translate3d(0, 0, 480px); } 50% { opacity: 1; } 100% { opacity: 1; transform: translate3d(0, 0, 0); } }
-@keyframes drtGehtZurueck { 0% { opacity: 1; transform: translate3d(0, 0, 0); } 62% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, -620px); } }
+.drt-station.kommt-vor { animation: drtKommtVor 1.12s var(--t-ease) .14s both; }
+.drt-station.geht-vor { animation: drtGehtVor .7s cubic-bezier(.55, 0, .7, .3) both; }
+.drt-station.kommt-zurueck { animation: drtKommtZurueck 1.12s var(--t-ease) .14s both; }
+.drt-station.geht-zurueck { animation: drtGehtZurueck .7s cubic-bezier(.55, 0, .7, .3) both; }
+@keyframes drtKommtVor { 0% { opacity: 0; transform: translate3d(0, 0, -560px); } 22% { opacity: 0; } 72% { opacity: 1; } 100% { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes drtGehtVor { 0% { opacity: 1; transform: translate3d(0, 0, 0); } 44% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, 420px); } }
+@keyframes drtKommtZurueck { 0% { opacity: 0; transform: translate3d(0, 0, 420px); } 22% { opacity: 0; } 70% { opacity: 1; } 100% { opacity: 1; transform: translate3d(0, 0, 0); } }
+@keyframes drtGehtZurueck { 0% { opacity: 1; transform: translate3d(0, 0, 0); } 44% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, -560px); } }
+/* Der Durchgang: Licht aus der Tür (am Fluchtpunkt), das kurz aufgeht und sich über die Bühne weitet. */
+.drt-durchgang {
+  position: absolute; inset: -20%; z-index: 3; pointer-events: none; opacity: 0;
+  background: radial-gradient(closest-side at 50% 42%, rgba(255, 255, 255, .96), rgba(240, 246, 255, .78) 38%, rgba(232, 241, 255, .3) 70%, rgba(232, 241, 255, 0) 100%);
+  animation: drtDurchgang 1.05s cubic-bezier(.4, 0, .2, 1) both;
+}
+.drt-durchgang.zurueck { animation-name: drtDurchgangZurueck; }
+@keyframes drtDurchgang { 0% { opacity: 0; transform: scale(.35); } 36% { opacity: .92; } 100% { opacity: 0; transform: scale(1.9); } }
+@keyframes drtDurchgangZurueck { 0% { opacity: 0; transform: scale(1.6); } 40% { opacity: .7; } 100% { opacity: 0; transform: scale(.5); } }
 @media (min-width: 900px) and (pointer: fine) {
   /* Am Rechner mit Tiefenschärfe: was fern ist, ist unscharf. */
   .drt-station.kommt-vor { animation-name: drtKommtVorWeich; }
@@ -96,10 +105,10 @@
   .drt-station.kommt-zurueck { animation-name: drtKommtZurueckWeich; }
   .drt-station.geht-zurueck { animation-name: drtGehtZurueckWeich; }
 }
-@keyframes drtKommtVorWeich { 0% { opacity: 0; transform: translate3d(0, 0, -620px); filter: blur(10px); } 55% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
-@keyframes drtGehtVorWeich { 0% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } 62% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, 480px); filter: blur(8px); } }
-@keyframes drtKommtZurueckWeich { 0% { opacity: 0; transform: translate3d(0, 0, 480px); filter: blur(8px); } 50% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
-@keyframes drtGehtZurueckWeich { 0% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } 62% { opacity: 0; } 100% { opacity: 0; transform: translate3d(0, 0, -620px); filter: blur(10px); } }
+@keyframes drtKommtVorWeich { 0% { opacity: 0; transform: translate3d(0, 0, -560px); filter: blur(12px); } 22% { opacity: 0; } 72% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
+@keyframes drtGehtVorWeich { 0% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } 44% { opacity: 0; filter: blur(6px); } 100% { opacity: 0; transform: translate3d(0, 0, 420px); filter: blur(10px); } }
+@keyframes drtKommtZurueckWeich { 0% { opacity: 0; transform: translate3d(0, 0, 420px); filter: blur(10px); } 22% { opacity: 0; } 70% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } }
+@keyframes drtGehtZurueckWeich { 0% { opacity: 1; transform: translate3d(0, 0, 0); filter: blur(0); } 44% { opacity: 0; filter: blur(6px); } 100% { opacity: 0; transform: translate3d(0, 0, -560px); filter: blur(12px); } }
 
 /* Schichten im Kopf eines Raums: nacheinander, mit etwas Tiefe. */
 .drt-schicht { animation: drtSchicht .95s var(--t-ease) both; animation-delay: calc(140ms + var(--i, 0) * 105ms); }
@@ -119,7 +128,7 @@
 }
 .drt-linien .kanten { fill: none; stroke: currentColor; stroke-width: 1; }
 .drt-linien .kanten path, .drt-linien .tuer { vector-effect: non-scaling-stroke; }
-.drt-linien .tuer { fill: rgba(255, 255, 255, .62); stroke: rgba(29, 78, 216, .16); stroke-width: 1; }
+.drt-linien .tuer { fill: none; stroke: rgba(29, 78, 216, .15); stroke-width: 1; }
 
 /* ── Auftakt: die Navy-Glasfläche dieser Ansicht ── */
 .drt-auftakt { width: 100%; max-width: 980px; margin: 0 auto; }
@@ -140,7 +149,7 @@
 .drt-auge { margin: 0; font-size: 11px; font-weight: 500; letter-spacing: .18em; text-transform: uppercase; color: var(--t-blau); }
 .drt-auge.hell { color: #9cc8ff; }
 .drt-auftakt-titel { margin: 12px 0 0; font: 300 clamp(40px, 10.6vw, 92px)/1.0 var(--t-serif); letter-spacing: -.026em; color: #fff; text-wrap: balance; }
-.drt-auftakt-lead { margin: 14px 0 0; font-size: 16.5px; line-height: 1.55; color: #c8d5e8; max-width: 54ch; }
+.drt-auftakt-lead { margin: 14px 0 0; font-size: 16.5px; line-height: 1.55; color: #c8d5e8; max-width: 54ch; text-wrap: pretty; }
 .drt-auftakt-lead b { color: #fff; font-weight: 400; }
 .drt-flucht { display: block; width: 100%; height: auto; max-height: 300px; margin: 20px 0 8px; overflow: visible; }
 .drt-flucht-kanten { fill: none; stroke: rgba(156, 200, 255, .22); stroke-width: 1; }
@@ -173,18 +182,19 @@
   .drt-flucht { margin: 26px 0 10px; }
 }
 @media (min-width: 1000px) {
-  /* Breit: Text links, der Gang rechts — der ganze Auftakt passt auf einen Bildschirm. */
-  .drt-auftakt-glas {
-    display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); column-gap: 44px; align-items: start;
-    grid-template-areas: "auge flucht" "titel flucht" "lead flucht" "liste flucht" "wege flucht"; grid-template-rows: auto auto auto auto 1fr;
+  /* Breit: Text links, der Gang hochkant rechts bis an den Rand der Fläche — der ganze Auftakt passt auf einen Bildschirm. */
+  .drt-auftakt-glas { min-height: 540px; padding: 58px 64px 50px; }
+  .drt-auftakt-glas > :not(.drt-flucht):not(.drt-auftakt-licht) { position: relative; z-index: 1; max-width: 55%; }
+  .drt-auftakt-titel { font-size: clamp(56px, 5.3vw, 80px); }
+  .drt-flucht.hoch {
+    position: absolute; top: 0; right: 0; bottom: 0; z-index: 0; width: 50%; height: 100%; max-height: none; margin: 0;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%); mask-image: linear-gradient(90deg, transparent 0%, #000 34%);
   }
-  .drt-auftakt-glas > .drt-auge { grid-area: auge; }
-  .drt-auftakt-titel { grid-area: titel; font-size: clamp(52px, 5.4vw, 82px); }
-  .drt-auftakt-lead { grid-area: lead; }
-  .drt-flucht { grid-area: flucht; align-self: center; margin: 0; max-height: none; }
-  .drt-flucht-liste { grid-area: liste; margin-top: 24px; }
-  .drt-auftakt-wege { grid-area: wege; align-self: end; margin-top: 28px; }
+  .drt-flucht-liste { margin-top: 28px; }
+  .drt-auftakt-wege { margin-top: 34px; }
 }
+.drt-flucht-fahrt { transform-box: view-box; transform-origin: 50% 47%; animation: drtFahrt 14s cubic-bezier(.2, .6, .2, 1) .4s both; }
+@keyframes drtFahrt { from { transform: scale(1); } to { transform: scale(1.06); } }
 
 /* ── Knöpfe ── */
 .drt-knopf {
@@ -212,13 +222,14 @@
 /* ── Kopf eines Raums ── */
 .drt-raum-kopf { position: relative; isolation: isolate; padding-top: 4px; }
 .drt-riese { position: absolute; right: -8px; top: -46px; z-index: -1; font: 300 clamp(160px, 44vw, 380px)/1 var(--t-serif); color: rgba(29, 78, 216, .05); pointer-events: none; user-select: none; }
-.drt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0; font-size: 12.5px; color: var(--t-leise); }
+.drt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0; font-size: 13.5px; color: var(--t-leise); }
+.drt-meta-titel { color: var(--t-tinte); font-weight: 400; letter-spacing: .005em; }
 .drt-bu { flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; font: 400 17px/1 var(--t-serif); color: #fff; background: linear-gradient(150deg, #1a3462, #12284a); box-shadow: 0 8px 18px -10px rgba(18, 40, 74, .6); }
 .drt-pille { display: inline-flex; align-items: center; min-height: 22px; padding: 0 10px; border-radius: 999px; font-size: 9.5px; letter-spacing: .15em; text-transform: uppercase; font-weight: 500; color: var(--t-blau); background: rgba(40, 141, 250, .1); border: 1px solid rgba(40, 141, 250, .26); }
 .drt-raum-kopf .drt-auge { margin-top: 20px; }
 .drt-claim { margin: 10px 0 0; font: 300 clamp(32px, 7.4vw, 60px)/1.06 var(--t-serif); letter-spacing: -.022em; color: var(--t-tinte); text-wrap: balance; max-width: 22ch; }
 .drt-raum-inhalt.haupt .drt-claim { font-size: clamp(36px, 8.8vw, 78px); }
-.drt-unter { margin: 16px 0 0; font-size: 17px; line-height: 1.6; color: var(--t-text); max-width: 56ch; }
+.drt-unter { margin: 16px 0 0; font-size: 17px; line-height: 1.6; color: var(--t-text); max-width: 56ch; text-wrap: pretty; }
 @media (min-width: 900px) { .drt-unter { font-size: 19px; margin-top: 20px; } .drt-raum-kopf .drt-auge { margin-top: 26px; } }
 
 /* ── Kennzahlen ── */
@@ -293,19 +304,20 @@
 .drt-kapitel-nr { font: 300 18px/1.3 var(--t-serif); color: var(--t-blau); padding-top: 2px; font-variant-numeric: tabular-nums; }
 .drt-kapitel-eintrag h3 { margin: 0; font: 400 21px/1.3 var(--t-serif); color: var(--t-tinte); letter-spacing: -.01em; text-wrap: balance; }
 .drt-kapitel-text { grid-column: 2; min-width: 0; }
-.drt-kapitel-text p { margin: 8px 0 0; font-size: 15.5px; line-height: 1.7; color: var(--t-text); max-width: 64ch; }
+.drt-kapitel-text p { margin: 8px 0 0; font-size: 15.5px; line-height: 1.7; color: var(--t-text); max-width: 64ch; text-wrap: pretty; }
 .drt-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .drt-chip {
   display: inline-flex; align-items: center; gap: 8px; min-height: 42px; max-width: 100%; padding: 6px 14px 6px 12px; border-radius: 14px;
   background: rgba(255, 255, 255, .88); border: 1px solid rgba(29, 78, 216, .2); color: var(--t-tinte); font-size: 13.5px; line-height: 1.35; text-decoration: none;
   transition: border-color .2s, background .2s, transform .2s var(--t-ease), box-shadow .2s;
 }
+.drt a.drt-chip { color: var(--t-tinte); }
 .drt-chip svg { width: 16px; height: 16px; color: var(--t-blau); flex: none; }
 .drt-chip span { flex: none; margin-left: 4px; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--t-blau); font-weight: 500; }
 .drt-chip:hover { border-color: rgba(29, 78, 216, .45); background: #fff; transform: translateY(-1px); box-shadow: 0 10px 20px -14px rgba(29, 78, 216, .5); }
 @media (min-width: 900px) {
   .drt-kapitel { margin-top: 56px; }
-  .drt-kapitel-eintrag { grid-template-columns: 64px minmax(0, .9fr) minmax(0, 1.4fr); gap: 0 30px; padding: 30px 0 32px; }
+  .drt-kapitel-eintrag { grid-template-columns: 48px minmax(0, .9fr) minmax(0, 1.4fr); gap: 0 28px; padding: 30px 0 32px; }
   .drt-kapitel-eintrag h3 { font-size: 25px; }
   .drt-kapitel-text { grid-column: 3; grid-row: 1; }
   .drt-kapitel-text p:first-child { margin-top: 3px; }
@@ -316,18 +328,32 @@
 .drt-abschnitt { margin: 0 0 12px; display: flex; align-items: baseline; gap: 10px; font: 400 22px/1.3 var(--t-serif); color: var(--t-tinte); letter-spacing: -.01em; }
 .drt-abschnitt span { font: 400 12px Inter, system-ui, sans-serif; color: var(--t-leise); }
 .drt-unterlagen ol { margin: 0; padding: 0; list-style: none; border-radius: 18px; overflow: hidden; background: var(--t-glas); border: 1px solid rgba(255, 255, 255, .85); box-shadow: var(--t-schatten); }
-.drt-dok { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 14px; border-top: 1px solid var(--t-linie); }
+.drt-dok { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--t-linie); }
 .drt-dok:first-child { border-top: 0; }
-.drt-dok .nr { font: 400 14px/1.4 var(--t-serif); color: var(--t-leise); padding-top: 1px; font-variant-numeric: tabular-nums; }
+.drt a.drt-dok-zeile {
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-width: 0; padding: 15px 6px 15px 16px;
+  color: inherit; text-decoration: none; transition: background .2s;
+}
+.drt a.drt-dok-zeile:hover { background: rgba(255, 255, 255, .78); }
+.drt-dok-zeile:hover .drt-pfeil { transform: translateX(3px); }
+.drt-dok .nr { align-self: start; font: 400 14px/1.4 var(--t-serif); color: var(--t-leise); padding-top: 1px; font-variant-numeric: tabular-nums; }
 .drt-dok-text { min-width: 0; }
 .drt-dok-text b { display: block; font-size: 15px; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
-.drt-dok-text p { margin: 3px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--t-text); }
-.drt-dok-text .meta { display: block; margin-top: 4px; font-size: 12px; color: var(--t-leise); }
-.drt-dok-wege { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.drt-dok-text .be { display: block; margin-top: 2px; font-size: 13.5px; line-height: 1.5; color: var(--t-text); }
+.drt-dok-text .meta { display: block; margin-top: 3px; font-size: 12px; color: var(--t-leise); }
+/* schmal nur der Pfeil, breit „Ansehen“ als leise Versalien */
+.drt-dok-ansehen { display: inline-flex; align-items: center; gap: 6px; color: var(--t-blau); font-size: 0; }
+.drt a.drt-dok-laden {
+  width: 40px; height: 40px; margin-right: 12px; display: grid; place-items: center; border-radius: 999px; color: var(--t-blau);
+  border: 1px solid rgba(29, 78, 216, .2); background: rgba(255, 255, 255, .82); transition: background .2s, border-color .2s, box-shadow .2s;
+}
+.drt a.drt-dok-laden:hover { background: #fff; border-color: rgba(29, 78, 216, .42); box-shadow: 0 8px 18px -12px rgba(29, 78, 216, .45); }
+.drt-dok-laden svg { width: 18px; height: 18px; }
 @media (min-width: 900px) {
   .drt-unterlagen { margin-top: 56px; }
-  .drt-dok { grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; padding: 16px 22px; }
-  .drt-dok-wege { grid-column: auto; margin-top: 0; justify-content: flex-end; }
+  .drt a.drt-dok-zeile { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; padding: 18px 14px 18px 24px; }
+  .drt-dok-ansehen { font-size: 10.5px; letter-spacing: .15em; text-transform: uppercase; font-weight: 500; }
+  .drt a.drt-dok-laden { margin-right: 20px; }
 }
 
 /* ── Abschluss im Hauptprojekt, Frage in den anderen Räumen ── */
@@ -338,6 +364,13 @@
 }
 .drt-abschluss h3 { margin: 8px 0 0; font: 300 clamp(26px, 5.8vw, 40px)/1.12 var(--t-serif); color: var(--t-tinte); letter-spacing: -.016em; text-wrap: balance; }
 .drt-abschluss-wege { display: grid; gap: 12px; justify-items: start; min-width: 0; }
+.drt-person { display: flex; align-items: center; gap: 12px; margin: 18px 0 0; }
+.drt-person .ini {
+  flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: 999px; font: 400 15px/1 var(--t-serif); letter-spacing: .04em; color: #fff;
+  background: linear-gradient(150deg, #1a3462, #12284a); box-shadow: 0 8px 18px -10px rgba(18, 40, 74, .6), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.drt-person b { display: block; font-size: 14.5px; font-weight: 500; line-height: 1.3; }
+.drt-person small { display: block; font-size: 12.5px; color: var(--t-leise); line-height: 1.4; }
 .drt-abschluss-knopf { display: grid; gap: 8px; justify-items: start; width: 100%; }
 .drt-abschluss .drt-knopf.gross, .drt-schritt-glas .drt-knopf.gross { width: 100%; }
 .drt-frage-zeile { margin-top: 30px; padding-top: 16px; border-top: 1px solid var(--t-linie); display: grid; gap: 4px; justify-items: start; }
@@ -387,7 +420,9 @@
 .drt-wahl button[aria-checked="true"] .bu { background: linear-gradient(180deg, var(--t-licht), var(--t-blau)); border-color: transparent; }
 .drt-schritt-titel { margin: 20px 0 0; font: 300 clamp(28px, 6.6vw, 48px)/1.08 var(--t-serif); color: #fff; letter-spacing: -.02em; text-wrap: balance; }
 .drt-schritt-claim { margin: 8px 0 0; font-size: 15.5px; line-height: 1.55; color: #c8d5e8; max-width: 58ch; }
-.drt-schritt-glas .drt-abschluss-knopf { margin-top: 20px; }
+.drt-schritt-glas .drt-abschluss-knopf, .drt-schritt-glas .drt-bestaetigt { margin-top: 20px; }
+.drt-schritt-haupt { min-width: 0; }
+.drt-schritt-blick { display: none; }
 .drt-frage-karte { margin-top: 18px; padding: 20px 18px; border-radius: 20px; background: var(--t-glas); border: 1px solid rgba(255, 255, 255, .85); box-shadow: var(--t-schatten); }
 .drt-frage-karte h3 { margin: 0 0 12px; font: 400 21px/1.3 var(--t-serif); color: var(--t-tinte); }
 .drt-rueckblick { margin-top: 32px; }
@@ -406,8 +441,17 @@
 .drt-abmelden { margin: 2px 0 0; }
 @media (min-width: 900px) {
   .drt-schritt-glas { margin-top: 44px; padding: 40px 44px 38px; border-radius: 28px; }
-  .drt-frage-karte { margin-top: 22px; padding: 30px 34px; border-radius: 24px; }
+  .drt-frage-karte { margin-top: 22px; padding: 30px 34px; border-radius: 24px; display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.5fr); gap: 0 40px; align-items: start; }
+  .drt-frage-karte h3 { margin: 6px 0 0; font-size: 24px; }
+  .drt-frage-karte .drt-frage, .drt-frage-karte .drt-bestaetigt { max-width: none; }
   .drt-rueckblick { margin-top: 48px; }
+}
+@media (min-width: 1000px) {
+  .drt-schritt-glas.mit-blick { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .62fr); column-gap: 56px; align-items: end; }
+  .drt-schritt-blick { display: grid; margin: 0 0 4px; border-top: 1px solid rgba(200, 222, 255, .16); }
+  .drt-schritt-blick > div { display: grid; gap: 4px; padding: 16px 0 15px; border-bottom: 1px solid rgba(200, 222, 255, .16); }
+  .drt-schritt-blick dt { font-size: 12.5px; color: #9fb2cc; }
+  .drt-schritt-blick dd { margin: 0; font: 200 34px/1.1 Inter, system-ui, sans-serif; letter-spacing: -.02em; color: #fff; font-variant-numeric: tabular-nums; }
 }
 .drt-impressum { margin: 44px 0 0; padding-top: 16px; border-top: 1px solid rgba(12, 26, 46, .06); font-size: 11.5px; line-height: 1.6; color: var(--t-leise); }
 .drt-impressum a { color: var(--t-leise); }
@@ -424,6 +468,8 @@
 .drt-weiter { padding: 0 14px 0 22px; border: 0; color: #fff; background: linear-gradient(180deg, var(--t-licht), var(--t-blau)); box-shadow: 0 12px 26px -12px rgba(29, 78, 216, .6), inset 0 1px 0 rgba(255, 255, 255, .25); }
 .drt-weiter:hover:not(:disabled) { transform: translateY(-1px); }
 .drt-weiter:disabled { opacity: .5; cursor: default; }
+.drt-weiter.still { background: rgba(255, 255, 255, .88); color: var(--t-blau); border: 1px solid rgba(29, 78, 216, .24); box-shadow: none; padding: 0 14px 0 18px; }
+.drt-weiter.still:hover:not(:disabled) { background: #fff; border-color: rgba(29, 78, 216, .42); }
 .drt-weiter-ziel { display: none; }
 .drt-tasten { display: none; gap: 6px; }
 .drt-tasten kbd { display: inline-grid; place-items: center; min-width: 26px; height: 24px; padding: 0 6px; border-radius: 7px; border: 1px solid var(--t-linie2); background: #fff; font: 400 12px Inter, system-ui, sans-serif; color: var(--t-leise); box-shadow: 0 1px 0 rgba(12, 26, 46, .06); }
@@ -464,6 +510,8 @@
 .drt.ruhig .drt-kurve .linie { stroke-dasharray: none; stroke-dashoffset: 0; transition: none; }
 .drt.ruhig .drt-kurve .flaeche, .drt.ruhig .drt-kurve .ende { opacity: 1; transition: none; }
 .drt.ruhig .drt-linien svg { transform: none; transition: none; }
+.drt.ruhig .drt-flucht-fahrt, .drt.ruhig .drt-durchgang { animation: none; }
+.drt.ruhig .drt-durchgang { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .drt .drt-station.kommt-vor, .drt .drt-station.kommt-zurueck { animation: drtBlendeAn .36s ease both; }
   .drt .drt-station.geht-vor, .drt .drt-station.geht-zurueck { animation: drtBlendeAus .3s ease both; }
@@ -473,6 +521,8 @@
   .drt .drt-gleit, .drt .drt-kachel { opacity: 1; transform: none; transition: none; }
   .drt .drt-kurve .linie { stroke-dasharray: none; stroke-dashoffset: 0; transition: none; }
   .drt .drt-kurve .flaeche, .drt .drt-kurve .ende { opacity: 1; transition: none; }
+  .drt .drt-flucht-fahrt { animation: none; }
+  .drt .drt-durchgang { display: none; }
 }
 
 /* ── Einstieg in die Tour aus der Ordneransicht (/datenraum/raum, Seite datenraum-zugang.tsx) — hell, denn dort

@@ -155,6 +155,7 @@ export function ensureGlobalTabelle(): Promise<void> {
           ADD COLUMN IF NOT EXISTS ust_hinweis TEXT,
           ADD COLUMN IF NOT EXISTS auftrag_mail_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS auftrag_mail_fehler TEXT,
+          ADD COLUMN IF NOT EXISTS justin_gemeldet_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS start_mail_am TIMESTAMPTZ,
           ADD COLUMN IF NOT EXISTS start_mail_fehler TEXT,
           ADD COLUMN IF NOT EXISTS stichtag_gesetzt_von TEXT,
@@ -1072,6 +1073,40 @@ async function nacharbeit(ref: string, ein: GlobalEingabe, paymentRef: string, a
   // ── Die eine Mail an den Kunden ────────────────────────────────────────────
   const mail = await auftragsMailSenden(ref).catch((e) => ({ ok: false, grund: String(e) }));
   if (!mail.ok) console.error(`[FIAON-GLOBAL] ${ref}: Auftragsmail nicht versandt: ${mail.grund}`);
+
+  // ── E-487 (09.11.2026): Ein Selbstkauf ist ein Kunde — Justin erfährt es SOFORT per Mail an js@ ───────────────────
+  // Vorher ging nur die Aufgabe an die zuständige Person; ein Kauf blieb so drei Tage ohne Antwort, und Justin wusste
+  // nichts davon. Genau einmal je Auftrag (Marke justin_gemeldet_am, gesetzt VOR dem Senden; bei Fehlschlag wieder frei).
+  try {
+    const [marke] = (await sqlPool`
+      UPDATE fiaon_global_auftraege SET justin_gemeldet_am = NOW()
+       WHERE ref = ${ref} AND justin_gemeldet_am IS NULL RETURNING ref`) as any[];
+    if (marke) {
+      const { eigeneMailSenden } = await import("./fiaon-brevo");
+      const { AUFRUF_MELDUNG_AN } = await import("./fiaon-global-angebot-aufrufe");
+      const ap = ein.ansprechpartner;
+      const privat = ein.auftraggeber === "privat";
+      const wer = [ap.anrede, ap.vorname, ap.nachname].filter(Boolean).join(" ") || ein.firma.name;
+      const text = [
+        `${wer}${privat ? " (Privatperson)" : ` (${ein.firma.name})`} hat soeben selbst ${kat?.label ?? ein.paket} für ${eur(sollCents)} einmalig bestellt und den Auftrag unterschrieben — ohne Gespräch, direkt über die Website.`,
+        `Kontakt: ${[ap.email, ap.telefon].filter(Boolean).join(" · ") || "—"}`,
+        `Zahlung: noch offen — Verwendungszweck ${paymentRef}${b?.invoice_number ? `, Rechnung ${b.invoice_number}` : ""}. Die Aufgabe „neuer Auftrag“ liegt bei der zuständigen Person.`,
+        ein.jahresbetreuung ? "Jahresbetreuung ab dem zweiten Jahr ist mitgebucht." : null,
+        betragWarnung,
+        "Am besten heute kurz anrufen: Danke sagen, Fragen zur Überweisung klären, den Start erklären.",
+      ].filter(Boolean).join("\n\n");
+      const v = await eigeneMailSenden({
+        an: AUFRUF_MELDUNG_AN, name: "Justin", betreff: `Neuer Kunde (Selbstkauf): ${wer} — ${kat?.label ?? ein.paket}, ${eur(sollCents)}`,
+        text, knoepfe: [{ text: "Auftrag im Office öffnen", url: absoluteUrl(globalOfficeAuftragPfad(ref)) }],
+      }).catch((e) => ({ ok: false, grund: String(e) }) as { ok: boolean; grund?: string });
+      if (!v.ok) {
+        console.error(`[FIAON-GLOBAL] ${ref}: Selbstkauf-Meldung an Justin nicht versandt: ${String((v as any).grund ?? "")}`);
+        await sqlPool`UPDATE fiaon_global_auftraege SET justin_gemeldet_am = NULL WHERE ref = ${ref}`.catch(() => {});
+      }
+    }
+  } catch (e) {
+    console.error(`[FIAON-GLOBAL] ${ref}: Selbstkauf-Meldung an Justin:`, e);
+  }
 
   // ── E-423 (22.10.2026): der persönliche Zugang — Justin: „Sobald ein Kunde einen Vertrag angenommen hat, soll er
   // sein Passwort erstellen.“ NACH der Auftragsmail (Vertrag und Rechnung kommen zuerst an). Ist der Zugang zu dieser

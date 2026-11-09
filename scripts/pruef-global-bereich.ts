@@ -114,6 +114,11 @@ ok(B.GLOBAL_VERLAUF_TEXT.de.hinweis("x") === "Gut zu wissen: x" && B.GLOBAL_VERL
   const portal = readFileSync(new URL("../client/src/pages/global-portal.tsx", import.meta.url), "utf8");
   ok(!/naechster_schritt = \$\{schritt\}/.test(srv) && /T\.hinweis\(satz\)/.test(srv), "Server setzt den Finanzamt-Hinweis nicht mehr als nächsten Schritt (nur Verlauf „Gut zu wissen“)");
   ok(/istHeimatMeldungSatz\(gespeichert\)/.test(portal), "Portal: Stationen gehen vor dem Finanzamt-Hinweis");
+  // E-487: jeder Selbstkauf über /business/start meldet sich sofort bei Justin (genau einmal, Marke vor dem Senden).
+  const auftrag = readFileSync(new URL("../server/lib/fiaon-global-auftrag.ts", import.meta.url), "utf8");
+  ok(/ADD COLUMN IF NOT EXISTS justin_gemeldet_am TIMESTAMPTZ/.test(auftrag)
+     && /SET justin_gemeldet_am = NOW\(\)\s+WHERE ref = \$\{ref\} AND justin_gemeldet_am IS NULL RETURNING ref/.test(auftrag)
+     && /Neuer Kunde \(Selbstkauf\)/.test(auftrag) && /justin_gemeldet_am = NULL WHERE ref/.test(auftrag), "Selbstkauf-Meldung an Justin: Marke, genau einmal, bei Fehlschlag wieder frei");
 }
 
 // ═══ 2: MONATLICHER DURCHGANG ═══════════════════════════════════════════════

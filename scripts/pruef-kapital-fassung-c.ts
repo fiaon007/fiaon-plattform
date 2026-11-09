@@ -33,7 +33,12 @@
 //      Delaware/Florida) in keinem Kundentext mit „72 Stunden“ oder einer Stunden-/Tageszusage für die EIN, der neue Fast-Track überall
 //      gleich (Vertrag Ziffer 2 Absatz 3, Fragen, Informationen, Karten, Übersicht, Bestätigung, Aufgabe), Express nur wo der Staat ihn
 //      hat, der Satz „drei bis fünf Wochen“ unverändert, die Annahme hält die Fassung fest (gleiche Prüfsumme vorher/nachher), neue
-//      Angebote aus einer Quelle, nichts vorgewählt (Seite + Server), Wortwand, kein „garantiert“, kein Bank-/Behörden-Vorbehalt
+//      Angebote aus einer Quelle, nichts vorgewählt (Seite + Server), Wortwand, kein „garantiert“, kein Bank-/Behörden-Vorbehalt.
+//      Nachbesserung nach dem Gutachten (09.11.2026): Express nur, wo die Gründungs-Anleitung ihn beim Fast-Track bucht (Delaware,
+//      nicht Wyoming — gekoppelt an shared/fiaon-global-arbeitsablauf.ts), Frist „sobald ein verfügbarer Name feststeht“ und EIN-Antrag
+//      „sobald Sie unterschrieben haben“ auch in Karte, Informationen und Fragen, Start-Aufgabe ohne falsches Datum bei fehlendem
+//      Reisepass + Aufgabe „Reisepass da“ (späterer Eingang zählt), angenommen liest NUR den Annahmevermerk, Bestätigung über die reine
+//      Funktion mit einer nach E-487 angenommenen Zeile, Vertragsstand 09.11.2026, „Wochen“ an der EIN nur im Satz ohne Fast-Track
 //   11 nur mit --lokal: derselbe Weg ECHT gegen eine Prüfstand-Kopie (127.0.0.1) und den lokalen Server (PRUEF_BASIS, gleiches
 //      SESSION_SECRET): Anlage, Angaben über die Route, Annahme ohne und mit Fast-Track (Teil 1, Rechnungstext, Akte), danach keine
 //      Änderung mehr, zweiter Skriptlauf überschreibt die Angaben nicht, Reisepass-Upload über die Route in die Akte
@@ -634,7 +639,7 @@ const annahmeBasis = (nachname = "Musterfrau") => ({ laufzeitJahre: 10, llc: { w
     const seite: any = C.kapitalCSeite(d); delete seite.fastTrack;
     aus.push(C.kapitalCRumpfHtml(d, null), C.kapitalCRumpfHtml(d, null, { ausweiseGekuerzt: true }), C.kapitalCRumpfHtml(d, vermerk), seite,
       C.kapitalCBestellUebersicht(d, 10), C.kapitalCBestellUebersicht(d, null), C.kapitalCAnnahmeTexte(d), C.kapitalCGarantie(par),
-      C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC" }),
+      C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC", tempoFassung: "" }),
       C.kapitalCStartAufgabe({ angebotRef: "R", name: "Max Mustermann", parameter: par, bezahltAm: "2026-10-29", zweck: "FIAON-X", frist: { beginn: "2026-10-29", ende: "2026-12-24" }, llc: "MUSTER LLC", laufzeitJahre: 10, bestaetigung: { da: false, grund: "x" } }),
       C.kapitalCMeinAuftrag({ parameter: par, angenommenAm: "2026-10-28", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }),
       C.kapitalCPflichtFehlen(d), C.kapitalCKundeZeile(D.kunde), C.kapitalCKundeZeile(D.kunde, { ausweiseGekuerzt: true }),
@@ -722,8 +727,8 @@ const annahmeBasis = (nachname = "Musterfrau") => ({ laufzeitJahre: 10, llc: { w
   ok(sFT && flach(sFT.karten[0].betrag) === "2.790 €" && flach(sFT.karten[1].betrag) === "3.289 €" && /Garantie gilt in beiden Fällen: acht Wochen/.test(sFT.garantie) && /Wir beginnen sofort mit Ihrem Zahlungseingang\. Ihre Gesellschaft, EIN und ITIN stehen in drei bis fünf Wochen\./.test(flach(sFT.karten[0].zeile)) && /Wir beginnen sofort, mit Vorrang: Ihre Gesellschaft und EIN in 72 Stunden\./.test(flach(sFT.karten[1].zeile)) && sFT.heuteCents.ohne === 279_000, "Seite: zwei Karten mit Endpreisen und Tempo (E-475), Garantie in beiden gleich");
   const at = C.kapitalCAnnahmeTexte(DDK2);
   ok(/Fällig mit Ihrem Auftrag: 2\.790 €/.test(flach(at.unterKnopfOhne ?? "")) && /Fällig mit Ihrem Auftrag: 3\.289 €/.test(flach(at.unterKnopf)) && at.fehltFastTrack === C.KAPITAL_C_ANNAHME.fehltFastTrack, "Satz unter dem Knopf je Wahl");
-  const bo = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: false, reisepass: true }).join(" ");
-  const bm = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: true }).join(" ");
+  const bo = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: false, reisepass: true, tempoFassung: "" }).join(" ");
+  const bm = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "03.11.2026 um 10:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: true, tempoFassung: "" }).join(" ");
   ok(/Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen/.test(bo) && /Ihre Gesellschaft, EIN und ITIN stehen in drei bis fünf Wochen\./.test(bo) && !/nach Ablauf der Widerrufsfrist beginnen\./.test(bo) && /Bitte laden Sie noch Ihren Reisepass hoch/.test(bo), "Vertragsbestätigung ohne Fast-Track (mit Reisepass-Bitte)");
   ok(/und den Fast-Track\./.test(bm) && /Sie haben verlangt, dass wir schon vor Ablauf der Widerrufsfrist beginnen/.test(bm) && !/Reisepass/.test(bm), "Vertragsbestätigung mit Fast-Track wie bisher");
   ok(C.KAPITAL_C_ANNAHME.fertigZahlung("2.790 €", false) === "Fällig mit Ihrem Auftrag: 2.790 € für Gründung, Konto und Karten.", "Fertig-Ansicht ohne Fast-Track");
@@ -823,13 +828,28 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const ist12a = createHash("sha256").update(JSON.stringify(aus12a)).digest("hex");
   ok(ist12a === GRUNDLINIE_12A, "Angenommene Verträge wortgleich wie vor E-487: Vertrag (voll, gekürzt, Vermerk), Prüfsumme, Seite, Übersicht, Annahme, Bestätigung, Aufgabe, „Mein Auftrag“, Fristwarnung", ist12a);
   ok(aus12a.length === 80 && /72 Stunden/.test(JSON.stringify(aus12a)), "Gegenprobe: ein vor E-487 angenommener Vertrag mit Wahl trägt seine „72 Stunden“ weiter — so wurde er angenommen");
+  // Nachbesserung (Gutachten): Der Server baut die Bestätigung jetzt über kapitalCBestaetigungAbsaetze — für den Bestand dieselben Absätze.
+  ok(FAELLE_12A.every((f) => f.ft.every((ft) => {
+    const z = angenommeneZeile(f, ft); const d = KS12.kapitalCDatenAus(z); const w = KS12.kapitalCWahlAus(z)!; const par = d.parameter;
+    const best = { anrede: C.kapitalCAnrede(d.kunde), angenommen: "03.11.2026 um 10:09 Uhr", llc: "MUSTER VENTURES LLC", ...(par.fastTrackWahl ? { fastTrack: C.kapitalCMitFastTrack(par, w) } : {}), tempoFassung: par.tempoFassung };
+    const rein = (fehlt: boolean) => JSON.stringify(C.kapitalCBestaetigungAbsaetze(d, { wahl: w, angenommen: best.angenommen, llc: best.llc, reisepassFehlt: fehlt }));
+    return rein(false) === JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze(best))
+      && rein(true) === JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze(par.datenVomKunden ? { ...best, reisepass: true } : best));
+  })), "Bestätigung über die reine Funktion (Server): für vor E-487 angenommene Verträge Absatz für Absatz wie vorher (Reisepass-Bitte nur mit Angaben vom Kunden)");
 
-  // 12b — Welche Fassung gilt? Nicht angenommen → die aktuelle (ohne Schreiben); angenommen → die der Annahme, ohne Vermerk Bestand.
+  // 12b — Welche Fassung gilt? Nicht angenommen → die aktuelle (ohne Schreiben); angenommen → NUR die des Annahmevermerks, ohne ihn Bestand.
   const TA = C.kapitalCTempoFassungAus;
-  ok(C.KAPITAL_C_TEMPO_FASSUNG === "E-487" && TA({ angenommen: false }) === "E-487" && TA({ angenommen: false, schalter: { tempoFassung: "" }, gespeichert: "" }) === "E-487"
-    && TA({ angenommen: true }) === "" && TA({ angenommen: true, schalter: {}, gespeichert: "" }) === "" && TA({ angenommen: true, schalter: { tempoFassung: "E-487" } }) === "E-487"
-    && TA({ angenommen: true, schalter: { tempoFassung: "" }, gespeichert: "E-487" }) === "" && TA({ angenommen: true, schalter: null, gespeichert: "E-487" }) === "E-487",
-  "kapitalCTempoFassungAus: offen → aktuell; angenommen → schalter, sonst gespeichert, sonst leer (Bestand)");
+  ok(C.KAPITAL_C_TEMPO_FASSUNG === "E-487" && TA({ angenommen: false }) === "E-487" && TA({ angenommen: false, schalter: { tempoFassung: "" } }) === "E-487"
+    && TA({ angenommen: true }) === "" && TA({ angenommen: true, schalter: {} }) === "" && TA({ angenommen: true, schalter: { tempoFassung: "E-487" } }) === "E-487"
+    && TA({ angenommen: true, schalter: { tempoFassung: "" } }) === "" && TA({ angenommen: true, schalter: null }) === "" && TA({ angenommen: true, schalter: { tempoFassung: 487 } }) === "",
+  "kapitalCTempoFassungAus: offen → aktuell; angenommen → nur der Annahmevermerk (Text), sonst leer (Bestand)");
+  // Gutachten Mangel 3: Ein Angebot, das schon mit tempoFassung „E-487“ in den Parametern angelegt ist (Skript aus diesem Stand), aber
+  // noch auf dem ALTEN Server angenommen wurde (Wortlaut „72 Stunden“, kein Vermerk) — liest sich als Bestand, nicht als neue Fassung.
+  const zAltServer = angenommeneZeile({ ...FAELLE_12A[0], par: { ...FAELLE_12A[0].par, tempoFassung: "E-487" } }, true);
+  const dAltServer = KS12.kapitalCDatenAus(zAltServer);
+  ok(zAltServer.parameter.tempoFassung === "E-487" && dAltServer.parameter.tempoFassung === "" && /72 Stunden/.test(absText(C.kapitalCZiffern(dAltServer)).join(" "))
+    && KS12.kapitalCTextHash(dAltServer) === KS12.kapitalCTextHash(KS12.kapitalCDatenAus(angenommeneZeile(FAELLE_12A[0], true))),
+    "angenommen auf dem alten Server, Parameter schon „E-487“: liest den Vertrag, den der Kunde unterschrieben hat (72 Stunden, gleiche Prüfsumme wie ohne den Parameter)");
   // Wie die offenen Angebote in der Produktion: gespeichert VOR E-487, also ganz ohne den Schlüssel tempoFassung.
   const { tempoFassung: _ohne, ...VORGABEN_VOR_E487 } = C.KAPITAL_C_VORGABEN;
   const POFFEN = { ...VORGABEN_VOR_E487, datenVomKunden: true, fastTrackWahl: true, unterschriftFrei: true, buerginAktiv: true, buerginStandAm: "2026-11-01", unterlagen: [], staatenFassung: "E-465", bundesstaat: "Delaware" };
@@ -850,6 +870,8 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
     { name: "Wahl, Angaben, Delaware", par: POFFEN },
     { name: "Wahl, Florida", par: { ...VORGABEN_VOR_E487, fastTrackWahl: true, unterschriftFrei: true, unterlagen: [{ titel: "Reisepass", am: "2026-10-27" }], staatenFassung: "E-465", bundesstaat: "Florida" } },
     { name: "ohne Wahl (Fast-Track inklusive), Delaware", par: { ...VORGABEN_VOR_E487, unterschriftFrei: true, unterlagen: [{ titel: "Reisepass", am: "2026-10-27" }], staatenFassung: "E-465", bundesstaat: "Delaware" } },
+    // Nachbesserung (Gutachten Mangel 1): Wyoming — Eilservice nur gegen hohe Gebühr, die Anleitung bucht ihn nicht (12e).
+    { name: "Wahl, Angaben, Wyoming", par: { ...POFFEN, bundesstaat: "Wyoming" } },
   ];
   for (const vt of VARIANTEN_12C) {
     const z = offeneZeile(vt.par, { kunde: vt.par.datenVomKunden ? KUNDE_ANGABEN : KUNDE_VOLL });
@@ -864,54 +886,143 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
       const wahl = { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true, ...(ft == null ? {} : { fastTrack: ft }) };
       const mit = C.kapitalCMitFastTrack(par, wahl);
       offenDazu(`${vt.name}: html vermerk ${ft}`, ohneHtml(C.kapitalCRumpfHtml(d, { am: ANLAGE_ZEIT, ip: "203.0.113.7", userAgent: "x", hash: "abc", wahl, unterschrift: { art: "getippt", name: "Muster" } })));
-      offenDazu(`${vt.name}: bestaetigung ${ft}`, [C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "09.11.2026 um 11:00 Uhr", llc: "MUSTER VENTURES LLC", ...(par.fastTrackWahl ? { fastTrack: mit } : {}), reisepass: !!par.datenVomKunden, tempoFassung: par.tempoFassung })]);
+      // Die Bestätigung über dieselbe reine Funktion wie der Server (kapitalCBestaetigungAbsaetze) — mit Reisepass-Bitte, wo er fehlt.
+      offenDazu(`${vt.name}: bestaetigung ${ft}`, [C.kapitalCBestaetigungAbsaetze(d, { wahl, angenommen: "09.11.2026 um 11:00 Uhr", llc: "MUSTER VENTURES LLC", reisepassFehlt: !!par.datenVomKunden })]);
+      ok(mit === C.kapitalCMitFastTrack(par, wahl), `${vt.name}: Wahl ${ft}`);
       offenDazu(`${vt.name}: aufgabe ${ft}`, C.kapitalCStartAufgabe({ angebotRef: d.ref, name: "Erika Musterfrau", parameter: par, bezahltAm: "2026-11-06", zweck: "FIAON-X", frist: { beginn: "2026-11-06", ende: "2027-01-01" }, llc: "MUSTER VENTURES LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null }, ...(par.fastTrackWahl ? { fastTrack: mit } : {}), ...(par.datenVomKunden ? { reisepassDa: false } : {}) }));
       offenDazu(`${vt.name}: mein-auftrag ${ft}`, C.kapitalCMeinAuftrag({ parameter: par, angenommenAm: "2026-11-09", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10, ...(par.fastTrackWahl ? { fastTrack: mit } : {}) }));
     }
   }
   const STUNDEN = offenTexte.filter((x) => /72\s*Stunden|\bStunden\b/i.test(x.text));
   ok(offenTexte.length > 300 && STUNDEN.length === 0, `offene Angebote: kein „72 Stunden“, überhaupt keine Stunden — in ${offenTexte.length} Texten (Seite, Karten, Fragen, Informationen, Übersicht, Vertrag, Vorschau, Vermerk, Bestätigung, Aufgabe)`, STUNDEN.map((x) => `${x.wo}: ${x.text.slice(0, 90)}`));
-  // Keine Zeitzusage für die EIN: nie „EIN … in/binnen … Stunden/Tagen/Werktagen“ im selben Satzteil (der Antrag „am Tag der Eintragung“
-  // ist ein Arbeitsschritt von FIAON, keine Zusage, wann die Behörde die EIN erteilt).
-  const EIN_ZEIT = /\bEIN\b[^.;:]{0,80}\b(Stunden|Tagen|Werktagen)\b|\b(Stunden|Tagen|Werktagen)\b[^.;:]{0,30}\bEIN\b/;
-  const einZeit = offenTexte.filter((x) => EIN_ZEIT.test(x.text));
-  ok(einZeit.length === 0, "offene Angebote: keine Stunden- oder Tageszusage für die EIN", einZeit.map((x) => `${x.wo}: ${(x.text.match(EIN_ZEIT) ?? [""])[0]}`));
+  // Keine Zeitzusage für die EIN: nie „EIN … in/binnen … Stunden/Tagen/Werktagen/Wochen“ im selben Satzteil (der Antrag „am Tag der
+  // Eintragung“ ist ein Arbeitsschritt von FIAON, keine Zusage, wann die Behörde die EIN erteilt). Nachbesserung (Gutachten Mangel 6):
+  // auch „Wochen“ — mit EINER benannten Ausnahme: dem Satz OHNE Fast-Track (KAPITAL_C_TEMPO.ohne, „drei bis fünf Wochen“). Er ist eine
+  // Geschäftsentscheidung und bewusst unverändert; die Karte „Ohne Fast-Track“ sagt „stehen in“, der Vertrag „in der Regel nach“ —
+  // das anzugleichen ist offen für Justins Wort. Der Prüfstand zeigt die Ausnahme, statt sie zu verschweigen.
+  const EIN_ZEIT = /\bEIN\b[^.;:]{0,80}\b(Stunden|Tagen|Werktagen|Wochen)\b|\b(Stunden|Tagen|Werktagen|Wochen)\b[^.;:]{0,30}\bEIN\b/;
+  const OHNE_SATZ = new RegExp(`[^.;:]*${C.KAPITAL_C_TEMPO.ohne}[^.;:]*`, "g");
+  const einZeit = offenTexte.filter((x) => EIN_ZEIT.test(x.text.replace(OHNE_SATZ, " ")));
+  ok(einZeit.length === 0, "offene Angebote: keine Zeitzusage für die EIN (Stunden, Tage, Werktage, Wochen) — außer dem Satz ohne Fast-Track", einZeit.map((x) => `${x.wo}: ${(x.text.replace(OHNE_SATZ, " ").match(EIN_ZEIT) ?? [""])[0]}`));
+  // Gegenprobe: Die Regel greift bei „Wochen“ — sie trifft genau die Satzteile mit „drei bis fünf Wochen“ (die benannte Ausnahme).
+  const ausnahme = [...new Set(offenTexte.flatMap((x) => x.text.match(OHNE_SATZ) ?? []).filter((s) => EIN_ZEIT.test(s)).map((s) => s.trim()))];
+  ok(ausnahme.length > 0 && ausnahme.every((s) => s.includes(C.KAPITAL_C_TEMPO.ohne)), `Gegenprobe: „Wochen“ an der EIN wird erkannt — nur im Satz ohne Fast-Track (${ausnahme.length} Fassungen, benannte Ausnahme)`, ausnahme);
+  for (const s of ausnahme) console.log(`  INFO  Ausnahme ohne Fast-Track (offen für Justin): „${s}“`);
 
   // 12d — DER NEUE FAST-TRACK, überall derselbe: Vorrang in allen Schritten — Anmeldung (mit Express, wo es ihn gibt) spätestens am
   // Werktag nach dem Eingang, Antrag auf die EIN am Tag der Eintragung, Unterlagen für das finanzierende Institut parallel.
   const sOffen = C.kapitalCSeite(dOffen);
   const vOffen = flach(absText(C.kapitalCZiffern(dOffen)).join("\n"));
-  ok(vOffen.includes("Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag in allen Schritten mit Vorrang: Die Anmeldung reicht FIAON mit der Express-Bearbeitung des Bundesstaats spätestens am Werktag nach diesem Eingang ein, den Antrag auf die EIN am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung.")
-    && !/laufen beschleunigt|Ziel sind dann die Gesellschaft und ihre EIN|folgt so schnell wie möglich/.test(vOffen), "Vertrag Ziffer 2 Absatz 3 (offen, mit Wahl): Vorrang in allen Schritten — Express, EIN-Antrag am Tag der Eintragung, Unterlagen parallel; kein „beschleunigt“, kein Zeitziel für die EIN", vOffen.slice(vOffen.indexOf("Fast-Track nach Wahl"), vOffen.indexOf("Fast-Track nach Wahl") + 700));
+  // Nachbesserung (Gutachten Mangel 5): die Frist gilt, sobald ein verfügbarer Name feststeht (Ziffer 2 Absatz 1); der EIN-Antrag folgt
+  // der Unterschrift des Kunden — im Vertrag und in den Informationen vor Vertragsschluss (§ 312d Abs. 1 S. 2 BGB).
+  ok(vOffen.includes("Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag in allen Schritten mit Vorrang: Die Anmeldung reicht FIAON mit der Express-Bearbeitung des Bundesstaats spätestens am Werktag nach diesem Eingang ein, sobald ein verfügbarer Name feststeht (Absatz 1); den Antrag auf die EIN stellt FIAON am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung.")
+    && !/laufen beschleunigt|Ziel sind dann die Gesellschaft und ihre EIN|folgt so schnell wie möglich/.test(vOffen), "Vertrag Ziffer 2 Absatz 3 (offen, mit Wahl): Vorrang in allen Schritten — Express, Frist sobald ein Name feststeht, EIN-Antrag nach der Unterschrift, Unterlagen parallel; kein „beschleunigt“, kein Zeitziel für die EIN", vOffen.slice(vOffen.indexOf("Fast-Track nach Wahl"), vOffen.indexOf("Fast-Track nach Wahl") + 700));
+  ok(/ist keiner verfügbar, stimmt FIAON einen neuen Namen mit dem Auftraggeber in Textform ab/.test(vOffen), "Ziffer 2 Absatz 1 (auf den die Frist verweist): der Weg, wenn kein Name frei ist");
   const vOhneWahl = flach(absText(C.kapitalCZiffern(KS12.kapitalCDatenAus(offeneZeile(VARIANTEN_12C[2].par, { kunde: KUNDE_VOLL })))).join("\n"));
-  ok(vOhneWahl.includes("Fast-Track: FIAON bearbeitet den Auftrag in allen Schritten mit Vorrang — die Anmeldung reicht FIAON mit der Express-Bearbeitung des Bundesstaats spätestens am Werktag nach dem Eingang der Vergütung nach Ziffer 6 Absatz 1 ein, den Antrag auf die EIN am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung.")
+  ok(vOhneWahl.includes("Fast-Track: FIAON bearbeitet den Auftrag in allen Schritten mit Vorrang — die Anmeldung reicht FIAON mit der Express-Bearbeitung des Bundesstaats spätestens am Werktag nach dem Eingang der Vergütung nach Ziffer 6 Absatz 1 ein, sobald ein verfügbarer Name feststeht (Absatz 1); den Antrag auf die EIN stellt FIAON am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung.")
     && !/laufen beschleunigt/.test(vOhneWahl), "Vertrag Ziffer 2 Absatz 3 (offen, Fast-Track inklusive): dieselbe Definition");
   const frage = flach((sOffen.fragen.liste.find((f) => f.frage === "Was bringt der Fast-Track?")?.antwort ?? []).join(" "));
-  ok(/^Vorrang in jedem Schritt: Wir melden Ihre Gesellschaft mit dem Express des Bundesstaats spätestens am Werktag nach dem Eingang Ihrer Zahlung und Ihres Reisepasses an, stellen den Antrag auf die EIN am Tag der Eintragung — Sie unterschreiben nur das Formular, das wir dafür vorbereiten — und bereiten die Unterlagen für die Bank parallel vor\./.test(frage)
-    && /Unser Ziel ist dann die Auszahlung in Woche vier\. Er kostet einmalig 499 €\. Ihre Geld-zurück-Garantie bleibt mit und ohne Fast-Track bei acht Wochen\.$/.test(frage), "Fragen: „Was bringt der Fast-Track?“ — die drei Schritte, Ziel, Preis, Garantie gleich", frage);
+  ok(/^Vorrang in jedem Schritt: Wir melden Ihre Gesellschaft mit dem Express des Bundesstaats spätestens am Werktag nach dem Eingang Ihrer Zahlung und Ihres Reisepasses an, stellen den Antrag auf die EIN am Tag der Eintragung — sobald Sie das Formular unterschrieben haben, das wir dafür vorbereiten — und bereiten die Unterlagen für die Bank parallel vor\./.test(frage)
+    && /Unser Ziel ist dann die Auszahlung in Woche vier\. Er kostet einmalig 499 €\. Ihre Geld-zurück-Garantie bleibt mit und ohne Fast-Track bei acht Wochen\.$/.test(frage), "Fragen: „Was bringt der Fast-Track?“ — die drei Schritte (EIN-Antrag nach Ihrer Unterschrift), Ziel, Preis, Garantie gleich", frage);
   const info = flach(sOffen.informationen.zeilen.find((z) => z.titel === "Beginn und Zeitplan")?.text ?? "");
-  ok(info.includes("mit Fast-Track hat Ihr Auftrag Vorrang in allen Schritten (Anmeldung mit Express spätestens am Werktag nach dem Eingang Ihrer Zahlung und Ihres Reisepasses, Antrag auf die EIN am Tag der Eintragung, die Unterlagen für die Bank parallel), unser Ziel ist dann die Auszahlung in Woche vier."), "Informationen vor Vertragsschluss „Beginn und Zeitplan“: derselbe Vorrang", info);
+  ok(info.includes("mit Fast-Track hat Ihr Auftrag Vorrang in allen Schritten (Anmeldung mit Express spätestens am Werktag nach dem Eingang Ihrer Zahlung und Ihres Reisepasses, sobald ein verfügbarer Name feststeht; Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben; die Unterlagen für die Bank parallel), unser Ziel ist dann die Auszahlung in Woche vier."), "Informationen vor Vertragsschluss „Beginn und Zeitplan“: derselbe Vorrang — mit beiden Bedingungen des Vertrags", info);
+  const infoOhneWahl = flach(C.kapitalCSeite(KS12.kapitalCDatenAus(offeneZeile(VARIANTEN_12C[2].par, { kunde: KUNDE_VOLL }))).informationen.zeilen.find((z) => z.titel === "Beginn und Zeitplan")?.text ?? "");
+  ok(infoOhneWahl.includes("(Fast-Track: Vorrang in allen Schritten — Anmeldung mit Express spätestens am Werktag nach Ihrem Zahlungseingang, sobald ein verfügbarer Name feststeht; Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben; die Unterlagen für die Bank parallel)"), "Informationen (Fast-Track inklusive): dieselben Bedingungen", infoOhneWahl);
   const k = sOffen.fastTrack!;
-  ok(flach(k.karten[1].zeile) === "Wir beginnen sofort, mit Vorrang in jedem Schritt — die Unterlagen für die Bank entstehen parallel." && k.karten[1].punkte.map(flach).join(" | ") === "Gründung, Konto und Karten · Fast-Track 499 € | Anmeldung mit Express spätestens am Werktag nach Zahlung und Reisepass | Antrag auf die EIN am Tag der Eintragung | Unser Ziel: Auszahlung in Woche vier | Geld-zurück-Garantie: acht Wochen"
+  ok(flach(k.karten[1].zeile) === "Wir beginnen sofort, mit Vorrang in jedem Schritt — die Unterlagen für die Bank entstehen parallel." && k.karten[1].punkte.map(flach).join(" | ") === "Gründung, Konto und Karten · Fast-Track 499 € | Anmeldung mit Express spätestens am Werktag nach Zahlung und Reisepass | Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben | Unser Ziel: Auszahlung in Woche vier | Geld-zurück-Garantie: acht Wochen"
     && flach(k.garantie) === "Wir beginnen in beiden Fällen sofort. Mit Fast-Track hat Ihr Auftrag in jedem Schritt Vorrang, unser Ziel ist die Auszahlung in Woche vier. Ihre Geld-zurück-Garantie gilt in beiden Fällen: acht Wochen.", "Karte „Mit Fast-Track“ und Satz darunter: Vorrang mit den Schritten, Ziel, Garantie", k.karten[1]);
   ok(flach(sOffen.weg.sub) === "Wir beginnen in beiden Fällen sofort mit Ihrem Zahlungseingang. Ohne Fast-Track stehen Ihre Gesellschaft und EIN in drei bis fünf Wochen; mit Fast-Track hat Ihr Auftrag in jedem Schritt Vorrang — Ihre Geld-zurück-Garantie bleibt bei acht Wochen."
     && /EIN-Antrag \(mit Fast-Track am Tag der Eintragung\)/.test(sOffen.weg.liste[0].text) && !/EIN mit Vorrang/.test(sOffen.weg.liste[0].text)
     && sOffen.paket.gruppen[0].kacheln.find((x) => x.schluessel === "steuernummern")!.details[0] === "EIN-Antrag vollständig vorbereitet — mit Fast-Track am Tag der Eintragung", "Ihr Weg und Ihr Paket: Vorrang nur mit Fast-Track (ohne Fast-Track kein „EIN mit Vorrang“ mehr)");
   const uebT = flach(C.kapitalCBestellUebersicht(dOffen, 10, true).zeilen.find((z) => z.label === "Beginn")!.wert);
   ok(uebT === "sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist; mit Fast-Track Vorrang in allen Schritten (Ziffer 2 Absatz 3)", "Übersicht über dem Knopf (mit Fast-Track): Vorrang statt Zeit", uebT);
-  const bestT = C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrte Frau Musterfrau", angenommen: "09.11.2026 um 11:00 Uhr", llc: "MUSTER VENTURES LLC", fastTrack: true, tempoFassung: "E-487" }).join(" ");
-  ok(bestT.endsWith("Mit dem Fast-Track bearbeiten wir Ihren Auftrag in allen Schritten mit Vorrang (Ziffer 2 Absatz 3 Ihres Vertrags).") && !/Stunden/.test(bestT), "Vertragsbestätigung (neu angenommen, mit Fast-Track): Vorrang statt „72 Stunden“");
+  // Gutachten Mangel 4: die Bestätigung einer NACH E-487 angenommenen Zeile über den echten Leseweg und dieselbe reine Funktion wie der
+  // Server (kapitalCBestaetigungAbsaetze) — fehlte die Tempo-Fassung irgendwo auf dem Weg, käme still „72 Stunden“.
+  const sch12d = KS12.kapitalCSchalterBeiAnnahme(dOffen, { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true, fastTrack: true }, C.kapitalCPlan(dOffen.parameter, 10), { art: "getippt", name: "Erika Musterfrau" });
+  const zNach487 = { ...zOffen, status: "angenommen", angenommen_am: "2026-11-09T11:00:00.000Z", auftrag_ref: "FIAON-X", schalter: sch12d };
+  const dNach487 = KS12.kapitalCDatenAus(zNach487); const wNach487 = KS12.kapitalCWahlAus(zNach487);
+  const bestT = C.kapitalCBestaetigungAbsaetze(dNach487, { wahl: wNach487, angenommen: "09.11.2026 um 12:00 Uhr", llc: "MUSTER VENTURES LLC", reisepassFehlt: false }).join(" ");
+  ok(dNach487.parameter.tempoFassung === "E-487" && wNach487?.fastTrack === true && bestT.endsWith("Mit dem Fast-Track bearbeiten wir Ihren Auftrag in allen Schritten mit Vorrang (Ziffer 2 Absatz 3 Ihres Vertrags).") && !/Stunden/.test(bestT) && /und den Fast-Track\./.test(bestT),
+    "Vertragsbestätigung einer nach E-487 angenommenen Zeile (echter Leseweg, reine Funktion des Servers): Vorrang statt „72 Stunden“", bestT);
+  const bestOhneFassung = C.kapitalCBestaetigungAbsaetze({ ...dNach487, parameter: { ...dNach487.parameter, tempoFassung: "" } }, { wahl: wNach487, angenommen: "x", llc: "y", reisepassFehlt: false }).join(" ");
+  ok(/72 Stunden/.test(bestOhneFassung), "Gegenprobe: ohne die Tempo-Fassung käme „72 Stunden“ — genau das fängt die Probe darüber");
+  const serverQuelle = readFileSync(path.join(WURZEL, "server/lib/fiaon-global-angebot-kapital-c.ts"), "utf8");
+  ok(/const absaetze = kapitalCBestaetigungAbsaetze\(d, \{ wahl: w, angenommen, llc, reisepassFehlt: /.test(serverQuelle) && !/T\.absaetze\(/.test(serverQuelle), "Server: die Vertragsbestätigung baut ihre Absätze nur über die reine Funktion");
   const startT = C.kapitalCStartAufgabe({ angebotRef: "R", name: "Erika Musterfrau", parameter: dOffen.parameter, bezahltAm: "2026-11-06", zweck: "FIAON-X", frist: { beginn: "2026-11-06", ende: "2027-01-01" }, llc: "MUSTER VENTURES LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null }, fastTrack: true }).text;
   ok(/FAST-TRACK gewählt \(Ziffer 2 Absatz 3\): spätestens am Werktag nach Zahlungseingang einreichen, mit Express des Bundesstaats, also bis 09\.11\.2026\. EIN-Antrag am Tag der Eintragung — das Formular \(SS-4\) dafür vorher zur Unterschrift schicken; die Unterlagen für das finanzierende Institut parallel\. Keine Zeit für die EIN zusagen\./.test(startT) && !/binnen fünf Werktagen/.test(startT),
     "Aufgabe nach Zahlung (Fast-Track): Anmeldung am nächsten Werktag (Freitag bezahlt → Montag), EIN-Antrag am Tag der Eintragung, keine Zeitzusage", startT);
   const startOhne = C.kapitalCStartAufgabe({ angebotRef: "R", name: "Erika Musterfrau", parameter: dOffen.parameter, bezahltAm: "2026-11-06", zweck: "FIAON-X", frist: { beginn: "2026-11-06", ende: "2027-01-01" }, llc: "MUSTER VENTURES LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null }, fastTrack: false }).text;
   ok(/binnen fünf Werktagen nach Zahlungseingang einreichen, also bis 13\.11\.2026\./.test(startOhne) && /OHNE Fast-Track \(kein Vorrang\)/.test(startOhne) && !/FAST-TRACK/.test(startOhne), "Aufgabe ohne Fast-Track: fünf Werktage wie bisher, kein Vorrang", startOhne);
 
-  // 12e — Express nur, wo der Bundesstaat ihn anbietet (Florida hat keinen — shared/fiaon-global-bundesstaaten.ts).
+  // Gutachten Mangel 2: Angaben vom Kunden — der Reisepass fehlt bei der Zahlung. Die Start-Aufgabe nennt KEIN Datum mehr (vorher „also
+  // bis 10.11.2026“ gleich nach „vor dem Eingang NICHT anmelden“), sondern verweist auf die Aufgabe „Reisepass da“; es zählt der spätere
+  // Eingang (Zahlung oder Pass) wie in Fassung A/B.
+  const startBasis = { angebotRef: "R", name: "Erika Musterfrau", parameter: dOffen.parameter, bezahltAm: "2026-11-09", zweck: "FIAON-X", frist: { beginn: "2026-11-09", ende: "2027-01-04" }, llc: "MUSTER VENTURES LLC", laufzeitJahre: 10, bestaetigung: { da: true, grund: null } };
+  const anmeldeZeile = (t: string) => t.split("\n").find((z) => z.startsWith("ANMELDUNG")) ?? "";
+  const startPass = C.kapitalCStartAufgabe({ ...startBasis, fastTrack: true, reisepassDa: false }).text;
+  ok(/REISEPASS FEHLT NOCH/.test(startPass) && anmeldeZeile(startPass).includes(`spätestens am Werktag nach dem Eingang des Reisepasses einreichen, mit Express des Bundesstaats — ${C.KAPITAL_C_PASS_DATUM_FOLGT}.`)
+    && !/also bis/.test(anmeldeZeile(startPass)) && !/Den Reisepass bitte in der Akte prüfen/.test(startPass) && /Kommt der Reisepass, ihn in der Akte prüfen/.test(startPass),
+    "Aufgabe (Fast-Track, Pass fehlt): kein Datum, Frist ab dem Eingang des Reisepasses, Verweis auf „Reisepass da“ — kein Widerspruch mehr", anmeldeZeile(startPass));
+  const startPassOhne = C.kapitalCStartAufgabe({ ...startBasis, fastTrack: false, reisepassDa: false }).text;
+  ok(anmeldeZeile(startPassOhne).includes(`binnen fünf Werktagen nach dem Eingang des Reisepasses einreichen — ${C.KAPITAL_C_PASS_DATUM_FOLGT}.`) && !/also bis/.test(anmeldeZeile(startPassOhne)),
+    "Aufgabe (ohne Fast-Track, Pass fehlt): fünf Werktage ab dem Pass, kein Datum", anmeldeZeile(startPassOhne));
+  const startPassSpaeter = C.kapitalCStartAufgabe({ ...startBasis, bezahltAm: "2026-11-06", fastTrack: true, reisepassDa: true, reisepassAm: "2026-11-10" }).text;
+  const startPassFrueher = C.kapitalCStartAufgabe({ ...startBasis, bezahltAm: "2026-11-06", fastTrack: true, reisepassDa: true, reisepassAm: "2026-11-02" }).text;
+  ok(/spätestens am Werktag nach dem Eingang des Reisepasses einreichen, mit Express des Bundesstaats, also bis 11\.11\.2026\./.test(startPassSpaeter) && /spätestens am Werktag nach Zahlungseingang einreichen, mit Express des Bundesstaats, also bis 09\.11\.2026\./.test(startPassFrueher),
+    "Aufgabe: es zählt der spätere Eingang — Pass nach der (zurückdatierten) Zahlung → ab dem Pass, Pass davor → ab der Zahlung", [anmeldeZeile(startPassSpaeter), anmeldeZeile(startPassFrueher)]);
+  ok(JSON.stringify(C.kapitalCStartAufgabe({ ...startBasis, parameter: { ...dOffen.parameter, tempoFassung: "" }, fastTrack: true, reisepassDa: false, reisepassAm: "2026-11-10" }))
+    === JSON.stringify(C.kapitalCStartAufgabe({ ...startBasis, parameter: { ...dOffen.parameter, tempoFassung: "" }, fastTrack: true, reisepassDa: false })),
+    "Bestand (vor E-487 angenommen): die Start-Aufgabe bleibt wortgleich — auch mit dem neuen Feld reisepassAm (Grundlinie 12a)");
+  // Die Aufgabe „Reisepass da“ (kapitalCReisepassAufgabe): bezahlt Freitag 06.11., Pass Montag 09.11. → Anmeldung bis Dienstag 10.11.
+  const passAuf = (par: typeof dOffen.parameter, dazu: { fastTrack?: boolean; reisepassAm?: string } = {}) => C.kapitalCReisepassAufgabe({ angebotRef: "R", name: "Erika Musterfrau", parameter: par, bezahltAm: "2026-11-06", reisepassAm: dazu.reisepassAm ?? "2026-11-09", llc: "MUSTER VENTURES LLC", ...(dazu.fastTrack == null ? {} : { fastTrack: dazu.fastTrack }) });
+  const pa1 = passAuf(dOffen.parameter, { fastTrack: true });
+  ok(pa1.faelligAm === "2026-11-10" && pa1.titel === "Kapital-Angebot R: Reisepass da — LLC anmelden bis 10.11.2026 (Erika Musterfrau, privat)"
+    && /spätestens am Werktag nach dem Eingang des Reisepasses einreichen, mit Express des Bundesstaats, also bis 10\.11\.2026\. EIN-Antrag am Tag der Eintragung/.test(pa1.text) && /Keine Zeit für die EIN zusagen\./.test(pa1.text) && /Ziffer 4 Absatz 6/.test(pa1.text),
+    "Aufgabe „Reisepass da“ (Fast-Track): fällig am Werktag nach dem Pass, Datum im Titel, EIN-Antrag am Tag der Eintragung, Ruhen der Garantiefrist", pa1);
+  const pa2 = passAuf(dOffen.parameter, { fastTrack: false });
+  const pa3 = passAuf({ ...dOffen.parameter, tempoFassung: "" }, { fastTrack: true });
+  const pa4 = passAuf(dOffen.parameter, { fastTrack: true, reisepassAm: "2026-11-05" });
+  const pa5 = passAuf({ ...dOffen.parameter, bundesstaat: "Wyoming" }, { fastTrack: true });
+  ok(pa2.faelligAm === "2026-11-16" && /binnen fünf Werktagen nach dem Eingang des Reisepasses einreichen, also bis 16\.11\.2026\. OHNE Fast-Track \(kein Vorrang\)\./.test(pa2.text)
+    && pa3.faelligAm === "2026-11-16" && /FAST-TRACK gewählt \(Ziffer 2 Absatz 3\): sofort einreichen, EIN mit Vorrang\./.test(pa3.text) && !/Stunden/.test(pa3.text)
+    && pa4.faelligAm === "2026-11-09" && !/Express/.test(pa5.text) && /spätestens am Werktag nach dem Eingang des Reisepasses einreichen, also bis 10\.11\.2026\./.test(pa5.text),
+    "„Reisepass da“: ohne Fast-Track fünf Werktage; vor E-487 angenommen fünf Werktage ohne „72 Stunden“; Pass vor der Zahlung → ab der Zahlung; Wyoming ohne Express", [pa2.faelligAm, pa3.faelligAm, pa4.faelligAm, anmeldeZeile(pa5.text)]);
+  const bereichQuelle = readFileSync(path.join(WURZEL, "server/lib/fiaon-global-bereich.ts"), "utf8");
+  ok(/if \(art\.art === "reisepass" && l\.akte\?\.angebot_id != null\) \{\s*await import\("\.\/fiaon-global-angebot-kapital-c"\)\s*\.then\(\(m\) => m\.kapitalCReisepassEingang\(ref, Number\(l\.akte\.angebot_id\)\)\)/.test(bereichQuelle)
+    && /schluessel: `global:\$\{ref1\}:kapital-reisepass-da`/.test(serverQuelle) && /faelligAm: auf\.faelligAm/.test(serverQuelle) && /if \(!bezahltAm\) return \{ angelegt: false/.test(serverQuelle)
+    && /\.\.\.\(reisepassAm \? \{ reisepassAm \} : \{\}\) \}\);/.test(serverQuelle),
+    "Server: jeder Kunden-Upload eines Reisepasses (Angebotsseite und „Mein Auftrag“) ruft kapitalCReisepassEingang — eigener Schlüssel, fällig am Tag der Frist, nur nach der Zahlung; die Start-Aufgabe bekommt den Tag des Passes");
+
+  // Gutachten Mangel 7: Der Vertragsstand nennt den Stand der Tempo-Fassung — zwei verschiedene Wortlaute tragen nicht mehr denselben.
+  ok(C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "E-487") === "09.11.2026" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "") === "27.10.2026" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG) === "27.10.2026"
+    && C.kapitalCVertragsstand("IA-KAPITAL-2026-12-01-C", "E-487") === "01.12.2026" && C.kapitalCVertragsstand("ohne Datum", "") === "" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "constructor") === "27.10.2026",
+    "Vertragsstand: mit Tempo-Fassung der spätere Stand (09.11.2026), ohne sie wie bisher");
+  ok(/Vertragsstand 09\.11\.2026$/.test(C.kapitalCVertragUnterzeile(dOffen)) && /Vertragsstand 27\.10\.2026$/.test(C.kapitalCVertragUnterzeile(KS12.kapitalCDatenAus(angenommeneZeile(FAELLE_12A[0], true))))
+    && JSON.stringify(C.kapitalCSeite(dOffen)).includes("Vertragsstand 09.11.2026") && ohneHtml(KS12.kapitalCVorschauHtml(dOffen)).includes("Vertragsstand 09.11.2026")
+    && /const stand = kapitalCVertragsstand\(d\.fassung, d\.parameter\.tempoFassung\);/.test(serverQuelle),
+    "Unterzeile, Seite, Vorschau und PDF-Fuß: offene Angebote „Vertragsstand 09.11.2026“, vor E-487 angenommene weiter 27.10.2026 (nicht in der Prüfsumme)");
+
+  // 12e — Express nur, wo die Gründungs-Anleitung ihn beim Fast-Track wirklich bucht (Nachbesserung, Gutachten Mangel 1): Delaware ja;
+  // Florida hat keinen; Wyoming hat einen amtlichen Eilservice gegen hohe Gebühr, den die Anleitung NICHT bucht („Buche nichts dazu“).
   const dFl = KS12.kapitalCDatenAus(offeneZeile(VARIANTEN_12C[1].par, { kunde: KUNDE_VOLL }));
-  const flTexte = [flach(absText(C.kapitalCZiffern(dFl)).join(" ")), flach(sammle(C.kapitalCSeite(dFl).fastTrack, []).join(" ")), flach((C.kapitalCSeite(dFl).fragen.liste.find((f) => f.frage === "Was bringt der Fast-Track?")?.antwort ?? []).join(" "))];
-  ok(flTexte.every((t) => !/Express/.test(t)) && /Die Anmeldung reicht FIAON spätestens am Werktag nach diesem Eingang ein/.test(flTexte[0]) && C.kapitalCVorrang({ bundesstaat: "Wyoming", datenVomKunden: false }).express && !C.kapitalCVorrang({ bundesstaat: "Florida", datenVomKunden: false }).express,
-    "Florida (kein Express beim Staat): Vorrang ohne das Wort Express; Delaware und Wyoming mit Express");
+  const fastTrackTexte = (d: typeof dFl) => [flach(absText(C.kapitalCZiffern(d)).join(" ")), flach(sammle(C.kapitalCSeite(d).fastTrack, []).join(" ")), flach((C.kapitalCSeite(d).fragen.liste.find((f) => f.frage === "Was bringt der Fast-Track?")?.antwort ?? []).join(" ")),
+    flach(C.kapitalCSeite(d).informationen.zeilen.find((z) => z.titel === "Beginn und Zeitplan")?.text ?? ""), C.kapitalCStartAufgabe({ angebotRef: "R", name: "N", parameter: d.parameter, bezahltAm: "2026-11-06", zweck: null, frist: null, llc: null, laufzeitJahre: 10, fastTrack: true }).text];
+  const flTexte = fastTrackTexte(dFl);
+  ok(flTexte.every((t) => !/Express/.test(t)) && /Die Anmeldung reicht FIAON spätestens am Werktag nach diesem Eingang ein/.test(flTexte[0]), "Florida (kein Express beim Staat): Vorrang ohne das Wort Express — Vertrag, Karte, Fragen, Informationen, Aufgabe");
+  const dWy = KS12.kapitalCDatenAus(offeneZeile(VARIANTEN_12C[3].par));
+  const wyTexte = fastTrackTexte(dWy);
+  ok(dWy.parameter.bundesstaat === "Wyoming" && wyTexte.every((t) => !/Express/.test(t)) && /Die Anmeldung reicht FIAON spätestens am Werktag nach diesem Eingang ein, sobald ein verfügbarer Name feststeht/.test(wyTexte[0]),
+    "Wyoming: Vorrang OHNE Express-Zusage — kein Vertrag verspricht, was das Team dort nicht bucht", wyTexte.map((t) => (t.match(/[^.]*Express[^.]*/) ?? [""])[0]).filter(Boolean));
+  ok(C.kapitalCVorrang({ bundesstaat: "Delaware", datenVomKunden: false }).express && !C.kapitalCVorrang({ bundesstaat: "Wyoming", datenVomKunden: false }).express && !C.kapitalCVorrang({ bundesstaat: "Florida", datenVomKunden: false }).express && !C.kapitalCVorrang({ bundesstaat: "Texas", datenVomKunden: false }).express,
+    "kapitalCVorrang: Express nur in Delaware (Wyoming, Florida, Unbekanntes ohne)");
+  // Kopplung an die Gründungs-Anleitung: express.imFastTrack ist genau dort true, wo die Anleitung den Express beim Fast-Track bucht.
+  const BS = await import("../shared/fiaon-global-bundesstaaten");
+  const AB = await import("../shared/fiaon-global-arbeitsablauf");
+  ok(BS.STAATEN_ANGEBOTEN.every((s) => BS.BUNDESSTAATEN[s].express.imFastTrack === /Fast-Track/.test(AB.ablaufStaat(s).expressHinweis ?? ""))
+    && BS.BUNDESSTAATEN.wyoming.express.moeglich && !BS.BUNDESSTAATEN.wyoming.express.imFastTrack && AB.ablaufStaat("Wyoming").expressHinweis === null
+    && Object.values(BS.BUNDESSTAATEN).every((b) => !b.express.imFastTrack || b.express.moeglich),
+    "Express im Fast-Track = Anleitung bucht ihn (shared/fiaon-global-arbeitsablauf.ts): Delaware ja, Florida und Wyoming nein — nie ohne amtlichen Express",
+    BS.STAATEN_ANGEBOTEN.map((s) => `${s}: imFastTrack ${BS.BUNDESSTAATEN[s].express.imFastTrack}, Anleitung ${/Fast-Track/.test(AB.ablaufStaat(s).expressHinweis ?? "")}`));
 
   // 12f — DER SATZ OHNE FAST-TRACK BLEIBT WORTGLEICH (Geschäftsentscheidung, nicht Teil von E-487).
   const DBESTAND = { ...dOffen, parameter: { ...dOffen.parameter, tempoFassung: "" } };
@@ -919,7 +1030,7 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   ok(C.KAPITAL_C_TEMPO.ohne === "drei bis fünf Wochen" && vOffen.includes(ohneSatz) && flach(absText(C.kapitalCZiffern(DBESTAND)).join("\n")).includes(ohneSatz)
     && JSON.stringify(sOffen.fastTrack!.karten[0]) === JSON.stringify(C.kapitalCSeite(DBESTAND).fastTrack!.karten[0])
     && JSON.stringify(C.kapitalCBestellUebersicht(dOffen, 10, false)) === JSON.stringify(C.kapitalCBestellUebersicht(DBESTAND, 10, false))
-    && JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false, tempoFassung: "E-487" })) === JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false })),
+    && JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false, tempoFassung: "E-487" })) === JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false, tempoFassung: "" })),
   "„Gesellschaft, EIN und ITIN in der Regel nach drei bis fünf Wochen“ (ohne Fast-Track): Vertrag, Karte, Übersicht und Bestätigung unverändert");
 
   // 12g — DIE ANNAHME HÄLT DIE FASSUNG FEST: Nach der Annahme liest der Vertrag genau den Text, den der Kunde angenommen hat.
@@ -954,7 +1065,7 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   ok(anOk.status === 409 && anOk.body.code === "GEAENDERT", "mit ausdrücklicher Wahl geht es bis zur Prüfsumme (hier absichtlich falsch → 409, ohne Datenbank)", anOk.body);
 
   // 12j — WORTWAND GRÜN und kein „garantiert“, kein Bank-Satz (E-468), gesiezt — in allen Texten der neuen Fassung.
-  const neu12 = [frage, info, flach(sammle(k, []).join(" ")), flach(sOffen.weg.sub), uebT, bestT, flach(C.kapitalCSeite(dFl).fragen.liste.find((f) => f.frage === "Was bringt der Fast-Track?")?.antwort.join(" ") ?? "")];
+  const neu12 = [frage, info, infoOhneWahl, flach(sammle(k, []).join(" ")), flach(sOffen.weg.sub), uebT, bestT, flach(C.kapitalCSeite(dFl).fragen.liste.find((f) => f.frage === "Was bringt der Fast-Track?")?.antwort.join(" ") ?? ""), wyTexte[1], wyTexte[2], wyTexte[3]];
   let wand12 = 0;
   // Die Aufgabe an Justin ist intern (wie in Abschnitt 6 nicht an der Wand), ganze Darstellungen mit der Anlage auch nicht.
   for (const { wo, text } of [...offenTexte.filter((x) => !/: (aufgabe|html) /.test(`${x.wo} `)), ...neu12.map((t) => ({ wo: "neu", text: t }))]) {

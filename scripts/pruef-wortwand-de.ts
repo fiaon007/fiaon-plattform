@@ -166,7 +166,7 @@ sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
     sammle(KC.KAPITAL_C_ETAPPEN, "kapital-c/etappen", texte);
     sammle(KC.kapitalCMeinAuftrag({ parameter: KC.KAPITAL_C_VORGABEN, angenommenAm: "2026-10-28", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }), "kapital-c/mein-auftrag", texte);
     sammle({ betreff: KC.KAPITAL_C_BESTAETIGUNG.betreff("FIAON-IA-CMUSTER"), preheader: KC.KAPITAL_C_BESTAETIGUNG.preheader, titel: KC.KAPITAL_C_BESTAETIGUNG.titel,
-      absaetze: KC.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC" }), fussnote: KC.KAPITAL_C_BESTAETIGUNG.fussnote }, "kapital-c/bestaetigung", texte);
+      absaetze: KC.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC", tempoFassung: d.parameter.tempoFassung }), fussnote: KC.KAPITAL_C_BESTAETIGUNG.fussnote }, "kapital-c/bestaetigung", texte);
   }
 }
 /** Fassung C: ein Satz mit „Garantie“ ist erlaubt, wenn er die Geld-zurück-Garantie (oder ihre Frist) meint — nie ein „garantiert“. */

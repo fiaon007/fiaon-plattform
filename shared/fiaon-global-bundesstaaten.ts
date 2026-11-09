@@ -72,7 +72,13 @@ export interface BundesstaatInfo {
   eintragungKurz: Zweisprachig;
   /** Werktage (Erfahrungswert, intern für Planung/Prüfung) — Standardweg ohne Express. */
   werktage: { von: number; bis: number };
-  express: { moeglich: boolean; werktage: { von: number; bis: number } | null; text: Zweisprachig; kurz: Zweisprachig };
+  /**
+   * `imFastTrack` — E-487 (09.11.2026, Gutachten): Bucht das Team den Express beim Fast-Track eines Kapital-Angebots wirklich dazu?
+   * Nur dann sagt der Vertrag „mit der Express-Bearbeitung des Bundesstaats“ (kapitalCVorrang). Muss zur Gründungs-Anleitung passen
+   * (shared/fiaon-global-arbeitsablauf.ts, expressHinweis je Staat): heute nur Delaware. Wyoming hat zwar einen amtlichen Eilservice,
+   * aber gegen eine hohe Gebühr und meist ohne Nutzen — die Anleitung bucht ihn dort nicht. Prüfstand: pruef-kapital-fassung-c 12e.
+   */
+  express: { moeglich: boolean; imFastTrack: boolean; werktage: { von: number; bis: number } | null; text: Zweisprachig; kurz: Zweisprachig };
   /** Wann die Gesellschaft im Fahrplan eines Angebots steht („Woche eins bis zwei“). */
   fahrplan: Zweisprachig;
   /** Was jährlich an den Staat geht (Betrag aus fakten.ts) und wie es heißt. */
@@ -99,7 +105,7 @@ export const BUNDESSTAATEN: Record<StaatSchluessel, BundesstaatInfo> = {
     eintragungKurz: { de: "rund zehn Werktage, mit Express ein bis zwei", en: "around ten business days, one or two with express" },
     werktage: { von: 8, bis: 12 },
     express: {
-      moeglich: true, werktage: { von: 1, bis: 2 },
+      moeglich: true, imFastTrack: true, werktage: { von: 1, bis: 2 },
       text: { de: "Ja — gegen eine amtliche Eilgebühr, in der Regel ein bis zwei Werktage.", en: "Yes — for an official expedite fee, usually one or two business days." },
       kurz: { de: "ja, ein bis zwei Werktage", en: "yes, one or two business days" },
     },
@@ -157,7 +163,7 @@ export const BUNDESSTAATEN: Record<StaatSchluessel, BundesstaatInfo> = {
     eintragungKurz: { de: "derzeit rund zwei Wochen, Unterlagen danach", en: "around two weeks at present, documents after that" },
     werktage: { von: 10, bis: 22 },
     express: {
-      moeglich: false, werktage: null,
+      moeglich: false, imFastTrack: false, werktage: null,
       text: { de: "Nein — Florida bietet keinen Express an.", en: "No — Florida offers no express option." },
       kurz: { de: "nein", en: "no" },
     },
@@ -215,7 +221,8 @@ export const BUNDESSTAATEN: Record<StaatSchluessel, BundesstaatInfo> = {
     eintragungKurz: { de: "rund drei Werktage", en: "around three business days" },
     werktage: { von: 1, bis: 4 },
     express: {
-      moeglich: true, werktage: { von: 0, bis: 1 },
+      // E-487: möglich, aber nicht im Fast-Track — die Anleitung bucht den teuren Eilservice in Wyoming nicht (expressHinweis null).
+      moeglich: true, imFastTrack: false, werktage: { von: 0, bis: 1 },
       text: { de: "Gegen eine hohe amtliche Eilgebühr möglich — meist nicht nötig.", en: "Possible for a high official expedite fee — rarely needed." },
       kurz: { de: "möglich, selten nötig", en: "possible, rarely needed" },
     },
@@ -273,7 +280,7 @@ export const BUNDESSTAATEN: Record<StaatSchluessel, BundesstaatInfo> = {
     eintragungKurz: { de: "rund drei Werktage", en: "around three business days" },
     werktage: { von: 2, bis: 4 },
     express: {
-      moeglich: true, werktage: null,
+      moeglich: true, imFastTrack: false, werktage: null,
       text: { de: "Gegen Eilgebühr möglich.", en: "Possible for an expedite fee." },
       kurz: { de: "möglich", en: "possible" },
     },

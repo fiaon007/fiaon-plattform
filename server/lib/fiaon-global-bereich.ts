@@ -982,6 +982,14 @@ export async function globalKundenDokument(ref: string, ein: { art: unknown; dat
   if (!d.doppelt) {
     await verlaufSchreiben(ref, { art: "dokument", text: GLOBAL_VERLAUF_TEXT[s].dokumentKunde(globalDokumentArtText(art.art, s), name), sichtbar: true, von: "kunde" });
     await eingangMelden(l, `Der Kunde hat hochgeladen: ${art.de} („${name}“).`);
+    // E-487 (09.11.2026, Gutachten): ein Reisepass zu einem angenommenen Angebot — beim Kapital-Angebot C mit Angaben vom Kunden beginnt
+    // nach der Zahlung erst jetzt die Frist für die Anmeldung; die Aufgabe „Reisepass da“ nennt das Datum (kapitalCReisepassEingang,
+    // prüft Fassung, Angaben vom Kunden und Zahlung selbst). Angebotsseite und „Mein Auftrag“ laufen beide hier durch.
+    if (art.art === "reisepass" && l.akte?.angebot_id != null) {
+      await import("./fiaon-global-angebot-kapital-c")
+        .then((m) => m.kapitalCReisepassEingang(ref, Number(l.akte.angebot_id)))
+        .catch((e) => console.error(`[GLOBAL-BEREICH] ${ref}: Aufgabe „Reisepass da“ nicht angelegt:`, e));
+    }
   }
   return { ok: true, dokument: { id: d.id, art: art.art, artText: globalDokumentArtText(art.art, s), name, groesse: datei.buffer.length, von: "kunde", am: d.am } };
 }

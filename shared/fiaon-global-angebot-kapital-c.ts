@@ -59,7 +59,7 @@
 // ── E-487 (09.11.2026): DIE TEMPO-FASSUNG „VORRANG“ ───────────────────────
 //   · Bis E-487 nannte der Fast-Track ein Zeitziel („Gesellschaft und EIN binnen 72 Stunden“, E-475). Wie lange die EIN dauert,
 //     bestimmt allein die US-Steuerbehörde. Seit E-487 beschreibt der Fast-Track deshalb die Schritte, die FIAON selbst in der Hand
-//     hat: Vorrang in allen Schritten — die Anmeldung beim Bundesstaat (mit dessen Express, wo es ihn gibt) spätestens am Werktag
+//     hat: Vorrang in allen Schritten — die Anmeldung beim Bundesstaat (mit dessen Express, wo die Anleitung ihn bucht) spätestens am Werktag
 //     nach dem Eingang, der Antrag auf die EIN am Tag der Eintragung (sobald der Kunde das vorbereitete Formular unterschrieben hat),
 //     die Unterlagen für das finanzierende Institut parallel. Keine Stunden- und keine Tageszusage für die EIN (kapitalCVorrang).
 //   · Wer was liest: Jedes NICHT angenommene Angebot zeigt die aktuelle Tempo-Fassung — der Parameter tempoFassung wird beim LESEN
@@ -69,6 +69,13 @@
 //   · Der Satz ohne Fast-Track („Gesellschaft, EIN und ITIN in der Regel nach drei bis fünf Wochen“, KAPITAL_C_TEMPO.ohne) bleibt
 //     unverändert — er ist eine Geschäftsentscheidung, nicht Teil dieses Baus. Nichts ist vorgewählt (§ 312a Abs. 3 BGB): Die Seite
 //     startet ohne Wahl, der Server nimmt nur ein ausdrückliches true/false an.
+//   · Nachbesserung nach dem Gutachten (E-487, 09.11.2026), bevor die Fassung live ging: Express nur, wo die Gründungs-Anleitung ihn
+//     beim Fast-Track bucht (express.imFastTrack — heute nur Delaware, nicht Wyoming); die Frist für die Anmeldung gilt, sobald ein
+//     verfügbarer Name feststeht, der EIN-Antrag nach der Unterschrift des Kunden — so auch in Karte und Informationen; mit Angaben vom
+//     Kunden zählt der spätere Eingang (Zahlung oder Reisepass): Fehlt der Pass bei der Zahlung, nennt die Start-Aufgabe kein Datum,
+//     sondern die Aufgabe „Reisepass da“ (kapitalCReisepassAufgabe), sobald er hochgeladen ist; ein angenommener Vertrag liest seine
+//     Tempo-Fassung NUR aus dem Annahmevermerk; die Vertragsbestätigung baut eine reine Funktion (kapitalCBestaetigungAbsaetze); der
+//     Vertragsstand nennt den Stand der Tempo-Fassung (09.11.2026).
 //
 // ── DER RECHNER (rein, kapitalCPlan) ───────────────────────────────────────
 // Laufzeit T Jahre = N = 12·T Monatsraten ab Monat (ratenfrei + 1). Zins je Monat m: 0 für m ≤ zinsfrei, sonst
@@ -231,6 +238,7 @@ export interface KapitalCParameter {
    * oder Tageszusage für die EIN (kapitalCVorrang); leer = Wortlaut vor E-487 („Gesellschaft und EIN in 72 Stunden“) — nur noch für
    * Verträge, die so angenommen wurden. Gesetzt wird sie beim LESEN (kapitalCTempoFassungAus): nicht angenommen → immer die aktuelle,
    * angenommen → die bei der Annahme festgehaltene (schalter.tempoFassung), fehlt sie → leer. Vorgabe leer (Bestand wortgleich).
+   * Ein gespeicherter Wert in den Parametern zählt nie (Nachbesserung E-487): Er sagt nicht, was der Kunde gelesen hat.
    */
   tempoFassung: string;
 }
@@ -556,9 +564,12 @@ const liste = (zeilen: string[], einleitung?: string): AngebotAbsatz => (einleit
 export function kapitalCVertragTitel(): string {
   return "FIAON Global — Vertrag über US-Gesellschaft, Konto und Karten, Begleitung zur Finanzierung und Bürgschaft";
 }
-/** Runde 2 (Kundensicht): „Vertragsstand 27.10.2026“ statt der internen Kennung „IA-KAPITAL-…-C“ (die bleibt in Prüfsumme und Akte). */
-export function kapitalCVertragUnterzeile(d: Pick<KapitalCDaten, "ref" | "fassung" | "gueltigBis">): string {
-  const stand = kapitalCVertragsstand(d.fassung);
+/**
+ * Runde 2 (Kundensicht): „Vertragsstand 27.10.2026“ statt der internen Kennung „IA-KAPITAL-…-C“ (die bleibt in Prüfsumme und Akte).
+ * E-487 (09.11.2026): mit der Tempo-Fassung des Vertrags (kapitalCVertragsstand) — die Unterzeile steht nicht in der Prüfsumme.
+ */
+export function kapitalCVertragUnterzeile(d: Pick<KapitalCDaten, "ref" | "fassung" | "gueltigBis"> & { parameter: Pick<KapitalCParameter, "tempoFassung"> }): string {
+  const stand = kapitalCVertragsstand(d.fassung, d.parameter.tempoFassung);
   return `${KAPITAL_C_MARKE} · Angebot ${d.ref} · gültig bis ${kapitalTag(d.gueltigBis)}${stand ? ` · Vertragsstand ${stand}` : ""}`;
 }
 /** Der Satz zu den Konditionen — eine Quelle für Vertrag (Ziffer 4 Absatz 2), Seite und Übersicht. */
@@ -608,37 +619,46 @@ export function kapitalCVorrangGilt(par: Pick<KapitalCParameter, "tempoFassung">
 }
 /**
  * E-487: Welche Tempo-Fassung gilt für ein Angebot? Nicht angenommen → immer die aktuelle (ein offenes Angebot liest den heutigen
- * Wortlaut, ohne dass in der Datenbank etwas geschrieben wird). Angenommen → die bei der Annahme festgehaltene (schalter.tempoFassung),
- * sonst die im Angebot gespeicherte, sonst leer = vor E-487 angenommen: Der Vertrag liest sich genau so, wie er angenommen wurde.
+ * Wortlaut, ohne dass in der Datenbank etwas geschrieben wird). Angenommen → NUR die bei der Annahme festgehaltene
+ * (schalter.tempoFassung), sonst leer = vor E-487 angenommen: Der Vertrag liest sich genau so, wie er angenommen wurde.
+ * Nachbesserung E-487 (09.11.2026, Gutachten): kein Rückgriff mehr auf den Wert in den gespeicherten Parametern — nahm ein Kunde ein
+ * schon so angelegtes Angebot noch auf dem alten Server an (Wortlaut „72 Stunden“, kein Vermerk), hätte sich sein Vertrag nach dem
+ * Deploy als neue Fassung gelesen (andere Prüfsumme, Bestätigung und Aufgabe gegen das unterschriebene PDF).
  */
-export function kapitalCTempoFassungAus(lage: { angenommen: boolean; schalter?: { tempoFassung?: unknown } | null; gespeichert?: unknown }): string {
+export function kapitalCTempoFassungAus(lage: { angenommen: boolean; schalter?: { tempoFassung?: unknown } | null }): string {
   if (!lage.angenommen) return KAPITAL_C_TEMPO_FASSUNG;
   const s = lage.schalter?.tempoFassung;
-  if (typeof s === "string") return s.slice(0, 20);
-  return typeof lage.gespeichert === "string" ? lage.gespeichert.slice(0, 20) : "";
+  return typeof s === "string" ? s.slice(0, 20) : "";
 }
 /**
  * E-487: Fast-Track = Vorrang in allen Schritten — EINE Quelle für Vertrag (Ziffer 2 Absatz 3), Karten, Seite, Fragen, Informationen
- * und Aufgabe. Der Express steht nur da, wo der Bundesstaat ihn anbietet (Florida nicht — shared/fiaon-global-bundesstaaten.ts). Für die
- * EIN zählt der Tag des ANTRAGS (am Tag der Eintragung); wie lange die US-Steuerbehörde danach braucht, sagt kein Satz zu.
+ * und Aufgabe. Für die EIN zählt der Tag des ANTRAGS (am Tag der Eintragung); wie lange die US-Steuerbehörde danach braucht, sagt kein
+ * Satz zu. Nachbesserung E-487 (Gutachten):
+ *   · Der Express steht nur da, wo die Gründungs-Anleitung ihn beim Fast-Track wirklich bucht (express.imFastTrack in
+ *     shared/fiaon-global-bundesstaaten.ts — heute nur Delaware; Wyoming hat einen teuren Eilservice, den die Anleitung nicht bucht).
+ *   · Die Frist für die Anmeldung gilt, sobald ein verfügbarer Name feststeht (Ziffer 2 Absatz 1: ist keiner der gewählten Namen frei,
+ *     stimmt FIAON einen neuen mit dem Kunden ab); der Antrag auf die EIN folgt der Unterschrift des Kunden auf dem vorbereiteten
+ *     Formular. Beides steht im Vertrag UND in den Informationen vor Vertragsschluss (§ 312d Abs. 1 S. 2 BGB: sie werden Vertragsinhalt).
  */
 export function kapitalCVorrang(par: Pick<KapitalCParameter, "bundesstaat" | "datenVomKunden">) {
-  const express = staatInfo(par.bundesstaat)?.express.moeglich === true;
+  const express = staatInfo(par.bundesstaat)?.express.imFastTrack === true;
   // Mit Angaben vom Kunden (E-474) beginnt FIAON erst, wenn auch der Reisepass da ist (Ziffer 7 Absatz 1).
   const nachSie = par.datenVomKunden ? "nach dem Eingang Ihrer Zahlung und Ihres Reisepasses" : "nach Ihrem Zahlungseingang";
   const anmeldung = `Anmeldung${express ? " mit Express" : ""} spätestens am Werktag ${nachSie}`;
-  const ein = "Antrag auf die EIN am Tag der Eintragung";
+  const ein = "Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben";
   return {
     express,
-    /** Vertrag, nach „Die Anmeldung reicht FIAON …“ — `nach` ist der Eingang („diesem Eingang“ oder der ganze Satzteil). */
-    vertragAnmeldung: (nach: string) => `${express ? "mit der Express-Bearbeitung des Bundesstaats " : ""}spätestens am Werktag nach ${nach}`,
-    vertragRest: "den Antrag auf die EIN am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung",
+    /**
+     * Vertrag, Ziffer 2 Absatz 3 — die drei Schritte als ein Satzteil ab „die Anmeldung …“ (klein; am Satzanfang mit gross()).
+     * `nach` ist der Eingang („diesem Eingang“ oder der ganze Satzteil mit Ziffer 6 Absatz 1).
+     */
+    vertragSchritte: (nach: string) => `die Anmeldung reicht FIAON ${express ? "mit der Express-Bearbeitung des Bundesstaats " : ""}spätestens am Werktag nach ${nach} ein, sobald ein verfügbarer Name feststeht (Absatz 1); den Antrag auf die EIN stellt FIAON am Tag der Eintragung, sobald der Auftraggeber das dafür vorbereitete Formular unterschrieben hat; die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung`,
     anmeldung, ein,
-    /** Die Zeile in der Karte „Mit Fast-Track“ — kurz (am Handy eine Zeile weniger), derselbe Inhalt. */
+    /** Die Zeile in der Karte „Mit Fast-Track“ — kurz (am Handy eine Zeile weniger); die Bedingungen stehen in Informationen und Vertrag. */
     anmeldungKarte: `Anmeldung${express ? " mit Express" : ""} spätestens am Werktag nach ${par.datenVomKunden ? "Zahlung und Reisepass" : "Ihrem Zahlungseingang"}`,
-    /** „Anmeldung mit Express spätestens am Werktag nach Ihrem Zahlungseingang, Antrag auf die EIN am Tag der Eintragung, die Unterlagen für die Bank parallel“ */
-    liste: `${anmeldung}, ${ein}, die Unterlagen für die Bank parallel`,
-    frage: `Vorrang in jedem Schritt: Wir melden Ihre Gesellschaft ${express ? "mit dem Express des Bundesstaats " : ""}spätestens am Werktag ${nachSie} an, stellen den Antrag auf die EIN am Tag der Eintragung — Sie unterschreiben nur das Formular, das wir dafür vorbereiten — und bereiten die Unterlagen für die Bank parallel vor. So liegt jeder Antrag so früh wie möglich bei der zuständigen Behörde.`,
+    /** Informationen vor Vertragsschluss: „Anmeldung … spätestens am Werktag nach …, sobald ein verfügbarer Name feststeht; Antrag auf die EIN …; die Unterlagen für die Bank parallel“ */
+    liste: `${anmeldung}, sobald ein verfügbarer Name feststeht; ${ein}; die Unterlagen für die Bank parallel`,
+    frage: `Vorrang in jedem Schritt: Wir melden Ihre Gesellschaft ${express ? "mit dem Express des Bundesstaats " : ""}spätestens am Werktag ${nachSie} an, stellen den Antrag auf die EIN am Tag der Eintragung — sobald Sie das Formular unterschrieben haben, das wir dafür vorbereiten — und bereiten die Unterlagen für die Bank parallel vor. So liegt jeder Antrag so früh wie möglich bei der zuständigen Behörde.`,
   };
 }
 export const KAPITAL_C_GELESEN_TEXT = "Ich habe den Vertrag, die Informationen vor Vertragsschluss und die Widerrufsbelehrung mit dem Muster-Widerrufsformular gelesen.";
@@ -670,10 +690,21 @@ export function kapitalCBuerginOrt(b: Pick<KapitalBuergin, "anschrift" | "bundes
   const i = teile.findIndex((x) => /^[A-Z]{2}\s+\d{5}(-\d{4})?$/.test(x));
   return i > 0 && /^[A-Za-zÀ-ÿ .'-]{2,40}$/.test(teile[i - 1]) ? teile[i - 1] : String(b.bundesstaat ?? "");
 }
-/** „27.10.2026“ aus der Fassung „IA-KAPITAL-2026-10-27-C“ — die Kundensicht nennt den Vertragsstand, nie die interne Kennung. */
-export function kapitalCVertragsstand(fassung: string): string {
+/**
+ * E-487 (09.11.2026, Gutachten): der Stand je Tempo-Fassung — ein Vertrag mit der Vorrang-Fassung hat einen anderen Wortlaut als einer
+ * mit „72 Stunden“ und trägt deshalb ihren Stand. Eine künftige Fassung bekommt hier ihren eigenen Eintrag.
+ */
+const KAPITAL_C_TEMPO_STAND: ReadonlyMap<string, string> = new Map([[KAPITAL_C_TEMPO_FASSUNG, "2026-11-09"]]);
+/**
+ * „27.10.2026“ aus der Fassung „IA-KAPITAL-2026-10-27-C“ — die Kundensicht nennt den Vertragsstand, nie die interne Kennung.
+ * E-487: mit Tempo-Fassung der spätere der beiden Stände („09.11.2026“); leere Tempo-Fassung (vor E-487 angenommen) → wortgleich wie bisher.
+ */
+export function kapitalCVertragsstand(fassung: string, tempoFassung = ""): string {
   const m = String(fassung ?? "").match(/(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : "";
+  const ausFassung = m ? `${m[1]}-${m[2]}-${m[3]}` : "";
+  const ausTempo = KAPITAL_C_TEMPO_STAND.get(String(tempoFassung ?? "")) ?? "";
+  const iso = ausTempo > ausFassung ? ausTempo : ausFassung;
+  return iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "";
 }
 /** Die Absatznummern in Ziffer 5 — der Absatz zur Prüfung entfällt ohne abgeschlossene Due Diligence, die Verweise folgen. */
 function kapitalCZ5(par: Pick<KapitalCParameter, "ddAbgeschlossen">): { bedingungen: number; sicherheiten: number; rueckgriff: number } {
@@ -705,8 +736,8 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
   const V = kapitalCVorrangGilt(par) ? kapitalCVorrang(par) : null;
   const fastTrackSatz = V
     ? (FT
-      ? `Fast-Track nach Wahl des Auftraggebers: In beiden Fällen beginnt FIAON mit ${eingang} und reicht die Anmeldung beim Bundesstaat spätestens binnen fünf Werktagen ein; ohne Fast-Track liegen Gesellschaft, EIN und ITIN in der Regel nach ${KAPITAL_C_TEMPO.ohne} vor. Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag in allen Schritten mit Vorrang: Die Anmeldung reicht FIAON ${V.vertragAnmeldung("diesem Eingang")} ein, ${V.vertragRest}.`
-      : `Fast-Track: FIAON bearbeitet den Auftrag in allen Schritten mit Vorrang — die Anmeldung reicht FIAON ${V.vertragAnmeldung(eingang)} ein, ${V.vertragRest}.`)
+      ? `Fast-Track nach Wahl des Auftraggebers: In beiden Fällen beginnt FIAON mit ${eingang} und reicht die Anmeldung beim Bundesstaat spätestens binnen fünf Werktagen ein; ohne Fast-Track liegen Gesellschaft, EIN und ITIN in der Regel nach ${KAPITAL_C_TEMPO.ohne} vor. Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag in allen Schritten mit Vorrang: ${gross(V.vertragSchritte("diesem Eingang"))}.`
+      : `Fast-Track: FIAON bearbeitet den Auftrag in allen Schritten mit Vorrang — ${V.vertragSchritte(eingang)}.`)
     : FT
     ? `Fast-Track nach Wahl des Auftraggebers: In beiden Fällen beginnt FIAON mit ${eingang} und reicht die Anmeldung beim Bundesstaat spätestens binnen fünf Werktagen ein; ohne Fast-Track liegen Gesellschaft, EIN und ITIN in der Regel nach ${KAPITAL_C_TEMPO.ohne} vor. Wählt der Auftraggeber bei der Annahme den Fast-Track (Annahmevermerk), bearbeitet FIAON den Auftrag mit Vorrang — Anmeldung und Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung; Ziel sind dann die Gesellschaft und ihre EIN binnen ${KAPITAL_C_TEMPO.mit}, die ITIN folgt so schnell wie möglich.`
     : `Fast-Track: FIAON bearbeitet den Auftrag mit Vorrang — die Anmeldung beim Bundesstaat und der Antrag auf die EIN laufen beschleunigt, die Unterlagen für das finanzierende Institut entstehen parallel zur Gründung. FIAON reicht die Anmeldung binnen fünf Werktagen nach ${eingang} ein.`;
@@ -1356,9 +1387,10 @@ export const KAPITAL_C_BESTAETIGUNG = {
   titel: "Ihre Vertragsbestätigung",
   // E-474: `fastTrack` false = ohne Fast-Track gewählt (nur bei fastTrackWahl), `reisepass` = der Reisepass fehlt noch (datenVomKunden).
   // Ohne beide Angaben wortgleich wie bisher.
-  // E-487: `tempoFassung` = die des Vertrags (parameter.tempoFassung). Gesetzt → mit Fast-Track der Vorrang statt „72 Stunden“; leer oder
-  // ohne Angabe (vor E-487 angenommen, „Auftragsmail nachholen“) → wortgleich wie damals.
-  absaetze: (ein: { anrede: string; angenommen: string; llc: string; fastTrack?: boolean; reisepass?: boolean; tempoFassung?: string }) => [
+  // E-487: `tempoFassung` = die des Vertrags (parameter.tempoFassung). Gesetzt → mit Fast-Track der Vorrang statt „72 Stunden“; leer
+  // (vor E-487 angenommen, „Auftragsmail nachholen“) → wortgleich wie damals. Nachbesserung (Gutachten): PFLICHT — fehlte sie still,
+  // bekäme jeder neue Fast-Track-Vertrag „72 Stunden“. Der Server baut die Absätze über kapitalCBestaetigungAbsaetze (rein, Prüfstand).
+  absaetze: (ein: { anrede: string; angenommen: string; llc: string; fastTrack?: boolean; reisepass?: boolean; tempoFassung: string }) => [
     `${ein.anrede}, vielen Dank für Ihr Vertrauen. Hiermit bestätigen wir Ihren Vertrag mit FIAON Global, den Sie am ${ein.angenommen} angenommen haben — mit Ihrer Gesellschaft ${ein.llc}.`,
     ein.fastTrack === false
       ? "Im Anhang finden Sie Ihren Vertrag mit Annahmevermerk, der Widerrufsbelehrung und dem Muster-Widerrufsformular sowie die Rechnung über Gründung, Konto und Karten."
@@ -1386,6 +1418,21 @@ export const KAPITAL_C_BESTAETIGUNG = {
   knopf2: "Zu „Mein Auftrag“",
   fussnote: `Ihre ${KAPITAL_C_GARANTIE_NAME} steht in Ziffer 4 Ihres Vertrags.`,
 } as const;
+/**
+ * E-487 (09.11.2026, Gutachten): die Absätze der Vertragsbestätigung aus den gelesenen Daten des angenommenen Vertrags — EINE reine
+ * Funktion für den Versand (kapitalCVertragsbestaetigung) und den Prüfstand. Die Wahl (Fast-Track) aus dem Annahmevermerk, die
+ * Tempo-Fassung aus den Parametern (kapitalCDatenAus), die Reisepass-Bitte nur mit Angaben vom Kunden und fehlendem Pass.
+ */
+export function kapitalCBestaetigungAbsaetze(d: { kunde: Pick<KapitalCKunde, "anrede" | "vorname" | "nachname">; parameter: Pick<KapitalCParameter, "fastTrackWahl" | "datenVomKunden" | "tempoFassung"> },
+  ein: { wahl: { fastTrack?: boolean } | null; angenommen: string; llc: string; reisepassFehlt: boolean }): string[] {
+  const par = d.parameter;
+  return KAPITAL_C_BESTAETIGUNG.absaetze({
+    anrede: kapitalCAnrede(d.kunde), angenommen: ein.angenommen, llc: ein.llc,
+    ...(par.fastTrackWahl ? { fastTrack: kapitalCMitFastTrack(par, ein.wahl) } : {}),
+    ...(par.datenVomKunden && ein.reisepassFehlt ? { reisepass: true } : {}),
+    tempoFassung: par.tempoFassung,
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PARAMETER, KUNDE, PFLICHTFELDER (rein — Skript und Server prüfen dasselbe)
@@ -1729,6 +1776,8 @@ export function kapitalCMeinAuftrag(ein: {
     jahresZeile: par.jahresCents > 0 ? `Ab dem zweiten Jahr betreuen wir Ihre Gesellschaft für ${kapitalCEur(par.jahresCents)} je Jahr (Ziffer 6): Adresse, Telefonnummer, Assistenz und alle Meldungen — die Jahresbetreuung verlängert sich nicht von selbst.` : "",
   };
 }
+/** E-487 (Gutachten): Fehlt der Reisepass bei der Zahlung, steht statt eines Datums dieser Satz in der Start-Aufgabe. */
+export const KAPITAL_C_PASS_DATUM_FOLGT = "der Reisepass fehlt noch; das Datum nennt die Aufgabe „Reisepass da“, sobald er hochgeladen ist";
 /** Die Aufgabe an Justin, wenn Teil 1 bezahlt ist (wie kapitalStartAufgabe, Fassung C). */
 export function kapitalCStartAufgabe(ein: {
   angebotRef: string; name: string; parameter: KapitalCParameter; bezahltAm: string; zweck: string | null;
@@ -1739,6 +1788,8 @@ export function kapitalCStartAufgabe(ein: {
   fastTrack?: boolean;
   /** E-474: datenVomKunden — liegt der Reisepass schon in der Akte? false = erst anfordern, vorher nicht anmelden */
   reisepassDa?: boolean | null;
+  /** E-487 (Gutachten): datenVomKunden — seit wann (Berliner Tag) der Reisepass in der Akte liegt; es zählt der spätere Eingang. */
+  reisepassAm?: string | null;
 }): { titel: string; text: string } {
   const par = ein.parameter;
   const ft = ein.fastTrack !== false;
@@ -1746,7 +1797,17 @@ export function kapitalCStartAufgabe(ein: {
   const ohneBestaetigung = ein.bestaetigung ? !ein.bestaetigung.da : false;
   // E-487: Fast-Track in der Vorrang-Fassung — die Arbeitsschritte des Vorrangs mit Datum, keine Zeit für die EIN.
   const V = kapitalCVorrangGilt(par) && ft ? kapitalCVorrang(par) : null;
-  const ablage = par.datenVomKunden ? "Den Reisepass bitte in der Akte prüfen." : `Die Unterlagen nach Ziffer 7 Absatz 1 liegen vor (${unterlagen}) — bitte in der Akte ablegen, falls noch nicht geschehen.`;
+  // Nachbesserung E-487 (Gutachten): Mit Angaben vom Kunden beginnt die Frist erst mit dem SPÄTEREN Eingang — Zahlung oder Reisepass
+  // (Ziffer 2 Absatz 3, wie Fassung A/B). Fehlt der Pass noch, nennt die Aufgabe kein Datum (vorher: „also bis <Zahlung + 1 Werktag>“
+  // gleich nach „vor dem Eingang NICHT anmelden“); das Datum nennt die Aufgabe „Reisepass da“ (kapitalCReisepassAufgabe), sobald er
+  // hochgeladen ist. Nur in der Vorrang-Fassung — vor E-487 angenommene Verträge behalten ihre Aufgabe wortgleich (Prüfstand 12a).
+  const neuDK = kapitalCVorrangGilt(par) && par.datenVomKunden;
+  const passFehlt = neuDK && ein.reisepassDa === false;
+  const basis = neuDK && ein.reisepassAm && ein.reisepassAm > ein.bezahltAm ? ein.reisepassAm : ein.bezahltAm;
+  const nach = passFehlt || basis !== ein.bezahltAm ? "dem Eingang des Reisepasses" : "Zahlungseingang";
+  const bis = (werktage: number) => (passFehlt ? ` — ${KAPITAL_C_PASS_DATUM_FOLGT}` : `, also bis ${kapitalTag(plusWerktageRein(basis, werktage))}`);
+  const ablage = passFehlt ? "Kommt der Reisepass, ihn in der Akte prüfen (lesbar, gültig, Name wie im Vertrag)."
+    : par.datenVomKunden ? "Den Reisepass bitte in der Akte prüfen." : `Die Unterlagen nach Ziffer 7 Absatz 1 liegen vor (${unterlagen}) — bitte in der Akte ablegen, falls noch nicht geschehen.`;
   return {
     titel: `${ohneBestaetigung ? "ERST Vertragsbestätigung senden — " : ""}Kapital-Angebot ${ein.angebotRef}: Gründung bezahlt — LLC anmelden (${ein.name}, privat)`,
     text: [
@@ -1756,14 +1817,45 @@ export function kapitalCStartAufgabe(ein: {
         : `${ein.name} hat die Gründung bezahlt (${kapitalEur(kapitalCHeuteCents(par, false))}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). Der Auftrag läuft — OHNE Fast-Track (kein Vorrang), Sofortbeginn ausdrücklich verlangt: Gesellschaft, EIN und ITIN in ${KAPITAL_C_TEMPO.ohne}.`,
       ...(ein.reisepassDa === false ? ["REISEPASS FEHLT NOCH (Ziffer 7 Absatz 1): Der Kunde lädt ihn nach der Annahme hoch (Angebotsseite oder „Mein Auftrag“). Bitte anfordern — vor dem Eingang NICHT anmelden; die Garantiefrist ruht so lange (Ziffer 4 Absatz 6)."] : []),
       V
-        ? `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — FAST-TRACK${par.fastTrackWahl ? " gewählt" : ""} (Ziffer 2 Absatz 3): spätestens am Werktag nach Zahlungseingang einreichen${V.express ? ", mit Express des Bundesstaats" : ""}, also bis ${kapitalTag(plusWerktageRein(ein.bezahltAm, 1))}. EIN-Antrag am Tag der Eintragung — das Formular (SS-4) dafür vorher zur Unterschrift schicken; die Unterlagen für das finanzierende Institut parallel. Keine Zeit für die EIN zusagen. ${ablage} ITIN nur nach ITIN-Check (Ziffer 2).`
-        : `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — binnen fünf Werktagen nach Zahlungseingang einreichen, also bis ${kapitalTag(plusWerktageRein(ein.bezahltAm, 5))}.${par.fastTrackWahl && ft ? ` FAST-TRACK gewählt: Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit} (Ziel) — sofort einreichen, EIN mit Vorrang; die ITIN so schnell wie möglich.` : ""} ${ablage} ITIN nur nach ITIN-Check (Ziffer 2).`,
+        ? `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — FAST-TRACK${par.fastTrackWahl ? " gewählt" : ""} (Ziffer 2 Absatz 3): spätestens am Werktag nach ${nach} einreichen${V.express ? ", mit Express des Bundesstaats" : ""}${bis(1)}. EIN-Antrag am Tag der Eintragung — das Formular (SS-4) dafür vorher zur Unterschrift schicken; die Unterlagen für das finanzierende Institut parallel. Keine Zeit für die EIN zusagen. ${ablage} ITIN nur nach ITIN-Check (Ziffer 2).`
+        : `ANMELDUNG (Ziffer 2): ${ein.llc ?? "Wunschname siehe Annahmevermerk"} in ${par.bundesstaat} — binnen fünf Werktagen nach ${nach} einreichen${bis(5)}.${par.fastTrackWahl && ft ? ` FAST-TRACK gewählt: Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit} (Ziel) — sofort einreichen, EIN mit Vorrang; die ITIN so schnell wie möglich.` : ""} ${ablage} ITIN nur nach ITIN-Check (Ziffer 2).`,
       ein.frist ? `GELD-ZURÜCK-GARANTIE (Ziffer 4): Auszahlung über ${kapitalEur(par.betragCents)} — die ${zahlwort(par.garantieWochen)} Wochen laufen seit dem ${kapitalTag(ein.frist.beginn)}, die Frist endet am ${kapitalTag(ein.frist.ende)}.${ft ? ` Ziel mit Fast-Track: Woche ${zahlwort(par.zielWochen)}.` : ""} Kommt sie nicht, erstattet FIAON alles Gezahlte binnen ${zahlwort(par.erstattungTage)} Tagen. Ruhezeiten (Tage, um die der Kunde die Frist für Unterlagen der Bank nach Ziffer 7 Absatz 2 überschreitet; nicht angenommenes Angebot ohne weitere Sicherheiten oder Kosten) bitte mit Datum im Verlauf festhalten.` : "GELD-ZURÜCK-GARANTIE: keine Frist gesetzt.",
       `LAUFZEIT: ${ein.laufzeitJahre ? kapitalCLaufzeitSatz(par, ein.laufzeitJahre) : "—"}.`,
       ...(par.buerginAktiv ? [] : ["BÜRGIN: im Register als inaktiv vermerkt — die Bürgschaft erst nach der Reaktivierung (Ziffer 5); Reinstatement mit Beleg in die Akte."]),
       `DANACH: Ist die Gesellschaft eingetragen → Knopf „${KAPITAL_C_TEIL2.knopf}“ (Rechnung Erfolgshonorar ${kapitalEur(par.erfolgCents)}).`,
       "Keine automatische Kundenmail zum Start — den Start bitte persönlich mitteilen.",
     ].join("\n"),
+  };
+}
+/**
+ * E-487 (09.11.2026, Gutachten): Die Aufgabe „Reisepass da“ — der Kunde hat den Reisepass NACH der Zahlung von Teil 1 hochgeladen
+ * (datenVomKunden). Erst jetzt beginnt die Frist für die Anmeldung (Ziffer 2 Absatz 3: „nach dem Eingang der Vergütung … und des
+ * Reisepasses“ — es zählt der spätere Eingang, wie in Fassung A/B). Die Start-Aufgabe nannte dafür noch kein Datum; diese nennt es und
+ * ist an dem Tag fällig. Vorrang-Fassung mit Fast-Track: am Werktag danach; sonst (ohne Fast-Track oder vor E-487 angenommen) binnen
+ * fünf Werktagen — wie im jeweiligen Vertrag. Rein (Prüfstand); angelegt vom Server in kapitalCReisepassEingang.
+ */
+export function kapitalCReisepassAufgabe(ein: {
+  angebotRef: string; name: string; parameter: KapitalCParameter; bezahltAm: string; reisepassAm: string; llc: string | null;
+  /** die Wahl zum Fast-Track (nur bei fastTrackWahl, wie in der Start-Aufgabe) */
+  fastTrack?: boolean;
+}): { titel: string; text: string; faelligAm: string } {
+  const par = ein.parameter;
+  const ft = ein.fastTrack !== false;
+  const V = kapitalCVorrangGilt(par) && ft ? kapitalCVorrang(par) : null;
+  const basis = ein.reisepassAm > ein.bezahltAm ? ein.reisepassAm : ein.bezahltAm;
+  const bis = plusWerktageRein(basis, V ? 1 : 5);
+  const llc = ein.llc ?? "Wunschname siehe Annahmevermerk";
+  return {
+    titel: `Kapital-Angebot ${ein.angebotRef}: Reisepass da — LLC anmelden bis ${kapitalTag(bis)} (${ein.name}, privat)`,
+    text: [
+      `${ein.name} hat den Reisepass hochgeladen (${kapitalTag(ein.reisepassAm)}); Teil 1 ist seit dem ${kapitalTag(ein.bezahltAm)} bezahlt. Mit dem späteren der beiden Eingänge beginnt die Frist für die Anmeldung (Ziffer 2 Absatz 3) — die Start-Aufgabe nannte dafür noch kein Datum.`,
+      V
+        ? `ANMELDUNG (Ziffer 2): ${llc} in ${par.bundesstaat} — FAST-TRACK${par.fastTrackWahl ? " gewählt" : ""} (Ziffer 2 Absatz 3): spätestens am Werktag nach dem Eingang des Reisepasses einreichen${V.express ? ", mit Express des Bundesstaats" : ""}, also bis ${kapitalTag(bis)}. EIN-Antrag am Tag der Eintragung — das Formular (SS-4) dafür vorher zur Unterschrift schicken; die Unterlagen für das finanzierende Institut parallel. Keine Zeit für die EIN zusagen.`
+        : `ANMELDUNG (Ziffer 2): ${llc} in ${par.bundesstaat} — binnen fünf Werktagen nach dem Eingang des Reisepasses einreichen, also bis ${kapitalTag(bis)}.${par.fastTrackWahl ? (ft ? " FAST-TRACK gewählt (Ziffer 2 Absatz 3): sofort einreichen, EIN mit Vorrang." : " OHNE Fast-Track (kein Vorrang).") : ""}`,
+      "Den Reisepass in der Akte prüfen (lesbar, gültig, Name wie im Vertrag) — ist er nicht geeignet, sofort neu anfordern.",
+      "GELD-ZURÜCK-GARANTIE (Ziffer 4 Absatz 6): Die Frist ruhte, bis der Reisepass vorlag — den Tag des Eingangs bitte im Verlauf festhalten.",
+    ].join("\n"),
+    faelligAm: bis,
   };
 }
 function plusWerktageRein(iso: string, n: number): string {

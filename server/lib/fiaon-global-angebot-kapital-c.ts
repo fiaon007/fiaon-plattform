@@ -35,6 +35,11 @@
 //     hält die Fassung in schalter.tempoFassung fest (kapitalCSchalterBeiAnnahme). Angenommene Verträge ohne diesen Vermerk (vor E-487)
 //     lesen sich wortgleich wie bei der Annahme: Prüfsumme = gespeicherte Prüfsumme, Vertragsbestätigung („Auftragsmail nachholen“)
 //     und Start-Aufgabe unverändert.
+//   · Nachbesserung (Gutachten, 09.11.2026): Ein angenommener Vertrag liest seine Tempo-Fassung NUR aus dem Annahmevermerk (nie aus den
+//     gespeicherten Parametern); die Vertragsbestätigung baut kapitalCBestaetigungAbsaetze (rein, Prüfstand); mit Angaben vom Kunden
+//     zählt für die Frist der spätere Eingang (Zahlung oder Reisepass) — kommt der Pass erst nach der Zahlung, legt
+//     kapitalCReisepassEingang die Aufgabe „Reisepass da“ mit dem Datum an (gerufen aus globalKundenDokument, also für Angebotsseite
+//     und „Mein Auftrag“).
 // ═══════════════════════════════════════════════════════════════════════════
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
@@ -67,7 +72,7 @@ import {
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
   kapitalCVertragsstand, kapitalCZahlbar,
   kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
-  KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter,
+  KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter, kapitalCBestaetigungAbsaetze, kapitalCReisepassAufgabe,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -96,10 +101,11 @@ export function kapitalCDatenAus(z: AngebotZeile): KapitalCDaten {
   const parameter = kapitalCParameterAus(json<Partial<KapitalCParameter>>(z.parameter, {}));
   // E-487: die Tempo-Fassung beim Lesen — nicht angenommen → die aktuelle (kein Schreiben nötig); angenommen → die der Annahme
   // (schalter.tempoFassung), fehlt sie → leer = vor E-487 angenommen, Wortlaut wie damals. „Angenommen“ zählt auch, wenn ein
-  // angenommener Vertrag später einen anderen Stand bekommt (angenommen_am bleibt).
+  // angenommener Vertrag später einen anderen Stand bekommt (angenommen_am bleibt). Nachbesserung (Gutachten): parameter.tempoFassung
+  // aus der Datenbank zählt dabei nie — nur der Annahmevermerk sagt, welchen Wortlaut der Kunde angenommen hat.
   parameter.tempoFassung = kapitalCTempoFassungAus({
     angenommen: String(z.status) === "angenommen" || !!z.angenommen_am,
-    schalter: json<Record<string, unknown>>(z.schalter, {}), gespeichert: parameter.tempoFassung,
+    schalter: json<Record<string, unknown>>(z.schalter, {}),
   });
   // E-474: mit datenVomKunden gehört kein Ausweis zum Vertrag (der Reisepass kommt nach der Annahme) — sonst streng wie bisher.
   const k = kapitalCKundePruefen(roh, kapitalCKundeStrenge(parameter));
@@ -170,7 +176,8 @@ export async function kapitalCVertragPdf(d: KapitalCDaten, annahme: KapitalCAnna
     watermark: annahme ? null : "Angebot — nicht angenommen", markenzeile: MARKENZEILE, zusatzCss: PDF_CSS,
   });
   // Runde 2: „Vertragsstand“ statt der internen Kennung; der Entwurf trägt nur die geheime Kennung (keine Teile der echten SHA-256).
-  const stand = kapitalCVertragsstand(d.fassung);
+  // E-487 (Gutachten): mit der Tempo-Fassung — die Vorrang-Fassung trägt ihren Stand (leer: wie bisher).
+  const stand = kapitalCVertragsstand(d.fassung, d.parameter.tempoFassung);
   return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Company No. 17318250${stand ? ` · Vertragsstand ${stand}` : ""} · Angebot ${d.ref}${annahme ? "" : ` · Entwurf · Kennung ${kapitalCSichtHash(d).slice(0, 12)}`}`, rand: RAND, keinNotbehelf: !!annahme });
 }
 export async function kapitalCPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1"): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
@@ -385,6 +392,45 @@ export async function kapitalCAngabenSpeichern(token: string, body: any, kontext
 export async function kapitalCReisepassDa(ref: string): Promise<boolean> {
   const [r] = (await sqlPool`SELECT 1 AS da FROM fiaon_global_dokumente WHERE ref = ${ref} AND art = 'reisepass' AND geloescht_am IS NULL LIMIT 1`.catch(() => [])) as any[];
   return !!r;
+}
+/**
+ * E-487 (09.11.2026, Gutachten): Seit welchem Berliner Tag liegt der Reisepass in der Akte (ohne gelöschte und abgelehnte, wie
+ * Fassung A/B)? null = keiner. Für die Frist der Anmeldung zählt der spätere Eingang — Zahlung oder Reisepass (kapitalCStartAufgabe).
+ */
+export async function kapitalCReisepassAm(ref: string): Promise<string | null> {
+  const [r] = (await sqlPool`SELECT created_at FROM fiaon_global_dokumente WHERE ref = ${ref} AND art = 'reisepass' AND geloescht_am IS NULL AND abgelehnt_am IS NULL ORDER BY created_at LIMIT 1`.catch(() => [])) as any[];
+  return r?.created_at ? berlinToday(new Date(r.created_at)) : null;
+}
+/**
+ * E-487 (09.11.2026, Gutachten): Der Kunde hat seinen Reisepass hochgeladen — gerufen aus globalKundenDokument (fiaon-global-bereich.ts),
+ * also für die Angebotsseite UND „Mein Auftrag“. Nur Kapital-Angebote der Fassung C mit Angaben vom Kunden, angenommen, Teil 1 bezahlt:
+ * Dann beginnt erst jetzt die Frist für die Anmeldung (Ziffer 2 Absatz 3) — die Start-Aufgabe nannte noch kein Datum, die Aufgabe
+ * „Reisepass da“ nennt es und ist an dem Tag fällig (kapitalCReisepassAufgabe). Vor der Zahlung: nichts — die Start-Aufgabe rechnet
+ * dann schon mit dem Pass. Eigener Schlüssel je Auftrag: Ein zweiter Upload am selben Tag legt nichts doppelt an; ein neuer Pass an
+ * einem späteren Tag hängt das neue Datum an dieselbe Aufgabe (und öffnet sie wieder, falls sie erledigt war). Kein Kundenkontakt.
+ */
+export async function kapitalCReisepassEingang(ref1: string, angebotId: number): Promise<{ angelegt: boolean; grund?: string }> {
+  const z = await angebotLesen({ id: angebotId });
+  if (!z || !istKapitalCFassung(z.fassung) || String(z.auftrag_ref ?? "") !== ref1) return { angelegt: false, grund: "kein Kapital-Angebot der Fassung C zu diesem Auftrag" };
+  const d = kapitalCDatenAus(z);
+  if (!d.parameter.datenVomKunden || angebotStatusAus(z) !== "angenommen") return { angelegt: false, grund: "ohne Angaben vom Kunden oder nicht angenommen" };
+  const teil1 = (((z as any).teile as any[] | undefined) ?? []).find((t) => Number(t.nr) === 1);
+  const bezahltAm = teil1?.bezahlt_am ? berlinToday(new Date(teil1.bezahlt_am)) : null;
+  if (!bezahltAm) return { angelegt: false, grund: "Teil 1 noch nicht bezahlt — die Start-Aufgabe rechnet mit dem Reisepass" };
+  const w = kapitalCWahlAus(z);
+  const auf = kapitalCReisepassAufgabe({
+    angebotRef: d.ref, name: kapitalCName(d.kunde) || d.ref, parameter: d.parameter, bezahltAm, reisepassAm: berlinToday(), llc: w?.llc.wunsch || null,
+    ...(d.parameter.fastTrackWahl ? { fastTrack: kapitalCMitFastTrack(d.parameter, w) } : {}),
+  });
+  const b = await globalBestellungLesen(ref1).catch(() => null);
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: b?.person_id != null ? Number(b.person_id) : null, ref: ref1, titel: auf.titel, text: auf.text, faelligAm: auf.faelligAm,
+    dringend: true, anBetreiber: true, schluessel: `global:${ref1}:kapital-reisepass-da`, bereich: "konten", quelle: "global", autorName: "FIAON Global",
+    link: CHEF_LINK, anlageText: "Reisepass nach der Zahlung eingegangen — Kapital-Angebot (Fassung C): die Frist für die Anmeldung beginnt.",
+  });
+  await verlaufAngebot(angebotId, "System", `Reisepass nach der Zahlung eingegangen — Anmeldung bis ${kapitalTag(auf.faelligAm)} (Aufgabe „Reisepass da“).`).catch(() => {});
+  return { angelegt: true };
 }
 /** Die Art am Dateikopf (die Endung kann lügen) — hier NUR PDF, PNG, JPEG (die Akte nimmt sonst auch HEIC). */
 function passArt(daten: Buffer): boolean {
@@ -740,7 +786,8 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     const meinAuftrag = globalMeinAuftragUrl(ref1);
     const ft = kapitalCMitFastTrack(par, w);
     // E-487: tempoFassung des angenommenen Vertrags — leer (vor E-487 angenommen) → die Bestätigung bleibt wortgleich wie damals.
-    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc, ...(par.fastTrackWahl ? { fastTrack: ft } : {}), ...(par.datenVomKunden && !(await kapitalCReisepassDa(ref1)) ? { reisepass: true } : {}), tempoFassung: par.tempoFassung });
+    // Nachbesserung (Gutachten): EINE reine Funktion baut die Absätze (Prüfstand 12d mit einer nach E-487 angenommenen Zeile).
+    const absaetze = kapitalCBestaetigungAbsaetze(d, { wahl: w, angenommen, llc, reisepassFehlt: par.datenVomKunden ? !(await kapitalCReisepassDa(ref1)) : false });
     // E-432 (28.10.2026): Zahlungsziel null Tage → „Zahlbar: sofort“; sonst der Tag aus der Bestellung (bei sieben Tagen wie bisher).
     const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par, ft)), zweck, sofort: par.zahlungszielTage <= 0, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
     // Runde 2: Brevo verwirft Mails an gesperrte Adressen still (auch Abmelder, auch Service-Mails). Die Vertragsbestätigung ist
@@ -1070,8 +1117,10 @@ export async function kapitalCNachZahlung(ref: string, t: any, z: AngebotZeile):
   // E-474/E-475: die Wahl zum Fast-Track (beide beginnen sofort, sie ändert das Tempo); mit datenVomKunden der Stand des Reisepasses.
   const ft = kapitalCMitFastTrack(d.parameter, w);
   const reisepassDa = d.parameter.datenVomKunden ? await kapitalCReisepassDa(ref1) : null;
+  // E-487 (Gutachten): der Tag des Reisepasses — für die Frist zählt der spätere Eingang (Zahlung oder Pass, Ziffer 2 Absatz 3).
+  const reisepassAm = reisepassDa ? await kapitalCReisepassAm(ref1) : null;
   const auf = kapitalCStartAufgabe({ angebotRef: d.ref, name, parameter: d.parameter, bezahltAm, zweck: b.payment_reference ?? null, frist, llc: w?.llc.wunsch ?? null, laufzeitJahre: w?.laufzeitJahre ?? null, bestaetigung: { da: best.ok, grund: best.grund ?? null },
-    ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}), ...(reisepassDa != null ? { reisepassDa } : {}) });
+    ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}), ...(reisepassDa != null ? { reisepassDa } : {}), ...(reisepassAm ? { reisepassAm } : {}) });
   let aufgabeId: number | null = null;
   try {
     const erg = await auftragFuerKunden({

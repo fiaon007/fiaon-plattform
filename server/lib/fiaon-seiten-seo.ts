@@ -549,9 +549,14 @@ const BUSINESS_APP_WEGE = [
 // der Browser zeigt den Hinweis mit Link auf /agb (client/src/pages/agb-archiv).
 const AGB_ARCHIV = /^\/agb\/[^/]+$/;
 
-/** true = die Adresse liegt unter /business (auch /en/business) oder im AGB-Archiv und ist dort keine Seite → 404. */
+// 09.11.2026: Google meldete /blog/hidden-costs-of-operational-inefficiency als Soft-404 — eine Adresse aus der Zeit
+// vor FIAON. FIAON hatte nie einen /blog (keine Route im Client, kein Vorrenderer): alles darunter ist 404 mit noindex.
+const ALTE_WEGE = /^\/(en\/)?blog(\/|$)/;
+
+/** true = die Adresse liegt unter /business (auch /en/business), im AGB-Archiv oder unter einem alten Weg (/blog) und ist dort keine Seite → 404. */
 export function seiteUnbekannt(pfad: string): boolean {
   const p = (pfad.split("?")[0].replace(/\/+$/, "") || "/").toLowerCase();
+  if (ALTE_WEGE.test(p)) return true;
   if (AGB_ARCHIV.test(p)) return !seoSeite(p);
   if (!BUSINESS.test(p) || BUSINESS_APP_WEGE.some((w) => w.test(p))) return false;
   return !seoSeite(p) && !globalSeite(p) && !globalLandingpage(p);

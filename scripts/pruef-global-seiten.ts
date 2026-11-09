@@ -135,7 +135,10 @@ for (const p of ["/business/gibt-es-nicht", "/business/wissen/gibt-es-nicht", "/
   "/business/kosten/weiter", "/business/auftrag/FG-2026-0001/weiter", "/business/wp-login.php",
   "/en/business/gibt-es-nicht", "/en/business/us-firmengruendung", "/en/business/wissen/form-5472", "/en/business/knowledge/gibt-es-nicht",
   "/en/business/lp/gruendung", "/business/us-company-formation", "/business/knowledge/form-5472"]) ok(seiteUnbekannt(p), `${p}: Müll-Adresse bekäme 200 (Soft-404)`);
-for (const p of ["/", "/preise", "/gibt-es-nicht", "/business-antrag", "/businessplan", "/en/pricing"]) ok(bekannt(p), `${p}: liegt außerhalb von /business und darf nicht angefasst werden`);
+for (const p of ["/", "/preise", "/gibt-es-nicht", "/business-antrag", "/businessplan", "/en/pricing", "/blogger", "/blogs"]) ok(bekannt(p), `${p}: liegt außerhalb von /business und darf nicht angefasst werden`);
+// 09.11.2026: alte Adressen aus der Zeit vor FIAON (Google: Soft-404) — FIAON hat keinen /blog.
+for (const p of ["/blog", "/blog/", "/blog/hidden-costs-of-operational-inefficiency", "/BLOG/Irgendwas", "/en/blog/x"]) ok(seiteUnbekannt(p), `${p}: alte Adresse bekäme 200 (Soft-404)`);
+ok((nichtGefundenHtml("/blog/hidden-costs-of-operational-inefficiency") ?? "Seite nicht gefunden — FIAON<").includes("Seite nicht gefunden — FIAON<"), "/blog/…: Nicht-gefunden-Ansicht von FIAON (nicht FIAON Global)");
 // Jede /business-Route des Clients muss der Server kennen — sonst liefert er für eine Seite,
 // die im Browser erscheint, 404. Parameter mit Musterwert (optionale auch ohne); die drei
 // :slug-Routen deckt das Register oben ab.

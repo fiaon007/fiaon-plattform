@@ -122,7 +122,9 @@ async function fassungC(roh: any): Promise<boolean> {
   const KC = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const SC = await import("../shared/fiaon-global-angebot-kapital-c");
   const SB = await import("../shared/fiaon-global-bundesstaaten");
-  const parameter = SC.kapitalCParameterAus(SB.neuesAngebotParameter(roh.parameter));
+  // E-487 (09.11.2026): dieselbe Quelle wie der Server — Staaten-Wahl (E-465) und die aktuelle Tempo-Fassung (Fast-Track = Vorrang in allen
+  // Schritten, keine „72 Stunden“), damit die Vorschau genau den Vertrag zeigt, den der Kunde liest.
+  const parameter = SC.kapitalCNeuesAngebotParameter(roh.parameter);
   // E-474: parameter.datenVomKunden = true → beim Anlegen genügen Anrede, Vor-/Nachname und E-Mail (Telefon freiwillig); Geburtsdatum
   // und Anschrift trägt der Kunde auf seiner Seite ein, den Reisepass lädt er nach der Unterschrift hoch. Ohne den Parameter: wie bisher.
   const k = SC.kapitalCKundePruefen(roh.kunde, parameter.datenVomKunden ? { nurKontakt: true } : {});

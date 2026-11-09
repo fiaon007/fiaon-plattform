@@ -28,6 +28,13 @@
 //   · Der Browser bekommt nur einen geheimen Fingerabdruck der Prüfsumme (HMAC) — die SHA-256 über den Vertrag mit den vollen
 //     Ausweisnummern bleibt im Server und im PDF des angenommenen Vertrags. Das Entwurfs-PDF trägt nur die Kennung.
 //   · Ändern nur bei Fassung C; „Finanzierung ausgezahlt“ erst, wenn die Frist läuft; Fertig-Ansicht mit Ansprechpartner des Angebots.
+//
+// ── E-487 (09.11.2026): DIE TEMPO-FASSUNG „VORRANG“ ───────────────────────
+//   · kapitalCDatenAus setzt parameter.tempoFassung beim Lesen (kapitalCTempoFassungAus): Jedes nicht angenommene Angebot liest den
+//     heutigen Wortlaut (Fast-Track = Vorrang in allen Schritten, keine „72 Stunden“) — ohne Schreiben in der Datenbank. Die Annahme
+//     hält die Fassung in schalter.tempoFassung fest (kapitalCSchalterBeiAnnahme). Angenommene Verträge ohne diesen Vermerk (vor E-487)
+//     lesen sich wortgleich wie bei der Annahme: Prüfsumme = gespeicherte Prüfsumme, Vertragsbestätigung („Auftragsmail nachholen“)
+//     und Start-Aufgabe unverändert.
 // ═══════════════════════════════════════════════════════════════════════════
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { sqlPool } from "./db-pool";
@@ -51,7 +58,7 @@ import { zahlwort } from "@shared/fiaon-global-angebot-firma";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import type { FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { KAPITAL_KNOPF, KAPITAL_C_FASSUNGEN, istKapitalCFassung, kapitalEur, kapitalTag, type KapitalUnterschriftVermerk } from "@shared/fiaon-global-angebot-kapital";
-import { neuesAngebotParameter, staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
+import { staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
 import {
   KAPITAL_C_FASSUNG, KAPITAL_C_GUELTIG_TAGE, KAPITAL_C_TEIL1_TITEL, KAPITAL_C_TEIL2, KAPITAL_C_AUSZAHLUNG, KAPITAL_C_ANNAHME, KAPITAL_C_MARKE, KAPITAL_C_BESTAETIGUNG, kapitalCAuszahlungPruefen,
   kapitalCParameterAus, kapitalCParameterFehler, kapitalCKundePruefen, kapitalCBuerginFehler, kapitalCPflichtFehlen,
@@ -60,7 +67,8 @@ import {
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
   kapitalCVertragsstand, kapitalCZahlbar,
   kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
-  type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter,
+  KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter,
+  type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
 function json<T>(v: unknown, leer: T): T {
@@ -86,6 +94,13 @@ const RECHNUNG_STEHT = ["pending_payment", "claimed_paid", "paid"];
 export function kapitalCDatenAus(z: AngebotZeile): KapitalCDaten {
   const roh = json<any>(z.kunde, {});
   const parameter = kapitalCParameterAus(json<Partial<KapitalCParameter>>(z.parameter, {}));
+  // E-487: die Tempo-Fassung beim Lesen — nicht angenommen → die aktuelle (kein Schreiben nötig); angenommen → die der Annahme
+  // (schalter.tempoFassung), fehlt sie → leer = vor E-487 angenommen, Wortlaut wie damals. „Angenommen“ zählt auch, wenn ein
+  // angenommener Vertrag später einen anderen Stand bekommt (angenommen_am bleibt).
+  parameter.tempoFassung = kapitalCTempoFassungAus({
+    angenommen: String(z.status) === "angenommen" || !!z.angenommen_am,
+    schalter: json<Record<string, unknown>>(z.schalter, {}), gespeichert: parameter.tempoFassung,
+  });
   // E-474: mit datenVomKunden gehört kein Ausweis zum Vertrag (der Reisepass kommt nach der Annahme) — sonst streng wie bisher.
   const k = kapitalCKundePruefen(roh, kapitalCKundeStrenge(parameter));
   return {
@@ -176,7 +191,8 @@ function kundeFuerDb(k: KapitalCKunde): Record<string, unknown> { return { ...k 
 export async function kapitalCAnlegen(ein: any, wer: string): Promise<Ergebnis<{ id: number; ref: string; link: string }>> {
   await ensureAngebotTabellen();
   // E-465: neue Angebote mit Staaten-Wahl (ohne Angabe Delaware) und den ehrlichen Zeiten; Bestand läuft nie hier durch.
-  const parameter = kapitalCParameterAus(neuesAngebotParameter(ein?.parameter));
+  // E-487: dazu die aktuelle Tempo-Fassung (Fast-Track = Vorrang, keine „72 Stunden“) — dieselbe Quelle wie die Vorschau im Skript.
+  const parameter = kapitalCNeuesAngebotParameter(ein?.parameter);
   // E-474: mit datenVomKunden genügen Anrede, Name und E-Mail — Geburtsdatum und Anschrift trägt der Kunde auf seiner Seite ein.
   const k = kapitalCKundePruefen(ein?.kunde, parameter.datenVomKunden ? { nurKontakt: true } : {});
   if (!k.ok) return nein(`Auftraggeber: ${k.error}`);
@@ -210,7 +226,8 @@ export async function kapitalCAendern(id: number, ein: any, wer: string): Promis
   if (String(z.status) !== "offen") return nein(`Das Angebot ist ${String(z.status)} — ändern geht nur, solange es offen ist.`, 409);
   const alt = kapitalCDatenAus(z); const altHash = kapitalCTextHash(alt);
   const neu: KapitalCDaten = { ...alt }; const geaendert: string[] = [];
-  if (ein?.parameter) { const par = { ...kapitalCParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung }; /* E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich */ const f = kapitalCParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
+  // E-465: Staaten-Fassung nur beim Anlegen, nie nachträglich. E-487: ein offenes Angebot trägt immer die aktuelle Tempo-Fassung.
+  if (ein?.parameter) { const par = { ...kapitalCParameterAus(ein.parameter, alt.parameter), staatenFassung: alt.parameter.staatenFassung, tempoFassung: KAPITAL_C_TEMPO_FASSUNG }; const f = kapitalCParameterFehler(par); if (f) return nein(f); neu.parameter = par; geaendert.push("Parameter"); }
   if (ein?.kunde) {
     // E-474: Bei datenVomKunden kommt aus der privaten Datei nur der Kontakt — was der Kunde schon selbst eingetragen hat (Geburtsdatum,
     // Anschrift, …), überschreibt ein zweiter Skriptlauf nie. Trägt die Datei die Angaben vollständig, gelten sie (wie bisher).
@@ -457,6 +474,17 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE ANNAHME (gerufen aus kapitalAnnehmen: Token, Status, Leitung und Honigtopf sind im Individualangebot geprüft)
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * Was die Annahme in fiaon_global_angebote.schalter festhält — rein (Prüfstand). E-487 (09.11.2026): mit der Tempo-Fassung des Vertrags,
+ * den der Kunde gerade angenommen hat (tempoFassung) — so liest sich der angenommene Vertrag auch nach jeder künftigen Änderung am
+ * Wortlaut genau so wie bei der Annahme (kapitalCTempoFassungAus).
+ */
+export function kapitalCSchalterBeiAnnahme(d: Pick<KapitalCDaten, "parameter">, wahl: KapitalCWahl, plan: Pick<KapitalCPlan, "monatsrateCents" | "zinsenCents" | "rueckzahlungCents" | "usd">, unterschrift: KapitalUnterschriftVermerk) {
+  return {
+    ...wahl, rate: { monatsrateCents: plan.monatsrateCents, zinsenCents: plan.zinsenCents, rueckzahlungCents: plan.rueckzahlungCents, usdMonatsrate: plan.usd.monatsrate },
+    gelesen: true, verbraucher: true, unterschrift, tempoFassung: d.parameter.tempoFassung,
+  };
+}
 export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeKontext, helfer: { zuViel: (ip: string) => boolean }): Promise<{ status: number; body: Record<string, unknown> }> {
   const fehler = (status: number, error: string, extra: Record<string, unknown> = {}) => ({ status, body: { ok: false, error, ...extra } });
   const d = kapitalCDatenAus(z);
@@ -494,7 +522,7 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
     return fehler(500, "Ihr Vertrag konnte gerade nicht ausgefertigt werden — bitte versuchen Sie es in einer Minute noch einmal. Es wurde nichts gespeichert.");
   }
   const plan = kapitalCPlan(d.parameter, jahre);
-  const schalter = { ...wahl, rate: { monatsrateCents: plan.monatsrateCents, zinsenCents: plan.zinsenCents, rueckzahlungCents: plan.rueckzahlungCents, usdMonatsrate: plan.usd.monatsrate }, gelesen: true, verbraucher: true, unterschrift };
+  const schalter = kapitalCSchalterBeiAnnahme(d, wahl, plan, unterschrift);
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote
        SET status = 'angenommen', angenommen_am = ${jetzt}, ip = ${kontext.ip}, user_agent = ${String(kontext.userAgent || "").slice(0, 500)},
@@ -711,7 +739,8 @@ export async function kapitalCVertragsbestaetigung(id: number, ausgeloestVon = "
     const zahlungsseite = zweck ? absoluteUrl(`/zahlung/${encodeURIComponent(zweck)}?bereich=business`) : null;
     const meinAuftrag = globalMeinAuftragUrl(ref1);
     const ft = kapitalCMitFastTrack(par, w);
-    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc, ...(par.fastTrackWahl ? { fastTrack: ft } : {}), ...(par.datenVomKunden && !(await kapitalCReisepassDa(ref1)) ? { reisepass: true } : {}) });
+    // E-487: tempoFassung des angenommenen Vertrags — leer (vor E-487 angenommen) → die Bestätigung bleibt wortgleich wie damals.
+    const absaetze = T.absaetze({ anrede: kapitalCAnrede(k), angenommen, llc, ...(par.fastTrackWahl ? { fastTrack: ft } : {}), ...(par.datenVomKunden && !(await kapitalCReisepassDa(ref1)) ? { reisepass: true } : {}), tempoFassung: par.tempoFassung });
     // E-432 (28.10.2026): Zahlungsziel null Tage → „Zahlbar: sofort“; sonst der Tag aus der Bestellung (bei sieben Tagen wie bisher).
     const daten = T.daten({ ref: d.ref, llc, laufzeit, heute: kapitalCEur(kapitalCHeuteCents(par, ft)), zweck, sofort: par.zahlungszielTage <= 0, faellig: b?.payment_due_date ? kapitalTag(berlinToday(new Date(b.payment_due_date))) : null });
     // Runde 2: Brevo verwirft Mails an gesperrte Adressen still (auch Abmelder, auch Service-Mails). Die Vertragsbestätigung ist

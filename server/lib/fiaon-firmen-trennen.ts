@@ -109,6 +109,10 @@ export function firmenTrennungSchema(lauf: Lauf = sqlPool): Promise<boolean> {
 
 /** Der Schalter „firmen_trennen“ (trocken | an | aus; leer = trocken). Ohne lesbare Einstellung gilt die Vorgabe. */
 export async function trennModus(lauf: Lauf = sqlPool): Promise<TrennModus> {
+  // E-487 Nachtrag: Die Umgebungsvariable FIRMEN_TRENNEN (an | trocken | aus) geht vor — so lässt sich der Lauf nach Sicht der
+  // Trocken-Historie ohne Datenbank-Schreiben von außen umstellen (Render-ENV); unbekannte Werte gelten weiter als „trocken“.
+  const env = String(process.env.FIRMEN_TRENNEN ?? "").trim();
+  if (env) return trennModusLesen(env);
   const [r] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${FIRMEN_TRENNEN_SCHALTER}`.catch(() => [])) as any[];
   return trennModusLesen(r?.value);
 }

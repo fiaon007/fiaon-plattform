@@ -108,7 +108,12 @@ for (const [key, cents] of Object.entries(BUSINESS_ALT)) {
 // als Einzelrechnung; die laufende Abrechnung ist eine spätere Scheibe). Geprüft im Einzelnen: scripts/pruef-global-zusatz.ts.
 gleich("NICHT_ABO_SCHLUESSEL = schufa + Auskunft-Preise + die Global-Schlüssel (vier Pakete + Individualangebot) + LLC-Paket + Kooperationsrechnung + Zusatzdienste",
   [...NICHT_ABO_SCHLUESSEL].sort(),
-  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "llc_loeschung", "koop_kontakte", ...PAKETE.filter((p) => p.globalZusatz).map((p) => p.key)].sort());
+  ["schufa", ...PAKETE.filter((p) => p.zusatz === "auskunft" && p.key !== "schufa").map((p) => p.key), ...Object.keys(GLOBAL_SOLL), "global_individuell", "llc_paket", "llc_gruendung", "llc_gruendung_halb", "llc_fasttrack", "kapital_fasttrack", "llc_loeschung", "koop_kontakte", ...PAKETE.filter((p) => p.globalZusatz).map((p) => p.key)].sort());
+// E-487 (09.11.2026): Fast-Track als Nachtrag zum Kapital-Angebot C — 499 € laut Vertrag Ziffer 6 Abs. 1, Einzelrechnung, nicht verkaufbar.
+{
+  const ft = paket("kapital_fasttrack");
+  ok("kapital_fasttrack: 499 €, privat, kein Abo, eingestellt, Zahlungsseite global, Text nennt Ziffer 2 Absatz 3", !!ft && ft.preisCents === 49900 && ft.art === "privat" && !ft.abo && ft.eingestellt === true && ft.zahlungsseite === "global" && /Ziffer 2 Absatz 3/.test(String(ft.rechnung?.beschreibung ?? "")));
+}
 // E-419: Fast-Track der Gründung — Einmalkauf privat, 533,20 € (599 USD zum EZB-Kurs vom 21.10.2026), Zahlungsseite global, nicht verkaufbar.
 {
   // E-432 (27.10.2026): Löschung einer früheren US-Gesellschaft — 149,00 USD zum EZB-Kurs = 132,63 €, wie llc_fasttrack.

@@ -149,6 +149,11 @@ export const PAKETE: Paket[] = [
   // Einmalkauf, Art privat (kein Global-Start), Zahlungsseite global (keine Privat-Erinnerung, kein Ablösen der Schwesterbestellungen).
   { key: "llc_fasttrack",       label: "Fast-Track Gründung US-Gesellschaft", preisCents: 53320, art: "privat", abo: false, eingestellt: true,
     rechnung: { beschreibung: "Fast-Track: beschleunigte Bearbeitung der Gründung Ihrer US-Gesellschaft — 599,00 USD zum EZB-Referenzkurs vom 21.10.2026 (1 € = 1,1234 USD), Fremdkosten ohne Aufschlag weiterberechnet", zeitraum: "einmalig" }, zahlungsseite: "global" },
+  // E-487 (09.11.2026): Fast-Track zum Kapital-Angebot (Fassung C), NACH der Annahme gebucht — Preis laut Vertrag Ziffer 6
+  // Absatz 1 (499 € Endpreis), Leistung laut Ziffer 2 Absatz 3 (Vorrang-Fassung). Vorher gab es nur llc_fasttrack (533,20 €
+  // Fremdkosten des Begleitvertrags) — falscher Preis, falscher Text. Einmalkauf, Art privat (kein Global-Start), Zahlungsseite global.
+  { key: "kapital_fasttrack",   label: "Fast-Track (Nachtrag zu Ihrem Vertrag)", preisCents: 49900, art: "privat", abo: false, eingestellt: true,
+    rechnung: { beschreibung: "Fast-Track nach Ziffer 2 Absatz 3 Ihres Vertrags, nachträglich gebucht: Vorrang in allen Schritten — Anmeldung beim Bundesstaat mit Express, Antrag auf die EIN am Tag der Eintragung, Unterlagen für das finanzierende Institut parallel", zeitraum: "einmalig" }, zahlungsseite: "global" },
   // E-432 (27.10.2026): Löschung einer früheren US-Gesellschaft des Kunden — sie blockierte im Behördensystem den ITIN-Antrag.
   // Nachtrag 27.10.: Die Vor-Gesellschaft ist eine Wyoming-LLC (Articles geprüft), nicht Florida.
   // Justin: Fremdkosten 149,00 USD eins zu eins weiterberechnet, zum EZB-Referenzkurs vom 26.10.2026 (1 € = 1,1234 USD) = 132,63 €.

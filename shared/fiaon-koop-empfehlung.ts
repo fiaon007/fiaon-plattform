@@ -48,6 +48,21 @@ export function koopFastTrackZaehlt(ref: unknown, roh: unknown): boolean {
   const r = String(ref ?? "").trim().toUpperCase();
   return !!r && koopFastTrackZaehltListe(roh).includes(r);
 }
+/**
+ * E-487 (09.11.2026): der Fast-Track als EIGENE Rechnung — Katalogschlüssel kapital_fasttrack (499 € nach Vertrag Ziffer 6 Absatz 1,
+ * nach der Annahme eines Kapital-Angebots C dazugebucht; shared/fiaon-pakete.ts). Für die Provision genau wie der Fast-Track in der
+ * Bestellung (koopDurchlaufAbzugSql): ohne „zählt mit“ nicht Teil der Provisionsbasis, bei einer Kooperation aus KOOP_FASTTRACK_ZAEHLT
+ * zählt er voll. Gekauft ist er mit der bezahlten Rechnung — eine Wahl wie schalter.fastTrack gibt es hier nicht.
+ * llc_fasttrack (Fremdkosten des Begleitvertrags) bleibt Durchlaufposten und zählt nie (KOOP_DURCHLAUF_SCHLUESSEL).
+ */
+export const KOOP_FASTTRACK_SCHLUESSEL = ["kapital_fasttrack"] as const;
+/**
+ * E-487: die Katalogschlüssel, deren Zahlungen für eine Kooperation NICHT zählen — immer die Durchlaufposten, ohne „zählt mit“ dazu
+ * der Fast-Track als eigene Rechnung. Dieselbe Weiche wie koopDurchlaufAbzugSql(fastTrackZaehltMit). Rein.
+ */
+export function koopOhneSchluessel(fastTrackZaehltMit = false): string[] {
+  return fastTrackZaehltMit ? [...KOOP_DURCHLAUF_SCHLUESSEL] : [...KOOP_DURCHLAUF_SCHLUESSEL, ...KOOP_FASTTRACK_SCHLUESSEL];
+}
 const objekt = (v: unknown): Record<string, unknown> => {
   let o: unknown = v;
   for (let i = 0; i < 2 && typeof o === "string"; i++) { try { o = JSON.parse(o); } catch { break; } }

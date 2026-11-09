@@ -417,6 +417,31 @@ abschnitt("7", "Provision: der Fast-Track der Fassung C zählt nicht (Justin 28.
   const sicht2 = await K.koopEmpfehlungSicht({ id: Number(koop.id), schalter: { provision: { prozent: 30, seit: "2026-10-22" } } });
   const z2 = sicht2.liste.find((x: any) => Number(x.id) === EID);
   ok(z2 && z2.umsatzCents === 279000 + 689000, "Erfolgshonorar zählt voll (2.790 € + 6.890 €)", z2 ? z2.umsatzCents : null);
+  // E-487 (09.11.2026): der Fast-Track als EIGENE Rechnung (Katalog kapital_fasttrack, 499 €, nach der Annahme gebucht) zählt genau
+  // wie der Fast-Track in der Bestellung — ohne „zählt mit“ nicht, mit KOOP_FASTTRACK_ZAEHLT (nur diese Kooperation) voll.
+  const { UMSATZ_QUELLE_SQL } = await import("../server/lib/fiaon-umsatz-quelle");
+  await sqlPool`INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, person_id, email, first_name, last_name, country, paid_at)
+    VALUES (${REF + "-FT"}, 'business', 'submitted', 'kapital_fasttrack', 'Fast-Track (Nachtrag, Prüfstand)', ${"PAYF" + REF.slice(-10)}, 'paid', 499.00, ${PID}, ${MAIL}, 'Max', 'Prüfmann', 'DE', NOW())`;
+  const [ftQ] = (await sqlPool.unsafe(`WITH q AS (${UMSATZ_QUELLE_SQL}) SELECT COUNT(*)::int AS n, COALESCE(SUM(q.cents), 0)::int AS c FROM q WHERE q.ref = $1`, [REF + "-FT"])) as any[];
+  ok(Number(ftQ?.n) === 1 && Number(ftQ?.c) === 49900, "Fast-Track-Rechnung bezahlt: steht in der Umsatz-Quelle (499,00 €)", ftQ);
+  const sicht3 = await K.koopEmpfehlungSicht({ id: Number(koop.id), schalter: { provision: { prozent: 30, seit: "2026-10-22" } } });
+  const z3 = sicht3.liste.find((x: any) => Number(x.id) === EID);
+  ok(z3 && z3.umsatzCents === 279000 + 689000, "Fast-Track-Rechnung zählt ohne „zählt mit“ nicht (Liste unverändert 9.680 €)", z3 ? z3.umsatzCents : null);
+  const posten3 = await K.koopGutschriftPosten(Number(koop.id), monat, 30);
+  ok(!posten3.some((x: any) => x.ref === REF + "-FT") && posten3.some((x: any) => x.ref === REF && x.umsatzCents === 279000), "Gutschrift-Posten ohne die Fast-Track-Rechnung", posten3.map((x: any) => [x.ref, x.umsatzCents]));
+  const [kref] = (await sqlPool`SELECT angebot_ref FROM fiaon_global_angebote WHERE id = ${Number(koop.id)}`) as any[];
+  const vorherFt = process.env.KOOP_FASTTRACK_ZAEHLT;
+  process.env.KOOP_FASTTRACK_ZAEHLT = String(kref.angebot_ref);
+  try {
+    const sicht4 = await K.koopEmpfehlungSicht({ id: Number(koop.id), angebot_ref: kref.angebot_ref, schalter: { provision: { prozent: 30, seit: "2026-10-22" } } });
+    const z4 = sicht4.liste.find((x: any) => Number(x.id) === EID);
+    ok(z4 && z4.umsatzCents === 328900 + 689000 + 49900, "mit „zählt mit“: Fast-Track in der Bestellung UND als eigene Rechnung zählen (3.289 € + 6.890 € + 499 €)", z4 ? z4.umsatzCents : null);
+    const posten4 = await K.koopGutschriftPosten(Number(koop.id), monat, 30);
+    const ft4 = posten4.find((x: any) => x.ref === REF + "-FT");
+    ok(ft4 && ft4.umsatzCents === 49900 && ft4.provisionCents === 14970 && posten4.some((x: any) => x.ref === REF && x.umsatzCents === 328900), "Gutschrift-Posten mit „zählt mit“: Fast-Track-Rechnung 499,00 € → 149,70 €", posten4.map((x: any) => [x.ref, x.umsatzCents, x.provisionCents]));
+  } finally {
+    if (vorherFt === undefined) delete process.env.KOOP_FASTTRACK_ZAEHLT; else process.env.KOOP_FASTTRACK_ZAEHLT = vorherFt;
+  }
 }
 
 fs.rmSync(ORDNER, { recursive: true, force: true }); fs.rmSync(PRIVAT, { force: true }); fs.rmSync(FREMD, { force: true });

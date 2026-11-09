@@ -16,8 +16,21 @@
 //      A10 Zuordnung nur sicher (Name = Vorschlag, belegte Person = Frage, Fenster) · Doppelt · Lead-Entscheid (Einverständnis,
 //      Deckel) · Stufe nie vor dem Meldetag · Empfehlung nie in der Beschwerde-Weiche · N3/W ohne „Ihre Anfrage“ ·
 //      A11 Quelltext-Wände der Nachbesserung (Partner ohne Personen-Nr., eine Zahlung = eine Empfehlung, Sperre beim Nachbereiten …)
+//      A12 Fast-Track als eigene Rechnung (Katalog kapital_fasttrack, 499 €): zählt genau wie der Fast-Track in der Bestellung —
+//          nur bei „zählt mit“ (KOOP_FASTTRACK_ZAEHLT), sonst nicht Provisionsbasis; Abzug und Schlüssel aus EINER Weiche
 //
 //   env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus BREVO_API_KEY=pruef node_modules/.bin/tsx scripts/pruef-koop-provision.ts
+//
+//   B  DATENBANK (Gutachten Mangel 15) — NUR gegen eine lokale Kopie fiaon_pruefstand_… auf 127.0.0.1:54329; Netz gesperrt, Mail-
+//      Schlüssel entfernt, CRONS=aus (keine Info-Mail an Justin). Erfundene Menschen, eigene Zeilen werden am Ende entfernt:
+//      B1 Umbau der Tabellen wie in der Produktion vor dem Deploy (Gutschrift UNIQUE(angebot_id, monat) → (angebot_id, monat, art),
+//         neue Spalten der Empfehlungen) · B2 Stundenlauf koop_empfehlung_zuordnen (E-Mail = zuordnen, nur Name = Frage an Justin,
+//         Altbestand mit Telefon = ein Anruf-Auftrag; zweiter Lauf ohne Doppeltes) · B3 Monats-Gutschrift und Nachtrag im selben
+//         Monat (nie doppelt) · B4 Fast-Track als eigene Rechnung im Nachtrag (ohne/mit KOOP_FASTTRACK_ZAEHLT) · B5 Stufen-Abfrage
+//         und Liste im Chefbüro ohne Rückfall
+//      PGSSLMODE=require createdb -h 127.0.0.1 -p 54329 -U fiaon -T fiaon_pruefstand_wo fiaon_pruefstand_<neu>
+//      env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus \
+//        DATABASE_URL='postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_<neu>' node_modules/.bin/tsx scripts/pruef-koop-provision.ts
 //
 // Repo öffentlich: nur erfundene Menschen (*.example, Nullnummern), erfundene Refs und Beträge.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -25,8 +38,20 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-if (!process.env.DATABASE_URL) process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+// Teil B nur gegen eine lokale Kopie fiaon_pruefstand_… (127.0.0.1:54329). Jede andere Adresse (auch keine) heißt: nur Teil A —
+// db-pool bekommt dann eine Adresse, zu der nie verbunden wird (postgres verbindet erst bei der ersten Abfrage).
+const TEIL_B = /@(127\.0\.0\.1|localhost):54329\/fiaon_pruefstand_/.test(String(process.env.DATABASE_URL ?? ""));
+if (!TEIL_B) {
+  if (process.env.DATABASE_URL) console.error("Teil B nur gegen eine lokale Kopie fiaon_pruefstand_… (127.0.0.1:54329) — es läuft nur Teil A.");
+  process.env.DATABASE_URL = "postgresql://pruef@127.0.0.1:9/keine";
+}
 if (String(process.env.CRONS ?? "").toLowerCase() !== "aus") { console.error("ABBRUCH: bitte mit CRONS=aus starten."); process.exit(3); }
+// Teil B: nichts verlässt den Rechner — Mail-/Nachrichten-Schlüssel weg, jeder Netzaufruf gesperrt und gezählt.
+const netz: string[] = [];
+if (TEIL_B) {
+  for (const k of ["BREVO_API_KEY", "MAKE_WEBHOOK_URL", "TWILIO_AUTH_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "WHATSAPP_TOKEN", "AIRWALLEX_API_KEY", "META_CAPI_TOKEN", "DATABASE_URL_EXTERN"]) delete process.env[k];
+  globalThis.fetch = (async (url: unknown) => { netz.push(String(url).split("?")[0]); return new Response("gesperrt (Prüfstand)", { status: 599 }); }) as typeof fetch;
+}
 
 let geprueft = 0, fehler = 0;
 const ok = (b: unknown, t: string, fund?: unknown) => { geprueft++; if (!b) { fehler++; console.log(`  ✗ ${t}${fund !== undefined ? ` — ${JSON.stringify(fund).slice(0, 400)}` : ""}`); } };
@@ -418,5 +443,203 @@ abschnitt("A11 Quelltext-Wände der Nachbesserung");
   ok(/ADD COLUMN IF NOT EXISTS zuordnung_vorschlag JSONB/.test(fn("export function ensureEmpfehlungTabelle(")) && /Number\(n\?\.n\) < 10/.test(fn("export function ensureEmpfehlungTabelle(")), "neue Spalten additiv (Katalog, lock_timeout)");
 }
 
-console.log(`\n${fehler ? "✗" : "✓"} pruef-koop-provision: ${geprueft - fehler}/${geprueft} Prüfungen bestanden${fehler ? ` — ${fehler} rot` : ""}`);
+// ═══════════════════════════════════════════════════════════════════════════
+// E-487 (09.11.2026): FAST-TRACK ALS EIGENE RECHNUNG (kapital_fasttrack, seit 360d4ada) — für die Provision genau wie der
+// Fast-Track in der Bestellung des Kapital-Angebots C: nur bei „zählt mit“ Provisionsbasis, sonst nicht.
+// ═══════════════════════════════════════════════════════════════════════════
+abschnitt("A12 Fast-Track als eigene Rechnung (kapital_fasttrack) — wie der Fast-Track in der Bestellung");
+{
+  const P = await import("../shared/fiaon-pakete");
+  const ft = P.paket("kapital_fasttrack");
+  gleich([...S.KOOP_FASTTRACK_SCHLUESSEL], ["kapital_fasttrack"], "Fast-Track-Schlüssel der Provision = kapital_fasttrack");
+  ok(!!ft && ft.preisCents === 49900 && !ft.abo, "kapital_fasttrack steht im Katalog (499 €, Einmalkauf)", ft);
+  gleich(S.koopOhneSchluessel(false), [...S.KOOP_DURCHLAUF_SCHLUESSEL, "kapital_fasttrack"], "ohne „zählt mit“: Durchlaufposten + Fast-Track-Rechnung zählen nicht");
+  gleich(S.koopOhneSchluessel(true), [...S.KOOP_DURCHLAUF_SCHLUESSEL], "mit „zählt mit“: nur die Durchlaufposten zählen nicht (Fast-Track-Rechnung zählt voll)");
+  gleich(S.koopOhneSchluessel(), S.koopOhneSchluessel(false), "Vorgabe: zählt nicht mit");
+  ok(S.koopOhneSchluessel(true).includes("llc_fasttrack"), "llc_fasttrack (Fremdkosten des Begleitvertrags) bleibt Durchlaufposten — auch bei „zählt mit“");
+  ok(S.koopOhneSchluessel(false).every((k) => !!P.paket(k)), "jeder nicht zählende Schlüssel steht im Katalog (kein Tippfehler)", S.koopOhneSchluessel(false).filter((k) => !P.paket(k)));
+  // Dieselbe Rechnung über beide Wege: Fast-Track IN der Bestellung (3.499 € mit 499 € Fast-Track) oder abgewählt (3.000 €) und
+  // als eigene Rechnung nachgebucht (499 €). 30 % Provision — ohne „zählt mit“ je 900 €, mit „zählt mit“ je 1.049,70 €.
+  const C = "IA-KAPITAL-2026-10-27-C";
+  const imVertrag = (mit: boolean) => { const z = 349900; return S.koopProvisionCents(z - S.koopFastTrackAbzugCents({ fassung: C, parameter: { fastTrackCents: 49900 }, schalter: {}, zahlungCents: z, zaehltMit: mit }), 30); };
+  const nachgebucht = (mit: boolean) => {
+    const zahlungen = [{ packKey: "global_individuell", cents: 300000 }, { packKey: "kapital_fasttrack", cents: 49900 }];
+    const ohne = S.koopOhneSchluessel(mit);
+    return zahlungen.filter((x) => !ohne.includes(x.packKey)).reduce((sum, x) => sum + S.koopProvisionCents(x.cents - S.koopFastTrackAbzugCents({ fassung: C, parameter: { fastTrackCents: 49900, fastTrackWahl: true }, schalter: { fastTrack: false }, zahlungCents: x.cents, zaehltMit: mit }), 30), 0);
+  };
+  gleich([imVertrag(false), nachgebucht(false)], [90000, 90000], "ohne „zählt mit“: Fast-Track im Vertrag und als eigene Rechnung — beide 900 € (Fast-Track nicht Basis)");
+  gleich([imVertrag(true), nachgebucht(true)], [104970, 104970], "mit „zählt mit“: beide 1.049,70 € (Fast-Track zählt voll)");
+  // Server: EINE Weiche für Abzug und Schlüssel — nie zählt der Fast-Track auf dem einen Weg mit und auf dem anderen nicht.
+  const vorher = process.env.KOOP_FASTTRACK_ZAEHLT;
+  delete process.env.KOOP_FASTTRACK_ZAEHLT;
+  gleich(K.koopBasisRegelFuer("FIAON-IA-KTEST01"), { abzug: S.koopDurchlaufAbzugSql(false), ohne: S.koopOhneSchluessel(false) }, "Server ohne Variable: Abzug + Fast-Track-Rechnung zählt nicht");
+  process.env.KOOP_FASTTRACK_ZAEHLT = "FIAON-IA-KTEST01";
+  gleich(K.koopBasisRegelFuer("fiaon-ia-ktest01"), { abzug: "0", ohne: S.koopOhneSchluessel(true) }, "Server mit Variable: diese Kooperation — kein Abzug, Fast-Track-Rechnung zählt");
+  gleich(K.koopBasisRegelFuer("FIAON-IA-KTEST02"), { abzug: S.koopDurchlaufAbzugSql(false), ohne: S.koopOhneSchluessel(false) }, "… eine andere Kooperation: Fast-Track-Rechnung zählt nicht");
+  gleich(K.koopBasisRegelFuer(undefined), { abzug: S.koopDurchlaufAbzugSql(false), ohne: S.koopOhneSchluessel(false) }, "… ohne Ref: Fast-Track-Rechnung zählt nicht");
+  for (const ref of ["FIAON-IA-KTEST01", "FIAON-IA-KTEST02", undefined]) {
+    const r = K.koopBasisRegelFuer(ref);
+    ok((r.abzug === "0") === !r.ohne.includes("kapital_fasttrack"), `Weiche einig für ${String(ref)}: Abzug in der Bestellung und Fast-Track-Rechnung zählen gleich`);
+    gleich(K.koopAbzugSqlFuer(ref), r.abzug, `koopAbzugSqlFuer = Abzug der Weiche (${String(ref)})`);
+  }
+  if (vorher === undefined) delete process.env.KOOP_FASTTRACK_ZAEHLT; else process.env.KOOP_FASTTRACK_ZAEHLT = vorher;
+  // Quelltext: beide Geld-Abfragen (Liste und Gutschrift/Nachtrag) nehmen Abzug UND Schlüssel aus der Weiche, nie die feste Liste.
+  const srv = lies("server/lib/fiaon-koop-empfehlung.ts");
+  const fn = (name: string) => srv.split(name)[1]?.split("\n}\n")[0] ?? "";
+  const sicht = fn("export async function koopEmpfehlungSicht(");
+  const lesen = fn("async function koopZahlungenLesen(");
+  ok(/const regel = koopBasisRegelFuer\(z\.angebot_ref\);/.test(sicht) && /\(q\.cents - \$\{regel\.abzug\}\)/.test(sicht) && /KOOP_PROVISION_MONATE, regel\.ohne\]/.test(sicht), "Liste (Partnerbereich/Chefbüro): Abzug und Schlüssel aus der Weiche");
+  ok(/regel: KoopBasisRegel/.test(lesen) && /\(q\.cents - \$\{regel\.abzug\}\)/.test(lesen) && /bisMonat, regel\.ohne\]/.test(lesen), "Gutschrift/Nachtrag: Abzug und Schlüssel aus der Weiche");
+  ok(!/\[\.\.\.KOOP_DURCHLAUF_SCHLUESSEL\]/.test(srv), "keine Geld-Abfrage mit der festen Durchlauf-Liste (sonst zählte die Fast-Track-Rechnung immer)");
+  ok((srv.match(/koopZahlungenLesen\(id, (monat|bis), (regel|koopBasisRegelFuer\()/g) ?? []).length === 2 && /koopZahlungenLesen\(angebotId, monat, koopBasisRegelFuer\(/.test(srv), "alle drei Aufrufe von koopZahlungenLesen geben die Weiche der Kooperation mit");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEIL B — DATENBANK (nur lokale Kopie fiaon_pruefstand_…, siehe Kopf)
+// ═══════════════════════════════════════════════════════════════════════════
+if (TEIL_B) {
+  const D: any = (await import("../server/lib/db-pool")).sqlPool;
+  const st = Date.now().toString(36).toUpperCase();
+  // Nur Buchstaben im Namen (koopNameTeile nimmt keine Ziffern): eindeutige, erfundene Namen je Lauf.
+  const wort = st.toLowerCase().replace(/[0-9]/g, (z) => "abcdefghij"[Number(z)]);
+  const REF_K = `FIAON-IA-KQP${st.slice(-5)}`;
+  const APP = `FIAON-QPROV${st}`;
+  const jetzt = new Date();
+  const TAG = 86_400_000;
+  const gemeldet = new Date(jetzt.getTime() - 75 * TAG);
+  const angelegt = new Date(jetzt.getTime() - 70 * TAG);
+  const [bj, bm] = S.koopBerlinMonat(jetzt).split("-").map(Number);
+  const vormonat = bm === 1 ? `${bj - 1}-12` : `${bj}-${String(bm - 1).padStart(2, "0")}`;
+  const zahltag = (t: number) => new Date(`${vormonat}-${String(t).padStart(2, "0")}T12:00:00Z`);
+  const mailA = `erika.${wort}@beispiel.example`;
+  const ids: { koop?: number; pa?: number; pb?: number; ea?: number; eb?: number; ec?: number } = {};
+  try {
+    abschnitt("B1 Umbau wie in der Produktion vor dem Deploy (Gutschrift-Eindeutigkeit, neue Spalten)");
+    await (await import("../server/lib/fiaon-global-angebot")).ensureAngebotTabellen();
+    await (await import("../server/lib/fiaon-teilzahlung")).ensureTeilzahlungen();
+    await (await import("../server/lib/fiaon-lead-weg")).leadWegSchema();
+    await LP.leadPostSchema();
+    const [vor] = (await D`SELECT to_regclass('public.fiaon_koop_gutschriften') IS NOT NULL AS da`) as any[];
+    if (!vor.da) {
+      // Genau die Form der Produktion (09.11.2026): ohne Spalte art, UNIQUE (angebot_id, monat).
+      await D.unsafe(`CREATE TABLE fiaon_koop_gutschriften (
+        id BIGSERIAL PRIMARY KEY, angebot_id INTEGER NOT NULL, monat VARCHAR(7) NOT NULL, nummer TEXT NOT NULL UNIQUE, prozent NUMERIC(5,2) NOT NULL,
+        betrag_cents INTEGER NOT NULL, posten JSONB NOT NULL DEFAULT '[]'::jsonb, erstellt_am TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        mail_am TIMESTAMPTZ, mail_ergebnis TEXT, auftrag_id INTEGER, aufgabe_am TIMESTAMPTZ, UNIQUE (angebot_id, monat))`);
+      const [alt] = (await D`SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fiaon_koop_gutschriften_angebot_id_monat_key') AS alt`) as any[];
+      ok(alt.alt, "Ausgangslage wie in der Produktion: UNIQUE (angebot_id, monat) heißt fiaon_koop_gutschriften_angebot_id_monat_key");
+    } else console.log("  (Gutschrift-Tabelle gab es schon — der Umbau selbst wird hier nicht noch einmal gezeigt)");
+    await K.ensureEmpfehlungTabelle();
+    await K.ensureGutschriftTabelle();
+    const [u] = (await D`
+      SELECT (SELECT COUNT(*)::int FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'fiaon_koop_empfehlungen'
+                AND column_name IN ('anfrage_id', 'zuordnung_am', 'zuordnung_weg', 'zuordnung_frage_am', 'anruf_aufgabe_am',
+                                    'einverstanden_am', 'einverstanden_von', 'einverstanden_text', 'zuordnung_geprueft_am', 'zuordnung_vorschlag')) AS spalten,
+             EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'fiaon_koop_gutschriften' AND column_name = 'art') AS art,
+             EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fiaon_koop_gutschriften_angebot_id_monat_key') AS alt,
+             to_regclass('fiaon_koop_gutschriften_monat_art_key') IS NOT NULL AS neu`) as any[];
+    ok(u.spalten === 10, "Empfehlungen: alle zehn neuen Spalten da", u);
+    ok(u.art && !u.alt && u.neu, "Gutschriften: Spalte art, alte Eindeutigkeit weg, neue (angebot_id, monat, art) da", u);
+
+    abschnitt("B2 Stundenlauf koop_empfehlung_zuordnen (E-Mail · nur Name · Altbestand mit Telefon)");
+    const [koop] = (await D`
+      INSERT INTO fiaon_global_angebote (angebot_ref, fassung, kunde, parameter, buergin, status, gueltig_bis, angenommen_am, schalter)
+      VALUES (${REF_K}, 'IA-KOOP-2026-10-16-A', ${D.json({ anrede: "Herr", vorname: "Paul", nachname: "Partner", email: "partner@beispiel.example" })},
+              ${D.json({ bereich: "vorsorge" })}, ${D.json({})}, 'angenommen', '2027-12-31', ${gemeldet}, ${D.json({ provision: { prozent: 30, seit: "2020-01-01" } })})
+      RETURNING id`) as any[];
+    ids.koop = Number(koop.id);
+    const person = async (vor: string, nach: string, mail: string | null) => Number(((await D`
+      INSERT INTO fiaon_persons (person_ref, kind, first_name, last_name, primary_email, created_at)
+      VALUES (${`FIAON-P-QPROV${st}${vor.slice(0, 1)}`}, 'privat', ${vor}, ${nach}, ${mail}, ${angelegt}) RETURNING id`) as any[])[0].id);
+    ids.pa = await person("Erika", `Fallprobe${wort}`, mailA);
+    ids.pb = await person("Max", `Prueffall${wort}`, null);
+    const emp = async (name: string, quelle: string, email: string | null, telefon: string | null) => Number(((await D`
+      INSERT INTO fiaon_koop_empfehlungen (angebot_id, name, email, telefon, quelle, gemeldet_am, eingetragen_von)
+      VALUES (${ids.koop}, ${name}, ${email}, ${telefon}, ${quelle}, ${gemeldet}, 'Prüfstand') RETURNING id`) as any[])[0].id);
+    ids.ea = await emp(`Erika Fallprobe${wort}`, "fiaon", mailA, null);
+    ids.eb = await emp(`Max Prueffall${wort}`, "fiaon", null, null);
+    ids.ec = await emp(`Lara Ohnespur${wort}`, "partner", null, `+49 000 ${String(Date.now()).slice(-7)}`);
+    // Eine Zahlung von Erika im Vormonat (nach der Meldung) — später für Gutschrift und Liste.
+    const zahlung = async (nr: string, pack: string, euro: number, t: number) => D`
+      INSERT INTO fiaon_applications (ref, type, status, pack_key, pack_name, payment_reference, payment_status, amount_due, person_id, email, first_name, last_name, country, paid_at, created_at)
+      VALUES (${`${APP}-${nr}`}, 'business', 'submitted', ${pack}, 'Prüfstand', ${`PQ${st}${nr}`}, 'paid', ${euro}, ${ids.pa!}, ${mailA}, 'Erika', ${`Fallprobe${wort}`}, 'DE', ${zahltag(t)}, ${angelegt})`;
+    await zahlung("A1", "global_individuell", 1000, 15);
+    const r1 = await K.koopEmpfehlungenZuordnen(jetzt);
+    const zeilen = async () => (await D`SELECT id, person_id, zuordnung_weg, zuordnung_frage_am, zuordnung_vorschlag, anruf_aufgabe_am, zuordnung_geprueft_am FROM fiaon_koop_empfehlungen WHERE angebot_id = ${ids.koop} ORDER BY id`) as any[];
+    const z1 = await zeilen();
+    const zA = z1.find((x) => Number(x.id) === ids.ea); const zB = z1.find((x) => Number(x.id) === ids.eb); const zC = z1.find((x) => Number(x.id) === ids.ec);
+    ok(r1.fehler === 0, "Lauf ohne Fehler", r1);
+    ok(zA && Number(zA.person_id) === ids.pa && String(zA.zuordnung_weg).split(",").includes("email"), "E-Mail passt: Empfehlung automatisch zugeordnet (über die E-Mail)", zA);
+    const vB = typeof zB?.zuordnung_vorschlag === "string" ? JSON.parse(zB.zuordnung_vorschlag) : zB?.zuordnung_vorschlag;
+    ok(zB && zB.person_id == null && zB.zuordnung_frage_am != null && Number(vB?.personId) === ids.pb, "nur der Name passt: keine Zuordnung, Vorschlag + Frage an Justin", zB);
+    ok(zC && zC.person_id == null && zC.anruf_aufgabe_am != null, "Altbestand mit Telefon (Partner-Meldung): einmal ein Anruf-Auftrag", zC);
+    const r2 = await K.koopEmpfehlungenZuordnen(jetzt);
+    const [todos] = (await D`
+      SELECT COUNT(*) FILTER (WHERE schluessel = ${`koop-empfehlung-zuordnen:${ids.eb}`})::int AS frage,
+             COUNT(*) FILTER (WHERE schluessel = ${`koop-empfehlung-anruf:${ids.ec}`})::int AS anruf
+        FROM fiaon_betreiber_todos WHERE schluessel IN (${`koop-empfehlung-zuordnen:${ids.eb}`}, ${`koop-empfehlung-anruf:${ids.ec}`})`) as any[];
+    ok(r2.fehler === 0 && todos.frage === 1 && todos.anruf === 1, "zweiter Lauf: keine zweite Frage, kein zweiter Anruf-Auftrag", { r2, todos });
+
+    abschnitt("B3 Monats-Gutschrift und Nachtrag im selben Monat — nie doppelt");
+    const z = { id: ids.koop, angebot_ref: REF_K, schalter: { provision: { prozent: 30, seit: "2020-01-01" } } };
+    const g1 = await K.koopGutschriftAnlegen(z, vormonat, "monat");
+    ok(g1 && g1.betragCents === 30000, `Monats-Gutschrift ${vormonat}: 30 % von 1.000 € = 300 €`, g1);
+    ok((await K.koopGutschriftAnlegen(z, vormonat, "monat")) === null, "dieselbe Monats-Gutschrift noch einmal: nichts (je Partner und Monat eine)");
+    await zahlung("A2", "global_individuell", 200, 20);
+    const v1 = await K.koopNachtragVorschau(z);
+    ok(v1 && v1.bisMonat === vormonat && v1.summeCents === 6000 && v1.posten.length === 1 && !v1.schonDa, "später gebuchte Zahlung im abgerechneten Monat: Nachtrag 60 € in der Vorschau", v1);
+    const g2 = await K.koopGutschriftAnlegen(z, vormonat, "nachtrag");
+    ok(g2 && g2.betragCents === 6000 && g2.nummer !== g1?.nummer, "Nachtrag im selben Monat angelegt (die neue Eindeutigkeit lässt monat + nachtrag zu)", g2);
+    ok((await K.koopGutschriftAnlegen(z, vormonat, "nachtrag")) === null, "derselbe Nachtrag noch einmal: nichts");
+    const v2 = await K.koopNachtragVorschau(z);
+    ok(v2 && v2.posten.length === 0 && v2.schonDa?.nummer === g2?.nummer, "danach: nichts offen, die Vorschau nennt den Nachtrag", v2);
+    const gs = (await D`SELECT art, betrag_cents FROM fiaon_koop_gutschriften WHERE angebot_id = ${ids.koop} ORDER BY id`) as any[];
+    gleich(gs.map((x) => [x.art, Number(x.betrag_cents)]), [["monat", 30000], ["nachtrag", 6000]], "zwei Gutschriften: Monat 300 € und Nachtrag 60 €");
+
+    abschnitt("B4 Fast-Track als eigene Rechnung im Nachtrag — ohne / mit „zählt mit“");
+    await zahlung("FT", "kapital_fasttrack", 499, 25);
+    const v3 = await K.koopNachtragVorschau(z);
+    ok(v3 && v3.posten.length === 0 && v3.summeCents === 0, "ohne KOOP_FASTTRACK_ZAEHLT: die Fast-Track-Rechnung zählt nicht (kein Nachtrag)", v3);
+    const vorherFt = process.env.KOOP_FASTTRACK_ZAEHLT;
+    process.env.KOOP_FASTTRACK_ZAEHLT = REF_K;
+    try {
+      const v4 = await K.koopNachtragVorschau(z);
+      ok(v4 && v4.posten.length === 1 && v4.summeCents === 14970, "mit KOOP_FASTTRACK_ZAEHLT (diese Kooperation): 30 % von 499 € = 149,70 € als Nachtrag", v4);
+    } finally {
+      if (vorherFt === undefined) delete process.env.KOOP_FASTTRACK_ZAEHLT; else process.env.KOOP_FASTTRACK_ZAEHLT = vorherFt;
+    }
+
+    abschnitt("B5 Liste im Chefbüro: Stufen-Abfrage und Nachtrag ohne Rückfall");
+    const fehlerLog: string[] = [];
+    const ce = console.error;
+    console.error = (...a: unknown[]) => { fehlerLog.push(a.map(String).join(" ")); ce(...a); };
+    let sicht: any;
+    try { sicht = await K.koopEmpfehlungSicht(z, { intern: true }); } finally { console.error = ce; }
+    ok(!fehlerLog.some((t) => /Stufen der Empfehlungen|Nachtrag-Vorschau/.test(t)), "Stufen-Abfrage und Nachtrag-Vorschau laufen (kein Rückfall, kein Fehler)", fehlerLog);
+    const lA = sicht?.liste?.find((x: any) => x.id === ids.ea);
+    const lB = sicht?.liste?.find((x: any) => x.id === ids.eb);
+    ok(lA && lA.umsatzCents === 120000 && lA.provisionCents === 36000 && lA.stand === "kunde", "Erika: Kunde, 1.200 € Umsatz (ohne Fast-Track-Rechnung), 360 € Provision", lA && { umsatz: lA.umsatzCents, provision: lA.provisionCents, stand: lA.stand });
+    ok(lA && lA.standAm && new Date(lA.standAm).getTime() >= gemeldet.getTime(), "Stufe nie vor dem Meldetag", lA?.standAm);
+    ok(lB && lB.personId == null && lB.vorschlagPersonId === ids.pb, "Max: ohne Person, der Vorschlag steht im Feld", lB && { personId: lB.personId, vorschlag: lB.vorschlagPersonId });
+    ok(sicht?.nachtrag?.schonDa?.nummer === g2?.nummer, "Chefbüro-Liste trägt die Nachtrag-Vorschau", sicht?.nachtrag);
+    ok(!netz.some((x) => /brevo|gmail|googleapis|twilio|whatsapp|facebook/i.test(x)), "keine Mail, keine Nachricht: kein Aufruf an einen Versanddienst", netz);
+  } catch (err) {
+    ok(false, `Teil B abgebrochen: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    // Nur die eigenen Zeilen dieses Laufs.
+    const weg = async (q: Promise<unknown>) => { await q.catch((e: unknown) => console.log(`  (Aufräumen: ${e instanceof Error ? e.message.slice(0, 120) : String(e)})`)); };
+    if (ids.koop) {
+      await weg(D`DELETE FROM fiaon_betreiber_todos WHERE schluessel IN (${`koop-empfehlung-zuordnen:${ids.eb ?? 0}`}, ${`koop-empfehlung-anruf:${ids.ec ?? 0}`})`);
+      await weg(D`DELETE FROM fiaon_koop_gutschriften WHERE angebot_id = ${ids.koop}`);
+      await weg(D`DELETE FROM fiaon_koop_empfehlungen WHERE angebot_id = ${ids.koop}`);
+    }
+    await weg(D`DELETE FROM fiaon_applications WHERE ref LIKE ${`${APP}-%`}`);
+    if (ids.pa || ids.pb) await weg(D`DELETE FROM fiaon_persons WHERE id = ANY(${[ids.pa ?? 0, ids.pb ?? 0]}::int[])`);
+    if (ids.koop) await weg(D`DELETE FROM fiaon_global_angebote WHERE id = ${ids.koop}`);
+    console.log(`  (aufgeräumt: nur die Zeilen dieses Laufs · ${netz.length} Netzaufruf(e) gesperrt)`);
+    await D.end({ timeout: 5 }).catch(() => {});
+  }
+}
+
+console.log(`\n${fehler ? "✗" : "✓"} pruef-koop-provision: ${geprueft - fehler}/${geprueft} Prüfungen bestanden${TEIL_B ? " (Teil A und B)" : " (Teil A)"}${fehler ? ` — ${fehler} rot` : ""}`);
 process.exit(fehler ? 1 : 0);

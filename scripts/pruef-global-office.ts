@@ -266,7 +266,8 @@ titel("8. Die Rundgänge zeigen nur auf Stellen, die es gibt");
   // Jede Route, die die Akte ruft, gehört zur vereinbarten Schnittstelle.
   const akte = fs.readFileSync(path.join(WURZEL, "client/src/pages/agent/global-akte.tsx"), "utf8");
   const gerufen = [...akte.matchAll(/(?:tun\([^,]+,\s*|\$\{basis\})[`"](\/[a-z-]+)/g)].map((m) => m[1]);
-  const erlaubt = ["/etappe", "/naechster-schritt", "/gesellschaft", "/frist", "/dokument", "/notiz", "/stichtag", "/zugang-senden", "/abschliessen"];
+  // E-487 (09.11.2026, 213a15b7): „Telefon eintragen/ändern“ in der Karte Kontakt — POST /agent/global/auftraege/:ref/telefon.
+  const erlaubt = ["/etappe", "/naechster-schritt", "/gesellschaft", "/frist", "/dokument", "/notiz", "/stichtag", "/zugang-senden", "/abschliessen", "/telefon"];
   ok(`die Akte ruft nur vereinbarte Wege (${[...new Set(gerufen)].join(" ")})`, gerufen.length >= 9 && gerufen.every((g) => erlaubt.includes(g)), gerufen.filter((g) => !erlaubt.includes(g)).join());
   ok("jeder vereinbarte Weg hat einen Knopf in der Akte", erlaubt.every((e) => gerufen.includes(e)), erlaubt.filter((e) => !gerufen.includes(e)).join());
 }

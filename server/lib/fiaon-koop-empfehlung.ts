@@ -10,7 +10,8 @@
 //
 // E-487 (09.11.2026) — Partner-Empfehlungen und Provision „perfekt“ (Befund: eine zahlende Kundin stand mit 0,00 € im
 // Partnerbereich, weil die Empfehlung nie einer Person zugeordnet wurde; danach gab es keinen Weg zur Gutschrift):
-//   · Fast-Track-Abzug nur, wenn der Kunde ihn wirklich gekauft hat — und nie bei „zählt mit“ (KOOP_FASTTRACK_ZAEHLT).
+//   · Fast-Track-Abzug nur, wenn der Kunde ihn wirklich gekauft hat — und nie bei „zählt mit“ (KOOP_FASTTRACK_ZAEHLT). Der
+//     Fast-Track als eigene Rechnung (kapital_fasttrack) genauso: ohne „zählt mit“ keine Provisionsbasis (koopBasisRegelFuer).
 //   · Nachtrag: jede Gutschrift rechnet je Zahlung „Provision heute minus schon gutgeschrieben“ (Spalte art 'monat'|'nachtrag');
 //     der Monatslauf nimmt Offenes mit, im Chefbüro „Nachtrag jetzt abrechnen“. Geld bewegt nie das System (Auftrag = Entwurf).
 //   · Zuordnung Empfehlung → Person automatisch (Stundenlauf koop_empfehlung_zuordnen, NICHT im Lieferlauf).
@@ -34,9 +35,9 @@ import { sqlPool } from "./db-pool";
 import { CRONS_AN } from "./fiaon-crons";
 import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import {
-  KOOP_DURCHLAUF_SCHLUESSEL, KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, KOOP_FASTTRACK_ZAEHLT_ENV, KOOP_ZUORDNUNG_TAGE_VORHER, KOOP_EMPFEHLUNG_IP,
+  KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, KOOP_FASTTRACK_ZAEHLT_ENV, KOOP_ZUORDNUNG_TAGE_VORHER, KOOP_EMPFEHLUNG_IP,
   KOOP_EMPFEHLUNG_TEXTE, KOOP_OHNE_LEAD_TEXT,
-  koopProvisionAus, koopProvisionCents, koopEmpfehlungAus, koopBerechnungAusgesetzt, koopMonatsbericht, koopDurchlaufAbzugSql, koopFastTrackZaehlt,
+  koopProvisionAus, koopProvisionCents, koopEmpfehlungAus, koopBerechnungAusgesetzt, koopMonatsbericht, koopDurchlaufAbzugSql, koopFastTrackZaehlt, koopOhneSchluessel,
   koopEmpfehlungStufe, koopOffenePosten, koopBerlinMonat, koopBerlinTag, koopNameTeile, koopNamePasst, koopZuordnungUrteil, koopZuordnungWege,
   koopSatzAm, koopProvisionNeu, koopEmpfehlungDoppelt, koopEmpfehlungLeadEntscheid, koopZuordnungGruendeText,
   type KoopEmpfehlungStand, type KoopGsPosten, type KoopZahlung, type KoopZuordnungKandidat, type KoopProvision, type KoopBisherPosten,
@@ -53,11 +54,19 @@ const partnerNameAus = (kunde: unknown): string => { const p = json<Record<strin
 const CHEF_LINK = "/chef/s/global-auftraege?reiter=partner";
 
 /**
- * E-487: der Fast-Track-Abzug (SQL über q) für diese Kooperation — „zählt mit“ steht in der Umgebungsvariable KOOP_FASTTRACK_ZAEHLT
- * (Komma-Liste der Angebots-Refs), nie im Code. Ohne Ref (Prüfstand ohne Kooperation): der normale Abzug.
+ * E-487: was bei dieser Kooperation NICHT Provisionsbasis ist — der Fast-Track-Abzug in der Bestellung (SQL über q) und die
+ * Katalogschlüssel ohne Provision (Durchlaufposten; ohne „zählt mit“ dazu der Fast-Track als eigene Rechnung kapital_fasttrack).
+ * EINE Weiche für beides: „zählt mit“ steht in der Umgebungsvariable KOOP_FASTTRACK_ZAEHLT (Komma-Liste der Angebots-Refs), nie im
+ * Code. Ohne Ref (Prüfstand ohne Kooperation): der normale Abzug.
  */
+export interface KoopBasisRegel { abzug: string; ohne: string[] }
+export function koopBasisRegelFuer(ref: unknown): KoopBasisRegel {
+  const mit = koopFastTrackZaehlt(ref, process.env[KOOP_FASTTRACK_ZAEHLT_ENV]);
+  return { abzug: koopDurchlaufAbzugSql(mit), ohne: koopOhneSchluessel(mit) };
+}
+/** E-487: nur der Fast-Track-Abzug (SQL über q) dieser Kooperation — Teil von koopBasisRegelFuer. */
 export function koopAbzugSqlFuer(ref: unknown): string {
-  return koopDurchlaufAbzugSql(koopFastTrackZaehlt(ref, process.env[KOOP_FASTTRACK_ZAEHLT_ENV]));
+  return koopBasisRegelFuer(ref).abzug;
 }
 async function refVon(angebotId: number, lauf: any = sqlPool): Promise<string | null> {
   const [r] = (await lauf`SELECT angebot_ref FROM fiaon_global_angebote WHERE id = ${angebotId}`) as any[];
@@ -240,17 +249,18 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }, opt: { intern
   const zeilen = (await sqlPool`
     SELECT * FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL ORDER BY gemeldet_am DESC LIMIT 300`) as any[];
   const personen = Array.from(new Set(zeilen.map((x) => x.person_id).filter((x) => x != null).map(Number)));
-  const abzug = koopAbzugSqlFuer(z.angebot_ref);
+  // E-487: Abzug UND nicht zählende Schlüssel aus derselben Weiche (Fast-Track als eigene Rechnung wie der in der Bestellung).
+  const regel = koopBasisRegelFuer(z.angebot_ref);
   // E-487 Nachbesserung: je ZAHLUNG (nicht mehr die Summe je Empfehlung) — jede zählt nur für die früheste Empfehlung (Mangel 1) und
   // mit dem Satz an ihrem Zahltag (Mangel 8); gerundet wird je Zahlung wie in der Gutschrift.
   const zahlungen = personen.length ? ((await sqlPool.unsafe(`
     WITH q AS (${UMSATZ_QUELLE_SQL})
-    SELECT e.id, q.am, (q.cents - ${abzug}) AS cents
+    SELECT e.id, q.am, (q.cents - ${regel.abzug}) AS cents
       FROM fiaon_koop_empfehlungen e
       JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($3::text[]))
      WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL
-       AND ${KOOP_NUR_ERSTE_EMPFEHLUNG_SQL}`, [Number(z.id), KOOP_PROVISION_MONATE, [...KOOP_DURCHLAUF_SCHLUESSEL]])) as any[]) : [];
+       AND ${KOOP_NUR_ERSTE_EMPFEHLUNG_SQL}`, [Number(z.id), KOOP_PROVISION_MONATE, regel.ohne])) as any[]) : [];
   const geld = new Map<number, { cents: number; provision: number; ersteAm: Date | null }>();
   for (const r of zahlungen) {
     const id = Number(r.id); const c = Number(r.cents) || 0; const am = new Date(r.am);
@@ -589,20 +599,21 @@ const vormonat = (m: string) => { const [j, mo] = m.split("-").map(Number); retu
 export type GsPosten = KoopGsPosten;
 
 /**
- * E-487: die zählenden Zahlungen eines Partners (nach dem Fast-Track-Abzug) — bis einschließlich `bisMonat` (Berlin), mit
- * `nurMonat` nur dieser Monat. `lauf` = sqlPool oder die Transaktion unter dem Advisory-Lock.
+ * E-487: die zählenden Zahlungen eines Partners (nach dem Fast-Track-Abzug, ohne die nicht zählenden Schlüssel der Regel) — bis
+ * einschließlich `bisMonat` (Berlin), mit `nurMonat` nur dieser Monat. `regel` = koopBasisRegelFuer(Ref der Kooperation).
+ * `lauf` = sqlPool oder die Transaktion unter dem Advisory-Lock.
  */
-async function koopZahlungenLesen(angebotId: number, bisMonat: string, abzug: string, lauf: any = sqlPool, nurMonat = false): Promise<KoopZahlung[]> {
+async function koopZahlungenLesen(angebotId: number, bisMonat: string, regel: KoopBasisRegel, lauf: any = sqlPool, nurMonat = false): Promise<KoopZahlung[]> {
   const roh = (await lauf.unsafe(`
     WITH q AS (${UMSATZ_QUELLE_SQL})
-    SELECT e.id AS eid, e.name, q.ref, q.am, q.rate_nr, q.teil_vorher_cents, (q.cents - ${abzug}) AS cents
+    SELECT e.id AS eid, e.name, q.ref, q.am, q.rate_nr, q.teil_vorher_cents, (q.cents - ${regel.abzug}) AS cents
       FROM fiaon_koop_empfehlungen e
       JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
      WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL
        AND to_char(q.am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM') ${nurMonat ? "=" : "<="} $3
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($4::text[]))
        AND ${KOOP_NUR_ERSTE_EMPFEHLUNG_SQL}
-     ORDER BY q.am, e.id`, [angebotId, KOOP_PROVISION_MONATE, bisMonat, [...KOOP_DURCHLAUF_SCHLUESSEL]])) as any[];
+     ORDER BY q.am, e.id`, [angebotId, KOOP_PROVISION_MONATE, bisMonat, regel.ohne])) as any[];
   return roh.map((r) => ({
     empfehlungId: Number(r.eid), name: String(r.name), ref: String(r.ref), am: new Date(r.am).toISOString(),
     rateNr: r.rate_nr != null ? Number(r.rate_nr) : null, teilVorherCents: Number(r.teil_vorher_cents ?? 0), umsatzCents: Number(r.cents),
@@ -620,7 +631,7 @@ async function bisherigePosten(angebotId: number, lauf: any = sqlPool): Promise<
  */
 export async function koopGutschriftPosten(angebotId: number, monat: string, prov: KoopProvision | number): Promise<GsPosten[]> {
   await ensureEmpfehlungTabelle();
-  const zahlungen = await koopZahlungenLesen(angebotId, monat, koopAbzugSqlFuer(await refVon(angebotId).catch(() => null)), sqlPool, true);
+  const zahlungen = await koopZahlungenLesen(angebotId, monat, koopBasisRegelFuer(await refVon(angebotId).catch(() => null)), sqlPool, true);
   return zahlungen.map((r) => {
     const prozent = typeof prov === "number" ? prov : koopSatzAm(prov, r.am);
     return { empfehlungId: r.empfehlungId, name: r.name, ref: r.ref, am: r.am, umsatzCents: r.umsatzCents, provisionCents: koopProvisionCents(r.umsatzCents, prozent), prozent };
@@ -656,13 +667,13 @@ export async function koopGutschriftAnlegen(z: { [k: string]: any }, monat: stri
   const prov = koopProvisionAus(json<Record<string, unknown>>(z.schalter, {}));
   if (!prov) return null;
   const id = Number(z.id);
-  const abzug = koopAbzugSqlFuer(z.angebot_ref ?? await refVon(id).catch(() => null));
+  const regel = koopBasisRegelFuer(z.angebot_ref ?? await refVon(id).catch(() => null));
   return sqlPool.begin(async (tx: any) => {
     await tx`SELECT pg_advisory_xact_lock(${GS_SPERRE}, ${id})`;
     const [da] = (await tx`SELECT id FROM fiaon_koop_gutschriften WHERE angebot_id = ${id} AND monat = ${monat} AND art = ${art}`) as any[];
     if (da) return null;
     // E-487 Nachbesserung (Mangel 8): jede Zahlung mit dem Satz an ihrem Zahltag (prov mit Verlauf), nie rückwirkend mit dem heutigen.
-    const { posten } = koopOffenePosten(await koopZahlungenLesen(id, monat, abzug, tx), await bisherigePosten(id, tx), prov, art === "nachtrag" ? null : monat);
+    const { posten } = koopOffenePosten(await koopZahlungenLesen(id, monat, regel, tx), await bisherigePosten(id, tx), prov, art === "nachtrag" ? null : monat);
     const betrag = posten.reduce((s, p) => s + p.provisionCents, 0);
     if (betrag <= 0) return null;
     // Die Nummer trägt das Jahr des Monats (wie bisher); ein Nachtrag das Jahr, in dem er entsteht.
@@ -691,7 +702,7 @@ export async function koopNachtragVorschau(z: { [k: string]: any }): Promise<Koo
   const bis = await nachtragBisMonat(id);
   const leer = (hinweis: string): KoopNachtragVorschau => ({ bisMonat: bis, bisText: bis ? gsMonatText(bis) : null, posten: [], summeCents: 0, summe: eur(0), schonDa: null, zuViel: [], hinweis });
   if (!bis) return leer("Noch keine Monatsabrechnung — offene Zahlungen rechnet der Monatslauf zum 3. des Folgemonats ab.");
-  const { posten, zuViel } = koopOffenePosten(await koopZahlungenLesen(id, bis, koopAbzugSqlFuer(z.angebot_ref ?? await refVon(id))), await bisherigePosten(id), prov, null);
+  const { posten, zuViel } = koopOffenePosten(await koopZahlungenLesen(id, bis, koopBasisRegelFuer(z.angebot_ref ?? await refVon(id))), await bisherigePosten(id), prov, null);
   const [da] = (await sqlPool`SELECT nummer FROM fiaon_koop_gutschriften WHERE angebot_id = ${id} AND monat = ${bis} AND art = 'nachtrag'`) as any[];
   const summe = posten.reduce((s, p) => s + p.provisionCents, 0);
   return {

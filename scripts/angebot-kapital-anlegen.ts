@@ -130,6 +130,10 @@ async function fassungC(roh: any): Promise<boolean> {
   const k = SC.kapitalCKundePruefen(roh.kunde, parameter.datenVomKunden ? { nurKontakt: true } : {});
   if (!k.ok) { console.error(`FEHLER Kunde: ${k.error}${parameter.datenVomKunden ? "" : " (Geburtsdatum, Anschrift und Ausweis trägt der Kunde selbst ein: parameter.datenVomKunden = true)"}`); await sqlPool.end(); process.exit(1); }
   if (parameter.datenVomKunden) console.log("Angaben vom Kunden (E-474): Geburtsdatum und Anschrift trägt der Kunde auf seiner Seite ein, den Reisepass lädt er nach der Unterschrift hoch.");
+  // E-491: Namensvorschlag — vorausgefüllt auf der Seite; ein ungültiger Vorschlag fällt still weg, darum hier sichtbar machen.
+  if ((roh as any)?.parameter?.llcVorschlag !== undefined) console.log(parameter.llcVorschlag
+    ? `Namensvorschlag (E-491): ${[parameter.llcVorschlag.wunsch, parameter.llcVorschlag.alternative1, parameter.llcVorschlag.alternative2].filter(Boolean).join(" · ")} — die Seite füllt die Felder vor.`
+    : "ACHTUNG Namensvorschlag (E-491): ungültig (Wunschname leer, Umlaut, Sonderzeichen oder doppelt) — die Seite bleibt leer.");
   if (parameter.fastTrackWahl) console.log(`Fast-Track nach Wahl (E-474): ohne ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, false))}, mit ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, true))} — der Kunde wählt auf der Seite.`);
   console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
   const pf = SC.kapitalCParameterFehler(parameter);

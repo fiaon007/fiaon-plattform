@@ -1198,6 +1198,33 @@ if (privat) {
     ok(funde.length === 0, `${f}: kein Wert des Kunden`, funde.length ? `${funde.length} Fund(e)` : "");
   }
 }
+abschnitt("E-491 Namensvorschlag (Wunschname vorausgefüllt)");
+{
+  const V = { wunsch: "Muster Congress Organizer", alternative1: "Muster Congress Organizer Group", alternative2: "Muster Congress International" };
+  ok(JSON.stringify(C.kapitalCLlcVorschlagAus(V)) === JSON.stringify(V), "Vorschlag bleibt in der Schreibweise des Kunden");
+  ok(C.kapitalCLlcVorschlagAus({ wunsch: "Muster Congress  LLC", alternative1: "", alternative2: "" })?.wunsch === "Muster Congress", "„LLC“ am Ende und doppelte Leerzeichen fallen weg");
+  ok(C.kapitalCLlcVorschlagAus({ wunsch: "Müller Handel" }) === null, "Umlaut → kein Vorschlag (gleiche Regel wie die Annahme)");
+  ok(C.kapitalCLlcVorschlagAus({ wunsch: "Muster", alternative1: "Muster" }) === null, "doppelter Name → kein Vorschlag");
+  ok(C.kapitalCLlcVorschlagAus({ wunsch: "" }) === null && C.kapitalCLlcVorschlagAus(null) === null && C.kapitalCLlcVorschlagAus("Muster") === null, "leer/kein Objekt → kein Vorschlag");
+  ok(!("llcVorschlag" in C.kapitalCParameterAus({ ...C.KAPITAL_C_VORGABEN })), "Bestand: ohne Vorschlag gibt es den Schlüssel nicht");
+  const pv = C.kapitalCParameterAus({ ...PAR, llcVorschlag: V } as any);
+  ok(JSON.stringify(pv.llcVorschlag) === JSON.stringify(V), "Parameter tragen den gültigen Vorschlag");
+  ok(!("llcVorschlag" in C.kapitalCParameterAus({ ...PAR, llcVorschlag: { wunsch: "Bank of Muster" } } as any)), "geschützter Begriff → kein Vorschlag");
+  ok(JSON.stringify(C.kapitalCParameterAus({ betragCents: 9_000_000 } as any, pv).llcVorschlag) === JSON.stringify(V), "Nachtrag ohne Vorschlag behält den bisherigen");
+  const DV = { ...D, parameter: pv };
+  ok(C.kapitalCHashEingabe(D, C.kapitalCRumpfHtml(D, null)) === C.kapitalCHashEingabe(DV, C.kapitalCRumpfHtml(DV, null)), "Prüfsumme: Vertragstext mit und ohne Vorschlag gleich");
+  const KSV = await import("../server/lib/fiaon-global-angebot-kapital-c");
+  ok(KSV.kapitalCTextHash(D) === KSV.kapitalCTextHash(DV), "Server: kapitalCTextHash mit und ohne Vorschlag gleich");
+  const zeileV = (parameter: unknown) => ({ id: 1, angebot_ref: D.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: KUNDE_ROH, parameter, buergin: BUERGIN, gueltig_bis: D.gueltigBis }) as any;
+  const sv = (await KSV.kapitalCKundenSicht("TV", zeileV(pv))).body as any;
+  const s0 = (await KSV.kapitalCKundenSicht("TV", zeileV(PAR))).body as any;
+  ok(JSON.stringify(sv.llcVorschlag) === JSON.stringify(V) && !("llcVorschlag" in s0), "Kundensicht: Vorschlag nur, wenn gesetzt");
+  ok(typeof sv.seite?.llc?.subVorschlag === "string" && /schon eingetragen/.test(sv.seite.llc.subVorschlag) && /jederzeit ändern/.test(sv.seite.llc.subVorschlag), "Seite: Satz „schon eingetragen — jederzeit ändern“");
+  ok(sv.textHash === s0.textHash && sv.html === s0.html, "Kundensicht: Prüfsumme und Vertrag gleich");
+  const seiteQ = readFileSync(path.join(WURZEL, "client/src/pages/business-angebot-kapital-c.tsx"), "utf8");
+  ok(/useState<BegleitLlcWahl>\(\(\) => sichtVomServer\.llcVorschlag \?\?/.test(seiteQ) && /T\.subVorschlag/.test(seiteQ), "Seite: Felder starten mit dem Vorschlag, Satz wechselt");
+}
+
 const mail = arg("--mail");
 if (mail && existsSync(mail)) {
   abschnitt("9 Mailtext (Wortwand, kein Bankname, Link-Platzhalter, Kosten und Rate)");

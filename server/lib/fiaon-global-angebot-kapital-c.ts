@@ -294,6 +294,8 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
       speichern: `/api/fiaon/global/angebot/${t}/kapital-angaben`,
     } : null,
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
+    // E-491: der Namensvorschlag aus dem Gespräch füllt die Namensfelder vor (nur wenn gesetzt — Bestand ohne Schlüssel).
+    ...(par.llcVorschlag ? { llcVorschlag: par.llcVorschlag } : {}),
     html: kapitalCVorschauHtml(d),
     textHash: kapitalCSichtHash(d),
     vertragPdf: `/api/fiaon/global/angebot/${t}/vertrag.pdf`,

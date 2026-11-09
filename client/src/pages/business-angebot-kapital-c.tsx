@@ -549,7 +549,8 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   const [auftakt, setAuftakt] = useState<"offen" | "geht" | "vorbei">("offen");
   const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
   const [jahre, setJahre] = useState<number>(k.laufzeitVorschlagJahre);
-  const [wahl, setWahl] = useState<BegleitLlcWahl>({ wunsch: "", alternative1: "", alternative2: "" });
+  // E-491: Ein Namensvorschlag aus dem Gespräch füllt die Felder vor — der Kunde muss nichts mehr tippen, kann aber ändern.
+  const [wahl, setWahl] = useState<BegleitLlcWahl>(() => sichtVomServer.llcVorschlag ?? { wunsch: "", alternative1: "", alternative2: "" });
   const [beruehrt, setBeruehrt] = useState<Partial<Record<NamenFeld, boolean>>>({});
   const [nameHier, setNameHier] = useState(false);
   const [sofort, setSofort] = useState(false);
@@ -727,7 +728,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
         <section className="gaf-abschnitt" id="gkc-name" aria-label={T.titel}>
           <div className="gaf-rahmen gkp-name-raster">
             <div>
-              <Kopf titel={T.titel} sub={T.sub} />
+              <Kopf titel={T.titel} sub={sicht.llcVorschlag && T.subVorschlag ? T.subVorschlag : T.sub} />
               <NamensFelder t={T} wahl={wahl} setWahl={nameNeu} hinweise={hinweise} idPraefix="gkc-oben" onVerlassen={verlassen} />
               <p className="gab-hinweis">{T.hinweis}</p>
             </div>

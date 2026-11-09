@@ -95,7 +95,7 @@ import { angebotStaatFehler, angebotStaatTexte, staatName, staatInfo, neuesAngeb
 import { BEFUGNISSE_TITEL, befugnisseAbsaetze } from "./fiaon-global-befugnisse";
 import { ANGEBOT_PFLICHTHINWEIS, ANGEBOT_ANSPRECHPARTNER, type AngebotAbsatz, type AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort } from "./fiaon-global-angebot-firma";
-import { escHtml, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
+import { escHtml, BEGLEIT_LLC_TEXTE, llcWahlPruefen, type BegleitLlcWahl } from "./fiaon-global-angebot-begleit";
 import { globalWiderrufsbelehrung } from "./fiaon-global-widerruf";
 import type { FirmaAnnahmeTexte, FirmaPhase, FirmaUnterschriftEingabe } from "./fiaon-global-angebot-firma-typen";
 import {
@@ -241,6 +241,30 @@ export interface KapitalCParameter {
    * Ein gespeicherter Wert in den Parametern zählt nie (Nachbesserung E-487): Er sagt nicht, was der Kunde gelesen hat.
    */
   tempoFassung: string;
+  /**
+   * E-491 (09.11.2026, Justin: „Den Wunschnamen künftig schon im Angebot vorausfüllen … dann muss der Kunde gar nichts mehr tippen“):
+   * ein Namensvorschlag aus dem Gespräch — Wunschname und bis zu zwei Ausweichnamen, ohne „LLC“, in der Schreibweise des Kunden.
+   * Die Seite füllt damit die Namensfelder vor; der Kunde kann sie ändern. Verbindlich ist nur, was er bei der Annahme abschickt
+   * (Annahmevermerk) — der Vertragstext und seine Prüfsumme lesen diesen Wert nie. Fehlt er (Bestand) oder ist ein Name ungültig
+   * (gleiche Regeln wie bei der Annahme, llcWahlPruefen), gibt es den Schlüssel nicht: alles wie bisher.
+   */
+  llcVorschlag?: BegleitLlcWahl;
+}
+/**
+ * E-491: der Namensvorschlag bereinigt — oder null (fehlt, Wunschname leer oder ein Name verletzt die Regeln der Annahme).
+ * Die Schreibweise bleibt (z. B. „Muster Ventures“); „LLC“ am Ende und doppelte Leerzeichen fallen weg.
+ */
+export function kapitalCLlcVorschlagAus(roh: unknown): BegleitLlcWahl | null {
+  if (!roh || typeof roh !== "object") return null;
+  const o = roh as Record<string, unknown>;
+  const sauber = (v: unknown): string => {
+    let s = textAus(v, 90).normalize("NFKC").replace(/\s+/g, " ").trim();
+    for (let i = 0; i < 3 && /[\s,.]*\bL\.?\s?L\.?\s?C\.?$/i.test(s); i++) s = s.replace(/[\s,.]*\bL\.?\s?L\.?\s?C\.?$/i, "").trim();
+    return s;
+  };
+  const w: BegleitLlcWahl = { wunsch: sauber(o.wunsch), alternative1: sauber(o.alternative1), alternative2: sauber(o.alternative2) };
+  if (!w.wunsch) return null;
+  return llcWahlPruefen(w).ok ? w : null;
 }
 export const KAPITAL_C_VORGABEN: KapitalCParameter = {
   gruendungCents: 279_000,
@@ -966,7 +990,7 @@ export interface KapitalCSeite {
     puenktlich: string; verantwortung: string; waehrung: string; hinweis: string; kursZeile: string;
     /** Für Vorleseprogramme: nur der Endwert (Platzhalter {jahre} {rate} {zinsen}). */
     vorlesen: string };
-  llc: Record<keyof typeof BEGLEIT_LLC_TEXTE, string> & { aendern: string; ausweichAuf: string; ausweichZu: string };
+  llc: Record<keyof typeof BEGLEIT_LLC_TEXTE, string> & { aendern: string; ausweichAuf: string; ausweichZu: string; subVorschlag?: string };
   paket: { auge: string; titel: string; sub: string; gruppen: { titel: string; kacheln: KapitalCPaketKachel[] }[]; fein: string; mehr: string; weniger: string };
   weg: { auge: string; titel: string; sub: string; liste: FirmaPhase[] };
   /**
@@ -1080,6 +1104,8 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
     llc: {
       ...BEGLEIT_LLC_TEXTE,
       sub: "Die Gesellschaft gehört allein Ihnen. Tippen Sie den Wunschnamen — „LLC“ setzen wir dahinter.",
+      // E-491: nur mit Namensvorschlag aus dem Gespräch — ohne ihn bleibt die Seite byte-gleich (Bestand, angenommene Verträge).
+      ...(par.llcVorschlag ? { subVorschlag: "Die Gesellschaft gehört allein Ihnen. Ihren Wunschnamen haben wir schon eingetragen — Sie können ihn jederzeit ändern. „LLC“ setzen wir dahinter." } : {}),
       hinweis: `Vor der Anmeldung prüfen wir den Namen ${angebotStaatTexte(par.bundesstaat, par.staatenFassung)?.register ?? `im Register von ${par.bundesstaat}`}; bis dahin ist er für Sie vorgemerkt. Englische Namen funktionieren in den USA am besten, Umlaute sind dort nicht möglich.`,
       alternative1: "Ausweichname 1 (freiwillig)",
       alternative2: "Ausweichname 2 (freiwillig)",
@@ -1497,6 +1523,8 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
     fastTrackWahl: typeof r.fastTrackWahl === "boolean" ? r.fastTrackWahl : basis.fastTrackWahl,
     // E-487: nur ein Text schaltet — fehlt er, gilt die Basis (Vorgabe leer = Bestand). Offene Angebote setzt kapitalCTempoFassungAus.
     tempoFassung: typeof r.tempoFassung === "string" ? textAus(r.tempoFassung, 20) : basis.tempoFassung,
+    // E-491: nur ein gültiger Vorschlag erzeugt den Schlüssel; ohne ihn bleibt das Objekt wie im Bestand.
+    ...(() => { const v = r.llcVorschlag !== undefined ? kapitalCLlcVorschlagAus(r.llcVorschlag) : (basis.llcVorschlag ?? null); return v ? { llcVorschlag: v } : {}; })(),
   };
 }
 /**
@@ -1925,4 +1953,6 @@ export interface KapitalCKundenSicht {
     werte: { vorname: string; nachname: string; geburtsdatum: string; geburtsort: string; staatsangehoerigkeit: string; strasse: string; plz: string; ort: string; land: KapitalCLand };
     speichern: string;
   } | null;
+  /** E-491: der Namensvorschlag aus dem Gespräch — die Seite füllt damit die Namensfelder vor (nur wenn gesetzt). */
+  llcVorschlag?: BegleitLlcWahl | null;
 }

@@ -14,6 +14,8 @@
 //   GET  /datenraum/dokument/:kennung[?laden=1]   ansehen / herunterladen (PDF mit Vermerk + Vorgangsnummer)
 //   GET  /datenraum/nda.pdf          das eigene Exemplar
 //   POST /datenraum/abmelden
+//   GET  /datenraum/buehnen          Raumtour: Bühnen der Projekte, die die Vereinbarung nennt (sonst 403)
+//   POST /datenraum/anfrage          { art: "vertrag"|"frage", projekt?, text? } → Meldung an Justin (gebremst)
 // Jede Anfrage prüft die Sitzung neu (Gast ↔ Raum, Sitzungsstand, gesperrt, Raum offen); Dokumente
 // zusätzlich Vereinbarung, Sichtbarkeit und Thema (drZugriff). HEAD auf Dokumente: 405 (zählt nie als Ansicht).
 //
@@ -50,6 +52,7 @@ import {
   drRaeume, drRaumAendern, drRaumAkte, drRaumAnlegen, drSchema, drSitzungGast, drStand, drUnterzeichnen,
   type DrKontext,
 } from "../lib/fiaon-datenraum";
+import { drAnfrage, drBuehnenFuerGast } from "../lib/fiaon-datenraum-tour";
 
 const router = Router();
 const wache = requireChef("inhaber");
@@ -201,6 +204,24 @@ router.post("/datenraum/abmelden", async (req, res) => {
     plaetzchenWeg(res);
     res.json({ ok: true });
   } catch (err) { fehler(res, "abmelden", err); }
+});
+
+// ── Raumtour: Bühnen (nur nach der Vereinbarung) und Anfragen aus dem Raum — Logik ../lib/fiaon-datenraum-tour.ts ──
+router.get("/datenraum/buehnen", async (req, res) => {
+  try {
+    keinSpeicher(res);
+    const g = await gastAusSitzung(req);
+    if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
+    antwort(res, await drBuehnenFuerGast(g, kontext(req)));
+  } catch (err) { fehler(res, "buehnen", err); }
+});
+router.post("/datenraum/anfrage", async (req, res) => {
+  try {
+    keinSpeicher(res);
+    const g = await gastAusSitzung(req);
+    if (!g) return res.status(401).json({ ok: false, error: DR_TEXTE.anmelden, code: "ANMELDUNG" });
+    antwort(res, await drAnfrage(g, req.body ?? {}, kontext(req)));
+  } catch (err) { fehler(res, "anfrage", err); }
 });
 
 // ── Verwaltung ─────────────────────────────────────────────────────────────

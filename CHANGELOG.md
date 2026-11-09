@@ -143,6 +143,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
   Freitext-Mails), scripts/datenraum.ts, scripts/pruef-datenraum.ts. Tabellen fiaon_dr_raeume, _projekte, _dokumente,
   _gaeste, _nda, _protokoll, _tagesmeldung — legt der Server beim Start an.
 
+## 09.11.2026 — E-489 (Raumtour): Der Datenraum führt den Investor Raum für Raum durch die Projekte
+
+- **Warum:** Justin: „stelle alles PERFEKT dar … cinematisch — einfach HIGH END — er soll durch die Räume geführt werden
+  wie bei einer 3D-Tour.“ Das Hauptprojekt steht im Mittelpunkt, die anderen Projekte genauso hochwertig. Bisher sah der
+  Gast nach der Unterschrift nur Ordner mit Dateien. Noch nicht live (eigener Zweig, kein Push).
+- **Was jetzt gilt:**
+  - **Nach der Unterschrift** (und bei jedem neuen Besuch) startet die Raumtour: Auftakt „Willkommen im Datenraum.“ auf
+    Navy-Glas mit einem Gang aus Portalen (ein Portal je Projekt, das Hauptprojekt vorn und leuchtend) → Raum für Raum,
+    das Hauptprojekt zuerst und am größten (großer Satz, Kennzahlen zählen hoch, Kurve zeichnet sich, Kapitel mit den
+    passenden Unterlagen, alle Unterlagen des Raums) → letzter Raum „Ihr nächster Schritt“.
+  - **Bewegung wie eine 3D-Tour:** Jeder Raum ist eine Bühne mit Tiefe — beim Weitergehen tritt man durch die Tür in
+    den nächsten Raum, zurück geht es rückwärts hinaus. Oben „Raum 1 von 3“, unten „Zurück“/„Weiter“, Tastatur ← →,
+    Wischen am Telefon. Wer „weniger Bewegung“ eingestellt hat, bekommt eine ruhige Überblendung. Kein WebGL, keine
+    neue Bibliothek, keine Bilder. „Alle Unterlagen“ (die bisherige Ordneransicht) ist jederzeit oben rechts; von dort
+    führt „Rundgang starten“ zurück in die Tour.
+  - **Unterlagen im Raum öffnen:** PDFs und Bilder öffnen am Rechner auf einer Leinwand direkt im Raum, am Telefon im
+    neuen Tab — mit Vermerk und Protokoll wie bisher.
+  - **„Vertragsentwurf anfordern“** im Hauptprojekt und im letzten Raum (dort für jedes Projekt wählbar, das
+    Hauptprojekt vorgewählt) und **„Frage stellen“** in jedem Raum: Der Gast bekommt sofort eine Bestätigung im Raum,
+    Justin eine Meldung an js@fiaon.com („<Name> möchte den Vertragsentwurf zu <Projekt>“ bzw. die Frage im Wortlaut;
+    Antworten gehen direkt an den Gast), und die Akte im Chefbüro zeigt die Zeile im Protokoll. Gebremst: je Gast
+    höchstens 8 Anfragen in der Stunde und 30 am Tag; derselbe Vertragsentwurf zweimal löst keine zweite Meldung aus.
+  - **Die Bühne je Projekt** sind reine Daten in der Datenbank (Spalte fiaon_dr_projekte.buehne): Augenzeile, großer
+    Satz, Untertitel, bis zu 6 Kennzahlen, eine Kurve, bis zu 8 Kapitel, Text des Abschluss-Knopfs, Kleingedrucktes,
+    „Hauptprojekt“. Befüllt über scripts/datenraum.ts raum-anlegen (projekte[].buehne) — streng geprüft, ein Fehler
+    bricht schon in der Vorschau ab. Der Server zeigt eine Bühne erst nach der unterschriebenen Vereinbarung und nur für
+    die Themen, die sie nennt (dieselbe Regel wie für Dokumente). Ohne Bühne zeigt ein Raum Titel, Beschreibung und
+    Unterlagen.
+- **Wo:** client/src/components/datenraum/Raumtour.tsx, client/src/styles/datenraum-tour.css,
+  client/src/pages/datenraum-zugang.tsx (Einhängen), shared/fiaon-datenraum-buehne.ts (Schema),
+  server/lib/fiaon-datenraum-tour.ts und -tour-regeln.ts, server/routes/fiaon-datenraum.ts (GET /datenraum/buehnen,
+  POST /datenraum/anfrage), server/lib/fiaon-datenraum.ts (Spalte), scripts/datenraum.ts, scripts/pruef-datenraum.ts
+  (A11–A13, B11).
+
 ## 06.11.2026 — E-484 (Endprüfung): Auszahlungsplan — Zahlungsweg ohne neue Tabellen-Sperre, Rückruf vor dem Plan verknüpft
 
 - **Warum:** Die Endprüfung vor dem Push hat die Nachbesserung gegengelesen und nachgestellt. Noch nicht live (eigener Zweig, kein Push).

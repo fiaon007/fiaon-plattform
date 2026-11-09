@@ -9,6 +9,8 @@
 //     Produktion, Unterschriftsbild (auch eine „Bombe“), IP hinter Cloudflare, Warteschlange, NDA-PDF (Nachweis,
 //     Anlage, Entwurf) und der Vermerk mit Vorgangsnummer, Vergleich mit einer Papierfassung, Messung aus auf den
 //     Seiten des Datenraums (Einwilligungs-Hinweis, Kopfzeilen, robots.txt).
+//     Raumtour: Bühnen-Schema (Prüfung, Grenzen, Säubern), keine Bühne ohne Vereinbarung (dieselbe Regel wie
+//     Dokumente), Anfragen (Vertragsentwurf, Frage) nur aus einer Sitzung mit Vereinbarung, Eingabe und Bremse.
 //     Mit PRUEF_NDA_QUELLE=<Papierfassung als HTML> zusätzlich: (1) Fallsätze aus der Papierfassung lesen, die Vorlage
 //     damit setzen und Abschnitt für Abschnitt vergleichen — nur § 8 Abs. 1, § 10 Abs. 5 und Anlage 1 dürfen
 //     abweichen; (2) kein Name, kein Projekt und keine Anschrift des ersten Falls steht in einer Datei dieses Baus.
@@ -26,6 +28,8 @@
 //     Mails mit vollen Prüfsummen, Nachtrag (neues und geändertes Thema, erst nach Freigabe), Sperren, neuer Code,
 //     Verwaltung nur Inhaber (Ansichten im Protokoll, Vorschau, Freigabe, Einladung erst nach Freigabe, Entwurf in js@,
 //     CSV), Wiedervorlage in der Partner-Akte, und scripts/datenraum.ts.
+//     Raumtour über HTTP: Bühnen aus raum.json, 401/403 vor Sitzung/Vereinbarung, nur abgedeckte Themen, Vertragsentwurf
+//     und Frage mit Protokoll, Doppelklick-Schutz, Meldung an Justin mit Antwort an den Gast (Attrappe), Bremse 429.
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "node:fs";
 import os from "node:os";
@@ -44,6 +48,8 @@ import {
 } from "../server/lib/fiaon-datenraum-regeln";
 import { ndaPdfErzeugen, drPdfVermerken, drPdfPruefen } from "../server/lib/fiaon-datenraum-pdf";
 import { drPapierBloecke, drVorlageTextBloecke, drVergleichen, drAusPapier, drWortDiff } from "../server/lib/fiaon-datenraum-vergleich";
+import { drAnfragePruefen, drBuehneKurz, drBuehnePruefen } from "../shared/fiaon-datenraum-buehne";
+import { drAnfrageGebremst, drAnfrageZugriff, drBuehnenFreigeben, type DrTourLage } from "../server/lib/fiaon-datenraum-tour-regeln";
 
 // ── Ergebnis ──────────────────────────────────────────────────────────────
 const gruen: string[] = []; const rot: string[] = [];
@@ -150,6 +156,31 @@ const EINGABE: DrNdaEingabe = { gast: GAST, projekte: PROJEKTE, raum: { vorgeste
  * shared/fiaon-datenraum-nda.ts, wird diese Prüfung rot — dann NDA_FASSUNG erhöhen und hier die neue Summe eintragen.
  */
 const NDA_MUSTER = { fassung: "2026-11-09.2", hash: "c73ce82ef9438de908786fe91f5a9a784f53c72599bdd4670c172de17004ff1d" };
+/** Eine erfundene Bühne (Raumtour) — jede Zahl und jeder Satz ausgedacht. */
+const BUEHNE_MUSTER = {
+  hauptprojekt: true,
+  kicker: "Hauptprojekt · Muster",
+  claim: "Ein erfundenes Vorhaben, ruhig und klar erzählt.",
+  untertitel: "Alle Werte dieses Musters sind ausgedacht — sie prüfen nur die Darstellung.",
+  kennzahlen: [
+    { wert: "€ 4,2 Mio.", label: "Musterwert A" },
+    { wert: "1.250", label: "Musterwert B", hinweis: "ausgedacht" },
+    { wert: "36 Monate", label: "Musterwert C" },
+  ],
+  kurve: {
+    titel: "Erfundene Entwicklung", einheit: "Mio. €", fussnote: "Beispielkurve für den Prüfstand.",
+    reihen: [
+      { name: "Plan", punkte: [{ x: 2026, y: 1.2 }, { x: 2027, y: 2.1 }, { x: 2028, y: 3.4 }, { x: 2029, y: 4.2 }] },
+      { name: "Vorsichtig", punkte: [{ x: 2026, y: 1.1 }, { x: 2027, y: 1.7 }, { x: 2028, y: 2.6 }, { x: 2029, y: 3.1 }] },
+    ],
+  },
+  kapitel: [
+    { titel: "Das Vorhaben", text: "Ein erfundener Absatz.\nUnd noch einer.", dokumente: [1, 1, 2] },
+    { titel: "Der Ablauf", text: "Ein zweiter erfundener Absatz." },
+  ],
+  abschluss: { knopf: "Vertragsentwurf anfordern", satz: "Unverbindlich — ein erfundener Satz." },
+  hinweis: "Alle Angaben dieses Musters sind erfunden.",
+};
 
 const nurDb = process.argv.includes("--db");
 const ALLE_MEINE_DATEIEN = [
@@ -158,6 +189,8 @@ const ALLE_MEINE_DATEIEN = [
   "client/src/components/admin/ChefDatenraum.tsx", "client/src/styles/datenraum-gast.css", "client/src/styles/chef-datenraum.css", "scripts/datenraum.ts",
   "scripts/pruef-datenraum.ts", "client/src/pages/agent/rundgaenge.ts", "client/src/pages/site/datenraum.tsx", "client/src/pages/privacy.tsx",
   "client/src/components/site/EinwilligungsHinweis.tsx", "client/public/robots.txt", "CHANGELOG.md",
+  "shared/fiaon-datenraum-buehne.ts", "server/lib/fiaon-datenraum-tour.ts", "server/lib/fiaon-datenraum-tour-regeln.ts",
+  "client/src/components/datenraum/Raumtour.tsx", "client/src/styles/datenraum-tour.css",
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -453,13 +486,87 @@ async function teilA(): Promise<void> {
     }
     ok("Kein Begriff des ersten Falls in den Dateien dieses Baus", funde.length === 0, funde.join(", "));
   });
+
+  await abschnitt("A11 Raumtour: das Bühnen-Schema", () => {
+    const m = drBuehnePruefen(BUEHNE_MUSTER);
+    ok("Erfundenes Muster gültig, alles übernommen", m.ok && !!m.wert && m.wert.hauptprojekt === true && m.wert.kennzahlen.length === 3 && m.wert.kurve?.reihen.length === 2 && m.wert.kapitel.length === 2 && m.wert.abschluss?.knopf === "Vertragsentwurf anfordern" && m.warnungen.length === 0, m.ok ? "" : m.fehler.join(" | "));
+    ok("Kurzform für Listen", m.ok && drBuehneKurz(m.wert) === "Hauptprojekt · 3 Kennzahlen · Kurve (2 Reihen) · 2 Kapitel", m.ok ? drBuehneKurz(m.wert) : "");
+    ok("Dokument-Nummern im Kapitel ohne Dubletten", m.ok && JSON.stringify(m.wert?.kapitel[0].dokumente) === "[1,2]");
+    const leer = [null, undefined, ""].map((x) => drBuehnePruefen(x));
+    ok("null / undefined / leer = keine Bühne (gültig)", leer.every((x) => x.ok && x.wert === null));
+    const text = drBuehnePruefen(JSON.stringify(JSON.stringify(BUEHNE_MUSTER)));
+    ok("Als JSON-Text gespeichert (auch doppelt verpackt) → gelesen", text.ok && text.wert?.claim === BUEHNE_MUSTER.claim);
+    const sauber = drBuehnePruefen({ claim: "  Ein\u0007 Satz\u202e mit   Lücken  ", kicker: "Augen\u200bzeile" });
+    ok("Säubert Steuer- und Richtungszeichen, Leerraum", sauber.ok && sauber.wert?.claim === "Ein Satz mit Lücken" && !/[\u200b\u202e\u0007]/.test(JSON.stringify(sauber.wert)), sauber.ok ? sauber.wert?.claim : "");
+    const html = drBuehnePruefen({ claim: "<b>fett</b> & <script>x</script>" });
+    ok("Reiner Text: HTML bleibt wörtlicher Text (React setzt nie HTML)", html.ok && html.wert?.claim === "<b>fett</b> & <script>x</script>");
+    const fehler = (b: unknown, wort: RegExp) => { const r = drBuehnePruefen(b); return !r.ok && r.fehler.some((f) => wort.test(f)); };
+    ok("Kein Objekt (Liste, Zahl, kaputtes JSON) → Fehler", fehler([1, 2], /Objekt/) && fehler(42, /Objekt/) && fehler("{kaputt", /JSON/));
+    ok("Ohne claim → Fehler", fehler({ kicker: "x" }, /^claim: fehlt/));
+    ok("claim zu lang → Fehler mit Grenze", fehler({ claim: "x".repeat(141) }, /claim: höchstens 140/));
+    ok("Sieben Kennzahlen → Fehler", fehler({ claim: "Satz", kennzahlen: Array.from({ length: 7 }, () => ({ wert: "1", label: "x" })) }, /kennzahlen: höchstens 6/));
+    ok("Kennzahl ohne Label / Wert zu lang → Fehler", fehler({ claim: "Satz", kennzahlen: [{ wert: "1" }] }, /label: fehlt/) && fehler({ claim: "Satz", kennzahlen: [{ wert: "x".repeat(25), label: "y" }] }, /wert: höchstens 24/));
+    const kurve = (k: unknown) => ({ claim: "Satz", kurve: k });
+    ok("Kurve mit einem Punkt → Fehler", fehler(kurve({ titel: "K", reihen: [{ name: "R", punkte: [{ x: 1, y: 1 }] }] }), /mindestens 2/));
+    ok("Kurve: y als Text / x gemischt / x doppelt / vier Reihen → Fehler",
+      fehler(kurve({ titel: "K", reihen: [{ name: "R", punkte: [{ x: 1, y: "2" }, { x: 2, y: 3 }] }] }), /y: muss eine Zahl/)
+      && fehler(kurve({ titel: "K", reihen: [{ name: "R", punkte: [{ x: 1, y: 1 }, { x: "Q2", y: 2 }] }] }), /entweder überall Zahlen/)
+      && fehler(kurve({ titel: "K", reihen: [{ name: "R", punkte: [{ x: 1, y: 1 }, { x: 1, y: 2 }] }] }), /doppelt/)
+      && fehler(kurve({ titel: "K", reihen: Array.from({ length: 4 }, (_, i) => ({ name: `R${i}`, punkte: [{ x: 1, y: 1 }, { x: 2, y: 2 }] })) }), /reihen: höchstens 3/));
+    ok("Kurve mit Text-Achse (Quartale) gültig", drBuehnePruefen(kurve({ titel: "K", einheit: "%", reihen: [{ name: "R", punkte: [{ x: "Q1", y: 1 }, { x: "Q2", y: 2.5 }] }] })).ok);
+    ok("Kapitel: Dokument-Nummer 0, 1,5 oder Text → Fehler", fehler({ claim: "Satz", kapitel: [{ titel: "T", text: "x", dokumente: [0] }] }, /dokumente/) && fehler({ claim: "Satz", kapitel: [{ titel: "T", text: "x", dokumente: [1.5] }] }, /dokumente/) && fehler({ claim: "Satz", kapitel: [{ titel: "T", text: "x", dokumente: ["1"] }] }, /dokumente/));
+    ok("hauptprojekt nur true/false", fehler({ claim: "Satz", hauptprojekt: "ja" }, /hauptprojekt/));
+    const tipp = drBuehnePruefen({ claim: "Satz", kennzahl: [] });
+    ok("Unbekanntes Feld (Tippfehler) → Warnung, nicht gezeigt", tipp.ok && tipp.warnungen.some((w) => w.includes("kennzahl")) && !("kennzahl" in (tipp.wert ?? {})));
+  });
+
+  await abschnitt("A12 Raumtour: ohne Vereinbarung keine Bühne", () => {
+    const lage: DrTourLage = { angemeldet: true, gastRaumId: 1, gastGesperrt: false, raumArchiviert: false, ndaProjektIds: [10, 11] };
+    const projekte = [
+      { id: 10, raumId: 1, buchstabe: "A", buehne: BUEHNE_MUSTER },
+      { id: 11, raumId: 1, buchstabe: "B", buehne: { claim: "Ein zweiter, erfundener Raum." } },
+      { id: 12, raumId: 1, buchstabe: "C", buehne: { claim: "Ein dritter, erfundener Raum." } },
+      { id: 20, raumId: 2, buchstabe: "X", buehne: { claim: "Ein fremder Raum." } },
+    ];
+    const f = (l: Partial<DrTourLage>) => Object.keys(drBuehnenFreigeben({ ...lage, ...l }, projekte).buehnen).join(",");
+    ok("Vereinbarung nennt A und B → genau A und B (C nicht genannt, X fremd)", f({}) === "A,B", f({}));
+    ok("Ohne Vereinbarung → keine einzige Bühne", f({ ndaProjektIds: null }) === "");
+    ok("Ohne Sitzung → keine", f({ angemeldet: false }) === "" && f({ gastRaumId: null }) === "");
+    ok("Gesperrt oder Raum archiviert → keine", f({ gastGesperrt: true }) === "" && f({ raumArchiviert: true }) === "");
+    ok("Fremder Raum bleibt zu, auch wenn seine Kennung in der Liste stünde", f({ ndaProjektIds: [10, 11, 20] }) === "A,B");
+    const kaputt = drBuehnenFreigeben(lage, [{ id: 10, raumId: 1, buchstabe: "A", buehne: { claim: "" } }]);
+    ok("Gespeicherte, ungültige Bühne → nicht gezeigt, aber gemeldet", Object.keys(kaputt.buehnen).length === 0 && kaputt.verworfen.join() === "A");
+    ok("Projekt ohne Bühne → kein Eintrag (der Raum zeigt Titel und Unterlagen)", Object.keys(drBuehnenFreigeben(lage, [{ id: 10, raumId: 1, buchstabe: "A", buehne: null }]).buehnen).length === 0);
+  });
+
+  await abschnitt("A13 Raumtour: Anfragen nur aus einer Sitzung mit Vereinbarung", () => {
+    const lage: DrTourLage = { angemeldet: true, gastRaumId: 1, gastGesperrt: false, raumArchiviert: false, ndaProjektIds: [10, 11] };
+    const pA = { id: 10, raumId: 1, buchstabe: "A" }; const pC = { id: 12, raumId: 1, buchstabe: "C" };
+    const z = (l: Partial<DrTourLage>, p: typeof pA | null | "unbekannt") => { const r = drAnfrageZugriff({ ...lage, ...l }, p); return r.erlaubt ? 200 : `${r.status}/${r.grund}`; };
+    ok("Ohne Sitzung → 401 (Vertragsentwurf und Frage)", z({ angemeldet: false }, pA) === "401/anmeldung" && z({ angemeldet: false }, null) === "401/anmeldung" && z({ gastRaumId: null }, null) === "401/anmeldung");
+    ok("Gesperrt / Raum archiviert → 403", z({ gastGesperrt: true }, pA) === "403/gesperrt" && z({ raumArchiviert: true }, null) === "403/gesperrt");
+    ok("Vor der Vereinbarung → 403 (Vertragsentwurf und Frage)", z({ ndaProjektIds: null }, pA) === "403/nda" && z({ ndaProjektIds: null }, null) === "403/nda");
+    ok("Projekt nicht in der Vereinbarung → 403 (Nachtrag)", z({}, pC) === "403/nachtrag");
+    ok("Unbekanntes Projekt → 404 (ohne Sitzung trotzdem 401)", z({}, "unbekannt") === "404/unbekannt" && z({ angemeldet: false }, "unbekannt") === "401/anmeldung");
+    ok("Mit Vereinbarung: Vertragsentwurf zu A und Frage ohne Thema erlaubt", z({}, pA) === 200 && z({}, null) === 200);
+    const e = (b: unknown) => { const r = drAnfragePruefen(b); return r.ok ? `${r.wert.art}:${r.wert.projekt ?? "-"}:${r.wert.text.length}` : "FEHLER"; };
+    ok("Vertragsentwurf braucht ein Projekt (Buchstabe wird groß)", e({ art: "vertrag", projekt: "a" }) === "vertrag:A:0" && e({ art: "vertrag" }) === "FEHLER");
+    ok("Frage braucht Text: mindestens 5, höchstens 2000 Zeichen", e({ art: "frage", text: "Wie?" }) === "FEHLER" && e({ art: "frage", text: "Wie läuft die Prüfung?" }).startsWith("frage:-:") && e({ art: "frage", text: "x".repeat(2001) }) === "FEHLER");
+    ok("Unbekannte Art, kaputtes Projekt, kein Objekt → Fehler", e({ art: "kaufen", projekt: "A" }) === "FEHLER" && e({ art: "vertrag", projekt: "A; DROP" }) === "FEHLER" && e(null) === "FEHLER" && e([]) === "FEHLER");
+    const st = drAnfragePruefen({ art: "frage", text: "Eine\u0000 Frage\u202e mit Zeichen" });
+    ok("Steuer- und Richtungszeichen im Text werden entfernt", st.ok && !/[\u0000\u202e]/.test(st.wert.text));
+    ok("Bremse: je Gast ab 8 in der Stunde oder 30 am Tag, insgesamt ab 60 in 10 Minuten",
+      !drAnfrageGebremst({ gastStunde: 7, gastTag: 29, alleZehnMinuten: 59 }) && drAnfrageGebremst({ gastStunde: 8, gastTag: 8, alleZehnMinuten: 8 })
+      && drAnfrageGebremst({ gastStunde: 0, gastTag: 30, alleZehnMinuten: 0 }) && drAnfrageGebremst({ gastStunde: 0, gastTag: 0, alleZehnMinuten: 60 }));
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEIL B — lokaler Prüfstand
 // ═══════════════════════════════════════════════════════════════════════════
 const PG = "/opt/homebrew/opt/postgresql@18/bin";
-const DB_NAME = "fiaon_datenraum_test";
+// PRUEF_DR_DB: eigener Name, wenn zwei Sitzungen gleichzeitig prüfen (nur fiaon_datenraum_*, nie eine andere Datenbank).
+const DB_NAME = /^fiaon_datenraum_[a-z0-9_]{1,40}$/.test(process.env.PRUEF_DR_DB ?? "") ? String(process.env.PRUEF_DR_DB) : "fiaon_datenraum_test";
 const DB_URL = `postgresql://fiaon@127.0.0.1:54329/${DB_NAME}?sslmode=require`;
 const SECRET = "pruefstand-datenraum-geheim";
 const CF_RAND = "172.70.10.10";
@@ -946,6 +1053,83 @@ async function teilB(): Promise<void> {
       const ap2 = lauf(["nda-aus-papier", "--html", path.join(tmp, "papier.html"), "--raum-datei", path.join(tmp, "r3.json"), "--gast-datei", path.join(tmp, "g3.json")], "");
       const r3 = JSON.parse(fs.readFileSync(path.join(tmp, "r3.json"), "utf8"));
       ok("nda-aus-papier liest die Fallsätze und vergleicht → grün", ap2.status === 0 && r3.nda.vorgestellt === "zuletzt am 9. November 2026" && r3.projekte[0].ndaText === "ein erfundenes Vorhaben" && /GRÜN/.test(ap2.stdout), (ap2.stdout + ap2.stderr).slice(-300));
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  });
+
+  await abschnitt("B11 Raumtour über HTTP: Bühnen nach der Vereinbarung, Vertragsentwurf und Frage", async () => {
+    const T = await import("../server/lib/fiaon-datenraum-tour");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "dr-tour-"));
+    try {
+      const lauf = (args: string[]) => spawnSync(path.join(process.cwd(), "node_modules/.bin/tsx"), ["scripts/datenraum.ts", ...args], {
+        cwd: process.cwd(), encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", DATABASE_URL: DB_URL, SESSION_SECRET: SECRET, APP_BASE_URL: "https://www.fiaon.com" }, timeout: 120_000,
+      });
+      const TITEL = "Tour-Raum PRUEFSTAND";
+      const raeume = async () => Number(((await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_dr_raeume WHERE titel = ${TITEL}`) as any[])[0].n);
+      const projekteJson = [
+        { schluessel: "alpha", titel: "Projekt Alpha", beschreibung: "Erfunden.", buehne: BUEHNE_MUSTER },
+        { schluessel: "beta", titel: "Projekt Beta", beschreibung: "Erfunden.", buehne: { claim: "Ein zweiter, erfundener Raum.", kennzahlen: [{ wert: "12", label: "Musterzahl" }] } },
+        { schluessel: "gamma", titel: "Projekt Gamma", beschreibung: "Ohne Bühne." },
+      ];
+      fs.writeFileSync(path.join(tmp, "schlecht.json"), JSON.stringify({ titel: TITEL, projekte: [{ schluessel: "alpha", titel: "Projekt Alpha", buehne: { kicker: "ohne Satz" } }] }));
+      const schlecht = lauf(["raum-anlegen", "--datei", path.join(tmp, "schlecht.json"), "--schreiben"]);
+      ok("Ungültige Bühne in raum.json → Abbruch (Code 2) vor dem Schreiben", schlecht.status === 2 && /claim: fehlt/.test(schlecht.stderr) && (await raeume()) === 0, schlecht.stderr.trim().slice(0, 160));
+      fs.writeFileSync(path.join(tmp, "raum.json"), JSON.stringify({ titel: TITEL, projekte: projekteJson }));
+      const vorschau = lauf(["raum-anlegen", "--datei", path.join(tmp, "raum.json")]);
+      ok("Vorschau nennt die Bühnen und schreibt nichts", vorschau.status === 0 && /Bühne: Hauptprojekt · 3 Kennzahlen · Kurve \(2 Reihen\) · 2 Kapitel/.test(vorschau.stdout) && (await raeume()) === 0, vorschau.stdout.slice(-240));
+      const an = lauf(["raum-anlegen", "--datei", path.join(tmp, "raum.json"), "--schreiben"]);
+      const [tr] = (await sqlPool`SELECT id FROM fiaon_dr_raeume WHERE titel = ${TITEL}`) as any[];
+      const zeilen = tr ? (await sqlPool`SELECT id, buchstabe, buehne FROM fiaon_dr_projekte WHERE raum_id = ${tr.id} ORDER BY buchstabe`) as any[] : [];
+      const bj = (z: any) => (z?.buehne == null ? null : typeof z.buehne === "string" ? JSON.parse(z.buehne) : z.buehne);
+      ok("raum-anlegen speichert die Bühnen (A Hauptprojekt, B kurz, C ohne)", an.status === 0 && zeilen.length === 3 && bj(zeilen[0])?.hauptprojekt === true && bj(zeilen[1])?.claim === "Ein zweiter, erfundener Raum." && bj(zeilen[2]) === null, (an.stderr || an.stdout).slice(-200));
+      const nochmal = lauf(["raum-anlegen", "--datei", path.join(tmp, "raum.json"), "--schreiben"]);
+      ok("Zweiter Lauf gleicht ab — kein zweiter Raum, Bühnen bleiben", nochmal.status === 0 && (await raeume()) === 1 && /Bühne für A · Projekt Alpha gespeichert/.test(nochmal.stdout));
+      const li = lauf(["liste", "--raum", String(tr?.id ?? 0)]);
+      ok("liste nennt die Bühne je Projekt", li.status === 0 && /Bühne: Hauptprojekt/.test(li.stdout) && /Bühne: keine Bühne/.test(li.stdout));
+      await L.drDokumentAblegen({ projektId: Number(zeilen[0].id), buffer: await probePdf("Tour A1"), dateiname: "TourA1.pdf", titel: "A1 Tour", nr: 1 }, WER);
+      const ein = await L.drGastEinladen(Number(tr.id), { anrede: "frau", vorname: "Erika", nachname: "Beispiel", email: "erika.beispiel@example.invalid" }, WER) as any;
+      const ohne = new Sitzung("203.0.113.30");
+      const o1 = await ohne.ruf("/datenraum/buehnen"); const o2 = await ohne.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "A" });
+      ok("Ohne Sitzung: Bühnen 401, Anfrage 401", o1.status === 401 && o2.status === 401);
+      const g = new Sitzung("203.0.113.31");
+      const rein = await g.ruf("/datenraum/eintreten", { code: ein.code });
+      const b0 = await g.ruf("/datenraum/buehnen");
+      ok("Vor der Vereinbarung: Bühnen 403 (NDA), kein Satz der Bühne in Antwort oder Stand", rein.status === 200 && b0.status === 403 && b0.j?.code === "NDA" && !JSON.stringify(b0.j).includes("erfundenes Vorhaben") && !JSON.stringify(rein.j).includes("erfundenes Vorhaben"));
+      const a0 = await g.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "A" });
+      ok("Vor der Vereinbarung: Vertragsentwurf 403", a0.status === 403 && a0.j?.code === "NDA");
+      const erika = { ...GAST, anrede: "frau" as const, vorname: "Erika", nachname: "Beispiel", email: "erika.beispiel@example.invalid" };
+      const ang = await g.ruf("/datenraum/angaben", { angaben: erika });
+      const un = await g.ruf("/datenraum/unterzeichnen", { textHash: ang.j?.nda?.hash, gelesen: true, name: "Erika Beispiel", png: dataUrl(pngBild(320, 100)) });
+      ok("Angaben und Unterschrift", ang.status === 200 && un.status === 200 && un.j?.schritt === "raum");
+      const b1 = await g.ruf("/datenraum/buehnen");
+      ok("Nach der Vereinbarung: Bühnen von A und B (C hat keine)", b1.status === 200 && Object.keys(b1.j?.buehnen ?? {}).sort().join() === "A,B" && b1.j.buehnen.A.hauptprojekt === true && b1.j.buehnen.A.kennzahlen.length === 3 && b1.j.buehnen.A.kurve.reihen.length === 2);
+      ok("Antwort ohne Speicher (no-store), noindex", /no-store/.test(b1.kopf.get("cache-control") ?? "") && /noindex/.test(b1.kopf.get("x-robots-tag") ?? ""));
+      await g.ruf("/datenraum/buehnen");
+      ok("„Rundgang geöffnet“ steht einmal am Tag im Protokoll", (await anzahl("tour", ein.id)) === 1);
+      const v1 = await g.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "a" });
+      ok("Vertragsentwurf zu A → 200 mit Bestätigung für den Gast", v1.status === 200 && /Ihre Anforderung zu Projekt Alpha ist bei uns/.test(v1.j?.meldung ?? ""), v1.j?.meldung ?? v1.j?.error);
+      const v2 = await g.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "A" });
+      ok("Gleich noch einmal → „liegt bereits vor“, keine zweite Zeile", v2.status === 200 && v2.j?.schon === true && (await anzahl("vertrag_angefordert", ein.id)) === 1);
+      await new Promise((r) => setTimeout(r, 500));
+      const [m] = (await sqlPool`SELECT detail FROM fiaon_dr_protokoll WHERE gast_id = ${ein.id} AND art = 'mail_anfrage' ORDER BY id DESC LIMIT 1`) as any[];
+      ok("Mailweg abgeklemmt (DATENRAUM_MAILS=aus) → nichts gesendet, im Protokoll vermerkt", /nicht gesendet: .*abgeschaltet/.test(m?.detail ?? ""), m?.detail);
+      const unbekannt = await g.ruf("/datenraum/anfrage", { art: "vertrag", projekt: "Z" });
+      const kurz = await g.ruf("/datenraum/anfrage", { art: "frage", text: "Wie?" });
+      ok("Unbekanntes Projekt → 404, zu kurze Frage → 400", unbekannt.status === 404 && kurz.status === 400);
+      const f1 = await g.ruf("/datenraum/anfrage", { art: "frage", projekt: "B", text: "Wie sieht der erfundene Zeitplan aus?" });
+      const [fz] = (await sqlPool`SELECT detail FROM fiaon_dr_protokoll WHERE gast_id = ${ein.id} AND art = 'frage_gestellt' ORDER BY id DESC LIMIT 1`) as any[];
+      ok("Frage zu B → 200, Frage im Wortlaut im Protokoll", f1.status === 200 && /antwortet Ihnen persönlich/.test(f1.j?.meldung ?? "") && /^B · Projekt Beta · Wie sieht der erfundene Zeitplan aus\?/.test(fz?.detail ?? ""), fz?.detail);
+      const post: any[] = [];
+      const attrappe: any = async (x: any) => { post.push(x); return { ok: true, messageId: "pruef-tour" }; };
+      const gz = await L.drSitzungGast({ gastId: ein.id, version: 1 });
+      const r = await T.drAnfrage(gz!, { art: "vertrag", projekt: "B", text: "Bitte mit erfundener Anmerkung." }, { ip: "203.0.113.31", ua: BROWSER }, { sender: attrappe, mailsSofort: true });
+      const mail = post[0];
+      ok("Meldung an Justin: „<Name> möchte den Vertragsentwurf zu <Projekt>“, Antwort an den Gast, Anmerkung im Text",
+        r.ok && mail?.an === "js@fiaon.com" && mail?.betreff === "Erika Beispiel möchte den Vertragsentwurf zu Projekt Beta" && mail?.antwortAn?.email === "erika.beispiel@example.invalid" && /Bitte mit erfundener Anmerkung/.test(mail?.text ?? "") && /Tour-Raum PRUEFSTAND/.test(mail?.text ?? ""), mail?.betreff);
+      let letzte = 0;
+      for (let i = 0; i < 6; i++) letzte = (await g.ruf("/datenraum/anfrage", { art: "frage", text: `Erfundene Frage Nummer ${i + 1}?` })).status;
+      ok("Bremse: die neunte Anfrage in einer Stunde → 429 (und im Protokoll)", letzte === 429 && (await anzahl("anfrage_gebremst", ein.id)) === 1, String(letzte));
+      const akte: any = await L.drRaumAkte(Number(tr.id));
+      ok("Akte im Chefbüro zeigt die neuen Zeilen mit Klartext", akte.protokoll.some((p: any) => p.artText === "Vertragsentwurf angefordert") && akte.protokoll.some((p: any) => p.artText === "Rundgang geöffnet"));
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   });
 

@@ -124,6 +124,8 @@ export function drSchema(): Promise<void> {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
       await sqlPool`CREATE UNIQUE INDEX IF NOT EXISTS fiaon_dr_projekte_schluessel ON fiaon_dr_projekte (raum_id, lower(schluessel)) WHERE entfernt_am IS NULL`;
+      // Raumtour: die Bühne je Projekt (Schema shared/fiaon-datenraum-buehne.ts, Logik fiaon-datenraum-tour.ts).
+      await sqlPool`ALTER TABLE fiaon_dr_projekte ADD COLUMN IF NOT EXISTS buehne JSONB`;
       await sqlPool`
         CREATE TABLE IF NOT EXISTS fiaon_dr_dokumente (
           id BIGSERIAL PRIMARY KEY,

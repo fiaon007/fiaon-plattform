@@ -9,6 +9,8 @@
 //   Schritt 2  Vereinbarung lesen (auch als Entwurf im PDF) → „gelesen und einverstanden“
 //   Schritt 3  zeichnen (Finger/Maus) + vollen Namen tippen → „Jetzt verbindlich unterzeichnen“
 //   Raum       Projekte als Ordner, Dokumente ansehen/herunterladen, eigenes Exemplar als PDF
+//   Tour       nach der Unterschrift (und bei jedem neuen Besuch) die Raumtour durch die Projekte
+//              (components/datenraum/Raumtour.tsx); „Alle Unterlagen“ führt jederzeit in die Ordner
 //
 // Der Code steht nur kurz in der Adresse (im Anker #c=, der nie an den Server geht): Die Seite liest ihn und nimmt
 // ihn sofort heraus (replaceState). Auf dieser Seite läuft keine Messung (EinwilligungsHinweis, OHNE_MESSUNG).
@@ -21,6 +23,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
+import Raumtour from "@/components/datenraum/Raumtour";
 import {
   DR_ANREDEN, DR_FELD_TEXT, DR_GAST_LEER, DR_LAENDER, DR_ZUSTIMMUNG, drAnredeKurz, drFesteLeerzeichen, drFettStuecke, drNamePasst,
   type DrAnrede, type DrGastAngaben, type DrNdaBlock,
@@ -37,7 +40,7 @@ type Stand = {
   nda?: { unterzeichnetAm: string; fassung: string; hashKurz: string } | null; kontakt?: { name: string; email: string };
 };
 type Nda = { bloecke: DrNdaBlock[]; hash: string; fassung: string };
-type Ansicht = "laedt" | "code" | "angaben" | "vereinbarung" | "unterschrift" | "raum";
+type Ansicht = "laedt" | "code" | "angaben" | "vereinbarung" | "unterschrift" | "raum" | "tour";
 type Antwort = { status: number; j: any };
 
 async function ruf(pfad: string, koerper?: unknown): Promise<Antwort> {
@@ -60,6 +63,11 @@ const zeitText = (iso: string | null | undefined) => {
 const groesse = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toLocaleString("de-DE", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const zweistellig = (n: number) => String(n).padStart(2, "0");
 
+/** Hat der Gast in dieser Sitzung des Browsers die Ordner statt der Tour gewählt? */
+const ORDNER_MERKER = "drt-ordner";
+const ordnerGewaehlt = () => { try { return window.sessionStorage.getItem(ORDNER_MERKER) === "1"; } catch { return false; } };
+const ordnerMerken = (an: boolean) => { try { if (an) window.sessionStorage.setItem(ORDNER_MERKER, "1"); else window.sessionStorage.removeItem(ORDNER_MERKER); } catch { /* privat — egal */ } };
+
 /** Den Code aus der Adresse lesen (#c= oder ?c=) und sofort herausnehmen. */
 function codeAusAdresse(): string {
   try {
@@ -77,6 +85,7 @@ export default function DatenraumZugang() {
   const [nda, setNda] = useState<Nda | null>(null);
   const [meldung, setMeldung] = useState<{ art: "gut" | "schlecht" | "info"; text: string } | null>(null);
   const [gelesen, setGelesen] = useState(false);
+  const [frisch, setFrisch] = useState(false);
   const oben = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -106,7 +115,7 @@ export default function DatenraumZugang() {
   const uebernehmen = useCallback(async (s: Stand) => {
     if (!s?.angemeldet) { setStand(null); zeigen("code"); return; }
     setStand(s);
-    if (s.schritt === "raum") { zeigen("raum"); return; }
+    if (s.schritt === "raum") { zeigen(ordnerGewaehlt() ? "raum" : "tour"); return; }
     if (s.schritt === "vereinbarung") { if (await ndaHolen()) { setGelesen(false); zeigen("vereinbarung"); } else zeigen("angaben"); return; }
     zeigen("angaben");
   }, [ndaHolen, zeigen]);
@@ -140,6 +149,15 @@ export default function DatenraumZugang() {
   const schritt = ansicht === "angaben" ? 1 : ansicht === "vereinbarung" ? 2 : ansicht === "unterschrift" ? 3 : 0;
   const ergaenzung = !!stand?.nda && (ansicht === "vereinbarung" || ansicht === "unterschrift");
   const sperre = ansicht === "code" || ansicht === "laedt";
+
+  if (ansicht === "tour" && stand) {
+    return (
+      <Raumtour stand={stand} frisch={frisch} abmelden={abmelden}
+        alleUnterlagen={() => { ordnerMerken(true); setMeldung(null); zeigen("raum"); }}
+        nachtrag={async () => { setMeldung(null); if (await ndaHolen()) { setGelesen(false); zeigen("vereinbarung"); } }}
+        abgelaufen={() => { setStand(null); zeigen("code"); setMeldung({ art: "info", text: "Bitte melden Sie sich erneut an." }); }} />
+    );
+  }
 
   return (
     <div className={`drg${sperre ? " drg-sperre" : ""}`} data-fiaon="datenraum-gast" ref={oben}>
@@ -198,12 +216,12 @@ export default function DatenraumZugang() {
         {ansicht === "unterschrift" && nda && stand?.gast && (
           <Unterschrift nda={nda} gelesen={gelesen}
             zurueck={() => zeigen("vereinbarung")}
-            fertig={(s) => { setMeldung({ art: "gut", text: "Vereinbarung unterzeichnet — Ihr Datenraum ist freigeschaltet. Eine Kopie kommt per E-Mail." }); setStand(s); zeigen("raum"); }}
+            fertig={(s) => { setMeldung({ art: "gut", text: "Vereinbarung unterzeichnet — Ihr Datenraum ist freigeschaltet. Eine Kopie kommt per E-Mail." }); setStand(s); setFrisch(true); ordnerMerken(false); zeigen("tour"); }}
             geaendert={async (t) => { setMeldung({ art: "info", text: t }); if (await ndaHolen()) { setGelesen(false); zeigen("vereinbarung"); } }}
             abgelaufen={abgelaufen} />
         )}
         {ansicht === "raum" && stand && (
-          <Raum stand={stand} abmelden={abmelden}
+          <Raum stand={stand} abmelden={abmelden} tour={() => { ordnerMerken(false); setMeldung(null); zeigen("tour"); }}
             nachtrag={async () => { setMeldung(null); if (await ndaHolen()) { setGelesen(false); zeigen("vereinbarung"); } }} />
         )}
       </main>
@@ -553,7 +571,7 @@ function Zeichenfeld({ melden, gesperrt }: { melden: (png: string | null) => voi
 }
 
 // ── Der Raum ───────────────────────────────────────────────────────────────
-function Raum({ stand, abmelden, nachtrag }: { stand: Stand; abmelden: () => void; nachtrag: () => void }) {
+function Raum({ stand, abmelden, nachtrag, tour }: { stand: Stand; abmelden: () => void; nachtrag: () => void; tour: () => void }) {
   const [zu, setZu] = useState<Record<string, boolean>>({});
   const g = stand.gast;
   const projekte = stand.projekte ?? [];
@@ -567,6 +585,12 @@ function Raum({ stand, abmelden, nachtrag }: { stand: Stand; abmelden: () => voi
         <a href={`${API}/nda.pdf`} target="_blank" rel="noopener">Ihr Exemplar (PDF)</a>
       </div>
       <p className="drg-fein">Alle Unterlagen sind vertraulich; jede PDF-Seite trägt Ihren Namen und eine Vorgangsnummer. Jeder Abruf wird protokolliert.</p>
+      {offen.length > 0 && (
+        <div className="drt-einstieg" data-fiaon="dr-tour-starten">
+          <p>Geführter Rundgang<small>Raum für Raum durch die Projekte — mit Kennzahlen und Unterlagen.</small></p>
+          <button type="button" className="drg-knopf klein" onClick={tour}>Rundgang starten</button>
+        </div>
+      )}
       {stand.nachtrag && (
         <div className="drg-nachtrag">
           <p>Zu einem weiteren oder genauer beschriebenen Thema liegen Unterlagen bereit. Dafür ergänzen wir Ihre Vereinbarung.</p>

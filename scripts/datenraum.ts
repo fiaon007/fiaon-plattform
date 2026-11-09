@@ -30,6 +30,10 @@
 //                "ndaText": "…", "geschuetzt": "die …-Gesellschaft" }] } — Projekte werden über „schluessel“ abgeglichen;
 //                ohne --raum gilt ein offener Raum mit gleichem TITEL als derselbe (hat er noch keinen Partner, bekommt er
 //                --partner; hat er einen anderen, Abbruch mit Hinweis auf --raum).
+//                Raumtour: projekte[].buehne = die Bühne des Projekts (Schema und Grenzen in shared/fiaon-datenraum-buehne.ts:
+//                kicker, claim, untertitel, kennzahlen, kurve, kapitel, abschluss, hinweis, hauptprojekt). Geprüft schon in
+//                der Vorschau — ein Fehler bricht ab, bevor etwas geschrieben wird. „buehne“: null entfernt sie; fehlt der
+//                Schlüssel, bleibt die gespeicherte Bühne unverändert.
 //   nda-vorschau --raum <id> [--gast <id>] [--vergleich nda.html] [--freigeben --schreiben]
 //                wie oben, aus der Datenbank; --freigeben gibt den Wortlaut frei (mit --vergleich nur, wenn grün).
 //   gast-anlegen --raum <id> (--datei gast.json | --vorname … --nachname … --email … [--anrede herr|frau] [--firma …] …)
@@ -142,6 +146,7 @@ const { sqlPool } = await import("../server/lib/db-pool");
 const L = await import("../server/lib/fiaon-datenraum");
 const { drDateiTyp } = await import("../server/lib/fiaon-datenraum-regeln");
 const { drVorbefuellungPruefen, drVollName } = await import("../shared/fiaon-datenraum-nda");
+const B = await import("../shared/fiaon-datenraum-buehne");
 const WER = "Skript datenraum.ts";
 
 async function tabellenDa(): Promise<boolean> {
@@ -168,9 +173,11 @@ if (befehl === "liste") {
   if (!raeume.length) console.log("Keine Räume.");
   for (const r of raeume) {
     console.log(`\nRaum ${r.id} · ${r.titel}${r.partner_firma_id ? ` · Partner ${r.partner_firma_id}` : " · ohne Partner"}${r.archiviert_am ? " · ARCHIVIERT" : ""}${r.nda_freigabe ? " · Vereinbarung freigegeben (Stand prüfen: nda-vorschau --raum)" : " · Vereinbarung NICHT freigegeben"}`);
-    const projekte = (await sqlPool`SELECT id, buchstabe, schluessel, titel FROM fiaon_dr_projekte WHERE raum_id = ${r.id} AND entfernt_am IS NULL ORDER BY length(buchstabe), buchstabe`) as any[];
+    // to_jsonb(p.*) liest die Bühne auch dort, wo die Spalte noch fehlt (Server noch nicht neu gestartet).
+    const projekte = (await sqlPool`SELECT id, buchstabe, schluessel, titel, to_jsonb(p.*) -> 'buehne' AS buehne FROM fiaon_dr_projekte p WHERE raum_id = ${r.id} AND entfernt_am IS NULL ORDER BY length(buchstabe), buchstabe`) as any[];
     for (const p of projekte) {
-      console.log(`  ${p.buchstabe} · ${p.titel}  [schluessel ${p.schluessel}, id ${p.id}]`);
+      const bv = B.drBuehnePruefen(p.buehne);
+      console.log(`  ${p.buchstabe} · ${p.titel}  [schluessel ${p.schluessel}, id ${p.id}] · Bühne: ${bv.ok ? B.drBuehneKurz(bv.wert) : "UNGÜLTIG (wird nicht gezeigt)"}`);
       const docs = (await sqlPool`SELECT id, kennung, nr, titel, groesse, sichtbar, vermerk_moeglich, mime FROM fiaon_dr_dokumente WHERE projekt_id = ${p.id} AND entfernt_am IS NULL ORDER BY nr, titel`) as any[];
       for (const d of docs) console.log(`     ${String(d.nr).padStart(2, "0")}. ${d.sichtbar ? "sichtbar  " : "UNSICHTBAR"} ${d.titel} · ${kb(Number(d.groesse))}${d.mime === "application/pdf" && d.vermerk_moeglich === false ? " · ohne Vermerk" : ""}  [id ${d.id}, ${d.kennung}]`);
       if (!docs.length) console.log("     (noch keine Unterlagen)");
@@ -197,6 +204,19 @@ if (befehl === "raum-anlegen") {
   const projekte: any[] = Array.isArray(j.projekte) ? j.projekte : [];
   if (!String(j.titel ?? "").trim()) { console.error("ABBRUCH: „titel“ fehlt in der Datei."); await ende(2); }
   for (const p of projekte) if (!String(p?.titel ?? "").trim() || !String(p?.schluessel ?? "").trim()) { console.error("ABBRUCH: Jedes Projekt braucht „schluessel“ und „titel“."); await ende(2); }
+  // Raumtour: jede Bühne vor dem ersten Schreiben prüfen.
+  const buehneText = new Map<string, string>();
+  let buehnenFehler = 0; let haupt = 0;
+  for (const p of projekte) {
+    if (!p || typeof p !== "object" || !("buehne" in p)) continue;
+    const v = B.drBuehnePruefen(p.buehne);
+    if (!v.ok) { buehnenFehler++; console.error(`ABBRUCH: Bühne von [${p.schluessel}] ist ungültig:\n    ${v.fehler.join("\n    ")}`); continue; }
+    for (const w of v.warnungen) console.log(`  Hinweis [${p.schluessel}]: ${w}`);
+    if (v.wert?.hauptprojekt) haupt++;
+    buehneText.set(String(p.schluessel), v.wert ? B.drBuehneKurz(v.wert) : "wird entfernt");
+  }
+  if (buehnenFehler) await ende(2);
+  if (haupt > 1) console.log("  Hinweis: Mehr als ein Hauptprojekt markiert — die Tour nimmt das erste nach Buchstabe.");
   let raumId = id(arg("--raum"));
   let partnerSetzen = !!partner;
   if (!raumId && lesbar) {
@@ -212,7 +232,7 @@ if (befehl === "raum-anlegen") {
     }
   }
   console.log(`${raumId ? `Raum ${raumId} abgleichen` : "Neuer Raum"}: „${j.titel}“${partner ? ` · Partner ${partner}` : " · ohne Partner (im Chefbüro zuordnen oder --partner)"}`);
-  for (const p of projekte) console.log(`  Projekt [${p.schluessel}] ${p.titel}${p.ndaText ? "" : " · § 1 nutzt die Beschreibung"}${p.geschuetzt ? ` · § 4: ${p.geschuetzt}` : ""}`);
+  for (const p of projekte) console.log(`  Projekt [${p.schluessel}] ${p.titel}${p.ndaText ? "" : " · § 1 nutzt die Beschreibung"}${p.geschuetzt ? ` · § 4: ${p.geschuetzt}` : ""}${buehneText.has(String(p.schluessel)) ? ` · Bühne: ${buehneText.get(String(p.schluessel))}` : ""}`);
   if (!schreibt) { console.log("\nVorschau — mit --schreiben wird angelegt."); await ende(0); }
   if (!raumId) {
     const e = await L.drRaumAnlegen({ titel: j.titel, firmaId: partner, nda: j.nda, projekte }, WER);
@@ -225,6 +245,17 @@ if (befehl === "raum-anlegen") {
     for (const p of projekte) {
       const r = await L.drProjektSpeichern(raumId, p, WER);
       console.log(r.ok ? `  ${r.buchstabe} · ${p.titel} ${r.neu ? "angelegt" : "aufgefrischt"}` : `  FEHLER bei ${p.schluessel}: ${r.error}`);
+    }
+  }
+  if (buehneText.size) {
+    const T = await import("../server/lib/fiaon-datenraum-tour");
+    const da = (await sqlPool`SELECT id, schluessel FROM fiaon_dr_projekte WHERE raum_id = ${raumId} AND entfernt_am IS NULL`) as any[];
+    for (const p of projekte) {
+      if (!p || typeof p !== "object" || !("buehne" in p)) continue;
+      const z = da.find((x) => String(x.schluessel).toLowerCase() === T.drSchluesselNormal(p.schluessel));
+      if (!z) { console.error(`  FEHLER: Projekt [${p.schluessel}] nicht gefunden — Bühne nicht gespeichert.`); continue; }
+      const r = await T.drBuehneSpeichern(Number(z.id), p.buehne, WER);
+      if (r.ok) console.log(`  ${r.meldung}`); else console.error(`  FEHLER [${p.schluessel}]: ${r.error}`);
     }
   }
   console.log(`Fertig. Weiter: nda-vorschau --raum ${raumId} --vergleich <nda.html> [--freigeben --schreiben], dann hochladen --raum ${raumId} --ordner <pfad>`);

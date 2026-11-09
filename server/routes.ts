@@ -676,11 +676,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('lead_takt', async () => await (await import('./lib/fiaon-lead-takt')).leadTaktLauf(), 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
   });
-  // 🌐 FIAON Global — falsch zusammengelegte Firmen-Karten trennen (E-487, 09.11.2026): Karten mit Platzhalter im Firmenfeld
-  //    („Selbständig“, „GmbH“ …), auf denen Anfragen fremder Menschen liegen, bekommen je Person eine eigene Karte (Auftrag, Dossier,
-  //    Lead-Weg, Takt, Notiz ziehen mit). Einmal 4 Minuten nach dem Deploy (die Reparatur), danach stündlich als Netz. Schalter
-  //    fiaon_settings „firmen_trennen“ (an | trocken | aus). Die Historienzeile mit Zahlen schreibt der Lauf selbst (bei Arbeit,
-  //    sonst alle 6 Stunden) — darum nurMitErgebnis; ein Fehler steht wie immer in der Historie.
+  // 🌐 FIAON Global — falsch zusammengelegte Firmen-Karten trennen (E-487, 09.11.2026): Karten, deren Firmenfeld keine eindeutige
+  //    Firma benennt („Selbständig“, „Kleingewerbe“, „GmbH“ …), und auf denen Anfragen fremder Menschen liegen, bekommen je Person eine
+  //    eigene Karte (Auftrag, Termin-Auftrag, Dossier, Lead-Weg, Takt, Gespräch, Notiz ziehen mit). Einmal 4 Minuten nach dem Deploy,
+  //    danach stündlich. Schalter fiaon_settings „firmen_trennen“: VORGABE trocken (nur rechnen, Zahlen in die Historie) — getrennt
+  //    wird erst nach Sicht der Historie mit „an“, höchstens 5 Karten je Lauf. Die Historienzeile mit Zahlen schreibt der Lauf selbst
+  //    (bei Arbeit, neuem Plan, sonst alle 6 Stunden) — darum nurMitErgebnis; ein Fehler steht wie immer in der Historie.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('firmen_trennen', async () => await (await import('./lib/fiaon-firmen-trennen')).firmenTrennenTakt(), 60 * 60 * 1000, { beimStartNach: 240_000, nurMitErgebnis: true });
   });

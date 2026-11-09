@@ -574,13 +574,15 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Wer den Terminlink nicht gleich nutzt, hört nie wieder von uns — die meisten Leads buchen erst nach einer Erinnerung.",
     fenster: 2,
   },
-  // E-487 (09.11.2026): einmal 4 Minuten nach dem Deploy, danach stündlich; Historienzeile mit Zahlen bei Arbeit, sonst alle 6 Stunden (Puls).
+  // E-487 (09.11.2026): einmal 4 Minuten nach dem Deploy, danach stündlich; Historienzeile mit Zahlen bei Arbeit, neuem Plan der
+  // Trockenprobe, sonst alle 6 Stunden (Puls). Nachbesserung (Gutachten): Vorgabe trocken, höchstens 5 Trennungen je Lauf.
   firmen_trennen: {
-    zweck: "Firmen-Cockpit: Karten mit Platzhalter im Firmenfeld („Selbständig“, „GmbH“ …), auf denen Anfragen fremder Menschen liegen, "
-      + "sicher trennen — jede fremde Person auf ihre eigene Karte (vorhandene oder neue) mit Auftrag, Dossier, Lead-Weg, Takt und Notiz-Block; "
-      + "Protokoll mit Rückweg (fiaon_firmen_trennung), Schalter „firmen_trennen“ (an | trocken | aus)",
+    zweck: "Firmen-Cockpit: Karten, deren Firmenfeld keine eindeutige Firma benennt („Selbständig“, „Kleingewerbe“, „GmbH“ …) und auf denen "
+      + "Anfragen fremder Menschen liegen, sicher trennen — jede fremde Person auf ihre eigene Karte (vorhandene oder neue) mit Auftrag, "
+      + "Termin-Auftrag, Dossier, Lead-Weg, Takt, Gespräch und Notiz-Block; Stand der Quelle aus dem letzten eigenen Ereignis; Protokoll mit "
+      + "Rückweg (fiaon_firmen_trennung), Schalter „firmen_trennen“ (trocken | an | aus, Vorgabe trocken), höchstens 5 Trennungen je Lauf",
     folge: "Fremde Leads bleiben auf der Karte eines anderen Menschen: Daniels Auftrag öffnet dessen Karte (mit dessen Nummer, Notizen und Vermerken), "
-      + "Ergebnisse und Mails landen bei der falschen Person — und ein weiterer Lead mit demselben Platzhalter würde nicht mehr getrennt.",
+      + "Ergebnisse und Mails landen bei der falschen Person — und ein weiterer Lead mit demselben Firmenfeld würde nicht mehr getrennt.",
     fenster: 8,
   },
   // E-476 Scheibe 5 (05.11.2026): Takt alle 5 Minuten, Historienzeile nur bei Arbeit und einmal je Stunde (nurMitErgebnis + Puls;

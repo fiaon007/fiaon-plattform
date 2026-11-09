@@ -1516,12 +1516,15 @@ export const RUNDGANG_GLOBAL_AUFTRAEGE: RundgangSchritt[] = [
   },
   {
     // E-487 (09.11.2026): Empfehlungen und Provision. Ohne „ziel“ — der Block steht nur am angenommenen Kooperationsvertrag.
+    // E-487 Nachbesserung (Gutachten): Haken „einverstanden“, Vorschlag im Personen-Feld, eine Person nur für eine Empfehlung.
     titel: "Empfehlungen der Partner: Lead, Zuordnung, Nachtrag.",
     text: "Meldet ein Partner jemanden mit Telefon oder E-Mail, läuft die Empfehlung wie ein Lead: Anfrage, Anruf-Auftrag, Dossier an Justin, "
-      + "mit E-Mail auch Justins Einladung. Die Person ordnet sich jede Stunde selbst zu. Ist das nicht eindeutig, bekommt Justin eine Aufgabe. "
+      + "mit E-Mail auch Justins Einladung. Trägst du selbst eine ein, braucht es dafür den Haken „einverstanden“. "
+      + "Die Person ordnet sich jede Stunde selbst zu, sicher nur über Anfrage, E-Mail oder Telefon. Passt nur der Name, steht die Person "
+      + "als Vorschlag im Feld: prüfen und „Zuordnen“ drücken. Eine Person zählt nur für eine Empfehlung. "
       + "Kam eine Zahlung erst nach der Monatsabrechnung dazu, steht sie unter „Nachtrag“. Du kannst sie mit „Nachtrag jetzt abrechnen“ sofort "
       + "gutschreiben, sonst kommt sie mit der nächsten Monatsabrechnung.",
-    tipp: "Der Zahlungsauftrag zur Gutschrift ist immer nur ein Entwurf im Banking. Geld bewegt erst die Buchhaltung mit TAN.",
+    tipp: "Ein neuer Provisions-Satz gilt ab heute, frühere Zahlungen behalten ihren Satz. Der Zahlungsauftrag zur Gutschrift ist immer nur ein Entwurf im Banking. Geld bewegt erst die Buchhaltung mit TAN.",
   },
   {
     ziel: ".cg-zahlen",

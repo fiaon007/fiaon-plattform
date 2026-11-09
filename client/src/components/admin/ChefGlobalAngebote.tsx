@@ -38,6 +38,7 @@ import { eur, datum, datumZeit, Geruest, Fehlermeldung, useDaten, API } from "./
 import { GeburtsdatumFeld } from "@/components/GeburtsdatumFeld";
 // E-IT-G (08.10.2026): das Geburtsdatum im Angebot als drei Felder; der Text ist ISO (auch aus dem Antrag) oder halb getippt — der Server liest beides.
 import { geburtTeileAusText, geburtTextAusTeile } from "@shared/fiaon-geburtsdatum";
+import { KOOP_EMPFEHLUNG_TEXTE } from "@shared/fiaon-koop-empfehlung";
 
 /** „800.000 $" — Kreditrahmen der Garantie (E-271). */
 const usd = (n: number) => `${Math.round(n).toLocaleString("de-DE")} $`;
@@ -154,9 +155,11 @@ type KoopAngebot = {
 // E-419: Empfehlungen des Partners an FIAON und seine Provision (der Partner sieht dieselbe Liste in seinem Partnerbereich).
 // E-487 (09.11.2026): Stufe mit Datum, Anfrage (die Empfehlung läuft wie ein Lead), automatische Zuordnung und der offene Nachtrag
 // mit „Nachtrag jetzt abrechnen“ (Gutschrift + Mail an den Partner, Zahlungsauftrag nur als Entwurf).
+// E-487 Nachbesserung (Gutachten): Vorschlag der Automatik füllt das Personen-Feld vor (Justin prüft und drückt „Zuordnen“); Einverständnis
+// der Person als Pflicht-Haken für einen Lead (ohne Haken: eingetragen, aber kein Lead, keine Mail, kein Anruf-Auftrag).
 type KoopEmpfehlung = { id: number; name: string; telefon: string | null; email: string | null; notiz: string | null; quelle: string; personId: number | null;
   gemeldetText: string; bisText: string; standText: string; umsatz: string; provision: string; ausgezahlt: string; offen: string; ausgezahltCents: number;
-  stand?: string; standAmText?: string | null; anfrageId?: number | null; zuordnungText?: string | null };
+  stand?: string; standAmText?: string | null; anfrageId?: number | null; zuordnungText?: string | null; vorschlagPersonId?: number | null; einverstandenText?: string | null };
 type KoopNachtrag = { bisMonat: string | null; bisText: string | null; summeCents: number; summe: string; schonDa: { nummer: string } | null; hinweis: string | null;
   posten: { name: string; amText: string; umsatz: string; faellig: string; schon: string; nachtrag: string; nachtragCents: number }[];
   zuViel: { name: string; amText: string; faellig: string; schon: string }[] };
@@ -167,11 +170,11 @@ type KoopEmpfehlungen = { prozent: number | null; berechnungAusgesetzt: boolean;
 function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string | null; aktion: (schluessel: string, pfad: string, body: unknown, methode?: string) => Promise<any> }) {
   const e = a.empfehlungen;
   const [prozent, setProzent] = useState<string>(e?.prozent != null ? String(e.prozent).replace(".", ",") : "");
-  const [neu, setNeu] = useState<{ name: string; telefon: string; email: string; personId: string; notiz: string }>({ name: "", telefon: "", email: "", personId: "", notiz: "" });
+  const [neu, setNeu] = useState<{ name: string; telefon: string; email: string; personId: string; notiz: string; einverstanden: boolean }>({ name: "", telefon: "", email: "", personId: "", notiz: "", einverstanden: false });
   const n = e?.nachtrag ?? null;
   const [zeile, setZeile] = useState<Record<number, { personId: string; ausgezahlt: string }>>({});
   const basis = `/admin/global/angebote/${a.id}/koop`;
-  const wert = (x: KoopEmpfehlung) => zeile[x.id] ?? { personId: x.personId != null ? String(x.personId) : "", ausgezahlt: (x.ausgezahltCents / 100).toFixed(2).replace(".", ",") };
+  const wert = (x: KoopEmpfehlung) => zeile[x.id] ?? { personId: x.personId != null ? String(x.personId) : x.vorschlagPersonId != null ? String(x.vorschlagPersonId) : "", ausgezahlt: (x.ausgezahltCents / 100).toFixed(2).replace(".", ",") };
   return (
     <div className="cg-begleit-annahme" data-koop-empfehlungen={e?.liste.length ?? 0}>
       <p className="cm-klartext"><b>Empfehlungen an FIAON & Provision</b> · zählt {e?.monate ?? 12} Monate ab Meldung, ohne Durchlaufkosten (Gründung, Fast-Track)</p>
@@ -191,7 +194,7 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
           <tbody>
             {e.liste.map((x) => (
               <tr key={x.id}>
-                <td><b>{x.name}</b>{x.telefon ? ` · ${x.telefon}` : ""}{x.email ? ` · ${x.email}` : ""}{x.notiz ? <span className="cm-fein"><br />{x.notiz}</span> : null}<span className="cm-fein"><br />{x.quelle === "partner" ? "vom Partner gemeldet" : "von FIAON eingetragen"}{x.anfrageId ? ` · läuft als Lead (Anfrage #${x.anfrageId})` : ""}</span></td>
+                <td><b>{x.name}</b>{x.telefon ? ` · ${x.telefon}` : ""}{x.email ? ` · ${x.email}` : ""}{x.notiz ? <span className="cm-fein"><br />{x.notiz}</span> : null}<span className="cm-fein"><br />{x.quelle === "partner" ? "vom Partner gemeldet" : "von FIAON eingetragen"}{x.einverstandenText ? ` · ${x.einverstandenText}` : ""}{x.anfrageId ? ` · läuft als Lead (Anfrage #${x.anfrageId})` : ""}</span></td>
                 <td>{x.gemeldetText}<span className="cm-fein"><br />zählt bis {x.bisText}</span></td>
                 <td><input style={{ width: 80 }} inputMode="numeric" value={wert(x).personId} placeholder="Nr." onChange={(ev) => setZeile({ ...zeile, [x.id]: { ...wert(x), personId: ev.target.value } })} />
                   <button type="button" className="cg-knopf" disabled={busy === `ke${x.id}`} onClick={() => aktion(`ke${x.id}`, `${basis}/empfehlung/${x.id}`, { personId: wert(x).personId.trim() === "" ? null : Number(wert(x).personId) })}>Zuordnen</button>
@@ -233,10 +236,11 @@ function KoopEmpfehlungBlock({ a, aktion, busy }: { a: KoopAngebot; busy: string
         <label>E-Mail<input type="email" value={neu.email} onChange={(ev) => setNeu({ ...neu, email: ev.target.value })} /></label>
         <label>Personen-Nr. (wenn schon bei uns)<input inputMode="numeric" value={neu.personId} onChange={(ev) => setNeu({ ...neu, personId: ev.target.value })} /></label>
         <label>Notiz<input value={neu.notiz} placeholder="z. B. Selbständig, 4 Firmen, braucht Liquidität" onChange={(ev) => setNeu({ ...neu, notiz: ev.target.value })} /></label>
-        <span className="cm-fein">Ohne Personen-Nr. und mit Telefon oder E-Mail läuft die Empfehlung wie ein Lead: Anfrage, Anruf-Auftrag, Dossier — mit E-Mail auch Justins Einladung.</span>
+        <label className="cg-haken"><input type="checkbox" checked={neu.einverstanden} onChange={(ev) => setNeu({ ...neu, einverstanden: ev.target.checked })} /> {KOOP_EMPFEHLUNG_TEXTE.einverstandenLeitung}</label>
+        <span className="cm-fein">Ohne Personen-Nr., mit Telefon oder E-Mail und mit dem Haken läuft die Empfehlung wie ein Lead: Anfrage, Anruf-Auftrag, Dossier — mit E-Mail auch Justins Einladung. Ohne Haken wird sie nur eingetragen.</span>
         <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kn${a.id}` || neu.name.trim().length < 3} onClick={async () => {
-          const r = await aktion(`kn${a.id}`, `${basis}/empfehlung`, { name: neu.name, telefon: neu.telefon, email: neu.email, notiz: neu.notiz, personId: neu.personId.trim() === "" ? null : Number(neu.personId) });
-          if (r.ok) setNeu({ name: "", telefon: "", email: "", personId: "", notiz: "" });
+          const r = await aktion(`kn${a.id}`, `${basis}/empfehlung`, { name: neu.name, telefon: neu.telefon, email: neu.email, notiz: neu.notiz, personId: neu.personId.trim() === "" ? null : Number(neu.personId), einverstanden: neu.einverstanden });
+          if (r.ok) setNeu({ name: "", telefon: "", email: "", personId: "", notiz: "", einverstanden: false });
         }}>Empfehlung eintragen</button></div>
       </div>
     </div>

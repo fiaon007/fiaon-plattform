@@ -398,7 +398,8 @@ export async function leadLageLesen(anfrageId: number, lauf: Lauf = sqlPool, jet
   // E-487 (09.11.2026): Empfehlung eines Partners — der Text der Anfrage ist die Notiz des Partners (keine Nachricht des Leads),
   // der erste Satz der Willkommens-Mail nennt den Empfehlenden.
   const empfehlung = a.ip === KOOP_EMPFEHLUNG_IP;
-  const empfehler = empfehlung ? await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlerFuerAnfrage(anfrageId, lauf)).catch(() => null) : null;
+  // E-487 Nachbesserung: undefined = gerade nicht lesbar (willkommenSenden wartet), null = keine Empfehlung dahinter.
+  const empfehler = empfehlung ? await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlerFuerAnfrage(anfrageId, lauf)).catch(() => undefined) : null;
   const defsRoh = jsonObjekt(a.formular_fragen);
   const defs: MetaFrageDef[] | null = Array.isArray(defsRoh) ? defsRoh : null;
   const gespeichert = jsonObjekt(a.dossier_antworten);
@@ -618,6 +619,8 @@ export function nachfassFuer(stufe: 1 | 2 | 3, lage: LeadLage, link: { url: stri
     firma: lage.firmaBrauchbar ? lage.firmaRoh : null, kalenderLeer: !!opt.kalenderLeer,
     // E-487 (09.11.2026): Maras WhatsApp-Link wie in W — die Wand prüft ihn über eigenerWaSatz (Ausnahme aus d395d8cf).
     whatsapp: opt.whatsapp ?? null,
+    // E-487 Nachbesserung (Mangel 12): Empfehlung — N3 spricht nicht von „Ihrer Anfrage“ (die Person hat nie angefragt).
+    empfehlung: lage.ip === KOOP_EMPFEHLUNG_IP,
   });
 }
 
@@ -646,6 +649,24 @@ async function protokollieren(event: string, an: string, art: string, anfrageId:
     event, empfaenger: an, status, grund, ausgeloestVon: "Lead-Weg (js@, Justin)",
     payload: { versandweg: "google", postfach: LEAD_POSTFACH, anfrage_id: anfrageId, art, betreff },
   }, lauf);
+}
+
+/**
+ * E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 12): Lead-Mails von außen beenden — z. B. wenn die Leitung eine
+ * Partner-Empfehlung entfernt. Stopp „von_hand“ (ein Mensch hat übernommen), kein Nachfass mehr, eine Zeile im Cockpit mit dem
+ * Grund. Eine Willkommens-Mail, die noch nicht hinaus ist, hält willkommenSenden selbst an (Empfehlung ohne Partner). Wirft nie.
+ */
+export async function leadMailsBeenden(anfrageId: number, warum: string, lauf: Lauf = sqlPool): Promise<boolean> {
+  try {
+    const [r] = (await lauf`
+      UPDATE fiaon_lead_weg SET stopp_am = NOW(), stopp_grund = 'von_hand', nachfass_faellig = NULL, updated_at = NOW()
+       WHERE anfrage_id = ${anfrageId} AND stopp_am IS NULL RETURNING firma_id`) as any[];
+    if (r?.firma_id) await cockpitZeile(Number(r.firma_id), "lead_stopp", `Keine weiteren Lead-Mails von Justin: ${warum}.`, lauf);
+    return !!r;
+  } catch (e) {
+    console.error(`[LEAD-POST] Anfrage #${anfrageId}: Lead-Mails nicht beendet:`, e instanceof Error ? e.message : e);
+    return false;
+  }
 }
 
 /** Stopp merken (einmal) — mit einer Zeile im Cockpit. */
@@ -753,10 +774,20 @@ export async function willkommenSenden(anfrageId: number, opt: { jetzt?: Date; l
     if (!opt.erzwingen && !(await justinFuehrt())) {
       return { ergebnis: await willkommenAuslassen(anfrageId, "Die Gespräche führt gerade nicht Justin — keine Mail in seiner Stimme (der Anruf-Auftrag steht)", lauf), grund: "gespraechsperson" };
     }
+    // E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 7 + 12): Die Kennung einer Empfehlung ohne eine (nicht entfernte)
+    // Empfehlung dahinter — entfernt, nie verknüpft oder von außen gefälscht — bekommt KEINE Willkommens-Mail: Die Person hat selbst
+    // nichts angefragt („vielen Dank für Ihre Anfrage“ wäre falsch), und eine gefälschte Kennung darf nie an der Flut-Regel vorbei.
+    // Gilt auch beim Erzwingen. Der Anruf-Auftrag steht trotzdem.
+    if (lage.ip === KOOP_EMPFEHLUNG_IP && !lage.empfehler) {
+      if (lage.empfehler === undefined) return { ergebnis: "wartet", grund: "die Empfehlung ist gerade nicht lesbar" };
+      return { ergebnis: await willkommenAuslassen(anfrageId, "Empfehlung ohne Partner dahinter (entfernt oder nicht verknüpft) — keine Mail an eine Person, die selbst nicht angefragt hat", lauf), grund: "empfehlung ohne Partner" };
+    }
     // Nachbesserung (Gutachten Sicherheit, Mangel 2): ein Website-Anschluss, der in 24 Stunden mehr als zwei Anfragen schickt,
     // bekommt kein Willkommen aus js@ (sonst würde unser Postfach zum Spam-Relais). Der Anruf-Auftrag steht trotzdem.
     // E-487: Eine Empfehlung kommt über den signierten Link des Partners, nicht über das offene Formular — keine Flut-Regel.
-    if (lage.kanal === "website" && lage.ip && !/^meta/.test(lage.ip) && lage.ip !== KOOP_EMPFEHLUNG_IP) {
+    // E-487 Nachbesserung (Mangel 7): die Ausnahme nur, wenn wirklich eine Empfehlung mit der Anfrage verknüpft ist (empfehler aus
+    // koopEmpfehlerFuerAnfrage) — nie wegen der Kennung allein. Den Deckel je Partner setzt koopEmpfehlungEintragen.
+    if (lage.kanal === "website" && lage.ip && !/^meta/.test(lage.ip) && !lage.empfehler) {
       const [fl] = (await lauf`
         SELECT COUNT(*)::int AS n FROM fiaon_anfragen
          WHERE art = 'global' AND ip = ${lage.ip}

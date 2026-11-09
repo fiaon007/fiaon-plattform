@@ -143,12 +143,14 @@ router.post("/koop/partner/:token/zeiten", async (req: Request, res: Response) =
   } catch (err) { console.error("[KOOP] Zeiten:", err); res.status(500).json({ ok: false, error: "Ihre Zeiten ließen sich nicht speichern." }); }
 });
 // E-419: Der Partner meldet selbst eine Empfehlung an FIAON (mit Einverständnis der Person) — sofort in seiner Liste, Aufgabe an Justin.
+// E-487 Nachbesserung (Gutachten, Mangel 2): Eine Personen-Nummer aus dem Partnerbereich zählt nie (koopEmpfehlungEintragen setzt null).
 router.post("/koop/partner/:token/empfehlung", async (req: Request, res: Response) => {
   try {
     const z = await partner(req, res); if (!z) return;
     const { koopEmpfehlungEintragen } = await import("../lib/fiaon-koop-empfehlung");
     const r = await koopEmpfehlungEintragen(z, req.body, wer(z), "partner", koopPartnerName(koopDatenAus(z).partner));
-    return r.ok ? res.json(r) : res.status(r.status ?? 400).json(r);
+    // E-487 Nachbesserung: an den Partner nur „gespeichert“ — ob und warum ein Lead entstand, bleibt im Haus.
+    return r.ok ? res.json({ ok: true, id: r.id }) : res.status(r.status ?? 400).json(r);
   } catch (err) { console.error("[KOOP] Empfehlung:", err); res.status(500).json({ ok: false, error: "Ihre Empfehlung ließ sich gerade nicht speichern." }); }
 });
 // E-420: Bankverbindung für Provisionen (vom Partner selbst) und die Gutschriften als PDF.

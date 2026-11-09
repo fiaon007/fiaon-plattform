@@ -550,7 +550,11 @@ export function willkommenText(e: WillkommenEingang): LeadMailText {
   // 1. Einstieg — „angekommen“, nie „gelesen“; der Nachtrag entschuldigt sich erst ab dem nächsten Tag bzw. nach 12 Stunden.
   // E-487: Empfehlung — die Person hat selbst nichts angefragt: Der erste Satz nennt den Empfehlenden (kein „Dank für Ihre
   // Anfrage“, kein Nachtrag-Satz), Absatz 2 (Vorhaben) entfällt; danach wie W: Gespräch, Link, wer anruft, Mara.
-  const empfehler = empfehlerText(e.empfehler, e.sprache);
+  // E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 12): Taugt der Name des Empfehlenden nicht für Justins Mail (sieht nach
+  // Adresse oder Code aus), bleibt es trotzdem die Empfehlungs-Fassung — mit „Ein Geschäftspartner von uns“ statt „vielen Dank für
+  // Ihre Anfrage“ an jemanden, der nie angefragt hat.
+  const istEmpfehlung = !!e.empfehler;
+  const empfehler = istEmpfehlung ? (empfehlerText(e.empfehler, e.sprache) ?? (en ? "A business partner of ours" : "Ein Geschäftspartner von uns")) : null;
   let einstieg: string;
   if (empfehler) {
     einstieg = en
@@ -687,6 +691,8 @@ export interface NachfassEingang {
    * weitermachen kann. Ohne Link (Mara Business aus, keine Nummer): keine Zeile.
    */
   whatsapp?: { url: string } | null;
+  /** E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 12): Empfehlung eines Partners — N3 spricht nicht von „Ihrer Anfrage“. */
+  empfehlung?: boolean;
 }
 
 /** E-487: die WhatsApp-Zeile im Nachfass — N1/N2 „Lieber schriftlich?“, N3 als letzter Weg. Ohne Gedankenstrich. Rein. */
@@ -747,7 +753,13 @@ export function nachfassText(stufe: 1 | 2 | 3, e: NachfassEingang): LeadMailText
     else bloecke.push({ art: "link", text: en ? `${dreissig}, free of charge, by phone:` : `${dreissig}, kostenlos, am Telefon:`, url: e.link.url, anzeige: e.link.anzeige });
     if (e.whatsapp?.url) bloecke.push(nachfassWhatsappBlock(2, e.whatsapp.url, en));
   } else {
-    bloecke.push({ art: "absatz", text: en ? "I do not want to flood you with emails – this is my last message about your enquiry." : "ich möchte Sie nicht mit Mails überhäufen – das ist meine letzte Nachricht zu Ihrer Anfrage." });
+    // E-487 Nachbesserung (Mangel 12): Bei einer Empfehlung gab es keine Anfrage — „dazu“ statt „zu Ihrer Anfrage“.
+    bloecke.push({
+      art: "absatz",
+      text: e.empfehlung
+        ? (en ? "I do not want to flood you with emails – this is my last message on this." : "ich möchte Sie nicht mit Mails überhäufen – das ist meine letzte Nachricht dazu.")
+        : (en ? "I do not want to flood you with emails – this is my last message about your enquiry." : "ich möchte Sie nicht mit Mails überhäufen – das ist meine letzte Nachricht zu Ihrer Anfrage."),
+    });
     const bis = e.link.bis ? datumText(e.link.bis, e.sprache) : null;
     bloecke.push({
       art: "satzMitLink",

@@ -812,6 +812,11 @@ export async function globalAnfrageAnnehmen(ein: {
    * Lead-Dossier an Justin. Ohne Angabe liest das Dossier alles aus der Anfrage selbst.
    */
   lead?: EingangsHinweis | null;
+  /**
+   * E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 3): Empfehlung eines Partners (koopEmpfehlungEintragen) — `text` ist
+   * dann die Notiz des Partners, keine Nachricht der Person: Sie geht nie in die Privat-/Beschwerde-Weiche.
+   */
+  empfehlung?: boolean;
 }): Promise<{ anfrageId: number; zustaendigName: string | null; anBetreiber: boolean }> {
   const k = ein.kontakt;
   const wo = ein.herkunft?.wo ?? "fiaon.com/business";
@@ -855,8 +860,11 @@ export async function globalAnfrageAnnehmen(ein: {
      ORDER BY (a.payment_status = 'paid') DESC, a.created_at DESC LIMIT 5
   `.catch(() => [])) as any[];
   const privatBestand = bestand.filter((z) => produktkategorie({ type: z.type, ref: z.ref, pack_key: z.pack_key }) !== "global");
+  // E-487 Nachbesserung (Mangel 3): Bei einer Empfehlung ist der Text die Notiz des Partners — als Firma steht der Platzhalter
+  // „… (Firma noch offen)“, da reichte schon EIN starkes Wort („versprochen“, „abgezockt“) für den Weg „Beschwerde“: kein Lead,
+  // kein Anruf, keine Einladung, stattdessen eine Beschwerde-Aufgabe an die Leitung. Jetzt geht die Notiz nie in die Weiche.
   const weiche = privatWeiche({
-    nachricht: istMeta ? null : ein.text,
+    nachricht: istMeta || ein.empfehlung === true ? null : ein.text,
     privatBestand: privatBestand.length > 0,
     zahlend: privatBestand.some((z) => z.payment_status === "paid"),
     firmaBrauchbar: firmaBrauchbar(k.firma, k.name).brauchbar,

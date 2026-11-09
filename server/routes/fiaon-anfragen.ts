@@ -44,7 +44,10 @@ router.post("/anfrage", async (req: Request, res: Response) => {
 
     // Tabelle samt Status-Spalten (E-177) — eine Stelle für das Schema.
     await ensureAnfragenSpalten();
-    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+    // E-487 Nachbesserung (Gutachten Partner-Empfehlung, Mangel 7): nur eine echte IP-Adresse aus X-Forwarded-For — ein frei gewählter
+    // Wert (die Kennung einer Partner-Empfehlung, „meta-…“) würde sonst Regeln aushebeln, die an der Kennung hängen (Flut-Regel, Fassung).
+    const vorn = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+    const ip = (/^[0-9A-Fa-f:.]{3,45}$/.test(vorn) ? vorn : "") || req.socket.remoteAddress || "";
 
     // ── FIAON GLOBAL: Auftrag + Firmen-Cockpit statt Betreiber-Vermerk (E-188) ──
     if (art === "global") {

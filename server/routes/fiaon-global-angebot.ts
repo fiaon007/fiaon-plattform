@@ -340,7 +340,8 @@ router.post("/admin/global/angebote/:id/koop/empfehlung", requireChef("leitung")
     const z = await koopZeile(req, res); if (!z) return;
     const { koopEmpfehlungEintragen } = await import("../lib/fiaon-koop-empfehlung");
     const r = await koopEmpfehlungEintragen(z, req.body ?? {}, await chefName(req), "fiaon");
-    return r.ok ? res.json({ ...r, meldung: "Empfehlung eingetragen." }) : res.status(r.status ?? 400).json(r);
+    // E-487 Nachbesserung: sagen, ob die Empfehlung als Lead läuft — und wenn nicht, warum (z. B. ohne Einverständnis).
+    return r.ok ? res.json({ ...r, meldung: r.lead ? "Empfehlung eingetragen — sie läuft als Lead (Anfrage, Anruf-Auftrag, Dossier; mit E-Mail Justins Einladung)." : `Empfehlung eingetragen${r.ohneLead ? ` — ${r.ohneLead}` : ""}.` }) : res.status(r.status ?? 400).json(r);
   } catch (err) { console.error("[FIAON-ANGEBOT] koop/empfehlung:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 router.post("/admin/global/angebote/:id/koop/empfehlung/:eid", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
@@ -395,7 +396,8 @@ router.post("/admin/global/angebote/:id/koop/provision", requireChef("leitung"),
     const z = await koopZeile(req, res); if (!z) return;
     const { koopProvisionSetzen } = await import("../lib/fiaon-koop-empfehlung");
     const r = await koopProvisionSetzen(z, req.body ?? {}, await chefName(req));
-    return r.ok ? res.json({ ...r, meldung: "Gespeichert." }) : res.status(r.status ?? 400).json(r);
+    // E-487 Nachbesserung: die Meldung sagt, ab wann der neue Satz gilt (frühere Zahlungen behalten ihren Satz).
+    return r.ok ? res.json({ ...r, meldung: r.meldung ?? "Gespeichert." }) : res.status(r.status ?? 400).json(r);
   } catch (err) { console.error("[FIAON-ANGEBOT] koop/provision:", err); res.status(500).json({ ok: false, error: "Serverfehler" }); }
 });
 

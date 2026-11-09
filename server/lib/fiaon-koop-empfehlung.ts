@@ -18,15 +18,28 @@
 //     die Willkommens-Mail „Empfehlung“ aus dem Lauf lead_post). Altbestand ohne Anfrage: keine Mail, nur Zuordnung und — mit
 //     Telefonnummer — einmal eine Aufgabe an die zuständige Person.
 //   · Der Partner sieht je Empfehlung nur die Stufe mit Datum (shared: koopEmpfehlungStufe).
+//
+// E-487 Nachbesserung (Gutachten, 09.11.2026):
+//   · Jede Zahlung zählt höchstens für EINE Empfehlung — die früheste, in deren Fenster sie fällt (KOOP_NUR_ERSTE_EMPFEHLUNG_SQL);
+//     Zuordnen (Automatik und von Hand) einer Person, die schon an einer anderen Empfehlung hängt, geht nicht (Mangel 1).
+//   · Der Partner setzt nie eine Personen-Nummer (Mangel 2). Automatisch zugeordnet wird nur über Anfrage, E-Mail oder Telefon;
+//     ein Treffer nur über den Namen ist ein Vorschlag mit Aufgabe an Justin (Mangel 4). Der Lauf sucht im Provisionsfenster und
+//     reihum (zuordnung_geprueft_am), Fragen an Justin bleiben liegen, Fehler kommen in die Lauf-Historie (Mangel 5, 13).
+//   · Lead nur mit Einverständnis (gespeichert: einverstanden_am/_von/_text) und höchstens KOOP_EMPFEHLUNG_LEAD_MAX_TAG je Partner
+//     in 24 Stunden (Mangel 6, 7). Entfernen beendet Lead-Mails und Anruf-Auftrag (Mangel 12).
+//   · Jede Zahlung zählt mit dem Satz an ihrem Zahltag — eine Erhöhung zahlt nie rückwirkend nach (Verlauf, Mangel 8).
+//   · Nachbereiten einer Gutschrift nur einmal zugleich (pg_try_advisory_xact_lock, Mangel 9).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { CRONS_AN } from "./fiaon-crons";
 import { UMSATZ_QUELLE_SQL } from "./fiaon-umsatz-quelle";
 import {
   KOOP_DURCHLAUF_SCHLUESSEL, KOOP_PROVISION_MONATE, KOOP_EMPFEHLUNG_STAND_TEXT, KOOP_FASTTRACK_ZAEHLT_ENV, KOOP_ZUORDNUNG_TAGE_VORHER, KOOP_EMPFEHLUNG_IP,
+  KOOP_EMPFEHLUNG_TEXTE, KOOP_OHNE_LEAD_TEXT,
   koopProvisionAus, koopProvisionCents, koopEmpfehlungAus, koopBerechnungAusgesetzt, koopMonatsbericht, koopDurchlaufAbzugSql, koopFastTrackZaehlt,
-  koopEmpfehlungStufe, koopOffenePosten, koopBerlinMonat, koopNameTeile, koopNamePasst, koopZuordnungUrteil, koopZuordnungWege,
-  type KoopEmpfehlungStand, type KoopGsPosten, type KoopZahlung, type KoopZuordnungKandidat,
+  koopEmpfehlungStufe, koopOffenePosten, koopBerlinMonat, koopBerlinTag, koopNameTeile, koopNamePasst, koopZuordnungUrteil, koopZuordnungWege,
+  koopSatzAm, koopProvisionNeu, koopEmpfehlungDoppelt, koopEmpfehlungLeadEntscheid, koopZuordnungGruendeText,
+  type KoopEmpfehlungStand, type KoopGsPosten, type KoopZahlung, type KoopZuordnungKandidat, type KoopProvision, type KoopBisherPosten,
 } from "@shared/fiaon-koop-empfehlung";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -77,11 +90,13 @@ export function ensureEmpfehlungTabelle(): Promise<void> {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )`;
       await sqlPool`CREATE INDEX IF NOT EXISTS fiaon_koop_empfehlungen_angebot_idx ON fiaon_koop_empfehlungen (angebot_id) WHERE entfernt_am IS NULL`;
+      // E-487 Nachbesserung: Einwilligung (wann, wer, welcher Wortlaut — Mangel 6/14), reihum prüfen (Mangel 5), Vorschlag (Mangel 4).
       const [n] = (await sqlPool`
         SELECT COUNT(*)::int AS n FROM information_schema.columns
          WHERE table_schema = current_schema() AND table_name = 'fiaon_koop_empfehlungen'
-           AND column_name IN ('anfrage_id', 'zuordnung_am', 'zuordnung_weg', 'zuordnung_frage_am', 'anruf_aufgabe_am')`) as any[];
-      if (Number(n?.n) < 5) {
+           AND column_name IN ('anfrage_id', 'zuordnung_am', 'zuordnung_weg', 'zuordnung_frage_am', 'anruf_aufgabe_am',
+                               'einverstanden_am', 'einverstanden_von', 'einverstanden_text', 'zuordnung_geprueft_am', 'zuordnung_vorschlag')`) as any[];
+      if (Number(n?.n) < 10) {
         await sqlPool.begin(async (tx: any) => {
           await tx`SET LOCAL lock_timeout = '3s'`;
           await tx`
@@ -90,12 +105,37 @@ export function ensureEmpfehlungTabelle(): Promise<void> {
               ADD COLUMN IF NOT EXISTS zuordnung_am TIMESTAMPTZ,
               ADD COLUMN IF NOT EXISTS zuordnung_weg TEXT,
               ADD COLUMN IF NOT EXISTS zuordnung_frage_am TIMESTAMPTZ,
-              ADD COLUMN IF NOT EXISTS anruf_aufgabe_am TIMESTAMPTZ`;
+              ADD COLUMN IF NOT EXISTS anruf_aufgabe_am TIMESTAMPTZ,
+              ADD COLUMN IF NOT EXISTS einverstanden_am TIMESTAMPTZ,
+              ADD COLUMN IF NOT EXISTS einverstanden_von TEXT,
+              ADD COLUMN IF NOT EXISTS einverstanden_text TEXT,
+              ADD COLUMN IF NOT EXISTS zuordnung_geprueft_am TIMESTAMPTZ,
+              ADD COLUMN IF NOT EXISTS zuordnung_vorschlag JSONB`;
         });
       }
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
+}
+
+/**
+ * E-487 Nachbesserung (Gutachten, Mangel 1): Jede Zahlung zählt höchstens für EINE Empfehlung — die früheste (gemeldet_am, dann id),
+ * in deren Zeitfenster sie fällt. Hängt dieselbe Person an zwei Empfehlungen (Tippfehler im Namen, zwei Partner, von Hand), bekam
+ * vorher jede die volle Provision auf dieselbe Zahlung (Probe: 2 × 300 € statt 300 €). SQL über e (Empfehlung) und q (Zahlung aus
+ * UMSATZ_QUELLE_SQL); $2 = KOOP_PROVISION_MONATE — in BEIDEN Geld-Abfragen (Liste und Gutschrift).
+ */
+export const KOOP_NUR_ERSTE_EMPFEHLUNG_SQL = `NOT EXISTS (
+         SELECT 1 FROM fiaon_koop_empfehlungen x
+          WHERE x.person_id = e.person_id AND x.entfernt_am IS NULL AND x.id <> e.id
+            AND (x.gemeldet_am < e.gemeldet_am OR (x.gemeldet_am = e.gemeldet_am AND x.id < e.id))
+            AND q.am >= x.gemeldet_am AND q.am < x.gemeldet_am + make_interval(months => $2))`;
+
+/** E-487 Nachbesserung (Mangel 1): Hängt die Person schon an einer anderen (nicht entfernten) Empfehlung? Dann welche. */
+async function personSchonEmpfohlen(personId: number, ohneId: number | null): Promise<{ id: number; name: string; ref: string } | null> {
+  const [r] = (await sqlPool`
+    SELECT e.id, e.name, g.angebot_ref FROM fiaon_koop_empfehlungen e LEFT JOIN fiaon_global_angebote g ON g.id = e.angebot_id
+     WHERE e.person_id = ${personId} AND e.entfernt_am IS NULL AND e.id <> ${ohneId ?? 0} ORDER BY e.gemeldet_am, e.id LIMIT 1`) as any[];
+  return r ? { id: Number(r.id), name: String(r.name), ref: String(r.angebot_ref ?? "") } : null;
 }
 
 export interface KoopEmpfehlungZeile {
@@ -107,6 +147,10 @@ export interface KoopEmpfehlungZeile {
   umsatz: string; provision: string; ausgezahlt: string; offen: string;
   /** E-487, nur Chefbüro (intern): die Anfrage der Empfehlung und wie die Person zugeordnet wurde. */
   anfrageId?: number | null; zuordnungText?: string | null;
+  /** E-487 Nachbesserung, nur Chefbüro: der Vorschlag der Automatik (eine Person) — füllt das Feld vor, Justin drückt „Zuordnen“. */
+  vorschlagPersonId?: number | null;
+  /** E-487 Nachbesserung, nur Chefbüro: mit Einverständnis der Person eingetragen (wann, wer). */
+  einverstandenText?: string | null;
 }
 /** E-487: was „Nachtrag jetzt abrechnen“ gutschreiben würde — Vorschau im Chefbüro. */
 export interface KoopNachtragVorschau {
@@ -165,10 +209,18 @@ const STUFEN_SQL = `
   FROM fiaon_koop_empfehlungen e
   WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL`;
 
+/** E-487 Nachbesserung: der gespeicherte Vorschlag der Automatik (zuordnung_vorschlag) — eine Person oder mehrere. */
+function vorschlagAus(x: any): { personId?: number; wege?: string[]; personen?: { personId: number; wege: string[] }[] } | null {
+  const v = json<Record<string, any> | null>(x.zuordnung_vorschlag, null);
+  return v && typeof v === "object" ? v : null;
+}
 function zuordnungText(x: any): string | null {
   const weg = String(x.zuordnung_weg ?? "");
   if (x.person_id == null) {
     if (weg === "hand_geloest") return "Zuordnung von Hand gelöst — die Automatik ordnet hier nichts mehr zu.";
+    const v = vorschlagAus(x);
+    if (v?.personId) return `Vorschlag der Automatik: Person ${v.personId} (über ${koopZuordnungWege(v.wege ?? [])}) — prüfen und „Zuordnen“ drücken.`;
+    if (v?.personen?.length) return `Mehrere passende Personen: ${v.personen.map((p) => `${p.personId} (über ${koopZuordnungWege(p.wege ?? [])})`).join(", ")} — die richtige eintragen und „Zuordnen“.`;
     if (x.zuordnung_frage_am) return `Zuordnung unklar — Aufgabe an Justin seit ${tag(x.zuordnung_frage_am)}.`;
     return null;
   }
@@ -189,16 +241,25 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }, opt: { intern
     SELECT * FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL ORDER BY gemeldet_am DESC LIMIT 300`) as any[];
   const personen = Array.from(new Set(zeilen.map((x) => x.person_id).filter((x) => x != null).map(Number)));
   const abzug = koopAbzugSqlFuer(z.angebot_ref);
-  const geld = personen.length ? ((await sqlPool.unsafe(`
-    WITH q AS (${UMSATZ_QUELLE_SQL}),
-    g AS (
-      SELECT e.id, q.am, (q.cents - ${abzug}) AS cents
-        FROM fiaon_koop_empfehlungen e
-        JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
-         AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($3::text[]))
-       WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL)
-    SELECT id, COALESCE(SUM(cents), 0)::int AS cents, COUNT(*)::int AS n, MIN(am) FILTER (WHERE cents > 0) AS erste_am
-      FROM g GROUP BY id`, [Number(z.id), KOOP_PROVISION_MONATE, [...KOOP_DURCHLAUF_SCHLUESSEL]])) as any[]) : [];
+  // E-487 Nachbesserung: je ZAHLUNG (nicht mehr die Summe je Empfehlung) — jede zählt nur für die früheste Empfehlung (Mangel 1) und
+  // mit dem Satz an ihrem Zahltag (Mangel 8); gerundet wird je Zahlung wie in der Gutschrift.
+  const zahlungen = personen.length ? ((await sqlPool.unsafe(`
+    WITH q AS (${UMSATZ_QUELLE_SQL})
+    SELECT e.id, q.am, (q.cents - ${abzug}) AS cents
+      FROM fiaon_koop_empfehlungen e
+      JOIN q ON q.person_id = e.person_id AND q.am >= e.gemeldet_am AND q.am < e.gemeldet_am + make_interval(months => $2)
+       AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($3::text[]))
+     WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL
+       AND ${KOOP_NUR_ERSTE_EMPFEHLUNG_SQL}`, [Number(z.id), KOOP_PROVISION_MONATE, [...KOOP_DURCHLAUF_SCHLUESSEL]])) as any[]) : [];
+  const geld = new Map<number, { cents: number; provision: number; ersteAm: Date | null }>();
+  for (const r of zahlungen) {
+    const id = Number(r.id); const c = Number(r.cents) || 0; const am = new Date(r.am);
+    const g = geld.get(id) ?? { cents: 0, provision: 0, ersteAm: null };
+    g.cents += c;
+    g.provision += prov ? koopProvisionCents(c, koopSatzAm(prov, am)) : 0;
+    if (c > 0 && (!g.ersteAm || am < g.ersteAm)) g.ersteAm = am;
+    geld.set(id, g);
+  }
   // E-487: die Stufen (Kontakt, Gespräch, Angebot, kein Interesse) — scheitert das Lesen (eine Tabelle fehlt), gilt die alte
   // Regel: eine Bestellzeile der Person nach der Meldung (−30 Tage) ist „Angebot“.
   const stufen = new Map<number, any>();
@@ -215,14 +276,14 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }, opt: { intern
   const ausGs = new Map<number, number>();
   for (const g of gs) if (g.stand === "ausgezahlt") for (const p of g.posten) ausGs.set(p.empfehlungId, (ausGs.get(p.empfehlungId) ?? 0) + p.provisionCents);
   const liste: KoopEmpfehlungZeile[] = zeilen.map((x) => {
-    const g = geld.find((y) => Number(y.id) === Number(x.id));
+    const g = geld.get(Number(x.id));
     const umsatz = Number(g?.cents ?? 0);
-    const provision = prov ? koopProvisionCents(umsatz, prov.prozent) : 0;
+    const provision = g?.provision ?? 0;
     const ausgezahlt = Number(x.ausgezahlt_cents ?? 0) + (ausGs.get(Number(x.id)) ?? 0);
     const sp = stufen.get(Number(x.id));
     const b = bestellt.find((y) => Number(y.id) === Number(x.id));
     const st = koopEmpfehlungStufe({
-      gemeldetAm: x.gemeldet_am, kundeAm: umsatz > 0 ? (g?.erste_am ?? x.gemeldet_am) : null,
+      gemeldetAm: x.gemeldet_am, kundeAm: umsatz > 0 ? (g?.ersteAm ?? x.gemeldet_am) : null,
       kontaktAm: sp?.kontakt_am, gespraechAm: sp?.gespraech_am, angebotAm: sp?.angebot_am ?? (x.person_id != null ? b?.am : null), keinInteresseAm: sp?.kein_am,
     });
     const bis = new Date(x.gemeldet_am); bis.setMonth(bis.getMonth() + KOOP_PROVISION_MONATE);
@@ -233,7 +294,11 @@ export async function koopEmpfehlungSicht(z: { [k: string]: any }, opt: { intern
       standAm: st.am ? st.am.toISOString() : null, standAmText: st.am ? tag(st.am) : null,
       umsatzCents: umsatz, provisionCents: provision, ausgezahltCents: ausgezahlt, offenCents: Math.max(0, provision - ausgezahlt),
       umsatz: eur(umsatz), provision: eur(provision), ausgezahlt: eur(ausgezahlt), offen: eur(Math.max(0, provision - ausgezahlt)),
-      ...(opt.intern ? { anfrageId: x.anfrage_id != null ? Number(x.anfrage_id) : null, zuordnungText: zuordnungText(x) } : {}),
+      ...(opt.intern ? {
+        anfrageId: x.anfrage_id != null ? Number(x.anfrage_id) : null, zuordnungText: zuordnungText(x),
+        vorschlagPersonId: x.person_id == null && vorschlagAus(x)?.personId ? Number(vorschlagAus(x)!.personId) : null,
+        einverstandenText: x.einverstanden_am ? `einverstanden (bestätigt ${tag(x.einverstanden_am)}${x.einverstanden_von ? `, ${String(x.einverstanden_von)}` : ""})` : null,
+      } : {}),
     };
   });
   const s = liste.reduce((a, x) => ({ u: a.u + x.umsatzCents, p: a.p + x.provisionCents, z: a.z + x.ausgezahltCents, o: a.o + x.offenCents }), { u: 0, p: 0, z: 0, o: 0 });
@@ -271,6 +336,8 @@ async function empfehlungAlsLead(z: { [k: string]: any }, eid: number, e: { name
       wunschzeit: null,
       text: `Empfehlung von ${partner} (Kooperation ${ref})${e.notiz ? `: ${e.notiz}` : "."}`,
       ip: KOOP_EMPFEHLUNG_IP,
+      // E-487 Nachbesserung (Gutachten, Mangel 3): Der Text ist die Notiz des Partners — nie ein Fall für die Beschwerde-Weiche.
+      empfehlung: true,
       herkunft: { wo: `den Partnerbereich (Empfehlung von ${partner})`, quelle: "global", autor: "FIAON Partnerbereich" },
       lead: { kanal: "website", antworten: [{ schluessel: "empfehlung", frage: "Woher kommt der Kontakt?", antwort: `Empfehlung von ${partner}`, code: null }] },
     });
@@ -288,49 +355,90 @@ async function empfehlungAlsLead(z: { [k: string]: any }, eid: number, e: { name
  * Eine Empfehlung festhalten. Partner (quelle „partner“): Telefon ODER E-Mail ist Pflicht (E-487).
  * E-487: Ohne Personen-Nummer und mit Kontaktweg läuft sie wie ein Lead (empfehlungAlsLead) — auch, wenn die Leitung sie einträgt.
  * Die Aufgabe an Justin („bitte kontaktieren und zuordnen“) gibt es nur noch, wenn der Lead nicht entstand.
+ * E-487 Nachbesserung (Gutachten):
+ *   · Mangel 2: Der Partner setzt nie eine Personen-Nummer — vorher hing `{ personId: 123 }` die Empfehlung sofort an einen fremden
+ *     Kunden (Provision auf dessen Zahlungen, Umsatz und Stufe im Partnerbereich; die Nummern sind fortlaufend).
+ *   · Mangel 1: Eine Personen-Nummer der Leitung, die schon an einer anderen Empfehlung hängt, geht nicht; doppelt beim selben
+ *     Partner ist auch „Dr. Max Muster“ neben „Max Muster“ oder dieselbe E-Mail bzw. Telefonnummer.
+ *   · Mangel 6 + 7: Lead nur mit Einverständnis (gespeichert mit Wortlaut) und höchstens KOOP_EMPFEHLUNG_LEAD_MAX_TAG
+ *     Partner-Empfehlungen in 24 Stunden — darüber eine Aufgabe an Justin statt Anfrage, Dossier und Mail.
  */
 export async function koopEmpfehlungEintragen(
   z: { [k: string]: any },
   roh: unknown, wer: string, quelle: "partner" | "fiaon", partnerName?: string,
-): Promise<Ergebnis<{ id: number }>> {
+): Promise<Ergebnis<{ id: number; lead: boolean; ohneLead: string | null }>> {
   const e = koopEmpfehlungAus(roh, { kontaktPflicht: quelle === "partner" });
   if (!e.ok) return nein(e.error);
-  if (quelle === "partner" && (roh as any)?.einverstanden !== true) return nein("Bitte bestätigen Sie, dass die Person einverstanden ist, dass wir sie kontaktieren.");
+  const personId = quelle === "partner" ? null : e.personId;
+  const einverstanden = (roh as any)?.einverstanden === true;
+  if (quelle === "partner" && !einverstanden) return nein("Bitte bestätigen Sie, dass die Person einverstanden ist, dass wir sie kontaktieren.");
   await ensureEmpfehlungTabelle();
-  if (e.personId) {
-    const [p] = (await sqlPool`SELECT id FROM fiaon_persons WHERE id = ${e.personId} LIMIT 1`) as any[];
-    if (!p) return nein(`Person ${e.personId} gibt es nicht.`);
+  if (personId) {
+    const [p] = (await sqlPool`SELECT id FROM fiaon_persons WHERE id = ${personId} LIMIT 1`) as any[];
+    if (!p) return nein(`Person ${personId} gibt es nicht.`);
+    const belegt = await personSchonEmpfohlen(personId, null);
+    if (belegt) return nein(`Person ${personId} gehört schon zur Empfehlung „${belegt.name}“ (Kooperation ${belegt.ref}) — eine Zahlung zählt nur für eine Empfehlung. Bitte dort zuerst lösen.`, 409);
   }
-  const [doppelt] = (await sqlPool`
-    SELECT id FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL AND lower(name) = ${e.name.toLowerCase()} LIMIT 1`) as any[];
-  if (doppelt) return nein("Diese Empfehlung steht schon in der Liste.", 409);
+  const vorhanden = (await sqlPool`SELECT name, email, telefon FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL`) as any[];
+  if (koopEmpfehlungDoppelt(e, vorhanden)) return nein("Diese Empfehlung steht schon in der Liste.", 409);
+  const einverstandenText = einverstanden ? (quelle === "partner" ? KOOP_EMPFEHLUNG_TEXTE.einverstanden : KOOP_EMPFEHLUNG_TEXTE.einverstandenLeitung) : null;
   const [r] = (await sqlPool`
-    INSERT INTO fiaon_koop_empfehlungen (angebot_id, person_id, name, telefon, email, notiz, quelle, eingetragen_von)
-    VALUES (${Number(z.id)}, ${e.personId}, ${e.name}, ${e.telefon}, ${e.email}, ${e.notiz}, ${quelle}, ${wer})
+    INSERT INTO fiaon_koop_empfehlungen (angebot_id, person_id, name, telefon, email, notiz, quelle, eingetragen_von, einverstanden_am, einverstanden_von, einverstanden_text)
+    VALUES (${Number(z.id)}, ${personId}, ${e.name}, ${e.telefon}, ${e.email}, ${e.notiz}, ${quelle}, ${wer},
+            ${einverstanden ? new Date() : null}, ${einverstanden ? wer : null}, ${einverstandenText})
     RETURNING id`) as any[];
   const id = Number(r.id);
   const { verlaufAngebot } = await import("./fiaon-global-angebot");
-  await verlaufAngebot(Number(z.id), wer, `Empfehlung an FIAON: ${e.name}${e.personId ? ` (Person ${e.personId})` : ""}`).catch(() => {});
+  await verlaufAngebot(Number(z.id), wer, `Empfehlung an FIAON: ${e.name}${personId ? ` (Person ${personId})` : ""}${einverstanden ? " · mit Einverständnis der Person" : ""}`).catch(() => {});
   const partner = partnerName ?? partnerNameAus(z.kunde);
-  const anfrageId = !e.personId && (e.email || e.telefon) ? await empfehlungAlsLead(z, id, e, partner, wer) : null;
+  // Mangel 7: Deckel je Kooperation — gezählt wird jede Partner-Meldung der letzten 24 Stunden (auch eine wieder entfernte).
+  const [n24] = quelle === "partner" ? ((await sqlPool`
+    SELECT COUNT(*)::int AS n FROM fiaon_koop_empfehlungen
+     WHERE angebot_id = ${Number(z.id)} AND quelle = 'partner' AND id <> ${id} AND created_at > NOW() - INTERVAL '24 hours'`) as any[]) : [{ n: 0 }];
+  const ent = koopEmpfehlungLeadEntscheid({ personId, email: e.email, telefon: e.telefon, einverstanden, quelle, letzte24h: Number(n24?.n) || 0 });
+  const anfrageId = ent.lead ? await empfehlungAlsLead(z, id, e, partner, wer) : null;
+  const ohneLead = ent.lead ? (anfrageId ? null : "Der Lead ließ sich nicht automatisch anlegen") : KOOP_OHNE_LEAD_TEXT[ent.grund];
   if (quelle === "partner" && !anfrageId) {
     const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const deckel = !ent.lead && ent.grund === "deckel";
     await auftragFuerKunden({
       personId: null, ref: null,
-      titel: `Neue Empfehlung von ${partner}: ${e.name}`,
+      titel: deckel ? `Viele Empfehlungen von ${partner} in 24 Stunden — bitte prüfen: ${e.name}` : `Neue Empfehlung von ${partner}: ${e.name}`,
       text: [`${partner} hat im Partnerbereich jemanden empfohlen (Kooperation ${String(z.angebot_ref ?? "")}).`,
         `Name: ${e.name}`, e.telefon ? `Telefon: ${e.telefon}` : "", e.email ? `E-Mail: ${e.email}` : "", e.notiz ? `Notiz: ${e.notiz}` : "",
-        "Der Lead ließ sich nicht automatisch anlegen. Bitte kontaktieren; die Person ordnet sich danach selbst zu (sonst im Chefbüro unter Geschäftspartner › Empfehlungen)."].filter(Boolean).join("\n"),
+        deckel
+          ? `Dieser Partner hat in 24 Stunden schon ${Number(n24?.n) || 0} weitere Empfehlungen geschickt — diese läuft deshalb NICHT automatisch als Lead (keine Anfrage, keine Mail, kein Anruf-Auftrag; Schutz, falls der Link in fremde Hände kam). Passt sie, bitte selbst kontaktieren; die Person ordnet sich danach selbst zu.`
+          : "Der Lead ließ sich nicht automatisch anlegen. Bitte kontaktieren; die Person ordnet sich danach selbst zu (sonst im Chefbüro unter Geschäftspartner › Empfehlungen)."].filter(Boolean).join("\n"),
       anBetreiber: true, dringend: true, schluessel: `koop-empfehlung:${id}`, bereich: "konten", quelle: "global", autorName: "FIAON Partnerbereich",
       link: CHEF_LINK,
     }).catch((err) => console.error(`[KOOP] Aufgabe zur Empfehlung ${id}:`, err));
   }
-  return { ok: true, id };
+  return { ok: true, id, lead: !!anfrageId, ohneLead };
+}
+
+/**
+ * E-487 Nachbesserung (Gutachten, Mangel 12): Eine entfernte Empfehlung, die als Lead lief, endet auch als Lead — keine Lead-Mails
+ * mehr aus js@ (Stopp „von Hand“, Zeile im Cockpit), der Anruf-Auftrag und der Altbestand-Anruf sind erledigt. Wirft nie.
+ */
+async function empfehlungLeadBeenden(anfrageId: number | null, eid: number, wer: string): Promise<void> {
+  if (anfrageId) {
+    try {
+      const { leadMailsBeenden } = await import("./fiaon-global-lead-post");
+      await leadMailsBeenden(anfrageId, `Empfehlung entfernt (${wer})`);
+    } catch (e) { console.error(`[KOOP] Lead-Mails zur Empfehlung ${eid} nicht gestoppt:`, e instanceof Error ? e.message : e); }
+  }
+  await sqlPool`
+    UPDATE fiaon_betreiber_todos SET status = 'erledigt', erledigt_am = COALESCE(erledigt_am, NOW()),
+           ergebnis = COALESCE(ergebnis, ${`Empfehlung entfernt (${wer}) — kein Anruf mehr nötig.`}), updated_at = NOW()
+     WHERE schluessel IN (${`global-anfrage:${anfrageId ?? 0}`}, ${`koop-empfehlung-anruf:${eid}`}) AND status <> 'erledigt'`
+    .catch((e) => console.error(`[KOOP] Anruf-Auftrag zur Empfehlung ${eid} nicht geschlossen:`, e instanceof Error ? e.message : e));
 }
 
 /**
  * Leitung: Person zuordnen, Auszahlung festhalten oder Meldung entfernen.
  * E-487: Eine Zuordnung von Hand merkt sich die Herkunft — „gelöst“ heißt, die Automatik ordnet diese Empfehlung nie wieder zu.
+ * E-487 Nachbesserung: Eine Person, die schon an einer anderen Empfehlung hängt, lässt sich nicht noch einmal zuordnen (Mangel 1);
+ * Entfernen beendet einen laufenden Lead mit (Mangel 12).
  */
 export async function koopEmpfehlungAendern(z: { [k: string]: any }, eid: number, roh: any, wer: string): Promise<Ergebnis> {
   await ensureEmpfehlungTabelle();
@@ -339,13 +447,19 @@ export async function koopEmpfehlungAendern(z: { [k: string]: any }, eid: number
   const { verlaufAngebot } = await import("./fiaon-global-angebot");
   if (roh?.entfernen === true) {
     await sqlPool`UPDATE fiaon_koop_empfehlungen SET entfernt_am = NOW() WHERE id = ${eid}`;
-    await verlaufAngebot(Number(z.id), wer, `Empfehlung entfernt: ${x.name}`).catch(() => {});
+    await empfehlungLeadBeenden(x.anfrage_id != null ? Number(x.anfrage_id) : null, eid, wer);
+    await verlaufAngebot(Number(z.id), wer, `Empfehlung entfernt: ${x.name}${x.anfrage_id != null ? " — Lead-Mails gestoppt, Anruf-Auftrag erledigt" : ""}`).catch(() => {});
     return { ok: true };
   }
   if (roh?.personId !== undefined) {
     const pid = roh.personId === null || roh.personId === "" ? null : Number(roh.personId);
     if (pid !== null && !(Number.isInteger(pid) && pid > 0)) return nein("Bitte eine gültige Personen-Nummer.");
-    if (pid !== null) { const [p] = (await sqlPool`SELECT id FROM fiaon_persons WHERE id = ${pid} LIMIT 1`) as any[]; if (!p) return nein(`Person ${pid} gibt es nicht.`); }
+    if (pid !== null) {
+      const [p] = (await sqlPool`SELECT id FROM fiaon_persons WHERE id = ${pid} LIMIT 1`) as any[];
+      if (!p) return nein(`Person ${pid} gibt es nicht.`);
+      const belegt = await personSchonEmpfohlen(pid, eid);
+      if (belegt) return nein(`Person ${pid} gehört schon zur Empfehlung „${belegt.name}“ (Kooperation ${belegt.ref}) — eine Zahlung zählt nur für eine Empfehlung. Bitte dort zuerst die Personen-Nummer leeren.`, 409);
+    }
     await sqlPool`UPDATE fiaon_koop_empfehlungen SET person_id = ${pid}, zuordnung_am = NOW(), zuordnung_weg = ${pid === null ? "hand_geloest" : "hand"} WHERE id = ${eid}`;
     await verlaufAngebot(Number(z.id), wer, `Empfehlung ${x.name}: Person ${pid ?? "— (gelöst)"}`).catch(() => {});
   }
@@ -358,25 +472,39 @@ export async function koopEmpfehlungAendern(z: { [k: string]: any }, eid: number
   return { ok: true };
 }
 
-/** Leitung: Provision in Prozent und „Berechnung ausgesetzt“ (Kontakte kosten 0 €, keine Monatsrechnung). */
-export async function koopProvisionSetzen(z: { [k: string]: any }, roh: any, wer: string): Promise<Ergebnis> {
+/**
+ * Leitung: Provision in Prozent und „Berechnung ausgesetzt“ (Kontakte kosten 0 €, keine Monatsrechnung).
+ * E-487 Nachbesserung (Gutachten, Mangel 8): Ein neuer Satz gilt ab heute (Berliner Tag) — der alte geht mit seinem Zeitraum in
+ * provisionVerlauf (shared: koopProvisionNeu), und jede Zahlung zählt mit dem Satz an ihrem Zahltag. Vorher zahlte die nächste
+ * Gutschrift eine Erhöhung rückwirkend auf alle schon abgerechneten Zahlungen nach. Derselbe Satz noch einmal ändert nichts.
+ */
+export async function koopProvisionSetzen(z: { [k: string]: any }, roh: any, wer: string): Promise<Ergebnis<{ meldung?: string }>> {
   const neu: Record<string, unknown> = {};
   const teile: string[] = [];
+  let bleibt: string | null = null;
   if (roh?.prozent !== undefined) {
     const p = roh.prozent === null || roh.prozent === "" ? null : Number(String(roh.prozent).replace(",", "."));
     if (p !== null && !(Number.isFinite(p) && p > 0 && p <= 50)) return nein("Provision bitte zwischen 0 und 50 %.");
-    neu.provision = p === null ? null : { prozent: Math.round(p * 100) / 100, seit: new Date().toISOString().slice(0, 10) };
-    teile.push(p === null ? "Provision entfernt" : `Provision ${String(p).replace(".", ",")} %`);
+    const heute = koopBerlinTag(new Date());
+    // Der Schalter frisch aus der Datenbank (das Skript koop-provision.ts übergibt nur die id) — sonst ginge der alte Satz verloren.
+    const [jetzt] = (await sqlPool`SELECT schalter FROM fiaon_global_angebote WHERE id = ${Number(z.id)}`) as any[];
+    const n = koopProvisionNeu(json<Record<string, unknown>>(jetzt?.schalter ?? z.schalter, {}), p, heute);
+    if (n) {
+      neu.provision = n.provision; neu.provisionVerlauf = n.provisionVerlauf;
+      teile.push(p === null ? "Provision entfernt" : `Provision ${String(n.provision?.prozent ?? p).replace(".", ",")} % ab ${tag(new Date())} (frühere Zahlungen behalten ihren Satz)`);
+    } else {
+      bleibt = p === null ? "Es ist keine Provision gesetzt." : `Die Provision bleibt bei ${String(Math.round(p * 100) / 100).replace(".", ",")} %.`;
+    }
   }
   if (roh?.berechnungAusgesetzt !== undefined) {
     neu.berechnungAusgesetzt = roh.berechnungAusgesetzt === true;
     teile.push(roh.berechnungAusgesetzt === true ? "Berechnung der Kontakte ausgesetzt (0 €, keine Monatsrechnung)" : "Berechnung der Kontakte wieder aktiv");
   }
-  if (!teile.length) return nein("Nichts zu ändern.");
+  if (!teile.length) return bleibt ? { ok: true, meldung: bleibt } : nein("Nichts zu ändern.");
   await sqlPool`UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${sqlPool.json(neu as any)}, updated_at = NOW() WHERE id = ${Number(z.id)}`;
   const { verlaufAngebot } = await import("./fiaon-global-angebot");
   await verlaufAngebot(Number(z.id), wer, teile.join(" · ")).catch(() => {});
-  return { ok: true };
+  return { ok: true, meldung: `Gespeichert: ${teile.join(" · ")}.` };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -464,24 +592,43 @@ async function koopZahlungenLesen(angebotId: number, bisMonat: string, abzug: st
      WHERE e.angebot_id = $1 AND e.entfernt_am IS NULL AND e.person_id IS NOT NULL
        AND to_char(q.am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM') ${nurMonat ? "=" : "<="} $3
        AND NOT EXISTS (SELECT 1 FROM fiaon_applications ax WHERE ax.ref = q.ref AND ax.pack_key = ANY($4::text[]))
+       AND ${KOOP_NUR_ERSTE_EMPFEHLUNG_SQL}
      ORDER BY q.am, e.id`, [angebotId, KOOP_PROVISION_MONATE, bisMonat, [...KOOP_DURCHLAUF_SCHLUESSEL]])) as any[];
   return roh.map((r) => ({
     empfehlungId: Number(r.eid), name: String(r.name), ref: String(r.ref), am: new Date(r.am).toISOString(),
     rateNr: r.rate_nr != null ? Number(r.rate_nr) : null, teilVorherCents: Number(r.teil_vorher_cents ?? 0), umsatzCents: Number(r.cents),
   }));
 }
-/** E-487: alle Posten aller bisherigen Gutschriften eines Partners (für „schon gutgeschrieben“). */
-async function bisherigePosten(angebotId: number, lauf: any = sqlPool): Promise<KoopGsPosten[]> {
+/** E-487: alle Posten aller bisherigen Gutschriften eines Partners (für „schon gutgeschrieben“; mit Zahlbetrag für alte Posten). */
+async function bisherigePosten(angebotId: number, lauf: any = sqlPool): Promise<KoopBisherPosten[]> {
   const rows = (await lauf`SELECT posten FROM fiaon_koop_gutschriften WHERE angebot_id = ${angebotId}`) as any[];
-  return rows.flatMap((r) => { const p = json<unknown>(r.posten, []); return Array.isArray(p) ? (p as KoopGsPosten[]) : []; });
+  return rows.flatMap((r) => { const p = json<unknown>(r.posten, []); return Array.isArray(p) ? (p as KoopBisherPosten[]) : []; });
 }
 
-/** Die Posten eines Monats (Berliner Kalendermonat), volle Provision je Zahlung — rein lesend (Vorschau des Monatsberichts). */
-export async function koopGutschriftPosten(angebotId: number, monat: string, prozent: number): Promise<GsPosten[]> {
+/**
+ * Die Posten eines Monats (Berliner Kalendermonat), volle Provision je Zahlung — rein lesend (Vorschau des Monatsberichts).
+ * E-487 Nachbesserung (Mangel 8): je Zahlung der Satz an ihrem Zahltag.
+ */
+export async function koopGutschriftPosten(angebotId: number, monat: string, prov: KoopProvision | number): Promise<GsPosten[]> {
   await ensureEmpfehlungTabelle();
   const zahlungen = await koopZahlungenLesen(angebotId, monat, koopAbzugSqlFuer(await refVon(angebotId).catch(() => null)), sqlPool, true);
-  return zahlungen.map((r) => ({ empfehlungId: r.empfehlungId, name: r.name, ref: r.ref, am: r.am, umsatzCents: r.umsatzCents, provisionCents: koopProvisionCents(r.umsatzCents, prozent) }));
+  return zahlungen.map((r) => {
+    const prozent = typeof prov === "number" ? prov : koopSatzAm(prov, r.am);
+    return { empfehlungId: r.empfehlungId, name: r.name, ref: r.ref, am: r.am, umsatzCents: r.umsatzCents, provisionCents: koopProvisionCents(r.umsatzCents, prozent), prozent };
+  });
 }
+
+/**
+ * E-487 Nachbesserung (Mangel 8): die Sätze einer Gutschrift — aus ihren Posten (ältere Posten ohne eigenen Satz: der Satz der
+ * Gutschrift). Ein Satz → PDF, Mail und Aufgabe nennen ihn; mehrere → der Satz steht je Posten.
+ */
+function gsSaetze(g: any): number[] {
+  const posten = json<GsPosten[]>(g.posten, []);
+  const s = new Set(posten.map((p) => Number(p.prozent ?? g.prozent)).filter((x) => Number.isFinite(x)));
+  if (!s.size) s.add(Number(g.prozent));
+  return Array.from(s).sort((a, b) => a - b);
+}
+const pzText = (p: number) => String(Number(p)).replace(".", ",");
 
 async function gutschriftNummer(jahr: number, tx: any): Promise<string> {
   const name = `gutschrift-${jahr}`;
@@ -505,14 +652,17 @@ export async function koopGutschriftAnlegen(z: { [k: string]: any }, monat: stri
     await tx`SELECT pg_advisory_xact_lock(${GS_SPERRE}, ${id})`;
     const [da] = (await tx`SELECT id FROM fiaon_koop_gutschriften WHERE angebot_id = ${id} AND monat = ${monat} AND art = ${art}`) as any[];
     if (da) return null;
-    const { posten } = koopOffenePosten(await koopZahlungenLesen(id, monat, abzug, tx), await bisherigePosten(id, tx), prov.prozent, art === "nachtrag" ? null : monat);
+    // E-487 Nachbesserung (Mangel 8): jede Zahlung mit dem Satz an ihrem Zahltag (prov mit Verlauf), nie rückwirkend mit dem heutigen.
+    const { posten } = koopOffenePosten(await koopZahlungenLesen(id, monat, abzug, tx), await bisherigePosten(id, tx), prov, art === "nachtrag" ? null : monat);
     const betrag = posten.reduce((s, p) => s + p.provisionCents, 0);
     if (betrag <= 0) return null;
     // Die Nummer trägt das Jahr des Monats (wie bisher); ein Nachtrag das Jahr, in dem er entsteht.
     const nummer = await gutschriftNummer(Number((art === "nachtrag" ? koopBerlinMonat(new Date()) : monat).slice(0, 4)), tx);
+    // Spalte prozent: der eine Satz aller Posten — haben sie verschiedene, der heutige (der Satz steht dann je Posten).
+    const saetze = Array.from(new Set(posten.map((p) => Number(p.prozent ?? prov.prozent))));
     const [r] = (await tx`
       INSERT INTO fiaon_koop_gutschriften (angebot_id, monat, art, nummer, prozent, betrag_cents, posten)
-      VALUES (${id}, ${monat}, ${art}, ${nummer}, ${prov.prozent}, ${betrag}, ${tx.json(posten as any)}) RETURNING id`) as any[];
+      VALUES (${id}, ${monat}, ${art}, ${nummer}, ${saetze.length === 1 ? saetze[0] : prov.prozent}, ${betrag}, ${tx.json(posten as any)}) RETURNING id`) as any[];
     return { id: Number(r.id), nummer, betragCents: betrag };
   });
 }
@@ -532,7 +682,7 @@ export async function koopNachtragVorschau(z: { [k: string]: any }): Promise<Koo
   const bis = await nachtragBisMonat(id);
   const leer = (hinweis: string): KoopNachtragVorschau => ({ bisMonat: bis, bisText: bis ? gsMonatText(bis) : null, posten: [], summeCents: 0, summe: eur(0), schonDa: null, zuViel: [], hinweis });
   if (!bis) return leer("Noch keine Monatsabrechnung — offene Zahlungen rechnet der Monatslauf zum 3. des Folgemonats ab.");
-  const { posten, zuViel } = koopOffenePosten(await koopZahlungenLesen(id, bis, koopAbzugSqlFuer(z.angebot_ref ?? await refVon(id))), await bisherigePosten(id), prov.prozent, null);
+  const { posten, zuViel } = koopOffenePosten(await koopZahlungenLesen(id, bis, koopAbzugSqlFuer(z.angebot_ref ?? await refVon(id))), await bisherigePosten(id), prov, null);
   const [da] = (await sqlPool`SELECT nummer FROM fiaon_koop_gutschriften WHERE angebot_id = ${id} AND monat = ${bis} AND art = 'nachtrag'`) as any[];
   const summe = posten.reduce((s, p) => s + p.provisionCents, 0);
   return {
@@ -584,18 +734,23 @@ export async function koopGutschriftPdf(id: number): Promise<{ pdf: Buffer; date
   const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const posten = json<GsPosten[]>(g.posten, []);
   const istNachtrag = String(g.art ?? "monat") === "nachtrag";
-  const marke = (x: GsPosten) => (x.nachtrag
-    ? `<br><span style="font-size:8pt;color:#475569">Nachtrag${x.schonCents ? ` · Provision gesamt ${esc(eur(x.faelligCents ?? 0))}, bereits gutgeschrieben ${esc(eur(x.schonCents))}` : ""}</span>`
-    : "");
+  // E-487 Nachbesserung (Mangel 8): ein Satz → im Satz oben; verschiedene Sätze (Zahlungen vor und nach einer Änderung) → je Posten.
+  const saetze = gsSaetze(g);
+  const prozentText = saetze.length === 1 ? pzText(saetze[0]) : null;
+  const satzMarke = (x: GsPosten) => (prozentText ? "" : `Satz ${pzText(Number(x.prozent ?? g.prozent))} %`);
+  const marke = (x: GsPosten) => {
+    const teile = [x.nachtrag ? `Nachtrag${x.schonCents ? ` · Provision gesamt ${esc(eur(x.faelligCents ?? 0))}, bereits gutgeschrieben ${esc(eur(x.schonCents))}` : ""}` : "", satzMarke(x)].filter(Boolean);
+    return teile.length ? `<br><span style="font-size:8pt;color:#475569">${teile.join(" · ")}</span>` : "";
+  };
   const zeilen = posten.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(tag(x.am))}</td><td>${esc(x.name)}${marke(x)}</td><td style="text-align:right">${esc(eur(x.umsatzCents))}</td><td style="text-align:right">${esc(eur(x.provisionCents))}</td></tr>`).join("");
-  const prozentText = String(Number(g.prozent)).replace(".", ",");
+  const satzKlammer = prozentText ? ` (${esc(prozentText)} %)` : "";
   const zeitraum = istNachtrag ? `Nachtrag zu Zahlungen bis ${gsMonatText(g.monat)}` : gsMonatText(g.monat);
   const body = `
     <table style="width:100%;font-size:9.5pt;margin-bottom:14px" cellpadding="3"><tr>
       <td style="vertical-align:top;width:55%"><b>Gutschriftsempfänger</b><br>${esc(koopPartnerName(p))}${p.firma ? `<br>${esc(p.firma)}` : ""}<br>${esc(p.strasse)}<br>${esc(p.plz)} ${esc(p.ort)}</td>
       <td style="vertical-align:top"><b>Gutschrift-Nr.</b> ${esc(g.nummer)}<br><b>Datum</b> ${esc(tag(g.erstellt_am))}<br><b>Zeitraum</b> ${esc(zeitraum)}<br><b>Vertrag</b> ${esc(d.ref)}</td>
     </tr></table>
-    <p>${istNachtrag ? `Nachtrag zur Provision (${esc(prozentText)} %) auf Zahlungen der von Ihnen empfohlenen Kunden, die in der bisherigen Abrechnung noch fehlten` : `Provision ${esc(prozentText)} % auf die Zahlungen der von Ihnen empfohlenen Kunden`} (Tippgeber-Vereinbarung zum Kooperationsvertrag ${esc(d.ref)}).</p>
+    <p>${istNachtrag ? `Nachtrag zur Provision${satzKlammer} auf Zahlungen der von Ihnen empfohlenen Kunden, die in der bisherigen Abrechnung noch fehlten` : prozentText ? `Provision ${esc(prozentText)} % auf die Zahlungen der von Ihnen empfohlenen Kunden` : "Provision auf die Zahlungen der von Ihnen empfohlenen Kunden, je Zahlung mit dem Satz, der an ihrem Zahltag galt"} (Tippgeber-Vereinbarung zum Kooperationsvertrag ${esc(d.ref)}).</p>
     <table style="width:100%;border-collapse:collapse;font-size:9pt" border="0" cellpadding="4">
       <thead><tr style="border-bottom:1px solid #0f2044;text-align:left"><th>#</th><th>Zahlungseingang</th><th>Empfohlener Kunde</th><th style="text-align:right">Zahlung</th><th style="text-align:right">Provision</th></tr></thead>
       <tbody>${zeilen}</tbody>
@@ -651,8 +806,21 @@ async function gutschriftAuftrag(g: any, z: { [k: string]: any }): Promise<numbe
 /**
  * Versand, Banking-Auftrag (Entwurf) und Aufgabe zu EINER Gutschrift — was noch fehlt (auch, wenn die Bankverbindung erst später kam).
  * E-487: aus dem Stundenlauf herausgezogen, damit „Nachtrag jetzt abrechnen“ denselben Weg nimmt. Bewegt nie Geld.
+ * E-487 Nachbesserung (Gutachten, Mangel 9): nur EINER zugleich je Gutschrift (pg_try_advisory_xact_lock) — drücken Leitung und
+ * Stundenlauf gleichzeitig, bekäme der Partner sonst zwei Mails und das Banking zwei Auftrags-Entwürfe. Wer die Sperre nicht bekommt,
+ * lässt es (der andere ist dran); wer sie hat, liest die Zeile frisch (was der vorige Lauf schon erledigte, bleibt erledigt).
  */
-async function gutschriftNachbereiten(g: any): Promise<{ auftrag: boolean; mail: boolean }> {
+const GS_NACH_SPERRE = 4_200_421;
+async function gutschriftNachbereiten(gRoh: any): Promise<{ auftrag: boolean; mail: boolean }> {
+  return sqlPool.begin(async (tx: any) => {
+    const [l] = (await tx`SELECT pg_try_advisory_xact_lock(${GS_NACH_SPERRE}, ${Number(gRoh.id)}) AS ok`) as any[];
+    if (!l?.ok) return { auftrag: false, mail: false };
+    // Frisch lesen — über den Pool, damit die Sperre-Transaktion keine Tabellen-Sperre über PDF und Mail hält.
+    const [g] = (await sqlPool`SELECT * FROM fiaon_koop_gutschriften WHERE id = ${Number(gRoh.id)}`) as any[];
+    return g ? gutschriftNachbereitenJetzt(g) : { auftrag: false, mail: false };
+  });
+}
+async function gutschriftNachbereitenJetzt(g: any): Promise<{ auftrag: boolean; mail: boolean }> {
   const { koopDatenAus } = await import("./fiaon-global-angebot-koop");
   const { koopPartnerAnrede } = await import("@shared/fiaon-global-angebot-koop");
   const { angebotLesen } = await import("./fiaon-global-angebot");
@@ -677,11 +845,13 @@ async function gutschriftNachbereiten(g: any): Promise<{ auftrag: boolean; mail:
     const { koopPartnerLink } = await import("./fiaon-koop-lieferung");
     const ohneBank = !bankAus(z.schalter);
     const { freitextSenden } = await import("../mail/motor");
-    const pz = String(Number(g.prozent)).replace(".", ",");
+    // E-487 Nachbesserung (Mangel 8): der Satz nur, wenn alle Posten denselben haben — sonst steht er je Posten in der Gutschrift.
+    const saetze = gsSaetze(g);
+    const pz = saetze.length === 1 ? `${pzText(saetze[0])} %` : "die vereinbarte Provision";
     const text = [
       nachtrag
-        ? `Ihre Nachtrags-Gutschrift ${g.nummer} über ${eur(Number(g.betrag_cents))} liegt bei: ${pz} % auf Zahlungen Ihrer empfohlenen Kunden, die in Ihrer bisherigen Abrechnung noch fehlten. Alle Posten stehen in der Gutschrift.`
-        : `Ihre Provision für ${gsMonatText(g.monat)} ist abgerechnet: ${eur(Number(g.betrag_cents))} (${pz} % auf die Zahlungen Ihrer empfohlenen Kunden). Die Gutschrift ${g.nummer} mit allen Posten liegt bei.`,
+        ? `Ihre Nachtrags-Gutschrift ${g.nummer} über ${eur(Number(g.betrag_cents))} liegt bei: ${pz} auf Zahlungen Ihrer empfohlenen Kunden, die in Ihrer bisherigen Abrechnung noch fehlten. Alle Posten stehen in der Gutschrift.`
+        : `Ihre Provision für ${gsMonatText(g.monat)} ist abgerechnet: ${eur(Number(g.betrag_cents))} (${pz} auf die Zahlungen Ihrer empfohlenen Kunden). Die Gutschrift ${g.nummer} mit allen Posten liegt bei.`,
       ohneBank ? "Damit wir überweisen können, hinterlegen Sie bitte einmal Ihre Bankverbindung in Ihrem Partnerbereich (Abschnitt „Ihre Auszahlungen“)." : "Wir überweisen den Betrag in den nächsten Tagen auf Ihr hinterlegtes Konto.",
       `Ihr Partnerbereich: ${koopPartnerLink(z)}`,
     ].join("\n\n");
@@ -697,7 +867,7 @@ async function gutschriftNachbereiten(g: any): Promise<{ auftrag: boolean; mail:
     await auftragFuerKunden({
       personId: null, ref: null,
       titel: `Gutschrift ${g.nummer}: ${eur(Number(g.betrag_cents))} Provision${art} an ${d.partner.vorname} ${d.partner.nachname} — ${auftragId ? "im Banking freigeben" : "Bankverbindung fehlt noch"}`,
-      text: [`Provision ${nachtrag ? `(Nachtrag zu Zahlungen bis ${gsMonatText(g.monat)})` : gsMonatText(g.monat)} aus dem Kooperationsvertrag ${d.ref} (${String(Number(g.prozent)).replace(".", ",")} %). Gutschrift-PDF ging automatisch an den Partner.`,
+      text: [`Provision ${nachtrag ? `(Nachtrag zu Zahlungen bis ${gsMonatText(g.monat)})` : gsMonatText(g.monat)} aus dem Kooperationsvertrag ${d.ref} (${gsSaetze(g).map(pzText).join(" / ")} %). Gutschrift-PDF ging automatisch an den Partner.`,
         auftragId ? "Im FIAON Banking › Aufträge liegt der Zahlungsauftrag als Entwurf (Beleg = Gutschrift) — einreichen bzw. „Zur Freigabe“ an Florentine." : "Der Partner hat noch keine Bankverbindung hinterlegt; der Zahlungsauftrag entsteht automatisch, sobald er sie im Partnerbereich einträgt.",
         "Das System bewegt kein Geld selbst."].join("\n"),
       anBetreiber: true, dringend: false, schluessel: `koop-gutschrift:${g.id}`, bereich: "konten", quelle: "global", autorName: "FIAON Kooperation", link: "/chef/s/global-auftraege?reiter=angebote",
@@ -809,7 +979,7 @@ export async function koopMonatsberichtBauen(z: { [k: string]: any }, monat: str
   const sicht = await koopEmpfehlungSicht(z);
   // E-487: nur die Monatsabrechnung des Monats hängt am Bericht (ein Nachtrag hat seine eigene Mail).
   const [g] = (await sqlPool`SELECT * FROM fiaon_koop_gutschriften WHERE angebot_id = ${Number(z.id)} AND monat = ${monat} AND art = 'monat'`) as any[];
-  const posten = g ? [] : await koopGutschriftPosten(Number(z.id), monat, prov.prozent);
+  const posten = g ? [] : await koopGutschriftPosten(Number(z.id), monat, prov);
   const { koopDatenAus } = await import("./fiaon-global-angebot-koop");
   const { koopPartnerAnrede } = await import("@shared/fiaon-global-angebot-koop");
   const { koopPartnerLink } = await import("./fiaon-koop-lieferung");
@@ -871,20 +1041,23 @@ export async function koopMonatsberichtSenden(z: { [k: string]: any }, monat: st
 // ═══════════════════════════════════════════════════════════════════════════
 // E-487 (09.11.2026): WER HAT EMPFOHLEN? — für die Willkommens-Mail „Empfehlung“ (server/lib/fiaon-global-lead-post.ts)
 // ═══════════════════════════════════════════════════════════════════════════
-/** Der Empfehlende zu einer Global-Anfrage (Partner des Kooperationsvertrags) — null = keine Empfehlung. Wirft nie. */
+/**
+ * Der Empfehlende zu einer Global-Anfrage (Partner des Kooperationsvertrags) — null = keine (nicht entfernte) Empfehlung.
+ * E-487 Nachbesserung (Gutachten, Mangel 12): Taugt der Name des Partners nicht (leer), kommt trotzdem ein Empfehler zurück (name
+ * „“) — die Willkommens-Mail nimmt dann „Ein Geschäftspartner von uns“ statt der Anfrage-Fassung. Scheitert das Lesen, WIRFT die
+ * Funktion: Der Lauf lead_post wartet dann, statt die Willkommens-Mail wegen einer Störung für immer auszulassen.
+ */
 export async function koopEmpfehlerFuerAnfrage(anfrageId: number, lauf: any = sqlPool): Promise<{ name: string; nachname: string | null; anrede: "Herr" | "Frau" | null } | null> {
-  try {
-    const [r] = (await lauf`
-      SELECT g.kunde FROM fiaon_koop_empfehlungen e JOIN fiaon_global_angebote g ON g.id = e.angebot_id
-       WHERE e.anfrage_id = ${anfrageId} AND e.entfernt_am IS NULL ORDER BY e.id DESC LIMIT 1`) as any[];
-    if (!r) return null;
-    const p = json<Record<string, any>>(r.kunde, {});
-    const vor = String(p.vorname ?? "").replace(/\s+/g, " ").trim();
-    const nach = String(p.nachname ?? "").replace(/\s+/g, " ").trim();
-    const name = `${vor} ${nach}`.trim();
-    if (name.length < 2) return null;
-    return { name, nachname: nach || null, anrede: p.anrede === "Herr" || p.anrede === "Frau" ? p.anrede : null };
-  } catch { return null; }
+  const [r] = (await lauf`
+    SELECT g.kunde FROM fiaon_koop_empfehlungen e JOIN fiaon_global_angebote g ON g.id = e.angebot_id
+     WHERE e.anfrage_id = ${anfrageId} AND e.entfernt_am IS NULL ORDER BY e.id DESC LIMIT 1`) as any[];
+  if (!r) return null;
+  const p = json<Record<string, any>>(r.kunde, {});
+  const vor = String(p.vorname ?? "").replace(/\s+/g, " ").trim();
+  const nach = String(p.nachname ?? "").replace(/\s+/g, " ").trim();
+  const name = `${vor} ${nach}`.trim();
+  if (name.length < 2) return { name: "", nachname: null, anrede: null };
+  return { name, nachname: nach || null, anrede: p.anrede === "Herr" || p.anrede === "Frau" ? p.anrede : null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -894,18 +1067,31 @@ export async function koopEmpfehlerFuerAnfrage(anfrageId: number, lauf: any = sq
 //      mehrdeutig/prüfen → EINE Aufgabe an Justin (Schlüssel koop-empfehlung-zuordnen:<id>, Marke zuordnung_frage_am).
 //   2. Altbestand (Empfehlung ohne Anfrage, ohne Person, mit Telefon, keine Spur): EINE Aufgabe an die zuständige Person
 //      (Schlüssel koop-empfehlung-anruf:<id>, Marke anruf_aufgabe_am) — nie eine Mail an die empfohlene Person.
+// E-487 Nachbesserung (Gutachten):
+//   · Mangel 1/4: „eindeutig“ nur über Anfrage, E-Mail oder Telefon und nur, wenn die Person an keiner anderen Empfehlung hängt
+//     (auch im UPDATE geprüft); ein Treffer nur über den Namen oder eine schon vergebene Person → Aufgabe an Justin mit Vorschlag
+//     (zuordnung_vorschlag füllt im Chefbüro das Feld vor). Spuren nur bis Meldetag + KOOP_PROVISION_MONATE.
+//   · Mangel 5: gesucht wird nur im Provisionsfenster (+1 Monat Puffer), ohne offene Frage an Justin, reihum nach
+//     zuordnung_geprueft_am — 200 alte offene Fälle blockieren nie mehr die neuen.
+//   · Mangel 6: der Altbestand-Anruf nur mit Einverständnis (Partner-Meldung oder Haken der Leitung).
+//   · Mangel 13: scheitert die Hauptabfrage oder eine Empfehlung, steht der Lauf in der Historie als Fehler (kein stiller Erfolg).
 // ═══════════════════════════════════════════════════════════════════════════
 const tel9Aus = (v: unknown) => { const d = String(v ?? "").replace(/\D/g, ""); return d.length >= 9 ? d.slice(-9) : ""; };
 
-/** Alle Spuren zu einer Empfehlung ohne Person (Treffer nur ab Meldetag minus 30 Tage; Testkonten und Dubletten nie). */
+/**
+ * Alle Spuren zu einer Empfehlung ohne Person (Treffer nur ab Meldetag minus 30 Tage; Testkonten und Dubletten nie).
+ * E-487 Nachbesserung: und nur bis Meldetag + KOOP_PROVISION_MONATE (Mangel 4). Scheitert eine Abfrage, scheitert die ganze Suche —
+ * nie ein „eindeutig“ aus einer halben Suche, in der der zweite Kandidat fehlt (Mangel 13).
+ */
 async function zuordnungKandidaten(e: any): Promise<KoopZuordnungKandidat[]> {
   const ab = new Date(new Date(e.gemeldet_am).getTime() - KOOP_ZUORDNUNG_TAGE_VORHER * 86_400_000);
+  const bis = new Date(e.gemeldet_am); bis.setUTCMonth(bis.getUTCMonth() + KOOP_PROVISION_MONATE);
   const email = String(e.email ?? "").trim().toLowerCase();
   const tel9 = tel9Aus(e.telefon);
   const anfrageId = e.anfrage_id != null ? Number(e.anfrage_id) : null;
   const kand: KoopZuordnungKandidat[] = [];
   const lies = async (was: string, q: () => Promise<any>): Promise<any[]> => {
-    try { return (await q()) as any[]; } catch (err) { console.error(`[KOOP] Zuordnung ${e.id} (${was}):`, err instanceof Error ? err.message : err); return []; }
+    try { return (await q()) as any[]; } catch (err) { throw new Error(`Spurensuche (${was}): ${err instanceof Error ? err.message : String(err)}`); }
   };
   const nimm = (rows: any[], weg: string) => { for (const r of rows) if (r.id != null) kand.push({ personId: Number(r.id), weg, seit: r.created_at ?? null }); };
   const echt = sqlPool`p.merged_into_person_id IS NULL AND p.ist_test_am IS NULL`;
@@ -916,20 +1102,20 @@ async function zuordnungKandidaten(e: any): Promise<KoopZuordnungKandidat[]> {
   }
   if (email) {
     nimm(await lies("E-Mail", () => sqlPool`
-      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab} AND LOWER(COALESCE(p.primary_email, '')) = ${email}
+      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab} AND p.created_at < ${bis} AND LOWER(COALESCE(p.primary_email, '')) = ${email}
       UNION SELECT p.id, p.created_at FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
-       WHERE ${echt} AND a.merged_into IS NULL AND NOT COALESCE(a.ist_entwurf, FALSE) AND a.created_at >= ${ab} AND LOWER(COALESCE(a.email, '')) = ${email}
+       WHERE ${echt} AND a.merged_into IS NULL AND NOT COALESCE(a.ist_entwurf, FALSE) AND a.created_at >= ${ab} AND a.created_at < ${bis} AND LOWER(COALESCE(a.email, '')) = ${email}
       UNION SELECT p.id, p.created_at FROM fiaon_global_angebote ga JOIN fiaon_persons p ON p.id = ga.person_id
-       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND jsonb_typeof(ga.kunde) = 'object' AND LOWER(COALESCE(ga.kunde->>'email', '')) = ${email}`), "email");
+       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND ga.created_at < ${bis} AND jsonb_typeof(ga.kunde) = 'object' AND LOWER(COALESCE(ga.kunde->>'email', '')) = ${email}`), "email");
   }
   if (tel9) {
     nimm(await lies("Telefon", () => sqlPool`
-      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab}
+      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab} AND p.created_at < ${bis}
          AND (p.phone_key9 = ${tel9} OR RIGHT(REGEXP_REPLACE(COALESCE(p.primary_phone, ''), '\\D', '', 'g'), 9) = ${tel9})
       UNION SELECT p.id, p.created_at FROM fiaon_applications a JOIN fiaon_persons p ON p.id = a.person_id
-       WHERE ${echt} AND a.merged_into IS NULL AND NOT COALESCE(a.ist_entwurf, FALSE) AND a.created_at >= ${ab} AND RIGHT(REGEXP_REPLACE(COALESCE(a.phone, ''), '\\D', '', 'g'), 9) = ${tel9}
+       WHERE ${echt} AND a.merged_into IS NULL AND NOT COALESCE(a.ist_entwurf, FALSE) AND a.created_at >= ${ab} AND a.created_at < ${bis} AND RIGHT(REGEXP_REPLACE(COALESCE(a.phone, ''), '\\D', '', 'g'), 9) = ${tel9}
       UNION SELECT p.id, p.created_at FROM fiaon_global_angebote ga JOIN fiaon_persons p ON p.id = ga.person_id
-       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND jsonb_typeof(ga.kunde) = 'object'
+       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND ga.created_at < ${bis} AND jsonb_typeof(ga.kunde) = 'object'
          AND RIGHT(REGEXP_REPLACE(COALESCE(ga.kunde->>'telefon', ''), '\\D', '', 'g'), 9) = ${tel9}`), "telefon");
   }
   // Name: vorfiltern über den Nachnamen (klein, mit und ohne Akzente), vergleichen in koopNamePasst (alle Teile gleich).
@@ -938,11 +1124,11 @@ async function zuordnungKandidaten(e: any): Promise<KoopZuordnungKandidat[]> {
   if (koopNameTeile(e.name).length >= 2) {
     const n = await lies("Name", () => sqlPool`
       SELECT p.id, p.created_at, p.first_name AS vor, p.last_name AS nach, 'name' AS weg FROM fiaon_persons p
-       WHERE ${echt} AND p.created_at >= ${ab} AND LOWER(COALESCE(p.last_name, '')) = ANY(${teile}::text[])
+       WHERE ${echt} AND p.created_at >= ${ab} AND p.created_at < ${bis} AND LOWER(COALESCE(p.last_name, '')) = ANY(${teile}::text[])
       UNION ALL
       SELECT p.id, p.created_at, COALESCE(ga.kunde->>'vorname', ga.kunde->'vertretung'->>'vorname'), COALESCE(ga.kunde->>'nachname', ga.kunde->'vertretung'->>'nachname'), 'angebot'
         FROM fiaon_global_angebote ga JOIN fiaon_persons p ON p.id = ga.person_id
-       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND jsonb_typeof(ga.kunde) = 'object'
+       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND ga.created_at < ${bis} AND jsonb_typeof(ga.kunde) = 'object'
          AND LOWER(COALESCE(ga.kunde->>'nachname', ga.kunde->'vertretung'->>'nachname', '')) = ANY(${teile}::text[])`);
     for (const r of n) if (koopNamePasst(e.name, `${r.vor ?? ""} ${r.nach ?? ""}`)) kand.push({ personId: Number(r.id), weg: String(r.weg), seit: r.created_at ?? null });
   }
@@ -951,9 +1137,9 @@ async function zuordnungKandidaten(e: any): Promise<KoopZuordnungKandidat[]> {
   const firma = String(e.name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
   if (firmaNameVerbindet(e.name, "")) {
     nimm(await lies("Firma", () => sqlPool`
-      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab} AND LOWER(TRIM(COALESCE(p.company_name, ''))) = ${firma}
+      SELECT p.id, p.created_at FROM fiaon_persons p WHERE ${echt} AND p.created_at >= ${ab} AND p.created_at < ${bis} AND LOWER(TRIM(COALESCE(p.company_name, ''))) = ${firma}
       UNION SELECT p.id, p.created_at FROM fiaon_global_angebote ga JOIN fiaon_persons p ON p.id = ga.person_id
-       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND jsonb_typeof(ga.kunde) = 'object' AND LOWER(TRIM(COALESCE(ga.kunde->>'firma', ''))) = ${firma}`), "firma");
+       WHERE ${echt} AND ga.fassung NOT LIKE 'IA-KOOP-%' AND ga.created_at >= ${ab} AND ga.created_at < ${bis} AND jsonb_typeof(ga.kunde) = 'object' AND LOWER(TRIM(COALESCE(ga.kunde->>'firma', ''))) = ${firma}`), "firma");
   }
   return kand;
 }
@@ -978,77 +1164,108 @@ async function zuordnungMelden(e: any, partner: string, personId: number, wege: 
   } catch (err) { console.error(`[KOOP] Info zur Zuordnung ${e.id}:`, err instanceof Error ? err.message : err); }
 }
 
-/** Der Stundenlauf: Empfehlungen ohne Person zuordnen, Altbestand mit Telefon einmal an die zuständige Person. Wirft nie. */
-export async function koopEmpfehlungenZuordnen(jetzt = new Date()): Promise<{ geprueft: number; zugeordnet: number; fragen: number; anrufe: number }> {
-  const erg = { geprueft: 0, zugeordnet: 0, fragen: 0, anrufe: 0 };
-  try {
-    const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS g, to_regclass('public.fiaon_koop_empfehlungen') AS e`) as any[];
-    if (!t?.g || !t?.e) return erg;
-    await ensureEmpfehlungTabelle();
-    // Zehn Minuten Abstand zur Meldung: so lange legt das Eintragen die Anfrage an (sonst sähe der Lauf „Altbestand“).
-    const offen = (await sqlPool`
-      SELECT e.*, g.angebot_ref, g.kunde AS partner_roh
-        FROM fiaon_koop_empfehlungen e JOIN fiaon_global_angebote g ON g.id = e.angebot_id
-       WHERE e.entfernt_am IS NULL AND e.person_id IS NULL AND COALESCE(e.zuordnung_weg, '') <> 'hand_geloest'
-         AND g.fassung LIKE 'IA-KOOP-%' AND g.status = 'angenommen'
-         AND e.gemeldet_am < ${jetzt}::timestamptz - INTERVAL '10 minutes'
-       ORDER BY e.id LIMIT 200`) as any[];
-    if (!offen.length) return erg;
-    const { verlaufAngebot } = await import("./fiaon-global-angebot");
-    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
-    for (const e of offen) {
-      erg.geprueft++;
-      try {
-        const partner = partnerNameAus(e.partner_roh);
-        const urteil = koopZuordnungUrteil(await zuordnungKandidaten(e), e.gemeldet_am);
-        if (urteil.art === "eindeutig") {
-          const [r] = (await sqlPool`
-            UPDATE fiaon_koop_empfehlungen SET person_id = ${urteil.personId}, zuordnung_am = NOW(), zuordnung_weg = ${urteil.wege.join(",")}
-             WHERE id = ${Number(e.id)} AND person_id IS NULL AND COALESCE(zuordnung_weg, '') <> 'hand_geloest' RETURNING id`) as any[];
-          if (r) {
-            erg.zugeordnet++;
-            await verlaufAngebot(Number(e.angebot_id), "Automatik (Empfehlung zuordnen)", `Empfehlung ${e.name}: Person ${urteil.personId} automatisch zugeordnet (über ${koopZuordnungWege(urteil.wege)})`).catch(() => {});
-            await zuordnungMelden(e, partner, urteil.personId, urteil.wege);
-          }
-          continue;
+/** E-487 Nachbesserung (Mangel 1): welche dieser Personen hängen schon an einer anderen (nicht entfernten) Empfehlung? Person → Empfehlung. */
+async function belegteDurch(personIds: number[], eid: number): Promise<Map<number, number>> {
+  const ids = Array.from(new Set(personIds.filter((x) => Number.isInteger(x) && x > 0)));
+  if (!ids.length) return new Map();
+  const rows = (await sqlPool`
+    SELECT person_id, MIN(id)::int AS eid FROM fiaon_koop_empfehlungen
+     WHERE person_id = ANY(${ids}::int[]) AND entfernt_am IS NULL AND id <> ${eid} GROUP BY person_id`) as any[];
+  return new Map(rows.map((r): [number, number] => [Number(r.person_id), Number(r.eid)]));
+}
+
+/**
+ * Der Stundenlauf: Empfehlungen ohne Person zuordnen, Altbestand mit Telefon einmal an die zuständige Person.
+ * E-487 Nachbesserung (Mangel 13): Wirft, wenn die Hauptabfrage oder eine Empfehlung scheitert — die Lauf-Historie (tageslauf)
+ * zeigt dann „Fehler“ statt eines stillen Erfolgs; die übrigen Empfehlungen sind trotzdem geprüft.
+ */
+export async function koopEmpfehlungenZuordnen(jetzt = new Date()): Promise<{ geprueft: number; zugeordnet: number; fragen: number; anrufe: number; fehler: number }> {
+  const erg = { geprueft: 0, zugeordnet: 0, fragen: 0, anrufe: 0, fehler: 0 };
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS g, to_regclass('public.fiaon_koop_empfehlungen') AS e`) as any[];
+  if (!t?.g || !t?.e) return erg;
+  await ensureEmpfehlungTabelle();
+  // Zehn Minuten Abstand zur Meldung: so lange legt das Eintragen die Anfrage an (sonst sähe der Lauf „Altbestand“).
+  // E-487 Nachbesserung (Mangel 5): nur im Provisionsfenster (+1 Monat Puffer), ohne offene Frage an Justin, reihum.
+  const offen = (await sqlPool`
+    SELECT e.*, g.angebot_ref, g.kunde AS partner_roh
+      FROM fiaon_koop_empfehlungen e JOIN fiaon_global_angebote g ON g.id = e.angebot_id
+     WHERE e.entfernt_am IS NULL AND e.person_id IS NULL AND COALESCE(e.zuordnung_weg, '') <> 'hand_geloest'
+       AND e.zuordnung_frage_am IS NULL
+       AND g.fassung LIKE 'IA-KOOP-%' AND g.status = 'angenommen'
+       AND e.gemeldet_am < ${jetzt}::timestamptz - INTERVAL '10 minutes'
+       AND e.gemeldet_am > ${jetzt}::timestamptz - make_interval(months => ${KOOP_PROVISION_MONATE + 1})
+     ORDER BY e.zuordnung_geprueft_am NULLS FIRST, e.id LIMIT 200`) as any[];
+  if (!offen.length) return erg;
+  const { verlaufAngebot } = await import("./fiaon-global-angebot");
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  const fehlerText: string[] = [];
+  for (const e of offen) {
+    erg.geprueft++;
+    try {
+      const partner = partnerNameAus(e.partner_roh);
+      const kandidaten = await zuordnungKandidaten(e);
+      const belegt = await belegteDurch(kandidaten.map((k) => Number(k.personId)), Number(e.id));
+      const urteil = koopZuordnungUrteil(kandidaten, e.gemeldet_am, { belegt });
+      if (urteil.art === "eindeutig") {
+        // Auch hier noch einmal: nie eine Person, die inzwischen an einer anderen Empfehlung hängt (Mangel 1).
+        const [r] = (await sqlPool`
+          UPDATE fiaon_koop_empfehlungen SET person_id = ${urteil.personId}, zuordnung_am = NOW(), zuordnung_weg = ${urteil.wege.join(",")},
+                 zuordnung_vorschlag = NULL, zuordnung_geprueft_am = NOW()
+           WHERE id = ${Number(e.id)} AND person_id IS NULL AND COALESCE(zuordnung_weg, '') <> 'hand_geloest'
+             AND NOT EXISTS (SELECT 1 FROM fiaon_koop_empfehlungen x WHERE x.person_id = ${urteil.personId} AND x.entfernt_am IS NULL AND x.id <> ${Number(e.id)})
+           RETURNING id`) as any[];
+        if (r) {
+          erg.zugeordnet++;
+          await verlaufAngebot(Number(e.angebot_id), "Automatik (Empfehlung zuordnen)", `Empfehlung ${e.name}: Person ${urteil.personId} automatisch zugeordnet (über ${koopZuordnungWege(urteil.wege)})`).catch(() => {});
+          await zuordnungMelden(e, partner, urteil.personId, urteil.wege);
         }
-        if ((urteil.art === "mehrdeutig" || urteil.art === "pruefen") && !e.zuordnung_frage_am) {
-          const zeilen = urteil.art === "mehrdeutig"
-            ? [`Die Automatik hat mehrere passende Personen gefunden: ${urteil.personen.map((p) => `Person ${p.personId} (über ${koopZuordnungWege(p.wege)})`).join("; ")}.`]
-            : [`Gefunden: Person ${urteil.personId} (über ${koopZuordnungWege(urteil.wege)}) — sie ist aber schon seit ${tag(urteil.seit)} bei uns, also vor der Empfehlung. Bitte entscheiden, ob die Empfehlung zählt.`];
-          await auftragFuerKunden({
-            personId: null, ref: null,
-            titel: `Empfehlung „${e.name}“ von ${partner}: Person bitte zuordnen`,
-            text: [`${partner} hat „${e.name}“ empfohlen (Kooperation ${e.angebot_ref}, gemeldet ${tag(e.gemeldet_am)}).`, ...zeilen,
-              "Im Chefbüro unter Global-Aufträge › Geschäftspartner › Empfehlungen die richtige Personen-Nummer eintragen und „Zuordnen“ — erst dann zählt die Provision. Passt keine, das Feld leer speichern: dann ordnet die Automatik hier nichts mehr zu."].join("\n"),
-            anBetreiber: true, dringend: false, schluessel: `koop-empfehlung-zuordnen:${e.id}`, bereich: "konten", quelle: "global", autorName: "FIAON Kooperation", link: CHEF_LINK,
-          });
-          await sqlPool`UPDATE fiaon_koop_empfehlungen SET zuordnung_frage_am = NOW() WHERE id = ${Number(e.id)}`;
-          erg.fragen++;
-        }
-        // Altbestand: keine Anfrage, keine Spur, aber eine Telefonnummer → einmal anrufen lassen (nie eine automatische Mail).
-        if (urteil.art === "keiner" && e.anfrage_id == null && !e.anruf_aufgabe_am && String(e.telefon ?? "").replace(/\D/g, "").length >= 6) {
-          const { globalZustaendig } = await import("./fiaon-global-termin");
-          const { berlinToday } = await import("./fiaon-time");
-          const zust = await globalZustaendig().catch(() => null);
-          await auftragFuerKunden({
-            personId: null, ref: null,
-            titel: `Empfehlung von ${partner} anrufen: ${e.name}`,
-            text: [`${partner} hat ${e.name} empfohlen (Kooperation ${e.angebot_ref}, gemeldet ${tag(e.gemeldet_am)}). Die Person ist einverstanden, dass wir uns melden.`,
-              `Telefon: ${e.telefon}`, e.email ? `E-Mail: ${e.email}` : "", e.notiz ? `Worum es geht (Notiz des Partners): ${e.notiz}` : "",
-              "Bitte anrufen und das Gespräch mit Justin vereinbaren. Eine Mail bekommt die Person von uns nicht automatisch (Empfehlung von vor dem neuen Weg)."].filter(Boolean).join("\n"),
-            faelligAm: berlinToday(), dringend: true, schluessel: `koop-empfehlung-anruf:${e.id}`, bereich: "sonstiges", quelle: "global", autorName: "FIAON Partnerbereich",
-            agentId: zust?.id ?? null, ...(zust ? {} : { anBetreiber: true }),
-          });
-          await sqlPool`UPDATE fiaon_koop_empfehlungen SET anruf_aufgabe_am = NOW() WHERE id = ${Number(e.id)}`;
-          erg.anrufe++;
-        }
-      } catch (err) {
-        console.error(`[KOOP] Zuordnung der Empfehlung ${e.id}:`, err instanceof Error ? err.message : err);
+        continue;
       }
+      if (urteil.art === "mehrdeutig" || urteil.art === "pruefen") {
+        const zeilen = urteil.art === "mehrdeutig"
+          ? [`Die Automatik hat mehrere passende Personen gefunden: ${urteil.personen.map((p) => `Person ${p.personId} (über ${koopZuordnungWege(p.wege)})`).join("; ")}.`]
+          : [`Gefunden: Person ${urteil.personId} (über ${koopZuordnungWege(urteil.wege)}).`, ...koopZuordnungGruendeText(urteil, (d) => tag(d))];
+        const vorschlag = urteil.art === "mehrdeutig" ? { personen: urteil.personen } : { personId: urteil.personId, wege: urteil.wege, gruende: urteil.gruende };
+        await auftragFuerKunden({
+          personId: null, ref: null,
+          titel: `Empfehlung „${e.name}“ von ${partner}: Person bitte zuordnen`,
+          text: [`${partner} hat „${e.name}“ empfohlen (Kooperation ${e.angebot_ref}, gemeldet ${tag(e.gemeldet_am)}).`, ...zeilen,
+            urteil.art === "pruefen"
+              ? `Im Chefbüro unter Global-Aufträge › Geschäftspartner › Empfehlungen steht Person ${urteil.personId} schon im Feld — passt sie, „Zuordnen“ drücken; erst dann zählt die Provision. Passt keine, das Feld leer speichern: dann ordnet die Automatik hier nichts mehr zu.`
+              : "Im Chefbüro unter Global-Aufträge › Geschäftspartner › Empfehlungen die richtige Personen-Nummer eintragen und „Zuordnen“ — erst dann zählt die Provision. Passt keine, das Feld leer speichern: dann ordnet die Automatik hier nichts mehr zu."].join("\n"),
+          anBetreiber: true, dringend: false, schluessel: `koop-empfehlung-zuordnen:${e.id}`, bereich: "konten", quelle: "global", autorName: "FIAON Kooperation", link: CHEF_LINK,
+        });
+        await sqlPool`UPDATE fiaon_koop_empfehlungen SET zuordnung_frage_am = NOW(), zuordnung_vorschlag = ${sqlPool.json(vorschlag as any)}, zuordnung_geprueft_am = NOW() WHERE id = ${Number(e.id)}`;
+        erg.fragen++;
+        continue;
+      }
+      // Altbestand: keine Anfrage, keine Spur, aber eine Telefonnummer → einmal anrufen lassen (nie eine automatische Mail).
+      // E-487 Nachbesserung (Mangel 6): nur mit Einverständnis — eine Partner-Meldung hatte es immer (E-419), die Leitung per Haken.
+      const einverstanden = !!e.einverstanden_am || String(e.quelle) === "partner";
+      if (e.anfrage_id == null && !e.anruf_aufgabe_am && einverstanden && String(e.telefon ?? "").replace(/\D/g, "").length >= 6) {
+        const { globalZustaendig } = await import("./fiaon-global-termin");
+        const { berlinToday } = await import("./fiaon-time");
+        const zust = await globalZustaendig().catch(() => null);
+        await auftragFuerKunden({
+          personId: null, ref: null,
+          titel: `Empfehlung von ${partner} anrufen: ${e.name}`,
+          text: [`${partner} hat ${e.name} empfohlen (Kooperation ${e.angebot_ref}, gemeldet ${tag(e.gemeldet_am)}). Die Person ist einverstanden, dass wir uns melden.`,
+            `Telefon: ${e.telefon}`, e.email ? `E-Mail: ${e.email}` : "", e.notiz ? `Worum es geht (Notiz des Partners): ${e.notiz}` : "",
+            "Bitte anrufen und das Gespräch mit Justin vereinbaren. Eine Mail bekommt die Person von uns nicht automatisch (Empfehlung von vor dem neuen Weg)."].filter(Boolean).join("\n"),
+          faelligAm: berlinToday(), dringend: true, schluessel: `koop-empfehlung-anruf:${e.id}`, bereich: "sonstiges", quelle: "global", autorName: "FIAON Partnerbereich",
+          agentId: zust?.id ?? null, ...(zust ? {} : { anBetreiber: true }),
+        });
+        await sqlPool`UPDATE fiaon_koop_empfehlungen SET anruf_aufgabe_am = NOW() WHERE id = ${Number(e.id)}`;
+        erg.anrufe++;
+      }
+      await sqlPool`UPDATE fiaon_koop_empfehlungen SET zuordnung_geprueft_am = NOW() WHERE id = ${Number(e.id)}`;
+    } catch (err) {
+      erg.fehler++;
+      const m = err instanceof Error ? err.message : String(err);
+      fehlerText.push(`#${e.id}: ${m.slice(0, 160)}`);
+      console.error(`[KOOP] Zuordnung der Empfehlung ${e.id}:`, m);
     }
-  } catch (err) {
-    console.error("[KOOP] Zuordnungs-Lauf:", err instanceof Error ? err.message : err);
   }
+  if (erg.fehler) throw new Error(`${erg.fehler} von ${erg.geprueft} Empfehlungen ließen sich nicht prüfen (${fehlerText.slice(0, 3).join(" · ")}) — zugeordnet ${erg.zugeordnet}, Fragen ${erg.fragen}, Anrufe ${erg.anrufe}`);
   return erg;
 }

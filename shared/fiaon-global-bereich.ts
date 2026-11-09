@@ -639,6 +639,17 @@ export function globalHeimatMeldungSchritt(land: unknown, sprache: BereichSprach
     : "Melden Sie die Gründung Ihrer US-Gesellschaft der Steuerbehörde Ihres Wohnsitzlandes — Form und Frist nennt Ihnen Ihr Steuerberater.";
 }
 
+/**
+ * E-487 (09.11.2026): Ist dieser Satz der Finanzamt-Hinweis (jede Sprache, jedes Land)? Dann ist er KEIN „nächster
+ * Schritt“: Er hat kein Datum und darf offene Stationen (Operating Agreement, SS-4, EIN) nicht verdecken — vorher stand
+ * er nach der Eintragung als „Als Nächstes“ im Portal, während der Kunde noch zwei Unterschriften leisten musste. Rein.
+ */
+export function istHeimatMeldungSatz(text: unknown): boolean {
+  const t = String(text ?? "").trim();
+  if (!t) return false;
+  return (["de", "en"] as const).some((s) => ["DE", "AT"].some((l) => globalHeimatMeldungSchritt(l, s) === t));
+}
+
 // ── KLEINE TEXTE DER SEITE, DIE DER SERVER SCHREIBT ──────────────────────────
 // Verlaufszeilen, die der Kunde liest. Sie entstehen in der Sprache des Auftrags.
 export const GLOBAL_VERLAUF_TEXT = {
@@ -649,6 +660,8 @@ export const GLOBAL_VERLAUF_TEXT = {
     etappe: (nr: number, titel: string) => (nr >= GLOBAL_ETAPPE_MAX ? "Ihr Auftrag ist abgeschlossen." : `Etappe ${nr} hat begonnen: ${titel}.`),
     stichtag: (tag: string) => `Stichtag für Gesellschaft und EIN: ${tag}.`,
     schritt: (text: string) => `Nächster Schritt: ${text}`,
+    // E-487: ein Hinweis ohne Datum (z. B. die Meldung beim Finanzamt) — kein „nächster Schritt“.
+    hinweis: (text: string) => `Gut zu wissen: ${text}`,
     gesellschaft: "Die Angaben zu Ihrer US-Gesellschaft wurden aktualisiert.",
     kalender: (n: number) => (n === 1 ? "Ihr Pflichtenkalender wurde um einen Termin ergänzt." : `Ihr Pflichtenkalender wurde um ${n} Termine ergänzt.`),
     fristNeu: (titel: string, tag: string) => `Neuer Termin im Pflichtenkalender: ${titel} — ${tag}.`,
@@ -669,6 +682,7 @@ export const GLOBAL_VERLAUF_TEXT = {
     etappe: (nr: number, titel: string) => (nr >= GLOBAL_ETAPPE_MAX ? "Your order is complete." : `Stage ${nr} has begun: ${titel}.`),
     stichtag: (tag: string) => `Agreed date for the company and the EIN: ${tag}.`,
     schritt: (text: string) => `Next step: ${text}`,
+    hinweis: (text: string) => `Good to know: ${text}`,
     gesellschaft: "The details of your US company have been updated.",
     kalender: (n: number) => (n === 1 ? "One date has been added to your compliance calendar." : `${n} dates have been added to your compliance calendar.`),
     fristNeu: (titel: string, tag: string) => `New date in your compliance calendar: ${titel} — ${tag}.`,

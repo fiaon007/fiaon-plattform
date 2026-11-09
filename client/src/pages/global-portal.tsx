@@ -29,7 +29,7 @@ import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import { GLOBAL_AGENT, GLOBAL_JAHRESBETREUUNG, globalAgentKontakt, globalPreisText } from "@shared/fiaon-global";
 import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 import { GLOBAL_FAHRPLAN, GLOBAL_TRESOR, globalNaechsterSchritt, globalUsd, type GlobalTresorKategorie } from "@shared/fiaon-global-mandat";
-import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName } from "@shared/fiaon-global-bereich";
+import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName, istHeimatMeldungSatz } from "@shared/fiaon-global-bereich";
 // 22.10.2026: die Werte der Stationen (EIN, ITIN-Maske, D-U-N-S, Telefon, Adressen, Konto) — eine Quelle mit dem Editor.
 import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
 // 22.10.2026: die neue Navigation — Glasleiste mit Themen und Panel, am Telefon ein ganzseitiges Menü.
@@ -575,7 +575,10 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
   const tagMonat = (iso?: string | null) => iso ? new Date(String(iso).slice(0, 10) + "T12:00:00").toLocaleDateString(loc, { day: "numeric", month: "short" }) : "";
   // Die Bühne (22.10.2026): Datum wie auf dem Sperrbildschirm; „Als Nächstes“ = der Schritt des Teams, sonst die nächste offene Station.
   const heuteText = new Date().toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long" });
-  const naechsterText = a.naechsterSchritt?.text || globalNaechsterSchritt(schritte, s) || w.naechsterLeer;
+  // E-487 (09.11.2026): Der Finanzamt-Hinweis ist kein „nächster Schritt“ — offene Stationen (Operating Agreement, SS-4,
+  // EIN) gehen vor; erst wenn keine mehr offen ist, steht der Hinweis hier.
+  const gespeichert = String(a.naechsterSchritt?.text ?? "");
+  const naechsterText = (gespeichert && !istHeimatMeldungSatz(gespeichert) ? gespeichert : "") || globalNaechsterSchritt(schritte, s) || gespeichert || w.naechsterLeer;
   const nameGeprueft = schritte.some((x) => x.schluessel === "name" && x.status === "erledigt");
   const chips: string[] = [
     g.gegruendetAm ? w.chip.seit(g.form || "LLC", tagKurz(g.gegruendetAm)) : nameGeprueft ? w.chip.name : "",

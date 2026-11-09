@@ -784,12 +784,13 @@ export async function globalGesellschaftSetzen(ref: string, ein: Record<string, 
   }
   const fristen = await regelFristenSetzen(ref, g, l.sprache);
   if (fristen.neu > 0) await verlaufSchreiben(ref, { art: "frist", text: T.kalender(fristen.neu), sichtbar: true, agentId: agent.id });
-  // Die Meldung beim heimischen Finanzamt hat kein Datum, das FIAON nennen dürfte — sie wird zum
-  // nächsten Schritt, sobald der Gründungstag steht (und nur, wenn dort nichts anderes steht).
-  if (ersteGruendung && !l.akte.naechster_schritt) {
-    const schritt = globalHeimatMeldungSchritt(l.akte.land, l.sprache);
-    await sqlPool`UPDATE fiaon_global_auftraege SET naechster_schritt = ${schritt}, naechster_schritt_bis = NULL, updated_at = NOW() WHERE ref = ${ref} AND naechster_schritt IS NULL`;
-    await verlaufSchreiben(ref, { art: "schritt", text: T.schritt(schritt), sichtbar: true, agentId: agent.id });
+  // Die Meldung beim heimischen Finanzamt hat kein Datum, das FIAON nennen dürfte. E-487 (09.11.2026): Sie ist ein
+  // Hinweis im Verlauf, KEIN „nächster Schritt“ mehr — vorher stand sie nach der Eintragung als „Als Nächstes“ im Portal
+  // und verdeckte die offenen Unterschriften (Operating Agreement, SS-4). Alte Sätze blendet das Portal aus
+  // (istHeimatMeldungSatz), die Stationen gehen vor.
+  if (ersteGruendung) {
+    const satz = globalHeimatMeldungSchritt(l.akte.land, l.sprache);
+    await verlaufSchreiben(ref, { art: "schritt", text: T.hinweis(satz), sichtbar: true, agentId: agent.id });
   }
   const staatOhneRegel = g.bundesstaat && !["DE", "WY", "FL", "NM"].includes(g.bundesstaat);
   const nmCorp = g.bundesstaat === "NM" && g.form === "Corporation";

@@ -104,6 +104,17 @@ ok(B.globalPflichtFristen({ bundesstaat: "DE", form: "Corporation", gegruendetAm
 gleich([B.usBundesstaatCode("delaware"), B.usBundesstaatCode(" wy "), B.usBundesstaatCode("New Mexico"), B.usBundesstaatCode("XX"), B.usBundesstaatCode("")], ["DE", "WY", "NM", null, null], "Bundesstaat-Kürzel");
 gleich(B.usBundesstaatName("de"), "Delaware", "Bundesstaat-Name");
 ok(/§ 138 AO/.test(B.globalHeimatMeldungSchritt("DE")) && !/§ 138/.test(B.globalHeimatMeldungSchritt("AT")) && !/\d/.test(B.globalHeimatMeldungSchritt("CH")), "Meldung beim heimischen Finanzamt: § 138 AO nur für Deutschland, nie ein Datum");
+// E-487 (09.11.2026): der Finanzamt-Hinweis ist kein „nächster Schritt“ mehr.
+ok(["DE", "AT", "CH"].every((l) => B.istHeimatMeldungSatz(B.globalHeimatMeldungSchritt(l, "de")) && B.istHeimatMeldungSatz(B.globalHeimatMeldungSchritt(l, "en"))), "istHeimatMeldungSatz erkennt den Finanzamt-Hinweis (de/en, DE/AT/CH)");
+ok(!B.istHeimatMeldungSatz("Wir bereiten Ihren EIN-Antrag vor.") && !B.istHeimatMeldungSatz("") && !B.istHeimatMeldungSatz(null), "andere Sätze sind kein Finanzamt-Hinweis");
+ok(B.GLOBAL_VERLAUF_TEXT.de.hinweis("x") === "Gut zu wissen: x" && B.GLOBAL_VERLAUF_TEXT.en.hinweis("x") === "Good to know: x", "Verlauf: Hinweis-Satz de/en");
+{
+  const { readFileSync } = await import("node:fs");
+  const srv = readFileSync(new URL("../server/lib/fiaon-global-bereich.ts", import.meta.url), "utf8");
+  const portal = readFileSync(new URL("../client/src/pages/global-portal.tsx", import.meta.url), "utf8");
+  ok(!/naechster_schritt = \$\{schritt\}/.test(srv) && /T\.hinweis\(satz\)/.test(srv), "Server setzt den Finanzamt-Hinweis nicht mehr als nächsten Schritt (nur Verlauf „Gut zu wissen“)");
+  ok(/istHeimatMeldungSatz\(gespeichert\)/.test(portal), "Portal: Stationen gehen vor dem Finanzamt-Hinweis");
+}
 
 // ═══ 2: MONATLICHER DURCHGANG ═══════════════════════════════════════════════
 abschnitt("Monatlicher Durchgang");

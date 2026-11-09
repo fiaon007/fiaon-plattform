@@ -39,7 +39,9 @@ import "@/styles/office-calendar.css";
 import { TERMIN_ARTEN, terminArtAusQuelle } from "@shared/fiaon-termin-art";
 import { maraMarke, MARA_NEU_STUNDEN, type MaraMarke } from "@shared/fiaon-mara-marke";
 import { LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
-import { GLOBAL_ERGEBNIS_WAHL, GLOBAL_GRUENDE, NICHT_ERREICHT_FRAGE } from "@shared/fiaon-global-gespraech";
+import {
+  GLOBAL_ERGEBNIS_WAHL, GLOBAL_GRUENDE, GLOBAL_GRUENDE_MIT_MAIL, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS,
+} from "@shared/fiaon-global-gespraech";
 import { nachbereitungsWege, nachLageSatz, type NachEingang, type NachLage }
   from "@shared/fiaon-anruf-nachbereitung";
 import { Rundgang } from "@/components/agent/Rundgang";
@@ -465,7 +467,10 @@ function CalendarInnen() {
    * Funktion: Kunde löschen!)". Der Server bekommt den Grund und löst die
    * passende Nachricht aus; die Karte sagt danach, WAS passiert ist.
    */
-  const nichtZustande = async (a: Termin, grund: string): Promise<boolean> => {
+  const nichtZustande = async (a: Termin, grund: string, opt: { ohneMail?: boolean } = {}): Promise<boolean> => {
+    // E-490 F6: Beim Global-Gespräch fragen „Nicht erreicht“ und „Nummer falsch“ vorher in der Karte — mit dem Haken
+    // „Kunde schon persönlich angeschrieben — keine Mail“ (ohneMail). Der Server wertet ihn nur bei diesen Gründen.
+    const ohneMail = tIstGlobal(a) && GLOBAL_GRUENDE_MIT_MAIL.includes(grund) && opt.ohneMail === true;
     // E-458 Nr. 11: Beim Global-Gespräch sperrt „kein Interesse“ niemanden — die Firma geht im Cockpit auf „kein Interesse“.
     if (grund === "kein_interesse" && tIstGlobal(a)) {
       if (!window.confirm(`${tName(a)} hat kein Interesse mehr?\n\nDie Firma steht im Firmen-Cockpit dann auf „kein Interesse“. Es geht keine Mail raus.`)) return false;
@@ -480,7 +485,7 @@ function CalendarInnen() {
     }
     setBusy(tKey(a));
     const r = a.art === "termin"
-      ? await api(`/agent/termine/${a.id}/nicht-zustande`, { method: "POST", body: JSON.stringify({ grund }) })
+      ? await api(`/agent/termine/${a.id}/nicht-zustande`, { method: "POST", body: JSON.stringify({ grund, ...(ohneMail ? { ohneMail: true } : {}) }) })
       : await api(`/agent/calendar/${a.id}/done`, { method: "POST" });
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Vermerkt."); entfernen(a); setDetail(null); laden(); }
@@ -488,12 +493,13 @@ function CalendarInnen() {
     return r.ok;
   };
 
-  const verpasst = async (a: Termin) => {
+  const verpasst = async (a: Termin, opt: { ohneMail?: boolean } = {}) => {
     if (a.art !== "termin") return;
-    // E-458 Nr. 11: Beim Global-Gespräch schickt „nicht erreicht“ dem Unternehmen eine Mail — vorher fragen.
-    if (tIstGlobal(a) && !window.confirm(NICHT_ERREICHT_FRAGE)) return;
+    // E-458 Nr. 11: Beim Global-Gespräch schickt „nicht erreicht“ dem Unternehmen eine Mail — vorher fragen. E-490 F6: Die
+    // Frage steht jetzt im Dialog (Modus „nicht_erreicht“, mit dem Haken „schon persönlich angeschrieben“), nicht im Fenster.
+    const ohneMail = tIstGlobal(a) && opt.ohneMail === true;
     setBusy(tKey(a));
-    const r = await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "verpasst" }) });
+    const r = await api(`/agent/termine/${a.id}/ergebnis`, { method: "POST", body: JSON.stringify({ ergebnis: "verpasst", ...(ohneMail ? { ohneMail: true } : {}) }) });
     setBusy(null);
     if (r.ok) { flash(r.json?.hinweis || "Als nicht erschienen vermerkt."); entfernen(a); setDetail(null); laden(); } else flash(r.json?.error || "Das hat nicht geklappt.", true);
   };
@@ -684,7 +690,7 @@ function CalendarInnen() {
           <small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Eintrag" : "Einträge"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
-          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
+          {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
       )}
 
@@ -693,7 +699,7 @@ function CalendarInnen() {
       {!laedt && ueberfaellig.length > 0 && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Nach dem Tagesgeschäft aufräumen: Ergebnis nachtragen oder neu ansetzen.</small></div>
-          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
+          {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
       )}
 
@@ -765,7 +771,7 @@ function CalendarInnen() {
                 <div key={key} className={`ca-tageskarte${istHeute ? " heute" : ""}`}>
                   <div className="ca-tageskarte-kopf"><b>{istHeute ? "Heute" : `${TAGE[i]}, ${datumKurz(ausKey(key))}`}</b><small>{frei.length ? frei.map(([v, b]) => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}–${String(Math.floor(b / 60)).padStart(2, "0")}:${String(b % 60).padStart(2, "0")}`).join(" · ") : "nicht verfügbar"}</small></div>
                   {liste.length === 0 && <p className="ca-leer">–</p>}
-                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g) => void nichtZustande(a, g)} onVerschieben={() => verschiebenOeffnen(a)} />)}
+                  {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
                 </div>
               );
             })}
@@ -784,7 +790,7 @@ function CalendarInnen() {
       {detail && (
         <Detail key={`${tKey(detail)}:${detailModus ?? ""}`} startModus={detailModus}
                 a={detail} busy={busy === tKey(detail)} ausser={!inVerfuegbarkeit(tZeit(detail))} onZu={() => setDetail(null)}
-                onErledigt={() => erledigt(detail)} onVerpasst={() => verpasst(detail)} onVerschieben={(w) => verschieben(detail, w)}
+                onErledigt={() => erledigt(detail)} onVerpasst={(o) => verpasst(detail, o)} onVerschieben={(w) => verschieben(detail, w)}
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
@@ -862,9 +868,12 @@ function WerMarke({ a, still, verlaufText }: { a: Termin; still?: boolean; verla
   return <span className={still ? undefined : "ca-marke"}>selbst eingetragen</span>;
 }
 
-function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande, onVerschieben }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string) => void; onVerschieben: () => void }) {
+function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, onNichtZustande, onVerschieben }: { a: Termin; datum?: boolean; busy: boolean; ausser: boolean; jetzt: number; onAkte: () => void; onOeffnen: () => void; onErledigt: () => void; onNichtZustande: (grund: string, opt?: { ohneMail?: boolean }) => void; onVerschieben: () => void }) {
   const tel = tPhone(a); const d = tZeit(a);
   const [grundOffen, setGrundOffen] = useState(false);
+  // E-490 F6: „Nicht erreicht“ beim Global-Gespräch fragt in der Karte — mit dem Haken „schon persönlich angeschrieben“.
+  const [neOffen, setNeOffen] = useState(false);
+  const [ohneMail, setOhneMail] = useState(false);
   // E-458 Nr. 11: Ein Global-Gespräch, das vorbei und noch offen ist, wartet auf sein Ergebnis — drei Knöpfe, sichtbar.
   const istGlobal = tIstGlobal(a);
   const ergebnisFehlt = istGlobal && !a.abgesagt && d.getTime() < jetzt && (a.status === "gebucht" || a.status === "verpasst");
@@ -911,29 +920,54 @@ function Zeile({ a, datum, busy, ausser, jetzt, onAkte, onOeffnen, onErledigt, o
                 onClick={onErledigt} aria-label="Erledigt"><Check size={15} strokeWidth={2} /></button>
         <button type="button" className="ca-knopf klein rot" disabled={busy || a.abgesagt === true}
                 title="Termin kam nicht zustande — Grund wählen"
-                onClick={() => setGrundOffen((v) => !v)} aria-label="Termin kam nicht zustande" aria-expanded={grundOffen}>
+                onClick={() => { setGrundOffen((v) => !v); setNeOffen(false); setOhneMail(false); }} aria-label="Termin kam nicht zustande" aria-expanded={grundOffen}>
           <X size={15} strokeWidth={2} />
         </button>
         <button type="button" className="ca-knopf klein still" onClick={onOeffnen} title="Alle Angaben zum Termin">Details</button>
       </div>
 
-      {ergebnisFehlt && !grundOffen && (
+      {ergebnisFehlt && !grundOffen && !neOffen && (
         <div className="ca-global-ergebnis" onClick={(e) => e.stopPropagation()} data-fiaon="global-ergebnis">
           <span>Wie ging das Gespräch aus?</span>
           <button type="button" className="ca-knopf klein gut" disabled={busy} title={globalFolge("stattgefunden")} onClick={onErledigt}>Stattgefunden</button>
           <button type="button" className="ca-knopf klein rot" disabled={busy} title={globalFolge("nicht_erreicht")}
-                  onClick={() => { if (window.confirm(NICHT_ERREICHT_FRAGE)) onNichtZustande("nicht_erschienen"); }}>Nicht erreicht</button>
+                  onClick={() => { setOhneMail(false); setNeOffen(true); }}>Nicht erreicht</button>
           <button type="button" className="ca-knopf klein still" disabled={busy || a.status !== "gebucht"} title={globalFolge("verschoben")} onClick={onVerschieben}>Verschoben</button>
+        </div>
+      )}
+
+      {/* E-490 F6: die Rückfrage vor „Nicht erreicht“ — vorher ein Bestätigungsfenster ohne Wahl (die Mail ging immer). */}
+      {neOffen && istGlobal && !grundOffen && (
+        <div className="ca-gruende" onClick={(e) => e.stopPropagation()} data-fiaon="nicht-erreicht">
+          <p><b>Nicht erreicht?</b> {NICHT_ERREICHT_SATZ}</p>
+          <label className="ca-haken">
+            <input type="checkbox" checked={ohneMail} onChange={(e) => setOhneMail(e.target.checked)} />
+            <span>{OHNE_MAIL_HAKEN}</span>
+          </label>
+          {ohneMail && <p className="ca-haken-hinweis">{OHNE_MAIL_HINWEIS}</p>}
+          <div className="ca-ne-knoepfe">
+            <button type="button" className="ca-knopf klein rot" disabled={busy}
+                    onClick={() => { setNeOffen(false); onNichtZustande("nicht_erschienen", { ohneMail }); }}>
+              {ohneMail ? "Nicht erreicht — ohne Mail" : "Nicht erreicht eintragen"}
+            </button>
+            <button type="button" className="ca-link-klein" onClick={() => setNeOffen(false)}>zurück</button>
+          </div>
         </div>
       )}
 
       {grundOffen && istGlobal && (
         <div className="ca-gruende" onClick={(e) => e.stopPropagation()}>
           <p>Warum kam das Gespräch nicht zustande?</p>
+          {/* E-490 F6: VOR den Gründen — gilt für „Nicht erreicht“ und „Telefonnummer stimmt nicht“ (die schicken sonst die Mail). */}
+          <label className="ca-haken">
+            <input type="checkbox" checked={ohneMail} onChange={(e) => setOhneMail(e.target.checked)} />
+            <span>{OHNE_MAIL_HAKEN}</span>
+          </label>
+          {ohneMail && <p className="ca-haken-hinweis">{OHNE_MAIL_HINWEIS}</p>}
           {GLOBAL_GRUENDE.map((g) => (
             <button key={g.key} type="button" className={`ca-grund${g.key === "kein_interesse" ? " rot" : ""}`} disabled={busy}
-                    onClick={() => { setGrundOffen(false); onNichtZustande(g.key); }}>
-              <b>{g.label}</b><small>{g.folge}</small>
+                    onClick={() => { setGrundOffen(false); onNichtZustande(g.key, GLOBAL_GRUENDE_MIT_MAIL.includes(g.key) ? { ohneMail } : {}); }}>
+              <b>{g.label}</b><small>{ohneMail && GLOBAL_GRUENDE_MIT_MAIL.includes(g.key) ? "Keine Mail — du hast das Unternehmen schon persönlich angeschrieben." : g.folge}</small>
             </button>
           ))}
           <button type="button" className="ca-grund" disabled={busy || a.status !== "gebucht"} onClick={() => { setGrundOffen(false); onVerschieben(); }}>
@@ -1020,12 +1054,14 @@ function Popover({ a, fest, links, oben, ausser, onZu, onHalten, onLoslassen, on
 
 // ── Detail-Dialog mit allen Aktionen ─────────────────────────────────────────
 function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, onUebergeben, onAbsagen, startModus }: {
-  a: Termin; busy: boolean; ausser: boolean; onZu: () => void; onErledigt: () => void; onVerpasst: () => void;
+  a: Termin; busy: boolean; ausser: boolean; onZu: () => void; onErledigt: () => void; onVerpasst: (opt?: { ohneMail?: boolean }) => void;
   onVerschieben: (wert: string) => Promise<boolean>; onUebergeben: (agentId: number, grund: string) => Promise<boolean>; onAbsagen: () => void;
   /** E-458 Nr. 11: „Verschoben“ beim Global-Gespräch öffnet gleich das Feld für die neue Zeit. */
   startModus?: "verschieben" | null;
 }) {
-  const [modus, setModus] = useState<null | "verschieben" | "uebergeben" | "absagen">(startModus ?? null);
+  // E-490 F6: „nicht_erreicht“ = die Rückfrage beim Global-Gespräch, mit dem Haken „schon persönlich angeschrieben“.
+  const [modus, setModus] = useState<null | "verschieben" | "uebergeben" | "absagen" | "nicht_erreicht">(startModus ?? null);
+  const [ohneMail, setOhneMail] = useState(false);
   const istGlobal = tIstGlobal(a);
   // ══════════════════════════════════════════════════════════════════════════
   // DAS FELD IST VORGEFÜLLT (26.08.2026, Florentines Punkt 7)
@@ -1063,7 +1099,7 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
   const [grund, setGrund] = useState("");
   const tel = tPhone(a); const d = tZeit(a); const istTermin = a.art === "termin"; const gebucht = istTermin && !a.abgesagt && a.status !== "verpasst";
   const mara = tMara(a);
-  useEffect(() => { setModus(null); setWert(""); setAgentId(""); setGrund(""); }, [a]);
+  useEffect(() => { setModus(null); setWert(""); setAgentId(""); setGrund(""); setOhneMail(false); }, [a]);
   // Mit ?termin= sortiert der Server die Zuständigen nach oben (C12-e).
   useEffect(() => {
     if (modus !== "uebergeben") return;
@@ -1101,7 +1137,8 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
                 Termin fehlte der Knopf ganz (Meldung Daniel/Florentine).
                 NACHHER bei jedem. */}
             <button type="button" className="ca-knopf still" onClick={() => setModus("verschieben")}>Verschieben</button>
-            {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={onVerpasst} title={istGlobal ? globalFolge("nicht_erreicht") : "Kunde ist nicht erschienen – zählt als Fehlversuch"}>{istGlobal ? "Nicht erreicht" : "Nicht erschienen"}</button>}
+            {/* E-490 F6: Beim Global-Gespräch öffnet „Nicht erreicht“ die Rückfrage mit dem Haken (Modus „nicht_erreicht“). */}
+            {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={() => { if (istGlobal) { setOhneMail(false); setModus("nicht_erreicht"); } else onVerpasst(); }} title={istGlobal ? globalFolge("nicht_erreicht") : "Kunde ist nicht erschienen – zählt als Fehlversuch"}>{istGlobal ? "Nicht erreicht" : "Nicht erschienen"}</button>}
             {istTermin && !a.abgesagt && <button type="button" className="ca-knopf still" disabled={busy} onClick={() => setModus("uebergeben")}><UserRoundCheck size={15} strokeWidth={1.75} /> Übergeben</button>}
             {gebucht && <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => setModus("absagen")}>Absagen</button>}
           </div>
@@ -1164,6 +1201,21 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             <div className="ca-form-knoepfe">
               <button type="button" className="ca-knopf rot" disabled={busy} onClick={onAbsagen}>{busy ? "Sagt ab …" : "Ja, absagen"}</button>
               <button type="button" className="ca-knopf still" onClick={() => setModus(null)}>Nein</button>
+            </div>
+          </div>
+        )}
+        {/* E-490 F6: „Nicht erreicht“ beim Global-Gespräch — vorher ein Bestätigungsfenster ohne Wahl (die Mail ging immer). */}
+        {modus === "nicht_erreicht" && istGlobal && (
+          <div className="ca-form" data-fiaon="nicht-erreicht">
+            <p><b>Nicht erreicht?</b> {NICHT_ERREICHT_SATZ}</p>
+            <label className="ca-haken">
+              <input type="checkbox" checked={ohneMail} onChange={(e) => setOhneMail(e.target.checked)} />
+              <span>{OHNE_MAIL_HAKEN}</span>
+            </label>
+            {ohneMail && <p className="ca-haken-hinweis">{OHNE_MAIL_HINWEIS}</p>}
+            <div className="ca-form-knoepfe">
+              <button type="button" className="ca-knopf rot" disabled={busy} onClick={() => onVerpasst({ ohneMail })}>{busy ? "Trägt ein …" : ohneMail ? "Nicht erreicht — ohne Mail" : "Nicht erreicht eintragen"}</button>
+              <button type="button" className="ca-knopf still" onClick={() => setModus(null)}>Abbrechen</button>
             </div>
           </div>
         )}

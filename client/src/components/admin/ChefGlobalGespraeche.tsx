@@ -10,12 +10,17 @@
 // zuletzt war. Keine eigene Seite — eine Leiste im Raum Global-Kunden, unter dem
 // Kopf. Die Erinnerung an die Leitung verlinkt hierher (?gespraeche=offen).
 // Dieselben Wege wie der Kalender: globalTerminErgebnis, globalGespraechVerschieben.
+// E-490 F6 (09.11.2026): „Nicht erreicht“ fragt in einer Zeile unter dem Gespräch
+// statt in einem Bestätigungsfenster — mit dem Haken „Kunde schon persönlich
+// angeschrieben — keine Mail“ (Standard aus, geht als ohneMail an den Server).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
 import { useSearch } from "wouter";
 import { useDaten } from "./chef-teile";
 import { NACHLADEN_MS, senden } from "./chef-global-kunden-teile";
-import { GLOBAL_ERGEBNIS_WAHL, NICHT_ERREICHT_FRAGE, type GlobalErgebnisWahl } from "@shared/fiaon-global-gespraech";
+import {
+  GLOBAL_ERGEBNIS_WAHL, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS, type GlobalErgebnisWahl,
+} from "@shared/fiaon-global-gespraech";
 
 interface Zeile {
   id: number; beginn: string; dauerMin: number; status: string; herkunft: string | null;
@@ -55,6 +60,8 @@ export default function ChefGlobalGespraeche() {
   const [laeuft, setLaeuft] = useState<number | null>(null);
   const [meldung, setMeldung] = useState<{ text: string; gut: boolean } | null>(null);
   const [schieben, setSchieben] = useState<{ id: number; wert: string } | null>(null);
+  // E-490 F6: die offene Rückfrage „Nicht erreicht“ (je Gespräch) mit dem Haken „schon persönlich angeschrieben“.
+  const [nichtErreicht, setNichtErreicht] = useState<{ id: number; ohneMail: boolean } | null>(null);
   const offen = daten?.offen ?? []; const kommend = daten?.kommend ?? []; const zuletzt = daten?.zuletzt ?? [];
 
   // Fehlt irgendwo ein Ergebnis, steht die Leiste offen — das ist die Arbeit.
@@ -64,13 +71,13 @@ export default function ChefGlobalGespraeche() {
   }, [ausLink, !!daten]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!meldung) return; const t = window.setTimeout(() => setMeldung(null), 9000); return () => window.clearTimeout(t); }, [meldung]);
 
-  const eintragen = async (z: Zeile, wahl: "stattgefunden" | "nicht_erreicht") => {
-    if (wahl === "nicht_erreicht" && !window.confirm(NICHT_ERREICHT_FRAGE)) return;
+  // E-490 F6: „Nicht erreicht“ kommt erst aus der Rückfrage-Zeile (nichtErreichtFeld) — mit ohneMail, wenn der Haken sitzt.
+  const eintragen = async (z: Zeile, wahl: "stattgefunden" | "nicht_erreicht", ohneMail = false) => {
     setLaeuft(z.id); setMeldung(null);
-    const j = await senden(`/chef/global/gespraeche/${z.id}/ergebnis`, "POST", { ergebnis: wahl });
+    const j = await senden(`/chef/global/gespraeche/${z.id}/ergebnis`, "POST", { ergebnis: wahl, ...(wahl === "nicht_erreicht" && ohneMail ? { ohneMail: true } : {}) });
     setLaeuft(null);
     setMeldung({ text: j.ok ? String(j.meldung ?? "Vermerkt.") : String(j.error), gut: j.ok });
-    if (j.ok) neu();
+    if (j.ok) { setNichtErreicht(null); neu(); }
   };
   const verschieben = async () => {
     if (!schieben?.wert) return;
@@ -88,6 +95,21 @@ export default function ChefGlobalGespraeche() {
       <button type="button" className="cgn-knopf klein haupt" disabled={laeuft === z.id || !schieben.wert} onClick={() => void verschieben()}>Neue Zeit speichern</button>
       <button type="button" className="cgn-link leise" onClick={() => setSchieben(null)}>abbrechen</button>
       <small>{folge("verschoben")}</small>
+    </div>
+  );
+  // E-490 F6: die Rückfrage vor „Nicht erreicht“ — der Satz, der Haken (Standard aus), Eintragen oder abbrechen.
+  const nichtErreichtFeld = (z: Zeile) => nichtErreicht?.id === z.id && (
+    <div className="cgg-ne" data-cgn="nicht-erreicht" role="group" aria-label="Nicht erreicht eintragen">
+      <p className="cgg-ne-satz">{NICHT_ERREICHT_SATZ}</p>
+      <label className="cgg-ne-haken">
+        <input type="checkbox" checked={nichtErreicht.ohneMail} onChange={(e) => setNichtErreicht({ id: z.id, ohneMail: e.target.checked })} />
+        <span>{OHNE_MAIL_HAKEN}</span>
+      </label>
+      <button type="button" className="cgn-knopf klein haupt" disabled={laeuft === z.id} onClick={() => void eintragen(z, "nicht_erreicht", nichtErreicht.ohneMail)}>
+        {nichtErreicht.ohneMail ? "Nicht erreicht — ohne Mail eintragen" : "Nicht erreicht eintragen"}
+      </button>
+      <button type="button" className="cgn-link leise" onClick={() => setNichtErreicht(null)}>abbrechen</button>
+      <small>{nichtErreicht.ohneMail ? OHNE_MAIL_HINWEIS : folge("nicht_erreicht")}</small>
     </div>
   );
 
@@ -117,12 +139,17 @@ export default function ChefGlobalGespraeche() {
                     {GLOBAL_ERGEBNIS_WAHL.map((w) => (
                       <button key={w.key} type="button" title={w.folge} disabled={laeuft === z.id || (w.key === "verschoben" && z.status !== "gebucht")}
                         className={`cgn-knopf klein${w.key === "stattgefunden" ? " haupt" : ""}`}
-                        onClick={() => (w.key === "verschoben" ? setSchieben({ id: z.id, wert: feldWert(z.beginn) }) : void eintragen(z, w.key as "stattgefunden" | "nicht_erreicht"))}>
+                        onClick={() => {
+                          if (w.key === "verschoben") { setNichtErreicht(null); setSchieben({ id: z.id, wert: feldWert(z.beginn) }); }
+                          else if (w.key === "nicht_erreicht") { setSchieben(null); setNichtErreicht({ id: z.id, ohneMail: false }); }
+                          else void eintragen(z, "stattgefunden");
+                        }}>
                         {w.text}
                       </button>
                     ))}
                   </div>
                   {schiebenFeld(z)}
+                  {nichtErreichtFeld(z)}
                 </div>
               ))}
             </div>

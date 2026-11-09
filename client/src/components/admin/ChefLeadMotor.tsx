@@ -143,7 +143,13 @@ export default function ChefLeadMotor() {
   };
   const formulareNeu = async () => {
     setBeschaeftigt("formulare");
-    try { const j = await senden("/chef/lead-motor/formulare", {}); melden(`${j.ergebnis?.formulare ?? 0} Formulare geladen.`); stand.neu(); }
+    // E-490 F1: Neue Formulare nennt die Antwort mit — ihre Leads holt der nächste Nachhol-Lauf (≤ 5 Minuten) ab der Anlage.
+    try {
+      const j = await senden("/chef/lead-motor/formulare", {});
+      const neu = Array.isArray(j.ergebnis?.neu) ? j.ergebnis.neu.length : 0;
+      melden(`${j.ergebnis?.formulare ?? 0} Formulare geladen.${neu ? ` ${neu === 1 ? "Ein Formular ist neu" : `${neu} Formulare sind neu`} — der nächste Nachhol-Lauf (in höchstens 5 Minuten) holt ihre Leads ab der Anlage.` : ""}`);
+      stand.neu();
+    }
     catch (err: any) { melden(err.message); } finally { setBeschaeftigt(null); }
   };
   const alarmErledigt = async (id: number) => {

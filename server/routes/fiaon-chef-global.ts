@@ -457,13 +457,16 @@ router.post("/chef/global/gespraeche/:id/ergebnis", requireChef("leitung"), asyn
        WHERE id = ${id} AND quelle = 'global' AND (status = 'gebucht' OR (status = 'verpasst' AND erledigt_am IS NULL)) LIMIT 1`) as any[];
     if (!t) return res.status(404).json({ ok: false, error: "Dieses Gespräch ist schon abgeschlossen oder abgesagt." });
     const w = await wer(req);
+    // E-490 F6: Haken „Kunde schon persönlich angeschrieben — keine Mail“ (nur ein echtes true zählt; Standard aus).
+    const ohneMail = wahl === "nicht_erreicht" && req.body?.ohneMail === true;
     const { globalTerminErgebnis } = await import("../lib/fiaon-global-termin");
     const erg = await globalTerminErgebnis({
       terminId: id, personId: Number(t.person_id), beginn: t.beginn, agent: { id: w.id, name: w.name },
       ergebnis: wahl === "stattgefunden" ? "erledigt" : "verpasst", grund: wahl === "nicht_erreicht" ? "nicht_erschienen" : null,
       notiz: req.body?.notiz ? String(req.body.notiz).slice(0, 2000) : null,
+      ohneMail,
     });
-    console.log(`[CHEF-GLOBAL] Gespräch ${id}: ${wahl} (${w.name})`);
+    console.log(`[CHEF-GLOBAL] Gespräch ${id}: ${wahl}${ohneMail ? " (ohne Mail — schon persönlich angeschrieben)" : ""} (${w.name})`);
     res.json({ ok: true, meldung: erg.hinweis });
   } catch (e) { fehler(res, "gespraech ergebnis", e); }
 });

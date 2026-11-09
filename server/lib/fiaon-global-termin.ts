@@ -1016,6 +1016,14 @@ export async function globalAnfrageAnnehmen(ein: {
 // erreicht“ oder „Nummer falsch“ einträgt, löst sie GENAU EINMAL aus
 // (globalNichtErreichtSenden). Jeder Eintrag schließt auch die Aufgabe
 // „Ergebnis fehlt“ und die Erinnerung an die Leitung (fiaon-global-gespraech.ts).
+//
+// E-490 F6 (09.11.2026): Hat jemand das Unternehmen schon PERSÖNLICH
+// angeschrieben (am 09.11. so passiert — der Kunde bekam danach eine zweite
+// Mail), setzt er beim Knopf „Nicht erreicht“ den Haken „Kunde schon persönlich
+// angeschrieben — keine Mail“ (Standard aus; Chefbüro › Global-Kunden ›
+// Gespräche und Kalender). Dann geht global_nicht_erreicht nicht hinaus, und
+// Termin-Notiz, Firmen-Verlauf und die geschlossene Aufgabe sagen, wer das
+// Unternehmen schon selbst angeschrieben hat.
 // ───────────────────────────────────────────────────────────────────────────
 
 const NICHT_ZUSTANDE_TEXT: Record<string, string> = {
@@ -1025,6 +1033,16 @@ const NICHT_ZUSTANDE_TEXT: Record<string, string> = {
   kein_interesse: "kein Interesse mehr, vom Unternehmen erklärt",
 };
 
+/** E-490 F6: Löst dieser Eintrag die Mail „nicht erreicht“ aus? „Nicht erreicht“ und „Nummer falsch“ (auch ohne Grund) — ja. Rein. */
+export function nichtErreichtMailGrund(ergebnis: "erledigt" | "verpasst", grund: string | null | undefined): boolean {
+  return ergebnis === "verpasst" && (!grund || grund === "nicht_erschienen" || grund === "nummer_falsch");
+}
+
+/** E-490 F6: der Satz für Notiz, Verlauf und Aufgabe, wenn der Haken „schon persönlich angeschrieben“ gesetzt war. Rein. */
+export function ohneMailVermerk(wer: string): string {
+  return `Keine Mail „nicht erreicht“ — ${String(wer || "das Team").trim()} hat das Unternehmen schon persönlich angeschrieben.`;
+}
+
 export async function globalTerminErgebnis(ein: {
   terminId: number; personId: number; beginn: Date | string;
   agent: { id: number; name: string };
@@ -1032,6 +1050,11 @@ export async function globalTerminErgebnis(ein: {
   /** Nur bei „verpasst": einer der vier Gründe aus dem Kalender. */
   grund?: string | null;
   notiz?: string | null;
+  /**
+   * E-490 F6: Haken „Kunde schon persönlich angeschrieben — keine Mail“ beim Knopf „Nicht erreicht“ (Standard aus). Gilt nur,
+   * wo sonst die Mail „nicht erreicht“ ginge (nicht erreicht, Nummer falsch).
+   */
+  ohneMail?: boolean;
 }): Promise<{ hinweis: string }> {
   const wann = `${berlinDatumText(ein.beginn)}, ${berlinUhrzeit(ein.beginn)} Uhr`;
   const notiz = ein.notiz ? String(ein.notiz).trim().slice(0, 2000) : "";
@@ -1039,10 +1062,13 @@ export async function globalTerminErgebnis(ein: {
   const vermerk = ein.ergebnis === "erledigt"
     ? "Erstgespräch geführt."
     : `Erstgespräch kam nicht zustande — ${grundText}.`;
+  const mailGrund = nichtErreichtMailGrund(ein.ergebnis, ein.grund);
+  const ohneMail = mailGrund && ein.ohneMail === true;
+  const ohneMailSatz = ohneMail ? ohneMailVermerk(ein.agent.name) : "";
 
   // Anhängen, nicht ersetzen: In der Notiz steht, was das Unternehmen bei der
   // Buchung angegeben hat — das braucht auch der, der in drei Wochen nachliest.
-  const notizZeile = notiz ? `${vermerk} ${notiz}` : vermerk;
+  const notizZeile = [vermerk, notiz, ohneMailSatz].filter(Boolean).join(" ");
   // E-458 Nr. 11: der Grund steht jetzt auch als Wert am Termin (verpasst_grund war bei jedem Global-Gespräch leer).
   await sqlPool`
     UPDATE fiaon_termine
@@ -1061,7 +1087,7 @@ export async function globalTerminErgebnis(ein: {
     // Geführt → morgen nachfassen. Nicht zustande → heute noch einmal anrufen.
     wiedervorlage: ein.ergebnis === "erledigt" ? "morgen" : keinInteresse ? null : "heute",
     ereignis: ein.ergebnis === "erledigt" ? "gespraech_gefuehrt" : "gespraech_nicht_zustande",
-    verlauf: `${vermerk.replace(/\.$/, "")} (${wann}).${notiz ? ` ${notiz}` : ""}`,
+    verlauf: `${vermerk.replace(/\.$/, "")} (${wann}).${notiz ? ` ${notiz}` : ""}${ohneMailSatz ? ` ${ohneMailSatz}` : ""}`,
     agent: ein.agent,
     kontakt: ein.ergebnis === "erledigt",
   }).catch((e) => { console.error(`[GLOBAL-TERMIN] Ergebnis von Termin ${ein.terminId} nicht im Firmen-Topf vermerkt:`, e); return { firmaId: null }; });
@@ -1069,7 +1095,7 @@ export async function globalTerminErgebnis(ein: {
   // Der Auftrag zum Gespräch ist damit erledigt — sonst steht er weiter offen. E-458 Nr. 11: dazu „Ergebnis fehlt“
   // und die Erinnerung an die Leitung (ein Weg für Kalender, Chefbüro und Absage).
   const { globalErgebnisAufgabenSchliessen, globalNichtErreichtSenden } = await import("./fiaon-global-gespraech");
-  await globalErgebnisAufgabenSchliessen(ein.terminId, { ergebnis: vermerk, wer: ein.agent.name, auchGespraech: true });
+  await globalErgebnisAufgabenSchliessen(ein.terminId, { ergebnis: ohneMailSatz ? `${vermerk} ${ohneMailSatz}` : vermerk, wer: ein.agent.name, auchGespraech: true });
   // E-476 Scheibe 5: EIN Stand — nach einem LEAD-Gespräch ziehen Anfrage und Anruf-Auftrag mit (nicht erreicht → Daniels
   // Auftrag geht wieder auf). Startgespräche zahlender Kunden bleiben unberührt. Wirft nie.
   await leadStandNachGespraech(ein.terminId, lead.firmaId, ein.ergebnis === "erledigt" ? "gespraech_gefuehrt" : keinInteresse ? "gespraech_kein_interesse" : "gespraech_nicht_zustande", ein.agent);
@@ -1080,9 +1106,12 @@ export async function globalTerminErgebnis(ein: {
   }
   // E-458 Nr. 11: „nicht erreicht“ (auch wegen falscher Nummer) — einmal die gesiezte Mail mit dem Link für eine neue Zeit.
   // „Abgesagt“ und „kein Interesse“ bekommen keine: Das Unternehmen weiß es selbst.
-  const mail = ein.grund === "nicht_erschienen" || ein.grund === "nummer_falsch" || !ein.grund
-    ? await globalNichtErreichtSenden(ein.terminId).catch((e) => ({ versandt: false, satz: ` Die Mail ging NICHT raus (${String(e).slice(0, 120)}) — bitte anrufen.` }))
-    : { versandt: false, satz: " Es geht keine Mail raus." };
+  // E-490 F6: Haken „schon persönlich angeschrieben“ → keine Mail (vermerkt oben in Notiz, Verlauf und Aufgabe).
+  const mail = !mailGrund
+    ? { versandt: false, satz: " Es geht keine Mail raus." }
+    : ohneMail
+      ? { versandt: false, satz: " Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben (steht im Verlauf)." }
+      : await globalNichtErreichtSenden(ein.terminId).catch((e) => ({ versandt: false, satz: ` Die Mail ging NICHT raus (${String(e).slice(0, 120)}) — bitte anrufen.` }));
   return {
     hinweis: keinInteresse
       ? `Vermerkt.${wo}${lead.firmaId ? " jetzt auf „kein Interesse“." : "."} Es geht keine Mail raus.`

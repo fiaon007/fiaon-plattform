@@ -205,6 +205,46 @@ titel("A6 · Anmeldung im Mailwerk und die Wände im Quelltext");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+titel("A7 · E-490 F6: „Nicht erreicht“ mit dem Haken „Kunde schon persönlich angeschrieben — keine Mail“");
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const S = await import("../shared/fiaon-global-gespraech");
+  const T = await import("../server/lib/fiaon-global-termin");
+  ok("der Haken heißt genau so (Standard aus)", S.OHNE_MAIL_HAKEN === "Kunde schon persönlich angeschrieben — keine Mail");
+  ok("Mail-Gründe: nicht erreicht, Nummer falsch, ohne Grund — nicht abgesagt, kein Interesse, nicht stattgefunden",
+    T.nichtErreichtMailGrund("verpasst", "nicht_erschienen") && T.nichtErreichtMailGrund("verpasst", "nummer_falsch") && T.nichtErreichtMailGrund("verpasst", null)
+    && !T.nichtErreichtMailGrund("verpasst", "abgesagt") && !T.nichtErreichtMailGrund("verpasst", "kein_interesse") && !T.nichtErreichtMailGrund("erledigt", null));
+  ok("dieselben Gründe im Kalender (der Haken zählt nur bei ihnen)", S.GLOBAL_GRUENDE_MIT_MAIL.join() === "nicht_erschienen,nummer_falsch"
+    && S.GLOBAL_GRUENDE.filter((g) => S.GLOBAL_GRUENDE_MIT_MAIL.includes(g.key)).every((g) => /außer mit dem Haken/.test(g.folge)));
+  ok("der Vermerk nennt, wer schon angeschrieben hat", T.ohneMailVermerk("Justin Schwarzott") === "Keine Mail „nicht erreicht“ — Justin Schwarzott hat das Unternehmen schon persönlich angeschrieben.");
+  const lib = quelle("server/lib/fiaon-global-termin.ts");
+  const erg = lib.split("export async function globalTerminErgebnis(")[1]?.split("\n}\n")[0] ?? "";
+  ok("Server: ohneMail nur mit Mail-Grund und echtem true; dann KEIN globalNichtErreichtSenden",
+    /const ohneMail = mailGrund && ein\.ohneMail === true;/.test(erg) && /: ohneMail\s*\? \{ versandt: false, satz: " Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben/.test(erg)
+    && erg.indexOf("ohneMail\n      ? {") < erg.indexOf("await globalNichtErreichtSenden(ein.terminId)"));
+  ok("Server: der Vermerk steht in Notiz, Firmen-Verlauf und der geschlossenen Aufgabe",
+    /const notizZeile = \[vermerk, notiz, ohneMailSatz\]\.filter\(Boolean\)\.join\(" "\);/.test(erg) && /\$\{ohneMailSatz \? ` \$\{ohneMailSatz\}` : ""\}`,/.test(erg)
+    && /ergebnis: ohneMailSatz \? `\$\{vermerk\} \$\{ohneMailSatz\}` : vermerk/.test(erg));
+  const chef = quelle("server/routes/fiaon-chef-global.ts");
+  ok("Chefbüro-Route reicht ohneMail durch (nur bei „nicht erreicht“, nur true)", /const ohneMail = wahl === "nicht_erreicht" && req\.body\?\.ohneMail === true;/.test(chef) && /notiz: req\.body\?\.notiz [^\n]*\n\s*ohneMail,\n/.test(chef));
+  const kal = quelle("server/routes/fiaon-termin.ts");
+  ok("Kalender-Routen (nicht zustande, Ergebnis) reichen ohneMail durch (nur true)", (kal.match(/ohneMail: req\.body\?\.ohneMail === true,/g) ?? []).length === 2);
+  const cgg = quelle("client/src/components/admin/ChefGlobalGespraeche.tsx");
+  ok("Chefbüro: kein Bestätigungsfenster mehr, die Rückfrage-Zeile mit dem Haken (Standard aus) schickt ohneMail",
+    !/window\.confirm/.test(cgg) && /setNichtErreicht\(\{ id: z\.id, ohneMail: false \}\)/.test(cgg) && /\{OHNE_MAIL_HAKEN\}/.test(cgg) && /ohneMail: true/.test(cgg) && /data-cgn="nicht-erreicht"/.test(cgg));
+  const cal = quelle("client/src/pages/agent/calendar.tsx");
+  ok("Kalender: „Nicht erreicht“ fragt in der Karte und im Dialog mit dem Haken; die Gründe des X tragen ihn VOR der Auswahl",
+    !/NICHT_ERREICHT_FRAGE/.test(cal) && (cal.match(/\{OHNE_MAIL_HAKEN\}/g) ?? []).length === 3 && /onNichtZustande\("nicht_erschienen", \{ ohneMail \}\)/.test(cal)
+    && /onVerpasst\(\{ ohneMail \}\)/.test(cal) && /GLOBAL_GRUENDE_MIT_MAIL\.includes\(g\.key\) \? \{ ohneMail \} : \{\}/.test(cal)
+    && cal.indexOf("{OHNE_MAIL_HAKEN}", cal.indexOf("Warum kam das Gespräch nicht zustande?")) < cal.indexOf("{GLOBAL_GRUENDE.map(", cal.indexOf("Warum kam das Gespräch nicht zustande?")));
+  ok("Kalender: beim Öffnen steht der Haken immer auf aus", (cal.match(/setOhneMail\(false\)/g) ?? []).length >= 4);
+  const RG = await import("../client/src/pages/agent/rundgaenge");
+  const satz = (l: { text?: string; tipp?: string }[]) => l.map((s) => `${s.text ?? ""} ${s.tipp ?? ""}`).join(" ");
+  ok("Rundgänge nachgezogen (Kalender und Chefbüro › Global-Kunden › Gespräche)",
+    /Haken „Kunde schon persönlich angeschrieben — keine Mail“/.test(satz(RG.RUNDGANG_CALENDAR)) && /Haken „Kunde schon persönlich angeschrieben — keine Mail“/.test(satz(RG.RUNDGANG_CHEF_GLOBAL_KUNDEN)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TEIL B — DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
 if (!mitDb) {
@@ -406,6 +446,34 @@ if (!mitDb) {
   const { runTerminErinnerungen } = await import("../server/routes/fiaon-followup");
   await runTerminErinnerungen();
   ok("Privat-Erinnerung: Global-Gespräch ohne Marke und ohne Mail", !(await zeile(tZ)).erinnert_am && !gefangen.some((m) => m.an === "m.beispiel10@beispiel-gmbh.example"));
+
+  // ─────────────────────────────────────────────────────────────────────────
+  titel("B8 · E-490 F6: „Nicht erreicht“ mit dem Haken „schon persönlich angeschrieben“ — keine Mail, Vermerk im Verlauf");
+  // ─────────────────────────────────────────────────────────────────────────
+  // (am Ende, damit die festen Beispiel-Nummern der Abschnitte davor gleich bleiben)
+  const pO = await firma(); const mailO = `m.beispiel${nr}@beispiel-gmbh.example`;
+  const tO = await gespraech(pO, h(-7), h(-48), 8, "ohne-mail");
+  gefangen.length = 0;
+  const eO = await globalTerminErgebnis({ terminId: tO, personId: pO, beginn: h(-7), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "nicht_erschienen", ohneMail: true });
+  ok("KEINE Mail an das Unternehmen (es wurde schon persönlich angeschrieben)", !gefangen.some((m) => m.an === mailO), gefangen.map((m) => m.an).join(", "));
+  ok("Hinweis: keine Mail, schon persönlich angeschrieben", /Es geht keine Mail raus — du hast das Unternehmen schon persönlich angeschrieben/.test(eO.hinweis), eO.hinweis);
+  const zO = await zeile(tO);
+  ok("Termin: verpasst (nicht erreicht), OHNE Marke der Mail", zO.status === "verpasst" && zO.verpasst_grund === "nicht_erschienen" && !zO.verpasst_mail_am);
+  ok("Termin-Notiz vermerkt, wer schon angeschrieben hat", /Keine Mail „nicht erreicht“ — Daniel Stripling hat das Unternehmen schon persönlich angeschrieben\./.test(String(zO.notiz)), String(zO.notiz));
+  const [logO] = (await sqlPool`
+    SELECT l.notiz FROM fiaon_firmen_log l JOIN fiaon_firmen_leads f ON f.id = l.firma_id
+     WHERE f.person_id = ${pO} AND l.ergebnis = 'gespraech_nicht_zustande' ORDER BY l.id DESC LIMIT 1`) as any[];
+  ok("Firmen-Verlauf vermerkt es", /schon persönlich angeschrieben/.test(String(logO?.notiz)), String(logO?.notiz));
+  const [mlO] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_mail_log WHERE event = 'global_nicht_erreicht' AND LOWER(COALESCE(empfaenger, '')) = ${mailO}`) as any[];
+  ok("Mail-Protokoll: keine „nicht erreicht“-Mail an das Unternehmen", Number(mlO?.n) === 0, String(mlO?.n));
+  const pA3 = await firma(); const tA3 = await gespraech(pA3, h(-8), h(-48), 8, "abgesagt-haken");
+  const eA3 = await globalTerminErgebnis({ terminId: tA3, personId: pA3, beginn: h(-8), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "abgesagt", ohneMail: true });
+  ok("Haken bei „abgesagt“: wirkungslos, kein Vermerk (dort geht ohnehin keine Mail)", !/persönlich angeschrieben/.test(String((await zeile(tA3)).notiz)) && /Es geht keine Mail raus\.$/.test(eA3.hinweis), eA3.hinweis);
+  const pN = await firma(); const mailN = `m.beispiel${nr}@beispiel-gmbh.example`;
+  const tN = await gespraech(pN, h(-9), h(-48), 8, "ohne-haken");
+  gefangen.length = 0;
+  await globalTerminErgebnis({ terminId: tN, personId: pN, beginn: h(-9), agent: { id: 8, name: "Daniel Stripling" }, ergebnis: "verpasst", grund: "nicht_erschienen", ohneMail: false });
+  ok("Gegenprobe ohne Haken: die Mail geht wie bisher genau einmal", gefangen.filter((m) => m.an === mailN).length === 1, gefangen.map((m) => m.an).join(", "));
 
   await sqlPool.end({ timeout: 2 }).catch(() => {});
 }

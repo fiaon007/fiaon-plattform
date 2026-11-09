@@ -287,6 +287,15 @@ select.ca-feld option{color:#0f172a}
 .ca-grund.rot b{color:#fecaca}
 .ca-link-klein{background:none;border:0;padding:6px 2px;cursor:pointer;color:#93c5fd;
   font:400 12px/1 'Inter',sans-serif;justify-self:start}
+/* E-490 F6 (09.11.2026): der Haken „Kunde schon persönlich angeschrieben — keine Mail“ beim Global-Gespräch („Nicht erreicht“,
+   „Telefonnummer stimmt nicht“) — in der Karte und im Dialog. Mindestens 40 px hoch, damit er auf dem Handy gut zu treffen ist. */
+.ca-haken{display:flex;align-items:center;gap:9px;min-height:40px;padding:2px;cursor:pointer;
+  font:400 12.5px/1.35 'Inter',sans-serif;color:#e5e7eb}
+.ca-haken input{width:16px;height:16px;margin:0;flex:none;accent-color:#93c5fd}
+.ca-haken-hinweis{margin:0;font:300 11.5px/1.4 'Inter',sans-serif;color:#9ca3af}
+.ca-ne-knoepfe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* Die Rückfragen in der Terminzeile (Gründe des X, „Nicht erreicht?“) gehen über die ganze Zeile — wie die Ergebnis-Knöpfe. */
+.ca-zeile > .ca-gruende{grid-column:1/-1;cursor:default}
 /* E-458 Nr. 11 (29.10.2026): Global-Gespräch vorbei, Ergebnis fehlt — drei Knöpfe über die ganze Zeile.
    Bernstein wie der Hinweis „Ergebnis fehlt“; dieselben Knöpfe wie im Chefbüro › Global-Kunden › Gespräche. */
 .ca-global-ergebnis{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:10px 12px;border-radius:14px;

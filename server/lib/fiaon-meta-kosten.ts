@@ -116,6 +116,15 @@ async function einstellungSetzen(key: string, wert: string, lauf: Lauf = sqlPool
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`;
 }
 
+/**
+ * E-490 F5: die schon bekannten Werbekonten — Umgebung META_WERBEKONTO schlägt die Einstellung meta_werbekonto. Ohne
+ * Nachschlagen bei Meta und ohne zu schreiben (für Leser wie den Wächter „Lead-Kette“; der Kostenabruf ergänzt die Liste).
+ */
+export async function gespeicherteWerbekonten(lauf: Lauf = sqlPool): Promise<string[]> {
+  const ausUmgebung = kontenListe(process.env.META_WERBEKONTO);
+  return ausUmgebung.length ? ausUmgebung : kontenListe(await einstellung(WERBEKONTO_SCHLUESSEL, lauf));
+}
+
 /** Zu welchem Werbekonto gehört eine Kampagne? Nur lesend bei Meta. */
 export async function kontoAusKampagne(kampagneId: string): Promise<string | null> {
   const j = await graph(String(kampagneId), { params: { fields: "account_id" } });

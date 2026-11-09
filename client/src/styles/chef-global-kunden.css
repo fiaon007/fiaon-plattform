@@ -308,6 +308,12 @@
 .cgg-schieben { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 4px 0 2px; }
 .cgg-schieben input { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--cgn-linie-2); background: #fff; color: var(--cgn-tinte); font: 400 13px/1 var(--cgn-schrift); }
 .cgg-schieben small { flex: 1 0 100%; color: var(--cgn-still); font-size: 12px; }
+/* E-490 F6: „Nicht erreicht“ fragt in einer Zeile — mit dem Haken „Kunde schon persönlich angeschrieben — keine Mail“. */
+.cgg-ne { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 0 2px; }
+.cgg-ne-satz { flex: 1 0 100%; margin: 0; color: var(--cgn-tinte-2); font: 400 13px/1.45 var(--cgn-schrift); }
+.cgg-ne-haken { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; color: var(--cgn-tinte); font: 400 13px/1.35 var(--cgn-schrift); cursor: pointer; }
+.cgg-ne-haken input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--cgn-tiefe); }
+.cgg-ne small { flex: 1 0 100%; color: var(--cgn-still); font-size: 12px; }
 .cgg-leer { margin: 0; padding: 8px 0; color: var(--cgn-still); font-size: 13px; }
 .cgg-fuss { margin: 0; color: var(--cgn-still); font: 400 12px/1.5 var(--cgn-schrift); }
 .cgg-fuss a { color: var(--cgn-tiefe); }
@@ -364,5 +370,6 @@
   .cgg-knoepfe { width: 100%; }
   .cgg-knoepfe .cgn-knopf { flex: 1 1 auto; }
   .cgg-schieben input { height: 44px; flex: 1 1 200px; }
+  .cgg-ne-haken { min-height: 44px; flex: 1 0 100%; }
 }
 .cgn-eintrag-rechts .cgn-sicht { font: 400 12px/1.3 var(--cgn-schrift); }

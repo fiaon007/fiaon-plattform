@@ -896,6 +896,8 @@ router.post("/agent/termine/:id/nicht-zustande", requireAgent, async (req: Agent
         agent: { id: req.agent!.id, name: req.agent!.name },
         ergebnis: "verpasst", grund,
         notiz: req.body?.notiz ? String(req.body.notiz) : null,
+        // E-490 F6: Haken „Kunde schon persönlich angeschrieben — keine Mail“ (nur ein echtes true; wirkt bei nicht erreicht / Nummer falsch).
+        ohneMail: req.body?.ohneMail === true,
       });
       return res.json({ ok: true, hinweis: erg.hinweis });
     }
@@ -1105,6 +1107,8 @@ router.post("/agent/termine/:id/ergebnis", requireAgent, async (req: AgentReques
         ergebnis: String(ergebnis) === "erledigt" ? "erledigt" : "verpasst",
         grund: String(ergebnis) === "verpasst" ? "nicht_erschienen" : null,
         notiz: notiz ? String(notiz) : null,
+        // E-490 F6: Haken „Kunde schon persönlich angeschrieben — keine Mail“ (nur ein echtes true; Standard aus).
+        ohneMail: req.body?.ohneMail === true,
       });
       return res.json({ ok: true, hinweis: erg.hinweis });
     }

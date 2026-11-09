@@ -158,6 +158,34 @@ export async function stillerLauf(name: string, fn: () => void | Promise<unknown
   }
 }
 
+/** E-490 F3: Läufe mit Historie (laufMitHistorie), die in DIESEM Prozess gerade arbeiten — gezählt (Takt und Knopf zugleich). */
+const historieAktiv = new Map<string, number>();
+
+/**
+ * E-490 F3 (09.11.2026): Arbeitet der Lauf `name` gerade in DIESEM Prozess (ein Takt mit nurMitErgebnis oder ein Lauf über
+ * laufMitHistorie)? Für Wächter, die nicht mitten in die Arbeit eines anderen Laufs lesen dürfen — der Ergebnis-Wächter
+ * „Lead-Kette“ las sonst, während wa_global_takt noch sendete, und meldete überholte rote Fälle. Ein ZWEITER Prozess (kurz
+ * beim Deploy) ist hier unsichtbar; dagegen hilft beim Wächter die zweite Bestätigung (fiaon-lead-takt-regeln.ts).
+ */
+export function laufAktiv(name: string): boolean {
+  return stillAktiv.has(name) || (historieAktiv.get(name) ?? 0) > 0;
+}
+
+/**
+ * E-490 F3: warten, bis der Lauf `name` in diesem Prozess fertig ist — alle `schrittMs` (Vorgabe 200) geprüft, höchstens
+ * `hoechstensMs` (Vorgabe 30 s). `fertig: false` = die Zeit lief ab; der Aufrufer arbeitet trotzdem weiter (lesen statt hängen).
+ */
+export async function warteBisLaufFertig(name: string, opt: { hoechstensMs?: number; schrittMs?: number } = {}): Promise<{ fertig: boolean; gewartetMs: number }> {
+  const hoechstens = Math.max(0, opt.hoechstensMs ?? 30_000);
+  const schritt = Math.max(10, opt.schrittMs ?? 200);
+  const start = Date.now();
+  while (laufAktiv(name)) {
+    if (Date.now() - start >= hoechstens) return { fertig: false, gewartetMs: Date.now() - start };
+    await new Promise((r) => setTimeout(r, schritt));
+  }
+  return { fertig: true, gewartetMs: Date.now() - start };
+}
+
 /**
  * Alle registrierten Läufe — für die Admin-Ansicht und den Prüfstand.
  *
@@ -327,6 +355,8 @@ export async function laufMitHistorie<T>(
   const id = zeile?.id ?? null;
   const start = Date.now();
 
+  // E-490 F3: für laufAktiv — dieser Prozess arbeitet jetzt an `name` (bis zum finally unten).
+  historieAktiv.set(name, (historieAktiv.get(name) ?? 0) + 1);
   try {
     const ergebnis = await fn();
     const dauer = Date.now() - start;
@@ -357,6 +387,9 @@ export async function laufMitHistorie<T>(
       `.catch(() => {});
     }
     return { gelaufen: false, grund: `Fehler: ${text}` };
+  } finally {
+    const rest = (historieAktiv.get(name) ?? 1) - 1;
+    if (rest > 0) historieAktiv.set(name, rest); else historieAktiv.delete(name);
   }
 }
 

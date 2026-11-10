@@ -168,8 +168,12 @@ function Punktzeile({ text, leise = false }: { text: string; leise?: boolean }) 
 }
 
 /** „Gründung, Konto und Karten 2.790 € · Fast-Track 499 €“ — jeder Teil bleibt ganz (nie „Fast-“ | „Track“). */
+// E-493 (10.11.2026): Nur KURZE Stücke bleiben zusammen (Zahl + Einheit, kurze Wortgruppen). Ein langes Stück ohne „ · “ war vorher ein
+// einziger Block ohne Umbruch (white-space:nowrap) — die Karte „Mit Fast-Track“ lief um ~360 px aus dem Rahmen, am Handy war sie 689 px
+// breit, und die Zeilen „Erfolgshonorar …“ und „Jahresbetreuung …“ unter „Ihre Investition“ waren über 1.100 px breit.
+const TEILE_NB_MAX = 36;
 function Teile({ text }: { text: string }) {
-  return <>{text.split(" · ").map((t, i) => <Fragment key={`${i}-${t}`}>{i > 0 && " · "}<span className="gkc-nb">{t}</span></Fragment>)}</>;
+  return <>{text.split(" · ").map((t, i) => <Fragment key={`${i}-${t}`}>{i > 0 && " · "}<span className={t.length <= TEILE_NB_MAX ? "gkc-nb" : undefined}>{t}</span></Fragment>)}</>;
 }
 /** „Fast-Track“ in Fließtext ohne Trennung am Bindestrich. */
 function OhneTrennung({ text, wort = "Fast-Track" }: { text: string; wort?: string }) {

@@ -232,7 +232,7 @@
 .gkc-invest-einzeln { display:grid; gap:10px; padding-top:2px; }
 .gkc-invest-einzeln > div { display:grid; grid-template-columns:minmax(0,220px) minmax(0,1fr); gap:2px 18px; }
 .gkc-invest-einzeln dt { font-size:13px; line-height:1.6; color:var(--leise); }
-.gkc-invest-einzeln dd { font-size:13.5px; line-height:1.6; color:var(--text); }
+.gkc-invest-einzeln dd { min-width:0; overflow-wrap:break-word; font-size:13.5px; line-height:1.6; color:var(--text); }
 .gkc .gkc-invest-betrag { font-weight:400; color:var(--text); }
 .gkc-invest-summe { margin-top:12px; font-size:13.5px; line-height:1.6; color:var(--text); }
 .gkc-invest-fein { margin-top:6px; padding-bottom:10px; font-size:13px; line-height:1.6; color:var(--leise); }
@@ -463,15 +463,17 @@
 /* ── Fast-Track ja/nein: zwei Karten — nichts vorgewählt, die gewählte im Blau-Verlauf-Rand ── */
 .gkc-ft-sub { margin-top:4px; font-size:14.5px; color:var(--leise); }
 .gkc-ft { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
-.gkc-ft-karte { position:relative; display:grid; align-content:start; gap:6px; padding:18px 18px 16px; border-radius:18px; border:1px solid var(--linie-2); background:#fff;
+.gkc-ft-karte { position:relative; display:grid; grid-template-columns:minmax(0,1fr); align-content:start; gap:6px; padding:18px 18px 16px; border-radius:18px; border:1px solid var(--linie-2); background:#fff;
   text-align:left; font:inherit; color:inherit; cursor:pointer; transition:border-color .25s var(--ease), box-shadow .25s var(--ease), background .25s var(--ease); }
 .gkc-ft-karte:focus-visible { outline:2px solid #1d4ed8; outline-offset:2px; }
+/* E-493: Inhalt der Karte darf nie breiter werden als die Karte selbst (Zeilen umbrechen, nichts läuft aus dem Rahmen). */
+.gkc-ft-karte > span { min-width:0; overflow-wrap:break-word; }
 .gkc-ft-kopf { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .gkc-ft-titel { font-size:15px; font-weight:500; color:var(--tinte); }
 .gkc-ft-punkt { flex:0 0 auto; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--linie-2); background:#fff; transition:all .25s var(--ease); }
 .gkc-ft-betrag { font-family:var(--serif); font-weight:300; font-size:28px; line-height:1.1; letter-spacing:-.01em; color:var(--tinte); white-space:nowrap; }
 .gkc-ft-zeile { font-size:13.5px; line-height:1.5; color:var(--text); }
-.gkc-ft-punkte { display:grid; gap:3px; margin-top:4px; padding-top:8px; border-top:1px solid var(--linie); font-size:13px; line-height:1.45; color:var(--leise); }
+.gkc-ft-punkte { display:grid; grid-template-columns:minmax(0,1fr); gap:3px; margin-top:4px; padding-top:8px; border-top:1px solid var(--linie); font-size:13px; line-height:1.45; color:var(--leise); }
 .gkc-ft-karte.an { border-color:#1d4ed8; background:linear-gradient(170deg, #ffffff, #f2f8ff); box-shadow:0 18px 40px -26px rgba(29,78,216,.6), inset 0 0 0 1px #1d4ed8; }
 .gkc-ft-karte.an .gkc-ft-punkt { border-color:#1d4ed8; background:radial-gradient(circle, #fff 0 3px, #1d4ed8 4px); }
 @media (hover:hover) { .gkc-ft-karte:hover { border-color:#288dfa; } }

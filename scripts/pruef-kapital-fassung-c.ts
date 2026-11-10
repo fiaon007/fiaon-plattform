@@ -1225,6 +1225,21 @@ abschnitt("E-491 Namensvorschlag (Wunschname vorausgefüllt)");
   ok(/useState<BegleitLlcWahl>\(\(\) => sichtVomServer\.llcVorschlag \?\?/.test(seiteQ) && /T\.subVorschlag/.test(seiteQ), "Seite: Felder starten mit dem Vorschlag, Satz wechselt");
 }
 
+abschnitt("E-493 Lange Zeilen laufen nicht mehr aus dem Rahmen (Fast-Track-Karte, Investition)");
+{
+  const tsx = readFileSync(path.join(WURZEL, "client/src/pages/business-angebot-kapital-c.tsx"), "utf8");
+  const css = readFileSync(path.join(WURZEL, "client/src/styles/global-angebot-kapital-c.css"), "utf8");
+  const teile = tsx.slice(tsx.indexOf("function Teile("), tsx.indexOf("function OhneTrennung"));
+  ok(/TEILE_NB_MAX\s*=\s*\d+/.test(tsx) && /t\.length\s*<=\s*TEILE_NB_MAX\s*\?\s*"gkc-nb"\s*:\s*undefined/.test(teile), "Teile: nur kurze Stücke (≤ Grenze) bleiben zusammen, lange dürfen umbrechen");
+  ok(/\.gkc-ft-karte\s*\{[^}]*grid-template-columns\s*:\s*minmax\(0,\s*1fr\)/.test(css), "Karte „Fast-Track“: eine Spalte mit fester Breite (minmax(0,1fr))");
+  ok(/\.gkc-ft-punkte\s*\{[^}]*grid-template-columns\s*:\s*minmax\(0,\s*1fr\)/.test(css), "Liste in der Karte: eine Spalte mit fester Breite");
+  ok(/\.gkc-ft-karte\s*>\s*span\s*\{[^}]*min-width\s*:\s*0/.test(css) && /\.gkc-invest-einzeln dd\s*\{[^}]*min-width\s*:\s*0/.test(css), "Inhalt von Karte und Investitions-Zeile darf nie breiter werden als sein Rahmen");
+  // Die längsten Zeilen, die der Server heute liefert, sind weit länger als die Grenze — also müssen sie umbrechen können.
+  const V = C.kapitalCVorrang({ bundesstaat: "Delaware", datenVomKunden: true } as any);
+  const laengste = Math.max(...[V.anmeldungKarte, "Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben"].map((s: string) => s.split(" · ").reduce((m: number, x: string) => Math.max(m, x.length), 0)));
+  ok(laengste > 36, "Gegenprobe: die längste Karten-Zeile ist länger als die Grenze (ohne die Regel wäre sie ein Block)", laengste);
+}
+
 const mail = arg("--mail");
 if (mail && existsSync(mail)) {
   abschnitt("9 Mailtext (Wortwand, kein Bankname, Link-Platzhalter, Kosten und Rate)");

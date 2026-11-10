@@ -617,3 +617,48 @@ export async function globalScanHochladen(ref: string, idRoh: unknown, datei: { 
   }
   return { ok: true, id: neu.id, meldung: kunde ? W.fertigText : d.pflicht_key === "irs_ss4" ? "Scan als unterschriebene Fassung abgelegt — die Aufgabe „an den Registered Agent“ ist angelegt." : "Scan als unterschriebene Fassung abgelegt." };
 }
+
+/**
+ * E-492 (10.11.2026): Ein von Hand unterschriebener Scan taugte nicht — Fall 09.11.: Eine Kundin lud das LEERE Formular hoch (Datei
+ * byte-gleich mit dem Original, keine Unterschrift, kein Datum). globalScanHochladen hakt das Pflichtformular beim Hochladen sofort
+ * ab; ein neuer, richtiger Scan wäre danach mit „liegt bereits unterschrieben vor“ abgewiesen worden, und die Team-Aufgabe „an den
+ * Registered Agent zurücksenden“ hätte ein leeres Formular geschickt.
+ * Nimmt die Unterschrift zurück: das Original gilt wieder als offen (unterschrieben_am und Nachweis leer — der Kunde sieht es wieder
+ * unter „Für Sie zu tun“ und kann neu hochladen), die Scan-Fassungen werden ausgeblendet (nie hart gelöscht, wie überall in der Akte),
+ * im Verlauf steht eine Zeile für den Kunden und eine interne mit dem Grund. NUR für den Handschrift-Weg (Nachweis „handschriftlich_scan“):
+ * eine digitale Unterschrift mit Code und Nachweis lässt sich so nie zurücknehmen. Die offene Team-Aufgabe zum Scan (Schlüssel
+ * global:<ref>:scan:<id>) schließt der Aufrufer.
+ */
+export async function globalScanZuruecknehmen(ref: string, idRoh: unknown, grundRoh: unknown, agent: { id: number; name: string }):
+  Promise<{ ok: true; meldung: string; ausgeblendet: number[] } | { ok: false; status: number; error: string }> {
+  await ensureAkteKomplett();
+  const { lageLesen, verlaufSchreiben } = await import("./fiaon-global-bereich");
+  const l = await lageLesen(ref);
+  if (!l) return nein(404, "Diesen Auftrag gibt es nicht.");
+  const id = Number(idRoh);
+  const [d] = Number.isInteger(id) && id > 0 ? ((await sqlPool`
+    SELECT id, art, titel, dateiname, pflicht_key, unterschrieben_am, unterschrift_art, unterschrift_nachweis->>'art' AS nachweis_art
+      FROM fiaon_global_dokumente WHERE id = ${id} AND ref = ${ref} AND geloescht_am IS NULL LIMIT 1`) as any[]) : [];
+  if (!d) return nein(404, "Dieses Dokument gibt es nicht (mehr).");
+  const grund = String(grundRoh ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  if (grund.length < 5) return nein(400, "Bitte einen kurzen Grund angeben, z. B. „leeres Formular hochgeladen, keine Unterschrift“.");
+  if (!d.unterschrieben_am) return nein(409, "Dieses Dokument ist nicht als unterschrieben markiert — es gibt nichts zurückzunehmen.");
+  if (d.unterschrift_art !== "handschriftlich" || d.nachweis_art !== "handschriftlich_scan") {
+    return nein(409, "Zurücknehmen geht nur bei einem von Hand unterschriebenen Scan — eine digitale Unterschrift bleibt bestehen.");
+  }
+  const scans = (await sqlPool`SELECT id FROM fiaon_global_dokumente WHERE ref = ${ref} AND unterschrift_von_id = ${id} AND geloescht_am IS NULL ORDER BY id`) as any[];
+  const ids = scans.map((x) => Number(x.id));
+  await sqlPool.begin(async (tx) => {
+    await tx`UPDATE fiaon_global_dokumente SET unterschrieben_am = NULL, unterschrift_nachweis = NULL WHERE id = ${id} AND ref = ${ref}`;
+    if (ids.length) await tx`UPDATE fiaon_global_dokumente SET geloescht_am = NOW() WHERE ref = ${ref} AND unterschrift_von_id = ${id} AND geloescht_am IS NULL`;
+  });
+  const s = l.sprache === "en" ? "en" : "de";
+  const p = globalPflichtUnterlage(d.pflicht_key);
+  const titel = p ? p.titel[s] : String(d.titel || d.dateiname);
+  await verlaufSchreiben(ref, { art: "dokument", text: `Handschrift-Scan zurückgenommen (${agent.name}): ${grund}. „${String(d.dateiname)}“ ist wieder offen; ausgeblendet: Dokument ${ids.join(", ") || "—"}.`, sichtbar: false, agentId: agent.id || null });
+  await verlaufSchreiben(ref, { art: "dokument_neu", sichtbar: true, agentId: agent.id || null,
+    text: s === "en"
+      ? `The scan we received for “${titel}” could unfortunately not be used. Please sign and date the form by hand, scan the whole sheet as a PDF and upload it again.`
+      : `Der Scan zu „${titel}“, den wir erhalten haben, war leider nicht verwendbar. Bitte unterschreiben und datieren Sie das Formular von Hand, scannen Sie das ganze Blatt als PDF und laden Sie es noch einmal hoch.` });
+  return { ok: true, ausgeblendet: ids, meldung: `Unterschrift zurückgenommen — das Formular ist wieder offen, ${ids.length} Scan-Fassung(en) ausgeblendet. Eine Mail ging nicht raus.` };
+}

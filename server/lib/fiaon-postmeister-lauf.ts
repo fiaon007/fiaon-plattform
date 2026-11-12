@@ -1474,6 +1474,12 @@ export async function mailBearbeiten(ein: {
     // Ein Widerruf, den Mara als Storno der unbezahlten Bestellung gebucht hat, ist erledigt (automatischErlaubt).
     let mensch = menschNoetig(einordnung, neuerText, { globalKunde: globalAbsender });
     if (mensch === UEBERGABE_GRUND.widerruf && erg.automatischErlaubt) mensch = null;
+    // E-499: Dieselbe Ausnahme griff nie — der Riegel setzt bei jedem Widerruf auch „rechtlich“, und „rechtlich“ kam hier
+    // zuerst. Ist der Widerruf einer unbezahlten Bestellung als Storno gebucht und brannte „rechtlich“ nur seinetwegen
+    // (Agent: widerrufAlsStorno — kein Anwalt, keine Behörde, kein Bestreiten), ist es erledigt. Global bleibt bei Justin.
+    if (mensch === UEBERGABE_GRUND.rechtlich && erg.automatischErlaubt && erg.widerrufAlsStorno && !BEHOERDE.test(neuerText)) {
+      mensch = globalAbsender ? UEBERGABE_GRUND.global : null;
+    }
     // E-275: Der Rückrufwunsch ist erledigt, wenn Mara ihn selbst eingeplant hat (Aufgabe mit Rückruf, Notiz mit
     // Anruf, Terminlink) — dann geht ihre Antwort („Herr Stripling ruft Sie morgen um 10 Uhr an“) ohne zweite
     // Übergabe raus, sofern die Prüfung sie freigibt (die Lampe rueckruf_wunsch fällt dort ebenso).

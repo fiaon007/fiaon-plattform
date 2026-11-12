@@ -11,7 +11,8 @@
 //   Gebucht wird erst, wenn Justin den Schalter auf „an“ stellt (KI-Team › Einstellungen).
 // · Zwei Unterschriften wie im Lauf: Die Mail war als Kündigung eingeordnet ODER Mara hatte das Werkzeug gerufen — und
 //   die Regel liest die Erklärung in seinen eigenen Worten.
-// · Nie bei Widerruf, Bestreiten, Anwalt/Behörde (dort entscheidet ein Mensch), nie bei einer späteren Rücknahme oder
+// · Nie bei Widerruf nach einer Zahlung, Bestreiten, Anwalt/Behörde (dort entscheidet ein Mensch) — der Widerruf einer
+//   UNBEZAHLTEN Bestellung ist ein Storno und zählt (rechtlichNurWegenWiderruf); nie bei einer späteren Rücknahme oder
 //   einem späteren „ich kündige nicht“, nie bei FIAON Global, nie bei Testpersonen.
 // · Je Bestellung die FRÜHESTE klare Mail. Höchstens fünf Buchungen je Lauf. Was scheitert, steht mit Grund im Merker
 //   und wird nicht endlos wiederholt.
@@ -20,7 +21,7 @@
 import { sqlPool } from "./db-pool";
 import {
   kundenTeil, eigenerKern, austrittsWille, austrittZurueckgenommen, austrittsFrageGestellt, bejahtAustritt, bestreitetKuendigung,
-  keinKuendigungsSatz, austrittsGrund, zitierterTeil, frageImZitat,
+  keinKuendigungsSatz, austrittsGrund, zitierterTeil, frageImZitat, rechtlichNurWegenWiderruf,
 } from "./fiaon-postmeister-werkzeuge";
 import { abstreitenArt } from "@shared/fiaon-mara-ton";
 import { istGlobalPaket } from "@shared/fiaon-pakete";
@@ -60,7 +61,9 @@ export function nachholFaelle(zeilen: NachholZeile[]): { faelle: NachholFall[]; 
       continue;
     }
     if (zurueck.has(z.ref)) continue;
-    if (MENSCH_FLAGS.some((f) => !!z.flags?.[f])) continue;
+    // Der Widerruf einer UNBEZAHLTEN Bestellung ist ein Storno (E-369/E-372) — außer mit Anwalt, Bestreiten, Löschwunsch, Geld zurück.
+    const widerrufStorno = !z.bezahlt && rechtlichNurWegenWiderruf(z.flags, roh);
+    if (!widerrufStorno && MENSCH_FLAGS.some((f) => !!z.flags?.[f])) continue;
     if (bestreitetKuendigung(eigen, abstreitenArt)) continue;
     const u = austrittsWille(kern.slice(0, 700), { unbezahlt: !z.bezahlt });
     const gefragt = austrittsFrageGestellt(z.davor) || frageImZitat(zitierterTeil(roh));

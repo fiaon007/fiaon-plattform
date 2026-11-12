@@ -115,6 +115,11 @@ export interface WerkzeugKontext {
   kuendigungFrageSchon?: boolean;
   /** E-499: Was er in SEINEN Worten zum Austritt erklärt (austrittsWille) — „bedingt“ heißt: Kündigung nicht ansprechen. */
   austritt?: "klar" | "frage" | "bedingt" | "nichts";
+  /**
+   * E-499: Er widerruft eine UNBEZAHLTE Bestellung, und „rechtlich“ brennt nur wegen dieses Widerrufs (kein Anwalt, keine
+   * Behörde, kein Bestreiten, kein Löschwunsch). Dann ist es ein Storno, das Mara selbst bucht und bestätigt (E-369/E-372).
+   */
+  widerrufNurStorno?: boolean;
 }
 
 /**
@@ -1858,6 +1863,21 @@ export function bestaetigtAustrittBreit(kunde: unknown, opt: { unbezahlt?: boole
   if (austrittZurueckgenommen(t, opt)) return false;
   if (JA_STARK.test(ohneAnrede(t)) && bejahtAustritt(t)) return true;
   return austrittsWille(t, opt).urteil === "klar";
+}
+
+/** Rechtliches über den bloßen Widerruf hinaus: Anwalt, Gericht, Behörde, Polizei, Inkasso, Datenschutz/Löschen, Betrug, Paragrafen … */
+const RECHT_MEHR = new RegExp(String.raw`anwalt|anw(?:ä|ae)lt|kanzlei|gericht|klage|anzeige|polizei|staatsanwalt|verbraucher(?:zentrale|schutz)|inkasso|beh(?:ö|oe)rde|aufsicht|bafin|finma|(?<![\p{L}])fma(?![\p{L}])|datenschutz|dsgvo|l(?:ö|oe)sch|straftat|betrug|betr(?:ü|ue)g|juristisch|rechtsschutz|mahnbescheid|schlichtung|ombuds|rechtlich|§|(?<![\p{L}])bgb(?![\p{L}])|rechtswidrig|anfecht|nichtig|sittenwidrig|schadens?ersatz|missbrauch|abzock|vertret|r(?:ü|ue)ck(?:zahl|erstatt|(?:ü|ue)berweis)|erstatt|geld\s+zur(?:ü|ue)ck`, "iu");
+/**
+ * E-499: Brennt „rechtlich“ nur, WEIL er widerruft? (riegelAnwenden setzt bei jedem Widerruf auch „rechtlich“ — dadurch griff
+ * die Ausnahme aus E-369 „Widerruf als Storno der unbezahlten Bestellung gebucht → Mara selbst“ nie.) Wahr nur, wenn die
+ * Lampe Widerruf brennt, er nicht bestreitet, nicht mit Anwalt droht und in Betreff und Text kein weiteres rechtliches
+ * Wort steht (Anwalt, Gericht, Behörde, Polizei, Inkasso, Datenschutz/Löschen, Betrug, Geld zurück …). Rein.
+ */
+export function rechtlichNurWegenWiderruf(flags: Partial<Record<string, unknown>> | null | undefined, betreffUndText: unknown): boolean {
+  const f = flags ?? {};
+  if (!f.widerruf || f.droht_anwalt || f.bestreitet || f.zahlung_behauptet) return false;
+  const t = String(betreffUndText ?? "");
+  return !RECHT_MEHR.test(t) && !istLoeschwunsch(t);
 }
 
 /** Steht UNSERE Kündigungs-Rückfrage im zitierten Teil seiner Mail (nur die jüngste zitierte Nachricht, 1.500 Zeichen)? Rein. */

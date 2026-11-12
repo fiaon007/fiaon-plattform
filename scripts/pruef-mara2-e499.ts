@@ -170,6 +170,24 @@ async function main() {
   ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: false })]).faelle.length === 1, "unbezahlt: „Hat sich erledigt“ → Storno-Fall");
   ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: true })]).faelle.length === 0, "zahlend: „Hat sich erledigt“ → kein Fall");
 
+  console.log("── 9c · Widerruf einer unbezahlten Bestellung = Storno, das Mara selbst erledigt (E-369 wieder wirksam)");
+  const wr = { widerruf: true, rechtlich: true };
+  ok(W.rechtlichNurWegenWiderruf(wr, "Re: Ihr Antrag\nHiermit widerrufe ich meinen Vertrag innerhalb der 14 Tage."), "reiner Widerruf: „rechtlich“ brennt nur seinetwegen");
+  ok(!W.rechtlichNurWegenWiderruf({ ...wr, droht_anwalt: true }, "Ich widerrufe, sonst gehe ich zum Anwalt."), "mit Anwalt: bleibt beim Menschen");
+  ok(!W.rechtlichNurWegenWiderruf({ ...wr, bestreitet: true }, "Ich widerrufe, ich habe das nie bestellt."), "mit Bestreiten: bleibt beim Menschen");
+  ok(!W.rechtlichNurWegenWiderruf(wr, "Ich widerrufe und bitte um Rückzahlung meiner 59,99 Euro."), "Geld zurück: bleibt beim Menschen");
+  ok(!W.rechtlichNurWegenWiderruf(wr, "Ich widerrufe. Bitte löschen Sie meine Daten."), "Löschwunsch: bleibt beim Menschen");
+  ok(!W.rechtlichNurWegenWiderruf(wr, "Widerruf gemäß § 355 BGB."), "Paragraf: bleibt beim Menschen");
+  ok(!W.rechtlichNurWegenWiderruf({ rechtlich: true }, "Bitte stornieren."), "ohne Lampe Widerruf: nie");
+  const ruhigW = "Ihren Widerruf habe ich aufgenommen. Ihre Bestellung ist storniert; es bleibt nichts offen.";
+  ok(A.maraSelbstSendbar({ flags: wr, lage: "unbezahlt", global: false, text: ruhigW, ruhe: true, stornoGebucht: true, rechtlichNurWiderruf: true }), "Storno gebucht + nur Widerruf → Mara sendet selbst");
+  ok(!A.maraSelbstSendbar({ flags: wr, lage: "unbezahlt", global: false, text: ruhigW, ruhe: true, stornoGebucht: true }), "ohne das Merkmal bleibt „rechtlich“ beim Menschen (wie bisher)");
+  ok(!A.maraSelbstSendbar({ flags: wr, lage: "unbezahlt", global: false, text: ruhigW, ruhe: true, stornoGebucht: false, rechtlichNurWiderruf: true }), "ohne gebuchtes Storno: nie selbst");
+  ok(!A.maraSelbstSendbar({ flags: { ...wr, droht_anwalt: true }, lage: "unbezahlt", global: false, text: ruhigW, ruhe: true, stornoGebucht: true, rechtlichNurWiderruf: true }), "Anwalt bleibt immer beim Menschen");
+  ok(N.nachholFaelle([z(1, "W", "Hiermit widerrufe ich mit sofortiger Wirkung den Vertrag.", "02", { flags: wr, bezahlt: false })]).faelle.length === 1, "Nachholen: Widerruf einer unbezahlten Bestellung → Storno-Fall");
+  ok(N.nachholFaelle([z(1, "W", "Hiermit widerrufe ich mit sofortiger Wirkung den Vertrag.", "02", { flags: wr, bezahlt: true })]).faelle.length === 0, "Nachholen: Widerruf nach Zahlung → entscheidet ein Mensch");
+  ok(N.nachholFaelle([z(1, "W", "Ich widerrufe und will mein Geld zurück.", "02", { flags: wr, bezahlt: false })]).faelle.length === 0, "Nachholen: Widerruf mit Geld-zurück → entscheidet ein Mensch");
+
   console.log("── 10 · Maras Tagesbericht (reine Teile)");
   const T = await import("../server/lib/fiaon-mara-tagesbericht");
   const um = (iso: string) => new Date(iso);

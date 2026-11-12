@@ -42,7 +42,7 @@ import {
   // E-275 (02.10.2026): Werbesperre nur auf ausdrücklichen Wunsch — dieselbe Regel wie im Werkzeug.
   ausdruecklicherStopp, hatEigenenText, eigenerKundentext, eigenerBetreff,
   // E-499 (Mara 2.0): die Kündigung vorab — klare Erklärung oder sein Ja bucht der Server, nie eine zweite Rückfrage.
-  eigenerKern, austrittsWille, austrittsGrund, bejahtAustritt, kuendigungFrageSchon, zitierterTeil,
+  eigenerKern, austrittsWille, austrittsGrund, bejahtAustritt, kuendigungFrageSchon, zitierterTeil, rechtlichNurWegenWiderruf,
   type WerkzeugKontext, type WerkzeugErgebnis, type AuskunftAntwort,
 } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
@@ -369,6 +369,8 @@ export interface AgentErgebnis {
   kostenCents: number;
   /** Was die Werkzeuge geliefert haben — der Lauf braucht daraus die Zahlungsreferenz (Rechnung anhängen). */
   werkzeugDaten?: Record<string, any>;
+  /** E-499: Der Widerruf einer unbezahlten Bestellung ist als Storno gebucht, „rechtlich“ brannte nur seinetwegen — kein Mensch nötig. */
+  widerrufAlsStorno?: boolean;
 }
 
 // ── Der Aufruf ────────────────────────────────────────────────────────────
@@ -1945,14 +1947,19 @@ export const MENSCH_LAMPEN: (keyof Flags)[] = ["rechtlich", "droht_anwalt", "wid
  *    Antwort in den Lagen „bestreitet“/„gesperrt“ KEINE Zahlungsbitte enthält.
  * Die Prüfung (sauber: Wand, Belege, Pflichten, Ton) entscheidet der Aufrufer. Rein.
  */
-export function maraSelbstSendbar(ein: { flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean; stoppOffen?: boolean; kuendigungRueckfrage?: boolean }): boolean {
+export function maraSelbstSendbar(ein: {
+  flags: Partial<Flags> | Record<string, unknown>; lage: Kundenlage; global: boolean; text: string; ruhe: boolean; stornoGebucht?: boolean; stoppOffen?: boolean; kuendigungRueckfrage?: boolean;
+  /** E-499: „rechtlich“ brennt nur wegen des Widerrufs (rechtlichNurWegenWiderruf) — mit gebuchtem Storno hält es dann nicht mehr. */
+  rechtlichNurWiderruf?: boolean;
+}): boolean {
   const f = ein.flags as Record<string, unknown>;
   if (ein.global || ein.lage === "fremd" || ein.lage === "unklar") return false;
   // E-396 Teil 2 (19.10.2026, Justin: „Ist die Mail unklar, fragt Mara sofort zurück“): Eine Antwort, die nur nach der
   // Kündigung fragt („… Ein kurzes Ja genügt.“), darf trotz offenem „Stopp“ raus — solange sie nichts über Werbung
   // verspricht (E-371 bleibt: nie „Sie bekommen keine Werbung mehr“ ohne gesetzte Sperre).
   if (ein.stoppOffen && !(ein.kuendigungRueckfrage && !WERBUNG_VERSPROCHEN.test(ein.text))) return false;
-  const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht));
+  const mensch = MENSCH_LAMPEN.filter((l) => !!f[l] && !(l === "widerruf" && ein.stornoGebucht)
+    && !(l === "rechtlich" && ein.stornoGebucht && ein.rechtlichNurWiderruf && !f.droht_anwalt));
   if (mensch.length) return false;
   if ((ein.ruhe || ein.lage === "bestreitet" || ein.lage === "gesperrt") && zahltOderVerkauft(ein.text)) return false;
   return true;
@@ -2441,8 +2448,16 @@ export async function antwortErzeugen(ein: {
       kontext.austritt = urteil.urteil;
       kontext.kuendigungFrageSchon = await kuendigungFrageSchon({ personId: ein.personId, postmeisterId: ein.postmeisterId, zitiert: kontext.zitiert }).catch(() => false);
       const ja = !!kontext.kuendigungFrageSchon && bejahtAustritt(kern);
-      const themaKuendigung = !!fK.kuendigung || (ein.einordnung.kategorien ?? []).some((x) => String(x) === "kuendigung");
-      const menschLampe = !!(fK.widerruf || fK.bestreitet || fK.rechtlich || fK.droht_anwalt);
+      // E-499 (E-369/E-372 wieder wirksam): Der Widerruf einer UNBEZAHLTEN Bestellung ist ein Storno — das bucht Mara selbst.
+      // Vorher blieb JEDER Widerruf als Entwurf liegen, weil der Riegel bei Widerruf auch „rechtlich“ setzt und „rechtlich“
+      // jede Ausnahme überstimmte. Nur ohne Anwalt/Behörde, ohne Bestreiten, ohne „habe bezahlt“, ohne Löschwunsch, ohne
+      // Geld-zurück — und nur, wenn die Bestellung wirklich unbezahlt ist (Lage UND Zahlungsstand, keine Teilzahlung).
+      const bestellungK: any = (akte?.bestellungen ?? []).find((b: any) => b.ref === ein.ref);
+      const unbezahltEcht = ["unbezahlt", "interessent"].includes(lage) && !!bestellungK && String(bestellungK.status) !== "paid" && !bestellungK.bereitsBezahlt;
+      const widerrufAlsStorno = unbezahltEcht && rechtlichNurWegenWiderruf(fK as any, `${ein.mail.betreff}\n${kundeTextOhneAnhang(ein.mail.text)}`);
+      kontext.widerrufNurStorno = widerrufAlsStorno;
+      const themaKuendigung = !!fK.kuendigung || (ein.einordnung.kategorien ?? []).some((x) => String(x) === "kuendigung") || widerrufAlsStorno;
+      const menschLampe = widerrufAlsStorno ? false : !!(fK.widerruf || fK.bestreitet || fK.rechtlich || fK.droht_anwalt);
       if (((urteil.urteil === "klar" && themaKuendigung) || ja) && !menschLampe) {
         const ampelMod = await import("./fiaon-ki-ampel");
         const ampel = await ampelMod.ampelPruefen("mara", wK.name, { kanal: "mail", personId: kontext.personId ?? null }).catch(() => null);
@@ -3190,7 +3205,10 @@ async function pruefenUndAbschliessen(roh: any, k: {
     // E-396 Teil 2: Die Antwort ist die Kündigungs-Rückfrage (nichts gebucht, die Antwort fragt nach dem Ja).
     kuendigungRueckfrage: kuendigungOffen && rueckfrageGestellt(text),
     stornoGebucht: String(k.werkzeugDaten.kuendigung_vormerken?.weg || "") === "storno_unbezahlt" && gelaufen.includes("kuendigung_vormerken"),
+    rechtlichNurWiderruf: !!k.kontext.widerrufNurStorno,
   });
+  const widerrufAlsStorno = !!k.kontext.widerrufNurStorno && gelaufen.includes("kuendigung_vormerken")
+    && String(k.werkzeugDaten.kuendigung_vormerken?.weg || "") === "storno_unbezahlt";
   const automatisch = sauber && urteil.automatisch
     && ((AUTO_LAGEN.includes(k.lage) && warnlampen(flags).length === 0)
       || (!!selbst && !["fremd", "unklar", "bestreitet"].includes(k.lage))
@@ -3206,5 +3224,6 @@ async function pruefenUndAbschliessen(roh: any, k: {
     grund: sauber ? (automatisch ? (selbst ? `sauber, Mara erledigt selbst (${selbst})` : "sauber, Automat erlaubt") : "sauber, aber Entwurf (Lage oder Flag)") : `Entwurf: ${[...treffer.map((t) => t.treffer), ...fehlend].slice(0, 3).join("; ")}`,
     kostenCents: k.kosten,
     werkzeugDaten: k.werkzeugDaten,
+    widerrufAlsStorno,
   };
 }

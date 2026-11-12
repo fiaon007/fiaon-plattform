@@ -57,7 +57,7 @@ export const PREISE_UND_ABLAUF_EN: GlobalSeite[] = [
           { titel: "Tax numbers", text: "We apply for your company’s EIN and — once our ITIN check confirms the requirements — for your ITIN. The US tax authority decides on both numbers on its own timeline." },
           { titel: "Your US office", text: "Registered agent, US business address, US phone number and assistance for post, calls and appointments — included in the first year." },
           { titel: "Accounts and cards", text: "We fully prepare the applications for your personal US account, personal US cards, the business account and the company credit card. You file the applications yourself; each institution decides on accounts, cards and limits." },
-          { titel: "Capital", text: "We prepare every application for the financing within your capital range and stay with you through to payout. Our US partner company provides the surety; the financing institution decides on the financing." },
+          { titel: "Capital", text: "We prepare every application for the financing within your capital range and stay with your company through to payout. The financing institution decides on the financing." },
         ],
       },
       {
@@ -75,7 +75,7 @@ export const PREISE_UND_ABLAUF_EN: GlobalSeite[] = [
       {
         typ: "rollen", id: "wer", h2: "Who does what, and when",
         fiaon: ["Offer, contract and coordination", "Filings with the state and with the US tax authority", "Account and card applications fully prepared", "Compliance calendar and “My order”"],
-        partner: ["Partner lawyer: operating agreement and formation documents", "US accountant (CPA): first annual US filing", "Partner tax adviser: clarifies beforehand how transfers are treated", "US partner company: surety for the financing"],
+        partner: ["Partner lawyer: operating agreement and formation documents", "US accountant (CPA): first annual US filing", "Partner tax adviser: clarifies beforehand how transfers are treated"],
         sie: ["Upload your passport", "Make decisions and sign", "Submit applications to issuers and banks", "Pay your statements on time — this builds your history"],
       },
       {

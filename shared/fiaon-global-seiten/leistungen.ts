@@ -318,7 +318,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Kapitalrahmen", `${P.rahmen} — Sie wählen ihn selbst`],
       ["Erste Karte", "Meist kleiner Rahmen, ohne Bareinlage, mit persönlicher Haftung des Inhabers"],
       ["Kartenleiter", "Weitere Herausgeber nach einigen Monaten pünktlicher Abrechnung"],
-      ["Finanzierung", "Mit der Bürgschaft unserer US-Partnergesellschaft — über die Finanzierung entscheidet das finanzierende Institut"],
+      ["Finanzierung", "Wir begleiten bis zur Auszahlung — über die Finanzierung entscheidet das finanzierende Institut"],
       ["Verwendung", `${GLOBAL_KAPITAL_FREI.de.kurz} — die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
       ["FIAON", "Plant, bereitet vor, begleitet — vergibt und vermittelt keine Kredite"],
       ["Entscheidung", "Allein das jeweilige Institut"],

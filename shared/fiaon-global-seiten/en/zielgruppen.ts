@@ -271,7 +271,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["Capital", "Key figures and documents for financing discussions"],
       ["On the ground", "Appointments in Miami with Schwarzott Group"],
       ["Decision", "The institution decides on any financing"],
-      ["Support", "Through to financing, with the surety of our US partner company"],
+      ["Support", "Through to financing within the capital range you choose"],
     ],
     kurz: "For projects and properties in the US, a separate company is usually formed for each project, most often an LLC. FIAON Global forms it, applies for the EIN and prepares the account application and a key-figures file for financing discussions. The institution concerned decides on any financing; FIAON neither grants nor arranges loans.",
     bloecke: [

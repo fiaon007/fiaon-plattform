@@ -135,12 +135,18 @@
 .fg .vk-blatt-liste { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 8px; }
 .fg .vk-blatt-liste li { position: relative; padding-left: 16px; font: 300 12.5px/1.55 var(--ap, system-ui); color: #6b7688; }
 .fg .vk-blatt-liste li::before { content: ""; position: absolute; left: 0; top: .7em; width: 7px; height: 1px; background: #288dfa; }
-.fg .vk-buergin { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(18, 40, 74, .1); }
-.fg .vk-buergin summary { cursor: pointer; font: 400 13px/1.4 var(--ap, system-ui); color: #1d4ed8; list-style: none; }
-.fg .vk-buergin summary::-webkit-details-marker { display: none; }
-.fg .vk-buergin summary::after { content: " +"; }
-.fg .vk-buergin[open] summary::after { content: " –"; }
-.fg .vk-buergin p { margin-top: 10px; font: 300 13px/1.6 var(--ap, system-ui); color: #3b4658; }
+/* Die eine Frage unter dem Preisblatt („Was steht in meinem Angebot?“): Die Antwort gleitet beim Öffnen einmal herein. */
+.fg .vk-blatt-frage { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-blatt-frage summary { cursor: pointer; font: 400 13px/1.4 var(--ap, system-ui); color: #1d4ed8; list-style: none; border-radius: 6px; }
+.fg .vk-blatt-frage summary::-webkit-details-marker { display: none; }
+.fg .vk-blatt-frage summary::after { content: " +"; }
+.fg .vk-blatt-frage[open] summary::after { content: " –"; }
+.fg .vk-blatt-frage summary:focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; }
+.fg .vk-blatt-frage p { margin-top: 10px; font: 300 13px/1.6 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-blatt-frage[open] p { animation: vk-hoch .45s var(--kurve, ease) both; }
+/* Der zweite Satz des Leads über dem Konfigurator: blendet ein, sobald feststeht, welcher Weg für den Besucher gilt. */
+.fg .vk-lead-b { opacity: 0; transition: opacity .6s var(--kurve, ease); }
+.fg .vk-lead-b.da { opacity: 1; }
 
 .fg .vk-knopf { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 999px; cursor: pointer; font: 400 16px/1 var(--ap, system-ui); color: #fff; background: var(--knopf-blau, linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%)); box-shadow: var(--knopf-blau-schatten, inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px -14px rgba(29, 78, 216, .75)); transition: transform .3s var(--kurve, ease), box-shadow .3s, opacity .2s; -webkit-tap-highlight-color: transparent; text-decoration: none; }
 .fg .vk-knopf:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 18px 34px -14px rgba(29, 78, 216, .9); }
@@ -230,7 +236,9 @@ html .fg.fg .vk-wissen-sek { padding-top: 0; }
 
 /* ── DIE EIGENE SEITE /business/start ────────────────────────────────────── */
 .fg.vk-seite .vk-konfig-sek { padding-top: clamp(120px, 14vw, 180px); }
-html .fg.fg .vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 60px); }
+/* .fg-sek.vk-konfig-sek (eine Klasse mehr): global-apple.css setzt mit gleichem Gewicht `html .fg.fg .fg-sek .fg-kopf { margin-bottom: 8px }`
+   und steht im Bündel NACH dieser Datei (der Konfigurator lädt sie zuerst) — ohne die Klasse klebte die Überschrift an der Glasfläche. */
+html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 60px); }
 .fg .vk-seite-zurueck { margin-top: 28px; font: 300 14px/1.5 var(--ap, system-ui); color: #5b6679; }
 .fg .vk-seite-zurueck a { color: #1d4ed8; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -270,6 +278,7 @@ html .fg.fg .vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 60px); }
 /* ── WENIGER BEWEGUNG ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .fg [class*="vk-"], .fg [class*="vk-"]::before, .fg [class*="vk-"]::after { animation: none !important; transition: none !important; }
+  .fg .vk-blatt-frage p { animation: none !important; }
   .fg .vk-produkt[data-an] .vk-verzeichnis > li, .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-ablauf[data-an] .vk-schritte > li, .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-garantie[data-an] .vk-garantie-band { opacity: 1 !important; transform: none !important; }
   .fg .vk-produkt[data-an] .vk-verzeichnis > li::before, .fg .vk-ablauf[data-an] .vk-schritte::before { transform: none !important; }
   .fg .vk-siegel .innen, .fg .vk-siegel .haken, .fg .vk-fertig-zeichen circle, .fg .vk-fertig-zeichen path { stroke-dashoffset: 0 !important; }

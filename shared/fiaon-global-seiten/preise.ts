@@ -53,7 +53,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
           { titel: "Steuernummern", text: "Wir beantragen die EIN Ihrer Gesellschaft und — sobald unser ITIN-Check die Voraussetzungen bestätigt — Ihre ITIN. Über beide Nummern entscheidet die US-Steuerbehörde in eigener Frist." },
           { titel: "Ihr US-Büro", text: "Registered Agent, US-Geschäftsadresse, US-Telefonnummer und Assistenz für Post, Anrufe und Termine — im ersten Jahr enthalten." },
           { titel: "Konto und Karten", text: "Wir bereiten die Anträge für Ihr privates US-Konto, private US-Karten, das Geschäftskonto und die Firmenkreditkarte vollständig vor. Sie stellen die Anträge selbst; über Konto, Karten und Rahmen entscheidet das jeweilige Institut." },
-          { titel: "Kapital", text: "Wir bereiten jeden Antrag für die Finanzierung in Ihrem Kapitalrahmen vor und begleiten bis zur Auszahlung. Unsere US-Partnergesellschaft übernimmt die Bürgschaft; über die Finanzierung entscheidet das finanzierende Institut." },
+          { titel: "Kapital", text: "Wir bereiten jeden Antrag für die Finanzierung in Ihrem Kapitalrahmen vor und begleiten Ihre Gesellschaft bis zur Auszahlung. Über die Finanzierung entscheidet das finanzierende Institut." },
         ],
       },
       {
@@ -71,7 +71,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
       {
         typ: "rollen", id: "wer", h2: "Wer wann am Zug ist",
         fiaon: ["Angebot, Vertrag und Koordination", "Einreichungen beim Bundesstaat und bei der US-Steuerbehörde", "Konto- und Kartenanträge vollständig vorbereitet", "Pflichtenkalender und „Mein Auftrag“"],
-        partner: ["Partner-Anwalt: Operating Agreement und Gründungsunterlagen", "US-Steuerberater (CPA): erste jährliche US-Meldung", "Partner-Steuerberater: klärt vorab, wie Überweisungen zu behandeln sind", "US-Partnergesellschaft: Bürgschaft für die Finanzierung"],
+        partner: ["Partner-Anwalt: Operating Agreement und Gründungsunterlagen", "US-Steuerberater (CPA): erste jährliche US-Meldung", "Partner-Steuerberater: klärt vorab, wie Überweisungen zu behandeln sind"],
         sie: ["Reisepass hochladen", "Entscheidungen treffen und unterschreiben", "Anträge bei Herausgebern und Banken stellen", "Pünktlich abrechnen — das baut Ihre Historie"],
       },
       {

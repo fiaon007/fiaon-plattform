@@ -11,6 +11,8 @@
 // lässt es nur am Vertrag zu; hier heißt es „Geld zurück“), kein Zinssatz als Zahl, kein Bankname, keine Frist mit Ziffer.
 // Recht und Steuern leisten Partner-Anwälte und US-Steuerberater aus dem Partnernetz; Anträge bei Bank und
 // Kartenherausgeber stellt der Kunde selbst; über die Finanzierung entscheidet das finanzierende Institut.
+// LEITPLANKE (12.11.2026): Kein Satz dieser Datei nennt die Bürgschaft — sie steht nur im persönlichen Angebot
+// (Vertrag der Fassung C). scripts/pruef-verkaufsmotor.ts und scripts/pruef-global-seiten.ts halten die Wand.
 // ═══════════════════════════════════════════════════════════════════════════
 import { VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur } from "../fiaon-global-verkauf-preise";
 
@@ -31,6 +33,12 @@ const en = {
   rahmenEnde: `US$${VERKAUF_RAHMEN.maxUsd.toLocaleString("en-GB")}`,
 };
 
+/** Der Preis in einem Absatz: was wann fällig wird — ein Wortlaut je Sprache für preisSatz und preisSatzKurz. */
+const PREIS_SATZ = {
+  de: `Mit Ihrem Auftrag zahlen Sie ${de.preis} für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen — Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr können Sie die Jahresbetreuung für ${de.jahres} im Jahr buchen. Alle Beträge sind Endpreise.`,
+  en: `With your order you pay ${en.preis} for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range — the configurator shows your price. From the second year you can book annual care for ${en.jahres} a year. All amounts are final prices.`,
+} as const;
+
 export const EIN_PRODUKT = {
   de: {
     ...de,
@@ -41,14 +49,11 @@ export const EIN_PRODUKT = {
     /** Kurz, für Kennziffern und Merkblatt. */
     preisLabel: "mit Ihrem Auftrag — Gründung und aktive Betreuung im ersten Jahr",
     /** Der Preis in einem Absatz: was wann fällig wird. */
-    preisSatz: `Mit Ihrem Auftrag zahlen Sie ${de.preis} für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein — Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr können Sie die Jahresbetreuung für ${de.jahres} im Jahr buchen. Alle Beträge sind Endpreise.`,
-    /**
-     * Derselbe Absatz ohne das Wort „Bürgschaft“ — für die Startseite der Privatpersonen: scripts/pruef-global-seiten.ts hält
-     * das Wort dort aus Meta, SEO-Korpus und FAQ-Markup heraus (E-293); die Einzelheiten stehen im Angebot und im Vertrag.
-     */
-    preisSatzKurz: `Mit Ihrem Auftrag zahlen Sie ${de.preis} für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen — Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr können Sie die Jahresbetreuung für ${de.jahres} im Jahr buchen. Alle Beträge sind Endpreise.`,
+    preisSatz: PREIS_SATZ.de,
+    /** Derselbe Absatz (bis 12.11.2026 der einzige ohne das Wort „Bürgschaft“; seit der Leitplanke lauten beide gleich). */
+    preisSatzKurz: PREIS_SATZ.de,
     /** Nur das Erfolgshonorar. */
-    erfolg: "Das Erfolgshonorar wird mit der Eintragung Ihrer Gesellschaft fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ihren Preis zeigt der Konfigurator.",
+    erfolg: "Das Erfolgshonorar wird mit der Eintragung Ihrer Gesellschaft fällig; es richtet sich nach Ihrem Kapitalrahmen. Ihren Preis zeigt der Konfigurator.",
     /** Der Kapitalrahmen in einem Absatz. */
     rahmenSatz: `Ihren Kapitalrahmen wählen Sie selbst: ${VERKAUF_RAHMEN.minUsd.toLocaleString("de-DE")} bis ${de.rahmenEnde}. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami, darunter läuft alles aus der Ferne. Über die Finanzierung entscheidet das finanzierende Institut.`,
     /** Geld zurück — ohne das Wort „Garantie“ (Wortwand der Unterseiten). */
@@ -80,9 +85,9 @@ export const EIN_PRODUKT = {
     rahmen: `${en.rahmenAb} to ${en.rahmenEnde}`,
     rahmenKurz: `${en.rahmenAb} – ${en.rahmenEnde}`,
     preisLabel: "with your order — formation and active management in the first year",
-    preisSatz: `With your order you pay ${en.preis} for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range and includes the surety — the configurator shows your price. From the second year you can book annual care for ${en.jahres} a year. All amounts are final prices.`,
-    preisSatzKurz: `With your order you pay ${en.preis} for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range — the configurator shows your price. From the second year you can book annual care for ${en.jahres} a year. All amounts are final prices.`,
-    erfolg: "The success fee falls due when your company is registered; it follows your capital range and includes the surety. The configurator shows your price.",
+    preisSatz: PREIS_SATZ.en,
+    preisSatzKurz: PREIS_SATZ.en,
+    erfolg: "The success fee falls due when your company is registered; it follows your capital range. The configurator shows your price.",
     rahmenSatz: `You choose your capital range yourself: ${en.rahmenAb} to ${en.rahmenEnde}. From US$1 million we work with you in person in Miami; below that, everything runs remotely. The financing institution decides on the financing.`,
     geldZurueck: "If the payout of your financing does not arrive within eight weeks of your order, you receive back everything you have paid to us. The conditions are in clause 4 of your agreement; the financing institution decides on the financing.",
     partner: "Tax advisers, US accountants (CPAs) and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your order.",

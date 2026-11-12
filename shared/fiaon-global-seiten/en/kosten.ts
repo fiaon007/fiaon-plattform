@@ -62,7 +62,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
         zeilen: [
           ["With your order", "Formation with active management in the first year", P.preis],
           ["With your order, on request", "Fast track: priority at every step", P.fastTrack],
-          ["On registration", "Success fee according to your capital range, surety included", "see below"],
+          ["On registration", "Success fee according to your capital range", "see below"],
           ["From the second year, on request", "Annual care", `${P.jahres} a year`],
         ],
         hervor: 2,

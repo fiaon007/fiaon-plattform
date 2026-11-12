@@ -213,7 +213,7 @@ export const SEITE: GlobalSeite = {
       lead: "Vom ersten Gespräch bis zur ersten US-Meldung — Sie sehen jederzeit, wer gerade am Zug ist.",
       etappen: [
         { titel: "Erstgespräch oder Konfigurator", text: "Dreißig Minuten, kostenfrei und ohne Verpflichtung: Vorhaben, Wohnsitz, Ziel. Wer schon entschieden ist, stellt sein Angebot im Konfigurator selbst zusammen und sieht sofort seinen Preis." },
-        { titel: "Auftrag am Bildschirm", text: "Den Mustervertrag können Sie vorab lesen. Sie unterschreiben am Bildschirm; Ihr Vertragspartner ist die FIAON LTD in London." },
+        { titel: "Auftrag am Bildschirm", text: "Ihren Vertrag lesen Sie vollständig in Ihrem Angebot. Sie unterschreiben am Bildschirm; Ihr Vertragspartner ist die FIAON LTD in London." },
         { titel: "Start und Unterlagen", text: "Mit dem Eingang Ihrer Zahlung beginnt die Arbeit. Den Namen Ihrer Gesellschaft wählen Sie bei der Unterschrift; danach laden Sie Ihren Reisepass in den Dokumentenraum." },
         { titel: "Klärung vorab", text: "Unser Partner-Steuerberater klärt vorab mit Ihnen, wie Überweisungen und Investitionen steuerlich zu behandeln sind." },
         { titel: "Gründung und Steuernummern", text: "Gründung beim Bundesstaat, EIN, Vorbereitung der ITIN, D-U-N-S-Nummer, Registered Agent, US-Adresse und Telefon; das Operating Agreement schreibt unser Partner-Anwalt. Den Stand sehen Sie in „Mein Auftrag“." },
@@ -229,7 +229,7 @@ export const SEITE: GlobalSeite = {
       punkte: [
         `der Vertragspartner im Register: ${F.name}, Companies House ${F.companyNo}, eingetragen am 3. Juli 2026, Sitz ${F.strasse} in London — öffentlich einsehbar`,
         `die Geschäftsführung: Director ist ${F.director}, ebenfalls im Register eingetragen`,
-        "der Vertrag: Den Mustervertrag lesen Sie vor dem Auftrag, auf Deutsch",
+        "der Vertrag: Sie lesen ihn vollständig in Ihrem Angebot, bevor Sie unterschreiben — auf Deutsch",
         "der Preis: Er steht vor dem Auftrag fest — Sie sehen ihn im Konfigurator, bevor Sie Ihre Angaben eintragen",
         `die Zahlung: erst nach Ihrer Unterschrift, per Rechnung auf das Geschäftskonto der ${F.name} — nie auf ein privates Konto`,
         "die Grenzen: Was FIAON Global nicht ist, steht offen auf dieser Seite und in jedem Auftrag",

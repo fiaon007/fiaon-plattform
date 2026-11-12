@@ -8,12 +8,18 @@
 //   4  EINGABE      Pflichtfelder, Bereinigung, nichts Fremdes in Namen
 //   5  VERTRAG      die Parameter des Selbstabschlusses ergeben ein gültiges Angebot der Fassung C; der Vertrag behauptet
 //                   keine abgeschlossene Prüfung, die Unterschrift ist frei, Betrag und Honorar folgen dem Regler
-//   6  EINSTELLUNG  ohne Einstellung aus; alter Registerstand steht nicht im Vertrag; Grenzen
+//   6  EINSTELLUNG  ohne Einstellung aus; alter Registerstand steht nicht im Vertrag; Grenzen; Probebetrieb („nurLeitung“):
+//                   wer selbst abschließen darf (verkaufSperrGrund) und was die Seite je Aufrufer erfährt (verkaufSeitenSicht)
 //   7  SCHUTZ       Zeit-Siegel, Bremsen
+//   7b PROBEBETRIEB die Weiche in verkaufStarten selbst (Werkbank statt Datenbank): Besucher → Anfrage, Leitung → Angebot,
+//                   ohne Schlüssel alles wie bisher
 //   8  TEXTE        deutsch und englisch gleich gebaut; Wortwand (deutsch: Hauswand + E-188, englisch: GLOBAL_SCHAERFER_EN);
 //                   kein Paketname, kein alter Preis; Mails
-//   9  MUSTER       der öffentliche Mustervertrag ohne Namen der Partnergesellschaft und ohne Zinszahl; der Kopf für
-//                   Suchmaschinen sagt dasselbe wie die Seite
+//   9  ÜBERBLICK    „Ihr Vertrag im Überblick“ folgt den Ziffern des Vertrags und gibt keinen Wortlaut öffentlich aus; der Kopf
+//                   für Suchmaschinen sagt dasselbe wie die Seite
+//  10  LEITPLANKE   „Bürgschaft“ steht auf keiner öffentlichen Fläche des Verkaufsmotors (Texte de/en, Fragen der Startseite,
+//                   Kopf und Datenblock für Suchmaschinen, /llms.txt, Karte „Ein Produkt“, Mail vor dem Angebot, Antwort an die
+//                   Seite, Quelltext von Startseite und Konfigurator) — im Vertrag selbst steht sie unverändert
 //
 // Aufruf: env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus DOTENV_CONFIG_PATH=/dev/null SESSION_SECRET=pruefstand \
 //           DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine node_modules/.bin/tsx scripts/pruef-verkaufsmotor.ts
@@ -158,6 +164,26 @@ const S = await import("../server/lib/fiaon-global-verkauf");
   gleich(S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L1", buerginStandAm: "2026-11-20" }), "2026-11-12").buerginStandAm, "", "Registerstand in der Zukunft zählt nicht");
   gleich(S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L1", selbstMaxUsd: 5_000_000, tagesGrenze: 9999, kursUsdJeEur: 9 }), "2026-11-12").selbstMaxUsd, 950_000, "Deckel über dem Selbst-Maximum zählt nicht");
   gleich(S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "<L1>" }), "2026-11-12").buergin?.registernummer, "L1", "Registernummer bereinigt");
+
+  // Probebetrieb: der freiwillige Schlüssel „nurLeitung“ — Vorgabe false, nur das echte true zählt.
+  gleich([aus.nurLeitung, an.nurLeitung], [false, false], "ohne den Schlüssel „nurLeitung“: kein Probebetrieb");
+  const probe = S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L00000000000", nurLeitung: true }), "2026-11-12");
+  ok(probe.an && probe.nurLeitung === true && probe.grundAus === null, "„nurLeitung“: true → Probebetrieb, der Schalter bleibt an");
+  gleich([S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L1", nurLeitung: "true" }), "2026-11-12").nurLeitung, S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L1", nurLeitung: 1 }), "2026-11-12").nurLeitung, S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L1", nurLeitung: false }), "2026-11-12").nurLeitung], [false, false, false], "„nurLeitung“ nur als echtes true");
+  // Wer darf selbst abschließen? (rein — dieselbe Funktion lesen Seite und Weiche)
+  gleich([S.verkaufSperrGrund(an, false), S.verkaufSperrGrund(an, true)], [null, null], "ohne Probebetrieb: Besucher und Leitung schließen selbst ab");
+  gleich([S.verkaufSperrGrund(probe, false), S.verkaufSperrGrund(probe, true)], [S.VERKAUF_GRUND_PROBE, null], "Probebetrieb: Besucher → Grund, Leitung → frei");
+  gleich(S.VERKAUF_GRUND_PROBE, "Probebetrieb: Selbstabschluss noch nicht für alle freigegeben", "Grund des Probebetriebs im Wortlaut (Meldung an Justin)");
+  gleich([S.verkaufSperrGrund(aus, false), S.verkaufSperrGrund(aus, true), S.verkaufSperrGrund({ ...aus, nurLeitung: true }, true)], ["Schalter aus", "Schalter aus", "Schalter aus"], "Notschalter geht vor: auch die Leitung bekommt dann kein Angebot");
+  gleich([S.verkaufSperrGrund(an, true, 250_000), S.verkaufSperrGrund(an, true, 260_000), S.verkaufSperrGrund({ ...probe, selbstMaxUsd: 250_000 }, false, 260_000)], [null, "Rahmen über dem Deckel des Selbstabschlusses", S.VERKAUF_GRUND_PROBE], "Deckel gilt für alle; im Probebetrieb nennt die Meldung zuerst den Probebetrieb");
+  // Was die Seite beim Laden bekommt — „an“ nur, wenn für DIESEN Aufrufer wirklich ein Angebot entstünde.
+  const sicht = (e: typeof an, leitung: boolean) => S.verkaufSeitenSicht(leitung, e) as Record<string, unknown>;
+  gleich([sicht(an, false).an, sicht(an, true).an], [true, true], "Seitensicht ohne Probebetrieb: an für alle");
+  gleich([sicht(probe, false).an, sicht(probe, true).an], [false, true], "Seitensicht im Probebetrieb: Besucher aus, Leitung an");
+  gleich([sicht(aus, false).an, sicht(aus, true).an], [false, false], "Seitensicht mit Notschalter: aus für alle");
+  gleich(Object.keys(sicht(probe, false)).sort(), ["an", "kursDatum", "kursUsdJeEur", "ok", "selbstMaxUsd", "siegel"], "Seitensicht: genau diese Felder — kein Grund, kein „nurLeitung“, nichts zur Bürgin");
+  gleich(S.verkaufSiegelPruefen(sicht(probe, false).siegel, Date.now() + S.SIEGEL_MIN_MS), "gut", "Seitensicht: das Siegel ist gültig");
+  ok(S.verkaufSeitenSicht.length === 0, "Seitensicht: ohne Angabe gilt der Aufrufer als Besucher (Vorgabe leitung = false)");
 }
 {
   const t0 = 1_800_000_000_000;
@@ -182,6 +208,83 @@ const S = await import("../server/lib/fiaon-global-verkauf");
   for (let i = 0; i < 20; i++) if (!S.verkaufZuViel("203.0.113.10", `c${i}@beispiel.example`, t0 + i * 16 * 60_000)) zaehler++;
   gleich(zaehler, 12, "je Anschluss zwölf Versuche am Tag");
   S.verkaufBremsenLeeren();
+}
+
+// ── 7b PROBEBETRIEB: DIE WEICHE IN verkaufStarten (Werkbank statt Datenbank und Mail) ─────────────────────────────────
+{
+  type Ruf = { was: "angebot" | "anfrage" | "zaehlen"; weg?: string; grundAus?: string | null; leitung?: boolean };
+  const einst = (extra: Record<string, unknown> = {}) => S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L00000000000", ...extra }), "2026-11-12");
+  let lauf = 0;
+  async function starten(est: ReturnType<typeof einst>, o: { leitung?: boolean; usd?: number; land?: string; sprache?: string; heute?: number } = {}) {
+    const rufe: Ruf[] = [];
+    const werk: import("../server/lib/fiaon-global-verkauf").VerkaufWerk = {
+      einstellung: () => est,
+      heuteAngelegt: async () => { rufe.push({ was: "zaehlen" }); return o.heute ?? 0; },
+      angebot: async (_e, _est, k) => { rufe.push({ was: "angebot", leitung: k.leitung }); return { status: 200, body: { ok: true, art: "angebot", url: "/business/angebot/muster" } }; },
+      anfrage: async (_e, weg, _est, k, grundAus) => { rufe.push({ was: "anfrage", weg, grundAus, leitung: k.leitung }); return { status: 200, body: { ok: true, art: "anfrage", weg, danke: "persönlicher Weg", messRef: "global-anfrage-0" } }; },
+    };
+    lauf++;
+    S.verkaufBremsenLeeren();
+    const koerper = { ...basis, sprache: o.sprache ?? "de", usd: o.usd ?? 150_000, land: o.land ?? "DE", email: `probe${lauf}@beispiel.example`, siegel: S.verkaufSiegel(Date.now() - S.SIEGEL_MIN_MS - 1_000) };
+    const antwort = await S.verkaufStarten(koerper, { ip: `198.51.100.${lauf}`, userAgent: "pruefstand", ...(o.leitung === undefined ? {} : { leitung: o.leitung }) }, werk);
+    return { antwort, rufe };
+  }
+  const K = V.VERKAUF_TEXTE.de.konfig;
+  const probe = einst({ nurLeitung: true });
+
+  { // Besucher im Probebetrieb → Anfrage über den persönlichen Weg, mit dem Schlusstext des Notschalters; Justin liest den Grund.
+    const { antwort, rufe } = await starten(probe);
+    gleich(rufe, [{ was: "anfrage", weg: "abschluss", grundAus: S.VERKAUF_GRUND_PROBE }], "Probebetrieb, Besucher: es entsteht eine Anfrage — kein Angebot, kein Blick in die Datenbank");
+    gleich([antwort.status, antwort.body.ok, antwort.body.art, antwort.body.aus, antwort.body.danke, antwort.body.titel], [200, true, "anfrage", true, K.fehler.aus, K.persoenlich.titel], "Probebetrieb, Besucher: derselbe freundliche Schluss wie beim Notschalter");
+    ok(!/probe|leitung|freigegeben|chef/i.test(JSON.stringify(antwort.body)), "Probebetrieb, Besucher: die Antwort verrät nichts vom Probebetrieb");
+  }
+  { // derselbe Besucher mit leitung: false ausdrücklich
+    const { rufe } = await starten(probe, { leitung: false });
+    gleich(rufe.map((r) => r.was), ["anfrage"], "Probebetrieb, leitung = false: Anfrage");
+  }
+  { // Leitung im Probebetrieb → Angebot
+    const { antwort, rufe } = await starten(probe, { leitung: true });
+    gleich(rufe, [{ was: "zaehlen" }, { was: "angebot", leitung: true }], "Probebetrieb, Leitung: das Angebot entsteht (nach dem Blick auf die Tagesgrenze)");
+    gleich([antwort.body.art, antwort.body.aus], ["angebot", undefined], "Probebetrieb, Leitung: Antwort ist das Angebot");
+  }
+  { // ohne den Schlüssel: alles wie bisher
+    const ohne = einst();
+    const besucher = await starten(ohne);
+    gleich(besucher.rufe.map((r) => r.was), ["zaehlen", "angebot"], "ohne „nurLeitung“, Besucher: Angebot wie bisher");
+    const leitung = await starten(ohne, { leitung: true });
+    gleich(leitung.rufe.map((r) => r.was), ["zaehlen", "angebot"], "ohne „nurLeitung“, Leitung: Angebot wie bisher");
+    const falsch = await starten(einst({ nurLeitung: "ja" }));
+    gleich(falsch.rufe.map((r) => r.was), ["zaehlen", "angebot"], "„nurLeitung“: \"ja\" ist kein Probebetrieb");
+  }
+  { // Notschalter geht vor — auch für die Leitung
+    const aus = S.verkaufEinstellungAus(JSON.stringify({ an: false, buerginRegister: "L00000000000", nurLeitung: true }), "2026-11-12");
+    const { antwort, rufe } = await starten(aus, { leitung: true });
+    gleich(rufe, [{ was: "anfrage", weg: "abschluss", grundAus: "Schalter aus", leitung: true }], "Notschalter im Probebetrieb: auch die Leitung schickt eine Anfrage");
+    gleich([antwort.body.aus, antwort.body.danke], [true, K.fehler.aus], "Notschalter: Schlusstext");
+  }
+  { // die persönlichen Wege bleiben, was sie sind (kein „aus“, kein Grund)
+    const miami = await starten(probe, { usd: 1_000_000 });
+    gleich(miami.rufe, [{ was: "anfrage", weg: "miami", grundAus: null }], "Probebetrieb, 1 Mio.: der Miami-Weg wie immer");
+    gleich(miami.antwort.body.aus, undefined, "Miami-Weg: kein „aus“ in der Antwort");
+    const at = await starten(probe, { land: "AT", leitung: true });
+    gleich(at.rufe, [{ was: "anfrage", weg: "vorhaben", grundAus: null, leitung: true }], "Probebetrieb, Österreich: persönlicher Weg — auch für die Leitung");
+  }
+  { // Tagesgrenze und Deckel gelten weiter (für die Leitung im Probebetrieb und für alle ohne ihn)
+    const voll = await starten(probe, { leitung: true, heute: 25 });
+    gleich(voll.rufe, [{ was: "zaehlen" }, { was: "anfrage", weg: "abschluss", grundAus: "Tagesgrenze 25 erreicht", leitung: true }], "Tagesgrenze erreicht: Anfrage");
+    const deckel = await starten(einst({ selbstMaxUsd: 250_000 }), { usd: 500_000 });
+    gleich(deckel.rufe, [{ was: "anfrage", weg: "abschluss", grundAus: "Rahmen über dem Deckel des Selbstabschlusses" }], "Rahmen über dem Deckel: Anfrage, ohne Blick in die Datenbank");
+  }
+  { // englisch: derselbe Weg, englischer Schluss
+    const { antwort } = await starten(probe, { sprache: "en" });
+    gleich([antwort.body.danke, antwort.body.titel], [V.VERKAUF_TEXTE.en.konfig.fehler.aus, V.VERKAUF_TEXTE.en.konfig.persoenlich.titel], "Probebetrieb, englisch: Schlusstext englisch");
+  }
+  S.verkaufBremsenLeeren();
+  // Die Route reicht die Leitung an BEIDE Stellen weiter: an die Sicht beim Laden und an das Absenden.
+  const fs = await import("fs"); const pfad = await import("path");
+  const route = fs.readFileSync(pfad.resolve(import.meta.dirname, "../server/routes/fiaon-global-verkauf.ts"), "utf8");
+  ok(/verkaufSeitenSicht\(istLeitung\(req\)\)/.test(route) && /leitung: istLeitung\(req\)/.test(route), "Route: istLeitung(req) geht an verkaufSeitenSicht und an verkaufStarten");
+  ok(/Cache-Control", "private, no-store"/.test(route), "Route: die Antworten stehen nie im Zwischenspeicher (sonst sähe ein Besucher die Sicht der Leitung)");
 }
 
 // ── 8 TEXTE ─────────────────────────────────────────────────────────────────
@@ -252,19 +355,55 @@ const meldung = e0.ok ? (["abschluss", "miami", "bestand", "vorhaben", "ohne_kap
   ok(mailEn.absaetze[0] === "Dear Mr Mustermann," && mailEn.daten.some((d) => d.wert === "€5,820"), "Kundenmail englisch: Anrede, Honorar");
 }
 
-// ── 9 MUSTERVERTRAG UND SUCHMASCHINEN-KOPF ──────────────────────────────────
+// ── 9 „IHR VERTRAG IM ÜBERBLICK“ UND SUCHMASCHINEN-KOPF ─────────────────────
+// Bis 12.11.2026 stand hier der öffentliche Mustervertrag im Wortlaut. Der Wortlaut steht nur noch im persönlichen Angebot;
+// öffentlich zeigt /business/mustervertrag den AUFBAU des Vertrags. Geprüft wird: Der Überblick folgt den Ziffern des Vertrags
+// (damit er nie etwas anderes behauptet als der Vertrag), er gibt sich nicht als Wortlaut aus, und der Server gibt den Vertrag
+// nicht mehr öffentlich aus.
+const fsP = await import("fs"); const pfadP = await import("path");
+const quelle = (datei: string) => fsP.readFileSync(pfadP.resolve(import.meta.dirname, "..", datei), "utf8");
+/** Quelltext ohne Kommentare — für Proben, die nur gelten, was im Browser ankommt. */
+const ohneKommentar = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").filter((z) => !/^\s*\/\//.test(z)).join("\n");
+const musterDaten = (() => {
+  const par = KC.kapitalCNeuesAngebotParameter(V.verkaufAngebotParameter(V.VERKAUF_RAHMEN.startUsd, est));
+  const k = KC.kapitalCKundePruefen({ art: "privat", anrede: "Herr", vorname: "Max", nachname: "Mustermann", geburtsdatum: "1980-01-15", strasse: "Musterweg 1", plz: "12345", ort: "Musterstadt", land: "DE", email: "max@beispiel.example", telefon: "+49 170 1234567" }, { ohneAusweis: true });
+  if (!k.ok) throw new Error(`Musterkunde: ${k.error}`);
+  return { ref: "FIAON-IA-CMUSTER", fassung: KC.KAPITAL_C_FASSUNG, kunde: k.kunde, parameter: par, gueltigBis: "2026-11-19",
+    buergin: { name: "Muster Partner LLC", bundesstaat: "Florida", anschrift: "1 Example Way, Miami, FL 33100, USA", registernummer: "L00000000000", vertreter: "Erika Muster", funktion: "Manager" } };
+})();
 {
-  const muster = await S.verkaufMustervertragHtml("2026-11-12");
-  const text = muster.replace(/<style[\s\S]*?<\/style>/g, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;|\u00a0/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
-  ok(text.includes("Max Mustermann") && text.includes("Musterweg 1"), "Mustervertrag: Musterkunde");
-  // „Schwarzott“ allein steht zu Recht da (Director der FIAON LTD, Ziffer 1) — gemeint sind die Partnergesellschaften.
-  ok(!/Schwarzott (Global|Capital|Group)|Coral Way|\bL\d{11}\b/i.test(muster), "Mustervertrag: kein Name, keine Anschrift, keine Nummer der Partnergesellschaft");
-  ok(text.includes(S.MUSTER_KONDITIONEN), "Mustervertrag: der Satz mit den Bedingungen steht ohne Zahlen da");
-  const zins = GLOBAL_SCHAERFER.filter((r) => /Zinssatz/.test(r.grund));
-  ok(zins.length >= 2 && !zins.some((r) => r.muster.test(text)), "Mustervertrag: kein Zinssatz als Zahl (öffentliche Seite)");
-  ok(/Geld-zurück-Garantie/.test(text) && /Bürgschaft der US-Partnergesellschaft/.test(text) && /Widerrufsbelehrung/.test(text), "Mustervertrag: Garantie, Bürgschaft und Widerrufsbelehrung stehen drin");
-  ok(text.includes("2.799") && text.includes(KC.kapitalCEur(V.verkaufPreis(V.VERKAUF_RAHMEN.startUsd, V.VERKAUF_KURS_VORGABE.kursUsdJeEur).erfolgCents).replace(/\u00a0/g, " ")), "Mustervertrag: der eine Preis und das Erfolgshonorar zum Start-Rahmen");
-  ok(!/Due-Diligence-Prüfung des Auftraggebers mit positivem Ergebnis abgeschlossen/.test(text), "Mustervertrag: behauptet keine abgeschlossene Prüfung");
+  const ziffern = KC.kapitalCZiffern(musterDaten);
+  gleich(ziffern.map((z) => z.nr), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], "Vertrag der Fassung C: vierzehn Ziffern");
+  for (const sp of ["de", "en"] as const) {
+    const T = V.VERKAUF_TEXTE[sp].vertrag;
+    const nummern = T.punkte.filter((x) => x.nr !== "A").flatMap((x) => x.nr.split(/\D+/).filter(Boolean).map(Number));
+    gleich(nummern, ziffern.map((z) => z.nr), `Überblick (${sp}): jede Ziffer des Vertrags kommt genau einmal vor`);
+    gleich(T.punkte[T.punkte.length - 1].nr, "A", `Überblick (${sp}): am Ende die Anlage`);
+    ok(T.punkte.every((x) => x.titel.trim() && x.text.trim().length >= 30), `Überblick (${sp}): jeder Punkt hat Titel und Satz`);
+  }
+  // Deutsch: Die Titel sind die des Vertrags (Ziffer 4 und 5 stehen als ein Punkt unter dem Titel der Ziffer 4).
+  for (const x of V.VERKAUF_TEXTE.de.vertrag.punkte) {
+    if (x.nr === "A") { ok(KC.kapitalCVertragInhalt(musterDaten).some((i) => i.marke === "A" && i.titel.endsWith(x.titel)), `Überblick: Titel der Anlage wie im Vertrag („${x.titel}“)`); continue; }
+    const erste = Number(x.nr.split(/\D+/)[0]);
+    gleich(x.titel, ziffern.find((z) => z.nr === erste)?.titel, `Überblick: Titel von Ziffer ${x.nr} wie im Vertrag`);
+  }
+  const de = V.VERKAUF_TEXTE.de.vertrag; const en = V.VERKAUF_TEXTE.en.vertrag;
+  ok(/nicht im Wortlaut/.test(de.lead) && /persönlichen Angebot/.test(de.lead) && /bevor Sie unterschreiben/.test(de.lead), "Überblick: der Lead sagt, dass dies nicht der Wortlaut ist und wo der vollständige Vertrag steht");
+  ok(/not word for word/.test(en.lead) && /personal offer/.test(en.lead) && /before you sign/.test(en.lead) && /in German/.test(en.lead), "Überblick englisch: dasselbe, dazu die Vertragssprache");
+  ok(/Wort für Wort/.test(de.vollText) && /lesen Sie ihn ganz/.test(de.vollText) && /word for word/.test(en.vollText) && /in full/.test(en.vollText), "Überblick: der Hinweis auf den vollständigen Vertrag im Angebot (beide Sprachen)");
+  // Der Vertrag selbst wird nirgends öffentlich ausgegeben: keine Route, kein Baustein, kein Abruf auf der Seite.
+  ok(!("verkaufMustervertragHtml" in S) && !("MUSTER_KONDITIONEN" in S), "Server: kein Baustein mehr, der den Vertrag mit Musterdaten öffentlich baut");
+  const route = ohneKommentar(quelle("server/routes/fiaon-global-verkauf.ts"));
+  ok(!/mustervertrag|VorschauHtml|kapitalC/i.test(route), "Route: gibt keinen Vertragstext öffentlich aus");
+  const seite = ohneKommentar(quelle("client/src/pages/site/global-recht.tsx"));
+  const ueberblick = seite.slice(seite.indexOf("export function GlobalMustervertragSeite"));
+  ok(ueberblick.length > 500 && !/fetch\(|dangerouslySetInnerHTML|\/api\//.test(ueberblick) && /VERKAUF_TEXTE\[s\]\.vertrag/.test(ueberblick), "Seite: der Überblick lädt keinen Vertrag nach — er zeigt nur VERKAUF_TEXTE.vertrag");
+  // Die Links nennen die Seite beim Namen (kein „Mustervertrag“ mehr, der einen Wortlaut verspräche).
+  const { GLOBAL_FUSS_WOERTER, GLOBAL_WOERTER } = await import("../client/src/i18n/global");
+  gleich([GLOBAL_FUSS_WOERTER.de.recht.find((r) => r.pfad === "/business/mustervertrag")?.text, GLOBAL_FUSS_WOERTER.en.recht.find((r) => r.pfad === "/en/business/mustervertrag")?.text], [de.linkName, en.linkName], "Fußzeile: der Link heißt wie die Seite (beide Sprachen)");
+  const oeffentlich = [JSON.stringify(V.VERKAUF_TEXTE), JSON.stringify(GLOBAL_WOERTER.de.fragen), JSON.stringify(GLOBAL_WOERTER.en.fragen), JSON.stringify(GLOBAL_WOERTER.de.vertrauensleiste), JSON.stringify(GLOBAL_WOERTER.en.vertrauensleiste), JSON.stringify(GLOBAL_FUSS_WOERTER)].join(" ");
+  // (Die Adresse /business/mustervertrag bleibt, damit alte Links ankommen — gemeint ist das Wort im Text.)
+  ok(!/(?<!\/business\/)Mustervertrag|model contract|sample contract/i.test(oeffentlich), "Startseite, Fragen, Fußzeile: kein „Mustervertrag“ mehr im Text");
 }
 {
   const { SEO_SEITEN } = await import("../shared/fiaon-seo-seiten");
@@ -278,6 +417,93 @@ const meldung = e0.ok ? (["abschluss", "miami", "bestand", "vorhaben", "ohne_kap
   ok(start.titel.length <= 60 && start.en.titel.length <= 60 && start.beschreibung.length >= 110 && start.beschreibung.length <= 155 && start.en.beschreibung.length >= 110 && start.en.beschreibung.length <= 155, "SEO „/“: Längen von Titel und Beschreibung");
   const konfig = (SEO_SEITEN as Record<string, any>)["/business/start"];
   ok(konfig && !/Paket|package/i.test(JSON.stringify(konfig)), "SEO „/business/start“: ohne Paket");
+  // Der Kopf verspricht nichts, was im persönlichen Weg (Notschalter, Probebetrieb) nicht stimmt.
+  ok(!/öffnet sich|ohne Wartezeit|no waiting|offer opens/i.test(JSON.stringify([start, konfig])), "SEO „/“ und „/business/start“: kein „öffnet sich sofort“, kein „ohne Wartezeit“ (gilt nicht für jeden Besucher)");
+  const ueber = (SEO_SEITEN as Record<string, any>)["/business/mustervertrag"];
+  const vt = V.VERKAUF_TEXTE;
+  gleich([ueber?.titel, ueber?.beschreibung, ueber?.h1, ueber?.lead], [vt.de.vertrag.seo.titel, vt.de.vertrag.seo.beschreibung, `${vt.de.vertrag.h1a} ${vt.de.vertrag.h1b}`, vt.de.vertrag.lead], "SEO „/business/mustervertrag“ deutsch = Kopf der Seite");
+  gleich([ueber?.en?.titel, ueber?.en?.beschreibung, ueber?.en?.h1, ueber?.en?.lead], [vt.en.vertrag.seo.titel, vt.en.vertrag.seo.beschreibung, `${vt.en.vertrag.h1a} ${vt.en.vertrag.h1b}`, vt.en.vertrag.lead], "SEO „/en/business/mustervertrag“ = Kopf der Seite");
+  ok(/noindex/.test(String(ueber?.robots)) && ueber.titel.length <= 60 && ueber.en.titel.length <= 60 && [ueber.beschreibung, ueber.en.beschreibung].every((x: string) => x.length >= 110 && x.length <= 155), "SEO „/business/mustervertrag“: noindex, Längen von Titel und Beschreibung");
+}
+
+// ── 10 LEITPLANKE: „BÜRGSCHAFT“ STEHT NICHT AUF ÖFFENTLICHEN SEITEN ─────────
+// Regel der Firma (30.10.2026, gilt weiter): Die Bürgschaft der US-Partnergesellschaft wird öffentlich nicht beworben. Sie steht
+// nur dort, wo sie Vertragsinhalt ist — im persönlichen Angebot hinter dem privaten Link (/business/angebot/<Link>, Vertrag der
+// Fassung C mit allen Hinweisen). Diese Wand liest jede öffentliche Fläche des Verkaufsmotors. Auf den übrigen Unterseiten
+// (Wissens-Artikel erklären das Wort allgemein) hält scripts/pruef-global-seiten.ts die Wand Satz für Satz.
+{
+  const WAND = /b(ü|ue)rg|guarantor|surety|guaranty/i;
+  // Der Hinweis zum Registerstand gehört zur Bürgschaft — und „Partnergesellschaft“ steht im Verkaufsmotor nur im Vertrag.
+  const REGISTER = /inaktiv|inactive|als aktiv geführt|listed as active/i;
+  const PARTNERGES = /Partnergesellschaft|partner company/i;
+  const funde: string[] = [];
+  const lies = (wert: unknown, ort: string, streng = false) => {
+    const texte: [string, string][] = [];
+    sammle(wert, ort, texte);
+    for (const [pfad, text] of texte) {
+      const m = text.match(WAND) ?? text.match(REGISTER) ?? (streng ? text.match(PARTNERGES) : null);
+      if (m) funde.push(`${pfad}: „${m[0]}“ in „${text.slice(Math.max(0, (m.index ?? 0) - 50), (m.index ?? 0) + 60).replace(/\s+/g, " ")}“`);
+    }
+    return texte.length;
+  };
+  let n = 0;
+  // 1 Jeder Satz von Startseite, Konfigurator, Karte, Überblick — deutsch und englisch, ganz.
+  n += lies(V.VERKAUF_TEXTE.de, "verkauf/de", true);
+  n += lies(V.VERKAUF_TEXTE.en, "verkauf/en", true);
+  // 2 Die Sätze des einen Produkts auf den Unterseiten (Karte „Ein Produkt“, Preis, Erfolgshonorar).
+  const { EIN_PRODUKT } = await import("../shared/fiaon-global-seiten/ein-produkt");
+  n += lies(EIN_PRODUKT, "ein-produkt", true);
+  // 3 Die Fragen der Startseite — sichtbar (Wörterbuch) und als Markup für Suchmaschinen.
+  const { GLOBAL_WOERTER, GLOBAL_FUSS_WOERTER } = await import("../client/src/i18n/global");
+  const { SEO_SEITEN, seoFragen } = await import("../shared/fiaon-seo-seiten");
+  n += lies([GLOBAL_WOERTER.de.fragen, GLOBAL_WOERTER.en.fragen], "startseite/fragen", true);
+  n += lies([seoFragen("/"), seoFragen("/en"), seoFragen("/business/privatpersonen"), seoFragen("/en/business/private-individuals")], "startseite/faq-markup", true);
+  ok(seoFragen("/").length >= 10 && seoFragen("/en").length >= 10, `Fragen der Startseite gelesen (${seoFragen("/").length} deutsch, ${seoFragen("/en").length} englisch)`);
+  // 4 Kopf der Startseite, des Konfigurators und des Überblicks in der SEO-Tabelle.
+  for (const pfad of ["/", "/business/start", "/business/mustervertrag", "/business/privatpersonen"]) n += lies((SEO_SEITEN as Record<string, unknown>)[pfad], `seo${pfad}`, true);
+  // 5 Fußzeile und Menü.
+  const { GLOBAL_MENUE } = await import("../shared/fiaon-global-menue");
+  n += lies([GLOBAL_FUSS_WOERTER, GLOBAL_MENUE], "fuss-und-menue", true);
+  // 6 Die Mail an den Kunden VOR dem Öffnen des Angebots (mit dem Link) — alle vier Fassungen.
+  for (const sprache of ["de", "en"] as const) for (const erneut of [false, true]) n += lies(S.verkaufKundenMailTexte({ ...mailBeispiel, sprache }, "FIAON-IA-CMUSTER", "2026-11-19", erneut, KURS), `mail/${sprache}${erneut ? "/erneut" : ""}`, true);
+  // 7 Die Antwort an die Seite (GET /api/fiaon/global/verkauf) — für Besucher und Leitung, mit und ohne Probebetrieb.
+  const mitBuergin = S.verkaufEinstellungAus(JSON.stringify({ an: true, buerginRegister: "L00000000000", buerginAktiv: true, buerginStandAm: "2026-11-11", nurLeitung: true }), "2026-11-12");
+  for (const leitung of [false, true]) n += lies(JSON.stringify(S.verkaufSeitenSicht(leitung, mitBuergin)), `sicht/${leitung ? "leitung" : "besucher"}`, true);
+  gleich(funde, [], `Leitplanke: ${n} öffentliche Texte des Verkaufsmotors ohne „Bürgschaft“, Registerstand und Partnergesellschaft`);
+  ok(n > 600, `Leitplanke: genug Texte gelesen (${n})`);
+
+  // 8 Was Suchmaschinen und Assistenten wirklich bekommen: Vorab-HTML mit Datenblock (JSON-LD) und /llms.txt.
+  await import("../server/lib/fiaon-global-seo");
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const { llmsTxt } = await import("../server/lib/fiaon-llms");
+  for (const pfad of ["/", "/en", "/business/start", "/en/business/start", "/business/mustervertrag", "/en/business/mustervertrag", "/business/privatpersonen", "/en/business/private-individuals", "/business/kosten", "/en/business/costs", "/business/ablauf"]) {
+    const html = (seitenHtml(pfad) ?? "").replace(/<style[\s\S]*?<\/style>/g, " ");
+    ok(html.length > 2000, `${pfad}: Vorab-HTML da`);
+    const ld = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((x) => x[1]).join(" ");
+    ok(ld.length > 200, `${pfad}: Datenblock (JSON-LD) da`);
+    const m = html.match(WAND) ?? html.match(REGISTER);
+    ok(!m, `${pfad}: Vorab-HTML oder Datenblock nennt „${m?.[0]}“ bei „…${m ? html.slice(Math.max(0, m.index! - 80), m.index! + 40).replace(/\s+/g, " ") : ""}…“`);
+  }
+  const llmsGlobal = llmsTxt().split("## FIAON Bonität")[0];
+  const lm = llmsGlobal.match(WAND) ?? llmsGlobal.match(REGISTER) ?? llmsGlobal.match(PARTNERGES);
+  ok(llmsGlobal.length > 800 && !lm, `/llms.txt (FIAON Global): „${lm?.[0]}“ bei „…${lm ? llmsGlobal.slice(Math.max(0, lm.index! - 80), lm.index! + 40).replace(/\s+/g, " ") : ""}…“`);
+  ok(llmsGlobal.includes(V.VERKAUF_TEXTE.de.produkt.preisFein) && llmsGlobal.includes(V.VERKAUF_TEXTE.de.produkt.bereiche[6].zeile), "/llms.txt: Preiszeile und Kapital-Zeile kommen aus VERKAUF_TEXTE (eine Quelle)");
+
+  // 9 Der Quelltext, der im Browser ankommt: kein fest getippter Satz, kein Feld, keine Klasse mit dem Wort.
+  for (const datei of ["client/src/components/site/global/VerkaufKonfigurator.tsx", "client/src/components/site/global/VerkaufProdukt.tsx", "client/src/lib/verkauf.ts",
+    "client/src/pages/site/global-konfigurator.tsx", "client/src/pages/site/business.tsx", "client/src/pages/site/global-recht.tsx", "client/src/pages/site/global-seite.tsx",
+    "client/src/components/site/GlobalNav.tsx", "client/src/components/site/GlobalFuss.tsx"]) {
+    const m = ohneKommentar(quelle(datei)).match(WAND);
+    ok(!m, `${datei}: „${m?.[0]}“ im Quelltext (ohne Kommentare)`);
+  }
+  const css = quelle("client/src/styles/global-verkauf.css").replace(/\/\*[\s\S]*?\*\//g, " ");
+  ok(!WAND.test(css), `global-verkauf.css: Klasse mit „${css.match(WAND)?.[0]}“`);
+
+  // 10 Im Vertrag selbst steht sie unverändert — die Wand gilt den öffentlichen Seiten, nicht dem Angebot.
+  const z5 = KC.kapitalCZiffern(musterDaten).find((z) => z.nr === 5);
+  ok(z5?.titel === "Bürgschaft der US-Partnergesellschaft" && JSON.stringify(z5).includes("derzeit als inaktiv geführt"), "Vertrag der Fassung C: Ziffer 5 mit Bürgschaft und Registerstand steht unverändert im Angebot");
+  // Der Konfigurator zeigt statt der alten Frage zur Bürgschaft die Frage nach dem Angebot — dessen Antwort führt zum vollständigen Vertrag.
+  ok(/vollständigen Vertrag/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /bevor Sie unterschreiben/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /complete agreement/.test(V.VERKAUF_TEXTE.en.konfig.angebotFrage.antwort), "Konfigurator: „Was steht in meinem Angebot?“ — die Antwort nennt den vollständigen Vertrag vor der Unterschrift");
 }
 
 console.log(`\n${gut} Prüfungen grün, ${schlecht} rot.`);

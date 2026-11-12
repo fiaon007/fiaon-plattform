@@ -33,7 +33,7 @@ import HeroGlas from "@/components/site/global/HeroGlas";
 import GlobalBogen from "@/components/site/global/GlobalBogen";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import { VerkaufProdukt, VerkaufAblauf, VerkaufGarantie } from "@/components/site/global/VerkaufProdukt";
-import VerkaufKonfigurator from "@/components/site/global/VerkaufKonfigurator";
+import VerkaufKonfigurator, { VerkaufKonfigLead } from "@/components/site/global/VerkaufKonfigurator";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
@@ -162,7 +162,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           <div className="fg-rahmen">
             <div className="fg-kopf">
               <div><span className="fg-auge">{V.konfig.auge}</span><h2 className="fg-h2">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h2></div>
-              <p className="fg-lead">{V.konfig.lead}</p>
+              <VerkaufKonfigLead sprache={s} />
             </div>
             <VerkaufKonfigurator sprache={s} />
           </div>

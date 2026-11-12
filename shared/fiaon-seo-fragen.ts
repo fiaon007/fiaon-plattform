@@ -187,7 +187,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie prüfe ich, ob FIAON seriös ist?",
-      "a": "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den Vertrag lesen Sie vorab als Mustervertrag. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto."
+      "a": "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto."
     },
     {
       "f": "Wer ist mein Vertragspartner?",
@@ -207,7 +207,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Kann ich sofort beauftragen?",
-      "a": "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen, tragen Ihre Angaben ein und unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail."
+      "a": "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen und tragen Ihre Angaben ein. Ihr Angebot zeigt den vollständigen Vertrag; Sie unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail."
     },
     {
       "f": "Wie bezahle ich?",
@@ -245,7 +245,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How do I check that FIAON is reputable?",
-      "a": "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the contract in advance as a model contract. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account."
+      "a": "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the complete agreement in your personal offer before you sign. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account."
     },
     {
       "f": "Who is my contracting party?",
@@ -265,7 +265,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Can I order straight away?",
-      "a": "Yes. You put your offer together in the configurator, enter your details and sign on screen. The agreement and the invoice arrive by email."
+      "a": "Yes. You put your offer together in the configurator and enter your details. Your offer shows the complete agreement; you sign on screen. The agreement and the invoice arrive by email."
     },
     {
       "f": "How do I pay?",

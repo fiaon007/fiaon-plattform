@@ -10,6 +10,11 @@
 // Vertrag (shared/fiaon-global-verkauf.ts → kapitalCStaffelHonorarCents); jeder Satz steht dort, die Wortwand liest ihn.
 // Welcher Weg am Ende gilt (Selbstabschluss oder persönlich), sagt verkaufWeg — dieselbe Funktion wie auf dem Server.
 //
+// ZWEI ARTEN, DIESELBE FLÄCHE (12.11.2026): Der Server sagt beim Laden, ob für DIESEN Besucher sofort ein Angebot entsteht
+// (sicht.an). Wenn nicht (Notschalter, Probebetrieb), bleibt alles gleich — nur verspricht kein Satz und kein Knopf mehr,
+// dass sich das Angebot sofort öffnet: Es kommt persönlich (K.persoenlich). Für den Besucher ist das kein Hinweis auf einen
+// Probebetrieb, sondern schlicht der persönliche Weg.
+//
 // Bewegung: Die Zahlen gleiten zum neuen Wert (0,42 s), die Fläche baut sich beim Hineinscrollen einmal auf. Bei
 // „weniger Bewegung“ steht alles sofort; nichts hängt an der Scrollposition.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -47,6 +52,21 @@ function useGleitzahl(ziel: number): number {
 
 type Schritt = "wahl" | "kontakt" | "fertig";
 interface Ergebnis { art: "angebot" | "mail" | "anfrage"; titel?: string; text: string; url?: string; knopf?: string }
+
+/**
+ * Der Lead über dem Konfigurator (Startseite und /business/start): Der erste Satz steht sofort, der zweite blendet ein,
+ * sobald der Server gesagt hat, welcher Weg für diesen Besucher gilt — so steht nie ein Versprechen da, das nicht stimmt,
+ * und nichts springt (der Platz ist mit dem Satz des Selbstabschlusses reserviert, unsichtbar bis zur Antwort).
+ */
+export function VerkaufKonfigLead({ sprache }: { sprache: VerkaufSprache }) {
+  const K = VERKAUF_TEXTE[sprache].konfig;
+  const { sicht } = useVerkaufSicht();
+  return (
+    <p className="fg-lead">
+      {K.leadA} <span className={`vk-lead-b${sicht.geladen ? " da" : ""}`} aria-hidden={!sicht.geladen}>{sicht.geladen && !sicht.an ? K.persoenlich.leadB : K.leadB}</span>
+    </p>
+  );
+}
 
 export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { sprache: VerkaufSprache; eigeneSeite?: boolean }) {
   const T = VERKAUF_TEXTE[sprache]; const K = T.konfig; const en = sprache === "en";
@@ -118,7 +138,8 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
       if (a.d?.ok) {
         const art = a.d.art as Ergebnis["art"];
         werbeEreignis("global_konfigurator", { art, weg: String(a.d.weg ?? "abschluss"), rahmen: usd });
-        setErgebnis({ art, titel: a.d.titel, text: art === "anfrage" ? String(a.d.danke ?? "") : String(a.d.text ?? ""), url: a.d.url, knopf: a.d.knopf });
+        // „aus“: Der Weg wäre der Selbstabschluss gewesen, das Angebot kommt aber persönlich (Notschalter, Probebetrieb, Grenze).
+        setErgebnis({ art, titel: a.d.titel ?? (a.d.aus ? K.persoenlich.titel : undefined), text: art === "anfrage" ? String(a.d.danke ?? "") : String(a.d.text ?? ""), url: a.d.url, knopf: a.d.knopf });
         setSchritt("fertig");
         if (art === "angebot" && a.d.url) window.setTimeout(() => window.location.assign(String(a.d.url)), ruhigGewuenscht() ? 300 : 1400);
       } else {
@@ -135,6 +156,8 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
   const fuellung = stopps.length > 1 ? index / (stopps.length - 1) : 0;
   const abschluss = weg === "abschluss";
   const hinweisWeg = weg !== "abschluss" ? K.wege[weg] : null;
+  // Öffnet sich das Angebot gleich nach dem Absenden? Nur im Selbstabschluss UND wenn er für diesen Besucher frei ist.
+  const sofort = abschluss && sicht.an;
 
   return (
     <div className={`vk-konfig${eigeneSeite ? " eigen" : ""}`} ref={wurzel} id="konfigurator" data-schritt={schritt}>
@@ -183,7 +206,7 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
           {schritt === "kontakt" && (
             <form className="vk-form" onSubmit={absenden} noValidate={false}>
               <p className="vk-nr"><i>3</i>{K.form.titel}</p>
-              <p className="vk-sub">{abschluss ? K.form.sub : hinweisWeg?.text}</p>
+              <p className="vk-sub">{sofort ? K.form.sub : abschluss ? K.persoenlich.sub : hinweisWeg?.text}</p>
               <div className="vk-anrede" role="radiogroup" aria-label={K.form.anrede}>
                 {(["Herr", "Frau"] as const).map((a) => (
                   <button key={a} type="button" role="radio" aria-checked={form.anrede === a} className={form.anrede === a ? "an" : ""} onClick={() => setForm((f) => ({ ...f, anrede: f.anrede === a ? "" : a }))}>{a === "Herr" ? K.form.herr : K.form.frau}</button>
@@ -210,7 +233,7 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
               {fehler && <p className="vk-fehler" role="alert">{fehler.text}</p>}
               {K.form.vertragssprache && abschluss && <p className="vk-fein">{K.form.vertragssprache}</p>}
               <div className="vk-knoepfe">
-                <button type="submit" className="vk-knopf" disabled={laeuft}>{laeuft ? K.form.laeuft : abschluss ? K.form.absenden : K.form.absendenWeg}</button>
+                <button type="submit" className="vk-knopf" disabled={laeuft}>{laeuft ? (sofort ? K.form.laeuft : K.persoenlich.laeuft) : sofort ? K.form.absenden : abschluss ? K.persoenlich.absenden : K.form.absendenWeg}</button>
                 <button type="button" className="vk-knopf leise" onClick={() => { setSchritt("wahl"); setFehler(null); }} disabled={laeuft}>{K.zurueck}</button>
               </div>
               <p className="vk-fein">{K.form.datenschutz} <a href={en ? "/en/privacy" : "/datenschutz"}>{K.form.datenschutzLink}</a></p>
@@ -265,9 +288,9 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
             </ul>
           )}
           {mitKapital && (
-            <details className="vk-buergin">
-              <summary>{K.buergin.frage}</summary>
-              <p>{sicht.buerginAktiv ? K.buergin.aktiv : K.buergin.inaktiv}</p>
+            <details className="vk-blatt-frage">
+              <summary>{K.angebotFrage.frage}</summary>
+              <p>{K.angebotFrage.antwort}</p>
             </details>
           )}
         </aside>

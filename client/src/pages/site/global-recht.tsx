@@ -1,24 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// FIAON GLOBAL — WIDERRUFSBELEHRUNG UND MUSTERVERTRAG (19.09.2026)
+// FIAON GLOBAL — WIDERRUFSBELEHRUNG UND „IHR VERTRAG IM ÜBERBLICK“ (19.09.2026; Überblick seit 12.11.2026)
 //
 // Zwei Seiten, die ein vorsichtiger Käufer VOR dem Auftrag lesen will — im
 // Rahmen der Business-Welt (Dunkel seite="business"), nicht auf den Rechtsseiten
 // der Privatkunden-Linie:
 //   /business/widerrufsbelehrung — der gesetzliche Wortlaut aus derselben
 //     Quelle wie die Anlage zum Vertrag (shared/fiaon-global-widerruf.ts),
-//   /business/mustervertrag — der Auftrag Wort für Wort, erzeugt vom selben
-//     Server-Baustein wie Vorschau und PDF (POST /global/vertrag/vorschau),
-//     mit Beispieldaten; Paket und Auftraggeber wählbar.
-// Beide auch englisch unter /en/business/… (19.09.2026, E-192): Der Vertrag und
-// die Belehrung gibt es in Vertragssprache Englisch — wer englisch beauftragt,
-// liest sie vorher englisch.
-// 19.09.2026 (E-196): Der Mustervertrag zeigt die Jahresbetreuung als Variante —
-// „Mit Jahresbetreuung (nur wenn gebucht)" rendert Ziffer 2, 3 und 5 so, wie sie
-// im Auftrag stehen, wenn der Kunde den Haken setzt. Vorgabe: ohne.
+//   /business/mustervertrag — „Ihr Vertrag im Überblick“: der Aufbau des Vertrags
+//     in Stichpunkten (VERKAUF_TEXTE.vertrag). Der Wortlaut steht im persönlichen
+//     Angebot, vor der Unterschrift — nicht hier (siehe unten).
+// Beide auch englisch unter /en/business/… (19.09.2026, E-192).
+// Bis E-509 zeigte /business/mustervertrag die vier Paketverträge im Wortlaut
+// (mit Paket-, Auftraggeber- und Jahresbetreuungs-Wahl, E-196).
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState } from "react";
+import { useRef } from "react";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
+import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { useSprache } from "@/i18n/sprache";
 import { globalWiderrufsbelehrung, globalWiderrufAnbieter } from "@shared/fiaon-global-widerruf";
 import { VERKAUF_TEXTE, verkaufPfad } from "@shared/fiaon-global-verkauf";
@@ -88,52 +86,53 @@ export function GlobalWiderrufsbelehrungSeite() {
 
 // ── /business/mustervertrag ─────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════
-// DER MUSTERVERTRAG (E-509, 12.11.2026) — der Vertrag des EINEN Produkts
-// Bis E-509: die vier Paketverträge mit Paket-, Auftraggeber- und Jahresbetreuungs-Wahl (POST /global/vertrag/vorschau).
-// Jetzt: der Vertrag, den der Konfigurator erzeugt (Kapital-Angebot Fassung C), mit Musterdaten — derselbe Baustein wie auf
-// der Angebotsseite und im PDF (GET /api/fiaon/global/verkauf/mustervertrag). Öffentlich ohne den Namen der Partnergesellschaft
-// und ohne Zinszahlen; beides nennt das persönliche Angebot. Der Vertrag ist deutsch (Vertragssprache).
+// IHR VERTRAG IM ÜBERBLICK (E-509, Leitplanke 12.11.2026) — der AUFBAU des Vertrags, nicht sein Wortlaut
+// Bis E-509: die vier Paketverträge im Wortlaut (POST /global/vertrag/vorschau). Mit dem einen Produkt ist der Vertrag das
+// Kapital-Angebot der Fassung C — und dessen Wortlaut steht NUR im persönlichen Angebot hinter dem privaten Link (Regel seit
+// 30.10.2026: die Bürgschaft wird öffentlich nicht ausgebreitet). Deshalb zeigt diese Seite keinen Vertragstext mehr, auch
+// keinen gekürzten: Sie sagt in Stichpunkten, was der Vertrag regelt (VERKAUF_TEXTE.vertrag — die Wortwand liest jeden Satz,
+// scripts/pruef-verkaufsmotor.ts vergleicht Ziffern und Titel mit dem Vertrag), und sie sagt klar, wo der vollständige Vertrag
+// steht: im Angebot, vor der Unterschrift. Die Adresse bleibt (/business/mustervertrag), damit jeder alte Link ankommt.
 // ═══════════════════════════════════════════════════════════════════════════
 export function GlobalMustervertragSeite() {
   const s = useSprache() === "en" ? "en" : "de";
   const en = s === "en";
-  const [html, setHtml] = useState("");
-  const [stand, setStand] = useState<"laedt" | "da" | "fehler">("laedt");
-  useEffect(() => {
-    let weg = false;
-    fetch("/api/fiaon/global/verkauf/mustervertrag")
-      .then((r) => r.json()).then((j) => { if (weg) return; if (j?.ok && j.html) { setHtml(String(j.html)); setStand("da"); } else setStand("fehler"); })
-      .catch(() => { if (!weg) setStand("fehler"); });
-    return () => { weg = true; };
-  }, []);
+  const T = VERKAUF_TEXTE[s].vertrag;
+  const liste = useRef<HTMLOListElement>(null);
+  useEinmalSichtbar(liste, 0, "0px 0px -12% 0px");
 
   return (
-    <Dunkel seite="business" titel={en ? "Model contract — FIAON Global" : "Mustervertrag — FIAON Global"} beschreibung={en ? "The FIAON Global agreement word for word, as presented for signature — with sample details. Your personal offer shows your own figures." : "Der Vertrag von FIAON Global im Wortlaut, wie er Ihnen zur Unterschrift vorgelegt wird — mit Musterdaten. Ihr Angebot zeigt Ihre eigenen Zahlen."} sprache={s}>
+    <Dunkel seite="business" titel={T.seo.titel} beschreibung={T.seo.beschreibung} sprache={s}>
       <div className="fg fd gr">
-        {en
-          ? <Kopf auge="FIAON Global · Contract" h1="The contract," h1b="before you order."
-              lead="This is your agreement — word for word, as it is presented to you for signature. The client details are examples. Your personal offer names our US partner company and the terms of the financing in full and works them out for you. The agreement is in German, the language of the contract. Your contracting party is FIAON LTD, London."
-            />
-          : <Kopf auge="FIAON Global · Vertrag" h1="Der Vertrag," h1b="bevor Sie beauftragen."
-              lead="So lautet Ihr Vertrag — Wort für Wort, wie er Ihnen zur Unterschrift vorgelegt wird. Die Angaben zum Kunden sind Beispiele. Ihr persönliches Angebot nennt unsere US-Partnergesellschaft und die Bedingungen der Finanzierung vollständig und rechnet sie Ihnen vor. Vertragspartner ist in jedem Fall die FIAON LTD, London."
-            />}
+        <Kopf auge={T.auge} h1={T.h1a} h1b={T.h1b} lead={T.lead} />
         <section className="fg-sek eng">
           <div className="fg-rahmen">
-            <div className="gr-papier" aria-busy={stand === "laedt"}>
-              {stand === "fehler" && <p className="gr-leise">{en ? "The contract could not be loaded just now. Please reload the page." : "Der Vertrag konnte gerade nicht geladen werden. Bitte laden Sie die Seite neu."}</p>}
-              {stand !== "fehler" && html && <div lang="de" dangerouslySetInnerHTML={{ __html: html }} />}
-              {stand === "laedt" && !html && <p className="gr-leise">{en ? "Preparing the contract …" : "Vertrag wird erstellt …"}</p>}
+            <div className="gr-papier gr-aufbau">
+              <h2 className="gr-aufbau-titel">{T.aufbauTitel}</h2>
+              <ol className="gr-aufbau-liste" ref={liste}>
+                {T.punkte.map((p, i) => {
+                  const anlage = p.nr === "A";
+                  return (
+                    <li key={p.nr} style={{ ["--i" as string]: String(i) }}>
+                      <span className="gr-aufbau-nr"><small>{anlage ? T.anlageWort : T.zifferWort}</small>{!anlage && <b>{p.nr}</b>}</span>
+                      <div><h3>{p.titel}</h3><p>{p.text}</p></div>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+            <div className="fd-hinweis gr-voll">
+              <p className="gr-klein">{T.vollTitel}</p>
+              <p>{T.vollText}</p>
             </div>
             <div className="gr-weiter">
-              <p>{en ? "All clear? Put your offer together — your price appears at once, and you sign online." : "Passt alles? Stellen Sie Ihr Angebot zusammen — Ihr Preis steht sofort da, und Sie unterschreiben online."}</p>
+              <p>{T.weiter}</p>
               <div className="fg-knoepfe" style={{ marginTop: 0 }}>
                 <a className="fg-knopf" href={verkaufPfad(s)}>{VERKAUF_TEXTE[s].buehne.knopf}</a>
-                <a className="fg-knopf hell" href={en ? "/en#gespraech" : "/#gespraech"}>{en ? "Talk first" : "Erst sprechen"}</a>
+                <a className="fg-knopf hell" href={en ? "/en#gespraech" : "/#gespraech"}>{VERKAUF_TEXTE[s].buehne.knopfGespraech}</a>
               </div>
             </div>
-            {en
-              ? <p className="gr-leise gr-quelle">Generated by the same component as your offer page and the PDF. The <a href="/en/business/widerrufsbelehrung">withdrawal information</a> is attached to the agreement.</p>
-              : <p className="gr-leise gr-quelle">Erzeugt vom selben Baustein wie Ihre Angebotsseite und das PDF. Die <a href="/business/widerrufsbelehrung">Widerrufsbelehrung</a> ist dem Vertrag als Anlage beigefügt.</p>}
+            <p className="gr-leise gr-quelle">{T.widerruf} <a href={en ? "/en/business/widerrufsbelehrung" : "/business/widerrufsbelehrung"}>{T.widerrufLink}</a></p>
           </div>
         </section>
       </div>

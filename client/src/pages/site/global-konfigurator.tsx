@@ -8,7 +8,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { Dunkel } from "@/components/site/DunkleBuehne";
 import { useSprache } from "@/i18n/sprache";
-import VerkaufKonfigurator from "@/components/site/global/VerkaufKonfigurator";
+import VerkaufKonfigurator, { VerkaufKonfigLead } from "@/components/site/global/VerkaufKonfigurator";
 import { VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import "@/styles/global.css";
@@ -29,7 +29,7 @@ export default function GlobalKonfiguratorSeite() {
                 <span className="fg-auge">{V.konfig.auge}</span>
                 <h1 className="fg-h2">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h1>
               </div>
-              <p className="fg-lead">{V.konfig.lead}</p>
+              <VerkaufKonfigLead sprache={s} />
             </div>
             <VerkaufKonfigurator sprache={s} eigeneSeite />
             <p className="vk-seite-zurueck"><a href={`${BUSINESS_START[s]}#produkt`}>{V.produkt.name}</a></p>

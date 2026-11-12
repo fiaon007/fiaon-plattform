@@ -2,9 +2,10 @@
 // VERKAUFSMOTOR (E-509) — was Startseite und Konfigurator vom Server brauchen
 //
 // GET /api/fiaon/global/verkauf liefert den Kurs (damit der Preis hier mit demselben Kurs rechnet wie der Vertrag),
-// den Registerstand der Bürgin (für die eine ehrliche Antwort unter dem Preisblatt) und das Zeit-Siegel für das
-// Absenden. Bis die Antwort da ist, rechnet die Seite mit dem Rückfall-Kurs aus shared/fiaon-global-verkauf.ts —
-// derselbe Wert, den der Server ohne eigene Einstellung nimmt.
+// das Zeit-Siegel für das Absenden und „an“: Entsteht für DIESEN Besucher am Ende sofort ein Angebot (true) oder geht
+// seine Anfrage den persönlichen Weg (false — Notschalter oder Probebetrieb; die Seite sagt dann nirgends „Ihr Angebot
+// öffnet sich sofort“). Bis die Antwort da ist, rechnet die Seite mit dem Rückfall-Kurs aus
+// shared/fiaon-global-verkauf.ts — derselbe Wert, den der Server ohne eigene Einstellung nimmt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
 import { VERKAUF_KURS_VORGABE, VERKAUF_RAHMEN } from "@shared/fiaon-global-verkauf";
@@ -14,13 +15,12 @@ export interface VerkaufSicht {
   an: boolean;
   kursUsdJeEur: number;
   kursDatum: string;
-  buerginAktiv: boolean;
   selbstMaxUsd: number;
   siegel: string;
 }
 const START: VerkaufSicht = {
   geladen: false, an: false, kursUsdJeEur: VERKAUF_KURS_VORGABE.kursUsdJeEur, kursDatum: VERKAUF_KURS_VORGABE.kursDatum,
-  buerginAktiv: false, selbstMaxUsd: VERKAUF_RAHMEN.selbstMaxUsd, siegel: "",
+  selbstMaxUsd: VERKAUF_RAHMEN.selbstMaxUsd, siegel: "",
 };
 
 let laeuft: Promise<VerkaufSicht> | null = null;
@@ -31,7 +31,6 @@ function holen(): Promise<VerkaufSicht> {
       geladen: true, an: d?.an === true,
       kursUsdJeEur: Number(d?.kursUsdJeEur) > 0 ? Number(d.kursUsdJeEur) : START.kursUsdJeEur,
       kursDatum: /^\d{4}-\d{2}-\d{2}$/.test(String(d?.kursDatum ?? "")) ? String(d.kursDatum) : START.kursDatum,
-      buerginAktiv: d?.buerginAktiv === true,
       selbstMaxUsd: Number(d?.selbstMaxUsd) > 0 ? Number(d.selbstMaxUsd) : START.selbstMaxUsd,
       siegel: String(d?.siegel ?? ""),
     }));

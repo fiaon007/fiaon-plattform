@@ -205,7 +205,7 @@ export const SEITE: GlobalSeite = {
       lead: "From the first conversation to the first US filing — you can see at any time whose turn it is.",
       etappen: [
         { titel: "Initial call or configurator", text: "Thirty minutes, free of charge and without obligation: your plans, your residence, your goal. If you have already made up your mind, you put your offer together in the configurator and see your price at once." },
-        { titel: "Engagement on screen", text: "You can read the model contract in advance; it is in German, the language of the contract. You sign on screen; your contracting party is FIAON LTD in London." },
+        { titel: "Engagement on screen", text: "You read your agreement in full in your offer; it is in German, the language of the contract. You sign on screen; your contracting party is FIAON LTD in London." },
         { titel: "Start and documents", text: "Work begins once your payment has been received. You choose the name of your company when you sign; afterwards you upload your passport to the document room." },
         { titel: "Clarified beforehand", text: "Our partner tax adviser clarifies with you beforehand how transfers and investments are treated for tax purposes." },
         { titel: "Formation and tax numbers", text: "Formation with the state, EIN, ITIN preparation, D-U-N-S Number, registered agent, US address and phone number; our partner lawyer drafts the operating agreement. You can follow the progress in “My order”." },
@@ -221,7 +221,7 @@ export const SEITE: GlobalSeite = {
       punkte: [
         `the contracting party in the register: ${F.name}, Companies House ${F.companyNo}, incorporated on 3 July 2026, registered office at ${F.strasse} in London — open to public inspection`,
         `the management: the director is ${F.director}, also entered in the register`,
-        "the contract: you read the model contract before the engagement; it is in German, the language of the contract",
+        "the contract: you read it in full in your offer before you sign; it is in German, the language of the contract",
         "the price: it is set before you order — you see it in the configurator before you enter your details",
         `the payment: only after your signature, by invoice to the business account of ${F.name} — never to a private account`,
         "the limits: this page and every engagement state openly what FIAON Global is not",

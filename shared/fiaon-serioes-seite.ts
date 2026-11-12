@@ -55,11 +55,11 @@ const de: GlobalSeite = {
     ["Leitung", `${F.director} (Director), Gründer`],
     ["Preis", `${EIN_PRODUKT.de.preis} mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen`],
     ["Zahlung", `Per Rechnung, nur per Überweisung an ${BANK.empfaenger} – kein Abo, keine Abbuchung`],
-    ["Vertrag", "Auf Deutsch, nach deutschem Recht; Mustervertrag vorab lesbar"],
+    ["Vertrag", "Auf Deutsch, nach deutschem Recht; vollständig lesbar, bevor Sie unterschreiben"],
     ["Ihre Unterlagen", "Server in Frankfurt am Main, verschlüsselt, nach DSGVO"],
     ["Kontakt", `${F.telefon} · ${F.email}`],
   ],
-  kurz: `Prüfen Sie es an Fakten statt an Versprechen. FIAON Global ist ein Angebot der ${F.name}, eingetragen beim britischen Companies House unter der Nummer ${F.companyNo}. Sie zahlen per Rechnung auf das Geschäftskonto der ${F.name}, den Vertrag lesen Sie vorab als Mustervertrag, und Sie haben einen festen Ansprechpartner, den Sie anrufen können.`,
+  kurz: `Prüfen Sie es an Fakten statt an Versprechen. FIAON Global ist ein Angebot der ${F.name}, eingetragen beim britischen Companies House unter der Nummer ${F.companyNo}. Sie zahlen per Rechnung auf das Geschäftskonto der ${F.name}, den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben, und Sie haben einen festen Ansprechpartner, den Sie anrufen können.`,
   bloecke: [
     {
       typ: "karten", id: "wer", h2: "Wer hinter FIAON Global steht", spalten: 2,
@@ -86,7 +86,7 @@ const de: GlobalSeite = {
       lead: `Preis, Leistungen und Vertrag kennen Sie, bevor Sie etwas unterschreiben. Der Vertrag ist auf Deutsch verfasst und folgt deutschem Recht. Beauftragen Sie als Privatperson und handeln dabei als Verbraucher, gilt zusätzlich das gesetzliche Widerrufsrecht von ${WIDERRUFSFRIST_TAGE} Tagen.`,
       karten: [
         { tag: "Preis", titel: "Ein Preis, vorab fest", text: `${EIN_PRODUKT.de.preis} mit Ihrem Auftrag, per Rechnung, kein Abo. Mit der Eintragung wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen – Ihren Preis zeigt der Konfigurator, bevor Sie beauftragen.`, pfad: "/business/kosten" },
-        { tag: "Vertrag", titel: "Mustervertrag vorab lesen", text: "Jede Ziffer des Auftrags, bevor Sie beauftragen.", pfad: "/business/mustervertrag" },
+        { tag: "Vertrag", titel: "Ihr Vertrag im Überblick", text: "Was der Vertrag regelt. Den Wortlaut lesen Sie in Ihrem Angebot, bevor Sie unterschreiben.", pfad: "/business/mustervertrag" },
         { tag: "Zusage", titel: GZ.de.titel, text: GZ.de.text },
         { tag: "Jahr zwei", titel: "Jahresbetreuung nur auf Wunsch", text: "Ab dem zweiten Jahr zum festen Jahrespreis, jährlich im Voraus berechnet – sie verlängert sich nicht von selbst." },
       ],
@@ -134,7 +134,7 @@ const de: GlobalSeite = {
     },
   ],
   fragen: [
-    { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an Fakten statt an Versprechen: FIAON Global ist ein Angebot der ${F.name}, eingetragen beim Companies House (England and Wales) unter der Nummer ${F.companyNo}, Sitz ${F.strasse}, ${F.ortZeile}. Ihr Preis steht fest, bevor Sie beauftragen, Sie zahlen per Rechnung auf das Geschäftskonto der ${F.name}, den Vertrag lesen Sie vorab als Mustervertrag, und Sie erreichen einen festen Ansprechpartner per Telefon und E-Mail.` },
+    { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an Fakten statt an Versprechen: FIAON Global ist ein Angebot der ${F.name}, eingetragen beim Companies House (England and Wales) unter der Nummer ${F.companyNo}, Sitz ${F.strasse}, ${F.ortZeile}. Ihr Preis steht fest, bevor Sie beauftragen, Sie zahlen per Rechnung auf das Geschäftskonto der ${F.name}, den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben, und Sie erreichen einen festen Ansprechpartner per Telefon und E-Mail.` },
     { f: "Wer steht hinter FIAON Global?", a: `Die ${F.name} mit Sitz in ${F.strasse}, ${F.ortZeile}, eingetragen beim Companies House unter der Nummer ${F.companyNo}. Geschäftsführer ist der Gründer ${F.director}. Den Eintrag können Sie kostenlos und ohne Anmeldung einsehen; alle Pflichtangaben stehen im Impressum. Ihr Vertragspartner für den Auftrag ist die ${F.name}. ${EIN_PRODUKT.de.partner}` },
     { f: "Wohin zahle ich, und woran erkenne ich eine echte Rechnung?", a: `Sie zahlen nur per Überweisung an ${BANK.empfaenger}; die Bankverbindung steht auf dieser Seite und auf jeder Rechnung, zusammen mit Ihrem Verwendungszweck. Für Zahlungen aus den Vereinigten Arabischen Emiraten nennen wir Ihnen auf Wunsch ein zweites Konto der ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} (IBAN ${BANK_AED.ibanDisplay}); andere Konten gibt es nicht. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto – erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht und melden Sie sich bei ${F.email} oder unter ${F.telefon}.` },
     { f: "Was kostet FIAON Global, und gibt es ein Abo?", a: `${EIN_PRODUKT.de.preisSatzKurz} Es gibt kein Abo: Die Jahresbetreuung wird jährlich im Voraus berechnet und verlängert sich nicht von selbst.` },
@@ -168,11 +168,11 @@ const en: GlobalSeite = {
     ["Management", `${F.director} (Director), founder`],
     ["Price", `${EIN_PRODUKT.en.preis} with your order; success fee on registration, according to your capital range`],
     ["Payment", `By invoice, bank transfer to ${BANK.empfaenger} only — no subscription, no direct debit`],
-    ["Contract", "In English or German, under German law; model contract available to read in advance"],
+    ["Contract", "In German, under German law; readable in full before you sign"],
     ["Your documents", "Servers in Frankfurt am Main, encrypted, under the GDPR"],
     ["Contact", `${F.telefon} · ${F.email}`],
   ],
-  kurz: `Judge us on facts, not promises. FIAON Global is a service of ${F.name}, registered with Companies House in the United Kingdom under number ${F.companyNo}. You pay by invoice into the business account of ${F.name}, you read the contract in advance as a model contract, and you have a dedicated contact you can call.`,
+  kurz: `Judge us on facts, not promises. FIAON Global is a service of ${F.name}, registered with Companies House in the United Kingdom under number ${F.companyNo}. You pay by invoice into the business account of ${F.name}, you read the complete agreement in your personal offer before you sign, and you have a dedicated contact you can call.`,
   bloecke: [
     {
       typ: "karten", id: "wer", h2: "Who is behind FIAON Global", spalten: 2,
@@ -199,7 +199,7 @@ const en: GlobalSeite = {
       lead: `You know the price, the services and the contract before you sign anything. The contract is available in English and German and is governed by German law. If you engage us as a private individual acting as a consumer, the statutory ${WIDERRUFSFRIST_TAGE}-day right of withdrawal also applies.`,
       karten: [
         { tag: "Price", titel: "One price, fixed in advance", text: `${EIN_PRODUKT.en.preis} with your order, by invoice, no subscription. The success fee falls due on registration; it follows your capital range — the configurator shows your price before you commission us.`, pfad: "/en/business/costs" },
-        { tag: "Contract", titel: "Read the model contract first", text: "Every clause of the mandate, before you commission us.", pfad: "/en/business/mustervertrag" },
+        { tag: "Contract", titel: "Your agreement at a glance", text: "What the agreement covers. You read the wording in your offer before you sign.", pfad: "/en/business/mustervertrag" },
         { tag: "Commitment", titel: GZ.en.titel, text: GZ.en.text },
         { tag: "Year two", titel: "Annual care only if you want it", text: "From the second year at a fixed annual price, invoiced a year in advance — it does not renew by itself." },
       ],
@@ -247,7 +247,7 @@ const en: GlobalSeite = {
     },
   ],
   fragen: [
-    { f: "Is FIAON Global legit?", a: `Judge us on facts, not promises: FIAON Global is a service of ${F.name}, registered with Companies House (England and Wales) under number ${F.companyNo}, registered office ${F.strasse}, ${F.ortZeile}. Your price is fixed before you commission us, you pay by invoice into the business account of ${F.name}, you read the contract in advance as a model contract, and you can reach a dedicated contact by phone and e-mail.` },
+    { f: "Is FIAON Global legit?", a: `Judge us on facts, not promises: FIAON Global is a service of ${F.name}, registered with Companies House (England and Wales) under number ${F.companyNo}, registered office ${F.strasse}, ${F.ortZeile}. Your price is fixed before you commission us, you pay by invoice into the business account of ${F.name}, you read the complete agreement in your personal offer before you sign, and you can reach a dedicated contact by phone and e-mail.` },
     { f: "Who is behind FIAON Global?", a: `${F.name}, registered office ${F.strasse}, ${F.ortZeile}, registered with Companies House under number ${F.companyNo}. The Director is the founder, ${F.director}. You can view the entry free of charge and without an account; all statutory details are in the legal notice. Your contracting party for the mandate is ${F.name}. ${EIN_PRODUKT.en.partner}` },
     { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request (IBAN ${BANK_AED.ibanDisplay}); there are no other accounts. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account — if you receive such a request in FIAON's name, please do not pay and contact ${F.email} or ${F.telefon}.` },
     { f: "What does FIAON Global cost, and is there a subscription?", a: `${EIN_PRODUKT.en.preisSatzKurz} There is no subscription: the annual care plan is invoiced a year in advance and does not renew by itself.` },

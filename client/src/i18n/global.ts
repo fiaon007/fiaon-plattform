@@ -73,10 +73,11 @@ const de = {
   preisKopfZusatz: "Einmalig, alle Gebühren des Pakets inklusive.",
   kapitalKopf: "Kapitalrahmen je nach Paket",
   kapitalKopfZusatz: "Ihr Ziel — über jeden Rahmen entscheidet das jeweilige Institut.",
-  // Vier Felder unter dem Hero; das zweite führt auf den Mustervertrag, das vierte kommt aus FIAON_FIRMA.
+  // Vier Felder unter dem Hero; das zweite führt auf „Ihr Vertrag im Überblick“ (/business/mustervertrag — seit 12.11.2026 der
+  // Aufbau des Vertrags; den Wortlaut zeigt das persönliche Angebot vor der Unterschrift), das vierte kommt aus FIAON_FIRMA.
   vertrauensleiste: [
     "Vertrag auf Deutsch, nach deutschem Recht",
-    "Mustervertrag vorab lesen",
+    "Vertrag vor der Unterschrift lesen",
     "Per Rechnung, kein Abo",
     `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
   ],
@@ -268,13 +269,13 @@ const de = {
     { f: "Entscheidet FIAON über Karten und Rahmen?", a: "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge." },
     // 19.09.2026 (Justin): wortgleich mit GLOBAL_KAPITAL_FREI.de (frage/antwort) — scripts/pruef-global-seiten.ts prüft das.
     { f: "Muss das Kapital in den USA ausgegeben werden?", a: "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen." },
-    { f: "Wie prüfe ich, ob FIAON seriös ist?", a: "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den Vertrag lesen Sie vorab als Mustervertrag. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto." },
+    { f: "Wie prüfe ich, ob FIAON seriös ist?", a: "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto." },
     { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD mit Sitz in London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Ihr Vertrag ist auf Deutsch und unterliegt deutschem Recht. Steuerberater, US-CPA und Anwälte arbeiten auf Ihr Mandat; ihre Honorare trägt FIAON." },
     { f: "Was ist mit Steuern?", a: "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Unser Partner-Steuerberater prüft Ihre Lage vor der Gründung, unser US-CPA übernimmt die erste jährliche US-Meldung — beide auf Ihr Mandat, die Honorare trägt FIAON." },
     // E-465 (29.10.2026): wortgleich mit STAAT_WAHL_SATZ.de (shared/fiaon-global-bundesstaaten.ts) — scripts/pruef-global-bundesstaaten.ts prüft das.
     { f: "In welchem US-Bundesstaat gründen Sie?", a: "Wir gründen in Delaware, Florida oder Wyoming — Sie wählen mit uns im Startgespräch. Wenn nichts anderes dafür spricht, gründen wir in Delaware: Mit dem Express des Staats steht die Gesellschaft in der Regel nach ein bis zwei Werktagen, und Delaware hat den besten Ruf bei Banken und Geldgebern. Florida trägt derzeit langsamer ein (oft rund zwei Wochen, ohne Express), Wyoming ist schnell und am günstigsten im Unterhalt." },
     { f: "Welche Unterlagen brauchen Sie von mir?", a: "Für den Vertrag Ihren Namen, Ihr Geburtsdatum und Ihre Anschrift — Sie tragen sie selbst auf Ihrer Angebotsseite ein. Nach der Unterschrift laden Sie Ihren Reisepass hoch. Alles Weitere bereiten wir vor; Sie unterschreiben, was wir Ihnen fertig zuschicken." },
-    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen, tragen Ihre Angaben ein und unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail." },
+    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen und tragen Ihre Angaben ein. Ihr Angebot zeigt den vollständigen Vertrag; Sie unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail." },
     { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Kein Abo, keine Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst." },
     { f: "Für wen passt es nicht?", a: "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist." },
   ],
@@ -359,7 +360,7 @@ const en: typeof de = {
   kapitalKopfZusatz: "Your target — each institution decides on its own limit.",
   vertrauensleiste: [
     "Contract under German law",
-    "Read the model contract first",
+    "Read the agreement before you sign",
     "Pay by invoice, no subscription",
     `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
   ],
@@ -531,13 +532,13 @@ const en: typeof de = {
     { f: "What if the financing does not come?", a: "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing." },
     { f: "Does FIAON decide on cards and limits?", a: "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence." },
     { f: "Does the capital have to be spent in the US?", a: "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes." },
-    { f: "How do I check that FIAON is reputable?", a: "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the contract in advance as a model contract. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account." },
+    { f: "How do I check that FIAON is reputable?", a: "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the complete agreement in your personal offer before you sign. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account." },
     { f: "Who is my contracting party?", a: "FIAON LTD, based in London and registered at Companies House (England and Wales) under number 17318250. Your contract is governed by German law. Tax advisers, US CPAs and lawyers act under your engagement; FIAON pays their fees." },
     { f: "What about taxes?", a: "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Our partner tax adviser reviews your position before formation and our US CPA handles the first annual US filing — both under your engagement, with FIAON paying their fees." },
     // E-465 (29.10.2026): word for word STAAT_WAHL_SATZ.en (shared/fiaon-global-bundesstaaten.ts) — checked by scripts/pruef-global-bundesstaaten.ts.
     { f: "Which US state do you form in?", a: "We form in Delaware, Florida or Wyoming — you choose with us in the kick-off call. Unless something speaks for another state, we form in Delaware: with the state’s express service the company usually stands after one or two business days, and Delaware has the strongest reputation with banks and lenders. Florida is registering more slowly at present (often around two weeks, no express option); Wyoming is fast and the cheapest to maintain." },
     { f: "Which documents do you need from me?", a: "For the agreement your name, your date of birth and your address — you enter them yourself on your offer page. After signing you upload your passport. We prepare everything else; you sign what we send you ready to sign." },
-    { f: "Can I order straight away?", a: "Yes. You put your offer together in the configurator, enter your details and sign on screen. The agreement and the invoice arrive by email." },
+    { f: "Can I order straight away?", a: "Yes. You put your offer together in the configurator and enter your details. Your offer shows the complete agreement; you sign on screen. The agreement and the invoice arrive by email." },
     { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. No subscription, no instalments; annual care from the second year is voluntary and does not renew automatically." },
     { f: "Who is it not for?", a: "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no." },
   ],
@@ -726,7 +727,7 @@ const fussDe = {
     { pfad: "/datenschutz", text: "Datenschutz" },
     { pfad: "/cookie-einstellungen", text: "Cookie-Einstellungen" },
     { pfad: "/business/widerrufsbelehrung", text: "Widerrufsbelehrung" },
-    { pfad: "/business/mustervertrag", text: "Mustervertrag" },
+    { pfad: "/business/mustervertrag", text: "Vertrag im Überblick" },
     { pfad: "/ist-fiaon-serioes", text: "Ist FIAON seriös?" },
   ],
   registriert: "Eingetragen in England und Wales",
@@ -751,7 +752,7 @@ const fussEn: typeof fussDe = {
     { pfad: "/datenschutz", text: "Privacy policy" },
     { pfad: "/cookie-einstellungen", text: "Cookie settings" },
     { pfad: "/en/business/widerrufsbelehrung", text: "Withdrawal instructions" },
-    { pfad: "/en/business/mustervertrag", text: "Model contract" },
+    { pfad: "/en/business/mustervertrag", text: "Agreement at a glance" },
     { pfad: "/en/is-fiaon-legit", text: "Is FIAON legit?" },
   ],
   registriert: "Registered in England and Wales",

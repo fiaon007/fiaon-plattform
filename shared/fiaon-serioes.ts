@@ -23,7 +23,7 @@ export const COMPANIES_HOUSE_URL = `https://find-and-update.company-information.
 export const SERIOES_KOPF = {
   de: {
     titel: "Ist FIAON seriös? Die Fakten zu FIAON Global",
-    beschreibung: "Ist FIAON Global seriös? Die prüfbaren Fakten: FIAON LTD London (Companies House 17318250), Festpreis per Rechnung, Mustervertrag, Kontakt.",
+    beschreibung: "Ist FIAON Global seriös? Die prüfbaren Fakten: FIAON LTD London (Companies House 17318250), Festpreis per Rechnung, Vertrag vorab, Kontakt.",
     krume: "Ist FIAON seriös?",
     h1: "Ist FIAON seriös?",
     h1b: "Die Fakten.",
@@ -31,7 +31,7 @@ export const SERIOES_KOPF = {
   },
   en: {
     titel: "Is FIAON legit? The facts about FIAON Global",
-    beschreibung: "Is FIAON Global legitimate? The verifiable facts: FIAON LTD London (Companies House 17318250), fixed price by invoice, model contract, contact.",
+    beschreibung: "Is FIAON Global legitimate? The verifiable facts: FIAON LTD London (Companies House 17318250), fixed price by invoice, agreement in advance, contact.",
     krume: "Is FIAON legit?",
     h1: "Is FIAON legit?",
     h1b: "The facts.",

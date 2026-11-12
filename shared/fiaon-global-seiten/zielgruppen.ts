@@ -252,7 +252,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Kapital", "Kennzahlen und Unterlagen für Finanzierungsgespräche"],
       ["Vor Ort", "Termine in Miami mit der Schwarzott Group"],
       ["Entscheidung", "Über jede Finanzierung entscheidet das Institut"],
-      ["Begleitung", "Bis zur Finanzierung, mit der Bürgschaft unserer US-Partnergesellschaft"],
+      ["Begleitung", "Bis zur Finanzierung in dem Kapitalrahmen, den Sie wählen"],
     ],
     kurz: "Für Projekte und Objekte in den USA wird üblicherweise je Projekt eine eigene Gesellschaft gegründet, meist eine LLC. FIAON Global gründet sie, beantragt die EIN, bereitet Konto und eine Kennzahlen-Mappe für Finanzierungsgespräche vor. Über jede Finanzierung entscheidet das jeweilige Institut; FIAON vergibt und vermittelt keine Kredite.",
     bloecke: [

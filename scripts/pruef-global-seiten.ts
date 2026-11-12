@@ -29,6 +29,9 @@
 //      ihre Routen VOR /business/:slug.
 //  13. Ein Produkt (12.11.2026, E-509): Keine Seite, kein Menüpunkt, kein Vorab-HTML und kein Abschnitt von /llms.txt
 //      nennt mehr eines der vier Pakete oder einen ihrer Preise; der Paket-Finder leitet dauerhaft auf den Konfigurator.
+//  14. Leitplanke (12.11.2026, E-509): Keine Seite, kein Menüpunkt und kein Vorab-HTML bewirbt die Bürgschaft der
+//      US-Partnergesellschaft oder nennt ihren Registerstand — beides steht nur im persönlichen Angebot. Wissens-Artikel
+//      dürfen das Wort allgemein erklären (Satz für Satz geprüft).
 //
 // Die Wortwahl prüft scripts/pruef-wortwand-de.ts (dort stehen seit E-191 auch
 // alle Texte dieser Seiten).
@@ -700,6 +703,77 @@ abschnitt("E-509: ein Produkt, keine Pakete");
     ok(!fund, `${datei}: zeigt noch auf den Paket-Finder oder die Pakete („${fund?.[0]}“)`);
   }
   console.log(`  ${GLOBAL_SEITEN.length + GLOBAL_SEITEN_EN.length + LANDINGPAGES.length} Seiten ohne Paket, ${Object.keys(GLOBAL_UMGEZOGEN).length} Weiterleitungen, Vorab-HTML und /llms.txt geprüft`);
+}
+
+// ═══ 14: LEITPLANKE — „BÜRGSCHAFT“ STEHT NICHT AUF ÖFFENTLICHEN SEITEN (12.11.2026, E-509) ═══════════════
+// Regel der Firma (30.10.2026, gilt weiter): Die Bürgschaft der US-Partnergesellschaft wird öffentlich nicht beworben; sie steht
+// nur im persönlichen Angebot (Vertrag der Fassung C). Mit dem einen Produkt war sie auf Unterseiten geraten („Erfolgshonorar,
+// Bürgschaft enthalten“, „mit der Bürgschaft unserer US-Partnergesellschaft“). Diese Wand liest jede Seite des Registers
+// (deutsch und englisch), die Anzeigenseiten, das Menü und das Vorab-HTML samt Datenblock.
+// Zwei Stufen:
+//   · Streng (das Wort kommt gar nicht vor): jede Seite, die verkauft oder beschreibt, was FIAON tut — Leistungen, Zielgruppen,
+//     Länder, Kosten, Ablauf, Vergleich, Anzeigenseiten, Menü, Fußzeile, Startseite, Konfigurator, „Ihr Vertrag im Überblick“.
+//   · Satz für Satz: Wissens-Artikel und die Fragen-Übersicht (sie sammelt deren Fragen) dürfen das Wort ALLGEMEIN erklären
+//     („Bürgschaft der Muttergesellschaft gegenüber einer Bank“, die Bürgen der SBA) — das ist keine Werbung für unsere
+//     Bürgschaft. Ein Satz mit dem Wort darf dort weder FIAON noch „wir/unser“ noch eine Partnergesellschaft noch Honorar
+//     oder „enthalten“ nennen.
+// Startseite und Konfigurator liest außerdem scripts/pruef-verkaufsmotor.ts Satz für Satz aus der Quelle (Abschnitt 10).
+abschnitt("Leitplanke: keine Bürgschaft von FIAON auf öffentlichen Seiten");
+{
+  const { GLOBAL_SEITEN_EN } = await import("../shared/fiaon-global-seiten");
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const WORT = /b(ü|ue)rgschaft|b(ü|ue)rgin|\bb(ü|ue)rg(t|en|e)\b|\bB(ü|ue)rgen\b|verb(ü|ue)rg|guarantor|surety|guaranty/i;
+  const UNSERE = /FIAON|\bwir\b|\buns\b|\bunser\w*|Partnergesellschaft|Erfolgshonorar|\benthalten\b|inklusive|eingeschlossen|schließt[^.]*\bein\b|\bwe\b|\bour\b|partner company|success fee|\bincluded?\b|\bincludes\b/i;
+  const REGISTER = /als inaktiv geführt|listed as inactive|im Register[^.]{0,40}inaktiv|inactive in the register/i;
+  const saetze = (text: string) => text.split(/(?<=[.!?…])\s+|\s+[—–]\s+|;\s+|\n+/).map((x) => x.trim()).filter(Boolean);
+  const texteVon = (x: unknown, aus: string[] = []): string[] => {
+    if (typeof x === "string") aus.push(x);
+    else if (Array.isArray(x)) for (const y of x) texteVon(y, aus);
+    else if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) if (!["typ", "id", "paket", "pfad", "schwester", "url"].includes(k)) texteVon(v, aus);
+    return aus;
+  };
+  let allgemein = 0;
+  // Wo das Wort allgemein erklärt werden darf: Wissens-Artikel und die beiden Fragen-Übersichten.
+  const erklaert = new Set<string>([...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].filter((s) => s.art === "wissen").map((s) => s.pfad).concat(["/business/fragen", "/en/business/faq"]));
+  // Je Ort zwei Prüfungen (Registerstand, Bürgschaft) — gemeldet wird der erste Fund mit seinem Satz.
+  const pruefe = (ort: string, texte: string[], streng: boolean) => {
+    let register = ""; let fund = "";
+    for (const t of texte) {
+      register ||= t.match(REGISTER)?.[0] ?? "";
+      if (!WORT.test(t)) continue;
+      for (const satz of saetze(t)) {
+        if (!WORT.test(satz)) continue;
+        const wir = satz.match(UNSERE);
+        if (streng) fund ||= `„${satz.match(WORT)?.[0]}“ in „${satz.slice(0, 150)}“ (auf dieser Seite steht das Wort gar nicht)`;
+        else if (wir) fund ||= `„${satz.match(WORT)?.[0]}“ zusammen mit „${wir[0]}“ in „${satz.slice(0, 150)}“`;
+        else allgemein++;
+      }
+    }
+    ok(!register, `${ort}: Hinweis zum Registerstand („${register}“) — er gehört zur Bürgschaft und steht nur im Angebot`);
+    ok(!fund, `${ort}: ${fund} — die Bürgschaft wird öffentlich nicht beworben`);
+  };
+  for (const s of [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN, ...LANDINGPAGES] as { pfad: string }[]) pruefe(s.pfad, texteVon(s), !erklaert.has(s.pfad));
+  pruefe("Menü", texteVon(GLOBAL_MENUE), true);
+  pruefe("Fußzeile", texteVon(GLOBAL_FUSS_WOERTER), true);
+  // Vorab-HTML mit Datenblock: derselbe Maßstab auf dem, was Suchmaschinen und Assistenten wirklich bekommen (Text je Element).
+  for (const pfad of ["/", "/en", "/business/start", "/en/business/start", "/business/mustervertrag", "/en/business/mustervertrag", ...GLOBAL_SEITEN.map((s) => s.pfad), ...GLOBAL_SEITEN_EN.map((s) => s.pfad), ...LANDINGPAGES.map((l) => l.pfad)]) {
+    const html = (seitenHtml(pfad) ?? "").replace(/<style[\s\S]*?<\/style>/g, " ");
+    const ld = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].flatMap((m) => { try { return texteVon(JSON.parse(m[1])); } catch { return [m[1]]; } });
+    const sichtbar = html.replace(/<script[\s\S]*?<\/script>/g, " ").split(/<[^>]+>/).map((x) => x.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim()).filter((x) => x.length > 3);
+    pruefe(`${pfad} (Vorab-HTML)`, [...sichtbar, ...ld], !erklaert.has(pfad));
+  }
+  // Die Probe muss die allgemeinen Erklärungen der Wissens-Artikel wirklich sehen — sonst wäre sie blind.
+  ok(allgemein >= 10, `Leitplanke: nur ${allgemein} allgemeine Sätze mit „Bürgschaft“ gefunden — liest die Probe die Wissens-Artikel noch?`);
+  // Und sie muss anschlagen, wenn ein Satz unsere Bürgschaft nennt (Selbstprobe mit den Sätzen, die am 12.11.2026 entfernt wurden).
+  const frueher = ["Erfolgshonorar nach Ihrem Kapitalrahmen, Bürgschaft enthalten", "Bis zur Finanzierung, mit der Bürgschaft unserer US-Partnergesellschaft", "US-Partnergesellschaft: Bürgschaft für die Finanzierung",
+    "Unsere US-Partnergesellschaft übernimmt die Bürgschaft; über die Finanzierung entscheidet das finanzierende Institut.", "Success fee according to your capital range, surety included", "With the surety of our US partner company — the financing institution decides on the financing",
+    "Sie wird im Register ihres Bundesstaats derzeit als inaktiv geführt."];
+  const schlaegtAn = (t: string) => REGISTER.test(t) || saetze(t).some((x) => WORT.test(x) && UNSERE.test(x));
+  ok(frueher.every(schlaegtAn), `Leitplanke: die Probe erkennt einen der früheren Sätze nicht („${frueher.find((t) => !schlaegtAn(t))}“)`);
+  const erlaubt = ["Einlage, Bürgschaft der Muttergesellschaft, Immobilie", "Kann eine Muttergesellschaft in Europa für die US-Gesellschaft bürgen?", "Deposit, parent company surety, property"];
+  ok(!erlaubt.some(schlaegtAn), `Leitplanke: die Probe schlägt bei einer allgemeinen Erklärung an („${erlaubt.find(schlaegtAn)}“)`);
+  ok(erklaert.size >= 20 && !erklaert.has("/business/kosten") && !erklaert.has("/business/ablauf"), `Leitplanke: ${erklaert.size} Seiten dürfen das Wort erklären — Kosten und Ablauf gehören nie dazu`);
+  console.log(`  ${GLOBAL_SEITEN.length + GLOBAL_SEITEN_EN.length + LANDINGPAGES.length} Seiten, Menü, Fußzeile und Vorab-HTML gelesen (${GLOBAL_SEITEN.length + GLOBAL_SEITEN_EN.length + LANDINGPAGES.length - erklaert.size} streng); ${allgemein} allgemeine Sätze zum Wort bleiben in Wissens-Artikeln`);
 }
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════

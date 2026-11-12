@@ -322,6 +322,27 @@ a.fd-karte:hover{border-color:#b9c5d6;box-shadow:0 16px 36px rgba(18,40,74,.08);
 .gr-weiter{max-width:900px;margin:28px auto 0;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:18px;padding:22px 26px;border-radius:14px;background:var(--stein);border:1px solid var(--linie)}
 .gr-weiter p{font-size:14.5px;line-height:1.6;color:var(--text);max-width:46ch}
 .gr-quelle{max-width:900px;margin:18px auto 0}
+/* ── Ihr Vertrag im Überblick (12.11.2026): der Aufbau des Vertrags an Haarlinien. Die Linien zeichnen sich, die Zeilen gleiten
+   einmal hoch (data-an am <ol>, components/site/global/bewegung.ts) — nichts hängt an der Scrollposition. ── */
+.gr-aufbau-titel{font:300 clamp(24px,2.4vw,30px)/1.2 var(--ap,var(--sans));letter-spacing:-.02em;color:var(--tinte);margin:0 0 clamp(16px,2vw,24px)}
+.gr-aufbau-liste{list-style:none;margin:0;padding:0}
+.gr-aufbau-liste>li{position:relative;display:grid;grid-template-columns:132px minmax(0,1fr);gap:0 24px;align-items:baseline;padding:24px 0 22px}
+.gr-aufbau-liste>li::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;background:var(--linie-2);transform-origin:left center}
+.gr-aufbau-nr{display:flex;flex-direction:column;gap:8px}
+.gr-aufbau-nr small{font:600 10.5px/1 var(--ap,var(--sans));letter-spacing:.16em;text-transform:uppercase;color:var(--leise)}
+.gr-aufbau-nr b{font:200 28px/1 var(--ap,var(--sans));letter-spacing:-.03em;color:#1d4ed8;font-variant-numeric:tabular-nums;white-space:nowrap}
+.gr-aufbau-liste h3{font:400 18.5px/1.3 var(--ap,var(--sans));letter-spacing:-.012em;color:var(--tinte);margin:0}
+.gr-aufbau-liste p{font:300 15px/1.66 var(--ap,var(--sans));color:var(--text);margin:8px 0 0;max-width:62ch}
+.gr .gr-voll{max-width:900px;margin:28px auto 0}
+.gr .gr-voll p:not(.gr-klein){font-size:15px;line-height:1.7;color:var(--text);max-width:74ch}
+.gr-aufbau-liste[data-an="0"]>li{opacity:0}
+.gr-aufbau-liste[data-an="0"]>li::before{transform:scaleX(0)}
+.gr-aufbau-liste[data-an="1"]>li{animation:gr-hoch .85s var(--kurve,cubic-bezier(.22,1,.36,1)) both;animation-delay:calc(var(--i,0)*55ms + 70ms)}
+.gr-aufbau-liste[data-an="1"]>li::before{animation:gr-linie 1.05s var(--kurve,cubic-bezier(.22,1,.36,1)) both;animation-delay:calc(var(--i,0)*55ms)}
+@keyframes gr-hoch{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes gr-linie{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:640px){.gr-aufbau-liste>li{grid-template-columns:1fr;gap:10px 0;padding:20px 0 18px}.gr-aufbau-nr{flex-direction:row;align-items:baseline;gap:8px}.gr-aufbau-nr b{font-size:20px}}
+@media(prefers-reduced-motion:reduce){.gr-aufbau-liste>li,.gr-aufbau-liste>li::before{animation:none!important;opacity:1!important;transform:none!important}}
 @media(max-width:640px){.gr-papier{padding:24px 18px}.gr-seg{width:100%}.gr-seg button{flex:1 1 45%}.gr-formular{padding:4px 18px 20px}}
 @media print{.gk,.gf,.fd-kopf,.gr-beginn,.gr-drucken,.ew-karte{display:none!important}.gr-text{margin-top:0}}
 

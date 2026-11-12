@@ -39,13 +39,13 @@ const PROMO: { de: Promo; en: Promo } = {
     leistungen: { titel: "Ein Vertrag. Ein Ansprechpartner.", text: "Gesellschaft, Steuernummern, US-Büro, Konto- und Kartenanträge, Partner-Honorare — in einem Auftrag.", href: "/#produkt", knopf: "Leistung ansehen" },
     fuerwen: { titel: "Auch ohne eigene Firma", text: "Gründer und Unternehmer, die privat buchen, beauftragen direkt — Vertrag auf den eigenen Namen.", href: "/business/privatpersonen", knopf: "Als Privatperson beauftragen" },
     preise: { titel: "", text: "", href: "", knopf: "" },
-    wissen: { titel: "Ihr Angebot in einer Minute", text: "Schwerpunkte wählen, Kapitalrahmen einstellen, Preis sehen — und online unterschreiben.", href: "/business/start", knopf: "Angebot zusammenstellen" },
+    wissen: { titel: "Ihr Preis in einer Minute", text: "Schwerpunkte wählen, Kapitalrahmen einstellen, Preis sehen — und online unterschreiben.", href: "/business/start", knopf: "Angebot zusammenstellen" },
   },
   en: {
     leistungen: { titel: "One contract. One contact.", text: "Company, tax numbers, US office, account and card applications, partner fees — in one order.", href: "/en#produkt", knopf: "See the service" },
     fuerwen: { titel: "No company of your own needed", text: "Founders and business owners ordering privately order directly — the contract in their own name.", href: "/en/business/private-individuals", knopf: "Order as a private individual" },
     preise: { titel: "", text: "", href: "", knopf: "" },
-    wissen: { titel: "Your offer in a minute", text: "Choose what matters, set your capital range, see your price — and sign online.", href: "/en/business/start", knopf: "Build your offer" },
+    wissen: { titel: "Your price in a minute", text: "Choose what matters, set your capital range, see your price — and sign online.", href: "/en/business/start", knopf: "Build your offer" },
   },
 };
 

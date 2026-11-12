@@ -6,7 +6,7 @@
 // Angebot von Hand entstand — nur ohne Hand.
 //
 // ── DER WEG ───────────────────────────────────────────────────────────────
-//   GET  /api/fiaon/global/verkauf        → Einstellung für die Seite (an/aus, Kurs, Registerstand der Bürgin) + Zeit-Siegel
+//   GET  /api/fiaon/global/verkauf        → Einstellung für die Seite (an/aus FÜR DIESEN AUFRUFER, Kurs) + Zeit-Siegel
 //   POST /api/fiaon/global/verkauf/start  → geprüfte Eingabe → Weiche (verkaufWeg):
 //        abschluss  Angebot anlegen → signierter Link (die Seite öffnet ihn sofort) + Mail mit dem Link an den Kunden
 //                   + Mail und Aufgabe an Justin
@@ -22,14 +22,24 @@
 //     E-Mail an diese Adresse — nie auf den Bildschirm dessen, der die Adresse eintippt (sonst läse ein Fremder Name und
 //     Anschrift eines anderen).
 //   · Notschalter: Ohne vollständige Einstellung (GLOBAL_VERKAUF) entsteht kein Angebot.
+//   · Probebetrieb („nurLeitung“: true): Nur ein angemeldeter Chefbüro-Browser schließt selbst ab. Jeder andere Besucher
+//     schickt eine Anfrage über den persönlichen Weg — mit demselben freundlichen Schlusstext wie beim Notschalter; die
+//     Seite bekommt für ihn „an“: false und verspricht nirgends ein Angebot, das sich sofort öffnet. Justin liest in der
+//     Meldung Rahmen und Schwerpunkte. Ohne den Schlüssel gilt alles wie zuvor.
 //
 // ── EINSTELLUNG (Umgebung, nie im öffentlichen Repo) ──────────────────────
 //   GLOBAL_VERKAUF = JSON { "an": true, "buerginRegister": "…", "buerginAktiv": false, "buerginStandAm": "JJJJ-MM-TT",
 //                           "kursUsdJeEur": 1.1165, "kursDatum": "JJJJ-MM-TT", "team": [ … ], "tagesGrenze": 25,
-//                           "selbstMaxUsd": 950000 }
+//                           "selbstMaxUsd": 950000, "nurLeitung": true }   („nurLeitung“ ist freiwillig, Vorgabe false)
 //   Name, Anschrift und Vertretung der Bürgin stehen wie bei jedem Angebot in BUERGIN_VORGABE; die Registernummer kommt
 //   aus der Einstellung. Ein Registerstand, der älter als sieben Tage ist, steht nicht mit Datum im Vertrag (der Satz
 //   „derzeit als inaktiv geführt“ bleibt, bis buerginAktiv auf true steht).
+//
+// ── LEITPLANKE (12.11.2026) ───────────────────────────────────────────────
+//   Nichts, was diese Datei ÖFFENTLICH ausgibt (Antwort an die Seite, Mail mit dem Link VOR dem Öffnen des Angebots),
+//   nennt die Bürgschaft oder den Registerstand der Bürgin — beides steht nur im Angebot selbst (Vertrag der Fassung C).
+//   Den öffentlichen Mustervertrag im Wortlaut gibt es deshalb nicht mehr; /business/mustervertrag zeigt den Aufbau des
+//   Vertrags in Stichpunkten (VERKAUF_TEXTE.vertrag).
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
@@ -75,6 +85,8 @@ export function verkaufEinstellungAus(roh: string | undefined | null, heute: str
   const grundAus = o.an !== true ? "Schalter aus" : !buergin ? "Registernummer der Bürgin fehlt" : null;
   return {
     an: grundAus === null,
+    // Nur das echte true zählt (wie bei „an“): Ein Tippfehler darf den Probebetrieb nicht still einschalten oder aufheben.
+    nurLeitung: o.nurLeitung === true,
     kursUsdJeEur, kursDatum,
     buerginAktiv: o.buerginAktiv === true,
     buerginStandAm,
@@ -86,6 +98,20 @@ export function verkaufEinstellungAus(roh: string | undefined | null, heute: str
 }
 export function verkaufEinstellung(): VerkaufEinstellungServer {
   return verkaufEinstellungAus(process.env.GLOBAL_VERKAUF);
+}
+
+/** Der Grund in der Meldung an Justin, wenn ein Besucher im Probebetrieb den Konfigurator abschickt — nie Kundentext. */
+export const VERKAUF_GRUND_PROBE = "Probebetrieb: Selbstabschluss noch nicht für alle freigegeben";
+/**
+ * Entstünde für DIESEN Aufrufer ein Angebot? null = ja; sonst der Grund (für die Meldung an Justin). Rein — Seite, Weiche und
+ * Prüfstand lesen dieselbe Funktion: Schalter und Einstellung, dann der Probebetrieb (nur die Leitung), dann — wenn ein
+ * Rahmen genannt ist — der Deckel. Die Tagesgrenze braucht die Datenbank und steht deshalb in verkaufStarten.
+ */
+export function verkaufSperrGrund(est: Pick<VerkaufEinstellungServer, "grundAus" | "nurLeitung" | "selbstMaxUsd">, leitung: boolean, usd?: number): string | null {
+  if (est.grundAus) return est.grundAus;
+  if (est.nurLeitung && !leitung) return VERKAUF_GRUND_PROBE;
+  if (usd !== undefined && usd > est.selbstMaxUsd) return "Rahmen über dem Deckel des Selbstabschlusses";
+  return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -124,14 +150,14 @@ export function verkaufBremsenLeeren(): void { jeIp.clear(); jeMail.clear(); }
 // ═══════════════════════════════════════════════════════════════════════════
 // WAS DIE SEITE BEIM LADEN BEKOMMT
 // ═══════════════════════════════════════════════════════════════════════════
-export function verkaufSeitenSicht(): Record<string, unknown> {
-  const e = verkaufEinstellung();
+export function verkaufSeitenSicht(leitung: boolean = false, e: VerkaufEinstellungServer = verkaufEinstellung()): Record<string, unknown> {
   return {
     ok: true,
-    // Die Seite zeigt den Konfigurator immer; „an“ sagt nur, ob am Ende ein Angebot entsteht oder eine Anfrage.
-    an: e.an,
+    // Die Seite zeigt den Konfigurator immer; „an“ sagt nur, ob für DIESEN Aufrufer am Ende ein Angebot entsteht (true) oder
+    // eine Anfrage (false: Notschalter — oder Probebetrieb und der Aufruf kommt nicht aus einem Chefbüro-Browser). Die Seite
+    // wählt danach ihre Sätze; mehr erfährt sie nicht (kein „nurLeitung“, kein Grund, nichts zur Bürgin).
+    an: verkaufSperrGrund(e, leitung) === null,
     kursUsdJeEur: e.kursUsdJeEur, kursDatum: e.kursDatum,
-    buerginAktiv: e.buerginAktiv,
     selbstMaxUsd: e.selbstMaxUsd,
     siegel: verkaufSiegel(),
   };
@@ -141,7 +167,7 @@ export function verkaufSeitenSicht(): Record<string, unknown> {
 // STARTEN
 // ═══════════════════════════════════════════════════════════════════════════
 export interface VerkaufKontext { ip: string; userAgent: string; leitung?: boolean }
-type Antwort = { status: number; body: Record<string, unknown> };
+export type Antwort = { status: number; body: Record<string, unknown> };
 const fehler = (status: number, error: string, extra: Record<string, unknown> = {}): Antwort => ({ status, body: { ok: false, error, ...extra } });
 
 /** Wie viele Angebote hat der Konfigurator heute (Berliner Tag) schon angelegt? */
@@ -152,7 +178,22 @@ async function heuteAngelegt(): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-export async function verkaufStarten(body: any, kontext: VerkaufKontext): Promise<Antwort> {
+/** Was verkaufStarten nach der Weiche ruft — als Werkbank, damit der Prüfstand die Weiche ohne Datenbank und Mail durchspielt. */
+export interface VerkaufWerk {
+  einstellung: () => VerkaufEinstellungServer;
+  /** Wie viele Angebote der Konfigurator heute schon angelegt hat (legt die Tabellen an, falls sie fehlen). */
+  heuteAngelegt: () => Promise<number>;
+  angebot: (e: VerkaufEingabe, est: VerkaufEinstellungServer & { buergin: KapitalBuergin }, kontext: VerkaufKontext) => Promise<Antwort>;
+  anfrage: (e: VerkaufEingabe, weg: VerkaufWeg, est: VerkaufEinstellungServer, kontext: VerkaufKontext, grundAus: string | null) => Promise<Antwort>;
+}
+const WERK: VerkaufWerk = {
+  einstellung: verkaufEinstellung,
+  heuteAngelegt: async () => { await ensureAngebotTabellen(); return heuteAngelegt(); },
+  angebot: (e, est, kontext) => verkaufAngebot(e, est, kontext),
+  anfrage: (e, weg, est, kontext, grundAus) => verkaufAnfrage(e, weg, est, kontext, grundAus),
+};
+
+export async function verkaufStarten(body: any, kontext: VerkaufKontext, werk: VerkaufWerk = WERK): Promise<Antwort> {
   const en = String(body?.sprache ?? "").toLowerCase().startsWith("en");
   const T = VERKAUF_TEXTE[en ? "en" : "de"].konfig;
   // Honigtopf: freundliches Ja, nichts geschieht.
@@ -164,23 +205,20 @@ export async function verkaufStarten(body: any, kontext: VerkaufKontext): Promis
   if (siegel !== "gut") return fehler(siegel === "alt" ? 409 : 400, T.fehler.netz, { code: siegel === "alt" ? "SIEGEL_ALT" : "SIEGEL" });
   if (verkaufZuViel(kontext.ip, e.email)) return fehler(429, T.fehler.zuViel);
   // Die Leitung darf den Motor selbst durchspielen (Justin will jeden Klickweg selbst gehen) — das Angebot trägt dann den Vermerk
-  // „aus einem Chefbüro-Browser“ im Verlauf und in der Meldung, damit ein Probelauf als solcher erkennbar bleibt.
+  // „aus einem Chefbüro-Browser“ im Verlauf und in der Meldung, damit ein Probelauf als solcher erkennbar bleibt. Im
+  // Probebetrieb („nurLeitung“) ist sie die Einzige, für die ein Angebot entsteht (verkaufSperrGrund).
 
-  const est = verkaufEinstellung();
+  const est = werk.einstellung();
   const weg = verkaufWeg(e);
   if (weg === "abschluss") {
-    let grundAus = est.grundAus;
-    if (!grundAus && e.usd > est.selbstMaxUsd) grundAus = "Rahmen über dem Deckel des Selbstabschlusses";
-    if (!grundAus) {
-      await ensureAngebotTabellen();
-      if ((await heuteAngelegt()) >= est.tagesGrenze) grundAus = `Tagesgrenze ${est.tagesGrenze} erreicht`;
-    }
-    if (!grundAus && est.buergin) return verkaufAngebot(e, est as VerkaufEinstellungServer & { buergin: KapitalBuergin }, kontext);
-    // Notschalter oder Grenze: die Anfrage kommt an, das Angebot erstellen wir persönlich.
-    const r = await verkaufAnfrage(e, weg, est, kontext, grundAus ?? "aus");
-    return { status: 200, body: { ...r.body, danke: T.fehler.aus, aus: true } };
+    let grundAus = verkaufSperrGrund(est, kontext.leitung === true, e.usd);
+    if (!grundAus && (await werk.heuteAngelegt()) >= est.tagesGrenze) grundAus = `Tagesgrenze ${est.tagesGrenze} erreicht`;
+    if (!grundAus && est.buergin) return werk.angebot(e, est as VerkaufEinstellungServer & { buergin: KapitalBuergin }, kontext);
+    // Notschalter, Probebetrieb oder Grenze: die Anfrage kommt an, das Angebot erstellen wir persönlich.
+    const r = await werk.anfrage(e, weg, est, kontext, grundAus ?? "aus");
+    return { status: 200, body: { ...r.body, titel: T.persoenlich.titel, danke: T.fehler.aus, aus: true } };
   }
-  return verkaufAnfrage(e, weg, est, kontext, null);
+  return werk.anfrage(e, weg, est, kontext, null);
 }
 
 /** Selbstabschluss: Angebot anlegen (oder zum bestehenden offenen Angebot dieser Adresse den Link mailen). */
@@ -211,7 +249,7 @@ async function verkaufAngebot(e: VerkaufEingabe, est: VerkaufEinstellungServer &
     console.error(`[FIAON-VERKAUF] Angebot nicht angelegt: ${erg.error}`);
     // Der Kunde soll nie an einer Störung hängen bleiben: Die Anfrage kommt an, das Angebot folgt persönlich.
     const r = await verkaufAnfrage(e, "abschluss", est, kontext, `Anlegen gescheitert: ${erg.error}`);
-    return { status: 200, body: { ...r.body, danke: T.fehler.aus, aus: true } };
+    return { status: 200, body: { ...r.body, titel: T.persoenlich.titel, danke: T.fehler.aus, aus: true } };
   }
   const zeilen = verkaufMeldungZeilen(e, "abschluss", est.kursUsdJeEur);
   await verlaufAngebot(erg.id, VERKAUF_WER, `${kontext.leitung ? "Im Konfigurator aus einem Chefbüro-Browser zusammengestellt (Probelauf?)" : "Vom Kunden im Konfigurator zusammengestellt"}: ${zeilen[1]} ${zeilen[2]}`, { ip: kontext.ip, interessen: e.interessen, sprache: e.sprache, nachricht: e.nachricht || undefined });
@@ -355,37 +393,4 @@ async function verkaufMelden(e: VerkaufEingabe, weg: VerkaufWeg, est: VerkaufEin
     knoepfe: [{ text: "Angebote im Chefbüro", url: absoluteUrl(AUFRUF_CHEF_PFAD) }],
   });
   if (!v.ok) console.warn(`[FIAON-VERKAUF] Meldung an ${AUFRUF_MELDUNG_AN} nicht gesendet (${String(v.grund || "unbekannt").slice(0, 160)})`);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// DER MUSTERVERTRAG (öffentlich, /business/mustervertrag) — der Vertrag des einen Produkts mit Musterdaten
-// Derselbe Baustein wie auf der Angebotsseite (kapitalCVorschauHtml), mit drei Unterschieden, weil die Seite öffentlich ist:
-//   · Musterkunde statt Kunde,
-//   · die Bürgin ohne Namen, Anschrift und Nummer (öffentlich nennt FIAON die Partnergesellschaft nie beim Namen, E-466) —
-//     das persönliche Angebot nennt sie vollständig,
-//   · der Satz mit den Bedingungen der Finanzierung ohne Zahlen (Zinssätze als Zahl stehen auf keiner öffentlichen Seite,
-//     E-439) — das persönliche Angebot nennt sie vollständig und rechnet sie vor.
-// ═══════════════════════════════════════════════════════════════════════════
-export const MUSTER_KONDITIONEN = "[Die Bedingungen der Finanzierung — ratenfreie und zinsfreie Monate, Laufzeit nach Ihrer Wahl und Zins — nennt Ihr persönliches Angebot an dieser Stelle und rechnet sie Ihnen vor.]";
-const MUSTER_BUERGIN: KapitalBuergin = {
-  name: "[US-Partnergesellschaft von FIAON — Ihr Angebot nennt sie mit Namen]", bundesstaat: "[Bundesstaat]", anschrift: "[Anschrift laut Ihrem Angebot]",
-  registernummer: "[Registernummer laut Ihrem Angebot]", vertreter: "[Vertretung]", funktion: "[Funktion]",
-};
-export async function verkaufMustervertragHtml(heute: string = berlinToday()): Promise<string> {
-  const KC = await import("@shared/fiaon-global-angebot-kapital-c");
-  const { escHtml } = await import("@shared/fiaon-global-angebot-begleit");
-  const { kapitalCVorschauHtml } = await import("./fiaon-global-angebot-kapital-c");
-  const est = verkaufEinstellung();
-  const parameter = KC.kapitalCNeuesAngebotParameter(verkaufAngebotParameter(VERKAUF_RAHMEN.startUsd, { ...est, team: [] }));
-  const k = KC.kapitalCKundePruefen({
-    art: "privat", anrede: "Herr", vorname: "Max", nachname: "Mustermann", geburtsdatum: "1980-01-15", strasse: "Musterweg 1", plz: "12345", ort: "Musterstadt",
-    land: "DE", email: "max.mustermann@beispiel.example", telefon: "",
-  }, { ohneAusweis: true });
-  if (!k.ok) throw new Error(`Musterkunde: ${k.error}`);
-  const gueltigBis = new Date(Date.parse(`${heute}T12:00:00Z`) + VERKAUF_GUELTIG_TAGE * 864e5).toISOString().slice(0, 10);
-  const d = { ref: "MUSTER", fassung: KC.KAPITAL_C_FASSUNG, kunde: k.kunde, buergin: MUSTER_BUERGIN, parameter, gueltigBis };
-  const html = kapitalCVorschauHtml(d);
-  const satz = escHtml(KC.kapitalCKonditionenSatz(parameter));
-  if (!html.includes(satz)) throw new Error("Mustervertrag: Der Satz mit den Bedingungen der Finanzierung wurde nicht gefunden.");
-  return html.replace(satz, escHtml(MUSTER_KONDITIONEN));
 }

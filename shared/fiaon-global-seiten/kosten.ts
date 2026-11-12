@@ -57,7 +57,7 @@ export const KOSTEN: GlobalSeite[] = [
         zeilen: [
           ["Mit Ihrem Auftrag", "Gründung mit aktiver Betreuung im ersten Jahr", P.preis],
           ["Mit Ihrem Auftrag, auf Wunsch", "Fast-Track: Vorrang in allen Schritten", P.fastTrack],
-          ["Mit der Eintragung", "Erfolgshonorar nach Ihrem Kapitalrahmen, Bürgschaft enthalten", "siehe unten"],
+          ["Mit der Eintragung", "Erfolgshonorar nach Ihrem Kapitalrahmen", "siehe unten"],
           ["Ab dem zweiten Jahr, auf Wunsch", "Jahresbetreuung", `${P.jahres} im Jahr`],
         ],
         hervor: 2,

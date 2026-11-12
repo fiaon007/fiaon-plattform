@@ -157,7 +157,7 @@ export default function GlobalLandingPage() {
             {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}
             <a href="/impressum?bereich=business">Impressum</a>
             <a href="/datenschutz?bereich=business">Datenschutz</a>
-            <a href="/business/mustervertrag">Mustervertrag</a>
+            <a href="/business/mustervertrag">Vertrag im Überblick</a>
             <a href="/business/widerrufsbelehrung">Widerrufsbelehrung</a>
             <a href="/cookie-einstellungen?bereich=business">Cookie-Einstellungen</a>
           </span>

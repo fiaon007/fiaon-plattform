@@ -338,7 +338,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["Capital range", `${P.rahmen} — you choose it yourself`],
       ["First card", "Usually a small limit, no cash deposit, with a personal guarantee from the owner"],
       ["Card ladder", "Further issuers after a few months of statements paid on time"],
-      ["Financing", "With the surety of our US partner company — the financing institution decides on the financing"],
+      ["Financing", "We stay with you through to payout — the financing institution decides on the financing"],
       ["Use", `${GLOBAL_KAPITAL_FREI.en.kurz} — our partner tax adviser clarifies the tax treatment in advance`],
       ["FIAON", "Plans, prepares, supports — neither grants nor arranges loans"],
       ["Decision", "The institution concerned alone"],

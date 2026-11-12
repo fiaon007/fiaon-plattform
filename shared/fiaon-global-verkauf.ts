@@ -24,6 +24,14 @@
 // Kein Vertragstext (der bleibt in shared/fiaon-global-angebot-kapital-c.ts — bestehende Angebote lesen sich Zeichen für
 // Zeichen wie bisher), keine Angabe zur Bürgin, kein Kurs des Tages (beides kommt aus der Server-Einstellung), kein Kundendatum.
 //
+// ── LEITPLANKE: KEIN WORT ZUR BÜRGSCHAFT AUF ÖFFENTLICHEN SEITEN (Regel seit 30.10.2026, hier eingezogen am 12.11.2026) ──
+// Die Bürgschaft der US-Partnergesellschaft wird öffentlich nicht beworben. Sie steht nur dort, wo sie Vertragsinhalt ist:
+// im persönlichen Angebot hinter dem privaten Link (Vertrag der Fassung C mit allen Hinweisen, auch zum Registerstand).
+// Deshalb nennt KEIN Satz in VERKAUF_TEXTE (Startseite, Konfigurator, Karte, Vertrag im Überblick, Kopf für Suchmaschinen)
+// sie — auch nicht als „inklusive“ und nicht als Antwort auf eine Frage. Kapital heißt hier: Begleitung bis zur Finanzierung
+// im gewählten Kapitalrahmen, mit Geld-zurück-Garantie. Wer mehr wissen will, liest sein Angebot: Es zeigt den vollständigen
+// Vertrag vor der Unterschrift. Die Wand dazu steht in scripts/pruef-verkaufsmotor.ts (Abschnitt 10).
+//
 // ── WORTGRENZEN ────────────────────────────────────────────────────────────
 // Kein „bis zu“, nie „garantiert“ (nur „Geld-zurück-Garantie“ als Name der vertraglichen Garantie), kein Zinssatz als Zahl,
 // kein Bankname, keine Frist mit Ziffer. Recht und Steuern leisten Partner-Anwälte und US-Steuerberater aus dem Partnernetz,
@@ -86,7 +94,7 @@ export interface VerkaufPreis {
   rahmenEurCents: number;
   gruendungCents: number;
   fastTrackCents: number;
-  /** Erfolgshonorar nach Staffel (E-505), fällig mit der Eintragung; schließt die Bürgschaft ein. */
+  /** Erfolgshonorar nach Staffel (E-505), fällig mit der Eintragung (was es einschließt, steht im Vertrag, Ziffer 6). */
   erfolgCents: number;
   jahresCents: number;
   /** Gesamtpreis des ersten Jahres ohne und mit Fast-Track. */
@@ -181,6 +189,11 @@ export function verkaufEingabeLesen(roh: any): { ok: true; eingabe: VerkaufEinga
 export interface VerkaufEinstellung {
   /** Notschalter: false = der Konfigurator nimmt Anfragen an, erzeugt aber kein Angebot. */
   an: boolean;
+  /**
+   * Probebetrieb (Schlüssel „nurLeitung“, Vorgabe false): true = nur ein angemeldeter Chefbüro-Browser schließt selbst ab;
+   * jeder andere Besucher schickt eine Anfrage, sein Angebot kommt persönlich — wie beim Notschalter.
+   */
+  nurLeitung: boolean;
   kursUsdJeEur: number;
   kursDatum: string;
   /** Registerstand der Bürgin (true = aktiv) und der Tag der letzten Prüfung (leer = der Satz steht ohne Datum). */
@@ -228,7 +241,9 @@ export interface VerkaufTexte {
   produkt: { auge: string; name: string; kurz: string; h2a: string; h2b: string; lead: string; bereiche: VerkaufBereich[]; preisLabel: string; preisSatz: string; preisFein: string; knopf: string; mehr: string; weniger: string };
   ablauf: { auge: string; h2a: string; h2b: string; lead: string; schritte: VerkaufSchritt[] };
   konfig: {
-    auge: string; h2a: string; h2b: string; lead: string;
+    auge: string; h2a: string; h2b: string;
+    /** Der Lead in zwei Sätzen: leadA gilt immer, leadB nur, wenn sich das Angebot für diesen Besucher sofort öffnet (sonst persoenlich.leadB). */
+    leadA: string; leadB: string;
     schritt1: string; schritt1Sub: string; schritt2: string; schritt2Sub: string; schritt3: string;
     interessen: Record<VerkaufInteresse, VerkaufInteresseText>;
     rahmenLabel: string; rahmenEuro: (eur: string) => string; rahmenMin: string; rahmenMax: string; rahmenHinweis: string; rahmenInstitut: string;
@@ -240,10 +255,32 @@ export interface VerkaufTexte {
     fertig: { titel: string; text: string; knopf: string };
     mailGesendet: { titel: string; text: string };
     fehler: { netz: string; zuViel: string; aus: string };
-    buergin: { frage: string; aktiv: string; inaktiv: string };
+    /** Die eine aufklappbare Frage unter dem Preisblatt — sie führt zum Angebot, das den vollständigen Vertrag zeigt. */
+    angebotFrage: { frage: string; antwort: string };
+    /**
+     * Der persönliche Weg für alle (Notschalter, Probebetrieb, Tagesgrenze): dieselbe Fläche, aber kein Satz verspricht,
+     * dass sich das Angebot sofort öffnet. leadB ersetzt den zweiten Satz des Leads, sub/absenden/laeuft die des Formulars,
+     * titel steht über dem Schlusstext (fehler.aus).
+     */
+    persoenlich: { leadB: string; sub: string; absenden: string; laeuft: string; titel: string };
   };
   garantie: { auge: string; h2: string; text: string; fein: string };
   karte: { auge: string; titel: string; zeile: string; punkte: string[]; preisLabel: string; knopf: string; fein: string };
+  /**
+   * „Ihr Vertrag im Überblick“ (/business/mustervertrag): der AUFBAU des Vertrags in Stichpunkten — nie sein Wortlaut und nie als
+   * „der Vertrag“ ausgegeben. Den vollständigen Vertrag zeigt das persönliche Angebot vor der Unterschrift. Die Ziffern folgen
+   * dem Vertrag der Fassung C (scripts/pruef-verkaufsmotor.ts vergleicht Zahl und Titel); Ziffer 4 und 5 stehen als ein Punkt.
+   */
+  vertrag: {
+    seo: { titel: string; beschreibung: string };
+    /** Name der Seite in Fußzeile und Links. */
+    linkName: string;
+    auge: string; h1a: string; h1b: string; lead: string;
+    aufbauTitel: string; zifferWort: string; anlageWort: string;
+    punkte: { nr: string; titel: string; text: string }[];
+    vollTitel: string; vollText: string;
+    weiter: string; widerruf: string; widerrufLink: string;
+  };
   leiste: { zusammenstellen: (preis: string) => string; gespraech: string };
   /** Der Satz unter der Schaltzentrale: wer Recht und Steuern leistet und wer die Honorare trägt. */
   partnerSatz: string;
@@ -305,7 +342,7 @@ const DE: VerkaufTexte = {
         "Geschäftskonto und Firmenkreditkarte Ihrer Gesellschaft",
         "Sie stellen die Anträge selbst; über Konto, Karten und Rahmen entscheidet das jeweilige Institut",
       ] },
-      { nr: "VII", titel: "Kapital", zeile: "Ihr Kapitalrahmen — mit der Bürgschaft unserer US-Partnergesellschaft.", details: [
+      { nr: "VII", titel: "Kapital", zeile: "Wir begleiten Ihre Gesellschaft bis zur Finanzierung im gewählten Kapitalrahmen.", details: [
         "Sie wählen Ihren Kapitalrahmen: 50.000 US-Dollar und mehr",
         "Wir bereiten jeden Antrag vor und begleiten bis zur Auszahlung",
         "Geld-zurück-Garantie: Kommt die Auszahlung nicht binnen acht Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben",
@@ -319,7 +356,7 @@ const DE: VerkaufTexte = {
     ],
     preisLabel: "Mit Ihrem Auftrag",
     preisSatz: "Gründung mit aktiver Betreuung im ersten Jahr. Endpreis.",
-    preisFein: "Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ab dem zweiten Jahr: Jahresbetreuung.",
+    preisFein: "Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr: Jahresbetreuung.",
     knopf: "Angebot zusammenstellen",
     mehr: "Einzelheiten",
     weniger: "Schließen",
@@ -332,7 +369,7 @@ const DE: VerkaufTexte = {
     schritte: [
       { nr: "1", titel: "Ihre Gesellschaft entsteht", text: "Sie wählen den Namen und unterschreiben online. Wir melden Ihre Gesellschaft an und beantragen ihre Steuernummer." },
       { nr: "2", titel: "Alles aus einer Hand", text: "Adresse, Telefonnummer, Assistenz, Verträge, Meldungen — von der ersten Nummer bis zum letzten Dokument." },
-      { nr: "3", titel: "Konto, Karten, Kapital", text: "Wir bereiten jeden Antrag vor. Für die Finanzierung übernimmt unsere US-Partnergesellschaft die Bürgschaft." },
+      { nr: "3", titel: "Konto, Karten, Kapital", text: "Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft bis zur Auszahlung. Über die Finanzierung entscheidet das finanzierende Institut." },
       { nr: "4", titel: "Weiter wachsen", text: "Ab dem achtzehnten Monat kann Ihre Gesellschaft eine Aufstockung beantragen oder umschulden. Wir begleiten sie dabei." },
     ],
   },
@@ -340,14 +377,15 @@ const DE: VerkaufTexte = {
     auge: "Ihr Angebot",
     h2a: "Stellen Sie es",
     h2b: "selbst zusammen.",
-    lead: "Zwei Angaben, ein Preis. Danach unterschreiben Sie online — ohne Termin, ohne Wartezeit.",
+    leadA: "Zwei Angaben, ein Preis.",
+    leadB: "Danach unterschreiben Sie online — ohne Termin, ohne Wartezeit.",
     schritt1: "Was ist Ihnen wichtig?",
     schritt1Sub: "Mehrere Antworten sind möglich.",
     schritt2: "Ihr Kapitalrahmen",
     schritt2Sub: "Schieben Sie den Regler auf den Rahmen, den Ihre Gesellschaft aufnehmen soll.",
     schritt3: "Ihr Preis",
     interessen: {
-      kapital: { titel: "Kapital", zeile: "Finanzierung für Ihre Gesellschaft, mit Bürgschaft.", preis: "Erfolgshonorar nach Rahmen" },
+      kapital: { titel: "Kapital", zeile: "Begleitung bis zur Finanzierung Ihrer Gesellschaft.", preis: "Erfolgshonorar nach Rahmen" },
       karten: { titel: "Firmenkreditkarten", zeile: "Private und geschäftliche US-Karten, Anträge vorbereitet.", preis: "enthalten" },
       konto: { titel: "US-Konto", zeile: "Privates Konto und Geschäftskonto in den USA.", preis: "enthalten" },
       beratung: { titel: "Unternehmensberatung", zeile: "Strategie für Ihren Weg in die USA.", preis: "persönlich nach dem Start" },
@@ -363,7 +401,7 @@ const DE: VerkaufTexte = {
       heute: "Mit Ihrem Auftrag",
       heuteText: "Gründung mit aktiver Betreuung im ersten Jahr",
       eintragung: "Mit der Eintragung",
-      eintragungText: "Erfolgshonorar, Bürgschaft enthalten",
+      eintragungText: "Erfolgshonorar nach Kapitalrahmen",
       jahr1: "Im ersten Jahr insgesamt",
       jahr2: "Ab dem zweiten Jahr",
       jahr2Text: "Jahresbetreuung, je Jahr",
@@ -431,12 +469,18 @@ const DE: VerkaufTexte = {
     fehler: {
       netz: "Das hat gerade nicht geklappt. Bitte versuchen Sie es noch einmal.",
       zuViel: "Von Ihrem Anschluss kamen gerade mehrere Versuche. Bitte versuchen Sie es in einigen Minuten noch einmal.",
-      aus: "Ihr Angebot erstellen wir heute persönlich. Ihre Anfrage ist bei uns angekommen.",
+      aus: "Vielen Dank. Ihr Angebot erstellen wir persönlich für Sie — Sie erhalten es per E-Mail.",
     },
-    buergin: {
-      frage: "Wer übernimmt die Bürgschaft?",
-      aktiv: "Unsere US-Partnergesellschaft, ein mit FIAON verbundenes Unternehmen. Die Einzelheiten stehen in Ziffer 5 Ihres Vertrags.",
-      inaktiv: "Unsere US-Partnergesellschaft, ein mit FIAON verbundenes Unternehmen. Offen gesagt: Sie wird im Register ihres Bundesstaats derzeit als inaktiv geführt und bürgt erst, wenn sie dort wieder als aktiv geführt wird. Bürgt sie nicht rechtzeitig, greift Ihre Geld-zurück-Garantie.",
+    angebotFrage: {
+      frage: "Was steht in meinem Angebot?",
+      antwort: "Ihr persönliches Angebot zeigt den vollständigen Vertrag mit allen Einzelheiten: jede Leistung, Ihre Preise, die Bedingungen der Finanzierung und die Geld-zurück-Garantie. Sie lesen ihn in Ruhe, bevor Sie unterschreiben.",
+    },
+    persoenlich: {
+      leadB: "Ihr Angebot erhalten Sie persönlich von uns — unterschreiben können Sie online.",
+      sub: "Ihr Angebot erstellen wir persönlich für Sie. Sie erhalten es per E-Mail.",
+      absenden: "Angebot anfordern",
+      laeuft: "Ihre Anfrage wird gesendet …",
+      titel: "Ihre Anfrage ist da.",
     },
   },
   garantie: {
@@ -453,6 +497,41 @@ const DE: VerkaufTexte = {
     preisLabel: "Mit Ihrem Auftrag",
     knopf: "Angebot zusammenstellen",
     fein: "Endpreis. Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen.",
+  },
+  vertrag: {
+    seo: {
+      titel: "Ihr Vertrag im Überblick — FIAON Global",
+      beschreibung: "Der Aufbau des Vertrags von FIAON Global in Stichpunkten. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben.",
+    },
+    linkName: "Vertrag im Überblick",
+    auge: "FIAON Global · Vertrag",
+    h1a: "Ihr Vertrag,",
+    h1b: "im Überblick.",
+    lead: "Diese Seite zeigt, wie Ihr Vertrag aufgebaut ist — in Stichpunkten, nicht im Wortlaut. Den vollständigen Vertrag mit Ihren Zahlen lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Vertragspartner ist die FIAON LTD, London.",
+    aufbauTitel: "Was Ihr Vertrag regelt",
+    zifferWort: "Ziffer",
+    anlageWort: "Anlage",
+    punkte: [
+      { nr: "1", titel: "Vertragsparteien und Gegenstand", text: "Wer den Vertrag schließt und was er umfasst. Ihre Gesellschaft gehört allein Ihnen; FIAON erwirbt keine Anteile." },
+      { nr: "2", titel: "Die US-Gesellschaft", text: "Die Gründung Ihrer Gesellschaft: Anmeldung beim Bundesstaat mit Staatsgebühr, Operating Agreement, Ihr US-Büro im ersten Jahr, die Anträge für EIN und ITIN, der Pflichtenkalender und die ersten Meldungen." },
+      { nr: "3", titel: "Konto und Karten", text: "Privates US-Konto, private US-Kreditkarten, Geschäftskonto und Firmenkreditkarte: Wir bereiten jeden Antrag vollständig vor. Sie stellen ihn selbst; über Konto, Karten und Rahmen entscheidet das jeweilige Institut." },
+      { nr: "4 und 5", titel: "Begleitung zur Finanzierung und Geld-zurück-Garantie", text: "Wir begleiten Ihre Gesellschaft bis zur Finanzierung in Ihrem Kapitalrahmen. Der Vertrag nennt das Ziel der Begleitung, die Voraussetzungen der Geld-zurück-Garantie und alle weiteren Einzelheiten zur Finanzierung. Über die Finanzierung entscheidet das finanzierende Institut." },
+      { nr: "6", titel: "Vergütung und Fälligkeit", text: "Der Preis mit Ihrem Auftrag, das Erfolgshonorar mit der Eintragung Ihrer Gesellschaft und die Jahresbetreuung ab dem zweiten Jahr. Alle Beträge sind Endpreise." },
+      { nr: "7", titel: "Mitwirkung des Auftraggebers", text: "Was wir von Ihnen brauchen: Ihren Reisepass, wahre und vollständige Angaben und Ihre Unterschrift unter die Unterlagen, die wir vorbereiten." },
+      { nr: "8", titel: "Pflichthinweise", text: "Was Sie vor dem Auftrag wissen müssen: Steuerpflicht im Wohnsitzland, jährliche Meldepflichten in den USA und die Entscheidung der Institute." },
+      { nr: "9", titel: "Laufzeit und Ende", text: "Wann der Vertrag beginnt, wie lange die Begleitung läuft und wie er endet." },
+      { nr: "10", titel: "Widerrufsrecht", text: "Ihr gesetzliches Widerrufsrecht als Verbraucher: vierzehn Tage." },
+      { nr: "11", titel: "Haftung", text: "Wofür FIAON haftet und wofür die Partner aus ihrem eigenen Mandat haften." },
+      { nr: "12", titel: "Vertraulichkeit und Datenschutz", text: "Wie wir mit Ihren Unterlagen und Ihren Daten umgehen." },
+      { nr: "13", titel: "Befugnisse von FIAON", text: "Wozu Sie uns bevollmächtigen — und was bei Ihnen bleibt: Konten eröffnen, über Geld verfügen und Finanzierungen beantragen." },
+      { nr: "14", titel: "Schlussbestimmungen", text: "Vertragssprache Deutsch, deutsches Recht, Änderungen in Textform." },
+      { nr: "A", titel: "Widerrufsbelehrung und Muster-Widerrufsformular", text: "Der gesetzliche Wortlaut, Ihrem Vertrag als Anlage beigefügt." },
+    ],
+    vollTitel: "Der vollständige Vertrag",
+    vollText: "Ihr persönliches Angebot zeigt den Vertrag Wort für Wort: jede Ziffer, Ihre Preise, die Bedingungen der Finanzierung und die Widerrufsbelehrung. Bitte lesen Sie ihn ganz, bevor Sie unterschreiben — maßgeblich ist allein dieser Wortlaut.",
+    weiter: "Stellen Sie Ihr Angebot zusammen — Ihr Preis steht sofort da. Ihren Vertrag lesen Sie in Ihrem Angebot, bevor Sie unterschreiben.",
+    widerruf: "Die Widerrufsbelehrung können Sie schon jetzt lesen:",
+    widerrufLink: "Widerrufsbelehrung",
   },
   leiste: { zusammenstellen: (preis) => `Ihr Angebot · ${preis}`, gespraech: "Gespräch" },
   partnerSatz: "Steuerberater, US-Steuerberater (CPA) und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
@@ -514,7 +593,7 @@ const EN: VerkaufTexte = {
         "Business account and company credit card for your company",
         "You file the applications yourself; each institution decides on accounts, cards and limits",
       ] },
-      { nr: "VII", titel: "Capital", zeile: "Your capital range — with the surety of our US partner company.", details: [
+      { nr: "VII", titel: "Capital", zeile: "We stay with your company through to financing within the capital range you choose.", details: [
         "You choose your capital range: US$50,000 and more",
         "We prepare every application and stay with you through to payout",
         "Money-back commitment: if the payout does not arrive within eight weeks, you receive back everything you have paid to us",
@@ -528,7 +607,7 @@ const EN: VerkaufTexte = {
     ],
     preisLabel: "With your order",
     preisSatz: "Formation with active management in the first year. Final price.",
-    preisFein: "The success fee falls due when your company is registered; it follows your capital range and includes the surety. From the second year: annual care.",
+    preisFein: "The success fee falls due when your company is registered; it follows your capital range. From the second year: annual care.",
     knopf: "Build your offer",
     mehr: "Details",
     weniger: "Close",
@@ -541,7 +620,7 @@ const EN: VerkaufTexte = {
     schritte: [
       { nr: "1", titel: "Your company is formed", text: "You choose the name and sign online. We file your company and apply for its tax number." },
       { nr: "2", titel: "Everything from one source", text: "Address, phone number, assistance, agreements, filings — from the first number to the last document." },
-      { nr: "3", titel: "Accounts, cards, capital", text: "We prepare every application. For the financing, our US partner company provides the surety." },
+      { nr: "3", titel: "Accounts, cards, capital", text: "We prepare every application and stay with your company through to payout. The financing institution decides on the financing." },
       { nr: "4", titel: "Keep growing", text: "From the eighteenth month, your company can apply for an increase or refinance. We stay with it." },
     ],
   },
@@ -549,14 +628,15 @@ const EN: VerkaufTexte = {
     auge: "Your offer",
     h2a: "Put it together",
     h2b: "yourself.",
-    lead: "Two choices, one price. Then you sign online — no appointment, no waiting.",
+    leadA: "Two choices, one price.",
+    leadB: "Then you sign online — no appointment, no waiting.",
     schritt1: "What matters to you?",
     schritt1Sub: "You can choose more than one.",
     schritt2: "Your capital range",
     schritt2Sub: "Move the slider to the range your company is to take up.",
     schritt3: "Your price",
     interessen: {
-      kapital: { titel: "Capital", zeile: "Financing for your company, with a surety.", preis: "success fee by range" },
+      kapital: { titel: "Capital", zeile: "Support through to financing for your company.", preis: "success fee by range" },
       karten: { titel: "Company credit cards", zeile: "Personal and business US cards, applications prepared.", preis: "included" },
       konto: { titel: "US account", zeile: "Personal account and business account in the US.", preis: "included" },
       beratung: { titel: "Business consultancy", zeile: "Strategy for your route into the US.", preis: "in person after the start" },
@@ -572,7 +652,7 @@ const EN: VerkaufTexte = {
       heute: "With your order",
       heuteText: "Formation with active management in the first year",
       eintragung: "On registration",
-      eintragungText: "Success fee, surety included",
+      eintragungText: "Success fee by capital range",
       jahr1: "First year in total",
       jahr2: "From the second year",
       jahr2Text: "Annual care, per year",
@@ -640,12 +720,18 @@ const EN: VerkaufTexte = {
     fehler: {
       netz: "That did not work just now. Please try again.",
       zuViel: "Several attempts have just come from your connection. Please try again in a few minutes.",
-      aus: "Today we are preparing your offer in person. Your enquiry has reached us.",
+      aus: "Thank you. We are preparing your offer for you in person — you will receive it by email.",
     },
-    buergin: {
-      frage: "Who provides the surety?",
-      aktiv: "Our US partner company, a company associated with FIAON. The details are in clause 5 of your agreement.",
-      inaktiv: "Our US partner company, a company associated with FIAON. To be open: it is currently listed as inactive in the register of its state and will only act as surety once it is listed as active there again. If it does not do so in time, your money-back commitment applies.",
+    angebotFrage: {
+      frage: "What is in my offer?",
+      antwort: "Your personal offer shows the complete agreement with every detail: each service, your prices, the terms of the financing and the money-back commitment. You read it at your leisure before you sign.",
+    },
+    persoenlich: {
+      leadB: "You receive your offer from us in person — and you can sign online.",
+      sub: "We prepare your offer for you in person. You will receive it by email.",
+      absenden: "Request my offer",
+      laeuft: "Sending your enquiry …",
+      titel: "Your enquiry has arrived.",
     },
   },
   garantie: {
@@ -662,6 +748,41 @@ const EN: VerkaufTexte = {
     preisLabel: "With your order",
     knopf: "Build your offer",
     fein: "Final price. Success fee on registration, according to your capital range.",
+  },
+  vertrag: {
+    seo: {
+      titel: "Your agreement at a glance — FIAON Global",
+      beschreibung: "How the FIAON Global agreement is structured, point by point. You read the complete agreement in your personal offer before you sign.",
+    },
+    linkName: "Agreement at a glance",
+    auge: "FIAON Global · Agreement",
+    h1a: "Your agreement,",
+    h1b: "at a glance.",
+    lead: "This page shows how your agreement is structured — point by point, not word for word. You read the complete agreement with your own figures in your personal offer before you sign. The agreement is in German, the language of the contract. Your contracting party is FIAON LTD, London.",
+    aufbauTitel: "What your agreement covers",
+    zifferWort: "Clause",
+    anlageWort: "Annex",
+    punkte: [
+      { nr: "1", titel: "Parties and subject matter", text: "Who enters into the agreement and what it covers. Your company belongs to you alone; FIAON acquires no shares." },
+      { nr: "2", titel: "The US company", text: "The formation of your company: filing with the state including the state fee, operating agreement, your US office in the first year, the EIN and ITIN applications, the compliance calendar and the first filings." },
+      { nr: "3", titel: "Accounts and cards", text: "Personal US account, personal US credit cards, business account and company credit card: we fully prepare every application. You file it yourself; each institution decides on accounts, cards and limits." },
+      { nr: "4 and 5", titel: "Support through to financing and money-back commitment", text: "We stay with your company through to financing within your capital range. The agreement sets out the aim of that support, the conditions of the money-back commitment and every further detail of the financing. The financing institution decides on the financing." },
+      { nr: "6", titel: "Fees and due dates", text: "The price with your order, the success fee when your company is registered, and annual care from the second year. All amounts are final prices." },
+      { nr: "7", titel: "Your cooperation", text: "What we need from you: your passport, true and complete information, and your signature on the documents we prepare." },
+      { nr: "8", titel: "Mandatory information", text: "What you need to know before ordering: tax liability in your country of residence, annual filing duties in the United States and the decisions of the institutions." },
+      { nr: "9", titel: "Term and end", text: "When the agreement begins, how long our support runs and how it ends." },
+      { nr: "10", titel: "Right of withdrawal", text: "Your statutory right of withdrawal as a consumer: fourteen days." },
+      { nr: "11", titel: "Liability", text: "What FIAON is liable for, and what the partners are liable for under their own mandate." },
+      { nr: "12", titel: "Confidentiality and data protection", text: "How we handle your documents and your data." },
+      { nr: "13", titel: "Authority of FIAON", text: "What you authorise us to do — and what stays with you: opening accounts, disposing of funds and applying for financing." },
+      { nr: "14", titel: "Final provisions", text: "German as the language of the contract, German law, changes in text form." },
+      { nr: "A", titel: "Withdrawal instructions and model withdrawal form", text: "The statutory wording, attached to your agreement as an annex." },
+    ],
+    vollTitel: "The complete agreement",
+    vollText: "Your personal offer shows the agreement word for word: every clause, your prices, the terms of the financing and the withdrawal instructions. Please read it in full before you sign — only that wording is binding.",
+    weiter: "Put your offer together — your price appears at once. You read your agreement in your offer before you sign.",
+    widerruf: "You can read the withdrawal instructions now:",
+    widerrufLink: "Withdrawal instructions",
   },
   leiste: { zusammenstellen: (preis) => `Your offer · ${preis}`, gespraech: "Call" },
   partnerSatz: "Tax advisers, US accountants (CPAs) and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your agreement.",

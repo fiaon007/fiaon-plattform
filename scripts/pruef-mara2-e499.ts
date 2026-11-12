@@ -131,6 +131,31 @@ async function main() {
   ok(/keinen Kredit/.test(W.austrittsGrund("Ich kündige. Leider habe ich keinen Kredit bekommen.")), "austrittsGrund: der Satz mit dem Grund");
   ok(W.austrittsGrund("Ich kündige hiermit.") === "", "austrittsGrund: ohne Grund leer");
 
+  ok(!W.austrittZurueckgenommen("Hat sich erledigt.", { unbezahlt: true }), "unbezahlt: „Hat sich erledigt“ ist die Absage, keine Rücknahme");
+  ok(W.austrittZurueckgenommen("Hat sich erledigt, ich bleibe.", { unbezahlt: false }), "zahlend: „Hat sich erledigt“ bleibt eine Rücknahme");
+
+  console.log("── 9b · Alte Kündigungen nachholen (nachholFaelle, rein)");
+  const N = await import("../server/lib/fiaon-kuendigung-nachholen");
+  const z = (id: number, ref: string, text: string, tag: string, mehr: Partial<{ davor: string | null; flags: Record<string, unknown>; bezahlt: boolean }> = {}) =>
+    ({ id, personId: 1, ref, text, empfangenAm: `2026-10-${tag}T10:00:00.000Z`, davor: mehr.davor ?? null, flags: mehr.flags ?? null, bezahlt: mehr.bezahlt ?? true });
+  const f1 = N.nachholFaelle([
+    z(1, "A", "Wann kommt meine Karte?", "01"),
+    z(2, "A", "Hiermit kündige ich meinen Vertrag mit sofortiger Wirkung.", "03"),
+    z(3, "A", "Wie oft denn noch, ich habe gekündigt!", "09"),
+  ]).faelle;
+  ok(f1.length === 1 && f1[0].postmeisterId === 2 && f1[0].am.startsWith("2026-10-03") && f1[0].art === "klar", "je Bestellung die FRÜHESTE klare Mail, mit ihrem Tag");
+  ok(N.nachholFaelle([z(1, "B", "Ich kündige.", "02"), z(2, "B", "Ich nehme die Kündigung zurück, ich bleibe.", "04")]).faelle.length === 0, "spätere Rücknahme → nie buchen");
+  ok(N.nachholFaelle([z(1, "B", "Ich kündige.", "02"), z(2, "B", "Ich kündige nicht, ich möchte nur meine Karte.", "04")]).faelle.length === 0, "späteres „ich kündige nicht“ → nie buchen");
+  ok(N.nachholFaelle([z(1, "C", "Hiermit widerrufe ich den Vertrag.", "02", { flags: { widerruf: true } })]).faelle.length === 0, "Widerruf-Lampe → entscheidet ein Mensch");
+  ok(N.nachholFaelle([z(1, "C", "Ich kündige, ich habe das nie bestellt.", "02", { flags: { bestreitet: true } })]).faelle.length === 0, "Bestreiten → nie von selbst");
+  ok(N.nachholFaelle([z(1, "D", "Ich will meine Karte, oder ich kündige jetzt.", "02")]).faelle.length === 0, "Drohung → kein Fall");
+  ok(N.nachholFaelle([z(1, "D", "Wie kann ich kündigen?", "02")]).faelle.length === 0, "Frage → kein Fall");
+  const ja = N.nachholFaelle([z(1, "E", "Ja, bitte.", "05", { davor: "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt." })]).faelle;
+  ok(ja.length === 1 && ja[0].art === "ja", "sein Ja auf unsere Rückfrage → Fall „ja“");
+  ok(N.nachholFaelle([z(1, "E", "Ja, bitte.", "05", { davor: "Ihre Karte ist unterwegs." })]).faelle.length === 0, "ein Ja ohne unsere Rückfrage → kein Fall");
+  ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: false })]).faelle.length === 1, "unbezahlt: „Hat sich erledigt“ → Storno-Fall");
+  ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: true })]).faelle.length === 0, "zahlend: „Hat sich erledigt“ → kein Fall");
+
   console.log("── 10 · Maras Tagesbericht (reine Teile)");
   const T = await import("../server/lib/fiaon-mara-tagesbericht");
   const um = (iso: string) => new Date(iso);

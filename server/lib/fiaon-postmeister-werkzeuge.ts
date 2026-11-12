@@ -1262,7 +1262,7 @@ export const kuendigungVormerken: Werkzeug = {
     // Geprüft wird erst der Satz zum Zitat des Modells, sonst der Anfang seines eigenen Textes (dort steht, was er schreibt).
     let urteil = austrittsWille(pruefText || "", { unbezahlt });
     if (urteil.urteil !== "klar" && kern) urteil = austrittsWille(kern.slice(0, 700), { unbezahlt });
-    if (!wille && urteil.urteil === "klar" && !(kern && austrittZurueckgenommen(kern))) wille = true;
+    if (!wille && urteil.urteil === "klar" && !(kern && austrittZurueckgenommen(kern, { unbezahlt }))) wille = true;
     // Eine Drohung oder Bedingung ohne klaren Satz daneben („… oder ich kündige jetzt“) ist nie eine Erklärung — auch nicht
     // nach der alten Liste (die „oder“ und „sollte“ nicht kannte).
     if (wille && urteil.urteil === "bedingt") wille = false;
@@ -1743,9 +1743,15 @@ const JA_SCHWACH = new RegExp(String.raw`^(?:gerne?|bitte|ok(?:ay)?|in\s+ordnung
 function antragZurueckAlsStorno(text: string): string {
   return text.replace(/\b(antrag|anfrage|bestellung|auftrag|anmeldung)\b([^.!?\n]{0,40}?)\bzur(?:ü|ue)ck(?:ziehen|zuziehen|nehmen|zunehmen|gezogen|genommen|ziehe|nehme)\b/gi, "$1$2stornieren");
 }
-/** Nimmt er eine Kündigung zurück? Wie kuendigungRuecknahme — nur zählt „den Antrag zurückziehen“ nicht dazu. Rein. */
-export function austrittZurueckgenommen(text: unknown): boolean {
-  return !!kuendigungRuecknahme(antragZurueckAlsStorno(eigenerKern(text).replace(/\s+/g, " ").trim()));
+/**
+ * Nimmt er eine Kündigung zurück? Wie kuendigungRuecknahme — nur zählen „den Antrag zurückziehen“ und, bei einer
+ * UNBEZAHLTEN Bestellung, die Absage selbst („Hat sich erledigt“, „kein Bedarf“) nicht dazu: Dort ist das der Austritt. Rein.
+ */
+export function austrittZurueckgenommen(text: unknown, opt: { unbezahlt?: boolean } = {}): boolean {
+  const t = antragZurueckAlsStorno(eigenerKern(text).replace(/\s+/g, " ").trim());
+  if (!kuendigungRuecknahme(t)) return false;
+  if (opt.unbezahlt && !AUSTRITTSWORT.test(t) && ABSAGE_UNBEZAHLT.test(t.slice(0, 300))) return false;
+  return true;
 }
 export function austrittsWille(text: unknown, opt: { unbezahlt?: boolean } = {}): { urteil: AustrittsUrteil; satz: string | null } {
   const t = antragZurueckAlsStorno(eigenerKern(text).replace(/\s+/g, " ").trim())

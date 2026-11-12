@@ -613,6 +613,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Justin bekommt abends keinen Bericht von Mara und sieht nur im Chefbüro, was sie getan hat.",
     fenster: 8,
   },
+  // E-499 (12.11.2026): Takt alle 30 Minuten, nurMitErgebnis + Puls alle 6 Stunden. Vorgabe des Schalters: trocken.
+  kuendigung_nachholen: {
+    zweck: "Klare Kündigungen aus alten Kundenmails nachholen, die Mara vor E-499 nicht gebucht hat: den Plan rechnen (immer) und — nur mit "
+      + "Schalter „an“ — höchstens fünf je Lauf über den normalen Vorgang buchen (Wirkung, Urkunde, Bestätigung), zum Tag der Mail",
+    folge: "Kunden, die längst klar gekündigt haben, bleiben ohne Buchung und ohne Bestätigung — sie bekommen weiter Rechnungen und Mahnungen.",
+    fenster: 8,
+  },
   // E-476 Scheibe 4 (05.11.2026): Takt alle 2 Minuten, nurMitErgebnis + Stundenpuls.
   lead_post: {
     zweck: "FIAON Global: Justins Willkommens-Mail an jeden neuen Business-Lead (aus js@, mit seinen Antworten und dem persönlichen Terminlink, "

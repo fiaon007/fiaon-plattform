@@ -5,6 +5,8 @@
 // offen auf der Seite — eine Kanzlei nennt ihre verbundenen Gesellschaften.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_ROLLEN } from "../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der Partner-Satz ohne das Wort „Paket“.
+import { EIN_PRODUKT } from "./ein-produkt";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
 import type { GlobalSeite } from "./typen";
 
@@ -44,8 +46,8 @@ export const PARTNER_SEITE: GlobalSeite = {
     {
       typ: "text", id: "netz", h2: "Das Partnernetz",
       absaetze: [
-        GLOBAL_ROLLEN.de.partner,
-        "Steuerberater, US-CPA und Anwälte arbeiten auf Ihr eigenes Mandat, weil Steuer- und Rechtsfragen nur beantworten darf, wer dafür zugelassen ist. FIAON koordiniert, bereitet vor und trägt die Honorare für die Leistungen Ihres Pakets.",
+        EIN_PRODUKT.de.partner,
+        "Steuerberater, US-CPA und Anwälte arbeiten auf Ihr eigenes Mandat, weil Steuer- und Rechtsfragen nur beantworten darf, wer dafür zugelassen ist. FIAON koordiniert, bereitet vor und trägt die Honorare für die Leistungen Ihres Auftrags.",
       ],
     },
     {
@@ -59,7 +61,7 @@ export const PARTNER_SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "Wer ist mein Vertragspartner bei FIAON Global?", a: "Die FIAON LTD, 128 City Road, London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Vertrag und Rechnung kommen von ihr." },
-    { f: "Was macht die Schwarzott Group in Miami?", a: "Sie ist unser Team vor Ort: Sie nimmt Termine bei Behörden und Instituten wahr, reicht Unterlagen ein, holt Dokumente ab und richtet den Auftakt des Pakets Global VIP aus." },
+    { f: "Was macht die Schwarzott Group in Miami?", a: "Sie ist unser Team vor Ort: Sie nimmt Termine bei Behörden und Instituten wahr, reicht Unterlagen ein, holt Dokumente ab und begleitet Mandanten ab einem Kapitalrahmen von 1 Mio. US-Dollar persönlich in Miami." },
     { f: "Was macht die Schwarzott Group in Zürich?", a: "Sie begleitet die Kapital-Etappe mit Kennzahlen und Unterlagen für Finanzierungsgespräche und ist Ansprechpartner für Unternehmen aus der Schweiz. Sie ist eine Beteiligungs- und Investmentgruppe, keine Bank." },
     { f: "Sind die Partner unabhängig von FIAON?", a: "Nein. Die Schwarzott Group ist mit FIAON über unseren Gründer Justin Schwarzott verbunden. Wir sagen das offen, weil es für Ihre Entscheidung zählt." },
   ],

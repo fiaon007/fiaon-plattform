@@ -40,11 +40,14 @@
 //   Florida, Etappen, FIAON-Absätze, Fragen); Zahlen, Quellen, Aussagen unverändert.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_AGENT, GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, der Preis aus EIN_PRODUKT; die alte Geld-zurück-Zusage
+// je Paket entfällt (auf dieser Seite geht es nicht um Kapital).
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_RECHT_EN as R, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`] : [];
+const P = EIN_PRODUKT.en;
 /** „25 per cent“ — die Eigentümerschwelle steht in fakten-en.ts. */
 const AB25 = SCHWELLEN_EN.eigentuemer;
 
@@ -85,7 +88,7 @@ export const SEITE: GlobalSeite = {
     titel: "Amazon seller US LLC non-resident: checks — FIAON Global",
     beschreibung: "Amazon seller US LLC as a non-resident: what Amazon, Stripe, PayPal and Shopify check — ID, EIN, account, W-8 or W-9, sales tax and common restrictions.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 49",
   auge: "Knowledge · Platforms",
@@ -212,18 +215,17 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "FIAON Global is a business consultancy for entrepreneurs from Germany, Austria and Switzerland who are building a US company. Our principle: one contact instead of eight. With your power of attorney, we submit every application on your behalf — formation in the state, EIN, preparation of the ITIN, D-U-N-S number and the first annual US filing — and provide the registered agent, US address and US phone number for the first year. You make account, card and credit applications yourself; we prepare each of them in full.",
         "In concrete terms, for the platforms this means: before formation, we settle the core details with you — company name, members and shares, business address, phone number, contact person — and keep them identical in every document. In your document room, the formation document, EIN letter and operating agreement are filed and ready for when Amazon, Stripe, PayPal or Shopify asks for them. We prepare the application for the LLC’s business account in full so that your proceeds can go to an account in the company’s name; the institution decides on the account. The tax classification, which determines W-8 or W-9, is set in the EIN application we file for you; how your platform business is to be treated at home is reviewed by our partner tax adviser before formation.",
-        "You register with the platforms yourself, because identity verification is personal. You go in with a complete file and know beforehand which answer belongs where. With Global Banking, we also keep a compliance calendar for your US filings and deadlines and go through what is coming up with you every month.",
-        GLOBAL_ROLLEN.en.partner,
-        "You pay a fixed price, agreed before the engagement begins, with all of the package’s fees included. The contracting party is FIAON LTD in London; our team on the ground in Miami attends appointments with you, and Zurich is our partner location. From the second year, you can choose the annual care plan — on a voluntary basis.",
-        ...GELD_ZURUECK,
+        "You register with the platforms yourself, because identity verification is personal. You go in with a complete file and know beforehand which answer belongs where. We keep a compliance calendar for your US filings and deadlines.",
+        P.partner,
+        `${P.preisSatz} The contracting party is FIAON LTD in London; our team on the ground in Miami deals with the authorities, and Zurich is our partner location.`,
       ],
     },
-    { typ: "paket", id: "paket", h2: "The foundation for US trade in one package", lead: "Company, EIN, registered agent, US address and US phone for the first year, the fully prepared account application, a compliance calendar for US filings and a dedicated contact — Global Banking.", paket: "global_banking" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "Each platform alone decides on approval, reserves and restrictions — even where the documents are complete. This page reflects the platforms’ help pages as of October 2026; what counts is the version in force at the time of your registration.",
-        "Accounts with marketplaces and payment services, sales tax registrations and ongoing bookkeeping are not part of the packages; we can name partners for these.",
+        "Accounts with marketplaces and payment services, sales tax registrations and ongoing bookkeeping are not part of your order; we can name partners for these.",
         GLOBAL_AGENT.en.anschrift,
         "FIAON is not a bank, does not grant loans, does not arrange loans and does not commit to any limit. The institution concerned alone decides on the account, card, limit and loan.",
         GLOBAL_PFLICHTHINWEIS.en[0],

@@ -27,6 +27,8 @@
 //      Privatkunden-Linie; Kopf und Fuß schalten im Business-Bereich um; der
 //      Bereich wird richtig erkannt; die Rechtsseiten der Business-Welt haben
 //      ihre Routen VOR /business/:slug.
+//  13. Ein Produkt (12.11.2026, E-509): Keine Seite, kein Menüpunkt, kein Vorab-HTML und kein Abschnitt von /llms.txt
+//      nennt mehr eines der vier Pakete oder einen ihrer Preise; der Paket-Finder leitet dauerhaft auf den Konfigurator.
 //
 // Die Wortwahl prüft scripts/pruef-wortwand-de.ts (dort stehen seit E-191 auch
 // alle Texte dieser Seiten).
@@ -40,6 +42,8 @@ import { seiteUnbekannt, nichtGefundenHtml } from "../server/lib/fiaon-seiten-se
 import { GLOBAL_MENUE } from "../shared/fiaon-global-menue";
 import { globalPaket } from "../shared/fiaon-global";
 import { PAKETE } from "../shared/fiaon-pakete";
+// E-509 (12.11.2026): ein Produkt statt vier Pakete — Preis und Texte der Startseite aus der einen Quelle.
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur } from "../shared/fiaon-global-verkauf";
 import { globalStartPfad } from "../shared/fiaon-global-wege";
 import { SEO_SEITEN, seoFragen, seoIndexierbar } from "../shared/fiaon-seo-seiten";
 import "../server/lib/fiaon-global-seo";
@@ -168,8 +172,10 @@ abschnitt("Menü");
 const menuePfade = new Set(GLOBAL_MENUE.map((m) => m.pfad.split("#")[0]));
 for (const m of GLOBAL_MENUE) {
   const basis = m.pfad.split("#")[0];
-  // 29.10.2026 (E-461): Anker der Übersicht stehen auf der Startseite „/“ (Pakete, Jahresbetreuung).
-  ok(basis === "/business" || basis === "/" || seitenPfade.has(basis), `Menü „${m.titel}“ → ${m.pfad} ist keine Seite`);
+  // 29.10.2026 (E-461): Anker der Übersicht stehen auf der Startseite „/“ (Produkt, Jahresbetreuung).
+  // E-509 (12.11.2026): „Angebot zusammenstellen“ führt zum Konfigurator /business/start — eine eigene Seite außerhalb
+  // des Registers (client/src/pages/site/global-konfigurator.tsx), deshalb hier beim Namen erlaubt.
+  ok(basis === "/business" || basis === "/" || basis === "/business/start" || seitenPfade.has(basis), `Menü „${m.titel}“ → ${m.pfad} ist keine Seite`);
   ok(m.titel.length <= 30 && m.text.length <= 52, `Menü „${m.titel}“: Titel oder Zeile zu lang für das Panel`);
 }
 const reihen = GLOBAL_MENUE.map((m) => `${m.gruppe}:${m.reihe}`);
@@ -324,13 +330,17 @@ ok(faqRoh === GLOBAL_WOERTER.de.fragen.length + GLOBAL_WOERTER.en.fragen.length,
 ok(GLOBAL_WOERTER.de.fragen.length === GLOBAL_WOERTER.en.fragen.length, "/business: deutsche und englische Fragen verschieden viele");
 // Preis und Kapitalrahmen im ersten Bildschirm, der Titel nennt den Einstiegspreis aus dem Katalog.
 const hubSeite = fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8");
-ok(/globalKapitalSpanne\(s\)/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))) && /abPreis/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))), "/business: Kapitalrahmen oder Festpreis fehlen im Kopf");
-const einstieg = String(Math.round((PAKETE.find((x) => x.key === "global_struktur")?.preisCents ?? 0) / 100).toLocaleString("de-DE"));
+// E-509 (12.11.2026): EIN Produkt — im Kopf stehen der Kapitalrahmen des Reglers und der eine Preis aus der einen Quelle.
+// (Vorher: globalKapitalSpanne(s) und abPreis = Einstiegspreis des Pakets Global Struktur.)
+ok(/kapitalWert: rahmenSpanne/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))) && /verkaufEur\(VERKAUF_PREISE\.gruendungCents, s\)/.test(hubSeite.slice(0, hubSeite.indexOf('id="leistungen"'))), "/: Kapitalrahmen oder der eine Preis fehlen im Kopf");
+const einstieg = verkaufEur(VERKAUF_PREISE.gruendungCents, "de");
 // 29.10.2026 (E-461): Der Eintrag der Übersicht steht unter „/“ (Startseite von fiaon.com), englisch „/en“.
-ok(GLOBAL_WOERTER.de.metaTitel.includes(einstieg) && String(tabelle["/"]?.titel).includes(einstieg), `/: Titel nennt nicht den Einstiegspreis ${einstieg} € (Seite und SEO-Tabelle)`);
-ok(GLOBAL_WOERTER.de.metaTitel === tabelle["/"]?.titel && GLOBAL_WOERTER.en.metaTitel === tabelle["/"]?.en?.titel, "/: Titel der Seite und der SEO-Tabelle weichen voneinander ab");
+// E-509: Der Preis steht im Vorab-Text (aus der einen Quelle), nicht mehr im Titel. (Vorher: Titel nennt „ab 2.499 €“.)
+ok(JSON.stringify(tabelle["/"]?.abschnitte ?? []).includes(einstieg) && JSON.stringify(tabelle["/"]?.en?.abschnitte ?? []).includes(verkaufEur(VERKAUF_PREISE.gruendungCents, "en")), `/: Der Vorab-Text nennt nicht den einen Preis ${einstieg} (SEO-Tabelle, beide Sprachen)`);
+// E-509: Titel und Beschreibung der Seite kommen aus VERKAUF_TEXTE.seo. (Vorher: GLOBAL_WOERTER.metaTitel/metaBeschreibung.)
+ok(VERKAUF_TEXTE.de.seo.titel === tabelle["/"]?.titel && VERKAUF_TEXTE.en.seo.titel === tabelle["/"]?.en?.titel, "/: Titel der Seite und der SEO-Tabelle weichen voneinander ab");
 // 06.10.2026 (E-293): Beschreibung der Seite = SEO-Tabelle (beide Sprachen).
-ok(GLOBAL_WOERTER.de.metaBeschreibung === tabelle["/"]?.beschreibung && GLOBAL_WOERTER.en.metaBeschreibung === tabelle["/"]?.en?.beschreibung, "/: Beschreibung der Seite und der SEO-Tabelle weichen voneinander ab");
+ok(VERKAUF_TEXTE.de.seo.beschreibung === tabelle["/"]?.beschreibung && VERKAUF_TEXTE.en.seo.beschreibung === tabelle["/"]?.en?.beschreibung, "/: Beschreibung der Seite und der SEO-Tabelle weichen voneinander ab");
 // 06.10.2026 (E-293): Das persönliche Angebot mit Bürgschaftszusage steht nie in Meta, SEO-Korpus oder FAQ-Markup —
 // weder auf /business noch auf /business/privatpersonen (Bauplan 3.1: die Pakete sagen „Ihr Ziel“, das Angebot etwas anderes).
 {
@@ -361,11 +371,13 @@ ok(GLOBAL_WOERTER.de.metaBeschreibung === tabelle["/"]?.beschreibung && GLOBAL_W
 for (const sp of ["de", "en"] as const) {
   const e = sp === "de" ? tabelle["/"] : tabelle["/"]?.en;
   const w = GLOBAL_WOERTER[sp];
-  const jb = `${GLOBAL_JAHRESBETREUUNG[sp].titel}: ${GLOBAL_JAHRESBETREUUNG[sp].preisZeile}`;
-  const gezeigt = [w.paketeH2, w.vsH2, w.wissenTitel, w.gespraechH2, w.fragenH2, jb].map((x) => x.replace(/\.$/, ""));
+  // E-509: die Überschriften der neuen Startseite — das eine Produkt und der Konfigurator aus VERKAUF_TEXTE, die übrigen aus dem
+  // Wörterbuch. (Vorher: paketeH2 und die Überschrift des Bands „Jahresbetreuung“.)
+  const v = VERKAUF_TEXTE[sp];
+  const gezeigt = [`${v.produkt.h2a} ${v.produkt.h2b}`, `${v.konfig.h2a} ${v.konfig.h2b}`, w.vsH2, w.wissenTitel, w.gespraechH2, w.fragenH2].map((x) => x.replace(/\.$/, ""));
   for (const a of (e?.abschnitte ?? []) as { h2: string }[]) {
     const h2 = a.h2.replace(/\.$/, "");
-    ok(gezeigt.includes(h2), `SEO /business (${sp}): Abschnitt „${a.h2}“ ist keine Überschrift der Seite (paketeH2, vsH2, wissenTitel, gespraechH2, fragenH2, Jahresbetreuung)`);
+    ok(gezeigt.includes(h2), `SEO /business (${sp}): Abschnitt „${a.h2}“ ist keine Überschrift der Seite (Produkt, Konfigurator, vsH2, wissenTitel, gespraechH2, fragenH2)`);
   }
   ok(((e?.abschnitte ?? []) as unknown[]).length >= 4, `SEO /business (${sp}): weniger als vier Abschnitte im Korpus`);
 }
@@ -386,15 +398,23 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
     ok(/nicht von selbst|does not renew/i.test(j.bedingungen) && /nicht von selbst|does not renew/i.test(j.bandBedingung), `Jahresbetreuung (${sp}): „verlängert sich nicht von selbst" fehlt (Bedingungen oder Band)`);
     ok(j.kurzLeistungen.length === j.leistungen.length, `Jahresbetreuung (${sp}): ${j.kurzLeistungen.length} Ringbeschriftungen für ${j.leistungen.length} Leistungen`);
   }
-  for (const datei of ["client/src/pages/site/business.tsx", "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx"]) {
-    ok(fs.readFileSync(path.join(WURZEL, datei), "utf8").includes("<GlobalJahresbetreuung"), `${datei}: der Block Jahresbetreuung fehlt`);
-  }
+  // E-509 (12.11.2026): Startseite und Unterseiten tragen das Band „Jahresbetreuung“ nicht mehr (sein Text spricht von Paketen).
+  // Die Jahresbetreuung steht mit dem Preis aus der einen Quelle im Preisblatt des Konfigurators und in der Karte „Ein Mandat“.
+  // (Vorher: beide Dateien mussten <GlobalJahresbetreuung> enthalten.)
+  ok(/VERKAUF_PREISE\.jahresCents/.test(fs.readFileSync(path.join(WURZEL, "client/src/components/site/global/VerkaufKonfigurator.tsx"), "utf8")), "VerkaufKonfigurator.tsx: die Jahresbetreuung fehlt im Preisblatt (Preis aus VERKAUF_PREISE)");
+  ok(fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8").includes("<VerkaufKonfigurator") && fs.readFileSync(path.join(WURZEL, "client/src/pages/site/global-seite.tsx"), "utf8").includes("<VerkaufKarte"), "Startseite ohne Konfigurator oder Unterseiten ohne die Karte „Ein Mandat“");
+  // E-509 (12.11.2026): Die Anzeigenseite trägt das Band nicht mehr — sein Text spricht von Paketen („Das erste Jahr steckt
+  // in jedem Paket“). Die Jahresbetreuung steht dort als Zeile mit dem Preis aus der einen Quelle (EIN_PRODUKT.jahres).
+  // (Vorher: global-lp.tsx musste <GlobalJahresbetreuung> enthalten.)
+  ok(/\{P\.jahres\}/.test(fs.readFileSync(path.join(WURZEL, "client/src/pages/site/global-lp.tsx"), "utf8")), "client/src/pages/site/global-lp.tsx: die Jahresbetreuung fehlt (Preis aus EIN_PRODUKT)");
   // Startseite für Privatpersonen: eigene Route vor /business/:slug, jede Tafel führt in den Auftrag als Privatperson.
   const app = fs.readFileSync(path.join(WURZEL, "client/src/App.tsx"), "utf8");
   ok(app.includes(`path="/business/privatpersonen" component={BusinessPrivatPage}`) && app.indexOf(`path="/business/privatpersonen"`) < app.indexOf(`path="/business/:slug"`),
     "App.tsx: /business/privatpersonen führt nicht auf die Startseite für Privatpersonen (oder steht hinter /business/:slug)");
   const hub = fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8");
-  ok(/globalStartPfad\(paket, s, privat \? "privat" : undefined\)/.test(hub), "business.tsx: die Pakete der Privatpersonen-Seite führen nicht in den Auftrag als Privatperson");
+  // E-509: Es gibt einen Weg für alle — den Konfigurator; jeder schließt als Person ab (Vertrag der Fassung C).
+  // (Vorher: jede Pakettafel der Privatpersonen-Seite führte mit art=privat in den Direktkauf.)
+  ok(/zumKonfigurator\("buehne"\)/.test(hub) && /<VerkaufKonfigurator sprache=\{s\} \/>/.test(hub), "business.tsx: die Bühne führt nicht zum Konfigurator");
   ok(globalStartPfad("global_kapital", "de", "privat").endsWith("paket=global_kapital&art=privat"), "globalStartPfad: art=privat fehlt");
   const privatEintrag = GLOBAL_SEITEN.find((x) => x.pfad === "/business/privatpersonen");
   ok(!!privatEintrag && GLOBAL_WOERTER.de.privat.metaTitel === privatEintrag.seo.titel && GLOBAL_WOERTER.de.privat.metaBeschreibung === privatEintrag.seo.beschreibung,
@@ -450,8 +470,9 @@ abschnitt("Kapital auch in Europa (GLOBAL_KAPITAL_FREI)");
   const kurzImKopf = /\{frei\.kurz\}/.test(kopf) || /kapitalFrei: frei\.kurz\b/.test(kopf);
   const fussImKopf = /\{frei\.satz\} \{frei\.steuer\}/.test(kopf) || /fussnote: `\$\{frei\.satz\} \$\{frei\.steuer\}`/.test(kopf);
   ok(/GLOBAL_KAPITAL_FREI\[s\]/.test(hubSeite) && kurzImKopf && fussImKopf, "/business: der Hinweis am Kapitalrahmen oder seine Fußnote (GLOBAL_KAPITAL_FREI) fehlt im Kopf");
-  const tafelnFuss = hubSeite.slice(hubSeite.indexOf('className="fg-paket-fuss"'), hubSeite.indexOf('className="fg-inkl"'));
-  ok(/fg-paket-europa/.test(tafelnFuss) && /\{frei\.satz\} \{frei\.steuer\}/.test(tafelnFuss), "/business: die Zeile unter den Pakettafeln (GLOBAL_KAPITAL_FREI) fehlt");
+  // E-509: Die zweite Stelle (Zeile unter den Pakettafeln) gibt es nicht mehr — die Tafeln sind weg. Der Hinweis steht im Kopf
+  // (oben geprüft) und als Frage in den Fragen der Startseite (i18n/global.ts, wortgleich mit GLOBAL_KAPITAL_FREI).
+  ok(GLOBAL_WOERTER.de.fragen.some((f) => f.f === GLOBAL_KAPITAL_FREI.de.frage && f.a === GLOBAL_KAPITAL_FREI.de.antwort), "/: die Frage „Muss das Kapital in den USA ausgegeben werden?“ (GLOBAL_KAPITAL_FREI) fehlt in den Fragen der Startseite");
   // Die Unterseiten, auf denen Kapital Thema ist, tragen die Frage — von Firmenkarten und Kapital sammelt sie die Fragen-Seite.
   for (const pfad of ["/business/firmenkarten-kapital", "/business/privatpersonen", "/business/bau-immobilien"]) {
     const seite = GLOBAL_SEITEN.find((x) => x.pfad === pfad);
@@ -525,7 +546,7 @@ abschnitt("Englische Unterseiten");
   // Menü: englische Pfade führen auf englische Seiten (oder Anker der englischen Übersicht), Längen passen ins Panel.
   for (const g of globalMenue("en")) for (const m of g.eintraege) {
     const basis = m.pfad.split("#")[0];
-    ok(basis === "/en" || enPfade.has(basis), `Menü (en) „${m.titel}" → ${m.pfad} ist keine englische Seite`);
+    ok(basis === "/en" || basis === "/en/business/start" || enPfade.has(basis), `Menü (en) „${m.titel}" → ${m.pfad} ist keine englische Seite`);
     ok(m.titel.length <= 30 && m.text.length <= 52, `Menü (en) „${m.titel}": Titel oder Zeile zu lang für das Panel`);
     ok(globalWortPruefenEn(`${m.titel}\n${m.text}`).length === 0, `Menü (en) „${m.titel}": ${globalWortPruefenEn(`${m.titel}\n${m.text}`).map((f) => f.hinweis).join("; ")}`);
   }
@@ -596,6 +617,89 @@ abschnitt("Österreich-Seite und Verwechslungs-Schutz (E-454)");
   const llms = llmsTxt();
   ok(llms.includes("Nicht zu verwechseln mit") && llms.includes("Not to be confused with"), "/llms.txt: der Satz „Nicht zu verwechseln mit …“ fehlt (deutsch oder englisch)");
   console.log(`  ${OESTERREICH_SEITEN.length} Österreich-Seiten (Register + HTML, je zwei Bereiche), Klärungssatz auf 6 Seiten und in /llms.txt geprüft`);
+}
+
+// ═══ 13: EIN PRODUKT — KEINE SEITE VERKAUFT MEHR DIE VIER PAKETE (12.11.2026, E-509) ═══════════════
+// Justin: „wir sollten die Pakete weg“. Die vier Pakete (Global Struktur, Banking, Kapital, VIP) bleiben für Bestandskunden im
+// Katalog, stehen aber auf keiner öffentlichen Seite von FIAON Global mehr: nicht im Register (deutsch und englisch), nicht auf
+// den Anzeigenseiten, nicht im Menü, nicht im Vorab-HTML samt Datenblock und nicht in /llms.txt. Der Paket-Finder ist der
+// Konfigurator; seine alten Adressen leiten dauerhaft dorthin.
+abschnitt("E-509: ein Produkt, keine Pakete");
+{
+  const { GLOBAL_SEITEN_EN } = await import("../shared/fiaon-global-seiten");
+  const { GLOBAL_UMGEZOGEN, GLOBAL_EN_PFADE } = await import("../shared/fiaon-global-pfade");
+  const { seitenHtml } = await import("../server/lib/fiaon-seiten-seo");
+  const { llmsTxt } = await import("../server/lib/fiaon-llms");
+  const { EIN_PRODUKT } = await import("../shared/fiaon-global-seiten/ein-produkt");
+  // Alle Texte einer Seite — ohne die Schlüssel, die nur den Baustein benennen (typ „paket“, id „paket“, paket: global_…).
+  const texteVon = (x: unknown, aus: string[] = []): string[] => {
+    if (typeof x === "string") aus.push(x);
+    else if (Array.isArray(x)) for (const y of x) texteVon(y, aus);
+    else if (x && typeof x === "object") for (const [k, v] of Object.entries(x)) if (!["typ", "id", "paket", "pfad", "schwester"].includes(k)) texteVon(v, aus);
+    return aus;
+  };
+  // Die vier Preise aus dem Katalog — nie getippt: „2.499 €“ / „€2,499“ in jeder Schreibweise.
+  const altPreise = PAKETE.filter((p) => ["global_struktur", "global_banking", "global_kapital", "global_vip"].includes(p.key)).map((p) => Math.round(p.preisCents / 100));
+  ok(altPreise.length === 4 && altPreise.every((e) => e >= 1000), `Katalog: die vier Global-Pakete (Struktur, Banking, Kapital, VIP) stehen nicht mehr mit Preis im Katalog (${altPreise.join(", ")}) — Bestandskunden brauchen sie`);
+  const preisMuster = new RegExp(altPreise.map((e) => `(?<![\\d.,])${Math.floor(e / 1000)}[.,\\u202f\\u00a0 ]?${String(e % 1000).padStart(3, "0")}(?!\\d)`).join("|"));
+  const PAKET_WORT = /paket|package/i;
+  const PAKET_NAME = /Global (Struktur|Banking|Kapital|VIP|Structure|Capital)\b|Paket-?Finder|package finder|vier Pakete|four packages|Paketwahl/i;
+  for (const s of [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN, ...LANDINGPAGES] as { pfad: string }[]) {
+    const texte = texteVon(s);
+    const wort = texte.find((t) => PAKET_WORT.test(t));
+    ok(!wort, `${s.pfad}: spricht noch von einem Paket — „${String(wort).slice(0, 110)}“`);
+    const name = texte.find((t) => PAKET_NAME.test(t) || preisMuster.test(t));
+    ok(!name, `${s.pfad}: nennt noch einen Paketnamen oder einen alten Paketpreis — „${String(name).slice(0, 110)}“`);
+  }
+  const menueText = texteVon(GLOBAL_MENUE).join("\n");
+  ok(!PAKET_WORT.test(menueText) && !PAKET_NAME.test(menueText) && !preisMuster.test(menueText), `Menü: spricht noch von Paketen („${menueText.match(PAKET_WORT)?.[0] ?? menueText.match(PAKET_NAME)?.[0] ?? menueText.match(preisMuster)?.[0]}“)`);
+  // Was Suchmaschinen und Assistenten lesen: Vorab-HTML mit Datenblock — für jede Global-Seite, beide Startseiten, Konfigurator und Mustervertrag.
+  const fest = ["/", "/en", "/business/start", "/en/business/start", "/business/mustervertrag", "/en/business/mustervertrag"];
+  for (const pfad of [...fest, ...GLOBAL_SEITEN.map((s) => s.pfad), ...GLOBAL_SEITEN_EN.map((s) => s.pfad), ...LANDINGPAGES.map((l) => l.pfad)]) {
+    const html = (seitenHtml(pfad) ?? "").replace(/<style[\s\S]*?<\/style>/g, " ");
+    ok(html.length > 2000, `${pfad}: kein Vorab-HTML`);
+    const fund = html.match(PAKET_NAME) ?? html.match(preisMuster);
+    ok(!fund, `${pfad}: Vorab-HTML nennt „${fund?.[0]}“ bei „…${fund ? html.slice(Math.max(0, fund.index! - 70), fund.index! + 30).replace(/\s+/g, " ") : ""}…“`);
+    // „Paket“ darf im Vorab-HTML nur in dem einen Satz der Startseite stehen, der es verneint („Keine Pakete, keine Stufen“).
+    const worte = [...html.replace(/Keine Pakete, keine Stufen|No packages, no tiers/g, "").matchAll(/[^<>"]{0,60}(?:Paket|package)[^<>"]{0,40}/gi)].map((m) => m[0]).filter((t) => !/\/og\/business\/|paket=global_/.test(t));
+    ok(worte.length === 0, `${pfad}: Vorab-HTML spricht von einem Paket — „${worte[0]?.replace(/\s+/g, " ").slice(0, 120)}“`);
+  }
+  // /llms.txt: Der Abschnitt über FIAON Global nennt das eine Produkt mit dem einen Preis — und kein Paket. (Die Privatkunden-Linie
+  // darunter hat ihre eigenen Pakete; sie beginnt bei „## FIAON Bonität“.)
+  const llmsGlobal = llmsTxt().split("## FIAON Bonität")[0];
+  const llmsFund = llmsGlobal.match(PAKET_NAME) ?? llmsGlobal.match(preisMuster) ?? llmsGlobal.match(/[^\n]{0,60}(?:Paket|package)[^\n]{0,40}/i);
+  ok(!llmsFund, `/llms.txt (FIAON Global): „${llmsFund?.[0]}“`);
+  ok(llmsGlobal.includes(EIN_PRODUKT.de.preis) && llmsGlobal.includes(EIN_PRODUKT.de.partner), "/llms.txt: der eine Preis oder der Partner-Satz des einen Produkts fehlt");
+  // Titel und Beschreibung der Startseite im Wörterbuch = VERKAUF_TEXTE.seo (vorher stand dort „ab 2.499 €“).
+  ok(GLOBAL_WOERTER.de.metaTitel === VERKAUF_TEXTE.de.seo.titel && GLOBAL_WOERTER.de.metaBeschreibung === VERKAUF_TEXTE.de.seo.beschreibung
+    && GLOBAL_WOERTER.en.metaTitel === VERKAUF_TEXTE.en.seo.titel && GLOBAL_WOERTER.en.metaBeschreibung === VERKAUF_TEXTE.en.seo.beschreibung,
+    "i18n/global.ts: metaTitel/metaBeschreibung der Startseite weichen von VERKAUF_TEXTE.seo ab");
+  // Der Paket-Finder ist der Konfigurator: Die alten Adressen leiten dauerhaft weiter, sind keine Seiten mehr und werden nirgends verlinkt.
+  ok(GLOBAL_UMGEZOGEN["/business/paket-finder"] === "/business/start" && GLOBAL_UMGEZOGEN["/en/business/package-finder"] === "/en/business/start",
+    "GLOBAL_UMGEZOGEN: /business/paket-finder und /en/business/package-finder führen nicht auf den Konfigurator");
+  const alleTexte = JSON.stringify([GLOBAL_SEITEN, GLOBAL_SEITEN_EN, LANDINGPAGES, GLOBAL_MENUE]);
+  for (const [alt, ziel] of Object.entries(GLOBAL_UMGEZOGEN)) {
+    ok(alt === alt.toLowerCase() && !alt.endsWith("/"), `GLOBAL_UMGEZOGEN: Schlüssel ${alt} ist nicht klein geschrieben oder endet auf „/“ (die Route schlägt klein und ohne Schrägstrich nach)`);
+    ok(!seitenPfade.has(alt) && !GLOBAL_SEITEN_EN.some((s) => s.pfad === alt), `${alt}: leitet weiter und steht trotzdem im Register`);
+    ok(!seiteUnbekannt(ziel), `${alt} → ${ziel}: das Ziel kennt der Server nicht (404)`);
+    ok(!alleTexte.includes(`"${alt}"`), `${alt}: wird von einer Seite oder vom Menü noch verlinkt (Weiterlesen, Karte, Verzeichnis)`);
+    ok(!(alt in GLOBAL_EN_PFADE) && !Object.values(GLOBAL_EN_PFADE).includes(alt), `${alt}: steht noch als Sprachpaar in GLOBAL_EN_PFADE`);
+    ok(!seoIndexierbar().some((x: any) => x.pfad === alt), `${alt}: steht noch in der Sitemap`);
+  }
+  const routen = fs.readFileSync(path.join(WURZEL, "server/routes.ts"), "utf8");
+  const tabelleAb = routen.indexOf("const UMGEZOGEN: Record<string, string> = {");
+  const tabelleEnde = routen.indexOf("};", tabelleAb);
+  ok(tabelleAb > -1 && routen.slice(tabelleAb, tabelleEnde).includes("...GLOBAL_UMGEZOGEN") && routen.indexOf("app.get(Object.keys(UMGEZOGEN)") > tabelleEnde
+    && routen.indexOf("app.get(Object.keys(UMGEZOGEN)") < routen.lastIndexOf("app.get('*', async (req, res, next) => {"),
+    "routes.ts: GLOBAL_UMGEZOGEN fehlt in der Tabelle UMGEZOGEN oder die Weiterleitung steht hinter dem Vorrenderer (app.get('*'))");
+  // Auch außerhalb des Registers zeigt kein Baustein mehr auf den Paket-Finder oder auf „Pakete und Preise“.
+  for (const datei of ["client/src/components/GlassNav.tsx", "client/src/components/site/GlobalNav.tsx", "client/src/components/site/GlobalFuss.tsx", "client/src/pages/not-found.tsx",
+    "client/src/pages/site/global-seite.tsx", "client/src/pages/site/global-lp.tsx", "client/src/pages/site/business.tsx", "client/src/pages/site/ratgeber-artikel.tsx", "client/src/pages/site/global-recht.tsx"]) {
+    const ohneKommentar = fs.readFileSync(path.join(WURZEL, datei), "utf8").replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").filter((z) => !/^\s*\/\//.test(z)).join("\n");
+    const fund = ohneKommentar.match(/\/business\/paket-finder(?!")|\/en\/business\/package-finder|href=[^>]{0,40}#pakete|Pakete und Preise|Packages and prices|knopfPakete\}|Pakete ansehen|vier Pakete/);
+    ok(!fund, `${datei}: zeigt noch auf den Paket-Finder oder die Pakete („${fund?.[0]}“)`);
+  }
+  console.log(`  ${GLOBAL_SEITEN.length + GLOBAL_SEITEN_EN.length + LANDINGPAGES.length} Seiten ohne Paket, ${Object.keys(GLOBAL_UMGEZOGEN).length} Weiterleitungen, Vorab-HTML und /llms.txt geprüft`);
 }
 
 // ═══ ERGEBNIS ═══════════════════════════════════════════════════════════════

@@ -10,7 +10,9 @@
 // Seite. Keine der drei Gesellschaften ist eine Bank, vergibt oder vermittelt
 // Kredite. Prüfstand: scripts/pruef-global-en.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_ROLLEN, globalPaket } from "../../fiaon-global";
+import { GLOBAL_ROLLEN } from "../../fiaon-global";
+// E-509 (12.11.2026): ONE product instead of four packages — the partner sentence without “package”.
+import { EIN_PRODUKT } from "../ein-produkt";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FIAON_FIRMA } from "../../fiaon-firma";
@@ -18,7 +20,6 @@ import type { GlobalSeite } from "../typen";
 
 const S = "2026-09-24";
 const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const VIP = globalPaket("global_vip")?.en.name ?? "Global VIP";
 
 export const PARTNER_SEITE_EN: GlobalSeite = {
   pfad: "/en/business/partners",
@@ -59,8 +60,8 @@ export const PARTNER_SEITE_EN: GlobalSeite = {
     {
       typ: "text", id: "netz", h2: "The partner network",
       absaetze: [
-        GLOBAL_ROLLEN.en.partner,
-        "Tax advisers, US CPAs and lawyers act under your own engagement, because only those authorised to do so may answer tax and legal questions. FIAON handles coordination and preparation, and pays the fees for the services in your package.",
+        EIN_PRODUKT.en.partner,
+        "Tax advisers, US CPAs and lawyers act under your own engagement, because only those authorised to do so may answer tax and legal questions. FIAON handles coordination and preparation, and pays the fees for the services in your order.",
       ],
     },
     {
@@ -74,7 +75,7 @@ export const PARTNER_SEITE_EN: GlobalSeite = {
   ],
   fragen: [
     { f: "Who is my contracting party at FIAON Global?", a: `${FIAON_FIRMA.name}, ${FIAON_FIRMA.strasse}, London, registered at ${FIAON_FIRMA.register} under number ${FIAON_FIRMA.companyNo}. Your contract is with this company, and it issues your invoice.` },
-    { f: "What does Schwarzott Group in Miami do?", a: `It is our team on the ground: it attends appointments with authorities and institutions, files documents, collects paperwork and hosts the kick-off of the ${VIP} package.` },
+    { f: "What does Schwarzott Group in Miami do?", a: `It is our team on the ground: it attends appointments with authorities and institutions, files documents, collects paperwork and works in person in Miami with clients whose capital range is US$1 million or more.` },
     { f: "What does Schwarzott Group in Zurich do?", a: "It supports the capital stage with key figures and documents for financing discussions and is the contact for companies from Switzerland. It is an investment and holding group, not a bank." },
     { f: "Are the partners independent of FIAON?", a: "No. Schwarzott Group is connected to FIAON through our founder Justin Schwarzott. We say so openly because it matters for your decision." },
   ],

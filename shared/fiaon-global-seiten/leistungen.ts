@@ -1,23 +1,24 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — DIE LEISTUNGEN (19.09.2026, E-191)
 // Sechs Seiten, je eine Suchfrage: US-Firmengründung, EIN und ITIN,
-// US-Geschäftskonto, Firmenkarten und Kapital, US-Pflichten, Global VIP Miami.
+// US-Geschäftskonto, Firmenkarten und Kapital, US-Pflichten, persönlich in Miami.
 // Preise, Kapitalrahmen und Dauer kommen aus shared/fiaon-global.ts — nie als
 // zweite Zahl hier. Seit 19.09.2026 (Justin): Das Kapital ist nicht an die USA
 // gebunden — die Sätze dazu kommen aus GLOBAL_KAPITAL_FREI, immer mit Institut
 // und Partner-Steuerberater.
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND, GLOBAL_VIP_REISE, GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI,
-  globalPaket, globalPreisText, globalPlanungText, globalKapitalSpanne,
-} from "../fiaon-global";
-import { GLOBAL_UNTERLAGEN } from "../fiaon-global-bereich";
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_LAUFEND, GLOBAL_KAPITAL_FREI } from "../fiaon-global";
+import { VERKAUF_RAHMEN } from "../fiaon-global-verkauf-preise";
 import type { GlobalSeite } from "./typen";
+import { EIN_PRODUKT } from "./ein-produkt";
 
-export const STAND_LEISTUNGEN = "2026-09-19";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — jede Leistung dieser Seiten gehört zum einen Auftrag; Preise nur aus
+// EIN_PRODUKT. Die Seite /business/miami (bis E-509: Global VIP mit Flug und Hotel) sagt jetzt: ab 1 Mio. US-Dollar persönlich.
+export const STAND_LEISTUNGEN = "2026-11-12";
 const S = STAND_LEISTUNGEN;
-const dauer = (k: string) => globalPaket(k)?.de.dauer ?? "";
-const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const P = EIN_PRODUKT.de;
+/** „950.000 US-Dollar“ — bis dahin schließt der Kunde selbst ab (darüber: Miami). */
+const SELBST_MAX = `${VERKAUF_RAHMEN.selbstMaxUsd.toLocaleString("de-DE")} US-Dollar`;
 
 export const LEISTUNGEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -26,28 +27,28 @@ export const LEISTUNGEN: GlobalSeite[] = [
     art: "leistung",
     seo: {
       titel: "US-Firma gründen: LLC oder Corporation — FIAON Global",
-      beschreibung: "Ihre US-Gesellschaft aus Deutschland oder der Schweiz: LLC oder Corporation, EIN, ITIN, Registered Agent und Adresse. Festpreis, alle Gebühren inklusive.",
+      beschreibung: "Ihre US-Gesellschaft aus Deutschland oder der Schweiz: Gründung, EIN, ITIN, Registered Agent und Adresse — in einem Auftrag, erstes Jahr inklusive.",
     },
     stand: S,
     kennung: "FG · 01",
     auge: "Leistung · US-Firmengründung",
     h1: "US-Firmengründung.",
-    h1b: "Mit Team vor Ort, zum Festpreis.",
-    lead: "Wir gründen Ihre LLC oder Corporation in den USA, beantragen EIN und ITIN und stellen Registered Agent, US-Geschäftsadresse und Telefonnummer — aus Deutschland, Österreich oder der Schweiz, ohne dass Sie dafür reisen müssen. Ein Ansprechpartner, ein Vertrag, ein Festpreis.",
+    h1b: "Mit Team vor Ort, in einem Auftrag.",
+    lead: "Wir gründen Ihre Gesellschaft in den USA, beantragen EIN und ITIN und stellen Registered Agent, US-Geschäftsadresse und Telefonnummer — aus Deutschland, Österreich oder der Schweiz, ohne dass Sie dafür reisen müssen. Ein Ansprechpartner, ein Vertrag, ein Auftrag.",
     ziffern: [
-      { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig — alle Gebühren inklusive" },
-      { wert: "rund acht Wochen", label: "Begleitung bei Global Struktur, Erfahrungswert" },
+      { wert: P.preis, label: P.preisLabel },
+      { wert: "wenige Wochen", label: "bis Ihre Gesellschaft steht — Erfahrungswert" },
       { wert: "3 Standorte", label: "London · Zürich · Miami" },
     ],
     blick: [
       ["Rechtsform", "LLC oder Corporation — entschieden vor der Gründung, geprüft durch unseren Partner-Steuerberater"],
       ["Bundesstaat", "Nach Ihrem Vorhaben, Ihren Kunden und Ihren Partnern in den USA"],
       ["Sie brauchen", "Reisepass, Adressnachweis, Namenswunsch, Tätigkeitsbeschreibung — als Unternehmen zusätzlich den Registerauszug"],
-      ["Begleitung", `${dauer("global_struktur")} (Global Struktur)`],
-      ["Festpreis", `ab ${globalPreisText("global_struktur")}, einmalig — Staatsgebühren und Partner-Honorare inklusive`],
+      ["Begleitung", "Im ersten Jahr: US-Büro, Assistenz und Meldungen — und bis zur Finanzierung"],
+      ["Preis", `${P.preis} mit Ihrem Auftrag — Staatsgebühren und Partner-Honorare inklusive; Erfolgshonorar mit der Eintragung`],
       ["Vertragspartner", "FIAON LTD, London · vor Ort: Schwarzott Group, Miami"],
     ],
-    kurz: "Eine US-Gesellschaft lässt sich vollständig aus dem Ausland gründen — ohne Wohnsitz in den USA, ohne Reise und ohne Mindestkapital. FIAON übernimmt Gründung, Steuernummern, Registered Agent, Adresse und Telefonnummer und die Abstimmung mit Anwalt, Steuerberater und US-CPA, zum Festpreis. Steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie tatsächlich geführt wird.",
+    kurz: "Eine US-Gesellschaft lässt sich vollständig aus dem Ausland gründen — ohne Wohnsitz in den USA, ohne Reise und ohne Mindestkapital. FIAON übernimmt Gründung, Steuernummern, Registered Agent, Adresse und Telefonnummer und die Abstimmung mit Anwalt, Steuerberater und US-CPA, in einem Auftrag. Steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie tatsächlich geführt wird.",
     bloecke: [
       {
         typ: "text", id: "was-es-ist", h2: "Was eine US-Gesellschaft ist — und was nicht",
@@ -76,7 +77,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         lead: "Fünf Schritte, eine Reihenfolge. Dauern nennen wir als Erfahrungswerte — Behörden bestimmen ihr eigenes Tempo.",
         etappen: [
           { titel: "Startgespräch und Prüfung", dauer: "in der ersten Woche", text: "Ihr Ansprechpartner klärt Vorhaben, Rechtsform und Bundesstaat. Unser Partner-Steuerberater prüft vor der Gründung, wie die Gesellschaft in Ihrem Heimatland behandelt wird und welche Meldungen dort anfallen." },
-          { titel: "Unterlagen und Name", dauer: "sobald alles vorliegt", text: `Sie laden fünf Unterlagen in Ihren Dokumentenraum: ${GLOBAL_UNTERLAGEN.join(", ")}. Der Bundesstaat vergibt jeden Namen nur einmal — deshalb drei Varianten.` },
+          { titel: "Reisepass und Name", dauer: "sobald beides vorliegt", text: "Sie laden Ihren Reisepass hoch und wählen den Namen Ihrer Gesellschaft, dazu zwei Ausweichnamen. Der Bundesstaat vergibt jeden Namen nur einmal." },
           { titel: "Gründung und Operating Agreement", dauer: "in der Regel wenige Wochen", text: "Unser Team vor Ort reicht die Gründung beim Bundesstaat ein, stellt Registered Agent, US-Geschäftsadresse und Telefonnummer. Unser Partner-Anwalt setzt das Operating Agreement auf." },
           { titel: "EIN und ITIN", dauer: "je nach IRS", text: "Wir bereiten die Anträge vor und reichen sie ein. Die EIN erhält Ihre Gesellschaft, die ITIN Sie persönlich — beide vergibt die US-Steuerbehörde IRS in eigener Frist." },
           { titel: "Konto, Karte und Pflichtenkalender", dauer: "mit vollständigen Dokumenten", text: "Wir bereiten den ersten Konto- und Kartenantrag vollständig vor und tragen alle Fristen Ihrer Gesellschaft in den Pflichtenkalender ein. Die erste jährliche US-Meldung erstellt unser US-CPA." },
@@ -90,24 +91,24 @@ export const LEISTUNGEN: GlobalSeite[] = [
         sie: ["fünf Unterlagen hochladen", "Rechtsform und Namen entscheiden", "Anträge unterschreiben", "Ihre Gesellschaft im Heimatland melden — mit Ihrem Steuerberater"],
       },
       {
-        typ: "text", id: "inklusive", h2: "Was im Festpreis enthalten ist",
-        absaetze: ["Sie zahlen einen Preis. Wir bezahlen alle, die für Ihre Gesellschaft arbeiten:"],
-        punkte: [...GLOBAL_INKLUSIVE.de],
+        typ: "text", id: "inklusive", h2: "Was im Preis enthalten ist",
+        absaetze: ["Sie zahlen einen Preis. Die Honorare unserer Partner für die Leistungen Ihres Auftrags tragen wir:"],
+        punkte: [...P.enthalten],
         nach: GLOBAL_LAUFEND.de,
       },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie vor der Gründung wissen müssen",
-        punkte: [...GLOBAL_PFLICHTHINWEIS.de, `${GLOBAL_GELD_ZURUECK.de.titel}: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`],
+        punkte: [...GLOBAL_PFLICHTHINWEIS.de, P.geldZurueck],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung, Steuernummern und der erste Konto- und Kartenantrag — alles, was eine US-Gesellschaft zum Start braucht.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Drei Standorte, ein Vertrag", lead: "Ihr Vertragspartner sitzt in London, die Partner in Zürich und Miami." },
     ],
     fragen: [
       { f: "Kann ich eine US-Firma gründen, ohne in den USA zu wohnen?", a: "Ja. Für die Gründung einer LLC oder Corporation brauchen Sie weder einen Wohnsitz noch eine Staatsbürgerschaft in den USA. Die gesetzlich vorgeschriebene Anschrift im Bundesstaat stellt der Registered Agent, die Geschäftsadresse und Telefonnummer stellen wir." },
-      { f: "Muss ich für die Gründung in die USA reisen?", a: "Nein. Unser Team vor Ort reicht ein und nimmt Termine wahr; Sie unterschreiben digital. Wer den Auftakt persönlich erleben möchte, wählt das Paket Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis enthalten." },
+      { f: "Muss ich für die Gründung in die USA reisen?", a: "Nein. Unser Team vor Ort reicht ein und nimmt Termine wahr; Sie unterschreiben online. Ab einem Kapitalrahmen von 1 Mio. US-Dollar treffen wir Sie persönlich in Miami." },
       { f: "LLC oder Corporation — was passt zu mir?", a: "Für Handel, Dienstleistung und den Aufbau einer eigenen Kartenhistorie ist die LLC meist die einfachere Form. Eine Corporation passt, wenn Investoren einsteigen oder Mitarbeiter Anteile erhalten sollen. Unser Partner-Steuerberater prüft das vor der Gründung für Ihren Fall." },
-      { f: "Wie lange dauert eine US-Firmengründung?", a: `Die Gesellschaft selbst steht in der Regel nach wenigen Wochen. Die Begleitung im Paket Global Struktur dauert als Erfahrungswert rund acht Wochen, weil EIN und ITIN von der US-Steuerbehörde abhängen, die ihre Fristen selbst bestimmt.` },
-      { f: "Was kostet eine US-Firmengründung bei FIAON?", a: `Das Paket Global Struktur kostet ${globalPreisText("global_struktur")} einmalig — staatliche Gebühren, Registered Agent, Adresse und Telefon im ersten Jahr, die Honorare von Partner-Anwalt, Partner-Steuerberater und US-CPA inklusive. Ab dem zweiten Jahr fallen die laufenden Kosten der Gesellschaft an; die Aufstellung steht auf der Seite „Kosten“.` },
+      { f: "Wie lange dauert eine US-Firmengründung?", a: "Die Gesellschaft selbst steht in der Regel nach wenigen Wochen. EIN und ITIN hängen von der US-Steuerbehörde ab, die ihre Fristen selbst bestimmt." },
+      { f: "Was kostet eine US-Firmengründung bei FIAON?", a: `${P.preisSatzKurz} Ab dem zweiten Jahr fallen die laufenden Kosten der Gesellschaft an; die Aufstellung steht auf der Seite „Kosten“.` },
       { f: "Ist eine US-Gesellschaft ein Steuermodell?", a: `Nein. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie in der Regel dort steuerpflichtig, und in den USA kommen jährliche Meldepflichten hinzu. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA und für den Aufbau von Kapital — nicht als Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     paket: "global_struktur",
@@ -133,7 +134,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     h1b: "Die zwei Nummern, ohne die nichts läuft.",
     lead: "Die EIN ist die Steuernummer Ihrer US-Gesellschaft, die ITIN Ihre persönliche US-Steuernummer. Ohne EIN gibt es kein Geschäftskonto und keine US-Meldung, ohne ITIN in der Regel keine persönliche Kredithistorie in den USA. Wir bereiten beide Anträge vor und reichen sie ein.",
     ziffern: [
-      { wert: "in jedem Paket", label: "EIN und ITIN: Anträge vorbereitet und eingereicht" },
+      { wert: "enthalten", label: "EIN und ITIN: Anträge vorbereitet und eingereicht" },
       { wert: "ohne SSN", label: "Die EIN braucht keine US-Sozialversicherungsnummer" },
       { wert: "IRS", label: "Beide Nummern vergibt die US-Steuerbehörde" },
     ],
@@ -143,7 +144,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Voraussetzung ITIN", "Ein steuerlicher Grund, den die IRS anerkennt — wir prüfen ihn vor dem Antrag"],
       ["Ihr Pass", "Prüfung durch unseren zertifizierten Acceptance-Agent-Partner im DACH-Raum — persönlich oder im Videotermin"],
       ["Dauer laut IRS", "EIN per Fax etwa vier Werktage · ITIN sieben, aus dem Ausland neun bis elf Wochen"],
-      ["Im Paket", "Ab Global Struktur, ohne Aufpreis"],
+      ["Im Auftrag", "Enthalten, ohne Aufpreis"],
     ],
     kurz: "Die EIN (Employer Identification Number) erhält Ihre Gesellschaft von der US-Steuerbehörde IRS — kostenlos und ohne US-Sozialversicherungsnummer. Die ITIN (Individual Taxpayer Identification Number) erhalten Sie persönlich, wenn ein steuerlicher Grund vorliegt; beantragt wird sie mit Formular W-7 und einem geprüften Pass. FIAON bereitet beide Anträge vor und reicht sie ein; entscheiden tut die IRS.",
     bloecke: [
@@ -194,11 +195,11 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "Eine ITIN ist keine Kreditkarte und kein Rahmen. Sie ist eine Voraussetzung, damit ein Herausgeber Sie überhaupt prüfen kann.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "EIN und ITIN sind in jedem Paket enthalten — ab Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "EIN und ITIN sind in Ihrem Auftrag enthalten.", paket: "global_struktur" },
     ],
     fragen: [
       { f: "Brauche ich eine US-Sozialversicherungsnummer für die EIN?", a: "Nein. Gesellschafter ohne US-Steuernummer beantragen die EIN schriftlich mit Formular SS-4. Das Online-Verfahren der IRS steht nur Antragstellern mit US-Steuernummer offen." },
-      { f: "Was kostet die EIN bei der IRS?", a: "Nichts. Die IRS erhebt für die EIN keine Gebühr. Bei FIAON Global sind Vorbereitung und Einreichung im Festpreis jedes Pakets enthalten." },
+      { f: "Was kostet die EIN bei der IRS?", a: "Nichts. Die IRS erhebt für die EIN keine Gebühr. Bei FIAON Global sind Vorbereitung und Einreichung in Ihrem Auftrag enthalten." },
       { f: "Wozu brauche ich eine ITIN?", a: "Für persönliche Steuerpflichten in den USA — und damit ein US-Herausgeber Sie als Person prüfen kann, wenn Sie für eine Firmenkarte persönlich haften. Die IRS vergibt die ITIN nur mit einem steuerlichen Grund." },
       { f: "Bekomme ich mit der ITIN automatisch eine Kreditkarte?", a: "Nein. Die ITIN ist eine Steuernummer. Ob ein Herausgeber eine Karte ausgibt und mit welchem Rahmen, entscheidet er selbst nach seinen Regeln." },
       { f: "Muss ich meinen Pass in die USA schicken?", a: "Nein. Unser zertifizierter Acceptance-Agent-Partner im DACH-Raum prüft Ihren Pass persönlich oder im Videotermin und reicht den Antrag ein." },
@@ -229,7 +230,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     h1b: "Vorbereitet, bevor das Institut fragt.",
     lead: "Ein US-Konto für Ihre Gesellschaft steht und fällt mit den Unterlagen. Wir stellen sie vollständig zusammen, bereiten den Antrag vor und begleiten jede Rückfrage des Instituts — online oder, wo nötig, mit unserem Team vor Ort.",
     ziffern: [
-      { wert: "in jedem Paket", label: "Erster Konto- und Kartenantrag vollständig vorbereitet" },
+      { wert: "enthalten", label: "Konto- und Kartenanträge vollständig vorbereitet" },
       { wert: "keine Vollmacht", label: "FIAON hat nie Zugriff auf Ihr Konto" },
       { wert: "Miami", label: "Termine vor Ort mit unserem Team, wo ein Institut sie verlangt" },
     ],
@@ -239,7 +240,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Wie", "Online oder mit einem Termin vor Ort, je nach Institut"],
       ["FIAON", "Unterlagen, Antrag, Rückfragen, Termine — keine Vollmacht über Ihr Geld"],
       ["Entscheidung", "Allein das Institut, nach eigenen Regeln"],
-      ["Im Paket", "Ab Global Struktur: der erste Antrag · ab Global Banking: jeder weitere"],
+      ["Im Auftrag", "Privates Konto, Geschäftskonto und Karten: jeder Antrag vorbereitet"],
     ],
     kurz: "Eine US-Gesellschaft kann ein Geschäftskonto in den USA eröffnen, wenn sie eingetragen ist und eine EIN hat. Institute verlangen dafür Gründungsunterlagen, die EIN-Bestätigung, das Operating Agreement, Ausweise der Gesellschafter und eine nachvollziehbare Beschreibung des Geschäfts. FIAON bereitet diese Unterlagen und den Antrag vollständig vor; ob und zu welchen Bedingungen ein Konto eröffnet wird, entscheidet das Institut.",
     bloecke: [
@@ -259,7 +260,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         typ: "karten", id: "wege", h2: "Online oder vor Ort", spalten: 2,
         karten: [
           { tag: "Online", titel: "Eröffnung aus der Ferne", text: "Viele Institute eröffnen Konten für Gesellschaften mit Gesellschaftern im Ausland vollständig online. Wir bereiten den Antrag so vor, dass Rückfragen die Ausnahme bleiben." },
-          { tag: "Vor Ort", titel: "Termin in der Filiale", text: "Manche Institute verlangen einen persönlichen Termin. Dann begleitet Sie unser Team in Miami — im Paket Global VIP als fester Teil des Auftakts." },
+          { tag: "Vor Ort", titel: "Termin in der Filiale", text: "Manche Institute verlangen einen persönlichen Termin. Dann planen wir ihn rechtzeitig mit Ihnen und begleiten Sie vor Ort." },
         ],
       },
       {
@@ -281,7 +282,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "Kontoinhaber ist Ihre Gesellschaft. FIAON erhält keine Vollmacht über Ihr Konto und nimmt nie Geld für Sie entgegen.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Der erste Konto- und Kartenantrag ist in jedem Paket enthalten. Weitere Anträge begleitet Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Konto- und Kartenanträge sind in Ihrem Auftrag enthalten — jeder vollständig vorbereitet.", paket: "global_banking" },
     ],
     fragen: [
       { f: "Kann ich als Deutscher ein US-Geschäftskonto eröffnen?", a: "Ja — für Ihre US-Gesellschaft. Voraussetzung sind eine eingetragene Gesellschaft, eine EIN und vollständige Unterlagen. Ob ein Institut das Konto eröffnet, entscheidet es selbst." },
@@ -309,15 +310,15 @@ export const LEISTUNGEN: GlobalSeite[] = [
     h1b: "Schritt für Schritt aufgebaut.",
     lead: "Kapital bei US-Instituten wächst nicht über einen Antrag, sondern über eine Historie: die erste Firmenkarte, pünktliche Abrechnung, weitere Herausgeber in einer klugen Reihenfolge — und später ein mögliches Bankdarlehen. Wir planen die Reihenfolge und bereiten jeden Antrag vor.",
     ziffern: [
-      { wert: globalKapitalSpanne(), label: "Kapitalrahmen je Paket — Ihr Ziel, über jeden Rahmen entscheidet das Institut" },
+      { wert: P.rahmenKurz, label: "Kapitalrahmen, den Sie selbst wählen — über die Finanzierung entscheidet das Institut" },
       { wert: "vier Etappen", label: "Gründung, erste Karte, Kartenleiter, Bankdarlehen" },
       { wert: "Zürich", label: "Kapital-Etappe mit der Schwarzott Group" },
     ],
     blick: [
-      ["Kapitalrahmen", `${globalKapitalSpanne()} — je nach Paket, als Ziel`],
+      ["Kapitalrahmen", `${P.rahmen} — Sie wählen ihn selbst`],
       ["Erste Karte", "Meist kleiner Rahmen, ohne Bareinlage, mit persönlicher Haftung des Inhabers"],
       ["Kartenleiter", "Weitere Herausgeber nach einigen Monaten pünktlicher Abrechnung"],
-      ["Bankdarlehen", "Mit gewachsener Historie — Kennzahlen-Mappe ab Global Kapital"],
+      ["Finanzierung", "Mit der Bürgschaft unserer US-Partnergesellschaft — über die Finanzierung entscheidet das finanzierende Institut"],
       ["Verwendung", `${GLOBAL_KAPITAL_FREI.de.kurz} — die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
       ["FIAON", "Plant, bereitet vor, begleitet — vergibt und vermittelt keine Kredite"],
       ["Entscheidung", "Allein das jeweilige Institut"],
@@ -335,12 +336,12 @@ export const LEISTUNGEN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "tabelle", id: "kapitalrahmen", h2: "Der Kapitalrahmen je Paket",
-        lead: "Der Kapitalrahmen ist das Ziel, das Sie anstreben. Danach richten sich Dauer und Tiefe unserer Begleitung — er ist kein Ergebnis, das FIAON zusagen kann.",
-        kopf: ["Paket", "Kapitalrahmen", "Begleitung", "Festpreis"],
-        zeilen: (["global_struktur", "global_banking", "global_kapital", "global_vip"] as const).map((k) => [
-          globalPaket(k)!.de.name, globalPlanungText(k), gross(globalPaket(k)!.de.dauerKurz), globalPreisText(k),
-        ]),
+        typ: "tabelle", id: "kapitalrahmen", h2: "Ihr Kapitalrahmen",
+        lead: "Der Kapitalrahmen ist das Ziel, das Sie selbst wählen. Danach richtet sich unsere Begleitung — er ist kein Ergebnis, das FIAON zusagen kann.",
+        kopf: ["Kapitalrahmen", "Wie es läuft", "Abschluss"],
+        zeilen: [
+          [`${P.rahmenAb} bis ${SELBST_MAX}`, "aus der Ferne", "online, im Konfigurator"], [`ab ${P.rahmenEnde}`, "persönlich in Miami", "nach unserem Gespräch"],
+        ],
         hervor: 1,
         fuss: ["Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut."],
       },
@@ -376,16 +377,16 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest und kann sie ändern.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Kapital begleitet über mehrere Herausgeber bis zum Bankdarlehen — mit Kennzahlen-Mappe und Vorrang bei Terminen vor Ort.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       { typ: "standorte", id: "standorte", h2: "Die Kapital-Etappe", lead: "Die Schwarzott Group in Zürich begleitet die Kapital-Etappe: Kennzahlen und Unterlagen für Finanzierungsgespräche." },
     ],
     fragen: [
-      { f: "Wie hoch wird mein Kartenrahmen?", a: "Das entscheidet der Herausgeber nach seinen Regeln. Der Kapitalrahmen je Paket ist Ihr Ziel und richtet unsere Begleitung aus — er ist keine Zusage." },
+      { f: "Wie hoch wird mein Kartenrahmen?", a: "Das entscheidet der Herausgeber nach seinen Regeln. Der Kapitalrahmen, den Sie wählen, ist Ihr Ziel und richtet unsere Begleitung aus — er ist keine Zusage." },
       { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
       { f: "Brauche ich eine Sicherheit für die erste Firmenkarte?", a: "Die erste Karte gibt es meist ohne Bareinlage, aber mit persönlicher Haftung des Inhabers. Die Haftung ist die Absicherung des Herausgebers." },
       { f: "Vermittelt FIAON Kredite?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite und vermittelt keine. Wir planen die Reihenfolge, bereiten Anträge und Unterlagen vor und begleiten Sie; entscheiden tut das Institut." },
-      { f: `Was bedeutet „${globalPlanungText("global_vip")}“ beim Paket Global VIP?`, a: "Es ist die Obergrenze des Kapitalrahmens, den dieses Paket begleitet — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut." },
-      { f: "Wie lange dauert der Aufbau?", a: `Als Erfahrungswert: ${dauer("global_struktur")} bei Global Struktur, ${dauer("global_banking").replace("Begleitung in der Regel ", "")} bei Global Banking, ${dauer("global_kapital").replace("Begleitung in der Regel ", "")} bei Global Kapital. Wie schnell es geht, bestimmen die Institute und Ihre pünktliche Abrechnung.` },
+      { f: "Wie groß kann der Kapitalrahmen sein?", a: P.rahmenSatz },
+      { f: "Wie lange dauert der Aufbau?", a: "Die Gesellschaft steht in der Regel nach wenigen Wochen; Konto, Karten und Finanzierung folgen der Prüfung der Institute. Wie schnell es geht, bestimmen die Institute und Ihre pünktliche Abrechnung." },
     ],
     paket: "global_kapital",
     weiter: ["/business/wissen/us-firmenkarte-beantragen", "/business/wissen/business-credit-usa", "/business/wissen/us-bonitaet-aufbauen", "/business/wissen/us-funding"],
@@ -408,25 +409,25 @@ export const LEISTUNGEN: GlobalSeite[] = [
     ziffern: [
       { wert: "Form 5472", label: "mit Form 1120 — jährlich, auch ohne Umsatz" },
       { wert: "15. April", label: "Frist der IRS für Gesellschaften mit Kalenderjahr" },
-      { wert: "im Paket", label: "Erste jährliche US-Meldung durch unseren US-CPA" },
+      { wert: "enthalten", label: "Erste jährliche US-Meldung durch unseren US-CPA" },
     ],
     blick: [
       ["IRS", "Form 5472 mit Form 1120 für Gesellschaften mit ausländischem Gesellschafter"],
       ["Bundesstaat", "Jahresmeldung oder Jahresgebühr, je nach Staat mit eigener Frist"],
       ["Registered Agent", "Jährlich — ohne ihn keine gültige Anschrift im Bundesstaat"],
       ["Heimatland", "Meldung der Beteiligung und Steuererklärung — mit Ihrem Steuerberater"],
-      ["Im Paket", "Erste US-Meldung durch US-CPA · Pflichtenkalender ab Global Banking"],
-      ["Ab Jahr zwei", "Jahresbetreuung: 699 € im Jahr, alle Gebühren inklusive"],
+      ["Im Auftrag", "Erste US-Meldung durch US-CPA · Pflichtenkalender"],
+      ["Ab Jahr zwei", `Jahresbetreuung: ${P.jahres} im Jahr, alle Gebühren inklusive`],
     ],
-    kurz: "Eine US-Gesellschaft mit einem ausländischen Gesellschafter muss der IRS jedes Jahr Form 5472 zusammen mit Form 1120 übermitteln — auch ohne Umsatz. Dazu kommen die Jahresmeldung oder Jahresgebühr des Bundesstaats und der Registered Agent. Im Heimatland ist die Beteiligung zu melden und die Gesellschaft in der Regel dort zu versteuern. FIAON führt den Pflichtenkalender; die erste jährliche US-Meldung erstellt unser US-CPA im Festpreis.",
+    kurz: "Eine US-Gesellschaft mit einem ausländischen Gesellschafter muss der IRS jedes Jahr Form 5472 zusammen mit Form 1120 übermitteln — auch ohne Umsatz. Dazu kommen die Jahresmeldung oder Jahresgebühr des Bundesstaats und der Registered Agent. Im Heimatland ist die Beteiligung zu melden und die Gesellschaft in der Regel dort zu versteuern. FIAON führt den Pflichtenkalender; die erste jährliche US-Meldung erstellt unser US-CPA, im Preis enthalten.",
     bloecke: [
       {
         typ: "tabelle", id: "kalender", h2: "Die Pflichten einer US-Gesellschaft im Jahr",
         kopf: ["Pflicht", "Bei wem", "Frist", "Wer sie übernimmt"],
         zeilen: [
-          ["Form 5472 mit Form 1120", "IRS, per Fax oder Post", "15. April, mit Form 7004 bis 15. Oktober", "US-CPA (erstes Jahr im Paket)"],
+          ["Form 5472 mit Form 1120", "IRS, per Fax oder Post", "15. April, mit Form 7004 bis 15. Oktober", "US-CPA (erstes Jahr enthalten)"],
           ["Jahresmeldung oder Jahressteuer", "Bundesstaat", "Florida 1. Januar bis 1. Mai · Delaware 1. Juni · Wyoming im Gründungsmonat", "FIAON im Pflichtenkalender"],
-          ["Registered Agent", "Bundesstaat", "jährlich", "im ersten Jahr im Paket"],
+          ["Registered Agent", "Bundesstaat", "jährlich", "im ersten Jahr enthalten"],
           ["Meldung der Beteiligung (DE: § 138 AO)", "Finanzamt im Heimatland", "mit der Steuererklärung, spätestens 14 Monate nach Jahresende", "Ihr Steuerberater"],
           ["Steuererklärung der Gesellschaft", "Finanzamt im Heimatland", "nach dortigem Recht", "Ihr Steuerberater"],
         ],
@@ -451,17 +452,17 @@ export const LEISTUNGEN: GlobalSeite[] = [
         punkte: [
           "Fristen und Strafen setzen die Behörden, nicht FIAON. Der Pflichtenkalender erinnert rechtzeitig; die Verantwortung für die Gesellschaft bleibt bei Ihnen.",
           GLOBAL_LAUFEND.de,
-          "Die laufende Buchhaltung und die Steuererklärung im Heimatland sind nicht Teil der Pakete; sie übernimmt Ihr Steuerberater.",
+          "Die laufende Buchhaltung und die Steuererklärung im Heimatland sind nicht Teil Ihres Auftrags; sie übernimmt Ihr Steuerberater.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Banking führt den Pflichtenkalender für alle US-Meldungen und Fristen — und begleitet weitere Konto- und Kartenanträge.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Der Pflichtenkalender für alle US-Meldungen und Fristen ist in Ihrem Auftrag enthalten.", paket: "global_banking" },
     ],
     fragen: [
       { f: "Muss ich Form 5472 auch ohne Umsatz abgeben?", a: "Ja. Die Pflicht hängt nicht am Umsatz, sondern daran, dass die Gesellschaft einem ausländischen Gesellschafter gehört und Geschäfte mit ihm meldet — Gründungseinlagen zählen bereits dazu." },
       { f: "Was passiert, wenn ich die Frist verpasse?", a: "Die IRS kann eine Strafe von 25.000 US-Dollar je Formular und Jahr festsetzen, bei fortdauerndem Versäumnis nach einer Aufforderung zusätzliche Beträge. Deshalb steht die Frist im Pflichtenkalender, und die erste Meldung erstellt unser US-CPA." },
-      { f: "Wer erstellt die jährliche US-Meldung?", a: "Im ersten Jahr unser US-CPA — das Honorar ist im Festpreis enthalten. Ab dem zweiten Jahr übernimmt das die Jahresbetreuung für 699 € im Jahr, alle Gebühren inklusive." },
+      { f: "Wer erstellt die jährliche US-Meldung?", a: `Im ersten Jahr unser US-CPA — das Honorar ist im Preis enthalten. Ab dem zweiten Jahr übernimmt das die Jahresbetreuung für ${P.jahres} im Jahr, alle Gebühren inklusive.` },
       { f: "Muss ich die US-Gesellschaft dem Finanzamt melden?", a: "In Deutschland ja, nach § 138 AO zusammen mit der Steuererklärung. In Österreich und der Schweiz gelten eigene Regeln; unser Partner-Steuerberater nennt sie Ihnen vor der Gründung." },
-      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: "Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir all das für 699 € im Jahr, alle Gebühren inklusive; die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“." },
+      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: `Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir all das für ${P.jahres} im Jahr, alle Gebühren inklusive; die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“.` },
     ],
     paket: "global_banking",
     weiter: ["/business/wissen/llc-steuererklaerung", "/business/wissen/form-5472", "/business/wissen/registered-agent-adresse", "/business/aus-deutschland"],
@@ -477,63 +478,63 @@ export const LEISTUNGEN: GlobalSeite[] = [
     pfad: "/business/miami",
     art: "leistung",
     seo: {
-      titel: "Global VIP: Auftakt vor Ort in Miami — FIAON Global",
-      beschreibung: `Ihre US-Gesellschaft mit Auftakt in Miami: Termine bei Behörden und Banken mit unserem Team, Flug und Hotel inklusive. Kapitalrahmen ${globalPlanungText("global_vip")}.`,
+      titel: "Persönlich in Miami: ab 1 Mio. US-Dollar — FIAON Global",
+      beschreibung: "Ab einem Kapitalrahmen von 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami: Termine bei Behörden und Instituten mit unserem Team vor Ort.",
     },
     stand: S,
     kennung: "FG · 06",
-    auge: "Leistung · Global VIP",
-    h1: "Global VIP.",
-    h1b: "Der Auftakt persönlich in Miami.",
-    lead: "Für Unternehmer, die selbst am Tisch sitzen wollen: Ihre US-Gesellschaft mit allem aus Global Kapital — und einem Auftakt vor Ort in Miami, mit Terminen bei Behörden und Banken an der Seite unseres Teams und der Geschäftsführung. Flug und Hotel für den Auftakt sind im Festpreis enthalten.",
+    auge: "Leistung · Miami",
+    h1: "Persönlich in Miami.",
+    h1b: "Ab 1 Mio. US-Dollar Kapitalrahmen.",
+    lead: `Bis ${SELBST_MAX} läuft alles aus der Ferne. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami — mit Terminen bei Behörden und Instituten an der Seite unseres Teams und der Geschäftsführung. Den Termin stimmen wir mit Ihnen ab.`,
     ziffern: [
-      { wert: globalPlanungText("global_vip"), label: "Kapitalrahmen — Ihr Ziel, das Institut entscheidet" },
-      { wert: globalPreisText("global_vip"), label: "Festpreis, einmalig — Flug und Hotel inklusive" },
-      { wert: "Miami", label: "Auftakt mit der Schwarzott Group" },
+      { wert: "ab 1 Mio. US-$", label: "Kapitalrahmen — über die Finanzierung entscheidet das Institut" },
+      { wert: "persönlich", label: "Ihr Termin mit der Geschäftsführung" },
+      { wert: "Miami", label: "mit der Schwarzott Group vor Ort" },
     ],
     blick: [
-      ["Enthalten", "Alles aus Global Kapital — Gründung bis Kennzahlen-Mappe"],
-      ["Vor Ort", "Termine bei Behörden und Banken gemeinsam mit unserem Team"],
+      ["Für wen", "Kapitalrahmen ab 1 Mio. US-Dollar"],
+      ["Vor Ort", "Termine bei Behörden und Instituten gemeinsam mit unserem Team"],
       ["Begleitung", "Durch die Geschäftsführung von FIAON"],
-      ["Reise", "Flug und Hotel für eine von Ihnen benannte Person, gebucht in Ihrem Namen"],
-      ["Kapitalrahmen", `${globalPlanungText("global_vip")} — als Ziel`],
-      ["Festpreis", `${globalPreisText("global_vip")}, einmalig`],
+      ["Ihr Weg dorthin", "Anfrage im Konfigurator — wir melden uns und stimmen den Termin ab"],
+      ["Darunter", `Bis ${SELBST_MAX}: alles aus der Ferne, online unterschrieben`],
+      ["Ihr Angebot", "Erhalten Sie persönlich, nach unserem Gespräch"],
     ],
-    kurz: `Global VIP ist das Paket mit Auftakt vor Ort: Ihre US-Gesellschaft mit allem aus Global Kapital, dazu Termine bei Behörden und Banken in Miami gemeinsam mit unserem Team und der Geschäftsführung. Flug und Hotel für den Auftakt trägt FIAON — gebucht in Ihrem Namen, FIAON verkauft keine Reise. Der Kapitalrahmen dieses Pakets reicht ${globalPlanungText("global_vip")}; über jeden Rahmen entscheidet das Institut.`,
+    kurz: "Ab einem Kapitalrahmen von 1 Mio. US-Dollar begleitet FIAON Global persönlich in Miami: Termine bei Behörden und Instituten gemeinsam mit unserem Team vor Ort und der Geschäftsführung. Darunter läuft alles aus der Ferne, und Sie schließen online ab. Ihre Anfrage stellen Sie im Konfigurator; wir melden uns und stimmen den Termin mit Ihnen ab. Über die Finanzierung entscheidet das finanzierende Institut.",
     bloecke: [
       {
         typ: "text", id: "warum", h2: "Warum vor Ort",
         absaetze: [
-          "Die meisten Gründungen brauchen keine Reise. Wer aber eine größere Struktur aufbaut, mehrere Institute anspricht oder schlicht selbst sehen will, mit wem er arbeitet, gewinnt mit einem Auftakt vor Ort: Gespräche werden kürzer, Rückfragen verschwinden, und Sie lernen die Menschen kennen, die Ihre Gesellschaft in den USA begleiten.",
+          "Die meisten Gründungen brauchen keine Reise. Wer aber einen großen Kapitalrahmen aufbaut, mehrere Institute anspricht oder schlicht selbst sehen will, mit wem er arbeitet, gewinnt mit einem Termin vor Ort: Gespräche werden kürzer, Rückfragen verschwinden, und Sie lernen die Menschen kennen, die Ihre Gesellschaft in den USA begleiten.",
           "Miami ist dafür kein Zufall: Hier sitzt unser Team vor Ort, die Schwarzott Group, und von hier aus werden Termine bei Behörden und Instituten wahrgenommen.",
         ],
       },
       {
-        typ: "etappen", id: "auftakt", h2: "Der Auftakt in vier Schritten",
+        typ: "etappen", id: "auftakt", h2: "Der Weg nach Miami in vier Schritten",
         etappen: [
-          { titel: "Vorbereitung aus der Ferne", text: "Unterlagen, Gründung und Steuernummern laufen wie in jedem Paket. Ihr Ansprechpartner stimmt Reisedaten, Flugklasse und Hotel vor der Buchung mit Ihnen ab." },
-          { titel: "Ankunft in Miami", text: "Flug und Hotel sind gebucht, in Ihrem Namen und auf Kosten von FIAON. Unser Team holt Sie für den ersten Termin ab." },
-          { titel: "Termine vor Ort", text: "Behörden- und Banktermine gemeinsam mit unserem Team, eine Arbeitssitzung zur Kartenleiter und zur Kapital-Etappe mit der Geschäftsführung." },
-          { titel: "Weiter wie Global Kapital", text: "Nach dem Auftakt begleiten wir Sie über mehrere Herausgeber bis zur Kennzahlen-Mappe für ein Bankdarlehen — mit Vorrang bei allen Terminen vor Ort." },
+          { titel: "Anfrage im Konfigurator", text: "Sie stellen den Regler auf 1 Mio. US-Dollar und senden Ihre Anfrage. Wir melden uns bei Ihnen." },
+          { titel: "Gespräch und Angebot", text: "Wir besprechen Ihr Vorhaben und stimmen den Termin ab. Ihr Angebot erhalten Sie persönlich." },
+          { titel: "Termine vor Ort", text: "Behörden- und Institutstermine gemeinsam mit unserem Team, dazu eine Arbeitssitzung mit der Geschäftsführung." },
+          { titel: "Weiter aus der Ferne", text: "Nach dem Termin läuft alles Weitere wie bei jedem Auftrag: Sie steuern jeden Schritt in „Mein Auftrag“." },
         ],
       },
       {
-        typ: "hinweis", id: "reise", h2: "Die Reise — genau geregelt",
+        typ: "hinweis", id: "reise", h2: "Die Reise — klar geregelt",
         punkte: [
-          GLOBAL_VIP_REISE.de,
-          "FIAON ist kein Reiseveranstalter und verkauft keine Reise. FIAON trägt die Kosten einer Geschäftsreise, die im Namen des Auftraggebers gebucht wird.",
-          "Über Konto, Karte, Rahmen und Darlehen entscheidet auch nach einem Termin vor Ort allein das jeweilige Institut.",
+          "Termin, Reise und Ablauf vor Ort stimmen wir vorab mit Ihnen ab.",
+          "FIAON ist kein Reiseveranstalter und verkauft keine Reise.",
+          "Über Konto, Karte, Rahmen und Finanzierung entscheidet auch nach einem Termin vor Ort allein das jeweilige Institut.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das Paket", lead: "Alles aus Global Kapital, der Auftakt in Miami, Begleitung durch die Geschäftsführung.", paket: "global_vip" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_vip" },
       { typ: "standorte", id: "standorte", h2: "Ihr Team in Miami", lead: "Vertragspartner ist die FIAON LTD in London; vor Ort arbeitet die Schwarzott Group." },
     ],
     fragen: [
-      { f: "Wer reist beim Paket Global VIP?", a: "Flug und Hotel für den Auftakt sind für eine von Ihnen benannte Person enthalten. Möchten weitere Personen mitreisen, stimmen wir das vorab gesondert mit Ihnen ab." },
-      { f: "Ist das eine Pauschalreise?", a: "Nein. FIAON trägt die Kosten einer Geschäftsreise, die in Ihrem Namen gebucht wird. FIAON ist kein Reiseveranstalter und verkauft keine Reisen." },
-      { f: "Wann findet der Auftakt statt?", a: "Nach Zahlungseingang und sobald die Unterlagen vollständig sind. Reisedaten, Flugklasse und Hotel stimmen wir mit Ihnen ab, bevor gebucht wird." },
-      { f: `Was bedeutet der Kapitalrahmen ${globalPlanungText("global_vip")}?`, a: `Er ist die Obergrenze des Kapitalrahmens, den dieses Paket begleitet — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
-      { f: "Brauche ich für die Gründung überhaupt eine Reise?", a: "Nein. Jede Gründung bei FIAON Global läuft auch vollständig aus der Ferne. Global VIP ist die Wahl für Unternehmer, die den Aufbau persönlich erleben wollen." },
+      { f: "Ab wann treffen wir uns persönlich?", a: "Ab einem Kapitalrahmen von 1 Mio. US-Dollar. Darunter läuft alles aus der Ferne, und Sie schließen online ab." },
+      { f: "Ist das eine Pauschalreise?", a: "Nein. FIAON ist kein Reiseveranstalter und verkauft keine Reisen. Termin, Reise und Ablauf vor Ort stimmen wir vorab mit Ihnen ab." },
+      { f: "Wann findet der Termin statt?", a: "Nach unserem Gespräch — wir stimmen ihn mit Ihnen ab." },
+      { f: "Was bedeutet der Kapitalrahmen?", a: `Er ist der Rahmen, den Sie für Ihre Gesellschaft wählen — Ihr Ziel, keine Zusage. Über die Finanzierung entscheidet das finanzierende Institut. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
+      { f: "Brauche ich für die Gründung überhaupt eine Reise?", a: `Nein. Bis ${SELBST_MAX} Kapitalrahmen läuft jeder Auftrag vollständig aus der Ferne.` },
     ],
     paket: "global_vip",
     weiter: ["/business/firmenkarten-kapital", "/business/partner", "/business/florida", "/business/kosten"],

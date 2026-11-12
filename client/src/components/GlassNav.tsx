@@ -140,8 +140,9 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
       { href: "/termin", label: "Startgespräch buchen", text: "15 Minuten, ein Mensch – kostenlos", key: "termin" },
     ] },
     { titel: "Für Unternehmen", zusatz: "FIAON Global", art: "gross", eintraege: [
-      { href: "/", label: "Übersicht und Pakete", text: "US-Gesellschaft aus einer Hand, Festpreis", key: "business" },
-      ...globalPunkte(["/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/paket-finder"]),
+      // E-509 (12.11.2026): EIN Produkt statt vier Pakete — der dritte Punkt führt zum Konfigurator (bis E-509: Paket-Finder).
+      { href: "/", label: "Übersicht und Preis", text: "US-Gesellschaft mit aktiver Betreuung", key: "business" },
+      ...globalPunkte(["/business/us-firmengruendung", "/business/firmenkarten-kapital", "/business/start"]),
     ] },
     { titel: "Verstehen", art: "kompakt", eintraege: [
       { href: PRIVAT_START.de, label: "Startseite", text: "", key: "startseite" },
@@ -265,7 +266,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
               <div className="nav-global-kopf">
                 <div>
                   <p className="nav-mega-titel" style={{ margin: 0 }}>FIAON Global</p>
-                  <p className="nav-global-satz">US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alles inklusive.</p>
+                  <p className="nav-global-satz">US-Gesellschaft aus einer Hand — für Unternehmer und Privatpersonen. Ein Auftrag, ein Ansprechpartner.</p>
                 </div>
                 <a href="/" className="nav-global-link">Zur Übersicht<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
               </div>
@@ -283,7 +284,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
               <div className="nav-global-fuss">
                 <span className="orte"><b>London</b> Vertragspartner<i aria-hidden="true">·</i><b>Zürich</b> Kapital-Etappe<i aria-hidden="true">·</i><b>Miami</b> Team vor Ort</span>
                 <span className="tun">
-                  <a href="/business/paket-finder" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Paket-Finder</a>
+                  <a href="/business/start" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Angebot zusammenstellen</a>
                   <a href="/#gespraech" className="nav-mega-knopf" tabIndex={mega ? 0 : -1}>Gespräch vereinbaren</a>
                 </span>
               </div>

@@ -58,10 +58,14 @@
 // die Partner im Mandat (RDG/StBerG), FIAON nennt Wege, Staatsgebühren, Festpreis.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../typen";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft nennen wir den Preis
+// nach der Prüfung in einem persönlichen Angebot (E-506: übernehmen statt neu gründen), darum „Angebot“ statt „Festpreis“.
 import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, STAAT, IRS } from "../fakten";
 
 const S = "2026-10-27";
+const P = EIN_PRODUKT.de;
 const FL = STAAT.florida;
 const WY = STAAT.wyoming;
 const DE = STAAT.delaware;
@@ -93,7 +97,7 @@ export const SEITE: GlobalSeite = {
     titel: "US-LLC auflösen, retten oder übergeben — FIAON Global",
     beschreibung: "Annual Report versäumt, Form 5472 fehlt, Agent gekündigt: wie Sie eine US-LLC reaktivieren, übergeben oder sauber auflösen — mit Primärquellen.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 50",
   auge: "Wissen · Bestehende LLC",
@@ -211,13 +215,13 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihre bestehende LLC",
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für Unternehmer aus Deutschland, Österreich und der Schweiz mit einer US-Gesellschaft. Unser Grundsatz gilt auch für eine Gesellschaft, die anderswo gegründet wurde: ein Ansprechpartner statt acht. Sie geben uns, was Sie haben — Gründungsunterlagen, das Schreiben zur EIN, Post der IRS und des Bundesstaats —, und wir übernehmen die Wege zu Bundesstaat und IRS.",
-        "Zuerst prüfen wir: Status im Register, Registered Agent, offene Jahresberichte und Gebühren, welche Jahre bei der IRS fehlen, an welche Anschrift die IRS schreibt und welche Konten und Plattformen an der Gesellschaft hängen. Das Ergebnis erhalten Sie schriftlich — die Wege, die offenstehen, die Gebühren des Staats und unser Festpreis —, bevor irgendetwas eingereicht wird. Die rechtlichen und steuerlichen Folgen jedes Weges klären Partner-Anwalt und Partner-Steuerberater in Ihrem Mandat.",
-        "Dann holen wir nach. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Wiederherstellung, Wechsel des Registered Agent, nachzuholende Jahresberichte, Änderungen bei der IRS mit Form 8822-B. Die offenen Form 5472 mit Pro-forma-Form 1120 erstellt unser US-CPA in Ihrem Mandat, mit einer Begründung für jedes Jahr; die Folgen zu Hause klärt unser Partner-Steuerberater. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten auf Ihr Mandat, ihre Honorare für die vereinbarten Leistungen sind im Festpreis enthalten.",
+        "Zuerst prüfen wir: Status im Register, Registered Agent, offene Jahresberichte und Gebühren, welche Jahre bei der IRS fehlen, an welche Anschrift die IRS schreibt und welche Konten und Plattformen an der Gesellschaft hängen. Das Ergebnis erhalten Sie schriftlich — die Wege, die offenstehen, die Gebühren des Staats und Ihr Angebot mit dem Preis —, bevor irgendetwas eingereicht wird. Die rechtlichen und steuerlichen Folgen jedes Weges klären Partner-Anwalt und Partner-Steuerberater in Ihrem Mandat.",
+        "Dann holen wir nach. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Wiederherstellung, Wechsel des Registered Agent, nachzuholende Jahresberichte, Änderungen bei der IRS mit Form 8822-B. Die offenen Form 5472 mit Pro-forma-Form 1120 erstellt unser US-CPA in Ihrem Mandat, mit einer Begründung für jedes Jahr; die Folgen zu Hause klärt unser Partner-Steuerberater. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten auf Ihr Mandat, ihre Honorare für die vereinbarten Leistungen sind in Ihrem Angebot enthalten.",
         "Soll die Gesellschaft gehen, lösen wir sie sauber auf: Abwicklung nach Plan, Auflösung beim Staat — erst auf Ihre Weisung in Textform —, Schlusserklärung bei der IRS und der Brief zum Konto der EIN. Konten bei Banken und Zahlungsplattformen schließen Sie selbst; wir bereiten jeden Schritt dafür vor. Jedes Dokument und jedes Schreiben der Behörden liegt danach in Ihrem Dokumentenraum.",
         "Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami nimmt Termine für Sie wahr, Zürich ist unser Partnerstandort. Soll die Gesellschaft weiterlaufen, halten wir auf Wunsch jedes Jahr Fristen und Meldungen im Blick — über die Jahresbetreuung, freiwillig und ohne automatische Verlängerung.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "Neu beginnen, sauber aufgestellt", lead: "Wer nach der Bereinigung neu gründen will: Gesellschaft, EIN, Vorbereitung der ITIN, Registered Agent, US-Adresse und US-Telefon im ersten Jahr und die erste jährliche US-Meldung durch unseren US-CPA — Global Struktur.", paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "Neu beginnen, sauber aufgestellt", lead: `Wer nach der Bereinigung neu gründen will: ${P.karteLead}`, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
@@ -239,7 +243,7 @@ export const SEITE: GlobalSeite = {
     { f: "Muss ich die EIN löschen lassen, wenn ich die LLC auflöse?", a: "Die EIN bleibt nach den Worten der IRS die dauerhafte Steuernummer der Gesellschaft. Geschlossen wird ihr Konto bei der IRS: per Brief mit Name, EIN, Anschrift und Grund an die IRS in Cincinnati. Das geht erst, wenn alle Erklärungen vorliegen und alle Steuern beglichen sind." },
     { f: "Mein Registered Agent hat gekündigt — was nun?", a: "Rasch einen neuen Agent benennen. In Florida endet das Amt des alten Agent am 31. Tag nach Eintragung seines Rücktritts; ohne Agent droht die Auflösung von Amts wegen. In Delaware wird die LLC gelöscht, wenn nicht binnen dreißig Tagen ein Nachfolger eingetragen ist. Der neue Agent nimmt das Amt schriftlich an, die Gesellschaft meldet den Wechsel beim Staat." },
     { f: "Was muss ich in Deutschland melden, wenn ich die LLC auflöse?", a: "Das hängt von der Einordnung ab. Die Aufgabe einer Beteiligung an einer ausländischen Personengesellschaft ist nach § 138 Abs. 2 AO mitzuteilen, ebenso die Veräußerung einer Beteiligung an einer ausländischen Körperschaft ab den gesetzlichen Schwellen — mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres. Die steuerlichen Folgen klärt der Partner-Steuerberater vorab." },
-    { f: "Übernimmt FIAON Global auch eine LLC, die woanders gegründet wurde?", a: "Ja. Wir prüfen zuerst Register, Registered Agent und den Stand bei der IRS und nennen Ihnen schriftlich die Wege und einen Festpreis. Danach stellen wir mit Ihrer Vollmacht die Anträge, unser US-CPA holt offene Meldungen in Ihrem Mandat nach, und eine Auflösung reichen wir erst auf Ihre Weisung in Textform ein." },
+    { f: "Übernimmt FIAON Global auch eine LLC, die woanders gegründet wurde?", a: "Ja. Wir prüfen zuerst Register, Registered Agent und den Stand bei der IRS und nennen Ihnen schriftlich die Wege und Ihr Angebot mit dem Preis. Danach stellen wir mit Ihrer Vollmacht die Anträge, unser US-CPA holt offene Meldungen in Ihrem Mandat nach, und eine Auflösung reichen wir erst auf Ihre Weisung in Textform ein." },
   ],
   paket: "global_struktur",
   weiter: ["/business/wissen/form-5472", "/business/wissen/registered-agent-adresse", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/wissen/nachteile-us-llc"],

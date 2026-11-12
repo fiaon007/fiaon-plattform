@@ -24,6 +24,7 @@ import { requireAdmin } from "./middleware/admin";
 import { getKnowledgeDigest } from "./knowledge/context-builder";
 import { checkCallLimit, checkMessageLimit } from "./middleware/usage-limits";
 import { setupSimpleAuth } from "./simple-auth";
+import { GLOBAL_UMGEZOGEN } from "@shared/fiaon-global-pfade";
 import { setupTranslationRoute } from "./translate-route";
 
 const scryptAsync = promisify(scrypt);
@@ -1147,6 +1148,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     '/terms': '/agb',
     // 27.10.2026 (E-439): /about lieferte die Bonitäts-Hülle mit 200 (Soft-404) — KI-Crawler fragen genau dort nach.
     '/about': '/ueber-uns',
+    // E-509 (12.11.2026): Der Paket-Finder ist der Konfigurator — /business/paket-finder und /en/business/package-finder
+    // ziehen dauerhaft auf /business/start und /en/business/start (eine Quelle: shared/fiaon-global-pfade.ts).
+    ...GLOBAL_UMGEZOGEN,
   };
   // 29.10.2026 (E-461): auch /business//, /en/business/// (doppelte Schrägstriche) gehen per 301 auf die Startseite —
   // die Route oben trifft nur /business und /business/; vorher kam dort die nackte App-Hülle mit index,follow (Gegenprüfung).

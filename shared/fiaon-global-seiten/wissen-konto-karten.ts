@@ -6,7 +6,7 @@
 // Hier ist die Wortwand am engsten: Es geht um Geld, Karten und Rahmen. Deshalb
 // steht in jedem Beitrag, wer entscheidet (das Institut, der Herausgeber), was
 // der Inhaber unterschreibt (persönliche Haftung) und was FIAON NICHT tut
-// (keine Bank, keine Kredite, keine Vermittlung, kein Honorar nach Rahmen).
+// (keine Bank, keine Kredite, keine Vermittlung; seit E-509 EIN Produkt — der Preis steht vor der Unterschrift fest).
 // Der Fall FTC v. Seek Capital (17.11.2025) steht mit Quelle da — als Maßstab,
 // an dem sich jeder Anbieter messen lassen muss, auch FIAON.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,11 +114,11 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "So bringt FIAON Global Ihr Konto auf den Weg",
         absaetze: [
           "Bei FIAON Global beginnt der Kontoantrag nicht mit einem Formular, sondern mit Ihrem Geschäft. Wir schreiben die Geschäftsbeschreibung mit Ihnen, stellen alle Unterlagen mit identischen Angaben zusammen, wählen das Institut nach Ihrem Vorhaben und bereiten den Antrag vollständig vor. Rückfragen des Instituts begleiten wir; verlangt ein Institut einen Termin vor Ort, geht unser Team in Miami mit Ihnen hin.",
-          "Das Konto ist der Anfang der Kartenleiter: Mit Global Banking planen wir danach die Reihenfolge weiterer Herausgeber und bereiten jeden Antrag vor.",
+          "Das Konto ist der Anfang der Kartenleiter: Danach planen wir die Reihenfolge weiterer Herausgeber und bereiten jeden Antrag vor.",
           GLOBAL_ROLLEN.de.fiaon,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Konto und Kartenleiter im Paket", lead: "Vom ersten Kontoantrag bis zur geplanten Reihenfolge weiterer Herausgeber — Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Konto und Karten in Ihrem Auftrag", lead: "Vom ersten Kontoantrag bis zur geplanten Reihenfolge weiterer Herausgeber — in einem Auftrag.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -241,7 +241,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
           "Über jeden Rahmen entscheidet der Herausgeber. Unsere Aufgabe ist, dass er Ihre Anträge vollständig, widerspruchsfrei und zum richtigen Zeitpunkt sieht.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die Kartenleiter im Paket", lead: "Gesellschaft, Steuernummern, erste Karte und die geplante Reihenfolge weiterer Herausgeber — Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die Kartenleiter in Ihrem Auftrag", lead: "Gesellschaft, Steuernummern, erste Karte und die geplante Reihenfolge weiterer Herausgeber — in einem Auftrag.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -352,11 +352,11 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "So baut FIAON Global die Historie Ihrer Gesellschaft auf",
         absaetze: [
           "Die Historie einer Gesellschaft lässt sich nicht kaufen — aber planen. FIAON Global legt die Grundlage schon bei der Gründung: identische Stammdaten in allen Registern und Anträgen, EIN, US-Adresse und Telefonnummer, ein Konto, das zum Geschäft passt. Danach planen wir die Reihenfolge der Herausgeber, bereiten jeden Antrag vor und gehen Monat für Monat mit Ihnen durch, was die Auskunfteien über Ihre Gesellschaft wissen.",
-          "Mit Global Kapital führen wir diesen Weg bis zur Kennzahlen-Mappe für ein späteres Bankdarlehen — in laufender Abstimmung mit Partner-Anwalt und Partner-Steuerberater.",
+          "Wir führen diesen Weg bis zur Finanzierung in Ihrem Kapitalrahmen — in laufender Abstimmung mit Partner-Anwalt und Partner-Steuerberater.",
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Der ganze Weg im Paket", lead: "Stammdaten, Kartenleiter über mehrere Herausgeber und die Unterlagen für ein Bankdarlehen — Global Kapital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "Der ganze Weg in einem Auftrag", lead: "Stammdaten, Kartenleiter über mehrere Herausgeber und die Begleitung bis zur Finanzierung in Ihrem Kapitalrahmen.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -405,7 +405,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       ["Einführungszeitraum", "Ohne Sollzins auf Zeit — danach gilt der reguläre Zins"],
       ["Verbraucherschutz", "Für Firmenkarten nur eingeschränkt"],
       ["Warnzeichen", "Versprochene Rahmen, Honorar nach Rahmen, „Darlehen“ statt Karten"],
-      ["Mit FIAON Global", "Reihenfolge geplant, jeder Antrag vorbereitet, Festpreis"],
+      ["Mit FIAON Global", "Reihenfolge geplant, jeder Antrag vorbereitet, Preis vor der Unterschrift"],
     ],
     kurz: "Über eine US-Firmenkarte entscheidet der Herausgeber. Bei einer jungen Gesellschaft prüft er vor allem die persönliche Kredithistorie des Inhabers in den USA, Einkommen, Geschäft und Unterlagen, und er verlangt in der Regel dessen persönliche Haftung. Ein Einführungszeitraum ohne Sollzins endet zu einem festen Datum; danach gilt der reguläre Zins auf den offenen Saldo. Weil die meisten Verbraucherschutzregeln für Firmenkarten nicht gelten, lohnt der genaue Blick in die Bedingungen — und Vorsicht bei jedem, der Rahmen verspricht.",
     bloecke: [
@@ -468,11 +468,11 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "So bringt FIAON Global Sie zur ersten Karte — und weiter",
         absaetze: [
           "FIAON Global macht aus dem Kartenantrag einen Plan statt einer Wette. Wir legen die Grundlage — Gesellschaft, EIN, ITIN, Anschrift, Telefonnummer, Konto —, wählen den ersten Herausgeber passend zu Ihrer Historie, bereiten den Antrag vollständig vor und planen die Kartenleiter: weitere Herausgeber in der richtigen Reihenfolge, mit Abstand zwischen den Anträgen, begleitet in einem monatlichen Durchgang.",
-          "Wir arbeiten zum Festpreis, der vor dem Auftrag feststeht — ohne Honorar nach Rahmen und ohne Anteil am Kapital. Über jeden Rahmen entscheidet der Herausgeber; der Kapitalrahmen Ihres Pakets ist Ihr Ziel, keine Zusage.",
+          "Unser Preis steht fest, bevor Sie unterschreiben: Der Konfigurator zeigt Ihnen den Betrag für Ihren Kapitalrahmen, und er wächst nicht mit weiteren Anträgen. Über jeden Rahmen entscheidet der Herausgeber; Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.",
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die Kartenleiter im Paket", lead: "Erste Karte, geplante Folgeanträge, monatlicher Durchgang — Global Banking zum Festpreis.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die Kartenleiter in Ihrem Auftrag", lead: "Erste Karte, geplante Folgeanträge, monatlicher Durchgang — in einem Auftrag.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [

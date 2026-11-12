@@ -14,14 +14,12 @@
 // keine Kredite. Der Fall FTC v. Seek Capital (17.11.2025) steht mit denselben
 // Zahlen wie im Deutschen da.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPaket } from "../../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
 import { FAKTEN_STAND_EN, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN } from "../fakten-en";
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 
 const S = "2026-09-24";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-const BANKING = globalPaket("global_banking")?.en.name ?? "Global Banking";
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "Global Capital";
 // Der deutsche Titel trägt das Datum als „17.11.2025" — auf Englisch mit Monatsnamen (dieselbe Adresse).
 const QUELLE_FTC_SEEK: GlobalQuelle = { titel: "FTC — Seek Capital and CEO permanently banned (17 November 2025)", url: Q.ftcSeek.url };
 
@@ -124,11 +122,11 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "How FIAON Global gets your account under way",
         absaetze: [
           "At FIAON Global, the account application does not begin with a form but with your business. We write the business description with you, compile all documents with identical details, choose the institution to suit your plans and prepare the application in full. We support you through the institution’s follow-up questions; if an institution requires an in-person appointment, our team in Miami goes with you.",
-          `The account is the start of the card ladder: with ${BANKING}, we then plan the sequence of further issuers and prepare every application.`,
+          `The account is the start of the card ladder: we then plan the sequence of further issuers and prepare every application.`,
           GLOBAL_ROLLEN.en.fiaon,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Account and card ladder in one package", lead: `From the first account application to a planned sequence of further issuers — ${BANKING}.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Account and cards in your order", lead: "From the first account application to a planned sequence of further issuers — in one order.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -252,7 +250,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
           "The issuer decides on every limit. Our task is to ensure that it sees your applications complete, consistent and at the right time.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The card ladder in one package", lead: `Company, tax numbers, first card and the planned sequence of further issuers — ${BANKING}.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The card ladder in your order", lead: "Company, tax numbers, first card and the planned sequence of further issuers — in one order.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -365,11 +363,11 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "How FIAON Global builds your company’s history",
         absaetze: [
           "A company’s history cannot be bought — but it can be planned. FIAON Global lays the foundation at formation: identical core data in all registers and applications, EIN, US address and phone number, an account that fits the business. We then plan the sequence of issuers, prepare every application and review with you, month by month, what the credit bureaus know about your company.",
-          `With ${KAPITAL}, we take this route through to the key-figures file for a later bank loan — in ongoing coordination with our partner lawyer and partner tax adviser.`,
+          `We take this route through to financing within your capital range — in ongoing coordination with our partner lawyer and partner tax adviser.`,
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The whole route in one package", lead: `Core data, a card ladder across several issuers and the documents for a bank loan — ${KAPITAL}.`, paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "The whole route in one order", lead: "Core data, a card ladder across several issuers and support through to financing within your capital range.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -420,7 +418,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       ["Introductory period", "No debit interest for a limited time — then the standard rate applies"],
       ["Consumer protection", "Only limited for business credit cards"],
       ["Warning signs", "Promised limits, fees tied to the limit, “loans” instead of cards"],
-      ["With FIAON Global", "Sequence planned, every application prepared, fixed price"],
+      ["With FIAON Global", "Sequence planned, every application prepared, price set before you sign"],
     ],
     kurz: "The issuer decides whether to issue a US business credit card. For a young company it mainly checks the owner’s personal credit history in the US, income, business and documents, and it generally requires the owner’s personal guarantee. An introductory period without debit interest ends on a fixed date; after that the standard interest rate applies to the outstanding balance. Because most consumer protection rules do not apply to business credit cards, it pays to read the terms closely — and to be wary of anyone who promises limits.",
     bloecke: [
@@ -483,11 +481,11 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "How FIAON Global guides you to your first card — and beyond",
         absaetze: [
           "FIAON Global turns the card application into a plan instead of a gamble. We lay the foundation — company, EIN, ITIN, address, phone number, account — choose the first issuer to suit your history, prepare the application in full and plan the card ladder: further issuers in the right order, with gaps between applications, supported in a monthly review.",
-          "We work at a fixed price that is set before the engagement — with no fee based on the limit and no share of the capital. The issuer decides on every limit; the capital range of your package is your goal, not a promise.",
+          "Our price is set before you sign: the configurator shows you the amount for your capital range, and it does not grow with further applications. The issuer decides on every limit; your capital range is your goal, not a promise.",
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The card ladder in one package", lead: `First card, planned follow-up applications, monthly review — ${BANKING} at a fixed price.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The card ladder in your order", lead: "First card, planned follow-up applications, monthly review — in one order.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [

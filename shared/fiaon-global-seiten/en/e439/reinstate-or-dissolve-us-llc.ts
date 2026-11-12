@@ -33,7 +33,10 @@
 // GLOBAL_GELD_ZURUECK (Baustein „fiaon“ hat im Deutschen fünf Absätze ohne ihn).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft steht der Preis nach der
+// Prüfung im persönlichen Angebot (E-506), darum „offer“ statt „fixed price“.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, STAAT_EN, IRS_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
@@ -47,7 +50,7 @@ const gross = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /** IRS penalty without “per form per year” — for the key figure. */
 const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 
-const STRUKTUR = globalPaket("global_struktur")?.en.name ?? "Global Structure";
+const P = EIN_PRODUKT.en;
 
 /** Quellen dieses Beitrags mit englischen Titeln — dieselben Adressen wie im Deutschen (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -75,7 +78,7 @@ export const SEITE: GlobalSeite = {
     titel: "Dissolve or rescue a US LLC as a non-resident — FIAON Global",
     beschreibung: "Missed annual report, no Form 5472, agent resigned: how a non-resident can reinstate, hand over or cleanly dissolve a US LLC — with primary sources.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 50",
   auge: "Knowledge · Existing LLC",
@@ -193,13 +196,13 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes over your existing LLC",
       absaetze: [
         "FIAON Global is a business consultancy for entrepreneurs from Germany, Austria and Switzerland with a US company. Our principle also applies to a company formed elsewhere: one contact instead of eight. You give us what you have — formation documents, the EIN letter, letters from the IRS and the state — and we handle all dealings with the state and the IRS.",
-        "First we review: status in the register, registered agent, outstanding annual reports and fees, which years are missing at the IRS, which address the IRS writes to and which accounts and platforms depend on the company. You receive the result in writing — the routes that are open, the state fees and our fixed price — before anything is filed. The legal and tax consequences of each route are clarified by our partner lawyer and partner tax adviser under your engagement.",
-        "Then we catch up on everything outstanding. With your power of attorney, we file the applications on your behalf: reinstatement, change of registered agent, overdue annual reports, changes with the IRS on Form 8822-B. The outstanding Forms 5472 with pro forma Form 1120 are prepared by our US CPA under your engagement, with a reasonable cause statement for each year; our partner tax adviser clarifies the consequences at home. Partner tax advisers, US CPAs and partner lawyers act under your engagement, and their fees for the agreed services are included in the fixed price.",
+        "First we review: status in the register, registered agent, outstanding annual reports and fees, which years are missing at the IRS, which address the IRS writes to and which accounts and platforms depend on the company. You receive the result in writing — the routes that are open, the state fees and your offer with the price — before anything is filed. The legal and tax consequences of each route are clarified by our partner lawyer and partner tax adviser under your engagement.",
+        "Then we catch up on everything outstanding. With your power of attorney, we file the applications on your behalf: reinstatement, change of registered agent, overdue annual reports, changes with the IRS on Form 8822-B. The outstanding Forms 5472 with pro forma Form 1120 are prepared by our US CPA under your engagement, with a reasonable cause statement for each year; our partner tax adviser clarifies the consequences at home. Partner tax advisers, US CPAs and partner lawyers act under your engagement, and their fees for the agreed services are included in your offer.",
         "If the company is to go, we dissolve it cleanly: winding up according to plan, dissolution with the state — only on your instruction in text form —, the final return to the IRS and the letter on the EIN account. You close accounts with banks and payment platforms yourself; we prepare every step for this. Afterwards, every document and every letter from the authorities is in your document room.",
-        "Your contracting party is FIAON LTD in London; our team on the ground in Miami attends appointments for you, and Zurich is our partner location. If the company is to carry on, we keep track of deadlines and filings every year on request — through the annual care plan, voluntary and without automatic renewal.",
+        "Your contracting party is FIAON LTD in London; our team on the ground in Miami attends appointments for you, and Zurich is our partner location. If the company is to carry on, we keep track of deadlines and filings every year on request — through annual care, voluntary and without automatic renewal.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "Starting afresh, properly set up", lead: `If you want to form a new company after the clean-up: company, EIN, preparation of the ITIN, registered agent, a US address and US phone number for the first year and the first annual US filing by our US CPA — ${STRUKTUR}.`, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "Starting afresh, properly set up", lead: `If you want to form a new company after the clean-up: ${P.karteLead.charAt(0).toLowerCase()}${P.karteLead.slice(1)}`, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
@@ -221,7 +224,7 @@ export const SEITE: GlobalSeite = {
     { f: "Do I need to have the EIN cancelled when I dissolve the LLC?", a: "In the words of the IRS, the EIN remains the company’s permanent tax identification number. What is closed is its account with the IRS: by letter to the IRS in Cincinnati with the name, EIN, address and the reason. That is only possible once all returns have been filed and all taxes paid." },
     { f: "My registered agent has resigned — what now?", a: "Designate a new agent promptly. In Florida, the old agent’s appointment ends on the 31st day after its resignation is filed; without an agent, administrative dissolution looms. In Delaware, the LLC is cancelled if no successor is filed within thirty days. The new agent accepts the appointment in writing, and the company files the change with the state." },
     { f: "What do I have to report in Germany when I dissolve the LLC?", a: "That depends on the classification. Giving up an interest in a foreign partnership must be reported under section 138(2) AO, as must the disposal of an interest in a foreign corporation above the statutory thresholds — with the tax return, no later than 14 months after the end of the year. The partner tax adviser clarifies the tax consequences in advance." },
-    { f: "Does FIAON Global also take over an LLC that was formed elsewhere?", a: "Yes. We first review the register, the registered agent and the position with the IRS and give you the routes and a fixed price in writing. After that, we make the applications with your power of attorney, our US CPA catches up on outstanding filings under your engagement, and we file a dissolution only on your instruction in text form." },
+    { f: "Does FIAON Global also take over an LLC that was formed elsewhere?", a: "Yes. We first review the register, the registered agent and the position with the IRS and give you the routes and your offer with the price in writing. After that, we make the applications with your power of attorney, our US CPA catches up on outstanding filings under your engagement, and we file a dissolution only on your instruction in text form." },
   ],
   paket: "global_struktur",
   weiter: ["/en/business/knowledge/form-5472", "/en/business/knowledge/registered-agent-address", "/en/business/knowledge/us-llc-german-resident", "/en/business/knowledge/us-llc-disadvantages"],

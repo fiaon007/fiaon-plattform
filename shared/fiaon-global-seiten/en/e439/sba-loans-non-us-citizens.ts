@@ -31,12 +31,14 @@
 // Geld-zurück steht (wie im Deutschen) nicht auf dieser Seite.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Kapitalrahmen aus EIN_PRODUKT.
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { IRS_EN, QUELLEN_WISSEN_EN as Q } from "../../fakten-en";
 
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "Global Capital";
+const P = EIN_PRODUKT.en;
 
 /** Quellen dieses Beitrags — dieselben Adressen wie im Deutschen, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -63,7 +65,7 @@ export const SEITE: GlobalSeite = {
     titel: "SBA loan as a non-US citizen: the 2026 rule — FIAON Global",
     beschreibung: "SBA loan as a non-US citizen: since 1 March 2026, 7(a) and 504 loans go only to US owners living in the US. What applies and which capital routes remain.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 44",
   auge: "Knowledge · Capital",
@@ -82,7 +84,7 @@ export const SEITE: GlobalSeite = {
     ["Excluded", "Residence abroad, green card, visa, foreign parent company"],
     ["What remains", "Business credit, business credit cards, bank loan against collateral, equity, home bank"],
     ["Who decides", "The institution alone, on every loan"],
-    ["With FIAON Global", "One point of contact, every application prepared, fixed price"],
+    ["With FIAON Global", "One point of contact, every application prepared, price up front in the configurator"],
   ],
   kurz: "No — if you live in Germany, Austria or Switzerland, your US company cannot obtain an SBA loan, whether you are a non-US citizen or a US citizen. Since 1 March 2026, 100 per cent of the direct and indirect owners must be US citizens or US nationals with their principal residence in the US (SBA Procedural Notice 5000-876626, part of SOP 50 10 8.1 since 1 October 2026); a green card, a visa, residence abroad or a foreign parent company rules out 7(a) and 504. What remains open is business credit and business credit cards, a bank loan against collateral, equity and your home bank in Europe — the institution decides on every loan.",
   bloecke: [
@@ -187,16 +189,16 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes over your route to capital",
       absaetze: [
         "It begins with an honest assessment: we set your ownership structure against the SBA's published rules and record in writing the routes on which we plan to build your capital. For owners living in Germany, Austria or Switzerland, that currently means no SBA loan — and therefore building on the routes that remain from the very start. If a legal question remains open in an individual case, our partner lawyers clarify it under your engagement.",
-        `From then on: one point of contact instead of eight. With your power of attorney, we submit all applications for you — formation of the company, EIN, preparation of your ITIN, the D-U-N-S Number, the ongoing filings. We provide the registered agent, a US business address and a US phone number for the first year. You submit account, card and credit applications yourself, fully prepared by us and with the same details in every application. We plan the order in which to approach the institutions, put together the key-figures file for your home bank and prepare the documents a bank wants to see for a loan against collateral. If an institution requires an appointment in person, our team on the ground in Miami is at your side; in the ${KAPITAL} package, your appointments take priority.`,
-        "Our partner tax adviser clarifies with you whether a contribution or a shareholder loan is the right form and how your structure at home is treated for tax purposes; our US CPA prepares the annual Form 5472, and our partner lawyers draw up the operating agreement and formation documents. All of them act under your engagement, and FIAON bears their fees for the services in the package. All package fees are included in the fixed price. Our team is based in Miami, our partner location is Zurich, and your contracting party is FIAON LTD in London. From the second year onwards you can choose the annual care plan; it is optional.",
+        `From then on: one point of contact instead of eight. With your power of attorney, we submit all applications for you — formation of the company, EIN, preparation of your ITIN, the D-U-N-S Number, the ongoing filings. We provide the registered agent, a US business address and a US phone number for the first year. You submit account, card and credit applications yourself, fully prepared by us and with the same details in every application. For the financing, we prepare every application in full and stay with your company through to payout. ${P.rahmenSatz}`,
+        `Our partner tax adviser clarifies with you whether a contribution or a shareholder loan is the right form and how your structure at home is treated for tax purposes; our US CPA prepares the annual Form 5472, and our partner lawyers draw up the operating agreement and formation documents. All of them act under your engagement, and FIAON bears their fees for the services in your order. Our team is based in Miami, our partner location is Zurich, and your contracting party is FIAON LTD in London. ${P.preisSatz}`,
         "FIAON Global is a business consultancy for the move to the US, not a bank: we neither grant nor broker loans, and we commit to no limit.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "The whole route to capital in one package", lead: `Company, tax identification numbers, business credit, account, business credit cards step by step and the documents for a bank loan — ${KAPITAL}. The capital range of the package is your goal, not a commitment.`, paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Your capital range is your goal, not a commitment.`, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit. The institution alone decides on the account, the card, the limit and the loan; the capital range of a package is a goal.",
+        "FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit. The institution alone decides on the account, the card, the limit and the loan; your capital range is a goal.",
         "Whether the SBA rule will stand remains a political question. What counts is the version in force on the day of your application — and that is the version the lender checks.",
         "An ownership structure that exists only on paper, such as a US citizen acting as a nominee owner, would be a false statement. 18 U.S.C. § 1014 makes knowingly false statements in loan applications a crime, including those made to institutions with FDIC deposit insurance.",
         GLOBAL_PFLICHTHINWEIS.en[0],

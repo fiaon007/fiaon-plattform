@@ -148,13 +148,13 @@ export function bundesstaatWahlSeite(s: Sprache): GlobalSeite {
               `The times are experience as of ${stand}, not a commitment: the state decides on registration, the US tax authority on the EIN.`,
               "The state changes nothing about tax liability in your home country — that depends on the place of management.",
               "A company that becomes active in another state generally has to register there as well.",
-              "We decide on the state together with you in the kick-off call; the state formation fee is included in the fixed price.",
+              "In the configurator we form in Delaware; we agree any other state with you in a call. The state formation fee is included in the price.",
             ]
           : [
               `Die Zeiten sind Erfahrungswerte Stand ${stand}, keine Zusage: Über die Eintragung entscheidet der Staat, über die EIN die US-Steuerbehörde.`,
               "Der Bundesstaat ändert nichts an der Steuerpflicht im Heimatland — sie hängt am Ort der Geschäftsleitung.",
               "Eine Gesellschaft, die in einem anderen Staat tätig wird, muss sich dort in der Regel zusätzlich registrieren.",
-              "Den Staat legen wir im Startgespräch gemeinsam fest; die Gründungsgebühr des Staats ist im Festpreis enthalten.",
+              "Im Konfigurator gründen wir in Delaware; einen anderen Staat stimmen wir im Gespräch mit Ihnen ab. Die Gründungsgebühr des Staats ist im Preis enthalten.",
             ],
       },
     ],

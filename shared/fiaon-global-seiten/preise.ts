@@ -1,17 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — PREISE UND ABLAUF (19.09.2026, E-191)
-// Ablauf und Dauer, Paket-Finder, Vergleich, Fragen & Antworten. Die Seite
+// Ablauf und Dauer, Vergleich. Die Seite
 // „Kosten“ steht in kosten.ts (Zahlen Dritter mit Quelle und Stand).
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Der Ablauf folgt dem Vertrag (Gründung, Steuernummern, US-Büro,
+// Konto und Karten, Kapital). Die Seite /business/paket-finder gibt es nicht mehr: Der Konfigurator /business/start ist der
+// neue Finder, die alte Adresse leitet dauerhaft dorthin (GLOBAL_UMGEZOGEN). Preise nur aus EIN_PRODUKT (ein-produkt.ts).
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN,
-  globalPaket, globalPreisText, globalPlanungText, globalKapitalSpanne,
-} from "../fiaon-global";
-import { GLOBAL_ETAPPEN } from "../fiaon-global-bereich";
+import { GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
 import type { GlobalSeite } from "./typen";
+import { EIN_PRODUKT } from "./ein-produkt";
 
-const S = "2026-09-19";
-const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const S = "2026-11-12";
+const P = EIN_PRODUKT.de;
 
 export const PREISE_UND_ABLAUF: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -20,110 +20,78 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
     art: "preise",
     seo: {
       titel: "Ablauf einer US-Firmengründung — FIAON Global",
-      beschreibung: "Vom ersten Gespräch bis zur Kartenleiter: acht Schritte, vier Etappen, klare Zuständigkeiten. Dauern als Erfahrungswerte — Behörden bestimmen ihr Tempo.",
+      beschreibung: "Vom Angebot bis zur Finanzierung: acht Schritte, klare Zuständigkeiten. Dauern als Erfahrungswerte — Behörden und Institute bestimmen ihr Tempo.",
     },
     stand: S,
     kennung: "FG · 08",
     auge: "Preise und Ablauf · Ablauf",
     h1: "Der Ablauf.",
     h1b: "Acht Schritte, eine Reihenfolge.",
-    lead: "Vom ersten Gespräch bis zur Kartenleiter: Sie wissen zu jeder Zeit, wer gerade am Zug ist, was als Nächstes kommt und wie lange es erfahrungsgemäß dauert. Den Stand sehen Sie jederzeit in „Mein Auftrag“.",
+    lead: "Vom Angebot bis zur Finanzierung: Sie wissen zu jeder Zeit, wer gerade am Zug ist, was als Nächstes kommt und wie lange es erfahrungsgemäß dauert. Den Stand sehen Sie jederzeit in „Mein Auftrag“.",
     ziffern: [
-      { wert: "8 Schritte", label: "vom Gespräch bis zur Bank" },
-      { wert: "4 Etappen", label: "Gründung, erste Karte, Kartenleiter, Bankdarlehen" },
+      { wert: "8 Schritte", label: "vom Angebot bis zur Finanzierung" },
+      { wert: "1 Auftrag", label: "Gründung, US-Büro, Konto, Karten und Kapital" },
       { wert: "1 Ansprechpartner", label: "vom ersten Tag an" },
     ],
     blick: [
-      ["Start", "Gespräch vereinbaren oder direkt beauftragen"],
-      ["Vertrag", "Am Bildschirm unterschrieben, Vertrag und Rechnung per E-Mail"],
-      ["Arbeitsbeginn", "Mit dem Zahlungseingang"],
-      ["Ihr Beitrag", "Fünf Unterlagen, Entscheidungen, Unterschriften"],
+      ["Start", "Angebot selbst zusammenstellen oder erst sprechen"],
+      ["Vertrag", "Online unterschrieben, Vertrag und Rechnung per E-Mail"],
+      ["Arbeitsbeginn", "Mit Zahlungseingang und Reisepass"],
+      ["Ihr Beitrag", "Ihr Reisepass, der Name Ihrer Gesellschaft, Ihre Unterschriften"],
       ["Stand", "Jederzeit in „Mein Auftrag“, mit Etappe und nächstem Schritt"],
-      ["Dauer", "Erfahrungswerte je Paket — Behörden und Institute bestimmen ihr Tempo"],
+      ["Dauer", "Erfahrungswerte — Behörden und Institute bestimmen ihr Tempo"],
     ],
-    kurz: "Ein Auftrag bei FIAON Global beginnt mit einem Gespräch oder dem Direktauftrag am Bildschirm. Nach dem Zahlungseingang folgen Startgespräch und Unterlagen, die Prüfung durch den Partner-Steuerberater, die Gründung mit EIN und ITIN, dann Konto und Karten. Die Gesellschaft steht in der Regel nach wenigen Wochen; die Begleitung dauert je nach Paket rund acht Wochen bis sechs Monate und länger.",
+    kurz: "Ein Auftrag bei FIAON Global beginnt im Konfigurator oder mit einem Gespräch. Sie unterschreiben online; sobald Ihre Zahlung und Ihr Reisepass da sind, melden wir Ihre Gesellschaft an und beantragen EIN und ITIN. Danach folgen Ihr US-Büro, Konto und Karten und die Begleitung bis zur Finanzierung. Die Gesellschaft steht in der Regel nach wenigen Wochen; über Steuernummern, Konto, Karten und Finanzierung entscheiden Behörden und Institute in eigener Frist.",
     bloecke: [
       {
         typ: "etappen", id: "schritte", h2: "Die acht Schritte",
         etappen: [
-          { titel: "Gespräch oder Direktauftrag", text: "Dreißig Minuten mit Ihrem Ansprechpartner — oder direkt beauftragen: Paket wählen, Unternehmen eintragen, Vertrag am Bildschirm unterschreiben." },
-          { titel: "Vertrag und Rechnung", text: "Beides erhalten Sie sofort per E-Mail, dazu den Zugang zu „Mein Auftrag“. Vertragspartner ist die FIAON LTD in London." },
-          { titel: "Zahlungseingang", text: "Mit dem Eingang Ihrer Zahlung beginnt die Arbeit. Ihr Ansprechpartner meldet sich für das Startgespräch." },
-          { titel: "Startgespräch und Unterlagen", text: "Rechtsform, Bundesstaat und Name werden festgelegt; Sie laden fünf Unterlagen in Ihren Dokumentenraum." },
-          { titel: "Prüfung durch den Steuerberater", text: "Unser Partner-Steuerberater prüft vor der Gründung, wie Ihre Gesellschaft im Heimatland behandelt wird und welche Meldungen dort anfallen." },
-          { titel: "Gründung", text: GLOBAL_ETAPPEN[1].de.text.replace(" auf dieser Seite", " in „Mein Auftrag“") },
-          { titel: "Karten", text: GLOBAL_ETAPPEN[2].de.text },
-          { titel: "Bank", text: GLOBAL_ETAPPEN[4].de.text },
+          { titel: "Angebot zusammenstellen", text: "Im Konfigurator wählen Sie Ihre Schwerpunkte und Ihren Kapitalrahmen und sehen Ihren Preis. Oder Sie sprechen zuerst dreißig Minuten mit Ihrem Ansprechpartner." },
+          { titel: "Vertrag und Rechnung", text: "Auf Ihrer Angebotsseite wählen Sie Laufzeit und Namen Ihrer Gesellschaft und unterschreiben online. Vertrag und Rechnung erhalten Sie sofort per E-Mail, dazu den Zugang zu „Mein Auftrag“. Vertragspartner ist die FIAON LTD in London." },
+          { titel: "Zahlung und Reisepass", text: "Mit dem Eingang Ihrer Zahlung und Ihres Reisepasses beginnt die Arbeit. Den Reisepass laden Sie direkt nach der Unterschrift hoch." },
+          { titel: "Gründung", text: "Wir prüfen den Namen im Register, melden Ihre Gesellschaft beim Bundesstaat an und stellen Operating Agreement und Gründungsunterlagen bereit. Über die Eintragung entscheidet der Bundesstaat." },
+          { titel: "Steuernummern", text: "Wir beantragen die EIN Ihrer Gesellschaft und — sobald unser ITIN-Check die Voraussetzungen bestätigt — Ihre ITIN. Über beide Nummern entscheidet die US-Steuerbehörde in eigener Frist." },
+          { titel: "Ihr US-Büro", text: "Registered Agent, US-Geschäftsadresse, US-Telefonnummer und Assistenz für Post, Anrufe und Termine — im ersten Jahr enthalten." },
+          { titel: "Konto und Karten", text: "Wir bereiten die Anträge für Ihr privates US-Konto, private US-Karten, das Geschäftskonto und die Firmenkreditkarte vollständig vor. Sie stellen die Anträge selbst; über Konto, Karten und Rahmen entscheidet das jeweilige Institut." },
+          { titel: "Kapital", text: "Wir bereiten jeden Antrag für die Finanzierung in Ihrem Kapitalrahmen vor und begleiten bis zur Auszahlung. Unsere US-Partnergesellschaft übernimmt die Bürgschaft; über die Finanzierung entscheidet das finanzierende Institut." },
         ],
       },
       {
-        typ: "tabelle", id: "dauer", h2: "Wie lange begleitet wird",
+        typ: "tabelle", id: "dauer", h2: "Wie lange es dauert",
         lead: "Erfahrungswerte, keine Fristen. Wie schnell es geht, bestimmen Behörden, Institute und die Vollständigkeit der Unterlagen.",
-        kopf: ["Paket", "Begleitung", "Kapitalrahmen", "Festpreis"],
-        zeilen: GLOBAL_PAKETE.map((p) => [p.de.name, gross(p.de.dauerKurz), globalPlanungText(p.key), globalPreisText(p.key)]),
+        kopf: ["Schritt", "Erfahrungswert", "Wer entscheidet"],
+        zeilen: [
+          ["Eintragung der Gesellschaft", "je nach Bundesstaat wenige Tage bis rund zwei Wochen", "der Bundesstaat"],
+          ["EIN und ITIN", "in eigener Frist der US-Steuerbehörde", "die US-Steuerbehörde"],
+          ["Konto und Karten", "nach der Prüfung des jeweiligen Instituts", "das Institut"],
+          ["Finanzierung", "Ziel und Bedingungen stehen in Ihrem Vertrag", "das finanzierende Institut"],
+        ],
         hervor: 1,
       },
       {
         typ: "rollen", id: "wer", h2: "Wer wann am Zug ist",
-        fiaon: ["Startgespräch, Plan und Koordination", "Einreichungen beim Bundesstaat und bei der IRS", "Konto- und Kartenanträge vorbereitet", "Pflichtenkalender und Dokumentenraum"],
-        partner: ["Partner-Steuerberater: Prüfung vor der Gründung", "Partner-Anwalt: Operating Agreement", "US-CPA: erste jährliche US-Meldung", "Schwarzott Group: Termine vor Ort in Miami"],
-        sie: ["Unterlagen hochladen", "Entscheidungen treffen und unterschreiben", "Anträge bei Herausgebern und Banken stellen", "Pünktlich abrechnen — das baut Ihre Historie"],
+        fiaon: ["Angebot, Vertrag und Koordination", "Einreichungen beim Bundesstaat und bei der US-Steuerbehörde", "Konto- und Kartenanträge vollständig vorbereitet", "Pflichtenkalender und „Mein Auftrag“"],
+        partner: ["Partner-Anwalt: Operating Agreement und Gründungsunterlagen", "US-Steuerberater (CPA): erste jährliche US-Meldung", "Partner-Steuerberater: klärt vorab, wie Überweisungen zu behandeln sind", "US-Partnergesellschaft: Bürgschaft für die Finanzierung"],
+        sie: ["Reisepass hochladen", "Entscheidungen treffen und unterschreiben", "Anträge bei Herausgebern und Banken stellen", "Pünktlich abrechnen — das baut Ihre Historie"],
       },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
-        punkte: [...GLOBAL_PFLICHTHINWEIS.de, `${GLOBAL_GELD_ZURUECK.de.titel}: ${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`],
+        punkte: [...GLOBAL_PFLICHTHINWEIS.de, P.geldZurueck],
       },
-      { typ: "pakete", id: "pakete", h2: "Die vier Pakete", lead: "Jedes Paket ist ein Betreuungsauftrag zum Festpreis — alle Gebühren und die Honorare unserer Partner inklusive." },
+      { typ: "pakete", id: "mandat", h2: P.karteH2, lead: P.karteLead },
     ],
     fragen: [
-      { f: "Wie lange dauert es, bis meine US-Gesellschaft steht?", a: "In der Regel wenige Wochen nach vollständigen Unterlagen. EIN und ITIN vergibt die US-Steuerbehörde in eigener Frist." },
-      { f: "Wann beginnt die Arbeit?", a: "Mit dem Eingang Ihrer Zahlung. Danach meldet sich Ihr Ansprechpartner für das Startgespräch." },
+      { f: "Wie lange dauert es, bis meine US-Gesellschaft steht?", a: "In der Regel wenige Wochen, sobald Zahlung und Reisepass da sind. EIN und ITIN vergibt die US-Steuerbehörde in eigener Frist." },
+      { f: "Wann beginnt die Arbeit?", a: "Mit dem Eingang Ihrer Zahlung und Ihres Reisepasses. Den Stand sehen Sie danach jederzeit in „Mein Auftrag“." },
       { f: "Wo sehe ich, wie weit mein Auftrag ist?", a: "In „Mein Auftrag“: Etappe, nächster Schritt, Dokumente und Pflichtenkalender — den Zugang erhalten Sie mit Vertrag und Rechnung." },
-      { f: "Was muss ich selbst tun?", a: "Fünf Unterlagen hochladen, Entscheidungen treffen und unterschreiben. Anträge bei Herausgebern und Banken stellen Sie selbst — vollständig vorbereitet von uns." },
+      { f: "Was muss ich selbst tun?", a: "Ihren Reisepass hochladen, Entscheidungen treffen und unterschreiben. Anträge bei Herausgebern und Banken stellen Sie selbst — vollständig vorbereitet von uns." },
     ],
-    weiter: ["/business/kosten", "/business/paket-finder", "/business/us-firmengruendung", "/business/privatpersonen"],
+    weiter: ["/business/kosten", "/business/vergleich", "/business/us-firmengruendung", "/business/privatpersonen"],
   },
 
-  // ─────────────────────────────────────────────────────────────────────────
-  {
-    pfad: "/business/paket-finder",
-    art: "werkzeug",
-    seo: {
-      titel: "Paket-Finder: Welches Paket passt? — FIAON Global",
-      beschreibung: "Vier Fragen zu Ziel, Kapitalrahmen, Zeit und Begleitung — der Paket-Finder zeigt, welches Paket von FIAON Global zu Ihnen passt. Ohne Anmeldung.",
-    },
-    stand: S,
-    kennung: "FG · 09",
-    auge: "Preise und Ablauf · Paket-Finder",
-    h1: "Welches Paket passt?",
-    h1b: "Vier Fragen, eine klare Antwort.",
-    lead: "Beantworten Sie vier Fragen zu Ihrem Vorhaben. Der Paket-Finder zeigt, welches Paket am ehesten passt — und warum. Ohne Anmeldung, ohne Speicherung Ihrer Antworten.",
-    ziffern: [
-      { wert: "4 Fragen", label: "Ziel, Kapitalrahmen, Zeit, Begleitung" },
-      { wert: "1 Minute", label: "ohne Anmeldung" },
-      { wert: globalKapitalSpanne(), label: "Kapitalrahmen je Paket, als Ziel" },
-    ],
-    blick: [
-      // 19.09.2026: nicht mehr „Ihr Ziel in den USA" — das Kapital ist nicht an die USA gebunden (GLOBAL_KAPITAL_FREI).
-      ["Frage 1", "Was ist Ihr Ziel mit der US-Gesellschaft?"],
-      ["Frage 2", "Welchen Kapitalrahmen streben Sie an?"],
-      ["Frage 3", "Wie viel Zeit geben Sie dem Aufbau?"],
-      ["Frage 4", "Wie möchten Sie begleitet werden?"],
-      ["Ergebnis", "Das passende Paket mit Begründung — beauftragen oder erst sprechen"],
-      ["Daten", "Ihre Antworten bleiben in Ihrem Browser"],
-    ],
-    kurz: "Der Paket-Finder ordnet Ihr Vorhaben einem der vier Pakete zu: Global Struktur für Gründung und erste Karte, Global Banking für die Kartenleiter, Global Kapital bis zum Bankdarlehen, Global VIP mit Auftakt vor Ort in Miami. Das Ergebnis ist eine Orientierung; im Gespräch prüft Ihr Ansprechpartner, ob es zu Ihrem Fall passt.",
-    bloecke: [
-      { typ: "finder", id: "finder", h2: "Vier Fragen", lead: "Wählen Sie jeweils die Antwort, die Ihrem Vorhaben am nächsten kommt." },
-      { typ: "pakete", id: "pakete", h2: "Alle vier Pakete", lead: "Festpreis, einmalig — alle Gebühren und die Honorare unserer Partner inklusive." },
-    ],
-    fragen: [
-      { f: "Ist das Ergebnis verbindlich?", a: "Nein. Der Paket-Finder ist eine Orientierung. Ob das Paket zu Ihrem Fall passt, prüft Ihr Ansprechpartner im Gespräch — oder Sie beauftragen direkt." },
-      { f: "Werden meine Antworten gespeichert?", a: "Nein. Die Antworten bleiben in Ihrem Browser und werden nicht an FIAON übertragen." },
-      { f: "Kann ich später in ein größeres Paket wechseln?", a: "Sprechen Sie Ihren Ansprechpartner an. Ein Wechsel in ein anderes Paket wird gesondert vereinbart — mit einem neuen Vertrag, der sagt, was bereits erledigt ist." },
-    ],
-    weiter: ["/business/kosten", "/business/vergleich", "/business/firmenkarten-kapital", "/business/ablauf"],
-  },
+  // E-509 (12.11.2026): Die Seite /business/paket-finder (bis E-509: vier Fragen → eines von vier Paketen) gibt es nicht mehr.
+  // Der Konfigurator /business/start ist der neue Finder; die alte Adresse leitet dauerhaft (301) dorthin
+  // (GLOBAL_UMGEZOGEN in shared/fiaon-global-pfade.ts, gelesen von server/routes.ts).
 
   // ─────────────────────────────────────────────────────────────────────────
   {
@@ -147,12 +115,12 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
     blick: [
       ["Selbst", "Günstig beim Staat, aber jede Stelle einzeln — und jedes Risiko bei Ihnen"],
       ["Gründungsdienst", "Die Gesellschaft ist schnell gegründet; Steuern, Konto und Karten bleiben Ihre Sache"],
-      ["FIAON Global", "Ein Ansprechpartner, ein Vertrag, ein Festpreis — Partner-Honorare inklusive"],
+      ["FIAON Global", "Ein Ansprechpartner, ein Vertrag, ein Preis — Partner-Honorare inklusive"],
       ["Entscheidend", "Wer koordiniert Steuerberater, US-CPA, Anwalt und Institute?"],
       ["Ehrlich", "Wer nur eine Gesellschaft braucht, zahlt bei einem Dienst weniger"],
-      ["Festpreis", `ab ${globalPreisText("global_struktur")} bei FIAON Global`],
+      ["Preis", `${P.preis} mit Ihrem Auftrag bei FIAON Global`],
     ],
-    kurz: "Wer eine US-Gesellschaft selbst gründet, zahlt nur die Gebühren, spricht aber mit Bundesstaat, Registered Agent, IRS, Anwalt, Steuerberater, US-CPA, Banken und Herausgebern einzeln. Ein Gründungsdienst übernimmt die Gründung, lässt Steuern, Konto und Karten aber meist beim Kunden. FIAON Global koordiniert alles aus einer Hand, zum Festpreis mit Partner-Honoraren.",
+    kurz: "Wer eine US-Gesellschaft selbst gründet, zahlt nur die Gebühren, spricht aber mit Bundesstaat, Registered Agent, IRS, Anwalt, Steuerberater, US-CPA, Banken und Herausgebern einzeln. Ein Gründungsdienst übernimmt die Gründung, lässt Steuern, Konto und Karten aber meist beim Kunden. FIAON Global koordiniert alles aus einer Hand — mit einem Vertrag und den Honoraren der Partner im Preis.",
     bloecke: [
       {
         typ: "tabelle", id: "vergleich", h2: "Die drei Wege im Vergleich",
@@ -162,10 +130,10 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
           ["Registered Agent und Adresse", "selbst buchen", "meist enthalten, oft im Abo", "erstes Jahr enthalten"],
           ["EIN", "selbst beantragen", "oft enthalten", "enthalten"],
           ["ITIN", "selbst, mit Acceptance Agent", "selten enthalten", "enthalten"],
-          ["Prüfung durch Steuerberater vor der Gründung", "selbst beauftragen", "nicht enthalten", "enthalten"],
+          ["Steuerfragen vorab geklärt", "selbst beauftragen", "nicht enthalten", "durch Partner-Steuerberater"],
           ["Operating Agreement durch Anwalt", "Vorlage oder selbst beauftragen", "meist Vorlage", "durch Partner-Anwalt"],
           ["Erste US-Meldung (Form 5472)", "selbst oder US-CPA beauftragen", "oft gegen Aufpreis", "durch US-CPA enthalten"],
-          ["Konto- und Kartenanträge", "selbst", "selten", "vorbereitet, ab Global Banking jeder weitere"],
+          ["Konto- und Kartenanträge", "selbst", "selten", "vollständig vorbereitet"],
           ["Ein Ansprechpartner für alles", "nein", "nein", "ja"],
         ],
         hervor: 3,
@@ -176,23 +144,23 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
         karten: [
           { tag: "Selbst", titel: "Wenn Sie Zeit haben — und Erfahrung", text: "Wer die US-Formulare kennt, einen Steuerberater mit US-Erfahrung hat und nur eine Gesellschaft braucht, kommt selbst am günstigsten ans Ziel." },
           { tag: "Gründungsdienst", titel: "Wenn nur die Gesellschaft zählt", text: "Wer kein Konto, keine Karten und keinen Kapitalaufbau plant, ist mit einem reinen Gründungsdienst gut bedient." },
-          { tag: "FIAON Global", titel: "Wenn alles zusammenpassen muss", text: "Wer Gesellschaft, Steuernummern, Konto, Karten und Kapital in einer Hand haben will — mit Partner-Honoraren im Festpreis." },
+          { tag: "FIAON Global", titel: "Wenn alles zusammenpassen muss", text: "Wer Gesellschaft, Steuernummern, Konto, Karten und Kapital in einer Hand haben will — mit den Honoraren der Partner im Preis." },
         ],
       },
       {
         typ: "text", id: "unterschied", h2: "Der eigentliche Unterschied",
         absaetze: [
-          "Die Gründung beim Bundesstaat ist ein Formular. Was eine US-Gesellschaft teuer macht, sind die Dinge danach: eine vergessene Form 5472, ein Konto, das an widersprüchlichen Unterlagen scheitert, eine Kartenleiter ohne Plan, eine Steuerpflicht im Heimatland, die niemand vorher geprüft hat.",
-          GLOBAL_ROLLEN.de.partner,
+          "Die Gründung beim Bundesstaat ist ein Formular. Was eine US-Gesellschaft teuer macht, sind die Dinge danach: eine vergessene Form 5472, ein Konto, das an widersprüchlichen Unterlagen scheitert, Kartenanträge ohne Plan, eine Steuerpflicht im Heimatland, die niemand vorher geprüft hat.",
+          P.partner,
         ],
       },
-      { typ: "pakete", id: "pakete", h2: "Die vier Pakete", lead: "Festpreis, einmalig — alles inklusive, was für Ihr Paket gebraucht wird." },
+      { typ: "pakete", id: "mandat", h2: P.karteH2, lead: P.karteLead },
     ],
     fragen: [
-      { f: "Ist FIAON Global teurer als ein Gründungsdienst?", a: `Ja, wenn Sie nur die Gesellschaft brauchen. Der Festpreis ab ${globalPreisText("global_struktur")} enthält dafür die Prüfung durch den Steuerberater, das Operating Agreement durch den Anwalt, EIN, ITIN, die erste US-Meldung und die Vorbereitung von Konto und Karte.` },
-      { f: "Kann ich die Gesellschaft selbst gründen und FIAON nur für Konto und Karten beauftragen?", a: "Nein. Die Pakete beginnen mit der Gründung, weil Konto- und Kartenanträge nur mit Unterlagen gelingen, die von Anfang an zusammenpassen." },
+      { f: "Ist FIAON Global teurer als ein Gründungsdienst?", a: `Ja, wenn Sie nur die Gesellschaft brauchen. Der Preis von ${P.preis} enthält dafür das Operating Agreement durch den Anwalt, EIN, ITIN, Adresse, Telefonnummer und Assistenz im ersten Jahr, die erste US-Meldung und die Vorbereitung von Konto und Karten.` },
+      { f: "Kann ich die Gesellschaft selbst gründen und FIAON nur für Konto und Karten beauftragen?", a: "Haben Sie schon eine US-Gesellschaft, übernehmen wir sie, statt neu zu gründen: Wir prüfen zuerst ihre Unterlagen und nennen Ihnen dann Ihr Angebot. Konto- und Kartenanträge gelingen nur mit Unterlagen, die von Anfang an zusammenpassen." },
       { f: "Nennt FIAON Namen von Wettbewerbern?", a: "Nein. Der Vergleich beschreibt das übliche Angebot am Markt, nicht einzelne Anbieter." },
     ],
-    weiter: ["/business/kosten", "/business/paket-finder", "/business/wissen/anbieter-pruefen", "/business/us-firmengruendung"],
+    weiter: ["/business/kosten", "/business/ablauf", "/business/wissen/anbieter-pruefen", "/business/us-firmengruendung"],
   },
 ];

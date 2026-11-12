@@ -4,23 +4,24 @@
 // Eine Seite hinter einer Anzeige. Google bewertet sie nach Relevanz,
 // Transparenz und Tempo; der Mensch dahinter hat genau eine Frage — „ist das
 // seriös, was kostet es, wie fange ich an?". Darum: kein Menü, die Überschrift
-// wiederholt die Suche, der Festpreis steht oben, der Kalender gleich darunter,
+// wiederholt die Suche, der Preis steht oben, der Kalender gleich darunter,
 // Vertragspartner und Registernummer im Kopf. Nicht im Index (noindex,follow).
 // Konto, Karten und Kapitalrahmen stehen hier bewusst NICHT im Blickfang —
 // Googles Regeln für Finanzanzeigen (siehe shared/fiaon-global-seiten/landingpages.ts).
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der eine Preis aus EIN_PRODUKT, der Knopf führt zum Konfigurator.
+// Das Erfolgshonorar wird offen genannt (fällig mit der Eintragung), ohne Kapital oder Bürgschaft herauszustellen.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect } from "react";
 import { Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import NotFound from "@/pages/not-found";
 import { globalLandingpage } from "@shared/fiaon-global-seiten";
-import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_GELD_ZURUECK, globalPaket, globalPreisText } from "@shared/fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
+import { EIN_PRODUKT } from "@shared/fiaon-global-seiten/ein-produkt";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { werbeEreignis } from "@/lib/werbung";
-import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
-import { GLOBAL_WOERTER } from "@/i18n/global";
 import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
@@ -46,7 +47,10 @@ export default function GlobalLandingPage() {
     window.scrollTo(0, 0);
   }, [lp?.pfad]);
   if (!lp) return <NotFound />;
-  const paket = globalPaket(lp.paket)!;
+  const P = EIN_PRODUKT.de;
+  // ?paket= stellt im Konfigurator nur noch den Start-Rahmen des Reglers.
+  const start = globalStartPfad(lp.paket, "de");
+  const klick = () => werbeEreignis("global_beauftragen_klick", { paket: lp.paket, seite: lp.pfad });
   const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
 
   return (
@@ -71,26 +75,26 @@ export default function GlobalLandingPage() {
             <p className="fd-lead">{lp.lead}</p>
             <ul className="fd-punkte" style={{ marginTop: 22 }}>{lp.vorteile.map((v) => <li key={v}><Haken />{v}</li>)}</ul>
             <div className="fg-knoepfe">
-              <a className="fg-knopf" href={globalStartPfad(lp.paket, "de")} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: lp.paket, seite: lp.pfad })}>{paket.de.name} beauftragen<Pfeil /></a>
+              <a className="fg-knopf" href={start} onClick={klick}>Angebot zusammenstellen<Pfeil /></a>
               <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>Erst sprechen — dreißig Minuten</a>
             </div>
           </Auf>
           <Auf verzoegerung={120}>
             <aside className="fd-merkblatt" aria-label="Das Wichtigste">
-              <div className="fd-merkblatt-kopf"><b>{paket.de.name}</b><span>Festpreis</span></div>
+              <div className="fd-merkblatt-kopf"><b>{P.name}</b><span>Ein Auftrag</span></div>
               <div style={{ padding: "22px 24px 8px" }}>
                 <div className="fg-preis" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
-                  <b className="fg-glanz">{globalPreisText(lp.paket)}</b>
-                  <span>Festpreis · einmalig · alle Gebühren inklusive</span>
+                  <b className="fg-glanz">{P.preis}</b>
+                  <span>mit Ihrem Auftrag · erstes Jahr inklusive · Endpreis</span>
                 </div>
               </div>
               <dl>
                 <div><dt>Vertragspartner</dt><dd>{FIAON_FIRMA.name}, London · Companies House {FIAON_FIRMA.companyNo}</dd></div>
                 <div><dt>Vor Ort</dt><dd>Schwarzott Group, Miami</dd></div>
-                <div><dt>Begleitung</dt><dd>{paket.de.dauer}</dd></div>
-                <div><dt>{GLOBAL_GELD_ZURUECK.de.titel}</dt><dd>{GLOBAL_GELD_ZURUECK.de.text}</dd></div>
+                <div><dt>Mit der Eintragung</dt><dd>Erfolgshonorar — Ihren Preis zeigt der Konfigurator</dd></div>
+                <div><dt>Ab dem zweiten Jahr</dt><dd>Jahresbetreuung auf Wunsch, {P.jahres} im Jahr</dd></div>
               </dl>
-              <div className="fd-merkblatt-fuss"><span>Für Unternehmen und Privatpersonen</span><span>DE · AT · CH</span></div>
+              <div className="fd-merkblatt-fuss"><span>Für Unternehmer und Privatpersonen</span><span>DE · AT · CH</span></div>
             </aside>
           </Auf>
         </div>
@@ -101,30 +105,26 @@ export default function GlobalLandingPage() {
         <div className="fg-rahmen">
           <div className="fg-kopf">
             <div><span className="fg-auge">Gespräch</span><h2 className="fg-h2">Erst sprechen, dann entscheiden.</h2></div>
-            <p className="fg-lead">Dreißig Minuten mit Ihrem Ansprechpartner: Vorhaben, Wohnsitz, Ziel — und welches Paket passt. Ohne Verpflichtung.</p>
+            <p className="fg-lead">Dreißig Minuten mit Ihrem Ansprechpartner: Vorhaben, Wohnsitz, Ziel — und was dazu passt. Ohne Verpflichtung.</p>
           </div>
-          <GlobalGespraech paket={lp.paket} />
+          <GlobalGespraech />
         </div>
       </section>
 
-      {/* ── Pakete ──────────────────────────────────────────────────────── */}
+      {/* ── Ein Auftrag (bis E-509: die vier Pakete) ───────────────────────── */}
       <section className="fg-sek eng">
         <div className="fg-rahmen">
-          <span className="fg-auge">Pakete</span>
-          <h2 className="fg-h2">Vier Pakete. Ein Festpreis, alles inklusive.</h2>
-          <div className="fd-pakete" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))" }}>
-            {GLOBAL_PAKETE.map((p) => (
-              <a key={p.key} className={`fd-paket${p.key === lp.paket ? " fokus" : ""}`} href={globalStartPfad(p.key, "de")} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: p.key, seite: lp.pfad })}>
-                {p.key === lp.paket && <span className="marke">Zu diesem Thema</span>}
-                <span className="name">{p.de.name}</span>
-                <span className="zeile"><span>{p.de.dauerKurz.charAt(0).toUpperCase() + p.de.dauerKurz.slice(1)}</span><b>{globalPreisText(p.key)}</b></span>
-                <span className="pfeil"><Pfeil /></span>
-              </a>
-            ))}
+          <span className="fg-auge">Ihr Auftrag</span>
+          <h2 className="fg-h2">Ein Auftrag. Ein Ansprechpartner.</h2>
+          <div className="fd-pakete" style={{ gridTemplateColumns: "minmax(240px,520px)" }}>
+            <a className="fd-paket fokus" href={start} onClick={klick}>
+              <span className="marke">Angebot zusammenstellen</span>
+              <span className="name">{P.name}</span>
+              <span className="zeile"><span>Mit Ihrem Auftrag, erstes Jahr inklusive</span><b>{P.preis}</b></span>
+              <span className="pfeil"><Pfeil /></span>
+            </a>
           </div>
-          <p className="fg-paket-fuss">Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise.</p>
-          {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite. */}
-          <GlobalJahresbetreuung sprache="de" startPfad={globalStartPfad(lp.paket, "de")} knopf={GLOBAL_WOERTER.de.jbKnopf} so={GLOBAL_WOERTER.de.jbSo} />
+          <p className="fg-paket-fuss">Alle Beträge sind Endpreise. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr auf Wunsch die Jahresbetreuung für {P.jahres} im Jahr.</p>
         </div>
       </section>
 

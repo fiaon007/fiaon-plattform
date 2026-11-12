@@ -2,7 +2,7 @@
 // FIAON GLOBAL — DIE LEISTUNGEN AUF ENGLISCH (24.09.2026, E-234)
 // Die sechs Leistungsseiten aus ../leistungen.ts in britischem Englisch:
 // US company formation, EIN and ITIN, US business bank account, business
-// credit cards and capital, US compliance, Global VIP Miami. Gleicher Aufbau,
+// credit cards and capital, US compliance, in person in Miami. Gleicher Aufbau,
 // gleiche Anker (ids bleiben deutsch), gleiche Quellen — scripts/pruef-global-en.ts
 // hält beide Fassungen deckungsgleich.
 // Preise, Kapitalrahmen, Dauer und Paketnamen kommen aus shared/fiaon-global.ts
@@ -11,31 +11,22 @@
 // seinen Bedingungen. Kein „up to" außer der VIP-Zahl, kein Bankname, keine
 // Frist mit Ziffer, keine Zusage zu Konto, Karte oder Rahmen.
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_LAUFEND, GLOBAL_VIP_REISE, GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI,
-  globalPaket, globalPreisText, globalPlanungText, globalKapitalSpanne, globalJahresbetreuungPreisText,
-  type GlobalSchluessel,
-} from "../../fiaon-global";
-import { GLOBAL_UNTERLAGEN_EN } from "../../fiaon-global-bereich";
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_LAUFEND, GLOBAL_KAPITAL_FREI } from "../../fiaon-global";
+import { VERKAUF_RAHMEN } from "../../fiaon-global-verkauf-preise";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { IRS_EN, QUELLEN_RECHT_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
 
-const S = "2026-09-24";
-const name = (k: GlobalSchluessel) => globalPaket(k)!.en.name;
-const dauer = (k: GlobalSchluessel) => globalPaket(k)?.en.dauer ?? "";
-const dauerKurz = (k: GlobalSchluessel) => globalPaket(k)?.en.dauerKurz ?? "";
-const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const klein = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+// E-509 (12.11.2026): ONE product instead of four packages — every service on these pages belongs to the one order; prices only
+// from EIN_PRODUKT.en. /en/business/miami (until E-509: the VIP package with flights and hotel) now says: from US$1 million in person.
+const S = "2026-11-12";
+const ERSCHIENEN = "2026-09-24";
+const P = EIN_PRODUKT.en;
+/** “US$950,000” — up to here the client completes the order online (above: Miami). */
+const SELBST_MAX = `US$${VERKAUF_RAHMEN.selbstMaxUsd.toLocaleString("en-GB")}`;
 
-const STRUKTUR = name("global_struktur");
-const BANKING = name("global_banking");
-const KAPITAL = name("global_kapital");
-const VIP = name("global_vip");
-const VIP_RAHMEN = globalPlanungText("global_vip", "en");
-const JAHRESBETREUUNG = globalJahresbetreuungPreisText("en");
+const JAHRESBETREUUNG = P.jahres;
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-// Die fünf Unterlagen mitten im Satz: klein beginnend, mit Semikolon getrennt (die Zeilen enthalten selbst Kommas).
-const UNTERLAGEN_IM_SATZ = GLOBAL_UNTERLAGEN_EN.map(klein).join("; ");
 
 export const LEISTUNGEN_EN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -46,29 +37,29 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     art: "leistung",
     seo: {
       titel: "US company formation for non-residents — FIAON Global",
-      beschreibung: "Your US company from Germany or Switzerland: LLC or corporation, EIN, ITIN, registered agent and address. Fixed price, all fees included.",
+      beschreibung: "Your US company from Germany or Switzerland: formation, EIN, ITIN, registered agent and address — in one order, first year included.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 01",
     auge: "Service · US company formation",
     h1: "US company formation.",
-    h1b: "With a team on the ground, at a fixed price.",
-    lead: "We form your LLC or corporation in the US, apply for the EIN and ITIN and provide the registered agent, US business address and phone number — from Germany, Austria or Switzerland, without you having to travel. One contact, one contract, one fixed price.",
+    h1b: "With a team on the ground, in one order.",
+    lead: "We form your company in the US, apply for the EIN and ITIN and provide the registered agent, US business address and phone number — from Germany, Austria or Switzerland, without you having to travel. One contact, one contract, one order.",
     ziffern: [
-      { wert: `from ${globalPreisText("global_struktur", "en")}`, label: "Fixed price, one-off — all fees included" },
-      { wert: "around eight weeks", label: `Support with ${STRUKTUR}, in our experience` },
+      { wert: P.preis, label: P.preisLabel },
+      { wert: "a few weeks", label: "until your company is in place — in our experience" },
       { wert: "3 locations", label: "London · Zurich · Miami" },
     ],
     blick: [
       ["Legal form", "LLC or corporation — decided before formation, reviewed by our partner tax adviser"],
       ["State", "Chosen according to your plans, your customers and your partners in the US"],
       ["You need", "Passport, proof of address, preferred name, description of the business activity — for companies, the commercial register extract as well"],
-      ["Support", `${dauer("global_struktur")} (${STRUKTUR})`],
-      ["Fixed price", `from ${globalPreisText("global_struktur", "en")}, one-off — state fees and partner fees included`],
+      ["Support", "In the first year: US office, assistance and filings — and through to financing"],
+      ["Price", `${P.preis} with your order — state fees and partner fees included; success fee on registration`],
       ["Contracting party", "FIAON LTD, London · on the ground: Schwarzott Group, Miami"],
     ],
-    kurz: "A US company can be formed entirely from abroad — without living in the US, without travelling and without minimum capital. FIAON handles the formation, tax numbers, registered agent, address and phone number, as well as coordination with the lawyer, tax adviser and US CPA — at a fixed price. As a rule, the company remains taxable where it is actually managed.",
+    kurz: "A US company can be formed entirely from abroad — without living in the US, without travelling and without minimum capital. FIAON handles the formation, tax numbers, registered agent, address and phone number, as well as coordination with the lawyer, tax adviser and US CPA — in one order. As a rule, the company remains taxable where it is actually managed.",
     bloecke: [
       {
         typ: "text", id: "was-es-ist", h2: "What a US company is — and what it is not",
@@ -97,7 +88,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         lead: "Five steps, one sequence. Durations are based on our experience — authorities set their own pace.",
         etappen: [
           { titel: "Kick-off call and review", dauer: "in the first week", text: "Your contact clarifies your plans, the legal form and the state. Before formation, our partner tax adviser reviews how the company will be treated in your home country and which filings are required there." },
-          { titel: "Documents and name", dauer: "as soon as everything is in", text: `You upload five documents to your document room: ${UNTERLAGEN_IM_SATZ}. The state registers each name only once — hence three variants.` },
+          { titel: "Passport and name", dauer: "as soon as both are in", text: "You upload your passport and choose the name of your company, plus two alternatives. The state registers each name only once." },
           { titel: "Formation and operating agreement", dauer: "typically a few weeks", text: "Our team on the ground files the formation with the state and provides the registered agent, US business address and phone number. Our partner lawyer drafts the operating agreement." },
           { titel: "EIN and ITIN", dauer: "depending on the IRS", text: "We prepare the applications and file them. The EIN is issued to your company, the ITIN to you personally — both are issued by the US tax authority, the IRS, on its own timeline." },
           { titel: "Account, card and compliance calendar", dauer: "once documents are complete", text: "We prepare the first account and card application in full and enter every deadline of your company in the compliance calendar. Our US CPA prepares the first annual US filing." },
@@ -111,24 +102,24 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         sie: ["Upload five documents", "Decide on the legal form and name", "Sign the applications", "Report your company in your home country — with your tax adviser"],
       },
       {
-        typ: "text", id: "inklusive", h2: "What the fixed price includes",
-        absaetze: ["You pay one price. We pay everyone who works on your company:"],
-        punkte: [...GLOBAL_INKLUSIVE.en],
+        typ: "text", id: "inklusive", h2: "What the price includes",
+        absaetze: ["You pay one price. We bear our partners’ fees for the services in your order:"],
+        punkte: [...P.enthalten],
         nach: GLOBAL_LAUFEND.en,
       },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know before formation",
-        punkte: [...GLOBAL_PFLICHTHINWEIS.en, `${GLOBAL_GELD_ZURUECK.en.titel}: ${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`],
+        punkte: [...GLOBAL_PFLICHTHINWEIS.en, P.geldZurueck],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: "Formation, tax numbers and the first account and card application — everything a US company needs to get started.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Three locations, one contract", lead: "Your contracting party is based in London, the partners in Zurich and Miami." },
     ],
     fragen: [
       { f: "Can I form a US company without living in the US?", a: "Yes. To form an LLC or corporation you need neither residence nor citizenship in the US. The address required by law in the state is provided by the registered agent; we provide the business address and phone number." },
-      { f: "Do I have to travel to the US to form the company?", a: `No. Our team on the ground files and attends appointments; you sign digitally. Those who would like to experience the kick-off in person choose the ${VIP} package — flights and hotel for the kick-off in Miami are included in its fixed price.` },
+      { f: "Do I have to travel to the US to form the company?", a: "No. Our team on the ground files and attends appointments; you sign online. From a capital range of US$1 million we meet you in person in Miami." },
       { f: "LLC or corporation — which one suits me?", a: "For trading, services and building your own card history, the LLC is usually the simpler form. A corporation suits businesses that want to bring in investors or give shares to employees. Our partner tax adviser reviews this for your case before formation." },
-      { f: "How long does it take to form a US company?", a: `The company itself is usually in place after a few weeks. In our experience, support in the ${STRUKTUR} package takes around eight weeks, because the EIN and ITIN depend on the US tax authority, which sets its own timelines.` },
-      { f: "How much does it cost to form a US company with FIAON?", a: `The ${STRUKTUR} package costs ${globalPreisText("global_struktur", "en")} one-off, including state fees, the registered agent, address and phone for the first year, and the fees of our partner lawyer, partner tax adviser and US CPA. From the second year, your company’s running costs apply; the breakdown is on the “Costs” page.` },
+      { f: "How long does it take to form a US company?", a: "The company itself is usually in place after a few weeks. The EIN and ITIN depend on the US tax authority, which sets its own timelines." },
+      { f: "How much does it cost to form a US company with FIAON?", a: `${P.preisSatzKurz} From the second year, your company’s running costs apply; the breakdown is on the “Costs” page.` },
       { f: "Can a US company reduce my tax bill?", a: `No. If the company is managed from Germany, Austria or Switzerland, it is generally taxable there, and annual filing duties apply in the US on top. A US company is worthwhile for real business in the US and for building capital — not as a tax scheme. ${KAPITAL_FREI}` },
     ],
     paket: "global_struktur",
@@ -150,14 +141,14 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       beschreibung: "EIN for your US company, ITIN for you personally: we clarify the tax reason, prepare both applications and file them with the IRS.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 02",
     auge: "Service · US tax numbers",
     h1: "EIN and ITIN.",
     h1b: "The two numbers you cannot do without.",
     lead: "The EIN is the tax number of your US company, the ITIN your personal US tax number. Without an EIN there is no business account and no US filing; without an ITIN, generally no personal credit history in the US. We prepare both applications and file them.",
     ziffern: [
-      { wert: "in every package", label: "EIN and ITIN: applications prepared and filed" },
+      { wert: "included", label: "EIN and ITIN: applications prepared and filed" },
       { wert: "without an SSN", label: "The EIN does not require a US Social Security number" },
       { wert: "IRS", label: "Both numbers are issued by the US tax authority" },
     ],
@@ -167,7 +158,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["ITIN requirement", "A tax reason that the IRS recognises — we check it before applying"],
       ["Your passport", "Checked by our certified acceptance agent partner in the DACH region — in person or in a video appointment"],
       ["IRS processing time", "EIN by fax about four working days · ITIN seven weeks, from abroad nine to eleven weeks"],
-      ["In the package", `From ${STRUKTUR}, at no extra charge`],
+      ["In your order", "Included, at no extra charge"],
     ],
     kurz: "Your company receives the EIN (Employer Identification Number) from the US tax authority, the IRS — free of charge and without a US Social Security number. You personally receive the ITIN (Individual Taxpayer Identification Number) if there is a tax reason; it is applied for with Form W-7 and a verified passport. FIAON prepares both applications and files them; the IRS makes the decision.",
     bloecke: [
@@ -218,11 +209,11 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           "An ITIN is neither a credit card nor a credit limit. It is a prerequisite for an issuer to be able to assess you at all.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `EIN and ITIN are included in every package — from ${STRUKTUR}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "EIN and ITIN are included in your order.", paket: "global_struktur" },
     ],
     fragen: [
       { f: "Do I need a US Social Security number to get an EIN?", a: "No. Shareholders without a US tax number apply for the EIN in writing with Form SS-4. The IRS online procedure is only open to applicants with a US tax number." },
-      { f: "How much does the IRS charge for an EIN?", a: "Nothing. The IRS charges no fee for the EIN. At FIAON Global, preparation and filing are included in the fixed price of every package." },
+      { f: "How much does the IRS charge for an EIN?", a: "Nothing. The IRS charges no fee for the EIN. At FIAON Global, preparation and filing are included in your order." },
       { f: "What do I need an ITIN for?", a: "For personal tax obligations in the US — and so that a US issuer can assess you as a person if you give a personal guarantee for a business credit card. The IRS only issues the ITIN where there is a tax reason." },
       { f: "Will I automatically get a credit card with an ITIN?", a: "No. The ITIN is a tax number. Whether an issuer issues a card, and with what limit, is decided by the issuer itself under its own rules." },
       { f: "Do I have to send my passport to the US?", a: "No. Our certified acceptance agent partner in the DACH region checks your passport in person or in a video appointment and files the application." },
@@ -249,14 +240,14 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       beschreibung: "A US business bank account for your LLC or corporation: documents compiled, application fully prepared, support with every query. The institution decides.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 03",
     auge: "Service · US business bank account",
     h1: "The US business bank account.",
     h1b: "Prepared before the institution asks.",
     lead: "A US business bank account for your company stands or falls on the documents. We compile them in full, prepare the application and support you through every query from the institution — online or, where necessary, with our team on the ground.",
     ziffern: [
-      { wert: "in every package", label: "First account and card application fully prepared" },
+      { wert: "included", label: "Account and card applications fully prepared" },
       { wert: "no power of attorney", label: "FIAON never has access to your account" },
       { wert: "Miami", label: "Appointments on the ground with our team, where an institution requires them" },
     ],
@@ -266,7 +257,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["How", "Online or with an appointment on the ground, depending on the institution"],
       ["FIAON", "Documents, application, queries, appointments — no power of attorney over your money"],
       ["Decision", "The institution alone, under its own rules"],
-      ["In the package", `From ${STRUKTUR}: the first application · from ${BANKING}: every further one`],
+      ["In your order", "Personal account, business account and cards: every application prepared"],
     ],
     kurz: "A US company can open a business account in the US once it is registered and has an EIN. Institutions require the formation documents, the EIN confirmation, the operating agreement, the shareholders’ identity documents and a clear, credible description of the business. FIAON prepares these documents and the application in full; whether and on what terms an account is opened is decided by the institution.",
     bloecke: [
@@ -286,7 +277,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         typ: "karten", id: "wege", h2: "Online or on the ground", spalten: 2,
         karten: [
           { tag: "Online", titel: "Opening remotely", text: "Many institutions open accounts for companies with shareholders abroad entirely online. We prepare the application so that queries remain the exception." },
-          { tag: "On the ground", titel: "Appointment at the branch", text: `Some institutions require an in-person appointment. In that case our team in Miami accompanies you — in the ${VIP} package as a fixed part of the kick-off.` },
+          { tag: "On the ground", titel: "Appointment at the branch", text: `Some institutions require an in-person appointment. In that case we plan it with you in good time and accompany you on the ground.` },
         ],
       },
       {
@@ -308,7 +299,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           "The account holder is your company. FIAON receives no power of attorney over your account and never accepts money on your behalf.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `The first account and card application is included in every package. Further applications are supported by ${BANKING}.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Account and card applications are included in your order — every one fully prepared.", paket: "global_banking" },
     ],
     fragen: [
       { f: "Can I open a US business bank account from Germany?", a: "Yes — for your US company. The requirements are a registered company, an EIN and complete documents. Whether an institution opens the account is its own decision." },
@@ -332,22 +323,22 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       beschreibung: "The card ladder: first US business credit card, planned applications, key figures for a bank loan. The capital range is your goal; the institution decides.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 04",
     auge: "Service · Business credit cards and capital",
     h1: "Business credit cards and capital.",
     h1b: "Built up step by step.",
     lead: "Capital from US institutions is not built with a single application but through a history: the first business credit card, statements paid on time, further issuers in a well-planned order — and later, possibly, a bank loan. We plan the sequence and prepare every application.",
     ziffern: [
-      { wert: globalKapitalSpanne("en"), label: "Capital range per package — your goal; the institution decides on every limit" },
+      { wert: P.rahmenKurz, label: "Capital range you choose yourself — the institution decides on the financing" },
       { wert: "four stages", label: "Formation, first card, card ladder, bank loan" },
       { wert: "Zurich", label: "Capital stage with Schwarzott Group" },
     ],
     blick: [
-      ["Capital range", `${globalKapitalSpanne("en")} — depending on the package, as a goal`],
+      ["Capital range", `${P.rahmen} — you choose it yourself`],
       ["First card", "Usually a small limit, no cash deposit, with a personal guarantee from the owner"],
       ["Card ladder", "Further issuers after a few months of statements paid on time"],
-      ["Bank loan", `With an established history — key-figures file from ${KAPITAL}`],
+      ["Financing", "With the surety of our US partner company — the financing institution decides on the financing"],
       ["Use", `${GLOBAL_KAPITAL_FREI.en.kurz} — our partner tax adviser clarifies the tax treatment in advance`],
       ["FIAON", "Plans, prepares, supports — neither grants nor arranges loans"],
       ["Decision", "The institution concerned alone"],
@@ -365,12 +356,12 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "tabelle", id: "kapitalrahmen", h2: "The capital range per package",
-        lead: "The capital range is the goal you are aiming for. It determines the duration and depth of our support — it is not an outcome that FIAON can promise.",
-        kopf: ["Package", "Capital range", "Support", "Fixed price"],
-        zeilen: (["global_struktur", "global_banking", "global_kapital", "global_vip"] as const).map((k) => [
-          name(k), globalPlanungText(k, "en"), gross(dauerKurz(k)), globalPreisText(k, "en"),
-        ]),
+        typ: "tabelle", id: "kapitalrahmen", h2: "Your capital range",
+        lead: "The capital range is the goal you choose yourself. It sets the direction of our support — it is not an outcome that FIAON can promise.",
+        kopf: ["Capital range", "How it runs", "Completion"],
+        zeilen: [
+          [`${P.rahmenAb} to ${SELBST_MAX}`, "remotely", "online, in the configurator"], [`from ${P.rahmenEnde}`, "in person in Miami", "after our conversation"],
+        ],
         hervor: 1,
         fuss: ["The institution concerned alone decides on the account, card, limit and loan."],
       },
@@ -406,16 +397,16 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           "Some issuers offer introductory periods without debit interest; each issuer sets the terms itself and can change them.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `${KAPITAL} supports you across several issuers through to the bank loan — with a key-figures file and priority for appointments on the ground.`, paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       { typ: "standorte", id: "standorte", h2: "The capital stage", lead: "Schwarzott Group in Zurich supports the capital stage: key figures and documents for financing discussions." },
     ],
     fragen: [
-      { f: "What will my credit limit be?", a: "That is decided by the issuer under its own rules. The capital range per package is your goal and sets the direction of our support — it is not a promise." },
+      { f: "What will my credit limit be?", a: "That is decided by the issuer under its own rules. The capital range you choose is your goal and sets the direction of our support — it is not a promise." },
       { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
       { f: "Do I need collateral for the first business credit card?", a: "The first card usually requires no cash deposit, but a personal guarantee from the owner. The personal guarantee is the issuer’s security." },
       { f: "Does FIAON arrange loans?", a: "No. FIAON is not a bank, does not lend and does not arrange loans. We plan the sequence, prepare applications and documents and support you; the institution makes the decision." },
-      { f: `What does “${VIP_RAHMEN}” mean for the ${VIP} package?`, a: "It is the upper limit of the capital range that this package supports — your goal, not a promise. The institution concerned decides on every limit." },
-      { f: "How long does it take to build up capital?", a: `In our experience: ${dauerKurz("global_struktur")} with ${STRUKTUR}, ${dauerKurz("global_banking")} with ${BANKING}, ${dauerKurz("global_kapital")} with ${KAPITAL}. How quickly it goes is determined by the institutions and by whether you pay on time.` },
+      { f: "How large can the capital range be?", a: P.rahmenSatz },
+      { f: "How long does it take to build up capital?", a: "The company is usually in place after a few weeks; accounts, cards and financing follow each institution’s review. How quickly it goes is determined by the institutions and by whether you pay on time." },
     ],
     paket: "global_kapital",
     weiter: ["/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/building-us-credit", "/en/business/knowledge/us-funding-for-foreign-owned-companies"],
@@ -432,7 +423,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       beschreibung: "Form 5472 with Form 1120, annual report, registered agent: we keep your US company’s compliance calendar; our US CPA prepares the first filing.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 05",
     auge: "Service · US compliance",
     h1: "Your US compliance duties.",
@@ -441,25 +432,25 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     ziffern: [
       { wert: "Form 5472", label: "with Form 1120 — annually, even without revenue" },
       { wert: "15 April", label: "IRS deadline for companies whose tax year is the calendar year" },
-      { wert: "in the package", label: "First annual US filing by our US CPA" },
+      { wert: "included", label: "First annual US filing by our US CPA" },
     ],
     blick: [
       ["IRS", "Form 5472 with Form 1120 for companies with a foreign shareholder"],
       ["State", "Annual report or annual fee, with its own deadline depending on the state"],
       ["Registered agent", "Annually — without one, no valid address in the state"],
       ["Home country", "Notification of the shareholding and tax return — with your tax adviser"],
-      ["In the package", `First US filing by US CPA · compliance calendar from ${BANKING}`],
+      ["In your order", "First US filing by US CPA · compliance calendar"],
       ["From year two", `Annual care plan: ${JAHRESBETREUUNG} a year, all fees included`],
     ],
-    kurz: "A US company with a foreign shareholder (member) must file Form 5472 together with Form 1120 with the IRS every year — even without revenue. On top of this come the state’s annual report or annual fee and the registered agent. In the home country, the shareholding must be reported, and the company is generally taxed there. FIAON keeps the compliance calendar; our US CPA prepares the first annual US filing within the fixed price.",
+    kurz: "A US company with a foreign shareholder (member) must file Form 5472 together with Form 1120 with the IRS every year — even without revenue. On top of this come the state’s annual report or annual fee and the registered agent. In the home country, the shareholding must be reported, and the company is generally taxed there. FIAON keeps the compliance calendar; our US CPA prepares the first annual US filing, included in the price.",
     bloecke: [
       {
         typ: "tabelle", id: "kalender", h2: "A US company’s duties over the year",
         kopf: ["Duty", "Filed with", "Deadline", "Who handles it"],
         zeilen: [
-          ["Form 5472 with Form 1120", "IRS, by fax or post", "15 April, with Form 7004 until 15 October", "US CPA (first year in the package)"],
+          ["Form 5472 with Form 1120", "IRS, by fax or post", "15 April, with Form 7004 until 15 October", "US CPA (first year included)"],
           ["Annual report or annual tax", "State", "Florida 1 January to 1 May · Delaware 1 June · Wyoming in the month of formation", "FIAON in the compliance calendar"],
-          ["Registered agent", "State", "annually", "in the package for the first year"],
+          ["Registered agent", "State", "annually", "included in the first year"],
           ["Notification of the shareholding (Germany: section 138 of the German Fiscal Code, AO)", "Tax office in the home country", "with the tax return, no later than fourteen months after the end of the year", "Your tax adviser"],
           ["Tax return of the company", "Tax office in the home country", "under local law", "Your tax adviser"],
         ],
@@ -484,15 +475,15 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         punkte: [
           "Deadlines and penalties are set by the authorities, not by FIAON. The compliance calendar reminds you in good time; responsibility for the company remains with you.",
           GLOBAL_LAUFEND.en,
-          "Ongoing bookkeeping and the tax return in your home country are not part of the packages; your tax adviser handles them.",
+          "Ongoing bookkeeping and the tax return in your home country are not part of your order; your tax adviser handles them.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `${BANKING} keeps the compliance calendar for all US filings and deadlines — and supports further account and card applications.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "The compliance calendar for all US filings and deadlines is included in your order.", paket: "global_banking" },
     ],
     fragen: [
       { f: "Do I have to file Form 5472 if my LLC had no revenue?", a: "Yes. The obligation does not depend on revenue but on the company being owned by a foreign shareholder: it must report its transactions with that shareholder, and contributions at formation already count." },
       { f: "What happens if I miss the Form 5472 deadline?", a: `The IRS can impose a penalty of ${IRS_EN.strafe5472}, with further amounts if the failure continues after a notice. That is why the deadline is in the compliance calendar and our US CPA prepares the first filing.` },
-      { f: "Who prepares the annual US filing?", a: `In the first year, our US CPA — the fee is included in the fixed price. From the second year, the annual care plan takes this over for ${JAHRESBETREUUNG} a year, all fees included.` },
+      { f: "Who prepares the annual US filing?", a: `In the first year, our US CPA — the fee is included in the price. From the second year, the annual care plan takes this over for ${JAHRESBETREUUNG} a year, all fees included.` },
       { f: "Do I have to report the US company to my tax office?", a: "In Germany, yes: under section 138 of the German Fiscal Code (AO), together with the tax return. Austria and Switzerland have their own rules; our partner tax adviser tells you what they are before formation." },
       { f: "What does a US company cost from the second year onwards?", a: `The state fee, the registered agent and the annual US filing. With the annual care plan we take care of all of this for ${JAHRESBETREUUNG} a year, all fees included; the individual amounts per state are on the “Costs” page.` },
     ],
@@ -512,64 +503,64 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     schwester: "/business/miami",
     art: "leistung",
     seo: {
-      titel: `${VIP}: an in-person kick-off in Miami — FIAON Global`,
-      beschreibung: `Your US company with a kick-off in Miami: meeting authorities and banks together with our team, flights and hotel included. Capital range ${VIP_RAHMEN}.`,
+      titel: "In person in Miami: from US$1 million — FIAON Global",
+      beschreibung: "From a capital range of US$1 million we work with you in person in Miami: appointments with authorities and institutions alongside our team.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 06",
-    auge: `Service · ${VIP}`,
-    h1: `${VIP}.`,
-    h1b: "The in-person kick-off in Miami.",
-    lead: `For business owners who want to sit at the table themselves: your US company with everything in ${KAPITAL} — and a kick-off on the ground in Miami, including appointments with authorities and banks alongside our team and our management. Flights and hotel for the kick-off are included in the fixed price.`,
+    auge: "Service · Miami",
+    h1: "In person in Miami.",
+    h1b: "From a capital range of US$1 million.",
+    lead: `With a capital range of ${SELBST_MAX} or less, everything runs remotely. From US$1 million we work with you in person in Miami — with appointments with authorities and institutions alongside our team and our management. We agree the date with you.`,
     ziffern: [
-      { wert: VIP_RAHMEN, label: "Capital range — your goal; the institution decides" },
-      { wert: globalPreisText("global_vip", "en"), label: "Fixed price, one-off — flights and hotel included" },
-      { wert: "Miami", label: "Kick-off with Schwarzott Group" },
+      { wert: "from US$1m", label: "Capital range — the institution decides on the financing" },
+      { wert: "in person", label: "Your appointment with our management" },
+      { wert: "Miami", label: "with Schwarzott Group on the ground" },
     ],
     blick: [
-      ["Included", `Everything in ${KAPITAL} — from formation to the key-figures file`],
-      ["On the ground", "Appointments with authorities and banks together with our team"],
-      ["Support", "Accompanied by FIAON’s management"],
-      ["Travel", "Flights and hotel for one person named by you, booked in your name"],
-      ["Capital range", `${VIP_RAHMEN} — as a goal`],
-      ["Fixed price", `${globalPreisText("global_vip", "en")}, one-off`],
+      ["Who it is for", "Capital range from US$1 million"],
+      ["On the ground", "Appointments with authorities and institutions together with our team"],
+      ["Support", "From FIAON’s management"],
+      ["Your route there", "Enquiry in the configurator — we contact you and agree the date"],
+      ["Below that", `To ${SELBST_MAX}: everything remotely, signed online`],
+      ["Your offer", "You receive it in person, after our conversation"],
     ],
-    kurz: `${VIP} is the package with a kick-off on the ground: your US company with everything in ${KAPITAL}, plus appointments with authorities and banks in Miami together with our team and our management. FIAON bears the cost of flights and hotel for the kick-off — booked in your name; FIAON does not sell travel. The capital range of this package reaches ${VIP_RAHMEN}; the institution decides on every limit.`,
+    kurz: "From a capital range of US$1 million, FIAON Global works with you in person in Miami: appointments with authorities and institutions together with our team on the ground and our management. Below that, everything runs remotely and you complete your order online. You send your enquiry in the configurator; we contact you and agree the date with you. The financing institution decides on the financing.",
     bloecke: [
       {
         typ: "text", id: "warum", h2: "Why on the ground",
         absaetze: [
-          "Most formations do not require any travel. But if you are building a larger structure, approaching several institutions or simply want to see for yourself who you are working with, you benefit from a kick-off on the ground: conversations become shorter, queries disappear, and you get to know the people who support your company in the US.",
-          "The choice of Miami is no coincidence: this is where our team on the ground, Schwarzott Group, is based, and it is from here that the team attends appointments with authorities and institutions.",
+          "Most formations do not require a trip. But anyone who is building a large capital range, approaching several institutions or simply wants to see for themselves who they are working with gains from an appointment on the ground: conversations become shorter, queries disappear, and you get to know the people who support your company in the US.",
+          "Miami is no coincidence: this is where our team on the ground, Schwarzott Group, is based, and from here appointments with authorities and institutions are attended.",
         ],
       },
       {
-        typ: "etappen", id: "auftakt", h2: "The kick-off in four steps",
+        typ: "etappen", id: "auftakt", h2: "The route to Miami in four steps",
         etappen: [
-          { titel: "Preparation from afar", text: "Documents, formation and tax numbers proceed as in every package. Your contact agrees travel dates, class of travel and hotel with you before booking." },
-          { titel: "Arrival in Miami", text: "Flights and hotel are booked, in your name and at FIAON’s expense. Our team picks you up for the first appointment." },
-          { titel: "Appointments on the ground", text: "Appointments with authorities and banks together with our team, and a working session with the management on the card ladder and the capital stage." },
-          { titel: `Continuing as in ${KAPITAL}`, text: "After the kick-off, we support you across several issuers through to the key-figures file for a bank loan — with priority for all appointments on the ground." },
+          { titel: "Enquiry in the configurator", text: "You move the slider to US$1 million and send your enquiry. We contact you." },
+          { titel: "Conversation and offer", text: "We discuss your plans and agree the date. You receive your offer in person." },
+          { titel: "Appointments on the ground", text: "Appointments with authorities and institutions together with our team, plus a working session with our management." },
+          { titel: "Continuing remotely", text: "After the appointment, everything else runs as with every order: you steer each step in “My order”." },
         ],
       },
       {
         typ: "hinweis", id: "reise", h2: "The trip — clearly arranged",
         punkte: [
-          GLOBAL_VIP_REISE.en,
-          "FIAON is not a tour operator and does not sell travel. FIAON bears the cost of a business trip that is booked in the Client’s name.",
-          "Even after an appointment on the ground, the institution concerned alone decides on the account, card, limit and loan.",
+          "We agree the date, the trip and the schedule on the ground with you beforehand.",
+          "FIAON is not a tour operator and does not sell travel.",
+          "Even after an appointment on the ground, the institution concerned alone decides on the account, card, limit and financing.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The package", lead: `Everything in ${KAPITAL}, the kick-off in Miami, support from our management.`, paket: "global_vip" },
-      { typ: "standorte", id: "standorte", h2: "Your team in Miami", lead: "Your contracting party is FIAON LTD in London; Schwarzott Group works on the ground." },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_vip" },
+      { typ: "standorte", id: "standorte", h2: "Your team in Miami", lead: "The contracting party is FIAON LTD in London; Schwarzott Group works on the ground." },
     ],
     fragen: [
-      { f: `Whose travel is included in the ${VIP} package?`, a: "Flights and hotel for the kick-off are included for one person named by you. If further people would like to travel with you, we agree this with you separately in advance." },
-      { f: "Is this a package holiday?", a: "No. FIAON bears the cost of a business trip booked in your name. FIAON is not a tour operator and does not sell travel." },
-      { f: "When does the kick-off take place?", a: "Once payment has been received and as soon as the documents are complete. We agree travel dates, class of travel and hotel with you before anything is booked." },
-      { f: `What does the capital range of ${VIP_RAHMEN} mean?`, a: `It is the upper limit of the capital range that this package supports — your goal, not a promise. The institution concerned decides on every limit. ${KAPITAL_FREI}` },
-      { f: "Do I need to travel at all to form the company?", a: `No. Every formation with FIAON Global can also be handled entirely remotely. ${VIP} is the choice for business owners who want to experience the build-up in person.` },
+      { f: "From when do we meet in person?", a: "From a capital range of US$1 million. Below that, everything runs remotely and you complete your order online." },
+      { f: "Is FIAON selling me a trip?", a: "No. FIAON is not a tour operator and does not sell travel. We agree the date, the trip and the schedule on the ground with you beforehand." },
+      { f: "When does the appointment take place?", a: "After our conversation — we agree it with you." },
+      { f: "What does the capital range mean?", a: `It is the range you choose for your company — your goal, not a promise. The financing institution decides on the financing. ${KAPITAL_FREI}` },
+      { f: "Do I need to travel at all to form the company?", a: `No. With a capital range of ${SELBST_MAX} or less, every order runs entirely remotely.` },
     ],
     paket: "global_vip",
     weiter: ["/en/business/us-business-credit-cards", "/en/business/partners", "/en/business/florida", "/en/business/costs"],

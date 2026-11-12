@@ -21,8 +21,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useSprache } from "@/i18n/sprache";
 import { globalMenue, type MenueGruppe } from "@shared/fiaon-global-menue";
-import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
-import { globalStartPfad, globalSeitePfad, globalPaketePfad } from "@shared/fiaon-global-wege";
+import { globalStartPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — Name und Preis aus der einen Quelle (ohne den Vertragsmotor zu laden).
+import { EIN_PRODUKT } from "@shared/fiaon-global-seiten/ein-produkt";
 import { globalSchwester } from "@shared/fiaon-global-pfade";
 import { SERIOES_PFAD } from "@shared/fiaon-serioes";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
@@ -35,16 +36,16 @@ import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
 type Promo = Record<MenueGruppe, { titel: string; text: string; href: string; knopf: string }>;
 const PROMO: { de: Promo; en: Promo } = {
   de: {
-    leistungen: { titel: "Ein Vertrag. Ein Festpreis.", text: "Gesellschaft, Steuernummern, Konto- und Kartenanträge, Partner-Honorare — alles im Paket.", href: "/#pakete", knopf: "Pakete vergleichen" },
+    leistungen: { titel: "Ein Vertrag. Ein Ansprechpartner.", text: "Gesellschaft, Steuernummern, US-Büro, Konto- und Kartenanträge, Partner-Honorare — in einem Auftrag.", href: "/#produkt", knopf: "Leistung ansehen" },
     fuerwen: { titel: "Auch ohne eigene Firma", text: "Gründer und Unternehmer, die privat buchen, beauftragen direkt — Vertrag auf den eigenen Namen.", href: "/business/privatpersonen", knopf: "Als Privatperson beauftragen" },
     preise: { titel: "", text: "", href: "", knopf: "" },
-    wissen: { titel: "Welches Paket passt?", text: "Vier Fragen zu Vorhaben, Kapitalrahmen und Begleitung — das Ergebnis mit Begründung.", href: "/business/paket-finder", knopf: "Zum Paket-Finder" },
+    wissen: { titel: "Ihr Angebot in einer Minute", text: "Schwerpunkte wählen, Kapitalrahmen einstellen, Preis sehen — und online unterschreiben.", href: "/business/start", knopf: "Angebot zusammenstellen" },
   },
   en: {
-    leistungen: { titel: "One contract. One fixed price.", text: "Company, tax numbers, account and card applications, partner fees — all in the package.", href: "/en#pakete", knopf: "Compare packages" },
+    leistungen: { titel: "One contract. One contact.", text: "Company, tax numbers, US office, account and card applications, partner fees — in one order.", href: "/en#produkt", knopf: "See the service" },
     fuerwen: { titel: "No company of your own needed", text: "Founders and business owners ordering privately order directly — the contract in their own name.", href: "/en/business/private-individuals", knopf: "Order as a private individual" },
     preise: { titel: "", text: "", href: "", knopf: "" },
-    wissen: { titel: "Which package fits?", text: "Four questions on your plans, capital range and support — the result with its reasons.", href: "/en/business/package-finder", knopf: "To the package finder" },
+    wissen: { titel: "Your offer in a minute", text: "Choose what matters, set your capital range, see your price — and sign online.", href: "/en/business/start", knopf: "Build your offer" },
   },
 };
 
@@ -195,14 +196,14 @@ export default function GlobalNav() {
               </ul>
             </div>
             {g.gruppe === "preise" ? (
+              // E-509 (12.11.2026): ein Produkt, ein Preis — der Weg führt zum Konfigurator (bis E-509: die vier Pakete).
               <div className="gk-promo gk-promo-pakete">
-                <p className="gk-panel-titel">{en ? "Four packages · fixed price" : "Vier Pakete · Festpreis"}</p>
-                {GLOBAL_PAKETE.map((p) => (
-                  <a key={p.key} href={globalStartPfad(p.key, sp, privatSeite ? "privat" : undefined)} className="gk-paket">
-                    <span>{p[sp].name}</span><b>{globalPreisText(p.key, sp)}</b>
-                  </a>
-                ))}
-                <a href={globalPaketePfad(sp)} className="gk-promo-link">{en ? "Compare all services" : "Leistungen im Vergleich"}<Pfeil /></a>
+                <p className="gk-panel-titel">{en ? "One mandate · one price" : "Ein Mandat · ein Preis"}</p>
+                <a href={globalStartPfad(undefined, sp)} className="gk-paket">
+                  <span>{EIN_PRODUKT[sp].name}</span><b>{EIN_PRODUKT[sp].preis}</b>
+                </a>
+                <p className="gk-promo-text">{en ? "With your order. The success fee falls due on registration and follows your capital range." : "Mit Ihrem Auftrag. Das Erfolgshonorar wird mit der Eintragung fällig und richtet sich nach Ihrem Kapitalrahmen."}</p>
+                <a href={globalStartPfad(undefined, sp)} className="gk-promo-link">{en ? "Build your offer" : "Angebot zusammenstellen"}<Pfeil /></a>
               </div>
             ) : (
               <div className="gk-promo">

@@ -92,7 +92,7 @@ export default function GlobalSeitePage() {
 // ── Ein Artikel der Business-Redaktion im Kleid der Unterseiten (E-439, 27.10.2026) ──
 // Die Tagesartikel (fiaon_ratgeber, bereich business) liefen bis heute auf der dunklen Privat-Bühne unter
 // /ratgeber/<slug>. Jetzt sehen sie aus wie jede Seite von FIAON Global: Kopf mit Merkblatt, Inhaltsverzeichnis,
-// Antwortkarte, Abschnitte, Fragen, Paket. Der Text kommt aus dem Markdown der Redaktion — Abschnitt für Abschnitt.
+// Antwortkarte, Abschnitte, Fragen, die Karte „Ein Mandat“. Der Text kommt aus dem Markdown der Redaktion — Abschnitt für Abschnitt.
 interface RedaktionsDaten { slug: string; titel: string; untertitel: string | null; teaser: string; inhalt: string; kategorie: string; land: string;
   lesezeit: number; faq: { frage: string; antwort: string }[]; metaTitel: string; metaBeschreibung: string; veroeffentlichtAm: string | null; aktualisiertAm: string; bereich: string; sprache?: string }
 
@@ -125,7 +125,7 @@ function redaktionsSeite(a: RedaktionsDaten, sp: Sp): GlobalSeite {
     kurz: vorweg ? vorweg.replace(/[*_`#>\[\]]/g, "").replace(/\(https?:[^)]+\)/g, "").split(/\n\n/)[0].slice(0, 700) : a.teaser,
     bloecke: [
       ...abschnitte,
-      { typ: "paket", id: "paket", h2: en ? "From one source" : "Aus einer Hand", lead: en ? "Formation, EIN and ITIN, registered agent, US address and the prepared account and card applications — at a fixed price." : "Gründung, EIN und ITIN, Registered Agent, US-Adresse und die vorbereiteten Konto- und Kartenanträge — zum Festpreis.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: en ? "From one source" : "Aus einer Hand", lead: en ? "Formation, EIN and ITIN, registered agent, US address and the prepared account and card applications — in one order." : "Gründung, EIN und ITIN, Registered Agent, US-Adresse und die vorbereiteten Konto- und Kartenanträge — in einem Auftrag.", paket: "global_banking" },
     ],
     fragen: a.faq.map((f) => ({ f: f.frage, a: f.antwort })),
     paket: "global_banking",
@@ -297,7 +297,7 @@ function Seite({ s }: { s: GlobalSeite }) {
               ))}
             </ol>
             <div className="fd-inhalt-fuss">
-              <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? u.jetzt : t.knopfPakete}</a>
+              <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? u.jetzt : V.buehne.knopf}</a>
               <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
             </div>
           </nav>

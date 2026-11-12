@@ -10,6 +10,8 @@
 // — ein Steuermodell ist sie weiterhin nicht.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der Satz zu den Partnern ohne „Paket“.
+import { EIN_PRODUKT } from "./ein-produkt";
 import { GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
 import { FAKTEN_STAND, IRS, QUELLEN_IRS, QUELLEN_STAATEN } from "./fakten";
 import type { GlobalSeite } from "./typen";
@@ -145,12 +147,12 @@ export const WISSEN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "pakete", id: "pakete", h2: "Alles aus einer Hand",
-        lead: "Jeder Beitrag hier beschreibt eine Aufgabe. FIAON Global übernimmt sie alle — Gründung, Steuernummern, US-Präsenz, Konto- und Kartenanträge, Pflichtenkalender und die erste US-Meldung, mit Partner-Anwalt, Partner-Steuerberater und US-CPA. Zum Festpreis, alle Gebühren für die Leistungen des Pakets inklusive.",
+        typ: "pakete", id: "mandat", h2: "Alles aus einer Hand",
+        lead: "Jeder Beitrag hier beschreibt eine Aufgabe. FIAON Global übernimmt sie alle — Gründung, Steuernummern, US-Präsenz, Konto- und Kartenanträge, Pflichtenkalender und die erste US-Meldung, mit Partner-Anwalt, Partner-Steuerberater und US-CPA. In einem Auftrag, die Honorare unserer Partner inklusive.",
       },
     ],
     fragen: [],
-    weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/fragen", "/business/paket-finder"],
+    weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/fragen", "/business/ablauf"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -233,7 +235,7 @@ export const WISSEN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Dieser Beitrag erklärt Grundlagen. Ihren Fall prüft vor der Gründung unser Partner-Steuerberater auf Ihr Mandat — die Prüfung ist im Festpreis jedes Pakets enthalten.",
+          "Dieser Beitrag erklärt Grundlagen. Ihren Fall prüft vor der Gründung unser Partner-Steuerberater auf Ihr Mandat — sie ist in Ihrem Auftrag enthalten.",
           GLOBAL_PFLICHTHINWEIS.de[0],
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],
@@ -279,7 +281,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Haftung", "Bei beiden auf das Gesellschaftsvermögen beschränkt"],
       ["Investoren", "Erwarten in der Regel eine Corporation"],
       ["Wechsel", "Später möglich, aber mit Aufwand"],
-      ["Prüfung", "Vor der Gründung im Festpreis enthalten"],
+      ["Prüfung", "Vor der Gründung, in Ihrem Auftrag enthalten"],
     ],
     kurz: `Die LLC ist die schlankere Form: flexibel geregelt im Operating Agreement und mit einem ausländischen Gesellschafter in den USA meist kein eigenes Steuersubjekt. Die Corporation ist ein eigenes Steuersubjekt — auf Bundesebene mit ${IRS.koerperschaftsteuer} Körperschaftsteuer — und der Standard, wenn Investoren einsteigen oder Mitarbeiter beteiligt werden sollen. Für Handel, Dienstleistung und den Aufbau einer Kartenhistorie ist meist die LLC die einfachere Wahl.`,
     bloecke: [
@@ -456,7 +458,7 @@ export const WISSEN: GlobalSeite[] = [
         punkte: [
           `Für eine fehlende oder wesentlich unvollständige Meldung kann die IRS ${IRS.strafe5472} festsetzen — ebenso, wenn die nötigen Aufzeichnungen fehlen.`,
           "Bleibt die Meldung länger als 90 Tage nach einer Aufforderung der IRS aus, kommen für jeden weiteren Zeitraum von 30 Tagen erneut 25.000 $ hinzu.",
-          "Die erste jährliche Meldung erstellt bei FIAON Global unser US-CPA — das Honorar ist im Festpreis jedes Pakets enthalten.",
+          "Die erste jährliche Meldung erstellt bei FIAON Global unser US-CPA — das Honorar ist im Preis enthalten.",
         ],
       },
     ],
@@ -481,9 +483,11 @@ export const WISSEN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "LLC-Anbieter seriös? Die Prüfliste — FIAON Global",
-      beschreibung: "Seriöse Begleitung bei der US-Gründung erkennen: Vertragspartner im Register, Festpreis, keine Steuer- und Kreditversprechen, Partner mit Zulassung.",
+      // E-509 (12.11.2026): Die Prüfliste legen wir an uns selbst an — seit dem einen Produkt heißt der Punkt „Preis, der vorab feststeht“
+      // (vorher „Festpreis“: Unser Erfolgshonorar richtet sich nach dem gewählten Kapitalrahmen und steht vor dem Auftrag fest).
+      beschreibung: "Seriöse Begleitung bei der US-Gründung erkennen: Vertragspartner im Register, Preis vorab, keine Steuer- und Kreditversprechen, Partner mit Zulassung.",
     },
-    stand: S,
+    stand: "2026-11-12",
     kennung: "FG · 28",
     auge: "Wissen · Anbieter",
     h1: "Seriös oder nicht?",
@@ -496,19 +500,19 @@ export const WISSEN: GlobalSeite[] = [
     ],
     blick: [
       ["Register", "Vertragspartner mit Registernummer, prüfbar"],
-      ["Preis", "Festpreis mit Leistungsverzeichnis"],
+      ["Preis", "Steht vorab fest, mit Leistungsverzeichnis"],
       ["Steuern", "Keine Versprechen — Pflichthinweise stattdessen"],
       ["Kredit", "Keine Zusage zu Rahmen, Karte oder Darlehen"],
       ["Partner", "Steuerberater und Anwälte mit Zulassung, auf Ihr Mandat"],
       ["Offenheit", "Verbundene Gesellschaften werden genannt"],
     ],
-    kurz: "Seriöse Begleitung bei der US-Gründung erkennen Sie an einem Vertragspartner mit prüfbarer Registernummer, einem Festpreis mit Leistungsverzeichnis, klaren Pflichthinweisen zu Steuern und Meldungen, dem Verzicht auf Zusagen zu Steuern, Karten und Krediten, Partnern mit eigener Zulassung — und daran, dass verbundene Gesellschaften offen genannt werden.",
+    kurz: "Seriöse Begleitung bei der US-Gründung erkennen Sie an einem Vertragspartner mit prüfbarer Registernummer, einem Preis, der vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen zu Steuern und Meldungen, dem Verzicht auf Zusagen zu Steuern, Karten und Krediten, Partnern mit eigener Zulassung — und daran, dass verbundene Gesellschaften offen genannt werden.",
     bloecke: [
       {
         typ: "etappen", id: "liste", h2: "Die acht Punkte",
         etappen: [
           { titel: "Wer ist Ihr Vertragspartner?", text: "Name, Rechtsform, Sitz und Registernummer müssen im Vertrag stehen — und im Register auffindbar sein. Ohne prüfbaren Vertragspartner kein Auftrag." },
-          { titel: "Gibt es einen Festpreis mit Leistungsverzeichnis?", text: "Was enthalten ist, steht schriftlich — auch, was ab dem zweiten Jahr anfällt. Abos, die erst nach der Unterschrift auftauchen, sind ein Warnzeichen." },
+          { titel: "Steht der Preis vorab fest — mit Leistungsverzeichnis?", text: "Was enthalten ist, steht schriftlich — auch, was ab dem zweiten Jahr anfällt. Abos, die erst nach der Unterschrift auftauchen, sind ein Warnzeichen." },
           { titel: "Werden Steuern versprochen?", text: "„Steuerfrei“ oder „ohne Steuern“ verschweigt den Ort der Geschäftsleitung. Seriöse Anbieter nennen die Steuerpflicht zu Hause und die Meldepflichten." },
           { titel: "Werden Karten, Rahmen oder Kredite zugesagt?", text: "Über Konto, Karte und Rahmen entscheidet das Institut. Wer Beträge verspricht, verspricht, was er nicht halten kann." },
           { titel: "Wer beantwortet Steuer- und Rechtsfragen?", text: "Nur Steuerberater, US-CPA und Anwälte mit Zulassung — auf Ihr eigenes Mandat. Ein Gründungsdienst selbst darf das nicht." },
@@ -520,8 +524,8 @@ export const WISSEN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "Dieselbe Liste für FIAON Global",
         absaetze: [
-          "Unser Vertragspartner ist die FIAON LTD, eingetragen im Companies House unter der Nummer 17318250. Der Festpreis steht mit Leistungsverzeichnis im Vertrag, die laufenden Kosten ab dem zweiten Jahr nennen wir vorab. Zu Steuern geben wir keine Zusagen, und wir sagen weder Karten noch Rahmen zu.",
-          GLOBAL_ROLLEN.de.partner,
+          "Unser Vertragspartner ist die FIAON LTD, eingetragen im Companies House unter der Nummer 17318250. Der Preis steht mit Leistungsverzeichnis im Vertrag, bevor Sie unterschreiben, die laufenden Kosten ab dem zweiten Jahr nennen wir vorab. Zu Steuern geben wir keine Zusagen, und wir sagen weder Karten noch Rahmen zu.",
+          EIN_PRODUKT.de.partner,
           GLOBAL_VERBUNDEN,
         ],
       },
@@ -535,7 +539,7 @@ export const WISSEN: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "Woran erkenne ich einen seriösen Anbieter für die US-Gründung?", a: "An einem prüfbaren Vertragspartner mit Registernummer, einem Festpreis mit Leistungsverzeichnis, klaren Pflichthinweisen und dem Verzicht auf Zusagen zu Steuern, Karten und Krediten." },
+      { f: "Woran erkenne ich einen seriösen Anbieter für die US-Gründung?", a: "An einem prüfbaren Vertragspartner mit Registernummer, einem Preis, der vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen und dem Verzicht auf Zusagen zu Steuern, Karten und Krediten." },
       { f: "Ist eine LLC an sich unseriös?", a: "Nein. Die LLC ist eine gewöhnliche Rechtsform in den USA. Über Seriosität entscheidet, wie ein Anbieter arbeitet — nicht, welche Rechtsform er hat." },
       { f: "Wie prüfe ich die Registernummer von FIAON?", a: "Im Companies House (England and Wales) unter der Nummer 17318250." },
     ],

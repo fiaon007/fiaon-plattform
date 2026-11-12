@@ -49,7 +49,8 @@ import {
 } from "@shared/fiaon-ratgeber";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
 import { GLOBAL_SEITEN } from "@shared/fiaon-global-seiten";
-import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — die Redaktion schreibt über das eine Mandat (Name, Preis, Leistungen aus einer Quelle).
+import { EIN_PRODUKT } from "@shared/fiaon-global-seiten/ein-produkt";
 import { START_ARTIKEL } from "./fiaon-ratgeber-start";
 import { START_ARTIKEL_2 } from "./fiaon-ratgeber-start-2";
 import { INSIDER_ARTIKEL } from "./fiaon-ratgeber-insider";
@@ -308,8 +309,10 @@ export function linkZiele(b: Bereich): LinkZiel[] {
       .filter((s) => s.pfad.startsWith("/business") && !/\/(auftrag|angebot|widerrufsbelehrung|mustervertrag)(\/|$)/.test(s.pfad))
       .map((s) => ({ pfad: s.pfad, titel: `${s.h1}${s.h1b ? ` ${s.h1b}` : ""}`, text: s.seo.beschreibung }))
       // 29.10.2026 (E-461): Die Startseite von FIAON Global ist fiaon.com/ (vorher /business, leitet per 301).
-      .concat([{ pfad: "/", titel: "FIAON Global — Pakete und Erstgespräch", text: "Die Startseite von FIAON Global: vier Pakete mit Festpreis, „Erst sprechen“ (/#gespraech), „Pakete“ (/#pakete)." },
-        { pfad: "/business/start", titel: "Direkt beauftragen", text: "Den Auftrag in vier Schritten erteilen." }]);
+      // E-509 (12.11.2026): ein Produkt — die Startseite zeigt das eine Mandat, /business/start ist der Konfigurator
+      // (vorher: „vier Pakete mit Festpreis“ und „Den Auftrag in vier Schritten erteilen“).
+      .concat([{ pfad: "/", titel: "FIAON Global — Leistung, Preis und Erstgespräch", text: "Die Startseite von FIAON Global: ein Mandat (US-Gesellschaft mit aktiver Betreuung), „Erst sprechen“ (/#gespraech)." },
+        { pfad: "/business/start", titel: "Angebot zusammenstellen", text: "Der Konfigurator: Schwerpunkte und Kapitalrahmen wählen, Preis sehen, online unterschreiben." }]);
   }
   return PRIVAT_PFADE.map((p) => SEO_SEITEN[p]).filter(Boolean).map((s) => ({ pfad: s.pfad, titel: s.h1, text: s.beschreibung }));
 }
@@ -487,10 +490,15 @@ const AKTUELL: Record<Bereich, string> = {
 
 function angebotText(b: Bereich): string {
   if (b === "business") {
-    const pakete = GLOBAL_PAKETE.map((p) => `- ${p.de.name} (${globalPreisText(p.key, "de")} Festpreis): ${p.de.fuer} Enthalten u. a.: ${p.de.leistungen.slice(0, 3).join("; ")}.`).join("\n");
+    // E-509 (12.11.2026): EIN Produkt statt vier Pakete (vorher: Liste der vier Pakete mit ihren Festpreisen und „/#pakete“).
+    // Der Preis-Satz ohne das Wort „Bürgschaft“ — die Einzelheiten nennt das persönliche Angebot.
+    const P = EIN_PRODUKT.de;
     return `DAS ANGEBOT VON FIAON GLOBAL (für den Abschnitt „So übernimmt FIAON Global …“ — nur das, nichts dazu erfinden):
-${pakete}
-Alle Pakete stehen auf der Startseite /#pakete, das Erstgespräch auf /#gespraech. Leistungsseiten: /business/us-firmengruendung,
+- EIN Auftrag: ${P.name}. ${P.preisSatzKurz}
+- Enthalten: ${P.enthalten.join("; ")}.
+- ${P.partner}
+Es gibt KEINE Pakete und keine Stufen — nenne keine Paketnamen und keinen anderen Preis. Sein Angebot stellt der Leser selbst zusammen:
+/business/start (Konfigurator). Das Erstgespräch steht auf /#gespraech. Leistungsseiten: /business/us-firmengruendung,
 /business/ein-itin, /business/us-geschaeftskonto, /business/firmenkarten-kapital, /business/us-pflichten, /business/kosten.
 Nenne KEINEN Kapitalrahmen als Zahl, keine Zinsen, keine Dauer als Zusage.`;
   }

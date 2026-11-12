@@ -14,17 +14,16 @@
 // auf Deutsch (kein „up to", auch nicht in „up to that point"). Prüfstand:
 // scripts/pruef-global-en.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalJahresbetreuungPreisText, globalPaket, globalPreisText, type GlobalSchluessel } from "../../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { QUELLEN_RECHT_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
 
 const S = "2026-09-24";
 
-/** Der englische Paketname aus der einen Quelle. */
-const name = (k: GlobalSchluessel): string => globalPaket(k)?.en.name ?? k;
-/** „from €2,499" — der Einstiegspreis aus dem Katalog. */
-const AB = `from ${globalPreisText("global_struktur", "en")}`;
+// E-509 (12.11.2026): ONE product, and everyone orders as a person — prices only from EIN_PRODUKT.en.
+const P = EIN_PRODUKT.en;
 
 export const PRIVAT_SEITE_EN: GlobalSeite = {
   pfad: "/en/business/private-individuals",
@@ -33,30 +32,30 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
   art: "zielgruppe",
   seo: {
     titel: "Form a US company as a private individual — FIAON Global",
-    beschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application, fixed price.",
+    beschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application in one order.",
   },
-  stand: "2026-10-06",
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 29",
   auge: "Who it is for · Private individuals and founders",
   // 06.10.2026 (E-293): H1 und Lead deckungsgleich mit der sichtbaren Startseite (GLOBAL_WOERTER.en.privat).
   h1: "Your own US company.",
-  h1b: "No company needed — at a fixed price.",
+  h1b: "No company needed — in one order.",
   lead: "You become the shareholder yourself: we form the company, apply for the EIN and ITIN and prepare account and card applications — contract and invoice are in your name.",
   ziffern: [
-    { wert: AB, label: "Fixed price — the final price for private individuals" },
+    { wert: P.preis, label: "with your order — final price" },
     { wert: "Your name", label: "on the contract and invoice" },
     { wert: "You yourself", label: "as the shareholder of the US company" },
   ],
   blick: [
     ["Client", "You personally — your name and address instead of company details"],
     ["Shareholder", "You yourself; later your holding company if you wish"],
-    ["Documents", "Passport, proof of address, preferred company name, description of the activity"],
-    ["Price", `${AB} — final price, all fees included`],
-    ["Withdrawal", "Statutory right of withdrawal for consumers; we start before the period ends only at your request"],
+    ["Documents", "Your passport — you upload it after signing"],
+    ["Price", `${P.preis} with your order — final price; success fee on registration`],
+    ["Withdrawal", "Statutory fourteen-day right of withdrawal; we begin at once because you expressly request it"],
     ["Contracting party", "FIAON LTD, London"],
   ],
-  kurz: "Yes — you can also engage FIAON Global as a private individual. You do not need a company of your own: you personally become the shareholder of the US company, and the contract and invoice are issued in your name. For private individuals the fixed prices are final prices. If you act as a consumer, the statutory fourteen-day right of withdrawal applies; we begin before the period expires only if you expressly request it.",
+  kurz: "Yes — you engage FIAON Global as a person. You do not need a company of your own: you personally become the shareholder of the US company, and the contract and invoice are issued in your name. All amounts are final prices. The statutory fourteen-day right of withdrawal applies; by signing, you expressly request that we begin at once.",
   bloecke: [
     {
       typ: "karten", id: "fuer-wen", h2: "Who this suits", spalten: 3,
@@ -69,22 +68,22 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
     {
       typ: "etappen", id: "ablauf", h2: "How to order as a private individual",
       etappen: [
-        { titel: "Choose a package", text: "The same four packages, the same fixed prices — as final prices for you." },
-        { titel: "Select “Private individual”", text: "When you order, you select “Private individual” and enter your name and address. No register extract or company details are needed." },
-        { titel: "Withdrawal instructions and your request to start", text: "You read the withdrawal instructions. If you want us to begin immediately, you confirm this expressly — otherwise we begin once the withdrawal period has expired." },
-        { titel: "Sign", text: "You receive the contract and invoice in your name by email, together with the withdrawal instructions and the model withdrawal form." },
+        { titel: "Build your offer", text: "In the configurator you choose what matters to you and your capital range, and you see your price — as a final price." },
+        { titel: "Enter your details", text: "On your offer page you enter your date of birth and address and choose the name of your company. No register extract or company details are needed." },
+        { titel: "Withdrawal instructions and start", text: "You read the agreement with the withdrawal instructions. By signing, you expressly request that we begin at once." },
+        { titel: "Sign", text: "You receive the contract and invoice in your name by email, together with the withdrawal instructions and the model withdrawal form. You then upload your passport." },
       ],
     },
     {
-      typ: "tabelle", id: "unterschied", h2: "Private individual or business — what changes",
-      kopf: ["", "As a private individual", "As a business"],
+      typ: "tabelle", id: "unterschied", h2: "You personally — what that means",
+      kopf: ["", "How it is arranged"],
       zeilen: [
-        ["Party to the contract", "You personally", "Your business"],
-        ["Shareholder of the US company", "You yourself", "Your business or you"],
-        ["Documents", "Passport, proof of address, preferred company name, activity", "in addition, a register extract or shareholder list"],
-        ["Price shown", "Final price", "plus VAT where applicable"],
-        ["Right of withdrawal", "fourteen days by law if you are a consumer", "no statutory right"],
-        ["Services", "the same", "the same"],
+        ["Party to the contract", "You personally"],
+        ["Shareholder of the US company", "You yourself, alone"],
+        ["Documents", "Your passport, after signing"],
+        ["Price shown", "Final prices"],
+        ["Right of withdrawal", "fourteen days by law"],
+        ["Your business as shareholder", "we agree this with you in a call"],
       ],
       hervor: 1,
     },
@@ -92,36 +91,36 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
       typ: "text", id: "steuern", h2: "Tax — the same rules apply to private individuals",
       absaetze: [
         "If you hold a US company privately and manage it from your home country, it is generally taxed there. In Germany the shareholding must be reported to the tax office under section 138 of the German Fiscal Code (AO); how the income is categorised depends on the activity and on the classification of the company by comparison with German legal forms (Typenvergleich).",
-        "Our partner tax adviser reviews this before formation — for private individuals too, included in the fixed price. Your own tax adviser handles the ongoing tax return.",
+        "Our partner tax adviser clarifies with you beforehand how transfers and investments are treated. Your own tax adviser handles the ongoing tax return.",
       ],
     },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "Right of withdrawal: if you act as a consumer, you can withdraw from the engagement within fourteen days without giving any reason. If you have requested that we begin before the period expires, you pay a reasonable amount for the services provided until you withdraw. Once the engagement has been fully performed, the right of withdrawal lapses.",
+        "Right of withdrawal: you can withdraw from the engagement within fourteen days without giving any reason. Because you request that we begin before the period expires, you then pay a reasonable amount for the services provided until you withdraw. Once the engagement has been fully performed, the right of withdrawal lapses.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[2],
       ],
     },
-    // Wie im Deutschen (E-196): Privatpersonen wählen aus allen vier Paketen.
-    { typ: "pakete", id: "pakete", h2: "All four packages — for private individuals too", lead: "The same packages and fixed prices as for businesses, as final prices for you — all fees and our partners’ fees included." },
+    // Wie im Deutschen: seit E-509 ein Produkt, die Karte „One mandate“.
+    { typ: "pakete", id: "mandat", h2: P.karteH2, lead: P.karteLead },
   ],
   fragen: [
     { f: "Can I form a US company as a private individual?", a: "Yes. You need neither a company of your own nor a residence in the US. You personally become the shareholder of the US company; the contract and invoice are issued in your name." },
-    { f: "Do I need a company to engage FIAON Global?", a: "No. When you order, you select “Private individual” and enter your name and address. No register extract or company details are needed." },
-    { f: "Do I have a right of withdrawal as a private individual?", a: "If you act as a consumer, yes — the statutory fourteen-day right of withdrawal from the conclusion of the contract. We begin before it expires only at your express request; in that case, if you withdraw, you pay a reasonable amount for what has already been provided." },
-    { f: "Does the fixed price also apply to private individuals?", a: `Yes, as a final price — for all four packages, ${AB} for ${name("global_struktur")}, including all fees and partner fees for the package.` },
-    { f: "Which packages can I choose as a private individual?", a: `All four: ${name("global_struktur")} for a clean start; ${name("global_banking")}, ${name("global_kapital")} and ${name("global_vip")} if you are planning the card ladder and, later, a bank loan.` },
+    { f: "Do I need a company to engage FIAON Global?", a: "No. You order as a person: on your offer page you enter your name, date of birth and address. No register extract or company details are needed." },
+    { f: "Do I have a right of withdrawal as a private individual?", a: "Yes — the statutory fourteen-day right of withdrawal from the conclusion of the contract. By signing, you request that we begin at once; in that case, if you withdraw, you pay a reasonable amount for what has already been provided." },
+    { f: "What does it cost?", a: P.preisSatzKurz },
+    { f: "Which capital range can I choose?", a: P.rahmenSatz },
     // Wie auf /business: Das Kapital ist nicht an die USA gebunden (GLOBAL_KAPITAL_FREI).
     { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
-    { f: "What does the company cost from the second year onwards?", a: `${globalJahresbetreuungPreisText("en")} a year with the annual care plan, all fees included — registered agent, US address and phone number, the annual US filing and the annual report to the state including the state fee. The plan does not renew automatically.` },
+    { f: "What does the company cost from the second year onwards?", a: `${P.jahres} a year with the annual care plan, all fees included — registered agent, US address and phone number, the annual US filing and the annual report to the state including the state fee. The plan does not renew automatically.` },
     { f: "Can I transfer the US company to my business later?", a: "In principle, yes. A transfer has tax consequences in both countries; please check this with your tax adviser beforehand." },
-    { f: "Do I have to travel to the US?", a: `As a rule, no. Our team on the ground in Miami files the documents and attends appointments; you sign digitally. If you would like to experience the set-up in person, choose ${name("global_vip")} — flights and hotel for the kick-off in Miami are included in its fixed price.` },
-    { f: "Which documents do I need as a private individual?", a: "Your passport, proof of address, three variants of the name you want for the company and a short description of the planned activity." },
+    { f: "Do I have to travel to the US?", a: "No. Our partners in the US take care of what has to happen on the ground; you sign online. From a capital range of US$1 million we meet you in person in Miami." },
+    { f: "Which documents do I need as a private individual?", a: "Your passport — you upload it after signing. You choose the name of your company on your offer page. If an authority or an institution requires further documents, we tell you which." },
   ],
   paket: "global_struktur",
   auftraggeber: "privat",
-  weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/wissen/llc-gruenden", "/business/paket-finder"].map(globalEnPfad),
+  weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/wissen/llc-gruenden", "/business/ablauf"].map(globalEnPfad),
   quellen: [
     { titel: "Section 355 German Civil Code (BGB) — right of withdrawal in consumer contracts", url: "https://www.gesetze-im-internet.de/bgb/__355.html" },
     { titel: "Section 356 German Civil Code (BGB) — right of withdrawal in distance contracts", url: "https://www.gesetze-im-internet.de/bgb/__356.html" },

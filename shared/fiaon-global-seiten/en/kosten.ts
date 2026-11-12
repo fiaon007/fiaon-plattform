@@ -3,23 +3,25 @@
 // Britische Schwester von /business/kosten (kosten.ts), Adresse aus
 // shared/fiaon-global-pfade.ts: /en/business/costs. Gleicher Aufbau, gleiche
 // Anker (ids), dieselben Quellen. Zahlen Dritter aus fakten-en.ts (Stand und
-// Quelle dort), Preise nur über globalPreisText(…, "en"), Jahresbetreuung über
-// globalJahresbetreuungPreisText("en"). Prüfstand: scripts/pruef-global-en.ts.
+// Quelle dort). Prüfstand: scripts/pruef-global-en.ts.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — Preise nur aus EIN_PRODUKT.en und verkaufPreis (wie im Deutschen).
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PAKETE,
-  globalJahresbetreuungPreisText, globalPaket, globalPlanungText, globalPreisText,
-} from "../../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND } from "../../fiaon-global";
+import { VERKAUF_KURS_VORGABE, verkaufEur, verkaufPreis, verkaufUsd } from "../../fiaon-global-verkauf";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FAKTEN_STAND_EN, IRS_EN, MARKT_EN, QUELLEN_IRS_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
 // E-465 (29.10.2026): registration times and express per state from the single source.
 import { BUNDESSTAATEN, STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "../../fiaon-global-bundesstaaten";
 
-const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const STRUKTUR_PREIS = globalPreisText("global_struktur", "en");
-const JAHRESBETREUUNG = globalJahresbetreuungPreisText("en");
-const VIP_NAME = globalPaket("global_vip")?.en.name ?? "";
+const P = EIN_PRODUKT.en;
+const JAHRESBETREUUNG = P.jahres;
+/** Examples for the success fee — calculated as in the configurator, at the fallback rate of the display. */
+const BEISPIEL_RAHMEN = [50_000, 100_000, 150_000, 250_000, 500_000, 950_000];
+const MONATE = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const KURS_TAG = VERKAUF_KURS_VORGABE.kursDatum.replace(/^(\d{4})-(\d{2})-(\d{2})$/, (_m, j, m, t) => `${Number(t)} ${MONATE[Number(m) - 1]} ${j}`);
+const KURS = VERKAUF_KURS_VORGABE.kursUsdJeEur.toLocaleString("en-GB", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 export const KOSTEN_EN: GlobalSeite[] = [
   {
@@ -29,47 +31,63 @@ export const KOSTEN_EN: GlobalSeite[] = [
     art: "preise",
     seo: {
       titel: "US LLC formation costs and annual fees — FIAON Global",
-      beschreibung: "What a US LLC costs: state fees in Florida, Delaware and Wyoming, running costs from year two and the FIAON Global fixed price — with sources.",
+      beschreibung: "What a US LLC costs: state fees in Florida, Delaware and Wyoming, running costs from year two and the price of FIAON Global — with sources.",
     },
-    stand: "2026-10-29",
+    stand: "2026-11-12",
     erschienen: "2026-09-24",
     kennung: "FG · 07",
     auge: "Prices and process · Costs",
     h1: "What a US company costs.",
     h1b: "One-off and annual — stated openly.",
-    lead: "The state charges little for a US company. The expensive part is what nobody mentions in advance: the registered agent, the annual filing, the tax adviser, the US CPA. This page sets out everything — the FIAON Global fixed price, what it includes and what is due from the second year onwards.",
+    lead: "The state charges little for a US company. The expensive part is what nobody mentions in advance: the registered agent, the annual filing, the tax adviser, the US CPA. This page sets out everything — the price of FIAON Global, what it includes and what is due from the second year onwards.",
     ziffern: [
-      { wert: `from ${STRUKTUR_PREIS}`, label: "Fixed price, one-off — first year included" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: `${STAAT_EN.wyoming.gruendung} to ${STAAT_EN.florida.gruendung}`, label: "State formation fee for an LLC" },
       { wert: "from year two", label: "State, registered agent, US filing — listed in advance" },
     ],
     blick: [
-      ["Fixed price", `${GLOBAL_PAKETE.map((p) => globalPreisText(p.key, "en")).join(" · ")}`],
-      ["Included", "State fee, registered agent and address in the first year, EIN, ITIN, lawyer, tax adviser, US CPA"],
+      ["Price", `${P.preis} with your order · success fee on registration · ${P.jahres} a year from year two`],
+      ["Included", "State fee, registered agent, address, phone and assistance in the first year, EIN, ITIN, lawyer, US accountant"],
       ["State, one-off", `Florida ${STAAT_EN.florida.gruendung} · Delaware ${STAAT_EN.delaware.gruendung} · Wyoming ${STAAT_EN.wyoming.gruendung}`],
       ["State, annual", `Florida ${STAAT_EN.florida.jahr} · Delaware ${STAAT_EN.delaware.jahr} · Wyoming ${STAAT_EN.wyoming.jahr}`],
       ["IRS", "EIN and ITIN free of charge"],
-      ["VAT", "Companies: plus VAT where applicable · Private individuals: final prices"],
+      ["Final prices", "All amounts are final prices"],
     ],
-    kurz: `Forming a US LLC costs ${STAAT_EN.wyoming.gruendung} (Wyoming) to ${STAAT_EN.florida.gruendung} (Florida) in state fees; the IRS issues the EIN and ITIN free of charge. Each year, costs arise for the state fee or tax, the registered agent (market rate: ${MARKT_EN.agent}) and the IRS filing by a US CPA (market rate: ${MARKT_EN.cpa5472}). With FIAON Global, the first year is included in the fixed price from ${STRUKTUR_PREIS} — with a lawyer, a tax adviser and a US CPA.`,
+    kurz: `Forming a US LLC costs ${STAAT_EN.wyoming.gruendung} (Wyoming) to ${STAAT_EN.florida.gruendung} (Florida) in state fees; the IRS issues the EIN and ITIN free of charge. Each year, costs arise for the state fee or tax, the registered agent (market rate: ${MARKT_EN.agent}) and the IRS filing by a US CPA (market rate: ${MARKT_EN.cpa5472}). With FIAON Global, the first year is included in the price of ${P.preis} — with a lawyer and a US accountant from our partner network.`,
     bloecke: [
       {
-        typ: "tabelle", id: "festpreise", h2: "The fixed prices",
-        lead: "Every package is a support engagement at a fixed price, paid once. No subscription, no monthly instalment.",
-        kopf: ["Package", "Fixed price", "Capital range", "Support"],
-        zeilen: GLOBAL_PAKETE.map((p) => [p.en.name, globalPreisText(p.key, "en"), globalPlanungText(p.key, "en"), gross(p.en.dauerKurz)]),
-        hervor: 1,
+        typ: "tabelle", id: "festpreise", h2: "The price",
+        lead: `One order: ${P.name}. No subscription, no monthly instalment.`,
+        kopf: ["When", "What", "Price"],
+        zeilen: [
+          ["With your order", "Formation with active management in the first year", P.preis],
+          ["With your order, on request", "Fast track: priority at every step", P.fastTrack],
+          ["On registration", "Success fee according to your capital range, surety included", "see below"],
+          ["From the second year, on request", "Annual care", `${P.jahres} a year`],
+        ],
+        hervor: 2,
         fuss: [
-          "Companies: plus VAT where applicable. Private individuals: final prices. The capital range is your goal; the institution concerned decides on every limit.",
+          "All amounts are final prices. You choose the capital range yourself; the financing institution decides on the financing.",
           // Wortlaut aus GLOBAL_KAPITAL_FREI — Kapital-Satz nur zusammen mit dem Satz zum Partner-Steuerberater.
           `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`,
         ],
       },
       {
-        typ: "text", id: "enthalten", h2: "What the fixed price includes",
-        absaetze: ["You pay one price. We pay everyone who works on your company — in each of the four packages:"],
-        punkte: [...GLOBAL_INKLUSIVE.en],
-        nach: `Beyond this, the larger packages include further card applications, the compliance calendar, the key-figures file and, in the ${VIP_NAME} package, flights and hotel for the kick-off in Miami.`,
+        typ: "tabelle", id: "erfolgshonorar", h2: "The success fee by capital range",
+        lead: P.erfolg,
+        kopf: ["Capital range", "Success fee", "First year in total"],
+        zeilen: BEISPIEL_RAHMEN.map((usd) => { const p = verkaufPreis(usd, VERKAUF_KURS_VORGABE.kursUsdJeEur); return [verkaufUsd(usd, "en"), verkaufEur(p.erfolgCents, "en"), verkaufEur(p.erstesJahrCents, "en")]; }),
+        hervor: 1,
+        fuss: [
+          `Examples without fast track, converted at the European Central Bank reference rate of ${KURS_TAG} (€1 = US$${KURS}). The configurator shows your exact price.`,
+          "From US$1 million we work with you in person in Miami; below that, everything runs remotely.",
+        ],
+      },
+      {
+        typ: "text", id: "enthalten", h2: "What the price includes",
+        absaetze: ["You pay one price. We bear our partners’ fees for the services in your order:"],
+        punkte: [...P.enthalten],
+        nach: "Legal and tax work is done by lawyers and US accountants from our partner network, each under their own mandate. You file the applications to banks and card issuers yourself; we prepare every one in full.",
       },
       {
         typ: "tabelle", id: "staaten", h2: "What the states charge",
@@ -105,8 +123,8 @@ export const KOSTEN_EN: GlobalSeite[] = [
         fuss: [`Registered agent and US CPA: published prices of several providers, September 2026 — not official figures. With the annual care plan, we cover every item except the tax adviser in your home country — for ${JAHRESBETREUUNG} a year, all fees included (as of 19 September 2026).`],
       },
       {
-        typ: "tabelle", id: "selbst", h2: "Organised yourself — or included in the fixed price",
-        lead: "What each authority or provider would charge separately. If you need only one company and coordinate everything yourself, you pay less than our fixed price — and bear every risk alone.",
+        typ: "tabelle", id: "selbst", h2: "Organised yourself — or from one source",
+        lead: "What each authority or provider would charge separately. If you need only one company and coordinate everything yourself, you pay less than with us — and bear every risk alone.",
         kopf: ["Item", "Organised yourself", "FIAON Global"],
         zeilen: [
           ["State formation fee", `${STAAT_EN.wyoming.gruendung} to ${STAAT_EN.florida.gruendung}`, "included"],
@@ -125,23 +143,23 @@ export const KOSTEN_EN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "Ongoing bookkeeping, sales tax registrations in the US and the tax return in your home country are not part of the packages.",
+          "Ongoing bookkeeping, sales tax registrations in the US and the tax return in your home country are not part of your order.",
           `For a missed Form 5472, the IRS can impose a penalty of ${IRS_EN.strafe5472} — the most expensive item is the forgotten one.`,
           "State fees change: with effect from tax year 2026, Delaware has raised the annual LLC tax from $300 to $400.",
           STAAT_WAHL_SATZ.en,
         ],
       },
-      { typ: "pakete", id: "pakete", h2: "The four packages", lead: "Fixed price, one-off — all fees and our partners’ professional fees included." },
+      { typ: "pakete", id: "mandat", h2: P.karteH2, lead: P.karteLead },
     ],
     fragen: [
-      { f: "How much does it cost to form an LLC in the US?", a: `The state charges ${STAAT_EN.wyoming.gruendung} (Wyoming), ${STAAT_EN.delaware.gruendung} (Delaware) or ${STAAT_EN.florida.gruendung} (Florida). On top of that come the registered agent, address, lawyer, tax adviser and US CPA. With FIAON Global all of this is included in the fixed price from ${STRUKTUR_PREIS}.` },
+      { f: "How much does it cost to form an LLC in the US?", a: `The state charges ${STAAT_EN.wyoming.gruendung} (Wyoming), ${STAAT_EN.delaware.gruendung} (Delaware) or ${STAAT_EN.florida.gruendung} (Florida). On top of that come the registered agent, address, lawyer, tax adviser and US CPA. With FIAON Global all of this is included in the price of ${P.preis}.` },
       { f: "What are the running costs of a US LLC?", a: `Each year, you pay the state fee or tax ($60 to $400 depending on the state), the registered agent (market rate: ${MARKT_EN.agent}) and a US CPA for the IRS filing (market rate: ${MARKT_EN.cpa5472}).` },
-      { f: "How much does an EIN or ITIN cost?", a: `The IRS charges nothing. If you apply for the ITIN through an acceptance agent, the market rate is ${MARKT_EN.acceptanceAgent}. With FIAON Global both applications are included in the fixed price.` },
-      { f: "Are there any hidden costs?", a: `No. What the fixed price covers is set out in the contract. If you wish, the annual care plan covers your company’s running costs from the second year for ${JAHRESBETREUUNG} a year, all fees included; bookkeeping and the tax return in your home country are not part of the packages.` },
-      { f: "Is VAT included in the fixed price?", a: "For companies, VAT is added to the prices where applicable. For private individuals, the fixed prices are final prices." },
-      { f: "Why is the fixed price higher than the state fee?", a: "Because it covers everyone who works on your company: registered agent, address, phone, lawyer, tax adviser, US CPA, the EIN and ITIN applications and the preparation of the account and card applications — coordinated by one contact." },
+      { f: "How much does an EIN or ITIN cost?", a: `The IRS charges nothing. If you apply for the ITIN through an acceptance agent, the market rate is ${MARKT_EN.acceptanceAgent}. With FIAON Global both applications are included in the price.` },
+      { f: "Are there any hidden costs?", a: `No. What the price covers is set out in the contract. If you wish, the annual care plan covers your company’s running costs from the second year for ${JAHRESBETREUUNG} a year, all fees included; bookkeeping and the tax return in your home country are not part of your order.` },
+      { f: "What do I pay, and when?", a: P.preisSatzKurz },
+      { f: "Why is the price higher than the state fee?", a: "Because it covers everyone who works on your company: registered agent, address, phone, assistance, lawyer, US accountant, the EIN and ITIN applications and the preparation of the account and card applications — coordinated by one contact." },
     ],
-    weiter: ["/business/wissen/bundesstaat-waehlen", "/business/vergleich", "/business/paket-finder", "/business/privatpersonen", "/business/us-pflichten"].map(globalEnPfad),
+    weiter: ["/business/wissen/bundesstaat-waehlen", "/business/vergleich", "/business/ablauf", "/business/privatpersonen", "/business/us-pflichten"].map(globalEnPfad),
     quellen: [...QUELLEN_STAATEN_EN.florida.slice(0, 2), QUELLEN_STAATEN_EN.delaware[0], QUELLEN_STAATEN_EN.delaware[1], QUELLEN_STAATEN_EN.wyoming[0], QUELLEN_STAATEN_EN.wyoming[1], QUELLEN_IRS_EN[0], QUELLEN_IRS_EN[2], QUELLEN_IRS_EN[4]],
   },
 ];

@@ -108,7 +108,7 @@ export function GlobalMustervertragSeite() {
   }, []);
 
   return (
-    <Dunkel seite="business" titel={en ? "Model contract — FIAON Global" : "Mustervertrag — FIAON Global"} beschreibung={en ? "The FIAON Global agreement word for word, as presented for signature — with sample details. Your personal offer shows your own figures." : "Der Vertrag von FIAON Global im Wortlaut, wie er Ihnen zur Unterschrift vorgelegt wird — mit Musterdaten. Ihr persönliches Angebot zeigt Ihre eigenen Zahlen."} sprache={s}>
+    <Dunkel seite="business" titel={en ? "Model contract — FIAON Global" : "Mustervertrag — FIAON Global"} beschreibung={en ? "The FIAON Global agreement word for word, as presented for signature — with sample details. Your personal offer shows your own figures." : "Der Vertrag von FIAON Global im Wortlaut, wie er Ihnen zur Unterschrift vorgelegt wird — mit Musterdaten. Ihr Angebot zeigt Ihre eigenen Zahlen."} sprache={s}>
       <div className="fg fd gr">
         {en
           ? <Kopf auge="FIAON Global · Contract" h1="The contract," h1b="before you order."

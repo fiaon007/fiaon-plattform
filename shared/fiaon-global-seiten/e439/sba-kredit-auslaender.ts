@@ -33,10 +33,13 @@
 // nach dem Zitat in GAO B-338157, Seite 8).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Kapitalrahmen aus EIN_PRODUKT.
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { IRS, QUELLEN_WISSEN as Q } from "../fakten";
 
 const S = "2026-10-27";
+const P = EIN_PRODUKT.de;
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
 /** Quellen dieses Beitrags (Stand 27.10.2026). */
@@ -62,7 +65,7 @@ export const SEITE: GlobalSeite = {
     titel: "SBA-Kredit als Ausländer: was seit 2026 gilt — FIAON Global",
     beschreibung: "SBA-Kredit als Ausländer: Seit 1. März 2026 gibt es 7(a) und 504 nur für US-Eigentümer mit US-Wohnsitz. Was gilt und welche Kapitalwege bleiben.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 44",
   auge: "Wissen · Kapital",
@@ -81,7 +84,7 @@ export const SEITE: GlobalSeite = {
     ["Ausgeschlossen", "Wohnsitz im Ausland, Green Card, Visum, ausländische Muttergesellschaft"],
     ["Was bleibt", "Firmenbonität, Firmenkarten, Bank mit Sicherheiten, Eigenkapital, Hausbank"],
     ["Wer entscheidet", "Über jeden Kredit allein das Institut"],
-    ["Mit FIAON Global", "Ein Ansprechpartner, jeder Antrag vorbereitet, Festpreis"],
+    ["Mit FIAON Global", "Ein Ansprechpartner, jeder Antrag vorbereitet, Preis vorab im Konfigurator"],
   ],
   kurz: "Nein — wer in Deutschland, Österreich oder der Schweiz lebt, bekommt für seine US-Gesellschaft keinen SBA-Kredit. Seit dem 1. März 2026 müssen 100 Prozent der direkten und indirekten Eigentümer US-Bürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626, seit 1. Oktober 2026 Teil der SOP 50 10 8.1); Green Card, Visum, Wohnsitz im Ausland oder eine ausländische Muttergesellschaft schließen 7(a) und 504 aus. Offen bleiben Firmenbonität und Firmenkarten, ein Bankkredit gegen Sicherheiten, Eigenkapital und die Hausbank in Europa — über jeden Kredit entscheidet das Institut.",
   bloecke: [
@@ -186,16 +189,16 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihren Weg zum Kapital",
       absaetze: [
         "Am Anfang steht eine ehrliche Bestandsaufnahme: Wir legen Ihre Eigentümerstruktur neben die veröffentlichten Regeln der SBA und halten schriftlich fest, auf welchen Wegen wir Ihren Kapitalaufbau planen. Für Eigentümer, die in Deutschland, Österreich oder der Schweiz leben, heißt das heute: kein SBA-Kredit — und deshalb von Anfang an der Aufbau auf den Wegen, die bleiben. Bleibt im Einzelfall eine Rechtsfrage offen, klären sie unsere Partner-Anwälte in Ihrem Mandat.",
-        "Danach gilt: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung der Gesellschaft, EIN, die Vorbereitung Ihrer ITIN, die D-U-N-S-Nummer, die laufenden Meldungen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, vollständig von uns vorbereitet und in jedem Antrag mit denselben Angaben. Wir planen die Reihenfolge der Institute, stellen die Kennzahlen-Mappe für Ihre Hausbank zusammen und bereiten die Unterlagen vor, die eine Bank für einen Kredit gegen Sicherheiten sehen will. Verlangt ein Institut einen Termin vor Ort, ist unser Team in Miami an Ihrer Seite; im Paket Global Kapital haben Ihre Termine Vorrang.",
-        "Ob Einlage oder Gesellschafterdarlehen und wie Ihre Struktur zu Hause steuerlich behandelt wird, klärt unser Partner-Steuerberater mit Ihnen; die jährliche Form 5472 erstellt unser US-CPA, Operating Agreement und Gründungsunterlagen erstellen unsere Partner-Anwälte. Sie alle arbeiten in Ihrem Mandat, ihre Honorare für die Leistungen des Pakets trägt FIAON. Alle Gebühren des Pakets sind im Festpreis enthalten. Unser Team sitzt in Miami, unser Partnerstandort ist Zürich, Ihr Vertragspartner ist die FIAON LTD in London. Ab dem zweiten Jahr können Sie die Jahresbetreuung wählen, sie ist freiwillig.",
+        `Danach gilt: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung der Gesellschaft, EIN, die Vorbereitung Ihrer ITIN, die D-U-N-S-Nummer, die laufenden Meldungen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, vollständig von uns vorbereitet und in jedem Antrag mit denselben Angaben. Für die Finanzierung bereiten wir jeden Antrag vollständig vor und begleiten Ihre Gesellschaft bis zur Auszahlung. ${P.rahmenSatz}`,
+        `Ob Einlage oder Gesellschafterdarlehen und wie Ihre Struktur zu Hause steuerlich behandelt wird, klärt unser Partner-Steuerberater mit Ihnen; die jährliche Form 5472 erstellt unser US-CPA, Operating Agreement und Gründungsunterlagen erstellen unsere Partner-Anwälte. Sie alle arbeiten in Ihrem Mandat, ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON. Unser Team sitzt in Miami, unser Partnerstandort ist Zürich, Ihr Vertragspartner ist die FIAON LTD in London. ${P.preisSatz}`,
         "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, keine Bank: Wir vergeben und vermitteln keine Kredite und sagen keinen Rahmen zu.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "Der ganze Weg zum Kapital im Paket", lead: "Gesellschaft, Steuernummern, Firmenbonität, Konto, Firmenkarten Schritt für Schritt und die Unterlagen für ein Bankdarlehen — Global Kapital. Der Kapitalrahmen des Pakets ist Ihr Ziel, keine Zusage.", paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.`, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
-        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut; der Kapitalrahmen eines Pakets ist ein Ziel.",
+        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut; Ihr Kapitalrahmen ist ein Ziel.",
         "Ob die SBA-Regel Bestand hat, ist politisch offen. Maßgeblich ist die Fassung, die am Tag Ihres Antrags gilt — sie prüft der Kreditgeber.",
         "Eine Eigentümerstruktur nur auf dem Papier, etwa ein US-Bürger als vorgeschobener Inhaber, wäre eine Falschangabe. 18 U.S.C. § 1014 stellt wissentlich falsche Angaben in Kreditanträgen unter Strafe, unter anderem gegenüber Instituten mit FDIC-Einlagensicherung.",
         GLOBAL_PFLICHTHINWEIS.de[0],

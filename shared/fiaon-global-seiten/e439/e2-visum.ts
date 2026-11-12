@@ -24,14 +24,17 @@
 // NICHT übernommen (nicht amtlich belegbar): Gültigkeit des Visums je Land nach dem
 // Gegenseitigkeitsplan (travel.state.gov 403), Ausstellungsgebühren je Land, zuständige
 // Konsulate je Land, „Visa Integrity Fee“, Mindestsummen und Erfolgsquoten der Kanzleien.
-// Visa sind nicht Teil der Pakete (zielgruppen.ts) — der Antrag gehört dem Partner-Anwalt.
+// Visa sind nicht Teil des Auftrags (zielgruppen.ts) — der Antrag gehört dem Partner-Anwalt.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein „Global VIP“ mehr (kein Preis, kein Reiseversprechen); ab 1 Mio.
+// US-Dollar Kapitalrahmen begleiten wir persönlich in Miami. Die alte Geld-zurück-Zusage je Paket entfällt.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q } from "../fakten";
 
 const S = "2026-10-27";
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? `${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}` : undefined;
+const P = EIN_PRODUKT.de;
 
 /** Quellen dieses Beitrags, selbst abgerufen am 27.10.2026. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -57,7 +60,7 @@ export const SEITE: GlobalSeite = {
     titel: "E2 Visum mit eigener US-Firma — FIAON Global",
     beschreibung: "E2 Visum für Deutsche, Österreicher und Schweizer: Voraussetzungen, Kosten, Ablauf beim Konsulat, Laufzeit, Familie und die Rolle der US-Firma.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 51",
   auge: "Wissen · Investorenvisum USA",
@@ -193,7 +196,7 @@ export const SEITE: GlobalSeite = {
         "Partner-Anwalt: Operating Agreement und Gründungsunterlagen",
         "Partner-Steuerberater: Prüfung vor der Gründung, auch mit Blick auf einen geplanten Umzug",
         "US-CPA: die erste jährliche US-Meldung",
-        "Partner-Anwalt für Einwanderungsrecht: der Visumsantrag in Ihrem eigenen Mandat, nicht Teil der Pakete",
+        "Partner-Anwalt für Einwanderungsrecht: der Visumsantrag in Ihrem eigenen Mandat, nicht Teil Ihres Auftrags",
       ],
       sie: [
         "Die Investition aus eigenen, belegten Mitteln",
@@ -206,21 +209,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Grundlage für Ihr E2 Visum",
       absaetze: [
         "FIAON Global ist die Unternehmensberatung für Ihren Weg in die USA: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie — Gründung beim Bundesstaat, EIN, D-U-N-S-Nummer und die Meldungen Ihrer Gesellschaft — und bereiten die ITIN vor. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; jeden davon bereiten wir vollständig vor.",
-        "Für ein späteres E2 Visum bauen wir die Gesellschaft so, dass sie sich belegen lässt: Eigentum und Leitung stehen von Anfang an klar im Operating Agreement, das unser Partner-Anwalt entwirft, Name, Anschrift und Stammdaten der Gesellschaft stimmen in allen Unterlagen überein, und jeder Beleg liegt geordnet in Ihrem Dokumentenraum. Ob Investition und Geschäft für ein Visum genügen, entscheidet das Konsulat. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Pakets trägt FIAON.",
-        "Den Visumsantrag selbst stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem eigenen Mandat — er ist nicht Teil der Pakete. Wir stellen den Kontakt her und geben ihm mit Ihrer Zustimmung die Unterlagen der Gesellschaft. Mit Global VIP beginnt der Aufbau persönlich in Miami: Unser Team vor Ort begleitet Ihre Termine bei Behörden und Banken, dazu kommen unser Partnerstandort in Zürich und Ihr Vertragspartner, die FIAON LTD in London. Sie zahlen einen Festpreis, alle Gebühren des Pakets inklusive; ab dem zweiten Jahr ist die Jahresbetreuung freiwillig.",
+        "Für ein späteres E2 Visum bauen wir die Gesellschaft so, dass sie sich belegen lässt: Eigentum und Leitung stehen von Anfang an klar im Operating Agreement, das unser Partner-Anwalt entwirft, Name, Anschrift und Stammdaten der Gesellschaft stimmen in allen Unterlagen überein, und jeder Beleg liegt geordnet in Ihrem Dokumentenraum. Ob Investition und Geschäft für ein Visum genügen, entscheidet das Konsulat. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON.",
+        "Den Visumsantrag selbst stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem eigenen Mandat — er ist nicht Teil Ihres Auftrags. Wir stellen den Kontakt her und geben ihm mit Ihrer Zustimmung die Unterlagen der Gesellschaft. Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami; darunter läuft alles aus der Ferne, und unser Team vor Ort nimmt die Wege bei den Behörden wahr. Dazu kommen unser Partnerstandort in Zürich und Ihr Vertragspartner, die FIAON LTD in London. Ihren Preis sehen Sie im Konfigurator; ab dem zweiten Jahr ist die Jahresbetreuung freiwillig.",
       ],
-      nach: GELD_ZURUECK,
     },
-    { typ: "paket", id: "paket", h2: "Global VIP: der Aufbau in Miami, persönlich begleitet", lead: "Alles aus Global Kapital, dazu der Auftakt persönlich in Miami, Termine bei Behörden und Banken gemeinsam mit unserem Team und die Begleitung durch die Geschäftsführung — Global VIP.", paket: "global_vip" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami.`, paket: "global_vip" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Über jedes Visum entscheidet allein das Konsulat, über die Zulassung bei der Einreise die Grenzbehörde. Eine Zusage zu Visum, Laufzeit oder Verlängerung kann niemand geben.",
-        "Der Visumsantrag ist nicht Teil der Pakete. Antrag und Einzelfall gehören in die Hand eines Partner-Anwalts für Einwanderungsrecht, der in Ihrem Mandat arbeitet und sein Honorar mit Ihnen vereinbart.",
+        "Der Visumsantrag ist nicht Teil Ihres Auftrags. Antrag und Einzelfall gehören in die Hand eines Partner-Anwalts für Einwanderungsrecht, der in Ihrem Mandat arbeitet und sein Honorar mit Ihnen vereinbart.",
         "Eine US-Gesellschaft gibt kein Recht, in den USA zu wohnen oder zu arbeiten; auch die ITIN erlaubt keine Arbeit.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Der Kapitalrahmen eines Pakets ist ein Ziel, keine Zusage.",
+        "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Ihr Kapitalrahmen ist ein Ziel, keine Zusage — über die Finanzierung entscheidet das finanzierende Institut.",
         "Diese Seite gibt die Vorschriften mit Stand Oktober 2026 wieder; Regeln und Gebühren können sich ändern.",
       ],
     },
@@ -233,7 +235,7 @@ export const SEITE: GlobalSeite = {
     { f: "Wie lange gilt das E2 Visum?", a: "Bei jeder Einreise werden Sie für höchstens zwei Jahre zugelassen; Verlängerungen um jeweils höchstens zwei Jahre sind möglich, ohne Obergrenze ihrer Anzahl. Wie lange das Visum im Pass gilt, richtet sich nach dem Gegenseitigkeitsplan für Ihre Staatsangehörigkeit. Eine Green Card ist das E-2-Visum nicht, und es wird auch nicht von selbst zu einer." },
     { f: "Darf mein Ehepartner mit dem E2 Visum arbeiten?", a: "Ja. Der Ehepartner eines E-2-Investors ist mit seinem Status zur Arbeit berechtigt; der Einreisebeleg trägt den Vermerk E-2S. Ledige Kinder unter 21 Jahren erhalten denselben Status, dürfen aber nicht arbeiten." },
     { f: "Was kostet der Antrag beim Konsulat?", a: "Die Gebührenordnung des Außenministeriums nennt für E-Visa eine Antragsgebühr von 315 $ (22 CFR 22.1, Stand Oktober 2026). Dazu kann je nach Staatsangehörigkeit eine Ausstellungsgebühr nach dem Grundsatz der Gegenseitigkeit kommen; weitere gesetzliche Gebühren sind möglich. Das Honorar des Anwalts für Einwanderungsrecht vereinbaren Sie mit ihm." },
-    { f: "Übernimmt FIAON den Visumsantrag?", a: "Nein. Visa sind nicht Teil der Pakete. FIAON Global baut die US-Gesellschaft auf, die die Grundlage bildet, und ordnet ihre Unterlagen; den Antrag stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem Mandat." },
+    { f: "Übernimmt FIAON den Visumsantrag?", a: "Nein. Visa sind nicht Teil Ihres Auftrags. FIAON Global baut die US-Gesellschaft auf, die die Grundlage bildet, und ordnet ihre Unterlagen; den Antrag stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem Mandat." },
   ],
   paket: "global_vip",
   weiter: ["/business/miami", "/business/wissen/markteintritt-usa", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/aus-oesterreich"],

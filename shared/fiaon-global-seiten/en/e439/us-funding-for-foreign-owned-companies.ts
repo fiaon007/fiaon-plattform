@@ -27,12 +27,15 @@
 // Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026). Paketpreise nur über „paket“.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Der Preis steht vor dem Auftrag fest (Konfigurator); das Erfolgshonorar
+// bemisst sich am Kapitalrahmen, den der Kunde selbst wählt — „no fee based on the limit“ (bis E-509 wahr) ist gestrichen.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, IRS_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "Global Capital";
+const P = EIN_PRODUKT.en;
 
 /** Eigene Quellen dieses Beitrags (geprüft am 27.10.2026) — dieselben Adressen wie in der deutschen Fassung. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -60,7 +63,7 @@ export const SEITE: GlobalSeite = {
     titel: "US funding for foreign-owned companies — FIAON Global",
     beschreibung: "US funding for foreign-owned companies: three levels (ITIN credit, business credit, collateral), an honest sequence and the signs of dubious programmes.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 43",
   auge: "Knowledge · Capital",
@@ -79,7 +82,7 @@ export const SEITE: GlobalSeite = {
     ["Level 3", "Collateral for larger sums: deposit, parent company, assets"],
     ["Closed", "SBA loans for owners from Europe, since 1 March 2026"],
     ["Who decides", "The institution alone — on the account, card, limit and loan"],
-    ["With FIAON Global", "One contact instead of eight: structure, credit, prepared applications — at a fixed price"],
+    ["With FIAON Global", "One contact instead of eight: structure, prepared applications, price up front in the configurator"],
   ],
   kurz: "US funding for foreign-owned companies, as the term is used in the German-speaking market, means building capital through your own US company: business credit cards, business credit, a banking relationship backed by collateral, and equity. It grows on three levels — personal US credit through the ITIN, the company’s credit through the EIN, D-U-N-S Number and supplier accounts, and collateral for larger sums — and takes months to years, not weeks. A reputable offer states its fees up front, promises neither a limit nor an interest rate, explains the personal guarantee and says: the institution alone decides on every loan.",
   bloecke: [
@@ -167,7 +170,7 @@ export const SEITE: GlobalSeite = {
       kopf: ["Question to the provider", "Reputable answer", "Warning signal"],
       zeilen: [
         ["Who exactly is the contracting party?", "name, legal form, register entry and address are stated in the contract", "only a brand, a messenger channel, no legal entity"],
-        ["What does it cost, in full?", "fixed price up front, all fees stated", "fee as a percentage of the limit, fees in the small print"],
+        ["What does it cost, in full?", "price set before you order, all fees stated", "fee as a percentage of the card limits obtained, costs in the small print"],
         ["Who decides on credit and limits?", "the institution alone", "“assured limits thanks to our contacts at banks”"],
         ["Is interest promised?", "no — each issuer sets the terms itself", "“interest-free” for a long time, fixed interest rates"],
         ["Who makes account, card and credit applications?", "you yourself, with fully prepared documents", "the provider, by power of attorney, in your name"],
@@ -192,17 +195,17 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global handles the route to US funding",
       absaetze: [
         "FIAON Global is a business consultancy for entrepreneurs from Germany, Austria and Switzerland who are building a US company. Our principle: one contact instead of eight. With your power of attorney, we submit every application on your behalf — formation in the state, the EIN, preparation of the ITIN, the D-U-N-S Number and the first annual US filing — and provide the registered agent, US address and US phone number for the first year. You make account, card and credit applications yourself; we prepare each of them in full.",
-        "This is how we guide you along the route to US funding, in the right order: first the structure, then building credit on both levels, then fully prepared applications that you make yourself, and the key-figures file for a later bank loan. The institution decides on every application. The capital range of your package is a goal we work towards together, not a promise.",
-        GLOBAL_ROLLEN.en.partner,
-        "You pay a fixed price, agreed before the engagement begins, with all of the package’s fees included — no fee based on the limit and no share of the capital. Your contracting party is FIAON LTD in London; our team on the ground in Miami handles appointments and filings, and Zurich is our partner location. From the second year onwards you can choose the annual care plan — voluntary and without automatic renewal.",
-        `${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`,
+        `This is how we guide you along the route to US funding, in the right order: first the structure, then accounts and cards with fully prepared applications that you make yourself, then support for your company through to financing. The institution decides on every application. ${P.rahmenSatz} Your capital range is a goal we work towards together, not a promise.`,
+        P.partner,
+        `Your price is settled before you order. ${P.preisSatz} The success fee is measured by the capital range you choose yourself. Your contracting party is FIAON LTD in London; our team on the ground in Miami handles appointments and filings, and Zurich is our partner location.`,
+        P.geldZurueck,
         KAPITAL_FREI,
       ],
     },
     {
       typ: "karten", id: "vertiefen", h2: "Each level in detail", spalten: 3,
       karten: [
-        { tag: "Service", titel: "Business credit cards and building capital", text: "FIAON Global’s card ladder and the capital range for each package as a goal.", pfad: "/en/business/us-business-credit-cards" },
+        { tag: "Service", titel: "Business credit cards and building capital", text: "Accounts, cards and your capital range as a goal.", pfad: "/en/business/us-business-credit-cards" },
         { tag: "Level 1", titel: "Building US credit", text: "How the FICO Score comes about and what a first score requires.", pfad: "/en/business/knowledge/building-us-credit" },
         { tag: "Level 1", titel: "Applying for an ITIN", text: "Form W-7 from abroad, documents and processing time.", pfad: "/en/business/knowledge/applying-for-an-itin" },
         { tag: "Level 2", titel: "Business credit", text: "D-U-N-S Number, PAYDEX and supplier accounts.", pfad: "/en/business/knowledge/us-business-credit" },
@@ -213,12 +216,12 @@ export const SEITE: GlobalSeite = {
         { tag: "Checklist", titel: "Checking providers", text: "How to recognise a reputable LLC formation provider.", pfad: "/en/business/knowledge/checking-providers" },
       ],
     },
-    { typ: "paket", id: "paket", h2: "The whole route in one package", lead: `Structure, support across several issuers, prepared applications and the key-figures file for a later bank loan — ${KAPITAL}.`, paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "FIAON is not a bank, does not grant loans, does not arrange loans and does not commit to any limit. The institution concerned alone decides on the account, card, limit and loan.",
-        "The capital range of a package is a goal, not a promise. Nobody can promise a specific limit, score or interest rate.",
+        "Your capital range is a goal, not a promise. Nobody can promise a specific limit, score or interest rate.",
         "Every card application generally leaves an enquiry in your file; new accounts lower the average age of your credit history.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
@@ -233,7 +236,7 @@ export const SEITE: GlobalSeite = {
     { f: "How much capital can a US funding LLC raise?", a: "Nobody can name a fixed amount. The company is the vessel; capital arises when institutions approve on the basis of track record, revenue or collateral. Cards usually carry smaller limits; larger sums need revenue, a history or collateral." },
     { f: "Can a foreigner get a US business loan?", a: "SBA loans have been excluded since 1 March 2026. Routes that are not tied to nationality remain open: business credit cards with a personal guarantee, supplier credit built on business credit, credit lines against a deposit, a parent company surety or assets. Whether, and on what terms, is decided solely by the institution concerned under its own rules." },
     { f: "How long does it take to build up US funding?", a: "The company and EIN are usually in place after a few weeks. A FICO Score can exist at the earliest after six months with a reported account; solid business credit grows over years. Bank credit lines usually require years of trading, revenue or collateral. Anyone who holds out the prospect of capital within a few weeks is promising something only institutions can decide." },
-    { f: "Does FIAON Global raise the capital?", a: "No. FIAON is not a bank, does not grant loans and does not arrange loans. As a business consultancy, we make every application concerning your company with your power of attorney and prepare every account, card and credit application in full; you make those yourself, and the institution decides. The capital range of your package is a goal, not a promise." },
+    { f: "Does FIAON Global raise the capital?", a: "No. FIAON is not a bank, does not grant loans and does not arrange loans. As a business consultancy, we make every application concerning your company with your power of attorney and prepare every account, card and credit application in full; you make those yourself, and the institution decides. Your capital range is a goal, not a promise." },
     { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
   ],
   paket: "global_kapital",

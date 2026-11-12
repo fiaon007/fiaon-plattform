@@ -28,12 +28,16 @@
 // belegt (eCFR war nicht abrufbar).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Der Preis steht vor dem Auftrag fest (Konfigurator); das Erfolgshonorar
+// bemisst sich am Kapitalrahmen, den der Kunde selbst wählt. Die Sätze „kein Honorar nach Rahmen, keine Erfolgsgebühr“ (bis
+// E-509 wahr: Festpreis je Paket) sind deshalb gestrichen — die Seite sagt jetzt, was gilt.
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q } from "../fakten";
 
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
 
 /** Quellen dieses Beitrags, die noch nicht in fakten.ts stehen (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -52,7 +56,7 @@ export const SEITE: GlobalSeite = {
     titel: "Kreditkarten-Stacking: Was dahinter steckt — FIAON Global",
     beschreibung: "Kreditkarten-Stacking für die US-LLC: was Programme versprechen, was ein US-Gericht im Fall Seek Capital feststellte und was Ihre Akte trägt.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 45",
   auge: "Wissen · Kapital",
@@ -71,7 +75,7 @@ export const SEITE: GlobalSeite = {
     ["Spuren in der Akte", "Viele harte Anfragen, junge Konten, hohe Auslastung"],
     ["Der Maßstab", "FTC v. Seek Capital: dauerhaftes Verbot seit Oktober 2025"],
     ["Wer entscheidet", "Jeder Herausgeber selbst, über Karte und Rahmen"],
-    ["Mit FIAON Global", "Festpreis vorab, Kartenleiter mit Abstand, kein Honorar nach Rahmen"],
+    ["Mit FIAON Global", "Preis vorab im Konfigurator, jeder Antrag einzeln vorbereitet, Sie stellen ihn selbst"],
   ],
   kurz: "Kreditkarten-Stacking bedeutet, in kurzer Zeit viele Kreditkarten bei verschiedenen Herausgebern zu beantragen und die Rahmen zusammen als Startkapital zu nutzen. Für Firmenkarten haftet der Inhaber in der Regel persönlich, jede Prüfung wird als harte Anfrage in der Kreditakte vermerkt, und die Einführungszeiträume enden etwa zur selben Zeit. Auf Klage der US-Handelsaufsicht FTC ist einem Anbieter, der gegen hohe Gebühren Karten beantragte und dabei Beziehungen zu Kreditgebern und Zeiträume ohne Zinsen behauptete, seit 2025 das Finanzierungsgeschäft dauerhaft untersagt. Belastbarer ist eine Kartenleiter über Zeit: wenige Anträge mit Abstand, pünktlich bezahlte Abrechnungen, echte Umsätze.",
   bloecke: [
@@ -156,7 +160,7 @@ export const SEITE: GlobalSeite = {
         ["Auslastung", "hoch — die Rahmen sind das Kapital", "niedrig gehalten"],
         ["Einführungszeiträume", "enden gemeinsam", "gestaffelt, mit Plan für die Rückführung aus dem Geschäft"],
         ["Akte nach einem Jahr", "viele Anfragen, junge Konten, hohe Salden", "wachsende Historie mit pünktlichen Zahlungen"],
-        ["Gebühr", "bei Programmen teils in Prozent des Rahmens", "bei FIAON Global: Festpreis vorab"],
+        ["Gebühr", "bei Programmen teils in Prozent des Rahmens", "bei FIAON Global: steht vor dem Auftrag fest"],
         ["Wer entscheidet", "jeder Herausgeber", "jeder Herausgeber"],
       ],
       fuss: ["Vereinfachte Gegenüberstellung. Über jede Karte und jeden Rahmen entscheidet der Herausgeber."],
@@ -188,20 +192,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global den Weg zu Kapital — ohne Stapel",
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für Unternehmer, die eine US-Gesellschaft aufbauen — mit einem Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Gründung, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer, die Meldungen, Registered Agent sowie US-Anschrift und US-Telefon für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst — vollständig von uns vorbereitet. Niemand unterschreibt in Ihrem Namen bei einem Kartenherausgeber.",
-        "Statt eines Stapels planen wir die Kartenleiter: den ersten Herausgeber passend zu Ihrer Akte, die Reihenfolge der weiteren, den Abstand zwischen den Anträgen und einen monatlichen Durchgang mit Ihrem Ansprechpartner. Mit Global Kapital führen wir den Weg weiter über mehrere Herausgeber bis zur Kennzahlen-Mappe für ein späteres Bankdarlehen.",
-        "Sie kennen den Preis, bevor Sie beauftragen: ein Festpreis, alle Gebühren des Pakets inklusive. Es gibt kein Honorar nach Rahmen, keine Erfolgsgebühr und keinen Anteil am Kapital. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Pakets trägt FIAON. Unser Team arbeitet vor Ort in Miami, unser Partnerstandort ist Zürich, Ihr Vertragspartner ist die FIAON LTD in London. Die Jahresbetreuung ab dem zweiten Jahr ist freiwillig.",
-        "Über jede Karte, jeden Rahmen und jedes Darlehen entscheidet das Institut. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu; der Kapitalrahmen Ihres Pakets ist ein Ziel.",
+        `Statt eines Stapels bereiten wir jeden Antrag einzeln und vollständig vor: das private US-Konto, private US-Karten, das Geschäftskonto und die Firmenkreditkarte Ihrer Gesellschaft — und begleiten Sie bis zur Eröffnung. ${P.rahmenSatz}`,
+        `Sie kennen den Preis, bevor Sie beauftragen. ${P.preisSatz} Das Erfolgshonorar bemisst sich an dem Kapitalrahmen, den Sie selbst wählen — nicht an der Zahl der Anträge. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON. Unser Team arbeitet vor Ort in Miami, unser Partnerstandort ist Zürich, Ihr Vertragspartner ist die FIAON LTD in London.`,
+        "Über jede Karte, jeden Rahmen und jedes Darlehen entscheidet das Institut. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu; Ihr Kapitalrahmen ist ein Ziel.",
         KAPITAL_FREI,
-        ...GELD_ZURUECK,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "paket", h2: "Der ganze Weg im Paket", lead: "Gründung, Konto, Kartenleiter über mehrere Herausgeber und die Unterlagen für ein späteres Bankdarlehen — Global Kapital zum Festpreis.", paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         GLOBAL_PFLICHTHINWEIS.de[2],
         "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest. Nach ihrem Ende gilt der reguläre Zins auf den offenen Saldo.",
-        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Der Kapitalrahmen eines Pakets ist ein Ziel, keine Zusage.",
+        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Ihr Kapitalrahmen ist ein Ziel, keine Zusage.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         "Dieser Beitrag gibt die Rechtslage und den Fall Seek Capital nach den genannten Quellen wieder, Stand Oktober 2026. Ihren Einzelfall prüfen Partner-Steuerberater und Partner-Anwalt in Ihrem Mandat.",
       ],
@@ -214,7 +218,7 @@ export const SEITE: GlobalSeite = {
     { f: "Wie stark wirken harte Anfragen auf den Score?", a: "Nach myFICO kostet eine einzelne weitere Anfrage die meisten Menschen weniger als fünf Punkte. Harte Anfragen können zwei Jahre in der Akte stehen und zählen im FICO Score ein Jahr lang. Viele neue Konten in kurzer Zeit gelten dagegen als Zeichen höheren Risikos — und jeder weitere Herausgeber sieht sie, bevor er entscheidet." },
     { f: "Hafte ich persönlich für die Kreditkarten meiner US-LLC?", a: "In der Regel ja. Für Firmenkarten junger Gesellschaften verlangen Herausgeber eine persönliche Haftung des Inhabers; die beschränkte Haftung der LLC greift dann nicht. Beim Kreditkarten-Stacking gilt das für jede Karte einzeln." },
     { f: "Bekommt eine US-LLC Kreditkarten, wenn der Inhaber in Europa wohnt?", a: "Das entscheidet jeder Herausgeber. Bei jungen Gesellschaften prüft er in der Regel die persönliche US-Historie des Inhabers über SSN oder ITIN und verlangt seine persönliche Haftung. Nach der Executive Order 14406 vom 19. Mai 2026 kann eine ITIN statt einer SSN ohne geprüften US-Aufenthaltsstatus zudem als Risikofaktor für eine vertiefte Prüfung gelten. Eine sorgfältig vorbereitete Akte zählt deshalb mehr als die Zahl der Anträge." },
-    { f: "Was kostet FIAON Global — gibt es eine Erfolgsgebühr?", a: "Einen Festpreis, der vor dem Auftrag feststeht; alle Gebühren des Pakets sind enthalten, auch die Honorare der Partner für die Leistungen Ihres Pakets. Ein Honorar nach Rahmen, eine Erfolgsgebühr oder einen Anteil am Kapital gibt es nicht. Über jede Karte und jeden Rahmen entscheidet der Herausgeber." },
+    { f: "Was kostet FIAON Global — gibt es ein Erfolgshonorar?", a: `Ja, und es steht vor dem Auftrag fest. ${P.preisSatzKurz} Das Erfolgshonorar bemisst sich an dem Kapitalrahmen, den Sie selbst wählen — nicht an der Zahl der Anträge. Über jede Karte und jeden Rahmen entscheidet der Herausgeber.` },
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],
   paket: "global_kapital",

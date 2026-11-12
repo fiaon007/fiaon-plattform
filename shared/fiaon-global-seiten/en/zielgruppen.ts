@@ -13,18 +13,19 @@
 // „up to", kein Bankname, kein „broker", kein Steuerversprechen; über jede
 // Finanzierung entscheidet das Institut. Prüfstand: scripts/pruef-global-en.ts.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPlanungText, globalPreisText, type GlobalSchluessel } from "../../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { QUELLEN_RECHT_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
 
-const S = "2026-09-24";
+// E-509 (12.11.2026): texts moved from four packages to ONE product — „stand“ follows, „erschienen“ stays.
+const ERSCHIENEN = "2026-09-24";
+const S = "2026-11-12";
 
-/** Der englische Paketname aus der einen Quelle. */
-const name = (k: GlobalSchluessel): string => globalPaket(k)?.en.name ?? k;
-/** „from €2,499" — der Einstiegspreis aus dem Katalog. */
-const AB = `from ${globalPreisText("global_struktur", "en")}`;
+// E-509 (12.11.2026): ONE product instead of four packages — prices and the “One mandate” block from EIN_PRODUKT.en.
+const P = EIN_PRODUKT.en;
 
 export const ZIELGRUPPEN_EN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -35,17 +36,17 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     art: "zielgruppe",
     seo: {
       titel: "Set up a US subsidiary for SMEs — FIAON Global",
-      beschreibung: "US subsidiary for SMEs: formation, EIN, account, compliance calendar in one place. With a partner tax adviser, lawyer and team on the ground. Fixed price.",
+      beschreibung: "US subsidiary for SMEs: formation, EIN, account, compliance calendar in one place. With a partner tax adviser, lawyer and team on the ground.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 11",
     auge: "Who it is for · SMEs",
     h1: "The subsidiary in the US.",
     h1b: "For companies with real US business.",
     lead: "Customers in the US, a supplier in Texas, a project in Florida: anyone doing business there will sooner or later need a company of their own in the US. We form your US subsidiary, obtain the tax numbers, prepare the account application and keep the compliance calendar — coordinated with your tax adviser at home.",
     ziffern: [
-      { wert: AB, label: "Fixed price, one-off, all fees included" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "LLC or corporation", label: "reviewed before formation" },
       { wert: "Miami", label: "appointments on the ground with our team" },
     ],
@@ -92,15 +93,15 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         punkte: [
           "If the US subsidiary is in fact managed from Germany, Austria or Switzerland, it may be taxable there. Who manages the subsidiary, and from where, is therefore part of the review before formation.",
           "A shareholding in a foreign company must be reported to the tax office — in Germany under section 138 of the German Fiscal Code (AO). If a Florida LLC is owned by a GmbH or AG, that company also files its own tax return in Florida (Form F-1120).",
-          "Transfer prices between parent and subsidiary, payroll in the US and visas are not part of the packages; we can name partners for these.",
+          "Transfer prices between parent and subsidiary, payroll in the US and visas are not part of your order; we can name partners for these.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `For the subsidiary with an account and the card ladder: ${name("global_banking")}.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     ],
     fragen: [
       { f: "Can my GmbH own a US LLC or corporation?", a: "Yes. A GmbH, AG or holding company can be the shareholder of an LLC or corporation just as a natural person can. In that case we need the commercial register extract of the parent company." },
       { f: "Is a US subsidiary taxed in the US?", a: "That depends on the legal form, the activity and the place of management. Our partner tax adviser reviews this before formation; your tax adviser handles the ongoing tax return." },
-      { f: "Does FIAON also handle visas for employees?", a: "No. Visas, payroll and transfer prices are not part of the packages. On request, we can name partners for these." },
+      { f: "Does FIAON also handle visas for employees?", a: "No. Visas, payroll and transfer prices are not part of your order. On request, we can name partners for these." },
       { f: "How long does it take to set up a US subsidiary?", a: "The company is usually in place after a few weeks, once the documents are complete. The IRS issues the EIN on its own timeline." },
     ],
     paket: "global_banking",
@@ -118,16 +119,16 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       beschreibung: "Selling online in the US with your own company: EIN, US account, address and compliance calendar from a single source — honest about taxes and sales tax.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 12",
     auge: "Who it is for · E-commerce",
     h1: "E-commerce in the US.",
     h1b: "With a company of your own on the ground.",
     lead: "Marketplaces, payment providers and logistics companies in the US prefer to work with US companies: with an EIN, a US account and a US address. We build this structure for your brand — and tell you openly which obligations come with selling in the US.",
     ziffern: [
-      { wert: AB, label: "Fixed price, one-off" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "EIN, account, address", label: "the basic set-up for trading in the US" },
-      { wert: "Compliance calendar", label: `in ${name("global_banking")} and above` },
+      { wert: "Compliance calendar", label: "included in your order" },
     ],
     blick: [
       ["For", "Own brands, online shops, sellers on US marketplaces"],
@@ -135,7 +136,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["Sales tax", "In the US the states levy their own sales taxes — you check this with a US CPA"],
       ["At home", "Taxable where the company is managed"],
       ["Not included", "Bookkeeping, sales tax registrations, marketplace accounts"],
-      ["Fixed price", `${AB}, all fees included`],
+      ["Price", `${P.preis} with your order; success fee on registration`],
     ],
     kurz: "If you sell to customers in the US, you benefit from a US company of your own with an EIN, a US account and a US address — many marketplaces, payment providers and logistics companies expect exactly that. FIAON Global builds this structure. The states’ sales taxes, bookkeeping and tax liability in your home country remain matters for your tax adviser and a US CPA.",
     bloecke: [
@@ -152,7 +153,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "steuern", h2: "What selling in the US involves",
         punkte: [
-          "Sales tax: in the US the states levy their own sales taxes with their own thresholds. Whether and where your company has to register is something you check with a US CPA — this is not part of the packages.",
+          "Sales tax: in the US the states levy their own sales taxes with their own thresholds. Whether and where your company has to register is something you check with a US CPA — this is not part of your order.",
           `${GLOBAL_AGENT.en.anschrift} Parcels cannot be accepted there.`,
           GLOBAL_PFLICHTHINWEIS.en[0],
           GLOBAL_PFLICHTHINWEIS.en[1],
@@ -165,12 +166,12 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
           { tag: "Not a fit", titel: "Anyone who wants to form a company purely for tax reasons", text: "A US company that is managed from Germany, Austria or Switzerland is generally taxable there. It does not work as a tax model." },
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `With an account, further card applications and a compliance calendar: ${name("global_banking")}.`, paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     ],
     fragen: [
       { f: "Do I need a US company to sell to US customers?", a: "Not necessarily. Many marketplaces, payment providers and logistics companies do, however, work more easily with a US company that has an EIN, a US account and a US address." },
       { f: "Does my US company have to pay sales tax?", a: "That depends on the state and your sales there. The states levy their own sales taxes with their own thresholds; you check this with a US CPA." },
-      { f: "Is bookkeeping included?", a: "No. The packages include the first annual US filing by our US CPA, not ongoing bookkeeping." },
+      { f: "Is bookkeeping included?", a: "No. Your order includes the first annual US filing by our US CPA, not ongoing bookkeeping." },
       { f: "Does a US LLC lower my taxes?", a: "Generally not. If the company is managed from Germany, Austria or Switzerland, it is taxable there." },
     ],
     paket: "global_banking",
@@ -185,17 +186,17 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     art: "zielgruppe",
     seo: {
       titel: "US company for agencies and software firms — FIAON Global",
-      beschreibung: "Agencies, software firms and service providers with US clients: US company, EIN, account, contracts with US partners — from a single source, fixed price.",
+      beschreibung: "Agencies, software firms and service providers with US clients: US company, EIN, account, contracts with US partners — from a single source, in one order.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 13",
     auge: "Who it is for · Agencies and software",
     h1: "Agencies and software.",
     h1b: "Contracts with US clients on an equal footing.",
     lead: "US clients prefer to sign with a US company: US invoice, US account, US tax number. We build this structure for agencies, software companies and service providers — and, for founders who want to approach investors in the US, the appropriate corporation.",
     ziffern: [
-      { wert: AB, label: "Fixed price, one-off" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "LLC or corporation", label: "depending on your client and investor plans" },
       { wert: "EIN", label: "US clients ask for a US tax number" },
     ],
@@ -205,7 +206,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["Investors", "Anyone approaching US investors usually forms a corporation"],
       ["Contracts", "US clients ask for a tax number and a tax form (W-9 or W-8)"],
       ["At home", "Taxable where the company is managed"],
-      ["Fixed price", `${AB}, all fees included`],
+      ["Price", `${P.preis} with your order; success fee on registration`],
     ],
     kurz: "With a US company, service providers with US clients issue invoices from the US, receive payments into a US account and provide a US tax number when signing contracts. If you want to approach investors in the US, you generally form a corporation. FIAON Global handles the formation, EIN, address and the preparation of the account application.",
     bloecke: [
@@ -227,16 +228,16 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           GLOBAL_PFLICHTHINWEIS.en[0],
-          "If you or your employees work in the US, visas and US employment law must be taken into account. Neither is part of the packages.",
-          "Contracts with US clients are reviewed by a US lawyer; the packages include your company’s operating agreement, not your client contracts.",
+          "If you or your employees work in the US, visas and US employment law must be taken into account. Neither is part of your order.",
+          "Contracts with US clients are reviewed by a US lawyer; your order includes your company’s operating agreement, not your client contracts.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `The company, tax numbers and the first account and card application: ${name("global_struktur")}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     ],
     fragen: [
       { f: "Why do US clients ask for a US tax number?", a: "US companies ask suppliers for a tax number and a tax form (W-9 or W-8) because they report payments to the tax authority. With a US company of your own and an EIN, you can answer this request as a US business; our US CPA clarifies which form your company completes." },
       { f: "Do I need a corporation for US investors?", a: "Generally yes. Investors in the US usually expect a corporation. We review the right choice before formation." },
-      { f: "Does FIAON review my client contracts?", a: "No. The packages include the operating agreement drafted by our partner lawyer. Client contracts are reviewed by a US lawyer under your own engagement." },
+      { f: "Does FIAON review my client contracts?", a: "No. Your order includes the operating agreement drafted by our partner lawyer. Client contracts are reviewed by a US lawyer under your own engagement." },
     ],
     paket: "global_struktur",
     weiter: ["/business/us-firmengruendung", "/business/wissen/llc-oder-corporation", "/business/delaware", "/business/wissen/llc-steuererklaerung"].map(globalEnPfad),
@@ -253,16 +254,16 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       beschreibung: "Projects and properties in the US through a company of your own: formation, EIN, account, key figures for financing talks — team on the ground in Miami.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 14",
     auge: "Who it is for · Construction and property",
     h1: "Construction and property.",
     h1b: "Projects in the US, properly structured.",
     lead: "If you build, refurbish or hold properties in the US, you put each project into a company of its own. We form it, obtain the tax numbers, prepare the account application and key figures — and, with our team in Miami and Schwarzott Group in Zurich, support the capital stage.",
     ziffern: [
-      { wert: globalPlanungText("global_kapital", "en"), label: `capital range in ${name("global_kapital")}, as a target` },
+      { wert: P.rahmenKurz, label: "capital range you choose yourself" },
       { wert: "Miami", label: "team on the ground for appointments" },
-      { wert: "Key-figures file", label: `for financing discussions, in ${name("global_kapital")} and above` },
+      { wert: "Every application", label: "for the financing, fully prepared" },
     ],
     blick: [
       ["For", "Construction companies, project developers, property holders"],
@@ -270,7 +271,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["Capital", "Key figures and documents for financing discussions"],
       ["On the ground", "Appointments in Miami with Schwarzott Group"],
       ["Decision", "The institution decides on any financing"],
-      ["Package", `${name("global_kapital")} or ${name("global_vip")}`],
+      ["Support", "Through to financing, with the surety of our US partner company"],
     ],
     kurz: "For projects and properties in the US, a separate company is usually formed for each project, most often an LLC. FIAON Global forms it, applies for the EIN and prepares the account application and a key-figures file for financing discussions. The institution concerned decides on any financing; FIAON neither grants nor arranges loans.",
     bloecke: [
@@ -298,14 +299,14 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
           GLOBAL_PFLICHTHINWEIS.en[0],
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `${name("global_kapital")} supports you through to the key-figures file for a bank loan — with priority for appointments on the ground.`, paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       { typ: "standorte", id: "standorte", h2: "Miami and Zurich", lead: "Appointments on the ground and the capital stage with Schwarzott Group." },
     ],
     fragen: [
       { f: "Do I need a separate company for each project?", a: "It is customary: one company per project separates liability and figures and makes financing and selling easier. Whether it suits your case is something we clarify in the kick-off call." },
       { f: "Does FIAON finance my project?", a: "No. FIAON does not grant loans and does not arrange them. We prepare key figures and documents for financing discussions; the decision lies with the institution." },
       { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
-      { f: "Can your team attend appointments in the US for me?", a: `Yes. Our team in Miami attends appointments with authorities and institutions. In the ${name("global_vip")} package you can travel there yourself for the kick-off if you wish.` },
+      { f: "Can your team attend appointments in the US for me?", a: `Yes. Our team in Miami attends appointments with authorities and institutions. From a capital range of US$1 million we meet you there in person.` },
     ],
     paket: "global_kapital",
     weiter: ["/business/firmenkarten-kapital", "/business/miami", "/business/florida", "/business/wissen/business-credit-usa"].map(globalEnPfad),
@@ -322,7 +323,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       beschreibung: "A US LLC or corporation from Germany: tax at the place of management, the section 138 AO notification, how the LLC is classified — explained honestly.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 15",
     auge: "Who it is for · From Germany",
     h1: "From Germany to the US.",
@@ -337,9 +338,9 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       ["Tax liability", "Where the company is actually managed (section 10 AO, section 1 KStG)"],
       ["Classification", "Typenvergleich: like a GmbH or like a partnership?"],
       ["Notification", "Shareholding in a foreign company under section 138 AO"],
-      ["Before formation", "Review by our partner tax adviser — included in the fixed price"],
+      ["Before formation", "Review by our partner tax adviser — included in the price"],
       ["Ongoing", "Tax return at home with your tax adviser"],
-      ["Fixed price", `${AB}, all fees included`],
+      ["Price", `${P.preis} with your order; success fee on registration`],
     ],
     kurz: "Entrepreneurs from Germany can form a US LLC or corporation without being resident in the US. If the company is managed from Germany, its place of management is in Germany (section 10 of the German Fiscal Code, AO) and it is generally taxable there. The shareholding must be reported to the tax office under section 138 AO. The tax office decides how to treat an LLC by comparing it with German legal forms (Typenvergleich).",
     bloecke: [
@@ -367,11 +368,11 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           "A US company is not a way to avoid taxes in Germany. Anyone who promises that is keeping quiet about the place of management.",
-          "The review before formation by our partner tax adviser is included in the fixed price; your tax adviser handles the ongoing tax return.",
+          "The review before formation by our partner tax adviser is included in the price; your tax adviser handles the ongoing tax return.",
           GLOBAL_PFLICHTHINWEIS.en[1],
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `Formation, tax numbers and the review before formation: ${name("global_struktur")}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     ],
     fragen: [
       { f: "Can I form a US LLC as a German citizen?", a: "Yes, without residence and without citizenship in the US. You need a passport, proof of address and, if a company is to be the shareholder, its commercial register extract." },
@@ -398,10 +399,10 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     art: "land",
     seo: {
       titel: "Set up a US company from Switzerland — FIAON Global",
-      beschreibung: "A US company from Switzerland: place of effective management, tax liability, a partner in Zurich — formation, EIN and account in one place, fixed price.",
+      beschreibung: "A US company from Switzerland: place of effective management, tax liability, a partner in Zurich — formation, EIN and account in one place, in one order.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 16",
     auge: "Who it is for · From Switzerland",
     h1: "From Switzerland to the US.",
@@ -410,13 +411,13 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     ziffern: [
       { wert: "Zurich", label: "Local partner: Schwarzott Group" },
       { wert: "Art. 50 DBG", label: "tax liability at the place of effective management" },
-      { wert: AB, label: "Fixed price, one-off" },
+      { wert: P.preis, label: P.preisLabel },
     ],
     blick: [
       ["Tax liability", "If the registered office or place of effective management is in Switzerland (Art. 50 DBG)"],
       ["Partner", "Schwarzott Group, Zurich"],
       ["On the ground in the US", "Schwarzott Group, Miami"],
-      ["Before formation", "Review by our partner tax adviser — included in the fixed price"],
+      ["Before formation", "Review by our partner tax adviser — included in the price"],
       ["Ongoing", "Tax return in Switzerland with your fiduciary (Treuhand) firm"],
       ["Contracting party", "FIAON LTD, London"],
     ],
@@ -444,7 +445,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
           GLOBAL_VERBUNDEN_EN,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `Formation, tax numbers and the review before formation: ${name("global_struktur")}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Zurich, Miami, London", lead: "Partner in Zurich, team in Miami, contracting party in London." },
     ],
     fragen: [

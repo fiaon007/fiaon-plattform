@@ -12,10 +12,13 @@
 // (Bau und Immobilien), steht seit 19.09.2026 dazu, dass es nicht an die USA
 // gebunden ist (GLOBAL_KAPITAL_FREI, Justin).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPreisText, globalPlanungText } from "../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
 import type { GlobalSeite } from "./typen";
+import { EIN_PRODUKT } from "./ein-produkt";
 
-const S = "2026-09-19";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — Preise und der Baustein „Ein Mandat“ aus EIN_PRODUKT.
+const S = "2026-11-12";
+const P = EIN_PRODUKT.de;
 
 export const ZIELGRUPPEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -24,7 +27,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     art: "zielgruppe",
     seo: {
       titel: "Tochtergesellschaft in den USA gründen — FIAON Global",
-      beschreibung: "US-Tochter für den Mittelstand: Gründung, EIN, Konto und Pflichtenkalender aus einer Hand. Mit Partner-Steuerberater, Anwalt und Team vor Ort. Festpreis.",
+      beschreibung: "US-Tochter für den Mittelstand: Gründung, EIN, Konto und Pflichtenkalender aus einer Hand. Mit Partner-Steuerberater, Anwalt und Team vor Ort.",
     },
     stand: S,
     kennung: "FG · 11",
@@ -33,7 +36,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     h1b: "Für Unternehmen mit echtem US-Geschäft.",
     lead: "Kunden in den USA, ein Lieferant in Texas, ein Projekt in Florida: Wer dort Geschäft macht, braucht dort früher oder später eine eigene Gesellschaft. Wir gründen Ihre US-Tochter, holen die Steuernummern, bereiten das Konto vor und führen den Pflichtenkalender — abgestimmt mit Ihrem Steuerberater zu Hause.",
     ziffern: [
-      { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig, alle Gebühren inklusive" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "LLC oder Corporation", label: "geprüft vor der Gründung" },
       { wert: "Miami", label: "Termine vor Ort mit unserem Team" },
     ],
@@ -80,15 +83,15 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         punkte: [
           "Wird die US-Tochter tatsächlich aus Deutschland, Österreich oder der Schweiz geleitet, kann sie dort steuerpflichtig sein. Wer die Tochter wo führt, gehört deshalb in die Prüfung vor der Gründung.",
           "Die Beteiligung an einer ausländischen Gesellschaft ist dem Finanzamt zu melden — in Deutschland nach § 138 AO. Gehört eine Florida-LLC einer GmbH oder AG, gibt diese in Florida zudem eine eigene Steuererklärung ab (Form F-1120).",
-          "Verrechnungspreise zwischen Mutter und Tochter, Lohnbuchhaltung in den USA und Visa sind nicht Teil der Pakete; wir nennen Ihnen Partner dafür.",
+          "Verrechnungspreise zwischen Mutter und Tochter, Lohnbuchhaltung in den USA und Visa sind nicht Teil Ihres Auftrags; wir nennen Ihnen Partner dafür.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Für die Tochter mit Konto und Kartenleiter: Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     ],
     fragen: [
       { f: "Kann meine GmbH Gesellschafterin der US-Gesellschaft sein?", a: "Ja. Gesellschafterin einer LLC oder Corporation kann eine GmbH, AG oder Holding ebenso sein wie eine natürliche Person. Wir benötigen dann den Registerauszug der Muttergesellschaft." },
       { f: "Muss die US-Tochter in den USA versteuert werden?", a: "Das hängt von Rechtsform, Tätigkeit und Ort der Leitung ab. Unser Partner-Steuerberater prüft das vor der Gründung; die laufende Steuererklärung übernimmt Ihr Steuerberater." },
-      { f: "Übernimmt FIAON auch Visa für Mitarbeiter?", a: "Nein. Visa, Lohnbuchhaltung und Verrechnungspreise sind nicht Teil der Pakete. Wir nennen Ihnen auf Wunsch Partner dafür." },
+      { f: "Übernimmt FIAON auch Visa für Mitarbeiter?", a: "Nein. Visa, Lohnbuchhaltung und Verrechnungspreise sind nicht Teil Ihres Auftrags. Wir nennen Ihnen auf Wunsch Partner dafür." },
       { f: "Wie lange dauert die Gründung der Tochter?", a: "Die Gesellschaft steht in der Regel nach wenigen Wochen, sobald die Unterlagen vollständig sind. Die EIN vergibt die IRS in eigener Frist." },
     ],
     paket: "global_banking",
@@ -110,9 +113,9 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     h1b: "Mit eigener Gesellschaft vor Ort.",
     lead: "Marktplätze, Zahlungsdienste und Logistiker in den USA arbeiten am liebsten mit US-Gesellschaften: mit EIN, US-Konto und US-Adresse. Wir bauen diese Struktur für Ihre Marke — und sagen Ihnen offen, welche Pflichten der Verkauf in den USA mit sich bringt.",
     ziffern: [
-      { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "EIN, Konto, Adresse", label: "die Grundausstattung für den US-Handel" },
-      { wert: "Pflichtenkalender", label: "ab Global Banking" },
+      { wert: "Pflichtenkalender", label: "in Ihrem Auftrag enthalten" },
     ],
     blick: [
       ["Für", "Eigene Marken, Onlineshops, Händler auf US-Marktplätzen"],
@@ -120,7 +123,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Umsatzsteuer", "In den USA erheben die Bundesstaaten eigene Umsatzsteuern — das prüfen Sie mit einem US-CPA"],
       ["Zu Hause", "Steuerpflicht dort, wo die Gesellschaft geführt wird"],
       ["Nicht enthalten", "Buchhaltung, Umsatzsteuer-Registrierungen, Marktplatz-Konten"],
-      ["Festpreis", `ab ${globalPreisText("global_struktur")}, alle Gebühren inklusive`],
+      ["Preis", `${P.preis} mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung`],
     ],
     kurz: "Wer an Kunden in den USA verkauft, profitiert von einer eigenen US-Gesellschaft mit EIN, US-Konto und US-Adresse — viele Marktplätze, Zahlungsdienste und Logistiker erwarten genau das. FIAON Global baut diese Struktur. Die Umsatzsteuern der Bundesstaaten, die Buchhaltung und die Steuerpflicht im Heimatland bleiben Themen für Ihren Steuerberater und einen US-CPA.",
     bloecke: [
@@ -137,8 +140,8 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "steuern", h2: "Was der Verkauf in den USA mit sich bringt",
         punkte: [
-          "Umsatzsteuer: In den USA erheben die Bundesstaaten eigene Umsatzsteuern mit eigenen Schwellen. Ob und wo Ihre Gesellschaft sich registrieren muss, prüfen Sie mit einem US-CPA — das ist nicht Teil der Pakete.",
-          `${GLOBAL_AGENT.de.anschrift} Pakete nimmt sie nicht an.`,
+          "Umsatzsteuer: In den USA erheben die Bundesstaaten eigene Umsatzsteuern mit eigenen Schwellen. Ob und wo Ihre Gesellschaft sich registrieren muss, prüfen Sie mit einem US-CPA — das ist nicht Teil Ihres Auftrags.",
+          `${GLOBAL_AGENT.de.anschrift} Warensendungen nimmt sie nicht an.`,
           GLOBAL_PFLICHTHINWEIS.de[0],
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],
@@ -150,12 +153,12 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
           { tag: "Passt nicht", titel: "Wer nur aus Steuergründen gründen will", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, ist dort in der Regel steuerpflichtig. Als Steuermodell taugt sie nicht." },
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Mit Konto, weiteren Kartenanträgen und Pflichtenkalender: Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     ],
     fragen: [
       { f: "Brauche ich für den Verkauf in die USA eine US-Firma?", a: "Nicht zwingend. Viele Marktplätze, Zahlungsdienste und Logistiker arbeiten aber einfacher mit einer US-Gesellschaft mit EIN, US-Konto und US-Adresse." },
       { f: "Muss meine US-Gesellschaft Umsatzsteuer abführen?", a: "Das hängt vom Bundesstaat und Ihren Umsätzen dort ab. Die Bundesstaaten erheben eigene Umsatzsteuern mit eigenen Schwellen; das prüfen Sie mit einem US-CPA." },
-      { f: "Ist die Buchhaltung enthalten?", a: "Nein. Die Pakete enthalten die erste jährliche US-Meldung durch unseren US-CPA, nicht die laufende Buchhaltung." },
+      { f: "Ist die Buchhaltung enthalten?", a: "Nein. Ihr Auftrag enthält die erste jährliche US-Meldung durch unseren US-CPA, nicht die laufende Buchhaltung." },
       { f: "Spare ich mit einer US-LLC Steuern?", a: "In der Regel nicht. Wird die Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, ist sie dort steuerpflichtig." },
     ],
     paket: "global_banking",
@@ -168,7 +171,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     art: "zielgruppe",
     seo: {
       titel: "US-Firma für Agenturen und Software — FIAON Global",
-      beschreibung: "Agenturen, Software und Dienstleister mit US-Kunden: US-Gesellschaft, EIN, Konto und Verträge mit US-Partnern — aus einer Hand, zum Festpreis.",
+      beschreibung: "Agenturen, Software und Dienstleister mit US-Kunden: US-Gesellschaft, EIN, Konto und Verträge mit US-Partnern — aus einer Hand, in einem Auftrag.",
     },
     stand: S,
     kennung: "FG · 13",
@@ -177,7 +180,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     h1b: "Verträge mit US-Kunden auf Augenhöhe.",
     lead: "US-Kunden unterschreiben lieber mit einer US-Gesellschaft: US-Rechnung, US-Konto, US-Steuernummer. Für Agenturen, Softwarehäuser und Dienstleister bauen wir diese Struktur — und für Gründer, die Investoren in den USA ansprechen wollen, die passende Corporation.",
     ziffern: [
-      { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig" },
+      { wert: P.preis, label: P.preisLabel },
       { wert: "LLC oder Corporation", label: "je nach Kunden- und Investorenplänen" },
       { wert: "EIN", label: "US-Kunden fragen eine US-Steuernummer ab" },
     ],
@@ -187,7 +190,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Investoren", "Wer US-Kapital anspricht, gründet meist eine Corporation"],
       ["Verträge", "US-Kunden fragen Steuernummer und Steuerformular (W-9 oder W-8) ab"],
       ["Zu Hause", "Steuerpflicht dort, wo die Gesellschaft geführt wird"],
-      ["Festpreis", `ab ${globalPreisText("global_struktur")}, alle Gebühren inklusive`],
+      ["Preis", `${P.preis} mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung`],
     ],
     kurz: "Dienstleister mit US-Kunden stellen mit einer US-Gesellschaft Rechnungen aus den USA, erhalten Zahlungen auf ein US-Konto und geben bei Vertragsschluss eine US-Steuernummer an. Wer Investoren in den USA ansprechen will, gründet in der Regel eine Corporation. FIAON Global übernimmt Gründung, EIN, Adresse und die Vorbereitung des Kontos.",
     bloecke: [
@@ -209,16 +212,16 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           GLOBAL_PFLICHTHINWEIS.de[0],
-          "Arbeiten Sie selbst oder Ihre Mitarbeiter in den USA, sind Visa und US-Arbeitsrecht zu beachten. Beides ist nicht Teil der Pakete.",
-          "Verträge mit US-Kunden prüft ein US-Anwalt; die Pakete enthalten das Operating Agreement Ihrer Gesellschaft, nicht Ihre Kundenverträge.",
+          "Arbeiten Sie selbst oder Ihre Mitarbeiter in den USA, sind Visa und US-Arbeitsrecht zu beachten. Beides ist nicht Teil Ihres Auftrags.",
+          "Verträge mit US-Kunden prüft ein US-Anwalt; Ihr Auftrag enthält das Operating Agreement Ihrer Gesellschaft, nicht Ihre Kundenverträge.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gesellschaft, Steuernummern und der erste Konto- und Kartenantrag: Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     ],
     fragen: [
       { f: "Warum verlangen US-Kunden eine US-Steuernummer?", a: "US-Unternehmen fragen bei Lieferanten eine Steuernummer und ein Steuerformular ab (W-9 oder W-8), weil sie Zahlungen der Steuerbehörde melden. Mit einer eigenen US-Gesellschaft und EIN beantworten Sie diese Abfrage aus den USA; welches Formular Ihre Gesellschaft ausfüllt, klärt unser US-CPA." },
       { f: "Brauche ich für US-Investoren eine Corporation?", a: "In der Regel ja. Investoren in den USA erwarten meist eine Corporation. Die passende Wahl prüfen wir vor der Gründung." },
-      { f: "Prüft FIAON meine Kundenverträge?", a: "Nein. Die Pakete enthalten das Operating Agreement durch unseren Partner-Anwalt. Kundenverträge prüft ein US-Anwalt auf eigenes Mandat." },
+      { f: "Prüft FIAON meine Kundenverträge?", a: "Nein. Ihr Auftrag enthält das Operating Agreement durch unseren Partner-Anwalt. Kundenverträge prüft ein US-Anwalt auf eigenes Mandat." },
     ],
     paket: "global_struktur",
     weiter: ["/business/us-firmengruendung", "/business/wissen/llc-oder-corporation", "/business/delaware", "/business/wissen/llc-steuererklaerung"],
@@ -239,9 +242,9 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     h1b: "Projekte in den USA, sauber aufgestellt.",
     lead: "Wer in den USA baut, saniert oder Objekte hält, trennt jedes Projekt in eine eigene Gesellschaft. Wir gründen sie, holen die Steuernummern, bereiten Konto und Kennzahlen vor — und begleiten mit unserem Team in Miami und der Schwarzott Group in Zürich die Kapital-Etappe.",
     ziffern: [
-      { wert: globalPlanungText("global_kapital"), label: "Kapitalrahmen Global Kapital, als Ziel" },
+      { wert: P.rahmenKurz, label: "Kapitalrahmen, den Sie selbst wählen" },
       { wert: "Miami", label: "Team vor Ort für Termine" },
-      { wert: "Kennzahlen-Mappe", label: "für Finanzierungsgespräche, ab Global Kapital" },
+      { wert: "Jeder Antrag", label: "für die Finanzierung vollständig vorbereitet" },
     ],
     blick: [
       ["Für", "Bauunternehmen, Projektentwickler, Bestandshalter"],
@@ -249,7 +252,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Kapital", "Kennzahlen und Unterlagen für Finanzierungsgespräche"],
       ["Vor Ort", "Termine in Miami mit der Schwarzott Group"],
       ["Entscheidung", "Über jede Finanzierung entscheidet das Institut"],
-      ["Paket", "Global Kapital oder Global VIP"],
+      ["Begleitung", "Bis zur Finanzierung, mit der Bürgschaft unserer US-Partnergesellschaft"],
     ],
     kurz: "Für Projekte und Objekte in den USA wird üblicherweise je Projekt eine eigene Gesellschaft gegründet, meist eine LLC. FIAON Global gründet sie, beantragt die EIN, bereitet Konto und eine Kennzahlen-Mappe für Finanzierungsgespräche vor. Über jede Finanzierung entscheidet das jeweilige Institut; FIAON vergibt und vermittelt keine Kredite.",
     bloecke: [
@@ -277,14 +280,14 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
           GLOBAL_PFLICHTHINWEIS.de[0],
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Kapital begleitet bis zur Kennzahlen-Mappe für ein Bankdarlehen — mit Vorrang bei Terminen vor Ort.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       { typ: "standorte", id: "standorte", h2: "Miami und Zürich", lead: "Termine vor Ort und die Kapital-Etappe mit der Schwarzott Group." },
     ],
     fragen: [
       { f: "Brauche ich für jedes Projekt eine eigene Gesellschaft?", a: "Üblich ist es: Eine Gesellschaft je Projekt trennt Haftung und Zahlen und erleichtert Finanzierung und Verkauf. Ob es in Ihrem Fall passt, klären wir im Startgespräch." },
       { f: "Finanziert FIAON mein Projekt?", a: "Nein. FIAON vergibt keine Kredite und vermittelt keine. Wir bereiten Kennzahlen und Unterlagen für Finanzierungsgespräche vor; entscheiden tut das Institut." },
       { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
-      { f: "Kann ich Termine vor Ort wahrnehmen lassen?", a: "Ja. Unser Team in Miami nimmt Termine bei Behörden und Instituten wahr. Im Paket Global VIP reisen Sie auf Wunsch selbst zum Auftakt an." },
+      { f: "Kann ich Termine vor Ort wahrnehmen lassen?", a: "Ja. Unser Team in Miami nimmt Termine bei Behörden und Instituten wahr. Ab einem Kapitalrahmen von 1 Mio. US-Dollar treffen wir Sie dort persönlich." },
     ],
     paket: "global_kapital",
     weiter: ["/business/firmenkarten-kapital", "/business/miami", "/business/florida", "/business/wissen/business-credit-usa"],
@@ -313,9 +316,9 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       ["Steuerpflicht", "Dort, wo die Gesellschaft tatsächlich geleitet wird (§ 10 AO, § 1 KStG)"],
       ["Einordnung", "Typenvergleich: Wie eine GmbH oder wie eine Personengesellschaft?"],
       ["Meldung", "Beteiligung an einer ausländischen Gesellschaft nach § 138 AO"],
-      ["Vor der Gründung", "Prüfung durch unseren Partner-Steuerberater — im Festpreis"],
+      ["Vor der Gründung", "Prüfung durch unseren Partner-Steuerberater — im Preis enthalten"],
       ["Laufend", "Steuererklärung zu Hause mit Ihrem Steuerberater"],
-      ["Festpreis", `ab ${globalPreisText("global_struktur")}, alle Gebühren inklusive`],
+      ["Preis", `${P.preis} mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung`],
     ],
     kurz: "Unternehmer aus Deutschland können eine US-LLC oder Corporation ohne Wohnsitz in den USA gründen. Wird die Gesellschaft von Deutschland aus geleitet, liegt der Ort ihrer Geschäftsleitung in Deutschland (§ 10 AO) und sie ist hier in der Regel steuerpflichtig. Die Beteiligung ist dem Finanzamt nach § 138 AO zu melden. Wie das Finanzamt eine LLC einordnet, entscheidet ein Typenvergleich.",
     bloecke: [
@@ -343,11 +346,11 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           "Eine US-Gesellschaft ist kein Weg, Steuern in Deutschland zu vermeiden. Wer das verspricht, verschweigt den Ort der Geschäftsleitung.",
-          "Die Prüfung vor der Gründung durch unseren Partner-Steuerberater ist im Festpreis enthalten; die laufende Steuererklärung übernimmt Ihr Steuerberater.",
+          "Die Prüfung vor der Gründung durch unseren Partner-Steuerberater ist im Preis enthalten; die laufende Steuererklärung übernimmt Ihr Steuerberater.",
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung, Steuernummern und die Prüfung vor der Gründung: Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     ],
     fragen: [
       { f: "Kann ich als Deutscher eine US-LLC gründen?", a: "Ja, ohne Wohnsitz und ohne Staatsbürgerschaft in den USA. Sie brauchen einen Reisepass, einen Adressnachweis und bei einer Firma als Gesellschafterin deren Registerauszug." },
@@ -372,7 +375,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     art: "land",
     seo: {
       titel: "US-Firma aus der Schweiz gründen — FIAON Global",
-      beschreibung: "US-Gesellschaft aus der Schweiz: tatsächliche Verwaltung, Steuerpflicht, Partner in Zürich — Gründung, EIN und Konto aus einer Hand, zum Festpreis.",
+      beschreibung: "US-Gesellschaft aus der Schweiz: tatsächliche Verwaltung, Steuerpflicht, Partner in Zürich — Gründung, EIN und Konto aus einer Hand, in einem Auftrag.",
     },
     stand: S,
     kennung: "FG · 16",
@@ -383,13 +386,13 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     ziffern: [
       { wert: "Zürich", label: "Partner vor Ort: Schwarzott Group" },
       { wert: "Art. 50 DBG", label: "Steuerpflicht bei tatsächlicher Verwaltung" },
-      { wert: `ab ${globalPreisText("global_struktur")}`, label: "Festpreis, einmalig" },
+      { wert: P.preis, label: P.preisLabel },
     ],
     blick: [
       ["Steuerpflicht", "Bei Sitz oder tatsächlicher Verwaltung in der Schweiz (Art. 50 DBG)"],
       ["Partner", "Schwarzott Group, Zürich"],
       ["Vor Ort in den USA", "Schwarzott Group, Miami"],
-      ["Vor der Gründung", "Prüfung durch unseren Partner-Steuerberater — im Festpreis"],
+      ["Vor der Gründung", "Prüfung durch unseren Partner-Steuerberater — im Preis enthalten"],
       ["Laufend", "Steuererklärung in der Schweiz mit Ihrer Treuhand"],
       ["Vertragspartner", "FIAON LTD, London"],
     ],
@@ -417,7 +420,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
           "Die Schwarzott Group ist mit FIAON über unseren Gründer Justin Schwarzott verbunden. Ihr Vertragspartner ist in jedem Fall die FIAON LTD.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung, Steuernummern und die Prüfung vor der Gründung: Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Zürich, Miami, London", lead: "Partner in Zürich, Team in Miami, Vertragspartner in London." },
     ],
     fragen: [

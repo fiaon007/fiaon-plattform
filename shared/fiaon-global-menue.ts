@@ -9,6 +9,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { globalEnPfad } from "./fiaon-global-pfade";
+// E-509: der eine Preis der Jahresbetreuung — aus dem Blatt ohne Importe (hält das Menü klein).
+import { VERKAUF_PREISE, verkaufEur } from "./fiaon-global-verkauf-preise";
 
 export type MenueGruppe = "leistungen" | "fuerwen" | "preise" | "wissen";
 
@@ -31,7 +33,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "leistungen", pfad: "/business/us-geschaeftskonto", titel: "US-Geschäftskonto", text: "Antrag vollständig vorbereitet", reihe: 3, en: { titel: "US business bank account", text: "Application fully prepared" } },
   { gruppe: "leistungen", pfad: "/business/firmenkarten-kapital", titel: "Firmenkarten und Kapital", text: "Kartenleiter und Kapitalrahmen", reihe: 4, en: { titel: "Credit cards and capital", text: "Business credit cards, card ladder, capital range" } },
   { gruppe: "leistungen", pfad: "/business/us-pflichten", titel: "US-Pflichten und Steuern", text: "Form 5472, Jahresmeldung, Registered Agent", reihe: 5, en: { titel: "US compliance and taxes", text: "Form 5472, annual report, registered agent" } },
-  { gruppe: "leistungen", pfad: "/business/miami", titel: "Global VIP · Miami", text: "Der Auftakt vor Ort, Flug und Hotel inklusive", reihe: 6, en: { titel: "Global VIP · Miami", text: "The kick-off on site, flight and hotel included" } },
+  { gruppe: "leistungen", pfad: "/business/miami", titel: "Persönlich in Miami", text: "Ab 1 Mio. US-Dollar begleiten wir vor Ort", reihe: 6, en: { titel: "In person in Miami", text: "From US$1 million we work with you on site" } },
 
   { gruppe: "fuerwen", pfad: "/business/privatpersonen", titel: "Privatpersonen und Gründer", text: "Ohne eigene Firma beauftragen", reihe: 1, en: { titel: "Individuals and founders", text: "Order without a company of your own" } },
   { gruppe: "fuerwen", pfad: "/business/tochtergesellschaft-usa", titel: "Mittelstand", text: "Tochtergesellschaft in den USA", reihe: 2, en: { titel: "SMEs", text: "A subsidiary in the United States" } },
@@ -43,13 +45,16 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   // 27.10.2026 (E-439): die dritte Länderseite.
   { gruppe: "fuerwen", pfad: "/business/aus-oesterreich", titel: "Aus Österreich", text: "Geschäftsleitung, Meldungen, Partner-Steuerberater", reihe: 8, en: { titel: "From Austria", text: "Place of management, reporting, partner tax adviser" } },
 
-  // 29.10.2026 (E-461): Pakete und Jahresbetreuung stehen auf der Startseite fiaon.com/ (vorher /business).
-  { gruppe: "preise", pfad: "/#pakete", titel: "Pakete und Preise", text: "Vier Pakete, Festpreis, alles inklusive", reihe: 1, en: { titel: "Packages and prices", text: "Four packages, fixed price, everything included" } },
-  // E-196: Preis wie GLOBAL_JAHRESBETREUUNG (shared/fiaon-global.ts) — pruef-global-seiten.ts gleicht ab.
-  { gruppe: "preise", pfad: "/#jahresbetreuung", titel: "Jahresbetreuung ab Jahr zwei", text: "699 € im Jahr, alle Gebühren inklusive", reihe: 2, en: { titel: "Annual care plan from year two", text: "€699 a year, all fees included" } },
-  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Festpreis, Staatsgebühren, ab Jahr zwei", reihe: 3, en: { titel: "Costs at a glance", text: "Fixed price, state fees, from year two" } },
-  { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Vom Gespräch bis zur Kartenleiter", reihe: 4, en: { titel: "Process and timing", text: "From the first call to the card ladder" } },
-  { gruppe: "preise", pfad: "/business/paket-finder", titel: "Paket-Finder", text: "Vier Fragen, ein passendes Paket", reihe: 5, en: { titel: "Package finder", text: "Four questions, one matching package" } },
+  // 29.10.2026 (E-461): die Übersicht steht auf der Startseite fiaon.com/ (vorher /business).
+  // E-509 (12.11.2026): EIN Produkt statt vier Pakete — „Leistung und Preis“ zeigt auf das Produkt der Startseite (#produkt),
+  // „Angebot zusammenstellen“ auf den Konfigurator (/business/start; bis E-509: Paket-Finder).
+  { gruppe: "preise", pfad: "/#produkt", titel: "Leistung und Preis", text: "Ein Auftrag, alles darin", reihe: 1, en: { titel: "Service and price", text: "One order, everything in it" } },
+  // E-196: Preis wie GLOBAL_JAHRESBETREUUNG (shared/fiaon-global.ts) — pruef-global-seiten.ts gleicht ab. Der Betrag kommt
+  // aus der einen Preisquelle (VERKAUF_PREISE.jahresCents).
+  { gruppe: "preise", pfad: "/#jahresbetreuung", titel: "Jahresbetreuung ab Jahr zwei", text: `${verkaufEur(VERKAUF_PREISE.jahresCents, "de")} im Jahr, alle Gebühren inklusive`, reihe: 2, en: { titel: "Annual care plan from year two", text: `${verkaufEur(VERKAUF_PREISE.jahresCents, "en")} a year, all fees included` } },
+  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Preis, Staatsgebühren, ab Jahr zwei", reihe: 3, en: { titel: "Costs at a glance", text: "Price, state fees, from year two" } },
+  { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Vom Angebot bis zur Finanzierung", reihe: 4, en: { titel: "Process and timing", text: "From your offer to financing" } },
+  { gruppe: "preise", pfad: "/business/start", titel: "Angebot zusammenstellen", text: "Ihr Preis in einer Minute", reihe: 5, en: { titel: "Build your offer", text: "Your price in a minute" } },
   { gruppe: "preise", pfad: "/business/vergleich", titel: "Vergleich", text: "Selbst, Gründungsdienst oder FIAON Global", reihe: 6, en: { titel: "Comparison", text: "Yourself, a formation service or FIAON Global" } },
   { gruppe: "preise", pfad: "/business/fragen", titel: "Fragen und Antworten", text: "Alle Antworten an einem Ort", reihe: 7, en: { titel: "Questions and answers", text: "Every answer in one place" } },
   // 27.10.2026 (E-439): die Konzeptseite — wer FIAON Global ist, in einem Satz und einer Tabelle.

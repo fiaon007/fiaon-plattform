@@ -24,9 +24,10 @@ export default function NotFound() {
     // 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite fiaon.com/ (und /en).
     const start = en ? "/en" : "/";
     const NAVY = "#12284a";
+    // E-509 (12.11.2026): ein Produkt statt vier Pakete — der erste Weg führt zum Konfigurator (vorher „Pakete und Preise“).
     const wege = en
-      ? [{ href: `${start}#pakete`, label: "Packages and prices" }, { href: `${start}#gespraech`, label: "Arrange a first call" }, { href: "/en/business/faq", label: "Questions and answers" }]
-      : [{ href: `${start}#pakete`, label: "Pakete und Preise" }, { href: `${start}#gespraech`, label: "Erstgespräch vereinbaren" }, { href: "/business/fragen", label: "Fragen und Antworten" }];
+      ? [{ href: "/en/business/start", label: "Build your offer" }, { href: `${start}#gespraech`, label: "Arrange a first call" }, { href: "/en/business/faq", label: "Questions and answers" }]
+      : [{ href: "/business/start", label: "Angebot zusammenstellen" }, { href: `${start}#gespraech`, label: "Erstgespräch vereinbaren" }, { href: "/business/fragen", label: "Fragen und Antworten" }];
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4">
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-8 text-center">

@@ -9,7 +9,9 @@
 // US-Eigennamen bleiben amerikanisch: Articles of Organization, Certificate of
 // Formation, License Tax, Franchise Tax, Authorized Shares Method.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS, globalPaket, globalPreisText } from "../../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+// E-509 (12.11.2026): ONE product instead of four packages — price and the “One mandate” block from EIN_PRODUKT.en.
+import { EIN_PRODUKT } from "../ein-produkt";
 import { globalEnPfad } from "../../fiaon-global-pfade";
 import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_STAATEN_EN, STAAT_EN } from "../fakten-en";
 import type { GlobalBlock, GlobalSeite } from "../typen";
@@ -20,8 +22,7 @@ const S = "2026-09-24";
 const S465 = STAATEN_STAND;
 const ZEIT = STAATEN_STAND_TEXT.en;
 const DE_ = BUNDESSTAATEN.delaware, FL_ = BUNDESSTAATEN.florida, WY_ = BUNDESSTAATEN.wyoming;
-const VIP = globalPaket("global_vip")!.en.name;
-const AB_PREIS = globalPreisText("global_struktur", "en");
+const P = EIN_PRODUKT.en;
 
 /** The three states compared — the same table on every state page (E-465: order Delaware, Florida, Wyoming; registration and express). */
 function vergleich(hervor: 1 | 2 | 3): GlobalBlock {
@@ -60,7 +61,7 @@ export const STAATEN_EN: GlobalSeite[] = [
     auge: "Knowledge · US state",
     h1: "Florida.",
     h1b: "Home of our team on the ground.",
-    lead: `Florida is where our team on the ground is based: Schwarzott Group in Miami. For companies that do business in Florida, need in-person appointments or plan the kick-off in the ${VIP} package, it is the obvious choice — with clear fees and a fixed deadline in spring. At present, though, Florida is registering more slowly than usual: often around two weeks, with no express option.`,
+    lead: `Florida is where our team on the ground is based: Schwarzott Group in Miami. For companies that do business in Florida, need in-person appointments or plan to meet us in person in Miami, it is the obvious choice — with clear fees and a fixed deadline in spring. At present, though, Florida is registering more slowly than usual: often around two weeks, with no express option.`,
     ziffern: [
       { wert: STAAT_EN.florida.gruendung, label: "Forming an LLC" },
       { wert: STAAT_EN.florida.jahr, label: "Annual report, 1 January to 1 May" },
@@ -96,7 +97,7 @@ export const STAATEN_EN: GlobalSeite[] = [
         punkte: [
           "your customers, suppliers or projects are in Florida",
           "you need in-person appointments — with authorities or institutions",
-          `you want to attend the kick-off in person in Miami (${VIP})`,
+          "you meet us in person in Miami (from a capital range of US$1 million)",
           "you want a company with a team nearby",
         ],
         nach: STAAT_EN.florida.llcSteuer,
@@ -111,11 +112,11 @@ export const STAATEN_EN: GlobalSeite[] = [
           `Regardless of the state, the IRS requires Form 5472 with Form 1120 every year; failure to file can result in a penalty of ${IRS_EN.strafe5472}.`,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `Formation in Florida with everything needed to get started — or with an in-person kick-off in the ${VIP} package.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Formation with everything needed to get started — in one order. In the configurator we form in Delaware; we agree Florida with you in a call.", paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Our team in Miami", lead: "Schwarzott Group attends appointments on the ground; the contracting party is FIAON LTD." },
     ],
     fragen: [
-      { f: "How much does a Florida LLC cost?", a: `Formation costs ${STAAT_EN.florida.gruendung}, and the annual report costs ${STAAT_EN.florida.jahr} a year. With FIAON Global, formation and the first year are included in the fixed price from ${AB_PREIS}.` },
+      { f: "How much does a Florida LLC cost?", a: `Formation costs ${STAAT_EN.florida.gruendung}, and the annual report costs ${STAAT_EN.florida.jahr} a year. With FIAON Global, formation and the first year are included in the price of ${P.preis}.` },
       { f: "When is the Florida annual report due?", a: "Between 1 January and 1 May, starting in the year after formation. After 1 May, a late fee of $400 is added." },
       { f: "Does a Florida LLC pay corporate income tax?", a: "An LLC that is disregarded for tax purposes does not file its own Florida return. If it is owned by a corporation such as a GmbH, the owner files a Florida return; corporations pay 5.5% with a $50,000 exemption." },
       { f: "How long does formation take in Florida?", a: FL_.eintragung.en },
@@ -189,7 +190,7 @@ export const STAATEN_EN: GlobalSeite[] = [
           GLOBAL_PFLICHTHINWEIS.en[0],
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: "Formation in Delaware with everything needed to get started — including as a corporation with plans to bring in investors.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Formation in Delaware with everything needed to get started — in one order.", paket: "global_struktur" },
     ],
     fragen: [
       { f: "How much does a Delaware LLC cost?", a: `Formation costs ${STAAT_EN.delaware.gruendung}, and the annual tax is ${STAAT_EN.delaware.jahr} — from tax year 2026, due on 1 June of the following year. Before that it was $300.` },
@@ -267,10 +268,10 @@ export const STAATEN_EN: GlobalSeite[] = [
           `Regardless of the state, the IRS requires Form 5472 with Form 1120 every year; failure to file can result in a penalty of ${IRS_EN.strafe5472}.`,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: "Formation in Wyoming with everything needed to get started.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Formation with everything needed to get started — in one order. In the configurator we form in Delaware; we agree Wyoming with you in a call.", paket: "global_struktur" },
     ],
     fragen: [
-      { f: "How much does a Wyoming LLC cost?", a: `Formation costs ${STAAT_EN.wyoming.gruendung}; each year, the annual report costs at least $60 in License Tax. With FIAON Global, formation and the first year are included in the fixed price from ${AB_PREIS}.` },
+      { f: "How much does a Wyoming LLC cost?", a: `Formation costs ${STAAT_EN.wyoming.gruendung}; each year, the annual report costs at least $60 in License Tax. With FIAON Global, formation and the first year are included in the price of ${P.preis}.` },
       { f: "Does a Wyoming LLC pay any tax?", a: "Wyoming levies no corporate income tax and no state income tax. However, the company is taxable where it is managed — for entrepreneurs from Germany, Austria or Switzerland, usually in their home country." },
       { f: "When is the Wyoming annual report due?", a: "On the first day of the month in which the company was formed. If the report is more than sixty days overdue, the state may dissolve the company." },
       { f: "Is Wyoming better than Delaware?", a: "Cheaper to maintain and similarly fast. Delaware has the stronger reputation with banks and lenders and is even more predictable with express; some institutions look more closely at Wyoming companies with no business in the state." },

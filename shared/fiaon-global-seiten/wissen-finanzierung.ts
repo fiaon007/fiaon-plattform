@@ -119,7 +119,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
           "Die Wahl der Anschrift treffen Sie. Wir sagen Ihnen offen, wie ein Institut sie sehen wird.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "US-Präsenz im Paket", lead: "Registered Agent, US-Geschäftsadresse und US-Telefonnummer für das erste Jahr, dazu die vorbereiteten Konto- und Kartenanträge — Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "US-Präsenz in Ihrem Auftrag", lead: "Registered Agent, US-Geschäftsadresse und US-Telefonnummer für das erste Jahr, dazu die vorbereiteten Konto- und Kartenanträge — in einem Auftrag.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -227,7 +227,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
           "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Über jede Finanzierung entscheidet der Kreditgeber.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die Gesellschaft für Ihr Objekt", lead: "Gesellschaft, Steuernummern, Konto und die vorbereiteten Unterlagen für Kreditgeber — Global Kapital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "Die Gesellschaft für Ihr Objekt", lead: "Gesellschaft, Steuernummern, Konto und die vorbereiteten Unterlagen für Kreditgeber — in einem Auftrag.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -322,10 +322,10 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "Was FIAON Global dabei tut",
         absaetze: [
           "Wir bauen die Grundlage, auf der Institute entscheiden: Gesellschaft, Konto, einheitliche Stammdaten, Kennziffer, Lieferantenkonten, vollständige Unterlagen. Wir planen die Reihenfolge der Anträge und bereiten jeden vor.",
-          "FIAON ist keine Bank, vergibt und vermittelt keine Kredite und erhält kein Honorar nach Rahmen. Über jeden Kredit entscheidet das Institut.",
+          "FIAON ist keine Bank und vergibt und vermittelt keine Kredite. Über jeden Kredit entscheidet das Institut.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Der ganze Weg im Paket", lead: "Gesellschaft, Konto, Kartenleiter und die Unterlagen für Bank und Kreditgeber — Global Kapital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "Der ganze Weg in einem Auftrag", lead: "Gesellschaft, Konto, Kartenleiter und die Begleitung bis zur Finanzierung in Ihrem Kapitalrahmen.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [

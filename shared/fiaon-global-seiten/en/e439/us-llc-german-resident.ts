@@ -27,7 +27,10 @@
 // nicht verwendet.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE, GLOBAL_GELD_ZURUECK, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preise aus EIN_PRODUKT; die alte Geld-zurück-Zusage je
+// Paket entfällt (auf dieser Seite geht es nicht um Kapital).
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_IRS_EN, QUELLEN_STAATEN_EN, IRS_EN, STAAT_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
@@ -35,8 +38,7 @@ const S = "2026-10-27";
 /** IRS penalty without “per form per year” — for the key figure. */
 const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`] : [];
-const STRUKTUR = globalPaket("global_struktur")?.en.name ?? "Global Structure";
+const P = EIN_PRODUKT.en;
 const NICHT_IM_PREIS = GLOBAL_NICHT_INKLUSIVE.en[1].charAt(0).toLowerCase() + GLOBAL_NICHT_INKLUSIVE.en[1].slice(1);
 
 /** Quellen dieses Beitrags mit englischen Titeln — dieselben Adressen wie im Deutschen (geprüft am 27.10.2026). */
@@ -75,7 +77,7 @@ export const SEITE: GlobalSeite = {
     titel: "US LLC German resident: the obligations — FIAON Global",
     beschreibung: "US LLC, German resident: tax office, section 138 AO notification, trade registration, VAT on invoices and bookkeeping — with legal references.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 47",
   auge: "Knowledge · Tax and obligations",
@@ -93,7 +95,7 @@ export const SEITE: GlobalSeite = {
     ["Notification", "Section 138 AO with the tax return, 14 months at the latest"],
     ["Invoices", "Managed from Germany: as a rule with German VAT"],
     ["USA", "Form 5472 with Form 1120, every year, even without revenue"],
-    ["With FIAON Global", "One contact instead of eight; review before formation included in the fixed price"],
+    ["With FIAON Global", "One contact instead of eight; the review before formation is included"],
   ],
   kurz: "If you run a US LLC as a German resident, its place of management is, as a rule, in Germany (section 10 AO). Tax is then due in Germany: depending on the type comparison, either on the company itself, like a GmbH, or on its profit in your hands as a member. As a rule, you report the formation to the tax office under section 138(2) AO with your tax return, no later than 14 months after the end of the year. And because the LLC is managed from Germany, it does not count as established abroad for VAT purposes (section 13b(7) of the German VAT Act, UStG): invoices to German businesses then generally carry German VAT instead of the reverse charge note.",
   bloecke: [
@@ -116,11 +118,11 @@ export const SEITE: GlobalSeite = {
         ["Notification of a formation or participation abroad", "Section 138(2) and (5) AO", "with the tax return, no later than 14 months after the end of the year", "Your tax adviser, with the documents from your document room"],
         ["VAT: invoices and advance returns", "Sections 13b, 14, 14a, 18 UStG", "ongoing; advance return by the tenth day after the end of the advance return period", "Your bookkeeper and tax adviser"],
         ["Tax returns in Germany", "Section 1 KStG and section 2 GewStG, or your income tax", "every year", "Your tax adviser"],
-        ["Form 5472 with Form 1120 to the IRS", "IRS, Instructions for Form 5472", IRS_EN.frist5472, "our US CPA, included in the package for the first year"],
-        ["Annual report to the state", "State law", `depending on the state; in Florida ${STAAT_EN.florida.jahrFrist}`, "FIAON, from the second year with the annual care plan"],
+        ["Form 5472 with Form 1120 to the IRS", "IRS, Instructions for Form 5472", IRS_EN.frist5472, "our US CPA, included for the first year"],
+        ["Annual report to the state", "State law", `depending on the state; in Florida ${STAAT_EN.florida.jahrFrist}`, "FIAON, from the second year with annual care"],
         ["Beneficial ownership (BOI) report to FinCEN", "FinCEN, rule of August 2026", "does not apply to companies formed in the US", "nobody"],
       ],
-      fuss: ["Ongoing bookkeeping and the tax returns in Germany are not part of the packages. Which obligations apply in an individual case is for the tax adviser to review."],
+      fuss: ["Ongoing bookkeeping and the tax returns in Germany are not part of your order. Which obligations apply in an individual case is for the tax adviser to review."],
     },
     {
       typ: "text", id: "meldung", h2: "Section 138 AO: reporting the US LLC — 14 months, not one month",
@@ -207,25 +209,24 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes on the obligations on both sides",
       absaetze: [
         "FIAON Global is a business consultancy for the route to the United States, built on one principle: one contact instead of eight. With your power of attorney, we make the applications for you — formation, the EIN, preparation of the ITIN, the D-U-N-S Number, filings, the registered agent, and a US address and US phone number for the first year. You make only the account, card and credit applications yourself; we prepare them in full. FIAON is not a bank and neither grants nor arranges loans; the institution alone decides on the account, card, credit limit and loan.",
-        `On the German side: before formation, our partner tax adviser reviews your case — place of management, classification under the type comparison, the notification under section 138 AO. Based on that result, our partner lawyer drafts the operating agreement. Our US CPA handles the first US filing, Form 5472 with Form 1120. ${GLOBAL_ROLLEN.en.partner}`,
-        "So your tax adviser does not start from scratch: the result of the review, the formation document, the operating agreement and the EIN confirmation are already filed in order in your document room when the first return with the section 138 AO notification is due. Our team on the ground in Miami handles appointments in the US, Zurich is our partner location, and your contracting party is FIAON LTD in London. You pay a fixed price, with all package fees included.",
-        ...GELD_ZURUECK,
+        `On the German side: before formation, our partner tax adviser reviews your case — place of management, classification under the type comparison, the notification under section 138 AO. Based on that result, our partner lawyer drafts the operating agreement. Our US CPA handles the first US filing, Form 5472 with Form 1120. ${P.partner}`,
+        `So your tax adviser does not start from scratch: the result of the review, the formation document, the operating agreement and the EIN confirmation are already filed in order in your document room when the first return with the section 138 AO notification is due. Our team on the ground in Miami handles appointments in the US, Zurich is our partner location, and your contracting party is FIAON LTD in London. ${P.preisSatz}`,
       ],
     },
     {
-      typ: "text", id: "jahresbetreuung", h2: "From the second year: the annual care plan",
-      absaetze: [GLOBAL_JAHRESBETREUUNG.en.lead],
+      typ: "text", id: "jahresbetreuung", h2: "From the second year: annual care",
+      absaetze: [`The first year is included in your order. From the second year we keep your company running for ${P.jahres} a year – with all fees, without your having to keep a deadline in mind.`],
       punkte: [...GLOBAL_JAHRESBETREUUNG.en.leistungen],
       nach: `${GLOBAL_JAHRESBETREUUNG.en.bedingungen} Ongoing bookkeeping and the tax returns in Germany stay with your tax adviser.`,
     },
-    { typ: "paket", id: "paket", h2: "A clean start, with both sides in view", lead: `Formation, EIN, registered agent, an operating agreement by our partner lawyer, the review before formation by our partner tax adviser and the first US filing — ${STRUKTUR}.`, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "A clean start, with both sides in view", lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "This article explains the legal basis as at October 2026. It does not replace a review of your case; that is carried out by the tax adviser under your engagement.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        `Not included in the fixed price: ${NICHT_IM_PREIS}.`,
+        `Not included in your order: ${NICHT_IM_PREIS}.`,
         GLOBAL_ROLLEN.en.fiaon,
         "A US LLC is not a tax model: if you manage it from Germany, it is, as a rule, taxed in Germany.",
       ],

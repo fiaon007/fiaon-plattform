@@ -21,15 +21,17 @@
 // Wortwand EN: kein „up to“, kein Bankname, keine Frist mit Ziffer als Zusage, kein
 // Zinssatz, kein „recommend“, kein „advice“, kein „unsecured“ (Darlehen „solely on your
 // personal signature“). Über Visum entscheidet das Konsulat, über Konto, Karte und Rahmen
-// das Institut; FIAON vermittelt keine Kredite. Visa sind nicht Teil der Pakete.
+// das Institut; FIAON vermittelt keine Kredite. Visa sind nicht Teil des Auftrags.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein „Global VIP“ mehr (kein Preis, kein Reiseversprechen); ab 1 Mio.
+// US-Dollar Kapitalrahmen persönlich in Miami. Die alte Geld-zurück-Zusage je Paket entfällt.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, globalPaket } from "../../../fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_RECHT_EN as R, QUELLEN_WISSEN_EN as Q } from "../../fakten-en";
 
 const S = "2026-10-27";
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? `${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}` : undefined;
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "Global Capital";
+const P = EIN_PRODUKT.en;
 
 /** Quellen dieses Beitrags — dieselben Adressen wie in der deutschen Fassung, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -57,7 +59,7 @@ export const SEITE: GlobalSeite = {
     titel: "E-2 visa for German citizens: your US company — FIAON Global",
     beschreibung: "E-2 visa for German, Austrian and Swiss citizens: requirements, costs, the consulate process, duration, family and the role of your US company.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 51",
   auge: "Knowledge · US investor visa",
@@ -193,7 +195,7 @@ export const SEITE: GlobalSeite = {
         "Partner lawyer: operating agreement and formation documents",
         "Partner tax adviser: review before formation, including with a view to a planned move",
         "US CPA: the first annual US filing",
-        "Partner immigration lawyer: the visa application under your own engagement, not part of the packages",
+        "Partner immigration lawyer: the visa application under your own engagement, not part of your order",
       ],
       sie: [
         "The investment from your own documented funds",
@@ -206,21 +208,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes care of the foundation for your E-2 visa",
       absaetze: [
         "FIAON Global is the business consultancy for your route into the US: one contact instead of eight. With your power of attorney, we file the applications for you — formation with the state, the EIN, the D-U-N-S Number and your company’s filings — and prepare your ITIN application. We provide the registered agent, US business address and US phone number for the first year. You submit only account, card and credit applications yourself; we prepare each of them in full.",
-        "With a later E-2 visa in mind, we build the company so that it can be documented: ownership and management are clearly set out from the start in the operating agreement drafted by our partner lawyer; the company’s name, address and core data match across all documents; and every record is filed in order in your document room. Whether the investment and the business suffice for a visa is decided by the consulate. Partner tax advisers, US CPAs and partner lawyers act under your engagement; FIAON pays their fees for the services in your package.",
-        "The visa application itself is made by a partner immigration lawyer under your own engagement — it is not part of the packages. We make the introduction and, with your consent, pass on the company’s documents. With Global VIP, the set-up begins in person in Miami: our team on the ground accompanies your appointments with authorities and banks, complemented by our partner location in Zurich and your contracting party, FIAON LTD in London. You pay a fixed price that includes all fees of the package; from the second year onwards, the annual care plan is optional.",
+        "With a later E-2 visa in mind, we build the company so that it can be documented: ownership and management are clearly set out from the start in the operating agreement drafted by our partner lawyer; the company’s name, address and core data match across all documents; and every record is filed in order in your document room. Whether the investment and the business suffice for a visa is decided by the consulate. Partner tax advisers, US CPAs and partner lawyers act under your engagement; FIAON pays their fees for the services in your order.",
+        "The visa application itself is made by a partner immigration lawyer under your own engagement — it is not part of your order. We make the introduction and, with your consent, pass on the company’s documents. From a capital range of US$1 million we work with you in person in Miami; below that, everything runs remotely, and our team on the ground deals with the authorities. This is complemented by our partner location in Zurich and your contracting party, FIAON LTD in London. The configurator shows your price; from the second year onwards, annual care is optional.",
       ],
-      nach: GELD_ZURUECK,
     },
-    { typ: "paket", id: "paket", h2: "Global VIP: your set-up in Miami, accompanied in person", lead: `Everything in ${KAPITAL}, plus the kick-off in person in Miami, appointments with authorities and banks together with our team, and support from our management — Global VIP.`, paket: "global_vip" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} From a capital range of US$1 million we work with you in person in Miami.`, paket: "global_vip" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "Only the consulate decides on a visa, and only the border authority on admission at entry. No one can make a binding promise about a visa, its duration or an extension.",
-        "The visa application is not part of the packages. The application and the individual case belong in the hands of a partner immigration lawyer, who acts under your engagement and agrees their fee with you.",
+        "The visa application is not part of your order. The application and the individual case belong in the hands of a partner immigration lawyer, who acts under your engagement and agrees their fee with you.",
         "A US company gives no right to live or work in the US; the ITIN does not permit work either.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        "FIAON is not a bank and neither grants nor arranges loans. The capital range of a package is a goal, not a promise.",
+        "FIAON is not a bank and neither grants nor arranges loans. Your capital range is a goal, not a promise — the financing institution decides on the financing.",
         "This page reflects the regulations as of October 2026; rules and fees may change.",
       ],
     },
@@ -233,7 +234,7 @@ export const SEITE: GlobalSeite = {
     { f: "How long is the E-2 visa valid?", a: "Each time you enter, you are admitted for a maximum of two years; extensions of a maximum of two years each are possible, with no limit on their number. How long the visa in your passport is valid depends on the reciprocity schedule for your nationality. The E-2 visa is not a Green Card, and it does not turn into one of its own accord." },
     { f: "Can my spouse work on an E-2 visa?", a: "Yes. The spouse of an E-2 investor is authorised to work by virtue of their status; the arrival record carries the annotation E-2S. Unmarried children under 21 receive the same status but may not work." },
     { f: "What does the application at the consulate cost?", a: "The State Department’s fee schedule sets an application fee of $315 for E visas (22 CFR 22.1, as of October 2026). Depending on nationality, an issuance fee based on reciprocity may be added; further statutory fees are possible. You agree the immigration lawyer’s fee with them." },
-    { f: "Does FIAON handle the visa application?", a: "No. Visas are not part of the packages. FIAON Global builds the US company that forms the foundation and puts its documents in order; the application is made by a partner immigration lawyer under your engagement." },
+    { f: "Does FIAON handle the visa application?", a: "No. Visas are not part of your order. FIAON Global builds the US company that forms the foundation and puts its documents in order; the application is made by a partner immigration lawyer under your engagement." },
   ],
   paket: "global_vip",
   weiter: ["/en/business/miami", "/en/business/knowledge/us-market-entry", "/en/business/knowledge/us-llc-german-resident", "/en/business/from-austria"],

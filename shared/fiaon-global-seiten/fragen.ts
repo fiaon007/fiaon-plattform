@@ -11,7 +11,7 @@ import { GLOBAL_KAPITAL_FREI } from "../fiaon-global";
 
 const GRUPPEN: { gruppe: MenueGruppe; id: string; h2: string; lead: string }[] = [
   { gruppe: "leistungen", id: "leistungen", h2: "Gründung, Steuernummern, Konto und Karten", lead: "Was FIAON Global übernimmt — und wo die Entscheidung bei Behörden und Instituten liegt." },
-  { gruppe: "preise", id: "preise", h2: "Preise, Ablauf und Pakete", lead: "Was es kostet, wie lange es dauert, welches Paket passt." },
+  { gruppe: "preise", id: "preise", h2: "Preise und Ablauf", lead: "Was es kostet, wie lange es dauert, wie Sie Ihr Angebot zusammenstellen." },
   { gruppe: "fuerwen", id: "fuerwen", h2: "Für wen", lead: "Mittelstand, Handel, Dienstleister, Bau — und die Regeln in Deutschland und der Schweiz." },
   { gruppe: "wissen", id: "wissen", h2: "Steuern, Bundesstaaten und Rechtsformen", lead: "Die Grundlagen, ehrlich erklärt." },
 ];
@@ -46,14 +46,14 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
       ["Konto und Karten", "Vorbereitet von uns, entschieden vom Institut"],
       // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden. Die Frage dazu kommt von /business/firmenkarten-kapital.
       ["Kapital", `${GLOBAL_KAPITAL_FREI.de.kurz} — über Rahmen und Bedingungen entscheidet das Institut, die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
-      ["Kosten", "Festpreis, alle Gebühren inklusive"],
+      ["Kosten", "Ein Preis mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen"],
       ["Steuern", "Steuerpflicht dort, wo die Gesellschaft geführt wird"],
       ["Ihre Frage fehlt?", "Im Gespräch — dreißig Minuten, ohne Verpflichtung"],
     ],
-    kurz: "Eine US-Gesellschaft lässt sich aus Deutschland, Österreich oder der Schweiz ohne Wohnsitz und ohne Reise gründen. FIAON Global übernimmt Gründung, EIN, ITIN, Registered Agent, Adresse und die Vorbereitung von Konto und Karten zum Festpreis. Über Konto, Karte und Rahmen entscheidet das Institut; steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie geführt wird.",
+    kurz: "Eine US-Gesellschaft lässt sich aus Deutschland, Österreich oder der Schweiz ohne Wohnsitz und ohne Reise gründen. FIAON Global übernimmt Gründung, EIN, ITIN, Registered Agent, Adresse und die Vorbereitung von Konto und Karten in einem Auftrag. Über Konto, Karte und Rahmen entscheidet das Institut; steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie geführt wird.",
     bloecke,
     fragen: [],
-    weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/ablauf", "/business/paket-finder"],
+    weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/ablauf", "/business/vergleich"],
   };
 }
 
@@ -65,7 +65,7 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
 // ═══════════════════════════════════════════════════════════════════════════
 const GRUPPEN_EN: Record<MenueGruppe, { h2: string; lead: string }> = {
   leistungen: { h2: "Formation, tax numbers, account and cards", lead: "What FIAON Global takes on — and where authorities and institutions make the decision." },
-  preise: { h2: "Prices, process and packages", lead: "What it costs, how long it takes, which package fits." },
+  preise: { h2: "Prices and process", lead: "What it costs, how long it takes, how you build your offer." },
   fuerwen: { h2: "Who it is for", lead: "SMEs, e-commerce, service providers, construction — and the rules in Germany and Switzerland." },
   wissen: { h2: "Tax, states and legal forms", lead: "The fundamentals, explained honestly." },
 };
@@ -102,13 +102,13 @@ export function fragenSeiteEn(alle: GlobalSeite[]): GlobalSeite {
       ["Tax numbers", "EIN for the company, ITIN for you"],
       ["Account and cards", "Prepared by us, decided by the institution"],
       ["Capital", `${GLOBAL_KAPITAL_FREI.en.kurz} — the institution decides on the limit and its terms, our partner tax adviser clarifies the tax treatment in advance`],
-      ["Costs", "Fixed price, all fees included"],
+      ["Costs", "One price with your order; success fee on registration, according to your capital range"],
       ["Tax", "Taxable where the company is managed"],
       ["Question not listed?", "In a call — thirty minutes, without obligation"],
     ],
-    kurz: "A US company can be formed from Germany, Austria or Switzerland without residence and without travel. FIAON Global handles formation, EIN, ITIN, registered agent, address and the preparation of account and card applications at a fixed price. The institution decides on the account, the card and the limit; the company generally remains taxable where it is managed.",
+    kurz: "A US company can be formed from Germany, Austria or Switzerland without residence and without travel. FIAON Global handles formation, EIN, ITIN, registered agent, address and the preparation of account and card applications in one order. The institution decides on the account, the card and the limit; the company generally remains taxable where it is managed.",
     bloecke,
     fragen: [],
-    weiter: ["/en/business/us-company-formation", "/en/business/costs", "/en/business/process", "/en/business/package-finder"],
+    weiter: ["/en/business/us-company-formation", "/en/business/costs", "/en/business/process", "/en/business/comparison"],
   };
 }

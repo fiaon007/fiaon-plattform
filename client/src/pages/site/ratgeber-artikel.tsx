@@ -16,7 +16,7 @@ import "@/styles/ratgeber.css";
 import LeseAufruf from "@/components/site/LeseAufruf";
 import { SozialBeitrag } from "@/components/site/sozial/SozialBeitrag";
 // E-379: Business-Artikel (FIAON Global) zeigen den Weg zu FIAON Global statt zum Privatkunden-Paket.
-import { globalPaketePfad, globalGespraechPfad } from "@shared/fiaon-global-wege";
+import { globalStartPfad, globalGespraechPfad } from "@shared/fiaon-global-wege";
 import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { EINSTIEG_KNOPF_ZUSATZ, EINSTIEG_TEXT, antragLinkAusRatgeber, einstiegAusThema } from "@shared/fiaon-antrag-einstieg";
 
@@ -139,15 +139,15 @@ export default function RatgeberArtikel() {
               <ol>{toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className={`${t.ebene === 3 ? "e3" : ""}${aktiv === t.id ? " aktiv" : ""}`} onClick={springen(t.id)}>{t.text}</a></li>)}</ol>
               {/* 05.10.2026, E-283: „Konto in zwei Minuten“ galt für den alten Antrag; im neuen dauern die Angaben rund fünf. */}
               {business
-                ? <div className="rg-toc-cta"><a className="dk-knopf" href={globalGespraechPfad("de")}>Erst sprechen</a><small>FIAON Global · vier Pakete mit Festpreis</small></div>
+                ? <div className="rg-toc-cta"><a className="dk-knopf" href={globalGespraechPfad("de")}>Erst sprechen</a><small>FIAON Global · ein Auftrag, ein Ansprechpartner</small></div>
                 : <div className="rg-toc-cta"><a className="dk-knopf" href={antragLink}>{einstieg ? EINSTIEG_TEXT[einstieg].knopf : "Antrag starten"}</a><small>{einstieg ? `${EINSTIEG_KNOPF_ZUSATZ} · Antrag in rund fünf Minuten` : "Antrag in rund fünf Minuten · jeder Schritt im Kundenbereich"}</small></div>}
             </aside>
             <article>
               <div ref={inhaltRef} className="rg-inhalt" dangerouslySetInnerHTML={{ __html: html }} />
               {business ? (
                 <div className="rg-einschub">
-                  <div><small>So übernimmt FIAON Global</small><b>Gesellschaft, Konto, Karten und Kapital – aus einer Hand.</b><p>Unser Team gründet Ihre US-Gesellschaft, beantragt EIN und ITIN, bereitet Konto und erste Firmenkarte vor und plant den Weg zum Kapital – zum Festpreis je Paket. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.</p></div>
-                  <Knopf href={globalPaketePfad("de")}>Pakete ansehen</Knopf>
+                  <div><small>So übernimmt FIAON Global</small><b>Gesellschaft, Konto, Karten und Kapital – aus einer Hand.</b><p>Unser Team gründet Ihre US-Gesellschaft, beantragt EIN und ITIN, bereitet Konto und erste Firmenkarte vor und begleitet Sie bis zur Finanzierung – in einem Auftrag. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.</p></div>
+                  <Knopf href={globalStartPfad(undefined, "de")}>Angebot zusammenstellen</Knopf>
                 </div>
               ) : (
                 <div className="rg-einschub">
@@ -190,7 +190,7 @@ export default function RatgeberArtikel() {
       </Licht>
 
       {business
-        ? <Zwischenruf text="Sie planen eine US-Gesellschaft, ein US-Konto oder den Weg zu Firmenkarten und Kapital? Im Erstgespräch klären wir, welches Paket zu Ihrem Vorhaben passt." knopf="Pakete ansehen" href={globalPaketePfad("de")} still={{ knopf: "Alle Beiträge", href: "/business/wissen" }} />
+        ? <Zwischenruf text="Sie planen eine US-Gesellschaft, ein US-Konto oder den Weg zu Firmenkarten und Kapital? Stellen Sie Ihr Angebot selbst zusammen – Ihr Preis steht sofort da." knopf="Angebot zusammenstellen" href={globalStartPfad(undefined, "de")} still={{ knopf: "Alle Beiträge", href: "/business/wissen" }} />
         : <Zwischenruf text="Sie möchten wissen, welche Ihrer Einträge angreifbar sind? Laden Sie Ihre kostenlose Datenkopie hoch – FIAON erklärt die Einträge und bereitet die Schreiben vor." knopf={einstieg ? EINSTIEG_TEXT[einstieg].knopf : "Konto eröffnen"} href={antragLink} still={{ knopf: "Alle Ratgeber", href: "/ratgeber" }} />}
     </Dunkel>
   );

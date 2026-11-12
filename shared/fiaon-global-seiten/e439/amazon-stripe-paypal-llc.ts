@@ -61,11 +61,14 @@
 // · „das vorbereitete Geschäftskonto“ (klang nach Konto-Zusage) → „vorbereiteter Kontoantrag“.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../typen";
-import { GLOBAL_AGENT, GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, der Preis aus EIN_PRODUKT; die alte Geld-zurück-Zusage
+// je Paket entfällt (auf dieser Seite geht es nicht um Kapital).
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, SCHWELLEN } from "../fakten";
 
 const S = "2026-10-27";
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
 /** „25 Prozent“ — die Eigentümerschwelle steht in fakten.ts. */
 const AB25 = SCHWELLEN.eigentuemer;
 
@@ -104,7 +107,7 @@ export const SEITE: GlobalSeite = {
     titel: "Amazon Seller US LLC: was Plattformen prüfen — FIAON Global",
     beschreibung: "Amazon Seller US LLC: was Amazon, Stripe, PayPal und Shopify prüfen — Identität, EIN, Konto, W-8 oder W-9, Sales Tax und typische Sperrgründe.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 49",
   auge: "Wissen · Plattformen",
@@ -231,18 +234,17 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für Unternehmer aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft aufbauen. Unser Grundsatz: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung im Bundesstaat, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer und die erste jährliche US-Meldung — und stellen Registered Agent, US-Adresse und US-Telefonnummer für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten jeden davon vollständig vor.",
         "Für die Plattformen heißt das konkret: Vor der Gründung legen wir mit Ihnen die Stammdaten fest — Name der Gesellschaft, Gesellschafter und Anteile, Geschäftsanschrift, Telefonnummer, Ansprechperson — und halten sie in jedem Dokument gleich. In Ihrem Dokumentenraum liegen Gründungsdokument, EIN-Schreiben und Operating Agreement geordnet bereit, wenn Amazon, Stripe, PayPal oder Shopify sie abfragen. Den Antrag für das Geschäftskonto der LLC bereiten wir vollständig vor, damit Ihre Erlöse auf ein Konto auf den Namen der Gesellschaft gehen können; über das Konto entscheidet das Institut. Die steuerliche Einordnung, aus der sich W-8 oder W-9 ergibt, steht mit dem EIN-Antrag fest, den wir für Sie stellen; wie Ihr Plattformgeschäft zu Hause zu behandeln ist, prüft unser Partner-Steuerberater vor der Gründung.",
-        "Die Anmeldung bei den Plattformen nehmen Sie selbst vor, denn die Identitätsprüfung ist persönlich. Sie gehen mit einer vollständigen Mappe hinein und wissen vorher, welche Antwort wohin gehört. Mit Global Banking führen wir zudem einen Pflichtenkalender für Ihre US-Meldungen und Fristen und gehen jeden Monat mit Ihnen durch, was ansteht.",
-        GLOBAL_ROLLEN.de.partner,
-        "Sie zahlen einen Festpreis, der vor dem Auftrag feststeht, mit allen Gebühren des Pakets. Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami nimmt Termine mit Ihnen wahr, Zürich ist unser Partnerstandort. Ab dem zweiten Jahr können Sie die Jahresbetreuung wählen — freiwillig.",
-        ...GELD_ZURUECK,
+        "Die Anmeldung bei den Plattformen nehmen Sie selbst vor, denn die Identitätsprüfung ist persönlich. Sie gehen mit einer vollständigen Mappe hinein und wissen vorher, welche Antwort wohin gehört. Für Ihre US-Meldungen und Fristen führen wir einen Pflichtenkalender.",
+        P.partner,
+        `${P.preisSatz} Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami nimmt die Wege bei den Behörden wahr, Zürich ist unser Partnerstandort.`,
       ],
     },
-    { typ: "paket", id: "paket", h2: "Das Fundament für den US-Handel im Paket", lead: "Gesellschaft, EIN, Registered Agent, US-Adresse und US-Telefon für das erste Jahr, der vollständig vorbereitete Kontoantrag, Pflichtenkalender für US-Meldungen und ein fester Ansprechpartner — Global Banking.", paket: "global_banking" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Über Zulassung, Rücklagen und Einschränkungen entscheidet allein die jeweilige Plattform — auch bei vollständigen Unterlagen. Diese Seite gibt die Hilfeseiten der Plattformen mit Stand Oktober 2026 wieder; maßgeblich ist die Fassung zum Zeitpunkt Ihrer Anmeldung.",
-        "Konten bei Marktplätzen und Zahlungsdiensten, Registrierungen für die Sales Tax und die laufende Buchhaltung sind nicht Teil der Pakete; wir nennen Ihnen Partner dafür.",
+        "Konten bei Marktplätzen und Zahlungsdiensten, Registrierungen für die Sales Tax und die laufende Buchhaltung sind nicht Teil Ihres Auftrags; wir nennen Ihnen Partner dafür.",
         GLOBAL_AGENT.de.anschrift,
         "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
         GLOBAL_PFLICHTHINWEIS.de[0],

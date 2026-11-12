@@ -72,7 +72,8 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     aufgaben: [
       "schließt den Auftrag mit Ihnen und stellt die Rechnung",
       "koordiniert Gründung, Steuernummern, Partner und Termine",
-      "trägt die Honorare der Partner für die Leistungen Ihres Pakets",
+      // E-509 (12.11.2026): ein Produkt statt vier Pakete — „Ihres Auftrags“ (vorher „Ihres Pakets“).
+      "trägt die Honorare der Partner für die Leistungen Ihres Auftrags",
     ],
     en: {
       stadt: "London", land: "United Kingdom", rechtsform: "Private Limited Company",
@@ -80,7 +81,7 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       aufgaben: [
         "concludes the engagement with you and issues the invoice",
         "coordinates formation, tax numbers, partners and appointments",
-        "pays the partners’ fees for the services in your package",
+        "pays the partners’ fees for the services in your order",
       ],
     },
   },
@@ -119,19 +120,21 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     adresse: ["Miami, Florida"],
     register: null,
     // E-466 (30.10.2026): Rolle ohne „Team vor Ort“ — der Kasten steht im Fuß jeder Global-Seite, auch der Anzeigen-Landingpage.
-    rolle: "Partner in Miami — Termine vor Ort und der Auftakt von Global VIP",
+    // E-509 (12.11.2026): Das Paket Global VIP wird nicht mehr verkauft — ab 1 Mio. US-Dollar begleiten wir persönlich in Miami
+    // (vorher: „… und der Auftakt von Global VIP“ / „richtet den Auftakt des Pakets Global VIP in Miami aus“).
+    rolle: "Partner in Miami — Termine vor Ort und persönliche Begleitung",
     aufgaben: [
       "nimmt Termine bei Behörden und Banken vor Ort wahr",
       "reicht Unterlagen ein und holt Dokumente ab",
-      "richtet den Auftakt des Pakets Global VIP in Miami aus",
+      "empfängt Sie in Miami, wenn wir Sie persönlich begleiten",
     ],
     en: {
       stadt: "Miami", land: "Florida, USA", rechtsform: "Partner of FIAON Global",
-      rolle: "Partner in Miami — on-site appointments and the Global VIP kick-off",
+      rolle: "Partner in Miami — on-site appointments and in-person support",
       aufgaben: [
         "attends appointments with authorities and banks on the ground",
         "files documents and collects paperwork",
-        "hosts the kick-off of the Global VIP package in Miami",
+        "welcomes you in Miami when we work with you in person",
       ],
     },
   },

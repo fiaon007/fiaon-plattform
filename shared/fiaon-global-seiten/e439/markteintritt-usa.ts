@@ -21,12 +21,14 @@
 // Empfehlung, keine Frist als Zusage; über jeden Kredit entscheidet das Institut.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { IRS, MARKT, QUELLEN_IRS, QUELLEN_STAATEN, QUELLEN_WISSEN as Q, SCHWELLEN, STAAT } from "../fakten";
 
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? `${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}` : undefined;
+const P = EIN_PRODUKT.de;
 /** „25.000 $“ aus „25.000 US-Dollar je Formular und Jahr“ — die Zahl bleibt in fakten.ts. */
 const STRAFE_5472 = `${IRS.strafe5472.split(" ")[0]} $`;
 
@@ -60,7 +62,7 @@ export const SEITE: GlobalSeite = {
     titel: "Markteintritt USA: Schritt für Schritt — FIAON Global",
     beschreibung: "Markteintritt USA für den Mittelstand: Struktur, Bundesstaat, Konto, Steuern in beiden Ländern, Personal, Kapital — Etappen, Kosten und Quellen.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 48",
   auge: "Wissen · Unternehmensberatung USA",
@@ -78,7 +80,7 @@ export const SEITE: GlobalSeite = {
     ["Steuern", "Der Ort der Geschäftsleitung zählt; Mitteilung nach § 138 AO"],
     ["US-Meldungen", "Form 5472 jährlich, BE-13 einmalig zur Gründung"],
     ["Kapital", "In Etappen: Konto, Karten, Umsatz, Bank"],
-    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, zum Festpreis"],
+    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, Preis vorab im Konfigurator"],
   ],
   kurz: "Ein Markteintritt USA verläuft in zehn Etappen: Prüfung des Vorhabens, Wahl der Struktur (LLC, Corporation oder Tochter der eigenen GmbH), Bundesstaat, Gründung, Steuernummern, Geschäftskonto und Zahlungswege, Verträge und Marke, Personal, Steuern und Meldungen in beiden Ländern, Kapital. Wird die US-Gesellschaft aus Deutschland, Österreich oder der Schweiz geführt, bleibt sie dort steuerpflichtig; in den USA gelten jährliche Meldungen wie Form 5472 und einmalig die BE-13-Meldung an die Statistikbehörde BEA. FIAON Global übernimmt als Unternehmensberatung die Anträge mit Ihrer Vollmacht und koordiniert Steuerberater, US-CPA und Anwälte in Ihrem Mandat.",
   bloecke: [
@@ -135,7 +137,7 @@ export const SEITE: GlobalSeite = {
         ["Jährliche US-Meldung durch einen US-CPA", MARKT.cpa5472, "veröffentlichte Preise mehrerer Anbieter"],
         ["Markenanmeldung beim USPTO", "350 $ je Klasse, elektronisch, dazu mögliche Zuschläge", "37 CFR 2.6, zuzüglich Honorar des US-Anwalts"],
         ["Versäumte Form 5472", IRS.strafe5472, "Strafe der IRS"],
-        ["Ihr Paket bei FIAON Global", "Festpreis, alle Gebühren des Pakets inklusive", "siehe Paket auf dieser Seite"],
+        ["Ihr Auftrag bei FIAON Global", `${P.preis} mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen`, "Ihr Preis im Konfigurator"],
       ],
       fuss: [
         "Staatsgebühren nach den amtlichen Gebührenordnungen, Stand September 2026; Delaware: Jahressteuer der LLC ab dem Steuerjahr 2026. Marktspannen sind veröffentlichte Preise mehrerer Anbieter im September 2026, keine amtlichen Werte.",
@@ -166,7 +168,7 @@ export const SEITE: GlobalSeite = {
         "Eine neue US-Gesellschaft hat keine Kredithistorie. Deshalb öffnen sich die Finanzierungswege nacheinander: Firmenkarten, deren Rahmen sich häufig am Kontoguthaben orientiert, Lieferantenkonten mit Zahlungsziel und die Kennziffer der Gesellschaft bei der Wirtschaftsauskunftei (D-U-N-S-Nummer), dann Kredite von Zahlungsplattformen nach Umsatz, später eine Kreditlinie der Bank, etwa gestützt auf Sicherheiten der Muttergesellschaft. Persönliche US-Karten richten sich dagegen nach Ihrer persönlichen US-Kreditgeschichte, nicht nach der Gesellschaft.",
         "Staatlich gestützte Kleinunternehmerkredite der SBA (Programme 7(a) und 504) setzen seit dem 1. März 2026 voraus, dass alle direkten und indirekten Eigentümer US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sind; Inhaber einer Green Card zählen nicht dazu (GAO B-338157). Eine Gesellschaft, an der Inhaber ohne US-Staatsangehörigkeit beteiligt sind, ist von diesen Programmen damit ausgeschlossen.",
         KAPITAL_FREI,
-        "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut; der Kapitalrahmen eines Pakets ist Ihr Ziel, keine Zusage.",
+        "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut; Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.",
       ],
     },
     {
@@ -196,7 +198,7 @@ export const SEITE: GlobalSeite = {
         "Partner-Steuerberater: Prüfung vor der Gründung",
         "US-CPA: die erste jährliche US-Meldung (Form 5472 mit Form 1120)",
         "Partner-Anwalt: Operating Agreement und Gründungsunterlagen",
-        "Alle arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen des Pakets trägt FIAON",
+        "Alle arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON",
       ],
       sie: [
         "Ziel und Zahlen Ihres US-Geschäfts festlegen",
@@ -210,19 +212,19 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihren Markteintritt USA",
       absaetze: [
         "FIAON Global ist Ihre Unternehmensberatung für den Weg in die USA: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie — Gründung beim Bundesstaat, EIN, D-U-N-S-Nummer und die Meldungen Ihrer Gesellschaft — und bereiten die ITIN vor. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; jeden davon bereiten wir vollständig vor.",
-        "Recht und Steuern klären Partner-Steuerberater, US-CPA und Partner-Anwälte in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Pakets trägt FIAON. Unser Team vor Ort in Miami nimmt Termine bei Behörden und Instituten wahr, dazu kommt unser Partnerstandort in Zürich; Ihr Vertragspartner ist die FIAON LTD in London. Sie zahlen einen Festpreis, alle Gebühren des Pakets inklusive; ab dem zweiten Jahr ist die Jahresbetreuung freiwillig.",
+        `Recht und Steuern klären Partner-Steuerberater, US-CPA und Partner-Anwälte in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON. Unser Team vor Ort in Miami nimmt Termine bei Behörden und Instituten wahr, dazu kommt unser Partnerstandort in Zürich; Ihr Vertragspartner ist die FIAON LTD in London. ${P.preisSatz}`,
       ],
-      nach: GELD_ZURUECK,
+      nach: P.geldZurueck,
     },
     {
       typ: "karten", id: "vertiefung", h2: "Jede Etappe im Detail", spalten: 3,
       karten: [
         { tag: "Struktur", titel: "Die Tochter in den USA", text: "Wenn Ihre GmbH, AG oder Holding Gesellschafterin wird: Ablauf und Unterlagen.", pfad: "/business/tochtergesellschaft-usa" },
-        { tag: "Gründung", titel: "US-Firmengründung", text: "LLC oder Corporation mit Team vor Ort, EIN und ITIN, zum Festpreis.", pfad: "/business/us-firmengruendung" },
+        { tag: "Gründung", titel: "US-Firmengründung", text: "LLC oder Corporation mit Team vor Ort, EIN und ITIN, in einem Auftrag.", pfad: "/business/us-firmengruendung" },
         { tag: "Bundesstaat", titel: "Welcher Bundesstaat?", text: "Delaware, Florida oder Wyoming: Zeiten, Kosten, Vor- und Nachteile.", pfad: "/business/wissen/bundesstaat-waehlen" },
         { tag: "Konto", titel: "Das US-Geschäftskonto", text: "Welche Unterlagen Institute verlangen und wie der Antrag entsteht.", pfad: "/business/us-geschaeftskonto" },
         { tag: "Pflichten", titel: "Ihre US-Pflichten", text: "Form 5472, Staatsgebühr, Registered Agent und die Meldung zu Hause im Kalender.", pfad: "/business/us-pflichten" },
-        { tag: "Vor Ort", titel: "Global VIP in Miami", text: "Der Auftakt persönlich vor Ort, mit Terminen an der Seite unseres Teams.", pfad: "/business/miami" },
+        { tag: "Vor Ort", titel: "Persönlich in Miami", text: "Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami.", pfad: "/business/miami" },
       ],
     },
     {
@@ -236,25 +238,25 @@ export const SEITE: GlobalSeite = {
         { pfad: "/business/kosten", tag: "Kosten" },
       ],
     },
-    { typ: "paket", id: "paket", h2: "Das Paket für Ihren Markteintritt", lead: "Gesellschaft, Steuernummern, Registered Agent, US-Adresse und US-Telefon für das erste Jahr, vorbereitete Konto- und Kartenanträge, Pflichtenkalender und ein fester Ansprechpartner — Global Banking.", paket: "global_banking" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
         GLOBAL_PFLICHTHINWEIS.de[2],
-        "Visa, Lohnbuchhaltung, Verrechnungspreise, Registrierungen für die Sales Tax und Markenanmeldungen sind nicht Teil der Pakete; wir nennen Ihnen Partner dafür.",
-        "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Der Kapitalrahmen eines Pakets ist Ihr Ziel, keine Zusage.",
+        "Visa, Lohnbuchhaltung, Verrechnungspreise, Registrierungen für die Sales Tax und Markenanmeldungen sind nicht Teil Ihres Auftrags; wir nennen Ihnen Partner dafür.",
+        "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.",
       ],
     },
   ],
   fragen: [
-    { f: "Was kostet ein Markteintritt in den USA?", a: `Beim Staat wenig: Die Gründung kostet in Florida ${STAAT.florida.gruendung}, in Delaware ${STAAT.delaware.gruendung}, in Wyoming ${STAAT.wyoming.gruendung}; dazu kommen jährlich Staatsgebühr, Registered Agent und die US-Meldung durch einen US-CPA. Die großen Posten sind Ihre Betriebskosten — Personal, Miete, Versicherung — und das Kapital für die ersten Monate. Bei FIAON Global sind alle Gebühren des Pakets im Festpreis enthalten.` },
+    { f: "Was kostet ein Markteintritt in den USA?", a: `Beim Staat wenig: Die Gründung kostet in Florida ${STAAT.florida.gruendung}, in Delaware ${STAAT.delaware.gruendung}, in Wyoming ${STAAT.wyoming.gruendung}; dazu kommen jährlich Staatsgebühr, Registered Agent und die US-Meldung durch einen US-CPA. Die großen Posten sind Ihre Betriebskosten — Personal, Miete, Versicherung — und das Kapital für die ersten Monate. Bei FIAON Global gilt: ${P.preisSatzKurz}` },
     { f: "Brauche ich für die US-Expansion eine eigene Gesellschaft?", a: "Nicht zwingend. Ihre GmbH kann als Zweigniederlassung tätig werden, haftet dann aber voll für das US-Geschäft. Eine eigene LLC oder Corporation trennt die Haftung vom Stammhaus und tritt Ihren US-Kunden als Vertragspartner vor Ort gegenüber. Was passt, hängt davon ab, was in den USA geschehen soll — das klärt die Prüfung vor der Gründung." },
     { f: "Ist eine US-Tochter in Deutschland steuerpflichtig?", a: "Sie kann es sein. Wird sie tatsächlich aus Deutschland geleitet, liegt ihre Geschäftsleitung im Inland (§ 10 AO); eine Corporation ist dann hier unbeschränkt körperschaftsteuerpflichtig (§ 1 KStG), bei einer LLC hängt die Besteuerung von ihrer Einordnung ab. Die Beteiligung ist dem Finanzamt nach § 138 AO mitzuteilen. Wie das Doppelbesteuerungsabkommen greift, prüft unser Partner-Steuerberater vor der Gründung." },
     { f: "Was ist die BE-13-Meldung?", a: "Eine Pflichtmeldung an die US-Statistikbehörde BEA. Gründet oder erwirbt eine ausländische Person ein US-Unternehmen und hält daran mindestens 10 Prozent der Stimmrechte, ist sie spätestens 45 Kalendertage danach fällig, auch ohne Aufforderung (15 CFR 801.7). Bei Kosten von höchstens 40 Mio. $ genügt die kurze Freistellungserklärung." },
-    { f: "Brauche ich ein Visum, um meine US-Gesellschaft zu führen?", a: "Für Gespräche und Termine reisen Staatsangehörige der Teilnehmerländer im Visa Waiver Program mit ESTA-Genehmigung für geschäftliche Aufenthalte von höchstens 90 Tagen ohne Visum ein. Wer die Gesellschaft dauerhaft vor Ort führen will, braucht ein Visum; für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht. Den Einzelfall prüft ein Partner-Anwalt für Einwanderungsrecht in Ihrem Mandat; Visa sind nicht Teil der Pakete." },
-    { f: "Was übernimmt FIAON Global als Unternehmensberatung?", a: "Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Gründung, EIN, D-U-N-S-Nummer und die Meldungen Ihrer Gesellschaft; die ITIN bereiten wir vor. Registered Agent, US-Adresse und US-Telefon stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, vollständig von uns vorbereitet. Recht und Steuern klären unsere Partner in Ihrem Mandat; ihre Honorare für die Leistungen des Pakets trägt FIAON." },
+    { f: "Brauche ich ein Visum, um meine US-Gesellschaft zu führen?", a: "Für Gespräche und Termine reisen Staatsangehörige der Teilnehmerländer im Visa Waiver Program mit ESTA-Genehmigung für geschäftliche Aufenthalte von höchstens 90 Tagen ohne Visum ein. Wer die Gesellschaft dauerhaft vor Ort führen will, braucht ein Visum; für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht. Den Einzelfall prüft ein Partner-Anwalt für Einwanderungsrecht in Ihrem Mandat; Visa sind nicht Teil Ihres Auftrags." },
+    { f: "Was übernimmt FIAON Global als Unternehmensberatung?", a: "Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Gründung, EIN, D-U-N-S-Nummer und die Meldungen Ihrer Gesellschaft; die ITIN bereiten wir vor. Registered Agent, US-Adresse und US-Telefon stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, vollständig von uns vorbereitet. Recht und Steuern klären unsere Partner in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON." },
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],
   paket: "global_banking",

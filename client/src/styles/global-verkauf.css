@@ -205,7 +205,17 @@
 .fg .vk-garantie[data-an="1"] .vk-siegel .innen { stroke-dashoffset: 220; animation: vk-zeichnen 1.4s var(--kurve, ease) .3s forwards; }
 .fg .vk-garantie[data-an="1"] .vk-siegel .haken { stroke-dashoffset: 50; animation: vk-zeichnen .6s var(--kurve, ease) 1.3s forwards; }
 
+/* ── 4b WAS SIE VOR DEM AUFTRAG WISSEN MÜSSEN — das Kleingedruckte, immer offen ───────────────────────────── */
+html .fg.fg .vk-wissen-sek { padding-top: 0; }
+.fg .vk-wissen { max-width: 920px; padding: 26px 0 0; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
+.fg .vk-wissen h3 { font: 500 14.5px/1.35 var(--ap, system-ui); color: #0c1a2e; }
+.fg .vk-wissen ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.fg .vk-wissen li { position: relative; padding-left: 18px; font: 300 13.5px/1.65 var(--ap, system-ui); color: #5d6678; }
+.fg .vk-wissen li::before { content: ""; position: absolute; left: 0; top: .78em; width: 8px; height: 1px; background: #288dfa; }
+
 /* ── 5 DIE KARTE FÜR DIE UNTERSEITEN ─────────────────────────────────────── */
+/* Abstand zur Überschrift und zum Lead des Bausteins — wie die Tabellen der Unterseiten (26px); vorher klebte die Karte am Lead. */
+.fg.fd .vk-karte { margin-top: 26px; }
 .fg .vk-karte { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .8fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding: clamp(24px, 3.4vw, 44px); border-radius: 28px; background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
 .fg .vk-karte h3 { margin-top: 14px; font: 300 clamp(22px, 2vw, 30px)/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; }
 .fg .vk-karte-text > p { margin-top: 12px; font: 300 16px/1.6 var(--ap, system-ui); color: #3b4658; max-width: 56ch; }

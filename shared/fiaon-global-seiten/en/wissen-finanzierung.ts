@@ -112,7 +112,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
           "You choose the address. We tell you openly how an institution will see it.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "US presence in the package", lead: "Registered agent, US business address and US phone number for the first year, plus prepared account and card applications — Global Banking.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "US presence in your order", lead: "Registered agent, US business address and US phone number for the first year, plus prepared account and card applications — in one order.", paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -222,7 +222,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
           "FIAON is not a bank and neither grants nor brokers loans. The lender decides on every financing.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The company for your property", lead: "Company, tax numbers, account and the documents prepared for lenders — Global Capital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "The company for your property", lead: "Company, tax numbers, account and the documents prepared for lenders — in one order.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -319,10 +319,10 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "What FIAON Global does",
         absaetze: [
           "We build the foundation institutions decide on: company, account, consistent master data, identifier, supplier accounts, complete documents. We plan the sequence of applications and prepare each one.",
-          "FIAON is not a bank, neither grants nor brokers loans and receives no fee based on any limit. The institution decides on every loan.",
+          "FIAON is not a bank and neither grants nor brokers loans. The institution decides on every loan.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The whole route in the package", lead: "Company, account, card ladder and the documents for bank and lenders — Global Capital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "The whole route in one order", lead: "Company, account, card ladder and support through to financing within your capital range.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [

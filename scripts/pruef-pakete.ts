@@ -34,6 +34,8 @@ import {
   globalPaket, globalKatalog, globalPreisText, globalPlanungText, globalKapitalSpanne,
 } from "../shared/fiaon-global";
 import { globalStartPfad, globalStartUrl, globalPaketePfad, globalGespraechPfad, globalSeitePfad } from "../shared/fiaon-global-wege";
+// E-509 (12.11.2026): der eine Preis des einen Produkts — für die Global-Kachel der Privat-Preisseite.
+import { VERKAUF_PREISE, verkaufEur } from "../shared/fiaon-global-verkauf-preise";
 import { globalLeitfaden, globalInfoMail, globalVorbereitungSystem, globalPreisZeile } from "../shared/fiaon-global-vertrieb";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 // E-476 Scheibe 4: die Info-Mail trägt die Pflichthinweise ohne ihren Bank-Vorbehalt (E-468).
@@ -394,7 +396,11 @@ for (const d of MEINE_DATEIEN) {
   const preise = seoSeite("/preise");
   const abschnitt = (preise?.abschnitte ?? []).find((a: any) => /FIAON Global/.test(String(a.h2)));
   ok("/preise (SEO-Tabelle): Abschnitt „FIAON Global“ statt „vier Stufen“", !!abschnitt && !(preise?.abschnitte ?? []).some((a: any) => /Business Starter/.test(String(a.text))));
-  ok("/preise (SEO-Tabelle): die vier Preise stimmen mit dem Katalog", GLOBAL_PAKETE.every((g) => String((abschnitt as any)?.text ?? "").includes(`${g.de.name} ${globalPreisText(g.key)}`)));
+  // E-509 (12.11.2026): FIAON Global verkauft EIN Produkt — der Abschnitt nennt den einen Preis aus der einen Quelle und kein Paket mehr.
+  // (Vorher: „die vier Preise stimmen mit dem Katalog“ — jeder Paketname mit seinem Preis.)
+  const globalText = String((abschnitt as any)?.text ?? "");
+  ok("/preise (SEO-Tabelle): der eine Preis von FIAON Global aus der einen Quelle", globalText.includes(verkaufEur(VERKAUF_PREISE.gruendungCents, "de")));
+  ok("/preise (SEO-Tabelle): kein Paketname und kein alter Paketpreis mehr", !GLOBAL_PAKETE.some((g) => globalText.includes(g.de.name) || globalText.includes(globalPreisText(g.key))));
   const funde = wandPruefen(String((abschnitt as any)?.text ?? ""));
   ok("/preise (SEO-Tabelle): der Abschnitt passiert die Wand", funde.length === 0, funde.map((f) => f.treffer).join("; "));
 }

@@ -9,6 +9,8 @@
 // auch auf Englisch nicht.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
+// E-509 (12.11.2026): ONE product instead of four packages — the partner sentence without “package”.
+import { EIN_PRODUKT } from "../ein-produkt";
 import { GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
 import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN, QUELLEN_STAATEN_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
@@ -147,12 +149,12 @@ export const WISSEN_EN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "pakete", id: "pakete", h2: "Everything from a single source",
-        lead: "Every article here describes a task. FIAON Global handles all of them — formation, tax numbers, US presence, account and card applications, the compliance calendar and the first US filing, with a partner lawyer, partner tax adviser and US CPA — at a fixed price, with all fees for the services in the package included.",
+        typ: "pakete", id: "mandat", h2: "Everything from a single source",
+        lead: "Every article here describes a task. FIAON Global handles all of them — formation, tax numbers, US presence, account and card applications, the compliance calendar and the first US filing, with a partner lawyer, partner tax adviser and US CPA — in one order, with our partners’ fees included.",
       },
     ],
     fragen: [],
-    weiter: ["/en/business/us-company-formation", "/en/business/costs", "/en/business/faq", "/en/business/package-finder"],
+    weiter: ["/en/business/us-company-formation", "/en/business/costs", "/en/business/faq", "/en/business/process"],
   },
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -238,7 +240,7 @@ export const WISSEN_EN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "This article explains the basics. Before formation, our partner tax adviser reviews your case under your engagement — the review is included in the fixed price of every package.",
+          "This article explains the basics. Before formation, our partner tax adviser reviews your case under your engagement — it is included in your order.",
           GLOBAL_PFLICHTHINWEIS.en[0],
           GLOBAL_PFLICHTHINWEIS.en[1],
         ],
@@ -287,7 +289,7 @@ export const WISSEN_EN: GlobalSeite[] = [
       ["Liability", "Limited to the company’s assets in both cases"],
       ["Investors", "Generally expect a corporation"],
       ["Switching", "Possible later, but with effort"],
-      ["Review", "Before formation, included in the fixed price"],
+      ["Review", "Before formation, included in your order"],
     ],
     kurz: `The LLC is the leaner form: flexibly governed by the operating agreement and, with a foreign shareholder (member), usually not a separate taxable entity in the US. The corporation is a separate taxable entity — subject to ${IRS_EN.koerperschaftsteuer} federal corporate income tax — and the standard when you plan to bring in investors or give employees a stake. For trading, services and building a card history, the LLC is usually the simpler choice.`,
     bloecke: [
@@ -470,7 +472,7 @@ export const WISSEN_EN: GlobalSeite[] = [
         punkte: [
           `For a missing or substantially incomplete filing, the IRS can impose ${IRS_EN.strafe5472} — likewise if the required records are missing.`,
           "If the filing is still outstanding more than ninety days after a notice from the IRS, a further $25,000 is added for each additional period of thirty days.",
-          "At FIAON Global, the first annual filing is prepared by our US CPA — the fee is included in the fixed price of every package.",
+          "At FIAON Global, the first annual filing is prepared by our US CPA — the fee is included in the price.",
         ],
       },
     ],
@@ -497,9 +499,9 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "Is your LLC formation provider reputable? — FIAON Global",
-      beschreibung: "How to spot a reputable US formation provider: a registered contracting party, a fixed price, no tax or credit promises, partners admitted to practise.",
+      beschreibung: "How to spot a reputable US formation provider: a registered contracting party, a price set in advance, no tax or credit promises, admitted partners.",
     },
-    stand: S,
+    stand: "2026-11-12",
     erschienen: S,
     kennung: "FG · 28",
     auge: "Knowledge · Providers",
@@ -513,19 +515,19 @@ export const WISSEN_EN: GlobalSeite[] = [
     ],
     blick: [
       ["Register", "Contracting party with a registration number you can check"],
-      ["Price", "Fixed price with a schedule of services"],
+      ["Price", "Set in advance, with a schedule of services"],
       ["Tax", "No promises — mandatory notices instead"],
       ["Credit", "No commitment on limits, cards or loans"],
       ["Partners", "Tax advisers and lawyers admitted to practise, under your engagement"],
       ["Transparency", "Connected companies are named"],
     ],
-    kurz: "You can recognise reputable support with your US formation by a contracting party with a registration number you can check and by a fixed price with a schedule of services. Further signs are clear mandatory notices on tax and filings, no commitments on tax, cards or credit, partners with their own professional admission — and connected companies that are named openly.",
+    kurz: "You can recognise reputable support with your US formation by a contracting party with a registration number you can check and by a price set in advance, with a schedule of services. Further signs are clear mandatory notices on tax and filings, no commitments on tax, cards or credit, partners with their own professional admission — and connected companies that are named openly.",
     bloecke: [
       {
         typ: "etappen", id: "liste", h2: "The eight points",
         etappen: [
           { titel: "Who is your contracting party?", text: "Name, legal form, registered office and registration number must be in the contract — and listed in the register. If you cannot verify your contracting party, do not sign." },
-          { titel: "Is there a fixed price with a schedule of services?", text: "What is included is set out in writing — including what is charged from the second year onwards. Subscriptions that only appear after signing are a warning sign." },
+          { titel: "Is the price set in advance — with a schedule of services?", text: "What is included is set out in writing — including what is charged from the second year onwards. Subscriptions that only appear after signing are a warning sign." },
           { titel: "Are promises made about tax?", text: "“Tax-free” or “no tax” conceals the place of management. Reputable providers name the tax liability at home and the reporting duties." },
           { titel: "Are cards, limits or loans promised?", text: "The institution decides on the account, the card and the limit. Anyone who promises amounts is promising what they cannot deliver." },
           { titel: "Who answers tax and legal questions?", text: "Only tax advisers, US CPAs and lawyers admitted to practise — under your own engagement. A formation service itself is not permitted to do so." },
@@ -537,8 +539,8 @@ export const WISSEN_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "The same list for FIAON Global",
         absaetze: [
-          "The contracting party on our side is FIAON LTD, registered at Companies House under number 17318250. The fixed price is set out in the contract with a schedule of services, and we name the running costs from the second year onwards in advance. We make no commitments on tax, and we commit to neither cards nor limits.",
-          GLOBAL_ROLLEN.en.partner,
+          "The contracting party on our side is FIAON LTD, registered at Companies House under number 17318250. The price is set out in the contract with a schedule of services before you sign, and we name the running costs from the second year onwards in advance. We make no commitments on tax, and we commit to neither cards nor limits.",
+          EIN_PRODUKT.en.partner,
           GLOBAL_VERBUNDEN_EN,
         ],
       },
@@ -552,7 +554,7 @@ export const WISSEN_EN: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "How can I tell whether a US formation provider is reputable?", a: "By a contracting party with a registration number you can check, a fixed price with a schedule of services, clear mandatory notices and the absence of any commitments on tax, cards and credit." },
+      { f: "How can I tell whether a US formation provider is reputable?", a: "By a contracting party with a registration number you can check, a price set in advance, with a schedule of services, clear mandatory notices and the absence of any commitments on tax, cards and credit." },
       { f: "Is an LLC inherently dubious?", a: "No. The LLC is an ordinary legal form in the US. What decides whether a provider is reputable is how it works — not what legal form it has." },
       { f: "How do I check FIAON’s registration number?", a: "At Companies House (England and Wales) under number 17318250." },
     ],

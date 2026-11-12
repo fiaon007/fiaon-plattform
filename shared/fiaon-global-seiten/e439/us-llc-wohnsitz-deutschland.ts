@@ -30,7 +30,10 @@
 //   · BOI-Meldung (FinCEN, 11.08.2026: U.S. companies befreit) als Zeile ergänzt.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE, GLOBAL_GELD_ZURUECK } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preise aus EIN_PRODUKT; die alte Geld-zurück-Zusage je
+// Paket entfällt (auf dieser Seite geht es nicht um Kapital).
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_IRS, QUELLEN_STAATEN, IRS, STAAT } from "../fakten";
 
 const S = "2026-10-27";
@@ -38,7 +41,7 @@ const S = "2026-10-27";
 /** Strafe der IRS ohne den Zusatz „je Formular und Jahr“ — für die Kennziffer. */
 const STRAFE_5472 = IRS.strafe5472.split(" je ")[0];
 
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
 
 /** Quellen dieses Beitrags (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -74,7 +77,7 @@ export const SEITE: GlobalSeite = {
     titel: "US-LLC mit Wohnsitz in Deutschland: Pflichten — FIAON Global",
     beschreibung: "US-LLC, Wohnsitz in Deutschland: Finanzamt, Meldung nach § 138 AO, Gewerbe, Umsatzsteuer auf Rechnungen, Buchführung — mit Fundstellen erklärt.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 47",
   auge: "Wissen · Steuern und Pflichten",
@@ -92,7 +95,7 @@ export const SEITE: GlobalSeite = {
     ["Meldung", "§ 138 AO mit der Steuererklärung, spätestens nach 14 Monaten"],
     ["Rechnungen", "Von hier geleitet: in der Regel mit deutscher Umsatzsteuer"],
     ["USA", "Form 5472 mit Form 1120, jährlich, auch ohne Umsatz"],
-    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, Prüfung vor der Gründung im Festpreis"],
+    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, die Prüfung vor der Gründung ist enthalten"],
   ],
   kurz: "Führen Sie eine US-LLC mit Wohnsitz in Deutschland, liegt ihre Geschäftsleitung in der Regel hier (§ 10 AO). Dann ist in Deutschland zu versteuern: je nach Typenvergleich die Gesellschaft selbst, wie eine GmbH, oder ihr Gewinn bei Ihnen als Gesellschafter. Die Gründung melden Sie dem Finanzamt in der Regel nach § 138 Abs. 2 AO mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres. Und weil die LLC von hier aus geleitet wird, gilt sie umsatzsteuerlich nicht als im Ausland ansässig (§ 13b Abs. 7 UStG): Rechnungen an deutsche Unternehmen tragen dann in der Regel deutsche Umsatzsteuer statt des Reverse-Charge-Hinweises.",
   bloecke: [
@@ -115,11 +118,11 @@ export const SEITE: GlobalSeite = {
         ["Mitteilung der Gründung oder Beteiligung im Ausland", "§ 138 Abs. 2 und 5 AO", "mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres", "Ihre Steuerkanzlei, mit den Unterlagen aus Ihrem Dokumentenraum"],
         ["Umsatzsteuer: Rechnungen und Voranmeldungen", "§§ 13b, 14, 14a, 18 UStG", "laufend; Voranmeldung bis zum zehnten Tag nach Ablauf des Voranmeldungszeitraums", "Ihre Buchhaltung und Steuerkanzlei"],
         ["Steuererklärungen in Deutschland", "§ 1 KStG und § 2 GewStG, oder Ihre Einkommensteuer", "jährlich", "Ihre Steuerkanzlei"],
-        ["Form 5472 mit Form 1120 an die IRS", "IRS, Instructions for Form 5472", IRS.frist5472, "unser US-CPA, im ersten Jahr im Paket"],
+        ["Form 5472 mit Form 1120 an die IRS", "IRS, Instructions for Form 5472", IRS.frist5472, "unser US-CPA, im ersten Jahr enthalten"],
         ["Jahresmeldung beim Bundesstaat", "Recht des Bundesstaats", `je nach Staat, in Florida ${STAAT.florida.jahrFrist}`, "FIAON, ab dem zweiten Jahr mit der Jahresbetreuung"],
         ["Meldung der wirtschaftlich Berechtigten (BOI) an FinCEN", "FinCEN, Regel vom August 2026", "entfällt für in den USA gegründete Gesellschaften", "niemand"],
       ],
-      fuss: ["Die laufende Buchhaltung und die Steuererklärungen in Deutschland sind nicht Teil der Pakete. Welche Pflichten im Einzelfall greifen, prüft der Steuerberater."],
+      fuss: ["Die laufende Buchhaltung und die Steuererklärungen in Deutschland sind nicht Teil Ihres Auftrags. Welche Pflichten im Einzelfall greifen, prüft der Steuerberater."],
     },
     {
       typ: "text", id: "meldung", h2: "§ 138 AO: die Meldung der US-LLC — 14 Monate, nicht ein Monat",
@@ -206,25 +209,24 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Pflichten auf beiden Seiten",
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, mit einem Grundsatz: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie — Gründung, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer, Meldungen, Registered Agent, US-Adresse und US-Telefon im ersten Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten sie vollständig vor. FIAON ist keine Bank, vergibt und vermittelt keine Kredite; über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut.",
-        `Für die deutsche Seite gilt: Ihren Fall prüft vor der Gründung unser Partner-Steuerberater — Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement. Die erste US-Meldung, Form 5472 mit Form 1120, übernimmt unser US-CPA. ${GLOBAL_ROLLEN.de.partner}`,
-        "So beginnt Ihre Steuerkanzlei nicht bei null: Ergebnis der Prüfung, Gründungsurkunde, Operating Agreement und EIN-Bestätigung liegen geordnet in Ihrem Dokumentenraum, wenn die erste Erklärung mit der Meldung nach § 138 AO ansteht. Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. Sie zahlen einen Festpreis, alle Gebühren des Pakets inklusive.",
-        ...GELD_ZURUECK,
+        `Für die deutsche Seite gilt: Ihren Fall prüft vor der Gründung unser Partner-Steuerberater — Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement. Die erste US-Meldung, Form 5472 mit Form 1120, übernimmt unser US-CPA. ${P.partner}`,
+        `So beginnt Ihre Steuerkanzlei nicht bei null: Ergebnis der Prüfung, Gründungsurkunde, Operating Agreement und EIN-Bestätigung liegen geordnet in Ihrem Dokumentenraum, wenn die erste Erklärung mit der Meldung nach § 138 AO ansteht. Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. ${P.preisSatz}`,
       ],
     },
     {
       typ: "text", id: "jahresbetreuung", h2: "Ab dem zweiten Jahr: die Jahresbetreuung",
-      absaetze: [GLOBAL_JAHRESBETREUUNG.de.lead],
+      absaetze: [`Das erste Jahr ist in Ihrem Auftrag enthalten. Ab dem zweiten Jahr halten wir Ihre Gesellschaft für ${P.jahres} im Jahr am Laufen – mit allen Gebühren, ohne dass Sie eine Frist im Kopf behalten müssen.`],
       punkte: [...GLOBAL_JAHRESBETREUUNG.de.leistungen],
       nach: `${GLOBAL_JAHRESBETREUUNG.de.bedingungen} Die laufende Buchhaltung und die Steuererklärungen in Deutschland bleiben bei Ihrer Steuerkanzlei.`,
     },
-    { typ: "paket", id: "paket", h2: "Der saubere Start, beide Seiten im Blick", lead: "Gründung, EIN, Registered Agent, Operating Agreement durch unseren Partner-Anwalt, Prüfung vor der Gründung durch unseren Partner-Steuerberater und die erste US-Meldung — Global Struktur.", paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "Der saubere Start, beide Seiten im Blick", lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Dieser Beitrag erklärt die gesetzlichen Grundlagen, Stand Oktober 2026. Er ersetzt nicht die Prüfung Ihres Falls; die übernimmt der Steuerberater auf Ihr Mandat.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        `Nicht im Festpreis: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
+        `Nicht in Ihrem Auftrag enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
         GLOBAL_ROLLEN.de.fiaon,
         "Eine US-LLC ist kein Steuermodell: Wer sie von Deutschland aus leitet, versteuert sie in der Regel hier.",
       ],

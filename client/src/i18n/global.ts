@@ -44,9 +44,11 @@ export type GlobalBegriff = "ein" | "itin" | "registeredAgent" | "operatingAgree
 export interface GlobalSternKnoten { name: string; umfang?: string; status: "fest" | "antrag"; inkl?: number }
 
 const de = {
-  metaTitel: "US-Firma gründen ab 2.499 € — FIAON Global",
-  // 06.10.2026 (E-293): ohne „Konto, Karten“ als Leistung und ohne „alles inklusive“ — es sind Anträge, und „inklusive“ gilt für das Paket.
-  metaBeschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, EIN und ITIN, Konto- und Kartenanträge, Team in Miami. Festpreis ab 2.499 €.",
+  // E-509 (12.11.2026): EIN Produkt — Titel und Beschreibung der Startseite kommen aus VERKAUF_TEXTE.seo (shared/fiaon-global-verkauf.ts).
+  // Hier stehen sie wortgleich (scripts/pruef-global-seiten.ts gleicht ab), damit kein alter Preis im Wörterbuch bleibt.
+  // (Vorher: „US-Firma gründen ab 2.499 €“ und „Festpreis ab 2.499 €“.)
+  metaTitel: "US-Gesellschaft gründen, aktiv betreut — FIAON Global",
+  metaBeschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, Steuernummern, US-Büro, Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.",
 
   // ── 1 Hero mit Vertrauensleiste ──
   auge: "FIAON Global · Für Unternehmen und Privatpersonen",
@@ -311,10 +313,10 @@ const de = {
     // 06.10.2026 (E-293): „Kontoantrag“ statt „Konto“ — im Suchtreffer steht der Satz ohne den Institut-Satz,
     // und über das Konto entscheidet allein das Institut (Pflichthinweis 3, § 5 UWG). Wie bei /business.
     metaTitel: "US-Firma als Privatperson gründen — FIAON Global",
-    metaBeschreibung: "Keine eigene Firma nötig: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Kontoantrag zum Festpreis.",
+    metaBeschreibung: "Keine eigene Firma nötig: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Kontoantrag in einem Auftrag.",
     auge: "FIAON Global · Für Privatpersonen und Gründer",
     h1a: "Ihre eigene US-Gesellschaft.",
-    h1b: "Ohne Firma, zum Festpreis.",
+    h1b: "Ohne Firma, in einem Auftrag.",
     lead: "Sie werden selbst Gesellschafter: Wir gründen, beantragen EIN und ITIN und bereiten Konto- und Kartenanträge vor — Vertrag und Rechnung laufen auf Ihren Namen.",
     preisKopfZusatz: "Einmalig, Endpreis, alle Gebühren des Pakets inklusive.",
     // Gründer und Selbständige haben keine eigene Unterseite — die Chips ordnen ein, „Als Unternehmen“ führt zurück.
@@ -331,8 +333,8 @@ const de = {
 };
 
 const en: typeof de = {
-  metaTitel: "Form a US company from €2,499 — FIAON Global",
-  metaBeschreibung: "The business consultancy for your US company: formation, EIN and ITIN, account and card applications, a team in Miami. Fixed price from €2,499.",
+  metaTitel: "Form a US company, actively managed — FIAON Global",
+  metaBeschreibung: "The business consultancy for your US company: formation, tax numbers, US office, accounts, cards and your capital range. See your price now.",
 
   auge: "FIAON Global · For companies and private individuals",
   augeLink: "private individuals",
@@ -564,10 +566,10 @@ const en: typeof de = {
   presseWeiter: "Resume the ticker",
   privat: {
     metaTitel: "Form a US company as a private individual — FIAON Global",
-    metaBeschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application, fixed price.",
+    metaBeschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application in one order.",
     auge: "FIAON Global · For private individuals and founders",
     h1a: "Your own US company.",
-    h1b: "No company needed — at a fixed price.",
+    h1b: "No company needed — in one order.",
     lead: "You become the shareholder yourself: we form the company, apply for the EIN and ITIN and prepare account and card applications — contract and invoice are in your name.",
     preisKopfZusatz: "One-off, final price, all package fees included.",
     fuerChips: [
@@ -589,8 +591,9 @@ export const GLOBAL_WOERTER = { de, en };
 const gespraechDe = {
   punkte: [
     "Ihr Vorhaben, Ihr Wohnsitz, Ihr Ziel — in dreißig Minuten geordnet.",
-    "Welche Gesellschaftsform und welches Paket zu Ihrer Lage passen.",
-    "Was im Festpreis steckt und was wir nicht zusagen können.",
+    // E-509 (12.11.2026): ein Produkt statt vier Pakete — vorher „welches Paket“ und „was im Festpreis steckt“.
+    "Welche Gesellschaftsform und welcher Bundesstaat zu Ihrer Lage passen.",
+    "Was im Preis steckt und was wir nicht zusagen können.",
     "Ohne Verpflichtung — Sie entscheiden danach in Ruhe.",
   ],
   mitWemZusatz: "Dreißig Minuten am Telefon — wir rufen Sie zur gewählten Zeit an.",
@@ -645,8 +648,8 @@ const gespraechDe = {
 const gespraechEn: typeof gespraechDe = {
   punkte: [
     "Your plans, your residence, your goal — put in order in thirty minutes.",
-    "Which company form and which package suit your situation.",
-    "What the fixed price covers and what we cannot commit to.",
+    "Which company form and which state suit your situation.",
+    "What the price covers and what we cannot commit to.",
     "No obligation — you decide afterwards, in your own time.",
   ],
   mitWemZusatz: "Thirty minutes by phone — we call you at the time you choose.",
@@ -837,10 +840,11 @@ const buehneDe = {
   beispiel: "Beispielansicht",
   kapitalAuge: "Ihr Kapitalziel",
   kapitalBetrag: "250.000 $",
-  kapitalZeile: "Paket Global Kapital · über den Rahmen entscheidet das Institut",
+  // E-509 (12.11.2026): ohne Paketnamen (vorher „Paket Global Kapital“ und „Florida · Global Kapital“).
+  kapitalZeile: "Ihr Kapitalrahmen · über den Rahmen entscheidet das Institut",
   akteAuge: "Ihre US-Gesellschaft",
   akteName: "Muster Ventures LLC",
-  akteOrt: "Florida · Global Kapital",
+  akteOrt: "Florida · mit aktiver Betreuung",
   schritte: [
     { titel: "Gesellschaft gegründet", zeile: "Florida · Articles of Organization", marke: "Erledigt" },
     { titel: "EIN erteilt", zeile: "Steuernummer der IRS", marke: "Erledigt" },
@@ -886,10 +890,10 @@ const buehneEn: typeof buehneDe = {
   beispiel: "Sample view",
   kapitalAuge: "Your capital target",
   kapitalBetrag: "$250,000",
-  kapitalZeile: "Global Capital package · the institution decides on the limit",
+  kapitalZeile: "Your capital range · the institution decides on the limit",
   akteAuge: "Your US company",
   akteName: "Sample Ventures LLC",
-  akteOrt: "Florida · Global Capital",
+  akteOrt: "Florida · actively managed",
   schritte: [
     { titel: "Company formed", zeile: "Florida · Articles of Organization", marke: "Done" },
     { titel: "EIN issued", zeile: "Tax number from the IRS", marke: "Done" },

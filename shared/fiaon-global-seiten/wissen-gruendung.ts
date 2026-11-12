@@ -10,22 +10,20 @@
 // Jeder Beitrag beantwortet eine Suchfrage vollständig — mit den Wegen der
 // Behörden, Zahlen aus fakten.ts (eine Quelle, geprüft am 23.09.2026) und den
 // ehrlichen Grenzen. Und jeder zeigt, wie FIAON Global die Aufgabe übernimmt:
-// ein Abschnitt „So übernimmt FIAON Global …", das passende Paket, der Knopf.
+// ein Abschnitt „So übernimmt FIAON Global …", der Baustein „Ein Mandat“, der Knopf.
 // Die Wortgrenzen gelten unverändert (typen.ts): keine Zusage zu Konto, Karte
 // oder Rahmen, kein Steuerversprechen, keine Frist mit Ziffer, Geld zurück nur
 // mit seinen Bedingungen, der Kapital-Satz nur mit dem Steuersatz daneben.
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PFLICHTHINWEIS,
-  globalJahresbetreuungPreisText, globalPaket, globalPreisText,
-} from "../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — Preis, Leistungsliste und „Geld zurück“ aus EIN_PRODUKT.
+import { EIN_PRODUKT } from "./ein-produkt";
 import { EIN_WEG, FAKTEN_STAND, FRISTEN, IRS, MARKT, QUELLEN_STAATEN, QUELLEN_WISSEN as Q, SCHWELLEN, STAAT } from "./fakten";
 import type { GlobalSeite } from "./typen";
 
 const S = "2026-09-23";
-const GELD_ZURUECK = `${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`;
+const P = EIN_PRODUKT.de;
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
-const STRUKTUR_DAUER = globalPaket("global_struktur")?.de.dauerKurz ?? "";
 const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const WISSEN_GRUENDUNG: GlobalSeite[] = [
@@ -57,7 +55,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       ["Pflicht in den USA", "Registered Agent, Jahresmeldung im Staat, Form 5472"],
       ["Pflicht zu Hause", "Meldung nach § 138 AO, Steuer am Ort der Geschäftsleitung"],
       ["Seit August 2026", "Keine BOI-Meldung mehr für US-Gesellschaften"],
-      ["Mit FIAON Global", "Alle zehn Schritte aus einer Hand, zum Festpreis"],
+      ["Mit FIAON Global", "Alle zehn Schritte aus einer Hand, in einem Auftrag"],
     ],
     kurz: `Eine US-LLC gründen Sie aus Deutschland in zehn Schritten: steuerliche Prüfung zu Hause, Rechtsform, Bundesstaat, Name, Registered Agent, Einreichung beim Staat, Operating Agreement, EIN bei der IRS, bei steuerlichem Grund die ITIN, dann Konto und Pflichtenkalender. Die Gebühr des Staats liegt zwischen ${STAAT.wyoming.gruendung} (Wyoming) und ${STAAT.florida.gruendung} (Florida). Aufwendig sind nicht die Gebühren, sondern die Reihenfolge und die Pflichten danach — Form 5472 in jedem Jahr und die Meldung ans Finanzamt.`,
     bloecke: [
@@ -97,7 +95,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         ],
         fuss: [
           `Stand ${FAKTEN_STAND}. Staatsgebühren nach den amtlichen Gebührenordnungen; Marktpreise sind veröffentlichte Preise mehrerer Anbieter, keine amtlichen Werte.`,
-          "Bei FIAON Global sind Staatsgebühr, Registered Agent im ersten Jahr, beide Steuernummern und die erste Form 5472 im Festpreis enthalten.",
+          "Bei FIAON Global sind Staatsgebühr, Registered Agent im ersten Jahr, beide Steuernummern und die erste Form 5472 in Ihrem Auftrag enthalten.",
         ],
       },
       {
@@ -121,14 +119,14 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "Wie FIAON Global die zehn Schritte übernimmt",
         absaetze: [
-          "Jeder Schritt ist für sich lösbar. Zusammen sind sie ein Projekt mit Behörden in zwei Ländern, drei Berufsgruppen und Fristen, die nichts verzeihen. FIAON Global macht daraus einen einzigen Auftrag: ein fester Ansprechpartner, ein Festpreis, ein Dokumentenraum, in dem jedes Papier liegt.",
+          "Jeder Schritt ist für sich lösbar. Zusammen sind sie ein Projekt mit Behörden in zwei Ländern, drei Berufsgruppen und Fristen, die nichts verzeihen. FIAON Global macht daraus einen einzigen Auftrag: ein fester Ansprechpartner, ein Vertrag, ein Dokumentenraum, in dem jedes Papier liegt.",
           "Unser Team in Miami reicht die Gründung ein und stellt Registered Agent, US-Geschäftsadresse und Telefonnummer. Unser Partner-Anwalt setzt das Operating Agreement auf, unser Partner-Steuerberater prüft vor der Gründung die Folgen in Ihrem Heimatland, unser US-CPA erstellt die erste Form 5472. EIN und ITIN bereiten wir vor und reichen sie ein; den ersten Konto- und Kartenantrag bereiten wir vollständig vor.",
-          GELD_ZURUECK,
+          P.geldZurueck,
         ],
-        punkte: [...GLOBAL_INKLUSIVE.de],
-        nach: `Global Struktur beginnt bei ${globalPreisText("global_struktur")}, einmalig — die Begleitung dauert in der Regel ${STRUKTUR_DAUER}.`,
+        punkte: [...P.enthalten],
+        nach: P.preisSatzKurz,
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Global Struktur deckt alle zehn Schritte ab — vom Startgespräch bis zur ersten Form 5472.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Alle zehn Schritte in einem Auftrag — vom Angebot bis zur ersten Form 5472.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -140,8 +138,8 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     ],
     fragen: [
       { f: "Kann ich als Deutscher eine LLC in den USA gründen?", a: "Ja. Eine LLC gründen Sie vollständig aus Deutschland — ohne US-Wohnsitz, ohne Reise, ohne Mindestkapital und ohne US-Staatsbürgerschaft. Nötig sind ein Registered Agent im Gründungsstaat und die Gebühr des Staats." },
-      { f: "Was kostet es, eine LLC zu gründen?", a: `Die Gebühr des Staats beträgt in Wyoming ${STAAT.wyoming.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Florida ${STAAT.florida.gruendung}. Dazu kommen Registered Agent, Operating Agreement und jedes Jahr Staatsgebühr und Form 5472. Bei FIAON Global ist das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten.` },
-      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung beim Staat dauert derzeit ein bis zwei Werktage (Delaware mit Express), rund drei Werktage (Wyoming) oder oft rund zwei Wochen (Florida). Länger dauern EIN (${IRS.einDauer}), ITIN und Kontoantrag. Mit FIAON Global dauert die Begleitung bis zum ersten Konto- und Kartenantrag in der Regel ${STRUKTUR_DAUER}.` },
+      { f: "Was kostet es, eine LLC zu gründen?", a: `Die Gebühr des Staats beträgt in Wyoming ${STAAT.wyoming.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Florida ${STAAT.florida.gruendung}. Dazu kommen Registered Agent, Operating Agreement und jedes Jahr Staatsgebühr und Form 5472. Bei FIAON Global ist das erste Jahr im Preis von ${P.preis} enthalten.` },
+      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung beim Staat dauert derzeit ein bis zwei Werktage (Delaware mit Express), rund drei Werktage (Wyoming) oder oft rund zwei Wochen (Florida). Länger dauern EIN (${IRS.einDauer}), ITIN und Kontoantrag. Wie die Schritte bei FIAON Global ineinandergreifen, zeigt die Seite zum Ablauf.` },
       { f: "Brauche ich für die LLC eine US-Adresse?", a: "Die LLC braucht einen Registered Agent mit Anschrift im Gründungsstaat. Für Konto und Verträge braucht sie zusätzlich eine Geschäftsadresse; die Anschrift des Agent reicht vielen Instituten dafür nicht." },
       { f: "Muss eine neue LLC noch eine BOI-Meldung abgeben?", a: "Nein, wenn sie in den USA gegründet wurde. Seit dem 14. August 2026 sind US-Gesellschaften endgültig von der BOI-Meldung befreit; melden müssen nur ausländische Gesellschaften, die sich in einem Bundesstaat registrieren." },
     ],
@@ -179,7 +177,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       ["Wege ohne SSN", "Fax, Post oder Telefon — nicht online"],
       ["Dauer", gross(IRS.einDauer)],
       ["Kosten", "Bei der IRS kostenlos"],
-      ["Mit FIAON Global", "Vorbereitet, eingereicht, verfolgt — im Festpreis"],
+      ["Mit FIAON Global", "Vorbereitet, eingereicht, verfolgt — in Ihrem Auftrag enthalten"],
     ],
     kurz: `Ohne US-Sozialversicherungsnummer beantragen Sie die EIN mit Form SS-4 per Fax, per Post oder — nur für Antragsteller aus dem Ausland — telefonisch bei der IRS. Voraussetzung ist die eingetragene Gesellschaft. In Zeile 7b steht „foreign“ oder „N/A“, wenn die verantwortliche Person weder SSN noch ITIN hat; eine LLC mit einem ausländischen Gesellschafter vermerkt in Zeile 9a „${EIN_WEG.zeile9a}“. Die Dauer: ${IRS.einDauer}.`,
     bloecke: [
@@ -239,11 +237,11 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die EIN",
         absaetze: [
-          "Bei FIAON Global ist die EIN Teil jedes Pakets. Wir füllen Form SS-4 aus, Sie unterschreiben, wir reichen ein und verfolgen den Antrag bis zur Nummer. Rückfragen der IRS klären wir mit Ihnen, das Schreiben der IRS liegt danach in Ihrem Dokumentenraum — und die EIN fließt sofort in den Kontoantrag und in den Pflichtenkalender Ihrer Gesellschaft.",
-          GELD_ZURUECK,
+          "Bei FIAON Global ist die EIN Teil Ihres Auftrags. Wir füllen Form SS-4 aus, Sie unterschreiben, wir reichen ein und verfolgen den Antrag bis zur Nummer. Rückfragen der IRS klären wir mit Ihnen, das Schreiben der IRS liegt danach in Ihrem Dokumentenraum — und die EIN fließt sofort in den Kontoantrag und in den Pflichtenkalender Ihrer Gesellschaft.",
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die EIN im Paket", lead: "Gesellschaft, EIN, ITIN und der erste Konto- und Kartenantrag — Global Struktur zum Festpreis.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "Die EIN in Ihrem Auftrag", lead: "Gesellschaft, EIN, ITIN und jeder Konto- und Kartenantrag — in einem Auftrag.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -256,7 +254,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     fragen: [
       { f: "Kann ich eine EIN ohne SSN beantragen?", a: "Ja. Ohne SSN oder ITIN beantragen Sie die EIN mit Form SS-4 per Fax, per Post oder — als Antragsteller aus dem Ausland — telefonisch. Nur der Online-Antrag verlangt eine SSN oder ITIN." },
       { f: "Wie lange dauert es, eine EIN zu bekommen?", a: `${gross(IRS.einDauer)}. Am Telefon geht es am schnellsten, wenn alle Angaben bereitliegen.` },
-      { f: "Kostet die EIN etwas?", a: "Bei der IRS nicht. Kosten entstehen nur, wenn Sie jemanden beauftragen — bei FIAON Global ist die EIN im Festpreis jedes Pakets enthalten." },
+      { f: "Kostet die EIN etwas?", a: "Bei der IRS nicht. Kosten entstehen nur, wenn Sie jemanden beauftragen — bei FIAON Global ist die EIN in Ihrem Auftrag enthalten." },
       { f: "Brauche ich eine ITIN, um eine EIN zu beantragen?", a: "Nein. Hat die verantwortliche Person weder SSN noch ITIN, steht in Zeile 7b der Form SS-4 „foreign“ oder „N/A“." },
       { f: "Was mache ich, wenn das EIN-Schreiben verloren ist?", a: "Die IRS bestätigt die Nummer auf Anfrage erneut (Letter 147C). Viele Institute akzeptieren diese Bestätigung anstelle des ursprünglichen Schreibens (CP 575)." },
     ],
@@ -352,11 +350,11 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die ITIN",
         absaetze: [
-          "In jedem Paket von FIAON Global ist der ITIN-Antrag enthalten — mit dem Schritt, den viele Anbieter auslassen: Unser US-CPA prüft zuerst, ob und mit welchem Grund der Antrag trägt. Ohne tragfähigen Grund stellen wir keinen Antrag, statt Ihren Pass wochenlang auf die Reise zu schicken.",
+          "In Ihrem Auftrag bei FIAON Global ist der ITIN-Antrag enthalten — mit dem Schritt, den viele Anbieter auslassen: Unser US-CPA prüft zuerst, ob und mit welchem Grund der Antrag trägt. Ohne tragfähigen Grund stellen wir keinen Antrag, statt Ihren Pass wochenlang auf die Reise zu schicken.",
           "Der Certifying Acceptance Agent prüft Ihren Pass im Termin und gibt ihn sofort zurück. Wir reichen den Antrag mit allen Anlagen ein, verfolgen ihn bis zum Bescheid und legen ihn in Ihren Dokumentenraum — abgestimmt mit der EIN Ihrer Gesellschaft und dem ersten Kartenantrag.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die ITIN im Paket", lead: "Beide Steuernummern, Gesellschaft und erster Konto- und Kartenantrag — Global Struktur zum Festpreis.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "Die ITIN in Ihrem Auftrag", lead: "Beide Steuernummern, Gesellschaft und jeder Konto- und Kartenantrag — in einem Auftrag.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -460,11 +458,11 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "So löst FIAON Global die US-Präsenz",
         absaetze: [
-          "Bei FIAON Global gehört die US-Präsenz zum Paket: Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr im Festpreis enthalten — gestellt von unserem Team vor Ort und von Anfang an abgestimmt auf die Unterlagen für Konto und Karten. Zustellungen und Behördenpost liegen in der Regel innerhalb eines Tages eingescannt in Ihrem Dokumentenraum, die Fristen im Pflichtenkalender Ihrer Gesellschaft.",
+          "Bei FIAON Global gehört die US-Präsenz zu Ihrem Auftrag: Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr enthalten — gestellt von unserem Team vor Ort und von Anfang an abgestimmt auf die Unterlagen für Konto und Karten. Zustellungen und Behördenpost liegen in der Regel innerhalb eines Tages eingescannt in Ihrem Dokumentenraum, die Fristen im Pflichtenkalender Ihrer Gesellschaft.",
           GLOBAL_LAUFEND.de,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die US-Präsenz im Paket", lead: "Agent, Adresse und Telefonnummer im ersten Jahr — mit Gründung und Steuernummern in Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "Die US-Präsenz in Ihrem Auftrag", lead: "Agent, Adresse und Telefonnummer im ersten Jahr — mit Gründung und Steuernummern in einem Auftrag.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -478,7 +476,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       { f: "Was ist ein Registered Agent?", a: "Die gesetzlich vorgeschriebene Empfangsstelle einer US-Gesellschaft im Gründungsstaat: Sie nimmt Klagen und amtliche Schreiben entgegen und gibt sie weiter. Jeder Bundesstaat verlangt einen." },
       { f: "Kann ich mein eigener Registered Agent sein?", a: "Nur, wenn Sie im Gründungsstaat wohnen oder dort ein Büro haben, das zu Geschäftszeiten besetzt ist. Für Gründer aus Europa ist ein gewerblicher Agent der Regelfall." },
       { f: "Kann ich die Adresse des Registered Agent als Geschäftsadresse nutzen?", a: "Rechtlich ist sie die Anschrift des Agent, nicht Ihr Geschäftssitz. Viele Institute lehnen Konten mit dieser Adresse als Geschäftsadresse ab; welche Adresse genügt, entscheidet jedes Institut selbst." },
-      { f: "Was kostet ein Registered Agent?", a: `Am Markt ${MARKT.agent}. Bei FIAON Global sind Agent, US-Geschäftsadresse und Telefonnummer im ersten Jahr im Festpreis enthalten, danach in der Jahresbetreuung für ${globalJahresbetreuungPreisText("de")} im Jahr.` },
+      { f: "Was kostet ein Registered Agent?", a: `Am Markt ${MARKT.agent}. Bei FIAON Global sind Agent, US-Geschäftsadresse und Telefonnummer im ersten Jahr in Ihrem Auftrag enthalten, danach in der Jahresbetreuung für ${P.jahres} im Jahr.` },
       { f: "Was passiert, wenn meine LLC keinen Registered Agent hat?", a: "Sie verliert ihren ordnungsgemäßen Status beim Staat; bleibt der Mangel bestehen, kann der Staat sie auflösen. Klagen erreichen Sie womöglich nicht rechtzeitig." },
     ],
     paket: "global_struktur",
@@ -514,7 +512,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       ["Corporation", `Form 1120, ${IRS.koerperschaftsteuer} Bundessteuer`],
       ["Konten außerhalb der USA", `FBAR ab ${SCHWELLEN.fbar} in Summe`],
       ["Heimatland", "Steuererklärung und § 138 AO — unabhängig davon"],
-      ["Mit FIAON Global", "Erste Meldung durch unseren US-CPA im Festpreis"],
+      ["Mit FIAON Global", "Erste Meldung durch unseren US-CPA, in Ihrem Auftrag enthalten"],
     ],
     kurz: `Welche US-Erklärungen eine LLC abgibt, hängt an drei Fragen: Wem gehört sie, wie ist sie eingeordnet, betreibt sie Geschäft in den USA? Eine LLC mit einem ausländischen Gesellschafter reicht jedes Jahr Form 5472 mit einer Pro-forma-Form 1120 ein (${IRS.frist5472}). Erzielt sie Einkünfte aus Geschäft in den USA, erklärt der Gesellschafter sie zusätzlich selbst — als Person mit Form 1040-NR, als GmbH mit Form 1120-F. Eine LLC mit mehreren Gesellschaftern gibt Form 1065 ab, eine Corporation Form 1120. Hält die Gesellschaft Konten außerhalb der USA mit zusammen mehr als ${SCHWELLEN.fbar}, kommt der FBAR hinzu.`,
     bloecke: [
@@ -575,11 +573,11 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "So hält FIAON Global Ihre Fristen",
         absaetze: [
-          "In jedem Paket von FIAON Global erstellt unser US-CPA die erste jährliche US-Meldung — Form 5472 mit Form 1120 —, das Honorar ist im Festpreis enthalten. Jede Frist Ihrer Gesellschaft steht im Pflichtenkalender: Staat, Registered Agent, IRS und, wo nötig, der FBAR. Unser Partner-Steuerberater prüft vor der Gründung, welche Erklärungen zu Hause anfallen, damit beide Seiten von Anfang an zusammenpassen.",
+          "In Ihrem Auftrag bei FIAON Global erstellt unser US-CPA die erste jährliche US-Meldung — Form 5472 mit Form 1120 —, das Honorar ist im Preis enthalten. Jede Frist Ihrer Gesellschaft steht im Pflichtenkalender: Staat, Registered Agent, IRS und, wo nötig, der FBAR. Unser Partner-Steuerberater prüft vor der Gründung, welche Erklärungen zu Hause anfallen, damit beide Seiten von Anfang an zusammenpassen.",
           GLOBAL_LAUFEND.de,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Die erste US-Meldung im Paket", lead: "Gründung, Steuernummern, Pflichtenkalender und die erste Form 5472 durch unseren US-CPA — Global Struktur.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "Die erste US-Meldung in Ihrem Auftrag", lead: "Gründung, Steuernummern, Pflichtenkalender und die erste Form 5472 durch unseren US-CPA — in einem Auftrag.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -688,11 +686,11 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "So baut FIAON Global Ihre US-Struktur",
         absaetze: [
           "Für ein Unternehmen ist die US-Gründung eine Strukturentscheidung, keine Formalie. FIAON Global beginnt deshalb mit der Prüfung: Unser Partner-Steuerberater klärt vor der Gründung, wie die Tochter in Deutschland eingeordnet wird und welche Meldungen anfallen; unser US-CPA schaut auf die US-Seite. Erst dann gründet unser Team in Miami die Gesellschaft — mit Gründungsunterlagen durch unseren Partner-Anwalt, EIN, Registered Agent, Adresse und Telefonnummer.",
-          "Danach bereiten wir Konto und Karten der Tochter vor, führen ihren Pflichtenkalender und bauen mit Global Kapital die Historie und die Kennzahlen-Mappe auf, die eine US-Bank für ein Darlehen sehen will.",
+          "Danach bereiten wir Konto und Karten der Tochter vor, führen ihren Pflichtenkalender und begleiten Sie bis zur Finanzierung in Ihrem Kapitalrahmen.",
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das Paket für Unternehmen", lead: "Gründung, Prüfung in beiden Ländern, Konto, Kartenleiter und die Unterlagen für ein Bankdarlehen — Global Kapital.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "Ein Mandat — auch für Unternehmen", lead: "Gründung, Konto, Karten und Ihr Kapitalrahmen — in einem Auftrag. Soll Ihre bestehende Gesellschaft die Anteile halten, stimmen wir das vorab im Gespräch mit Ihnen ab.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [

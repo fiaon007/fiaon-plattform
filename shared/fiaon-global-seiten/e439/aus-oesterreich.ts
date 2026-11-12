@@ -15,6 +15,9 @@
 //
 // Wortwand: kein Steuermodell (Ort der Geschäftsleitung steht vorn), kein Bank-
 // name, keine Preiszahl (Baustein "paket"), kein „Beratung/beraten“.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname mehr; die alte Geld-zurück-Zusage je Paket entfällt.
+// Für Österreich bleibt es bei der Gesellschaft: kein Versprechen von Konto, Karte oder Finanzierung; den Kapital-Teil
+// besprechen wir bei Wohnsitz Österreich persönlich („Ihr Vorhaben“).
 // Selbstbezeichnung (28.10.2026, E-454): Diese Seite nennt FIAON NIE „Unternehmens-
 // beratung“ — weder im Text noch im Datenblock. In Österreich ist das ein regle-
 // mentiertes Gewerbe (§ 94 Z 74 GewO), die Ausnahme steht so in E-439. Bis E-454
@@ -27,7 +30,8 @@
 // protokoll zu Art. 4 (LLC wie Personengesellschaft) im BGBl.-Text gelesen.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { FIAON_FIRMA } from "../../fiaon-firma";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, IRS, SCHWELLEN, FRISTEN } from "../fakten";
 
@@ -54,7 +58,9 @@ const QUELLEN: Record<string, GlobalQuelle> = {
   famE2: { titel: "U.S. Department of State — 9 FAM 402.9, E-Visa und Liste der Vertragsstaaten", url: "https://fam.state.gov/fam/09FAM/09FAM040209.html" },
 };
 
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
+/** E-509: bei Wohnsitz Österreich kein Selbstabschluss mit Kapital — der eine Satz dazu. */
+const VORHABEN_AT = "Wohnen Sie in Österreich, besprechen wir den Kapital-Teil Ihres Vorhabens persönlich mit Ihnen.";
 
 export const SEITE: GlobalSeite = {
   pfad: "/business/aus-oesterreich",
@@ -63,7 +69,7 @@ export const SEITE: GlobalSeite = {
     titel: "US-Firma aus Österreich gründen — FIAON Global",
     beschreibung: "US-Firma aus Österreich gründen: Ort der Geschäftsleitung, Typenvergleich der LLC, DBA und Meldungen — ehrlich erklärt, mit Quellen.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 46",
   auge: "Für wen · Aus Österreich",
@@ -81,7 +87,7 @@ export const SEITE: GlobalSeite = {
     ["Abkommen", "DBA Österreich–USA, unterzeichnet am 31. Mai 1996 in Wien"],
     ["Anzeige", "Neue Umstände binnen einem Monat beim Finanzamt (§§ 120, 121 BAO)"],
     ["Tätigkeit in Österreich", "Gewerberecht und Sozialversicherung vorab klären"],
-    ["Mit FIAON Global", "Alle Anträge für Sie, Prüfung vor der Gründung im Festpreis"],
+    ["Mit FIAON Global", "Alle Anträge für Sie, die Prüfung vor der Gründung ist enthalten"],
   ],
   kurz: "Wer in Österreich lebt, kann eine US-Firma gründen — ohne Wohnsitz und ohne Staatsbürgerschaft in den USA. Wird die Gesellschaft von Österreich aus geleitet, liegt der Mittelpunkt ihrer geschäftlichen Oberleitung hier (§ 27 Abs. 2 BAO), und ihre Gewinne werden in der Regel in Österreich besteuert — bei der Gesellschaft (§ 1 Abs. 2 KStG) oder bei Ihnen. Ob die LLC wie eine GmbH oder transparent behandelt wird, entscheidet ein Typenvergleich im Einzelfall (BMF, EAS 1413). Eine US-Firma aus Österreich ist damit kein Steuermodell, sondern ein Zugang zum US-Markt.",
   bloecke: [
@@ -153,7 +159,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         `Für ein US-Geschäftskonto kommt es auf vollständige Unterlagen an. Institute müssen bei der Kontoeröffnung jede Person identifizieren, der ${SCHWELLEN.eigentuemer} oder mehr der Gesellschaft gehören, dazu eine Person, die sie leitet; für die Gesellschaft selbst verlangen sie Dokumente, die ihr Bestehen belegen, und ihre Steuernummer. Bei Ihnen als Ausländer kann an die Stelle einer US-Steuernummer die Nummer Ihres Reisepasses treten. In der Regel liegen deshalb Gründungsunterlagen, EIN, Operating Agreement und Reisepass auf dem Tisch. Über das Konto entscheidet allein das Institut.`,
         "Eine US-Kreditkarte für Ihre Gesellschaft können Sie auch aus Österreich beantragen; ob und mit welchem Rahmen sie ausgegeben wird, entscheidet allein der Herausgeber. Firmenkarten setzen in der Regel Ihre persönliche Haftung voraus. Für einen FICO Score braucht Ihre US-Kreditauskunft ein Konto, das seit mindestens sechs Monaten besteht und in den letzten sechs Monaten gemeldet wurde. Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest.",
-        "Konto-, Karten- und Kreditanträge stellen Sie selbst — wir bereiten sie vollständig vor, im Paket Global Struktur den ersten Konto- und Kartenantrag, ab Global Banking jeden weiteren, damit Name, Anschrift, Telefonnummer und Unterlagen in jedem Antrag übereinstimmen.",
+        "Konto-, Karten- und Kreditanträge stellen Sie selbst — wir bereiten jeden Antrag vollständig vor, damit Name, Anschrift, Telefonnummer und Unterlagen in jedem Antrag übereinstimmen.",
       ],
     },
     {
@@ -180,7 +186,7 @@ export const SEITE: GlobalSeite = {
         "Partner-Steuerberater: Prüfung vor der Gründung, auf Ihr Mandat",
         "Partner-Anwalt: Operating Agreement und Gründungsunterlagen",
         "US-CPA: erste jährliche US-Meldung",
-        "Deren Honorare für die Leistungen des Pakets trägt FIAON",
+        "Deren Honorare für die Leistungen Ihres Auftrags trägt FIAON",
       ],
       sie: [
         "Reisepass, Adressnachweis und eine klare Beschreibung des Geschäfts",
@@ -192,9 +198,9 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihre US-Firma aus Österreich",
       absaetze: [
         "Ein Ansprechpartner statt acht: Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — die Gründung beim Bundesstaat, die EIN bei der US-Steuerbehörde, die Vorbereitung der ITIN, soweit deren Voraussetzungen vorliegen, die D-U-N-S-Nummer und die jährlichen US-Meldungen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, von uns vollständig vorbereitet; darüber entscheidet allein das Institut.",
-        "Vor der Gründung prüft ein in Österreich befugter Partner-Steuerberater auf Ihr Mandat, wo der Ort der Geschäftsleitung liegen wird und wie Österreich Ihre LLC im Typenvergleich einordnen dürfte. Das Ergebnis fließt in das Operating Agreement, das unser Partner-Anwalt schreibt. Die erste US-Meldung — Form 5472 mit Form 1120 — reicht unser US-CPA ein. Die Honorare dieser Partner für die Leistungen Ihres Pakets trägt FIAON; alle Gebühren des Pakets sind im Festpreis enthalten.",
+        "Vor der Gründung prüft ein in Österreich befugter Partner-Steuerberater auf Ihr Mandat, wo der Ort der Geschäftsleitung liegen wird und wie Österreich Ihre LLC im Typenvergleich einordnen dürfte. Das Ergebnis fließt in das Operating Agreement, das unser Partner-Anwalt schreibt. Die erste US-Meldung — Form 5472 mit Form 1120 — reicht unser US-CPA ein. Die Honorare dieser Partner für die Leistungen Ihres Auftrags trägt FIAON; im ersten Jahr ist alles enthalten, was Ihr Vertrag nennt.",
         `Ihr Vertragspartner ist die ${FIAON_FIRMA.name} mit Sitz in London (Companies House ${FIAON_FIRMA.companyNo}). Unser Team in Miami nimmt Termine bei Behörden und Instituten vor Ort wahr, unser Partnerstandort ist Zürich. Ab dem zweiten Jahr können Sie die Jahresbetreuung dazunehmen — freiwillig.`,
-        ...GELD_ZURUECK,
+        VORHABEN_AT,
       ],
     },
     {
@@ -205,16 +211,16 @@ export const SEITE: GlobalSeite = {
         GLOBAL_PFLICHTHINWEIS.de[1],
         GLOBAL_PFLICHTHINWEIS.de[2],
         "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut.",
-        "Die Prüfung vor der Gründung ist im Festpreis enthalten; die laufende Steuererklärung in Österreich übernimmt Ihr Steuerberater.",
+        "Die Prüfung vor der Gründung ist in Ihrem Auftrag enthalten; die laufende Steuererklärung in Österreich übernimmt Ihr Steuerberater.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung, Steuernummern, die Prüfung vor der Gründung und die erste US-Meldung: Global Struktur.", paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `Gründung, Steuernummern, US-Büro, die Prüfung vor der Gründung und die erste US-Meldung — in einem Auftrag. ${VORHABEN_AT}`, paket: "global_struktur" },
   ],
   fragen: [
     { f: "Kann ich als Österreicher eine US-Firma gründen?", a: "Ja, ohne Wohnsitz und ohne Staatsbürgerschaft in den USA. Sie brauchen einen gültigen Reisepass und einen Adressnachweis; gründet Ihre GmbH mit, zusätzlich deren Firmenbuchauszug. Mit Ihrer Vollmacht stellen wir alle Anträge in den USA für Sie." },
     { f: "Muss ich meine US-LLC in Österreich versteuern?", a: "In der Regel ja, wenn Sie sie von Österreich aus leiten: Der Ort der Geschäftsleitung liegt dann hier (§ 27 Abs. 2 BAO). Gilt die LLC als Körperschaft, ist sie unbeschränkt steuerpflichtig (§ 1 Abs. 2 KStG); gilt sie als transparent, wird ihr Ergebnis Ihnen zugerechnet. Unser Partner-Steuerberater prüft Ihren Fall vor der Gründung." },
     { f: "Wie wird eine US-LLC in Österreich besteuert?", a: "Das hängt vom Typenvergleich ab: Entspricht die LLC einer Kapitalgesellschaft und wird sie von Österreich aus geleitet, fällt hier Körperschaftsteuer an; Ausschüttungen an Sie unterliegen dem besonderen Satz von 27,5 %. Ist sie transparent, werden die Gewinne direkt bei Ihnen besteuert. Die Einordnung in den USA ist dafür nicht entscheidend (EAS 1413)." },
-    { f: "Brauche ich für die US-LLC einen Wohnsitz in den USA?", a: "Nein. Die Gesellschaft braucht einen Registered Agent mit Anschrift im Gründungsstaat; Sie selbst können in Österreich wohnen bleiben. Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr in unseren Paketen enthalten." },
+    { f: "Brauche ich für die US-LLC einen Wohnsitz in den USA?", a: "Nein. Die Gesellschaft braucht einen Registered Agent mit Anschrift im Gründungsstaat; Sie selbst können in Österreich wohnen bleiben. Registered Agent, US-Geschäftsadresse und US-Telefonnummer sind im ersten Jahr enthalten." },
     { f: "Kann ich als Österreicher eine US-Kreditkarte beantragen?", a: "Beantragen können Sie eine US-Firmenkarte für Ihre Gesellschaft auch aus Österreich; ob und mit welchem Rahmen sie ausgegeben wird, entscheidet allein der Herausgeber. Firmenkarten setzen in der Regel Ihre persönliche Haftung voraus. Den ersten Antrag bereiten wir vollständig vor; stellen müssen Sie ihn selbst." },
     { f: "Muss ich die US-Gesellschaft dem österreichischen Finanzamt melden?", a: "In der Regel ja. Umstände, die eine Abgabepflicht begründen oder ändern, und den Beginn einer gewerblichen oder selbständigen Tätigkeit zeigen Sie dem Finanzamt an — binnen einem Monat ab dem Ereignis (§§ 120, 121 BAO). Die Einkünfte gehören in Ihre Steuererklärung." },
     { f: "Darf meine US-Gesellschaft in Österreich tätig werden?", a: "Ausländische Rechtsträger ohne Sitz oder Niederlassung in Österreich dürfen hier kein Gewerbe ausüben, soweit Staatsverträge nichts anderes vorsehen (§ 14 Abs. 4 GewO). Ob Sie eine Niederlassung und eine Gewerbeberechtigung brauchen, klärt im Einzelfall ein Anwalt — auf Wunsch einer unserer Partner-Anwälte in Ihrem Mandat." },

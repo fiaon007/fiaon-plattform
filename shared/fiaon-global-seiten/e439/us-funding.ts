@@ -39,10 +39,14 @@
 // „Unternehmensberatung“ als Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Der Preis steht vor dem Auftrag fest (Konfigurator); das Erfolgshonorar
+// bemisst sich am Kapitalrahmen, den der Kunde selbst wählt — der Satz „ohne Honorar nach Rahmen“ (bis E-509 wahr) ist gestrichen.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, IRS } from "../fakten";
 
 const S = "2026-10-27";
+const P = EIN_PRODUKT.de;
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
 /** Eigene Quellen dieses Beitrags (geprüft am 27.10.2026). */
@@ -69,7 +73,7 @@ export const SEITE: GlobalSeite = {
     titel: "US Funding: was es ist, was seriös ist — FIAON Global",
     beschreibung: "US Funding erklärt: drei Ebenen (ITIN-Bonität, Firmenbonität, Sicherheiten), eine ehrliche Reihenfolge und die Warnzeichen unseriöser Programme.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 43",
   auge: "Wissen · Kapital",
@@ -88,7 +92,7 @@ export const SEITE: GlobalSeite = {
     ["Ebene 3", "Sicherheiten für größere Summen: Einlage, Muttergesellschaft, Vermögen"],
     ["Nicht offen", "SBA-Kredite für Eigentümer aus Europa, seit dem 1. März 2026"],
     ["Wer entscheidet", "Allein das Institut — über Konto, Karte, Rahmen und Darlehen"],
-    ["Mit FIAON Global", "Ein Ansprechpartner statt acht: Struktur, Bonität, vorbereitete Anträge — zum Festpreis"],
+    ["Mit FIAON Global", "Ein Ansprechpartner statt acht: Struktur, vorbereitete Anträge, Preis vorab im Konfigurator"],
   ],
   kurz: "US Funding bezeichnet im deutschsprachigen Raum den Aufbau von Kapital über eine eigene US-Gesellschaft: Firmenkarten, Business Credit, eine Bankbeziehung mit Sicherheiten und Eigenkapital. Es wächst auf drei Ebenen — persönliche US-Bonität über die ITIN, Bonität der Firma über EIN, D-U-N-S-Nummer und Lieferantenkonten, Sicherheiten für größere Summen — und braucht Monate bis Jahre, nicht Wochen. Seriös ist ein Angebot, das Gebühren vorab nennt, weder Rahmen noch Zins verspricht, die persönliche Haftung erklärt und sagt: Über jeden Kredit entscheidet allein das Institut.",
   bloecke: [
@@ -176,7 +180,9 @@ export const SEITE: GlobalSeite = {
       kopf: ["Frage an den Anbieter", "Seriöse Antwort", "Warnsignal"],
       zeilen: [
         ["Wer ist Ihr Vertragspartner?", "Name, Rechtsform, Register und Anschrift stehen im Vertrag", "nur eine Marke, ein Kanal im Messenger, kein Rechtsträger"],
-        ["Was kostet es, vollständig?", "Festpreis vorab, alle Gebühren genannt", "Honorar in Prozent des Rahmens, Gebühren im Kleingedruckten"],
+        // E-509 (12.11.2026): vorher „Festpreis vorab“ gegen „Honorar in Prozent des Rahmens“. Unser Erfolgshonorar richtet sich seither nach dem
+        // Kapitalrahmen, den der Kunde selbst wählt, und steht vor dem Auftrag fest — das Warnsignal ist die Gebühr auf ERZIELTE Kartenrahmen.
+        ["Was kostet es, vollständig?", "Preis steht vor dem Auftrag fest, alle Gebühren genannt", "Gebühr in Prozent der erzielten Kartenrahmen, Kosten im Kleingedruckten"],
         ["Wer entscheidet über Kredit und Rahmen?", "allein das Institut", "„sichere Rahmen dank Kontakten zu Banken“"],
         ["Werden Zinsen versprochen?", "nein — die Bedingungen legt jeder Herausgeber selbst fest", "„zinsfrei“ über lange Zeit, feste Zinssätze"],
         ["Wer stellt Konto-, Karten- und Kreditanträge?", "Sie selbst, mit vollständig vorbereiteten Unterlagen", "der Anbieter, per Vollmacht, in Ihrem Namen"],
@@ -201,17 +207,17 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global den Weg zu US Funding",
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für Unternehmer aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft aufbauen. Unser Grundsatz: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung im Bundesstaat, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer und die erste jährliche US-Meldung — und stellen Registered Agent, US-Adresse und US-Telefonnummer für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten jeden davon vollständig vor.",
-        "So begleiten wir den Weg zu US Funding in der richtigen Reihenfolge: zuerst die Struktur, dann der Aufbau der Bonität auf beiden Ebenen, dann vollständig vorbereitete Anträge, die Sie selbst stellen, und die Kennzahlen-Mappe für ein späteres Bankdarlehen. Über jeden Antrag entscheidet das Institut. Der Kapitalrahmen Ihres Pakets ist ein Ziel, auf das wir gemeinsam hinarbeiten, keine Zusage.",
-        GLOBAL_ROLLEN.de.partner,
-        "Sie zahlen einen Festpreis, der vor dem Auftrag feststeht, mit allen Gebühren des Pakets — ohne Honorar nach Rahmen und ohne Anteil am Kapital. Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami übernimmt Termine und Einreichungen, Zürich ist unser Partnerstandort. Ab dem zweiten Jahr können Sie die Jahresbetreuung wählen — freiwillig und ohne automatische Verlängerung.",
-        `${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`,
+        `So begleiten wir den Weg zu US Funding in der richtigen Reihenfolge: zuerst die Struktur, dann Konto und Karten mit vollständig vorbereiteten Anträgen, die Sie selbst stellen, dann die Begleitung Ihrer Gesellschaft bis zur Finanzierung. Über jeden Antrag entscheidet das Institut. ${P.rahmenSatz} Ihr Kapitalrahmen ist ein Ziel, auf das wir gemeinsam hinarbeiten, keine Zusage.`,
+        P.partner,
+        `Ihr Preis steht vor dem Auftrag fest. ${P.preisSatz} Das Erfolgshonorar bemisst sich an dem Kapitalrahmen, den Sie selbst wählen. Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami übernimmt Termine und Einreichungen, Zürich ist unser Partnerstandort.`,
+        P.geldZurueck,
         KAPITAL_FREI,
       ],
     },
     {
       typ: "karten", id: "vertiefen", h2: "Jede Ebene im Einzelnen", spalten: 3,
       karten: [
-        { tag: "Leistung", titel: "Firmenkarten und Kapitalaufbau", text: "Die Kartenleiter von FIAON Global und der Kapitalrahmen je Paket als Ziel.", pfad: "/business/firmenkarten-kapital" },
+        { tag: "Leistung", titel: "Firmenkarten und Kapitalaufbau", text: "Konto, Karten und Ihr Kapitalrahmen als Ziel.", pfad: "/business/firmenkarten-kapital" },
         { tag: "Ebene 1", titel: "US-Bonität aufbauen", text: "Wie der FICO Score entsteht und was ein erster Score braucht.", pfad: "/business/wissen/us-bonitaet-aufbauen" },
         { tag: "Ebene 1", titel: "ITIN beantragen", text: "Form W-7 aus dem Ausland, Unterlagen und Bearbeitungsdauer.", pfad: "/business/wissen/itin-beantragen" },
         { tag: "Ebene 2", titel: "Business Credit", text: "D-U-N-S-Nummer, PAYDEX und Lieferantenkonten.", pfad: "/business/wissen/business-credit-usa" },
@@ -222,12 +228,12 @@ export const SEITE: GlobalSeite = {
         { tag: "Prüfliste", titel: "Anbieter prüfen", text: "Woran Sie einen seriösen LLC-Anbieter erkennen.", pfad: "/business/wissen/anbieter-pruefen" },
       ],
     },
-    { typ: "paket", id: "paket", h2: "Der ganze Weg im Paket", lead: "Struktur, Begleitung über mehrere Herausgeber, vorbereitete Anträge und die Kennzahlen-Mappe für ein späteres Bankdarlehen — Global Kapital.", paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
-        "Der Kapitalrahmen eines Pakets ist ein Ziel, keine Zusage. Einen bestimmten Rahmen, Score oder Zins kann niemand zusagen.",
+        "Ihr Kapitalrahmen ist ein Ziel, keine Zusage. Einen bestimmten Rahmen, Score oder Zins kann niemand zusagen.",
         "Jeder Kartenantrag hinterlässt in der Regel eine Anfrage in Ihrer Akte; neue Konten senken das Durchschnittsalter Ihrer Historie.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
@@ -242,7 +248,7 @@ export const SEITE: GlobalSeite = {
     { f: "Wie viel Kapital bringt eine US Funding LLC?", a: "Eine feste Höhe kann niemand nennen. Die Gesellschaft ist das Gefäß; Kapital entsteht, wenn Institute auf Grundlage von Historie, Umsatz oder Sicherheiten zusagen. Karten tragen meist kleinere Rahmen, größere Mittel brauchen Umsatz, Geschichte oder eine Sicherheit." },
     { f: "Bekommt man als Ausländer einen US-Firmenkredit?", a: "SBA-Kredite sind seit dem 1. März 2026 ausgeschlossen. Offen bleiben Wege, die nicht an die Staatsangehörigkeit geknüpft sind: Firmenkarten mit persönlicher Haftung, Lieferantenkredit aus Business Credit, Kreditlinien gegen Einlage, Bürgschaft einer Muttergesellschaft oder Vermögen. Ob und zu welchen Bedingungen, entscheidet allein das jeweilige Institut nach seinen eigenen Regeln." },
     { f: "Wie lange dauert es, bis US Funding trägt?", a: "Gesellschaft und EIN stehen meist nach wenigen Wochen. Einen FICO Score kann es frühestens nach sechs Monaten mit gemeldetem Konto geben, eine belastbare Firmenbonität wächst über Jahre. Kreditlinien der Bank setzen meist Geschäftsjahre, Umsatz oder eine Sicherheit voraus. Wer Kapital in wenigen Wochen in Aussicht stellt, verspricht, was nur Institute entscheiden." },
-    { f: "Beschafft FIAON Global das Kapital?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite und vermittelt keine Kredite. Als Unternehmensberatung stellen wir mit Ihrer Vollmacht alle Anträge rund um Ihre Gesellschaft und bereiten jeden Konto-, Karten- und Kreditantrag vollständig vor; diese stellen Sie selbst, und das Institut entscheidet. Der Kapitalrahmen Ihres Pakets ist ein Ziel, keine Zusage." },
+    { f: "Beschafft FIAON Global das Kapital?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite und vermittelt keine Kredite. Als Unternehmensberatung stellen wir mit Ihrer Vollmacht alle Anträge rund um Ihre Gesellschaft und bereiten jeden Konto-, Karten- und Kreditantrag vollständig vor; diese stellen Sie selbst, und das Institut entscheidet. Ihr Kapitalrahmen ist ein Ziel, keine Zusage." },
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],
   paket: "global_kapital",

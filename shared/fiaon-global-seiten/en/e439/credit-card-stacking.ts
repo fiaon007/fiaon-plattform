@@ -24,13 +24,15 @@
 // FIAON vermittelt keine Kredite. „Business consultancy“ als Selbstbezeichnung (E-439).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Der Preis steht vor dem Auftrag fest (Konfigurator); das Erfolgshonorar
+// bemisst sich am Kapitalrahmen, den der Kunde selbst wählt — „no success fee, no fee based on the limit“ ist gestrichen.
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q } from "../../fakten-en";
 
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`] : [];
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "Global Capital";
+const P = EIN_PRODUKT.en;
 
 /** Quellen dieses Beitrags, die noch nicht in fakten-en.ts stehen — dieselben Adressen wie im Deutschen. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -51,7 +53,7 @@ export const SEITE: GlobalSeite = {
     titel: "Credit card stacking: what lies behind it — FIAON Global",
     beschreibung: "Credit card stacking for a US LLC: what programmes promise, what a US court found in the Seek Capital case and what your credit file can bear.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 45",
   auge: "Knowledge · Capital",
@@ -70,7 +72,7 @@ export const SEITE: GlobalSeite = {
     ["Traces in your file", "Many hard enquiries, young accounts, high utilisation"],
     ["The benchmark", "FTC v. Seek Capital: permanent ban since October 2025"],
     ["Who decides", "Each issuer for itself, on the card and the limit"],
-    ["With FIAON Global", "Fixed price up front, a card ladder with spaced applications, no fee based on the limit"],
+    ["With FIAON Global", "Price up front in the configurator, every application prepared one by one, you submit it yourself"],
   ],
   kurz: "Credit card stacking means applying for many credit cards from different issuers within a short time and using their combined limits as start-up capital. For business credit cards the owner is, as a rule, personally liable, every review is recorded as a hard enquiry in the credit file, and the introductory periods end at roughly the same time. Following a lawsuit by the US Federal Trade Commission (FTC), a provider that applied for cards in return for high fees while claiming relationships with lenders and periods without interest has been permanently banned from the financing business since 2025. A card ladder built over time holds up better: only a few applications, spaced apart, statements paid on time, real revenue.",
   bloecke: [
@@ -155,7 +157,7 @@ export const SEITE: GlobalSeite = {
         ["Utilisation", "high — the limits are the capital", "kept low"],
         ["Introductory periods", "end together", "staggered, with a plan for repayment from the business"],
         ["File after one year", "many enquiries, young accounts, high balances", "a growing history of on-time payments"],
-        ["Fee", "with programmes, sometimes a percentage of the limit", "with FIAON Global: a fixed price up front"],
+        ["Fee", "with programmes, sometimes a percentage of the limit", "with FIAON Global: settled before you order"],
         ["Who decides", "each issuer", "each issuer"],
       ],
       fuss: ["Simplified comparison. The issuer decides on every card and every limit."],
@@ -187,20 +189,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes on the route to capital — without a stack",
       absaetze: [
         "FIAON Global is a business consultancy for entrepreneurs building a US company — with one point of contact instead of eight. With your power of attorney, we submit the applications for you: formation, EIN, preparation of the ITIN, D-U-N-S Number, the filings, registered agent, and a US address and US phone number for the first year. You submit account, card and credit applications yourself — fully prepared by us. Nobody signs in your name with a card issuer.",
-        `Instead of a stack, we plan the card ladder: the first issuer to suit your file, the order of the next ones, the gaps between applications and a monthly review with your point of contact. With ${KAPITAL}, we take the route further across several issuers to the key-figures file for a later bank loan.`,
-        "You know the price before you engage us: a fixed price, with all fees for the package included. There is no fee based on the limit, no success fee and no share of the capital. Partner tax advisers, a US CPA and partner lawyers act under your engagement; FIAON pays their fees for the services in your package. Our team works on the ground in Miami, our partner location is Zurich and your contracting party is FIAON LTD in London. The annual care plan from the second year onwards is optional.",
-        "The institution decides on every card, every limit and every loan. FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit; the capital range of your package is a goal.",
+        `Instead of a stack, we prepare every application one by one and in full: the personal US account, personal US cards, the business account and the company credit card for your company — and stay with you until they are opened. ${P.rahmenSatz}`,
+        `You know the price before you engage us. ${P.preisSatz} The success fee is measured by the capital range you choose yourself — not by the number of applications. Partner tax advisers, a US CPA and partner lawyers act under your engagement; FIAON pays their fees for the services in your order. Our team works on the ground in Miami, our partner location is Zurich and your contracting party is FIAON LTD in London.`,
+        "The institution decides on every card, every limit and every loan. FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit; your capital range is a goal.",
         KAPITAL_FREI,
-        ...GELD_ZURUECK,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "paket", h2: "The whole route in one package", lead: `Formation, account, a card ladder across several issuers and the documents for a later bank loan — ${KAPITAL} at a fixed price.`, paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         GLOBAL_PFLICHTHINWEIS.en[2],
         "Some issuers offer introductory periods without debit interest; each issuer sets the terms itself. Once they end, the standard interest rate applies to the outstanding balance.",
-        "FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit. The capital range of a package is a goal, not a commitment.",
+        "FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit. Your capital range is a goal, not a commitment.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         "This article sets out the legal position and the Seek Capital case according to the sources cited, as of October 2026. Your individual case is reviewed by a partner tax adviser and a partner lawyer under your engagement.",
       ],
@@ -213,7 +215,7 @@ export const SEITE: GlobalSeite = {
     { f: "How much do hard enquiries affect the score?", a: "According to myFICO, one additional enquiry costs most people fewer than five points. Hard enquiries can stay in the file for two years and count in the FICO Score for one year. Many new accounts in a short time, by contrast, are seen as a sign of higher risk — and every further issuer sees them before it decides." },
     { f: "Am I personally liable for my US LLC’s credit cards?", a: "As a rule, yes. For business credit cards issued to young companies, issuers require a personal guarantee from the owner; the LLC’s limited liability then offers no protection. With credit card stacking, this applies to each card separately." },
     { f: "Can a US LLC obtain credit cards if its owner lives in Europe?", a: "Each issuer decides. With young companies, it usually reviews the owner’s personal US history via SSN or ITIN and requires a personal guarantee. Under Executive Order 14406 of 19 May 2026, using an ITIN instead of an SSN without verified US immigration status can also be treated as a risk factor calling for enhanced review. A carefully prepared file therefore counts for more than the number of applications." },
-    { f: "What does FIAON Global cost — is there a success fee?", a: "A fixed price, settled before you engage us; all fees for the package are included, including the partners’ fees for the services in your package. There is no fee based on the limit, no success fee and no share of the capital. The issuer decides on every card and every limit." },
+    { f: "What does FIAON Global cost — is there a success fee?", a: `Yes, and it is settled before you order. ${P.preisSatzKurz} The success fee is measured by the capital range you choose yourself — not by the number of applications. The issuer decides on every card and every limit.` },
     { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
   ],
   paket: "global_kapital",

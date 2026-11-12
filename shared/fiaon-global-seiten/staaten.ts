@@ -6,7 +6,10 @@
 // Welcher Staat passt, hängt vom Vorhaben ab — die Seiten sagen, wann welcher
 // passt, und nennen die Kehrseite.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS, globalPreisText } from "../fiaon-global";
+import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — Preis und Baustein „Ein Mandat“ aus EIN_PRODUKT.
+import { EIN_PRODUKT } from "./ein-produkt";
+const P = EIN_PRODUKT.de;
 import { FAKTEN_STAND, IRS, QUELLEN_STAATEN, STAAT } from "./fakten";
 import { BUNDESSTAATEN, STAATEN_STAND, STAATEN_STAND_TEXT, STAATEN_ZUR_WAHL } from "../fiaon-global-bundesstaaten";
 import type { GlobalBlock, GlobalSeite } from "./typen";
@@ -52,7 +55,7 @@ export const STAATEN: GlobalSeite[] = [
     auge: "Wissen · Bundesstaat",
     h1: "Florida.",
     h1b: "Der Staat unseres Teams vor Ort.",
-    lead: "In Florida sitzt unser Team vor Ort, die Schwarzott Group in Miami. Für Unternehmen mit Geschäft in Florida, mit Terminen vor Ort oder mit dem Auftakt im Paket Global VIP ist der Staat die naheliegende Wahl — mit klaren Gebühren und einer festen Frist im Frühjahr. Derzeit trägt Florida allerdings langsamer ein als gewohnt: oft rund zwei Wochen, ohne Express.",
+    lead: "In Florida sitzt unser Team vor Ort, die Schwarzott Group in Miami. Für Unternehmen mit Geschäft in Florida, mit Terminen vor Ort oder einem persönlichen Termin in Miami ist der Staat die naheliegende Wahl — mit klaren Gebühren und einer festen Frist im Frühjahr. Derzeit trägt Florida allerdings langsamer ein als gewohnt: oft rund zwei Wochen, ohne Express.",
     ziffern: [
       { wert: STAAT.florida.gruendung, label: "Gründung einer LLC" },
       { wert: STAAT.florida.jahr, label: "Annual Report, 1. Januar bis 1. Mai" },
@@ -88,7 +91,7 @@ export const STAATEN: GlobalSeite[] = [
         punkte: [
           "Ihre Kunden, Lieferanten oder Projekte in Florida liegen",
           "Sie Termine vor Ort brauchen — bei Behörden oder Instituten",
-          "Sie den Auftakt persönlich in Miami erleben wollen (Global VIP)",
+          "Sie uns persönlich in Miami treffen (ab 1 Mio. US-Dollar Kapitalrahmen)",
           "Sie eine Gesellschaft mit einem Team in der Nähe möchten",
         ],
         nach: STAAT.florida.llcSteuer,
@@ -103,11 +106,11 @@ export const STAATEN: GlobalSeite[] = [
           `Unabhängig vom Staat verlangt die IRS jährlich Form 5472 mit Form 1120; bei Versäumnis drohen ${IRS.strafe5472}.`,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung in Florida mit allem, was zum Start gehört — oder mit Auftakt vor Ort im Paket Global VIP.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Gründung mit allem, was zum Start gehört — in einem Auftrag. Im Konfigurator gründen wir in Delaware; Florida stimmen wir im Gespräch mit Ihnen ab.", paket: "global_struktur" },
       { typ: "standorte", id: "standorte", h2: "Unser Team in Miami", lead: "Die Schwarzott Group nimmt Termine vor Ort wahr; Vertragspartner ist die FIAON LTD." },
     ],
     fragen: [
-      { f: "Was kostet eine LLC in Florida?", a: `Die Gründung kostet ${STAAT.florida.gruendung}, der jährliche Annual Report ${STAAT.florida.jahr}. Bei FIAON Global sind Gründung und das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten.` },
+      { f: "Was kostet eine LLC in Florida?", a: `Die Gründung kostet ${STAAT.florida.gruendung}, der jährliche Annual Report ${STAAT.florida.jahr}. Bei FIAON Global sind Gründung und das erste Jahr im Preis von ${P.preis} enthalten.` },
       { f: "Wann ist der Annual Report in Florida fällig?", a: "Zwischen 1. Januar und 1. Mai, erstmals im Jahr nach der Gründung. Nach dem 1. Mai kommen 400 $ Verspätungsgebühr hinzu." },
       { f: "Zahlt eine Florida-LLC Körperschaftsteuer?", a: "Eine LLC, die steuerlich nicht als eigenes Steuersubjekt gilt, gibt keine eigene Florida-Erklärung ab. Gehört sie einer Kapitalgesellschaft wie einer GmbH, gibt diese eine Florida-Erklärung ab; Corporations zahlen 5,5 % mit einem Freibetrag von 50.000 $." },
       { f: "Wie lange dauert die Gründung in Florida?", a: FL_.eintragung.de },
@@ -178,7 +181,7 @@ export const STAATEN: GlobalSeite[] = [
           GLOBAL_PFLICHTHINWEIS.de[0],
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung in Delaware mit allem, was zum Start gehört — auch als Corporation mit Investorenplänen.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Gründung in Delaware mit allem, was zum Start gehört — in einem Auftrag.", paket: "global_struktur" },
     ],
     fragen: [
       { f: "Was kostet eine LLC in Delaware?", a: `Die Gründung kostet ${STAAT.delaware.gruendung}, die Jahressteuer ${STAAT.delaware.jahr} — ab dem Steuerjahr 2026, fällig am 1. Juni des Folgejahres. Vorher betrug sie 300 $.` },
@@ -253,10 +256,10 @@ export const STAATEN: GlobalSeite[] = [
           `Unabhängig vom Staat verlangt die IRS jährlich Form 5472 mit Form 1120; bei Versäumnis drohen ${IRS.strafe5472}.`,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Das passende Paket", lead: "Gründung in Wyoming mit allem, was zum Start gehört.", paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "Gründung mit allem, was zum Start gehört — in einem Auftrag. Im Konfigurator gründen wir in Delaware; Wyoming stimmen wir im Gespräch mit Ihnen ab.", paket: "global_struktur" },
     ],
     fragen: [
-      { f: "Was kostet eine LLC in Wyoming?", a: `Die Gründung kostet ${STAAT.wyoming.gruendung}, der jährliche Annual Report mindestens 60 $ License Tax. Bei FIAON Global sind Gründung und das erste Jahr im Festpreis ab ${globalPreisText("global_struktur")} enthalten.` },
+      { f: "Was kostet eine LLC in Wyoming?", a: `Die Gründung kostet ${STAAT.wyoming.gruendung}, der jährliche Annual Report mindestens 60 $ License Tax. Bei FIAON Global sind Gründung und das erste Jahr im Preis von ${P.preis} enthalten.` },
       { f: "Zahlt eine Wyoming-LLC keine Steuern?", a: "Wyoming erhebt keine Körperschaft- und keine Einkommensteuer des Staats. Steuerpflichtig ist die Gesellschaft aber dort, wo sie geführt wird — für Unternehmer aus Deutschland, Österreich oder der Schweiz in der Regel zu Hause." },
       { f: "Wann ist der Annual Report in Wyoming fällig?", a: "Am ersten Tag des Monats, in dem die Gesellschaft gegründet wurde. Nach 60 Tagen Verzug droht die Auflösung durch den Staat." },
       { f: "Ist Wyoming besser als Delaware?", a: "Günstiger im Unterhalt und ähnlich schnell. Delaware hat den besseren Ruf bei Banken und Geldgebern und ist mit Express noch planbarer; manche Institute schauen bei Wyoming-Gesellschaften ohne Geschäft vor Ort genauer hin." },

@@ -26,7 +26,7 @@ import { Dunkel, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_BUEHNE_WOERTER, GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
-import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI } from "@shared/fiaon-global";
+import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
 import { werbeEreignis } from "@/lib/werbung";
 import SternZentrale from "@/components/site/global/SternZentrale";
 import HeroGlas from "@/components/site/global/HeroGlas";
@@ -136,11 +136,13 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   return (
     <Dunkel seite="business" titel={privat ? t.metaTitel : V.seo.titel} beschreibung={privat ? t.metaBeschreibung : V.seo.beschreibung}>
       <div className="fg fg-neu">
-        {/* ── 1 Die Glas-Bühne (E-442): EINE große dünne Zahl — seit E-509 der eine Preis des einen Produkts ── */}
+        {/* ── 1 Die Glas-Bühne (E-442): EINE große dünne Zahl — seit E-509 der eine Preis des einen Produkts.
+               /business/privatpersonen trägt den eigenen Kopf (GLOBAL_WOERTER.*.privat: Überschrift und Lead wortgleich mit dem
+               Registereintrag und damit dem Vorab-HTML für Suchmaschinen); dort steht die zweite Zeile still. ── */}
         <HeroGlas en={s === "en"} onPakete={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
           auge, ab: "", preis,
           label: V.buehne.label,
-          h1a: V.buehne.h1a, h1b: V.buehne.h1b, wechsel: V.buehne.wechsel, lead: V.buehne.lead,
+          h1a: privat ? t.h1a : V.buehne.h1a, h1b: privat ? t.h1b : V.buehne.h1b, wechsel: privat ? undefined : V.buehne.wechsel, lead: privat ? t.lead : V.buehne.lead,
           knopfPakete: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
           kapitalTitel: V.buehne.kapitalTitel, kapitalWert: rahmenSpanne, kapitalSatz: V.buehne.kapitalSatz,
           kapitalFrei: frei.kurz, fussnoteNr: 1, fussnote: `${frei.satz} ${frei.steuer}`,
@@ -168,6 +170,17 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
 
         {/* ── 5 Geld-zurück-Garantie ── */}
         <VerkaufGarantie sprache={s} />
+
+        {/* ── 5b Was Sie vor dem Auftrag wissen müssen: die drei Pflichthinweise (Wortlaut wie im Vertrag) — immer offen.
+               Bis E-509 standen sie im Kleingedruckten unter den Pakettafeln. ── */}
+        <section className="fg-sek vk-wissen-sek" aria-labelledby="vk-wissen-titel">
+          <div className="fg-rahmen">
+            <div className="vk-wissen">
+              <h3 id="vk-wissen-titel">{t.wissenTitel}</h3>
+              <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x) => <li key={x}>{x}</li>)}</ul>
+            </div>
+          </div>
+        </section>
 
         {/* E-509 (12.11.2026): Der Vorführraum (E-313: Filme, Kino, Konzept als PDF-Mappe) steht hier vorerst nicht — Konzept-PDF
             und Filme zeigen noch die vier Pakete mit ihren alten Preisen. Er kommt zurück, sobald sie zum einen Produkt passen

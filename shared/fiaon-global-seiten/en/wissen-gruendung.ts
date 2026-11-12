@@ -8,28 +8,24 @@
 // derselben Reihenfolge, dieselben Anker (ids bleiben deutsch), dieselben Quellen
 // mit englischen Titeln (QUELLEN_WISSEN_EN, QUELLEN_STAATEN_EN).
 // Jeder Beitrag zeigt wie auf Deutsch, wie FIAON Global die Aufgabe übernimmt
-// („How FIAON Global handles …“) — ein Auftrag, ein Festpreis, Team vor Ort,
+// („How FIAON Global handles …“) — ein Auftrag, ein Vertrag, Team vor Ort,
 // Partner mit Zulassung, ohne Superlative. Zahlen nur aus fakten-en.ts, Preise
-// und Paketnamen nur aus shared/fiaon-global.ts. Wortgrenzen unverändert: kein
+// nur aus ../ein-produkt.ts (E-509: EIN Produkt, keine Paketnamen mehr). Wortgrenzen unverändert: kein
 // „up to“, keine Frist mit Ziffer („within sixty days“), Geld zurück nur mit
 // seinen Bedingungen, der Kapital-Satz nur mit dem Steuersatz daneben.
 // Prüfstand: npx tsx scripts/pruef-global-en.ts shared/fiaon-global-seiten/en/wissen-gruendung.ts
 // ═══════════════════════════════════════════════════════════════════════════
-import {
-  GLOBAL_GELD_ZURUECK, GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PFLICHTHINWEIS,
-  globalJahresbetreuungPreisText, globalPaket, globalPreisText,
-} from "../../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_LAUFEND, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+// E-509 (12.11.2026): ONE product instead of four packages — price, list of services and “money back” from EIN_PRODUKT.
+import { EIN_PRODUKT } from "../ein-produkt";
 import {
   EIN_WEG_EN, FAKTEN_STAND_EN, FRISTEN_EN, IRS_EN, MARKT_EN, QUELLEN_STAATEN_EN, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN, STAAT_EN,
 } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
 
 const S = "2026-09-24";
-const GELD_ZURUECK = `${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`;
+const P = EIN_PRODUKT.en;
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
-const STRUKTUR = globalPaket("global_struktur")?.en.name ?? "";
-const KAPITAL = globalPaket("global_kapital")?.en.name ?? "";
-const STRUKTUR_DAUER = globalPaket("global_struktur")?.en.dauerKurz ?? "";
 const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
@@ -63,7 +59,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       ["Duties in the US", "Registered agent, annual report to the state, Form 5472"],
       ["Duties at home", "Notification under section 138 AO, tax at the place of management"],
       ["Since August 2026", "No more BOI reporting for US companies"],
-      ["With FIAON Global", "All ten steps from a single source, at a fixed price"],
+      ["With FIAON Global", "All ten steps from a single source, in one order"],
     ],
     kurz: `You form a US LLC from Germany in ten steps: a tax review at home, the legal form, the state, the name, the registered agent, filing with the state, the operating agreement, the EIN from the IRS, the ITIN where there is a tax reason, then the account and the compliance calendar. The state fee ranges from ${STAAT_EN.wyoming.gruendung} (Wyoming) to ${STAAT_EN.florida.gruendung} (Florida). The effort lies not in the fees but in the order of the steps and the duties that follow — Form 5472 every year and the notification to the tax office.`,
     bloecke: [
@@ -103,7 +99,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
         ],
         fuss: [
           `As of ${FAKTEN_STAND_EN}. State fees according to the official fee schedules; market prices are published prices from several providers, not official figures.`,
-          "With FIAON Global, the state fee, the registered agent in the first year, both tax numbers and the first Form 5472 are included in the fixed price.",
+          "With FIAON Global, the state fee, the registered agent in the first year, both tax numbers and the first Form 5472 are included in your order.",
         ],
       },
       {
@@ -127,14 +123,14 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles the ten steps",
         absaetze: [
-          "Each step can be solved on its own. Together they are a project involving authorities in two countries, three professions and unforgiving deadlines. FIAON Global turns this into a single engagement: one dedicated contact, one fixed price, one document room in which every paper is kept.",
+          "Each step can be solved on its own. Together they are a project involving authorities in two countries, three professions and unforgiving deadlines. FIAON Global turns this into a single engagement: one dedicated contact, one agreement, one document room in which every paper is kept.",
           "Our team in Miami files the formation and provides the registered agent, the US business address and the phone number. Our partner lawyer drafts the operating agreement, our partner tax adviser reviews the consequences in your home country before formation, and our US CPA prepares the first Form 5472. We prepare and file the EIN and ITIN applications; we fully prepare the first account and card application.",
-          GELD_ZURUECK,
+          P.geldZurueck,
         ],
-        punkte: [...GLOBAL_INKLUSIVE.en],
-        nach: `${STRUKTUR} starts at ${globalPreisText("global_struktur", "en")}, one-off — support typically runs for ${STRUKTUR_DAUER}.`,
+        punkte: [...P.enthalten],
+        nach: P.preisSatzKurz,
       },
-      { typ: "paket", id: "paket", h2: "The right package", lead: `${STRUKTUR} covers all ten steps — from the kick-off call to the first Form 5472.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: "All ten steps in one order — from the offer to the first Form 5472.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -146,8 +142,8 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
     ],
     fragen: [
       { f: "As a German, can I set up an LLC in the United States?", a: "Yes. You can form an LLC entirely from Germany — without US residence, without travelling, without minimum capital and without US citizenship. What you need is a registered agent in the state of formation and the state fee." },
-      { f: "How much does it cost to form an LLC?", a: `The state fee is ${STAAT_EN.wyoming.gruendung} in Wyoming, ${STAAT_EN.delaware.gruendung} in Delaware and ${STAAT_EN.florida.gruendung} in Florida. On top of that come the registered agent, the operating agreement and, every year, the state fee and Form 5472. With FIAON Global, the first year is included in the fixed price, starting at ${globalPreisText("global_struktur", "en")}.` },
-      { f: "How long does it take to form an LLC?", a: `Registration with the state currently takes one or two business days (Delaware with express), around three business days (Wyoming) or often around two weeks (Florida). The EIN (${IRS_EN.einDauer}), the ITIN and the account application take longer. With FIAON Global, support until the first account and card application typically takes ${STRUKTUR_DAUER}.` },
+      { f: "How much does it cost to form an LLC?", a: `The state fee is ${STAAT_EN.wyoming.gruendung} in Wyoming, ${STAAT_EN.delaware.gruendung} in Delaware and ${STAAT_EN.florida.gruendung} in Florida. On top of that come the registered agent, the operating agreement and, every year, the state fee and Form 5472. With FIAON Global, the first year is included in the price of ${P.preis}.` },
+      { f: "How long does it take to form an LLC?", a: `Registration with the state currently takes one or two business days (Delaware with express), around three business days (Wyoming) or often around two weeks (Florida). The EIN (${IRS_EN.einDauer}), the ITIN and the account application take longer. The page on the process shows how the steps fit together with FIAON Global.` },
       { f: "Do I need a US address for my LLC?", a: "The LLC needs a registered agent with an address in the state of formation. For the account and contracts it also needs a business address; for many institutions the agent’s address is not enough for this." },
       { f: "Does a new LLC still have to file a BOI report?", a: "No, if it was formed in the US. Since 14 August 2026, US companies have been definitively exempt from BOI reporting; only foreign companies that register in a state still have to report." },
     ],
@@ -187,7 +183,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       ["Routes without an SSN", "Fax, post or phone — not online"],
       ["Timing", gross(IRS_EN.einDauer)],
       ["Cost", "Free at the IRS"],
-      ["With FIAON Global", "Prepared, filed, tracked — included in the fixed price"],
+      ["With FIAON Global", "Prepared, filed, tracked — included in your order"],
     ],
     kurz: `Without a US Social Security number, you apply for the EIN with Form SS-4 by fax, by post or — only for applicants from abroad — by phone with the IRS. The company must already be registered. Line 7b says “foreign” or “N/A” if the responsible party has neither an SSN nor an ITIN; an LLC with one foreign shareholder (member) notes “${EIN_WEG_EN.zeile9a}” in line 9a. Timing: ${IRS_EN.einDauer}.`,
     bloecke: [
@@ -247,11 +243,11 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles the EIN",
         absaetze: [
-          "With FIAON Global, the EIN is part of every package. We fill in Form SS-4, you sign, we file and track the application until the number is issued. We clarify any queries from the IRS with you, and the IRS letter is then kept in your document room — and the EIN goes straight into the account application and into your company’s compliance calendar.",
-          GELD_ZURUECK,
+          "With FIAON Global, the EIN is part of your order. We fill in Form SS-4, you sign, we file and track the application until the number is issued. We clarify any queries from the IRS with you, and the IRS letter is then kept in your document room — and the EIN goes straight into the account application and into your company’s compliance calendar.",
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The EIN in the package", lead: `Company, EIN, ITIN and the first account and card application — ${STRUKTUR} at a fixed price.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "The EIN in your order", lead: "Company, EIN, ITIN and every account and card application — in one order.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -264,7 +260,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
     fragen: [
       { f: "Can I get an EIN without an SSN?", a: "Yes. Without an SSN or ITIN, you apply for the EIN with Form SS-4 by fax, by post or — as an applicant from abroad — by phone. Only the online application requires an SSN or ITIN." },
       { f: "How long does it take to get an EIN?", a: `${gross(IRS_EN.einDauer)}. By phone it is quickest, if all the details are to hand.` },
-      { f: "Does it cost anything to get an EIN?", a: "Not at the IRS. Costs arise only if you engage someone — with FIAON Global, the EIN is included in the fixed price of every package." },
+      { f: "Does it cost anything to get an EIN?", a: "Not at the IRS. Costs arise only if you engage someone — with FIAON Global, the EIN is included in your order." },
       { f: "Do I need an ITIN to apply for an EIN?", a: "No. If the responsible party has neither an SSN nor an ITIN, line 7b of Form SS-4 says “foreign” or “N/A”." },
       { f: "What if I have lost my EIN confirmation letter?", a: "The IRS confirms the number again on request (Letter 147C). Many institutions accept this confirmation in place of the original letter (CP 575)." },
     ],
@@ -362,11 +358,11 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles the ITIN",
         absaetze: [
-          "The ITIN application is included in every FIAON Global package — with the step that many providers leave out: our US CPA first reviews whether the application holds up, and on what grounds. Without a sound reason, we file no application at all rather than send your passport off on a journey for weeks.",
+          "The ITIN application is included in your order with FIAON Global — with the step that many providers leave out: our US CPA first reviews whether the application holds up, and on what grounds. Without a sound reason, we file no application at all rather than send your passport off on a journey for weeks.",
           "The Certifying Acceptance Agent checks your passport at the appointment and returns it immediately. We submit the application with all enclosures, track it until the notice arrives and place it in your document room — coordinated with your company’s EIN and the first card application.",
         ],
       },
-      { typ: "paket", id: "paket", h2: "The ITIN in the package", lead: `Both tax numbers, the company and the first account and card application — ${STRUKTUR} at a fixed price.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "The ITIN in your order", lead: "Both tax numbers, the company and every account and card application — in one order.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -472,11 +468,11 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles your US presence",
         absaetze: [
-          "With FIAON Global, the US presence is part of the package: registered agent, US business address and US phone number are included in the fixed price for the first year — provided by our team on the ground and aligned from the outset with the documents for the account and cards. Service of process and official mail are usually scanned into your document room within one day, and the deadlines appear in your company’s compliance calendar.",
+          "With FIAON Global, the US presence is part of your order: registered agent, US business address and US phone number are included for the first year — provided by our team on the ground and aligned from the outset with the documents for the account and cards. Service of process and official mail are usually scanned into your document room within one day, and the deadlines appear in your company’s compliance calendar.",
           GLOBAL_LAUFEND.en,
         ],
       },
-      { typ: "paket", id: "paket", h2: "Your US presence in the package", lead: `Agent, address and phone number in the first year — with formation and tax numbers in ${STRUKTUR}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "Your US presence in your order", lead: "Agent, address and phone number in the first year — with formation and tax numbers in one order.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -490,7 +486,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       { f: "What is a registered agent?", a: "The point of contact that the law requires a US company to have in its state of formation: it accepts lawsuits and official documents and passes them on. Every state requires one." },
       { f: "Can I be my own registered agent?", a: "Only if you live in the state of formation or have an office there that is staffed during business hours. For founders from Europe, a commercial agent is the norm." },
       { f: "Can I use the registered agent’s address as my business address?", a: "Legally it is the agent’s address, not your place of business. Many institutions decline to open an account if this address is given as the business address; each institution decides for itself which address is sufficient." },
-      { f: "How much does a registered agent cost?", a: `The market rate is ${MARKT_EN.agent}. With FIAON Global, the agent, US business address and phone number are included in the fixed price for the first year, and after that in the annual care plan for ${globalJahresbetreuungPreisText("en")} a year.` },
+      { f: "How much does a registered agent cost?", a: `The market rate is ${MARKT_EN.agent}. With FIAON Global, the agent, US business address and phone number are included in your order for the first year, and after that in the annual care plan for ${P.jahres} a year.` },
       { f: "What happens if my LLC has no registered agent?", a: "It loses its good standing with the state; if the defect persists, the state can dissolve it. Lawsuits may not reach you in time." },
     ],
     paket: "global_struktur",
@@ -528,7 +524,7 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       ["Corporation", `Form 1120, ${IRS_EN.koerperschaftsteuer} federal tax`],
       ["Accounts outside the US", `FBAR above ${SCHWELLEN_EN.fbar} in total`],
       ["Home country", "Tax return and section 138 AO — separately from the US"],
-      ["With FIAON Global", "First filing by our US CPA included in the fixed price"],
+      ["With FIAON Global", "First filing by our US CPA, included in your order"],
     ],
     kurz: `Which US returns an LLC files depends on three questions: who owns it, how it is classified and whether it does business in the US. An LLC with one foreign shareholder (member) files Form 5472 with a pro forma Form 1120 every year (${IRS_EN.frist5472}). If it earns income from business in the US, the shareholder also declares that income personally — as an individual with Form 1040-NR, as a GmbH with Form 1120-F. An LLC with several shareholders files Form 1065, a corporation Form 1120. If the company holds accounts outside the US totalling more than ${SCHWELLEN_EN.fbar}, the FBAR is added.`,
     bloecke: [
@@ -589,11 +585,11 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "How FIAON Global handles your deadlines",
         absaetze: [
-          "In every FIAON Global package, our US CPA prepares the first annual US filing — Form 5472 with Form 1120 — and the fee is included in the fixed price. Every one of your company’s deadlines is in the compliance calendar: state, registered agent, IRS and, where needed, the FBAR. Before formation, our partner tax adviser reviews which returns are due at home, so that both sides fit together from the start.",
+          "In your order with FIAON Global, our US CPA prepares the first annual US filing — Form 5472 with Form 1120 — and the fee is included in the price. Every one of your company’s deadlines is in the compliance calendar: state, registered agent, IRS and, where needed, the FBAR. Before formation, our partner tax adviser reviews which returns are due at home, so that both sides fit together from the start.",
           GLOBAL_LAUFEND.en,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The first US filing in the package", lead: `Formation, tax numbers, compliance calendar and the first Form 5472 by our US CPA — ${STRUKTUR}.`, paket: "global_struktur" },
+      { typ: "paket", id: "mandat", h2: "The first US filing in your order", lead: "Formation, tax numbers, compliance calendar and the first Form 5472 by our US CPA — in one order.", paket: "global_struktur" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -704,11 +700,11 @@ export const WISSEN_GRUENDUNG_EN: GlobalSeite[] = [
         typ: "text", id: "fiaon", h2: "How FIAON Global builds your US structure",
         absaetze: [
           "For a business, US formation is a structural decision, not a formality. FIAON Global therefore begins with the review: before formation, our partner tax adviser clarifies how the subsidiary is classified in Germany and which notifications are required; our US CPA looks at the US side. Only then does our team in Miami form the company — with formation documents by our partner lawyer, EIN, registered agent, address and phone number.",
-          `After that, we prepare the subsidiary’s account and cards, maintain its compliance calendar and, with ${KAPITAL}, build up the history and the key-figures file that a US bank wants to see for a loan.`,
+          `After that, we prepare the subsidiary’s account and cards, maintain its compliance calendar and support you through to financing within your capital range.`,
           KAPITAL_FREI,
         ],
       },
-      { typ: "paket", id: "paket", h2: "The package for businesses", lead: `Formation, review in both countries, account, card ladder and the documents for a bank loan — ${KAPITAL}.`, paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "One mandate — for businesses too", lead: "Formation, account, cards and your capital range — in one order. If your existing company is to hold the shares, we agree that with you in a call beforehand.", paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [

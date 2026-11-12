@@ -13,6 +13,18 @@
 // ein) — schwesterPfad() taugt dort nicht, diese Paare schon.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * E-509 (12.11.2026): Adressen von FIAON Global, die es nicht mehr gibt — sie leiten DAUERHAFT (301) weiter.
+ * Der Paket-Finder (vier Fragen → eines von vier Paketen) ist seit dem einen Produkt der Konfigurator: /business/start.
+ * Gelesen vom Server (server/routes.ts, Tabelle UMGEZOGEN — vor dem Vorrenderer, die Abfrage mit utm_* reist mit);
+ * scripts/pruef-global-seiten.ts hält fest, dass keine Seite und kein Menüpunkt mehr auf eine dieser Adressen zeigt.
+ * Schlüssel klein geschrieben, ohne Schrägstrich am Ende.
+ */
+export const GLOBAL_UMGEZOGEN: Record<string, string> = {
+  "/business/paket-finder": "/business/start",
+  "/en/business/package-finder": "/en/business/start",
+};
+
 /** Deutscher Pfad → englischer Pfad. */
 export const GLOBAL_EN_PFADE: Record<string, string> = {
   // 29.10.2026 (E-461): Die Startseite von fiaon.com ist FIAON Global. /business ↔ /en/business bleibt als Paar
@@ -33,7 +45,6 @@ export const GLOBAL_EN_PFADE: Record<string, string> = {
   // Preise und Ablauf
   "/business/kosten": "/en/business/costs",
   "/business/ablauf": "/en/business/process",
-  "/business/paket-finder": "/en/business/package-finder",
   "/business/vergleich": "/en/business/comparison",
   "/business/fragen": "/en/business/faq",
   // Für wen

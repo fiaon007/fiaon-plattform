@@ -29,22 +29,26 @@
 //   Geschäftsleitung = Mittelpunkt der geschäftlichen Oberleitung).
 // Bewusst NICHT genannt: die Partnergesellschaften in Zürich und Miami (Wortregel,
 // Befund 4 der Recherche) — deshalb auch kein Baustein „standorte“, der ihre Namen
-// aus shared/fiaon-global-partner.ts zeigt. Keine Paketpreise als Zahl (Baustein
-// „pakete“), kein Preis der Jahresbetreuung, keine Bürgschaft.
+// aus shared/fiaon-global-partner.ts zeigt. Kein Preis als Zahl, kein Preis der Jahresbetreuung, keine Bürgschaft.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete. Die Seite sprach bis dahin von „Festpreis je Paket“ und sagte „kein
+// Honorar nach Rahmen“ — seit der Staffel (E-505) richtet sich das Erfolgshonorar nach dem gewählten Kapitalrahmen; der
+// Satz ist gestrichen, der Preis steht so da, wie der Vertrag ihn regelt. Etappen und Leistungen folgen dem Vertrag des
+// einen Produkts (shared/fiaon-global-seiten/ein-produkt.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../typen";
-import {
-  GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_NICHT_INKLUSIVE,
-} from "../../fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { FIAON_FIRMA as F } from "../../fiaon-firma";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, IRS } from "../fakten";
 
 const S = "2026-10-27";
+/** E-509: überarbeitet am 12.11.2026 (ein Produkt statt vier Pakete) — erschienen bleibt der 27.10. */
+const STAND = "2026-11-12";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
 
 /** Der Definitionssatz — derselbe Wortlaut für Seite, Kurzprofil und Fragen. */
-const DEFINITION = `FIAON Global ist die Unternehmensberatung der ${F.name} (London, Companies House ${F.companyNo}) für Unternehmen, Selbständige und Privatpersonen aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft gründen und den Weg zu Konto, Firmenkarten und Kapital planen — aus einer Hand, zum Festpreis.`;
+const DEFINITION = `FIAON Global ist die Unternehmensberatung der ${F.name} (London, Companies House ${F.companyNo}) für Unternehmen, Selbständige und Privatpersonen aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft gründen und den Weg zu Konto, Firmenkarten und Kapital planen — aus einer Hand, mit einem Preis, der vor dem Auftrag feststeht.`;
 
 /** Eigene Quellen dieser Seite (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -69,9 +73,9 @@ export const SEITE: GlobalSeite = {
   art: "leistung",
   seo: {
     titel: "Was ist FIAON Global? Unternehmensberatung — FIAON Global",
-    beschreibung: "FIAON Global ist die Unternehmensberatung der FIAON LTD für Ihre US-Gesellschaft: ein Ansprechpartner statt acht, zum Festpreis.",
+    beschreibung: "FIAON Global ist die Unternehmensberatung der FIAON LTD für Ihre US-Gesellschaft: ein Ansprechpartner statt acht, ein Mandat, ein Preis vorab.",
   },
-  stand: S,
+  stand: STAND,
   erschienen: S,
   kennung: "FG · 53",
   auge: "FIAON Global · Wer wir sind",
@@ -88,11 +92,11 @@ export const SEITE: GlobalSeite = {
     ["Vertragspartner", `${F.name}, London, Companies House ${F.companyNo}`],
     ["Standorte", "London · Zürich · Miami"],
     ["Für wen", "Unternehmen, Selbständige und Privatpersonen aus Deutschland, Österreich und der Schweiz"],
-    ["Preis", "Festpreis je Paket, alle Gebühren des Pakets inklusive"],
+    ["Preis", "Steht vor dem Auftrag fest — Ihren Preis zeigt der Konfigurator"],
     ["Wer entscheidet", "Über Konto, Karte und Rahmen allein das Institut"],
     ["Mit FIAON Global", "Ein Ansprechpartner statt acht"],
   ],
-  kurz: `FIAON Global ist die Unternehmensberatung der FIAON LTD in London für Unternehmen, Selbständige und Privatpersonen aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft aufbauen. Mit Vollmacht des Kunden stellt FIAON die Anträge für ihn — Gründung, EIN, D-U-N-S-Nummer, Meldungen —, bereitet die ITIN vor und stellt Registered Agent, US-Adresse und US-Telefon im ersten Jahr; Konto-, Karten- und Kreditanträge stellt der Kunde selbst, vollständig vorbereitet. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten im Mandat des Kunden; ihre Honorare für die Leistungen des Pakets trägt FIAON. FIAON ist keine Bank, vermittelt keine Kredite und sagt keinen Rahmen zu.`,
+  kurz: `FIAON Global ist die Unternehmensberatung der FIAON LTD in London für Unternehmen, Selbständige und Privatpersonen aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft aufbauen. Mit Vollmacht des Kunden stellt FIAON die Anträge für ihn — Gründung, EIN, D-U-N-S-Nummer, Meldungen —, bereitet die ITIN vor und stellt Registered Agent, US-Adresse und US-Telefon im ersten Jahr; Konto-, Karten- und Kreditanträge stellt der Kunde selbst, vollständig vorbereitet. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten im Mandat des Kunden; ihre Honorare für die Leistungen des Auftrags trägt FIAON. FIAON ist keine Bank, vermittelt keine Kredite und sagt keinen Rahmen zu.`,
   bloecke: [
     {
       typ: "text", id: "definition", h2: "Was ist FIAON Global? Der Gedanke dahinter",
@@ -107,7 +111,7 @@ export const SEITE: GlobalSeite = {
       kopf: ["Merkmal", "Angabe"],
       zeilen: [
         ["Name", "FIAON Global — der Geschäftsbereich der FIAON LTD für US-Gesellschaften"],
-        ["Was es ist", "Unternehmensberatung für den Aufbau einer US-Gesellschaft: Gründung, Steuernummern, US-Präsenz, vorbereitete Konto- und Kartenanträge, Kapital-Etappen"],
+        ["Was es ist", "Unternehmensberatung für den Aufbau einer US-Gesellschaft: Gründung, Steuernummern, US-Präsenz, vorbereitete Konto- und Kartenanträge, Begleitung zum Kapital"],
         ["Vertragspartner", `${F.name}, Private Limited Company, eingetragen in England und Wales`],
         ["Register", `Companies House, Company Number ${F.companyNo}, eingetragen am 3. Juli 2026`],
         ["Sitz", `${F.strasse}, ${F.ortZeile}, Vereinigtes Königreich`],
@@ -116,25 +120,25 @@ export const SEITE: GlobalSeite = {
         ["Für wen", "Unternehmen, Selbständige und Privatpersonen mit Wohnsitz oder Sitz in Deutschland, Österreich oder der Schweiz"],
         ["Was gegründet wird", "LLC oder Corporation in Florida, Delaware oder Wyoming"],
         ["Sprachen", "Deutsch und Englisch"],
-        ["Pakete", "Global Struktur, Global Banking, Global Kapital, Global VIP — je ein Festpreis, alle Gebühren des Pakets inklusive"],
+        ["Angebot", `Ein Mandat: ${P.name} — der Preis steht vor dem Auftrag fest`],
         ["Ab dem zweiten Jahr", "Jahresbetreuung, freiwillig; sie verlängert sich nicht von selbst"],
         ["Kontakt", `${F.email} · ${F.telefon}`],
       ],
-      fuss: ["Registerangaben laut Companies House, abgerufen am 27. Oktober 2026. Die Festpreise stehen in der Paketübersicht weiter unten."],
+      fuss: ["Registerangaben laut Companies House, abgerufen am 27. Oktober 2026. Ihren Preis zeigt der Konfigurator."],
     },
     {
       typ: "tabelle", id: "anlaufstellen", h2: "Ein Ansprechpartner statt acht: was FIAON Global bündelt",
       lead: "Acht Stellen, mit denen eine US-Gesellschaft aus dem Ausland in der Regel zu tun hat — und wer sich darum kümmert, wenn Sie FIAON Global beauftragen.",
       kopf: ["Anlaufstelle", "Worum es geht", "Ohne FIAON Global", "Mit FIAON Global"],
       zeilen: [
-        ["Bundesstaat", "Gründung der LLC oder Corporation, staatliche Gebühr", "Gründungsdienst suchen oder selbst einreichen", "wir reichen mit Ihrer Vollmacht ein; die staatliche Gründungsgebühr ist im Festpreis"],
-        ["Registered Agent", "vorgeschriebene Zustellanschrift im Bundesstaat, dazu US-Adresse und US-Telefon", "eigener Vertrag, eigene Jahresgebühr", "im ersten Jahr im Paket; Behördenpost wird für Sie eingescannt"],
+        ["Bundesstaat", "Gründung der LLC oder Corporation, staatliche Gebühr", "Gründungsdienst suchen oder selbst einreichen", "wir reichen mit Ihrer Vollmacht ein; die staatliche Gründungsgebühr ist in Ihrem Preis enthalten"],
+        ["Registered Agent", "vorgeschriebene Zustellanschrift im Bundesstaat, dazu US-Adresse und US-Telefon", "eigener Vertrag, eigene Jahresgebühr", "im ersten Jahr enthalten; Behördenpost wird für Sie eingescannt"],
         ["US-Steuerbehörde (IRS)", "EIN der Gesellschaft (Form SS-4), ITIN für Sie persönlich (Form W-7)", "englische Formulare; aus dem Ausland nur per Telefon, Fax oder Post, nicht online", "die EIN beantragen wir als Third Party Designee, die ITIN bereiten wir vor"],
         ["Anwalt", "Operating Agreement und Gründungsunterlagen", "eigenes Mandat, eigenes Honorar", "Partner-Anwalt in Ihrem Mandat; das Honorar dafür trägt FIAON"],
         ["Steuerberater im Wohnsitzland", "Prüfung vor der Gründung: Steuerpflicht zu Hause, Meldungen", "eigenes Mandat, eigenes Honorar", "Partner-Steuerberater in Ihrem Mandat; das Honorar für die Prüfung vor der Gründung trägt FIAON"],
-        ["US-CPA", "jährliche US-Meldung (Form 5472 mit Form 1120)", "eigenes Mandat, jedes Jahr neu", "die erste Meldung im Paket, danach mit der Jahresbetreuung"],
+        ["US-CPA", "jährliche US-Meldung (Form 5472 mit Form 1120)", "eigenes Mandat, jedes Jahr neu", "die erste Meldung ist enthalten, danach mit der Jahresbetreuung"],
         ["Banken", "Geschäftskonto der Gesellschaft", "Institut suchen, Unterlagen sammeln, beantragen", "Sie stellen den Antrag, vollständig von uns vorbereitet; die Bank entscheidet"],
-        ["Kartenherausgeber", "Firmenkarten der Gesellschaft", "jeder Antrag für sich", "den ersten Antrag bereiten wir in jedem Paket vor, ab Global Banking auch Reihenfolge und Folgeanträge; der Herausgeber entscheidet"],
+        ["Kartenherausgeber", "Firmenkarten der Gesellschaft", "jeder Antrag für sich", "jeden Antrag bereiten wir vollständig vor; der Herausgeber entscheidet"],
       ],
       hervor: 3,
       fuss: [
@@ -147,9 +151,9 @@ export const SEITE: GlobalSeite = {
       lead: "Dauern sind Behördenangaben und Erfahrungswerte, keine Fristen. Wie schnell eine Etappe geht, bestimmen Behörden und Institute — und in jeder Etappe steht dabei, wer entscheidet.",
       etappen: [
         { titel: "Gründung und Dokumente", dauer: "in der Regel wenige Wochen", text: `Gesellschaft, EIN, Vorbereitung der ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Für die EIN nennt die IRS beim Antrag aus dem Ausland ${IRS.einDauer}; für die ITIN nennt sie ${IRS.itinDauer}. Wer entscheidet: der Bundesstaat und die IRS.` },
-        { titel: "Die erste Firmenkarte", dauer: "nach vollständigen Dokumenten", text: "Sie stellen den ersten Antrag bei einem US-Herausgeber, meist mit kleinem Rahmen und ohne Bareinlage, dafür mit persönlicher Haftung des Inhabers. Wir bereiten ihn vollständig vor. Wer entscheidet: der Herausgeber." },
-        { titel: "Die Kartenleiter", dauer: "über einige Monate", text: "Pünktliche Abrechnung baut die Historie auf, die weitere Herausgeber bei ihrer Prüfung ansehen. Ab Global Banking planen wir die Reihenfolge und bereiten jeden weiteren Antrag vor. Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest. Wer entscheidet: jeder Herausgeber für sich." },
-        { titel: "Das Bankdarlehen", dauer: "mit gewachsener Historie", text: "Mit gewachsener Historie, Umsatz oder Sicherheiten kann ein Darlehen bei einer US-Bank in Frage kommen. Ab Global Kapital stellen wir die Kennzahlen-Mappe und die Unterlagen zusammen; den Antrag stellen Sie. Wer entscheidet: die Bank, nach ihren eigenen Regeln." },
+        { titel: "Konto und Karten", dauer: "nach vollständigen Dokumenten", text: "Privates US-Konto, private US-Karten, Geschäftskonto und Firmenkreditkarte: Sie stellen die Anträge, wir bereiten jeden vollständig vor. Karten kommen meist mit kleinem Rahmen und ohne Bareinlage, dafür mit persönlicher Haftung des Inhabers. Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest. Wer entscheidet: das jeweilige Institut." },
+        { titel: "Ihr Kapitalrahmen", dauer: "sobald Gesellschaft und Unterlagen stehen", text: "Sie wählen den Kapitalrahmen, den Ihre Gesellschaft aufnehmen soll. Wir stellen die Unterlagen zusammen, bereiten jeden Antrag vor und begleiten bis zur Auszahlung; den Darlehensvertrag schließt Ihre Gesellschaft selbst. Wer entscheidet: das finanzierende Institut, nach seinen eigenen Regeln." },
+        { titel: "Weiter wachsen", dauer: "ab dem achtzehnten Monat", text: "Mit gewachsener Historie kann Ihre Gesellschaft eine Aufstockung beantragen oder über ein anderes Institut umschulden. Solange die Jahresbetreuung läuft, begleiten wir sie dabei. Wer entscheidet: das jeweilige Institut." },
       ],
     },
     {
@@ -160,7 +164,7 @@ export const SEITE: GlobalSeite = {
         "stellt mit Ihrer Vollmacht die Anträge bei Bundesstaat, IRS und Dun & Bradstreet",
         "bereitet die ITIN vor und stellt Registered Agent, US-Adresse und US-Telefon im ersten Jahr",
         "bereitet jeden Konto- und Kartenantrag vollständig vor",
-        "trägt die Honorare der Partner für die Leistungen Ihres Pakets",
+        "trägt die Honorare der Partner für die Leistungen Ihres Auftrags",
         "nimmt mit dem Team in Miami Termine vor Ort wahr",
       ],
       partner: [
@@ -183,10 +187,10 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "FIAON Global arbeitet als Unternehmensberatung nach einem Grundsatz: ein Ansprechpartner statt acht. Sie sprechen mit einer Person, die Ihren Auftrag vom Startgespräch bis zur letzten Etappe führt; alle anderen Beteiligten koordinieren wir. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: die Gründung beim Bundesstaat, die EIN bei der IRS, die D-U-N-S-Nummer bei Dun & Bradstreet und die Meldungen Ihrer Gesellschaft. Für die EIN sieht das Formular SS-4 dafür einen eigenen Abschnitt vor, den Third Party Designee: Die dort benannte Person aus unserem Team beantwortet Fragen der IRS zum Antrag und nimmt die EIN entgegen; ihre Befugnis endet, sobald die EIN vergeben ist.",
         `Die ITIN bereiten wir vor. ${PASS} Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr, Behördenpost wird für Sie eingescannt.`,
-        "Konto-, Karten- und Kreditanträge stellen Sie selbst; jede Angabe darin bleibt Ihre eigene. Wir bereiten jeden dieser Anträge vollständig vor: Name, Anschrift und Telefonnummer in jedem Formular in derselben Schreibweise, die Unterlagen in der Reihenfolge, in der ein Institut sie prüft. Ab Global Banking planen wir die Reihenfolge der Herausgeber, ab Global Kapital stellen wir die Kennzahlen-Mappe für ein späteres Bankdarlehen zusammen. Verlangt ein Institut einen Termin vor Ort, begleitet Sie unser Team in Miami.",
-        `${GLOBAL_ROLLEN.de.partner} Der Grund ist das Berufsrecht: Hilfe in Steuersachen darf in Deutschland geschäftsmäßig nur leisten, wer dazu befugt ist (§ 5 StBerG); für außergerichtliche Rechtsdienstleistungen gilt Entsprechendes (§ 3 RDG). FIAON beauftragt, koordiniert und bezahlt die Partner; die fachliche Verantwortung liegt bei ihnen, das Mandat bei Ihnen.`,
-        "Sie zahlen einen Festpreis, der vor dem Auftrag feststeht, mit allen Gebühren und Honoraren für die Leistungen Ihres Pakets — ohne Honorar nach Rahmen und ohne Anteil am Kapital. Ab dem zweiten Jahr können Sie die Jahresbetreuung wählen; sie ist freiwillig und verlängert sich nicht von selbst.",
-        ...GELD_ZURUECK,
+        "Konto-, Karten- und Kreditanträge stellen Sie selbst; jede Angabe darin bleibt Ihre eigene. Wir bereiten jeden dieser Anträge vollständig vor: Name, Anschrift und Telefonnummer in jedem Formular in derselben Schreibweise, die Unterlagen in der Reihenfolge, in der ein Institut sie prüft. Für die Finanzierung stellen wir die Unterlagen zusammen, die ein Institut prüft. Verlangt ein Institut einen Termin vor Ort, begleitet Sie unser Team in Miami.",
+        `${P.partner} Der Grund ist das Berufsrecht: Hilfe in Steuersachen darf in Deutschland geschäftsmäßig nur leisten, wer dazu befugt ist (§ 5 StBerG); für außergerichtliche Rechtsdienstleistungen gilt Entsprechendes (§ 3 RDG). FIAON beauftragt, koordiniert und bezahlt die Partner; die fachliche Verantwortung liegt bei ihnen, das Mandat bei Ihnen.`,
+        "Ihr Preis steht vor dem Auftrag fest: ein Betrag mit Ihrem Auftrag für die Gründung und die aktive Betreuung im ersten Jahr, dazu das Erfolgshonorar, das mit der Eintragung Ihrer Gesellschaft fällig wird und sich nach dem Kapitalrahmen richtet, den Sie wählen. Einen Anteil am Kapital erhält FIAON nicht. Ab dem zweiten Jahr können Sie die Jahresbetreuung wählen; sie ist freiwillig und verlängert sich nicht von selbst.",
+        P.geldZurueck,
         KAPITAL_FREI,
       ],
     },
@@ -194,24 +198,24 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "einordnung", h2: "Unternehmensberatung statt Gründungsdienst: die Einordnung",
       absaetze: [
         "Ein Gründungsdienst meldet die Gesellschaft beim Bundesstaat an und stellt meist den Registered Agent. Damit beginnt die Arbeit aber erst: die Steuernummern bei der IRS, eine Anschrift und Telefonnummer, die in jedem Antrag gleich lauten, das Operating Agreement, die Prüfung der Steuerpflicht zu Hause, die erste jährliche Meldung und die Anträge bei Banken und Kartenherausgebern.",
-        "FIAON Global versteht sich deshalb als Unternehmensberatung, nicht als Formularservice: Wir planen den ganzen Weg, nicht nur den ersten Schritt, und führen ihn mit einem festen Ansprechpartner — eine US-Gesellschaft aus einer Hand. Ehrlich gesagt: Nur die Gesellschaft gibt es beim Gründungsdienst günstiger. Unser Festpreis deckt auch die Schritte danach, von EIN und ITIN bis zur ersten US-Meldung.",
-        `Diese Schritte sind keine Formsache. Eine LLC, die ganz einem Eigentümer aus dem Ausland gehört, reicht für jedes Jahr mit meldepflichtigen Vorgängen zwischen ihr und ihm Form 5472 mit Form 1120 bei der IRS ein, auch ohne Umsatz — dazu zählen schon die Einlage und bezahlte Gründungskosten. Frist ist bei Kalenderjahr der ${IRS.frist5472}. Fehlt die Meldung, kann die IRS eine Strafe von ${IRS.strafe5472} festsetzen. Deshalb steht die erste Meldung in jedem Paket.`,
+        "FIAON Global versteht sich deshalb als Unternehmensberatung, nicht als Formularservice: Wir planen den ganzen Weg, nicht nur den ersten Schritt, und führen ihn mit einem festen Ansprechpartner — eine US-Gesellschaft aus einer Hand. Ehrlich gesagt: Nur die Gesellschaft gibt es beim Gründungsdienst günstiger. Unser Preis deckt auch die Schritte danach, von EIN und ITIN bis zur ersten US-Meldung.",
+        `Diese Schritte sind keine Formsache. Eine LLC, die ganz einem Eigentümer aus dem Ausland gehört, reicht für jedes Jahr mit meldepflichtigen Vorgängen zwischen ihr und ihm Form 5472 mit Form 1120 bei der IRS ein, auch ohne Umsatz — dazu zählen schon die Einlage und bezahlte Gründungskosten. Frist ist bei Kalenderjahr der ${IRS.frist5472}. Fehlt die Meldung, kann die IRS eine Strafe von ${IRS.strafe5472} festsetzen. Deshalb ist die erste Meldung in Ihrem Auftrag enthalten.`,
       ],
     },
     {
-      typ: "text", id: "inklusive", h2: "Was jeder Festpreis von FIAON Global enthält",
-      absaetze: ["In allen vier Paketen sind diese Leistungen und Gebühren enthalten:"],
-      punkte: [...GLOBAL_INKLUSIVE.de],
-      nach: `Nicht im Festpreis: ${GLOBAL_NICHT_INKLUSIVE.de.slice(1).join("; ")}. Ebenfalls nicht darin sind die laufenden Kosten Ihrer Gesellschaft ab dem zweiten Jahr — Staatsgebühr, Registered Agent und jährliche US-Meldung; wir nennen sie Ihnen rechtzeitig vorab, und mit der freiwilligen Jahresbetreuung übernehmen wir sie.`,
+      typ: "text", id: "inklusive", h2: "Was Ihr Auftrag bei FIAON Global enthält",
+      absaetze: ["Im ersten Jahr sind diese Leistungen und Gebühren enthalten:"],
+      punkte: [...P.enthalten],
+      nach: "Nicht enthalten sind die laufenden Kosten Ihrer Gesellschaft ab dem zweiten Jahr — Staatsgebühr, Registered Agent und jährliche US-Meldung; wir nennen sie Ihnen rechtzeitig vorab, und mit der freiwilligen Jahresbetreuung übernehmen wir sie. Steuererklärungen in Ihrem Wohnsitzland bleiben bei Ihrem Steuerberater.",
     },
     {
       typ: "etappen", id: "auftrag", h2: "So läuft ein Auftrag bei FIAON Global ab",
       lead: "Vom ersten Gespräch bis zur ersten US-Meldung — Sie sehen jederzeit, wer gerade am Zug ist.",
       etappen: [
-        { titel: "Erstgespräch oder Direktauftrag", text: "Dreißig Minuten, kostenfrei und ohne Verpflichtung: Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt. Wer schon entschieden ist, beauftragt direkt am Bildschirm." },
+        { titel: "Erstgespräch oder Konfigurator", text: "Dreißig Minuten, kostenfrei und ohne Verpflichtung: Vorhaben, Wohnsitz, Ziel. Wer schon entschieden ist, stellt sein Angebot im Konfigurator selbst zusammen und sieht sofort seinen Preis." },
         { titel: "Auftrag am Bildschirm", text: "Den Mustervertrag können Sie vorab lesen. Sie unterschreiben am Bildschirm; Ihr Vertragspartner ist die FIAON LTD in London." },
-        { titel: "Startgespräch und Unterlagen", text: "Mit dem Eingang Ihrer Zahlung beginnt die Arbeit. Im Startgespräch legen wir Rechtsform, Bundesstaat und Namen fest; Sie laden Ihre Unterlagen in den Dokumentenraum und erteilen die Vollmacht." },
-        { titel: "Prüfung vor der Gründung", text: "Unser Partner-Steuerberater prüft, wie Ihre Gesellschaft im Wohnsitzland behandelt wird und welche Meldungen dort anfallen." },
+        { titel: "Start und Unterlagen", text: "Mit dem Eingang Ihrer Zahlung beginnt die Arbeit. Den Namen Ihrer Gesellschaft wählen Sie bei der Unterschrift; danach laden Sie Ihren Reisepass in den Dokumentenraum." },
+        { titel: "Klärung vorab", text: "Unser Partner-Steuerberater klärt vorab mit Ihnen, wie Überweisungen und Investitionen steuerlich zu behandeln sind." },
         { titel: "Gründung und Steuernummern", text: "Gründung beim Bundesstaat, EIN, Vorbereitung der ITIN, D-U-N-S-Nummer, Registered Agent, US-Adresse und Telefon; das Operating Agreement schreibt unser Partner-Anwalt. Den Stand sehen Sie in „Mein Auftrag“." },
         { titel: "Konto und Karten", text: "Sie stellen die Anträge, vollständig von uns vorbereitet. Über jeden Antrag entscheidet das Institut." },
         { titel: "Erste US-Meldung und Jahr zwei", text: "Unser US-CPA erstellt die erste jährliche Meldung. Ab dem zweiten Jahr können Sie die Jahresbetreuung dazunehmen — oder die laufenden Pflichten selbst übernehmen." },
@@ -226,7 +230,7 @@ export const SEITE: GlobalSeite = {
         `der Vertragspartner im Register: ${F.name}, Companies House ${F.companyNo}, eingetragen am 3. Juli 2026, Sitz ${F.strasse} in London — öffentlich einsehbar`,
         `die Geschäftsführung: Director ist ${F.director}, ebenfalls im Register eingetragen`,
         "der Vertrag: Den Mustervertrag lesen Sie vor dem Auftrag, auf Deutsch",
-        "der Preis: ein Festpreis je Paket, der vor dem Auftrag feststeht — kein Honorar nach Rahmen",
+        "der Preis: Er steht vor dem Auftrag fest — Sie sehen ihn im Konfigurator, bevor Sie Ihre Angaben eintragen",
         `die Zahlung: erst nach Ihrer Unterschrift, per Rechnung auf das Geschäftskonto der ${F.name} — nie auf ein privates Konto`,
         "die Grenzen: Was FIAON Global nicht ist, steht offen auf dieser Seite und in jedem Auftrag",
       ],
@@ -238,15 +242,15 @@ export const SEITE: GlobalSeite = {
       quelle: "Kurzprofil von FIAON Global zum Zitieren · Stand Oktober 2026",
     },
     {
-      typ: "pakete", id: "pakete", h2: "Die vier Pakete von FIAON Global",
-      lead: "Jedes Paket ist ein Auftrag zum Festpreis — alle Gebühren und die Honorare unserer Partner für die Leistungen des Pakets inklusive. Der Kapitalrahmen je Paket ist Ihr Ziel; über jeden Rahmen entscheidet das Institut.",
+      typ: "pakete", id: "mandat", h2: "Ein Mandat bei FIAON Global",
+      lead: `${P.karteLead} Den Kapitalrahmen wählen Sie selbst; er ist Ihr Ziel, und über jeden Rahmen entscheidet das Institut.`,
     },
     {
       typ: "hinweis", id: "nicht", h2: "Was FIAON Global nicht ist",
       lead: "Diese Grenzen sagen wir vor dem Auftrag, nicht danach.",
       punkte: [
         "Keine Bank: FIAON führt keine Konten, gibt keine Karten aus und vergibt keine Kredite. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
-        "Kein Kreditvermittler: Wer in Deutschland gewerbsmäßig Darlehen vermittelt, braucht dafür eine Erlaubnis (§ 34c GewO). FIAON vermittelt keine Kredite, erhält kein Honorar nach Rahmen und sagt keinen Rahmen zu. Der Kapitalrahmen eines Pakets ist ein Ziel, auf das wir gemeinsam hinarbeiten — keine Zusage.",
+        "Kein Kreditvermittler: Wer in Deutschland gewerbsmäßig Darlehen vermittelt, braucht dafür eine Erlaubnis (§ 34c GewO). FIAON vermittelt keine Kredite und sagt keinen Rahmen zu. Den Kapitalrahmen wählen Sie selbst — er ist ein Ziel, auf das wir gemeinsam hinarbeiten, keine Zusage.",
         "Kein Steuermodell: Eine US-Gesellschaft, die aus dem deutschsprachigen Raum geführt wird, bleibt dort steuerpflichtig — in Deutschland etwa nach § 10 AO und § 1 KStG, in Österreich nach dem Ort der Geschäftsleitung (§ 27 Abs. 2 BAO, § 1 KStG 1988), in der Schweiz nach der tatsächlichen Verwaltung (Art. 50 DBG).",
         "Keine Kanzlei: FIAON leistet keine Hilfe in Steuersachen und keine Rechtsdienstleistungen. Das tun Partner-Steuerberater, US-CPA und Partner-Anwälte in Ihrem Mandat.",
         "Kein Zinsversprechen: Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest.",
@@ -258,12 +262,12 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "Was ist FIAON Global?", a: DEFINITION },
-    { f: "Ist FIAON Global eine Bank oder ein Kreditvermittler?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut. Konto-, Karten- und Kreditanträge stellen Sie selbst; FIAON bereitet sie vollständig vor. Der Kapitalrahmen eines Pakets ist ein Ziel, keine Zusage." },
+    { f: "Ist FIAON Global eine Bank oder ein Kreditvermittler?", a: "Nein. FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut. Konto-, Karten- und Kreditanträge stellen Sie selbst; FIAON bereitet sie vollständig vor. Den Kapitalrahmen wählen Sie selbst; er ist ein Ziel, keine Zusage." },
     { f: "Wer steht hinter FIAON Global?", a: `Vertragspartner ist die ${F.name}, eine Private Limited Company mit Sitz ${F.strasse} in London, eingetragen beim Companies House am 3. Juli 2026 (${F.companyNo}). Director ist ${F.director}. Unser Team vor Ort arbeitet in Miami, Zürich ist unser Partnerstandort.` },
-    { f: "Was kostet FIAON Global?", a: "Jedes der vier Pakete hat einen Festpreis, der vor dem Auftrag feststeht — alle Gebühren und Partner-Honorare für die Leistungen des Pakets inklusive. Die Preise stehen in der Paketübersicht auf dieser Seite. Ab dem zweiten Jahr fallen die laufenden Kosten der Gesellschaft an; dafür gibt es die freiwillige Jahresbetreuung." },
+    { f: "Was kostet FIAON Global?", a: "Ihr Preis steht vor dem Auftrag fest: ein Betrag mit Ihrem Auftrag für die Gründung und die aktive Betreuung im ersten Jahr, dazu das Erfolgshonorar, das mit der Eintragung Ihrer Gesellschaft fällig wird und sich nach Ihrem Kapitalrahmen richtet. Den genauen Preis zeigt der Konfigurator. Ab dem zweiten Jahr fallen die laufenden Kosten der Gesellschaft an; dafür gibt es die freiwillige Jahresbetreuung." },
     { f: "Spart man mit einer US-Gesellschaft über FIAON Global Steuern?", a: "Nein, und das sagen wir offen. Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden, in Deutschland nach § 138 AO mit der Steuererklärung. Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für den Aufbau einer Historie bei Instituten, kein Steuermodell. Wie Ihre Gesellschaft behandelt wird, prüft unser Partner-Steuerberater vor der Gründung." },
     { f: "Was unterscheidet FIAON Global von einem Gründungsdienst?", a: "Ein Gründungsdienst meldet die Gesellschaft an. FIAON Global übernimmt als Unternehmensberatung den ganzen Weg: Gründung, EIN, Vorbereitung der ITIN, D-U-N-S-Nummer, Registered Agent, US-Adresse und Telefon im ersten Jahr, Steuerberater, Anwalt und US-CPA im Mandat und vorbereitete Konto- und Kartenanträge — mit einem Ansprechpartner. Nur die Gesellschaft gibt es beim Gründungsdienst günstiger." },
-    { f: "Muss ich für FIAON Global in die USA reisen?", a: "In der Regel nicht. Gründung, Steuernummern und Meldungen laufen aus der Ferne; Ihren Reisepass prüft unser Acceptance-Agent-Partner im DACH-Raum, persönlich oder im Videotermin, bei dem ihm der Pass oder eine beglaubigte Kopie der ausstellenden Behörde vorliegt. Verlangt ein Institut einen Termin vor Ort, begleitet Sie unser Team in Miami. Wer den Auftakt persönlich in Miami erleben möchte, wählt das Paket Global VIP." },
+    { f: "Muss ich für FIAON Global in die USA reisen?", a: "In der Regel nicht. Gründung, Steuernummern und Meldungen laufen aus der Ferne; Ihren Reisepass prüft unser Acceptance-Agent-Partner im DACH-Raum, persönlich oder im Videotermin, bei dem ihm der Pass oder eine beglaubigte Kopie der ausstellenden Behörde vorliegt. Verlangt ein Institut einen Termin vor Ort, begleitet Sie unser Team in Miami. Ab einem Kapitalrahmen von 1 Mio. US-Dollar begleiten wir Sie dort persönlich." },
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],
   weiter: ["/business/ablauf", "/business/vergleich", "/business/wissen/us-funding", "/business/wissen/us-llc-steuern"],

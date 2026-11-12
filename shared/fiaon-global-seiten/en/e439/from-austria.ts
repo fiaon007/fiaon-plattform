@@ -20,6 +20,8 @@
 // „comparison of legal types“.
 //
 // Wortwand EN: kein Steuermodell (Ort der Geschäftsleitung steht vorn), kein „up to“,
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname mehr; die alte Geld-zurück-Zusage je Paket entfällt.
+// Für Österreich: kein Versprechen von Konto, Karte oder Finanzierung; der Kapital-Teil wird persönlich besprochen.
 // kein Bankname, keine Preiszahl (Baustein "paket"), kein „recommend“, „advice“ nie,
 // „personal guarantee“ als Fachbegriff, Firmenkarte = „business credit card“.
 // Selbstbezeichnung (28.10.2026, E-454): wie im Deutschen nie „business consultancy“ —
@@ -28,14 +30,15 @@
 // shared/fiaon-global-wortregeln.ts.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_GELD_ZURUECK, GLOBAL_PFLICHTHINWEIS, globalPaket } from "../../../fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import { FIAON_FIRMA } from "../../../fiaon-firma";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_STAATEN_EN, IRS_EN, SCHWELLEN_EN, FRISTEN_EN } from "../../fakten-en";
 
 const S = "2026-10-27";
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`] : [];
-const STRUKTUR = globalPaket("global_struktur")?.en.name ?? "Global Structure";
-const BANKING = globalPaket("global_banking")?.en.name ?? "Global Banking";
+const P = EIN_PRODUKT.en;
+/** E-509: no self-service order with capital for residents of Austria — the one sentence on that. */
+const VORHABEN_AT = "If you live in Austria, we discuss the capital part of your plans with you in person.";
 
 /** Austrian and further primary sources of this page — the same addresses as the German page (read on 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -67,7 +70,7 @@ export const SEITE: GlobalSeite = {
     titel: "Forming a US company from Austria — FIAON Global",
     beschreibung: "Forming a US company from Austria: place of management, how the LLC is classified, the tax treaty and filings — explained honestly, with sources.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 46",
   auge: "Who it is for · From Austria",
@@ -85,7 +88,7 @@ export const SEITE: GlobalSeite = {
     ["Treaty", "Austria–US double taxation treaty, signed in Vienna on 31 May 1996"],
     ["Notification", "Report new circumstances to the tax office within one month (sections 120 and 121 BAO)"],
     ["Activity in Austria", "Clarify trade law and social security in advance"],
-    ["With FIAON Global", "All applications for you, review before formation included in the fixed price"],
+    ["With FIAON Global", "All applications for you, the review before formation is included"],
   ],
   kurz: "Anyone who lives in Austria can form a US company — without residence or citizenship in the US. If the company is managed from Austria, the centre of its overall business management lies in Austria (section 27(2) of the Austrian Federal Fiscal Code, BAO), and its profits are generally taxed in Austria — at the level of the company (section 1(2) of the Austrian Corporate Income Tax Act, KStG) or in your hands. Whether the LLC is treated like a GmbH or as transparent is decided by a comparison of legal types (Typenvergleich) in the individual case (Austrian Ministry of Finance, EAS 1413). A US company from Austria is therefore not a tax model but a way into the US market.",
   bloecke: [
@@ -157,7 +160,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         `For a US business account, complete documents are what matters. When an account is opened, institutions must identify every person who owns ${SCHWELLEN_EN.eigentuemer} or more of the company, plus one person who manages it; for the company itself, they require documents that prove its existence, and its tax number. As a foreign national, you can give your passport number in place of a US tax number. As a rule, the formation documents, EIN, operating agreement and passport are therefore on the table. The institution alone decides on the account.`,
         "You can also apply for a US credit card for your company from Austria; whether it is issued, and with what limit, is decided by the issuer alone. Business credit cards generally require a personal guarantee from you. For a FICO Score, your US credit file needs an account that has been open for at least six months and has been reported in the last six months. Some issuers offer introductory periods without debit interest; each issuer sets the terms itself.",
-        `You submit account, card and credit applications yourself — we prepare them in full, in the ${STRUKTUR} package the first account and card application, from ${BANKING} onwards every further one, so that name, address, telephone number and documents match in every application.`,
+        "You submit account, card and credit applications yourself — we prepare every application in full, so that name, address, telephone number and documents match in every application.",
       ],
     },
     {
@@ -184,7 +187,7 @@ export const SEITE: GlobalSeite = {
         "Partner tax adviser: review before formation, under your engagement",
         "Partner lawyer: operating agreement and formation documents",
         "US CPA: first annual US filing",
-        "FIAON pays their fees for the services in the package",
+        "FIAON pays their fees for the services in your order",
       ],
       sie: [
         "Passport, proof of address and a clear description of the business",
@@ -196,9 +199,9 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global handles your US company from Austria",
       absaetze: [
         "One point of contact instead of eight: with your power of attorney, we submit all applications for you — the formation with the state, the EIN with the IRS, the preparation of the ITIN where its requirements are met, the D-U-N-S Number and the annual US filings. We provide the registered agent, US business address and US phone number for the first year. You submit account, card and credit applications yourself, fully prepared by us; the institution alone decides on them.",
-        "Before formation, a partner tax adviser authorised in Austria, engaged by you, reviews where the place of management will be and how Austria is likely to classify your LLC under the comparison of legal types. The result goes into the operating agreement drafted by our partner lawyer. Our US CPA files the first US return — Form 5472 with Form 1120. FIAON pays these partners’ fees for the services in your package; all fees of the package are included in the fixed price.",
+        "Before formation, a partner tax adviser authorised in Austria, engaged by you, reviews where the place of management will be and how Austria is likely to classify your LLC under the comparison of legal types. The result goes into the operating agreement drafted by our partner lawyer. Our US CPA files the first US return — Form 5472 with Form 1120. FIAON pays these partners’ fees for the services in your order; in the first year, everything your agreement names is included.",
         `Your contracting party is ${FIAON_FIRMA.name}, based in London (Companies House ${FIAON_FIRMA.companyNo}). Our team in Miami attends appointments with authorities and institutions on the ground; our partner location is Zurich. From the second year, you can add the annual care plan if you wish — it is voluntary.`,
-        ...GELD_ZURUECK,
+        VORHABEN_AT,
       ],
     },
     {
@@ -209,16 +212,16 @@ export const SEITE: GlobalSeite = {
         GLOBAL_PFLICHTHINWEIS.en[1],
         GLOBAL_PFLICHTHINWEIS.en[2],
         "FIAON is not a bank, does not grant loans, does not broker loans and does not commit to any limit. The institution alone decides on the account, card, limit and loans.",
-        "The review before formation is included in the fixed price; your ongoing tax return in Austria is handled by your tax adviser.",
+        "The review before formation is included in your order; your ongoing tax return in Austria is handled by your tax adviser.",
       ],
     },
-    { typ: "paket", id: "paket", h2: "The right package", lead: `Formation, tax numbers, the review before formation and the first US filing: ${STRUKTUR}.`, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `Formation, tax numbers, US office, the review before formation and the first US filing — in one order. ${VORHABEN_AT}`, paket: "global_struktur" },
   ],
   fragen: [
     { f: "Can I form a US company as an Austrian?", a: "Yes, without residence or citizenship in the US. You need a valid passport and proof of address; if your GmbH is a co-founder, also its extract from the Austrian commercial register (Firmenbuch). With your power of attorney, we submit all applications in the US for you." },
     { f: "Do I have to pay tax on my US LLC in Austria?", a: "Generally yes, if you manage it from Austria: the place of management then lies in Austria (section 27(2) BAO). If the LLC counts as a corporate body, it is subject to unlimited tax liability (section 1(2) KStG); if it counts as transparent, its result is attributed to you. Our partner tax adviser reviews your case before formation." },
     { f: "How is a US LLC taxed in Austria?", a: "That depends on the comparison of legal types: if the LLC corresponds to a corporation and is managed from Austria, corporate income tax is due here; distributions to you are subject to the special rate of 27.5 per cent. If it is transparent, the profits are taxed directly in your hands. The US classification does not decide the question (EAS 1413)." },
-    { f: "Do I need a residence in the US for the US LLC?", a: "No. The company needs a registered agent with an address in the state of formation; you can continue to live in Austria. The registered agent, US business address and US phone number are included in our packages for the first year." },
+    { f: "Do I need a residence in the US for the US LLC?", a: "No. The company needs a registered agent with an address in the state of formation; you can continue to live in Austria. The registered agent, US business address and US phone number are included for the first year." },
     { f: "Can I apply for a US credit card as an Austrian?", a: "You can apply for a US business credit card for your company from Austria too; whether it is issued, and with what limit, is decided by the issuer alone. Business credit cards generally require a personal guarantee from you. We prepare the first application in full; you have to submit it yourself." },
     { f: "Do I have to report the US company to the Austrian tax office?", a: "Generally yes. You notify the tax office of circumstances that establish or change a liability to tax, and of the start of a commercial or self-employed activity — within one month of the event (sections 120 and 121 BAO). The income belongs in your tax return." },
     { f: "May my US company operate in Austria?", a: "Foreign legal entities without a registered office or establishment in Austria may not carry on a trade here unless international treaties provide otherwise (section 14(4) GewO). Whether you need an establishment and a trade licence is clarified case by case by a lawyer — on request, one of our partner lawyers acting under your engagement." },

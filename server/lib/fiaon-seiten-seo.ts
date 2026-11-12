@@ -257,8 +257,8 @@ export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<Org
     image: ogBusinessBild(en ? BUSINESS_START.en : BUSINESS_START.de)?.url ?? `${BASIS}/og-global.jpg?v=2`,
     slogan: en ? "One contact instead of eight." : "Ein Ansprechpartner statt acht.",
     description: en
-      ? `FIAON Global is ${wer} of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, at a fixed price, with a team on the ground in Miami. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit.`
-      : `FIAON Global ist ${wer} der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, zum Festpreis, mit Team vor Ort in Miami. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.`,
+      ? `FIAON Global is ${wer} of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, with a team on the ground in Miami and a price that is set before you order. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit.`
+      : `FIAON Global ist ${wer} der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, mit Team vor Ort in Miami und einem Preis, der vor dem Auftrag feststeht. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.`,
     disambiguatingDescription: fiaonVerwechslung(en ? "en" : "de", `FIAON Global (${FIAON_FIRMA.name}, London, Companies House ${FIAON_FIRMA.companyNo})`),
     parentOrganization: { "@id": `${BASIS}/#organisation` },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
@@ -342,8 +342,8 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
       offers: { "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: "7.99", highPrice: "99.99", offerCount: 4, url: `${BASIS}/preise` } });
   }
   // 19.09.2026 (E-191): /business trug bis hier das Markup des eingestellten Abos
-  // „FIAON Business" (49,99–249,99 € im Monat). FIAON Global verkauft vier Pakete
-  // zu Einmalpreisen — die Zahlen kommen aus dem Katalog, nie von Hand.
+  // „FIAON Business" (49,99–249,99 € im Monat). Bis E-509 verkaufte FIAON Global vier Pakete
+  // zu Einmalpreisen; seither EIN Produkt (siehe unten) — die Zahl kommt aus der einen Preisquelle, nie von Hand.
   // 29.10.2026 (E-461): die Übersicht ist die Startseite (/ und /en), nicht mehr /business.
   if (s.pfad === BUSINESS_START.de || s.pfad === BUSINESS_START.en || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land") {
     // E-509 (12.11.2026): EIN Produkt mit EINEM Preis (Gründung mit aktiver Betreuung im ersten Jahr) — vorher vier Pakete als

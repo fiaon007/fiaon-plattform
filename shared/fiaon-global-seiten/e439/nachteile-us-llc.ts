@@ -45,7 +45,9 @@
 // „Unternehmensberatung“ als Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, STAAT, IRS, MARKT, SCHWELLEN, FRISTEN, FAKTEN_STAND } from "../fakten";
 
 const S = "2026-10-27";
@@ -55,7 +57,7 @@ const STRAFE_5472 = IRS.strafe5472.split(" je ")[0];
 
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.de.text} ${GLOBAL_GELD_ZURUECK.de.bedingungen}`] : [];
+const P = EIN_PRODUKT.de;
 
 /** Der Satz, den wir auch im Gespräch sagen (Ehrlichkeits-Signal, Auftrag E-439). */
 const EHRLICH = "Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger — das sagen wir Ihnen auch im Gespräch.";
@@ -92,7 +94,7 @@ export const SEITE: GlobalSeite = {
     titel: "Nachteile einer US-LLC: offen gesagt — FIAON Global",
     beschreibung: "Die Nachteile einer US-LLC: Steuerpflicht zu Hause, Meldungen in zwei Ländern, laufende Kosten, Strafen — und wann sie trotzdem sinnvoll ist.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 52",
   auge: "Wissen · Vor der Gründung",
@@ -230,20 +232,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Pflichten, die eine LLC mit sich bringt",
       absaetze: [
         "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, mit einem Grundsatz: ein Ansprechpartner statt acht. Viele Nachteile einer US-LLC sind keine Frage des Rechts, sondern der Organisation — acht Stellen, zwei Länder, verschiedene Termine. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Gründung, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer, Meldungen, Registered Agent, US-Adresse und US-Telefon im ersten Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten sie vollständig vor.",
-        `Bevor die Gesellschaft gegründet wird, prüft unser Partner-Steuerberater Ihren Fall auf Ihr Mandat: Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO — und ob die LLC steuerlich zu Ihrem Vorhaben passt. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement; die erste Form 5472 mit Form 1120 übernimmt unser US-CPA. ${GLOBAL_ROLLEN.de.partner}`,
-        "Sie zahlen einen Festpreis, alle Gebühren des Pakets inklusive. Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. Ab dem zweiten Jahr können Sie freiwillig die Jahresbetreuung dazubuchen: Dann übernehmen wir Registered Agent, US-Adresse und US-Telefon, die Jahresmeldung beim Bundesstaat samt Staatsgebühr und die US-Meldung durch unseren US-CPA — mit einem Pflichtenkalender, damit Sie jede Frist im Blick haben.",
+        `Bevor die Gesellschaft gegründet wird, prüft unser Partner-Steuerberater Ihren Fall auf Ihr Mandat: Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO — und ob die LLC steuerlich zu Ihrem Vorhaben passt. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement; die erste Form 5472 mit Form 1120 übernimmt unser US-CPA. ${P.partner}`,
+        `${P.preisSatz} Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. Mit der Jahresbetreuung übernehmen wir ab dem zweiten Jahr Registered Agent, US-Adresse und US-Telefon, die Jahresmeldung beim Bundesstaat samt Staatsgebühr und die US-Meldung durch unseren US-CPA — mit einem Pflichtenkalender, damit Sie jede Frist im Blick haben.`,
         "Und wenn schon im Erstgespräch erkennbar ist, dass eine LLC nicht zu Ihrem Vorhaben passt — etwa weil es kein Geschäft in den USA gibt —, sagen wir Ihnen das vor dem Auftrag. Wer nur die Gesellschaft braucht, ohne Prüfung, Partner und Begleitung, ist bei einem reinen Gründungsdienst günstiger aufgehoben.",
-        ...GELD_ZURUECK,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "paket", h2: "Der saubere Start, alle Pflichten im Blick", lead: "Gründung, EIN und ITIN, Registered Agent, US-Adresse und US-Telefon im ersten Jahr, Operating Agreement durch unseren Partner-Anwalt, Prüfung vor der Gründung durch unseren Partner-Steuerberater, die erste US-Meldung durch unseren US-CPA und der erste Konto- und Kartenantrag, vollständig vorbereitet — Global Struktur.", paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "Der saubere Start, alle Pflichten im Blick", lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Dieser Beitrag erklärt die gesetzlichen Grundlagen, Stand Oktober 2026. Er ersetzt nicht die Prüfung Ihres Falls; die übernimmt der Steuerberater auf Ihr Mandat, Fragen zu Visum und Aufenthalt klärt ein US-Einwanderungsanwalt.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        `Nicht im Festpreis: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
+        `Nicht in Ihrem Auftrag enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
         GLOBAL_ROLLEN.de.fiaon,
         "FIAON vergibt keine Kredite und vermittelt keine Kredite. Eine US-LLC ist kein Steuermodell: Wer sie von zu Hause aus leitet, versteuert sie in der Regel dort.",
       ],
@@ -260,7 +262,7 @@ export const SEITE: GlobalSeite = {
     { f: "Wann passt eine US-LLC nicht?", a: `Wenn es kein Geschäft in den USA gibt, wenn das Steuermotiv der eigentliche Grund ist, wenn die Kunden nur in Deutschland, Österreich oder der Schweiz sitzen oder wenn für die jährlichen Pflichten weder Zeit noch Budget da ist. ${EHRLICH}` },
   ],
   paket: "global_struktur",
-  weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/paket-finder"],
+  weiter: ["/business/wissen/us-llc-steuern", "/business/wissen/llc-oder-gmbh", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/kosten"],
   quellen: [
     QL.ao10, QL.kstg1, Q.ao138, QL.ao379, QL.ao42, QL.ustg13b, QL.bmf, QL.bfh,
     QL.kstg1at, QL.bao27, QL.bao120, QL.bao121, QL.eas1413, QL.dbg50, Q.dba,

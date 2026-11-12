@@ -31,7 +31,9 @@
 // Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_GELD_ZURUECK, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE, globalPaket } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+import { EIN_PRODUKT } from "../../ein-produkt";
 import {
   QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, STAAT_EN, IRS_EN, MARKT_EN, SCHWELLEN_EN, FRISTEN_EN, FAKTEN_STAND_EN,
 } from "../../fakten-en";
@@ -44,11 +46,10 @@ const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 /** Im Fließtext „per cent“ statt „%“ (britischer Satz), die Zahl selbst bleibt aus fakten-en.ts. */
 const prozent = (x: string) => x.replace(/(\d)%/g, "$1 per cent");
 
-const STRUKTUR = globalPaket("global_struktur")?.en.name ?? "Global Structure";
+const P = EIN_PRODUKT.en;
 
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 
-const GELD_ZURUECK = GLOBAL_GELD_ZURUECK.aktiv ? [`${GLOBAL_GELD_ZURUECK.en.text} ${GLOBAL_GELD_ZURUECK.en.bedingungen}`] : [];
 
 const NICHT_INKLUSIVE = GLOBAL_NICHT_INKLUSIVE.en[1].charAt(0).toLowerCase() + GLOBAL_NICHT_INKLUSIVE.en[1].slice(1);
 
@@ -89,7 +90,7 @@ export const SEITE: GlobalSeite = {
     titel: "US LLC disadvantages for non-residents — FIAON Global",
     beschreibung: "US LLC disadvantages for non-residents: tax at home, filings in two countries, annual costs, penalties — and when an LLC still makes sense.",
   },
-  stand: S,
+  stand: "2026-11-12",
   erschienen: S,
   kennung: "FG · 52",
   auge: "Knowledge · Before formation",
@@ -227,20 +228,20 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "fiaon", h2: "How FIAON Global takes on the duties that come with an LLC",
       absaetze: [
         "FIAON Global is a business consultancy for your route into the US, founded on one principle: one point of contact instead of eight. Many of the disadvantages of a US LLC are a matter not of law but of organisation — eight parties, two countries, different deadlines. With your power of attorney, we file the applications on your behalf: formation, the EIN, preparation of the ITIN, the D-U-N-S Number, filings, the registered agent, a US address and a US phone number for the first year. You submit only the account, card and credit applications yourself; we prepare them in full.",
-        `Before the company is formed, our partner tax adviser, acting under your engagement, reviews your case: the place of management, the classification under the comparison of legal types, the notification under section 138 AO — and whether the LLC suits your plans from a tax perspective. On that basis, our partner lawyer drafts the operating agreement; our US CPA takes on the first Form 5472 with Form 1120. ${GLOBAL_ROLLEN.en.partner}`,
-        "You pay a fixed price, with all fees for the package included. Our team on the ground in Miami handles appointments in the US; our partner location is Zurich, and your contracting party is FIAON LTD in London. From the second year onwards, you may choose to add the annual care plan: we then take care of the registered agent, the US address and US phone number, the annual report to the state including the state fee, and the US filing through our US CPA — with a compliance calendar, so that you keep every deadline in view.",
+        `Before the company is formed, our partner tax adviser, acting under your engagement, reviews your case: the place of management, the classification under the comparison of legal types, the notification under section 138 AO — and whether the LLC suits your plans from a tax perspective. On that basis, our partner lawyer drafts the operating agreement; our US CPA takes on the first Form 5472 with Form 1120. ${P.partner}`,
+        `${P.preisSatz} Our team on the ground in Miami handles appointments in the US; our partner location is Zurich, and your contracting party is FIAON LTD in London. With annual care, from the second year onwards we take care of the registered agent, the US address and US phone number, the annual report to the state including the state fee, and the US filing through our US CPA — with a compliance calendar, so that you keep every deadline in view.`,
         "And if it is already clear in our first conversation that an LLC does not suit your plans — because there is no business in the US, for example — we tell you so before you engage us. If you need only the company itself, without the review, the partners and the support, you are better served, at lower cost, by a formation-only service.",
-        ...GELD_ZURUECK,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "paket", h2: "A clean start, every duty in view", lead: `Formation, EIN and ITIN, registered agent, US address and US phone number for the first year, the operating agreement by our partner lawyer, the review before formation by our partner tax adviser, the first US filing by our US CPA and the first account and card application, fully prepared — ${STRUKTUR}.`, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: "A clean start, every duty in view", lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "This article explains the legal position as of October 2026. It is no substitute for a review of your case, which the tax adviser carries out under your engagement; questions on visas and residence are for a US immigration lawyer.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        `Not included in the fixed price: ${NICHT_INKLUSIVE}.`,
+        `Not included in your order: ${NICHT_INKLUSIVE}.`,
         GLOBAL_ROLLEN.en.fiaon,
         "FIAON neither grants nor arranges loans. A US LLC is not a tax model: if you manage it from home, it is generally taxed there.",
       ],
@@ -257,7 +258,7 @@ export const SEITE: GlobalSeite = {
     { f: "When does a US LLC not fit?", a: `When there is no business in the US, when the tax motive is the real reason, when the customers are only in Germany, Austria or Switzerland, or when there is neither time nor budget for the annual duties. ${EHRLICH}` },
   ],
   paket: "global_struktur",
-  weiter: ["/en/business/knowledge/us-llc-tax", "/en/business/knowledge/llc-vs-gmbh", "/en/business/knowledge/us-llc-german-resident", "/en/business/package-finder"],
+  weiter: ["/en/business/knowledge/us-llc-tax", "/en/business/knowledge/llc-vs-gmbh", "/en/business/knowledge/us-llc-german-resident", "/en/business/costs"],
   quellen: [
     QL.ao10, QL.kstg1, Q.ao138, QL.ao379, QL.ao42, QL.ustg13b, QL.bmf, QL.bfh,
     QL.kstg1at, QL.bao27, QL.bao120, QL.bao121, QL.eas1413, QL.dbg50, Q.dba,

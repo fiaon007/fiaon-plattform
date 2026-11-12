@@ -185,11 +185,12 @@ async function main() {
   ok(/ruhig/.test(T.tagesberichtKurz(leer).join(" ")) && /wartet gerade nichts/.test(T.tagesberichtKurz(leer).join(" ")), "leerer Tag: ehrlicher Satz, kein Zahlenfriedhof");
   const voll: any = { ...leer, erledigt: 12, mails: 5, whatsapps: 6, termine: 1,
     zeilen: [{ art: "wa_antwort", n: 6, text: "WhatsApp-Antworten", link: "", werkzeug: null }],
-    postfach: { rein: 9, selbstBeantwortet: 5, entwuerfeWarten: 2 },
+    postfach: { rein: 9, selbstBeantwortet: 5, entwuerfeWarten: 2, entwuerfeAlt: 40 },
     kuendigungen: { gebucht: 1, postfachGebucht: [{ kunde: "Max <Muster>", ergebnis: "Die Kündigung ist gebucht." }], postfachOffen: [] },
     geld: { heuteCents: 15998, zahlungen: 2, nachMaraCents: 7999, nachMaraZahlungen: 1 }, karten: { entscheidungen: 1, minuten: 2, aeltesteTage: 0 } };
   const html = T.tagesberichtHtml(voll), mail = T.tagesberichtMail(voll);
   ok(/159,98 €/.test(html) && /Max &lt;Muster&gt;/.test(html), "PDF-Rumpf: Geld deutsch formatiert, Namen maskiert (kein HTML aus Daten)");
+  ok(/2 Entwürfe im Postfach/.test(T.tagesberichtKurz(voll).join(" ")) && /40<\/td><td>ältere Entwürfe/.test(html), "alte Entwürfe (über 14 Tage) stehen getrennt — oben zählt nur, was wirklich wartet");
   ok(/12 erledigt · 1 für dich/.test(mail.betreff) && mail.dateiname === "Mara_Tagesbericht_2026-11-12.pdf", "Mail: Betreff und Dateiname");
   ok(/Guten Abend Justin/.test(mail.text) && /Mara$/.test(mail.text), "Mail: Maras Stimme, mit Gruß");
 

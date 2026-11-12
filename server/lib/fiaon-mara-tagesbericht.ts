@@ -7,7 +7,7 @@
 // ── WAS DRIN STEHT ──────────────────────────────────────────────────────────
 // Die letzten 24 Stunden (20:00 bis 20:00 — so geht auch der späte Abend nie verloren), aus DERSELBEN Liste der
 // Handlungen wie die Karte „Mara heute“ (fiaon-mara-heute.ts: handlungenZaehlen / handlungenLesen) — keine zweite Zählung:
-//   · Kopfzahlen (erledigt, Mails, WhatsApp, Termine) · die Liste „Das habe ich erledigt“
+//   · Kopfzahlen (erledigt, Mails, WhatsApp, Termine) · die Liste „Das habe ich getan“
 //   · Kündigungen: gebucht (alle Wege, fiaon_applications) und im Postfach nicht gebucht mit Grund
 //   · Geld heute (die EINE Quelle über Maras Bilanz) · was auf Justin wartet (Karten, Entwürfe) · wo es im Team hängt
 //   · KI-Kosten · der Verlauf (die letzten 40 Handlungen mit Uhrzeit)
@@ -53,7 +53,8 @@ export interface TagesberichtDaten {
   tag: string; von: string; bis: string;
   erledigt: number; zeilen: HeuteZeile[];
   mails: number; whatsapps: number; termine: number;
-  postfach: { rein: number; selbstBeantwortet: number; entwuerfeWarten: number } | null;
+  /** entwuerfeWarten = Entwürfe der letzten 14 Tage; entwuerfeAlt = ältere (die sendet niemand mehr — Vorschlag: ablegen). */
+  postfach: { rein: number; selbstBeantwortet: number; entwuerfeWarten: number; entwuerfeAlt: number } | null;
   kuendigungen: { gebucht: number; postfachGebucht: { kunde: string; ergebnis: string }[]; postfachOffen: { kunde: string; grund: string }[] } | null;
   geld: { heuteCents: number; zahlungen: number; nachMaraCents: number; nachMaraZahlungen: number } | null;
   karten: { entscheidungen: number; minuten: number; aeltesteTage: number } | null;
@@ -81,9 +82,10 @@ export async function tagesberichtDaten(o: { jetzt?: Date; lauf?: Lauf } = {}): 
       const [z] = (await lauf`
         SELECT COUNT(*) FILTER (WHERE created_at >= ${von} AND created_at < ${bis} AND aktion <> 'ignoriert')::int AS rein,
                COUNT(*) FILTER (WHERE created_at >= ${von} AND created_at < ${bis} AND aktion = 'auto_beantwortet')::int AS selbst,
-               COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL)::int AS entwuerfe
+               COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND created_at >= ${bis}::timestamptz - INTERVAL '14 days')::int AS entwuerfe,
+               COUNT(*) FILTER (WHERE aktion = 'entwurf' AND gesendet_am IS NULL AND created_at < ${bis}::timestamptz - INTERVAL '14 days')::int AS entwuerfe_alt
           FROM fiaon_postmeister WHERE (created_at >= ${von} AND created_at < ${bis}) OR (aktion = 'entwurf' AND gesendet_am IS NULL)`) as any[];
-      return { rein: Number(z?.rein ?? 0), selbstBeantwortet: Number(z?.selbst ?? 0), entwuerfeWarten: Number(z?.entwuerfe ?? 0) };
+      return { rein: Number(z?.rein ?? 0), selbstBeantwortet: Number(z?.selbst ?? 0), entwuerfeWarten: Number(z?.entwuerfe ?? 0), entwuerfeAlt: Number(z?.entwuerfe_alt ?? 0) };
     })().catch(leise("Postfach")),
     (async () => {
       const [g] = (await lauf`SELECT COUNT(*)::int AS n FROM fiaon_applications WHERE gekuendigt_am >= ${von} AND gekuendigt_am < ${bis} AND merged_into IS NULL`) as any[];
@@ -156,6 +158,8 @@ const TB_CSS = `
   .tb-kachel span { font-size: 10.5px; color: #5b6b82; letter-spacing: .02em; }
   h3.tb { font-size: 12px; font-weight: 600; color: #0f2747; letter-spacing: .06em; text-transform: uppercase; margin: 20px 0 8px; break-after: avoid; page-break-after: avoid; }
   table.tb tr { break-inside: avoid; page-break-inside: avoid; }
+  /* Laufende Fußzeile am Ende statt der fest positionierten — die feste lief auf Seite 1 durch die letzte Zeile. */
+  footer.doc { position: static; margin-top: 22px; }
   table.tb { width: 100%; border-collapse: collapse; font-size: 11.5px; }
   table.tb td { padding: 5px 6px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
   table.tb td.z { width: 54px; text-align: right; font-weight: 600; color: #0f2747; }
@@ -172,7 +176,7 @@ export function tagesberichtHtml(d: TagesberichtDaten): string {
     [d.erledigt, "selbst erledigt"], [d.mails, "Mails geschrieben"], [d.whatsapps, "WhatsApp-Antworten"], [d.termine, "Termine eingetragen"],
   ].map(([n, t]) => `<div class="tb-kachel"><b>${e(String(n))}</b><span>${e(String(t))}</span></div>`).join("")}</div>`);
 
-  teil.push(`<h3 class="tb">Das habe ich erledigt</h3>`);
+  teil.push(`<h3 class="tb">Das habe ich getan</h3>`);
   teil.push(d.zeilen.length
     ? `<table class="tb">${d.zeilen.map((z) => `<tr><td class="z">${z.n}</td><td>${e(z.text)}</td></tr>`).join("")}</table>`
     : `<p class="tb-leer">Nichts in den letzten 24 Stunden.</p>`);
@@ -181,7 +185,8 @@ export function tagesberichtHtml(d: TagesberichtDaten): string {
     teil.push(`<h3 class="tb">Postfach</h3><table class="tb">
       <tr><td class="z">${d.postfach.rein}</td><td>Mails hereingekommen</td></tr>
       <tr><td class="z">${d.postfach.selbstBeantwortet}</td><td>davon selbst beantwortet und gesendet</td></tr>
-      <tr><td class="z">${d.postfach.entwuerfeWarten}</td><td>Entwürfe warten auf eine Freigabe (Chefbüro › Postfach)</td></tr></table>`);
+      <tr><td class="z">${d.postfach.entwuerfeWarten}</td><td>Entwürfe der letzten 14 Tage warten auf eine Freigabe (Chefbüro › Postfach)</td></tr>
+      ${d.postfach.entwuerfeAlt ? `<tr><td class="z">${d.postfach.entwuerfeAlt}</td><td>ältere Entwürfe (über 14 Tage) liegen noch dort — die sendet niemand mehr; Vorschlag: ablegen</td></tr>` : ""}</table>`);
   }
 
   if (d.kuendigungen) {

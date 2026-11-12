@@ -24,7 +24,10 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "../shared/fiaon-global-seiten";
 import { LANDINGPAGES } from "../shared/fiaon-global-seiten/landingpages";
-import { globalPreisText } from "../shared/fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der eine Preis und die Überschrift der Startseite aus der einen Quelle
+// (vorher: „Festpreis ab <Global Struktur>, alles inklusive“ und der Hero-Wortlaut vor E-509 von Hand).
+import { EIN_PRODUKT } from "../shared/fiaon-global-seiten/ein-produkt";
+import { VERKAUF_TEXTE } from "../shared/fiaon-global-verkauf";
 import { markeSvg } from "../shared/fiaon-marke";
 import { ogDateiName, ogArtikelSchluessel, OG_BUSINESS_REDAKTION } from "../shared/fiaon-og-business-regeln";
 
@@ -54,21 +57,21 @@ interface Bild {
 
 const WORT = {
   de: {
-    konzept: ["Ein Ansprechpartner statt acht", `Festpreis ab ${globalPreisText("global_struktur", "de")}, alles inklusive`, "Team vor Ort in Miami"],
+    konzept: ["Ein Ansprechpartner statt acht", `${EIN_PRODUKT.de.preis} mit Ihrem Auftrag`, "Team vor Ort in Miami"],
     blick: "Auf einen Blick",
     konzeptKarte: "Ihr Auftrag",
-    konzeptZeilen: [["Gründung", "LLC oder Corporation, Staat nach Wahl"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Konto und Karten", "Anträge vollständig vorbereitet"], ["Ansprechpartner", "Einer, von der Prüfung bis zum Kapital"]] as [string, string][],
+    konzeptZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Konto und Karten", "Anträge vollständig vorbereitet"], ["Ansprechpartner", "Einer, von der Prüfung bis zum Kapital"]] as [string, string][],
     redaktion: "Aktuell aus der Redaktion",
     // E-466 (30.10.2026): Hinter einer Meta-Anzeige darf im Blickfang nichts von Konto, Karte oder Kapital stehen (E-233),
     // kein „Team vor Ort in Miami“ und „inklusive“ nur mit „erstes Jahr“.
-    lpKonzept: ["Ein Ansprechpartner statt acht", `Festpreis ab ${globalPreisText("global_struktur", "de")}, erstes Jahr inklusive`, "In der Regel ohne Reise"],
-    lpZeilen: [["Gründung", "LLC oder Corporation, Staat nach Wahl"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Ansprechpartner", "Einer, von der Prüfung bis zur Gründung"]] as [string, string][],
+    lpKonzept: ["Ein Ansprechpartner statt acht", `${EIN_PRODUKT.de.preis}, erstes Jahr inklusive`, "In der Regel ohne Reise"],
+    lpZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Ansprechpartner", "Einer, von der Prüfung bis zur Gründung"]] as [string, string][],
   },
   en: {
-    konzept: ["One contact instead of eight", `Fixed price from ${globalPreisText("global_struktur", "en")}, all included`, "Team on the ground in Miami"],
+    konzept: ["One contact instead of eight", `${EIN_PRODUKT.en.preis} with your order`, "Team on the ground in Miami"],
     blick: "At a glance",
     konzeptKarte: "Your engagement",
-    konzeptZeilen: [["Formation", "LLC or corporation, state of your choice"], ["Tax numbers", "EIN and ITIN — we file the applications"], ["Account and cards", "Applications fully prepared"], ["Your contact", "One person, from review to capital"]] as [string, string][],
+    konzeptZeilen: [["Formation", "Your LLC in Delaware, Florida or Wyoming"], ["Tax numbers", "EIN and ITIN — we file the applications"], ["Account and cards", "Applications fully prepared"], ["Your contact", "One person, from review to capital"]] as [string, string][],
     redaktion: "Latest from the editorial team",
   },
 } as const;
@@ -76,6 +79,9 @@ const WORT = {
 /** Der Pfad, wie er unten im Bild steht — kurz genug für eine Zeile. */
 function adresse(pfad: string): string {
   if (pfad.startsWith("artikel:") || pfad.includes("~redaktion")) return pfad.startsWith("/en") ? "fiaon.com/en/business/knowledge" : "fiaon.com/business/wissen";
+  // 29.10.2026 (E-461): Die Übersichten sind die Startseite — im Bild steht ihre echte Adresse, nicht der alte Schlüssel /business.
+  if (pfad === "/business") return "fiaon.com";
+  if (pfad === "/en/business") return "fiaon.com/en";
   const a = `fiaon.com${pfad}`;
   return a.length <= 52 ? a : `fiaon.com${pfad.split("/").slice(0, 3).join("/")}/…`;
 }
@@ -152,11 +158,14 @@ h1 i{display:block;font-style:italic;font-weight:300;color:#12284a}
 function alleBilder(): Bild[] {
   const liste: Bild[] = [];
   for (const s of [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN]) liste.push(ausRegister(s));
-  // Die beiden Übersichten — Wortlaut wie im Hero von /business und /en/business.
-  liste.push({ pfad: "/business", sprache: "de", auge: "FIAON Global · Für Unternehmen und Privatpersonen", h1: "US-Gesellschaft gründen.", h1b: "Den Weg zum Kapital planen.",
-    kennung: "FIAON GLOBAL", kartenTitel: WORT.de.konzeptKarte, zeilen: WORT.de.konzeptZeilen.slice(0, 3), alt: "FIAON Global — US-Gesellschaft gründen, den Weg zum Kapital planen. Ein Ansprechpartner statt acht." });
-  liste.push({ pfad: "/en/business", sprache: "en", auge: "FIAON Global · For companies and private individuals", h1: "Form a US company.", h1b: "Plan the path to capital.",
-    kennung: "FIAON GLOBAL", kartenTitel: WORT.en.konzeptKarte, zeilen: WORT.en.konzeptZeilen.slice(0, 3), alt: "FIAON Global — form a US company, plan the path to capital. One contact instead of eight." });
+  // Die beiden Übersichten (Startseite / und /en, Schlüssel /business und /en/business) — Wortlaut wie in der Bühne der Startseite:
+  // seit E-509 aus VERKAUF_TEXTE.buehne (vorher von Hand: „US-Gesellschaft gründen. Den Weg zum Kapital planen.“).
+  for (const sp of ["de", "en"] as const) {
+    const b = VERKAUF_TEXTE[sp].buehne;
+    liste.push({ pfad: sp === "de" ? "/business" : "/en/business", sprache: sp, auge: b.auge, h1: b.h1a, h1b: b.h1b,
+      kennung: "FIAON GLOBAL", kartenTitel: WORT[sp].konzeptKarte, zeilen: WORT[sp].konzeptZeilen.slice(0, 3),
+      alt: `FIAON Global — ${b.h1a} ${b.h1b} ${sp === "de" ? "Ein Ansprechpartner statt acht." : "One contact instead of eight."}` });
+  }
   for (const lp of LANDINGPAGES) {
     liste.push({ pfad: lp.pfad, sprache: "de", auge: lp.auge, h1: lp.h1, h1b: lp.h1b, kennung: "FIAON GLOBAL",
       kartenTitel: WORT.de.konzeptKarte, zeilen: WORT.de.lpZeilen, konzept: WORT.de.lpKonzept, alt: `${lp.h1} ${lp.h1b ?? ""} — FIAON Global`.replace(/\s+/g, " ") });

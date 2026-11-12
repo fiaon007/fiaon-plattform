@@ -127,7 +127,8 @@ ok(GLOBAL_STANDORTE.every((o) => !/Schwarzott (Capital Partners|Global LLC)/.tes
 const lpSeite = lies("client/src/pages/site/global-lp.tsx");
 ok(!/Drei Standorte, ein Vertrag/.test(lpSeite), "Seitenbaustein ohne „ein Vertrag“");
 const og = lies("shared/fiaon-og-business.ts");
-ok(/"\/business\/lp\/us-firmengruendung": \{[^}]*ein Ansprechpartner, ein Festpreis/.test(og), "Vorschaubild-Text der Landingpage neu");
+// E-509 (12.11.2026): ein Produkt statt vier Pakete — die Anzeigenseite sagt „ein Ansprechpartner, ein Auftrag“ (vorher: „… ein Festpreis“).
+ok(/"\/business\/lp\/us-firmengruendung": \{[^}]*ein Ansprechpartner, ein Auftrag/.test(og) && !/Festpreis/.test(og), "Vorschaubild-Text der Landingpage neu (ohne „Festpreis“)");
 
 // ── A5 E-490: neue Formulare (F1) und die alte Fassung in laufenden Anzeigen (F5) — rein ─────────────────────────────
 abschnitt("A5 E-490 F1/F5: neue Formulare ab der Anlage, alte Formular-Fassung in laufenden Anzeigen (rein)");

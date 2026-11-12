@@ -12,7 +12,7 @@
 import { OG_BUSINESS } from "./fiaon-og-business";
 
 /** Cache-Bruch: bei neuer Bildfassung hochzählen (Plattformen wie LinkedIn halten Bilder sonst Tage). */
-export const OG_BUSINESS_VERSION = 3;   // 2 = E-466 Anzeigen-Landingpage neu; 3 = E-466 (30.10.2026) „Schwarzott Group“ statt AG/LLC in vier Bildern
+export const OG_BUSINESS_VERSION = 4;   // 2 = E-466 Anzeigen-Landingpage neu; 3 = E-466 (30.10.2026) „Schwarzott Group“ statt AG/LLC in vier Bildern; 4 = E-509 (12.11.2026) ein Produkt, ein Preis — alle Bilder neu
 
 /** Die zwei Pseudo-Pfade des Redaktionsbilds (keine Seite, nur ein Bild). */
 export const OG_BUSINESS_REDAKTION = { de: "/business/wissen/~redaktion", en: "/en/business/knowledge/~redaktion" } as const;

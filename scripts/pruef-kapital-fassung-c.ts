@@ -23,6 +23,10 @@
 //     und vor allem: Vertrag, Prüfsumme und der Fingerabdruck für den Browser sind mit und ohne Team GLEICH (eine offene Seite muss
 //     nicht neu laden) — auch über die echte Kundensicht des Servers (kapitalCKundenSicht, ohne Datenbank)
 //
+//   13 E-505 (Justin 12.11.2026) — Erfolgshonorar nach Rahmenhöhe (Mengenrabatt-Staffel 5/3/2/1,5 %, Mindesthonorar, fällt nie) und der
+//      wählbare Kapitalrahmen (Regler): Vorgabe lesen/abweisen, Wahl des Kunden bleibt bei einem zweiten Skriptlauf, Betrag und Honorar
+//      immer abgeleitet, US-Dollar-Anzeige = gewählter Wert, Vertrag/Seite/Prüfsumme folgen der Wahl, Bestand ohne Schlüssel, Wortwand,
+//      echte Kundensicht des Servers und Zutritt zum Speichern
 //   10 E-474 (Justin 02.11.2026) — Angaben vom Kunden (datenVomKunden) und Fast-Track nach Wahl (fastTrackWahl), ohne Datenbank:
 //      Bestand byte-gleich (Prüfsumme über Vertrag, Seite, Übersicht, Annahme, Bestätigung, Aufgaben gegen die Grundlinie aus
 //      origin/main vor E-474), Anlage ohne Ausweis nur mit Parameter, Unterschrift gesperrt bis die Angaben da sind, ungültige Angaben
@@ -1238,6 +1242,88 @@ abschnitt("E-493 Lange Zeilen laufen nicht mehr aus dem Rahmen (Fast-Track-Karte
   const V = C.kapitalCVorrang({ bundesstaat: "Delaware", datenVomKunden: true } as any);
   const laengste = Math.max(...[V.anmeldungKarte, "Antrag auf die EIN am Tag der Eintragung, sobald Sie das dafür vorbereitete Formular unterschrieben haben"].map((s: string) => s.split(" · ").reduce((m: number, x: string) => Math.max(m, x.length), 0)));
   ok(laengste > 36, "Gegenprobe: die längste Karten-Zeile ist länger als die Grenze (ohne die Regel wäre sie ein Block)", laengste);
+}
+
+{
+  abschnitt("13 E-505 — Erfolgshonorar nach Rahmenhöhe (Staffel) und der wählbare Kapitalrahmen (Regler)");
+  const KURS = 1.1165;
+  // 13.1 Die Staffel: die vereinbarten Werte (Vorschlag E-505, Justins Ja 12.11.2026) — auf volle zehn Euro, nie unter dem Mindesthonorar.
+  const SOLL: [number, number][] = [[50_000, 299_000], [75_000, 336_000], [100_000, 448_000], [150_000, 582_000], [200_000, 717_000], [250_000, 851_000], [500_000, 1_299_000], [1_000_000, 1_970_000]];
+  for (const [usd, cents] of SOLL) ok(C.kapitalCStaffelHonorarCents(usd, KURS) === cents, `Staffel: ${usd} US-$ → ${cents / 100} €`, C.kapitalCStaffelHonorarCents(usd, KURS));
+  // 13.2 Mengenrabatt: Das Honorar fällt mit steigendem Rahmen NIE (auch nicht an einer Stufengrenze) — bei mehreren Kursen, in 1.000er-Schritten.
+  for (const kurs of [0.9, 1, KURS, 1.3]) {
+    let vorher = 0; let faellt = 0;
+    for (let usd = 10_000; usd <= 1_000_000; usd += 1_000) { const h = C.kapitalCStaffelHonorarCents(usd, kurs); if (h < vorher) faellt++; vorher = h; }
+    ok(faellt === 0, `Staffel fällt nie mit steigendem Rahmen (Kurs ${kurs})`, faellt);
+  }
+  // 13.3 Der Satz im Schnitt liegt zwischen 1,5 % und 5 % (Justin) — sobald das Mindesthonorar nicht mehr greift; darunter gilt das Mindesthonorar.
+  for (let usd = 75_000; usd <= 1_000_000; usd += 25_000) {
+    const satz = C.kapitalCStaffelHonorarCents(usd, KURS) / (usd / KURS * 100);
+    ok(satz >= 0.015 && satz <= 0.0502, `Satz im Schnitt zwischen 1,5 % und 5 % bei ${usd} US-$`, satz);
+  }
+  ok(C.kapitalCStaffelHonorarCents(50_000, KURS) === C.KAPITAL_C_STAFFEL.mindestCents && C.kapitalCStaffelHonorarCents(10_000, KURS) === C.KAPITAL_C_STAFFEL.mindestCents, "Mindesthonorar greift bei kleinen Rahmen");
+  ok(C.kapitalCStaffelHonorarCents(1_500_000, KURS) > C.kapitalCStaffelHonorarCents(1_000_000, KURS), "Über der letzten Stufe läuft der letzte Satz weiter");
+  ok([50_000, 135_000, 250_000, 720_000].every((u) => C.kapitalCStaffelHonorarCents(u, KURS) % 1_000 === 0), "Honorar immer auf volle zehn Euro");
+
+  // 13.4 Die Regler-Vorgabe: nur Sinnvolles erzeugt den Schlüssel.
+  const W0 = C.kapitalCRahmenWahlAus({ minUsd: 50_000, maxUsd: 250_000, schrittUsd: 5_000, gewaehltUsd: 150_000 });
+  ok(W0 && W0.minUsd === 50_000 && W0.maxUsd === 250_000 && W0.schrittUsd === 5_000 && W0.gewaehltUsd === 150_000 && W0.staffel === "E-505", "Regler-Vorgabe gelesen (mit Staffel-Fassung)", W0);
+  ok(C.kapitalCRahmenWahlAus({ minUsd: 50_000, maxUsd: 250_000 })?.gewaehltUsd === 150_000, "Ohne Startwert: die Mitte der Spanne (auf dem Raster)");
+  ok(C.kapitalCRahmenWahlAus({ minUsd: 50_000, maxUsd: 250_000, schrittUsd: 5_000, gewaehltUsd: 152_500 })?.gewaehltUsd === 150_000, "Startwert neben dem Raster: die Mitte");
+  for (const [roh, was] of [[null, "null"], ["x", "Text"], [{ minUsd: 250_000, maxUsd: 50_000 }, "Grenzen vertauscht"], [{ minUsd: 5_000, maxUsd: 250_000 }, "unter 10.000"], [{ minUsd: 50_000, maxUsd: 2_000_000 }, "über 1 Mio."], [{ minUsd: 50_000, maxUsd: 250_000, schrittUsd: 30_000 }, "Schritt geht nicht auf"], [{ minUsd: 50_000, maxUsd: 250_000, schrittUsd: 500 }, "Schritt zu klein"]] as [unknown, string][])
+    ok(C.kapitalCRahmenWahlAus(roh) === null, `Regler-Vorgabe abgewiesen: ${was}`);
+  ok(C.kapitalCRahmenWahlAus({ minUsd: 50_000, maxUsd: 250_000, schrittUsd: 5_000, gewaehltUsd: 100_000 }, { ...W0!, gewaehltUsd: 200_000 })?.gewaehltUsd === 200_000, "Zweiter Skriptlauf überschreibt die Wahl des Kunden nie");
+  ok(C.kapitalCRahmenWahlAus({ minUsd: 50_000, maxUsd: 150_000, schrittUsd: 5_000, gewaehltUsd: 100_000 }, { ...W0!, gewaehltUsd: 200_000 })?.gewaehltUsd === 100_000, "Liegt die alte Wahl außerhalb der neuen Grenzen, gilt der Startwert der Datei");
+  ok(C.kapitalCRahmenGueltig(W0!, 50_000) && C.kapitalCRahmenGueltig(W0!, 250_000) && C.kapitalCRahmenGueltig(W0!, 155_000), "Gültig: Grenzen und Rasterwerte");
+  ok(![45_000, 255_000, 152_000, 150_000.5, "150000", null, NaN].some((v) => C.kapitalCRahmenGueltig(W0!, v)), "Ungültig: außerhalb, neben dem Raster, keine ganze Zahl, Text");
+
+  // 13.5 Parameter: mit Regler sind Betrag und Erfolgshonorar IMMER abgeleitet — eine Zahl aus der Datei zählt nicht. Ohne Regler: wie bisher.
+  const PR = C.kapitalCParameterAus({ ...PAR, kursUsdJeEur: KURS, kursDatum: "2026-11-06", betragCents: 1, erfolgCents: 1, datenVomKunden: true, fastTrackWahl: true, rahmenWahl: { minUsd: 50_000, maxUsd: 250_000, schrittUsd: 5_000, gewaehltUsd: 150_000 } } as any);
+  ok(PR.rahmenWahl?.gewaehltUsd === 150_000 && PR.betragCents === 13_435_000 && PR.erfolgCents === 582_000, "Mit Regler: Betrag (volle zehn Euro zum Kurs) und Honorar (Staffel) folgen dem Stand", [PR.betragCents, PR.erfolgCents]);
+  ok(JSON.stringify(C.kapitalCParameterAus(PR)) === JSON.stringify(PR), "Erneutes Lesen ändert nichts (stabil)");
+  ok(!("rahmenWahl" in PAR) && JSON.stringify(C.kapitalCParameterAus(PAR)) === JSON.stringify(PAR) && PAR.erfolgCents === C.KAPITAL_C_VORGABEN.erfolgCents, "Ohne Regler: kein Schlüssel, Betrag und Honorar wie in der Datei (Bestand)");
+  ok(!("rahmenWahl" in C.kapitalCParameterAus({ rahmenWahl: null } as any, PR)), "„rahmenWahl: null“ in der Datei nimmt den Regler wieder weg");
+  const P200 = C.kapitalCRahmenAnwenden(PR, 200_000);
+  ok(P200.rahmenWahl?.gewaehltUsd === 200_000 && P200.erfolgCents === 717_000 && P200.betragCents === 17_913_000 && PR.rahmenWahl?.gewaehltUsd === 150_000, "Wahl anwenden: neuer Stand, das Original bleibt unverändert");
+  ok(C.kapitalCRahmenAnwenden(PAR, 200_000) === PAR, "Ohne Regler lässt sich kein Rahmen anwenden");
+  // 13.6 Anzeige in US-Dollar: genau die gewählte Zahl (nie 149.999 durch die Rückrechnung aus ganzen Euro) — für jeden Wert des Reglers.
+  let schief = 0;
+  for (let usd = 50_000; usd <= 250_000; usd += 5_000) if (C.kapitalCRahmenUsd(C.kapitalCRahmenAnwenden(PR, usd)) !== usd) schief++;
+  ok(schief === 0, "US-Dollar-Anzeige = gewählter Wert für jeden Rasterwert", schief);
+  ok(C.kapitalCRahmenUsd(PAR) === C.kapitalCInUsd(PAR.betragCents, PAR.kursUsdJeEur), "Ohne Regler: Umrechnung wie bisher");
+
+  // 13.7 Vertrag und Seite folgen der Wahl; die Prüfsumme auch (der Kunde nimmt den Text an, den er nach seiner Wahl gesehen hat).
+  const kk = C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }, { ohneAusweis: true });
+  if (!kk.ok) throw new Error("Musterkunde (ohne Ausweis) ungültig");
+  const DR = { ...D, kunde: kk.kunde, parameter: PR };
+  const D200 = { ...DR, parameter: P200 };
+  const rumpf = flach(ohneHtml(C.kapitalCRumpfHtml(DR, null))); const rumpf200 = flach(ohneHtml(C.kapitalCRumpfHtml(D200, null)));
+  ok(rumpf.includes(flach(C.kapitalCEur(PR.betragCents))) && rumpf.includes("150.000 US-$") && rumpf.includes(flach(C.kapitalCEur(582_000))), "Vertrag nennt Betrag, US-Dollar-Wert und Honorar der Wahl (150.000)");
+  ok(rumpf200.includes("200.000 US-$") && rumpf200.includes(flach(C.kapitalCEur(717_000))) && !rumpf200.includes("150.000 US-$"), "Vertrag nach neuer Wahl (200.000): neue Zahlen, keine alten");
+  ok(C.kapitalCHashEingabe(DR, C.kapitalCRumpfHtml(DR, null)) !== C.kapitalCHashEingabe(D200, C.kapitalCRumpfHtml(D200, null)), "Prüfsumme folgt der Wahl");
+  const seite = C.kapitalCSeite(DR); const seiteOhne = C.kapitalCSeite(D);
+  ok(!!seite.rahmen && !("rahmen" in seiteOhne), "Seite: Regler-Texte nur mit Regler (Bestand ohne Schlüssel)");
+  ok(seite.rahmen!.staffelZeilen.length === 2 && /5\s%/.test(flach(seite.rahmen!.staffelZeilen[0].satz)) && /3\s%/.test(flach(seite.rahmen!.staffelZeilen[1].satz)), "Staffel-Zeilen nur bis zur Obergrenze des Reglers (250.000: zwei Stufen)", seite.rahmen!.staffelZeilen);
+  ok(flach(seite.investition.zeile).includes(flach(C.kapitalCEur(582_000))) && flach(seite.hero.umrechnung).includes("150.000 US-$"), "Investition und Karte oben zeigen Honorar und Rahmen der Wahl");
+  ok(seite.hero.knopf === "Rahmen und Laufzeit wählen" && seiteOhne.hero.knopf === "Laufzeit wählen", "Knopf oben: mit Regler „Rahmen und Laufzeit wählen“, sonst wie bisher");
+  // 13.8 Wortwand der neuen Texte: kein „bis zu“, nie „garantiert“, Hausregeln.
+  const rt = flach(sammle(seite.rahmen, []).join(" · "));
+  ok(!/\bbis zu\b/i.test(rt) && !/\bgarantier/i.test(rt) && !BANK.test(rt), "Regler-Texte: kein „bis zu“, kein „garantiert“, kein Bankname", rt);
+  const rf = W.globalWortPruefen(rt, ["aufgabe_an_betreuer"]);
+  ok(rf.length === 0, "Regler-Texte: Wortwand", rf);
+
+  // 13.9 Der Server: die echte Kundensicht (ohne Datenbank) und der Zutritt zum Speichern.
+  const KS13 = await import("../server/lib/fiaon-global-angebot-kapital-c");
+  const zeile13 = (parameter: unknown) => ({ id: 1, angebot_ref: D.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: { ...KUNDE_ROH, ausweise: [] }, parameter, buergin: BUERGIN, gueltig_bis: D.gueltigBis }) as any;
+  const sR = (await KS13.kapitalCKundenSicht("T13", zeile13({ ...PR, unterschriftFrei: true }))).body as any;
+  const sO = (await KS13.kapitalCKundenSicht("T13", zeile13({ ...PAR, unterschriftFrei: true }))).body as any;
+  ok(sR.rahmen && sR.rahmen.minUsd === 50_000 && sR.rahmen.maxUsd === 250_000 && sR.rahmen.gewaehltUsd === 150_000 && /\/kapital-rahmen$/.test(sR.rahmen.speichern) && sR.rahmen.gruendungCents === PR.gruendungCents, "Kundensicht: Regler mit Grenzen, Stand, Speicher-Adresse und Preisen", sR.rahmen);
+  ok(!("rahmen" in sO) && !("rahmen" in sO.seite), "Kundensicht ohne Regler: kein Schlüssel (Bestand)");
+  ok(sR.konditionen.betragCents === PR.betragCents && sR.seite.rahmen && typeof sR.textHash === "string" && sR.textHash.length > 10, "Kundensicht: Konditionen mit dem Betrag der Wahl, Texte und Fingerabdruck da");
+  const sR200 = (await KS13.kapitalCKundenSicht("T13", zeile13({ ...P200, unterschriftFrei: true }))).body as any;
+  ok(sR200.textHash !== sR.textHash && sR200.rahmen.gewaehltUsd === 200_000, "Fingerabdruck für den Browser folgt der Wahl");
+  const KONTEXT13 = { ip: "127.0.0.1", userAgent: "Prüfstand" } as any;
+  ok((await KS13.kapitalCRahmenSpeichern("Unsinn", { usd: 150_000 }, KONTEXT13)).status === 403, "Rahmen speichern mit falschem Link: 403");
 }
 
 const mail = arg("--mail");

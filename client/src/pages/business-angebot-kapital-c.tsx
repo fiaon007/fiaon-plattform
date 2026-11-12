@@ -25,6 +25,7 @@ import { llcVollname, llcNameFehler, BEGLEIT_LLC_TEXTE, type BegleitLlcWahl } fr
 import { globalWiderrufsbelehrung } from "@shared/fiaon-global-widerruf";
 import {
   kapitalCPlan, kapitalCLaufzeiten, kapitalCEurCent, kapitalCUsd, kapitalCProzent, kapitalCLaufzeitZeile, kapitalCLetzteRateAnders,
+  kapitalCEur, kapitalCRahmenEuroCents, kapitalCStaffelHonorarCents, kapitalCRahmenGueltig,
   KAPITAL_C_LAUFZEIT_LABEL, KAPITAL_C_NB, KAPITAL_C_REISEPASS,
   type KapitalCKundenSicht, type KapitalCAnnahmeEingabe, type KapitalCPaketKachel, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
@@ -353,6 +354,99 @@ function Rechner({ sicht, jahre, setJahre, plan }: { sicht: KapitalCKundenSicht;
   );
 }
 
+// ── E-505: Ihr Kapitalrahmen — der Regler über dem Laufzeit-Rechner (helles Glas; die Navy-Stelle bleibt der Rechner) ───────────
+/**
+ * Der Kunde schiebt, die Zahlen folgen sofort (dieselben Funktionen wie Server und Vertrag); kurz nach dem Loslassen geht die Wahl
+ * an den Server, die Antwort ist die neue Kundensicht (Vertrag und Fingerabdruck mit diesem Rahmen). Immer nur EINE Anfrage
+ * unterwegs — steht der Regler danach woanders, folgt die nächste. `onOffen` meldet, solange die Wahl noch nicht am Angebot steht
+ * (dann wartet der Annahme-Knopf).
+ */
+function RahmenRegler({ sicht, usd, setUsd, gesperrt, onNeu, onOffen }: {
+  sicht: KapitalCKundenSicht; usd: number; setUsd: (n: number) => void; gesperrt: boolean; onNeu: (s: KapitalCKundenSicht) => void; onOffen: (offen: boolean) => void;
+}) {
+  const R = sicht.rahmen!; const T = sicht.seite.rahmen!; const k = sicht.konditionen;
+  const [stand, setStand] = useState<"ruhe" | "sendet" | "gespeichert" | "fehler">("ruhe");
+  const [fehler, setFehler] = useState("");
+  const [staffelAuf, setStaffelAuf] = useState(false);
+  const [falle, setFalle] = useState("");
+  const unterwegs = useRef(false);
+  const ziel = useRef(usd); ziel.current = usd;
+  const amAngebot = useRef(R.gewaehltUsd); amAngebot.current = R.gewaehltUsd;
+  const melden = useRef(onNeu); melden.current = onNeu;
+  const offen = usd !== R.gewaehltUsd || stand === "sendet";
+  useEffect(() => { onOffen(offen); }, [offen, onOffen]);
+  const senden = useCallback(async () => {
+    if (unterwegs.current || gesperrt) return;
+    const wert = ziel.current;
+    if (wert === amAngebot.current) return;
+    unterwegs.current = true; setStand("sendet"); setFehler("");
+    let gut = false;
+    try {
+      const r = await fetch(R.speichern, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usd: wert, falle }) });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.ok) { gut = true; amAngebot.current = wert; melden.current(j as KapitalCKundenSicht); }
+      else setFehler(j?.error || T.fehler);
+    } catch { setFehler(T.fehler); }
+    unterwegs.current = false;
+    if (!gut) { setStand("fehler"); return; }
+    // Hat der Kunde inzwischen weitergeschoben, folgt genau eine weitere Anfrage mit dem letzten Stand.
+    if (ziel.current !== wert) { void senden(); return; }
+    setStand("gespeichert");
+  }, [R.speichern, T.fehler, falle, gesperrt]);
+  // Kurz nach der letzten Bewegung speichern (Maus, Finger und Pfeiltasten gleich).
+  useEffect(() => {
+    if (gesperrt || usd === R.gewaehltUsd) return;
+    const zeit = window.setTimeout(() => { void senden(); }, 450);
+    return () => window.clearTimeout(zeit);
+  }, [usd, R.gewaehltUsd, gesperrt, senden]);
+  const eurCents = kapitalCRahmenEuroCents(usd, k.kursUsdJeEur);
+  const honorarCents = kapitalCStaffelHonorarCents(usd, k.kursUsdJeEur);
+  const anteil = ((usd - R.minUsd) / (R.maxUsd - R.minUsd)) * 100;
+  const schieben = (roh: string) => {
+    const n = Math.round(Number(roh));
+    if (kapitalCRahmenGueltig(R, n)) { setUsd(n); if (stand !== "sendet") setStand("ruhe"); }
+  };
+  return (
+    <div className="gkc-rahmen" id="gkc-rahmen" data-fiaon="kapital-c-rahmen">
+      <div className="gkc-rahmen-raster">
+        <div className="gkc-rahmen-links">
+          <p className="gaf-auge">{T.auge}</p>
+          <h2 className="gkc-rahmen-titel">{T.titel}</h2>
+          <p className="gkc-rahmen-sub">{T.sub}</p>
+        </div>
+        <div className="gkc-rahmen-rechts">
+          <p className="gkc-rahmen-betrag" aria-hidden="true">{kapitalCUsd(usd)}</p>
+          <p className="gkc-rahmen-eur" aria-hidden="true"><span className="gkc-nb">{kapitalCEur(eurCents)}</span> {T.kursZeile}</p>
+          <label className="gaf-nur-leser" htmlFor="gkc-rahmen-regler">{T.reglerLabel}</label>
+          <input id="gkc-rahmen-regler" className="gkc-regler" type="range" min={R.minUsd} max={R.maxUsd} step={R.schrittUsd} value={usd} disabled={gesperrt}
+            style={{ "--gkc-anteil": `${anteil}%` } as React.CSSProperties}
+            aria-valuetext={`${kapitalCUsd(usd)}, ${T.honorarLabel} ${kapitalCEur(honorarCents)}`}
+            onChange={(e) => schieben(e.target.value)} data-fiaon="kapital-c-rahmen-regler" />
+          <p className="gkc-regler-enden" aria-hidden="true"><span>{T.von}</span><span>{T.bis}</span></p>
+          <input className="gaf-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} name="firma_webseite" />
+        </div>
+      </div>
+      <dl className="gkc-rahmen-werte">
+        <div><dt>{T.honorarLabel}</dt><dd>{kapitalCEur(honorarCents)}</dd><dd className="gkc-rahmen-wert-zeile">{T.honorarZeile}</dd></div>
+        <div><dt>{T.heuteLabel}</dt><dd>{kapitalCEur(R.gruendungCents)}</dd><dd className="gkc-rahmen-wert-zeile">{T.heuteZeile}</dd></div>
+      </dl>
+      <p className="gaf-nur-leser" aria-live="polite">{einsetzen(T.vorlesen, { usd: kapitalCUsd(usd), eur: kapitalCEur(eurCents), honorar: kapitalCEur(honorarCents) })}</p>
+      <p className={`gkc-rahmen-stand ${stand}`} role="status">
+        {stand === "sendet" && T.speichert}
+        {stand === "gespeichert" && <><Zeichen art="haken" groesse={13} />{T.gespeichert}</>}
+        {stand === "fehler" && <><span>{fehler || T.fehler}</span><button type="button" className="gkc-link" onClick={() => { void senden(); }}>{T.nochmal}</button></>}
+      </p>
+      <div className={`gkc-rahmen-staffel${staffelAuf ? " auf" : ""}`}>
+        <button type="button" className="gkc-link" aria-expanded={staffelAuf} aria-controls="gkc-rahmen-staffel" onClick={() => setStaffelAuf((a) => !a)}>{staffelAuf ? T.staffelZu : T.staffelKnopf}</button>
+        <div className="gaf-klapp" id="gkc-rahmen-staffel" {...(staffelAuf ? {} : { inert: "" })}><div>
+          <ul className="gkc-staffel-liste">{T.staffelZeilen.map((z) => <li key={z.teil}><span>{z.teil}</span><b>{z.satz}</b></li>)}</ul>
+          <p className="gaf-fein">{T.staffelFuss}</p>
+        </div></div>
+      </div>
+    </div>
+  );
+}
+
 // ── Ihr Paket: typografische Kacheln, jede klickbar (am Handy eine kompakte Liste) ─────────────────────
 function PaketKachel({ k, offen, onKlick, mehr, weniger }: { k: KapitalCPaketKachel; offen: boolean; onKlick: () => void; mehr: string; weniger: string }) {
   const id = `gkc-paket-${k.schluessel}`;
@@ -553,6 +647,10 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   const [auftakt, setAuftakt] = useState<"offen" | "geht" | "vorbei">("offen");
   const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
   const [jahre, setJahre] = useState<number>(k.laufzeitVorschlagJahre);
+  // E-505: der Stand des Reglers „Ihr Kapitalrahmen“ (null = Angebot ohne Regler). Rechner und Übersicht rechnen sofort mit ihm;
+  // am Angebot steht er, sobald der Server geantwortet hat (rahmenOffen = noch unterwegs → der Annahme-Knopf wartet).
+  const [rahmenUsd, setRahmenUsd] = useState<number | null>(sichtVomServer.rahmen?.gewaehltUsd ?? null);
+  const [rahmenOffen, setRahmenOffen] = useState(false);
   // E-491: Ein Namensvorschlag aus dem Gespräch füllt die Felder vor — der Kunde muss nichts mehr tippen, kann aber ändern.
   const [wahl, setWahl] = useState<BegleitLlcWahl>(() => sichtVomServer.llcVorschlag ?? { wunsch: "", alternative1: "", alternative2: "" });
   const [beruehrt, setBeruehrt] = useState<Partial<Record<NamenFeld, boolean>>>({});
@@ -581,7 +679,18 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   // Nach „Angebot neu laden“ kann sich der Rahmen geändert haben — die Wahl bleibt darin (sonst wirft kapitalCPlan, die Seite wäre leer).
   const jahreIm = Math.min(k.laufzeitMaxJahre, Math.max(k.laufzeitMinJahre, Math.round(jahre)));
   useEffect(() => { if (jahreIm !== jahre) setJahre(jahreIm); }, [jahreIm, jahre]);
-  const plan = useMemo(() => kapitalCPlan(k, jahreIm), [k, jahreIm]);
+  // E-505: Lädt die Seite neu oder kommt eine andere Sicht, steht der Regler auf dem Stand des Angebots — außer der Kunde schiebt gerade.
+  const RA = sicht.rahmen ?? null;
+  const rahmenIm = RA ? (rahmenUsd != null && kapitalCRahmenGueltig(RA, rahmenUsd) ? rahmenUsd : RA.gewaehltUsd) : null;
+  useEffect(() => { if (RA && rahmenUsd == null) setRahmenUsd(RA.gewaehltUsd); }, [RA, rahmenUsd]);
+  useEffect(() => { setRahmenUsd(sichtVomServer.rahmen?.gewaehltUsd ?? null); }, [sichtVomServer]);
+  // Die Konditionen für Rechner und Übersicht: mit Regler der Betrag seines Stands (derselbe Wert, den der Server danach speichert).
+  const kRechnung = useMemo(() => (RA && rahmenIm != null ? { ...k, betragCents: kapitalCRahmenEuroCents(rahmenIm, k.kursUsdJeEur) } : k), [k, RA, rahmenIm]);
+  const plan = useMemo(() => kapitalCPlan(kRechnung, jahreIm), [kRechnung, jahreIm]);
+  // Ändert sich der Rahmen am Angebot, gilt eine schon gezeichnete Unterschrift nicht mehr für diesen Text — das Feld beginnt neu.
+  const rahmenAmAngebot = RA?.gewaehltUsd ?? null;
+  const ersterRahmen = useRef(rahmenAmAngebot);
+  useEffect(() => { if (ersterRahmen.current !== rahmenAmAngebot) { ersterRahmen.current = rahmenAmAngebot; setSig({ da: false, eingabe: null }); } }, [rahmenAmAngebot]);
   // Nach einem Fehler beim Absenden: Fokus auf den Hinweis (Vorleser und Tastatur landen dort, nicht im Nichts).
   useEffect(() => { if (fehler) fehlerKasten.current?.focus(); }, [fehler]);
 
@@ -619,6 +728,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   const fehlt: { id: string; text: string }[] = [];
   if (wunschFehler) fehlt.push({ id: "gkc-annahme-namen", text: wunschFehler });
   else if (ausweichFehler && ausweichFeld) fehlt.push({ id: `gkc-oben-${ausweichFeld}`, text: ausweichFehler });
+  if (RA && rahmenOffen) fehlt.push({ id: "gkc-rahmen", text: "Ihr gewählter Rahmen wird gerade übernommen — bitte einen Moment." });
   if (F && ft === null) fehlt.push({ id: "gkc-ft", text: A.fehltFastTrack ?? "Bitte wählen Sie: mit oder ohne Fast-Track." });
   if (!sofort) fehlt.push({ id: "gkc-sofort", text: F ? "Bitte bestätigen Sie, dass wir sofort beginnen (vor Ablauf der Widerrufsfrist)." : "Bitte bestätigen Sie den Fast-Track (Beginn vor Ablauf der Widerrufsfrist)." });
   if (!sig.da || !sig.eingabe) fehlt.push({ id: "gaf-unterschrift", text: A.unterschrift.fehlt });
@@ -626,7 +736,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
 
   // E-474: Mit der Wahl zum Fast-Track zeigt die Übersicht genau deren Beträge (vom Server, beide Fassungen schon in der Sicht).
   const uebersichtBasis = F && ft !== null && sicht.uebersichtJe ? sicht.uebersichtJe[ft ? "mit" : "ohne"] : sicht.uebersicht;
-  const uebersicht = uebersichtBasis.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(k, jahreIm) } : z));
+  const uebersicht = uebersichtBasis.zeilen.map((z) => (z.label === KAPITAL_C_LAUFZEIT_LABEL ? { ...z, wert: kapitalCLaufzeitZeile(kRechnung, jahreIm) } : z));
   const zumText = {
     vertrag: () => leserOeffnen.current?.(null),
     informationen: () => { setInfoAuf(true); window.setTimeout(() => springen("informationen", false), 30); },
@@ -723,6 +833,9 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
         {/* 2 — Laufzeit, Rate und Konditionen */}
         <section className="gaf-abschnitt gkc-abschnitt-rechner" id="gkc-rechner" aria-label={S.rechner.auge}>
           <div className="gaf-rahmen">
+            {RA && sicht.seite.rahmen && rahmenIm != null && (
+              <Auf><RahmenRegler sicht={sicht} usd={rahmenIm} setUsd={setRahmenUsd} gesperrt={!!sicht.vorschauLeitung} onNeu={setSichtNeu} onOffen={setRahmenOffen} /></Auf>
+            )}
             <Auf><Rechner sicht={sicht} jahre={jahreIm} setJahre={setJahre} plan={plan} /></Auf>
             <div className="gkc-fein-block">{S.konditionen.fein.map((x) => <p key={x} className="gaf-fein">{x}</p>)}</div>
           </div>
@@ -984,7 +1097,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
               </div>
 
               {/* Kein Haken „gelesen“ (Runde 2): Die Unterschrift bestätigt den Satz direkt darunter — die drei Wörter führen zum Text. */}
-              <UnterschriftFeld t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig}
+              <UnterschriftFeld key={`sig-${rahmenAmAngebot ?? "fest"}`} t={A.unterschrift} fehlt={zeig("gaf-unterschrift")} gesperrt={gesperrt} onAenderung={setSig}
                 zusatz={<p className="gkc-unterschrift-satz" id="gkc-gelesen">{A.gelesenVorsatz} „<GelesenSatz satz={A.gelesen} links={A.gelesenLinks} ziele={zumText} />“</p>} />
 
               <input className="gaf-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={falle} onChange={(e) => setFalle(e.target.value)} name="firma_webseite" />

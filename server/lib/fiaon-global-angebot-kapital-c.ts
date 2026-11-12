@@ -73,6 +73,7 @@ import {
   kapitalCVertragsstand, kapitalCZahlbar,
   kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
   KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter, kapitalCBestaetigungAbsaetze, kapitalCReisepassAufgabe,
+  kapitalCRahmenGueltig, kapitalCRahmenAnwenden, kapitalCUsd,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -296,6 +297,9 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
     // E-491: der Namensvorschlag aus dem Gespräch füllt die Namensfelder vor (nur wenn gesetzt — Bestand ohne Schlüssel).
     ...(par.llcVorschlag ? { llcVorschlag: par.llcVorschlag } : {}),
+    // E-505: der Regler „Ihr Kapitalrahmen“ (nur mit rahmenWahl — Bestand ohne Schlüssel). Die Preise dazu, damit die Seite beim
+    // Schieben mit denselben Funktionen rechnet wie der Server.
+    ...(par.rahmenWahl ? { rahmen: { ...par.rahmenWahl, speichern: `/api/fiaon/global/angebot/${t}/kapital-rahmen`, gruendungCents: par.gruendungCents, fastTrackCents: par.fastTrackCents } } : {}),
     html: kapitalCVorschauHtml(d),
     textHash: kapitalCSichtHash(d),
     vertragPdf: `/api/fiaon/global/angebot/${t}/vertrag.pdf`,
@@ -386,6 +390,53 @@ export async function kapitalCAngabenSpeichern(token: string, body: any, kontext
   }
   const neu = await angebotLesen({ id: Number(z.id) });
   if (!neu) return antwortFehler(500, KAPITAL_C_ANGABEN.fehler);
+  const sicht = await kapitalCKundenSicht(token, neu);
+  return { status: 200, body: { ...sicht.body, gespeichert: true } };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-505 (Justin 12.11.2026): DER KUNDE WÄHLT SEINEN KAPITALRAHMEN SELBST — Regler auf der Angebotsseite
+//   POST /global/angebot/:token/kapital-rahmen { usd } — nur mit gültigem Link, nur Fassung C mit rahmenWahl, nur solange offen,
+//     gebremst, Honigtopf, nie aus der Vorschau der Leitung. Der Wert muss auf dem Regler liegen (kapitalCRahmenGueltig). Gespeichert
+//     in den Parametern des Angebots: Betrag in Euro und Erfolgshonorar nach Staffel folgen der Wahl (kapitalCRahmenAnwenden) —
+//     Vertrag, Prüfsumme und Fingerabdruck folgen dem neuen Text; die Antwort ist die neue Kundensicht (die Seite tauscht sie ohne
+//     Neuladen). Nimmt der Kunde mit einem älteren Fingerabdruck an, antwortet die Annahme wie immer „geändert“. Teil 1 (Gründung,
+//     Fast-Track) hängt nicht am Rahmen. Vermerk im Verlauf.
+// ═══════════════════════════════════════════════════════════════════════════
+export async function kapitalCRahmenSpeichern(token: string, body: any, kontext: AnnahmeKontext): Promise<Antwort> {
+  const t = angebotTokenPruefen(token);
+  if (t && (gebremst(`rahmen-ip:${kontext.ip}`, 60, 15 * 60_000) || gebremst(`rahmen-ref:${t.ref}`, 120, 60 * 60_000))) return antwortFehler(429, ZU_VIEL);
+  const l = await kapitalCZeileFuerToken(token);
+  if ("fehler" in l) return l.fehler;
+  const z = l.z;
+  const status = angebotStatusAus(z);
+  if (status !== "offen") {
+    return antwortFehler(409, status === "angenommen"
+      ? "Ihr Vertrag ist schon angenommen — der Rahmen lässt sich hier nicht mehr ändern. Schreiben Sie uns bitte kurz, wenn Sie ihn anpassen möchten."
+      : "Dieses Angebot gilt nicht mehr. Bei Fragen erreichen Sie uns unter support@fiaon.com.", { code: "NICHT_OFFEN" });
+  }
+  if (kontext.leitung) return antwortFehler(403, "Vorschau der Leitung — den Rahmen wählt nur der Kunde.", { code: "VORSCHAU" });
+  if (String(body?.falle ?? "").trim()) return antwortFehler(400, "Ihre Wahl konnte nicht verarbeitet werden. Bitte laden Sie die Seite neu.");
+  const d = kapitalCDatenAus(z);
+  const w = d.parameter.rahmenWahl;
+  if (!w) return antwortFehler(409, "Der Rahmen steht in Ihrem Angebot schon fest.", { code: "NICHT_VORGESEHEN" });
+  const usd = typeof body?.usd === "number" ? body.usd : Number.NaN;
+  if (!kapitalCRahmenGueltig(w, usd)) return antwortFehler(400, `Bitte wählen Sie einen Rahmen zwischen ${kapitalCUsd(w.minUsd)} und ${kapitalCUsd(w.maxUsd)}.`, { code: "RAHMEN" });
+  if (usd !== w.gewaehltUsd) {
+    const neuPar = kapitalCRahmenAnwenden(d.parameter, usd);
+    const heute = berlinToday();
+    // Gespeichert wird, was in der Zeile steht (roh, nicht die beim Lesen abgeleiteten Werte wie die Tempo-Fassung), mit genau den
+    // drei Werten der Wahl. Über `json` gelesen: verträgt auch eine Zeile, deren Parameter als Text im jsonb-Feld liegen (E-238).
+    const gespeichert = { ...json<Record<string, unknown>>(z.parameter, {}), betragCents: neuPar.betragCents, erfolgCents: neuPar.erfolgCents, rahmenWahl: neuPar.rahmenWahl };
+    const [frei] = (await sqlPool`
+      UPDATE fiaon_global_angebote SET parameter = ${jsonb(gespeichert)}, updated_at = NOW()
+       WHERE id = ${z.id} AND status = 'offen' AND gueltig_bis >= ${heute}::date
+       RETURNING id`) as any[];
+    if (!frei) return antwortFehler(409, "Das Angebot lässt sich gerade nicht ändern. Bitte laden Sie die Seite neu.", { code: "GEAENDERT" });
+    await verlaufAngebot(Number(z.id), "Kunde (Angebotsseite)", `Kapitalrahmen gewählt: ${kapitalCUsd(usd)} (vorher ${kapitalCUsd(w.gewaehltUsd)}) — Erfolgshonorar nach Staffel ${kapitalCEur(neuPar.erfolgCents)}`, { ip: kontext.ip });
+  }
+  const neu = await angebotLesen({ id: Number(z.id) });
+  if (!neu) return antwortFehler(500, "Ihre Wahl konnte gerade nicht übernommen werden. Bitte versuchen Sie es noch einmal.");
   const sicht = await kapitalCKundenSicht(token, neu);
   return { status: 200, body: { ...sicht.body, gespeichert: true } };
 }

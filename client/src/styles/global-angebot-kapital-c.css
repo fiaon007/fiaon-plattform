@@ -492,3 +492,59 @@
 .gkc-pass-da { display:flex; align-items:center; gap:8px; margin:8px 0 16px; font-size:15px; color:#1d4ed8; }
 .gkc-pass-fein { margin-top:10px; font-size:13px; color:var(--leise); }
 @media (max-width:560px) { .gkc-pass { padding:22px 18px 18px; border-radius:20px; } .gkc-pass .gkp-knopf, .gkc-pass .gkp-knopf-leise { width:100%; justify-content:center; } }
+
+/* ── E-505: Ihr Kapitalrahmen — der Regler über dem Laufzeit-Rechner ───────────────────────────────────────
+   Helles Glas im Glasblau (die EINE Navy-Stelle bleibt der Rechner darunter). Dünne Schrift, Haarlinien, ein Regler mit großer
+   Griff-Fläche (44 px am Handy). Der gefüllte Teil der Bahn folgt --gkc-anteil. */
+.gkc-rahmen { position:relative; margin-bottom:28px; padding:44px 48px 30px; border-radius:32px; color:var(--text);
+  background:linear-gradient(158deg,#ffffff 0%,#f5faff 55%,#e8f2ff 100%); border:1px solid rgba(40,141,250,.18);
+  box-shadow:0 30px 70px -44px rgba(29,78,216,.45), inset 0 1px 0 #fff; scroll-margin-top:84px; }
+.gkc-rahmen-raster { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.04fr); gap:48px; align-items:center; }
+.gkc-rahmen-titel { margin-top:18px; font-family:var(--serif); font-weight:300; font-size:clamp(30px,3.3vw,48px); line-height:1.06; letter-spacing:-.022em; color:var(--tinte); text-wrap:balance; }
+.gkc-rahmen-sub { margin-top:12px; font-size:16.5px; line-height:1.6; color:var(--leise); max-width:44ch; }
+.gkc-rahmen-betrag { font-family:var(--serif); font-weight:300; font-size:clamp(44px,5.4vw,76px); line-height:1; letter-spacing:-.03em; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gkc-rahmen-eur { margin-top:10px; font-size:14.5px; color:var(--leise); }
+.gkc-regler { -webkit-appearance:none; appearance:none; display:block; width:100%; height:34px; margin-top:22px; padding:0; background:transparent; cursor:pointer; touch-action:pan-y; }
+.gkc-regler:disabled { cursor:default; opacity:.6; }
+.gkc-regler::-webkit-slider-runnable-track { height:6px; border-radius:999px;
+  background:linear-gradient(90deg,#288dfa 0, #1d4ed8 var(--gkc-anteil,50%), rgba(40,141,250,.18) var(--gkc-anteil,50%), rgba(40,141,250,.18) 100%); }
+.gkc-regler::-moz-range-track { height:6px; border-radius:999px; background:rgba(40,141,250,.18); }
+.gkc-regler::-moz-range-progress { height:6px; border-radius:999px; background:linear-gradient(90deg,#288dfa,#1d4ed8); }
+.gkc-regler::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:30px; height:30px; margin-top:-12px; border-radius:50%; border:1px solid rgba(29,78,216,.35);
+  background:radial-gradient(circle at 34% 30%,#ffffff 0%,#eaf3ff 55%,#cfe4fe 100%); box-shadow:0 10px 22px -8px rgba(29,78,216,.7), inset 0 1px 0 #fff; }
+.gkc-regler::-moz-range-thumb { width:30px; height:30px; border-radius:50%; border:1px solid rgba(29,78,216,.35);
+  background:radial-gradient(circle at 34% 30%,#ffffff 0%,#eaf3ff 55%,#cfe4fe 100%); box-shadow:0 10px 22px -8px rgba(29,78,216,.7), inset 0 1px 0 #fff; }
+.gkc-regler:focus-visible { outline:none; }
+.gkc-regler:focus-visible::-webkit-slider-thumb { outline:2px solid #1d4ed8; outline-offset:3px; }
+.gkc-regler:focus-visible::-moz-range-thumb { outline:2px solid #1d4ed8; outline-offset:3px; }
+.gkc-regler-enden { margin-top:6px; display:flex; justify-content:space-between; gap:12px; font-size:12.5px; color:var(--leise); white-space:nowrap; }
+.gkc-rahmen-werte { margin-top:30px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.gkc-rahmen-werte > div { padding:18px 20px 16px; border-radius:16px; background:rgba(255,255,255,.78); border:1px solid rgba(40,141,250,.14); }
+.gkc-rahmen-werte dt { font-size:11px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--navy); }
+.gkc-rahmen-werte dd { margin-top:8px; font-family:var(--serif); font-weight:300; font-size:30px; line-height:1.05; letter-spacing:-.02em; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gkc-rahmen-werte dd.gkc-rahmen-wert-zeile { margin-top:8px; font-family:var(--sans); font-weight:400; font-size:13.5px; line-height:1.5; letter-spacing:0; color:var(--leise); white-space:normal; font-variant-numeric:normal; }
+.gkc-rahmen-stand { min-height:22px; margin-top:14px; display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--leise); }
+.gkc-rahmen-stand.gespeichert { color:#1d4ed8; }
+.gkc-rahmen-stand.fehler { color:#b3261e; }
+.gkc-rahmen-staffel { margin-top:6px; }
+.gkc-staffel-liste { margin-top:14px; display:grid; gap:0; max-width:520px; }
+.gkc-staffel-liste li { display:flex; justify-content:space-between; gap:18px; padding:10px 0; border-bottom:1px solid var(--linie); font-size:14.5px; color:var(--text); }
+.gkc-staffel-liste li b { font-weight:500; color:var(--tinte); white-space:nowrap; }
+.gkc-rahmen-staffel .gaf-fein { margin-top:12px; max-width:62ch; }
+@media (max-width:900px) {
+  .gkc-rahmen { padding:34px 28px 26px; border-radius:26px; }
+  .gkc-rahmen-raster { grid-template-columns:minmax(0,1fr); gap:26px; }
+}
+@media (max-width:560px) {
+  .gkc-rahmen { padding:28px 20px 22px; border-radius:22px; margin-bottom:20px; }
+  .gkc-rahmen-betrag { font-size:clamp(38px,11.5vw,52px); }
+  .gkc-regler { height:44px; }
+  .gkc-regler::-webkit-slider-thumb { width:34px; height:34px; margin-top:-14px; }
+  .gkc-regler::-moz-range-thumb { width:34px; height:34px; }
+  .gkc-rahmen-werte { grid-template-columns:minmax(0,1fr); }
+  .gkc-rahmen-werte dd { font-size:27px; }
+}
+.gkc-rahmen-staffel .gkc-link { margin-left:0; }
+@media (prefers-reduced-motion:no-preference) { .gkc-regler::-webkit-slider-thumb { transition:transform .15s ease; } .gkc-regler:active::-webkit-slider-thumb { transform:scale(1.06); } }
+.gkc-rahmen-stand .gkc-link { margin-left:0; min-height:32px; }
+.gkc-rahmen-stand.fehler { flex-wrap:wrap; }

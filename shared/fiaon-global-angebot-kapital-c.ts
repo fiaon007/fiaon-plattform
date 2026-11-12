@@ -249,6 +249,98 @@ export interface KapitalCParameter {
    * (gleiche Regeln wie bei der Annahme, llcWahlPruefen), gibt es den Schlüssel nicht: alles wie bisher.
    */
   llcVorschlag?: BegleitLlcWahl;
+  /**
+   * E-505 (Justin 12.11.2026: „er soll sich seinen Kreditrahmen selbst aussuchen können, mit einem Schieberegler“): Der Kunde wählt
+   * seinen Kapitalrahmen auf der Angebotsseite selbst — in US-Dollar zwischen minUsd und maxUsd, in Schritten von schrittUsd.
+   * gewaehltUsd = der Stand des Reglers (beim Anlegen der Startwert). Mit diesem Schlüssel sind betragCents (Euro zum Kurs des
+   * Angebots, volle zehn Euro) und erfolgCents (Staffel nach Rahmenhöhe, kapitalCStaffelHonorarCents) IMMER abgeleitet — eine Zahl aus
+   * der privaten Datei zählt dann nicht. Die Wahl steht im Vertrag selbst (Betrag und Erfolgshonorar), die Prüfsumme folgt ihr:
+   * Der Kunde nimmt genau den Text an, den er nach seiner Wahl gesehen hat. Fehlt der Schlüssel (Bestand): alles wie bisher.
+   */
+  rahmenWahl?: KapitalCRahmenWahl;
+}
+/** `staffel` = die Fassung der Honorar-Staffel, mit der dieses Angebot rechnet (heute nur „E-505“ — siehe KAPITAL_C_STAFFEL). */
+export interface KapitalCRahmenWahl { minUsd: number; maxUsd: number; schrittUsd: number; gewaehltUsd: number; staffel: string }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-505: DAS ERFOLGSHONORAR NACH RAHMENHÖHE (STAFFEL) UND DER WÄHLBARE KAPITALRAHMEN — rein, eine Quelle für Seite, Server, Skript
+//
+// Justin (12.11.2026): „wir müssen unser Erfolgshonorar bei erfolgreicher Gründung an die Finanzierungsgröße anpassen … irgendwas
+// zwischen 1,5 % und 5 %“ — entschieden: Mengenrabatt. Jeder TEIL des Rahmens hat seinen Satz (wie Steuerstufen), darum steigt
+// das Honorar mit dem Rahmen immer gleichmäßig und fällt an keiner Grenze: die ersten 100.000 US-$ zu 5 %, der Teil bis 250.000
+// zu 3 %, bis 500.000 zu 2 %, darüber 1,5 %. Nie unter dem Mindesthonorar. Gerechnet in US-Dollar, umgerechnet zum Kurs des
+// Angebots, auf volle zehn Euro gerundet. Fällig bleibt es wie bisher mit der Eintragung (Ziffer 6 Absatz 2) — bemessen am
+// gewählten Rahmen, nicht an der Auszahlung.
+// ═══════════════════════════════════════════════════════════════════════════
+// WICHTIG: Diese Zahlen NIE ändern. Parameter werden bei jedem Lesen neu abgeleitet (kapitalCParameterAus) — eine geänderte Staffel
+// würde angenommene Verträge nachträglich umrechnen. Eine neue Staffel bekommt eine NEUE Fassung daneben (rahmenWahl.staffel wählt sie).
+export const KAPITAL_C_STAFFEL = {
+  fassung: "E-505",
+  stufen: [{ bisUsd: 100_000, bp: 500 }, { bisUsd: 250_000, bp: 300 }, { bisUsd: 500_000, bp: 200 }, { bisUsd: 1_000_000, bp: 150 }],
+  mindestCents: 299_000,
+  rundungCents: 1_000,
+} as const;
+/** Das Erfolgshonorar (Cent, Endpreis) für einen Rahmen in US-Dollar zum Kurs des Angebots (1 € = kurs US-$). */
+export function kapitalCStaffelHonorarCents(usd: number, kursUsdJeEur: number): number {
+  const rahmen = Math.max(0, Math.round(usd));
+  const stufen = KAPITAL_C_STAFFEL.stufen;
+  // Ganze Zahlen: Dollar · Basispunkte (das Honorar in US-Dollar ist diese Summe / 10.000) — kein Kommafehler an den Grenzen.
+  let summeBp = 0; let ab = 0;
+  for (const st of stufen) {
+    if (rahmen > ab) summeBp += (Math.min(rahmen, st.bisUsd) - ab) * st.bp;
+    ab = st.bisUsd;
+  }
+  if (rahmen > ab) summeBp += (rahmen - ab) * stufen[stufen.length - 1].bp;
+  const eurCents = (summeBp / 100) / kursUsdJeEur;
+  const gerundet = Math.round(eurCents / KAPITAL_C_STAFFEL.rundungCents) * KAPITAL_C_STAFFEL.rundungCents;
+  return Math.max(KAPITAL_C_STAFFEL.mindestCents, gerundet);
+}
+/**
+ * Der Rahmen in Euro (Cent, auf volle zehn Euro) zum Kurs des Angebots — der Vertrag lautet auf Euro, ausgezahlt wird in US-Dollar
+ * zum Kurs des Auszahlungstags. Volle zehn Euro, damit im Vertrag „134.350 €“ steht und nicht „134.348 €“.
+ */
+export function kapitalCRahmenEuroCents(usd: number, kursUsdJeEur: number): number {
+  return Math.round(Math.round(usd) / kursUsdJeEur / 10) * 1_000;
+}
+/** Liegt der Wert auf dem Regler? Ganze Dollar, in den Grenzen, auf dem Schritt-Raster ab der Untergrenze. */
+export function kapitalCRahmenGueltig(w: Pick<KapitalCRahmenWahl, "minUsd" | "maxUsd" | "schrittUsd">, usd: unknown): usd is number {
+  return typeof usd === "number" && Number.isInteger(usd) && usd >= w.minUsd && usd <= w.maxUsd && (usd - w.minUsd) % w.schrittUsd === 0;
+}
+/**
+ * Die Regler-Vorgabe bereinigt — oder null (fehlt oder unsinnig: dann gibt es den Schlüssel nicht, alles wie im Bestand).
+ * Grenzen 10.000 bis 1 Mio. US-$, Schritt 1.000 bis 100.000, die Spanne geht im Schritt auf. Der Stand des Reglers: zuerst die
+ * Wahl, die schon am Angebot steht (`basis` — ein zweiter Skriptlauf überschreibt nie, was der Kunde gewählt hat), sonst der
+ * Startwert der Datei, sonst die Mitte der Spanne (auf dem Raster).
+ */
+export function kapitalCRahmenWahlAus(roh: unknown, basis?: KapitalCRahmenWahl | null): KapitalCRahmenWahl | null {
+  if (!roh || typeof roh !== "object") return null;
+  const o = roh as Record<string, unknown>;
+  const ganz = (v: unknown) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : NaN);
+  const minUsd = ganz(o.minUsd); const maxUsd = ganz(o.maxUsd); const schrittUsd = ganz(o.schrittUsd ?? 5_000);
+  if (!(minUsd >= 10_000) || !(maxUsd <= 1_000_000) || !(minUsd < maxUsd)) return null;
+  if (!(schrittUsd >= 1_000) || !(schrittUsd <= 100_000) || (maxUsd - minUsd) % schrittUsd !== 0) return null;
+  const w = { minUsd, maxUsd, schrittUsd };
+  const mitte = minUsd + Math.floor((maxUsd - minUsd) / 2 / schrittUsd) * schrittUsd;
+  const start = ganz(o.gewaehltUsd);
+  const gewaehltUsd = basis && kapitalCRahmenGueltig(w, basis.gewaehltUsd) ? basis.gewaehltUsd : kapitalCRahmenGueltig(w, start) ? start : mitte;
+  return { ...w, gewaehltUsd, staffel: KAPITAL_C_STAFFEL.fassung };
+}
+/** Die Parameter mit einem gewählten Rahmen: Betrag in Euro und Erfolgshonorar nach Staffel folgen der Wahl. Ohne Regler unverändert. */
+export function kapitalCRahmenAnwenden<P extends Pick<KapitalCParameter, "betragCents" | "erfolgCents" | "kursUsdJeEur" | "rahmenWahl">>(par: P, usd: number): P {
+  if (!par.rahmenWahl) return par;
+  return {
+    ...par,
+    betragCents: kapitalCRahmenEuroCents(usd, par.kursUsdJeEur),
+    erfolgCents: kapitalCStaffelHonorarCents(usd, par.kursUsdJeEur),
+    rahmenWahl: { ...par.rahmenWahl, gewaehltUsd: usd },
+  };
+}
+/**
+ * Der Rahmen in US-Dollar für jede Anzeige: mit Regler genau die gewählte Zahl (nie „249.999“ durch die Rückrechnung aus ganzen
+ * Euro), ohne Regler wie bisher die Umrechnung des Euro-Betrags (Bestand wortgleich).
+ */
+export function kapitalCRahmenUsd(par: Pick<KapitalCParameter, "betragCents" | "kursUsdJeEur" | "rahmenWahl">): number {
+  return par.rahmenWahl ? par.rahmenWahl.gewaehltUsd : kapitalCInUsd(par.betragCents, par.kursUsdJeEur);
 }
 /**
  * E-491: der Namensvorschlag bereinigt — oder null (fehlt, Wunschname leer oder ein Name verletzt die Regeln der Annahme).
@@ -603,7 +695,7 @@ export function kapitalCKonditionenSatz(par: KapitalCParameter): string {
 }
 /** „Ausgezahlt wird in US-Dollar zum Referenzkurs der EZB am Tag der Auszahlung; zum Kurs vom … sind das rund … US-$“ */
 export function kapitalCBetragSatz(par: KapitalCParameter): string {
-  return `Ausgezahlt wird in US-Dollar zum Referenzkurs der Europäischen Zentralbank am Tag der Auszahlung; zum Kurs vom ${kapitalTag(par.kursDatum)} sind das rund ${kapitalCUsd(kapitalCInUsd(par.betragCents, par.kursUsdJeEur))}`;
+  return `Ausgezahlt wird in US-Dollar zum Referenzkurs der Europäischen Zentralbank am Tag der Auszahlung; zum Kurs vom ${kapitalTag(par.kursDatum)} sind das rund ${kapitalCUsd(kapitalCRahmenUsd(par))}`;
 }
 /**
  * Die Verwendung der Mittel — EINE Quelle für Seite (Konditionen, Fragen) und Vertrag (Ziffer 4 Absatz 4). Kein Zweck, kein Ort,
@@ -1010,6 +1102,48 @@ export interface KapitalCSeite {
   bildnachweis: string;
   /** E-474: die Wahl zum Fast-Track (zwei Karten vor der Unterschrift) — null ohne fastTrackWahl. */
   fastTrack: KapitalCFastTrackTexte | null;
+  /** E-505: die Texte des Reglers „Ihr Kapitalrahmen“ — den Schlüssel gibt es nur mit rahmenWahl (Bestand byte-gleich). */
+  rahmen?: KapitalCRahmenTexte;
+}
+/** E-505: Der Regler steht über dem Laufzeit-Rechner; die Zahlen rechnet die Seite mit denselben Funktionen wie Server und Vertrag. */
+export interface KapitalCRahmenTexte {
+  auge: string; titel: string; sub: string; reglerLabel: string; von: string; bis: string; kursZeile: string;
+  honorarLabel: string; honorarZeile: string; heuteLabel: string; heuteZeile: string;
+  speichert: string; gespeichert: string; fehler: string; nochmal: string;
+  staffelKnopf: string; staffelZu: string; staffelZeilen: { teil: string; satz: string }[]; staffelFuss: string;
+  /** Für Vorleseprogramme: nur der Endwert (Platzhalter {usd} {eur} {honorar}). */
+  vorlesen: string;
+}
+/** E-505: die Texte des Reglers — eine Quelle für Seite und Prüfstand. Nur die Stufen der Staffel, die der Regler erreicht. */
+export function kapitalCRahmenTexte(par: Pick<KapitalCParameter, "kursUsdJeEur" | "kursDatum" | "fastTrackWahl"> & { rahmenWahl: KapitalCRahmenWahl }): KapitalCRahmenTexte {
+  const w = par.rahmenWahl;
+  const zeilen: { teil: string; satz: string }[] = [];
+  let ab = 0;
+  for (const st of KAPITAL_C_STAFFEL.stufen) {
+    if (w.maxUsd <= ab) break;
+    zeilen.push({ teil: ab === 0 ? `für die ersten ${kapitalCUsd(st.bisUsd)}` : `für den Teil von ${kapitalCUsd(ab)} bis ${kapitalCUsd(Math.min(st.bisUsd, Math.max(w.maxUsd, ab)))}`, satz: kapitalCProzent(st.bp) });
+    ab = st.bisUsd;
+  }
+  return {
+    auge: "Ihr Kapitalrahmen",
+    titel: "Wählen Sie Ihren Rahmen.",
+    sub: `Zwischen ${kapitalCUsd(w.minUsd)} und ${kapitalCUsd(w.maxUsd)} — Sie entscheiden. Monatsrate, Erfolgshonorar und Ihr Vertrag folgen sofort Ihrer Wahl.`,
+    reglerLabel: "Kapitalrahmen in US-Dollar",
+    von: kapitalCUsd(w.minUsd), bis: kapitalCUsd(w.maxUsd),
+    kursZeile: `zum EZB-Referenzkurs vom ${kapitalTag(par.kursDatum)}`,
+    honorarLabel: "Erfolgshonorar",
+    honorarZeile: "fällig erst mit der Eintragung Ihrer Gesellschaft, einschließlich Bürgschaft",
+    heuteLabel: "Mit Ihrem Auftrag",
+    heuteZeile: par.fastTrackWahl ? "Gründung, Konto und Karten — den Fast-Track wählen Sie weiter unten" : "Gründung, Konto und Karten sowie Fast-Track",
+    speichert: "Ihre Wahl wird übernommen …",
+    gespeichert: "Übernommen — Ihr Vertrag nennt jetzt diesen Rahmen.",
+    fehler: "Ihre Wahl konnte gerade nicht übernommen werden. Bitte versuchen Sie es noch einmal.",
+    nochmal: "Noch einmal versuchen",
+    staffelKnopf: "So berechnen wir das Erfolgshonorar", staffelZu: "Berechnung schließen",
+    staffelZeilen: zeilen,
+    staffelFuss: `Je größer Ihr Rahmen, desto kleiner der Satz. Umgerechnet zum Kurs Ihres Angebots, auf volle zehn Euro gerundet, mindestens ${kapitalCEur(KAPITAL_C_STAFFEL.mindestCents)}. Endpreis.`,
+    vorlesen: "Kapitalrahmen {usd}, das sind {eur}. Erfolgshonorar {honorar}.",
+  };
 }
 /** E-474: die zwei Karten „Ohne Fast-Track“ / „Mit Fast-Track“ — Beträge als Endpreise, die Garantie in beiden gleich. */
 export interface KapitalCFastTrackTexte {
@@ -1027,7 +1161,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
   // E-465: staatsabhängige Zeiten nur für Angebote mit staatenFassung — sonst null und der alte Text bleibt wortgleich.
   const staatT = angebotStaatTexte(par.bundesstaat, par.staatenFassung);
   const betrag = kapitalCEur(par.betragCents);
-  const usd = kapitalCUsd(kapitalCInUsd(par.betragCents, par.kursUsdJeEur));
+  const usd = kapitalCUsd(kapitalCRahmenUsd(par));
   // Die ganze Gleichung bricht nie um („1 € =“ | „1,1188 US-$“, Nachprüfung Runde 2).
   const kursZeile = `EZB-Referenzkurs vom ${kapitalTag(par.kursDatum)}: 1${NB}€${NB}=${NB}${kapitalCKurs(par.kursUsdJeEur)}${NB}US-$`;
   const s1 = par.zinsfreiMonate + 1;
@@ -1070,7 +1204,7 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
       rateAuge: "Ihre Monatsrate ab Monat {monat} nach Auszahlung · Rechenbeispiel",
       rateBei: "bei {jahre} Jahren",
       rateKnopf: "Laufzeit wählen",
-      knopf: "Laufzeit wählen", knopfLeise: "Zum Vertrag", staat: par.bundesstaat,
+      knopf: par.rahmenWahl ? "Rahmen und Laufzeit wählen" : "Laufzeit wählen", knopfLeise: "Zum Vertrag", staat: par.bundesstaat,
     },
     konditionen: {
       auge: "Ihre Konditionen · gezählt ab der Auszahlung · Ziffer 4",
@@ -1258,6 +1392,8 @@ export function kapitalCSeite(d: KapitalCDaten, token?: string): KapitalCSeite {
         : `Wir beginnen in beiden Fällen sofort. Mit Fast-Track stehen Ihre Gesellschaft und EIN in ${KAPITAL_C_TEMPO.mit}, unser Ziel ist die Auszahlung in Woche ${zahlwort(par.zielWochen)}. Ihre Geld-zurück-Garantie gilt in beiden Fällen: ${achtWochen}.`,
       heuteCents: { ohne: kapitalCHeuteCents(par, false), mit: kapitalCHeuteCents(par, true) },
     } : null,
+    // E-505: nur mit Regler — ohne ihn fehlt der Schlüssel (Bestand byte-gleich).
+    ...(par.rahmenWahl ? { rahmen: kapitalCRahmenTexte({ ...par, rahmenWahl: par.rahmenWahl }) } : {}),
   };
 }
 
@@ -1466,6 +1602,11 @@ export function kapitalCBestaetigungAbsaetze(d: { kunde: Pick<KapitalCKunde, "an
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const textAus = (v: unknown, max: number) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | undefined, basis: KapitalCParameter = KAPITAL_C_VORGABEN): KapitalCParameter {
+  // E-505: Mit Regler (rahmenWahl) folgen Betrag und Erfolgshonorar IMMER dem Stand des Reglers — auch nach jedem Einlesen.
+  const aus = kapitalCParameterRoh(roh, basis);
+  return aus.rahmenWahl ? kapitalCRahmenAnwenden(aus, aus.rahmenWahl.gewaehltUsd) : aus;
+}
+function kapitalCParameterRoh(roh: Partial<KapitalCParameter> | null | undefined, basis: KapitalCParameter): KapitalCParameter {
   const r = (roh ?? {}) as Record<string, unknown>;
   const zahl = (key: keyof KapitalCParameter, min: number, max: number, ganz = true): number => {
     const v = Number(r[key]);
@@ -1525,6 +1666,8 @@ export function kapitalCParameterAus(roh: Partial<KapitalCParameter> | null | un
     tempoFassung: typeof r.tempoFassung === "string" ? textAus(r.tempoFassung, 20) : basis.tempoFassung,
     // E-491: nur ein gültiger Vorschlag erzeugt den Schlüssel; ohne ihn bleibt das Objekt wie im Bestand.
     ...(() => { const v = r.llcVorschlag !== undefined ? kapitalCLlcVorschlagAus(r.llcVorschlag) : (basis.llcVorschlag ?? null); return v ? { llcVorschlag: v } : {}; })(),
+    // E-505: nur eine gültige Regler-Vorgabe erzeugt den Schlüssel (null in der Datei nimmt ihn wieder weg); ohne ihn wie im Bestand.
+    ...(() => { const v = r.rahmenWahl !== undefined ? kapitalCRahmenWahlAus(r.rahmenWahl, basis.rahmenWahl) : (basis.rahmenWahl ?? null); return v ? { rahmenWahl: v } : {}; })(),
   };
 }
 /**
@@ -1955,4 +2098,9 @@ export interface KapitalCKundenSicht {
   } | null;
   /** E-491: der Namensvorschlag aus dem Gespräch — die Seite füllt damit die Namensfelder vor (nur wenn gesetzt). */
   llcVorschlag?: BegleitLlcWahl | null;
+  /**
+   * E-505: der Regler „Ihr Kapitalrahmen“ (nur mit rahmenWahl). `gewaehltUsd` = der Stand am Angebot; `speichern` = wohin die Seite
+   * die Wahl schickt (die Antwort ist die neue Kundensicht mit dem Vertrag und dem Fingerabdruck dieser Wahl).
+   */
+  rahmen?: (KapitalCRahmenWahl & { speichern: string; gruendungCents: number; fastTrackCents: number }) | null;
 }

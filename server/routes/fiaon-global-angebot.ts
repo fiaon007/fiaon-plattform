@@ -112,6 +112,19 @@ router.post("/global/angebot/:token/kapital-angaben", async (req: Request, res: 
     res.status(500).json({ ok: false, error: "Ihre Angaben ließen sich gerade nicht speichern — bitte versuchen Sie es noch einmal." });
   }
 });
+// E-505 (Justin 12.11.2026): Kapital-Angebot Fassung C mit rahmenWahl — der Kunde wählt seinen Kapitalrahmen mit dem Regler selbst.
+// Regeln: server/lib/fiaon-global-angebot-kapital-c.ts (kapitalCRahmenSpeichern).
+router.post("/global/angebot/:token/kapital-rahmen", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  try {
+    const KC = await import("../lib/fiaon-global-angebot-kapital-c");
+    const erg = await KC.kapitalCRahmenSpeichern(String(req.params.token), req.body ?? {}, { ip: clientIp(req), userAgent: String(req.headers["user-agent"] || ""), leitung: istLeitung(req) });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] kapital-rahmen:", err);
+    res.status(500).json({ ok: false, error: "Ihre Wahl ließ sich gerade nicht übernehmen — bitte versuchen Sie es noch einmal." });
+  }
+});
 // Erst der Zutritt (Link, angenommen, Bremse), dann multer — wer keinen gültigen Link hat, schickt keine 15 MB in den Speicher.
 const passUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024, files: 1, fields: 4, parts: 6 } }).single("datei");
 router.post("/global/angebot/:token/reisepass", async (req: Request, res: Response) => {

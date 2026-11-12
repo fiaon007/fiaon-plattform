@@ -134,6 +134,10 @@ async function fassungC(roh: any): Promise<boolean> {
   if ((roh as any)?.parameter?.llcVorschlag !== undefined) console.log(parameter.llcVorschlag
     ? `Namensvorschlag (E-491): ${[parameter.llcVorschlag.wunsch, parameter.llcVorschlag.alternative1, parameter.llcVorschlag.alternative2].filter(Boolean).join(" · ")} — die Seite füllt die Felder vor.`
     : "ACHTUNG Namensvorschlag (E-491): ungültig (Wunschname leer, Umlaut, Sonderzeichen oder doppelt) — die Seite bleibt leer.");
+  if (parameter.rahmenWahl) {
+    const w = parameter.rahmenWahl; const h = (usd: number) => SC.kapitalCEur(SC.kapitalCStaffelHonorarCents(usd, parameter.kursUsdJeEur));
+    console.log(`Regler (E-505): der Kunde wählt ${SC.kapitalCUsd(w.minUsd)} bis ${SC.kapitalCUsd(w.maxUsd)} in Schritten von ${SC.kapitalCUsd(w.schrittUsd)}, Stand ${SC.kapitalCUsd(w.gewaehltUsd)} · Erfolgshonorar nach Staffel: ${h(w.minUsd)} (unten) … ${h(w.gewaehltUsd)} (Stand) … ${h(w.maxUsd)} (oben) — Betrag und Honorar der Datei zählen nicht.`);
+  } else if ((roh as any)?.parameter?.rahmenWahl !== undefined && (roh as any).parameter.rahmenWahl !== null) console.log("WARNUNG: rahmenWahl in der Datei ist ungültig (Grenzen 10.000 bis 1 Mio. US-$, Schritt geht in der Spanne auf) — das Angebot hat KEINEN Regler.");
   if (parameter.fastTrackWahl) console.log(`Fast-Track nach Wahl (E-474): ohne ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, false))}, mit ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter, true))} — der Kunde wählt auf der Seite.`);
   console.log(`Bundesstaat: ${parameter.bundesstaat} (E-465: ${SB.staatenAufzaehlung()}; ohne Angabe ${SB.STAAT_VORGABE_NAME}) · Zeiten: ${SB.staatEintragungSatz(parameter.bundesstaat)}`);
   const pf = SC.kapitalCParameterFehler(parameter);

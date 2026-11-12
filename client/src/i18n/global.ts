@@ -280,7 +280,7 @@ const de = {
   schlussA: "Eine Struktur, die Ihnen gehört — ",
   schlussB: "mit einem Ansprechpartner, der Ihr Vorhaben kennt.",
   // Nur noch auf den Unterseiten (global-seite.tsx); /business zeigt im Schlussband keinen Absatz mehr.
-  schlussText: "Wählen Sie ein Paket oder sprechen Sie zuerst mit uns. Erstgespräch: dreißig Minuten, kostenfrei und ohne Verpflichtung.",
+  schlussText: "Stellen Sie Ihr Angebot zusammen oder sprechen Sie zuerst mit uns. Erstgespräch: dreißig Minuten, kostenfrei und ohne Verpflichtung.",
   schlussBeauftragen: "Jetzt beauftragen",
 
   // ── Klebeleiste am Handy ──
@@ -541,7 +541,7 @@ const en: typeof de = {
   ],
   schlussA: "A structure that belongs to you — ",
   schlussB: "with one contact who knows your plans.",
-  schlussText: "Choose a package or talk to us first. First call: thirty minutes, free of charge and without obligation.",
+  schlussText: "Put your offer together or talk to us first. First call: thirty minutes, free of charge and without obligation.",
   schlussBeauftragen: "Order now",
 
   leisteGespraech: "First call",

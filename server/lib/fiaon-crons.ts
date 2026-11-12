@@ -620,6 +620,14 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Kunden, die längst klar gekündigt haben, bleiben ohne Buchung und ohne Bestätigung — sie bekommen weiter Rechnungen und Mahnungen.",
     fenster: 8,
   },
+  // E-501 (12.11.2026): Takt alle 15 Minuten, nurMitErgebnis + Puls alle 6 Stunden. Vorgabe des Schalters: trocken.
+  kuendigung_antraege: {
+    zweck: "Die wartenden Kündigungs-Anträge aus dem Formular abarbeiten (Karten „Kündigung nie gebucht“, nur Anträge vor dem Stichtag): "
+      + "den Plan mit Probe-Buchung rechnen (immer) und — nur mit Schalter „an“ — höchstens drei Karten je Lauf so ausführen wie ein Klick "
+      + "des Inhabers (buchen zum Eingangstag mit Urkunde und Bestätigung, oder den Antrag schließen)",
+    folge: "Kündigungs-Anträge aus dem Formular bleiben ungebucht liegen — die Kunden bekommen weiter Rechnungen, obwohl sie gekündigt haben.",
+    fenster: 8,
+  },
   // E-476 Scheibe 4 (05.11.2026): Takt alle 2 Minuten, nurMitErgebnis + Stundenpuls.
   lead_post: {
     zweck: "FIAON Global: Justins Willkommens-Mail an jeden neuen Business-Lead (aus js@, mit seinen Antworten und dem persönlichen Terminlink, "

@@ -248,11 +248,19 @@ export function istWillenserklaerung(text: string, opts: { unbezahlt?: boolean }
 }
 
 /** Lücke in der Ratenkette (1,3 ohne 2) — dann entscheidet ein Mensch. */
-function kettenLuecke(raten: { rate_nr: number }[]): boolean {
+export function kettenLuecke(raten: { rate_nr: number }[]): boolean {
   if (raten.length < 2) return false;
   const nrs = raten.map((r) => Number(r.rate_nr)).sort((a, b) => a - b);
   for (let i = 1; i < nrs.length; i++) if (nrs[i] - nrs[i - 1] > 1) return true;
   return false;
+}
+
+/**
+ * E-501 (12.11.2026): Die Freigabe einer Lücke in der Ratenkette — ein Satz, WER sie WANN freigegeben hat. Ohne sie
+ * bleibt jede Lücke ein Prüffall; kein Automat setzt sie (Mara, Nachhol-Lauf und Postfach geben sie nie mit). Rein.
+ */
+export function lueckeFreigabeGueltig(v: unknown): boolean {
+  return typeof v === "string" && v.trim().length >= 12;
 }
 
 /**
@@ -284,6 +292,14 @@ export async function kuendigungSetzen(ref: string, opts: {
    * Weg, die Leitung entscheidet. Nicht zu verwechseln mit der Wirkung eines Widerrufs selbst (eigener Weg, E-398).
    */
   widerrufErwaehnt?: boolean;
+  /**
+   * E-501 (12.11.2026, Justin: „Ja zu beiden“): Fehlt in der Ratenkette eine Rate (1,3 ohne 2), bucht niemand von selbst —
+   * das bleibt so. Gibt ein Mensch die Lücke ausdrücklich frei (dieser Satz: wer, wann), gilt die Regel: Die gestellten
+   * Raten zählen wie gebucht (was bis zum Vertragsende fällig ist, bleibt fällig; was danach liegt, entfällt), und die
+   * nie gestellte Rate wird NICHT nachgefordert. Nur für den Vertrag vor dem 03.09.2026 bzw. ohne Laufzeit-Weg — ein
+   * Jahresvertrag, dessen Raten bis zum Laufzeitende weiterlaufen, bleibt mit Lücke ein Prüffall.
+   */
+  lueckeFreigabe?: string | null;
 }): Promise<KuendigungErgebnis> {
   await kuendigungSpalten();
   const leer = (weg: KuendigungErgebnis["weg"], grund: string): KuendigungErgebnis =>
@@ -396,7 +412,8 @@ export async function kuendigungSetzen(ref: string, opts: {
   // des Abrechnungsmonats (Fälligkeit zu Fälligkeit).
   const kette = (await sqlPool`SELECT faellig_am FROM fiaon_abo_raten WHERE ref = ${ref}`.catch(() => [])) as any[];
 
-  if (kettenLuecke(raten)) {
+  const luecke = kettenLuecke(raten);
+  if (luecke && !lueckeFreigabeGueltig(opts.lueckeFreigabe)) {
     return leer("prueffall", `Lücke in der Ratenkette (${raten.map((r) => r.rate_nr).join(",")}) — ein Mensch muss entscheiden`);
   }
 
@@ -421,6 +438,14 @@ export async function kuendigungSetzen(ref: string, opts: {
     beginn: a.jv_beginn ? String(a.jv_beginn).slice(0, 10) : null, zugang: berlinTag(wann), widerrufErwaehnt: opts.widerrufErwaehnt === true,
   });
   let hinweis: string | null = jvWeg.warum;
+  if (luecke) {
+    // E-501: Beim Jahresvertrag zum Laufzeitende laufen die Raten weiter — dort ordnet ein Mensch die Kette erst von Hand.
+    if (jvWeg.weg === "laufzeit" && !sofortRecht) {
+      return leer("prueffall", `Lücke in der Ratenkette (${raten.map((r) => r.rate_nr).join(",")}) bei einem Jahresvertrag zum Laufzeitende — bitte die Raten erst von Hand ordnen`);
+    }
+    hinweis = [hinweis, `Lücke in der Ratenkette (${raten.map((r) => r.rate_nr).join(",")}) freigegeben: ${String(opts.lueckeFreigabe).trim().slice(0, 200)}. Die gestellten Raten gelten wie gebucht; die nie gestellte Rate wird nicht nachgefordert (E-501).`]
+      .filter(Boolean).join(" ");
+  }
   if (jvWeg.weg === "laufzeit" && !sofortRecht) {
     if (opts.sofort) hinweis = "„Sofort beenden“ gibt es beim Jahresvertrag nur bei Widerruf oder wichtigem Grund — Kulanz nur nach Zahlung der offenen Rechnung (E-396). Gebucht zum Laufzeitende, mit Kulanz-Angebot.";
     const beginn = String(a.jv_beginn).slice(0, 10);

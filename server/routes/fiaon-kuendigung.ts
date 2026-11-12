@@ -183,6 +183,8 @@ export interface DurchfuehrenOptionen {
   personId?: number | null;
   /** false = keine Bestätigungsmail (nur für Proben und Altbestand-Läufe). */
   mail?: boolean;
+  /** E-501: Freigabe einer Lücke in der Ratenkette (wer, wann) — nur ein Mensch gibt sie mit (kuendigungSetzen). */
+  lueckeFreigabe?: string | null;
 }
 
 export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOptionen): Promise<any> {
@@ -191,6 +193,7 @@ export async function kuendigungDurchfuehren(ref: string, opts: DurchfuehrenOpti
     quelle: opts.quelle, grund: opts.grund ?? null, am: opts.am ?? null,
     postmeisterId: opts.postmeisterId ?? null, sofort: opts.sofort === true,
     sofortGrund: istSofortGrund(opts.sofortGrund) ? opts.sofortGrund : null, widerrufErwaehnt: opts.widerrufErwaehnt === true,
+    lueckeFreigabe: opts.lueckeFreigabe ?? null,
   });
   if (!erg.ok) return { ...erg, urkunde: false, mailGesendet: false };
 
@@ -389,6 +392,8 @@ export async function antragBuchen(antrag: OffenerAntrag, opts: {
    * erledigt die Prüfaufgabe.
    */
   identitaetVermerk?: string | null;
+  /** E-501: Freigabe einer Lücke in der Ratenkette (wer, wann) — nur über die Karten-Option „Trotz Lücke buchen“. */
+  lueckeFreigabe?: string | null;
 }): Promise<any> {
   if (!antrag.ziel.ziel) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz };
   if (!antrag.ziel.buchbar && !opts.alsLeitung) return { ok: false, grund: antrag.ziel.satz, error: antrag.ziel.satz, leitung: true };
@@ -417,7 +422,7 @@ export async function antragBuchen(antrag: OffenerAntrag, opts: {
     sofortGrund: istSofortGrund(opts.sofortGrund) ? opts.sofortGrund : null,
     // E-396: Nennt der Antrag einen Widerruf, bleibt der bisherige Weg (die Leitung entscheidet).
     widerrufErwaehnt: /widerruf|wiederruf|rücktritt|ruecktritt/i.test(String(antrag.grund ?? "")),
-    personId: opts.personId, unterzeichner: opts.unterzeichner, mail: opts.mail,
+    personId: opts.personId, unterzeichner: opts.unterzeichner, mail: opts.mail, lueckeFreigabe: opts.lueckeFreigabe ?? null,
   });
   if (erg?.ok) {
     await sqlPool`

@@ -441,7 +441,7 @@ export function antragIstKuendigung(text: string | null | undefined, istWillense
 }
 
 async function findeKuendigungen(lauf: Lauf): Promise<EntscheidungNeu[]> {
-  const { istWillenserklaerung } = await import("./fiaon-kuendigung");
+  const { istWillenserklaerung, kettenLuecke } = await import("./fiaon-kuendigung");
   const zeilen = (await lauf.unsafe(`
     SELECT kr_u.*, kr_u.antrag_am::timestamptz AS antrag_am_tz, ${NAME_SQL("p")} AS name,
            (SELECT COUNT(*)::int FROM fiaon_abo_raten r JOIN fiaon_applications a ON a.ref = r.ref AND a.merged_into IS NULL
@@ -470,8 +470,20 @@ async function findeKuendigungen(lauf: Lauf): Promise<EntscheidungNeu[]> {
     const grund = z.antrag_grund ? String(z.antrag_grund) : "";
     const istKuendigung = antragIstKuendigung(grund, istWillenserklaerung);
     const identitaet = z.antrag_identitaet_offen === true;
+    // E-501: Fehlt in der Ratenkette der Zielbestellung eine Rate (1,3 ohne 2), lehnt „Kündigung buchen“ immer ab
+    // (Prüffall). Dann steht hier die eine Option, mit der ein Mensch die Lücke ausdrücklich freigibt.
+    const luecke = ziel.ziel && zb && String(zb.payment_status) === "paid"
+      ? kettenLuecke((await lauf`SELECT rate_nr FROM fiaon_abo_raten WHERE ref = ${ziel.ziel} AND storniert_am IS NULL ORDER BY rate_nr`) as any[])
+      : false;
     const optionen: EntscheidungOption[] = [];
-    if (ziel.ziel) {
+    if (ziel.ziel && luecke) {
+      optionen.push({
+        key: "buchen", werkzeug: "kuendigung_buchen", ton: "vorsicht",
+        label: "Trotz Lücke buchen",
+        titel: `In der Ratenkette fehlt eine Rate. Bucht ${paket} trotzdem zum Eingangstag (${tagDe(new Date(am).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" }))}): Die gestellten Raten gelten wie gebucht, die nie gestellte Rate wird nicht nachgefordert.`,
+        args: { antragId: Number(z.antrag_id), personId: pid, ziel: ziel.ziel, identitaetOffen: identitaet, lueckeFreigabe: true },
+      });
+    } else if (ziel.ziel) {
       optionen.push({
         key: "buchen", werkzeug: "kuendigung_buchen", ton: ziel.buchbar && !identitaet ? "gut" : "vorsicht",
         label: identitaet ? "Trotzdem buchen" : "Kündigung buchen",
@@ -501,6 +513,7 @@ async function findeKuendigungen(lauf: Lauf): Promise<EntscheidungNeu[]> {
         ...(Number(z.raten_offen) > 0 ? [{ text: `${Number(z.raten_offen)} ${Number(z.raten_offen) === 1 ? "Rate" : "Raten"} offen · ${euroText(Number(z.raten_cents))}` } as EntscheidungBeleg] : []),
         ...(z.antrag_wunsch ? [{ text: `Wunsch ${tagKurz(z.antrag_wunsch instanceof Date ? z.antrag_wunsch.toISOString().slice(0, 10) : String(z.antrag_wunsch).slice(0, 10))}` } as EntscheidungBeleg] : []),
         ...(identitaet ? [{ text: "Identität offen (ohne Geburtsdatum)", ton: "warn" } as EntscheidungBeleg] : []),
+        ...(luecke ? [{ text: "Lücke in der Ratenkette — eine Rate wurde nie gestellt", ton: "warn" } as EntscheidungBeleg] : []),
         ...(grund ? [{ art: "zitat", text: kurz(grund, 180), name: "Formular" } as EntscheidungBeleg] : []),
       ],
     });
@@ -523,6 +536,8 @@ entscheidungWerkzeug({
       personId, alsLeitung: true,
       // Querprüfung 08.10.2026: Ohne passendes Geburtsdatum bucht nur, wer vermerkt, dass er es verantwortet.
       identitaetVermerk: antrag.identitaetOffen ? `Buchung ohne Geburtsdatum vom Inhaber freigegeben (${k.von}, Mara-Steuerpult).` : null,
+      // E-501: Nur die Option „Trotz Lücke buchen“ trägt die Freigabe — „Kündigung buchen“ nie.
+      lueckeFreigabe: args?.lueckeFreigabe === true ? `vom Inhaber freigegeben (${k.von})` : null,
       unterzeichner: { name: k.von, rolle: "Geschäftsführung", agentId: k.agentId },
     });
     if (!erg?.ok) return fehler(String(erg?.error || erg?.grund || "Die Kündigung ging nicht durch.").slice(0, 300));

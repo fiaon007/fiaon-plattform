@@ -150,6 +150,8 @@ export interface NachholErgebnis { modus: NachholModus; faelle: number; bezahlt:
 // ═══════════════════════════════════════════════════════════════════════════
 export const NACHHOL_GRUND_MARKE = "nachgeholt — Mara, E-499";
 export const NACHHOL_BESTAETIGUNG_MARKE = "Bestätigung der nachgeholten Kündigung gesendet (E-499)";
+/** E-501: Der Aktenvermerk des Antrags-Laufs (fiaon-kuendigung-antraege-lauf.ts) — auch diese Buchungen bekommen die Bestätigung. */
+export const ANTRAEGE_LAUF_VERMERK = "Kündigungsantrag im Lauf E-501 entschieden";
 const BESTAETIGUNG_POSTFACH = "welcome@fiaon.com";
 export type NachholBestaetigungArt = "storno" | "beendet";
 
@@ -187,7 +189,9 @@ export async function nachholBestaetigungFaelle(lauf: Lauf = sqlPool): Promise<{
       FROM fiaon_applications a
       JOIN fiaon_persons pe ON pe.id = a.person_id
       LEFT JOIN fiaon_postmeister p ON p.id = a.kuendigung_postmeister_id
-     WHERE a.kuendigung_grund LIKE ${`%${NACHHOL_GRUND_MARKE}%`} AND a.merged_into IS NULL
+     WHERE (a.kuendigung_grund LIKE ${`%${NACHHOL_GRUND_MARKE}%`}
+            OR EXISTS (SELECT 1 FROM fiaon_contact_log l WHERE l.ref = a.ref AND l.note LIKE ${`${ANTRAEGE_LAUF_VERMERK}%`}))
+       AND a.merged_into IS NULL
        AND a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL
        AND a.kuendigung_bestaetigt_mail_am IS NULL AND pe.ist_test_am IS NULL
        AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c WHERE c.ref = a.ref AND c.note LIKE ${`${NACHHOL_BESTAETIGUNG_MARKE}%`})

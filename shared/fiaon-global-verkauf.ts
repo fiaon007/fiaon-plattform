@@ -454,7 +454,7 @@ const DE: VerkaufTexte = {
     knopf: "Angebot zusammenstellen",
     fein: "Endpreis. Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen.",
   },
-  leiste: { zusammenstellen: (preis) => `Angebot zusammenstellen · ${preis}`, gespraech: "Gespräch" },
+  leiste: { zusammenstellen: (preis) => `Ihr Angebot · ${preis}`, gespraech: "Gespräch" },
   partnerSatz: "Steuerberater, US-Steuerberater (CPA) und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
 };
 
@@ -663,7 +663,7 @@ const EN: VerkaufTexte = {
     knopf: "Build your offer",
     fein: "Final price. Success fee on registration, according to your capital range.",
   },
-  leiste: { zusammenstellen: (preis) => `Build your offer · ${preis}`, gespraech: "Call" },
+  leiste: { zusammenstellen: (preis) => `Your offer · ${preis}`, gespraech: "Call" },
   partnerSatz: "Tax advisers, US accountants (CPAs) and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your agreement.",
 };
 

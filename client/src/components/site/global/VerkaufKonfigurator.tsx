@@ -257,11 +257,13 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
             </button>
           )}
-          <ul className="vk-blatt-liste">
-            {mitKapital && !miami && <li>{K.blatt.fastTrack(verkaufEur(VERKAUF_PREISE.fastTrackCents, sprache))}</li>}
-            {mitKapital && !miami && <li>{K.blatt.garantie}</li>}
-            <li>{K.blatt.endpreise}{mitKapital && !miami ? ` ${K.blatt.kurs(verkaufKurs(sicht.kursUsdJeEur, en), verkaufTag(sicht.kursDatum, en))}` : ""}</li>
-          </ul>
+          {!miami && (
+            <ul className="vk-blatt-liste">
+              {mitKapital && <li>{K.blatt.fastTrack(verkaufEur(VERKAUF_PREISE.fastTrackCents, sprache))}</li>}
+              {mitKapital && <li>{K.blatt.garantie}</li>}
+              <li>{K.blatt.endpreise}{mitKapital ? ` ${K.blatt.kurs(verkaufKurs(sicht.kursUsdJeEur, en), verkaufTag(sicht.kursDatum, en))}` : ""}</li>
+            </ul>
+          )}
           {mitKapital && (
             <details className="vk-buergin">
               <summary>{K.buergin.frage}</summary>

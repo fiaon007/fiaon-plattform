@@ -73,7 +73,7 @@
 .fg .vk-ablauf[data-an="1"] .vk-schritte > li { animation: vk-hoch .9s var(--kurve, ease) both; animation-delay: calc(var(--i) * 160ms + 150ms); }
 
 /* ── 3 DER KONFIGURATOR — die eine dunkle Glasfläche ─────────────────────── */
-.fg .vk-konfig { scroll-margin-top: 84px; }
+.fg .vk-konfig { scroll-margin-top: 108px; }
 .fg .vk-flaeche { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: clamp(28px, 4vw, 64px); align-items: start; padding: clamp(22px, 4vw, 60px); border-radius: clamp(26px, 3vw, 40px); color: #eaf2ff;
   background: radial-gradient(120% 130% at 0% 0%, #1d3f73 0%, #12284a 44%, #0b1c36 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 2px 4px rgba(11, 28, 54, .2), 0 60px 110px -60px rgba(11, 28, 54, .85); }
@@ -107,8 +107,10 @@
 .fg .vk-regler input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; margin-top: -13px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); transition: box-shadow .25s, transform .25s var(--kurve, ease); }
 .fg .vk-regler input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); }
 .fg .vk-regler input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(58, 139, 255, .3), 0 8px 18px -6px rgba(0, 0, 0, .55); }
-.fg .vk-regler input[type="range"]:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 4px; border-radius: 12px; }
-.fg .vk-skala { display: flex; justify-content: space-between; font: 400 11px/1 var(--ap, system-ui); letter-spacing: .12em; color: rgba(234, 242, 255, .5); font-variant-numeric: tabular-nums; }
+.fg .vk-regler input[type="range"]:focus-visible { outline: none; }
+.fg .vk-regler input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px #12284a, 0 0 0 6px #9cc4ff, 0 8px 18px -6px rgba(0, 0, 0, .55); }
+.fg .vk-regler input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px #12284a, 0 0 0 6px #9cc4ff, 0 8px 18px -6px rgba(0, 0, 0, .55); }
+.fg .vk-skala { display: flex; justify-content: space-between; margin-top: 4px; font: 400 11px/1 var(--ap, system-ui); letter-spacing: .12em; color: rgba(234, 242, 255, .5); font-variant-numeric: tabular-nums; }
 .fg .vk-fein { margin-top: 18px; font: 300 12.5px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .58); max-width: 60ch; }
 .fg .vk-fein a { color: #cfe2ff; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -213,7 +215,7 @@
 .fg .vk-karte-preis { display: grid; gap: 8px; justify-items: start; padding-left: clamp(0px, 3vw, 44px); border-left: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
 .fg .vk-karte-preis > span { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .18em; text-transform: uppercase; color: #5b6679; }
 .fg .vk-karte-preis b { font: 200 clamp(44px, 4.4vw, 64px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: #12284a; white-space: nowrap; }
-.fg .vk-karte-preis .fg-knopf { margin-top: 12px; }
+.fg .vk-karte-preis .fg-knopf { margin-top: 12px; white-space: nowrap; }
 .fg .vk-karte-preis small { margin-top: 6px; font: 300 12.5px/1.5 var(--ap, system-ui); color: #6b7688; }
 
 /* ── DIE EIGENE SEITE /business/start ────────────────────────────────────── */

@@ -271,7 +271,7 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
       <div className="hg-inhalt">
         <p className="hg-auge">{t.auge}</p>
         {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}
-        <p className="hg-zahl"><span className="hg-zahl-ab">{t.ab} </span>{t.preis}</p>
+        <p className="hg-zahl">{t.ab ? <span className="hg-zahl-ab">{t.ab} </span> : null}{t.preis}</p>
         <p className="hg-label">{t.label}</p>
         {t.wechsel && t.wechsel.length > 1 ? (
           // Die Überschrift trägt nur die ruhigen Sätze (für Suchmaschinen und Screenreader); die Tipp-Zeile steht als eigene,

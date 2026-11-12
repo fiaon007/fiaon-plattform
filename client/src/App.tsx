@@ -241,7 +241,9 @@ const SitePreise = lazy(() => import("@/pages/site/preise"));
 // 17.09.2026 (E-188): FIAON Global IST /business. Der Entwurf unter /global
 // (15.09.) und der alte Business-Antrag (/business-antrag, Monatsabos) sind
 // ersetzt; beide Adressen leiten weiter.
-const BusinessStartPage = lazy(() => import("@/pages/business-start"));
+// E-509 (12.11.2026): /business/start ist der Konfigurator des einen Produkts. Der frühere Direktkauf mit Paketwahl
+// (pages/business-start.tsx, E-188) ist nicht mehr geroutet.
+const BusinessStartPage = lazy(() => import("@/pages/site/global-konfigurator"));
 // 19.09.2026 (E-191): FIAON Global — die Unterseiten und die Anzeigen-Landingpages.
 const GlobalSeitePage = lazy(() => import("@/pages/site/global-seite"));
 // 19.09.2026 (E-196): /business/privatpersonen ist eine Startseite, keine Registerseite mehr.

@@ -1,0 +1,269 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER VERKAUFSMOTOR VON FIAON GLOBAL (Register E-509, 12.11.2026)
+   Ein Produkt („Ein Mandat. Alles darin.“), vier Schritte, der Konfigurator, die Geld-zurück-Garantie, die Karte für
+   die Unterseiten. Bausteine: components/site/global/VerkaufProdukt.tsx, VerkaufKonfigurator.tsx.
+
+   Stil (Justin 12.11.: „seriös, Kanzlei-Stil mit guten Animationen“, CI Glasblau, Apple-Glas): dünne Schrift, Haarlinien,
+   römische Ziffern, viel Luft. Die EINE dunkle Glasfläche der Seite ist der Konfigurator. Bewegung nur einmal beim
+   Hineinscrollen (data-an) und beim Bedienen — nichts hängt an der Scrollposition, der Grund hinter dem Glas steht still.
+   Jede Regel beginnt mit .fg (zwei Klassen): global.css setzt Abstände mit :where() zurück.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fg .vk-nur-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+@keyframes vk-hoch { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes vk-linie { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes vk-zeichnen { to { stroke-dashoffset: 0; } }
+@keyframes vk-glanz { 0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; } 18% { opacity: .9; } 60%, 100% { transform: translateX(230%) skewX(-18deg); opacity: 0; } }
+
+/* ── 1 DAS PRODUKT ───────────────────────────────────────────────────────── */
+.fg .vk-produkt-raster { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: clamp(32px, 5vw, 80px); align-items: start; margin-top: clamp(40px, 5vw, 72px); }
+.fg .vk-verzeichnis { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.fg .vk-verzeichnis > li { position: relative; }
+.fg .vk-verzeichnis > li::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--linie-2, rgba(18, 40, 74, .16)); transform-origin: left center; }
+.fg .vk-verzeichnis > li:last-child::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--linie-2, rgba(18, 40, 74, .16)); }
+.fg .vk-verzeichnis > li > button { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 64px minmax(0, 1fr) 28px; align-items: baseline; gap: 0 12px; width: 100%; padding: 26px 4px 26px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.fg .vk-verzeichnis > li > button:focus-visible { outline: 2px solid #288dfa; outline-offset: 4px; border-radius: 10px; }
+.fg .vk-roemisch { font: 400 12px/1 var(--ap, system-ui); letter-spacing: .18em; color: #1d4ed8; padding-top: 6px; font-variant-numeric: tabular-nums; }
+.fg .vk-bereich-text { display: grid; gap: 6px; }
+.fg .vk-bereich-text b { font: 400 clamp(19px, 1.5vw, 23px)/1.25 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; transition: color .25s; }
+.fg .vk-bereich-text > span { font: 300 15.5px/1.55 var(--ap, system-ui); color: #5b6679; max-width: 56ch; }
+.fg .vk-verzeichnis > li > button:hover .vk-bereich-text b, .fg .vk-verzeichnis > li.auf .vk-bereich-text b { color: #1d4ed8; }
+.fg .vk-plus { position: relative; width: 28px; height: 28px; align-self: center; border-radius: 50%; border: 1px solid var(--linie-2, rgba(18, 40, 74, .16)); transition: background .3s, border-color .3s, transform .5s var(--kurve, ease); }
+.fg .vk-plus::before, .fg .vk-plus::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 1.4px; margin: -.7px 0 0 -5px; background: #12284a; border-radius: 2px; transition: transform .45s var(--kurve, ease), background .3s; }
+.fg .vk-plus::after { transform: rotate(90deg); }
+.fg .vk-verzeichnis > li.auf .vk-plus { background: #1d4ed8; border-color: #1d4ed8; transform: rotate(180deg); }
+.fg .vk-verzeichnis > li.auf .vk-plus::before, .fg .vk-verzeichnis > li.auf .vk-plus::after { background: #fff; }
+.fg .vk-verzeichnis > li.auf .vk-plus::after { transform: rotate(0deg); }
+.fg .vk-bereich-mehr { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s var(--kurve, ease); }
+.fg .vk-verzeichnis > li.auf .vk-bereich-mehr { grid-template-rows: 1fr; }
+.fg .vk-bereich-mehr > ul { overflow: hidden; min-height: 0; list-style: none; margin: 0; padding: 0 40px 0 76px; display: grid; gap: 10px; opacity: 0; transition: opacity .4s .05s, padding .55s var(--kurve, ease); }
+.fg .vk-verzeichnis > li.auf .vk-bereich-mehr > ul { opacity: 1; padding-bottom: 28px; }
+.fg .vk-bereich-mehr li { position: relative; padding-left: 20px; font: 300 15px/1.55 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-bereich-mehr li::before { content: ""; position: absolute; left: 0; top: .72em; width: 9px; height: 1px; background: #288dfa; }
+
+.fg .vk-urkunde { position: sticky; top: 108px; overflow: hidden; padding: clamp(28px, 3vw, 40px); border-radius: 30px; background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), 0 1px 2px rgba(18, 40, 74, .04), 0 40px 80px -48px rgba(18, 40, 74, .5); -webkit-backdrop-filter: var(--glas-blur, blur(24px)); backdrop-filter: var(--glas-blur, blur(24px)); }
+.fg .vk-urkunde-glanz { position: absolute; inset: 0 auto 0 0; width: 42%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .85), transparent); opacity: 0; pointer-events: none; }
+.fg .vk-urkunde-auge { font: 500 11px/1 var(--ap, system-ui); letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
+.fg .vk-urkunde-name { margin-top: 14px; font: 300 clamp(21px, 1.7vw, 26px)/1.25 var(--ap, system-ui); letter-spacing: -.016em; color: #12284a; }
+.fg .vk-urkunde-label { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .18em; text-transform: uppercase; color: #5b6679; }
+.fg .vk-urkunde-preis { margin-top: 10px; font: 200 clamp(56px, 5.6vw, 84px)/1 var(--ap, system-ui); letter-spacing: -.045em; font-variant-numeric: tabular-nums; color: #12284a; background: linear-gradient(180deg, #12284a 20%, #1d4ed8 130%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap; }
+.fg .vk-urkunde-satz { margin-top: 12px; font: 300 15px/1.5 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-urkunde .fg-knopf { margin-top: 28px; width: 100%; justify-content: center; }
+.fg .vk-urkunde-fein { margin-top: 20px; font: 300 12.5px/1.6 var(--ap, system-ui); color: #6b7688; }
+
+.fg .vk-produkt[data-an="0"] .vk-verzeichnis > li { opacity: 0; }
+.fg .vk-produkt[data-an="0"] .vk-verzeichnis > li::before, .fg .vk-produkt[data-an="0"] .vk-verzeichnis > li:last-child::after { transform: scaleX(0); }
+.fg .vk-produkt[data-an="0"] .vk-urkunde { opacity: 0; }
+.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li { animation: vk-hoch .9s var(--kurve, ease) both; animation-delay: calc(var(--i) * 80ms + 80ms); }
+.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li::before { animation: vk-linie 1.1s var(--kurve, ease) both; animation-delay: calc(var(--i) * 80ms); }
+.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li:last-child::after { transform-origin: left center; animation: vk-linie 1.1s var(--kurve, ease) both; animation-delay: 700ms; }
+.fg .vk-produkt[data-an="1"] .vk-urkunde { animation: vk-hoch 1s var(--kurve, ease) .25s both; }
+.fg .vk-produkt[data-an="1"] .vk-urkunde-glanz { animation: vk-glanz 2.6s ease-out 1.1s both; }
+
+/* ── 2 DER ABLAUF ────────────────────────────────────────────────────────── */
+.fg .vk-schritte { position: relative; list-style: none; margin: clamp(40px, 5vw, 72px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); }
+.fg .vk-schritte::before { content: ""; position: absolute; left: 22px; right: 22px; top: 22px; height: 1px; background: linear-gradient(90deg, #288dfa, rgba(40, 141, 250, .25)); transform-origin: left center; }
+.fg .vk-schritte > li { position: relative; }
+.fg .vk-schritt-nr { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font: 300 17px/1 var(--ap, system-ui); color: #1d4ed8; background: #fff; border: 1px solid rgba(40, 141, 250, .45); box-shadow: 0 10px 24px -14px rgba(29, 78, 216, .6), inset 0 1px 0 #fff; font-variant-numeric: tabular-nums; }
+.fg .vk-schritte h3 { margin-top: 26px; font: 400 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; }
+.fg .vk-schritte p { margin-top: 10px; font: 300 15px/1.6 var(--ap, system-ui); color: #5b6679; max-width: 34ch; }
+.fg .vk-ablauf[data-an="0"] .vk-schritte > li { opacity: 0; }
+.fg .vk-ablauf[data-an="0"] .vk-schritte::before { transform: scaleX(0); }
+.fg .vk-ablauf[data-an="1"] .vk-schritte::before { animation: vk-linie 1.6s var(--kurve, ease) .1s both; }
+.fg .vk-ablauf[data-an="1"] .vk-schritte > li { animation: vk-hoch .9s var(--kurve, ease) both; animation-delay: calc(var(--i) * 160ms + 150ms); }
+
+/* ── 3 DER KONFIGURATOR — die eine dunkle Glasfläche ─────────────────────── */
+.fg .vk-konfig { scroll-margin-top: 84px; }
+.fg .vk-flaeche { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: clamp(28px, 4vw, 64px); align-items: start; padding: clamp(22px, 4vw, 60px); border-radius: clamp(26px, 3vw, 40px); color: #eaf2ff;
+  background: radial-gradient(120% 130% at 0% 0%, #1d3f73 0%, #12284a 44%, #0b1c36 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 2px 4px rgba(11, 28, 54, .2), 0 60px 110px -60px rgba(11, 28, 54, .85); }
+.fg .vk-licht { position: absolute; z-index: -1; right: -18%; top: -40%; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, rgba(58, 139, 255, .38), rgba(58, 139, 255, 0)); pointer-events: none; }
+.fg .vk-block + .vk-block { margin-top: clamp(32px, 4vw, 52px); padding-top: clamp(28px, 3.4vw, 44px); border-top: 1px solid rgba(255, 255, 255, .12); }
+.fg .vk-nr { display: flex; align-items: center; gap: 14px; font: 300 clamp(21px, 1.8vw, 27px)/1.2 var(--ap, system-ui); letter-spacing: -.016em; color: #fff; }
+.fg .vk-nr i { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font: 400 13px/1 var(--ap, system-ui); font-style: normal; color: #cfe2ff; border: 1px solid rgba(160, 200, 255, .5); font-variant-numeric: tabular-nums; }
+.fg .vk-sub { margin-top: 10px; font: 300 15px/1.55 var(--ap, system-ui); color: rgba(234, 242, 255, .7); max-width: 52ch; }
+
+.fg .vk-chips { margin-top: 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fg .vk-chip { all: unset; box-sizing: border-box; position: relative; display: grid; gap: 6px; align-content: start; min-height: 112px; padding: 18px 44px 16px 18px; border-radius: 20px; cursor: pointer; background: rgba(255, 255, 255, .055); border: 1px solid rgba(255, 255, 255, .13); transition: background .3s, border-color .3s, transform .35s var(--kurve, ease), box-shadow .3s; -webkit-tap-highlight-color: transparent; }
+.fg .vk-chip:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
+.fg .vk-chip:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; }
+.fg .vk-chip.an { background: linear-gradient(180deg, rgba(58, 139, 255, .26), rgba(58, 139, 255, .12)); border-color: rgba(140, 190, 255, .75); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 18px 34px -24px rgba(58, 139, 255, .9); }
+.fg .vk-chip b { font: 400 16.5px/1.25 var(--ap, system-ui); color: #fff; letter-spacing: -.006em; }
+.fg .vk-chip > span:not(.vk-chip-haken) { font: 300 13.5px/1.45 var(--ap, system-ui); color: rgba(234, 242, 255, .72); }
+.fg .vk-chip em { margin-top: 4px; font: 500 10px/1.3 var(--ap, system-ui); font-style: normal; letter-spacing: .15em; text-transform: uppercase; color: #9cc4ff; }
+.fg .vk-chip-haken { position: absolute; right: 14px; top: 14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28); color: transparent; transition: background .3s, border-color .3s, color .2s, transform .45s var(--feder, ease); }
+.fg .vk-chip.an .vk-chip-haken { background: #fff; border-color: #fff; color: #1d4ed8; transform: scale(1.08); }
+
+.fg .vk-rahmen.aus { opacity: .38; }
+.fg .vk-zahl { margin-top: 24px; display: grid; gap: 8px; }
+.fg .vk-zahl-wert { font: 200 clamp(42px, 5.2vw, 76px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
+.fg .vk-zahl-euro { font: 300 15px/1.4 var(--ap, system-ui); color: rgba(234, 242, 255, .68); font-variant-numeric: tabular-nums; }
+.fg .vk-regler { margin-top: 26px; }
+.fg .vk-regler input[type="range"] { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; touch-action: pan-y; }
+.fg .vk-regler input[type="range"]:disabled { cursor: default; }
+.fg .vk-regler input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #7db4ff 0%, #3a8bff calc(var(--f) * 100%), rgba(255, 255, 255, .16) calc(var(--f) * 100%)); }
+.fg .vk-regler input[type="range"]::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .16); }
+.fg .vk-regler input[type="range"]::-moz-range-progress { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #7db4ff, #3a8bff); }
+.fg .vk-regler input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; margin-top: -13px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); transition: box-shadow .25s, transform .25s var(--kurve, ease); }
+.fg .vk-regler input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); }
+.fg .vk-regler input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(58, 139, 255, .3), 0 8px 18px -6px rgba(0, 0, 0, .55); }
+.fg .vk-regler input[type="range"]:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 4px; border-radius: 12px; }
+.fg .vk-skala { display: flex; justify-content: space-between; font: 400 11px/1 var(--ap, system-ui); letter-spacing: .12em; color: rgba(234, 242, 255, .5); font-variant-numeric: tabular-nums; }
+.fg .vk-fein { margin-top: 18px; font: 300 12.5px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .58); max-width: 60ch; }
+.fg .vk-fein a { color: #cfe2ff; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Das Preisblatt — ein helles Blatt auf dem dunklen Glas */
+.fg .vk-blatt { position: relative; padding: clamp(24px, 2.6vw, 36px); border-radius: 26px; color: #12284a; background: linear-gradient(180deg, #fff 0%, #f4f8ff 100%); box-shadow: inset 0 1px 0 #fff, 0 30px 60px -34px rgba(0, 0, 0, .7); }
+.fg .vk-blatt-auge { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
+.fg .vk-blatt-name { margin-top: 12px; font: 300 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; }
+.fg .vk-zeilen { margin: 22px 0 0; display: grid; }
+.fg .vk-zeilen > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-zeilen dt { font: 400 15px/1.3 var(--ap, system-ui); color: #12284a; }
+.fg .vk-zeilen dt small { display: block; margin-top: 4px; font: 300 12.5px/1.4 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-zeilen dd { margin: 0; font: 300 23px/1 var(--ap, system-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; color: #12284a; }
+.fg .vk-zeilen .summe { border-top-color: rgba(18, 40, 74, .32); }
+.fg .vk-zeilen .summe dt { font-weight: 500; }
+.fg .vk-zeilen .summe dd { font: 300 30px/1 var(--ap, system-ui); letter-spacing: -.03em; color: #1d4ed8; }
+.fg .vk-zeilen .leise dt, .fg .vk-zeilen .leise dd { color: #5b6679; }
+.fg .vk-zeilen .leise dd { font-size: 18px; }
+.fg .vk-blatt-fein { margin-top: 14px; font: 300 13.5px/1.55 var(--ap, system-ui); color: #5b6679; }
+.fg .vk-weg { margin-top: 22px; padding-top: 20px; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-weg h3 { font: 300 26px/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; }
+.fg .vk-weg p { margin-top: 12px; font: 300 15px/1.6 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-blatt-liste { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 8px; }
+.fg .vk-blatt-liste li { position: relative; padding-left: 16px; font: 300 12.5px/1.55 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-blatt-liste li::before { content: ""; position: absolute; left: 0; top: .7em; width: 7px; height: 1px; background: #288dfa; }
+.fg .vk-buergin { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-buergin summary { cursor: pointer; font: 400 13px/1.4 var(--ap, system-ui); color: #1d4ed8; list-style: none; }
+.fg .vk-buergin summary::-webkit-details-marker { display: none; }
+.fg .vk-buergin summary::after { content: " +"; }
+.fg .vk-buergin[open] summary::after { content: " –"; }
+.fg .vk-buergin p { margin-top: 10px; font: 300 13px/1.6 var(--ap, system-ui); color: #3b4658; }
+
+.fg .vk-knopf { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 999px; cursor: pointer; font: 400 16px/1 var(--ap, system-ui); color: #fff; background: var(--knopf-blau, linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%)); box-shadow: var(--knopf-blau-schatten, inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px -14px rgba(29, 78, 216, .75)); transition: transform .3s var(--kurve, ease), box-shadow .3s, opacity .2s; -webkit-tap-highlight-color: transparent; text-decoration: none; }
+.fg .vk-knopf:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 18px 34px -14px rgba(29, 78, 216, .9); }
+.fg .vk-knopf:active { transform: scale(.98); }
+.fg .vk-knopf:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; }
+.fg .vk-knopf[disabled] { opacity: .6; cursor: progress; transform: none; }
+.fg .vk-knopf.voll { width: 100%; margin-top: 24px; }
+.fg .vk-knopf.leise { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28); color: #eaf2ff; }
+.fg .vk-knopf.leise:hover { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
+
+/* Die Angaben */
+.fg .vk-anrede { margin-top: 22px; display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .13); }
+.fg .vk-anrede button { all: unset; box-sizing: border-box; min-height: 40px; padding: 0 22px; display: inline-flex; align-items: center; border-radius: 999px; cursor: pointer; font: 400 14.5px/1 var(--ap, system-ui); color: rgba(234, 242, 255, .78); transition: background .25s, color .25s; }
+.fg .vk-anrede button.an { background: #fff; color: #12284a; }
+.fg .vk-anrede button:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 2px; }
+.fg .vk-felder { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.fg .vk-felder label { display: grid; gap: 7px; }
+.fg .vk-felder label.breit { grid-column: 1 / -1; }
+.fg .vk-felder label > span:first-child { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(234, 242, 255, .62); }
+.fg .vk-felder input:not([type="checkbox"]), .fg .vk-felder select, .fg .vk-felder textarea { box-sizing: border-box; width: 100%; min-height: 50px; padding: 13px 15px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .07); color: #fff; font: 400 16px/1.3 var(--ap, system-ui); outline: none; transition: border-color .25s, background .25s, box-shadow .25s; -webkit-appearance: none; appearance: none; }
+.fg .vk-felder textarea { resize: vertical; min-height: 64px; }
+.fg .vk-felder select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23cfe2ff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; background-size: 12px 8px; padding-right: 40px; }
+.fg .vk-felder select option { color: #12284a; }
+.fg .vk-felder ::placeholder { color: rgba(234, 242, 255, .4); }
+.fg .vk-felder input:focus, .fg .vk-felder select:focus, .fg .vk-felder textarea:focus { border-color: #7db4ff; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 4px rgba(58, 139, 255, .22); }
+.fg .vk-felder label.rot input { border-color: #ff9c9c; box-shadow: 0 0 0 4px rgba(255, 120, 120, .16); }
+.fg .vk-felder label.vk-haken { grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .13); background: rgba(255, 255, 255, .045); cursor: pointer; }
+.fg .vk-felder label.vk-haken input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #3a8bff; }
+.fg .vk-felder label.vk-haken > span { display: grid; gap: 3px; font: 400 15px/1.35 var(--ap, system-ui); letter-spacing: 0; text-transform: none; color: #fff; }
+.fg .vk-felder label.vk-haken b { font-weight: 400; }
+.fg .vk-felder label.vk-haken small { font: 300 12.5px/1.45 var(--ap, system-ui); color: rgba(234, 242, 255, .62); }
+.fg .vk-falle { position: absolute !important; left: -9999px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; }
+.fg .vk-fehler { margin-top: 16px; padding: 12px 16px; border-radius: 12px; font: 400 14px/1.45 var(--ap, system-ui); color: #ffe1e1; background: rgba(255, 110, 110, .14); border: 1px solid rgba(255, 150, 150, .4); }
+.fg .vk-knoepfe { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 12px; }
+.fg .vk-form, .fg .vk-fertig { animation: vk-hoch .7s var(--kurve, ease) both; }
+.fg .vk-fertig { display: grid; justify-items: start; gap: 14px; padding: 12px 0; }
+.fg .vk-fertig h3 { font: 300 clamp(28px, 2.6vw, 38px)/1.15 var(--ap, system-ui); letter-spacing: -.024em; color: #fff; }
+.fg .vk-fertig p { font: 300 16px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .78); max-width: 46ch; }
+.fg .vk-fertig-zeichen svg { fill: none; stroke: #9cc4ff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fg .vk-fertig-zeichen circle { stroke-dasharray: 140; stroke-dashoffset: 140; animation: vk-zeichnen .9s var(--kurve, ease) .1s forwards; }
+.fg .vk-fertig-zeichen path { stroke: #fff; stroke-width: 2.2; stroke-dasharray: 36; stroke-dashoffset: 36; animation: vk-zeichnen .5s var(--kurve, ease) .7s forwards; }
+
+.fg .vk-konfig[data-an="0"] .vk-flaeche { opacity: 0; transform: translateY(30px) scale(.985); }
+.fg .vk-konfig[data-an="1"] .vk-flaeche { animation: vk-auf 1.1s var(--kurve, ease) both; }
+@keyframes vk-auf { from { opacity: 0; transform: translateY(30px) scale(.985); } to { opacity: 1; transform: none; } }
+.fg .vk-konfig[data-an="0"] .vk-blatt { opacity: 0; }
+.fg .vk-konfig[data-an="1"] .vk-blatt { animation: vk-hoch 1s var(--kurve, ease) .35s both; }
+
+/* ── 4 DIE GARANTIE ──────────────────────────────────────────────────────── */
+.fg .vk-garantie-band { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; padding: clamp(28px, 4vw, 56px); border-radius: 32px; background: var(--glas, rgba(255, 255, 255, .62)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
+.fg .vk-garantie-band .fg-h2 { max-width: none; }
+.fg .vk-garantie-band .fg-lead { max-width: 58ch; }
+.fg .vk-garantie-fein { margin-top: 16px; font: 300 13px/1.6 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-siegel { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.fg .vk-siegel .aussen { stroke: rgba(40, 141, 250, .35); stroke-width: 1; stroke-dasharray: 2 5; }
+.fg .vk-siegel .innen { stroke: #288dfa; stroke-width: 1.2; stroke-dasharray: 220; stroke-dashoffset: 0; }
+.fg .vk-siegel .haken { stroke: #1d4ed8; stroke-width: 2.4; stroke-dasharray: 50; stroke-dashoffset: 0; }
+.fg .vk-garantie[data-an="0"] .vk-siegel .innen { stroke-dashoffset: 220; }
+.fg .vk-garantie[data-an="0"] .vk-siegel .haken { stroke-dashoffset: 50; }
+.fg .vk-garantie[data-an="0"] .vk-garantie-band { opacity: 0; }
+.fg .vk-garantie[data-an="1"] .vk-garantie-band { animation: vk-hoch 1s var(--kurve, ease) both; }
+.fg .vk-garantie[data-an="1"] .vk-siegel .innen { stroke-dashoffset: 220; animation: vk-zeichnen 1.4s var(--kurve, ease) .3s forwards; }
+.fg .vk-garantie[data-an="1"] .vk-siegel .haken { stroke-dashoffset: 50; animation: vk-zeichnen .6s var(--kurve, ease) 1.3s forwards; }
+
+/* ── 5 DIE KARTE FÜR DIE UNTERSEITEN ─────────────────────────────────────── */
+.fg .vk-karte { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .8fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding: clamp(24px, 3.4vw, 44px); border-radius: 28px; background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
+.fg .vk-karte h3 { margin-top: 14px; font: 300 clamp(22px, 2vw, 30px)/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; }
+.fg .vk-karte-text > p { margin-top: 12px; font: 300 16px/1.6 var(--ap, system-ui); color: #3b4658; max-width: 56ch; }
+.fg .vk-karte ul { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
+.fg .vk-karte li { position: relative; padding-left: 20px; font: 300 15px/1.5 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-karte li::before { content: ""; position: absolute; left: 0; top: .72em; width: 9px; height: 1px; background: #288dfa; }
+.fg .vk-karte-preis { display: grid; gap: 8px; justify-items: start; padding-left: clamp(0px, 3vw, 44px); border-left: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
+.fg .vk-karte-preis > span { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .18em; text-transform: uppercase; color: #5b6679; }
+.fg .vk-karte-preis b { font: 200 clamp(44px, 4.4vw, 64px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: #12284a; white-space: nowrap; }
+.fg .vk-karte-preis .fg-knopf { margin-top: 12px; }
+.fg .vk-karte-preis small { margin-top: 6px; font: 300 12.5px/1.5 var(--ap, system-ui); color: #6b7688; }
+
+/* ── DIE EIGENE SEITE /business/start ────────────────────────────────────── */
+.fg.vk-seite .vk-konfig-sek { padding-top: clamp(120px, 14vw, 180px); }
+html .fg.fg .vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 60px); }
+.fg .vk-seite-zurueck { margin-top: 28px; font: 300 14px/1.5 var(--ap, system-ui); color: #5b6679; }
+.fg .vk-seite-zurueck a { color: #1d4ed8; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── HANDY ───────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .fg .vk-produkt-raster { grid-template-columns: minmax(0, 1fr); }
+  .fg .vk-urkunde { position: relative; top: 0; order: -1; }
+  .fg .vk-flaeche { grid-template-columns: minmax(0, 1fr); }
+  .fg .vk-schritte { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 40px; }
+  .fg .vk-schritte::before { display: none; }
+  .fg .vk-karte { grid-template-columns: minmax(0, 1fr); }
+  .fg .vk-karte-preis { padding-left: 0; border-left: 0; padding-top: 22px; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
+}
+@media (max-width: 560px) {
+  .fg .vk-verzeichnis > li > button { grid-template-columns: 44px minmax(0, 1fr) 28px; padding: 22px 0; }
+  .fg .vk-bereich-mehr > ul { padding-left: 56px; padding-right: 8px; }
+  .fg .vk-bereich-text > span { font-size: 14.5px; }
+  .fg .vk-flaeche { margin: 0 -6px; padding: 22px 18px 20px; }
+  .fg .vk-chips { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .fg .vk-chip { min-height: 0; padding: 15px 46px 14px 16px; }
+  .fg .vk-chip > span:not(.vk-chip-haken) { display: none; }
+  .fg .vk-chip em { margin-top: 2px; }
+  .fg .vk-felder { grid-template-columns: minmax(0, 1fr); }
+  .fg .vk-blatt { padding: 22px 20px; }
+  .fg .vk-zeilen dd { font-size: 21px; }
+  .fg .vk-zeilen .summe dd { font-size: 27px; }
+  .fg .vk-schritte { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
+  .fg .vk-schritte > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 18px; padding-bottom: 30px; }
+  .fg .vk-schritte > li:not(:last-child)::before { content: ""; position: absolute; left: 21.5px; top: 44px; bottom: 0; width: 1px; background: rgba(40, 141, 250, .3); }
+  .fg .vk-schritte .vk-schritt-nr { grid-row: 1 / span 2; }
+  .fg .vk-schritte h3 { margin-top: 9px; }
+  .fg .vk-garantie-band { grid-template-columns: minmax(0, 1fr); }
+  .fg .vk-siegel { width: 64px; height: 64px; }
+  .fg .vk-knoepfe .vk-knopf { flex: 1 1 100%; }
+}
+
+/* ── WENIGER BEWEGUNG ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .fg [class*="vk-"], .fg [class*="vk-"]::before, .fg [class*="vk-"]::after { animation: none !important; transition: none !important; }
+  .fg .vk-produkt[data-an] .vk-verzeichnis > li, .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-ablauf[data-an] .vk-schritte > li, .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-garantie[data-an] .vk-garantie-band { opacity: 1 !important; transform: none !important; }
+  .fg .vk-produkt[data-an] .vk-verzeichnis > li::before, .fg .vk-ablauf[data-an] .vk-schritte::before { transform: none !important; }
+  .fg .vk-siegel .innen, .fg .vk-siegel .haken, .fg .vk-fertig-zeichen circle, .fg .vk-fertig-zeichen path { stroke-dashoffset: 0 !important; }
+}
+@media print {
+  .fg .vk-produkt[data-an] .vk-verzeichnis > li, .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-ablauf[data-an] .vk-schritte > li, .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-garantie[data-an] .vk-garantie-band { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .fg .vk-bereich-mehr { grid-template-rows: 1fr !important; }
+  .fg .vk-bereich-mehr > ul { opacity: 1 !important; }
+}

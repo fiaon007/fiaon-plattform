@@ -135,7 +135,121 @@ async function merkerSchreiben(lauf: Lauf, schluessel: string, wert: unknown): P
              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`.catch(() => {});
 }
 
-export interface NachholErgebnis { modus: NachholModus; faelle: number; bezahlt: number; unbezahlt: number; zurueck: number; gebucht: number; fehler: number }
+export interface NachholErgebnis { modus: NachholModus; faelle: number; bezahlt: number; unbezahlt: number; zurueck: number; gebucht: number; fehler: number; bestaetigt: number }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE BESTÄTIGUNG AN DEN KUNDEN (E-499 Nachtrag, 12.11.2026)
+//
+// Der erste echte Lauf zeigte: Die Buchung stimmt (Wirkung, Urkunde, Aktenvermerk) — aber der Kunde erfährt nichts. Die
+// Bestätigungsmail des Hauses (bestaetigungSenden) geht nur, wenn noch eine Rate zu zahlen ist; bei einem Storno der
+// unbezahlten Bestellung und bei einem schon beendeten Vertrag sagt es dem Kunden sonst Maras Antwort — die gibt es beim
+// Nachholen nicht. Deshalb schickt der Lauf in genau diesen zwei Fällen EINE kurze, feste Bestätigung von Mara (kein
+// Modell): an die Adresse seiner Mail, wenn sie bei ihm gespeichert ist, sonst an seine Hauptadresse. Einmal je
+// Bestellung (Merker in der Akte + kuendigung_bestaetigt_mail_am). Jeder andere Fall (Laufzeit mit weiteren Raten)
+// bekommt hier nichts — dort gilt die Bestätigung des Hauses.
+// ═══════════════════════════════════════════════════════════════════════════
+export const NACHHOL_GRUND_MARKE = "nachgeholt — Mara, E-499";
+export const NACHHOL_BESTAETIGUNG_MARKE = "Bestätigung der nachgeholten Kündigung gesendet (E-499)";
+const BESTAETIGUNG_POSTFACH = "welcome@fiaon.com";
+export type NachholBestaetigungArt = "storno" | "beendet";
+
+/** Betreff und Kern der Bestätigung — fest, kurz, ohne Betrag, ohne Zahlungsbitte. Rein. */
+export function nachholBestaetigungText(o: { art: NachholBestaetigungArt; mailTag: string; endeTag?: string | null }): { betreff: string; kern: string } {
+  const spaet = "Bitte entschuldigen Sie, dass diese Bestätigung erst jetzt kommt.";
+  if (o.art === "storno") {
+    return {
+      betreff: "Ihre Bestellung ist storniert",
+      kern: [`Ihre Nachricht vom ${o.mailTag} habe ich umgesetzt: Ihre Bestellung ist storniert.`,
+        "Es ist nichts offen, und Sie bekommen dazu keine Zahlungserinnerungen mehr.", spaet].join("\n\n"),
+    };
+  }
+  return {
+    betreff: "Ihre Kündigung ist bestätigt",
+    kern: [`Ihre Kündigung vom ${o.mailTag} ist gebucht.${o.endeTag ? ` Ihr Vertrag endete am ${o.endeTag}.` : ""}`,
+      "Es ist nichts mehr offen, und Sie bekommen dazu keine Zahlungserinnerungen mehr.", spaet].join("\n\n"),
+  };
+}
+
+export interface NachholBestaetigung { ref: string; personId: number; postmeisterId: number | null; art: NachholBestaetigungArt; an: string; betreff: string; kern: string }
+
+const tagDeutsch = (v: unknown) => new Date(v as any).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
+
+/**
+ * Welche nachgeholten Buchungen brauchen noch Maras Bestätigung? Liest nur. Nur Storno der unbezahlten Bestellung oder
+ * ein schon beendeter Vertrag ohne offene Rate; nur ohne Hausbestätigung und ohne Merker; nur mit gespeicherter Adresse.
+ */
+export async function nachholBestaetigungFaelle(lauf: Lauf = sqlPool): Promise<{ faelle: NachholBestaetigung[]; ohne: { ref: string; warum: string }[] }> {
+  const zeilen = (await lauf`
+    SELECT a.ref, a.person_id, a.payment_status, a.status, a.gekuendigt_am, a.vertrag_ende_am, a.kuendigung_postmeister_id,
+           (a.vertrag_ende_am IS NOT NULL AND a.vertrag_ende_am <= NOW()) AS vorbei,
+           (SELECT COUNT(*)::int FROM fiaon_abo_raten r WHERE r.ref = a.ref AND r.status = 'offen' AND r.storniert_am IS NULL) AS offene_raten,
+           p.von AS mail_von, COALESCE(p.empfangen_am, p.created_at) AS mail_am, pe.primary_email
+      FROM fiaon_applications a
+      JOIN fiaon_persons pe ON pe.id = a.person_id
+      LEFT JOIN fiaon_postmeister p ON p.id = a.kuendigung_postmeister_id
+     WHERE a.kuendigung_grund LIKE ${`%${NACHHOL_GRUND_MARKE}%`} AND a.merged_into IS NULL
+       AND a.gekuendigt_am IS NOT NULL AND a.kuendigung_zurueckgenommen_am IS NULL
+       AND a.kuendigung_bestaetigt_mail_am IS NULL AND pe.ist_test_am IS NULL
+       AND NOT EXISTS (SELECT 1 FROM fiaon_contact_log c WHERE c.ref = a.ref AND c.note LIKE ${`${NACHHOL_BESTAETIGUNG_MARKE}%`})
+     ORDER BY a.gekuendigt_am, a.ref`) as any[];
+  const faelle: NachholBestaetigung[] = []; const ohne: { ref: string; warum: string }[] = [];
+  const { absenderGehoertZurPerson } = await import("./fiaon-postmeister-dossier");
+  for (const z of zeilen) {
+    const storno = ["cancelled", "canceled", "storniert"].includes(String(z.payment_status)) || ["cancelled", "canceled", "storniert"].includes(String(z.status));
+    const art: NachholBestaetigungArt | null = storno ? "storno" : (z.vorbei === true && Number(z.offene_raten) === 0 ? "beendet" : null);
+    if (!art) { ohne.push({ ref: String(z.ref), warum: "läuft noch oder Rate offen — die Bestätigung des Hauses gilt" }); continue; }
+    const von = (/<([^<>\s]+@[^<>\s]+)>/.exec(String(z.mail_von ?? ""))?.[1] ?? String(z.mail_von ?? "")).trim().toLowerCase();
+    const gespeichert = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(von) && (await absenderGehoertZurPerson(von, Number(z.person_id)).catch(() => false));
+    const an = gespeichert ? von : String(z.primary_email ?? "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(an)) { ohne.push({ ref: String(z.ref), warum: "keine gespeicherte E-Mail-Adresse" }); continue; }
+    const text = nachholBestaetigungText({ art, mailTag: tagDeutsch(z.mail_am ?? z.gekuendigt_am), endeTag: art === "beendet" && z.vertrag_ende_am ? tagDeutsch(z.vertrag_ende_am) : null });
+    faelle.push({ ref: String(z.ref), personId: Number(z.person_id), postmeisterId: z.kuendigung_postmeister_id != null ? Number(z.kuendigung_postmeister_id) : null, art, an, ...text });
+  }
+  return { faelle, ohne };
+}
+
+/** Sendet die ausstehenden Bestätigungen (höchstens fünf je Lauf). Einmal je Bestellung. Wirft nie. */
+export async function nachholBestaetigungenSenden(lauf: Lauf = sqlPool): Promise<number> {
+  let n = 0;
+  try {
+    const { wirdBedient, postfachGruss } = await import("./fiaon-postmeister-postfaecher");
+    if (!wirdBedient(BESTAETIGUNG_POSTFACH)) return 0;
+    const { faelle } = await nachholBestaetigungFaelle(lauf);
+    if (!faelle.length) return 0;
+    const { agentNamen } = await import("./fiaon-postmeister-agent");
+    const { anredeBestimmen, antwortBauen, grussMitAgent } = await import("./fiaon-postmeister-antworttext");
+    const { neueMailSendenMitFaden } = await import("./fiaon-gmail");
+    const namen = await agentNamen();
+    for (const f of faelle.slice(0, NACHHOL_JE_LAUF)) {
+      const anrede = await anredeBestimmen(f.personId, null, null, "de");
+      const fertig = antwortBauen({
+        anrede: anrede.zeile, kern: f.kern, gruss: grussMitAgent(postfachGruss(BESTAETIGUNG_POSTFACH), namen.voll),
+        agentName: namen.voll, betreff: f.betreff, sprache: "de",
+      });
+      // Erst der Merker (atomar je Bestellung), dann der Versand — so geht nie eine zweite Bestätigung raus.
+      const [frei] = (await lauf`
+        UPDATE fiaon_applications SET kuendigung_bestaetigt_mail_am = NOW() WHERE ref = ${f.ref} AND kuendigung_bestaetigt_mail_am IS NULL RETURNING ref`) as any[];
+      if (!frei) continue;
+      try {
+        await neueMailSendenMitFaden(BESTAETIGUNG_POSTFACH, { vonName: namen.voll, an: f.an, betreff: f.betreff, text: fertig.text, html: fertig.html, abmelden: null });
+      } catch (e) {
+        await lauf`UPDATE fiaon_applications SET kuendigung_bestaetigt_mail_am = NULL WHERE ref = ${f.ref}`.catch(() => {});
+        console.warn(`[KUENDIGUNG-NACHHOLEN] Bestätigung ${f.ref.slice(-4)} nicht gesendet: ${String((e as Error)?.message ?? e).slice(0, 140)}`);
+        continue;
+      }
+      n++;
+      await lauf`INSERT INTO fiaon_mail_log (event, person_id, empfaenger, status, betreff, art, ausgeloest_von)
+        VALUES ('kuendigung_nachgeholt_bestaetigt', ${f.personId}, ${f.an}, 'gesendet', ${f.betreff}, 'echt', 'Mara (Kündigung nachgeholt)')`.catch(() => {});
+      await lauf`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+        VALUES (${f.ref}, ${f.personId}, NULL, 'Mara (Kündigung nachgeholt)', 'system',
+                ${`${NACHHOL_BESTAETIGUNG_MARKE}: „${f.betreff}“ an die gespeicherte Adresse (${f.art === "storno" ? "Storno der unbezahlten Bestellung" : "Vertrag beendet, nichts offen"}).`}, NOW())`.catch(() => {});
+      console.log(`[KUENDIGUNG-NACHHOLEN] Bestätigung gesendet (${f.art}) zu Mail #${f.postmeisterId ?? "?"}.`);
+    }
+  } catch (err) {
+    console.error("[KUENDIGUNG-NACHHOLEN] Bestätigungen:", String((err as Error)?.message ?? err).slice(0, 200));
+  }
+  return n;
+}
 
 /**
  * Der Lauf: rechnet den Plan (immer, außer „aus“) und bucht bei „an“ höchstens fünf Fälle. Der Plan (ohne Kundentext:
@@ -144,7 +258,7 @@ export interface NachholErgebnis { modus: NachholModus; faelle: number; bezahlt:
 export async function nachholLauf(o: { lauf?: Lauf } = {}): Promise<NachholErgebnis> {
   const lauf = o.lauf ?? sqlPool;
   const modus = await nachholModus(lauf);
-  const leer: NachholErgebnis = { modus, faelle: 0, bezahlt: 0, unbezahlt: 0, zurueck: 0, gebucht: 0, fehler: 0 };
+  const leer: NachholErgebnis = { modus, faelle: 0, bezahlt: 0, unbezahlt: 0, zurueck: 0, gebucht: 0, fehler: 0, bestaetigt: 0 };
   if (modus === "aus") return leer;
   try {
     const { faelle, zurueck } = await nachholFaelleLesen(lauf);
@@ -161,7 +275,7 @@ export async function nachholLauf(o: { lauf?: Lauf } = {}): Promise<NachholErgeb
       const tag = new Date(f.am).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" });
       const r = await kuendigungDurchfuehren(f.ref, {
         quelle: "mail", am: f.am, postmeisterId: f.postmeisterId, personId: f.personId, widerrufErwaehnt: f.widerruf,
-        grund: `${f.grund ? `${f.grund} ` : ""}(aus seiner E-Mail vom ${tag} nachgeholt — Mara, E-499)`.slice(0, 300),
+        grund: `${f.grund ? `${f.grund.slice(0, 200)} ` : ""}(aus seiner E-Mail vom ${tag} ${NACHHOL_GRUND_MARKE})`.slice(0, 300),
         unterzeichner: { name: "FIAON LTD", rolle: "automatisch erstellt (digitale Assistentin Mara, E-Mail)" },
       }).catch((e: any) => ({ ok: false, grund: String(e?.message || e).slice(0, 200) }));
       if (!r?.ok) {
@@ -175,6 +289,8 @@ export async function nachholLauf(o: { lauf?: Lauf } = {}): Promise<NachholErgeb
       await entwuerfeMitRueckfrageAblegen(f.personId, lauf).catch(() => {});
     }
     if (erg.fehler) await merkerSchreiben(lauf, KN.fehler, fehler);
+    // Wer ohne Hausbestätigung gebucht ist (Storno, schon beendeter Vertrag), bekommt Maras kurze Bestätigung.
+    erg.bestaetigt = await nachholBestaetigungenSenden(lauf);
     return erg;
   } catch (err) {
     console.error("[KUENDIGUNG-NACHHOLEN]", String((err as Error)?.message ?? err).slice(0, 200));
@@ -200,7 +316,7 @@ async function entwuerfeMitRueckfrageAblegen(personId: number, lauf: Lauf): Prom
 let letzterPuls = 0;
 export async function nachholTakt(): Promise<boolean> {
   const e = await nachholLauf();
-  if (e.gebucht || e.fehler) { letzterPuls = Date.now(); return true; }
+  if (e.gebucht || e.fehler || e.bestaetigt) { letzterPuls = Date.now(); return true; }
   if (Date.now() - letzterPuls > 6 * 3600_000) { letzterPuls = Date.now(); return true; }
   return false;
 }

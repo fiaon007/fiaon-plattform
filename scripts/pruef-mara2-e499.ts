@@ -175,6 +175,18 @@ async function main() {
   ok(N.nachholFaelle([z(1, "S", "Ich kündige.", "03"), z(2, "S", "Ich nehme die Kündigung zurück.", "07")], { nurVor: stichtag }).faelle.length === 0, "Stichtag: eine spätere Rücknahme zählt weiter");
   ok(new Date(N.NACHHOL_NUR_VOR).getTime() === Date.UTC(2026, 10, 12, 8, 9), "Stichtag = E-499 live (12.11.2026 09:09 Berliner Zeit)");
 
+  console.log("── 9b2 · Die Bestätigung der nachgeholten Buchung (fester Text, rein)");
+  const bs = N.nachholBestaetigungText({ art: "storno", mailTag: "15.09.2026" });
+  const bb = N.nachholBestaetigungText({ art: "beendet", mailTag: "14.09.2026", endeTag: "14.10.2026" });
+  ok(bs.betreff === "Ihre Bestellung ist storniert" && /vom 15\.09\.2026/.test(bs.kern) && /storniert/.test(bs.kern), "Storno: Betreff und Tag seiner Nachricht");
+  ok(bb.betreff === "Ihre Kündigung ist bestätigt" && /endete am 14\.10\.2026/.test(bb.kern), "beendet: Kündigung bestätigt mit Vertragsende");
+  for (const x of [bs, bb]) {
+    ok(!/leider|€|überweis|zahlen sie|bank|garant|\bdu\b|\bdein/i.test(x.kern), `„${x.betreff}“: kein „leider“, kein Betrag, keine Zahlungsbitte, kein Du`);
+    ok(/nichts (?:mehr )?offen/.test(x.kern) && /keine Zahlungserinnerungen mehr/.test(x.kern) && /entschuldigen Sie/.test(x.kern), `„${x.betreff}“: nichts offen, keine Erinnerungen, Entschuldigung für die Verspätung`);
+    ok(!A.rueckfrageGestellt(x.kern) && x.kern.length < 420, `„${x.betreff}“: keine Frage, kurz`);
+  }
+  ok(/nachgeholt — Mara, E-499/.test(N.NACHHOL_GRUND_MARKE), "die Marke im Kündigungsgrund ist die, nach der die Bestätigung sucht");
+
   console.log("── 9c · Widerruf einer unbezahlten Bestellung = Storno, das Mara selbst erledigt (E-369 wieder wirksam)");
   const wr = { widerruf: true, rechtlich: true };
   ok(W.rechtlichNurWegenWiderruf(wr, "Re: Ihr Antrag\nHiermit widerrufe ich meinen Vertrag innerhalb der 14 Tage."), "reiner Widerruf: „rechtlich“ brennt nur seinetwegen");

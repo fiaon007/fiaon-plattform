@@ -796,6 +796,21 @@ export default function ChefGlobalAngebote({ nur = "kunden" }: { nur?: "kunden" 
   const [form, setForm] = useState<Record<string, any>>({});
   const [neuOffen, setNeuOffen] = useState(false);
   const [neuForm, setNeuForm] = useState<{ personId: string; kunde: Record<string, string>; parameter: Record<string, string>; gueltigBis: string; hinweise: string[] }>({ personId: "", kunde: {}, parameter: {}, gueltigBis: "", hinweise: [] });
+  // E-508 (12.11.2026): Die Global-Lage verweist auf EIN Angebot (?angebot=<Nummer>) — nach dem Laden rollt die Liste einmal dorthin.
+  const gerollt = useRef(false);
+  useEffect(() => {
+    if (!daten || gerollt.current) return;
+    let ref: string | null = null;
+    try { ref = new URLSearchParams(window.location.search).get("angebot"); } catch { ref = null; }
+    if (!ref || !/^[A-Za-z0-9-]+$/.test(ref)) return;
+    gerollt.current = true;
+    const el = document.querySelector<HTMLElement>(`[data-angebot="${ref}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "start", behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    el.classList.add("cg-angebot-ziel");
+    const t = window.setTimeout(() => el.classList.remove("cg-angebot-ziel"), 2600);
+    return () => window.clearTimeout(t);
+  }, [daten]);
 
   const aktion = async (schluessel: string, pfad: string, body: unknown, methode = "POST") => {
     setBusy(schluessel); setMeldung(null);

@@ -5,6 +5,40 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.11.2026 — E-508 Chefbüro öffnet mit FIAON Global: die Global-Lage (Feed der Woche, Auftragswert, „Wir warten auf“, nächster Schritt je Mandant)
+
+- **Ausfall:** Das Chefbüro zeigte beim Öffnen fast nur Privatkunden-Zahlen. Für FIAON Global gab es Räume je Thema (Angebote,
+  Akten, Partner, Leads), aber keinen Ort, der sie zusammenzieht. Offene Angebote, Nachfass-Termine und „wer wartet worauf“
+  standen in Listen außerhalb der Plattform.
+- **Fix:** Neuer erster Raum **„Global-Lage“** — `/chef` öffnet ihn. Ein helles Blatt im Kanzlei-Stil mit fünf Teilen:
+  1. **Auftragswert draußen:** offene Angebote · angenommen, Zahlung offen · Mandat läuft — Start-Betrag und Erfolgshonorar
+     immer getrennt. Kooperationen und Test-Akten zählen nicht; ein wählbarer Fast-Track zählt erst nach der Wahl; bei einer
+     Teilzahlung zählt der offene Rest.
+  2. **Fixkosten:** wie weit der Eingang des Monats (aus der einen Umsatzquelle) die Fixkosten deckt, was schon zugesagt ist
+     und wie viel fehlt. Die Fixkosten-Zahl setzt der Inhaber selbst (Knopf „Ändern“). Sichtbar ab Geschäftsführung.
+  3. **Feed der Woche**, Tag für Tag, mit Blättern in frühere Wochen: Anfragen, Gespräche („was wurde erzählt“), Angebote
+     (angelegt, geöffnet, angenommen, geändert), Zahlungen, Meilensteine, Unterlagen und Nachrichten der Kunden, Antworten
+     von Interessenten, Post der Partner. Lädt jede Minute leise nach; Neues leuchtet einmal kurz auf.
+  4. **Wir warten auf:** wer, worauf, seit wann, bis wann — dazu die nächsten Gespräche und fällige Partner-Aufgaben.
+  5. **Nächster Schritt je Mandant** mit Knöpfen: Angebot ansehen, Link kopieren, **Verlängern** (ändert nur „gültig bis“,
+     auch bei einem gerade abgelaufenen Angebot; keine Mail), **Notiz & Wiedervorlage**, Akte & Unterlagen.
+- **Neu gespeichert:** Tabelle `fiaon_global_notizen` (Migration 134) — Gesprächsnotiz und Wiedervorlage je Angebot, Akte,
+  Anfrage, Partner oder frei. Eine Notiz an einer Akte steht zusätzlich intern in deren Verlauf, eine am Angebot in dessen
+  Verlauf. Einstellung `chef_fixkosten_monat_cents` (Startwert 19.000 €, bis der Inhaber seine Zahl setzt).
+- **Bewusst nicht als schneller Knopf:** „Gesellschaft eingetragen / übernommen (bankfertig)“ stellt sofort die Rechnung für
+  das Erfolgshonorar. Die Karte zeigt dazu nur einen Warnsatz mit dem Weg zum bestehenden Knopf im Angebot.
+- **Menü:** „FIAON Global“ steht direkt unter „Heute“. Die Privatkunden-Räume (Alle Kunden, Betreuung, Rückholung) stehen als
+  Gruppe „Privatkunden“ weiter unten, das bisherige Lagezimmer heißt „Lagezimmer Privat“ (`/chef/lage`). Kein Raum ist weg,
+  keine Adresse hat sich geändert, kein Privat-Ablauf ist abgeschaltet.
+- **Nichts hier sendet eine Mail, bucht Geld oder stellt eine Rechnung.**
+- **Wo:** shared/fiaon-chef-global-lage.ts (alle Regeln, rein), server/lib/fiaon-chef-global-lage.ts,
+  server/routes/fiaon-chef-global-lage.ts (GET /chef/global-lage, POST …/notiz, …/wiedervorlage/:id/erledigt, …/fixkosten,
+  …/angebot/:id/gueltigkeit), db/migrations/134_global_notizen.sql, client/src/components/admin/ChefGlobalLage.tsx,
+  client/src/styles/chef-global-lage.css, ChefShell.tsx (Menü), pages/chef.tsx, ChefSuche.tsx, ChefGlobalAngebote.tsx
+  (Sprung auf ein Angebot über `?angebot=`), Rundgang „Global-Lage“ in rundgaenge.ts.
+- **Abnahme:** `scripts/pruef-chef-global-lage.ts` (Regeln ohne Datenbank + lokale Prüf-Datenbank, mit Rotproben) und
+  `scripts/pruef-chef-global-lage-browser.ts` (findet und drückt die Knöpfe am Bildschirm und in Handy-Breite).
+
 ## 12.11.2026 — E-498 Zeit blockieren: Sperrzeiten für die Buchungsseiten (Doppelbuchungen vermeiden)
 
 - **Ausfall:** Von Hand vereinbarte Zeiten (Zoom, Treffen vor Ort) standen nur in einem Handy-Kalender. Die Buchungsseiten

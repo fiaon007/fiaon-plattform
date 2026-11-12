@@ -163,3 +163,7 @@
   .cb .cg-form-knoepfe { flex-wrap: wrap; }
   .cb .cg-ref { overflow-wrap: anywhere; }
 }
+
+/* E-508 (12.11.2026): Sprung aus der Global-Lage auf EIN Angebot (?angebot=<Nummer>) — die Karte ist kurz markiert. */
+.cg-angebot { scroll-margin-top: 96px; }
+.cg-angebot.cg-angebot-ziel { box-shadow: 0 0 0 2px rgba(40, 141, 250, .75), 0 0 0 8px rgba(40, 141, 250, .14); transition: box-shadow .4s; }

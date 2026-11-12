@@ -2080,6 +2080,58 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef (E-508, 12.11.2026) — Chefbüro › Global-Lage, die Startseite ────────
+// Justin: „Ich brauche eine Zusammenfassung der heutigen Woche, am besten jeden Tag — wie ein Live-Feed … welchen
+//          Auftragswert haben wir draußen, bei wem warten wir, was wurde gesprochen, wie viel brauchen wir, um unsere
+//          monatlichen Fixkosten zu decken, was sind die nächsten Schritte pro Mandant?“
+export const RUNDGANG_CHEF_GLOBAL_LAGE: RundgangSchritt[] = [
+  {
+    titel: "Das Chefbüro öffnet jetzt mit FIAON Global.",
+    text: "Hier steht alles, was für Global zählt, auf einem Blatt: was draußen ist, auf wen wir warten, was diese Woche passiert ist "
+      + "und was der nächste Schritt je Mandant ist. Die Seite lädt jede Minute leise nach. "
+      + "Die Privatkunden-Zahlen findest du unverändert unter „Lagezimmer Privat“ im Menü.",
+  },
+  {
+    ziel: "[data-cgl='auftragswert']",
+    titel: "Auftragswert draußen: alles, was noch nicht bezahlt ist.",
+    text: "Die große Zahl ist die Summe aus drei Spalten. Wartet auf Annahme: offene Angebote. Angenommen, Zahlung offen: der Kunde hat "
+      + "unterschrieben, der Start-Betrag fehlt noch. Mandat läuft: bezahlt, das Erfolgshonorar steht noch aus. "
+      + "Start-Betrag und Erfolgshonorar stehen immer getrennt da.",
+    tipp: "Steht der Fast-Track zur Wahl, zählt er erst mit, wenn der Kunde ihn gewählt hat. Kooperationen und Test-Akten zählen nie mit.",
+  },
+  {
+    ziel: "[data-cgl='fixkosten']",
+    titel: "Fixkosten: wie weit der Monat gedeckt ist.",
+    text: "Der Balken vergleicht, was in diesem Monat eingegangen ist, mit deinen Fixkosten. Der schraffierte Teil ist schon zugesagt, "
+      + "aber noch nicht bezahlt. Der feine Strich zeigt, wie viel vom Monat vorbei ist. Darunter steht, wie viel noch fehlt.",
+    tipp: "Die Fixkosten-Zahl setzt du selbst: „Ändern“ oben rechts in der Karte. Sichtbar ist die Karte ab Geschäftsführung.",
+  },
+  {
+    ziel: "[data-cgl='feed']",
+    titel: "Der Feed: jeder Tag der Woche, das Neueste oben.",
+    text: "Neue Anfragen, Gespräche und was erzählt wurde, Angebote (angelegt, geöffnet, angenommen), Zahlungen, Meilensteine, Unterlagen, "
+      + "Nachrichten der Kunden und Post der Partner. „Wichtiges“ blendet Sammelzeilen und Automatik-Mails aus, „Alles“ zeigt jede Zeile. "
+      + "Mit „Woche davor“ blätterst du zurück.",
+    tipp: "„Notiz festhalten“ schreibt eine eigene Zeile in den Feed — auch ohne Mandant, zum Beispiel nach einem Telefonat.",
+  },
+  {
+    ziel: "[data-cgl='wartet']",
+    titel: "Wir warten auf: wer, worauf, seit wann, bis wann.",
+    text: "Hier stehen die Mandanten, bei denen der Kunde oder eine Behörde am Zug ist, und deine Wiedervorlagen. "
+      + "Ein Klick auf den Namen springt zur Karte des Mandanten. Eine Wiedervorlage hakst du mit „Erledigt“ ab. "
+      + "Rot heißt: Der Tag ist vorbei.",
+  },
+  {
+    ziel: "[data-cgl='mandanten']",
+    titel: "Je Mandant ein Schritt — und die Knöpfe dazu.",
+    text: "„Wir sind dran“ steht oben: nachfassen, verlängern, Neues ansehen. Jede Karte hat die Knöpfe „Angebot ansehen“, „Link kopieren“, "
+      + "„Verlängern“ (ändert nur das Datum, keine Mail), „Notiz & Wiedervorlage“ und „Akte & Unterlagen“. "
+      + "Die letzte Notiz steht auf der Karte.",
+    tipp: "Der Hinweis „Achtung, Rechnung“ zeigt auf den Knopf „Gesellschaft eingetragen“ im Angebot. Er stellt sofort die Rechnung für das "
+      + "Erfolgshonorar — deshalb gibt es ihn hier bewusst nicht als schnellen Knopf.",
+  },
+];
+
 // ── /chef/s/firmen-radar (19.09.2026, Fassung 2) ─────────────────────────────
 // E-337 (12.10.2026): der Radar ist jetzt der B2B-Vertrieb — Mara oben, Trichter bis zum Kauf, vier Reiter.
 export const RUNDGANG_FIRMEN_RADAR: RundgangSchritt[] = [
@@ -3525,6 +3577,8 @@ export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchri
   chefGlobal: { titel: "Global-Mandate", schritte: RUNDGANG_CHEF_GLOBAL },
   // E-455 (29.10.2026): der eigene Raum „Global-Kunden“.
   chefGlobalKunden: { titel: "Global-Kunden", schritte: RUNDGANG_CHEF_GLOBAL_KUNDEN },
+  // E-508 (12.11.2026): die Global-Lage — Startseite des Chefbüros.
+  chefGlobalLage: { titel: "Global-Lage", schritte: RUNDGANG_CHEF_GLOBAL_LAGE },
   firmenRadar: { titel: "Firmen-Radar", schritte: RUNDGANG_FIRMEN_RADAR },
   telefonkartei: { titel: "Telefonkartei", schritte: RUNDGANG_TELEFONKARTEI },
   mara:        { titel: "Mara", schritte: RUNDGANG_MARA },

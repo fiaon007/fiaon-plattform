@@ -136,7 +136,8 @@ export function ChefSuche({ offen, schliessen, raeume, darf }: {
     const raumVon = new Map(raeume.map((r) => [r.key, r]));
     const r: Treffer[] = raeume.filter((x) => darf(x.mindest)).map((x) => ({
       id: `raum-${x.key}`, art: "raum" as const, titel: x.label, satz: x.satz, ort: "Raum",
-      pfad: x.key === "lage" ? "/chef" : `/chef/${x.key}`, raum: x.key,
+      // E-508: /chef öffnet die Global-Lage (Raum „cockpit“); das Lagezimmer Privat hat seine eigene Adresse /chef/lage.
+      pfad: x.key === "cockpit" ? "/chef" : `/chef/${x.key}`, raum: x.key,
     }));
     const s: Treffer[] = CHEF_SEITEN
       .filter((x) => x.raum && x.slug !== "akte")

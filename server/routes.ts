@@ -1363,6 +1363,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🌐 Chefbüro › Global (E-338): der Arbeitsraum für die Firmenkunden — Mandate, Tresor, Post, Anfragen, Kapital.
   const chefGlobal = await import('./routes/fiaon-chef-global');
   app.use('/api/fiaon', chefGlobal.default);
+  // 🧭 E-508 (12.11.2026): Chefbüro › Global-Lage — Auftragswert, Fixkosten-Deckung, „Wir warten auf“, nächster Schritt je
+  //    Mandant und der Feed der Woche in EINER Antwort; dazu Notiz/Wiedervorlage und „Gültig bis“ verlängern.
+  app.use('/api/fiaon', (await import('./routes/fiaon-chef-global-lage')).default);
   // ✍️ 22.10.2026: Dokumente & Unterschriften je Global-Mandat (Formulare erzeugen, FIAON unterschreibt, bereitstellen, prüfen)
   //    — Chefbüro und Office über dieselben Funktionen (server/lib/fiaon-global-unterschrift.ts).
   const globalUnterschrift = await import('./routes/fiaon-global-unterschrift');

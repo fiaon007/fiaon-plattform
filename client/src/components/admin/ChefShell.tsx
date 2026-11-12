@@ -24,7 +24,7 @@ import {
   Receipt, Banknote, Copy, Wallet, TrendingUp, CalendarClock, Target, Map,
   PiggyBank, ScrollText, UserPlus, BookOpen, Sparkles, Activity, History, Scale,
   MailCheck, MessageSquare,
-  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2, Bot, Building2,
+  Wrench, Table2, Receipt as ReceiptIcon, LibraryBig, Eye, RotateCcw, Globe2, Bot, Building2, Compass,
 } from "lucide-react";
 import { seitenFuerRaum, chefPfad, type ChefSeite } from "./chef-seiten";
 import { KiPauseBand } from "./ChefKiPause";
@@ -101,25 +101,37 @@ export interface ChefRaum {
 // Heute → Kunden → Vertrieb → Geld → Team → System. Die Adressen
 // (/chef/<raum>, /chef/s/<seite>) bleiben unverändert — alte Links gehen weiter.
 export type ChefGruppe = "heute" | "ki" | "kunden" | "global" | "vertrieb" | "geld" | "team" | "system";
+// E-508 (12.11.2026): Justin — „der gesamte Chef-Bereich ist viel zu sehr auf die Privatkunden ausgelegt … wir fokussieren
+// uns jetzt 100 % auf Global“. FIAON Global steht deshalb direkt unter „Heute“, die Privatkunden-Räume (Alle Kunden,
+// Betreuung, Rückholung) stehen als eigene Gruppe „Privatkunden“ weiter unten. Kein Raum ist weg, keine Adresse ändert sich.
 export const CHEF_GRUPPEN: { key: ChefGruppe; label: string }[] = [
   { key: "heute", label: "Heute" },
-  // E-409 (19.10.2026): Mara und Aras — Justin: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter“.
-  { key: "ki", label: "KI-Team" },
-  { key: "kunden", label: "Kunden" },
   // E-338: Firmenkunden für sich — Justin: „so, dass sich das NICHT vermischt".
   { key: "global", label: "FIAON Global" },
+  // E-409 (19.10.2026): Mara und Aras — Justin: „ein eigener Bereich (wie ein Labs) für ALLE KI-Mitarbeiter“.
+  { key: "ki", label: "KI-Team" },
   { key: "vertrieb", label: "Vertrieb" },
   { key: "geld", label: "Geld" },
   { key: "team", label: "Team" },
+  { key: "kunden", label: "Privatkunden" },
   { key: "system", label: "System" },
 ];
 
 /** Die Räume des Chefbüros, in der Reihenfolge des Menüs. */
 export const CHEF_RAEUME: ChefRaum[] = [
   // ── Heute ───────────────────────────────────────────────────────────────
+  // E-508 (12.11.2026): die Global-Lage ist der ERSTE Raum — /chef öffnet sie. Auftragswert draußen, Fixkosten-Deckung,
+  // „Wir warten auf“, der nächste Schritt je Mandant und der Feed der Woche. Justin hat neue Räume für Global
+  // ausdrücklich gewünscht („entwickle neue Routen, neue Funktionen“).
   {
-    key: "lage", label: "Lagezimmer", Icon: LayoutDashboard, mindest: "leitung", gruppe: "heute",
-    satz: "Der Tag auf einen Blick.",
+    key: "cockpit", label: "Global-Lage", Icon: Compass, mindest: "leitung", gruppe: "heute",
+    satz: "FIAON Global: die Woche, der Auftragswert, der nächste Schritt.",
+    punkte: [],
+  },
+  {
+    // E-508: hieß „Lagezimmer“ und war die Startseite. Es zeigt die Privatkunden-Zahlen — der Name sagt es jetzt.
+    key: "lage", label: "Lagezimmer Privat", Icon: LayoutDashboard, mindest: "leitung", gruppe: "heute",
+    satz: "Privatkunden: der Tag auf einen Blick.",
     punkte: [],
   },
   // ── DIE WERKSTATT (26.08.2026) ──────────────────────────────────────────
@@ -174,7 +186,8 @@ export const CHEF_RAEUME: ChefRaum[] = [
   // 96.840 € offener Auftragswert in fünf Segmenten. Eigener Raum, weil hier
   // Geldstrecken GESCHALTET werden — das gehört nicht zwischen Leseseiten.
   {
-    key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung", gruppe: "vertrieb",
+    // E-508: steht jetzt in der Gruppe „Privatkunden“ — zurückgeholt werden offene Privat-Anträge.
+    key: "rueckholung", label: "Rückholung", Icon: RotateCcw, mindest: "geschaeftsfuehrung", gruppe: "kunden",
     satz: "Offene Anträge zurückholen.",
     punkte: [],
   },

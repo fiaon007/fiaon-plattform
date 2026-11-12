@@ -1,0 +1,334 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHEFBÜRO › GLOBAL-LAGE (E-508, 12.11.2026) — die Startseite des Chefbüros.
+   Klassen .cgl- (nur hier). Kanzlei-Stil: ein helles Blatt auf dem ruhigen Standbild,
+   Serife (Newsreader, 300/400) nur für Überschriften und große Zahlen, sonst dünne
+   Systemschrift; Haarlinien statt Kästen; Navy #12284a an GENAU EINER Stelle — dem
+   Auftragswert. Farbe nur als kleiner Punkt, Rot nur für Überfälliges. Keine Icons.
+   Bewegung: jeder Block blendet einmal ein (nur „backwards“), die große Zahl zählt
+   einmal hoch, der Balken wächst einmal. „Weniger Bewegung“ schaltet alles ab.
+   Nichts klebt. Am Telefon eine Spalte, Knöpfe 44 px, Eingaben 16 px (kein Zoom).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cgl {
+  --cgl-schrift: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --cgl-serife: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --cgl-tinte: #0b1c36;
+  --cgl-navy: #12284a;
+  --cgl-blau: #1d4ed8;
+  --cgl-licht: #288dfa;
+  --cgl-leise: #55637b;
+  --cgl-still: #8491a6;
+  --cgl-linie: rgba(18, 40, 74, .1);
+  --cgl-linie-2: rgba(18, 40, 74, .2);
+  --cgl-papier: #fbfcfe;
+  --cgl-feld: #f3f6fb;
+  --cgl-rot: #b42318;
+  --cgl-gruen: #16803c;
+  --cgl-rand: 40px;
+  position: relative; isolation: isolate;
+  color: var(--cgl-tinte); font: 400 14px/1.5 var(--cgl-schrift); letter-spacing: -.003em;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+.cgl *, .cgl *::before, .cgl *::after { box-sizing: border-box; }
+.cgl :focus-visible { outline: 2px solid var(--cgl-licht); outline-offset: 2px; border-radius: 6px; }
+/* Die Grundstellung ohne Gewicht (:where) — jede Klasse darunter gewinnt, auch mit nur einem Klassennamen. */
+:where(.cgl) :where(p, h1, h2, h3, ul, ol, dl, dd, blockquote) { margin: 0; padding: 0; }
+:where(.cgl) :where(ul, ol) { list-style: none; }
+:where(.cgl) a { color: inherit; text-decoration: none; }
+
+/* ── Das Blatt ─────────────────────────────────────────────────────────────── */
+.cgl-blatt {
+  position: relative; border-radius: 28px; overflow: hidden; padding-bottom: 8px;
+  background:
+    radial-gradient(70% 34% at 100% 0%, rgba(40, 141, 250, .1), rgba(40, 141, 250, 0) 72%),
+    linear-gradient(180deg, #fdfdfe 0%, var(--cgl-papier) 30%, #f4f7fc 100%);
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: 0 44px 96px -44px rgba(2, 8, 23, .7), inset 0 1px 0 rgba(255, 255, 255, .95);
+}
+.cgl-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 28px; flex-wrap: wrap; padding: 36px var(--cgl-rand) 20px; }
+.cgl-auge { display: block; font: 500 10.5px/1.3 var(--cgl-schrift); letter-spacing: .16em; text-transform: uppercase; color: var(--cgl-still); }
+.cgl-auge.hell { color: rgba(226, 236, 255, .66); }
+.cgl-kopf h1 { margin-top: 8px; font: 300 52px/1 var(--cgl-serife); letter-spacing: -.022em; color: var(--cgl-tinte); }
+.cgl-kopf p { margin-top: 10px; font: 400 14px/1.4 var(--cgl-schrift); color: var(--cgl-leise); }
+.cgl-kopf-rechts { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 4px; }
+.cgl-stand { display: inline-flex; align-items: center; gap: 8px; font: 400 12.5px/1 var(--cgl-schrift); color: var(--cgl-leise); font-variant-numeric: tabular-nums; }
+.cgl-stand i { width: 7px; height: 7px; border-radius: 50%; background: var(--cgl-gruen); box-shadow: 0 0 0 0 rgba(22, 128, 60, .45); animation: cglPuls 3.2s ease-out infinite; }
+.cgl-link {
+  appearance: none; border: 0; background: none; padding: 0; cursor: pointer; font: 400 13px/1.3 var(--cgl-schrift); color: var(--cgl-blau);
+  text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); text-underline-offset: 4px; transition: text-decoration-color .2s;
+}
+.cgl a.cgl-link { color: var(--cgl-blau); text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); }
+.cgl-link:hover, .cgl a.cgl-link:hover { text-decoration-color: currentColor; }
+.cgl-laedt { padding: 12px var(--cgl-rand) 40px; }
+.cgl-luecke { margin: 0 var(--cgl-rand) 14px; padding: 12px 16px; border-left: 2px solid var(--cgl-rot); background: rgba(180, 35, 24, .05); font-size: 13px; color: var(--cgl-tinte); }
+.cgl-luecke b { font-weight: 500; }
+
+/* ── Sprungleiste (geführt werden — nichts klebt) ──────────────────────────── */
+.cgl-wege { display: flex; flex-wrap: wrap; gap: 0; margin: 0 var(--cgl-rand); border-top: 1px solid var(--cgl-linie); border-bottom: 1px solid var(--cgl-linie); }
+.cgl-wege button {
+  appearance: none; border: 0; background: none; cursor: pointer; height: 44px; padding: 0 18px 0 0; margin-right: 18px;
+  font: 400 13px/1 var(--cgl-schrift); color: var(--cgl-leise); position: relative; transition: color .2s; font-variant-numeric: tabular-nums;
+}
+.cgl-wege button + button::before { content: ""; position: absolute; left: -18px; top: 15px; bottom: 15px; width: 1px; background: var(--cgl-linie); }
+.cgl-wege button:hover { color: var(--cgl-blau); }
+
+/* ── Oben: Auftragswert (Navy) und Fixkosten ───────────────────────────────── */
+.cgl-oben { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 22px; padding: 24px var(--cgl-rand) 8px; }
+.cgl-oben.allein { grid-template-columns: minmax(0, 1fr); }
+.cgl-wert {
+  position: relative; overflow: hidden; border-radius: 22px; padding: 32px 34px 28px; color: #fff;
+  background:
+    radial-gradient(60% 80% at 100% 0%, rgba(40, 141, 250, .34), rgba(40, 141, 250, 0) 62%),
+    radial-gradient(50% 70% at 0% 110%, rgba(29, 78, 216, .32), rgba(29, 78, 216, 0) 66%),
+    linear-gradient(140deg, #0a1930 0%, var(--cgl-navy) 58%, #183866 100%);
+  box-shadow: 0 28px 60px -34px rgba(11, 28, 54, .85), inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.cgl-wert::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.cgl-wert-zahl { margin-top: 10px; font: 300 clamp(44px, 5.4vw, 72px)/1.02 var(--cgl-serife); letter-spacing: -.028em; font-variant-numeric: lining-nums tabular-nums; }
+.cgl-wert-satz { margin-top: 12px; max-width: 54ch; font: 400 13.5px/1.55 var(--cgl-schrift); color: rgba(226, 236, 255, .78); }
+.cgl-wert-satz b { font-weight: 500; color: #fff; }
+.cgl-wert-spalten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 26px; border-top: 1px solid rgba(255, 255, 255, .14); }
+.cgl-wert-spalte { padding: 18px 20px 2px 0; }
+.cgl-wert-spalte + .cgl-wert-spalte { padding-left: 20px; border-left: 1px solid rgba(255, 255, 255, .14); }
+.cgl-wert-spalte > b { display: block; margin-top: 8px; font: 400 21px/1.2 var(--cgl-serife); letter-spacing: -.01em; }
+.cgl-wert-spalte dl { margin-top: 12px; display: grid; gap: 6px; }
+.cgl-wert-spalte dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cgl-wert-spalte dt { font: 400 12.5px/1.35 var(--cgl-schrift); color: rgba(226, 236, 255, .66); }
+.cgl-wert-spalte dd { font: 400 14px/1.35 var(--cgl-schrift); color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cgl-wert-spalte dl div.summe { margin-top: 4px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .14); }
+.cgl-wert-spalte dl div.summe dd { font: 400 17px/1.2 var(--cgl-serife); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-wert-spalte small { display: block; margin-top: 8px; font: 400 11.5px/1.4 var(--cgl-schrift); color: rgba(226, 236, 255, .58); }
+
+.cgl-fix { border: 1px solid var(--cgl-linie); border-radius: 22px; padding: 28px 28px 22px; background: rgba(255, 255, 255, .78); display: flex; flex-direction: column; }
+.cgl-fix > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cgl-fix-zahl { margin-top: 12px; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.cgl-fix-zahl b { font: 300 52px/1 var(--cgl-serife); letter-spacing: -.025em; color: var(--cgl-tinte); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-fix-zahl span { font: 400 13.5px/1.4 var(--cgl-schrift); color: var(--cgl-leise); }
+.cgl-balken { position: relative; height: 6px; margin-top: 20px; border-radius: 3px; background: rgba(18, 40, 74, .08); }
+.cgl-balken i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 1.4s cubic-bezier(.2, .7, .2, 1); }
+.cgl-balken i.zugesagt { background: repeating-linear-gradient(120deg, rgba(29, 78, 216, .3) 0 4px, rgba(29, 78, 216, .14) 4px 8px); }
+.cgl-balken i.gedeckt { background: linear-gradient(90deg, var(--cgl-blau), var(--cgl-licht)); }
+.cgl-balken u { position: absolute; top: -5px; bottom: -5px; width: 1px; background: var(--cgl-tinte); text-decoration: none; }
+.cgl-fix-stand { margin-top: 16px; font: 400 14px/1.5 var(--cgl-schrift); color: var(--cgl-tinte); }
+.cgl-fix-liste { margin-top: 16px; border-top: 1px solid var(--cgl-linie); }
+.cgl-fix-liste div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-fix-liste dt { font-size: 13px; color: var(--cgl-leise); }
+.cgl-fix-liste dd { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cgl-fix-fuss { margin-top: auto; padding-top: 12px; font: 400 11.5px/1.4 var(--cgl-schrift); color: var(--cgl-still); }
+.cgl-fix-form { margin-top: 14px; }
+.cgl-fix-form label { display: block; font-size: 12.5px; color: var(--cgl-leise); margin-bottom: 6px; }
+.cgl-fix-form > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.cgl-fix-form input { flex: 1 1 120px; min-width: 0; }
+
+/* ── Mitte: Feed neben der Seitenspalte ────────────────────────────────────── */
+.cgl-mitte { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 44px; padding: 26px var(--cgl-rand) 0; align-items: start; }
+.cgl-seite { display: flex; flex-direction: column; gap: 34px; min-width: 0; }
+.cgl-abschnitt { min-width: 0; scroll-margin-top: 90px; }
+.cgl-abschnitt-kopf { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--cgl-linie-2); }
+.cgl-abschnitt-kopf h2 { margin-top: 6px; font: 300 27px/1.15 var(--cgl-serife); letter-spacing: -.015em; color: var(--cgl-tinte); }
+.cgl-abschnitt-kopf h2 em { margin-left: 10px; font: 300 19px/1 var(--cgl-serife); font-style: normal; color: var(--cgl-blau); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-leer { padding: 16px 0; font-size: 13.5px; color: var(--cgl-still); }
+.cgl-hinweis { padding: 12px 0 2px; font-size: 12.5px; color: var(--cgl-leise); }
+.cgl-fehler { margin-top: 10px; font-size: 13px; color: var(--cgl-rot); }
+.cgl-ok { margin-top: 12px; padding: 9px 12px; border-left: 2px solid var(--cgl-gruen); background: rgba(22, 128, 60, .06); font-size: 13px; color: var(--cgl-tinte); }
+
+/* ── Punkte (die einzige Farbe) ────────────────────────────────────────────── */
+.cgl-punkt { flex: none; width: 8px; height: 8px; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px var(--cgl-still); }
+.cgl-punkt.uns { background: var(--cgl-blau); box-shadow: 0 0 0 4px rgba(29, 78, 216, .13); }
+.cgl-punkt.kunde, .cgl-punkt.amt, .cgl-punkt.partner { box-shadow: inset 0 0 0 1.5px var(--cgl-leise); }
+.cgl-punkt.wiedervorlage { background: var(--cgl-navy); box-shadow: none; }
+.cgl-punkt.ruhe { background: var(--cgl-gruen); box-shadow: none; }
+.rot > .cgl-punkt, .cgl-karte.rot > header > .cgl-punkt { background: var(--cgl-rot); box-shadow: 0 0 0 4px rgba(180, 35, 24, .12); }
+.cgl-name { font: 400 14.5px/1.35 var(--cgl-schrift); color: var(--cgl-tinte); }
+.cgl button.cgl-name { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--cgl-linie-2); text-underline-offset: 4px; }
+.cgl a.cgl-name { text-decoration: underline; text-decoration-color: var(--cgl-linie-2); text-underline-offset: 4px; }
+.cgl button.cgl-name:hover, .cgl a.cgl-name:hover { color: var(--cgl-blau); text-decoration-color: currentColor; }
+
+/* ── Wir warten auf ────────────────────────────────────────────────────────── */
+.cgl-wartet-zeile { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; gap: 4px 14px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-wartet-zeile > .cgl-punkt { margin-top: 7px; }
+.cgl-wartet-wer { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cgl-wartet-wer > span:last-child { font-size: 13px; color: var(--cgl-leise); overflow-wrap: anywhere; }
+.cgl-wartet-zeile dl { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 2px 22px; margin-top: 4px; }
+.cgl-wartet-zeile dl div { display: flex; gap: 6px; align-items: baseline; }
+.cgl-wartet-zeile dt { font: 500 10px/1.4 var(--cgl-schrift); letter-spacing: .1em; text-transform: uppercase; color: var(--cgl-still); }
+.cgl-wartet-zeile dd { font-size: 12.5px; color: var(--cgl-leise); font-variant-numeric: tabular-nums; }
+.cgl-wartet-zeile dd.rot { color: var(--cgl-rot); }
+.cgl-wartet-zeile > .cgl-knopf { grid-column: 3; grid-row: 1; }
+.cgl-wartet.schmal .cgl-wartet-zeile { padding: 11px 0; }
+.cgl-wartet.schmal .cgl-name { font-size: 13.5px; }
+
+/* ── Gespräche ─────────────────────────────────────────────────────────────── */
+.cgl-termine li { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-termine time { display: flex; flex-direction: column; font: 400 13px/1.35 var(--cgl-schrift); color: var(--cgl-leise); font-variant-numeric: tabular-nums; }
+.cgl-termine time b { font: 400 15px/1.3 var(--cgl-serife); color: var(--cgl-tinte); }
+.cgl-termine li > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cgl-termine li > div > span:last-child { font-size: 13px; color: var(--cgl-leise); overflow-wrap: anywhere; }
+
+/* ── Feed ──────────────────────────────────────────────────────────────────── */
+.cgl-feed-nav { display: flex; flex-wrap: wrap; gap: 6px; }
+.cgl-feed-leiste { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-feed-zahlen { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.cgl-feed-zahlen li { font-size: 12.5px; color: var(--cgl-leise); white-space: nowrap; }
+.cgl-feed-zahlen b { margin-right: 6px; font: 400 19px/1 var(--cgl-serife); color: var(--cgl-tinte); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-feed-wahl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cgl-schalter { display: inline-flex; padding: 2px; border-radius: 9px; background: rgba(18, 40, 74, .06); }
+.cgl-schalter button { appearance: none; border: 0; background: transparent; height: 28px; padding: 0 12px; border-radius: 7px; cursor: pointer; font: 400 12.5px/1 var(--cgl-schrift); color: var(--cgl-leise); transition: background .2s, color .2s; }
+.cgl-schalter button.an { background: #fff; color: var(--cgl-tinte); box-shadow: 0 1px 2px rgba(18, 40, 74, .14); }
+.cgl-feed-tag { padding-top: 22px; }
+.cgl-feed-tag > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; }
+.cgl-feed-tag h3 { font: 400 20px/1.2 var(--cgl-serife); letter-spacing: -.01em; color: var(--cgl-tinte); }
+.cgl-feed-tag > header span { font-size: 12px; color: var(--cgl-still); text-align: right; }
+.cgl-feed-liste { position: relative; }
+.cgl-feed-liste::before { content: ""; position: absolute; left: 53.5px; top: 14px; bottom: 14px; width: 1px; background: var(--cgl-linie); }
+.cgl-feed-zeile { position: relative; display: grid; grid-template-columns: 40px 9px minmax(0, 1fr) auto; gap: 0 10px; align-items: start; padding: 10px 8px 10px 0; border-radius: 10px; }
+.cgl-feed-zeile time { padding-top: 2px; font: 400 12px/1.5 var(--cgl-schrift); color: var(--cgl-still); font-variant-numeric: tabular-nums; text-align: right; }
+.cgl-feed-punkt { position: relative; z-index: 1; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--cgl-navy); box-shadow: 0 0 0 3px var(--cgl-papier); }
+.cgl-feed-zeile.leise .cgl-feed-punkt { background: var(--cgl-papier); box-shadow: inset 0 0 0 1.5px var(--cgl-still), 0 0 0 3px var(--cgl-papier); }
+.cgl-feed-zeile.anfrage .cgl-feed-punkt, .cgl-feed-zeile.gelesen:not(.leise) .cgl-feed-punkt { background: var(--cgl-blau); }
+.cgl-feed-zeile.annahme .cgl-feed-punkt, .cgl-feed-zeile.zahlung .cgl-feed-punkt { background: var(--cgl-gruen); }
+.cgl-feed-inhalt { min-width: 0; padding-left: 4px; }
+.cgl-feed-kopf { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; }
+.cgl-feed-art { font: 500 10px/1.5 var(--cgl-schrift); letter-spacing: .12em; text-transform: uppercase; color: var(--cgl-still); }
+.cgl-feed-zeile.annahme .cgl-feed-art, .cgl-feed-zeile.zahlung .cgl-feed-art { color: var(--cgl-gruen); }
+.cgl-feed-zeile.anfrage .cgl-feed-art { color: var(--cgl-blau); }
+.cgl-feed-betrag { margin-left: auto; font: 400 17px/1.2 var(--cgl-serife); color: var(--cgl-tinte); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+.cgl-feed-titel { font-size: 13.5px; color: var(--cgl-leise); overflow-wrap: anywhere; }
+.cgl-feed-text { margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--cgl-tinte); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.cgl-feed-text.auf { display: block; }
+.cgl-feed-text:not(.auf) { cursor: pointer; }
+.cgl-feed-zeile.leise .cgl-name { font-size: 13.5px; color: var(--cgl-leise); }
+.cgl-feed-zeile.leise .cgl-feed-text { color: var(--cgl-leise); }
+.cgl a.cgl-feed-ziel { align-self: center; font: 400 12px/1 var(--cgl-schrift); color: var(--cgl-blau); padding: 8px 2px 8px 8px; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+.cgl-feed-zeile:hover .cgl-feed-ziel, .cgl a.cgl-feed-ziel:focus-visible { opacity: 1; }
+.cgl-feed-zeile:hover { background: rgba(18, 40, 74, .028); }
+.cgl-feed-zeile.neu { animation: cglNeu 6s ease-out backwards; }
+.cgl-link.mehr { display: inline-block; margin: 6px 0 0 59px; }
+
+/* ── Mandanten ─────────────────────────────────────────────────────────────── */
+.cgl > .cgl-blatt > .cgl-abschnitt { padding: 40px var(--cgl-rand) 0; }
+.cgl-gruppe { padding-top: 24px; }
+.cgl-gruppe > header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; padding-bottom: 12px; }
+.cgl-gruppe h3 { font: 400 20px/1.2 var(--cgl-serife); letter-spacing: -.01em; color: var(--cgl-tinte); }
+.cgl-gruppe h3 em { margin-left: 8px; font-style: normal; font-size: 16px; color: var(--cgl-blau); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-gruppe > header span { font-size: 12.5px; color: var(--cgl-still); }
+.cgl-karten { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.cgl-karte {
+  display: flex; flex-direction: column; min-width: 0; padding: 22px 24px 20px; border-radius: 18px; background: #fff; border: 1px solid var(--cgl-linie);
+  box-shadow: 0 1px 2px rgba(18, 40, 74, .04), 0 18px 40px -32px rgba(18, 40, 74, .4); transition: box-shadow .35s, border-color .35s, transform .35s;
+}
+.cgl-karte:hover { border-color: var(--cgl-linie-2); box-shadow: 0 1px 2px rgba(18, 40, 74, .05), 0 26px 50px -30px rgba(18, 40, 74, .5); }
+.cgl-karte.markiert { border-color: var(--cgl-blau); box-shadow: 0 0 0 4px rgba(29, 78, 216, .12), 0 26px 50px -30px rgba(18, 40, 74, .5); }
+.cgl-karte > header { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 2px 12px; align-items: start; }
+.cgl-karte > header .cgl-punkt { margin-top: 9px; }
+.cgl-karte h3 { font: 400 21px/1.2 var(--cgl-serife); letter-spacing: -.012em; color: var(--cgl-tinte); overflow-wrap: anywhere; }
+.cgl-phase { grid-column: 2; font: 500 10px/1.5 var(--cgl-schrift); letter-spacing: .12em; text-transform: uppercase; color: var(--cgl-still); }
+.cgl-schritt { margin-top: 14px; font: 400 15.5px/1.35 var(--cgl-schrift); color: var(--cgl-tinte); }
+.cgl-karte.uns .cgl-schritt { color: var(--cgl-blau); }
+.cgl-karte.rot .cgl-schritt { color: var(--cgl-rot); }
+.cgl-warum { margin-top: 4px; font-size: 13px; color: var(--cgl-leise); }
+.cgl-geld { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--cgl-linie); font-size: 13px; color: var(--cgl-tinte); font-variant-numeric: tabular-nums; }
+.cgl-notiz { margin-top: 12px; padding: 2px 0 2px 14px; border-left: 1px solid var(--cgl-linie-2); }
+.cgl-notiz span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font: 400 15px/1.45 var(--cgl-serife); font-style: italic; color: var(--cgl-tinte); overflow-wrap: anywhere; }
+.cgl-notiz cite { display: block; margin-top: 4px; font: 400 11.5px/1.4 var(--cgl-schrift); font-style: normal; color: var(--cgl-still); }
+/* Die Knöpfe stehen direkt unter dem Inhalt (nicht am unteren Rand): Klappt in einer Karte ein Formular auf, reißt in den
+   Nachbarkarten derselben Reihe keine Lücke zwischen Text und Knöpfen auf. */
+.cgl-knoepfe { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.cgl-knopf, .cgl a.cgl-knopf {
+  appearance: none; display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 14px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--cgl-linie-2); background: transparent; color: var(--cgl-tinte); font: 400 13px/1 var(--cgl-schrift); white-space: nowrap;
+  transition: border-color .2s, background .2s, color .2s;
+}
+.cgl-knopf:hover, .cgl a.cgl-knopf:hover { border-color: var(--cgl-navy); background: rgba(18, 40, 74, .03); }
+.cgl-knopf[aria-expanded="true"] { border-color: var(--cgl-navy); background: rgba(18, 40, 74, .05); }
+.cgl-knopf.voll { background: var(--cgl-navy); border-color: var(--cgl-navy); color: #fff; }
+.cgl-knopf.voll:hover { background: var(--cgl-tinte); }
+.cgl-knopf.klein { height: 30px; padding: 0 11px; font-size: 12.5px; border-radius: 8px; }
+.cgl-knopf:disabled { opacity: .5; cursor: default; }
+.cgl-meilenstein { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--cgl-linie); font-size: 12.5px; line-height: 1.5; color: var(--cgl-leise); }
+.cgl-meilenstein b { font-weight: 500; color: var(--cgl-tinte); }
+.cgl .cgl-meilenstein a { color: var(--cgl-blau); text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); text-underline-offset: 3px; white-space: nowrap; }
+
+/* ── Formulare (Notiz, Verlängern, Fixkosten) ──────────────────────────────── */
+.cgl-form { margin-top: 14px; padding: 16px; border-radius: 14px; background: var(--cgl-feld); border: 1px solid var(--cgl-linie); animation: cglAuf .35s cubic-bezier(.2, .7, .2, 1) backwards; }
+.cgl-form label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cgl-form label > span { font: 400 12.5px/1.3 var(--cgl-schrift); color: var(--cgl-leise); }
+.cgl-form label > span i { font-style: normal; color: var(--cgl-still); margin-left: 6px; }
+.cgl input, .cgl textarea {
+  width: 100%; min-width: 0; border: 1px solid var(--cgl-linie-2); border-radius: 9px; background: #fff; color: var(--cgl-tinte);
+  font: 400 14.5px/1.45 var(--cgl-schrift); padding: 9px 12px; transition: border-color .2s, box-shadow .2s;
+}
+.cgl input { height: 40px; padding: 0 12px; }
+.cgl textarea { resize: vertical; min-height: 84px; }
+.cgl input:focus, .cgl textarea:focus { outline: none; border-color: var(--cgl-blau); box-shadow: 0 0 0 3px rgba(29, 78, 216, .12); }
+.cgl input:disabled { background: transparent; color: var(--cgl-still); }
+.cgl input::placeholder, .cgl textarea::placeholder { color: var(--cgl-still); }
+.cgl-form-zeile { display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.cgl-form-zeile:first-child { margin-top: 0; }
+/* In der schmalen Karte stehen Tag und Stichwort untereinander. */
+.cgl-karte .cgl-form-zeile { grid-template-columns: minmax(0, 1fr); }
+.cgl-form-hinweis { margin-top: 10px; font-size: 12.5px; color: var(--cgl-leise); }
+.cgl-form-fuss { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.cgl-schnell { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-right: auto; }
+.cgl-schnell button { appearance: none; border: 0; background: none; padding: 6px 0; cursor: pointer; font: 400 12.5px/1 var(--cgl-schrift); color: var(--cgl-blau); text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); text-underline-offset: 4px; }
+
+.cgl-fuss { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; margin: 44px var(--cgl-rand) 0; padding: 18px 0 22px; border-top: 1px solid var(--cgl-linie); font-size: 12.5px; color: var(--cgl-still); }
+.cgl .cgl-fuss a { color: var(--cgl-leise); text-decoration: underline; text-decoration-color: var(--cgl-linie-2); text-underline-offset: 4px; }
+
+/* ── Bewegung: einmal einblenden, nur „backwards“ (sonst steht der Endzustand als Stil) ───────────── */
+@keyframes cglAuf { from { opacity: 0; transform: translateY(14px); } }
+@keyframes cglNeu { from { background: rgba(40, 141, 250, .16); } to { background: rgba(40, 141, 250, 0); } }
+@keyframes cglPuls { 0% { box-shadow: 0 0 0 0 rgba(22, 128, 60, .45); } 70%, 100% { box-shadow: 0 0 0 7px rgba(22, 128, 60, 0); } }
+.cgl-kopf, .cgl-wege, .cgl-wert, .cgl-fix, .cgl-mitte > *, .cgl > .cgl-blatt > .cgl-abschnitt { animation: cglAuf .8s cubic-bezier(.2, .7, .2, 1) backwards; }
+.cgl-wege { animation-delay: .06s; }
+.cgl-wert { animation-delay: .12s; }
+.cgl-fix { animation-delay: .2s; }
+.cgl-mitte > *:first-child { animation-delay: .28s; }
+.cgl-mitte > *:last-child { animation-delay: .36s; }
+.cgl > .cgl-blatt > .cgl-abschnitt { animation-delay: .42s; }
+@media (prefers-reduced-motion: reduce) {
+  .cgl *, .cgl *::before, .cgl *::after { animation: none !important; transition: none !important; }
+}
+
+/* ── Schmaler Bildschirm ───────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .cgl { --cgl-rand: 30px; }
+  .cgl-mitte { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .cgl-oben { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .cgl { --cgl-rand: 18px; }
+  .cgl-blatt { border-radius: 22px; }
+  .cgl-kopf { padding-top: 26px; }
+  .cgl-kopf h1 { font-size: 42px; }
+  .cgl-kopf-rechts { gap: 6px 16px; }
+  .cgl-wege { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .cgl-wege::-webkit-scrollbar { display: none; }
+  .cgl-wege button { flex: none; white-space: nowrap; }
+  .cgl-wert { padding: 26px 22px 20px; border-radius: 20px; }
+  .cgl-wert-spalten { grid-template-columns: minmax(0, 1fr); }
+  .cgl-wert-spalte { padding: 16px 0 14px; }
+  .cgl-wert-spalte + .cgl-wert-spalte { padding-left: 0; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .14); }
+  .cgl-fix { padding: 24px 22px 20px; border-radius: 20px; }
+  .cgl-fix-zahl b { font-size: 46px; }
+  .cgl-abschnitt-kopf h2 { font-size: 24px; }
+  .cgl-karten { grid-template-columns: minmax(0, 1fr); }
+  .cgl-karte { padding: 20px 18px 18px; }
+  .cgl-knopf, .cgl a.cgl-knopf { height: 44px; padding: 0 16px; font-size: 14px; }
+  .cgl-knopf.klein { height: 40px; }
+  .cgl-knoepfe > * { flex: 1 1 calc(50% - 4px); min-width: 0; padding: 0 8px; font-size: 13.5px; }
+  .cgl input, .cgl textarea { font-size: 16px; }
+  .cgl input { height: 46px; }
+  .cgl-form-zeile { grid-template-columns: minmax(0, 1fr); }
+  .cgl-form-fuss > .cgl-knopf { flex: 1 1 0; }
+  .cgl-schnell { flex: 1 1 100%; }
+  .cgl-schalter button { height: 36px; }
+  .cgl-wege button { height: 48px; }
+  .cgl-feed-zeile { grid-template-columns: 38px 9px minmax(0, 1fr); padding-right: 0; }
+  .cgl-feed-liste::before { left: 51.5px; }
+  .cgl a.cgl-feed-ziel { grid-column: 3; opacity: 1; padding: 6px 0 2px 4px; justify-self: start; text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); text-underline-offset: 4px; }
+  .cgl-link.mehr { margin-left: 57px; padding: 8px 0; }
+  .cgl-wartet-zeile { grid-template-columns: 8px minmax(0, 1fr); }
+  .cgl-wartet-zeile > .cgl-knopf { grid-column: 2; grid-row: auto; justify-self: start; margin-top: 8px; }
+  .cgl-feed-nav { width: 100%; }
+  .cgl-feed-nav .cgl-knopf { flex: 1 1 0; }
+}

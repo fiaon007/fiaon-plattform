@@ -77,6 +77,13 @@ async function main() {
   ok(akt({ hatBuchen: false }) === "nichts" && akt({ empfehlung: "spaeter" }) === "nichts", "ohne passende Option nichts");
   ok(new Date(L.KA_NUR_VOR).getTime() === Date.UTC(2026, 10, 12, 11, 30) && L.KA_VON === "Justin Schwarzott" && L.KA_JE_LAUF === 3, "Stichtag, Entscheider, höchstens drei je Lauf");
 
+  const ra = (o: Partial<Parameters<typeof L.restAktion>[0]>) => L.restAktion({ bestellungGekuendigt: false, person: true, personGekuendigt: false, laufendePakete: 0, identBestaetigt: true, text: "Ich bin unzufrieden", ...o }).aktion;
+  ok(ra({ laufendePakete: 1 }) === "abo_kuendigen", "Rest: Antrag am falschen Produkt, EIN laufendes Paket, Identität bestätigt → Paket kündigen");
+  ok(ra({ laufendePakete: 1, identBestaetigt: false }) === "halten" && ra({ laufendePakete: 2 }) === "halten", "Rest: ohne bestätigte Identität oder bei mehreren Paketen → halten");
+  ok(ra({ laufendePakete: 1, text: "Ich will mein Geld zurück" }) === "halten" && ra({ laufendePakete: 1, text: "Ich widerrufe" }) === "halten", "Rest: Geld zurück oder Widerruf im Text → halten (Leitung)");
+  ok(ra({ bestellungGekuendigt: true }) === "status_nachziehen" && ra({ personGekuendigt: true }) === "status_nachziehen", "Rest: längst gekündigt → nur den Status nachziehen");
+  ok(ra({ person: false }) === "schliessen" && ra({}) === "halten", "Rest: niemand zu finden → schließen; Kunde ohne Paket und ohne Kündigung → halten");
+
   console.log("── 1 · Lücke (1,3): ohne Freigabe nie, mit Freigabe bleibt die gestellte Rate fällig ───────");
   const A1 = "FIAON-E501-A1";
   await bestellung(A1, { agb: "2026-07-04", created: tagPlus(-70) });
@@ -169,6 +176,43 @@ async function main() {
   ok(faelle.some((f) => f.ref === B3 && f.art === "beendet" && f.betreff === "Ihre Kündigung ist bestätigt") || !!b3.kuendigung_bestaetigt_mail_am, "Maras Bestätigung ist für Fall 3 vorgesehen (oder schon vermerkt)", JSON.stringify(faelle.map((f) => `${f.ref}:${f.art}`)));
   ok(!faelle.some((f) => f.ref === B1), "Fall 1 (Rate offen) bekommt hier nichts — dort gilt die Bestätigung des Hauses");
   void aB3;
+
+  console.log("── 6 · Der Rest ohne Karte: trocken → status → an ────────────────────────────────────────");
+  // (a) Antrag hängt an der Einmal-Auskunft, der Mensch hat EIN laufendes Paket.
+  const R1 = "FIAON-E501-R1";
+  const pR1 = await bestellung(R1, { agb: "2026-07-04", created: tagPlus(-70) });
+  await rate(R1, 1, tagPlus(-70), tagPlus(-70)); await rate(R1, 2, tagPlus(-39), null);
+  const R1S = "FIAON-SCHUFA-E501-R1";
+  await sql`INSERT INTO fiaon_applications (ref, person_id, type, pack_key, pack_name, payment_status, created_at, first_name, last_name, email, payment_reference)
+            VALUES (${R1S}, ${pR1}, 'schufa', 'schufa', 'Bonitätsauskunft', 'paid', NOW() - INTERVAL '20 days', 'Test', 'Person', ${`${R1.toLowerCase()}@test.invalid`}, ${`${R1S}-RF`})`;
+  const [cR1] = (await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status, identifiziert_ueber, created_at)
+                           VALUES (${R1S}, 'Test', 'Person', ${`${R1.toLowerCase()}@test.invalid`}, 'Ich bin mit dem Service unzufrieden', 'pending', 'geburtsdatum', NOW() - INTERVAL '5 days') RETURNING id`) as any[];
+  // (b) Bestellung des Antrags ist längst gekündigt.
+  const R2 = "FIAON-E501-R2";
+  await bestellung(R2, { agb: "2026-07-04", created: tagPlus(-90) });
+  await sql`UPDATE fiaon_applications SET gekuendigt_am = NOW() - INTERVAL '40 days', payment_status = 'cancelled' WHERE ref = ${R2}`;
+  const [cR2] = (await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status, created_at)
+                           VALUES (${R2}, 'Test', 'Person', ${`${R2.toLowerCase()}@test.invalid`}, 'Die Kosten sind zu hoch', 'pending', NOW() - INTERVAL '50 days') RETURNING id`) as any[];
+  // (c) Weder Bestellung noch Mensch.
+  const [cR3] = (await sql`INSERT INTO cancellation_requests (ref, first_name, last_name, email, reason, status, created_at)
+                           VALUES ('FIAON-GIBT-ES-NICHT', 'Niemand', 'Bekannt', 'niemand-e501@test.invalid', 'Persönliche Gründe', 'pending', NOW() - INTERVAL '30 days') RETURNING id`) as any[];
+  const rp = await L.restPlanLesen();
+  const akt6 = (id: number) => rp.find((x) => x.antrag === Number(id))?.aktion;
+  ok(akt6(cR1.id) === "abo_kuendigen" && akt6(cR2.id) === "status_nachziehen" && akt6(cR3.id) === "schliessen", "Rest-Plan: Paket kündigen · Status nachziehen · schließen", JSON.stringify(rp.map((x) => `${x.antrag}:${x.aktion}`)));
+  ok(rp.find((x) => x.antrag === Number(cR1.id))?.weg === "letzte_rate" && !JSON.stringify(rp).includes("test.invalid") && !JSON.stringify(rp).includes("unzufrieden"), "Rest-Plan trägt die Probe (letzte Rate bleibt) — ohne Kundentext");
+  const crStand = async (id: number) => String(((await sql`SELECT status FROM cancellation_requests WHERE id = ${id}`) as any[])[0]?.status);
+  const t6 = await L.restLauf();
+  ok(t6.modus === "trocken" && t6.erledigt === 0 && (await crStand(cR2.id)) === "pending", "Rest trocken (Vorgabe): nichts geschieht");
+  await sql`INSERT INTO fiaon_settings (key, value, updated_at) VALUES (${L.KR.schalter}, 'status', NOW()) ON CONFLICT (key) DO UPDATE SET value = 'status', updated_at = NOW()`;
+  const s6 = await L.restLauf();
+  ok(s6.modus === "status" && s6.erledigt === 2 && (await crStand(cR2.id)) === "confirmed" && (await crStand(cR3.id)) === "rejected", "Stufe „status“: nachgezogen und geschlossen", JSON.stringify(s6));
+  ok((await crStand(cR1.id)) === "pending" && !(await zeile(R1)).gekuendigt_am, "ROT-PROBE: Stufe „status“ bucht KEINE Paket-Kündigung");
+  await sql`UPDATE fiaon_settings SET value = 'an' WHERE key = ${L.KR.schalter}`;
+  const a6 = await L.restLauf();
+  const r1z = await zeile(R1);
+  ok(a6.modus === "an" && a6.erledigt === 1 && !!r1z.gekuendigt_am && r1z.kuendigung_quelle === "formular" && tagB(r1z.gekuendigt_am) === tagPlus(-5), "Stufe „an“: das laufende Paket ist zum Eingangstag gekündigt", JSON.stringify(a6));
+  ok((await crStand(cR1.id)) === "confirmed" && !(await zeile(R1S)).gekuendigt_am && r1z.kuendigung_gezeichnet_von === "Justin Schwarzott", "Antrag bestätigt; die Auskunft-Bestellung bleibt unberührt; Urkunde gezeichnet");
+  ok((await L.restLauf()).erledigt === 0, "zweiter Rest-Lauf: nichts mehr zu tun");
 
   console.log(`\n${schlecht === 0 ? "✓" : "✗"} ${gut}/${gut + schlecht} Prüfungen bestanden (lokale Prüfdatenbank)`);
   if (rot.length) console.log(`ROT: ${rot.join(" · ")}`);

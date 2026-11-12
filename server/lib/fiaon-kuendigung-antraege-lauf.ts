@@ -160,11 +160,185 @@ export async function antraegeLauf(o: { lauf?: Lauf } = {}): Promise<AntraegeErg
   return erg;
 }
 
-/** Für den Zeitplan (stillerLauf): eine Historienzeile bei Arbeit oder Fehlern und als Puls alle 6 Stunden. */
+// ═══════════════════════════════════════════════════════════════════════════
+// DER REST: ANTRÄGE OHNE KARTE (E-501 Nachtrag, 12.11.2026)
+//
+// Acht wartende Anträge wurden nie eine Karte. Gelesen stellte sich heraus, warum:
+//   · Die Bestellung des Antrags ist längst gekündigt (auch zusammengeführt) oder der Mensch, den nur die Mail-Adresse
+//     findet, ist längst gekündigt → nur der Status hängt („status_nachziehen“).
+//   · Weder Bestellung noch Mensch zu finden → mit Vermerk schließen („schliessen“).
+//   · Der Antrag hängt an einem ANDEREN Produkt (der einmaligen Bonitätsauskunft), der Mensch hat aber genau EIN
+//     laufendes, bezahltes Paket: Das ist eine echte Kündigung dieses Pakets („abo_kuendigen“) — die Zuordnung der
+//     Karten kennt nur Anträge, deren Referenz selbst ein Paket ist. Gebucht wird wie jede Formular-Kündigung
+//     (antragBuchen: Eingangstag, Urkunde, Bestätigung), aber NUR in der Stufe „an“.
+// Alles andere bleibt liegen („halten“): mehrere laufende Pakete, Identität nicht bestätigt, Geld-zurück/Widerruf im Text.
+//
+// Schalter „kuendigung_antraege_rest“: trocken | status | an | aus — VORGABE TROCKEN. „status“ führt nur aus, was keinen
+// Kunden berührt (Status nachziehen, schließen); „an“ bucht zusätzlich die Paket-Kündigungen. Nur Anträge vor dem Stichtag.
+// ═══════════════════════════════════════════════════════════════════════════
+export const KR = { schalter: "kuendigung_antraege_rest", plan: "kuendigung_antraege_rest_plan", fehler: "kuendigung_antraege_rest_fehler" } as const;
+export type RestModus = "trocken" | "status" | "an" | "aus";
+export type RestAktion = "status_nachziehen" | "schliessen" | "abo_kuendigen" | "halten";
+const GELD_ZURUECK = /geld\s+zur(?:ü|ue)ck|erstatt|r(?:ü|ue)ck(?:zahl|(?:ü|ue)berweis|erstatt)|zur(?:ü|ue)ck\s*(?:ü|ue)berweis|wi(?:e)?derr?uf|r(?:ü|ue)cktritt/i;
+
+/** Was mit einem Antrag ohne Karte geschieht. Rein. */
+export function restAktion(o: {
+  /** Die Bestellung des Antrags (über seine Referenz) ist gekündigt. */
+  bestellungGekuendigt: boolean;
+  /** Ein Mensch ist gefunden (über die Bestellung oder die Mail-Adresse). */
+  person: boolean;
+  /** Dieser Mensch hat mindestens eine gekündigte Bestellung. */
+  personGekuendigt: boolean;
+  /** Seine laufenden, bezahlten Pakete (ohne Einmalprodukte, nicht gekündigt, nicht zusammengeführt). */
+  laufendePakete: number;
+  /** Identität über das Geburtsdatum bestätigt. */
+  identBestaetigt: boolean;
+  text: string | null | undefined;
+}): { aktion: RestAktion; warum: string } {
+  if (o.laufendePakete > 1) return { aktion: "halten", warum: "mehrere laufende Pakete — welches gemeint ist, entscheidet ein Mensch" };
+  if (o.laufendePakete === 1) {
+    if (GELD_ZURUECK.test(String(o.text ?? ""))) return { aktion: "halten", warum: "der Text nennt Geld zurück oder Widerruf — entscheidet die Leitung" };
+    if (!o.identBestaetigt) return { aktion: "halten", warum: "Identität nicht über das Geburtsdatum bestätigt" };
+    return { aktion: "abo_kuendigen", warum: "der Antrag hängt an einem anderen Produkt, gemeint ist das eine laufende Paket" };
+  }
+  if (o.bestellungGekuendigt || (o.person && o.personGekuendigt)) return { aktion: "status_nachziehen", warum: "längst gekündigt — nur der Status des Antrags hängt" };
+  if (!o.person) return { aktion: "schliessen", warum: "keiner Bestellung und keinem Kunden zuzuordnen" };
+  return { aktion: "halten", warum: "Kunde gefunden, aber kein laufendes Paket und keine Kündigung — ein Mensch sieht es an" };
+}
+
+export interface RestPlan {
+  antrag: number; eingang: string; aktion: RestAktion; warum: string;
+  weg: string | null; letzteRateNr: number | null; letzteRateCents: number | null; entfallen: number; ende: string | null;
+}
+interface RestFall extends RestPlan { personId: number | null; antragRef: string | null; zielRef: string | null; zielPaket: string | null; am: string; grund: string | null }
+
+export async function restModus(lauf: Lauf = sqlPool): Promise<RestModus> {
+  const [z] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${KR.schalter}`.catch(() => [])) as any[];
+  const w = String(z?.value ?? "").trim().toLowerCase();
+  return w === "an" || w === "aus" || w === "status" ? w : "trocken";
+}
+
+/** Die Anträge ohne Karte vor dem Stichtag — mit Aktion und (bei der Paket-Kündigung) der Probe. Liest nur. */
+async function restFaelleLesen(lauf: Lauf): Promise<RestFall[]> {
+  const { KUENDIGUNG_ANTRAEGE_SQL } = await import("@shared/fiaon-kuendigung-regel");
+  const { kuendigungSetzen } = await import("./fiaon-kuendigung");
+  const zeilen = (await lauf.unsafe(`
+    SELECT c.id, c.ref, c.reason, c.created_at::timestamptz AS am, c.identifiziert_ueber,
+           a.person_id AS a_person, (a.gekuendigt_am IS NOT NULL) AS a_gekuendigt,
+           (SELECT p.id FROM fiaon_persons p WHERE LOWER(TRIM(COALESCE(p.primary_email, ''))) = LOWER(TRIM(COALESCE(c.email, '')))
+               AND TRIM(COALESCE(c.email, '')) <> '' AND p.merged_into_person_id IS NULL ORDER BY p.id LIMIT 1) AS mail_person
+      FROM cancellation_requests c LEFT JOIN fiaon_applications a ON a.ref = c.ref
+     WHERE c.status = 'pending' AND c.created_at::timestamptz < $1::timestamptz
+       AND NOT EXISTS (SELECT 1 FROM (${KUENDIGUNG_ANTRAEGE_SQL}) kr_x WHERE kr_x.antrag_id = c.id)
+     ORDER BY c.id`, [KA_NUR_VOR])) as any[];
+  const aus: RestFall[] = [];
+  for (const z of zeilen) {
+    const personId = z.a_person != null ? Number(z.a_person) : z.mail_person != null ? Number(z.mail_person) : null;
+    const bestellungen = personId == null ? [] : (await lauf`
+      SELECT ref, type, pack_name, payment_status, (gekuendigt_am IS NOT NULL) AS gekuendigt, (merged_into IS NOT NULL) AS merged, (ist.id IS NOT NULL) AS test
+        FROM fiaon_applications LEFT JOIN fiaon_persons ist ON ist.id = fiaon_applications.person_id AND ist.ist_test_am IS NOT NULL
+       WHERE person_id = ${personId}`) as any[];
+    if (bestellungen.some((b) => b.test === true)) continue;
+    const laufend = bestellungen.filter((b) => String(b.type) !== "schufa" && String(b.payment_status) === "paid" && b.gekuendigt !== true && b.merged !== true);
+    const urteil = restAktion({
+      bestellungGekuendigt: z.a_gekuendigt === true, person: personId != null, personGekuendigt: bestellungen.some((b) => b.gekuendigt === true),
+      laufendePakete: laufend.length, identBestaetigt: String(z.identifiziert_ueber ?? "") === "geburtsdatum", text: z.reason,
+    });
+    const am = new Date(z.am).toISOString();
+    let probe: any = null;
+    if (urteil.aktion === "abo_kuendigen") {
+      probe = await kuendigungSetzen(String(laufend[0].ref), { quelle: "formular", am, probe: true })
+        .catch((e: any) => ({ ok: false, weg: "unbekannt", grund: String(e?.message || e).slice(0, 160) }));
+    }
+    const buchbar = urteil.aktion !== "abo_kuendigen" || probe?.ok === true;
+    aus.push({
+      antrag: Number(z.id), eingang: berlinTag(z.am), aktion: buchbar ? urteil.aktion : "halten",
+      warum: buchbar ? urteil.warum : `Probe: ${String(probe?.grund ?? "nicht buchbar").slice(0, 140)}`,
+      weg: probe?.weg ?? null, letzteRateNr: probe?.letzteRateNr != null ? Number(probe.letzteRateNr) : null,
+      letzteRateCents: probe?.letzteRateBetragCents != null ? Number(probe.letzteRateBetragCents) : null,
+      entfallen: Number(probe?.stornierteRaten ?? 0) || 0, ende: probe?.vertragEndeAm ? berlinTag(probe.vertragEndeAm) : null,
+      personId, antragRef: z.ref ? String(z.ref) : null, zielRef: laufend.length === 1 ? String(laufend[0].ref) : null,
+      zielPaket: laufend.length === 1 && laufend[0].pack_name ? String(laufend[0].pack_name).split("\n")[0] : null, am, grund: z.reason ? String(z.reason) : null,
+    });
+  }
+  return aus;
+}
+
+export async function restPlanLesen(lauf: Lauf = sqlPool): Promise<RestPlan[]> {
+  return (await restFaelleLesen(lauf)).map(({ antrag, eingang, aktion, warum, weg, letzteRateNr, letzteRateCents, entfallen, ende }) =>
+    ({ antrag, eingang, aktion, warum, weg, letzteRateNr, letzteRateCents, entfallen, ende }));
+}
+
+export interface RestErgebnis { modus: RestModus; faelle: number; erledigt: number; fehler: number; bestaetigt: number }
+
+/** Der Rest-Lauf: den Plan ablegen; „status“ zieht nach und schließt, „an“ bucht zusätzlich die Paket-Kündigungen. Wirft nie. */
+export async function restLauf(o: { lauf?: Lauf } = {}): Promise<RestErgebnis> {
+  const lauf = o.lauf ?? sqlPool;
+  const modus = await restModus(lauf);
+  const erg: RestErgebnis = { modus, faelle: 0, erledigt: 0, fehler: 0, bestaetigt: 0 };
+  if (modus === "aus") return erg;
+  try {
+    const faelle = await restFaelleLesen(lauf);
+    erg.faelle = faelle.length;
+    const [fz] = (await lauf`SELECT value FROM fiaon_settings WHERE key = ${KR.fehler}`.catch(() => [])) as any[];
+    let fehler: Record<string, string> = {};
+    try { const v = JSON.parse(String(fz?.value ?? "{}")); if (v && typeof v === "object") fehler = v; } catch { /* leer */ }
+    await merkerSchreiben(lauf, KR.plan, {
+      stand: new Date().toISOString(), modus,
+      faelle: faelle.map(({ antrag, eingang, aktion, warum, weg, letzteRateNr, letzteRateCents, entfallen, ende }) =>
+        ({ antrag, eingang, aktion, warum, weg, letzteRateNr, letzteRateCents, entfallen, ende, fehler: fehler[String(antrag)] ?? null })),
+    });
+    if (modus === "trocken") return erg;
+    const beleg = "Justin Schwarzott, Ja vom 12.11.2026 (Lauf E-501)";
+    const darf = (a: RestAktion) => a === "status_nachziehen" || a === "schliessen" || (a === "abo_kuendigen" && modus === "an");
+    for (const f of faelle.filter((x) => darf(x.aktion) && !fehler[String(x.antrag)]).slice(0, KA_JE_LAUF)) {
+      let ok = false; let grund = "";
+      if (f.aktion === "status_nachziehen") {
+        const z = (await lauf`
+          UPDATE cancellation_requests SET status = 'confirmed', processed_at = NOW(), processed_by = ${KA_VON}, updated_at = NOW(),
+                 admin_note = TRIM(COALESCE(admin_note, '') || ' ' || ${`[Längst gekündigt — Status nachgezogen: ${beleg}]`})
+           WHERE id = ${f.antrag} AND status = 'pending' RETURNING id`) as any[];
+        ok = z.length > 0; grund = ok ? "" : "nicht mehr offen";
+      } else if (f.aktion === "schliessen") {
+        const { kuendigungsantragSchliessen } = await import("./fiaon-kuendigung");
+        ok = await kuendigungsantragSchliessen(f.antrag, { von: KA_VON, grund: `Keiner Bestellung und keinem Kunden zuzuordnen — ${beleg}`, personId: null });
+        grund = ok ? "" : "nicht mehr offen";
+      } else if (f.aktion === "abo_kuendigen" && f.zielRef && f.personId != null) {
+        const { antragBuchen } = await import("../routes/fiaon-kuendigung");
+        const r = await antragBuchen({
+          id: f.antrag, am: f.am, ref: f.antragRef ?? f.zielRef, grund: f.grund, wunsch: null, personId: f.personId,
+          ziel: { ziel: f.zielRef, buchbar: true, satz: `Gebucht wird ${f.zielPaket ?? "das laufende Paket"}.` } as any, zielPaket: f.zielPaket, identitaetOffen: false,
+        }, {
+          grund: `${f.grund ? `${f.grund.slice(0, 160)} ` : ""}(Formular; der Antrag hing an einem anderen Produkt, gemeint ist das laufende Paket — ${KA_VON}, Lauf E-501)`,
+          personId: f.personId, alsLeitung: true, unterzeichner: { name: KA_VON, rolle: "Geschäftsführung" }, mail: true,
+        }).catch((e: any) => ({ ok: false, grund: String(e?.message || e).slice(0, 200) }));
+        ok = r?.ok === true; grund = ok ? "" : String(r?.error || r?.grund || "nicht gebucht").slice(0, 200);
+        if (ok) {
+          await lauf`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+            VALUES (${f.zielRef}, ${f.personId}, NULL, ${KA_VON}, 'system',
+                    ${`${KA_VERMERK} (Antrag Nr. ${f.antrag}, hing an einem anderen Produkt — gebucht auf das laufende Paket zum Eingangstag) — ${beleg}.`}, NOW())`.catch(() => {});
+        }
+      }
+      if (ok) { erg.erledigt++; console.log(`[KUENDIGUNG-ANTRAEGE] Rest, Antrag ${f.antrag}: ${f.aktion}.`); }
+      else { fehler[String(f.antrag)] = grund || "nicht ausgeführt"; erg.fehler++; console.warn(`[KUENDIGUNG-ANTRAEGE] Rest, Antrag ${f.antrag}: ${fehler[String(f.antrag)]}`); }
+    }
+    if (erg.fehler) await merkerSchreiben(lauf, KR.fehler, fehler);
+    if (modus === "an") {
+      const { nachholBestaetigungenSenden } = await import("./fiaon-kuendigung-nachholen");
+      erg.bestaetigt = await nachholBestaetigungenSenden(lauf);
+    }
+  } catch (err) {
+    console.error("[KUENDIGUNG-ANTRAEGE] Rest:", String((err as Error)?.message ?? err).slice(0, 200));
+  }
+  return erg;
+}
+
+/** Für den Zeitplan (stillerLauf): beide Läufe; eine Historienzeile bei Arbeit oder Fehlern und als Puls alle 6 Stunden. */
 let letzterPuls = 0;
 export async function antraegeTakt(): Promise<boolean> {
   const e = await antraegeLauf();
-  if (e.erledigt || e.fehler || e.bestaetigt) { letzterPuls = Date.now(); return true; }
+  const r = await restLauf();
+  if (e.erledigt || e.fehler || e.bestaetigt || r.erledigt || r.fehler || r.bestaetigt) { letzterPuls = Date.now(); return true; }
   if (Date.now() - letzterPuls > 6 * 3600_000) { letzterPuls = Date.now(); return true; }
   return false;
 }

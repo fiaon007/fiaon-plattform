@@ -27,6 +27,10 @@
 //      wählbare Kapitalrahmen (Regler): Vorgabe lesen/abweisen, Wahl des Kunden bleibt bei einem zweiten Skriptlauf, Betrag und Honorar
 //      immer abgeleitet, US-Dollar-Anzeige = gewählter Wert, Vertrag/Seite/Prüfsumme folgen der Wahl, Bestand ohne Schlüssel, Wortwand,
 //      echte Kundensicht des Servers und Zutritt zum Speichern
+//   14 E-506 (Justin 12.11.2026) — bestehende Gesellschaft übernehmen statt neu gründen: Vorgabe lesen/abweisen, ein Preis ohne Fast-Track,
+//      KEIN Wort der Neugründung in Vertrag, Annahmevermerk, Seite, Übersicht, Annahme, Bestätigung, „Mein Auftrag“, Etappen, Zahlungsseite
+//      und Rechnungstiteln; Vertrag nennt Gesellschaft, Preis, Meilenstein „übernommen und bankfertig“, was in Ordnung gebracht wird, die
+//      Zusicherung und die Befugnisse; Seite mit dem Abschnitt „Ihre Gesellschaft“; Wortwand; Kundensicht und Annahme des Servers
 //   10 E-474 (Justin 02.11.2026) — Angaben vom Kunden (datenVomKunden) und Fast-Track nach Wahl (fastTrackWahl), ohne Datenbank:
 //      Bestand byte-gleich (Prüfsumme über Vertrag, Seite, Übersicht, Annahme, Bestätigung, Aufgaben gegen die Grundlinie aus
 //      origin/main vor E-474), Anlage ohne Ausweis nur mit Parameter, Unterschrift gesperrt bis die Angaben da sind, ungültige Angaben
@@ -1324,6 +1328,87 @@ abschnitt("E-493 Lange Zeilen laufen nicht mehr aus dem Rahmen (Fast-Track-Karte
   ok(sR200.textHash !== sR.textHash && sR200.rahmen.gewaehltUsd === 200_000, "Fingerabdruck für den Browser folgt der Wahl");
   const KONTEXT13 = { ip: "127.0.0.1", userAgent: "Prüfstand" } as any;
   ok((await KS13.kapitalCRahmenSpeichern("Unsinn", { usd: 150_000 }, KONTEXT13)).status === 403, "Rahmen speichern mit falschem Link: 403");
+}
+
+{
+  abschnitt("14 E-506 — bestehende Gesellschaft übernehmen statt neu gründen");
+  const BESTAND = { name: "MUSTERHAUS LLC", bundesstaat: "Florida", registerNr: "L00000000001", eingetragenAm: "2025-02-14", registerStatus: "aktiv", registerStand: "2026-11-12",
+    daten: [{ label: "Name", wert: "MUSTERHAUS LLC" }, { label: "Sitz der Gesellschaft", wert: "1 Example Way, Miami, FL 33100" }, { label: "", wert: "ohne Bezeichnung fällt weg" }],
+    gut: ["Im Register als aktiv geführt"], ordnung: ["Berichtigung der US-Meldung für 2025", "Operating Agreement der Gesellschaft"] };
+  const PB = C.kapitalCParameterAus({ ...PAR, kursUsdJeEur: 1.1165, kursDatum: "2026-11-06", datenVomKunden: true, fastTrackWahl: true, fastTrackCents: 49_900, gruendungCents: 209_900, erfolgCents: 420_000,
+    betragCents: 17_913_000, bundesstaat: "Delaware", staatenFassung: "E-465", unterschriftFrei: true, tempoFassung: C.KAPITAL_C_TEMPO_FASSUNG, bestand: BESTAND } as any);
+  // 14.1 Vorgabe: ein Preis ohne Fast-Track, der Bundesstaat der Gesellschaft; Unsinn erzeugt keinen Schlüssel.
+  ok(PB.bestand?.name === "MUSTERHAUS LLC" && PB.fastTrackWahl === false && PB.fastTrackCents === 0 && PB.bundesstaat === "Florida" && PB.bestand.daten.length === 2, "Vorgabe gelesen: kein Fast-Track, ein Preis, Bundesstaat der Gesellschaft, leere Angaben fallen weg", PB.bestand);
+  ok(C.kapitalCHeuteCents(PB) === 209_900 && C.kapitalCErstesJahrCents(PB) === 629_900, "Preise: 2.099 € mit dem Auftrag, 6.299 € im ersten Jahr");
+  ok(!("bestand" in PAR) && C.kapitalCBestandTexte({ parameter: PAR }) === null, "Ohne Vorgabe: kein Schlüssel, keine Übernahme-Texte (Bestand der Angebote)");
+  for (const [roh, was] of [[null, "null"], [{ name: "X", bundesstaat: "Florida", eingetragenAm: "2025-02-14" }, "Name zu kurz"], [{ name: "MUSTER LLC", eingetragenAm: "2025-02-14" }, "ohne Bundesstaat"], [{ name: "MUSTER LLC", bundesstaat: "Florida", eingetragenAm: "14.02.2025" }, "Datum falsch"]] as [unknown, string][])
+    ok(C.kapitalCBestandAus(roh) === null, `Vorgabe abgewiesen: ${was}`);
+  ok(C.kapitalCParameterFehler(C.kapitalCParameterAus({ ...PB, bestand: { ...BESTAND, bundesstaat: "New Mexico" } } as any)) === null, "Eine bestehende Gesellschaft darf in jedem Bundesstaat liegen");
+  ok(!("bestand" in C.kapitalCParameterAus({ bestand: null } as any, PB)), "„bestand: null“ in der Datei nimmt die Übernahme wieder weg");
+  ok(JSON.stringify(C.kapitalCParameterAus(PB)) === JSON.stringify(PB), "Erneutes Lesen ändert nichts (stabil)");
+  ok(C.kapitalCBestandStamm({ name: "MUSTERHAUS LLC" }) === "MUSTERHAUS" && C.kapitalCBestandStamm({ name: "Muster & Co., L.L.C." }) === "Muster & Co", "Stamm ohne „LLC“");
+
+  // 14.2 Jeder Text, den der Kunde sieht: kein Wort der Neugründung mehr — Vertrag, Seite, Übersicht, Annahme, Bestätigung, danach.
+  const kk14 = C.kapitalCKundePruefen({ ...KUNDE_ROH, ausweise: [] }, { ohneAusweis: true });
+  if (!kk14.ok) throw new Error("Musterkunde (ohne Ausweis) ungültig");
+  const DB = { ...D, kunde: kk14.kunde, parameter: PB };
+  const vermerk14 = { am: new Date("2026-11-12T10:00:00Z"), ip: "203.0.113.7", userAgent: "x", hash: "abc", wahl: { llc: { wunsch: "MUSTERHAUS LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true as const }, unterschrift: { art: "getippt" as const, name: "Max Mustermann", am: "2026-11-12T10:00:00Z", ip: "203.0.113.7" } };
+  const vertrag14 = flach(ohneHtml(C.kapitalCRumpfHtml(DB, null)));
+  const vertragMitVermerk = flach(ohneHtml(C.kapitalCRumpfHtml(DB, vermerk14 as any)));
+  const seite14 = C.kapitalCSeite(DB);
+  const alles: Record<string, string> = {
+    Vertrag: vertrag14, "Vertrag mit Annahmevermerk": vertragMitVermerk,
+    // Ohne seite.llc: Die Texte „Name wählen“ zeigt die Seite bei einer bestehenden Gesellschaft nicht an (Abschnitt und Felder entfallen).
+    Seite: flach(sammle({ ...seite14, llc: null }, []).join(" · ")),
+    Übersicht: flach(sammle(C.kapitalCBestellUebersicht(DB, 10), []).join(" · ")),
+    Annahme: flach(sammle(C.kapitalCAnnahmeTexte(DB), []).join(" · ")),
+    Bestätigung: flach(C.kapitalCBestaetigungAbsaetze(DB, { wahl: null, angenommen: "12.11.2026 um 10:00 Uhr", llc: "MUSTERHAUS LLC", reisepassFehlt: true }).join(" · ")),
+    "Fertig-Ansicht": C.KAPITAL_C_ANNAHME.fertigZahlung("2.099 €", true, true),
+    "Mein Auftrag": flach(sammle(C.kapitalCMeinAuftrag({ parameter: PB, angenommenAm: "2026-11-12", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }), []).join(" · ")),
+    "Mein Auftrag (Teil 2 berechnet)": flach(sammle(C.kapitalCMeinAuftrag({ parameter: PB, angenommenAm: "2026-11-12", teile: [{ nr: 2, titel: "Erfolgshonorar", betragCents: 420_000, stand: "offen", rechnungsnummer: null, bestellRef: "R2", ereignisAm: "2026-11-20", bezahltAm: null }], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }), []).join(" · ")),
+    Etappen: flach(sammle(C.kapitalCEtappenFuer(PB), []).join(" · ")),
+    "Zahlungsseite Teil 2": flach(sammle(C.kapitalCZahlungsseiteTeil2({ bezahlt: false, angebotRef: "R", titel: "Erfolgshonorar", eingetragenAm: "2026-11-20", zielWochen: 4, bestand: true }), []).join(" · ")),
+    "Titel Teil 1": C.kapitalCTeil1TitelFuer(PB, true), "Teil 2": flach(sammle(C.kapitalCTeil2Fuer(PB), []).join(" · ")),
+  };
+  const NEUGRUENDUNG = /Gründung|gegründet|Fast-Track|Wunschname|Ausweichname|Eintragung|Anmeldung beim Bundesstaat|ITIN-Check|EIN-Antrag|Articles of Organization|als Organizer/;
+  // Bleiben darf allein der allgemeine Pflichthinweis zur Meldung beim Finanzamt (§ 138 AO) — er gilt für jede US-Gesellschaft.
+  const PFLICHT138 = /die Gründung ist dem Finanzamt zu melden/g;
+  for (const [wo, roh] of Object.entries(alles)) {
+    const text = roh.replace(PFLICHT138, "");
+    const m = text.match(new RegExp(`.{0,70}(${NEUGRUENDUNG.source}).{0,70}`));
+    ok(!m, `Übernahme: kein Wort der Neugründung in „${wo}“`, m?.[0] ?? "");
+  }
+  // 14.3 Der Vertrag nennt die Gesellschaft, den Preis, den neuen Meilenstein des Erfolgshonorars und was FIAON in Ordnung bringt.
+  ok(vertrag14.includes("MUSTERHAUS LLC") && vertrag14.includes("Registernummer L00000000001") && vertrag14.includes("eingetragen am 14.02.2025") && vertrag14.includes("FIAON gründet keine neue Gesellschaft"), "Vertrag: Gesellschaft mit Name, Register und Tag; keine Neugründung");
+  ok(vertrag14.includes(flach(C.kapitalCEur(209_900))) && vertrag14.includes(flach(C.kapitalCEur(420_000))) && vertrag14.includes(flach(C.kapitalCEur(629_900))) && /übernommen und für Bank und Finanzierung vorbereitet/.test(vertrag14) && /darin ist alles enthalten/.test(vertrag14), "Vertrag: 2.099 € alles enthalten, 4.200 € bei „übernommen und bankfertig“, 6.299 € im ersten Jahr");
+  ok(BESTAND.ordnung.every((x) => vertrag14.includes(x)) && /versichert, dass er alleiniger Gesellschafter/.test(vertrag14) && /Steuernummer und Behördenpost der Gesellschaft/.test(vertrag14), "Vertrag: was in Ordnung gebracht wird, Zusicherung des Inhabers, Befugnisse für die Übernahme");
+  ok(/Monate nach Vertragsschluss/.test(vertrag14) && /Ab dem zweiten Jahr nach Vertragsschluss/.test(vertrag14) && vertrag14.includes(flach(C.kapitalCEur(17_913_000))), "Vertrag: Fristen ab Vertragsschluss, Finanzierung über den Betrag des Angebots");
+  ok(/Gesellschaft \(Ziffer 2\): MUSTERHAUS LLC — bestehende Gesellschaft, der Name bleibt/.test(vertragMitVermerk), "Annahmevermerk: die bestehende Gesellschaft statt eines Wunschnamens");
+  ok(C.kapitalCHashEingabe(DB, C.kapitalCRumpfHtml(DB, null)) !== C.kapitalCHashEingabe({ ...DB, parameter: { ...PB, bestand: { ...BESTAND, ordnung: ["anders"] } } }, C.kapitalCRumpfHtml({ ...DB, parameter: { ...PB, bestand: { ...BESTAND, ordnung: ["anders"] } } }, null)), "Prüfsumme folgt dem, was in Ordnung gebracht wird (steht im Vertrag)");
+  ok(C.kapitalCHashEingabe(DB, C.kapitalCRumpfHtml(DB, null)) === C.kapitalCHashEingabe({ ...DB, parameter: { ...PB, bestand: { ...PB.bestand!, daten: [], gut: [] } } }, C.kapitalCRumpfHtml({ ...DB, parameter: { ...PB, bestand: { ...PB.bestand!, daten: [], gut: [] } } }, null)), "Angaben und „stimmt schon“ stehen nur auf der Seite — die Prüfsumme hängt nicht daran");
+  // 14.4 Die Seite: der Abschnitt „Ihre Gesellschaft“ mit allem, kein Fast-Track, Preise der Übernahme.
+  const b14 = seite14.bestand!;
+  ok(!!b14 && b14.karte.name === "MUSTERHAUS LLC" && b14.karte.status === "aktiv" && /Stand 12\.11\.2026/.test(b14.karte.statusZeile) && b14.karte.eingetragenAm === "2025-02-14" && b14.daten.length === 2 && b14.gut.length === 1 && b14.ordnung.length === 2, "Seite: Karte der Gesellschaft mit Status, Stand, Alter und allen Angaben", b14?.karte);
+  ok(seite14.fastTrack === null && !("bestand" in C.kapitalCSeite(D)), "Seite: keine Wahl zum Fast-Track; ohne Übernahme kein Abschnitt (Bestand)");
+  ok(flach(seite14.investition.zeile).includes(flach(C.kapitalCEur(209_900))) && flach(seite14.investition.zeile).includes(flach(C.kapitalCEur(629_900))) && /alles enthalten/.test(seite14.investition.zeile) && seite14.fragen.liste.some((f) => /statt neu anzufangen/.test(f.frage)), "Seite: Investition der Übernahme, eigene Frage „warum übernehmen“");
+  const ueb14 = C.kapitalCBestellUebersicht(DB, 10);
+  ok(ueb14.zeilen.some((z) => z.label === "Ihre Gesellschaft" && /MUSTERHAUS LLC, Florida, seit dem 14\.02\.2025/.test(z.wert)) && ueb14.zeilen.some((z) => z.label === "Sobald Ihre Gesellschaft bankfertig ist"), "Übersicht: Zeile „Ihre Gesellschaft“ und das Erfolgshonorar am neuen Meilenstein");
+  // 14.5 Wortwand der Übernahme-Texte.
+  const t14 = [alles.Seite, alles["Übersicht"], alles.Annahme, alles["Bestätigung"], alles["Mein Auftrag"]].join(" · ");
+  ok(!/\bbis zu\b/i.test(t14) && !/\bgarantier/i.test(t14) && !BANK.test(t14), "Übernahme-Texte: kein „bis zu“, nie „garantiert“, kein Bankname");
+  const f14 = W.globalWortPruefen(sammle(seite14.bestand, []).join(" · ") + " · " + sammle(C.kapitalCBestandTexte(DB), []).filter((x) => typeof x === "string").join(" · "), ["aufgabe_an_betreuer"]).filter((f) => !/garant/i.test(f.treffer));
+  ok(f14.length === 0, "Übernahme-Texte: Wortwand", f14);
+  // 14.6 Der Server: Kundensicht und Annahme — der Name steht fest, gleich was der Browser schickt.
+  const KS14 = await import("../server/lib/fiaon-global-angebot-kapital-c");
+  const zeile14 = { id: 1, angebot_ref: D.ref, fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: { ...KUNDE_ROH, ausweise: [] }, parameter: PB, buergin: BUERGIN, gueltig_bis: "2099-12-31", updated_at_txt: "x" } as any;
+  const s14 = (await KS14.kapitalCKundenSicht("T14", zeile14)).body as any;
+  ok(s14.seite.bestand && s14.llcVorschlag?.wunsch === "MUSTERHAUS" && s14.uebersichtJe === null && s14.annahmeBereit === true, "Kundensicht: Abschnitt da, Name vorbelegt, keine Fast-Track-Übersicht, Annahme frei", [s14.llcVorschlag, s14.uebersichtJe, s14.annahmeBereit, s14.gesperrtGrund]);
+  const KONTEXT14 = { ip: "198.51.100.7", userAgent: UA } as any; const helfer14 = { zuViel: () => false };
+  const body14 = { laufzeitJahre: 10, llc: { wunsch: "", alternative1: "", alternative2: "" }, gelesen: true, sofortBeginn: true, unterschrift: { art: "getippt", name: "Max Mustermann" }, textHash: "falsch" };
+  const a14 = await KS14.kapitalCAnnehmen(zeile14, body14, KONTEXT14, helfer14);
+  ok(a14.status === 409 && a14.body.code === "GEAENDERT", "Annahme ohne Namen im Browser: alle Prüfungen bestanden bis zum Fingerabdruck (409 GEAENDERT) — der Name kommt aus dem Angebot", a14);
+  const a14b = await KS14.kapitalCAnnehmen(zeile14, { ...body14, sofortBeginn: false }, KONTEXT14, helfer14);
+  ok(a14b.status === 400 && a14b.body.error === C.KAPITAL_C_ANNAHME.fehltSofortWahl, "Annahme ohne „sofort beginnen“: 400 mit dem Satz ohne Fast-Track", a14b);
 }
 
 const mail = arg("--mail");

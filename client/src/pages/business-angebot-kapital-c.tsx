@@ -27,7 +27,7 @@ import {
   kapitalCPlan, kapitalCLaufzeiten, kapitalCEurCent, kapitalCUsd, kapitalCProzent, kapitalCLaufzeitZeile, kapitalCLetzteRateAnders,
   kapitalCEur, kapitalCRahmenEuroCents, kapitalCStaffelHonorarCents, kapitalCRahmenGueltig,
   KAPITAL_C_LAUFZEIT_LABEL, KAPITAL_C_NB, KAPITAL_C_REISEPASS,
-  type KapitalCKundenSicht, type KapitalCAnnahmeEingabe, type KapitalCPaketKachel, type KapitalCPlan,
+  type KapitalCKundenSicht, type KapitalCAnnahmeEingabe, type KapitalCPaketKachel, type KapitalCPlan, type KapitalCBestandBlock,
 } from "@shared/fiaon-global-angebot-kapital-c";
 import Glueckwunsch from "@/components/angebot-firma/Glueckwunsch";
 import PhasenZeitstrahl from "@/components/angebot-firma/PhasenZeitstrahl";
@@ -350,6 +350,90 @@ function Rechner({ sicht, jahre, setJahre, plan }: { sicht: KapitalCKundenSicht;
         <p>{t.waehrung} {t.kursZeile}.</p>
         <p className="gkc-hinweis">{t.hinweis}</p>
       </div>
+    </div>
+  );
+}
+
+// ── E-506: Ihre bestehende Gesellschaft — jede Einzelheit, die wir geprüft haben (helles Glas, ruhig bewegt) ───────────────────
+/** Volle Monate seit dem Eintragungstag (JJJJ-MM-TT) bis heute — das Firmenalter in der Karte. */
+function monateSeit(iso: string): number {
+  const [j, m, t] = iso.split("-").map(Number);
+  if (!j || !m || !t) return 0;
+  const heute = new Date();
+  let n = (heute.getFullYear() - j) * 12 + (heute.getMonth() + 1 - m);
+  if (heute.getDate() < t) n -= 1;
+  return Math.max(0, n);
+}
+/**
+ * Statt „Name wählen“: die Gesellschaft des Kunden als Karte (Name, Register, Status, Alter), darunter alle Angaben aus seinen
+ * Unterlagen und dem Register, was schon stimmt und was wir in Ordnung bringen. Die Zeilen erscheinen nacheinander, sobald der
+ * Abschnitt ins Bild kommt (Klasse „da“); ohne Bewegung (prefers-reduced-motion) steht alles sofort da.
+ */
+function BestandGesellschaft({ b }: { b: KapitalCBestandBlock }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [da, setDa] = useState(() => ruhig());
+  useEffect(() => {
+    if (da || !ref.current) return;
+    const io = new IntersectionObserver((e) => { if (e.some((x) => x.isIntersecting)) { setDa(true); io.disconnect(); } }, { threshold: 0.12 });
+    io.observe(ref.current);
+    // Sicherheitsnetz: nie eine leere Fläche, falls der Beobachter ausbleibt.
+    const netz = window.setTimeout(() => setDa(true), 2600);
+    return () => { io.disconnect(); window.clearTimeout(netz); };
+  }, [da]);
+  const k = b.karte;
+  const monate = monateSeit(k.eingetragenAm);
+  const stufe = (i: number) => ({ "--gkc-i": i } as React.CSSProperties);
+  return (
+    <div ref={ref} className={`gkc-bestand${da ? " da" : ""}`} data-fiaon="kapital-c-bestand">
+      <div className="gkc-bestand-kopf">
+        <div className="gkc-bestand-text">
+          <p className="gaf-auge">{b.auge}</p>
+          <h2 className="gkc-bestand-titel">{b.titel}</h2>
+          <p className="gkc-bestand-sub">{b.sub}</p>
+        </div>
+        <div className="gkc-bestand-karte" aria-label={k.name}>
+          <div className="gkc-bestand-glanz" aria-hidden="true" />
+          <p className="gkc-bestand-karte-auge">{k.auge}</p>
+          <p className="gkc-bestand-name">{k.name}</p>
+          <p className="gkc-bestand-zeile">{k.zeile}</p>
+          <div className="gkc-bestand-status">
+            <span className="gkc-bestand-punkt" aria-hidden="true" />
+            <b>{k.status}</b><span>{k.statusZeile}</span>
+          </div>
+          <dl className="gkc-bestand-eck">
+            <div><dt>{k.seitLabel}</dt><dd>{k.seit}</dd></div>
+            <div><dt>{k.alterZeile}</dt><dd>{monate > 0 ? <><Zaehler text={String(monate)} /> {k.alterEinheit}</> : k.seit}</dd></div>
+          </dl>
+        </div>
+      </div>
+      {b.daten.length > 0 && (
+        <div className="gkc-bestand-block">
+          <h3 className="gkc-bestand-h3">{b.datenTitel}</h3>
+          <dl className="gkc-bestand-daten">
+            {b.daten.map((x, i) => <div key={x.label} className="gkc-bestand-reihe" style={stufe(i)}><dt>{x.label}</dt><dd>{x.wert}</dd></div>)}
+          </dl>
+        </div>
+      )}
+      <div className="gkc-bestand-zwei">
+        {b.gut.length > 0 && (
+          <div className="gkc-bestand-block">
+            <h3 className="gkc-bestand-h3">{b.gutTitel}</h3>
+            <ul className="gkc-bestand-liste gut">
+              {b.gut.map((x, i) => <li key={x} className="gkc-bestand-reihe" style={stufe(i)}><span className="gkc-bestand-marke" aria-hidden="true"><Zeichen art="haken" groesse={13} /></span><span>{x}</span></li>)}
+            </ul>
+          </div>
+        )}
+        {b.ordnung.length > 0 && (
+          <div className="gkc-bestand-block">
+            <h3 className="gkc-bestand-h3">{b.ordnungTitel}</h3>
+            <ol className="gkc-bestand-liste ordnung">
+              {b.ordnung.map((x, i) => <li key={x} className="gkc-bestand-reihe" style={stufe(i)}><span className="gkc-bestand-marke" aria-hidden="true">{i + 1}</span><span>{x}</span></li>)}
+            </ol>
+            <p className="gkc-bestand-enthalten"><Zeichen art="haken" groesse={13} /><span>{b.ordnungSub}</span></p>
+          </div>
+        )}
+      </div>
+      <p className="gaf-fein gkc-bestand-fuss">{b.fuss}</p>
     </div>
   );
 }
@@ -718,13 +802,15 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
   // Annahme ergänzt; ein Fehler bei einem Ausweichnamen führt nach oben zu genau diesem Feld.
   const doppelt1 = !!voll[1] && voll[1] === voll[0];
   const doppelt2 = !!voll[2] && (voll[2] === voll[0] || voll[2] === voll[1]);
-  const wunschFehler = llcNameFehler(wahl.wunsch, true) ?? (serverFeld?.feld === "wunsch" ? serverFeld.text : null);
-  const ausweichFeld: NamenFeld | null = llcNameFehler(wahl.alternative1, false) || doppelt1 || serverFeld?.feld === "alternative1" ? "alternative1"
+  // E-506: Bei einer bestehenden Gesellschaft steht der Name im Angebot — nichts zu wählen, nichts zu prüfen.
+  const BS = S.bestand ?? null;
+  const wunschFehler = BS ? null : llcNameFehler(wahl.wunsch, true) ?? (serverFeld?.feld === "wunsch" ? serverFeld.text : null);
+  const ausweichFeld: NamenFeld | null = BS ? null : llcNameFehler(wahl.alternative1, false) || doppelt1 || serverFeld?.feld === "alternative1" ? "alternative1"
     : llcNameFehler(wahl.alternative2, false) || doppelt2 || serverFeld?.feld === "alternative2" ? "alternative2" : null;
   const ausweichFehler = ausweichFeld
     ? (llcNameFehler(wahl[ausweichFeld], false) ?? ((ausweichFeld === "alternative1" ? doppelt1 : doppelt2) ? T.doppelt : null) ?? serverFeld?.text ?? T.doppelt)
     : null;
-  const nameGut = !!llcVollname(wahl.wunsch) && !wunschFehler && !ausweichFehler;
+  const nameGut = BS ? true : !!llcVollname(wahl.wunsch) && !wunschFehler && !ausweichFehler;
   const fehlt: { id: string; text: string }[] = [];
   if (wunschFehler) fehlt.push({ id: "gkc-annahme-namen", text: wunschFehler });
   else if (ausweichFehler && ausweichFeld) fehlt.push({ id: `gkc-oben-${ausweichFeld}`, text: ausweichFehler });
@@ -774,7 +860,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
 
   // Der Name in der Annahme: eine Zeile mit „ändern“, sobald ein gültiger Wunschname steht — die Felder nur, solange er fehlt,
   // falsch ist oder gerade hier getippt wird (sonst stünden sechs Felder mit demselben Inhalt auf der Seite).
-  const nameZeigen = !llcVollname(wahl.wunsch) || !!wunschFehler || nameHier;
+  const nameZeigen = !BS && (!llcVollname(wahl.wunsch) || !!wunschFehler || nameHier);
 
   return (
     <div className={`gaf gab gak gkp gkc${auftakt === "offen" ? " gaf-wartet" : ""}`} data-fiaon="angebot-kapital-c">
@@ -830,6 +916,13 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
       </section>
 
       <main className="gaf-inhalt">
+        {/* E-506 — Ihre bestehende Gesellschaft: alles, was wir geprüft haben (statt „Name wählen“) */}
+        {BS && (
+          <section className="gaf-abschnitt gkc-abschnitt-bestand" id="gkc-name" aria-label={BS.auge}>
+            <div className="gaf-rahmen"><BestandGesellschaft b={BS} /></div>
+          </section>
+        )}
+
         {/* 2 — Laufzeit, Rate und Konditionen */}
         <section className="gaf-abschnitt gkc-abschnitt-rechner" id="gkc-rechner" aria-label={S.rechner.auge}>
           <div className="gaf-rahmen">
@@ -841,8 +934,8 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
           </div>
         </section>
 
-        {/* 3 — Ihre Gesellschaft */}
-        <section className="gaf-abschnitt" id="gkc-name" aria-label={T.titel}>
+        {/* 3 — Ihre Gesellschaft (nur bei einer Neugründung: Name wählen) */}
+        {!BS && <section className="gaf-abschnitt" id="gkc-name" aria-label={T.titel}>
           <div className="gaf-rahmen gkp-name-raster">
             <div>
               <Kopf titel={T.titel} sub={sicht.llcVorschlag && T.subVorschlag ? T.subVorschlag : T.sub} />
@@ -851,7 +944,7 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
             </div>
             <Auf><Urkunde t={T} name={wahl.wunsch} staat={staat} /></Auf>
           </div>
-        </section>
+        </section>}
 
         {/* 4 — Ihr Paket */}
         <section className="gaf-abschnitt" id="paket" aria-label={S.paket.auge}>
@@ -1050,8 +1143,8 @@ export default function BusinessAngebotKapitalC({ sicht: sichtVomServer, token, 
                 ) : (
                   <>
                     <p className="gkc-wahl-zeile gkc-name-zeile">
-                      <b className="gkc-name-wert">{llcVollname(wahl.wunsch)}</b>
-                      <button type="button" className="gkc-link" onClick={() => springen("gkc-name")}>{A.nameAendern}</button>
+                      <b className="gkc-name-wert">{BS ? BS.karte.name : llcVollname(wahl.wunsch)}</b>
+                      {!BS && <button type="button" className="gkc-link" onClick={() => springen("gkc-name")}>{A.nameAendern}</button>}
                     </p>
                     {(wahl.alternative1 || wahl.alternative2) && <p className="gkc-name-ausweich">{[wahl.alternative1, wahl.alternative2].map(llcVollname).filter(Boolean).join(" · ")}</p>}
                   </>

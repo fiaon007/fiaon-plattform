@@ -548,6 +548,8 @@ export async function angebotTeilZahlungsKontext(a: { ref?: unknown; payment_ref
     const c = KC.kapitalCZahlungsseiteTeil2({
       bezahlt, angebotRef: String(t.angebot_ref), titel: String(t.titel), eingetragenAm: t.meilenstein_am ? new Date(String(t.meilenstein_am)).toISOString().slice(0, 10) : null,
       zielWochen: KC.kapitalCParameterAus(json<any>(t.parameter, {})).zielWochen,
+      // E-506: bestehende Gesellschaft — Teil 2 hängt an „übernommen und bankfertig“, nicht an der Eintragung.
+      bestand: !!KC.kapitalCParameterAus(json<any>(t.parameter, {})).bestand,
     });
     return {
       auge: "FIAON Global · Ihr Auftrag",

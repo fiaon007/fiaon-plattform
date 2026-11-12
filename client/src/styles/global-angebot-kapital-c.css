@@ -548,3 +548,68 @@
 @media (prefers-reduced-motion:no-preference) { .gkc-regler::-webkit-slider-thumb { transition:transform .15s ease; } .gkc-regler:active::-webkit-slider-thumb { transform:scale(1.06); } }
 .gkc-rahmen-stand .gkc-link { margin-left:0; min-height:32px; }
 .gkc-rahmen-stand.fehler { flex-wrap:wrap; }
+
+/* ── E-506: Ihre bestehende Gesellschaft — jede Einzelheit, ruhig bewegt ───────────────────────────────────────
+   Helles Glas (die EINE Navy-Stelle bleibt der Rechner). Eine Karte wie eine Urkunde mit Status-Punkt, darunter alle Angaben
+   als Tabelle mit Haarlinien, „Das stimmt schon“ und „Das bringen wir in Ordnung“. Die Zeilen erscheinen nacheinander, sobald
+   der Abschnitt ins Bild kommt (.da) — über die Variable --gkc-i. Ohne Bewegung (prefers-reduced-motion) steht alles sofort. */
+.gkc-abschnitt-bestand { padding-bottom:0; }
+.gkc-bestand { position:relative; padding:48px 52px 34px; border-radius:32px; color:var(--text);
+  background:linear-gradient(158deg,#ffffff 0%,#f6faff 55%,#eaf3ff 100%); border:1px solid rgba(40,141,250,.18);
+  box-shadow:0 30px 70px -44px rgba(29,78,216,.45), inset 0 1px 0 #fff; scroll-margin-top:84px; }
+.gkc-bestand-kopf { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.02fr); gap:52px; align-items:center; }
+.gkc-bestand-titel { margin-top:18px; font-family:var(--serif); font-weight:300; font-size:clamp(32px,3.6vw,52px); line-height:1.06; letter-spacing:-.022em; color:var(--tinte); text-wrap:balance; }
+.gkc-bestand-sub { margin-top:14px; font-size:16.5px; line-height:1.65; color:var(--leise); max-width:46ch; }
+.gkc-bestand-karte { position:relative; overflow:hidden; padding:30px 32px 26px; border-radius:22px; background:#fff; border:1px solid rgba(40,141,250,.22);
+  box-shadow:0 26px 54px -34px rgba(29,78,216,.6), inset 0 1px 0 #fff; }
+.gkc-bestand-glanz { position:absolute; inset:0; pointer-events:none; background:linear-gradient(115deg, transparent 32%, rgba(207,228,254,.55) 48%, transparent 64%); transform:translateX(-120%); }
+.gkc-bestand.da .gkc-bestand-glanz { animation:gkcBestandGlanz 2.2s cubic-bezier(.2,.7,.2,1) .35s 1 both; }
+.gkc-bestand-karte-auge { font-size:10.5px; font-weight:500; letter-spacing:.22em; text-transform:uppercase; color:#1d4ed8; }
+.gkc-bestand-name { margin-top:14px; font-family:var(--serif); font-weight:300; font-size:clamp(30px,3.4vw,46px); line-height:1.08; letter-spacing:-.015em; color:var(--tinte); overflow-wrap:anywhere; }
+.gkc-bestand-zeile { margin-top:8px; font-size:13.5px; letter-spacing:.02em; color:var(--leise); font-variant-numeric:tabular-nums; }
+.gkc-bestand-status { margin-top:20px; display:inline-flex; align-items:center; gap:10px; padding:8px 14px 8px 12px; border-radius:999px; background:rgba(40,141,250,.08); border:1px solid rgba(40,141,250,.18); font-size:13px; color:var(--text); }
+.gkc-bestand-status b { font-weight:500; color:#1d4ed8; text-transform:uppercase; letter-spacing:.12em; font-size:11.5px; }
+.gkc-bestand-punkt { position:relative; flex:0 0 9px; height:9px; border-radius:50%; background:#288dfa; }
+.gkc-bestand-punkt::after { content:""; position:absolute; inset:-5px; border-radius:50%; border:1px solid rgba(40,141,250,.55); opacity:0; }
+.gkc-bestand.da .gkc-bestand-punkt::after { animation:gkcBestandPuls 2.4s ease-out 1s infinite; }
+.gkc-bestand-eck { margin-top:22px; padding-top:18px; border-top:1px dashed rgba(40,141,250,.3); display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.gkc-bestand-eck dt { font-size:11px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:var(--leise); line-height:1.4; }
+.gkc-bestand-eck dd { margin-top:6px; font-family:var(--serif); font-weight:300; font-size:26px; line-height:1.1; color:var(--tinte); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.gkc-bestand-block { margin-top:34px; min-width:0; }
+.gkc-bestand-h3 { font-size:11.5px; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--navy); }
+.gkc-bestand-daten { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:44px; }
+.gkc-bestand-daten > div { display:grid; grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr); gap:16px; padding:11px 0; border-bottom:1px solid var(--linie); min-width:0; }
+.gkc-bestand-daten dt { font-size:13.5px; color:var(--leise); }
+.gkc-bestand-daten dd { font-size:14.5px; color:var(--tinte); overflow-wrap:anywhere; }
+.gkc-bestand-zwei { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:44px; }
+.gkc-bestand-liste { margin-top:14px; display:grid; gap:0; list-style:none; padding:0; }
+.gkc-bestand-liste li { display:grid; grid-template-columns:26px minmax(0,1fr); gap:12px; align-items:start; padding:11px 0; border-bottom:1px solid var(--linie); font-size:14.5px; line-height:1.55; color:var(--text); }
+.gkc-bestand-marke { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; margin-top:1px; border-radius:50%; font-size:12px; font-weight:500; font-variant-numeric:tabular-nums; }
+.gkc-bestand-liste.gut .gkc-bestand-marke { color:#1d4ed8; background:rgba(40,141,250,.1); }
+.gkc-bestand-liste.ordnung .gkc-bestand-marke { color:#fff; background:linear-gradient(140deg,#5aa8fb 0%,#288dfa 45%,#1d4ed8 100%); box-shadow:0 8px 16px -8px rgba(40,141,250,.9); }
+.gkc-bestand-enthalten { margin-top:14px; display:flex; align-items:center; gap:8px; font-size:13.5px; color:#1d4ed8; }
+.gkc-bestand-fuss { margin-top:26px; max-width:70ch; }
+/* Bewegung: Zeilen gleiten nacheinander herein */
+.gkc-bestand .gkc-bestand-karte, .gkc-bestand .gkc-bestand-reihe { opacity:0; transform:translateY(14px); }
+.gkc-bestand.da .gkc-bestand-karte { opacity:1; transform:none; transition:opacity .7s ease, transform .9s cubic-bezier(.2,.7,.2,1); }
+.gkc-bestand.da .gkc-bestand-reihe { opacity:1; transform:none; transition:opacity .55s ease, transform .7s cubic-bezier(.2,.7,.2,1); transition-delay:calc(.25s + var(--gkc-i,0) * 55ms); }
+@keyframes gkcBestandGlanz { from { transform:translateX(-120%); } to { transform:translateX(120%); } }
+@keyframes gkcBestandPuls { 0% { transform:scale(.6); opacity:.9; } 100% { transform:scale(1.9); opacity:0; } }
+@media (prefers-reduced-motion:reduce) {
+  .gkc-bestand .gkc-bestand-karte, .gkc-bestand .gkc-bestand-reihe { opacity:1; transform:none; transition:none; }
+  .gkc-bestand.da .gkc-bestand-glanz, .gkc-bestand.da .gkc-bestand-punkt::after { animation:none; }
+}
+@media (max-width:900px) {
+  .gkc-bestand { padding:36px 28px 28px; border-radius:26px; }
+  .gkc-bestand-kopf { grid-template-columns:minmax(0,1fr); gap:28px; }
+  .gkc-bestand-daten { grid-template-columns:minmax(0,1fr); }
+  .gkc-bestand-zwei { grid-template-columns:minmax(0,1fr); gap:0; }
+}
+@media (max-width:560px) {
+  .gkc-bestand { padding:28px 20px 22px; border-radius:22px; }
+  .gkc-bestand-karte { padding:24px 20px 20px; border-radius:18px; }
+  .gkc-bestand-daten > div { grid-template-columns:minmax(0,1fr); gap:3px; padding:10px 0; }
+  .gkc-bestand-daten dt { font-size:12.5px; }
+  .gkc-bestand-eck dd { font-size:22px; white-space:normal; }
+  .gkc-bestand-eck dt { min-height:2.8em; }
+}

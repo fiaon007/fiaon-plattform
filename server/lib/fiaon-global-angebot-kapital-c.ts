@@ -74,6 +74,7 @@ import {
   kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
   KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter, kapitalCBestaetigungAbsaetze, kapitalCReisepassAufgabe,
   kapitalCRahmenGueltig, kapitalCRahmenAnwenden, kapitalCUsd,
+  kapitalCTeil1TitelFuer, kapitalCTeil2Fuer, kapitalCBestandStamm,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter, type KapitalCPlan,
 } from "@shared/fiaon-global-angebot-kapital-c";
 
@@ -222,7 +223,7 @@ export async function kapitalCAnlegen(ein: any, wer: string): Promise<Ergebnis<{
   const id = Number(neu.id);
   await sqlPool`
     INSERT INTO fiaon_global_angebot_teile (angebot_id, nr, titel, betrag_cents, faelligkeit, zahlungsziel_tage)
-    VALUES (${id}, 1, ${KAPITAL_C_TEIL1_TITEL}, ${kapitalCHeuteCents(parameter)}, 'sofort', ${parameter.zahlungszielTage})
+    VALUES (${id}, 1, ${kapitalCTeil1TitelFuer(parameter, true)}, ${kapitalCHeuteCents(parameter)}, 'sofort', ${parameter.zahlungszielTage})
     ON CONFLICT (angebot_id, nr) DO NOTHING`;
   return { ok: true, id, ref, link: absoluteUrl(angebotKundenPfad(angebotTokenErzeugen(ref, gueltigBis))) };
 }
@@ -253,7 +254,7 @@ export async function kapitalCAendern(id: number, ein: any, wer: string): Promis
     UPDATE fiaon_global_angebote SET kunde = ${jsonb(kundeFuerDb(neu.kunde))}, parameter = ${jsonb(neu.parameter)}, buergin = ${jsonb(neu.buergin)},
            gueltig_bis = ${neu.gueltigBis}::date, fassung = ${KAPITAL_C_FASSUNG}, updated_at = NOW()
      WHERE id = ${id} AND status = 'offen'`;
-  await sqlPool`UPDATE fiaon_global_angebot_teile SET betrag_cents = ${kapitalCHeuteCents(neu.parameter)}, zahlungsziel_tage = ${neu.parameter.zahlungszielTage}, titel = ${KAPITAL_C_TEIL1_TITEL}
+  await sqlPool`UPDATE fiaon_global_angebot_teile SET betrag_cents = ${kapitalCHeuteCents(neu.parameter)}, zahlungsziel_tage = ${neu.parameter.zahlungszielTage}, titel = ${kapitalCTeil1TitelFuer(neu.parameter, true)}
                  WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL`;
   await verlaufAngebot(id, wer, `geändert: ${geaendert.join(", ")}`, { alterHash: altHash });
   return { ok: true, fehlt: kapitalCPflichtFehlen(neu) };
@@ -296,7 +297,7 @@ export async function kapitalCKundenSicht(token: string, z: AngebotZeile, opts: 
     } : null,
     ...(opts.leitung ? { vorschauLeitung: true, fehlt } : {}),
     // E-491: der Namensvorschlag aus dem Gespräch füllt die Namensfelder vor (nur wenn gesetzt — Bestand ohne Schlüssel).
-    ...(par.llcVorschlag ? { llcVorschlag: par.llcVorschlag } : {}),
+    ...(par.bestand ? { llcVorschlag: { wunsch: kapitalCBestandStamm(par.bestand), alternative1: "", alternative2: "" } } : par.llcVorschlag ? { llcVorschlag: par.llcVorschlag } : {}),
     // E-505: der Regler „Ihr Kapitalrahmen“ (nur mit rahmenWahl — Bestand ohne Schlüssel). Die Preise dazu, damit die Seite beim
     // Schieben mit denselben Funktionen rechnet wie der Server.
     ...(par.rahmenWahl ? { rahmen: { ...par.rahmenWahl, speichern: `/api/fiaon/global/angebot/${t}/kapital-rahmen`, gruendungCents: par.gruendungCents, fastTrackCents: par.fastTrackCents } } : {}),
@@ -564,7 +565,7 @@ export async function kapitalCAngenommenAntwort(z: AngebotZeile): Promise<Record
     fertigTitel: KAPITAL_C_ANNAHME.fertigTitel(kapitalCGruss(d.kunde)),
     fertigText: KAPITAL_C_ANNAHME.fertigText(d.kunde.email, llc, laufzeit),
     teil1Bezahlt: bezahlt,
-    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(heute, ft),
+    fertigZahlung: KAPITAL_C_ANNAHME.fertigZahlung(heute, ft, !!d.parameter.bestand),
     fertigFuss: ansprech[0] ? KAPITAL_C_ANNAHME.fertigFussMit(ansprech[0]) : KAPITAL_C_ANNAHME.fertigFuss,
     llc: w?.llc ?? null,
   };
@@ -596,14 +597,18 @@ export async function kapitalCAnnehmen(z: AngebotZeile, body: any, kontext: Anna
   }
   const jahre = Number(body?.laufzeitJahre);
   if (!kapitalCLaufzeitGueltig(jahre, d.parameter)) return fehler(400, KAPITAL_C_ANNAHME.fehltLaufzeit, { code: "LAUFZEIT" });
-  const llc = llcWahlPruefen(body?.llc);
+  // E-506: Bei einer bestehenden Gesellschaft wählt der Kunde keinen Namen — er steht im Angebot (und so im Annahmevermerk),
+  // gleich was der Browser schickt. Ohne die Namensregeln der Neugründung: Der Name ist beim Bundesstaat längst eingetragen.
+  const llc: ReturnType<typeof llcWahlPruefen> = d.parameter.bestand
+    ? { ok: true, wahl: { wunsch: d.parameter.bestand.name, alternative1: "", alternative2: "" } }
+    : llcWahlPruefen(body?.llc);
   if (!llc.ok) return fehler(400, llc.error, { code: "LLC", feld: llc.feld });
   if (body?.gelesen !== true) return fehler(400, KAPITAL_C_ANNAHME.fehltGelesen, { code: "HAEKCHEN", fehlt: ["gelesen"] });
   // E-474: Mit fastTrackWahl wählt der Kunde (true/false, nie vorbelegt — ein Aufpreis braucht seine ausdrückliche Wahl).
   // E-475 (Justin 02.11.2026): FIAON beginnt in BEIDEN Fällen sofort — der Haken „sofort beginnen“ ist immer Pflicht.
   const ft: unknown = d.parameter.fastTrackWahl ? body?.fastTrack : true;
   if (ft !== true && ft !== false) return fehler(400, KAPITAL_C_ANNAHME.fehltFastTrack, { code: "FASTTRACK" });
-  if (body?.sofortBeginn !== true) return fehler(400, d.parameter.fastTrackWahl ? KAPITAL_C_ANNAHME.fehltSofortWahl : KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
+  if (body?.sofortBeginn !== true) return fehler(400, d.parameter.fastTrackWahl || d.parameter.bestand ? KAPITAL_C_ANNAHME.fehltSofortWahl : KAPITAL_C_ANNAHME.fehltSofort, { code: "HAEKCHEN", fehlt: ["sofort"] });
   const u = firmaUnterschriftPruefen(body?.unterschrift, { vertretung: { nachname: d.kunde.nachname } } as unknown as FirmaKunde);
   if (!u.ok) return fehler(400, u.error, { code: u.code });
   const hash = kapitalCTextHash(d);
@@ -685,8 +690,8 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
   // (angebotTeilZurBestellung liest Betrag und Titel aus dieser Zeile). Nur solange noch keine Bestellung daran hängt.
   const ft = kapitalCMitFastTrack(d.parameter, w);
   if (d.parameter.fastTrackWahl) {
-    await sqlPool`UPDATE fiaon_global_angebot_teile SET betrag_cents = ${kapitalCHeuteCents(d.parameter, ft)}, titel = ${kapitalCTeil1Titel(ft)}
-                   WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL AND (betrag_cents <> ${kapitalCHeuteCents(d.parameter, ft)} OR titel <> ${kapitalCTeil1Titel(ft)})`;
+    await sqlPool`UPDATE fiaon_global_angebot_teile SET betrag_cents = ${kapitalCHeuteCents(d.parameter, ft)}, titel = ${kapitalCTeil1TitelFuer(d.parameter, ft)}
+                   WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL AND (betrag_cents <> ${kapitalCHeuteCents(d.parameter, ft)} OR titel <> ${kapitalCTeil1TitelFuer(d.parameter, ft)})`;
   }
   try {
     let ref1 = teil1.bestell_ref ? String(teil1.bestell_ref) : (z.auftrag_ref ? String(z.auftrag_ref) : null);
@@ -698,7 +703,7 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
     }
     const [da] = (await sqlPool`SELECT ref FROM fiaon_applications WHERE ref = ${ref1} LIMIT 1`) as any[];
     if (!da) {
-      const ok = await bestellzeilePrivat(ref1, k, `${KAPITAL_C_MARKE} — ${kapitalCTeil1Titel(ft)}`, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
+      const ok = await bestellzeilePrivat(ref1, k, `${KAPITAL_C_MARKE} — ${kapitalCTeil1TitelFuer(d.parameter, ft)}`, { ip: String(z.ip || ""), userAgent: String(z.user_agent || "") });
       if (!ok) throw new Error("Bestellzeile ließ sich nicht anlegen");
     }
     await sqlPool`UPDATE fiaon_global_angebot_teile SET bestell_ref = ${ref1} WHERE angebot_id = ${id} AND nr = 1 AND bestell_ref IS NULL`;
@@ -708,6 +713,8 @@ export async function kapitalCFertigstellen(id: number): Promise<{ ok: boolean; 
       const firma = { art: "privat", land: k.land, name: kapitalCName(k), rechtsform: "Privatperson", registergericht: null, registernummer: null, strasse: k.strasse, plz: k.plz, ort: k.ort, ustId: null, website: null, quelleRegister: null };
       const ansprechpartner = { anrede: k.anrede, vorname: k.vorname, nachname: k.nachname, funktion: "Privatperson", email: k.email, telefon: k.telefon };
       const bestaetigungen = { annahme: KAPITAL_KNOPF, sofortBeginn: w?.sofortBeginn ?? true, ...(d.parameter.fastTrackWahl ? { fastTrack: ft } : {}), gelesen: true, am: new Date(z.angenommen_am).toISOString(), kapitalangebot: true, kapitalPrivat: true,
+        // E-506: bestehende Gesellschaft — „Mein Auftrag“ nennt Etappe 1 dann „Ihre Gesellschaft in Ordnung“ (etappeTextFuerAkte).
+        ...(d.parameter.bestand ? { kapitalBestand: true } : {}),
         laufzeitJahre: w?.laufzeitJahre ?? null,
         ...(sch.unterschrift ? { unterschrift: { art: sch.unterschrift.art, name: sch.unterschrift.name ?? null, am: sch.unterschrift.am ?? null } } : {}) };
       const pngM = String(sch.unterschrift?.png ?? "").match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
@@ -1001,10 +1008,11 @@ export async function kapitalCZustellungLauf(jetzt: Date = new Date()): Promise<
 export async function kapitalCGebuehrBerechnen(id: number, artRoh: unknown, ein: any, wer: string): Promise<Ergebnis<{ ref: string; rechnungsnummer: string | null; betragCents: number; zahlungsseite: string | null; meldung: string; schon?: true }>> {
   if (artRoh === "auszahlung") return kapitalCAuszahlungEintragen(id, ein, wer);
   if (artRoh !== "buergschaft" && artRoh !== "eintragung") return nein("Diese Rechnung gibt es nicht.", 404);
-  const g = KAPITAL_C_TEIL2;
   const z = await angebotLesen({ id });
   if (!z) return nein("Dieses Kapital-Angebot gibt es nicht.", 404);
   const d = kapitalCDatenAus(z);
+  // E-506: bei einer bestehenden Gesellschaft hängt Teil 2 an „übernommen und bankfertig“ (Titel, Ereignis, Knopf).
+  const g = kapitalCTeil2Fuer(d.parameter);
   const teile = ((z as any).teile as any[] | undefined) ?? [];
   const t1 = teile.find((x) => Number(x.nr) === 1);
   const vorher = teile.find((x) => Number(x.nr) === g.nr);
@@ -1273,7 +1281,9 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
     // Der erste Knopf ist hier „Gesellschaft eingetragen“ (Teil 2 = Erfolgshonorar); einen Teil 3 gibt es nicht.
     gebuehren: { buergschaftCents: par.erfolgCents, auszahlungCents: 0, vereinbart: true, garantieWochen: par.garantieWochen },
     knopfTexte: {
-      buergschaft: { knopf: KAPITAL_C_TEIL2.knopf, datum: `${KAPITAL_C_TEIL2.datumLabel} (Bundesstaat)`, hinweis: `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar mit der Eintragung der Gesellschaft.`, ereignis: "eingetragen" },
+      buergschaft: par.bestand
+        ? { knopf: kapitalCTeil2Fuer(par).knopf, datum: kapitalCTeil2Fuer(par).datumLabel, hinweis: `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar, sobald die bestehende Gesellschaft (${par.bestand.name}) übernommen und bankfertig ist — Berichtigungen eingereicht, Operating Agreement unterschrieben.`, ereignis: "übernommen" }
+        : { knopf: KAPITAL_C_TEIL2.knopf, datum: `${KAPITAL_C_TEIL2.datumLabel} (Bundesstaat)`, hinweis: `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar mit der Eintragung der Gesellschaft.`, ereignis: "eingetragen" },
       auszahlung: { knopf: KAPITAL_C_AUSZAHLUNG.knopf, datum: KAPITAL_C_AUSZAHLUNG.datumLabel, hinweis: KAPITAL_C_AUSZAHLUNG.hinweis, ereignis: "ausgezahlt", ohneRechnung: true },
     },
     garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),

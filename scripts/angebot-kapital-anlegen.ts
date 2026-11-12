@@ -134,6 +134,10 @@ async function fassungC(roh: any): Promise<boolean> {
   if ((roh as any)?.parameter?.llcVorschlag !== undefined) console.log(parameter.llcVorschlag
     ? `Namensvorschlag (E-491): ${[parameter.llcVorschlag.wunsch, parameter.llcVorschlag.alternative1, parameter.llcVorschlag.alternative2].filter(Boolean).join(" · ")} — die Seite füllt die Felder vor.`
     : "ACHTUNG Namensvorschlag (E-491): ungültig (Wunschname leer, Umlaut, Sonderzeichen oder doppelt) — die Seite bleibt leer.");
+  if (parameter.bestand) {
+    const b = parameter.bestand;
+    console.log(`Bestehende Gesellschaft (E-506): ${b.name}, ${b.bundesstaat}${b.registerNr ? `, Registernummer ${b.registerNr}` : ""}, eingetragen am ${b.eingetragenAm} — übernehmen statt neu gründen: ein Preis ${SC.kapitalCEurCent(SC.kapitalCHeuteCents(parameter))} (kein Fast-Track), Erfolgshonorar ${SC.kapitalCEurCent(parameter.erfolgCents)} bei „übernommen und bankfertig“. Seite: ${b.daten.length} Angabe(n), ${b.gut.length}× „stimmt schon“, ${b.ordnung.length}× „bringen wir in Ordnung“.`);
+  } else if ((roh as any)?.parameter?.bestand !== undefined && (roh as any).parameter.bestand !== null) console.log("WARNUNG: bestand in der Datei ist ungültig (Name, Bundesstaat und eingetragenAm als JJJJ-MM-TT sind Pflicht) — das Angebot spricht von einer NEUGRÜNDUNG.");
   if (parameter.rahmenWahl) {
     const w = parameter.rahmenWahl; const h = (usd: number) => SC.kapitalCEur(SC.kapitalCStaffelHonorarCents(usd, parameter.kursUsdJeEur));
     console.log(`Regler (E-505): der Kunde wählt ${SC.kapitalCUsd(w.minUsd)} bis ${SC.kapitalCUsd(w.maxUsd)} in Schritten von ${SC.kapitalCUsd(w.schrittUsd)}, Stand ${SC.kapitalCUsd(w.gewaehltUsd)} · Erfolgshonorar nach Staffel: ${h(w.minUsd)} (unten) … ${h(w.gewaehltUsd)} (Stand) … ${h(w.maxUsd)} (oben) — Betrag und Honorar der Datei zählen nicht.`);

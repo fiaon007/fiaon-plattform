@@ -62,7 +62,7 @@ import { wandPruefen, wandUrteil } from "@shared/fiaon-wortverbote";
 // E-443 (28.10.2026): Aufgaben aus Kunden-Upload und Kunden-Nachricht führen ins Chefbüro (Global-Mandate).
 import { globalChefMandatPfad, globalOfficeAuftragPfad } from "@shared/fiaon-global-wege";
 import { KAPITAL_MARKE, KAPITAL_ETAPPEN, KAPITAL_PFLICHT_ZUSATZ } from "@shared/fiaon-global-angebot-kapital";
-import { KAPITAL_C_MARKE, KAPITAL_C_ETAPPEN, KAPITAL_C_PFLICHT_ZUSATZ } from "@shared/fiaon-global-angebot-kapital-c";
+import { KAPITAL_C_MARKE, KAPITAL_C_ETAPPEN, KAPITAL_C_PFLICHT_ZUSATZ, kapitalCEtappenFuer } from "@shared/fiaon-global-angebot-kapital-c";
 import { BEGLEIT_PORTAL } from "@shared/fiaon-global-angebot-begleit";
 import {
   GLOBAL_ETAPPEN, GLOBAL_ETAPPE_MAX, GLOBAL_FRIST_STANDARDHINWEIS, GLOBAL_TEXT_UNTERLAGEN, GLOBAL_UNTERLAGEN_NACHFASS_TAGE, GLOBAL_VERLAUF_TEXT,
@@ -194,7 +194,8 @@ export function etappeFassungFuerAkte(akte: { bestaetigungen?: unknown; paket_ke
 export function etappeTextFuerAkte(akte: { bestaetigungen?: unknown; paket_key?: unknown }, nr: number, sprache: BereichSprache): { titel: string; text: string } {
   const f = etappeFassungFuerAkte(akte);
   const mitte = nr === 1 || nr === 2 || nr === 3 || nr === 4;
-  if (mitte && f === "kapitalPrivat") return KAPITAL_C_ETAPPEN[nr];
+  // E-506: bestehende Gesellschaft (Merker kapitalBestand aus der Annahme) — Etappe 1 ist die Übernahme, keine Gründung.
+  if (mitte && f === "kapitalPrivat") return json<Record<string, unknown>>(akte.bestaetigungen, {}).kapitalBestand === true ? kapitalCEtappenFuer({ bestand: {} as any })[nr] : KAPITAL_C_ETAPPEN[nr];
   if (mitte && f === "kapital") return KAPITAL_ETAPPEN[nr];
   if (mitte && f === "begleit" && sprache !== "en") return BEGLEIT_PORTAL.etappen[nr];
   return globalEtappeText(nr, sprache, f === "individuell");

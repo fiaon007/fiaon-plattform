@@ -574,7 +574,9 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
               );
               // 29.10.2026 (E-459): Karten mit fremder Adresse (Companies House) öffnen in einem neuen Tab — wie die Quellenliste.
               const extern = !!k.pfad && /^https?:\/\//.test(k.pfad);
-              return k.pfad ? <a key={k.titel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}</a> : <div key={k.titel} className="fd-karte">{innen}</div>;
+              // Schlüssel aus Marke und Titel: Auf /business/partner tragen zwei Karten denselben Titel (Zürich und Miami, beide „Schwarzott Group“).
+              const schluessel = `${k.tag ?? ""}|${k.titel}`;
+              return k.pfad ? <a key={schluessel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}</a> : <div key={schluessel} className="fd-karte">{innen}</div>;
             })}
           </div>
         </Abschnitt>

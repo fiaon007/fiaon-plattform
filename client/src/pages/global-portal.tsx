@@ -34,6 +34,8 @@ import { GLOBAL_ETAPPE_FUSSNOTE, usBundesstaatName, istHeimatMeldungSatz } from 
 import { stationStatusName, stationTelefonText, stationZeilen, type GlobalPlusKunde, type StationZeile } from "@shared/fiaon-global-stationen";
 // 22.10.2026: die neue Navigation — Glasleiste mit Themen und Panel, am Telefon ein ganzseitiges Menü.
 import PortalNav, { type NavGruppe } from "./global-portal-nav";
+// E-507 (12.11.2026): die Karte „Ihre Partnerschaft“ — nur für Kunden, die zugleich Empfehlungspartner sind (Worte aus einer Quelle).
+import { KOOP_PARTNERSCHAFT_PORTAL, koopProzentText, type KoopPartnerschaftPortal } from "@shared/fiaon-koop-partnerschaft";
 // 22.10.2026: von Hand unterschreiben (IRS-Formulare) — ausdrucken, unterschreiben, als PDF scannen, hochladen.
 import HandschriftDialog from "./global-portal-handschrift";
 // 22.10.2026: digital unterschreiben — Zustimmung, Name, Code per E-Mail (E-SIGN), statt Zeichenfeld.
@@ -780,6 +782,21 @@ export default function GlobalPortal({ a, gref, token, s, t, laden }: {
                   </button>
                 </div>
               </section>
+
+              {/* ── E-507: Ihre Partnerschaft — Empfehlungen eintragen und Provision sehen (führt auf die Partnerseite) ── */}
+              {a.partnerschaft && (() => {
+                const ps = a.partnerschaft as KoopPartnerschaftPortal; const pw = KOOP_PARTNERSCHAFT_PORTAL[s]; const aktiv = ps.stand === "aktiv";
+                return (
+                  <section className="gp-abschnitt gp-auftauchen" aria-label={pw.auge} data-fiaon="portal-partnerschaft">
+                    <a className="gp-karte gp-karte-klick" href={ps.link}>
+                      <span className="gp-auge">{pw.auge}</span>
+                      <b className="gp-karte-gross">{aktiv ? pw.aktivTitel(ps.empfehlungen) : pw.offenTitel}</b>
+                      <span className="gp-leise">{aktiv ? pw.aktivText(koopProzentText(ps.prozent)) : pw.offenText(koopProzentText(ps.prozent))}</span>
+                      <span className="gp-buero-fuss">{aktiv ? pw.aktivKnopf : pw.offenKnopf}</span>
+                    </a>
+                  </section>
+                );
+              })()}
 
               {/* ── Zuletzt passiert (drei Zeilen, auf Wunsch alle) ── */}
               <section className="gp-abschnitt gp-auftauchen gp-zuletzt" aria-label={w.zuletzt}>

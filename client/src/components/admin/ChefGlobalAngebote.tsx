@@ -268,7 +268,8 @@ function KoopAngebotBlock({ a, aktion, busy, kopieren }: { a: KoopAngebot; busy:
       {a.status === "angenommen" && (
         <div className="cg-begleit-annahme">
           <p className="cm-klartext"><b>Lieferung:</b> {a.lieferung?.zeile ?? "— (nicht ladbar)"}</p>
-          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · Kontakte halten Mitarbeiter in der Akte unter „Partner-Termin“ fest; Rechnung automatisch am Monatsersten.</p>
+          {/* E-507: Der Empfehlungspartner bekommt keine Kontakte und keine Rechnung — er nennt FIAON Kunden. */}
+          <p className="cm-klartext">Angenommen am {datumZeit(a.angenommenAm)} · IP {a.ip ?? "—"} · Prüfsumme {a.textHash?.slice(0, 16)}… · {a.lieferung?.bereich === "empfehlung" ? "Empfehlungen trägt der Partner auf seiner Partnerseite ein; seine Provision rechnet die Gutschrift zum Monatsanfang ab." : "Kontakte halten Mitarbeiter in der Akte unter „Partner-Termin“ fest; Rechnung automatisch am Monatsersten."}</p>
           {a.lieferung?.bereich === "vorsorge" && (
             <div className="cg-form cg-form-breit" data-koop-rolle>
               <label>Bezeichnung auf der Kundenseite „Ihr Vorsorge-Überblick“

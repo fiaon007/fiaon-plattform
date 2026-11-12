@@ -10,6 +10,11 @@
 //   liest /business/angebot/:token (KoopKundenSicht), wählt die Menge je Woche → Annahme mit „Unternehmer“, „gelesen“,
 //   Unterschrift und Prüfsumme → Vertrags-PDF mit Annahmevermerk in der Zeile → Aufgabe an Justin + Mail an js@.
 //
+// ── E-507 (12.11.2026): DAS MODELL „EMPFEHLUNG“ (Empfehlungspartner von FIAON Global) ──────────────────────────────
+//   Derselbe Weg, aber: keine Menge (wunschWoche entfällt), eigener Knopf ohne Zahlungspflicht, und mit der Annahme steht der
+//   vereinbarte Satz als schalter.provision im Vertrag — ab da rechnen Partnerbereich, Gutschrift-Lauf und Monatsbericht
+//   (server/lib/fiaon-koop-empfehlung.ts). FIAON übermittelt diesem Partner NIE Kontakte (koopLiefertKontakte).
+//
 // ── WAS BEWUSST NICHT PASSIERT ────────────────────────────────────────────
 //   · Keine Bestellzeile, keine Rechnung, kein Global-Auftrag: Heute wird nichts fällig; abgerechnet wird je übermitteltem
 //     Kontakt zum Monatsende. auftrag_ref bleibt leer — Stundenlauf, Startgespräch und Nachholen fassen das Angebot nicht an.
@@ -29,11 +34,13 @@ import {
 import { firmaUnterschriftPruefen } from "./fiaon-global-angebot-firma";
 import { dachNummer } from "@shared/fiaon-dach-telefon";
 import { koopModellSeite } from "@shared/fiaon-global-angebot-koop-modelle";
+import { koopProvisionNeu, koopBerlinTag, KOOP_PROVISION_MONATE } from "@shared/fiaon-koop-empfehlung";
 import {
   KOOP_FASSUNG, KOOP_FASSUNGEN, KOOP_GUELTIG_TAGE, KOOP_KNOPF, KOOP_ANNAHME,
   koopParameterAus, koopParameterFehler, koopPflichtFehlen, koopSeite, koopBestellUebersicht, koopAnnahmeTexte,
   koopAnsprechpartner, koopPartnerAnrede, koopPartnerName, koopVertragTitel, koopVertragUnterzeile, koopRumpfHtml,
   koopHashEingabe, koopEur, koopWunschAus, istKoopFassung, koopFassungFuer, koopModellVon, KOOP_BEREICH,
+  koopKnopfText, koopEmpfehlungProzent,
   type KoopDaten, type KoopPartner, type KoopParameter, type KoopLand, type KoopAnnahmeVermerk, type KoopWahl,
   type KoopUnterschriftVermerk, type KoopKundenSicht,
 } from "@shared/fiaon-global-angebot-koop";
@@ -113,14 +120,15 @@ export async function koopVertragPdf(d: KoopDaten, annahme: KoopAnnahmeVermerk |
   });
   return htmlZuPdfMitFusszeile({ html, titel, fusszeile: `FIAON LTD · Company No. 17318250 · Fassung ${d.fassung} · Angebot ${d.ref}${annahme ? "" : ` · Entwurf · Prüfsumme ${koopTextHash(d).slice(0, 12)}`}`, rand: RAND, keinNotbehelf: !!annahme });
 }
+const dateiStamm = (d: KoopDaten) => (koopModellVon(d.parameter.bereich) === "empfehlung" ? "FIAON_Empfehlungs-Vereinbarung" : "FIAON_Kooperationsvertrag");
 export async function koopPdfErzeugen(z: AngebotZeile, art: "vertrag" | "pruefbericht" | "anlage1"): Promise<{ status: number; pdf?: Buffer; dateiname?: string; error?: string }> {
   if (art !== "vertrag") return { status: 404, error: "Dieses Dokument gibt es zu diesem Angebot nicht." };
   const d = koopDatenAus(z);
   if (String(z.status) === "angenommen") {
     const [r] = (await sqlPool`SELECT vertrag_pdf FROM fiaon_global_angebote WHERE id = ${z.id} LIMIT 1`) as any[];
-    if (r?.vertrag_pdf) return { status: 200, pdf: Buffer.from(r.vertrag_pdf), dateiname: `FIAON_Kooperationsvertrag_${d.ref}.pdf` };
+    if (r?.vertrag_pdf) return { status: 200, pdf: Buffer.from(r.vertrag_pdf), dateiname: `${dateiStamm(d)}_${d.ref}.pdf` };
   }
-  return { status: 200, pdf: await koopVertragPdf(d, null), dateiname: `FIAON_Kooperationsvertrag_${d.ref}_Entwurf.pdf` };
+  return { status: 200, pdf: await koopVertragPdf(d, null), dateiname: `${dateiStamm(d)}_${d.ref}_Entwurf.pdf` };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -217,6 +225,25 @@ export async function koopAngenommenAntwort(z: AngebotZeile): Promise<Record<str
   const d = koopDatenAus(z);
   const w = koopWahlAus(z);
   const token = angebotTokenErzeugen(d.ref, d.gueltigBis);
+  // E-507: Der Empfehlungspartner kommt von hier direkt auf seine Partnerseite (derselbe Baustein wie „Mein Auftrag“ beim Kapital-Angebot).
+  if (koopModellVon(d.parameter.bereich) === "empfehlung") {
+    const A = koopModellSeite(d as any).annahme;
+    const pfad = await import("./fiaon-koop-lieferung").then((L) => L.koopPartnerPfadFuer(z)).catch(() => null);
+    return {
+      art: "koop", startgespraech: null,
+      ref: d.ref, auftragRef: null, email: d.partner.email, sofortBeginn: true,
+      angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null,
+      betragCents: 0, zahlungsseite: null, meinAuftrag: pfad, rechnungUrl: null,
+      vertragUrl: `/api/fiaon/global/angebot/${encodeURIComponent(token)}/vertrag.pdf`,
+      fertigTitel: A.fertigTitel ?? KOOP_ANNAHME.fertigTitel,
+      fertigText: A.fertigText(d.partner.email, 0),
+      teil1Bezahlt: true,
+      fertigZahlung: A.fertigZahlung,
+      fertigFuss: A.fertigFuss ?? KOOP_ANNAHME.fertigFuss,
+      ...(pfad && A.schritt ? { schrittTitel: A.schritt.titel, schrittText: A.schritt.text, schrittKnopf: A.schritt.knopf } : {}),
+      llc: null,
+    };
+  }
   return {
     art: "koop", startgespraech: null,
     ref: d.ref, auftragRef: null, email: d.partner.email, sofortBeginn: true,
@@ -247,8 +274,10 @@ export async function koopAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeK
   if (istRoboterUnterschrift(kontext.ip, kontext.userAgent).roboter) {
     return fehler(403, "Diese Annahme können wir nicht entgegennehmen. Bitte öffnen Sie die Seite in Ihrem Browser und nehmen Sie dort an.");
   }
-  const wunschWoche = koopWunschAus(body?.wunschWoche);
-  if (!wunschWoche) return fehler(400, KOOP_ANNAHME.fehltWunsch, { code: "WUNSCH" });
+  // E-507: Der Empfehlungspartner wählt keine Menge — FIAON übermittelt ihm nichts.
+  const empfehlung = koopModellVon(d.parameter.bereich) === "empfehlung";
+  const wunschWoche = empfehlung ? 0 : koopWunschAus(body?.wunschWoche);
+  if (!empfehlung && !wunschWoche) return fehler(400, KOOP_ANNAHME.fehltWunsch, { code: "WUNSCH" });
   if (body?.unternehmer !== true) return fehler(400, KOOP_ANNAHME.fehltUnternehmer, { code: "HAEKCHEN", fehlt: ["unternehmer"] });
   if (body?.gelesen !== true) return fehler(400, KOOP_ANNAHME.fehltGelesen, { code: "HAEKCHEN", fehlt: ["gelesen"] });
   const u = firmaUnterschriftPruefen(body?.unterschrift, { vertretung: { nachname: d.partner.nachname } } as any);
@@ -257,7 +286,7 @@ export async function koopAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeK
   if (String(body?.textHash ?? "") !== hash) return fehler(409, KOOP_ANNAHME.neuLaden, { code: "GEAENDERT" });
 
   const jetzt = new Date();
-  const wahl: KoopWahl = { wunschWoche };
+  const wahl: KoopWahl = { wunschWoche: wunschWoche ?? 0 };
   const unterschrift: KoopUnterschriftVermerk = { ...u.vermerk, am: jetzt.toISOString(), ip: kontext.ip };
   let pdf: Buffer;
   try {
@@ -267,7 +296,12 @@ export async function koopAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeK
     console.error(`[FIAON-KOOP] ${d.ref}: Vertrags-PDF:`, e);
     return fehler(500, "Ihr Vertrag konnte gerade nicht ausgefertigt werden — bitte versuchen Sie es in einer Minute noch einmal. Es wurde nichts gespeichert.");
   }
-  const schalter = { ...wahl, unternehmer: true, gelesen: true, unterschrift };
+  // E-507: Mit der Annahme steht der vereinbarte Satz im Schalter (dieselbe Form wie koopProvisionSetzen) — ab heute, Berliner Tag.
+  const satz = empfehlung ? koopEmpfehlungProzent(d.parameter) : null;
+  const provision = satz != null ? koopProvisionNeu({}, satz, koopBerlinTag(jetzt)) : null;
+  const schalter = empfehlung
+    ? { unternehmer: true, gelesen: true, unterschrift, ...(provision ? { provision: provision.provision, provisionVerlauf: provision.provisionVerlauf } : {}) }
+    : { ...wahl, unternehmer: true, gelesen: true, unterschrift };
   const [frei] = (await sqlPool`
     UPDATE fiaon_global_angebote
        SET status = 'angenommen', angenommen_am = ${jetzt}, ip = ${kontext.ip}, user_agent = ${String(kontext.userAgent || "").slice(0, 500)},
@@ -280,7 +314,9 @@ export async function koopAnnehmen(z: AngebotZeile, body: any, kontext: AnnahmeK
     if (neu && String(neu.status) === "offen") return fehler(409, KOOP_ANNAHME.neuLaden, { code: "GEAENDERT" });
     return fehler(409, "Das Angebot lässt sich gerade nicht annehmen. Bitte laden Sie die Seite neu.");
   }
-  await verlaufAngebot(Number(z.id), koopPartnerName(d.partner), `angenommen (${KOOP_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, ${wunschWoche} Kontakte je Woche, als Unternehmer, Unterschrift ${unterschrift.art}`);
+  await verlaufAngebot(Number(z.id), koopPartnerName(d.partner), empfehlung
+    ? `angenommen (${koopKnopfText(d)}) — Prüfsumme ${hash.slice(0, 12)}…, Provision ${String(satz).replace(".", ",")} % auf ${KOOP_PROVISION_MONATE} Monate ab Meldung, als Unternehmer, Unterschrift ${unterschrift.art}`
+    : `angenommen (${KOOP_KNOPF}) — Prüfsumme ${hash.slice(0, 12)}…, ${wunschWoche} Kontakte je Woche, als Unternehmer, Unterschrift ${unterschrift.art}`);
   void import("./fiaon-global-angebot-aufrufe").then((m) => m.aufrufeAnnahmeVermerken(Number(z.id)))
     .catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Annahme in der Aufruf-Aufgabe:`, e));
   void koopNacharbeit(Number(z.id)).catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Nacharbeit abgebrochen:`, e));
@@ -294,6 +330,7 @@ export async function koopNacharbeit(id: number): Promise<void> {
   const d = koopDatenAus(z); const w = koopWahlAus(z); const par = d.parameter;
   const name = koopPartnerName(d.partner);
   const modell = koopModellVon(par.bereich);
+  if (modell === "empfehlung") return koopNacharbeitEmpfehlung(z, d);
   const zeilen = [
     `BEREICH: ${KOOP_BEREICH[par.bereich].name} (Modell ${modell}).`,
     ...(modell === "kontakt" ? [
@@ -326,6 +363,34 @@ export async function koopNacharbeit(id: number): Promise<void> {
     .catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Annahme-Mail an Justin:`, e));
 }
 
+/** E-507: Nacharbeit beim Empfehlungspartner — Aufgabe an Justin und genau einmal die Meldung an js@; nichts wird fällig, nichts geliefert. */
+async function koopNacharbeitEmpfehlung(z: AngebotZeile, d: KoopDaten): Promise<void> {
+  const name = koopPartnerName(d.partner);
+  const satz = `${String(koopEmpfehlungProzent(d.parameter)).replace(".", ",")} %`;
+  const zeilen = [
+    `EMPFEHLUNGSPARTNER: ${satz} Provision auf alle Zahlungen eines empfohlenen Kunden in den ersten ${KOOP_PROVISION_MONATE} Monaten ab der Meldung (ohne durchlaufende Fremdkosten); Abrechnung automatisch per Gutschrift zum Monatsanfang.`,
+    "KEINE LIEFERUNG: FIAON übermittelt diesem Partner keine Kontakte — keine Zeiten, keine Menge, keine Monatsrechnung.",
+    "NÄCHSTER SCHRITT (läuft automatisch): Der Partner bekommt den Link zu seiner Partnerseite per Mail und trägt dort Empfehlungen ein; jede Empfehlung mit Kontaktweg und Einverständnis läuft als Lead (E-487).",
+    `Vereinbarung (PDF mit Annahmevermerk) im Chefbüro: ${CHEF_LINK}.`,
+  ];
+  const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+  await auftragFuerKunden({
+    personId: z.person_id != null ? Number(z.person_id) : null, ref: null,
+    titel: `Empfehlungs-Partnerschaft angenommen: ${name} — ${satz} Provision`,
+    text: [`${name} hat die Empfehlungs-Vereinbarung ${d.ref} angenommen (${new Date(z.angenommen_am).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })}). Für den Partner wird nichts fällig.`, ...zeilen].join("\n"),
+    anBetreiber: true, dringend: false, schluessel: `global:${d.ref}:koop-justin`, bereich: "konten", quelle: "global", autorName: "FIAON", link: CHEF_LINK,
+    anlageText: `Empfehlungs-Vereinbarung ${d.ref} angenommen.`,
+  }).catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Aufgabe an Justin:`, e));
+  const [marke] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET bestaetigung_mail_am = NOW(), updated_at = NOW()
+     WHERE id = ${Number(z.id)} AND bestaetigung_mail_am IS NULL RETURNING id`) as any[];
+  if (!marke) return;
+  await import("./fiaon-global-angebot-aufrufe")
+    .then((A) => A.annahmeMelden({ ref: d.ref, name, art: "Kooperationsvertrag", betrag: `nichts fällig (Empfehlungs-Vereinbarung: ${satz} Provision per Gutschrift)`, zeilen }))
+    .then((s) => console.log(`[FIAON-KOOP] ${d.ref}: Annahme — ${s}`))
+    .catch((e) => console.error(`[FIAON-KOOP] ${d.ref}: Annahme-Mail an Justin:`, e));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE LISTE DER LEITUNG (Reiter „Individualangebote“)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -345,7 +410,7 @@ export function koopListenEintrag(z: AngebotZeile, ext: { heute: string; aufrufe
     pruefberichtUrl: null, anlage1Url: null, pruefbericht: null, buergin: null,
     angenommenAm: z.angenommen_am ? new Date(z.angenommen_am).toISOString() : null, ip: z.ip ?? null, textHash: z.text_hash ?? null,
     schalter: null,
-    koop: { wunschWoche: w?.wunschWoche ?? null, zeile: koopModellVon(d.parameter.bereich) === "kontakt" ? `${koopEur(d.parameter.preisCents)} netto je Kontakt · Start-Rahmen ${d.parameter.startDeckel} · Abrechnung zum Monatsende` : `${KOOP_BEREICH[d.parameter.bereich].name} · ${koopModellSeite(d as any).zeile}` },
+    koop: { wunschWoche: w?.wunschWoche ?? null, zeile: koopModellVon(d.parameter.bereich) === "empfehlung" ? koopModellSeite(d as any).zeile : koopModellVon(d.parameter.bereich) === "kontakt" ? `${koopEur(d.parameter.preisCents)} netto je Kontakt · Start-Rahmen ${d.parameter.startDeckel} · Abrechnung zum Monatsende` : `${KOOP_BEREICH[d.parameter.bereich].name} · ${koopModellSeite(d as any).zeile}` },
     auftragRef: null, officeLink: null, teile: [],
     knoepfe: { meilenstein: "Kooperation: keine Teile", erstattung: "Kooperation: keine Erstattung", garantie: "Kooperation: keine Garantie", hemmung: "Kooperation: keine Frist", aendern: String(z.status) === "offen" ? "Kooperation: Ändern per Skript (scripts/angebot-koop-anlegen.ts)" : "Nur solange das Angebot offen ist." },
     verlauf: json<any[]>(z.verlauf, []).slice(-12),

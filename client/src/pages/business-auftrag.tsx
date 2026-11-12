@@ -35,6 +35,8 @@ import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 // E-423 (22.10.2026): der persönliche Zugang — Leiste „Angemeldet als …“ bzw. Banner „Zugang einrichten“ über dem Portal.
 import GlobalKontoLeiste, { zurGlobalAnmeldung } from "@/components/site/GlobalKontoLeiste";
 import { GLOBAL_KONTO_WOERTER } from "@/i18n/global-konto";
+// E-507 (12.11.2026): die Karte „Ihre Partnerschaft“ — nur für Kunden, die zugleich Empfehlungspartner sind.
+import { KOOP_PARTNERSCHAFT_PORTAL, koopProzentText, type KoopPartnerschaftPortal } from "@shared/fiaon-koop-partnerschaft";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";
 import "@/styles/global-apple.css";
@@ -65,6 +67,8 @@ type Auftrag = {
   fristen: { id: number | string; titel: string; faelligAm: string; erledigt: boolean; hinweis?: string }[];
   verlauf: { am: string; text: string }[];
   vertragUrl?: string; rechnungUrl?: string;
+  /** E-507: Empfehlungs-Partnerschaft dieses Kunden (angenommen → Partnerseite, offen → Vereinbarung). */
+  partnerschaft?: KoopPartnerschaftPortal | null;
   /** 01.10.2026 (E-268): Auftrag aus einem Individualangebot — Teile, Frist, Bürgin. */
   angebot?: {
     ref: string; fristBeginn: string | null; fristEnde: string | null; buergin: string; erstattungAusgeloest: boolean;
@@ -260,6 +264,18 @@ export default function BusinessAuftrag() {
                     ))}
                   </ol>
                 </section>
+
+                {/* E-507: Ihre Partnerschaft — Empfehlungen eintragen und Provision sehen (führt auf die Partnerseite). */}
+                {a.partnerschaft && (() => {
+                  const ps = a.partnerschaft; const pw = KOOP_PARTNERSCHAFT_PORTAL[s]; const aktiv = ps.stand === "aktiv";
+                  return (
+                    <div className="ga-zahlung" data-fiaon="mein-auftrag-partnerschaft">
+                      <h3>{pw.auge}: {aktiv ? pw.aktivTitel(ps.empfehlungen) : pw.offenTitel}</h3>
+                      <p>{aktiv ? pw.aktivText(koopProzentText(ps.prozent)) : pw.offenText(koopProzentText(ps.prozent))}</p>
+                      <a className="gs-knopf" href={ps.link}>{aktiv ? pw.aktivKnopf : pw.offenKnopf}</a>
+                    </div>
+                  );
+                })()}
 
                 <section className="ga-abschnitt">
                   <h2>{t.schrittTitel}</h2>

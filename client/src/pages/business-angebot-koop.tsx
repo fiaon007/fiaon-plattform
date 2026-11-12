@@ -7,6 +7,8 @@
 // beide Seiten · Sauber aufgestellt · Fragen · Ansprechpartner · Vertrag · Annahme.
 // Alle Inhalte kommen aus KoopKundenSicht (shared/fiaon-global-angebot-koop.ts); hart im Client stehen nur
 // Bedienbeschriftungen. Bausteine der Firmen- und Begleitseite (gaf-, gab-), Eigenes mit gak- im CI Glasblau.
+// E-507 (12.11.2026): Modell „empfehlung“ (Empfehlungspartner) — dieselbe Seite ohne Mengenwahl in der Annahme; die Stufen im
+// Hero sind dort nur ein Rechenbeispiel (Zahl der Empfehlungen × Provision je Kunde), gesendet wird keine Menge.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { ANGEBOT_AUFRUF_HINWEIS } from "@shared/fiaon-global-angebot";
@@ -24,6 +26,7 @@ import "@/styles/global-angebot-koop.css";
 
 const WORTE = {
   seitenTitel: "Ihr Kooperationsangebot · FIAON",
+  seitenTitelEmpfehlung: "Ihre Partnerschaft · FIAON", vertragPdfEmpfehlung: "Empfehlungs-Vereinbarung (PDF)", gelesenEmpfehlung: "Bitte bestätigen Sie, dass Sie die Vereinbarung gelesen haben.",
   angebot: "Angebot", gueltig: "gültig bis",
   vertragPdf: "Kooperationsvertrag (PDF)",
   vorschau: "Vorschau der Leitung.", vorschauSatz: "Annehmen kann nur der Partner — aus dem Chefbüro heraus ist der Knopf gesperrt.", fehlt: "Für die Annahme fehlt noch:",
@@ -99,6 +102,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
   const [auftakt, setAuftakt] = useState<"offen" | "geht" | "vorbei">("offen");
   const [ohneBild, setOhneBild] = useState<Record<string, boolean>>({});
   const [menge, setMenge] = useState<number>(R.vorschlag);
+  const empf = sicht.modell === "empfehlung";
   const [unternehmer, setUnternehmer] = useState(false);
   const [gelesen, setGelesen] = useState(false);
   const [sig, setSig] = useState<UnterschriftStand>({ da: false, eingabe: null });
@@ -107,7 +111,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
   const [sendet, setSendet] = useState(false);
   const [fehler, setFehler] = useState("");
   const [geaendert, setGeaendert] = useState(false);
-  useSeitenRahmen(WORTE.seitenTitel);
+  useSeitenRahmen(empf ? WORTE.seitenTitelEmpfehlung : WORTE.seitenTitel);
   const auftaktGeht = useCallback(() => setAuftakt((a) => (a === "offen" ? "geht" : a)), []);
   const auftaktEnde = useCallback(() => setAuftakt("vorbei"), []);
 
@@ -115,9 +119,9 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
   const gesperrt = !sicht.annahmeBereit || !!sicht.vorschauLeitung;
 
   const fehlt: { id: string; text: string }[] = [];
-  if (!koopWunschAus(menge)) fehlt.push({ id: "gak-annahme-menge", text: "Bitte wählen Sie die Menge je Woche." });
+  if (!empf && !koopWunschAus(menge)) fehlt.push({ id: "gak-annahme-menge", text: "Bitte wählen Sie die Menge je Woche." });
   if (!unternehmer) fehlt.push({ id: "gak-unternehmer", text: "Bitte bestätigen Sie, dass Sie als Unternehmer handeln." });
-  if (!gelesen) fehlt.push({ id: "gak-gelesen", text: "Bitte bestätigen Sie, dass Sie den Vertrag gelesen haben." });
+  if (!gelesen) fehlt.push({ id: "gak-gelesen", text: empf ? WORTE.gelesenEmpfehlung : "Bitte bestätigen Sie, dass Sie den Vertrag gelesen haben." });
   if (!sig.da || !sig.eingabe) fehlt.push({ id: "gaf-unterschrift", text: A.unterschrift.fehlt });
   const zeig = (id: string) => zeigeFehlt && fehlt.some((f) => f.id === id);
 
@@ -126,7 +130,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
     if (fehlt.length) { setZeigeFehlt(true); setFehler(""); springen(fehlt[0].id); return; }
     setSendet(true); setFehler(""); setGeaendert(false);
     const eingabe: KoopAnnahmeEingabe & { falle: string } = {
-      textHash: sicht.textHash, wunschWoche: menge, unternehmer: true, gelesen: true, unterschrift: sig.eingabe!, falle,
+      textHash: sicht.textHash, wunschWoche: empf ? 0 : menge, unternehmer: true, gelesen: true, unterschrift: sig.eingabe!, falle,
     };
     try {
       const r = await fetch(`/api/fiaon/global/angebot/${encodeURIComponent(token)}/annehmen`, {
@@ -177,7 +181,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
               <div style={{ marginTop: 14 }}><MengenWahl stufen={R.stufen} wert={menge} setWert={setMenge} idPraefix="gak-hero" /></div>
               <dl className="gak-werte">
                 <div><dt>{R.woche}</dt><dd>{menge}</dd></div>
-                <div><dt>{R.monat}</dt><dd>{(R.festMonat ?? koopEur(koopMonatCents(menge, R.preisCents)))}</dd></div>
+                <div><dt>{R.monat}</dt><dd>{R.jeStueckCents != null ? koopEur(menge * R.jeStueckCents) : (R.festMonat ?? koopEur(koopMonatCents(menge, R.preisCents)))}</dd></div>
               </dl>
               <p className="gaf-fein" style={{ marginTop: 12 }}>{R.fein}</p>
             </div>
@@ -264,7 +268,7 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
         <section className="gaf-abschnitt" id="vertrag" aria-label={S.vertrag.titel}>
           <div className="gaf-rahmen">
             <Kopf titel={S.vertrag.titel} sub={S.vertrag.sub} />
-            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.knopf, onAnnehmen: () => springen("gak-annahme-menge") }} pdfs={[{ titel: WORTE.vertragPdf, href: sicht.vertragPdf }]} />
+            <VertragsLeser v={S.vertrag} html={sicht.html} annehmen={{ knopf: A.knopf, onAnnehmen: () => springen(empf ? "gak-unternehmer" : "gak-annahme-menge") }} pdfs={[{ titel: empf ? WORTE.vertragPdfEmpfehlung : WORTE.vertragPdf, href: sicht.vertragPdf }]} />
             <p className="gaf-aufruf-hinweis">{ANGEBOT_AUFRUF_HINWEIS}</p>
           </div>
         </section>
@@ -274,11 +278,13 @@ export default function BusinessAngebotKoop({ sicht, token, onAngenommen, onNeuL
           <div className="gaf-rahmen gaf-rahmen-schmal">
             <Kopf titel={A.titel} sub={A.sub} auge={sicht.partnerAnrede.replace(/^Sehr geehrte[r]? /, "")} />
             <div className="gaf-annahme" data-fiaon="koop-annahme">
-              <div className={`gaf-annahme-feld gak-annahme-menge${zeig("gak-annahme-menge") ? " fehlt" : ""}`} id="gak-annahme-menge">
-                <h3 className="gaf-h3">{A.wunsch}</h3>
-                <MengenWahl stufen={R.stufen} wert={menge} setWert={setMenge} idPraefix="gak-annahme" />
-                <small className="gab-unter">{menge} {A.wunschEinheit} · {A.wunschUnter}</small>
-              </div>
+              {!empf && (
+                <div className={`gaf-annahme-feld gak-annahme-menge${zeig("gak-annahme-menge") ? " fehlt" : ""}`} id="gak-annahme-menge">
+                  <h3 className="gaf-h3">{A.wunsch}</h3>
+                  <MengenWahl stufen={R.stufen} wert={menge} setWert={setMenge} idPraefix="gak-annahme" />
+                  <small className="gab-unter">{menge} {A.wunschEinheit} · {A.wunschUnter}</small>
+                </div>
+              )}
 
               <div className="gaf-uebersicht">
                 <h3 className="gaf-h3">{U.titel}</h3>

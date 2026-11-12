@@ -10,6 +10,9 @@
 // E-487 (09.11.2026): „Jemanden empfehlen“ verlangt Telefon ODER E-Mail (mit E-Mail geht Justins Einladung hinaus); je Empfehlung
 // steht nur die Stufe mit Datum (gemeldet → Kontakt aufgenommen → Gespräch vereinbart → Angebot → Kunde / kein Interesse), keine
 // Inhalte; eine Nachtrags-Gutschrift trägt die Marke „Nachtrag“.
+// E-507 (12.11.2026): Modell „empfehlung“ (Empfehlungspartner von FIAON Global) — dieselbe Seite als „Ihre Partnerseite“: nur
+// Empfehlungen, Provision, Gutschriften und Bankverbindung. Stand der Lieferung, Zeiten, Menge, Termine und Rechnungen gibt es
+// bei diesem Partner nicht (FIAON übermittelt ihm nie Kontakte) und werden nicht gezeigt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useCallback, useEffect, useState } from "react";
 import { useRoute } from "wouter";
@@ -31,7 +34,7 @@ interface Sicht {
   stand: KoopLieferStand & { zeitenText: string };
   gruende: { key: string; text: string }[]; kontakte: Kontakt[]; rechnungen: Rechnung[];
   verlauf?: { monat: string; monatText: string; kontakte: number; reklamiert: number; betragCents: number; laufend: boolean }[];
-  modell?: "kontakt" | "abschluss" | "platz"; einheit?: string; kontakteTitel?: string; sparten?: { name: string; betrag: string }[];
+  modell?: "kontakt" | "abschluss" | "platz" | "empfehlung"; einheit?: string; kontakteTitel?: string; sparten?: { name: string; betrag: string }[];
   // E-419: Empfehlungen an FIAON mit Provision; „Berechnung ausgesetzt“ = Kontakte vorerst ohne Berechnung.
   empfehlungen?: Empfehlungen | null; berechnungAusgesetzt?: boolean;
   demo?: boolean; demoBereich?: NetzBereich; demoWorte?: { kontakteTitel: string; einheit: string; partner: string; gruss: string; modell: string; platz?: boolean; ohneZeiten?: boolean };
@@ -91,18 +94,20 @@ function IhreAuszahlungen({ e, token, laeuft, senden }: { e: Empfehlungen; token
   );
 }
 /** E-419: Ihre Empfehlungen an FIAON — wer von Ihnen kam, was er gezahlt hat und Ihre Provision; dazu „Jemanden empfehlen“. */
-function IhreEmpfehlungen({ e, laeuft, senden }: { e: Empfehlungen; laeuft: string | null; senden: (was: string, pfad: string, body: unknown) => Promise<any> }) {
+function IhreEmpfehlungen({ e, laeuft, senden, ohneKacheln = false }: { e: Empfehlungen; laeuft: string | null; senden: (was: string, pfad: string, body: unknown) => Promise<any>; /** E-507: Beim Empfehlungspartner stehen die Zahlen schon oben im Stand. */ ohneKacheln?: boolean }) {
   const [form, setForm] = useState({ name: "", telefon: "", email: "", notiz: "", einverstanden: false });
   const T = KOOP_EMPFEHLUNG_TEXTE;
   return (
     <section className="kpb-karte kpb-empf" aria-label={T.titel}>
       <h2>{T.titel}{e.liste.length > 0 && <span className="kpb-zahl-marke">{e.liste.length}</span>}</h2>
       {e.prozent != null && <p className="kpb-fein">{T.sub(e.prozent)}</p>}
-      <div className="kpb-jahr-kacheln">
-        <div><small>Empfehlungen</small><b>{e.liste.length}</b></div>
-        <div><small>Ihre Provision</small><b>{e.summe.provision}</b></div>
-        <div><small>Davon offen</small><b>{e.summe.offen}</b></div>
-      </div>
+      {!ohneKacheln && (
+        <div className="kpb-jahr-kacheln">
+          <div><small>Empfehlungen</small><b>{e.liste.length}</b></div>
+          <div><small>Ihre Provision</small><b>{e.summe.provision}</b></div>
+          <div><small>Davon offen</small><b>{e.summe.offen}</b></div>
+        </div>
+      )}
       {e.liste.length === 0 ? <p className="kpb-fein">{T.leer}</p> : (
         <ul className="kpb-rechnungen kpb-empf-liste">
           {e.liste.map((x) => (
@@ -195,10 +200,11 @@ export default function KoopPartnerPage() {
     const j = r ? await r.json().catch(() => null) : null;
     if (!r?.ok || !j?.ok) { setFehler(j?.error ?? "Ihr Partnerbereich ließ sich gerade nicht laden."); return; }
     setSicht(j);
-    if (j.stand.zeiten) setZeiten(j.stand.zeiten);
-    if (j.stand.woche.wunsch) setWunsch(j.stand.woche.wunsch);
+    if (j.stand?.zeiten) setZeiten(j.stand.zeiten);
+    if (j.stand?.woche?.wunsch) setWunsch(j.stand.woche.wunsch);
   }, [token, demo, demoBereich]);
   useEffect(() => { document.title = demo ? "Demo-Zugang Partnerbereich · FIAON" : "Ihr Partnerbereich · FIAON"; void laden(); }, [laden, demo]);
+  useEffect(() => { if (sicht?.modell === "empfehlung") document.title = "Ihre Partnerseite · FIAON Global"; }, [sicht?.modell]);
 
   async function senden(was: string, pfad: string, body: unknown) {
     if (demo) { setMeldung("Demo-Zugang: Im echten Partnerbereich wird das jetzt gespeichert — hier bleibt alles, wie es ist."); setRekl(null); return null; }
@@ -213,6 +219,33 @@ export default function KoopPartnerPage() {
 
   if (fehler) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><h1>Partnerbereich</h1><p className="kpb-fehler">{fehler}</p></div></main>;
   if (!sicht) return <main className="kpb"><div className="kpb-rahmen"><p className="kpb-marke">FIAON</p><p>Wird geladen …</p></div></main>;
+  // E-507: der Empfehlungspartner — eine ruhige Seite nur mit seinen Empfehlungen und Auszahlungen.
+  if (sicht.modell === "empfehlung") {
+    const e = sicht.empfehlungen ?? null;
+    return (
+      <main className="kpb kpb-nur-empf">
+        <div className="kpb-rahmen">
+          <p className="kpb-marke">FIAON Global · Empfehlungspartner</p>
+          <h1>Willkommen auf Ihrer Partnerseite, {sicht.gruss}.</h1>
+          <p className="kpb-lead">Hier nennen Sie uns Menschen und Unternehmen, denen wir helfen können, sehen zu jeder Empfehlung den Stand und finden Ihre Provision und Ihre Gutschriften. Vereinbarung {sicht.ref}.</p>
+          {e && (
+            <section className="kpb-stand" aria-label="Ihr Stand">
+              <div><small>Ihre Empfehlungen</small><b>{e.liste.length}</b></div>
+              <div><small>Davon Kunde</small><b>{e.liste.filter((x) => x.stand === "kunde").length}</b></div>
+              <div><small>Ihre Provision</small><b>{e.summe.provision}</b></div>
+              <div><small>Davon offen</small><b>{e.summe.offen}</b></div>
+              <p className="kpb-stand-zeile">{e.liste.length === 0 ? "Tragen Sie unten Ihre erste Empfehlung ein — Name und Telefonnummer oder E-Mail-Adresse genügen." : e.bank ? "Alles bereit — wir melden uns bei jeder Empfehlung persönlich." : "Bitte hinterlegen Sie unten einmal Ihre Bankverbindung — dann können wir Ihre Provision überweisen."}</p>
+            </section>
+          )}
+          {meldung && <p className="kpb-meldung" role="status">{meldung}</p>}
+          {!e && <p className="kpb-fehler">Ihre Empfehlungen ließen sich gerade nicht laden. Bitte laden Sie die Seite in einer Minute neu.</p>}
+          {e && <IhreEmpfehlungen e={e} laeuft={laeuft} ohneKacheln senden={async (was, pfad, body) => { const j = await senden(was, pfad, body); if (j) setMeldung("Danke — Ihre Empfehlung steht in Ihrer Liste. Wir melden uns bei der Person."); return j; }} />}
+          {e && <IhreAuszahlungen e={e} token={token} laeuft={laeuft} senden={async (was, pfad, body) => { const j = await senden(was, pfad, body); if (j) setMeldung(`Gespeichert: ${j.maske}. Ihre Provisionen überweisen wir auf dieses Konto.`); return j; }} />}
+          <p className="kpb-fuss">FIAON LTD · 128 City Road, London · Fragen: support@fiaon.com · Bitte geben Sie diesen Link nicht weiter.</p>
+        </div>
+      </main>
+    );
+  }
   const s = sicht.stand;
   const einheit = sicht.demoWorte?.einheit ?? sicht.einheit ?? "Kontakte";
   const zeigen = alle ? sicht.kontakte : sicht.kontakte.slice(0, 12);

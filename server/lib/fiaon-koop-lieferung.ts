@@ -28,7 +28,7 @@ import { berlinToday, berlinZeitpunkt, berlinDatum, zeitZuMinuten, minutenZuZeit
 import { absoluteUrl } from "../fiaon-base-url";
 import { angebotLesen, type AngebotZeile } from "./fiaon-global-angebot";
 import { koopDatenAus, koopWahlAus } from "./fiaon-global-angebot-koop";
-import { koopEur, koopPartnerName, koopPartnerAnrede, koopPartnerGruss, koopModellVon, KOOP_BEREICH, type KoopDaten } from "@shared/fiaon-global-angebot-koop";
+import { koopEur, koopPartnerName, koopPartnerAnrede, koopPartnerGruss, koopModellVon, koopLiefertKontakte, KOOP_BEREICH, type KoopDaten } from "@shared/fiaon-global-angebot-koop";
 import {
   KOOP_EINWILLIGUNG_FASSUNG, KOOP_EINWILLIGUNG_FRAGE, KOOP_INTERESSE, KOOP_RECHNUNG_PAKET, KOOP_REKLAMATION_GRUENDE,
   koopEinwilligungText, koopEinwilligungFassung, koopNotizGesperrt, koopPartnerImSatz, koopTerminArtText, koopZeitenAus, koopZeitenText, koopTerminTagMoeglich,
@@ -128,6 +128,10 @@ function schluesselVersion(z: AngebotZeile): number { const v = Number(schalterA
 export function koopPartnerLink(z: AngebotZeile): string {
   return absoluteUrl(koopPartnerPfad(String(z.angebot_ref), schluesselVersion(z)));
 }
+/** E-507: derselbe Link als Pfad — für Seiten, die im selben Fenster in den Partnerbereich führen (Annahme, Kundenportal). */
+export function koopPartnerPfadFuer(z: AngebotZeile): string {
+  return koopPartnerPfad(String(z.angebot_ref), schluesselVersion(z));
+}
 /** Das Angebot hinter einem Partnerbereich-Link — nur ein angenommener Kooperationsvertrag mit gültiger Schlüsselfassung. */
 export async function koopAngebotAusToken(token: unknown): Promise<AngebotZeile | null> {
   const t = tokenPruefen(token);
@@ -201,6 +205,51 @@ async function koopPartnerAlle(): Promise<AngebotZeile[]> {
   const aus: AngebotZeile[] = [];
   for (const r of zeilen) { const z = await angebotLesen({ id: Number(r.id) }); if (z) aus.push(z); }
   return aus;
+}
+/**
+ * E-507 (12.11.2026): die Empfehlungs-Partnerschaft eines Portal-Kunden — für die Karte „Ihre Partnerschaft“ in „Mein Auftrag“.
+ * Gesucht wird über die Personen-Nummer, sonst über die E-Mail-Adresse des Auftrags (dieselbe Adresse, an die auch der Link zur
+ * Partnerseite geht). Angenommen → Pfad zur Partnerseite; offen und noch gültig → Link zur Vereinbarung; sonst null. Wirft nie.
+ */
+export async function koopPartnerschaftFuerPortal(wer: { personId: number | null; email: string | null }): Promise<import("@shared/fiaon-koop-partnerschaft").KoopPartnerschaftPortal | null> {
+  try {
+    const pid = wer.personId != null && Number.isInteger(Number(wer.personId)) && Number(wer.personId) > 0 ? Number(wer.personId) : null;
+    const mail = String(wer.email ?? "").trim().toLowerCase() || null;
+    if (pid == null && !mail) return null;
+    const heute = berlinToday();
+    const [r] = (await sqlPool`
+      SELECT id FROM fiaon_global_angebote
+       WHERE fassung LIKE 'IA-KOOP-EMPFEHLUNG-%'
+         AND (status = 'angenommen' OR (status = 'offen' AND gueltig_bis >= ${heute}::date))
+         AND ((${pid}::int IS NOT NULL AND person_id = ${pid}) OR (${mail}::text IS NOT NULL AND jsonb_typeof(kunde) = 'object' AND lower(kunde->>'email') = ${mail}))
+       ORDER BY (status = 'angenommen') DESC, id DESC LIMIT 1`) as any[];
+    if (!r) return null;
+    const z = await angebotLesen({ id: Number(r.id) });
+    if (!z) return null;
+    const d = koopDatenAus(z);
+    if (koopLiefertKontakte(d.parameter.bereich)) return null;
+    const { koopEmpfehlungProzent } = await import("@shared/fiaon-global-angebot-koop");
+    const { koopProvisionAus } = await import("@shared/fiaon-koop-empfehlung");
+    if (String(z.status) === "angenommen") {
+      const ende = String(schalterAus(z).endeAm ?? "");
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ende) && ende < heute) return null;
+      const [c] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL`.catch(() => [{ n: 0 }])) as any[];
+      return { stand: "aktiv", link: koopPartnerPfadFuer(z), prozent: koopProvisionAus(schalterAus(z))?.prozent ?? koopEmpfehlungProzent(d.parameter), empfehlungen: Number(c?.n ?? 0) };
+    }
+    const { angebotKundenPfad, angebotTokenErzeugen } = await import("./fiaon-global-angebot");
+    return { stand: "offen", link: angebotKundenPfad(angebotTokenErzeugen(d.ref, d.gueltigBis)), prozent: koopEmpfehlungProzent(d.parameter), empfehlungen: 0 };
+  } catch (e) {
+    console.error("[KOOP] Partnerschaft fürs Portal:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+/**
+ * E-507 (12.11.2026): Die Partner, denen FIAON Kontakte ÜBERMITTELT — also alle außer den Empfehlungspartnern (Modell
+ * „empfehlung“: Sie nennen FIAON Kunden, bekommen aber selbst nie welche). Akte („Partner-Termin“) und Kundenbereich kennen
+ * nur diese Liste; ein Empfehlungspartner taucht dort nie auf.
+ */
+async function koopLieferPartner(): Promise<AngebotZeile[]> {
+  return (await koopPartnerAlle()).filter((z) => koopLiefertKontakte(koopDatenAus(z).parameter.bereich));
 }
 /**
  * E-487 (09.11.2026): Die aktiven Vorsorge-Partner (Bereich „vorsorge“, Vertrag angenommen und nicht beendet) — nur sie
@@ -351,7 +400,7 @@ export async function koopAkteLage(personId: number): Promise<Record<string, unk
   const kandidat = await koopKandidat(personId);
   if (!kandidat) return { ok: false, error: "Diese Akte gibt es nicht." };
   const partner = [];
-  for (const z of await koopPartnerAlle()) {
+  for (const z of await koopLieferPartner()) {
     const stand = await koopLieferStand(z);
     const d = koopDatenAus(z);
     const themen = [];
@@ -427,6 +476,8 @@ export async function koopKontaktAnlegen(personId: number, ein: KoopKontaktEinga
   const z = await angebotLesen({ id: Number(ein?.angebotId) });
   if (!z || !String(z.fassung).startsWith("IA-KOOP-") || String(z.status) !== "angenommen") return nein("Diesen Partner gibt es nicht (oder sein Vertrag ist nicht angenommen).", 404, "partner");
   const d = koopDatenAus(z);
+  // E-507: Einem Empfehlungspartner übermittelt FIAON nie einen Kontakt — sein Vertrag kennt keine Übermittlung.
+  if (!koopLiefertKontakte(d.parameter.bereich)) return nein("Dieser Partner empfiehlt FIAON Kunden — ihm werden keine Kontakte übermittelt.", 409, "partner");
   // E-487: Selbst gebucht wird nur bei Vorsorge (Modell „kontakt“) — der Wortlaut in Ich-Form gibt es nur dafür.
   if (selbst && d.parameter.bereich !== "vorsorge") return nein("Selbst buchen geht nur bei einem Vorsorge-Partner.", 409, "partner");
   const thema = d.parameter.themen.find((t) => t === String(ein.thema ?? ""));
@@ -708,7 +759,7 @@ export async function koopInteresseVermerken(personId: number, ein: { ja: boolea
 export async function koopKundeLage(personId: number): Promise<{ zeigen: boolean; stand: "frage" | "gewuenscht" | "termin" | "abgelehnt"; termin?: string | null; texte: typeof KOOP_INTERESSE }> {
   await ensureKoopTabellen();
   const leer = { zeigen: false, stand: "frage" as const, texte: KOOP_INTERESSE };
-  if (!(await koopPartnerAlle()).length) return leer;
+  if (!(await koopLieferPartner()).length) return leer;
   const k = await koopKandidat(personId);
   if (!k || k.sperren.length) return leer;
   // E-487 Nachbesserung (09.11.2026): ein widerrufener Termin ist kein offener Termin mehr (koopOffenerTermin).
@@ -732,6 +783,24 @@ export async function koopPartnerSicht(z: AngebotZeile, jetzt = new Date()): Pro
   const d = koopDatenAus(z);
   const modell = koopModellVon(d.parameter.bereich);
   const B = KOOP_BEREICH[d.parameter.bereich];
+  // E-507: Der Empfehlungspartner sieht nur seine Empfehlungen, seine Provision und seine Gutschriften. Kontakte, Zeiten, Menge
+  // und Rechnungen gibt es bei ihm nicht — die Felder bleiben leer (so stürzt auch eine ältere Fassung der Seite nicht ab).
+  if (modell === "empfehlung") {
+    const empf = await import("./fiaon-koop-empfehlung").then((m) => m.koopEmpfehlungSicht(z)).catch((e) => { console.error("[KOOP] Empfehlungen:", e); return null; });
+    const heute = berlinToday(jetzt);
+    return {
+      ok: true, modell, bereich: d.parameter.bereich, einheit: B.einheit, sparten: [], kontakteTitel: "", verlauf: [],
+      ref: d.ref, partner: koopPartnerName(d.partner), anrede: koopPartnerAnrede(d.partner), gruss: koopPartnerGruss(d.partner), email: d.partner.email,
+      preis: "", reklamationTage: 0, gruende: [], kontakte: [], rechnungen: [], berechnungAusgesetzt: false,
+      // Wie bei jedem Partner (E-432): keine Notiz, kein Telefon, keine E-Mail, keine Personennummer der empfohlenen Kunden.
+      empfehlungen: empf ? { ...empf, liste: empf.liste.map(({ notiz: _n, telefon: _t, email: _e, personId: _p, ...fuerPartner }) => fuerPartner) } : null,
+      stand: {
+        angebotId: Number(z.id), ref: d.ref, partnerName: koopPartnerName(d.partner), aktiv: vertragAktiv(z, heute), sperre: null, ruht: null, startRahmen: null,
+        woche: { geliefert: 0, wunsch: 0, montag: koopWocheMontag(heute) }, monat: { monat: heute.slice(0, 7), geliefert: 0 },
+        ersatzOffen: 0, zeiten: null, themen: [], preisCents: 0, zeitenText: "",
+      },
+    };
+  }
   const stand = await koopLieferStand(z, sqlPool, jetzt);
   const kontakte = (await sqlPool`
     SELECT * FROM fiaon_koop_kontakte WHERE angebot_id = ${Number(z.id)} AND status IN ('uebermittelt', 'reklamiert')
@@ -802,6 +871,7 @@ export async function koopPartnerSicht(z: AngebotZeile, jetzt = new Date()): Pro
   };
 }
 export async function koopZeitenSetzen(z: AngebotZeile, roh: unknown, wer: string): Promise<Ergebnis<{ zeitenText: string }>> {
+  if (!koopLiefertKontakte(koopDatenAus(z).parameter.bereich)) return nein("In dieser Vereinbarung gibt es keine Termine.", 409);
   const p = koopZeitenAus(roh);
   if (!p.ok) return nein(p.error);
   await sqlPool`UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${jsonb({ zeiten: p.zeiten })}, updated_at = NOW() WHERE id = ${Number(z.id)}`;
@@ -810,6 +880,7 @@ export async function koopZeitenSetzen(z: AngebotZeile, roh: unknown, wer: strin
   return { ok: true, zeitenText: koopZeitenText(p.zeiten) };
 }
 export async function koopWunschSetzen(z: AngebotZeile, roh: unknown, wer: string): Promise<Ergebnis<{ wunschWoche: number }>> {
+  if (!koopLiefertKontakte(koopDatenAus(z).parameter.bereich)) return nein("In dieser Vereinbarung gibt es keine Menge.", 409);
   const { koopWunschAus, KOOP_WUNSCH } = await import("@shared/fiaon-global-angebot-koop");
   const n = koopWunschAus(roh);
   if (!n) return nein(`Bitte eine Menge von ${KOOP_WUNSCH.min} bis ${KOOP_WUNSCH.max} je Woche.`);
@@ -1065,6 +1136,32 @@ export async function koopRechnungsZeile(ref: string): Promise<{ beschreibung: s
   };
 }
 
+/**
+ * Schritt 2 des Stundenlaufs: der Link zum Partnerbereich, genau einmal nach der Annahme (Marke schalter.partnerMailAm; scheitert
+ * die Mail, fällt die Marke wieder weg und der nächste Lauf versucht es erneut). true = die Mail ging hinaus.
+ * E-507: Der Empfehlungspartner bekommt seine Partnerseite — ohne Zeiten, Termine und Rechnungen (Absender welcome@).
+ */
+export async function koopPartnerMailSenden(z: AngebotZeile, jetzt = new Date()): Promise<boolean> {
+  const d = koopDatenAus(z);
+  const [marke] = (await sqlPool`
+    UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${jsonb({ partnerMailAm: jetzt.toISOString() })}, updated_at = NOW()
+     WHERE id = ${Number(z.id)} AND COALESCE(schalter->>'partnerMailAm', '') = '' RETURNING id`) as any[];
+  if (!marke) return false;
+  const r = koopLiefertKontakte(d.parameter.bereich)
+    ? await freitext(d.partner.email, "Ihr FIAON-Partnerbereich: Zeiten freigeben, Termine sehen", [
+      `willkommen in der FIAON Partner-Kooperation (${d.ref}). In Ihrem Partnerbereich geben Sie die Zeiten frei, in denen wir Termine für Sie vereinbaren dürfen, und ändern Ihre Wunschmenge je Woche.`,
+      "Dort sehen Sie auch jeden übermittelten Kontakt, reklamieren mit einem Klick und finden Ihre Monatsrechnungen. Sobald Ihre Zeiten stehen, beginnt unser Team mit den ersten Terminen.",
+      `Ihr Partnerbereich (bitte nicht weitergeben): ${koopPartnerLink(z)}`,
+    ].join("\n\n"), { anrede: `${koopPartnerAnrede(d.partner)},`, event: "koop_partnerbereich", personId: z.person_id != null ? Number(z.person_id) : null })
+    : await freitext(d.partner.email, "Ihre FIAON-Partnerseite: Empfehlungen eintragen, Stand sehen", [
+      `willkommen als Empfehlungspartner von FIAON Global (Vereinbarung ${d.ref}). Auf Ihrer Partnerseite tragen Sie Ihre Empfehlungen ein — Name und Telefonnummer oder E-Mail-Adresse genügen, bitte nur mit Einverständnis der Person.`,
+      "Dort sehen Sie zu jeder Empfehlung den Stand und Ihre Provision und finden Ihre Gutschriften. Damit wir überweisen können, hinterlegen Sie dort bitte einmal Ihre Bankverbindung.",
+      `Ihre Partnerseite (bitte nicht weitergeben): ${koopPartnerLink(z)}`,
+    ].join("\n\n"), { anrede: `${koopPartnerAnrede(d.partner)},`, absender: "welcome", event: "koop_partnerbereich", personId: z.person_id != null ? Number(z.person_id) : null });
+  if (!r.ok) await sqlPool`UPDATE fiaon_global_angebote SET schalter = schalter - 'partnerMailAm' WHERE id = ${Number(z.id)}`;
+  return r.ok;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DER STUNDENLAUF
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1081,18 +1178,10 @@ export async function koopLieferLauf(jetzt = new Date()): Promise<{ uebermittelt
   for (const z of partnerListe) {
     const d = koopDatenAus(z);
     // 2. Partnerbereich einmal nach der Annahme schicken — Zeiten und Menge trägt der Partner dort selbst ein.
-    const [marke] = (await sqlPool`
-      UPDATE fiaon_global_angebote SET schalter = COALESCE(schalter, '{}'::jsonb) || ${jsonb({ partnerMailAm: jetzt.toISOString() })}, updated_at = NOW()
-       WHERE id = ${Number(z.id)} AND COALESCE(schalter->>'partnerMailAm', '') = '' RETURNING id`) as any[];
-    if (marke) {
-      const r = await freitext(d.partner.email, "Ihr FIAON-Partnerbereich: Zeiten freigeben, Termine sehen", [
-        `willkommen in der FIAON Partner-Kooperation (${d.ref}). In Ihrem Partnerbereich geben Sie die Zeiten frei, in denen wir Termine für Sie vereinbaren dürfen, und ändern Ihre Wunschmenge je Woche.`,
-        "Dort sehen Sie auch jeden übermittelten Kontakt, reklamieren mit einem Klick und finden Ihre Monatsrechnungen. Sobald Ihre Zeiten stehen, beginnt unser Team mit den ersten Terminen.",
-        `Ihr Partnerbereich (bitte nicht weitergeben): ${koopPartnerLink(z)}`,
-      ].join("\n\n"), { anrede: `${koopPartnerAnrede(d.partner)},`, event: "koop_partnerbereich", personId: z.person_id != null ? Number(z.person_id) : null });
-      if (r.ok) partnerMails++;
-      else await sqlPool`UPDATE fiaon_global_angebote SET schalter = schalter - 'partnerMailAm' WHERE id = ${Number(z.id)}`;
-    }
+    if (await koopPartnerMailSenden(z, jetzt)) partnerMails++;
+    const liefert = koopLiefertKontakte(d.parameter.bereich);
+    // E-507: Beim Empfehlungspartner endet der Lauf hier — er bekommt nie eine Rechnung (seine Provision rechnet koopGutschriftenLauf ab).
+    if (!liefert) continue;
     // 3. Monatsrechnungen für jeden abgeschlossenen Monat ohne Zeile (holt verpasste Monate nach).
     // E-390: Partnerplatz — jeden Monat ab dem Folgemonat der Annahme bis einschließlich des laufenden (im Voraus).
     if (koopModellVon(d.parameter.bereich) === "platz") {
@@ -1143,6 +1232,11 @@ export async function koopLieferLauf(jetzt = new Date()): Promise<{ uebermittelt
 // damit die Leitung die Rolle im Chefbüro › Geschäftspartner setzen kann (nur bei Vorsorge sichtbar).
 export async function koopListenLieferung(z: AngebotZeile): Promise<{ zeile: string; partnerLink: string; rolle: string | null; bereich: string } | null> {
   if (String(z.status) !== "angenommen") return null;
+  // E-507: Beim Empfehlungspartner gibt es keine Lieferung — die Zeile nennt seine Empfehlungen; der Link führt auf seine Partnerseite.
+  if (!koopLiefertKontakte(koopDatenAus(z).parameter.bereich)) {
+    const [c] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_koop_empfehlungen WHERE angebot_id = ${Number(z.id)} AND entfernt_am IS NULL`.catch(() => [{ n: 0 }])) as any[];
+    return { zeile: `Empfehlungspartner — keine Lieferung · ${Number(c?.n ?? 0)} ${Number(c?.n ?? 0) === 1 ? "Empfehlung" : "Empfehlungen"}`, partnerLink: koopPartnerLink(z), rolle: null, bereich: koopDatenAus(z).parameter.bereich };
+  }
   const s = await koopLieferStand(z).catch(() => null);
   if (!s) return null;
   const teile = [

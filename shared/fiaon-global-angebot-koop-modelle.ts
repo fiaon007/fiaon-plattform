@@ -13,6 +13,11 @@
 //                 bezahlt: Energie mit bestätigtem Lieferbeginn, Telefon nach Aktivierung und abgelaufener Widerrufsfrist.
 //                 Der Partner meldet Abschlüsse im Partnerbereich; FIAON hat ein Auskunftsrecht.
 //
+//   · „empfehlung“ Empfehlungspartner von FIAON Global (E-507, 12.11.2026) — die GEGENRICHTUNG: Der Partner nennt FIAON
+//                 Menschen und Unternehmen und bekommt einen Anteil an dem, was sie in den ersten zwölf Monaten an FIAON
+//                 zahlen (Technik: shared/fiaon-koop-empfehlung.ts, E-419). FIAON übermittelt ihm NIE Kontakte, es gibt
+//                 keine Menge, keine Zeiten, keine Rechnung an den Partner. Abgerechnet wird per Gutschrift.
+//
 // Alle Modelle: Einwilligung vor jeder Übermittlung (Art. 6 Abs. 1 Buchst. a DSGVO, § 7 Abs. 2 Nr. 1 UWG), Rücksichtsklausel,
 // Unternehmergeschäft ohne Widerruf, Reverse Charge, deutsches Recht. Vertrag in Vertragssprache („der Partner“, „FIAON“).
 // DATENSCHUTZ: Das Repo ist öffentlich (E-242) — hier stehen KEINE Partnerdaten.
@@ -21,12 +26,18 @@ import { FIAON_FIRMA } from "./fiaon-firma";
 import type { AngebotAbsatz, AngebotZiffer } from "./fiaon-global-angebot";
 import { zahlwort } from "./fiaon-global-angebot-firma";
 import type { FirmaPhase, FirmaLeistung, FirmaFrage } from "./fiaon-global-angebot-firma-typen";
+import { KOOP_PROVISION_MONATE } from "./fiaon-koop-empfehlung";
 
-export type KoopBereich = "vorsorge" | "recht" | "steuern" | "energie" | "telekom";
-export type KoopModell = "kontakt" | "abschluss" | "platz";
-export const KOOP_BEREICHE: KoopBereich[] = ["vorsorge", "recht", "steuern", "energie", "telekom"];
+export type KoopBereich = "vorsorge" | "recht" | "steuern" | "energie" | "telekom" | "empfehlung";
+export type KoopModell = "kontakt" | "abschluss" | "platz" | "empfehlung";
+export const KOOP_BEREICHE: KoopBereich[] = ["vorsorge", "recht", "steuern", "energie", "telekom", "empfehlung"];
 export function koopModellVon(bereich: unknown): KoopModell {
+  if (bereich === "empfehlung") return "empfehlung";
   return bereich === "recht" || bereich === "steuern" ? "platz" : bereich === "energie" || bereich === "telekom" ? "abschluss" : "kontakt";
+}
+/** E-507: Liefert FIAON diesem Partner Kontakte? Beim Empfehlungspartner nie — er nennt FIAON Kunden, nicht umgekehrt. */
+export function koopLiefertKontakte(bereich: unknown): boolean {
+  return koopModellVon(bereich) !== "empfehlung";
 }
 export function koopBereichAus(v: unknown): KoopBereich {
   return (KOOP_BEREICHE as string[]).includes(String(v)) ? (v as KoopBereich) : "vorsorge";
@@ -35,6 +46,10 @@ export function koopBereichAus(v: unknown): KoopBereich {
 /** Fassungen je Modell — alle mit dem Präfix IA-KOOP- (ein Pfad in server/lib/fiaon-global-angebot-koop.ts). */
 export const KOOP_FASSUNG_PLATZ = "IA-KOOP-PLATZ-2026-10-16";
 export const KOOP_FASSUNG_ABSCHLUSS = "IA-KOOP-ABSCHLUSS-2026-10-16";
+/** E-507: die Empfehlungs-Vereinbarung (Empfehlungspartner von FIAON Global). */
+export const KOOP_FASSUNG_EMPFEHLUNG = "IA-KOOP-EMPFEHLUNG-2026-11-12";
+/** E-507: Vorgaben der Empfehlungs-Vereinbarung — Satz in Prozent und das Rechenbeispiel der Seite (Zahlungen eines Kunden im ersten Jahr). */
+export const KOOP_EMPFEHLUNG_VORGABE = { prozent: 30, beispielCents: 800_000, kuendigungTage: 30 } as const;
 
 /** Was je Bereich gilt: Name, Rolle des Partners, Sparten (abschluss) und die Wörter auf Seite und im Vertrag. */
 export const KOOP_BEREICH: Record<KoopBereich, {
@@ -53,6 +68,7 @@ export const KOOP_BEREICH: Record<KoopBereich, {
   recht: { name: "Recht", partnerArt: "Kanzlei", titel: "Partnerplatz Recht", marke: "FIAON Partner-Netzwerk · Recht", berufsrecht: "§ 49b Abs. 3 der Bundesrechtsanwaltsordnung (BRAO)", zulassung: "Zulassung zur Rechtsanwaltschaft", einheit: "Erstberatungen" },
   steuern: { name: "Steuern", partnerArt: "Kanzlei", titel: "Partnerplatz Steuern", marke: "FIAON Partner-Netzwerk · Steuern", berufsrecht: "§ 9 Abs. 2 des Steuerberatungsgesetzes (StBerG)", zulassung: "Bestellung als Steuerberater oder Anerkennung als Lohnsteuerhilfeverein (§ 4 Nr. 11 StBerG)", einheit: "Erstgespräche" },
   energie: { name: "Energie", partnerArt: "Versorger", titel: "Neukunden für Strom und Gas", marke: "FIAON Partner-Netzwerk · Energie", sparten: ["Strom", "Gas"], abschluss: "ein Energieliefervertrag, dessen Lieferbeginn der Netzbetreiber bestätigt hat", zulassung: "Anzeige als Energielieferant bei der Bundesnetzagentur (§ 5 EnWG)", einheit: "Wechsel" },
+  empfehlung: { name: "Empfehlung", partnerArt: "Empfehlungspartner", titel: "Empfehlungs-Vereinbarung", marke: "FIAON Global · Empfehlungspartner", zulassung: "", einheit: "Empfehlungen" },
   telekom: { name: "Telefon & Internet", partnerArt: "Anbieter", titel: "Neukunden für Mobilfunk und Internet", marke: "FIAON Partner-Netzwerk · Telefon & Internet", sparten: ["Mobilfunk", "Internet und Festnetz"], abschluss: "ein aktivierter Vertrag, für den die gesetzliche Widerrufsfrist ohne Widerruf abgelaufen ist", zulassung: "Meldung als Anbieter von Telekommunikationsdiensten bei der Bundesnetzagentur (§ 5 TKG)", einheit: "Verträge" },
 };
 
@@ -63,6 +79,8 @@ export const KOOP_THEMEN: Record<KoopBereich, string[]> = {
   steuern: ["Einkommensteuererklärung", "Erklärungen für Vorjahre nachholen", "Einspruch gegen einen Steuerbescheid", "Belege ordnen und Erstattung prüfen"],
   energie: ["Strom", "Gas"],
   telekom: ["Mobilfunk", "Internet und Festnetz"],
+  // E-507: wen ein Empfehlungspartner nennen kann — steht nur auf der Seite, nicht im Vertrag.
+  empfehlung: ["Unternehmer und Selbstständige, die eine US-Gesellschaft aufbauen möchten", "Gründer mit einem Vorhaben in den USA", "Inhaber einer bestehenden US-Gesellschaft, die Ordnung und Betreuung suchen"],
 };
 
 /** Die Daten, die die Modelle brauchen (Teil von KoopDaten — hier ohne Import, damit kein Kreis entsteht). */
@@ -72,6 +90,8 @@ export interface KoopModellDaten {
   parameter: {
     preisCents: number; zweitCents: number; startDeckel: number; zahlungszielTage: number; ruhenNachTagen: number; kuendigungTage: number;
     exklusivMonate: number; themen: string[]; bereich: KoopBereich; region: string; mindestMonate: number; jeRegion: number;
+    /** E-507: nur Modell „empfehlung“ — Provision in Prozent und das Rechenbeispiel der Seite. */
+    provisionProzent?: number; beispielCents?: number;
   };
 }
 
@@ -246,11 +266,75 @@ export function koopAbschlussZiffern(d: KoopModellDaten): AngebotZiffer[] {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// MODELL „EMPFEHLUNG“ — EMPFEHLUNGSPARTNER VON FIAON GLOBAL (E-507, 12.11.2026)
+//
+// Justin (12.11.2026): Ein Kunde bringt mehrere Menschen mit — „in seinem Portal soll er dann eine persönliche Partnerschaftsseite
+// haben, wo er die Leute vorschlägt und 30 % bei jedem Abschluss bekommt“. Der Vertrag ist die kurze Empfehlungs-Vereinbarung:
+//   · Der Partner nennt nur den Kontakt — er berät nicht, vermittelt keine Kredite oder Finanzierungen, sagt nichts zu.
+//   · Meldung im Partnerbereich, nur mit Einverständnis der Person; maßgeblich ist der Tag der Meldung.
+//   · Provision = Satz (Vorgabe 30 %) auf alle Zahlungen des empfohlenen Kunden in den ersten zwölf Monaten ab der Meldung
+//     (KOOP_PROVISION_MONATE), ohne durchlaufende Fremdkosten; Gutschriftverfahren zum Monatsanfang.
+//   · Der Satz steht mit der Annahme im Schalter des Vertrags (schalter.provision) — ab da rechnet die vorhandene Technik.
+// ═══════════════════════════════════════════════════════════════════════════
+/** „30 %“ bzw. „27,5 %“ — der Satz aus dem Angebot (Vorgabe KOOP_EMPFEHLUNG_VORGABE.prozent). */
+export function koopEmpfehlungProzent(par: { provisionProzent?: number }): number {
+  const v = Number(par.provisionProzent);
+  return Number.isFinite(v) && v > 0 && v <= 50 ? Math.round(v * 100) / 100 : KOOP_EMPFEHLUNG_VORGABE.prozent;
+}
+const prozentText = (v: number) => `${String(v).replace(".", ",")} %`;
+export function koopEmpfehlungPraeambel(_d: KoopModellDaten): string[] {
+  return [
+    "FIAON begleitet Unternehmer und Gründer beim Aufbau und Betrieb einer US-Gesellschaft (FIAON Global).",
+    "Der Partner kennt Menschen und Unternehmen, für die diese Leistungen in Frage kommen. Die Parteien vereinbaren, dass der Partner FIAON solche Kontakte nennt und dafür eine Provision auf die Zahlungen erhält, die diese Kunden an FIAON leisten.",
+  ];
+}
+export function koopEmpfehlungZiffern(d: KoopModellDaten): AngebotZiffer[] {
+  const par = d.parameter;
+  const satz = prozentText(koopEmpfehlungProzent(par));
+  const monate = zahlwort(KOOP_PROVISION_MONATE);
+  return [
+    { nr: 1, titel: "Vertragsparteien und Gegenstand", absaetze: [
+      p(`Vertragsparteien sind ${fiaonZeile()}, und ${partnerZeile(d.partner)} (nachfolgend „Partner“). Der Partner schließt diese Vereinbarung in Ausübung seiner gewerblichen oder selbstständigen beruflichen Tätigkeit (§ 14 BGB).`),
+      p("Der Partner nennt FIAON Menschen und Unternehmen, die sich für die Leistungen von FIAON Global interessieren (nachfolgend „empfohlener Kunde“). FIAON zahlt dafür eine Provision nach Ziffer 3."),
+      p("Der Partner nennt nur den Kontakt. Er berät nicht zu den Leistungen von FIAON, vermittelt keine Kredite oder Finanzierungen, schließt keine Verträge im Namen von FIAON und macht keine Zusagen zu Leistungen, Preisen oder Finanzierungen. Über einen Vertrag entscheiden allein FIAON und der empfohlene Kunde."),
+      p("Der Partner stellt sicher, dass er Empfehlungen nach seinen sonstigen vertraglichen und gesetzlichen Bindungen aussprechen darf. Eine Pflicht zu empfehlen besteht nicht; FIAON ist nicht verpflichtet, einem empfohlenen Kunden ein Angebot zu machen."),
+    ] },
+    { nr: 2, titel: "Meldung einer Empfehlung", absaetze: [
+      p("Der Partner meldet eine Empfehlung im Partnerbereich, den FIAON dafür bereitstellt, oder in Textform — mit dem Namen und einer Telefonnummer oder E-Mail-Adresse. Er übermittelt die Daten nur, wenn der empfohlene Kunde damit einverstanden ist, dass FIAON ihn kontaktiert und dem Partner den Stand der Empfehlung mitteilt."),
+      p("Maßgeblich ist der Tag der Meldung; er steht im Partnerbereich. Stand FIAON mit dem Kunden in den sechs Monaten vor der Meldung bereits in Kontakt oder hat ihn zuvor ein anderer Partner gemeldet, zählt die Empfehlung nicht; FIAON teilt dies dem Partner unverzüglich in Textform mit."),
+    ] },
+    { nr: 3, titel: "Provision", absaetze: [
+      p(`Der Partner erhält ${satz} aller Zahlungen, die bei FIAON vom empfohlenen Kunden in den ersten ${monate} Monaten nach der Meldung eingehen.`),
+      p("Durchlaufende Fremdkosten, die FIAON ohne Aufschlag weiterberechnet — etwa Staatsgebühren oder ein Fast-Track —, sind keine Zahlungen im Sinne von Absatz 1."),
+      p("FIAON rechnet zum Anfang jedes Kalendermonats automatisch per Gutschrift über die im Vormonat eingegangenen Zahlungen ab (Gutschriftverfahren); der Partner ist damit einverstanden und stellt keine eigene Rechnung. Die Gutschrift geht ihm per E-Mail zu und steht im Partnerbereich. FIAON überweist die Provision binnen vierzehn Tagen auf das Konto, das der Partner im Partnerbereich hinterlegt. Muss FIAON eine Zahlung erstatten, entfällt die Provision daran; eine bereits gezahlte Provision wird verrechnet oder zurückgezahlt."),
+      p("Alle Beträge sind Nettobeträge. Steuern auf seine Provision trägt der Partner selbst."),
+    ] },
+    { nr: 4, titel: "Datenschutz und Vertraulichkeit", absaetze: [
+      p("Jede Partei ist für ihre Verarbeitung personenbezogener Daten selbst verantwortlich und hält die Datenschutz-Grundverordnung ein. FIAON nutzt die Daten einer Meldung nur, um den empfohlenen Kunden zu kontaktieren und zu betreuen. Der Partner erfährt über einen empfohlenen Kunden nur, was er für seine Provision braucht."),
+      p("Beide Parteien behandeln die Bedingungen dieser Vereinbarung und alle nicht öffentlichen Informationen der anderen Partei vertraulich, auch nach ihrem Ende."),
+    ] },
+    { nr: 5, titel: "Laufzeit und Ende", absaetze: [
+      p(`Die Vereinbarung beginnt mit der Annahme und läuft auf unbestimmte Zeit. Jede Partei kann sie mit einer Frist von ${zahlwort(par.kuendigungTage)} Tagen in Textform kündigen. Für Empfehlungen, die bis zum Ende gemeldet wurden, gilt Ziffer 3 weiter.`),
+      p("Das Recht beider Parteien zur fristlosen Kündigung aus wichtigem Grund bleibt unberührt. Ein wichtiger Grund für FIAON liegt insbesondere vor, wenn der Partner gegen Ziffer 1 Absatz 3 oder Ziffer 2 Absatz 1 verstößt."),
+    ] },
+    { nr: 6, titel: "Haftung", absaetze: [
+      p("Die Parteien haften unbeschränkt bei Vorsatz und grober Fahrlässigkeit sowie bei der Verletzung von Leben, Körper oder Gesundheit. Bei leicht fahrlässiger Verletzung wesentlicher Vertragspflichten ist die Haftung auf den vertragstypischen, bei Vertragsschluss vorhersehbaren Schaden begrenzt; im Übrigen ist die Haftung für leichte Fahrlässigkeit ausgeschlossen."),
+      p("Macht der Partner gegenüber einem empfohlenen Kunden Zusagen im Sinne von Ziffer 1 Absatz 3, stellt er FIAON von Ansprüchen daraus frei."),
+    ] },
+    { nr: 7, titel: "Schlussbestimmungen", absaetze: [
+      p("Diese Vereinbarung ist ein Geschäft unter Unternehmern; ein Widerrufsrecht für Verbraucher besteht nicht. Allgemeine Geschäftsbedingungen einer Partei gelten nicht."),
+      p("Änderungen und Ergänzungen bedürfen der Textform. Es gilt das Recht der Bundesrepublik Deutschland unter Ausschluss des UN-Kaufrechts; es gelten die gesetzlichen Gerichtsstände. Sollten einzelne Bestimmungen unwirksam sein oder werden, bleibt die Gültigkeit im Übrigen unberührt; an die Stelle der unwirksamen Bestimmung treten die gesetzlichen Vorschriften."),
+    ] },
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE ANGEBOTSSEITE JE MODELL (Struktur wie KoopSeite in shared/fiaon-global-angebot-koop.ts)
 // ═══════════════════════════════════════════════════════════════════════════
 export interface KoopModellSeite {
   hero: { auge: string; titel: string; lead: string; nutzen: string[]; preis: string; preisZeile: string; preisFein: string };
-  rechner: { titel: string; sub: string; woche: string; monat: string; fein: string; festMonat: string };
+  /** E-507: stufen/vorschlag/jeStueckCents nur beim Modell „empfehlung“ (Rechenbeispiel: Zahl der Empfehlungen × Provision je Kunde). */
+  rechner: { titel: string; sub: string; woche: string; monat: string; fein: string; festMonat: string; stufen?: number[]; vorschlag?: number; jeStueckCents?: number };
   ablauf: { titel: string; sub: string; liste: FirmaPhase[] };
   kontakt: { titel: string; sub: string; felder: { titel: string; text: string }[]; themenTitel: string };
   leistungen: { titel: string; sub: string; karten: FirmaLeistung[] };
@@ -258,7 +342,12 @@ export interface KoopModellSeite {
   fragen: FirmaFrage[];
   zeile: string;
   uebersicht: { label: string; wert: string }[];
-  annahme: { wunsch: string; wunschUnter: string; wunschEinheit: string; unterKnopf: string; fertigText: (email: string, menge: number) => string; fertigZahlung: string };
+  /** E-507: titel/sub/knopf/unternehmer/fertigTitel/fertigFuss/schritt nur beim Modell „empfehlung“ (eigener Knopf ohne Zahlungspflicht). */
+  annahme: {
+    wunsch: string; wunschUnter: string; wunschEinheit: string; unterKnopf: string; fertigText: (email: string, menge: number) => string; fertigZahlung: string;
+    titel?: string; sub?: string; knopf?: string; unternehmer?: string; fertigTitel?: string; fertigFuss?: string;
+    schritt?: { titel: string; text: string; knopf: string };
+  };
   vermerk: (wunsch: number) => string[];
   auftaktZeile: string;
 }
@@ -266,6 +355,79 @@ export function koopModellSeite(d: KoopModellDaten): KoopModellSeite {
   const par = d.parameter; const b = KOOP_BEREICH[par.bereich];
   const modell = koopModellVon(par.bereich);
   const preis = koopModellEur(par.preisCents); const zweit = koopModellEur(par.zweitCents);
+  if (modell === "empfehlung") {
+    const satzZahl = koopEmpfehlungProzent(par); const satz = prozentText(satzZahl);
+    const monate = zahlwort(KOOP_PROVISION_MONATE);
+    const beispiel = Number.isFinite(Number(par.beispielCents)) && Number(par.beispielCents) > 0 ? Math.round(Number(par.beispielCents)) : KOOP_EMPFEHLUNG_VORGABE.beispielCents;
+    const jeKunde = Math.round((beispiel * satzZahl) / 100);
+    return {
+      auftaktZeile: "Sie empfehlen — wir kümmern uns um alles Weitere.",
+      hero: {
+        auge: b.marke, titel: "Sie kennen jemanden, dem wir helfen können? Das soll sich für Sie lohnen.",
+        lead: `Nennen Sie uns Menschen und Unternehmen, für die eine US-Gesellschaft mit FIAON Global in Frage kommt. Wir melden uns persönlich, prüfen jedes Mandat einzeln und machen ein eigenes Angebot — und Sie erhalten ${satz} von allem, was Ihre Empfehlung in den ersten ${monate} Monaten an uns zahlt.`,
+        nutzen: ["Eintragen in einer Minute — Name, Telefon oder E-Mail", "Sie sehen jederzeit, wo jede Empfehlung steht", "Abrechnung automatisch per Gutschrift — keine Rechnung nötig"],
+        preis: satz, preisZeile: `von allem, was Ihre Empfehlung in den ersten ${monate} Monaten an FIAON zahlt`,
+        preisFein: "Ohne durchlaufende Fremdkosten wie Staatsgebühren oder Fast-Track · Abrechnung zum Monatsanfang · für Sie ohne Kosten und ohne Pflicht",
+      },
+      rechner: {
+        titel: "Ihre Provision", sub: "Ein Rechenbeispiel: Wie viele Menschen möchten Sie uns nennen?", woche: "Empfehlungen, die Kunde werden", monat: "Ihre Provision im Beispiel",
+        fein: `Rechenbeispiel: Zahlt ein empfohlener Kunde in den ersten ${monate} Monaten ${koopModellEur(beispiel)} an FIAON, erhalten Sie ${koopModellEur(jeKunde)}. Was ein Kunde tatsächlich zahlt, hängt von seinem Auftrag ab.`,
+        festMonat: koopModellEur(jeKunde), stufen: [1, 2, 4, 6, 10], vorschlag: 4, jeStueckCents: jeKunde,
+      },
+      ablauf: { titel: "So läuft es", sub: "Von Ihrer Empfehlung zur Gutschrift.", liste: [
+        { nr: 1, titel: "Sie empfehlen", dauer: "eine Minute", text: "Sie tragen Name und Telefonnummer oder E-Mail-Adresse auf Ihrer Partnerseite ein — nur mit Einverständnis der Person." },
+        { nr: 2, titel: "Wir melden uns", dauer: "persönlich", text: "Wir nehmen Kontakt auf, hören zu und prüfen das Mandat wie bei jedem neuen Klienten." },
+        { nr: 3, titel: "Eigenes Angebot", dauer: "für jede Person", text: "Jede Empfehlung bekommt ihr eigenes Angebot. Ob ein Vertrag zustande kommt, entscheiden allein wir und die Person." },
+        { nr: 4, titel: "Ihr Stand", dauer: "jederzeit", text: "Auf Ihrer Partnerseite sehen Sie zu jeder Empfehlung die Stufe: gemeldet, Kontakt, Gespräch, Angebot, Kunde." },
+        { nr: 5, titel: "Ihre Gutschrift", dauer: "zum Monatsanfang", text: "Zahlt Ihre Empfehlung an uns, rechnen wir automatisch ab und überweisen binnen vierzehn Tagen.", abzeichen: satz },
+      ] },
+      kontakt: { titel: "Was wir von Ihnen brauchen", sub: "Wenig — den Rest übernehmen wir.", felder: [
+        { titel: "Name", text: "der Person oder des Unternehmens" },
+        { titel: "Telefon oder E-Mail", text: "einer der beiden Wege genügt" },
+        { titel: "Einverständnis", text: "die Person weiß, dass wir uns melden" },
+        { titel: "Zwei Sätze", text: "worum es geht — freiwillig, hilft uns beim ersten Gespräch" },
+      ], themenTitel: "Wen Sie empfehlen können" },
+      leistungen: { titel: "Fair und einfach", sub: "Klare Regeln statt Kleingedrucktem.", karten: [
+        { schluessel: "vertrieb", titel: `${satz} Provision`, text: `Auf alle Zahlungen Ihrer Empfehlung in den ersten ${monate} Monaten ab der Meldung.`, punkte: ["Zählt ab dem Tag Ihrer Meldung", "Auch spätere Zahlungen im ersten Jahr", "Ohne durchlaufende Fremdkosten"] },
+        { schluessel: "strategie", titel: "Automatische Abrechnung", text: "Zum Monatsanfang erstellen wir Ihre Gutschrift und überweisen binnen vierzehn Tagen.", punkte: ["Sie schreiben keine Rechnung", "Gutschrift als PDF", "Bankverbindung einmal hinterlegen"] },
+        { schluessel: "plattform", titel: "Ihre Partnerseite", text: "Eintragen, Stand sehen, Provision verfolgen — an einem Ort.", punkte: ["Jede Empfehlung mit Datum", "Stufe je Empfehlung", "Ihre Gutschriften"] },
+      ] },
+      sauber: { titel: "Sauber aufgestellt", sub: "Damit die Zusammenarbeit lange trägt.", punkte: [
+        { titel: "Klare Rollen", text: "Sie nennen den Kontakt. Gespräch, Angebot und Vertrag liegen allein bei uns — bitte machen Sie keine Zusagen zu Leistungen, Preisen oder Finanzierungen." },
+        { titel: "Nur mit Einverständnis", text: "Bitte nennen Sie uns nur Menschen, die wissen und wollen, dass wir uns bei ihnen melden." },
+        { titel: "Diskret", text: "Sie sehen zu jeder Empfehlung die Stufe und Ihre Provision — mehr geben wir über einen Klienten nicht weiter." },
+      ] },
+      fragen: [
+        { frage: "Was bekomme ich genau?", antwort: [`${satz} aller Zahlungen, die Ihre Empfehlung in den ersten ${monate} Monaten nach Ihrer Meldung an FIAON leistet — ohne durchlaufende Fremdkosten wie Staatsgebühren oder Fast-Track.`] },
+        { frage: "Wann zählt eine Empfehlung?", antwort: ["Ab dem Tag, an dem Sie sie eintragen. Sie zählt nicht, wenn wir mit der Person in den sechs Monaten davor schon in Kontakt standen oder ein anderer Partner sie früher genannt hat — das sagen wir Ihnen dann sofort."] },
+        { frage: "Wie und wann wird ausgezahlt?", antwort: ["Zum Monatsanfang rechnen wir die Zahlungen des Vormonats automatisch per Gutschrift ab und überweisen binnen vierzehn Tagen auf das Konto, das Sie auf Ihrer Partnerseite hinterlegen."] },
+        { frage: "Muss ich etwas zahlen oder eine Mindestzahl bringen?", antwort: ["Nein. Für Sie entstehen keine Kosten, und es gibt keine Mindestzahl. Sie empfehlen, wann und wen Sie möchten."] },
+        { frage: "Was darf ich meinen Kontakten sagen?", antwort: ["Dass Sie uns kennen und empfehlen. Bitte keine Zusagen zu Leistungen, Preisen oder Finanzierungen — alles Weitere besprechen wir mit der Person selbst."] },
+        { frage: "Wie komme ich wieder raus?", antwort: [`Mit ${zahlwort(par.kuendigungTage)} Tagen Frist in Textform. Für Empfehlungen, die Sie bis dahin gemeldet haben, läuft Ihre Provision weiter.`] },
+      ],
+      zeile: `Empfehlungspartner · ${satz} Provision · ${KOOP_PROVISION_MONATE} Monate ab Meldung · Abrechnung per Gutschrift`,
+      uebersicht: [
+        { label: "Leistung", wert: "Sie nennen FIAON Menschen und Unternehmen mit deren Einverständnis; FIAON meldet sich, prüft und macht ein eigenes Angebot" },
+        { label: "Provision", wert: `${satz} aller Zahlungen eines empfohlenen Kunden in den ersten ${monate} Monaten nach der Meldung — ohne durchlaufende Fremdkosten` },
+        { label: "Abrechnung", wert: "automatisch per Gutschrift zum Monatsanfang, Überweisung binnen vierzehn Tagen — Beträge netto, Steuern auf die Provision tragen Sie selbst" },
+        { label: "Kosten für Sie", wert: "keine — keine Gebühr, keine Mindestzahl, keine Pflicht zu empfehlen" },
+        { label: "Laufzeit", wert: `unbefristet, kündbar mit ${zahlwort(par.kuendigungTage)} Tagen Frist in Textform` },
+        { label: "Widerruf", wert: "Geschäft unter Unternehmern — kein Widerrufsrecht für Verbraucher" },
+      ],
+      annahme: {
+        wunsch: "", wunschUnter: "", wunschEinheit: "",
+        titel: "Partnerschaft vereinbaren", sub: "Zwei Häkchen, unterschreiben — fertig.", knopf: "Partnerschaft vereinbaren",
+        unternehmer: "Ich schließe diese Vereinbarung im Rahmen meiner gewerblichen oder selbstständigen beruflichen Tätigkeit (als Unternehmer).",
+        unterKnopf: "Mit dem Klick vereinbaren Sie die Empfehlungs-Partnerschaft. Für Sie entstehen keine Kosten und keine Pflicht zu empfehlen.",
+        fertigTitel: "Willkommen als Partner — Ihre Partnerseite ist bereit.",
+        fertigText: (email: string) => `Ab sofort können Sie uns Menschen und Unternehmen nennen. Ihre Vereinbarung finden Sie unten als PDF; den Link zu Ihrer Partnerseite schicken wir Ihnen zusätzlich an ${email}.`,
+        fertigZahlung: "Für Sie ist nichts zu zahlen. Ihre Provision rechnen wir automatisch zum Monatsanfang per Gutschrift ab.",
+        fertigFuss: "Fragen? Schreiben Sie uns an support@fiaon.com.",
+        schritt: { titel: "Ihr nächster Schritt", text: "Öffnen Sie Ihre Partnerseite und tragen Sie Ihre erste Empfehlung ein — Name und Telefonnummer oder E-Mail-Adresse genügen.", knopf: "Zur Partnerseite" },
+      },
+      vermerk: () => [`Provision (Ziffer 3): ${satz} aller Zahlungen eines empfohlenen Kunden in den ersten ${monate} Monaten nach der Meldung, ohne durchlaufende Fremdkosten`, "Abrechnung (Ziffer 3): Gutschrift zum Monatsanfang, Überweisung binnen vierzehn Tagen"],
+    };
+  }
   if (modell === "platz") {
     const recht = par.bereich === "recht";
     return {

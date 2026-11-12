@@ -506,8 +506,14 @@ export async function globalBereichKundenSicht(ref: string, token: string): Prom
   // E-332: die Unterlagen aus dem Individualangebot (Vertrag, Nachweise, Sicherheiten) — eine Quelle mit der Angebotsseite.
   const { unterlagenFuerAuftrag } = await import("./fiaon-global-angebot-unterlagen");
   const angebotUnterlagen = await unterlagenFuerAuftrag(ref).catch((e) => { console.error("[GLOBAL-BEREICH] Angebotsunterlagen:", e); return []; });
+  // E-507 (12.11.2026): Ist dieser Kunde zugleich Empfehlungspartner, steht hier die Karte „Ihre Partnerschaft“ — angenommen
+  // führt sie auf seine Partnerseite, offen auf die Vereinbarung. Scheitert das Lesen, fehlt nur die Karte.
+  const partnerschaft = await import("./fiaon-koop-lieferung")
+    .then((m) => m.koopPartnerschaftFuerPortal({ personId: l.b?.person_id != null ? Number(l.b.person_id) : null, email: String(l.b?.email || l.b?.contact_email || l.akte?.email || "") || null }))
+    .catch((e) => { console.error("[GLOBAL-BEREICH] Partnerschaft:", e); return null; });
   return {
     ...s,
+    ...(partnerschaft ? { partnerschaft } : {}),
     angebotUnterlagen: angebotUnterlagen.map((u) => ({ id: u.id, titel: u.titel, mime: u.mime, groesse: u.groesse, reihenfolge: u.reihenfolge, url: `/api/fiaon/global/mein-auftrag/${r}/unterlage/${u.id}?t=${tk}` })),
     dokumente: (s.dokumente as any[]).map((d) => ({ ...d, url: `/api/fiaon/global/mein-auftrag/${r}/dokument/${d.id}?t=${tk}` })),
     vertragUrl: `/api/fiaon/global/auftrag/${r}/vertrag.pdf?t=${tk}`,

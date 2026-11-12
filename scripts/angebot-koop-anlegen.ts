@@ -7,6 +7,8 @@
 //   --datei <angebot-daten.json>   { fassung?, gueltigBis?, personId?, partner, parameter? }
 // E-390: parameter.bereich = vorsorge | recht | steuern | energie | telekom wählt Vertrag, Preise und Themen (Vorgaben aus
 //   koopVorgaben); Recht/Steuern brauchen parameter.region (z. B. „Berlin“ oder „PLZ 10–14“).
+// E-507: parameter.bereich = empfehlung legt die Empfehlungs-Vereinbarung an (Empfehlungspartner von FIAON Global):
+//   parameter.provisionProzent (Vorgabe 30) — den Satz nennt Justin je Partner; FIAON übermittelt diesem Partner nie Kontakte.
 //
 // ── AUFRUF ────────────────────────────────────────────────────────────────
 //   env -i PATH="$PATH" HOME="$HOME" DATABASE_URL=postgresql://…@127.0.0.1:…/… SESSION_SECRET=… \
@@ -51,6 +53,9 @@ const ziel = vorschauDatei ?? path.join(path.dirname(path.resolve(datei)), "vert
 fs.writeFileSync(ziel, `<!doctype html><meta charset="utf-8"><title>Vorschau</title><body style="max-width:860px;margin:40px auto;font-family:Inter,Arial,sans-serif">${B.koopVorschauHtml(d)}</body>`);
 console.log(`Vorschau des Vertrags: ${ziel}`);
 console.log(`Partner: ${S.koopPartnerName(k.partner)} · Prüfsumme der Vorschau ${B.koopTextHash(d).slice(0, 16)}…`);
+if (S.koopModellVon(parameter.bereich) === "empfehlung") {
+  console.log(`Empfehlungs-Vereinbarung (E-507): Provision ${String(S.koopEmpfehlungProzent(parameter)).replace(".", ",")} % auf zwölf Monate ab Meldung, Abrechnung per Gutschrift — keine Lieferung, keine Rechnung an den Partner. Mit der Annahme steht der Satz im Vertrag (schalter.provision).`);
+}
 const fehlt = S.koopPflichtFehlen(d);
 console.log(fehlt.length ? `Für die Annahme fehlt: ${fehlt.join(" · ")}` : "Pflichtfelder vollständig.");
 

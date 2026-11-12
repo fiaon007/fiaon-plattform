@@ -69,8 +69,8 @@ export function verkaufEinstellungAus(roh: string | undefined | null, heute: str
   const grenze = Math.round(Number(o.tagesGrenze));
   const max = Math.round(Number(o.selbstMaxUsd));
   const buergin: KapitalBuergin | null = register ? {
-    name: BUERGIN_VORGABE.name, bundesstaat: BUERGIN_VORGABE.bundesstaat, anschrift: BUERGIN_VORGABE.anschrift,
-    registernummer: register, vertreter: BUERGIN_VORGABE.vertreter, funktion: BUERGIN_VORGABE.funktion,
+    name: BUERGIN_VORGABE.name, bundesstaat: String(BUERGIN_VORGABE.bundesstaat ?? ""), anschrift: String(BUERGIN_VORGABE.anschrift ?? ""),
+    registernummer: register, vertreter: String(BUERGIN_VORGABE.vertreter ?? ""), funktion: String(BUERGIN_VORGABE.funktion ?? ""),
   } : null;
   const grundAus = o.an !== true ? "Schalter aus" : !buergin ? "Registernummer der Bürgin fehlt" : null;
   return {

@@ -47,8 +47,8 @@ const de = {
   // FIAON Global. Der Paketfinder fragt dort nicht weiter (Lage und Tempo sind
   // Fragen der Bonitätslinie), sondern zeigt den Weg zur Seite.
   globalTitel: "FIAON Global",
-  globalText: "Für Unternehmen gibt es FIAON Global: Ihre US-Gesellschaft aus einer Hand, mit einem Team vor Ort in den USA und einem Ansprechpartner. Vier Pakete, jedes zum Einmalpreis – kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
-  globalAb: (ab: string) => `ab ${ab} einmalig`,
+  globalText: "Für Unternehmen gibt es FIAON Global: Ihre US-Gesellschaft aus einer Hand, mit einem Team vor Ort in den USA und einem Ansprechpartner. Ein Mandat, ein Preis mit Ihrem Auftrag – kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+  globalAb: (ab: string) => `${ab} mit Ihrem Auftrag`,
   globalGespraech: "Erst sprechen",
   gruende: {
     schufa: "Nur die Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen, mit Ampel, FIAON-Finanzwert und Plan für zwölf Monate. Einmalig, kein Abo.",
@@ -103,8 +103,8 @@ const de = {
   ],
   businessPille: "Unternehmen", businessH2a: "Für Unternehmen: ", businessH2b: "FIAON Global.",
   businessLead: "FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Vier Pakete, jedes zum Einmalpreis, kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
-  globalEinmalig: "einmalig · kein Abo",
-  globalKosten: "Festpreis, einmalig: Alle Gebühren und Honorare für die Leistungen des Pakets sind enthalten — Staatsgebühren, Registered Agent, Partner-Anwalt, Partner-Steuerberater und US-CPA.",
+  globalEinmalig: "mit Ihrem Auftrag · kein Abo",
+  globalKosten: "Im ersten Jahr ist alles enthalten — Staatsgebühren, Registered Agent, Anwälte und US-Steuerberater (CPA) aus dem Partnernetz. Mit der Eintragung wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen.",
   ehrlichTag: "Ehrlich gesagt", ehrlichTitel: "Wann Sie FIAON nicht brauchen",
   ehrlichA: "Ein einziger, klar erledigter Eintrag ohne Erledigt-Vermerk? Der ", ehrlichLink1: "Löschantrag-Generator", ehrlichB: " schreibt den Brief kostenlos. Nur wissen, was drinsteht? Die Datenkopie nach Art. 15 DSGVO ist kostenlos – der ", ehrlichLink2: "Generator", ehrlichC: " auch. FIAON lohnt sich, wenn mehrere Einträge, mehrere Länder, Fristen und Antworten zu verfolgen sind – oder wenn am Ende Konto und Karte stehen sollen.",
   fragenPille: "Häufige Fragen",
@@ -142,8 +142,8 @@ const en: typeof de = {
     { key: "tempo", frage: "How fast does it need to be?", optionen: [["ruhig", "Calmly, step by step"], ["zuegig", "Quickly, I have deadlines"], ["sofort", "As fast as humanly possible"]] },
   ],
   globalTitel: "FIAON Global",
-  globalText: "For companies there is FIAON Global: your US company from a single source, with a team on the ground in the United States and one dedicated contact. Four packages, each at a one-off price — no subscription. The institution alone decides on the account, the card and the limit.",
-  globalAb: (ab: string) => `from ${ab} one-off`,
+  globalText: "For companies there is FIAON Global: your US company from a single source, with a team on the ground in the United States and one dedicated contact. One mandate, one price with your order — no subscription. The institution alone decides on the account, the card and the limit.",
+  globalAb: (ab: string) => `${ab} with your order`,
   globalGespraech: "Talk first",
   gruende: {
     schufa: "Just the credit assessment: your creditworthiness as a bank sees it — from your own bank statements, with a traffic light, your FIAON financial score and a twelve-month plan. One-off, no subscription.",
@@ -196,8 +196,8 @@ const en: typeof de = {
   ],
   businessPille: "Companies", businessH2a: "For companies: ", businessH2b: "FIAON Global.",
   businessLead: "FIAON forms your US company, prepares tax numbers and documents and builds your banking and card relationship step by step — with a team on the ground in the United States and one dedicated contact for you. Four packages, each at a one-off price, no subscription. The institution alone decides on the account, the card and the limit.",
-  globalEinmalig: "one-off · no subscription",
-  globalKosten: "Fixed price, one-off: all fees and charges for the services in the package are included — state fees, registered agent, partner lawyer, partner tax adviser and US CPA.",
+  globalEinmalig: "with your order · no subscription",
+  globalKosten: "Everything is included in the first year — state fees, registered agent, lawyers and US accountants (CPAs) from the partner network. The success fee falls due on registration; it follows your capital range.",
   ehrlichTag: "Honestly", ehrlichTitel: "When you do not need FIAON",
   ehrlichA: "A single, clearly settled entry without a settled marker? The ", ehrlichLink1: "deletion request generator", ehrlichB: " writes the letter free of charge. Just want to know what is on file? The data copy under Art. 15 GDPR is free — and so is the ", ehrlichLink2: "generator", ehrlichC: ". FIAON is worth it when several entries, several countries, deadlines and replies have to be tracked — or when an account and a card are the goal.",
   fragenPille: "Frequently asked questions",

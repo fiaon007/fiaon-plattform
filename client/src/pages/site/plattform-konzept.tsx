@@ -26,8 +26,8 @@ import { Dunkel, Hero, Block, Licht, Knopf, Auf, Glas, Karten, Kennzahlen, Zeile
 import SeoDaten from "@/components/site/SeoDaten";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { AUSKUNFT_PREISE_CENTS, auskunftSchluessel } from "@shared/fiaon-auskunft";
-import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
-import { globalGespraechPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
+import { VERKAUF_PREISE, verkaufEur } from "@shared/fiaon-global-verkauf-preise";
+import { globalGespraechPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
 import { AGENDA } from "@shared/fiaon-onboarding-agenda";
 import { useWoerter, useSprache, inSprache } from "@/i18n/sprache";
 import { PLATTFORM_KONZEPT_WOERTER } from "@/i18n/plattform-konzept";
@@ -115,9 +115,9 @@ export default function PlattformKonzept() {
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
                 <h3>{t.globalTitel}</h3>
-                <p className="pk-preis">{t.globalAb(globalPreisText(GLOBAL_PAKETE[0].key, sprache))}</p>
+                <p className="pk-preis">{t.globalAb(verkaufEur(VERKAUF_PREISE.gruendungCents, sprache))}</p>
                 <p>{t.globalText}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={globalPaketePfad(sprache)}>{t.zuBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={globalSeitePfad(sprache)}>{t.zuBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
               </div>
             )}
             {paket && vorschlag && (

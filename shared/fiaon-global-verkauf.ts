@@ -144,7 +144,10 @@ export interface VerkaufEingabe {
 }
 export type VerkaufFeld = "interessen" | "usd" | "land" | "anrede" | "vorname" | "nachname" | "email" | "telefon";
 const sauber = (v: unknown, max: number) => String(v ?? "").normalize("NFKC").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
-const NAME = /^[\p{L}][\p{L}\p{M} .'’-]{0,78}$/u;
+// Lateinische Buchstaben mit Akzenten (Vertrag und Register führen lateinische Schrift), Leerzeichen, Punkt, Apostroph, Bindestrich —
+// ohne das Regex-Flag „u“ (das Ziel der Übersetzung kennt es nicht).
+const BUCHSTABE = "A-Za-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u024F\\u1E00-\\u1EFF";
+const NAME = new RegExp(`^[${BUCHSTABE}][${BUCHSTABE} .'’-]{0,78}$`);
 const MAIL = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[A-Za-z]{2,}$/;
 
 export function verkaufEingabeLesen(roh: any): { ok: true; eingabe: VerkaufEingabe } | { ok: false; feld: VerkaufFeld; error: string; errorEn: string } {
@@ -242,7 +245,6 @@ export interface VerkaufTexte {
   garantie: { auge: string; h2: string; text: string; fein: string };
   karte: { auge: string; titel: string; zeile: string; punkte: string[]; preisLabel: string; knopf: string; fein: string };
   leiste: { zusammenstellen: (preis: string) => string; gespraech: string };
-  fragen: { f: string; a: string }[];
 }
 
 const DE: VerkaufTexte = {
@@ -451,12 +453,6 @@ const DE: VerkaufTexte = {
     fein: "Endpreis. Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen.",
   },
   leiste: { zusammenstellen: (preis) => `Angebot zusammenstellen · ${preis}`, gespraech: "Gespräch" },
-  fragen: [
-    { f: "Was kostet es?", a: "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator." },
-    { f: "Muss ich in die USA reisen?", a: "Nein. Bis 950.000 US-Dollar läuft alles aus der Ferne; unsere Partner in den USA nehmen die Wege vor Ort wahr. Ab 1 Mio. US-Dollar treffen wir Sie persönlich in Miami." },
-    { f: "Wer leistet Rechts- und Steuerberatung?", a: "Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz, jeweils im eigenen Mandat. FIAON koordiniert und trägt ihre Honorare für die Leistungen, die Ihr Vertrag nennt." },
-    { f: "Was ist, wenn die Finanzierung nicht kommt?", a: "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es als Geld-zurück-Garantie in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
-  ],
 };
 
 const EN: VerkaufTexte = {
@@ -665,12 +661,6 @@ const EN: VerkaufTexte = {
     fein: "Final price. Success fee on registration, according to your capital range.",
   },
   leiste: { zusammenstellen: (preis) => `Build your offer · ${preis}`, gespraech: "Call" },
-  fragen: [
-    { f: "What does it cost?", a: "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range and includes the surety. From the second year you can book annual care. You see your exact price in the configurator." },
-    { f: "Do I have to travel to the United States?", a: "No. Below US$1 million everything runs remotely; our partners in the US take care of what has to happen on the ground. From US$1 million we meet you in person in Miami." },
-    { f: "Who provides legal and tax work?", a: "Lawyers and US accountants (CPAs) from our partner network, each under their own mandate. FIAON coordinates and bears their fees for the services named in your agreement." },
-    { f: "What if the financing does not come?", a: "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing." },
-  ],
 };
 
 export const VERKAUF_TEXTE: Record<VerkaufSprache, VerkaufTexte> = { de: DE, en: EN };

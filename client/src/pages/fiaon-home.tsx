@@ -22,8 +22,8 @@ import { paket as paketVon } from "@shared/fiaon-pakete";
 // Kontoauszügen) — FIAON fordert bei keiner Auskunftei an. Preise aus der einen Quelle; 74 € ist der
 // Kundenpreis mit laufendem Paket, nie der Einzelpreis.
 import { AUSKUNFT_PREISE_CENTS, euroText } from "@shared/fiaon-auskunft";
-import { GLOBAL_PAKETE, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
-import { globalGespraechPfad, globalSeitePfad, globalStartPfad } from "@shared/fiaon-global-wege";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur, verkaufPfad } from "@shared/fiaon-global-verkauf";
+import { globalGespraechPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
 
 const preisText = (key: string) => ((paketVon(key)?.preisCents ?? 0) / 100).toFixed(2).replace(".", ",");
 
@@ -85,25 +85,27 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
     <Block id="setups" pille="Ihr Paket" titel={<>W&auml;hlen Sie, wie weit Sie gehen. <span className="dk-verlauf">Nicht, ob.</span></>}
            lead={tab === "privat"
              ? "Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank."
-             : "FIAON Global: Ihre US-Gesellschaft aus einer Hand – mit einem Team vor Ort in den USA und einem Ansprechpartner. Vier Pakete, jedes zum Einmalpreis. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
+             : "FIAON Global: Ihre US-Gesellschaft aus einer Hand – mit einem Team vor Ort in den USA und einem Ansprechpartner. Ein Mandat, ein Preis mit Ihrem Auftrag. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
       <Auf>
         <div className="dk-tabs" role="tablist">
           {(["privat", "business"] as const).map((t) => <button key={t} type="button" role="tab" data-an={tab === t ? "1" : undefined} onClick={() => setTab(t)}>{t === "privat" ? "Privatkunde" : "Unternehmen"}</button>)}
         </div>
       </Auf>
       <div className="dk-preise" style={{ textAlign: "left" }}>
-        {tab === "business" && GLOBAL_PAKETE.map((g, i) => (
-          <Auf key={`business-${g.key}`} verzoegerung={i * 90}>
+        {/* E-509 (12.11.2026): FIAON Global ist EIN Produkt — statt der vier Paketkarten eine Karte mit dem einen Preis
+            und dem Weg zum Konfigurator. Sätze und Preis aus shared/fiaon-global-verkauf.ts. */}
+        {tab === "business" && (
+          <Auf key="business-ein-produkt">
             <div className="dk-preis" style={{ height: "100%" }}>
-              <p className="name">FIAON {g.de.name}</p>
-              <p className="sub">{g.de.dauer}</p>
-              <p className="betrag dk-verlauf zahl">{globalPreisText(g.key)}<small> einmalig</small></p>
-              <p className="ziel">{g.de.fuer}</p>
-              <ul className="dk-liste">{g.de.leistungen.map((f) => <li key={f}>{f}</li>)}</ul>
-              <a href={globalStartPfad(g.key)} className="dk-knopf still">Direkt beauftragen</a>
+              <p className="name">FIAON Global</p>
+              <p className="sub">{VERKAUF_TEXTE.de.produkt.kurz}</p>
+              <p className="betrag dk-verlauf zahl">{verkaufEur(VERKAUF_PREISE.gruendungCents)}<small> mit Ihrem Auftrag</small></p>
+              <p className="ziel">{VERKAUF_TEXTE.de.karte.zeile}</p>
+              <ul className="dk-liste">{[...VERKAUF_TEXTE.de.karte.punkte, VERKAUF_TEXTE.de.karte.fein].map((f) => <li key={f}>{f}</li>)}</ul>
+              <a href={verkaufPfad("de")} className="dk-knopf still">{VERKAUF_TEXTE.de.karte.knopf}</a>
             </div>
           </Auf>
-        ))}
+        )}
         {tab === "privat" && PRIVATE_PACKS.map((p, i) => (
           <Auf key={`${tab}-${p.key}`} verzoegerung={i * 90}>
             <div className="dk-preis" data-top={p.rec ? "1" : undefined} style={{ height: "100%" }}>
@@ -121,7 +123,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
       <p className="dk-leise" style={{ marginTop: 28, maxWidth: "72ch", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "privat"
           ? `Alle Pakete: monatlich per Überweisung · zwölf Raten, danach entscheiden Sie, ob Sie bleiben · Nur die Bonitätsauswertung? ${euroText(AUSKUNFT_PREISE_CENTS.privat.einzeln)} einmalig, mit laufendem Paket ${euroText(AUSKUNFT_PREISE_CENTS.privat.mitAbo)}. Über Konto, Karte und Rahmen entscheidet die jeweilige Bank.`
-          : `FIAON Global: ein Preis, einmalig – kein Abo, keine Monatsraten. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut. ${GLOBAL_ROLLEN.de.kosten}`}
+          : `FIAON Global: ein Preis mit Ihrem Auftrag, das Erfolgshonorar mit der Eintragung nach Ihrem Kapitalrahmen – kein Abo, keine Monatsraten. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.`}
       </p>
       {tab === "business" && (
         <div className="dk-knoepfe" style={{ marginTop: 22, justifyContent: "center" }}>
@@ -215,7 +217,7 @@ export default function FiaonHome() {
         <div className="dk-raster zwei" style={{ textAlign: "left" }}>
           {[
             { key: "privat" as const, titel: "Für Privatkunden", text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.", ziele: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · eigene Kreditkarte" },
-            { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Vier Pakete zum Einmalpreis · Steuerberater und Anwälte im Partnernetz auf eigenes Mandat · Über Konto, Karte und Rahmen entscheidet das Institut" },
+            { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Ein Mandat, ein Preis · Steuerberater und Anwälte im Partnernetz auf eigenes Mandat · Über Konto, Karte und Rahmen entscheidet das Institut" },
           ].map((w, i) => (
             <Auf key={w.key} verzoegerung={i * 120}>
               <Glas titel={w.titel} style={{ height: "100%", display: "flex", flexDirection: "column" }}>

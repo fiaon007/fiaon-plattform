@@ -29,7 +29,7 @@ import ArasCore from "@/components/home3d/ArasCore";
 import { Team } from "@/components/site/Team";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { AUSKUNFT_PREISE_CENTS } from "@shared/fiaon-auskunft";
-import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur } from "@shared/fiaon-global-verkauf";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 
 type Sprache = "de" | "en";
@@ -210,7 +210,13 @@ export default function Investoren() {
   // 17.09.2026 (E-188): Die Business-Abos sind eingestellt; für Unternehmen gibt
   // es FIAON Global zum Einmalpreis. Gegenüber Investoren steht das so da, wie
   // es ist: neu, ohne Erlöshistorie — keine Zahl, die es noch nicht gibt.
-  const globalZeilen = GLOBAL_PAKETE.map((g) => [globalKatalog(g.key)?.label ?? g[de ? "de" : "en"].name, globalPreisText(g.key, de ? "de" : "en")] as [string, string]);
+  // E-509 (12.11.2026): FIAON Global verkauft EIN Produkt — Preis mit dem Auftrag, Erfolgshonorar nach Kapitalrahmen, Jahresbetreuung.
+  const gs = de ? "de" : "en";
+  const globalZeilen: [string, string][] = [
+    [VERKAUF_TEXTE[gs].produkt.kurz, verkaufEur(VERKAUF_PREISE.gruendungCents, gs)],
+    [VERKAUF_TEXTE[gs].konfig.blatt.eintragungText, de ? "nach Kapitalrahmen" : "by capital range"],
+    [VERKAUF_TEXTE[gs].konfig.blatt.jahr2Text, verkaufEur(VERKAUF_PREISE.jahresCents, gs)],
+  ];
   const V = ({ children }: { children: ReactNode }) => <span className="dk-verlauf">{children}</span>;
 
   return (
@@ -344,7 +350,7 @@ export default function Investoren() {
         ]} />
         <div className="dk-raster zwei" style={{ marginTop: 24 }}>
           <Auf><Glas ruhig tag={de ? "Privatkunden · monatlich" : "Consumers · monthly"}><Zeilen items={privat.map((p) => [p.label, euro(p.preisCents)] as [string, string])} /></Glas></Auf>
-          <Auf verzoegerung={100}><Glas ruhig tag={de ? "Unternehmen · FIAON Global · einmalig" : "Companies · FIAON Global · one-off"}><Zeilen items={globalZeilen} /></Glas></Auf>
+          <Auf verzoegerung={100}><Glas ruhig tag={de ? "Unternehmen · FIAON Global · ein Produkt" : "Companies · FIAON Global · one product"}><Zeilen items={globalZeilen} /></Glas></Auf>
         </div>
         <p className="dk-leise" style={{ marginTop: 16 }}>{de
           ? "Preise aus dem Paketkatalog der Plattform – dieselbe Quelle wie Antrag, Rechnung und Akte. FIAON Global (die US-Struktur für Unternehmen, Einmalpreis) ersetzt seit September 2026 die früheren Geschäftspakete im Verkauf; deren Bestandskunden laufen weiter. Eine Erlöshistorie gibt es für FIAON Global noch nicht."

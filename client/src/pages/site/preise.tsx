@@ -48,8 +48,8 @@ import KartenSzene from "@/components/home3d/KartenSzene";
 import SeoDaten from "@/components/site/SeoDaten";
 import { PAKETE } from "@shared/fiaon-pakete";
 import { AUSKUNFT_PREISE_CENTS, auskunftSchluessel, euroText } from "@shared/fiaon-auskunft";
-import { GLOBAL_PAKETE, globalPreisText } from "@shared/fiaon-global";
-import { globalGespraechPfad, globalPaketePfad, globalStartPfad } from "@shared/fiaon-global-wege";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur, verkaufPfad } from "@shared/fiaon-global-verkauf";
+import { globalGespraechPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
 import "@/styles/preise.css";
 import "@/styles/plattform-konzept.css";
 import "@/styles/seo-seiten.css";
@@ -162,9 +162,9 @@ export default function Preise() {
               <div className="pk-ergebnis">
                 <small>{t.vorschlag}</small>
                 <h3>{t.globalTitel}</h3>
-                <p className="pk-preis">{t.globalAb(globalPreisText(GLOBAL_PAKETE[0].key, sprache))}</p>
+                <p className="pk-preis">{t.globalAb(verkaufEur(VERKAUF_PREISE.gruendungCents, sprache))}</p>
                 <p>{t.globalText}</p>
-                <div className="pk-weg-knoepfe"><Knopf href={globalPaketePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
+                <div className="pk-weg-knoepfe"><Knopf href={globalSeitePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
               </div>
             )}
             {paketV && vorschlag && (
@@ -248,9 +248,10 @@ export default function Preise() {
       </Licht>
 
       <Block id="business" pille={t.businessPille} titel={<>{t.businessH2a}<span className="dk-verlauf">{t.businessH2b}</span></>} lead={t.businessLead}>
-        <div className="pr-business">{GLOBAL_PAKETE.map((g, i) => <Auf key={g.key} verzoegerung={i * 60}><a href={globalStartPfad(g.key, sprache)} className="pr-bkarte"><small>{g[sprache].name}</small><b>{globalPreisText(g.key, sprache)}</b><span>{t.globalEinmalig}</span><span>{g[sprache].fuer}</span></a></Auf>)}</div>
+        {/* E-509 (12.11.2026): FIAON Global ist EIN Produkt — eine Karte statt vier Paketkarten (Sätze und Preis aus shared/fiaon-global-verkauf.ts). */}
+        <div className="pr-business"><Auf><a href={verkaufPfad(sprache)} className="pr-bkarte"><small>{VERKAUF_TEXTE[sprache].produkt.kurz}</small><b>{verkaufEur(VERKAUF_PREISE.gruendungCents, sprache)}</b><span>{t.globalEinmalig}</span><span>{VERKAUF_TEXTE[sprache].karte.zeile}</span></a></Auf></div>
         <p className="dk-leise" style={{ marginTop: 18, maxWidth: "78ch" }}>{t.globalKosten}</p>
-        <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={globalPaketePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
+        <div className="dk-knoepfe" style={{ marginTop: 24 }}><Knopf href={globalSeitePfad(sprache)}>{t.zurBusiness}</Knopf><Knopf href={globalGespraechPfad(sprache)} still>{t.globalGespraech}</Knopf></div>
       </Block>
 
       <Licht>

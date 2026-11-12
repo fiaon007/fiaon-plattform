@@ -246,7 +246,7 @@ const de = {
   // ── 6 Erstgespräch ──
   gespraechAuge: "Erstgespräch",
   gespraechH2: "Erst sprechen, dann entscheiden.",
-  gespraechLead: "Vorhaben, Wohnsitz, Ziel — und welches Paket dazu passt.",
+  gespraechLead: "Vorhaben, Wohnsitz, Ziel — in dreißig Minuten, kostenfrei und ohne Verpflichtung.",
 
   // ── 7 Fragen ──
   fragenAuge: "Häufige Fragen",
@@ -257,25 +257,23 @@ const de = {
   // arbeiten“ — FIAON trägt die Honorare für die Leistungen des Pakets, nicht jede Rechnung rund um die Gesellschaft.
   // Reihenfolge bleibt; /business zeigt zuerst die Fragen FRAGEN_ZUERST (business.tsx), die übrigen hinter „Alle 18 Fragen“.
   fragen: [
-    { f: "Was ist im Festpreis enthalten?", a: "Alle Gebühren und Honorare für die Leistungen Ihres Pakets: staatliche Gründungsgebühren, Registered Agent, US-Adresse und Telefon im ersten Jahr, die Anträge für EIN und ITIN, die Honorare unseres Partner-Anwalts, unseres Partner-Steuerberaters und unseres US-CPA sowie die Arbeit unseres Teams vor Ort. Sie zahlen einen Preis — die Honorare für die Leistungen Ihres Pakets trägt FIAON." },
-    { f: "Warum kostet das mehr als eine Online-Gründung?", a: "Eine Online-Gründung liefert die Gesellschaft — und endet dort. Im Festpreis stecken zusätzlich EIN und ITIN, Registered Agent, US-Adresse und Telefon im ersten Jahr, das Operating Agreement unseres Partner-Anwalts, die Prüfung durch unseren Partner-Steuerberater vor der Gründung, die erste jährliche US-Meldung durch unseren US-CPA, die vorbereiteten Konto- und Kartenanträge und ein Ansprechpartner, der alles zusammenhält. Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger — das sagen wir Ihnen auch im Gespräch." },
+    // E-509 (12.11.2026): ein Produkt statt vier Pakete — die Fragen sprechen vom einen Mandat. Die Startseite zeigt die ersten fünf,
+    // die übrigen hinter „Alle Fragen“. Reine Zeichenketten: scripts/seo-fragen-erzeugen.ts liest sie als Text ins FAQ-Markup.
+    { f: "Was kostet es?", a: "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator." },
+    { f: "Muss ich in die USA reisen?", a: "Nein. Bis 950.000 US-Dollar läuft alles aus der Ferne; unsere Partner in den USA nehmen die Wege vor Ort wahr. Ab 1 Mio. US-Dollar treffen wir Sie persönlich in Miami." },
+    { f: "Wer leistet Rechts- und Steuerberatung?", a: "Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz, jeweils im eigenen Mandat. FIAON koordiniert und trägt ihre Honorare für die Leistungen, die Ihr Vertrag nennt." },
+    { f: "Was ist, wenn die Finanzierung nicht kommt?", a: "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
     { f: "Entscheidet FIAON über Karten und Rahmen?", a: "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge." },
     // 19.09.2026 (Justin): wortgleich mit GLOBAL_KAPITAL_FREI.de (frage/antwort) — scripts/pruef-global-seiten.ts prüft das.
     { f: "Muss das Kapital in den USA ausgegeben werden?", a: "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen." },
-    { f: "Was passiert, wenn eine Bank oder ein Herausgeber ablehnt?", a: "Das kommt vor — jedes Institut entscheidet nach eigenen Regeln. Ihr Ansprechpartner klärt mit Ihnen den Grund, soweit das Institut ihn nennt, und plant den nächsten Schritt; ab Global Banking bereiten wir jeden weiteren Antrag vollständig vor. Die Geld-zurück-Zusage gilt für Gesellschaft und EIN — Entscheidungen von Banken und Kartenherausgebern sind nicht Teil davon." },
     { f: "Wie prüfe ich, ob FIAON seriös ist?", a: "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den Vertrag lesen Sie vorab als Mustervertrag. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto." },
     { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD mit Sitz in London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Ihr Vertrag ist auf Deutsch und unterliegt deutschem Recht. Steuerberater, US-CPA und Anwälte arbeiten auf Ihr Mandat; ihre Honorare trägt FIAON." },
-    { f: "Muss ich in die USA reisen?", a: "In der Regel nicht. Unser Team vor Ort nimmt die Termine wahr. Wer den Aufbau persönlich erleben möchte, wählt Global VIP — Flug und Hotel für den Auftakt in Miami sind dort im Festpreis enthalten." },
     { f: "Was ist mit Steuern?", a: "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Unser Partner-Steuerberater prüft Ihre Lage vor der Gründung, unser US-CPA übernimmt die erste jährliche US-Meldung — beide auf Ihr Mandat, die Honorare trägt FIAON." },
-    { f: "Kann mein eigener Steuerberater mitarbeiten?", a: "Ja. Ihr Steuerberater bleibt Ihr Steuerberater. Unser Partner-Steuerberater prüft die US-Struktur vor der Gründung und stimmt sich auf Ihren Wunsch mit ihm ab. Die Honorare unserer Partner für die Leistungen Ihres Pakets trägt FIAON — die Ihres eigenen Steuerberaters nicht." },
-    { f: "Wie lange dauert es?", a: "Gründung und Dokumente in der Regel wenige Wochen, die ITIN in der Frist der US-Steuerbehörde, die erste Firmenkarte danach, weitere Herausgeber über mehrere Monate. Feste Fristen nennen wir nicht — Behörden und Institute bestimmen das Tempo." },
     // E-465 (29.10.2026): wortgleich mit STAAT_WAHL_SATZ.de (shared/fiaon-global-bundesstaaten.ts) — scripts/pruef-global-bundesstaaten.ts prüft das.
     { f: "In welchem US-Bundesstaat gründen Sie?", a: "Wir gründen in Delaware, Florida oder Wyoming — Sie wählen mit uns im Startgespräch. Wenn nichts anderes dafür spricht, gründen wir in Delaware: Mit dem Express des Staats steht die Gesellschaft in der Regel nach ein bis zwei Werktagen, und Delaware hat den besten Ruf bei Banken und Geldgebern. Florida trägt derzeit langsamer ein (oft rund zwei Wochen, ohne Express), Wyoming ist schnell und am günstigsten im Unterhalt." },
-    { f: "Welche Unterlagen brauchen Sie von mir?", a: "Fünf: eine Farbkopie des Reisepasses der Gesellschafter und der Geschäftsführung, einen Adressnachweis, der nicht älter als drei Monate ist, die Gesellschafterliste oder einen Handelsregisterauszug Ihres Unternehmens, drei Namensvarianten für die US-Gesellschaft und eine kurze Beschreibung der Geschäftstätigkeit. Alles Weitere besorgt unser Team. Beauftragen Sie als Privatperson, entfällt der Registerauszug." },
-    { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: "Mit der Jahresbetreuung 699 € im Jahr, alle Gebühren inklusive: Registered Agent, US-Adresse und Telefonnummer, die jährliche US-Meldung durch unseren US-CPA, die Jahresmeldung beim Bundesstaat samt Staatsgebühr und der Pflichtenkalender. Sie buchen sie im Auftrag dazu; sie verlängert sich nicht von selbst." },
-    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie wählen ein Paket, tragen Ihr Unternehmen oder sich selbst als Privatperson ein, unterschreiben den Vertrag am Bildschirm und erhalten Vertrag und Rechnung per E-Mail. Mit dem Zahlungseingang beginnt Ihr Ansprechpartner — als Privatperson auf Ihren Wunsch sofort, sonst nach Ablauf der Widerrufsfrist." },
-    { f: "Kann ich auch als Privatperson beauftragen?", a: "Ja. Sie brauchen keine eigene Firma: Im Auftrag wählen Sie „Privatperson“, werden selbst Gesellschafter der US-Gesellschaft und erhalten Vertrag und Rechnung auf Ihren Namen. Der Festpreis ist für Sie ein Endpreis; handeln Sie als Verbraucher, gilt das gesetzliche Widerrufsrecht von vierzehn Tagen." },
-    { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Das Paket zahlen Sie einmal, ohne Abo und ohne Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst." },
+    { f: "Welche Unterlagen brauchen Sie von mir?", a: "Für den Vertrag Ihren Namen, Ihr Geburtsdatum und Ihre Anschrift — Sie tragen sie selbst auf Ihrer Angebotsseite ein. Nach der Unterschrift laden Sie Ihren Reisepass hoch. Alles Weitere bereiten wir vor; Sie unterschreiben, was wir Ihnen fertig zuschicken." },
+    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen, tragen Ihre Angaben ein und unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail." },
+    { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Kein Abo, keine Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst." },
     { f: "Für wen passt es nicht?", a: "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist." },
   ],
   // ── 8 Schlussband ──
@@ -517,31 +515,28 @@ const en: typeof de = {
 
   gespraechAuge: "First call",
   gespraechH2: "Talk first, then decide.",
-  gespraechLead: "Your plans, your country of residence, your goal — and which package fits.",
+  gespraechLead: "Your plans, your country of residence, your goal — thirty minutes, free of charge and without obligation.",
 
   fragenAuge: "Frequently asked questions",
   fragenH2: "What business owners and founders ask before ordering.",
   fragenAlle: "All answers about FIAON Global",
   fragenAlleZahl: (n: number) => `All ${n} questions`,
   fragen: [
-    { f: "What is included in the fixed price?", a: "All fees and charges for the services in your package: US state formation fees, registered agent, US address and phone in the first year, the EIN and ITIN applications, the fees of our partner lawyer, partner tax adviser and US CPA, and the work of our team on the ground. You pay one price — FIAON pays the fees for the services in your package." },
-    { f: "Why does this cost more than an online formation?", a: "An online formation delivers the company — and stops there. The fixed price also covers EIN and ITIN, registered agent, US address and phone in the first year, the operating agreement by our partner lawyer, the review by our partner tax adviser before formation, the first annual US filing by our US CPA, the prepared account and card applications and one contact who keeps it all together. If all you need is the company, a pure formation service costs less — we tell you that in the call as well." },
+    // E-509 (12.11.2026): one product instead of four packages — same questions as the German list.
+    { f: "What does it cost?", a: "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range and includes the surety. From the second year you can book annual care. You see your exact price in the configurator." },
+    { f: "Do I have to travel to the United States?", a: "No. Below US$1 million everything runs remotely; our partners in the US take care of what has to happen on the ground. From US$1 million we meet you in person in Miami." },
+    { f: "Who provides legal and tax work?", a: "Lawyers and US accountants (CPAs) from our partner network, each under their own mandate. FIAON coordinates and bears their fees for the services named in your agreement." },
+    { f: "What if the financing does not come?", a: "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing." },
     { f: "Does FIAON decide on cards and limits?", a: "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence." },
     { f: "Does the capital have to be spent in the US?", a: "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes." },
-    { f: "What happens if a bank or issuer declines?", a: "It happens — every institution decides under its own rules. Your contact works out the reason with you, as far as the institution gives one, and plans the next step; from Global Banking onwards we prepare every further application in full. The money-back commitment covers the company and the EIN — decisions by banks and card issuers are not part of it." },
     { f: "How do I check that FIAON is reputable?", a: "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the contract in advance as a model contract. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account." },
     { f: "Who is my contracting party?", a: "FIAON LTD, based in London and registered at Companies House (England and Wales) under number 17318250. Your contract is governed by German law. Tax advisers, US CPAs and lawyers act under your engagement; FIAON pays their fees." },
-    { f: "Do I have to travel to the US?", a: "Usually not. Our team on the ground attends the appointments. If you want to experience the build-up in person, choose Global VIP — flights and hotel for the kick-off in Miami are included in its fixed price." },
     { f: "What about taxes?", a: "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Our partner tax adviser reviews your position before formation and our US CPA handles the first annual US filing — both under your engagement, with FIAON paying their fees." },
-    { f: "Can my own tax adviser be involved?", a: "Yes. Your tax adviser remains your tax adviser. Our partner tax adviser reviews the US structure before formation and coordinates with them if you wish. FIAON pays our partners’ fees for the services in your package — not those of your own tax adviser." },
-    { f: "How long does it take?", a: "Formation and documents typically a few weeks, the ITIN on the US tax authority's timeline, the first business card after that, further issuers over several months. We do not quote fixed deadlines — authorities and institutions set the pace." },
     // E-465 (29.10.2026): word for word STAAT_WAHL_SATZ.en (shared/fiaon-global-bundesstaaten.ts) — checked by scripts/pruef-global-bundesstaaten.ts.
     { f: "Which US state do you form in?", a: "We form in Delaware, Florida or Wyoming — you choose with us in the kick-off call. Unless something speaks for another state, we form in Delaware: with the state’s express service the company usually stands after one or two business days, and Delaware has the strongest reputation with banks and lenders. Florida is registering more slowly at present (often around two weeks, no express option); Wyoming is fast and the cheapest to maintain." },
-    { f: "Which documents do you need from me?", a: "Five: a colour copy of the passports of the shareholders and managing directors, proof of address no older than three months, the shareholder list or a commercial register extract of your company, three name variants for the US company and a short description of the business activity. Our team obtains everything else. If you order as a private individual, the register extract is not needed." },
-    { f: "What does the company cost from the second year?", a: "With the annual care plan €699 a year, all fees included: registered agent, US address and phone number, the annual US filing by our US CPA, the annual report to the state including the state fee, and the compliance calendar. You add it when you order; it does not renew automatically." },
-    { f: "Can I order straight away?", a: "Yes. You choose a package, enter your company or yourself as a private individual, sign the contract on screen and receive contract and invoice by email. Your contact starts once payment has been received — as a private individual immediately if you request it, otherwise after the withdrawal period." },
-    { f: "Can I order as a private individual?", a: "Yes. You do not need a company of your own: in the order you choose “Private individual”, become the shareholder of the US company yourself and receive contract and invoice in your name. The fixed price is your final price; if you act as a consumer, the statutory fourteen-day right of withdrawal applies." },
-    { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. You pay for the package once, with no subscription and no instalments; the annual care plan from the second year is optional and does not renew automatically." },
+    { f: "Which documents do you need from me?", a: "For the agreement your name, your date of birth and your address — you enter them yourself on your offer page. After signing you upload your passport. We prepare everything else; you sign what we send you ready to sign." },
+    { f: "Can I order straight away?", a: "Yes. You put your offer together in the configurator, enter your details and sign on screen. The agreement and the invoice arrive by email." },
+    { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. No subscription, no instalments; annual care from the second year is voluntary and does not renew automatically." },
     { f: "Who is it not for?", a: "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no." },
   ],
   schlussA: "A structure that belongs to you — ",
@@ -712,7 +707,7 @@ export const GLOBAL_GESPRAECH_WOERTER = { de: gespraechDe, en: gespraechEn };
 // ═══════════════════════════════════════════════════════════════════════════
 const fussDe = {
   label: "FIAON Global — Fußzeile",
-  satz: "US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Festpreis, alle Gebühren des Pakets inklusive.",
+  satz: "US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Ein Mandat, ein Preis mit Ihrem Auftrag.",
   gespraech: "Gespräch vereinbaren",
   beauftragen: "Beauftragen",
   auftrag: "Mein Auftrag",
@@ -738,7 +733,7 @@ const fussDe = {
 
 const fussEn: typeof fussDe = {
   label: "FIAON Global — footer",
-  satz: "Your US company from one source — for companies and private individuals. Fixed price, all package fees included.",
+  satz: "Your US company from one source — for companies and private individuals. One mandate, one price with your order.",
   gespraech: "Arrange a call",
   beauftragen: "Order now",
   auftrag: "My order",

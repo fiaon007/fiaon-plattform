@@ -13,7 +13,7 @@
 //   → So läuft es (#ablauf): vier Schritte
 //   → Der Konfigurator (#konfigurator): Schwerpunkte, Kapitalrahmen, Preisblatt, Angaben — die EINE dunkle Glasfläche
 //   → Geld-zurück-Garantie
-//   → Vorführraum (Filme), Instagram/Facebook
+//   → Instagram/Facebook (der Vorführraum pausiert, bis Filme und Konzept-PDF zum einen Produkt passen)
 //   → Ein Ansprechpartner statt acht (#leistungen), Der Bogen (#bogen)
 //   → Erstgespräch (#gespraech) → Fragen (#fragen) → Schlussband → Klebeleiste am Handy.
 // Weg seit E-509: die vier Pakettafeln, die Viererwahl, die Vergleichstabelle, der Paketfuß, das Band „Jahresbetreuung“
@@ -32,7 +32,6 @@ import SternZentrale from "@/components/site/global/SternZentrale";
 import HeroGlas from "@/components/site/global/HeroGlas";
 import GlobalBogen from "@/components/site/global/GlobalBogen";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
-import GlobalVorfuehrraum from "@/components/site/global/GlobalVorfuehrraum";
 import { VerkaufProdukt, VerkaufAblauf, VerkaufGarantie } from "@/components/site/global/VerkaufProdukt";
 import VerkaufKonfigurator from "@/components/site/global/VerkaufKonfigurator";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
@@ -50,13 +49,6 @@ function Winkel({ offen }: { offen: boolean }) {
 const Pfeil = () => (
   <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
 );
-
-/**
- * Die Fragen der Startseite: zuerst die vier des Verkaufsmotors (Preis, Reise, Recht und Steuern, Garantie), dann die
- * Fragen aus dem Wörterbuch, die ohne Pakete auskommen (Index in GLOBAL_WOERTER.fragen): Wer entscheidet, Kapital in
- * Europa, seriös, Vertragspartner, Steuern, für wen es nicht passt.
- */
-const FRAGEN_BLEIBEN = [2, 3, 5, 6, 8, 17];
 
 /** Ein Abschnitt, der einmal `data-an` bekommt, wenn er ins Bild kommt (Glanz der H2 einmal, Grafiken). */
 function Sek({ id, className, children }: { id?: string; className: string; children: ReactNode }) {
@@ -127,7 +119,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const frei = GLOBAL_KAPITAL_FREI[s];
   const buehne = GLOBAL_BUEHNE_WOERTER[s];
 
-  const fragen = [...V.fragen, ...FRAGEN_BLEIBEN.map((i) => basis.fragen[i]).filter(Boolean)];
+  // Die Fragen stehen im Wörterbuch (i18n/global.ts) — dieselbe Liste, aus der das FAQ-Markup für Suchmaschinen entsteht.
+  const fragen = basis.fragen;
   const fragenZuerst = fragen.slice(0, 5);
   const fragenRest = fragen.slice(5);
 
@@ -176,8 +169,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         {/* ── 5 Geld-zurück-Garantie ── */}
         <VerkaufGarantie sprache={s} />
 
-        {/* ── 6 Der Vorführraum (E-313): die Filme im iPhone, das Kino mit Ton, das Konzept als PDF-Mappe ── */}
-        <GlobalVorfuehrraum />
+        {/* E-509 (12.11.2026): Der Vorführraum (E-313: Filme, Kino, Konzept als PDF-Mappe) steht hier vorerst nicht — Konzept-PDF
+            und Filme zeigen noch die vier Pakete mit ihren alten Preisen. Er kommt zurück, sobald sie zum einen Produkt passen
+            (components/site/global/GlobalVorfuehrraum.tsx bleibt unverändert). */}
 
         {/* ── 6b FIAON auf Instagram und Facebook (E-296): NUR Beiträge von FIAON Global ── */}
         <SozialFenster aussehen="kanzlei" marke="global" />

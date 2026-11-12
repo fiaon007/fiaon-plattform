@@ -51,6 +51,8 @@ import { GLOBAL_KONTO_WOERTER } from "../client/src/i18n/global-konto";
 import { KONTO_SAETZE } from "../shared/fiaon-global-konto";
 // E-432 (Nachprüfung 27.10.2026): das Kapital-Angebot der Fassung C (Privatperson) — Seite, Annahme, Übersicht, Bestätigung, „Mein Auftrag“.
 import * as KC from "../shared/fiaon-global-angebot-kapital-c";
+// E-509 (12.11.2026): der Verkaufsmotor — Startseite, Konfigurator, Karte „Ein Mandat“ (ein Produkt statt vier Pakete).
+import { VERKAUF_TEXTE } from "../shared/fiaon-global-verkauf";
 // E-476 Scheibe 4 (05.11.2026): Justins Lead-Mails (Willkommen, Nachfass N1–N3) und die Sätze der Bestätigung/Vortag-Mail —
 // jede deutsche Fassung mit Musterwerten (die Mail-Wand selbst prüft scripts/pruef-lead-mails.ts für ALLE Antwort-Kombinationen).
 import * as LT from "../shared/fiaon-global-lead-texte";
@@ -169,9 +171,11 @@ sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
       absaetze: KC.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC", tempoFassung: d.parameter.tempoFassung }), fussnote: KC.KAPITAL_C_BESTAETIGUNG.fussnote }, "kapital-c/bestaetigung", texte);
   }
 }
+// E-509: Jeder Satz des Verkaufsmotors — „Garantie“ auch dort nur als Name der vertraglichen Geld-zurück-Garantie (Pfad verkauf/).
+sammle(VERKAUF_TEXTE.de, "verkauf/texte", texte);
 /** Fassung C: ein Satz mit „Garantie“ ist erlaubt, wenn er die Geld-zurück-Garantie (oder ihre Frist) meint — nie ein „garantiert“. */
 const kapitalCGarantie = (pfad: string, text: string, treffer: string) =>
-  pfad.startsWith("kapital-c/") && /garant/i.test(treffer) && /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(text) && !/\bgarantier/i.test(text);
+  (pfad.startsWith("kapital-c/") || pfad.startsWith("verkauf/")) && /garant/i.test(treffer) && /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(text) && !/\bgarantier/i.test(text);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

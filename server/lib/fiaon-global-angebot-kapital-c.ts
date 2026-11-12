@@ -1282,7 +1282,7 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
     gebuehren: { buergschaftCents: par.erfolgCents, auszahlungCents: 0, vereinbart: true, garantieWochen: par.garantieWochen },
     knopfTexte: {
       buergschaft: par.bestand
-        ? { knopf: kapitalCTeil2Fuer(par).knopf, datum: kapitalCTeil2Fuer(par).datumLabel, hinweis: `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar, sobald die bestehende Gesellschaft (${par.bestand.name}) übernommen und bankfertig ist — Berichtigungen eingereicht, Operating Agreement unterschrieben.`, ereignis: "übernommen" }
+        ? { knopf: kapitalCTeil2Fuer(par).knopf, datum: kapitalCTeil2Fuer(par).datumLabel, hinweis: par.bestand.erfolgBei === "buergschaft" ? `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar erst, wenn die bestehende Gesellschaft (${par.bestand.name}) übernommen ist UND die Bürgschaft steht — vorher nicht drücken.` : `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar, sobald die bestehende Gesellschaft (${par.bestand.name}) übernommen und bankfertig ist — Berichtigungen eingereicht, Operating Agreement unterschrieben.`, ereignis: par.bestand.erfolgBei === "buergschaft" ? "übernommen, Bürgschaft steht" : "übernommen" }
         : { knopf: KAPITAL_C_TEIL2.knopf, datum: `${KAPITAL_C_TEIL2.datumLabel} (Bundesstaat)`, hinweis: `${KAPITAL_C_TEIL2.ziffer}: Erfolgshonorar mit der Eintragung der Gesellschaft.`, ereignis: "eingetragen" },
       auszahlung: { knopf: KAPITAL_C_AUSZAHLUNG.knopf, datum: KAPITAL_C_AUSZAHLUNG.datumLabel, hinweis: KAPITAL_C_AUSZAHLUNG.hinweis, ereignis: "ausgezahlt", ohneRechnung: true },
     },

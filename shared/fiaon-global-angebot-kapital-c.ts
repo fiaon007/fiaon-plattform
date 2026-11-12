@@ -262,7 +262,8 @@ export interface KapitalCParameter {
    * E-506 (Justin 12.11.2026): Der Kunde HAT schon eine US-Gesellschaft — FIAON gründet nicht neu, sondern übernimmt die bestehende
    * („übernehmen statt neu gründen“). Mit diesem Schlüssel sprechen Vertrag, Seite, Übersicht, Annahme, Bestätigung und „Mein Auftrag“
    * von der Übernahme (kapitalCBestandTexte): kein Name zu wählen, kein Fast-Track (ein Preis, alles enthalten), das Erfolgshonorar
-   * wird fällig, sobald die Gesellschaft übernommen und bankfertig ist (statt mit der Eintragung). Fehlt er (Bestand): alles wie bisher.
+   * wird fällig, sobald die Gesellschaft übernommen und bankfertig ist (statt mit der Eintragung) — oder, mit bestand.erfolgBei
+   * „buergschaft“, erst nach Übernahme UND Bürgschaft. Fehlt er (Bestand): alles wie bisher.
    */
   bestand?: KapitalCBestand;
 }
@@ -277,6 +278,12 @@ export interface KapitalCBestand {
   daten: { label: string; wert: string }[];
   gut: string[];
   ordnung: string[];
+  /**
+   * E-506, Nachtrag (Justin 12.11.2026): „Er bezahlt nach erfolgreicher Übernahme und Bürgschaft, dann ist ja eh schon alles durch.“
+   * „buergschaft“ = das Erfolgshonorar wird fällig, sobald die Gesellschaft übernommen ist UND die Bürgin die Bürgschaft nach
+   * Ziffer 5 übernommen hat (Ziffer 6 Absatz 2) — statt schon bei „übernommen und bankfertig“. Fehlt der Schlüssel: wie bisher.
+   */
+  erfolgBei?: "buergschaft";
 }
 /** Die Vorgabe bereinigt — oder null (fehlt, ohne Namen, ohne Bundesstaat oder ohne gültigen Eintragungstag: dann kein Schlüssel). */
 export function kapitalCBestandAus(roh: unknown): KapitalCBestand | null {
@@ -291,6 +298,7 @@ export function kapitalCBestandAus(roh: unknown): KapitalCBestand | null {
     name, bundesstaat, registerNr: textAus(o.registerNr, 40), eingetragenAm,
     registerStatus: textAus(o.registerStatus, 40), registerStand: ISO.test(String(o.registerStand ?? "")) ? String(o.registerStand) : "",
     daten, gut: zeilen(o.gut, 10, 220), ordnung: zeilen(o.ordnung, 10, 260),
+    ...(o.erfolgBei === "buergschaft" ? { erfolgBei: "buergschaft" as const } : {}),
   };
 }
 /** „MUSTER“ aus „MUSTER LLC“ — der Stamm für den Annahmevermerk (dort setzt llcVollname „LLC“ wieder dahinter). */
@@ -895,7 +903,9 @@ export function kapitalCBestandTexte(d: Pick<KapitalCDaten, "parameter">) {
   const jahr1 = kapitalCEur(kapitalCErstesJahrCents(par)); const jahres = kapitalCEur(par.jahresCents);
   const zahlbar = kapitalCZahlbar(par.zahlungszielTage); const ziel = zahlwort(par.zielWochen); const wochen = zahlwort(par.garantieWochen);
   const DK = par.datenVomKunden;
-  const fertig = "sobald Ihre Gesellschaft übernommen und bankfertig ist";
+  /** Erfolgshonorar erst nach Übernahme UND Bürgschaft (erfolgBei) — sonst schon bei „übernommen und bankfertig“. */
+  const A = B.erfolgBei === "buergschaft";
+  const fertig = A ? "sobald Ihre Gesellschaft übernommen ist und unsere US-Partnergesellschaft für Ihre Finanzierung bürgt" : "sobald Ihre Gesellschaft übernommen und bankfertig ist";
   return {
     name, staat, seit,
     // ── Vertrag ──
@@ -924,7 +934,9 @@ export function kapitalCBestandTexte(d: Pick<KapitalCDaten, "parameter">) {
     z2zusicherung: "Der Auftraggeber versichert, dass er alleiniger Gesellschafter der Gesellschaft ist und dass sie bei Vertragsschluss weder ein Bankkonto unterhält noch Verträge geschlossen oder Verbindlichkeiten eingegangen ist, die er FIAON nicht in Textform genannt hat. Die Unterlagen der Gesellschaft, die ihm vorliegen, stellt er FIAON bereit.",
     zielSatz: `Ziel der Parteien ist die Auszahlung binnen ${ziel} Wochen ab Auftragserteilung. Verbindlich ist allein die Frist der ${KAPITAL_C_GARANTIE_NAME} nach Absatz 5.`,
     verguetungSatz: `Für die Leistungen nach Ziffer 2 und 3 im ersten Jahr (Übernahme der Gesellschaft, Konto und Karten) zahlt der Auftraggeber einmalig ${preis}; darin ist alles enthalten, was Ziffer 2 und 3 nennen. Der Betrag ist mit Vertragsschluss fällig; FIAON stellt die Rechnung bei Annahme dieses Vertrags, zahlbar ${zahlbar} ohne Abzug per Überweisung. FIAON beginnt mit dem Zahlungseingang (Ziffer 10 Absatz 2).`,
-    erfolgSatz: `Sobald die Gesellschaft übernommen und für Bank und Finanzierung vorbereitet ist — die Berichtigungen nach Ziffer 2 sind eingereicht, und das Operating Agreement liegt unterschrieben vor —, wird das Erfolgshonorar von ${erfolg} fällig; FIAON teilt dem Auftraggeber diesen Stand in Textform mit. Es schließt die Bürgschaft nach Ziffer 5 ein. FIAON berechnet es mit Rechnung, zahlbar ${zahlbar}. Kommt es nicht dazu, entfällt es. Im ersten Jahr zahlt der Auftraggeber damit insgesamt ${jahr1}.`,
+    erfolgSatz: A
+      ? `Sobald die Gesellschaft übernommen ist — die Berichtigungen nach Ziffer 2 sind eingereicht, und das Operating Agreement liegt unterschrieben vor — und die Bürgin die Bürgschaft nach Ziffer 5 übernommen hat, wird das Erfolgshonorar von ${erfolg} fällig; FIAON teilt dem Auftraggeber diesen Stand in Textform mit. Es schließt die Bürgschaft nach Ziffer 5 ein. FIAON berechnet es mit Rechnung, zahlbar ${zahlbar}. Kommt es nicht dazu, entfällt es. Im ersten Jahr zahlt der Auftraggeber damit insgesamt ${jahr1}.`
+      : `Sobald die Gesellschaft übernommen und für Bank und Finanzierung vorbereitet ist — die Berichtigungen nach Ziffer 2 sind eingereicht, und das Operating Agreement liegt unterschrieben vor —, wird das Erfolgshonorar von ${erfolg} fällig; FIAON teilt dem Auftraggeber diesen Stand in Textform mit. Es schließt die Bürgschaft nach Ziffer 5 ein. FIAON berechnet es mit Rechnung, zahlbar ${zahlbar}. Kommt es nicht dazu, entfällt es. Im ersten Jahr zahlt der Auftraggeber damit insgesamt ${jahr1}.`,
     sofortSatz: "Der Auftraggeber hat bei der Annahme ausdrücklich verlangt, dass FIAON vor Ablauf der Widerrufsfrist mit der Ausführung beginnt. Ihm ist bekannt, dass er im Fall des Widerrufs einen angemessenen Betrag für die bis dahin erbrachten Leistungen zahlt und dass sein Widerrufsrecht erlischt, wenn FIAON die Leistungen vollständig erbracht hat.",
     widerrufGesellschaft: " Die Gesellschaft bleibt dem Auftraggeber; ihre US-Meldepflichten nach Ziffer 8 bestehen fort.",
     // ── Seite ──
@@ -937,7 +949,8 @@ export function kapitalCBestandTexte(d: Pick<KapitalCDaten, "parameter">) {
     weg1: { nr: 1, titel: "Ihre Gesellschaft in Ordnung", dauer: "Woche eins", text: `Wir prüfen Ihre ${name}, reichen die Berichtigungen ein, setzen das Operating Agreement auf und stellen Adresse, Telefonnummer und Assistenz bereit. Sie unterschreiben, was wir vorbereiten.${DK ? " Los geht es, sobald Ihr Reisepass da ist — Sie laden ihn direkt nach der Unterschrift hoch." : ""}` } as FirmaPhase,
     investZeile: `Mit Ihrem Auftrag ${preis} — darin ist alles enthalten; ${fertig}, ${erfolg} einschließlich Bürgschaft — im ersten Jahr insgesamt ${jahr1}; ab dem zweiten Jahr ${jahres} je Jahr. Alle Beträge sind Endpreise.`,
     invest1: { wann: "Mit Ihrem Auftrag", betrag: preis, text: "Übernahme Ihrer Gesellschaft, Konto und Karten — alles enthalten: Prüfung, Berichtigungen, Operating Agreement, Adresse, Telefonnummer und Assistenz" },
-    invest2: { wann: "Sobald Ihre Gesellschaft bankfertig ist", betrag: erfolg, text: `Erfolgshonorar für die abgeschlossene Übernahme, einschließlich Bürgschaft. Kommt die Auszahlung nicht binnen ${wochen} Wochen, erhalten Sie auch diesen Betrag zurück.` },
+    invest2: A ? { wann: "Nach Übernahme und Bürgschaft", betrag: erfolg, text: `Erfolgshonorar einschließlich Bürgschaft — erst fällig, wenn Ihre Gesellschaft übernommen ist und unsere US-Partnergesellschaft die Bürgschaft für Ihre Finanzierung übernommen hat. Kommt die Auszahlung nicht binnen ${wochen} Wochen, erhalten Sie auch diesen Betrag zurück.` }
+      : { wann: "Sobald Ihre Gesellschaft bankfertig ist", betrag: erfolg, text: `Erfolgshonorar für die abgeschlossene Übernahme, einschließlich Bürgschaft. Kommt die Auszahlung nicht binnen ${wochen} Wochen, erhalten Sie auch diesen Betrag zurück.` },
     frageWarum: { frage: "Warum übernehmen Sie meine Gesellschaft, statt neu anzufangen?", antwort: [`Weil Ihre ${name} seit dem ${seit} besteht und ihre Steuernummer schon hat. Das spart Ihnen Wochen — und ein Unternehmen mit Geschichte hat es bei Bank und Finanzierung leichter als ein ganz neues.`, "Voraussetzung ist, dass alles stimmt. Deshalb prüfen wir zuerst jede Unterlage und bringen in Ordnung, was nicht passt — das ist in Ihrem Preis enthalten."] },
     frageReisen: { frage: "Muss ich in die USA reisen?", antwort: ["Nein. Unsere Partner in den USA erledigen die Termine vor Ort; Sie steuern jeden Schritt von zu Hause."] },
     frageWiderruf: { frage: "Kann ich widerrufen?", antwort: ["Ja, binnen vierzehn Tagen — Belehrung und Muster-Widerrufsformular stehen in der Anlage Ihres Vertrags. Mit Ihrer Annahme verlangen Sie, dass wir sofort beginnen; bei einem Widerruf bezahlen Sie dann nur die bis dahin erbrachten Leistungen anteilig."] },
@@ -962,16 +975,17 @@ export function kapitalCBestandTexte(d: Pick<KapitalCDaten, "parameter">) {
     uebFaellig: (zahlbarSatz: string) => `${preis} (Übernahme Ihrer Gesellschaft, Konto und Karten — alles enthalten) — ${zahlbarSatz}`,
     uebLeistung: `Übernahme der Betreuung Ihrer bestehenden ${name}: Prüfung, Berichtigungen, Operating Agreement, Adresse, Telefonnummer und Assistenz; Konto und Karten vorbereitet; Begleitung bis zur Finanzierung mit Bürgschaft (Ziffer 2 bis 5)`,
     uebGesellschaft: `${name}, ${staat}, seit dem ${seit}`,
-    uebErfolgLabel: "Sobald Ihre Gesellschaft bankfertig ist",
+    uebErfolgLabel: A ? "Nach Übernahme und Bürgschaft" : "Sobald Ihre Gesellschaft bankfertig ist",
     uebBeginn: "sofort mit Ihrem Zahlungseingang — auf Ihren ausdrücklichen Wunsch vor Ablauf der Widerrufsfrist",
     annahmeSub: `${DK ? "Ihre Angaben, " : ""}Laufzeit, ein Haken und Ihre Unterschrift — dann ist alles auf dem Weg.`,
     sofortUnter: "Wir beginnen sofort mit Ihrem Zahlungseingang. Dafür brauchen wir diese ausdrückliche Bestätigung; ohne sie dürften wir erst nach Ablauf der Widerrufsfrist beginnen. Ohne den Haken können Sie das Angebot deshalb nicht annehmen.",
     leserSatz: "Angenommen wird unten auf der Seite — mit einem Haken und Ihrer Unterschrift. Der Knopf bringt Sie direkt dorthin.",
     teil1Titel: "Übernahme Ihrer Gesellschaft, Konto und Karten",
-    teil2: { nr: 2 as const, titel: "Erfolgshonorar", ziffer: "Ziffer 6 Absatz 2", ereignis: "Gesellschaft übernommen und bankfertig", knopf: "Gesellschaft übernommen (bankfertig)", datumLabel: "Bankfertig am" },
+    teil2: kapitalCTeil2Fuer(par),
     auftragTeil1: { titel: "Übernahme Ihrer Gesellschaft", hinweis: `Übernahme Ihrer Gesellschaft, Konto und Karten im ersten Jahr (${preis}) — alles enthalten` },
-    auftragTeil2Offen: "fällig, sobald Ihre Gesellschaft übernommen und bankfertig ist (Ziffer 6 Absatz 2) — die Bürgschaft ist darin enthalten",
-    auftragTeil2Am: (tag: string) => `Gesellschaft übernommen und bankfertig am ${tag}`,
+    auftragTeil2Offen: A ? "fällig, sobald Ihre Gesellschaft übernommen ist und die Bürgschaft steht (Ziffer 6 Absatz 2) — die Bürgschaft ist darin enthalten"
+      : "fällig, sobald Ihre Gesellschaft übernommen und bankfertig ist (Ziffer 6 Absatz 2) — die Bürgschaft ist darin enthalten",
+    auftragTeil2Am: (tag: string) => (A ? `Gesellschaft übernommen, Bürgschaft übernommen am ${tag}` : `Gesellschaft übernommen und bankfertig am ${tag}`),
     etappe1: { titel: "Ihre Gesellschaft in Ordnung", text: "Prüfung, Berichtigungen, Operating Agreement, US-Adresse, Telefonnummer und Assistenz. Wir bereiten alles vor und reichen ein; Sie unterschreiben, was wir Ihnen fertig zuschicken." },
   };
 }
@@ -2012,6 +2026,7 @@ export function kapitalCAnsprechpartner(par: Pick<KapitalCParameter, "ansprechpa
 export const KAPITAL_C_TEIL2 = { nr: 2 as const, titel: "Erfolgshonorar", ziffer: "Ziffer 6 Absatz 2", ereignis: "Gesellschaft beim Bundesstaat eingetragen", knopf: "Gesellschaft eingetragen", datumLabel: "Eingetragen am" };
 /** E-506: Teil 2 nach dem Angebot — bei einer bestehenden Gesellschaft hängt er an „übernommen und bankfertig“ statt an der Eintragung. */
 export function kapitalCTeil2Fuer(par: Pick<KapitalCParameter, "bestand">): { nr: 2; titel: string; ziffer: string; ereignis: string; knopf: string; datumLabel: string } {
+  if (par.bestand?.erfolgBei === "buergschaft") return { nr: 2, titel: "Erfolgshonorar", ziffer: "Ziffer 6 Absatz 2", ereignis: "Gesellschaft übernommen, Bürgschaft übernommen", knopf: "Übernommen und Bürgschaft steht", datumLabel: "Bürgschaft am" };
   return par.bestand ? { nr: 2, titel: "Erfolgshonorar", ziffer: "Ziffer 6 Absatz 2", ereignis: "Gesellschaft übernommen und bankfertig", knopf: "Gesellschaft übernommen (bankfertig)", datumLabel: "Bankfertig am" } : KAPITAL_C_TEIL2;
 }
 /** E-506: die Etappen in „Mein Auftrag“ nach dem Angebot — Etappe 1 heißt bei einer bestehenden Gesellschaft „Ihre Gesellschaft in Ordnung“. */
@@ -2068,15 +2083,17 @@ export const KAPITAL_C_ETAPPEN: Record<1 | 2 | 3 | 4, { titel: string; text: str
  * Eintragung. Runde 2 (Technik): Die Seite zeigte die Texte der Fassung B („Die Bürgschaft … steht“, „Bürgschaft zugesagt“) — bei C ist
  * die Bürgin inaktiv, und Teil 2 hängt an der Eintragung. Rein, damit der Prüfstand die Texte liest. Teil 1 nutzt die allgemeinen Texte.
  */
-export function kapitalCZahlungsseiteTeil2(ein: { bezahlt: boolean; angebotRef: string; titel: string; eingetragenAm: string | null; zielWochen: number; bestand?: boolean }): {
+export function kapitalCZahlungsseiteTeil2(ein: { bezahlt: boolean; angebotRef: string; titel: string; eingetragenAm: string | null; zielWochen: number; bestand?: boolean | "buergschaft" }): {
   satz: string; pruefung: { titel: string; text: string }; schritte: { titel: string; text: string }[];
 } {
   return {
     satz: ein.bezahlt
       ? `Ihre Zahlung ist eingegangen — vielen Dank. Angebot ${ein.angebotRef}, ${ein.titel}.`
+      : ein.bestand === "buergschaft" ? `Ihre Gesellschaft ist übernommen, und die Bürgschaft steht — offen ist das Erfolgshonorar (Ziffer 6 Absatz 2, Angebot ${ein.angebotRef}).`
       : ein.bestand ? `Ihre Gesellschaft ist übernommen und bankfertig — offen ist das Erfolgshonorar (Ziffer 6 Absatz 2, Angebot ${ein.angebotRef}).`
       : `Ihre Gesellschaft ist eingetragen — offen ist das Erfolgshonorar (Ziffer 6 Absatz 2, Angebot ${ein.angebotRef}).`,
-    pruefung: ein.bestand ? { titel: "Gesellschaft übernommen und bankfertig", text: `${ein.eingetragenAm ? `am ${kapitalTag(ein.eingetragenAm)} ` : ""}(Ziffer 6 Absatz 2)` }
+    pruefung: ein.bestand === "buergschaft" ? { titel: "Übernommen, Bürgschaft steht", text: `${ein.eingetragenAm ? `am ${kapitalTag(ein.eingetragenAm)} ` : ""}(Ziffer 6 Absatz 2)` }
+      : ein.bestand ? { titel: "Gesellschaft übernommen und bankfertig", text: `${ein.eingetragenAm ? `am ${kapitalTag(ein.eingetragenAm)} ` : ""}(Ziffer 6 Absatz 2)` }
       : { titel: "Gesellschaft eingetragen", text: `${ein.eingetragenAm ? `am ${kapitalTag(ein.eingetragenAm)} ` : ""}beim Bundesstaat (Ziffer 6 Absatz 2)` },
     schritte: [
       { titel: "Ihre Zahlung", text: "Überweisen Sie die Rechnung mit Ihrem Verwendungszweck — am schnellsten als Echtzeitüberweisung." },
@@ -2170,7 +2187,7 @@ export function kapitalCStartAufgabe(ein: {
     titel: par.bestand ? `${ohneBestaetigung ? "ERST Vertragsbestätigung senden — " : ""}Kapital-Angebot ${ein.angebotRef}: Übernahme bezahlt — bestehende ${par.bestand.name} übernehmen, NICHT neu gründen (${ein.name}, privat)`
       : `${ohneBestaetigung ? "ERST Vertragsbestätigung senden — " : ""}Kapital-Angebot ${ein.angebotRef}: Gründung bezahlt — LLC anmelden (${ein.name}, privat)`,
     text: [
-      ...(par.bestand ? [`BESTEHENDE GESELLSCHAFT (E-506): ${par.bestand.name}, ${par.bestand.bundesstaat}${par.bestand.registerNr ? `, Registernummer ${par.bestand.registerNr}` : ""}, eingetragen am ${kapitalTag(par.bestand.eingetragenAm)}. KEINE Neugründung, KEIN EIN-Antrag — die Zeilen „ANMELDUNG“ unten gelten hier NICHT. Stattdessen (Ziffer 2): ${par.bestand.ordnung.length ? par.bestand.ordnung.join(" · ") : "Prüfung, Berichtigungen, Operating Agreement, Behördenpost"}. Ist alles eingereicht und das Operating Agreement unterschrieben → Knopf „${kapitalCTeil2Fuer(par).knopf}“ (Rechnung Erfolgshonorar ${kapitalEur(par.erfolgCents)}).`] : []),
+      ...(par.bestand ? [`BESTEHENDE GESELLSCHAFT (E-506): ${par.bestand.name}, ${par.bestand.bundesstaat}${par.bestand.registerNr ? `, Registernummer ${par.bestand.registerNr}` : ""}, eingetragen am ${kapitalTag(par.bestand.eingetragenAm)}. KEINE Neugründung, KEIN EIN-Antrag — die Zeilen „ANMELDUNG“ unten gelten hier NICHT. Stattdessen (Ziffer 2): ${par.bestand.ordnung.length ? par.bestand.ordnung.join(" · ") : "Prüfung, Berichtigungen, Operating Agreement, Behördenpost"}. ${par.bestand.erfolgBei === "buergschaft" ? `ERFOLGSHONORAR ERST, WENN ÜBERNOMMEN IST UND DIE BÜRGSCHAFT STEHT (Ziffer 6 Absatz 2): Knopf „${kapitalCTeil2Fuer(par).knopf}“ vorher NICHT drücken` : `Ist alles eingereicht und das Operating Agreement unterschrieben → Knopf „${kapitalCTeil2Fuer(par).knopf}“`} (Rechnung Erfolgshonorar ${kapitalEur(par.erfolgCents)}).`] : []),
       ...(ohneBestaetigung ? [`VERTRAGSBESTÄTIGUNG FEHLT (§ 312f BGB): Die Mail mit Vertrag (PDF) und Rechnung ist nicht nachweislich beim Kunden (${ein.bestaetigung?.grund ?? "unbekannt"}). Bitte Adresse prüfen und im Office „Auftragsmail nachholen“ drücken — das schickt Vertrag und Rechnung genau einmal. Kam sie nachweislich an (Brevo „zugestellt“, oder von Hand geschickt und vom Kunden bestätigt), ist nichts zu tun. Erst wenn auch das Nachholen scheitert, von Hand schicken. Vorher nicht anmelden.`] : []),
       ft
         ? `${ein.name} hat Gründung und Fast-Track bezahlt (${kapitalEur(kapitalCHeuteCents(par))}, Teil 1${ein.zweck ? `, Verwendungszweck ${ein.zweck}` : ""}, eingegangen am ${kapitalTag(ein.bezahltAm)}). Der Auftrag läuft — Fast-Track, Sofortbeginn ausdrücklich verlangt.`

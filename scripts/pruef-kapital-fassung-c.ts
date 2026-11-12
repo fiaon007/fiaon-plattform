@@ -1409,6 +1409,22 @@ abschnitt("E-493 Lange Zeilen laufen nicht mehr aus dem Rahmen (Fast-Track-Karte
   ok(a14.status === 409 && a14.body.code === "GEAENDERT", "Annahme ohne Namen im Browser: alle Prüfungen bestanden bis zum Fingerabdruck (409 GEAENDERT) — der Name kommt aus dem Angebot", a14);
   const a14b = await KS14.kapitalCAnnehmen(zeile14, { ...body14, sofortBeginn: false }, KONTEXT14, helfer14);
   ok(a14b.status === 400 && a14b.body.error === C.KAPITAL_C_ANNAHME.fehltSofortWahl, "Annahme ohne „sofort beginnen“: 400 mit dem Satz ohne Fast-Track", a14b);
+  // 14.7 Nachtrag: Erfolgshonorar erst nach Übernahme UND Bürgschaft (bestand.erfolgBei = "buergschaft").
+  const PA = C.kapitalCParameterAus({ ...PB, bestand: { ...PB.bestand!, erfolgBei: "buergschaft" } } as any);
+  const DA = { ...DB, parameter: PA };
+  ok(PA.bestand?.erfolgBei === "buergschaft" && !("erfolgBei" in PB.bestand!) && JSON.stringify(C.kapitalCParameterAus(PA)) === JSON.stringify(PA), "Schlüssel gelesen, stabil; ohne Angabe fehlt er");
+  ok(C.kapitalCParameterAus({ ...PB, bestand: { ...PB.bestand!, erfolgBei: "irgendwas" } } as any).bestand?.erfolgBei === undefined, "Unbekannter Wert zählt nicht");
+  const vertragA = flach(ohneHtml(C.kapitalCRumpfHtml(DA, null)));
+  ok(/und die Bürgin die Bürgschaft nach Ziffer 5 übernommen hat, wird das Erfolgshonorar von/.test(vertragA) && /Kommt es nicht dazu, entfällt es/.test(vertragA) && !/für Bank und Finanzierung vorbereitet ist/.test(vertragA), "Vertrag Ziffer 6 Absatz 2: fällig nach Übernahme und Bürgschaft, sonst entfällt es");
+  ok(C.kapitalCHashEingabe(DA, C.kapitalCRumpfHtml(DA, null)) !== C.kapitalCHashEingabe(DB, C.kapitalCRumpfHtml(DB, null)), "Die Prüfsumme folgt der Fälligkeit");
+  const zsA = C.kapitalCZahlungsseiteTeil2({ bezahlt: false, angebotRef: "R", titel: "Erfolgshonorar", eingetragenAm: "2026-12-20", zielWochen: 4, bestand: "buergschaft" });
+  const allesA = flach([sammle(C.kapitalCSeite(DA), []).join(" · "), sammle(C.kapitalCBestellUebersicht(DA, 10), []).join(" · "),
+    sammle(C.kapitalCMeinAuftrag({ parameter: PA, angenommenAm: "2026-11-12", teile: [], garantieErfuelltAm: null, erstattungAusgeloest: false, laufzeitJahre: 10 }), []).join(" · "),
+    sammle(zsA, []).join(" · "), sammle(C.kapitalCTeil2Fuer(PA), []).join(" · ")].join(" · "));
+  ok(!/bankfertig/i.test(allesA) && !/bankfertig/i.test(vertragA), "Kein „bankfertig“ mehr in Vertrag, Seite, Übersicht, Mein Auftrag, Zahlungsseite, Teil 2", allesA.match(/.{60}bankfertig.{40}/i));
+  ok(/sobald Ihre Gesellschaft übernommen ist und unsere US-Partnergesellschaft für Ihre Finanzierung bürgt, /.test(allesA) && /Nach Übernahme und Bürgschaft/.test(allesA) && /Ihre Gesellschaft ist übernommen, und die Bürgschaft steht — offen ist das Erfolgshonorar/.test(allesA) && /Bürgschaft/.test(C.kapitalCTeil2Fuer(PA).ereignis), "Seite, Übersicht, Zahlungsseite und Teil 2 nennen Übernahme und Bürgschaft");
+  ok(zsA.schritte.some((x) => x.titel === "Auszahlung"), "Zahlungsseite: der Schritt „Auszahlung“ bleibt (sie steht noch bevor)");
+  ok(!/\bbis zu\b/i.test(allesA) && !/\bgarantier/i.test(allesA) && !BANK.test(allesA), "Texte der Variante: kein „bis zu“, nie „garantiert“, kein Bankname");
 }
 
 const mail = arg("--mail");

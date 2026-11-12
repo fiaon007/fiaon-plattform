@@ -500,6 +500,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    im Raum /chef/s/global-auftraege (Reiter „Individualangebote"). Logik: server/lib/fiaon-global-angebot.ts.
   const fiaonGlobalAngebotRoutes = await import('./routes/fiaon-global-angebot');
   app.use('/api/fiaon', fiaonGlobalAngebotRoutes.default);
+  // 🌐 FIAON Global — Verkaufsmotor (12.11.2026, E-509): ein Produkt, Konfigurator, Selbstabschluss. Die Seite holt
+  //    Einstellung und Zeit-Siegel (GET /verkauf) und schickt ab (POST /verkauf/start) → Angebot über den bestehenden
+  //    Vertragsmotor (Fassung C) oder Anfrage. Logik: server/lib/fiaon-global-verkauf.ts.
+  const fiaonGlobalVerkaufRoutes = await import('./routes/fiaon-global-verkauf');
+  app.use('/api/fiaon/global', fiaonGlobalVerkaufRoutes.default);
   // 🌐 FIAON Global — „Mein Auftrag" (17.09.2026, E-188): der Bereich des Firmenkunden nach dem Kauf
   //    (Etappen, Dokumentenraum, Pflichtenkalender, Nachricht; ohne Login, dasselbe Token wie der Auftrag)
   //    und die Office-Routen dazu unter /agent/global (zuständige Person, Vertriebsleitung, Chef).

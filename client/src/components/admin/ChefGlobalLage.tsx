@@ -22,7 +22,7 @@ import {
   type FeedArt, type FeedEintrag, type FeedTag, type LageAntwort, type LageFixkosten, type LageAuftragswert,
   type LagePhase, type LageWartet, type LagePartnerBlock, type LageTermin,
 } from "@shared/fiaon-chef-global-lage";
-import { NEWS_THEMA_NAME, NEWS_THEMEN, type NewsAntwort, type NewsMeldung, type NewsThema, type KursStand } from "@shared/fiaon-chef-news";
+import { NEWS_THEMA_NAME, NEWS_THEMEN, NEWS_KI_DECKEL_MAX_USD, type NewsAntwort, type NewsMeldung, type NewsThema, type KursStand, type NewsEinstellungen } from "@shared/fiaon-chef-news";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
@@ -663,6 +663,94 @@ function News() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 7 · STEUERUNG — was diese Seite einstellt, und wo der Rest steht (E-508 Scheibe 4)
+// ═══════════════════════════════════════════════════════════════════════════
+/** Wo man für FIAON Global was einstellt — jede Zeile führt an die Stelle, an der es heute bedienbar ist. */
+const STEUER_WEGE: { titel: string; satz: string; ziel: string }[] = [
+  { titel: "Angebote", satz: "Anlegen, zurückziehen, Meilensteine, Unterlagen zum Angebot.", ziel: "/chef/s/global-auftraege?reiter=angebote" },
+  { titel: "Akten der Mandanten", satz: "Fahrplan, Dokumente, Nachrichten, Fristen, Zugang zum Portal.", ziel: "/chef/global-kunden" },
+  { titel: "Gespräche und Kalender", satz: "Wer die Gespräche führt, wie viele am Tag, Vertretung.", ziel: "/chef/rueckholung" },
+  { titel: "Anfragen und Lead-Mails", satz: "Dossier an dich, Willkommens- und Nachfass-Mails, KI-Hintergrund.", ziel: "/chef/s/lead-motor" },
+  { titel: "Partner und Empfehlungen", satz: "Partner-Akten, Aufgaben, Kooperationen, Provision.", ziel: "/chef/s/geschaeftspartner?reiter=partner" },
+  { titel: "Firmen-Radar", satz: "Persönliche Mails an Firmen und Partner — Automatik und Tagesmenge.", ziel: "/chef/s/firmen-radar" },
+  { titel: "KI: Schalter und Kasse", satz: "Jeder KI-Schalter, Pause, Deckel und Kosten je Dienst.", ziel: "/chef/s/ki-einstellungen" },
+];
+/** Ehrlich getrennt von dem, was bedienbar ist: Das geht heute noch nicht per Knopf. */
+const STEUER_IM_BAU = [
+  "Kapital-Angebot im Chefbüro anlegen und bearbeiten",
+  "Unterschrift eines Angebots per Knopf freigeben",
+  "Kapitalrahmen-Regler und Team je Angebot einstellen",
+  "Meilenstein mit doppelter Rückfrage direkt aus der Lage",
+];
+
+function Steuerung({ l, zuFixkosten }: { l: LageAntwort; zuFixkosten: () => void }) {
+  const darfSehen = l.stufe !== "leitung"; const darfSetzen = l.stufe === "inhaber";
+  const { daten, neu } = useDaten<NewsEinstellungen & { ok: true }>(darfSehen ? "/chef/global-news/einstellungen" : null);
+  const [deckel, setDeckel] = useState<string | null>(null);
+  const [meldung, setMeldung] = useState<{ gut: boolean; text: string } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const setzen = async (body: Record<string, unknown>) => {
+    setLaeuft(true); setMeldung(null);
+    const j = await senden("/chef/global-news/einstellungen", body);
+    setLaeuft(false);
+    setMeldung(j.ok ? { gut: true, text: String(j.meldung || "Gespeichert.") } : { gut: false, text: j.error || "Nicht gespeichert." });
+    if (j.ok) { setDeckel(null); neu(); }
+  };
+  return (
+    <Abschnitt id="steuerung" auge="Einstellen und weitergehen" titel="Steuerung">
+      <div className="cgl-steuerung">
+        {darfSehen && (
+          <div className="cgl-steuer-karte" data-cgl="steuer-einstellungen">
+            <span className="cgl-auge">Diese Seite</span>
+            <dl>
+              <div>
+                <dt>Fixkosten je Monat<small>Maßstab für die Deckung oben.</small></dt>
+                <dd>{l.fixkosten ? geld(l.fixkosten.fixCents) : "—"}{darfSetzen && <button type="button" className="cgl-link" onClick={zuFixkosten}>Ändern</button>}</dd>
+              </div>
+              <div>
+                <dt>Deutsche Kurzfassungen der News<small>Schreibt die KI. Aus: Meldungen bleiben im Original.</small></dt>
+                <dd>
+                  {daten ? (
+                    <div className="cgl-schalter" role="group" aria-label="Kurzfassungen an oder aus">
+                      <button type="button" aria-pressed={daten.kiAn} className={daten.kiAn ? "an" : ""} disabled={!darfSetzen || laeuft} onClick={() => !daten.kiAn && void setzen({ kiAn: true })}>An</button>
+                      <button type="button" aria-pressed={!daten.kiAn} className={!daten.kiAn ? "an" : ""} disabled={!darfSetzen || laeuft} onClick={() => daten.kiAn && void setzen({ kiAn: false })}>Aus</button>
+                    </div>
+                  ) : "…"}
+                </dd>
+              </div>
+              <div>
+                <dt>Tagesdeckel der Kurzfassungen<small>{daten ? `Heute verbraucht: ${zahlDe(daten.kiHeuteUsd, 2)} $.` : "In US-Dollar."}</small></dt>
+                <dd>
+                  {daten && deckel === null && <>{zahlDe(daten.kiDeckelUsd, 2)} ${darfSetzen && <button type="button" className="cgl-link" onClick={() => setDeckel(zahlDe(daten.kiDeckelUsd, 2))} data-cgl="deckel-aendern">Ändern</button>}</>}
+                  {daten && deckel !== null && (
+                    <form className="cgl-steuer-form" onSubmit={(e) => { e.preventDefault(); void setzen({ kiDeckelUsd: deckel }); }}>
+                      <input inputMode="decimal" value={deckel} onChange={(e) => setDeckel(e.target.value)} aria-label={`Tagesdeckel in Dollar, höchstens ${NEWS_KI_DECKEL_MAX_USD}`} autoFocus />
+                      <button type="submit" className="cgl-knopf klein voll" disabled={laeuft}>Speichern</button>
+                      <button type="button" className="cgl-knopf klein" onClick={() => setDeckel(null)}>Abbrechen</button>
+                    </form>
+                  )}
+                </dd>
+              </div>
+            </dl>
+            {daten?.kiGrund && daten.kiAn && <p className="cgl-hinweis">Gerade keine neuen Kurzfassungen: {daten.kiGrund}</p>}
+            {meldung && <p className={meldung.gut ? "cgl-ok" : "cgl-fehler"} role="status">{meldung.text}</p>}
+          </div>
+        )}
+        <div className="cgl-steuer-wege">
+          <span className="cgl-auge">Wo du was einstellst</span>
+          <ul>
+            {STEUER_WEGE.map((w) => (
+              <li key={w.ziel}><Link href={w.ziel}><b>{w.titel}</b><span>{w.satz}</span><i aria-hidden="true">→</i></Link></li>
+            ))}
+          </ul>
+          <p className="cgl-steuer-bau"><b>Noch nicht per Knopf (im Bau):</b> {STEUER_IM_BAU.join(" · ")}.</p>
+        </div>
+      </div>
+    </Abschnitt>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE SEITE
 // ═══════════════════════════════════════════════════════════════════════════
 export default function ChefGlobalLage() {
@@ -694,7 +782,7 @@ export default function ChefGlobalLage() {
   const wege = useMemo(() => daten ? [
     { id: "feed", text: "Feed" }, { id: "wartet", text: `Wir warten auf · ${daten.wartet.length}` },
     { id: "mandanten", text: `Mandanten · ${daten.mandanten.length}` }, ...(daten.termine.length ? [{ id: "termine", text: `Gespräche · ${daten.termine.length}` }] : []),
-    { id: "news", text: "News" },
+    { id: "news", text: "News" }, { id: "steuerung", text: "Steuerung" },
   ] : [], [daten]);
 
   return (
@@ -739,6 +827,7 @@ export default function ChefGlobalLage() {
             </div>
             <Mandanten l={daten} neu={neu} markiert={markiert} />
             <News />
+            <Steuerung l={daten} zuFixkosten={() => { document.querySelector("[data-cgl='fixkosten']")?.scrollIntoView({ behavior: ruhig() ? "auto" : "smooth", block: "center" }); document.querySelector<HTMLButtonElement>("[data-cgl='fixkosten-aendern']")?.click(); }} />
             <footer className="cgl-fuss">
               <span>Privatkunden: <Link href="/chef/lage">Lagezimmer Privat</Link></span>
               <span>Hier sendet nichts von allein. Mails gehen nur als Entwurf, Rechnungen nur mit deinem Wort.</span>

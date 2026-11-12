@@ -5,6 +5,26 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.11.2026 — E-508 Scheibe 4: Steuerung in der Global-Lage (Einstellungen der Seite und Wegweiser)
+
+- **Ausfall:** Der Schalter und der Tagesdeckel der News-Kurzfassungen standen nur als Werte in der Datenbank. Und wer für
+  FIAON Global etwas einstellen wollte, musste wissen, in welchem der vielen Räume es steht.
+- **Fix:** Neuer Abschnitt **„Steuerung“** ganz unten in der Global-Lage. Links die Einstellungen dieser Seite: Fixkosten
+  (führt zum Knopf „Ändern“ oben), **Kurzfassungen der News an/aus** und ihr **Tagesdeckel** in Dollar (0 bis 10; mit dem
+  Verbrauch von heute). Rechts der **Wegweiser „Wo du was einstellst“**: Angebote, Akten, Gespräche und Kalender, Anfragen
+  und Lead-Mails, Partner, Firmen-Radar, KI — jede Zeile führt an die Stelle, an der es heute bedienbar ist. Darunter, klar
+  getrennt, was noch nicht per Knopf geht (im Bau).
+- **Mit behoben (Befund aus dem ersten Lauf in der Produktion, 22:10):** Die News kamen an, aber es entstand keine einzige
+  deutsche Kurzfassung. Ursache: War der Tagesdeckel noch nie eingestellt, las der Code „0 Dollar“ statt der Vorgabe
+  (`Number(null)` ist 0) und hielt den Deckel für erreicht. Fix: eine Regel `newsDeckelAus` — fehlt die Einstellung, gilt
+  1 Dollar. Dazu nennt der Lauf jetzt den Grund, wenn Kurzfassungen offen bleiben (Meldung und Protokoll).
+- **Rechte:** Die Einstellungen sieht die Geschäftsführung, ändern kann sie nur der Inhaber. Den Wegweiser sieht jede Stufe.
+- **Wo:** shared/fiaon-chef-news.ts (newsEinstellungPruefen), server/lib/fiaon-chef-news.ts, server/routes/fiaon-chef-global-lage.ts
+  (GET/POST /chef/global-news/einstellungen), ChefGlobalLage.tsx + chef-global-lage.css, Rundgang.
+- **Abnahme:** `scripts/pruef-chef-news.ts` (Eingaben, Setzen, Wirkung auf den KI-Stand, Zurückstellen; neu: ohne jede
+  Einstellung ist die KI an und der Deckel die Vorgabe — Gegenprobe mit dem alten Fehler wird rot) und der
+  Browser-Prüfstand (Schalter und Deckel drücken, Wegweiser-Ziele; am Handy 44 px hohe Knöpfe).
+
 ## 12.11.2026 — E-508 Scheibe 3: Nachfassen — eine persönliche Mail als Entwurf in js@ (ein Klick je Mandant)
 
 - **Ausfall:** Wer ein offenes Angebot nachfassen wollte, musste die Mail von Hand schreiben oder schreiben lassen — die

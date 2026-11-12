@@ -165,6 +165,33 @@ export function newsKiEingabe(q: NewsQuelle, p: { titel: string; text: string })
   return `Quelle: ${q.name} (${NEWS_THEMA_NAME[q.thema]})\nTitel: ${p.titel}\nText: ${p.text ? p.text.slice(0, 1600) : "(kein Text im Feed — nur der Titel)"}`;
 }
 
+// ── Einstellungen der Kurzfassungen (E-508 Scheibe 4) ────────────────────────
+export const NEWS_KI_DECKEL_MAX_USD = 10;
+export interface NewsEinstellungen { kiAn: boolean; kiDeckelUsd: number; kiHeuteUsd: number; kiGrund: string | null }
+/**
+ * Der Tagesdeckel aus der gespeicherten Einstellung. Fehlt sie (oder ist sie leer oder unlesbar), gilt die Vorgabe.
+ * Wichtig: `Number(null)` ist 0 — ohne diese Regel galt „noch nie eingestellt“ als „Deckel 0 Dollar“ und es entstand keine Kurzfassung.
+ */
+export function newsDeckelAus(roh: string | null | undefined): number {
+  const s = String(roh ?? "").trim().replace(",", ".");
+  if (!s) return NEWS_KI_DECKEL_USD;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? Math.min(n, NEWS_KI_DECKEL_MAX_USD) : NEWS_KI_DECKEL_USD;
+}
+/** Prüft die Eingabe: Schalter an/aus und ein Deckel zwischen 0 und 10 Dollar (Komma oder Punkt, höchstens zwei Stellen). */
+export function newsEinstellungPruefen(ein: any): { ok: true; kiAn?: boolean; kiDeckelUsd?: number } | { ok: false; error: string } {
+  const aus: { ok: true; kiAn?: boolean; kiDeckelUsd?: number } = { ok: true };
+  if (ein?.kiAn !== undefined) { if (typeof ein.kiAn !== "boolean") return { ok: false, error: "Der Schalter kennt nur an oder aus." }; aus.kiAn = ein.kiAn; }
+  if (ein?.kiDeckelUsd !== undefined) {
+    const s = String(ein.kiDeckelUsd).trim().replace(",", ".").replace(/\s|\$/g, "");
+    const n = Number(s);
+    if (!/^\d{1,2}(\.\d{1,2})?$/.test(s) || !Number.isFinite(n) || n < 0 || n > NEWS_KI_DECKEL_MAX_USD) return { ok: false, error: `Der Tagesdeckel liegt zwischen 0 und ${NEWS_KI_DECKEL_MAX_USD} Dollar.` };
+    aus.kiDeckelUsd = n;
+  }
+  if (aus.kiAn === undefined && aus.kiDeckelUsd === undefined) return { ok: false, error: "Es wurde nichts geändert." };
+  return aus;
+}
+
 // ── Die Antwort des Servers ──────────────────────────────────────────────────
 export interface NewsMeldung {
   id: number; quelle: string; quelleName: string; thema: NewsThema; sprache: "de" | "en";

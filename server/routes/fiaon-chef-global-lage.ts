@@ -102,6 +102,19 @@ router.post("/chef/global-news/abrufen", requireChef("geschaeftsfuehrung"), asyn
   try { const { newsJetzt } = await import("../lib/fiaon-chef-news"); antwort(res, await newsJetzt()); }
   catch (e) { fehler(res, "news abrufen", e); }
 });
+// Einstellungen der Kurzfassungen (Scheibe 4): lesen ab Geschäftsführung, ändern nur der Inhaber.
+router.get("/chef/global-news/einstellungen", requireChef("geschaeftsfuehrung"), async (_req: ChefRequest, res: Response) => {
+  try { res.setHeader("Cache-Control", "private, no-store"); const { newsEinstellungenLesen } = await import("../lib/fiaon-chef-news"); res.json({ ok: true, ...(await newsEinstellungenLesen()) }); }
+  catch (e) { fehler(res, "news einstellungen", e); }
+});
+router.post("/chef/global-news/einstellungen", requireChef("inhaber"), async (req: ChefRequest, res: Response) => {
+  try {
+    const { newsEinstellungSetzen } = await import("../lib/fiaon-chef-news");
+    const erg = await newsEinstellungSetzen(req.body ?? {});
+    if (erg.ok) void chefProtokoll(req, "global-news:einstellungen", erg.meldung);
+    antwort(res, { ...erg });
+  } catch (e) { fehler(res, "news einstellungen setzen", e); }
+});
 router.post("/chef/global-news/:id/ausblenden", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
   try { const { newsAusblenden } = await import("../lib/fiaon-chef-news"); antwort(res, await newsAusblenden(Number(req.params.id), (await wer(req)).name)); }
   catch (e) { fehler(res, "news ausblenden", e); }

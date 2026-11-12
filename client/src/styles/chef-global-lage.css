@@ -287,6 +287,26 @@
 .cgl-link.leise { color: var(--cgl-still); text-decoration-color: var(--cgl-linie-2); margin-left: auto; }
 .cgl-news-quellen { padding-top: 16px; font-size: 12px; line-height: 1.5; color: var(--cgl-still); }
 
+/* ── Steuerung: Einstellungen der Seite und der Wegweiser ──────────────────── */
+.cgl-steuerung { display: grid; grid-template-columns: minmax(280px, 420px) minmax(0, 1fr); gap: 44px; padding-top: 24px; align-items: start; }
+.cgl-steuer-karte { border: 1px solid var(--cgl-linie); border-radius: 18px; padding: 22px 24px 18px; background: #fff; }
+.cgl-steuer-karte dl { margin-top: 8px; }
+.cgl-steuer-karte dl > div { display: flex; align-items: center; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-steuer-karte dl > div:last-child { border-bottom: 0; }
+.cgl-steuer-karte dt { font-size: 14px; color: var(--cgl-tinte); }
+.cgl-steuer-karte dt small { display: block; margin-top: 2px; font: 400 12px/1.4 var(--cgl-schrift); color: var(--cgl-still); }
+.cgl-steuer-karte dd { display: flex; align-items: center; gap: 12px; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cgl-steuer-form { display: flex; align-items: center; gap: 6px; }
+.cgl .cgl-steuer-form input { width: 84px; height: 32px; text-align: right; }
+.cgl-steuer-wege ul { margin-top: 8px; border-top: 1px solid var(--cgl-linie); }
+.cgl .cgl-steuer-wege li a { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) 18px; gap: 4px 18px; align-items: baseline; padding: 14px 4px 14px 0; border-bottom: 1px solid var(--cgl-linie); transition: background .2s, padding .25s; }
+.cgl .cgl-steuer-wege li a:hover { background: rgba(18, 40, 74, .028); padding-left: 8px; }
+.cgl-steuer-wege li b { font: 400 17px/1.3 var(--cgl-serife); color: var(--cgl-tinte); }
+.cgl-steuer-wege li span { font-size: 13px; color: var(--cgl-leise); }
+.cgl-steuer-wege li i { font-style: normal; color: var(--cgl-blau); text-align: right; }
+.cgl-steuer-bau { margin-top: 16px; font-size: 12.5px; line-height: 1.55; color: var(--cgl-still); }
+.cgl-steuer-bau b { font-weight: 500; color: var(--cgl-leise); }
+
 /* ── Formulare (Notiz, Verlängern, Fixkosten) ──────────────────────────────── */
 .cgl-form { margin-top: 14px; padding: 16px; border-radius: 14px; background: var(--cgl-feld); border: 1px solid var(--cgl-linie); animation: cglAuf .35s cubic-bezier(.2, .7, .2, 1) backwards; }
 .cgl-form label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -340,6 +360,8 @@
   .cgl-oben { grid-template-columns: minmax(0, 1fr); }
   .cgl-news { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .cgl-kurs { max-width: 420px; }
+  .cgl-steuerung { grid-template-columns: minmax(0, 1fr); gap: 30px; }
+  .cgl-steuer-karte { max-width: 520px; }
 }
 @media (max-width: 760px) {
   .cgl { --cgl-rand: 18px; }
@@ -382,4 +404,12 @@
   .cgl-news-filter button { height: 40px; }
   .cgl-news-zeile h4 { font-size: 18px; }
   .cgl-link.leise { margin-left: 0; padding: 6px 0; }
+  .cgl-steuer-karte { max-width: none; padding: 20px 18px 14px; }
+  .cgl .cgl-steuer-wege li a { grid-template-columns: minmax(0, 1fr) 18px; padding: 14px 0; }
+  .cgl-steuer-wege li span { grid-column: 1; }
+  .cgl-steuer-wege li i { grid-column: 2; grid-row: 1; }
+  .cgl .cgl-steuer-form input { height: 44px; width: 96px; }
+  /* Am Handy trifft der Daumen: Schalter und „Ändern“ in der Steuerung sind 44 px hoch. */
+  .cgl-steuer-karte .cgl-schalter button { height: 44px; padding: 0 18px; font-size: 14px; }
+  .cgl-steuer-karte dd .cgl-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 2px; }
 }

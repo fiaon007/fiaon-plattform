@@ -9,7 +9,7 @@
 //   Der Prüfstand weigert sich, wenn DATABASE_URL nicht auf 127.0.0.1 oder localhost zeigt.
 // ═══════════════════════════════════════════════════════════════════════════
 import {
-  NEWS_QUELLEN, NEWS_EZB_KURS_URL, NEWS_KI_VERSUCHE_MAX, feldText, feedDatum, feedLesen, postenPasst, ezbKursLesen, kursStand, newsKiLesen, newsKiEingabe,
+  NEWS_QUELLEN, NEWS_EZB_KURS_URL, NEWS_KI_VERSUCHE_MAX, NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_MAX_USD, newsEinstellungPruefen, newsDeckelAus, feldText, feedDatum, feedLesen, postenPasst, ezbKursLesen, kursStand, newsKiLesen, newsKiEingabe,
   type NewsQuelle,
 } from "../shared/fiaon-chef-news";
 
@@ -70,6 +70,14 @@ ok("KI: kein JSON, falsche Stufe, zu kurz, zu lang → abgelehnt", !newsKiLesen(
   && !newsKiLesen('{"kurz":"kurz","bedeutung":"Kein direkter Bezug.","relevanz":1}') && !newsKiLesen(JSON.stringify({ kurz: "x".repeat(500), bedeutung: "Kein direkter Bezug.", relevanz: 1 })));
 ok("KI: Auszeichnung in der Antwort wird entfernt", newsKiLesen('{"kurz":"<b>Die Notenbank</b> lässt den Zins gleich.","bedeutung":"Kein direkter Bezug.","relevanz":1}')?.kurz === "Die Notenbank lässt den Zins gleich.");
 ok("KI-Eingabe: Quelle, Titel, Text — und der Hinweis, wenn der Feed keinen Text hat", newsKiEingabe(q("fed"), { titel: "T", text: "" }).includes("nur der Titel") && newsKiEingabe(q("fed"), { titel: "T", text: "Inhalt" }).includes("Federal Reserve"));
+// Der Tagesdeckel: „noch nie eingestellt“ ist die Vorgabe, nie 0 (Befund 12.11.: Number(null) = 0 → keine einzige Kurzfassung).
+gleich("Deckel: fehlt, leer oder Unsinn → Vorgabe", [newsDeckelAus(null), newsDeckelAus(undefined), newsDeckelAus(""), newsDeckelAus("  "), newsDeckelAus("viel"), newsDeckelAus("-2")], [NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_USD, NEWS_KI_DECKEL_USD]);
+gleich("Deckel: gesetzte Zahl gilt (auch 0 und Komma), nie über der Obergrenze", [newsDeckelAus("0"), newsDeckelAus("0,75"), newsDeckelAus("2.5"), newsDeckelAus("99")], [0, 0.75, 2.5, NEWS_KI_DECKEL_MAX_USD]);
+// Einstellungen (Scheibe 4)
+gleich("Einstellung: Schalter aus", newsEinstellungPruefen({ kiAn: false }), { ok: true, kiAn: false });
+gleich("Einstellung: Deckel mit Komma", newsEinstellungPruefen({ kiDeckelUsd: "2,5" }), { ok: true, kiDeckelUsd: 2.5 });
+gleich("Einstellung: Deckel 0 ist erlaubt (keine Kurzfassungen heute)", newsEinstellungPruefen({ kiDeckelUsd: 0 }), { ok: true, kiDeckelUsd: 0 });
+ok("Einstellung: Unsinn, zu viel, negativ und leer werden abgelehnt", !newsEinstellungPruefen({ kiDeckelUsd: "viel" }).ok && !newsEinstellungPruefen({ kiDeckelUsd: 50 }).ok && !newsEinstellungPruefen({ kiDeckelUsd: -1 }).ok && !newsEinstellungPruefen({}).ok && !newsEinstellungPruefen({ kiAn: "ja" }).ok);
 console.log(`  ${gut} bestanden, ${schlecht} durchgefallen`);
 
 if (process.argv.includes("--lokal")) {
@@ -136,6 +144,33 @@ if (process.argv.includes("--lokal")) {
     const erste = eigene[0];
     ok("Ausblenden wirkt", (await N.newsAusblenden(erste.id, "Prüfstand")).ok && !(await N.newsLesen("inhaber")).meldungen.some((m) => m.id === erste.id));
     ok("Zweimal ausblenden geht nicht", !(await N.newsAusblenden(erste.id, "Prüfstand")).ok);
+    // Einstellungen (Scheibe 4): setzen, lesen, Wirkung — und zurückstellen.
+    const [anVorher] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_an'`) as any[];
+    const [deckelVorher] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_deckel_usd'`) as any[];
+    try {
+      const e1 = await N.newsEinstellungSetzen({ kiAn: false, kiDeckelUsd: "0,75" });
+      gleich("Einstellungen gesetzt und gelesen", [e1.ok, (await N.newsEinstellungenLesen()).kiAn, (await N.newsEinstellungenLesen()).kiDeckelUsd], [true, false, 0.75]);
+      gleich("Schalter aus: der Stand nennt den Grund", (await N.newsKiStand()), { an: false, grund: "Die Kurzfassungen sind ausgeschaltet." });
+      ok("Unsinn wird nicht gespeichert", !(await N.newsEinstellungSetzen({ kiDeckelUsd: "x" })).ok && (await N.newsEinstellungenLesen()).kiDeckelUsd === 0.75);
+      // Ohne jede Einstellung (so startet die Produktion) darf die KI schreiben — und der Deckel ist die Vorgabe, nicht 0.
+      const schluesselVorher = process.env.OPENAI_API_KEY;
+      try {
+        process.env.OPENAI_API_KEY = "attrappe-nur-fuer-den-pruefstand";
+        await sqlPool`DELETE FROM fiaon_settings WHERE key IN ('chef_news_ki_an', 'chef_news_ki_deckel_usd')`;
+        const frisch = await N.newsKiStand();
+        gleich("Ohne Einstellung: Kurzfassungen sind an, Deckel = Vorgabe", [frisch.an, frisch.grund, (await N.newsEinstellungenLesen()).kiDeckelUsd], [true, null, NEWS_KI_DECKEL_USD]);
+        await N.newsEinstellungSetzen({ kiDeckelUsd: 0 });
+        const zu = await N.newsKiStand();
+        ok("Deckel 0 gesetzt: aus, mit Grund", zu.an === false && /Tagesdeckel/.test(String(zu.grund)));
+      } finally {
+        if (schluesselVorher === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = schluesselVorher;
+      }
+    } finally {
+      for (const [key, alt] of [["chef_news_ki_an", anVorher], ["chef_news_ki_deckel_usd", deckelVorher]] as const) {
+        if (alt) await sqlPool`UPDATE fiaon_settings SET value = ${alt.value} WHERE key = ${key}`.catch(() => {});
+        else await sqlPool`DELETE FROM fiaon_settings WHERE key = ${key}`.catch(() => {});
+      }
+    }
     const sofort = await N.newsJetzt();
     ok("„Jetzt abrufen“ direkt nach einem Abruf wird gebremst", !sofort.ok && (sofort as any).status === 429);
     console.log(`  gesamt ${gut} bestanden, ${schlecht} durchgefallen`);

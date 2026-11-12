@@ -15,9 +15,9 @@
 import { sqlPool } from "./db-pool";
 import { openaiFetch, istKiPause, kiLesenMoeglich, kiPausiert, kiPauseLesen, kiPauseMeldung, aktiverAnbieter } from "./fiaon-ki-pause";
 import {
-  NEWS_QUELLEN, NEWS_QUELLE_NACH_KEY, NEWS_EZB_KURS_URL, NEWS_MAX_ALTER_TAGE, NEWS_ANZEIGE_MAX, NEWS_KI_DECKEL_USD, NEWS_KI_JE_LAUF,
+  NEWS_QUELLEN, NEWS_QUELLE_NACH_KEY, NEWS_EZB_KURS_URL, NEWS_MAX_ALTER_TAGE, NEWS_ANZEIGE_MAX, NEWS_KI_JE_LAUF,
   NEWS_KI_VERSUCHE_MAX, NEWS_SCHLUESSEL, NEWS_KI_ANWEISUNG, feedLesen, postenPasst, ezbKursLesen, kursStand, newsKiLesen, newsKiEingabe,
-  type NewsAntwort, type NewsMeldung, type NewsThema, type KursTag,
+  newsEinstellungPruefen, newsDeckelAus, type NewsAntwort, type NewsMeldung, type NewsThema, type KursTag, type NewsEinstellungen,
 } from "@shared/fiaon-chef-news";
 
 const DIENST = "chef-news";
@@ -105,8 +105,7 @@ export async function newsKiStand(): Promise<KiStand> {
   try {
     if (await kiPausiert()) { const z = await kiPauseLesen(); return { an: false, grund: kiPauseMeldung(z.art ?? null, aktiverAnbieter()) }; }
   } catch { return { an: false, grund: "Der Stand der KI ist gerade nicht lesbar." }; }
-  const deckel = Number(await einstellung(NEWS_SCHLUESSEL.kiDeckel));
-  const grenze = Number.isFinite(deckel) && deckel >= 0 ? deckel : NEWS_KI_DECKEL_USD;
+  const grenze = newsDeckelAus(await einstellung(NEWS_SCHLUESSEL.kiDeckel));
   const { kostenHeute } = await import("./fiaon-postmeister-schema");
   const heute = await kostenHeute(DIENST).catch(() => 0);
   if (heute >= grenze) return { an: false, grund: `Der Tagesdeckel für Kurzfassungen ist erreicht (${grenze.toLocaleString("de-DE")} $).` };
@@ -171,9 +170,13 @@ export async function newsKi(opt: { max?: number; frage?: KiFrage; stand?: () =>
 /** Der Lauf: abrufen, dann Kurzfassungen. Gibt eine kurze Meldung für die Lauf-Historie zurück. */
 export async function newsLauf(): Promise<string> {
   const a = await newsHolen();
-  const k = await newsKi().catch((e) => ({ geschrieben: 0, offen: 0, grund: String(e).slice(0, 120) }));
+  const k = await newsKi().catch((e) => {
+    console.error("[CHEF-NEWS] Kurzfassungen abgebrochen:", e instanceof Error ? e.message : e);
+    return { geschrieben: 0, offen: 0, grund: `Fehler: ${String(e instanceof Error ? e.message : e).slice(0, 120)}` };
+  });
   const fehler = Object.keys(a.fehler);
-  const text = `${a.neu} neu · ${k.geschrieben} Kurzfassungen${k.offen ? ` · ${k.offen} offen` : ""}${fehler.length ? ` · nicht erreichbar: ${fehler.join(", ")}` : ""}`;
+  // Der Grund gehört in die Meldung: „0 Kurzfassungen“ ohne Grund hat am 12.11. eine Stunde Suche gekostet.
+  const text = `${a.neu} neu · ${k.geschrieben} Kurzfassungen${k.offen ? ` · ${k.offen} offen` : ""}${k.offen && k.grund ? ` (${k.grund})` : ""}${fehler.length ? ` · nicht erreichbar: ${fehler.join(", ")}` : ""}`;
   console.log(`[CHEF-NEWS] ${text}`);
   return text;
 }
@@ -228,4 +231,25 @@ export async function newsJetzt(): Promise<Erg<{ meldung: string }>> {
     return { ok: false, status: 429, error: `Der letzte Abruf ist erst ${Math.max(1, Math.round((Date.now() - zuletzt) / 60_000))} Minuten her — bitte kurz warten.` };
   }
   return { ok: true, meldung: `${await newsLauf()}.` };
+}
+
+// ── Einstellungen der Kurzfassungen (E-508 Scheibe 4): Schalter und Tagesdeckel bekommen eine Bedienung ─────────────
+export async function newsEinstellungenLesen(): Promise<NewsEinstellungen> {
+  const deckel = newsDeckelAus(await einstellung(NEWS_SCHLUESSEL.kiDeckel));
+  const { kostenHeute } = await import("./fiaon-postmeister-schema");
+  const stand = await newsKiStand().catch(() => ({ an: false, grund: "Der Stand der KI ist gerade nicht lesbar." }));
+  return {
+    kiAn: (await einstellung(NEWS_SCHLUESSEL.kiAn)) !== "aus",
+    kiDeckelUsd: deckel,
+    kiHeuteUsd: Math.round((await kostenHeute(DIENST).catch(() => 0)) * 100) / 100,
+    kiGrund: stand.an ? null : stand.grund,
+  };
+}
+export async function newsEinstellungSetzen(ein: unknown): Promise<Erg<{ meldung: string } & NewsEinstellungen>> {
+  const p = newsEinstellungPruefen(ein);
+  if (!p.ok) return { ok: false, status: 400, error: p.error };
+  if (p.kiAn !== undefined) await einstellungSetzen(NEWS_SCHLUESSEL.kiAn, p.kiAn ? "an" : "aus");
+  if (p.kiDeckelUsd !== undefined) await einstellungSetzen(NEWS_SCHLUESSEL.kiDeckel, String(p.kiDeckelUsd));
+  const jetzt = await newsEinstellungenLesen();
+  return { ok: true, ...jetzt, meldung: `Kurzfassungen ${jetzt.kiAn ? "an" : "aus"} · Tagesdeckel ${jetzt.kiDeckelUsd.toLocaleString("de-DE")} $.` };
 }

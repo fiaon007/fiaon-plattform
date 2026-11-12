@@ -2142,6 +2142,15 @@ export const RUNDGANG_CHEF_GLOBAL_LAGE: RundgangSchritt[] = [
     tipp: "Steht „Original — die deutsche Kurzfassung folgt“ da, hat die KI gerade Pause oder ihr Tagesdeckel ist erreicht; die Meldung ist "
       + "trotzdem vollständig. „Ausblenden“ nimmt eine Meldung für alle aus der Liste. Nichts davon geht an Kunden.",
   },
+  // E-508 Scheibe 4 (12.11.2026): Steuerung.
+  {
+    ziel: "[data-cgl='steuerung']",
+    titel: "Steuerung: was du hier einstellst — und wo der Rest steht.",
+    text: "Links die Einstellungen dieser Seite: die Fixkosten, der Schalter für die deutschen Kurzfassungen der News und ihr Tagesdeckel. "
+      + "Rechts der Wegweiser: Jede Zeile führt an die Stelle, an der du Angebote, Akten, Gespräche, Anfragen, Partner, das Firmen-Radar "
+      + "und die KI einstellst.",
+    tipp: "Unter dem Wegweiser steht, was heute noch nicht per Knopf geht — das ist im Bau und kommt Schritt für Schritt dazu.",
+  },
 ];
 
 // ── /chef/s/firmen-radar (19.09.2026, Fassung 2) ─────────────────────────────

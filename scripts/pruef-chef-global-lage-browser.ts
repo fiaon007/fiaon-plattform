@@ -54,6 +54,7 @@ const foto = async (page: Page, name: string) => { if (FOTOS) await page.screens
 const api = async (ctx: BrowserContext) => (await (await ctx.request.get(`${BASIS}/api/fiaon/chef/global-lage`)).json()) as any;
 let vorherAngebot: { id: number; g: string; status: string; verlauf: unknown } | null = null;
 let ausgeblendet: number | null = null;
+let steuerVorher: { an: string | null; deckel: string | null } | null = null;
 const [fixVorher] = await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_fixkosten_monat_cents'`;
 
 try {
@@ -79,7 +80,7 @@ try {
 
   // Fixkosten: sichtbar, „Ändern“ drücken, Wert setzen
   ok("Fixkosten-Karte zeigt den Eingang des Monats", glatt(await p.locator("[data-cgl='fixkosten']").innerText()).includes(geld(daten.fixkosten.monatCents)));
-  await p.getByRole("button", { name: "Ändern" }).click();
+  await p.locator("[data-cgl='fixkosten-aendern']").click();
   await p.locator("#cgl-fixwert").fill("20.000");
   await p.locator("[data-cgl='fixkosten']").getByRole("button", { name: "Speichern" }).click();
   await p.waitForFunction(() => /von 20\.000\s€ gedeckt/.test(document.querySelector("[data-cgl='fixkosten']")?.textContent?.replace(/ /g, " ") ?? ""), undefined, { timeout: 15000 }).catch(() => null);
@@ -206,11 +207,42 @@ try {
   ok("News: „Ausblenden“ nimmt die Meldung aus der Liste", (await p.locator(".cgl-news-zeile").count()) === vorAus - 1);
   ausgeblendet = Number(news.meldungen[0].id);
 
+  // ── Steuerung (Scheibe 4): Schalter und Deckel der Kurzfassungen, Wegweiser ──
+  const [anVorher] = await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_an'`;
+  const [deckelVorher] = await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_deckel_usd'`;
+  steuerVorher = { an: anVorher?.value ?? null, deckel: deckelVorher?.value ?? null };
+  const steuer = p.locator("[data-cgl='steuer-einstellungen']");
+  await steuer.scrollIntoViewIfNeeded();
+  await steuer.getByRole("button", { name: "Aus", exact: true }).waitFor({ timeout: 15000 }).catch(() => null);
+  await steuer.getByRole("button", { name: "Aus", exact: true }).click();
+  await steuer.locator(".cgl-ok").waitFor({ timeout: 15000 }).catch(() => null);
+  ok("Steuerung: Kurzfassungen ausschalten meldet „aus“ und steht in der Datenbank", glatt(await steuer.locator(".cgl-ok").innerText().catch(() => "")).includes("Kurzfassungen aus")
+    && (await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_an'`)[0]?.value === "aus");
+  await steuer.getByRole("button", { name: "An", exact: true }).click();
+  await p.waitForFunction(() => (document.querySelector("[data-cgl='steuer-einstellungen'] .cgl-ok")?.textContent ?? "").includes("Kurzfassungen an"), undefined, { timeout: 15000 }).catch(() => null);
+  await steuer.locator("[data-cgl='deckel-aendern']").click();
+  await steuer.locator(".cgl-steuer-form input").fill("2,5");
+  await steuer.getByRole("button", { name: "Speichern" }).click();
+  await p.waitForFunction(() => (document.querySelector("[data-cgl='steuer-einstellungen'] .cgl-ok")?.textContent ?? "").includes("2,5"), undefined, { timeout: 15000 }).catch(() => null);
+  ok("Steuerung: Tagesdeckel gesetzt", (await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_news_ki_deckel_usd'`)[0]?.value === "2.5" && glatt(await steuer.innerText()).includes("2,50 $"));
+  const wegeLinks = await p.locator(".cgl-steuer-wege li a").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute("href") ?? ""));
+  ok("Steuerung: der Wegweiser führt nur in Räume des Chefbüros", wegeLinks.length >= 6 && wegeLinks.every((h) => h.startsWith("/chef/")), wegeLinks.join(" "));
+  ok("Steuerung: was noch nicht per Knopf geht, steht getrennt da", glatt(await p.locator(".cgl-steuer-bau").innerText()).startsWith("Noch nicht per Knopf (im Bau):"));
+
   // Rundgang und der alte Raum
   await p.getByRole("button", { name: "Rundgang" }).click();
   await p.waitForTimeout(900);
   ok("Rundgang startet mit dem Satz zur neuen Startseite", glatt(await p.locator("body").innerText()).includes("Das Chefbüro öffnet jetzt mit FIAON Global."));
   for (let i = 0; i < 3; i++) { await p.keyboard.press("Escape"); await p.waitForTimeout(150); }
+  await p.goto(`${BASIS}/chef/lage`, { waitUntil: "domcontentloaded" });
+  await p.waitForTimeout(2500);
+  // Jeder Weg aus der Steuerung führt wirklich in einen Raum — keine tote Tür, keine verschlossene.
+  for (const h of wegeLinks) {
+    await p.goto(`${BASIS}${h}`, { waitUntil: "domcontentloaded" });
+    await p.waitForTimeout(1500);
+    const inhalt = glatt(await p.locator(".cb-inhalt").innerText().catch(() => ""));
+    ok(`Steuerung: Ziel „${h}“ öffnet einen Raum`, inhalt.length > 40 && !inhalt.includes("Diese Seite gibt es hier nicht") && !inhalt.includes("ist für dich geschlossen"), inhalt.slice(0, 80));
+  }
   await p.goto(`${BASIS}/chef/lage`, { waitUntil: "domcontentloaded" });
   await p.waitForTimeout(2500);
   ok("Das Lagezimmer Privat ist unter /chef/lage erreichbar", glatt(await p.locator(".cb-kopf-titel b").innerText()) === "Lagezimmer Privat" && (await p.locator(".cgl").count()) === 0);
@@ -247,6 +279,12 @@ try {
   await sql`UPDATE fiaon_global_notizen SET entfernt_am = NOW(), entfernt_von = 'Browser-Prüfstand E-508' WHERE entfernt_am IS NULL AND (text LIKE 'PRUEFSTAND%' OR wiedervorlage_text LIKE 'PRUEFSTAND%')`.catch(() => {});
   if (vorherAngebot) await sql`UPDATE fiaon_global_angebote SET gueltig_bis = ${vorherAngebot.g}::date, status = ${vorherAngebot.status}, verlauf = ${sql.json(vorherAngebot.verlauf as any)} WHERE id = ${vorherAngebot.id}`.catch((e) => console.error("Zurückstellen des Angebots:", e));
   if (ausgeblendet) await sql`UPDATE fiaon_global_news SET ausgeblendet_am = NULL, ausgeblendet_von = NULL WHERE id = ${ausgeblendet}`.catch(() => {});
+  if (steuerVorher) {
+    for (const [key, alt] of [["chef_news_ki_an", steuerVorher.an], ["chef_news_ki_deckel_usd", steuerVorher.deckel]] as const) {
+      if (alt !== null) await sql`UPDATE fiaon_settings SET value = ${alt} WHERE key = ${key}`.catch(() => {});
+      else await sql`DELETE FROM fiaon_settings WHERE key = ${key}`.catch(() => {});
+    }
+  }
   if (fixVorher) await sql`UPDATE fiaon_settings SET value = ${fixVorher.value} WHERE key = 'chef_fixkosten_monat_cents'`.catch(() => {});
   else await sql`DELETE FROM fiaon_settings WHERE key = 'chef_fixkosten_monat_cents'`.catch(() => {});
   await browser.close();

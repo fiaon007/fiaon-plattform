@@ -675,6 +675,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Lagezimmer. Alle 5 Minuten; Historienzeile nur bei Arbeit und einmal je Stunde (Puls). Schalter im Lead-Motor.
   import('./lib/fiaon-crons').then(({ tageslauf }) => {
     tageslauf('lead_takt', async () => await (await import('./lib/fiaon-lead-takt')).leadTaktLauf(), 5 * 60 * 1000, { beimStartNach: 360_000, nurMitErgebnis: true });
+    // E-499 (12.11.2026): Maras Tagesbericht — einmal je Tag ab 20 Uhr als PDF an Justin (Schalter mara_tagesbericht_an).
+    tageslauf('mara_tagesbericht', async () => await (await import('./lib/fiaon-mara-tagesbericht')).tagesberichtLauf(), 10 * 60 * 1000, { beimStartNach: 400_000, nurMitErgebnis: true });
   });
   // 🌐 FIAON Global — falsch zusammengelegte Firmen-Karten trennen (E-487, 09.11.2026): Karten, deren Firmenfeld keine eindeutige
   //    Firma benennt („Selbständig“, „Kleingewerbe“, „GmbH“ …), und auf denen Anfragen fremder Menschen liegen, bekommen je Person eine

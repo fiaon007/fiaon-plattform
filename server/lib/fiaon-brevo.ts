@@ -520,6 +520,8 @@ export interface EigeneMail {
   verlinken?: boolean | string[];
   /** E-476 Nachbesserung: Zeilen, die mit einem Wort in GROSSBUCHSTABEN beginnen („KONTAKT“, „CHECK“), fett setzen. */
   abschnitteFett?: boolean;
+  /** E-499 (Maras Tagesbericht): Dateien im Anhang (PDF). Ohne Angabe bleibt jede Mail Byte für Byte, wie sie war. */
+  anhaenge?: { name: string; inhalt: Buffer }[];
 }
 
 /**
@@ -547,6 +549,7 @@ export async function eigeneMailSenden(
     // und jeder Spamfilter bewertet eine Mail ohne Textteil schlechter.
     textContent: rahmenText(mail.text, mail.gruppe === true, mail),
     ...(mitKopf && mail.kopfzeilen && Object.keys(mail.kopfzeilen).length ? { headers: mail.kopfzeilen } : {}),
+    ...(mail.anhaenge?.length ? { attachment: mail.anhaenge.map((a) => ({ name: a.name, content: a.inhalt.toString("base64") })) } : {}),
   });
   const mitKopf = !!(mail.kopfzeilen && Object.keys(mail.kopfzeilen).length);
   const r = await brevo<{ messageId?: string }>("/smtp/email", { method: "POST", body: koerper(mitKopf) });

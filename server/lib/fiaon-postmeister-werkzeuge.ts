@@ -105,6 +105,16 @@ export interface WerkzeugKontext {
    * das „Ja“ nur, wenn sie die Adresse bestätigt (absenderEcht, dieselbe Prüfung wie angaben_aendern).
    */
   absenderPruefung?: { authErgebnis: string | null; antwortAn: string | null } | null;
+  /**
+   * E-499 (Mara 2.0): Der ZITIERTE Teil seiner Mail (unser Text unter seiner Antwort) — nie seine Worte. Dient nur dazu,
+   * unsere eigene Kündigungs-Rückfrage wiederzuerkennen: Sendet ein Mensch Maras Entwurf direkt aus Gmail, steht in der
+   * Tabelle kein Versand, im Zitat des Kunden aber unsere Frage.
+   */
+  zitiert?: string | null;
+  /** E-499: Wir haben ihn schon einmal gefragt, ob er kündigen möchte — eine zweite Rückfrage gibt es nie (setzt der Lauf). */
+  kuendigungFrageSchon?: boolean;
+  /** E-499: Was er in SEINEN Worten zum Austritt erklärt (austrittsWille) — „bedingt“ heißt: Kündigung nicht ansprechen. */
+  austritt?: "klar" | "frage" | "bedingt" | "nichts";
 }
 
 /**
@@ -790,7 +800,9 @@ const ZITAT_BEGINN: RegExp[] = [
   /welcome@\s?fiaon\.com/i,
   /FIAON\s+Welcome/i,
   // Gegenlesen E-241: nur als Zeile (Signatur im Zitat) — „Hallo Mara Lindner, ja gerne" ist SEIN Text.
-  /\n[ \t>]*Mara\s+Lindner\b/i,
+  // E-499: nur mit der Signatur dahinter — „Guten Abend ,⏎ Mara Lindner ,⏎ Ja , ich möchte … kündigen“ ist SEINE Anrede
+  // (vorher schnitt diese Zeile seine ganze Erklärung weg, und Mara fragte ein zweites Mal).
+  /\n[ \t>]*Mara\s+Lindner[ \t]*(?:\r?\n[ \t>]*)+(?:Digitale\s+Assistentin|FIAON\b|welcome@|support@)/i,
   /(?:^|\n)\s*>/,
   /ist\s+uns\s+etwas\s+aufgefallen/i,
 ];
@@ -1241,22 +1253,36 @@ export const kuendigungVormerken: Werkzeug = {
     if (bestritten) {
       return { ok: false, ergebnis: "", fehler: `Er bestreitet den Vertrag oder schreibt von einer falschen Nummer („${bestritten}") — NICHTS ist gebucht, und es wird nichts gebucht (E-264). Bestätige keine Kündigung und kein Storno; die Leitung übernimmt.` };
     }
+    // E-499 (Mara 2.0): die Fußzeile seiner Mail-App und unser Zitat dahinter zählen nie als seine Worte.
+    const kern = eigen != null ? eigenerKern(eigen) : null;
     let wille = !!pruefText && kuendigungsWille(pruefText, { unbezahlt, formlos: !!k.formlosKuendbar, istWillenserklaerung })
       // Nachbesserung 2: Eine Rücknahme irgendwo in seiner Mail („… ich nehme das zurück") — nie gebucht.
-      && !(eigen && kuendigungRuecknahme(eigen));
+      && !(kern && kuendigungRuecknahme(kern));
+    // E-499: der zweite Weg — er hat in SEINEN Worten ein Austrittswort geschrieben und kein Gegenfall trifft (austrittsWille).
+    // Geprüft wird erst der Satz zum Zitat des Modells, sonst der Anfang seines eigenen Textes (dort steht, was er schreibt).
+    let urteil = austrittsWille(pruefText || "", { unbezahlt });
+    if (urteil.urteil !== "klar" && kern) urteil = austrittsWille(kern.slice(0, 700), { unbezahlt });
+    if (!wille && urteil.urteil === "klar" && !(kern && austrittZurueckgenommen(kern))) wille = true;
+    // Eine Drohung oder Bedingung ohne klaren Satz daneben („… oder ich kündige jetzt“) ist nie eine Erklärung — auch nicht
+    // nach der alten Liste (die „oder“ und „sollte“ nicht kannte).
+    if (wille && urteil.urteil === "bedingt") wille = false;
     // Ein kurzes „Ja" auf UNSERE Rückfrage („Möchten Sie, dass ich Ihren Vertrag jetzt
     // kündige? Ein kurzes Ja genügt.") ist die Erklärung — sonst Kündigungsschleife.
     // E-396 Teil 2 (19.10.2026): auch auf die Rückfrage zu einem Formular-Antrag (formularRueckfrageSenden) — dann wird
     // DIESER Antrag gebucht, zum Tag seines Eingangs. Und das Ja zählt nur vom gespeicherten Absender (Justin: „eigener Absender“).
     let formularAntrag: import("./fiaon-kuendigung").OffenerAntrag | null = null;
-    if (!wille && eigen && k.personId && eigen.trim().length <= 90) {
+    let schonGefragt = false;
+    if (!wille && eigen && k.personId) {
       const [letzte] = (await sqlPool`
         SELECT antwort FROM fiaon_postmeister
          WHERE person_id = ${k.personId} AND antwort IS NOT NULL
            AND id <> ${k.postmeisterId ?? -1}
            AND created_at > NOW() - INTERVAL '21 days'
          ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
-      let ja = jaAufRueckfrage(eigen, letzte?.antwort ?? null);
+      // E-499: Die Rückfrage zählt in jedem Wortlaut (Mara formuliert frei) — und sein Ja auch nach einer Anrede
+      // („Guten Abend, Mara Lindner, Ja …“). Vorher: fester Wortlaut, höchstens 90 Zeichen → die Schleife.
+      schonGefragt = austrittsFrageGestellt(letzte?.antwort ?? null) || frageImZitat(k.zitiert);
+      let ja = jaAufRueckfrage(eigen, letzte?.antwort ?? null) || (schonGefragt && bejahtAustritt(kern ?? eigen));
       if (!ja) {
         const { formularRueckfrageOffen, KUENDIGUNG_RUECKFRAGE } = await import("./fiaon-kuendigung-folgen");
         const antragNr = jaAufRueckfrage(eigen, KUENDIGUNG_RUECKFRAGE) ? await formularRueckfrageOffen(k.personId).catch(() => null) : null;
@@ -1284,7 +1310,15 @@ export const kuendigungVormerken: Werkzeug = {
       }
     }
     if (!wille) {
-      return { ok: false, ergebnis: "", fehler: "Das ist keine eindeutige Kündigung — NICHTS ist gebucht. Bestätige keine Kündigung. Hat der Kunde selbst „kündigen“, „stornieren“ oder „widerrufen“ geschrieben (ohne „nicht“), frag in EINEM freundlichen Satz nach, ob du es jetzt für ihn erledigen sollst. Hat er das NICHT selbst geschrieben (z. B. nur „Stopp“, eine Frage, eine Beschwerde), sprich Kündigung und Storno überhaupt NICHT an — beantworte nur sein Anliegen." };
+      // E-499: nie zweimal fragen. Haben wir schon gefragt und er hat weder Ja noch ein Austrittswort geschrieben, beantwortet
+      // Mara nur, was er schreibt — eine zweite Rückfrage gibt es nicht (der Server hängt dann auch keine an, kuendigungFrageSchon).
+      if (schonGefragt) {
+        return { ok: false, ergebnis: "", fehler: "NICHTS ist gebucht — und du hast ihn schon einmal gefragt, ob er kündigen möchte. Frag NICHT noch einmal. Beantworte nur, was er jetzt schreibt, freundlich und vollständig. Bestätige keine Kündigung.", daten: { kuendigung_frage_schon: true } };
+      }
+      if (urteil.urteil === "bedingt") {
+        return { ok: false, ergebnis: "", fehler: "Er droht nur mit einer Kündigung oder knüpft sie an eine Bedingung („sonst“, „wenn nicht“) — NICHTS ist gebucht. Sprich Kündigung und Storno NICHT an und frag nicht danach: Löse sein Anliegen, konkret und freundlich." };
+      }
+      return { ok: false, ergebnis: "", fehler: "Er hat noch nicht klar erklärt, dass er raus will (eine Frage oder Überlegung) — NICHTS ist gebucht. Bestätige keine Kündigung. Hat er selbst „kündigen“, „stornieren“ oder „widerrufen“ geschrieben, beantworte seine Frage und frag EINMAL in einem warmen Satz, ob du es gleich für ihn erledigen sollst („Ein kurzes Ja genügt.“). Hat er das NICHT selbst geschrieben (z. B. nur „Stopp“, eine Beschwerde), sprich Kündigung und Storno überhaupt NICHT an — beantworte nur sein Anliegen." };
     }
     // ── E-213: DERSELBE VORGANG WIE IN AKTE, KARTEI UND ZENTRALE (28.09.2026, E-248)
     // Vorher rief Mara nur kuendigungSetzen: Wirkung ja, aber keine Urkunde, keine
@@ -1570,12 +1604,16 @@ export function bestreitetKuendigung(text: string, abstreiten?: (t: string) => {
 }
 
 /** Ein Satz, der nie als Kündigung gelten darf. Rein, im Prüfstand geprüft. */
+/** „Kreditkarte“, „Kreditkarten-Antrag“ — unser eigenes Produkt, kein fremder Vertrag (E-499). */
+const KREDITKARTE_WORT = new RegExp(String.raw`kredit\s?kart\p{L}*`, "giu");
 export function keinKuendigungsSatz(s: string): string | null {
   if (VERNEINT_VOR.test(s) || VERNEINT_NACH.test(s) || VERNEINT_EN.test(s)) return "verneint";
   if (RUECKNAHME.test(s)) return "zurückgenommen";
   if (BEDINGUNG.test(s)) return "bedingung";
   if (DRITTE.test(s)) return "dritte person";
-  if (FREMDER_VERTRAG.test(s)) return "fremder vertrag";
+  // E-499: „Kreditkarte“ ist unser eigenes Produkt — vorher galt jeder Satz mit dem Wort als fremder Vertrag
+  // („Ich bitte um Stornierung meines Kreditkarten-Antrags“ wurde nie gebucht).
+  if (FREMDER_VERTRAG.test(s.replace(KREDITKARTE_WORT, "karte"))) return "fremder vertrag";
   if (beendenAllein(s)) return "beenden ohne vertrag";
   return null;
 }
@@ -1593,6 +1631,235 @@ export function jaAufRueckfrage(eigenerText: string, unsereLetzte: string | null
   if (!t || t.length > 90 || /\?/.test(t)) return false;
   if (/\b(?:nicht|nein|kein\w*|doch\s+nicht|no|not)\b/i.test(t)) return false;
   return /^(?:ja|jawohl|jap|genau|korrekt|richtig|gerne?|bitte|yes|s[ií]|oui|evet|tak|da)\b/i.test(t);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MARA 2.0 — DER AUSTRITTSWILLE (E-499, 12.11.2026) — rein, im Prüfstand geprüft.
+//
+// Justin (10.11.2026, „das ist eine Frechheit“): Ein Kunde schrieb „hiermit kündige ich einen eventuell bestehenden
+// Vertrag mit sofortiger Wirkung“ — Mara fragte nach. Er antwortete „Ja, ich möchte diesen Vertrag jetzt kündigen“ —
+// Mara wollte noch einmal fragen. Die Messung an den echten Mails (nur gelesen) zeigte: kuendigung_vormerken lehnte
+// einen großen Teil der Aufrufe als „keine eindeutige Kündigung“ ab, obwohl fast alle klare Erklärungen waren —
+// „Could you please cancel my subscription?“, „Ersuche um Kündigung meines Accounts“, „ich habe längst gekündigt“.
+//
+// Die Ursache war die Bauart: eine Liste erlaubter Formen (WILLE_KLAR, istWillenserklaerung). Jede Form, die dort
+// fehlte, galt als unklar — ein „eventuell“ irgendwo im Satz, „kündige ich“ statt „ich kündige“, ein „Ja“ auf eine frei
+// formulierte Rückfrage. Jetzt umgekehrt: Wer in SEINEN Worten ein Austrittswort schreibt, hat erklärt — außer einer der
+// benannten Gegenfälle trifft (Verneinung, Bedingung/Drohung, fremde Person, fremder Vertrag, Rücknahme, reine Auskunfts-
+// frage, Überlegung). Das Modell muss weiter selbst entscheiden, das Werkzeug zu rufen; hier steht die zweite Unterschrift.
+// Die alte Liste bleibt als erster Weg (sie kennt auch „kein Interesse“ bei unbezahlter Bestellung).
+// ═══════════════════════════════════════════════════════════════════════════
+/** Ein Wort des Austritts in SEINEM Satz: kündigen, stornieren, widerrufen, abbestellen, zurücktreten, cancel … */
+const AUSTRITTSWORT = new RegExp([
+  String.raw`(?<![\p{L}])(?:ge)?k(?:ü|ue|û)ndig\p{L}*`, String.raw`(?<![\p{L}])k(?:ö|oe)nd(?:ü|ue|i)ng\p{L}*`,
+  String.raw`(?<![\p{L}])sto?r?n(?:i|o)\p{L}*`, String.raw`(?<![\p{L}])wi(?:e)?der{1,3}uf\p{L}*`, String.raw`(?<![\p{L}])wi(?:e)?derspr\p{L}*`,
+  String.raw`(?<![\p{L}])abbestell\p{L}*`, String.raw`(?<![\p{L}])bestell\p{L}*\s+(?:\S+\s+){0,3}?ab(?![\p{L}])`,
+  String.raw`(?<![\p{L}])r(?:ü|ue)cktritt\p{L}*`, String.raw`(?<![\p{L}])trete\s+(?:\S+\s+){0,3}?zur(?:ü|ue)ck`,
+  String.raw`(?<![\p{L}])beendigung`, String.raw`(?<![\p{L}])cancel\p{L}*`, String.raw`(?<![\p{L}])aus(?:tritt|treten)(?![\p{L}])`,
+  String.raw`(?<![\p{L}])(?:vertrag\p{L}*|abo\p{L}*|mitgliedschaft|zusammenarbeit|account|konto)\s+(?:\S+\s+){0,4}?(?:beend\p{L}*|aufheb\p{L}*|aufl(?:ö|oe)s\p{L}*|(?<![\p{L}])end(?:et|en|e)(?![\p{L}]))`,
+  String.raw`(?<![\p{L}])(?:beend\p{L}*|aufheb\p{L}*|aufl(?:ö|oe)s\p{L}*)\s+(?:\S+\s+){0,4}?(?:vertrag\p{L}*|abo\p{L}*|mitgliedschaft|zusammenarbeit|account|verh(?:ä|ae)ltnis)`,
+  String.raw`(?<![\p{L}])verzicht\p{L}*\s+auf\s+(?:\S+\s+){0,3}?(?:dienstleistung\p{L}*|dienste|vertrag\p{L}*|service|mitgliedschaft|leistung\p{L}*|angebot)`,
+  String.raw`(?<![\p{L}])stopp?\p{L}*\s+(?:sie\s+)?(?:\S+\s+){0,2}?(?:verfahren|vertrag\p{L}*|abo\p{L}*|mitgliedschaft)`,
+].join("|"), "iu");
+/** Unbezahlte Bestellung: jede klare Absage ist ein Storno (kostet nichts) — auch ohne Austrittswort. */
+const ABSAGE_UNBEZAHLT = /\bhat+\s+sich\s+(?:\S+\s+){0,3}?erledigt\b|\berledigt\s+hat\b|\bkein(?:en)?\s+(?:bedarf|interesse)\b|\bnicht\s+(?:mehr\s+)?interessiert\b|\b(?:alles\s+)?abgebrochen\b|\babbrechen\b|\b(?:brauche?|ben(?:ö|oe)tige|will|m(?:ö|oe)chte)\s+(?:\S+\s+){0,4}?nicht\s+mehr\b|\bnicht\s+mehr\s+(?:n(?:ö|oe)tig|ben(?:ö|oe)tigt|gew(?:ü|ue)nscht)\b/i;
+/** Eine reine Auskunftsfrage oder Überlegung — er will (noch) nichts erklären. */
+const AUSTRITT_AUSKUNFT = new RegExp([
+  String.raw`(?<![\p{L}])(?:wie(?!\s+oft)|wo|wohin|bis\s+wann|ab\s+wann|wann)\s+(?:\S+\s+){0,5}?(?:k(?:ü|ue)ndig|stornier|wi(?:e)?derr?uf|cancel)`,
+  String.raw`(?<![\p{L}])(?:kann\s+(?:ich|man)|k(?:ö|oe)nnte\s+ich|muss\s+ich)(?![\p{L}])[^.!]*\?`,
+  String.raw`(?:ist|w(?:ä|ae)re)\s+(?:das|es|eine\s+k(?:ü|ue)ndigung)\s+(?:\S+\s+){0,2}?m(?:ö|oe)glich`, String.raw`was\s+passiert`,
+  String.raw`k(?:ü|ue)ndigungs(?:frist|bedingung|recht|m(?:ö|oe)glichkeit)\p{L}*`, String.raw`welche\s+frist`, String.raw`(?<![\p{L}])frage\s+zu[rm]?(?![\p{L}])`,
+  String.raw`(?<![\p{L}])informier\p{L}*`, String.raw`wissen,?\s+(?:wie|ob|wann)`, String.raw`(?<![\p{L}])ob\s+ich(?![\p{L}])`,
+  String.raw`(?<![\p{L}])(?:how\s+(?:can|do)\s+i|can\s+i|whether)(?![\p{L}])`,
+  String.raw`(?<![\p{L}])(?:(?:ü|ue)berlege|erw(?:ä|ae)ge|vielleicht|mit\s+dem\s+gedanken|denke\s+dar(?:ü|ue)ber\s+nach)`,
+  // „eventuell“ nur, wenn es das Kündigen selbst meint („eventuell kündigen“) — nicht „einen eventuell bestehenden Vertrag“.
+  String.raw`(?<!(?:ein(?:e[nmrs]?)?|de[nmrs]|die|das|mein(?:e[nmrs]?)?|ihr(?:e[nmrs]?)?|etwaig\p{L}*)\s)(?<![\p{L}])eventuell\s+(?:\S+\s+){0,2}?(?:k(?:ü|ue)ndigen|stornieren|wi(?:e)?derr?ufen)(?![\p{L}])`,
+  String.raw`(?:k(?:ü|ue)ndige|storniere)\s+(?:ich\s+)?(?:dann\s+)?eventuell\s*(?:[.,!?]|$)`,
+].join("|"), "iu");
+/** Eine Bitte an UNS in Frageform: „Could you please cancel …?“, „Können Sie bitte kündigen?“ — das ist eine Erklärung. */
+const AUSTRITT_BITTE = /(?:k(?:ö|oe)nn(?:en|ten)|w(?:ü|ue)rden)\s+sie\b|\b(?:could|can|would|will)\s+you\b|\bbitte\b|\bplease\b/i;
+/** UNSERE Frage an ihn („Möchten Sie …?“, „Soll ich …?“) — steht sie in seinem Text, ist es ein Zitat, nie seine Erklärung. */
+const UNSERE_FRAGE = /\b(?:m(?:ö|oe)chten|wollen)\s+sie\b|\bsoll\s+ich\b|\bein\s+kurzes\s+ja\b/i;
+/** Er beruft sich auf eine frühere Kündigung („habe längst gekündigt“) — das zählt auch in einem Satz mit „wenn“. */
+const FRUEHER_ERKLAERT = /\b(?:habe?|hatte|hab)\b[^.!?\n]{0,60}?\b(?:gek(?:ü|ue)ndigt|storniert|wi(?:e)?derr?ufen|abbestellt)\b|\b(?:gek(?:ü|ue)ndigt|storniert|wi(?:e)?derr?ufen)\s+(?:habe?|hatte|worden|wurde)\b|\bk(?:ü|ue)ndigung\s+(?:\S+\s+){0,4}?(?:eingebracht|geschickt|gesendet|eingereicht|abgegeben|geschrieben)\b/i;
+/** Drohung in der „oder“-/„sollte“-Form („… oder ich kündige“, „Sollte das nicht klappen, kündige ich“) — keine Erklärung. */
+const AUSTRITT_DROHUNG = new RegExp(String.raw`\boder\s+(?:ich\s+)?(?:werde\s+)?(?:\S+\s+){0,2}?(?:k(?:ü|ue)ndig|stornier|wi(?:e)?derr?uf)|^\s*sollte[nt]?\b|(?<!\b(?:sie|ihr|ich|wir|man|es|das|dies|die|der)\s)\bsollte[nt]?\s+(?:ich|es|sich|das|die|der|sie|wir|man|ihr|bis|kein\p{L}*|nichts?|dies\p{L}*|mein\p{L}*|ihre?\p{L}*|unser\p{L}*)(?![\p{L}])`, "iu");
+/** Eine Frage in Verb-zuerst-Form, auch ohne Fragezeichen („Kann ich es auch stornieren“). */
+const AUSTRITT_FRAGEFORM = /^\s*(?:(?:und|aber|hallo|guten\s+tag)[,!\s]+)*(?:kann|k(?:ö|oe)nnte|darf|muss)\s+(?:ich|man)\b/i;
+/** Kein Austritt aus dem Kundenvertrag: Dank für eine erledigte Kündigung, ein anderer Vertrag mit uns (Mitarbeiter, Partner). */
+const AUSTRITT_NICHT_GEMEINT = new RegExp([
+  String.raw`\bdanke?\s+(?:f(?:ü|ue)r|fuer)\s+(?:die|ihre|eure)\s+(?:stornierung|k(?:ü|ue)ndigung\p{L}*|best(?:ä|ae)tigung)`,
+  String.raw`handelsvertreter\p{L}*|arbeitsvertrag\p{L}*|dienstvertrag\p{L}*|kooperationsvertrag\p{L}*|partnervertrag\p{L}*|partnervereinbarung\p{L}*`,
+  // Sein Leben, nicht unser Vertrag: „mir wurde gekündigt“, „mein Arbeitgeber hat mir gekündigt“, „Job/Wohnung gekündigt“.
+  String.raw`(?<![\p{L}])(?:mir|uns)\s+(?:wurde|wird|ist|worden)(?![\p{L}])[^.!?]{0,40}gek(?:ü|ue)ndigt`,
+  String.raw`(?<![\p{L}])ich\s+(?:wurde|bin)(?![\p{L}])[^.!?]{0,30}gek(?:ü|ue)ndigt`,
+  String.raw`(?<![\p{L}])(?:arbeitgeber\p{L}*|vermieter\p{L}*|chef\p{L}*|betrieb|bank|sparkasse)\s+(?:hat|hatte|haben)\s+(?:\S+\s+){0,4}?gek(?:ü|ue)ndigt`,
+  String.raw`(?<![\p{L}])(?:job|arbeit|arbeitsstelle|arbeitsplatz|stelle|wohnung|mietvertrag|ausbildung|lehrstelle)\s+(?:\S+\s+){0,3}?(?:gek(?:ü|ue)ndigt|k(?:ü|ue)ndig\p{L}*)`,
+  String.raw`gek(?:ü|ue)ndigt\s+(?:\S+\s+){0,2}?(?:job|arbeit|arbeitsstelle|stelle|wohnung)(?![\p{L}])`,
+].join("|"), "iu");
+/** Das „wenn“ steht im GRUND hinter dem Austrittswort („… zurückziehen, weil es mir nichts bringt, wenn …“) — keine Bedingung. */
+const GRUND_NACH_AUSTRITT = new RegExp(String.raw`(?:${AUSTRITTSWORT.source})[^.!?]*?(?<![\p{L}])(?:weil|da|denn)(?![\p{L}])[^.!?]*?(?<![\p{L}])(?:wenn|falls|solange)(?![\p{L}])`, "iu");
+/** Fußzeilen der Mail-Programme — dahinter steht bei vielen Apps unser zitierter Text ohne jede Marke. */
+const APP_FUSS = /(?:^|\s)(?:--\s*)?(?:gesendet\s+(?:mit|von|über|ueber)\s+(?:der\s+|dem\s+|meinem\s+|meiner\s+)?[^\n.]{0,40}?(?:app|outlook|iphone|ipad|galaxy|android|smartphone|handy)|von\s+meinem(?:\/meiner)?\s+[^\n.]{0,30}?gesendet|sent\s+from\s+my\s+\w+|get\s+outlook\s+for)/i;
+
+/** Sein eigener Text ohne die Fußzeile seiner Mail-App und alles dahinter (dort beginnt oft unser Zitat). Rein. */
+export function eigenerKern(text: unknown): string {
+  const t = String(text ?? "").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  const m = APP_FUSS.exec(t);
+  const kern = (m && m.index > 0 ? t.slice(0, m.index) : t).trim();
+  return kern || t.trim();
+}
+
+/** Der zitierte Teil einer Mail: alles hinter seinem eigenen Text (kundenTeil) bzw. hinter der Fußzeile seiner Mail-App. Rein. */
+export function zitierterTeil(text: unknown): string {
+  const t = String(text ?? "");
+  let ende = t.length;
+  for (const m of ZITAT_BEGINN) { const i = t.search(m); if (i >= 0 && i < ende) ende = i; }
+  const fuss = APP_FUSS.exec(t);
+  if (fuss && fuss.index > 0 && fuss.index < ende) ende = fuss.index;
+  return t.slice(ende).trim();
+}
+
+/** Der Grund in seinen Worten (ein Satz mit „weil“, „da ich“, „denn“, „leider“, „Grund“), höchstens 200 Zeichen — sonst leer. Rein. */
+export function austrittsGrund(text: unknown): string {
+  const t = eigenerKern(text).replace(/\s+/g, " ").trim();
+  const s = t.split(/(?<=[.!?])\s+/).find((x) => /\b(?:weil|denn|grund|leider|da\s+(?:ich|mir|mein\w*|sie|ihr|es|der|die|das|kein\w*|nichts))\b/i.test(x));
+  return s ? s.slice(0, 200) : "";
+}
+
+export type AustrittsUrteil = "klar" | "frage" | "bedingt" | "nichts";
+/**
+ * Was erklärt er in SEINEN Worten? „klar“ = er will raus (buchen). „frage“ = er fragt oder überlegt (einmal freundlich
+ * nachfragen, nie zweimal). „bedingt“ = Drohung oder Bedingung („sonst kündige ich“) — sein Anliegen lösen, Kündigung
+ * nicht ansprechen. „nichts“ = kein Austrittswort. Rein; geprüft wird Satz für Satz.
+ */
+/** Reine Begriffe aus Unterlagen („Widerrufsbelehrung“, „Kündigungsbestätigung“) — keine Erklärung. */
+const UNTERLAGEN_WORT = new RegExp(String.raw`wi(?:e)?derr?ufs(?:belehrung|frist|formular)\p{L}*|k(?:ü|ue)ndigungs(?:best(?:ä|ae)tigung|schreiben|datum|urkunde)\p{L}*|beendigungsdatum\p{L}*`, "giu");
+/** „beenden“ in jeder Form. */
+const BEENDEN_WORT = new RegExp(String.raw`\bbeend\p{L}*`, "iu");
+const JA_STARK = new RegExp(String.raw`^(?:ja|jawohl|jap|jo|genau|korrekt|richtig|einverstanden|yes|yep|s[ií]|oui|evet|tak)(?![\p{L}])`, "iu");
+const JA_SCHWACH = new RegExp(String.raw`^(?:gerne?|bitte|ok(?:ay)?|in\s+ordnung|passt)(?![\p{L}])`, "iu");
+/** „Antrag/Anfrage/Bestellung zurückziehen“ ist ein Austritt — keine Rücknahme einer Kündigung. Rein. */
+function antragZurueckAlsStorno(text: string): string {
+  return text.replace(/\b(antrag|anfrage|bestellung|auftrag|anmeldung)\b([^.!?\n]{0,40}?)\bzur(?:ü|ue)ck(?:ziehen|zuziehen|nehmen|zunehmen|gezogen|genommen|ziehe|nehme)\b/gi, "$1$2stornieren");
+}
+/** Nimmt er eine Kündigung zurück? Wie kuendigungRuecknahme — nur zählt „den Antrag zurückziehen“ nicht dazu. Rein. */
+export function austrittZurueckgenommen(text: unknown): boolean {
+  return !!kuendigungRuecknahme(antragZurueckAlsStorno(eigenerKern(text).replace(/\s+/g, " ").trim()));
+}
+export function austrittsWille(text: unknown, opt: { unbezahlt?: boolean } = {}): { urteil: AustrittsUrteil; satz: string | null } {
+  const t = antragZurueckAlsStorno(eigenerKern(text).replace(/\s+/g, " ").trim())
+    // Reine Begriffe aus Unterlagen („Widerrufsbelehrung“, „Kündigungsbestätigung“) sind keine Erklärung.
+    .replace(UNTERLAGEN_WORT, "Unterlage")
+    // Abkürzungen beenden keinen Satz („keine Lösung bzw. die Kreditlinie …“).
+    .replace(/\b(bzw|z\.\s?B|ca|evtl|ggf|u\.\s?a|Nr|inkl|usw|etc|d\.\s?h|o\.\s?g|vgl|Mag|Dr|Dipl|Ing|Hr|Fr)\./g, "$1");
+  if (!t) return { urteil: "nichts", satz: null };
+  // Unbezahlte Bestellung: eine klare Absage genügt („hat sich erledigt“, „kein Bedarf“, „alles abgebrochen“) — vor der
+  // Rücknahme-Prüfung, die „hat sich erledigt“ sonst als Rücknahme einer Kündigung läse.
+  if (opt.unbezahlt && !AUSTRITTSWORT.test(t)) {
+    const kurz = t.slice(0, 300);
+    if (ABSAGE_UNBEZAHLT.test(kurz) && !/\?/.test(kurz) && !VERNEINT_VOR.test(kurz)) return { urteil: "klar", satz: kurz };
+  }
+  if (kuendigungRuecknahme(t)) return { urteil: "nichts", satz: null };
+  // Nie hinter einer Zahl trennen („bis 15.11. …“, „Rate 2. …“) — sonst verliert der Satz seinen Anfang („Sollte ich bis 15.11. …“).
+  const saetze = t.split(/(?<=(?<!\d)[.!;])\s+|\n+|(?<=\?)\s*|\s*[-–—]\s*(?=ich\b)/i).map((s) => s.trim()).filter(Boolean);
+  let frage: string | null = null; let bedingt: string | null = null;
+  for (const s of saetze) {
+    if (!AUSTRITTSWORT.test(s)) continue;
+    if (UNSERE_FRAGE.test(s) || AUSTRITT_NICHT_GEMEINT.test(s)) continue;
+    if (AUSTRITT_DROHUNG.test(s)) { bedingt ??= s; continue; }
+    if (AUSTRITT_FRAGEFORM.test(s)) { frage ??= s; continue; }
+    const kein = keinKuendigungsSatz(s);
+    if (kein === "bedingung") {
+      // „Ich habe längst gekündigt, wenn überhaupt“ und „Ich ziehe den Antrag zurück, weil mir das nichts bringt, wenn …“
+      // sind Erklärungen — das „wenn“ steht dort im Grund, nicht vor der Kündigung.
+      const grundDanach = GRUND_NACH_AUSTRITT.test(s);
+      if (grundDanach || (FRUEHER_ERKLAERT.test(s) && !/\bh(?:ä|ae)tte\b/i.test(s))) return { urteil: "klar", satz: s };
+      bedingt ??= s; continue;
+    }
+    // „beenden ohne Vertrag“ prüft AUSTRITTSWORT selbst (beenden zählt dort nur mit Vertrag, Abo, Verhältnis …).
+    if (kein && kein !== "beenden ohne vertrag") continue;
+    if (AUSTRITT_AUSKUNFT.test(s)) { frage ??= s; continue; }
+    if (/\?\s*$/.test(s) && !AUSTRITT_BITTE.test(s) && !/\bwie\s+oft\b/i.test(s)) { frage ??= s; continue; }
+    return { urteil: "klar", satz: s };
+  }
+  if (frage) return { urteil: "frage", satz: frage };
+  if (bedingt) return { urteil: "bedingt", satz: bedingt };
+  return { urteil: "nichts", satz: null };
+}
+
+/** Hat UNSERE letzte Nachricht gefragt, ob er kündigen/stornieren möchte — in welchem Wortlaut auch immer? Rein. */
+export function austrittsFrageGestellt(unsere: unknown): boolean {
+  const t = String(unsere ?? "").replace(/\s+/g, " ");
+  if (!t) return false;
+  return t.split(/(?<=[.!?])\s+/).some((s, i, alle) => {
+    const mitWort = AUSTRITTSWORT.test(s) || BEENDEN_WORT.test(s);
+    if (mitWort && /\?/.test(s)) return true;
+    // „… buchen kann, antworten Sie bitte mit Ja.“ / „Ein kurzes Ja genügt.“ direkt nach dem Satz mit dem Austrittswort.
+    const jaBitte = /\bja\b[^.!?]{0,30}\bgen(?:ü|ue)gt\b|\bantworten\s+sie\b[^.!?]{0,60}\bja\b|\bmit\s+(?:einem\s+)?(?:kurzen\s+)?[„"']?ja\b/i;
+    return jaBitte.test(s) && (mitWort || (i > 0 && (AUSTRITTSWORT.test(alle[i - 1]) || BEENDEN_WORT.test(alle[i - 1]))));
+  });
+}
+
+/** Die Anrede vorn weg („Guten Abend, Mara Lindner, Ja …“) — damit ein Ja am Anfang als Ja erkannt wird. Rein. */
+function ohneAnrede(text: string): string {
+  let t = text.trim();
+  for (let i = 0; i < 4; i++) {
+    const neu = t
+      .replace(/^(?:guten\s+(?:tag|abend|morgen)|hallo|hi|hey|servus|moin|gr(?:ü|ue)(?:ß|ss)\s+gott|sehr\s+geehrte[rs]?(?:\s+(?:damen\s+und\s+herren|frau|herr)\b[^,!.\n]{0,30})?|liebe[rs]?\b[^,!.\n]{0,30}|dear\b[^,!.\n]{0,30})\s*[,!.:]?\s*/i, "")
+      .replace(/^(?:(?:frau|fr\.)\s+)?(?:mara\s+)?lindner\s*[,!.:]?\s*/i, "").replace(/^mara\s*[,!.:]\s*/i, "");
+    if (neu === t) break;
+    t = neu;
+  }
+  return t;
+}
+/** Ein Ja mit Vorbehalt („Ja, aber erst …“, „Ja, wenn …“) ist kein Ja. */
+const JA_VORBEHALT = /\b(?:aber|wenn|falls|sobald|sofern|vorher|zuerst|jedoch|allerdings|erst\s+(?:wenn|nach|mal)|oder)\b/i;
+/** Ein Ja zu etwas ANDEREM (Zahlung, Termin, Karte …) — kein Ja zur Kündigung, wenn kein Austrittswort dabei steht. */
+const JA_ANDERES_THEMA = /(?:ü|ue)berw(?:ie|ei)s|bezahl|\bzahl(?:e|en|ung|t)\b|termin|r(?:ü|ue)ckruf|anruf|\bruf(?:e|en|t)\b|karte|unterlagen|schufa|auskunft|angebot|passwor|zugang/i;
+/** Grußformel und Name am Ende („Mit freundlichen Grüßen Max Muster“) — zählt nicht zum Inhalt des Ja. */
+const GRUSS_ENDE = /\s*(?:mit\s+freundlichen?\s+gr(?:ü|ue)(?:ß|ss)en?|freundliche\s+gr(?:ü|ue)(?:ß|ss)e|viele\s+gr(?:ü|ue)(?:ß|ss)e|liebe\s+gr(?:ü|ue)(?:ß|ss)e|beste\s+gr(?:ü|ue)(?:ß|ss)e|mfg|lg|vg|gru(?:ß|ss)|kind\s+regards|best\s+regards|regards|danke(?:sch(?:ö|oe)n)?|vielen\s+dank)\b[\s\S]*$/i;
+/**
+ * Antwortet er mit Ja auf unsere Kündigungs-Rückfrage? Nach der Anrede, ohne Verneinung, ohne Gegenfrage, ohne Vorbehalt
+ * („Ja, aber …“) — und nicht als Ja zu etwas anderem („Ja, ich habe überwiesen“). Ein schwaches Wort („Bitte“, „Ok“,
+ * „Gerne“) zählt nur allein oder mit einem Austrittswort („Bitte kündigen“). Rein.
+ */
+export function bejahtAustritt(eigenerText: unknown): boolean {
+  const t = ohneAnrede(eigenerKern(eigenerText).replace(/\s+/g, " "));
+  if (!t || t.length > 240 || /\?/.test(t)) return false;
+  if (/\b(?:nicht|nein|kein\w*|doch\s+nicht|no|not|nie)\b/i.test(t.slice(0, 60))) return false;
+  const stark = JA_STARK.exec(t);
+  const schwach = stark ? null : JA_SCHWACH.exec(t);
+  const wort = stark ?? schwach;
+  if (!wort) return false;
+  const rest = t.slice(wort[0].length).replace(GRUSS_ENDE, "").replace(/^[\s,.!:;–—-]+/, "").trim();
+  const mitAustritt = AUSTRITTSWORT.test(rest) || BEENDEN_WORT.test(rest);
+  if (JA_VORBEHALT.test(rest)) return false;
+  if (!mitAustritt && JA_ANDERES_THEMA.test(rest)) return false;
+  return stark ? (mitAustritt || rest.length <= 80) : (mitAustritt || rest.length <= 25);
+}
+
+/** Steht UNSERE Kündigungs-Rückfrage im zitierten Teil seiner Mail (nur die jüngste zitierte Nachricht, 1.500 Zeichen)? Rein. */
+export function frageImZitat(zitiert: unknown): boolean {
+  const z = String(zitiert ?? "").replace(/^[ \t]*>+[ \t]?/gm, "").slice(0, 1500);
+  return !!z.trim() && austrittsFrageGestellt(z);
+}
+
+/**
+ * E-499: Haben wir diesen Menschen schon einmal gefragt, ob er kündigen/stornieren möchte? Aus unserer letzten Antwort
+ * (21 Tage, auch ein Entwurf, den ein Mensch aus Gmail gesendet hat) oder aus dem Zitat in seiner Mail. Dann gilt:
+ * Sein Ja bucht — und eine zweite Rückfrage gibt es nie. Liest nur.
+ */
+export async function kuendigungFrageSchon(k: { personId: number | null; postmeisterId?: number | null; zitiert?: string | null }): Promise<boolean> {
+  if (frageImZitat(k.zitiert)) return true;
+  if (!k.personId) return false;
+  const [letzte] = (await sqlPool`
+    SELECT antwort FROM fiaon_postmeister
+     WHERE person_id = ${k.personId} AND antwort IS NOT NULL
+       AND id <> ${k.postmeisterId ?? -1}
+       AND created_at > NOW() - INTERVAL '21 days'
+     ORDER BY created_at DESC LIMIT 1`.catch(() => [])) as any[];
+  return austrittsFrageGestellt(letzte?.antwort ?? null);
 }
 
 /**

@@ -606,6 +606,13 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     folge: "Business-Leads hören auf WhatsApp nichts von Mara: keine Wahl Telefon/E-Mail/WhatsApp, keine Termin-Nachricht, keine Nachfrage.",
     fenster: 3,
   },
+  // E-499 (12.11.2026): Takt alle 10 Minuten, nurMitErgebnis + Puls alle 6 Stunden — gesendet wird einmal je Tag ab 20 Uhr (Tagesmerker).
+  mara_tagesbericht: {
+    zweck: "Maras Tagesbericht: jeden Abend ab 20 Uhr ihr Arbeitstag der letzten 24 Stunden als PDF per Mail an Justin — was sie selbst erledigt hat, "
+      + "Kündigungen (gebucht und nicht gebucht mit Grund), Geld, was auf Justin wartet, wo es im Team hängt, KI-Kosten und der Verlauf",
+    folge: "Justin bekommt abends keinen Bericht von Mara und sieht nur im Chefbüro, was sie getan hat.",
+    fenster: 8,
+  },
   // E-476 Scheibe 4 (05.11.2026): Takt alle 2 Minuten, nurMitErgebnis + Stundenpuls.
   lead_post: {
     zweck: "FIAON Global: Justins Willkommens-Mail an jeden neuen Business-Lead (aus js@, mit seinen Antworten und dem persönlichen Terminlink, "

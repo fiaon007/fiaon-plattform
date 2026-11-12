@@ -41,6 +41,8 @@ import {
   auskunftAntwortArt, antwortAufAuskunftAngebot, kundenTeil,
   // E-275 (02.10.2026): Werbesperre nur auf ausdrücklichen Wunsch — dieselbe Regel wie im Werkzeug.
   ausdruecklicherStopp, hatEigenenText, eigenerKundentext, eigenerBetreff,
+  // E-499 (Mara 2.0): die Kündigung vorab — klare Erklärung oder sein Ja bucht der Server, nie eine zweite Rückfrage.
+  eigenerKern, austrittsWille, austrittsGrund, bejahtAustritt, kuendigungFrageSchon, zitierterTeil,
   type WerkzeugKontext, type WerkzeugErgebnis, type AuskunftAntwort,
 } from "./fiaon-postmeister-werkzeuge";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
@@ -1494,7 +1496,7 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     // Rate endet der Vertrag, dann kommt das Kündigungsschreiben (kuendigungSetzen,
     // Weg „letzte_rate"). Die Prüfung im Server (bestaetigtOhneBuchung) hält nach.
     // ══════════════════════════════════════════════════════════════════════
-    `WILL JEMAND KÜNDIGEN ODER STORNIEREN: Erklärt er es klar — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort"), auch „bitte alles stornieren" oder „ich will nicht mehr" —, nimmst du es SOFORT entgegen: kuendigung_vormerken mit seinem wörtlichen Satz. Kein fester Wortlaut, keine zweite Runde.${ein.formlos ? " Sein Vertrag ist nach der Fassung vor dem 03.09.2026: monatlich und formlos kündbar — jede klare Aussage genügt." : ""} Du bestätigst NUR, was das Werkzeug gebucht hat. Lehnt es ab oder hast du es nicht gerufen, schreibst du NIE „Ihre Kündigung liegt vor", „ist vorgemerkt", „ist erfasst", „ist storniert" — dann fragst du in EINEM freundlichen Satz nach („Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt." — bei einer unbezahlten Bestellung: „Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt."), aber NUR, wenn er selbst kündigen, stornieren oder widerrufen geschrieben hat. Antwortet er darauf mit „Ja", rufst du kuendigung_vormerken mit seinem „Ja" als Zitat. Auch sein „Ja“ auf unsere Rückfrage zu seinem Kündigungsformular (Betreff „Ihre Kündigung — eine kurze Rückfrage“) ist so ein Ja. Eine unklare Kündigung gibst du NIE als Aufgabe oder Auftrag an einen Kollegen weiter — die Rückfrage ist der Weg, und sein Ja bucht das Werkzeug selbst (E-396; es zählt nur von seiner gespeicherten Adresse). STORNO ODER KÜNDIGUNG BIETEST DU NIE VON DIR AUS AN — auch nicht als Nebensatz („Wenn Sie auch die Bestellung stornieren möchten …"). „Stopp" heißt nur: keine Werbung (werbesperre_setzen), sonst nichts. Verneint er („ich kündige nicht", „ich will nicht kündigen, sondern …") oder knüpft er es an eine Bedingung („sonst kündige ich", „bevor ich kündige …"), ist das KEINE Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst Mut. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes (Regel WIDERRUF unten).`,
+    `WILL JEMAND KÜNDIGEN ODER STORNIEREN: Erklärt er es klar — auch formlos, auch mit seinem Namen im Satz („Ich, Max Muster, kündige per sofort"), auch „bitte alles stornieren" oder „ich will nicht mehr" —, nimmst du es SOFORT entgegen: kuendigung_vormerken mit seinem wörtlichen Satz. Kein fester Wortlaut, keine zweite Runde. Steht unten „VORAB ERLEDIGT (kuendigung_vormerken …)“, hat der Server es schon gebucht: Du bestätigst es warm und klar und fragst NICHTS mehr dazu. Du fragst HÖCHSTENS EINMAL nach — steht unten, dass du schon gefragt hast, gibt es keine zweite Rückfrage (E-499).${ein.formlos ? " Sein Vertrag ist nach der Fassung vor dem 03.09.2026: monatlich und formlos kündbar — jede klare Aussage genügt." : ""} Du bestätigst NUR, was das Werkzeug gebucht hat. Lehnt es ab oder hast du es nicht gerufen, schreibst du NIE „Ihre Kündigung liegt vor", „ist vorgemerkt", „ist erfasst", „ist storniert" — dann fragst du in EINEM freundlichen Satz nach („Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt." — bei einer unbezahlten Bestellung: „Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt."), aber NUR, wenn er selbst kündigen, stornieren oder widerrufen geschrieben hat. Antwortet er darauf mit „Ja", rufst du kuendigung_vormerken mit seinem „Ja" als Zitat. Auch sein „Ja“ auf unsere Rückfrage zu seinem Kündigungsformular (Betreff „Ihre Kündigung — eine kurze Rückfrage“) ist so ein Ja. Eine unklare Kündigung gibst du NIE als Aufgabe oder Auftrag an einen Kollegen weiter — die Rückfrage ist der Weg, und sein Ja bucht das Werkzeug selbst (E-396; es zählt nur von seiner gespeicherten Adresse). STORNO ODER KÜNDIGUNG BIETEST DU NIE VON DIR AUS AN — auch nicht als Nebensatz („Wenn Sie auch die Bestellung stornieren möchten …"). „Stopp" heißt nur: keine Werbung (werbesperre_setzen), sonst nichts. Verneint er („ich kündige nicht", „ich will nicht kündigen, sondern …") oder knüpft er es an eine Bedingung („sonst kündige ich", „bevor ich kündige …"), ist das KEINE Kündigung: Du gehst auf sein eigentliches Anliegen ein und machst Mut. Ein Widerruf innerhalb von 14 Tagen ist etwas anderes (Regel WIDERRUF unten).`,
 
     // E-272 (02.10.2026, Gegenprüfung): Karte und Konto der Partnerbank sind ein Privatprodukt — beim Global-Kunden fehlt der Block.
     // E-275 (02.10.2026): „erneut schicken kann sein Betreuer“ und „FIAON verschickt keine Karte und keine PIN“ sind raus —
@@ -1919,6 +1921,15 @@ export function rueckfrageGestellt(text: string): boolean {
   return /ein\s+kurzes\s+ja\s+gen(?:ü|ue)gt/i.test(t) || /(?:kündig|kuendig|storn|beend|widerruf)[^.!?\n]{0,120}\?/i.test(t);
 }
 
+/** E-499: Nimmt jede Kündigungs-Rückfrage aus dem Text („Möchten Sie … kündigen? Ein kurzes Ja genügt.“) — Absätze bleiben. Rein. */
+export function rueckfrageEntfernen(text: string): string {
+  const istFrage = (s: string) => /(?:kündig|kuendig|storn|beend|widerruf)[^.!?\n]{0,120}\?/i.test(s)
+    || /ein\s+kurzes\s+ja\s+gen(?:ü|ue)gt/i.test(s) || /\bantworten\s+sie\b[^.!?\n]{0,60}\bja\b/i.test(s) || /\bmit\s+(?:einem\s+)?(?:kurzen\s+)?[„"']?ja[“"']?\b[^.!?\n]{0,30}(?:best(?:ä|ae)tig|antwort)/i.test(s);
+  return String(text || "").split(/\n{2,}/)
+    .map((absatz) => absatz.split(/(?<=[.!?])\s+/).filter((s) => !istFrage(s)).join(" ").trim())
+    .filter(Boolean).join("\n\n");
+}
+
 /** Sagt der Text etwas über Werbung/Newsletter oder „keine Mails mehr“? (E-396 Teil 2 — dann gilt E-371 weiter.) */
 export const WERBUNG_VERSPROCHEN = /werb|newsletter|keine\s+(?:weiteren\s+)?(?:e-?mails?|mails?|nachrichten|post)\b/i;
 
@@ -2326,6 +2337,8 @@ export async function antwortErzeugen(ein: {
     // angaben_aendern) nur, wenn Gmails Absender-Prüfung die Adresse bestätigt.
     absender: ein.mail.von,
     absenderPruefung: { authErgebnis: ein.mail.authErgebnis ?? null, antwortAn: ein.mail.antwortAn ?? null },
+    // E-499: unser Text unter seiner Antwort — nur, um unsere eigene Kündigungs-Rückfrage wiederzuerkennen.
+    zitiert: anliegen ? null : (zitierterTeil(kundeTextOhneAnhang(ein.mail.text)).slice(0, 4000) || null),
   };
   // 25.09.2026 (E-241): Antwortet er auf das Angebot der Auskunft oder fragt er selbst?
   // Nur dann gibt es Werkzeug, Schritt und Verkaufsblock auch bei einem offenen Antrag
@@ -2406,6 +2419,51 @@ export async function antwortErzeugen(ein: {
   const zahlLagen = ["unbezahlt", "zahlung_gemeldet", "rate_ueberfaellig", "gekuendigt"];
   const vorab: string[] = [];
   if (genannt?.hinweis) vorab.push(genannt.hinweis);
+
+  // ── E-499 (12.11.2026, MARA 2.0): DIE KÜNDIGUNG VORAB — MARA HANDELT SELBST ─────────
+  // Justin (10.11., „das ist eine Frechheit“): Ein Kunde kündigte klar, Mara fragte nach; er schrieb „Ja, ich möchte
+  // diesen Vertrag jetzt kündigen“ — und Mara wollte NOCH EINMAL fragen. Gemessen (nur gelesen): Das Werkzeug lehnte
+  // klare Kündigungen oft ab, und bei klaren Sätzen rief das Modell es oft gar nicht. Jetzt liest der SERVER
+  // seine eigenen Worte (austrittsWille) und bucht eine klare Erklärung — oder sein Ja auf unsere Rückfrage — selbst,
+  // BEVOR Mara schreibt (wie die Zahlungsseite oben: Das Modell vergisst Werkzeuge). Zwei Unterschriften bleiben: Die
+  // Einordnung sagt „Kündigung“ (Lampe oder Kategorie), und die Regel liest die Erklärung in seinen Worten. Beim Ja
+  // genügt, dass WIR gefragt haben. Nicht bei Widerruf, Bestreiten, Anwalt/Behörde (dort entscheidet ein Mensch), nie
+  // bei Global, nie im Anliegen. Die Werkzeug-Ampel gilt wie in der Schleife. Alle Prüfungen des Werkzeugs gelten weiter
+  // (eigener Absender beim Ja, Rücknahme, Bestreiten); lehnt es ab, ist nichts gebucht und Mara erfährt den Grund.
+  {
+    const fK = ein.einordnung.flags ?? {};
+    const wK = anliegen ? null : werkzeuge.find((x) => x.name === "kuendigung_vormerken");
+    const schonRaus = !!akte?.kuendigung || (akte?.bestellungen ?? []).some((b: any) => b.ref === ein.ref
+      && ["cancelled", "canceled", "storniert", "refunded"].includes(String(b.status)));
+    if (wK && ein.ref && ein.personId && !akte?.global && !schonRaus) {
+      const kern = eigenerKern(kontext.kundeText ?? "");
+      const urteil = austrittsWille(kern.slice(0, 700), { unbezahlt: ["unbezahlt", "interessent", "gesperrt"].includes(lage) });
+      kontext.austritt = urteil.urteil;
+      kontext.kuendigungFrageSchon = await kuendigungFrageSchon({ personId: ein.personId, postmeisterId: ein.postmeisterId, zitiert: kontext.zitiert }).catch(() => false);
+      const ja = !!kontext.kuendigungFrageSchon && bejahtAustritt(kern);
+      const themaKuendigung = !!fK.kuendigung || (ein.einordnung.kategorien ?? []).some((x) => String(x) === "kuendigung");
+      const menschLampe = !!(fK.widerruf || fK.bestreitet || fK.rechtlich || fK.droht_anwalt);
+      if (((urteil.urteil === "klar" && themaKuendigung) || ja) && !menschLampe) {
+        const ampelMod = await import("./fiaon-ki-ampel");
+        const ampel = await ampelMod.ampelPruefen("mara", wK.name, { kanal: "mail", personId: kontext.personId ?? null }).catch(() => null);
+        if (ampel?.gesperrt && ampel.rotWeg === "karte") ampelRotWerkzeuge.push(ampel.werkzeug?.label ?? wK.name);
+        const erg: WerkzeugErgebnis = ampel?.gesperrt
+          ? { ok: false, ergebnis: "", fehler: ampel.text ?? "Dieses Werkzeug ist gerade gesperrt (Ampel rot)." }
+          : await wK.ausfuehren({ zitat: String((urteil.urteil === "klar" ? urteil.satz : null) ?? kern).slice(0, 300), grund: austrittsGrund(kern) }, kontext)
+            .catch((e: any): WerkzeugErgebnis => ({ ok: false, ergebnis: "", fehler: String(e?.message || e).slice(0, 200) }));
+        handlungen.push({ werkzeug: wK.name, ergebnis: erg.ok ? erg.ergebnis : (erg.fehler || "fehlgeschlagen"), ok: !!erg.ok });
+        if (erg.ok && erg.daten) werkzeugDaten[wK.name] = erg.daten;
+        if (ampel && !ampel.gesperrt) await ampelMod.ampelGelbMerken(ampel, !!erg.ok, { kanal: "mail", personId: kontext.personId ?? null }, erg.ok ? erg.ergebnis : null).catch(() => {});
+        vorab.push(erg.ok
+          ? `VORAB ERLEDIGT (kuendigung_vormerken ist gelaufen — NICHT noch einmal rufen und NICHT nachfragen, ob er kündigen möchte; bestätige es ihm warm und klar): ${erg.ergebnis} ${JSON.stringify(erg.daten ?? {})}`
+          : `HINWEIS (kuendigung_vormerken, vom Server versucht — NICHTS ist gebucht): ${erg.fehler || "nicht gelaufen"}`);
+      } else if (kontext.kuendigungFrageSchon) {
+        vorab.push("HINWEIS (E-499): Du hast ihn schon EINMAL gefragt, ob er kündigen oder stornieren möchte. Frag NICHT noch einmal — beantworte nur, was er jetzt schreibt. Erklärt er es jetzt klar, ruf kuendigung_vormerken.");
+      } else if (urteil.urteil === "bedingt") {
+        vorab.push("HINWEIS (E-499): Er droht nur mit einer Kündigung oder knüpft sie an eine Bedingung („sonst“, „sollte …“, „oder ich kündige“). Sprich Kündigung und Storno NICHT an und frag nicht danach — löse sein Anliegen, konkret und freundlich.");
+      }
+    }
+  }
 
   // ── E-401 (3/6, 19.10.2026): MARA SUCHT DIE ZAHLUNG SELBST ────────────────
   // „Habe überwiesen“ hieß bisher: Beleg erbitten, die Zahlungsstelle sieht nach (Auftrag „Stufe A klären“). Jetzt sieht
@@ -3054,14 +3112,26 @@ async function pruefenUndAbschliessen(roh: any, k: {
       // Nachbesserung E-248: je nach Lage — unbezahlt heißt „Bestellung stornieren".
       // Ein „Ja" darauf nimmt kuendigung_vormerken an (jaAufRueckfrage).
       const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
-      const frage = unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.";
+      // E-499: nie eine zweite Rückfrage — haben wir schon gefragt (oder droht er nur), fällt der falsche Satz ohne Ersatz weg.
+      const ohneFrage = !!k.kontext.kuendigungFrageSchon || k.kontext.austritt === "bedingt";
+      const frage = ohneFrage ? "" : unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.";
       text = [rest, de ? frage : ""].filter(Boolean).join("\n\n");
-      fehlend = [...fehlend.filter((f) => !/NICHT gebucht/.test(f)), "Server: Satz „Kündigung liegt vor/ist erfasst“ ohne Buchung entfernt und durch die Rückfrage ersetzt — bitte prüfen"];
-    } else if (!gebuchtJetzt && kuendigungOffen && !rueckfrageGestellt(text) && String(k.sprache || "de").startsWith("de")) {
+      fehlend = [...fehlend.filter((f) => !/NICHT gebucht/.test(f)), ohneFrage
+        ? "Server: Satz „Kündigung liegt vor/ist erfasst“ ohne Buchung entfernt — gefragt haben wir schon einmal, darum keine zweite Rückfrage (E-499); bitte prüfen"
+        : "Server: Satz „Kündigung liegt vor/ist erfasst“ ohne Buchung entfernt und durch die Rückfrage ersetzt — bitte prüfen"];
+    } else if (!gebuchtJetzt && kuendigungOffen && !rueckfrageGestellt(text) && String(k.sprache || "de").startsWith("de")
+      && !k.kontext.kuendigungFrageSchon && k.kontext.austritt !== "bedingt") {
       // E-369: Er will kündigen/stornieren, gebucht ist nichts, und die Antwort fragt nicht zurück — dann hängt der Server
       // die eine Rückfrage an. Ein „Ja“ darauf bucht kuendigung_vormerken (jaAufRueckfrage). Kein Mangel: das ist der Weg.
       const unbez = k.lage === "unbezahlt" || k.lage === "interessent" || k.lage === "gesperrt";
       text = `${text}\n\n${unbez ? "Möchten Sie, dass ich Ihre Bestellung jetzt storniere? Ein kurzes Ja genügt." : "Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt."}`;
+    }
+    // E-499 (Mara 2.0): NIE ZWEIMAL FRAGEN. Haben wir schon gefragt (oder droht er nur mit Kündigung) und ist nichts
+    // gebucht, nimmt der Server jede weitere Rückfrage aus der Antwort. Bleibt dann nichts übrig, sieht es ein Mensch.
+    if (!gebuchtJetzt && (k.kontext.kuendigungFrageSchon || k.kontext.austritt === "bedingt") && rueckfrageGestellt(text)) {
+      const ohne = rueckfrageEntfernen(text);
+      if (ohne.replace(/\s+/g, " ").trim().length >= 60) text = ohne;
+      else fehlend.push("Die Antwort bestünde nur aus einer zweiten Kündigungs-Rückfrage — gefragt haben wir schon einmal (E-499); bitte von Hand beantworten");
     }
   }
 

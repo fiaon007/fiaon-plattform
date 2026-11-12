@@ -23,9 +23,9 @@ import { globalNotizSchreiben } from "./fiaon-global-bereich";
 import {
   LAGE_FIXKOSTEN_SCHLUESSEL, LAGE_FIXKOSTEN_VORGABE_CENTS,
   lageAngebotAus, mandantenBauen, auftragswertRechnen, fixkostenRechnen, fixkostenPruefen, gueltigkeitPruefen, notizPruefen,
-  wartetBauen, feedOrdnen, wocheWaehlen, tagPlus, tagKurz, kurzText, istTag,
+  wartetBauen, feedOrdnen, wocheWaehlen, tagPlus, tagKurz, kurzText, istTag, nachfassArt, nachfassMail, nachfassAnrede, nachfassText, NACHFASS_ART_NAME,
   type LageAngebot, type LageAkte, type LageMandant, type LageAntwort, type LagePartnerAufgabe, type LageWiedervorlage,
-  type LageNotizZeile, type LageTermin, type FeedEintrag, type FeedArt, type LageBezug,
+  type LageNotizZeile, type LageTermin, type FeedEintrag, type FeedArt, type LageBezug, type NachfassMail,
 } from "@shared/fiaon-chef-global-lage";
 
 type Stufe = "inhaber" | "geschaeftsfuehrung" | "leitung";
@@ -502,6 +502,8 @@ export async function globalLageLesen(opts: { stufe: Stufe; woche?: unknown; jet
     ok: true, stand: jetzt.toISOString(), heute, stufe: opts.stufe, auftragswert, fixkosten, wartet, partner,
     mandanten: mandanten.map((m) => ({
       ...m,
+      // Nachfass-Entwurf: nur für Angebote, die noch offen oder gerade abgelaufen sind — und nur der Inhaber legt in js@ ab.
+      nachfass: inhaber && m.angebotId != null ? nachfassArt(m, heute) : null,
       ziele: { akte: m.akteRef ? zielAkte(m.akteRef) : null, angebot: m.angebotRef ? zielAngebot(m.angebotRef) : null },
       notizen: [...(notizenJe.get(m.schluessel) ?? []), ...(m.akteRef && m.angebotId != null ? notizenJe.get(`angebot:${m.angebotId}`) ?? [] : [])]
         .sort((a, b) => b.am.localeCompare(a.am)).slice(0, 3),
@@ -541,7 +543,9 @@ export async function lageNotizSchreiben(ein: unknown, wer: LageWer): Promise<Er
     await verlaufAngebot(Number(w.bezugId), wer.name, was);
   }
   const teile = [w.text ? "Notiz gespeichert" : "", w.wiedervorlageAm ? `Wiedervorlage am ${tagKurz(w.wiedervorlageAm)}` : ""].filter(Boolean);
-  return { ok: true, id: Number(z.id), meldung: `${teile.join(" · ")}.` };
+  // Endet die Meldung mit einem Datum („15.11.“), bekommt sie keinen zweiten Punkt.
+  const satz = teile.join(" · ");
+  return { ok: true, id: Number(z.id), meldung: satz.endsWith(".") ? satz : `${satz}.` };
 }
 
 export async function lageWiedervorlageErledigen(id: number, wer: LageWer): Promise<Erg<{ meldung: string }>> {
@@ -582,4 +586,81 @@ export async function lageGueltigkeitSetzen(id: number, neuBisRoh: unknown, wer:
     : p.linkBleibtBis ? `Der schon verschickte Link gilt noch bis ${tagKurz(p.linkBleibtBis)} — danach bitte den neuen Link schicken.`
     : "Der alte Link ist abgelaufen — bitte den neuen Link schicken.";
   return { ok: true, gueltigBis: p.neuBis, linkBleibtBis: p.linkBleibtBis, meldung: `Gültig bis ${tagKurz(p.neuBis)}. ${link}` };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NACHFASSEN — eine persönliche Mail als ENTWURF in js@ (E-508 Scheibe 3). Gesendet wird hier nie.
+// ═══════════════════════════════════════════════════════════════════════════
+const NACHFASS_POSTFACH = "js@fiaon.com";
+/** Legt den Entwurf ab und gibt seine Kennung zurück — übergebbar, damit der Prüfstand ohne Gmail läuft. */
+export type EntwurfAblegen = (m: { vonName: string; an: string; betreff: string; text: string; html: string }) => Promise<string>;
+
+async function nachfassBauen(id: number): Promise<Erg<{ mail: NachfassMail; an: string; name: string }>> {
+  if (!Number.isInteger(id) || id <= 0) return nein(400, "Das Angebot ist nicht lesbar.");
+  const heute = berlinToday();
+  const g = await grundlageLesen();
+  const m = mandantenBauen(g.angebote, g.akten, heute).find((x) => x.angebotId === id);
+  if (!m) return nein(404, "Zu diesem Angebot gibt es keinen Mandanten in der Lage.");
+  const art = nachfassArt(m, heute);
+  if (!art) return nein(409, "Nachfassen gibt es nur, solange das Angebot offen oder gerade abgelaufen ist.");
+  const kunde = ((g.roh.find((e) => Number(e.id) === id)?.kunde ?? {}) as Record<string, any>);
+  const an = String(kunde.email ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(an)) return nein(409, "Am Angebot steht keine E-Mail-Adresse — bitte im Angebot nachtragen.");
+  // Bei einer Firma schreiben wir der Person, die sie vertritt.
+  const person = kunde.vertretung && typeof kunde.vertretung === "object" ? kunde.vertretung : kunde;
+  const mail = nachfassMail({ art, anrede: nachfassAnrede(person), link: art === "abgelaufen" ? null : m.link, gueltigBis: m.gueltigBis });
+  // Die Wand: keine Lücke im Text, keine verbotene Aussage — sonst entsteht kein Entwurf.
+  const klartext = nachfassText(mail);
+  const { platzhalterWache } = await import("@shared/fiaon-global-lead-texte");
+  const { globalWortPruefen } = await import("@shared/fiaon-global-wortregeln");
+  const luecken = platzhalterWache(klartext); const funde = globalWortPruefen(klartext);
+  if (luecken.length || funde.length) {
+    console.error("[GLOBAL-LAGE] Nachfass-Text hält die Wand nicht:", luecken.join(", "), funde.map((f) => f.treffer).join(", "));
+    return nein(422, "Der Text hält die Wortregeln nicht ein — es wurde kein Entwurf angelegt.");
+  }
+  return { ok: true, mail, an, name: m.name };
+}
+
+/** Was im Entwurf stehen würde — legt nichts an. */
+export async function lageNachfassVorschau(id: number): Promise<Erg<{ an: string; betreff: string; text: string; artName: string; postfach: string }>> {
+  const b = await nachfassBauen(id);
+  if (!b.ok) return b;
+  return { ok: true, an: b.an, betreff: b.mail.betreff, text: nachfassText(b.mail), artName: NACHFASS_ART_NAME[b.mail.art], postfach: NACHFASS_POSTFACH };
+}
+
+/** Legt die Nachfass-Mail als Entwurf in js@ ab (mit der echten Signatur aus Gmail) und vermerkt es am Angebot. Sendet nie. */
+export async function lageNachfassAblegen(id: number, wer: LageWer, opt: { ablegen?: EntwurfAblegen } = {}): Promise<Erg<{ meldung: string; entwurfId: string }>> {
+  const b = await nachfassBauen(id);
+  if (!b.ok) return b;
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  let entwurfId = "";
+  try {
+    if (opt.ablegen) {
+      entwurfId = await opt.ablegen({ vonName: "Justin Schwarzott", an: b.an, betreff: b.mail.betreff, text: nachfassText(b.mail), html: `<div>${esc(nachfassText(b.mail)).replace(/\n/g, "<br>")}</div>` });
+    } else {
+      const { gmailBereit, neueMailEntwurf } = await import("./fiaon-gmail");
+      if (!gmailBereit()) return nein(503, "Gmail ist auf diesem Server nicht eingerichtet — der Text steht in der Vorschau zum Kopieren.");
+      const { radarAbsenderFuer } = await import("./fiaon-radar");
+      const a = await radarAbsenderFuer(NACHFASS_POSTFACH).catch(() => null);
+      if (!a) return nein(503, "Die Signatur aus Gmail ließ sich nicht lesen — der Text steht in der Vorschau zum Kopieren.");
+      const { persoenlicheMailHtml, persoenlicheMailText } = await import("./fiaon-signatur");
+      const teile = { anrede: b.mail.anrede, absaetze: b.mail.absaetze, frage: b.mail.frage, gruss: b.mail.gruss, signatur: { html: a.signaturHtml, text: a.signaturText } };
+      let html = persoenlicheMailHtml(teile);
+      // Der Link steht im Satz — im HTML wird er anklickbar (er kommt genau einmal vor).
+      const link = b.mail.absaetze.map((x) => x.match(/https:\/\/\S+/)?.[0]).find(Boolean);
+      if (link) html = html.replace(esc(link), `<a href="${esc(link)}">${esc(link)}</a>`);
+      entwurfId = await neueMailEntwurf(NACHFASS_POSTFACH, { vonName: a.name, an: b.an, betreff: b.mail.betreff, text: persoenlicheMailText(teile), html });
+    }
+  } catch (e) {
+    console.error("[GLOBAL-LAGE] Nachfass-Entwurf:", String((e as any)?.message ?? e).slice(0, 200));
+    return nein(502, "Der Entwurf ließ sich nicht anlegen — der Text steht in der Vorschau zum Kopieren.");
+  }
+  if (!entwurfId) return nein(502, "Gmail hat keinen Entwurf zurückgemeldet — bitte im Postfach nachsehen.");
+  const vermerk = `Nachfass-Mail als Entwurf in js@ abgelegt (${NACHFASS_ART_NAME[b.mail.art]}).`;
+  if (await tabelleDa("fiaon_global_notizen")) {
+    await sqlPool`INSERT INTO fiaon_global_notizen (bezug_art, bezug_id, art, text, erstellt_von, erstellt_agent_id) VALUES ('angebot', ${String(id)}, 'notiz', ${vermerk}, ${wer.name}, ${wer.id})`
+      .catch((e) => console.error("[GLOBAL-LAGE] Vermerk zum Nachfass-Entwurf:", String(e).slice(0, 160)));
+  }
+  await verlaufAngebot(id, wer.name, "Nachfass-Mail als Entwurf in js@ abgelegt");
+  return { ok: true, entwurfId, meldung: `Der Entwurf an ${b.an} liegt in js@ unter „Entwürfe“. Bitte lesen, wenn nötig anpassen und selbst senden.` };
 }

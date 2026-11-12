@@ -12,7 +12,7 @@ import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
 import { requireChef, chefProtokoll, type ChefRequest } from "./fiaon-chef-zugang";
 import {
-  globalLageLesen, lageNotizSchreiben, lageWiedervorlageErledigen, lageFixkostenSetzen, lageGueltigkeitSetzen, type LageWer,
+  globalLageLesen, lageNotizSchreiben, lageWiedervorlageErledigen, lageFixkostenSetzen, lageGueltigkeitSetzen, lageNachfassVorschau, lageNachfassAblegen, type LageWer,
 } from "../lib/fiaon-chef-global-lage";
 
 const router = Router();
@@ -73,6 +73,19 @@ router.post("/chef/global-lage/angebot/:id/gueltigkeit", requireChef("geschaefts
     if (erg.ok) void chefProtokoll(req, `angebot:${req.params.id}`, `Gültigkeit bis ${erg.gueltigBis}`);
     antwort(res, erg);
   } catch (e) { fehler(res, "gueltigkeit", e); }
+});
+
+// ── Nachfassen (E-508 Scheibe 3): Vorschau lesen, dann als ENTWURF in js@ ablegen — gesendet wird hier nie ──────────
+router.get("/chef/global-lage/angebot/:id/nachfassen", requireChef("inhaber"), async (req: ChefRequest, res: Response) => {
+  try { res.setHeader("Cache-Control", "private, no-store"); antwort(res, await lageNachfassVorschau(Number(req.params.id))); }
+  catch (e) { fehler(res, "nachfassen vorschau", e); }
+});
+router.post("/chef/global-lage/angebot/:id/nachfassen", requireChef("inhaber"), async (req: ChefRequest, res: Response) => {
+  try {
+    const erg = await lageNachfassAblegen(Number(req.params.id), await wer(req));
+    if (erg.ok) void chefProtokoll(req, `angebot:${req.params.id}`, `Nachfass-Entwurf ${erg.entwurfId}`);
+    antwort(res, erg);
+  } catch (e) { fehler(res, "nachfassen", e); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

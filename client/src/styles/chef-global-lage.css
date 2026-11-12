@@ -243,6 +243,9 @@
 .cgl-knopf.voll { background: var(--cgl-navy); border-color: var(--cgl-navy); color: #fff; }
 .cgl-knopf.voll:hover { background: var(--cgl-tinte); }
 .cgl-knopf.klein { height: 30px; padding: 0 11px; font-size: 12.5px; border-radius: 8px; }
+/* Der eine Hauptknopf der Karte (Nachfassen): blau umrandet, ohne Fläche. */
+.cgl-knopf.haupt { border-color: var(--cgl-blau); color: var(--cgl-blau); }
+.cgl-knopf.haupt:hover, .cgl-knopf.haupt[aria-expanded="true"] { border-color: var(--cgl-blau); background: rgba(29, 78, 216, .06); }
 .cgl-knopf:disabled { opacity: .5; cursor: default; }
 .cgl-meilenstein { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--cgl-linie); font-size: 12.5px; line-height: 1.5; color: var(--cgl-leise); }
 .cgl-meilenstein b { font-weight: 500; color: var(--cgl-tinte); }
@@ -298,6 +301,11 @@
 .cgl input:focus, .cgl textarea:focus { outline: none; border-color: var(--cgl-blau); box-shadow: 0 0 0 3px rgba(29, 78, 216, .12); }
 .cgl input:disabled { background: transparent; color: var(--cgl-still); }
 .cgl input::placeholder, .cgl textarea::placeholder { color: var(--cgl-still); }
+/* Vorschau einer Mail (Nachfassen): Kopfzeilen als Liste, der Text wie getippt. */
+.cgl-mail div { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-mail dt { font: 500 10px/1.9 var(--cgl-schrift); letter-spacing: .1em; text-transform: uppercase; color: var(--cgl-still); }
+.cgl-mail dd { font-size: 13.5px; color: var(--cgl-tinte); overflow-wrap: anywhere; }
+.cgl-mail-text { margin: 12px 0 0; padding: 14px 16px; border-radius: 10px; background: #fff; border: 1px solid var(--cgl-linie); white-space: pre-wrap; overflow-wrap: anywhere; font: 400 13.5px/1.6 var(--cgl-schrift); color: var(--cgl-tinte); max-height: 320px; overflow-y: auto; }
 .cgl-form-zeile { display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
 .cgl-form-zeile:first-child { margin-top: 0; }
 /* In der schmalen Karte stehen Tag und Stichwort untereinander. */

@@ -5,6 +5,26 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.11.2026 — E-508 Scheibe 3: Nachfassen — eine persönliche Mail als Entwurf in js@ (ein Klick je Mandant)
+
+- **Ausfall:** Wer ein offenes Angebot nachfassen wollte, musste die Mail von Hand schreiben oder schreiben lassen — die
+  Global-Lage zeigte „nachfassen“, bot aber keinen Weg dazu.
+- **Fix:** Knopf **„Nachfassen“** auf der Karte jedes Mandanten mit offenem oder gerade abgelaufenem Angebot (nur für den
+  Inhaber). Er zeigt zuerst die Vorschau (An, Betreff, Text) und legt die Mail erst auf den zweiten Klick
+  **als Entwurf in js@** ab — mit der echten Signatur aus Gmail. **Gesendet wird nie von hier.**
+- **Vier Fassungen, je nach Lage:** noch nie geöffnet („ist mein Angebot angekommen?“), gelesen und seither still,
+  läuft in bis zu zwei Tagen ab, gerade abgelaufen. Sie-Form, kurz, ohne Druck. Still eingebaut: kein Wort darüber, ob
+  jemand das Angebot gelesen hat, kein Satz über Banken, kein Versprechen; jede Fassung läuft vor dem Ablegen durch
+  Wortwand und Platzhalter-Wache — hält der Text sie nicht, entsteht kein Entwurf.
+- **Spur:** Am Angebot steht danach eine Zeile im Verlauf und eine Notiz an der Karte („Nachfass-Mail als Entwurf in js@
+  abgelegt“), die auch im Feed erscheint.
+- **Wo:** shared/fiaon-chef-global-lage.ts (nachfassArt, nachfassMail, nachfassAnrede — rein), server/lib/fiaon-chef-global-lage.ts
+  (lageNachfassVorschau, lageNachfassAblegen), server/routes/fiaon-chef-global-lage.ts (GET/POST
+  /chef/global-lage/angebot/:id/nachfassen, nur Inhaber), ChefGlobalLage.tsx + chef-global-lage.css, Rundgang.
+- **Abnahme:** Prüfstand der Global-Lage (Fassungen gegen Wortwand und Platzhalter-Wache, Vorschau und Ablegen mit einer
+  Gmail-Attrappe gegen die lokale Prüf-Datenbank) und der Browser-Prüfstand (Knopf finden, Vorschau lesen, ablegen — der
+  Aufruf an Gmail ist abgefangen).
+
 ## 12.11.2026 — E-508 Scheibe 2: News aus amtlichen Quellen in der Global-Lage (mit EZB-Kurs EUR/USD)
 
 - **Ausfall:** Was sich bei US-Notenbank, EZB, IRS, FinCEN, USCIS und den Aufsichten in Österreich und der Schweiz ändert,

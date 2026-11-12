@@ -139,6 +139,20 @@ try {
     await p.waitForFunction(() => !(document.querySelector("#cgl-wartet")?.textContent ?? "").includes("PRUEFSTAND nachhaken"), undefined, { timeout: 15000 }).catch(() => null);
     ok("„Erledigt“ nimmt die Wiedervorlage aus der Liste", (await p.locator("#cgl-wartet .cgl-wartet-zeile", { hasText: "PRUEFSTAND nachhaken" }).count()) === 0);
 
+    // Nachfassen (Scheibe 3): Vorschau lesen, dann ablegen — der Aufruf, der in Gmail schreiben würde, ist abgefangen.
+    await p.route(`**/api/fiaon/chef/global-lage/angebot/${ziel.angebotId}/nachfassen`, (r) => r.request().method() === "POST"
+      ? r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, entwurfId: "attrappe", meldung: "Der Entwurf an pruef@beispiel.invalid liegt in js@ unter „Entwürfe“. Bitte lesen, wenn nötig anpassen und selbst senden." }) })
+      : r.continue());
+    await karte.getByRole("button", { name: "Nachfassen", exact: true }).click();
+    await karte.locator("[data-cgl='nachfass-form'] .cgl-mail-text").waitFor({ timeout: 15000 }).catch(() => null);
+    const vorschau = glatt(await karte.locator("[data-cgl='nachfass-form']").innerText().catch(() => ""));
+    ok("Nachfassen: die Vorschau zeigt An, Betreff und den Text mit Anrede", /\ban .+@.+/i.test(vorschau) && vorschau.includes("Ihr persönliches Angebot – FIAON Global") && vorschau.includes("Guten Tag") && vorschau.includes("Gesendet wird nichts"), `${vorschau.length} Zeichen in der Vorschau`);
+    await foto(p, "pruef-03-nachfassen-vorschau");
+    await karte.getByRole("button", { name: "Als Entwurf in js@ ablegen" }).click();
+    await karte.locator(".cgl-ok", { hasText: "Entwurf" }).waitFor({ timeout: 15000 }).catch(() => null);
+    ok("Nachfassen: Meldung „liegt in js@ … selbst senden“", glatt(await karte.locator(".cgl-ok").innerText().catch(() => "")).includes("selbst senden"));
+    await p.unroute(`**/api/fiaon/chef/global-lage/angebot/${ziel.angebotId}/nachfassen`);
+
     await karte.getByRole("button", { name: "Verlängern", exact: true }).click();
     await karte.getByRole("button", { name: "14 Tage ab heute" }).click();
     await foto(p, "pruef-02-verlaengern-form");

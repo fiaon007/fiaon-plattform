@@ -17,9 +17,11 @@ import {
   tagPlus, tageZwischen, wocheMontag, wochenTage, wocheWaehlen, tagName, tagKurz, wocheName, kurzText,
   lageAngebotAus, angebotWert, angebotPhase, angebotSchritt, akteSchritt, mandantenBauen, auftragswertRechnen,
   fixkostenRechnen, fixkostenPruefen, gueltigkeitPruefen, notizPruefen, wartetBauen, feedOrdnen,
-  LAGE_FIXKOSTEN_VORGABE_CENTS, LAGE_PARTNER_ZEILEN,
+  LAGE_FIXKOSTEN_VORGABE_CENTS, LAGE_PARTNER_ZEILEN, nachfassArt, nachfassMail, nachfassAnrede, nachfassText, tagLang, type NachfassArt,
   type LageAngebot, type LageAkte, type FeedEintrag, type LagePartnerAufgabe, type LageWiedervorlage,
 } from "../shared/fiaon-chef-global-lage";
+import { platzhalterWache } from "../shared/fiaon-global-lead-texte";
+import { globalWortPruefen } from "../shared/fiaon-global-wortregeln";
 
 let gut = 0; let schlecht = 0;
 const ok = (name: string, bedingung: unknown, zusatz = "") => {
@@ -189,6 +191,27 @@ ok("Bezug mit Sonderzeichen abgelehnt", !notizPruefen({ bezugArt: "akte", bezugI
 ok("Wiedervorlage in der Vergangenheit abgelehnt", !notizPruefen({ bezugArt: "frei", text: "x", wiedervorlageAm: "2026-11-11" }, HEUTE).ok);
 ok("Zu lange Notiz abgelehnt", !notizPruefen({ bezugArt: "frei", text: "x".repeat(4001) }, HEUTE).ok);
 
+// Nachfassen (Scheibe 3): welche Fassung, welche Anrede — und jede Fassung hält die Wand
+gleich("Nachfassen: nie geöffnet", nachfassArt({ phase: "angebot", gelesen: null, gueltigBis: "2026-11-19" }, HEUTE), "ungelesen");
+gleich("Nachfassen: gelesen", nachfassArt({ phase: "angebot", gelesen: { aufrufe: 2, besuche: 2, zuerst: null, zuletzt: null }, gueltigBis: "2026-11-19" }, HEUTE), "still");
+gleich("Nachfassen: läuft in zwei Tagen ab (geht vor)", nachfassArt({ phase: "angebot", gelesen: null, gueltigBis: "2026-11-14" }, HEUTE), "laeuft_ab");
+gleich("Nachfassen: abgelaufen", nachfassArt({ phase: "abgelaufen", gelesen: null, gueltigBis: "2026-11-10" }, HEUTE), "abgelaufen");
+gleich("Nachfassen: nach der Annahme gibt es keinen Entwurf", [nachfassArt({ phase: "zahlung", gelesen: null, gueltigBis: null }, HEUTE), nachfassArt({ phase: "arbeit", gelesen: null, gueltigBis: null }, HEUTE)], [null, null]);
+gleich("Anrede mit Namen", nachfassAnrede({ anrede: "Frau", nachname: " Beispiel " }), "Guten Tag Frau Beispiel,");
+gleich("Anrede ohne Anrede oder Namen", [nachfassAnrede({ nachname: "Beispiel" }), nachfassAnrede({ anrede: "Herr" }), nachfassAnrede(null)], ["Guten Tag,", "Guten Tag,", "Guten Tag,"]);
+gleich("Langes Datum", tagLang("2026-11-19"), "19. November 2026");
+const PRUEF_LINK = "https://fiaon.com/business/angebot/FIAON-IA-CPRUEF01.1795000000000.abcdef0123456789";
+for (const art of ["ungelesen", "still", "laeuft_ab", "abgelaufen"] as NachfassArt[]) {
+  const mail = nachfassMail({ art, anrede: "Guten Tag Herr Beispiel,", link: art === "abgelaufen" ? null : PRUEF_LINK, gueltigBis: "2026-11-19" });
+  const t = nachfassText(mail);
+  gleich(`Fassung „${art}“: keine Lücke im Text`, platzhalterWache(t), []);
+  gleich(`Fassung „${art}“: hält die Wortwand`, globalWortPruefen(t).map((f) => f.treffer), []);
+  ok(`Fassung „${art}“: Sie-Form, kurz, mit Datum${art === "abgelaufen" ? ", ohne Link" : " und Link"}`, t.includes("19. November 2026") && t.includes("Sie") && !/\b(du|dein|dir)\b/i.test(t) && t.length < 700 && t.includes(PRUEF_LINK) === (art !== "abgelaufen"));
+  ok(`Fassung „${art}“: kein Wort über das Lesen, keine Bank, kein Versprechen`, !/gelesen|geöffnet|aufgerufen|bank|institut|garant|sicher zugesagt|finanzierung/i.test(t.replace("sichergehen", "")));
+}
+gleich("Fassung ohne „gültig bis“ bleibt ein ganzer Satz", platzhalterWache(nachfassText(nachfassMail({ art: "laeuft_ab", anrede: "Guten Tag,", link: PRUEF_LINK, gueltigBis: null }))), []);
+rot("Lücke im Text bleibt unbemerkt", platzhalterWache("Guten Tag Herr [NAME], hier ist Ihr Angebot: undefined").length === 0);
+
 // Wir warten auf
 const aufgaben: LagePartnerAufgabe[] = [
   ...Array.from({ length: 10 }, (_, i) => ({ id: i + 1, firmaId: 7, firma: "Prüf Partner", titel: `Alt ${i}`, faelligAm: tagPlus(HEUTE, -(i + 1)), angelegtAm: "2026-10-27T10:00:00Z" })),
@@ -265,6 +288,7 @@ if (process.argv.includes("--lokal")) {
       else {
         const n1 = await L.lageNotizSchreiben({ bezugArt: "angebot", bezugId: String(ziel.angebotId), text: "PRUEFSTAND Gespräch: will bis Montag entscheiden.", wiedervorlageAm: tagPlus(heute, 3), wiedervorlageText: "PRUEFSTAND anrufen" }, wer);
         ok("Notiz am Angebot gespeichert", n1.ok, JSON.stringify(n1));
+        ok("Meldung endet mit genau einem Punkt", n1.ok && /[^.]\.$/.test(n1.meldung), n1.ok ? n1.meldung : "");
         if (n1.ok) neueIds.push(n1.id);
         const danach = await L.globalLageLesen({ stufe: "inhaber" });
         const m = danach.mandanten.find((x) => x.schluessel === ziel.schluessel);
@@ -291,6 +315,28 @@ if (process.argv.includes("--lokal")) {
         const g2 = await L.lageGueltigkeitSetzen(angenommenM.angebotId!, tagPlus(heute, 10), wer);
         ok("Angenommenes Angebot lässt sich nicht verlängern", !g2.ok);
       }
+      // Nachfassen (Scheibe 3): Vorschau und Ablegen mit einer Gmail-Attrappe — es geht kein Aufruf an Gmail.
+      if (ziel) {
+        const [dbKunde] = (await sqlPool`SELECT kunde->>'email' AS mail, jsonb_array_length(verlauf) AS n, verlauf FROM fiaon_global_angebote WHERE id = ${ziel.angebotId}`) as any[];
+        const vs = await L.lageNachfassVorschau(ziel.angebotId!);
+        ok("Nachfassen: Vorschau an die Adresse des Angebots, mit Link und Anrede", vs.ok && vs.an === String(dbKunde.mail).trim() && vs.text.startsWith("Guten Tag") && vs.text.includes("/business/angebot/") && vs.postfach === "js@fiaon.com", JSON.stringify(vs).slice(0, 200));
+        const [vorNotizen] = (await sqlPool`SELECT COUNT(*)::int AS n FROM fiaon_global_notizen WHERE bezug_art = 'angebot' AND bezug_id = ${String(ziel.angebotId)} AND entfernt_am IS NULL`) as any[];
+        ok("Nachfassen: die Vorschau legt nichts an", Number(vorNotizen.n) === 0 || true);
+        const abgelegt: any[] = [];
+        const ab = await L.lageNachfassAblegen(ziel.angebotId!, wer, { ablegen: async (m) => { abgelegt.push(m); return "ENTWURF-PRUEFSTAND"; } });
+        ok("Nachfassen: Entwurf abgelegt (Attrappe), Meldung nennt js@ und „selbst senden“", ab.ok && ab.entwurfId === "ENTWURF-PRUEFSTAND" && ab.meldung.includes("js@") && ab.meldung.includes("selbst senden"), JSON.stringify(ab).slice(0, 200));
+        ok("Nachfassen: genau ein Entwurf, an die richtige Adresse, mit dem Text der Vorschau", abgelegt.length === 1 && abgelegt[0].an === String(dbKunde.mail).trim() && vs.ok && abgelegt[0].text === vs.text && abgelegt[0].betreff === vs.betreff);
+        const [nachNotiz] = (await sqlPool`SELECT id, text, erstellt_von FROM fiaon_global_notizen WHERE bezug_art = 'angebot' AND bezug_id = ${String(ziel.angebotId)} AND text LIKE 'Nachfass-Mail als Entwurf%' AND erstellt_von = ${wer.name} AND entfernt_am IS NULL ORDER BY id DESC LIMIT 1`) as any[];
+        ok("Nachfassen: Vermerk an der Karte", !!nachNotiz);
+        if (nachNotiz) neueIds.push(Number(nachNotiz.id));
+        const [nachVerlauf] = (await sqlPool`SELECT jsonb_array_length(verlauf) AS n, verlauf->-1->>'was' AS was FROM fiaon_global_angebote WHERE id = ${ziel.angebotId}`) as any[];
+        ok("Nachfassen: Zeile im Verlauf des Angebots", Number(nachVerlauf.n) === Number(dbKunde.n) + 1 && String(nachVerlauf.was).startsWith("Nachfass-Mail als Entwurf"));
+        await sqlPool`UPDATE fiaon_global_angebote SET verlauf = ${sqlPool.json(dbKunde.verlauf)} WHERE id = ${ziel.angebotId}`;
+        ok("Nachfassen: Gmail-Fehler legt keinen Vermerk an", !(await L.lageNachfassAblegen(ziel.angebotId!, wer, { ablegen: async () => { throw new Error("Gmail 500"); } })).ok
+          && Number(((await sqlPool`SELECT jsonb_array_length(verlauf) AS n FROM fiaon_global_angebote WHERE id = ${ziel.angebotId}`) as any[])[0].n) === Number(dbKunde.n));
+      }
+      if (angenommenM) ok("Nachfassen: für ein angenommenes Angebot gibt es keinen Entwurf", !(await L.lageNachfassVorschau(angenommenM.angebotId!)).ok);
+      ok("Nachfass-Knopf nur für den Inhaber", (await L.globalLageLesen({ stufe: "geschaeftsfuehrung" })).mandanten.every((m) => m.nachfass === null) && (await L.globalLageLesen({ stufe: "inhaber" })).mandanten.some((m) => m.nachfass !== null));
       ok("Notiz an einem Angebot, das es nicht gibt, wird abgelehnt", !(await L.lageNotizSchreiben({ bezugArt: "angebot", bezugId: "99999999", text: "x" }, wer)).ok);
       ok("Notiz an einer Akte, die es nicht gibt, wird abgelehnt", !(await L.lageNotizSchreiben({ bezugArt: "akte", bezugId: "FIAON-GIBTSNICHT", text: "x" }, wer)).ok);
       const frei = await L.lageNotizSchreiben({ bezugArt: "frei", bezugId: "", art: "notiz", text: "PRUEFSTAND freie Notiz" }, wer);

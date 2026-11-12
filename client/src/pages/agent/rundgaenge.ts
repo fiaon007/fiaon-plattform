@@ -2126,6 +2126,8 @@ export const RUNDGANG_CHEF_GLOBAL_LAGE: RundgangSchritt[] = [
     titel: "Je Mandant ein Schritt — und die Knöpfe dazu.",
     text: "„Wir sind dran“ steht oben: nachfassen, verlängern, Neues ansehen. Jede Karte hat die Knöpfe „Angebot ansehen“, „Link kopieren“, "
       + "„Verlängern“ (ändert nur das Datum, keine Mail), „Notiz & Wiedervorlage“ und „Akte & Unterlagen“. "
+      // E-508 Scheibe 3 (12.11.2026): Nachfassen als Entwurf.
+      + "„Nachfassen“ zeigt dir eine kurze persönliche Mail und legt sie auf deinen Klick als Entwurf in js@ ab — gesendet wird nie von hier. "
       + "Die letzte Notiz steht auf der Karte.",
     tipp: "Der Hinweis „Achtung, Rechnung“ zeigt auf den Knopf „Gesellschaft eingetragen“ im Angebot. Er stellt sofort die Rechnung für das "
       + "Erfolgshonorar — deshalb gibt es ihn hier bewusst nicht als schnellen Knopf.",

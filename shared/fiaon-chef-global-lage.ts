@@ -431,6 +431,70 @@ export function notizPruefen(ein: any, heute: string): { ok: true; wert: LageNot
   return { ok: true, wert: { bezugArt, bezugId: bezugArt === "frei" ? "" : bezugId, art: !t ? "wiedervorlage" : ein?.art === "notiz" ? "notiz" : "gespraech", text: t, wiedervorlageAm: wvAm, wiedervorlageText: wvAm ? (wvText || null) : null } };
 }
 
+// ── Nachfassen: eine persönliche Mail als ENTWURF (E-508 Scheibe 3) ───────────
+// Vier kurze Fassungen, je nach Lage des Angebots. Der Text ist ein Vorschlag für Justins Postfach — gesendet wird nie
+// von hier. Regeln des Hauses, still eingebaut: Sie-Form, kein Druck, kein Wort darüber, ob und wie lange jemand das
+// Angebot gelesen hat, kein Satz über Banken, kein Versprechen. Die Fassungen laufen durch die Wortwand (Prüfstand).
+/** ungelesen = noch nie geöffnet · still = gelesen, seither Ruhe · laeuft_ab = gilt nur noch bis zu zwei Tage · abgelaufen */
+export type NachfassArt = "ungelesen" | "still" | "laeuft_ab" | "abgelaufen";
+export const NACHFASS_ART_NAME: Record<NachfassArt, string> = {
+  ungelesen: "Angebot angekommen?", still: "Noch Fragen offen?", laeuft_ab: "Angebot läuft ab", abgelaufen: "Angebot neu bereitstellen?",
+};
+/** Für welche Mandanten es einen Nachfass-Entwurf gibt: nur solange das Angebot offen oder gerade abgelaufen ist. */
+export function nachfassArt(m: { phase: LagePhase; gelesen: LageGelesen | null; gueltigBis: string | null }, heute: string): NachfassArt | null {
+  if (m.phase === "abgelaufen") return "abgelaufen";
+  if (m.phase !== "angebot") return null;
+  if (m.gueltigBis && tageZwischen(heute, m.gueltigBis) <= 2) return "laeuft_ab";
+  return m.gelesen && m.gelesen.aufrufe > 0 ? "still" : "ungelesen";
+}
+/** „19. November 2026“ */
+export function tagLang(tag: string | null | undefined): string {
+  if (!istTag(tag)) return "";
+  const x = new Date(alsUtc(tag));
+  return `${x.getUTCDate()}. ${MONATE[x.getUTCMonth()]} ${x.getUTCFullYear()}`;
+}
+/** „Guten Tag Herr Beispiel,“ — ohne Anrede oder Nachnamen bleibt es bei „Guten Tag,“. */
+export function nachfassAnrede(k: { anrede?: unknown; nachname?: unknown } | null | undefined): string {
+  const a = text(k?.anrede).trim(); const n = text(k?.nachname).trim();
+  return (a === "Herr" || a === "Frau") && n ? `Guten Tag ${a} ${n},` : "Guten Tag,";
+}
+export interface NachfassMail { art: NachfassArt; betreff: string; anrede: string; absaetze: string[]; frage: string; gruss: string }
+export function nachfassMail(e: { art: NachfassArt; anrede: string; link: string | null; gueltigBis: string | null }): NachfassMail {
+  const bis = tagLang(e.gueltigBis);
+  const gilt = bis ? `Es gilt bis einschließlich ${bis}.` : "";
+  const basis = { art: e.art, betreff: "Ihr persönliches Angebot – FIAON Global", anrede: e.anrede, gruss: "Viele Grüße" };
+  if (e.art === "ungelesen") {
+    return { ...basis, absaetze: [
+      "ich möchte kurz sichergehen, dass mein Angebot bei Ihnen angekommen ist – solche Mails landen manchmal im Spam-Ordner.",
+      ...(e.link ? [`Hier finden Sie es noch einmal: ${e.link}`] : []),
+      ...(gilt ? [gilt] : []),
+    ], frage: "Haben Sie Fragen dazu? Antworten Sie gern einfach auf diese Mail." };
+  }
+  if (e.art === "still") {
+    return { ...basis, absaetze: [
+      "ich melde mich kurz zu Ihrem Angebot.",
+      "Wenn noch etwas offen ist – zu den Schritten, zum Zeitplan oder zu den Kosten –, klären wir das gern in einem kurzen Telefonat.",
+      ...(e.link ? [`Ihr Angebot finden Sie hier: ${e.link}`] : []),
+      ...(gilt ? [gilt] : []),
+    ], frage: "Wann passt es Ihnen in den nächsten Tagen?" };
+  }
+  if (e.art === "laeuft_ab") {
+    return { ...basis, absaetze: [
+      bis ? `Ihr Angebot gilt noch bis einschließlich ${bis}.` : "Ihr Angebot gilt nur noch kurze Zeit.",
+      ...(e.link ? [`Wenn Sie starten möchten, nehmen Sie es direkt online an: ${e.link}`] : []),
+      "Brauchen Sie etwas mehr Zeit, geben Sie mir kurz Bescheid – dann verlängere ich es gern.",
+    ], frage: "Kann ich vorher noch eine Frage für Sie klären?" };
+  }
+  return { ...basis, absaetze: [
+    bis ? `Ihr Angebot ist am ${bis} ausgelaufen.` : "Ihr Angebot ist ausgelaufen.",
+    "Wenn Ihr Vorhaben weiter aktuell ist, stelle ich es Ihnen gern noch einmal bereit.",
+  ], frage: "Soll ich das für Sie tun?" };
+}
+/** Die Mail als reiner Text (ohne Signatur) — für die Vorschau und für die Wortwand. */
+export function nachfassText(m: NachfassMail): string {
+  return [m.anrede, ...m.absaetze, m.frage, m.gruss].join("\n\n");
+}
+
 // ── Wir warten auf ───────────────────────────────────────────────────────────
 export interface LageWartet {
   schluessel: string;
@@ -540,7 +604,7 @@ export interface LageAntwort {
   wartet: LageWartet[];
   /** Fällige Aufgaben aus dem Partner-CRM — eigene Gruppe, damit sie die Mandanten nicht zudecken. */
   partner: LagePartnerBlock;
-  mandanten: (LageMandant & { ziele: { akte: string | null; angebot: string | null }; notizen: LageNotizZeile[] })[];
+  mandanten: (LageMandant & { ziele: { akte: string | null; angebot: string | null }; notizen: LageNotizZeile[]; nachfass: NachfassArt | null })[];
   termine: LageTermin[];
   woche: FeedWoche;
   /** Teile, die sich gerade nicht lesen ließen — die Seite sagt es ehrlich, statt eine Null zu zeigen. */

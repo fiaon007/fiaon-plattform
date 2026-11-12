@@ -417,8 +417,51 @@ function VerlaengernForm({ m, heute, fertig, abbrechen }: { m: Mandant; heute: s
   );
 }
 
+/** Nachfassen: erst die Vorschau lesen, dann als ENTWURF in js@ ablegen. Gesendet wird hier nie. */
+function NachfassForm({ m, fertig, abbrechen }: { m: Mandant; fertig: (meldung: string) => void; abbrechen: () => void }) {
+  const [v, setV] = useState<{ an: string; betreff: string; text: string; artName: string; postfach: string } | null>(null);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  useEffect(() => {
+    let weg = false;
+    fetch(`${API}/chef/global-lage/angebot/${m.angebotId}/nachfassen`, { credentials: "include" })
+      .then(async (r) => { const j = await r.json().catch(() => null); if (weg) return; if (r.ok && j?.ok) setV(j); else setFehler(j?.error || "Die Vorschau ließ sich nicht laden."); })
+      .catch(() => { if (!weg) setFehler("Keine Verbindung zum Server."); });
+    return () => { weg = true; };
+  }, [m.angebotId]);
+  const ablegen = async () => {
+    setLaeuft(true); setFehler(null);
+    const j = await senden(`/chef/global-lage/angebot/${m.angebotId}/nachfassen`);
+    setLaeuft(false);
+    if (!j.ok) { setFehler(j.error || "Der Entwurf ließ sich nicht anlegen."); return; }
+    fertig(String(j.meldung || "Der Entwurf liegt in js@."));
+  };
+  return (
+    <div className="cgl-form" data-cgl="nachfass-form">
+      {!v && !fehler && <p className="cgl-form-hinweis">Lädt die Vorschau …</p>}
+      {v && (
+        <>
+          <dl className="cgl-mail">
+            <div><dt>Entwurf</dt><dd>{v.artName}</dd></div>
+            <div><dt>An</dt><dd>{v.an}</dd></div>
+            <div><dt>Betreff</dt><dd>{v.betreff}</dd></div>
+          </dl>
+          <pre className="cgl-mail-text" data-volltext>{v.text}</pre>
+          <p className="cgl-form-hinweis">Der Entwurf landet mit deiner Signatur in {v.postfach} unter „Entwürfe“. Gesendet wird nichts — du liest, passt an und sendest selbst.</p>
+        </>
+      )}
+      {fehler && <p className="cgl-fehler" role="alert">{fehler}</p>}
+      <div className="cgl-form-fuss">
+        <span className="cgl-schnell" />
+        <button type="button" className="cgl-knopf" onClick={abbrechen}>Abbrechen</button>
+        <button type="button" className="cgl-knopf voll" disabled={!v || laeuft} onClick={() => void ablegen()}>{laeuft ? "Legt ab …" : "Als Entwurf in js@ ablegen"}</button>
+      </div>
+    </div>
+  );
+}
+
 function MandantKarte({ m, heute, darfVerlaengern, neu, markiert }: { m: Mandant; heute: string; darfVerlaengern: boolean; neu: () => void; markiert: boolean }) {
-  const [form, setForm] = useState<"notiz" | "verlaengern" | null>(null);
+  const [form, setForm] = useState<"notiz" | "verlaengern" | "nachfass" | null>(null);
   const [meldung, setMeldung] = useState<string | null>(null);
   const [kopiert, setKopiert] = useState(false);
   const w = m.wert;
@@ -456,6 +499,7 @@ function MandantKarte({ m, heute, darfVerlaengern, neu, markiert }: { m: Mandant
       )}
       {meldung && <p className="cgl-ok" role="status">{meldung}</p>}
       <div className="cgl-knoepfe">
+        {m.nachfass && <button type="button" className="cgl-knopf haupt" aria-expanded={form === "nachfass"} onClick={() => setForm(form === "nachfass" ? null : "nachfass")}>Nachfassen</button>}
         {m.link && <a className="cgl-knopf" href={m.link} target="_blank" rel="noopener noreferrer">Angebot ansehen</a>}
         {m.link && <button type="button" className="cgl-knopf" onClick={() => void kopieren()}>{kopiert ? "Kopiert" : "Link kopieren"}</button>}
         {m.kannVerlaengern && darfVerlaengern && <button type="button" className="cgl-knopf" aria-expanded={form === "verlaengern"} onClick={() => setForm(form === "verlaengern" ? null : "verlaengern")}>Verlängern</button>}
@@ -465,6 +509,7 @@ function MandantKarte({ m, heute, darfVerlaengern, neu, markiert }: { m: Mandant
       </div>
       {form === "notiz" && <NotizForm bezugArt={bezugArt} bezugId={bezugId} name={m.name} heute={heute} fertig={fertig} abbrechen={() => setForm(null)} />}
       {form === "verlaengern" && <VerlaengernForm m={m} heute={heute} fertig={fertig} abbrechen={() => setForm(null)} />}
+      {form === "nachfass" && <NachfassForm m={m} fertig={fertig} abbrechen={() => setForm(null)} />}
       {m.meilensteinOffen && m.ziele.angebot && (
         <p className="cgl-meilenstein">
           <b>Achtung, Rechnung:</b> {m.meilensteinKnopf ? `Der Knopf „${m.meilensteinKnopf}“` : "Der Meilenstein-Knopf"} im Angebot stellt sofort die Rechnung

@@ -170,6 +170,11 @@ async function main() {
   ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: false })]).faelle.length === 1, "unbezahlt: „Hat sich erledigt“ → Storno-Fall");
   ok(N.nachholFaelle([z(1, "F", "Hat sich erledigt.", "05", { bezahlt: true })]).faelle.length === 0, "zahlend: „Hat sich erledigt“ → kein Fall");
 
+  const stichtag = "2026-10-05T00:00:00.000Z";
+  ok(N.nachholFaelle([z(1, "S", "Ich kündige.", "03"), z(2, "T", "Ich kündige.", "07")], { nurVor: stichtag }).faelle.map((f: any) => f.ref).join() === "S", "Stichtag: nur Mails davor begründen einen Fall (Altbestand)");
+  ok(N.nachholFaelle([z(1, "S", "Ich kündige.", "03"), z(2, "S", "Ich nehme die Kündigung zurück.", "07")], { nurVor: stichtag }).faelle.length === 0, "Stichtag: eine spätere Rücknahme zählt weiter");
+  ok(new Date(N.NACHHOL_NUR_VOR).getTime() === Date.UTC(2026, 10, 12, 8, 9), "Stichtag = E-499 live (12.11.2026 09:09 Berliner Zeit)");
+
   console.log("── 9c · Widerruf einer unbezahlten Bestellung = Storno, das Mara selbst erledigt (E-369 wieder wirksam)");
   const wr = { widerruf: true, rechtlich: true };
   ok(W.rechtlichNurWegenWiderruf(wr, "Re: Ihr Antrag\nHiermit widerrufe ich meinen Vertrag innerhalb der 14 Tage."), "reiner Widerruf: „rechtlich“ brennt nur seinetwegen");

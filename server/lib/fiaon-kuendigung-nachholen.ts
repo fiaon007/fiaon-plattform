@@ -14,6 +14,7 @@
 // · Nie bei Widerruf nach einer Zahlung, Bestreiten, Anwalt/Behörde (dort entscheidet ein Mensch) — der Widerruf einer
 //   UNBEZAHLTEN Bestellung ist ein Storno und zählt (rechtlichNurWegenWiderruf); nie bei einer späteren Rücknahme oder
 //   einem späteren „ich kündige nicht“, nie bei FIAON Global, nie bei Testpersonen.
+// · Nur der ALTBESTAND: Mails vor dem 12.11.2026 09:09 (seitdem bucht Maras Lauf selbst) — „an“ kann nie mehr buchen als das.
 // · Je Bestellung die FRÜHESTE klare Mail. Höchstens fünf Buchungen je Lauf. Was scheitert, steht mit Grund im Merker
 //   und wird nicht endlos wiederholt.
 // · Nach der Buchung: wartende Antwort-Entwürfe mit einer Kündigungs-Rückfrage werden abgelegt (nicht gesendet).
@@ -31,6 +32,12 @@ export const KN = { schalter: "kuendigung_nachholen", plan: "kuendigung_nachhole
 export type NachholModus = "trocken" | "an" | "aus";
 export const NACHHOL_JE_LAUF = 5;
 export const NACHHOL_TAGE = 60;
+/**
+ * Nur ALTE Mails: Seit diesem Zeitpunkt (E-499 live, 12.11.2026 09:09 Berliner Zeit) bucht Maras Lauf klare Kündigungen
+ * selbst. Der Nachhol-Lauf nimmt deshalb nur Mails davor — steht der Schalter auf „an“, kann er nie mehr buchen als den
+ * Altbestand, den Justin im Trockenplan gesehen hat (spätere Mails zählen nur noch als Rücknahme).
+ */
+export const NACHHOL_NUR_VOR = "2026-11-12T08:09:00.000Z";
 
 export interface NachholZeile {
   id: number; personId: number; ref: string; text: string; empfangenAm: string; davor: string | null;
@@ -46,7 +53,7 @@ const MENSCH_FLAGS = ["widerruf", "bestreitet", "rechtlich", "droht_anwalt"] as 
  * offenen Bestellungen, älteste zuerst. Ergebnis: je Bestellung der früheste Fall; `zurueck` = Bestellungen, bei denen
  * er es später zurücknahm oder verneinte (nie buchen).
  */
-export function nachholFaelle(zeilen: NachholZeile[]): { faelle: NachholFall[]; zurueck: string[] } {
+export function nachholFaelle(zeilen: NachholZeile[], opt: { nurVor?: string | null } = {}): { faelle: NachholFall[]; zurueck: string[] } {
   const jeRef = new Map<string, NachholFall>();
   const zurueck = new Set<string>();
   for (const z of [...zeilen].sort((a, b) => a.empfangenAm.localeCompare(b.empfangenAm) || a.id - b.id)) {
@@ -61,6 +68,8 @@ export function nachholFaelle(zeilen: NachholZeile[]): { faelle: NachholFall[]; 
       continue;
     }
     if (zurueck.has(z.ref)) continue;
+    // Nur der Altbestand: Eine Mail ab dem Stichtag begründet keinen Fall mehr (die bucht Maras Lauf selbst).
+    if (opt.nurVor && z.empfangenAm >= opt.nurVor) continue;
     // Der Widerruf einer UNBEZAHLTEN Bestellung ist ein Storno (E-369/E-372) — außer mit Anwalt, Bestreiten, Löschwunsch, Geld zurück.
     const widerrufStorno = !z.bezahlt && rechtlichNurWegenWiderruf(z.flags, roh);
     if (!widerrufStorno && MENSCH_FLAGS.some((f) => !!z.flags?.[f])) continue;
@@ -114,7 +123,7 @@ export async function nachholFaelleLesen(lauf: Lauf = sqlPool): Promise<{ faelle
   return nachholFaelle(zeilen.filter((z) => !istGlobalPaket(z.pack_key)).map((z) => ({
     id: Number(z.id), personId: Number(z.person_id), ref: String(z.ref), text: String(z.text ?? ""), empfangenAm: new Date(z.am).toISOString(),
     davor: z.davor ?? null, flags: jsonObjekt(z.flags), bezahlt: z.bezahlt === true,
-  })));
+  })), { nurVor: NACHHOL_NUR_VOR });
 }
 
 async function merkerLesen(lauf: Lauf): Promise<Record<string, string>> {

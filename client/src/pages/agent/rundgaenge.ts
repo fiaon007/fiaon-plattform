@@ -565,6 +565,18 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Für dich gilt die Drei-Monats-Regel nicht, nur für die Buchung im Kundenbereich.",
   },
   {
+    // 12.11.2026 (E-498): von Hand vereinbarte Zeiten (Zoom, Treffen vor Ort) sperrten die Buchungsseiten bisher nicht.
+    ziel: ".ca-sperren-knopf",
+    titel: "Zeit blockieren — für Termine, die nicht im System stehen.",
+    text: "Hast du etwas von Hand vereinbart (Zoom, Treffen vor Ort, privat), steht es in deinem Handy-Kalender, aber nicht hier — "
+      + "und die Buchungsseiten würden die Zeit weiter anbieten. „Zeit blockieren“ sperrt sie: von–bis, auf Wunsch mit einer kurzen Notiz. "
+      + "Danach bieten der Global-Kalender, die Terminlinks und Mara diese Zeit nicht mehr an. Es geht keine Mail raus, und es entsteht "
+      + "kein Termin mit Kunde. Mit „Freigeben“ ist die Zeit sofort wieder buchbar.",
+    tipp: "Plane Anfahrt und Puffer mit ein — gesperrt ist genau die Zeit, die du einträgst. Steht in der Zeit schon ein gebuchter Termin, "
+      + "sagt dir das System es beim Sperren; der Termin bleibt bestehen, bis du ihn verschiebst oder absagst. Im Kalender-Abo erscheint "
+      + "die Sperre als „Belegt“ — ohne deine Notiz.",
+  },
+  {
     // 29.09.2026 (E-263): Justin — „mit 1 Klick in mein Google oder Apple Kalender".
     ziel: ".ca-abo",
     titel: "Deine Termine im Handy-Kalender.",

@@ -26,6 +26,8 @@ import { sqlPool } from "./db-pool";
 import { absoluteUrl } from "../fiaon-base-url";
 import { berlinZeitpunkt, berlinDatum, berlinWochentag, zeitZuMinuten, minutenZuZeit } from "./fiaon-time";
 import { GLOBAL_DAUER_MIN } from "./fiaon-global-zeiten";
+import { sperrenJePerson } from "./fiaon-sperrzeit";
+import { sperrzeitUeberlappt } from "./fiaon-sperrzeit-regeln";
 import { nennform } from "@shared/fiaon-mitarbeiter-name";
 import { LIMIT_PFAD, LIMIT_QUELLE } from "@shared/fiaon-limit-gespraech";
 
@@ -719,6 +721,24 @@ export async function rohSlots(
     `) as any[]).map((t) => `${t.agent_id}@${new Date(t.beginn).toISOString()}`),
   );
 
+  // ══════════════════════════════════════════════════════════════════════
+  // SPERRZEITEN — „ZEIT BLOCKIEREN" (E-498, 12.11.2026)
+  //
+  // AUSFALL: Ein von Hand vereinbarter Termin (Zoom, Treffen vor Ort) stand nur
+  // in einem Apple-Kalender. Diese Rechnung kannte nur Plattform-Termine und bot
+  // die Zeit weiter an — zweimal in zwei Tagen drohte eine Doppelbuchung.
+  // FIX: Eine Sperrzeit (fiaon_sperrzeiten) nimmt jeden Slot heraus, der sich mit
+  // ihr überschneidet. Mit echter Überschneidung [Beginn, Beginn + takt) — anders
+  // als die gleiche-Beginn-Regel der Termine oben — damit auch ein Slot am Rand
+  // (15:50, 30 Minuten, Sperre ab 16:00) wegfällt. Vorlauf und Tagesdeckel bleiben
+  // unberührt: Eine Sperre sperrt nur ihre Zeit. Eine Stelle für ALLE Aufrufer:
+  // Terminlink, Mara, Vertretung und die Gründer-Seite rechnen über `rohSlots`.
+  // Liest nie fehlerhaft: Ohne Tabelle/bei Lesefehler kommt eine leere Karte.
+  // ══════════════════════════════════════════════════════════════════════
+  const sperren = await sperrenJePerson(
+    agenten.map((a) => a.id), frühestens, new Date(spätestens.getTime() + takt * 60_000), lauf,
+  );
+
   const slots: Slot[] = [];
   for (const agent of agenten) {
     const fenster = (await verfuegbarkeitVon(agent.id, lauf)).filter((f) => f.aktiv);
@@ -733,6 +753,7 @@ export async function rohSlots(
           const beginn = berlinZeitpunkt(datum, min);
           if (beginn < frühestens || beginn > spätestens) continue;
           if (belegt.has(`${agent.id}@${beginn.toISOString()}`)) continue;
+          if (sperrzeitUeberlappt(sperren.get(agent.id), beginn.getTime(), takt)) continue;
           slots.push({
             beginn: beginn.toISOString(),
             datum: berlinDatum(beginn),

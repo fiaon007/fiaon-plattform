@@ -377,3 +377,11 @@ select.ca-feld option{color:#0f172a}
   .ca-abo-wege .ca-knopf{min-height:46px}
   .ca-leiste .ca-abo{flex:1 1 100%}
 }
+
+/* ── E-498 (12.11.2026): „Zeit blockieren" — gesperrte Zeiten (Präfix .ca-sperre / .ca-w-sperre) ── */
+.ca-sperren-knopf svg{flex:0 0 auto}
+.ca-sperre-zeile{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;padding:10px 14px;border-radius:14px;border:1px dashed rgba(251,191,36,.45);background:rgba(251,191,36,.07);color:#fde68a;font-size:13.5px;line-height:1.45}
+.ca-sperre-zeile>span{flex:1 1 200px;min-width:0}
+.ca-sperre-zeile em{font-style:normal;color:#e5e7eb}
+/* Im Wochenraster: schraffiert, nie klickbar; liegt im DOM vor den Terminen und damit unter ihnen. */
+.ca-w-sperre{position:absolute;left:2px;right:2px;border-radius:8px;border:1px dashed rgba(251,191,36,.55);background:repeating-linear-gradient(135deg,rgba(251,191,36,.16) 0 4px,rgba(251,191,36,.05) 4px 8px);pointer-events:none}

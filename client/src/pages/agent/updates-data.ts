@@ -87,6 +87,29 @@ export const AGENT_UPDATES: AgentUpdate[] = [
   // Ziel-Filter; die Karte im Wallet betrifft nur die Menschen, für die ein Plan angelegt ist — sie erklärt sich dort
   // selbst (Karte und Rundgang-Schritt erscheinen nur bei ihnen).
   {
+    // E-498 (12.11.2026): „Zeit blockieren“ — von Hand vereinbarte Zeiten sperren die Buchungsseiten.
+    id: "2026-11-12-zeit-blockieren",
+    date: "2026-11-12",
+    category: "Neu",
+    title: "Calendar: „Zeit blockieren“ — Zeiten sperren, die nicht im System stehen",
+    summary:
+      "Hast du etwas von Hand vereinbart (Zoom, Treffen vor Ort, privat), kannst du die Zeit im Calendar sperren. "
+      + "Danach bieten die Buchungsseiten, die Terminlinks und Mara diese Zeit nicht mehr an — es geht keine Mail raus, und es entsteht kein Termin.",
+    changes: [
+      "Neuer Knopf „Zeit blockieren“ im Calendar (neben „Termin anlegen“): von–bis und auf Wunsch eine kurze Notiz, nur für dich.",
+      "Gesperrte Zeiten stehen im Tag als gelbe Zeile mit „Freigeben“ und in der Woche als schraffierter Streifen.",
+      "Steht in der gesperrten Zeit schon ein gebuchter Termin, sagt dir das System es sofort. Der Termin bleibt bestehen — du verschiebst oder sagst ihn selbst ab.",
+      "In deinem Kalender-Abo (Handy) erscheint die Sperre als „Belegt“ — ohne deine Notiz und ohne Kundendaten.",
+      "Tagesgrenzen (Plätze je Tag) und der Vorlauf bleiben, wie sie waren: Eine Sperre nimmt nur ihre eigene Zeit heraus.",
+    ],
+    howto: [
+      "Calendar öffnen → „Zeit blockieren“ → Von und Bis wählen (deutsche Zeit) → „Zeit sperren“.",
+      "Plane Anfahrt und Puffer mit ein: Gesperrt ist genau die Zeit, die du einträgst.",
+      "Wieder frei? In der gelben Zeile (oder in der Liste im Fenster) „Freigeben“ drücken — die Zeit ist sofort wieder buchbar.",
+    ],
+    link: { href: "/agent/kalender", label: "Zum Calendar" },
+  },
+  {
     // E-487 (09.11.2026): „Ihr Vorsorge-Überblick“ — Kunden buchen das Gespräch beim Vorsorge-Partner selbst.
     id: "2026-11-09-vorsorge-selbst-buchen",
     date: "2026-11-09",

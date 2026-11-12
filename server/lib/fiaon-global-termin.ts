@@ -61,6 +61,7 @@ import {
   type GlobalTag, type GlobalZeitenErgebnis,
 } from "./fiaon-global-zeiten";
 import { berlinToday } from "./fiaon-time";
+import { sperrenAlsBelegung } from "./fiaon-sperrzeit";
 import { googleKalenderLink } from "./fiaon-ics";
 import { absoluteUrl } from "../fiaon-base-url";
 import { globalPaket, globalPreisText } from "@shared/fiaon-global";
@@ -204,14 +205,21 @@ export async function globalAngebotLaden(tageVoraus = GLOBAL_HORIZONT_TAGE): Pro
       AND (status IN ('gebucht', 'erledigt', 'verpasst') OR (status = 'abgesagt' AND abgesagt_von = 'agent'))
       AND beginn > NOW() - INTERVAL '1 day' AND beginn < NOW() + INTERVAL '16 days'
   `) as { beginn: Date; dauer_min: number; quelle: string; status: string; herkunft: string | null; tag: string }[];
+  // E-498 (12.11.2026): „Zeit blockieren“ — von Hand vereinbarte Zeiten (Zoom, Treffen vor Ort) sperren ihre Zeit wie ein
+  // Termin, verbrauchen aber nie einen Tagesplatz und lösen nichts aus. Dieselbe Funktion rechnet Anzeige UND Annahme
+  // (globalTerminBuchen ruft dieses Angebot). Lesefehler/fehlende Tabelle = leer, die Seite rechnet wie bisher.
+  const sperren = await sperrenAlsBelegung(person.id, new Date(Date.now() - 86_400_000), new Date(Date.now() + 16 * 86_400_000));
 
   let ergebnis = globalZeitenRechnen({
     jetzt: new Date(),
     fenster,
-    belegt: termine.map((t) => ({
-      beginn: t.beginn, dauerMin: Number(t.dauer_min),
-      zaehltAlsGlobal: alt ? t.quelle === "global" && t.status !== "abgesagt" : zaehltAufLeadDeckel(t),
-    })),
+    belegt: [
+      ...termine.map((t) => ({
+        beginn: t.beginn, dauerMin: Number(t.dauer_min),
+        zaehltAlsGlobal: alt ? t.quelle === "global" && t.status !== "abgesagt" : zaehltAufLeadDeckel(t),
+      })),
+      ...sperren,
+    ],
     tage: tageVoraus,
     proTag,
   });

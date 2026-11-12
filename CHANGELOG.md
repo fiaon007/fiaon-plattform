@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.11.2026 — E-498 Zeit blockieren: Sperrzeiten für die Buchungsseiten (Doppelbuchungen vermeiden)
+
+- **Ausfall:** Von Hand vereinbarte Zeiten (Zoom, Treffen vor Ort) standen nur in einem Handy-Kalender. Die Buchungsseiten
+  (Global-Erstgespräch, Terminlinks, Gründer-Seite) und Mara rechnen ihre freien Zeiten nur gegen Plattform-Termine und
+  boten die Zeit weiter an — zweimal in zwei Tagen drohte eine Doppelbuchung (Fr 13.11. 14:30, Mi 18.11. 16:00–18:30).
+- **Ursache:** Es gab nur zwei Arten, Zeit zu belegen: einen Plattform-Termin (nur 30-Minuten-Telefongespräch, löst Telefon-Mails
+  aus) oder die teamweite Abwesenheit (sperrt ganze Tage für alle). Für „eine Person, ein paar Stunden“ gab es nichts.
+- **Fix:** Neue Tabelle `fiaon_sperrzeiten` (Migration 133): Person, von–bis, kurze Notiz. Eine Sperrzeit ist **kein Termin** —
+  keine Mail, kein Telefon-Wortlaut, keine Aufgabe, kein Kunde. Sie nimmt jede Zeit heraus, die sich mit ihr überschneidet
+  (auch am Rand), in `rohSlots` (Terminlink, Mara, Vertretung, Gründer-Seite), im Global-Gesprächskalender
+  (Anzeige UND Annahme) und beim automatischen Startgespräch. Plätze je Tag und Vorlauf bleiben unverändert.
+  Im Kalender-Abo erscheint sie als „Belegt“ — ohne Notiz, ohne Kundendaten.
+- **Bedienung:** Calendar → „Zeit blockieren“ (von–bis, Notiz freiwillig), „Freigeben“ löscht. Steht in der Zeit schon
+  ein gebuchter Termin, sagt das System es — der Termin bleibt bestehen. Schreiben nur über `sperrzeitAnlegen` /
+  `sperrzeitLoeschen` (server/lib/fiaon-sperrzeit.ts); die Person kommt immer aus der Anmeldung. Fehlt die Tabelle
+  (Server vor der Migration) oder scheitert ein Lesen, rechnen alle Seiten wie bisher.
+- **Wo:** db/migrations/133_sperrzeiten.sql, server/lib/fiaon-sperrzeit-regeln.ts (rein), server/lib/fiaon-sperrzeit.ts,
+  server/lib/fiaon-termine.ts (rohSlots), server/lib/fiaon-global-termin.ts, server/lib/fiaon-global-angebot-startgespraech.ts,
+  server/lib/fiaon-kalender-abo.ts, server/routes/fiaon-kalender.ts (GET/POST /agent/sperrzeiten, …/:id/loeschen),
+  client/src/pages/agent/calendar.tsx (+ office-calendar.css, Rundgang, Update-Protokoll).
+- **Abnahme:** `scripts/pruef-sperrzeit-e498.ts` (109 Prüfungen: rein + lokale Prüf-Datenbank, mit Vorher/Nachher und vier
+  Rotproben) und `--ohne-tabelle` (8 Prüfungen gegen eine Datenbank ohne Migration 133). Später: Apple-/Google-Termine
+  automatisch als belegt lesen (E-342, wartet auf den Google-Zugriff).
+
 ## 09.11.2026 — E-487 Nachbesserung (Gutachten): Vorsorge-Überblick — Absage hält, ein Termin je Kunde, Mail nur mit freiem Termin, Freigeben nur Justin
 
 - **Warum:** Ein Gutachter hat den Vorsorge-Überblick geprüft: 8 Befunde, einer mittel (die Absage hielt nicht), sieben klein.

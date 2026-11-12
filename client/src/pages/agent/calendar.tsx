@@ -12,6 +12,7 @@
 //         POST /agent/calendar/:id/done · /reschedule { scheduledAt }
 //         POST /agent/termine/:id/ergebnis { ergebnis } · /uebergeben { agentId, grund }
 //         POST /agent/termine { personId, beginn } · POST /agent/termine/:id/absagen
+//         GET/POST /agent/sperrzeiten · POST /agent/sperrzeiten/:id/loeschen (E-498 „Zeit blockieren“)
 // Anruf: Ereignis `fiaon-anrufen`. Akte: /agent/kunden?person=<ID>
 // (identisch mit /agent/pipeline — beide Routen zeigen dieselbe Seite).
 //
@@ -289,6 +290,52 @@ function wochenLayout(liste: Termin[], H: number, vonMin: number, gesamtPx: numb
   return res;
 }
 
+// ── E-498 (12.11.2026): „ZEIT BLOCKIEREN" ───────────────────────────────────
+// Eine gesperrte Zeit ist KEIN Termin (kein Kunde, keine Mail, kein Telefon): Sie sperrt nur die Zeit für die
+// Buchungsseiten (Global-Kalender, Terminlinks, Mara). Server: GET/POST /agent/sperrzeiten, POST …/:id/loeschen
+// (server/routes/fiaon-kalender.ts), Regeln in server/lib/fiaon-sperrzeit-regeln.ts.
+interface Sperre { id: number; beginn: string; ende: string; grund: string | null; kurz: string }
+
+/** Von–bis einer Sperre an einem Berliner Tag, in Minuten seit Mitternacht — über die Tagesgrenze hinaus abgeschnitten. */
+function sperreMinuten(s: Sperre, key: string): [number, number] {
+  const b = new Date(s.beginn); const e = new Date(s.ende);
+  return [dayKey(b) === key ? minuten(b) : 0, dayKey(e) === key ? minuten(e) : 24 * 60];
+}
+
+const zwei = (n: number) => String(n).padStart(2, "0");
+/** Vorschlag für den Dialog: heute die nächste volle Stunde, sonst 09:00 — jeweils eine Stunde lang (Berliner Wandzeit). */
+function sperrVorschlag(tagKey: string, heuteKey: string, jetzt: Date): [string, string] {
+  const h = tagKey === heuteKey ? Math.min(22, teile(jetzt).h + 1) : 9;
+  return [`${tagKey}T${zwei(h)}:00`, `${tagKey}T${zwei(h + 1)}:00`];
+}
+/** Wandzeit „JJJJ-MM-TTTHH:MM" plus eine Stunde — reine Zeichen- und UTC-Rechnung, ohne Zeitzone. */
+function plusEineStunde(wert: string): string {
+  const d = new Date(`${wert}:00Z`);
+  if (Number.isNaN(d.getTime())) return wert;
+  d.setUTCHours(d.getUTCHours() + 1);
+  return d.toISOString().slice(0, 16);
+}
+
+/** Kalender mit durchgestrichenem Strich — eigenes SVG nach fiaon-zeichen.tsx (20er-Raster, 1,5 px, currentColor). */
+function ZeichenSperre({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+      <path d="M3 8.5h14M7 2.5v3.5M13 2.5v3.5M7.5 11.5l5 4M12.5 11.5l-5 4" />
+    </svg>
+  );
+}
+
+function SperrZeile({ s, onFrei, busy }: { s: Sperre; onFrei: () => void; busy?: boolean }) {
+  return (
+    <div className="ca-sperre-zeile" data-fiaon="sperre">
+      <ZeichenSperre size={16} />
+      <span><b>Gesperrt</b> · {s.kurz}{s.grund ? <> · <em>{s.grund}</em></> : null}</span>
+      <button type="button" className="ca-knopf klein still" disabled={busy} onClick={onFrei}>Freigeben</button>
+    </div>
+  );
+}
+
 export default function AgentCalendarPage() { return <AgentShell><CalendarInnen /></AgentShell>; }
 
 function CalendarInnen() {
@@ -324,8 +371,29 @@ function CalendarInnen() {
   const [anlegen, setAnlegen] = useState(false);
   // E-263 (29.09.2026): das Blatt „In meinen Kalender" (Kalender-Abo).
   const [aboOffen, setAboOffen] = useState(false);
+  // E-498 (12.11.2026): gesperrte Zeiten („Zeit blockieren") — nur die eigenen, kommenden.
+  const [sperren, setSperren] = useState<Sperre[]>([]);
+  const [sperrOffen, setSperrOffen] = useState(false);
+  const [sperrBusy, setSperrBusy] = useState(false);
+  const sperrenLaden = useCallback(() => {
+    api("/agent/sperrzeiten").then((r) => { if (r.ok) setSperren(r.json.sperrzeiten ?? []); }).catch(() => {});
+  }, []);
+  useEffect(() => { sperrenLaden(); }, [sperrenLaden]);
+  /** Die Sperren, die diesen Berliner Tag berühren (Ende genau um Mitternacht gehört noch zum Vortag). */
+  const sperrenAm = useCallback((key: string) => sperren.filter((s) => {
+    const b = dayKey(new Date(s.beginn)); const e = dayKey(new Date(new Date(s.ende).getTime() - 1));
+    return b <= key && key <= e;
+  }), [sperren]);
 
   const flash = (text: string, warn = false) => { setMeldung({ text, warn }); setTimeout(() => setMeldung(null), 4500); };
+
+  const sperreFrei = async (s: Sperre) => {
+    setSperrBusy(true);
+    const r = await api(`/agent/sperrzeiten/${s.id}/loeschen`, { method: "POST" }).catch(() => ({ ok: false, json: null as any }));
+    setSperrBusy(false);
+    if (r.ok) { setSperren((v) => v.filter((x) => x.id !== s.id)); flash("Zeit freigegeben — die Buchungsseiten bieten sie wieder an."); }
+    else { flash(r.json?.error || "Das hat nicht geklappt.", true); sperrenLaden(); }
+  };
 
   // Woche: Montag der angezeigten Woche (Berliner Zeit)
   const montagKey = useMemo(() => plusTage(heuteKey, -(teile(jetzt).wd - 1) + wochenVersatz * 7), [heuteKey, wochenVersatz]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -679,6 +747,8 @@ function CalendarInnen() {
         <button type="button" className="ca-knopf" onClick={() => setAnlegen(true)}><Plus size={16} strokeWidth={1.75} /> Termin anlegen</button>
         {/* E-263: nach „Termin anlegen" — der Rundgang-Schritt „.ca-knopf" trifft weiter den ersten. */}
         <button type="button" className="ca-knopf still ca-abo" onClick={() => setAboOffen(true)}><ZeichenKalenderAbo /> In meinen Kalender</button>
+        {/* E-498: Zeiten sperren, die nicht im System stehen (Zoom, Treffen vor Ort) — die Buchungsseiten bieten sie dann nicht mehr an. */}
+        <button type="button" className="ca-knopf still ca-sperren-knopf" onClick={() => setSperrOffen(true)}><ZeichenSperre /> Zeit blockieren{sperren.length > 0 ? ` (${sperren.length})` : ""}</button>
       </section>
 
       {laedt && <p className="ca-lade">Lade …</p>}
@@ -689,6 +759,7 @@ function CalendarInnen() {
              Termine und notierte Rückrufe. Vorher hieß beides „Termine". */}
           <small>{tagListe.length ? `${tagListe.length} ${tagListe.length === 1 ? "Eintrag" : "Einträge"}` : "nichts geplant"}</small></div>
           <Tagband frei={freiAm(teile(tagDate).wd)} jetzt={tagKey === heuteKey ? minuten(jetzt) : null} />
+          {sperrenAm(tagKey).map((s) => <SperrZeile key={`s${s.id}`} s={s} busy={sperrBusy} onFrei={() => void sperreFrei(s)} />)}
           {tagListe.length === 0 && <p className="ca-leer">{freiAm(teile(tagDate).wd).length ? "Kein Termin an diesem Tag. Deine Zeiten sind frei für Buchungen." : "Kein Termin – und keine Verfügbarkeit an diesem Tag. Kunden können hier nichts buchen."}</p>}
           {tagListe.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
@@ -726,6 +797,13 @@ function CalendarInnen() {
                   <div className="ca-w-spalte" style={{ height: rasterPx }}>
                     <div className="ca-w-ausser" style={{ top: 0, bottom: 0 }} />
                     {frei.map(([v, b], k) => <div key={k} className="ca-w-frei" style={{ top: px(v), height: px(b) - px(v) }} />)}
+                    {/* E-498: gesperrte Zeit — schraffiert, unter den Terminen (Reihenfolge im DOM), nie klickbar. */}
+                    {sperrenAm(key).map((s) => {
+                      const [v, b] = sperreMinuten(s, key);
+                      const oben = px(Math.max(v, vonMin)); const unten = px(Math.min(b, bisStunde * 60));
+                      if (unten <= oben) return null;
+                      return <div key={`s${s.id}`} className="ca-w-sperre" style={{ top: oben, height: unten - oben }} title={`Gesperrt: ${s.kurz}${s.grund ? ` – ${s.grund}` : ""}`} />;
+                    })}
                     {Array.from({ length: spanne + 1 }, (_, h) => <div key={h} className="ca-w-linie" style={{ top: h * stundePx }} />)}
                     {istHeute && minuten(jetzt) >= vonMin && minuten(jetzt) <= bisStunde * 60 && <div className="ca-w-jetzt" style={{ top: px(minuten(jetzt)) }} />}
                     {liste.map((a) => {
@@ -759,6 +837,7 @@ function CalendarInnen() {
             <span><i style={{ background: "repeating-linear-gradient(135deg,rgba(255,255,255,.25) 0 3px,transparent 3px 6px)" }} />Außerhalb deiner Zeiten</span>
             <span><i style={{ background: "linear-gradient(180deg,#3b82f6,#2563eb)" }} />Vom Kunden gebucht</span>
             <span><i style={{ background: "rgba(255,255,255,.16)", border: "1px solid rgba(255,255,255,.3)" }} />Selbst notiert / Zusage</span>
+            <span title="Zeit, die du über „Zeit blockieren“ gesperrt hast — die Buchungsseiten bieten sie nicht an"><i style={{ background: "repeating-linear-gradient(135deg,rgba(251,191,36,.55) 0 3px,rgba(251,191,36,.15) 3px 6px)" }} />Gesperrt</span>
             {/* E-236: der Punkt oben rechts an einem Termin, den Mara vereinbart hat. */}
             <span title="Rückruf, den Mara per WhatsApp oder E-Mail vereinbart hat — oder über Maras Link gebucht"><i className="ca-w-legende-mara" />Von Mara</span>
             <span><i style={{ background: "#fbbf24", height: 2, marginTop: 5 }} />Jetzt</span>
@@ -770,6 +849,7 @@ function CalendarInnen() {
               return (
                 <div key={key} className={`ca-tageskarte${istHeute ? " heute" : ""}`}>
                   <div className="ca-tageskarte-kopf"><b>{istHeute ? "Heute" : `${TAGE[i]}, ${datumKurz(ausKey(key))}`}</b><small>{frei.length ? frei.map(([v, b]) => `${String(Math.floor(v / 60)).padStart(2, "0")}:${String(v % 60).padStart(2, "0")}–${String(Math.floor(b / 60)).padStart(2, "0")}:${String(b % 60).padStart(2, "0")}`).join(" · ") : "nicht verfügbar"}</small></div>
+                  {sperrenAm(key).map((s) => <SperrZeile key={`s${s.id}`} s={s} busy={sperrBusy} onFrei={() => void sperreFrei(s)} />)}
                   {liste.length === 0 && <p className="ca-leer">–</p>}
                   {liste.map((a) => <Zeile key={tKey(a)} a={a} busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
                 </div>
@@ -795,6 +875,10 @@ function CalendarInnen() {
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
       {aboOffen && <KalenderAboBlatt onZu={() => setAboOffen(false)} />}
+      {sperrOffen && (
+        <ZeitBlockieren vorschlag={sperrVorschlag(ansicht === "tag" ? tagKey : heuteKey, heuteKey, jetzt)} sperren={sperren} busy={sperrBusy}
+                        onZu={() => setSperrOffen(false)} onGeaendert={sperrenLaden} onFrei={(s) => void sperreFrei(s)} />
+      )}
 
       {abschluss && (
         <TerminAbschluss a={abschluss} busy={busy === tKey(abschluss)}
@@ -1219,6 +1303,88 @@ function Detail({ a, busy, ausser, onZu, onErledigt, onVerpasst, onVerschieben, 
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Zeit blockieren: von–bis + freiwillige Notiz → POST /agent/sperrzeiten (E-498) ──
+// Eine gesperrte Zeit ist kein Termin: kein Kunde, keine Mail, kein Telefon. Sie nimmt die Zeit nur aus dem Angebot
+// der Buchungsseiten. Steht in der Zeit schon ein gebuchter Termin, sagt der Server es — er bleibt bestehen.
+function ZeitBlockieren({ vorschlag, sperren, busy: freiBusy, onZu, onGeaendert, onFrei }: {
+  vorschlag: [string, string]; sperren: Sperre[]; busy: boolean;
+  onZu: () => void; onGeaendert: () => void; onFrei: (s: Sperre) => void;
+}) {
+  const [von, setVon] = useState(vorschlag[0]);
+  const [bis, setBis] = useState(vorschlag[1]);
+  const [grund, setGrund] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const [ergebnis, setErgebnis] = useState<{ kurz: string; schon: boolean; hinweis: string | null } | null>(null);
+  useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onZu]);
+
+  const vonAendern = (wert: string) => {
+    setVon(wert);
+    // Ein Ende, das nicht nach dem neuen Beginn liegt, rückt mit: eine Stunde danach.
+    if (wert && (!bis || bis <= wert)) setBis(plusEineStunde(wert));
+  };
+  const speichern = async () => {
+    if (!von || !bis) { setFehler("Bitte Beginn und Ende angeben."); return; }
+    setBusy(true); setFehler(null);
+    const r = await api("/agent/sperrzeiten", { method: "POST", body: JSON.stringify({ beginn: von, ende: bis, grund: grund.trim() || null }) })
+      .catch(() => ({ ok: false, json: null as any }));
+    setBusy(false);
+    if (!r.ok) { setFehler(r.json?.error || "Das hat nicht geklappt — bitte noch einmal."); return; }
+    setErgebnis({ kurz: r.json?.sperrzeit?.kurz || "", schon: !!r.json?.schon, hinweis: r.json?.hinweis ?? null });
+    setGrund("");
+    onGeaendert();
+  };
+  const hintergrund = useHintergrundZu(onZu); // Doppelklick schließt nicht sofort wieder (Gegenprüfung E-263)
+  return (
+    <div className="ca-dialog-hintergrund" {...hintergrund} role="dialog" aria-modal="true" aria-labelledby="ca-sperre-titel">
+      <div className="ca-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="ca-dialog-kopf">
+          <div>
+            <h2 id="ca-sperre-titel">Zeit blockieren</h2>
+            <small>Für Termine, die nicht im System stehen — Zoom, Treffen vor Ort, privat. Die Buchungsseiten bieten die Zeit dann nicht mehr an.</small>
+          </div>
+          <button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen"><X size={18} /></button>
+        </div>
+        <div className="ca-form" style={{ marginTop: 0 }}>
+          {ergebnis ? (
+            <>
+              <p className="ca-abo-meldung" role="status">
+                {ergebnis.schon ? "Diese Zeit war schon gesperrt: " : "Gesperrt: "}<b>{ergebnis.kurz}</b>. Kunden und Mara bekommen sie nicht mehr angeboten. Es geht keine Mail raus.
+              </p>
+              {ergebnis.hinweis && <p className="ca-fehler" role="alert">{ergebnis.hinweis}</p>}
+              <div className="ca-form-knoepfe">
+                <button type="button" className="ca-knopf" onClick={onZu}>Fertig</button>
+                <button type="button" className="ca-knopf still" onClick={() => { setErgebnis(null); setVon(vorschlag[0]); setBis(vorschlag[1]); }}>Noch eine Zeit sperren</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ marginBottom: 4 }}>Von (deutsche Zeit)</p>
+              <input type="datetime-local" className="ca-feld" value={von} onChange={(e) => vonAendern(e.target.value)} aria-label="Von" autoFocus />
+              <p style={{ marginBottom: 4 }}>Bis</p>
+              <input type="datetime-local" className="ca-feld" value={bis} onChange={(e) => setBis(e.target.value)} aria-label="Bis" />
+              <input className="ca-feld" value={grund} maxLength={200} onChange={(e) => setGrund(e.target.value)}
+                     placeholder="Notiz, freiwillig (nur für dich) — z. B. Zoom, Treffen vor Ort" aria-label="Notiz" />
+              <p>Plane Anfahrt und Puffer mit ein: Gesperrt ist genau die Zeit, die du einträgst. Ein schon gebuchter Termin bleibt bestehen — das System sagt dir, wenn einer in der Zeit liegt.</p>
+              {fehler && <p className="ca-fehler" role="alert">{fehler}</p>}
+              <div className="ca-form-knoepfe">
+                <button type="button" className="ca-knopf" disabled={!von || !bis || busy} onClick={() => void speichern()}>{busy ? "Sperrt …" : "Zeit sperren"}</button>
+                <button type="button" className="ca-knopf still" onClick={onZu}>Abbrechen</button>
+              </div>
+            </>
+          )}
+          {sperren.length > 0 && (
+            <>
+              <p style={{ margin: "14px 0 4px" }}>Schon gesperrt ({sperren.length})</p>
+              {sperren.map((s) => <SperrZeile key={s.id} s={s} busy={freiBusy} onFrei={() => onFrei(s)} />)}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

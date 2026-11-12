@@ -58,6 +58,7 @@ import { absoluteUrl } from "../fiaon-base-url";
 import { icsKalender, googleKalenderLink, type IcsEreignis } from "./fiaon-ics";
 import { echteMitarbeiterSql } from "./fiaon-mitarbeiter-sicht";
 import { HERKUENFTE } from "./fiaon-termine";
+import { sperrzeitTabelleDa } from "./fiaon-sperrzeit";
 import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 import { maraMarke } from "../../shared/fiaon-mara-marke";
 import {
@@ -424,6 +425,57 @@ export async function termineFuerGoogle(agentIds: number[], lauf: Lauf = sqlPool
   return zeilen.map((t) => ({ id: t.id, agent_id: t.agent_id, kal_sequenz: t.kal_sequenz, stand: t.stand, ereignis: terminEreignis(t, { zusatz: zusatz.get(t.id) }) }));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SPERRZEITEN IM ABO (E-498, 12.11.2026) — „BELEGT", SONST NICHTS
+//
+// Eine Sperrzeit („Zeit blockieren") steht im Abo als Eintrag „Belegt": Der Inhaber sieht in seinem Handy-Kalender
+// neben den Terminen auch, welche Zeiten die Buchungsseiten nicht mehr anbieten. NIE der Grund (die Notiz kann einen
+// Namen tragen), nie ein Kunde, nie Telefon — wie bei jedem Termin gilt Datensparsamkeit. Kein Alarm: Die Person hat
+// die Zeit selbst gesperrt. Feste UID sperrzeit-<id>@fiaon.com: eine gelöschte Sperrzeit fällt aus dem Feed und damit
+// aus jedem Kalender. Team-Abo: „<Vorname> · belegt" für die Sperrzeiten der ANDEREN Mitarbeiter.
+// ═══════════════════════════════════════════════════════════════════════════
+/** Höchstens so viele Sperrzeiten je Abo (die kommenden zuerst — sie sind ohnehin je Person auf 200 offene begrenzt). */
+export const ABO_SPERREN_HOECHSTENS = 200;
+
+export function sperrzeitEreignis(
+  s: { id: number; beginn: Date; ende: Date; erstellt_am: Date; bei_vorname?: string | null },
+  opts: { team?: boolean } = {},
+): IcsEreignis {
+  return {
+    uid: `sperrzeit-${s.id}@fiaon.com`,
+    stempel: s.erstellt_am,
+    geaendert: s.erstellt_am,
+    erstellt: s.erstellt_am,
+    sequenz: 0,
+    beginn: s.beginn,
+    ende: s.ende,
+    titel: opts.team && s.bei_vorname ? `${s.bei_vorname} · belegt` : "Belegt",
+    beschreibung: "Gesperrte Zeit — für Buchungen nicht frei.",
+    status: "CONFIRMED",
+    alarme: [],
+  };
+}
+
+async function sperrzeitEreignisse(z: AboZeile, lauf: Lauf): Promise<IcsEreignis[]> {
+  if (!(await sperrzeitTabelleDa(lauf))) return [];
+  const team = z.umfang === "team";
+  const zeilen = (await lauf`
+    SELECT s.id, s.beginn, s.ende, s.erstellt_am, COALESCE(NULLIF(ag.first_name, ''), split_part(ag.name, ' ', 1)) AS bei_vorname
+      FROM fiaon_sperrzeiten s
+      LEFT JOIN fiaon_agents ag ON ag.id = s.agent_id
+     WHERE s.geloescht_am IS NULL
+       AND s.ende >= NOW() - make_interval(days => ${ABO_TAGE_ZURUECK}::int)
+       AND s.beginn < NOW() + make_interval(days => ${ABO_TAGE_VORAUS}::int)
+       AND ((NOT ${team}::boolean AND s.agent_id = ${z.agent_id})
+            OR (${team}::boolean AND s.agent_id <> ${z.agent_id} AND ag.id IS NOT NULL AND ${lauf.unsafe(echteMitarbeiterSql("ag"))}))
+     ORDER BY s.beginn, s.id
+     LIMIT ${ABO_SPERREN_HOECHSTENS}`) as any[];
+  return zeilen.map((r) => sperrzeitEreignis(
+    { id: Number(r.id), beginn: new Date(r.beginn), ende: new Date(r.ende), erstellt_am: new Date(r.erstellt_am), bei_vorname: r.bei_vorname ? String(r.bei_vorname) : null },
+    { team },
+  ));
+}
+
 /** Gibt es die Google-Tabelle? (Ohne sie lässt das Abo nichts weg.) Einmal ja = für immer ja. */
 let googleTabelleDa = false;
 async function googleAusnahmeAn(lauf: Lauf): Promise<boolean> {
@@ -478,7 +530,11 @@ export async function aboFeed(z: AboZeile, lauf: Lauf = sqlPool): Promise<AboFee
      ORDER BY t.beginn DESC, t.id DESC
      LIMIT ${ABO_HOECHSTENS}`) as any[]).map(terminZeile).reverse();
   const zusatz = await leadZusatz(zeilen, lauf);
-  const ereignisse = zeilen.map((t) => terminEreignis(t, { team, zusatz: zusatz.get(t.id) }));
+  // E-498: gesperrte Zeiten als „Belegt" (nur wenn es welche gibt; ohne Tabelle bleibt der Feed Byte für Byte wie vorher).
+  const ereignisse = [
+    ...zeilen.map((t) => terminEreignis(t, { team, zusatz: zusatz.get(t.id) })),
+    ...(await sperrzeitEreignisse(z, lauf)),
+  ];
   const ics = icsKalender({
     abo: team
       ? { name: ABO_NAMEN.team, beschreibung: "Die Termine der Mitarbeiter (deine eigenen stehen in „FIAON · meine Termine“) — hält sich selbst aktuell." }

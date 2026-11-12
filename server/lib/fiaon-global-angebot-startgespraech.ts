@@ -69,6 +69,7 @@ import {
   type GlobalFenster, type GlobalBelegung, type GlobalFreieZeit,
 } from "./fiaon-global-zeiten";
 import { globalWiderrufsfrist } from "./fiaon-global-vertrag";
+import { sperrenAlsBelegung } from "./fiaon-sperrzeit";
 import {
   terminBuchen, stornoLink, verfuegbarkeitVon, ensureHerkunftSpalte, versuchProtokollieren, terminTokenErzeugen,
   TerminFehler, berlinDatumText, berlinUhrzeit, type Zeitfenster,
@@ -477,9 +478,15 @@ export async function angebotStartgespraechBuchen(id: number, opts: { jetzt?: Da
          AND beginn > ${vonAb} AND beginn < ${bisAb}`) as any[];
     // E-476 Scheibe 3 (Gutachten 0, Mangel 2): Lead-Gespräche (Erstgespräche mit Business-Leads bei Justin) sperren ihre
     // ZEIT, aber nie den PLATZ eines Startgesprächs — ein zahlender Kunde bucht immer, auch an einem Tag voller Leads.
+    // E-498 (12.11.2026): Sperrzeiten („Zeit blockieren“) sperren die Zeit auch hier — das System bucht ein Startgespräch
+    // nie in eine Zeit, die Justin von Hand belegt hat. Sie verbrauchen keinen Tagesplatz.
+    const sperren = await sperrenAlsBelegung(person.id, vonAb, bisAb);
     const { frei } = startgespraechZeitenRechnen({
       ab: fr.ab, fenster: person.fenster, proTag,
-      belegt: termine.map((t) => ({ beginn: t.beginn, dauerMin: Number(t.dauer_min), zaehltAlsGlobal: t.quelle === "global" && t.status !== "abgesagt" && !istLeadGespraech(t) })),
+      belegt: [
+        ...termine.map((t) => ({ beginn: t.beginn, dauerMin: Number(t.dauer_min), zaehltAlsGlobal: t.quelle === "global" && t.status !== "abgesagt" && !istLeadGespraech(t) })),
+        ...sperren,
+      ],
     });
     // Auch ohne freie Zeit geht es durch die Sperre: Hat ein paralleler Lauf (Annahme, Kundenlink, Stundenlauf) gerade
     // gebucht, ist sein Termin der Grund, warum hier nichts mehr frei ist — dann „schon", nicht „kein Platz".

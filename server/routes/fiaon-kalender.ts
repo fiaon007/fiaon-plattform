@@ -32,6 +32,9 @@ import {
   einzelIcs, kundenIcs, tokenKurz, leererKalenderIcs, ABO_TOKEN_FORM,
 } from "../lib/fiaon-kalender-abo";
 import { kalenderSeiteHtml, kalenderUnbekanntHtml } from "../lib/fiaon-kalender-seite";
+import { sperrzeitAnlegen, sperrzeitLoeschen, sperrzeitenListe, type SperrzeitZeile } from "../lib/fiaon-sperrzeit";
+import { sperrzeitKurz, zeitpunktKurz } from "../lib/fiaon-sperrzeit-regeln";
+import { terminArtAusQuelle } from "../../shared/fiaon-termin-art";
 
 const router = Router();
 
@@ -218,6 +221,71 @@ agentRouter.post("/agent/kalender-abo/:aktion", agentWand, async (req: MitAgent,
     res.json({ ok: true, abo: abo ? aboSicht(abo) : null });
   } catch (err) {
     console.error("[KALENDER] Agent-Abo ändern:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Das hat nicht geklappt — bitte noch einmal." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZEIT BLOCKIEREN (E-498, 12.11.2026) — Sperrzeiten im Calendar
+//
+//   GET  /agent/sperrzeiten                die eigenen kommenden Sperrzeiten
+//   POST /agent/sperrzeiten                {beginn, ende, grund?} — Zeit sperren (Berliner Wandzeit oder ISO)
+//   POST /agent/sperrzeiten/:id/loeschen   wieder freigeben
+//
+// Immer die EIGENE Zeit: Die Person kommt aus der Anmeldung (req.agent.id), nie aus dem Text der Anfrage — wer eine
+// fremde Kennung schickt, sperrt nichts und löscht nichts. In der Nur-Ansicht (Vorgesetzter sieht mit den Augen des
+// Mitarbeiters) darf man lesen, nicht schreiben. Keine Mail, kein Telefon-Wortlaut, kein Termin: Die Schreibstelle ist
+// fiaon-sperrzeit.ts. Siehe dort und fiaon-sperrzeit-regeln.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+function sperrzeitAntwort(s: SperrzeitZeile) {
+  return {
+    id: s.id, beginn: s.beginn.toISOString(), ende: s.ende.toISOString(), grund: s.grund,
+    kurz: sperrzeitKurz(s.beginn, s.ende),
+  };
+}
+
+agentRouter.get("/agent/sperrzeiten", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const liste = await sperrzeitenListe(req.agent!.id);
+    res.json({ ok: true, ansicht: !!req.agent!.ansicht, sperrzeiten: liste.map(sperrzeitAntwort) });
+  } catch (err) {
+    console.error("[SPERRZEIT] Liste:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Die gesperrten Zeiten ließen sich nicht laden." });
+  }
+});
+
+agentRouter.post("/agent/sperrzeiten", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const agent = req.agent!;
+    if (agent.ansicht) return void res.status(403).json({ ok: false, error: "In der Ansicht nicht möglich." });
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const erg = await sperrzeitAnlegen({ agentId: agent.id, beginn: b.beginn, ende: b.ende, grund: b.grund, vonAgentId: agent.id });
+    if (!erg.ok) return void res.status(erg.code === "keine_tabelle" ? 503 : 400).json({ ok: false, code: erg.code, error: erg.error });
+    const termine = erg.termine.map((t) => ({ ...t, text: `${zeitpunktKurz(t.beginn)} · ${terminArtAusQuelle(t.quelle).text}` }));
+    // Die Notiz steht bewusst nicht im Log (sie kann einen Namen tragen) — nur wer und wann.
+    console.log(`[SPERRZEIT] Mitarbeiter #${agent.id}: ${erg.schon ? "schon gesperrt" : "Zeit gesperrt"} ${erg.sperrzeit.beginn.toISOString()} – ${erg.sperrzeit.ende.toISOString()}${termine.length ? ` (${termine.length} Termin(e) darin)` : ""}`);
+    res.json({
+      ok: true, schon: erg.schon, sperrzeit: sperrzeitAntwort(erg.sperrzeit), termine,
+      hinweis: termine.length
+        ? `Achtung: In dieser Zeit steht schon ${termine.length === 1 ? "ein Termin" : `${termine.length} Termine`} (${termine.map((t) => t.text).join("; ")}). ${termine.length === 1 ? "Er bleibt" : "Sie bleiben"} bestehen — bitte verschieben oder absagen.`
+        : null,
+    });
+  } catch (err) {
+    console.error("[SPERRZEIT] Anlegen:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Das hat nicht geklappt — bitte noch einmal." });
+  }
+});
+
+agentRouter.post("/agent/sperrzeiten/:id/loeschen", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const agent = req.agent!;
+    if (agent.ansicht) return void res.status(403).json({ ok: false, error: "In der Ansicht nicht möglich." });
+    const weg = await sperrzeitLoeschen(Number(req.params.id), agent.id, agent.id);
+    if (!weg) return void res.status(404).json({ ok: false, error: "Diese gesperrte Zeit gibt es nicht (mehr)." });
+    console.log(`[SPERRZEIT] Mitarbeiter #${agent.id}: Sperrzeit ${Number(req.params.id)} freigegeben`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[SPERRZEIT] Löschen:", String((err as Error)?.message ?? err).slice(0, 200));
     res.status(500).json({ ok: false, error: "Das hat nicht geklappt — bitte noch einmal." });
   }
 });

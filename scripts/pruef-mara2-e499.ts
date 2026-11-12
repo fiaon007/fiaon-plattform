@@ -117,6 +117,20 @@ async function main() {
     "Gerne einen Termin am Montag",
   ]) ok(!W.bejahtAustritt(s), `kein Ja: „${s}“`);
 
+  for (const s of ["Ja ich überlege noch", "Ja, vielleicht später", "Ja, eigentlich schon, weiß es noch nicht"]) ok(!W.bejahtAustritt(s), `kein Ja (Vorbehalt): „${s}“`);
+
+  console.log("── 7b · WhatsApp: das Ja mit mehr Worten auf Maras verbindliche Rückfrage");
+  const ton = await import("../shared/fiaon-mara-ton");
+  const frage = { text: `Verstehe ich. ${ton.KUENDIGUNG_RUECKFRAGE}`, am: new Date(), vorlage: null, vonMara: true };
+  const breit = (k: string, l: any = frage) => ton.jaAufKuendigungsAngebot(k, l) || (ton.jaAufKuendigungsAngebot("ja", l) && W.bestaetigtAustrittBreit(k, {}));
+  for (const s of ["Ja", "Ja bitte Kündigung bestätigen", "Ja, nehmen Sie die Kündigung auf. Da Sie Ihren Vertrag nicht eingehalten haben", "Ich möchte kündigen", "Bitte kündigen Sie jetzt endlich", "Jawohl, kündigen"])
+    ok(breit(s), `WhatsApp bestätigt: „${s.slice(0, 60)}“`);
+  for (const s of ["Ok", "Ja, aber erst nächsten Monat", "Ja ich überlege noch", "Nein", "Ich kündige nicht", "Wie lange läuft der Vertrag?", "Ja, ich habe überwiesen", "Ich kündige. Nein, war ein Scherz."])
+    ok(!breit(s), `WhatsApp bestätigt NICHT: „${s}“`);
+  ok(!breit("Ja bitte Kündigung bestätigen", { text: "Möchten Sie wissen, wann Ihre Kündigung wirksam würde?", am: new Date(), vorlage: null, vonMara: true }), "ohne die verbindliche Rückfrage davor zählt kein Ja");
+  ok(!breit("Ich möchte kündigen", { text: "Ihre Karte ist unterwegs.", am: new Date(), vorlage: null, vonMara: true }), "ohne Rückfrage bleibt „Ich möchte kündigen“ Schritt 1 (Mara fragt einmal)");
+  ok(!breit("Ja bitte Kündigung bestätigen", { ...frage, am: new Date(Date.now() - 30 * 3600_000) }), "Rückfrage älter als 24 Stunden: kein Ja");
+
   console.log("── 8 · Nie zweimal fragen (rueckfrageEntfernen)");
   const zwei = "Guten Tag Herr Muster,\n\nIhre Nachricht ist angekommen. Möchten Sie Ihren Vertrag kündigen? Ein kurzes Ja genügt.\n\nIhre Rechnung finden Sie in Ihrem Bereich.";
   const ohne = A.rueckfrageEntfernen(zwei);

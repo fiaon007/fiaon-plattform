@@ -3465,7 +3465,10 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       keinSatz: pmw.keinKuendigungsSatz,
       ruecknahme: pmw.kuendigungRuecknahme,
       bestreitet: bestreitetFn,
-      jaAufRueckfrage: !nurKnoepfe && jaAufKuendigungsAngebot(kundeFrei, letzteRaus),
+      // E-499 (Mara 2.0): auch ein Ja mit mehr Worten („Ja bitte Kündigung bestätigen“) oder die wiederholte klare Erklärung
+      // zählt — solange Maras neueste Nachricht die verbindliche Rückfrage war (geprüft mit einem nackten „ja“). Vorher: Schleife.
+      jaAufRueckfrage: !nurKnoepfe && (jaAufKuendigungsAngebot(kundeFrei, letzteRaus)
+        || (jaAufKuendigungsAngebot("ja", letzteRaus) && pmw.bestaetigtAustrittBreit(kundeFrei, { unbezahlt: unbezahltJetzt }))),
       rueckfrageOffen: rueckfrageOffen && !nurKnoepfe,
       anlass: kuendigungAnlass,
       maraSprachVonKuendigung: !!letzteRaus && !letzteRaus.vorlage && letzteRaus.vonMara !== false && maraBotKuendigungAn(letzteRaus.text),
@@ -4805,7 +4808,9 @@ async function kuendigungAufnehmen(args: any, ctx: WerkzeugKontext): Promise<{ e
   // Ein „ich kündige" allein bucht nie mehr (Gegenprobe g2: „Bitte kündigen Sie nicht meinen Vertrag", „Ich kündige!
   // ⏎ War ein Scherz" und „Falsche Nummer, bitte stornieren" wurden gebucht).
   const anlass = String(ctx.kuendigungAnlass ?? "");
-  const ja = jaAufKuendigungsAngebot(kunde, ctx.letzteRaus ?? null);
+  // E-499 (Mara 2.0): wie im Lauf — das Ja mit mehr Worten und die wiederholte klare Erklärung zählen (bestaetigtAustrittBreit).
+  const ja = jaAufKuendigungsAngebot(kunde, ctx.letzteRaus ?? null)
+    || (jaAufKuendigungsAngebot("ja", ctx.letzteRaus ?? null) && w.bestaetigtAustrittBreit(kunde, { unbezahlt: String(b.payment_status) !== "paid" }));
   const bestritten = w.bestreitetKuendigung(kunde, abstreitenArt) ?? (anlass ? w.bestreitetKuendigung(anlass, abstreitenArt) : null);
   const zurueck = w.kuendigungRuecknahme(kunde);
   // E-372: bei einer unbezahlten Bestellung zählt auch sein Widerruf als Anlass (er ist dort ein Storno).

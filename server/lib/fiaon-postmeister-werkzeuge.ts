@@ -1820,7 +1820,7 @@ function ohneAnrede(text: string): string {
   return t;
 }
 /** Ein Ja mit Vorbehalt („Ja, aber erst …“, „Ja, wenn …“) ist kein Ja. */
-const JA_VORBEHALT = /\b(?:aber|wenn|falls|sobald|sofern|vorher|zuerst|jedoch|allerdings|erst\s+(?:wenn|nach|mal)|oder)\b/i;
+const JA_VORBEHALT = /\b(?:aber|wenn|falls|sobald|sofern|vorher|zuerst|jedoch|allerdings|erst\s+(?:wenn|nach|mal)|erstmal|oder|unsicher|wei(?:ß|ss)\s+(?:noch\s+|es\s+)?nicht|noch\s+nicht|sp(?:ä|ae)ter|vielleicht|mal\s+sehen|eigentlich)\b|(?:ü|ue)berleg/i;
 /** Ein Ja zu etwas ANDEREM (Zahlung, Termin, Karte …) — kein Ja zur Kündigung, wenn kein Austrittswort dabei steht. */
 const JA_ANDERES_THEMA = /(?:ü|ue)berw(?:ie|ei)s|bezahl|\bzahl(?:e|en|ung|t)\b|termin|r(?:ü|ue)ckruf|anruf|\bruf(?:e|en|t)\b|karte|unterlagen|schufa|auskunft|angebot|passwor|zugang/i;
 /** Grußformel und Name am Ende („Mit freundlichen Grüßen Max Muster“) — zählt nicht zum Inhalt des Ja. */
@@ -1843,6 +1843,21 @@ export function bejahtAustritt(eigenerText: unknown): boolean {
   if (JA_VORBEHALT.test(rest)) return false;
   if (!mitAustritt && JA_ANDERES_THEMA.test(rest)) return false;
   return stark ? (mitAustritt || rest.length <= 80) : (mitAustritt || rest.length <= 25);
+}
+
+/**
+ * E-499 (WhatsApp): Sein Ja auf Maras verbindliche Rückfrage mit MEHR Worten („Ja bitte Kündigung bestätigen“, „Ja,
+ * nehmen Sie die Kündigung auf, da …“) — oder er wiederholt die klare Erklärung statt „Ja“ („Ich kündige“). Vorher
+ * zählte nur ein nacktes Ja bis 60 Zeichen: Mara fragte dann noch einmal. Ob Maras neueste Nachricht wirklich die
+ * Rückfrage war, prüft der Aufrufer (jaAufKuendigungsAngebot mit „ja“). Kein schwaches Wort allein („Ok“), nie mit
+ * Vorbehalt, Rücknahme oder Verneinung. Rein.
+ */
+export function bestaetigtAustrittBreit(kunde: unknown, opt: { unbezahlt?: boolean } = {}): boolean {
+  const t = String(kunde ?? "").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 300) return false;
+  if (austrittZurueckgenommen(t, opt)) return false;
+  if (JA_STARK.test(ohneAnrede(t)) && bejahtAustritt(t)) return true;
+  return austrittsWille(t, opt).urteil === "klar";
 }
 
 /** Steht UNSERE Kündigungs-Rückfrage im zitierten Teil seiner Mail (nur die jüngste zitierte Nachricht, 1.500 Zeichen)? Rein. */

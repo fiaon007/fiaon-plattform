@@ -12,6 +12,8 @@
 //   7  SCHUTZ       Zeit-Siegel, Bremsen
 //   8  TEXTE        deutsch und englisch gleich gebaut; Wortwand (deutsch: Hauswand + E-188, englisch: GLOBAL_SCHAERFER_EN);
 //                   kein Paketname, kein alter Preis; Mails
+//   9  MUSTER       der öffentliche Mustervertrag ohne Namen der Partnergesellschaft und ohne Zinszahl; der Kopf für
+//                   Suchmaschinen sagt dasselbe wie die Seite
 //
 // Aufruf: env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus DOTENV_CONFIG_PATH=/dev/null SESSION_SECRET=pruefstand \
 //           DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine node_modules/.bin/tsx scripts/pruef-verkaufsmotor.ts
@@ -248,6 +250,34 @@ const meldung = e0.ok ? (["abschluss", "miami", "bestand", "vorhaben", "ohne_kap
   ok(mail.absaetze[0] === "Sehr geehrter Herr Mustermann," && mail.daten.some((d) => d.wert.replace(/\s/g, " ") === "5.820 €") && mail.daten.some((d) => d.wert === "19.11.2026"), "Kundenmail: Anrede, Honorar, Gültigkeit");
   const mailEn = S.verkaufKundenMailTexte({ ...mailBeispiel, sprache: "en" }, "FIAON-IA-CMUSTER", "2026-11-19", false, KURS);
   ok(mailEn.absaetze[0] === "Dear Mr Mustermann," && mailEn.daten.some((d) => d.wert === "€5,820"), "Kundenmail englisch: Anrede, Honorar");
+}
+
+// ── 9 MUSTERVERTRAG UND SUCHMASCHINEN-KOPF ──────────────────────────────────
+{
+  const muster = await S.verkaufMustervertragHtml("2026-11-12");
+  const text = muster.replace(/<style[\s\S]*?<\/style>/g, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;|\u00a0/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ");
+  ok(text.includes("Max Mustermann") && text.includes("Musterweg 1"), "Mustervertrag: Musterkunde");
+  // „Schwarzott“ allein steht zu Recht da (Director der FIAON LTD, Ziffer 1) — gemeint sind die Partnergesellschaften.
+  ok(!/Schwarzott (Global|Capital|Group)|Coral Way|\bL\d{11}\b/i.test(muster), "Mustervertrag: kein Name, keine Anschrift, keine Nummer der Partnergesellschaft");
+  ok(text.includes(S.MUSTER_KONDITIONEN), "Mustervertrag: der Satz mit den Bedingungen steht ohne Zahlen da");
+  const zins = GLOBAL_SCHAERFER.filter((r) => /Zinssatz/.test(r.grund));
+  ok(zins.length >= 2 && !zins.some((r) => r.muster.test(text)), "Mustervertrag: kein Zinssatz als Zahl (öffentliche Seite)");
+  ok(/Geld-zurück-Garantie/.test(text) && /Bürgschaft der US-Partnergesellschaft/.test(text) && /Widerrufsbelehrung/.test(text), "Mustervertrag: Garantie, Bürgschaft und Widerrufsbelehrung stehen drin");
+  ok(text.includes("2.799") && text.includes(KC.kapitalCEur(V.verkaufPreis(V.VERKAUF_RAHMEN.startUsd, V.VERKAUF_KURS_VORGABE.kursUsdJeEur).erfolgCents).replace(/\u00a0/g, " ")), "Mustervertrag: der eine Preis und das Erfolgshonorar zum Start-Rahmen");
+  ok(!/Due-Diligence-Prüfung des Auftraggebers mit positivem Ergebnis abgeschlossen/.test(text), "Mustervertrag: behauptet keine abgeschlossene Prüfung");
+}
+{
+  const { SEO_SEITEN } = await import("../shared/fiaon-seo-seiten");
+  const start = (SEO_SEITEN as Record<string, any>)["/"];
+  ok(!!start, "SEO: Eintrag „/“ da");
+  gleich([start.titel, start.beschreibung], [V.VERKAUF_TEXTE.de.seo.titel, V.VERKAUF_TEXTE.de.seo.beschreibung], "SEO „/“ deutsch = Kopf der Seite");
+  gleich([start.en.titel, start.en.beschreibung], [V.VERKAUF_TEXTE.en.seo.titel, V.VERKAUF_TEXTE.en.seo.beschreibung], "SEO „/en“ = Kopf der Seite");
+  const alles = JSON.stringify(start);
+  ok(!/2\.499|4\.999|6\.999|35\.999|2,499|4,999|6,999|35,999|Global (Struktur|Banking|Kapital|VIP|Structure|Capital)/.test(alles), "SEO „/“: kein alter Preis, kein Paketname");
+  ok(alles.includes("2.799 €") && alles.includes("€2,799") && alles.includes("699 €") && alles.includes("€699"), "SEO „/“: der eine Preis und die Jahresbetreuung aus der einen Quelle");
+  ok(start.titel.length <= 60 && start.en.titel.length <= 60 && start.beschreibung.length >= 110 && start.beschreibung.length <= 155 && start.en.beschreibung.length >= 110 && start.en.beschreibung.length <= 155, "SEO „/“: Längen von Titel und Beschreibung");
+  const konfig = (SEO_SEITEN as Record<string, any>)["/business/start"];
+  ok(konfig && !/Paket|package/i.test(JSON.stringify(konfig)), "SEO „/business/start“: ohne Paket");
 }
 
 console.log(`\n${gut} Prüfungen grün, ${schlecht} rot.`);

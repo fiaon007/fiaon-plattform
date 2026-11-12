@@ -34,9 +34,9 @@ import {
   SEO_BASIS, SEO_NAV, SEO_FUSS, SEO_WERKZEUGE, SEO_WERKZEUGE_EN, SEO_GLOSSAR, SEO_GLOSSAR_EN, GLOBAL_BILD, GLOBAL_BILD_EN,
   seoSeite, seoFragen, seoIndexierbar, type SeoSeite, type SeoAbschnitt, schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
-import { GLOBAL_PAKETE, globalKatalog } from "@shared/fiaon-global";
 import { globalMenue } from "@shared/fiaon-global-menue";
-import { globalStartPfad, globalPaketePfad } from "@shared/fiaon-global-wege";
+import { VERKAUF_PREISE } from "@shared/fiaon-global-verkauf-preise";
+import { verkaufPfad } from "@shared/fiaon-global-verkauf";
 import { FIAON_FIRMA, fiaonVerwechslung } from "@shared/fiaon-firma";
 import { istOesterreichSeite } from "@shared/fiaon-global-wortregeln";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
@@ -346,19 +346,21 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   // zu Einmalpreisen — die Zahlen kommen aus dem Katalog, nie von Hand.
   // 29.10.2026 (E-461): die Übersicht ist die Startseite (/ und /en), nicht mehr /business.
   if (s.pfad === BUSINESS_START.de || s.pfad === BUSINESS_START.en || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land") {
-    const preise = GLOBAL_PAKETE.map((p) => (globalKatalog(p.key)?.preisCents ?? 0) / 100).filter((x) => x > 0);
-    // 24.09.2026 (E-234): englische Seiten tragen das englische Angebot — bis heute stand auf /en/business das deutsche.
+    // E-509 (12.11.2026): EIN Produkt mit EINEM Preis (Gründung mit aktiver Betreuung im ersten Jahr) — vorher vier Pakete als
+    // AggregateOffer. Der Preis kommt aus shared/fiaon-global-verkauf-preise.ts; das Erfolgshonorar (nach Kapitalrahmen) steht
+    // nicht im Datenblock, weil es keine feste Zahl ist.
+    // 24.09.2026 (E-234): englische Seiten tragen das englische Angebot.
     const en = s.sprache === "en";
     const sp = en ? "en" : "de";
     ld.push({
       "@context": "https://schema.org", "@type": "Service", "@id": `${BASIS}${en ? BUSINESS_START.en : "/"}#leistung`,
       name: "FIAON Global",
-      serviceType: en ? "Formation of a US company, US tax numbers (EIN, ITIN), registered agent, preparation of account and card applications" : "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, Vorbereitung von Konto- und Kartenanträgen",
-      description: en ? "Your US company from one source: formation, EIN and ITIN, registered agent, US address, partner lawyer, partner tax adviser and US CPA — fixed price, one-off." : "US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, US-Adresse, Partner-Anwalt, Partner-Steuerberater und US-CPA — Festpreis, einmalig.",
+      serviceType: en ? "Formation of a US company, US tax numbers (EIN, ITIN), registered agent, US office, preparation of account and card applications" : "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, US-Büro, Vorbereitung von Konto- und Kartenanträgen",
+      description: en ? "Your US company, actively managed: formation, EIN and ITIN, registered agent, US address and phone number, lawyers and US CPAs from the partner network, accounts and cards prepared — one price with your order." : "Ihre US-Gesellschaft mit aktiver Betreuung: Gründung, EIN und ITIN, Registered Agent, US-Adresse und Telefonnummer, Anwälte und US-CPA aus dem Partnernetz, Konto und Karten vorbereitet — ein Preis mit Ihrem Auftrag.",
       provider: { "@id": `${BASIS}/#fiaon-global` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
       offers: {
-        "@type": "AggregateOffer", priceCurrency: "EUR", lowPrice: Math.min(...preise).toFixed(2), highPrice: Math.max(...preise).toFixed(2), offerCount: preise.length, url: `${BASIS}${globalPaketePfad(sp)}`,
-        offers: GLOBAL_PAKETE.map((p) => ({ "@type": "Offer", name: `FIAON ${p[sp].name}`, price: ((globalKatalog(p.key)?.preisCents ?? 0) / 100).toFixed(2), priceCurrency: "EUR", url: `${BASIS}${globalStartPfad(p.key, sp)}`, availability: "https://schema.org/InStock" })),
+        "@type": "Offer", name: en ? "US company, actively managed" : "US-Gesellschaft mit aktiver Betreuung", price: (VERKAUF_PREISE.gruendungCents / 100).toFixed(2), priceCurrency: "EUR",
+        url: `${BASIS}${verkaufPfad(sp)}`, availability: "https://schema.org/InStock",
       },
     });
   }

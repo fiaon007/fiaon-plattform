@@ -29,7 +29,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
-import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
@@ -37,7 +36,7 @@ import Merkblatt from "@/components/site/global-seite/Merkblatt";
 import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
 import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
-import { SeitenTafel, SeitenTafeln, OrteKarte, RollenDreieck } from "@/components/site/global-seite/SeitenBausteine";
+import { OrteKarte, RollenDreieck } from "@/components/site/global-seite/SeitenBausteine";
 import { Zeichen, zeichenFuerSeite, zeichenReihe } from "@/components/site/global-seite/Zeichen";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
@@ -47,13 +46,16 @@ import {
 } from "@shared/fiaon-global-seiten";
 import { globalMenuePunkt } from "@shared/fiaon-global-menue";
 import { GLOBAL_PAKETE, globalKapital, globalPaket, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
-import { globalStartPfad, globalPaketePfad, globalSeitePfad } from "@shared/fiaon-global-wege";
+import { globalStartPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
 import { businessArtikelAusPfad, businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { markdownZuHtml } from "@shared/fiaon-markdown";
 import { begriffStand, begriffeVerlinken, type Textteil } from "@shared/fiaon-global-begriffe";
 import { werbeEreignis } from "@/lib/werbung";
+import { VerkaufKarte } from "@/components/site/global/VerkaufProdukt";
+import VerkaufKonfigurator from "@/components/site/global/VerkaufKonfigurator";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur, verkaufPfad } from "@shared/fiaon-global-verkauf";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-grafik.css";
@@ -200,7 +202,6 @@ function Seite({ s }: { s: GlobalSeite }) {
   const [leiste, setLeiste] = useState(false);
   // 06.10.2026 (E-293): Der Kalender lädt erst auf Wunsch — oder sofort, wenn jemand mit #gespraech ankommt.
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
-  const [gespraechPaket, setGespraechPaket] = useState<string | null>(s.paket ?? null);
 
   useEffect(() => {
     const neu = () => {
@@ -219,12 +220,13 @@ function Seite({ s }: { s: GlobalSeite }) {
     return () => { window.removeEventListener("scroll", neu); window.removeEventListener("resize", neu); window.removeEventListener("hashchange", hash); };
   }, []);
 
+  // E-509 (12.11.2026): Es gibt EIN Produkt. Jeder Knopf „beauftragen“ führt zum Konfigurator; das Feld `paket` der Seite
+  // stellt dort nur noch den Start-Rahmen des Reglers (?paket= → verkaufUsdAusPaket).
   const paket = s.paket ?? null;
-  const beauftragen = paket ? globalStartPfad(paket, sp, s.auftraggeber) : globalPaketePfad(sp);
-  const paketName = paket ? globalPaket(paket)![sp].name : "";
+  const V = VERKAUF_TEXTE[sp];
+  const beauftragen = paket ? globalStartPfad(paket, sp) : verkaufPfad(sp);
   // Jeder Weg zum Gespräch öffnet die Karte an ihrer Stelle; eine Tafel füllt dabei ihr Paket vor.
-  const oeffneGespraech = (wahl?: GlobalSchluessel) => {
-    if (wahl) setGespraechPaket(wahl);
+  const oeffneGespraech = (_wahl?: GlobalSchluessel) => {
     setGespraechOffen(true);
     requestAnimationFrame(() => document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }));
   };
@@ -254,8 +256,8 @@ function Seite({ s }: { s: GlobalSeite }) {
               <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(s.h1)}{s.h1b && <><br /><em>{ohneBindestrichBruch(s.h1b)}</em></>}</h1>
               <p className="fd-lead">{s.lead}</p>
               <div className="fg-knoepfe fd-kopf-knoepfe">
-                <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>
-                  {paket ? t.beauftragen(paketName) : t.knopfPakete}<Pfeil />
+                <a className="fg-knopf" href={beauftragen} onClick={klickBeauftragen}>
+                  {V.buehne.knopf}<Pfeil />
                 </a>
                 <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
               </div>
@@ -340,10 +342,8 @@ function Seite({ s }: { s: GlobalSeite }) {
           </article>
         </div>
 
-        {/* 19.09.2026 (E-196): die Jahresbetreuung ab dem zweiten Jahr — auf jeder Seite, dieselben Sätze wie im Vertrag.
-            06.10.2026 (E-293): als Band wie auf /business (Jahresring, ein Satz, Zeitleiste; die vollen Sätze unter
-            „So funktioniert es“). Das Band trägt id="jahresbetreuung" selbst. */}
-        <GlobalJahresbetreuung sprache={sp} groesse="band" startPfad={beauftragen} knopf={t.jbKnopf} so={t.jbSo} />
+        {/* E-509 (12.11.2026): Das Band „Jahresbetreuung“ (E-196) steht hier nicht mehr — seine Sätze sprachen vom Paket.
+            Die Jahresbetreuung nennt jetzt die Karte „Ein Mandat“ und das Preisblatt des Konfigurators. */}
 
         {/* ── Gespräch ───────────────────────────────────────────────────── */}
         <section id="gespraech" className="fg-sek stein fd-gespraech" style={{ scrollMarginTop: 72 }}>
@@ -354,7 +354,7 @@ function Seite({ s }: { s: GlobalSeite }) {
                 <p className="fg-lead">{t.gespraechLead}</p>
               </div>
             </Auf>
-            <GespraechKarte sp={sp} offen={gespraechOffen} onOeffnen={() => setGespraechOffen(true)} paket={gespraechPaket} />
+            <GespraechKarte sp={sp} offen={gespraechOffen} onOeffnen={() => setGespraechOffen(true)} paket={null} />
           </div>
         </section>
 
@@ -390,7 +390,7 @@ function Seite({ s }: { s: GlobalSeite }) {
               <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
               <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
               <div className="fg-knoepfe">
-                <a className="fg-knopf" href={globalPaketePfad(sp)}>{t.knopfPakete}<Pfeil /></a>
+                <a className="fg-knopf" href={beauftragen} onClick={klickBeauftragen}>{V.buehne.knopf}<Pfeil /></a>
                 <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
               </div>
             </div>
@@ -400,7 +400,7 @@ function Seite({ s }: { s: GlobalSeite }) {
         {/* ── Handlungsleiste am Handy ───────────────────────────────────── */}
         <div className={`fd-mobil${leiste ? " da" : ""}`} aria-hidden={!leiste}>
           <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>{t.leisteGespraech}</a>
-          <a className="voll" href={beauftragen} onClick={paket ? klickBeauftragen : undefined} tabIndex={leiste ? 0 : -1}>{paket ? (sp === "en" ? u.jetzt : t.beauftragen(paketName.replace(/^Global\s+/, ""))) : t.leistePakete(globalPreisText("global_struktur", sp))}</a>
+          <a className="voll" href={beauftragen} onClick={klickBeauftragen} tabIndex={leiste ? 0 : -1}>{V.leiste.zusammenstellen(verkaufEur(VERKAUF_PREISE.gruendungCents, sp))}</a>
         </div>
       </div>
     </Dunkel>
@@ -594,18 +594,15 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
     }
     case "zitat":
       return <blockquote id={b.id} className="fd-zitat"><p>{u.zitat(b.text)}</p>{b.quelle && <footer>{b.quelle}</footer>}</blockquote>;
+    // E-509 (12.11.2026): Es gibt EIN Produkt. Wo bis dahin eine Paketkarte (typ „paket“) oder alle vier (typ „pakete“)
+    // standen, steht die Karte „Ein Mandat“ mit dem einen Preis und dem Weg zum Konfigurator. Das Feld `paket` des
+    // Bausteins bleibt in den Seitentexten (Prüfstände, englische Zwillinge) und wird hier nicht mehr gelesen.
     case "paket":
-      return (
-        <Abschnitt id={b.id}>
-          <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <SeitenTafel k={b.paket} {...wege} />
-        </Abschnitt>
-      );
     case "pakete":
       return (
-        <Abschnitt id={b.id} className="breit">
+        <Abschnitt id={b.id} className={b.typ === "pakete" ? "breit" : undefined}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <SeitenTafeln {...wege} />
+          <VerkaufKarte sprache={sp} ort={seite.pfad} />
         </Abschnitt>
       );
     case "standorte":
@@ -615,11 +612,12 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
           <OrteKarte sp={sp} />
         </Abschnitt>
       );
+    // E-509: Der Finder ist der Konfigurator — dieselbe Fläche wie auf der Startseite.
     case "finder":
       return (
-        <Abschnitt id={b.id}>
+        <Abschnitt id={b.id} className="breit">
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <PaketFinder sp={sp} seite={seite.pfad} />
+          <VerkaufKonfigurator sprache={sp} eigeneSeite />
         </Abschnitt>
       );
     case "verzeichnis":

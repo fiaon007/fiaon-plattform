@@ -355,3 +355,36 @@ async function verkaufMelden(e: VerkaufEingabe, weg: VerkaufWeg, est: VerkaufEin
   });
   if (!v.ok) console.warn(`[FIAON-VERKAUF] Meldung an ${AUFRUF_MELDUNG_AN} nicht gesendet (${String(v.grund || "unbekannt").slice(0, 160)})`);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER MUSTERVERTRAG (öffentlich, /business/mustervertrag) — der Vertrag des einen Produkts mit Musterdaten
+// Derselbe Baustein wie auf der Angebotsseite (kapitalCVorschauHtml), mit drei Unterschieden, weil die Seite öffentlich ist:
+//   · Musterkunde statt Kunde,
+//   · die Bürgin ohne Namen, Anschrift und Nummer (öffentlich nennt FIAON die Partnergesellschaft nie beim Namen, E-466) —
+//     das persönliche Angebot nennt sie vollständig,
+//   · der Satz mit den Bedingungen der Finanzierung ohne Zahlen (Zinssätze als Zahl stehen auf keiner öffentlichen Seite,
+//     E-439) — das persönliche Angebot nennt sie vollständig und rechnet sie vor.
+// ═══════════════════════════════════════════════════════════════════════════
+export const MUSTER_KONDITIONEN = "[Die Bedingungen der Finanzierung — ratenfreie und zinsfreie Monate, Laufzeit nach Ihrer Wahl und Zins — nennt Ihr persönliches Angebot an dieser Stelle und rechnet sie Ihnen vor.]";
+const MUSTER_BUERGIN: KapitalBuergin = {
+  name: "[US-Partnergesellschaft von FIAON — Ihr Angebot nennt sie mit Namen]", bundesstaat: "[Bundesstaat]", anschrift: "[Anschrift laut Ihrem Angebot]",
+  registernummer: "[Registernummer laut Ihrem Angebot]", vertreter: "[Vertretung]", funktion: "[Funktion]",
+};
+export async function verkaufMustervertragHtml(heute: string = berlinToday()): Promise<string> {
+  const KC = await import("@shared/fiaon-global-angebot-kapital-c");
+  const { escHtml } = await import("@shared/fiaon-global-angebot-begleit");
+  const { kapitalCVorschauHtml } = await import("./fiaon-global-angebot-kapital-c");
+  const est = verkaufEinstellung();
+  const parameter = KC.kapitalCNeuesAngebotParameter(verkaufAngebotParameter(VERKAUF_RAHMEN.startUsd, { ...est, team: [] }));
+  const k = KC.kapitalCKundePruefen({
+    art: "privat", anrede: "Herr", vorname: "Max", nachname: "Mustermann", geburtsdatum: "1980-01-15", strasse: "Musterweg 1", plz: "12345", ort: "Musterstadt",
+    land: "DE", email: "max.mustermann@beispiel.example", telefon: "",
+  }, { ohneAusweis: true });
+  if (!k.ok) throw new Error(`Musterkunde: ${k.error}`);
+  const gueltigBis = new Date(Date.parse(`${heute}T12:00:00Z`) + VERKAUF_GUELTIG_TAGE * 864e5).toISOString().slice(0, 10);
+  const d = { ref: "MUSTER", fassung: KC.KAPITAL_C_FASSUNG, kunde: k.kunde, buergin: MUSTER_BUERGIN, parameter, gueltigBis };
+  const html = kapitalCVorschauHtml(d);
+  const satz = escHtml(KC.kapitalCKonditionenSatz(parameter));
+  if (!html.includes(satz)) throw new Error("Mustervertrag: Der Satz mit den Bedingungen der Finanzierung wurde nicht gefunden.");
+  return html.replace(satz, escHtml(MUSTER_KONDITIONEN));
+}

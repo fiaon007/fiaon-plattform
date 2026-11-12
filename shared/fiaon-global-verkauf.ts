@@ -34,8 +34,12 @@ import {
   kapitalCStaffelHonorarCents, kapitalCRahmenEuroCents, type KapitalCParameter,
 } from "./fiaon-global-angebot-kapital-c";
 import type { KapitalTeamEintrag } from "./fiaon-global-angebot-kapital";
+import { VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd, type VerkaufSprache } from "./fiaon-global-verkauf-preise";
 
-export type VerkaufSprache = "de" | "en";
+// Preise, Kapitalrahmen und Zahlenbild stehen im Blatt ohne Importe (shared/fiaon-global-verkauf-preise.ts) — hier weitergereicht.
+export { VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd };
+export type { VerkaufSprache };
+
 export type VerkaufInteresse = "kapital" | "karten" | "konto" | "beratung";
 export type VerkaufLand = "DE" | "AT" | "CH" | "ANDERES";
 /** Wohin der Konfigurator führt: Selbstabschluss — oder ein persönlicher Weg mit seinem Grund. */
@@ -43,31 +47,6 @@ export type VerkaufWeg = "abschluss" | "miami" | "bestand" | "vorhaben" | "ohne_
 
 export const VERKAUF_INTERESSEN: readonly VerkaufInteresse[] = ["kapital", "karten", "konto", "beratung"];
 export const VERKAUF_LAENDER: readonly VerkaufLand[] = ["DE", "AT", "CH", "ANDERES"];
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PREISE — EINE QUELLE
-// Gründung mit aktiver Betreuung im ersten Jahr, Fast-Track (wählbar) und Jahresbetreuung ab dem zweiten Jahr: die Preise,
-// zu denen seit November 2026 jedes Kapital-Angebot angelegt wird. KAPITAL_C_VORGABEN bleibt unberührt (dort steht der
-// Rückfall für Bestandsangebote). Das Erfolgshonorar steht NICHT hier: Es folgt der Staffel aus E-505.
-// ═══════════════════════════════════════════════════════════════════════════
-export const VERKAUF_PREISE = {
-  gruendungCents: 279_900,
-  fastTrackCents: 49_900,
-  jahresCents: 69_900,
-} as const;
-
-/**
- * Der Kapitalrahmen des Reglers. Bis `selbstMaxUsd` schließt der Kunde selbst ab; `maxUsd` (1 Mio.) ist der Miami-Fall —
- * Justin: „ab 1 Mio sollte man persönlich in Miami sein, der Rest ist remote abwickelbar“. `schrittUsd` ist das Raster des
- * Vertragsmotors (kapitalCRahmenGueltig): Jeder Rasterpunkt des Konfigurators liegt darauf.
- */
-export const VERKAUF_RAHMEN = {
-  minUsd: 50_000,
-  maxUsd: 1_000_000,
-  selbstMaxUsd: 950_000,
-  schrittUsd: 10_000,
-  startUsd: 150_000,
-} as const;
 
 /** Rückfall-Kurs für die Anzeige, bis die Server-Einstellung geladen ist (EZB-Referenzkurs vom 06.11.2026). */
 export const VERKAUF_KURS_VORGABE = { kursUsdJeEur: 1.1165, kursDatum: "2026-11-06" } as const;
@@ -127,16 +106,6 @@ export function verkaufPreis(usd: number, kursUsdJeEur: number = VERKAUF_KURS_VO
     erstesJahrCents: VERKAUF_PREISE.gruendungCents + erfolgCents,
     erstesJahrMitFastTrackCents: VERKAUF_PREISE.gruendungCents + VERKAUF_PREISE.fastTrackCents + erfolgCents,
   };
-}
-
-/** „2.799 €“ / „€2,799“ — ganze Euro. */
-export function verkaufEur(cents: number, s: VerkaufSprache = "de"): string {
-  const euro = Math.round(cents / 100);
-  return s === "en" ? `€${euro.toLocaleString("en-GB")}` : `${euro.toLocaleString("de-DE")} €`;
-}
-/** „150.000 US-$“ / „US$150,000“ */
-export function verkaufUsd(usd: number, s: VerkaufSprache = "de"): string {
-  return s === "en" ? `US$${Math.round(usd).toLocaleString("en-GB")}` : `${Math.round(usd).toLocaleString("de-DE")} US-$`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -278,8 +247,8 @@ export interface VerkaufTexte {
 
 const DE: VerkaufTexte = {
   seo: {
-    titel: "US-Gesellschaft gründen, mit aktiver Betreuung — FIAON Global",
-    beschreibung: "Ihre US-Gesellschaft aus einer Hand: Gründung, Steuernummern, US-Büro, Recht und Steuern über Partner, Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.",
+    titel: "US-Gesellschaft gründen, aktiv betreut — FIAON Global",
+    beschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, Steuernummern, US-Büro, Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.",
   },
   buehne: {
     auge: "FIAON Global · Unternehmensberatung",
@@ -493,7 +462,7 @@ const DE: VerkaufTexte = {
 const EN: VerkaufTexte = {
   seo: {
     titel: "Form a US company, actively managed — FIAON Global",
-    beschreibung: "Your US company from one source: formation, tax numbers, US office, law and tax through partners, accounts, cards and your capital range. See your price now.",
+    beschreibung: "The business consultancy for your US company: formation, tax numbers, US office, accounts, cards and your capital range. See your price now.",
   },
   buehne: {
     auge: "FIAON Global · business consultancy",

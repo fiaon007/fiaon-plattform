@@ -15,7 +15,8 @@
 // Was hier steht, gilt wie auf der Seite: keine Zusage zu Konto, Karte oder
 // Rahmen, kein Steuerversprechen, FIAON ist keine Bank und keine Kanzlei.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PAKETE, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "@shared/fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "@shared/fiaon-global";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd } from "@shared/fiaon-global-verkauf";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
 import { STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "@shared/fiaon-global-bundesstaaten";
 import { FIAON_FIRMA, fiaonVerwechslungSatz } from "@shared/fiaon-firma";
@@ -64,11 +65,15 @@ export function llmsTxt(): string {
     `- ${GLOBAL_PFLICHTHINWEIS.de[1]}`,
     `- ${GLOBAL_PFLICHTHINWEIS.de[2]}`,
     "",
-    "## Pakete (einmaliger Festpreis, alle Gebühren für die Leistungen des Pakets inklusive)",
+    // E-509 (12.11.2026): EIN Produkt statt vier Pakete — Sätze und Preise aus shared/fiaon-global-verkauf.ts.
+    `## ${VERKAUF_TEXTE.de.produkt.kurz} (ein Produkt, ein Preis)`,
     "",
-    ...GLOBAL_PAKETE.map((p) => `- ${p.de.name}, ${globalPreisText(p.key)}: ${p.de.fuer} ${p.de.dauer}.`),
+    `- Mit dem Auftrag ${verkaufEur(VERKAUF_PREISE.gruendungCents)}: ${VERKAUF_TEXTE.de.produkt.preisSatz} Fast-Track auf Wunsch ${verkaufEur(VERKAUF_PREISE.fastTrackCents)}.`,
+    `- ${VERKAUF_TEXTE.de.produkt.preisFein} Jahresbetreuung: ${verkaufEur(VERKAUF_PREISE.jahresCents)} im Jahr.`,
+    `- Kapitalrahmen: ${verkaufUsd(VERKAUF_RAHMEN.minUsd)} bis ${verkaufUsd(VERKAUF_RAHMEN.maxUsd)}, der Kunde wählt selbst; ab 1 Mio. US-Dollar persönlich in Miami. Über die Finanzierung entscheidet das finanzierende Institut.`,
+    ...VERKAUF_TEXTE.de.produkt.bereiche.map((b) => `- ${b.titel}: ${b.zeile}`),
     // 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite fiaon.com/ (vorher /business, leitet per 301).
-    `- Beauftragen: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/ · English: ${SEO_BASIS}/en`,
+    `- Angebot selbst zusammenstellen: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/ · English: ${SEO_BASIS}/en`,
     "",
     ...gruppe("Leistungen", art("leistung")),
     ...gruppe("Preise, Ablauf und Vergleich", art("preise", "werkzeug")),

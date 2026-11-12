@@ -163,7 +163,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/": [
     {
       "f": "Was kostet es?",
-      "a": "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator."
+      "a": "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator."
     },
     {
       "f": "Muss ich in die USA reisen?",
@@ -175,7 +175,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Was ist, wenn die Finanzierung nicht kommt?",
-      "a": "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es als Geld-zurück-Garantie in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut."
+      "a": "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut."
     },
     {
       "f": "Entscheidet FIAON über Karten und Rahmen?",
@@ -221,7 +221,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   "/en": [
     {
       "f": "What does it cost?",
-      "a": "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range and includes the surety. From the second year you can book annual care. You see your exact price in the configurator."
+      "a": "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range. From the second year you can book annual care. You see your exact price in the configurator."
     },
     {
       "f": "Do I have to travel to the United States?",

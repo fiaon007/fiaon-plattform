@@ -219,7 +219,7 @@ const de = {
   ] as GlobalSternKnoten[],
   sternMitte: "Ihr Ansprechpartner",
   sternSie: "Sie",
-  sternLegende: ["Im Festpreis enthalten", "Antrag vorbereitet — das Institut entscheidet"] as [string, string],
+  sternLegende: ["Im Preis enthalten", "Antrag vorbereitet — das Institut entscheidet"] as [string, string],
   // Im Zustand „Ohne“ (nur im DOM, nicht gezählt): wen man ohne FIAON Global selbst anspricht — je Knoten eine Zeile.
   ohne: [
     "Gründungsdienst für die Gesellschaft",
@@ -259,7 +259,7 @@ const de = {
   fragen: [
     // E-509 (12.11.2026): ein Produkt statt vier Pakete — die Fragen sprechen vom einen Mandat. Die Startseite zeigt die ersten fünf,
     // die übrigen hinter „Alle Fragen“. Reine Zeichenketten: scripts/seo-fragen-erzeugen.ts liest sie als Text ins FAQ-Markup.
-    { f: "Was kostet es?", a: "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und schließt die Bürgschaft ein. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator." },
+    { f: "Was kostet es?", a: "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator." },
     { f: "Muss ich in die USA reisen?", a: "Nein. Bis 950.000 US-Dollar läuft alles aus der Ferne; unsere Partner in den USA nehmen die Wege vor Ort wahr. Ab 1 Mio. US-Dollar treffen wir Sie persönlich in Miami." },
     { f: "Wer leistet Rechts- und Steuerberatung?", a: "Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz, jeweils im eigenen Mandat. FIAON koordiniert und trägt ihre Honorare für die Leistungen, die Ihr Vertrag nennt." },
     { f: "Was ist, wenn die Finanzierung nicht kommt?", a: "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
@@ -490,7 +490,7 @@ const en: typeof de = {
   ],
   sternMitte: "Your contact",
   sternSie: "You",
-  sternLegende: ["Included in the fixed price", "Application prepared — the institution decides"],
+  sternLegende: ["Included in the price", "Application prepared — the institution decides"],
   ohne: [
     "Formation service for the company",
     "Registered agent and US address",
@@ -523,7 +523,7 @@ const en: typeof de = {
   fragenAlleZahl: (n: number) => `All ${n} questions`,
   fragen: [
     // E-509 (12.11.2026): one product instead of four packages — same questions as the German list.
-    { f: "What does it cost?", a: "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range and includes the surety. From the second year you can book annual care. You see your exact price in the configurator." },
+    { f: "What does it cost?", a: "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range. From the second year you can book annual care. You see your exact price in the configurator." },
     { f: "Do I have to travel to the United States?", a: "No. Below US$1 million everything runs remotely; our partners in the US take care of what has to happen on the ground. From US$1 million we meet you in person in Miami." },
     { f: "Who provides legal and tax work?", a: "Lawyers and US accountants (CPAs) from our partner network, each under their own mandate. FIAON coordinates and bears their fees for the services named in your agreement." },
     { f: "What if the financing does not come?", a: "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing." },
@@ -869,7 +869,7 @@ const buehneDe = {
   bogenLead: "Sie bleiben, wo Sie sind. Unser Team in Miami gründet Ihre Gesellschaft und begleitet sie durch die vier Etappen — Ihr Ansprechpartner hält die Fäden zusammen.",
   bogenPunkte: [
     { titel: "Vor Ort in Miami", text: "Unser Team reicht ein, holt ab und fasst bei Behörden und Herausgebern nach." },
-    { titel: "Vier Etappen bis zum Bankdarlehen", text: "Gründung, erste Firmenkarte, Kartenleiter, Bankdarlehen — das Tempo bestimmen Behörden und Institute." },
+    { titel: "Vier Schritte, ein Ansprechpartner", text: "Gesellschaft, US-Büro, Konto und Karten, Kapital — das Tempo bestimmen Behörden und Institute." },
     { titel: "Auch in Europa einsetzbar", text: "Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren — im Rahmen der Bedingungen des jeweiligen Instituts." },
   ],
   bogenKnopf: "Erstgespräch vereinbaren",
@@ -918,7 +918,7 @@ const buehneEn: typeof buehneDe = {
   bogenLead: "You stay where you are. Our team in Miami forms your company and guides it through the four stages — your contact keeps every thread together.",
   bogenPunkte: [
     { titel: "On site in Miami", text: "Our team files, collects and follows up with authorities and issuers." },
-    { titel: "Four stages towards a bank loan", text: "Formation, first business card, card ladder, bank loan — authorities and institutions set the pace." },
+    { titel: "Four steps, one contact", text: "Company, US office, accounts and cards, capital — authorities and institutions set the pace." },
     { titel: "Can be used in Europe too", text: "Your company can transfer funds to Europe or invest them in Europe — within the terms of the institution concerned." },
   ],
   bogenKnopf: "Book an initial call",

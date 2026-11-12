@@ -163,7 +163,8 @@ export async function verkaufStarten(body: any, kontext: VerkaufKontext): Promis
   const siegel = verkaufSiegelPruefen(body?.siegel);
   if (siegel !== "gut") return fehler(siegel === "alt" ? 409 : 400, T.fehler.netz, { code: siegel === "alt" ? "SIEGEL_ALT" : "SIEGEL" });
   if (verkaufZuViel(kontext.ip, e.email)) return fehler(429, T.fehler.zuViel);
-  if (kontext.leitung) return fehler(403, "Vorschau der Leitung — ein Angebot legt nur der Kunde an.", { code: "VORSCHAU" });
+  // Die Leitung darf den Motor selbst durchspielen (Justin will jeden Klickweg selbst gehen) — das Angebot trägt dann den Vermerk
+  // „aus einem Chefbüro-Browser“ im Verlauf und in der Meldung, damit ein Probelauf als solcher erkennbar bleibt.
 
   const est = verkaufEinstellung();
   const weg = verkaufWeg(e);
@@ -213,9 +214,9 @@ async function verkaufAngebot(e: VerkaufEingabe, est: VerkaufEinstellungServer &
     return { status: 200, body: { ...r.body, danke: T.fehler.aus, aus: true } };
   }
   const zeilen = verkaufMeldungZeilen(e, "abschluss", est.kursUsdJeEur);
-  await verlaufAngebot(erg.id, VERKAUF_WER, `Vom Kunden im Konfigurator zusammengestellt: ${zeilen[1]} ${zeilen[2]}`, { ip: kontext.ip, interessen: e.interessen, sprache: e.sprache, nachricht: e.nachricht || undefined });
+  await verlaufAngebot(erg.id, VERKAUF_WER, `${kontext.leitung ? "Im Konfigurator aus einem Chefbüro-Browser zusammengestellt (Probelauf?)" : "Vom Kunden im Konfigurator zusammengestellt"}: ${zeilen[1]} ${zeilen[2]}`, { ip: kontext.ip, interessen: e.interessen, sprache: e.sprache, nachricht: e.nachricht || undefined });
   void verkaufKundenMail(e, erg.ref, erg.link, gueltigBis, false).catch((x) => console.error(`[FIAON-VERKAUF] ${erg.ref}: Mail mit Link:`, x));
-  void verkaufMelden(e, "abschluss", est, { ref: erg.ref, link: erg.link, gueltigBis }).catch((x) => console.error(`[FIAON-VERKAUF] ${erg.ref}: Meldung an Justin:`, x));
+  void verkaufMelden(e, "abschluss", est, { ref: erg.ref, link: erg.link, gueltigBis }, kontext.leitung ? "HINWEIS: aus einem Chefbüro-Browser abgeschickt — vermutlich ein Probelauf." : null).catch((x) => console.error(`[FIAON-VERKAUF] ${erg.ref}: Meldung an Justin:`, x));
   // Der Pfad ist relativ: Die Seite bleibt auf ihrer Adresse (auch lokal und in der Vorschau).
   const pfad = new URL(erg.link).pathname;
   return { status: 200, body: { ok: true, art: "angebot", url: pfad, titel: T.fertig.titel, text: T.fertig.text, knopf: T.fertig.knopf } };
@@ -330,7 +331,7 @@ async function verkaufKundenMail(e: VerkaufEingabe, ref: string, link: string, g
 async function verkaufMelden(e: VerkaufEingabe, weg: VerkaufWeg, est: VerkaufEinstellungServer, angebot: { ref: string; link: string; gueltigBis: string } | null, grundAus: string | null = null): Promise<void> {
   const name = `${e.vorname} ${e.nachname}`.trim();
   const zeilen = verkaufMeldungZeilen(e, weg, est.kursUsdJeEur);
-  if (grundAus) zeilen.unshift(`Selbstabschluss war nicht möglich (${grundAus}) — bitte das Angebot von Hand anlegen.`);
+  if (grundAus) zeilen.unshift(angebot ? grundAus : `Selbstabschluss war nicht möglich (${grundAus}) — bitte das Angebot von Hand anlegen.`);
   const titel = angebot
     ? `Neues Selbst-Angebot ${angebot.ref}: ${name} · ${verkaufUsd(e.usd)}`
     : `Konfigurator-Anfrage: ${name}${e.interessen.includes("kapital") ? ` · ${verkaufUsd(e.usd)}` : " · ohne Kapital"}`;

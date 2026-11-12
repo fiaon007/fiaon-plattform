@@ -245,6 +245,8 @@ export interface VerkaufTexte {
   garantie: { auge: string; h2: string; text: string; fein: string };
   karte: { auge: string; titel: string; zeile: string; punkte: string[]; preisLabel: string; knopf: string; fein: string };
   leiste: { zusammenstellen: (preis: string) => string; gespraech: string };
+  /** Der Satz unter der Schaltzentrale: wer Recht und Steuern leistet und wer die Honorare trägt. */
+  partnerSatz: string;
 }
 
 const DE: VerkaufTexte = {
@@ -453,6 +455,7 @@ const DE: VerkaufTexte = {
     fein: "Endpreis. Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen.",
   },
   leiste: { zusammenstellen: (preis) => `Angebot zusammenstellen · ${preis}`, gespraech: "Gespräch" },
+  partnerSatz: "Steuerberater, US-Steuerberater (CPA) und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
 };
 
 const EN: VerkaufTexte = {
@@ -661,6 +664,7 @@ const EN: VerkaufTexte = {
     fein: "Final price. Success fee on registration, according to your capital range.",
   },
   leiste: { zusammenstellen: (preis) => `Build your offer · ${preis}`, gespraech: "Call" },
+  partnerSatz: "Tax advisers, US accountants (CPAs) and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your agreement.",
 };
 
 export const VERKAUF_TEXTE: Record<VerkaufSprache, VerkaufTexte> = { de: DE, en: EN };

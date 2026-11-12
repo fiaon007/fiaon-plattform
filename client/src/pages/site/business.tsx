@@ -26,7 +26,7 @@ import { Dunkel, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_BUEHNE_WOERTER, GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
-import { GLOBAL_ROLLEN, GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI } from "@shared/fiaon-global";
+import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI } from "@shared/fiaon-global";
 import { werbeEreignis } from "@/lib/werbung";
 import SternZentrale from "@/components/site/global/SternZentrale";
 import HeroGlas from "@/components/site/global/HeroGlas";
@@ -185,7 +185,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             <SternZentrale knoten={t.sternKnoten} ohne={t.ohne} schalter={t.sternSchalter} mitte={t.sternMitte} sie={t.sternSie} legende={t.sternLegende}
               label={t.sternLabel} inklusive={GLOBAL_INKLUSIVE[s]} begriffe={[begriff("registeredAgent"), begriff("operatingAgreement"), begriff("usCpa")]} />
             <div className="fg-stern-unter">
-              <p className="fg-stern-partner">{GLOBAL_ROLLEN[s].partner}</p>
+              <p className="fg-stern-partner">{V.partnerSatz}</p>
             </div>
             <div id="fuer-wen" className="fg-fuer-chips" style={{ scrollMarginTop: 96 }}>
               <span>{t.fuerKurz}</span>

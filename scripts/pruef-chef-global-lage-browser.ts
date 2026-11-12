@@ -53,6 +53,7 @@ const foto = async (page: Page, name: string) => { if (FOTOS) await page.screens
 // Der Stand vor dem Lauf — zum Zurückstellen.
 const api = async (ctx: BrowserContext) => (await (await ctx.request.get(`${BASIS}/api/fiaon/chef/global-lage`)).json()) as any;
 let vorherAngebot: { id: number; g: string; status: string; verlauf: unknown } | null = null;
+let ausgeblendet: number | null = null;
 const [fixVorher] = await sql`SELECT value FROM fiaon_settings WHERE key = 'chef_fixkosten_monat_cents'`;
 
 try {
@@ -161,6 +162,36 @@ try {
     ok("Warnsatz „Achtung, Rechnung“ steht an der Karte", glatt(await k.locator(".cgl-meilenstein").innerText()).includes("stellt sofort die Rechnung"));
     ok("Kein Knopf der Global-Lage stellt eine Rechnung", (await p.locator(".cgl button", { hasText: /eingetragen|übernommen|Rechnung stellen|Meilenstein/i }).count()) === 0);
   }
+  // ── News (Scheibe 2): Kurs und Meldungen = Server, Filter, Ausblenden, „Jetzt abrufen“ (der Abruf selbst ist abgefangen) ──
+  const news = (await (await b.ctx.request.get(`${BASIS}/api/fiaon/chef/global-news`)).json()) as any;
+  await p.locator("#cgl-news").scrollIntoViewIfNeeded();
+  await p.waitForSelector("#cgl-news .cgl-news-liste", { timeout: 20000 }).catch(() => null);
+  ok("News: Es gibt Meldungen als Prüffall", news?.ok && news.meldungen.length > 0, "die lokale Kopie hat keine Meldungen — erst einen Abruf laufen lassen");
+  ok("News: so viele Meldungen wie der Server liefert", (await p.locator(".cgl-news-zeile").count()) === news.meldungen.length);
+  if (news.kurs) ok("News: EZB-Kurs am Bildschirm = Server", glatt(await p.locator(".cgl-kurs-zahl").innerText()) === Number(news.kurs.kurs).toLocaleString("de-DE", { minimumFractionDigits: 4, maximumFractionDigits: 4 }));
+  const links = await p.locator(".cgl-news-zeile h4 a").evaluateAll((as) => as.map((a) => [(a as HTMLAnchorElement).href, (a as HTMLAnchorElement).target, (a as HTMLAnchorElement).rel]));
+  ok("News: jede Meldung führt mit https zur Quelle, in einem neuen Tab", links.length > 0 && links.every(([h, t, r]) => /^https:\/\//.test(h) && t === "_blank" && r.includes("noopener")));
+  ok("News: jede Meldung trägt Datum und Quelle", (await p.locator(".cgl-news-kopf").allInnerTexts()).every((t) => /\d\d\.\d\d\./.test(t) && glatt(t).length > 12));
+  const themen = Array.from(new Set((news.meldungen as any[]).map((m) => m.thema)));
+  if (themen.length > 1) {
+    const erstes = String(themen[0]); const soll = (news.meldungen as any[]).filter((m) => m.thema === erstes).length;
+    await p.locator(".cgl-news-filter button").nth(1).click();
+    await p.waitForTimeout(250);
+    const gezeigt = await p.locator(".cgl-news-zeile").count();
+    ok("News: der Themen-Filter zeigt nur dieses Thema", gezeigt < news.meldungen.length && gezeigt > 0, `${gezeigt} von ${news.meldungen.length} (erstes Thema ${erstes}: ${soll})`);
+    await p.locator(".cgl-news-filter button").first().click();
+  }
+  await p.route("**/api/fiaon/chef/global-news/abrufen", (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, meldung: "3 neu · 2 Kurzfassungen." }) }));
+  await p.getByRole("button", { name: "Jetzt abrufen" }).click();
+  await p.locator("#cgl-news .cgl-ok").waitFor({ timeout: 10000 }).catch(() => null);
+  ok("News: „Jetzt abrufen“ meldet das Ergebnis", glatt(await p.locator("#cgl-news .cgl-ok").innerText().catch(() => "")).startsWith("Abgerufen: 3 neu"));
+  await p.unroute("**/api/fiaon/chef/global-news/abrufen");
+  const vorAus = await p.locator(".cgl-news-zeile").count();
+  await p.locator(".cgl-news-zeile").first().getByRole("button", { name: "Ausblenden" }).click();
+  await p.waitForFunction((n) => document.querySelectorAll(".cgl-news-zeile").length === n - 1, vorAus, { timeout: 15000 }).catch(() => null);
+  ok("News: „Ausblenden“ nimmt die Meldung aus der Liste", (await p.locator(".cgl-news-zeile").count()) === vorAus - 1);
+  ausgeblendet = Number(news.meldungen[0].id);
+
   // Rundgang und der alte Raum
   await p.getByRole("button", { name: "Rundgang" }).click();
   await p.waitForTimeout(900);
@@ -201,6 +232,7 @@ try {
   // Aufräumen läuft immer.
   await sql`UPDATE fiaon_global_notizen SET entfernt_am = NOW(), entfernt_von = 'Browser-Prüfstand E-508' WHERE entfernt_am IS NULL AND (text LIKE 'PRUEFSTAND%' OR wiedervorlage_text LIKE 'PRUEFSTAND%')`.catch(() => {});
   if (vorherAngebot) await sql`UPDATE fiaon_global_angebote SET gueltig_bis = ${vorherAngebot.g}::date, status = ${vorherAngebot.status}, verlauf = ${sql.json(vorherAngebot.verlauf as any)} WHERE id = ${vorherAngebot.id}`.catch((e) => console.error("Zurückstellen des Angebots:", e));
+  if (ausgeblendet) await sql`UPDATE fiaon_global_news SET ausgeblendet_am = NULL, ausgeblendet_von = NULL WHERE id = ${ausgeblendet}`.catch(() => {});
   if (fixVorher) await sql`UPDATE fiaon_settings SET value = ${fixVorher.value} WHERE key = 'chef_fixkosten_monat_cents'`.catch(() => {});
   else await sql`DELETE FROM fiaon_settings WHERE key = 'chef_fixkosten_monat_cents'`.catch(() => {});
   await browser.close();

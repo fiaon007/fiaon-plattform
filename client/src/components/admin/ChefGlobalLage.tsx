@@ -8,7 +8,8 @@
 //          managen.“
 //
 // Aufbau von oben nach unten: Auftragswert (die EINE Navy-Fläche) · Fixkosten · Feed der Woche neben „Wir warten auf“,
-// den nächsten Gesprächen und den Partner-Aufgaben · der nächste Schritt je Mandant mit Knöpfen.
+// den nächsten Gesprächen und den Partner-Aufgaben · der nächste Schritt je Mandant mit Knöpfen · News aus amtlichen
+// Quellen mit dem EZB-Kurs EUR/USD (eigene Antwort GET /chef/global-news, shared/fiaon-chef-news.ts).
 // Eine Antwort vom Server (GET /chef/global-lage), leise nachgeladen alle 60 Sekunden; gerechnet wird in
 // shared/fiaon-chef-global-lage.ts. Kein Knopf hier sendet eine Mail, bucht Geld oder stellt eine Rechnung.
 // Gestaltung: chef-global-lage.css (.cgl-), hell auf dem ruhigen Standbild, Serife nur für Überschriften und Zahlen.
@@ -21,6 +22,7 @@ import {
   type FeedArt, type FeedEintrag, type FeedTag, type LageAntwort, type LageFixkosten, type LageAuftragswert,
   type LagePhase, type LageWartet, type LagePartnerBlock, type LageTermin,
 } from "@shared/fiaon-chef-global-lage";
+import { NEWS_THEMA_NAME, NEWS_THEMEN, type NewsAntwort, type NewsMeldung, type NewsThema, type KursStand } from "@shared/fiaon-chef-news";
 import { Rundgang } from "@/components/agent/Rundgang";
 import { RUNDGAENGE } from "@/pages/agent/rundgaenge";
 import "@/styles/office-rundgang.css";
@@ -496,6 +498,126 @@ function Mandanten({ l, neu, markiert }: { l: LageAntwort; neu: () => void; mark
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 6 · NEWS — amtliche Meldungen mit deutscher Kurzfassung, dazu der EZB-Kurs EUR/USD
+// ═══════════════════════════════════════════════════════════════════════════
+const NEWS_NACHLADEN_MS = 10 * 60_000;
+const zahlDe = (n: number, stellen: number) => n.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+
+/** Der Verlauf als feine Linie — selbst gezeichnet, ohne Bibliothek. */
+function KursLinie({ k }: { k: KursStand }) {
+  const w = 280; const h = 64; const v = k.verlauf;
+  if (v.length < 2) return null;
+  const min = Math.min(...v.map((x) => x.kurs)); const max = Math.max(...v.map((x) => x.kurs)); const spanne = max - min || 1;
+  const punkt = (x: { kurs: number }, i: number) => `${((i / (v.length - 1)) * w).toFixed(1)},${(h - 6 - ((x.kurs - min) / spanne) * (h - 12)).toFixed(1)}`;
+  const linie = v.map(punkt).join(" ");
+  const [lx, ly] = punkt(v[v.length - 1], v.length - 1).split(",");
+  return (
+    <svg className="cgl-kurs-linie" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`Verlauf EUR/USD seit ${tagKurz(v[0].tag)}: von ${zahlDe(v[0].kurs, 4)} auf ${zahlDe(k.kurs, 4)}`}>
+      <polyline points={`0,${h} ${linie} ${w},${h}`} className="flaeche" />
+      <polyline points={linie} className="strich" />
+      <circle cx={lx} cy={ly} r="3" className="punkt" />
+    </svg>
+  );
+}
+
+function Kurs({ k }: { k: KursStand | null }) {
+  if (!k) return <aside className="cgl-kurs leer"><span className="cgl-auge">EUR / USD</span><p className="cgl-leer">Der Kurs kommt mit dem nächsten Abruf.</p></aside>;
+  const d = k.veraenderungProzent;
+  const seit30 = k.vor30 ? Math.round(((k.kurs - k.vor30.kurs) / k.vor30.kurs) * 10_000) / 100 : null;
+  const vz = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : "±"}${zahlDe(Math.abs(n), 2)} %`;
+  return (
+    <aside className="cgl-kurs" data-cgl="kurs" aria-label="EZB-Referenzkurs Euro zu US-Dollar">
+      <span className="cgl-auge">EUR / USD · EZB-Referenzkurs</span>
+      <p className="cgl-kurs-zahl">{zahlDe(k.kurs, 4)}</p>
+      <p className="cgl-kurs-satz">1 € = {zahlDe(k.kurs, 4)} US-$ · Stand {tagKurz(k.tag)}</p>
+      <KursLinie k={k} />
+      <dl>
+        {d != null && <div><dt>zum Vortag</dt><dd>{vz(d)}</dd></div>}
+        {seit30 != null && <div><dt>in 30 Tagen</dt><dd>{vz(seit30)}</dd></div>}
+        <div><dt>100.000 US-$</dt><dd>≈ {geld(Math.round(100_000 / k.kurs) * 100)}</dd></div>
+      </dl>
+      <small>Quelle: Europäische Zentralbank. Ein Richtwert, kein Kurs für eine Rechnung.</small>
+    </aside>
+  );
+}
+
+function NewsZeile({ m, darf, ausblenden }: { m: NewsMeldung; darf: boolean; ausblenden: (id: number) => void }) {
+  return (
+    <li className={`cgl-news-zeile${m.relevanz === 3 ? " wichtig" : ""}`}>
+      <p className="cgl-news-kopf">
+        <time>{tagKurz(m.tag)}</time>
+        <span>{m.quelleName}</span>
+        <span className="cgl-feed-art">{NEWS_THEMA_NAME[m.thema]}</span>
+        {m.relevanz === 3 && <em>betrifft Mandanten direkt</em>}
+      </p>
+      <h4><a href={m.link} target="_blank" rel="noopener noreferrer" lang={m.sprache}>{m.titel}</a></h4>
+      {m.kurz ? <p className="cgl-news-kurz">{m.kurz}</p> : m.text ? <p className="cgl-news-kurz original" lang={m.sprache}>{m.text}</p> : null}
+      {m.bedeutung && <p className="cgl-news-bedeutung"><b>Für unsere Mandanten</b>{m.bedeutung}</p>}
+      <p className="cgl-news-fuss">
+        <a href={m.link} target="_blank" rel="noopener noreferrer" className="cgl-link">Zur Quelle</a>
+        {!m.kurz && <span>Original — die deutsche Kurzfassung folgt.</span>}
+        {darf && <button type="button" className="cgl-link leise" onClick={() => ausblenden(m.id)}>Ausblenden</button>}
+      </p>
+    </li>
+  );
+}
+
+function News() {
+  const { daten, laedt, fehler, neu } = useDaten<NewsAntwort>("/chef/global-news", [], NEWS_NACHLADEN_MS);
+  const [thema, setThema] = useState<NewsThema | "alle">("alle");
+  const [meldung, setMeldung] = useState<{ gut: boolean; text: string } | null>(null);
+  const [laeuft, setLaeuft] = useState(false);
+  const abrufen = async () => {
+    setLaeuft(true); setMeldung(null);
+    const j = await senden("/chef/global-news/abrufen");
+    setLaeuft(false);
+    setMeldung(j.ok ? { gut: true, text: `Abgerufen: ${j.meldung}` } : { gut: false, text: j.error || "Der Abruf hat nicht geklappt." });
+    if (j.ok) neu();
+  };
+  const ausblenden = async (id: number) => {
+    const j = await senden(`/chef/global-news/${id}/ausblenden`);
+    if (!j.ok) setMeldung({ gut: false, text: j.error || "Nicht gespeichert." }); else neu();
+  };
+  const liste = (daten?.meldungen ?? []).filter((m) => thema === "alle" || m.thema === thema);
+  const zahl = (t: NewsThema) => (daten?.meldungen ?? []).filter((m) => m.thema === t).length;
+  return (
+    <Abschnitt id="news" auge="Amtliche Quellen · mit Link und Datum" titel="News" zahl={daten?.meldungen.length}
+               rechts={daten && (
+                 <div className="cgl-news-kopfrechts">
+                   <span className="cgl-stand">{daten.abrufAm ? `Abgerufen ${new Date(daten.abrufAm).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} Uhr` : "Noch nicht abgerufen"}</span>
+                   {daten.darfSteuern && <button type="button" className="cgl-knopf klein" onClick={() => void abrufen()} disabled={laeuft} data-cgl="news-abrufen">{laeuft ? "Ruft ab …" : "Jetzt abrufen"}</button>}
+                 </div>
+               )}>
+      {laedt && !daten && <Geruest zeilen={4} />}
+      {fehler && !daten && <Fehlermeldung text={fehler} erneut={neu} />}
+      {meldung && <p className={meldung.gut ? "cgl-ok" : "cgl-fehler"} role="status">{meldung.text}</p>}
+      {daten && (
+        <div className="cgl-news">
+          <Kurs k={daten.kurs} />
+          <div className="cgl-news-liste">
+            <div className="cgl-news-filter" role="group" aria-label="Thema wählen">
+              <button type="button" aria-pressed={thema === "alle"} className={thema === "alle" ? "an" : ""} onClick={() => setThema("alle")}>Alle<em>{daten.meldungen.length}</em></button>
+              {NEWS_THEMEN.filter((t) => zahl(t) > 0).map((t) => (
+                <button key={t} type="button" aria-pressed={thema === t} className={thema === t ? "an" : ""} onClick={() => setThema(t)}>{NEWS_THEMA_NAME[t]}<em>{zahl(t)}</em></button>
+              ))}
+            </div>
+            {daten.ki.ohneKurzfassung > 0 && !daten.ki.an && daten.ki.grund && (
+              <p className="cgl-hinweis">{mehrzahl(daten.ki.ohneKurzfassung, "Meldung steht", "Meldungen stehen")} noch im Original: {daten.ki.grund}</p>
+            )}
+            {liste.length === 0 ? (
+              <p className="cgl-leer">{daten.meldungen.length ? "Zu diesem Thema gibt es gerade nichts." : "Noch keine Meldungen — der erste Abruf läuft wenige Minuten nach dem Start von selbst."}</p>
+            ) : (
+              <ul>{liste.map((m) => <NewsZeile key={m.id} m={m} darf={daten.darfSteuern} ausblenden={ausblenden} />)}</ul>
+            )}
+            <p className="cgl-news-quellen">Quellen: {daten.quellen.map((q) => q.name).join(" · ")}. Nichts davon geht an Kunden.</p>
+          </div>
+        </div>
+      )}
+    </Abschnitt>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DIE SEITE
 // ═══════════════════════════════════════════════════════════════════════════
 export default function ChefGlobalLage() {
@@ -527,6 +649,7 @@ export default function ChefGlobalLage() {
   const wege = useMemo(() => daten ? [
     { id: "feed", text: "Feed" }, { id: "wartet", text: `Wir warten auf · ${daten.wartet.length}` },
     { id: "mandanten", text: `Mandanten · ${daten.mandanten.length}` }, ...(daten.termine.length ? [{ id: "termine", text: `Gespräche · ${daten.termine.length}` }] : []),
+    { id: "news", text: "News" },
   ] : [], [daten]);
 
   return (
@@ -570,6 +693,7 @@ export default function ChefGlobalLage() {
               </div>
             </div>
             <Mandanten l={daten} neu={neu} markiert={markiert} />
+            <News />
             <footer className="cgl-fuss">
               <span>Privatkunden: <Link href="/chef/lage">Lagezimmer Privat</Link></span>
               <span>Hier sendet nichts von allein. Mails gehen nur als Entwurf, Rechnungen nur mit deinem Wort.</span>

@@ -5,6 +5,30 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 12.11.2026 — E-508 Scheibe 2: News aus amtlichen Quellen in der Global-Lage (mit EZB-Kurs EUR/USD)
+
+- **Ausfall:** Was sich bei US-Notenbank, EZB, IRS, FinCEN, USCIS und den Aufsichten in Österreich und der Schweiz ändert,
+  musste jemand von Hand zusammensuchen — im Chefbüro stand davon nichts.
+- **Fix:** Neuer Abschnitt **„News“** unten in der Global-Lage. Links der EZB-Referenzkurs Euro zu US-Dollar (Stand, Veränderung
+  zum Vortag und in 30 Tagen, Verlauf als Linie, Richtwert für 100.000 US-$). Rechts die Meldungen, nach Thema filterbar
+  (Zinsen & Geldpolitik, IRS & Steuern, Meldepflichten, Visa & Einreise, Aufsicht DACH) — jede mit Quelle, Datum und Link
+  zur Quelle, einer kurzen deutschen Fassung und dem Satz „Für unsere Mandanten“.
+- **Quellen (nur amtliche Feeds, jede Adresse am 12.11. geprüft):** Federal Reserve (Geldpolitik), EZB (Beschlüsse und
+  Referenzkurs), Federal Register für IRS, FinCEN und USCIS, USCIS-Meldungen (nur Visa/Gebühren für Unternehmer), FMA Österreich,
+  FINMA Schweiz. Stichworte je Quelle halten Bürokratie-Anhörungen, Strafverfolgung und tägliche Anleger-Warnungen heraus.
+- **Abruf:** Lauf `chef_news` alle drei Stunden (erstmals wenige Minuten nach dem Start); höchstens 30 Tage alte Meldungen,
+  jede Adresse nur einmal. Fällt eine Quelle aus, laufen die anderen weiter. Knopf „Jetzt abrufen“ (ab Geschäftsführung,
+  höchstens alle zehn Minuten), „Ausblenden“ je Meldung.
+- **KI:** Kurzfassung und Mandanten-Satz kommen über die bestehende KI-Weiche (Dienst `chef-news`, Topf „Haus“), mit Pause,
+  KI-Kasse und eigenem Tagesdeckel (1 $, Einstellung `chef_news_ki_deckel_usd`; Schalter `chef_news_ki_an`). Was die KI als
+  „kein Bezug“ einstuft, steht nicht in der Lage. Ohne KI bleibt die Meldung im Original sichtbar, und die Seite sagt, warum.
+  In die KI gehen nur öffentliche Meldungen. **Nichts davon geht an Kunden.**
+- **Wo:** shared/fiaon-chef-news.ts (Quellen und Regeln, rein), server/lib/fiaon-chef-news.ts, server/routes/fiaon-chef-global-lage.ts
+  (GET /chef/global-news, POST …/abrufen, …/:id/ausblenden), server/routes.ts (Lauf), db/migrations/135_global_news.sql,
+  ChefGlobalLage.tsx + chef-global-lage.css, Rundgang „Global-Lage“ (neuer Schritt).
+- **Abnahme:** `scripts/pruef-chef-news.ts` (32 Prüfungen ohne Datenbank, 48 mit lokaler Prüf-Datenbank — Attrappen statt Netz
+  und KI) und der Browser-Prüfstand der Global-Lage (Kurs und Meldungen = Server, Filter, Ausblenden, „Jetzt abrufen“).
+
 ## 12.11.2026 — E-508 Chefbüro öffnet mit FIAON Global: die Global-Lage (Feed der Woche, Auftragswert, „Wir warten auf“, nächster Schritt je Mandant)
 
 - **Ausfall:** Das Chefbüro zeigte beim Öffnen fast nur Privatkunden-Zahlen. Für FIAON Global gab es Räume je Thema (Angebote,

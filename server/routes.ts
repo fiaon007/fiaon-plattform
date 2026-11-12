@@ -1366,6 +1366,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 🧭 E-508 (12.11.2026): Chefbüro › Global-Lage — Auftragswert, Fixkosten-Deckung, „Wir warten auf“, nächster Schritt je
   //    Mandant und der Feed der Woche in EINER Antwort; dazu Notiz/Wiedervorlage und „Gültig bis“ verlängern.
   app.use('/api/fiaon', (await import('./routes/fiaon-chef-global-lage')).default);
+  // 📰 E-508 Scheibe 2: amtliche News für die Global-Lage — alle drei Stunden abrufen (Fed, EZB, Federal Register, USCIS,
+  //    FMA, FINMA), danach kurze deutsche Fassungen über die KI-Weiche (Dienst „chef-news“, eigener Tagesdeckel). Nichts an Kunden.
+  import('./lib/fiaon-crons').then(({ tageslauf }) => {
+    tageslauf('chef_news', async () => await (await import('./lib/fiaon-chef-news')).newsLauf(), 3 * 60 * 60 * 1000, { beimStartNach: 420_000 });
+  });
   // ✍️ 22.10.2026: Dokumente & Unterschriften je Global-Mandat (Formulare erzeugen, FIAON unterschreibt, bereitstellen, prüfen)
   //    — Chefbüro und Office über dieselben Funktionen (server/lib/fiaon-global-unterschrift.ts).
   const globalUnterschrift = await import('./routes/fiaon-global-unterschrift');

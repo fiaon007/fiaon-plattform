@@ -3,7 +3,7 @@
 //
 // Justin: „Ich will am besten über die Plattform ALLES managen, einstellen, aktiv werden können.“
 //
-// Eine Lese-Route (die ganze Lage in einer Antwort) und vier kleine Schreibwege. Keiner davon sendet eine Mail,
+// Eine Lese-Route (die ganze Lage in einer Antwort) und vier kleine Schreibwege; dazu die News (Scheibe 2). Keiner davon sendet eine Mail,
 // bucht Geld oder stellt eine Rechnung — der Meilenstein mit Teil-2-Rechnung bleibt beim bestehenden Knopf im
 // Reiter „Angebote“. Wand: requireChef; Fixkosten sieht und setzt, wer auch den Raum „Geld“ betreten darf.
 // Mount: /api/fiaon.
@@ -73,6 +73,25 @@ router.post("/chef/global-lage/angebot/:id/gueltigkeit", requireChef("geschaefts
     if (erg.ok) void chefProtokoll(req, `angebot:${req.params.id}`, `Gültigkeit bis ${erg.gueltigBis}`);
     antwort(res, erg);
   } catch (e) { fehler(res, "gueltigkeit", e); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEWS (E-508 Scheibe 2): amtliche Meldungen mit deutscher Kurzfassung — lesen ab Leitung, steuern ab Geschäftsführung
+// ═══════════════════════════════════════════════════════════════════════════
+router.get("/chef/global-news", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const { newsLesen } = await import("../lib/fiaon-chef-news");
+    res.json(await newsLesen(req.chef!.stufe));
+  } catch (e) { fehler(res, "news lesen", e); }
+});
+router.post("/chef/global-news/abrufen", requireChef("geschaeftsfuehrung"), async (_req: ChefRequest, res: Response) => {
+  try { const { newsJetzt } = await import("../lib/fiaon-chef-news"); antwort(res, await newsJetzt()); }
+  catch (e) { fehler(res, "news abrufen", e); }
+});
+router.post("/chef/global-news/:id/ausblenden", requireChef("geschaeftsfuehrung"), async (req: ChefRequest, res: Response) => {
+  try { const { newsAusblenden } = await import("../lib/fiaon-chef-news"); antwort(res, await newsAusblenden(Number(req.params.id), (await wer(req)).name)); }
+  catch (e) { fehler(res, "news ausblenden", e); }
 });
 
 export default router;

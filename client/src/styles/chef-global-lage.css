@@ -248,6 +248,42 @@
 .cgl-meilenstein b { font-weight: 500; color: var(--cgl-tinte); }
 .cgl .cgl-meilenstein a { color: var(--cgl-blau); text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .28); text-underline-offset: 3px; white-space: nowrap; }
 
+/* ── News: Kurs links, Meldungen rechts ────────────────────────────────────── */
+.cgl-news { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 40px; padding-top: 24px; align-items: start; }
+.cgl-news-kopfrechts { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cgl-kurs { border: 1px solid var(--cgl-linie); border-radius: 18px; padding: 24px 24px 20px; background: #fff; }
+.cgl-kurs-zahl { margin-top: 10px; font: 300 50px/1 var(--cgl-serife); letter-spacing: -.024em; color: var(--cgl-tinte); font-variant-numeric: lining-nums tabular-nums; }
+.cgl-kurs-satz { margin-top: 8px; font-size: 13px; color: var(--cgl-leise); font-variant-numeric: tabular-nums; }
+.cgl-kurs-linie { display: block; width: 100%; height: 64px; margin-top: 18px; overflow: visible; }
+.cgl-kurs-linie .strich { fill: none; stroke: var(--cgl-blau); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.cgl-kurs-linie .flaeche { fill: rgba(29, 78, 216, .07); stroke: none; }
+.cgl-kurs-linie .punkt { fill: var(--cgl-blau); }
+.cgl-kurs dl { margin-top: 14px; border-top: 1px solid var(--cgl-linie); }
+.cgl-kurs dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-kurs dt { font-size: 12.5px; color: var(--cgl-leise); }
+.cgl-kurs dd { font-size: 13.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cgl-kurs small { display: block; margin-top: 12px; font: 400 11.5px/1.45 var(--cgl-schrift); color: var(--cgl-still); }
+.cgl-news-liste { min-width: 0; }
+.cgl-news-filter { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 14px; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-news-filter button { appearance: none; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--cgl-linie); background: transparent; cursor: pointer; font: 400 12.5px/1 var(--cgl-schrift); color: var(--cgl-leise); transition: border-color .2s, color .2s, background .2s; }
+.cgl-news-filter button em { margin-left: 7px; font-style: normal; color: var(--cgl-still); font-variant-numeric: tabular-nums; }
+.cgl-news-filter button:hover { border-color: var(--cgl-linie-2); color: var(--cgl-tinte); }
+.cgl-news-filter button.an { border-color: var(--cgl-navy); color: var(--cgl-tinte); background: rgba(18, 40, 74, .04); }
+.cgl-news-zeile { padding: 20px 0; border-bottom: 1px solid var(--cgl-linie); }
+.cgl-news-kopf { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 12px; color: var(--cgl-still); }
+.cgl-news-kopf time { color: var(--cgl-tinte); font-variant-numeric: tabular-nums; }
+.cgl-news-kopf em { font: 500 10px/1.5 var(--cgl-schrift); letter-spacing: .12em; text-transform: uppercase; font-style: normal; color: var(--cgl-blau); }
+.cgl-news-zeile h4 { margin: 6px 0 0; font: 400 19px/1.3 var(--cgl-serife); letter-spacing: -.008em; color: var(--cgl-tinte); }
+.cgl .cgl-news-zeile h4 a { text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 4px; transition: text-decoration-color .2s, color .2s; }
+.cgl .cgl-news-zeile h4 a:hover { color: var(--cgl-blau); text-decoration-color: currentColor; }
+.cgl-news-kurz { margin-top: 8px; max-width: 74ch; font-size: 14px; line-height: 1.55; color: var(--cgl-tinte); }
+.cgl-news-kurz.original { color: var(--cgl-leise); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cgl-news-bedeutung { margin-top: 10px; max-width: 74ch; padding-left: 14px; border-left: 1px solid var(--cgl-blau); font-size: 13.5px; line-height: 1.5; color: var(--cgl-tinte); }
+.cgl-news-bedeutung b { display: block; font: 500 10px/1.6 var(--cgl-schrift); letter-spacing: .12em; text-transform: uppercase; color: var(--cgl-blau); }
+.cgl-news-fuss { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; font-size: 12px; color: var(--cgl-still); }
+.cgl-link.leise { color: var(--cgl-still); text-decoration-color: var(--cgl-linie-2); margin-left: auto; }
+.cgl-news-quellen { padding-top: 16px; font-size: 12px; line-height: 1.5; color: var(--cgl-still); }
+
 /* ── Formulare (Notiz, Verlängern, Fixkosten) ──────────────────────────────── */
 .cgl-form { margin-top: 14px; padding: 16px; border-radius: 14px; background: var(--cgl-feld); border: 1px solid var(--cgl-linie); animation: cglAuf .35s cubic-bezier(.2, .7, .2, 1) backwards; }
 .cgl-form label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -294,6 +330,8 @@
   .cgl { --cgl-rand: 30px; }
   .cgl-mitte { grid-template-columns: minmax(0, 1fr); gap: 36px; }
   .cgl-oben { grid-template-columns: minmax(0, 1fr); }
+  .cgl-news { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .cgl-kurs { max-width: 420px; }
 }
 @media (max-width: 760px) {
   .cgl { --cgl-rand: 18px; }
@@ -331,4 +369,9 @@
   .cgl-wartet-zeile > .cgl-knopf { grid-column: 2; grid-row: auto; justify-self: start; margin-top: 8px; }
   .cgl-feed-nav { width: 100%; }
   .cgl-feed-nav .cgl-knopf { flex: 1 1 0; }
+  .cgl-kurs { max-width: none; padding: 22px 20px 18px; }
+  .cgl-kurs-zahl { font-size: 44px; }
+  .cgl-news-filter button { height: 40px; }
+  .cgl-news-zeile h4 { font-size: 18px; }
+  .cgl-link.leise { margin-left: 0; padding: 6px 0; }
 }

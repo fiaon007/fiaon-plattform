@@ -2130,6 +2130,16 @@ export const RUNDGANG_CHEF_GLOBAL_LAGE: RundgangSchritt[] = [
     tipp: "Der Hinweis „Achtung, Rechnung“ zeigt auf den Knopf „Gesellschaft eingetragen“ im Angebot. Er stellt sofort die Rechnung für das "
       + "Erfolgshonorar — deshalb gibt es ihn hier bewusst nicht als schnellen Knopf.",
   },
+  // E-508 Scheibe 2 (12.11.2026): News aus amtlichen Quellen.
+  {
+    ziel: "[data-cgl='news']",
+    titel: "News: nur amtliche Quellen, mit Link und Datum.",
+    text: "Links steht der EZB-Referenzkurs Euro zu US-Dollar mit dem Verlauf der letzten Wochen. Rechts stehen Meldungen von US-Notenbank, EZB, "
+      + "dem US-Amtsblatt (IRS, FinCEN, USCIS) und den Aufsichten FMA und FINMA — je Meldung eine kurze deutsche Fassung und der Satz "
+      + "„Für unsere Mandanten“. Der Titel führt zur Quelle. Abgerufen wird alle drei Stunden von selbst.",
+    tipp: "Steht „Original — die deutsche Kurzfassung folgt“ da, hat die KI gerade Pause oder ihr Tagesdeckel ist erreicht; die Meldung ist "
+      + "trotzdem vollständig. „Ausblenden“ nimmt eine Meldung für alle aus der Liste. Nichts davon geht an Kunden.",
+  },
 ];
 
 // ── /chef/s/firmen-radar (19.09.2026, Fassung 2) ─────────────────────────────

@@ -42,7 +42,7 @@ const de = {
   // 17.09.2026 (E-188): Für Unternehmen gibt es FIAON Global statt der früheren
   // Monatspakete — derselbe Text wie im Paketfinder auf /preise.
   globalTitel: "FIAON Global",
-  globalText: "Für Unternehmen gibt es FIAON Global: Ihre US-Gesellschaft aus einer Hand, mit einem Team vor Ort in den USA und einem Ansprechpartner. Ein Mandat, ein Preis mit Ihrem Auftrag – kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+  globalText: "Für Unternehmen gibt es FIAON Global: Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge vor — in einem Mandat, mit einem Ansprechpartner. Über Konto, Karte und Finanzierung entscheidet allein das jeweilige Institut.",
   globalAb: (ab: string) => `${ab} mit Ihrem Auftrag`,
   globalGespraech: "Erst sprechen",
   gruende: {
@@ -129,7 +129,7 @@ const en: typeof de = {
     { key: "tempo", frage: "How fast should it go?", optionen: [["ruhig", "Calmly, step by step"], ["zuegig", "Quickly, I have deadlines"], ["sofort", "As fast as at all possible"]] },
   ],
   globalTitel: "FIAON Global",
-  globalText: "For companies there is FIAON Global: your US company from a single source, with a team on the ground in the United States and one dedicated contact. One mandate, one price with your order – no subscription. The institution alone decides on the account, the card and the limit.",
+  globalText: "For companies there is FIAON Global: your US company from a single source, with one dedicated contact. One mandate, one price with your order – no subscription. The institution alone decides on the account, the card and the limit.",
   globalAb: (ab: string) => `${ab} with your order`,
   globalGespraech: "Talk first",
   gruende: {

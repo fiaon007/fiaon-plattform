@@ -85,7 +85,7 @@ function Pakete({ tab, setTab }: { tab: "privat" | "business"; setTab: (t: "priv
     <Block id="setups" pille="Ihr Paket" titel={<>W&auml;hlen Sie, wie weit Sie gehen. <span className="dk-verlauf">Nicht, ob.</span></>}
            lead={tab === "privat"
              ? "Für neue Paketkunden ist die Bonitätsauswertung im Paket enthalten — sie ist der Schritt vor dem Link unserer Partnerbank für Ihren Kartenantrag. Je weiter Sie gehen, desto mehr nimmt FIAON Ihnen ab – bis zu Konto, Karte und Finanzierung. Über die Vergabe entscheidet immer die Bank."
-             : "FIAON Global: Ihre US-Gesellschaft aus einer Hand – mit einem Team vor Ort in den USA und einem Ansprechpartner. Ein Mandat, ein Preis mit Ihrem Auftrag. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
+             : "FIAON Global: Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge vor – in einem Mandat, mit einem Ansprechpartner. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut; FIAON bereitet vor."} mitte>
       <Auf>
         <div className="dk-tabs" role="tablist">
           {(["privat", "business"] as const).map((t) => <button key={t} type="button" role="tab" data-an={tab === t ? "1" : undefined} onClick={() => setTab(t)}>{t === "privat" ? "Privatkunde" : "Unternehmen"}</button>)}
@@ -217,7 +217,7 @@ export default function FiaonHome() {
         <div className="dk-raster zwei" style={{ textAlign: "left" }}>
           {[
             { key: "privat" as const, titel: "Für Privatkunden", text: "Vom ersten Eintrag bis zur Kreditkarte: Sie sehen Ihre Auskunft, räumen auf, was nicht hineingehört, und arbeiten Etappe für Etappe auf Konto und Karte zu – mit einem Ansprechpartner, der Ihre Akte kennt.", ziele: "Typische Ziele: Eintrag löschen lassen · Ratenvereinbarung treffen · Girokonto eröffnen · eigene Kreditkarte" },
-            { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Ein Mandat, ein Preis · Steuerberater und Anwälte im Partnernetz auf eigenes Mandat · Über Konto, Karte und Rahmen entscheidet das Institut" },
+            { key: "business" as const, titel: "Für Unternehmen", text: "FIAON Global: FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und bereitet Ihre Anträge für Konten und auf Wunsch für Kreditkarten vor – mit einem Ansprechpartner für Sie. Für jede Unternehmensart, vom Handwerksbetrieb bis zur Projektentwicklung.", ziele: "Ein Mandat, ein Ansprechpartner · Partner-Anwälte und US-Steuerberater (CPA) in eigener Verantwortung · Über Konto, Karte und Finanzierung entscheidet das Institut" },
           ].map((w, i) => (
             <Auf key={w.key} verzoegerung={i * 120}>
               <Glas titel={w.titel} style={{ height: "100%", display: "flex", flexDirection: "column" }}>

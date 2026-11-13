@@ -266,7 +266,7 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
               <div className="nav-global-kopf">
                 <div>
                   <p className="nav-mega-titel" style={{ margin: 0 }}>FIAON Global</p>
-                  <p className="nav-global-satz">US-Gesellschaft aus einer Hand — für Unternehmer und Privatpersonen. Ein Auftrag, ein Ansprechpartner.</p>
+                  <p className="nav-global-satz">US-Gesellschaft gründen in einem Mandat — für Unternehmer und Privatpersonen. Ein Vertrag, ein Ansprechpartner.</p>
                 </div>
                 <a href="/" className="nav-global-link">Zur Übersicht<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></a>
               </div>
@@ -282,9 +282,9 @@ function PrivatNav({ activePage = "startseite" }: GlassNavProps) {
                 </div>
               ))}
               <div className="nav-global-fuss">
-                <span className="orte"><b>London</b> Vertragspartner<i aria-hidden="true">·</i><b>Zürich</b> Kapital-Etappe<i aria-hidden="true">·</i><b>Miami</b> Team vor Ort</span>
+                <span className="orte"><b>FIAON LTD</b> London<i aria-hidden="true">·</i>Companies House Nr. 17318250</span>
                 <span className="tun">
-                  <a href="/business/start" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Angebot zusammenstellen</a>
+                  <a href="/business/start" className="nav-mega-knopf still" tabIndex={mega ? 0 : -1}>Angebot anfordern</a>
                   <a href="/#gespraech" className="nav-mega-knopf" tabIndex={mega ? 0 : -1}>Gespräch vereinbaren</a>
                 </span>
               </div>

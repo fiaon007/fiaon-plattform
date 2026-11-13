@@ -47,7 +47,7 @@ const de = {
   // FIAON Global. Der Paketfinder fragt dort nicht weiter (Lage und Tempo sind
   // Fragen der Bonitätslinie), sondern zeigt den Weg zur Seite.
   globalTitel: "FIAON Global",
-  globalText: "Für Unternehmen gibt es FIAON Global: Ihre US-Gesellschaft aus einer Hand, mit einem Team vor Ort in den USA und einem Ansprechpartner. Ein Mandat, ein Preis mit Ihrem Auftrag – kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+  globalText: "Für Unternehmen gibt es FIAON Global: Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge vor — in einem Mandat, mit einem Ansprechpartner. Über Konto, Karte und Finanzierung entscheidet allein das jeweilige Institut.",
   globalAb: (ab: string) => `${ab} mit Ihrem Auftrag`,
   globalGespraech: "Erst sprechen",
   gruende: {
@@ -102,7 +102,7 @@ const de = {
     { href: "/werkzeuge", t: "20 kostenlose Werkzeuge", s: "Alles, was Sie selbst tun können – bevor Sie etwas bezahlen." },
   ],
   businessPille: "Unternehmen", businessH2a: "Für Unternehmen: ", businessH2b: "FIAON Global.",
-  businessLead: "FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und baut Schritt für Schritt Ihre Bank- und Kartenbeziehung auf – mit einem Team vor Ort in den USA und einem Ansprechpartner für Sie. Vier Pakete, jedes zum Einmalpreis, kein Abo. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+  businessLead: "FIAON gründet Ihre US-Gesellschaft, bereitet Steuernummern und Dokumente vor und bereitet Ihre Anträge für Konten und auf Wunsch für Kreditkarten vor – mit einem Ansprechpartner für Sie. Ein Mandat, kein Abo. Über Konto, Karte und Finanzierung entscheidet allein das jeweilige Institut.",
   globalEinmalig: "mit Ihrem Auftrag · kein Abo",
   globalKosten: "Im ersten Jahr ist alles enthalten — Staatsgebühren, Registered Agent, Anwälte und US-Steuerberater (CPA) aus dem Partnernetz. Mit der Eintragung wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen.",
   ehrlichTag: "Ehrlich gesagt", ehrlichTitel: "Wann Sie FIAON nicht brauchen",
@@ -142,7 +142,7 @@ const en: typeof de = {
     { key: "tempo", frage: "How fast does it need to be?", optionen: [["ruhig", "Calmly, step by step"], ["zuegig", "Quickly, I have deadlines"], ["sofort", "As fast as humanly possible"]] },
   ],
   globalTitel: "FIAON Global",
-  globalText: "For companies there is FIAON Global: your US company from a single source, with a team on the ground in the United States and one dedicated contact. One mandate, one price with your order — no subscription. The institution alone decides on the account, the card and the limit.",
+  globalText: "For companies there is FIAON Global: your US company from a single source, with one dedicated contact. One mandate, one price with your order — no subscription. The institution alone decides on the account, the card and the limit.",
   globalAb: (ab: string) => `${ab} with your order`,
   globalGespraech: "Talk first",
   gruende: {
@@ -195,7 +195,7 @@ const en: typeof de = {
     { href: "/werkzeuge", t: "20 free tools", s: "Everything you can do yourself — before you pay for anything." },
   ],
   businessPille: "Companies", businessH2a: "For companies: ", businessH2b: "FIAON Global.",
-  businessLead: "FIAON forms your US company, prepares tax numbers and documents and builds your banking and card relationship step by step — with a team on the ground in the United States and one dedicated contact for you. Four packages, each at a one-off price, no subscription. The institution alone decides on the account, the card and the limit.",
+  businessLead: "FIAON forms your US company, prepares tax numbers and documents and prepares your account applications and, on request, your card applications — with one dedicated contact for you. One engagement, no subscription. The institution alone decides on the account, the card and the limit.",
   globalEinmalig: "with your order · no subscription",
   globalKosten: "Everything is included in the first year — state fees, registered agent, lawyers and US accountants (CPAs) from the partner network. The success fee falls due on registration; it follows your capital range.",
   ehrlichTag: "Honestly", ehrlichTitel: "When you do not need FIAON",

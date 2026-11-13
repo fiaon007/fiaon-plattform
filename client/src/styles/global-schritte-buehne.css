@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON GLOBAL — DIE SECHS SCHRITTE: LAUF UND BÜHNE (Register E-510, Gestaltung Runde 2, 13.11.2026)
+
+   Ergänzt styles/global-verkauf.css (Abschnitt „2 DIE SECHS SCHRITTE“) um zwei Dinge:
+     A  DER LAUF  — in der Liste (Handy, kleine oder niedrige Fenster): eine blaue Linie läuft mit dem Lesen von Nummer zu
+                    Nummer, erreichte Nummern füllen sich. Auch die Reihe oben füllt sich bis zum aktuellen Schritt.
+     B  DIE BÜHNE — auf breiten und hohen Bildschirmen: der Abschnitt bleibt stehen (position: sticky), EIN Schritt steht
+                    im Bild, eine große dünne Ziffer rollt wie ein Zählwerk, die Akte liegt als helle Glaskarte daneben.
+   Gesteuert von components/site/global/GlobalSchritte.tsx: data-buehne am Abschnitt, data-lage („vor“ · „aktiv“ · „nach“)
+   je Schritt, --f (Füllung der Reihe, 0 … 1), --lauf (Füllung der Schiene, 0 … 1), --a (Schritt der Ziffer).
+   Bewegt werden nur transform und opacity. Ohne JavaScript, bei „weniger Bewegung“ und im Druck: die ruhige Liste.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Hüllen ─────────────────────────────────────────────────────────────── */
+.fg .vk-sechs-szene { position: relative; --vk-punkt: 44px; margin-top: var(--vk-kopf-luft); }
+.fg .vk-sechs-reihe + .vk-sechs-szene { margin-top: clamp(28px, 3.4vw, 48px); }
+.fg .vk-sechs-szene > .vk-sechs { margin-top: 0; }
+.fg .vk-sechs-ziffer { display: none; }
+
+/* ── A · DER LAUF ───────────────────────────────────────────────────────── */
+/* Die Schiene der Liste wird zur leisen Spur; die kräftige Linie ist der Lauf darüber. */
+.fg .vk-sechs-szene > .vk-sechs > li::before { background: rgba(40, 141, 250, .3); }
+.fg .vk-sechs-szene > .vk-sechs > li:last-child::before { background: linear-gradient(180deg, rgba(40, 141, 250, .3), rgba(40, 141, 250, 0)); }
+.fg .vk-sechs-lauf { position: absolute; left: calc(var(--vk-punkt) / 2 - 1px); top: var(--lauf-oben, 0); width: 2px; height: var(--lauf-lang, 0); border-radius: 2px; background: linear-gradient(180deg, var(--g-licht), var(--g-handlung)); transform-origin: center top; transform: scaleY(var(--lauf, 0)); pointer-events: none; will-change: transform; }
+/* Erreichte Nummern füllen sich; die aktuelle trägt einen feinen Hof. */
+.fg .vk-sechs-szene > .vk-sechs > li > .vk-sechs-punkt { transition: background var(--g-dauer-2) ease, color var(--g-dauer-2) ease, box-shadow var(--g-dauer-2) ease; }
+.fg .vk-sechs-szene > .vk-sechs > li:is([data-lage="vor"], [data-lage="aktiv"]) > .vk-sechs-punkt { background: var(--g-handlung); color: #fff; box-shadow: inset 0 0 0 1px var(--g-handlung); }
+.fg .vk-sechs-szene > .vk-sechs > li[data-lage="aktiv"] > .vk-sechs-punkt { box-shadow: inset 0 0 0 1px var(--g-handlung), 0 0 0 6px rgba(40, 141, 250, .14); }
+
+@media (max-width: 899px) {
+  .fg .vk-sechs-szene { --vk-punkt: 36px; }
+}
+
+/* Die Reihe: leise Spur, darüber die Füllung bis zum aktuellen Schritt. */
+@media (min-width: 900px) {
+  .fg .vk-sechs-buehne .vk-sechs-reihe ol::before { background: rgba(40, 141, 250, .3); }
+  .fg .vk-sechs-buehne .vk-sechs-reihe ol::after { content: ""; position: absolute; left: 22px; right: calc(100% / var(--n, 6) - 22px); top: 21px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--g-licht), var(--g-handlung)); transform-origin: left center; transform: scaleX(var(--f, 0)); transition: transform var(--g-dauer-3) var(--g-kurve-aus); pointer-events: none; }
+  .fg .vk-sechs-buehne .vk-sechs-reihe li:is([data-lage="vor"], [data-lage="aktiv"]) .vk-sechs-punkt { background: var(--g-handlung); color: #fff; box-shadow: inset 0 0 0 1px var(--g-handlung); }
+  .fg .vk-sechs-buehne .vk-sechs-reihe li[data-lage="aktiv"] .vk-sechs-punkt { box-shadow: inset 0 0 0 1px var(--g-handlung), 0 0 0 6px rgba(40, 141, 250, .14); }
+  .fg .vk-sechs-buehne .vk-sechs-reihe li[data-lage="aktiv"] .vk-sechs-reihe-titel { color: var(--g-tinte); font-weight: var(--g-w-fest); }
+  .fg .vk-sechs-buehne .vk-sechs-reihe li[data-lage="nach"] .vk-sechs-reihe-titel { color: var(--g-text); }
+}
+
+/* ── B · DIE BÜHNE ──────────────────────────────────────────────────────── */
+/* Dieselbe Abfrage steht in GlobalSchritte.tsx (BUEHNE_AB). */
+@media screen and (min-width: 1100px) and (min-height: 640px) {
+  .fg .vk-sechs-sek[data-buehne="1"] { --b-hoehe: min(100svh - 116px, 760px); --b-oben: max(96px, calc((100svh - var(--b-hoehe)) / 2 + 30px)); }
+  /* Die Strecke: je Schritt gut eine halbe Bildhöhe Scrollweg, dazu die Bühne selbst. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-bahn { height: calc(var(--n, 6) * 58vh + var(--b-hoehe)); margin-top: var(--vk-kopf-luft); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-buehne { position: sticky; top: var(--b-oben); height: var(--b-hoehe); display: flex; flex-direction: column; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe { flex: none; margin-top: 0; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe ol::after { transition: none; will-change: transform; }
+  /* Auf der Bühne erscheinen die Stationen zügig — die Füllung der Linie folgt dem Scrollen, nicht dem Auftritt. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe[data-an="1"] li { animation-delay: calc(var(--i, 0) * 70ms); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe[data-an="1"] ol::before { animation-duration: var(--g-dauer-3); }
+
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-szene { --zf: clamp(84px, min(10.5vw, 17vh), 164px); flex: none; margin-top: clamp(24px, 5vh, 60px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-lauf { display: none; }
+
+  /* Die große Ziffer: ein Fenster von einer Zeile Höhe, dahinter die Rolle mit allen Nummern. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-ziffer { position: absolute; left: 0; top: 0; z-index: 0; display: flex; align-items: flex-end; gap: 16px; height: var(--zf); font: var(--g-w-duenn) var(--zf)/1 var(--g-schrift); letter-spacing: -.055em; font-variant-numeric: lining-nums tabular-nums; pointer-events: none; user-select: none; opacity: 0; transition: opacity var(--g-dauer-3) ease; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-szene[data-da="1"] .vk-sechs-ziffer { opacity: 1; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-fenster { display: block; height: 1em; overflow: hidden; margin-left: -.03em; padding-right: .06em; -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 13%, #000 87%, transparent 100%); mask-image: linear-gradient(180deg, transparent 0, #000 13%, #000 87%, transparent 100%); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-rolle { display: block; transform: translateY(calc(var(--a, 0) * -1em)); transition: transform var(--g-dauer-4) var(--g-kurve-aus); will-change: transform; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-rolle b { display: block; height: 1em; font-weight: var(--g-w-duenn); color: var(--g-handlung); background: linear-gradient(175deg, #4ea3ff 8%, #1d4ed8 78%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-ziffer i { padding-bottom: calc(var(--zf) * .15); font: var(--g-w-text) .8125rem/1 var(--g-schrift); font-style: normal; letter-spacing: .14em; color: var(--g-leise); }
+
+  /* Alle Schritte liegen übereinander; im Bild steht der aktuelle. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs { position: relative; z-index: 1; display: grid; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li { grid-area: 1 / 1; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: clamp(40px, 5.2vw, 88px); align-items: start; padding: 0; opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li::before, .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li::after { display: none; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li > .vk-sechs-punkt { display: none; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="aktiv"] { opacity: 1; pointer-events: auto; transition: opacity var(--g-dauer-3) ease 90ms; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li:focus-visible { outline: none; }
+
+  /* Was wir tun — unter der Ziffer. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-was { grid-column: 1; padding-top: calc(var(--zf) + clamp(14px, 2.4vh, 28px)); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs h3 { font-size: clamp(1.875rem, min(2.9vw, 5vh), 2.75rem); line-height: 1.08; letter-spacing: -.03em; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-satz { margin-top: clamp(14px, 2.2vh, 24px); max-width: 36ch; font-size: clamp(1.0625rem, 1.35vw, 1.25rem); line-height: 1.55; }
+
+  /* Die Akte — eine helle Glaskarte, die einzige Fläche der Bühne. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte { grid-column: 2; padding: clamp(10px, 1.6vh, 18px) clamp(24px, 2.4vw, 36px) clamp(14px, 2vh, 22px); border-radius: var(--g-r-flaeche); background: linear-gradient(180deg, rgba(255, 255, 255, .9) 0%, rgba(255, 255, 255, .66) 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .95), 0 0 0 1px rgba(18, 40, 74, .05), 0 1px 2px rgba(18, 40, 74, .04), 0 36px 72px -44px rgba(18, 40, 74, .42); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte dl > div { padding: clamp(11px, 1.7vh, 16px) 0; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-fest > div:first-child { padding-top: clamp(11px, 1.7vh, 16px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-mehr dl > div:first-child { border-top: 1px solid var(--g-linie); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-folge { margin: 4px 0 6px; }
+
+  /* Der Wechsel. Wer geht, geht zügig; wer kommt, kommt ruhig und gestaffelt: Titel → Karte → Zeile für Zeile. */
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li > :is(.vk-sechs-was, .vk-sechs-akte) { animation: none !important; opacity: 1 !important; transition: transform 220ms var(--g-kurve-weg); will-change: transform; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="nach"] > :is(.vk-sechs-was, .vk-sechs-akte) { transform: translateY(34px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="vor"] > :is(.vk-sechs-was, .vk-sechs-akte) { transform: translateY(-34px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="aktiv"] > .vk-sechs-was { transform: none; transition: transform var(--g-dauer-4) var(--g-kurve-aus) 90ms; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="aktiv"] > .vk-sechs-akte { transform: none; transition: transform var(--g-dauer-4) var(--g-kurve-aus) 170ms; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li .vk-sechs-akte :is(dl > div, .vk-sechs-folge) { animation: none !important; opacity: 0; transform: translateY(10px); transition: opacity 140ms ease, transform 140ms ease; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li[data-lage="aktiv"] .vk-sechs-akte :is(dl > div, .vk-sechs-folge) { opacity: 1; transform: none; transition: opacity var(--g-dauer-3) ease, transform var(--g-dauer-3) var(--g-kurve-aus); transition-delay: calc(280ms + var(--z, 0) * 70ms); }
+}
+
+/* Niedrige Fenster (übliche Laptops): dieselbe Bühne, enger gesetzt — damit auch der längste Schritt ganz im Bild steht. */
+@media screen and (min-width: 1100px) and (min-height: 640px) and (max-height: 859px) {
+  .fg .vk-sechs-sek[data-buehne="1"] { --b-hoehe: calc(100svh - 100px); --b-oben: 88px; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe a { gap: 10px; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-reihe-titel { font-size: .8125rem; line-height: 1.32; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-szene { --zf: clamp(68px, 14vh, 120px); margin-top: clamp(14px, 2.6vh, 24px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs > li { grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); column-gap: clamp(36px, 4vw, 56px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-was { padding-top: calc(var(--zf) + 10px); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs h3 { font-size: clamp(1.5rem, 4.2vh, 2rem); }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-satz { margin-top: 12px; font-size: 1.0625rem; line-height: 1.5; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte { padding: 6px 28px 12px; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte dl > div { padding: 9px 0; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-fest > div:first-child { padding-top: 9px; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte dd, .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-folge h4, .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-folge p { font-size: .875rem; line-height: 1.5; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-folge { margin: 2px 0 4px; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-folge p { margin-top: 3px; }
+}
+
+/* ── Weniger Bewegung, Kontrastmodus, Druck: die ruhige Liste ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  .fg .vk-sechs-lauf { display: none; }
+  .fg .vk-sechs-szene > .vk-sechs > li::before { background: var(--g-licht); }
+}
+@media (forced-colors: active) {
+  .fg .vk-sechs-lauf, .fg .vk-sechs-buehne .vk-sechs-reihe ol::after { background: Highlight; forced-color-adjust: none; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-akte { border: 1px solid CanvasText; background: Canvas; box-shadow: none; }
+  .fg .vk-sechs-sek[data-buehne="1"] .vk-sechs-rolle b { background: none; -webkit-text-fill-color: currentColor; color: CanvasText; }
+}
+@media print {
+  .fg .vk-sechs-lauf, .fg .vk-sechs-ziffer { display: none !important; }
+  .fg .vk-sechs-buehne .vk-sechs-reihe ol::after { display: none; }
+  .fg .vk-sechs-szene > .vk-sechs > li > .vk-sechs-punkt { background: var(--g-papier) !important; color: var(--g-handlung) !important; }
+}

@@ -14,13 +14,29 @@
 //
 // Was hier steht, gilt wie auf der Seite: keine Zusage zu Konto, Karte oder
 // Rahmen, kein Steuerversprechen, FIAON ist keine Bank und keine Kanzlei.
+//
+// ── 13.11.2026 (E-510, Sprachleitfaden FIAON Global, Abschnitt 9.4) ────────
+// Justin (12.11.2026): „auf JEDER Seite muss das Wording geändert werden … präsentiere uns wie eine Kanzlei, wie
+// internationale Unternehmensberater.“ Für diese Datei heißt das:
+//   · Sie beginnt mit dem EINEN Definitionssatz (wortgleich mit dem Datenblock der Seiten, aus shared/fiaon-global-saetze.ts).
+//     Er nennt keine Länder: In keiner Zeile stehen Österreich oder die Schweiz neben Konto, Karte oder Finanzierung.
+//     Österreich hat seine eigene Zeile (nur Gründung und Betreuung, ohne „Unternehmensberatung“).
+//   · Sie nennt die sechs Schritte, jeden mit seiner Bedingung, und das Honorar vollständig (mit Ihrem Auftrag · mit der
+//     Eintragung · ab dem zweiten Jahr) — die Sätze kommen aus VERKAUF_TEXTE und den festen Sätzen, kein Betrag ist getippt.
+//   · Weg sind: „(LLC oder Corporation)“ (der Vertrag nennt die LLC), „der geplante Weg zum Kapital („US-Funding“)“,
+//     „aus einer Hand, mit Team vor Ort in Miami“, „Ein Ansprechpartner statt acht.“, „Partnerstandort Zürich“,
+//     „(ein Produkt, ein Preis)“, die doppelte Zeile zur Jahresbetreuung, „Angebot selbst zusammenstellen“ und der Satz zur
+//     Staaten-Wahl mit „besten Ruf“ und „am günstigsten“ (STAAT_WAHL_SATZ) — die Zeiten je Bundesstaat stehen jetzt als
+//     Erfahrungswerte mit Stand da, dahinter der feste Satz S15. Kein Wort zur Bürgschaft.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "@shared/fiaon-global";
+import { GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
 // E-509 (12.11.2026): der Partner-Satz ohne „Ihres Pakets“ — aus der Karte des einen Produkts.
 import { EIN_PRODUKT } from "@shared/fiaon-global-seiten/ein-produkt";
-import { VERKAUF_TEXTE, VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd } from "@shared/fiaon-global-verkauf";
+import { VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
+// E-510: Definitionssatz, Österreich-Fassung, die sechs Schritte, die festen Sätze und die Beträge — geholt, nie getippt.
+import { SAETZE_BETRAEGE, SCHRITTE_KOPF, satz, sechsSchritte, weitererSatz } from "@shared/fiaon-global-saetze";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
-import { STAAT_WAHL_SATZ, STAATEN_STAND_TEXT } from "@shared/fiaon-global-bundesstaaten";
+import { STAATEN_STAND_TEXT, STAATEN_ZUR_WAHL } from "@shared/fiaon-global-bundesstaaten";
 import { FIAON_FIRMA, fiaonVerwechslungSatz } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
 import { blockAlsText, GLOBAL_SEITE_WORTE } from "@shared/fiaon-global-seiten";
@@ -44,41 +60,59 @@ function privatLinks(): string[] {
 export function llmsTxt(): string {
   const art = (...a: GlobalSeite["art"][]) => GLOBAL_SEITEN.filter((s) => a.includes(s.art));
   const stand = [...GLOBAL_SEITEN, ...GLOBAL_SEITEN_EN].map((s) => s.stand).sort().pop();
+  const V = VERKAUF_TEXTE.de;
+  const B = SAETZE_BETRAEGE.de;
   return [
     "# FIAON",
     "",
     // 27.10.2026 (E-439): ein Definitionssatz, den Assistenten wörtlich übernehmen können — wer FIAON Global ist.
-    `FIAON Global ist die Unternehmensberatung der ${FIAON_FIRMA.name} (London, Companies House ${FIAON_FIRMA.companyNo}) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, vorbereitete Konto- und Firmenkartenanträge, US-Pflichten und der geplante Weg zum Kapital („US-Funding“) — aus einer Hand, mit Team vor Ort in Miami und einem Preis, der vor dem Auftrag feststeht. Ein Ansprechpartner statt acht.`,
+    // 13.11.2026 (E-510): der Definitionssatz des Sprachleitfadens (9.4) — ohne Länder, wortgleich mit dem Datenblock der Seiten.
+    weitererSatz("DEFINITION", "de"),
     "",
     // 28.10.2026 (E-454): KI-Suchen verwechselten FIAON mit ähnlich klingenden Namen — ein Satz klärt es (shared/fiaon-firma.ts).
     fiaonVerwechslungSatz("de"),
     "",
-    `> ${FIAON_FIRMA.name} (${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}; ${FIAON_FIRMA.register}, No. ${FIAON_FIRMA.companyNo}) hat zwei Linien für Kunden in Deutschland, Österreich und der Schweiz: FIAON Global — die US-Gesellschaft aus einer Hand für Unternehmen, Selbständige und Gründer (Gründung, EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten, in einem Auftrag) — und FIAON Bonität für Privatkunden.`,
+    // Diese Zeile nennt die Länder — und deshalb weder Konto noch Karte noch Finanzierung (Leitfaden 5.12).
+    `> ${FIAON_FIRMA.name} (${FIAON_FIRMA.strasse}, ${FIAON_FIRMA.ortZeile}, ${FIAON_FIRMA.land}; ${FIAON_FIRMA.register}, No. ${FIAON_FIRMA.companyNo}) arbeitet für Klienten in Deutschland, Österreich und der Schweiz und hat zwei Linien: FIAON Global — Gründung und laufende Betreuung von US-Gesellschaften in einem Mandat — und FIAON Bonität für Privatkunden.`,
     "",
     "## FIAON Global in Kürze",
     "",
-    "- Eine US-Gesellschaft (LLC oder Corporation) in Delaware, Florida oder Wyoming, gegründet vollständig aus dem Ausland — ohne US-Wohnsitz und ohne Reise.",
-    // E-465 (29.10.2026): die Staaten-Wahl mit ehrlichen Zeiten aus shared/fiaon-global-bundesstaaten.ts.
-    `- ${STAAT_WAHL_SATZ.de} (Zeiten Stand ${STAATEN_STAND_TEXT.de}, Erfahrungswerte ohne Zusage.)`,
-    "- Ein Vertrag, ein Ansprechpartner, ein Dokumentenraum; Team vor Ort in Miami, Partnerstandort Zürich, Vertragspartner in London.",
-    `- ${GLOBAL_ROLLEN.de.fiaon}`,
+    `- Ihre US-Gesellschaft (LLC) in Delaware, Florida oder Wyoming. ${satz("S3", "de")}`,
+    // E-465 (29.10.2026): die Zeiten je Bundesstaat aus shared/fiaon-global-bundesstaaten.ts. E-510: als Erfahrungswerte mit Stand,
+    // dahinter der feste Satz S15 — vorher der Satz STAAT_WAHL_SATZ („besten Ruf“, „schnell und am günstigsten“).
+    `- Eintragung, Erfahrungswerte (Stand ${STAATEN_STAND_TEXT.de}): ${STAATEN_ZUR_WAHL.map((b) => `${b.name} ${b.eintragungKurz.de}`).join("; ")}. ${satz("S15", "de")}`,
+    `- ${V.produkt.lead}`,
+    // Der Rollen-Satz (wer Recht und Steuern verantwortet) — „keine Bank, keine Kanzlei, keine Kreditvermittlung“ sagt schon der Definitionssatz.
     `- ${EIN_PRODUKT.de.partner}`,
+    `- ${satz("S10", "de")}`,
     `- ${GLOBAL_PFLICHTHINWEIS.de[0]}`,
     `- ${GLOBAL_PFLICHTHINWEIS.de[1]}`,
     `- ${GLOBAL_PFLICHTHINWEIS.de[2]}`,
+    // Österreich wird getrennt geführt (Leitfaden 9.4): nur Gründung und Betreuung, das weitere Vorhaben persönlich.
+    `- Für Klienten mit Wohnsitz in Österreich: ${weitererSatz("POSITIONIERUNG-AT", "de")}`,
     "",
-    // E-509 (12.11.2026): EIN Produkt statt vier Pakete — Sätze und Preise aus shared/fiaon-global-verkauf.ts.
-    `## ${VERKAUF_TEXTE.de.produkt.kurz} (ein Produkt, ein Preis)`,
+    // Die sechs Schritte in Justins Reihenfolge — Satz und Bedingung stehen nie getrennt (Leitfaden 2.1).
+    `## ${SCHRITTE_KOPF.de.h2}`,
     "",
-    `- Mit dem Auftrag ${verkaufEur(VERKAUF_PREISE.gruendungCents)}: ${VERKAUF_TEXTE.de.produkt.preisSatz} Fast-Track auf Wunsch ${verkaufEur(VERKAUF_PREISE.fastTrackCents)}.`,
-    `- ${VERKAUF_TEXTE.de.produkt.preisFein} Jahresbetreuung: ${verkaufEur(VERKAUF_PREISE.jahresCents)} im Jahr.`,
-    `- Kapitalrahmen: ${verkaufUsd(VERKAUF_RAHMEN.minUsd)} bis ${verkaufUsd(VERKAUF_RAHMEN.maxUsd)}, der Kunde wählt selbst; ab 1 Mio. US-Dollar persönlich in Miami. Über die Finanzierung entscheidet das finanzierende Institut.`,
-    ...VERKAUF_TEXTE.de.produkt.bereiche.map((b) => `- ${b.titel}: ${b.zeile}`),
+    ...sechsSchritte("de").schritte.map((x) => `${x.nr}. ${x.titel}: ${x.satz} ${x.bedingung}`),
+    "",
+    // E-509 (12.11.2026): EIN Mandat statt vier Pakete — Sätze aus shared/fiaon-global-verkauf.ts, Beträge aus der Preisquelle.
+    // E-510 — vorher: Überschrift „… (ein Produkt, ein Preis)“, „Mit dem Auftrag …“ und die Jahresbetreuung ein zweites Mal
+    // hinter produkt.preisFein (das den Mindestbetrag und die Jahresbetreuung seit E-510 selbst nennt).
+    `## ${V.produkt.kurz}: Leistung und Honorar`,
+    "",
+    `- ${V.produkt.preisLabel} ${B.honorarAuftrag}: ${V.produkt.preisSatz}`,
+    `- ${V.produkt.preisFein}`,
+    `- ${V.konfig.blatt.fastTrack(B.fastTrack)}`,
+    `- ${EIN_PRODUKT.de.rahmenSatz}`,
+    ...V.produkt.bereiche.map((b) => `- ${b.titel}: ${b.zeile}`),
+    `- ${EIN_PRODUKT.de.geldZurueck}`,
     // 29.10.2026 (E-461): Die Übersicht von FIAON Global ist die Startseite fiaon.com/ (vorher /business, leitet per 301).
-    `- Angebot selbst zusammenstellen: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/ · English: ${SEO_BASIS}/en`,
+    // E-510: Die Handlung heißt überall „Angebot anfordern“ (vorher „Angebot selbst zusammenstellen“); sie führt zum Honorarrechner.
+    `- ${V.buehne.knopf}: ${SEO_BASIS}/business/start · Übersicht: ${SEO_BASIS}/ · English: ${SEO_BASIS}/en`,
     "",
     ...gruppe("Leistungen", art("leistung")),
-    ...gruppe("Preise, Ablauf und Vergleich", art("preise", "werkzeug")),
+    ...gruppe("Kosten, Ablauf, Vergleich und Fragen", art("preise", "werkzeug")),
     ...gruppe("Für wen", art("zielgruppe", "land")),
     ...gruppe("Bundesstaaten", art("staat")),
     ...gruppe("Wissen: Ratgeber zur US-Gesellschaft (mit Quellen)", art("hub", "wissen")),
@@ -89,7 +123,13 @@ export function llmsTxt(): string {
     ...(GLOBAL_SEITEN_EN.length ? [
       "## FIAON Global in English",
       "",
-      "> The same pages in British English for companies, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US bank account and business credit card applications, US compliance — in one order, at a price that is set before you order. FIAON is neither a bank nor a law firm; the institution concerned decides on every account, card and limit.",
+      // E-510: der Definitionssatz auf Englisch (9.4) — ohne Länder; Österreich in seiner eigenen Zeile. Vorher: „… in Germany,
+      // Austria and Switzerland: forming a US company (LLC or corporation) … in one order, at a price that is set before you order.“
+      `> ${weitererSatz("DEFINITION", "en")}`,
+      "",
+      `For clients resident in Austria: ${weitererSatz("POSITIONIERUNG-AT", "en")}`,
+      "",
+      "The pages below are the British English versions of the German pages listed above.",
       "",
       fiaonVerwechslungSatz("en"),
       "",
@@ -134,7 +174,12 @@ export function llmsFullTxt(): string {
   return [
     "# FIAON Global — Volltext",
     "",
-    "> Alle Seiten von FIAON Global (fiaon.com und fiaon.com/business/…), deutsch und englisch, als reiner Text. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut. Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig.",
+    // E-510: Kopf in drei Zeilen — vorher standen die Länder und „Konto, Karte und Rahmen“ in EINER Zeile (Leitfaden 5.12).
+    "> Alle Seiten von FIAON Global (fiaon.com und fiaon.com/business/…), deutsch und englisch, als reiner Text.",
+    "",
+    `> ${weitererSatz("DEFINITION", "de")}`,
+    "",
+    `> ${satz("S10", "de")}`,
     "",
     ...GLOBAL_SEITEN.flatMap(seite),
     "# FIAON Global — full text in English",

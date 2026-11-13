@@ -24,9 +24,11 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "../shared/fiaon-global-seiten";
 import { LANDINGPAGES } from "../shared/fiaon-global-seiten/landingpages";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der eine Preis und die Überschrift der Startseite aus der einen Quelle
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — die Überschrift der Startseite aus der einen Quelle
 // (vorher: „Festpreis ab <Global Struktur>, alles inklusive“ und der Hero-Wortlaut vor E-509 von Hand).
-import { EIN_PRODUKT } from "../shared/fiaon-global-seiten/ein-produkt";
+// E-510 (13.11.2026, Sprachleitfaden 7.9): Im Vorschaubild steht KEIN Betrag mehr (vorher „2.799 € mit Ihrem Auftrag“ —
+// ein Betrag ohne die beiden anderen Honorarzeilen), kein „Team vor Ort in Miami“, kein „Ein Ansprechpartner statt acht“.
+// Die drei Zeilen der Leiste sind die des Leitfadens. Die Bilder selbst entstehen erst mit dem nächsten Lauf dieses Skripts.
 import { VERKAUF_TEXTE } from "../shared/fiaon-global-verkauf";
 import { markeSvg } from "../shared/fiaon-marke";
 import { ogDateiName, ogArtikelSchluessel, OG_BUSINESS_REDAKTION } from "../shared/fiaon-og-business-regeln";
@@ -57,21 +59,24 @@ interface Bild {
 
 const WORT = {
   de: {
-    konzept: ["Ein Ansprechpartner statt acht", `${EIN_PRODUKT.de.preis} mit Ihrem Auftrag`, "Team vor Ort in Miami"],
+    // Die drei Zeilen der Leiste — wortgleich aus dem Sprachleitfaden (7.9), ohne Betrag.
+    konzept: ["Ein Mandat, ein Ansprechpartner", "Honorar vor der Unterschrift", "FIAON LTD, London"],
     blick: "Auf einen Blick",
-    konzeptKarte: "Ihr Auftrag",
-    konzeptZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Konto und Karten", "Anträge vollständig vorbereitet"], ["Ansprechpartner", "Einer, von der Prüfung bis zum Kapital"]] as [string, string][],
+    konzeptKarte: "Ihr Mandat",
+    // Zeile 3 nennt, wer entscheidet (Leitfaden 5.1): nie „Konten und Karten“ ohne das Institut.
+    konzeptZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir beantragen sie"], ["Konten und Karten", "Wir bereiten vor, das Institut entscheidet"], ["Ansprechpartner", "Ein fester Ansprechpartner für Ihr Mandat"]] as [string, string][],
     redaktion: "Aktuell aus der Redaktion",
-    // E-466 (30.10.2026): Hinter einer Meta-Anzeige darf im Blickfang nichts von Konto, Karte oder Kapital stehen (E-233),
-    // kein „Team vor Ort in Miami“ und „inklusive“ nur mit „erstes Jahr“.
-    lpKonzept: ["Ein Ansprechpartner statt acht", `${EIN_PRODUKT.de.preis}, erstes Jahr inklusive`, "In der Regel ohne Reise"],
-    lpZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir stellen die Anträge"], ["Ansprechpartner", "Einer, von der Prüfung bis zur Gründung"]] as [string, string][],
+    // E-466 (30.10.2026): Hinter einer Meta-Anzeige darf im Blickfang nichts von Konto, Karte oder Kapital stehen (E-233)
+    // und kein „Team vor Ort in Miami“. E-510: auch kein Betrag (ein Betrag stünde ohne das Erfolgshonorar da) und kein
+    // Satz zur Reise — vorher „2.799 €, erstes Jahr inklusive“ und „In der Regel ohne Reise“.
+    lpKonzept: ["Ein Mandat, ein Ansprechpartner", "Honorar vor der Unterschrift", "FIAON LTD, London"],
+    lpZeilen: [["Gründung", "Ihre LLC in Delaware, Florida oder Wyoming"], ["Steuernummern", "EIN und ITIN — wir beantragen sie"], ["Ansprechpartner", "Ein fester Ansprechpartner für Ihr Mandat"]] as [string, string][],
   },
   en: {
-    konzept: ["One contact instead of eight", `${EIN_PRODUKT.en.preis} with your order`, "Team on the ground in Miami"],
+    konzept: ["One engagement, one dedicated contact", "Fees set out before you sign", "FIAON LTD, London"],
     blick: "At a glance",
     konzeptKarte: "Your engagement",
-    konzeptZeilen: [["Formation", "Your LLC in Delaware, Florida or Wyoming"], ["Tax numbers", "EIN and ITIN — we file the applications"], ["Account and cards", "Applications fully prepared"], ["Your contact", "One person, from review to capital"]] as [string, string][],
+    konzeptZeilen: [["Formation", "Your LLC in Delaware, Florida or Wyoming"], ["Tax numbers", "EIN and ITIN — we apply for them"], ["Accounts and cards", "We prepare, the institution decides"], ["Your contact", "One dedicated contact for your engagement"]] as [string, string][],
     redaktion: "Latest from the editorial team",
   },
 } as const;
@@ -98,6 +103,10 @@ function ausRegister(s: GlobalSeite): Bild {
   };
 }
 
+// E-510 (13.11.2026): Unten rechts stand auf JEDEM Bild „DE · AT · CH“ — auch neben „Konten und Karten“ oder einer Überschrift
+// zu Firmenkreditkarten und Finanzierung. Österreich und die Schweiz stehen nie im selben Blick wie Konto, Karte oder
+// Finanzierung (Sprachleitfaden 5.12, 7.9 und 9.1 Nr. 8: „Im Zweifel die Länder weglassen.“). Die Zeile ist deshalb entfallen;
+// die Leiste nennt mit „FIAON LTD, London“ den Vertragspartner. (Die Klasse .land im Stilblatt oben bleibt ungenutzt stehen.)
 function html(b: Bild): string {
   const w = WORT[b.sprache];
   const marke = markeSvg("global", "#0c1a2e", "34px");
@@ -145,7 +154,6 @@ h1 i{display:block;font-style:italic;font-weight:300;color:#12284a}
 </div>
 <div class="unten">
   <div class="konzept">${(b.konzept ?? w.konzept).map((k) => `<span>${esc(k)}</span>`).join("")}</div>
-  <div class="land">DE · AT · CH</div>
 </div>
 <div class="karte">
   <div class="kk"><h2>${esc(b.kartenTitel)}</h2><small>${esc(b.kennung ?? "FIAON GLOBAL")}</small></div>
@@ -164,7 +172,8 @@ function alleBilder(): Bild[] {
     const b = VERKAUF_TEXTE[sp].buehne;
     liste.push({ pfad: sp === "de" ? "/business" : "/en/business", sprache: sp, auge: b.auge, h1: b.h1a, h1b: b.h1b,
       kennung: "FIAON GLOBAL", kartenTitel: WORT[sp].konzeptKarte, zeilen: WORT[sp].konzeptZeilen.slice(0, 3),
-      alt: `FIAON Global — ${b.h1a} ${b.h1b} ${sp === "de" ? "Ein Ansprechpartner statt acht." : "One contact instead of eight."}` });
+      // E-510: der Alternativtext ist die Überschrift der Startseite — ohne den Zusatz „Ein Ansprechpartner statt acht.“
+      alt: `FIAON Global — ${b.h1a} ${b.h1b}` });
   }
   for (const lp of LANDINGPAGES) {
     liste.push({ pfad: lp.pfad, sprache: "de", auge: lp.auge, h1: lp.h1, h1b: lp.h1b, kennung: "FIAON GLOBAL",

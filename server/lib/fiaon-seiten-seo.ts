@@ -36,7 +36,10 @@ import {
 import { EN_NAV, EN_FUSS, type Sprache } from "../../shared/fiaon-sprache";
 import { globalMenue } from "@shared/fiaon-global-menue";
 import { VERKAUF_PREISE } from "@shared/fiaon-global-verkauf-preise";
-import { verkaufPfad, VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
+import { verkaufKarte, VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
+// E-510 (13.11.2026): die festen Sätze des Sprachleitfadens für die Datenblöcke — Definitionssatz (9.4), Österreich-Fassung (1.1),
+// Honorar in drei Zeilen (S12), wer entscheidet (S1, S2). Geholt, nie getippt.
+import { SAETZE_ERFOLG_MIN_CENTS, satz, satzLand, weitererSatz } from "@shared/fiaon-global-saetze";
 import { FIAON_FIRMA, fiaonVerwechslung } from "@shared/fiaon-firma";
 import { istOesterreichSeite } from "@shared/fiaon-global-wortregeln";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
@@ -183,18 +186,37 @@ export function businessKopf(html: string): string {
  * Optionen für den Datenblock der Organisation (28.10.2026, E-454):
  * `sprache` — Sprache der Seite (der Klärungssatz disambiguatingDescription steht deutsch oder englisch; Standard Deutsch).
  * `oesterreich` — Österreich-Seite: keine Selbstbezeichnung „Unternehmensberatung“/„business consultancy“ (AT § 94 Z 74 GewO, E-439).
+ * `portal` — das Kundenportal „Mein Auftrag“ (/business/auftrag, noindex): nicht Teil des Umbaus E-510 (die Portal-Texte folgen
+ *            gesammelt, Sprachleitfaden 4.1). Sein Datenblock bleibt Zeichen für Zeichen, wie er vor E-510 war.
  */
-export interface OrganisationOptionen { sprache?: Sprache; oesterreich?: boolean }
+export interface OrganisationOptionen { sprache?: Sprache; oesterreich?: boolean; portal?: boolean }
+
+/** Der Satz der Firma auf Business-Seiten bis E-510 — steht nur noch im Kopf des Kundenportals (`portal`), auf keiner öffentlichen Seite. */
+const ORGANISATION_BUSINESS_BIS_E510 = "FIAON LTD (London) mit FIAON Global, der Unternehmensberatung für die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz.";
+/** Die Adresse des Kundenportals „Mein Auftrag“ (deutsch und englisch). */
+const istPortalPfad = (pfad: string): boolean => /^\/(en\/)?business\/auftrag$/.test(pfad);
 
 export function organisationLd(bereich?: "business", optionen: OrganisationOptionen = {}): Record<string, unknown> {
   // 27.10.2026 (E-439): Auf Business-Seiten nennt die Organisation nur die Themen von FIAON Global — vorher trugen auch die
   // Anzeigen-Landingpages „SCHUFA“, „Inkasso“, „Kreditkarte trotz Eintrag“ im Datenblock (Google liest die Zielseite mit).
   const business = bereich === "business";
   const sp: Sprache = optionen.sprache === "en" ? "en" : "de";
-  // 28.10.2026 (E-454): Auf der Österreich-Seite ohne „Unternehmensberatung“ — dieselben Leistungen, neutral beschrieben.
-  const oesterreichText = sp === "en"
-    ? "FIAON LTD (London) with FIAON Global: your US company from one source — formation, EIN and ITIN, registered agent, preparation of account and card applications, US compliance — for companies and private individuals in Germany, Austria and Switzerland."
-    : "FIAON LTD (London) mit FIAON Global: die US-Gesellschaft aus einer Hand — Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz.";
+  // 13.11.2026 (E-510, Sprachleitfaden 5.12 und 9.4): Dieser Block nennt die Länder (areaServed). Deshalb steht in seiner
+  // Business-Fassung KEIN Wort zu Konto, Karte oder Finanzierung — weder im Satz noch in den Themen (knowsAbout): Österreich
+  // und die Schweiz stehen nie im selben Datenblock wie Konto und Karten. Was FIAON Global tut, sagt der Block #fiaon-global
+  // (ohne Länder). Auf der Österreich-Seite zusätzlich ohne „Unternehmensberatung“ (E-454). Englische Seiten bekommen den
+  // englischen Satz. Vorher: „… die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von
+  // Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz.“
+  const firma = sp === "en"
+    ? `${FIAON_FIRMA.name} (London, registered in England and Wales, company number ${FIAON_FIRMA.companyNo})`
+    : `${FIAON_FIRMA.name} (London, Companies House Nr. ${FIAON_FIRMA.companyNo})`;
+  const businessText = sp === "en"
+    ? (optionen.oesterreich
+      ? `${firma} with FIAON Global: formation and ongoing administration of US companies.`
+      : `${firma} with FIAON Global, the business consultancy for the formation and ongoing administration of US companies.`)
+    : (optionen.oesterreich
+      ? `${firma} mit FIAON Global: Gründung und laufende Betreuung von US-Gesellschaften.`
+      : `${firma} mit FIAON Global, der Unternehmensberatung für die Gründung und die laufende Betreuung von US-Gesellschaften.`);
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -204,8 +226,8 @@ export function organisationLd(bereich?: "business", optionen: OrganisationOptio
     url: BASIS,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: `${BASIS}/og-fiaon.jpg?v=2`,
-    description: business && optionen.oesterreich ? oesterreichText : business
-      ? "FIAON LTD (London) mit FIAON Global, der Unternehmensberatung für die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten — für Unternehmen und Privatpersonen aus Deutschland, Österreich und der Schweiz."
+    // Der zweite Satz gilt für die Privat-Seiten und den Ratgeber — er ist nicht Teil des Umbaus (Leitplanke 10) und steht unverändert.
+    description: business ? (optionen.portal ? ORGANISATION_BUSINESS_BIS_E510 : businessText)
       : "Das Betriebssystem für Bonität: Einsicht, Aktion, Zugang – in Deutschland, Österreich und der Schweiz. Mit FIAON Global die US-Gesellschaft aus einer Hand: Gründung, EIN und ITIN, Registered Agent, Vorbereitung von Konto- und Kartenanträgen, US-Pflichten.",
     // 23.09.2026 (E-232): die Registernummer als eindeutige Kennung — für Suchmaschinen und KI-Assistenten, die Firmen zuordnen.
     identifier: { "@type": "PropertyValue", propertyID: "Companies House (England and Wales)", value: FIAON_FIRMA.companyNo },
@@ -219,8 +241,10 @@ export function organisationLd(bereich?: "business", optionen: OrganisationOptio
     // 29.10.2026 (E-461): FIAON Global ist die Startseite von fiaon.com (vorher /business).
     brand: [{ "@type": "Brand", name: "FIAON Global", url: `${BASIS}/` }],
     subOrganization: { "@id": `${BASIS}/#fiaon-global` },
+    // E-510: Auf Business-Seiten ohne „US-Geschäftskonto“ und „US-Firmenkarten“ — der Block nennt die Länder (siehe oben). Privat-Seiten unverändert.
     knowsAbout: [...(business ? [] : ["Bonität", "SCHUFA", "KSV1870", "CRIF", "Bonitätsauskunft", "Löschfristen", "Inkasso", "Kreditkarte trotz Eintrag"]),
-      "US-LLC-Gründung", "US-Firmengründung aus Deutschland", "Employer Identification Number (EIN)", "ITIN", "Form 5472", "Registered Agent", "US-Geschäftskonto", "US-Firmenkarten"],
+      "US-LLC-Gründung", "US-Firmengründung aus Deutschland", "Employer Identification Number (EIN)", "ITIN", "Form 5472", "Registered Agent",
+      ...(business && !optionen.portal ? [] : ["US-Geschäftskonto", "US-Firmenkarten"])],
     // 24.09.2026 (E-234, Justin: „Profile freigeben … mach alles du"): Nur was nachweislich FIAON ist.
     // Der Registereintrag im Companies House ist die amtliche Seite der Firma. Eine LinkedIn-Firmenseite
     // gibt es noch nicht, einen Trustpilot-Eintrag auch nicht (Prüfung 23.09.: die „2.347 Bewertungen" auf /start waren
@@ -239,12 +263,24 @@ export function organisationLd(bereich?: "business", optionen: OrganisationOptio
  * Justin (27.10.2026): FIAON Global ist eine Unternehmensberatung (E-439, Wortregel freigegeben) — außer auf der
  * Österreich-Seite (`oesterreich`, E-454: AT § 94 Z 74 GewO).
  * Nur wahre, prüfbare Angaben: Vertragspartner FIAON LTD (Companies House), Standorte wie auf /business/partner.
+ *
+ * 13.11.2026 (E-510, Sprachleitfaden 9.4): Die Beschreibung ist der EINE Definitionssatz — wortgleich mit /llms.txt, aus
+ * shared/fiaon-global-saetze.ts. Er nennt Konto, Karte und Finanzierung (mit dem, der entscheidet) und deshalb KEINE Länder:
+ * Dieser Block trägt kein areaServed mehr (die Länder stehen im Block der Firma, #organisation). Auf der Österreich-Seite steht
+ * die Österreich-Fassung (Leitfaden 1.1) mit dem Rollen-Satz S8-AT: nur Gründung und Betreuung, kein Wort zu Konto, Karte oder
+ * Finanzierung — auch nicht in den Themen (knowsAbout) —, ohne „Unternehmensberatung“ und ohne alternateName (E-454).
+ * Vorher: „… aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation) … der geplante Weg
+ * zum Kapital — aus einer Hand, mit Team vor Ort in Miami und einem Preis, der vor dem Auftrag feststeht“, Leitspruch
+ * „Ein Ansprechpartner statt acht.“, areaServed Deutschland/Österreich/Schweiz, Thema „US-Funding und Business Credit“.
  */
 export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<OrganisationOptionen, "oesterreich"> = {}): Record<string, unknown> {
   const en = sprache === "en";
-  // 28.10.2026 (E-454): Auf der Österreich-Seite heißt FIAON Global „Marke der FIAON LTD“ statt „Unternehmensberatung“, ohne alternateName.
+  const sp: Sprache = en ? "en" : "de";
   const at = !!optionen.oesterreich;
-  const wer = en ? (at ? "a brand" : "the business consultancy") : (at ? "eine Marke" : "die Unternehmensberatung");
+  // Themen zu Konto, Karten und Finanzierung — nie auf der Österreich-Seite.
+  const themenGeld = en
+    ? ["US business bank account", "Financing for US companies (business credit)", "US business credit cards"]
+    : ["US-Geschäftskonto", "Finanzierung von US-Gesellschaften (Business Credit)", "US-Firmenkreditkarten"];
   return {
     "@context": "https://schema.org",
     "@type": ["Organization", "ProfessionalService"],
@@ -255,19 +291,19 @@ export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<Org
     url: `${BASIS}${en ? BUSINESS_START.en : "/"}`,
     logo: { "@type": "ImageObject", url: `${BASIS}/icon-512.png?v=3`, width: 512, height: 512 },
     image: ogBusinessBild(en ? BUSINESS_START.en : BUSINESS_START.de)?.url ?? `${BASIS}/og-global.jpg?v=2`,
-    slogan: en ? "One contact instead of eight." : "Ein Ansprechpartner statt acht.",
-    description: en
-      ? `FIAON Global is ${wer} of FIAON LTD (London, Companies House 17318250) for companies, self-employed people, founders and private individuals in Germany, Austria and Switzerland: forming a US company (LLC or corporation), EIN and ITIN, registered agent, US address, preparation of bank account and business credit card applications, US compliance and the planned path to capital — from one source, with a team on the ground in Miami and a price that is set before you order. FIAON is neither a bank nor a law firm and does not broker loans; the institution concerned decides on every account, card and limit.`
-      : `FIAON Global ist ${wer} der FIAON LTD (London, Companies House 17318250) für Unternehmen, Selbständige, Gründer und Privatpersonen aus Deutschland, Österreich und der Schweiz: Gründung einer US-Gesellschaft (LLC oder Corporation), EIN und ITIN, Registered Agent, US-Adresse, Vorbereitung von Konto- und Firmenkartenanträgen, US-Pflichten und der geplante Weg zum Kapital — aus einer Hand, mit Team vor Ort in Miami und einem Preis, der vor dem Auftrag feststeht. FIAON ist keine Bank und keine Kanzlei und vermittelt keine Kredite; über Konto, Karte und Rahmen entscheidet allein das Institut.`,
+    // Kernbotschaft 1 des Sprachleitfadens (1.2) — vorher „Ein Ansprechpartner statt acht.“
+    slogan: en ? "One engagement, one dedicated contact." : "Ein Mandat, ein Ansprechpartner.",
+    description: at
+      ? `${weitererSatz("POSITIONIERUNG-AT", sp)} ${satz("S8", sp, "AT")}`
+      : weitererSatz("DEFINITION", sp),
     disambiguatingDescription: fiaonVerwechslung(en ? "en" : "de", `FIAON Global (${FIAON_FIRMA.name}, London, Companies House ${FIAON_FIRMA.companyNo})`),
     parentOrganization: { "@id": `${BASIS}/#organisation` },
     address: { "@type": "PostalAddress", streetAddress: "128 City Road", addressLocality: "London", postalCode: "EC1V 2NX", addressCountry: "GB" },
-    areaServed: (en ? ["Germany", "Austria", "Switzerland"] : ["Deutschland", "Österreich", "Schweiz"]).map((name) => ({ "@type": "Country", name })),
     knowsLanguage: ["de", "en"],
     knowsAbout: en
-      ? ["US company formation", "US LLC for non-residents", "Employer Identification Number (EIN)", "ITIN", "Registered agent", "Form 5472", "US business bank account", "US business credit", "US business credit cards", "US market entry", "E-2 visa (basics)"]
-      : ["US-Firmengründung", "US-LLC für Ausländer", "Employer Identification Number (EIN)", "ITIN", "Registered Agent", "Form 5472", "US-Geschäftskonto", "US-Funding und Business Credit", "US-Firmenkarten", "Markteintritt USA", "E-2-Visum (Grundzüge)"],
-    contactPoint: [{ "@type": "ContactPoint", contactType: "customer service", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"], areaServed: ["DE", "AT", "CH"] }],
+      ? ["US company formation", "US LLC for non-residents", "Employer Identification Number (EIN)", "ITIN", "Registered agent", "Form 5472", ...(at ? [] : themenGeld), "US market entry", "E-2 visa (basics)"]
+      : ["US-Firmengründung", "US-LLC für Ausländer", "Employer Identification Number (EIN)", "ITIN", "Registered Agent", "Form 5472", ...(at ? [] : themenGeld), "Markteintritt USA", "E-2-Visum (Grundzüge)"],
+    contactPoint: [{ "@type": "ContactPoint", contactType: "customer service", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"] }],
     sameAs: [`https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`],
   };
 }
@@ -345,22 +381,41 @@ function strukturierteDaten(s: SeoSeite, url: string): unknown[] {
   // „FIAON Business" (49,99–249,99 € im Monat). Bis E-509 verkaufte FIAON Global vier Pakete
   // zu Einmalpreisen; seither EIN Produkt (siehe unten) — die Zahl kommt aus der einen Preisquelle, nie von Hand.
   // 29.10.2026 (E-461): die Übersicht ist die Startseite (/ und /en), nicht mehr /business.
-  if (s.pfad === BUSINESS_START.de || s.pfad === BUSINESS_START.en || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land") {
-    // E-509 (12.11.2026): EIN Produkt mit EINEM Preis (Gründung mit aktiver Betreuung im ersten Jahr) — vorher vier Pakete als
-    // AggregateOffer. Der Preis kommt aus shared/fiaon-global-verkauf-preise.ts; das Erfolgshonorar (nach Kapitalrahmen) steht
-    // nicht im Datenblock, weil es keine feste Zahl ist.
+  // 13.11.2026 (E-510, Sprachleitfaden 9.1 Nr. 7 und 9.4): Auf der Österreich-Seite steht KEIN Leistungs- und KEIN Preisblock.
+  if (!oesterreich && (s.pfad === BUSINESS_START.de || s.pfad === BUSINESS_START.en || s.global === "leistung" || s.global === "preise" || s.global === "zielgruppe" || s.global === "land")) {
+    // E-509 (12.11.2026): EIN Produkt (Gründung mit aktiver Betreuung im ersten Jahr) — vorher vier Pakete als AggregateOffer.
     // 24.09.2026 (E-234): englische Seiten tragen das englische Angebot.
+    // 13.11.2026 (E-510) — vorher: areaServed ["DE","AT","CH"] im selben Block wie „Vorbereitung von Konto- und Kartenanträgen“,
+    // „… ein Preis mit Ihrem Auftrag“, als Angebot nur der erste Betrag, Adresse des Angebots /business/start (noindex),
+    // englisch “actively managed … one price with your order”. Nachher:
+    //   · keine Länder im Block (Österreich und die Schweiz stehen nie neben Konto, Karte oder Finanzierung);
+    //   · der Satz der Leistung ist der der Karte „Ein Mandat“ für diese Seite (Schweiz-Seite: ohne Konto und Karten), dazu
+    //     der, der entscheidet (S2 und S1; Schweiz nur S1);
+    //   · das Honorar vollständig, wie S12: mit Ihrem Auftrag · mit der Eintragung mindestens … · ab dem zweiten Jahr auf
+    //     Wunsch — jeder Betrag aus der Preisquelle, der Mindestbetrag als minPrice (nie als „der Preis“);
+    //   · die Adresse des Angebots ist die Startseite beim Honorarrechner (darf in die Suche).
     const en = s.sprache === "en";
     const sp = en ? "en" : "de";
+    const T = VERKAUF_TEXTE[sp];
+    const blatt = T.konfig.blatt;
+    const schweiz = satzLand(s.pfad) === "CH";
+    const euro = (cents: number) => (cents / 100).toFixed(2);
     ld.push({
       "@context": "https://schema.org", "@type": "Service", "@id": `${BASIS}${en ? BUSINESS_START.en : "/"}#leistung`,
       name: "FIAON Global",
-      serviceType: en ? "Formation of a US company, US tax numbers (EIN, ITIN), registered agent, US office, preparation of account and card applications" : "Gründung einer US-Gesellschaft, US-Steuernummern (EIN, ITIN), Registered Agent, US-Büro, Vorbereitung von Konto- und Kartenanträgen",
-      description: en ? "Your US company, actively managed: formation, EIN and ITIN, registered agent, US address and phone number, lawyers and US CPAs from the partner network, accounts and cards prepared — one price with your order." : "Ihre US-Gesellschaft mit aktiver Betreuung: Gründung, EIN und ITIN, Registered Agent, US-Adresse und Telefonnummer, Anwälte und US-CPA aus dem Partnernetz, Konto und Karten vorbereitet — ein Preis mit Ihrem Auftrag.",
-      provider: { "@id": `${BASIS}/#fiaon-global` }, areaServed: ["DE", "AT", "CH"], audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
+      serviceType: en
+        ? "Formation and ongoing administration of a US company (LLC): filing with the state, US tax identification numbers (EIN, ITIN), registered agent, US office, compliance calendar"
+        : "Gründung und laufende Betreuung einer US-Gesellschaft (LLC): Anmeldung beim Bundesstaat, US-Steuernummern (EIN, ITIN), Registered Agent, US-Büro, Pflichtenkalender",
+      description: `${verkaufKarte(sp, s.pfad).zeile} ${schweiz ? "" : `${satz("S2", sp)} `}${satz("S1", sp)}`,
+      provider: { "@id": `${BASIS}/#fiaon-global` }, audience: { "@type": "Audience", audienceType: en ? "Companies, self-employed people, founders and private individuals" : "Unternehmen, Selbständige, Gründer und Privatpersonen" }, url, inLanguage: sp,
       offers: {
-        "@type": "Offer", name: en ? "US company, actively managed" : "US-Gesellschaft mit aktiver Betreuung", price: (VERKAUF_PREISE.gruendungCents / 100).toFixed(2), priceCurrency: "EUR",
-        url: `${BASIS}${verkaufPfad(sp)}`, availability: "https://schema.org/InStock",
+        "@type": "Offer", name: T.produkt.kurz, description: satz("S12", sp), priceCurrency: "EUR",
+        url: `${BASIS}${BUSINESS_START[sp]}#konfigurator`, availability: "https://schema.org/InStock",
+        priceSpecification: [
+          { "@type": "UnitPriceSpecification", name: `${blatt.heute}: ${blatt.heuteText}`, price: euro(VERKAUF_PREISE.gruendungCents), priceCurrency: "EUR" },
+          { "@type": "UnitPriceSpecification", name: `${blatt.eintragung}: ${blatt.eintragungText}`, description: T.buehne.honorarZeile, minPrice: euro(SAETZE_ERFOLG_MIN_CENTS), priceCurrency: "EUR" },
+          { "@type": "UnitPriceSpecification", name: `${blatt.jahr2}: ${blatt.jahr2Text}`, price: euro(VERKAUF_PREISE.jahresCents), priceCurrency: "EUR", billingDuration: "P1Y" },
+        ],
       },
     });
   }
@@ -491,8 +546,10 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   if (!html) return null;
   const url = `${BASIS}${s.canonical ?? (s.pfad === "/" ? "/" : s.pfad)}`;
   const beschreibung = beschreibungKuerzen(s.beschreibung);
+  // E-510: Das Kundenportal „Mein Auftrag“ behält seinen Kopf Zeichen für Zeichen (nicht Teil des Umbaus).
+  const portal = istPortalPfad(s.pfad);
   const ld = s.robots?.includes("noindex")
-    ? [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined, { sprache: s.sprache === "en" ? "en" : "de", oesterreich: istOesterreichSeite(s.pfad) })]
+    ? [organisationLd(istBusinessPfad(s.pfad) ? "business" : undefined, { sprache: s.sprache === "en" ? "en" : "de", oesterreich: istOesterreichSeite(s.pfad), portal })]
     : strukturierteDaten(s, url);
   const sprache: Sprache = s.sprache === "en" ? "en" : "de";
   const absolut = (p: string) => `${BASIS}${p === "/" ? "/" : p}`;
@@ -503,7 +560,10 @@ export function seitenHtml(pfad: string, optionen: { bereich?: "business" } = {}
   // fehlt es, bleibt das der Tabelle (GLOBAL_BILD). Eine Regel für Register, Übersichten und Landingpages.
   const eigenesBild = istBusinessPfad(s.pfad) ? ogBusinessBild(s.pfad) : null;
   const bild = s.bild === "" ? "" : eigenesBild?.url ?? s.bild;
-  const bildAlt = eigenesBild?.alt ?? s.bildAlt ?? (s.bild === GLOBAL_BILD ? "FIAON Global – Ihre US-Gesellschaft aus einer Hand" : s.bild === GLOBAL_BILD_EN ? "FIAON Global – your US company from one source" : undefined);
+  // E-510: der Rückfall-Alternativtext sagt „in einem Mandat“ (vorher „aus einer Hand“ / “from one source”, Sprachleitfaden Abschnitt 14);
+  // im Kundenportal bleibt der frühere Wortlaut stehen.
+  const bildAlt = eigenesBild?.alt ?? s.bildAlt ?? (s.bild === GLOBAL_BILD ? (portal ? "FIAON Global – Ihre US-Gesellschaft aus einer Hand" : "FIAON Global – Ihre US-Gesellschaft in einem Mandat")
+    : s.bild === GLOBAL_BILD_EN ? (portal ? "FIAON Global – your US company from one source" : "FIAON Global – your US company under one engagement") : undefined);
   const og: Record<string, string> = { type: s.art === "pfeiler" ? "article" : "website" };
   if (s.art === "pfeiler") { og.erschienen = s.erschienen ?? s.stand; og.geaendert = s.stand; }
   let out = kopfEinsetzen(html, { titel: s.titel, beschreibung, url, ld, robots: s.robots, bild, bildAlt, og, sprache, alternativen });

@@ -38,7 +38,8 @@ function eintrag(g: GlobalSeite): SeoSeite {
     h1: h1Von(g), lead: g.lead,
     abschnitte: [{ h2: GLOBAL_SEITE_WORTE[sp].kurz, text: g.kurz }, ...g.bloecke.map((b) => blockAlsText(b, titelVon, sp)).filter((x): x is SeoAbschnitt => !!x)],
     weiter: g.weiter, krumen: globalKrumen(g), quellen: g.quellen,
-    werkzeug: g.art === "werkzeug" ? (en ? "FIAON Global configurator" : "Konfigurator FIAON Global") : undefined,
+    // E-510: sichtbar heißt das Werkzeug „Honorarrechner“ / “fee calculator” (Sprachleitfaden 4.1) — vorher „Konfigurator“.
+    werkzeug: g.art === "werkzeug" ? (en ? "FIAON Global fee calculator" : "Honorarrechner FIAON Global") : undefined,
     global: g.art,
     ...(schwester ? { sprache: sp, schwester } : {}),
   };

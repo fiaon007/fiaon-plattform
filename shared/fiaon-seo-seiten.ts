@@ -38,9 +38,13 @@
 import { SEO_FRAGEN, SEO_GLOSSAR, SEO_GLOSSAR_EN, type SeoFrage } from "./fiaon-seo-fragen";
 
 import { globalSchwester } from "./fiaon-global-pfade";
-// 06.10.2026 (E-293): der Verbindungssatz für den Korpus /business — gelesen, nie kopiert.
-import { GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "./fiaon-global-partner";
-// E-509 (12.11.2026): die Preise des einen Produkts — aus dem Blatt ohne Importe (kein Kreis).
+// E-510 (13.11.2026): die festen Sätze, die sechs Schritte und die Beträge des einen Mandats — geholt, nie getippt
+// (shared/fiaon-global-saetze.ts bindet nur die Preisquelle und die Firmendaten ein: kein Kreis; Kopf und Fuß laden
+// die Datei im Browser ohnehin). Vorher: GLOBAL_VERBUNDEN für den Abschnitt „Ein Ansprechpartner statt acht“ — den
+// Abschnitt zeigt die Startseite seit E-510 nicht mehr.
+import { SAETZE_BETRAEGE, SCHRITTE_KOPF, GELD_ZURUECK, satz, weitererSatz, beleg, sechsSchritte, type SatzSprache } from "./fiaon-global-saetze";
+// E-509 (12.11.2026): die Preise des einen Produkts — aus dem Blatt ohne Importe (kein Kreis). Seit E-510 nur noch für den
+// Abschnitt „Für Unternehmen: FIAON Global.“ der Privat-Seite /was-ist-fiaon; die Startseite holt ihre Beträge aus SAETZE_BETRAEGE.
 import { VERKAUF_PREISE, verkaufEur } from "./fiaon-global-verkauf-preise";
 // 24.09.2026 (E-240): Die Bonitätsauskunft ist ein Zusatzprodukt mit zwei
 // Preisen (149 € einzeln, 74 € mit laufendem Paket; Unternehmen 349/199 €) —
@@ -284,6 +288,178 @@ export const SEO_WERKZEUGE_EN: { pfad: string; name: string; frage: string; satz
 
 const PFEILER = "2026-09-02";
 
+// ═════════════════════════════════════════════════════════════════════════
+// DIE STARTSEITE fiaon.com/ (FIAON Global) — DER VORAB-TEXT, WORTGLEICH MIT DER SEITE (E-510, 13.11.2026)
+//
+// Die Wahrheit steht in shared/fiaon-global-verkauf.ts (VERKAUF_TEXTE.de / .en), die Reihenfolge der Abschnitte in
+// client/src/pages/site/business.tsx. Jede H2 hier steht so auf der Seite (scripts/pruef-global-seiten.ts, Abschnitt 8,
+// vergleicht sie), und hier steht kein Satz, den die Seite nicht zeigt.
+//
+// WARUM NICHT EINFACH VERKAUF_TEXTE EINBINDEN? Diese Tabelle lädt der Browser auf JEDER Seite (Titel, Sprachumschalter).
+// Mit VERKAUF_TEXTE käme der Vertragsmotor mit (rund 1 MB Quelltext) — auch auf den Privat-Seiten und auf /start.
+// Deshalb:
+//   · Feste Sätze (S1 bis S17), die sechs Schritte, Geld zurück und jeder Betrag kommen aus shared/fiaon-global-saetze.ts
+//     — geholt, nie getippt. Diese Datei laden Kopf und Fuß im Browser ohnehin.
+//   · Die Sätze, die NUR in VERKAUF_TEXTE (und im Wörterbuch client/src/i18n/global.ts) stehen, stehen in START_WORT
+//     wortgleich — das Feld dort steht jeweils als Kommentar daneben. Wer dort einen Satz ändert, ändert ihn hier mit.
+//     Titel und Beschreibung vergleicht scripts/pruef-verkaufsmotor.ts, die H2 scripts/pruef-global-seiten.ts.
+// Nicht im Vorab-Text: das Vertrauens-Band (keine Überschrift), die Formulare von Honorarrechner und Erstgespräch und der
+// Schluss-Satz. Kein Wort zur Bürgschaft, kein Betrag ohne die beiden anderen Honorarzeilen.
+// ═════════════════════════════════════════════════════════════════════════
+const B = SAETZE_BETRAEGE;
+/** Die Sätze eines festen Satzes einzeln (getrennt an „Punkt Leerzeichen“) — um einen Teil zu zeigen, ohne ihn neu zu tippen. */
+const saetzeVon = (text: string): string[] => text.split(/(?<=\.)\s+/);
+
+interface StartWort {
+  titel: string; beschreibung: string; h1: string; lead: string;
+  blickH2: string; blick: [frage: string, antwort: string][];
+  mandatH2: string; mandatLead: string; bereiche: [titel: string, zeile: string][];
+  honorarLabel: string; honorarSatz: string; honorarFein: string;
+  angebotH2: string; angebotLead: string; rahmenTitel: string;
+  garantieNicht: string;
+  wissenH2: string; wissen: string[];
+  rolleH2: string; rolleTitel: [string, string, string, string]; rolleInstitut: string;
+  gespraechH2: string; gespraech: string;
+  fragenH2: string; fragenAlle: string;
+}
+const START_WORT: Record<SatzSprache, StartWort> = {
+  de: {
+    // VERKAUF_TEXTE.de.seo.titel · .seo.beschreibung
+    titel: "US-Gesellschaft (LLC) gründen mit Betreuung — FIAON Global",
+    beschreibung: "Unternehmensberatung für Ihre US-Gesellschaft: LLC-Gründung, EIN und ITIN, US-Büro, vorbereitete Anträge. Ihr Honorar sehen Sie vorab und vollständig.",
+    // buehne.h1a + buehne.h1b · buehne.lead
+    h1: "US-Gesellschaft gründen. In einem Mandat.",
+    lead: "Wir gründen Ihre Gesellschaft in den USA, holen jede Unterlage ein und bereiten mit Ihnen die Kontoanträge vor. Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft dabei — über Konto und Finanzierung entscheidet das jeweilige Institut.",
+    // blick.titel · blick.punkte (Frage, Antwort) — die vier Antworten der 30-Sekunden-Probe
+    blickH2: "Auf einen Blick",
+    blick: [
+      ["Was geschieht?", "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge für Konten, auf Wunsch Kreditkarten und Finanzierung vor. Wir begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts."],
+      ["Was kostet es — und wann?", `${B.de.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.`],
+      ["Was tue ich selbst?", "Sie wählen den Namen, laden Ihren Reisepass hoch und unterzeichnen die Unterlagen, die wir vorlegen. Die Anträge bei Institut und Kartenherausgeber stellen Sie selbst."],
+      ["Was gilt, wenn etwas ausbleibt?", "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut. Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags. Für Konto und Karten gilt das nicht."],
+    ],
+    // produkt.h2a + produkt.h2b · produkt.lead · produkt.bereiche (titel, zeile)
+    mandatH2: "Ihre US-LLC: ein Mandat, acht Bereiche.",
+    mandatLead: "Ein Mandat, ein Vertrag, ein Ansprechpartner. Wir legen Ihnen jede Unterlage unterschriftsreif vor.",
+    bereiche: [
+      ["Gründung", "Ihre Gesellschaft (LLC) in Delaware, Florida oder Wyoming: angemeldet und dokumentiert. Über die Eintragung entscheidet der Bundesstaat."],
+      ["Steuernummern", "Wir beantragen die EIN Ihrer Gesellschaft und, nach unserem ITIN-Check, Ihre ITIN. Es entscheidet die US-Steuerbehörde."],
+      ["Ihr US-Büro", "Registered Agent, Geschäftsadresse und Telefonnummer in den USA. Im ersten Jahr enthalten."],
+      ["Recht", "Operating Agreement und Gründungsunterlagen Ihrer Gesellschaft. Rechtsfragen klären Partner-Anwälte in eigener Verantwortung."],
+      ["Steuern", "Die erste jährliche US-Meldung Ihrer Gesellschaft. Steuerfragen klären US-Steuerberater (CPA) aus unserem Partnernetz in eigener Verantwortung."],
+      ["Konten und Karten", "Wir bereiten vor, Sie stellen den Antrag, das Institut entscheidet. Kreditkarten auf Wunsch, ohne zusätzliches Honorar von FIAON."],
+      ["Finanzierung", "Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Es entscheidet das finanzierende Institut."],
+      ["Pflichten und Fristen", "Pflichtenkalender und erste Jahresmeldung beim Bundesstaat. Ab dem zweiten Jahr auf Wunsch: Jahresbetreuung."],
+    ],
+    // produkt.preisLabel · produkt.preisSatz · produkt.preisFein — das Honorar vollständig: mit Ihrem Auftrag, mit der Eintragung, ab dem zweiten Jahr
+    honorarLabel: "Mit Ihrem Auftrag",
+    honorarSatz: "Gründung mit aktiver Betreuung im ersten Jahr. Endpreis.",
+    honorarFein: `Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und beträgt mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch: Jahresbetreuung für ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise.`,
+    // konfig.h2a + konfig.h2b · konfig.leadA (der Satz, der für jeden Besucher gilt) · buehne.kapitalTitel
+    angebotH2: "Ihr Angebot für die US-Gesellschaft.",
+    angebotLead: "Sie wählen Ihre Schwerpunkte und Ihren Kapitalrahmen. Der Honorarrechner zeigt Ihr Honorar vollständig: mit Ihrem Auftrag, mit der Eintragung und ab dem zweiten Jahr.",
+    rahmenTitel: "Ihr Kapitalrahmen",
+    // garantie.text, zweiter Satz (der erste ist S7)
+    garantieNicht: "Für Konto und Karten gilt das nicht.",
+    // GLOBAL_WOERTER.de.wissenTitel (client/src/i18n/global.ts) · GLOBAL_PFLICHTHINWEIS.de (shared/fiaon-global.ts, Wortlaut wie im Vertrag)
+    wissenH2: "Was Sie vor dem Mandat wissen müssen",
+    wissen: [
+      "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden (in Deutschland nach § 138 AO).",
+      "In den USA gelten jährliche Meldepflichten, auch ohne Umsatz (Form 5472 mit Form 1120), dazu Staatsgebühren und die Kosten des Registered Agent.",
+      "US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
+    ],
+    // rolle.h2 · rolle.punkte (titel) · der Schluss-Satz von „Keine Bank“
+    rolleH2: "Was FIAON ist — und was nicht.",
+    rolleTitel: ["Keine Bank", "Kein Kreditvermittler", "Kein Steuermodell", "Keine Kanzlei"],
+    rolleInstitut: "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut.",
+    // GLOBAL_WOERTER.de.gespraechH2 · GLOBAL_GESPRAECH_WOERTER.de.mitWemZusatz
+    gespraechH2: "Ihr Erstgespräch.",
+    gespraech: "Dreißig Minuten am Telefon — wir rufen Sie zur gewählten Zeit an.",
+    // GLOBAL_WOERTER.de.fragenH2 · .fragenAlle (der Verweis unter der Überschrift)
+    fragenH2: "Fragen zur Gründung Ihrer US-Gesellschaft.",
+    fragenAlle: "Alle Fragen und Antworten zur US-Gesellschaft",
+  },
+  en: {
+    titel: "US LLC formation with ongoing administration — FIAON Global",
+    beschreibung: "Business consultancy for your US company: LLC formation, EIN and ITIN, US office and prepared applications. Your fees are set out in full before you sign.",
+    h1: "Form your US company. Under one engagement.",
+    lead: "We form your company in the United States, assemble every document and prepare your account applications with you. We prepare each application and support your company throughout; decisions on accounts and financing rest with the institution concerned.",
+    blickH2: "At a glance",
+    blick: [
+      ["What happens?", "We form your US company, assemble every document and prepare your applications for accounts, credit cards on request and financing. We support your company through to the lender’s decision."],
+      ["What does it cost — and when?", `${B.en.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.en.erfolgMin}. From the second year, on request, ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.`],
+      ["What do I do myself?", "You choose the name, upload your passport and sign the documents we present. You submit the applications to the institution and the card issuer yourself."],
+      ["What applies if something does not come about?", "Decisions on accounts, cards and financing rest with the institution concerned. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us. The conditions are set out in clause 4 of your agreement. This does not apply to accounts and cards."],
+    ],
+    mandatH2: "Your US LLC: one engagement, eight areas.",
+    mandatLead: "One engagement, one agreement, one dedicated contact. We present every document ready for your signature.",
+    bereiche: [
+      ["Formation", "Your company (LLC) in Delaware, Florida or Wyoming: filed and documented. Registration is decided by the state."],
+      ["Tax identification numbers", "We apply for your company’s EIN and, following our ITIN check, your ITIN. The US tax authority decides."],
+      ["Your US office", "Registered agent, business address and telephone number in the United States. Included in the first year."],
+      ["Legal", "Operating agreement and formation documents for your company. Legal questions rest with partner lawyers acting in their own professional capacity."],
+      ["Tax", "The first annual US filing for your company. Tax questions rest with US certified public accountants (CPAs) from our partner network, acting in their own professional capacity."],
+      ["Accounts and cards", "We prepare, you submit the application, the institution decides. Credit cards on request, at no additional fee from FIAON."],
+      ["Financing", "We prepare each application and support your company through to the decision. The lender decides."],
+      ["Compliance", "Compliance calendar and the first annual report to the state. From the second year, on request: annual administration."],
+    ],
+    honorarLabel: "On engagement",
+    honorarSatz: "Formation and administration in the first year. Stated in full; nothing is added.",
+    honorarFein: `The success fee falls due on registration of your company; it is set by your funding target and is at least ${B.en.erfolgMin}. From the second year, on request: annual administration for ${B.en.jahresbetreuung} a year. All fees are stated in full; nothing is added.`,
+    angebotH2: "Your proposal for a US company.",
+    angebotLead: "Choose your priorities and your funding target. The fee calculator sets out your fees in full: on engagement, on registration and from the second year.",
+    rahmenTitel: "Your funding target",
+    garantieNicht: "This does not apply to accounts and cards.",
+    wissenH2: "What you need to know before you instruct us",
+    wissen: [
+      "A US company that is managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office (in Germany under section 138 of the German Fiscal Code, AO).",
+      "Annual filing duties apply in the United States even without revenue (Form 5472 with Form 1120), along with state fees and the cost of the registered agent.",
+      "US business credit cards generally require a personal guarantee from the owner. The institution alone decides on the account, the card and the limit.",
+    ],
+    rolleH2: "What FIAON is — and is not.",
+    rolleTitel: ["Not a bank", "Does not broker loans", "Not a tax scheme", "Not a law firm"],
+    rolleInstitut: "Decisions on accounts, cards and financing rest with the institution concerned.",
+    gespraechH2: "Your initial call.",
+    gespraech: "Thirty minutes by telephone — we call you at the time you choose.",
+    fragenH2: "Questions about forming your US company.",
+    fragenAlle: "All questions and answers about a US company",
+  },
+};
+
+/** Die Abschnitte der Startseite in der Reihenfolge der Seite: Blick · Mandat · Schritte · Angebot · Geld zurück · Pflichthinweise · Rolle · Erstgespräch · Fragen. */
+function startAbschnitte(sp: SatzSprache): SeoAbschnitt[] {
+  const W = START_WORT[sp];
+  const s7 = saetzeVon(satz("S7", sp));
+  return [
+    { h2: W.blickH2, text: "", punkte: W.blick.map(([frage, antwort]) => `${frage} ${antwort}`) },
+    {
+      h2: W.mandatH2,
+      text: `${W.mandatLead} ${W.honorarLabel}: ${B[sp].honorarAuftrag}. ${W.honorarSatz} ${W.honorarFein}`,
+      punkte: W.bereiche.map(([titel, zeile]) => `${titel}: ${zeile}`),
+    },
+    // Die sechs Schritte: Satz und Bedingung stehen nie getrennt (Leitfaden 2.1).
+    { h2: SCHRITTE_KOPF[sp].h2, text: SCHRITTE_KOPF[sp].lead, punkte: sechsSchritte(sp).schritte.map((x) => `${x.titel}: ${x.satz} ${x.bedingung}`) },
+    // Der Honorarrechner: die Spanne des Kapitalrahmens nie ohne S9 und den Miami-Satz, dazu S1 (wie am Regler).
+    { h2: W.angebotH2, text: `${W.angebotLead} ${W.rahmenTitel}: ${B[sp].rahmen}. ${satz("S9", sp)} ${weitererSatz("MIAMI", sp)} ${satz("S1", sp)}` },
+    // Geld zurück: Kurz-Form (S7, erster Satz), die Mittel-Form in drei Zeilen, darunter Ziffer 4 und das Institut (S7, zweiter Satz).
+    { h2: `${GELD_ZURUECK[sp].name}.`, text: `${s7[0]} ${W.garantieNicht}`, punkte: [...GELD_ZURUECK[sp].mittel, ...s7.slice(1)] },
+    { h2: W.wissenH2, text: "", punkte: [...W.wissen] },
+    {
+      h2: W.rolleH2,
+      text: weitererSatz("POSITIONIERUNG", sp),
+      punkte: [
+        `${W.rolleTitel[0]}: ${beleg("keinZugriff", sp)} ${W.rolleInstitut}`,
+        `${W.rolleTitel[1]}: ${saetzeVon(satz("S8", sp))[1]} ${satz("S9", sp)}`,
+        `${W.rolleTitel[2]}: ${satz("S10", sp)}`,
+        `${W.rolleTitel[3]}: ${weitererSatz("ROLLEN", sp)}`,
+      ],
+    },
+    { h2: W.gespraechH2, text: W.gespraech },
+    // Die Fragen selbst hängt der Vorrenderer aus shared/fiaon-seo-fragen.ts an (Regel 2) — hier Überschrift und Verweis der Seite.
+    { h2: W.fragenH2, text: "", links: [{ pfad: "/business/fragen", text: W.fragenAlle }] },
+  ];
+}
+
 export const SEO_SEITEN: Record<string, SeoSeite> = {
   // ═════════════════════════════════════════════════════════════════════════
   // START UND PRODUKT
@@ -399,39 +575,32 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // 29.10.2026 (E-461): Dieser Eintrag ist die Startseite von fiaon.com — vorher stand er unter /business und /en/business
   // (beide leiten seither dauerhaft hierher, server/routes.ts UMGEZOGEN). Inhalt und Wortlaut unverändert; ohne Brotkrumen
   // (die Startseite ist die Wurzel). Die Privat-Startseite steht unter /privat (oben).
+  // 13.11.2026 (E-510, Kanzlei-Ton): Titel, Beschreibung, H1, Einleitung und jeder Abschnitt wortgleich mit der fertigen
+  // Startseite — siehe START_WORT und startAbschnitte() oben. Vorher (E-509): „US-Gesellschaft gründen, aktiv betreut“,
+  // „… Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.“, H1 „Ihre US-Gesellschaft. Ihr Kapitalrahmen.“ und fünf
+  // Abschnitte, die die Seite nicht mehr zeigt („Ein Mandat. Alles darin.“, „Stellen Sie es selbst zusammen.“,
+  // „Ein Ansprechpartner statt acht Anlaufstellen.“, „Was Sie vor dem Auftrag wissen müssen“, „Erst sprechen, dann
+  // entscheiden.“). Die Hinweise vom 06.10. oben beschreiben diesen früheren Stand.
   "/": {
-    pfad: "/", art: "start", stand: "2026-11-12", prio: 1.0,
+    pfad: "/", art: "start", stand: "2026-11-13", prio: 1.0,
     // 23.09.2026 (E-232): eigenes Vorschaubild — bis heute zeigte jede geteilte Business-Seite „Das Betriebssystem für Bonität“.
     bild: GLOBAL_BILD,
-    // E-509 (12.11.2026): ein Produkt statt vier Pakete — Titel, Beschreibung und Vorab-Text sagen dasselbe wie die Seite
-    // (shared/fiaon-global-verkauf.ts; scripts/pruef-verkaufsmotor.ts prüft die Gleichheit). Vorher: „US-Firma gründen ab 2.499 €“.
-    titel: "US-Gesellschaft gründen, aktiv betreut — FIAON Global",
+    // Titel und Beschreibung: scripts/pruef-verkaufsmotor.ts und scripts/pruef-global-seiten.ts vergleichen sie mit VERKAUF_TEXTE.seo.
     // 27.10.2026 (E-439, Justin: „Platzhirsch als Unternehmensberatung“): das Wort in der Trefferzeile — Wortregel freigegeben.
-    beschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, Steuernummern, US-Büro, Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.",
-    h1: "Ihre US-Gesellschaft. Ihr Kapitalrahmen.",
-    lead: "Wir gründen Ihre Gesellschaft in den USA, führen ihr Büro und begleiten Sie bis zur Finanzierung — aus der Ferne, mit einem Ansprechpartner.",
-    abschnitte: [
-      { h2: "Ein Mandat. Alles darin.", text: `Keine Pakete, keine Stufen: Ihre US-Gesellschaft mit aktiver Betreuung kostet ${verkaufEur(VERKAUF_PREISE.gruendungCents)} mit Ihrem Auftrag — im ersten Jahr ist alles enthalten. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr auf Wunsch: Jahresbetreuung für ${verkaufEur(VERKAUF_PREISE.jahresCents)} im Jahr; sie verlängert sich nicht von selbst. Alle Beträge sind Endpreise.`, punkte: ["Gründung in Delaware, Florida oder Wyoming", "Steuernummern: EIN und ITIN", "Ihr US-Büro: Adresse, Telefonnummer, Assistenz", "Recht: Anwälte aus unserem Partnernetz", "Steuern: US-Steuerberater (CPA) aus unserem Partnernetz", "Konto und Karten, vollständig vorbereitet", "Ihr Kapitalrahmen, den Sie selbst wählen", "Pflichtenkalender und Jahresmeldung"] },
-      { h2: "Stellen Sie es selbst zusammen.", text: "Sie wählen, was Ihnen wichtig ist, und Ihren Kapitalrahmen zwischen 50.000 und 1.000.000 US-Dollar. Ihr Preis steht sofort da. Ihr Angebot zeigt den vollständigen Vertrag; Sie lesen ihn in Ruhe und unterschreiben online. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami. Über die Finanzierung entscheidet das finanzierende Institut." },
-      { h2: "Ein Ansprechpartner statt acht Anlaufstellen.", text: "Steuerberater, US-CPA und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON. " + GLOBAL_VERBUNDEN },
-      { h2: "Was Sie vor dem Auftrag wissen müssen", text: "Eine US-Gesellschaft, die aus Deutschland, Österreich oder der Schweiz geführt wird, bleibt dort steuerpflichtig; die Gründung ist dem Finanzamt zu melden (in Deutschland nach § 138 AO). In den USA gelten jährliche Meldepflichten, auch ohne Umsatz (Form 5472 mit Form 1120), dazu Staatsgebühren und die Kosten des Registered Agent. US-Firmenkarten setzen in der Regel die persönliche Haftung des Inhabers voraus. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut." },
-      { h2: "Erst sprechen, dann entscheiden.", text: "Vorhaben, Wohnsitz, Ziel — in dreißig Minuten, kostenfrei und ohne Verpflichtung." },
-    ],
+    titel: START_WORT.de.titel,
+    beschreibung: START_WORT.de.beschreibung,
+    h1: START_WORT.de.h1,
+    lead: START_WORT.de.lead,
+    abschnitte: startAbschnitte("de"),
     weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
     en: {
       pfad: "/en",
       bild: GLOBAL_BILD_EN,
-      titel: "Form a US company, actively managed — FIAON Global",
-      beschreibung: "The business consultancy for your US company: formation, tax numbers, US office, accounts, cards and your capital range. See your price now.",
-      h1: "Your US company. Your capital range.",
-      lead: "We form your company in the United States, run its office and stay with you through to financing — remotely, with one contact.",
-      abschnitte: [
-        { h2: "One mandate. Everything in it.", text: `No packages, no tiers: your US company, actively managed, costs ${verkaufEur(VERKAUF_PREISE.gruendungCents, "en")} with your order — everything is included in the first year. The success fee falls due when your company is registered; it follows your capital range. From the second year, if you wish: annual care for ${verkaufEur(VERKAUF_PREISE.jahresCents, "en")} a year; it does not renew automatically. All amounts are final prices.`, punkte: ["Formation in Delaware, Florida or Wyoming", "Tax numbers: EIN and ITIN", "Your US office: address, phone number, assistance", "Law: lawyers from our partner network", "Tax: US accountants (CPAs) from our partner network", "Accounts and cards, fully prepared", "Your capital range, chosen by you", "Compliance calendar and annual report"] },
-        { h2: "Put it together yourself.", text: "You choose what matters to you and your capital range between US$50,000 and US$1,000,000. Your price appears at once. Your offer shows the complete agreement; you read it at your leisure and sign online. From US$1 million we work with you in person in Miami. The financing institution decides on the financing." },
-        { h2: "One contact instead of eight.", text: "Tax advisers, US CPAs and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your agreement. " + GLOBAL_VERBUNDEN_EN },
-        { h2: "What you need to know before ordering", text: "A US company that is managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office (in Germany under section 138 of the German Fiscal Code, AO). Annual filing duties apply in the United States even without revenue (Form 5472 with Form 1120), along with state fees and the cost of the registered agent. US business credit cards generally require a personal guarantee from the owner. The institution alone decides on the account, the card and the limit." },
-        { h2: "Talk first, then decide.", text: "Your plans, your country of residence, your goal — thirty minutes, free of charge and without obligation." },
-      ],
+      titel: START_WORT.en.titel,
+      beschreibung: START_WORT.en.beschreibung,
+      h1: START_WORT.en.h1,
+      lead: START_WORT.en.lead,
+      abschnitte: startAbschnitte("en"),
       // 19.09.2026: Kein Verweis mehr auf /preise und /privatkunden — die Business-Welt verlinkt nie die Privatkunden-Seiten.
       // 24.09.2026 (E-234): dieselben Ziele wie deutsch — weiterlesen() nimmt die englischen Schwestern.
       weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/privatpersonen", "/business/wissen", "/business/partner", "/business/fragen"],
@@ -2269,9 +2438,14 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // nicht sein Wortlaut (der steht nur im persönlichen Angebot). Titel, Beschreibung, Überschrift und Lead wortgleich mit
   // VERKAUF_TEXTE.vertrag (shared/fiaon-global-verkauf.ts; scripts/pruef-verkaufsmotor.ts prüft die Gleichheit).
   // Vorher: „Der Vertrag von FIAON Global im Wortlaut … mit Musterdaten“; davor „für alle vier Pakete“.
-  "/business/mustervertrag": { pfad: "/business/mustervertrag", art: "intern", stand: "2026-11-12", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Ihr Vertrag im Überblick — FIAON Global", beschreibung: "Der Aufbau des Vertrags von FIAON Global in Stichpunkten. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben.", h1: "Ihr Vertrag, im Überblick.", lead: "Diese Seite zeigt, wie Ihr Vertrag aufgebaut ist — in Stichpunkten, nicht im Wortlaut. Den vollständigen Vertrag mit Ihren Zahlen lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Vertragspartner ist die FIAON LTD, London.", en: { pfad: "/en/business/mustervertrag", bild: GLOBAL_BILD_EN, titel: "Your agreement at a glance — FIAON Global", beschreibung: "How the FIAON Global agreement is structured, point by point. You read the complete agreement in your personal offer before you sign.", h1: "Your agreement, at a glance.", lead: "This page shows how your agreement is structured — point by point, not word for word. You read the complete agreement with your own figures in your personal offer before you sign. The agreement is in German, the language of the contract. Your contracting party is FIAON LTD, London." } },
+  // 13.11.2026 (E-510): Beschreibung und Einleitung wortgleich mit VERKAUF_TEXTE.*.vertrag.seo.beschreibung und .lead —
+  // „bevor Sie unterzeichnen“ (ein Wort je Sache), englisch “personal proposal” (nie “offer”). Vorher: „unterschreiben“, “personal offer”.
+  "/business/mustervertrag": { pfad: "/business/mustervertrag", art: "intern", stand: "2026-11-13", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Ihr Vertrag im Überblick — FIAON Global", beschreibung: "Der Aufbau des Vertrags von FIAON Global in Stichpunkten. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen.", h1: "Ihr Vertrag, im Überblick.", lead: "Diese Seite zeigt, wie Ihr Vertrag aufgebaut ist — in Stichpunkten, nicht im Wortlaut. Den vollständigen Vertrag mit Ihren Zahlen lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen. Vertragspartner ist die FIAON LTD, London.", en: { pfad: "/en/business/mustervertrag", bild: GLOBAL_BILD_EN, titel: "Your agreement at a glance — FIAON Global", beschreibung: "How the FIAON Global agreement is structured, point by point. You read the complete agreement in your personal proposal before you sign.", h1: "Your agreement, at a glance.", lead: "This page shows how your agreement is structured — point by point, not word for word. You read the complete agreement with your own figures in your personal proposal before you sign. The agreement is in German, the language of the contract. Your contracting party is FIAON LTD, London." } },
   // E-509 (12.11.2026): /business/start ist der Konfigurator des einen Produkts (vorher: Direktkauf mit Paketwahl, E-188).
-  "/business/start": { pfad: "/business/start", art: "intern", stand: "2026-11-12", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Ihr Angebot zusammenstellen — FIAON Global", beschreibung: "Stellen Sie Ihr Angebot selbst zusammen: Schwerpunkte wählen, Kapitalrahmen wählen, Preis sehen, online unterschreiben.", h1: "Stellen Sie Ihr Angebot selbst zusammen.", lead: "Zwei Angaben, ein Preis. Ihr Angebot zeigt den vollständigen Vertrag; unterschreiben können Sie online.", en: { pfad: "/en/business/start", bild: GLOBAL_BILD_EN, titel: "Build your offer — FIAON Global", beschreibung: "Put your offer together yourself: choose your focus, choose your capital range, see your price, sign online.", h1: "Put your offer together yourself.", lead: "Two choices, one price. Your offer shows the complete agreement; you can sign online." } },
+  // 13.11.2026 (E-510): sichtbar heißt er „Honorarrechner“. Titel nach Sprachleitfaden 9.3; H1 und Einleitung wortgleich mit der
+  // Seite (VERKAUF_TEXTE.*.konfig.h2a + h2b und .konfig.leadA — der Satz, der für jeden Besucher gilt; kein Satz verspricht,
+  // dass sich das Angebot gleich öffnet). Vorher: „Ihr Angebot zusammenstellen“, „Zwei Angaben, ein Preis.“, “Build your offer”.
+  "/business/start": { pfad: "/business/start", art: "intern", stand: "2026-11-13", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "US-Gesellschaft: Angebot anfordern — FIAON Global", beschreibung: "Der Honorarrechner von FIAON Global: Schwerpunkte und Kapitalrahmen wählen, Honorar vollständig sehen, Angebot anfordern.", h1: START_WORT.de.angebotH2, lead: START_WORT.de.angebotLead, en: { pfad: "/en/business/start", bild: GLOBAL_BILD_EN, titel: "US company: request your proposal — FIAON Global", beschreibung: "The FIAON Global fee calculator: choose your priorities and your funding target, see your fees in full and request your proposal.", h1: START_WORT.en.angebotH2, lead: START_WORT.en.angebotLead } },
   // 14.10.2026 (E-365): die Bestellseite der FIAON-Bonitätsauswertung (privat) und der Firmen-Auskunft.
   "/bonitaet-antrag": { pfad: "/bonitaet-antrag", art: "intern", stand: "2026-10-14", prio: 0.1, robots: "noindex,follow", titel: "Bonitätsauswertung bestellen — FIAON", beschreibung: "Bestellen Sie Ihre FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank — aus Ihren eigenen Kontoauszügen.", h1: "Ihre Bonitätsauswertung. Aus Sicht einer Bank.", lead: "Bestellen Sie Ihre FIAON-Bonitätsauswertung — Ausweis und Kontoauszüge laden Sie nach der Bestellung hoch." },
   "/bonitaet-danke": { pfad: "/bonitaet-danke", art: "intern", stand: "2026-08-22", prio: 0.1, robots: "noindex,follow", titel: "Vielen Dank — FIAON", beschreibung: "Ihre Anfrage ist bei uns eingegangen.", h1: "Vielen Dank", lead: "Ihre Anfrage ist bei uns eingegangen." },

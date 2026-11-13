@@ -328,8 +328,15 @@ const hubTexte = JSON.stringify([GLOBAL_WOERTER.de, GLOBAL_WOERTER.en, GLOBAL_SE
 ok(!EIGENER_FALL.test(hubTexte), `Texte erzählen den eigenen Fall: „${hubTexte.match(EIGENER_FALL)?.[0]}“`);
 // Die FAQ stehen als reine Zeichenketten da — nur so liest scripts/seo-fragen-erzeugen.ts sie ins FAQ-Markup.
 const hubQuelle = fs.readFileSync(path.join(WURZEL, "client/src/i18n/global.ts"), "utf8");
-const faqRoh = [...hubQuelle.matchAll(/\{\s*f:\s*"((?:[^"\\]|\\.)*)",\s*a:\s*"((?:[^"\\]|\\.)*)"/gs)].length;
-ok(faqRoh === GLOBAL_WOERTER.de.fragen.length + GLOBAL_WOERTER.en.fragen.length, `i18n/global.ts: ${GLOBAL_WOERTER.de.fragen.length + GLOBAL_WOERTER.en.fragen.length} Fragen, aber nur ${faqRoh} als reine Zeichenkette (fehlen im FAQ-Markup)`);
+// E-510 (13.11.2026): Die Fragen der Startseite liest scripts/seo-fragen-erzeugen.ts aus dem geladenen Wörterbuch (manche
+// Antworten setzen ihre Beträge aus der Preisquelle ein). Geprüft wird darum das Ergebnis: jede sichtbare Frage steht wortgleich
+// im FAQ-Markup. (Vorher: Zählung der reinen Zeichenketten im Quelltext.)
+for (const [pfad, sp] of [["/", "de"], ["/en", "en"]] as const) {
+  const markup = seoFragen(pfad);
+  const sichtbar = GLOBAL_WOERTER[sp].fragen;
+  ok(markup.length === sichtbar.length && sichtbar.every((x) => markup.some((m) => m.f === x.f.replace(/\s+/g, " ").trim() && m.a === x.a.replace(/\s+/g, " ").trim())),
+    `FAQ-Markup ${pfad}: ${sichtbar.length} sichtbare Fragen, ${markup.length} im Markup oder Wortlaut weicht ab — npx tsx scripts/seo-fragen-erzeugen.ts`);
+}
 ok(GLOBAL_WOERTER.de.fragen.length === GLOBAL_WOERTER.en.fragen.length, "/business: deutsche und englische Fragen verschieden viele");
 // Preis und Kapitalrahmen im ersten Bildschirm, der Titel nennt den Einstiegspreis aus dem Katalog.
 const hubSeite = fs.readFileSync(path.join(WURZEL, "client/src/pages/site/business.tsx"), "utf8");
@@ -350,7 +357,7 @@ ok(VERKAUF_TEXTE.de.seo.beschreibung === tabelle["/"]?.beschreibung && VERKAUF_T
   const BUERGSCHAFT = /b(ü|ue)rgschaft|b(ü|ue)rgin|guaranty|surety/i;
   const korpus = (e: any) => e ? [e.titel, e.beschreibung, e.h1, e.lead, ...((e.abschnitte ?? []) as any[]).flatMap((x) => [x.h2, x.text, ...(x.punkte ?? [])])].join(" \n ") : "";
   // 29.10.2026 (E-461): Die Übersicht ist die Startseite „/“ (englisch „/en“).
-  for (const [pfad, meta] of [["/", GLOBAL_WOERTER.de.metaBeschreibung], ["/business/privatpersonen", GLOBAL_WOERTER.de.privat.metaBeschreibung]] as const) {
+  for (const [pfad, meta] of [["/", GLOBAL_WOERTER.de.metaBeschreibung], ["/business/privatpersonen", GLOBAL_SEITEN.find((x) => x.pfad === "/business/privatpersonen")?.seo.beschreibung ?? ""]] as const) {
     const e = tabelle[pfad];
     const text = [meta, korpus(e), korpus(e?.en), ...seoFragen(pfad).flatMap((f) => [f.f, f.a])].join(" \n ");
     ok(!!e && !BUERGSCHAFT.test(text), `${pfad}: „${text.match(BUERGSCHAFT)?.[0]}“ in Meta, SEO-Korpus oder FAQ-Markup — das persönliche Angebot gehört nur auf die Seite selbst`);
@@ -377,10 +384,11 @@ for (const sp of ["de", "en"] as const) {
   // E-509: die Überschriften der neuen Startseite — das eine Produkt und der Konfigurator aus VERKAUF_TEXTE, die übrigen aus dem
   // Wörterbuch. (Vorher: paketeH2 und die Überschrift des Bands „Jahresbetreuung“.)
   const v = VERKAUF_TEXTE[sp];
-  const gezeigt = [`${v.produkt.h2a} ${v.produkt.h2b}`, `${v.konfig.h2a} ${v.konfig.h2b}`, w.vsH2, w.wissenTitel, w.gespraechH2, w.fragenH2].map((x) => x.replace(/\.$/, ""));
+  // E-510: dazu die sechs Schritte, „Auf einen Blick“, „Wenn die Finanzierung ausbleibt“ und „Was FIAON ist — und was nicht“.
+  const gezeigt = [v.blick.titel, `${v.produkt.h2a} ${v.produkt.h2b}`, `${v.ablauf.h2a} ${v.ablauf.h2b}`, `${v.konfig.h2a} ${v.konfig.h2b}`, v.garantie.h2, w.wissenTitel, v.rolle.h2, w.gespraechH2, w.fragenH2].map((x) => x.replace(/\.$/, ""));
   for (const a of (e?.abschnitte ?? []) as { h2: string }[]) {
     const h2 = a.h2.replace(/\.$/, "");
-    ok(gezeigt.includes(h2), `SEO /business (${sp}): Abschnitt „${a.h2}“ ist keine Überschrift der Seite (Produkt, Konfigurator, vsH2, wissenTitel, gespraechH2, fragenH2)`);
+    ok(gezeigt.includes(h2), `SEO /business (${sp}): Abschnitt „${a.h2}“ ist keine Überschrift der Seite (Blick, Mandat, Schritte, Honorarrechner, Garantie, wissenTitel, Rolle, gespraechH2, fragenH2)`);
   }
   ok(((e?.abschnitte ?? []) as unknown[]).length >= 4, `SEO /business (${sp}): weniger als vier Abschnitte im Korpus`);
 }
@@ -409,7 +417,9 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
   // E-509 (12.11.2026): Die Anzeigenseite trägt das Band nicht mehr — sein Text spricht von Paketen („Das erste Jahr steckt
   // in jedem Paket“). Die Jahresbetreuung steht dort als Zeile mit dem Preis aus der einen Quelle (EIN_PRODUKT.jahres).
   // (Vorher: global-lp.tsx musste <GlobalJahresbetreuung> enthalten.)
-  ok(/\{P\.jahres\}/.test(fs.readFileSync(path.join(WURZEL, "client/src/pages/site/global-lp.tsx"), "utf8")), "client/src/pages/site/global-lp.tsx: die Jahresbetreuung fehlt (Preis aus EIN_PRODUKT)");
+  // E-510 (13.11.2026): Die Anzeigenseite wirbt nur für die Gründung (Leitfaden 7.6) und nennt das Honorar mit dem festen Satz
+  // aus der einen Quelle (beide Teile, Beträge aus der Preisquelle). (Vorher: Zeile zur Jahresbetreuung mit {P.jahres}.)
+  ok(/weitererSatz\("HONORAR-LANDINGPAGE", "de"\)/.test(fs.readFileSync(path.join(WURZEL, "client/src/pages/site/global-lp.tsx"), "utf8")), "client/src/pages/site/global-lp.tsx: der Honorar-Satz der Anzeigenseite fehlt (fester Satz HONORAR-LANDINGPAGE)");
   // Startseite für Privatpersonen: eigene Route vor /business/:slug, jede Tafel führt in den Auftrag als Privatperson.
   const app = fs.readFileSync(path.join(WURZEL, "client/src/App.tsx"), "utf8");
   ok(app.includes(`path="/business/privatpersonen" component={BusinessPrivatPage}`) && app.indexOf(`path="/business/privatpersonen"`) < app.indexOf(`path="/business/:slug"`),
@@ -420,14 +430,16 @@ abschnitt("E-196: Jahresbetreuung, Uhren, Nachrichtenlage, Privatpersonen");
   ok(/zumKonfigurator\("buehne"\)/.test(hub) && /<VerkaufKonfigurator sprache=\{s\} \/>/.test(hub), "business.tsx: die Bühne führt nicht zum Konfigurator");
   ok(globalStartPfad("global_kapital", "de", "privat").endsWith("paket=global_kapital&art=privat"), "globalStartPfad: art=privat fehlt");
   const privatEintrag = GLOBAL_SEITEN.find((x) => x.pfad === "/business/privatpersonen");
-  ok(!!privatEintrag && GLOBAL_WOERTER.de.privat.metaTitel === privatEintrag.seo.titel && GLOBAL_WOERTER.de.privat.metaBeschreibung === privatEintrag.seo.beschreibung,
-    "Privatpersonen: Titel/Beschreibung der Startseite weichen vom Registereintrag (Vorab-HTML) ab");
+  // E-510: Die Seite liest Titel, Beschreibung, H1 und Einleitung direkt aus dem Registereintrag (eine Quelle statt zwei).
+  // (Vorher: Vergleich mit einer Abschrift in GLOBAL_WOERTER.de.privat.)
+  ok(!!privatEintrag && /s === "en" \? PRIVAT_SEITE_EN : PRIVAT_SEITE/.test(hub),
+    "Privatpersonen: business.tsx liest Titel/Beschreibung nicht mehr aus dem Registereintrag (PRIVAT_SEITE)");
   // Die drei Uhren: Deutschland, Florida, London — in beiden Sprachen dieselben Zonen.
   for (const sp of ["de", "en"] as const) {
     ok(JSON.stringify(GLOBAL_WOERTER[sp].uhren.map((u) => u.zone)) === JSON.stringify(["Europe/Berlin", "America/New_York", "Europe/London"]), `Uhren (${sp}): Zonen stimmen nicht`);
   }
   // Das Menü (auf jeder Business-Seite) führt zur Jahresbetreuung — mit demselben Preis.
-  const jbMenue = GLOBAL_MENUE.find((x) => x.pfad === "/#jahresbetreuung");
+  const jbMenue = GLOBAL_MENUE.find((x) => x.pfad === "/business/kosten#laufend"); // E-510: der Anker auf der Startseite ist weg — das Menü führt zur Kostenseite
   ok(!!jbMenue && jbMenue.text.includes(globalJahresbetreuungPreisText("de")), "Menü: Eintrag Jahresbetreuung fehlt oder nennt einen anderen Preis als GLOBAL_JAHRESBETREUUNG");
   // Nachrichtenlage: nur echte Meldungen mit Quelle, jung genug, ohne verbotene Wörter.
   const m = GLOBAL_SCHLAGZEILEN.meldungen;
@@ -553,14 +565,13 @@ abschnitt("Englische Unterseiten");
     ok(m.titel.length <= 30 && m.text.length <= 52, `Menü (en) „${m.titel}": Titel oder Zeile zu lang für das Panel`);
     ok(globalWortPruefenEn(`${m.titel}\n${m.text}`).length === 0, `Menü (en) „${m.titel}": ${globalWortPruefenEn(`${m.titel}\n${m.text}`).map((f) => f.hinweis).join("; ")}`);
   }
-  const jbEn = globalMenue("en").flatMap((g) => g.eintraege).find((m) => m.pfad === "/en#jahresbetreuung");
+  const jbEn = globalMenue("en").flatMap((g) => g.eintraege).find((m) => m.pfad === "/en/business/costs#laufend");
   ok(!!jbEn && jbEn.text.includes(globalJahresbetreuungPreisText("en")), "Menü (en): Jahresbetreuung fehlt oder nennt einen anderen Preis");
   // Übersicht /en/business: „Who it is for" und die Länder führen auf englische Seiten; Privatpersonen: Kopf = Register.
   for (const k of GLOBAL_WOERTER.en.fuerChips) ok(!!k.pfad && enPfade.has(k.pfad), `/en/business „For": ${k.text} → ${k.pfad || "(leer)"}`);
   for (const k of GLOBAL_WOERTER.en.privat.fuerChips) ok(!k.pfad || k.pfad === "/en" || enPfade.has(k.pfad), `/en/business/private-individuals „For": ${k.text} → ${k.pfad}`);
   const privatEn = GLOBAL_SEITEN_EN.find((x) => x.pfad === "/en/business/private-individuals");
-  ok(!!privatEn && privatEn.auftraggeber === "privat" && GLOBAL_WOERTER.en.privat.metaTitel === privatEn.seo.titel && GLOBAL_WOERTER.en.privat.metaBeschreibung === privatEn.seo.beschreibung,
-    "Private individuals: Titel/Beschreibung der Startseite weichen vom englischen Registereintrag ab (oder art privat fehlt)");
+  ok(!!privatEn && privatEn.auftraggeber === "privat", "Private individuals: englischer Registereintrag fehlt (oder art privat fehlt)");
   // 06.10.2026 (E-293): Die Standorte stehen nur noch im Fuß (GlobalOrte) — dort liest GlobalFuss.tsx GLOBAL_VERBUNDEN_EN direkt.
   ok(/neither a bank/.test(GLOBAL_FUSS_WOERTER.en.keineBank) && /keine Bank/.test(GLOBAL_FUSS_WOERTER.de.keineBank), "GLOBAL_FUSS_WOERTER: der Satz „keine Bank“ (§ 39/§ 41 KWG) fehlt im Fuß");
   // Das Kapital ist nicht an die USA gebunden — dieselbe Frage auf den englischen Schwestern.

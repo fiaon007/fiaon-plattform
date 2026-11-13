@@ -49,6 +49,9 @@ export interface HeroGlasTexte {
   kapitalTitel: string;
   kapitalWert: string;
   kapitalSatz: string;
+  /** 19.09.2026 (Justin): „Das Kapital ist nicht an die USA gebunden“ — kurzer Hinweis und sein voller Satz (eine Quelle: GLOBAL_KAPITAL_FREI). */
+  kapitalFrei?: string;
+  fussnote?: string;
   /** Der Kasten „Auf einen Blick“: Name des Abschnitts und die vier Antworten der 30-Sekunden-Probe. */
   blickName: string;
   blick: readonly GlobalBlickPunkt[];
@@ -102,6 +105,7 @@ export default function HeroGlas({ t, onAngebot, onGespraech }: { t: HeroGlasTex
             <dd className="hg-fakt-satz">{W(t.kapitalSatz)}</dd>
           </div>
         </dl>
+        {t.kapitalFrei && t.fussnote && <p className="hg-fussnote"><b>{t.kapitalFrei}.</b> {W(t.fussnote)}</p>}
       </div>
     </section>
 

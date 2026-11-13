@@ -163,8 +163,8 @@ gleich([B.globalTageslaufFenster(7 * 60 + 59), B.globalTageslaufFenster(8 * 60),
 // ═══ 3: TEXTE ═══════════════════════════════════════════════════════════════
 abschnitt("Texte: Wortwand + Global-Regeln (de), Gegenprobe (en)");
 gleich(B.GLOBAL_ETAPPEN.map((e) => e.nr), [0, 1, 2, 3, 4, 5], "sechs Etappen 0–5");
-gleich(B.GLOBAL_ETAPPEN.slice(1, 5).map((e) => e.de.titel), GLOBAL_WOERTER.de.weg.map((w: { titel: string }) => w.titel), "Etappentitel 1–4 = „Der Weg“ auf /business (de)");
-gleich(B.GLOBAL_ETAPPEN.slice(1, 5).map((e) => e.en.titel), GLOBAL_WOERTER.en.weg.map((w: { titel: string }) => w.titel), "Etappentitel 1–4 = „The path“ auf /en/business");
+// E-510 (13.11.2026): „Der Weg“ steht seit E-509 auf keiner öffentlichen Seite mehr — der Vergleich der Etappentitel des
+// Portals mit der Startseite entfällt. (Vorher: zwei Vergleiche „Etappentitel 1–4 = Der Weg auf /business“.)
 
 const de: [string, string][] = []; const en: [string, string][] = [];
 for (const e of B.GLOBAL_ETAPPEN) { de.push([`etappe ${e.nr}`, `${e.de.titel}. ${e.de.text}`]); en.push([`etappe ${e.nr}`, `${e.en.titel}. ${e.en.text}`]); }

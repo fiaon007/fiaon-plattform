@@ -127,8 +127,10 @@ abschnitt("3 Website");
 const alle = [...GS.GLOBAL_SEITEN, ...GS.GLOBAL_SEITEN_EN];
 const seite = (p: string) => alle.find((s) => s.pfad === p);
 const wahlDe = seite("/business/wissen/bundesstaat-waehlen"), wahlEn = seite("/en/business/knowledge/choosing-a-state");
-ok(wahlDe && wahlDe.h1 === "Welcher US-Bundesstaat passt?" && wahlDe.stand === Q.STAATEN_STAND, "FG · 27 DE: neuer Titel und Stand");
-ok(wahlEn && wahlEn.schwester === "/business/wissen/bundesstaat-waehlen" && wahlEn.stand === Q.STAATEN_STAND, "FG · 27 EN: Schwester und Stand");
+// E-510 (13.11.2026): Die H1 ist eine Aussage statt einer Frage (Sprachleitfaden 3.2), der Stand der Seite darf neuer sein als
+// der Stand der Staaten-Daten. (Vorher: h1 === "Welcher US-Bundesstaat passt?" und stand === STAATEN_STAND.)
+ok(wahlDe && wahlDe.h1 === "US-Bundesstaat für Ihre LLC." && wahlDe.stand >= Q.STAATEN_STAND, "FG · 27 DE: neuer Titel und Stand");
+ok(wahlEn && wahlEn.schwester === "/business/wissen/bundesstaat-waehlen" && wahlEn.stand >= Q.STAATEN_STAND, "FG · 27 EN: Schwester und Stand");
 const tDe = JSON.stringify(wahlDe), tEn = JSON.stringify(wahlEn);
 for (const w of ["Delaware", "Florida", "Wyoming", "ein bis zwei Werktage", "rund zwei Wochen", "rund drei Werktage", "Express", "Operating Agreement", "EIN", "Nevada"]) ok(tDe.includes(w), `FG · 27 DE nennt „${w}“`);
 for (const w of ["one or two business days", "around two weeks", "around three business days", "express", "operating agreement", "Nevada"]) ok(tEn.includes(w), `FG · 27 EN nennt „${w}“`);
@@ -139,12 +141,9 @@ for (const [p, w] of [["/business/delaware", "ein bis zwei Werktage"], ["/busine
 }
 ok(!/Passt selten/.test(JSON.stringify(seite("/business/delaware"))) && !/Rarely a fit/.test(JSON.stringify(seite("/en/business/delaware"))), "Delaware-Seite widerspricht der Vorgabe nicht mehr („Passt selten“ weg)");
 ok(/rund zwei Wochen/.test(JSON.stringify(seite("/business/kosten"))) && /around two weeks/.test(JSON.stringify(seite("/en/business/costs"))), "Kosten DE/EN: Eintragungszeiten in der Staatentabelle");
-const fDe = I18N.GLOBAL_WOERTER.de.fragen.find((f: any) => f.f === "In welchem US-Bundesstaat gründen Sie?");
-const fEn = (I18N.GLOBAL_WOERTER as any).en.fragen.find((f: any) => f.f === "Which US state do you form in?");
-ok(fDe && fDe.a === Q.STAAT_WAHL_SATZ.de, "Übersicht-FAQ DE wortgleich mit STAAT_WAHL_SATZ.de", fDe?.a);
-ok(fEn && fEn.a === Q.STAAT_WAHL_SATZ.en, "Übersicht-FAQ EN wortgleich mit STAAT_WAHL_SATZ.en", fEn?.a);
-const FR = readFileSync(new URL("../shared/fiaon-seo-fragen.ts", import.meta.url), "utf8");
-ok(FR.includes("In welchem US-Bundesstaat gründen Sie?") && FR.includes("Which US state do you form in?"), "FAQ-Daten (seo-fragen-erzeugen) enthalten die neue Frage");
+// E-510 (13.11.2026): Die Bundesstaat-Frage steht nicht mehr unter den Fragen der Startseite — sie nennt Eintragungszeiten, und
+// auf der Startseite steht keine Dauer (Sprachleitfaden 5.5). Sie steht auf den Staaten-Seiten und auf FG · 27 (oben geprüft).
+// (Vorher: drei Prüfungen „Übersicht-FAQ DE/EN wortgleich mit STAAT_WAHL_SATZ“ und „FAQ-Daten enthalten die neue Frage“.)
 const { llmsTxt } = await import("../server/lib/fiaon-llms");
 ok(llmsTxt().includes(Q.STAAT_WAHL_SATZ.de), "llms.txt: Staaten-Wahl mit Zeiten");
 const { globalWissen } = await import("../shared/fiaon-wissen");

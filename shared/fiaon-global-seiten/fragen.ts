@@ -46,7 +46,7 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
     pfad: "/business/fragen",
     art: "preise",
     seo: {
-      titel: "US-Gesellschaft gründen: Fragen und Antworten — FIAON Global",
+      titel: "US-LLC gründen: Fragen und Antworten — FIAON Global",
       beschreibung: "Antworten zu Gründung, Steuernummern, Honorar und Pflichten einer US-Gesellschaft — mit Quellen und der Angabe, wer jeweils entscheidet.",
     },
     stand: STAND,

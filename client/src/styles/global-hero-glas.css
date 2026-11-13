@@ -68,6 +68,9 @@
 .hg .hg-fakt dd { margin: 0; }
 .hg .hg-fakt .hg-fakt-zahl { margin-top: var(--g-3); font: var(--g-w-duenn) clamp(1.75rem, 2.75vw, 2.5rem)/1.08 var(--g-schrift); letter-spacing: -.032em; font-variant-numeric: lining-nums proportional-nums; color: var(--g-tinte); white-space: nowrap; }
 .hg .hg-fakt .hg-fakt-satz { margin-top: var(--g-3); max-width: 58ch; font: var(--g-w-text) var(--g-t-fein)/1.55 var(--g-schrift); color: var(--g-leise); text-wrap: pretty; }
+/* 19.09.2026 (Justin): der Hinweis „auch in Europa einsetzbar“ mit seinem vollen Satz — eine ruhige Zeile unter den Tatsachen. */
+.hg .hg-fussnote { margin: var(--g-5) 0 0; max-width: 96ch; font: var(--g-w-text) var(--g-t-fein)/1.55 var(--g-schrift); color: var(--g-leise); text-wrap: pretty; }
+.hg .hg-fussnote b { font-weight: var(--g-w-fest); color: var(--g-tinte); }
 
 /* ── „Auf einen Blick“ unter der Bühne (GlobalBlick.tsx, Klassen .vk-blick… in global-verkauf.css) ── */
 .hg-blick { position: relative; padding: var(--g-abschnitt-eng) 0 0; }
@@ -87,6 +90,8 @@
 .hg[data-an="1"] .hg-fakten::before { animation: hg-linie var(--g-dauer-5) var(--g-kurve-weg) calc(var(--g-staffel) * 6) backwards; }
 .hg[data-an="1"] .hg-fakt { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 9) backwards; }
 .hg[data-an="1"] .hg-fakt + .hg-fakt { animation-delay: calc(var(--g-staffel) * 10); }
+.hg[data-an="0"] .hg-fussnote { opacity: 0; }
+.hg[data-an="1"] .hg-fussnote { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 11) backwards; }
 .ld-an .hg *, .ld-an .hg *::before { animation-play-state: paused; }
 
 /* Beim Wegscrollen tritt die Bühne leise zurück. Gekoppelt an die Unterkante der Bühne (view-timeline „exit“): Ist die
@@ -131,6 +136,7 @@
 @media (prefers-reduced-motion: reduce) {
   .hg *, .hg *::before, .hg *::after { animation: none !important; transition: none !important; }
   .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-fakt { opacity: 1; transform: none; }
+  .hg[data-an] .hg-fussnote { opacity: 1; transform: none; }
   .hg[data-an] .hg-fakten::before { transform: none; }
 }
 @media (forced-colors: active) {
@@ -141,6 +147,7 @@
 @media print {
   .hg { min-height: 0; padding-top: 24px; }
   .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-fakt { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .hg[data-an] .hg-fussnote { opacity: 1 !important; transform: none !important; animation: none !important; }
   .hg[data-an] .hg-fakten::before { transform: none !important; animation: none !important; }
   .hg-rahmen, .hg-licht { animation: none !important; opacity: 1 !important; transform: none !important; }
 }

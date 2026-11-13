@@ -32,6 +32,7 @@
 import { GLOBAL_WA_HINWEIS } from "@shared/fiaon-whatsapp-erlaubnis";
 // E-510: die festen Sätze und Namen — eine Quelle für jede öffentliche Seite.
 import { SAETZE_BETRAEGE, handlung, kurzwoerter, satz, weitererSatz } from "@shared/fiaon-global-saetze";
+import { GLOBAL_KAPITAL_FREI } from "@shared/fiaon-global";
 
 /** Ein Knoten im Stern (components/site/global/SternZentrale.tsx — steht seit E-510 nicht mehr auf der Startseite). */
 export interface GlobalSternKnoten { name: string; umfang?: string; status: "fest" | "antrag"; inkl?: number }
@@ -53,15 +54,6 @@ const de = {
   knopfGespraech: handlung("gespraech", "de"),
   szeneKi: "Szene mit KI erstellt",
 
-  // ── Nur noch für den Prüfstand scripts/pruef-global-bereich.ts: Er vergleicht diese vier Titel mit den Etappen im
-  //    Kundenportal (shared/fiaon-global-bereich.ts — das Portal ist nicht Teil des Umbaus). Auf keiner öffentlichen Seite
-  //    steht „Der Weg“ mehr; fällt der Vergleich im Prüfstand, fällt dieses Feld.
-  weg: [
-    { titel: "Gründung und Dokumente" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
-    { titel: "Die erste Firmenkarte" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
-    { titel: "Die Kartenleiter" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
-    { titel: "Das Bankdarlehen" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
-  ],
 
   // ── Wörter der früheren Tafeln (components/site/global/GlobalTafel.tsx — seit E-509 auf keiner Seite mehr eingebaut).
   //    Sie bleiben, weil der Baustein sie nennt; ihr Wortlaut folgt dem Leitfaden, falls er je wieder gezeigt wird.
@@ -127,6 +119,8 @@ const de = {
     { f: "Wer klärt Rechts- und Steuerfragen?", a: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Ihr Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen." },
     { f: "Was geschieht ab dem achtzehnten Monat?", a: "Ab dem achtzehnten Monat prüfen wir mit Ihnen, ob eine Umschuldung die Finanzierungskosten senken oder eine Aufstockung Ihren Spielraum für Investitionen erweitern kann. Voraussetzung ist die laufende Jahresbetreuung; sie verlängert sich nicht von selbst. Den Antrag stellt Ihre Gesellschaft. Ob und zu welchen Bedingungen, entscheidet das jeweilige Institut." },
     { f: "Muss ich in die USA reisen?", a: "Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami." },
+    // 19.09.2026 (Justin, „Ändere das ÜBERALL“): wortgleich mit GLOBAL_KAPITAL_FREI.de — scripts/pruef-global-seiten.ts prüft das.
+    { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],
 
   // ── Schlussband: der Schluss-Satz (Leitfaden 7.1), geteilt für die zweifarbige Überschrift ──
@@ -177,12 +171,6 @@ const en: typeof de = {
   knopfGespraech: handlung("gespraech", "en"),
   szeneKi: "Scene created with AI",
 
-  weg: [
-    { titel: "Formation and documents" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
-    { titel: "The first business card" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
-    { titel: "The card ladder" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
-    { titel: "The bank loan" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
-  ],
 
   fokusBand: "All six steps",
   festpreis: "Fee on engagement",
@@ -240,6 +228,8 @@ const en: typeof de = {
     { f: "Who deals with legal and tax matters?", a: "Partner lawyers and US certified public accountants (CPAs) from our partner network — in their own professional capacity. FIAON bears their fees for the services named in your agreement. FIAON itself is not a law firm. A US company is not a tax scheme; your tax liability in your country of residence remains." },
     { f: "What happens from the eighteenth month?", a: "From the eighteenth month, we review with you whether refinancing could reduce your financing costs or an increase could widen your scope for investment. This requires annual administration to be in place; it does not renew automatically. Your company submits the application. Whether, and on what terms, is for the lender concerned to decide." },
     { f: "Do I have to travel to the United States?", a: "Not for the formation or your company’s tax identification number. Whether an institution requires you to attend in person for an account, a card or financing is for that institution to decide. From US$1 million, we work with you in person in Miami." },
+    // 19 September 2026 (Justin): word for word GLOBAL_KAPITAL_FREI.en — checked by scripts/pruef-global-seiten.ts.
+    { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
   ],
 
   schlussA: schlussTeile("en", "before")[0],

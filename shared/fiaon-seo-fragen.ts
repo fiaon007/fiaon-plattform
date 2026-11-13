@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: /privat (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), / (8), /en (8), /preise (6), /en/pricing (6), /en/private (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: /privat (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), / (10), /en (10), /preise (6), /en/pricing (6), /en/private (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -166,6 +166,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
       "a": "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und bereiten Ihre Anträge für Konten, Karten und Finanzierung vollständig vor. Sie wählen den Namen, laden Ihren Reisepass hoch, unterzeichnen die Unterlagen und stellen die Anträge bei den Instituten selbst. Über Eintragung und Steuernummern entscheiden Bundesstaat und US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut."
     },
     {
+      "f": "Was kostet das Mandat — und wann zahle ich was?",
+      "a": "Mit Ihrem Auftrag zahlen Sie 2.799 € für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und beträgt mindestens 2.990 €. Ab dem zweiten Jahr können Sie die Jahresbetreuung für 699 € im Jahr beauftragen. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen."
+    },
+    {
       "f": "Sagt FIAON eine Finanzierung zu?",
       "a": "Nein. Über jede Finanzierung entscheidet allein das finanzierende Institut. FIAON vergibt und vermittelt keine Kredite; wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Der Kapitalrahmen, den Sie wählen, ist ein Ziel, kein Versprechen. Was FIAON für Ihre Finanzierung einbringt, steht verbindlich in Ihrem persönlichen Angebot."
     },
@@ -192,12 +196,20 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Muss ich in die USA reisen?",
       "a": "Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami."
+    },
+    {
+      "f": "Muss das Kapital in den USA ausgegeben werden?",
+      "a": "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen."
     }
   ],
   "/en": [
     {
       "f": "What does FIAON Global do — and what do I do myself?",
       "a": "We form your US company, assemble every document, apply for its tax identification numbers and prepare your applications for accounts, cards and financing in full. You choose the name, upload your passport, sign the documents and submit the applications to the institutions yourself. The state and the US tax authority decide on registration and the numbers; the institution concerned decides on accounts, cards and financing."
+    },
+    {
+      "f": "What does the engagement cost — and when is each fee due?",
+      "a": "On engagement you pay €2,799 for formation and administration in the first year. The success fee falls due on registration of your company; it is set by your funding target and is at least €2,990. From the second year you may continue with annual administration for €699 a year. All fees are stated in full in your proposal before you sign."
     },
     {
       "f": "Does FIAON promise financing?",
@@ -226,6 +238,10 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     {
       "f": "Do I have to travel to the United States?",
       "a": "Not for the formation or your company’s tax identification number. Whether an institution requires you to attend in person for an account, a card or financing is for that institution to decide. From US$1 million, we work with you in person in Miami."
+    },
+    {
+      "f": "Does the capital have to be spent in the US?",
+      "a": "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes."
     }
   ],
   "/preise": [

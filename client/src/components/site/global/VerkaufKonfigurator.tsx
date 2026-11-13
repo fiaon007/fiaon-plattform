@@ -431,6 +431,7 @@ export default function VerkaufKonfigurator({ sprache, eigeneSeite = false }: { 
                 <input className="vk-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" name="firma_website" value={form.falle} onChange={feld("falle")} />
               </div>
               {fehler && <p className="vk-fehler" role="alert">{W(fehler)}</p>}
+              {abschluss && <p className="vk-fein">{W(K.form.bundesstaat)}</p>}
               {K.form.vertragssprache && abschluss && <p className="vk-fein">{W(K.form.vertragssprache)}</p>}
               <div className="vk-knoepfe">
                 <button type="submit" className="vk-knopf" disabled={laeuft} aria-busy={laeuft}>{laeuft ? (sofort ? K.form.laeuft : K.persoenlich.laeuft) : sofort ? K.form.absenden : abschluss ? K.persoenlich.absenden : K.form.absendenWeg}</button>

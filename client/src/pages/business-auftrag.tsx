@@ -35,7 +35,7 @@ import { ANGEBOT_MEIN_AUFTRAG } from "@shared/fiaon-global-angebot";
 // E-423 (22.10.2026): der persönliche Zugang — Leiste „Angemeldet als …“ bzw. Banner „Zugang einrichten“ über dem Portal.
 import GlobalKontoLeiste, { zurGlobalAnmeldung } from "@/components/site/GlobalKontoLeiste";
 import { GLOBAL_KONTO_WOERTER } from "@/i18n/global-konto";
-// E-507 (12.11.2026): die Karte „Ihre Partnerschaft“ — nur für Kunden, die zugleich Empfehlungspartner sind.
+// E-507 (12.11.2026): die Karte „Ihre Partnerschaft“ — nur für Kunden, die zugleich Partner nach E-507 sind.
 import { KOOP_PARTNERSCHAFT_PORTAL, koopProzentText, type KoopPartnerschaftPortal } from "@shared/fiaon-koop-partnerschaft";
 import "@/styles/global-start.css";
 import "@/styles/global-auftrag.css";

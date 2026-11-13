@@ -46,7 +46,7 @@ export const KOSTEN: GlobalSeite[] = [
     art: "preise",
     seo: {
       titel: "LLC gründen: Kosten im Überblick — FIAON Global",
-      beschreibung: "Was eine US-LLC kostet: Staatsgebühren in Delaware, Florida und Wyoming, laufende Kosten ab dem zweiten Jahr und unser Honorar — mit Quellen und Stand.",
+      beschreibung: "Was eine US-LLC kostet: Staatsgebühren in Delaware, Florida und Wyoming, laufende Kosten ab dem zweiten Jahr, unser Honorar — mit Quellen und Stand.",
     },
     stand: "2026-11-13",
     kennung: "FG · 07",

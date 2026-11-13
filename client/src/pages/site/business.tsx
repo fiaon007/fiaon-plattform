@@ -39,7 +39,7 @@ import { Dunkel, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_WOERTER } from "@/i18n/global";
-import { GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
 import { werbeEreignis } from "@/lib/werbung";
 import HeroGlas from "@/components/site/global/HeroGlas";
 import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
@@ -148,6 +148,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
 
   // Die Spanne des Kapitalrahmens aus der Preisquelle — sie steht nie ohne ihren Satz (S9 und der Miami-Satz).
   const rahmenSpanne = SAETZE_BETRAEGE[s].rahmen;
+  // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — der Hinweis steht am Kapitalrahmen der Bühne (eine Quelle).
+  const frei = GLOBAL_KAPITAL_FREI[s];
 
   return (
     <Dunkel seite="business" titel={kopf.titel} beschreibung={kopf.beschreibung}>
@@ -160,6 +162,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           knopfAngebot: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
           preis, label: V.buehne.label, honorarZeile: V.buehne.honorarZeile,
           kapitalTitel: V.buehne.kapitalTitel, kapitalWert: rahmenSpanne, kapitalSatz: V.buehne.kapitalSatz,
+          kapitalFrei: frei.kurz, fussnote: `${frei.satz} ${frei.steuer}`,
           blickName: V.blick.titel, blick: V.blick.punkte,
         }} />
 

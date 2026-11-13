@@ -285,7 +285,7 @@ export interface VerkaufTexte {
     blatt: { titel: string; heute: string; heuteText: string; eintragung: string; eintragungText: string; jahr1: string; jahr2: string; jahr2Text: string; fastTrack: (preis: string) => string; endpreise: string; garantie: string; finanzierung: string; kurs: (kurs: string, tag: string) => string };
     ohneKapitalBlatt: string;
     weiter: string; zurueck: string;
-    form: { titel: string; sub: string; anrede: string; herr: string; frau: string; vorname: string; nachname: string; email: string; telefon: string; land: string; laender: Record<VerkaufLand, string>; bestand: string; bestandSub: string; nachricht: string; nachrichtPlatz: string; absenden: string; absendenWeg: string; laeuft: string; register: string; datenschutz: string; datenschutzLink: string; vertragssprache: string | null };
+    form: { titel: string; sub: string; anrede: string; herr: string; frau: string; vorname: string; nachname: string; email: string; telefon: string; land: string; laender: Record<VerkaufLand, string>; bestand: string; bestandSub: string; nachricht: string; nachrichtPlatz: string; absenden: string; absendenWeg: string; laeuft: string; register: string; datenschutz: string; datenschutzLink: string; vertragssprache: string | null; bundesstaat: string };
     wege: Record<Exclude<VerkaufWeg, "abschluss">, VerkaufWegText>;
     fertig: { titel: string; text: string; knopf: string };
     mailGesendet: { titel: string; text: string };
@@ -490,6 +490,8 @@ const DE: VerkaufTexte = {
       datenschutz: `Wir verwenden Ihre Angaben, um Ihr Angebot zu erstellen und Sie dazu zu erreichen. ${beleg("daten", "de")}`,
       datenschutzLink: "Datenschutzerklärung",
       vertragssprache: null,
+      // In welchem Bundesstaat der Honorarrechner gründet — nur im Selbstabschluss gezeigt.
+      bundesstaat: `Über den Honorarrechner gründen wir in ${VERKAUF_BUNDESSTAAT}. Florida oder Wyoming stimmen wir im Gespräch mit Ihnen ab.`,
     },
     wege: {
       miami: {
@@ -795,6 +797,7 @@ const EN: VerkaufTexte = {
       datenschutz: `We use your details to draw up your proposal and to contact you about it. ${beleg("daten", "en")}`,
       datenschutzLink: "Privacy policy",
       vertragssprache: "Your agreement and your proposal page are in German, the language of the contract.",
+      bundesstaat: `Via the fee calculator, we form in ${VERKAUF_BUNDESSTAAT}. Florida or Wyoming can be agreed with you in a call.`,
     },
     wege: {
       miami: {

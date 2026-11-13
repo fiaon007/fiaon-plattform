@@ -26,6 +26,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import fs from "fs";
 import path from "path";
+// E-510 (13.11.2026): Die Fragen der Global-Startseite kommen aus dem geladenen Wörterbuch — manche Antworten setzen
+// ihre Beträge aus der Preisquelle ein und sind deshalb keine reine Zeichenkette mehr (das Suchmuster fände sie nicht).
+import { GLOBAL_WOERTER } from "../client/src/i18n/global";
 
 const WURZEL = path.resolve(import.meta.dirname, "..");
 const ZIEL = path.join(WURZEL, "shared", "fiaon-seo-fragen.ts");
@@ -144,6 +147,15 @@ function erzeugen(): string {
     // Seiten (z. B. laender.ts: oesterreich und schweiz) — nur dieser Block
     // zählt; der Pfad trägt „@x" als Marke, die hier wieder entfernt wird.
     const [dateiRein, block] = datei.split("#");
+    if (dateiRein === "client/src/i18n/global.ts") {
+      for (const [p, liste] of [["/", GLOBAL_WOERTER.de.fragen], ["/en", GLOBAL_WOERTER.en.fragen]] as const) {
+        const fragen: Frage[] = liste.map((x) => ({ f: x.f.replace(/\s+/g, " ").trim(), a: x.a.replace(/\s+/g, " ").trim() })).filter((x) => x.f && x.a);
+        if (!fragen.length) continue;
+        zaehler.push(`${p} (${fragen.length})`);
+        bloecke.push(`  ${JSON.stringify(p)}: ${JSON.stringify(fragen, null, 2).replace(/\n/g, "\n  ")},`);
+      }
+      continue;
+    }
     const voll = path.join(WURZEL, dateiRein);
     if (!fs.existsSync(voll)) { console.warn(`[SEO-FRAGEN] fehlt: ${datei}`); continue; }
     const quelltextRoh = fs.readFileSync(voll, "utf8");

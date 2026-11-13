@@ -52,7 +52,9 @@ export const STAAT = {
 export const IRS = {
   // E-465 (29.10.2026): laut IRS per Fax etwa vier Werktage — in der Praxis derzeit oft rund zwei Wochen (Gründungspartner, schriftlich 29.10.);
   // per Telefon (Antragsteller aus dem Ausland) wird die Nummer im Gespräch vergeben. Einzelheiten: shared/fiaon-global-bundesstaaten.ts (EIN_ZEITEN).
-  einDauer: "per Telefon aus dem Ausland am selben Tag, per Fax laut IRS etwa vier Werktage (derzeit oft rund zwei Wochen), per Post etwa vier Wochen",
+  // E-510 Runde 2 (13.11.2026): Der Telefonweg der IRS gilt laut SS-4-Anleitung nur für Antragsteller ohne Sitz oder Geschäftsadresse in den USA —
+  // also nicht für eine Gesellschaft mit US-Adresse. Die Praxis-Zeit per Fax ist der Stand November 2026.
+  einDauer: "per Fax laut IRS etwa vier Werktage, derzeit in der Praxis eher sechs bis acht Wochen; per Post laut IRS etwa vier Wochen",
   itinDauer: "etwa sieben Wochen; zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen",
   strafe5472: "25.000 US-Dollar je Formular und Jahr",
   frist5472: "15. April, mit Form 7004 verlängerbar bis 15. Oktober",
@@ -108,6 +110,10 @@ export const EIN_WEG = {
   telefonZeit: "Montag bis Freitag von 6 bis 23 Uhr Ostküstenzeit",
   faxAusland: "+1 304-707-9471",
   post: "Internal Revenue Service, Attn: EIN International Operation, Cincinnati, OH 45999",
+  // E-510 Runde 2 (13.11.2026): Laut Anleitung zu Form SS-4 gelten Fax und Anschrift oben nur für Antragsteller ohne Sitz in den USA;
+  // mit Geschäftsadresse in einem Bundesstaat gelten diese beiden.
+  faxInland: "+1 855-641-6935",
+  postInland: "Internal Revenue Service, Attn: EIN Operation, Cincinnati, OH 45999",
   zeile9a: "Foreign-owned U.S. disregarded entity-Form 5472",
 } as const;
 

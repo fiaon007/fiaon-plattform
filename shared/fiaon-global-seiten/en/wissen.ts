@@ -12,7 +12,7 @@ import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../..
 // E-509 (12.11.2026): ONE product instead of four packages — the partner sentence without “package”.
 import { EIN_PRODUKT } from "../ein-produkt";
 // E-510 (13.11.2026, language guide): fixed sentences from the one source (S2: applications, accounts and cards).
-import { satz } from "../../fiaon-global-saetze";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, beleg, satz } from "../../fiaon-global-saetze";
 import { GLOBAL_VERBUNDEN_EN } from "../../fiaon-global-partner";
 import { FAKTEN_STAND_EN, IRS_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN, QUELLEN_STAATEN_EN } from "../fakten-en";
 import type { GlobalSeite } from "../typen";
@@ -43,6 +43,23 @@ const QUELLE_DBG52 = { titel: "Art. 52 Swiss Federal Direct Tax Act (DBG) — sc
 const QUELLE_DBG124 = { titel: "Art. 124 Swiss Federal Direct Tax Act (DBG) — tax return", url: "https://www.fedlex.admin.ch/eli/cc/1991/1184_1184_1184/de#art_124" };
 
 const KAPITAL = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
+// Second pass under the language guide (knowledge articles): every article explains and holds true without us. Each article
+// carries exactly one paragraph about us, at the end (“What FIAON Global handles”, with “Your part” and “Condition”), built
+// from the fixed sentences.
+/** Step one of the fixed narrative (formation) and the names of its parts — verbatim from the one source. */
+const [GRUENDUNG] = SECHS_SCHRITTE.en;
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** Heading of the one paragraph about us. */
+const FIAON_TITEL = "What FIAON Global handles";
+/** Responsibility for tax questions — as a role, never as a partner’s activity. */
+const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity.";
+/** The second sentence of the roles sentence: who bears the partners’ fees. */
+const [, HONORARE_DER_PARTNER] = EIN_PRODUKT.en.partner.split(/(?<=\.)\s+/);
+/** The paragraph about us in the two legal-form articles: formation, your part, condition, responsibility for tax questions. */
+const FIAON_GRUENDUNG = `${FIAON_TITEL}: ${GRUENDUNG.satz} ${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${TEIL.bedingung}: ${GRUENDUNG.bedingung} ${STEUERFRAGEN}`;
+/** The fixed sentences on applications, accounts and cards and on the tax scheme — fetched once each, verbatim everywhere. */
+const ANTRAEGE = satz("S2", "en");
+const KEIN_STEUERMODELL = satz("S10", "en");
 
 export const WISSEN_EN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -60,9 +77,9 @@ export const WISSEN_EN: GlobalSeite[] = [
     erschienen: ERSCHIENEN,
     kennung: "FG · 22",
     auge: "Knowledge",
-    h1: "What to know before you form a US company.",
+    h1: "What to know before formation.",
     h1b: "Stated plainly, with sources.",
-    lead: "What business owners from Germany, Austria and Switzerland should know about a US company: formation, EIN and ITIN, US presence, bank account, cards, tax returns and structure. Every article cites its sources, states its as-of date and also says what a US company cannot do.",
+    lead: "The articles explain the US company for business owners from Germany, Austria and Switzerland: formation, tax identification numbers and ongoing obligations. Every article cites its sources, states its as-of date and names the limits of the legal form.",
     ziffern: [
       { wert: "28 articles", label: "Formation, tax numbers, account, cards, financing, tax" },
       { wert: "3 states", label: "Delaware, Florida, Wyoming" },
@@ -73,11 +90,11 @@ export const WISSEN_EN: GlobalSeite[] = [
       ["Tax numbers", "EIN without an SSN, ITIN with Form W-7"],
       ["US presence", "Registered agent, business address, phone number"],
       ["Account and cards", "Documents, credit score, business credit, business credit cards, financing, property"],
-      ["Tax", "Tax scheme or not, Form 5472, the US tax return"],
-      ["Providers", "How to recognise reputable support"],
+      ["Tax", "Tax liability in your country of residence, Form 5472, the US tax return"],
+      ["Providers", "The checklist in eight points"],
       ["Editorial team", "FIAON Global — sources at the end of every article"],
     ],
-    kurz: `A US company is a tool for genuine business in the US and for financing your plans — not a tax scheme. ${KAPITAL} Anyone who manages the company from Germany, Austria or Switzerland generally pays tax on it at home, reports it to the tax office and files Form 5472 in the US every year. The articles here explain the process — from formation through tax numbers, account and cards to the tax return.`,
+    kurz: `A US company serves business in the US and the financing of your plans. ${KAPITAL} ${KEIN_STEUERMODELL} If the company is managed from your country of residence, it is generally taxable there. You report the formation to the tax office; in the US, the company files Form 5472 every year. The articles explain the process from formation to the tax return.`,
     bloecke: [
       {
         typ: "verzeichnis", id: "gruendung", h2: "Before formation",
@@ -156,7 +173,7 @@ export const WISSEN_EN: GlobalSeite[] = [
       },
       {
         typ: "pakete", id: "mandat", h2: EIN_PRODUKT.en.karteH2,
-        lead: `Every article here describes a task. Under one engagement, FIAON Global handles the formation, the EIN and ITIN applications, the US presence, the compliance calendar and the first annual US filing. For accounts and cards: ${satz("S2", "en")} ${EIN_PRODUKT.en.partner}`,
+        lead: `Every article describes a task. Under one engagement, FIAON Global handles the formation, the EIN and ITIN applications and the US presence. The first year also includes the compliance calendar and the first annual US filing. On accounts and cards: ${ANTRAEGE} ${EIN_PRODUKT.en.partner}`,
       },
     ],
     fragen: [],
@@ -171,7 +188,7 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "US LLC tax in Germany: what applies where — FIAON Global",
-      beschreibung: "Can a US LLC reduce your tax? For owners in Germany and Switzerland usually not: place of management, classification, reporting duties — with sources.",
+      beschreibung: "US LLC and tax: where the company is taxable, how the tax office classifies it and which reporting duties apply. With sources and as-of date.",
     },
     // 27.10.2026: "What applies where" with Austria as a column of its own (sources RIS, Findok, Fedlex).
     // 13.11.2026 (E-510): wording as in the language guide; tax questions rest with partner tax advisers acting in their own professional capacity.
@@ -179,45 +196,45 @@ export const WISSEN_EN: GlobalSeite[] = [
     erschienen: ERSCHIENEN,
     kennung: "FG · 23",
     auge: "Knowledge · Tax",
-    h1: "Does a US LLC reduce your tax?",
-    h1b: "The answer, with sources.",
-    lead: "“Tax-free with a US LLC” is one of the most persistent promises on the internet. As a rule, it does not hold true for business owners who live in Germany, Austria or Switzerland and work from there. Here is why — and what a US company is still good for.",
+    h1: "US LLC and tax.",
+    h1b: "Generally taxable where it is managed.",
+    lead: "US LLC and tax: what usually counts is the place from which the company is managed. For business owners who live in Germany, Austria or Switzerland and work from there, that place is generally their country of residence. This article sets out the rules for each country, the reporting duties and the purpose of a US company.",
     ziffern: [
       { wert: "§ 10 AO", label: "The place of management decides" },
       { wert: "Art. 50 DBG", label: "place of effective management in Switzerland" },
       { wert: "Form 5472", label: "annual filing with the IRS" },
     ],
     blick: [
-      ["In brief", "Managed from home = generally taxable at home"],
+      ["Principle", "As a rule, taxable where the company is managed"],
       ["Germany", "Place of management (§ 10 AO), classification (Typenvergleich), § 138 AO"],
       ["Switzerland", "Registered office or place of effective management (Art. 50 DBG)"],
       ["US", "Form 5472 filing duty, even without revenue"],
-      ["What it is good for", "Business, account, cards and contracts in the US"],
+      ["Purpose", "Business, contracts, account and cards in the US"],
       ["Financing", GLOBAL_KAPITAL_FREI.en.kurz],
-      ["Tax questions", "Clarified before formation by partner tax advisers, in their own professional capacity"],
+      ["Tax questions", "To be clarified with a tax adviser before formation"],
     ],
-    kurz: `As a rule, no. A US LLC that a business owner manages from Germany, Austria or Switzerland has its place of management there — in Swiss terms, its place of effective management — and is taxable there. On top of that, there are reporting duties in both countries. A US company serves genuine business in the US and the financing of your plans — not the avoidance of tax. ${KAPITAL}`,
+    kurz: `As a rule, a US LLC is taxable where it is managed. If you manage it from your country of residence, its place of management is there — in Swiss terms, its place of effective management. Reporting duties apply in your country of residence and in the US. ${KEIN_STEUERMODELL} The company serves business in the US and the financing of your plans. ${KAPITAL}`,
     bloecke: [
       {
-        typ: "text", id: "mythos", h2: "Where the promise comes from",
+        typ: "text", id: "mythos", h2: "Tax treatment in the US",
         absaetze: [
-          "In the US, an LLC with a single foreign shareholder (member) is usually not treated as a separate taxable entity for tax purposes. If it has no business there, it often pays no federal tax on its profit in the US. States such as Wyoming also levy no corporate income tax of their own.",
-          "Online, this turns into “tax-free”. What gets overlooked is that the country in which the business owner lives and works has its own rules — and they are tied not to the company’s registered office but to where it is actually managed.",
+          "In the US, an LLC with a single foreign shareholder (member) is usually not treated as a separate taxable entity. If it has no business there, it often pays no federal tax on its profit in the US. States such as Wyoming also levy no corporate income tax of their own.",
+          "This is the origin of the claim that a US LLC is “tax-free”. The claim describes the position in the US only. The country in which the business owner lives and works applies its own rules. Those rules look to the place from which the company is actually managed.",
         ],
       },
       {
         typ: "text", id: "deutschland", h2: "Germany: the place of management",
         absaetze: [
-          "Under section 10 of the German Fiscal Code (AO), the place of management is the centre of the company’s top-level commercial direction. Anyone who takes the important decisions for their US company at a desk in Germany has its place of management in Germany. A corporation within the meaning of German tax law (Kapitalgesellschaft) whose place of management is in Germany is subject to unlimited corporate income tax there (section 1 of the German Corporate Income Tax Act, KStG) — on all of its income.",
-          "Whether the tax office treats the LLC like a GmbH or like a partnership depends on a classification by comparison with German legal forms (Typenvergleich), based on the overall picture of its features (letter from the German Federal Ministry of Finance of 19 March 2004). How it is classified in the US plays no role in this. For low-taxed, passive income, the controlled foreign company rules (Hinzurechnungsbesteuerung) under the German Foreign Tax Act (AStG) may also apply.",
-          "Then there is the notification: the formation of the company or the acquisition of the shareholding must be reported to the tax office under section 138 of the German Fiscal Code (AO), together with the tax return.",
+          "Under section 10 of the German Fiscal Code (AO), the place of management is the centre of the company’s top-level commercial direction. Anyone who takes the important decisions for their US company in Germany has its place of management in Germany. A corporation within the meaning of German tax law (Kapitalgesellschaft) with its place of management in Germany is subject to unlimited corporate income tax there. This covers all of its income (section 1 of the German Corporate Income Tax Act, KStG).",
+          "The tax office treats the LLC either like a GmbH or like a partnership. This follows from a comparison with German legal forms (Typenvergleich), based on the overall picture of its features (letter from the German Federal Ministry of Finance of 19 March 2004). Its classification in the US plays no role. For low-taxed, passive income, the controlled foreign company rules (Hinzurechnungsbesteuerung) under the German Foreign Tax Act (AStG) may also apply.",
+          "There is also the notification under section 138 of the German Fiscal Code (AO). You report the formation of the company or the acquisition of the shareholding to the tax office, together with the tax return.",
         ],
       },
       {
         typ: "text", id: "schweiz", h2: "Switzerland and Austria",
         absaetze: [
-          "In Switzerland, legal entities are taxable if their registered office or their place of effective management is located there (Art. 50 of the Swiss Federal Direct Tax Act, DBG). Here too: anyone who manages the US company from Switzerland must expect to be taxable in Switzerland.",
-          "Austria likewise looks to the place of management. In all three countries, the same question is therefore decisive: where is the company actually managed?",
+          "In Switzerland, legal entities are taxable if their registered office or their place of effective management is located there (Art. 50 of the Swiss Federal Direct Tax Act, DBG). Anyone who manages the US company from Switzerland must expect to be taxable in Switzerland.",
+          "Austria likewise looks to the place of management. In all three countries, the same factor is therefore decisive: the place from which the company is actually managed.",
         ],
       },
       {
@@ -233,31 +250,32 @@ export const WISSEN_EN: GlobalSeite[] = [
         ],
         fuss: [
           "Simplified overview; in the individual case, the activity, the legal form and the double taxation agreement decide.",
-          "The row on unlimited tax liability assumes that the LLC is classified as a corporation or legal entity; in all three countries, this is decided by comparison with domestic legal forms.",
+          "The row on unlimited tax liability assumes that the LLC is classified as a corporation or legal entity. In all three countries, this is decided by comparison with domestic legal forms.",
         ],
       },
       {
-        typ: "karten", id: "wofuer", h2: "What a US company is good for", spalten: 3,
+        typ: "karten", id: "wofuer", h2: "What a US company is for", spalten: 3,
         karten: [
-          { tag: "Good for", titel: "Business in the US", text: "Contracts with US customers, a US account, payments in US dollars, separate liability, a card history of its own in the US." },
-          { tag: "Good for", titel: "Financing — for Europe too", text: KAPITAL },
-          { tag: "Not good for", titel: "Avoiding tax at home", text: "If it is managed from home, it is generally taxable there. Anyone promising “tax-free” is keeping quiet about the place of management." },
+          { tag: "Suited to", titel: "Business in the US", text: "Contracts with US customers, payments in US dollars and separate liability. Added to these are a US account and a payment record in the United States. The decision on the account rests with the institution concerned." },
+          { tag: "Suited to", titel: "Financing — for Europe too", text: `${satz("S1", "en")} ${KAPITAL}` },
+          { tag: "Not suited to", titel: "Avoiding tax in your country of residence", text: "If the company is managed from your country of residence, it is generally taxable there. The claim “tax-free” leaves the place of management out of account." },
         ],
       },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "This article explains the basics; it is no substitute for a tax or legal review of your case. Partner tax advisers clarify the tax questions in your case before formation, in their own professional capacity. FIAON bears their fees for the services in your agreement.",
+          "This article explains the basics and does not replace a tax or legal review of your case.",
           GLOBAL_PFLICHTHINWEIS.en[0],
           GLOBAL_PFLICHTHINWEIS.en[1],
+          `${FIAON_TITEL}: ${STEUERFRAGEN} ${HONORARE_DER_PARTNER} ${TEIL.ihrTeil}: Your tax return and the report in your country of residence remain with you and your own tax adviser. ${TEIL.bedingung}: The US tax authority and the tax office in your country of residence decide on taxation.`,
         ],
       },
     ],
     fragen: [
-      { f: "Do I have to pay tax on my US LLC in Germany?", a: "If you manage it from Germany, as a rule yes: its place of management is then in Germany (§ 10 AO). How the tax office classifies the LLC depends on a comparison with German legal forms (Typenvergleich)." },
-      { f: "Is a Wyoming LLC “tax-free”?", a: "Wyoming levies no corporate income tax of its own. However, the company is taxable where it is managed — for business owners from Germany, Austria or Switzerland, that is generally at home." },
-      { f: "Why do so many providers advertise a “tax-free” LLC?", a: "Because an LLC with a foreign shareholder often pays no federal tax in the US. That is true for the US, but it says nothing about tax liability in the home country — and that depends on the place of management." },
-      { f: "So what is a US company actually good for?", a: `For genuine business in the US — contracts with US customers, a US account, payments in US dollars, separate liability, a card history of its own — and for financing your plans. ${KAPITAL}` },
+      { f: "Do I have to pay tax on my US LLC in Germany?", a: "As a rule yes, if you manage the company from Germany. Its place of management is then in Germany (§ 10 AO). How the tax office classifies the LLC is decided by a comparison with German legal forms (Typenvergleich)." },
+      { f: "Is a Wyoming LLC “tax-free”?", a: "Wyoming levies no corporate income tax of its own. The company is taxable where it is managed. For business owners from Germany, Austria or Switzerland, that is generally the country of residence." },
+      { f: "Why is the US LLC often described as “tax-free”?", a: "An LLC with a foreign shareholder often pays no federal tax in the US. That holds for the US. Tax liability in the country of residence depends on the place of management." },
+      { f: "What is a US company suited to?", a: `Business in the US: contracts with US customers, payments in US dollars and separate liability. Added to these are a US account, a payment record in the United States and the financing of your plans. Decisions on accounts, cards and financing rest with the institution concerned. ${KAPITAL}` },
     ],
     weiter: ["/en/business/from-germany", "/en/business/from-switzerland", "/en/business/knowledge/form-5472", "/en/business/knowledge/llc-tax-returns"],
     quellen: [
@@ -276,69 +294,70 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "LLC vs C corp: which one fits your plans? — FIAON Global",
-      beschreibung: "LLC or C corporation: liability, taxation, investors, formalities and costs compared — and when each legal form suits your plans.",
+      beschreibung: "LLC or C corporation compared: liability, taxation, investors, formalities and running costs. With sources and as-of date.",
     },
     stand: S,
     erschienen: ERSCHIENEN,
     kennung: "FG · 24",
     auge: "Knowledge · Legal form",
-    h1: "LLC or corporation?",
-    h1b: "The choice that shapes everything else.",
-    lead: "Both legal forms limit liability. The difference lies in taxation, in the internal organisation and in who will come on board later. The choice shapes the account, the cards, the filings and every investor who comes along.",
+    h1: "LLC or corporation.",
+    h1b: "Same liability, different taxation.",
+    lead: "LLC or corporation: both legal forms limit liability. They differ in taxation, in their internal organisation and in their suitability for investors. The choice affects the account and cards, the filings and later equity stakes.",
     ziffern: [
       { wert: IRS_EN.koerperschaftsteuer, label: "Federal corporate income tax for corporations" },
       { wert: "2 forms", label: "both with limited liability" },
-      { wert: "before formation", label: "clarify the tax consequences in your home country" },
+      { wert: "before formation", label: "clarify the tax consequences in your country of residence" },
     ],
     blick: [
-      ["LLC", "Lean, flexible, usually not a separate taxable entity in the US"],
-      ["Corporation", "Separate taxable entity, the standard for investors"],
+      ["LLC", "Freely structured, usually not a separate taxable entity in the US"],
+      ["Corporation", "Separate taxable entity, the usual form for investors"],
       ["Liability", "Limited to the company’s assets in both cases"],
       ["Investors", "Generally expect a corporation"],
-      ["Switching", "Possible later, but with effort"],
-      ["Tax questions", "To be clarified before formation — by partner tax advisers"],
+      ["Switching", "Possible later, with effort in both countries"],
+      ["Tax questions", "To be clarified with a tax adviser before formation"],
     ],
-    kurz: `The LLC is the leaner form: flexibly governed by the operating agreement and, with a foreign shareholder (member), usually not a separate taxable entity in the US. The corporation is a separate taxable entity — subject to ${IRS_EN.koerperschaftsteuer} federal corporate income tax — and the standard when you plan to bring in investors or give employees a stake. For trading, services and building a card history, the LLC is usually the simpler choice.`,
+    kurz: `LLC or corporation: for trading, services and a payment record in the United States, the LLC usually fits. The corporation is the usual form when you plan to bring in investors or give employees shares. The LLC sets its internal organisation freely in the operating agreement, its constitution. With a foreign shareholder (member), it is usually not a separate taxable entity in the US. The corporation is a separate taxable entity and pays ${IRS_EN.koerperschaftsteuer} federal corporate income tax.`,
     bloecke: [
       {
-        typ: "tabelle", id: "vergleich", h2: "The comparison",
+        typ: "tabelle", id: "vergleich", h2: "LLC and corporation compared",
         kopf: ["", "LLC", "Corporation"],
         zeilen: [
           ["Liability", "limited to the company’s assets", "limited to the company’s assets"],
           ["Tax in the US", "with a foreign shareholder, usually not a separate taxable entity", `separate taxable entity, federal ${IRS_EN.koerperschaftsteuer}, plus state tax depending on the state`],
           ["Internal organisation", "operating agreement, freely drafted", "bylaws, board of directors, shares under fixed rules"],
-          ["Investors", "rare", "the standard"],
+          ["Investors", "rare", "usual"],
           ["Employee participation", "possible, but unusual", "common through stock options"],
           ["Annual filing with the IRS", "Form 5472 with Form 1120 (as a cover sheet)", "Form 1120; if a foreign shareholder holds at least 25%, Form 5472 as well"],
           ["Running costs", "lower", "higher, for example because of the Delaware Franchise Tax"],
         ],
-        fuss: ["Simplified overview; classification in the home country follows its own rules."],
+        fuss: ["Simplified overview; classification in the country of residence follows its own rules."],
       },
       {
         typ: "karten", id: "wann", h2: "When each form fits", spalten: 2,
         karten: [
-          { tag: "LLC", titel: "Trading, services, card history", text: "When the company handles orders, sells goods or is meant to build its own banking and card history — and no investors are planned." },
-          { tag: "Corporation", titel: "Investors, equity stakes, sale", text: "When you plan to bring in US investors, give employees shares or sell the business later." },
+          { tag: "LLC", titel: "Trading, services, payment record", text: "Usually suitable if the company handles orders, sells goods or builds a payment record in the United States and no investors are planned." },
+          { tag: "Corporation", titel: "Investors, equity stakes, sale", text: "Usually suitable if US investors are to come in, employees are to receive shares or the business is to be sold later." },
         ],
       },
       {
-        typ: "text", id: "wechsel", h2: "Can you switch later?",
+        typ: "text", id: "wechsel", h2: "Switching legal form later",
         absaetze: [
-          "Yes — an LLC can be converted into a corporation. But the switch costs time, fees and a tax review in both countries. That is why it pays to ask the question seriously before formation: who should hold a stake in this company in three years’ time?",
+          "An LLC can be converted into a corporation. The switch costs time and fees; the tax position must also be clarified in both countries. One question therefore belongs before formation: who is to hold a stake in the company in three years’ time.",
         ],
       },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "The choice of legal form has tax consequences in your home country. Partner tax advisers clarify these questions before formation, in their own professional capacity.",
+          "The choice of legal form has tax consequences in your country of residence. These questions belong with a tax adviser before formation.",
           GLOBAL_PFLICHTHINWEIS.en[1],
+          FIAON_GRUENDUNG,
         ],
       },
     ],
     fragen: [
-      { f: "What is the difference between an LLC and a corporation?", a: `Both limit liability. The LLC is more flexible and, with a foreign shareholder, usually not a separate taxable entity in the US; the corporation is a separate taxable entity (federal ${IRS_EN.koerperschaftsteuer}) and the standard for investors.` },
+      { f: "What is the difference between an LLC and a corporation?", a: `Both limit liability. The LLC is freely structured and, with a foreign shareholder, usually not a separate taxable entity in the US. The corporation is a separate taxable entity (federal ${IRS_EN.koerperschaftsteuer}) and the usual form for investors.` },
       { f: "Which legal form do I need for US investors?", a: "Generally a corporation, often in Delaware. Investors in the US know this form and expect it." },
-      { f: "Can I convert an LLC into a corporation later?", a: "Yes, but with effort: fees, new documents and a tax review in both countries." },
+      { f: "Can I convert an LLC into a corporation later?", a: "Yes. The switch involves fees, new documents and clarification of the tax position in both countries." },
     ],
     weiter: ["/en/business/delaware", "/en/business/knowledge/llc-vs-gmbh", "/en/business/us-company-formation", "/en/business/knowledge/form-a-us-llc"],
     quellen: [QUELLE_I1120, QUELLEN_IRS_EN[4], QUELLEN_STAATEN_EN.delaware[3]],
@@ -352,15 +371,15 @@ export const WISSEN_EN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "US LLC vs GmbH: the comparison — FIAON Global",
-      beschreibung: "US LLC or German GmbH: formation, share capital, notary, liability, tax and obligations compared — and why it is rarely an either-or question.",
+      beschreibung: "US LLC or German GmbH compared: formation, share capital, notary, liability, tax and obligations. Plus the usual structure combining both, with sources.",
     },
     stand: S,
     erschienen: ERSCHIENEN,
     kennung: "FG · 25",
     auge: "Knowledge · Legal form",
-    h1: "LLC or GmbH?",
-    h1b: "Rarely an either-or.",
-    lead: "The LLC is seen as the “American GmbH” — formed without a notary and without share capital. That is true. But the question is rarely which of the two: the GmbH is made for business at home, the LLC for business in the US. Often the GmbH owns the LLC.",
+    h1: "LLC or GmbH.",
+    h1b: "Two legal forms for two markets.",
+    lead: "LLC or GmbH: the LLC is formed without a notary and without minimum capital, the GmbH with both. The GmbH is designed for business in Germany, the LLC for business in the US. In many cases the GmbH is the shareholder of the LLC.",
     ziffern: [
       { wert: "€25,000", label: "Share capital of a GmbH (§ 5 GmbHG)" },
       { wert: "no", label: "minimum capital and no notary for the LLC" },
@@ -371,13 +390,13 @@ export const WISSEN_EN: GlobalSeite[] = [
       ["LLC", "Filing with the state, no minimum capital"],
       ["Liability", "Limited to the company’s assets in both cases"],
       ["Tax", "Both taxed where they are managed"],
-      ["Typical", "GmbH at home, LLC as the US subsidiary"],
-      ["Tax questions", "To be clarified before formation — by partner tax advisers"],
+      ["Usual structure", "GmbH in Germany, LLC as the US subsidiary"],
+      ["Tax questions", "To be clarified with a tax adviser before formation"],
     ],
-    kurz: "The GmbH is formed with a notary and entry in the commercial register and needs €25,000 in share capital; the LLC is filed with the state and needs neither a notary nor minimum capital. Both limit liability, and both are taxable where they are managed. For businesses with operations in both countries, the typical solution is not a choice but a structure: the GmbH at home as the shareholder of the LLC in the US.",
+    kurz: "LLC or GmbH: the GmbH is formed with a notary and entry in the commercial register and needs €25,000 in share capital. The LLC is formed by filing with the state, with neither a notary nor minimum capital. Both limit liability. Both are taxable where they are managed. Businesses operating in both countries usually combine the two: the GmbH in Germany is the shareholder of the LLC in the US.",
     bloecke: [
       {
-        typ: "tabelle", id: "vergleich", h2: "The comparison",
+        typ: "tabelle", id: "vergleich", h2: "GmbH and LLC compared",
         kopf: ["", "GmbH", "US LLC"],
         zeilen: [
           ["Formation", "notary and commercial register", "filing with the state"],
@@ -386,30 +405,31 @@ export const WISSEN_EN: GlobalSeite[] = [
           ["Liability", "limited to the company’s assets", "limited to the company’s assets"],
           ["Tax", "where it is managed", "where it is managed — plus US reporting duties"],
           ["Annually", "annual financial statements, publication", "state fee, registered agent, Form 5472"],
-          ["Made for", "business in Germany", "business in the US"],
+          ["Designed for", "business in Germany", "business in the US"],
         ],
         fuss: ["Simplified overview. The entrepreneurial company (UG) has its own rules on share capital."],
       },
       {
-        typ: "text", id: "struktur", h2: "The typical structure: GmbH and LLC",
+        typ: "text", id: "struktur", h2: "The usual structure: GmbH and LLC",
         absaetze: [
-          "Anyone who runs a business in Germany and is building business in the US generally does not form an LLC instead of the GmbH, but an LLC under the GmbH. The GmbH is the shareholder; the LLC enters into contracts in the US, holds the US account and builds its own history there.",
-          "This keeps the liability and the figures of the US business separate. For tax purposes, it must be clarified where the LLC is managed and how it is classified — partner tax advisers clarify these questions before formation, in their own professional capacity. If a GmbH owns a Florida LLC, the GmbH also files its own tax return in Florida.",
+          "Anyone who runs a business in Germany and is building business in the US generally forms an LLC under the GmbH. The GmbH is the shareholder. The LLC enters into contracts in the US, holds the US account and builds a payment record there. The decision on the account rests with the institution concerned.",
+          "This keeps the liability and the figures of the US business separate. For tax purposes, what matters is where the LLC is managed and how the tax office classifies it. These questions belong with a tax adviser before formation. If a GmbH owns a Florida LLC, the GmbH also files its own tax return in Florida.",
         ],
       },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "An LLC does not replace a GmbH for business in Germany — and vice versa.",
+          "The GmbH remains the form for business in Germany, the LLC the form for business in the US.",
           GLOBAL_PFLICHTHINWEIS.en[0],
-          "The GmbH’s shareholding in the LLC must be reported to the tax office under section 138 of the German Fiscal Code (AO).",
+          "The GmbH reports its shareholding in the LLC to the tax office under section 138 of the German Fiscal Code (AO).",
+          FIAON_GRUENDUNG,
         ],
       },
     ],
     fragen: [
-      { f: "Is an LLC the same as a GmbH?", a: "Not quite. Both limit liability, but the LLC needs neither a notary nor minimum capital, and its constitution — the operating agreement — can be drafted freely." },
-      { f: "Can my GmbH form a US LLC?", a: "Yes. The GmbH becomes the shareholder of the LLC. We then need the GmbH’s commercial register extract and the passports of its managing directors." },
-      { f: "Does an LLC pay less tax than a GmbH?", a: "As a rule, no. Both are taxable where they are managed; the LLC also brings reporting duties in the US with it." },
+      { f: "Is an LLC the same as a GmbH?", a: "Not quite. Both limit liability. The LLC needs neither a notary nor minimum capital, and its constitution, the operating agreement, can be drafted freely." },
+      { f: "Can my GmbH form a US LLC?", a: "Yes. The GmbH becomes the shareholder of the LLC. The documents then include the GmbH’s commercial register extract and the passports of its managing directors. If you request your proposal via the fee calculator, you personally become the shareholder. If your GmbH, AG or holding company is to hold the shares, we agree this with you in a call." },
+      { f: "Does an LLC pay less tax than a GmbH?", a: "As a rule, no. Both are taxable where they are managed. The LLC also brings reporting duties in the US." },
     ],
     weiter: ["/en/business/us-subsidiary", "/en/business/knowledge/llc-vs-corporation", "/en/business/knowledge/subsidiary-or-branch", "/en/business/knowledge/us-llc-tax"],
     quellen: [QUELLE_GMBHG5, QUELLE_AO10, QUELLE_AO138, QUELLEN_STAATEN_EN.florida[4]],
@@ -430,27 +450,27 @@ export const WISSEN_EN: GlobalSeite[] = [
     kennung: "FG · 26",
     auge: "Knowledge · Reporting duty",
     h1: "Form 5472.",
-    h1b: "The filing no one can afford to forget.",
-    lead: "If a US company belongs to a foreign shareholder, it reports its transactions with that shareholder to the IRS every year — with Form 5472 and a Form 1120 as a cover sheet. The filing is required even without revenue, and missing it is expensive.",
+    h1b: "An annual filing, even without revenue.",
+    lead: "With Form 5472, a US company reports its transactions with its foreign shareholder to the US tax authority, the IRS, every year. A Form 1120 serves as the cover sheet. The filing is required even without revenue; the IRS can impose a penalty if it is missed.",
     ziffern: [
       { wert: "15 April", label: "Deadline, extendable to 15 October with Form 7004" },
       { wert: "$25,000", label: "Penalty per form per year" },
       { wert: "Fax or post", label: "not electronic" },
     ],
     blick: [
-      ["Who", "US company that has a foreign shareholder and is not a separate taxable entity for tax purposes"],
+      ["Who", "US company that has a foreign shareholder and is not a separate taxable entity"],
       ["What", "Form 5472 with a pro forma Form 1120"],
       ["Reportable", "Contributions, withdrawals, loans, payments — including the contribution on formation"],
       ["Deadline", IRS_EN.frist5472],
       ["Filing", "By fax or post, not electronically"],
       ["Penalty", `${IRS_EN.strafe5472}, further amounts after a notice`],
     ],
-    kurz: `Form 5472 reports the transactions between a US company and its foreign shareholder to the IRS. An LLC that is not a separate taxable entity for tax purposes files it with a pro forma Form 1120 — by 15 April, extendable to 15 October, by fax or post. Even the contribution on formation is reportable; the penalty for a missing filing is ${IRS_EN.strafe5472}.`,
+    kurz: `Form 5472 reports the transactions between a US company and its foreign shareholder to the IRS. An LLC that is not a separate taxable entity files it with a pro forma Form 1120. The deadline is 15 April, extendable to 15 October; the filing goes to the IRS by fax or post. Even the contribution on formation is reportable. For a missing filing, the IRS can impose ${IRS_EN.strafe5472}.`,
     bloecke: [
       {
         typ: "text", id: "wer", h2: "Who must file",
         absaetze: [
-          "Since 2017, the rule has been this: a US LLC that has a single foreign shareholder (member) and is not regarded as a separate taxable entity for tax purposes is treated like a corporation for this filing. Every year it files Form 5472 together with a Form 1120 that shows only its name, address and EIN — known as the pro forma Form 1120.",
+          "A separate rule has applied since 2017 to US LLCs with a single foreign shareholder (member). If the LLC is not regarded as a separate taxable entity, it is treated like a corporation for this filing. Every year it files Form 5472 together with a Form 1120. That form shows only its name, address and EIN, the company’s tax identification number, and is known as the pro forma Form 1120.",
           "Corporations with a foreign shareholder also report on Form 5472, in their case as an attachment to their regular tax return.",
         ],
       },
@@ -463,31 +483,31 @@ export const WISSEN_EN: GlobalSeite[] = [
           "loans in either direction",
           "payments for services, goods or rights",
         ],
-        nach: "Because even the contribution on formation counts, the filing is practically always due in the first year — even without a single dollar of revenue. The company must also keep records that document these transactions.",
+        nach: "Even the contribution on formation counts. As a rule, the filing is therefore due in the first year, even without revenue. The company must also keep records that document these transactions.",
       },
       {
-        typ: "etappen", id: "ablauf", h2: "How the filing works",
+        typ: "etappen", id: "ablauf", h2: "The filing process",
         etappen: [
-          { titel: "Records", text: "Contributions, withdrawals and payments are recorded throughout the year — with supporting documents." },
-          { titel: "Preparation by the US CPA", text: "The US CPA prepares Form 5472 and the pro forma Form 1120 from these records." },
+          { titel: "Records", text: "The company records contributions, withdrawals and payments throughout the year, each with a supporting document." },
+          { titel: "Preparation by the US CPA", text: "A US certified public accountant (CPA) prepares Form 5472 and the pro forma Form 1120 from these records." },
           { titel: "Filing", text: "By 15 April, by fax or post to the IRS; extendable to 15 October with Form 7004." },
-          { titel: "Record-keeping", text: "A copy and proof of filing are kept in your document room." },
+          { titel: "Record-keeping", text: "A copy and the proof of filing form part of the company’s records." },
         ],
       },
       {
-        typ: "hinweis", id: "strafe", h2: "What a missed filing costs",
+        typ: "hinweis", id: "strafe", h2: "Penalties for a missed filing",
         punkte: [
-          `For a missing or substantially incomplete filing, the IRS can impose ${IRS_EN.strafe5472} — likewise if the required records are missing.`,
+          `For a missing or substantially incomplete filing, the IRS can impose ${IRS_EN.strafe5472}. The same applies if the required records are missing.`,
           "If the filing is still outstanding more than ninety days after a notice from the IRS, a further $25,000 is added for each additional period of thirty days.",
-          "Included in the first year of your engagement with FIAON Global: the first annual US filing by a US certified public accountant (CPA) from our partner network.",
+          `${FIAON_TITEL}: The first year of your engagement includes the first annual US filing by a US certified public accountant (CPA) from our partner network. We place a copy and the proof of filing in your portal. ${TEIL.ihrTeil}: You record your company’s contributions, withdrawals and payments with supporting documents. ${TEIL.bedingung}: The IRS decides on extensions and penalties.`,
         ],
       },
     ],
     fragen: [
-      { f: "Who has to file Form 5472?", a: "A US company with a foreign shareholder — including an LLC that is not a separate taxable entity for tax purposes. It files Form 5472 with a pro forma Form 1120." },
-      { f: "Is Form 5472 required if my LLC made no sales?", a: "Yes, as soon as there were reportable transactions — and even the contribution on formation counts." },
-      { f: "Can I file Form 5472 electronically?", a: "Not for the pro forma Form 1120 with Form 5472. It is sent to the IRS by fax or post." },
-      { f: "What is the penalty for not filing Form 5472?", a: `The IRS can impose ${IRS_EN.strafe5472}, and further amounts if the failure continues after a notice.` },
+      { f: "Who has to file Form 5472?", a: "A US company with a foreign shareholder. This includes an LLC that is not a separate taxable entity. It files Form 5472 with a pro forma Form 1120." },
+      { f: "Is Form 5472 required if my LLC made no sales?", a: "Yes, as soon as there were reportable transactions. Even the contribution on formation counts." },
+      { f: "Can I file Form 5472 electronically?", a: "No. The pro forma Form 1120 with Form 5472 goes to the IRS by fax or post." },
+      { f: "What is the penalty for not filing Form 5472?", a: `The IRS can impose ${IRS_EN.strafe5472}. If the failure continues after a notice, further amounts are added.` },
     ],
     weiter: ["/en/business/us-compliance", "/en/business/knowledge/llc-tax-returns", "/en/business/knowledge/us-llc-tax", "/en/business/knowledge/applying-for-an-ein"],
     quellen: [QUELLEN_IRS_EN[4], QUELLEN_IRS_EN[5], QUELLE_I1120],
@@ -513,41 +533,42 @@ export const WISSEN_EN: GlobalSeite[] = [
     erschienen: ERSCHIENEN,
     kennung: "FG · 28",
     auge: "Knowledge · Providers",
-    h1: "Reputable or not?",
-    h1b: "The checklist before you engage anyone.",
-    lead: "“LLC” is a legal form — nothing more and nothing less. Many providers offer it, good and bad alike. Whether a provider is reputable comes down to eight points that you can check before engaging anyone. We apply the same list to ourselves.",
+    h1: "Recognising a reputable LLC provider.",
+    h1b: "Eight points before you sign.",
+    lead: "Whether an LLC provider is reputable shows in eight points. You can check each of them yourself before you sign. The LLC itself is an ordinary legal form in the US. We apply the same list to ourselves.",
     ziffern: [
-      { wert: "8 points", label: "to check before you engage anyone" },
-      { wert: "Two minutes", label: "is all the register check takes" },
-      { wert: "Companies House", label: "FIAON LTD No. 17318250" },
+      { wert: "8 points", label: "to check before you sign" },
+      { wert: "Three registers", label: "Companies House, Zefix, German commercial register" },
+      { wert: "Companies House", label: "FIAON LTD, company number 17318250" },
     ],
     blick: [
       ["Register", "Contracting party with a registration number you can check"],
       ["Fee", "Set in advance, with a schedule of services"],
-      ["Tax", "No promises — mandatory notices instead"],
-      ["Credit", "No commitment on limits, cards or loans"],
+      ["Tax", "Mandatory notices in place of promises"],
+      ["Credit", "The institution decides on limits, cards and loans"],
       ["Partners", "Tax advisers and lawyers admitted to practise, in their own professional capacity"],
-      ["Disclosure", "Connected companies are named"],
+      ["Connections", "Connected companies are named"],
     ],
-    kurz: "You can recognise reputable support with your US formation by a contracting party with a registration number you can check and by a fee set in advance, with a schedule of services. Further signs are clear mandatory notices on tax and filings, no commitments on tax, cards or credit, partners with their own professional admission — and connected companies that are named openly.",
+    kurz: "You can recognise a reputable LLC provider by features that can be checked before you sign. The contracting party has a registration number you can verify. The fee is set in advance, with a schedule of services. Mandatory notices on tax and filings are stated openly on the website. The provider makes no commitments on tax, cards or credit. Tax and legal questions rest with partners who hold their own professional admission; connected companies are named.",
     bloecke: [
       {
         typ: "etappen", id: "liste", h2: "The eight points",
         etappen: [
-          { titel: "Who is your contracting party?", text: "Name, legal form, registered office and registration number must be in the contract — and listed in the register. If you cannot verify your contracting party, do not sign." },
-          { titel: "Is the fee set in advance — with a schedule of services?", text: "What is included is set out in writing — including what is charged from the second year onwards. Recurring charges that only appear after signing are a warning sign." },
-          { titel: "Are promises made about tax?", text: "“Tax-free” or “no tax” conceals the place of management. Reputable providers name the tax liability at home and the reporting duties." },
-          { titel: "Are cards, limits or loans promised?", text: "The institution decides on the account, the card and the limit. Anyone who commits to an amount is committing to what they cannot deliver. A target that you choose yourself is not a commitment." },
-          { titel: "Who answers tax and legal questions?", text: "Only tax advisers, US CPAs and lawyers admitted to practise — in their own professional capacity. A formation service itself is not permitted to do so." },
-          { titel: "Are the US obligations spelled out?", text: "Form 5472, state fee, registered agent: anyone who does not mention them before the engagement leaves you alone with the most expensive deadline." },
-          { titel: "Who has access to your money?", text: "The account holder is your company. A provider needs no power of attorney over your account and does not accept money on your behalf." },
-          { titel: "Are connections disclosed openly?", text: "If partners have the same owner as the provider, that belongs on the website — not in the small print." },
+          { titel: "Contracting party on the register", text: "Name, legal form, registered office and registration number are in the contract and can be found in the register. Without a contracting party you can verify, there is no basis for a contract." },
+          { titel: "Fee and schedule of services in advance", text: "The contract states in writing what is included and what is charged from the second year. Recurring charges that only appear after signing are a warning sign." },
+          { titel: "Statements on tax", text: "The claims “tax-free” or “no tax” leave the place of management out of account. A reputable provider names the tax liability in your country of residence and the reporting duties." },
+          { titel: "Commitments on cards and loans", text: "The institution concerned decides on the account, the card and the limit. No provider can therefore commit to an amount. A target that you choose yourself is not a commitment." },
+          { titel: "Responsibility for tax and legal questions", text: "Tax and legal questions are answered only by tax advisers, US certified public accountants (CPAs) and lawyers admitted to practise, in their own professional capacity. A formation service itself is not permitted to answer them." },
+          { titel: "The US obligations", text: "A reputable provider names Form 5472, the state fee and the registered agent before you sign. For a missed filing, the IRS can impose a penalty." },
+          { titel: "Access to your money", text: "The account holder is your company. A provider needs no power of attorney over your account and does not accept money on your behalf." },
+          { titel: "Connections disclosed", text: "If partners have the same owner as the provider, its website says so openly." },
         ],
       },
       {
         typ: "text", id: "fiaon", h2: "The same list for FIAON Global",
         absaetze: [
-          "Your contracting party is FIAON LTD, registered in England and Wales, company number 17318250. Fees and services are set out in full before you sign; we name the running costs from the second year onwards in advance. We make no commitments on tax, and we commit to neither a card nor a limit nor financing.",
+          `Your contracting party is FIAON LTD, registered in England and Wales, company number 17318250. Fees and services are set out in full before you sign; we name the running costs from the second year in advance. ${KEIN_STEUERMODELL}`,
+          `${ANTRAEGE} ${satz("S1", "en")} ${beleg("keinZugriff", "en")}`,
           EIN_PRODUKT.en.partner,
           GLOBAL_VERBUNDEN_EN,
         ],
@@ -555,16 +576,16 @@ export const WISSEN_EN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
-          "A legal form says nothing about reputability — neither an LLC nor a Ltd nor a GmbH.",
+          "A provider’s legal form says nothing about the way it operates. That applies to the LLC, the Ltd and the GmbH.",
           "Check registration numbers yourself: at Companies House, in Zefix or in the German commercial register (Handelsregister).",
           GLOBAL_PFLICHTHINWEIS.en[2],
         ],
       },
     ],
     fragen: [
-      { f: "How can I tell whether a US formation provider is reputable?", a: "By a contracting party with a registration number you can check, a fee set in advance, with a schedule of services, clear mandatory notices and the absence of any commitments on tax, cards and credit." },
-      { f: "Is an LLC inherently dubious?", a: "No. The LLC is an ordinary legal form in the US. What decides whether a provider is reputable is the way it operates — not what legal form it has." },
-      { f: "How do I check FIAON’s registration number?", a: "At Companies House (England and Wales) under number 17318250." },
+      { f: "How can I tell whether a US formation provider is reputable?", a: "By a contracting party with a registration number you can check and by a fee set in advance, with a schedule of services. Added to these are mandatory notices on tax and filings. A reputable provider makes no commitments on tax, cards or credit." },
+      { f: "Is an LLC inherently dubious?", a: "No. The LLC is an ordinary legal form in the US. What matters is the way a provider operates, not its legal form." },
+      { f: "How do I check FIAON’s registration number?", a: "At Companies House (England and Wales) under company number 17318250." },
     ],
     weiter: ["/en/business/partners", "/en/business/comparison", "/en/business/costs", "/en/business/knowledge/us-business-credit-card"],
     quellen: [

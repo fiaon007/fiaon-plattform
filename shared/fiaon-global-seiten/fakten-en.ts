@@ -40,7 +40,7 @@ export const STAAT_EN = {
 
 export const IRS_EN = {
   // E-465 (29.10.2026): see fakten.ts — IRS figure for fax, plus the current practice.
-  einDauer: "the same day by phone from abroad, about four business days by fax according to the IRS (often around two weeks at present), about four weeks by post",
+  einDauer: "by fax about four business days according to the IRS, in practice currently closer to six to eight weeks; by post about four weeks according to the IRS",
   itinDauer: "about seven weeks; between mid-January and the end of April and for applications from abroad, nine to eleven weeks",
   strafe5472: "US$25,000 per form per year",
   frist5472: "15 April, extendable to 15 October with Form 7004",
@@ -58,6 +58,8 @@ export const EIN_WEG_EN = {
   telefonZeit: "Monday to Friday, 6 a.m. to 11 p.m. Eastern Time",
   faxAusland: "+1 304-707-9471",
   post: "Internal Revenue Service, Attn: EIN International Operation, Cincinnati, OH 45999",
+  faxInland: "+1 855-641-6935",
+  postInland: "Internal Revenue Service, Attn: EIN Operation, Cincinnati, OH 45999",
   zeile9a: "Foreign-owned U.S. disregarded entity-Form 5472",
 } as const;
 

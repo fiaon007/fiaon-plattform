@@ -29,7 +29,7 @@
 import { GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
 import {
   SAETZE_BETRAEGE, SCHRITTE_KOPF, SECHS_SCHRITTE,
-  beleg, satz, weitererSatz, type Schritt, type SchrittNr,
+  satz, weitererSatz, type Schritt, type SchrittNr,
 } from "../fiaon-global-saetze";
 import { EIN_PRODUKT } from "./ein-produkt";
 import { EIN_WEG, FAKTEN_STAND, FRISTEN, IRS, MARKT, QUELLEN_STAATEN, QUELLEN_WISSEN as Q, SCHWELLEN, STAAT } from "./fakten";
@@ -52,6 +52,10 @@ const TEIL = SCHRITTE_KOPF.de.teile;
 const FIAON_H2 = "Was FIAON Global dabei übernimmt";
 /** S15 mit dem Stand der Angaben — steht in jedem Baustein, der eine Dauer nennt (Leitfaden 5.5). */
 const DAUERN = `${satz("S15")} Stand: ${FAKTEN_STAND}.`;
+/** Grenze des Telefonwegs laut Anleitung der IRS zu Form SS-4 (E-510 Runde 2): nur ohne Sitz, Hauptgeschäftsort und Geschäftsstelle in den USA. */
+const TELEFON_GRENZE = "Den Telefonweg sieht die IRS nur für Antragsteller vor, die in den USA weder Sitz noch Hauptgeschäftsort noch eine Geschäftsstelle haben. Nennt der Antrag eine Geschäftsadresse in den USA, was bei einer LLC mit US-Adresse der Regelfall ist, bleiben Fax oder Post.";
+/** Bearbeitungszeit per Fax, laut IRS und in der Praxis — der erste Teil von IRS.einDauer. */
+const EIN_FAX = IRS.einDauer.split("; ")[0];
 /** Der Entscheider-Satz aus S2: „Über Konto, Karte und Rahmen entscheidet das jeweilige Institut.“ */
 const INSTITUT = satz("S2").split(/(?<=\.)\s+/)[1];
 /** Haftung bei Firmenkreditkarten (S11) mit dem Entscheider-Satz. */
@@ -76,50 +80,50 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     kennung: "FG · 30",
     auge: "Wissen · Gründung",
     h1: "Eine LLC gründen.",
-    h1b: "Schritt für Schritt, aus Deutschland.",
-    lead: "Eine US-LLC lässt sich aus dem Ausland gründen — ohne Wohnsitz in den USA und ohne Mindestkapital. Die Einreichung beim Bundesstaat ist der kleinste Teil. Hier stehen die zehn Schritte in ihrer Reihenfolge: Kosten, Zuständigkeit, häufige Fehler.",
+    h1b: "In zehn Schritten, aus Deutschland.",
+    lead: "Eine US-LLC gründen Sie aus dem Ausland, ohne Wohnsitz in den USA und ohne Mindestkapital. Die Einreichung beim Bundesstaat ist einer von zehn Schritten. Dieser Artikel nennt sie in ihrer Reihenfolge, mit Gebühren, Zuständigkeiten und häufigen Fehlern.",
     ziffern: [
       { wert: "10 Schritte", label: "von der steuerlichen Einordnung bis zur ersten US-Meldung" },
       { wert: `${STAAT.wyoming.gruendung} – ${STAAT.florida.gruendung}`, label: "Gründungsgebühr des Bundesstaats" },
       { wert: "kein", label: "Mindestkapital, kein Notartermin" },
     ],
     blick: [
-      ["Voraussetzung", "Reisepass, Wohnanschrift, ein klares Vorhaben — kein US-Wohnsitz"],
+      ["Voraussetzung", "Reisepass, Wohnanschrift, ein Vorhaben; kein US-Wohnsitz nötig"],
       ["Reihenfolge", "Steuerliche Einordnung, Bundesstaat, Gründung, EIN, Kontoantrag"],
       ["Staatsgebühr", `Florida ${STAAT.florida.gruendung}, Delaware ${STAAT.delaware.gruendung}, Wyoming ${STAAT.wyoming.gruendung}`],
       ["Pflicht in den USA", "Registered Agent, Jahresmeldung im Staat, Form 5472"],
       ["Pflicht im Wohnsitzland", "Meldung nach § 138 AO, Steuer am Ort der Geschäftsleitung"],
-      ["Seit August 2026", "Keine BOI-Meldung mehr für US-Gesellschaften"],
+      ["Seit August 2026", "BOI-Meldung für US-Gesellschaften entfallen"],
       ["Mit FIAON Global", "Anmeldung, Unterlagen und Anträge für die Steuernummern in einem Mandat"],
     ],
-    kurz: `Eine US-LLC gründen Sie aus Deutschland in zehn Schritten. Vor der Gründung stehen steuerliche Einordnung, Rechtsform, Bundesstaat und Name. Es folgen Registered Agent, Einreichung beim Staat, Operating Agreement, EIN und gegebenenfalls ITIN, dann Kontoantrag und Pflichtenkalender. Die Gebühr des Staats liegt zwischen ${STAAT.wyoming.gruendung} (Wyoming) und ${STAAT.florida.gruendung} (Florida); jedes Jahr fallen Staatsgebühr und Form 5472 an.`,
+    kurz: `Eine US-LLC gründen Sie aus Deutschland in zehn Schritten. Zuerst klären Sie steuerliche Einordnung, Rechtsform, Bundesstaat und Namen. Dann folgen Registered Agent, Einreichung beim Staat und Operating Agreement, zuletzt Steuernummern, Kontoantrag und Pflichtenkalender. Die Gebühr des Staats liegt zwischen ${STAAT.wyoming.gruendung} (Wyoming) und ${STAAT.florida.gruendung} (Florida). Jedes Jahr fallen die Staatsgebühr und die Meldung mit Form 5472 an.`,
     bloecke: [
       {
-        typ: "text", id: "vorab", h2: "Bevor Sie gründen: zwei Fragen",
+        typ: "text", id: "vorab", h2: "Vor der Gründung: zwei Fragen",
         absaetze: [
-          "Die erste Frage lautet nicht „Welcher Staat?“, sondern: Was soll die Gesellschaft tun? Verträge mit US-Kunden, Verkauf über US-Marktplätze, Zahlungsverkehr in US-Dollar, eine eigene Zahlungshistorie in den USA — je nach Antwort passen Rechtsform, Bundesstaat und Struktur anders.",
-          "Die zweite Frage stellt Ihr Wohnsitzland: Wo wird die Gesellschaft geführt? Wer sie von Deutschland, Österreich oder der Schweiz aus leitet, ist dort in der Regel steuerpflichtig. Diese Einordnung gehört vor die Gründung, nicht danach — sie entscheidet auch, ob die LLC Ihnen persönlich oder Ihrer GmbH gehören sollte.",
+          "Die erste Frage gilt dem Zweck der Gesellschaft. Beispiele sind Verträge mit US-Kunden, der Verkauf über US-Marktplätze und der Zahlungsverkehr in US-Dollar. Auch eine eigene Zahlungshistorie in den USA kann der Zweck sein. Vom Zweck hängen Rechtsform, Bundesstaat und Struktur ab.",
+          "Die zweite Frage gilt dem Ort der Geschäftsleitung. Wird die Gesellschaft von Deutschland, Österreich oder der Schweiz aus geführt, ist sie dort in der Regel steuerpflichtig. Die steuerliche Einordnung gehört deshalb vor die Gründung. Von ihr hängt auch ab, ob die LLC Ihnen persönlich oder Ihrer GmbH gehören sollte.",
         ],
       },
       {
         typ: "etappen", id: "schritte", h2: "Die zehn Schritte",
-        lead: `In dieser Reihenfolge — jeder Schritt setzt den vorigen voraus. ${DAUERN}`,
+        lead: `Die Reihenfolge ist fest: Jeder Schritt setzt den vorigen voraus. ${DAUERN}`,
         etappen: [
-          { titel: "Vorhaben und steuerliche Einordnung", dauer: "vor allem anderen", text: "Klären Sie, was die Gesellschaft tun soll und wo sie geführt wird. Ein Steuerberater mit US-Erfahrung prüft, wie Ihr Wohnsitzland die LLC einordnet (in Deutschland per Typenvergleich) und welche Meldungen anfallen." },
-          { titel: "Rechtsform wählen", text: "Die LLC für Handel, Dienstleistung und eine eigene Zahlungshistorie in den USA; die Corporation, wenn Investoren einsteigen sollen. Eine LLC kann einer Person gehören, mehreren oder Ihrer GmbH — jede Variante hat eigene Steuerfolgen." },
-          { titel: "Bundesstaat wählen", text: "Wie lange darf die Eintragung dauern, wo findet das Geschäft statt, kommen Investoren, braucht es Termine vor Ort? Danach richtet sich die Wahl zwischen Delaware, Florida und Wyoming. Wer in einem weiteren Staat tätig wird, registriert sich dort zusätzlich." },
-          { titel: "Namen prüfen", text: "Jeder Name wird im Staat nur einmal vergeben und trägt den Zusatz „LLC“ oder „Limited Liability Company“. Prüfen Sie ihn im Register des Staats und halten Sie zwei Ausweichnamen bereit." },
-          { titel: "Registered Agent benennen", text: "Jede LLC braucht im Gründungsstaat einen Registered Agent mit physischer Anschrift, der amtliche Post und Klagen entgegennimmt — ab dem ersten Tag und ohne Unterbrechung." },
-          { titel: "Beim Bundesstaat einreichen", dauer: "je nach Staat ein bis zwei Werktage bis rund zwei Wochen", text: `Das Gründungsdokument geht mit der Gebühr an den Staat: in Florida die Articles of Organization (${STAAT.florida.gruendung}), in Delaware das Certificate of Formation (${STAAT.delaware.gruendung}), in Wyoming die Articles of Organization (${STAAT.wyoming.gruendung}). ${GRUENDUNG.bedingung} Mit der Eintragung besteht die Gesellschaft.` },
-          { titel: "Operating Agreement aufsetzen", text: "Der Gesellschaftsvertrag regelt Beteiligung, Geschäftsführung, Gewinnverteilung und Nachfolge. Er wird nicht eingereicht, aber Institute verlangen ihn in der Regel — und seit dem 1. Juni 2026 auch die IRS, wenn ein ITIN-Antrag auf die Beteiligung an einer LLC mit mehreren Gesellschaftern gestützt wird." },
-          { titel: "EIN beantragen", dauer: "per Telefon am selben Tag, per Fax derzeit oft rund zwei Wochen", text: "Die Steuernummer der Gesellschaft beantragen Sie mit Form SS-4 — ohne US-Sozialversicherungsnummer per Fax, Post oder Telefon, nicht online. Die EIN ist Voraussetzung für Kontoantrag, Kartenantrag und Form 5472; über sie entscheidet die US-Steuerbehörde IRS." },
-          { titel: "ITIN, wenn ein Grund vorliegt", text: "Die persönliche US-Steuernummer gibt es nur mit steuerlichem Grund (Form W-7). Für die EIN ist sie nicht nötig; für eine persönliche Kredithistorie in den USA ist sie es oft." },
-          { titel: "Kontoantrag, Pflichtenkalender, Meldung im Wohnsitzland", text: "Mit Gründungsdokument, EIN und Operating Agreement folgt der Kontoantrag; über das Konto entscheidet das jeweilige Institut. Danach beginnen die Pflichten: Jahresmeldung im Staat, Form 5472 bis zum 15. April, die Meldung ans Finanzamt nach § 138 AO." },
+          { titel: "Vorhaben und steuerliche Einordnung", dauer: "als Erstes", text: "Sie legen fest, was die Gesellschaft tun soll und wo sie geführt wird. Ein Steuerberater mit US-Erfahrung prüft, wie Ihr Wohnsitzland die LLC einordnet, in Deutschland per Typenvergleich. Er nennt auch die Meldungen, die anfallen." },
+          { titel: "Rechtsform wählen", text: "Die LLC passt zu Handel, Dienstleistung und einer eigenen Zahlungshistorie in den USA. Die Corporation kommt in Betracht, wenn Investoren einsteigen sollen. Eine LLC kann einer Person, mehreren Personen oder Ihrer GmbH gehören; jede Variante hat eigene Steuerfolgen." },
+          { titel: "Bundesstaat wählen", text: "Die Wahl zwischen Delaware, Florida und Wyoming richtet sich nach vier Kriterien. Es sind die Dauer der Eintragung, der Ort des Geschäfts, geplante Investoren und Termine vor Ort. Wer in einem weiteren Staat tätig wird, registriert sich dort zusätzlich." },
+          { titel: "Namen prüfen", text: "Jeder Staat vergibt einen Namen nur einmal. Der Name trägt den Zusatz „LLC“ oder „Limited Liability Company“. Prüfen Sie ihn im Register des Staats und halten Sie zwei Ausweichnamen bereit." },
+          { titel: "Registered Agent benennen", text: "Jede LLC braucht im Gründungsstaat einen Registered Agent mit physischer Anschrift. Er nimmt amtliche Post und Klagen entgegen. Die Pflicht gilt ab dem ersten Tag und ohne Unterbrechung." },
+          { titel: "Beim Bundesstaat einreichen", dauer: "je nach Staat ein bis zwei Werktage bis rund zwei Wochen", text: `Das Gründungsdokument geht mit der Gebühr an den Staat. In Florida sind es die Articles of Organization (${STAAT.florida.gruendung}), in Delaware das Certificate of Formation (${STAAT.delaware.gruendung}), in Wyoming die Articles of Organization (${STAAT.wyoming.gruendung}). ${GRUENDUNG.bedingung} Mit der Eintragung besteht die Gesellschaft.` },
+          { titel: "Operating Agreement aufsetzen", text: "Das Operating Agreement ist der Gesellschaftsvertrag der LLC. Es regelt Beteiligung, Geschäftsführung, Gewinnverteilung und Nachfolge. Sie reichen es nicht beim Staat ein; Institute verlangen es in der Regel. Seit dem 1. Juni 2026 verlangt es auch die US-Steuerbehörde IRS für bestimmte ITIN-Anträge. Das betrifft Anträge, die sich auf die Beteiligung an einer LLC mit mehreren Gesellschaftern stützen." },
+          { titel: "EIN beantragen", dauer: "per Fax oder Post", text: `Die EIN (Employer Identification Number) ist die Steuernummer der Gesellschaft. Sie beantragen sie mit Form SS-4. Ohne US-Sozialversicherungsnummer geht das per Fax oder Post, nicht online. ${TELEFON_GRENZE} Die Bearbeitung dauert ${IRS.einDauer}. Die EIN ist Voraussetzung für Kontoantrag, Kartenantrag und Form 5472, die jährliche Meldung an die IRS. Über die EIN entscheidet die IRS.` },
+          { titel: "ITIN, wenn ein Grund vorliegt", text: "Die ITIN ist Ihre persönliche US-Steuernummer. Die IRS vergibt sie nur mit steuerlichem Grund (Form W-7). Für die EIN ist sie nicht nötig. Für eine persönliche Kredithistorie in den USA ist sie es oft." },
+          { titel: "Kontoantrag, Pflichtenkalender, Meldung im Wohnsitzland", text: "Mit Gründungsdokument, EIN und Operating Agreement stellen Sie den Kontoantrag. Über das Konto entscheidet das jeweilige Institut. Danach beginnen die laufenden Pflichten: die Jahresmeldung im Staat, Form 5472 bis zum 15. April und die Meldung ans Finanzamt nach § 138 AO." },
         ],
       },
       {
-        typ: "tabelle", id: "kosten", h2: "Was die Gründung kostet",
-        lead: "Die Gebühren der Staaten sind überschaubar. Die größeren Kosten entstehen durch Agent, Verträge, Steuernummern und die jährliche Meldung — und durch Fehler in der Reihenfolge.",
+        typ: "tabelle", id: "kosten", h2: "Kosten der Gründung",
+        lead: "Die Gebühr des Staats ist der kleinere Teil der Kosten. Der größere Teil entfällt auf Registered Agent, Verträge, Steuernummern und die jährliche Meldung. Fehler in der Reihenfolge verursachen zusätzliche Kosten.",
         kopf: ["Posten", "Florida", "Delaware", "Wyoming"],
         zeilen: [
           ["Gründungsgebühr des Staats", STAAT.florida.gruendung, STAAT.delaware.gruendung, STAAT.wyoming.gruendung],
@@ -130,25 +134,24 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         ],
         fuss: [
           `Stand ${FAKTEN_STAND}. Staatsgebühren nach den amtlichen Gebührenordnungen; marktübliche Beträge sind veröffentlichte Angaben mehrerer Anbieter, keine amtlichen Werte.`,
-          `Im ersten Jahr Ihres Mandats bei FIAON Global enthalten: Staatsgebühr, Registered Agent, die Anträge für EIN und ITIN und ${US_MELDUNG}. ${beleg("honorarVorab")}`,
         ],
       },
       {
-        typ: "text", id: "boi", h2: "Seit August 2026: keine BOI-Meldung mehr",
+        typ: "text", id: "boi", h2: "BOI-Meldung: seit August 2026 entfallen",
         absaetze: [
-          "Bis 2025 galt: Jede neue US-Gesellschaft meldet der Behörde FinCEN ihre wirtschaftlich Berechtigten (Beneficial Ownership Information, BOI). Für Gesellschaften, die in den USA gegründet wurden, ist diese Pflicht entfallen — endgültig mit der Regel, die am 14. August 2026 in Kraft trat.",
-          "Melden müssen nur noch ausländische Gesellschaften, die sich für Geschäfte in einem Bundesstaat registrieren — etwa eine GmbH mit Zweigniederlassung in den USA. Für eine LLC, die Sie in Florida, Delaware oder Wyoming gründen, fällt die Meldung weg. Hinweise auf Strafen für eine versäumte BOI-Meldung geben für diese Gesellschaften einen veralteten Stand wieder.",
+          "Bis 2025 meldete jede neue US-Gesellschaft der Behörde FinCEN ihre wirtschaftlich Berechtigten (Beneficial Ownership Information, BOI). Für Gesellschaften, die in den USA gegründet wurden, ist diese Pflicht entfallen. Endgültig wurde das mit der Regel, die am 14. August 2026 in Kraft trat.",
+          "Meldepflichtig bleiben ausländische Gesellschaften, die sich für Geschäfte in einem Bundesstaat registrieren. Ein Beispiel ist eine GmbH mit Zweigniederlassung in den USA. Für eine LLC, die Sie in Florida, Delaware oder Wyoming gründen, entfällt die Meldung. Hinweise auf Strafen für eine versäumte BOI-Meldung geben für diese Gesellschaften einen veralteten Stand wieder.",
         ],
       },
       {
         typ: "karten", id: "fehler", h2: "Sechs häufige Fehler", spalten: 3,
         karten: [
-          { tag: "Fehler", titel: "Erst gründen, dann einordnen", text: "Die Steuerfrage im Wohnsitzland kommt nach der Gründung. Dann steht die Struktur schon — auch wenn die LLC unter der GmbH besser gepasst hätte." },
-          { tag: "Fehler", titel: "Der Staat mit der niedrigsten Gebühr", text: "Wer in Florida tätig ist und in Wyoming gründet, registriert sich in Florida zusätzlich — und zahlt in beiden Staaten." },
-          { tag: "Fehler", titel: "Die Agent-Anschrift als Sitz", text: "Viele Institute lehnen Konten ab, deren Geschäftsadresse die Anschrift eines Registered Agent oder ein Postfach ist." },
-          { tag: "Fehler", titel: "Kein Operating Agreement", text: "Der Kontoantrag scheitert an einem Dokument, das mit der Gründung hätte vorliegen sollen: Wer ist beteiligt, wer darf handeln?" },
-          { tag: "Fehler", titel: "Form 5472 nicht eingereicht", text: `Schon die Einlage bei der Gründung ist meldepflichtig. Die Strafe für eine fehlende Meldung: ${IRS.strafe5472}.` },
-          { tag: "Fehler", titel: "Keine Meldung ans Finanzamt", text: "Gründung oder Beteiligung sind in Deutschland nach § 138 AO anzuzeigen — mit der nächsten Steuererklärung." },
+          { tag: "Fehler", titel: "Erst gründen, dann einordnen", text: "Die Steuerfrage im Wohnsitzland kommt erst nach der Gründung. Dann steht die Struktur bereits fest, auch wenn die LLC als Tochter der GmbH besser gepasst hätte." },
+          { tag: "Fehler", titel: "Den Staat nach der Gebühr wählen", text: "Wer in Florida tätig ist und in Wyoming gründet, registriert sich in Florida zusätzlich. Die Gebühren fallen dann in beiden Staaten an." },
+          { tag: "Fehler", titel: "Die Agent-Anschrift als Sitz", text: "Viele Institute lehnen Kontoanträge ab, wenn die Geschäftsadresse die Anschrift eines Registered Agent oder ein Postfach ist." },
+          { tag: "Fehler", titel: "Kein Operating Agreement", text: "Institute verlangen das Operating Agreement in der Regel mit dem Kontoantrag. Es belegt, wer beteiligt ist und wer für die Gesellschaft handeln darf. Fehlt es, bleibt der Antrag unvollständig." },
+          { tag: "Fehler", titel: "Form 5472 nicht eingereicht", text: `Schon die Einlage bei der Gründung ist meldepflichtig. Die Strafe für eine fehlende Meldung beträgt ${IRS.strafe5472}.` },
+          { tag: "Fehler", titel: "Keine Meldung ans Finanzamt", text: "In Deutschland müssen Sie Gründung oder Beteiligung nach § 138 AO anzeigen, und zwar mit der nächsten Steuererklärung." },
         ],
       },
       {
@@ -168,16 +171,16 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         punkte: [
           GLOBAL_PFLICHTHINWEIS.de[0],
           GLOBAL_PFLICHTHINWEIS.de[1],
-          "Eine LLC ersetzt kein Geschäftsmodell: Institute prüfen, was die Gesellschaft tut — nicht, in welchem Staat sie gegründet ist.",
+          "Eine LLC ersetzt kein Geschäftsmodell. Institute prüfen die Tätigkeit der Gesellschaft, nicht den Staat ihrer Gründung.",
         ],
       },
     ],
     fragen: [
-      { f: "Kann ich als Deutscher eine LLC in den USA gründen?", a: `Ja. Für die Gründung brauchen Sie weder einen US-Wohnsitz noch die US-Staatsbürgerschaft und kein Mindestkapital. Nötig sind ein Registered Agent im Gründungsstaat und die Gebühr des Staats. ${GRUENDUNG.bedingung}` },
-      { f: "Was kostet es, eine LLC zu gründen?", a: `Die Gebühr des Staats beträgt in Wyoming ${STAAT.wyoming.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Florida ${STAAT.florida.gruendung}. Dazu kommen Registered Agent, Operating Agreement und jedes Jahr Staatsgebühr und Form 5472. Zum Honorar von FIAON Global: ${beleg("honorarVorab")}` },
-      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung beim Staat dauert derzeit ein bis zwei Werktage (Delaware mit Express), rund drei Werktage (Wyoming) oder oft rund zwei Wochen (Florida). Länger dauern EIN, ITIN und Kontoantrag. ${satz("S15")}` },
-      { f: "Brauche ich für die LLC eine US-Adresse?", a: "Die LLC braucht einen Registered Agent mit Anschrift im Gründungsstaat. Für Kontoantrag und Verträge braucht sie zusätzlich eine Geschäftsadresse; die Anschrift des Agent reicht vielen Instituten dafür nicht. Welche Adresse genügt, legt jedes Institut selbst fest." },
-      { f: "Muss eine neue LLC noch eine BOI-Meldung abgeben?", a: "Nein, wenn sie in den USA gegründet wurde. Seit dem 14. August 2026 sind US-Gesellschaften endgültig von der BOI-Meldung befreit; melden müssen nur ausländische Gesellschaften, die sich in einem Bundesstaat registrieren." },
+      { f: "Kann ich als Deutscher eine LLC in den USA gründen?", a: `Ja. Die Gründung setzt weder einen US-Wohnsitz noch die US-Staatsbürgerschaft noch ein Mindestkapital voraus. Nötig sind ein Registered Agent im Gründungsstaat und die Gebühr des Staats. ${GRUENDUNG.bedingung}` },
+      { f: "Was kostet es, eine LLC zu gründen?", a: `Die Gebühr des Staats beträgt in Wyoming ${STAAT.wyoming.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Florida ${STAAT.florida.gruendung}. Hinzu kommen der Registered Agent und das Operating Agreement. Jedes Jahr fallen die Staatsgebühr und die Meldung mit Form 5472 an.` },
+      { f: "Wie lange dauert die Gründung einer LLC?", a: `Die Eintragung dauert derzeit ein bis zwei Werktage in Delaware (mit Express), rund drei Werktage in Wyoming und oft rund zwei Wochen in Florida. EIN, ITIN und Kontoantrag dauern länger. ${satz("S15")}` },
+      { f: "Brauche ich für die LLC eine US-Adresse?", a: "Ja. Die LLC braucht einen Registered Agent mit Anschrift im Gründungsstaat. Für Kontoantrag und Verträge braucht sie zusätzlich eine Geschäftsadresse. Die Anschrift des Agent reicht vielen Instituten dafür nicht; welche Adresse genügt, legt jedes Institut selbst fest." },
+      { f: "Muss eine neue LLC noch eine BOI-Meldung abgeben?", a: "Nein, wenn sie in den USA gegründet wurde. Seit dem 14. August 2026 sind US-Gesellschaften endgültig von der BOI-Meldung befreit. Meldepflichtig bleiben ausländische Gesellschaften, die sich in einem Bundesstaat registrieren." },
     ],
     paket: "global_struktur",
     weiter: ["/business/us-firmengruendung", "/business/wissen/bundesstaat-waehlen", "/business/wissen/ein-beantragen", "/business/wissen/registered-agent-adresse"],
@@ -200,52 +203,52 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     auge: "Wissen · Steuernummer",
     h1: "Die EIN beantragen.",
     h1b: "Ohne Sozialversicherungsnummer.",
-    lead: "Die EIN ist die Steuernummer Ihrer US-Gesellschaft — Voraussetzung für Kontoantrag, Kartenantrag und jede Meldung an die IRS. Der Online-Antrag setzt eine US-Sozialversicherungsnummer oder eine ITIN voraus. Ohne sie beantragen Sie die EIN mit Form SS-4: per Fax, Post oder Telefon.",
+    lead: "Die EIN ist die Steuernummer Ihrer US-Gesellschaft. Sie ist Voraussetzung für Kontoantrag, Kartenantrag und jede Meldung an die US-Steuerbehörde IRS. Der Online-Antrag setzt eine US-Sozialversicherungsnummer (SSN) oder eine ITIN voraus, die persönliche US-Steuernummer. Ohne beide beantragen Sie die EIN mit Form SS-4 per Fax oder Post; per Telefon nur, wenn die Gesellschaft in den USA weder Sitz noch Geschäftsstelle hat.",
     ziffern: [
-      { wert: "keine Gebühr", label: "die IRS erhebt für die EIN keine Gebühr" },
-      { wert: "3 Wege", label: "Fax, Post oder Telefon — ohne SSN nicht online" },
+      { wert: "keine Gebühr", label: "erhebt die IRS für die EIN" },
+      { wert: "3 Wege", label: "Fax, Post, Telefon nur ohne Sitz in den USA; online nur mit SSN oder ITIN" },
       { wert: "9 Ziffern", label: "im Format 12-3456789" },
     ],
     blick: [
-      ["Was", "Employer Identification Number — die Steuernummer der Gesellschaft"],
+      ["Was", "Employer Identification Number, die Steuernummer der Gesellschaft"],
       ["Wann", "Nach der Eintragung beim Bundesstaat"],
       ["Formular", "Form SS-4, unterzeichnet für die Gesellschaft"],
-      ["Wege ohne SSN", "Fax, Post oder Telefon — nicht online"],
+      ["Wege ohne SSN", "Fax oder Post; Telefon nur ohne Sitz und Geschäftsstelle in den USA; nicht online"],
       ["Bearbeitungszeit der IRS", gross(IRS.einDauer)],
       ["Gebühr", "Die IRS erhebt keine"],
-      ["Mit FIAON Global", "Antrag vorbereitet und eingereicht — es entscheidet die US-Steuerbehörde"],
+      ["Mit FIAON Global", "Antrag vorbereitet und eingereicht; es entscheidet die US-Steuerbehörde"],
     ],
-    kurz: `Ohne US-Sozialversicherungsnummer beantragen Sie die EIN mit Form SS-4 per Fax, per Post oder, als Antragsteller aus dem Ausland, telefonisch bei der IRS. Voraussetzung ist die Eintragung der Gesellschaft. In Zeile 7b steht „foreign“ oder „N/A“, wenn die verantwortliche Person weder SSN noch ITIN hat. Eine LLC mit einem ausländischen Gesellschafter vermerkt in Zeile 9a „${EIN_WEG.zeile9a}“.`,
+    kurz: `Ohne US-Sozialversicherungsnummer (SSN) beantragen Sie die EIN mit Form SS-4 bei der US-Steuerbehörde IRS: per Fax oder per Post, per Telefon nur ohne Sitz und Geschäftsstelle in den USA. Voraussetzung ist die Eintragung der Gesellschaft. Hat die verantwortliche Person weder SSN noch ITIN, steht in Zeile 7b „foreign“ oder „N/A“. Eine LLC mit einem ausländischen Gesellschafter vermerkt in Zeile 9a „${EIN_WEG.zeile9a}“.`,
     bloecke: [
       {
         typ: "text", id: "was", h2: "Die EIN: Zweck und Verwendung",
         absaetze: [
-          "Die Employer Identification Number ist die Steuernummer einer US-Gesellschaft: neun Ziffern, vergeben von der US-Steuerbehörde IRS. Trotz ihres Namens braucht sie nicht nur, wer Mitarbeiter beschäftigt. Institute verlangen sie für jedes Geschäftskonto, Kartenherausgeber für jeden Antrag, und ohne sie lässt sich Form 5472 nicht einreichen.",
-          "Eine LLC mit einem einzigen ausländischen Gesellschafter braucht die EIN schon deshalb, weil sie jedes Jahr Form 5472 abgeben muss. Sie meldet unter ihrem eigenen Namen und ihrer eigenen EIN.",
+          "Die Employer Identification Number (EIN) ist die Steuernummer einer US-Gesellschaft. Sie hat neun Ziffern; die IRS vergibt sie. Der Name verweist auf Arbeitgeber, doch auch Gesellschaften ohne Mitarbeiter brauchen sie. Institute verlangen sie für jedes Geschäftskonto, Kartenherausgeber für jeden Antrag. Auch Form 5472, die jährliche Meldung an die IRS, setzt die EIN voraus.",
+          "Eine LLC mit einem einzigen ausländischen Gesellschafter gibt jedes Jahr Form 5472 ab. Schon deshalb braucht sie die EIN. Sie meldet unter ihrem eigenen Namen und ihrer eigenen EIN.",
         ],
       },
       {
         typ: "text", id: "online", h2: "Online-Antrag: nur mit SSN oder ITIN",
         absaetze: [
-          "Die IRS bietet einen Online-Antrag an, der die Nummer in derselben Sitzung ausgibt. Er setzt aber voraus, dass die verantwortliche Person eine gültige SSN oder ITIN hat. Gründer aus Deutschland, Österreich oder der Schweiz haben in aller Regel keine von beiden — für sie bleiben Fax, Post und Telefon.",
-          "Eine ITIN eigens für die EIN zu beantragen, ist nicht nötig. Die EIN lässt sich ohne ITIN beantragen, und die ITIN braucht einen eigenen steuerlichen Grund.",
+          "Die IRS bietet einen Online-Antrag an, der die Nummer in derselben Sitzung ausgibt. Er setzt voraus, dass die verantwortliche Person eine gültige SSN oder ITIN hat. Gründer aus Deutschland, Österreich oder der Schweiz haben in der Regel keine von beiden. Für sie bleiben Fax und Post; das Telefon nur, wenn die Gesellschaft in den USA weder Sitz noch Geschäftsstelle hat.",
+          "Eine ITIN eigens für die EIN zu beantragen, ist nicht nötig. Die IRS vergibt die EIN auch ohne ITIN, und die ITIN setzt einen eigenen steuerlichen Grund voraus.",
         ],
       },
       {
         typ: "text", id: "verantwortlich", h2: "Die verantwortliche Person",
         absaetze: [
-          "Die IRS will wissen, wer hinter der Gesellschaft steht: die „responsible party“ — die Person, die die Gesellschaft letztlich besitzt oder kontrolliert. Außer bei Behörden muss das ein Mensch sein, keine Gesellschaft. Gehört die LLC Ihrer GmbH, ist es der Mensch, der die GmbH und damit die LLC tatsächlich lenkt.",
+          "Die IRS verlangt die Angabe der „responsible party“. Das ist die Person, die die Gesellschaft letztlich besitzt oder kontrolliert. Außer bei Behörden muss es eine natürliche Person sein, keine Gesellschaft. Gehört die LLC Ihrer GmbH, ist es die Person, die die GmbH und damit die LLC tatsächlich lenkt.",
           "Hat diese Person weder SSN noch ITIN und kann auch keine bekommen, steht in Zeile 7b „foreign“ oder „N/A“. Je verantwortlicher Person vergibt die IRS nur eine EIN am Tag.",
         ],
       },
       {
         typ: "tabelle", id: "zeilen", h2: "Form SS-4: die maßgeblichen Zeilen",
-        lead: "Für eine LLC mit einem ausländischen Gesellschafter. Die übrigen Zeilen erklären sich weitgehend selbst.",
+        lead: "Die Tabelle gilt für eine LLC mit einem ausländischen Gesellschafter. Die übrigen Zeilen des Formulars erläutert die Anleitung der IRS zu Form SS-4.",
         kopf: ["Zeile", "Was hinein gehört", "Typischer Fehler"],
         zeilen: [
-          ["1", "Der Name der LLC, genau wie im Gründungsdokument — mit „LLC“", "Abkürzungen oder Schreibweisen, die vom Register abweichen"],
+          ["1", "Der Name der LLC wie im Gründungsdokument, mit dem Zusatz „LLC“", "Abkürzungen oder Schreibweisen, die vom Register abweichen"],
           ["4a–5b", "Post- und Geschäftsanschrift der Gesellschaft", "Eine Anschrift, an der die Briefe der IRS niemanden erreichen"],
-          ["7a–7b", "Name der verantwortlichen Person; ohne SSN oder ITIN „foreign“ oder „N/A“", "Eine Gesellschaft statt eines Menschen"],
+          ["7a–7b", "Name der verantwortlichen Person; ohne SSN oder ITIN „foreign“ oder „N/A“", "Eine Gesellschaft statt einer natürlichen Person"],
           ["8a–8c", "LLC ja, Zahl der Gesellschafter, in den USA gegründet", "Die Zahl weicht vom Operating Agreement ab"],
           ["9a", `„Other“ mit dem Vermerk „${EIN_WEG.zeile9a}“`, "„Sole proprietor“ angekreuzt"],
           ["10", "Grund: neues Geschäft, mit Angabe der Tätigkeit", "Ein leeres Feld"],
@@ -259,22 +262,22 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "karten", id: "wege", h2: "Drei Wege zur Nummer", spalten: 3,
         lead: DAUERN,
         karten: [
-          { tag: "Fax", titel: "Laut IRS etwa vier Werktage", text: `Aus dem Ausland an ${EIN_WEG.faxAusland}. Geben Sie eine Faxnummer für die Antwort an — so kommt die Nummer auf demselben Weg zurück. In der Praxis dauert es derzeit oft rund zwei Wochen.` },
-          { tag: "Post", titel: "Etwa vier Wochen", text: `An ${EIN_WEG.post}. Der längste der drei Wege; fehlt eine Angabe, kommt die Zeit für die Rückfrage hinzu.` },
-          { tag: "Telefon", titel: "Nur für Antragsteller aus dem Ausland", text: `Unter ${EIN_WEG.telefon}, ${EIN_WEG.telefonZeit}. Anrufen darf, wer für die Gesellschaft unterzeichnen darf oder als Designee befugt ist.` },
+          { tag: "Fax", titel: "Laut IRS etwa vier Werktage", text: `Mit Geschäftsadresse in den USA faxen Sie den Antrag an ${EIN_WEG.faxInland}; ohne Sitz und Geschäftsstelle in den USA aus dem Ausland an ${EIN_WEG.faxAusland}. Geben Sie eine Faxnummer für die Antwort an; die IRS sendet die Nummer dann auf demselben Weg zurück. Bearbeitungszeit: ${EIN_FAX}.` },
+          { tag: "Post", titel: "Laut IRS etwa vier Wochen", text: `Mit Geschäftsadresse in den USA lautet die Anschrift: ${EIN_WEG.postInland}. Ohne Sitz und Geschäftsstelle in den USA: ${EIN_WEG.post}. Fehlt eine Angabe, kommt die Zeit für die Rückfrage hinzu.` },
+          { tag: "Telefon", titel: "Nur ohne Sitz in den USA", text: `Die IRS nimmt den Antrag unter ${EIN_WEG.telefon} an, ${EIN_WEG.telefonZeit}. ${TELEFON_GRENZE} Anrufen darf, wer für die Gesellschaft unterzeichnen darf oder als Designee befugt ist.` },
         ],
       },
       {
         typ: "text", id: "danach", h2: "Nach der Vergabe",
         absaetze: [
-          "Die IRS bestätigt die Nummer mit einem Schreiben (CP 575). Bewahren Sie es gut auf: Institute verlangen es beim Kontoantrag. Geht es verloren, bestätigt die IRS die Nummer auf Anfrage erneut (Letter 147C).",
-          "Ändern sich Anschrift oder verantwortliche Person, melden Sie das der IRS mit Form 8822-B — innerhalb von sechzig Tagen.",
+          "Die IRS bestätigt die Nummer mit einem Schreiben (CP 575). Bewahren Sie es auf: Institute verlangen es beim Kontoantrag. Geht es verloren, bestätigt die IRS die Nummer auf Anfrage erneut (Letter 147C).",
+          "Ändern sich Anschrift oder verantwortliche Person, melden Sie das der IRS innerhalb von sechzig Tagen mit Form 8822-B.",
         ],
       },
       {
         typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Der EIN-Antrag ist Teil Ihres Mandats. Wir bereiten Form SS-4 vor, legen sie Ihnen unterschriftsreif vor, reichen sie bei der IRS ein und verfolgen den Antrag. Rückfragen der IRS klären wir mit Ihnen; das Schreiben der IRS legen wir in Ihr Portal.",
+          "Der EIN-Antrag ist Teil Ihres Mandats. Wir bereiten Form SS-4 vor und legen sie Ihnen unterschriftsreif vor. Wir reichen sie bei der IRS ein und verfolgen den Antrag. Rückfragen der IRS klären wir mit Ihnen; das Schreiben der IRS stellen wir in Ihr Portal ein.",
         ],
         punkte: [
           `${TEIL.ihrTeil}: ${UNTERLAGEN.ihrTeil}`,
@@ -285,16 +288,16 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Die EIN ist eine Steuernummer, keine Genehmigung: Sie sagt nichts darüber, ob ein Institut ein Konto eröffnet.",
+          "Die EIN ist eine Steuernummer, keine Genehmigung. Ob ein Institut ein Konto eröffnet, entscheidet das Institut.",
           GLOBAL_PFLICHTHINWEIS.de[1],
-          "Wer Form SS-4 unterzeichnet, versichert die Richtigkeit der Angaben gegenüber der IRS — Schreibweisen und Zahlen müssen zum Gründungsdokument passen.",
+          "Wer Form SS-4 unterzeichnet, versichert der IRS die Richtigkeit der Angaben. Schreibweisen und Zahlen müssen zum Gründungsdokument passen.",
         ],
       },
     ],
     fragen: [
-      { f: "Kann ich eine EIN ohne SSN beantragen?", a: "Ja. Ohne SSN oder ITIN beantragen Sie die EIN mit Form SS-4 per Fax, per Post oder, als Antragsteller aus dem Ausland, telefonisch. Nur der Online-Antrag verlangt eine SSN oder ITIN." },
-      { f: "Wie lange dauert es, eine EIN zu bekommen?", a: `${gross(IRS.einDauer)}. Der telefonische Antrag ist der kürzeste Weg, wenn alle Angaben bereitliegen. ${satz("S15")}` },
-      { f: "Kostet die EIN etwas?", a: "Bei der IRS nicht. Kosten entstehen nur, wenn Sie jemanden beauftragen. Bei FIAON Global ist der EIN-Antrag Teil Ihres Mandats." },
+      { f: "Kann ich eine EIN ohne SSN beantragen?", a: `Ja. Ohne SSN oder ITIN beantragen Sie die EIN mit Form SS-4 per Fax oder per Post. ${TELEFON_GRENZE} Nur der Online-Antrag verlangt eine SSN oder ITIN.` },
+      { f: "Wie lange dauert es, eine EIN zu bekommen?", a: `${gross(IRS.einDauer)}. ${TELEFON_GRENZE} ${satz("S15")}` },
+      { f: "Kostet die EIN etwas?", a: "Die IRS erhebt für die EIN keine Gebühr. Kosten entstehen nur, wenn Sie einen Dienstleister mit dem Antrag beauftragen." },
       { f: "Brauche ich eine ITIN, um eine EIN zu beantragen?", a: "Nein. Hat die verantwortliche Person weder SSN noch ITIN, steht in Zeile 7b der Form SS-4 „foreign“ oder „N/A“." },
       { f: "Was mache ich, wenn das EIN-Schreiben verloren ist?", a: "Die IRS bestätigt die Nummer auf Anfrage erneut (Letter 147C). Viele Institute akzeptieren diese Bestätigung anstelle des ursprünglichen Schreibens (CP 575)." },
     ],
@@ -318,35 +321,35 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     auge: "Wissen · Steuernummer",
     h1: "Die ITIN beantragen.",
     h1b: "Nur mit steuerlichem Grund.",
-    lead: "Die ITIN ist Ihre persönliche Steuernummer in den USA. Die IRS vergibt sie nur für steuerliche Zwecke und nur mit Begründung; für die Kreditwürdigkeit allein gibt es sie nicht. Ein Antrag mit tragfähigem Grund und vollständigen Nachweisen vermeidet Rückfragen.",
+    lead: "Die ITIN ist Ihre persönliche Steuernummer in den USA. Die US-Steuerbehörde IRS vergibt sie nur für steuerliche Zwecke und nur mit Begründung. Die Kreditwürdigkeit allein ist kein Grund. Ein Antrag mit tragfähigem Grund und vollständigen Nachweisen vermeidet Rückfragen.",
     ziffern: [
       { wert: "Form W-7", label: "mit Reisepass und steuerlichem Grund" },
-      { wert: "5 Ausnahmen", label: "nur dann ohne US-Steuererklärung" },
+      { wert: "5 Ausnahmen", label: "erlauben den Antrag ohne US-Steuererklärung" },
       { wert: "9 Ziffern", label: "beginnt mit einer 9 und dient allein steuerlichen Zwecken" },
     ],
     blick: [
-      ["Was", "Individual Taxpayer Identification Number — für Personen ohne SSN"],
+      ["Was", "Individual Taxpayer Identification Number, für Personen ohne US-Sozialversicherungsnummer (SSN)"],
       ["Wer", "Wer in den USA eine Steuererklärung abgeben muss oder eine Ausnahme nutzt"],
       ["Formular", "Form W-7, im Regelfall mit Steuererklärung"],
-      ["Reisepass", "Original, Kopie der ausstellenden Behörde oder Bestätigung durch einen CAA"],
-      ["Bearbeitungszeit der IRS", "Etwa sieben Wochen, Hauptsaison und Ausland neun bis elf"],
+      ["Reisepass", "Original, Kopie der ausstellenden Behörde oder Bestätigung durch einen Certifying Acceptance Agent (CAA)"],
+      ["Bearbeitungszeit der IRS", gross(IRS.itinDauer)],
       ["Verfall", "Nach drei Steuerjahren ohne Erklärung"],
       ["Mit FIAON Global", "ITIN-Check vorab, Antrag nur mit tragfähigem Grund"],
     ],
-    kurz: "Die ITIN beantragen Sie mit Form W-7 bei der IRS, im Regelfall zusammen mit einer US-Steuererklärung. Ohne sie geht es nur, wenn eine der fünf Ausnahmen der IRS greift. Für die EIN Ihrer Gesellschaft ist die ITIN nicht nötig. Den Reisepass schicken Sie im Original oder als behördlich beglaubigte Kopie, oder ein Certifying Acceptance Agent bestätigt ihn.",
+    kurz: "Die ITIN beantragen Sie mit Form W-7 bei der US-Steuerbehörde IRS, im Regelfall zusammen mit einer US-Steuererklärung. Ohne Steuererklärung braucht der Antrag eine der fünf Ausnahmen der IRS. Für die Steuernummer Ihrer Gesellschaft (EIN) ist die ITIN nicht nötig. Den Reisepass senden Sie im Original oder als behördlich beglaubigte Kopie; alternativ bestätigt ihn ein Certifying Acceptance Agent (CAA).",
     bloecke: [
       {
         typ: "text", id: "was", h2: "ITIN: Zweck und Grenzen",
         absaetze: [
-          "Die Individual Taxpayer Identification Number vergibt die IRS an Personen, die in den USA steuerlich erfasst werden müssen, aber keine Sozialversicherungsnummer bekommen können. Sie hat neun Ziffern, beginnt mit einer 9 und dient allein steuerlichen Zwecken.",
-          "Eine ITIN ist keine Arbeitserlaubnis, kein Aufenthaltstitel und kein Anspruch auf Leistungen der US-Sozialversicherung. Außerhalb des Steuerrechts ist sie auch kein Ausweis.",
+          "Die IRS vergibt die Individual Taxpayer Identification Number (ITIN) an Personen, die in den USA steuerlich erfasst werden müssen. Voraussetzung ist, dass sie keine US-Sozialversicherungsnummer (SSN) erhalten können. Die ITIN hat neun Ziffern, beginnt mit einer 9 und dient allein steuerlichen Zwecken.",
+          "Eine ITIN begründet keine Arbeitserlaubnis, keinen Aufenthaltstitel und keinen Anspruch auf Leistungen der US-Sozialversicherung. Außerhalb des Steuerrechts gilt sie nicht als Ausweis.",
         ],
       },
       {
         typ: "text", id: "grund", h2: "Der steuerliche Grund entscheidet",
         absaetze: [
-          "Die IRS verlangt mit jedem Antrag einen Grund. Der Regelfall: Sie reichen Form W-7 zusammen mit einer US-Steuererklärung ein — etwa, weil Sie als Gesellschafter einer LLC Einkünfte aus Geschäft in den USA erklären müssen. Ohne Steuererklärung geht es nur, wenn eine der fünf Ausnahmen der IRS greift.",
-          "Eine davon betrifft Gesellschafter einer Personengesellschaft, die in den USA Vermögen hält, dessen Erträge meldepflichtig sind und dem Steuerabzug unterliegen. Dazu zählt steuerlich auch die LLC mit mehreren Gesellschaftern. Seit dem 1. Juni 2026 legt ein Acceptance Agent solchen Anträgen den Teil des Gesellschaftsvertrags bei, der Name und EIN der Gesellschaft sowie Name und Unterschrift des Antragstellers zeigt.",
+          "Die IRS verlangt mit jedem Antrag einen Grund. Im Regelfall reichen Sie Form W-7 zusammen mit einer US-Steuererklärung ein. Ein Beispiel: Als Gesellschafter einer LLC erklären Sie Einkünfte aus Geschäft in den USA. Ohne Steuererklärung ist der Antrag nur zulässig, wenn eine der fünf Ausnahmen der IRS greift.",
+          "Eine Ausnahme betrifft Gesellschafter einer Personengesellschaft mit Vermögen in den USA. Voraussetzung ist, dass die Erträge daraus meldepflichtig sind und dem Steuerabzug unterliegen. Steuerlich zählt dazu auch die LLC mit mehreren Gesellschaftern. Seit dem 1. Juni 2026 legt ein Acceptance Agent solchen Anträgen einen Teil des Gesellschaftsvertrags bei. Dieser Teil zeigt Name und EIN der Gesellschaft sowie Name und Unterschrift des Antragstellers.",
           "Für die Kreditwürdigkeit allein vergibt die IRS keine ITIN. Einen Antrag, der sich darauf stützt, weist sie zurück.",
         ],
       },
@@ -354,10 +357,10 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "etappen", id: "ablauf", h2: "Ablauf des Antrags",
         lead: DAUERN,
         etappen: [
-          { titel: "Grund klären", text: "Ein US-Steuerberater (CPA) prüft, welche Steuererklärung oder welche Ausnahme den Antrag trägt. Ohne tragfähigen Grund kein Antrag." },
-          { titel: "Form W-7 ausfüllen", text: "Den Grund ankreuzen (für Ausländer mit US-Steuererklärung ist das meist „b“), Name wie im Reisepass, Anschrift im Ausland, Geburtsdaten, Passdaten. Bei einer Ausnahme gehören ihre Nachweise dazu." },
-          { titel: "Reisepass bestätigen lassen", text: "Der Reisepass allein genügt als Nachweis für Identität und Staatsangehörigkeit. Er geht im Original oder als von der ausstellenden Behörde beglaubigte Kopie an die IRS. Oder ein Certifying Acceptance Agent prüft ihn persönlich und gibt ihn im Termin zurück." },
-          { titel: "Einreichen", text: "Mit Steuererklärung oder Nachweis der Ausnahme an die ITIN-Stelle der IRS in Austin, Texas — oder über den Acceptance Agent." },
+          { titel: "Grund klären", text: "Ein US-Steuerberater (CPA) prüft, welche Steuererklärung oder welche Ausnahme den Antrag trägt. Fehlt ein tragfähiger Grund, unterbleibt der Antrag." },
+          { titel: "Form W-7 ausfüllen", text: "Sie kreuzen den Grund an; für Ausländer mit US-Steuererklärung ist das meist „b“. Es folgen Name wie im Reisepass, Anschrift im Ausland, Geburtsdaten und Passdaten. Bei einer Ausnahme legen Sie deren Nachweise bei." },
+          { titel: "Reisepass bestätigen lassen", text: "Der Reisepass allein genügt als Nachweis für Identität und Staatsangehörigkeit. Er geht im Original an die IRS oder als Kopie, die die ausstellende Behörde beglaubigt hat. Alternativ prüft ihn ein Certifying Acceptance Agent (CAA) persönlich und gibt ihn im Termin zurück." },
+          { titel: "Einreichen", text: "Der Antrag geht mit Steuererklärung oder Nachweis der Ausnahme an die ITIN-Stelle der IRS in Austin, Texas. Alternativ reicht ihn der Acceptance Agent ein." },
           { titel: "Bescheid", dauer: "etwa sieben Wochen", text: "Die IRS teilt die Nummer schriftlich mit (CP 565). Zwischen Mitte Januar und Ende April und bei Anträgen aus dem Ausland dauert es neun bis elf Wochen." },
         ],
       },
@@ -365,27 +368,27 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "tabelle", id: "pass", h2: "Der Reisepass: drei Wege",
         kopf: ["Weg", "Was Sie tun", "Ihr Reisepass"],
         zeilen: [
-          ["Original per Post", "Reisepass mit dem Antrag an die IRS schicken", "ist für die Dauer der Bearbeitung unterwegs"],
+          ["Original per Post", "Reisepass mit dem Antrag an die IRS senden", "ist für die Dauer der Bearbeitung unterwegs"],
           ["Beglaubigte Kopie", "Kopie, beglaubigt von der Behörde, die den Reisepass ausgestellt hat", "bleibt bei Ihnen"],
           ["Certifying Acceptance Agent", "Termin beim CAA, der den Reisepass bestätigt und den Antrag einreicht", "geht im Termin zurück"],
         ],
         fuss: [
-          "Eine notariell beglaubigte Kopie genügt der IRS nicht — beglaubigen muss die ausstellende Behörde.",
+          "Eine notariell beglaubigte Kopie genügt der IRS nicht. Beglaubigen muss die ausstellende Behörde.",
           `Acceptance Agents berechnen für Bestätigung und Einreichung ${MARKT.acceptanceAgent} (marktüblich, ${FAKTEN_STAND}).`,
         ],
       },
       {
-        typ: "text", id: "verfall", h2: "Wann die ITIN verfällt",
+        typ: "text", id: "verfall", h2: "Verfall der ITIN",
         absaetze: [
           "Eine ITIN, die drei Steuerjahre in Folge auf keiner US-Steuererklärung steht, verfällt zum 31. Dezember des dritten Jahres. So sind zum 31. Dezember 2025 alle ITINs erloschen, die in den Jahren 2022, 2023 und 2024 nicht genutzt wurden.",
-          "Eine verfallene ITIN erneuern Sie mit Form W-7 — mit demselben Aufwand wie beim ersten Antrag. Wer die Nummer behalten will, braucht also einen laufenden steuerlichen Grund.",
+          "Eine verfallene ITIN erneuern Sie mit Form W-7. Der Aufwand entspricht dem ersten Antrag. Wer die Nummer behalten will, braucht deshalb einen laufenden steuerlichen Grund.",
         ],
       },
       {
         typ: "karten", id: "karten", h2: "ITIN, Konto und Karten", spalten: 2,
         karten: [
-          { tag: "Was stimmt", titel: "Manche Herausgeber fragen nach der ITIN", text: "Eine persönliche Kredithistorie führen die US-Auskunfteien in der Praxis über SSN oder ITIN. Manche Kartenherausgeber prüfen Anträge mit ITIN, andere verlangen eine SSN — das legt jeder Herausgeber selbst fest." },
-          { tag: "Was nicht stimmt", titel: "„Mit ITIN gibt es Karten“", text: "Eine ITIN ist eine Voraussetzung, keine Zusage. Über jeden Antrag entscheidet der Herausgeber nach Historie, Einkommen und Geschäft." },
+          { tag: "Zutreffend", titel: "Manche Herausgeber fragen nach der ITIN", text: "Die US-Auskunfteien führen eine persönliche Kredithistorie in der Praxis über SSN oder ITIN. Manche Kartenherausgeber prüfen Anträge mit ITIN, andere verlangen eine SSN. Das legt jeder Herausgeber selbst fest." },
+          { tag: "Nicht zutreffend", titel: "„Mit ITIN gibt es Karten“", text: "Eine ITIN ist eine Voraussetzung, keine Zusage. Über jeden Antrag entscheidet der Herausgeber nach Historie, Einkommen und Geschäft." },
         ],
       },
       {
@@ -404,18 +407,18 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Die ITIN dient nur steuerlichen Zwecken. Wer sie beantragt, übernimmt die Pflichten, auf die sich der Antrag stützt — etwa eine jährliche US-Steuererklärung.",
+          "Die ITIN dient nur steuerlichen Zwecken. Wer sie beantragt, übernimmt die Pflichten, auf die sich der Antrag stützt, etwa eine jährliche US-Steuererklärung.",
           KARTEN_HAFTUNG,
-          "Eine ITIN ersetzt keine SSN: Für Arbeit und Sozialleistungen in den USA gelten eigene Regeln.",
+          "Eine ITIN ersetzt keine SSN. Für Arbeit und Sozialleistungen in den USA gelten eigene Regeln.",
         ],
       },
     ],
     fragen: [
       { f: "Brauche ich eine ITIN für meine LLC?", a: "Für die EIN der Gesellschaft nicht. Eine ITIN brauchen Sie persönlich, wenn Sie in den USA eine Steuererklärung abgeben müssen oder eine der Ausnahmen der IRS greift." },
       { f: "Wie lange dauert es, eine ITIN zu bekommen?", a: `${gross(IRS.itinDauer)}. ${satz("S15")}` },
-      { f: "Muss ich für die ITIN meinen Reisepass aus der Hand geben?", a: "In die USA schicken müssen Sie ihn nicht. Statt des Originals genügt eine von der ausstellenden Behörde beglaubigte Kopie — oder ein von der IRS zugelassener Certifying Acceptance Agent bestätigt Ihren Reisepass." },
-      { f: "Kann ich eine ITIN nur für eine Kreditkarte beantragen?", a: "Nein. Die IRS vergibt ITINs nur für steuerliche Zwecke; der Antrag braucht eine Steuererklärung oder eine Ausnahme. Manche Kartenherausgeber fragen nach der ITIN — über die Karte entscheiden sie selbst." },
-      { f: "Verfällt eine ITIN?", a: "Ja, wenn sie drei Steuerjahre in Folge auf keiner US-Steuererklärung steht — zum 31. Dezember des dritten Jahres. Erneuert wird sie mit Form W-7." },
+      { f: "Muss ich für die ITIN meinen Reisepass aus der Hand geben?", a: "Nein, Sie müssen ihn nicht in die USA senden. Statt des Originals genügt eine Kopie, die die ausstellende Behörde beglaubigt hat. Alternativ bestätigt ein von der IRS zugelassener Certifying Acceptance Agent Ihren Reisepass." },
+      { f: "Kann ich eine ITIN nur für eine Kreditkarte beantragen?", a: "Nein. Die IRS vergibt ITINs nur für steuerliche Zwecke; der Antrag braucht eine Steuererklärung oder eine Ausnahme. Manche Kartenherausgeber fragen nach der ITIN. Über die Karte entscheidet der Herausgeber." },
+      { f: "Verfällt eine ITIN?", a: "Ja, wenn sie drei Steuerjahre in Folge auf keiner US-Steuererklärung steht. Sie verfällt dann zum 31. Dezember des dritten Jahres. Sie erneuern sie mit Form W-7." },
     ],
     paket: "global_struktur",
     weiter: ["/business/ein-itin", "/business/wissen/ein-beantragen", "/business/wissen/us-bonitaet-aufbauen", "/business/wissen/llc-steuererklaerung"],
@@ -437,27 +440,27 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     auge: "Wissen · US-Präsenz",
     h1: "Registered Agent und Adresse.",
     h1b: "Die US-Präsenz Ihrer Gesellschaft.",
-    lead: "Jede LLC braucht vom ersten Tag an einen Registered Agent im Gründungsstaat — das ist Gesetz. Für Kontoantrag und Verträge braucht sie mehr: eine Geschäftsadresse, die das jeweilige Institut akzeptiert, und eine Telefonnummer, unter der jemand erreichbar ist.",
+    lead: "Jede LLC braucht vom ersten Tag an einen Registered Agent im Gründungsstaat. Das schreibt jeder Bundesstaat vor. Für Kontoantrag und Verträge braucht sie außerdem eine Geschäftsadresse, die das jeweilige Institut akzeptiert. Hinzu kommt eine Telefonnummer, unter der jemand erreichbar ist.",
     ziffern: [
       { wert: "Pflicht", label: "in jedem Bundesstaat, ohne Unterbrechung" },
       { wert: "3 Anschriften", label: "Agent, Geschäftsadresse, Postanschrift" },
       { wert: "4. Freitag im September", label: "Auflösung in Florida bei fehlender Jahresmeldung" },
     ],
     blick: [
-      ["Registered Agent", "Nimmt Klagen und amtliche Post entgegen — gesetzliche Pflicht"],
+      ["Registered Agent", "Nimmt Klagen und amtliche Post entgegen; gesetzliche Pflicht"],
       ["Anschrift des Agent", "Physisch im Gründungsstaat, kein Postfach"],
-      ["Geschäftsadresse", "Wo die Gesellschaft erreichbar ist — Institute prüfen sie"],
-      ["Postanschrift", "Wohin die IRS schreibt"],
-      ["Telefonnummer", "Eine US-Nummer, die jemand annimmt"],
-      ["Wenn der Agent fehlt", "Verzug beim Staat, im schlimmsten Fall die Auflösung"],
+      ["Geschäftsadresse", "Wo die Gesellschaft erreichbar ist; Institute prüfen sie"],
+      ["Postanschrift", "Wohin die US-Steuerbehörde IRS schreibt"],
+      ["Telefonnummer", "Eine US-Nummer, unter der jemand erreichbar ist"],
+      ["Fehlender Agent", "Verzug beim Staat; möglich ist die Auflösung von Amts wegen"],
       ["Mit FIAON Global", "Agent, Adresse und Nummer im ersten Jahr enthalten"],
     ],
-    kurz: "Der Registered Agent ist die Stelle, an die Gerichte und Behörden im Gründungsstaat Klagen und amtliche Schreiben zustellen. Er braucht eine physische Anschrift in diesem Staat und muss zu Geschäftszeiten erreichbar sein; jeder Bundesstaat schreibt ihn vor. Seine Anschrift ist keine Geschäftsadresse: Für ein Konto verlangen Institute eine Adresse, an der die Gesellschaft erreichbar ist — ein Postfach reicht meist nicht.",
+    kurz: "Der Registered Agent ist die Stelle, an die Gerichte und Behörden im Gründungsstaat Klagen und amtliche Schreiben zustellen. Er braucht eine physische Anschrift in diesem Staat und muss zu Geschäftszeiten erreichbar sein. Jeder Bundesstaat schreibt ihn vor. Seine Anschrift ist keine Geschäftsadresse. Für ein Konto verlangen Institute eine Adresse, an der die Gesellschaft erreichbar ist; ein Postfach reicht meist nicht.",
     bloecke: [
       {
-        typ: "text", id: "agent", h2: "Was der Registered Agent tut",
+        typ: "text", id: "agent", h2: "Aufgabe des Registered Agent",
         absaetze: [
-          "In den USA wird eine Klage nicht per Post zugestellt, sondern persönlich übergeben — „service of process“. Damit das bei einer Gesellschaft ohne Büro im Staat funktioniert, verlangt jeder Bundesstaat einen Registered Agent. Das ist eine Person oder ein Unternehmen mit Anschrift im Staat; der Agent nimmt Klagen und Schreiben der Behörden entgegen und gibt sie unverzüglich weiter.",
+          "In den USA wird eine Klage persönlich übergeben („service of process“), nicht per Post zugestellt. Jeder Bundesstaat verlangt deshalb einen Registered Agent, auch für Gesellschaften ohne Büro im Staat. Der Agent ist eine Person oder ein Unternehmen mit Anschrift im Staat. Er nimmt Klagen und Schreiben der Behörden entgegen und gibt sie unverzüglich weiter.",
           "Florida verlangt ihn in § 605.0113 der Florida Statutes, Delaware im Limited Liability Company Act, Wyoming mit physischer Anschrift im Staat. Der Agent steht mit Name und Anschrift im öffentlichen Register.",
           "Selbst Agent sein kann nur, wer im Staat wohnt oder dort ein Büro hat, das zu Geschäftszeiten besetzt ist. Für Gründer aus Europa ist ein gewerblicher Agent der Regelfall.",
         ],
@@ -466,39 +469,39 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "tabelle", id: "drei", h2: "Drei Anschriften, drei Aufgaben",
         kopf: ["", "Registered Agent", "Geschäftsadresse", "Postanschrift"],
         zeilen: [
-          ["Wozu", "Klagen und amtliche Post", "Sitz der Gesellschaft für Institute und Kunden", "Briefe der IRS und der Staaten"],
-          ["Pflicht", "ja, im Gründungsstaat", "für Kontoantrag und Verträge faktisch ja", "ja, in Form SS-4"],
+          ["Zweck", "Klagen und amtliche Post", "Sitz der Gesellschaft für Institute und Kunden", "Briefe der IRS und der Staaten"],
+          ["Pflicht", "ja, im Gründungsstaat", "für Kontoantrag und Verträge in der Praxis ja", "ja, in Form SS-4"],
           ["Wo", "im Gründungsstaat, physisch", "wo die Gesellschaft tätig ist", "wo die Post Sie verlässlich erreicht"],
           ["Öffentlich", "ja, im Register", "meist ja", "nein"],
           ["Typischer Fehler", "Agent gekündigt, Staat nicht informiert", "Agent-Anschrift oder Postfach als Sitz", "Briefe der IRS erreichen niemanden"],
         ],
       },
       {
-        typ: "text", id: "institute", h2: "Warum Institute eine physische Adresse verlangen",
+        typ: "text", id: "institute", h2: "Physische Adresse: Anforderung der Institute",
         absaetze: [
-          "US-Institute müssen die Identität jedes Kunden feststellen. Für Gesellschaften gehört dazu eine Anschrift: der Hauptsitz, ein örtliches Büro oder ein anderer physischer Ort der Geschäftstätigkeit (31 CFR 1020.220). Eine Adresse, unter der Hunderte Gesellschaften gemeldet sind, beantwortet diese Frage nicht.",
-          "Deshalb lehnen viele Institute Konten ab, deren Geschäftsadresse die Anschrift eines Registered Agent, ein Postfach oder ein reiner Briefkasten ist. Andere akzeptieren eine Geschäftsadresse im Ausland, wenn sie zum Geschäft passt. Welche Adresse genügt, legt jedes Institut selbst fest.",
+          "US-Institute müssen die Identität jedes Kunden feststellen. Für Gesellschaften gehört dazu eine Anschrift: der Hauptsitz, ein örtliches Büro oder ein anderer physischer Ort der Geschäftstätigkeit (31 CFR 1020.220). Eine Adresse, unter der Hunderte Gesellschaften gemeldet sind, erfüllt diesen Zweck nicht.",
+          "Viele Institute lehnen deshalb Kontoanträge ab, wenn die Geschäftsadresse die Anschrift eines Registered Agent, ein Postfach oder ein reiner Briefkasten ist. Andere akzeptieren eine Geschäftsadresse im Ausland, wenn sie zum Geschäft passt. Welche Adresse genügt, legt jedes Institut selbst fest.",
         ],
       },
       {
         typ: "text", id: "telefon", h2: "Die Telefonnummer",
         absaetze: [
-          "Kartenherausgeber und Institute rufen an — zur Bestätigung eines Antrags, bei Rückfragen, bei ungewöhnlichen Zahlungen. Ist die US-Nummer nicht erreichbar oder meldet sich nur eine Bandansage, bleibt die Rückfrage offen; wie ein Institut damit umgeht, entscheidet es selbst. Die Nummer gehört zur Gesellschaft, ist erreichbar und lautet in allen Unterlagen gleich.",
+          "Kartenherausgeber und Institute rufen an: zur Bestätigung eines Antrags, bei Rückfragen und bei ungewöhnlichen Zahlungen. Ist die US-Nummer nicht erreichbar oder meldet sich nur eine Bandansage, bleibt die Rückfrage offen. Wie ein Institut damit umgeht, entscheidet es selbst. Die Nummer sollte deshalb zur Gesellschaft gehören, erreichbar sein und in allen Unterlagen gleich lauten.",
         ],
       },
       {
-        typ: "karten", id: "folgen", h2: "Wenn der Agent fehlt", spalten: 3,
+        typ: "karten", id: "folgen", h2: "Folgen eines fehlenden Agent", spalten: 3,
         karten: [
-          { tag: "Folge", titel: "Keine Zustellung", text: "Findet das Gericht keinen Agent, sehen viele Staaten die Zustellung über den Secretary of State vor. Wer davon nichts erfährt, versäumt Fristen — bis hin zum Urteil in Abwesenheit." },
-          { tag: "Folge", titel: "Kein ordnungsgemäßer Status", text: "Ohne Agent ist die Gesellschaft beim Staat nicht mehr „in good standing“. Institute und Vertragspartner prüfen diesen Status." },
-          { tag: "Folge", titel: "Auflösung von Amts wegen", text: "In Florida kann der Staat eine LLC ohne Registered Agent auflösen (§ 605.0714) — ebenso, wenn die Jahresmeldung fehlt: dann am vierten Freitag im September." },
+          { tag: "Folge", titel: "Keine Zustellung", text: "Findet das Gericht keinen Agent, sehen viele Staaten die Zustellung über den Secretary of State vor. Wer davon nichts erfährt, versäumt Fristen. Die Folge kann ein Urteil in Abwesenheit sein." },
+          { tag: "Folge", titel: "Verlust des ordnungsgemäßen Status", text: "Ohne Agent verliert die Gesellschaft beim Staat den Status „in good standing“. Institute und Vertragspartner prüfen diesen Status." },
+          { tag: "Folge", titel: "Auflösung von Amts wegen", text: "In Florida kann der Staat eine LLC ohne Registered Agent auflösen (§ 605.0714). Dasselbe gilt, wenn die Jahresmeldung fehlt: Die Auflösung folgt dann am vierten Freitag im September." },
         ],
       },
       {
-        typ: "text", id: "wechsel", h2: "Den Agent wechseln",
+        typ: "text", id: "wechsel", h2: "Wechsel des Agent",
         absaetze: [
-          "Ein Wechsel ist jederzeit möglich: Der neue Agent erklärt sich bereit, die Gesellschaft meldet den Wechsel beim Staat — meist mit einem eigenen Formular und gegen Gebühr. Kündigen Sie den alten Agent erst, wenn der neue im Register steht; jede Lücke dazwischen ist eine Lücke in der Zustellung.",
-          "Ändern sich Name oder Anschrift des Agent, muss das ebenfalls im Register stehen. In Florida muss die Änderung binnen dreißig Tagen gemeldet sein — sonst droht auch hier die Auflösung von Amts wegen (§ 605.0714).",
+          "Ein Wechsel ist jederzeit möglich. Der neue Agent erklärt sich bereit, und die Gesellschaft meldet den Wechsel beim Staat. Dafür gibt es meist ein eigenes Formular und eine Gebühr. Kündigen Sie den bisherigen Agent erst, wenn der neue im Register steht. Jede Lücke dazwischen unterbricht die Zustellung.",
+          "Ändern sich Name oder Anschrift des Agent, muss auch das im Register stehen. In Florida ist die Änderung binnen dreißig Tagen zu melden. Andernfalls kann der Staat die Gesellschaft von Amts wegen auflösen (§ 605.0714).",
         ],
       },
       {
@@ -516,18 +519,18 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Eine US-Adresse verlegt nicht die Geschäftsleitung: Steuerlich zählt, wo die Gesellschaft tatsächlich geführt wird.",
+          "Eine US-Adresse verlegt die Geschäftsleitung nicht. Steuerlich zählt, wo die Gesellschaft tatsächlich geführt wird.",
           GLOBAL_PFLICHTHINWEIS.de[0],
           "Wird die Gesellschaft in einem weiteren Staat tätig, braucht sie dort in der Regel einen eigenen Registered Agent.",
         ],
       },
     ],
     fragen: [
-      { f: "Was ist ein Registered Agent?", a: "Die gesetzlich vorgeschriebene Empfangsstelle einer US-Gesellschaft im Gründungsstaat: Sie nimmt Klagen und amtliche Schreiben entgegen und gibt sie weiter. Jeder Bundesstaat verlangt einen." },
+      { f: "Was ist ein Registered Agent?", a: "Der Registered Agent ist die gesetzlich vorgeschriebene Empfangsstelle einer US-Gesellschaft im Gründungsstaat. Er nimmt Klagen und amtliche Schreiben entgegen und gibt sie weiter. Jeder Bundesstaat verlangt ihn." },
       { f: "Kann ich mein eigener Registered Agent sein?", a: "Nur, wenn Sie im Gründungsstaat wohnen oder dort ein Büro haben, das zu Geschäftszeiten besetzt ist. Für Gründer aus Europa ist ein gewerblicher Agent der Regelfall." },
-      { f: "Kann ich die Adresse des Registered Agent als Geschäftsadresse nutzen?", a: "Rechtlich ist sie die Anschrift des Agent, nicht Ihr Geschäftssitz. Viele Institute lehnen Konten mit dieser Adresse als Geschäftsadresse ab; welche Adresse genügt, entscheidet jedes Institut selbst." },
-      { f: "Was kostet ein Registered Agent?", a: `Am Markt ${MARKT.agent}. Bei FIAON Global sind Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr Ihres Mandats enthalten. Ab dem zweiten Jahr gehören sie zur Jahresbetreuung für ${SAETZE_BETRAEGE.de.jahresbetreuung} im Jahr; sie verlängert sich nicht von selbst.` },
-      { f: "Was passiert, wenn meine LLC keinen Registered Agent hat?", a: "Sie verliert ihren ordnungsgemäßen Status beim Staat; bleibt der Mangel bestehen, kann der Staat sie auflösen. Klagen erreichen Sie womöglich nicht rechtzeitig." },
+      { f: "Kann ich die Adresse des Registered Agent als Geschäftsadresse nutzen?", a: "Rechtlich ist sie die Anschrift des Agent, nicht Ihr Geschäftssitz. Viele Institute lehnen Kontoanträge mit dieser Adresse als Geschäftsadresse ab. Welche Adresse genügt, entscheidet jedes Institut selbst." },
+      { f: "Was kostet ein Registered Agent?", a: `Gewerbliche Agents berechnen ${MARKT.agent}. Die Angabe ist marktüblich, kein amtlicher Wert (Stand ${FAKTEN_STAND}).` },
+      { f: "Was passiert, wenn meine LLC keinen Registered Agent hat?", a: "Sie verliert ihren ordnungsgemäßen Status beim Staat. Bleibt der Mangel bestehen, kann der Staat sie auflösen. Klagen erreichen Sie dann möglicherweise nicht rechtzeitig." },
     ],
     paket: "global_struktur",
     weiter: ["/business/us-firmengruendung", "/business/wissen/llc-gruenden", "/business/wissen/us-bankkonto-unterlagen", "/business/florida"],
@@ -540,7 +543,7 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     pfad: "/business/wissen/llc-steuererklaerung",
     art: "wissen",
     seo: {
-      titel: "US-Steuererklärung der LLC: alle Fristen — FIAON Global",
+      titel: "US-Steuererklärung der LLC: die Fristen — FIAON Global",
       beschreibung: "Pro-forma-1120, 1040-NR, 1065, 1120-F, FBAR: welche US-Erklärungen Ihre LLC je nach Struktur abgibt — mit Fristen, Quellen und Stand.",
     },
     stand: S,
@@ -548,26 +551,26 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     kennung: "FG · 38",
     auge: "Wissen · Steuererklärung",
     h1: "Die US-Steuererklärung der LLC.",
-    h1b: "Welche Formulare, welche Fristen.",
-    lead: "Auch eine LLC, die in den USA keine Steuer zahlt, gibt dort in der Regel Erklärungen ab. Welche es sind, hängt an Eigentümer, steuerlicher Einordnung und Geschäft in den USA. Diese Übersicht ordnet Formulare und Fristen nach Struktur.",
+    h1b: "Formulare und Fristen nach Struktur.",
+    lead: "Eine LLC gibt in den USA in der Regel eine Steuererklärung ab, auch wenn sie dort keine Steuer zahlt. Welche Formulare anfallen, hängt von Eigentümer, steuerlicher Einordnung und Geschäft in den USA ab. Diese Übersicht ordnet Formulare und Fristen nach Struktur.",
     ziffern: [
       { wert: "15. April", label: "Frist für Form 5472 mit Form 1120" },
       { wert: IRS.koerperschaftsteuer, label: "Bundessteuer auf Gewinne einer Corporation" },
-      { wert: "10.000 $", label: "Auslandskonten in Summe — darüber gilt der FBAR" },
+      { wert: "10.000 $", label: "Auslandskonten in Summe; darüber ist der FBAR abzugeben" },
     ],
     blick: [
       ["Einzel-LLC ohne US-Geschäft", "Form 5472 mit Pro-forma-Form 1120"],
-      ["Einzel-LLC mit US-Geschäft", "Dazu Form 1040-NR (Person) oder 1120-F (GmbH)"],
+      ["Einzel-LLC mit US-Geschäft", "Zusätzlich Form 1040-NR (Person) oder 1120-F (GmbH)"],
       ["Mehrere Gesellschafter", "Form 1065, Steuerabzug für ausländische Gesellschafter"],
       ["Corporation", `Form 1120, ${IRS.koerperschaftsteuer} Bundessteuer`],
       ["Konten außerhalb der USA", `FBAR bei mehr als ${SCHWELLEN.fbar} in Summe`],
-      ["Wohnsitzland", "Steuererklärung und § 138 AO — unabhängig davon"],
-      ["Mit FIAON Global", "Die erste jährliche US-Meldung ist im ersten Jahr enthalten"],
+      ["Wohnsitzland", "Steuererklärung und Meldung nach § 138 AO, unabhängig von den USA"],
+      ["Mit FIAON Global", `Im ersten Jahr enthalten: ${US_MELDUNG}`],
     ],
-    kurz: `Eine LLC mit einem ausländischen Gesellschafter reicht jedes Jahr Form 5472 mit Pro-forma-Form 1120 ein (${IRS.frist5472}). Mit Einkünften aus Geschäft in den USA kommt Form 1040-NR (Person) oder Form 1120-F (GmbH) hinzu. Mehrere Gesellschafter geben Form 1065 ab, eine Corporation Form 1120. Bei Auslandskonten über ${SCHWELLEN.fbar} kommt der FBAR hinzu.`,
+    kurz: `Eine LLC mit einem ausländischen Gesellschafter reicht jedes Jahr Form 5472 mit Pro-forma-Form 1120 ein (${IRS.frist5472}). Mit Einkünften aus Geschäft in den USA kommt Form 1040-NR (Person) oder Form 1120-F (GmbH) hinzu. Eine LLC mit mehreren Gesellschaftern gibt Form 1065 ab, eine Corporation Form 1120. Bei Auslandskonten über ${SCHWELLEN.fbar} kommt die FBAR-Meldung hinzu.`,
     bloecke: [
       {
-        typ: "tabelle", id: "uebersicht", h2: "Die Übersicht: welche Erklärung wann",
+        typ: "tabelle", id: "uebersicht", h2: "Übersicht: Erklärungen und Fristen",
         kopf: ["Struktur", "Erklärung", "Frist bei Kalenderjahr"],
         zeilen: [
           ["LLC mit einem ausländischen Gesellschafter, ohne Geschäft in den USA", "Form 5472 mit Pro-forma-Form 1120", IRS.frist5472],
@@ -575,55 +578,55 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
           ["Dieselbe LLC, Gesellschafterin ist eine GmbH", "zusätzlich Form 1120-F der GmbH", FRISTEN.f1120f],
           ["LLC mit mehreren Gesellschaftern", "Form 1065 mit Anteilsmitteilungen; Steuerabzug auf Anteile ausländischer Gesellschafter (Form 8804, 8805)", FRISTEN.f1065],
           ["Corporation, auch LLC mit Wahl nach Form 8832", `Form 1120, Bundessteuer ${IRS.koerperschaftsteuer}; dazu Form 5472 bei einem ausländischen Anteilseigner ab 25 %`, "15. April, mit Form 7004 verlängerbar bis 15. Oktober"],
-          [`Jede US-Gesellschaft mit Auslandskonten über ${SCHWELLEN.fbar}`, "FBAR (FinCEN Form 114) — an FinCEN, nicht an die IRS", FRISTEN.fbar],
+          [`Jede US-Gesellschaft mit Auslandskonten über ${SCHWELLEN.fbar}`, "FBAR (FinCEN Form 114); Empfänger ist die US-Behörde FinCEN, nicht die IRS", FRISTEN.fbar],
         ],
-        fuss: ["Vereinfachte Übersicht nach den Anleitungen von IRS und FinCEN. Die Staaten verlangen je nach Tätigkeit eigene Erklärungen."],
+        fuss: ["Vereinfachte Übersicht nach den Anleitungen der US-Steuerbehörde IRS und der Behörde FinCEN. Die Staaten verlangen je nach Tätigkeit eigene Erklärungen."],
       },
       {
         typ: "text", id: "geschaeft", h2: "Maßgeblich: Geschäft in den USA",
         absaetze: [
-          "Die USA besteuern Ausländer vor allem auf Einkünfte, die mit einem Geschäft in den USA tatsächlich verbunden sind („effectively connected income“). Ob ein solches Geschäft vorliegt, entscheiden die Tatsachen: Personal, Büro oder Lager vor Ort, Vertreter mit Abschlussvollmacht, eine laufende Tätigkeit in den USA. Wer die Arbeit für US-Kunden vollständig in Europa erbringt, erzielt in der Regel keine solchen Einkünfte — wer dort ein Lager betreibt oder Mitarbeiter beschäftigt, meist schon.",
-          "Das Doppelbesteuerungsabkommen zwischen Deutschland und den USA zieht eine zweite Grenze: Unternehmensgewinne dürfen die USA nur besteuern, soweit sie einer Betriebsstätte dort zuzurechnen sind (Art. 5 und 7). Ob das Abkommen im Einzelfall greift und welche Angaben die IRS dazu verlangt, klärt ein US-Steuerberater (CPA).",
+          "Die USA besteuern bei Ausländern vor allem Einkünfte, die mit einem Geschäft in den USA tatsächlich verbunden sind („effectively connected income“). Ob ein solches Geschäft vorliegt, entscheiden die Tatsachen. Dazu zählen Personal, Büro oder Lager vor Ort, Vertreter mit Abschlussvollmacht und eine laufende Tätigkeit in den USA. Wer die Arbeit für US-Kunden vollständig in Europa erbringt, erzielt in der Regel keine solchen Einkünfte. Wer in den USA ein Lager betreibt oder Mitarbeiter beschäftigt, erzielt sie meist.",
+          "Das Doppelbesteuerungsabkommen zwischen Deutschland und den USA enthält eine zweite Voraussetzung. Die USA dürfen Unternehmensgewinne nur besteuern, soweit sie einer Betriebsstätte in den USA zuzurechnen sind (Art. 5 und 7). Ob das Abkommen im Einzelfall greift und welche Angaben die IRS dazu verlangt, klärt ein US-Steuerberater (CPA).",
         ],
       },
       {
         typ: "text", id: "einzel", h2: "Einzel-LLC ohne Geschäft in den USA",
         absaetze: [
-          "Ein häufiger Fall bei Gründern aus Deutschland, Österreich und der Schweiz: Die LLC gehört einer Person und ist steuerlich nicht als eigenes Steuersubjekt eingeordnet. Einkünfte aus Geschäft in den USA hat sie nicht. Sie zahlt dann in den USA meist keine Bundessteuer auf den Gewinn. Erklären muss sie trotzdem: jedes Jahr Form 5472 mit einer Pro-forma-Form 1120, per Fax oder Post, nicht elektronisch.",
+          "Dieser Fall ist bei Gründern aus Deutschland, Österreich und der Schweiz häufig. Die LLC gehört einer Person und gilt steuerlich nicht als eigenes Steuersubjekt. Einkünfte aus Geschäft in den USA hat sie nicht. Sie zahlt dann in den USA meist keine Bundessteuer auf den Gewinn. Eine Erklärung gibt sie trotzdem ab: jedes Jahr Form 5472 mit einer Pro-forma-Form 1120, per Fax oder Post, nicht elektronisch.",
           `Meldepflichtig ist schon die Einlage bei der Gründung, dazu jede Entnahme und jedes Darlehen zwischen Ihnen und der Gesellschaft. Die Strafe für eine fehlende Meldung beträgt ${IRS.strafe5472}. Die Gesellschaft meldet unter ihrer EIN; für einen Gesellschafter ohne US-Steuernummer lässt die IRS eine Referenznummer zu.`,
         ],
       },
       {
         typ: "text", id: "mehrere", h2: "Mehrere Gesellschafter: die LLC als Personengesellschaft",
         absaetze: [
-          `Hat die LLC zwei oder mehr Gesellschafter, gilt sie steuerlich als Personengesellschaft. Sie gibt Form 1065 ab und teilt jedem Gesellschafter seinen Anteil mit. Soweit ihr Gewinn mit Geschäft in den USA verbunden ist und auf ausländische Gesellschafter entfällt, behält sie Steuer ein und führt sie ab: ${SCHWELLEN.abzug1446} (Form 8804, 8805, 8813). Das gilt auch, wenn sie nichts ausschüttet.`,
-          "Die Gesellschafter geben dann selbst eine US-Erklärung ab und rechnen die einbehaltene Steuer an. Die ITIN, die sie dafür brauchen, beantragt der Acceptance Agent seit Juni 2026 mit einem Auszug aus dem Gesellschaftsvertrag.",
+          `Hat die LLC zwei oder mehr Gesellschafter, gilt sie steuerlich als Personengesellschaft. Sie gibt Form 1065 ab und teilt jedem Gesellschafter seinen Anteil mit. Auf Gewinn, der mit Geschäft in den USA verbunden ist und auf ausländische Gesellschafter entfällt, behält sie Steuer ein und führt sie ab. Der Satz beträgt ${SCHWELLEN.abzug1446} (Form 8804, 8805, 8813). Das gilt auch, wenn sie nichts ausschüttet.`,
+          "Die Gesellschafter geben dann selbst eine US-Erklärung ab und rechnen die einbehaltene Steuer an. Dafür brauchen sie eine ITIN. Seit Juni 2026 beantragt der Acceptance Agent sie mit einem Auszug aus dem Gesellschaftsvertrag.",
         ],
       },
       {
         typ: "text", id: "corporation", h2: "Die Corporation",
         absaetze: [
-          `Eine Corporation ist ein eigenes Steuersubjekt; dasselbe gilt für eine LLC, die nach Form 8832 wie eine Corporation behandelt werden will. Sie versteuert ihren Gewinn mit ${IRS.koerperschaftsteuer} auf Bundesebene; dazu kommt die Steuer des Staats, in Florida etwa ${STAAT.florida.steuer}.`,
-          "Schüttet sie an einen Anteilseigner in Deutschland aus, begrenzt das Abkommen die US-Quellensteuer: 5 Prozent für Gesellschaften mit mindestens 10 Prozent der Stimmrechte, sonst 15 Prozent (Art. 10). Ausländische Anteilseigner ab 25 Prozent meldet die Corporation mit Form 5472 als Anlage zu ihrer Erklärung.",
+          `Eine Corporation ist ein eigenes Steuersubjekt. Dasselbe gilt für eine LLC, die mit Form 8832 die Behandlung als Corporation wählt. Sie versteuert ihren Gewinn mit ${IRS.koerperschaftsteuer} auf Bundesebene. Hinzu kommt die Steuer des Staats, in Florida etwa ${STAAT.florida.steuer}.`,
+          "Schüttet sie an einen Anteilseigner in Deutschland aus, begrenzt das Abkommen die US-Quellensteuer (Art. 10). Der Satz beträgt 5 Prozent für Gesellschaften mit mindestens 10 Prozent der Stimmrechte, sonst 15 Prozent. Ausländische Anteilseigner ab 25 Prozent meldet die Corporation mit Form 5472 als Anlage zu ihrer Erklärung.",
         ],
       },
       {
         typ: "text", id: "fbar", h2: "Konten in Europa: der FBAR",
         absaetze: [
-          `Eine US-Gesellschaft ist für das US-Recht eine US-Person — auch wenn sie Ihnen gehört und steuerlich transparent ist. Hält sie Konten außerhalb der USA, etwa ein Euro-Konto bei einem europäischen Institut, kann eine Meldepflicht entstehen. Liegt der Stand dieser Konten zusammen irgendwann im Jahr über ${SCHWELLEN.fbar}, meldet sie sie jährlich an FinCEN (FBAR, FinCEN Form 114). Frist ist der ${FRISTEN.fbar}.`,
-          "Das betrifft gerade Gesellschaften, die Mittel aus den USA auf Konten in Europa übertragen. Wie solche Überweisungen und Investitionen steuerlich zu behandeln sind, gehört vor der ersten Überweisung geklärt. Das gilt auch für die Meldungen, die in den USA dadurch entstehen. Zuständig sind ein US-Steuerberater (CPA) und Ihr Steuerberater im Wohnsitzland.",
+          `Eine US-Gesellschaft ist nach US-Recht eine US-Person, auch wenn sie Ihnen gehört und steuerlich transparent ist. Hält sie Konten außerhalb der USA, etwa ein Euro-Konto bei einem europäischen Institut, kann eine Meldepflicht entstehen. Liegt der Stand dieser Konten zusammen irgendwann im Jahr über ${SCHWELLEN.fbar}, meldet sie die Konten jährlich an FinCEN (FBAR, FinCEN Form 114). Die Frist endet am ${FRISTEN.fbar}.`,
+          "Das betrifft vor allem Gesellschaften, die Mittel aus den USA auf Konten in Europa übertragen. Die steuerliche Behandlung solcher Überweisungen und Investitionen klären Sie vor der ersten Überweisung. Dasselbe gilt für die Meldungen, die dadurch in den USA entstehen. Zuständig sind ein US-Steuerberater (CPA) und Ihr Steuerberater im Wohnsitzland.",
         ],
       },
       {
         typ: "text", id: "zuhause", h2: "Pflichten im Wohnsitzland",
         absaetze: [
-          "Alles hier betrifft die USA. Unabhängig davon ist die Gesellschaft dort zu versteuern, wo sie geführt wird, und dem Finanzamt zu melden — in Deutschland nach § 138 AO. Welche Erklärungen im Wohnsitzland anfallen und wie eine in den USA gezahlte Steuer angerechnet wird, klärt Ihr Steuerberater; beide Seiten müssen zusammenpassen.",
+          "Dieser Artikel behandelt die Pflichten in den USA. Unabhängig davon ist die Gesellschaft dort steuerpflichtig, wo sie geführt wird, und dem Finanzamt zu melden, in Deutschland nach § 138 AO. Ihr Steuerberater klärt, welche Erklärungen im Wohnsitzland anfallen und wie eine in den USA gezahlte Steuer angerechnet wird. Die Erklärungen in beiden Ländern müssen zueinander passen.",
         ],
       },
       {
         typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          `Im ersten Jahr Ihres Mandats enthalten: der Pflichtenkalender und ${US_MELDUNG} (Form 5472 mit Form 1120).`,
+          `Im ersten Jahr Ihres Mandats ist der Pflichtenkalender enthalten. Enthalten ist auch ${US_MELDUNG} (Form 5472 mit Form 1120).`,
           LAUFEND,
         ],
         punkte: [
@@ -642,10 +645,10 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "Muss meine LLC in den USA eine Steuererklärung abgeben?", a: "Ja, fast immer. Eine LLC mit einem ausländischen Gesellschafter reicht jedes Jahr Form 5472 mit einer Pro-forma-Form 1120 ein — auch ohne Umsatz. Mit Geschäft in den USA kommen weitere Erklärungen hinzu." },
-      { f: "Zahlt meine LLC in den USA Steuern?", a: `Eine Einzel-LLC ohne Geschäft in den USA zahlt meist keine US-Bundessteuer auf den Gewinn. Mit Einkünften aus Geschäft in den USA wird der Gesellschafter dort steuerpflichtig, soweit das Abkommen es zulässt; eine Corporation zahlt ${IRS.koerperschaftsteuer} Bundessteuer.` },
-      { f: "Wann ist die US-Steuererklärung meiner LLC fällig?", a: `Form 5472 mit Pro-forma-1120 am ${IRS.frist5472}. Form 1065 bei mehreren Gesellschaftern am ${FRISTEN.f1065}, Form 1040-NR ohne US-Löhne am 15. Juni.` },
-      { f: "Muss meine LLC ihr Konto in Europa melden?", a: `Ja, wenn die Konten der Gesellschaft außerhalb der USA zusammen irgendwann im Jahr mehr als ${SCHWELLEN.fbar} erreichen: dann mit dem FBAR an FinCEN, bis ${FRISTEN.fbar}.` },
+      { f: "Muss meine LLC in den USA eine Steuererklärung abgeben?", a: "In der Regel ja. Eine LLC mit einem ausländischen Gesellschafter reicht jedes Jahr Form 5472 mit einer Pro-forma-Form 1120 ein, auch ohne Umsatz. Mit Geschäft in den USA kommen weitere Erklärungen hinzu." },
+      { f: "Zahlt meine LLC in den USA Steuern?", a: `Das hängt von der Struktur ab. Eine Einzel-LLC ohne Geschäft in den USA zahlt meist keine US-Bundessteuer auf den Gewinn. Mit Einkünften aus Geschäft in den USA wird der Gesellschafter dort steuerpflichtig, soweit das Abkommen es zulässt. Eine Corporation zahlt ${IRS.koerperschaftsteuer} Bundessteuer.` },
+      { f: "Wann ist die US-Steuererklärung meiner LLC fällig?", a: `Die Frist für Form 5472 mit Pro-forma-1120 ist der ${IRS.frist5472}. Form 1065 bei mehreren Gesellschaftern ist am ${FRISTEN.f1065} fällig, Form 1040-NR ohne US-Löhne am 15. Juni.` },
+      { f: "Muss meine LLC ihr Konto in Europa melden?", a: `Ja, wenn die Konten der Gesellschaft außerhalb der USA zusammen irgendwann im Jahr mehr als ${SCHWELLEN.fbar} erreichen. Sie meldet sie dann mit dem FBAR an FinCEN, bis ${FRISTEN.fbar}.` },
       { f: "Brauche ich für die US-Steuererklärung eine ITIN?", a: "Wer als Person eine eigene US-Erklärung abgibt, etwa Form 1040-NR, braucht eine ITIN oder SSN. Für Form 5472 genügt die EIN der Gesellschaft; für den Gesellschafter lässt die IRS eine Referenznummer zu." },
     ],
     paket: "global_struktur",
@@ -668,33 +671,33 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
     auge: "Wissen · Struktur",
     h1: "Tochter oder Zweigniederlassung.",
     h1b: "Mit der GmbH in die USA.",
-    lead: "Wer mit einem bestehenden Unternehmen in die USA geht, hat drei Wege: Die GmbH wird selbst dort tätig, sie gründet eine LLC oder eine Corporation als Tochter. Die Wahl bestimmt Haftung, Steuern in beiden Ländern und Meldungen.",
+    lead: "Ein bestehendes Unternehmen hat für die USA drei Wege: die Zweigniederlassung, eine LLC als Tochter oder eine Corporation als Tochter. Die Wahl bestimmt Haftung, Steuern in beiden Ländern und Meldungen.",
     ziffern: [
       { wert: "3 Wege", label: "Zweigniederlassung, LLC, Corporation" },
       { wert: "5 %", label: "Quellensteuer nach dem Abkommen ab 10 % der Stimmrechte" },
       { wert: IRS.koerperschaftsteuer, label: "Bundessteuer der US-Corporation" },
     ],
     blick: [
-      ["Zweigniederlassung", "Die GmbH selbst in den USA — volle Haftung, Form 1120-F"],
+      ["Zweigniederlassung", "Die GmbH selbst in den USA; volle Haftung, Form 1120-F"],
       ["LLC als Tochter", "Haftung getrennt, steuerlich ohne Wahl transparent"],
-      ["Corporation als Tochter", "Eigenes Steuersubjekt, Banken und Investoren vertraut"],
+      ["Corporation als Tochter", "Eigenes Steuersubjekt; Instituten und Investoren vertraut"],
       ["Abkommen", "Quellensteuer auf Dividenden 5 %, unter Bedingungen keine"],
-      ["Meldungen", "Form 5472, § 138 AO, bei der Zweigniederlassung auch BOI"],
+      ["Meldungen", "Form 5472, § 138 AO, bei der Zweigniederlassung auch die BOI-Meldung"],
       ["Steuerliche Einordnung", "Vor der Gründung, in beiden Ländern"],
-      ["Mit FIAON Global", "Gründung einer LLC in einem Mandat — die Strukturfrage klären Sie vorab"],
+      ["Mit FIAON Global", "Gründung einer LLC in einem Mandat; die Strukturfrage klären Sie vorab"],
     ],
-    kurz: `Eine GmbH kann in den USA als Zweigniederlassung tätig werden oder eine Tochter gründen. Die Zweigniederlassung ist rechtlich die GmbH selbst und haftet voll. Eine LLC als Tochter trennt die Haftung, ist steuerlich aber ohne Wahl nach Form 8832 transparent. Eine Corporation als Tochter ist ein eigenes Steuersubjekt (${IRS.koerperschaftsteuer} Bundessteuer); auf Dividenden begrenzt das Doppelbesteuerungsabkommen die Quellensteuer.`,
+    kurz: `Eine GmbH kann in den USA als Zweigniederlassung tätig werden oder eine Tochter gründen. Die Zweigniederlassung ist rechtlich die GmbH selbst; die GmbH haftet voll. Eine LLC als Tochter trennt die Haftung, ist ohne Wahl nach Form 8832 aber steuerlich transparent. Eine Corporation als Tochter ist ein eigenes Steuersubjekt (${IRS.koerperschaftsteuer} Bundessteuer). Auf Dividenden begrenzt das Doppelbesteuerungsabkommen die Quellensteuer.`,
     bloecke: [
       {
         typ: "tabelle", id: "vergleich", h2: "Die drei Wege im Vergleich",
         kopf: ["", "Zweigniederlassung", "LLC als Tochter", "Corporation als Tochter"],
         zeilen: [
-          ["Rechtlich", "die GmbH selbst, registriert im Bundesstaat", "eigene Gesellschaft", "eigene Gesellschaft"],
+          ["Rechtlich", "die GmbH selbst, als ausländische Gesellschaft im Bundesstaat registriert", "eigene Gesellschaft", "eigene Gesellschaft"],
           ["Haftung", "die GmbH haftet voll", "auf die LLC beschränkt", "auf die Corporation beschränkt"],
           ["US-Steuer", "die GmbH mit Form 1120-F", "ohne Wahl: bei der GmbH (Form 1120-F); mit Wahl: wie eine Corporation", `eigene Erklärung, Form 1120, ${IRS.koerperschaftsteuer} Bund`],
           ["Gewinne an die GmbH", "Branch Profits Tax, durch das Abkommen begrenzt", "je nach Wahl wie Zweigniederlassung oder Corporation", "Quellensteuer auf Dividenden, durch das Abkommen begrenzt"],
           ["Meldung", "BOI-Meldung als ausländische Gesellschaft", "Form 5472 mit Pro-forma-1120", "Form 5472 als Anlage zur Form 1120"],
-          ["Bei US-Instituten", "Antrag als ausländische Gesellschaft", "Antrag als US-Gesellschaft", "Antrag als US-Gesellschaft; bei Darlehen die übliche Form"],
+          ["Bei US-Instituten", "Antrag als ausländische Gesellschaft", "Antrag als US-Gesellschaft", "Antrag als US-Gesellschaft; bei Darlehen oft die übliche Form"],
         ],
         fuss: [
           "Vereinfachte Übersicht. Die Einordnung in Deutschland folgt dem Typenvergleich und kann von der US-Einordnung abweichen.",
@@ -702,51 +705,51 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "zweig", h2: "Die Zweigniederlassung: ohne Haftungstrennung",
+        typ: "text", id: "zweig", h2: "Zweigniederlassung: die GmbH haftet selbst",
         absaetze: [
-          `Die GmbH registriert sich im Bundesstaat als ausländische Gesellschaft („foreign qualification“) und wird dort unter eigenem Namen tätig. Der Aufwand der Einrichtung ist gering, aber alles liegt in der GmbH: Verträge, Haftung, Rechtsstreit in den USA. Die GmbH gibt jedes Jahr Form 1120-F ab — Frist ${FRISTEN.f1120f}.`,
-          "Auf Gewinne der Zweigniederlassung, die nicht in den USA bleiben, erheben die USA die Branch Profits Tax von 30 Prozent. Das Abkommen begrenzt sie auf 5 Prozent und schließt sie für bestimmte Gesellschaften aus (Art. 10 Abs. 9 und 10). Und anders als eine US-Gesellschaft bleibt die GmbH als ausländische Gesellschaft mit Registrierung in einem Bundesstaat zur BOI-Meldung bei FinCEN verpflichtet.",
+          `Die GmbH registriert sich im Bundesstaat als ausländische Gesellschaft („foreign qualification“) und wird dort unter eigenem Namen tätig. Die Einrichtung erfordert wenig Aufwand. Verträge, Haftung und Rechtsstreit in den USA liegen dafür bei der GmbH selbst. Die GmbH gibt jedes Jahr Form 1120-F ab; die Frist ist der ${FRISTEN.f1120f}.`,
+          "Auf Gewinne der Zweigniederlassung, die nicht in den USA bleiben, erheben die USA die Branch Profits Tax von 30 Prozent. Das Abkommen begrenzt sie auf 5 Prozent und schließt sie für bestimmte Gesellschaften aus (Art. 10 Abs. 9 und 10). Anders als eine US-Gesellschaft bleibt die GmbH zur BOI-Meldung bei der Behörde FinCEN verpflichtet. Grund ist ihre Registrierung als ausländische Gesellschaft in einem Bundesstaat.",
         ],
       },
       {
         typ: "text", id: "llc", h2: "LLC als Tochter: steuerlich transparent",
         absaetze: [
-          `Gehört die LLC der GmbH, ist die Haftung getrennt: Gläubiger der LLC greifen nicht auf die GmbH durch, solange die Trennung gelebt wird. Steuerlich ist die LLC in den USA ohne Wahl kein eigenes Steuersubjekt. Ihre Gewinne aus US-Geschäft werden der GmbH zugerechnet; diese gibt dann Form 1120-F ab, als hätte sie eine Zweigniederlassung. Jedes Jahr kommt Form 5472 mit Pro-forma-1120 hinzu. ${STAAT.florida.llcSteuer}`,
-          "Mit Form 8832 kann die LLC wählen, wie eine Corporation behandelt zu werden. In Deutschland entscheidet unabhängig davon der Typenvergleich; fällt die Einordnung in beiden Ländern auseinander, greifen eigene Regeln. Diese Frage gehört vor die Gründung.",
+          `Gehört die LLC der GmbH, ist die Haftung getrennt. Gläubiger der LLC können nicht auf die GmbH durchgreifen, solange die Trennung tatsächlich eingehalten wird. Steuerlich ist die LLC in den USA ohne Wahl kein eigenes Steuersubjekt. Die USA rechnen ihre Gewinne aus US-Geschäft der GmbH zu. Die GmbH gibt dann Form 1120-F ab, als hätte sie eine Zweigniederlassung. Jedes Jahr kommt Form 5472 mit Pro-forma-1120 hinzu. ${STAAT.florida.llcSteuer}`,
+          "Mit Form 8832 kann die LLC die Behandlung als Corporation wählen. In Deutschland entscheidet unabhängig davon der Typenvergleich. Weicht die Einordnung in beiden Ländern voneinander ab, gelten eigene Regeln. Diese Frage klären Sie vor der Gründung.",
         ],
       },
       {
         typ: "text", id: "corp", h2: "Corporation als Tochter: eigenes Steuersubjekt",
         absaetze: [
-          `Die Corporation ist ein eigenes Steuersubjekt: Sie versteuert ihren Gewinn mit ${IRS.koerperschaftsteuer} Bundessteuer zuzüglich der Steuer des Staats. Sie gibt Form 1120 ab, mit Form 5472 für die GmbH als Anteilseignerin. US-Instituten und Investoren ist diese Form vertraut; für Darlehen, Leasing und größere Rahmen ist sie oft die übliche. Über jedes Darlehen entscheidet das jeweilige Institut.`,
-          "Schüttet die Corporation an die GmbH aus, begrenzt das Abkommen die US-Quellensteuer auf 5 Prozent, wenn die GmbH mindestens 10 Prozent der Stimmrechte hält. Sie entfällt, wenn die GmbH seit zwölf Monaten mindestens 80 Prozent der Stimmrechte hält und die Voraussetzungen der Missbrauchsklausel erfüllt (Art. 10 Abs. 3, Art. 28). Wie die Dividende bei der GmbH in Deutschland zu behandeln ist, regelt § 8b KStG — die Einzelheiten klärt der Steuerberater.",
+          `Die Corporation ist ein eigenes Steuersubjekt. Sie versteuert ihren Gewinn mit ${IRS.koerperschaftsteuer} Bundessteuer zuzüglich der Steuer des Staats. Sie gibt Form 1120 ab, mit Form 5472 für die GmbH als Anteilseignerin. US-Instituten und Investoren ist diese Form vertraut. Für Darlehen, Leasing und größere Rahmen ist sie oft die übliche Form. Über jedes Darlehen entscheidet das jeweilige Institut.`,
+          "Schüttet die Corporation an die GmbH aus, begrenzt das Abkommen die US-Quellensteuer auf 5 Prozent. Voraussetzung ist, dass die GmbH mindestens 10 Prozent der Stimmrechte hält. Die Quellensteuer entfällt, wenn die GmbH seit zwölf Monaten mindestens 80 Prozent der Stimmrechte hält. Zusätzlich muss sie die Voraussetzungen der Missbrauchsklausel erfüllen (Art. 10 Abs. 3, Art. 28). Die Behandlung der Dividende bei der GmbH in Deutschland regelt § 8b KStG. Die Einzelheiten klärt Ihr Steuerberater.",
         ],
       },
       {
         typ: "text", id: "verrechnung", h2: "Verrechnungspreise zwischen GmbH und Tochter",
         absaetze: [
-          "Liefert die GmbH Waren, Software oder Leistungen an die Tochter, müssen die Preise so gestaltet sein, wie fremde Dritte sie vereinbaren würden. Beide Länder prüfen das — die USA nach eigenen Regeln, Deutschland nach dem Fremdvergleichsgrundsatz (§ 1 AStG); das Protokoll zum Abkommen verweist auf die Leitlinien der OECD. Jede dieser Zahlungen meldet die Tochter zudem auf Form 5472.",
+          "Liefert die GmbH Waren, Software oder Leistungen an die Tochter, müssen die Verrechnungspreise dem entsprechen, was fremde Dritte vereinbaren würden. Beide Länder prüfen das: die USA nach eigenen Regeln, Deutschland nach dem Fremdvergleichsgrundsatz (§ 1 AStG). Das Protokoll zum Abkommen verweist auf die Leitlinien der OECD. Jede dieser Zahlungen meldet die Tochter zudem auf Form 5472.",
           "Eine Dokumentation von Anfang an beugt Auseinandersetzungen in beiden Ländern vor.",
         ],
       },
       {
         typ: "etappen", id: "entscheidung", h2: "Fünf Kriterien für die Entscheidung",
         etappen: [
-          { titel: "Tätigkeit in den USA", text: "Vertrieb aus Europa, eigene Mitarbeiter in den USA, Lager, Projekte, Investoren — je mehr in den USA stattfindet, desto eher kommt eine eigene Tochter in Betracht." },
+          { titel: "Tätigkeit in den USA", text: "Beispiele sind Vertrieb aus Europa, eigene Mitarbeiter in den USA, Lager, Projekte und Investoren. Je mehr davon in den USA stattfindet, desto eher kommt eine eigene Tochter in Betracht." },
           { titel: "Risiko und Haftung", text: "Verträge und Haftung in den USA gehören in eine eigene Gesellschaft, wenn sie die GmbH gefährden könnten." },
-          { titel: "Verwendung der Gewinne", text: "Bleiben sie in den USA, zählt die Steuer dort; fließen sie zurück, zählen Quellensteuer und Abkommen." },
-          { titel: "Investoren und Darlehen", text: "US-Investoren setzen meist eine Corporation voraus; bei größeren Darlehen erwarten Institute sie oft ebenfalls." },
-          { titel: "Steuerliche Einordnung in beiden Ländern", text: "Ihr Steuerberater und ein US-Steuerberater (CPA) prüfen die Struktur gemeinsam, bevor gegründet wird." },
+          { titel: "Verwendung der Gewinne", text: "Bleiben die Gewinne in den USA, zählt die Steuer dort. Fließen sie an die GmbH zurück, zählen Quellensteuer und Abkommen." },
+          { titel: "Investoren und Darlehen", text: "US-Investoren setzen meist eine Corporation voraus. Bei größeren Darlehen erwarten Institute sie oft ebenfalls. Über ein Darlehen entscheidet das jeweilige Institut." },
+          { titel: "Steuerliche Einordnung in beiden Ländern", text: "Ihr Steuerberater und ein US-Steuerberater (CPA) prüfen die Struktur gemeinsam vor der Gründung." },
         ],
       },
       {
         typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Ihr Mandat sieht die Gründung einer LLC vor. Soll Ihre GmbH die Anteile halten oder kommt für Ihr Vorhaben eine Corporation in Betracht, stimmen wir das vorab im Gespräch mit Ihnen ab.",
+          "Ihr Mandat sieht die Gründung einer LLC vor. Wer sein Angebot über den Honorarrechner anfordert, wird persönlich Gesellschafter. Soll Ihre GmbH die Anteile halten, stimmen wir das im Gespräch mit Ihnen ab. Kommt für Ihr Vorhaben eine Corporation in Betracht, klären wir auch das vorab mit Ihnen.",
           `${weitererSatz("UEBERGANG-EINREICHUNG")} ${UNTERLAGEN.satz}`,
         ],
         punkte: [
-          `${TEIL.ihrTeil}: Die Strukturentscheidung treffen Sie mit Ihrem Steuerberater und einem US-Steuerberater (CPA), bevor gegründet wird.`,
+          `${TEIL.ihrTeil}: Die Strukturentscheidung treffen Sie vor der Gründung, mit Ihrem Steuerberater und einem US-Steuerberater (CPA).`,
           `${TEIL.bedingung}: ${satz("S3")}`,
         ],
       },
@@ -755,17 +758,17 @@ export const WISSEN_GRUENDUNG: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           GLOBAL_PFLICHTHINWEIS.de[0],
-          "Die Haftungstrennung einer Tochter setzt voraus, dass sie gelebt wird: eigene Konten, eigene Verträge, eigene Buchführung.",
+          "Die Haftungstrennung einer Tochter setzt voraus, dass sie tatsächlich eingehalten wird: eigene Konten, eigene Verträge, eigene Buchführung.",
           KARTEN_HAFTUNG,
         ],
       },
     ],
     fragen: [
-      { f: "Soll meine GmbH in den USA eine LLC oder eine Corporation gründen?", a: "Für Vertrieb und kleinere Vorhaben reicht oft die LLC: Sie trennt die Haftung, ist steuerlich aber ohne Wahl transparent. Investoren und, bei größeren Darlehen, Institute erwarten meist eine Corporation; sie ist auch für Gewinne, die in den USA bleiben sollen, oft die klarere Form. Die Entscheidung gehört vor die Gründung — mit Ihrem Steuerberater und einem US-Steuerberater (CPA)." },
-      { f: "Was ist der Unterschied zwischen Tochtergesellschaft und Zweigniederlassung in den USA?", a: "Die Zweigniederlassung ist die GmbH selbst, tätig in den USA — sie haftet voll. Die Tochter ist eine eigene US-Gesellschaft mit eigener Haftung, eigener Steuer und eigenen Meldungen." },
-      { f: "Wie hoch ist die US-Quellensteuer auf Dividenden an eine GmbH?", a: "Nach dem Abkommen 5 Prozent, wenn die GmbH mindestens 10 Prozent der Stimmrechte hält, sonst 15 Prozent. Hält sie seit zwölf Monaten mindestens 80 Prozent und erfüllt sie die Bedingungen der Missbrauchsklausel, fällt keine Quellensteuer an." },
-      { f: "Muss eine Zweigniederlassung in den USA eine BOI-Meldung abgeben?", a: "Ja. Befreit sind seit August 2026 nur Gesellschaften, die in den USA gegründet wurden; eine GmbH, die sich in einem Bundesstaat registriert, bleibt als ausländische Gesellschaft meldepflichtig." },
-      { f: "Muss ich die US-Tochter dem Finanzamt melden?", a: "Ja. Gründung oder Erwerb einer Beteiligung an einer ausländischen Gesellschaft sind in Deutschland nach § 138 AO anzuzeigen — zusammen mit der Steuererklärung." },
+      { f: "Soll meine GmbH in den USA eine LLC oder eine Corporation gründen?", a: "Das hängt vom Vorhaben ab. Für Vertrieb und kleinere Vorhaben reicht oft die LLC: Sie trennt die Haftung, ist ohne Wahl aber steuerlich transparent. Investoren erwarten meist eine Corporation, Institute bei größeren Darlehen ebenfalls. Auch für Gewinne, die in den USA bleiben sollen, ist sie oft die passende Form. Die Entscheidung treffen Sie vor der Gründung, mit Ihrem Steuerberater und einem US-Steuerberater (CPA)." },
+      { f: "Was ist der Unterschied zwischen Tochtergesellschaft und Zweigniederlassung in den USA?", a: "Die Zweigniederlassung ist die GmbH selbst, tätig in den USA; die GmbH haftet voll. Die Tochter ist eine eigene US-Gesellschaft mit eigener Haftung, eigener Steuer und eigenen Meldungen." },
+      { f: "Wie hoch ist die US-Quellensteuer auf Dividenden an eine GmbH?", a: "Nach dem Abkommen beträgt sie 5 Prozent, wenn die GmbH mindestens 10 Prozent der Stimmrechte hält, sonst 15 Prozent. Hält die GmbH seit zwölf Monaten mindestens 80 Prozent und erfüllt sie die Bedingungen der Missbrauchsklausel, fällt keine Quellensteuer an." },
+      { f: "Muss eine Zweigniederlassung in den USA eine BOI-Meldung abgeben?", a: "Ja. Befreit sind seit August 2026 nur Gesellschaften, die in den USA gegründet wurden. Eine GmbH, die sich in einem Bundesstaat registriert, bleibt als ausländische Gesellschaft meldepflichtig." },
+      { f: "Muss ich die US-Tochter dem Finanzamt melden?", a: "Ja. In Deutschland ist die Gründung oder der Erwerb einer Beteiligung an einer ausländischen Gesellschaft nach § 138 AO anzuzeigen, zusammen mit der Steuererklärung." },
     ],
     paket: "global_kapital",
     weiter: ["/business/tochtergesellschaft-usa", "/business/wissen/llc-oder-corporation", "/business/wissen/llc-steuererklaerung", "/business/aus-deutschland"],

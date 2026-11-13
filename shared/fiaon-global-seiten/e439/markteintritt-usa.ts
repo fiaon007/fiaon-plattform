@@ -20,6 +20,13 @@
 // In keiner Zeile, die Österreich oder die Schweiz nennt, stehen Konto, Karte oder
 // Finanzierung (Leitfaden 5.12).
 //
+// Zweite Runde am selben Tag (Lektorat des ganzen Texts): Der Sachteil steht ohne FIAON —
+// kein Partner, kein Honorar, kein Mandat vor dem Baustein „rollen“ (Ausnahme: die festen
+// Sätze im Baustein „kapital“ bleiben, wo sie sind). FIAON steht im Schlussteil: Rollen,
+// „Was FIAON Global dabei übernimmt“, Karte, Vermerke und die eine Frage dazu. Das Honorar
+// zeigt die Karte „Ein Mandat“; ein eigener Betrag steht im Text dieser Datei nicht mehr.
+// Gesetzliche Fristen Dritter bleiben als Ziffer (Zahl der Quelle).
+//
 // Neu belegt am 27.10.2026 an den amtlichen Texten: BE-13 (15 CFR 801.7 i. d. F.
 // 90 FR 42534 vom 03.09.2025: volle Meldung erst bei Kosten über 40 Mio. $, sonst
 // Claim for Exemption; Frist 45 Kalendertage; Pflicht auch ohne Anschreiben der BEA),
@@ -36,7 +43,7 @@
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 // E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
-import { SAETZE_BETRAEGE, SCHRITTE_KOPF, SECHS_SCHRITTE, beleg, satz, weitererSatz } from "../../fiaon-global-saetze";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, weitererSatz } from "../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { FAKTEN_STAND, IRS, MARKT, QUELLEN_IRS, QUELLEN_STAATEN, QUELLEN_WISSEN as Q, SCHWELLEN, STAAT } from "../fakten";
 
@@ -46,13 +53,10 @@ const S = "2026-10-27";
 const STAND = "2026-11-13";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 const P = EIN_PRODUKT.de;
-const B = SAETZE_BETRAEGE.de;
 /** Schritt 2 der festen Erzählung (Leitfaden 2.2) — Satz und „Ihr Teil“ wortgleich aus der einen Quelle. */
 const UNTERLAGEN = SECHS_SCHRITTE.de.find((x) => x.nr === 2)!;
 /** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
 const TEIL = SCHRITTE_KOPF.de.teile;
-/** Wer Steuerfragen im Wohnsitzland verantwortet — dieselbe Zeile wie auf den Zielgruppen-Seiten. */
-const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung; die laufende Steuererklärung übernimmt Ihr Steuerberater.";
 /** „25.000 $“ aus „25.000 US-Dollar je Formular und Jahr“ — die Zahl bleibt in fakten.ts. */
 const STRAFE_5472 = `${IRS.strafe5472.split(" ")[0]} $`;
 
@@ -91,120 +95,119 @@ export const SEITE: GlobalSeite = {
   kennung: "FG · 48",
   auge: "Wissen · Unternehmensberatung USA",
   h1: "Markteintritt USA.",
-  h1b: "Die Unternehmensberatung für Ihren Weg — Schritt für Schritt.",
-  lead: "Ein Markteintritt USA verläuft in zehn Schritten: zuerst das Vorhaben, dann Struktur und Bundesstaat, Gründung, Steuernummern, Konto und Zahlungswege, Verträge, Personal, die Meldungen in beiden Ländern und zuletzt die Finanzierung. Jeder Schritt steht hier mit Pflichten, Kosten und Quellen. Am Ende steht, was FIAON Global als Unternehmensberatung für Ihre US-Expansion übernimmt.",
+  h1b: "Zehn Schritte, mit Kosten und Quellen.",
+  lead: "Ein Markteintritt USA verläuft in zehn Schritten, vom Vorhaben bis zur Finanzierung. Jeder Schritt steht hier mit seinen Pflichten, Kosten und Quellen. Am Ende steht, was FIAON Global als Unternehmensberatung für Ihre US-Expansion übernimmt.",
   ziffern: [
     { wert: IRS.koerperschaftsteuer, label: "Bundessteuer auf den Gewinn einer US-Corporation" },
     { wert: "45 Tage", label: "Frist der BE-13-Meldung nach der Gründung" },
-    { wert: STRAFE_5472, label: "Strafe je versäumter Form 5472 und Jahr" },
+    { wert: STRAFE_5472, label: "Strafe der IRS je versäumter Form 5472 und Jahr" },
   ],
   blick: [
-    ["Erste Frage", "Was soll in den USA geschehen: Vertrieb, Einkauf, Team, Projekte?"],
+    ["Ausgangspunkt", "Das Vorhaben: Vertrieb, Einkauf, Team oder Projekte in den USA"],
     ["Struktur", "LLC, Corporation oder Tochter Ihrer GmbH, AG oder Holding"],
-    ["Steuern", "Der Ort der Geschäftsleitung zählt; Mitteilung nach § 138 AO"],
+    ["Steuern", "Es zählt der Ort der Geschäftsleitung; Mitteilung nach § 138 AO"],
     ["US-Meldungen", "Form 5472 jährlich, BE-13 einmalig zur Gründung"],
-    ["Finanzierung", "Schritt für Schritt: Konto, Karten, Umsatz, Bank — es entscheidet das jeweilige Institut"],
-    ["Mit FIAON Global", `Ein Ansprechpartner statt acht. ${beleg("honorarVorab")}`],
+    ["Finanzierung", "Nacheinander: Konto, Firmenkarten, Umsatz, Bankkredit. Es entscheidet das jeweilige Institut."],
+    ["Kosten", "Staatsgebühren, Registered Agent, jährliche US-Meldung und Marke — mit Quelle und Stand"],
   ],
-  kurz: "Ein Markteintritt USA verläuft in zehn Schritten: Vorhaben klären, Struktur wählen (LLC, Corporation oder Tochter der eigenen GmbH), Bundesstaat, Gründung, Steuernummern, Geschäftskonto und Zahlungswege, Verträge und Marke, Personal, Steuern und Meldungen in beiden Ländern, Finanzierung. Wird die US-Gesellschaft vom Wohnsitzland aus geführt, bleibt sie dort steuerpflichtig; in den USA gelten jährliche Meldungen wie Form 5472 und einmalig die BE-13-Meldung an die Statistikbehörde BEA. FIAON Global gründet als Unternehmensberatung die Gesellschaft, holt jede Unterlage ein und beantragt die Steuernummern; über Eintragung und Nummern entscheiden Bundesstaat und US-Steuerbehörde.",
+  kurz: "Ein Markteintritt USA verläuft in zehn Schritten, vom Vorhaben über die Gründung bis zur Finanzierung. Vor der Gründung werden Struktur und Bundesstaat festgelegt: LLC, Corporation oder Tochter der eigenen GmbH. Wird die US-Gesellschaft vom Wohnsitzland aus geführt, bleibt sie dort steuerpflichtig. In den USA gelten jährliche Meldungen wie Form 5472 und einmalig die BE-13-Meldung an die Statistikbehörde BEA.",
   bloecke: [
     {
-      typ: "text", id: "fragen-vorab", h2: "Bevor Sie gründen: drei Fragen",
+      typ: "text", id: "fragen-vorab", h2: "Drei Fragen vor der Gründung",
       absaetze: [
-        "Die erste Frage lautet nicht „LLC oder Corporation?“, sondern: Was soll in den USA tatsächlich geschehen? Vertrieb aus Europa an US-Kunden, Einkauf oder Lager vor Ort, Projekte auf amerikanischen Baustellen, ein eigenes Team, Investoren am Tisch — jede Antwort führt zu einer anderen Struktur und zu anderen Pflichten. Wer ein Geschäft in den USA aufbauen will, beginnt deshalb mit einem klaren Bild des Vorhabens und mit Zahlen für die ersten Geschäftsjahre.",
-        "Die zweite Frage: Wer führt die Gesellschaft, und von wo aus? Nach deutschem Recht ist eine Körperschaft unbeschränkt steuerpflichtig, wenn ihre Geschäftsleitung im Inland liegt (§ 1 KStG); Geschäftsleitung ist der Mittelpunkt der geschäftlichen Oberleitung (§ 10 AO). Eine US-Gesellschaft, die von einem Schreibtisch in München oder Hamburg aus gelenkt wird, ist deshalb kein Steuermodell, sondern auch hier steuerpflichtig. Diese Frage gehört vor die Gründung, nicht in die Nachbesserung danach. Österreich (§ 1 Abs. 2 KStG 1988) und die Schweiz (Art. 50 DBG) knüpfen die Steuerpflicht ebenfalls an Sitz oder Ort der Leitung.",
-        "Die dritte Frage: Woher kommt das Kapital, und wann? Eine neue US-Gesellschaft hat keine Geschichte. Konto, Karten und Kredite kommen deshalb nacheinander in Betracht, und über jeden Antrag entscheidet das jeweilige Institut. Wer das einplant, finanziert die ersten Monate aus eigenen Mitteln oder aus dem Stammhaus und baut die US-Bonität parallel auf.",
-        "Staatliche Anlaufstelle für ausländische Investoren ist das Programm SelectUSA des US-Handelsministeriums; über SelectUSA finden Sie auch die Wirtschaftsförderungen der Bundesstaaten und Regionen. Bestimmte Beteiligungen an US-Unternehmen und bestimmte Immobiliengeschäfte ausländischer Personen prüft zudem der Ausschuss CFIUS unter Vorsitz des US-Finanzministeriums auf ihre Folgen für die nationale Sicherheit. Ob ein Kauf oder eine Beteiligung darunter fällt, ist eine Rechtsfrage; sie liegt bei Partner-Anwälten in eigener Verantwortung.",
+        "Die erste Frage vor dem Markteintritt: Was soll in den USA geschehen? In Betracht kommen der Vertrieb aus Europa an US-Kunden, Einkauf oder Lager in den USA und Projekte auf amerikanischen Baustellen. Auch ein eigenes Team oder die Aufnahme von Investoren kann Teil des Vorhabens sein. Jede Antwort führt zu einer anderen Struktur und zu anderen Pflichten. Wer ein Geschäft in den USA aufbauen will, beginnt deshalb mit einer Beschreibung des Vorhabens und mit Zahlen für die ersten Geschäftsjahre.",
+        "Die zweite Frage: Wer führt die Gesellschaft, und von wo aus? Nach deutschem Recht ist eine Körperschaft unbeschränkt steuerpflichtig, wenn ihre Geschäftsleitung im Inland liegt (§ 1 KStG). Geschäftsleitung ist der Mittelpunkt der geschäftlichen Oberleitung (§ 10 AO). Eine US-Gesellschaft, die von München oder Hamburg aus geführt wird, ist deshalb auch in Deutschland steuerpflichtig. Diese Frage klären Sie vor der Gründung. Österreich (§ 1 Abs. 2 KStG 1988) und die Schweiz (Art. 50 DBG) knüpfen die Steuerpflicht ebenfalls an Sitz oder Ort der Leitung.",
+        "Die dritte Frage: Woher kommen die Mittel, und wann? Eine neue US-Gesellschaft hat keine Kredithistorie. Konto, Firmenkarten und Kredite kommen deshalb nacheinander in Betracht. Über jeden Antrag entscheidet das jeweilige Institut. Wer das einplant, finanziert die ersten Monate aus eigenen Mitteln oder aus dem Stammhaus. Parallel dazu baut die Gesellschaft ihre Bonität in den USA auf.",
+        "Staatliche Anlaufstelle für ausländische Investoren ist das Programm SelectUSA des US-Handelsministeriums. Über SelectUSA finden Sie auch die Wirtschaftsförderungen der Bundesstaaten und Regionen. Der Ausschuss CFIUS prüft bestimmte Beteiligungen an US-Unternehmen und bestimmte Immobiliengeschäfte ausländischer Personen. Den Vorsitz hat das US-Finanzministerium; Maßstab sind die Folgen für die nationale Sicherheit. Ob ein Kauf oder eine Beteiligung darunter fällt, ist eine Rechtsfrage für einen Anwalt.",
       ],
     },
     {
       typ: "etappen", id: "etappen", h2: "Der Markteintritt USA in zehn Schritten",
-      lead: "Die Reihenfolge trägt Bedeutung: Jeder Schritt setzt den vorigen voraus. Wer eine US-Tochter gründen will, geht denselben Weg — nur mit der GmbH, AG oder Holding als Gesellschafterin.",
+      lead: "Die Reihenfolge hat einen Grund: Jeder Schritt setzt den vorigen voraus. Wer eine US-Tochter gründen will, geht dieselben Schritte; Gesellschafterin ist dann die GmbH, AG oder Holding.",
       etappen: [
-        { titel: "Vorhaben", dauer: "vor der Gründung", text: "Was in den USA geschehen soll, wer die Gesellschaft führt und welche Mittel sie braucht — geklärt für beide Länder." },
-        { titel: "Struktur", dauer: "vor der Gründung", text: "LLC, Corporation oder Tochter Ihrer GmbH, AG oder Holding: Haftung, Steuern und Meldungen hängen an dieser Wahl." },
-        { titel: "Bundesstaat", dauer: "vor der Gründung", text: "Dort, wo das Geschäft stattfindet, oder dort, wo Kosten und Recht passen. Wer in einem zweiten Staat tätig wird, braucht dort eine Zulassung." },
-        { titel: "Gründung", dauer: "Start", text: "Einreichung beim Bundesstaat, Registered Agent mit Anschrift im Staat, Operating Agreement oder Satzung vom Anwalt." },
-        { titel: "Steuernummern", dauer: "mit der Gründung", text: "Die EIN der Gesellschaft — ohne sie kein Konto und keine Meldung; bei Bedarf Ihre persönliche ITIN mit Form W-7." },
-        { titel: "Konto und Zahlungswege", dauer: "nach der EIN", text: "Geschäftskonto bei einem US-Institut und die Wege, auf denen Ihre US-Kunden zahlen. Das Institut entscheidet." },
-        { titel: "Verträge und Marke", dauer: "vor dem ersten Auftrag", text: "Verträge nach US-Recht, auch mit der eigenen GmbH; der Schutz Ihrer Marke beim USPTO." },
-        { titel: "Personal", dauer: "mit der ersten Einstellung", text: "Arbeitserlaubnis prüfen, Lohnsteuer abführen, in der Regel vierteljährlich an die IRS melden." },
-        { titel: "Steuern und Meldungen", dauer: "jedes Jahr", text: "In den USA Form 5472, Steuererklärung und Staatsgebühr, einmalig BE-13; zu Hause die Mitteilung nach § 138 AO und Ihre Steuererklärung." },
-        { titel: "Finanzierung in Schritten", dauer: "laufend", text: "Konto und Firmenkarten, dann Lieferantenkonten und Umsatz, später Bank und Sicherheiten. Über jede Finanzierung entscheidet das Institut." },
+        { titel: "Vorhaben", dauer: "vor der Gründung", text: "Sie klären, was in den USA geschehen soll, wer die Gesellschaft führt und welche Mittel sie braucht — für beide Länder." },
+        { titel: "Struktur", dauer: "vor der Gründung", text: "Zur Wahl stehen LLC, Corporation oder eine Tochter Ihrer GmbH, AG oder Holding. Die Wahl bestimmt Haftung, Steuern und Meldungen." },
+        { titel: "Bundesstaat", dauer: "vor der Gründung", text: "Maßgeblich sind der Ort des Geschäfts, die Kosten und das Recht des Staats. Wer in einem zweiten Staat tätig wird, braucht dort eine Zulassung." },
+        { titel: "Gründung", dauer: "Start", text: "Sie reichen die Gründung beim Bundesstaat ein und benennen einen Registered Agent mit Anschrift im Staat; er nimmt amtliche Post entgegen. Den Gesellschaftsvertrag entwirft ein Anwalt: das Operating Agreement der LLC oder die Satzung. Über die Eintragung entscheidet der Bundesstaat." },
+        { titel: "Steuernummern", dauer: "mit der Gründung", text: "Die EIN ist die Steuernummer der Gesellschaft; Konto und Meldungen setzen sie voraus. Bei Bedarf kommt die ITIN hinzu, Ihre persönliche US-Steuernummer (Form W-7). Über beide entscheidet die US-Steuerbehörde IRS." },
+        { titel: "Konto und Zahlungswege", dauer: "nach der EIN", text: "Die Gesellschaft beantragt ein Geschäftskonto bei einem US-Institut und richtet die Zahlungswege für ihre US-Kunden ein. Über das Konto entscheidet das Institut." },
+        { titel: "Verträge und Marke", dauer: "vor dem ersten Verkauf", text: "Verträge folgen US-Recht, auch die mit der eigenen GmbH. Ihre Marke schützt die Eintragung beim US-Markenamt USPTO." },
+        { titel: "Personal", dauer: "mit der ersten Einstellung", text: "Der Arbeitgeber prüft die Arbeitserlaubnis, führt Lohnsteuer ab und meldet in der Regel vierteljährlich an die IRS." },
+        { titel: "Steuern und Meldungen", dauer: "jedes Jahr", text: "In den USA: Form 5472, Steuererklärung und Staatsgebühr, einmalig die BE-13-Meldung. In Deutschland: die Mitteilung nach § 138 AO und Ihre Steuererklärung." },
+        { titel: "Finanzierung", dauer: "laufend", text: "Zuerst Konto und Firmenkarten, dann Lieferantenkonten und Umsatz, später der Bankkredit mit Sicherheiten. Über jede Finanzierung entscheidet das Institut." },
       ],
     },
     {
-      typ: "text", id: "struktur", h2: "Struktur und Bundesstaat: die zwei Weichen",
+      typ: "text", id: "struktur", h2: "Struktur und Bundesstaat: zwei Entscheidungen",
       absaetze: [
-        `Drei Wege stehen offen. Eine LLC ist schlank: ein Operating Agreement statt fester Organe, die Haftung auf die Gesellschaft beschränkt; steuerlich wird sie in den USA ohne Wahl nach Form 8832 nicht selbst besteuert — mit einem Gesellschafter gilt sie als „disregarded entity“, mit mehreren als Personengesellschaft. Eine Corporation ist ein eigenes Steuersubjekt mit ${IRS.koerperschaftsteuer} Bundessteuer auf den Gewinn (26 U.S.C. § 11) zuzüglich der Steuer des Staats, wo er eine erhebt (Florida: ${STAAT.florida.steuer}); sie gibt Anteile aus und kann so Investoren aufnehmen. Und Ihre GmbH, AG oder Holding kann Gesellschafterin einer US-Tochter sein — oder selbst als Zweigniederlassung tätig werden, dann allerdings mit voller Haftung für das US-Geschäft.`,
-        `Beim Bundesstaat zählen drei Dinge: wo das Geschäft stattfindet, was der Staat jährlich verlangt und wer später investieren soll. Florida verlangt ${STAAT.florida.gruendung} zur Gründung und ${STAAT.florida.jahr} im Jahr; Delaware ${STAAT.delaware.gruendung} und als Jahressteuer der LLC ${STAAT.delaware.jahr}; Wyoming ${STAAT.wyoming.gruendung} und jährlich ${STAAT.wyoming.jahr}.`,
-        "Wichtiger als die Gebühr ist der Ort des Geschäfts. Eine in einem anderen Staat gegründete LLC darf in Florida erst Geschäfte machen, wenn sie dort eine Zulassung (Certificate of Authority) erhalten hat (§ 605.0902 Florida Statutes). Wer in Delaware gründet und in Florida arbeitet, trägt also Gebühren und Jahresmeldungen in zwei Staaten.",
+        `Drei Strukturen kommen in Betracht. Die LLC hat ein Operating Agreement statt fester Organe; die Haftung ist auf die Gesellschaft beschränkt. Ohne Wahl nach Form 8832 wird sie in den USA nicht selbst besteuert. Mit einem Gesellschafter gilt sie als „disregarded entity“, mit mehreren als Personengesellschaft. Die Corporation ist ein eigenes Steuersubjekt mit ${IRS.koerperschaftsteuer} Bundessteuer auf den Gewinn (26 U.S.C. § 11). Hinzu kommt die Steuer des Staats, wo er eine erhebt (Florida: ${STAAT.florida.steuer}). Die Corporation gibt Anteile aus und kann so Investoren aufnehmen. Die dritte Struktur: Ihre GmbH, AG oder Holding wird Gesellschafterin einer US-Tochter. Wird sie stattdessen selbst als Zweigniederlassung tätig, haftet sie voll für das US-Geschäft.`,
+        `Beim Bundesstaat zählen drei Punkte: der Ort des Geschäfts, die jährlichen Gebühren und die späteren Investoren. Florida verlangt ${STAAT.florida.gruendung} zur Gründung und ${STAAT.florida.jahr} im Jahr. Delaware verlangt ${STAAT.delaware.gruendung} und als Jahressteuer der LLC ${STAAT.delaware.jahr}. Wyoming verlangt ${STAAT.wyoming.gruendung} und jährlich ${STAAT.wyoming.jahr}.`,
+        "Wichtiger als die Gebühr ist der Ort des Geschäfts. Eine LLC aus einem anderen Staat darf in Florida erst Geschäfte machen, wenn sie dort zugelassen ist (Certificate of Authority, § 605.0902 Florida Statutes). Wer in Delaware gründet und in Florida arbeitet, trägt deshalb Gebühren und Jahresmeldungen in zwei Staaten.",
         `Gehört die US-Gesellschaft einer Kapitalgesellschaft, ändert sich auch die Steuer im Bundesstaat. ${STAAT.florida.llcSteuer}`,
       ],
     },
     {
-      typ: "text", id: "konto", h2: "Konto und Zahlungswege: Geld in den USA bewegen",
+      typ: "text", id: "konto", h2: "US-Geschäftskonto und Zahlungswege",
       absaetze: [
-        `Ohne EIN kein Geschäftskonto. Die EIN vergibt die IRS ohne Gebühr. Für das Konto einer LLC verlangen US-Institute in der Regel das Gründungsdokument, die EIN-Bestätigung, das Operating Agreement, die Pässe aller Gesellschafter ab ${SCHWELLEN.eigentuemer} und der Person, die die Gesellschaft lenkt, sowie eine nachvollziehbare Beschreibung des Geschäfts mit den erwarteten Zahlungsströmen. Die wirtschaftlich Berechtigten — wer mindestens ${SCHWELLEN.eigentuemer} hält, und eine Person, die die Gesellschaft lenkt — müssen die Institute nach US-Recht feststellen und prüfen (31 CFR 1010.230); ob sie ein Konto eröffnen, entscheiden sie selbst.`,
-        `Die Einlagenversicherung der FDIC deckt bei einem versicherten Institut ${SCHWELLEN.fdic} je Einleger, Institut und Eigentumskategorie. Für Zahlungen Ihrer US-Kunden kommen Inlandsüberweisungen, Auslandsüberweisungen und Kartenzahlungen über einen Zahlungsdienstleister in Betracht. Jeder Zahlungsdienstleister prüft Gesellschaft, Vertreter und Geschäftsmodell eigenständig — Name, Anschrift und Telefonnummer sollten deshalb in jedem Antrag Zeichen für Zeichen gleich sein.`,
+        `Ein Geschäftskonto setzt die EIN voraus; die IRS vergibt sie ohne Gebühr. Für das Konto einer LLC verlangen US-Institute in der Regel das Gründungsdokument, die EIN-Bestätigung und das Operating Agreement. Hinzu kommen die Pässe aller Gesellschafter ab ${SCHWELLEN.eigentuemer} und der Person, die die Gesellschaft lenkt. Außerdem verlangen die Institute eine nachvollziehbare Beschreibung des Geschäfts mit den erwarteten Zahlungsströmen. Nach US-Recht müssen sie die wirtschaftlich Berechtigten feststellen und prüfen (31 CFR 1010.230). Dazu zählen jeder Inhaber von mindestens ${SCHWELLEN.eigentuemer} und eine Person, die die Gesellschaft lenkt. Über die Eröffnung entscheidet das jeweilige Institut.`,
+        `Die Einlagenversicherung der FDIC deckt bei einem versicherten Institut ${SCHWELLEN.fdic} je Einleger, Institut und Eigentumskategorie. Für Zahlungen Ihrer US-Kunden kommen Inlandsüberweisungen, Auslandsüberweisungen und Kartenzahlungen über einen Zahlungsdienstleister in Betracht. Jeder Zahlungsdienstleister prüft Gesellschaft, Vertreter und Geschäftsmodell eigenständig. Name, Anschrift und Telefonnummer sollten deshalb in jedem Antrag dieselbe Schreibweise haben.`,
       ],
     },
     {
       typ: "tabelle", id: "kosten", h2: "Kostenblöcke beim Markteintritt USA",
-      lead: "Was beim Staat, bei der IRS, beim Markenamt und am Markt anfällt — ohne Ihre Betriebskosten wie Personal, Miete und Versicherung.",
+      lead: "Die Tabelle zeigt, was beim Staat, bei der IRS, beim Markenamt und am Markt anfällt. Ihre Betriebskosten wie Personal, Miete und Versicherung kommen hinzu.",
       kopf: ["Kostenblock", "Betrag", "Grundlage"],
       zeilen: [
         ["Gründung beim Bundesstaat", `Florida ${STAAT.florida.gruendung}, Delaware ${STAAT.delaware.gruendung}, Wyoming ${STAAT.wyoming.gruendung}`, "Gebührenordnung des Staats"],
         ["Jährliche Staatsgebühr", `Florida ${STAAT.florida.jahr}, Delaware ${STAAT.delaware.jahr} (LLC), Wyoming ${STAAT.wyoming.jahr}`, "Annual Report oder Annual Tax"],
         ["EIN der Gesellschaft", "keine Gebühr", "IRS"],
-        ["Registered Agent", MARKT.agent, "veröffentlichte Preise mehrerer Anbieter"],
-        ["Jährliche US-Meldung durch einen US-CPA", MARKT.cpa5472, "veröffentlichte Preise mehrerer Anbieter"],
+        ["Registered Agent", MARKT.agent, "veröffentlichte Angaben mehrerer Anbieter"],
+        ["Jährliche US-Meldung durch einen US-Steuerberater (CPA)", MARKT.cpa5472, "veröffentlichte Angaben mehrerer Anbieter"],
         ["Markenanmeldung beim USPTO", "350 $ je Klasse, elektronisch, dazu mögliche Zuschläge", "37 CFR 2.6, zuzüglich Honorar des US-Anwalts"],
         ["Versäumte Form 5472", IRS.strafe5472, "Strafe der IRS"],
-        ["Honorar von FIAON Global", `${B.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.erfolgMin}. Ab dem zweiten Jahr auf Wunsch ${B.jahresbetreuung} im Jahr.`, beleg("honorarVorab")],
       ],
       fuss: [
-        "Staatsgebühren nach den amtlichen Gebührenordnungen, Stand September 2026; Delaware: Jahressteuer der LLC ab dem Steuerjahr 2026. Marktspannen sind veröffentlichte Preise mehrerer Anbieter im September 2026, keine amtlichen Werte.",
-        "Nicht enthalten: Betriebskosten Ihrer US-Gesellschaft wie Lohnbuchhaltung, Versicherungen, Miete und Registrierungen für die Sales Tax.",
+        "Staatsgebühren nach den amtlichen Gebührenordnungen, Stand September 2026. Delaware: Jahressteuer der LLC ab dem Steuerjahr 2026. Marktspannen: veröffentlichte Angaben mehrerer Anbieter, Stand September 2026 — keine amtlichen Werte.",
+        "In der Tabelle nicht enthalten: Betriebskosten Ihrer US-Gesellschaft wie Lohnbuchhaltung, Versicherungen, Miete und Registrierungen für die Sales Tax.",
       ],
     },
     {
       typ: "text", id: "steuern", h2: "Steuern und Meldungen in beiden Ländern",
       absaetze: [
-        `In den USA: Eine LLC, die ganz einer ausländischen Person gehört, und jede US-Corporation, an der eine ausländische Person mindestens 25 Prozent hält, melden ihre Geschäfte mit nahestehenden Personen jährlich auf Form 5472 — die LLC mit einer Pro-forma-Form 1120, auch im Jahr ohne Umsatz; schon Zahlungen des Inhabers zur Gründung zählen dazu. Fällig ist sie bei Kalenderjahr am ${IRS.frist5472}. Die Strafe für eine versäumte Meldung beträgt ${IRS.strafe5472} (IRS, Stand ${FAKTEN_STAND}).`,
-        "Für viele neu ist die Meldung an die US-Statistikbehörde BEA (Bureau of Economic Analysis). Gründet oder erwirbt eine ausländische Person ein US-Unternehmen und hält daran mindestens 10 Prozent der Stimmrechte, ist die Meldung BE-13 Pflicht — auch dann, wenn die Behörde sich nie meldet, spätestens 45 Kalendertage nach Gründung oder Erwerb (15 CFR 801.7). Die ausführliche Meldung verlangt die BEA erst bei Kosten von mehr als 40 Mio. $; bei höchstens 40 Mio. $ genügt die kurze Freistellungserklärung (BE-13 Claim for Exemption). Die BOI-Meldung bei FinCEN dagegen entfällt für in den USA gegründete Gesellschaften seit August 2026 endgültig; manche Checklisten nennen sie noch als Pflicht.",
-        "Verkaufen Sie an US-Kunden, kommt die Umsatzsteuer der Bundesstaaten hinzu, die Sales Tax. Seit der Entscheidung South Dakota v. Wayfair des Supreme Court vom 21. Juni 2018 dürfen Staaten sie auch von Händlern ohne Präsenz vor Ort verlangen. Florida etwa verpflichtet Händler zur Erhebung, deren steuerpflichtige Fernverkäufe nach Florida im vorigen Kalenderjahr zusammen 100.000 $ überschritten haben (§ 212.0596 Florida Statutes). Jeder Staat setzt eigene Schwellen.",
-        "Zu Hause: Die Gründung oder der Erwerb einer Beteiligung an einer ausländischen Gesellschaft ist dem Finanzamt mitzuteilen (§ 138 Abs. 2 AO) — zusammen mit der Steuererklärung für das Jahr der Gründung, spätestens 14 Monate nach dessen Ablauf (§ 138 Abs. 5 AO). Bei einer Kapitalgesellschaft gilt das ab 10 Prozent Beteiligung oder ab Anschaffungskosten von mehr als 150.000 €; wird die US-Gesellschaft als Personengesellschaft eingeordnet, gilt keine Schwelle. Welcher Staat welche Gewinne besteuert, regelt das Doppelbesteuerungsabkommen zwischen Deutschland und den USA. Liefert die eigene GmbH Waren, Software oder Leistungen an die Tochter, müssen die Preise einem Fremdvergleich standhalten (§ 1 AStG). Österreich und die Schweiz haben eigene Regeln. " + STEUERFRAGEN,
+        `In den USA: Auf Form 5472 melden zwei Arten von Gesellschaften jährlich ihre Geschäfte mit nahestehenden Personen. Die erste ist die LLC, die ganz einer ausländischen Person gehört. Die zweite ist jede US-Corporation, an der eine ausländische Person mindestens 25 Prozent hält. Die LLC reicht die Meldung mit einer Pro-forma-Form 1120 ein, auch im Jahr ohne Umsatz. Schon Zahlungen des Inhabers zur Gründung zählen dazu. Fällig ist die Meldung bei Kalenderjahr am ${IRS.frist5472}. Die Strafe für eine versäumte Meldung beträgt ${IRS.strafe5472} (IRS, Stand ${FAKTEN_STAND}).`,
+        "Hinzu kommt die Meldung BE-13 an die US-Statistikbehörde BEA (Bureau of Economic Analysis). Sie ist Pflicht, wenn eine ausländische Person ein US-Unternehmen gründet oder erwirbt und daran mindestens 10 Prozent der Stimmrechte hält. Die Frist endet 45 Kalendertage nach Gründung oder Erwerb; die Pflicht besteht auch ohne Aufforderung der Behörde (15 CFR 801.7). Die ausführliche Meldung verlangt die BEA erst bei Kosten von mehr als 40 Mio. $. Bei höchstens 40 Mio. $ genügt die kurze Freistellungserklärung (BE-13 Claim for Exemption). Die Meldung der wirtschaftlich Berechtigten an die Behörde FinCEN (BOI-Meldung) entfällt dagegen seit August 2026 endgültig für Gesellschaften, die in den USA gegründet sind. Manche Checklisten nennen sie noch als Pflicht.",
+        "Verkaufen Sie an US-Kunden, kommt die Sales Tax hinzu, die Umsatzsteuer der Bundesstaaten. Grundlage ist die Entscheidung South Dakota v. Wayfair des Supreme Court vom 21. Juni 2018. Seither dürfen Staaten die Steuer auch von Händlern ohne Präsenz im Staat verlangen. Florida verpflichtet Händler zur Erhebung, wenn ihre steuerpflichtigen Fernverkäufe nach Florida im vorigen Kalenderjahr zusammen 100.000 $ überschritten haben (§ 212.0596 Florida Statutes). Jeder Staat setzt eigene Schwellen.",
+        "In Deutschland: Wer eine ausländische Gesellschaft gründet oder eine Beteiligung an einer solchen erwirbt, muss das dem Finanzamt mitteilen (§ 138 Abs. 2 AO). Die Mitteilung reichen Sie mit der Steuererklärung für das Jahr der Gründung ein, spätestens 14 Monate nach dessen Ablauf (§ 138 Abs. 5 AO). Bei einer Kapitalgesellschaft mit Sitz und Geschäftsleitung außerhalb Deutschlands gilt das ab 10 Prozent Beteiligung oder ab Anschaffungskosten von mehr als 150.000 €; wer erstmals beherrschenden Einfluss erlangt, meldet unabhängig davon (§ 138 Abs. 2 Nr. 4 AO). Wird die US-Gesellschaft als Personengesellschaft eingeordnet, gilt keine Schwelle. Welcher Staat welche Gewinne besteuert, regelt das Doppelbesteuerungsabkommen zwischen Deutschland und den USA. Liefert die eigene GmbH Waren, Software oder Leistungen an die Tochter, müssen die Preise einem Fremdvergleich standhalten (§ 1 AStG). Österreich und die Schweiz haben eigene Regeln. Welche Regel in Ihrem Fall gilt, ist eine Steuerfrage für Ihren Steuerberater im Wohnsitzland.",
       ],
     },
     {
       typ: "text", id: "personal", h2: "Verträge, Marke und Personal: die Grundzüge",
       absaetze: [
-        "Mit der US-Gesellschaft schließen Sie Verträge nach US-Recht: mit Kunden, Lieferanten, Vermietern und Vertriebspartnern, und mit der eigenen GmbH, wenn sie an die Tochter liefert. Die Geschäfte zwischen Mutter und Tochter gehören zudem auf Form 5472. Diese Verträge entwirft ein US-Anwalt.",
-        "Ihre Marke schützt erst die Eintragung beim US-Patent- und Markenamt (USPTO); der eingetragene Name einer Gesellschaft ist noch keine Marke. Wer Wohnsitz oder Sitz außerhalb der USA hat, muss sich bei der Anmeldung von einem Anwalt vertreten lassen, der vor dem USPTO zugelassen ist (37 CFR 2.11). Die Grundgebühr beträgt 350 $ je Klasse bei elektronischer Anmeldung (37 CFR 2.6). Den Namen prüfen Sie deshalb vor der Gründung, nicht nach dem Start.",
-        "Wer in den USA Mitarbeiter einstellt, wird dort Arbeitgeber. Für jede Einstellung sind Identität und Arbeitserlaubnis mit Form I-9 zu prüfen (USCIS). Die Gesellschaft behält Lohnsteuer ein, führt sie mit den Beiträgen zu Social Security und Medicare ab, meldet in der Regel vierteljährlich mit Form 941 und stellt jedem Mitarbeiter Form W-2 aus (IRS Publication 15). Lohnbuchhaltung und Arbeitsrecht gehören in die Hand eines Lohnbüros und eines Anwalts für Arbeitsrecht in den USA.",
-        "Für Gespräche, Messen und Termine reisen Staatsangehörige der Teilnehmerländer im Visa Waiver Program für geschäftliche Aufenthalte von höchstens 90 Tagen ohne Visum ein; ob sie so reisen dürfen, prüft vorab das elektronische System ESTA (CBP). Wer die US-Gesellschaft dauerhaft vor Ort führen will, braucht ein Visum. Für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht; es setzt eine erhebliche Investition in ein echtes Unternehmen voraus — getätigt oder im Gange —, das der Investor aufbaut und lenkt (USCIS). Über jedes Visum entscheidet die US-Behörde. Ob es in Ihrem Fall in Betracht kommt, ist eine Rechtsfrage; sie liegt bei Partner-Anwälten für Einwanderungsrecht in eigener Verantwortung.",
+        "Die US-Gesellschaft schließt ihre Verträge nach US-Recht: mit Kunden, Lieferanten, Vermietern und Vertriebspartnern. Liefert die eigene GmbH an die Tochter, schließen beide ebenfalls einen Vertrag. Die Geschäfte zwischen Mutter und Tochter gehören zudem auf Form 5472. Verträge nach US-Recht sind Sache eines US-Anwalts.",
+        "Ihre Marke schützt erst die Eintragung beim US-Patent- und Markenamt (USPTO). Der eingetragene Name einer Gesellschaft ist noch keine Marke. Anmelder mit Wohnsitz oder Sitz außerhalb der USA müssen sich von einem Anwalt vertreten lassen, der vor dem USPTO zugelassen ist (37 CFR 2.11). Die Grundgebühr beträgt 350 $ je Klasse bei elektronischer Anmeldung (37 CFR 2.6). Den Namen prüfen Sie deshalb vor der Gründung.",
+        "Wer in den USA Mitarbeiter einstellt, wird dort Arbeitgeber. Bei jeder Einstellung prüft der Arbeitgeber Identität und Arbeitserlaubnis mit Form I-9 (USCIS). Die Gesellschaft behält Lohnsteuer ein und führt sie mit den Beiträgen zu Social Security und Medicare ab. Sie meldet in der Regel vierteljährlich mit Form 941 und stellt jedem Mitarbeiter Form W-2 aus (IRS Publication 15). Lohnbuchhaltung und Arbeitsrecht sind Sache eines Lohnbüros und eines Anwalts für Arbeitsrecht in den USA.",
+        "Für Gespräche, Messen und Termine reisen Staatsangehörige der Teilnehmerländer im Visa Waiver Program ohne Visum ein. Das gilt für geschäftliche Aufenthalte von höchstens 90 Tagen. Ob sie so reisen dürfen, prüft vorab das elektronische System ESTA (CBP). Wer die US-Gesellschaft dauerhaft in den USA führen will, braucht ein Visum. Für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht. Es setzt eine erhebliche Investition in ein echtes Unternehmen voraus, getätigt oder im Gange, das der Investor aufbaut und lenkt (USCIS). Über jedes Visum entscheidet die US-Behörde. Ob es in Ihrem Fall in Betracht kommt, ist eine Rechtsfrage für einen Anwalt für Einwanderungsrecht.",
       ],
     },
     {
-      typ: "text", id: "kapital", h2: "Finanzierung in Schritten: die Wege einer jungen US-Gesellschaft",
+      typ: "text", id: "kapital", h2: "Finanzierungswege einer neuen US-Gesellschaft",
       absaetze: [
-        "Eine neue US-Gesellschaft hat keine Kredithistorie. Deshalb kommen die Finanzierungswege nacheinander in Betracht: Firmenkarten, deren Rahmen sich häufig am Kontoguthaben orientiert, Lieferantenkonten mit Zahlungsziel und die Kennziffer der Gesellschaft bei der Wirtschaftsauskunftei (D-U-N-S-Nummer), dann Kredite von Zahlungsplattformen nach Umsatz, später ein Kredit der Bank, etwa gestützt auf Sicherheiten der Muttergesellschaft. Persönliche US-Karten richten sich dagegen nach Ihrer persönlichen US-Kreditgeschichte, nicht nach der Gesellschaft.",
-        "Staatlich gestützte Kleinunternehmerkredite der SBA (Programme 7(a) und 504) setzen seit dem 1. März 2026 voraus, dass alle direkten und indirekten Eigentümer US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sind; Inhaber einer Green Card zählen nicht dazu (GAO B-338157). Eine Gesellschaft, an der Inhaber ohne US-Staatsangehörigkeit beteiligt sind, ist von diesen Programmen damit ausgeschlossen.",
+        "Eine neue US-Gesellschaft hat keine Kredithistorie. Die Finanzierungswege kommen deshalb nacheinander in Betracht. Am Anfang stehen Firmenkarten, deren Rahmen sich häufig am Kontoguthaben orientiert. Es folgen Lieferantenkonten mit Zahlungsziel und die Kennziffer der Gesellschaft bei der Wirtschaftsauskunftei (D-U-N-S-Nummer). Danach kommen Kredite von Zahlungsplattformen nach Umsatz in Betracht. Später folgt ein Kredit der Bank, etwa gestützt auf Sicherheiten der Muttergesellschaft. Persönliche US-Karten richten sich nach Ihrer persönlichen US-Kreditgeschichte, nicht nach der Gesellschaft.",
+        "Staatlich gestützte Kleinunternehmerkredite der SBA (Programme 7(a) und 504) folgen seit dem 1. März 2026 einer Eigentümerregel. Alle direkten und indirekten Eigentümer müssen US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein; Inhaber einer Green Card zählen nicht dazu (GAO B-338157). Eine Gesellschaft mit Inhabern ohne US-Staatsangehörigkeit ist von diesen Programmen damit ausgeschlossen.",
         KAPITAL_FREI,
         `${satz("S9")} ${satz("S1")}`,
       ],
     },
     {
-      typ: "karten", id: "fehler", h2: "Typische Fehler bei der Expansion in die USA", spalten: 3,
+      typ: "karten", id: "fehler", h2: "Expansion in die USA: typische Fehler", spalten: 3,
       lead: "Sechs Fehler, die sich vor der Gründung vermeiden lassen.",
       karten: [
-        { tag: "Steuern", titel: "Die Geschäftsleitung vergessen", text: "Die US-Gesellschaft wird aus Europa gelenkt und trotzdem als rein amerikanisch behandelt. Der Ort der Geschäftsleitung entscheidet mit über die Steuerpflicht zu Hause." },
-        { tag: "Bundesstaat", titel: "Gründen, wo man nicht arbeitet", text: "Gegründet in Delaware, tätig in Florida: Dann braucht die Gesellschaft auch die Zulassung in Florida, mit zweitem Registered Agent und zweiter Jahresmeldung." },
-        { tag: "US-Meldung", titel: "Form 5472 ohne Umsatz übersehen", text: `Die Pflicht gilt auch im Jahr ohne Umsatz; schon Zahlungen des Inhabers zur Gründung zählen. Die Strafe der IRS für eine versäumte Meldung: ${IRS.strafe5472}.` },
-        { tag: "Statistik", titel: "BE-13 nicht kennen", text: "Die Meldung an die BEA ist Pflicht, auch wenn die Behörde nie schreibt. Bei Kosten von höchstens 40 Mio. $ genügt die kurze Freistellungserklärung." },
+        { tag: "Steuern", titel: "Ort der Geschäftsleitung übersehen", text: "Die US-Gesellschaft wird aus Europa geführt und dennoch als rein amerikanisch behandelt. Der Ort der Geschäftsleitung bestimmt die Steuerpflicht im Wohnsitzland mit." },
+        { tag: "Bundesstaat", titel: "Gründen, wo das Geschäft nicht stattfindet", text: "Wer in Delaware gründet und in Florida tätig ist, braucht auch dort eine Zulassung. Hinzu kommen ein zweiter Registered Agent und eine zweite Jahresmeldung." },
+        { tag: "US-Meldung", titel: "Form 5472 ohne Umsatz übersehen", text: `Die Pflicht gilt auch im Jahr ohne Umsatz. Schon Zahlungen des Inhabers zur Gründung zählen. Die Strafe der IRS für eine versäumte Meldung beträgt ${IRS.strafe5472}.` },
+        { tag: "Statistik", titel: "BE-13-Meldung versäumen", text: "Die Meldung an die BEA ist Pflicht, auch ohne Aufforderung der Behörde. Bei Kosten von höchstens 40 Mio. $ genügt die kurze Freistellungserklärung." },
         { tag: "Marke", titel: "Den Namen nicht prüfen", text: "Ein eingetragener Firmenname ist noch keine Marke. Kollidiert er mit einer US-Marke, kann nach dem Start eine Umbenennung nötig werden." },
-        { tag: "Finanzierung", titel: "Kredite vor Umsatz einplanen", text: "Wer Kredite einplant, bevor die Gesellschaft Geschichte und Umsatz hat, rechnet mit Geld, über das noch kein Institut entschieden hat." },
+        { tag: "Finanzierung", titel: "Kredite vor Umsatz einplanen", text: "Über jeden Kredit entscheidet das Institut. Solange die Gesellschaft weder Kredithistorie noch Umsatz hat, ist diese Entscheidung offen." },
       ],
     },
     {
@@ -215,7 +218,7 @@ export const SEITE: GlobalSeite = {
         "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
         "Anträge für EIN und ITIN (die ITIN nach unserem ITIN-Check)",
         "Pflichtenkalender und erste Jahresmeldung beim Bundesstaat",
-        "Konto-, Karten- und Finanzierungsanträge vollständig vorbereitet",
+        "Vollständig vorbereitete Anträge für Konten, Kreditkarten auf Wunsch und Finanzierung",
         "Ein fester Ansprechpartner für Post, Anrufe und Termine Ihrer Gesellschaft",
       ],
       partner: [
@@ -225,16 +228,16 @@ export const SEITE: GlobalSeite = {
       ],
       sie: [
         "Ziel und Zahlen Ihres US-Geschäfts festlegen",
-        "Reisepass hochladen und die vorgelegten Unterlagen unterzeichnen; bei einer Tochter der Registerauszug der Muttergesellschaft",
-        "Konto-, Karten- und Finanzierungsanträge selbst stellen — es entscheidet das jeweilige Institut",
+        "Reisepass hochladen und die vorgelegten Unterlagen unterzeichnen; bei einer Tochter zusätzlich den Registerauszug der Muttergesellschaft einreichen",
         "Verträge mit Kunden, Lieferanten und Mitarbeitern schließen",
-        "Die Steuererklärung zu Hause mit Ihrem Steuerberater",
+        "Die Steuererklärung im Wohnsitzland, mit Ihrem Steuerberater",
+        "Konto-, Karten- und Finanzierungsanträge selbst stellen — es entscheidet das jeweilige Institut",
       ],
     },
     {
       typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "Ihr Mandat sieht die Gründung einer LLC vor. Soll Ihre GmbH die Anteile halten oder kommt für Ihr Vorhaben eine Corporation in Betracht, stimmen wir das vorab im Gespräch mit Ihnen ab.",
+        "Als Unternehmensberatung gründet FIAON Global in Ihrem Mandat eine LLC. Soll Ihre GmbH die Anteile halten oder kommt eine Corporation in Betracht, stimmen wir das vorab im Gespräch mit Ihnen ab.",
         `${weitererSatz("UEBERGANG-EINREICHUNG")} ${UNTERLAGEN.satz}`,
       ],
       punkte: [
@@ -245,13 +248,13 @@ export const SEITE: GlobalSeite = {
       nach: P.geldZurueck,
     },
     {
-      typ: "karten", id: "vertiefung", h2: "Jeder Schritt im Detail", spalten: 3,
+      typ: "karten", id: "vertiefung", h2: "Die Schritte im Einzelnen", spalten: 3,
       karten: [
         { tag: "Struktur", titel: "Die Tochter in den USA", text: "Wenn Ihre GmbH, AG oder Holding Gesellschafterin wird: Ablauf und Unterlagen.", pfad: "/business/tochtergesellschaft-usa" },
         { tag: "Gründung", titel: "US-Firmengründung", text: "Anmeldung beim Bundesstaat, Unterlagen und Anträge für EIN und ITIN in einem Mandat.", pfad: "/business/us-firmengruendung" },
-        { tag: "Bundesstaat", titel: "Welcher Bundesstaat?", text: "Delaware, Florida oder Wyoming: Zeiten, Kosten, Vor- und Nachteile.", pfad: "/business/wissen/bundesstaat-waehlen" },
-        { tag: "Konto", titel: "Das US-Geschäftskonto", text: "Welche Unterlagen Institute verlangen und wie der Antrag entsteht.", pfad: "/business/us-geschaeftskonto" },
-        { tag: "Pflichten", titel: "Ihre US-Pflichten", text: "Form 5472, Staatsgebühr, Registered Agent und die Meldung zu Hause im Kalender.", pfad: "/business/us-pflichten" },
+        { tag: "Bundesstaat", titel: "Wahl des Bundesstaats", text: "Delaware, Florida oder Wyoming: Zeiten, Kosten, Vor- und Nachteile.", pfad: "/business/wissen/bundesstaat-waehlen" },
+        { tag: "Konto", titel: "Das US-Geschäftskonto", text: "Welche Unterlagen Institute verlangen und wie der Antrag entsteht. Über das Konto entscheidet das Institut.", pfad: "/business/us-geschaeftskonto" },
+        { tag: "Pflichten", titel: "Ihre US-Pflichten", text: "Form 5472, Staatsgebühr, Registered Agent und die Meldung im Wohnsitzland in einem Kalender.", pfad: "/business/us-pflichten" },
         { tag: "Miami", titel: "Persönlich in Miami", text: weitererSatz("MIAMI"), pfad: "/business/miami" },
       ],
     },
@@ -274,17 +277,17 @@ export const SEITE: GlobalSeite = {
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
         GLOBAL_PFLICHTHINWEIS.de[2],
-        "Nicht enthalten sind: Visa, Lohnbuchhaltung, Verrechnungspreise, Registrierungen für die Sales Tax und Markenanmeldungen.",
+        "In Ihrem Mandat nicht enthalten sind: Visa, Lohnbuchhaltung, Verrechnungspreise, Registrierungen für die Sales Tax und Markenanmeldungen.",
         `FIAON vergibt und vermittelt keine Kredite. ${satz("S1")}`,
       ],
     },
   ],
   fragen: [
-    { f: "Was kostet ein Markteintritt in den USA?", a: `Beim Bundesstaat kostet die Gründung in Florida ${STAAT.florida.gruendung}, in Delaware ${STAAT.delaware.gruendung}, in Wyoming ${STAAT.wyoming.gruendung}; dazu kommen jährlich Staatsgebühr, Registered Agent und die US-Meldung durch einen US-Steuerberater (CPA). Die großen Posten sind Ihre Betriebskosten — Personal, Miete, Versicherung — und die Mittel für die ersten Monate. Zum Honorar von FIAON Global: ${P.preisSatzKurz}` },
-    { f: "Brauche ich für die US-Expansion eine eigene Gesellschaft?", a: "Nicht zwingend. Ihre GmbH kann als Zweigniederlassung tätig werden, haftet dann aber voll für das US-Geschäft. Eine eigene LLC oder Corporation trennt die Haftung vom Stammhaus und tritt Ihren US-Kunden als Vertragspartner vor Ort gegenüber. Was passt, hängt davon ab, was in den USA geschehen soll — das gehört vor der Gründung geklärt, mit Ihrem Steuerberater und einem US-Steuerberater (CPA)." },
-    { f: "Ist eine US-Tochter in Deutschland steuerpflichtig?", a: "Sie kann es sein. Wird sie tatsächlich aus Deutschland geleitet, liegt ihre Geschäftsleitung im Inland (§ 10 AO); eine Corporation ist dann hier unbeschränkt körperschaftsteuerpflichtig (§ 1 KStG), bei einer LLC hängt die Besteuerung von ihrer Einordnung ab. Die Beteiligung ist dem Finanzamt nach § 138 AO mitzuteilen. Wie das Doppelbesteuerungsabkommen in Ihrem Fall greift, klären Partner-Steuerberater in eigener Verantwortung." },
-    { f: "Was ist die BE-13-Meldung?", a: "Eine Pflichtmeldung an die US-Statistikbehörde BEA. Gründet oder erwirbt eine ausländische Person ein US-Unternehmen und hält daran mindestens 10 Prozent der Stimmrechte, ist sie spätestens 45 Kalendertage danach fällig, auch ohne Aufforderung (15 CFR 801.7). Bei Kosten von höchstens 40 Mio. $ genügt die kurze Freistellungserklärung." },
-    { f: "Brauche ich ein Visum, um meine US-Gesellschaft zu führen?", a: "Für Gespräche und Termine reisen Staatsangehörige der Teilnehmerländer im Visa Waiver Program mit ESTA-Genehmigung für geschäftliche Aufenthalte von höchstens 90 Tagen ohne Visum ein. Wer die Gesellschaft dauerhaft vor Ort führen will, braucht ein Visum; für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht. Über jedes Visum entscheidet die US-Behörde; Rechtsfragen dazu liegen bei Partner-Anwälten für Einwanderungsrecht in eigener Verantwortung. Visa sind in Ihrem Vertrag mit FIAON nicht enthalten." },
+    { f: "Was kostet ein Markteintritt in den USA?", a: `Beim Bundesstaat kostet die Gründung in Florida ${STAAT.florida.gruendung}, in Delaware ${STAAT.delaware.gruendung} und in Wyoming ${STAAT.wyoming.gruendung}. Jährlich kommen die Staatsgebühr, der Registered Agent und die US-Meldung durch einen US-Steuerberater (CPA) hinzu. Die großen Posten sind Ihre Betriebskosten wie Personal, Miete und Versicherung sowie die Mittel für die ersten Monate.` },
+    { f: "Brauche ich für die US-Expansion eine eigene Gesellschaft?", a: "Nein, nicht zwingend. Ihre GmbH kann als Zweigniederlassung tätig werden; sie haftet dann voll für das US-Geschäft. Eine eigene LLC oder Corporation trennt die Haftung vom Stammhaus. Sie ist Vertragspartnerin Ihrer US-Kunden in den USA. Welche Struktur passt, hängt vom Vorhaben ab. Klären Sie das vor der Gründung mit Ihrem Steuerberater und einem US-Steuerberater (CPA)." },
+    { f: "Ist eine US-Tochter in Deutschland steuerpflichtig?", a: "Sie kann es sein. Wird sie tatsächlich aus Deutschland geleitet, liegt ihre Geschäftsleitung im Inland (§ 10 AO). Eine Corporation ist dann in Deutschland unbeschränkt körperschaftsteuerpflichtig (§ 1 KStG). Bei einer LLC hängt die Besteuerung von ihrer Einordnung ab. Die Beteiligung teilen Sie dem Finanzamt nach § 138 AO mit. Wie das Doppelbesteuerungsabkommen in Ihrem Fall greift, ist eine Steuerfrage für Ihren Steuerberater." },
+    { f: "Was ist die BE-13-Meldung?", a: "Sie ist eine Pflichtmeldung an die US-Statistikbehörde BEA. Sie gilt, wenn eine ausländische Person ein US-Unternehmen gründet oder erwirbt und daran mindestens 10 Prozent der Stimmrechte hält. Fällig ist sie spätestens 45 Kalendertage danach, auch ohne Aufforderung (15 CFR 801.7). Bei Kosten von höchstens 40 Mio. $ genügt die kurze Freistellungserklärung." },
+    { f: "Brauche ich ein Visum, um meine US-Gesellschaft zu führen?", a: "Für Gespräche und Termine nicht: Staatsangehörige der Teilnehmerländer reisen im Visa Waiver Program mit ESTA-Genehmigung ohne Visum ein. Das gilt für geschäftliche Aufenthalte von höchstens 90 Tagen. Wer die Gesellschaft dauerhaft in den USA führen will, braucht ein Visum. Für Investoren aus Vertragsstaaten kommt das E-2-Visum in Betracht. Über jedes Visum entscheidet die US-Behörde. Rechtsfragen dazu sind Sache eines Anwalts für Einwanderungsrecht." },
     { f: "Was übernimmt FIAON Global als Unternehmensberatung?", a: `${weitererSatz("UEBERGANG-EINREICHUNG")} ${UNTERLAGEN.satz} Für Konto, Karten und Finanzierung gilt: ${satz("S2")} ${weitererSatz("ROLLEN")}` },
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
   ],

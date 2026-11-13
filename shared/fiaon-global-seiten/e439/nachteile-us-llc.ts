@@ -64,7 +64,8 @@ const STRAFE_5472 = IRS.strafe5472.split(" je ")[0];
 /** Wer Steuerfragen klärt — dieselbe Fassung wie auf den Länderseiten (zielgruppen.ts). */
 const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung";
 /** Das Kapital ist nicht an die USA gebunden (Justin, 19.09.2026) — der Satz aus der einen Quelle, dazu die Zuständigkeit für Steuerfragen. */
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${STEUERFRAGEN}.`;
+// Beide Sätze gehören zusammen (Justin, 19.09.2026; scripts/pruef-global-seiten.ts prüft das): eine Quelle, wortgleich wie im Vertrag.
+const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
 const P = EIN_PRODUKT.de;
 /** „Ihr Teil“ und „Bedingung“ sowie die Schritte 1 und 2 der festen Erzählung (Leitfaden 2.1, 2.2). */

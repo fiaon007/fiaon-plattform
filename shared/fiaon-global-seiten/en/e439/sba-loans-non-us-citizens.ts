@@ -201,7 +201,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "For owners whose principal residence is outside the United States, an SBA loan is not available. We therefore prepare the applications on the routes that remain: we form your US company, apply for the EIN and, following our ITIN check, the ITIN, and prepare account and card applications in full.",
+        "Owners whose principal residence is outside the United States are excluded from SBA loans. We therefore prepare the applications on the routes that remain: we form your US company, apply for the EIN and, following our ITIN check, the ITIN, and prepare account and card applications in full.",
         `${FINANZIERUNG.satz} ${satz("S9", "en")}`,
       ],
       punkte: [

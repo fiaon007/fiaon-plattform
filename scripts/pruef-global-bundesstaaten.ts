@@ -145,7 +145,12 @@ ok(/rund zwei Wochen/.test(JSON.stringify(seite("/business/kosten"))) && /around
 // auf der Startseite steht keine Dauer (Sprachleitfaden 5.5). Sie steht auf den Staaten-Seiten und auf FG · 27 (oben geprüft).
 // (Vorher: drei Prüfungen „Übersicht-FAQ DE/EN wortgleich mit STAAT_WAHL_SATZ“ und „FAQ-Daten enthalten die neue Frage“.)
 const { llmsTxt } = await import("../server/lib/fiaon-llms");
-ok(llmsTxt().includes(Q.STAAT_WAHL_SATZ.de), "llms.txt: Staaten-Wahl mit Zeiten");
+// E-510 (13.11.2026): llms.txt nennt die Eintragungszeiten als Erfahrungswerte mit Stand (aus eintragungKurz) — ohne „besten Ruf“
+// und „am günstigsten“. (Vorher: der Satz STAAT_WAHL_SATZ wörtlich.)
+{
+  const llms = llmsTxt();
+  ok(Q.STAATEN_ZUR_WAHL.every((b: any) => llms.includes(`${b.name} ${b.eintragungKurz.de}`)) && !/besten Ruf|am günstigsten/.test(llms), "llms.txt: Staaten-Wahl mit Zeiten");
+}
 const { globalWissen } = await import("../shared/fiaon-wissen");
 const mara = globalWissen();
 ok(mara.includes(Q.STAAT_WAHL_SATZ.de) && mara.includes(Q.EIN_ZEITEN.de.satz) && /nie als Zusage/.test(mara) && !/northwest/i.test(mara), "Mara-Wissen: Staaten, EIN-Zeiten, keine Zusage, kein Partnername");

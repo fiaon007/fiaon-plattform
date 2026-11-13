@@ -260,7 +260,10 @@ for (const datei of BUSINESS_DATEIEN) {
   // 29.10.2026 (E-461): „/“ ist die Startseite von FIAON Global; die der Privatkunden heißt /privat (nur der leise Weg im Kopf/Fuß, über PRIVAT_START).
   ok(!/href=\{?["'`]\/(en\/)?privat(e)?["'`]/.test(text), `${datei}: verlinkt die Startseite der Privatkunden („/privat“) fest`);
   // Die Wortwand liest nur Textdateien; in JSX stand am 19.09.2026 kurz ein „Empfohlen" (Register E-188: keine Empfehlung).
-  ok(!/\bempf(ohlen|ehl\w*)\b/i.test(text), `${datei}: „${text.match(/\bempf(ohlen|ehl\w*)\b/i)?.[0]}“ — FIAON Global spricht keine Empfehlung aus`);
+  // E-510 (13.11.2026): Ein Feldname im Code (z. B. „ps.empfehlungen“ aus E-507) ist kein Text der Seite — Zugriffe mit Punkt
+  // zählen nicht. Sichtbare Wörter und Kommentare zählen weiter. (Vorher: jeder Treffer im Quelltext.)
+  const ohneFelder = text.replace(/\.\s*empf(ohlen|ehl\w*)\b/gi, ".feld");
+  ok(!/\bempf(ohlen|ehl\w*)\b/i.test(ohneFelder), `${datei}: „${ohneFelder.match(/\bempf(ohlen|ehl\w*)\b/i)?.[0]}“ — FIAON Global spricht keine Empfehlung aus`);
 }
 for (const s2 of [...GLOBAL_SEITEN, ...LANDINGPAGES] as any[]) {
   const ziele = [...(s2.weiter ?? []), ...((s2.bloecke ?? []) as any[]).flatMap((b: any) => (b.eintraege ?? []).map((e: any) => e.pfad).concat((b.karten ?? []).map((k: any) => k.pfad).filter(Boolean)))];
@@ -553,7 +556,10 @@ abschnitt("Englische Unterseiten");
     const deutscheLinks = [...vorab.matchAll(/href="(\/business[^"]*)"/g)].map((m) => m[1]);
     ok(deutscheLinks.length === 0, `${w}: Vorab-HTML verlinkt deutsche Business-Seiten (${deutscheLinks.slice(0, 3).join(", ")})`);
     ok(!/\(in German\)|Kurz beantwortet|Weiterlesen|Häufige Fragen/.test(html), `${w}: deutsche Rahmenwörter im Vorab-HTML`);
-    if (["leistung", "preise", "zielgruppe", "land"].includes(e.art)) ok(html.includes(`"@id":"${SEO_BASIS}/en#leistung"`) && !html.includes(`${SEO_BASIS}/business/start?paket=`), `${w}: Service-Markup nicht englisch`);
+    // E-510 (13.11.2026): Die Österreich-Seite trägt keinen Service- und keinen Preis-Block (Sprachleitfaden 5.12, 9.4).
+    // (Vorher: jede Seite der Arten leistung/preise/zielgruppe/land musste den Service-Block tragen.)
+    if (/from-austria/.test(w)) ok(!html.includes('#leistung"') && !/"offers"/.test(html), `${w}: Österreich-Seite trägt einen Service- oder Preis-Block`);
+    else if (["leistung", "preise", "zielgruppe", "land"].includes(e.art)) ok(html.includes(`"@id":"${SEO_BASIS}/en#leistung"`) && !html.includes(`${SEO_BASIS}/business/start?paket=`), `${w}: Service-Markup nicht englisch`);
     // Die deutsche Schwester nennt die englische.
     const htmlDe = seitenHtml(e.schwester ?? "") ?? "";
     ok(htmlDe.includes(`hreflang="en" href="${SEO_BASIS}${w}"`), `${e.schwester}: hreflang auf ${w} fehlt`);

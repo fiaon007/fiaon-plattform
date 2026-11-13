@@ -94,7 +94,9 @@ function adresse(pfad: string): string {
 function ausRegister(s: GlobalSeite): Bild {
   const sp: Sprache = s.sprache === "en" ? "en" : "de";
   const w = WORT[sp];
-  const zeilen = (s.blick ?? []).slice(0, 3);
+  // E-510: Im Bild steht kein Betrag — eine Zeile mit Betrag würde nach zwei Zeilen abgeschnitten und zeigte nur den ersten
+  // Teil des Honorars (Sprachleitfaden 7.9). Zeilen mit einem Euro-Betrag bleiben darum der Seite vorbehalten.
+  const zeilen = (s.blick ?? []).filter(([, wert]) => !/€|EUR/.test(wert)).slice(0, 3);
   return {
     pfad: s.pfad, sprache: sp, auge: s.auge, h1: s.h1, h1b: s.h1b, kennung: s.kennung,
     zeilen: zeilen.length >= 2 ? zeilen : w.konzeptZeilen.slice(0, 3),

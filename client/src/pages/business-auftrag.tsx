@@ -67,7 +67,7 @@ type Auftrag = {
   fristen: { id: number | string; titel: string; faelligAm: string; erledigt: boolean; hinweis?: string }[];
   verlauf: { am: string; text: string }[];
   vertragUrl?: string; rechnungUrl?: string;
-  /** E-507: Empfehlungs-Partnerschaft dieses Kunden (angenommen → Partnerseite, offen → Vereinbarung). */
+  /** E-507: Partnerschaft dieses Kunden (angenommen → Partnerseite, offen → Vereinbarung). */
   partnerschaft?: KoopPartnerschaftPortal | null;
   /** 01.10.2026 (E-268): Auftrag aus einem Individualangebot — Teile, Frist, Bürgin. */
   angebot?: {
@@ -265,7 +265,7 @@ export default function BusinessAuftrag() {
                   </ol>
                 </section>
 
-                {/* E-507: Ihre Partnerschaft — Empfehlungen eintragen und Provision sehen (führt auf die Partnerseite). */}
+                {/* E-507: Ihre Partnerschaft — Kontakte eintragen und Provision sehen (führt auf die Partnerseite). */}
                 {a.partnerschaft && (() => {
                   const ps = a.partnerschaft; const pw = KOOP_PARTNERSCHAFT_PORTAL[s]; const aktiv = ps.stand === "aktiv";
                   return (

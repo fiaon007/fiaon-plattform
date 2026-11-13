@@ -598,7 +598,8 @@ const musterDaten = (() => {
     ok(woerter(T.buehne.lead) <= (sp === "de" ? 40 : 45), `Bühne (${sp}): Einleitung höchstens ${sp === "de" ? 40 : 45} Wörter (ist ${woerter(T.buehne.lead)})`);
 
     // 11.7 Die neun Fragen (Leitfaden 8.5) mit ihren festen Sätzen.
-    gleich(W.fragen.length, 9, `Fragen der Startseite (${sp}): neun`);
+    // Neun Fragen des Leitfadens (8.5) und die Kapital-Frage (Justin, 19.09.2026: überall nennen — wortgleich aus GLOBAL_KAPITAL_FREI).
+    gleich(W.fragen.length, 10, `Fragen der Startseite (${sp}): neun und die Kapital-Frage`);
     ok(W.fragen.every((x) => woerter(x.f) <= 12 && woerter(x.a) <= (sp === "de" ? 60 : 70)), `Fragen (${sp}): Frage höchstens zwölf Wörter, Antwort höchstens ${sp === "de" ? 60 : 70} (längste: ${Math.max(...W.fragen.map((x) => woerter(x.a)))})`);
     const s6 = SZ.satz("S6", sp).split(/(?<=\.)\s+/)[0]; const s10 = SZ.satz("S10", sp).split(/(?<=\.)\s+/);
     ok(W.fragen[7].a.startsWith(s6) && W.fragen[5].a.includes(SZ.satz("S11", sp)) && W.fragen[8].a.includes(SZ.weitererSatz("MIAMI", sp))

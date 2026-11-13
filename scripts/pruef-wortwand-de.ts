@@ -175,7 +175,7 @@ sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
 sammle(VERKAUF_TEXTE.de, "verkauf/texte", texte);
 /** Fassung C: ein Satz mit „Garantie“ ist erlaubt, wenn er die Geld-zurück-Garantie (oder ihre Frist) meint — nie ein „garantiert“. */
 const kapitalCGarantie = (pfad: string, text: string, treffer: string) =>
-  (pfad.startsWith("kapital-c/") || pfad.startsWith("verkauf/") || pfad.startsWith("i18n/global.fragen")) && /garant/i.test(treffer) && /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(text) && !/\bgarantier/i.test(text);
+  (pfad.startsWith("kapital-c/") || pfad.startsWith("verkauf/") || pfad.startsWith("i18n/global.fragen") || pfad.startsWith("seo/")) && /garant/i.test(treffer) && /Geld-zurück-Garantie|Garantiefrist|Garantiefall/.test(text) && !/\bgarantier/i.test(text);
 
 // E-190 (18.09.2026, Justin): „Beim VIP Pakete bis zu 1 Mio US Dollar Kapital". Die EINE erlaubte Stelle
 // für „bis zu" ist der Kapitalrahmen des Pakets Global VIP — wörtlich, wie globalKapital() ihn schreibt.

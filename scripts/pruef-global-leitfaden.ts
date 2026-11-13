@@ -180,7 +180,7 @@ const NAME_ERLAUBT = (e: Einheit): boolean => hat(e, "startseite", "rechner", "s
 const REGELN: Regel[] = [
   // ── A. Jargon rund um Karten und Kapital ──
   r(1, "SPERRE", w("Kartenleiter*"), w("card ladder*"), "Kreditkarten auf Wunsch", "credit cards on request"),
-  r(2, "SPERRE", w("Stacking", "Kartenstapel*", "gestapelt*"), w("stacking", "card stack*"), "viele Kartenanträge in kurzer Zeit", "multiple card applications in quick succession", {
+  r(2, "SPERRE", w("Stacking", "Kartenstapel*", "gestapelt*"), w("stacking", "card stack*"), "viele Kartenanträge in kurzer Zeit", "many card applications in a short period", {
     // Ausnahme: das Suchwort einmal in Anführungszeichen im einen Wissens-Artikel (die Zählung „einmal“ übernimmt die Seitenprüfung).
     ausnahme: (k) => /stacking/.test(k.e.seite ?? "") && /^stacking$/i.test(k.fund) && /[„“"”«‘']\s?(?:Kreditkarten[-‑]|credit card )?$/iu.test(k.davor),
   }),
@@ -509,7 +509,9 @@ function pruefe(einheiten: Einheit[], s: SaetzeWissen): Treffer[] {
     }
     if (e.quelleSaetze) continue;
     // Das Suchwort „Stacking“ im einen Wissens-Artikel: einmal in Anführungszeichen (die Ausnahme oben lässt jedes zitierte durch).
-    if (/stacking/.test(e.seite ?? "")) {
+    // Der Suchmaschinen-Titel dieses einen Artikels darf das Suchwort zusätzlich tragen (in Anführungszeichen) — nach dem Wort
+    // wird gesucht, und der Artikel ordnet die Praxis ein. Gezählt wird das Vorkommen im Text der Seite.
+    if (/stacking/.test(e.seite ?? "") && !/seo\.titel$/.test(e.feld ?? "")) {
       for (const m of e.text.matchAll(/[„“"”«‘']\s?(?:Kreditkarten[-‑]|credit card )?Stacking/giu)) {
         const schluessel = `${seiteVon(e)}|stacking`;
         const n = (zaehler.get(schluessel) ?? 0) + 1;

@@ -67,7 +67,7 @@ export const SEITE: GlobalSeite = {
   schwester: "/business/wissen/kreditkarten-stacking",
   art: "wissen",
   seo: {
-    titel: "Applying for many credit cards at once: risks — FIAON Global",
+    titel: "Credit card “stacking”: the risks — FIAON Global",
     beschreibung: "Many credit card applications in a short time for a US LLC: what providers promise, what a US court found in the Seek Capital case, what a file can bear.",
   },
   stand: "2026-11-13",

@@ -65,7 +65,8 @@ const JAHRESBETREUUNG = "From the second year you may continue with annual admin
 /** Who deals with tax questions — the same wording as on the country pages (en/zielgruppen.ts). */
 const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity";
 /** The capital is not tied to the US (Justin, 19.09.2026) — the sentence from the one source, plus who deals with tax questions. */
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${STEUERFRAGEN}.`;
+// Both sentences belong together (checked by scripts/pruef-global-en.ts): one source, word for word as in the agreement.
+const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 
 
 const NICHT_INKLUSIVE = GLOBAL_NICHT_INKLUSIVE.en[1].charAt(0).toLowerCase() + GLOBAL_NICHT_INKLUSIVE.en[1].slice(1);

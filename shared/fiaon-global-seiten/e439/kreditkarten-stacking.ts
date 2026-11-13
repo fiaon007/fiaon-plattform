@@ -70,7 +70,7 @@ export const SEITE: GlobalSeite = {
   pfad: "/business/wissen/kreditkarten-stacking",
   art: "wissen",
   seo: {
-    titel: "US-Kreditkarten in Serie beantragen: Risiken — FIAON Global",
+    titel: "„Kreditkarten-Stacking“: die Risiken — FIAON Global",
     beschreibung: "Viele Kreditkartenanträge in kurzer Zeit für die US-LLC: was Anbieter versprechen, was ein US-Gericht im Fall Seek Capital feststellte, was die Akte trägt.",
   },
   stand: "2026-11-13",

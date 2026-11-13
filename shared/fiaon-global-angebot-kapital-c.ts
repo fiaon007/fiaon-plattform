@@ -704,8 +704,13 @@ export function kapitalCLaufzeitSatz(par: KapitalCParameter, jahre: number): str
 // Der Prüfstand lässt „Garantie“ nur als Hauptwort an dieser Garantie stehen; „garantiert/garantieren“ bleibt überall rot.
 // ═══════════════════════════════════════════════════════════════════════════
 export const KAPITAL_C_GARANTIE_NAME = "Geld-zurück-Garantie";
-export function kapitalCGarantie(par: Pick<KapitalCParameter, "garantieWochen" | "erstattungTage" | "zielWochen" | "betragCents"> & Partial<Pick<KapitalCParameter, "datenVomKunden" | "fastTrackWahl" | "bestand">>) {
+export function kapitalCGarantie(par: Pick<KapitalCParameter, "garantieWochen" | "erstattungTage" | "zielWochen" | "betragCents"> & Partial<Pick<KapitalCParameter, "datenVomKunden" | "fastTrackWahl" | "bestand" | "tempoFassung">>) {
   const w = zahlwort(par.garantieWochen); const t = zahlwort(par.erstattungTage); const z = zahlwort(par.zielWochen);
+  // E-512: erweitertes Ruhen (Mitwirkung auf Bitte, Behörden und Register, höhere Gewalt) — nur ab Tempo-Fassung „E-512“;
+  // „E-487“ und leer (so angenommen) bleiben wortgleich.
+  const R = kapitalCRuhenErweitert(par);
+  // E-512: Bei einer übernommenen Gesellschaft (E-506) gibt es keine Eintragung und keine neue EIN — eigene Beispiele.
+  const behoerdeBsp = par.bestand ? "etwa eine Berichtigung bei der US-Steuerbehörde, die ITIN oder ein Eintrag im Register des Bundesstaats" : "etwa die Eintragung Ihrer Gesellschaft, die EIN oder die ITIN";
   // E-474: Ruhen nach der Wahl — „Gründung und Fast-Track“ wird „die Vergütung mit Ihrem Auftrag“, ohne Ausweis vor der Unterschrift
   // ruht die Frist auch, bis der Reisepass vorliegt (Ziffer 4 Absatz 6). Ohne beide Parameter wortgleich wie bisher.
   const bezahlt = par.fastTrackWahl || par.bestand ? "die Vergütung mit Ihrem Auftrag nicht bezahlt ist" : "Gründung und Fast-Track nicht bezahlt sind";
@@ -713,13 +718,19 @@ export function kapitalCGarantie(par: Pick<KapitalCParameter, "garantieWochen" |
   return {
     name: KAPITAL_C_GARANTIE_NAME,
     vertrag: `${KAPITAL_C_GARANTIE_NAME}: Wird der Gesellschaft die Finanzierung nach Absatz 1 und 2 nicht binnen ${w} Wochen ab Auftragserteilung ausgezahlt, erstattet FIAON dem Auftraggeber alles, was er bis dahin an FIAON gezahlt hat (Ziffer 6 Absatz 1 und 2), binnen ${t} Tagen nach Fristende; noch nicht gezahlte Vergütungen entfallen. ${par.bestand ? "Die Gesellschaft bleibt dem Auftraggeber; ihre US-Meldepflichten nach Ziffer 8 bestehen fort." : "Die Gesellschaft bleibt dem Auftraggeber; auf seinen Wunsch löst FIAON sie dann auf und trägt die Kosten dafür; bis dahin bestehen ihre US-Meldepflichten nach Ziffer 8 fort."}`,
-    karte: `${KAPITAL_C_GARANTIE_NAME}: Kommt die Auszahlung nicht binnen ${w} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.`,
+    karte: `${KAPITAL_C_GARANTIE_NAME}: Kommt die Auszahlung nicht binnen ${w} Wochen, erhalten Sie alles zurück, was Sie an uns gezahlt haben.${R ? " Wartezeiten bei Behörden und auf Ihre Unterlagen zählen nicht mit." : ""}`,
     ziel: par.fastTrackWahl ? `Mit Fast-Track ist unser Ziel die Auszahlung in Woche ${z}.` : `Unser Ziel ist die Auszahlung in Woche ${z}.`,
-    seite: `Kommt die Auszahlung nicht binnen ${w} Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen ${t} Tagen.`,
-    uebersicht: `Kommt die Auszahlung nicht binnen ${w} Wochen ab Auftragserteilung, erhalten Sie alles Gezahlte zurück — binnen ${t} Tagen`,
-    frage: `Dann erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen ${t} Tagen nach Ablauf der ${w} Wochen. So steht es als ${KAPITAL_C_GARANTIE_NAME} in Ziffer 4 Ihres Vertrags.`,
+    seite: `Kommt die Auszahlung nicht binnen ${w} Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen ${t} Tagen.${R ? " Nicht mitgezählt werden die Tage, an denen wir auf eine Behörde oder auf Unterlagen von Ihnen warten (Ziffer 4)." : ""}`,
+    uebersicht: R
+      ? `Kommt die Auszahlung nicht binnen ${w} Wochen ab Auftragserteilung, erhalten Sie alles Gezahlte zurück — binnen ${t} Tagen; Wartezeiten bei Behörden und auf Ihre Unterlagen zählen nicht mit`
+      : `Kommt die Auszahlung nicht binnen ${w} Wochen ab Auftragserteilung, erhalten Sie alles Gezahlte zurück — binnen ${t} Tagen`,
+    frage: R
+      ? `Dann erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen ${t} Tagen nach Ablauf der ${w} Wochen. Nicht mitgezählt werden die Tage, an denen wir auf eine Behörde (etwa die US-Steuerbehörde) oder auf Unterlagen und Antworten von Ihnen warten. So steht es als ${KAPITAL_C_GARANTIE_NAME} in Ziffer 4 Ihres Vertrags.`
+      : `Dann erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen ${t} Tagen nach Ablauf der ${w} Wochen. So steht es als ${KAPITAL_C_GARANTIE_NAME} in Ziffer 4 Ihres Vertrags.`,
     /** Die Garantie mit ihren Ruhensgründen in einem Satz — für die Informationen vor Vertragsschluss (Art. 246a § 1 EGBGB). */
-    info: `Kommt die Auszahlung nicht binnen ${w} Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles Gezahlte binnen ${t} Tagen. Die Frist ruht nur, solange ${bezahlt}${pass}, für die Tage, um die Sie die Frist für von der Bank angeforderte Unterlagen überschreiten, und solange Ihrer Gesellschaft ein Angebot zu den Bedingungen nach Ziffer 4 ohne weitere Sicherheiten oder Kosten für Sie zur Annahme vorliegt; lehnt sie ein solches Angebot ab oder lässt sie es verfallen, entfällt die Geld-zurück-Garantie (Ziffer 4).`,
+    info: R
+      ? `Kommt die Auszahlung nicht binnen ${w} Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles Gezahlte binnen ${t} Tagen. Die Frist ruht, solange ${bezahlt}${pass}, solange wir auf Unterlagen, Angaben, Unterschriften oder Antworten warten, um die wir oder die Bank Sie in Textform gebeten haben (bis zum Eingang), solange ein Antrag bei einer Behörde oder einem Register — ${behoerdeBsp} — eingereicht und noch nicht beschieden ist, bei höherer Gewalt und solange Ihrer Gesellschaft ein Angebot zu den Bedingungen nach Ziffer 4 ohne weitere Sicherheiten oder Kosten für Sie zur Annahme vorliegt; lehnt sie ein solches Angebot ab oder lässt sie es verfallen, entfällt die Geld-zurück-Garantie (Ziffer 4).`
+      : `Kommt die Auszahlung nicht binnen ${w} Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles Gezahlte binnen ${t} Tagen. Die Frist ruht nur, solange ${bezahlt}${pass}, für die Tage, um die Sie die Frist für von der Bank angeforderte Unterlagen überschreiten, und solange Ihrer Gesellschaft ein Angebot zu den Bedingungen nach Ziffer 4 ohne weitere Sicherheiten oder Kosten für Sie zur Annahme vorliegt; lehnt sie ein solches Angebot ab oder lässt sie es verfallen, entfällt die Geld-zurück-Garantie (Ziffer 4).`,
   };
 }
 
@@ -780,7 +791,19 @@ export const KAPITAL_C_TEMPO = {
  * E-487 (09.11.2026): die aktuelle Tempo-Fassung (Parameter tempoFassung) — Vorrang in allen Schritten, keine Zeitzusage für die EIN.
  * Eine künftige Fassung bekommt einen EIGENEN Wert und verzweigt auf genau ihn — so angenommene Verträge („E-487“) bleiben wortgleich.
  */
-export const KAPITAL_C_TEMPO_FASSUNG = "E-487";
+export const KAPITAL_C_TEMPO_FASSUNG = "E-512";
+/** E-487 (09.11.2026): die Vorrang-Fassung — so angenommene Verträge lesen sie unverändert. */
+export const KAPITAL_C_TEMPO_FASSUNG_E487 = "E-487";
+/**
+ * E-512 (13.11.2026, Justin): Die Frist der Geld-zurück-Garantie ruht zusätzlich, solange FIAON auf eine erbetene Mitwirkung des
+ * Auftraggebers wartet, solange ein Antrag bei einer Behörde oder einem Register läuft, und bei höherer Gewalt. Die Bearbeitung
+ * durch das finanzierende Institut ruht bewusst NICHT — sie ist der Kern der Garantie. Gilt für jede Tempo-Fassung in dieser Menge;
+ * eine künftige Fassung, die das Ruhen behält, kommt hier dazu.
+ */
+const KAPITAL_C_RUHEN_FASSUNGEN: ReadonlySet<string> = new Set(["E-512"]);
+export function kapitalCRuhenErweitert(par: Partial<Pick<KapitalCParameter, "tempoFassung">>): boolean {
+  return KAPITAL_C_RUHEN_FASSUNGEN.has(String(par.tempoFassung ?? ""));
+}
 /** E-487: Gilt die Vorrang-Fassung des Fast-Track? Leer = Wortlaut vor E-487 — den lesen nur noch Verträge, die so angenommen wurden. */
 export function kapitalCVorrangGilt(par: Pick<KapitalCParameter, "tempoFassung">): boolean {
   return String(par.tempoFassung ?? "") !== "";
@@ -862,7 +885,7 @@ export function kapitalCBuerginOrt(b: Pick<KapitalBuergin, "anschrift" | "bundes
  * E-487 (09.11.2026, Gutachten): der Stand je Tempo-Fassung — ein Vertrag mit der Vorrang-Fassung hat einen anderen Wortlaut als einer
  * mit „72 Stunden“ und trägt deshalb ihren Stand. Eine künftige Fassung bekommt hier ihren eigenen Eintrag.
  */
-const KAPITAL_C_TEMPO_STAND: ReadonlyMap<string, string> = new Map([[KAPITAL_C_TEMPO_FASSUNG, "2026-11-09"]]);
+const KAPITAL_C_TEMPO_STAND: ReadonlyMap<string, string> = new Map([[KAPITAL_C_TEMPO_FASSUNG_E487, "2026-11-09"], ["E-512", "2026-11-13"]]);
 /**
  * „27.10.2026“ aus der Fassung „IA-KAPITAL-2026-10-27-C“ — die Kundensicht nennt den Vertragsstand, nie die interne Kennung.
  * E-487: mit Tempo-Fassung der spätere der beiden Stände („09.11.2026“); leere Tempo-Fassung (vor E-487 angenommen) → wortgleich wie bisher.
@@ -1080,8 +1103,11 @@ export function kapitalCZiffern(d: KapitalCDaten, opt: KapitalCDarstellung = {})
       p("Die Raten zahlt die Gesellschaft pünktlich zu jedem Fälligkeitstag an das finanzierende Institut. Zeichnet sich ab, dass sie eine Rate nicht pünktlich zahlen kann, teilt der Auftraggeber dies FIAON unverzüglich in Textform mit. Darlehen und Raten lauten auf US-Dollar; Euro-Beträge sind Umrechnungen, ihr Gegenwert in Euro kann sich mit dem Wechselkurs ändern — steigt der Kurs des US-Dollars um zehn Prozent, steigt jede Rate in Euro ebenfalls um zehn Prozent. Maßgeblich ist der Darlehensvertrag des finanzierenden Instituts; das Rechenbeispiel der Angebotsseite folgt den Bedingungen nach Absatz 2."),
       p(`${KAPITAL_C_VERWENDUNG.vertrag} Wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt der Partner-Steuerberater von FIAON vorab mit dem Auftraggeber. Eine US-Gesellschaft ist kein Steuermodell.`),
       p(G.vertrag),
-      p(`Die Frist ruht, solange die Vergütung nach Ziffer 6 Absatz 1 nicht gezahlt ist. Sie ruht außerdem nur für die Tage, um die der Auftraggeber die Frist nach Ziffer 7 Absatz 2 überschreitet, und solange ein der Gesellschaft vorgelegtes Finanzierungsangebot über den Betrag zu den Bedingungen nach Absatz 2 ohne weitere Sicherheiten oder Kosten des Auftraggebers zur Annahme offensteht; lehnt die Gesellschaft ein solches Angebot ab oder lässt sie es verfallen, entfällt die ${KAPITAL_C_GARANTIE_NAME}. ${unterlagenSatz} Die ${KAPITAL_C_GARANTIE_NAME} entfällt auch, wenn der Auftraggeber vorsätzlich falsche Angaben macht.`),
-      p(zielSatz),
+      p(kapitalCRuhenErweitert(par)
+        ? `Die Frist ruht, solange die Vergütung nach Ziffer 6 Absatz 1 nicht gezahlt ist. Sie ruht außerdem: solange FIAON oder das finanzierende Institut auf eine Mitwirkung des Auftraggebers wartet, um die sie ihn in Textform gebeten haben — eine Unterlage, eine Angabe, eine Unterschrift oder eine Antwort —, vom Tag der Bitte bis zum Tag des Eingangs; solange ein Antrag bei einer Behörde oder einem Register eingereicht und noch nicht beschieden ist, ${par.bestand ? "insbesondere Berichtigungen und Anträge bei der US-Steuerbehörde (etwa auf die ITIN) und Einträge im Register des Bundesstaats" : "insbesondere die Anmeldung der Gesellschaft beim Bundesstaat und die Anträge auf EIN und ITIN bei der US-Steuerbehörde"}, vom Tag der Einreichung bis zum Tag, an dem der Bescheid FIAON vorliegt; solange FIAON durch höhere Gewalt an der Leistung gehindert ist, etwa durch Naturereignisse, behördliche Anordnungen oder einen Stillstand der US-Bundesbehörden; und solange ein der Gesellschaft vorgelegtes Finanzierungsangebot über den Betrag zu den Bedingungen nach Absatz 2 ohne weitere Sicherheiten oder Kosten des Auftraggebers zur Annahme offensteht; lehnt die Gesellschaft ein solches Angebot ab oder lässt sie es verfallen, entfällt die ${KAPITAL_C_GARANTIE_NAME}. Überschneiden sich Ruhenszeiten, zählt jeder Tag einmal; die Tage nennt FIAON dem Auftraggeber auf Wunsch mit Datum. Die Bearbeitung durch das finanzierende Institut lässt die Frist weiterlaufen. ${unterlagenSatz} Die ${KAPITAL_C_GARANTIE_NAME} entfällt auch, wenn der Auftraggeber vorsätzlich falsche Angaben macht.`
+        : `Die Frist ruht, solange die Vergütung nach Ziffer 6 Absatz 1 nicht gezahlt ist. Sie ruht außerdem nur für die Tage, um die der Auftraggeber die Frist nach Ziffer 7 Absatz 2 überschreitet, und solange ein der Gesellschaft vorgelegtes Finanzierungsangebot über den Betrag zu den Bedingungen nach Absatz 2 ohne weitere Sicherheiten oder Kosten des Auftraggebers zur Annahme offensteht; lehnt die Gesellschaft ein solches Angebot ab oder lässt sie es verfallen, entfällt die ${KAPITAL_C_GARANTIE_NAME}. ${unterlagenSatz} Die ${KAPITAL_C_GARANTIE_NAME} entfällt auch, wenn der Auftraggeber vorsätzlich falsche Angaben macht.`),
+      // E-512: Vorrang des Vertrags vor Zeitangaben auf der Seite und in Nachrichten — nur ab Tempo-Fassung „E-512“.
+      p(kapitalCRuhenErweitert(par) ? `${zielSatz} Zeitangaben auf der Angebotsseite und in Nachrichten von FIAON sind Ziele und Erfahrungswerte; verbindliche Fristen enthält allein dieser Vertrag.` : zielSatz),
     ] },
     { nr: 5, titel: "Bürgschaft der US-Partnergesellschaft", absaetze: [
       p(`Die ${b.name}, ${b.anschrift}, eingetragen im Bundesstaat ${b.bundesstaat} unter ${b.registernummer} (nachfolgend „Bürgin“), übernimmt auf Anforderung des finanzierenden Instituts eine Bürgschaft für die Finanzierung nach Ziffer 4. Höchstbetrag ist der ausgezahlte Darlehensbetrag; die Bürgschaft lautet auf die Währung der Finanzierung und läuft längstens ${zahlwort(par.buergschaftMonate)} Monate. Die Bürgin ist ein mit FIAON verbundenes Unternehmen und tritt diesem Vertrag für Ziffer 5 bei.${buerginStand ? ` ${buerginStand}` : ""}`),
@@ -2250,7 +2276,10 @@ export function kapitalCFristAufgabe(ein: {
   const bisD = new Date(`${ein.fristEnde.slice(0, 10)}T12:00:00Z`); bisD.setUTCDate(bisD.getUTCDate() + par.erstattungTage);
   const bis = kapitalTag(bisD.toISOString().slice(0, 10));
   const ziel = kapitalEur(par.betragCents);
-  const ruhen = "Ruhte die Frist (der Kunde hat die Frist für Unterlagen der Bank nach Ziffer 7 Absatz 2 überschritten — nur diese Tage — oder ein vorgelegtes Angebot zu den Bedingungen nach Ziffer 4 ohne weitere Sicherheiten oder Kosten wurde nicht angenommen), die Tage bitte mit Datum im Verlauf festhalten.";
+  // E-512: Ruhetage trägt die Leitung im Chefbüro ein (Knopf „Ruhetage eintragen“) — die Gründe folgen dem angenommenen Wortlaut.
+  const ruhen = kapitalCRuhenErweitert(par)
+    ? "Ruhte die Frist (wir warteten auf eine erbetene Unterlage, Angabe, Unterschrift oder Antwort des Kunden, ein Antrag lag bei einer Behörde oder einem Register — Eintragung, EIN, ITIN —, höhere Gewalt, oder ein Angebot zu den Bedingungen nach Ziffer 4 lag zur Annahme vor): die Tage im Chefbüro › Global-Angebote › „Ruhetage eintragen“ erfassen — das Fristende rückt dann von selbst."
+    : "Ruhte die Frist (der Kunde hat die Frist für Unterlagen der Bank nach Ziffer 7 Absatz 2 überschritten — nur diese Tage — oder ein vorgelegtes Angebot zu den Bedingungen nach Ziffer 4 ohne weitere Sicherheiten oder Kosten wurde nicht angenommen), die Tage bitte mit Datum im Verlauf festhalten.";
   const ohne = "Das System hat KEIN Geld bewegt und keine Mail an den Kunden geschickt.";
   if (ein.schritt === "abgelaufen") {
     return {

@@ -32,6 +32,7 @@ import { complianceKundenfassung, complianceHtml } from "@shared/fiaon-global-an
 import type { ComplianceKundenfassung, FirmaKunde } from "@shared/fiaon-global-angebot-firma-typen";
 import { llcWahlPruefen } from "@shared/fiaon-global-angebot-begleit";
 import { neuesAngebotParameter, staatRegisterIntern } from "@shared/fiaon-global-bundesstaaten";
+import { kapitalRuhenLage } from "@shared/fiaon-global-angebot-kapital-ruhen";
 import {
   KAPITAL_FASSUNG, KAPITAL_FASSUNGEN, KAPITAL_GUELTIG_TAGE, KAPITAL_KNOPF, KAPITAL_ANNAHME, KAPITAL_TEIL_TITEL, istKapitalCFassung,
   kapitalParameterAus, kapitalParameterFehler, kapitalBuerginFehler, kapitalPflichtFehlen, kapitalSeite, kapitalBestellUebersicht,
@@ -786,6 +787,10 @@ export function kapitalListenEintrag(z: AngebotZeile, ext: { heute: string; aufr
       meilenstein: KAPITAL_SPERRGRUND, erstattung: KAPITAL_SPERRGRUND, garantie: KAPITAL_SPERRGRUND, hemmung: KAPITAL_SPERRGRUND,
       aendern: String(z.status) === "offen" ? "Ändern per Skript (scripts/angebot-kapital-anlegen.ts)" : "Nur solange das Angebot offen ist.",
     },
+    // E-512: Ruhetage der Garantiefrist — Gründe nach dem Wortlaut der Fassung A/B (Ziffer 4 Abs. 5).
+    ruhen: kapitalRuhenLage({ fassungC: false, ruhenErweitert: false, datenVomKunden: false, status: String(z.status),
+      fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), hemmungTage: Number(z.frist_hemmung_tage || 0),
+      garantieErfuellt: !!z.garantie_erfuellt_am, erstattung: !!z.erstattung_ausgeloest_am, verlauf: json<any[]>(z.verlauf, []) }),
     verlauf: json<any[]>(z.verlauf, []).slice(-12),
     aufrufe: ext.aufrufe ?? null,
     startgespraech: null,

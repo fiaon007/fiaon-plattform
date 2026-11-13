@@ -310,6 +310,8 @@ type KapitalAngebot = {
   knopfTexte?: Partial<Record<"buergschaft" | "auszahlung", { knopf: string; datum: string; hinweis: string; ereignis: string; ohneRechnung?: boolean }>>;
   aufrufe: Aufrufe | null; verlauf: { am: string; wer: string; was: string }[];
   zurueckgezogenAm: string | null; zurueckgezogenGrund: string | null;
+  /** E-512: Ruhetage der Garantiefrist — erlaubte Gründe nach dem angenommenen Wortlaut, Frist, gezählte Tage, Sperrgrund. */
+  ruhen?: { gruende: { key: string; label: string; hinweis: string }[]; fristBeginn: string | null; fristEnde: string | null; hemmungTage: number; bisher: string | null; sperre: string | null; erweitert: boolean } | null;
 };
 const KAPITAL_KNOEPFE = [
   { art: "buergschaft", knopf: "Bürgschaft zugesagt", datum: "Zugesagt am (gegenüber dem Institut)", nr: 2, cents: "buergschaftCents", hinweis: "Ziffer 6 Absatz 2: fällig mit der Zusage der Bürgin an das Institut." },
@@ -329,7 +331,11 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
 }) {
   const [offen, setOffen] = useState<"buergschaft" | "auszahlung" | null>(null);
   const [form, setForm] = useState<{ datum: string; beleg: string }>({ datum: "", beleg: "" });
-  const llc = a.kapital.llc; const g = a.gebuehren;
+  // E-512: Ruhetage eintragen (eigenes Formular, damit die Knöpfe oben unberührt bleiben).
+  const [ruhenOffen, setRuhenOffen] = useState(false);
+  const [rf, setRf] = useState<{ grund: string; von: string; bis: string; text: string }>({ grund: "", von: "", bis: "", text: "" });
+  const llc = a.kapital.llc; const g = a.gebuehren; const ru = a.ruhen ?? null;
+  const ruGrund = ru?.gruende.find((x) => x.key === rf.grund) ?? null;
   const heute = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
   // E-432: Fassung C bringt eigene Knopftexte mit — sonst die der Fassung B.
   const knoepfe = KAPITAL_KNOEPFE.map((x) => ({ ...x, ...(a.knopfTexte?.[x.art] ?? {}) }));
@@ -381,6 +387,24 @@ function KapitalAngebotBlock({ a, aktion, busy, kopieren }: {
               </div>
               <p className="cm-fein" title={k.hinweis}>{"ohneRechnung" in k && k.ohneRechnung ? k.hinweis : a.variante === "privat" ? `Legt Teil ${k.nr} an und stellt die Rechnung (Endpreis, Privatperson). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.` : `Legt Teil ${k.nr} an und stellt die Rechnung (Reverse Charge wie Teil 1). Keine Kundenmail — du bekommst Aufgabe und Mail mit dem Zahlungslink.`}</p>
               <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kg${a.id}${k.art}` || !form.datum} onClick={async () => { const r = await aktion(`kg${a.id}${k.art}`, `/admin/global/angebote/${a.id}/kapital/${k.art}`, form); if (r.ok) setOffen(null); }}>{"ohneRechnung" in k && k.ohneRechnung ? "Eintragen" : "Rechnung stellen"}</button><button type="button" className="cg-knopf" onClick={() => setOffen(null)}>Abbrechen</button></div>
+            </div>
+          )}
+          {ru && (
+            <div className="cg-ruhen" data-ruhen={ru.hemmungTage}>
+              <p className="cm-klartext"><b>Garantiefrist:</b> {ru.fristBeginn ? `${datum(ru.fristBeginn)} bis ${datum(ru.fristEnde)}` : "läuft noch nicht"} · Ruhetage bisher {ru.hemmungTage}{ru.bisher ? ` (gezählt bis ${datum(ru.bisher)})` : ""}{ru.erweitert ? " · Vertrag mit Behörden- und Warteklausel (E-512)" : ""}</p>
+              <span><button type="button" className="cg-knopf" data-knopf="ruhen" disabled={!!ru.sperre} onClick={() => { setRuhenOffen(true); setRf({ grund: ru.gruende[0]?.key ?? "", von: "", bis: "", text: "" }); }}>Ruhetage eintragen</button>{ru.sperre && <span className="cm-fein">{ru.sperre}</span>}</span>
+              {ruhenOffen && !ru.sperre && (
+                <div className="cg-form" data-form="ruhen">
+                  <div className="cg-raster">
+                    <label>Grund (nur, was im Vertrag steht)<select value={rf.grund} onChange={(e) => setRf({ ...rf, grund: e.target.value })}>{ru.gruende.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
+                    <label>Beginn<input type="date" max={heute} value={rf.von} onChange={(e) => setRf({ ...rf, von: e.target.value })} /></label>
+                    <label>Ende (Eingang/Bescheid — leer = läuft noch)<input type="date" max={heute} value={rf.bis} onChange={(e) => setRf({ ...rf, bis: e.target.value })} /></label>
+                    <label>Worauf wurde gewartet? (mit Beleg)<input value={rf.text} placeholder="z. B. Bitte um Zwischenzahlen per Mail vom 13.11." onChange={(e) => setRf({ ...rf, text: e.target.value })} /></label>
+                  </div>
+                  {ruGrund && <p className="cm-fein">{ruGrund.hinweis} Der Tag des Eingangs zählt nicht mehr mit; schon gezählte Tage zählen nie doppelt. Keine Mail an den Kunden.</p>}
+                  <div className="cg-form-knoepfe"><button type="button" className="cg-knopf cg-knopf-haupt" disabled={busy === `kr${a.id}` || !rf.grund || !rf.von || rf.text.trim().length < 20} onClick={async () => { const r = await aktion(`kr${a.id}`, `/admin/global/angebote/${a.id}/kapital-ruhen`, rf); if (r.ok) setRuhenOffen(false); }}>Ruhetage eintragen</button><button type="button" className="cg-knopf" onClick={() => setRuhenOffen(false)}>Abbrechen</button></div>
+                </div>
+              )}
             </div>
           )}
         </div>

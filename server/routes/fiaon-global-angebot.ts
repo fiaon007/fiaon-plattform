@@ -452,6 +452,20 @@ router.post("/admin/global/angebote/:id/garantie", requireChef("leitung"), async
   }
 });
 
+// E-512 (13.11.2026): Ruhetage der Garantiefrist im Kapital-Angebot — Gründe nach dem Wortlaut des Vertrags, Fristende rückt.
+router.post("/admin/global/angebote/:id/kapital-ruhen", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
+  try {
+    const { kapitalFristRuhen } = await import("../lib/fiaon-global-angebot-kapital-ruhen");
+    const erg = await kapitalFristRuhen(idAus(req), req.body ?? {}, await chefName(req));
+    if (!erg.ok) return res.status(erg.status).json(erg);
+    const d = (iso: string) => iso.split("-").reverse().join(".");
+    res.json({ ...erg, meldung: `Ruhetage eingetragen: vom ${d(erg.von)} bis ${d(erg.bisGezaehlt)} (${erg.tage} ${erg.tage === 1 ? "Tag" : "Tage"}${erg.offen ? ", läuft noch" : ""}). Neues Fristende: ${d(erg.fristEnde)}. Keine Mail an den Kunden.` });
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] kapital-ruhen:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+
 router.post("/admin/global/angebote/:id/hemmung", requireChef("leitung"), async (req: ChefRequest, res: Response) => {
   try {
     const erg = await angebotFristHemmen(idAus(req), req.body ?? {}, await chefName(req));

@@ -847,7 +847,9 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
 
   // 12b — Welche Fassung gilt? Nicht angenommen → die aktuelle (ohne Schreiben); angenommen → NUR die des Annahmevermerks, ohne ihn Bestand.
   const TA = C.kapitalCTempoFassungAus;
-  ok(C.KAPITAL_C_TEMPO_FASSUNG === "E-487" && TA({ angenommen: false }) === "E-487" && TA({ angenommen: false, schalter: { tempoFassung: "" } }) === "E-487"
+  // E-512 (13.11.2026): die aktuelle Fassung ist jetzt „E-512“ (E-487 + erweitertes Ruhen); so angenommene E-487-Verträge bleiben E-487.
+  ok(C.KAPITAL_C_TEMPO_FASSUNG === "E-512" && TA({ angenommen: false }) === "E-512" && TA({ angenommen: false, schalter: { tempoFassung: "" } }) === "E-512"
+    && TA({ angenommen: true, schalter: { tempoFassung: "E-512" } }) === "E-512"
     && TA({ angenommen: true }) === "" && TA({ angenommen: true, schalter: {} }) === "" && TA({ angenommen: true, schalter: { tempoFassung: "E-487" } }) === "E-487"
     && TA({ angenommen: true, schalter: { tempoFassung: "" } }) === "" && TA({ angenommen: true, schalter: null }) === "" && TA({ angenommen: true, schalter: { tempoFassung: 487 } }) === "",
   "kapitalCTempoFassungAus: offen → aktuell; angenommen → nur der Annahmevermerk (Text), sonst leer (Bestand)");
@@ -863,8 +865,8 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const POFFEN = { ...VORGABEN_VOR_E487, datenVomKunden: true, fastTrackWahl: true, unterschriftFrei: true, buerginAktiv: true, buerginStandAm: "2026-11-01", unterlagen: [], staatenFassung: "E-465", bundesstaat: "Delaware" };
   const offeneZeile = (parameter: Record<string, unknown> = POFFEN, extra: Record<string, unknown> = {}) => ({ id: 4, angebot_ref: "FIAON-IA-CMUSTR4", fassung: C.KAPITAL_C_FASSUNG, status: "offen", kunde: KUNDE_ANGABEN, parameter, buergin: BUERGIN, gueltig_bis: "2026-11-23", schalter: null, ...extra }) as any;
   const zOffen = offeneZeile(); const dOffen = KS12.kapitalCDatenAus(zOffen);
-  ok(dOffen.parameter.tempoFassung === "E-487" && !("tempoFassung" in zOffen.parameter) && C.kapitalCVorrangGilt(dOffen.parameter), "offenes Angebot (gespeichert ohne tempoFassung, wie in der Produktion): liest E-487 — die Zeile bleibt unverändert, kein Schreiben nötig");
-  ok(KS12.kapitalCDatenAus(offeneZeile({ ...POFFEN, tempoFassung: "" })).parameter.tempoFassung === "E-487" && KS12.kapitalCDatenAus(offeneZeile(POFFEN, { status: "abgelaufen" })).parameter.tempoFassung === "E-487",
+  ok(dOffen.parameter.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG && !("tempoFassung" in zOffen.parameter) && C.kapitalCVorrangGilt(dOffen.parameter), "offenes Angebot (gespeichert ohne tempoFassung, wie in der Produktion): liest die aktuelle Fassung — die Zeile bleibt unverändert, kein Schreiben nötig");
+  ok(KS12.kapitalCDatenAus(offeneZeile({ ...POFFEN, tempoFassung: "" })).parameter.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG && KS12.kapitalCDatenAus(offeneZeile(POFFEN, { status: "abgelaufen" })).parameter.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG,
     "auch mit gespeichert leer oder abgelaufen (nie angenommen): die aktuelle Fassung");
   ok(KS12.kapitalCDatenAus(angenommeneZeile(FAELLE_12A[0], false)).parameter.tempoFassung === "" && KS12.kapitalCDatenAus({ ...angenommeneZeile(FAELLE_12A[0], false), status: "zurueckgezogen" }).parameter.tempoFassung === "",
     "angenommen ohne Vermerk (vor E-487) — auch mit späterem anderem Stand (angenommen_am bleibt): Bestand");
@@ -950,7 +952,7 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   const zNach487 = { ...zOffen, status: "angenommen", angenommen_am: "2026-11-09T11:00:00.000Z", auftrag_ref: "FIAON-X", schalter: sch12d };
   const dNach487 = KS12.kapitalCDatenAus(zNach487); const wNach487 = KS12.kapitalCWahlAus(zNach487);
   const bestT = C.kapitalCBestaetigungAbsaetze(dNach487, { wahl: wNach487, angenommen: "09.11.2026 um 12:00 Uhr", llc: "MUSTER VENTURES LLC", reisepassFehlt: false }).join(" ");
-  ok(dNach487.parameter.tempoFassung === "E-487" && wNach487?.fastTrack === true && bestT.endsWith("Mit dem Fast-Track bearbeiten wir Ihren Auftrag in allen Schritten mit Vorrang (Ziffer 2 Absatz 3 Ihres Vertrags).") && !/Stunden/.test(bestT) && /und den Fast-Track\./.test(bestT),
+  ok(dNach487.parameter.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG && wNach487?.fastTrack === true && bestT.endsWith("Mit dem Fast-Track bearbeiten wir Ihren Auftrag in allen Schritten mit Vorrang (Ziffer 2 Absatz 3 Ihres Vertrags).") && !/Stunden/.test(bestT) && /und den Fast-Track\./.test(bestT),
     "Vertragsbestätigung einer nach E-487 angenommenen Zeile (echter Leseweg, reine Funktion des Servers): Vorrang statt „72 Stunden“", bestT);
   const bestOhneFassung = C.kapitalCBestaetigungAbsaetze({ ...dNach487, parameter: { ...dNach487.parameter, tempoFassung: "" } }, { wahl: wNach487, angenommen: "x", llc: "y", reisepassFehlt: false }).join(" ");
   ok(/72 Stunden/.test(bestOhneFassung), "Gegenprobe: ohne die Tempo-Fassung käme „72 Stunden“ — genau das fängt die Probe darüber");
@@ -1005,8 +1007,8 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   ok(C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "E-487") === "09.11.2026" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "") === "27.10.2026" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG) === "27.10.2026"
     && C.kapitalCVertragsstand("IA-KAPITAL-2026-12-01-C", "E-487") === "01.12.2026" && C.kapitalCVertragsstand("ohne Datum", "") === "" && C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "constructor") === "27.10.2026",
     "Vertragsstand: mit Tempo-Fassung der spätere Stand (09.11.2026), ohne sie wie bisher");
-  ok(/Vertragsstand 09\.11\.2026$/.test(C.kapitalCVertragUnterzeile(dOffen)) && /Vertragsstand 27\.10\.2026$/.test(C.kapitalCVertragUnterzeile(KS12.kapitalCDatenAus(angenommeneZeile(FAELLE_12A[0], true))))
-    && JSON.stringify(C.kapitalCSeite(dOffen)).includes("Vertragsstand 09.11.2026") && ohneHtml(KS12.kapitalCVorschauHtml(dOffen)).includes("Vertragsstand 09.11.2026")
+  ok(C.kapitalCVertragsstand(C.KAPITAL_C_FASSUNG, "E-512") === "13.11.2026" && /Vertragsstand 13\.11\.2026$/.test(C.kapitalCVertragUnterzeile(dOffen)) && /Vertragsstand 27\.10\.2026$/.test(C.kapitalCVertragUnterzeile(KS12.kapitalCDatenAus(angenommeneZeile(FAELLE_12A[0], true))))
+    && JSON.stringify(C.kapitalCSeite(dOffen)).includes("Vertragsstand 13.11.2026") && ohneHtml(KS12.kapitalCVorschauHtml(dOffen)).includes("Vertragsstand 13.11.2026")
     && /const stand = kapitalCVertragsstand\(d\.fassung, d\.parameter\.tempoFassung\);/.test(serverQuelle),
     "Unterzeile, Seite, Vorschau und PDF-Fuß: offene Angebote „Vertragsstand 09.11.2026“, vor E-487 angenommene weiter 27.10.2026 (nicht in der Prüfsumme)");
 
@@ -1035,27 +1037,29 @@ const KS12 = await import("../server/lib/fiaon-global-angebot-kapital-c");
   // 12f — DER SATZ OHNE FAST-TRACK BLEIBT WORTGLEICH (Geschäftsentscheidung, nicht Teil von E-487).
   const DBESTAND = { ...dOffen, parameter: { ...dOffen.parameter, tempoFassung: "" } };
   const ohneSatz = "ohne Fast-Track liegen Gesellschaft, EIN und ITIN in der Regel nach drei bis fünf Wochen vor";
+  const ohneGarantieZeile = (_k: string, v: unknown) => (v && typeof v === "object" && typeof (v as { label?: unknown }).label === "string" && String((v as { label: string }).label).includes(C.KAPITAL_C_GARANTIE_NAME) ? undefined : v);
   ok(C.KAPITAL_C_TEMPO.ohne === "drei bis fünf Wochen" && vOffen.includes(ohneSatz) && flach(absText(C.kapitalCZiffern(DBESTAND)).join("\n")).includes(ohneSatz)
     && JSON.stringify(sOffen.fastTrack!.karten[0]) === JSON.stringify(C.kapitalCSeite(DBESTAND).fastTrack!.karten[0])
-    && JSON.stringify(C.kapitalCBestellUebersicht(dOffen, 10, false)) === JSON.stringify(C.kapitalCBestellUebersicht(DBESTAND, 10, false))
+    // E-512: die Zeile der Geld-zurück-Garantie trägt in der neuen Fassung den Satz zu den Wartezeiten — hier zählt nur der Rest.
+    && JSON.stringify(C.kapitalCBestellUebersicht(dOffen, 10, false), ohneGarantieZeile) === JSON.stringify(C.kapitalCBestellUebersicht(DBESTAND, 10, false), ohneGarantieZeile)
     && JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false, tempoFassung: "E-487" })) === JSON.stringify(C.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "A", angenommen: "B", llc: "C", fastTrack: false, tempoFassung: "" })),
   "„Gesellschaft, EIN und ITIN in der Regel nach drei bis fünf Wochen“ (ohne Fast-Track): Vertrag, Karte, Übersicht und Bestätigung unverändert");
 
   // 12g — DIE ANNAHME HÄLT DIE FASSUNG FEST: Nach der Annahme liest der Vertrag genau den Text, den der Kunde angenommen hat.
   const wahl12 = { llc: { wunsch: "MUSTER VENTURES LLC", alternative1: "", alternative2: "" }, laufzeitJahre: 10, sofortBeginn: true, fastTrack: true };
   const sch12 = KS12.kapitalCSchalterBeiAnnahme(dOffen, wahl12, C.kapitalCPlan(dOffen.parameter, 10), { art: "getippt", name: "Erika Musterfrau" });
-  ok(sch12.tempoFassung === "E-487" && sch12.fastTrack === true && sch12.verbraucher === true && sch12.gelesen === true && sch12.rate.monatsrateCents === C.kapitalCPlan(dOffen.parameter, 10).monatsrateCents
+  ok(sch12.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG && sch12.fastTrack === true && sch12.verbraucher === true && sch12.gelesen === true && sch12.rate.monatsrateCents === C.kapitalCPlan(dOffen.parameter, 10).monatsrateCents
     && Object.keys(sch12).join(",") === "llc,laufzeitJahre,sofortBeginn,fastTrack,rate,gelesen,verbraucher,unterschrift,tempoFassung", "Annahme: schalter mit Wahl, Rate, Unterschrift — und der Tempo-Fassung", Object.keys(sch12));
   const zAngenommen = { ...zOffen, status: "angenommen", angenommen_am: "2026-11-09T11:00:00.000Z", schalter: sch12 };
   const dAngenommen = KS12.kapitalCDatenAus(zAngenommen);
-  ok(dAngenommen.parameter.tempoFassung === "E-487" && KS12.kapitalCTextHash(dAngenommen) === KS12.kapitalCTextHash(dOffen) && C.kapitalCRumpfHtml(dAngenommen, null) === C.kapitalCRumpfHtml(dOffen, null),
+  ok(dAngenommen.parameter.tempoFassung === C.KAPITAL_C_TEMPO_FASSUNG && KS12.kapitalCTextHash(dAngenommen) === KS12.kapitalCTextHash(dOffen) && C.kapitalCRumpfHtml(dAngenommen, null) === C.kapitalCRumpfHtml(dOffen, null),
     "nach der Annahme: dieselbe Fassung, derselbe Vertragstext, dieselbe Prüfsumme wie das angenommene Angebot");
   ok(KS12.kapitalCTextHash(dOffen) !== KS12.kapitalCTextHash(DBESTAND), "offene Angebote: neue Prüfsumme — eine noch offene Seite lädt vor der Annahme neu (409 „neu laden“)");
 
   // 12h — NEUE ANGEBOTE: Staaten-Wahl (E-465) und die aktuelle Tempo-Fassung aus EINER Quelle (Server und Vorschau im Skript).
   const pNeu = C.kapitalCNeuesAngebotParameter({ fastTrackWahl: true });
-  ok(pNeu.tempoFassung === "E-487" && pNeu.bundesstaat === "Delaware" && pNeu.staatenFassung === "E-465" && pNeu.fastTrackWahl && C.kapitalCNeuesAngebotParameter({ bundesstaat: "FL", tempoFassung: "" }).tempoFassung === "E-487" && C.kapitalCNeuesAngebotParameter(null).bundesstaat === "Delaware",
-    "neue Angebote: E-487 und Delaware als Vorgabe (auch wenn die Datei „leer“ mitschickt)");
+  ok(pNeu.tempoFassung === "E-512" && pNeu.bundesstaat === "Delaware" && pNeu.staatenFassung === "E-465" && pNeu.fastTrackWahl && C.kapitalCNeuesAngebotParameter({ bundesstaat: "FL", tempoFassung: "" }).tempoFassung === "E-512" && C.kapitalCNeuesAngebotParameter(null).bundesstaat === "Delaware",
+    "neue Angebote: E-512 und Delaware als Vorgabe (auch wenn die Datei „leer“ mitschickt)");
   const skript = readFileSync(path.join(WURZEL, "scripts/angebot-kapital-anlegen.ts"), "utf8");
   ok(/const parameter = SC\.kapitalCNeuesAngebotParameter\(roh\.parameter\);/.test(skript), "Skript angebot-kapital-anlegen: die Vorschau rechnet mit derselben Quelle wie der Server");
 

@@ -42,6 +42,7 @@
 //     und „Mein Auftrag“).
 // ═══════════════════════════════════════════════════════════════════════════
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { kapitalRuhenLage } from "@shared/fiaon-global-angebot-kapital-ruhen";
 import { sqlPool } from "./db-pool";
 import { berlinToday } from "./fiaon-time";
 import { absoluteUrl } from "../fiaon-base-url";
@@ -72,7 +73,7 @@ import {
   kapitalCLaufzeitSatz, kapitalCPlan, kapitalCEurCent, kapitalCEur, kapitalCTeil2Pruefen, kapitalCMeinAuftrag, kapitalCStartAufgabe, kapitalCFristAufgabe,
   kapitalCVertragsstand, kapitalCZahlbar,
   kapitalCKundeStrenge, kapitalCAngabenPruefen, kapitalCAngabenFehlen, kapitalCMitFastTrack, kapitalCTeil1Titel, KAPITAL_C_ANGABEN, KAPITAL_C_REISEPASS,
-  KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCNeuesAngebotParameter, kapitalCBestaetigungAbsaetze, kapitalCReisepassAufgabe,
+  KAPITAL_C_TEMPO_FASSUNG, kapitalCTempoFassungAus, kapitalCRuhenErweitert, kapitalCNeuesAngebotParameter, kapitalCBestaetigungAbsaetze, kapitalCReisepassAufgabe,
   kapitalCRahmenGueltig, kapitalCRahmenAnwenden, kapitalCUsd,
   kapitalCTeil1TitelFuer, kapitalCTeil2Fuer, kapitalCBestandStamm,
   type KapitalCDaten, type KapitalCKunde, type KapitalCWahl, type KapitalCAnnahmeVermerk, type KapitalCKundenSicht, type KapitalCParameter, type KapitalCPlan,
@@ -1287,6 +1288,10 @@ export function kapitalCListenEintrag(z: AngebotZeile, ext: { heute: string; auf
       auszahlung: { knopf: KAPITAL_C_AUSZAHLUNG.knopf, datum: KAPITAL_C_AUSZAHLUNG.datumLabel, hinweis: KAPITAL_C_AUSZAHLUNG.hinweis, ereignis: "ausgezahlt", ohneRechnung: true },
     },
     garantieErfuelltAm: isoTag(z.garantie_erfuellt_am),
+    // E-512: Ruhetage der Garantiefrist — Gründe nach dem Wortlaut, den der Kunde angenommen hat (tempoFassung aus dem Annahmevermerk).
+    ruhen: kapitalRuhenLage({ fassungC: true, ruhenErweitert: kapitalCRuhenErweitert(par), datenVomKunden: !!par.datenVomKunden, status: String(z.status),
+      fristBeginn: isoTag(z.frist_beginn), fristEnde: isoTag(z.frist_ende), hemmungTage: Number(z.frist_hemmung_tage || 0),
+      garantieErfuellt: !!z.garantie_erfuellt_am, erstattung: !!z.erstattung_ausgeloest_am, verlauf: json<any[]>(z.verlauf, []) }),
     knoepfe: {
       buergschaft: p2.ok ? null : p2.error, auszahlung: pa.ok ? null : pa.error,
       meilenstein: "Kapital-Angebot (Fassung C): Knöpfe „Gesellschaft eingetragen“ und „Finanzierung ausgezahlt“ im Block des Angebots.", erstattung: "Kapital-Angebot: die Garantie (Ziffer 4) klärt die Leitung.", garantie: "Kapital-Angebot: die Garantie (Ziffer 4) klärt die Leitung.", hemmung: "Kapital-Angebot: Ruhezeiten bitte im Verlauf festhalten.",

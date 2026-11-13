@@ -16,6 +16,8 @@
 //   → Instagram/Facebook (der Vorführraum pausiert, bis Filme und Konzept-PDF zum einen Produkt passen)
 //   → Ein Ansprechpartner statt acht (#leistungen), Der Bogen (#bogen)
 //   → Erstgespräch (#gespraech) → Fragen (#fragen) → Schlussband → Klebeleiste am Handy.
+// Feinschliff 13.11.2026: Auch der Kopf des Konfigurators und das Kleingedruckte kommen beim Hineinscrollen (Sek setzt data-an);
+// im Konfigurator selbst übernimmt am Handy seine eigene Leiste mit dem Preis (VerkaufKonfigurator) — diese hier ruht dann.
 // Weg seit E-509: die vier Pakettafeln, die Viererwahl, die Vergleichstabelle, der Paketfuß, das Band „Jahresbetreuung“
 // und die Etappen-Karten mit „ab Paket“. Die Sätze des Produkts, der Preise und des Konfigurators stehen in
 // shared/fiaon-global-verkauf.ts (dieselben Funktionen rechnen im Vertrag); Bühne, Schaltzentrale, Bogen, Gespräch und
@@ -35,6 +37,7 @@ import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
 import { VerkaufProdukt, VerkaufAblauf, VerkaufGarantie } from "@/components/site/global/VerkaufProdukt";
 import VerkaufKonfigurator, { VerkaufKonfigLead } from "@/components/site/global/VerkaufKonfigurator";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+import { sauber } from "@/components/site/global/VerkaufSatz";
 import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import { VERKAUF_TEXTE, VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd } from "@shared/fiaon-global-verkauf";
@@ -51,10 +54,10 @@ const Pfeil = () => (
 );
 
 /** Ein Abschnitt, der einmal `data-an` bekommt, wenn er ins Bild kommt (Glanz der H2 einmal, Grafiken). */
-function Sek({ id, className, children }: { id?: string; className: string; children: ReactNode }) {
+function Sek({ id, className, titelId, children }: { id?: string; className: string; titelId?: string; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);
   useEinmalSichtbar(ref, 0, "0px 0px -25% 0px");
-  return <section ref={ref} id={id} className={className} style={id ? { scrollMarginTop: 72 } : undefined}>{children}</section>;
+  return <section ref={ref} id={id} className={className} aria-labelledby={titelId} style={id ? { scrollMarginTop: 72 } : undefined}>{children}</section>;
 }
 
 // ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
@@ -142,7 +145,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         <HeroGlas en={s === "en"} onPakete={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
           auge, ab: "", preis,
           label: V.buehne.label,
-          h1a: privat ? t.h1a : V.buehne.h1a, h1b: privat ? t.h1b : V.buehne.h1b, wechsel: privat ? undefined : V.buehne.wechsel, lead: privat ? t.lead : V.buehne.lead,
+          h1a: privat ? t.h1a : V.buehne.h1a, h1b: privat ? t.h1b : V.buehne.h1b, wechsel: privat ? undefined : V.buehne.wechsel, lead: privat ? t.lead : sauber(V.buehne.lead),
           knopfPakete: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
           kapitalTitel: V.buehne.kapitalTitel, kapitalWert: rahmenSpanne, kapitalSatz: V.buehne.kapitalSatz,
           kapitalFrei: frei.kurz, fussnoteNr: 1, fussnote: `${frei.satz} ${frei.steuer}`,
@@ -158,7 +161,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
         <VerkaufAblauf sprache={s} />
 
         {/* ── 4 Der Konfigurator — die eine dunkle Glasfläche der Seite ── */}
-        <section className="fg-sek vk-konfig-sek">
+        <Sek className="fg-sek vk-konfig-sek">
           <div className="fg-rahmen">
             <div className="fg-kopf">
               <div><span className="fg-auge">{V.konfig.auge}</span><h2 className="fg-h2">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h2></div>
@@ -166,21 +169,21 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
             </div>
             <VerkaufKonfigurator sprache={s} />
           </div>
-        </section>
+        </Sek>
 
         {/* ── 5 Geld-zurück-Garantie ── */}
         <VerkaufGarantie sprache={s} />
 
         {/* ── 5b Was Sie vor dem Auftrag wissen müssen: die drei Pflichthinweise (Wortlaut wie im Vertrag) — immer offen.
                Bis E-509 standen sie im Kleingedruckten unter den Pakettafeln. ── */}
-        <section className="fg-sek vk-wissen-sek" aria-labelledby="vk-wissen-titel">
+        <Sek className="fg-sek vk-wissen-sek" titelId="vk-wissen-titel">
           <div className="fg-rahmen">
             <div className="vk-wissen">
               <h3 id="vk-wissen-titel">{t.wissenTitel}</h3>
-              <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x) => <li key={x}>{x}</li>)}</ul>
+              <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x, i) => <li key={x} style={{ ["--i" as string]: String(i) }}>{x}</li>)}</ul>
             </div>
           </div>
-        </section>
+        </Sek>
 
         {/* E-509 (12.11.2026): Der Vorführraum (E-313: Filme, Kino, Konzept als PDF-Mappe) steht hier vorerst nicht — Konzept-PDF
             und Filme zeigen noch die vier Pakete mit ihren alten Preisen. Er kommt zurück, sobald sie zum einen Produkt passen

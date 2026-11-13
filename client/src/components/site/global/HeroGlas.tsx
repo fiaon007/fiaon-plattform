@@ -18,6 +18,10 @@
 // Auftakt erst nach dem Ladebildschirm (nachLadebild), gestaffelt; danach
 // steht alles — nur der Glanz zieht alle neun Sekunden über die Zahl.
 // Bei „weniger Bewegung“ steht sofort das Endbild.
+//
+// 13.11.2026 (E-509, Justin: „ein paar mehr Animationen“): Die Zahl zählt beim
+// Auftakt einmal weich hoch (useHochzaehlen) — Satz, Überschrift und Pillen
+// folgen wie bisher gestaffelt.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar, useRuhig } from "@/components/site/global/bewegung";
@@ -67,6 +71,43 @@ export interface HeroGlasTexte {
   weiter: string;
   /** Name des Abschnitts mit den drei Kacheln (für Screenreader, „Auf einen Blick“). */
   blickName: string;
+}
+
+/**
+ * DIE ZAHL ZÄHLT HOCH (E-509, 13.11.2026): Beim Auftakt läuft der Preis einmal weich zu seinem Wert — „2.015 €“ … „2.799 €“,
+ * 1,5 s, am Ende immer langsamer. Gezählt wird nur in der Zifferngruppe des fertigen Textes: Währungszeichen, Leerzeichen
+ * und das Tausender-Zeichen bleiben, wie die Seite sie liefert („2.799 €“ deutsch, „€2,799“ englisch). Der Start hat gleich
+ * viele Stellen wie das Ziel, und die Zahl steht in Tabellenziffern (global-hero-glas.css) — nichts wackelt, nichts bricht um.
+ * Bis zum Auftakt, bei „weniger Bewegung“ und ohne Zifferngruppe steht sofort der Endwert; eine Uhr setzt ihn in jedem Fall
+ * (Tab im Hintergrund: requestAnimationFrame ruht dort). Rückgabe null = es wird nicht (mehr) gezählt.
+ */
+function useHochzaehlen(text: string, los: boolean): string | null {
+  const [anzeige, setAnzeige] = useState<string | null>(null);
+  useEffect(() => {
+    const m = text.match(/\d[\d.,\u00a0\u202f ]*\d/);
+    if (!los || !m || ruhigGewuenscht() || typeof requestAnimationFrame === "undefined") return;
+    const gruppe = m[0];
+    const ziel = Number(gruppe.replace(/\D/g, ""));
+    const trenner = gruppe.match(/\D/)?.[0] ?? "";
+    const stellen = String(ziel).length;
+    if (!Number.isFinite(ziel) || ziel < 100) return;
+    const start = Math.max(Math.pow(10, stellen - 1), Math.round(ziel * 0.72));
+    const setzen = (n: number) => text.replace(gruppe, trenner ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, trenner) : String(n));
+    const dauer = 1500;
+    let bild = 0, t0 = 0;
+    const schritt = (t: number) => {
+      if (!t0) t0 = t;
+      const p = Math.min(1, (t - t0) / dauer);
+      // sanft auslaufend (Quint): schnell los, die letzten Ziffern setzen sich einzeln
+      const n = Math.round(start + (ziel - start) * (1 - Math.pow(1 - p, 5)));
+      if (p < 1 && n < ziel) { setAnzeige(setzen(n)); bild = requestAnimationFrame(schritt); } else setAnzeige(null);
+    };
+    setAnzeige(setzen(start));
+    bild = requestAnimationFrame(schritt);
+    const uhr = window.setTimeout(() => { cancelAnimationFrame(bild); setAnzeige(null); }, dauer + 900);
+    return () => { cancelAnimationFrame(bild); window.clearTimeout(uhr); setAnzeige(null); };
+  }, [text, los]);
+  return anzeige;
 }
 
 /** Wie viele Zeichen zwei Sätze vorn teilen — „Ihr Weg “ bleibt stehen, nur der Rest wird gelöscht und neu getippt. */
@@ -256,6 +297,8 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
   // Kacheln und die Fußnote stehen darum in einem eigenen Abschnitt UNTER der Bühne und gleiten beim Hineinscrollen hoch.
   const blick = useRef<HTMLElement>(null);
   useEinmalSichtbar(blick, 0, "0px 0px -18% 0px");
+  // Die Zahl zählt beim Auftakt einmal hoch; null = sie steht (dann trägt der Absatz schlicht den Preis).
+  const gezaehlt = useHochzaehlen(t.preis, an);
 
   useLayoutEffect(() => {
     if (ruhigGewuenscht()) { setAn(true); return; }
@@ -271,7 +314,8 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
       <div className="hg-inhalt">
         <p className="hg-auge">{t.auge}</p>
         {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}
-        <p className="hg-zahl">{t.ab ? <span className="hg-zahl-ab">{t.ab} </span> : null}{t.preis}</p>
+        {/* Solange gezählt wird, sehen Augen die laufende Zahl, Screenreader den Endwert (hg-sr). */}
+        <p className="hg-zahl">{t.ab ? <span className="hg-zahl-ab">{t.ab} </span> : null}{gezaehlt === null ? t.preis : <><span aria-hidden="true">{gezaehlt}</span><span className="hg-sr">{t.preis}</span></>}</p>
         <p className="hg-label">{t.label}</p>
         {t.wechsel && t.wechsel.length > 1 ? (
           // Die Überschrift trägt nur die ruhigen Sätze (für Suchmaschinen und Screenreader); die Tipp-Zeile steht als eigene,

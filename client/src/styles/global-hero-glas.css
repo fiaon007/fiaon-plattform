@@ -89,7 +89,7 @@
 .hg-pille.voll { background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 14px 28px -14px rgba(29, 78, 216, .75); }
 .hg-pille.voll:hover { background: linear-gradient(180deg, #2f80f8 0%, #1a55d4 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 20px 38px -14px rgba(29, 78, 216, .85); }
 .hg-pille svg { flex: 0 0 auto; }
-.hg .hg-mikro { margin: clamp(22px, 3vh, 30px) 0 0; font: 400 13.5px/1.45 var(--ap); color: #5d6678; }
+.hg .hg-mikro { margin: clamp(22px, 3vh, 30px) 0 0; font: 400 13.5px/1.45 var(--ap); color: #5d6678; text-wrap: balance; }
 
 /* ── Die drei Widgets: Milchglas ── */
 /* ── Die drei Kacheln: ein eigener Abschnitt unter der Bühne, sie gleiten beim Hineinscrollen hoch ── */
@@ -103,7 +103,12 @@
 }
 .hg-w-auge { font: 500 10.5px/1.2 var(--ap); letter-spacing: .18em; text-transform: uppercase; color: #1d4ed8; }
 .hg-widget > b, .hg-w-person b { font: 300 clamp(22px, 2vw, 28px)/1.1 var(--ap); letter-spacing: -.022em; color: #0c1a2e; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hg-widget small { font: 400 12.5px/1.42 var(--ap); color: #5d6678; }
+/* 13.11.2026 (E-509): Der Kapitalrahmen „50.000 – 1.000.000 US-$“ war bei drei Kacheln nebeneinander abgeschnitten („… US…“).
+   Die Schrift richtet sich jetzt nach der Breite der Kachel (cqi) — der Wert steht immer ganz da, in einer Zeile. */
+.hg-widget { container-type: inline-size; }
+.hg-widget > b { font-size: clamp(17px, 1.66vw, 24px); letter-spacing: -.026em; }
+@supports (font-size: 1cqi) { .hg-widget > b { font-size: clamp(17px, 8cqi, 28px); } }
+.hg-widget small { font: 400 12.5px/1.42 var(--ap); color: #5d6678; text-wrap: pretty; }
 .hg-widget small sup { font-size: .7em; margin-left: 1px; }
 .hg-w-chip { display: inline-flex; align-items: center; gap: 7px; width: fit-content; margin-top: 6px; padding: 6px 11px; border-radius: 999px;
   background: rgba(40, 141, 250, .09); border: 1px solid rgba(40, 141, 250, .16); font: 400 12px/1 var(--ap); color: #12284a; }
@@ -162,6 +167,11 @@ html .fg.fg button.hg-w-bild:focus-visible, html .fg.fg .hg-w-knopf:focus-visibl
 .hg-w-vertrag li::before { content: ""; flex: 0 0 auto; width: 5px; height: 5px; margin-top: 6px; border-radius: 50%; background: #288dfa; }
 .hg-w-vertrag a { color: #12284a; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(18, 40, 74, .35); }
 .hg-w-vertrag a:hover { text-decoration-color: currentColor; }
+/* 13.11.2026 (E-509): Der Link „Vertrag vor der Unterschrift lesen“ war am Telefon nur 18 px hoch — die Tippfläche reicht jetzt
+   44 px weit (unsichtbar über und unter der Zeile), die Zeile selbst bleibt, wie sie ist. */
+.hg-w-vertrag a { position: relative; }
+.hg-w-vertrag a::after { content: ""; position: absolute; left: -6px; right: -6px; top: -13px; bottom: -13px; }
+.hg-w-vertrag a:focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; border-radius: 4px; }
 .hg-blick .hg-fussnote { margin: clamp(36px, 4vw, 56px) auto 0; width: 100%; max-width: 74ch; font: 400 11.5px/1.5 var(--ap); color: #5d6678; }
 .hg-fussnote sup { font-size: .75em; }
 /* Ziel des Winkels: bekommt den Fokus (tabIndex -1), zeigt aber keinen Rahmen um den ganzen Abschnitt. */
@@ -233,6 +243,7 @@ html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: n
   .hg-pille:not(.voll) { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .9); }
   .hg-widget { padding: 18px 18px 16px; border-radius: 22px; gap: 6px; -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .84); }
   .hg-widget > b { font-size: 22px; }
+  @supports (font-size: 1cqi) { .hg-widget > b { font-size: clamp(16px, 8cqi, 22px); } }
   .hg-w-bild { width: 54px; height: 54px; }
   .hg-w-bild img { width: 46px; height: 46px; }
   /* Eine Zeile je Punkt (Regel: je Kachel eine Zeile) — einspaltig statt zwei umbrechender Spalten. */

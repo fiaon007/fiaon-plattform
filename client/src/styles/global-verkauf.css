@@ -4,202 +4,355 @@
    die Unterseiten. Bausteine: components/site/global/VerkaufProdukt.tsx, VerkaufKonfigurator.tsx.
 
    Stil (Justin 12.11.: „seriös, Kanzlei-Stil mit guten Animationen“, CI Glasblau, Apple-Glas): dünne Schrift, Haarlinien,
-   römische Ziffern, viel Luft. Die EINE dunkle Glasfläche der Seite ist der Konfigurator. Bewegung nur einmal beim
-   Hineinscrollen (data-an) und beim Bedienen — nichts hängt an der Scrollposition, der Grund hinter dem Glas steht still.
+   römische Ziffern, viel Luft. Die EINE dunkle Glasfläche der Seite ist der Konfigurator.
    Jede Regel beginnt mit .fg (zwei Klassen): global.css setzt Abstände mit :where() zurück.
+
+   FEINSCHLIFF 13.11.2026 (Justin: „achte auf die Formatierung, sodass alles clean aussieht, ein paar mehr Animationen“):
+   · Ein Raster: derselbe Abstand zwischen Kopf und Inhalt in allen drei Abschnitten (--vk-kopf-luft), Überschrift und
+     Text enden auf derselben Schriftlinie, vier Kantenradien (--vk-r-…), saubere Umbrüche (text-wrap, .fd-wort).
+   · Die große Zahl: Ziffern in natürlicher Breite (keine Lücke nach der 1), die Einheit klein und abgesetzt.
+   · Bewegung: bewegt wird nur transform und opacity (Ausnahmen, weil es anders nicht geht: die Höhe beim Aufklappen
+     über grid-template-rows und gezeichnete Linien über stroke-dashoffset). Jede Bewegung läuft einmal, wenn ihr Teil
+     ins Bild kommt, oder beim Bedienen — nichts hängt an der Scrollposition, der Grund hinter dem Glas steht still.
+     Ohne JavaScript, ohne Beobachter und bei „weniger Bewegung“ steht alles sofort im Endbild (data-an fehlt dann).
    ═══════════════════════════════════════════════════════════════════════════ */
 .fg .vk-nur-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Das Raster des Verkaufsmotors: Radien und der Abstand zwischen Kopf und Inhalt. */
+.fg { --vk-r-flaeche: clamp(26px, 3vw, 36px); --vk-r-karte: 28px; --vk-r-kachel: 20px; --vk-r-feld: 14px; --vk-kopf-luft: clamp(40px, 5.4vw, 80px); }
+/* Wörter mit Bindestrich („E-Mail“, „US-Dollar“, „Fast-Track“) bleiben zusammen (Wortbruch.tsx legt die Spanne darum). */
+.fg [class*="vk-"] .fd-wort { white-space: nowrap; }
 
 @keyframes vk-hoch { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+@keyframes vk-ein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes vk-linie { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes vk-linie-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes vk-zeichnen { to { stroke-dashoffset: 0; } }
-@keyframes vk-glanz { 0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; } 18% { opacity: .9; } 60%, 100% { transform: translateX(230%) skewX(-18deg); opacity: 0; } }
+@keyframes vk-glanz { 0% { transform: translateX(-130%) skewX(-18deg); opacity: 0; } 18% { opacity: .9; } 60%, 100% { transform: translateX(330%) skewX(-18deg); opacity: 0; } }
+@keyframes vk-auf { from { opacity: 0; transform: translateY(30px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes vk-ring { 0% { opacity: 0; transform: scale(1); } 12% { opacity: .85; } 100% { opacity: 0; transform: scale(1.9); } }
+@keyframes vk-schein { 0% { opacity: 0; } 28% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vk-roll-rein { from { opacity: 0; transform: translateY(var(--ry, .34em)); } to { opacity: 1; transform: none; } }
+@keyframes vk-roll-raus { from { opacity: 1; transform: none; visibility: visible; } to { opacity: 0; transform: translateY(calc(var(--ry, .34em) * -1)); visibility: visible; } }
+@keyframes vk-gleit-rein { from { opacity: 0; transform: translateX(var(--gx, 28px)); } to { opacity: 1; transform: none; } }
+@keyframes vk-gleit-raus { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(calc(var(--gx, 28px) * -1)); } }
+
+/* ── 0 DER KOPF DER DREI ABSCHNITTE ──────────────────────────────────────────
+   Überschrift links, Text rechts: beide enden auf derselben Schriftlinie (last baseline; ältere Browser: Unterkante).
+   Der Abstand zum Inhalt kommt vom Inhalt selbst (--vk-kopf-luft) — überall derselbe.
+   .fg-sek.vk-… (eine Klasse mehr): global-apple.css setzt mit gleichem Gewicht `html .fg.fg .fg-sek .fg-kopf { margin-bottom: 8px }`
+   und steht im Bündel NACH dieser Datei. */
+html .fg.fg .fg-sek.vk-produkt .fg-kopf, html .fg.fg .fg-sek.vk-ablauf .fg-kopf, html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf { align-items: end; align-items: last baseline; margin-bottom: 0; }
+html .fg.fg .fg-sek.vk-produkt .fg-kopf .fg-lead, html .fg.fg .fg-sek.vk-ablauf .fg-kopf .fg-lead, html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf .fg-lead { text-wrap: balance; }
+@media (max-width: 900px) {
+  html .fg.fg .fg-sek.vk-produkt .fg-kopf, html .fg.fg .fg-sek.vk-ablauf .fg-kopf, html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf { row-gap: 20px; }
+  html .fg.fg .fg-sek.vk-produkt .fg-kopf .fg-lead, html .fg.fg .fg-sek.vk-ablauf .fg-kopf .fg-lead, html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf .fg-lead { text-wrap: pretty; }
+}
 
 /* ── 1 DAS PRODUKT ───────────────────────────────────────────────────────── */
-.fg .vk-produkt-raster { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: clamp(32px, 5vw, 80px); align-items: start; margin-top: clamp(40px, 5vw, 72px); }
+.fg .vk-produkt-raster { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .8fr); gap: clamp(32px, 5vw, 80px); align-items: start; margin-top: var(--vk-kopf-luft); }
 .fg .vk-verzeichnis { list-style: none; margin: 0; padding: 0; counter-reset: none; }
 .fg .vk-verzeichnis > li { position: relative; }
 .fg .vk-verzeichnis > li::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--linie-2, rgba(18, 40, 74, .16)); transform-origin: left center; }
-.fg .vk-verzeichnis > li:last-child::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--linie-2, rgba(18, 40, 74, .16)); }
+.fg .vk-verzeichnis > li:last-child::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--linie-2, rgba(18, 40, 74, .16)); transform-origin: left center; }
 .fg .vk-verzeichnis > li > button { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 64px minmax(0, 1fr) 28px; align-items: baseline; gap: 0 12px; width: 100%; padding: 26px 4px 26px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .fg .vk-verzeichnis > li > button:focus-visible { outline: 2px solid #288dfa; outline-offset: 4px; border-radius: 10px; }
-.fg .vk-roemisch { font: 400 12px/1 var(--ap, system-ui); letter-spacing: .18em; color: #1d4ed8; padding-top: 6px; font-variant-numeric: tabular-nums; }
+.fg .vk-roemisch { font: 400 12px/1 var(--ap, system-ui); letter-spacing: .18em; color: #1d4ed8; padding-top: 6px; }
 .fg .vk-bereich-text { display: grid; gap: 6px; }
-.fg .vk-bereich-text b { font: 400 clamp(19px, 1.5vw, 23px)/1.25 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; transition: color .25s; }
-.fg .vk-bereich-text > span { font: 300 15.5px/1.55 var(--ap, system-ui); color: #5b6679; max-width: 56ch; }
+.fg .vk-bereich-text b { font: 400 clamp(19px, 1.5vw, 23px)/1.25 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; }
+.fg .vk-bereich-text > span { font: 300 15.5px/1.55 var(--ap, system-ui); color: #5b6679; max-width: 56ch; text-wrap: pretty; }
 .fg .vk-verzeichnis > li > button:hover .vk-bereich-text b, .fg .vk-verzeichnis > li.auf .vk-bereich-text b { color: #1d4ed8; }
-.fg .vk-plus { position: relative; width: 28px; height: 28px; align-self: center; border-radius: 50%; border: 1px solid var(--linie-2, rgba(18, 40, 74, .16)); transition: background .3s, border-color .3s, transform .5s var(--kurve, ease); }
-.fg .vk-plus::before, .fg .vk-plus::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 1.4px; margin: -.7px 0 0 -5px; background: #12284a; border-radius: 2px; transition: transform .45s var(--kurve, ease), background .3s; }
+/* Das Plus: Der blaue Grund liegt als eigene Schicht darunter und blendet ein (nur opacity), die Striche drehen sich. */
+.fg .vk-plus { position: relative; width: 28px; height: 28px; align-self: center; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--linie-2, rgba(18, 40, 74, .16)); color: #12284a; transition: transform .5s var(--kurve, ease); }
+.fg .vk-plus i { position: absolute; inset: 0; border-radius: 50%; background: #1d4ed8; opacity: 0; transform: scale(.6); transition: opacity .3s ease, transform .45s var(--feder, ease); }
+.fg .vk-plus::before, .fg .vk-plus::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 1.4px; margin: -.7px 0 0 -5px; background: currentColor; border-radius: 2px; transition: transform .45s var(--kurve, ease); }
 .fg .vk-plus::after { transform: rotate(90deg); }
-.fg .vk-verzeichnis > li.auf .vk-plus { background: #1d4ed8; border-color: #1d4ed8; transform: rotate(180deg); }
-.fg .vk-verzeichnis > li.auf .vk-plus::before, .fg .vk-verzeichnis > li.auf .vk-plus::after { background: #fff; }
+.fg .vk-verzeichnis > li.auf .vk-plus { color: #fff; transform: rotate(180deg); }
+.fg .vk-verzeichnis > li.auf .vk-plus i { opacity: 1; transform: none; }
 .fg .vk-verzeichnis > li.auf .vk-plus::after { transform: rotate(0deg); }
-.fg .vk-bereich-mehr { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .55s var(--kurve, ease); }
+@media (hover: hover) and (pointer: fine) { .fg .vk-verzeichnis > li:not(.auf) > button:hover .vk-plus { transform: rotate(90deg); } }
+/* Aufklappen: Die Höhe gleitet (0fr → 1fr), der Inhalt blendet nach — nichts springt. Der Innenabstand steht fest in der Liste. */
+.fg .vk-bereich-mehr { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .6s var(--kurve, ease); }
 .fg .vk-verzeichnis > li.auf .vk-bereich-mehr { grid-template-rows: 1fr; }
-.fg .vk-bereich-mehr > ul { overflow: hidden; min-height: 0; list-style: none; margin: 0; padding: 0 40px 0 76px; display: grid; gap: 10px; opacity: 0; transition: opacity .4s .05s, padding .55s var(--kurve, ease); }
-.fg .vk-verzeichnis > li.auf .vk-bereich-mehr > ul { opacity: 1; padding-bottom: 28px; }
-.fg .vk-bereich-mehr li { position: relative; padding-left: 20px; font: 300 15px/1.55 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-bereich-mehr > div { overflow: hidden; min-height: 0; }
+.fg .vk-bereich-mehr ul { list-style: none; margin: 0; padding: 0 40px 28px 76px; display: grid; gap: 10px; opacity: 0; transform: translateY(-6px); transition: opacity .3s ease, transform .5s var(--kurve, ease); }
+.fg .vk-verzeichnis > li.auf .vk-bereich-mehr ul { opacity: 1; transform: none; transition: opacity .5s ease .12s, transform .6s var(--kurve, ease) .08s; }
+.fg .vk-bereich-mehr li { position: relative; padding-left: 20px; font: 300 15px/1.55 var(--ap, system-ui); color: #3b4658; text-wrap: pretty; }
 .fg .vk-bereich-mehr li::before { content: ""; position: absolute; left: 0; top: .72em; width: 9px; height: 1px; background: #288dfa; }
 
-.fg .vk-urkunde { position: sticky; top: 108px; overflow: hidden; padding: clamp(28px, 3vw, 40px); border-radius: 30px; background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), 0 1px 2px rgba(18, 40, 74, .04), 0 40px 80px -48px rgba(18, 40, 74, .5); -webkit-backdrop-filter: var(--glas-blur, blur(24px)); backdrop-filter: var(--glas-blur, blur(24px)); }
+.fg .vk-urkunde { position: sticky; top: 108px; overflow: hidden; padding: clamp(28px, 3vw, 40px); border-radius: var(--vk-r-karte); background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), 0 1px 2px rgba(18, 40, 74, .04), 0 40px 80px -48px rgba(18, 40, 74, .5); -webkit-backdrop-filter: var(--glas-blur, blur(24px)); backdrop-filter: var(--glas-blur, blur(24px)); }
 .fg .vk-urkunde-glanz { position: absolute; inset: 0 auto 0 0; width: 42%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .85), transparent); opacity: 0; pointer-events: none; }
 .fg .vk-urkunde-auge { font: 500 11px/1 var(--ap, system-ui); letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
-.fg .vk-urkunde-name { margin-top: 14px; font: 300 clamp(21px, 1.7vw, 26px)/1.25 var(--ap, system-ui); letter-spacing: -.016em; color: #12284a; }
+.fg .vk-urkunde-name { margin-top: 14px; font: 300 clamp(21px, 1.7vw, 26px)/1.25 var(--ap, system-ui); letter-spacing: -.016em; color: #12284a; text-wrap: balance; }
 .fg .vk-urkunde-label { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .18em; text-transform: uppercase; color: #5b6679; }
-.fg .vk-urkunde-preis { margin-top: 10px; font: 200 clamp(56px, 5.6vw, 84px)/1 var(--ap, system-ui); letter-spacing: -.045em; font-variant-numeric: tabular-nums; color: #12284a; background: linear-gradient(180deg, #12284a 20%, #1d4ed8 130%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap; }
-.fg .vk-urkunde-satz { margin-top: 12px; font: 300 15px/1.5 var(--ap, system-ui); color: #3b4658; }
+.fg .vk-urkunde-preis { margin-top: 10px; font: 200 clamp(56px, 5.6vw, 84px)/1 var(--ap, system-ui); letter-spacing: -.034em; font-variant-numeric: lining-nums proportional-nums; color: #12284a; background: linear-gradient(180deg, #12284a 20%, #1d4ed8 130%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap; }
+.fg .vk-urkunde-satz { margin-top: 12px; font: 300 15px/1.5 var(--ap, system-ui); color: #3b4658; text-wrap: balance; }
 .fg .vk-urkunde .fg-knopf { margin-top: 28px; width: 100%; justify-content: center; }
-.fg .vk-urkunde-fein { margin-top: 20px; font: 300 12.5px/1.6 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-urkunde-fein { margin-top: 20px; font: 300 12.5px/1.6 var(--ap, system-ui); color: #6b7688; text-wrap: pretty; }
 
-.fg .vk-produkt[data-an="0"] .vk-verzeichnis > li { opacity: 0; }
-.fg .vk-produkt[data-an="0"] .vk-verzeichnis > li::before, .fg .vk-produkt[data-an="0"] .vk-verzeichnis > li:last-child::after { transform: scaleX(0); }
+/* Auftritt: Jede Zeile kommt für sich, sobald SIE ins Bild rückt (VerkaufProdukt.tsx setzt data-an je Zeile und --d als Staffel
+   für Zeilen, die zugleich erscheinen) — ihre Haarlinie zeichnet sich von links, die Zeile gleitet nach. */
+.fg .vk-verzeichnis > li[data-an="0"] { opacity: 0; }
+.fg .vk-verzeichnis > li[data-an="0"]::before, .fg .vk-verzeichnis > li[data-an="0"]:last-child::after { transform: scaleX(0); }
+.fg .vk-verzeichnis > li[data-an="1"] { animation: vk-hoch .9s var(--kurve, ease) backwards; animation-delay: calc(var(--d, 0) * 80ms + 80ms); }
+.fg .vk-verzeichnis > li[data-an="1"]::before { animation: vk-linie 1.1s var(--kurve, ease) backwards; animation-delay: calc(var(--d, 0) * 80ms); }
+.fg .vk-verzeichnis > li[data-an="1"]:last-child::after { animation: vk-linie 1.1s var(--kurve, ease) backwards; animation-delay: calc(var(--d, 0) * 80ms + 260ms); }
 .fg .vk-produkt[data-an="0"] .vk-urkunde { opacity: 0; }
-.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li { animation: vk-hoch .9s var(--kurve, ease) both; animation-delay: calc(var(--i) * 80ms + 80ms); }
-.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li::before { animation: vk-linie 1.1s var(--kurve, ease) both; animation-delay: calc(var(--i) * 80ms); }
-.fg .vk-produkt[data-an="1"] .vk-verzeichnis > li:last-child::after { transform-origin: left center; animation: vk-linie 1.1s var(--kurve, ease) both; animation-delay: 700ms; }
 .fg .vk-produkt[data-an="1"] .vk-urkunde { animation: vk-hoch 1s var(--kurve, ease) .25s both; }
 .fg .vk-produkt[data-an="1"] .vk-urkunde-glanz { animation: vk-glanz 2.6s ease-out 1.1s both; }
+.fg .vk-produkt[data-an="0"] .vk-urkunde > :not(.vk-urkunde-glanz) { opacity: 0; }
+.fg .vk-produkt[data-an="1"] .vk-urkunde > :not(.vk-urkunde-glanz) { animation: vk-ein .8s var(--kurve, ease) backwards; animation-delay: calc(var(--i, 0) * 70ms + 450ms); }
 
-/* ── 2 DER ABLAUF ────────────────────────────────────────────────────────── */
-.fg .vk-schritte { position: relative; list-style: none; margin: clamp(40px, 5vw, 72px) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); }
+/* ── 2 DER ABLAUF ──────────────────────────────────────────────────────────
+   Die Linie zieht sich einmal von Schritt 1 nach rechts; jede Nummer leuchtet kurz auf, wenn die Linie sie erreicht
+   (ein Ring löst sich, ein Schein vergeht), ihr Text gleitet nach. Am Handy stehen die Schritte untereinander: Dort
+   kommt jeder Schritt, sobald er selbst ins Bild rückt, und zieht seine Linie zum nächsten. */
+.fg .vk-schritte { position: relative; list-style: none; margin: var(--vk-kopf-luft) 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); }
 .fg .vk-schritte::before { content: ""; position: absolute; left: 22px; right: 22px; top: 22px; height: 1px; background: linear-gradient(90deg, #288dfa, rgba(40, 141, 250, .25)); transform-origin: left center; }
 .fg .vk-schritte > li { position: relative; }
 .fg .vk-schritt-nr { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font: 300 17px/1 var(--ap, system-ui); color: #1d4ed8; background: #fff; border: 1px solid rgba(40, 141, 250, .45); box-shadow: 0 10px 24px -14px rgba(29, 78, 216, .6), inset 0 1px 0 #fff; font-variant-numeric: tabular-nums; }
-.fg .vk-schritte h3 { margin-top: 26px; font: 400 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; }
-.fg .vk-schritte p { margin-top: 10px; font: 300 15px/1.6 var(--ap, system-ui); color: #5b6679; max-width: 34ch; }
-.fg .vk-ablauf[data-an="0"] .vk-schritte > li { opacity: 0; }
-.fg .vk-ablauf[data-an="0"] .vk-schritte::before { transform: scaleX(0); }
-.fg .vk-ablauf[data-an="1"] .vk-schritte::before { animation: vk-linie 1.6s var(--kurve, ease) .1s both; }
-.fg .vk-ablauf[data-an="1"] .vk-schritte > li { animation: vk-hoch .9s var(--kurve, ease) both; animation-delay: calc(var(--i) * 160ms + 150ms); }
+.fg .vk-schritt-nr::before { content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid #288dfa; opacity: 0; pointer-events: none; }
+.fg .vk-schritt-nr::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; background: radial-gradient(closest-side, rgba(40, 141, 250, .34), rgba(40, 141, 250, 0)); opacity: 0; pointer-events: none; }
+.fg .vk-schritte h3 { margin-top: 26px; font: 400 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; text-wrap: balance; }
+.fg .vk-schritte p { margin-top: 10px; font: 300 15px/1.6 var(--ap, system-ui); color: #5b6679; max-width: 34ch; text-wrap: balance; }
+.fg .vk-schritte[data-an="0"]::before { transform: scaleX(0); }
+.fg .vk-schritte[data-an="1"]::before { animation: vk-linie 2s cubic-bezier(.4, .1, .3, 1) .1s backwards; }
+.fg .vk-schritte > li[data-an="0"] { opacity: 0; }
+.fg .vk-schritte > li[data-an="1"] { animation: vk-hoch .9s var(--kurve, ease) backwards; animation-delay: calc(var(--d, 0) * 420ms + 120ms); }
+.fg .vk-schritte > li[data-an="1"] .vk-schritt-nr::before { animation: vk-ring 1.3s var(--kurve, ease) backwards; animation-delay: calc(var(--d, 0) * 420ms + 380ms); }
+.fg .vk-schritte > li[data-an="1"] .vk-schritt-nr::after { animation: vk-schein 1.5s ease-out backwards; animation-delay: calc(var(--d, 0) * 420ms + 380ms); }
 
 /* ── 3 DER KONFIGURATOR — die eine dunkle Glasfläche ─────────────────────── */
-.fg .vk-konfig { scroll-margin-top: 108px; }
-.fg .vk-flaeche { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: clamp(28px, 4vw, 64px); align-items: start; padding: clamp(22px, 4vw, 60px); border-radius: clamp(26px, 3vw, 40px); color: #eaf2ff;
+.fg .vk-konfig { scroll-margin-top: 108px; margin-top: var(--vk-kopf-luft); }
+.fg .vk-flaeche { position: relative; isolation: isolate; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(320px, .88fr); gap: clamp(28px, 4vw, 64px); align-items: stretch; padding: clamp(22px, 4vw, 60px); border-radius: var(--vk-r-flaeche); color: #eaf2ff;
   background: radial-gradient(120% 130% at 0% 0%, #1d3f73 0%, #12284a 44%, #0b1c36 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 2px 4px rgba(11, 28, 54, .2), 0 60px 110px -60px rgba(11, 28, 54, .85); }
 .fg .vk-licht { position: absolute; z-index: -1; right: -18%; top: -40%; width: 70%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(closest-side, rgba(58, 139, 255, .38), rgba(58, 139, 255, 0)); pointer-events: none; }
+.fg .vk-wahl { display: flex; flex-direction: column; min-width: 0; container: vk-wahl / inline-size; }
+.fg .vk-konfig[data-schritt="fertig"] .vk-wahl { justify-content: center; }
 .fg .vk-block + .vk-block { margin-top: clamp(32px, 4vw, 52px); padding-top: clamp(28px, 3.4vw, 44px); border-top: 1px solid rgba(255, 255, 255, .12); }
-.fg .vk-nr { display: flex; align-items: center; gap: 14px; font: 300 clamp(21px, 1.8vw, 27px)/1.2 var(--ap, system-ui); letter-spacing: -.016em; color: #fff; }
+.fg .vk-nr { display: flex; align-items: center; gap: 14px; font: 300 clamp(21px, 1.8vw, 27px)/1.2 var(--ap, system-ui); letter-spacing: -.016em; color: #fff; text-wrap: balance; }
 .fg .vk-nr i { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font: 400 13px/1 var(--ap, system-ui); font-style: normal; color: #cfe2ff; border: 1px solid rgba(160, 200, 255, .5); font-variant-numeric: tabular-nums; }
-.fg .vk-sub { margin-top: 10px; font: 300 15px/1.55 var(--ap, system-ui); color: rgba(234, 242, 255, .7); max-width: 52ch; }
+.fg .vk-sub { margin-top: 10px; font: 300 15px/1.55 var(--ap, system-ui); color: rgba(234, 242, 255, .7); max-width: 54ch; text-wrap: pretty; }
 
+/* Die Kacheln: Der gewählte Zustand liegt als eigene Schicht über dem Grund und blendet ein (nur opacity), der Haken
+   zeichnet sich, ein Schein zieht einmal über die Kachel. */
 .fg .vk-chips { margin-top: 22px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.fg .vk-chip { all: unset; box-sizing: border-box; position: relative; display: grid; gap: 6px; align-content: start; min-height: 112px; padding: 18px 44px 16px 18px; border-radius: 20px; cursor: pointer; background: rgba(255, 255, 255, .055); border: 1px solid rgba(255, 255, 255, .13); transition: background .3s, border-color .3s, transform .35s var(--kurve, ease), box-shadow .3s; -webkit-tap-highlight-color: transparent; }
-.fg .vk-chip:hover { background: rgba(255, 255, 255, .09); transform: translateY(-2px); }
+.fg .vk-chip { all: unset; box-sizing: border-box; position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 6px; min-height: 116px; padding: 18px 18px 16px; border-radius: var(--vk-r-kachel); cursor: pointer; background: rgba(255, 255, 255, .055); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13); transition: transform .4s var(--kurve, ease); -webkit-tap-highlight-color: transparent; }
+.fg .vk-chip::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: linear-gradient(180deg, rgba(58, 139, 255, .3), rgba(58, 139, 255, .12)); box-shadow: inset 0 0 0 1px rgba(140, 190, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .22); opacity: 0; transition: opacity .4s var(--kurve, ease); pointer-events: none; }
+.fg .vk-chip::after { content: ""; position: absolute; inset: 0; z-index: -2; border-radius: inherit; box-shadow: 0 18px 34px -22px rgba(58, 139, 255, .95); opacity: 0; transition: opacity .5s var(--kurve, ease); pointer-events: none; }
+.fg .vk-chip.an::before, .fg .vk-chip.an::after { opacity: 1; }
+/* Schmale linke Spalte (Laptop um 1000 px): eine Kachel je Zeile — sonst lief „Unternehmensberatung“ unter den Haken. */
+@container vk-wahl (max-width: 520px) { .fg .vk-chips { grid-template-columns: minmax(0, 1fr); gap: 10px; } .fg .vk-chip { min-height: 0; } }
+@media (hover: hover) and (pointer: fine) { .fg .vk-chip:hover { transform: translateY(-2px); } }
+.fg .vk-chip:active { transform: scale(.985); }
 .fg .vk-chip:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; }
-.fg .vk-chip.an { background: linear-gradient(180deg, rgba(58, 139, 255, .26), rgba(58, 139, 255, .12)); border-color: rgba(140, 190, 255, .75); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2), 0 18px 34px -24px rgba(58, 139, 255, .9); }
-.fg .vk-chip b { font: 400 16.5px/1.25 var(--ap, system-ui); color: #fff; letter-spacing: -.006em; }
-.fg .vk-chip > span:not(.vk-chip-haken) { font: 300 13.5px/1.45 var(--ap, system-ui); color: rgba(234, 242, 255, .72); }
-.fg .vk-chip em { margin-top: 4px; font: 500 10px/1.3 var(--ap, system-ui); font-style: normal; letter-spacing: .15em; text-transform: uppercase; color: #9cc4ff; }
-.fg .vk-chip-haken { position: absolute; right: 14px; top: 14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28); color: transparent; transition: background .3s, border-color .3s, color .2s, transform .45s var(--feder, ease); }
-.fg .vk-chip.an .vk-chip-haken { background: #fff; border-color: #fff; color: #1d4ed8; transform: scale(1.08); }
+.fg .vk-chip b { padding-right: 34px; font: 400 16.5px/1.25 var(--ap, system-ui); color: #fff; letter-spacing: -.006em; }
+.fg .vk-chip-zeile { padding-right: 20px; font: 300 13.5px/1.45 var(--ap, system-ui); color: rgba(234, 242, 255, .72); text-wrap: pretty; }
+.fg .vk-chip em { margin-top: auto; padding-top: 6px; font: 500 10px/1.3 var(--ap, system-ui); font-style: normal; letter-spacing: .15em; text-transform: uppercase; color: #9cc4ff; }
+.fg .vk-chip-haken { position: absolute; right: 14px; top: 14px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28); color: #1d4ed8; }
+.fg .vk-chip-haken::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #fff; opacity: 0; transform: scale(.4); transition: opacity .2s ease, transform .3s ease; }
+.fg .vk-chip.an .vk-chip-haken::before { opacity: 1; transform: none; transition: opacity .25s ease, transform .5s var(--feder, ease); }
+.fg .vk-chip-haken svg { position: relative; }
+.fg .vk-chip-haken path { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .15s ease; }
+.fg .vk-chip.an .vk-chip-haken path { stroke-dashoffset: 0; transition: stroke-dashoffset .38s var(--kurve, ease) .14s; }
+.fg .vk-chip-schein { position: absolute; inset: 0; z-index: -1; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.fg .vk-chip-schein::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 36%; background: linear-gradient(90deg, transparent, rgba(190, 220, 255, .28), transparent); opacity: 0; transform: translateX(-130%) skewX(-18deg); }
+.fg .vk-chip.an .vk-chip-schein::before { animation: vk-glanz 1.2s ease-out .05s both; }
 
+.fg .vk-rahmen { transition: opacity .45s var(--kurve, ease); }
 .fg .vk-rahmen.aus { opacity: .38; }
-.fg .vk-zahl { margin-top: 24px; display: grid; gap: 8px; }
-.fg .vk-zahl-wert { font: 200 clamp(42px, 5.2vw, 76px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: #fff; white-space: nowrap; }
-.fg .vk-zahl-euro { font: 300 15px/1.4 var(--ap, system-ui); color: rgba(234, 242, 255, .68); font-variant-numeric: tabular-nums; }
-.fg .vk-regler { margin-top: 26px; }
-.fg .vk-regler input[type="range"] { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; touch-action: pan-y; }
-.fg .vk-regler input[type="range"]:disabled { cursor: default; }
-.fg .vk-regler input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #7db4ff 0%, #3a8bff calc(var(--f) * 100%), rgba(255, 255, 255, .16) calc(var(--f) * 100%)); }
-.fg .vk-regler input[type="range"]::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .16); }
-.fg .vk-regler input[type="range"]::-moz-range-progress { height: 4px; border-radius: 4px; background: linear-gradient(90deg, #7db4ff, #3a8bff); }
-.fg .vk-regler input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 30px; margin-top: -13px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); transition: box-shadow .25s, transform .25s var(--kurve, ease); }
-.fg .vk-regler input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 6px rgba(58, 139, 255, .28), 0 8px 18px -6px rgba(0, 0, 0, .55); }
-.fg .vk-regler input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(58, 139, 255, .3), 0 8px 18px -6px rgba(0, 0, 0, .55); }
-.fg .vk-regler input[type="range"]:focus-visible { outline: none; }
-.fg .vk-regler input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px #12284a, 0 0 0 6px #9cc4ff, 0 8px 18px -6px rgba(0, 0, 0, .55); }
-.fg .vk-regler input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px #12284a, 0 0 0 6px #9cc4ff, 0 8px 18px -6px rgba(0, 0, 0, .55); }
-.fg .vk-skala { display: flex; justify-content: space-between; margin-top: 4px; font: 400 11px/1 var(--ap, system-ui); letter-spacing: .12em; color: rgba(234, 242, 255, .5); font-variant-numeric: tabular-nums; }
-.fg .vk-fein { margin-top: 18px; font: 300 12.5px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .58); max-width: 60ch; }
-.fg .vk-fein a { color: #cfe2ff; text-decoration: underline; text-underline-offset: 3px; }
+/* Die große Zahl: Ziffern in natürlicher Breite (mit Tabellenziffern stand nach der 1 eine Lücke), die Einheit klein,
+   abgesetzt und auf der Schriftlinie. Jede Ziffer, die sich ändert, rollt für sich zum neuen Wert (RollZahl). */
+.fg .vk-zahl { margin-top: 26px; display: grid; gap: 12px; }
+.fg .vk-zahl-wert { display: flex; align-items: baseline; gap: .15em; min-height: 1em; font: 200 clamp(44px, 5.4vw, 80px)/1 var(--ap, system-ui); letter-spacing: -.035em; font-variant-numeric: lining-nums proportional-nums; color: #fff; white-space: nowrap; }
+.fg .vk-zahl-einheit { font: 400 .3em/1 var(--ap, system-ui); letter-spacing: .05em; color: rgba(234, 242, 255, .74); }
+.fg .vk-zahl-euro { min-height: 1.4em; font: 300 15px/1.4 var(--ap, system-ui); color: rgba(234, 242, 255, .68); font-variant-numeric: tabular-nums; }
+.fg .vk-zahl-euro > span { display: inline-block; animation: vk-ein .5s var(--kurve, ease) backwards; }
+.fg .vk-roll { display: inline-block; white-space: pre; }
+.fg .vk-roll-platz { position: relative; display: inline-block; }
+.fg .vk-roll-platz > span { display: inline-block; }
+/* Das alte Zeichen ist nur während seines Hinausgleitens sichtbar — danach ist es auch für Kopieren und Auslesen weg (visibility). */
+.fg .vk-roll-raus { position: absolute; left: 0; top: 0; opacity: 0; visibility: hidden; pointer-events: none; }
+.fg .vk-roll-platz[data-r="runter"] { --ry: -.34em; }
+.fg .vk-roll-platz[data-r] > .vk-roll-rein { animation: vk-roll-rein .52s var(--kurve, ease) backwards; animation-delay: calc(var(--s, 0) * 18ms); }
+.fg .vk-roll-platz[data-r] > .vk-roll-raus { animation: vk-roll-raus .3s ease-in backwards; animation-delay: calc(var(--s, 0) * 18ms); }
 
-/* Das Preisblatt — ein helles Blatt auf dem dunklen Glas */
-.fg .vk-blatt { position: relative; padding: clamp(24px, 2.6vw, 36px); border-radius: 26px; color: #12284a; background: linear-gradient(180deg, #fff 0%, #f4f8ff 100%); box-shadow: inset 0 1px 0 #fff, 0 30px 60px -34px rgba(0, 0, 0, .7); }
+/* Der Regler: Darunter liegt der echte Schieberegler (unsichtbar, 44 px hoch — Tastatur, Screenreader und Finger bedienen
+   ihn wie jeden anderen). Gezeichnet werden Spur, Füllung und Daumen daneben; sie gleiten per transform zum neuen Punkt. */
+.fg .vk-regler { position: relative; margin-top: 26px; }
+.fg .vk-regler input[type="range"] { -webkit-appearance: none; appearance: none; position: relative; z-index: 1; display: block; width: 100%; height: 44px; margin: 0; background: transparent; opacity: 0; cursor: pointer; touch-action: pan-y; }
+.fg .vk-regler input[type="range"]:disabled { cursor: default; }
+.fg .vk-regler input[type="range"]::-webkit-slider-runnable-track { height: 44px; background: transparent; }
+.fg .vk-regler input[type="range"]::-moz-range-track { height: 44px; background: transparent; }
+.fg .vk-regler input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 30px; height: 44px; border: 0; background: transparent; }
+.fg .vk-regler input[type="range"]::-moz-range-thumb { width: 30px; height: 44px; border: 0; background: transparent; }
+.fg .vk-regler-bild { position: absolute; left: 0; right: 0; top: 0; height: 44px; pointer-events: none; }
+.fg .vk-regler-bild::before { content: ""; position: absolute; left: 0; right: 0; top: 20px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, .16); }
+.fg .vk-regler-bild::after { content: ""; position: absolute; left: 0; top: 20px; width: 16px; height: 4px; border-radius: 4px 0 0 4px; background: #7db4ff; }
+.fg .vk-regler-fuell { position: absolute; left: 15px; right: 15px; top: 20px; height: 4px; background: linear-gradient(90deg, #7db4ff, #3a8bff); transform-origin: 0 50%; transform: scaleX(var(--f, 0)); transition: transform .32s var(--kurve, ease); }
+.fg .vk-regler-schlitten { position: absolute; left: 15px; right: 15px; top: 0; height: 44px; transform: translateX(calc(var(--f, 0) * 100%)); transition: transform .32s var(--kurve, ease); }
+.fg .vk-regler-daumen { position: absolute; left: -15px; top: 7px; width: 30px; height: 30px; border-radius: 50%; background: #fff; box-shadow: 0 8px 18px -6px rgba(0, 0, 0, .55); transition: transform .35s var(--feder, ease); }
+.fg .vk-regler-daumen::before { content: ""; position: absolute; inset: -6px; z-index: -1; border-radius: 50%; background: rgba(58, 139, 255, .3); transition: transform .4s var(--feder, ease); }
+.fg .vk-regler-daumen::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; box-shadow: 0 0 0 2px #12284a, 0 0 0 4px #9cc4ff; opacity: 0; transition: opacity .2s ease; }
+.fg .vk-regler input[type="range"]:active ~ .vk-regler-bild .vk-regler-schlitten, .fg .vk-regler input[type="range"]:active ~ .vk-regler-bild .vk-regler-fuell { transition-duration: .16s; }
+.fg .vk-regler input[type="range"]:active ~ .vk-regler-bild .vk-regler-daumen { transform: scale(1.08); }
+.fg .vk-regler input[type="range"]:active ~ .vk-regler-bild .vk-regler-daumen::before { transform: scale(1.3); }
+@media (hover: hover) and (pointer: fine) { .fg .vk-regler input[type="range"]:not(:disabled):hover ~ .vk-regler-bild .vk-regler-daumen::before { transform: scale(1.16); } }
+.fg .vk-regler input[type="range"]:focus-visible { outline: none; }
+.fg .vk-regler input[type="range"]:focus-visible ~ .vk-regler-bild .vk-regler-daumen::after { opacity: 1; }
+.fg .vk-skala { display: flex; justify-content: space-between; margin-top: 4px; font: 400 11px/1 var(--ap, system-ui); letter-spacing: .12em; color: rgba(234, 242, 255, .5); font-variant-numeric: tabular-nums; }
+.fg .vk-fein { margin-top: 18px; font: 300 12.5px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .58); max-width: 60ch; text-wrap: pretty; }
+.fg .vk-fein a { color: #cfe2ff; text-decoration: underline; text-underline-offset: 3px; }
+.fg .vk-fein a:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; border-radius: 4px; }
+
+/* Das Preisblatt — ein helles Blatt auf dem dunklen Glas. Es ist so hoch wie die linke Spalte; seine drei Lagen (Preis,
+   Miami, ohne Kapital) liegen übereinander im selben Feld: Beim Wechsel blendet eine in die andere, das Blatt behält
+   seine Höhe und der Knopf seinen Platz. */
+.fg .vk-blatt { position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: clamp(24px, 2.6vw, 36px); border-radius: var(--vk-r-karte); color: #12284a; background: linear-gradient(180deg, #fff 0%, #f4f8ff 100%); box-shadow: inset 0 1px 0 #fff, 0 30px 60px -34px rgba(0, 0, 0, .7); }
 .fg .vk-blatt-auge { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
-.fg .vk-blatt-name { margin-top: 12px; font: 300 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; }
-.fg .vk-zeilen { margin: 22px 0 0; display: grid; }
+.fg .vk-blatt-name { margin-top: 12px; font: 300 19px/1.3 var(--ap, system-ui); letter-spacing: -.012em; color: #12284a; text-wrap: balance; }
+.fg .vk-stapel { position: relative; flex: 1 1 auto; display: grid; margin-top: 22px; }
+.fg .vk-lage { grid-area: 1 / 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 22px; opacity: 0; visibility: hidden; transform: translateY(8px); transition: opacity .28s ease, transform .5s var(--kurve, ease), visibility 0s linear .28s; }
+.fg .vk-lage[data-an="1"] { opacity: 1; visibility: visible; transform: none; transition: opacity .5s var(--kurve, ease) .14s, transform .6s var(--kurve, ease) .14s, visibility 0s; }
+.fg .vk-zeilen { margin: 0; display: grid; }
 .fg .vk-zeilen > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 16px 0; border-top: 1px solid rgba(18, 40, 74, .1); }
 .fg .vk-zeilen dt { font: 400 15px/1.3 var(--ap, system-ui); color: #12284a; }
-.fg .vk-zeilen dt small { display: block; margin-top: 4px; font: 300 12.5px/1.4 var(--ap, system-ui); color: #6b7688; }
-.fg .vk-zeilen dd { margin: 0; font: 300 23px/1 var(--ap, system-ui); letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; color: #12284a; }
+.fg .vk-zeilen dt small { display: block; margin-top: 4px; font: 300 12.5px/1.4 var(--ap, system-ui); color: #6b7688; text-wrap: balance; }
+/* Tabellenziffern und eine feste Mindestbreite: Die Beträge stehen bündig, und der Text links bricht nie neu um, wenn eine Zahl wächst. */
+.fg .vk-zeilen dd { flex: none; min-width: 6.9ch; margin: 0; text-align: right; font: 300 23px/1 var(--ap, system-ui); letter-spacing: -.02em; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; color: #12284a; }
 .fg .vk-zeilen .summe { border-top-color: rgba(18, 40, 74, .32); }
 .fg .vk-zeilen .summe dt { font-weight: 500; }
 .fg .vk-zeilen .summe dd { font: 300 30px/1 var(--ap, system-ui); letter-spacing: -.03em; color: #1d4ed8; }
 .fg .vk-zeilen .leise dt, .fg .vk-zeilen .leise dd { color: #5b6679; }
 .fg .vk-zeilen .leise dd { font-size: 18px; }
-.fg .vk-blatt-fein { margin-top: 14px; font: 300 13.5px/1.55 var(--ap, system-ui); color: #5b6679; }
-.fg .vk-weg { margin-top: 22px; padding-top: 20px; border-top: 1px solid rgba(18, 40, 74, .1); }
-.fg .vk-weg h3 { font: 300 26px/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; }
-.fg .vk-weg p { margin-top: 12px; font: 300 15px/1.6 var(--ap, system-ui); color: #3b4658; }
-.fg .vk-blatt-liste { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 8px; }
-.fg .vk-blatt-liste li { position: relative; padding-left: 16px; font: 300 12.5px/1.55 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-blatt-fein { margin-top: 14px; font: 300 13.5px/1.55 var(--ap, system-ui); color: #5b6679; text-wrap: pretty; }
+.fg .vk-blatt-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fg .vk-blatt-liste li { position: relative; padding-left: 16px; font: 300 12.5px/1.55 var(--ap, system-ui); color: #6b7688; text-wrap: pretty; }
 .fg .vk-blatt-liste li::before { content: ""; position: absolute; left: 0; top: .7em; width: 7px; height: 1px; background: #288dfa; }
+/* Die beiden persönlichen Lagen („Persönlich in Miami“, ohne Kapital): Wo sonst die Zahlen stehen, zeichnen sich feine Bögen —
+   das Blatt bleibt gefüllt und gleich hoch. In Miami stehen sie über dem Satz, ohne Kapital unter den zwei Zeilen. */
+.fg .vk-lage-miami { justify-content: flex-end; gap: 0; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-lage-ohne { gap: 0; }
+.fg .vk-lage-ohne .vk-blatt-liste { margin-top: 14px; }
+.fg .vk-boegen { position: relative; flex: 1 1 auto; min-height: 120px; margin: 0 calc(clamp(24px, 2.6vw, 36px) * -1); overflow: hidden; }
+/* Sieben Kreise um die untere rechte Ecke, je 56 px weiter; nach außen werden sie leiser. Sie wachsen aus der Ecke (Übergang,
+   kein Ablauf: Der Endzustand ist der Stil selbst und steht auch, wenn das Feld beim Wechsel außerhalb des Bildes lag). */
+.fg .vk-boegen i { --r: calc(var(--i, 0) * 56px + 84px); position: absolute; right: calc(var(--r) * -1); bottom: calc(var(--r) * -1); width: calc(var(--r) * 2); height: calc(var(--r) * 2); box-sizing: border-box; border-radius: 50%; border: 1px solid #288dfa; opacity: 0; transform: scale(.88); transition: opacity .25s ease, transform 0s linear .25s; }
+.fg .vk-lage[data-an="1"] .vk-boegen i { opacity: calc(.56 - var(--i, 0) * .07); transform: none; transition: opacity 1s var(--kurve, ease) calc(var(--i, 0) * 90ms + 260ms), transform 1.4s var(--kurve, ease) calc(var(--i, 0) * 90ms + 260ms); }
+.fg .vk-lage-ohne .vk-boegen { min-height: 0; margin-top: 8px; }
+.fg .vk-weg { padding-top: 4px; }
+.fg .vk-weg h3 { font: 300 clamp(26px, 2.2vw, 32px)/1.15 var(--ap, system-ui); letter-spacing: -.022em; color: #12284a; text-wrap: balance; }
+.fg .vk-weg p { margin-top: 12px; font: 300 15px/1.6 var(--ap, system-ui); color: #3b4658; text-wrap: pretty; }
 /* Die eine Frage unter dem Preisblatt („Was steht in meinem Angebot?“): Die Antwort gleitet beim Öffnen einmal herein. */
-.fg .vk-blatt-frage { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(18, 40, 74, .1); }
-.fg .vk-blatt-frage summary { cursor: pointer; font: 400 13px/1.4 var(--ap, system-ui); color: #1d4ed8; list-style: none; border-radius: 6px; }
+.fg .vk-blatt-fuss { display: flex; flex-direction: column; min-height: 53px; }
+.fg .vk-blatt-frage { margin-top: 18px; border-top: 1px solid rgba(18, 40, 74, .1); }
+.fg .vk-blatt-frage summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin-bottom: -10px; cursor: pointer; font: 400 13px/1.4 var(--ap, system-ui); color: #1d4ed8; list-style: none; border-radius: 8px; -webkit-tap-highlight-color: transparent; }
 .fg .vk-blatt-frage summary::-webkit-details-marker { display: none; }
-.fg .vk-blatt-frage summary::after { content: " +"; }
-.fg .vk-blatt-frage[open] summary::after { content: " –"; }
-.fg .vk-blatt-frage summary:focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; }
-.fg .vk-blatt-frage p { margin-top: 10px; font: 300 13px/1.6 var(--ap, system-ui); color: #3b4658; }
-.fg .vk-blatt-frage[open] p { animation: vk-hoch .45s var(--kurve, ease) both; }
+.fg .vk-blatt-frage summary::after { content: ""; flex: none; width: 9px; height: 9px; background: linear-gradient(currentColor, currentColor) 50% 50% / 9px 1.2px no-repeat, linear-gradient(currentColor, currentColor) 50% 50% / 1.2px 9px no-repeat; transition: transform .4s var(--kurve, ease); }
+.fg .vk-blatt-frage[open] summary::after { transform: rotate(135deg); }
+.fg .vk-blatt-frage summary:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+.fg .vk-blatt-frage p { margin-top: 14px; font: 300 13px/1.6 var(--ap, system-ui); color: #3b4658; text-wrap: pretty; }
+.fg .vk-blatt-frage[open] p { animation: vk-ein .45s var(--kurve, ease) both; }
 /* Der zweite Satz des Leads über dem Konfigurator: blendet ein, sobald feststeht, welcher Weg für den Besucher gilt. */
 .fg .vk-lead-b { opacity: 0; transition: opacity .6s var(--kurve, ease); }
 .fg .vk-lead-b.da { opacity: 1; }
 
-.fg .vk-knopf { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 999px; cursor: pointer; font: 400 16px/1 var(--ap, system-ui); color: #fff; background: var(--knopf-blau, linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%)); box-shadow: var(--knopf-blau-schatten, inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px -14px rgba(29, 78, 216, .75)); transition: transform .3s var(--kurve, ease), box-shadow .3s, opacity .2s; -webkit-tap-highlight-color: transparent; text-decoration: none; }
-.fg .vk-knopf:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 18px 34px -14px rgba(29, 78, 216, .9); }
-.fg .vk-knopf:active { transform: scale(.98); }
+/* Der Knopf: hebt sich beim Darüberfahren einen Hauch, ein Glanz zieht einmal darüber. */
+.fg .vk-knopf { all: unset; box-sizing: border-box; position: relative; isolation: isolate; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 999px; cursor: pointer; font: 400 16px/1.15 var(--ap, system-ui); text-align: center; color: #fff; background: var(--knopf-blau, linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%)); box-shadow: var(--knopf-blau-schatten, inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px -14px rgba(29, 78, 216, .75)); transition: transform .35s var(--kurve, ease), opacity .2s; -webkit-tap-highlight-color: transparent; text-decoration: none; }
+.fg .vk-knopf::after { content: ""; position: absolute; inset: 0 auto 0 0; z-index: -1; width: 34%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .34), transparent); opacity: 0; transform: translateX(-130%) skewX(-18deg); pointer-events: none; }
+.fg .vk-knopf svg { flex: none; transition: transform .35s var(--kurve, ease); }
+@media (hover: hover) and (pointer: fine) {
+  .fg .vk-knopf:not([disabled]):hover { transform: translateY(-1px); }
+  .fg .vk-knopf:not([disabled]):not(.leise):hover::after { animation: vk-glanz 1.1s ease-out both; }
+  .fg .vk-knopf:not([disabled]):hover svg { transform: translateX(3px); }
+}
+.fg .vk-knopf:not([disabled]):active { transform: scale(.98); }
 .fg .vk-knopf:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; }
-.fg .vk-knopf[disabled] { opacity: .6; cursor: progress; transform: none; }
+.fg .vk-blatt .vk-knopf:focus-visible, .fg .vk-mobil .vk-knopf:focus-visible { outline-color: #12284a; }
+.fg .vk-knopf[disabled] { opacity: .6; cursor: progress; }
 .fg .vk-knopf.voll { width: 100%; margin-top: 24px; }
-.fg .vk-knopf.leise { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28); color: #eaf2ff; }
-.fg .vk-knopf.leise:hover { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .6); }
+.fg .vk-knopf.leise { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32); color: #eaf2ff; }
+
+/* Schritt für Schritt: Der Inhalt links gleitet hinaus, der nächste gleitet herein (vor: nach links, zurück: nach rechts). */
+.fg .vk-wahl[data-gleiten="raus"] > * { animation: vk-gleit-raus .23s ease-in both; }
+.fg .vk-wahl[data-gleiten="rein"] > * { animation: vk-gleit-rein .62s var(--kurve, ease) backwards; }
+.fg .vk-wahl[data-vor="0"] { --gx: -28px; }
 
 /* Die Angaben */
-.fg .vk-anrede { margin-top: 22px; display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .13); }
-.fg .vk-anrede button { all: unset; box-sizing: border-box; min-height: 40px; padding: 0 22px; display: inline-flex; align-items: center; border-radius: 999px; cursor: pointer; font: 400 14.5px/1 var(--ap, system-ui); color: rgba(234, 242, 255, .78); transition: background .25s, color .25s; }
-.fg .vk-anrede button.an { background: #fff; color: #12284a; }
+.fg .vk-anrede { align-self: flex-start; margin-top: 22px; display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13); }
+.fg .vk-anrede button { all: unset; box-sizing: border-box; position: relative; isolation: isolate; min-height: 44px; padding: 0 22px; display: inline-flex; align-items: center; border-radius: 999px; cursor: pointer; font: 400 14.5px/1 var(--ap, system-ui); color: rgba(234, 242, 255, .78); -webkit-tap-highlight-color: transparent; }
+.fg .vk-anrede button::before { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: #fff; opacity: 0; transform: scale(.9); transition: opacity .25s ease, transform .4s var(--feder, ease); }
+.fg .vk-anrede button.an { color: #12284a; }
+.fg .vk-anrede button.an::before { opacity: 1; transform: none; }
 .fg .vk-anrede button:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 2px; }
-.fg .vk-felder { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.fg .vk-felder label { display: grid; gap: 7px; }
+.fg .vk-form { display: flex; flex-direction: column; }
+.fg .vk-felder { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 14px; }
+.fg .vk-felder label { display: grid; gap: 8px; align-content: start; }
 .fg .vk-felder label.breit { grid-column: 1 / -1; }
-.fg .vk-felder label > span:first-child { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(234, 242, 255, .62); }
-.fg .vk-felder input:not([type="checkbox"]), .fg .vk-felder select, .fg .vk-felder textarea { box-sizing: border-box; width: 100%; min-height: 50px; padding: 13px 15px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .07); color: #fff; font: 400 16px/1.3 var(--ap, system-ui); outline: none; transition: border-color .25s, background .25s, box-shadow .25s; -webkit-appearance: none; appearance: none; }
+.fg .vk-felder label > span:first-child { font: 500 10.5px/1.2 var(--ap, system-ui); letter-spacing: .16em; text-transform: uppercase; color: rgba(234, 242, 255, .62); }
+.fg .vk-felder input:not([type="checkbox"]), .fg .vk-felder select, .fg .vk-felder textarea { box-sizing: border-box; width: 100%; min-height: 50px; padding: 13px 15px; border-radius: var(--vk-r-feld); border: 1px solid rgba(255, 255, 255, .18); background: rgba(255, 255, 255, .07); color: #fff; font: 400 16px/1.3 var(--ap, system-ui); outline: none; -webkit-appearance: none; appearance: none; }
 .fg .vk-felder textarea { resize: vertical; min-height: 64px; }
 .fg .vk-felder select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23cfe2ff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; background-size: 12px 8px; padding-right: 40px; }
 .fg .vk-felder select option { color: #12284a; }
 .fg .vk-felder ::placeholder { color: rgba(234, 242, 255, .4); }
-.fg .vk-felder input:focus, .fg .vk-felder select:focus, .fg .vk-felder textarea:focus { border-color: #7db4ff; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 4px rgba(58, 139, 255, .22); }
+.fg .vk-felder input:not([type="checkbox"]):focus, .fg .vk-felder select:focus, .fg .vk-felder textarea:focus { border-color: #7db4ff; background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 4px rgba(58, 139, 255, .22); }
 .fg .vk-felder label.rot input { border-color: #ff9c9c; box-shadow: 0 0 0 4px rgba(255, 120, 120, .16); }
-.fg .vk-felder label.vk-haken { grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .13); background: rgba(255, 255, 255, .045); cursor: pointer; }
-.fg .vk-felder label.vk-haken input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: #3a8bff; }
+.fg .vk-felder label.vk-haken { grid-template-columns: 24px minmax(0, 1fr); align-items: start; gap: 12px; padding: 14px 16px; border-radius: var(--vk-r-feld); border: 1px solid rgba(255, 255, 255, .13); background: rgba(255, 255, 255, .045); cursor: pointer; }
+/* Das Kästchen im Stil der Fläche: Glasrand, beim Ankreuzen füllt es sich weiß und der Haken springt weich hinein. */
+.fg .vk-felder label.vk-haken input { -webkit-appearance: none; appearance: none; position: relative; box-sizing: border-box; width: 22px; height: 22px; margin: 1px 0 0; border-radius: 7px; border: 1px solid rgba(255, 255, 255, .4); background: rgba(255, 255, 255, .06); cursor: pointer; outline: none; }
+.fg .vk-felder label.vk-haken input::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; background: #fff; opacity: 0; transform: scale(.5); transition: opacity .2s ease, transform .4s var(--feder, ease); }
+.fg .vk-felder label.vk-haken input::after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 10px; border: solid #1d4ed8; border-width: 0 1.8px 1.8px 0; opacity: 0; transform: rotate(45deg) scale(.6); transition: opacity .2s ease, transform .4s var(--feder, ease); }
+.fg .vk-felder label.vk-haken input:checked::before { opacity: 1; transform: none; }
+.fg .vk-felder label.vk-haken input:checked::after { opacity: 1; transform: rotate(45deg); }
+.fg .vk-felder label.vk-haken input:focus-visible { outline: 2px solid #9cc4ff; outline-offset: 3px; }
 .fg .vk-felder label.vk-haken > span { display: grid; gap: 3px; font: 400 15px/1.35 var(--ap, system-ui); letter-spacing: 0; text-transform: none; color: #fff; }
 .fg .vk-felder label.vk-haken b { font-weight: 400; }
 .fg .vk-felder label.vk-haken small { font: 300 12.5px/1.45 var(--ap, system-ui); color: rgba(234, 242, 255, .62); }
 .fg .vk-falle { position: absolute !important; left: -9999px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; }
-.fg .vk-fehler { margin-top: 16px; padding: 12px 16px; border-radius: 12px; font: 400 14px/1.45 var(--ap, system-ui); color: #ffe1e1; background: rgba(255, 110, 110, .14); border: 1px solid rgba(255, 150, 150, .4); }
+.fg .vk-fehler { margin-top: 16px; padding: 12px 16px; border-radius: var(--vk-r-feld); font: 400 14px/1.45 var(--ap, system-ui); color: #ffe1e1; background: rgba(255, 110, 110, .14); border: 1px solid rgba(255, 150, 150, .4); animation: vk-ein .45s var(--kurve, ease) both; }
 .fg .vk-knoepfe { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 12px; }
-.fg .vk-form, .fg .vk-fertig { animation: vk-hoch .7s var(--kurve, ease) both; }
-.fg .vk-fertig { display: grid; justify-items: start; gap: 14px; padding: 12px 0; }
-.fg .vk-fertig h3 { font: 300 clamp(28px, 2.6vw, 38px)/1.15 var(--ap, system-ui); letter-spacing: -.024em; color: #fff; }
-.fg .vk-fertig p { font: 300 16px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .78); max-width: 46ch; }
+.fg .vk-fertig { display: grid; justify-items: start; gap: 16px; padding: 12px 0; }
+.fg .vk-fertig h3 { font: 300 clamp(28px, 2.6vw, 38px)/1.15 var(--ap, system-ui); letter-spacing: -.024em; color: #fff; text-wrap: balance; }
+.fg .vk-fertig p { font: 300 16px/1.6 var(--ap, system-ui); color: rgba(234, 242, 255, .78); max-width: 46ch; text-wrap: pretty; }
 .fg .vk-fertig-zeichen svg { fill: none; stroke: #9cc4ff; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.fg .vk-fertig-zeichen circle { stroke-dasharray: 140; stroke-dashoffset: 140; animation: vk-zeichnen .9s var(--kurve, ease) .1s forwards; }
-.fg .vk-fertig-zeichen path { stroke: #fff; stroke-width: 2.2; stroke-dasharray: 36; stroke-dashoffset: 36; animation: vk-zeichnen .5s var(--kurve, ease) .7s forwards; }
+.fg .vk-fertig-zeichen circle { stroke-dasharray: 140; stroke-dashoffset: 140; animation: vk-zeichnen .9s var(--kurve, ease) .25s forwards; }
+.fg .vk-fertig-zeichen path { stroke: #fff; stroke-width: 2.2; stroke-dasharray: 36; stroke-dashoffset: 36; animation: vk-zeichnen .5s var(--kurve, ease) .85s forwards; }
 
+/* Auftritt der Fläche: erst die Fläche, dann das Blatt, dann die Kacheln nacheinander. */
 .fg .vk-konfig[data-an="0"] .vk-flaeche { opacity: 0; transform: translateY(30px) scale(.985); }
 .fg .vk-konfig[data-an="1"] .vk-flaeche { animation: vk-auf 1.1s var(--kurve, ease) both; }
-@keyframes vk-auf { from { opacity: 0; transform: translateY(30px) scale(.985); } to { opacity: 1; transform: none; } }
-.fg .vk-konfig[data-an="0"] .vk-blatt { opacity: 0; }
-.fg .vk-konfig[data-an="1"] .vk-blatt { animation: vk-hoch 1s var(--kurve, ease) .35s both; }
+.fg .vk-konfig[data-an="0"] .vk-blatt, .fg .vk-konfig[data-an="0"] .vk-chip { opacity: 0; }
+.fg .vk-konfig[data-an="1"] .vk-blatt { animation: vk-hoch 1s var(--kurve, ease) .35s backwards; }
+/* Nur beim ersten Auftritt: Wer aus den Angaben zurückkommt (data-gleiten), sieht die Kacheln sofort mit dem Block hereingleiten. */
+.fg .vk-konfig[data-an="1"] .vk-wahl:not([data-gleiten]) .vk-chip { animation: vk-ein .8s var(--kurve, ease) backwards; animation-delay: calc(var(--i, 0) * 70ms + 300ms); }
+
+/* Die Leiste am Handy und am Tablet (eine Spalte): Solange man wählt und schiebt, steht das Blatt weiter unten — die Leiste
+   gleitet herein und zeigt den Preis mit, bis der Knopf des Blatts selbst im Bild ist. Ohne Unschärfe (ruckelt am Telefon). */
+.fg .vk-mobil { display: none; }
+@media (max-width: 900px) {
+  .fg .vk-mobil { position: fixed; z-index: 95; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 12px; min-height: 64px; box-sizing: border-box; padding: 8px 8px 8px 20px; border-radius: 26px; color: #12284a; background: #fff; box-shadow: 0 0 0 1px rgba(18, 40, 74, .06), 0 20px 44px -10px rgba(4, 12, 28, .6);
+    opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(calc(100% + 42px + env(safe-area-inset-bottom))); transition: transform .5s var(--kurve, ease), opacity .3s ease, visibility 0s linear .5s; }
+  .fg .vk-mobil.da { opacity: 1; visibility: visible; pointer-events: auto; transform: none; transition: transform .7s var(--kurve, ease), opacity .4s ease, visibility 0s; }
+  .fg .vk-mobil-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+  .fg .vk-mobil-text > span:first-child { font: 400 11.5px/1.25 var(--ap, system-ui); color: #5b6679; text-wrap: balance; }
+  .fg .vk-mobil-text b { font: 300 22px/1.05 var(--ap, system-ui); letter-spacing: -.02em; font-variant-numeric: lining-nums tabular-nums; color: #1d4ed8; white-space: nowrap; }
+  .fg .vk-mobil-text.allein > span:first-child { font: 400 14.5px/1.25 var(--ap, system-ui); color: #12284a; }
+  .fg .vk-mobil .vk-knopf { flex: none; min-height: 48px; padding: 0 18px; font-size: 14px; font-weight: 500; }
+}
+/* Schmale Telefone: ohne den Pfeil im Knopf und mit etwas kleinerer Zeile passt alles in eine Reihe (ab 375 px einzeilig). */
+@media (max-width: 420px) {
+  .fg .vk-mobil { left: 8px; right: 8px; gap: 10px; padding-left: 16px; }
+  .fg .vk-mobil .vk-knopf { padding: 0 16px; font-size: 13.5px; }
+  .fg .vk-mobil .vk-knopf svg { display: none; }
+  .fg .vk-mobil-text.allein > span:first-child { font-size: 13.5px; }
+}
+@media (max-width: 380px) { .fg .vk-mobil-text > span:first-child { font-size: 11px; letter-spacing: -.005em; } .fg .vk-mobil .vk-knopf { padding: 0 14px; } }
 
 /* ── 4 DIE GARANTIE ──────────────────────────────────────────────────────── */
-.fg .vk-garantie-band { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; padding: clamp(28px, 4vw, 56px); border-radius: 32px; background: var(--glas, rgba(255, 255, 255, .62)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
+.fg .vk-garantie-band { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; padding: clamp(28px, 4vw, 56px); border-radius: var(--vk-r-flaeche); background: var(--glas, rgba(255, 255, 255, .62)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
 .fg .vk-garantie-band .fg-h2 { max-width: none; }
-.fg .vk-garantie-band .fg-lead { max-width: 58ch; }
-.fg .vk-garantie-fein { margin-top: 16px; font: 300 13px/1.6 var(--ap, system-ui); color: #6b7688; }
+.fg .vk-garantie-band .fg-lead { max-width: 58ch; text-wrap: pretty; }
+.fg .vk-garantie-fein { margin-top: 16px; font: 300 13px/1.6 var(--ap, system-ui); color: #6b7688; text-wrap: pretty; }
 .fg .vk-siegel { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .fg .vk-siegel .aussen { stroke: rgba(40, 141, 250, .35); stroke-width: 1; stroke-dasharray: 2 5; }
 .fg .vk-siegel .innen { stroke: #288dfa; stroke-width: 1.2; stroke-dasharray: 220; stroke-dashoffset: 0; }
@@ -210,64 +363,87 @@
 .fg .vk-garantie[data-an="1"] .vk-garantie-band { animation: vk-hoch 1s var(--kurve, ease) both; }
 .fg .vk-garantie[data-an="1"] .vk-siegel .innen { stroke-dashoffset: 220; animation: vk-zeichnen 1.4s var(--kurve, ease) .3s forwards; }
 .fg .vk-garantie[data-an="1"] .vk-siegel .haken { stroke-dashoffset: 50; animation: vk-zeichnen .6s var(--kurve, ease) 1.3s forwards; }
+.fg .vk-garantie[data-an="0"] .vk-garantie-text > * { opacity: 0; }
+.fg .vk-garantie[data-an="1"] .vk-garantie-text > * { animation: vk-ein .8s var(--kurve, ease) backwards; animation-delay: calc(var(--i, 0) * 90ms + 350ms); }
 
 /* ── 4b WAS SIE VOR DEM AUFTRAG WISSEN MÜSSEN — das Kleingedruckte, immer offen ───────────────────────────── */
 html .fg.fg .vk-wissen-sek { padding-top: 0; }
-.fg .vk-wissen { max-width: 920px; padding: 26px 0 0; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
+.fg .vk-wissen { position: relative; max-width: 920px; padding: 26px 0 0; }
+.fg .vk-wissen::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--linie, rgba(18, 40, 74, .09)); transform-origin: left center; }
 .fg .vk-wissen h3 { font: 500 14.5px/1.35 var(--ap, system-ui); color: #0c1a2e; }
 .fg .vk-wissen ul { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
-.fg .vk-wissen li { position: relative; padding-left: 18px; font: 300 13.5px/1.65 var(--ap, system-ui); color: #5d6678; }
+.fg .vk-wissen li { position: relative; padding-left: 18px; font: 300 13.5px/1.65 var(--ap, system-ui); color: #5d6678; text-wrap: pretty; }
 .fg .vk-wissen li::before { content: ""; position: absolute; left: 0; top: .78em; width: 8px; height: 1px; background: #288dfa; }
+.fg .vk-wissen-sek[data-an="0"] .vk-wissen::before { transform: scaleX(0); }
+.fg .vk-wissen-sek[data-an="0"] .vk-wissen h3, .fg .vk-wissen-sek[data-an="0"] .vk-wissen li { opacity: 0; }
+.fg .vk-wissen-sek[data-an="1"] .vk-wissen::before { animation: vk-linie 1.2s var(--kurve, ease) backwards; }
+.fg .vk-wissen-sek[data-an="1"] .vk-wissen h3 { animation: vk-ein .8s var(--kurve, ease) .1s backwards; }
+.fg .vk-wissen-sek[data-an="1"] .vk-wissen li { animation: vk-ein .8s var(--kurve, ease) backwards; animation-delay: calc(var(--i, 0) * 90ms + 200ms); }
 
 /* ── 5 DIE KARTE FÜR DIE UNTERSEITEN ─────────────────────────────────────── */
 /* Abstand zur Überschrift und zum Lead des Bausteins — wie die Tabellen der Unterseiten (26px); vorher klebte die Karte am Lead. */
 .fg.fd .vk-karte { margin-top: 26px; }
-.fg .vk-karte { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .8fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding: clamp(24px, 3.4vw, 44px); border-radius: 28px; background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
-.fg .vk-karte h3 { margin-top: 14px; font: 300 clamp(22px, 2vw, 30px)/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; }
-.fg .vk-karte-text > p { margin-top: 12px; font: 300 16px/1.6 var(--ap, system-ui); color: #3b4658; max-width: 56ch; }
+.fg .vk-karte { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(240px, .8fr); gap: clamp(24px, 4vw, 56px); align-items: center; padding: clamp(24px, 3.4vw, 44px); border-radius: var(--vk-r-karte); background: var(--glas-dicht, rgba(255, 255, 255, .78)); border: 1px solid var(--glas-kante, rgba(255, 255, 255, .92)); box-shadow: var(--glas-licht, inset 0 1px 0 rgba(255, 255, 255, .95)), var(--glas-schatten, 0 26px 56px -36px rgba(18, 40, 74, .4)); }
+.fg .vk-karte h3 { margin-top: 14px; font: 300 clamp(22px, 2vw, 30px)/1.2 var(--ap, system-ui); letter-spacing: -.02em; color: #12284a; text-wrap: balance; }
+.fg .vk-karte-text > p { margin-top: 12px; font: 300 16px/1.6 var(--ap, system-ui); color: #3b4658; max-width: 56ch; text-wrap: pretty; }
 .fg .vk-karte ul { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 8px; }
 .fg .vk-karte li { position: relative; padding-left: 20px; font: 300 15px/1.5 var(--ap, system-ui); color: #3b4658; }
 .fg .vk-karte li::before { content: ""; position: absolute; left: 0; top: .72em; width: 9px; height: 1px; background: #288dfa; }
 .fg .vk-karte-preis { display: grid; gap: 8px; justify-items: start; padding-left: clamp(0px, 3vw, 44px); border-left: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
 .fg .vk-karte-preis > span { font: 500 10.5px/1 var(--ap, system-ui); letter-spacing: .18em; text-transform: uppercase; color: #5b6679; }
-.fg .vk-karte-preis b { font: 200 clamp(44px, 4.4vw, 64px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: tabular-nums; color: #12284a; white-space: nowrap; }
+.fg .vk-karte-preis b { font: 200 clamp(44px, 4.4vw, 64px)/1 var(--ap, system-ui); letter-spacing: -.04em; font-variant-numeric: lining-nums proportional-nums; color: #12284a; white-space: nowrap; }
 .fg .vk-karte-preis .fg-knopf { margin-top: 12px; white-space: nowrap; }
 .fg .vk-karte-preis small { margin-top: 6px; font: 300 12.5px/1.5 var(--ap, system-ui); color: #6b7688; }
 
 /* ── DIE EIGENE SEITE /business/start ────────────────────────────────────── */
 .fg.vk-seite .vk-konfig-sek { padding-top: clamp(120px, 14vw, 180px); }
-/* .fg-sek.vk-konfig-sek (eine Klasse mehr): global-apple.css setzt mit gleichem Gewicht `html .fg.fg .fg-sek .fg-kopf { margin-bottom: 8px }`
-   und steht im Bündel NACH dieser Datei (der Konfigurator lädt sie zuerst) — ohne die Klasse klebte die Überschrift an der Glasfläche. */
-html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 60px); }
-.fg .vk-seite-zurueck { margin-top: 28px; font: 300 14px/1.5 var(--ap, system-ui); color: #5b6679; }
-.fg .vk-seite-zurueck a { color: #1d4ed8; text-decoration: underline; text-underline-offset: 3px; }
+/* Solange der Ladebildschirm steht (html.ld-an), wartet der Auftritt — die Fläche baut sich auf, wenn man sie sieht. */
+.ld-an .fg.vk-seite .fg-kopf, .ld-an .fg.vk-seite [class*="vk-"] { animation-play-state: paused; }
+.fg .vk-seite-zurueck { margin-top: 20px; font: 300 14px/1.5 var(--ap, system-ui); color: #5b6679; }
+.fg .vk-seite-zurueck a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: #1d4ed8; text-decoration: underline; text-decoration-color: rgba(29, 78, 216, .3); text-underline-offset: 4px; }
+.fg .vk-seite-zurueck a:hover { text-decoration-color: currentColor; }
+.fg .vk-seite-zurueck a:focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; border-radius: 6px; }
+.fg .vk-seite-zurueck svg { flex: none; transition: transform .35s var(--kurve, ease); }
+@media (hover: hover) and (pointer: fine) { .fg .vk-seite-zurueck a:hover svg { transform: translateX(-3px); } }
 
 /* ── HANDY ───────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .fg .vk-produkt-raster { grid-template-columns: minmax(0, 1fr); }
   .fg .vk-urkunde { position: relative; top: 0; order: -1; }
   .fg .vk-flaeche { grid-template-columns: minmax(0, 1fr); }
+  /* Eine Spalte: Das Blatt ist nur so hoch wie die Lage, die gerade gilt — die anderen liegen darüber, ohne Platz zu nehmen. */
+  .fg .vk-stapel { overflow: hidden; overflow: clip; }
+  .fg .vk-lage { justify-content: flex-start; }
+  .fg .vk-lage[data-an="0"] { position: absolute; left: 0; right: 0; top: 0; }
+  .fg .vk-blatt-fuss { min-height: 0; }
+  /* Die Bögen füllen nur das hohe Blatt neben der linken Spalte; in einer Spalte gibt es nichts zu füllen — dort bleibt es schlicht. */
+  .fg .vk-boegen { display: none; }
+  .fg .vk-weg { padding-top: 20px; }
   .fg .vk-schritte { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 40px; }
   .fg .vk-schritte::before { display: none; }
+  .fg .vk-schritte > li[data-an="1"] { animation-delay: calc(var(--d, 0) * 140ms + 60ms); }
+  .fg .vk-schritte > li[data-an="1"] .vk-schritt-nr::before, .fg .vk-schritte > li[data-an="1"] .vk-schritt-nr::after { animation-delay: calc(var(--d, 0) * 140ms + 320ms); }
   .fg .vk-karte { grid-template-columns: minmax(0, 1fr); }
   .fg .vk-karte-preis { padding-left: 0; border-left: 0; padding-top: 22px; border-top: 1px solid var(--linie, rgba(18, 40, 74, .09)); }
 }
+@media (max-width: 720px) { .fg { --vk-r-karte: 22px; } }
 @media (max-width: 560px) {
   .fg .vk-verzeichnis > li > button { grid-template-columns: 44px minmax(0, 1fr) 28px; padding: 22px 0; }
-  .fg .vk-bereich-mehr > ul { padding-left: 56px; padding-right: 8px; }
+  .fg .vk-bereich-mehr ul { padding-left: 56px; padding-right: 8px; }
   .fg .vk-bereich-text > span { font-size: 14.5px; }
   .fg .vk-flaeche { margin: 0 -6px; padding: 22px 18px 20px; }
   .fg .vk-chips { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .fg .vk-chip { min-height: 0; padding: 15px 46px 14px 16px; }
-  .fg .vk-chip > span:not(.vk-chip-haken) { display: none; }
-  .fg .vk-chip em { margin-top: 2px; }
+  .fg .vk-chip { min-height: 0; padding: 15px 16px 14px; }
+  .fg .vk-chip-zeile { display: none; }
+  .fg .vk-chip em { margin-top: 2px; padding-top: 0; }
   .fg .vk-felder { grid-template-columns: minmax(0, 1fr); }
   .fg .vk-blatt { padding: 22px 20px; }
   .fg .vk-zeilen dd { font-size: 21px; }
   .fg .vk-zeilen .summe dd { font-size: 27px; }
   .fg .vk-schritte { grid-template-columns: minmax(0, 1fr); row-gap: 0; }
   .fg .vk-schritte > li { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 18px; padding-bottom: 30px; }
-  .fg .vk-schritte > li:not(:last-child)::before { content: ""; position: absolute; left: 21.5px; top: 44px; bottom: 0; width: 1px; background: rgba(40, 141, 250, .3); }
+  .fg .vk-schritte > li:not(:last-child)::before { content: ""; position: absolute; left: 21.5px; top: 44px; bottom: 0; width: 1px; background: linear-gradient(180deg, rgba(40, 141, 250, .55), rgba(40, 141, 250, .2)); transform-origin: center top; }
+  .fg .vk-schritte > li[data-an="1"]:not(:last-child)::before { animation: vk-linie-y 1s var(--kurve, ease) .4s backwards; }
   .fg .vk-schritte .vk-schritt-nr { grid-row: 1 / span 2; }
   .fg .vk-schritte h3 { margin-top: 9px; }
   .fg .vk-garantie-band { grid-template-columns: minmax(0, 1fr); }
@@ -277,14 +453,14 @@ html .fg.fg .fg-sek.vk-konfig-sek .fg-kopf { margin-bottom: clamp(32px, 4.4vw, 6
 
 /* ── WENIGER BEWEGUNG ────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .fg [class*="vk-"], .fg [class*="vk-"]::before, .fg [class*="vk-"]::after { animation: none !important; transition: none !important; }
-  .fg .vk-blatt-frage p { animation: none !important; }
-  .fg .vk-produkt[data-an] .vk-verzeichnis > li, .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-ablauf[data-an] .vk-schritte > li, .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-garantie[data-an] .vk-garantie-band { opacity: 1 !important; transform: none !important; }
-  .fg .vk-produkt[data-an] .vk-verzeichnis > li::before, .fg .vk-ablauf[data-an] .vk-schritte::before { transform: none !important; }
+  .fg [class*="vk-"], .fg [class*="vk-"]::before, .fg [class*="vk-"]::after, .fg [class*="vk-"] *, .fg [class*="vk-"] *::before, .fg [class*="vk-"] *::after { animation: none !important; transition: none !important; }
+  .fg .vk-verzeichnis > li[data-an], .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-produkt[data-an] .vk-urkunde > :not(.vk-urkunde-glanz), .fg .vk-schritte > li[data-an], .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-konfig[data-an] .vk-chip, .fg .vk-garantie[data-an] .vk-garantie-band, .fg .vk-garantie[data-an] .vk-garantie-text > *, .fg .vk-wissen-sek[data-an] .vk-wissen h3, .fg .vk-wissen-sek[data-an] .vk-wissen li { opacity: 1 !important; transform: none !important; }
+  .fg .vk-verzeichnis > li[data-an]::before, .fg .vk-verzeichnis > li[data-an]:last-child::after, .fg .vk-schritte[data-an]::before, .fg .vk-wissen-sek[data-an] .vk-wissen::before { transform: none !important; }
   .fg .vk-siegel .innen, .fg .vk-siegel .haken, .fg .vk-fertig-zeichen circle, .fg .vk-fertig-zeichen path { stroke-dashoffset: 0 !important; }
 }
 @media print {
-  .fg .vk-produkt[data-an] .vk-verzeichnis > li, .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-ablauf[data-an] .vk-schritte > li, .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-garantie[data-an] .vk-garantie-band { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .fg .vk-verzeichnis > li[data-an], .fg .vk-produkt[data-an] .vk-urkunde, .fg .vk-produkt[data-an] .vk-urkunde > :not(.vk-urkunde-glanz), .fg .vk-schritte > li[data-an], .fg .vk-konfig[data-an] .vk-flaeche, .fg .vk-konfig[data-an] .vk-blatt, .fg .vk-konfig[data-an] .vk-chip, .fg .vk-garantie[data-an] .vk-garantie-band, .fg .vk-garantie[data-an] .vk-garantie-text > *, .fg .vk-wissen-sek[data-an] .vk-wissen h3, .fg .vk-wissen-sek[data-an] .vk-wissen li { opacity: 1 !important; transform: none !important; animation: none !important; }
   .fg .vk-bereich-mehr { grid-template-rows: 1fr !important; }
-  .fg .vk-bereich-mehr > ul { opacity: 1 !important; }
+  .fg .vk-bereich-mehr ul { opacity: 1 !important; transform: none !important; }
+  .fg .vk-mobil { display: none !important; }
 }

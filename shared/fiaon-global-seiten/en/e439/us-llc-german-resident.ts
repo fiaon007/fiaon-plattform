@@ -29,7 +29,12 @@
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
 // E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preise aus EIN_PRODUKT; die alte Geld-zurück-Zusage je
 // Paket entfällt (auf dieser Seite geht es nicht um Kapital).
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+// E-510 (13.11.2026, language guide FIAON Global): the fixed sentences and steps 1 and 2 come from
+// shared/fiaon-global-saetze.ts. GLOBAL_ROLLEN and the list from GLOBAL_JAHRESBETREUUNG are no longer used here
+// (“our US CPA”, “appointments on the ground”); the services of annual administration are listed below with the
+// role names of the language guide.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, type Schritt, type SchrittNr } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_IRS_EN, QUELLEN_STAATEN_EN, IRS_EN, STAAT_EN } from "../../fakten-en";
 
@@ -39,6 +44,14 @@ const S = "2026-10-27";
 const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 
 const P = EIN_PRODUKT.en;
+/** Steps 1 and 2 of the fixed narrative (language guide 2.3) — sentence and “your part” from the one source, never retyped. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.en.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** Responsibility for tax questions — the same wording as on the country pages (en/zielgruppen.ts). */
+const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity";
 const NICHT_IM_PREIS = GLOBAL_NICHT_INKLUSIVE.en[1].charAt(0).toLowerCase() + GLOBAL_NICHT_INKLUSIVE.en[1].slice(1);
 
 /** Quellen dieses Beitrags mit englischen Titeln — dieselben Adressen wie im Deutschen (geprüft am 27.10.2026). */
@@ -77,13 +90,13 @@ export const SEITE: GlobalSeite = {
     titel: "US LLC German resident: the obligations — FIAON Global",
     beschreibung: "US LLC, German resident: tax office, section 138 AO notification, trade registration, VAT on invoices and bookkeeping — with legal references.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 47",
   auge: "Knowledge · Tax and obligations",
   h1: "US LLC, German resident.",
   h1b: "Register, report, invoice correctly.",
-  lead: "If you run a US LLC as a German resident, you have obligations in two countries. The US side is manageable: Form 5472, a registered agent, the annual report to the state. The German side demands more: tax office, the notification under section 138 of the German Fiscal Code (AO), trade registration, VAT on invoices, bookkeeping. Below is what the law requires, each point with its legal reference — and which part FIAON Global takes on for you with our partner tax adviser, partner lawyer and US CPA.",
+  lead: "If you run a US LLC as a German resident, you have obligations in two countries. The US side is manageable: Form 5472, a registered agent, the annual report to the state. The German side demands more: tax office, the notification under section 138 of the German Fiscal Code (AO), trade registration, VAT on invoices, bookkeeping. Below is what the law requires, each point with its legal reference — and which part FIAON Global handles.",
   ziffern: [
     { wert: "14 months", label: "at the latest: notification under section 138 AO, with the tax return" },
     { wert: "1 month", label: "for opening a business and registering for tax" },
@@ -95,7 +108,7 @@ export const SEITE: GlobalSeite = {
     ["Notification", "Section 138 AO with the tax return, 14 months at the latest"],
     ["Invoices", "Managed from Germany: as a rule with German VAT"],
     ["USA", "Form 5472 with Form 1120, every year, even without revenue"],
-    ["With FIAON Global", "One contact instead of eight; the review before formation is included"],
+    ["With FIAON Global", "Formation, documents, the EIN and ITIN applications; US deadlines and filings in the first year"],
   ],
   kurz: "If you run a US LLC as a German resident, its place of management is, as a rule, in Germany (section 10 AO). Tax is then due in Germany: depending on the type comparison, either on the company itself, like a GmbH, or on its profit in your hands as a member. As a rule, you report the formation to the tax office under section 138(2) AO with your tax return, no later than 14 months after the end of the year. And because the LLC is managed from Germany, it does not count as established abroad for VAT purposes (section 13b(7) of the German VAT Act, UStG): invoices to German businesses then generally carry German VAT instead of the reverse charge note.",
   bloecke: [
@@ -113,16 +126,16 @@ export const SEITE: GlobalSeite = {
       lead: "Which row applies to you depends on how the LLC is classified and on your activity. The overview assumes that the financial year is the calendar year.",
       kopf: ["Obligation", "Legal basis", "Deadline", "Who handles it"],
       zeilen: [
-        ["Give notice of the opening of a business or permanent establishment (trade notification, Gewerbeanzeige)", "Section 138(1) AO, section 14 GewO", "when you start; under the AO within one month", "You, prepared with your tax adviser"],
+        ["Give notice of the opening of a business or permanent establishment (trade notification, Gewerbeanzeige)", "Section 138(1) AO, section 14 GewO", "when you start; under the AO within one month", "You, with your tax adviser"],
         ["Information for tax registration, submitted electronically", "Section 138(1b) and (4) AO", "within one month of the event that triggers the duty", "Your tax adviser"],
-        ["Notification of a formation or participation abroad", "Section 138(2) and (5) AO", "with the tax return, no later than 14 months after the end of the year", "Your tax adviser, with the documents from your document room"],
+        ["Notification of a formation or participation abroad", "Section 138(2) and (5) AO", "with the tax return, no later than 14 months after the end of the year", "Your tax adviser, with the documents from your portal"],
         ["VAT: invoices and advance returns", "Sections 13b, 14, 14a, 18 UStG", "ongoing; advance return by the tenth day after the end of the advance return period", "Your bookkeeper and tax adviser"],
         ["Tax returns in Germany", "Section 1 KStG and section 2 GewStG, or your income tax", "every year", "Your tax adviser"],
-        ["Form 5472 with Form 1120 to the IRS", "IRS, Instructions for Form 5472", IRS_EN.frist5472, "our US CPA, included for the first year"],
-        ["Annual report to the state", "State law", `depending on the state; in Florida ${STAAT_EN.florida.jahrFrist}`, "FIAON, from the second year with annual care"],
+        ["Form 5472 with Form 1120 to the IRS", "IRS, Instructions for Form 5472", IRS_EN.frist5472, "a US certified public accountant (CPA) from our partner network; the first filing is included in the first year"],
+        ["Annual report to the state", "State law", `depending on the state; in Florida ${STAAT_EN.florida.jahrFrist}`, "FIAON; from the second year, on request, with annual administration"],
         ["Beneficial ownership (BOI) report to FinCEN", "FinCEN, rule of August 2026", "does not apply to companies formed in the US", "nobody"],
       ],
-      fuss: ["Ongoing bookkeeping and the tax returns in Germany are not part of your order. Which obligations apply in an individual case is for the tax adviser to review."],
+      fuss: ["Ongoing bookkeeping and the tax returns in Germany are not part of your engagement. Which obligations apply in an individual case is for your tax adviser to clarify."],
     },
     {
       typ: "text", id: "meldung", h2: "Section 138 AO: reporting the US LLC — 14 months, not one month",
@@ -138,7 +151,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Under the second sentence of section 12 AO, the place of management is a permanent establishment. If you manage your LLC from a study in Germany, you therefore, as a rule, maintain a permanent establishment in Germany, even without an office with a nameplate on the door.",
         "This raises three questions that should be answered before you start. The first is the trade notification: anyone who begins a standing trade (stehendes Gewerbe), a branch or a dependent branch office must notify the competent authority at the same time (section 14(1) of the German Trade Regulation Act, GewO); for tax purposes, the opening of a permanent establishment must be reported to the municipality (section 138(1) AO). The second is trade tax: it covers every standing commercial business for which a permanent establishment is maintained in Germany; the activity of corporations always counts in full as a commercial business (section 2(1) and (2) of the German Trade Tax Act, GewStG). Whether this second rule applies to your LLC depends, once again, on its classification. The third is the commercial register: if a company with its registered office abroad has a branch in Germany, the branch is registered with the court in whose district it is located (section 13d(1) of the German Commercial Code, HGB).",
-        "Whether your activity is a trade or a liberal profession, whose commencement is only reported to the tax office, and whether the permanent establishment becomes a branch that must be entered in the register, depend on the individual case. These questions belong in the review before formation.",
+        "Whether your activity is a trade or a liberal profession, whose commencement is only reported to the tax office, and whether the permanent establishment becomes a branch that must be entered in the register, depend on the individual case. These questions should be clarified before formation.",
       ],
     },
     {
@@ -175,15 +188,15 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "In Germany, commercial businesses must keep books if their total turnover in the calendar year exceeds €800,000 or their profit in the financial year exceeds €80,000 (section 141(1) AO); the duty begins with the financial year that follows the tax office’s notice (section 141(2) AO). Whether your LLC needs a balance sheet even below these thresholds, and how its profit is to be determined, depends on its classification. Books and annual financial statements must be kept for ten years, accounting vouchers for eight years (section 147(3) AO).",
         `In the US, the IRS requires permanent books and records that establish the correctness of the filing, including the transactions between the LLC and you. Form 5472 shows, among other things, contributions to the company and distributions from it. Anyone who does not file Form 5472 on time or does not keep the records risks a penalty of ${IRS_EN.strafe5472}.`,
-        "In practice this means an LLC account that is used only for business, and bookkeeping from which your tax adviser in Germany and the US CPA work with the same figures. What is booked in Germany as a distribution or withdrawal must match what appears on Form 5472.",
+        "In practice this means an LLC account that is used only for business, and bookkeeping from which your tax adviser in Germany and the US CPA work with the same figures. What is recorded in Germany as a distribution or withdrawal must match what appears on Form 5472.",
       ],
     },
     {
       typ: "text", id: "dba", h2: "The double taxation agreement: what it governs — and what it does not",
       absaetze: [
         "Germany and the United States are bound by a double taxation agreement, as amended by the 2006 protocol. It allocates taxing rights; it does not create new ones. As a rule, a company’s business profits may be taxed by the state in which it is resident; the other state may tax them only if the company carries on business there through a permanent establishment and the profits are attributable to it (Article 7).",
-        "For entities that a state treats as transparent for tax purposes, the agreement contains a rule of its own: income derived through them is treated as income of a resident of a state to the extent that this state treats it as such under its tax law (Article 1(7)). That often affects the LLC: the IRS does not treat a single-member LLC as a taxpayer separate from its owner unless it elects otherwise — in Germany, the type comparison decides. How the agreement applies to your LLC is examined jointly by the tax adviser and the US CPA; both sides have to fit together.",
-        "What the agreement does not do: it does not turn a company managed from Germany into a company that is taxable only in the US. A US LLC is not a tax model.",
+        "For entities that a state treats as transparent for tax purposes, the agreement contains a rule of its own: income derived through them is treated as income of a resident of a state to the extent that this state treats it as such under its tax law (Article 1(7)). That often affects the LLC: the IRS does not treat a single-member LLC as a taxpayer separate from its owner unless it elects otherwise — in Germany, the type comparison decides. How the agreement applies to your LLC is for your tax adviser and a US CPA to clarify together; both sides have to fit together.",
+        "What the agreement does not do: it does not turn a company managed from Germany into a company that is taxable only in the US. A US LLC is not a tax scheme.",
       ],
     },
     {
@@ -191,44 +204,55 @@ export const SEITE: GlobalSeite = {
       karten: [
         { tag: "Website", titel: "Legal notice (Impressum)", text: "Anyone who offers digital services on a business basis, usually for payment — a website, for instance — must state in an easily recognisable way the name and the address at which they are established, the legal form, the persons authorised to represent the company, the register with its number, an email address and, where one exists, the VAT identification number (section 5 of the German Digital Services Act, DDG). The registered agent’s address is not meant for this." },
         { tag: "Account", titel: "Separate payments", text: "Your customers’ payments go to the LLC’s account, not to your private account. That keeps the books clean in both countries and makes contributions and withdrawals traceable — exactly the figures that Form 5472 asks for." },
-        { tag: "Documents", titel: "To hand for your tax adviser", text: "Your tax adviser needs the formation document, the operating agreement and the EIN confirmation for the type comparison and the notification. With FIAON Global, they are in your document room from the very start." },
+        { tag: "Documents", titel: "To hand for your tax adviser", text: "Your tax adviser needs the formation document, the operating agreement and the EIN confirmation for the type comparison and the notification. With FIAON Global, they are in your portal once the company is registered." },
       ],
     },
     {
-      typ: "etappen", id: "reihenfolge", h2: "In this order: from the idea to the first invoice",
+      typ: "etappen", id: "reihenfolge", h2: "In this sequence: from the idea to the first invoice",
       etappen: [
-        { titel: "Review before formation", text: "Place of management, classification under the type comparison, the notification under section 138 AO, trade registration and VAT are clarified before anything is signed." },
-        { titel: "Operating agreement", text: "The LLC’s agreement is aligned with the outcome of the type comparison. With FIAON Global, our partner lawyer drafts it." },
+        { titel: "Clarification before formation", text: "Place of management, classification under the type comparison, the notification under section 138 AO, trade registration and VAT are clarified before anything is signed." },
+        { titel: "Operating agreement", text: "The LLC’s agreement is aligned with the outcome of the type comparison. With FIAON Global, it is among the documents we present ready for your signature." },
         { titel: "Formation and EIN", text: "Filing with the state, registered agent, EIN from the IRS. After that, the company can enter into contracts and apply for an account." },
-        { titel: "Registration in Germany", text: "Notice of the permanent establishment, information for tax registration, application for the VAT identification number — each as the review has determined." },
+        { titel: "Registration in Germany", text: "Notice of the permanent establishment, information for tax registration, application for the VAT identification number — each as clarified beforehand." },
         { titel: "First invoice", text: "With all mandatory details and the correct VAT, issued in the LLC’s name and paid into its account." },
         { titel: "First year-end", text: "Tax return in Germany with the notification under section 138 AO; Form 5472 with Form 1120 to the IRS." },
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes on the obligations on both sides",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is a business consultancy for the route to the United States, built on one principle: one contact instead of eight. With your power of attorney, we make the applications for you — formation, the EIN, preparation of the ITIN, the D-U-N-S Number, filings, the registered agent, and a US address and US phone number for the first year. You make only the account, card and credit applications yourself; we prepare them in full. FIAON is not a bank and neither grants nor arranges loans; the institution alone decides on the account, card, credit limit and loan.",
-        `On the German side: before formation, our partner tax adviser reviews your case — place of management, classification under the type comparison, the notification under section 138 AO. Based on that result, our partner lawyer drafts the operating agreement. Our US CPA handles the first US filing, Form 5472 with Form 1120. ${P.partner}`,
-        `So your tax adviser does not start from scratch: the result of the review, the formation document, the operating agreement and the EIN confirmation are already filed in order in your document room when the first return with the section 138 AO notification is due. Our team on the ground in Miami handles appointments in the US, Zurich is our partner location, and your contracting party is FIAON LTD in London. ${P.preisSatz}`,
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "Included in the first year: the first annual US filing (Form 5472 with Form 1120).",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        `German side: ${STEUERFRAGEN}; your ongoing tax return, with the notification under section 138 AO, is handled by your tax adviser.`,
+        `${TEIL.bedingung}: ${satz("S3", "en")}`,
       ],
     },
     {
-      typ: "text", id: "jahresbetreuung", h2: "From the second year: annual care",
-      absaetze: [`The first year is included in your order. From the second year we keep your company running for ${P.jahres} a year – with all fees, without your having to keep a deadline in mind.`],
-      punkte: [...GLOBAL_JAHRESBETREUUNG.en.leistungen],
-      nach: `${GLOBAL_JAHRESBETREUUNG.en.bedingungen} Ongoing bookkeeping and the tax returns in Germany stay with your tax adviser.`,
+      typ: "text", id: "jahresbetreuung", h2: "From the second year: annual administration",
+      absaetze: [`The first year is included in your engagement. From the second year your company incurs running costs: the state fee, the registered agent and the annual US filing. With annual administration we handle these on request for ${P.jahres} a year, state fee included.`],
+      punkte: [
+        "Registered agent and US business address",
+        "US telephone number",
+        "Annual US filing (Form 5472 with Form 1120) by a US certified public accountant (CPA) from our partner network",
+        "Annual report to the state, state fee included",
+        "Compliance calendar with the US deadlines",
+        "Your dedicated contact",
+      ],
+      nach: "It is invoiced annually in advance and does not renew automatically. Ongoing bookkeeping and the tax returns in Germany stay with your tax adviser.",
     },
-    { typ: "paket", id: "mandat", h2: "A clean start, with both sides in view", lead: P.karteLead, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "This article explains the legal basis as at October 2026. It does not replace a review of your case; that is carried out by the tax adviser under your engagement.",
+        `This article explains the legal basis as at October 2026 and does not replace a tax or legal review of your case. ${STEUERFRAGEN}; your ongoing tax return is handled by your tax adviser.`,
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        `Not included in your order: ${NICHT_IM_PREIS}.`,
-        GLOBAL_ROLLEN.en.fiaon,
-        "A US LLC is not a tax model: if you manage it from Germany, it is, as a rule, taxed in Germany.",
+        `Not included in your engagement: ${NICHT_IM_PREIS}.`,
+        satz("S8", "en"),
+        `${satz("S10", "en")} If you manage the LLC from Germany, it is, as a rule, taxed in Germany.`,
       ],
     },
   ],
@@ -240,7 +264,7 @@ export const SEITE: GlobalSeite = {
     { f: "Which tax office is responsible for my US LLC?", a: "If the LLC is classified like a corporation, the tax office in whose district its place of management is located (section 20(1) AO) — so if you manage it from home, the tax office where you live. If it is classified as transparent, its profit goes into your own tax return." },
     { f: "Does my US LLC have to keep books in Germany?", a: "Commercial businesses must keep books if turnover exceeds €800,000 in the calendar year or profit exceeds €80,000 in the financial year (section 141 AO). Whether your LLC needs a balance sheet earlier depends on its classification. Books must be kept for ten years, accounting vouchers for eight years (section 147 AO)." },
     { f: "Does the double taxation agreement protect me from German tax?", a: "No. The agreement between Germany and the US allocates taxing rights and prevents the same profit from being taxed twice. If the LLC is managed from Germany, it generally remains taxable in Germany. For entities that are transparent for tax purposes, it contains a rule of its own (Article 1(7))." },
-    { f: "What does FIAON Global handle, and what does my tax adviser handle?", a: "We take on the US side and the coordination: formation, the EIN, the registered agent, the operating agreement by our partner lawyer, the first Form 5472 by our US CPA and the review before formation by our partner tax adviser. Ongoing bookkeeping and tax returns in Germany, including the section 138 AO notification, are handled by your tax adviser — with the documents from your document room." },
+    { f: "What does FIAON Global handle, and what does my tax adviser handle?", a: `We handle the US side: formation, the operating agreement and formation documents, the EIN and ITIN applications, the registered agent and, in the first year, the first annual US filing. Ongoing bookkeeping and tax returns in Germany, including the section 138 AO notification, are handled by your tax adviser — with the documents from your portal. ${satz("S3", "en")}` },
   ],
   paket: "global_struktur",
   weiter: ["/en/business/knowledge/us-llc-tax", "/en/business/from-germany", "/en/business/knowledge/llc-tax-returns", "/en/business/knowledge/us-llc-disadvantages"],

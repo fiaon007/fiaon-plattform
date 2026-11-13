@@ -27,14 +27,25 @@
 // Visa sind nicht Teil des Auftrags (zielgruppen.ts) — der Antrag gehört dem Partner-Anwalt.
 // E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein „Global VIP“ mehr (kein Preis, kein Reiseversprechen); ab 1 Mio.
 // US-Dollar Kapitalrahmen begleiten wir persönlich in Miami. Die alte Geld-zurück-Zusage je Paket entfällt.
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): ein Abschnitt „Was FIAON Global dabei übernimmt“ aus den Schritten 1
+// und 2 der festen Erzählung (shared/fiaon-global-saetze.ts); kein Partner bei der Arbeit im Präsens, kein „Team vor Ort“,
+// kein Partnerstandort, keine D-U-N-S-Nummer als Leistung (der Vertrag nennt sie nicht), keine Zusage zum Visum —
+// über das Visum entscheidet das Konsulat, der Antrag liegt bei einem Partner-Anwalt für Einwanderungsrecht.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 import { GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q } from "../fakten";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, weitererSatz, type Schritt, type SchrittNr } from "../../fiaon-global-saetze";
 
 const S = "2026-10-27";
 const P = EIN_PRODUKT.de;
+/** Schritt 1 und 2 der festen Erzählung (Leitfaden 2.2) — Satz und „Ihr Teil“ wortgleich aus der einen Quelle, nie getippt. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.de.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
 
 /** Quellen dieses Beitrags, selbst abgerufen am 27.10.2026. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -60,7 +71,7 @@ export const SEITE: GlobalSeite = {
     titel: "E2 Visum mit eigener US-Firma — FIAON Global",
     beschreibung: "E2 Visum für Deutsche, Österreicher und Schweizer: Voraussetzungen, Kosten, Ablauf beim Konsulat, Laufzeit, Familie und die Rolle der US-Firma.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 51",
   auge: "Wissen · Investorenvisum USA",
@@ -79,7 +90,7 @@ export const SEITE: GlobalSeite = {
     ["Unternehmen", "Echt, tätig und mehr als marginal"],
     ["Kontrolle", "In der Regel mindestens 50 % Eigentum oder die operative Leitung"],
     ["Familie", "Ehepartner und ledige Kinder unter 21 Jahren"],
-    ["Mit FIAON Global", "Gesellschaft, EIN und geordnete Belege mit Ihrer Vollmacht; das Visum beantragt der Partner-Anwalt"],
+    ["Mit FIAON Global", "Gründung, Unterlagen und Anträge für EIN und ITIN; der Visumsantrag ist nicht Teil des Mandats"],
   ],
   kurz: "Das E2 Visum steht Staatsangehörigen von Vertragsstaaten offen; Deutschland, Österreich und die Schweiz gehören dazu. Nach dem Handbuch des US-Außenministeriums (9 FAM 402.9) braucht es eine erhebliche Investition eigener Mittel, die im Risiko steht und unwiderruflich gebunden ist, ein echtes, tätiges Unternehmen, das mehr als nur einen minimalen Lebensunterhalt der Familie trägt, mindestens 50 Prozent des Unternehmens in der Hand von Staatsangehörigen des Vertragsstaats, Ihre Kontrolle über das Unternehmen und die Absicht, die USA am Ende des Status zu verlassen. Eine feste Mindestsumme gibt es nicht. Beantragt wird beim US-Konsulat, das allein entscheidet.",
   bloecke: [
@@ -125,9 +136,9 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "investition", h2: "Die Investition: was „erheblich“ heißt",
       absaetze: [
-        "Eine feste Dollarsumme, ab der eine Investition als erheblich gilt, gibt es nicht. Das Handbuch des Außenministeriums sagt das ausdrücklich (9 FAM 402.9-6(D)). Geprüft wird im Verhältnis: Der Betrag Ihrer Investition wird an den Kosten des Unternehmens gemessen, wie auf einer umgekehrt gleitenden Skala. Je günstiger das Unternehmen, desto höher muss Ihr Anteil an den Kosten sein; bei einem sehr teuren Unternehmen kann ein kleinerer Anteil genügen. Als Beispiel nennt das Handbuch ein Unternehmen mit Startkosten von 100.000 $, das Sie vollständig selbst finanzieren — das gilt in der Regel als erheblich. Am anderen Ende kann eine Investition von 10 Millionen $ in ein Unternehmen, das 100 Millionen $ kostet, schon wegen ihrer Größe genügen. Als Kosten einer Neugründung gilt, was nötig ist, damit das Unternehmen betriebsbereit ist. Feste Mindestsummen, die im Internet kursieren, stehen weder in der Verordnung (22 CFR 41.51) noch im Handbuch.",
-        "Die Mittel müssen Ihnen gehören und unter Ihrer Kontrolle stehen. Sie dürfen aus Ersparnissen, Schenkungen, einer Erbschaft oder anderen legalen Quellen stammen, auch aus einem Darlehen, das mit Ihrem eigenen Vermögen gesichert ist, etwa einer Grundschuld auf Ihre eigene Immobilie, oder aus einem ungesicherten Darlehen auf Ihre persönliche Unterschrift. Darlehen, die durch das Vermögen des Unternehmens gesichert sind, zählen dagegen nicht, auch wenn zusätzlich private Sicherheiten gestellt werden: Bei ihnen fehlt das Risiko (9 FAM 402.9-6(B)). Ob ein Rahmen, den Ihre Gesellschaft von einem Institut erhält, mitzählen kann, hängt deshalb davon ab, womit er gesichert ist — das prüft der Partner-Anwalt im Einzelfall. Die Herkunft der Mittel belegen Sie lückenlos.",
-        "Investiert heißt: im Risiko und gebunden. Ein Guthaben auf dem Konto, das Sie jederzeit wieder abziehen könnten, genügt nicht; eine bloße Absicht ebenso wenig. Wer noch im Investieren ist, muss kurz vor dem Start des tatsächlichen Geschäftsbetriebs stehen; Verträge zu unterschreiben oder Standorte zu suchen, reicht dafür nicht. Ein Kauf, der unter der Bedingung des Visums steht, kann reichen, wenn die Mittel auf einem Treuhandkonto liegen und mit der Erteilung freigegeben werden. Miete und Leasing für Räume oder Geräte zählen nur in Höhe einer Monatszahlung, die Jahresmiete nur, wenn sie im Voraus bezahlt ist; Ausstattung und Warenbestand zählen mit ihrem Kaufpreis, sofern sie dem Geschäft dienen und nicht privaten Zwecken.",
+        "Eine feste Dollarsumme, ab der eine Investition als erheblich gilt, gibt es nicht. Das Handbuch des Außenministeriums sagt das ausdrücklich (9 FAM 402.9-6(D)). Geprüft wird im Verhältnis: Der Betrag Ihrer Investition wird an den Kosten des Unternehmens gemessen, wie auf einer umgekehrt gleitenden Skala. Je geringer die Kosten des Unternehmens, desto höher muss Ihr Anteil daran sein; bei einem sehr teuren Unternehmen kann ein kleinerer Anteil genügen. Als Beispiel nennt das Handbuch ein Unternehmen mit Startkosten von 100.000 $, das Sie vollständig selbst finanzieren — das gilt in der Regel als erheblich. Am anderen Ende kann eine Investition von 10 Millionen $ in ein Unternehmen, das 100 Millionen $ kostet, schon wegen ihrer Größe genügen. Als Kosten einer Neugründung gilt, was nötig ist, damit das Unternehmen betriebsbereit ist. Feste Mindestsummen, die im Internet kursieren, stehen weder in der Verordnung (22 CFR 41.51) noch im Handbuch.",
+        "Die Mittel müssen Ihnen gehören und unter Ihrer Kontrolle stehen. Sie dürfen aus Ersparnissen, Schenkungen, einer Erbschaft oder anderen legalen Quellen stammen, auch aus einem Darlehen, das mit Ihrem eigenen Vermögen gesichert ist, etwa einer Grundschuld auf Ihre eigene Immobilie, oder aus einem ungesicherten Darlehen auf Ihre persönliche Unterschrift. Darlehen, die durch das Vermögen des Unternehmens gesichert sind, zählen dagegen nicht, auch wenn zusätzlich private Sicherheiten gestellt werden: Bei ihnen fehlt das Risiko (9 FAM 402.9-6(B)). Ob eine Finanzierung, die ein Institut Ihrer Gesellschaft einräumt, mitzählen kann, hängt deshalb davon ab, womit sie gesichert ist. Das klärt im Einzelfall ein Partner-Anwalt für Einwanderungsrecht in eigener Verantwortung. Die Herkunft der Mittel belegen Sie lückenlos.",
+        "Investiert heißt: im Risiko und gebunden. Ein Guthaben auf dem Konto, das Sie jederzeit wieder abziehen könnten, genügt nicht; eine bloße Absicht ebenso wenig. Wer noch im Investieren ist, muss kurz vor dem Start des tatsächlichen Geschäftsbetriebs stehen; Verträge zu unterzeichnen oder Standorte zu suchen, reicht dafür nicht. Ein Kauf, der unter der Bedingung des Visums steht, kann reichen, wenn die Mittel auf einem Treuhandkonto liegen und mit der Erteilung freigegeben werden. Miete und Leasing für Räume oder Geräte zählen nur in Höhe einer Monatszahlung, die Jahresmiete nur, wenn sie im Voraus bezahlt ist; Ausstattung und Warenbestand zählen mit ihrem Kaufpreis, sofern sie dem Geschäft dienen und nicht privaten Zwecken.",
       ],
     },
     {
@@ -171,71 +182,75 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "grenzen", h2: "E2 Visum abgelehnt — und was mit der Green Card ist",
       absaetze: [
         "Lehnt das Konsulat ein Visum ab, muss sich die Ablehnung auf eine gesetzliche Grundlage stützen. Das Konsulat nennt Ihnen den Grund, soweit das Gesetz die Mitteilung nicht ausschließt, und sagt, ob es einen Weg gibt, ihn auszuräumen; jede Ablehnung wird innerhalb des Konsulats überprüft (22 CFR 41.121). Lässt sich ein Grund mit weiteren Nachweisen beheben, können Sie diese nachreichen. Beim E-2-Antrag betreffen solche Nachweise die Prüfpunkte dieser Seite: gebundene Mittel, ihre belegte Herkunft und einen Geschäftsplan, der zeigt, dass das Unternehmen mehr als marginal wird. Deshalb gehört jeder Punkt vor dem Gespräch belegt in die Akte.",
-        "Das E-2-Visum ist ein Visum für einen vorübergehenden Aufenthalt; das Gesetz führt es bei den Nichteinwanderern (8 U.S.C. § 1101(a)(15)(E)). Es wird nicht von selbst zur Green Card. Wer zugleich Begünstigter eines Einwanderungsantrags ist, muss das Konsulat davon überzeugen, dass er die USA am Ende seines Aufenthalts verlassen will (9 FAM 402.9-4(C)). Wer dauerhaft auswandern möchte, klärt seinen Weg deshalb mit dem Partner-Anwalt für Einwanderungsrecht, bevor die Gesellschaft für ein Visum aufgebaut wird.",
+        "Das E-2-Visum ist ein Visum für einen vorübergehenden Aufenthalt; das Gesetz führt es bei den Nichteinwanderern (8 U.S.C. § 1101(a)(15)(E)). Es wird nicht von selbst zur Green Card. Wer zugleich Begünstigter eines Einwanderungsantrags ist, muss das Konsulat davon überzeugen, dass er die USA am Ende seines Aufenthalts verlassen will (9 FAM 402.9-4(C)). Wer dauerhaft auswandern möchte, klärt seinen Weg deshalb mit einem Partner-Anwalt für Einwanderungsrecht, bevor die Gesellschaft für ein Visum aufgebaut wird.",
       ],
     },
     {
-      typ: "text", id: "steuern", h2: "Steuern beim Umzug: zwei Länder, eine Prüfung vorab",
+      typ: "text", id: "steuern", h2: "Steuern beim Umzug: zwei Länder, vorab geklärt",
       absaetze: [
         "Ein Visum ist kein Steuermodell. Solange Sie Ihre US-Gesellschaft von Deutschland aus führen, liegt dort ihre Geschäftsleitung (§ 10 AO), und sie ist dort unbeschränkt körperschaftsteuerpflichtig, wenn sie als Körperschaft gilt (§ 1 KStG). Die Beteiligung ist dem Finanzamt mit der Steuererklärung mitzuteilen (§ 138 AO).",
         "Ziehen Sie in die USA, gelten Sie dort in der Regel steuerlich als ansässig, wenn Sie den Substantial Presence Test erfüllen: mindestens 31 Tage im laufenden Jahr und 183 Tage über drei Jahre, wobei die Tage der beiden Vorjahre nur zu einem Drittel und einem Sechstel zählen. Ausnahmen, etwa bei engerer Verbindung zu einem anderen Land, nennt die IRS selbst. Ansässige unterliegen mit ihrem Welteinkommen der US-Steuer (IRS).",
-        "In Deutschland kann der Wegzug selbst eine Steuer auslösen: Wer in den letzten zwölf Jahren mindestens sieben Jahre unbeschränkt steuerpflichtig war und Anteile an einer Kapitalgesellschaft im Sinne des § 17 EStG hält, wird beim Wegzug so behandelt, als hätte er sie verkauft (§ 6 AStG). Je nach Einordnung kann dazu auch Ihre US-Gesellschaft gehören. Welcher Staat welche Einkünfte besteuert, regelt das Doppelbesteuerungsabkommen. Österreich und die Schweiz haben eigene Regeln — das alles gehört vor den Umzug auf den Tisch unseres Partner-Steuerberaters, nicht danach.",
+        "In Deutschland kann der Wegzug selbst eine Steuer auslösen: Wer in den letzten zwölf Jahren mindestens sieben Jahre unbeschränkt steuerpflichtig war und Anteile an einer Kapitalgesellschaft im Sinne des § 17 EStG hält, wird beim Wegzug so behandelt, als hätte er sie verkauft (§ 6 AStG). Je nach Einordnung kann dazu auch Ihre US-Gesellschaft gehören. Welcher Staat welche Einkünfte besteuert, regelt das Doppelbesteuerungsabkommen. Österreich und die Schweiz haben eigene Regeln. Steuerfragen klären Partner-Steuerberater in eigener Verantwortung — vor dem Umzug, nicht danach.",
       ],
     },
     {
       typ: "rollen", id: "rollen", h2: "Wer was tut auf dem Weg zum E2 Visum",
-      lead: "Ein Ansprechpartner statt acht — und eine klare Grenze beim Visum.",
+      lead: "Ein fester Ansprechpartner — und eine klare Grenze beim Visum.",
       fiaon: [
-        "Gründung der US-Gesellschaft mit Ihrer Vollmacht, Eigentum und Leitung von Anfang an klar geregelt",
-        "EIN, D-U-N-S-Nummer, Meldungen der Gesellschaft; ITIN-Antrag vorbereitet",
-        "Registered Agent, US-Geschäftsadresse und US-Telefonnummer für das erste Jahr",
+        "Anmeldung der US-Gesellschaft beim Bundesstaat, Staatsgebühr enthalten",
+        "Operating Agreement und Gründungsunterlagen; Anträge für EIN und ITIN (die ITIN nach unserem ITIN-Check)",
+        "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
+        "Die erste jährliche US-Meldung Ihrer Gesellschaft",
         "Konto- und Kartenanträge vollständig vorbereitet",
-        "Gründungsunterlagen und Belege geordnet im Dokumentenraum, bereit für die Akte des Anwalts",
+        "Die Unterlagen Ihrer Gesellschaft geordnet in Ihrem Portal",
       ],
       partner: [
-        "Partner-Anwalt: Operating Agreement und Gründungsunterlagen",
-        "Partner-Steuerberater: Prüfung vor der Gründung, auch mit Blick auf einen geplanten Umzug",
-        "US-CPA: die erste jährliche US-Meldung",
-        "Partner-Anwalt für Einwanderungsrecht: der Visumsantrag in Ihrem eigenen Mandat, nicht Teil Ihres Auftrags",
+        weitererSatz("ROLLEN", "de"),
+        "Steuerfragen im Wohnsitzland, auch vor einem geplanten Umzug: Partner-Steuerberater, in eigener Verantwortung",
+        "Der Visumsantrag: ein Partner-Anwalt für Einwanderungsrecht, in eigener Verantwortung; sein Honorar vereinbaren Sie mit ihm",
       ],
       sie: [
         "Die Investition aus eigenen, belegten Mitteln",
         "Geschäftsplan und Entscheidungen im Unternehmen",
-        "Konto-, Karten- und Kreditanträge selbst unterschreiben und stellen",
-        "Formular DS-160 und das Gespräch beim Konsulat",
+        "Die Anträge bei den Instituten selbst stellen; über Konto, Karte und Rahmen entscheidet das jeweilige Institut",
+        "Formular DS-160 und das Gespräch beim Konsulat; über das Visum entscheidet das Konsulat",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Grundlage für Ihr E2 Visum",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "FIAON Global ist die Unternehmensberatung für Ihren Weg in die USA: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie — Gründung beim Bundesstaat, EIN, D-U-N-S-Nummer und die Meldungen Ihrer Gesellschaft — und bereiten die ITIN vor. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; jeden davon bereiten wir vollständig vor.",
-        "Für ein späteres E2 Visum bauen wir die Gesellschaft so, dass sie sich belegen lässt: Eigentum und Leitung stehen von Anfang an klar im Operating Agreement, das unser Partner-Anwalt entwirft, Name, Anschrift und Stammdaten der Gesellschaft stimmen in allen Unterlagen überein, und jeder Beleg liegt geordnet in Ihrem Dokumentenraum. Ob Investition und Geschäft für ein Visum genügen, entscheidet das Konsulat. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten in Ihrem Mandat; ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON.",
-        "Den Visumsantrag selbst stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem eigenen Mandat — er ist nicht Teil Ihres Auftrags. Wir stellen den Kontakt her und geben ihm mit Ihrer Zustimmung die Unterlagen der Gesellschaft. Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami; darunter läuft alles aus der Ferne, und unser Team vor Ort nimmt die Wege bei den Behörden wahr. Dazu kommen unser Partnerstandort in Zürich und Ihr Vertragspartner, die FIAON LTD in London. Ihren Preis sehen Sie im Konfigurator; ab dem zweiten Jahr ist die Jahresbetreuung freiwillig.",
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "Für ein späteres E2 Visum zählt, dass sich Eigentum und Leitung belegen lassen: Beides steht im Operating Agreement.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        "Visum: Der Antrag ist nicht Teil Ihres Mandats.",
+        `${TEIL.bedingung}: ${satz("S3", "de")} Über das Visum entscheidet das Konsulat.`,
       ],
     },
-    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami.`, paket: "global_vip" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} ${weitererSatz("MIAMI", "de")}`, paket: "global_vip" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Über jedes Visum entscheidet allein das Konsulat, über die Zulassung bei der Einreise die Grenzbehörde. Eine Zusage zu Visum, Laufzeit oder Verlängerung kann niemand geben.",
-        "Der Visumsantrag ist nicht Teil Ihres Auftrags. Antrag und Einzelfall gehören in die Hand eines Partner-Anwalts für Einwanderungsrecht, der in Ihrem Mandat arbeitet und sein Honorar mit Ihnen vereinbart.",
+        "Der Visumsantrag ist nicht Teil Ihres Mandats. Antrag und Einzelfall liegen bei einem Partner-Anwalt für Einwanderungsrecht; er arbeitet in eigener Verantwortung und vereinbart sein Honorar mit Ihnen.",
         "Eine US-Gesellschaft gibt kein Recht, in den USA zu wohnen oder zu arbeiten; auch die ITIN erlaubt keine Arbeit.",
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Ihr Kapitalrahmen ist ein Ziel, keine Zusage — über die Finanzierung entscheidet das finanzierende Institut.",
-        "Diese Seite gibt die Vorschriften mit Stand Oktober 2026 wieder; Regeln und Gebühren können sich ändern.",
+        `FIAON ist keine Bank und vergibt und vermittelt keine Kredite. ${satz("S9", "de")} ${satz("S1", "de")}`,
+        "Diese Seite gibt die Vorschriften mit Stand Oktober 2026 wieder; Regeln und Gebühren können sich ändern. Sie erklärt Grundlagen und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls.",
       ],
     },
   ],
   fragen: [
     { f: "Welche Voraussetzungen hat das E2 Visum?", a: "Staatsangehörigkeit eines Vertragsstaats, eine erhebliche Investition eigener Mittel im Risiko, ein echtes, tätiges Unternehmen, das mehr als marginal ist, mindestens 50 Prozent des Unternehmens in der Hand von Staatsangehörigen des Vertragsstaats, Ihre Kontrolle über das Unternehmen und die Absicht, die USA am Ende des Status zu verlassen (9 FAM 402.9-6). Die Beweislast liegt beim Antragsteller." },
     { f: "Können Deutsche, Österreicher und Schweizer ein E2 Visum beantragen?", a: "Ja. Deutschland, Österreich und die Schweiz stehen in der Liste der Vertragsstaaten des US-Außenministeriums, jeweils für E-1 und E-2. Maßgeblich ist die Staatsangehörigkeit, nicht der Wohnsitz. Über den einzelnen Antrag entscheidet das Konsulat." },
-    { f: "Wie viel muss ich für ein E2 Visum investieren?", a: "Eine feste Mindestsumme gibt es nicht. Das Konsulat misst Ihre Investition an den Kosten des Unternehmens: Je günstiger das Unternehmen, desto höher muss Ihr Anteil sein. Ein Unternehmen mit Startkosten von 100.000 $, das Sie vollständig selbst finanzieren, gilt nach dem Handbuch in der Regel als erheblich." },
+    { f: "Wie viel muss ich für ein E2 Visum investieren?", a: "Eine feste Mindestsumme gibt es nicht. Das Konsulat misst Ihre Investition an den Kosten des Unternehmens: Je geringer diese Kosten, desto höher muss Ihr Anteil daran sein. Ein Unternehmen mit Startkosten von 100.000 $, das Sie vollständig selbst finanzieren, gilt nach dem Handbuch in der Regel als erheblich." },
     { f: "Reicht eine US-LLC für das E2 Visum?", a: "Eine LLC kann das Unternehmen sein, die Gründung allein genügt aber nicht. Es braucht eine gebundene Investition, ein tätiges Geschäft, das mehr als marginal ist, und Ihre Kontrolle. Eine Gesellschaft zu besitzen, gibt kein Recht, in den USA zu wohnen oder zu arbeiten." },
     { f: "Wie lange gilt das E2 Visum?", a: "Bei jeder Einreise werden Sie für höchstens zwei Jahre zugelassen; Verlängerungen um jeweils höchstens zwei Jahre sind möglich, ohne Obergrenze ihrer Anzahl. Wie lange das Visum im Pass gilt, richtet sich nach dem Gegenseitigkeitsplan für Ihre Staatsangehörigkeit. Eine Green Card ist das E-2-Visum nicht, und es wird auch nicht von selbst zu einer." },
     { f: "Darf mein Ehepartner mit dem E2 Visum arbeiten?", a: "Ja. Der Ehepartner eines E-2-Investors ist mit seinem Status zur Arbeit berechtigt; der Einreisebeleg trägt den Vermerk E-2S. Ledige Kinder unter 21 Jahren erhalten denselben Status, dürfen aber nicht arbeiten." },
     { f: "Was kostet der Antrag beim Konsulat?", a: "Die Gebührenordnung des Außenministeriums nennt für E-Visa eine Antragsgebühr von 315 $ (22 CFR 22.1, Stand Oktober 2026). Dazu kann je nach Staatsangehörigkeit eine Ausstellungsgebühr nach dem Grundsatz der Gegenseitigkeit kommen; weitere gesetzliche Gebühren sind möglich. Das Honorar des Anwalts für Einwanderungsrecht vereinbaren Sie mit ihm." },
-    { f: "Übernimmt FIAON den Visumsantrag?", a: "Nein. Visa sind nicht Teil Ihres Auftrags. FIAON Global baut die US-Gesellschaft auf, die die Grundlage bildet, und ordnet ihre Unterlagen; den Antrag stellt ein Partner-Anwalt für Einwanderungsrecht in Ihrem Mandat." },
+    { f: "Übernimmt FIAON den Visumsantrag?", a: "Nein. Der Visumsantrag ist nicht Teil Ihres Mandats. FIAON Global gründet die US-Gesellschaft und ordnet ihre Unterlagen. Antrag und Einzelfall liegen bei einem Partner-Anwalt für Einwanderungsrecht, der in eigener Verantwortung arbeitet; über das Visum entscheidet das Konsulat." },
   ],
   paket: "global_vip",
   weiter: ["/business/miami", "/business/wissen/markteintritt-usa", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/aus-oesterreich"],

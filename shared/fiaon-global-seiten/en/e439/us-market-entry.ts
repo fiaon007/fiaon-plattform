@@ -28,14 +28,30 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global, Baustein „Wissens-Artikel“ 7.4): “step” statt “stage”, “financing”
+// statt “capital” in Titeln, “engagement” statt “order”, “funding target” statt “capital range”. Feste Sätze (S1, S2, S3,
+// S9, S10, Rollen-Satz, Übergangssätze, Schritt 2) kommen aus shared/fiaon-global-saetze.ts — hier nicht getippt.
+// Nie hier: “team on the ground”, ein Partnerstandort, ein Partner bei der Arbeit im Präsens, eine “assessment before
+// formation” als enthaltene Leistung, die D-U-N-S Number als unsere Leistung, der Satz zum Einführungszeitraum bei Karten.
+import { SAETZE_BETRAEGE, SCHRITTE_KOPF, SECHS_SCHRITTE, beleg, satz, weitererSatz } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import {
-  IRS_EN, MARKT_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN, STAAT_EN,
+  FAKTEN_STAND_EN, IRS_EN, MARKT_EN, QUELLEN_IRS_EN, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN, STAAT_EN,
 } from "../../fakten-en";
 
+/** Date of first publication (E-439). */
 const S = "2026-10-27";
+/** Date of the last change in substance (E-510, language guide). */
+const STAND = "2026-11-13";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 const P = EIN_PRODUKT.en;
+const B = SAETZE_BETRAEGE.en;
+/** Step 2 of the fixed narrative (language guide 2.3) — sentence and “your part” from the one source. */
+const UNTERLAGEN = SECHS_SCHRITTE.en.find((x) => x.nr === 2)!;
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** Who is responsible for tax questions in the country of residence — the same line as on the audience pages. */
+const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity; your ongoing tax return is handled by your tax adviser.";
 /** „$25,000“ aus „US$25,000 per form per year“ — die Zahl bleibt in fakten-en.ts. */
 const STRAFE_5472 = IRS_EN.strafe5472.split(" ")[0].replace(/^US/, "");
 /** Im Fließtext „per cent“ statt „%“ (britischer Satz), die Zahl selbst bleibt aus fakten-en.ts. */
@@ -71,15 +87,15 @@ export const SEITE: GlobalSeite = {
   art: "wissen",
   seo: {
     titel: "US market entry: step by step — FIAON Global",
-    beschreibung: "US market entry for mid-sized companies: structure, state, account, tax in both countries, staff and capital — stages, costs and sources.",
+    beschreibung: "US market entry for mid-sized companies: structure, state, account, tax in both countries, staff and financing — steps, costs and sources.",
   },
-  stand: "2026-11-12",
+  stand: STAND,
   erschienen: S,
   kennung: "FG · 48",
   auge: "Knowledge · US business consultancy",
   h1: "US market entry.",
   h1b: "The business consultancy for your route into the US — step by step.",
-  lead: "A US market entry succeeds in stages, not in a single step: first the assessment, then structure and state, formation, tax numbers, account and payment routes, contracts, staff, the filings in both countries and finally the capital. Here you will find each stage with its duties, costs and sources — and what FIAON Global takes on as a business consultancy for your US expansion.",
+  lead: "A US market entry runs in ten steps: first the plan, then structure and state, formation, tax numbers, account and payment routes, contracts, staff, the filings in both countries and finally financing. Each step is set out here with its duties, costs and sources. The closing section states what FIAON Global handles as a business consultancy for your US expansion.",
   ziffern: [
     { wert: IRS_EN.koerperschaftsteuer, label: "federal tax on the profit of a US corporation" },
     { wert: "45 days", label: "deadline for the BE-13 filing after formation" },
@@ -90,34 +106,34 @@ export const SEITE: GlobalSeite = {
     ["Structure", "LLC, corporation or a subsidiary of your GmbH, AG or holding company"],
     ["Tax", "The place of management counts; notification under section 138 AO"],
     ["US filings", "Form 5472 every year, BE-13 once on formation"],
-    ["Capital", "In stages: account, cards, revenue, bank"],
-    ["With FIAON Global", "One contact instead of eight, price up front in the configurator"],
+    ["Financing", "Step by step: account, cards, revenue, bank — each institution makes its own decision"],
+    ["With FIAON Global", `One contact instead of eight. ${beleg("honorarVorab", "en")}`],
   ],
-  kurz: "A US market entry runs in ten stages: assessment of the plan, choice of structure (LLC, corporation or a subsidiary of your own GmbH), state, formation, tax numbers, business account and payment routes, contracts and trademark, staff, tax and filings in both countries, capital. If the US company is managed from Germany, Austria or Switzerland, it remains taxable there; in the US, annual filings such as Form 5472 apply, plus a one-off BE-13 filing with the statistics agency BEA. As a business consultancy, FIAON Global makes the applications with your power of attorney and coordinates tax advisers, US CPAs and lawyers acting under your engagement.",
+  kurz: "A US market entry runs in ten steps: settling the plan, choosing the structure (LLC, corporation or a subsidiary of your own GmbH), state, formation, tax numbers, business account and payment routes, contracts and trademark, staff, tax and filings in both countries, financing. If the US company is managed from your country of residence, it remains taxable there; in the US, annual filings such as Form 5472 apply, plus a one-off BE-13 filing with the statistics agency BEA. As a business consultancy, FIAON Global forms the company, assembles its documents and applies for the tax numbers; registration and the numbers are decided by the state and the US tax authority.",
   bloecke: [
     {
       typ: "text", id: "fragen-vorab", h2: "Before you form a company: three questions",
       absaetze: [
         "The first question of a US market entry is not “LLC or corporation?” but: what do you actually want to do in the US? Sales from Europe to US customers, purchasing or a warehouse on site, projects on American construction sites, a team of your own, investors at the table — each answer leads to a different structure and to different duties. Anyone who wants to build a business in the US therefore starts with a clear picture of the plan and with figures for the first financial years.",
-        "The second question: who manages the company, and from where? Under German law, a corporation is subject to unlimited tax liability if its place of management is in Germany (section 1 of the German Corporate Income Tax Act, KStG); the place of management is the centre of its top-level business management (section 10 of the German Fiscal Code, AO). A US company run from a desk in Munich or Hamburg is therefore no tax shelter: it is taxable in Germany as well. This belongs in the assessment before formation, not in remedial work afterwards. Austria (section 1(2) of the Austrian Corporate Income Tax Act 1988, KStG 1988) and Switzerland (Art. 50 of the Federal Direct Tax Act, DBG) likewise link tax liability to the registered office or the place of management.",
-        "The third question: where does the capital come from, and when? A new US company has no history. Account, cards and credit open up one after another. Anyone who plans for this finances the first months from their own funds or from the parent company and builds US creditworthiness in parallel.",
-        "The US government’s point of contact for foreign investors is SelectUSA, a programme of the US Department of Commerce; through SelectUSA you will also find the economic development organisations of the states and regions. In addition, the Committee on Foreign Investment in the United States (CFIUS), chaired by the US Department of the Treasury, reviews certain investments in US businesses and certain real estate transactions by foreign persons for their national security implications. Before signing, the partner lawyer clarifies whether a purchase or an investment falls within its scope.",
+        "The second question: who manages the company, and from where? Under German law, a corporation is subject to unlimited tax liability if its place of management is in Germany (section 1 of the German Corporate Income Tax Act, KStG); the place of management is the centre of its top-level business management (section 10 of the German Fiscal Code, AO). A US company run from a desk in Munich or Hamburg is therefore not a tax scheme: it is taxable in Germany as well. This question belongs before formation, not in remedial work afterwards. Austria (section 1(2) of the Austrian Corporate Income Tax Act 1988, KStG 1988) and Switzerland (Art. 50 of the Federal Direct Tax Act, DBG) likewise link tax liability to the registered office or the place of management.",
+        "The third question: where does the capital come from, and when? A new US company has no history. Account, cards and credit therefore come into consideration one after another, and each institution decides on every application. Anyone who plans for this finances the first months from their own funds or from the parent company and builds US creditworthiness in parallel.",
+        "The US government’s point of contact for foreign investors is SelectUSA, a programme of the US Department of Commerce; through SelectUSA you will also find the economic development organisations of the states and regions. In addition, the Committee on Foreign Investment in the United States (CFIUS), chaired by the US Department of the Treasury, reviews certain investments in US businesses and certain real estate transactions by foreign persons for their national security implications. Whether a purchase or an investment falls within its scope is a legal question; it rests with partner lawyers acting in their own professional capacity.",
       ],
     },
     {
-      typ: "etappen", id: "etappen", h2: "The US market entry in ten stages",
-      lead: "The order matters: each stage builds on the one before. Anyone who wants to form a US subsidiary takes the same route — only with the GmbH, AG or holding company as the shareholder.",
+      typ: "etappen", id: "etappen", h2: "The US market entry in ten steps",
+      lead: "The sequence matters: each step builds on the one before. Anyone who wants to form a US subsidiary takes the same route — only with the GmbH, AG or holding company as the shareholder.",
       etappen: [
-        { titel: "Assessment", dauer: "before formation", text: "What you want to do in the US, who manages the company and what capital it needs — assessed for both countries." },
+        { titel: "The plan", dauer: "before formation", text: "What you want to do in the US, who manages the company and what funds it needs — settled for both countries." },
         { titel: "Structure", dauer: "before formation", text: "LLC, corporation or a subsidiary of your GmbH, AG or holding company: liability, tax and filings depend on this choice." },
         { titel: "State", dauer: "before formation", text: "Where the business is done, or where the costs and the legal framework suit you. A company that becomes active in a second state needs authority to do business there." },
         { titel: "Formation", dauer: "start", text: "Filing with the state, a registered agent with an address in the state, an operating agreement or bylaws drafted by the lawyer." },
         { titel: "Tax numbers", dauer: "with formation", text: "The company’s EIN — without it, no account and no filing; if needed, your personal ITIN with Form W-7." },
         { titel: "Account and payment routes", dauer: "after the EIN", text: "A business account with a US institution and the routes by which your US customers pay. The institution decides." },
-        { titel: "Contracts and trademark", dauer: "before the first order", text: "Contracts under US law, including with your own GmbH; protecting your trademark with the USPTO." },
+        { titel: "Contracts and trademark", dauer: "before the first sale", text: "Contracts under US law, including with your own GmbH; protecting your trademark with the USPTO." },
         { titel: "Staff", dauer: "with the first hire", text: "Verify work authorisation, withhold and pay over payroll tax, usually report to the IRS every quarter." },
         { titel: "Tax and filings", dauer: "every year", text: "In the US, Form 5472, tax return and state fee, plus BE-13 once; at home, the notification under section 138 AO and your tax return." },
-        { titel: "Capital in stages", dauer: "ongoing", text: "Account and business credit cards, then supplier accounts and revenue, later the bank and collateral. Every financing decision rests with the institution." },
+        { titel: "Financing in steps", dauer: "ongoing", text: "Account and business credit cards, then supplier accounts and revenue, later the bank and collateral. Every financing decision rests with the lender." },
       ],
     },
     {
@@ -148,7 +164,7 @@ export const SEITE: GlobalSeite = {
         ["Annual US filing by a US CPA", MARKT_EN.cpa5472, "published prices of several providers"],
         ["Trademark application with the USPTO", "$350 per class, filed electronically, plus possible surcharges", "37 CFR 2.6, plus the US attorney’s fee"],
         ["Missed Form 5472", IRS_EN.strafe5472, "IRS penalty"],
-        ["Your order with FIAON Global", `${P.preis} with your order; success fee on registration, according to your capital range`, "your price in the configurator"],
+        ["FIAON Global’s fees", `${B.honorarAuftrag} on engagement. On registration, the success fee set by your funding target — at least ${B.erfolgMin}. From the second year, on request, ${B.jahresbetreuung} a year.`, beleg("honorarVorab", "en")],
       ],
       fuss: [
         "State fees according to the official fee schedules, as at September 2026; Delaware: the LLC’s annual tax from tax year 2026. Market ranges are published prices of several providers in September 2026, not official figures.",
@@ -158,10 +174,10 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "steuern", h2: "Tax and filings in both countries",
       absaetze: [
-        `In the US: an LLC wholly owned by a foreign person, and every US corporation in which a foreign person holds at least 25 per cent, report their transactions with related parties on Form 5472 every year — the LLC with a pro forma Form 1120, even in a year without revenue; even payments by the owner to fund the formation count. With the calendar year as the tax year, it is due on ${IRS_EN.frist5472}. Anyone who misses it risks ${IRS_EN.strafe5472}.`,
+        `In the US: an LLC wholly owned by a foreign person, and every US corporation in which a foreign person holds at least 25 per cent, report their transactions with related parties on Form 5472 every year — the LLC with a pro forma Form 1120, even in a year without revenue; even payments by the owner to fund the formation count. With the calendar year as the tax year, it is due on ${IRS_EN.frist5472}. The penalty for a missed filing is ${IRS_EN.strafe5472} (IRS, as at ${FAKTEN_STAND_EN}).`,
         "The filing with the BEA (Bureau of Economic Analysis), the US statistics agency, is new to many. If a foreign person forms or acquires a US business and holds at least 10 per cent of the voting rights in it, the BE-13 filing is mandatory — even if the agency never gets in touch — no later than 45 calendar days after formation or acquisition (15 CFR 801.7). The BEA only requires the full report where the costs exceed $40 million; at $40 million or less, the short claim for exemption is sufficient (BE-13 Claim for Exemption). By contrast, beneficial ownership (BOI) reporting to FinCEN ended permanently in August 2026 for companies formed in the US; some checklists still list it as a duty.",
         "If you sell to US customers, state sales tax is added. Since the Supreme Court’s decision in South Dakota v. Wayfair of 21 June 2018, states may also require it from sellers without a physical presence in the state. Florida, for instance, obliges sellers to collect it if their taxable remote sales into Florida exceeded a total of $100,000 in the previous calendar year (section 212.0596 of the Florida Statutes). Each state sets its own thresholds.",
-        "At home: the formation of a foreign company, or the acquisition of an interest in one, must be notified to the tax office (section 138(2) of the German Fiscal Code, AO) — together with the tax return for the year of formation, no later than 14 months after the end of that year (section 138(5) AO). If the US company is a corporation, this applies from a shareholding of 10 per cent or from acquisition costs of more than €150,000; if it is classified as a partnership, no threshold applies. Which country taxes which profits is governed by the double taxation agreement between Germany and the US. If your own GmbH supplies goods, software or services to the subsidiary, the prices must meet the arm’s length standard (section 1 of the German Foreign Tax Act, AStG). Austria and Switzerland have their own rules — our partner tax advisers review them under your engagement.",
+        "At home: the formation of a foreign company, or the acquisition of an interest in one, must be notified to the tax office (section 138(2) of the German Fiscal Code, AO) — together with the tax return for the year of formation, no later than 14 months after the end of that year (section 138(5) AO). If the US company is a corporation, this applies from a shareholding of 10 per cent or from acquisition costs of more than €150,000; if it is classified as a partnership, no threshold applies. Which country taxes which profits is governed by the double taxation agreement between Germany and the US. If your own GmbH supplies goods, software or services to the subsidiary, the prices must meet the arm’s length standard (section 1 of the German Foreign Tax Act, AStG). Austria and Switzerland have their own rules. " + STEUERFRAGEN,
       ],
     },
     {
@@ -169,83 +185,87 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "With the US company you conclude contracts under US law: with customers, suppliers, landlords and sales partners, and with your own GmbH if it supplies the subsidiary. The transactions between parent and subsidiary also belong on Form 5472. These contracts are drafted by a US lawyer.",
         "Your trademark is only protected once it is registered with the US Patent and Trademark Office (USPTO); a registered company name is not in itself a trademark. Applicants whose domicile or registered office is outside the US must be represented in the application by an attorney admitted to practise before the USPTO (37 CFR 2.11). The basic fee is $350 per class for an electronic application (37 CFR 2.6). You should therefore check the name before formation, not after the launch.",
-        "Anyone who hires staff in the US becomes an employer there. For every hire, identity and work authorisation must be verified with Form I-9 (USCIS). The company withholds income tax, pays it over together with the Social Security and Medicare contributions, generally reports quarterly on Form 941 and issues every employee a Form W-2 (IRS Publication 15). Payroll and employment law belong in the hands of specialists on the ground.",
-        "For meetings, trade fairs and appointments, nationals of participating countries may travel without a visa under the Visa Waiver Program for business stays of no more than 90 days; whether they may travel this way is checked in advance through the electronic system ESTA (CBP). Anyone who wants to run the US company on the ground permanently needs a visa. For investors from treaty countries, the E-2 visa may be an option; it requires a substantial investment in a real and operating enterprise — made or in the process of being made — that the investor develops and directs (USCIS). A partner immigration lawyer reviews, under your engagement, whether it is an option in your case.",
+        "Anyone who hires staff in the US becomes an employer there. For every hire, identity and work authorisation must be verified with Form I-9 (USCIS). The company withholds income tax, pays it over together with the Social Security and Medicare contributions, generally reports quarterly on Form 941 and issues every employee a Form W-2 (IRS Publication 15). Payroll and employment law belong in the hands of a payroll provider and an employment lawyer in the United States.",
+        "For meetings, trade fairs and appointments, nationals of participating countries may travel without a visa under the Visa Waiver Program for business stays of no more than 90 days; whether they may travel this way is checked in advance through the electronic system ESTA (CBP). Anyone who wants to run the US company on the ground permanently needs a visa. For investors from treaty countries, the E-2 visa may be an option; it requires a substantial investment in a real and operating enterprise — made or in the process of being made — that the investor develops and directs (USCIS). The US authorities decide on every visa. Whether it is an option in your case is a legal question; it rests with partner immigration lawyers acting in their own professional capacity.",
       ],
     },
     {
-      typ: "text", id: "kapital", h2: "Capital in stages: what a young US company can expect",
+      typ: "text", id: "kapital", h2: "Financing in steps: the routes for a young US company",
       absaetze: [
-        "A new US company has no credit history. Its financing routes therefore open up one after another: business credit cards, whose limit is often based on the account balance; supplier accounts with payment terms and the company’s identifier with a business credit bureau (the D-U-N-S Number); then revenue-based loans from payment platforms; later a credit line from the bank, backed for instance by collateral from the parent company. Personal US cards, by contrast, depend on your personal US credit history, not on the company.",
+        "A new US company has no credit history. Its financing routes therefore come into consideration one after another: business credit cards, whose limit is often based on the account balance; supplier accounts with payment terms and the company’s identifier with a business credit bureau (the D-U-N-S Number); then revenue-based loans from payment platforms; later a bank loan, backed for instance by collateral from the parent company. Personal US cards, by contrast, depend on your personal US credit history, not on the company.",
         "Since 1 March 2026, small business loans backed by the SBA (the 7(a) and 504 programmes) have required all direct and indirect owners to be US citizens or US nationals with their principal residence in the US; green card holders do not qualify (GAO B-338157). A company with owners who are not US nationals is therefore excluded from these programmes.",
         KAPITAL_FREI,
-        "Some issuers offer introductory periods without debit interest; each issuer sets the terms itself. FIAON is not a bank, does not grant loans, does not arrange loans and does not commit to any limit. The institution alone decides on the account, card, limit and loan; your capital range is your goal, not a promise.",
+        `${satz("S9", "en")} ${satz("S1", "en")}`,
       ],
     },
     {
       typ: "karten", id: "fehler", h2: "Common mistakes when expanding into the US", spalten: 3,
-      lead: "Six mistakes that are easy to avoid before formation.",
+      lead: "Six mistakes that can be avoided before formation.",
       karten: [
         { tag: "Tax", titel: "Forgetting the place of management", text: "The US company is run from Europe and yet treated as purely American. Where it is managed helps determine its tax liability at home." },
         { tag: "State", titel: "Forming where you do not work", text: "Formed in Delaware, active in Florida: the company then also needs authority in Florida, with a second registered agent and a second annual report." },
-        { tag: "US filing", titel: "Overlooking Form 5472 without revenue", text: `The duty also applies in a year without revenue; even payments by the owner to fund the formation count. Anyone who misses it risks ${IRS_EN.strafe5472}.` },
+        { tag: "US filing", titel: "Overlooking Form 5472 without revenue", text: `The duty also applies in a year without revenue; even payments by the owner to fund the formation count. The IRS penalty for a missed filing: ${IRS_EN.strafe5472}.` },
         { tag: "Statistics", titel: "Not knowing about BE-13", text: "The filing with the BEA is mandatory, even if the agency never writes. With costs of $40 million or less, the short claim for exemption is sufficient." },
         { tag: "Trademark", titel: "Not checking the name", text: "A registered company name is not in itself a trademark. If it conflicts with a US trademark, a change of name may be needed after the launch." },
-        { tag: "Capital", titel: "Planning on credit before revenue", text: "Anyone who plans on credit before the company has a history and revenue is counting on money that no institution has decided on yet." },
+        { tag: "Financing", titel: "Planning on credit before revenue", text: "Anyone who plans on credit before the company has a history and revenue is counting on money that no institution has decided on yet." },
       ],
     },
     {
-      typ: "rollen", id: "rollen", h2: "What you do yourself, what the team on the ground takes on",
-      lead: "One contact instead of eight: this is how the work is shared in a market entry.",
+      typ: "rollen", id: "rollen", h2: "Who is responsible for what",
+      lead: weitererSatz("ROLLEN", "en"),
       fiaon: [
-        "Formation with the state under your power of attorney",
-        "Registered agent, US business address and US phone number for the first year",
-        "EIN application and D-U-N-S Number, ITIN application prepared",
-        "Compliance calendar with all US filings and deadlines",
-        "Account and card applications fully prepared, appointments on the ground in Miami",
-        "Coordination of all partners through a dedicated contact",
+        "State filing through our partners in the United States, state fee included",
+        "Registered agent, US business address and US telephone number in the first year",
+        "EIN and ITIN applications (the ITIN following our ITIN check)",
+        "Compliance calendar and the first annual report to the state",
+        "Account, card and financing applications prepared in full",
+        "One dedicated contact for your company’s post, calls and appointments",
       ],
       partner: [
-        "Partner tax adviser: assessment before formation",
-        "US CPA: the first annual US filing (Form 5472 with Form 1120)",
-        "Partner lawyer: operating agreement and formation documents",
-        "All of them act under your engagement; FIAON pays their fees for the services in your order",
+        "Partner lawyers: legal questions, in their own professional capacity",
+        "US certified public accountant (CPA) from our partner network: the first annual US filing (Form 5472 with Form 1120)",
+        "Partner tax advisers in your country of residence: tax questions, in their own professional capacity",
       ],
       sie: [
         "Set the goal and the figures for your US business",
-        "Power of attorney and documents: passport and, for a subsidiary, the parent company’s commercial register extract",
-        "Sign and submit account, card and credit applications yourself",
+        "Upload your passport and sign the documents presented to you; for a subsidiary, the parent company’s commercial register extract",
+        "Submit account, card and financing applications yourself — each institution makes its own decision",
         "Conclude contracts with customers, suppliers and employees",
         "The tax return at home, with your tax adviser",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global handles your US market entry",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is your business consultancy for the route into the US: one contact instead of eight. With your power of attorney, we make the applications for you — formation with the state, the EIN, the D-U-N-S Number and your company’s filings — and prepare the ITIN. We provide the registered agent, US business address and US phone number for the first year. You make only the account, card and credit applications yourself, and we prepare each of them in full.",
-        `Law and tax are handled by partner tax advisers, US CPAs and partner lawyers acting under your engagement; FIAON pays their fees for the services in your order. Our team on the ground in Miami attends appointments with authorities and institutions, complemented by our partner location in Zurich; your contracting party is FIAON LTD in London. ${P.preisSatz}`,
+        "Your engagement provides for the formation of an LLC. If your GmbH is to hold the shares, or if a corporation comes into consideration for your plans, we agree that with you in a call beforehand.",
+        `${weitererSatz("UEBERGANG-EINREICHUNG", "en")} ${UNTERLAGEN.satz}`,
+      ],
+      punkte: [
+        `Accounts, cards and financing: ${satz("S2", "en")}`,
+        `${TEIL.ihrTeil}: ${UNTERLAGEN.ihrTeil}`,
+        `${TEIL.bedingung}: ${satz("S3", "en")}`,
       ],
       nach: P.geldZurueck,
     },
     {
-      typ: "karten", id: "vertiefung", h2: "Each stage in detail", spalten: 3,
+      typ: "karten", id: "vertiefung", h2: "Each step in detail", spalten: 3,
       karten: [
         { tag: "Structure", titel: "The subsidiary in the US", text: "When your GmbH, AG or holding company becomes the shareholder: process and documents.", pfad: "/en/business/us-subsidiary" },
-        { tag: "Formation", titel: "US company formation", text: "LLC or corporation with a team on the ground, EIN and ITIN, in one order.", pfad: "/en/business/us-company-formation" },
+        { tag: "Formation", titel: "US company formation", text: "State filing, documents and the EIN and ITIN applications under one engagement.", pfad: "/en/business/us-company-formation" },
         { tag: "State", titel: "Which state?", text: "Delaware, Florida or Wyoming: times, costs, pros and cons.", pfad: "/en/business/knowledge/choosing-a-state" },
         { tag: "Account", titel: "The US business bank account", text: "Which documents institutions ask for and how the application comes together.", pfad: "/en/business/us-business-bank-account" },
         { tag: "Duties", titel: "Your US duties", text: "Form 5472, state fee, registered agent and the filing at home, all in the calendar.", pfad: "/en/business/us-compliance" },
-        { tag: "On the ground", titel: "In person in Miami", text: "From a capital range of US$1 million we work with you in person in Miami.", pfad: "/en/business/miami" },
+        { tag: "Miami", titel: "In person in Miami", text: weitererSatz("MIAMI", "en"), pfad: "/en/business/miami" },
       ],
     },
     {
-      typ: "verzeichnis", id: "weiterlesen-etappen", h2: "Further reading by stage",
+      typ: "verzeichnis", id: "weiterlesen-etappen", h2: "Further reading by step",
       eintraege: [
         { pfad: "/en/business/knowledge/llc-vs-corporation", tag: "Structure" },
         { pfad: "/en/business/ein-itin", tag: "Tax numbers" },
         { pfad: "/en/business/knowledge/us-bank-account-documents", tag: "Account" },
         { pfad: "/en/business/knowledge/form-5472", tag: "Filings" },
-        { pfad: "/en/business/knowledge/us-financing-routes", tag: "Capital" },
+        { pfad: "/en/business/knowledge/us-financing-routes", tag: "Financing" },
         { pfad: "/en/business/costs", tag: "Costs" },
       ],
     },
@@ -253,21 +273,22 @@ export const SEITE: GlobalSeite = {
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
+        satz("S10", "en"),
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
         GLOBAL_PFLICHTHINWEIS.en[2],
-        "Visas, payroll, transfer pricing, sales tax registrations and trademark applications are not part of your order; we can name partners for these.",
-        "FIAON is not a bank and neither grants nor arranges loans. Your capital range is your goal, not a promise.",
+        "Not included: visas, payroll, transfer pricing, sales tax registrations and trademark applications.",
+        `FIAON does not lend and does not broker loans. ${satz("S1", "en")}`,
       ],
     },
   ],
   fragen: [
-    { f: "What does a US market entry cost?", a: `Little at state level: formation costs ${STAAT_EN.florida.gruendung} in Florida, ${STAAT_EN.delaware.gruendung} in Delaware and ${STAAT_EN.wyoming.gruendung} in Wyoming; on top come the annual state fee, the registered agent and the US filing by a US CPA. The large items are your operating costs — staff, rent, insurance — and the capital for the first months. With FIAON Global: ${P.preisSatzKurz}` },
-    { f: "Do I need a company of my own for US expansion?", a: "Not necessarily. Your GmbH can do business as a branch, but is then fully liable for the US business. A separate LLC or corporation keeps liability apart from the parent company and gives your US customers a contracting party on the ground. What fits depends on what you want to do in the US — the assessment before formation clarifies this." },
-    { f: "Is a US subsidiary taxable in Germany?", a: "It can be. If it is actually managed from Germany, its place of management is in Germany (section 10 AO); a corporation is then subject to unlimited corporate income tax in Germany (section 1 KStG), while for an LLC the taxation depends on its classification. The interest must be notified to the tax office under section 138 AO. How the double taxation agreement applies is reviewed by our partner tax adviser before formation." },
+    { f: "What does a US market entry cost?", a: `At state level, formation costs ${STAAT_EN.florida.gruendung} in Florida, ${STAAT_EN.delaware.gruendung} in Delaware and ${STAAT_EN.wyoming.gruendung} in Wyoming; on top come the annual state fee, the registered agent and the US filing by a US certified public accountant (CPA). The large items are your operating costs — staff, rent, insurance — and the funds for the first months. On FIAON Global’s fees: ${P.preisSatzKurz}` },
+    { f: "Do I need a company of my own for US expansion?", a: "Not necessarily. Your GmbH can do business as a branch, but is then fully liable for the US business. A separate LLC or corporation keeps liability apart from the parent company and gives your US customers a contracting party on the ground. What fits depends on what you want to do in the US — this should be settled before formation, with your tax adviser and a US CPA." },
+    { f: "Is a US subsidiary taxable in Germany?", a: "It can be. If it is actually managed from Germany, its place of management is in Germany (section 10 AO); a corporation is then subject to unlimited corporate income tax in Germany (section 1 KStG), while for an LLC the taxation depends on its classification. The interest must be notified to the tax office under section 138 AO. How the double taxation agreement applies in your case is a matter for partner tax advisers acting in their own professional capacity." },
     { f: "What is the BE-13 filing?", a: "A mandatory filing with the US statistics agency BEA. If a foreign person forms or acquires a US business and holds at least 10 per cent of the voting rights in it, the filing is due no later than 45 calendar days afterwards, even without a request (15 CFR 801.7). With costs of $40 million or less, the short claim for exemption is sufficient." },
-    { f: "Do I need a visa to run my US company?", a: "For meetings and appointments, nationals of participating countries travel under the Visa Waiver Program with ESTA approval for business stays of no more than 90 days without a visa. Anyone who wants to run the company on the ground permanently needs a visa; for investors from treaty countries, the E-2 visa may be an option. The individual case is reviewed by a partner immigration lawyer under your engagement; visas are not part of your order." },
-    { f: "What does FIAON Global take on as a business consultancy?", a: "With your power of attorney, we make the applications for you: formation, EIN, D-U-N-S Number and your company’s filings; we prepare the ITIN. We provide the registered agent, US address and US phone number for the first year. You make account, card and credit applications yourself, fully prepared by us. Law and tax are handled by our partners under your engagement; FIAON pays their fees for the services in your order." },
+    { f: "Do I need a visa to run my US company?", a: "For meetings and appointments, nationals of participating countries travel under the Visa Waiver Program with ESTA approval for business stays of no more than 90 days without a visa. Anyone who wants to run the company on the ground permanently needs a visa; for investors from treaty countries, the E-2 visa may be an option. The US authorities decide on every visa; legal questions on this rest with partner immigration lawyers acting in their own professional capacity. Visas are not included in your agreement with FIAON." },
+    { f: "What does FIAON Global handle as a business consultancy?", a: `${weitererSatz("UEBERGANG-EINREICHUNG", "en")} ${UNTERLAGEN.satz} For accounts, cards and financing: ${satz("S2", "en")} ${weitererSatz("ROLLEN", "en")}` },
     { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
   ],
   paket: "global_banking",

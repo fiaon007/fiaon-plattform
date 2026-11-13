@@ -66,9 +66,19 @@ import type { GlobalSeite, GlobalQuelle } from "../typen";
 import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, SCHWELLEN } from "../fakten";
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): ein Abschnitt „Was FIAON Global dabei übernimmt“ aus den Schritten 1 und 2
+// der festen Erzählung; über Konten bei Marktplätzen und Zahlungsdienstleistern entscheidet der jeweilige Anbieter (dort genau
+// einmal gesagt). Kein „Team vor Ort“, kein Partnerstandort, kein Partner bei der Arbeit im Präsens, keine D-U-N-S-Nummer als Leistung.
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, type Schritt, type SchrittNr } from "../../fiaon-global-saetze";
 
 const S = "2026-10-27";
 const P = EIN_PRODUKT.de;
+/** Schritt 1 und 2 der festen Erzählung (Leitfaden 2.2) — wortgleich aus der einen Quelle, nie getippt. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.de.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
 /** „25 Prozent“ — die Eigentümerschwelle steht in fakten.ts. */
 const AB25 = SCHWELLEN.eigentuemer;
 
@@ -107,13 +117,13 @@ export const SEITE: GlobalSeite = {
     titel: "Amazon Seller US LLC: was Plattformen prüfen — FIAON Global",
     beschreibung: "Amazon Seller US LLC: was Amazon, Stripe, PayPal und Shopify prüfen — Identität, EIN, Konto, W-8 oder W-9, Sales Tax und typische Sperrgründe.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 49",
   auge: "Wissen · Plattformen",
   h1: "Amazon, Stripe, PayPal.",
   h1b: "Was die Plattformen bei Ihrer US-LLC prüfen.",
-  lead: "Wer als Amazon Seller mit einer US LLC startet oder über Stripe, PayPal und Shopify Zahlungen annimmt, wird geprüft — gründlich und nicht nur einmal. Die Plattformen wollen wissen, wem die Gesellschaft gehört, unter welcher Steuernummer sie läuft und wohin die Erlöse gehen. Hier steht, was sie verlangen, welches Steuerformular Ihre LLC abgibt, wann die Sales Tax Sache des Marktplatzes ist und woran Konten hängen bleiben.",
+  lead: "Wer als Amazon Seller mit einer US LLC startet oder über Stripe, PayPal und Shopify Zahlungen annimmt, wird von den Plattformen geprüft — bei der Anmeldung und danach erneut. Die Plattformen wollen wissen, wem die Gesellschaft gehört, unter welcher Steuernummer sie läuft und wohin die Erlöse gehen. Hier steht, was sie verlangen, welches Steuerformular Ihre LLC abgibt, wann die Sales Tax Sache des Marktplatzes ist und aus welchen Gründen Plattformen Konten einschränken.",
   ziffern: [
     { wert: AB25, label: "ab diesem Anteil erfassen Stripe und Shopify jeden Eigentümer" },
     { wert: "180 Tage", label: "so jung muss der Adressnachweis für Amazon sein" },
@@ -126,7 +136,7 @@ export const SEITE: GlobalSeite = {
     ["Steuerformular", "Einpersonen-LLC, Inhaber im Ausland: W-8 des Inhabers; mehrere Gesellschafter: W-9 der LLC"],
     ["Sales Tax", "Auf dem Marktplatz führt sie, wo der Staat es so regelt, der Marktplatz ab — im eigenen Shop Ihre Gesellschaft, ab der Schwelle des Staats"],
     ["Wer entscheidet", "Allein die Plattform — über Zulassung, Rücklagen und Einschränkungen"],
-    ["Mit FIAON Global", "Gesellschaft, EIN, Unterlagen und Stammdaten aus einem Guss"],
+    ["Mit FIAON Global", "Gründung, Unterlagen und Anträge für EIN und ITIN; die Anmeldung bei den Plattformen nehmen Sie selbst vor"],
   ],
   kurz: `Als Amazon Seller mit US LLC — und ebenso bei Stripe, PayPal und Shopify — prüfen die Plattformen fünf Dinge: wer hinter der Gesellschaft steht (Stripe und Shopify erfassen jeden Eigentümer ab ${AB25}, Stripe dazu die lenkende Person), dass die Gesellschaft mit ihrer EIN besteht, wohin die Erlöse gehen, welches Steuerformular gilt und ob Anschriften und Nachweise zusammenpassen. Gehört die LLC allein einer Person im Ausland, gibt der Inhaber ein Formular W-8 ab, nicht die LLC ein W-9. Die Sales Tax auf Marktplatz-Verkäufe führt dort, wo der Staat es so regelt, der Marktplatz ab; für den eigenen Shop ist Ihre Gesellschaft zuständig, sobald sie die Schwelle eines Staats überschreitet.`,
   bloecke: [
@@ -168,7 +178,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "zahlungsdienste", h2: "Stripe, PayPal Business und Shopify mit der US-LLC",
       absaetze: [
-        `Stripe erfasst bei Gesellschaften in den USA eine Person mit maßgeblicher Kontrolle und alle Personen, die mindestens ${AB25} halten — mit Name, Geburtsdatum, Anschrift und, bei US-Personen, der Sozialversicherungsnummer. Stripe beruft sich dafür auf das US-Recht zu wirtschaftlich Berechtigten — dieselbe Regel, nach der auch Banken ihre Firmenkunden prüfen (31 CFR 1010.230). Haben Vertreter oder Eigentümer weder SSN noch ITIN, erwartet Stripe die Steuernummer aus ihrem Wohnsitzland und Unterlagen, die bestätigen, dass sie in den USA nicht steuerpflichtig sind. Manche Branchen nimmt Stripe gar nicht oder nur nach zusätzlicher Prüfung an, weil Gesetze sowie Kartennetze und Partnerbanken es so verlangen; maßgeblich ist seine Liste eingeschränkter und verbotener Geschäfte.`,
+        `Stripe erfasst bei Gesellschaften in den USA eine Person mit maßgeblicher Kontrolle und alle Personen, die mindestens ${AB25} halten — mit Name, Geburtsdatum, Anschrift und, bei US-Personen, der Sozialversicherungsnummer. Stripe beruft sich dafür auf das US-Recht zu wirtschaftlich Berechtigten — dieselbe Regel, nach der auch Banken ihre Firmenkunden prüfen (31 CFR 1010.230). Haben Vertreter oder Eigentümer weder SSN noch ITIN, erwartet Stripe die Steuernummer aus ihrem Wohnsitzland und Unterlagen, die bestätigen, dass sie in den USA nicht steuerpflichtig sind. Manche Branchen nimmt Stripe gar nicht oder nur nach zusätzlicher Prüfung an, weil Gesetze, Kartennetze und die Banken, mit denen Stripe arbeitet, es so verlangen; maßgeblich ist seine Liste eingeschränkter und verbotener Geschäfte.`,
         "PayPal Business fragt die Steuerangaben ab, die es für die Meldung an die IRS braucht. Bemerkt PayPal ein verändertes Verkaufsmuster oder mehr Käuferbeschwerden, kann es Unterlagen zum Geschäft anfordern — etwa Lieferantenangaben, Rechnungen und Kontoauszüge — und das Konto einschränken; dann lässt sich etwa kein Geld mehr senden oder abheben, bis die Schritte erledigt sind, die PayPal dafür nennt. Den Grund nennt PayPal per E-Mail und im Resolution Center des Kontos; eine E-Mail, zu der dort kein Eintrag steht, kann nach PayPal gefälscht sein.",
         `Shopify Payments steht in den USA Einzelpersonen und Einzelunternehmern nur mit Wohnsitz in den USA offen. Für eine LLC gilt: der Name exakt wie in den IRS-Unterlagen, bis zur Zeichensetzung und Groß- und Kleinschreibung; die EIN, notfalls belegt durch ein Schreiben der IRS (Bestätigung zum SS-4, Notice CP 575 oder Letter 147C); die physische Geschäftsanschrift in den USA, an der das Geschäft hauptsächlich betrieben wird, und ein vollwertiges Girokonto bei einer US-Bank in US-Dollar, das ACH-Überweisungen empfangen kann. Jeder Eigentümer ab ${AB25} wird angegeben. Vertreter mit Wohnsitz außerhalb der USA, die weder SSN noch ITIN haben, können stattdessen ein Foto ihres gültigen Reisepasses einreichen.`,
       ],
@@ -185,7 +195,7 @@ export const SEITE: GlobalSeite = {
       ],
       fuss: [
         "Das Formular W-9 sagt ausdrücklich: Ist der Inhaber einer steuerlich transparenten Gesellschaft eine ausländische Person, gibt er ein Formular W-8 ab — auch dann, wenn er eine US-Steuernummer wie eine ITIN hat.",
-        "Die Einordnung Ihrer LLC geben Sie schon im EIN-Antrag an (Zeile 9a des Formulars SS-4). Welche Einkünfte effektiv mit einem US-Geschäft verbunden sind, hängt dagegen an Ihrem Geschäft; das prüft ein US-CPA in Ihrem Mandat für Ihren Fall.",
+        "Die Einordnung Ihrer LLC geben Sie schon im EIN-Antrag an (Zeile 9a des Formulars SS-4). Welche Einkünfte effektiv mit einem US-Geschäft verbunden sind, hängt dagegen an Ihrem Geschäft; das klärt ein US-Steuerberater (CPA) in eigener Verantwortung für Ihren Fall.",
       ],
     },
     {
@@ -193,7 +203,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Zahlungsplattformen und Marktplätze melden Zahlungen für Waren und Leistungen auf Form 1099-K an die IRS, wenn sie im Jahr mehr als 20.000 $ in mehr als 200 Transaktionen betragen. PayPal nennt als Grundlage den One Big Beautiful Bill Act von 2025, der diese Schwelle wiederhergestellt hat. Für Kartenzahlungen über einen Zahlungsabwickler gibt es keine Mindestgrenze, und einzelne Bundesstaaten setzen niedrigere Schwellen.",
         "Deshalb fragen die Plattformen Steuernummer und Steuerformular ab und gleichen Name und Nummer ab; Shopify etwa kann ein Schreiben der IRS anfordern, wenn sich die EIN nicht bestätigen lässt. Fehlen die Angaben, kann ein Zahlungsdienst Zahlungen kürzen: PayPal hat bei Konten ohne Steuerangaben 24 Prozent einbehalten — den Satz des Backup Withholding, den auch das Formular W-9 nennt.",
-        "Die US-Meldungen ersetzen nicht die Steuererklärung zu Hause. Führen Sie die LLC von Deutschland aus, liegt hier der Mittelpunkt ihrer geschäftlichen Oberleitung — ihre Geschäftsleitung im Sinne von § 10 AO; zu versteuern ist dann in Deutschland je nach Einordnung die Gesellschaft selbst (§ 1 KStG) oder ihr Gewinn bei Ihnen. Die Gründung oder Beteiligung melden Sie dem Finanzamt nach § 138 Abs. 2 AO, zusammen mit der Steuererklärung für das Jahr, in dem sie stattfand. Wie die Plattform-Umsätze zu Hause zu erklären sind, prüft unser Partner-Steuerberater vor der Gründung mit Ihnen.",
+        "Die US-Meldungen ersetzen nicht die Steuererklärung zu Hause. Führen Sie die LLC von Deutschland aus, liegt hier der Mittelpunkt ihrer geschäftlichen Oberleitung — ihre Geschäftsleitung im Sinne von § 10 AO; zu versteuern ist dann in Deutschland je nach Einordnung die Gesellschaft selbst (§ 1 KStG) oder ihr Gewinn bei Ihnen. Die Gründung oder Beteiligung melden Sie dem Finanzamt nach § 138 Abs. 2 AO, zusammen mit der Steuererklärung für das Jahr, in dem sie stattfand. Wie die Plattform-Umsätze zu Hause zu erklären sind, klären Partner-Steuerberater in eigener Verantwortung; die laufende Steuererklärung übernimmt Ihr Steuerberater.",
       ],
     },
     {
@@ -201,7 +211,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Die Sales Tax ist die Verkaufssteuer der Bundesstaaten. Seit der Entscheidung South Dakota v. Wayfair des Supreme Court vom 21. Juni 2018 dürfen Staaten sie auch von Händlern ohne Präsenz vor Ort verlangen. South Dakota knüpfte die Pflicht an Lieferungen in den Staat von mehr als 100.000 $ oder an mindestens 200 einzelne Geschäfte im Jahr; jeder Staat setzt eigene Schwellen.",
         "Für Verkäufe über Marktplätze haben die Staaten eigene Regeln geschaffen, im Englischen meist unter dem Begriff marketplace facilitator. Florida etwa: Der Marktplatz bestätigt seinen Händlern schriftlich, dass er die Sales Tax auf die über ihn abgewickelten Verkäufe erhebt und abführt — der Händler darf sie auf diese Verkäufe dann nicht selbst erheben und lässt sie aus seiner eigenen Erklärung heraus (§ 212.05965 Florida Statutes).",
-        "Im eigenen Shop — mit Shopify, Stripe oder PayPal an der Kasse — gilt diese Entlastung nicht; Zahlungsabwickler sind nach dem Gesetz in Florida ausdrücklich keine Marktplätze. Dort ist Ihre Gesellschaft selbst zuständig, sobald sie die Schwelle eines Staats überschreitet; in Florida ist das bei steuerbaren Fernverkäufen von mehr als 100.000 $ im Vorjahr der Fall (§ 212.0596 Florida Statutes), und für diese Schwelle zählen nur die Verkäufe außerhalb des Marktplatzes (§ 212.05965 Abs. 4). Ob und wo sich Ihre Gesellschaft registrieren muss — auch, ob Ware in einem Lager, etwa beim Versand durch Amazon (FBA), dort eigene Pflichten auslöst —, prüft ein US-CPA für Ihren Fall.",
+        "Im eigenen Shop — mit Shopify, Stripe oder PayPal an der Kasse — gilt diese Entlastung nicht; Zahlungsabwickler sind nach dem Gesetz in Florida ausdrücklich keine Marktplätze. Dort ist Ihre Gesellschaft selbst zuständig, sobald sie die Schwelle eines Staats überschreitet; in Florida ist das bei steuerbaren Fernverkäufen von mehr als 100.000 $ im Vorjahr der Fall (§ 212.0596 Florida Statutes), und für diese Schwelle zählen nur die Verkäufe außerhalb des Marktplatzes (§ 212.05965 Abs. 4). Ob und wo sich Ihre Gesellschaft registrieren muss — auch, ob Ware in einem Lager, etwa beim Versand durch Amazon (FBA), dort eigene Pflichten auslöst —, klärt ein US-Steuerberater (CPA) für Ihren Fall.",
       ],
     },
     {
@@ -218,25 +228,27 @@ export const SEITE: GlobalSeite = {
     },
     {
       typ: "etappen", id: "reihenfolge", h2: "In dieser Reihenfolge passt alles zusammen",
-      lead: "Wer die Plattformen zuletzt anmeldet, hat bei der Anmeldung jede Antwort schon in der Hand.",
+      lead: "Wer die Plattformen zuletzt anmeldet, hat bei der Anmeldung jede Angabe und jede Unterlage vorliegen.",
       etappen: [
         { titel: "Name und Gesellschaft festlegen", text: "Ein Name, der in Gründungsdokument, EIN-Schreiben, Konto und jeder Plattform Zeichen für Zeichen gleich lautet — bis zur Zeichensetzung." },
         { titel: "EIN beantragen", text: "Die EIN ist die Steuernummer der Gesellschaft. Das Schreiben der IRS (CP 575 oder Letter 147C) gehört in die Mappe; Shopify etwa kann es anfordern, wenn sich die Nummer nicht bestätigen lässt." },
         { titel: "Eigentümer dokumentieren", text: `Das Operating Agreement nennt jeden Gesellschafter mit seinem Anteil; zusammen ergeben sie 100 Prozent. Jeder ab ${AB25} wird bei Stripe und Shopify erfasst.` },
         { titel: "Konto auf den Namen der Gesellschaft", text: "Amazon zahlt nur auf ein Konto auf Ihren Namen oder den der Gesellschaft aus; Shopify Payments verlangt ein US-Girokonto in US-Dollar mit ACH-Empfang." },
-        { titel: "Steuerformular klären", text: "Vor dem Steuerinterview steht fest, ob W-8BEN, W-8BEN-E, W-8ECI oder W-9 richtig ist — und wer es unterschreibt." },
+        { titel: "Steuerformular klären", text: "Vor dem Steuerinterview steht fest, ob W-8BEN, W-8BEN-E, W-8ECI oder W-9 richtig ist — und wer es unterzeichnet." },
         { titel: "Anschrift und Telefon festlegen", text: "Eine Geschäftsanschrift, die zu Ihren Nachweisen passt, und eine Telefonnummer, unter der Sie erreichbar sind — in jedem Antrag dieselben." },
         { titel: "Plattformen anmelden", text: "Erst jetzt die Anmeldung: mit Reisepass, Adressnachweis aus den letzten 180 Tagen, gut lesbaren Farbscans und der Bereitschaft zum Videotermin." },
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global das Fundament für Ihre Plattformen",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "FIAON Global ist eine Unternehmensberatung für Unternehmer aus Deutschland, Österreich und der Schweiz, die eine US-Gesellschaft aufbauen. Unser Grundsatz: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung im Bundesstaat, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer und die erste jährliche US-Meldung — und stellen Registered Agent, US-Adresse und US-Telefonnummer für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten jeden davon vollständig vor.",
-        "Für die Plattformen heißt das konkret: Vor der Gründung legen wir mit Ihnen die Stammdaten fest — Name der Gesellschaft, Gesellschafter und Anteile, Geschäftsanschrift, Telefonnummer, Ansprechperson — und halten sie in jedem Dokument gleich. In Ihrem Dokumentenraum liegen Gründungsdokument, EIN-Schreiben und Operating Agreement geordnet bereit, wenn Amazon, Stripe, PayPal oder Shopify sie abfragen. Den Antrag für das Geschäftskonto der LLC bereiten wir vollständig vor, damit Ihre Erlöse auf ein Konto auf den Namen der Gesellschaft gehen können; über das Konto entscheidet das Institut. Die steuerliche Einordnung, aus der sich W-8 oder W-9 ergibt, steht mit dem EIN-Antrag fest, den wir für Sie stellen; wie Ihr Plattformgeschäft zu Hause zu behandeln ist, prüft unser Partner-Steuerberater vor der Gründung.",
-        "Die Anmeldung bei den Plattformen nehmen Sie selbst vor, denn die Identitätsprüfung ist persönlich. Sie gehen mit einer vollständigen Mappe hinein und wissen vorher, welche Antwort wohin gehört. Für Ihre US-Meldungen und Fristen führen wir einen Pflichtenkalender.",
-        P.partner,
-        `${P.preisSatz} Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami nimmt die Wege bei den Behörden wahr, Zürich ist unser Partnerstandort.`,
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "Die Stammdaten Ihrer Gesellschaft halten wir in jeder Unterlage gleich.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${UNTERLAGEN.ihrTeil} Die Anmeldung bei den Plattformen nehmen Sie selbst vor.`,
+        `Geschäftskonto: ${satz("S2", "de")}`,
+        `${TEIL.bedingung}: ${satz("S3", "de")} Über Konten bei Marktplätzen und Zahlungsdienstleistern entscheidet der jeweilige Anbieter.`,
       ],
     },
     { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
@@ -244,9 +256,9 @@ export const SEITE: GlobalSeite = {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
         "Über Zulassung, Rücklagen und Einschränkungen entscheidet allein die jeweilige Plattform — auch bei vollständigen Unterlagen. Diese Seite gibt die Hilfeseiten der Plattformen mit Stand Oktober 2026 wieder; maßgeblich ist die Fassung zum Zeitpunkt Ihrer Anmeldung.",
-        "Konten bei Marktplätzen und Zahlungsdiensten, Registrierungen für die Sales Tax und die laufende Buchhaltung sind nicht Teil Ihres Auftrags; wir nennen Ihnen Partner dafür.",
+        "Konten bei Marktplätzen und Zahlungsdiensten, Registrierungen für die Sales Tax und die laufende Buchhaltung sind nicht Teil Ihres Mandats.",
         GLOBAL_AGENT.de.anschrift,
-        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
+        satz("S8", "de"),
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
         GLOBAL_PFLICHTHINWEIS.de[2],
@@ -256,10 +268,10 @@ export const SEITE: GlobalSeite = {
   fragen: [
     { f: "Kann ich als Deutscher auf dem US-Marktplatz von Amazon verkaufen?", a: "Ja, Amazon nimmt Verkäufer aus Europa auf dem US-Marktplatz auf; eine US-Gesellschaft ist dafür nach Amazon nicht unbedingt nötig. Für die Anmeldung braucht es einen Ausweis wie den Reisepass, eine international belastbare Kreditkarte, ein Konto, einen Registrierungsnachweis, einen Adressnachweis aus den letzten 180 Tagen und die Steuerangaben; danach folgt die Identitätsprüfung per Foto oder Videotermin. Über die Zulassung entscheidet Amazon." },
     { f: "Brauche ich für den Verkauf in den USA überhaupt eine US-LLC?", a: "Nicht zwingend. Amazon nimmt Verkäufer aus Europa auch ohne US-Gesellschaft auf und zahlt über den Amazon Currency Converter auf ein Konto in Europa aus. Shopify Payments in den USA steht Einzelpersonen dagegen nur mit Wohnsitz in den USA offen; eine LLC braucht dort EIN, US-Girokonto und eine US-Geschäftsanschrift. Wird die LLC aus Deutschland geführt, bleibt sie hier steuerpflichtig (§ 10 AO, § 1 KStG) — sie ist kein Steuermodell." },
-    { f: "Gibt meine US-LLC bei Amazon ein W-9 oder ein W-8BEN ab?", a: "Das hängt an der Einordnung der LLC. Gehört sie Ihnen allein, geben Sie als Inhaber ein Formular W-8 ab — W-8BEN oder, bei Einkünften, die effektiv mit einem US-Geschäft verbunden sind, W-8ECI —, auch wenn Sie eine ITIN haben. Eine LLC mit mehreren Gesellschaftern oder mit Besteuerung als Corporation gibt selbst ein W-9 ab. Die Einordnung steht im EIN-Antrag; ob Einkünfte effektiv verbunden sind, klärt ein US-CPA in Ihrem Mandat." },
+    { f: "Gibt meine US-LLC bei Amazon ein W-9 oder ein W-8BEN ab?", a: "Das hängt an der Einordnung der LLC. Gehört sie Ihnen allein, geben Sie als Inhaber ein Formular W-8 ab — W-8BEN oder, bei Einkünften, die effektiv mit einem US-Geschäft verbunden sind, W-8ECI —, auch wenn Sie eine ITIN haben. Eine LLC mit mehreren Gesellschaftern oder mit Besteuerung als Corporation gibt selbst ein W-9 ab. Die Einordnung steht im EIN-Antrag; ob Einkünfte effektiv verbunden sind, klärt ein US-Steuerberater (CPA) in eigener Verantwortung." },
     { f: "Kann ich Stripe mit einer US-LLC ohne SSN nutzen?", a: `Stripe sieht dafür einen Weg vor: Haben Vertreter oder Eigentümer einer US-Gesellschaft weder SSN noch ITIN, erwartet Stripe die Steuernummer aus ihrem Wohnsitzland und Unterlagen, die zeigen, dass sie in den USA nicht steuerpflichtig sind. Daneben erfasst Stripe jede Person ab ${AB25} und eine Person mit maßgeblicher Kontrolle mit Name, Geburtsdatum und Anschrift. Über das Konto entscheidet Stripe.` },
     { f: "Kann ich Shopify Payments mit einer US-LLC nutzen?", a: "Shopify nennt dafür ein vollwertiges US-Girokonto in US-Dollar mit ACH-Empfang, die physische Geschäftsanschrift in den USA, an der das Geschäft hauptsächlich betrieben wird, und den Namen der Gesellschaft exakt wie in den IRS-Unterlagen. Vertreter ohne SSN oder ITIN mit Wohnsitz außerhalb der USA können ein Foto ihres gültigen Reisepasses einreichen. Einzelpersonen brauchen dagegen einen Wohnsitz in den USA. Über die Zulassung entscheidet Shopify." },
-    { f: "Ab wann melden Plattformen meine Umsätze an die IRS?", a: "Zahlungsplattformen und Marktplätze stellen Form 1099-K aus, wenn die Zahlungen für Waren und Leistungen im Jahr mehr als 20.000 $ in mehr als 200 Transaktionen betragen. Für Kartenzahlungen über einen Zahlungsabwickler gibt es keine Mindestgrenze, und einzelne Bundesstaaten setzen niedrigere Schwellen. Wie die Meldungen zu Ihren Erklärungen passen, klärt der US-CPA." },
+    { f: "Ab wann melden Plattformen meine Umsätze an die IRS?", a: "Zahlungsplattformen und Marktplätze stellen Form 1099-K aus, wenn die Zahlungen für Waren und Leistungen im Jahr mehr als 20.000 $ in mehr als 200 Transaktionen betragen. Für Kartenzahlungen über einen Zahlungsabwickler gibt es keine Mindestgrenze, und einzelne Bundesstaaten setzen niedrigere Schwellen. Wie die Meldungen zu Ihren Erklärungen passen, klärt ein US-Steuerberater (CPA)." },
     { f: "Muss ich als Amazon Seller selbst Sales Tax abführen?", a: "Für Marktplatz-Verkäufe übernimmt das, wo der Staat es so regelt, der Marktplatz. In Florida bestätigt er den Händlern die Erhebung, und der Händler darf auf diese Verkäufe keine Sales Tax selbst erheben (§ 212.05965 Florida Statutes). Für den eigenen Shop gilt das nicht: Dort wird Ihre Gesellschaft ab der Schwelle eines Staats selbst zuständig, in Florida bei mehr als 100.000 $ Fernverkäufen im Vorjahr außerhalb des Marktplatzes." },
     { f: "Warum schränken Stripe oder PayPal ein Konto ein?", a: "Die Plattformen nennen selbst: Geschäfte auf der Liste eingeschränkter Branchen, viele Streitfälle und Rückbuchungen — Stripe stuft mehr als 0,75 Prozent Streitfälle als hohes Risiko ein —, plötzliche Umsatzsprünge, neue Produktarten, lange Lieferzeiten und fehlende Angaben. Stripe kann Erlöse als Rücklage halten, PayPal das Konto bis zur Klärung einschränken. Schließt Stripe ein Konto, nennt es den Grund per E-Mail und bietet darin eine erneute Prüfung an." },
   ],

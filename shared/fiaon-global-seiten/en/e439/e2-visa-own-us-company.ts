@@ -29,9 +29,16 @@ import type { GlobalQuelle, GlobalSeite } from "../../typen";
 import { GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_RECHT_EN as R, QUELLEN_WISSEN_EN as Q } from "../../fakten-en";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, weitererSatz, type Schritt, type SchrittNr } from "../../../fiaon-global-saetze";
 
 const S = "2026-10-27";
 const P = EIN_PRODUKT.en;
+/** Steps 1 and 2 of the fixed narrative (language guide 2.3) — sentence and “your part” from the one source, never retyped (E-510). */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.en.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
 
 /** Quellen dieses Beitrags — dieselben Adressen wie in der deutschen Fassung, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -59,7 +66,7 @@ export const SEITE: GlobalSeite = {
     titel: "E-2 visa for German citizens: your US company — FIAON Global",
     beschreibung: "E-2 visa for German, Austrian and Swiss citizens: requirements, costs, the consulate process, duration, family and the role of your US company.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 51",
   auge: "Knowledge · US investor visa",
@@ -78,7 +85,7 @@ export const SEITE: GlobalSeite = {
     ["Business", "Real, operating and more than marginal"],
     ["Control", "As a rule, at least 50 per cent ownership or operational control"],
     ["Family", "Spouse and unmarried children under 21"],
-    ["With FIAON Global", "Company, EIN and well-ordered records with your power of attorney; the partner lawyer applies for the visa"],
+    ["With FIAON Global", "Formation, documents and the EIN and ITIN applications; the visa application is not part of the engagement"],
   ],
   kurz: "The E-2 visa is open to nationals of treaty countries. Germany, Austria and Switzerland are among them, so German citizens can apply for it, as can Austrian and Swiss citizens. Under the US State Department’s Foreign Affairs Manual (9 FAM 402.9), you need a substantial investment of your own funds that is at risk and irrevocably committed; a real, operating business that generates more than a minimal living for your family; at least 50 per cent of the business owned by nationals of the treaty country; your control of the business; and the intention to leave the US when your status ends. There is no fixed minimum amount. You apply at the US consulate, which alone decides.",
   bloecke: [
@@ -106,7 +113,7 @@ export const SEITE: GlobalSeite = {
     },
     {
       typ: "tabelle", id: "voraussetzungen", h2: "E-2 visa requirements at a glance",
-      lead: "The consulate examines these nine points in an E-2 application; the manual lists them in this order (9 FAM 402.9-6(A)). The burden of proof lies with the applicant (9 FAM 402.9-2).",
+      lead: "The consulate examines these nine points in an E-2 application; the manual lists them in this sequence (9 FAM 402.9-6(A)). The burden of proof lies with the applicant (9 FAM 402.9-2).",
       kopf: ["Requirement", "What the consulate examines", "Reference"],
       zeilen: [
         ["Treaty country", "A qualifying treaty exists between the US and your country", "9 FAM 402.9-4(A), 402.9-10"],
@@ -124,8 +131,8 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "investition", h2: "The investment: what “substantial” means",
       absaetze: [
-        "There is no fixed dollar amount above which an investment counts as substantial. The State Department’s manual says so expressly (9 FAM 402.9-6(D)). The test is proportional: the amount of your investment is measured against the cost of the business, on what works like an inverted sliding scale. The less expensive the business, the higher your share of the cost must be; for a very expensive business, a smaller share can suffice. As an example, the manual cites a business with start-up costs of $100,000 that you finance entirely yourself — as a rule, that counts as substantial. At the other end, an investment of $10 million in a business costing $100 million can be sufficient by virtue of its size alone. For a new business, the cost is what it takes to make the business operational. Fixed minimum sums circulating online appear neither in the regulation (22 CFR 41.51) nor in the manual.",
-        "The funds must belong to you and be under your control. They may come from savings, gifts, an inheritance or other lawful sources, including a loan secured by your own assets — a mortgage on your own property, for instance — or a loan granted solely on your personal signature. Loans secured by the assets of the business, by contrast, do not count, even if private security is provided in addition: they lack the element of risk (9 FAM 402.9-6(B)). Whether a credit line that your company obtains from an institution can count therefore depends on what secures it — the partner lawyer examines this case by case. You document the source of the funds in full, without gaps.",
+        "There is no fixed dollar amount above which an investment counts as substantial. The State Department’s manual says so expressly (9 FAM 402.9-6(D)). The test is proportional: the amount of your investment is measured against the cost of the business, on what works like an inverted sliding scale. The lower the cost of the business, the higher your share of it must be; for a very expensive business, a smaller share can suffice. As an example, the manual cites a business with start-up costs of $100,000 that you finance entirely yourself — as a rule, that counts as substantial. At the other end, an investment of $10 million in a business costing $100 million can be sufficient by virtue of its size alone. For a new business, the cost is what it takes to make the business operational. Fixed minimum sums circulating online appear neither in the regulation (22 CFR 41.51) nor in the manual.",
+        "The funds must belong to you and be under your control. They may come from savings, gifts, an inheritance or other lawful sources, including a loan secured by your own assets — a mortgage on your own property, for instance — or a loan granted solely on your personal signature. Loans secured by the assets of the business, by contrast, do not count, even if private security is provided in addition: they lack the element of risk (9 FAM 402.9-6(B)). Whether financing that an institution extends to your company can count therefore depends on what secures it. That is for a partner immigration lawyer, acting in their own professional capacity, to clarify case by case. You document the source of the funds in full, without gaps.",
         "Invested means at risk and committed. A balance in an account that you could withdraw at any time is not enough; nor is a mere intention. Anyone still in the process of investing must be close to starting actual business operations; signing contracts or searching for sites is not enough. A purchase made conditional on the visa can suffice if the funds are held in escrow and released when the visa is issued. Rent and leases for premises or equipment count only in the amount of one monthly payment, and a year’s rent only if it has been paid in advance; equipment and inventory count at their purchase price, provided they serve the business and not private purposes.",
       ],
     },
@@ -170,71 +177,75 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "grenzen", h2: "E-2 visa refused — and what about the Green Card?",
       absaetze: [
         "If the consulate refuses a visa, the refusal must rest on a legal basis. The consulate tells you the reason, unless the law precludes disclosure, and says whether there is a way to overcome it; every refusal is reviewed within the consulate (22 CFR 41.121). If a ground can be remedied with further evidence, you can submit that evidence. In an E-2 application, such evidence concerns the points on this page: committed funds, their documented source and a business plan showing that the business will be more than marginal. That is why every point belongs in the file, documented, before the interview.",
-        "The E-2 visa is a visa for a temporary stay; the law lists it among the nonimmigrant categories (8 U.S.C. § 1101(a)(15)(E)). It does not turn into a Green Card of its own accord. Anyone who is at the same time the beneficiary of an immigrant petition must satisfy the consulate that they intend to leave the US at the end of their stay (9 FAM 402.9-4(C)). Anyone who wishes to emigrate permanently should therefore clarify their route with the partner immigration lawyer before the company is set up for a visa.",
+        "The E-2 visa is a visa for a temporary stay; the law lists it among the nonimmigrant categories (8 U.S.C. § 1101(a)(15)(E)). It does not turn into a Green Card of its own accord. Anyone who is at the same time the beneficiary of an immigrant petition must satisfy the consulate that they intend to leave the US at the end of their stay (9 FAM 402.9-4(C)). Anyone who wishes to emigrate permanently should therefore clarify their route with a partner immigration lawyer before the company is set up for a visa.",
       ],
     },
     {
-      typ: "text", id: "steuern", h2: "Tax when you move: two countries, one review beforehand",
+      typ: "text", id: "steuern", h2: "Tax when you move: two countries, clarified first",
       absaetze: [
-        "A visa is not a tax model. As long as you manage your US company from Germany, its place of management is there (section 10 of the German Fiscal Code, AO), and it has unlimited corporate income tax liability there if it is treated as a corporation (section 1 of the German Corporate Income Tax Act, KStG). Your shareholding must be reported to the tax office with your tax return (section 138 AO).",
+        "A visa is not a tax scheme. As long as you manage your US company from Germany, its place of management is there (section 10 of the German Fiscal Code, AO), and it has unlimited corporate income tax liability there if it is treated as a corporation (section 1 of the German Corporate Income Tax Act, KStG). Your shareholding must be reported to the tax office with your tax return (section 138 AO).",
         "If you move to the US, you will generally be treated as tax resident there if you meet the Substantial Presence Test: at least 31 days in the current year and 183 days over three years, with the days of the two preceding years counting for only one third and one sixth respectively. The IRS itself names exceptions, for example where you have a closer connection to another country. Residents are subject to US tax on their worldwide income (IRS).",
-        "In Germany, moving away can itself trigger tax: anyone who has been subject to unlimited tax liability for at least seven of the last twelve years and holds shares in a corporation within the meaning of section 17 of the German Income Tax Act (EStG) is treated on departure as if they had sold them (section 6 of the German Foreign Tax Act, AStG). Depending on its classification, your US company may be among them. Which country taxes which income is governed by the double taxation agreement. Austria and Switzerland have their own rules — all of this belongs on the desk of our partner tax adviser before the move, not afterwards.",
+        "In Germany, moving away can itself trigger tax: anyone who has been subject to unlimited tax liability for at least seven of the last twelve years and holds shares in a corporation within the meaning of section 17 of the German Income Tax Act (EStG) is treated on departure as if they had sold them (section 6 of the German Foreign Tax Act, AStG). Depending on its classification, your US company may be among them. Which country taxes which income is governed by the double taxation agreement. Austria and Switzerland have their own rules. Tax questions rest with partner tax advisers acting in their own professional capacity — before the move, not afterwards.",
       ],
     },
     {
       typ: "rollen", id: "rollen", h2: "Who does what on the way to the E-2 visa",
-      lead: "One contact instead of eight — and a clear line when it comes to the visa.",
+      lead: "One dedicated contact — and a clear line when it comes to the visa.",
       fiaon: [
-        "Formation of the US company with your power of attorney, with ownership and management clearly set out from the start",
-        "EIN, D-U-N-S Number, the company’s filings; ITIN application prepared",
-        "Registered agent, US business address and US phone number for the first year",
+        "Filing of the US company with the state, state fee included",
+        "Operating agreement and formation documents; EIN and ITIN applications (the ITIN following our ITIN check)",
+        "Registered agent, US business address and US telephone number in the first year",
+        "The first annual US filing for your company",
         "Account and card applications prepared in full",
-        "Formation documents and records filed in order in the document room, ready for the lawyer’s file",
+        "Your company’s documents filed in order in your portal",
       ],
       partner: [
-        "Partner lawyer: operating agreement and formation documents",
-        "Partner tax adviser: review before formation, including with a view to a planned move",
-        "US CPA: the first annual US filing",
-        "Partner immigration lawyer: the visa application under your own engagement, not part of your order",
+        weitererSatz("ROLLEN", "en"),
+        "Tax questions in your country of residence, including ahead of a planned move: partner tax advisers, acting in their own professional capacity",
+        "The visa application: a partner immigration lawyer, acting in their own professional capacity, who agrees their fee with you",
       ],
       sie: [
         "The investment from your own documented funds",
         "Business plan and decisions within the business",
-        "Signing and submitting account, card and credit applications yourself",
-        "Form DS-160 and the interview at the consulate",
+        "Submitting the applications to the institutions yourself; each institution makes its own decision on accounts, cards and limits",
+        "Form DS-160 and the interview at the consulate; the consulate decides on the visa",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes care of the foundation for your E-2 visa",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is the business consultancy for your route into the US: one contact instead of eight. With your power of attorney, we file the applications for you — formation with the state, the EIN, the D-U-N-S Number and your company’s filings — and prepare your ITIN application. We provide the registered agent, US business address and US phone number for the first year. You submit only account, card and credit applications yourself; we prepare each of them in full.",
-        "With a later E-2 visa in mind, we build the company so that it can be documented: ownership and management are clearly set out from the start in the operating agreement drafted by our partner lawyer; the company’s name, address and core data match across all documents; and every record is filed in order in your document room. Whether the investment and the business suffice for a visa is decided by the consulate. Partner tax advisers, US CPAs and partner lawyers act under your engagement; FIAON pays their fees for the services in your order.",
-        "The visa application itself is made by a partner immigration lawyer under your own engagement — it is not part of your order. We make the introduction and, with your consent, pass on the company’s documents. From a capital range of US$1 million we work with you in person in Miami; below that, everything runs remotely, and our team on the ground deals with the authorities. This is complemented by our partner location in Zurich and your contracting party, FIAON LTD in London. The configurator shows your price; from the second year onwards, annual care is optional.",
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "For a later E-2 visa, what counts is that ownership and management can be documented: both are set out in the operating agreement.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        "Visa: the application is not part of your engagement.",
+        `${TEIL.bedingung}: ${satz("S3", "en")} The consulate decides on the visa.`,
       ],
     },
-    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} From a capital range of US$1 million we work with you in person in Miami.`, paket: "global_vip" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} ${weitererSatz("MIAMI", "en")}`, paket: "global_vip" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
         "Only the consulate decides on a visa, and only the border authority on admission at entry. No one can make a binding promise about a visa, its duration or an extension.",
-        "The visa application is not part of your order. The application and the individual case belong in the hands of a partner immigration lawyer, who acts under your engagement and agrees their fee with you.",
+        "The visa application is not part of your engagement. The application and the individual case rest with a partner immigration lawyer, acting in their own professional capacity, who agrees their fee with you.",
         "A US company gives no right to live or work in the US; the ITIN does not permit work either.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        "FIAON is not a bank and neither grants nor arranges loans. Your capital range is a goal, not a promise — the financing institution decides on the financing.",
-        "This page reflects the regulations as of October 2026; rules and fees may change.",
+        `FIAON is not a bank; it does not lend and does not broker loans. ${satz("S9", "en")} ${satz("S1", "en")}`,
+        "This page reflects the regulations as at October 2026; rules and fees may change. It explains the fundamentals and does not replace a tax or legal review of your case.",
       ],
     },
   ],
   fragen: [
     { f: "What are the requirements for the E-2 visa?", a: "Nationality of a treaty country, a substantial investment of your own funds at risk, a real, operating business that is more than marginal, at least 50 per cent of the business in the hands of nationals of the treaty country, your control of the business and the intention to leave the US when your status ends (9 FAM 402.9-6). The burden of proof lies with the applicant." },
     { f: "Can German, Austrian and Swiss citizens apply for an E-2 visa?", a: "Yes. Germany, Austria and Switzerland appear in the US State Department’s list of treaty countries, each for E-1 and E-2. What counts is nationality, not residence. The consulate decides on each individual application." },
-    { f: "How much do I need to invest for an E-2 visa?", a: "There is no fixed minimum amount. The consulate measures your investment against the cost of the business: the less expensive the business, the higher your share must be. According to the manual, a business with start-up costs of $100,000 that you finance entirely yourself generally counts as substantial." },
+    { f: "How much do I need to invest for an E-2 visa?", a: "There is no fixed minimum amount. The consulate measures your investment against the cost of the business: the lower that cost, the higher your share of it must be. According to the manual, a business with start-up costs of $100,000 that you finance entirely yourself generally counts as substantial." },
     { f: "Is a US LLC enough for the E-2 visa?", a: "An LLC can be the business, but forming it is not enough on its own. You need a committed investment, an active business that is more than marginal, and your control. Owning a company gives no right to live or work in the US." },
     { f: "How long is the E-2 visa valid?", a: "Each time you enter, you are admitted for a maximum of two years; extensions of a maximum of two years each are possible, with no limit on their number. How long the visa in your passport is valid depends on the reciprocity schedule for your nationality. The E-2 visa is not a Green Card, and it does not turn into one of its own accord." },
     { f: "Can my spouse work on an E-2 visa?", a: "Yes. The spouse of an E-2 investor is authorised to work by virtue of their status; the arrival record carries the annotation E-2S. Unmarried children under 21 receive the same status but may not work." },
-    { f: "What does the application at the consulate cost?", a: "The State Department’s fee schedule sets an application fee of $315 for E visas (22 CFR 22.1, as of October 2026). Depending on nationality, an issuance fee based on reciprocity may be added; further statutory fees are possible. You agree the immigration lawyer’s fee with them." },
-    { f: "Does FIAON handle the visa application?", a: "No. Visas are not part of your order. FIAON Global builds the US company that forms the foundation and puts its documents in order; the application is made by a partner immigration lawyer under your engagement." },
+    { f: "What does the application at the consulate cost?", a: "The State Department’s fee schedule sets an application fee of $315 for E visas (22 CFR 22.1, as at October 2026). Depending on nationality, an issuance fee based on reciprocity may be added; further statutory fees are possible. You agree the immigration lawyer’s fee with them." },
+    { f: "Does FIAON handle the visa application?", a: "No. The visa application is not part of your engagement. FIAON Global forms the US company and puts its documents in order. The application and the individual case rest with a partner immigration lawyer acting in their own professional capacity; the consulate decides on the visa." },
   ],
   paket: "global_vip",
   weiter: ["/en/business/miami", "/en/business/knowledge/us-market-entry", "/en/business/knowledge/us-llc-german-resident", "/en/business/from-austria"],

@@ -30,12 +30,21 @@
 // days“), kein „recommend“, „advice“ nicht verwendet, keine Strafbefreiung als Zusage,
 // kein Steuermodell. „Business consultancy“ als Selbstbezeichnung (E-439).
 // Wie im Deutschen ohne GLOBAL_KAPITAL_FREI (kein Kapital-Thema) und ohne
-// GLOBAL_GELD_ZURUECK (Baustein „fiaon“ hat im Deutschen fünf Absätze ohne ihn).
+// GLOBAL_GELD_ZURUECK.
+//
+// E-510 (13.11.2026, language guide FIAON Global): ONE section about us (“What FIAON
+// Global handles”: what we do · your part · condition), built like the German page. The
+// fixed sentences come from shared/fiaon-global-saetze.ts (personal route: “We review
+// your documents first. You then receive your proposal.”, S8) and
+// are not typed here. No “team on the ground”, no partner location, no partner shown at
+// work in the present tense; our own charge is a fee, our paper a proposal. The factual
+// part (statutes, fees and deadlines of third parties with sources) is unchanged.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft steht der Preis nach der
-// Prüfung im persönlichen Angebot (E-506), darum „offer“ statt „fixed price“.
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft steht das Honorar nach der
+// Prüfung der Unterlagen im persönlichen Angebot (E-506): “proposal”, “fee”.
+import { GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { SCHRITTE_KOPF, beleg, satz, weitererSatz } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, STAAT_EN, IRS_EN } from "../../fakten-en";
 
@@ -51,6 +60,12 @@ const gross = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 
 const P = EIN_PRODUKT.en;
+/** The names of the fixed parts: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** The personal route for an existing company (language guide 2.6) — fixed wording. */
+const UNTERLAGEN_ZUERST = weitererSatz("UNTERLAGEN-ZUERST", "en");
+/** Who deals with tax questions — the same wording as on the country pages (en/zielgruppen.ts). */
+const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity";
 
 /** Quellen dieses Beitrags mit englischen Titeln — dieselben Adressen wie im Deutschen (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -78,7 +93,7 @@ export const SEITE: GlobalSeite = {
     titel: "Dissolve or rescue a US LLC as a non-resident — FIAON Global",
     beschreibung: "Missed annual report, no Form 5472, agent resigned: how a non-resident can reinstate, hand over or cleanly dissolve a US LLC — with primary sources.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 50",
   auge: "Knowledge · Existing LLC",
@@ -97,16 +112,16 @@ export const SEITE: GlobalSeite = {
     ["Dissolve", "Dissolution with the state, final return, closing the EIN account"],
     ["Legacy issues", "Missing Forms 5472 stay open — even after cancellation"],
     ["At home", "Notification under section 138 AO and the tax consequences of dissolution"],
-    ["With FIAON Global", "Review, catching up, handover or dissolution — one contact instead of eight"],
+    ["With FIAON Global", UNTERLAGEN_ZUERST],
   ],
   kurz: `To dissolve a US LLC as a non-resident, you file the dissolution with the state (Articles of Dissolution in Florida and Wyoming, a Certificate of Cancellation in Delaware), file the last return with the IRS as a final return and have the EIN account closed by letter. If the state has already dissolved the LLC administratively, it can be reinstated: in Florida at any time, in Wyoming only in the first two years. No cancellation cures missed Forms 5472; the IRS can assess ${IRS_EN.strafe5472}, and the IRS alone decides on a reasonable cause statement submitted later.`,
   bloecke: [
     {
       typ: "text", id: "lage", h2: "When it has gone quiet: three routes for an existing LLC",
       absaetze: [
-        "For non-residents who want to dissolve or rescue a US LLC, the situation is often the same. The company was formed cheaply through an online service, the registered agent was included for the first year, and after that no more mail arrived. The annual report to the state is missing, the annual filing with the IRS was never made, and the address the IRS has on file belongs to a service you no longer have anything to do with.",
+        "For non-residents who want to dissolve or rescue a US LLC, the situation is often the same. The company was formed through an online service; the registered agent was included for the first year, and after that no more mail arrived. The annual report to the state is missing, the annual filing with the IRS was never made, and the address the IRS has on file belongs to a service you no longer have anything to do with.",
         "There are three routes for such a company. You rescue it if it is still needed — because an account, a merchant account or contracts depend on it, for instance. You place it in new hands if it is to carry on, but without the old service. Or you dissolve it cleanly if it no longer serves a purpose. Which route fits depends on two questions: what does the state register show, and what is missing at the IRS?",
-        "Doing nothing is usually the most expensive choice. Administrative dissolution by the state does not make a company disappear: in Florida, for example, it continues to exist for the purpose of winding up, and its outstanding filings with the IRS remain open in every state.",
+        "Waiting does not end any of these obligations. A company that the state dissolves administratively continues to exist in Florida for the purpose of winding up, and its outstanding filings with the IRS remain open in every state.",
       ],
     },
     {
@@ -131,7 +146,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "In Florida, an LLC that the state has dissolved administratively continues to exist — but only in order to be wound up. It may wind up its affairs, realise and distribute its assets and notify creditors — nothing more (§ 605.0714). Its registered agent remains authorised to accept service of process.",
         "In day-to-day business this has tangible consequences. Banks, payment platforms and counterparties can check the status in the register at any time; a company listed there as dissolved or delinquent cannot demonstrate good standing. In Delaware, an LLC that has not paid its annual tax cannot obtain a certificate of good standing and cannot maintain an action in the state’s courts. In Florida, a company without an annual report can neither bring nor defend an action in court until the report has been filed and the fees paid (§ 605.0212).",
-        "In Florida, the name is reserved against use by others for one year after dissolution. If another company has taken it after that, reinstatement is only possible under a new name (§ 605.0715). If you want to keep your company, you lose room for manoeuvre with every month.",
+        "In Florida, the name is reserved against use by others for one year after dissolution. If another company has taken it after that, reinstatement is only possible under a new name (§ 605.0715). For keeping the name, it is therefore this one year that counts.",
       ],
     },
     {
@@ -149,8 +164,8 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "agent", h2: "Registered agent resigned: what matters now",
       absaetze: [
         "If a registered agent resigns, it files a statement with the state. In Florida, it sends the company a copy to its current mailing address; its appointment ends on the 31st day after the filing, or earlier once a successor has been filed (§ 605.0115). In Delaware, it must notify the company in writing at least thirty days before filing (§ 18-104(d)). If the mailing address is with the old service itself, the notice may not reach the owner.",
-        "Without an agent, time runs against the company. In Florida, a missing agent is a ground for administrative dissolution in its own right. In Delaware, the LLC is cancelled if no new agent is designated within thirty days of the resignation being filed (§ 18-104(d)). If Wyoming dissolves the LLC for this reason, reinstatement costs $350 instead of $100.",
-        "The change itself is simple if it happens in time: the new agent accepts the appointment in writing, and the company files the change with the state — in Florida with a Statement of Change. Only then do you end the old service. At the same time, the address on file with the IRS should be updated so that the authority’s letters reach you.",
+        "Without an agent, deadlines start to run. In Florida, a missing agent is a ground for administrative dissolution in its own right. In Delaware, the LLC is cancelled if no new agent is designated within thirty days of the resignation being filed (§ 18-104(d)). If Wyoming dissolves the LLC for this reason, reinstatement costs $350 instead of $100.",
+        "The change itself has two steps: the new agent accepts the appointment in writing, and the company files the change with the state — in Florida with a Statement of Change. Only then do you end the old service. At the same time, the address on file with the IRS should be updated so that the authority’s letters reach you.",
       ],
     },
     {
@@ -164,13 +179,13 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "etappen", id: "aufloesen", h2: "Dissolve a US LLC as a non-resident: the order that holds",
-      lead: "A clean dissolution closes three files: the one with the state, the one with the IRS and the one with your tax office at home. The order decides whether anything remains open at the end.",
+      typ: "etappen", id: "aufloesen", h2: "Dissolve a US LLC as a non-resident: the sequence that holds",
+      lead: "A clean dissolution closes three files: the one with the state, the one with the IRS and the one with your tax office at home. The sequence decides whether anything remains open at the end.",
       etappen: [
         { titel: "Stocktake", text: "Status in the register, outstanding annual reports and fees, missing filings with the IRS, accounts, merchant accounts and ongoing contracts in the company’s name." },
         { titel: "Resolution and winding up", text: "The members resolve to dissolve in line with the operating agreement. Then the company is wound up: collect receivables, settle liabilities, close accounts, distribute the remaining assets to the members." },
         { titel: "Filings with the IRS", text: "Catch up on all open years and file the return for the last year as a final return. If the LLC has several members, it files Form 1065 as its final return, with a “final K-1” for each member. If it has elected on Form 8832 to be classified as a corporation, Form 966 is also required." },
-        { titel: "Dissolution with the state", text: "In Florida, Articles of Dissolution (§ 605.0707); in Wyoming, Articles of Dissolution; in Delaware, once winding up is complete, the Certificate of Cancellation (§ 18-203), together with all annual tax owed, including that for the current year (§ 18-1107). If the company has already been dissolved administratively, we first clarify with the state and, where needed, with a partner lawyer which route is open." },
+        { titel: "Dissolution with the state", text: "In Florida, Articles of Dissolution (§ 605.0707); in Wyoming, Articles of Dissolution; in Delaware, once winding up is complete, the Certificate of Cancellation (§ 18-203), together with all annual tax owed, including that for the current year (§ 18-1107). If the company has already been dissolved administratively, we first clarify with the state which route is open; legal questions on this rest with partner lawyers acting in their own professional capacity." },
         { titel: "Close the EIN account", text: "A letter to the IRS in Cincinnati, OH 45999, with the company’s full name, EIN, address and the reason, plus a copy of the notice that assigned the EIN, if you still have it. The IRS closes the account only once all required returns have been filed and all taxes paid." },
         { titel: "Finish at home", text: "Clarify the tax consequences of the dissolution, submit the notification under section 138 AO and keep all documents — for the limitation periods in the US and at home." },
       ],
@@ -181,7 +196,7 @@ export const SEITE: GlobalSeite = {
         "What applied to formation also applies to the end. A US company that is managed from the German-speaking countries is taxable there — in Germany, because its place of management is in Germany (section 10 of the German Fiscal Code, AO), which can make the company subject to unlimited corporate income tax liability (section 1 of the German Corporate Income Tax Act, KStG). Its dissolution is therefore not a purely American matter.",
         "The notification to the tax office also covers the end. Under section 138(2), first sentence, no. 2 AO, giving up an interest in a foreign partnership must be reported; no. 3 covers the acquisition and disposal of interests in foreign corporations where this results in a holding of at least 10 per cent or the acquisition costs of all holdings exceed €150,000. The notification is made with the tax return for the year, and no later than 14 months after the end of that year (section 138(5) AO).",
         "For tax purposes, what matters is how the tax office classifies the LLC: as a corporation or as a partnership, based on a type comparison (Typenvergleich); the classification chosen in the US does not decide this (German Federal Ministry of Finance, letter of 19 March 2004). If it counts as a corporation, its dissolution is treated as a sale for a member who holds the shares privately and held at least 1 per cent at some point in the last five years (section 17(1) and (4) of the German Income Tax Act, EStG). If it counts as a partnership carrying on a commercial business, the winding up may be taxable as the discontinuation of that business (section 16(3) EStG). Austria and Switzerland have their own rules.",
-        "Our partner tax adviser clarifies with you what applies in your case before the dissolution is filed with the state. A dissolution that nobody at home knows about is only half done.",
+        `What applies in your case should be settled before the dissolution is filed with the state. ${STEUERFRAGEN}; your ongoing tax return is handled by your tax adviser.`,
       ],
     },
     {
@@ -193,13 +208,14 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes over your existing LLC",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is a business consultancy for entrepreneurs from Germany, Austria and Switzerland with a US company. Our principle also applies to a company formed elsewhere: one contact instead of eight. You give us what you have — formation documents, the EIN letter, letters from the IRS and the state — and we handle all dealings with the state and the IRS.",
-        "First we review: status in the register, registered agent, outstanding annual reports and fees, which years are missing at the IRS, which address the IRS writes to and which accounts and platforms depend on the company. You receive the result in writing — the routes that are open, the state fees and your offer with the price — before anything is filed. The legal and tax consequences of each route are clarified by our partner lawyer and partner tax adviser under your engagement.",
-        "Then we catch up on everything outstanding. With your power of attorney, we file the applications on your behalf: reinstatement, change of registered agent, overdue annual reports, changes with the IRS on Form 8822-B. The outstanding Forms 5472 with pro forma Form 1120 are prepared by our US CPA under your engagement, with a reasonable cause statement for each year; our partner tax adviser clarifies the consequences at home. Partner tax advisers, US CPAs and partner lawyers act under your engagement, and their fees for the agreed services are included in your offer.",
-        "If the company is to go, we dissolve it cleanly: winding up according to plan, dissolution with the state — only on your instruction in text form —, the final return to the IRS and the letter on the EIN account. You close accounts with banks and payment platforms yourself; we prepare every step for this. Afterwards, every document and every letter from the authorities is in your document room.",
-        "Your contracting party is FIAON LTD in London; our team on the ground in Miami attends appointments for you, and Zurich is our partner location. If the company is to carry on, we keep track of deadlines and filings every year on request — through annual care, voluntary and without automatic renewal.",
+        `${UNTERLAGEN_ZUERST} It sets out the routes that are open, the state fees and your fee before anything is filed.`,
+        "With your power of attorney, we file what you instruct us to file: reinstatement, change of registered agent, outstanding annual reports and changes with the IRS on Form 8822-B. We file a dissolution only on your instruction in text form. Catching up on outstanding Forms 5472 rests with a US certified public accountant (CPA) from our partner network.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: you hand over the formation documents, the EIN letter and the letters from the authorities. You close accounts with institutions and payment service providers yourself.`,
+        `${TEIL.bedingung}: the state decides on reinstatement and dissolution; the IRS on penalties and the EIN account.`,
       ],
     },
     { typ: "paket", id: "mandat", h2: "Starting afresh, properly set up", lead: `If you want to form a new company after the clean-up: ${P.karteLead.charAt(0).toLowerCase()}${P.karteLead.slice(1)}`, paket: "global_struktur" },
@@ -209,8 +225,8 @@ export const SEITE: GlobalSeite = {
         "Cancellation by the state does not end outstanding obligations with the IRS. Missing Forms 5472 remain open, and the period for an assessment ends no earlier than three years after the information is received.",
         "Whether the IRS assesses a penalty or refrains from doing so is decided by the IRS alone. A reasonable cause statement can help; nobody can commit to the outcome.",
         "The state decides on reinstatement. In Wyoming it is ruled out after two years; in Florida, a name that has since been taken may make a new name necessary.",
-        "FIAON has no control over your company’s accounts or balances. You close accounts with banks and payment platforms yourself.",
-        `${GLOBAL_ROLLEN.en.fiaon} What applies legally and for tax purposes in an individual case is clarified by the partner lawyer and partner tax adviser under your engagement.`,
+        `${beleg("keinZugriff", "en")} You close accounts with institutions and payment service providers yourself.`,
+        `${satz("S8", "en")} This page explains the fundamentals and does not replace a tax or legal review of your case.`,
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
       ],
@@ -218,13 +234,13 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "How do I dissolve a US LLC as a non-resident?", a: "In three steps: catch up on outstanding annual reports, fees and filings and wind up the company; then file the dissolution with the state (Articles of Dissolution in Florida and Wyoming, a Certificate of Cancellation in Delaware); finally, file the final return with the IRS and send a letter asking the IRS to close the EIN account." },
-    { f: "What does it cost to dissolve a US LLC?", a: `With the state itself, little: $25 in Florida, $60 in Wyoming, $220 in Delaware plus all annual tax owed, including that for the current year (as at October 2026). It becomes expensive when years are missing: outstanding annual reports, fees and above all missed Forms 5472, for which the IRS can assess ${IRS_EN.strafe5472}.` },
+    { f: "What does it cost to dissolve a US LLC?", a: `With the state itself: $25 in Florida, $60 in Wyoming, $220 in Delaware plus all annual tax owed, including that for the current year (as at October 2026). Added to this is whatever remains open from earlier years: annual reports, fees and missed Forms 5472, for which the IRS can assess ${IRS_EN.strafe5472}.` },
     { f: "Can I reinstate a dissolved LLC?", a: "In many cases, yes. Florida allows reinstatement at any time, for $100 plus all outstanding fees; it takes effect retroactively to the date of dissolution. Wyoming allows it only in the first two years. Delaware restores a cancelled LLC with a Certificate of Revival, for $220 plus the outstanding annual tax with penalties and interest." },
     { f: "I forgot to file Form 5472 — what now?", a: `Catch up, for every open year with a pro forma Form 1120 and a reasonable cause statement. If the IRS has not yet contacted you about these returns and you are neither under examination nor under criminal investigation, you can use the IRS procedure for delinquent international information returns. The penalty of ${IRS_EN.strafe5472} can still be assessed; the IRS decides on the statement.` },
     { f: "Do I need to have the EIN cancelled when I dissolve the LLC?", a: "In the words of the IRS, the EIN remains the company’s permanent tax identification number. What is closed is its account with the IRS: by letter to the IRS in Cincinnati with the name, EIN, address and the reason. That is only possible once all returns have been filed and all taxes paid." },
-    { f: "My registered agent has resigned — what now?", a: "Designate a new agent promptly. In Florida, the old agent’s appointment ends on the 31st day after its resignation is filed; without an agent, administrative dissolution looms. In Delaware, the LLC is cancelled if no successor is filed within thirty days. The new agent accepts the appointment in writing, and the company files the change with the state." },
-    { f: "What do I have to report in Germany when I dissolve the LLC?", a: "That depends on the classification. Giving up an interest in a foreign partnership must be reported under section 138(2) AO, as must the disposal of an interest in a foreign corporation above the statutory thresholds — with the tax return, no later than 14 months after the end of the year. The partner tax adviser clarifies the tax consequences in advance." },
-    { f: "Does FIAON Global also take over an LLC that was formed elsewhere?", a: "Yes. We first review the register, the registered agent and the position with the IRS and give you the routes and your offer with the price in writing. After that, we make the applications with your power of attorney, our US CPA catches up on outstanding filings under your engagement, and we file a dissolution only on your instruction in text form." },
+    { f: "My registered agent has resigned — what now?", a: "Designate a new agent before the state’s deadline expires. In Florida, the old agent’s appointment ends on the 31st day after its resignation is filed; without an agent, the state may dissolve the company administratively. In Delaware, the LLC is cancelled if no successor is filed within thirty days. The new agent accepts the appointment in writing, and the company files the change with the state." },
+    { f: "What do I have to report in Germany when I dissolve the LLC?", a: `That depends on the classification. Giving up an interest in a foreign partnership must be reported under section 138(2) AO, as must the disposal of an interest in a foreign corporation above the statutory thresholds — with the tax return, no later than 14 months after the end of the year. ${STEUERFRAGEN}.` },
+    { f: "Does FIAON Global also take over an LLC that was formed elsewhere?", a: `Yes. ${UNTERLAGEN_ZUERST} It sets out the routes that are open, the state fees and your fee. After that, we file what you instruct us to file, with your power of attorney; a dissolution only on your instruction in text form. Catching up on outstanding filings rests with a US certified public accountant (CPA) from our partner network. If the company is to carry on, you may continue with annual administration from the second year; it does not renew automatically.` },
   ],
   paket: "global_struktur",
   weiter: ["/en/business/knowledge/form-5472", "/en/business/knowledge/registered-agent-address", "/en/business/knowledge/us-llc-german-resident", "/en/business/knowledge/us-llc-disadvantages"],

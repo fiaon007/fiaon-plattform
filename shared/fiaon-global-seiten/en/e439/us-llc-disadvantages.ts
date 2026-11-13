@@ -31,8 +31,14 @@
 // Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname.
+// E-510 (13.11.2026, language guide FIAON Global): ONE section about us (“What FIAON Global handles”, 120 words at most:
+// what we do · your part · condition), built like the German page. Fixed sentences (S2, S3, S8, S10, “your part” of steps 1
+// and 2) come from shared/fiaon-global-saetze.ts. No longer here: the refund sentence (it applies to financing only), the
+// fee lines (they are on the card “One engagement”), a “review before formation” as an included service, a “team on the
+// ground”, a partner location, a partner shown at work in the present tense. The factual part is unchanged.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_NICHT_INKLUSIVE } from "../../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import {
   QUELLEN_WISSEN_EN as Q, QUELLEN_RECHT_EN as R, QUELLEN_STAATEN_EN, STAAT_EN, IRS_EN, MARKT_EN, SCHWELLEN_EN, FRISTEN_EN, FAKTEN_STAND_EN,
@@ -47,14 +53,25 @@ const STRAFE_5472 = IRS_EN.strafe5472.split(" per ")[0];
 const prozent = (x: string) => x.replace(/(\d)%/g, "$1 per cent");
 
 const P = EIN_PRODUKT.en;
+/** “Your part” and “Condition”, and steps 1 and 2 of the fixed narrative (language guide 2.1, 2.3). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+const GRUENDUNG = SECHS_SCHRITTE.en.find((x) => x.nr === 1)!;
+const UNTERLAGEN = SECHS_SCHRITTE.en.find((x) => x.nr === 2)!;
+/** The first annual US filing — wording of the agreement (clause 2), role as in guard rail 5. */
+const US_MELDUNG = "the first annual US filing by a US certified public accountant (CPA) from our partner network";
+/** From the second year (language guide 5.6) — without an amount; that is on the card “One engagement”. */
+const JAHRESBETREUUNG = "From the second year you may continue with annual administration; it does not renew automatically.";
 
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
+/** Who deals with tax questions — the same wording as on the country pages (en/zielgruppen.ts). */
+const STEUERFRAGEN = "Tax questions rest with partner tax advisers acting in their own professional capacity";
+/** The capital is not tied to the US (Justin, 19.09.2026) — the sentence from the one source, plus who deals with tax questions. */
+const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${STEUERFRAGEN}.`;
 
 
 const NICHT_INKLUSIVE = GLOBAL_NICHT_INKLUSIVE.en[1].charAt(0).toLowerCase() + GLOBAL_NICHT_INKLUSIVE.en[1].slice(1);
 
-/** Der Satz, den wir auch im Gespräch sagen (Ehrlichkeits-Signal, Auftrag E-439). */
-const EHRLICH = "If all you need is the company itself, a formation-only service will cost you less — and we tell you so when we speak, too.";
+/** Our own drawback first (language guide 3.1, rule 10) — the same sentence as on the costs page. */
+const EHRLICH = "If you need only a company and coordinate everything yourself, you pay less than with us.";
 
 /** Quellen dieses Beitrags — dieselben Adressen wie in der deutschen Fassung, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -90,13 +107,13 @@ export const SEITE: GlobalSeite = {
     titel: "US LLC disadvantages for non-residents — FIAON Global",
     beschreibung: "US LLC disadvantages for non-residents: tax at home, filings in two countries, annual costs, penalties — and when an LLC still makes sense.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 52",
   auge: "Knowledge · Before formation",
   h1: "US LLC disadvantages for non-residents.",
   h1b: "Stated plainly, with sources.",
-  lead: "Anyone planning to form a US LLC usually reads only about the advantages. Here are the US LLC disadvantages for non-residents, each with its source: tax liability that stays at home, filing duties in two countries, running costs every year, penalties for non-compliance and difficult access to banking and cards without a US history. We also set out the cases in which an LLC is not the right fit — and those in which it makes sense.",
+  lead: "A US LLC comes with obligations that should be known before formation. Here are the US LLC disadvantages for non-residents, each with its source: tax liability that stays at home, filing duties in two countries, running costs every year, penalties for non-compliance and difficult access to banking and cards without a US history. We also set out the cases in which an LLC is not the right fit — and those in which it makes sense.",
   ziffern: [
     { wert: STRAFE_5472, label: "IRS penalty for each missed Form 5472" },
     { wert: "14 months", label: "at the latest: notification under section 138 AO, with the tax return" },
@@ -109,9 +126,9 @@ export const SEITE: GlobalSeite = {
     ["Penalties", `${STRAFE_5472} per missed Form 5472`],
     ["Banking and cards", "No credit score at first without a US history; a personal guarantee is usual"],
     ["Not a fit", "Without real business in the US, purely for tax reasons"],
-    ["With FIAON Global", "One point of contact instead of eight; a review before formation"],
+    ["With FIAON Global", "Formation, documents, tax numbers; deadlines and filings in the first year"],
   ],
-  kurz: `The main US LLC disadvantages for non-residents: if you run the company from Germany, Austria or Switzerland, it generally remains taxable there (section 10 of the German Fiscal Code, AO; section 1(2) of the Austrian KStG 1988; Art. 50 of the Swiss DBG). Added to this are filing duties in two countries — Form 5472 to the IRS, where a missed filing can cost ${STRAFE_5472} per form, and in Germany the notification under section 138 AO — as well as running costs for state fees, a registered agent and a US CPA, and difficult access to banking and cards without a US history. An LLC makes sense for real business in the US, not as a tax model.`,
+  kurz: `The main US LLC disadvantages for non-residents: if you run the company from Germany, Austria or Switzerland, it generally remains taxable there (section 10 of the German Fiscal Code, AO; section 1(2) of the Austrian KStG 1988; Art. 50 of the Swiss DBG). Added to this are filing duties in two countries — Form 5472 to the IRS, where a missed filing can cost ${STRAFE_5472} per form, and in Germany the notification under section 138 AO — as well as running costs for state fees, a registered agent and a US CPA, and difficult access to banking and cards without a US history. An LLC makes sense for real business in the US, not as a tax scheme.`,
   bloecke: [
     {
       typ: "text", id: "steuerpflicht", h2: "The first of the US LLC disadvantages for non-residents: tax liability stays at home",
@@ -127,7 +144,7 @@ export const SEITE: GlobalSeite = {
       lead: "The case for and against a US LLC, each seen from the perspective of a business owner resident in Germany, Austria or Switzerland.",
       kopf: ["Topic", "Advantage", "Disadvantage"],
       zeilen: [
-        ["Formation", `Quick and manageable: filing fee ${STAAT_EN.wyoming.gruendung} in Wyoming, ${STAAT_EN.florida.gruendung} in Florida`, "Formation is the smallest cost; the duties recur every year"],
+        ["Formation", `Filing fee ${STAAT_EN.wyoming.gruendung} in Wyoming, ${STAAT_EN.florida.gruendung} in Florida`, "Formation is the smallest cost; the duties recur every year"],
         ["Tax", "Often no federal tax in the US, as long as there is no business there", "Managed from home, generally taxable at home (section 10 AO)"],
         ["Filings", "BOI reporting no longer required for companies formed in the US (FinCEN, August 2026)", "Form 5472 to the IRS as soon as money moves between you and the LLC — even without revenue; plus the notification under section 138 AO to the tax office"],
         ["Classification", "Elective: transparent or taxed as a corporation", "The IRS and the tax office classify independently of each other; the results can diverge"],
@@ -144,12 +161,12 @@ export const SEITE: GlobalSeite = {
         `In the US, a single-member LLC with a foreign owner is treated as a corporation for the purposes of the reporting requirements under section 6038A. It files Form 5472, attached to a simplified (pro forma) Form 1120, for every year in which there is a reportable transaction between the LLC and you. This expressly includes payments at formation, contributions to the company and distributions from it — no revenue and no account are needed for the duty to arise. For a calendar-year company, the deadline is ${IRS_EN.frist5472}. The duty also includes keeping books that support these figures.`,
         "In Germany, the interest in the LLC must be notified to the tax office (section 138(2) AO): depending on its classification, as an interest in a foreign partnership or in a foreign corporation (for a corporation, from a holding of ten per cent or acquisition costs of more than €150,000), and also where you first gain a controlling influence over a company outside the EU and EFTA. The notification is submitted with the tax return for the year of formation, no later than 14 months after the end of that year (section 138(5) AO). If the LLC is managed from Germany, a notification under section 138(1) AO may also be required: the opening of a commercial business or a permanent establishment is reported to the municipality, which informs the tax office. In Austria, you must notify the tax office within one month of any circumstances that give rise to or change a tax liability (sections 120 and 121 BAO).",
         `If the LLC holds accounts outside the US — a euro account in Europe, for example — a third filing may be required. For the FBAR, a limited liability company formed in the US also counts as a US person. If the total value of its foreign accounts exceeds ${SCHWELLEN_EN.fbar} during the year, the report to FinCEN is due; the deadline is ${FRISTEN_EN.fbar}.`,
-        "Each of these filings is simple on its own. The disadvantage is that they fall due in two countries, with different authorities and on different dates — and that the figures have to be consistent across both countries.",
+        "Each of these filings is manageable on its own. The disadvantage is that they fall due in two countries, with different authorities and on different dates — and that the figures have to be consistent across both countries.",
       ],
     },
     {
       typ: "tabelle", id: "kosten", h2: "The third disadvantage: running costs every year",
-      lead: "What an LLC costs from the second year onwards, even if it has no revenue. The state fees come from the official fee schedules; the other figures are published prices from several providers.",
+      lead: "What an LLC costs from the second year onwards, even if it has no revenue. The state fees come from the official fee schedules; the other figures are market ranges published by several providers.",
       kopf: ["Item", "Amount", "When"],
       zeilen: [
         ["Annual report, Florida", STAAT_EN.florida.jahr, STAAT_EN.florida.jahrFrist],
@@ -178,13 +195,13 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         `Before opening any account, a US bank collects and verifies a name, an address and an identification number. For foreign nationals, that can be a passport number together with the issuing country; for the company, the rule requires a principal place of business, a local office or another physical location (31 CFR 1020.220). Then there are the beneficial owners: anyone holding ${SCHWELLEN_EN.eigentuemer} or more is identified (31 CFR 1010.230). Whether an account is opened, and on what terms, is for each institution alone to decide.`,
         "For cards, credit history is what counts. A FICO Score only exists once at least one account has been open for six months or longer and has been reported to the credit bureau within the last six months. Anyone new to the US therefore has no score at first. With Executive Order 14406 of 19 May 2026, the President also directed the US Treasury to alert banks to red flags. These include the use of an ITIN for account or credit applications by applicants without verified immigration status in the US; on this basis, an ITIN in place of a Social Security number may count as a risk factor that triggers enhanced review.",
-        "Nor are the 7(a) and 504 loan programmes backed by the Small Business Administration (SBA) open to an LLC whose owner lives in Germany, Austria or Switzerland: since 1 March 2026, the business must be 100 per cent owned, directly and indirectly, by US citizens or US nationals whose principal residence is in the US (SBA Procedural Notice 5000-876626).",
+        "Nor are the 7(a) and 504 loan programmes backed by the Small Business Administration (SBA) open to an LLC whose owner lives outside the US: since 1 March 2026, the business must be 100 per cent owned, directly and indirectly, by US citizens or US nationals whose principal residence is in the US (SBA Procedural Notice 5000-876626).",
         `${GLOBAL_PFLICHTHINWEIS.en[2]} The LLC’s limited liability does not protect you against obligations for which you are personally liable.`,
       ],
     },
     {
       typ: "tabelle", id: "strafen", h2: "The sixth disadvantage: penalties for non-compliance",
-      lead: "Each duty is manageable on its own. It becomes expensive when one of them is missed.",
+      lead: "Each duty is manageable on its own. What follows when one is missed is set out in the source named in each row.",
       kopf: ["Failure", "Consequence", "Legal basis"],
       zeilen: [
         ["Form 5472 not filed or filed late, records not kept", `${IRS_EN.strafe5472}; if the failure continues for more than 90 days after an IRS notice, a further US$25,000 for each 30-day period or part of one`, "IRS, Instructions for Form 5472"],
@@ -211,7 +228,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "sinnvoll", h2: "When a US LLC makes sense",
       absaetze: [
-        "The disadvantages weigh less heavily when the company has real work to do in the US. Filings and costs are then the price of access that is not available any other way. Typical situations:",
+        "The disadvantages weigh less heavily when the company has real work to do in the US. Filings and costs are then set against access that is not available any other way. Typical situations:",
       ],
       punkte: [
         "You have customers in the US who expect a US contracting party, a US invoice and payments in US dollars.",
@@ -225,33 +242,35 @@ export const SEITE: GlobalSeite = {
     },
     { typ: "zitat", id: "ehrlich", text: EHRLICH, quelle: "FIAON Global" },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes on the duties that come with an LLC",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is a business consultancy for your route into the US, founded on one principle: one point of contact instead of eight. Many of the disadvantages of a US LLC are a matter not of law but of organisation — eight parties, two countries, different deadlines. With your power of attorney, we file the applications on your behalf: formation, the EIN, preparation of the ITIN, the D-U-N-S Number, filings, the registered agent, a US address and a US phone number for the first year. You submit only the account, card and credit applications yourself; we prepare them in full.",
-        `Before the company is formed, our partner tax adviser, acting under your engagement, reviews your case: the place of management, the classification under the comparison of legal types, the notification under section 138 AO — and whether the LLC suits your plans from a tax perspective. On that basis, our partner lawyer drafts the operating agreement; our US CPA takes on the first Form 5472 with Form 1120. ${P.partner}`,
-        `${P.preisSatz} Our team on the ground in Miami handles appointments in the US; our partner location is Zurich, and your contracting party is FIAON LTD in London. With annual care, from the second year onwards we take care of the registered agent, the US address and US phone number, the annual report to the state including the state fee, and the US filing through our US CPA — with a compliance calendar, so that you keep every deadline in view.`,
-        "And if it is already clear in our first conversation that an LLC does not suit your plans — because there is no business in the US, for example — we tell you so before you engage us. If you need only the company itself, without the review, the partners and the support, you are better served, at lower cost, by a formation-only service.",
-        P.geldZurueck,
+        `We form your US company, assemble its documents in full and apply for the tax numbers. Included in the first year: the compliance calendar, the first annual report to the state and ${US_MELDUNG} (Form 5472 with Form 1120).`,
+        JAHRESBETREUUNG,
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        `Accounts and cards: ${satz("S2", "en")}`,
+        `${TEIL.bedingung}: ${satz("S3", "en")}`,
       ],
     },
-    { typ: "paket", id: "mandat", h2: "A clean start, every duty in view", lead: P.karteLead, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "This article explains the legal position as of October 2026. It is no substitute for a review of your case, which the tax adviser carries out under your engagement; questions on visas and residence are for a US immigration lawyer.",
+        `This page explains the fundamentals (as at October 2026) and does not replace a tax or legal review of your case. ${STEUERFRAGEN}; questions on visas and residence are for a US immigration lawyer.`,
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
-        `Not included in your order: ${NICHT_INKLUSIVE}.`,
-        GLOBAL_ROLLEN.en.fiaon,
-        "FIAON neither grants nor arranges loans. A US LLC is not a tax model: if you manage it from home, it is generally taxed there.",
+        `Not included in your engagement: ${NICHT_INKLUSIVE}.`,
+        satz("S8", "en"),
+        satz("S10", "en"),
       ],
     },
   ],
   fragen: [
     { f: "What are the disadvantages of a US LLC for business owners from Germany?", a: `Five above all: tax liability stays in Germany if the LLC is managed from there (section 10 AO). There are filing duties in two countries — Form 5472 to the IRS and the notification under section 138 AO to the tax office. Each year brings costs for the state fee, the registered agent and a US CPA. Without a US history, accounts and cards are harder to obtain. And missed filings are costly: ${STRAFE_5472} for each missing Form 5472.` },
-    { f: "Is a US LLC worth it?", a: "If it has real business in the US — US customers, US platforms, a team or a market entry — the advantages can outweigh the disadvantages. As a pure tax model it is not worth it: if you run it from home, you remain taxable there and also carry duties and costs in the US. The tax adviser reviews your case before formation." },
+    { f: "Is a US LLC worth it?", a: `If it has real business in the US — US customers, US platforms, a team or a market entry — the advantages can outweigh the disadvantages. As a pure tax scheme it is not worth it: if you run it from home, you remain taxable there and also carry duties and costs in the US. ${STEUERFRAGEN}.` },
     { f: "Is a US LLC “tax-free”?", a: "No. An LLC with a foreign member often pays no federal tax in the US as long as it has no business there. But it is taxable where it is managed: in Germany under section 10 AO, in Austria under section 1(2) KStG 1988, in Switzerland under Art. 50 DBG." },
-    { f: "What does a US LLC cost every year?", a: `The state fee (${STAAT_EN.florida.jahr} in Florida, ${STAAT_EN.wyoming.jahr} in Wyoming, ${STAAT_EN.delaware.jahr} in Delaware), the registered agent (market prices ${MARKT_EN.agent}) and the US CPA for Form 5472 (${MARKT_EN.cpa5472}). There is also your own tax adviser at home. These costs arise even without revenue.` },
+    { f: "What does a US LLC cost every year?", a: `The state fee (${STAAT_EN.florida.jahr} in Florida, ${STAAT_EN.wyoming.jahr} in Wyoming, ${STAAT_EN.delaware.jahr} in Delaware), the registered agent (market range ${MARKT_EN.agent}) and the US CPA for Form 5472 (${MARKT_EN.cpa5472}). There is also your own tax adviser at home. These costs arise even without revenue.` },
     { f: "What happens if I do not file Form 5472?", a: `The IRS can impose a penalty of ${IRS_EN.strafe5472}, and the same applies if the required records are missing. If the failure continues for more than 90 days after its notice, a further US$25,000 is added for each 30-day period or part of one. The duty does not depend on revenue: even payments at formation, contributions and distributions are reportable.` },
     { f: "Can I get a US account and credit cards with a US LLC?", a: "That is decided solely by the institution concerned. Without a US history there is no FICO Score at first, business credit cards generally require your personal guarantee, and under Executive Order 14406 an ITIN instead of a Social Security number may count as a red flag that triggers enhanced review. Complete, consistent documents therefore count for more than the number of applications." },
     { f: "Can I live and work in the US with a US LLC?", a: "Not on the strength of the company alone; that requires a visa. The E-2 investor visa, for example, requires the nationality of a treaty country and a substantial investment in a real business that can earn more than a minimal living. Whether it is an option in your case is assessed by a US immigration lawyer." },

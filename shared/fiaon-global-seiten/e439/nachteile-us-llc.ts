@@ -45,8 +45,14 @@
 // „Unternehmensberatung“ als Selbstbezeichnung erlaubt seit E-439 (Justin, 27.10.2026).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Geld-zurück-Satz aus EIN_PRODUKT.
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname.
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): EIN Abschnitt über uns („Was FIAON Global dabei übernimmt“,
+// höchstens 120 Wörter: was wir tun · Ihr Teil · Bedingung). Feste Sätze (S2, S3, S8, S10, „Ihr Teil“ der Schritte 1 und 2)
+// kommen aus shared/fiaon-global-saetze.ts. Nicht mehr hier: der Satz zur Erstattung (er gilt nur für die Finanzierung),
+// die Honorarzeilen (sie stehen in der Karte „Ein Mandat“), „Prüfung vor der Gründung“ als enthaltene Leistung, „Team vor
+// Ort“, Partnerstandort, ein Partner bei der Arbeit im Präsens. Der Sachteil (Normen, Zahlen Dritter) ist unverändert.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, STAAT, IRS, MARKT, SCHWELLEN, FRISTEN, FAKTEN_STAND } from "../fakten";
 
@@ -55,12 +61,23 @@ const S = "2026-10-27";
 /** Strafe der IRS ohne den Zusatz „je Formular und Jahr“ — für Kennziffer und Blick. */
 const STRAFE_5472 = IRS.strafe5472.split(" je ")[0];
 
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
+/** Wer Steuerfragen klärt — dieselbe Fassung wie auf den Länderseiten (zielgruppen.ts). */
+const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung";
+/** Das Kapital ist nicht an die USA gebunden (Justin, 19.09.2026) — der Satz aus der einen Quelle, dazu die Zuständigkeit für Steuerfragen. */
+const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${STEUERFRAGEN}.`;
 
 const P = EIN_PRODUKT.de;
+/** „Ihr Teil“ und „Bedingung“ sowie die Schritte 1 und 2 der festen Erzählung (Leitfaden 2.1, 2.2). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+const GRUENDUNG = SECHS_SCHRITTE.de.find((x) => x.nr === 1)!;
+const UNTERLAGEN = SECHS_SCHRITTE.de.find((x) => x.nr === 2)!;
+/** Die erste jährliche US-Meldung — Wortlaut des Vertrags (Ziffer 2), Rollenbezeichnung nach Leitplanke 5. */
+const US_MELDUNG = "die erste jährliche US-Meldung durch einen US-Steuerberater (CPA) aus unserem Partnernetz";
+/** Ab dem zweiten Jahr (Leitfaden 5.6) — ohne Betrag; der steht in der Karte „Ein Mandat“. */
+const JAHRESBETREUUNG = "Ab dem zweiten Jahr können Sie die Jahresbetreuung beauftragen; sie verlängert sich nicht von selbst.";
 
-/** Der Satz, den wir auch im Gespräch sagen (Ehrlichkeits-Signal, Auftrag E-439). */
-const EHRLICH = "Wer nur die Gesellschaft braucht, zahlt bei einem reinen Gründungsdienst weniger — das sagen wir Ihnen auch im Gespräch.";
+/** Der eigene Nachteil zuerst (Leitfaden 3.1, Regel 10) — derselbe Satz wie auf der Kostenseite. */
+const EHRLICH = "Wer nur eine Gesellschaft braucht und alles selbst koordiniert, zahlt weniger als bei uns.";
 
 /** Quellen dieses Beitrags (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -91,16 +108,16 @@ export const SEITE: GlobalSeite = {
   pfad: "/business/wissen/nachteile-us-llc",
   art: "wissen",
   seo: {
-    titel: "Nachteile einer US-LLC: offen gesagt — FIAON Global",
+    titel: "Nachteile einer US-LLC: mit Quellen und Stand — FIAON Global",
     beschreibung: "Die Nachteile einer US-LLC: Steuerpflicht zu Hause, Meldungen in zwei Ländern, laufende Kosten, Strafen — und wann sie trotzdem sinnvoll ist.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 52",
   auge: "Wissen · Vor der Gründung",
   h1: "Die Nachteile einer US-LLC.",
-  h1b: "Offen gesagt, mit Fundstellen.",
-  lead: "Wer eine US-LLC gründen will, liest meist nur die Vorteile. Hier stehen die Nachteile einer US-LLC, jeweils mit Fundstelle: die Steuerpflicht, die zu Hause bleibt, Meldepflichten in zwei Ländern, laufende Kosten in jedem Jahr, Strafen bei Versäumnis und ein schwieriger Zugang zu Bank und Karten ohne US-Historie. Dazu die Fälle, in denen eine LLC nicht passt — und die, in denen sie sinnvoll ist.",
+  h1b: "Mit Quellen und Stand.",
+  lead: "Zu einer US-LLC gehören Pflichten, die vor der Gründung bekannt sein sollten. Hier stehen die Nachteile einer US-LLC, jeweils mit Fundstelle: die Steuerpflicht, die zu Hause bleibt, Meldepflichten in zwei Ländern, laufende Kosten in jedem Jahr, Strafen bei Versäumnis und ein schwieriger Zugang zu Bank und Karten ohne US-Historie. Dazu die Fälle, in denen eine LLC nicht passt — und die, in denen sie sinnvoll ist.",
   ziffern: [
     { wert: STRAFE_5472, label: "Strafe der IRS je versäumter Form 5472" },
     { wert: "14 Monate", label: "spätestens: Meldung nach § 138 AO, mit der Steuererklärung" },
@@ -113,7 +130,7 @@ export const SEITE: GlobalSeite = {
     ["Strafen", `${STRAFE_5472} je versäumter Form 5472`],
     ["Bank und Karten", "Ohne US-Historie zunächst kein Score; persönliche Haftung üblich"],
     ["Passt nicht", "Ohne echtes Geschäft in den USA, nur aus Steuermotiv"],
-    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, Prüfung vor der Gründung"],
+    ["Mit FIAON Global", "Gründung, Unterlagen, Steuernummern; im ersten Jahr Fristen und Meldungen"],
   ],
   kurz: `Die wichtigsten Nachteile einer US-LLC: Wer sie von Deutschland, Österreich oder der Schweiz aus führt, bleibt dort in der Regel steuerpflichtig (§ 10 AO, § 1 Abs. 2 KStG 1988, Art. 50 DBG). Dazu kommen Meldepflichten in zwei Ländern — Form 5472 an die IRS, deren Versäumnis ${STRAFE_5472} je Formular kosten kann, und in Deutschland die Meldung nach § 138 AO —, laufende Kosten für Staat, Registered Agent und US-CPA sowie ein schwieriger Zugang zu Bank und Karten ohne US-Historie. Sinnvoll ist eine LLC für echtes Geschäft in den USA, nicht als Steuermodell.`,
   bloecke: [
@@ -131,7 +148,7 @@ export const SEITE: GlobalSeite = {
       lead: "Was für eine US-LLC spricht und was dagegen, jeweils aus Sicht eines Unternehmers mit Wohnsitz in Deutschland, Österreich oder der Schweiz.",
       kopf: ["Thema", "Vorteil", "Nachteil"],
       zeilen: [
-        ["Gründung", `Schnell und überschaubar: Gründungsgebühr ${STAAT.wyoming.gruendung} in Wyoming, ${STAAT.florida.gruendung} in Florida`, "Die Gründung ist der kleinste Posten; die Pflichten kommen in jedem Jahr"],
+        ["Gründung", `Gründungsgebühr ${STAAT.wyoming.gruendung} in Wyoming, ${STAAT.florida.gruendung} in Florida`, "Die Gründung ist der kleinste Posten; die Pflichten kommen in jedem Jahr"],
         ["Steuern", "In den USA oft keine Bundessteuer, solange dort kein Geschäft besteht", "Von zu Hause geführt, in der Regel zu Hause steuerpflichtig (§ 10 AO)"],
         ["Meldungen", "Keine BOI-Meldung mehr für in den USA gegründete Gesellschaften (FinCEN, August 2026)", "Form 5472 an die IRS, sobald Geld zwischen Ihnen und der LLC fließt — auch ohne Umsatz; dazu die Meldung nach § 138 AO ans Finanzamt"],
         ["Einordnung", "Wählbar: transparent oder wie eine Corporation besteuert", "IRS und Finanzamt ordnen unabhängig voneinander ein; die Ergebnisse können auseinanderfallen"],
@@ -148,12 +165,12 @@ export const SEITE: GlobalSeite = {
         `In den USA gilt eine Einpersonen-LLC mit ausländischem Inhaber für die Meldepflicht nach Section 6038A als Corporation. Sie reicht Form 5472 ein, angehängt an ein Form 1120 in vereinfachter Form (pro forma), und zwar für jedes Jahr, in dem es ein meldepflichtiges Geschäft zwischen der LLC und Ihnen gibt. Dazu zählen ausdrücklich schon Zahlungen bei der Gründung, Einlagen in die Gesellschaft und Entnahmen aus ihr — Umsatz oder ein Konto sind dafür nicht nötig. Frist ist bei Kalenderjahr der ${IRS.frist5472}. Dazu gehören Bücher, die diese Zahlen belegen.`,
         "In Deutschland ist die Beteiligung an der LLC dem Finanzamt mitzuteilen (§ 138 Abs. 2 AO): je nach Einordnung als Beteiligung an einer ausländischen Personengesellschaft oder an einer ausländischen Körperschaft (dort ab zehn Prozent oder ab Anschaffungskosten von mehr als 150.000 Euro), außerdem beim erstmaligen beherrschenden Einfluss auf eine Gesellschaft außerhalb von EU und EFTA. Die Mitteilung geht mit der Steuererklärung für das Jahr der Gründung ein, spätestens 14 Monate nach dessen Ablauf (§ 138 Abs. 5 AO). Wird die LLC von hier aus geleitet, kann zudem eine Anzeige nach § 138 Abs. 1 AO hinzukommen: Die Eröffnung eines gewerblichen Betriebs oder einer Betriebsstätte geht an die Gemeinde, die das Finanzamt unterrichtet. In Österreich zeigen Sie dem Finanzamt Umstände, die eine Abgabepflicht begründen oder ändern, binnen einem Monat an (§§ 120, 121 BAO).",
         `Hält die LLC Konten außerhalb der USA, etwa ein Euro-Konto in Europa, kann eine dritte Meldung hinzukommen. Als US-Person gilt für den FBAR auch eine in den USA gegründete Limited Liability Company. Übersteigt der Gesamtwert ihrer ausländischen Konten im Jahr ${SCHWELLEN.fbar}, ist der Bericht an FinCEN fällig, Frist ${FRISTEN.fbar}.`,
-        "Jede dieser Meldungen ist für sich einfach. Der Nachteil liegt darin, dass sie in zwei Ländern, bei verschiedenen Stellen und zu verschiedenen Terminen anfallen — und dass die Zahlen in beiden Ländern zueinander passen müssen.",
+        "Jede dieser Meldungen ist für sich überschaubar. Der Nachteil liegt darin, dass sie in zwei Ländern, bei verschiedenen Stellen und zu verschiedenen Terminen anfallen — und dass die Zahlen in beiden Ländern zueinander passen müssen.",
       ],
     },
     {
       typ: "tabelle", id: "kosten", h2: "Der dritte Nachteil: laufende Kosten in jedem Jahr",
-      lead: "Was eine LLC ab dem zweiten Jahr kostet, auch wenn sie keinen Umsatz macht. Die Staatsgebühren stammen aus den amtlichen Gebührenordnungen; die übrigen Werte sind veröffentlichte Preise mehrerer Anbieter.",
+      lead: "Was eine LLC ab dem zweiten Jahr kostet, auch wenn sie keinen Umsatz macht. Die Staatsgebühren stammen aus den amtlichen Gebührenordnungen; die übrigen Werte sind Marktspannen aus veröffentlichten Angaben mehrerer Anbieter.",
       kopf: ["Posten", "Betrag", "Wann"],
       zeilen: [
         ["Annual Report, Florida", STAAT.florida.jahr, STAAT.florida.jahrFrist],
@@ -182,13 +199,13 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         `Eine US-Bank erhebt vor jeder Kontoeröffnung Name, Anschrift und eine Identifikationsnummer und prüft sie. Bei Ausländern kann das die Nummer des Reisepasses mit Ausstellerstaat sein; für die Gesellschaft verlangt die Regel eine Hauptniederlassung, ein örtliches Büro oder einen anderen physischen Standort (31 CFR 1020.220). Dazu kommen die wirtschaftlich Berechtigten: Wer ${SCHWELLEN.eigentuemer} oder mehr hält, wird identifiziert (31 CFR 1010.230). Ob ein Konto entsteht und zu welchen Bedingungen, legt jedes Institut selbst fest.`,
         "Für Karten zählt die Vorgeschichte. Einen FICO-Score gibt es erst, wenn mindestens ein Konto seit sechs Monaten oder länger besteht und in den letzten sechs Monaten an die Auskunftei gemeldet wurde. Wer neu in den USA ist, hat also zunächst keinen Score. Mit der Executive Order 14406 vom 19. Mai 2026 hat der Präsident zudem das US-Finanzministerium angewiesen, Banken auf Warnzeichen hinzuweisen. Dazu zählt die Nutzung einer ITIN für Konto- oder Kreditanträge durch Antragsteller ohne geprüften Aufenthaltsstatus in den USA; eine ITIN anstelle einer Sozialversicherungsnummer kann danach als Risikofaktor gelten, der eine vertiefte Prüfung auslöst.",
-        "Auch die Kreditprogramme 7(a) und 504, die die Small Business Administration (SBA) absichert, stehen einer LLC mit Inhaber in Deutschland, Österreich oder der Schweiz nicht offen: Seit dem 1. März 2026 müssen die direkten und indirekten Eigentümer zu 100 Prozent US-Bürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626).",
+        "Auch die Kreditprogramme 7(a) und 504, die die Small Business Administration (SBA) absichert, stehen einer LLC, deren Inhaber außerhalb der USA lebt, nicht offen: Seit dem 1. März 2026 müssen die direkten und indirekten Eigentümer zu 100 Prozent US-Bürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626).",
         `${GLOBAL_PFLICHTHINWEIS.de[2]} Für Verbindlichkeiten, für die Sie persönlich haften, schützt Sie die Haftungstrennung der LLC nicht.`,
       ],
     },
     {
       typ: "tabelle", id: "strafen", h2: "Der sechste Nachteil: Strafen bei Versäumnis",
-      lead: "Die Pflichten sind einzeln überschaubar. Teuer wird es, wenn eine davon liegen bleibt.",
+      lead: "Die Pflichten sind einzeln überschaubar. Welche Folge ein Versäumnis hat, steht in der jeweils genannten Grundlage.",
       kopf: ["Versäumt", "Folge", "Grundlage"],
       zeilen: [
         ["Form 5472 nicht oder nicht rechtzeitig eingereicht, Aufzeichnungen nicht geführt", `${IRS.strafe5472}; dauert das Versäumnis nach einer Mitteilung der IRS mehr als 90 Tage an, je angefangene 30 Tage weitere 25.000 US-Dollar`, "IRS, Instructions for Form 5472"],
@@ -215,7 +232,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "sinnvoll", h2: "Wann eine US-LLC sinnvoll ist",
       absaetze: [
-        "Die Nachteile wiegen leichter, wenn die Gesellschaft echte Arbeit in den USA hat. Dann sind Meldungen und Kosten der Preis für einen Zugang, den es anders nicht gibt. Typische Lagen:",
+        "Die Nachteile wiegen leichter, wenn die Gesellschaft echte Arbeit in den USA hat. Dann stehen Meldungen und Kosten einem Zugang gegenüber, den es anders nicht gibt. Typische Lagen:",
       ],
       punkte: [
         "Sie haben Kunden in den USA, die einen US-Vertragspartner, eine US-Rechnung und Zahlungen in US-Dollar erwarten.",
@@ -229,33 +246,35 @@ export const SEITE: GlobalSeite = {
     },
     { typ: "zitat", id: "ehrlich", text: EHRLICH, quelle: "FIAON Global" },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Pflichten, die eine LLC mit sich bringt",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, mit einem Grundsatz: ein Ansprechpartner statt acht. Viele Nachteile einer US-LLC sind keine Frage des Rechts, sondern der Organisation — acht Stellen, zwei Länder, verschiedene Termine. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Gründung, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer, Meldungen, Registered Agent, US-Adresse und US-Telefon im ersten Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten sie vollständig vor.",
-        `Bevor die Gesellschaft gegründet wird, prüft unser Partner-Steuerberater Ihren Fall auf Ihr Mandat: Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO — und ob die LLC steuerlich zu Ihrem Vorhaben passt. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement; die erste Form 5472 mit Form 1120 übernimmt unser US-CPA. ${P.partner}`,
-        `${P.preisSatz} Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. Mit der Jahresbetreuung übernehmen wir ab dem zweiten Jahr Registered Agent, US-Adresse und US-Telefon, die Jahresmeldung beim Bundesstaat samt Staatsgebühr und die US-Meldung durch unseren US-CPA — mit einem Pflichtenkalender, damit Sie jede Frist im Blick haben.`,
-        "Und wenn schon im Erstgespräch erkennbar ist, dass eine LLC nicht zu Ihrem Vorhaben passt — etwa weil es kein Geschäft in den USA gibt —, sagen wir Ihnen das vor dem Auftrag. Wer nur die Gesellschaft braucht, ohne Prüfung, Partner und Begleitung, ist bei einem reinen Gründungsdienst günstiger aufgehoben.",
-        P.geldZurueck,
+        `Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und beantragen die Steuernummern. Im ersten Jahr enthalten: der Pflichtenkalender, die erste Jahresmeldung beim Bundesstaat und ${US_MELDUNG} (Form 5472 mit Form 1120).`,
+        JAHRESBETREUUNG,
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        `Konto und Karten: ${satz("S2", "de")}`,
+        `${TEIL.bedingung}: ${satz("S3", "de")}`,
       ],
     },
-    { typ: "paket", id: "mandat", h2: "Der saubere Start, alle Pflichten im Blick", lead: P.karteLead, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
-        "Dieser Beitrag erklärt die gesetzlichen Grundlagen, Stand Oktober 2026. Er ersetzt nicht die Prüfung Ihres Falls; die übernimmt der Steuerberater auf Ihr Mandat, Fragen zu Visum und Aufenthalt klärt ein US-Einwanderungsanwalt.",
+        `Diese Seite erklärt Grundlagen (Stand Oktober 2026) und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls. ${STEUERFRAGEN}; Fragen zu Visum und Aufenthalt klärt ein US-Einwanderungsanwalt.`,
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        `Nicht in Ihrem Auftrag enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
-        GLOBAL_ROLLEN.de.fiaon,
-        "FIAON vergibt keine Kredite und vermittelt keine Kredite. Eine US-LLC ist kein Steuermodell: Wer sie von zu Hause aus leitet, versteuert sie in der Regel dort.",
+        `Nicht in Ihrem Mandat enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
+        satz("S8", "de"),
+        satz("S10", "de"),
       ],
     },
   ],
   fragen: [
     { f: "Welche Nachteile hat eine US-LLC für Unternehmer aus Deutschland?", a: `Vor allem fünf: Die Steuerpflicht bleibt in Deutschland, wenn die LLC von hier aus geleitet wird (§ 10 AO). Es gibt Meldepflichten in zwei Ländern — Form 5472 an die IRS, die Meldung nach § 138 AO ans Finanzamt. In jedem Jahr fallen Staatsgebühr, Registered Agent und US-CPA an. Ohne US-Historie sind Konto und Karten schwerer zu erreichen. Und Versäumnisse kosten: ${STRAFE_5472} je fehlender Form 5472.` },
-    { f: "Lohnt sich eine US-LLC?", a: "Wenn sie echtes Geschäft in den USA hat — US-Kunden, US-Plattformen, ein Team oder einen Markteintritt —, können die Vorteile überwiegen. Als reines Steuermodell lohnt sie sich nicht: Wer sie von zu Hause aus führt, bleibt dort steuerpflichtig und trägt zusätzlich Pflichten und Kosten in den USA. Ihren Fall prüft vor der Gründung der Steuerberater." },
+    { f: "Lohnt sich eine US-LLC?", a: `Wenn sie echtes Geschäft in den USA hat — US-Kunden, US-Plattformen, ein Team oder einen Markteintritt —, können die Vorteile überwiegen. Als reines Steuermodell lohnt sie sich nicht: Wer sie von zu Hause aus führt, bleibt dort steuerpflichtig und trägt zusätzlich Pflichten und Kosten in den USA. ${STEUERFRAGEN}.` },
     { f: "Ist eine US-LLC „steuerfrei“?", a: "Nein. Eine LLC mit einem ausländischen Gesellschafter zahlt in den USA oft keine Bundessteuer, solange sie dort kein Geschäft hat. Steuerpflichtig ist sie aber dort, wo sie geführt wird: in Deutschland nach § 10 AO, in Österreich nach § 1 Abs. 2 KStG 1988, in der Schweiz nach Art. 50 DBG." },
-    { f: "Was kostet eine US-LLC jedes Jahr?", a: `Die Staatsgebühr — in Florida ${STAAT.florida.jahr}, in Wyoming ${STAAT.wyoming.jahr}, in Delaware ${STAAT.delaware.jahr} —, der Registered Agent (Marktpreise ${MARKT.agent}) und der US-CPA für Form 5472 (${MARKT.cpa5472}). Dazu kommt Ihre Steuerkanzlei zu Hause. Diese Kosten fallen auch ohne Umsatz an.` },
+    { f: "Was kostet eine US-LLC jedes Jahr?", a: `Die Staatsgebühr — in Florida ${STAAT.florida.jahr}, in Wyoming ${STAAT.wyoming.jahr}, in Delaware ${STAAT.delaware.jahr} —, der Registered Agent (Marktspanne ${MARKT.agent}) und der US-CPA für Form 5472 (${MARKT.cpa5472}). Dazu kommt Ihre Steuerkanzlei zu Hause. Diese Kosten fallen auch ohne Umsatz an.` },
     { f: "Was passiert, wenn ich Form 5472 nicht einreiche?", a: `Die IRS kann eine Strafe von ${IRS.strafe5472} festsetzen, ebenso, wenn die vorgeschriebenen Aufzeichnungen fehlen. Dauert das Versäumnis nach ihrer Mitteilung mehr als 90 Tage an, kommen je angefangene 30 Tage weitere 25.000 US-Dollar hinzu. Die Pflicht hängt nicht am Umsatz: Schon Zahlungen bei der Gründung, Einlagen und Entnahmen sind meldepflichtig.` },
     { f: "Komme ich mit einer US-LLC zu einem US-Konto und zu Kreditkarten?", a: "Das entscheidet allein das jeweilige Institut. Ohne US-Historie gibt es zunächst keinen FICO-Score, für Firmenkarten wird in der Regel Ihre persönliche Haftung verlangt, und nach der Executive Order 14406 kann eine ITIN statt einer Sozialversicherungsnummer als Warnzeichen gelten, das eine vertiefte Prüfung auslöst. Vollständige, widerspruchsfreie Unterlagen zählen deshalb mehr als die Zahl der Anträge." },
     { f: "Darf ich mit einer US-LLC in den USA leben und arbeiten?", a: "Nicht allein aufgrund der Gesellschaft; dafür braucht es ein Visum. Das E-2-Visum für Investoren etwa setzt die Staatsangehörigkeit eines Vertragsstaats und eine substanzielle Investition in ein echtes Unternehmen voraus, das mehr als einen bescheidenen Lebensunterhalt erwirtschaften kann. Ob es in Ihrem Fall in Betracht kommt, prüft ein US-Einwanderungsanwalt." },

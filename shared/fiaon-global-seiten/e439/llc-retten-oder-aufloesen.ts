@@ -56,16 +56,31 @@
 // Agent in Delaware mit 30 Tagen Vorankündigung (§ 18-104(d)); § 6501(c)(8)(B);
 // Typenvergleich mit BMF-Schreiben vom 19.03.2004 belegt; Folgen je Weg klären
 // die Partner im Mandat (RDG/StBerG), FIAON nennt Wege, Staatsgebühren, Festpreis.
+//
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): EIN Abschnitt über uns („Was FIAON
+// Global dabei übernimmt“: was wir tun · Ihr Teil · Bedingung). Die festen Sätze kommen
+// aus shared/fiaon-global-saetze.ts (persönlicher Weg: „Wir prüfen zuerst Ihre
+// Unterlagen. Danach erhalten Sie Ihr Angebot.“, S8) — hier nicht getippt.
+// Kein „Team vor Ort“, kein Partnerstandort, kein Partner bei der Arbeit im Präsens:
+// Recht und Steuern liegen bei Partnern in eigener Verantwortung. Unser Entgelt heißt
+// Honorar. Der Sachteil (Normen, Gebühren, Fristen Dritter mit Quelle) ist unverändert.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft nennen wir den Preis
-// nach der Prüfung in einem persönlichen Angebot (E-506: übernehmen statt neu gründen), darum „Angebot“ statt „Festpreis“.
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname. Für eine bestehende Gesellschaft nennen wir das Honorar
+// nach der Prüfung der Unterlagen in einem persönlichen Angebot (E-506: übernehmen statt neu gründen).
+import { GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { SCHRITTE_KOPF, beleg, satz, weitererSatz } from "../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_STAATEN, STAAT, IRS } from "../fakten";
 
 const S = "2026-10-27";
 const P = EIN_PRODUKT.de;
+/** Die Namen der festen Teile: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+/** Der persönliche Weg bei einer bestehenden Gesellschaft (Leitfaden 2.6) — fester Wortlaut. */
+const UNTERLAGEN_ZUERST = weitererSatz("UNTERLAGEN-ZUERST", "de");
+/** Wer Steuerfragen klärt — dieselbe Fassung wie auf den Länderseiten (zielgruppen.ts). */
+const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung";
 const FL = STAAT.florida;
 const WY = STAAT.wyoming;
 const DE = STAAT.delaware;
@@ -97,7 +112,7 @@ export const SEITE: GlobalSeite = {
     titel: "US-LLC auflösen, retten oder übergeben — FIAON Global",
     beschreibung: "Annual Report versäumt, Form 5472 fehlt, Agent gekündigt: wie Sie eine US-LLC reaktivieren, übergeben oder sauber auflösen — mit Primärquellen.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 50",
   auge: "Wissen · Bestehende LLC",
@@ -116,16 +131,16 @@ export const SEITE: GlobalSeite = {
     ["Auflösen", "Auflösung beim Staat, Schlusserklärung, Konto der EIN schließen"],
     ["Altlasten", "Fehlende Form 5472 bleiben offen — auch nach der Löschung"],
     ["Zu Hause", "Meldung nach § 138 AO und steuerliche Folgen der Auflösung"],
-    ["Mit FIAON Global", "Prüfung, Nachholen, Übergabe oder Auflösung — ein Ansprechpartner statt acht"],
+    ["Mit FIAON Global", UNTERLAGEN_ZUERST],
   ],
   kurz: `Eine US-LLC auflösen heißt: beim Bundesstaat die Auflösung einreichen — in Florida und Wyoming mit Articles of Dissolution, in Delaware mit einem Certificate of Cancellation —, bei der IRS die letzte Erklärung als Schlusserklärung abgeben und das Konto der EIN per Brief schließen lassen. Ist die LLC schon von Amts wegen aufgelöst, lässt sie sich wiederherstellen: in Florida jederzeit, in Wyoming nur in den ersten zwei Jahren. Versäumte Form 5472 erledigen sich durch keine Löschung; die IRS kann ${IRS.strafe5472} festsetzen, und über eine nachgereichte Begründung entscheidet allein die IRS.`,
   bloecke: [
     {
       typ: "text", id: "lage", h2: "Wenn es still geworden ist: drei Wege für eine bestehende LLC",
       absaetze: [
-        "Die Lage ist oft dieselbe. Die Gesellschaft wurde günstig über einen Online-Dienst gegründet, im ersten Jahr lief der Registered Agent mit, danach kam keine Post mehr an. Der Jahresbericht beim Bundesstaat fehlt, die jährliche Meldung an die IRS wurde nie abgegeben, und die Anschrift, die die IRS kennt, gehört einem Dienst, mit dem Sie nichts mehr zu tun haben.",
+        "Die Lage ist oft dieselbe. Die Gesellschaft wurde über einen Online-Dienst gegründet; im ersten Jahr war der Registered Agent enthalten, danach kam keine Post mehr an. Der Jahresbericht beim Bundesstaat fehlt, die jährliche Meldung an die IRS wurde nie abgegeben, und die Anschrift, die die IRS kennt, gehört einem Dienst, mit dem Sie nichts mehr zu tun haben.",
         "Für eine solche Gesellschaft gibt es drei Wege. Sie retten sie, wenn sie noch gebraucht wird — etwa weil ein Konto, ein Händlerkonto oder Verträge an ihr hängen. Sie übergeben sie in neue Hände, wenn sie weiterlaufen soll, aber ohne den alten Dienst. Oder Sie lösen sie sauber auf, wenn sie keinen Zweck mehr hat. Welcher Weg passt, hängt an zwei Fragen: Was steht im Register des Bundesstaats, und was fehlt bei der IRS?",
-        "Nichts zu tun ist meist die teuerste Wahl. Eine Gesellschaft, die der Staat von Amts wegen auflöst, ist damit nicht aus der Welt: In Florida etwa besteht sie weiter, um abgewickelt zu werden, und ihre offenen Meldungen bei der IRS bleiben in jedem Bundesstaat offen.",
+        "Abwarten beendet keine dieser Pflichten. Eine Gesellschaft, die der Staat von Amts wegen auflöst, besteht in Florida weiter, um abgewickelt zu werden, und ihre offenen Meldungen bei der IRS bleiben in jedem Bundesstaat offen.",
       ],
     },
     {
@@ -150,7 +165,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "In Florida existiert eine LLC, die der Staat von Amts wegen aufgelöst hat, weiter — aber nur noch, um abgewickelt zu werden. Sie darf ihre Geschäfte beenden, ihr Vermögen verwerten und verteilen und Gläubiger benachrichtigen, mehr nicht (§ 605.0714). Ihr Registered Agent bleibt dabei befugt, Zustellungen anzunehmen.",
         "Für den Alltag hat das handfeste Folgen. Banken, Zahlungsplattformen und Vertragspartner können den Status im Register jederzeit einsehen; eine Gesellschaft, die dort als aufgelöst oder säumig geführt wird, kann keinen einwandfreien Status nachweisen. In Delaware erhält eine LLC ohne gezahlte Jahressteuer keine Bescheinigung über ihren Status und kann vor den Gerichten des Staats keine Klage führen. In Florida kann eine Gesellschaft ohne Jahresbericht vor Gericht weder klagen noch sich verteidigen, bis Bericht und Gebühren nachgeholt sind (§ 605.0212).",
-        "Der Name ist in Florida nach der Auflösung ein Jahr lang für andere gesperrt. Hat ihn danach eine andere Gesellschaft übernommen, gelingt die Wiederherstellung nur unter neuem Namen (§ 605.0715). Wer seine Gesellschaft behalten will, verliert mit jedem Monat Spielraum.",
+        "Der Name ist in Florida nach der Auflösung ein Jahr lang für andere gesperrt. Hat ihn danach eine andere Gesellschaft übernommen, ist die Wiederherstellung nur unter neuem Namen möglich (§ 605.0715). Für den Erhalt des Namens zählt deshalb dieses eine Jahr.",
       ],
     },
     {
@@ -158,9 +173,9 @@ export const SEITE: GlobalSeite = {
       lead: "Die Wiederherstellung heißt englisch Reinstatement, in Delaware Revival. In Florida wirkt sie ausdrücklich auf den Tag der Auflösung zurück (§ 605.0715); in Delaware gilt die Gesellschaft danach, als wäre sie nie gelöscht worden (6 Del. C. § 18-1109).",
       etappen: [
         { titel: "Registerauszug und Fristen", text: "Status, Tag und Grund der Auflösung, offene Jahresberichte aus dem Register des Bundesstaats. In Wyoming entscheidet das Datum, ob eine Wiederherstellung noch möglich ist: Sie steht nur in den ersten zwei Jahren offen." },
-        { titel: "Registered Agent sichern", text: "Ohne Agent keine Wiederherstellung. In Florida unterschreibt der Agent den Antrag mit; ein neuer Agent erklärt schriftlich, dass er das Amt annimmt (§ 605.0114)." },
+        { titel: "Registered Agent sichern", text: "Ohne Agent keine Wiederherstellung. In Florida unterzeichnet der Agent den Antrag mit; ein neuer Agent erklärt schriftlich, dass er das Amt annimmt (§ 605.0114)." },
         { titel: "Antrag mit allen Angaben", text: "Florida verlangt Name, Anschrift des Hauptsitzes und Postanschrift, Gründungsdatum, EIN und mindestens eine Person, die die Gesellschaft führen darf. Alle offenen Gebühren und Strafen fallen zu den Sätzen an, die am Tag des Antrags gelten." },
-        { titel: "Stand bei der IRS klären", text: "Welche Jahre fehlen, an welche Anschrift schreibt die IRS, wer ist als verantwortliche Person eingetragen? Änderungen meldet die Gesellschaft mit Form 8822-B; ein Wechsel der verantwortlichen Person muss der IRS binnen sechzig Tagen vorliegen." },
+        { titel: "Stand bei der IRS klären", text: "Welche Jahre fehlen, an welche Anschrift schreibt die IRS, wer ist ihr als verantwortliche Person gemeldet? Änderungen meldet die Gesellschaft mit Form 8822-B; ein Wechsel der verantwortlichen Person muss der IRS binnen sechzig Tagen vorliegen." },
         { titel: "Meldungen nachholen", text: `Fehlende Form 5472 mit Pro-forma-Form 1120 für jedes offene Jahr, jeweils mit einer Begründung. Danach steht jeder Termin im Fristenkalender: der Jahresbericht beim Staat und Form 5472 zum ${IRS.frist5472}.` },
       ],
     },
@@ -168,8 +183,8 @@ export const SEITE: GlobalSeite = {
       typ: "text", id: "agent", h2: "Registered Agent gekündigt: was jetzt zählt",
       absaetze: [
         "Tritt ein Registered Agent zurück, reicht er beim Staat eine Erklärung ein. In Florida schickt er der Gesellschaft eine Kopie an ihre aktuelle Postanschrift; sein Amt endet am 31. Tag nach der Eintragung oder früher, sobald ein Nachfolger eingetragen ist (§ 605.0115). In Delaware muss er die Gesellschaft mindestens dreißig Tage vor der Einreichung schriftlich benachrichtigen (§ 18-104(d)). Liegt die Postanschrift beim alten Dienst selbst, kann die Nachricht den Inhaber verfehlen.",
-        "Ohne Agent läuft die Zeit gegen die Gesellschaft. In Florida ist der fehlende Agent ein eigener Grund für die Auflösung von Amts wegen. In Delaware wird die LLC gelöscht, wenn nicht binnen dreißig Tagen nach Eintragung des Rücktritts ein neuer Agent benannt ist (§ 18-104(d)). Löst Wyoming die LLC deshalb auf, kostet die Wiederherstellung 350 $ statt 100 $.",
-        "Der Wechsel selbst ist einfach, wenn er rechtzeitig geschieht: Der neue Agent nimmt das Amt schriftlich an, die Gesellschaft reicht die Änderung beim Staat ein — in Florida mit einem Statement of Change. Den alten Dienst beenden Sie erst danach. Zugleich gehört die Anschrift bei der IRS auf den neuen Stand, damit Schreiben der Behörde Sie erreichen.",
+        "Ohne Agent beginnen Fristen zu laufen. In Florida ist der fehlende Agent ein eigener Grund für die Auflösung von Amts wegen. In Delaware wird die LLC gelöscht, wenn nicht binnen dreißig Tagen nach Eintragung des Rücktritts ein neuer Agent benannt ist (§ 18-104(d)). Löst Wyoming die LLC deshalb auf, kostet die Wiederherstellung 350 $ statt 100 $.",
+        "Der Wechsel selbst hat zwei Schritte: Der neue Agent nimmt das Amt schriftlich an, die Gesellschaft reicht die Änderung beim Staat ein — in Florida mit einem Statement of Change. Den alten Dienst beenden Sie erst danach. Zugleich gehört die Anschrift bei der IRS auf den neuen Stand, damit Schreiben der Behörde Sie erreichen.",
       ],
     },
     {
@@ -189,7 +204,7 @@ export const SEITE: GlobalSeite = {
         { titel: "Bestandsaufnahme", text: "Status im Register, offene Jahresberichte und Gebühren, fehlende Meldungen bei der IRS, Konten, Händlerkonten und laufende Verträge auf den Namen der Gesellschaft." },
         { titel: "Beschluss und Abwicklung", text: "Die Gesellschafter beschließen die Auflösung nach dem Operating Agreement. Dann wird abgewickelt: Forderungen einziehen, Verbindlichkeiten begleichen, Konten schließen, das restliche Vermögen an die Gesellschafter verteilen." },
         { titel: "Meldungen bei der IRS", text: "Alle offenen Jahre nachholen, die Erklärung für das letzte Jahr als Schlusserklärung abgeben. Hat die LLC mehrere Gesellschafter, gibt sie Form 1065 als Schlusserklärung ab, mit einem „final K-1“ für jeden Gesellschafter. Ist sie per Form 8832 als Corporation eingeordnet, kommt Form 966 hinzu." },
-        { titel: "Auflösung beim Staat", text: "In Florida Articles of Dissolution (§ 605.0707), in Wyoming Articles of Dissolution, in Delaware nach abgeschlossener Abwicklung das Certificate of Cancellation (§ 18-203), dort zusammen mit der Jahressteuer bis einschließlich des laufenden Jahres (§ 18-1107). Ist die Gesellschaft schon von Amts wegen aufgelöst, klären wir vorab beim Bundesstaat und, wo nötig, mit einem Partner-Anwalt, welcher Weg offensteht." },
+        { titel: "Auflösung beim Staat", text: "In Florida Articles of Dissolution (§ 605.0707), in Wyoming Articles of Dissolution, in Delaware nach abgeschlossener Abwicklung das Certificate of Cancellation (§ 18-203), dort zusammen mit der Jahressteuer bis einschließlich des laufenden Jahres (§ 18-1107). Ist die Gesellschaft schon von Amts wegen aufgelöst, klären wir vorab beim Bundesstaat, welcher Weg offensteht; Rechtsfragen dazu liegen bei Partner-Anwälten in eigener Verantwortung." },
         { titel: "Konto der EIN schließen", text: "Ein Brief an die IRS in Cincinnati, OH 45999, mit vollständigem Namen der Gesellschaft, EIN, Anschrift und Grund, dazu eine Kopie des Schreibens, mit dem die EIN vergeben wurde, falls es noch vorliegt. Die IRS schließt das Konto erst, wenn alle nötigen Erklärungen vorliegen und alle Steuern beglichen sind." },
         { titel: "Zu Hause abschließen", text: "Steuerliche Folgen der Auflösung klären, die Mitteilung nach § 138 AO abgeben und alle Unterlagen aufbewahren — für die Fristen in den USA und zu Hause." },
       ],
@@ -200,7 +215,7 @@ export const SEITE: GlobalSeite = {
         "Was für die Gründung galt, gilt auch für das Ende. Eine US-Gesellschaft, die aus dem deutschsprachigen Raum geführt wird, ist dort steuerpflichtig — in Deutschland, weil der Ort der Geschäftsleitung hier liegt (§ 10 AO) und die Gesellschaft dann unbeschränkt körperschaftsteuerpflichtig sein kann (§ 1 KStG). Ihre Auflösung ist deshalb kein rein amerikanischer Vorgang.",
         "Auch die Mitteilung an das Finanzamt kennt das Ende. Nach § 138 Abs. 2 Satz 1 Nr. 2 AO ist die Aufgabe einer Beteiligung an einer ausländischen Personengesellschaft mitzuteilen; Nr. 3 erfasst Erwerb und Veräußerung von Beteiligungen an ausländischen Körperschaften, wenn damit eine Beteiligung von mindestens 10 Prozent erreicht wird oder die Anschaffungskosten aller Beteiligungen 150.000 Euro übersteigen. Die Mitteilung gehört zur Steuererklärung des Jahres, spätestens 14 Monate nach dessen Ablauf (§ 138 Abs. 5 AO).",
         "Steuerlich kommt es darauf an, wie das Finanzamt die LLC einordnet: als Kapitalgesellschaft oder als Personengesellschaft, nach einem Typenvergleich; die Wahl der Einordnung in den USA entscheidet darüber nicht (BMF-Schreiben vom 19.03.2004). Gilt sie als Kapitalgesellschaft, gilt ihre Auflösung für einen Gesellschafter, der die Anteile privat hält und in den letzten fünf Jahren mit mindestens 1 Prozent beteiligt war, als Veräußerung (§ 17 Abs. 1 und 4 EStG). Gilt sie als Personengesellschaft mit Gewerbebetrieb, kann die Abwicklung als Aufgabe des Betriebs zu versteuern sein (§ 16 Abs. 3 EStG). In Österreich und der Schweiz gelten eigene Regeln.",
-        "Was im Einzelfall gilt, klärt unser Partner-Steuerberater mit Ihnen, bevor die Auflösung beim Staat eingereicht wird. Eine Auflösung, die zu Hause niemand kennt, ist nur zur Hälfte erledigt.",
+        `Was im Einzelfall gilt, gehört geklärt, bevor die Auflösung beim Staat eingereicht wird. ${STEUERFRAGEN}; die laufende Steuererklärung übernimmt Ihr Steuerberater.`,
       ],
     },
     {
@@ -212,13 +227,14 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihre bestehende LLC",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "FIAON Global ist eine Unternehmensberatung für Unternehmer aus Deutschland, Österreich und der Schweiz mit einer US-Gesellschaft. Unser Grundsatz gilt auch für eine Gesellschaft, die anderswo gegründet wurde: ein Ansprechpartner statt acht. Sie geben uns, was Sie haben — Gründungsunterlagen, das Schreiben zur EIN, Post der IRS und des Bundesstaats —, und wir übernehmen die Wege zu Bundesstaat und IRS.",
-        "Zuerst prüfen wir: Status im Register, Registered Agent, offene Jahresberichte und Gebühren, welche Jahre bei der IRS fehlen, an welche Anschrift die IRS schreibt und welche Konten und Plattformen an der Gesellschaft hängen. Das Ergebnis erhalten Sie schriftlich — die Wege, die offenstehen, die Gebühren des Staats und Ihr Angebot mit dem Preis —, bevor irgendetwas eingereicht wird. Die rechtlichen und steuerlichen Folgen jedes Weges klären Partner-Anwalt und Partner-Steuerberater in Ihrem Mandat.",
-        "Dann holen wir nach. Mit Ihrer Vollmacht stellen wir die Anträge für Sie: Wiederherstellung, Wechsel des Registered Agent, nachzuholende Jahresberichte, Änderungen bei der IRS mit Form 8822-B. Die offenen Form 5472 mit Pro-forma-Form 1120 erstellt unser US-CPA in Ihrem Mandat, mit einer Begründung für jedes Jahr; die Folgen zu Hause klärt unser Partner-Steuerberater. Partner-Steuerberater, US-CPA und Partner-Anwälte arbeiten auf Ihr Mandat, ihre Honorare für die vereinbarten Leistungen sind in Ihrem Angebot enthalten.",
-        "Soll die Gesellschaft gehen, lösen wir sie sauber auf: Abwicklung nach Plan, Auflösung beim Staat — erst auf Ihre Weisung in Textform —, Schlusserklärung bei der IRS und der Brief zum Konto der EIN. Konten bei Banken und Zahlungsplattformen schließen Sie selbst; wir bereiten jeden Schritt dafür vor. Jedes Dokument und jedes Schreiben der Behörden liegt danach in Ihrem Dokumentenraum.",
-        "Vertragspartner ist die FIAON LTD in London; unser Team vor Ort in Miami nimmt Termine für Sie wahr, Zürich ist unser Partnerstandort. Soll die Gesellschaft weiterlaufen, halten wir auf Wunsch jedes Jahr Fristen und Meldungen im Blick — über die Jahresbetreuung, freiwillig und ohne automatische Verlängerung.",
+        `${UNTERLAGEN_ZUERST} Es nennt die offenen Wege, die Gebühren des Staats und Ihr Honorar, bevor etwas eingereicht wird.`,
+        "Mit Ihrer Vollmacht reichen wir ein, was Sie beauftragen: die Wiederherstellung, den Wechsel des Registered Agent, offene Jahresberichte und Änderungen bei der IRS mit Form 8822-B. Eine Auflösung reichen wir erst auf Ihre Weisung in Textform ein. Das Nachholen offener Form 5472 liegt bei einem US-Steuerberater (CPA) aus unserem Partnernetz.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: Sie übergeben Gründungsunterlagen, das Schreiben zur EIN und die Post der Behörden. Konten bei Instituten und Zahlungsdienstleistern schließen Sie selbst.`,
+        `${TEIL.bedingung}: Über Wiederherstellung und Auflösung entscheidet der Bundesstaat, über Strafen und das Konto der EIN die IRS.`,
       ],
     },
     { typ: "paket", id: "mandat", h2: "Neu beginnen, sauber aufgestellt", lead: `Wer nach der Bereinigung neu gründen will: ${P.karteLead}`, paket: "global_struktur" },
@@ -228,8 +244,8 @@ export const SEITE: GlobalSeite = {
         "Eine Löschung beim Staat beendet offene Pflichten bei der IRS nicht. Fehlende Form 5472 bleiben offen, und die Frist für eine Festsetzung endet frühestens drei Jahre nach Eingang der Angaben.",
         "Ob die IRS eine Strafe festsetzt oder davon absieht, entscheidet allein die IRS. Eine Begründung kann helfen; das Ergebnis kann niemand zusagen.",
         "Über die Wiederherstellung entscheidet der Bundesstaat. In Wyoming ist sie nach zwei Jahren ausgeschlossen, in Florida kann ein inzwischen vergebener Name einen neuen Namen nötig machen.",
-        "FIAON verfügt nicht über Konten und Guthaben Ihrer Gesellschaft. Konten bei Banken und Zahlungsplattformen schließen Sie selbst.",
-        `${GLOBAL_ROLLEN.de.fiaon} Was im Einzelfall rechtlich und steuerlich gilt, klären Partner-Anwalt und Partner-Steuerberater in Ihrem Mandat.`,
+        `${beleg("keinZugriff", "de")} Konten bei Instituten und Zahlungsdienstleistern schließen Sie selbst.`,
+        `${satz("S8", "de")} Diese Seite erklärt Grundlagen und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls.`,
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
       ],
@@ -237,13 +253,13 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "Wie löse ich eine US-LLC auf?", a: "In drei Schritten: offene Jahresberichte, Gebühren und Meldungen nachholen und die Gesellschaft abwickeln; dann die Auflösung beim Bundesstaat einreichen — in Florida und Wyoming Articles of Dissolution, in Delaware ein Certificate of Cancellation —; zuletzt die Schlusserklärung bei der IRS und ein Brief, mit dem die IRS das Konto der EIN schließt." },
-    { f: "Was kostet es, eine US-LLC aufzulösen?", a: "Beim Staat selbst wenig: in Florida 25 $, in Wyoming 60 $, in Delaware 220 $ und die Jahressteuer bis einschließlich des laufenden Jahres (Stand Oktober 2026). Teuer wird es, wenn Jahre fehlen: offene Jahresberichte, Gebühren und vor allem versäumte Form 5472, für die die IRS je Formular und Jahr 25.000 $ festsetzen kann." },
+    { f: "Was kostet es, eine US-LLC aufzulösen?", a: "Beim Staat selbst: in Florida 25 $, in Wyoming 60 $, in Delaware 220 $ und die Jahressteuer bis einschließlich des laufenden Jahres (Stand Oktober 2026). Hinzu kommt, was aus früheren Jahren offen ist: Jahresberichte, Gebühren und versäumte Form 5472, für die die IRS je Formular und Jahr 25.000 $ festsetzen kann." },
     { f: "Kann ich eine aufgelöste LLC reaktivieren?", a: "In vielen Fällen ja. Florida erlaubt die Wiederherstellung jederzeit, gegen 100 $ und alle offenen Gebühren; sie wirkt auf den Tag der Auflösung zurück. Wyoming lässt sie nur in den ersten zwei Jahren zu. Delaware stellt eine gelöschte LLC mit einem Certificate of Revival wieder her, für 220 $ und die offene Jahressteuer samt Strafen und Zinsen." },
     { f: "Ich habe die Form 5472 vergessen — was jetzt?", a: `Nachholen, für jedes offene Jahr mit Pro-forma-Form 1120 und einer Begründung. Wer von der IRS dazu noch nicht angeschrieben wurde, nicht geprüft wird und gegen den nicht ermittelt wird, kann das Verfahren der IRS für verspätete internationale Meldungen nutzen. Die Strafe von ${IRS.strafe5472} kann trotzdem festgesetzt werden; über die Begründung entscheidet die IRS.` },
     { f: "Muss ich die EIN löschen lassen, wenn ich die LLC auflöse?", a: "Die EIN bleibt nach den Worten der IRS die dauerhafte Steuernummer der Gesellschaft. Geschlossen wird ihr Konto bei der IRS: per Brief mit Name, EIN, Anschrift und Grund an die IRS in Cincinnati. Das geht erst, wenn alle Erklärungen vorliegen und alle Steuern beglichen sind." },
-    { f: "Mein Registered Agent hat gekündigt — was nun?", a: "Rasch einen neuen Agent benennen. In Florida endet das Amt des alten Agent am 31. Tag nach Eintragung seines Rücktritts; ohne Agent droht die Auflösung von Amts wegen. In Delaware wird die LLC gelöscht, wenn nicht binnen dreißig Tagen ein Nachfolger eingetragen ist. Der neue Agent nimmt das Amt schriftlich an, die Gesellschaft meldet den Wechsel beim Staat." },
-    { f: "Was muss ich in Deutschland melden, wenn ich die LLC auflöse?", a: "Das hängt von der Einordnung ab. Die Aufgabe einer Beteiligung an einer ausländischen Personengesellschaft ist nach § 138 Abs. 2 AO mitzuteilen, ebenso die Veräußerung einer Beteiligung an einer ausländischen Körperschaft ab den gesetzlichen Schwellen — mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres. Die steuerlichen Folgen klärt der Partner-Steuerberater vorab." },
-    { f: "Übernimmt FIAON Global auch eine LLC, die woanders gegründet wurde?", a: "Ja. Wir prüfen zuerst Register, Registered Agent und den Stand bei der IRS und nennen Ihnen schriftlich die Wege und Ihr Angebot mit dem Preis. Danach stellen wir mit Ihrer Vollmacht die Anträge, unser US-CPA holt offene Meldungen in Ihrem Mandat nach, und eine Auflösung reichen wir erst auf Ihre Weisung in Textform ein." },
+    { f: "Mein Registered Agent hat gekündigt — was nun?", a: "Einen neuen Agent benennen, bevor die Frist des Bundesstaats abläuft. In Florida endet das Amt des alten Agent am 31. Tag nach Eintragung seines Rücktritts; ohne Agent kann der Staat die Gesellschaft von Amts wegen auflösen. In Delaware wird die LLC gelöscht, wenn nicht binnen dreißig Tagen ein Nachfolger eingetragen ist. Der neue Agent nimmt das Amt schriftlich an, die Gesellschaft meldet den Wechsel beim Staat." },
+    { f: "Was muss ich in Deutschland melden, wenn ich die LLC auflöse?", a: `Das hängt von der Einordnung ab. Die Aufgabe einer Beteiligung an einer ausländischen Personengesellschaft ist nach § 138 Abs. 2 AO mitzuteilen, ebenso die Veräußerung einer Beteiligung an einer ausländischen Körperschaft ab den gesetzlichen Schwellen — mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres. ${STEUERFRAGEN}.` },
+    { f: "Übernimmt FIAON Global auch eine LLC, die woanders gegründet wurde?", a: `Ja. ${UNTERLAGEN_ZUERST} Es nennt die offenen Wege, die Gebühren des Staats und Ihr Honorar. Danach reichen wir mit Ihrer Vollmacht ein, was Sie beauftragen; eine Auflösung erst auf Ihre Weisung in Textform. Das Nachholen offener Meldungen liegt bei einem US-Steuerberater (CPA) aus unserem Partnernetz. Soll die Gesellschaft weiterlaufen, können Sie ab dem zweiten Jahr die Jahresbetreuung beauftragen; sie verlängert sich nicht von selbst.` },
   ],
   paket: "global_struktur",
   weiter: ["/business/wissen/form-5472", "/business/wissen/registered-agent-adresse", "/business/wissen/us-llc-wohnsitz-deutschland", "/business/wissen/nachteile-us-llc"],

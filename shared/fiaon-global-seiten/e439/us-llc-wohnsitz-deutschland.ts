@@ -32,7 +32,12 @@
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 // E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preise aus EIN_PRODUKT; die alte Geld-zurück-Zusage je
 // Paket entfällt (auf dieser Seite geht es nicht um Kapital).
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, GLOBAL_JAHRESBETREUUNG, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): Die festen Sätze und die Schritte 1 und 2 kommen aus
+// shared/fiaon-global-saetze.ts. GLOBAL_ROLLEN und die Liste aus GLOBAL_JAHRESBETREUUNG stehen hier nicht mehr
+// („unser US-CPA“, „Termine vor Ort“); die Leistungen der Jahresbetreuung stehen unten in der Rollenbezeichnung
+// des Leitfadens. Der Steuerberater des Klienten heißt „Ihr Steuerberater“, nie „Kanzlei“.
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_NICHT_INKLUSIVE } from "../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, type Schritt, type SchrittNr } from "../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN as Q, QUELLEN_IRS, QUELLEN_STAATEN, IRS, STAAT } from "../fakten";
 
@@ -42,6 +47,14 @@ const S = "2026-10-27";
 const STRAFE_5472 = IRS.strafe5472.split(" je ")[0];
 
 const P = EIN_PRODUKT.de;
+/** Schritt 1 und 2 der festen Erzählung (Leitfaden 2.2) — Satz und „Ihr Teil“ wortgleich aus der einen Quelle, nie getippt. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.de.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+/** Zuständigkeit für Steuerfragen — derselbe Wortlaut wie auf den Länderseiten (zielgruppen.ts). */
+const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung";
 
 /** Quellen dieses Beitrags (geprüft am 27.10.2026). */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -77,13 +90,13 @@ export const SEITE: GlobalSeite = {
     titel: "US-LLC mit Wohnsitz in Deutschland: Pflichten — FIAON Global",
     beschreibung: "US-LLC, Wohnsitz in Deutschland: Finanzamt, Meldung nach § 138 AO, Gewerbe, Umsatzsteuer auf Rechnungen, Buchführung — mit Fundstellen erklärt.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 47",
   auge: "Wissen · Steuern und Pflichten",
   h1: "US-LLC mit Wohnsitz in Deutschland.",
   h1b: "Anmelden, melden, richtig abrechnen.",
-  lead: "Wer mit Wohnsitz in Deutschland eine US-LLC führt, hat Pflichten in zwei Ländern. Die amerikanische Seite ist überschaubar: Form 5472, Registered Agent, Jahresmeldung beim Bundesstaat. Die deutsche Seite fragt mehr: Finanzamt, Meldung nach § 138 AO, Gewerbe, Umsatzsteuer auf Rechnungen, Buchführung. Hier steht, was das Gesetz verlangt, jeweils mit Fundstelle — und welchen Teil FIAON Global mit Partner-Steuerberater, Partner-Anwalt und US-CPA für Sie übernimmt.",
+  lead: "Wer mit Wohnsitz in Deutschland eine US-LLC führt, hat Pflichten in zwei Ländern. Die amerikanische Seite ist überschaubar: Form 5472, Registered Agent, Jahresmeldung beim Bundesstaat. Die deutsche Seite fragt mehr: Finanzamt, Meldung nach § 138 AO, Gewerbe, Umsatzsteuer auf Rechnungen, Buchführung. Hier steht, was das Gesetz verlangt, jeweils mit Fundstelle — und welchen Teil FIAON Global übernimmt.",
   ziffern: [
     { wert: "14 Monate", label: "spätestens: Meldung nach § 138 AO, mit der Steuererklärung" },
     { wert: "1 Monat", label: "für Betriebseröffnung und steuerliche Erfassung" },
@@ -95,7 +108,7 @@ export const SEITE: GlobalSeite = {
     ["Meldung", "§ 138 AO mit der Steuererklärung, spätestens nach 14 Monaten"],
     ["Rechnungen", "Von hier geleitet: in der Regel mit deutscher Umsatzsteuer"],
     ["USA", "Form 5472 mit Form 1120, jährlich, auch ohne Umsatz"],
-    ["Mit FIAON Global", "Ein Ansprechpartner statt acht, die Prüfung vor der Gründung ist enthalten"],
+    ["Mit FIAON Global", "Gründung, Unterlagen, Anträge für EIN und ITIN; im ersten Jahr Fristen und Meldungen in den USA"],
   ],
   kurz: "Führen Sie eine US-LLC mit Wohnsitz in Deutschland, liegt ihre Geschäftsleitung in der Regel hier (§ 10 AO). Dann ist in Deutschland zu versteuern: je nach Typenvergleich die Gesellschaft selbst, wie eine GmbH, oder ihr Gewinn bei Ihnen als Gesellschafter. Die Gründung melden Sie dem Finanzamt in der Regel nach § 138 Abs. 2 AO mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres. Und weil die LLC von hier aus geleitet wird, gilt sie umsatzsteuerlich nicht als im Ausland ansässig (§ 13b Abs. 7 UStG): Rechnungen an deutsche Unternehmen tragen dann in der Regel deutsche Umsatzsteuer statt des Reverse-Charge-Hinweises.",
   bloecke: [
@@ -113,16 +126,16 @@ export const SEITE: GlobalSeite = {
       lead: "Welche Zeile Sie betrifft, hängt von der Einordnung der LLC und von Ihrer Tätigkeit ab. Die Übersicht nimmt das Kalenderjahr als Wirtschaftsjahr an.",
       kopf: ["Pflicht", "Grundlage", "Frist", "Wer sie erledigt"],
       zeilen: [
-        ["Eröffnung eines Betriebs oder einer Betriebsstätte anzeigen (Gewerbeanzeige)", "§ 138 Abs. 1 AO, § 14 GewO", "mit dem Beginn; nach der AO innerhalb eines Monats", "Sie, vorbereitet mit Ihrer Steuerkanzlei"],
-        ["Auskünfte zur steuerlichen Erfassung, elektronisch", "§ 138 Abs. 1b und 4 AO", "innerhalb eines Monats nach dem meldepflichtigen Ereignis", "Ihre Steuerkanzlei"],
-        ["Mitteilung der Gründung oder Beteiligung im Ausland", "§ 138 Abs. 2 und 5 AO", "mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres", "Ihre Steuerkanzlei, mit den Unterlagen aus Ihrem Dokumentenraum"],
-        ["Umsatzsteuer: Rechnungen und Voranmeldungen", "§§ 13b, 14, 14a, 18 UStG", "laufend; Voranmeldung bis zum zehnten Tag nach Ablauf des Voranmeldungszeitraums", "Ihre Buchhaltung und Steuerkanzlei"],
-        ["Steuererklärungen in Deutschland", "§ 1 KStG und § 2 GewStG, oder Ihre Einkommensteuer", "jährlich", "Ihre Steuerkanzlei"],
-        ["Form 5472 mit Form 1120 an die IRS", "IRS, Instructions for Form 5472", IRS.frist5472, "unser US-CPA, im ersten Jahr enthalten"],
-        ["Jahresmeldung beim Bundesstaat", "Recht des Bundesstaats", `je nach Staat, in Florida ${STAAT.florida.jahrFrist}`, "FIAON, ab dem zweiten Jahr mit der Jahresbetreuung"],
+        ["Eröffnung eines Betriebs oder einer Betriebsstätte anzeigen (Gewerbeanzeige)", "§ 138 Abs. 1 AO, § 14 GewO", "mit dem Beginn; nach der AO innerhalb eines Monats", "Sie, mit Ihrem Steuerberater"],
+        ["Auskünfte zur steuerlichen Erfassung, elektronisch", "§ 138 Abs. 1b und 4 AO", "innerhalb eines Monats nach dem meldepflichtigen Ereignis", "Ihr Steuerberater"],
+        ["Mitteilung der Gründung oder Beteiligung im Ausland", "§ 138 Abs. 2 und 5 AO", "mit der Steuererklärung, spätestens 14 Monate nach Ablauf des Jahres", "Ihr Steuerberater, mit den Unterlagen aus Ihrem Portal"],
+        ["Umsatzsteuer: Rechnungen und Voranmeldungen", "§§ 13b, 14, 14a, 18 UStG", "laufend; Voranmeldung bis zum zehnten Tag nach Ablauf des Voranmeldungszeitraums", "Ihre Buchhaltung und Ihr Steuerberater"],
+        ["Steuererklärungen in Deutschland", "§ 1 KStG und § 2 GewStG, oder Ihre Einkommensteuer", "jährlich", "Ihr Steuerberater"],
+        ["Form 5472 mit Form 1120 an die IRS", "IRS, Instructions for Form 5472", IRS.frist5472, "ein US-Steuerberater (CPA) aus unserem Partnernetz; die erste Meldung ist im ersten Jahr enthalten"],
+        ["Jahresmeldung beim Bundesstaat", "Recht des Bundesstaats", `je nach Staat, in Florida ${STAAT.florida.jahrFrist}`, "FIAON; ab dem zweiten Jahr auf Wunsch mit der Jahresbetreuung"],
         ["Meldung der wirtschaftlich Berechtigten (BOI) an FinCEN", "FinCEN, Regel vom August 2026", "entfällt für in den USA gegründete Gesellschaften", "niemand"],
       ],
-      fuss: ["Die laufende Buchhaltung und die Steuererklärungen in Deutschland sind nicht Teil Ihres Auftrags. Welche Pflichten im Einzelfall greifen, prüft der Steuerberater."],
+      fuss: ["Die laufende Buchhaltung und die Steuererklärungen in Deutschland sind nicht Teil Ihres Mandats. Welche Pflichten im Einzelfall greifen, klärt Ihr Steuerberater."],
     },
     {
       typ: "text", id: "meldung", h2: "§ 138 AO: die Meldung der US-LLC — 14 Monate, nicht ein Monat",
@@ -138,7 +151,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Die Stätte der Geschäftsleitung ist nach § 12 Satz 2 AO eine Betriebsstätte. Wer seine LLC aus dem Arbeitszimmer in Deutschland leitet, unterhält damit in der Regel eine Betriebsstätte im Inland, auch ohne Büro mit Firmenschild.",
         "Daraus ergeben sich drei Fragen, die vor dem Start beantwortet sein sollten. Die erste ist die Gewerbeanzeige: Wer ein stehendes Gewerbe, eine Zweigniederlassung oder eine unselbständige Zweigstelle beginnt, zeigt das gleichzeitig der zuständigen Behörde an (§ 14 Abs. 1 GewO); steuerlich ist die Eröffnung einer Betriebsstätte der Gemeinde mitzuteilen (§ 138 Abs. 1 AO). Die zweite ist die Gewerbesteuer: Sie erfasst jeden stehenden Gewerbebetrieb, soweit für ihn im Inland eine Betriebsstätte unterhalten wird; die Tätigkeit von Kapitalgesellschaften gilt stets und in vollem Umfang als Gewerbebetrieb (§ 2 Abs. 1 und 2 GewStG). Ob die zweite Regel Ihre LLC erfasst, hängt wieder von ihrer Einordnung ab. Die dritte ist das Handelsregister: Hat ein Unternehmen mit Sitz im Ausland eine Zweigniederlassung in Deutschland, wird sie bei dem Gericht angemeldet, in dessen Bezirk sie besteht (§ 13d Abs. 1 HGB).",
-        "Ob Ihre Tätigkeit ein Gewerbe ist oder ein freier Beruf, dessen Aufnahme nur dem Finanzamt mitgeteilt wird, und ob aus der Betriebsstätte eine eintragungspflichtige Zweigniederlassung wird, hängt vom Einzelfall ab. Diese Fragen gehören in die Prüfung vor der Gründung.",
+        "Ob Ihre Tätigkeit ein Gewerbe ist oder ein freier Beruf, dessen Aufnahme nur dem Finanzamt mitgeteilt wird, und ob aus der Betriebsstätte eine eintragungspflichtige Zweigniederlassung wird, hängt vom Einzelfall ab. Diese Fragen gehören vor der Gründung geklärt.",
       ],
     },
     {
@@ -175,14 +188,14 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "In Deutschland sind gewerbliche Unternehmer buchführungspflichtig, wenn ihr Gesamtumsatz im Kalenderjahr 800.000 Euro oder ihr Gewinn im Wirtschaftsjahr 80.000 Euro übersteigt (§ 141 Abs. 1 AO); die Pflicht beginnt mit dem Wirtschaftsjahr, das auf den Hinweis des Finanzamts folgt (§ 141 Abs. 2 AO). Ob für Ihre LLC schon unterhalb dieser Grenzen eine Bilanz nötig ist und wie ihr Gewinn zu ermitteln ist, hängt von ihrer Einordnung ab. Bücher und Jahresabschlüsse sind zehn Jahre aufzubewahren, Buchungsbelege acht Jahre (§ 147 Abs. 3 AO).",
         `In den USA verlangt die IRS dauerhafte Bücher und Aufzeichnungen, die die Richtigkeit der Meldung belegen, einschließlich der Geschäfte zwischen der LLC und Ihnen. Auf Form 5472 erscheinen unter anderem Einlagen in die Gesellschaft und Entnahmen aus ihr. Wer Form 5472 nicht rechtzeitig einreicht oder die Aufzeichnungen nicht führt, riskiert eine Strafe von ${IRS.strafe5472}.`,
-        "Praktisch heißt das: ein Konto der LLC, auf dem nur Geschäftliches läuft, und eine Buchhaltung, aus der die Kanzlei in Deutschland und der US-CPA dieselben Zahlen lesen. Was in Deutschland als Ausschüttung oder Entnahme gebucht wird, muss zu dem passen, was auf Form 5472 steht.",
+        "Praktisch heißt das: ein Konto der LLC, auf dem nur Geschäftliches läuft, und eine Buchhaltung, aus der Ihr Steuerberater in Deutschland und der US-Steuerberater (CPA) dieselben Zahlen lesen. Was in Deutschland als Ausschüttung oder Entnahme erfasst wird, muss zu dem passen, was auf Form 5472 steht.",
       ],
     },
     {
       typ: "text", id: "dba", h2: "Das Doppelbesteuerungsabkommen: was es regelt — und was nicht",
       absaetze: [
         "Zwischen Deutschland und den USA gilt ein Abkommen zur Vermeidung der Doppelbesteuerung in der Fassung des Protokolls von 2006. Es verteilt Besteuerungsrechte, es schafft keine neuen. Gewerbliche Gewinne eines Unternehmens darf grundsätzlich der Staat besteuern, in dem es ansässig ist; der andere Staat nur, soweit das Unternehmen dort durch eine Betriebsstätte tätig ist und die Gewinne ihr zuzurechnen sind (Art. 7).",
-        "Für Gesellschaften, die ein Staat als steuerlich transparent behandelt, enthält das Abkommen eine eigene Regel: Einkünfte, die über sie bezogen werden, gelten als Einkünfte einer in einem Staat ansässigen Person, soweit dieser Staat sie nach seinem Steuerrecht so behandelt (Art. 1 Abs. 7). Genau das betrifft die LLC häufig: Die IRS behandelt eine LLC mit nur einem Gesellschafter nicht als eigenes Steuersubjekt, solange sie nichts anderes wählt — in Deutschland entscheidet der Typenvergleich. Wie das Abkommen auf Ihre LLC anzuwenden ist, prüfen Steuerberater und US-CPA gemeinsam; beide Seiten müssen zusammenpassen.",
+        "Für Gesellschaften, die ein Staat als steuerlich transparent behandelt, enthält das Abkommen eine eigene Regel: Einkünfte, die über sie bezogen werden, gelten als Einkünfte einer in einem Staat ansässigen Person, soweit dieser Staat sie nach seinem Steuerrecht so behandelt (Art. 1 Abs. 7). Genau das betrifft die LLC häufig: Die IRS behandelt eine LLC mit nur einem Gesellschafter nicht als eigenes Steuersubjekt, solange sie nichts anderes wählt — in Deutschland entscheidet der Typenvergleich. Wie das Abkommen auf Ihre LLC anzuwenden ist, klären Ihr Steuerberater und ein US-Steuerberater (CPA) gemeinsam; beide Seiten müssen zusammenpassen.",
         "Was das Abkommen nicht leistet: Es macht aus einer Gesellschaft, die von Deutschland aus geleitet wird, keine Gesellschaft, die nur in den USA steuerpflichtig ist. Eine US-LLC ist kein Steuermodell.",
       ],
     },
@@ -191,44 +204,55 @@ export const SEITE: GlobalSeite = {
       karten: [
         { tag: "Website", titel: "Impressum", text: "Wer geschäftsmäßig, in der Regel gegen Entgelt digitale Dienste anbietet, etwa eine Website, nennt leicht erkennbar Name und Anschrift, unter der er niedergelassen ist, Rechtsform, Vertretungsberechtigte, das Register mit Nummer, E-Mail und, falls vorhanden, die USt-IdNr. (§ 5 DDG). Die Anschrift des Registered Agent ist dafür nicht gedacht." },
         { tag: "Konto", titel: "Getrennte Zahlungen", text: "Zahlungen Ihrer Kunden gehen auf das Konto der LLC, nicht auf Ihr privates Konto. Das hält die Bücher in beiden Ländern sauber und macht Einlagen und Entnahmen nachvollziehbar — genau die Zahlen, die Form 5472 verlangt." },
-        { tag: "Unterlagen", titel: "Griffbereit für die Kanzlei", text: "Gründungsurkunde, Operating Agreement und EIN-Bestätigung braucht Ihre Steuerkanzlei für Typenvergleich und Meldung. Bei FIAON Global liegen sie von Anfang an in Ihrem Dokumentenraum." },
+        { tag: "Unterlagen", titel: "Griffbereit für Ihren Steuerberater", text: "Gründungsurkunde, Operating Agreement und EIN-Bestätigung braucht Ihr Steuerberater für Typenvergleich und Meldung. Bei FIAON Global liegen sie nach der Eintragung in Ihrem Portal." },
       ],
     },
     {
       typ: "etappen", id: "reihenfolge", h2: "In dieser Reihenfolge: von der Idee bis zur ersten Rechnung",
       etappen: [
-        { titel: "Prüfung vor der Gründung", text: "Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO, Gewerbe und Umsatzsteuer werden geklärt, bevor etwas unterschrieben ist." },
-        { titel: "Operating Agreement", text: "Der Vertrag der LLC wird auf das Ergebnis des Typenvergleichs abgestimmt. Bei FIAON Global schreibt ihn unser Partner-Anwalt." },
+        { titel: "Klärung vor der Gründung", text: "Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO, Gewerbe und Umsatzsteuer werden geklärt, bevor etwas unterzeichnet ist." },
+        { titel: "Operating Agreement", text: "Der Vertrag der LLC wird auf das Ergebnis des Typenvergleichs abgestimmt. Bei FIAON Global gehört er zu den Unterlagen, die wir Ihnen unterschriftsreif vorlegen." },
         { titel: "Gründung und EIN", text: "Eintragung beim Bundesstaat, Registered Agent, EIN bei der IRS. Danach kann die Gesellschaft Verträge schließen und ein Konto beantragen." },
-        { titel: "Anmeldung in Deutschland", text: "Anzeige der Betriebsstätte, Auskünfte zur steuerlichen Erfassung, Antrag auf die USt-IdNr. — jeweils so, wie es die Prüfung ergeben hat." },
+        { titel: "Anmeldung in Deutschland", text: "Anzeige der Betriebsstätte, Auskünfte zur steuerlichen Erfassung, Antrag auf die USt-IdNr. — jeweils so, wie es die Klärung vorab ergeben hat." },
         { titel: "Erste Rechnung", text: "Mit allen Pflichtangaben und der richtigen Umsatzsteuer, ausgestellt im Namen der LLC und bezahlt auf ihr Konto." },
         { titel: "Erstes Jahresende", text: "Steuererklärung in Deutschland mit der Meldung nach § 138 AO; Form 5472 mit Form 1120 an die IRS." },
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global die Pflichten auf beiden Seiten",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, mit einem Grundsatz: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir die Anträge für Sie — Gründung, EIN, die Vorbereitung der ITIN, D-U-N-S-Nummer, Meldungen, Registered Agent, US-Adresse und US-Telefon im ersten Jahr. Nur Konto-, Karten- und Kreditanträge stellen Sie selbst; wir bereiten sie vollständig vor. FIAON ist keine Bank, vergibt und vermittelt keine Kredite; über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut.",
-        `Für die deutsche Seite gilt: Ihren Fall prüft vor der Gründung unser Partner-Steuerberater — Ort der Geschäftsleitung, Einordnung nach dem Typenvergleich, Meldung nach § 138 AO. Auf dieses Ergebnis hin schreibt unser Partner-Anwalt das Operating Agreement. Die erste US-Meldung, Form 5472 mit Form 1120, übernimmt unser US-CPA. ${P.partner}`,
-        `So beginnt Ihre Steuerkanzlei nicht bei null: Ergebnis der Prüfung, Gründungsurkunde, Operating Agreement und EIN-Bestätigung liegen geordnet in Ihrem Dokumentenraum, wenn die erste Erklärung mit der Meldung nach § 138 AO ansteht. Unser Team vor Ort in Miami erledigt die Termine in den USA, Partnerstandort ist Zürich, Vertragspartner die FIAON LTD in London. ${P.preisSatz}`,
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "Im ersten Jahr enthalten: die erste jährliche US-Meldung (Form 5472 mit Form 1120).",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${GRUENDUNG.ihrTeil} ${UNTERLAGEN.ihrTeil}`,
+        `Deutsche Seite: ${STEUERFRAGEN}; die laufende Steuererklärung mit der Meldung nach § 138 AO übernimmt Ihr Steuerberater.`,
+        `${TEIL.bedingung}: ${satz("S3", "de")}`,
       ],
     },
     {
       typ: "text", id: "jahresbetreuung", h2: "Ab dem zweiten Jahr: die Jahresbetreuung",
-      absaetze: [`Das erste Jahr ist in Ihrem Auftrag enthalten. Ab dem zweiten Jahr halten wir Ihre Gesellschaft für ${P.jahres} im Jahr am Laufen – mit allen Gebühren, ohne dass Sie eine Frist im Kopf behalten müssen.`],
-      punkte: [...GLOBAL_JAHRESBETREUUNG.de.leistungen],
-      nach: `${GLOBAL_JAHRESBETREUUNG.de.bedingungen} Die laufende Buchhaltung und die Steuererklärungen in Deutschland bleiben bei Ihrer Steuerkanzlei.`,
+      absaetze: [`Das erste Jahr ist in Ihrem Mandat enthalten. Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das auf Wunsch für ${P.jahres} im Jahr, Staatsgebühr enthalten.`],
+      punkte: [
+        "Registered Agent und US-Geschäftsadresse",
+        "US-Telefonnummer",
+        "Jährliche US-Meldung (Form 5472 mit Form 1120) durch einen US-Steuerberater (CPA) aus unserem Partnernetz",
+        "Jahresmeldung beim Bundesstaat, Staatsgebühr enthalten",
+        "Pflichtenkalender mit den US-Fristen",
+        "Ihr fester Ansprechpartner",
+      ],
+      nach: "Berechnet wird jährlich im Voraus; die Jahresbetreuung verlängert sich nicht von selbst. Die laufende Buchhaltung und die Steuererklärungen in Deutschland bleiben bei Ihrem Steuerberater.",
     },
-    { typ: "paket", id: "mandat", h2: "Der saubere Start, beide Seiten im Blick", lead: P.karteLead, paket: "global_struktur" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_struktur" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
-        "Dieser Beitrag erklärt die gesetzlichen Grundlagen, Stand Oktober 2026. Er ersetzt nicht die Prüfung Ihres Falls; die übernimmt der Steuerberater auf Ihr Mandat.",
+        `Dieser Beitrag erklärt die gesetzlichen Grundlagen, Stand Oktober 2026, und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls. ${STEUERFRAGEN}; die laufende Steuererklärung übernimmt Ihr Steuerberater.`,
         GLOBAL_PFLICHTHINWEIS.de[0],
         GLOBAL_PFLICHTHINWEIS.de[1],
-        `Nicht in Ihrem Auftrag enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
-        GLOBAL_ROLLEN.de.fiaon,
-        "Eine US-LLC ist kein Steuermodell: Wer sie von Deutschland aus leitet, versteuert sie in der Regel hier.",
+        `Nicht in Ihrem Mandat enthalten: ${GLOBAL_NICHT_INKLUSIVE.de[1]}.`,
+        satz("S8", "de"),
+        `${satz("S10", "de")} Wer die LLC von Deutschland aus leitet, versteuert sie in der Regel hier.`,
       ],
     },
   ],
@@ -240,7 +264,7 @@ export const SEITE: GlobalSeite = {
     { f: "Welches Finanzamt ist für meine US-LLC zuständig?", a: "Wird die LLC wie eine Kapitalgesellschaft eingeordnet, das Finanzamt, in dessen Bezirk sich ihre Geschäftsleitung befindet (§ 20 Abs. 1 AO), bei einer Leitung von zu Hause also das Finanzamt an Ihrem Ort. Wird sie transparent eingeordnet, fließt ihr Gewinn in Ihre eigene Steuererklärung." },
     { f: "Muss meine US-LLC in Deutschland Bücher führen?", a: "Gewerbliche Unternehmer sind buchführungspflichtig, wenn der Umsatz 800.000 Euro im Kalenderjahr oder der Gewinn 80.000 Euro im Wirtschaftsjahr übersteigt (§ 141 AO). Ob für Ihre LLC schon früher eine Bilanz nötig ist, hängt von ihrer Einordnung ab. Aufbewahrt werden Bücher zehn Jahre, Buchungsbelege acht Jahre (§ 147 AO)." },
     { f: "Schützt mich das Doppelbesteuerungsabkommen vor der deutschen Steuer?", a: "Nein. Das Abkommen zwischen Deutschland und den USA verteilt Besteuerungsrechte und vermeidet, dass derselbe Gewinn zweimal besteuert wird. Wird die LLC von Deutschland aus geleitet, bleibt sie hier in der Regel steuerpflichtig. Für steuerlich transparente Gesellschaften enthält es eine eigene Regel (Art. 1 Abs. 7)." },
-    { f: "Was übernimmt FIAON Global, was meine Steuerkanzlei?", a: "Wir übernehmen die US-Seite und die Koordination: Gründung, EIN, Registered Agent, Operating Agreement durch unseren Partner-Anwalt, die erste Form 5472 durch unseren US-CPA und die Prüfung vor der Gründung durch unseren Partner-Steuerberater. Laufende Buchhaltung und Steuererklärungen in Deutschland, mit der Meldung nach § 138 AO, macht Ihre Steuerkanzlei — mit den Unterlagen aus Ihrem Dokumentenraum." },
+    { f: "Was übernimmt FIAON Global, was mein Steuerberater?", a: `Wir übernehmen die US-Seite: Gründung, Operating Agreement und Gründungsunterlagen, Anträge für EIN und ITIN, Registered Agent und im ersten Jahr die erste jährliche US-Meldung. Laufende Buchhaltung und Steuererklärungen in Deutschland, mit der Meldung nach § 138 AO, übernimmt Ihr Steuerberater — mit den Unterlagen aus Ihrem Portal. ${satz("S3", "de")}` },
   ],
   paket: "global_struktur",
   weiter: ["/business/wissen/us-llc-steuern", "/business/aus-deutschland", "/business/wissen/llc-steuererklaerung", "/business/wissen/nachteile-us-llc"],

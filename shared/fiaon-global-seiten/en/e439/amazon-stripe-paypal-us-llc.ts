@@ -45,9 +45,19 @@ import type { GlobalQuelle, GlobalSeite } from "../../typen";
 import { GLOBAL_AGENT, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { QUELLEN_RECHT_EN as R, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN } from "../../fakten-en";
+// E-510 (13.11.2026, language guide FIAON Global): one section “What FIAON Global handles” built from steps 1 and 2 of the
+// fixed narrative; accounts with marketplaces and payment service providers are decided by the provider concerned (said there
+// exactly once). No “team on the ground”, no partner location, no partner shown at work, no D-U-N-S Number as a service.
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz, type Schritt, type SchrittNr } from "../../../fiaon-global-saetze";
 
 const S = "2026-10-27";
 const P = EIN_PRODUKT.en;
+/** Steps 1 and 2 of the fixed narrative (language guide 2.3) — from the one source, never retyped. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.en.find((x) => x.nr === nr)!;
+const GRUENDUNG = schritt(1);
+const UNTERLAGEN = schritt(2);
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
 /** „25 per cent“ — die Eigentümerschwelle steht in fakten-en.ts. */
 const AB25 = SCHWELLEN_EN.eigentuemer;
 
@@ -88,13 +98,13 @@ export const SEITE: GlobalSeite = {
     titel: "Amazon seller US LLC non-resident: checks — FIAON Global",
     beschreibung: "Amazon seller US LLC as a non-resident: what Amazon, Stripe, PayPal and Shopify check — ID, EIN, account, W-8 or W-9, sales tax and common restrictions.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 49",
   auge: "Knowledge · Platforms",
   h1: "Amazon seller, US LLC, non-resident.",
   h1b: "What Amazon, Stripe and PayPal check for your US LLC.",
-  lead: "Anyone who starts out as an Amazon seller with a US LLC as a non-resident, or takes payments through Stripe, PayPal or Shopify, will be checked — thoroughly, and not just once. The platforms want to know who owns the company, which tax number it operates under and where the proceeds go. This page sets out what they require, which tax form your LLC submits, when sales tax is the marketplace’s responsibility and where accounts typically get held up.",
+  lead: "Anyone who starts out as an Amazon seller with a US LLC as a non-resident, or takes payments through Stripe, PayPal or Shopify, will be checked by the platforms — at registration and again afterwards. The platforms want to know who owns the company, which tax number it operates under and where the proceeds go. This page sets out what they require, which tax form your LLC submits, when sales tax is the marketplace’s responsibility and the reasons for which platforms restrict accounts.",
   ziffern: [
     { wert: AB25, label: "the ownership share from which Stripe and Shopify record every owner" },
     { wert: "180 days", label: "the maximum age of the proof of address Amazon accepts" },
@@ -107,7 +117,7 @@ export const SEITE: GlobalSeite = {
     ["Tax form", "Single-member LLC, owner abroad: the owner’s W-8; several members: the LLC’s W-9"],
     ["Sales tax", "On the marketplace, the marketplace remits it where the state so provides — in your own shop, your company does, once it passes the state’s threshold"],
     ["Who decides", "The platform alone — on approval, reserves and restrictions"],
-    ["With FIAON Global", "Company, EIN, documents and core details — all of a piece"],
+    ["With FIAON Global", "Formation, documents and the EIN and ITIN applications; you register with the platforms yourself"],
   ],
   kurz: `For an Amazon seller with a US LLC and a non-resident owner — and equally at Stripe, PayPal and Shopify — the platforms check five things: who stands behind the company (Stripe and Shopify record every owner holding ${AB25} or more, Stripe also the controlling person), that the company exists with its EIN, where the proceeds go, which tax form applies and whether addresses and documents match. If the LLC belongs solely to one person abroad, the owner submits a Form W-8; the LLC does not submit a W-9. On marketplace sales, the marketplace remits sales tax where the state so provides; for your own shop, your company is responsible once it exceeds a state’s threshold.`,
   bloecke: [
@@ -149,7 +159,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "zahlungsdienste", h2: "Stripe, PayPal Business and Shopify with a US LLC",
       absaetze: [
-        `For companies in the US, Stripe records one person with significant control and everyone who holds at least ${AB25} — with name, date of birth, address and, for US persons, their Social Security number. Stripe bases this on US beneficial ownership law — the same rule under which banks verify their business customers (31 CFR 1010.230). If representatives or owners have neither an SSN nor an ITIN, Stripe expects a tax number from their country of residence and documents confirming that they are not liable to tax in the US. Some industries Stripe does not accept at all, or only after additional review, because the law, the card networks and its partner banks require this; what counts is its list of restricted and prohibited businesses.`,
+        `For companies in the US, Stripe records one person with significant control and everyone who holds at least ${AB25} — with name, date of birth, address and, for US persons, their Social Security number. Stripe bases this on US beneficial ownership law — the same rule under which banks verify their business customers (31 CFR 1010.230). If representatives or owners have neither an SSN nor an ITIN, Stripe expects a tax number from their country of residence and documents confirming that they are not liable to tax in the US. Some industries Stripe does not accept at all, or only after additional review, because the law, the card networks and the banks Stripe works with require this; what counts is its list of restricted and prohibited businesses.`,
         "PayPal Business asks for the tax details it needs for reporting to the IRS. If PayPal notices a change in selling patterns or an increase in buyer complaints, it may request documents about the business — such as supplier details, invoices and bank statements — and limit the account; you may then, for example, no longer be able to send or withdraw money until you have completed the steps PayPal sets out. PayPal gives the reason by email and in the account’s Resolution Centre; according to PayPal, an email with no matching entry there may not be genuine.",
         `In the US, Shopify Payments is open to individuals and sole proprietors only if they reside in the US. For an LLC, the requirements are: the name exactly as in the IRS records, down to punctuation and capitalisation; the EIN, evidenced where necessary by an IRS letter (SS-4 confirmation, Notice CP 575 or Letter 147C); the physical business address in the US where the business operations primarily take place; and a full checking account with a US bank, in US dollars, that can receive ACH transfers. Every owner holding ${AB25} or more must be listed. Representatives who live outside the US and have neither an SSN nor an ITIN can instead submit a photograph of their valid passport.`,
       ],
@@ -166,7 +176,7 @@ export const SEITE: GlobalSeite = {
       ],
       fuss: [
         "Form W-9 says so expressly: if the owner of a disregarded entity is a foreign person, the owner submits a Form W-8 — even if they hold a US tax number such as an ITIN.",
-        "You already state your LLC’s classification in the EIN application (line 9a of Form SS-4). Which income is effectively connected with a US trade or business, on the other hand, depends on your business; a US CPA acting under your engagement reviews this for your case.",
+        "You already state your LLC’s classification in the EIN application (line 9a of Form SS-4). Which income is effectively connected with a US trade or business, on the other hand, depends on your business; that is for a US certified public accountant (CPA), acting in their own professional capacity, to clarify for your case.",
       ],
     },
     {
@@ -174,7 +184,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Payment platforms and marketplaces report payments for goods and services to the IRS on Form 1099-K if, in a year, they total more than $20,000 across more than 200 transactions. PayPal cites as the basis the One Big Beautiful Bill Act of 2025, which restored this threshold. For card payments through a payment processor there is no minimum, and some states set lower thresholds.",
         "That is why the platforms ask for your tax number and tax form and check that name and number match; Shopify, for example, may request an IRS letter if the EIN cannot be confirmed. If the details are missing, a payment service can withhold part of each payment: PayPal has withheld 24 per cent on accounts without tax details — the backup withholding rate that Form W-9 also states.",
-        "US reporting does not replace your tax return at home. If you manage the LLC from Germany, the centre of its top-level commercial management lies there — its place of management within the meaning of section 10 of the German Fiscal Code (AO); depending on the classification, Germany then taxes either the company itself (section 1 of the German Corporate Income Tax Act, KStG) or its profit in your hands. You notify the tax office (Finanzamt) of the formation or the participation under section 138(2) AO, together with the tax return for the year in which it took place. How the platform revenue is to be declared at home is reviewed with you by our partner tax adviser before formation.",
+        "US reporting does not replace your tax return at home. If you manage the LLC from Germany, the centre of its top-level commercial management lies there — its place of management within the meaning of section 10 of the German Fiscal Code (AO); depending on the classification, Germany then taxes either the company itself (section 1 of the German Corporate Income Tax Act, KStG) or its profit in your hands. You notify the tax office (Finanzamt) of the formation or the participation under section 138(2) AO, together with the tax return for the year in which it took place. How the platform revenue is to be declared at home rests with partner tax advisers acting in their own professional capacity; your ongoing tax return is handled by your tax adviser.",
       ],
     },
     {
@@ -182,7 +192,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Sales tax is the tax the US states levy on sales. Since the Supreme Court’s decision in South Dakota v. Wayfair of 21 June 2018, states may also require it from sellers with no physical presence in the state. South Dakota tied the obligation to deliveries into the state worth more than $100,000, or to at least 200 separate transactions, a year; each state sets its own thresholds.",
         "For sales through marketplaces, the states have created rules of their own, usually known as marketplace facilitator rules. Take Florida: the marketplace confirms to its sellers in writing that it collects and remits sales tax on the sales made through it — the seller may then not collect tax on those sales itself and leaves them out of its own return (section 212.05965 of the Florida Statutes).",
-        "In your own shop — with Shopify, Stripe or PayPal at the checkout — this relief does not apply; under Florida law, payment processors are expressly not marketplaces. There, your company itself is responsible as soon as it exceeds a state’s threshold; in Florida, that is the case with taxable remote sales of more than $100,000 in the previous calendar year (section 212.0596 of the Florida Statutes), and only sales outside the marketplace count towards this threshold (section 212.05965(4)). A US CPA reviews for your case whether and where your company has to register — including whether goods held in a warehouse, for example under Fulfilment by Amazon (FBA), create obligations of their own in that state.",
+        "In your own shop — with Shopify, Stripe or PayPal at the checkout — this relief does not apply; under Florida law, payment processors are expressly not marketplaces. There, your company itself is responsible as soon as it exceeds a state’s threshold; in Florida, that is the case with taxable remote sales of more than $100,000 in the previous calendar year (section 212.0596 of the Florida Statutes), and only sales outside the marketplace count towards this threshold (section 212.05965(4)). It is for a US CPA to clarify for your case whether and where your company has to register — including whether goods held in a warehouse, for example under Fulfilment by Amazon (FBA), create obligations of their own in that state.",
       ],
     },
     {
@@ -198,8 +208,8 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "etappen", id: "reihenfolge", h2: "In this order, everything fits together",
-      lead: "If you register with the platforms last, you already have every answer to hand when you sign up.",
+      typ: "etappen", id: "reihenfolge", h2: "In this sequence, everything fits together",
+      lead: "If you register with the platforms last, every detail and every document is to hand when you sign up.",
       etappen: [
         { titel: "Settle the name and the company", text: "A name that reads identically, character for character, in the formation document, the EIN letter, the account and on every platform — down to the punctuation." },
         { titel: "Apply for the EIN", text: "The EIN is the company’s tax number. The IRS letter (CP 575 or Letter 147C) belongs in the file; Shopify, for example, may ask for it if the number cannot be confirmed." },
@@ -211,23 +221,25 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global lays the foundation for your platforms",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global is a business consultancy for entrepreneurs from Germany, Austria and Switzerland who are building a US company. Our principle: one contact instead of eight. With your power of attorney, we submit every application on your behalf — formation in the state, EIN, preparation of the ITIN, D-U-N-S number and the first annual US filing — and provide the registered agent, US address and US phone number for the first year. You make account, card and credit applications yourself; we prepare each of them in full.",
-        "In concrete terms, for the platforms this means: before formation, we settle the core details with you — company name, members and shares, business address, phone number, contact person — and keep them identical in every document. In your document room, the formation document, EIN letter and operating agreement are filed and ready for when Amazon, Stripe, PayPal or Shopify asks for them. We prepare the application for the LLC’s business account in full so that your proceeds can go to an account in the company’s name; the institution decides on the account. The tax classification, which determines W-8 or W-9, is set in the EIN application we file for you; how your platform business is to be treated at home is reviewed by our partner tax adviser before formation.",
-        "You register with the platforms yourself, because identity verification is personal. You go in with a complete file and know beforehand which answer belongs where. We keep a compliance calendar for your US filings and deadlines.",
-        P.partner,
-        `${P.preisSatz} The contracting party is FIAON LTD in London; our team on the ground in Miami deals with the authorities, and Zurich is our partner location.`,
+        `${GRUENDUNG.satz} ${UNTERLAGEN.satz}`,
+        "We keep your company’s core details identical in every document.",
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${UNTERLAGEN.ihrTeil} You register with the platforms yourself.`,
+        `Business account: ${satz("S2", "en")}`,
+        `${TEIL.bedingung}: ${satz("S3", "en")} Accounts with marketplaces and payment service providers are decided by the provider concerned.`,
       ],
     },
     { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_banking" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "Each platform alone decides on approval, reserves and restrictions — even where the documents are complete. This page reflects the platforms’ help pages as of October 2026; what counts is the version in force at the time of your registration.",
-        "Accounts with marketplaces and payment services, sales tax registrations and ongoing bookkeeping are not part of your order; we can name partners for these.",
+        "Each platform alone decides on approval, reserves and restrictions — even where the documents are complete. This page reflects the platforms’ help pages as at October 2026; what counts is the version in force at the time of your registration.",
+        "Accounts with marketplaces and payment services, sales tax registrations and ongoing bookkeeping are not part of your engagement.",
         GLOBAL_AGENT.en.anschrift,
-        "FIAON is not a bank, does not grant loans, does not arrange loans and does not commit to any limit. The institution concerned alone decides on the account, card, limit and loan.",
+        satz("S8", "en"),
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
         GLOBAL_PFLICHTHINWEIS.en[2],
@@ -236,11 +248,11 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "Can I sell on Amazon’s US marketplace as a non-resident from Germany?", a: "Yes, Amazon accepts sellers from Europe on its US marketplace; according to Amazon, a US company is not necessarily required for this. Registration requires an ID such as a passport, an internationally chargeable credit card, a bank account, proof of business registration, proof of address from the last 180 days and your tax details; identity verification by photo or video call follows. Amazon decides on approval." },
-    { f: "Do I need a US LLC at all to sell in the US?", a: "Not necessarily. Amazon also accepts sellers from Europe without a US company and pays out via the Amazon Currency Converter to an account in Europe. Shopify Payments in the US, by contrast, is open to individuals only if they reside in the US; an LLC there needs an EIN, a US checking account and a US business address. If the LLC is managed from Germany, it remains taxable there (section 10 AO, section 1 KStG) — it is not a tax model." },
-    { f: "Does my US LLC give Amazon a W-9 or a W-8BEN?", a: "That depends on the LLC’s classification. If you own it alone, you as the owner submit a Form W-8 — W-8BEN or, for income effectively connected with a US trade or business, W-8ECI — even if you have an ITIN. An LLC with several members, or one taxed as a corporation, submits a W-9 itself. The classification is stated in the EIN application; whether income is effectively connected is for a US CPA acting under your engagement to clarify." },
+    { f: "Do I need a US LLC at all to sell in the US?", a: "Not necessarily. Amazon also accepts sellers from Europe without a US company and pays out via the Amazon Currency Converter to an account in Europe. Shopify Payments in the US, by contrast, is open to individuals only if they reside in the US; an LLC there needs an EIN, a US checking account and a US business address. If the LLC is managed from Germany, it remains taxable there (section 10 AO, section 1 KStG) — it is not a tax scheme." },
+    { f: "Does my US LLC give Amazon a W-9 or a W-8BEN?", a: "That depends on the LLC’s classification. If you own it alone, you as the owner submit a Form W-8 — W-8BEN or, for income effectively connected with a US trade or business, W-8ECI — even if you have an ITIN. An LLC with several members, or one taxed as a corporation, submits a W-9 itself. The classification is stated in the EIN application; whether income is effectively connected is for a US CPA, acting in their own professional capacity, to clarify." },
     { f: "Can I use Stripe with a US LLC without an SSN?", a: `Stripe provides a route for this: if representatives or owners of a US company have neither an SSN nor an ITIN, Stripe expects a tax number from their country of residence and documents showing that they are not liable to tax in the US. In addition, Stripe records every person holding ${AB25} or more and one person with significant control, with name, date of birth and address. Stripe decides on the account.` },
     { f: "Can I use Shopify Payments with a US LLC?", a: "Shopify lists a full US checking account in US dollars that can receive ACH transfers, the physical business address in the US where the business operations primarily take place, and the company’s name exactly as in the IRS records. Representatives without an SSN or ITIN who live outside the US can submit a photograph of their valid passport. Individuals, by contrast, need US residence. Shopify decides on approval." },
-    { f: "When do platforms report my sales to the IRS?", a: "Payment platforms and marketplaces issue Form 1099-K when payments for goods and services in a year total more than $20,000 across more than 200 transactions. For card payments through a payment processor there is no minimum, and some states set lower thresholds. The US CPA clarifies how these reports fit with your returns." },
+    { f: "When do platforms report my sales to the IRS?", a: "Payment platforms and marketplaces issue Form 1099-K when payments for goods and services in a year total more than $20,000 across more than 200 transactions. For card payments through a payment processor there is no minimum, and some states set lower thresholds. How these reports fit with your returns is for a US CPA to clarify." },
     { f: "Do I have to remit sales tax myself as an Amazon seller?", a: "For marketplace sales, the marketplace takes this on where the state so provides. In Florida, it confirms to its sellers that it collects the tax, and the seller may not collect sales tax on those sales itself (section 212.05965 of the Florida Statutes). This does not apply to your own shop: there, your company itself becomes responsible once it passes a state’s threshold — in Florida, more than $100,000 of remote sales outside the marketplace in the previous year." },
     { f: "Why do Stripe or PayPal restrict an account?", a: "The platforms name the reasons themselves: businesses on the list of restricted industries, many disputes and chargebacks (Stripe classifies a dispute rate above 0.75 per cent as high risk), sudden jumps in sales, new product types, long delivery times and missing details. Stripe can hold back proceeds as a reserve, and PayPal can limit the account until the matter is resolved. If Stripe closes an account, it gives the reason by email and offers a further review." },
   ],

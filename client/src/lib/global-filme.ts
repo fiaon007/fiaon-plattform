@@ -61,6 +61,8 @@ export const GLOBAL_FILME: GlobalFilm[] = [
 ];
 
 export const GLOBAL_KONZEPT = {
+  // E-510 (13.11.2026): Diese Datei gibt es nicht mehr (alte Fassung mit vier Paketen) — die Adresse leitet auf die Startseite.
+  // Der Vorführraum ist auf keiner Seite eingebunden; kommt er zurück, dann mit der neuen Mappe „Mandat 2026-11“.
   datei: "/global/konzept/FIAON_Global_Konzept_2026-10.pdf",
   dateiname: "FIAON_Global_Konzept_2026-10.pdf",
   folien: 22,

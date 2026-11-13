@@ -1151,6 +1151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // E-509 (12.11.2026): Der Paket-Finder ist der Konfigurator — /business/paket-finder und /en/business/package-finder
     // ziehen dauerhaft auf /business/start und /en/business/start (eine Quelle: shared/fiaon-global-pfade.ts).
     ...GLOBAL_UMGEZOGEN,
+    // E-510 (13.11.2026): Die Präsentation von 10/2026 zeigte vier Pakete und „bis zu“ — die Datei ist aus dem öffentlichen
+    // Ordner genommen; ihre alte Adresse (alte Mails, geteilte Links) führt dauerhaft auf die Startseite.
+    '/global/konzept/fiaon_global_konzept_2026-10.pdf': '/',
   };
   // 29.10.2026 (E-461): auch /business//, /en/business/// (doppelte Schrägstriche) gehen per 301 auf die Startseite —
   // die Route oben trifft nur /business und /business/; vorher kam dort die nackte App-Hülle mit index,follow (Gegenprüfung).

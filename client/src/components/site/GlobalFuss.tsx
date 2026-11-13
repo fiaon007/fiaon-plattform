@@ -7,6 +7,13 @@
 // mit Gesellschaft, der Vertragspartner mit Registernummer, die Verbindung der
 // Partner offen gesagt, und die Rechtsseiten — die gemeinsamen öffnen mit
 // ?bereich=business, damit auch dort der Business-Rahmen steht (lib/bereich.ts).
+//
+// E-510 (13.11.2026): Auf den öffentlichen Global-Seiten ist der Fuß HELL (Klasse gf-hell) — so bleibt die eine dunkle
+// Fläche der Seite die einzige (Justin wollte die Fußzeile schon am 22.08. hell). Dort stehen keine Knöpfe mehr, nur
+// Verweise; der Rollen-Satz kommt wortgleich aus den festen Sätzen (S8, auf der Österreich-Seite S8-AT). „Drei Orte“ und
+// der Satz zur verbundenen Gesellschaft stehen im öffentlichen Fuß nicht: Die Partnergesellschaft wird öffentlich nie mit
+// einem Ort genannt (Leitfaden, Leitplanke 7); der Satz gehört auf die Partnerseite. Angebot, Auftrag und Konto-Tor
+// behalten den bisherigen Fuß.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useSprache } from "@/i18n/sprache";
 import { GLOBAL_FUSS_WOERTER, GLOBAL_WOERTER } from "@/i18n/global";
@@ -18,8 +25,10 @@ import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { schwesterPfad } from "@shared/fiaon-seo-seiten";
 import { mitBereich } from "@/lib/bereich";
 import { istBusinessPfad, PRIVAT_START } from "@shared/fiaon-business-grenze";
-import { GlobalMarke } from "@/components/site/GlobalNav";
+import { GlobalMarke, globalOeffentlich } from "@/components/site/GlobalNav";
 import GlobalOrte from "@/components/site/global/GlobalOrte";
+import { satz, satzLand } from "@shared/fiaon-global-saetze";
+import "@/styles/global-tokens.css";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-rahmen-apple.css";
@@ -38,18 +47,23 @@ export default function GlobalFuss() {
   const recht: [string, string][] = w.recht.map(({ pfad, text }) => [en && !pfad.startsWith("/en/") ? schwesterPfad(pfad, "en") ?? pfad : pfad, text]);
   // Die Business-eigenen Rechtsseiten tragen den Rahmen ohnehin; die gemeinsamen bekommen ?bereich=business.
   const rechtHref = (p: string) => (istBusinessPfad(p) ? p : mitBereich(p));
+  const pfad = typeof window !== "undefined" ? window.location.pathname : "";
+  const oeffentlich = globalOeffentlich(pfad);
 
   return (
-    <footer className="gf" aria-label={w.label}>
+    <footer className={`gf${oeffentlich ? " gf-hell" : ""}`} aria-label={w.label}>
       <div className="gf-rahmen">
         <div className="gf-oben">
           <div className="gf-marke">
-            <GlobalMarke en={en} hell />
+            <GlobalMarke en={en} hell={!oeffentlich} />
             <p>{w.satz}</p>
-            <div className="gf-tun">
-              <a href={en ? "/en#gespraech" : "/#gespraech"} className="gf-knopf">{w.gespraech}</a>
-              <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
-            </div>
+            {/* Öffentlich keine Knöpfe im Fuß — das Schlussband darüber trägt die Handlungen. */}
+            {!oeffentlich && (
+              <div className="gf-tun">
+                <a href={en ? "/en#gespraech" : "/#gespraech"} className="gf-knopf">{w.gespraech}</a>
+                <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
+              </div>
+            )}
             <p className="gf-kontakt">
               <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a>
               <span aria-hidden="true">·</span>
@@ -58,8 +72,13 @@ export default function GlobalFuss() {
               <a href={en ? "/en/business/login" : "/business/login"}>{w.auftrag}</a>
               {/* 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — der einzige, leise Weg zur Privat-Startseite, benannt nach dem Angebot.
                   Justin: „Privatkunde“ oben verwirrt, weil auch Privatpersonen die US-Gesellschaft gründen — darum kein Band, kein Kopf-Link. */}
-              <span aria-hidden="true">·</span>
-              <a href={en ? PRIVAT_START.en : PRIVAT_START.de}>{en ? "Credit file, account and card" : "Bonität, Konto und Karte"}</a>
+              {/* Auf der Österreich-Seite steht dieser Verweis nicht: Dort wird kein Konto und keine Karte genannt (Leitfaden 5.12). */}
+              {satzLand(pfad) !== "AT" && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <a href={en ? PRIVAT_START.en : PRIVAT_START.de}>{en ? "Credit file, account and card" : "Bonität, Konto und Karte"}</a>
+                </>
+              )}
             </p>
             <SozialeLinks en={en} className="gf-sozial" />
           </div>
@@ -75,13 +94,20 @@ export default function GlobalFuss() {
           </nav>
         </div>
 
-        <GlobalOrte en={en} label={w.standorte} sie={w.orteSie} sieZusatz={w.orteSieZusatz} rollen={w.orte} uhren={GLOBAL_WOERTER[en ? "en" : "de"].uhren} />
+        {!oeffentlich && <GlobalOrte en={en} label={w.standorte} sie={w.orteSie} sieZusatz={w.orteSieZusatz} rollen={w.orte} uhren={GLOBAL_WOERTER[en ? "en" : "de"].uhren} />}
 
         <div className="gf-unten">
           <div className="gf-firma">
             <p>© {jahr} {FIAON_FIRMA.name} · {w.registriert}, Company No. {FIAON_FIRMA.companyNo} · {FIAON_FIRMA.strasse}, {FIAON_FIRMA.ortZeile}</p>
-            <p className="gf-verbunden">{w.keineBank}</p>
-            <p className="gf-verbunden">{en ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
+            {oeffentlich ? (
+              // Der Rollen-Satz, wortgleich auf jeder öffentlichen Seite (Leitfaden 5.3, S8 — Österreich: S8-AT).
+              <p className="gf-verbunden">{satz("S8", en ? "en" : "de", satzLand(pfad))}</p>
+            ) : (
+              <>
+                <p className="gf-verbunden">{w.keineBank}</p>
+                <p className="gf-verbunden">{en ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
+              </>
+            )}
           </div>
           <nav className="gf-recht" aria-label={w.rechtlich}>
             {recht.map(([p, l]) => <a key={p} href={rechtHref(p)}>{l}</a>)}

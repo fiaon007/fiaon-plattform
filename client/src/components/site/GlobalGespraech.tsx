@@ -32,8 +32,14 @@
 // Code steht nie in dieser Adresse); die Felder sind dann schon ausgefüllt. Beim Danke-Knopf ist die Anfrage oft noch
 // unterwegs („vorlageFolgt“) — dann fragt die Fläche ein paar Sekunden lang nach. Der ARAS-Hinweis ist weg: kein ARAS
 // für Leads (Logbuch 03.11.); die Erinnerungen kommen per Mail.
+//
+// E-510 (13.11.2026): Fehler stehen AM FELD (UX-Prüfung 3.13). Geprüft wird beim Verlassen eines Felds und beim Absenden,
+// nie bei jedem Tastendruck. Zwei Zustände: „fehlt noch“ (blaue Linie links, der Satz in Tinte) und „falsch“ (Rot). Beim
+// Absenden springt der Fokus ins erste Feld mit Fehler; darüber steht eine kurze Zusammenfassung (role="alert"). Jede
+// Meldung sagt, was zu tun ist. Beschriftung und Feld gehören per id zusammen; die Meldung hängt per aria-describedby am
+// Feld. Senden zeigt den Zustand am Knopf (aria-busy), der Erfolg ist eine Statusmeldung mit einem Haken, der sich zeichnet.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useWoerter, useSprache } from "@/i18n/sprache";
 import { GLOBAL_GESPRAECH_WOERTER } from "@/i18n/global";
 import { globalPaket } from "@shared/fiaon-global";
@@ -54,6 +60,32 @@ type Frei = {
 
 const leer = { name: "", firma: "", email: "", telefon: "", thema: "", wunschzeit: "", falle: "" };
 
+/** Die drei Pflichtfelder und ihre zwei Fehlerarten: „fehlt“ (leer) und „falsch“ (unvollständig). */
+type Pflichtfeld = "name" | "email" | "telefon";
+type Feldfehler = "fehlt" | "falsch";
+const PFLICHT: readonly Pflichtfeld[] = ["name", "email", "telefon"];
+/** Meldungen am Feld — jede sagt, was zu tun ist (deutsch und englisch). */
+const FELD_WORT = {
+  de: {
+    fehlt: { name: "Bitte tragen Sie Ihren Namen ein.", email: "Bitte tragen Sie Ihre E-Mail-Adresse ein.", telefon: "Bitte tragen Sie Ihre Telefonnummer ein." },
+    falsch: { name: "", email: "Diese E-Mail-Adresse ist nicht vollständig.", telefon: "Diese Telefonnummer ist nicht vollständig." },
+    zusammen: (zahl: number) => (zahl === 1 ? "Bitte ergänzen Sie das markierte Feld." : "Bitte ergänzen Sie die markierten Felder."),
+  },
+  en: {
+    fehlt: { name: "Please enter your name.", email: "Please enter your email address.", telefon: "Please enter your telephone number." },
+    falsch: { name: "", email: "This email address is incomplete.", telefon: "This telephone number is incomplete." },
+    zusammen: (zahl: number) => (zahl === 1 ? "Please complete the marked field." : "Please complete the marked fields."),
+  },
+} as const;
+/** Prüft ein Pflichtfeld: leer → „fehlt“, unvollständig → „falsch“, sonst null. */
+function pruefeFeld(k: Pflichtfeld, wert: string): Feldfehler | null {
+  const v = wert.trim();
+  if (!v) return "fehlt";
+  if (k === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) return "falsch";
+  if (k === "telefon" && v.replace(/\D/g, "").length < 6) return "falsch";
+  return null;
+}
+
 export default function GlobalGespraech({ paket, thema, punkte = true }: { paket?: string | null; thema?: string | null; punkte?: boolean }) {
   const t = useWoerter(GLOBAL_GESPRAECH_WOERTER);
   const sprache = useSprache();
@@ -64,6 +96,12 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   const [f, setF] = useState(leer);
   const [sendet, setSendet] = useState(false);
   const [fehler, setFehler] = useState("");
+  // Fehler am Feld (E-510) — gesetzt beim Verlassen eines Felds und beim Absenden.
+  const [feldFehler, setFeldFehler] = useState<Partial<Record<Pflichtfeld, Feldfehler>>>({});
+  // Die Zusammenfassung über den Feldern erscheint erst nach einem Absende-Versuch.
+  const [versucht, setVersucht] = useState(false);
+  const kennung = useId();
+  const felder = useRef<Partial<Record<keyof typeof leer, HTMLInputElement | null>>>({});
   const [fertig, setFertig] = useState<null | { art: "termin" | "anfrage"; wann?: string; wer?: string }>(null);
   const [persoenlich, setPersoenlich] = useState(false);
   const [vorlageFolgt, setVorlageFolgt] = useState(false);
@@ -113,13 +151,12 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
   // Schritt 2 gleitet herein — der Fokus springt ins erste Feld. E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 12): Über den
   // persönlichen Link ist schon alles ausgefüllt — dann KEIN Fokus (am Handy öffnete er die Tastatur über dem Knopf), sondern
   // der Absende-Knopf rollt in den Blick: Uhrzeit tippen, „vereinbaren“ tippen, fertig.
-  const erstesFeld = useRef<HTMLInputElement>(null);
   const absendeKnopf = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!zeit || rueckruf) return;
     requestAnimationFrame(() => {
-      if (persoenlich) absendeKnopf.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      else erstesFeld.current?.focus({ preventScroll: true });
+      if (persoenlich) absendeKnopf.current?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      else felder.current.name?.focus({ preventScroll: true });
     });
   }, [zeit, rueckruf, persoenlich]);
 
@@ -161,7 +198,13 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
     e.preventDefault();
     setFehler("");
     // 19.09.2026: Die Firma ist freiwillig — auch Privatpersonen buchen FIAON Global.
-    if (!f.name.trim() || !f.email.trim() || !f.telefon.trim()) { setFehler(t.pflicht); return; }
+    // E-510: Jedes Pflichtfeld wird geprüft; der Fokus springt ins erste Feld mit Fehler, die Meldung steht am Feld.
+    const gefunden: Partial<Record<Pflichtfeld, Feldfehler>> = {};
+    for (const k of PFLICHT) { const x = pruefeFeld(k, f[k]); if (x) gefunden[k] = x; }
+    setFeldFehler(gefunden);
+    const erstes = PFLICHT.find((k) => gefunden[k]);
+    if (erstes) { setVersucht(true); felder.current[erstes]?.focus(); return; }
+    setVersucht(false);
     setSendet(true);
     try {
       // messung (E-231): fbp/fbc und die Einwilligung — der Server meldet das Gespräch damit selbst an Meta,
@@ -190,23 +233,48 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
     }
   };
 
-  const feld = (k: keyof typeof leer, label: string, typ = "text", auto?: string) => (
-    <label>
-      <span className="fg-label">{label}</span>
-      <input ref={k === "name" ? erstesFeld : undefined} className="fg-feld" type={typ} autoComplete={auto} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-    </label>
-  );
+  const fw = FELD_WORT[sp];
+  const fehlerZahl = PFLICHT.filter((k) => feldFehler[k]).length;
+  const feld = (k: keyof typeof leer, label: string, typ = "text", auto?: string, letztes = false) => {
+    const id = `${kennung}-${k}`;
+    // Ist es eines der drei Pflichtfelder? Dann trägt es Prüfung und Meldung.
+    const pk: Pflichtfeld | null = k === "name" || k === "email" || k === "telefon" ? k : null;
+    const art: Feldfehler | undefined = pk ? feldFehler[pk] : undefined;
+    return (
+      <div className={`fg-feldgruppe${art ? ` ${art}` : ""}`}>
+        <label className="fg-label" htmlFor={id}>{label}</label>
+        <input ref={(el) => { felder.current[k] = el; }} id={id} className="fg-feld" type={typ} autoComplete={auto} value={f[k]}
+          inputMode={typ === "email" ? "email" : typ === "tel" ? "tel" : undefined} enterKeyHint={letztes ? "send" : "next"}
+          autoCapitalize={typ === "email" ? "none" : undefined} spellCheck={typ === "email" || typ === "tel" ? false : undefined}
+          aria-required={pk ? true : undefined} aria-invalid={art ? true : undefined} aria-describedby={art ? `${id}-f` : undefined}
+          onChange={(e) => {
+            const wert = e.target.value;
+            setF({ ...f, [k]: wert });
+            // Beim Tippen wird nicht geprüft — eine Meldung verschwindet aber, sobald das Feld stimmt.
+            if (pk && art && !pruefeFeld(pk, wert)) setFeldFehler((alt) => ({ ...alt, [pk]: undefined }));
+          }}
+          onBlur={(e) => {
+            // Beim Verlassen: Unvollständiges wird gemeldet. Ein leeres Feld erst nach dem Absenden — wer nur durchgeht, wird nicht ermahnt.
+            if (!pk) return;
+            const x = pruefeFeld(pk, e.target.value);
+            setFeldFehler((alt) => ({ ...alt, [pk]: x === "fehlt" ? (alt[pk] ? "fehlt" : undefined) : x ?? undefined }));
+          }} />
+        {art && pk && <p className="fg-feld-fehler" id={`${id}-f`}>{fw[art][pk]}</p>}
+      </div>
+    );
+  };
   const formular = (
-    <div className="fg-form">
-      {paketName && <p className="hinweis" style={{ margin: 0 }}>{t.paketGewaehlt(paketName)}</p>}
-      {persoenlich && <p className="hinweis" style={{ margin: 0 }}>{t.persoenlichPruefen}</p>}
+    <div className="fg-form" aria-busy={sendet || undefined}>
+      {paketName && <p className="hinweis fg-form-vorab">{t.paketGewaehlt(paketName)}</p>}
+      {persoenlich && <p className="hinweis fg-form-vorab">{t.persoenlichPruefen}</p>}
+      {/* Zusammenfassung über den Feldern: nur, wenn nach dem Absenden etwas fehlt — oder der Server etwas meldet. */}
+      {((versucht && fehlerZahl > 0) || fehler) && <p className="fehler fg-form-meldung" role="alert">{versucht && fehlerZahl > 0 ? fw.zusammen(fehlerZahl) : fehler}</p>}
       <div className="zwei">{feld("name", t.name, "text", "name")}{feld("firma", t.firma, "text", "organization")}</div>
       <div className="zwei">{feld("email", t.email, "email", "email")}{feld("telefon", t.telefon, "tel", "tel")}</div>
       {formularRueckruf && feld("wunschzeit", t.wunschzeit)}
-      {feld("thema", t.thema)}
+      {feld("thema", t.thema, "text", undefined, true)}
       <input className="fg-falle" tabIndex={-1} autoComplete="off" aria-hidden="true" value={f.falle} onChange={(e) => setF({ ...f, falle: e.target.value })} />
-      {fehler && <p className="fehler" role="alert">{fehler}</p>}
-      <button ref={absendeKnopf} type="submit" className="fg-knopf voll" disabled={sendet}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
+      <button ref={absendeKnopf} type="submit" className="fg-knopf voll" disabled={sendet} aria-busy={sendet || undefined}>{sendet ? t.sendet : formularRueckruf ? t.anfragen : tag && zeit ? t.buchen(wannKurz(tag, zeit)) : t.anfragen}</button>
       <p className="hinweis">{t.waHinweis}</p>
       <p className="hinweis">{t.datenschutz}</p>
     </div>
@@ -279,7 +347,10 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
 
       <div className="fg-kal" aria-live="polite">
         {fertig ? (
-          <div className="fg-fertig">
+          <div className="fg-fertig" role="status">
+            <svg className="fg-fertig-haken" width="44" height="44" viewBox="0 0 44 44" fill="none" aria-hidden="true" focusable="false">
+              <circle cx="22" cy="22" r="20.5" pathLength={1} /><path d="M13.5 22.5l5.8 5.8 11.4-12.1" pathLength={1} />
+            </svg>
             <h3>{fertig.art === "termin" ? t.fertigTitel : t.anfrageTitel}</h3>
             <p>{fertig.art === "termin" ? t.fertigText(fertig.wann || "", fertig.wer || "") : t.anfrageText}</p>
           </div>
@@ -290,7 +361,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
             {formularRueckruf ? (
               <>
                 <h3>{t.rueckfallTitel}</h3>
-                {ohneKalender && <p className="hinweis" style={{ marginTop: 0 }}>{t.rueckfallText}</p>}
+                {ohneKalender && <p className="hinweis oben">{t.rueckfallText}</p>}
                 {formular}
               </>
             ) : zeit && tag ? (
@@ -298,14 +369,14 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
               <div className="fg-schritt zwei">
                 <div className="fg-gewaehlt">
                   <b>{t.gewaehlt(tagText(tag, true) as string, zeit)}</b>
-                  <button type="button" className="fg-textknopf" onClick={() => { setZeit(null); setFehler(""); }}>{t.zurueck}</button>
+                  <button type="button" className="fg-textknopf" onClick={() => { setZeit(null); setFehler(""); setFeldFehler({}); }}>{t.zurueck}</button>
                 </div>
                 {formular}
               </div>
             ) : (
               // ── Schritt 1: Tag und Uhrzeit ──
               <div className="fg-schritt eins">
-                {(persoenlich || vorlageFolgt) && <p className="hinweis" style={{ marginTop: 0, marginBottom: 14 }}>{persoenlich ? t.persoenlich : t.persoenlichLaedt}</p>}
+                {(persoenlich || vorlageFolgt) && <p className="hinweis oben">{persoenlich ? t.persoenlich : t.persoenlichLaedt}</p>}
                 <h3>{t.tagWaehlen}</h3>
                 <div className="fg-tage" role="group" aria-label={t.tagWaehlen}>
                   {tage.map((x) => {
@@ -317,7 +388,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
                     );
                   })}
                 </div>
-                <h3 style={{ marginTop: 22 }}>{t.zeitWaehlen}</h3>
+                <h3 className="zweite">{t.zeitWaehlen}</h3>
                 <div className="fg-zeiten" role="group" aria-label={t.zeitWaehlen}>
                   {zeiten.map((z) => <button key={z} type="button" className="fg-zeit" aria-pressed={zeit === z} onClick={() => setZeit(z)}>{z}</button>)}
                 </div>
@@ -326,7 +397,7 @@ export default function GlobalGespraech({ paket, thema, punkte = true }: { paket
             )}
 
             {!ohneKalender && !(zeit && tag && !rueckruf) && (
-              <button type="button" className="fg-rueckruf-schalter" onClick={() => { setRueckruf(!rueckruf); setFehler(""); }}>
+              <button type="button" className="fg-rueckruf-schalter" onClick={() => { setRueckruf(!rueckruf); setFehler(""); setFeldFehler({}); }}>
                 {rueckruf ? t.zurueckKalender : t.rueckrufStatt}
               </button>
             )}

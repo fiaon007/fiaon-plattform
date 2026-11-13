@@ -9,7 +9,7 @@
 // Neu erzeugen:   npx tsx scripts/seo-fragen-erzeugen.ts
 // Nur prüfen:     npx tsx scripts/seo-fragen-erzeugen.ts --pruefen
 //
-// Seiten: /privat (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), / (14), /en (14), /preise (6), /en/pricing (6), /en/private (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
+// Seiten: /privat (6), /was-ist-fiaon (6), /en/what-is-fiaon (6), /privatkunden (8), /en/personal (8), / (8), /en (8), /preise (6), /en/pricing (6), /en/private (4), /kreditkarte (5), /en/credit-card (5), /partnerbank-dkb (7), /en/partner-bank-dkb (7), /partnernetzwerk (5), /en/partner-network (5), /partnernetzwerk/vorsorge (5), /en/partner-network/financial-planning (5), /partnernetzwerk/recht (5), /en/partner-network/legal (5), /partnernetzwerk/steuern (5), /en/partner-network/tax (5), /partnernetzwerk/energie (5), /en/partner-network/energy (5), /partnernetzwerk/telekommunikation (5), /en/partner-network/telecoms (5), /oesterreich (5), /en/austria (5), /schweiz (5), /en/switzerland (5), /sicherheit (11), /en/security (11), /kontakt (5), /en/contact (5), /investoren (4), /datenraum (3), /fiaon-erfahrungen (8), /en/how-fiaon-works (8), /termin (6), /en/book-a-call (6), /vergleich (5), /en/compare (5), /hilfe (37), /en/help (37), /ueber-uns (5), /en/about (5), /transparenz (4), /en/transparency (4), /kredit-ohne-schufa (6), /en/loans-without-schufa (6), /bonitaet-verbessern (6), /en/strengthen-your-credit-file (6), /auskunfteien (5), /en/credit-bureaus (5), /schufa-score-verstehen (6), /en/schufa-score (6), /bonitaetsauskunft-beantragen (9), /en/request-your-credit-report (10), /inkasso-brief-erhalten (6), /en/debt-collection-letter (6), /eintrag-verjaehrung (6), /en/entries-and-limitation (6), /girokonto-trotz-negativer-bonitaet (7), /en/current-account-despite-poor-credit (7), /ratenzahlung-und-bonitaet (6), /en/instalments-and-credit-file (6), /selbstauskunft-checkliste (6), /en/reading-your-credit-report (6), /schufa-neutral-anfragen (6), /en/schufa-neutral-enquiries (6), /schufa-eintrag-loeschen (5), /en/delete-a-schufa-entry (5), /plattform-konzept (5), /en/how-the-platform-works (5), /werkzeuge/basiskonto (5), /en/tools/basic-account (5), /werkzeuge/kartenkosten (5), /en/tools/card-costs (5), /werkzeuge/schuldenplan (5), /en/tools/debt-free-plan (5), /werkzeuge/dispo-rechner (5), /en/tools/overdraft-calculator (5), /werkzeuge/pfaendungsrechner (5), /en/tools/attachment-calculator (5), /werkzeuge/widerspruch (5), /en/tools/deletion-request (5), /werkzeuge/mahnbescheid (5), /en/tools/court-payment-order (5), /werkzeuge/inkasso-antwort (5), /en/tools/reply-to-debt-collector (5), /werkzeuge/mahngebuehren (5), /en/tools/reminder-fees (5), /werkzeuge/ratenplan (5), /en/tools/instalment-plan (5), /werkzeuge (4), /en/tools (4), /status (5), /en/status (5), /karriere (5), /en/careers (5), /partner (3), /en/partners (3), /presse (3), /en/press (3), /werkzeuge/kreditrechner (5), /en/tools/loan-calculator (5), /werkzeuge/umschuldung (5), /en/tools/debt-consolidation (5), /werkzeuge/schulden-check (5), /en/tools/debt-check (5)
 // ═══════════════════════════════════════════════════════════════════════════
 export type SeoFrage = { f: string; a: string };
 
@@ -162,118 +162,70 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
   ],
   "/": [
     {
-      "f": "Was kostet es?",
-      "a": "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator."
+      "f": "Was übernimmt FIAON Global — und was tue ich selbst?",
+      "a": "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und bereiten Ihre Anträge für Konten, Karten und Finanzierung vollständig vor. Sie wählen den Namen, laden Ihren Reisepass hoch, unterzeichnen die Unterlagen und stellen die Anträge bei den Instituten selbst. Über Eintragung und Steuernummern entscheiden Bundesstaat und US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut."
+    },
+    {
+      "f": "Sagt FIAON eine Finanzierung zu?",
+      "a": "Nein. Über jede Finanzierung entscheidet allein das finanzierende Institut. FIAON vergibt und vermittelt keine Kredite; wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Der Kapitalrahmen, den Sie wählen, ist ein Ziel, kein Versprechen. Was FIAON für Ihre Finanzierung einbringt, steht verbindlich in Ihrem persönlichen Angebot."
+    },
+    {
+      "f": "Was gilt, wenn die Finanzierung ausbleibt?",
+      "a": "Dann greift die Geld-zurück-Garantie. Kommt die Auszahlung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen vierzehn Tagen nach Fristende. Ihre Gesellschaft bleibt Ihnen. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags; für Konto und Karten gilt sie nicht. Über die Finanzierung selbst entscheidet das finanzierende Institut."
+    },
+    {
+      "f": "Für wen passt das Mandat nicht?",
+      "a": "Für Vorhaben ohne tatsächliche Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Sind Sie unsicher, vereinbaren Sie ein Gespräch — wir sagen es Ihnen auch dann, wenn die Antwort ein Nein ist."
+    },
+    {
+      "f": "Kosten Kreditkarten zusätzlich?",
+      "a": "Bei FIAON nicht. Auf Wunsch bereiten wir Ihre Kreditkartenanträge vor — privat und für Ihre Gesellschaft, ohne zusätzliches Honorar von FIAON. Über jede Karte und ihren Rahmen entscheidet der Herausgeber; seine Gebühren und Zinsen legt er selbst fest, und Sie tragen sie. Firmenkreditkarten setzen in der Regel die persönliche Haftung des Inhabers voraus."
+    },
+    {
+      "f": "Wer klärt Rechts- und Steuerfragen?",
+      "a": "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Ihr Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen."
+    },
+    {
+      "f": "Was geschieht ab dem achtzehnten Monat?",
+      "a": "Ab dem achtzehnten Monat prüfen wir mit Ihnen, ob eine Umschuldung die Finanzierungskosten senken oder eine Aufstockung Ihren Spielraum für Investitionen erweitern kann. Voraussetzung ist die laufende Jahresbetreuung; sie verlängert sich nicht von selbst. Den Antrag stellt Ihre Gesellschaft. Ob und zu welchen Bedingungen, entscheidet das jeweilige Institut."
     },
     {
       "f": "Muss ich in die USA reisen?",
-      "a": "Nein. Bis 950.000 US-Dollar läuft alles aus der Ferne; unsere Partner in den USA nehmen die Wege vor Ort wahr. Ab 1 Mio. US-Dollar treffen wir Sie persönlich in Miami."
-    },
-    {
-      "f": "Wer leistet Rechts- und Steuerberatung?",
-      "a": "Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz, jeweils im eigenen Mandat. FIAON koordiniert und trägt ihre Honorare für die Leistungen, die Ihr Vertrag nennt."
-    },
-    {
-      "f": "Was ist, wenn die Finanzierung nicht kommt?",
-      "a": "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut."
-    },
-    {
-      "f": "Entscheidet FIAON über Karten und Rahmen?",
-      "a": "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge."
-    },
-    {
-      "f": "Muss das Kapital in den USA ausgegeben werden?",
-      "a": "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen."
-    },
-    {
-      "f": "Wie prüfe ich, ob FIAON seriös ist?",
-      "a": "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto."
-    },
-    {
-      "f": "Wer ist mein Vertragspartner?",
-      "a": "Die FIAON LTD mit Sitz in London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Ihr Vertrag ist auf Deutsch und unterliegt deutschem Recht. Steuerberater, US-CPA und Anwälte arbeiten auf Ihr Mandat; ihre Honorare trägt FIAON."
-    },
-    {
-      "f": "Was ist mit Steuern?",
-      "a": "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Unser Partner-Steuerberater prüft Ihre Lage vor der Gründung, unser US-CPA übernimmt die erste jährliche US-Meldung — beide auf Ihr Mandat, die Honorare trägt FIAON."
-    },
-    {
-      "f": "In welchem US-Bundesstaat gründen Sie?",
-      "a": "Wir gründen in Delaware, Florida oder Wyoming — Sie wählen mit uns im Startgespräch. Wenn nichts anderes dafür spricht, gründen wir in Delaware: Mit dem Express des Staats steht die Gesellschaft in der Regel nach ein bis zwei Werktagen, und Delaware hat den besten Ruf bei Banken und Geldgebern. Florida trägt derzeit langsamer ein (oft rund zwei Wochen, ohne Express), Wyoming ist schnell und am günstigsten im Unterhalt."
-    },
-    {
-      "f": "Welche Unterlagen brauchen Sie von mir?",
-      "a": "Für den Vertrag Ihren Namen, Ihr Geburtsdatum und Ihre Anschrift — Sie tragen sie selbst auf Ihrer Angebotsseite ein. Nach der Unterschrift laden Sie Ihren Reisepass hoch. Alles Weitere bereiten wir vor; Sie unterschreiben, was wir Ihnen fertig zuschicken."
-    },
-    {
-      "f": "Kann ich sofort beauftragen?",
-      "a": "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen und tragen Ihre Angaben ein. Ihr Angebot zeigt den vollständigen Vertrag; Sie unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail."
-    },
-    {
-      "f": "Wie bezahle ich?",
-      "a": "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Kein Abo, keine Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst."
-    },
-    {
-      "f": "Für wen passt es nicht?",
-      "a": "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist."
+      "a": "Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami."
     }
   ],
   "/en": [
     {
-      "f": "What does it cost?",
-      "a": "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range. From the second year you can book annual care. You see your exact price in the configurator."
+      "f": "What does FIAON Global do — and what do I do myself?",
+      "a": "We form your US company, assemble every document, apply for its tax identification numbers and prepare your applications for accounts, cards and financing in full. You choose the name, upload your passport, sign the documents and submit the applications to the institutions yourself. The state and the US tax authority decide on registration and the numbers; the institution concerned decides on accounts, cards and financing."
+    },
+    {
+      "f": "Does FIAON promise financing?",
+      "a": "No. Every financing decision rests with the lender alone. FIAON does not lend and does not broker loans; we prepare the applications in full and support your company through to the decision. The funding target you choose is a goal, not a promise. What FIAON contributes to your financing is set out in your personal proposal and forms part of your agreement."
+    },
+    {
+      "f": "What applies if the financing does not arrive?",
+      "a": "The money-back commitment then applies. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us — within fourteen days of the end of that period. Your company remains yours. The conditions are set out in clause 4 of your agreement; the commitment does not extend to accounts and cards. The financing decision itself rests with the lender."
+    },
+    {
+      "f": "Who is the engagement not suited to?",
+      "a": "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we will tell you so even where the answer is no."
+    },
+    {
+      "f": "Do credit cards cost extra?",
+      "a": "Not with FIAON. On request we prepare your personal and business credit card applications, at no additional fee from FIAON. Each card issuer decides on the card and its limit and sets its own charges and interest, which you bear. Business credit cards generally require a personal guarantee from the owner."
+    },
+    {
+      "f": "Who deals with legal and tax matters?",
+      "a": "Partner lawyers and US certified public accountants (CPAs) from our partner network — in their own professional capacity. FIAON bears their fees for the services named in your agreement. FIAON itself is not a law firm. A US company is not a tax scheme; your tax liability in your country of residence remains."
+    },
+    {
+      "f": "What happens from the eighteenth month?",
+      "a": "From the eighteenth month, we review with you whether refinancing could reduce your financing costs or an increase could widen your scope for investment. This requires annual administration to be in place; it does not renew automatically. Your company submits the application. Whether, and on what terms, is for the lender concerned to decide."
     },
     {
       "f": "Do I have to travel to the United States?",
-      "a": "No. Below US$1 million everything runs remotely; our partners in the US take care of what has to happen on the ground. From US$1 million we meet you in person in Miami."
-    },
-    {
-      "f": "Who provides legal and tax work?",
-      "a": "Lawyers and US accountants (CPAs) from our partner network, each under their own mandate. FIAON coordinates and bears their fees for the services named in your agreement."
-    },
-    {
-      "f": "What if the financing does not come?",
-      "a": "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing."
-    },
-    {
-      "f": "Does FIAON decide on cards and limits?",
-      "a": "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence."
-    },
-    {
-      "f": "Does the capital have to be spent in the US?",
-      "a": "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes."
-    },
-    {
-      "f": "How do I check that FIAON is reputable?",
-      "a": "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the complete agreement in your personal offer before you sign. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account."
-    },
-    {
-      "f": "Who is my contracting party?",
-      "a": "FIAON LTD, based in London and registered at Companies House (England and Wales) under number 17318250. Your contract is governed by German law. Tax advisers, US CPAs and lawyers act under your engagement; FIAON pays their fees."
-    },
-    {
-      "f": "What about taxes?",
-      "a": "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Our partner tax adviser reviews your position before formation and our US CPA handles the first annual US filing — both under your engagement, with FIAON paying their fees."
-    },
-    {
-      "f": "Which US state do you form in?",
-      "a": "We form in Delaware, Florida or Wyoming — you choose with us in the kick-off call. Unless something speaks for another state, we form in Delaware: with the state’s express service the company usually stands after one or two business days, and Delaware has the strongest reputation with banks and lenders. Florida is registering more slowly at present (often around two weeks, no express option); Wyoming is fast and the cheapest to maintain."
-    },
-    {
-      "f": "Which documents do you need from me?",
-      "a": "For the agreement your name, your date of birth and your address — you enter them yourself on your offer page. After signing you upload your passport. We prepare everything else; you sign what we send you ready to sign."
-    },
-    {
-      "f": "Can I order straight away?",
-      "a": "Yes. You put your offer together in the configurator and enter your details. Your offer shows the complete agreement; you sign on screen. The agreement and the invoice arrive by email."
-    },
-    {
-      "f": "How do I pay?",
-      "a": "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. No subscription, no instalments; annual care from the second year is voluntary and does not renew automatically."
-    },
-    {
-      "f": "Who is it not for?",
-      "a": "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no."
+      "a": "Not for the formation or your company’s tax identification number. Whether an institution requires you to attend in person for an account, a card or financing is for that institution to decide. From US$1 million, we work with you in person in Miami."
     }
   ],
   "/preise": [

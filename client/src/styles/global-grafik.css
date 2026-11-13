@@ -763,7 +763,7 @@
 .fg-visitenkarte-bild{position:relative;flex:0 0 84px;width:84px;height:84px;border-radius:50%;padding:3px;box-sizing:border-box;
   background:conic-gradient(from 220deg,var(--navy),#7ea6e0 35%,#dbe7f7 50%,#7ea6e0 65%,var(--navy));animation:fg-vk-ring 1.2s var(--fg-ease) .15s both}
 /* Atmen: ein weicher Hof, der alle paar Sekunden einmal aufgeht — „hier ist ein Mensch“. */
-.fg-visitenkarte-bild::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(18,40,74,.18);opacity:0;animation:fg-vk-atmen 4.8s ease-out 1.6s infinite}
+.fg-visitenkarte-bild::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(18,40,74,.18);opacity:0;animation:fg-vk-atmen 4.8s ease-out 1.6s 1 both} /* E-510: der Hof geht EINMAL auf — keine Schleife */
 .fg-visitenkarte-bild .innen{display:block;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#e8eef7;box-shadow:0 0 0 2px #fff}
 .fg-visitenkarte-bild img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 32%;transform:scale(1.32);transform-origin:50% 36%;
   animation:fg-vk-bild 1s var(--fg-ease) .2s both;transition:transform .7s var(--fg-ease)}
@@ -984,7 +984,7 @@
   padding:28px 32px;border-radius:18px;background:linear-gradient(118deg,var(--navy-2) 0%,var(--navy) 58%,#1b3c7e 100%);color:#fff;
   box-shadow:0 26px 54px -30px rgba(11,28,54,.6)}
 .fg-eb-team::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-  background:linear-gradient(100deg,transparent 35%,rgba(140,194,255,.13) 48%,transparent 61%);transform:translateX(-100%);animation:fg-eb-glanz 8s var(--fg-ease-io) 1.5s infinite}
+  background:linear-gradient(100deg,transparent 35%,rgba(140,194,255,.13) 48%,transparent 61%);transform:translateX(-100%);animation:fg-eb-glanz 8s var(--fg-ease-io) 1.5s 1 both} /* E-510: einmal */
 @keyframes fg-eb-glanz{45%,100%{transform:translateX(100%)}}
 .fg-eb-team-kopf{display:grid;justify-items:start;gap:8px;min-width:0}
 .fg-eb-team-kopf>b{display:block;font:300 25px/1.15 var(--serif);letter-spacing:-.01em}

@@ -108,7 +108,9 @@ html .fg.fg .fg-textknopf:hover { text-decoration: underline; text-underline-off
 html .fg.fg .fg-knoepfe { gap: 12px; margin-top: 32px; }
 html .fg.fg .fg-haken { color: #1d4ed8; }
 
-/* ── Das Glas: eine Rezeptur für Karten der ganzen Business-Welt ─────────── */
+/* ── Das Glas: eine Rezeptur für Karten der ganzen Business-Welt ───────────
+   E-510 (13.11.2026): Karten, Rollen, Tabelle, Hinweis, Verzeichnis, „Weiterlesen“ und das Inhaltsverzeichnis am Handy
+   stehen nicht mehr in dieser Liste — sie stehen an Haarlinien (Abschnitt E-510 am Ende der Datei). */
 html .fg.fg .fg-tarif:not(.vip),
 html .fg.fg .fg-karte,
 html .fg.fg .fg-kal,
@@ -122,27 +124,16 @@ html .fg.fg .dk-glas,
 html .fg.fg .gv-mappe,
 html .fg.fg .fd-merkblatt,
 html .fg.fg .fd-karteikarte,
-html .fg.fg .fd-kurz,
-html .fg.fg .fd-karte,
-html .fg.fg .fd-rolle,
-html .fg.fg .fd-tabelle,
-html .fg.fg .fd-hinweis,
 html .fg.fg .fd-paket,
 html .fg.fg .fd-tafel,
 html .fg.fg .fd-finder,
-html .fg.fg .fd-inhalt-mobil,
 html .fg.fg .fd-gespraech-karte,
-html .fg.fg .fd-weiter-raster a,
-html .fg.fg .fd-verzeichnis,
 html .gs.gs .gs-blatt,
 html .gs.gs .gs-seite {
   background: var(--glas); border: 1px solid var(--glas-kante); border-radius: 26px;
   box-shadow: var(--glas-licht), var(--glas-schatten);
   -webkit-backdrop-filter: var(--glas-blur); backdrop-filter: var(--glas-blur);
 }
-html .fg.fg .fd-verzeichnis { padding: 4px 24px; }
-html .fg.fg .fd-verzeichnis a { border-bottom-color: var(--linie); }
-html .fg.fg .fd-verzeichnis li:last-child a { border-bottom: 0; }
 
 /* Erscheinen: etwas tiefer und kleiner, dann weich an den Platz — nur opacity und transform. */
 html .fg.fg .dk-auf { transform: translateY(28px) scale(.985); transition: opacity 1s var(--kurve), transform 1s var(--kurve); }
@@ -371,13 +362,18 @@ html .fg.fg .fg-fertig h3 { font: 300 24px/1.2 var(--ap); }
 html .fg.fg .fg-kal-person span { background: var(--knopf-blau); font-family: var(--ap); font-weight: 300; }
 html .fg.fg .fg-kal-direkt a, html .fg.fg .fg-rueckruf-schalter { color: #1d4ed8; }
 
-/* Fragen: jede Frage ein Glasstreifen */
-html .fg.fg .dk-frage { margin-top: 10px; padding: 0 22px; border: 1px solid var(--glas-kante); border-radius: 20px; background: var(--glas); box-shadow: var(--glas-licht), 0 14px 30px -26px rgba(18, 40, 74, .4); transition: background .25s; }
-html .fg.fg .dk-frage:hover { background: var(--glas-dicht); }
-html .fg.fg .dk-frage button { font: 400 16px/1.4 var(--ap); padding: 20px 0; }
-html .fg.fg .dk-frage .plus { border-color: rgba(18, 40, 74, .18); color: #1d4ed8; border-radius: 50%; }
-html .fg.fg .dk-frage.auf .plus { background: #288dfa; border-color: #288dfa; color: #fff; }
-html .fg.fg .dk-frage .antwort p { font: 300 15px/1.7 var(--ap); color: #3b4658; }
+/* Fragen: eine Liste an Haarlinien (E-510, 13.11.2026 — vorher jede Frage ein eigener Glasstreifen). Die Frage ist eine
+   Überschrift mit Knopf (DunkleBuehne.tsx, Fragen mit `ebene`), die Antwort klappt weich auf (grid-template-rows). */
+html .fg.fg .dk-frage { margin-top: 0; padding: 0; border: 0; border-bottom: 1px solid var(--g-linie); border-radius: 0; background: none; box-shadow: none; transition: none; }
+html .fg.fg .dk-frage:first-child { border-top: 1px solid var(--g-linie-stark); }
+html .fg.fg .dk-frage:hover { background: none; }
+html .fg.fg .dk-frage-titel { margin: 0; font: inherit; letter-spacing: inherit; }
+html .fg.fg .dk-frage button { min-height: 64px; padding: var(--g-4) 0; font: 400 var(--g-t-text)/1.4 var(--ap); color: var(--g-tinte); transition: color var(--g-dauer-1); }
+html .fg.fg .dk-frage button:hover, html .fg.fg .dk-frage.auf button { color: var(--g-handlung); }
+html .fg.fg .dk-frage .plus { width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--g-handlung); transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+html .fg.fg .dk-frage.auf .plus { background: none; border: 0; color: var(--g-handlung); transform: rotate(45deg); }
+html .fg.fg .dk-frage .antwort { transition: grid-template-rows var(--g-dauer-2) var(--g-kurve-aus); }
+html .fg.fg .dk-frage .antwort p { padding: 0 var(--g-7) var(--g-5) 0; max-width: var(--g-lesen); font: 400 var(--g-t-text)/1.7 var(--ap); color: var(--g-text); }
 html .fg.fg.fg-neu .fg-fragen-kopf .fg-fragen-alle, html .fg.fg .fg-fragen-alle { color: #1d4ed8; text-decoration: none; font-weight: 500; }
 html .fg.fg .fg-fragen-mehr { color: #1d4ed8; }
 
@@ -534,8 +530,7 @@ html .gs.gs .gs-sicher { border-top-color: rgba(18, 40, 74, .08); }
   html .fg.fg .fg-h2 { font-size: clamp(28px, 8vw, 36px); }
   html .fg.fg .fg-lead { font-size: 16px; }
   html .fg.fg .fg-kal { padding: 22px 18px; }
-  html .fg.fg .dk-frage { padding: 0 16px; border-radius: 16px; }
-  html .fg.fg .dk-frage button { font-size: 15px; padding: 16px 0; }
+  html .fg.fg .dk-frage .antwort p { padding-right: 0; }
   html .fg.fg .fg-kleingedruckt { padding: 0 18px 20px; }
   html .fg.fg .gv .gv-mappe { padding: 20px; }
 }
@@ -787,3 +782,463 @@ html .fg.fg .fd-kopf .fd-kopf-knoepfe { margin-top: clamp(32px, 3.4vw, 48px); }
 html .fg.fg .sn { margin-top: clamp(28px, 3vw, 44px); }
 /* Wörter mit Bindestrich bleiben in Unterseiten-Überschriften ab Tablet-Breite zusammen (Wortbruch.tsx). */
 @media (min-width: 721px) { html .fg.fg .fd-h1 .fd-wort { white-space: nowrap; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-510 (13.11.2026) — DAS GEMEINSAME SYSTEM IM KANZLEI-TON
+   Justin (12.11.): „wie eine Kanzlei, wie internationale Unternehmensberater … das Design besser, mehr Animationen,
+   cleaner — einfach WOW“. Leitidee (UX-Prüfung 3.1): Papier, Linie, eine Bühne.
+     · Linien statt Kästen. Ein Kasten bleibt nur, was ein Gegenstand ist (Karteikarte, Karte „Ein Mandat“, Kalender).
+     · EINE dunkle Fläche je Seite: auf den Unterseiten das Schlussband. Kopf der Karteikarte und Fuß sind hell.
+     · Jede Bewegung läuft einmal: Ein Abschnitt erscheint als Ganzes, seine Linie zeichnet sich, Zeilen folgen gestaffelt.
+       Keine Schleife, keine Feder mit Überschwingen, nichts hängt an der Scrollposition.
+     · Lesbar: Fließtext in Gewicht 400, nichts unter 13 px (Augenzeilen 12 px), Text mindestens 4,5:1.
+   Alle Maße aus styles/global-tokens.css. Teil 1 gilt für jede öffentliche Global-Seite (.fg), Teil 2 für die Vorlage
+   der Unterseiten (.fd), Teil 3 für Landingpages (.lp) und Rechtsseiten (.gr).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── TEIL 1 · jede öffentliche Global-Seite ──────────────────────────────── */
+html .fg.fg {
+  --leise: var(--g-leise);
+  --kurve: var(--g-kurve-aus);
+  --feder: var(--g-kurve-aus);            /* keine Feder mit Überschwingen */
+  --knopf-blau: var(--g-knopf);           /* weiße Schrift auch am oberen Rand 4,8:1 (vorher 3,3:1) */
+  --knopf-blau-schatten: inset 0 1px 0 rgba(255, 255, 255, .28), 0 12px 26px -16px rgba(29, 78, 216, .8);
+}
+/* Fokus: ein Ring für hell (mit weißem Innenring), einer für die dunkle Fläche. */
+html .fg.fg :focus-visible { outline: 2px solid var(--g-fokus); outline-offset: 3px; }
+html .fg.fg :is(a, button, summary, [tabindex]):focus-visible { box-shadow: 0 0 0 3px #fff; }
+html .fg.fg .fg-schluss.ruhig:not(.hell) :focus-visible { outline-color: var(--g-d-fokus); box-shadow: 0 0 0 3px var(--g-d-tief); }
+/* Augenzeile: eine Form, 12 px. */
+html .fg.fg .fg-auge { font-size: var(--g-t-auge); letter-spacing: .16em; }
+/* Knopf: 1 px hoch beim Überfahren, 98 % beim Drücken — ohne Feder. */
+html .fg.fg .fg-knopf { transition: transform var(--g-dauer-1) var(--g-kurve-aus), box-shadow var(--g-dauer-2) ease, background var(--g-dauer-1) ease; }
+html .fg.fg .fg-knopf:not(.hell):hover { background: var(--g-knopf-drueber); }
+html .fg.fg .fg-schluss .fg-knopf:not(.hell):hover { background: #eef5ff; }
+/* Erstgespräch: die Karte ist ein Gegenstand (Papier), keine Glaswolke; Text in Gewicht 400. */
+html .fg.fg .fg-fertig p, html .fg.fg .fg-visitenkarte p { font-weight: 400; }
+/* Alte Schmuck-Schleifen der Pakettafeln laufen nirgends mehr. */
+html .fg.fg :is(.fg-vip-rand, .fg-vip-licht, .fg-funke, .fg-ticket, .fg-ticket-blatt::after, .fg-ticket-route .spur, .fg-eb-team::after) { animation: none; }
+
+/* ── TEIL 2 · die Vorlage der Unterseiten (.fd) ──────────────────────────── */
+/* Kopf */
+html .fg.fg.fd .dk-auf { transform: translateY(var(--g-hub)); transition: opacity var(--g-dauer-4) var(--g-kurve-aus), transform var(--g-dauer-4) var(--g-kurve-aus); }
+html .fg.fg.fd .dk-auf.da { transform: none; }
+html .fg.fg.fd .fd-krumen { font-size: var(--g-t-fein); color: var(--g-leise); }
+html .fg.fg.fd .fd-krumen a { padding: 12px 0; margin: -12px 0; color: var(--g-leise); }
+html .fg.fg.fd .fd-krumen a:hover { color: var(--g-handlung); }
+html .fg.fg.fd .fd-lead { font: 300 1.1875rem/1.6 var(--ap); color: var(--g-text); max-width: 58ch; }
+@media (max-width: 1023px) { html .fg.fg.fd .fd-lead { font: 400 1.0625rem/1.62 var(--ap); } }
+html .fg.fg.fd .fd-leiste { border-top-color: var(--g-linie-stark); }
+html .fg.fg.fd .fd-leiste > div + div { border-left-color: var(--g-linie); }
+html .fg.fg.fd .fd-leiste span, html .fg.fg.fd .fd-kopf-stand { font-size: var(--g-t-fein); line-height: 1.5; color: var(--g-leise); }
+@media (max-width: 640px) { html .fg.fg.fd .fd-leiste > div, html .fg.fg.fd .fd-leiste > div + div { border-bottom-color: var(--g-linie); } }
+
+/* Die Karteikarte „Auf einen Blick“: ein Blatt Papier mit hellem Kopf (vorher Navy — die dunkle Fläche ist das Schlussband). */
+html .fg.fg .fd-karteikarte { background: var(--g-papier); border: 1px solid var(--g-linie); border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fd-karteikarte > summary { padding: var(--g-4) var(--g-5); background: none; color: var(--g-tinte); border-bottom: 1px solid var(--g-linie-stark); }
+html .fg.fg .fd-karteikarte > summary .gross { font: 300 var(--g-t-h3)/1.2 var(--ap); letter-spacing: -.015em; }
+html .fg.fg .fd-karteikarte > summary .kennung { font-size: var(--g-t-auge); letter-spacing: .16em; color: var(--g-leise); }
+/* Beschriftung über dem Wert: lange Wörter („Vertragspartner“) brechen nicht in den Wert, der Wert hat die ganze Breite. */
+html .fg.fg .fd-karteikarte dl > div { grid-template-columns: minmax(0, 1fr); gap: 3px; padding: var(--g-3) var(--g-5); border-top-color: var(--g-linie); }
+html .fg.fg .fd-karteikarte dt { font: 500 var(--g-t-auge)/1.4 var(--ap); letter-spacing: .12em; color: var(--g-leise); padding-top: 0; }
+html .fg.fg .fd-karteikarte dd { font: 400 var(--g-t-klein)/1.55 var(--ap); color: var(--g-tinte); }
+html .fg.fg .fd-karteikarte-mehr > summary { min-height: var(--g-tippen); padding: 0 var(--g-5); border-top-color: var(--g-linie); font: 500 var(--g-t-klein)/1 var(--ap); color: var(--g-handlung); }
+html .fg.fg .fd-karteikarte-mehr > summary::after, html .fg.fg .fd-karteikarte:not(.breit) > summary::after, html .fg.fg .fd-quellen > summary::after { border-color: var(--g-handlung); transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+html .fg.fg .fd-karteikarte-fuss { padding: var(--g-3) var(--g-5); background: none; border-top-color: var(--g-linie); font-size: var(--g-t-fein); color: var(--g-leise); }
+html .fg.fg .fd-karteikarte:not(.breit) { border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-1); }
+html .fg.fg .fd-karteikarte:not(.breit) > summary { min-height: 52px; padding: 0 var(--g-4); border-bottom: 0; }
+html .fg.fg .fd-karteikarte:not(.breit) > summary .klein { font: 500 var(--g-t-klein)/1.3 var(--ap); }
+html .fg.fg .fd-karteikarte:not(.breit)[open] > summary { border-bottom: 1px solid var(--g-linie); }
+@media (max-width: 520px) { html .fg.fg .fd-karteikarte dl > div { padding: var(--g-3) var(--g-4); } html .fg.fg .fd-karteikarte-mehr > summary, html .fg.fg .fd-karteikarte-fuss { padding-left: var(--g-4); padding-right: var(--g-4); } }
+
+/* Lesefortschritt: weich — und ohne JS, wo der Browser es kann (die Linie hängt dann direkt am Scrollen des Dokuments). */
+html .fg.fg .fd-fortschritt i { background: linear-gradient(90deg, var(--g-handlung), var(--g-licht)); transition: transform var(--g-dauer-1) linear; }
+@supports (animation-timeline: scroll()) {
+  html .fg.fg .fd-fortschritt i { transition: none; animation: fd-fortschritt 1ms linear both; animation-timeline: scroll(root block); }
+  @keyframes fd-fortschritt { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+}
+
+/* Inhaltsverzeichnis: eine Marke gleitet zum gelesenen Abschnitt (nur transform), Lesezeit darüber, „Nach oben“ darunter. */
+html .fg.fg.fd .fd-inhalt p { display: grid; gap: 6px; margin-bottom: var(--g-4); font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-inhalt-zeit { font: 400 var(--g-t-fein)/1.3 var(--ap); letter-spacing: 0; text-transform: none; color: var(--g-leise); }
+html .fg.fg.fd .fd-inhalt ol { position: relative; border-left-color: var(--g-linie); }
+html .fg.fg.fd .fd-inhalt ol a { min-height: 36px; align-content: center; padding: 6px 8px 6px 14px; font: 400 var(--g-t-fein)/1.42 var(--ap); color: var(--g-leise); transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-inhalt ol a i { font: 500 var(--g-t-auge)/1.5 var(--ap); color: var(--g-leise); transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-inhalt ol a:hover, html .fg.fg.fd .fd-inhalt ol a[aria-current="true"] { color: var(--g-tinte); }
+html .fg.fg.fd .fd-inhalt ol a[aria-current="true"] i { color: var(--g-handlung); }
+html .fg.fg.fd .fd-inhalt ol a[aria-current="true"] { border-left-color: var(--g-handlung); }
+html .fg.fg.fd .fd-inhalt ol[data-marke] a[aria-current="true"] { border-left-color: transparent; }
+html .fg.fg.fd .fd-inhalt ol[data-marke]::after { content: ""; position: absolute; left: -1px; top: 0; width: 2px; height: var(--fd-marke-h, 0); background: var(--g-handlung); transform: translateY(var(--fd-marke-y, 0)); transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+html .fg.fg.fd .fd-inhalt-oben { display: inline-flex; align-items: center; min-height: 36px; margin: var(--g-2) 0 0 14px; font: 400 var(--g-t-fein)/1 var(--ap); color: var(--g-leise); text-decoration: none; transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-inhalt-oben::before { content: ""; width: 7px; height: 7px; margin-right: 10px; border-left: 1.5px solid currentColor; border-top: 1.5px solid currentColor; transform: rotate(45deg) translate(2px, 2px); }
+html .fg.fg.fd .fd-inhalt-oben:hover { color: var(--g-handlung); }
+html .fg.fg.fd .fd-inhalt-fuss { margin-top: var(--g-4); }
+html .fg.fg.fd .fd-inhalt-fuss .fg-knopf { min-height: var(--g-tippen); padding: 0 12px; font-size: var(--g-t-fein); white-space: nowrap; }
+/* Am Handy: eine Klappzeile an zwei Haarlinien, jede Zeile eine volle Tippfläche. */
+html .fg.fg.fd .fd-inhalt-mobil { margin: var(--g-6) 0 0; border: 0; border-top: 1px solid var(--g-linie-stark); border-bottom: 1px solid var(--g-linie); border-radius: 0; background: none; }
+html .fg.fg.fd .fd-inhalt-mobil summary { min-height: 52px; padding: 0; gap: var(--g-3); font: 500 var(--g-t-klein)/1.3 var(--ap); color: var(--g-tinte); }
+html .fg.fg.fd .fd-inhalt-mobil summary .fd-inhalt-zeit { margin-left: auto; }
+html .fg.fg.fd .fd-inhalt-mobil summary::after { border-color: var(--g-handlung); transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+html .fg.fg.fd .fd-inhalt-mobil ol { padding: 0 0 var(--g-2); }
+html .fg.fg.fd .fd-inhalt-mobil a { min-height: var(--g-tippen); align-items: center; padding: 6px 0; border-top-color: var(--g-linie); font: 400 var(--g-t-klein)/1.4 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-inhalt-mobil a i { font: 500 var(--g-t-auge)/1.5 var(--ap); color: var(--g-handlung); }
+
+/* Eine linke Kante: Ab 1280 px beginnt das Inhaltsverzeichnis an derselben Linie wie Wortmarke und Überschrift. */
+@media (min-width: 1280px) { html .fg.fg.fd .fd-koerper.neu { padding-left: calc(50% - 600px + var(--g-rand)); } }
+
+/* „Kurz beantwortet“ */
+html .fg.fg.fd .fd-antwort { border-left-color: var(--g-handlung); }
+html .fg.fg.fd .fd-marke { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-antwort p { font: 300 1.25rem/1.55 var(--ap); letter-spacing: -.01em; color: var(--g-tinte); max-width: 60ch; }
+@media (max-width: 640px) { html .fg.fg.fd .fd-antwort p { font-size: 1.1875rem; } }
+
+/* Abschnitte: Jeder erscheint EINMAL als Ganzes, seine Haarlinie zeichnet sich von links. Der Startzustand hängt an
+   data-an="0", das erst der Haken setzt (bewegung.ts) — ohne JS, im Druck und bei „weniger Bewegung“ steht alles sofort. */
+html .fg.fg.fd .fd-abschnitt { position: relative; }
+html .fg.fg.fd .fd-abschnitt + .fd-abschnitt, html .fg.fg.fd .fd-text.neu > .fd-rand + .fd-abschnitt { border-top: 0; }
+html .fg.fg.fd .fd-text.neu > .fd-abschnitt:not(.fd-rand)::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--g-linie); transform-origin: left center; }
+/* Der erste Abschnitt steht direkt unter „Kurz beantwortet“ — dort trennt der Abstand, keine Linie. */
+html .fg.fg.fd .fd-text.neu > .fd-inhalt-mobil + .fd-abschnitt::before { display: none; }
+html .fg.fg.fd .fd-abschnitt[data-an="0"] { opacity: 0; transform: translateY(var(--g-hub)); }
+html .fg.fg.fd .fd-abschnitt[data-an="0"]::before { transform: scaleX(0); }
+html .fg.fg.fd .fd-abschnitt[data-an="1"] { animation: fd-an var(--g-dauer-4) var(--g-kurve-aus) backwards; }
+html .fg.fg.fd .fd-text.neu > .fd-abschnitt[data-an="1"]::before { animation: fd-linie var(--g-dauer-5) var(--g-kurve-weg) backwards; }
+@keyframes fd-an { from { opacity: 0; transform: translateY(var(--g-hub)); } }
+@keyframes fd-linie { from { transform: scaleX(0); } }
+@keyframes fd-zeile { from { opacity: 0; transform: translateY(12px); } }
+/* Zeilen von Listen folgen gestaffelt (80 ms, höchstens sechs Stufen). */
+html .fg.fg.fd [data-an="1"] :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a),
+html .fg.fg.fd[data-an] .fd-weiter[data-an="1"] .fd-weiter-raster > a,
+html .fg.fg.fd .fd-weiter[data-an="1"] .fd-weiter-raster > a {
+  animation: fd-zeile var(--g-dauer-3) var(--g-kurve-aus) backwards; animation-delay: calc(200ms + var(--fd-i, 6) * var(--g-staffel));
+}
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(1) { --fd-i: 0; }
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(2) { --fd-i: 1; }
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(3) { --fd-i: 2; }
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(4) { --fd-i: 3; }
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(5) { --fd-i: 4; }
+html .fg.fg.fd :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a):nth-child(6) { --fd-i: 5; }
+html .fg.fg.fd .fd-weiter[data-an="0"] { opacity: 0; transform: translateY(var(--g-hub)); }
+html .fg.fg.fd .fd-weiter[data-an="1"] { animation: fd-an var(--g-dauer-4) var(--g-kurve-aus) backwards; }
+
+/* Schrift der Abschnitte: lesbar */
+html .fg.fg.fd .fd-nr { font-size: var(--g-t-auge); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-rand .fd-nr { font-size: var(--g-t-auge); }
+html .fg.fg.fd .fd-p, html .fg.fg.fd .fd-html p { font: 400 var(--g-t-text)/1.7 var(--ap); color: var(--g-text); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-block-lead { font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-text); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-nach { font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-tinte); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-html ul, html .fg.fg.fd .fd-html ol { font: 400 var(--g-t-text)/1.65 var(--ap); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-html h3 { font: 500 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.012em; }
+html .fg.fg.fd .fd-html a, html .fg.fg.fd .fd-p a.fd-begriff { text-decoration: underline; text-decoration-color: var(--g-linie-stark); text-underline-offset: 3px; text-decoration-thickness: 1px; transition: text-decoration-color var(--g-dauer-1), color var(--g-dauer-1); }
+html .fg.fg.fd .fd-html a { color: var(--g-handlung); }
+html .fg.fg.fd .fd-html a:hover, html .fg.fg.fd .fd-p a.fd-begriff:hover { color: var(--g-handlung); text-decoration-color: currentColor; }
+/* Listen: ein Strich statt Haken-Kreis */
+html .fg.fg.fd .fd-punkte { gap: var(--g-3); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-punkte li { position: relative; display: block; padding-left: 28px; font: 400 var(--g-t-text)/1.6 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-punkte li::before { content: ""; position: absolute; left: 0; top: .8em; width: 14px; height: 1px; background: var(--g-handlung); }
+html .fg.fg.fd .fd-mehr { margin-top: var(--g-4); min-height: var(--g-tippen); }
+html .fg.fg.fd .fd-fuss { font-size: var(--g-t-fein); color: var(--g-leise); }
+
+/* Karten: an Haarlinien, zweispaltig, ohne Kasten und ohne Symbol-Kachel */
+html .fg.fg.fd .fd-karten { gap: 0 var(--g-7); margin-top: var(--g-6); border-top: 1px solid var(--g-linie-stark); }
+html .fg.fg.fd .fd-karten.drei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html .fg.fg.fd .fd-karte { position: relative; padding: var(--g-5) 0; border: 0; border-bottom: 1px solid var(--g-linie); border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transition: none; }
+html .fg.fg.fd a.fd-karte { padding-right: 36px; }
+html .fg.fg.fd a.fd-karte:hover, html .fg.fg.fd .fd-karten.neu .fd-karte:hover { transform: none; box-shadow: none; border-color: var(--g-linie); }
+html .fg.fg.fd .fd-karte .tag { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-karte h3, html .fg.fg.fd .fd-karten.neu .fd-karte h3 { margin-top: var(--g-2); font: 400 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.014em; color: var(--g-tinte); transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-karte h3:first-child { margin-top: 0; }
+html .fg.fg.fd .fd-karte p { margin-top: var(--g-2); font: 400 var(--g-t-text)/1.62 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-karte .pfeil { position: absolute; right: 0; top: calc(var(--g-5) + 4px); color: var(--g-handlung); transition: transform var(--g-dauer-1) var(--g-kurve-aus); }
+html .fg.fg.fd a.fd-karte:hover h3 { color: var(--g-handlung); }
+html .fg.fg.fd a.fd-karte:hover .pfeil { transform: translateX(4px); }
+@media (max-width: 640px) { html .fg.fg.fd .fd-karten, html .fg.fg.fd .fd-karten.drei { grid-template-columns: minmax(0, 1fr); } }
+
+/* Rollen: drei Spalten an einer Linie, FIAON mit der Linie in Handlungsfarbe */
+html .fg.fg.fd .fd-rollen { gap: 0 var(--g-6); margin-top: var(--g-5); }
+html .fg.fg.fd .fd-rolle, html .fg.fg.fd .fd-rolle.fiaon { padding: var(--g-4) 0 var(--g-5); border: 0; border-top: 1px solid var(--g-linie-stark); border-radius: 0; background: none; box-shadow: none; }
+html .fg.fg.fd .fd-rolle.fiaon { border-top: 2px solid var(--g-handlung); padding-top: calc(var(--g-4) - 1px); }
+html .fg.fg.fd .fd-rolle h3 { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-rolle li { padding-left: 20px; font: 400 var(--g-t-klein)/1.55 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-rolle li::before, html .fg.fg.fd .fd-rolle.fiaon li::before { top: .78em; width: 10px; height: 1px; border-radius: 0; background: var(--g-linie-stark); }
+@media (max-width: 820px) { html .fg.fg.fd .fd-rolle { padding-bottom: var(--g-5); } }
+
+/* Tabelle: Haarlinien, kein Glas (vorher hatte die Apple-Schicht sie wieder in einen Kasten gesteckt) */
+html .fg.fg.fd .fd-tabelle.neu { margin-top: var(--g-5); background: none; border: 0; border-top: 1px solid var(--g-linie-stark); border-bottom: 1px solid var(--g-linie); border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; overflow-x: auto; }
+html .fg.fg.fd .fd-tabelle.neu th { background: none; border-bottom-color: var(--g-linie); font: 500 var(--g-t-auge)/1.4 var(--ap); letter-spacing: .12em; color: var(--g-leise); white-space: normal; }
+html .fg.fg.fd .fd-tabelle.neu td { border-top-color: var(--g-linie); font: 400 var(--g-t-klein)/1.55 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-tabelle.neu td:first-child, html .fg.fg.fd .fd-tabelle.neu .zeilenkopf { font: 500 var(--g-t-klein)/1.5 var(--ap); letter-spacing: 0; text-transform: none; color: var(--g-tinte); }
+html .fg.fg.fd .fd-tabelle.neu .zeilenkopf { border-top-color: var(--g-linie); }
+html .fg.fg.fd .fd-tabelle.neu th.hervor { color: var(--g-handlung); box-shadow: inset 0 2px 0 var(--g-handlung); }
+html .fg.fg.fd .fd-tabelle.neu th.hervor, html .fg.fg.fd .fd-tabelle.neu td.hervor { background: rgba(29, 78, 216, .045); }
+html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td { background: rgba(18, 40, 74, .025); }
+html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td.hervor { background: rgba(29, 78, 216, .07); }
+/* Die erste Spalte klebt nur dort, wo die Tabelle wirklich seitlich rollen kann (schmale Tablets) — sonst trägt sie
+   keinen eigenen Grund und steht wie jede Zelle an ihrer Linie. */
+@media (min-width: 561px) {
+  html .fg.fg.fd .fd-tabelle.neu tbody td:first-child, html .fg.fg.fd .fd-tabelle.neu tbody th:first-child, html .fg.fg.fd .fd-tabelle.neu thead th:first-child { position: static; background: none; box-shadow: none; padding-left: 0; }
+  html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td:first-child, html .fg.fg.fd .fd-tabelle.neu tbody tr:hover th:first-child { background: none; }
+}
+@media (min-width: 561px) and (max-width: 700px) {
+  html .fg.fg.fd .fd-tabelle.neu tbody td:first-child, html .fg.fg.fd .fd-tabelle.neu tbody th:first-child, html .fg.fg.fd .fd-tabelle.neu thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--g-grund); box-shadow: 1px 0 0 var(--g-linie); }
+  html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td:first-child, html .fg.fg.fd .fd-tabelle.neu tbody tr:hover th:first-child { background: var(--g-grund); }
+}
+@media (max-width: 560px) {
+  /* Am Telefon: je Zeile ein Block an einer starken Linie — kein Kärtchen. */
+  html .fg.fg.fd .fd-tabelle.neu { border: 0; overflow: visible; }
+  html .fg.fg.fd .fd-tabelle.neu tr { margin-top: var(--g-5); border: 0; border-top: 1px solid var(--g-linie-stark); border-radius: 0; background: none; overflow: visible; }
+  html .fg.fg.fd .fd-tabelle.neu tbody tr:first-child { margin-top: 0; }
+  html .fg.fg.fd .fd-tabelle.neu tbody th, html .fg.fg.fd .fd-tabelle.neu td:first-child { padding: var(--g-3) 0 var(--g-2) !important; background: none !important; font: 500 var(--g-t-text)/1.4 var(--ap); }
+  html .fg.fg.fd .fd-tabelle.neu td { padding: var(--g-2) 0 var(--g-3); border-top: 1px solid var(--g-linie); }
+  html .fg.fg.fd .fd-tabelle.neu tbody tr:first-child td { border-top: 1px solid var(--g-linie); }
+  html .fg.fg.fd .fd-tabelle.neu td[data-label]::before { font: 500 var(--g-t-auge)/1.4 var(--ap); letter-spacing: .12em; color: var(--g-leise); }
+  html .fg.fg.fd .fd-tabelle.neu td.hervor, html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td, html .fg.fg.fd .fd-tabelle.neu tbody tr:hover td.hervor { background: none; }
+  html .fg.fg.fd .fd-tabelle.neu td.hervor { color: var(--g-tinte); box-shadow: inset 2px 0 0 var(--g-handlung); padding-left: var(--g-3); }
+}
+
+/* Hinweis und Randnotiz: eine Linie links, kein Kasten, kein Symbol */
+html .fg.fg .fd-hinweis { margin-top: var(--g-5); padding: 2px 0 4px var(--g-5); background: none; border: 0; border-left: 2px solid var(--g-linie-stark); border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fd-hinweis li { font: 400 var(--g-t-klein)/1.65 var(--ap); color: var(--g-text); }
+html .fg.fg .fd-hinweis li::before { font: 500 var(--g-t-fein)/1.9 var(--ap); color: var(--g-handlung); }
+html .fg.fg.fd .fd-text.neu > .fd-rand { border-left-color: var(--g-linie-stark); }
+html .fg.fg.fd .fd-rand .fd-block-lead { font-size: var(--g-t-klein); }
+html .fg.fg.fd .fd-rand-punkte li, html .fg.fg.fd .fd-text.neu > .fd-rand .fd-rand-punkte li { font: 400 var(--g-t-klein)/1.6 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-rand-punkte li::before { font: 500 var(--g-t-fein)/1.75 var(--ap); font-style: normal; color: var(--g-handlung); }
+
+/* Etappen als Weg: Text in Gewicht 400 */
+html .fg.fg.fd .fd-weg-inhalt h3 { font: 500 var(--g-t-text)/1.4 var(--ap); }
+html .fg.fg.fd .fd-weg-inhalt p { font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-weg-inhalt .dauer { font-size: var(--g-t-fein); letter-spacing: .02em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-weg-knoten { font: 500 var(--g-t-auge)/1 var(--ap); }
+@container (min-width: 600px) { html .fg.fg.fd .fd-weg-buehne.quer .fd-weg-inhalt p { font-size: var(--g-t-klein); line-height: 1.6; } }
+
+/* Verzeichnis: die Liste an Haarlinien (Vorbild: „Ein Mandat“ auf der Startseite) */
+html .fg.fg.fd .fd-verzeichnis { margin-top: var(--g-5); padding: 0; border-top: 1px solid var(--g-linie-stark); }
+html .fg.fg.fd .fd-verzeichnis a { padding: var(--g-5) 0; border-bottom: 1px solid var(--g-linie); }
+html .fg.fg.fd .fd-verzeichnis .tag { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-verzeichnis .titel { font: 400 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.014em; transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-verzeichnis .text { font: 400 var(--g-t-klein)/1.6 var(--ap); color: var(--g-text); max-width: 62ch; }
+html .fg.fg.fd .fd-verzeichnis .pfeil { color: var(--g-handlung); transition: transform var(--g-dauer-1) var(--g-kurve-aus); }
+html .fg.fg.fd .fd-verzeichnis a:hover .titel { color: var(--g-handlung); }
+
+/* Österreich: statt der Karte „Ein Mandat“ der Satz zum Honorar und der Weg zum Gespräch — an einer Linie */
+html .fg.fg.fd .fd-mandat-at { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--g-5) var(--g-6); margin-top: var(--g-6); padding: var(--g-5) 0; border-top: 1px solid var(--g-linie-stark); border-bottom: 1px solid var(--g-linie); }
+html .fg.fg.fd .fd-mandat-at p { flex: 1 1 320px; max-width: 46ch; font: 300 1.1875rem/1.5 var(--ap); letter-spacing: -.008em; color: var(--g-tinte); }
+@media (max-width: 560px) { html .fg.fg.fd .fd-mandat-at .fg-knopf { width: 100%; } }
+
+/* Vermerk und Quellen */
+html .fg.fg.fd .fd-vermerk { margin-top: var(--g-8); padding-top: var(--g-5); border-top-color: var(--g-linie-stark); font-size: var(--g-t-fein); color: var(--g-leise); max-width: var(--g-lesen); }
+html .fg.fg.fd .fd-vermerk a { color: var(--g-handlung); text-decoration-color: var(--g-linie-stark); }
+html .fg.fg.fd .fd-vermerk li { padding: 4px 0; }
+html .fg.fg.fd .fd-quellen > summary { min-height: var(--g-tippen); }
+
+/* Erstgespräch: ein Kopf-Muster (Augenzeile, Überschrift, Satz darunter, linksbündig); die Karte ist Papier */
+html .fg.fg.fd .fd-gespraech { scroll-margin-top: 72px; }
+html .fg.fg.fd .fd-gespraech .fg-kopf { grid-template-columns: minmax(0, 1fr); gap: 0; align-items: start; margin-bottom: 0; }
+html .fg.fg.fd .fd-gespraech .fg-kopf .fg-lead { margin-top: var(--g-4); max-width: 52ch; font: 400 var(--g-t-lead)/1.6 var(--ap); }
+html .fg.fg.fd .fd-gespraech-karte { margin-top: var(--g-6); padding: var(--g-5); background: var(--g-papier); border: 1px solid var(--g-linie); border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg.fd .fd-gespraech-karte b { font: 300 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.014em; color: var(--g-tinte); }
+
+/* Weiterlesen: ein Verzeichnis an Haarlinien, zwei Spalten — keine vier Kästen */
+html .fg.fg.fd .fd-weiter { max-width: var(--g-breite); padding: 0 var(--g-rand) var(--g-abschnitt-eng); }
+html .fg.fg.fd .fd-weiter > .fg-auge { margin: 0; }
+html .fg.fg.fd .fd-weiter-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--g-7); margin-top: var(--g-4); border-top: 1px solid var(--g-linie-stark); }
+html .fg.fg.fd .fd-weiter-raster a { position: relative; display: grid; gap: 4px; align-content: start; min-height: 0; padding: var(--g-5) 44px var(--g-5) 0; border: 0; border-bottom: 1px solid var(--g-linie); border-radius: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transition: none; }
+html .fg.fg.fd .fd-weiter-raster a:hover { transform: none; box-shadow: none; border-color: var(--g-linie); }
+html .fg.fg.fd .fd-weiter-raster .tag { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg.fd .fd-weiter-raster .titel { font: 400 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.014em; color: var(--g-tinte); transition: color var(--g-dauer-1); }
+html .fg.fg.fd .fd-weiter-raster .text { font: 400 var(--g-t-klein)/1.55 var(--ap); color: var(--g-text); }
+html .fg.fg.fd .fd-weiter-raster .pfeil { position: absolute; right: 0; top: 50%; margin: -8px 0 0; color: var(--g-handlung); transition: transform var(--g-dauer-1) var(--g-kurve-aus); }
+html .fg.fg.fd .fd-weiter-raster a:hover .titel { color: var(--g-handlung); }
+html .fg.fg.fd .fd-weiter-raster a:hover .pfeil { transform: translateX(4px); }
+@media (max-width: 720px) { html .fg.fg.fd .fd-weiter-raster { grid-template-columns: minmax(0, 1fr); } }
+
+/* Das Schlussband — die EINE dunkle Fläche der Unterseite: eine ruhige Navy-Glasfläche auf Inhaltsbreite, Schrift und
+   die Handlungen. Kein Bild, kein laufendes Licht (der Grund steht still). Der Rahmen zeichnet sich nicht — er ist da. */
+html .fg.fg .fg-schluss.ruhig { padding: 0 var(--g-rand) var(--g-abschnitt-eng); background: none; border-radius: 0; text-align: left; color: var(--g-d-text); }
+html .fg.fg .fg-schluss.ruhig > .fg-rahmen {
+  position: relative; isolation: isolate; overflow: hidden; max-width: var(--g-breite); padding: clamp(48px, 7vw, 104px) clamp(24px, 6.5vw, 96px);
+  border-radius: var(--g-r-flaeche); background: var(--g-d-grund); box-shadow: var(--g-schatten-3), inset 0 1px 0 rgba(255, 255, 255, .16);
+}
+html .fg.fg .fg-schluss.ruhig > .fg-rahmen::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(64% 96% at 100% 0%, rgba(40, 141, 250, .36), rgba(40, 141, 250, 0) 62%), radial-gradient(52% 76% at 0% 100%, rgba(29, 78, 216, .26), rgba(29, 78, 216, 0) 60%);
+}
+html .fg.fg .fg-schluss.ruhig > .fg-rahmen::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 1px solid var(--g-d-linie); pointer-events: none; }
+html .fg.fg .fg-schluss.ruhig .fg-schluss-text { max-width: 680px; }
+html .fg.fg .fg-schluss.ruhig .fg-h2 { margin: 0; max-width: 20ch; text-align: left; font: 200 var(--g-t-h2)/1.08 var(--ap); letter-spacing: -.028em; color: var(--g-d-tinte); }
+html .fg.fg .fg-schluss.ruhig .fg-lead { margin: var(--g-5) 0 0; max-width: 50ch; font: 400 var(--g-t-lead)/1.6 var(--ap); color: var(--g-d-text); }
+html .fg.fg .fg-schluss.ruhig .fg-knoepfe { justify-content: flex-start; margin-top: var(--g-6); }
+html .fg.fg .fg-schluss.ruhig .fg-knopf:not(.hell) { background: #fff; color: var(--g-d-tief); border-color: #fff; box-shadow: inset 0 1px 0 #fff, 0 18px 40px -22px rgba(0, 0, 0, .6); }
+html .fg.fg .fg-schluss.ruhig .fg-knopf.hell { background: rgba(255, 255, 255, .1); color: #fff; border-color: var(--g-d-linie-stark); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fg-schluss.ruhig .fg-knopf.hell:hover { background: rgba(255, 255, 255, .18); }
+/* Steht der Honorarrechner auf der Seite, ist er die dunkle Fläche — das Schlussband steht dann hell an einer Linie. */
+html .fg.fg .fg-schluss.ruhig.hell > .fg-rahmen { padding: var(--g-7) 0 0; border-radius: 0; background: none; box-shadow: none; border-top: 1px solid var(--g-linie-stark); overflow: visible; }
+html .fg.fg .fg-schluss.ruhig.hell > .fg-rahmen::before, html .fg.fg .fg-schluss.ruhig.hell > .fg-rahmen::after { display: none; }
+html .fg.fg .fg-schluss.ruhig.hell .fg-h2 { color: var(--g-tinte); font-weight: 300; --glanz-grund: var(--g-tinte); --glanz-mitte: #1d4ed8; --glanz-licht: #6fb0ff; }
+html .fg.fg .fg-schluss.ruhig.hell .fg-h2 em { color: var(--g-leise); -webkit-text-fill-color: var(--g-leise); }
+html .fg.fg .fg-schluss.ruhig.hell .fg-lead { color: var(--g-text); }
+html .fg.fg .fg-schluss.ruhig.hell .fg-knopf:not(.hell) { background: var(--g-knopf); color: #fff; border-color: transparent; box-shadow: var(--knopf-blau-schatten); }
+html .fg.fg .fg-schluss.ruhig.hell .fg-knopf.hell { background: var(--glas-dicht); color: var(--g-tinte); border-color: var(--glas-kante); box-shadow: var(--glas-licht); }
+@media (max-width: 560px) { html .fg.fg .fg-schluss.ruhig .fg-knoepfe { flex-direction: column; align-items: stretch; } html .fg.fg .fg-schluss.ruhig .fg-knopf { width: 100%; } }
+@media (max-width: 820px) { html .fg.fg .fd .fg-schluss.ruhig, html .fg.fg.fd .fg-schluss.ruhig { padding-bottom: var(--g-abschnitt-eng); } }
+/* Das Vertrauens-Band steht direkt über dem Schlussband: unten enger, damit beide zusammengehören. */
+html .fg.fg.fd .gvt { padding-bottom: var(--g-8); }
+
+/* Handlungsleiste am Handy: zwei Wege — in Österreich einer */
+html .fg.fg .fd-mobil a { min-height: 48px; padding: 0 10px; font: 500 var(--g-t-klein)/1.15 var(--ap); text-align: center; }
+html .fg.fg .fd-mobil.eins a { flex: 1 1 100%; }
+html .fg.fg .fd-mobil { transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+
+/* ── Kontrastmodus von Windows (forced-colors): Verlaufs-Schrift, Glas und Knöpfe in Systemfarben ── */
+@media (forced-colors: active) {
+  html .fg.fg .fg-h1, html .fg.fg .fg-h2, html .fg.fg .fg-glanz, html .fg.fg .fd-leiste b, html .fg.fg .fg-h1 em, html .fg.fg .fg-h2 em {
+    background: none; -webkit-background-clip: border-box; background-clip: border-box; color: CanvasText; -webkit-text-fill-color: CanvasText; animation: none;
+  }
+  html .fg.fg .fg-knopf, html .fg.fg .fd-mobil a { background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; forced-color-adjust: none; }
+  html .fg.fg .fd-karteikarte, html .fg.fg .fd-gespraech-karte, html .fg.fg .fg-kal, html .fg.fg .fg-visitenkarte, html .fg.fg .fd-mobil { background: Canvas; border: 1px solid CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html .fg.fg .fg-schluss.ruhig > .fg-rahmen { background: Canvas; border: 1px solid CanvasText; box-shadow: none; }
+  html .fg.fg .fg-schluss.ruhig > .fg-rahmen::before { display: none; }
+  html .fg.fg .fg-schluss.ruhig .fg-h2, html .fg.fg .fg-schluss.ruhig .fg-lead { color: CanvasText; -webkit-text-fill-color: CanvasText; }
+  html .fg.fg.fd .fd-abschnitt::before, html .fg.fg.fd .fd-punkte li::before, html .fg.fg.fd .fd-inhalt ol::after { background: CanvasText; }
+  html .fg.fg::before { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .fg.fg.fd .fd-abschnitt[data-an], html .fg.fg.fd .fd-abschnitt[data-an]::before, html .fg.fg.fd .fd-weiter[data-an], html .fg.fg.fd [data-an] :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a) { animation: none; opacity: 1; transform: none; }
+  html .fg.fg.fd .dk-auf { transform: none; transition: none; }
+  html .fg.fg .fg-knopf:hover, html .fg.fg .fg-knopf:active { transform: none; }
+}
+@media print {
+  html .fg.fg.fd .fd-abschnitt[data-an], html .fg.fg.fd .fd-abschnitt[data-an]::before, html .fg.fg.fd .fd-weiter[data-an] { animation: none !important; opacity: 1 !important; transform: none !important; }
+  html .fg.fg .fg-schluss.ruhig > .fg-rahmen { background: none; box-shadow: none; border: 1px solid #12284a; }
+  html .fg.fg .fg-schluss.ruhig .fg-h2, html .fg.fg .fg-schluss.ruhig .fg-lead { color: #0c1a2e !important; -webkit-text-fill-color: #0c1a2e !important; }
+}
+
+/* ── E-510 · Formular „Gespräch vereinbaren“ (GlobalGespraech.tsx): Fehler am Feld, klare Zustände (UX-Prüfung 3.13) ── */
+html .fg.fg .fg-form { gap: var(--g-4); margin-top: var(--g-5); }
+html .fg.fg .fg-form .zwei { gap: var(--g-4); }
+html .fg.fg .fg-feldgruppe { display: grid; gap: 6px; min-width: 0; align-content: start; }
+html .fg.fg .fg-label { margin: 0; font: 500 var(--g-t-fein)/1.4 var(--ap); letter-spacing: 0; text-transform: none; color: var(--g-tinte); }
+html .fg.fg .fg-feld {
+  min-height: 52px; padding: 0 var(--g-4); border-radius: var(--g-r-feld); border: 1px solid var(--g-linie-stark); background: var(--g-papier);
+  font: 400 1rem/1.3 var(--ap); color: var(--g-tinte); transition: border-color var(--g-dauer-1), box-shadow var(--g-dauer-1);
+}
+html .fg.fg .fg-feld:hover { border-color: rgba(18, 40, 74, .46); }
+html .fg.fg .fg-feld:focus, html .fg.fg .fg-feld:focus-visible { outline: 0; border-color: var(--g-handlung); box-shadow: 0 0 0 3px rgba(29, 78, 216, .18); }
+html .fg.fg .fg-feld:disabled { opacity: .5; cursor: default; }
+/* „Fehlt noch“: blaue Linie links, der Satz in Tinte. „Falsch“: Linie und Satz in Rot. Sonst nichts Buntes. */
+html .fg.fg .fg-feldgruppe.fehlt .fg-feld { box-shadow: inset 3px 0 0 var(--g-fehlt); }
+html .fg.fg .fg-feldgruppe.fehlt .fg-feld:focus { box-shadow: inset 3px 0 0 var(--g-fehlt), 0 0 0 3px rgba(29, 78, 216, .18); }
+html .fg.fg .fg-feldgruppe.falsch .fg-feld { border-color: var(--g-falsch); box-shadow: inset 3px 0 0 var(--g-falsch); }
+html .fg.fg .fg-feldgruppe.falsch .fg-feld:focus { box-shadow: inset 3px 0 0 var(--g-falsch), 0 0 0 3px rgba(180, 35, 24, .16); }
+html .fg.fg .fg-feld-fehler { margin: 0; font: 400 var(--g-t-fein)/1.45 var(--ap); color: var(--g-tinte); }
+html .fg.fg .fg-feldgruppe.falsch .fg-feld-fehler { color: var(--g-falsch); }
+html .fg.fg .fg-kal .fg-form-meldung { margin: 0; padding: 2px 0 2px var(--g-3); border-left: 2px solid var(--g-fehlt); font: 400 var(--g-t-klein)/1.5 var(--ap); color: var(--g-tinte); }
+html .fg.fg .fg-kal .hinweis { font-size: var(--g-t-fein); color: var(--g-leise); }
+html .fg.fg .fg-kal .hinweis.oben, html .fg.fg .fg-form .fg-form-vorab { margin: 0 0 var(--g-3); }
+html .fg.fg .fg-kal h3 { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg .fg-kal h3.zweite { margin-top: var(--g-5); }
+html .fg.fg .fg-form .fg-knopf[aria-busy="true"] { opacity: .78; cursor: progress; }
+/* Der Kalender ist ein Gegenstand: Papier mit einer Kante, Radius 16. Tage und Zeiten als ruhige Felder. */
+html .fg.fg .fg-kal { background: var(--g-papier); border: 1px solid var(--g-linie); border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fg-tag, html .fg.fg .fg-zeit { border-radius: var(--g-r-feld); background: var(--g-papier); border-color: var(--g-linie-stark); box-shadow: none; transition: border-color var(--g-dauer-1), background var(--g-dauer-1), color var(--g-dauer-1); }
+html .fg.fg .fg-tag:hover, html .fg.fg .fg-zeit:hover { transform: none; border-color: var(--g-handlung); background: var(--g-papier); }
+html .fg.fg .fg-tag[aria-pressed="true"], html .fg.fg .fg-zeit[aria-pressed="true"] { background: var(--g-handlung); border-color: var(--g-handlung); box-shadow: none; }
+html .fg.fg .fg-tag small { font-size: var(--g-t-auge); color: var(--g-leise); }
+html .fg.fg .fg-tag[aria-pressed="true"] small { color: rgba(255, 255, 255, .86); }
+html .fg.fg .fg-gewaehlt { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--g-4); padding: var(--g-2) var(--g-4); border-radius: var(--g-r-feld); background: rgba(29, 78, 216, .06); border-color: rgba(29, 78, 216, .2); }
+html .fg.fg .fg-kal .fg-textknopf, html .fg.fg .fg-rueckruf-schalter, html .fg.fg .fg-wege .fg-textknopf { display: inline-flex; align-items: center; min-height: var(--g-tippen); color: var(--g-handlung); }
+html .fg.fg .fg-kal-direkt { font-size: var(--g-t-fein); color: var(--g-leise); }
+html .fg.fg .fg-kal-direkt a { display: inline-flex; align-items: center; min-height: var(--g-tippen); color: var(--g-handlung); }
+/* Visitenkarte (von Justin abgenommen, E-309): bleibt eine Karte — als Papier mit einer Kante statt als Glaswolke. */
+html .fg.fg .fg-visitenkarte { background: var(--g-papier); border: 1px solid var(--g-linie); border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .fg-visitenkarte-titel { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg .fg-visitenkarte p { font-size: var(--g-t-klein); color: var(--g-text); }
+html .fg.fg .fg-visitenkarte-kontakt a { min-height: var(--g-tippen); }
+/* Erfolg: ein Haken zeichnet sich einmal. */
+html .fg.fg .fg-fertig-haken { display: block; margin-bottom: var(--g-4); color: var(--g-handlung); }
+html .fg.fg .fg-fertig-haken circle, html .fg.fg .fg-fertig-haken path { stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; animation: fg-fertig-zug var(--g-dauer-4) var(--g-kurve-weg) backwards; }
+html .fg.fg .fg-fertig-haken path { stroke-width: 2; animation-delay: var(--g-dauer-2); }
+@keyframes fg-fertig-zug { from { stroke-dashoffset: 1; } }
+html .fg.fg .fg-fertig h3 { font: 300 var(--g-t-h3)/1.25 var(--ap); letter-spacing: -.014em; text-transform: none; color: var(--g-tinte); }
+html .fg.fg .fg-fertig p { font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-text); }
+@media (forced-colors: active) {
+  html .fg.fg .fg-feld { border-color: CanvasText; background: Field; color: FieldText; }
+  html .fg.fg .fg-feldgruppe.fehlt .fg-feld, html .fg.fg .fg-feldgruppe.falsch .fg-feld { box-shadow: none; border: 2px solid Highlight; }
+  html .fg.fg .fg-tag[aria-pressed="true"], html .fg.fg .fg-zeit[aria-pressed="true"] { background: Highlight; color: HighlightText; forced-color-adjust: none; }
+}
+
+/* ── TEIL 3 · Landingpages (.lp, global-lp.tsx) und Rechtsseiten (.gr, global-recht.tsx) ───────────────────────────── */
+/* Landingpage: dieselbe Vorlage wie die Unterseiten — Kopf mit Karteikarte, darunter Abschnitte in zwei Spalten:
+   links Augenzeile und Überschrift, rechts der Inhalt an Haarlinien. Jeder Abschnitt erscheint einmal als Ganzes. */
+html .fg.fg.lp .lp-kopf { top: 12px; margin: 12px 12px 0; }
+html .fg.fg.lp .lp-kopf-innen { max-width: var(--g-breite); min-height: 56px; padding: 0 8px 0 22px; background: rgba(255, 255, 255, .88); border-radius: var(--g-r-pille); }
+@media (min-width: 1224px) { html .fg.fg.lp .lp-kopf-innen { padding-left: var(--g-6); } }
+html .fg.fg.lp .lp-marke { display: inline-flex; align-items: center; min-height: var(--g-tippen); }
+html .fg.fg.lp .lp-knopf { min-height: 40px; padding: 0 20px; font-size: var(--g-t-klein); }
+html .fg.fg.lp .lp-buehne { padding-top: clamp(72px, 9vw, 120px); }
+html .fg.fg.lp .lp-sek { position: relative; padding: 0 0 var(--g-abschnitt-eng); }
+html .fg.fg.lp .lp-sek-raster { position: relative; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--g-6) var(--g-8); align-items: start; padding-top: var(--g-7); }
+html .fg.fg.lp .lp-sek-raster::before { content: ""; position: absolute; left: var(--g-rand); right: var(--g-rand); top: 0; height: 1px; background: var(--g-linie-stark); transform-origin: left center; }
+html .fg.fg.lp .lp-sek[data-an="0"] { opacity: 0; transform: translateY(var(--g-hub)); }
+html .fg.fg.lp .lp-sek[data-an="0"] .lp-sek-raster::before { transform: scaleX(0); }
+html .fg.fg.lp .lp-sek[data-an="1"] { animation: fd-an var(--g-dauer-4) var(--g-kurve-aus) backwards; }
+html .fg.fg.lp .lp-sek[data-an="1"] .lp-sek-raster::before { animation: fd-linie var(--g-dauer-5) var(--g-kurve-weg) backwards; }
+html .fg.fg.lp .lp-sek-kopf .fd-h2 { margin-top: var(--g-3); max-width: 15ch; }
+html .fg.fg.lp .lp-sek#gespraech { scroll-margin-top: 84px; }
+html .fg.fg.lp .lp-sek#gespraech .lp-sek-raster { grid-template-columns: minmax(0, 1fr); }
+html .fg.fg.lp .lp-sek#gespraech .fd-gespraech-karte { margin-top: 0; }
+/* Leistung: Zeilen an Haarlinien */
+html .fg.fg.lp .lp-liste { list-style: none; margin: 0; padding: 0; }
+html .fg.fg.lp .lp-liste li { padding: var(--g-4) 0; border-bottom: 1px solid var(--g-linie); font: 400 var(--g-t-lead)/1.5 var(--ap); color: var(--g-tinte); }
+html .fg.fg.lp .lp-liste li:first-child { padding-top: 0; }
+/* Schritte: Nummer, Titel, Satz und Bedingung — die Bedingung in derselben Größe wie der Satz, nie als Fußnote */
+html .fg.fg.lp .lp-schritte { list-style: none; margin: 0; padding: 0; }
+html .fg.fg.lp .lp-schritte li { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: var(--g-4); padding: var(--g-5) 0; border-bottom: 1px solid var(--g-linie); }
+html .fg.fg.lp .lp-schritte li:first-child { padding-top: 0; }
+html .fg.fg.lp .lp-schritte .nr { font: 200 2rem/1 var(--ap); letter-spacing: -.03em; color: var(--g-handlung); font-variant-numeric: lining-nums tabular-nums; }
+html .fg.fg.lp .lp-schritte h3 { font: 400 var(--g-t-h3)/1.3 var(--ap); letter-spacing: -.014em; color: var(--g-tinte); }
+html .fg.fg.lp .lp-schritte p { margin-top: var(--g-2); max-width: var(--g-lesen); font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-text); }
+/* Honorar: der eine Satz groß und dünn, darunter was sonst gilt */
+html .fg.fg.lp .lp-satz { max-width: 30ch; font: 300 clamp(1.375rem, 2.2vw, 1.75rem)/1.36 var(--ap); letter-spacing: -.018em; color: var(--g-tinte); text-wrap: pretty; }
+html .fg.fg.lp .lp-klein { margin-top: var(--g-4); max-width: var(--g-lesen); font: 400 var(--g-t-klein)/1.6 var(--ap); color: var(--g-text); }
+html .fg.fg.lp .lp-mehr a { color: var(--g-handlung); text-decoration: underline; text-decoration-color: var(--g-linie-stark); text-underline-offset: 3px; }
+html .fg.fg.lp .lp-wissen { margin-top: var(--g-6); padding: 2px 0 4px var(--g-5); border-left: 2px solid var(--g-linie-stark); }
+html .fg.fg.lp .lp-wissen ol { list-style: none; margin: var(--g-3) 0 0; padding: 0; display: grid; gap: var(--g-3); counter-reset: lw; }
+html .fg.fg.lp .lp-wissen li { counter-increment: lw; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 6px; max-width: var(--g-lesen); font: 400 var(--g-t-klein)/1.62 var(--ap); color: var(--g-text); }
+html .fg.fg.lp .lp-wissen li::before { content: counter(lw, lower-roman) "."; font: 500 var(--g-t-fein)/1.75 var(--ap); color: var(--g-handlung); }
+html .fg.fg.lp .lp-fuss { margin-top: 0; padding: var(--g-6) 0 var(--g-7); border-top: 1px solid var(--g-linie-stark); }
+html .fg.fg.lp .lp-fuss-innen { display: grid; gap: var(--g-4); font: 400 var(--g-t-fein)/1.6 var(--ap); color: var(--g-leise); }
+html .fg.fg.lp .lp-fuss-firma { display: grid; gap: var(--g-2); max-width: 78ch; }
+html .fg.fg.lp .lp-fuss-firma p + p { color: var(--g-text); }
+html .fg.fg.lp .lp-fuss-links { gap: 0 var(--g-5); }
+html .fg.fg.lp .lp-fuss a { display: inline-flex; align-items: center; min-height: 36px; color: var(--g-text); }
+html .fg.fg.lp .lp-fuss a:hover { color: var(--g-handlung); }
+@media (max-width: 900px) {
+  html .fg.fg.lp .lp-sek-raster { grid-template-columns: minmax(0, 1fr); gap: var(--g-5); padding-top: var(--g-6); }
+  html .fg.fg.lp .lp-sek-kopf .fd-h2 { max-width: 20ch; }
+}
+@media (max-width: 720px) {
+  html .fg.fg.lp .lp-kopf-innen { min-height: 52px; padding: 0 6px 0 18px; background: rgba(255, 255, 255, .96); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  html .fg.fg.lp .lp-fuss a { min-height: var(--g-tippen); }
+  html .fg.fg.lp .lp-fuss-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) { html .fg.fg.lp .lp-sek[data-an], html .fg.fg.lp .lp-sek[data-an] .lp-sek-raster::before { animation: none; opacity: 1; transform: none; } }
+@media print { html .fg.fg.lp .lp-sek[data-an] { animation: none !important; opacity: 1 !important; transform: none !important; } html .fg.fg.lp .lp-kopf { position: static; } }
+
+/* Rechtsseiten: das Blatt ist Papier (ein Gegenstand), alles andere steht an Linien */
+html .fg.fg .gr-papier, html .fg.fg .gr-formular { background: var(--g-papier); border: 1px solid var(--g-linie); border-radius: var(--g-r-karte); box-shadow: var(--g-schatten-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .gr-weiter { padding: var(--g-5) 0 0; background: none; border: 0; border-top: 1px solid var(--g-linie-stark); border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html .fg.fg .gr-weiter .fg-knoepfe { margin-top: 0; }
+html .fg.fg .gr-weiter p { font: 400 var(--g-t-text)/1.6 var(--ap); color: var(--g-text); }
+html .fg.fg .gr .gr-klein { font: 500 var(--g-t-auge)/1.3 var(--ap); letter-spacing: .16em; color: var(--g-handlung); }
+html .fg.fg .gr .gr-beginn p:not(.gr-klein), html .fg.fg .gr .gr-voll p:not(.gr-klein) { font: 400 var(--g-t-text)/1.7 var(--ap); color: var(--g-text); max-width: var(--g-lesen); }
+html .fg.fg .gr .gr-beginn a, html .fg.fg .gr .gr-quelle a { color: var(--g-handlung); }
+html .fg.fg .gr-text p { font: 400 var(--g-t-text)/1.75 var(--ap); color: var(--g-text); max-width: var(--g-lesen); }
+html .fg.fg .gr .gr-leise { font-size: var(--g-t-fein); color: var(--g-leise); }
+html .fg.fg .gr-aufbau-nr small { font: 500 var(--g-t-auge)/1 var(--ap); letter-spacing: .16em; color: var(--g-leise); }
+html .fg.fg .gr-aufbau-liste h3 { font: 400 var(--g-t-h3)/1.3 var(--ap); }
+html .fg.fg .gr-aufbau-liste p { font: 400 var(--g-t-text)/1.65 var(--ap); color: var(--g-text); }
+html .fg.fg .gr-aufbau-liste > li::before { background: var(--g-linie); }
+html .fg.fg .gr-aufbau-liste > li:first-child::before { background: var(--g-linie-stark); }
+html .fg.fg .gr .fd-kopf { padding-bottom: var(--g-7); }

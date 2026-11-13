@@ -1,295 +1,149 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   DIE GLAS-BÜHNE — der Hero von /business (E-442, 27.10.2026, HeroGlas.tsx)
+   DIE BÜHNE — das erste Bild der Startseite von FIAON Global (HeroGlas.tsx)
+   E-442 (27.10.2026): Apple-Glas, clean, kein Film, kein Foto. E-510 (13.11.2026): Kanzlei-Ton.
 
-   Justin: Apple-Stil wie die Zahlen im Chefbüro — „aber nicht mit dem Berg-
-   Hintergrund, CLEAN!“ Also kein Film, kein Foto: Die Bühne liegt auf dem
-   hellen Glasgrund der Seite (global-apple.css), nur ein leises Licht in
-   Glasblau hinter der Zahl. Alles mittig, viel Luft: kleine Zeile, EINE riesige
-   dünne Zahl (Navy mit Glasblau-Glanz), der Satz dazu in Kapitälchen, die
-   Überschrift dünn, zwei Pillen, drei Milchglas-Widgets.
+   Leitidee (UX-Prüfung 3.1 und 3.10, Fassung 2): Papier, Linie, eine Bühne — DER SATZ IST DAS GRÖSSTE.
+   · Die Überschrift steht dünn und groß, linksbündig an derselben Kante wie Kopfleiste, Abschnitte und Fuß.
+   · Darunter Einleitung, zwei Handlungen, die kleine Zeile.
+   · Am unteren Rand des ersten Bilds die Tatsachenreihe an einer Haarlinie: zwei dünne Zahlen, jede mit ihrem Satz.
+   Der Grund steht still (ein leises Licht in Glasblau, statisch). Es gibt hier keinen Kasten.
 
-   Regeln: Jede Zahl trägt ihren Satz im selben Blick (Festpreis → „einmalig,
-   alle Gebühren inklusive“; Kapitalrahmen → „das Institut entscheidet“).
-   Grund statisch (kein Lauf unter dem Glas), Auftakt nach dem Ladebildschirm
-   (html.ld-an pausiert), danach nur der Glanz über der Zahl alle neun Sekunden.
+   Bewegung: Der Auftakt läuft einmal (nach dem Ladebildschirm; html.ld-an pausiert): 12 px hoch und einblenden,
+   gestaffelt; die Haarlinie der Tatsachenreihe zeichnet sich von links. Keine Schleife, kein Zählwerk, kein Glanz,
+   kein wippender Winkel. Beim Wegscrollen tritt die Bühne leise zurück (die eine erlaubte Kopplung an den Bildlauf —
+   nur opacity und transform, auf dem Compositor). Alle Maße aus styles/global-tokens.css.
    ═══════════════════════════════════════════════════════════════════════════ */
-.hg, .hg-blick {
-  --ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
-  --kurve: cubic-bezier(.22, 1, .36, 1);
-  --feder: cubic-bezier(.34, 1.45, .64, 1);
-  color: #0c1a2e; font-family: var(--ap); -webkit-font-smoothing: antialiased;
-}
+.hg, .hg-blick { color: var(--g-tinte); font-family: var(--g-schrift); -webkit-font-smoothing: antialiased; }
+
 /* Die Bühne füllt das erste Bild ganz — nur sie ist beim Laden zu sehen (Justin 28.10.). */
 .hg {
-  position: relative; z-index: 0;
+  position: relative; z-index: 0; box-sizing: border-box;
   min-height: 100vh; min-height: 100svh;
-  display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
-  /* Luft oben und unten wächst mit der Bildhöhe — auf 720 px hohen Laptops passt die Bühne genauso ganz ins erste Bild. */
-  padding: clamp(96px, 13vh, 132px) 24px clamp(88px, 11vh, 112px);
+  display: flex; flex-direction: column;
+  padding: clamp(104px, 14vh, 152px) 0 clamp(28px, 4.6vh, 48px);
 }
-/* Ein leises Licht hinter der Zahl — statisch. */
-.hg-licht { position: absolute; left: 50%; top: 8%; z-index: -1; width: min(1100px, 120vw); height: 62%; transform: translateX(-50%); pointer-events: none;
-  background: radial-gradient(50% 50% at 50% 42%, rgba(40, 141, 250, .16), rgba(40, 141, 250, 0) 70%); }
+/* Ein leises Licht hinter dem Satz — statisch. */
+.hg-licht { position: absolute; right: 0; top: 0; z-index: -1; width: min(980px, 82vw); height: 78%; pointer-events: none;
+  background: radial-gradient(60% 56% at 78% 34%, rgba(40, 141, 250, .13), rgba(40, 141, 250, 0) 72%); }
+/* Dieselbe Breite und derselbe Rand wie .fg-rahmen und die Kopfleiste: eine linke Kante. */
+.hg-rahmen { flex: 1 1 auto; box-sizing: border-box; display: flex; flex-direction: column; width: 100%; max-width: var(--g-breite); margin: 0 auto; padding: 0 var(--g-rand); }
+.hg-inhalt { margin: auto 0; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 
-.hg-inhalt { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 1160px; margin: 0 auto; }
-/* Alle Abstände mit „.hg“ davor: global.css setzt `.fg :where(h1, p …) { margin: 0 }` mit demselben Gewicht und lädt später —
-   ohne den Vorsatz standen Zahl, Satz, Überschrift und Kleingedrucktes ohne jeden Abstand aufeinander (Messung 28.10.). */
-.hg .hg-auge { margin: 0; font: 500 clamp(13px, 1.1vw, 15px)/1.3 var(--ap); letter-spacing: .01em; color: #1d4ed8; }
+/* Alle Abstände mit „.hg“ davor: global.css setzt `.fg :where(h1, p …) { margin: 0 }` und lädt später. */
+.hg .hg-auge { margin: 0; font: var(--g-w-fest) var(--g-t-klein)/1.4 var(--g-schrift); letter-spacing: .005em; color: var(--g-handlung); }
 .hg-auge a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(29, 78, 216, .35); }
 .hg-auge a:hover { text-decoration-color: currentColor; }
-/* Die Zahl: dünn, riesig, Navy mit einem Glasblau-Lichtstreif alle neun Sekunden. */
-.hg .hg-zahl {
-  margin: 18px 0 0; font: 200 clamp(72px, min(12vw, 18vh), 176px)/.96 var(--ap); letter-spacing: -.045em;
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-  background:
-    linear-gradient(105deg, rgba(40, 141, 250, 0) 42%, rgba(111, 176, 255, .95) 50%, rgba(40, 141, 250, 0) 58%) 100% 0 / 300% 100% no-repeat,
-    linear-gradient(180deg, #0c1a2e 0%, #12284a 60%, #1d4ed8 140%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-  animation: hg-glanz 9s cubic-bezier(.45, .05, .35, 1) 2.6s infinite;
-}
-@keyframes hg-glanz { 0% { background-position: 100% 0, 0 0; } 34%, 100% { background-position: 0 0, 0 0; } }
-.hg-zahl-ab { font-size: .36em; letter-spacing: -.02em; vertical-align: .62em; font-weight: 300; }
-.hg .hg-label { margin: 22px 0 0; font: 500 11.5px/1.5 var(--ap); letter-spacing: .22em; text-transform: uppercase; color: #5d6678; text-wrap: balance; }
-.hg .hg-h1 { margin: clamp(32px, 6vh, 60px) 0 0; font: 300 clamp(24px, 3vw, 40px)/1.14 var(--ap); letter-spacing: -.022em; color: #0c1a2e; max-width: 24ch; text-wrap: balance; }
-.hg-h1 em { font-style: normal; font-weight: 300; color: #5d6678; }
-/* ── Die Tipp-Zeile (E-442, 28.10.): „Ihr Weg …“ tippt sich selbst. Alle Sätze liegen unsichtbar übereinander und halten den
-   Platz (nichts darunter springt); sichtbar ist nur der getippte Text mit dem Strich. ── */
-.hg .hg-h1.mit-tipp { max-width: none; }
-.hg-tipp { display: grid; justify-items: center; align-items: start; margin: 2px 0 0; max-width: 100%;
-  font: 300 clamp(24px, 3vw, 40px)/1.14 var(--ap); letter-spacing: -.022em; color: #0c1a2e; }
-.hg-tipp > * { grid-area: 1 / 1; }
-.hg-tipp-mass, .hg-tipp-text { text-wrap: balance; white-space: pre-wrap; }
-.hg-tipp-mass, .hg-tipp-rest { visibility: hidden; }
-.hg-tipp-text .wechsel { color: #1f5fe6; }
-/* Der Strich hat keine Breite (wie bei der Mass-Fassung) — er zeichnet sich nur als ::after daneben. */
-/* display: inline statt inline-block: ein Inline-Block wäre eine Umbruchstelle mitten im Wort (Gegenprüfung 28.10., EN am Handy). */
-.hg-tipp-strich { position: relative; display: inline; }
-.hg-tipp-strich::after { content: ""; position: absolute; left: 2px; top: .1em; width: 2px; height: .92em; border-radius: 1px;
-  background: #288dfa; box-shadow: 0 0 10px rgba(40, 141, 250, .55); }
-.hg-tipp-strich.blinkt::after { animation: hg-strich 1.05s steps(1, end) infinite; }
-@keyframes hg-strich { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
-@media (min-width: 900px) { .hg-tipp-mass, .hg-tipp-text { white-space: nowrap; } }
-.hg[data-an="0"] .hg-inhalt > .hg-tipp { opacity: 0; }
-.hg[data-an="1"] .hg-tipp { animation: hg-ein 1s var(--kurve) .4s backwards; }
-/* Für Screenreader und Suchmaschinen: die ruhige Fassung der Zeile. */
-.hg-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.hg .hg-lead { margin: clamp(20px, 3.2vh, 32px) 0 0; max-width: 58ch; font: 300 clamp(15px, 1.2vw, 17.5px)/1.5 var(--ap); color: #3b4658; text-wrap: balance; }
+/* Der Satz: dünn, groß, zwei Zeilen — die zweite leiser. */
+.hg .hg-h1 { margin: var(--g-5) 0 0; max-width: 100%; font: var(--g-w-duenn) clamp(2.625rem, 6.5vw, 5.875rem)/1.03 var(--g-schrift); letter-spacing: -.042em; color: var(--g-tinte); text-wrap: balance; }
+.hg .hg-h1 em { display: block; font-style: normal; font-weight: var(--g-w-duenn); color: var(--g-leise); }
+.hg .hg-lead { margin: clamp(20px, 3.2vh, 32px) 0 0; max-width: 60ch; font: var(--g-w-leicht) var(--g-t-lead)/1.6 var(--g-schrift); letter-spacing: -.004em; color: var(--g-text); text-wrap: pretty; }
 
-.hg-pillen { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: clamp(32px, 5.2vh, 52px); }
+.hg-pillen { display: flex; flex-wrap: wrap; gap: var(--g-3); margin-top: clamp(28px, 4.4vh, 40px); }
 .hg-pille {
-  display: inline-flex; align-items: center; gap: 9px; min-height: 50px; padding: 0 24px; border-radius: 999px;
-  font: 500 15px/1 var(--ap); color: #12284a; cursor: pointer; text-decoration: none; white-space: nowrap;
-  background: rgba(255, 255, 255, .72); border: 1px solid rgba(255, 255, 255, .95);
-  box-shadow: inset 0 1px 0 #fff, 0 14px 30px -20px rgba(18, 40, 74, .5);
-  -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
-  transition: transform .5s var(--feder), background .25s ease, box-shadow .3s ease;
+  box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 26px; border-radius: var(--g-r-pille);
+  font: var(--g-w-fest) .9375rem/1 var(--g-schrift); letter-spacing: 0; color: var(--g-tinte); cursor: pointer; text-decoration: none; white-space: nowrap;
+  background: rgba(255, 255, 255, .78); border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, var(--g-schatten-1), 0 14px 30px -22px rgba(18, 40, 74, .5);
+  transition: transform var(--g-dauer-1) var(--g-kurve-aus), background var(--g-dauer-1) ease, box-shadow var(--g-dauer-2) ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.hg-pille:hover { background: #fff; transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 18px 36px -20px rgba(18, 40, 74, .55); }
+.hg-pille svg { flex: 0 0 auto; transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+.hg-pille.voll { background: var(--g-knopf); color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 14px 28px -16px rgba(29, 78, 216, .8); }
+@media (hover: hover) and (pointer: fine) {
+  .hg-pille:hover { background: #fff; transform: translateY(-1px); }
+  .hg-pille.voll:hover { background: var(--g-knopf-drueber); }
+  .hg-pille:hover svg { transform: translateX(3px); }
+}
 .hg-pille:active { transform: scale(.98); }
-.hg-pille.voll { background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); color: #fff; border-color: transparent; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 14px 28px -14px rgba(29, 78, 216, .75); }
-.hg-pille.voll:hover { background: linear-gradient(180deg, #2f80f8 0%, #1a55d4 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 20px 38px -14px rgba(29, 78, 216, .85); }
-.hg-pille svg { flex: 0 0 auto; }
-.hg .hg-mikro { margin: clamp(22px, 3vh, 30px) 0 0; font: 400 13.5px/1.45 var(--ap); color: #5d6678; text-wrap: balance; }
+.hg .hg-mikro { margin: var(--g-4) 0 0; max-width: 92ch; font: var(--g-w-text) var(--g-t-fein)/1.5 var(--g-schrift); color: var(--g-leise); text-wrap: pretty; }
 
-/* ── Die drei Widgets: Milchglas ── */
-/* ── Die drei Kacheln: ein eigener Abschnitt unter der Bühne, sie gleiten beim Hineinscrollen hoch ── */
-.hg-blick { position: relative; display: flex; flex-direction: column; align-items: center; padding: clamp(24px, 4vw, 56px) 24px clamp(8px, 2vw, 24px); text-align: center; }
-.hg-widgets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; width: 100%; max-width: 1100px; margin: 0 auto; text-align: left; }
-.hg-widget {
-  position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 26px 26px 24px; border-radius: 28px; color: #0c1a2e;
-  background: rgba(255, 255, 255, .64); border: 1px solid rgba(255, 255, 255, .95);
-  box-shadow: inset 0 1px 0 #fff, 0 26px 56px -36px rgba(18, 40, 74, .42);
-  -webkit-backdrop-filter: blur(24px) saturate(170%); backdrop-filter: blur(24px) saturate(170%);
-}
-.hg-w-auge { font: 500 10.5px/1.2 var(--ap); letter-spacing: .18em; text-transform: uppercase; color: #1d4ed8; }
-.hg-widget > b, .hg-w-person b { font: 300 clamp(22px, 2vw, 28px)/1.1 var(--ap); letter-spacing: -.022em; color: #0c1a2e; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 13.11.2026 (E-509): Der Kapitalrahmen „50.000 – 1.000.000 US-$“ war bei drei Kacheln nebeneinander abgeschnitten („… US…“).
-   Die Schrift richtet sich jetzt nach der Breite der Kachel (cqi) — der Wert steht immer ganz da, in einer Zeile. */
-.hg-widget { container-type: inline-size; }
-.hg-widget > b { font-size: clamp(17px, 1.66vw, 24px); letter-spacing: -.026em; }
-@supports (font-size: 1cqi) { .hg-widget > b { font-size: clamp(17px, 8cqi, 28px); } }
-.hg-widget small { font: 400 12.5px/1.42 var(--ap); color: #5d6678; text-wrap: pretty; }
-.hg-widget small sup { font-size: .7em; margin-left: 1px; }
-.hg-w-chip { display: inline-flex; align-items: center; gap: 7px; width: fit-content; margin-top: 6px; padding: 6px 11px; border-radius: 999px;
-  background: rgba(40, 141, 250, .09); border: 1px solid rgba(40, 141, 250, .16); font: 400 12px/1 var(--ap); color: #12284a; }
-.hg-w-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #22c47a; box-shadow: 0 0 0 3px rgba(34, 196, 122, .16); }
-.hg-w-person { flex-direction: row; align-items: center; gap: 14px; }
-/* Nebeneinander stehen alle drei kleinen Zeilen auf derselben Höhe (oben), wie bei den beiden anderen Kacheln. */
-@media (min-width: 921px) { .hg-w-person { align-items: flex-start; } .hg-w-person .hg-w-knopf { margin-top: 4px; } }
-/* ── „Ihr Team“ (Justin 28.10.): Foto-Stapel mit feinem Ring, die Zeilen übereinander — wechselt alle 2,4 s ── */
-.hg-w-bild { position: relative; flex: 0 0 auto; width: 62px; height: 62px; }
-/* Das Foto ist zugleich der Knopf „Wechsel anhalten / fortsetzen“ (WCAG 2.2.2) — 62 px Tippfläche, kleines Zeichen unten rechts. */
-button.hg-w-bild { display: block; padding: 0; border: 0; border-radius: 50%; background: none; color: inherit; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.hg-w-halt { position: absolute; right: -1px; bottom: -1px; z-index: 2; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; color: #1d4ed8;
-  background: rgba(255, 255, 255, .94); box-shadow: 0 4px 10px -4px rgba(18, 40, 74, .45), inset 0 0 0 1px rgba(40, 141, 250, .18); opacity: 0; transform: scale(.8);
-  transition: opacity .25s ease, transform .35s var(--feder); }
-.hg-w-halt svg { width: 10px; height: 10px; }
-.hg-w-halt path { fill: currentColor; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-button.hg-w-bild:hover .hg-w-halt, button.hg-w-bild:focus-visible .hg-w-halt, .hg-w-team[data-angehalten] .hg-w-halt { opacity: 1; transform: none; }
-@media (hover: none) { .hg-w-halt { opacity: 1; transform: none; } }
-.hg-w-team[data-angehalten] .hg-w-ring .lauf { opacity: .5; }
-/* Runder Fokusring für die runden Knöpfe (der allgemeine Ring hat 6 px Ecken). */
-html .fg.fg button.hg-w-bild:focus-visible, html .fg.fg .hg-w-knopf:focus-visible { border-radius: 50%; }
-.hg-w-bild img { position: absolute; inset: 4px; width: 54px; height: 54px; border-radius: 50%; object-fit: cover; border: 2px solid #fff;
-  box-shadow: 0 8px 20px -10px rgba(18, 40, 74, .5); opacity: 0; transform: scale(.9); transition: opacity .45s ease, transform .9s var(--kurve); }
-/* Das neue Foto kommt einen Hauch später als das alte geht — kein Doppelbild in der Mitte. */
-.hg-w-bild img.an { opacity: 1; transform: none; transition-delay: .12s; }
-.hg-w-bild img.weg { opacity: 0; transform: scale(1.08); }
-.hg-w-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; overflow: visible; }
-.hg-w-ring circle { fill: none; stroke-width: 1.6; }
-.hg-w-ring .spur { stroke: rgba(40, 141, 250, .14); }
-.hg-w-ring .lauf { stroke: #288dfa; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; filter: drop-shadow(0 0 3px rgba(40, 141, 250, .45));
-  animation: hg-ring var(--takt, 2400ms) linear forwards; }
-.hg-w-team[data-lauf="0"] .hg-w-ring .lauf { animation-play-state: paused; }
-@keyframes hg-ring { to { stroke-dashoffset: 0; } }
-.hg-w-stapel { display: grid; }
-.hg-w-eintrag { grid-area: 1 / 1; display: grid; align-content: start; align-self: start; gap: 3px; min-width: 0; opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(3px);
-  transition: opacity .45s ease, transform .8s var(--kurve), filter .45s ease; }
-.hg-w-eintrag.an { opacity: 1; transform: none; filter: none; transition-delay: .1s; }
-.hg-w-eintrag.weg { transform: translate3d(0, -10px, 0); transition-delay: 0s; }
-/* Unsichtbare Einträge und Fotos fangen keine Klicks und keine Markierung (sonst markierte ein Doppelklick „Hermann“). */
-.hg-w-eintrag:not(.an), .hg-w-bild img:not(.an) { pointer-events: none; -webkit-user-select: none; user-select: none; }
-.hg-w-ki { margin-top: 2px; font: 400 10.5px/1.3 var(--ap); letter-spacing: .01em; color: #7c8798; }
-.hg-w-person .hg-w-auge sup { font-size: .8em; margin-left: 2px; letter-spacing: 0; }
-/* Zweite Fußnote (Teamfotos) dicht unter der ersten — Gewicht über .hg-blick .hg-fussnote (auch am Telefon). */
-.hg-blick .hg-fussnote + .hg-fussnote { margin-top: 6px; }
-.hg-w-person > div { flex: 1; min-width: 0; display: grid; gap: 3px; }
-/* Namen dürfen umbrechen (Gegenprüfung 28.10.: „Matthias Hamschmi…“ bei 1440, „Mag. Sarah A…“ bei 1024) — der Stapel hält die Höhe. */
-.hg-w-person b { font: 500 17px/1.2 var(--ap); letter-spacing: -.01em; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: balance; }
-.hg-w-knopf { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; padding: 0;
-  background: linear-gradient(180deg, #3a8bff 0%, #1d5fe6 100%); border: 1px solid transparent; color: #fff; cursor: pointer;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 10px 20px -12px rgba(29, 78, 216, .75);
-  transition: transform .5s var(--feder), box-shadow .3s; }
-.hg-w-knopf:hover { transform: scale(1.06); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 14px 26px -12px rgba(29, 78, 216, .85); }
-.hg-w-knopf svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.hg-w-vertrag ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 7px; }
-.hg-w-vertrag li { display: flex; gap: 9px; align-items: flex-start; font: 400 13px/1.4 var(--ap); color: #3b4658; }
-.hg-w-vertrag li::before { content: ""; flex: 0 0 auto; width: 5px; height: 5px; margin-top: 6px; border-radius: 50%; background: #288dfa; }
-.hg-w-vertrag a { color: #12284a; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(18, 40, 74, .35); }
-.hg-w-vertrag a:hover { text-decoration-color: currentColor; }
-/* 13.11.2026 (E-509): Der Link „Vertrag vor der Unterschrift lesen“ war am Telefon nur 18 px hoch — die Tippfläche reicht jetzt
-   44 px weit (unsichtbar über und unter der Zeile), die Zeile selbst bleibt, wie sie ist. */
-.hg-w-vertrag a { position: relative; }
-.hg-w-vertrag a::after { content: ""; position: absolute; left: -6px; right: -6px; top: -13px; bottom: -13px; }
-.hg-w-vertrag a:focus-visible { outline: 2px solid #288dfa; outline-offset: 3px; border-radius: 4px; }
-.hg-blick .hg-fussnote { margin: clamp(36px, 4vw, 56px) auto 0; width: 100%; max-width: 74ch; font: 400 11.5px/1.5 var(--ap); color: #5d6678; }
-.hg-fussnote sup { font-size: .75em; }
-/* Ziel des Winkels: bekommt den Fokus (tabIndex -1), zeigt aber keinen Rahmen um den ganzen Abschnitt. */
-/* Gewicht über dem allgemeinen Fokusring (html .fg.fg :focus-visible, .dk :focus-visible) — Nachprüfung 28.10. */
-html .fg.fg .hg-blick:focus, html .fg.fg .hg-blick:focus-visible, html .dk .hg-blick:focus-visible, .hg-blick:focus { outline: none; }
+/* ── Die Tatsachenreihe: zwei dünne Zahlen an einer Haarlinie, jede mit ihrem Satz ──
+   Drei Zeilen (Beschriftung · Zahl · Satz) über beide Spalten (subgrid): Die Zahlen stehen auf einer Linie, auch wenn eine
+   Beschriftung umbricht. */
+.hg .hg-fakten { position: relative; margin: clamp(36px, 6vh, 64px) 0 0; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); grid-template-rows: auto auto auto; }
+.hg-fakten::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--g-linie-stark); transform-origin: left center; }
+.hg-fakt { min-width: 0; display: grid; grid-row: span 3; grid-template-rows: subgrid; row-gap: 0; padding: var(--g-5) var(--g-6) 0 0; }
+.hg-fakt + .hg-fakt { padding-left: var(--g-6); padding-right: 0; border-left: 1px solid var(--g-linie); }
+.hg .hg-fakt dt { margin: 0; font: var(--g-w-fest) var(--g-t-fein)/1.45 var(--g-schrift); color: var(--g-leise); text-wrap: balance; }
+.hg .hg-fakt dd { margin: 0; }
+.hg .hg-fakt .hg-fakt-zahl { margin-top: var(--g-3); font: var(--g-w-duenn) clamp(1.75rem, 2.75vw, 2.5rem)/1.08 var(--g-schrift); letter-spacing: -.032em; font-variant-numeric: lining-nums proportional-nums; color: var(--g-tinte); white-space: nowrap; }
+.hg .hg-fakt .hg-fakt-satz { margin-top: var(--g-3); max-width: 58ch; font: var(--g-w-text) var(--g-t-fein)/1.55 var(--g-schrift); color: var(--g-leise); text-wrap: pretty; }
 
-/* Der Hinweis nach unten: ein leiser Winkel, der atmet. */
-.hg-weiter { position: absolute; left: 50%; bottom: clamp(24px, 4vh, 40px); z-index: 1; width: 44px; height: 44px; margin-left: -22px; display: grid; place-items: center; border-radius: 50%; color: #12284a; text-decoration: none;
-  background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .95); box-shadow: inset 0 1px 0 #fff, 0 10px 24px -16px rgba(18, 40, 74, .5);
-  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); animation: hg-atmen 3.2s ease-in-out 3s infinite; }
-.hg-weiter:hover { color: #1d4ed8; background: #fff; }
-/* Sobald man scrollt, hat der Winkel seine Arbeit getan — er blendet aus, statt unter der Kopf-Pille stehen zu bleiben (Foto 28.10.). */
-.hg-weiter { transition: opacity .45s ease, visibility 0s linear 0s; }
-html.ap-gescrollt .hg-weiter { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .45s ease, visibility 0s linear .45s; }
-.hg-weiter svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-@keyframes hg-atmen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+/* ── „Auf einen Blick“ unter der Bühne (GlobalBlick.tsx, Klassen .vk-blick… in global-verkauf.css) ── */
+.hg-blick { position: relative; padding: var(--g-abschnitt-eng) 0 0; }
+.hg-blick > .vk-blick { box-sizing: border-box; max-width: var(--g-breite); margin: 0 auto; padding: 0 var(--g-rand); }
 
-/* ── Der Auftakt: Zeile, Zahl, Satz, Überschrift, Pillen, Widgets — nacheinander ── */
-.hg[data-an="0"] .hg-inhalt > :not(.hg-pillen):not(.hg-widgets) { opacity: 0; }
-.hg[data-an="0"] .hg-pille { opacity: 0; }
-.hg[data-an="1"] .hg-auge { animation: hg-ein .9s var(--kurve) backwards; }
-.hg[data-an="1"] .hg-zahl { animation: hg-zahl 1.2s var(--kurve) .08s backwards, hg-glanz 9s cubic-bezier(.45, .05, .35, 1) 2.6s infinite; }
-.hg[data-an="1"] .hg-label { animation: hg-ein .9s var(--kurve) .22s backwards; }
-.hg[data-an="1"] .hg-h1 { animation: hg-ein 1s var(--kurve) .34s backwards; }
-.hg[data-an="1"] .hg-pillen { animation: hg-schieb .9s var(--kurve) .56s backwards; }
-.hg[data-an="1"] .hg-pille { animation: hg-ein .9s var(--kurve) calc(.56s + var(--i, 0) * .08s) backwards; }
-.hg[data-an="1"] .hg-lead { animation: hg-ein .9s var(--kurve) .46s backwards; }
-.hg[data-an="1"] .hg-mikro { animation: hg-ein .9s var(--kurve) .7s backwards; }
-/* Die Kacheln: wie Apples gestaffelter Auftritt — 30 px tiefer, dann hoch, je Kachel 0,15 s später; die Fußnote zuletzt. */
-.hg-blick[data-an="0"] .hg-widget, .hg-blick[data-an="0"] .hg-fussnote { opacity: 0; transform: translateY(30px); }
-.hg-blick[data-an="1"] .hg-widget { animation: hg-hoch .9s var(--kurve) calc(var(--i, 0) * .15s) backwards; }
-.hg-blick[data-an="1"] .hg-fussnote { animation: hg-hoch .9s var(--kurve) .5s backwards; }
-.hg[data-an="1"] .hg-weiter { animation: hg-ein 1s var(--kurve) 1.2s backwards, hg-atmen 3.2s ease-in-out 3s infinite; }
-.ld-an .hg * { animation-play-state: paused; }
+/* ── Der Auftakt: Zeile, Satz, Einleitung, Knöpfe, kleine Zeile — dann die Linie und die zwei Tatsachen ── */
 @keyframes hg-ein { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes hg-schieb { from { transform: translateY(12px); } to { transform: none; } }
-@keyframes hg-zahl { from { opacity: 0; transform: translateY(16px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes hg-hoch { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
-/* Beim Wegscrollen tritt die Bühne leise zurück (an den Bildlauf gekoppelt, aber nur transform/opacity auf dem Compositor —
-   kein Video, kein Ruckeln). Ohne Unterstützung im Browser steht sie einfach still. */
-/* Gekoppelt an die Unterkante der Bühne (view-timeline „exit“), nicht an scrollY 0: Ist die Bühne höher als das Bild
-   (Handy quer, kurze Laptops), bleibt alles voll sichtbar, bis man es gesehen hat — sonst verblassten die Pillen genau
-   dann, wenn man zu ihnen scrollt (Gegenprüfung 28.10.). Bei genau einer Bildhöhe beginnt „exit 0 %“ bei scrollY 0. */
+@keyframes hg-linie { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.hg[data-an="0"] .hg-inhalt > *, .hg[data-an="0"] .hg-fakt { opacity: 0; }
+.hg[data-an="0"] .hg-fakten::before { transform: scaleX(0); }
+.hg[data-an="1"] .hg-auge { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) backwards; }
+.hg[data-an="1"] .hg-h1 { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 1) backwards; }
+.hg[data-an="1"] .hg-h1 em { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 3) backwards; }
+.hg[data-an="1"] .hg-lead { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 4) backwards; }
+.hg[data-an="1"] .hg-pillen { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 5) backwards; }
+.hg[data-an="1"] .hg-mikro { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 6) backwards; }
+.hg[data-an="1"] .hg-fakten::before { animation: hg-linie var(--g-dauer-5) var(--g-kurve-weg) calc(var(--g-staffel) * 6) backwards; }
+.hg[data-an="1"] .hg-fakt { animation: hg-ein var(--g-dauer-4) var(--g-kurve-aus) calc(var(--g-staffel) * 9) backwards; }
+.hg[data-an="1"] .hg-fakt + .hg-fakt { animation-delay: calc(var(--g-staffel) * 10); }
+.ld-an .hg *, .ld-an .hg *::before { animation-play-state: paused; }
+
+/* Beim Wegscrollen tritt die Bühne leise zurück. Gekoppelt an die Unterkante der Bühne (view-timeline „exit“): Ist die
+   Bühne höher als das Bild (Handy quer, kurze Laptops), bleibt alles voll sichtbar, bis man es gesehen hat. Ohne
+   Unterstützung im Browser steht sie einfach still. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
     .hg { view-timeline: --buehne block; }
-    .hg-inhalt { animation: hg-raus linear both; animation-timeline: --buehne; animation-range: exit 0% exit 80%; }
-    .hg-licht { animation: hg-licht-raus linear both; animation-timeline: --buehne; animation-range: exit 0% exit 80%; }
+    .hg-rahmen { animation: hg-raus linear both; animation-timeline: --buehne; animation-range: exit 10% exit 85%; }
+    .hg-licht { animation: hg-licht-raus linear both; animation-timeline: --buehne; animation-range: exit 10% exit 85%; }
   }
 }
-@keyframes hg-raus { to { opacity: 0; transform: translate3d(0, -6vh, 0) scale(.94); } }
+@keyframes hg-raus { to { opacity: 0; transform: translate3d(0, -4vh, 0); } }
 @keyframes hg-licht-raus { to { opacity: 0; } }
 
-/* ── Telefon: kleinere Zahl, Widgets untereinander, je Kachel eine Zeile ── */
-@media (max-width: 920px) {
-  .hg-widgets { grid-template-columns: minmax(0, 1fr); max-width: 560px; gap: 10px; }
+/* ── Schmaler ── */
+@media (max-width: 1023px) {
+  .hg .hg-lead { font-weight: var(--g-w-text); font-size: 1.0625rem; }
 }
-@media (max-width: 720px) {
-  .hg { padding: 108px 24px 88px; }
-  .hg-blick { padding: 8px 24px 16px; }
-  .hg .hg-zahl { margin-top: 14px; font-size: clamp(58px, 17vw, 88px); letter-spacing: -.04em; }
-  .hg .hg-label { margin-top: 16px; font-size: 11.5px; letter-spacing: .18em; }
-  .hg .hg-lead { margin-top: 20px; font-size: 15px; }
-  .hg .hg-h1 { margin-top: 30px; font-size: clamp(22px, 6vw, 26px); }
-  .hg-pillen { margin-top: 30px; width: 100%; }
-  .hg .hg-mikro { margin-top: 20px; }
-  .hg-pille { flex: 1 1 auto; justify-content: center; min-height: 48px; }
-  /* Am Telefon ohne Unschärfe (dichtes Glas) — sonst ruckelt das Scrollen. */
-  .hg-pille:not(.voll) { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .9); }
-  .hg-widget { padding: 18px 18px 16px; border-radius: 22px; gap: 6px; -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .84); }
-  .hg-widget > b { font-size: 22px; }
-  @supports (font-size: 1cqi) { .hg-widget > b { font-size: clamp(16px, 8cqi, 22px); } }
-  .hg-w-bild { width: 54px; height: 54px; }
-  .hg-w-bild img { width: 46px; height: 46px; }
-  /* Eine Zeile je Punkt (Regel: je Kachel eine Zeile) — einspaltig statt zwei umbrechender Spalten. */
-  .hg-w-vertrag ul { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  .hg-w-vertrag li { font-size: 12.5px; }
-  .hg-blick .hg-fussnote { margin-top: 28px; font-size: 12px; line-height: 1.55; text-align: left; }
-  .hg-tipp { margin-top: 2px; font-size: clamp(22px, 6vw, 26px); }
-  .hg-tipp-strich::after { width: 1.5px; }
-  .hg-weiter { display: none; }
+/* Telefon und schmales Tablet: zwei Knöpfe untereinander, die Tatsachen als zwei Blöcke an ihren Linien. */
+@media (max-width: 760px) {
+  .hg { padding: 112px 0 var(--g-6); }
+  .hg .hg-h1 { margin-top: var(--g-4); font-size: clamp(2.375rem, 11vw, 3rem); letter-spacing: -.038em; line-height: 1.05; }
+  .hg .hg-lead { margin-top: var(--g-5); }
+  .hg-pillen { margin-top: var(--g-6); width: 100%; flex-direction: column; }
+  .hg-pille { width: 100%; }
+  .hg .hg-fakten { margin-top: var(--g-7); grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .hg-fakt { display: block; grid-row: auto; padding: var(--g-5) 0; }
+  .hg-fakt + .hg-fakt { padding: var(--g-5) 0 0; border-left: 0; border-top: 1px solid var(--g-linie); }
+  .hg .hg-fakt .hg-fakt-zahl { font-size: 1.75rem; white-space: normal; text-wrap: balance; }
+  .hg-blick { padding-top: var(--g-8); }
 }
-@media (max-width: 380px) {
-  .hg, .hg-blick { padding-left: 20px; padding-right: 20px; }
-}
-/* Kurze Laptops (1366×657, 1280×632 …): Die Bühne passt ganz ins erste Bild, Winkel inklusive (Gegenprüfung 28.10.). */
-@media (max-height: 780px) and (min-width: 721px) {
-  .hg { padding: 88px 24px 76px; }
-  .hg .hg-zahl { margin-top: 14px; font-size: clamp(64px, min(9vw, 16vh), 120px); }
-  .hg .hg-label { margin-top: 16px; }
-  .hg .hg-h1, .hg .hg-tipp { font-size: clamp(24px, 2.6vw, 34px); }
-  .hg .hg-h1 { margin-top: 26px; }
-  .hg .hg-lead { margin-top: 16px; }
-  .hg-pillen { margin-top: 26px; }
-  .hg .hg-mikro { margin-top: 18px; }
-  .hg-weiter { bottom: 20px; }
-}
-/* Noch kürzer: Der Winkel hätte keinen Platz mehr — dann lieber keiner als ein angeschnittener. */
-@media (max-height: 640px) and (min-width: 721px) {
-  .hg { padding-bottom: 40px; }
-  .hg-weiter { display: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hg *, .hg *::before, .hg *::after, .hg-blick * { animation: none !important; transition: none !important; }
-  .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-pille, .hg-blick[data-an] .hg-widget, .hg-blick[data-an] .hg-fussnote { opacity: 1; transform: none; }
-  .hg-tipp-strich::after { display: none; }
-}
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .hg-widget, .hg-pille:not(.voll) { background: rgba(255, 255, 255, .92); }
+/* Kurze Laptops (1366×657, 1280×632 …): weniger Luft, kleinerer Satz — die Handlungen stehen im ersten Bild. */
+@media (max-height: 780px) and (min-width: 761px) {
+  .hg { padding-top: 96px; padding-bottom: var(--g-5); }
+  .hg .hg-h1 { margin-top: var(--g-4); font-size: clamp(2.5rem, min(5.6vw, 10.5vh), 4.75rem); }
+  .hg .hg-lead { margin-top: var(--g-4); }
+  .hg-pillen { margin-top: var(--g-5); }
+  .hg .hg-fakten { margin-top: var(--g-6); }
 }
 
-/* Drucken: Bühne und Kacheln stehen, auch wenn noch nicht gescrollt wurde (Gegenprüfung 28.10.). */
-@media print {
-  .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-pille, .hg-blick[data-an] .hg-widget, .hg-blick[data-an] .hg-fussnote { opacity: 1 !important; transform: none !important; animation: none !important; }
-  .hg-inhalt, .hg-licht { animation: none !important; opacity: 1 !important; transform: none !important; }
-  .hg { min-height: 0; }
-  .hg-weiter { display: none; }
-  /* Die Tipp-Zeile druckt immer den ganzen Satz (getippter Teil + unsichtbarer Rest), ohne Strich — nie „Ihr Weg zum Ka|“. */
-  .hg-tipp-rest { visibility: visible !important; color: #1f5fe6; }
-  .hg-tipp-strich::after { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .hg *, .hg *::before, .hg *::after { animation: none !important; transition: none !important; }
+  .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-fakt { opacity: 1; transform: none; }
+  .hg[data-an] .hg-fakten::before { transform: none; }
 }
+@media (forced-colors: active) {
+  .hg-fakten::before { background: CanvasText; }
+  .hg-pille { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; forced-color-adjust: none; }
+}
+/* Drucken: die Bühne steht, auch wenn der Auftakt noch nicht lief. */
+@media print {
+  .hg { min-height: 0; padding-top: 24px; }
+  .hg[data-an] .hg-inhalt > *, .hg[data-an] .hg-fakt { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .hg[data-an] .hg-fakten::before { transform: none !important; animation: none !important; }
+  .hg-rahmen, .hg-licht { animation: none !important; opacity: 1 !important; transform: none !important; }
+}
+
+/* Fokus: global.css gibt jedem fokussierten Element 6 px Ecken — die Pillen bleiben rund. */
+.fg .hg-pille:focus-visible { border-radius: var(--g-r-pille); }

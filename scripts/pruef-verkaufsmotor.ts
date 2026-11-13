@@ -20,6 +20,11 @@
 //  10  LEITPLANKE   „Bürgschaft“ steht auf keiner öffentlichen Fläche des Verkaufsmotors (Texte de/en, Fragen der Startseite,
 //                   Kopf und Datenblock für Suchmaschinen, /llms.txt, Karte „Ein Produkt“, Mail vor dem Angebot, Antwort an die
 //                   Seite, Quelltext von Startseite und Konfigurator) — im Vertrag selbst steht sie unverändert
+//  11  LEITFADEN    (E-510, 13.11.2026) der Kanzlei-Ton auf Startseite und Honorarrechner: die sechs Schritte in Justins
+//                   Reihenfolge, EIN Name je Handlung („Angebot anfordern“, „Gespräch vereinbaren“), jeder Betrag aus der
+//                   Preisquelle und „mindestens“ statt „ab“, der Kapitalrahmen nie ohne S9 und den Miami-Satz, die zwei
+//                   Fassungen des Satzes nach dem Absenden, die vier Antworten der 30-Sekunden-Probe, die neun Fragen mit
+//                   ihren festen Sätzen, die Karte „Ein Mandat“ für Österreich und die Schweiz
 //
 // Aufruf: env -i HOME="$HOME" PATH="$PATH" TZ=Europe/Berlin CRONS=aus DOTENV_CONFIG_PATH=/dev/null SESSION_SECRET=pruefstand \
 //           DATABASE_URL=postgresql://pruef@127.0.0.1:9/keine node_modules/.bin/tsx scripts/pruef-verkaufsmotor.ts
@@ -29,6 +34,7 @@ import * as V from "../shared/fiaon-global-verkauf";
 import * as KC from "../shared/fiaon-global-angebot-kapital-c";
 import { wandPruefen } from "../shared/fiaon-wortverbote";
 import { GLOBAL_SCHAERFER, globalWortPruefenEn } from "../shared/fiaon-global-wortregeln";
+import * as SZ from "../shared/fiaon-global-saetze";
 
 let gut = 0; let schlecht = 0;
 function ok(bedingung: unknown, was: string) {
@@ -307,7 +313,9 @@ function gestalt(wert: unknown): unknown {
   gleich(de, en, "deutsche und englische Texte haben dieselbe Gestalt");
   ok(V.VERKAUF_TEXTE.de.konfig.form.vertragssprache === null && !!V.VERKAUF_TEXTE.en.konfig.form.vertragssprache, "Satz zur Vertragssprache nur auf Englisch");
   gleich(V.VERKAUF_TEXTE.de.produkt.bereiche.map((b) => b.nr), ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"], "acht Bereiche, römisch gezählt");
-  gleich(V.VERKAUF_TEXTE.de.ablauf.schritte.length, 4, "vier Schritte");
+  // E-510 (13.11.2026) — vorher: „vier Schritte“ (gleich(…schritte.length, 4)). Nachher: die sechs Schritte des Sprachleitfadens
+  // in Justins Reihenfolge; die Einzelheiten prüft Abschnitt 11.
+  gleich(V.VERKAUF_TEXTE.de.ablauf.schritte.map((x) => x.titel), ["Gründung", "Unterlagen", "Konten", "Kreditkarten auf Wunsch", "Finanzierung", "Umschuldung und Aufstockung"], "sechs Schritte in Justins Reihenfolge");
 }
 const mailBeispiel = { anrede: "Herr" as const, vorname: "Max", nachname: "Mustermann", usd: 150_000, sprache: "de" as const };
 const meldung = e0.ok ? (["abschluss", "miami", "bestand", "vorhaben", "ohne_kapital"] as const).map((x) => V.verkaufMeldungZeilen(e0.eingabe, x, KURS)) : [];
@@ -388,8 +396,10 @@ const musterDaten = (() => {
     gleich(x.titel, ziffern.find((z) => z.nr === erste)?.titel, `Überblick: Titel von Ziffer ${x.nr} wie im Vertrag`);
   }
   const de = V.VERKAUF_TEXTE.de.vertrag; const en = V.VERKAUF_TEXTE.en.vertrag;
-  ok(/nicht im Wortlaut/.test(de.lead) && /persönlichen Angebot/.test(de.lead) && /bevor Sie unterschreiben/.test(de.lead), "Überblick: der Lead sagt, dass dies nicht der Wortlaut ist und wo der vollständige Vertrag steht");
-  ok(/not word for word/.test(en.lead) && /personal offer/.test(en.lead) && /before you sign/.test(en.lead) && /in German/.test(en.lead), "Überblick englisch: dasselbe, dazu die Vertragssprache");
+  // E-510 — vorher: „bevor Sie unterschreiben“ und “personal offer”. Nachher (Leitfaden 3.2 und 4.1): ein Wort je Sache —
+  // „unterzeichnen“; das eigene Papier heißt englisch “proposal”.
+  ok(/nicht im Wortlaut/.test(de.lead) && /persönlichen Angebot/.test(de.lead) && /bevor Sie unterzeichnen/.test(de.lead), "Überblick: der Lead sagt, dass dies nicht der Wortlaut ist und wo der vollständige Vertrag steht");
+  ok(/not word for word/.test(en.lead) && /personal proposal/.test(en.lead) && /before you sign/.test(en.lead) && /in German/.test(en.lead), "Überblick englisch: dasselbe, dazu die Vertragssprache");
   ok(/Wort für Wort/.test(de.vollText) && /lesen Sie ihn ganz/.test(de.vollText) && /word for word/.test(en.vollText) && /in full/.test(en.vollText), "Überblick: der Hinweis auf den vollständigen Vertrag im Angebot (beide Sprachen)");
   // Der Vertrag selbst wird nirgends öffentlich ausgegeben: keine Route, kein Baustein, kein Abruf auf der Seite.
   ok(!("verkaufMustervertragHtml" in S) && !("MUSTER_KONDITIONEN" in S), "Server: kein Baustein mehr, der den Vertrag mit Musterdaten öffentlich baut");
@@ -401,7 +411,10 @@ const musterDaten = (() => {
   // Die Links nennen die Seite beim Namen (kein „Mustervertrag“ mehr, der einen Wortlaut verspräche).
   const { GLOBAL_FUSS_WOERTER, GLOBAL_WOERTER } = await import("../client/src/i18n/global");
   gleich([GLOBAL_FUSS_WOERTER.de.recht.find((r) => r.pfad === "/business/mustervertrag")?.text, GLOBAL_FUSS_WOERTER.en.recht.find((r) => r.pfad === "/en/business/mustervertrag")?.text], [de.linkName, en.linkName], "Fußzeile: der Link heißt wie die Seite (beide Sprachen)");
-  const oeffentlich = [JSON.stringify(V.VERKAUF_TEXTE), JSON.stringify(GLOBAL_WOERTER.de.fragen), JSON.stringify(GLOBAL_WOERTER.en.fragen), JSON.stringify(GLOBAL_WOERTER.de.vertrauensleiste), JSON.stringify(GLOBAL_WOERTER.en.vertrauensleiste), JSON.stringify(GLOBAL_FUSS_WOERTER)].join(" ");
+  // E-510 — vorher: die Vertrauensleiste aus dem Wörterbuch (GLOBAL_WOERTER.*.vertrauensleiste). Nachher: das Vertrauens-Band
+  // aus den festen Sätzen (vier Tatsachen mit Verweis, Leitfaden 6.1) — sichtbarer Text und Text des Verweises.
+  const band = (["de", "en"] as const).flatMap((sp) => SZ.vertrauensBand(sp).flatMap((z) => [z.text, z.verweisText ?? ""]));
+  const oeffentlich = [JSON.stringify(V.VERKAUF_TEXTE), JSON.stringify(GLOBAL_WOERTER.de.fragen), JSON.stringify(GLOBAL_WOERTER.en.fragen), JSON.stringify(band), JSON.stringify(GLOBAL_FUSS_WOERTER)].join(" ");
   // (Die Adresse /business/mustervertrag bleibt, damit alte Links ankommen — gemeint ist das Wort im Text.)
   ok(!/(?<!\/business\/)Mustervertrag|model contract|sample contract/i.test(oeffentlich), "Startseite, Fragen, Fußzeile: kein „Mustervertrag“ mehr im Text");
 }
@@ -458,7 +471,10 @@ const musterDaten = (() => {
   const { SEO_SEITEN, seoFragen } = await import("../shared/fiaon-seo-seiten");
   n += lies([GLOBAL_WOERTER.de.fragen, GLOBAL_WOERTER.en.fragen], "startseite/fragen", true);
   n += lies([seoFragen("/"), seoFragen("/en"), seoFragen("/business/privatpersonen"), seoFragen("/en/business/private-individuals")], "startseite/faq-markup", true);
-  ok(seoFragen("/").length >= 10 && seoFragen("/en").length >= 10, `Fragen der Startseite gelesen (${seoFragen("/").length} deutsch, ${seoFragen("/en").length} englisch)`);
+  // E-510 — vorher: mindestens zehn Fragen im FAQ-Markup (die Startseite trug vierzehn). Nachher: die Startseite trägt die neun
+  // Fragen des Leitfadens (8.5); acht davon sind reine Zeichenketten und stehen im Markup — die Honorar-Frage setzt ihre Beträge
+  // aus der Preisquelle ein (kein Betrag wird getippt) und steht deshalb sichtbar auf der Seite, aber nicht im Markup.
+  ok(seoFragen("/").length >= 8 && seoFragen("/en").length >= 8, `Fragen der Startseite gelesen (${seoFragen("/").length} deutsch, ${seoFragen("/en").length} englisch)`);
   // 4 Kopf der Startseite, des Konfigurators und des Überblicks in der SEO-Tabelle.
   for (const pfad of ["/", "/business/start", "/business/mustervertrag", "/business/privatpersonen"]) n += lies((SEO_SEITEN as Record<string, unknown>)[pfad], `seo${pfad}`, true);
   // 5 Fußzeile und Menü.
@@ -503,7 +519,133 @@ const musterDaten = (() => {
   const z5 = KC.kapitalCZiffern(musterDaten).find((z) => z.nr === 5);
   ok(z5?.titel === "Bürgschaft der US-Partnergesellschaft" && JSON.stringify(z5).includes("derzeit als inaktiv geführt"), "Vertrag der Fassung C: Ziffer 5 mit Bürgschaft und Registerstand steht unverändert im Angebot");
   // Der Konfigurator zeigt statt der alten Frage zur Bürgschaft die Frage nach dem Angebot — dessen Antwort führt zum vollständigen Vertrag.
-  ok(/vollständigen Vertrag/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /bevor Sie unterschreiben/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /complete agreement/.test(V.VERKAUF_TEXTE.en.konfig.angebotFrage.antwort), "Konfigurator: „Was steht in meinem Angebot?“ — die Antwort nennt den vollständigen Vertrag vor der Unterschrift");
+  // E-510 — vorher: „bevor Sie unterschreiben“. Nachher: „bevor Sie unterzeichnen“ (ein Wort je Sache, Leitfaden 3.2).
+  ok(/vollständigen Vertrag/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /bevor Sie unterzeichnen/.test(V.VERKAUF_TEXTE.de.konfig.angebotFrage.antwort) && /complete agreement/.test(V.VERKAUF_TEXTE.en.konfig.angebotFrage.antwort) && /before you sign/.test(V.VERKAUF_TEXTE.en.konfig.angebotFrage.antwort), "Honorarrechner: „Was steht in meinem Angebot?“ — die Antwort nennt den vollständigen Vertrag vor der Unterschrift");
+}
+
+// ── 11 LEITFADEN: DER KANZLEI-TON AUF STARTSEITE UND HONORARRECHNER (E-510, 13.11.2026) ─────────────────────────────
+// Sprachleitfaden FIAON Global (verbindliche Endfassung vom 13.11.2026). Geprüft wird hier, was Startseite und Honorarrechner
+// gemeinsam halten müssen; die Wörter selbst liest scripts/pruef-global-leitfaden.ts.
+{
+  const { GLOBAL_WOERTER, GLOBAL_FUSS_WOERTER, GLOBAL_BUEHNE_WOERTER } = await import("../client/src/i18n/global");
+  const { EIN_PRODUKT } = await import("../shared/fiaon-global-seiten/ein-produkt");
+  const alle = (wert: unknown): string[] => { const aus: [string, string][] = []; sammle(wert, "x", aus); return aus.map((x) => x[1]); };
+  const woerter = (text: string) => text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
+
+  for (const sp of ["de", "en"] as const) {
+    const T = V.VERKAUF_TEXTE[sp]; const W = GLOBAL_WOERTER[sp]; const Bt = SZ.SAETZE_BETRAEGE[sp];
+
+    // 11.1 Die sechs Schritte: aus der einen Quelle, in Justins Reihenfolge, jeder Satz mit seiner Bedingung im selben Text.
+    const sechs = SZ.sechsSchritte(sp).schritte;
+    gleich(sechs.map((x) => x.nr), [1, 2, 3, 4, 5, 6], `sechs Schritte (${sp}): nummeriert 1 bis 6`);
+    gleich(T.ablauf.schritte.map((x) => [x.nr, x.titel]), sechs.map((x) => [String(x.nr), x.titel]), `sechs Schritte (${sp}): Titel und Nummern der Seite = feste Sätze`);
+    ok(T.ablauf.schritte.every((x, i) => x.text.includes(sechs[i].satz) && x.text.includes(sechs[i].bedingung)), `sechs Schritte (${sp}): jeder Satz steht mit seiner Bedingung im selben Text`);
+    ok(sechs.every((x) => x.satz && x.bedingung && x.ihrTeil && x.ihrErgebnis && x.entscheidet), `sechs Schritte (${sp}): jeder Schritt hat Satz, Bedingung, Ihr Teil, Ihr Ergebnis und den, der entscheidet`);
+    gleich(`${T.ablauf.h2a} ${T.ablauf.h2b}`, SZ.SCHRITTE_KOPF[sp].h2, `sechs Schritte (${sp}): Überschrift aus den festen Sätzen`);
+    ok(sechs.filter((x) => x.ausbleiben).map((x) => x.nr).join() === "5", `sechs Schritte (${sp}): der Satz „wenn die Finanzierung ausbleibt“ steht bei Schritt 5 und nur dort`);
+    // Solange es den Prüfschritt im Selbstabschluss nicht gibt (V1), heißt Schritt 5 nur „Finanzierung“ — ohne „Prüfung“ / “due diligence”.
+    ok(!SZ.SAETZE_VORBEHALTE.V1 && !/Prüfung|Due Diligence/i.test(JSON.stringify([sechs[4].titel, sechs[4].satz, T.ablauf.schritte[4], T.produkt.bereiche[6], T.buehne, T.blick])), `Schritt 5 (${sp}): die Fassung „heute“ — kein „nach positiver Prüfung“`);
+    ok(!SZ.SAETZE_VORBEHALTE.V3 && !SZ.SAETZE_VORBEHALTE.V4, "Vorbehalte V3 und V4 stehen auf „nein“ (Erklär-Satz S16 und Lang-Form der Garantie sind nicht eingebaut)");
+    gleich(GLOBAL_BUEHNE_WOERTER[sp].bogenEtappenKurz, [...SZ.kurzwoerter(sp, "DE", 4)], `Kurzwörter der vier Plätze (${sp}): aus den festen Sätzen — ohne das alte Bildwort`);
+
+    // 11.2 EIN Name je Handlung: die Haupt-Handlung heißt überall gleich, die zweite auch; kein Betrag in einem Knopf.
+    const haupt = SZ.handlung("angebot", sp); const zweite = SZ.handlung("gespraech", sp);
+    gleich([T.buehne.knopf, T.produkt.knopf, T.konfig.weiter, T.konfig.form.absenden, T.konfig.persoenlich.absenden, T.karte.knopf, T.karteLand.CH.knopf, T.leiste.zusammenstellen("2.799 €"), GLOBAL_FUSS_WOERTER[sp].beauftragen],
+      Array(9).fill(haupt), `Haupt-Handlung (${sp}): auf jedem Knopf „${haupt}“ — Bühne, Urkunde, Honorarblatt, Formular (beide Betriebsarten), Karte, Leiste, Fuß`);
+    gleich([T.buehne.knopfGespraech, W.knopfGespraech, GLOBAL_FUSS_WOERTER[sp].gespraech, T.karteLand.AT.knopf], Array(4).fill(zweite), `Zweite Handlung (${sp}): überall „${zweite}“ — auf der Österreich-Karte die einzige`);
+    ok(!/\d/.test(T.leiste.zusammenstellen("2.799 €")), `Leiste am Handy (${sp}): kein Betrag im Knopf`);
+    const alt = sp === "de" ? /Angebot zusammenstellen|selbst zusammen|Mein Angebot öffnen|Erst sprechen|Jetzt beauftragen|Weiter zu Ihren Angaben/ : /Build your offer|Put it together|Open my offer|Talk first|Order now|Prepare your proposal|Continue to your details/;
+    const flaeche = [...alle(T), ...alle(W), ...alle(GLOBAL_FUSS_WOERTER[sp])];
+    ok(!flaeche.some((x) => alt.test(x)), `Handlungen (${sp}): kein alter Name mehr („${flaeche.find((x) => alt.test(x))?.slice(0, 60) ?? ""}“)`);
+
+    // 11.3 Beträge: jeder aus der Preisquelle; „mindestens“ statt „ab“; das Honorar nie nur mit dem ersten Betrag.
+    gleich([Bt.honorarAuftrag, Bt.fastTrack, Bt.jahresbetreuung, Bt.erfolgMin], [V.verkaufEur(V.VERKAUF_PREISE.gruendungCents, sp), V.verkaufEur(V.VERKAUF_PREISE.fastTrackCents, sp), V.verkaufEur(V.VERKAUF_PREISE.jahresCents, sp), V.verkaufEur(KC.KAPITAL_C_STAFFEL.mindestCents, sp)], `Beträge der festen Sätze (${sp}) = Preisquelle und Mindestbetrag der Staffel`);
+    const dreiZeilen = [T.blick.punkte[1].antwort, W.fragen[1].a, SZ.satz("S12", sp), EIN_PRODUKT[sp].preisSatz];
+    ok(dreiZeilen.every((x) => x.includes(Bt.honorarAuftrag) && x.includes(Bt.erfolgMin) && x.includes(Bt.jahresbetreuung)), `Honorar in drei Zeilen (${sp}): Blick-Kasten, Honorar-Frage, S12 und die Unterseiten nennen alle drei Beträge`);
+    ok([T.buehne.honorarZeile, T.produkt.preisFein, T.karte.fein, T.karteLand.CH.fein].every((x) => x.includes(Bt.erfolgMin) && /mindestens|at least/.test(x)), `Erfolgshonorar (${sp}): an der Zahl der Bühne, an der Urkunde und auf der Karte mit seinem Mindestbetrag — „mindestens“`);
+    const euro = /\d{1,3}(?:[.,]\d{3})*\s?€|€\s?\d{1,3}(?:[.,]\d{3})*/g;
+    // „2.799 €“ ist zugleich der Platzhalter, mit dem sammle() Sätze mit einer Lücke füllt (etwa den Satz zum Fast-Track).
+    const erlaubt = new Set([Bt.honorarAuftrag, Bt.fastTrack, Bt.jahresbetreuung, Bt.erfolgMin, "2.799 €"].map((x) => x.replace(/\s/g, "")));
+    // Der Platzhalter „1 € = … US-$“ im Kurs-Satz ist kein Honorar.
+    const fremd = [...alle({ ...T, vertrag: null }), ...alle(W), ...alle(EIN_PRODUKT[sp])].flatMap((x) => (x.replace(/1\s€\s=|€1\s=/g, "").match(euro) ?? []).map((m) => m.replace(/\s/g, ""))).filter((m) => !erlaubt.has(m));
+    gleich(fremd, [], `Euro-Beträge (${sp}): auf Startseite, Honorarrechner, Fragen und in den Sätzen der Unterseiten steht kein Betrag außerhalb der Preisquelle`);
+    const abBetrag = sp === "de" ? /\b(?:schon\s+)?ab\s+\d[\d.]*\s?€|\bnur\s+\d[\d.]*\s?€/i : /\bfrom\s+(?:just\s+)?€\s?\d|\bonly\s+€\s?\d/i;
+    ok(![...alle(T), ...alle(W), ...alle(EIN_PRODUKT[sp])].some((x) => abBetrag.test(x)), `Honorar (${sp}): nie „ab“ oder „nur“ vor einem Betrag`);
+
+    // 11.4 Der Kapitalrahmen steht nie ohne S9 („ein Ziel, kein Versprechen“) und den Miami-Satz im selben Text.
+    const mitSpanne = [...alle(T), ...alle(W), ...alle(EIN_PRODUKT[sp])].filter((x) => x.includes(Bt.rahmen) && x !== Bt.rahmen);
+    ok(mitSpanne.length >= 4 && mitSpanne.every((x) => x.includes(SZ.satz("S9", sp)) && x.includes(SZ.weitererSatz("MIAMI", sp))), `Kapitalrahmen (${sp}): ${mitSpanne.length} Texte mit der Spanne — jeder mit S9 und dem Miami-Satz`);
+    ok(T.buehne.kapitalSatz.includes(SZ.satz("S9", sp)) && T.buehne.kapitalSatz.includes(SZ.weitererSatz("MIAMI", sp)), `Kapitalrahmen im Kasten „Auf einen Blick“ (${sp}): S9 und Miami-Satz`);
+    ok(T.konfig.rahmenInstitut === `${SZ.satz("S9", sp)} ${SZ.satz("S1", sp)}` && T.konfig.rahmenHinweis === SZ.weitererSatz("MIAMI", sp), `Am Regler (${sp}): S9, S1 und der Miami-Satz`);
+    ok(![...alle(T), ...alle(W)].some((x) => /und mehr|and more/.test(x)), `Kapitalrahmen (${sp}): nie „und mehr“ (nach oben offen)`);
+
+    // 11.5 Zwei Betriebsarten: Der Satz nach dem Absenden verspricht „öffnet sich“ nur dort, wo es für diesen Besucher stimmt.
+    const oeffnet = sp === "de" ? /öffnet sich/ : /\bopens\b/;
+    ok(oeffnet.test(T.konfig.leadB) && oeffnet.test(T.konfig.form.sub), `Betriebsart Selbstabschluss (${sp}): leadB und der Satz am Formular sagen, dass sich das Angebot öffnet`);
+    const geteilt = [T.konfig.leadA, T.konfig.persoenlich.leadB, T.konfig.persoenlich.sub, T.konfig.persoenlich.titel, T.konfig.fehler.aus, T.konfig.weiter, T.konfig.form.titel, ...alle(T.konfig.wege), ...alle(T.buehne), ...alle(T.produkt), ...alle(T.karte), ...alle(T.karteLand), ...alle(T.seo), ...alle(T.blick), T.vertrag.weiter];
+    ok(!geteilt.some((x) => oeffnet.test(x)), `Betriebsart persönlich und geteilte Flächen (${sp}): kein Satz verspricht, dass sich das Angebot öffnet`);
+    ok(/E-Mail|email/.test(T.konfig.persoenlich.leadB) && /E-Mail|email/.test(T.konfig.fehler.aus), `Betriebsart persönlich (${sp}): das Angebot kommt per E-Mail`);
+    ok(T.konfig.form.register.includes("FIAON LTD") && T.konfig.form.register.includes("17318250"), `Am Absende-Knopf (${sp}): Vertragspartner mit Registernummer`);
+    ok(T.konfig.blatt.finanzierung === SZ.satz("S5-C", sp) && T.konfig.blatt.garantie === SZ.GELD_ZURUECK[sp].kurzMitNamen && T.konfig.blatt.endpreise === SZ.weitererSatz("HONORAR-SCHLUSS", sp), `Honorarblatt (${sp}): S5-C, Geld-zurück in der Kurz-Form mit Namen, Schluss-Zeile`);
+
+    // 11.6 Die 30-Sekunden-Probe (Fassung A, Zeile „heute“): vier Antworten im Kasten direkt unter der Bühne.
+    gleich(T.blick.punkte.length, 4, `30-Sekunden-Probe (${sp}): vier Fragen`);
+    const [was, kostet, selbst, ausbleibt] = T.blick.punkte.map((x) => x.antwort);
+    ok(sp === "de" ? /gründen/.test(was) && /Entscheidung des finanzierenden Instituts/.test(was) && /Reisepass/.test(selbst) && /stellen Sie selbst/.test(selbst) && /entscheidet das jeweilige Institut/.test(ausbleibt) && /acht Wochen ab Ihrem Auftrag/.test(ausbleibt) && /Ziffer 4/.test(ausbleibt)
+      : /form your US company/.test(was) && /lender’s decision/.test(was) && /passport/.test(selbst) && /yourself/.test(selbst) && /rest with the institution concerned/.test(ausbleibt) && /eight weeks of your engagement/.test(ausbleibt) && /clause 4/.test(ausbleibt),
+      `30-Sekunden-Probe (${sp}): was geschieht · was ich selbst tue · was gilt, wenn etwas ausbleibt (Institut, Frist mit Beginn, Ziffer 4)`);
+    ok(kostet.includes(Bt.honorarAuftrag), `30-Sekunden-Probe (${sp}): was es kostet — und wann`);
+    ok(woerter(T.buehne.lead) <= (sp === "de" ? 40 : 45), `Bühne (${sp}): Einleitung höchstens ${sp === "de" ? 40 : 45} Wörter (ist ${woerter(T.buehne.lead)})`);
+
+    // 11.7 Die neun Fragen (Leitfaden 8.5) mit ihren festen Sätzen.
+    gleich(W.fragen.length, 9, `Fragen der Startseite (${sp}): neun`);
+    ok(W.fragen.every((x) => woerter(x.f) <= 12 && woerter(x.a) <= (sp === "de" ? 60 : 70)), `Fragen (${sp}): Frage höchstens zwölf Wörter, Antwort höchstens ${sp === "de" ? 60 : 70} (längste: ${Math.max(...W.fragen.map((x) => woerter(x.a)))})`);
+    const s6 = SZ.satz("S6", sp).split(/(?<=\.)\s+/)[0]; const s10 = SZ.satz("S10", sp).split(/(?<=\.)\s+/);
+    ok(W.fragen[7].a.startsWith(s6) && W.fragen[5].a.includes(SZ.satz("S11", sp)) && W.fragen[8].a.includes(SZ.weitererSatz("MIAMI", sp))
+      && W.fragen[6].a.includes(s10[0].replace(/\.$/, "")) && W.fragen[4].a.includes(SZ.beleg("fuerWenNicht", sp).split(/(?<=\.)\s+/)[1]),
+      `Fragen (${sp}): S6, S10, S11, der Miami-Satz und „für wen es nicht passt“ stehen wortgleich mit den festen Sätzen`);
+    ok(/^(Nein|No)\./.test(W.fragen[2].a) && (sp === "de" ? /entscheidet allein das finanzierende Institut/ : /rests with the lender alone/).test(W.fragen[2].a), `Frage „Sagt FIAON eine Finanzierung zu?“ (${sp}): beginnt mit Nein, nennt das Institut`);
+    ok((sp === "de" ? /acht Wochen ab Ihrem Auftrag/ : /eight weeks of your engagement/).test(W.fragen[3].a) && (sp === "de" ? /Ziffer 4/ : /clause 4/).test(W.fragen[3].a), `Frage „wenn die Finanzierung ausbleibt“ (${sp}): Frist mit Beginn und Ziffer 4`);
+    ok(!W.fragen.some((x) => /Werktag|business day|rund zwei Wochen|around two weeks/.test(x.a)), `Fragen (${sp}): keine Dauer auf der Startseite`);
+
+    // 11.8 Kopf für Suchmaschinen und Schluss-Satz: eine Fassung an zwei Stellen.
+    gleich([W.metaTitel, W.metaBeschreibung], [T.seo.titel, T.seo.beschreibung], `Wörterbuch (${sp}): Titel und Beschreibung der Startseite = VERKAUF_TEXTE.seo`);
+    ok(T.seo.titel.length <= 60 && T.seo.beschreibung.length <= 155 && T.vertrag.seo.titel.length <= 60 && T.vertrag.seo.beschreibung.length <= 155, `Kopf (${sp}): Titel höchstens 60, Beschreibung höchstens 155 Zeichen`);
+    ok(!/Bürg|garantier|Garantie|guarantee|Umschuldung|refinanc|bis zu|up to|\d+\s?%|Kanzlei|law firm/i.test(JSON.stringify([T.seo, T.buehne.h1a, T.buehne.h1b])), `Kopf (${sp}): Titel, Beschreibung und H1 ohne die Wörter aus Leitfaden 9.1 Nr. 5`);
+    gleich(`${W.schlussA}${W.schlussB}`, SZ.weitererSatz("SCHLUSS", sp), `Schluss-Satz (${sp}): aus den festen Sätzen`);
+    ok(/gründen|Form your US company/.test(T.buehne.h1a), `H1 (${sp}): trägt das Suchwort sichtbar`);
+
+    // 11.9 „Wenn die Finanzierung ausbleibt“: Name als Überschrift, Kurz-Form mit Fristbeginn, drei Zeilen, Ziffer 4 und Institut.
+    const G = T.garantie; const s7 = SZ.satz("S7", sp).split(/(?<=\.)\s+/);
+    ok(G.auge === SZ.GELD_ZURUECK[sp].auge && G.h2 === `${SZ.GELD_ZURUECK[sp].name}.` && G.text.startsWith(s7[0]) && G.fein === s7[1] && G.mittel.length === 3 && G.mittel.join("|") === SZ.GELD_ZURUECK[sp].mittel.join("|"),
+      `Garantie-Abschnitt (${sp}): Augenzeile, Name, Kurz-Form mit Fristbeginn, Mittel-Form, Ziffer 4 und Institut — alles aus den festen Sätzen`);
+
+    // 11.10 Die Karte „Ein Mandat“ der Unterseiten: eigene Fassung für Österreich und die Schweiz (Leitfaden 5.12).
+    const at = alle(T.karteLand.AT).join(" \n "); const ch = alle(T.karteLand.CH).join(" \n ");
+    ok(!/Konto|Konten|Karte|Finanzierung|Kapitalrahmen|Geld-zurück|Unternehmensberat|account|card|financing|funding|money-back|consultan/i.test(at) && !/\d\s?€|€\s?\d/.test(at) && !T.karteLand.AT.mitBetrag && T.karteLand.AT.zumGespraech,
+      `Karte Österreich (${sp}): kein Konto, keine Karte, keine Finanzierung, kein Betrag, nicht „Unternehmensberatung“ — der Knopf führt zum Gespräch`);
+    ok(at.includes(SZ.satz("S17", sp)) && T.karteLand.AT.fein === SZ.weitererSatz("HONORAR-AT", sp), `Karte Österreich (${sp}): S17 und der Honorar-Satz ohne Betrag`);
+    ok(!/Konto|Konten|Kreditkarte|Karte|account|card/i.test(ch) && T.karteLand.CH.mitBetrag && ch.includes(SZ.satz("S1", sp)), `Karte Schweiz (${sp}): ohne Konto und Karten, mit dem Institut-Satz`);
+    gleich([V.verkaufKarte(sp, sp === "de" ? "/business/aus-oesterreich" : "/en/business/from-austria") === T.karteLand.AT, V.verkaufKarte(sp, sp === "de" ? "/business/aus-der-schweiz" : "/en/business/from-switzerland") === T.karteLand.CH, V.verkaufKarte(sp, "/business/kosten") === T.karte, V.verkaufKarte(sp) === T.karte], [true, true, true, true], `Karte (${sp}): die Länderseiten bekommen ihre Fassung, alle anderen die allgemeine`);
+    ok(/entscheidet das jeweilige Institut|rest with the institution concerned/.test(alle(T.karte).join(" ")), `Karte allgemein (${sp}): Konto, Karte und Finanzierung nur mit dem Satz, wer entscheidet`);
+
+    // 11.11 Rollen: der Rollen-Satz statt „auf Ihr Mandat“; Recht und Steuern nie als Leistung von FIAON.
+    ok(T.partnerSatz === SZ.weitererSatz("ROLLEN", sp) && EIN_PRODUKT[sp].partner === SZ.weitererSatz("ROLLEN", sp) && GLOBAL_FUSS_WOERTER[sp].keineBank === SZ.satz("S8", sp) && GLOBAL_FUSS_WOERTER[sp].keineBankAT === SZ.satz("S8", sp, "AT"), `Rollen (${sp}): Rollen-Satz und S8 (Österreich: S8-AT) aus den festen Sätzen`);
+    ok(![...alle(T), ...alle(W), ...alle(GLOBAL_FUSS_WOERTER[sp]), ...alle(EIN_PRODUKT[sp])].some((x) => /auf Ihr Mandat|im eigenen Mandat|Rechtsberatung|Steuerberatung|under your engagement|under their own mandate|legal advice|tax advice/.test(x)), `Rollen (${sp}): kein „auf Ihr Mandat“, keine „Rechtsberatung“ oder „Steuerberatung“ als Leistung`);
+    gleich(T.rolle.punkte.length, 4, `„Was FIAON ist — und was nicht“ (${sp}): vier Abgrenzungen`);
+    ok(T.rolle.punkte[1].text.startsWith(SZ.satz("S8", sp).split(/(?<=\.)\s+/)[1]) && T.rolle.punkte[2].text === SZ.satz("S10", sp) && T.rolle.punkte[3].text === SZ.weitererSatz("ROLLEN", sp), `„Was FIAON ist — und was nicht“ (${sp}): die Sätze kommen aus den festen Sätzen`);
+  }
+  // 11.12 Die Seite zeigt, was die Texte sagen: sechs Schritte als eigener Baustein, die H1 ganz sichtbar, keine Tipp-Zeile.
+  const seite = ohneKommentar(quelle("client/src/pages/site/business.tsx"));
+  const buehne = ohneKommentar(quelle("client/src/components/site/global/HeroGlas.tsx"));
+  const schritte = ohneKommentar(quelle("client/src/components/site/global/GlobalSchritte.tsx"));
+  ok(/<GlobalSchritte /.test(seite) && /sechsSchritte\(sprache, land\)/.test(schritte) && /<ol /.test(schritte) && /<h3>/.test(schritte) && /s\.bedingung/.test(schritte) && /s\.ihrTeil/.test(schritte) && /s\.ihrErgebnis/.test(schritte) && /s\.entscheidet/.test(schritte),
+    "Startseite: die sechs Schritte stehen als geordnete Liste mit Satz, Bedingung, Ihr Teil, Ihr Ergebnis und dem, der entscheidet");
+  ok(/<h1 className="hg-h1">\{t\.h1a\} <em>\{t\.h1b\}<\/em><\/h1>/.test(buehne) && !/hg-sr">\{t\.h1b\}/.test(buehne) && !/TippZeile|wechsel/.test(buehne), "Bühne: die ganze Überschrift ist sichtbar — keine Tipp-Zeile, keine versteckte zweite Hälfte");
+  ok(/<GlobalBlick /.test(buehne) && /t\.honorarZeile/.test(buehne), "Bühne: der Kasten „Auf einen Blick“ steht direkt darunter; an der Zahl steht die Zeile zum Erfolgshonorar");
+  const folge = ["<HeroGlas ", "<GlobalVertrauen ", "<VerkaufProdukt ", "<GlobalSchritte ", "<VerkaufKonfigurator ", "<VerkaufGarantie ", "<VerkaufRolle ", "<GlobalGespraech ", "<Fragen ", 'className="fg-schluss'].map((x) => seite.indexOf(x));
+  ok(folge.every((x, i) => x > 0 && (i === 0 || x > folge[i - 1])), `Startseite: Aufbau nach Leitfaden 7.1 (Bühne, Vertrauens-Band, Ein Mandat, sechs Schritte, Honorarrechner, Garantie, Rolle, Erstgespräch, Fragen, Schluss) — ${folge.join(",")}`);
+  ok(!/SozialFenster|SternZentrale|GlobalBogen/.test(seite), "Startseite: nach dem Honorarrechner kein Abschnitt mehr, der erst überzeugen soll (kein Social-Fenster, kein Stern, kein Bogen)");
 }
 
 console.log(`\n${gut} Prüfungen grün, ${schlecht} rot.`);

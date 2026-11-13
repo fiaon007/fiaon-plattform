@@ -44,11 +44,7 @@ export default function GespraechKarte({ sp, offen, onOeffnen, paket }: {
   }
   return (
     <div className="fd-gespraech-karte">
-      <span className="fd-gespraech-zeichen" aria-hidden="true">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4.5 6h15v14h-15z M4.5 10h15 M8.5 3.8V7.5 M15.5 3.8V7.5" /><path d="M12 12.6v2.6l1.8 1.1" />
-        </svg>
-      </span>
+      {/* E-510: ohne Symbol-Kachel — der Satz und der Knopf genügen. */}
       <b>{u.gespraechKarte}</b>
       <button type="button" className="fg-knopf" onClick={() => { perKnopf.current = true; onOeffnen(); }}>{u.zeitWaehlen}<Pfeil /></button>
     </div>

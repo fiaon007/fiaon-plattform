@@ -1,46 +1,59 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// fiaon.com/ — FIAON GLOBAL: EIN PRODUKT, EIN KONFIGURATOR (Register E-509, 12.11.2026)
+// fiaon.com/ — FIAON GLOBAL: EIN MANDAT, EIN HONORARRECHNER (Register E-509, 12.11.2026; Kanzlei-Ton E-510, 13.11.2026)
 //
 // Justin (12.11.2026): „wir sollten die Pakete weg — die US LLC Gründung mit aktiver Betreuung (volle Package, perfekt
-// animiert anführen aber clean halten, sauber halten, platz lassen, Rechtsberatung rein, Steuerberatung — all das) und
-// wenn er dann gründen will kann man auswählen für was man sich interessiert … und dann soll er seine Funding Summe
-// auswählen … und dann eben unsere Preise — einfach so gestalten dass der Kunde selbstständig abschließen kann … das
-// muss der Motor unserer Plattform sein, der Sales Apparat! — ein WOW Gefühl und Erlebnis für den Klienten.“
+// animiert anführen aber clean halten, sauber halten, platz lassen, Rechtsberatung rein, Steuerberatung — all das) …
+// das muss der Motor unserer Plattform sein, der Sales Apparat! — ein WOW Gefühl und Erlebnis für den Klienten.“
+// Und am selben Tag (E-510): „auf JEDER Seite muss das Wording geändert werden … keine Magie, sondern knallharte Fakten —
+// präsentiere uns wie eine Kanzlei, wie internationale Unternehmensberater.“
 //
-// ── AUFBAU SEIT E-509 ──────────────────────────────────────────────────────
-//   Bühne (eine große dünne Zahl: der eine Preis; Kacheln Kapitalrahmen, Team, Vertrag)
-//   → Das eine Produkt (#produkt): acht Bereiche an Haarlinien, daneben die Urkunde mit dem Preis
-//   → So läuft es (#ablauf): vier Schritte
-//   → Der Konfigurator (#konfigurator): Schwerpunkte, Kapitalrahmen, Preisblatt, Angaben — die EINE dunkle Glasfläche
-//   → Geld-zurück-Garantie
-//   → Instagram/Facebook (der Vorführraum pausiert, bis Filme und Konzept-PDF zum einen Produkt passen)
-//   → Ein Ansprechpartner statt acht (#leistungen), Der Bogen (#bogen)
-//   → Erstgespräch (#gespraech) → Fragen (#fragen) → Schlussband → Klebeleiste am Handy.
-// Feinschliff 13.11.2026: Auch der Kopf des Konfigurators und das Kleingedruckte kommen beim Hineinscrollen (Sek setzt data-an);
-// im Konfigurator selbst übernimmt am Handy seine eigene Leiste mit dem Preis (VerkaufKonfigurator) — diese hier ruht dann.
-// Weg seit E-509: die vier Pakettafeln, die Viererwahl, die Vergleichstabelle, der Paketfuß, das Band „Jahresbetreuung“
-// und die Etappen-Karten mit „ab Paket“. Die Sätze des Produkts, der Preise und des Konfigurators stehen in
-// shared/fiaon-global-verkauf.ts (dieselben Funktionen rechnen im Vertrag); Bühne, Schaltzentrale, Bogen, Gespräch und
-// Schlussband behalten ihre abgenommenen Bausteine. Bis E-509 (06.10.2026, E-293): Hero → Pakete → Jahresbetreuung …
+// ── AUFBAU SEIT E-510 (Sprachleitfaden FIAON Global, Abschnitt 7.1; Gestaltung nach UX-Prüfung 3.10) ─────────
+//   1  Bühne — DER SATZ IST DAS GRÖSSTE: die Überschrift ganz sichtbar („US-Gesellschaft gründen. In einem Mandat.“),
+//      zwei Handlungen, darunter die Tatsachenreihe an einer Haarlinie (Honorar zum Auftrag · Spanne des Kapitalrahmens,
+//      jede Zahl mit ihrem Satz). Unter der Bühne „Auf einen Blick“ (#auf-einen-blick): die vier Antworten der
+//      30-Sekunden-Probe als Zeilen an Haarlinien.
+//   2  Vertrauens-Band — vier nachprüfbare Tatsachen, jede mit ihrem Beleg (GlobalVertrauen.tsx)
+//   3  Ein Mandat (#produkt) — acht Bereiche an Haarlinien, daneben die Urkunde mit dem Honorar zum Auftrag
+//   4  Sechs Schritte (#ablauf) — das Herzstück: eine Linie von Schritt zu Schritt; je Schritt Satz, Bedingung,
+//      Ihr Teil, Ihr Ergebnis und der, der entscheidet
+//   5  Ihr Angebot (#konfigurator) — der Honorarrechner, die EINE dunkle Glasfläche der Seite
+//   6  Wenn die Finanzierung ausbleibt (#geld-zurueck) — Geld-zurück-Garantie in der Mittel-Form als Band an Haarlinien,
+//      im selben Band „Was Sie vor dem Mandat wissen müssen“ (die drei Pflichthinweise, Wortlaut wie im Vertrag)
+//   7  Was FIAON ist — und was nicht (#rolle), darunter „Für wen“ (#fuer-wen)
+//   8  Erstgespräch (#gespraech) → 9 Fragen (#fragen) → 10 Schluss (hell, an einer Linie, ohne Bild) → Leiste am Handy.
+// Nach dem Honorarrechner steht kein Abschnitt mehr, der erst überzeugen soll (Leitfaden 7.1). Deshalb stehen seit E-510
+// nicht mehr auf der Startseite: Instagram und Facebook (die Verweise stehen im Fuß), der Stern „Ein Ansprechpartner statt
+// acht“ (er zeigt Partner bei der Arbeit — solche Sätze gehen erst live, wenn die Partner bestätigt sind), der Bogen nach
+// Miami (zweite dunkle Fläche, „Team vor Ort“) und das Bild im Schlussband (dritte dunkle Fläche, erzeugter Raum). Die
+// Bausteine selbst bleiben unverändert in ihren Dateien.
+// Die Sätze des Produkts, des Honorars und des Honorarrechners stehen in shared/fiaon-global-verkauf.ts (dieselben
+// Funktionen rechnen im Vertrag), die festen Sätze in shared/fiaon-global-saetze.ts.
+//
+// Die Klasse „fg-start“ am Rahmen trägt Raster und Schriftleiter der Startseite (styles/global-verkauf.css, Abschnitt 0):
+// gleiche Luft je Abschnitt, Überschriften ruhig in der Schriftfarbe (kein Lichtstreif mehr über jeder H2), der zweite
+// Teil einer Überschrift leiser. Im Honorarrechner selbst übernimmt am Handy seine eigene Leiste (VerkaufKonfigurator) —
+// die Leiste dieser Seite ruht dann.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
-import { GLOBAL_BUEHNE_WOERTER, GLOBAL_WOERTER, type GlobalBegriff } from "@/i18n/global";
-import { GLOBAL_INKLUSIVE, GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
+import { GLOBAL_WOERTER } from "@/i18n/global";
+import { GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
 import { werbeEreignis } from "@/lib/werbung";
-import SternZentrale from "@/components/site/global/SternZentrale";
 import HeroGlas from "@/components/site/global/HeroGlas";
-import GlobalBogen from "@/components/site/global/GlobalBogen";
-import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
-import { VerkaufProdukt, VerkaufAblauf, VerkaufGarantie } from "@/components/site/global/VerkaufProdukt";
+import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
+import GlobalSchritte from "@/components/site/global/GlobalSchritte";
+import { VerkaufProdukt, VerkaufGarantie, VerkaufRolle } from "@/components/site/global/VerkaufProdukt";
 import VerkaufKonfigurator, { VerkaufKonfigLead } from "@/components/site/global/VerkaufKonfigurator";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { sauber } from "@/components/site/global/VerkaufSatz";
-import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
-import { VERKAUF_TEXTE, VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur, verkaufUsd } from "@shared/fiaon-global-verkauf";
+import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur } from "@shared/fiaon-global-verkauf";
+import { SAETZE_BETRAEGE } from "@shared/fiaon-global-saetze";
+// Kopf der Seite /business/privatpersonen: aus dem Registereintrag — eine Quelle für Titel, Beschreibung, H1 und Einleitung.
+import { PRIVAT_SEITE } from "@shared/fiaon-global-seiten/privat";
+import { PRIVAT_SEITE_EN } from "@shared/fiaon-global-seiten/en/privat";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
@@ -61,8 +74,8 @@ function Sek({ id, className, titelId, children }: { id?: string; className: str
 }
 
 // ── ZWEI STARTSEITEN, EIN AUFBAU (19.09.2026, E-196) ─────────────────────────
-// /business/privatpersonen zeigt dieselbe Seite mit eigenem Kopf und eigener Schlusszeile (GLOBAL_WOERTER.*.privat).
-// Seit E-509 schließt jeder als Person ab (Vertrag der Fassung C) — die beiden Seiten unterscheiden sich nur im Ton.
+// /business/privatpersonen zeigt dieselbe Seite mit eigenem Kopf (aus dem Registereintrag) und eigener Augenzeile.
+// Seit E-509 schließt jeder als Person ab (Vertrag der Fassung C) — die beiden Seiten unterscheiden sich nur im Kopf.
 export default function Business() {
   return <BusinessSeite zielgruppe="unternehmen" />;
 }
@@ -77,19 +90,26 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   // 29.10.2026 (E-461): Die Übersicht ist die Startseite fiaon.com/ (und /en) — vorher /business.
   const seitePfad = privat ? (s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen") : BUSINESS_START[s];
   const preis = verkaufEur(VERKAUF_PREISE.gruendungCents, s);
-  const begriff = (k: GlobalBegriff) => ({ wort: t.begriffWoerter[k], erklaerung: t.begriffe[k] });
+  // Der Kopf: auf der Startseite aus VERKAUF_TEXTE (Bühne und Kopf für Suchmaschinen), auf /business/privatpersonen aus dem
+  // Registereintrag der Seite — dort stehen Titel, Beschreibung, H1 und Einleitung für Vorab-HTML und Seite an EINER Stelle.
+  const eintrag = s === "en" ? PRIVAT_SEITE_EN : PRIVAT_SEITE;
+  const kopf = privat
+    ? { titel: eintrag.seo.titel, beschreibung: eintrag.seo.beschreibung, auge: basis.privat.auge, h1a: eintrag.h1, h1b: eintrag.h1b ?? "", lead: eintrag.lead }
+    : { titel: V.seo.titel, beschreibung: V.seo.beschreibung, auge: V.buehne.auge, h1a: V.buehne.h1a, h1b: V.buehne.h1b, lead: V.buehne.lead };
 
   const [thema] = useState<string | null>(null);
   const [alleFragen, setAlleFragen] = useState(false);
-  // Klebeleiste am Handy: aus, solange Bühne, Konfigurator, Kalender oder Schlussband im Bild stehen.
+  // Klebeleiste am Handy: aus, solange Bühne, Honorarrechner, Kalender oder Schlussband im Bild stehen.
   const [leiste, setLeiste] = useState(false);
   const fragenRestRef = useRef<HTMLDivElement>(null);
   const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth") as ScrollBehavior;
 
   useEffect(() => {
-    // Wer mit #gespraech oder #konfigurator ankommt (alte Links auf #pakete landen beim Konfigurator), landet dort —
-    // erst nach dem ersten Bild, sonst misst der Browser die Höhe der Seite falsch.
-    const anker = window.location.hash === "#pakete" || window.location.hash === "#jahresbetreuung" ? "#konfigurator" : window.location.hash;
+    // Wer mit #gespraech oder #konfigurator ankommt (alte Links auf #pakete landen beim Honorarrechner), landet dort —
+    // erst nach dem ersten Bild, sonst misst der Browser die Höhe der Seite falsch. Alte Anker der Abschnitte, die es
+    // nicht mehr gibt (#leistungen, #bogen), führen zum einen Mandat.
+    const alt: Record<string, string> = { "#pakete": "#konfigurator", "#jahresbetreuung": "#konfigurator", "#leistungen": "#produkt", "#bogen": "#ablauf" };
+    const anker = alt[window.location.hash] ?? window.location.hash;
     if (anker && /^#[A-Za-z][\w-]*$/.test(anker)) requestAnimationFrame(() => setTimeout(() => document.querySelector(anker)?.scrollIntoView(), 60));
   }, []);
 
@@ -100,9 +120,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
       const h = window.innerHeight;
       const rahmen = (sel: string) => document.querySelector(sel)?.getBoundingClientRect() ?? null;
       const imBild = (r: DOMRect | null) => !!r && r.top < h * 0.85 && r.bottom > h * 0.15;
-      const kopf = rahmen(".hg");
+      const buehne = rahmen(".hg");
       const schluss = rahmen(".fg-schluss");
-      setLeiste(!(!kopf || kopf.bottom >= 80 || imBild(rahmen("#konfigurator")) || imBild(rahmen("#gespraech")) || (!!schluss && schluss.top < h)));
+      setLeiste(!(!buehne || buehne.bottom >= 80 || imBild(rahmen("#konfigurator")) || imBild(rahmen("#gespraech")) || (!!schluss && schluss.top < h)));
     };
     const planen = () => { if (!bild) bild = requestAnimationFrame(messen); };
     messen();
@@ -119,135 +139,86 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
     werbeEreignis("global_beauftragen_klick", { seite: seitePfad, ort });
     document.getElementById("konfigurator")?.scrollIntoView({ behavior: glatt() });
   };
-  const frei = GLOBAL_KAPITAL_FREI[s];
-  const buehne = GLOBAL_BUEHNE_WOERTER[s];
 
   // Die Fragen stehen im Wörterbuch (i18n/global.ts) — dieselbe Liste, aus der das FAQ-Markup für Suchmaschinen entsteht.
+  // Sichtbar sind die ersten fünf: die vier Fragen der 30-Sekunden-Probe und „Für wen passt das Mandat nicht?“.
   const fragen = basis.fragen;
   const fragenZuerst = fragen.slice(0, 5);
   const fragenRest = fragen.slice(5);
 
-  // Die Augenzeile: „Privatpersonen“ führt auf die Startseite für Privatpersonen (nicht auf ihr selbst).
-  const augeIdx = privat ? -1 : t.auge.indexOf(t.augeLink);
-  const auge = augeIdx < 0 ? t.auge : (
-    <span>{t.auge.slice(0, augeIdx)}<a href={s === "en" ? "/en/business/private-individuals" : "/business/privatpersonen"}>{t.augeLink}</a>{t.auge.slice(augeIdx + t.augeLink.length)}</span>
-  );
-  const rahmenSpanne = s === "en"
-    ? `${verkaufUsd(VERKAUF_RAHMEN.minUsd, "en")} – ${verkaufUsd(VERKAUF_RAHMEN.maxUsd, "en")}`
-    : `${VERKAUF_RAHMEN.minUsd.toLocaleString("de-DE")} – ${verkaufUsd(VERKAUF_RAHMEN.maxUsd, "de")}`;
+  // Die Spanne des Kapitalrahmens aus der Preisquelle — sie steht nie ohne ihren Satz (S9 und der Miami-Satz).
+  const rahmenSpanne = SAETZE_BETRAEGE[s].rahmen;
 
   return (
-    <Dunkel seite="business" titel={privat ? t.metaTitel : V.seo.titel} beschreibung={privat ? t.metaBeschreibung : V.seo.beschreibung}>
-      <div className="fg fg-neu">
-        {/* ── 1 Die Glas-Bühne (E-442): EINE große dünne Zahl — seit E-509 der eine Preis des einen Produkts.
-               /business/privatpersonen trägt den eigenen Kopf (GLOBAL_WOERTER.*.privat: Überschrift und Lead wortgleich mit dem
-               Registereintrag und damit dem Vorab-HTML für Suchmaschinen); dort steht die zweite Zeile still. ── */}
-        <HeroGlas en={s === "en"} onPakete={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
-          auge, ab: "", preis,
-          label: V.buehne.label,
-          h1a: privat ? t.h1a : V.buehne.h1a, h1b: privat ? t.h1b : V.buehne.h1b, wechsel: privat ? undefined : V.buehne.wechsel, lead: privat ? t.lead : sauber(V.buehne.lead),
-          knopfPakete: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
+    <Dunkel seite="business" titel={kopf.titel} beschreibung={kopf.beschreibung}>
+      <div className="fg fg-neu fg-start">
+        {/* ── 1 Die Bühne (E-442, E-510): der Satz groß, zwei Handlungen, darunter die Tatsachenreihe — das Honorar zum Auftrag
+               (mit der Zeile zum Erfolgshonorar) und die Spanne des Kapitalrahmens (mit S9 und dem Miami-Satz). Unter der
+               Bühne: „Auf einen Blick“ — die vier Antworten der 30-Sekunden-Probe. ── */}
+        <HeroGlas onAngebot={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
+          auge: kopf.auge, h1a: kopf.h1a, h1b: kopf.h1b, lead: sauber(kopf.lead),
+          knopfAngebot: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
+          preis, label: V.buehne.label, honorarZeile: V.buehne.honorarZeile,
           kapitalTitel: V.buehne.kapitalTitel, kapitalWert: rahmenSpanne, kapitalSatz: V.buehne.kapitalSatz,
-          kapitalFrei: frei.kurz, fussnoteNr: 1, fussnote: `${frei.satz} ${frei.steuer}`,
-          personTitel: buehne.person, teamTitel: buehne.teamAuge, teamHinweis: buehne.teamHinweis, teamAnhalten: buehne.teamAnhalten, teamFortsetzen: buehne.teamFortsetzen, vertragTitel: buehne.vertragAuge,
-          vertrag: t.vertrauensleiste, mustervertragHref: s === "en" ? "/en/business/mustervertrag" : "/business/mustervertrag",
-          weiter: buehne.weiterBlick, blickName: buehne.blickName,
+          blickName: V.blick.titel, blick: V.blick.punkte,
         }} />
 
-        {/* ── 2 Das eine Produkt ── */}
+        {/* ── 2 Das Vertrauens-Band: Register, Presse-Zeile, Vertrag vor der Unterschrift, Zahlung per Rechnung ── */}
+        <GlobalVertrauen sprache={s} />
+
+        {/* ── 3 Ein Mandat: acht Bereiche ── */}
         <VerkaufProdukt sprache={s} onKonfigurator={zumKonfigurator("produkt")} />
 
-        {/* ── 3 So läuft es ── */}
-        <VerkaufAblauf sprache={s} />
+        {/* ── 4 Sechs Schritte, jeder mit seiner Bedingung ── */}
+        <GlobalSchritte sprache={s} mehr={V.ablauf.mehr} />
 
-        {/* ── 4 Der Konfigurator — die eine dunkle Glasfläche der Seite ── */}
-        <Sek className="fg-sek vk-konfig-sek">
+        {/* ── 5 Ihr Angebot: der Honorarrechner — die eine dunkle Glasfläche der Seite ── */}
+        <Sek className="fg-sek vk-konfig-sek" titelId="vk-konfig-titel">
           <div className="fg-rahmen">
             <div className="fg-kopf">
-              <div><span className="fg-auge">{V.konfig.auge}</span><h2 className="fg-h2">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h2></div>
+              <div><span className="fg-auge">{V.konfig.auge}</span><h2 className="fg-h2" id="vk-konfig-titel">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h2></div>
               <VerkaufKonfigLead sprache={s} />
             </div>
             <VerkaufKonfigurator sprache={s} />
           </div>
         </Sek>
 
-        {/* ── 5 Geld-zurück-Garantie ── */}
-        <VerkaufGarantie sprache={s} />
-
-        {/* ── 5b Was Sie vor dem Auftrag wissen müssen: die drei Pflichthinweise (Wortlaut wie im Vertrag) — immer offen.
-               Bis E-509 standen sie im Kleingedruckten unter den Pakettafeln. ── */}
-        <Sek className="fg-sek vk-wissen-sek" titelId="vk-wissen-titel">
-          <div className="fg-rahmen">
-            <div className="vk-wissen">
-              <h3 id="vk-wissen-titel">{t.wissenTitel}</h3>
-              <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x, i) => <li key={x} style={{ ["--i" as string]: String(i) }}>{x}</li>)}</ul>
-            </div>
+        {/* ── 6 Wenn die Finanzierung ausbleibt: Geld-zurück-Garantie in der Mittel-Form — ein Band an Haarlinien.
+               Im selben Band darunter: „Was Sie vor dem Mandat wissen müssen“ (die drei Pflichthinweise, Wortlaut wie im
+               Vertrag) — immer offen. ── */}
+        <VerkaufGarantie sprache={s}>
+          <div className="vk-wissen">
+            <h2 id="vk-wissen-titel">{t.wissenTitel}</h2>
+            <ul>{GLOBAL_PFLICHTHINWEIS[s].map((x, i) => <li key={x} style={{ ["--i" as string]: String(i) }}>{sauber(x)}</li>)}</ul>
           </div>
-        </Sek>
+        </VerkaufGarantie>
 
-        {/* E-509 (12.11.2026): Der Vorführraum (E-313: Filme, Kino, Konzept als PDF-Mappe) steht hier vorerst nicht — Konzept-PDF
-            und Filme zeigen noch die vier Pakete mit ihren alten Preisen. Er kommt zurück, sobald sie zum einen Produkt passen
-            (components/site/global/GlobalVorfuehrraum.tsx bleibt unverändert). */}
-
-        {/* ── 6b FIAON auf Instagram und Facebook (E-296): NUR Beiträge von FIAON Global ── */}
-        <SozialFenster aussehen="kanzlei" marke="global" />
-
-        {/* ── 7 Ein Ansprechpartner statt acht ── */}
-        <Sek id="leistungen" className="fg-sek fg-stern-sek">
-          <div className="fg-rahmen">
-            <div className="fg-kopf mitte">
-              <div><span className="fg-auge">{t.vsAuge}</span><h2 className="fg-h2">{t.vsH2}</h2></div>
-            </div>
-            <SternZentrale knoten={t.sternKnoten} ohne={t.ohne} schalter={t.sternSchalter} mitte={t.sternMitte} sie={t.sternSie} legende={t.sternLegende}
-              label={t.sternLabel} inklusive={GLOBAL_INKLUSIVE[s]} begriffe={[begriff("registeredAgent"), begriff("operatingAgreement"), begriff("usCpa")]} />
-            <div className="fg-stern-unter">
-              <p className="fg-stern-partner">{V.partnerSatz}</p>
-            </div>
-            <div id="fuer-wen" className="fg-fuer-chips" style={{ scrollMarginTop: 96 }}>
-              <span>{t.fuerKurz}</span>
-              <ul>
-                {t.fuerChips.map((c) => <li key={c.text}>{c.pfad ? <a href={c.pfad}>{c.text}</a> : <span>{c.text}</span>}</li>)}
-              </ul>
-            </div>
+        {/* ── 7 Was FIAON ist — und was nicht; darunter „Für wen“ mit den Verweisen auf die Zielgruppen-Seiten ── */}
+        <VerkaufRolle sprache={s}>
+          <div id="fuer-wen" className="fg-fuer-chips" style={{ scrollMarginTop: 96 }}>
+            <span>{t.fuerKurz}</span>
+            <ul>
+              {t.fuerChips.map((c) => <li key={c.text}>{c.pfad ? <a href={c.pfad}>{c.text}</a> : <span>{c.text}</span>}</li>)}
+            </ul>
           </div>
-        </Sek>
-
-        {/* ── 7b Der Bogen (09.10.2026): Europa → Miami → Kapital zurück nach Europa ── */}
-        <Sek id="bogen" className="fg-sek stein fg-bogen-sek">
-          <div className="fg-rahmen fg-bogen-raster">
-            <div className="fg-bogen-text">
-              <span className="fg-auge">{buehne.bogenAuge}</span>
-              <h2 className="fg-h2">{buehne.bogenH2a} <em>{buehne.bogenH2b}</em></h2>
-              <p className="fg-lead">{buehne.bogenLead}</p>
-              <dl className="fg-bogen-punkte">
-                {buehne.bogenPunkte.map((p, i) => (
-                  <div key={p.titel}><i aria-hidden="true">{["I", "II", "III"][i]}</i><dt>{p.titel}</dt><dd>{p.text}</dd></div>
-                ))}
-              </dl>
-              <div className="fg-knoepfe">
-                <button type="button" className="fg-knopf" onClick={zumKonfigurator("bogen")}>{V.buehne.knopf}<Pfeil /></button>
-              </div>
-            </div>
-            <div className="fg-bogen-bild"><GlobalBogen w={buehne} etappen={V.ablauf.schritte.map((x) => x.titel)} /></div>
-          </div>
-        </Sek>
+        </VerkaufRolle>
 
         {/* ── 8 Erstgespräch ── */}
-        <Sek id="gespraech" className="fg-sek fg-gespraech-sek">
+        <Sek id="gespraech" className="fg-sek fg-gespraech-sek" titelId="fg-gespraech-titel">
           <div className="fg-rahmen">
             <div className="fg-kopf">
-              <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2">{t.gespraechH2}</h2></div>
+              <div><span className="fg-auge">{t.gespraechAuge}</span><h2 className="fg-h2" id="fg-gespraech-titel">{t.gespraechH2}</h2></div>
             </div>
             <GlobalGespraech paket={null} thema={thema} punkte={false} />
           </div>
         </Sek>
 
         {/* ── 9 Fragen: fünf sichtbar, die übrigen im DOM hinter dem Knopf ── */}
-        <Sek id="fragen" className="fg-sek stein">
+        <Sek id="fragen" className="fg-sek stein" titelId="fg-fragen-titel">
           <div className="fg-rahmen fg-fragen">
             <div className="fg-fragen-kopf">
               <span className="fg-auge">{t.fragenAuge}</span>
-              <h2 className="fg-h2">{t.fragenH2}</h2>
+              <h2 className="fg-h2" id="fg-fragen-titel">{t.fragenH2}</h2>
               <a className="fg-fragen-alle" href={s === "en" ? "/en/business/faq" : "/business/fragen"}>{t.fragenAlle}<Pfeil /></a>
             </div>
             <div className="fg-fragen-liste">
@@ -266,21 +237,21 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </Sek>
 
-        {/* ── 10 Schlussband ── */}
-        <section className="fg-schluss mit-bild">
-          <GlobalSchlussBild nachweis={t.szeneKi} />
+        {/* ── 10 Schluss: ein Satz, zwei Knöpfe (Leitfaden 7.1) — hell, an einer Linie, ohne Bild. Die eine dunkle Fläche
+               der Seite ist der Honorarrechner (UX-Prüfung 3.6). ── */}
+        <section className="fg-schluss ruhig hell" aria-labelledby="fg-schluss-titel">
           <div className="fg-rahmen">
             <div className="fg-schluss-text">
-              <h2 className="fg-h2">{t.schlussA}<em>{t.schlussB}</em></h2>
+              <h2 className="fg-h2" id="fg-schluss-titel">{t.schlussA}<em>{t.schlussB}</em></h2>
               <div className="fg-knoepfe">
                 <button type="button" className="fg-knopf" onClick={zumKonfigurator("schluss")}>{V.buehne.knopf}<Pfeil /></button>
-                <button type="button" className="fg-knopf hell" onClick={zumGespraech}>{t.knopfGespraech}</button>
+                <button type="button" className="fg-knopf hell" onClick={zumGespraech}>{V.buehne.knopfGespraech}</button>
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── Klebeleiste am Handy: ein Weg zum Angebot, einer zum Gespräch ── */}
+        {/* ── Leiste am Handy: ein Weg zum Angebot, einer zum Gespräch — dieselben zwei Namen wie überall ── */}
         <div className={`fg-mobil${leiste ? " da" : ""}`} aria-hidden={!leiste}>
           <button type="button" className="hell" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>{V.leiste.gespraech}</button>
           <button type="button" className="voll" onClick={zumKonfigurator("leiste")} tabIndex={leiste ? 0 : -1}>{V.leiste.zusammenstellen(preis)}</button>

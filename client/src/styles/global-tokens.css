@@ -1,0 +1,107 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIAON GLOBAL — DIE GRUNDWERTE (E-510, 13.11.2026)
+
+   Eine Stelle für alle Maße der öffentlichen Global-Seiten: Abstände, Radien,
+   Schriftgrößen, Farben (hell und die eine dunkle Fläche), Schatten, Bewegung.
+   Vorher standen in zehn Stilblättern 30 Radien, 14 Kurven, 84 Dauern,
+   32 Schriftgrößen und 158 Schatten (UX-Prüfung 12.11., Abschnitt 1).
+
+   Regel: Neue und angefasste Regeln benutzen NUR diese Namen. Die Werte hängen
+   an :root und tragen das Präfix --g-; sie ändern für sich allein keine Seite —
+   erst eine Regel, die sie benutzt. Deshalb darf jede Datei sie laden.
+
+   Leitidee (UX-Prüfung 3.1): Papier, Linie, eine Bühne. Heller Grund im
+   Glasblau, Inhalte an Haarlinien, genau eine dunkle Glasfläche je Seite,
+   jede Bewegung läuft einmal. Kein Gold, kein Grün, kein Orange.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Abstände (4er-Schritt) ─────────────────────────────────────────────── */
+  --g-1: 4px; --g-2: 8px; --g-3: 12px; --g-4: 16px; --g-5: 24px;
+  --g-6: 32px; --g-7: 48px; --g-8: 64px; --g-9: 96px; --g-10: 128px;
+  /* Raster: eine Inhaltsbreite, eine Lesespalte, ein Rand je Breite */
+  --g-breite: 1200px;
+  --g-lesen: 66ch;
+  --g-rand: clamp(16px, 3vw, 32px); /* derselbe Rand wie .fg-rahmen — am Telefon 24 px, unter 380 px 20 px (siehe unten) */
+  --g-abschnitt: clamp(72px, 9vw, 128px);
+  --g-abschnitt-eng: clamp(56px, 7vw, 96px);
+  --g-tippen: 44px; /* kleinste Tippfläche */
+
+  /* ── Radien: vier ───────────────────────────────────────────────────────── */
+  --g-r-feld: 10px;     /* Felder, kleine Marken */
+  --g-r-karte: 16px;    /* Karten (ein Gegenstand, den man in die Hand nehmen könnte) */
+  --g-r-flaeche: 28px;  /* große Flächen: die dunkle Bühne, das Blatt */
+  --g-r-pille: 999px;   /* Knöpfe, Kopf-Pille */
+
+  /* ── Schrift: die dünne Apple-Schrift der öffentlichen Seiten; neun Größen in rem ── */
+  --g-schrift: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --g-t-zahl: clamp(3.5rem, 6.6vw, 6rem);       /* 56 … 96 */
+  --g-t-h1: clamp(2.375rem, 4.4vw, 4rem);       /* 38 … 64 */
+  --g-t-h2: clamp(1.875rem, 3.1vw, 2.75rem);    /* 30 … 44 */
+  --g-t-h3: clamp(1.25rem, 1.5vw, 1.375rem);    /* 20 … 22 */
+  --g-t-lead: clamp(1.0625rem, 1.3vw, 1.1875rem); /* 17 … 19 */
+  --g-t-text: clamp(1rem, 1.2vw, 1.0625rem);    /* 16 … 17 */
+  --g-t-klein: .875rem;                         /* 14 */
+  --g-t-fein: .8125rem;                         /* 13 — kleiner wird nichts gesetzt */
+  --g-t-auge: .75rem;                           /* 12, Großbuchstaben, Laufweite .16em */
+  /* Gewichte: 300 nur ab 19 px, sonst 400; 500 für Beschriftungen. Kein 600. Das dünne 200 bleibt den großen Zeilen. */
+  --g-w-duenn: 200; --g-w-leicht: 300; --g-w-text: 400; --g-w-fest: 500;
+
+  /* ── Farben, hell ───────────────────────────────────────────────────────── */
+  --g-grund: #f1f6fe;                 /* Mittelwert des Blaugrunds — für Schleier und Flächen, die im Grund aufgehen */
+  --g-papier: #ffffff;                /* Blatt, Karte */
+  --g-tinte: #0c1a2e;                 /* Überschrift */
+  --g-text: #3b4658;                  /* Fließtext, 8,6:1 */
+  --g-leise: #5b6576;                 /* kleinste erlaubte Stufe für Text, 5,4:1 auf dem Blaugrund */
+  --g-linie: rgba(18, 40, 74, .12);
+  --g-linie-stark: rgba(18, 40, 74, .28);
+  --g-handlung: #1d4ed8;              /* Verweise, Augenzeilen, gewählte Zustände */
+  --g-licht: #288dfa;                 /* nur als Linie oder Punkt, nie als Schrift auf Hell */
+  --g-knopf: linear-gradient(180deg, #2a6be6 0%, #1d4ed8 100%); /* weiße Schrift oben 4,8:1 */
+  --g-knopf-drueber: linear-gradient(180deg, #245fd6 0%, #1a45c2 100%);
+  --g-falsch: #b42318;
+  --g-fehlt: #288dfa;                 /* „fehlt noch“: blaue Linie links, der Satz in Tinte */
+  --g-fokus: #1d4ed8;
+
+  /* ── Farben auf der einen dunklen Fläche ────────────────────────────────── */
+  --g-d-grund: linear-gradient(160deg, #1d3f73 0%, #12284a 46%, #0b1c36 100%);
+  --g-d-tief: #0b1c36;
+  --g-d-tinte: #ffffff;
+  --g-d-text: rgba(234, 242, 255, .86);
+  --g-d-leise: rgba(234, 242, 255, .72);
+  --g-d-linie: rgba(255, 255, 255, .14);
+  --g-d-linie-stark: rgba(255, 255, 255, .3);
+  --g-d-handlung: #9cc4ff;
+  --g-d-falsch: #ffb4ab;
+  --g-d-fokus: #9cc4ff;
+
+  /* ── Schatten: drei ─────────────────────────────────────────────────────── */
+  --g-schatten-1: 0 1px 2px rgba(18, 40, 74, .06);                                  /* ein Gegenstand liegt */
+  --g-schatten-2: 0 1px 2px rgba(18, 40, 74, .04), 0 24px 56px -36px rgba(18, 40, 74, .4); /* Karte, Blatt */
+  --g-schatten-3: 0 60px 110px -60px rgba(11, 28, 54, .85);                          /* die dunkle Bühne */
+
+  /* ── Bewegung: zwei Kurven, fünf Dauern, eine Staffel ───────────────────── */
+  --g-dauer-1: 160ms;   /* Überfahren, Drücken, Haken setzen */
+  --g-dauer-2: 280ms;   /* Aufklappen, Umschalten, Fokus */
+  --g-dauer-3: 560ms;   /* kleines Erscheinen: Zeile, Zahl */
+  --g-dauer-4: 900ms;   /* ein Abschnitt erscheint */
+  --g-dauer-5: 1400ms;  /* eine Linie zeichnet sich */
+  --g-kurve-aus: cubic-bezier(.22, 1, .36, 1);  /* alles, was ankommt */
+  --g-kurve-weg: cubic-bezier(.65, 0, .35, 1);  /* Linien, Wechsel von A nach B */
+  --g-staffel: 80ms;    /* je Element, höchstens sechs Stufen */
+  --g-hub: 16px;        /* so weit gleitet ein Abschnitt herein */
+}
+
+@media (max-width: 720px) { :root { --g-rand: 24px; } }
+@media (max-width: 380px) { :root { --g-rand: 20px; } }
+
+/* „Weniger Bewegung“ an EINER Stelle: Alle Dauern stehen auf null, jeder Endzustand ist sofort da. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --g-dauer-1: 0ms; --g-dauer-2: 0ms; --g-dauer-3: 0ms; --g-dauer-4: 0ms; --g-dauer-5: 0ms;
+    --g-staffel: 0ms; --g-hub: 0px;
+  }
+}
+
+/* Der weiche Seitenwechsel (UX-Prüfung, Maßnahme 22) steht bewusst NICHT hier: Die Freigabe dafür (@view-transition) muss
+   beim ersten Bild der neuen Seite schon im Dokument stehen — also in client/index.html, nicht in einem Stilblatt, das
+   erst mit der Seite nachlädt. Außerdem beginnt jede Seite mit dem Ladebild; ein Überblenden dorthin bringt nichts. */

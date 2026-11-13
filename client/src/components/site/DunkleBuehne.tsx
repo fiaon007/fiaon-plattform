@@ -4,8 +4,9 @@
 // Jede Seite: Hero → viele kurze Blöcke mit Mehrwert → Zwischen-CTAs →
 // Abschluss, der den Zusammenhang zur Startseite und zum nächsten Schritt zieht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
+import { globalOeffentlich } from "@/components/site/GlobalNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import WellenFeld from "@/components/site/WellenFeld";
@@ -56,15 +57,28 @@ export function Dunkel({ seite, titel, beschreibung, sprache, children }: { seit
     document.documentElement.classList.add("fg-dokument");
     return () => document.documentElement.classList.remove("fg-dokument");
   }, [business]);
+  // E-510 (13.11.2026): Die öffentlichen Global-Seiten tragen die Marke dk-global — daran hängen der helle Fuß und der neue
+  // Kopf (styles/global-rahmen-apple.css). Angebot, Auftrag und Konto-Tor tragen sie nicht und bleiben, wie sie sind.
+  const oeffentlich = business && globalOeffentlich();
+  // Die Leiste des Handy-Browsers ist auf den hellen Global-Seiten hell (index.html setzt sie für die Privat-Welt dunkel).
+  useEffect(() => {
+    if (!oeffentlich) return;
+    const m = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!m) return;
+    const alt = m.getAttribute("content") || "";
+    m.setAttribute("content", "#f4f8ff");
+    return () => { m.setAttribute("content", alt); };
+  }, [oeffentlich]);
   return (
-    <div className={`dk${business ? " dk-business" : ""}`}>
+    <div className={`dk${business ? " dk-business" : ""}${oeffentlich ? " dk-global" : ""}`}>
       {!business && (
         <div className="dk-grund" aria-hidden="true">
           <span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" />
         </div>
       )}
       <GlassNav activePage={seite} />
-      <main className="relative z-[1]">{children}</main>
+      {/* id und tabIndex nur in der Business-Welt: das Ziel des Sprunglinks „Zum Inhalt“ im Kopf (GlobalNav). */}
+      <main className="relative z-[1]" {...(business ? { id: "inhalt", tabIndex: -1 } : {})}>{children}</main>
       <PremiumFooter />
     </div>
   );
@@ -212,19 +226,30 @@ export function Zitat({ text, wer, en }: { text: string; wer: string; en?: boole
 
 // 06.10.2026 (E-293): `start` — welche Frage offen beginnt (Standard die erste; null = alle zu). /business zeigt
 // fünf Fragen offen sichtbar und die übrigen zwölf in einer zweiten Liste hinter „Alle 17 Fragen“, die zu beginnt.
-export function Fragen({ items, start = 0 }: { items: { f: string; a: string }[]; start?: number | null }) {
+// E-510 (13.11.2026): `ebene` — auf den Global-Seiten ist jede Frage eine Überschrift (h3 unter der H2 des Abschnitts), und
+// eine zugeklappte Antwort ist „inert“: Tastatur und Bildschirmleser überspringen sie, bis sie offen ist. Ohne `ebene`
+// bleibt der Baustein Zeichen für Zeichen wie bisher (Privat-Seiten, Investoren, Presse).
+export function Fragen({ items, start = 0, ebene }: { items: { f: string; a: string }[]; start?: number | null; ebene?: 2 | 3 | 4 }) {
   const [auf, setAuf] = useState<number | null>(start);
+  const kennung = useId();
+  const H = ebene ? (`h${ebene}` as "h2" | "h3" | "h4") : null;
   return (
-    <div style={{ marginTop: 36 }}>
-      {items.map((q, i) => (
-        <div key={q.f} className={`dk-frage${auf === i ? " auf" : ""}`}>
-          <button type="button" onClick={() => setAuf(auf === i ? null : i)} aria-expanded={auf === i}>
+    <div style={{ marginTop: 36 }} className={ebene ? "dk-fragen-liste" : undefined}>
+      {items.map((q, i) => {
+        const offen = auf === i;
+        const knopf = (
+          <button type="button" onClick={() => setAuf(offen ? null : i)} aria-expanded={offen} aria-controls={ebene ? `${kennung}-a${i}` : undefined}>
             <span>{q.f}</span>
             <span className="plus" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg></span>
           </button>
-          <div className="antwort"><div><p>{q.a}</p></div></div>
-        </div>
-      ))}
+        );
+        return (
+          <div key={q.f} className={`dk-frage${offen ? " auf" : ""}`}>
+            {H ? <H className="dk-frage-titel">{knopf}</H> : knopf}
+            <div className="antwort" {...(ebene ? { id: `${kennung}-a${i}`, ...(offen ? {} : { inert: "" }) } : {})}><div><p>{q.a}</p></div></div>
+          </div>
+        );
+      })}
     </div>
   );
 }

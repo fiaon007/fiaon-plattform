@@ -2,43 +2,96 @@
 // FIAON GLOBAL — DIE ANZEIGEN-LANDINGPAGE (19.09.2026, E-191)
 //
 // Eine Seite hinter einer Anzeige. Google bewertet sie nach Relevanz,
-// Transparenz und Tempo; der Mensch dahinter hat genau eine Frage — „ist das
-// seriös, was kostet es, wie fange ich an?". Darum: kein Menü, die Überschrift
-// wiederholt die Suche, der Preis steht oben, der Kalender gleich darunter,
-// Vertragspartner und Registernummer im Kopf. Nicht im Index (noindex,follow).
-// Konto, Karten und Kapitalrahmen stehen hier bewusst NICHT im Blickfang —
-// Googles Regeln für Finanzanzeigen (siehe shared/fiaon-global-seiten/landingpages.ts).
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der eine Preis aus EIN_PRODUKT, der Knopf führt zum Konfigurator.
-// Das Erfolgshonorar wird offen genannt (fällig mit der Eintragung), ohne Kapital oder Bürgschaft herauszustellen.
+// Transparenz und Tempo; der Mensch dahinter hat genau eine Frage — wer ist das,
+// was kostet es, wie fange ich an? Darum: kein Menü, die Überschrift wiederholt
+// die Suche, Vertragspartner und Registernummer stehen im Kopf. Nicht im Index
+// (noindex,follow). Konto, Karten und Kapitalrahmen stehen hier bewusst NICHT im
+// Blickfang — Googles Regeln für Finanzanzeigen (shared/fiaon-global-seiten/landingpages.ts).
+//
+// ── E-510 (13.11.2026): auf der Vorlage der Unterseiten, im Kanzlei-Ton ─────
+// Aufbau nach Sprachleitfaden 7.6: Kopf (Suchwort, zwei Sätze, die eine Handlung) mit der Karteikarte „Auf einen Blick“
+// → Vertrauens-Band (vier Tatsachen mit Verweis) → Leistung an Haarlinien → drei Schritte (Ihr Mandat beginnt, Gründung,
+// Unterlagen — jeder mit seiner Bedingung) → Honorar (der feste Satz mit BEIDEN Teilen) → Fragen → Erstgespräch auf Wunsch
+// → Schlussband (die eine dunkle Fläche) → Fuß mit dem Rollen-Satz. Feste Sätze, Schritte und Beträge kommen aus
+// shared/fiaon-global-saetze.ts; hier wird keiner getippt. Kein Inline-Stil mehr — alles in styles/global-apple.css (.lp-).
+// Der Kalender lädt erst auf Wunsch (wie auf den Unterseiten), die Seite bleibt damit leicht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Auf, Fragen } from "@/components/site/DunkleBuehne";
-import GlobalGespraech from "@/components/site/GlobalGespraech";
+import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
+import Merkblatt from "@/components/site/global-seite/Merkblatt";
+import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import NotFound from "@/pages/not-found";
 import { globalLandingpage } from "@shared/fiaon-global-seiten";
 import { GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
-import { EIN_PRODUKT } from "@shared/fiaon-global-seiten/ein-produkt";
 import { globalStartPfad } from "@shared/fiaon-global-wege";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+import { SCHRITTE_KOPF, beleg, handlung, satz, sechsSchritte, weitererSatz } from "@shared/fiaon-global-saetze";
+import { GLOBAL_SEITE_WOERTER } from "@/i18n/global-seite";
 import { werbeEreignis } from "@/lib/werbung";
-import { Haken, Pfeil, Standorte } from "@/pages/site/global-seite";
+import { Pfeil } from "@/pages/site/global-seite";
+import "@/styles/global-tokens.css";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-apple.css";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
+import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import "@/styles/global-rahmen-apple.css";
+
+/** Die Wörter der Landingpage, die keine festen Sätze sind (die Seite gibt es nur deutsch). */
+const WORT = {
+  sprung: "Zum Inhalt",
+  start: "FIAON Global — Startseite",
+  kennung: "FG · LP",
+  vertragspartner: "Vertragspartner",
+  honorar: "Honorar",
+  zahlung: "Zahlung",
+  leistungAuge: "Leistung",
+  leistungH2: "Im ersten Jahr enthalten.",
+  schritteH2: "Drei Schritte. Jeder mit seiner Bedingung.",
+  mandat: "Ihr Mandat beginnt",
+  honorarH2: "Honorar. Vor der Unterschrift.",
+  wissenAuge: "Was Sie vor dem Mandat wissen müssen",
+  fragenAuge: "Fragen",
+  fragenH2: "Fragen zur Gründung.",
+  gespraechAuge: "Erstgespräch",
+  gespraechH2: "Dreißig Minuten, kostenfrei.",
+  mehr: "Mehr zu diesem Thema:",
+  rechtliches: "Rechtliches",
+} as const;
+
+/** Ein Abschnitt der Landingpage: links Augenzeile und Überschrift, rechts der Inhalt an Haarlinien. Erscheint einmal als Ganzes. */
+function Abschnitt({ id, auge, h2, children }: { id?: string; auge: string; h2: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEinmalSichtbar(ref, 0, "0px 0px -12% 0px");
+  return (
+    <section ref={ref} id={id} className="lp-sek">
+      <div className="fg-rahmen lp-sek-raster">
+        <div className="lp-sek-kopf">
+          <span className="fg-auge">{auge}</span>
+          <h2 className="fg-h2 fd-h2">{h2}</h2>
+        </div>
+        <div className="lp-sek-inhalt">{children}</div>
+      </div>
+    </section>
+  );
+}
 
 export default function GlobalLandingPage() {
   const lp = globalLandingpage(typeof window !== "undefined" ? window.location.pathname : "");
   useApfelBewegung();
-  // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument).
+  const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
+  // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument); die Browserleiste am Handy ist hell.
   useEffect(() => {
     document.documentElement.classList.add("fg-dokument");
-    return () => document.documentElement.classList.remove("fg-dokument");
+    const m = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const alt = m?.getAttribute("content") || "";
+    m?.setAttribute("content", "#f4f8ff");
+    return () => { document.documentElement.classList.remove("fg-dokument"); if (alt) m?.setAttribute("content", alt); };
   }, []);
   useEffect(() => {
     if (!lp) return;
@@ -47,112 +100,135 @@ export default function GlobalLandingPage() {
     window.scrollTo(0, 0);
   }, [lp?.pfad]);
   if (!lp) return <NotFound />;
-  const P = EIN_PRODUKT.de;
-  // ?paket= stellt im Konfigurator nur noch den Start-Rahmen des Reglers.
+  const u = GLOBAL_SEITE_WOERTER.de;
+  // ?paket= stellt im Honorarrechner nur noch den Start-Rahmen des Reglers.
   const start = globalStartPfad(lp.paket, "de");
   const klick = () => werbeEreignis("global_beauftragen_klick", { paket: lp.paket, seite: lp.pfad });
-  const zumGespraech = (e: React.MouseEvent) => { e.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); };
+  const glatt = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth") as ScrollBehavior;
+  const zumGespraech = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setGespraechOffen(true);
+    requestAnimationFrame(() => document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }));
+  };
+  const zumInhalt = (e: React.MouseEvent) => { e.preventDefault(); const z = document.getElementById("inhalt"); z?.focus({ preventScroll: true }); z?.scrollIntoView(); };
+  const angebot = handlung("angebot", "de");
+  const gespraech = handlung("gespraech", "de");
+  // Die Landingpage wirbt nur für die Gründung: die Schritte Gründung und Unterlagen (wie auf der Österreich-Seite gekürzt),
+  // davor ohne Nummer „Ihr Mandat beginnt“ (Leitfaden 2.1).
+  const schritte = sechsSchritte("de", "AT").schritte;
+  // Pflichthinweise ohne die Zeile zu Konto und Karte — beides steht auf dieser Seite nicht.
+  const hinweise = GLOBAL_PFLICHTHINWEIS.de.filter((h) => !/Konto|Karte/.test(h));
+  const blick: [string, string][] = [
+    [WORT.vertragspartner, `${FIAON_FIRMA.name}, London · Companies House Nr. ${FIAON_FIRMA.companyNo}`],
+    [WORT.honorar, beleg("honorarVorab", "de")],
+    [WORT.zahlung, weitererSatz("ZAHLUNG", "de")],
+  ];
 
   return (
     <div className="fg fd lp">
-      {/* ── Schlanker Kopf: Marke, Vertragspartner, eine Handlung ─────────── */}
-      {/* E-442 (27.10.2026): Kopf als schwebende Glaspille, Stile in global-apple.css (.lp-*) statt inline. */}
+      <a className="gk-sprung" href="#inhalt" onClick={zumInhalt}>{WORT.sprung}</a>
+      {/* ── Schlanker Kopf: Marke und die eine Handlung ───────────────────── */}
       <header className="lp-kopf">
         <div className="lp-kopf-innen">
-          <a href="/" className="lp-marke">
-            <FiaonWortmarke variante="global" hoehe={20} farbe={MARKE_NAVY} />
+          <a href="/" className="lp-marke" aria-label={WORT.start}>
+            <FiaonWortmarke variante="global" hoehe={20} farbe={MARKE_NAVY} dekorativ />
           </a>
-          <a className="fg-knopf lp-knopf" href="#gespraech" onClick={zumGespraech}>Gespräch vereinbaren</a>
+          <a className="fg-knopf lp-knopf" href={start} onClick={klick}>{angebot}</a>
         </div>
       </header>
 
-      {/* ── Kopf ────────────────────────────────────────────────────────── */}
-      <section className="fd-kopf" style={{ paddingTop: 72 }}>
-        <div className="fg-rahmen fd-kopf-raster">
-          <Auf>
-            <span className="fg-auge">{lp.auge}</span>
-            <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(lp.h1)}{lp.h1b && <><br /><em>{ohneBindestrichBruch(lp.h1b)}</em></>}</h1>
-            <p className="fd-lead">{lp.lead}</p>
-            <ul className="fd-punkte" style={{ marginTop: 22 }}>{lp.vorteile.map((v) => <li key={v}><Haken />{v}</li>)}</ul>
-            <div className="fg-knoepfe">
-              <a className="fg-knopf" href={start} onClick={klick}>Angebot zusammenstellen<Pfeil /></a>
-              <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>Erst sprechen — dreißig Minuten</a>
-            </div>
-          </Auf>
-          <Auf verzoegerung={120}>
-            <aside className="fd-merkblatt" aria-label="Das Wichtigste">
-              <div className="fd-merkblatt-kopf"><b>{P.name}</b><span>Ein Auftrag</span></div>
-              <div style={{ padding: "22px 24px 8px" }}>
-                <div className="fg-preis" style={{ marginTop: 0, paddingTop: 0, borderTop: 0 }}>
-                  <b className="fg-glanz">{P.preis}</b>
-                  <span>mit Ihrem Auftrag · erstes Jahr inklusive · Endpreis</span>
+      <main id="inhalt" tabIndex={-1}>
+        {/* ── Kopf: das Suchwort, zwei Sätze, die Handlungen — rechts die Karteikarte ── */}
+        <section className="fd-kopf neu lp-buehne">
+          <div className="fg-rahmen fd-kopf-raster">
+            <Auf>
+              <span className="fg-auge">{lp.auge}</span>
+              <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(lp.h1)}{lp.h1b && <><br /><em>{ohneBindestrichBruch(lp.h1b)}</em></>}</h1>
+              <p className="fd-lead">{lp.lead}</p>
+              <div className="fg-knoepfe fd-kopf-knoepfe">
+                <a className="fg-knopf" href={start} onClick={klick}>{angebot}<Pfeil /></a>
+                <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{gespraech}</a>
+              </div>
+            </Auf>
+            <Auf verzoegerung={140}>
+              <Merkblatt titel={u.blick} kennung={WORT.kennung} zeilen={blick} alle={u.alleAngaben} punkte={u.blickPunkte(blick.length)}
+                stand={weitererSatz("PRODUKTNAME", "de")} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
+            </Auf>
+          </div>
+        </section>
+
+        {/* ── Vertrauens-Band: vier Tatsachen mit Verweis, die Presse-Zeile genau einmal ── */}
+        <GlobalVertrauen sprache="de" />
+
+        {/* ── Leistung: fünf Zeilen an Haarlinien ───────────────────────────── */}
+        <Abschnitt auge={WORT.leistungAuge} h2={WORT.leistungH2}>
+          <ul className="lp-liste">{lp.vorteile.map((v) => <li key={v}>{v}</li>)}</ul>
+        </Abschnitt>
+
+        {/* ── Ablauf: Ihr Mandat beginnt, dann Gründung und Unterlagen — jeder Schritt mit seiner Bedingung ── */}
+        <Abschnitt auge={SCHRITTE_KOPF.de.auge} h2={WORT.schritteH2}>
+          <ol className="lp-schritte">
+            <li>
+              <span className="nr" aria-hidden="true">—</span>
+              <div><h3>{WORT.mandat}</h3><p>{beleg("honorarVorab", "de")} {beleg("zahlung", "de")}</p></div>
+            </li>
+            {schritte.map((x) => (
+              <li key={x.nr}>
+                <span className="nr">{x.nr}</span>
+                <div><h3>{x.titel}</h3><p>{x.satz}</p><p className="bedingung">{x.bedingung}</p></div>
+              </li>
+            ))}
+          </ol>
+        </Abschnitt>
+
+        {/* ── Honorar: der feste Satz mit beiden Teilen (Leitfaden 7.6) ─────── */}
+        <Abschnitt auge={WORT.honorar} h2={WORT.honorarH2}>
+          <p className="lp-satz">{weitererSatz("HONORAR-LANDINGPAGE", "de")}</p>
+          <p className="lp-klein">{weitererSatz("HONORAR-SCHLUSS", "de")} {weitererSatz("ZAHLUNG", "de")}</p>
+          <div className="lp-wissen">
+            <span className="fd-marke">{WORT.wissenAuge}</span>
+            <ol>
+              <li><span>{satz("S3", "de")}</span></li>
+              {hinweise.map((h) => <li key={h.slice(0, 40)}><span>{h}</span></li>)}
+            </ol>
+          </div>
+        </Abschnitt>
+
+        {/* ── Fragen ────────────────────────────────────────────────────────── */}
+        <Abschnitt auge={WORT.fragenAuge} h2={WORT.fragenH2}>
+          <div className="fd-fragen"><Fragen items={lp.fragen} ebene={3} /></div>
+          <p className="lp-klein lp-mehr">{WORT.mehr} <a href={lp.quelle}>{seoSeite(lp.quelle)?.h1 ?? "FIAON Global"}</a></p>
+        </Abschnitt>
+
+        {/* ── Erstgespräch: die Karte, der Kalender erst auf Wunsch ─────────── */}
+        <Abschnitt id="gespraech" auge={WORT.gespraechAuge} h2={WORT.gespraechH2}>
+          <GespraechKarte sp="de" offen={gespraechOffen} onOeffnen={() => setGespraechOffen(true)} paket={null} />
+        </Abschnitt>
+
+        {/* ── Schlussband: die eine dunkle Fläche — ein Satz, die Handlungen ── */}
+        <section className="fg-schluss ruhig">
+          <div className="fg-rahmen">
+            <Auf>
+              <div className="fg-schluss-text">
+                <h2 className="fg-h2">{weitererSatz("SCHLUSS", "de")}</h2>
+                <div className="fg-knoepfe">
+                  <a className="fg-knopf" href={start} onClick={klick}>{angebot}<Pfeil /></a>
+                  <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{gespraech}</a>
                 </div>
               </div>
-              <dl>
-                <div><dt>Vertragspartner</dt><dd>{FIAON_FIRMA.name}, London · Companies House {FIAON_FIRMA.companyNo}</dd></div>
-                <div><dt>Vor Ort</dt><dd>Schwarzott Group, Miami</dd></div>
-                <div><dt>Mit der Eintragung</dt><dd>Erfolgshonorar — Ihren Preis zeigt der Konfigurator</dd></div>
-                <div><dt>Ab dem zweiten Jahr</dt><dd>Jahresbetreuung auf Wunsch, {P.jahres} im Jahr</dd></div>
-              </dl>
-              <div className="fd-merkblatt-fuss"><span>Für Unternehmer und Privatpersonen</span><span>DE · AT · CH</span></div>
-            </aside>
-          </Auf>
-        </div>
-      </section>
-
-      {/* ── Gespräch ────────────────────────────────────────────────────── */}
-      <section id="gespraech" className="fg-sek stein" style={{ scrollMarginTop: 72, paddingTop: 72 }}>
-        <div className="fg-rahmen">
-          <div className="fg-kopf">
-            <div><span className="fg-auge">Gespräch</span><h2 className="fg-h2">Erst sprechen, dann entscheiden.</h2></div>
-            <p className="fg-lead">Dreißig Minuten mit Ihrem Ansprechpartner: Vorhaben, Wohnsitz, Ziel — und was dazu passt. Ohne Verpflichtung.</p>
+            </Auf>
           </div>
-          <GlobalGespraech />
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* ── Ein Auftrag (bis E-509: die vier Pakete) ───────────────────────── */}
-      <section className="fg-sek eng">
-        <div className="fg-rahmen">
-          <span className="fg-auge">Ihr Auftrag</span>
-          <h2 className="fg-h2">Ein Auftrag. Ein Ansprechpartner.</h2>
-          <div className="fd-pakete" style={{ gridTemplateColumns: "minmax(240px,520px)" }}>
-            <a className="fd-paket fokus" href={start} onClick={klick}>
-              <span className="marke">Angebot zusammenstellen</span>
-              <span className="name">{P.name}</span>
-              <span className="zeile"><span>Mit Ihrem Auftrag, erstes Jahr inklusive</span><b>{P.preis}</b></span>
-              <span className="pfeil"><Pfeil /></span>
-            </a>
-          </div>
-          <p className="fg-paket-fuss">Alle Beträge sind Endpreise. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr auf Wunsch die Jahresbetreuung für {P.jahres} im Jahr.</p>
-        </div>
-      </section>
-
-      {/* ── Standorte, Fragen, Hinweise ─────────────────────────────────── */}
-      <section className="fg-sek stein eng">
-        <div className="fg-rahmen">
-          {/* E-466/E-233: „ein Ansprechpartner“ statt „ein Vertrag“ (Partner arbeiten auf eigenes Mandat). */}
-          <span className="fg-auge">Drei Standorte, ein Ansprechpartner</span>
-          <Standorte />
-        </div>
-      </section>
-      <section className="fg-sek eng">
-        <div className="fg-rahmen schmal">
-          <span className="fg-auge">Häufige Fragen</span>
-          <div className="fd-fragen"><Fragen items={lp.fragen} /></div>
-          <div className="fd-hinweis" style={{ marginTop: 36 }}>
-            <span className="fd-marke">Was Sie wissen müssen</span>
-            <ol>{GLOBAL_PFLICHTHINWEIS.de.map((h) => <li key={h.slice(0, 40)}><span>{h}</span></li>)}</ol>
-          </div>
-          <p className="fg-leise" style={{ marginTop: 24 }}>Mehr zu diesem Thema: <a href={lp.quelle} style={{ color: "var(--navy)" }}>{seoSeite(lp.quelle)?.h1 ?? "FIAON Global"}</a></p>
-        </div>
-      </section>
-
-      {/* ── Fuß: nur das Nötige ─────────────────────────────────────────── */}
+      {/* ── Fuß: nur das Nötige — Register-Zeile, Rollen-Satz, Rechtliches ──── */}
       <footer className="lp-fuss">
         <div className="fg-rahmen lp-fuss-innen">
-          <span>{FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House {FIAON_FIRMA.companyNo} · FIAON ist keine Bank und keine Kanzlei.</span>
-          <span className="lp-fuss-links">
+          <div className="lp-fuss-firma">
+            <p>© {new Date().getFullYear()} {FIAON_FIRMA.name} · {FIAON_FIRMA.strasse} · {FIAON_FIRMA.ortZeile} · Companies House Nr. {FIAON_FIRMA.companyNo}</p>
+            <p>{satz("S8", "de")}</p>
+          </div>
+          <nav className="lp-fuss-links" aria-label={WORT.rechtliches}>
             <a href="/">FIAON Global</a>
             {/* 19.09.2026: Rechtliches der Business-Welt — die AGB der Privatkunden-Linie gelten für FIAON Global nicht. */}
             <a href="/impressum?bereich=business">Impressum</a>
@@ -160,7 +236,7 @@ export default function GlobalLandingPage() {
             <a href="/business/mustervertrag">Vertrag im Überblick</a>
             <a href="/business/widerrufsbelehrung">Widerrufsbelehrung</a>
             <a href="/cookie-einstellungen?bereich=business">Cookie-Einstellungen</a>
-          </span>
+          </nav>
         </div>
       </footer>
     </div>

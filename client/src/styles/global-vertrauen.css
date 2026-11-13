@@ -1,0 +1,67 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DAS VERTRAUENS-BAND (E-510, 13.11.2026) — components/site/global/GlobalVertrauen.tsx
+   Vier Tatsachen an Haarlinien, jede mit ihrem Verweis. Kein Kasten, kein Logo, kein Symbol außer dem Pfeil des Verweises.
+   Präfix .gvt-. Alle Maße aus styles/global-tokens.css. Das Band bringt Schrift und Farben selbst mit — es steht auf der
+   Startseite, auf jeder Unterseite, auf den Landingpages und im Honorarrechner gleich da.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gvt { position: relative; padding: var(--g-abschnitt-eng) 0; font-family: var(--g-schrift); color: var(--g-text); -webkit-font-smoothing: antialiased; }
+.gvt.eng { padding: 0; }
+.gvt-innen { max-width: var(--g-breite); margin: 0 auto; padding: 0 var(--g-rand); }
+.gvt.eng .gvt-innen { max-width: none; padding: 0; }
+.gvt .gvt-titel { margin: 0 0 var(--g-6); max-width: 24ch; font: var(--g-w-leicht) var(--g-t-h2)/1.1 var(--g-schrift); letter-spacing: -.026em; color: var(--g-tinte); text-wrap: balance; }
+
+.gvt-liste { position: relative; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--g-linie); }
+/* Die obere Linie zeichnet sich einmal von links. */
+.gvt-liste::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--g-linie-stark); transform-origin: left center; }
+.gvt-liste > li { display: flex; flex-direction: column; gap: var(--g-2); min-width: 0; padding: var(--g-5) var(--g-5) var(--g-5) 0; }
+.gvt-liste > li + li { padding-left: var(--g-5); border-left: 1px solid var(--g-linie); }
+.gvt-liste > li:last-child { padding-right: 0; }
+.gvt-tatsache { font: var(--g-w-text) var(--g-t-klein)/1.5 var(--g-schrift); color: var(--g-tinte); text-wrap: pretty; }
+.gvt-verweis { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--g-handlung); text-decoration: none; transition: color var(--g-dauer-1); }
+/* Die Tippfläche reicht über die Schrift hinaus (mindestens 44 px), ohne die Zeile höher zu machen. */
+.gvt-verweis { position: relative; }
+.gvt-verweis::after { content: ""; position: absolute; left: -6px; right: -6px; top: 50%; height: var(--g-tippen); transform: translateY(-50%); }
+.gvt-verweis.klein { margin-top: auto; font: var(--g-w-fest) var(--g-t-fein)/1.4 var(--g-schrift); }
+a.gvt-tatsache { display: inline; color: var(--g-tinte); text-decoration: underline; text-decoration-color: var(--g-linie-stark); text-underline-offset: 4px; text-decoration-thickness: 1px; transition: color var(--g-dauer-1), text-decoration-color var(--g-dauer-1); }
+a.gvt-tatsache:hover { color: var(--g-handlung); text-decoration-color: currentColor; }
+.gvt-verweis.klein:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.gvt-pfeil { flex: 0 0 auto; transition: transform var(--g-dauer-1) var(--g-kurve-aus); }
+a.gvt-tatsache .gvt-pfeil { display: inline-block; margin-left: 6px; vertical-align: -1px; color: var(--g-handlung); }
+.gvt-verweis:hover .gvt-pfeil { transform: translate(2px, 0); }
+.gvt-verweis[target="_blank"]:hover .gvt-pfeil { transform: translate(2px, -2px); }
+.gvt :focus-visible { outline: 2px solid var(--g-fokus); outline-offset: 3px; box-shadow: 0 0 0 3px #fff; border-radius: 4px; }
+.gvt-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Bewegung: Der Startzustand hängt an data-an="0", das erst der Haken setzt (bewegung.ts) — ohne JS steht alles. */
+.gvt[data-an="0"] .gvt-liste::before { transform: scaleX(0); }
+.gvt[data-an="0"] .gvt-liste > li, .gvt[data-an="0"] .gvt-titel { opacity: 0; }
+.gvt[data-an="1"] .gvt-liste::before { animation: gvt-linie var(--g-dauer-5) var(--g-kurve-weg) backwards; }
+.gvt[data-an="1"] .gvt-titel { animation: gvt-hoch var(--g-dauer-4) var(--g-kurve-aus) backwards; }
+.gvt[data-an="1"] .gvt-liste > li { animation: gvt-hoch var(--g-dauer-3) var(--g-kurve-aus) backwards; animation-delay: calc(160ms + var(--i, 0) * var(--g-staffel)); }
+@keyframes gvt-linie { from { transform: scaleX(0); } }
+@keyframes gvt-hoch { from { opacity: 0; transform: translateY(12px); } }
+
+/* Schmaler: zwei Spalten, am Telefon je Tatsache eine Zeile. */
+@media (max-width: 1024px) {
+  .gvt-liste { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gvt-liste > li { padding: var(--g-5) var(--g-5) var(--g-5) 0; }
+  .gvt-liste > li:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .gvt-liste > li:nth-child(even) { padding-right: 0; }
+  .gvt-liste > li:nth-child(n+3) { border-top: 1px solid var(--g-linie); }
+}
+@media (max-width: 560px) {
+  .gvt-liste { grid-template-columns: minmax(0, 1fr); }
+  .gvt-liste > li, .gvt-liste > li + li { padding: var(--g-4) 0; border-left: 0; }
+  .gvt-liste > li + li { border-top: 1px solid var(--g-linie); }
+  .gvt .gvt-titel { margin-bottom: var(--g-5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gvt[data-an] .gvt-liste::before, .gvt[data-an] .gvt-liste > li, .gvt[data-an] .gvt-titel { animation: none; opacity: 1; transform: none; }
+}
+@media (forced-colors: active) {
+  .gvt-liste::before { background: CanvasText; }
+  .gvt-liste, .gvt-liste > li { border-color: CanvasText; }
+}
+@media print {
+  .gvt[data-an] .gvt-liste::before, .gvt[data-an] .gvt-liste > li, .gvt[data-an] .gvt-titel { animation: none !important; opacity: 1 !important; transform: none !important; }
+}

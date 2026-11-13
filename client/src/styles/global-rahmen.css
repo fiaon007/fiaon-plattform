@@ -177,3 +177,23 @@ html.fg-dokument #root { overflow-x:clip; }
    („Pakete und Preise", live gemessen bei 1440 × 900). Rechts unten deckt sie nur die
    Übersicht daneben. Am Handy bleibt sie, wie sie ist (volle Breite unten). */
 @media (min-width:1100px) { html.fg-dokument .ew-karte { left:auto; right:16px; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-510 (13.11.2026) — NEUE TEILE DES KOPFS, überall im Business-Rahmen gleich
+   (neue Klassen: Sie ändern keine bestehende Fläche.)
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Sprunglink „Zum Inhalt“: das erste Element der Seite, sichtbar erst mit dem Tastatur-Fokus. Ohne Fokus ist er auf einen
+   Punkt beschnitten (nicht nur aus dem Bild geschoben — ganzseitige Fotos zeigten ihn sonst mitten in der Seite). */
+.gk-sprung { position:absolute; left:10px; top:10px; z-index:200; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap;
+  background:#0c1a2e; color:#fff; font:500 14px/1 -apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif; text-decoration:none; }
+.gk-sprung:focus { position:fixed; display:inline-flex; align-items:center; width:auto; height:auto; min-height:44px; padding:0 18px; border-radius:999px; clip-path:none;
+  outline:2px solid #fff; outline-offset:-5px; box-shadow:0 12px 30px -12px rgba(12,26,46,.6); }
+#inhalt:focus, #inhalt:focus-visible { outline:none !important; box-shadow:none !important; }
+/* Die drei Honorarzeilen im Panel „Preise und Ablauf“: Wann links, Betrag rechts, an Haarlinien. */
+.gk-honorar { margin:0; display:grid; }
+.gk-honorar .gk-paket { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:10px 0; border-bottom:1px solid var(--gk-linie); }
+.gk-honorar dt { font:400 13.5px/1.4 var(--gk-sans); color:var(--gk-text); }
+.gk-honorar dd { margin:0; font:400 16px/1.2 var(--gk-sans); color:var(--gk-tinte); font-variant-numeric:lining-nums tabular-nums; white-space:nowrap; }
+.gk-honorar dd small { font:400 12.5px/1 var(--gk-sans); color:var(--gk-leise); }
+.gk-promo-pakete .gk-honorar + .gk-promo-text { margin-top:12px; }
+@media print { .gk-sprung { display:none !important; } }

@@ -176,3 +176,138 @@ html.ap-gescrollt .gk.gk .gk-panel { top: 62px; }
   /* Der Bogen: die gezeichneten Pixel drucken (sonst gibt Chrome die Leinwand hell aus). */
   html .hb-c-leinwand { image-rendering: pixelated; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-510 (13.11.2026) — KOPF UND FUSS DER ÖFFENTLICHEN GLOBAL-SEITEN
+   Gilt nur mit den Klassen gk-neu und gf-hell (GlobalNav.tsx, GlobalFuss.tsx setzen sie auf Startseite, Unterseiten,
+   Honorarrechner, Landingpages und Rechtsseiten). Angebot, Auftrag und Konto-Tor tragen sie nicht und bleiben unverändert.
+   Alle Maße kommen aus styles/global-tokens.css.
+
+   Kopf (UX-Prüfung 2.6, 3.8): die schwebende Glaspille bleibt — auf Inhaltsbreite, mit fester Höhe (beim Scrollen ändern
+   sich nur Deckkraft und Schatten), darüber ein Schleier in der Grundfarbe, in dem der Inhalt ausläuft. Eine volle
+   Handlung, das Gespräch als Textverweis. Das Panel: Liste an Haarlinien, rechts ein Blatt.
+   Fuß (2.7, 3.9): hell, an einer starken Haarlinie, keine Knöpfe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+html .gk.gk.gk-neu { --gk-leise: var(--g-leise); --gk-linie: var(--g-linie); --gk-linie-2: var(--g-linie-stark); }
+html .gk.gk.gk-neu :focus-visible, html .gk-mobil.gk-mobil.gk-neu :focus-visible, html .gf.gf.gf-hell :focus-visible {
+  outline: 2px solid var(--g-fokus); outline-offset: 2px; box-shadow: 0 0 0 2px #fff; /* weißer Innenring: der Ring bleibt auf jedem Grund sichtbar */
+}
+/* Der Schleier: Unter ihm läuft der Inhalt aus, bevor er die Pille erreicht — keine Überschrift steht halb dahinter. */
+html .gk.gk.gk-neu::before {
+  content: ""; position: absolute; z-index: -1; top: -12px; left: -12px; right: -12px; height: var(--g-9); pointer-events: none;
+  background: linear-gradient(180deg, var(--g-grund) 0%, rgba(241, 246, 254, .9) 42%, rgba(241, 246, 254, 0) 100%);
+  opacity: 0; transition: opacity var(--g-dauer-2) ease;
+}
+html.ap-gescrollt .gk.gk.gk-neu::before { opacity: 1; }
+html .gk.gk.gk-neu .gk-leiste {
+  max-width: var(--g-breite); height: 56px; padding: 0 8px 0 22px; gap: var(--g-4);
+  transition: background var(--g-dauer-2) ease, box-shadow var(--g-dauer-2) ease;
+}
+/* Eine linke Kante: Ab dieser Breite steht die Wortmarke genau über dem Text der Seite. */
+@media (min-width: 1224px) { html .gk.gk.gk-neu .gk-leiste { padding-left: var(--g-6); } }
+html.ap-gescrollt .gk.gk.gk-neu .gk-leiste { height: 56px; background: rgba(255, 255, 255, .92); box-shadow: inset 0 1px 0 #fff, 0 16px 40px -28px rgba(18, 40, 74, .55); }
+html .gk.gk.gk-neu .gk-thema { min-height: 40px; padding: 0 12px; font: 400 var(--g-t-klein)/1 var(--g-schrift); color: var(--g-text); transition: color var(--g-dauer-1), background var(--g-dauer-1); }
+html .gk.gk.gk-neu .gk-thema:hover, html .gk.gk.gk-neu .gk-thema[aria-expanded="true"], html .gk.gk.gk-neu .gk-thema[data-an] { color: var(--g-tinte); }
+html .gk.gk.gk-neu .gk-winkel { transition: transform var(--g-dauer-2) var(--g-kurve-aus); }
+html .gk.gk.gk-neu .gk-tun { gap: var(--g-1); }
+html .gk.gk.gk-neu .gk-leise { display: inline-flex; align-items: center; min-height: 40px; padding: 0 10px; font: 400 var(--g-t-klein)/1 var(--g-schrift); color: var(--g-leise); }
+html .gk.gk.gk-neu .gk-leise:hover, html .gk.gk.gk-neu .gk-leise[data-an] { color: var(--g-tinte); }
+/* Das Gespräch: ein ruhiger Textverweis neben der einen Haupt-Handlung. */
+html .gk.gk.gk-neu .gk-text {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; margin-right: var(--g-1); border-radius: var(--g-r-pille);
+  font: 500 var(--g-t-klein)/1 var(--g-schrift); color: var(--g-tinte); text-decoration: none; white-space: nowrap; transition: color var(--g-dauer-1);
+}
+html .gk.gk.gk-neu .gk-text:hover { color: var(--g-handlung); text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+html .gk.gk.gk-neu .gk-knopf, html .gk-mobil.gk-mobil.gk-neu .gk-knopf:not(.hell) {
+  background: var(--g-knopf); font: 500 var(--g-t-klein)/1 var(--g-schrift);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 12px 24px -16px rgba(29, 78, 216, .8);
+  transition: transform var(--g-dauer-1) var(--g-kurve-aus), box-shadow var(--g-dauer-2) ease, background var(--g-dauer-1) ease;
+}
+html .gk.gk.gk-neu .gk-knopf { min-height: 40px; padding: 0 20px; }
+html .gk.gk.gk-neu .gk-knopf:hover { background: var(--g-knopf-drueber); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 16px 28px -16px rgba(29, 78, 216, .9); }
+html .gk.gk.gk-neu .gk-knopf:active { transform: scale(.98); }
+html .gk.gk.gk-neu .gk-sprache { min-height: var(--g-tippen); min-width: var(--g-tippen); justify-content: center; padding: 0 10px; font: 500 var(--g-t-auge)/1 var(--g-schrift); letter-spacing: .08em; color: var(--g-leise); }
+html .gk.gk.gk-neu .gk-sprache span[data-an] { color: var(--g-tinte); }
+html .gk.gk.gk-neu .gk-sprache i { opacity: 1; }
+
+/* Das Panel: unter der Pille, Liste an Haarlinien, rechts ein Blatt. Es gleitet einmal herein. */
+html .gk.gk.gk-neu .gk-panel {
+  top: 64px; max-width: var(--g-breite); margin: 0 auto; border-radius: var(--g-r-flaeche); background: rgba(255, 255, 255, .94);
+  box-shadow: inset 0 1px 0 #fff, var(--g-schatten-2), 0 44px 90px -50px rgba(18, 40, 74, .5);
+  animation: gk-neu-auf var(--g-dauer-2) var(--g-kurve-aus);
+}
+html.ap-gescrollt .gk.gk.gk-neu .gk-panel { top: 64px; }
+@keyframes gk-neu-auf { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+html .gk.gk.gk-neu .gk-panel-innen { max-width: none; padding: var(--g-6); gap: var(--g-7); grid-template-columns: minmax(0, 1fr) 328px; }
+html .gk.gk.gk-neu .gk-panel-titel { margin: 0 0 var(--g-3); padding: 0; font: 500 var(--g-t-auge)/1.3 var(--g-schrift); letter-spacing: .16em; color: var(--g-handlung); }
+html .gk.gk.gk-neu .gk-panel-liste ul { gap: 0 var(--g-6); border-top: 1px solid var(--g-linie-stark); }
+html .gk.gk.gk-neu .gk-panel-liste li { border-bottom: 1px solid var(--g-linie); }
+html .gk.gk.gk-neu .gk-panel-liste a { gap: 2px; min-height: 60px; align-content: center; padding: 10px 0; border-radius: 0; background: none; }
+html .gk.gk.gk-neu .gk-panel-liste a:hover, html .gk.gk.gk-neu .gk-panel-liste a[aria-current="page"] { background: none; }
+html .gk.gk.gk-neu .gk-panel-liste a b { font: 500 var(--g-t-klein)/1.35 var(--g-schrift); color: var(--g-tinte); transition: color var(--g-dauer-1); }
+html .gk.gk.gk-neu .gk-panel-liste a span { font: 400 var(--g-t-fein)/1.45 var(--g-schrift); color: var(--g-leise); }
+html .gk.gk.gk-neu .gk-panel-liste a:hover b, html .gk.gk.gk-neu .gk-panel-liste a[aria-current="page"] b { color: var(--g-handlung); }
+html .gk.gk.gk-neu .gk-promo { padding: var(--g-5); border-radius: var(--g-r-karte); background: var(--g-papier); border: 1px solid var(--g-linie); box-shadow: var(--g-schatten-2); }
+html .gk.gk.gk-neu .gk-promo-titel { font: 300 var(--g-t-h3)/1.25 var(--g-schrift); letter-spacing: -.018em; color: var(--g-tinte); text-wrap: balance; }
+html .gk.gk.gk-neu .gk-promo-text { margin: var(--g-3) 0 var(--g-4); font: 400 var(--g-t-fein)/1.6 var(--g-schrift); color: var(--g-text); }
+html .gk.gk.gk-neu .gk-promo-link { min-height: var(--g-tippen); font: 500 var(--g-t-klein)/1 var(--g-schrift); color: var(--g-handlung); }
+html .gk.gk.gk-neu .gk-promo-link svg { transition: transform var(--g-dauer-1) var(--g-kurve-aus); }
+html .gk.gk.gk-neu .gk-promo-link:hover svg { transform: translateX(3px); }
+html .gk.gk.gk-neu .gk-honorar { border-top: 1px solid var(--g-linie-stark); }
+html .gk.gk.gk-neu .gk-honorar .gk-paket { padding: var(--g-3) 0; border-bottom-color: var(--g-linie); }
+html .gk.gk.gk-neu .gk-honorar dt { font: 400 var(--g-t-fein)/1.4 var(--g-schrift); color: var(--g-text); }
+html .gk.gk.gk-neu .gk-honorar dd { font: 300 1.1875rem/1.1 var(--g-schrift); letter-spacing: -.015em; color: var(--g-tinte); }
+html .gk.gk.gk-neu .gk-honorar dd small { font: 400 var(--g-t-fein)/1 var(--g-schrift); letter-spacing: 0; color: var(--g-leise); }
+
+/* Das Menü am Telefon: helle Fläche, Zeilen an Haarlinien, jede Zeile mindestens 44 px hoch. */
+html .gk-mobil.gk-mobil.gk-neu { background: var(--g-grund); -webkit-backdrop-filter: none; backdrop-filter: none; animation: gk-neu-auf var(--g-dauer-2) var(--g-kurve-aus); }
+html .gk-mobil.gk-mobil.gk-neu .gk-mobil-start span, html .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a span { font-size: var(--g-t-fein); color: var(--g-leise); }
+html .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a { min-height: var(--g-tippen); align-content: center; }
+html .gk-mobil.gk-mobil.gk-neu .gk-mobil-zeile { gap: 0 var(--g-5); }
+html .gk-mobil.gk-mobil.gk-neu .gk-mobil-zeile a { display: inline-flex; align-items: center; min-height: var(--g-tippen); color: var(--g-handlung); }
+html .gk-mobil.gk-mobil.gk-neu .gk-mobil-fuss { background: rgba(255, 255, 255, .8); }
+@media (max-width: 640px) {
+  html .gk.gk.gk-neu .gk-leiste { height: 52px; padding: 0 4px 0 18px; }
+  html.ap-gescrollt .gk.gk.gk-neu .gk-leiste { height: 52px; background: rgba(255, 255, 255, .96); }
+  html .gk.gk.gk-neu::before { height: 84px; }
+}
+
+/* ── Der Fuß, hell ─────────────────────────────────────────────────────── */
+html .gf.gf.gf-hell {
+  background: var(--g-grund); color: var(--g-text); padding: var(--g-8) 0 var(--g-6); border-top: 1px solid var(--g-linie-stark);
+  --gk-leise: var(--g-leise);
+}
+html .gf.gf.gf-hell .gf-rahmen { max-width: var(--g-breite); padding: 0 var(--g-rand); }
+html .gf.gf.gf-hell .gk-marke svg { height: 21px; }
+html .gf.gf.gf-hell .gf-marke p { font: 400 var(--g-t-klein)/1.65 var(--g-schrift); color: var(--g-text); }
+html .gf.gf.gf-hell .gf-kontakt { margin-top: var(--g-4) !important; gap: 0 var(--g-5); font-size: var(--g-t-klein) !important; }
+html .gf.gf.gf-hell .gf-kontakt a { display: inline-flex; align-items: center; min-height: var(--g-tippen); color: var(--g-tinte); text-decoration-color: var(--g-linie-stark); transition: color var(--g-dauer-1), text-decoration-color var(--g-dauer-1); }
+html .gf.gf.gf-hell .gf-kontakt a:hover { color: var(--g-handlung); text-decoration-color: currentColor; }
+html .gf.gf.gf-hell .gf-sozial { margin-top: var(--g-2) !important; color: var(--g-tinte); }
+html .gf.gf.gf-hell .gf-titel { margin-bottom: var(--g-3); font: 500 var(--g-t-auge)/1.3 var(--g-schrift); letter-spacing: .16em; color: var(--g-handlung); }
+html .gf.gf.gf-hell .gf-spalte li a { display: flex; align-items: center; min-height: 36px; padding: 7px 0; font: 400 var(--g-t-klein)/1.4 var(--g-schrift); color: var(--g-text); transition: color var(--g-dauer-1); }
+html .gf.gf.gf-hell .gf-spalte li a:hover { color: var(--g-handlung); }
+html .gf.gf.gf-hell .gf-unten { margin-top: var(--g-7); padding-top: var(--g-5); border-top: 1px solid var(--g-linie); font: 400 var(--g-t-fein)/1.6 var(--g-schrift); color: var(--g-leise); }
+html .gf.gf.gf-hell .gf-firma { max-width: 78ch; }
+html .gf.gf.gf-hell .gf-verbunden { margin-top: var(--g-2) !important; color: var(--g-text); }
+html .gf.gf.gf-hell .gf-recht { gap: 0 var(--g-5); }
+html .gf.gf.gf-hell .gf-recht a, html .gf.gf.gf-hell .gf-recht button { display: inline-flex; align-items: center; min-height: 36px; font: 400 var(--g-t-fein)/1.4 var(--g-schrift); color: var(--g-text); transition: color var(--g-dauer-1); }
+html .gf.gf.gf-hell .gf-recht a:hover, html .gf.gf.gf-hell .gf-recht button:hover { color: var(--g-handlung); }
+@media (max-width: 720px) {
+  html .gf.gf.gf-hell { padding-top: var(--g-7); }
+  /* Am Telefon ist jede Zeile des Fußes eine volle Tippfläche. */
+  html .gf.gf.gf-hell .gf-spalte li a, html .gf.gf.gf-hell .gf-recht a, html .gf.gf.gf-hell .gf-recht button { min-height: var(--g-tippen); }
+  html .gf.gf.gf-hell .gf-recht { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html .gk.gk.gk-neu .gk-panel, html .gk-mobil.gk-mobil.gk-neu { animation: none; }
+  html .gk.gk.gk-neu .gk-knopf:hover, html .gk.gk.gk-neu .gk-knopf:active { transform: none; }
+}
+/* Kontrastmodus von Windows: Glas und Verläufe weg, Systemfarben für Knopf und Linien. */
+@media (forced-colors: active) {
+  html .gk.gk.gk-neu::before { display: none; }
+  html .gk.gk.gk-neu .gk-leiste, html .gk.gk.gk-neu .gk-panel, html .gk.gk.gk-neu .gk-promo { background: Canvas; border: 1px solid CanvasText; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  html .gk.gk.gk-neu .gk-knopf, html .gk-mobil.gk-mobil.gk-neu .gk-knopf { background: ButtonFace; color: ButtonText; border: 1px solid ButtonText; box-shadow: none; forced-color-adjust: none; }
+  html .gf.gf.gf-hell { background: Canvas; border-top-color: CanvasText; }
+}
+@media print { html .gf.gf.gf-hell { background: none; } }

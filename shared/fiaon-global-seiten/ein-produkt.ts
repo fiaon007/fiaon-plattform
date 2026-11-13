@@ -2,19 +2,34 @@
 // FIAON GLOBAL — DAS EINE PRODUKT IN DEN SEITENTEXTEN (Register E-509, 12.11.2026)
 //
 // Bis E-509 sprachen die Unterseiten von vier Paketen (Global Struktur, Banking, Kapital, VIP) mit je eigenem Preis und
-// Ziel-Kapitalrahmen. Seit E-509 gibt es EIN Produkt — die US-Gesellschaft mit aktiver Betreuung —, und der Kunde stellt
-// sein Angebot im Konfigurator selbst zusammen (shared/fiaon-global-verkauf.ts). Diese Datei hält die Sätze, die viele
-// Seiten wortgleich brauchen: den einen Preis, den Kapitalrahmen, wann was fällig wird. Kein Betrag ist hier getippt —
-// jeder kommt aus shared/fiaon-global-verkauf-preise.ts (dieselbe Quelle wie Startseite, Konfigurator und Vertrag).
+// Ziel-Kapitalrahmen. Seit E-509 gibt es EIN Produkt — die US-Gesellschaft mit aktiver Betreuung —, und der Klient fordert
+// sein Angebot im Honorarrechner an (shared/fiaon-global-verkauf.ts). Diese Datei hält die Sätze, die viele Seiten
+// wortgleich brauchen: das Honorar, den Kapitalrahmen, wann was fällig wird.
 //
-// WORTGRENZEN wie überall: kein „bis zu“, kein „garantiert“ (auf den Unterseiten auch nicht das Hauptwort — die Wortwand
-// lässt es nur am Vertrag zu; hier heißt es „Geld zurück“), kein Zinssatz als Zahl, kein Bankname, keine Frist mit Ziffer.
-// Recht und Steuern leisten Partner-Anwälte und US-Steuerberater aus dem Partnernetz; Anträge bei Bank und
-// Kartenherausgeber stellt der Kunde selbst; über die Finanzierung entscheidet das finanzierende Institut.
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): Die Sätze selbst stehen jetzt an EINER Stelle —
+// shared/fiaon-global-saetze.ts (S1 bis S17 und die weiteren festen Wortlaute). Diese Datei reicht sie unter den
+// gewohnten Namen weiter; die Namen der Felder bleiben, weil viele Seiten sie einbinden:
+//   preisSatz, preisSatzKurz  = S12 (Honorar in drei Zeilen: mit Ihrem Auftrag · mit der Eintragung · ab dem zweiten Jahr)
+//   erfolg                    = die beiden Sätze aus S12 zum Erfolgshonorar (der Erklär-Satz S16 ist noch nicht freigegeben)
+//   rahmenSatz                = die Spanne mit S9, dem Miami-Satz und S1 — die Spanne steht nie ohne diese Sätze
+//   geldZurueck               = S7 (Kurz-Form ohne das Hauptwort — so darf sie auf jeder Seite stehen, die von Finanzierung handelt)
+//   partner                   = der Rollen-Satz (Leitfaden 5.11)
+// Kein Betrag ist hier getippt — jeder kommt aus shared/fiaon-global-verkauf-preise.ts (über SAETZE_BETRAEGE).
+//
+// WORTGRENZEN wie überall: kein „bis zu“, kein „garantiert“ (auf den Unterseiten auch nicht das Hauptwort — hier heißt es
+// „erstatten wir“), kein Zinssatz als Zahl, kein Bankname, keine Frist mit Ziffer, „mindestens“ statt „ab“. Recht und
+// Steuern liegen bei Partner-Anwälten und US-Steuerberatern (CPA) aus dem Partnernetz; Anträge bei Institut und
+// Kartenherausgeber stellt der Klient selbst; über die Finanzierung entscheidet das finanzierende Institut.
 // LEITPLANKE (12.11.2026): Kein Satz dieser Datei nennt die Bürgschaft — sie steht nur im persönlichen Angebot
 // (Vertrag der Fassung C). scripts/pruef-verkaufsmotor.ts und scripts/pruef-global-seiten.ts halten die Wand.
+// ÖSTERREICH UND SCHWEIZ (Leitfaden 5.12): Für die beiden Länderseiten gibt es eigene Listen (enthaltenAT, enthaltenCH) —
+// Österreich ohne Konto, Karte und Finanzierung, die Schweiz ohne Konto und Karten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { VERKAUF_PREISE, VERKAUF_RAHMEN, verkaufEur } from "../fiaon-global-verkauf-preise";
+import { SAETZE_BETRAEGE, satz, weitererSatz } from "../fiaon-global-saetze";
+
+/** Die Sätze eines Textes (getrennt an „Punkt Leerzeichen“) — um einen Teil eines festen Satzes zu zeigen, ohne ihn neu zu tippen. */
+const saetzeVon = (text: string): string[] => text.split(/(?<=\.)\s+/);
 
 const de = {
   name: "US-Gesellschaft mit aktiver Betreuung",
@@ -25,7 +40,7 @@ const de = {
   rahmenEnde: `${VERKAUF_RAHMEN.maxUsd.toLocaleString("de-DE")} US-Dollar`,
 };
 const en = {
-  name: "US company, actively managed",
+  name: "US company, formed and administered",
   preis: verkaufEur(VERKAUF_PREISE.gruendungCents, "en"),
   fastTrack: verkaufEur(VERKAUF_PREISE.fastTrackCents, "en"),
   jahres: verkaufEur(VERKAUF_PREISE.jahresCents, "en"),
@@ -33,76 +48,121 @@ const en = {
   rahmenEnde: `US$${VERKAUF_RAHMEN.maxUsd.toLocaleString("en-GB")}`,
 };
 
-/** Der Preis in einem Absatz: was wann fällig wird — ein Wortlaut je Sprache für preisSatz und preisSatzKurz. */
-const PREIS_SATZ = {
-  de: `Mit Ihrem Auftrag zahlen Sie ${de.preis} für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen — Ihren Preis zeigt der Konfigurator. Ab dem zweiten Jahr können Sie die Jahresbetreuung für ${de.jahres} im Jahr buchen. Alle Beträge sind Endpreise.`,
-  en: `With your order you pay ${en.preis} for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range — the configurator shows your price. From the second year you can book annual care for ${en.jahres} a year. All amounts are final prices.`,
-} as const;
+/** Das Honorar in einem Absatz: was wann fällig wird — S12, ein Wortlaut je Sprache für preisSatz und preisSatzKurz. */
+const PREIS_SATZ = { de: satz("S12", "de"), en: satz("S12", "en") } as const;
+/** Nur das Erfolgshonorar: der zweite und dritte Satz aus S12 (fällig mit der Eintragung · richtet sich nach dem Kapitalrahmen, mindestens …). */
+const ERFOLG = { de: saetzeVon(PREIS_SATZ.de).slice(1, 3).join(" "), en: saetzeVon(PREIS_SATZ.en).slice(1, 3).join(" ") } as const;
 
 export const EIN_PRODUKT = {
   de: {
     ...de,
-    /** „50.000 bis 1.000.000 US-Dollar“ */
-    rahmen: `${VERKAUF_RAHMEN.minUsd.toLocaleString("de-DE")} bis ${de.rahmenEnde}`,
+    /** „50.000 bis 1.000.000 US-Dollar“ — steht nie ohne rahmenSatz (S9 und der Miami-Satz) im selben Blick. */
+    rahmen: SAETZE_BETRAEGE.de.rahmen,
     /** „50.000 – 1.000.000 US-$“ — für Kennziffern. */
     rahmenKurz: `${VERKAUF_RAHMEN.minUsd.toLocaleString("de-DE")} – ${VERKAUF_RAHMEN.maxUsd.toLocaleString("de-DE")} US-$`,
     /** Kurz, für Kennziffern und Merkblatt. */
     preisLabel: "mit Ihrem Auftrag — Gründung und aktive Betreuung im ersten Jahr",
-    /** Der Preis in einem Absatz: was wann fällig wird. */
+    /** Das Honorar in einem Absatz: was wann fällig wird (S12). */
     preisSatz: PREIS_SATZ.de,
     /** Derselbe Absatz (bis 12.11.2026 der einzige ohne das Wort „Bürgschaft“; seit der Leitplanke lauten beide gleich). */
     preisSatzKurz: PREIS_SATZ.de,
     /** Nur das Erfolgshonorar. */
-    erfolg: "Das Erfolgshonorar wird mit der Eintragung Ihrer Gesellschaft fällig; es richtet sich nach Ihrem Kapitalrahmen. Ihren Preis zeigt der Konfigurator.",
-    /** Der Kapitalrahmen in einem Absatz. */
-    rahmenSatz: `Ihren Kapitalrahmen wählen Sie selbst: ${VERKAUF_RAHMEN.minUsd.toLocaleString("de-DE")} bis ${de.rahmenEnde}. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami, darunter läuft alles aus der Ferne. Über die Finanzierung entscheidet das finanzierende Institut.`,
-    /** Geld zurück — ohne das Wort „Garantie“ (Wortwand der Unterseiten). */
-    geldZurueck: "Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erhalten Sie alles zurück, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags; über die Finanzierung entscheidet das finanzierende Institut.",
-    /** Wer was leistet — der Satz zu den Partnern ohne das Wort „Paket“. */
-    partner: "Steuerberater, US-Steuerberater (CPA) und Anwälte aus unserem Partnernetz arbeiten auf Ihr Mandat — ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON.",
+    erfolg: ERFOLG.de,
+    /** Der Kapitalrahmen in einem Absatz: die Spanne, S9, der Miami-Satz, S1. */
+    rahmenSatz: `Ihr Kapitalrahmen: ${SAETZE_BETRAEGE.de.rahmen}. ${satz("S9", "de")} ${weitererSatz("MIAMI", "de")} ${satz("S1", "de")}`,
+    /** Geld zurück — die Kurz-Form S7, ohne das Hauptwort (Wortwand der Unterseiten). Nur bei der Finanzierung. */
+    geldZurueck: satz("S7", "de"),
+    /** Wer Recht und Steuern verantwortet und wer die Honorare trägt — der Rollen-Satz. */
+    partner: weitererSatz("ROLLEN", "de"),
     /**
-     * Überschrift und Lead des Bausteins „Ein Mandat“ (wo früher eine Paketkarte oder alle vier standen). Der Lead wiederholt die
-     * Karte darunter nicht (sie zählt Gründung, Steuernummern, US-Büro … selbst auf) — er sagt, was der eine Auftrag heißt.
+     * Überschrift und Einleitung des Bausteins „Ein Mandat“ (wo früher eine Paketkarte oder alle vier standen). Die Einleitung
+     * wiederholt die Karte darunter nicht (sie zählt Gründung, Steuernummern, US-Büro … selbst auf) — sie sagt, was das eine Mandat heißt.
      */
     karteH2: "Ein Mandat",
-    karteLead: "Ein Auftrag, ein Ansprechpartner. Ihr Preis steht fest, bevor Sie unterschreiben.",
-    /** Was im ersten Jahr enthalten ist (Vertrag, Ziffer 2 und 3) — für Listen. */
+    karteLead: "Ein Mandat, ein Vertrag, ein Ansprechpartner. Ihr Honorar steht fest, bevor Sie unterzeichnen.",
+    /** Was im ersten Jahr enthalten ist (Vertrag, Ziffer 2 und 3) — für Listen. Der letzte Punkt nennt, wer entscheidet. */
     enthalten: [
       "Anmeldung beim Bundesstaat, Staatsgebühr enthalten",
       "Operating Agreement und Gründungsunterlagen",
       "Anträge für EIN und ITIN (die ITIN nach unserem ITIN-Check)",
       "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
-      "Assistenz Ihrer Gesellschaft im ersten Jahr: Post, Anrufe und Termine",
-      "Die erste jährliche US-Meldung durch einen US-Steuerberater (CPA) aus unserem Partnernetz",
+      weitererSatz("UEBERGANG-ASSISTENZ", "de"),
+      "Die erste jährliche US-Meldung Ihrer Gesellschaft",
       "Pflichtenkalender und die erste Jahresmeldung beim Bundesstaat, Staatsgebühr enthalten",
-      "Privates US-Konto, private US-Karten, Geschäftskonto und Firmenkreditkarte: jeder Antrag vollständig vorbereitet",
-      "Begleitung bis zur Finanzierung in Ihrem Kapitalrahmen",
+      "Privates US-Konto, Geschäftskonto und, auf Wunsch, Kreditkarten: jeder Antrag vollständig vorbereitet",
+      "Vollständig vorbereitete Finanzierungsanträge und unsere Begleitung bis zur Entscheidung des finanzierenden Instituts",
+      "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut",
+    ],
+    /** Dieselbe Liste für die Schweiz-Seite: ohne Konto und Karten (dort steht im Fließtext nur der eine Satz KONTO-CH). */
+    enthaltenCH: [
+      "Anmeldung beim Bundesstaat, Staatsgebühr enthalten",
+      "Operating Agreement und Gründungsunterlagen",
+      "Anträge für EIN und ITIN (die ITIN nach unserem ITIN-Check)",
+      "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
+      weitererSatz("UEBERGANG-ASSISTENZ", "de"),
+      "Die erste jährliche US-Meldung Ihrer Gesellschaft",
+      "Pflichtenkalender und die erste Jahresmeldung beim Bundesstaat, Staatsgebühr enthalten",
+      "Vollständig vorbereitete Finanzierungsanträge und unsere Begleitung bis zur Entscheidung des finanzierenden Instituts",
+      satz("S1", "de"),
+    ],
+    /** Dieselbe Liste für die Österreich-Seite: nur Gründung, Unterlagen und Pflichten — danach folgt S17. */
+    enthaltenAT: [
+      "Anmeldung beim Bundesstaat, Staatsgebühr enthalten",
+      "Operating Agreement und Gründungsunterlagen",
+      "Anträge für EIN und ITIN (die ITIN nach unserem ITIN-Check)",
+      "Registered Agent, US-Geschäftsadresse und US-Telefonnummer im ersten Jahr",
+      weitererSatz("UEBERGANG-ASSISTENZ", "de"),
+      "Die erste jährliche US-Meldung Ihrer Gesellschaft",
+      "Pflichtenkalender und die erste Jahresmeldung beim Bundesstaat, Staatsgebühr enthalten",
+      satz("S3", "de", "AT"),
     ],
   },
   en: {
     ...en,
-    /** “US$50,000 to US$1,000,000” */
-    rahmen: `${en.rahmenAb} to ${en.rahmenEnde}`,
+    /** “US$50,000 to US$1,000,000” — never without rahmenSatz (S9 and the Miami sentence) in the same view. */
+    rahmen: SAETZE_BETRAEGE.en.rahmen,
     rahmenKurz: `${en.rahmenAb} – ${en.rahmenEnde}`,
-    preisLabel: "with your order — formation and active management in the first year",
+    preisLabel: "on engagement — formation and administration in the first year",
     preisSatz: PREIS_SATZ.en,
     preisSatzKurz: PREIS_SATZ.en,
-    erfolg: "The success fee falls due when your company is registered; it follows your capital range. The configurator shows your price.",
-    rahmenSatz: `You choose your capital range yourself: ${en.rahmenAb} to ${en.rahmenEnde}. From US$1 million we work with you in person in Miami; below that, everything runs remotely. The financing institution decides on the financing.`,
-    geldZurueck: "If the payout of your financing does not arrive within eight weeks of your order, you receive back everything you have paid to us. The conditions are in clause 4 of your agreement; the financing institution decides on the financing.",
-    partner: "Tax advisers, US accountants (CPAs) and lawyers from our partner network act under your engagement — FIAON pays their fees for the services in your order.",
-    karteH2: "One mandate",
-    karteLead: "One order, one contact. Your price is set before you sign.",
+    erfolg: ERFOLG.en,
+    rahmenSatz: `Your funding target: ${SAETZE_BETRAEGE.en.rahmen}. ${satz("S9", "en")} ${weitererSatz("MIAMI", "en")} ${satz("S1", "en")}`,
+    geldZurueck: satz("S7", "en"),
+    partner: weitererSatz("ROLLEN", "en"),
+    karteH2: "One engagement",
+    karteLead: "One engagement, one agreement, one dedicated contact. Your fees are set out in full before you sign.",
     enthalten: [
       "Filing with the state, state fee included",
       "Operating agreement and formation documents",
-      "EIN and ITIN applications (the ITIN after our ITIN check)",
-      "Registered agent, US business address and US phone number in the first year",
-      "Assistance for your company in the first year: post, calls and appointments",
-      "The first annual US filing by a US accountant (CPA) from our partner network",
+      "EIN and ITIN applications (the ITIN following our ITIN check)",
+      "Registered agent, US business address and US telephone number in the first year",
+      weitererSatz("UEBERGANG-ASSISTENZ", "en"),
+      "The first annual US filing for your company",
       "Compliance calendar and the first annual report to the state, state fee included",
-      "Personal US account, personal US cards, business account and company credit card: every application fully prepared",
-      "Support through to financing within your capital range",
+      "Personal US account, business account and, on request, credit cards: every application prepared in full",
+      "Fully prepared financing applications and our support through to the lender’s decision",
+      "Decisions on accounts, cards and financing rest with the institution concerned",
+    ],
+    enthaltenCH: [
+      "Filing with the state, state fee included",
+      "Operating agreement and formation documents",
+      "EIN and ITIN applications (the ITIN following our ITIN check)",
+      "Registered agent, US business address and US telephone number in the first year",
+      weitererSatz("UEBERGANG-ASSISTENZ", "en"),
+      "The first annual US filing for your company",
+      "Compliance calendar and the first annual report to the state, state fee included",
+      "Fully prepared financing applications and our support through to the lender’s decision",
+      satz("S1", "en"),
+    ],
+    enthaltenAT: [
+      "Filing with the state, state fee included",
+      "Operating agreement and formation documents",
+      "EIN and ITIN applications (the ITIN following our ITIN check)",
+      "Registered agent, US business address and US telephone number in the first year",
+      weitererSatz("UEBERGANG-ASSISTENZ", "en"),
+      "The first annual US filing for your company",
+      "Compliance calendar and the first annual report to the state, state fee included",
+      satz("S3", "en", "AT"),
     ],
   },
 } as const;

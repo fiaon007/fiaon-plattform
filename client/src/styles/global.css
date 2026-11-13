@@ -75,8 +75,9 @@
     background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
     -webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;
   }
-  /* 06.10.2026 (E-293): Schleife nur über H1 und Preise; eine H2 glänzt einmal, sobald ihr Abschnitt data-an="1" trägt. */
-  .fg-h1,.fg-glanz{animation:fg-glanz 9.5s cubic-bezier(.45,.05,.35,1) infinite}
+  /* 06.10.2026 (E-293): eine H2 glänzt einmal, sobald ihr Abschnitt data-an="1" trägt.
+     E-510 (13.11.2026): Auch H1 und Zahlen glänzen nur noch EINMAL beim Auftakt — keine Schleife mehr (vorher alle 9,5 s). */
+  .fg-h1,.fg-glanz{animation:fg-glanz 2.6s cubic-bezier(.45,.05,.35,1) .5s 1 both}
   [data-an="1"] .fg-h2{animation:fg-glanz 1.6s cubic-bezier(.45,.05,.35,1) 1 both}
   .fg-schluss .fg-h2{--glanz-grund:#ffffff;--glanz-mitte:#d5e1f7;--glanz-licht:#9fbcf0}
   .fg-schluss .fg-h2 em{-webkit-text-fill-color:#c9d6ee}
@@ -394,7 +395,7 @@
 .fg-presse-kopf{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px 28px;border-top:5px double var(--tinte);border-bottom:1px solid var(--tinte);padding:16px 0}
 .fg-presse-marke{display:inline-flex;align-items:center;gap:10px;font:600 11px/1 var(--sans);letter-spacing:.2em;text-transform:uppercase;color:var(--tinte)}
 .fg-presse-marke .puls{position:relative;width:8px;height:8px;border-radius:50%;background:var(--blau)}
-.fg-presse-marke .puls::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1.5px solid var(--blau);opacity:0;animation:fg-puls 2.2s ease-out infinite}
+.fg-presse-marke .puls::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1.5px solid var(--blau);opacity:0;animation:fg-puls 2.2s ease-out 1 both} /* E-510: einmal */
 @keyframes fg-puls{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.4);opacity:0}}
 .fg-presse-h2{font-family:var(--serif);font-weight:400;font-size:clamp(22px,2.4vw,32px);line-height:1.15;letter-spacing:-.01em;color:var(--tinte);text-align:center;text-wrap:balance;margin:0}
 .fg-presse-stand{font:400 12.5px/1.2 var(--sans);color:var(--leise);font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -419,7 +420,7 @@
 .fg-presse-liste li.aktiv .spitzmarke,.fg-presse-liste li.aktiv b,.fg-presse-liste button:hover b{color:var(--blau)}
 .fg-presse-hinweis{font-size:12px;line-height:1.55;color:var(--leise);padding:14px 0 22px;max-width:92ch}
 .fg-presse-band{position:relative;display:flex;align-items:center;height:48px;background:var(--tinte);color:#fff;overflow:hidden}
-.fg-presse-band-spur{display:flex;width:max-content;animation:fg-presse-band 70s linear infinite}
+.fg-presse-band-spur{display:flex;width:max-content} /* E-510: kein Laufband mehr — die Zeile steht und rollt nur, wenn man sie schiebt (siehe Ende der Datei) */
 .fg-presse-band:hover .fg-presse-band-spur,.fg-presse-band.steht .fg-presse-band-spur,.fg-presse-band:focus-within .fg-presse-band-spur{animation-play-state:paused}
 @keyframes fg-presse-band{to{transform:translateX(-50%)}}
 .fg-presse-band ul{display:flex;list-style:none;margin:0;padding:0}
@@ -670,3 +671,15 @@
   .fg-ticket{transform:none;transition:none}
   .fg-tarif-weg .balken i.an::after{transform:none;transition:none}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-510 (13.11.2026) — Nachrichtenlage auf der Wissen-Übersicht: keine Schleife, keine zweite dunkle Fläche.
+   Das Band der Schlagzeilen lief als Dauer-Laufband auf Navy. Jetzt steht es hell an zwei Haarlinien und lässt sich
+   seitlich schieben; die zweite Kopie der Liste (sie diente nur dem endlosen Lauf) und der Pausenknopf entfallen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.fg-presse-band{height:auto;min-height:48px;background:none;color:var(--tinte);border-top:1px solid var(--linie-2);border-bottom:1px solid var(--linie);overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
+.fg-presse-band ul+ul,.fg-presse-band-knopf{display:none}
+.fg-presse-band li{font:400 14px/48px var(--sans)}
+.fg-presse-band li::after{background:var(--linie-2)}
+.fg-presse-band a{color:var(--tinte)}
+.fg-presse-band .quelle{color:var(--blau)}

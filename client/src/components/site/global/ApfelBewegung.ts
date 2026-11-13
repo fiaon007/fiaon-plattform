@@ -16,6 +16,11 @@
 // Sicherungen (Gegenprüfung 28.10.): Fokus per Tastatur zeigt den Block sofort; am Seitenende erscheint alles,
 // was im Bild steht; beim Drucken steht alles. Ohne JS und bei „weniger Bewegung“ steht alles sofort sichtbar
 // (die Klasse ap-bewegung fehlt dann). Stil: styles/global-rahmen-apple.css (Animation, nicht Übergang).
+//
+// E-510 (13.11.2026): Auf den Unterseiten gleitet kein Absatz mehr einzeln herein. Dort erscheint jeder ABSCHNITT einmal
+// als Ganzes (data-an am Abschnitt, bewegung.ts + styles/global-apple.css) — beim Lesen langer Texte war das Einfliegen
+// jedes Absatzes unruhig (UX-Prüfung U3). Dieser Haken lässt deshalb alles in einem Abschnitt (.fd-abschnitt) in Ruhe und
+// kümmert sich auf den Unterseiten nur noch um ganze Blöcke außerhalb der Abschnitte.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useLayoutEffect } from "react";
 import { nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
@@ -26,13 +31,8 @@ const ZIELE = [
   ".fg-beleg-kopf", ".fg-beleg-spalte", ".fg-kleingedruckt > div", ".fg-paket-fuss", ".fg-tarif-vergleich",
   ".fg-jb.band", ".fg-jb.voll", ".fg-jb.kompakt", ".fg-stern-unter > *", ".fg-fuer-chips",
   ".fg-gespraech-seite", ".fg-kal", ".dk-frage", ".fg-fragen-alle", ".fg-schluss-text > *",
-  // die 80 Unterseiten und die Redaktion
-  ".fd-krumen", ".fd-kopf .fg-auge", ".fd-h1", ".fd-lead", ".fd-kopf-knoepfe", ".fd-ziffern", ".fd-merkblatt", ".fd-karteikarte",
-  ".fd-kurz", ".fd-abschnitt > *", ".fd-karte", ".fd-rolle", ".fd-paket", ".fd-tafel", ".fd-tabelle", ".fd-hinweis",
-  ".fd-etappe", ".fd-standort", ".fd-weiter-raster > a", ".fd-verzeichnis li", ".fd-finder", ".fd-gespraech-karte",
-  ".fd-zitat", ".fd-vermerk", ".fd-vip-zeile", ".fd-weiter > .fg-auge",
-  // „Drei Standorte“: Der Rahmen (.fd-orte, eigenes data-an) zeichnet nur zwei Bögen — Karte und Liste gleiten selbst.
-  ".fd-orte-karte", ".fd-orte-liste > li", ".fd-verbunden",
+  // die Unterseiten und die Redaktion: nur ganze Blöcke AUSSERHALB der Abschnitte (die Abschnitte kommen selbst an, E-510)
+  ".fd-antwort", ".fd-inhalt-mobil", ".fd-gespraech-karte", ".fd-zitat", ".fd-vermerk",
   // Auftrag, Mein Auftrag, Rechtsseiten
   ".gs-kopf > *", ".gs-blatt", ".gs-seite", ".gr-wahl", ".gr-papier", ".gr-weiter",
   // Fuß
@@ -47,6 +47,8 @@ const AUSNAHMEN = [
   // Eigene Einfahrt (Nachprüfung 28.10.): Vorführraum (.gv — die PDF-Mappe blinkte sonst doppelt), Beiträge (.sz, seitlich
   // scrollend — Karten kämen sonst leer ins Bild), Etappen-Linie und Rollen-Dreieck der Unterseiten.
   ".gv", ".sz", ".fd-weg", ".fd-dreieck",
+  // E-510: Abschnitte der Unterseiten, „Weiterlesen“ und das Vertrauens-Band erscheinen als Ganzes (eigenes data-an).
+  ".fd-abschnitt", ".fd-weiter", ".gvt",
   "[role=dialog]", "dialog",
 ].join(", ");
 

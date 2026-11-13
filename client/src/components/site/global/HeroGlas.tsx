@@ -1,304 +1,69 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// DIE GLAS-BÜHNE — der Hero von /business (E-442, 27.10.2026)
+// DIE BÜHNE — das erste Bild der Startseite von FIAON Global (E-442, 27.10.2026; Kanzlei-Ton E-510, 13.11.2026)
 //
-// Justin (27.10., mit dem Bild des Chefbüro-Sperrbildschirms): „Wir brauchen
-// Apple Glas, Animationen, clean — mehr Abstände — mehr WOW — baue es im Apple
-// Stil, wie hier die Zahlen in unserem Admin-Dashboard.“ Und direkt danach:
-// „aber nicht mit dem Berg-Hintergrund — CLEAN!“
+// Justin (27.10.): „Apple Glas, Animationen, clean — mehr Abstände — mehr WOW“ … „aber nicht mit dem Berg-Hintergrund —
+// CLEAN!“ Und am 12.11.: „keine Magie, sondern knallharte Fakten — präsentiere uns wie eine Kanzlei, wie internationale
+// Unternehmensberater.“
 //
-// Also: kein Film, kein Foto. Die Bühne ist der helle, ruhige Glasgrund der
-// Seite selbst — eine kleine Zeile, EINE riesige dünne Zahl mit Glanz (der
-// Festpreis „ab 2.499 €“), darunter in Kapitälchen der Satz dazu (einmalig,
-// alle Gebühren des Pakets inklusive), die Überschrift dünn, zwei Pillen,
-// drei Milchglas-Widgets: Kapitalrahmen (mit „das Institut entscheidet“,
-// Blickfang-Regel), das Team im Wechsel (shared/fiaon-global-team.ts) und die
-// Vertrauensleiste als Vertrag-Widget. Alle Sätze kommen aus i18n/global.ts —
-// die Wortwand liest sie dort; hier steht kein eigener deutscher Satz.
+// Also: kein Film, kein Foto, keine Schleife. Die Bühne ist der helle, ruhige Glasgrund der Seite selbst.
+//   · DER SATZ IST DAS GRÖSSTE (UX-Prüfung 3.10, Fassung 2): die Überschrift dünn und groß, linksbündig an derselben Kante
+//     wie Kopfleiste, Abschnitte und Fuß. Darunter die Einleitung, die EINE Haupt-Handlung („Angebot anfordern“) und die
+//     zweite („Gespräch vereinbaren“), dann die kleine Zeile.
+//   · DIE TATSACHENREIHE an einer Haarlinie, am unteren Rand des ersten Bilds: zwei dünne Zahlen, jede mit ihrem Satz im
+//     selben Blick — das Honorar zum Auftrag (mit der Zeile zum Erfolgshonorar) und die Spanne des Kapitalrahmens
+//     (mit S9 und dem Miami-Satz). Die dünne Zahl bleibt Justins Handschrift — als Tatsache, nicht als Preisschild.
+//   · Unter der Bühne der Kasten „Auf einen Blick“ (GlobalBlick.tsx): die vier Antworten der 30-Sekunden-Probe.
+// Jeder Satz kommt als Eigenschaft herein (shared/fiaon-global-verkauf.ts); hier steht kein eigener Wortlaut.
 //
-// Auftakt erst nach dem Ladebildschirm (nachLadebild), gestaffelt; danach
-// steht alles — nur der Glanz zieht alle neun Sekunden über die Zahl.
-// Bei „weniger Bewegung“ steht sofort das Endbild.
-//
-// 13.11.2026 (E-509, Justin: „ein paar mehr Animationen“): Die Zahl zählt beim
-// Auftakt einmal weich hoch (useHochzaehlen) — Satz, Überschrift und Pillen
-// folgen wie bisher gestaffelt.
+// BEWEGUNG: Der Auftakt läuft einmal, erst nach dem Ladebildschirm (nachLadebild): Zeile, Überschrift, Einleitung,
+// Knöpfe gleiten gestaffelt 12 px hoch, dann zeichnet sich die Haarlinie der Tatsachenreihe von links und die beiden
+// Tatsachen folgen. Kein Betrag zählt hoch, kein Glanz kehrt wieder, kein Winkel wippt (UX-Prüfung, Abschnitt 5).
+// Bei „weniger Bewegung“, ohne JavaScript und im Druck steht sofort das Endbild.
+// Stil: styles/global-hero-glas.css, Maße aus styles/global-tokens.css.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { beobachteSichtbar, nachLadebild, ruhigGewuenscht, useEinmalSichtbar, useRuhig } from "@/components/site/global/bewegung";
-import { KI_PORTRAIT_HINWEIS, portraitMitKi } from "@shared/fiaon-portraits";
-import { GLOBAL_TEAM, GLOBAL_TEAM_TAKT_MS, teamFoto } from "@shared/fiaon-global-team";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { nachLadebild, ruhigGewuenscht, useEinmalSichtbar } from "@/components/site/global/bewegung";
+import GlobalBlick, { type GlobalBlickPunkt } from "@/components/site/global/GlobalBlick";
+import { sauber as W } from "@/components/site/global/VerkaufSatz";
+import "@/styles/global-tokens.css";
 import "@/styles/global-hero-glas.css";
 
 export interface HeroGlasTexte {
-  /** Die kleine Zeile über der Zahl (die Augenzeile der Seite, ggf. mit Link). */
+  /** Die kleine Zeile über der Überschrift (die Augenzeile der Seite). */
   auge: ReactNode;
-  /** „ab“ */
-  ab: string;
-  /** „2.499 €“ (aus dem Katalog) */
-  preis: string;
-  /** Der Satz zur Zahl, in Kapitälchen: „Festpreis · Einmalig, alle Gebühren des Pakets inklusive“ */
-  label: string;
+  /** Die Überschrift in zwei Teilen — beide sichtbar, beide in der h1. */
   h1a: string;
   h1b: string;
-  /** Die Sätze, die sich in der zweiten Zeile selbst tippen (ohne: h1b steht still). */
-  wechsel?: string[];
-  /** Der Lead-Satz der Seite (mit antippbaren Begriffen). */
+  /** Die Einleitung: was wir tun und wer entscheidet. */
   lead: ReactNode;
-  knopfPakete: string;
+  knopfAngebot: string;
   knopfGespraech: string;
   mikro: string;
+  /** „2.799 €“ (aus der Preisquelle) — die erste Tatsache. */
+  preis: string;
+  /** Der Satz zur Zahl: wann sie fällig wird und was im ersten Jahr enthalten ist. */
+  label: string;
+  /** Die zweite Zeile zur Zahl: das Erfolgshonorar mit seinem Mindestbetrag — die Zahl steht nie für das ganze Honorar. */
+  honorarZeile: string;
+  /** Die Spanne des Kapitalrahmens mit ihrem Satz (S9 und der Miami-Satz) — die zweite Tatsache. */
   kapitalTitel: string;
   kapitalWert: string;
   kapitalSatz: string;
-  /** „Auch in Europa einsetzbar“ mit Fußnotennummer */
-  kapitalFrei: string;
-  fussnoteNr: number;
-  fussnote: string;
-  personTitel: string;
-  /** „Ihr Team“ — die Kachel zeigt das ganze Team im Wechsel (Justin 28.10.). */
-  teamTitel: string;
-  /** Fußnote zu den Fotos: „Teamfotos teils Symbolbilder, mit KI erstellt.“ */
-  teamHinweis: string;
-  /** Beschriftung des Foto-Knopfs: „Wechsel anhalten“ / „Wechsel fortsetzen“. */
-  teamAnhalten: string;
-  teamFortsetzen: string;
-  /** Kleine Zeile über der Vertragsliste („Ihr Vertrag“) — wie bei den beiden anderen Kacheln. */
-  vertragTitel: string;
-  /** Vier Zeilen der Vertrauensleiste; die zweite verlinkt den Mustervertrag. */
-  vertrag: string[];
-  mustervertragHref: string;
-  /** Beschriftung des Winkels nach unten (aria-label). */
-  weiter: string;
-  /** Name des Abschnitts mit den drei Kacheln (für Screenreader, „Auf einen Blick“). */
+  /** Der Kasten „Auf einen Blick“: Name des Abschnitts und die vier Antworten der 30-Sekunden-Probe. */
   blickName: string;
-}
-
-/**
- * DIE ZAHL ZÄHLT HOCH (E-509, 13.11.2026): Beim Auftakt läuft der Preis einmal weich zu seinem Wert — „2.015 €“ … „2.799 €“,
- * 1,5 s, am Ende immer langsamer. Gezählt wird nur in der Zifferngruppe des fertigen Textes: Währungszeichen, Leerzeichen
- * und das Tausender-Zeichen bleiben, wie die Seite sie liefert („2.799 €“ deutsch, „€2,799“ englisch). Der Start hat gleich
- * viele Stellen wie das Ziel, und die Zahl steht in Tabellenziffern (global-hero-glas.css) — nichts wackelt, nichts bricht um.
- * Bis zum Auftakt, bei „weniger Bewegung“ und ohne Zifferngruppe steht sofort der Endwert; eine Uhr setzt ihn in jedem Fall
- * (Tab im Hintergrund: requestAnimationFrame ruht dort). Rückgabe null = es wird nicht (mehr) gezählt.
- */
-function useHochzaehlen(text: string, los: boolean): string | null {
-  const [anzeige, setAnzeige] = useState<string | null>(null);
-  useEffect(() => {
-    const m = text.match(/\d[\d.,\u00a0\u202f ]*\d/);
-    if (!los || !m || ruhigGewuenscht() || typeof requestAnimationFrame === "undefined") return;
-    const gruppe = m[0];
-    const ziel = Number(gruppe.replace(/\D/g, ""));
-    const trenner = gruppe.match(/\D/)?.[0] ?? "";
-    const stellen = String(ziel).length;
-    if (!Number.isFinite(ziel) || ziel < 100) return;
-    const start = Math.max(Math.pow(10, stellen - 1), Math.round(ziel * 0.72));
-    const setzen = (n: number) => text.replace(gruppe, trenner ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, trenner) : String(n));
-    const dauer = 1500;
-    let bild = 0, t0 = 0;
-    const schritt = (t: number) => {
-      if (!t0) t0 = t;
-      const p = Math.min(1, (t - t0) / dauer);
-      // sanft auslaufend (Quint): schnell los, die letzten Ziffern setzen sich einzeln
-      const n = Math.round(start + (ziel - start) * (1 - Math.pow(1 - p, 5)));
-      if (p < 1 && n < ziel) { setAnzeige(setzen(n)); bild = requestAnimationFrame(schritt); } else setAnzeige(null);
-    };
-    setAnzeige(setzen(start));
-    bild = requestAnimationFrame(schritt);
-    const uhr = window.setTimeout(() => { cancelAnimationFrame(bild); setAnzeige(null); }, dauer + 900);
-    return () => { cancelAnimationFrame(bild); window.clearTimeout(uhr); setAnzeige(null); };
-  }, [text, los]);
-  return anzeige;
-}
-
-/** Wie viele Zeichen zwei Sätze vorn teilen — „Ihr Weg “ bleibt stehen, nur der Rest wird gelöscht und neu getippt. */
-function gemeinsam(a: string, b: string) {
-  let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
-  return i;
-}
-
-/**
- * DIE TIPP-ZEILE (E-442, 28.10.2026) — Justin: „Den Weg zum Kapital planen. — da muss eine Animation her, mit Tipp-Animation:
- * ‚Ihr Weg zum Kapital‘, ‚Ihr Weg zur US-Gesellschaft‘, ‚Ihr Weg in das US-Finanzsystem‘ …“
- * Ablauf: Satz steht 2,6 s → nur der Teil hinter dem gemeinsamen Anfang wird gelöscht (28 ms je Zeichen) → kurze Pause →
- * der nächste Satz tippt sich (52 ms je Zeichen, leicht unregelmäßig wie von Hand). Der Strich blinkt nur, solange der Satz steht.
- * Die Zeile reserviert ihren Platz mit allen Sätzen unsichtbar übereinander — nichts darunter springt.
- * Läuft nur, wenn die Bühne im Bild und der Tab vorn ist; bei „weniger Bewegung“ steht der erste Satz still, ohne Strich.
- * Für Screenreader und Suchmaschinen steht die ruhige Fassung (h1b) unsichtbar in der Überschrift; die Tipp-Zeile ist aria-hidden
- * und steht AUSSERHALB der h1 (sonst läsen Crawler alle Sätze als Überschrift).
- */
-function TippZeile({ saetze, startbereit }: { saetze: string[]; startbereit: boolean }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [stand, setStand] = useState({ i: 0, n: saetze[0]?.length ?? 0, tippt: false });
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !startbereit || saetze.length < 2 || ruhigGewuenscht()) return;
-    let i = 0, n = saetze[0].length, modus: "halten" | "loeschen" | "pause" | "tippen" = "halten";
-    let uhr = 0, sichtbar = false;
-    const zeigen = (tippt: boolean) => setStand({ i, n, tippt });
-    const plan = (ms: number) => { uhr = window.setTimeout(() => { uhr = 0; schritt(); }, ms); };
-    const schritt = () => {
-      if (!sichtbar) return;
-      const naechster = (i + 1) % saetze.length;
-      const bis = gemeinsam(saetze[i], saetze[naechster]);
-      if (modus === "halten") { modus = "loeschen"; zeigen(false); plan(2600); return; }
-      if (modus === "loeschen") {
-        if (n > bis) { n--; zeigen(true); plan(28); return; }
-        modus = "pause"; plan(360); return;
-      }
-      if (modus === "pause") { i = naechster; modus = "tippen"; zeigen(true); plan(90); return; }
-      const satz = saetze[i];
-      if (n < satz.length) { n++; zeigen(true); plan(satz[n - 1] === " " ? 90 : 40 + ((n * 37) % 30)); return; }
-      modus = "halten"; zeigen(false); schritt();
-    };
-    const weg = beobachteSichtbar(el, (s) => {
-      sichtbar = s;
-      if (!s) { window.clearTimeout(uhr); uhr = 0; return; }
-      if (uhr) return;
-      // Unterbrochen, während der Satz stand (weggescrollt, Tab hinten)? Dann erst wieder ganz halten, nicht sofort löschen.
-      if (modus === "loeschen" && n === saetze[i].length) { zeigen(false); plan(2600); } else schritt();
-    });
-    return () => { weg(); window.clearTimeout(uhr); };
-  }, [saetze, startbereit]);
-  // „Ihr Weg “ steht ruhig in Navy, nur das wechselnde Ende leuchtet in Glasblau.
-  const fest = saetze.reduce((p, s) => Math.min(p, gemeinsam(saetze[0], s)), saetze[0]?.length ?? 0);
-  const satz = saetze[stand.i] ?? "";
-  const text = satz.slice(0, stand.n);
-  // Der noch nicht getippte Rest steht unsichtbar dahinter: So gelten immer die Umbrüche und die Breite des FERTIGEN Satzes —
-  // nichts bricht beim Tippen neu um, und „Ihr Weg “ wandert nicht mit jedem Zeichen zur Seite (Gegenprüfung 28.10.).
-  return (
-    <div ref={ref} className="hg-tipp" aria-hidden="true">
-      {saetze.map((s) => <span key={s} className="hg-tipp-mass">{s}</span>)}
-      <span className="hg-tipp-text">
-        <span className="fest">{text.slice(0, fest)}</span><span className="wechsel">{text.slice(fest)}</span>
-        <i className={`hg-tipp-strich${stand.tippt ? "" : " blinkt"}`} /><span className="hg-tipp-rest">{satz.slice(stand.n)}</span>
-      </span>
-    </div>
-  );
-}
-
-// ── „Ihr Team“ (Justin 28.10.2026): Die Kachel zeigt das ganze Team im Wechsel — Daniel, Florentine, Justin, Mag. Sarah
-// Anderst und alle weiteren (shared/fiaon-global-team.ts). Jede Person steht 2,4 s; ein feiner Glasblau-Ring um das Foto
-// zeigt, wann die nächste kommt — sein Ende (animationend) löst den Wechsel aus, so bleiben Ring und Wechsel immer gleich.
-// Foto und Zeilen blenden weich über (alt nach oben, neu von unten, Apple-artig). Alle Personen liegen übereinander im
-// selben Raster: Die Kachel ist immer so hoch wie der längste Eintrag, nichts springt.
-// Gegenprüfung 28.10.: Start erst, wenn die Kachel aufgetaucht ist (Daniel zuerst, volle 2,4 s); Pause bei Maus darüber,
-// bei Tastatur-Fokus (nicht nach Klick/Tippen — sonst blieb der Wechsel nach dem Pfeil für immer stehen), außer Sicht
-// und Tab hinten; das Foto ist ein Knopf „Wechsel anhalten / fortsetzen“ (WCAG 2.2.2, auch am Telefon). Justins
-// KI-Porträt trägt den Hinweis am Bild (wie auf /team), die Fußnote nennt alle Fotos genau. Screenreader lesen die ganze
-// Liste einmal. Bei „weniger Bewegung“ (auch später umgeschaltet): kein Wechsel, Daniel als Ansprechpartner.
-type TeamTexte = { titel: string; titelRuhig: string; nr: number; knopf: string; anhalten: string; fortsetzen: string };
-function TeamKachel({ en, ruhig, x, onGespraech }: { en: boolean; ruhig: boolean; x: TeamTexte; onGespraech: () => void }) {
-  const sp = en ? "en" : "de";
-  const [i, setI] = useState(0);
-  const [vorher, setVorher] = useState(-1);
-  // bereit = aufgetaucht und im Bild; gehalten = Maus über der Kachel oder Tastatur-Fokus darin (nicht auf dem Foto-Knopf).
-  const [bereit, setBereit] = useState(false);
-  const [gehalten, setGehalten] = useState(false);
-  const [angehalten, setAngehalten] = useState(false);
-  // Wer ausdrücklich „fortsetzen“ wählt, dem läuft der Wechsel sofort — auch mit der Maus über der Kachel (APG-Karussell).
-  const [nutzerStart, setNutzerStart] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || ruhig) return;
-    let sicht = false, maus = false, fokus = false;
-    const knopf = el.querySelector("button.hg-w-bild");
-    // Erst wenn der Abschnitt aufgetaucht und die Kachel fertig hochgeglitten ist (hg-hoch), beginnt der Takt.
-    const blick = el.closest(".hg-blick");
-    let offen = !blick || blick.getAttribute("data-an") === "1";
-    const pruefen = () => { setBereit(offen && sicht); setGehalten(maus || fokus); };
-    let warte = 0;
-    const aufgetaucht = () => { if (offen) return; offen = true; window.clearTimeout(warte); pruefen(); };
-    const perEnde = (e: AnimationEvent) => { if (e.target === el && e.animationName === "hg-hoch") aufgetaucht(); };
-    el.addEventListener("animationend", perEnde);
-    const mo = new MutationObserver(() => {
-      if (blick?.getAttribute("data-an") !== "1") return;
-      mo.disconnect();
-      warte = window.setTimeout(aufgetaucht, 1300); // falls kein animationend kommt
-    });
-    if (!offen && blick) mo.observe(blick, { attributes: true, attributeFilter: ["data-an"] });
-    const weg = beobachteSichtbar(el, (s) => { sicht = s; if (!s) fokus = false; pruefen(); });
-    // Der Foto-Knopf selbst hält nicht an (sonst könnte „fortsetzen“ nie wirken, solange man darauf zeigt).
-    const rein = (e: PointerEvent) => { maus = !knopf?.contains(e.target as Node | null); pruefen(); };
-    const raus = () => { maus = false; pruefen(); };
-    const fRein = (e: FocusEvent) => { const z = e.target as Element | null; fokus = !!z?.matches?.(":focus-visible") && !knopf?.contains(z); pruefen(); };
-    const fRaus = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) { fokus = false; pruefen(); } };
-    el.addEventListener("pointerover", rein); el.addEventListener("pointerleave", raus);
-    el.addEventListener("focusin", fRein); el.addEventListener("focusout", fRaus);
-    return () => {
-      weg(); mo.disconnect(); window.clearTimeout(warte);
-      el.removeEventListener("animationend", perEnde);
-      el.removeEventListener("pointerover", rein); el.removeEventListener("pointerleave", raus);
-      el.removeEventListener("focusin", fRein); el.removeEventListener("focusout", fRaus);
-    };
-  }, [ruhig]);
-  const weiter = () => { setVorher(i); setI((i + 1) % GLOBAL_TEAM.length); };
-  const knopfEl = (
-    <button type="button" className="hg-w-knopf" aria-label={x.knopf} onClick={onGespraech}>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-    </button>
-  );
-  if (ruhig) {
-    const p = GLOBAL_TEAM[0];
-    return (
-      <div className="hg-widget hg-w-person" style={{ ["--i" as string]: 1 }}>
-        <span className="hg-w-bild"><img className="an" src={teamFoto(p.kuerzel)} alt="" width={54} height={54} loading="lazy" decoding="async" /></span>
-        <div className="hg-w-wer"><span className="hg-w-auge">{x.titelRuhig}</span><b>{p.name}</b><small>{p.rolle[sp]}</small></div>
-        {knopfEl}
-      </div>
-    );
-  }
-  const stand = (k: number) => (k === i ? "an" : k === vorher ? "weg" : undefined);
-  const ki = (kuerzel: string) => portraitMitKi(kuerzel) ? KI_PORTRAIT_HINWEIS[sp] : null;
-  return (
-    <div ref={ref} className="hg-widget hg-w-person hg-w-team" data-lauf={bereit && !angehalten && (nutzerStart || !gehalten) ? "1" : "0"} data-angehalten={angehalten ? "1" : undefined}
-      style={{ ["--i" as string]: 1, ["--takt" as string]: `${GLOBAL_TEAM_TAKT_MS}ms` }}>
-      {/* Ein Umschalter mit festem Namen „Wechsel anhalten“: „gedrückt“ heißt angehalten (APG-Knopfmuster — Name und Zustand
-          nie doppelt und gegenläufig). Der Tooltip sagt, was ein Klick tut. */}
-      <button type="button" className="hg-w-bild" aria-pressed={angehalten} aria-label={x.anhalten} title={angehalten ? x.fortsetzen : x.anhalten}
-        onClick={() => { const neu = !angehalten; setAngehalten(neu); setNutzerStart(!neu); }}>
-        {GLOBAL_TEAM.map((p, k) => <img key={p.kuerzel} className={stand(k)} src={teamFoto(p.kuerzel)} alt="" aria-hidden="true" width={54} height={54} loading="lazy" decoding="async" />)}
-        <svg className="hg-w-ring" viewBox="0 0 62 62" aria-hidden="true">
-          <circle className="spur" cx="31" cy="31" r="30" />
-          <circle key={i} className="lauf" cx="31" cy="31" r="30" pathLength={100} onAnimationEnd={weiter} />
-        </svg>
-        <span className="hg-w-halt" aria-hidden="true">
-          {angehalten
-            ? <svg viewBox="0 0 12 12"><path d="M4 2.6v6.8L9.4 6z" /></svg>
-            : <svg viewBox="0 0 12 12"><path d="M4 3v6M8 3v6" /></svg>}
-        </span>
-      </button>
-      <div className="hg-w-wer">
-        <span className="hg-w-auge">{x.titel}<sup>{x.nr}</sup></span>
-        <span className="hg-w-stapel" aria-hidden="true">
-          {GLOBAL_TEAM.map((p, k) => (
-            <span key={p.kuerzel} className={`hg-w-eintrag${stand(k) ? ` ${stand(k)}` : ""}`}>
-              <b>{p.name}</b><small>{p.rolle[sp]}</small>{ki(p.kuerzel) && <small className="hg-w-ki">{ki(p.kuerzel)}</small>}
-            </span>
-          ))}
-        </span>
-        <span className="hg-sr">{GLOBAL_TEAM.map((p) => `${p.name}, ${p.rolle[sp]}${ki(p.kuerzel) ? ` (${ki(p.kuerzel)})` : ""}`).join("; ")}.</span>
-      </div>
-      {knopfEl}
-    </div>
-  );
+  blick: readonly GlobalBlickPunkt[];
 }
 
 function Pfeil() {
   return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 }
 
-export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlasTexte; en: boolean; onPakete: () => void; onGespraech: () => void }) {
+export default function HeroGlas({ t, onAngebot, onGespraech }: { t: HeroGlasTexte; onAngebot: () => void; onGespraech: () => void }) {
   const [an, setAn] = useState(false);
-  // Eine Quelle für Team-Kachel und Fußnote ² (auch wenn „weniger Bewegung“ später umgeschaltet wird).
-  const ruhig = useRuhig();
-  // E-442 (28.10.2026, Justin): „Man soll nur den Hero am Anfang sehen — erst wenn man scrollt, die Kacheln.“ Die drei
-  // Kacheln und die Fußnote stehen darum in einem eigenen Abschnitt UNTER der Bühne und gleiten beim Hineinscrollen hoch.
+  // E-442 (28.10.2026, Justin): „Man soll nur den Hero am Anfang sehen — erst wenn man scrollt“ das, was darunter steht.
+  // Der Kasten „Auf einen Blick“ steht darum in einem eigenen Abschnitt UNTER der Bühne und erscheint beim Hineinscrollen.
   const blick = useRef<HTMLElement>(null);
   useEinmalSichtbar(blick, 0, "0px 0px -18% 0px");
-  // Die Zahl zählt beim Auftakt einmal hoch; null = sie steht (dann trägt der Absatz schlicht den Preis).
-  const gezaehlt = useHochzaehlen(t.preis, an);
 
   useLayoutEffect(() => {
     if (ruhigGewuenscht()) { setAn(true); return; }
@@ -311,59 +76,38 @@ export default function HeroGlas({ t, en, onPakete, onGespraech }: { t: HeroGlas
     <>
     <section className="hg" data-an={an ? "1" : "0"}>
       <div className="hg-licht" aria-hidden="true" />
-      <div className="hg-inhalt">
-        <p className="hg-auge">{t.auge}</p>
-        {/* Kein aria-label auf <p> (für die Rolle „paragraph“ verboten) und kein aria-hidden am „ab“: Screenreader lesen „ab 2.499 €“ wie alle. */}
-        {/* Solange gezählt wird, sehen Augen die laufende Zahl, Screenreader den Endwert (hg-sr). */}
-        <p className="hg-zahl">{t.ab ? <span className="hg-zahl-ab">{t.ab} </span> : null}{gezaehlt === null ? t.preis : <><span aria-hidden="true">{gezaehlt}</span><span className="hg-sr">{t.preis}</span></>}</p>
-        <p className="hg-label">{t.label}</p>
-        {t.wechsel && t.wechsel.length > 1 ? (
-          // Die Überschrift trägt nur die ruhigen Sätze (für Suchmaschinen und Screenreader); die Tipp-Zeile steht als eigene,
-          // aria-hidden Zeile direkt darunter — sonst stünden alle Mass-Sätze im Text der h1 (Gegenprüfung 28.10.).
-          <><h1 className="hg-h1 mit-tipp">{t.h1a} <span className="hg-sr">{t.h1b}</span></h1><TippZeile saetze={t.wechsel} startbereit={an} /></>
-        ) : (
+      <div className="hg-rahmen">
+        <div className="hg-inhalt">
+          <p className="hg-auge">{t.auge}</p>
+          {/* Die ganze Überschrift ist sichtbar und trägt das Suchwort (Leitfaden 9.1 Nr. 9). */}
           <h1 className="hg-h1">{t.h1a} <em>{t.h1b}</em></h1>
-        )}
-        {/* Der eine Satz, was im Festpreis steckt — mit den antippbaren Begriffen EIN und ITIN (Prüfung 27.10.: ging mit dem alten Hero verloren). */}
-        <p className="hg-lead">{t.lead}</p>
-        <div className="hg-pillen">
-          <button type="button" className="hg-pille voll" onClick={onPakete}>{t.knopfPakete}<Pfeil /></button>
-          <button type="button" className="hg-pille" style={{ ["--i" as string]: 1 }} onClick={onGespraech}>{t.knopfGespraech}</button>
+          <p className="hg-lead">{t.lead}</p>
+          <div className="hg-pillen">
+            <button type="button" className="hg-pille voll" onClick={onAngebot}>{t.knopfAngebot}<Pfeil /></button>
+            <button type="button" className="hg-pille" onClick={onGespraech}>{t.knopfGespraech}</button>
+          </div>
+          <p className="hg-mikro">{W(t.mikro)}</p>
         </div>
-        <p className="hg-mikro">{t.mikro}</p>
-      </div>
 
-      <a className="hg-weiter" href="#auf-einen-blick" aria-label={t.weiter} onClick={(e) => {
-        e.preventDefault();
-        // Fokus zuerst in den Abschnitt: Der Winkel blendet beim Scrollen aus — der Fokus fiele sonst auf <body> (Gegenprüfung 28.10.).
-        blick.current?.focus({ preventScroll: true });
-        blick.current?.scrollIntoView({ behavior: ruhigGewuenscht() ? "auto" : "smooth", block: "start" });
-      }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </a>
+        {/* Die Tatsachenreihe: jede Zahl mit ihrem Satz im selben Blick (kein Betrag im Blickfang ohne seinen Satz). */}
+        <dl className="hg-fakten">
+          <div className="hg-fakt">
+            <dt>{t.label}</dt>
+            <dd className="hg-fakt-zahl">{t.preis}</dd>
+            <dd className="hg-fakt-satz">{W(t.honorarZeile)}</dd>
+          </div>
+          <div className="hg-fakt">
+            <dt>{t.kapitalTitel}</dt>
+            <dd className="hg-fakt-zahl">{t.kapitalWert}</dd>
+            <dd className="hg-fakt-satz">{W(t.kapitalSatz)}</dd>
+          </div>
+        </dl>
+      </div>
     </section>
 
-    <section ref={blick} id="auf-einen-blick" className="hg-blick" tabIndex={-1} aria-label={t.blickName} style={{ scrollMarginTop: 96 }}>
-        <div className="hg-widgets">
-          <div className="hg-widget" style={{ ["--i" as string]: 0 }}>
-            <span className="hg-w-auge">{t.kapitalTitel}</span>
-            <b>{t.kapitalWert}</b>
-            <small>{t.kapitalSatz}</small>
-            <span className="hg-w-chip">{t.kapitalFrei}<sup>{t.fussnoteNr}</sup></span>
-          </div>
-          <TeamKachel en={en} ruhig={ruhig} onGespraech={onGespraech}
-            x={{ titel: t.teamTitel, titelRuhig: t.personTitel, nr: t.fussnoteNr + 1, knopf: t.knopfGespraech, anhalten: t.teamAnhalten, fortsetzen: t.teamFortsetzen }} />
-          <div className="hg-widget hg-w-vertrag" style={{ ["--i" as string]: 2 }}>
-            <span className="hg-w-auge">{t.vertragTitel}</span>
-            <ul>
-              {t.vertrag.map((x, i) => (
-                <li key={x}>{i === 1 ? <a href={t.mustervertragHref}>{x}</a> : <span>{x}</span>}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-        <p className="hg-fussnote"><sup>{t.fussnoteNr}</sup> {t.fussnote}</p>
-        {!ruhig && <p className="hg-fussnote hg-fussnote-team"><sup>{t.fussnoteNr + 1}</sup> {t.teamHinweis}</p>}
+    {/* „Auf einen Blick“: die vier Antworten der 30-Sekunden-Probe direkt unter der Bühne (Leitfaden 1.3). */}
+    <section ref={blick} id="auf-einen-blick" className="hg-blick" aria-labelledby="hg-blick-titel" style={{ scrollMarginTop: 96 }}>
+      <GlobalBlick titel={t.blickName} titelId="hg-blick-titel" punkte={t.blick} />
     </section>
     </>
   );

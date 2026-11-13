@@ -26,6 +26,20 @@
 // in <details> im DOM, nie display:none.
 // Gestaltung: styles/global.css (.fg, Farben, Glanz) + styles/global-seiten.css
 // (.fd-) + styles/global-grafik.css (Tafel, Jahresband, Bewegungsgrundgesetz).
+//
+// ── E-510 (13.11.2026): DIE VORLAGE IM KANZLEI-TON ─────────────────────────
+// Papier, Linie, eine Bühne (UX-Prüfung 12.11., Abschnitt 3):
+//   · Linien statt Kästen: Karten, Rollen, Verzeichnisse, Fragen und „Weiterlesen“ stehen an Haarlinien; keine
+//     Symbol-Kacheln mehr. Ein Kasten bleibt nur, was ein Gegenstand ist: die Karteikarte, die Karte „Ein Mandat“,
+//     die Gesprächskarte.
+//   · EINE dunkle Fläche: das Schlussband — ruhiges Navy, Schrift, die Handlungen. Ohne Bild. Der Kopf der Karteikarte
+//     und der Fuß sind hell. Steht der Honorarrechner auf der Seite (Baustein „finder“), ist ER die dunkle Fläche und
+//     das Schlussband hell.
+//   · Darüber das Vertrauens-Band (GlobalVertrauen): vier Tatsachen mit Verweis, die Presse-Zeile genau einmal.
+//   · Bewegung: Jeder Abschnitt erscheint einmal als Ganzes (data-an), seine Linie zeichnet sich — kein Absatz fliegt
+//     einzeln. Das Inhaltsverzeichnis führt eine Marke weich zum gelesenen Abschnitt.
+//   · Handlungen heißen überall gleich (handlung() aus shared/fiaon-global-saetze). Auf der Österreich-Seite gibt es
+//     nur „Gespräch vereinbaren“, keinen Betrag und keine Karte „Ein Mandat“ (Leitfaden 5.12).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
@@ -33,11 +47,10 @@ import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
-import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
+import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
 import GespraechKarte from "@/components/site/global-seite/GespraechKarte";
 import { OrteKarte, RollenDreieck } from "@/components/site/global-seite/SeitenBausteine";
-import { Zeichen, zeichenFuerSeite, zeichenReihe } from "@/components/site/global-seite/Zeichen";
 import NotFound from "@/pages/not-found";
 import { GLOBAL_WOERTER } from "@/i18n/global";
 import { GLOBAL_SEITE_WOERTER } from "@/i18n/global-seite";
@@ -45,17 +58,19 @@ import {
   globalSeite, globalKrumen, globalInhalt, globalSprache, GLOBAL_SEITE_WORTE, type GlobalBlock, type GlobalSeite,
 } from "@shared/fiaon-global-seiten";
 import { globalMenuePunkt } from "@shared/fiaon-global-menue";
-import { GLOBAL_PAKETE, globalKapital, globalPaket, globalPreisText, type GlobalSchluessel } from "@shared/fiaon-global";
+import type { GlobalSchluessel } from "@shared/fiaon-global";
 import { globalStartPfad, globalSeitePfad } from "@shared/fiaon-global-wege";
-import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN, GLOBAL_VERBUNDEN_EN } from "@shared/fiaon-global-partner";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
+// Feste Sätze und die Namen der Handlungen — eine Quelle, hier wird keiner getippt (Sprachleitfaden 5.3, 7).
+import { handlung, hauptHandlung, satz, satzLand, weitererSatz, type SatzLand } from "@shared/fiaon-global-saetze";
 import { businessArtikelAusPfad, businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { markdownZuHtml } from "@shared/fiaon-markdown";
 import { begriffStand, begriffeVerlinken, type Textteil } from "@shared/fiaon-global-begriffe";
 import { werbeEreignis } from "@/lib/werbung";
 import { VerkaufKarte } from "@/components/site/global/VerkaufProdukt";
 import VerkaufKonfigurator from "@/components/site/global/VerkaufKonfigurator";
-import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur, verkaufPfad } from "@shared/fiaon-global-verkauf";
+import { verkaufPfad } from "@shared/fiaon-global-verkauf";
+import "@/styles/global-tokens.css";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-grafik.css";
@@ -63,14 +78,6 @@ import "@/styles/global-apple.css";
 
 const ROEMISCH = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
 
-export function Haken({ groesse = 16 }: { groesse?: number }) {
-  return (
-    <svg className="fg-haken" width={groesse} height={groesse} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <circle cx="8" cy="8" r="7.25" stroke="currentColor" strokeOpacity=".28" strokeWidth="1" />
-      <path d="M4.8 8.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
 export function Pfeil({ groesse = 15 }: { groesse?: number }) {
   return <svg width={groesse} height={groesse} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
 }
@@ -120,12 +127,13 @@ function redaktionsSeite(a: RedaktionsDaten, sp: Sp): GlobalSeite {
       [en ? "As of" : "Stand", datum],
       [en ? "Reading time" : "Lesezeit", en ? `${a.lesezeit} min` : `${a.lesezeit} Min.`],
       [en ? "Written by" : "Redaktion", "FIAON Global"],
-      [en ? "With FIAON Global" : "Mit FIAON Global", en ? "Company, tax numbers, account and the path to capital — one contact" : "Gesellschaft, Steuernummern, Konto und der Weg zum Kapital — ein Ansprechpartner"],
+      [en ? "With FIAON Global" : "Mit FIAON Global", weitererSatz("PRODUKTNAME", sp)],
     ],
     kurz: vorweg ? vorweg.replace(/[*_`#>\[\]]/g, "").replace(/\(https?:[^)]+\)/g, "").split(/\n\n/)[0].slice(0, 700) : a.teaser,
     bloecke: [
       ...abschnitte,
-      { typ: "paket", id: "mandat", h2: en ? "From one source" : "Aus einer Hand", lead: en ? "Formation, EIN and ITIN, registered agent, US address and the prepared account and card applications — in one order." : "Gründung, EIN und ITIN, Registered Agent, US-Adresse und die vorbereiteten Konto- und Kartenanträge — in einem Auftrag.", paket: "global_banking" },
+      // Der eine Satz zur Einordnung kommt aus den festen Sätzen — für Beiträge über Österreich in der Fassung für Österreich.
+      { typ: "paket", id: "mandat", h2: en ? "Under one engagement" : "In einem Mandat", lead: weitererSatz(/^(at|aut|österreich|oesterreich|austria)$/i.test(a.land ?? "") ? "POSITIONIERUNG-AT" : "POSITIONIERUNG", sp), paket: "global_banking" },
     ],
     fragen: a.faq.map((f) => ({ f: f.frage, a: f.antwort })),
     paket: "global_banking",
@@ -162,11 +170,20 @@ export function GlobalSeitenAnsicht({ s }: { s: GlobalSeite }) {
   return <Seite s={s} />;
 }
 
+/** Wörter der Vorlage, die keine festen Sätze sind (deutsch und englisch — die Wortwand liest sie hier). */
+const VORLAGE_WORT = {
+  de: { lesezeit: (min: number) => `Lesezeit: ${min} ${min === 1 ? "Minute" : "Minuten"}`, nachOben: "Nach oben", honorar: "Honorar" },
+  en: { lesezeit: (min: number) => `Reading time: ${min} ${min === 1 ? "minute" : "minutes"}`, nachOben: "Back to top", honorar: "Fees" },
+} as const;
+
 function Seite({ s }: { s: GlobalSeite }) {
   const sp = globalSprache(s);
   const t = GLOBAL_WOERTER[sp];
   const u = GLOBAL_SEITE_WOERTER[sp];
   const w = GLOBAL_SEITE_WORTE[sp];
+  const v = VORLAGE_WORT[sp];
+  // Das Land der Seite: „AT“ und „CH“ für die beiden Länderseiten, sonst „DE“ (Leitfaden 5.12).
+  const land = satzLand(s.pfad);
   // E-379 (15.10.2026): Auf der Wissen-Übersicht stehen die neuesten Beiträge der Redaktion — jeden Tag einer
   // für Unternehmer (server/lib/fiaon-ratgeber-redaktion.ts). Nur deutsch: Die Redaktion schreibt deutsch.
   const mitAktuell = s.art === "hub";
@@ -198,17 +215,28 @@ function Seite({ s }: { s: GlobalSeite }) {
   const aktiv = useScrollspy(inhalt.map((e) => e.id));
   const fortschritt = useRef<HTMLSpanElement>(null);
   const kopf = useRef<HTMLElement>(null);
+  const text = useRef<HTMLElement>(null);
+  const verzeichnis = useRef<HTMLOListElement>(null);
   useEinmalSichtbar(kopf, 0.1);
   const [leiste, setLeiste] = useState(false);
   // 06.10.2026 (E-293): Der Kalender lädt erst auf Wunsch — oder sofort, wenn jemand mit #gespraech ankommt.
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
+  // Lesezeit: aus den Wörtern des Texts gezählt (220 Wörter je Minute), nicht geschätzt.
+  const [minuten, setMinuten] = useState(0);
+  useEffect(() => {
+    const worte = (text.current?.textContent ?? "").trim().split(/\s+/).filter(Boolean).length;
+    setMinuten(worte ? Math.max(1, Math.round(worte / 220)) : 0);
+  }, [s, aktuell.length]);
 
   useEffect(() => {
     const neu = () => {
       const h = document.documentElement;
       const max = Math.max(1, h.scrollHeight - window.innerHeight);
       fortschritt.current?.style.setProperty("--fd-p", String(Math.min(1, window.scrollY / max)));
-      setLeiste(window.scrollY > 560);
+      // Die Handlungsleiste am Handy weicht, solange das Erstgespräch im Bild steht — sie läge sonst über Kalender und Formular.
+      const g = document.getElementById("gespraech")?.getBoundingClientRect();
+      const imGespraech = !!g && g.top < window.innerHeight * 0.75 && g.bottom > window.innerHeight * 0.35;
+      setLeiste(window.scrollY > 560 && !imGespraech);
     };
     const hash = () => { if (window.location.hash === "#gespraech") setGespraechOffen(true); };
     neu();
@@ -220,12 +248,25 @@ function Seite({ s }: { s: GlobalSeite }) {
     return () => { window.removeEventListener("scroll", neu); window.removeEventListener("resize", neu); window.removeEventListener("hashchange", hash); };
   }, []);
 
-  // E-509 (12.11.2026): Es gibt EIN Produkt. Jeder Knopf „beauftragen“ führt zum Konfigurator; das Feld `paket` der Seite
+  // Die Marke im Inhaltsverzeichnis gleitet zum gelesenen Abschnitt (nur transform; CSS: .fd-inhalt ol::after).
+  useEffect(() => {
+    const ol = verzeichnis.current;
+    const a = ol?.querySelector<HTMLElement>('a[aria-current="true"]');
+    if (!ol || !a) return;
+    ol.style.setProperty("--fd-marke-y", `${a.offsetTop}px`);
+    ol.style.setProperty("--fd-marke-h", `${a.offsetHeight}px`);
+    ol.setAttribute("data-marke", "1");
+  }, [aktiv, inhalt.length]);
+
+  // E-509 (12.11.2026): Es gibt EIN Produkt. Jeder Knopf zum Angebot führt zum Honorarrechner; das Feld `paket` der Seite
   // stellt dort nur noch den Start-Rahmen des Reglers (?paket= → verkaufUsdAusPaket).
   const paket = s.paket ?? null;
-  const V = VERKAUF_TEXTE[sp];
   const beauftragen = paket ? globalStartPfad(paket, sp) : verkaufPfad(sp);
-  // Jeder Weg zum Gespräch öffnet die Karte an ihrer Stelle; eine Tafel füllt dabei ihr Paket vor.
+  // Die Handlungen heißen überall gleich (Leitfaden 7). Österreich: nur das Gespräch.
+  const angebotWort = handlung("angebot", sp);
+  const gespraechWort = handlung("gespraech", sp);
+  const nurGespraech = hauptHandlung(sp, land) === gespraechWort;
+  // Jeder Weg zum Gespräch öffnet die Karte an ihrer Stelle.
   const oeffneGespraech = (_wahl?: GlobalSchluessel) => {
     setGespraechOffen(true);
     requestAnimationFrame(() => document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }));
@@ -234,10 +275,21 @@ function Seite({ s }: { s: GlobalSeite }) {
   const klickBeauftragen = () => werbeEreignis("global_beauftragen_klick", { paket: paket ?? "", seite: s.pfad });
   const krumen = globalKrumen(s);
   const stand = u.stand(datumIn(s.stand, sp));
+  // Steht der Honorarrechner auf der Seite, ist ER die eine dunkle Fläche — das Schlussband bleibt dann hell.
+  const mitRechner = s.bloecke.some((b) => b.typ === "finder");
+  /** Die zwei Knöpfe einer Stelle: die Haupt-Handlung voll, das Gespräch hell — in Österreich nur das Gespräch. */
+  const knoepfe = (pfeil = true) => (nurGespraech
+    ? <a className="fg-knopf" href="#gespraech" onClick={zumGespraech}>{gespraechWort}{pfeil && <Pfeil />}</a>
+    : (
+      <>
+        <a className="fg-knopf" href={beauftragen} onClick={klickBeauftragen}>{angebotWort}{pfeil && <Pfeil />}</a>
+        <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{gespraechWort}</a>
+      </>
+    ));
 
   return (
     <Dunkel seite="business" titel={s.seo.titel} beschreibung={s.seo.beschreibung} sprache={sp}>
-      <div className="fg fd">
+      <div className="fg fd" data-land={land}>
         <div className="fd-fortschritt" aria-hidden="true"><i ref={fortschritt as any} /></div>
 
         {/* ── Kopf ───────────────────────────────────────────────────────── */}
@@ -255,12 +307,7 @@ function Seite({ s }: { s: GlobalSeite }) {
               <span className="fg-auge">{s.auge}</span>
               <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(s.h1)}{s.h1b && <><br /><em>{ohneBindestrichBruch(s.h1b)}</em></>}</h1>
               <p className="fd-lead">{s.lead}</p>
-              <div className="fg-knoepfe fd-kopf-knoepfe">
-                <a className="fg-knopf" href={beauftragen} onClick={klickBeauftragen}>
-                  {V.buehne.knopf}<Pfeil />
-                </a>
-                <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
-              </div>
+              <div className="fg-knoepfe fd-kopf-knoepfe">{knoepfe()}</div>
               {/* Kennziffern als schmale Leiste: höchstens drei Werte, jede Zahl mit ihrem Satz (Blickfang-Regel). */}
               {s.ziffern?.length ? (
                 <div className="fd-leiste">
@@ -287,8 +334,8 @@ function Seite({ s }: { s: GlobalSeite }) {
         {/* ── Körper ─────────────────────────────────────────────────────── */}
         <div className="fd-koerper neu">
           <nav className="fd-inhalt" aria-label={u.inhaltLabel}>
-            <p>{u.inhalt}</p>
-            <ol>
+            <p>{u.inhalt}{minuten > 0 && <span className="fd-inhalt-zeit">{v.lesezeit(minuten)}</span>}</p>
+            <ol ref={verzeichnis}>
               {inhalt.map((e) => (
                 <li key={e.id}><a href={`#${e.id}`} aria-current={aktiv === e.id ? "true" : undefined}
                   onClick={(ev) => { ev.preventDefault(); document.getElementById(e.id)?.scrollIntoView({ behavior: glatt() }); history.replaceState(null, "", `#${e.id}`); }}>
@@ -296,13 +343,11 @@ function Seite({ s }: { s: GlobalSeite }) {
                 </a></li>
               ))}
             </ol>
-            <div className="fd-inhalt-fuss">
-              <a className="fg-knopf" href={beauftragen} onClick={paket ? klickBeauftragen : undefined}>{paket ? u.jetzt : V.buehne.knopf}</a>
-              <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
-            </div>
+            <a className="fd-inhalt-oben" href="#inhalt" onClick={(ev) => { ev.preventDefault(); window.scrollTo({ top: 0, behavior: glatt() }); }}>{v.nachOben}</a>
+            <div className="fd-inhalt-fuss">{knoepfe(false)}</div>
           </nav>
 
-          <article className="fd-text neu">
+          <article ref={text} className="fd-text neu">
             {/* Die Antwortkarte ist das erste Element im Körper (Bauplan Kapitel 5, Punkt 3). */}
             <section id="kurz" className="fd-antwort" aria-label={w.kurz}>
               <span className="fd-marke">{w.kurz}</span>
@@ -310,7 +355,7 @@ function Seite({ s }: { s: GlobalSeite }) {
             </section>
 
             <details className="fd-inhalt-mobil">
-              <summary>{u.inhaltLabel}</summary>
+              <summary>{u.inhaltLabel}{minuten > 0 && <span className="fd-inhalt-zeit">{v.lesezeit(minuten)}</span>}</summary>
               <ol>
                 {inhalt.map((e) => <li key={e.id}><a href={`#${e.id}`}><i>{e.id === "kurz" ? "—" : nummer.get(e.id)}</i>{e.titel}</a></li>)}
               </ol>
@@ -318,14 +363,14 @@ function Seite({ s }: { s: GlobalSeite }) {
 
             {mitAktuell && aktuell.length > 0 && <RedaktionAktuell beitraege={aktuell} nr={nummer.get("aktuell")} sp={sp} />}
 
-            {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} begriffe={begriffe} onGespraech={oeffneGespraech}
+            {s.bloecke.map((b, i) => <Baustein key={b.id} b={b} nr={nummer.get(b.id)} seite={s} sp={sp} land={land} begriffe={begriffe} onGespraech={oeffneGespraech}
               randUnten={b.typ === "hinweis" && !randDaneben(s.bloecke[i + 1])} />)}
 
             {s.fragen.length > 0 && (
               <Abschnitt id="fragen">
                 <span className="fd-nr">{nummer.get("fragen")}.</span>
                 <h2 className="fd-h2 fg-h2">{w.fragen}</h2>
-                <div className="fd-fragen"><Fragen items={s.fragen} /></div>
+                <div className="fd-fragen"><Fragen items={s.fragen} ebene={3} /></div>
               </Abschnitt>
             )}
 
@@ -343,10 +388,10 @@ function Seite({ s }: { s: GlobalSeite }) {
         </div>
 
         {/* E-509 (12.11.2026): Das Band „Jahresbetreuung“ (E-196) steht hier nicht mehr — seine Sätze sprachen vom Paket.
-            Die Jahresbetreuung nennt jetzt die Karte „Ein Mandat“ und das Preisblatt des Konfigurators. */}
+            Die Jahresbetreuung nennt jetzt die Karte „Ein Mandat“ und das Honorarblatt des Rechners. */}
 
         {/* ── Gespräch ───────────────────────────────────────────────────── */}
-        <section id="gespraech" className="fg-sek stein fd-gespraech" style={{ scrollMarginTop: 72 }}>
+        <section id="gespraech" className="fg-sek stein fd-gespraech">
           <div className="fg-rahmen">
             <Auf>
               <div className="fg-kopf">
@@ -358,20 +403,17 @@ function Seite({ s }: { s: GlobalSeite }) {
           </div>
         </section>
 
-        {/* ── Weiterlesen ────────────────────────────────────────────────── */}
+        {/* ── Weiterlesen: ein Verzeichnis an Haarlinien ───────────────────── */}
         {s.weiter.length > 0 && (
-          <section className="fd-weiter" aria-labelledby="fd-weiter-titel">
-            <span className="fg-auge" id="fd-weiter-titel">{u.weiterlesen}</span>
+          <WeiterAbschnitt>
+            <h2 className="fg-auge" id="fd-weiter-titel">{u.weiterlesen}</h2>
             <div className="fd-weiter-raster">
               {s.weiter.map((p) => {
                 const z = p === globalSeitePfad(sp) ? null : globalSeite(p);
                 const titel = z ? `${z.h1.replace(/[.]$/, "")}` : u.uebersichtTitel;
                 return (
                   <a key={p} href={p}>
-                    <span className="fd-weiter-kopf">
-                      <Zeichen art={zeichenFuerSeite(p, `${z?.auge ?? ""} ${titel}`, z?.art)} />
-                      <span className="tag">{z ? z.auge.split(" · ").pop() : "FIAON Global"}</span>
-                    </span>
+                    <span className="tag">{z ? z.auge.split(" · ").pop() : "FIAON Global"}</span>
                     <span className="titel">{titel}</span>
                     <span className="text">{z ? globalMenuePunkt(z.pfad)?.text ?? z.seo.beschreibung.slice(0, 90) + "…" : u.uebersichtText}</span>
                     <span className="pfeil"><Pfeil /></span>
@@ -379,32 +421,47 @@ function Seite({ s }: { s: GlobalSeite }) {
                 );
               })}
             </div>
-          </section>
+          </WeiterAbschnitt>
         )}
 
-        {/* ── Schlussband — auf den Unterseiten die eine dunkle Fläche ──────── */}
-        <section className="fg-schluss mit-bild">
-          <GlobalSchlussBild nachweis={t.szeneKi} />
+        {/* ── Vertrauens-Band: vier Tatsachen mit Verweis, die Presse-Zeile genau einmal (Leitfaden 6.1) ── */}
+        <GlobalVertrauen sprache={sp} land={land} leitsatz />
+
+        {/* ── Schlussband — auf den Unterseiten die EINE dunkle Fläche: ruhiges Navy, Schrift, die Handlungen ── */}
+        <section className={`fg-schluss ruhig${mitRechner ? " hell" : ""}`}>
           <div className="fg-rahmen">
-            <div className="fg-schluss-text">
-              <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
-              <p className="fg-lead">{s.schluss?.text ?? t.schlussText}</p>
-              <div className="fg-knoepfe">
-                <a className="fg-knopf" href={beauftragen} onClick={klickBeauftragen}>{V.buehne.knopf}<Pfeil /></a>
-                <a className="fg-knopf hell" href="#gespraech" onClick={zumGespraech}>{t.knopfGespraech}</a>
+            <Auf>
+              <div className="fg-schluss-text">
+                <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
+                {/* Österreich: Der allgemeine Schluss-Satz nennt das Angebot — dort steht nur der eine Satz S17 (Leitfaden 5.12). */}
+                <p className="fg-lead">{s.schluss?.text ?? (land === "AT" ? satz("S17", sp, "AT") : t.schlussText)}</p>
+                <div className="fg-knoepfe">{knoepfe()}</div>
               </div>
-            </div>
+            </Auf>
           </div>
         </section>
 
-        {/* ── Handlungsleiste am Handy ───────────────────────────────────── */}
-        <div className={`fd-mobil${leiste ? " da" : ""}`} aria-hidden={!leiste}>
-          <a className="hell" href="#gespraech" onClick={zumGespraech} tabIndex={leiste ? 0 : -1}>{t.leisteGespraech}</a>
-          <a className="voll" href={beauftragen} onClick={klickBeauftragen} tabIndex={leiste ? 0 : -1}>{V.leiste.zusammenstellen(verkaufEur(VERKAUF_PREISE.gruendungCents, sp))}</a>
+        {/* ── Handlungsleiste am Handy: zwei Wege, in Österreich einer ─────── */}
+        <div className={`fd-mobil${leiste ? " da" : ""}${nurGespraech ? " eins" : ""}`} aria-hidden={!leiste} {...(leiste ? {} : { inert: "" })}>
+          {nurGespraech
+            ? <a className="voll" href="#gespraech" onClick={zumGespraech}>{gespraechWort}</a>
+            : (
+              <>
+                <a className="hell" href="#gespraech" onClick={zumGespraech}>{gespraechWort}</a>
+                <a className="voll" href={beauftragen} onClick={klickBeauftragen}>{angebotWort}</a>
+              </>
+            )}
         </div>
       </div>
     </Dunkel>
   );
+}
+
+/** „Weiterlesen“ erscheint einmal als Ganzes, seine Zeilen gleiten gestaffelt nach (data-an wie jeder Abschnitt). */
+function WeiterAbschnitt({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  useEinmalSichtbar(ref, 0, "0px 0px -10% 0px");
+  return <section ref={ref} className="fd-weiter" aria-labelledby="fd-weiter-titel">{children}</section>;
 }
 
 // ── Welcher Abschnitt gerade gelesen wird ────────────────────────────────────
@@ -449,7 +506,7 @@ function RedaktionAktuell({ beitraege, nr, sp }: { beitraege: RedaktionsBeitrag[
         ))}
       </ul>
       {beitraege.length > AKTUELL_SICHTBAR && (
-        <button type="button" className="fg-textknopf" style={{ marginTop: 14 }} onClick={() => setAlle((x) => !x)}>
+        <button type="button" className="fg-textknopf fd-mehr" onClick={() => setAlle((x) => !x)}>
           {alle ? (sp === "en" ? "Show fewer" : "Weniger zeigen") : (sp === "en" ? `All ${beitraege.length} articles` : `Alle ${beitraege.length} Beiträge`)}
         </button>
       )}
@@ -459,9 +516,10 @@ function RedaktionAktuell({ beitraege, nr, sp }: { beitraege: RedaktionsBeitrag[
 
 // ── Die Bausteine ────────────────────────────────────────────────────────────
 /**
- * Ein Abschnitt, der einmal „ankommt“: data-an="1" beim Hineinscrollen (useEinmalSichtbar). Daran hängen der
- * einmalige Glanz der H2 (styles/global.css) und die Grafik-Bewegung der Bausteine. Schwelle 0 mit eigenem Rand,
- * weil ein Abschnitt höher als der Bildschirm sein kann (bewegung.ts).
+ * Ein Abschnitt, der einmal „ankommt“: data-an="1" beim Hineinscrollen (useEinmalSichtbar). Daran hängen sein Auftritt
+ * als Ganzes (E-510: der Abschnitt gleitet einmal herein, seine Linie zeichnet sich, Zeilen von Listen folgen gestaffelt —
+ * styles/global-apple.css), der einmalige Glanz der H2 und die Grafik-Bewegung der Bausteine. Schwelle 0 mit eigenem
+ * Rand, weil ein Abschnitt höher als der Bildschirm sein kann (bewegung.ts). Ohne JS steht alles sofort.
  */
 function Abschnitt({ id, className = "", children }: { id: string; className?: string; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null);
@@ -479,20 +537,6 @@ function Kopf({ nr, h2, lead }: { nr?: string; h2: string; lead?: string }) {
   );
 }
 
-/** Randnotiz-Zeichen: § bei Recht, Steuer und Pflichten, sonst i. Linien, kein Text im Bild. */
-function RandZeichen({ recht }: { recht: boolean }) {
-  return (
-    <span className="fd-rand-zeichen" aria-hidden="true">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" focusable="false">
-        {recht
-          ? <path d="M15 6.4c-.6-1.4-1.8-2.1-3.2-2.1-1.8 0-3.1 1.1-3.1 2.6 0 3.4 6.8 2.7 6.8 6.4 0 1.4-1 2.4-2.6 2.6 M9 17.6c.6 1.4 1.8 2.1 3.2 2.1 1.8 0 3.1-1.1 3.1-2.6 0-3.4-6.8-2.7-6.8-6.4 0-1.4 1-2.4 2.6-2.6" />
-          : <><circle cx="12" cy="12" r="8.6" /><path d="M12 11v5.4 M12 7.6v.2" /></>}
-      </svg>
-    </span>
-  );
-}
-const RECHT = /§|recht|steuer|pflicht|haft|gesetz|finanzamt|meldung|behörde|vertrag|\blaw|legal|\btax|liab|oblig|filing|authorit|contract/i;
-
 /**
  * Die Randnotiz reicht ab 1280 px über zwei Zeilen: den Abschnitt davor und den danach (06.10.2026, E-293). Ist der
  * nächste Baustein breit (Pakettafeln über beide Spalten) oder fehlt er, kann er nicht neben ihr stehen — dann blieb
@@ -501,9 +545,8 @@ const RECHT = /§|recht|steuer|pflicht|haft|gesetz|finanzamt|meldung|behörde|ve
  */
 const randDaneben = (naechster?: GlobalBlock) => !!naechster && naechster.typ !== "pakete" && naechster.typ !== "hinweis";
 
-function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp; begriffe?: Map<string, Textteil[]>; onGespraech: (paket?: GlobalSchluessel) => void; randUnten?: boolean }): ReactNode {
+function Baustein({ b, nr, seite, sp, land, begriffe, onGespraech, randUnten = false }: { b: GlobalBlock; nr?: string; seite: GlobalSeite; sp: Sp; land: SatzLand; begriffe?: Map<string, Textteil[]>; onGespraech: (paket?: GlobalSchluessel) => void; randUnten?: boolean }): ReactNode {
   const u = GLOBAL_SEITE_WOERTER[sp];
-  const wege = { sp, seite: seite.pfad, art: seite.auftraggeber, onGespraech };
   switch (b.typ) {
     case "text":
       return (
@@ -514,7 +557,7 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
               {(begriffe?.get(`${b.id}:${i}`) ?? [a]).map((t, j) => (typeof t === "string" ? t : <a key={j} href={t.pfad} className="fd-begriff">{t.text}</a>))}
             </p>
           ))}
-          {b.punkte?.length ? <ul className="fd-punkte">{b.punkte.map((p) => <li key={p}><Haken />{p}</li>)}</ul> : null}
+          {b.punkte?.length ? <ul className="fd-punkte">{b.punkte.map((p) => <li key={p}>{p}</li>)}</ul> : null}
           {b.nach && <p className="fd-nach">{b.nach}</p>}
         </Abschnitt>
       );
@@ -542,7 +585,7 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
       return (
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <div className="fd-tabelle neu" role="region" aria-label={b.h2} tabIndex={0}>
+          <div className="fd-tabelle neu" role="group" aria-label={b.h2} tabIndex={0}>
             <table>
               <thead><tr>{b.kopf.map((k, i) => <th key={i} scope="col" className={b.hervor === i ? "hervor" : undefined}>{k}</th>)}</tr></thead>
               <tbody>
@@ -555,45 +598,39 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
           {b.fuss?.length ? <ul className="fd-fuss">{b.fuss.map((f) => <li key={f}>{f}</li>)}</ul> : null}
         </Abschnitt>
       );
-    case "karten": {
-      const ersatz = seite.art === "wissen" ? "wissen" : "gesellschaft";
-      // Je Karte ein anderes Zeichen — oder im ganzen Baustein keins (Zeichen.tsx, zeichenReihe; 06.10.2026, E-293).
-      // Gewählt nach der Marke (tag = die Art der Karte), nur ohne Marke nach dem Titel: So sagen DE und EN dasselbe.
-      const zeichen = zeichenReihe(b.karten.map((k) => k.tag || k.titel), ersatz);
+    case "karten":
+      // E-510: Karten stehen an Haarlinien, ohne Symbol-Kachel — die Marke (tag) sagt, was die Karte ist.
       return (
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <div className={`fd-karten neu${b.spalten === 3 ? " drei" : ""}`}>
-            {b.karten.map((k, i) => {
-              const art = zeichen[i];
+            {b.karten.map((k) => {
               const innen = (
                 <>
-                  {(art || k.tag) && <span className="fd-karte-kopf">{art && <Zeichen art={art} />}{k.tag && <span className="tag">{k.tag}</span>}</span>}
+                  {k.tag && <span className="tag">{k.tag}</span>}
                   <h3>{k.titel}</h3><p>{k.text}</p>
                 </>
               );
               // 29.10.2026 (E-459): Karten mit fremder Adresse (Companies House) öffnen in einem neuen Tab — wie die Quellenliste.
               const extern = !!k.pfad && /^https?:\/\//.test(k.pfad);
-              // Schlüssel aus Marke und Titel: Auf /business/partner tragen zwei Karten denselben Titel (Zürich und Miami, beide „Schwarzott Group“).
+              // Schlüssel aus Marke und Titel: Auf /business/partner tragen zwei Karten denselben Titel.
               const schluessel = `${k.tag ?? ""}|${k.titel}`;
-              return k.pfad ? <a key={schluessel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}</a> : <div key={schluessel} className="fd-karte">{innen}</div>;
+              return k.pfad
+                ? <a key={schluessel} className="fd-karte" href={k.pfad} {...(extern ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{innen}<span className="pfeil" aria-hidden="true"><Pfeil /></span></a>
+                : <div key={schluessel} className="fd-karte">{innen}</div>;
             })}
           </div>
         </Abschnitt>
       );
-    }
-    case "hinweis": {
+    case "hinweis":
       // Randnotiz (Bauplan Kapitel 5, Punkt 5): ab 1280 px in der rechten Spalte neben dem Abschnitt davor, darunter
       // eingerückt mit Haarlinie — immer offen, jeder Punkt sichtbar (Pflichthinweise werden nie geklappt).
-      const recht = RECHT.test([b.h2, b.lead ?? "", ...b.punkte].join(" "));
       return (
         <Abschnitt id={b.id} className={`fd-rand${randUnten ? " unten" : ""}`}>
-          <RandZeichen recht={recht} />
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
           <ol className="fd-rand-punkte">{b.punkte.map((p) => <li key={p.slice(0, 50)}><span>{p}</span></li>)}</ol>
         </Abschnitt>
       );
-    }
     case "zitat":
       return <blockquote id={b.id} className="fd-zitat"><p>{u.zitat(b.text)}</p>{b.quelle && <footer>{b.quelle}</footer>}</blockquote>;
     // E-509 (12.11.2026): Es gibt EIN Produkt. Wo bis dahin eine Paketkarte (typ „paket“) oder alle vier (typ „pakete“)
@@ -604,7 +641,14 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
       return (
         <Abschnitt id={b.id} className={b.typ === "pakete" ? "breit" : undefined}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <VerkaufKarte sprache={sp} ort={seite.pfad} />
+          {land === "AT" ? (
+            // Österreich (Leitfaden 5.12): kein Betrag, keine Karte mit Konto, Karten oder Finanzierung — nur der Satz zum
+            // Honorar, der eine Satz zum weiteren Vorhaben und der Weg zum Gespräch.
+            <div className="fd-mandat-at">
+              <p>{weitererSatz("HONORAR-AT", sp)} {satz("S17", sp, "AT")}</p>
+              <a className="fg-knopf" href="#gespraech" onClick={(e) => { e.preventDefault(); onGespraech(); }}>{handlung("gespraech", sp)}<Pfeil /></a>
+            </div>
+          ) : <VerkaufKarte sprache={sp} ort={seite.pfad} />}
         </Abschnitt>
       );
     case "standorte":
@@ -644,7 +688,7 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
       return (
         <Abschnitt id={b.id}>
           <Kopf nr={nr} h2={b.h2} lead={b.lead} />
-          <div className="fd-fragen"><Fragen items={b.fragen} /></div>
+          <div className="fd-fragen"><Fragen items={b.fragen} ebene={3} /></div>
         </Abschnitt>
       );
     case "html":
@@ -656,120 +700,4 @@ function Baustein({ b, nr, seite, sp, begriffe, onGespraech, randUnten = false }
         </Abschnitt>
       );
   }
-}
-
-// ── London · Zürich · Miami — mit Ortszeit ───────────────────────────────────
-export function Standorte({ sp = "de" }: { sp?: Sp }) {
-  const [jetzt, setJetzt] = useState(() => new Date());
-  useEffect(() => { const t = window.setInterval(() => setJetzt(new Date()), 30_000); return () => window.clearInterval(t); }, []);
-  const zeit = (tz: string) => jetzt.toLocaleTimeString(sp === "en" ? "en-GB" : "de-DE", { timeZone: tz, hour: "2-digit", minute: "2-digit" });
-  const u = GLOBAL_SEITE_WOERTER[sp];
-  return (
-    <>
-      <div className="fd-standorte">
-        {GLOBAL_STANDORTE.map((o) => {
-          const x = sp === "en" ? o.en : o;
-          return (
-          <div key={o.schluessel} className="fd-standort">
-            <div className="stadt"><b>{x.stadt}</b><span className="zeit" aria-label={u.ortszeit(x.stadt)}>{zeit(o.zeitzone)}</span></div>
-            <span className="land">{x.land}</span>
-            <span className="ges">{o.gesellschaft}</span>
-            <span className="rechtsform">{x.rechtsform}</span>
-            <p className="rolle">{x.rolle}</p>
-            <address>{o.adresse.map((z) => <span key={z}>{z}</span>)}</address>
-            {o.register && <span className="reg">{o.register}</span>}
-          </div>
-          );
-        })}
-      </div>
-      <p className="fd-verbunden">{sp === "en" ? GLOBAL_VERBUNDEN_EN : GLOBAL_VERBUNDEN}</p>
-    </>
-  );
-}
-
-// ── Der Paket-Finder ─────────────────────────────────────────────────────────
-// Die Fragen stehen seit 24.09.2026 (E-234) in client/src/i18n/global-seite.ts — deutsch und englisch,
-// die vierte Antwort jeder Frage ist Stufe 3 (Global VIP), die erste Stufe 0 (Global Struktur).
-export function PaketFinder({ sp = "de", seite = "/business/paket-finder" }: { sp?: Sp; seite?: string }) {
-  const u = GLOBAL_SEITE_WOERTER[sp];
-  const t = GLOBAL_WOERTER[sp];
-  const FRAGEN_FINDER = u.finder.fragen;
-  const [antworten, setAntworten] = useState<(number | null)[]>([null, null, null, null]);
-  const [schritt, setSchritt] = useState(0);
-  const fertig = schritt >= FRAGEN_FINDER.length;
-  const waehle = (i: number) => {
-    const neu = [...antworten]; neu[schritt] = i; setAntworten(neu);
-    window.setTimeout(() => setSchritt((x) => Math.min(x + 1, FRAGEN_FINDER.length)), 220);
-  };
-  // Das Paket muss jede Anforderung tragen — also die höchste Stufe aus Ziel, Kapitalrahmen und Begleitung.
-  const stufen = antworten.map((a) => (a == null ? 0 : Math.min(3, a)));
-  const stufe = Math.max(stufen[0], stufen[1], stufen[3]) as 0 | 1 | 2 | 3;
-  const ergebnis = GLOBAL_PAKETE[stufe];
-  const e = ergebnis[sp];
-  useEffect(() => { if (fertig) werbeEreignis("global_paketfinder_ergebnis", { paket: ergebnis.key }); }, [fertig]);
-  const kapital = globalKapital(ergebnis.key, sp);
-  const zeitKnapp = stufen[2] < stufe;
-
-  return (
-    <div className="fd-finder">
-      <ol className="fd-finder-stufen" aria-label={u.finder.fortschritt}>
-        {FRAGEN_FINDER.map((f, i) => (
-          <li key={f.kurz} data-stand={i === schritt ? "aktiv" : i < schritt ? "fertig" : "offen"}><b>{ROEMISCH[i]}</b>{f.kurz}</li>
-        ))}
-      </ol>
-      {!fertig ? (
-        <fieldset className="fd-finder-frage" style={{ border: 0, margin: 0 }}>
-          <legend>{FRAGEN_FINDER[schritt].frage}</legend>
-          <p className="hilfe">{FRAGEN_FINDER[schritt].hilfe}</p>
-          <div className="fd-optionen" role="group" aria-label={FRAGEN_FINDER[schritt].frage}>
-            {FRAGEN_FINDER[schritt].antworten.map((a, i) => (
-              <button key={a.titel} type="button" className="fd-option" aria-pressed={antworten[schritt] === i} onClick={() => waehle(i)}>
-                <span className="kreis" aria-hidden="true" />
-                <span><b>{a.titel}</b><span className="t">{a.text}</span></span>
-              </button>
-            ))}
-          </div>
-          <div className="fd-finder-fuss" style={{ padding: "22px 0 18px" }}>
-            <button type="button" className="fg-textknopf" disabled={schritt === 0} onClick={() => setSchritt((x) => Math.max(0, x - 1))}>{u.finder.zurueck}</button>
-            <span className="fg-leise">{u.finder.frageVon(schritt + 1, FRAGEN_FINDER.length)}</span>
-          </div>
-        </fieldset>
-      ) : (
-        <div className="fd-ergebnis" aria-live="polite">
-          <span className="fd-marke">{u.finder.ergebnis}</span>
-          <h3>{e.name} <span style={{ fontSize: ".55em", color: "var(--leise)" }}>· {e.marke}</span></h3>
-          <ul className="gruende">
-            {FRAGEN_FINDER.map((f, i) => antworten[i] != null && (
-              <li key={f.kurz}><Haken /><span><b style={{ fontWeight: 500, color: "var(--tinte)" }}>{f.kurz}:</b> {f.antworten[antworten[i]!].titel}</span></li>
-            ))}
-          </ul>
-          {zeitKnapp && <p className="fd-p" style={{ fontSize: 14.5 }}>{u.finder.zeitKnapp(e.dauerKurz)}</p>}
-          <div className="fd-tafel" style={{ marginTop: 22 }}>
-            <div className="fd-tafel-links">
-              <span className="marke">{e.marke}</span>
-              <h3>{e.name}</h3>
-              <p className="fuer">{e.fuer}</p>
-              <ul>{e.leistungen.slice(0, 5).map((x) => <li key={x}><Haken />{x}</li>)}</ul>
-            </div>
-            <div className="fd-tafel-rechts">
-              <div className="fg-kapital">
-                <span>{kapital.bisZu ? `${u.kapitalrahmen} ${kapital.bisZu}` : u.kapitalrahmen}</span>
-                <b className="fg-glanz">{kapital.wert}</b>
-                <em>{t.planungZusatz}</em>
-              </div>
-              <div className="fg-preis"><b className="fg-glanz">{globalPreisText(ergebnis.key, sp)}</b><span>{u.festpreisEinmalig}</span></div>
-              <div className="tun">
-                <a className="fg-knopf voll" href={globalStartPfad(ergebnis.key, sp)} onClick={() => werbeEreignis("global_beauftragen_klick", { paket: ergebnis.key, seite })}>{t.beauftragen(e.name)}<Pfeil /></a>
-                <a className="fg-textknopf" href="#gespraech" style={{ textAlign: "center" }} onClick={(ev) => { ev.preventDefault(); document.getElementById("gespraech")?.scrollIntoView({ behavior: glatt() }); }}>{u.finder.erstSprechen}</a>
-              </div>
-            </div>
-          </div>
-          <div className="fd-finder-fuss" style={{ padding: "18px 0 0" }}>
-            <button type="button" className="fg-textknopf" onClick={() => { setAntworten([null, null, null, null]); setSchritt(0); }}>{u.finder.neu}</button>
-            <span className="fg-leise">{u.finder.orientierung}</span>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }

@@ -1,242 +1,99 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// /business — FIAON GLOBAL: die Texte der Seite (17.09.2026, E-188)
+// FIAON GLOBAL — das Wörterbuch der Startseite, des Gesprächs, des Fußes (17.09.2026, E-188)
 //
-// Sie-Form, ruhig. Eine Zahl im Blickfang nur mit ihrem Satz direkt daneben
-// (Kapitalrahmen → „entscheidet das Institut“, Geld zurück → Bedingungen).
-// Was ein Paket enthält und was es kostet, steht NICHT hier, sondern in
-// shared/fiaon-global.ts und im Katalog (shared/fiaon-pakete.ts) — die Seite
-// liest beides.
+// Sie-Form, ruhig. Was das eine Produkt enthält und was es kostet, steht NICHT hier, sondern in
+// shared/fiaon-global-verkauf.ts (Startseite, Honorarrechner) — die Seite liest beides.
 //
-// Die Grenzen der Wortwahl (Register E-187/E-188): kein Ergebnis zusagen, das
-// ein Institut entscheidet; kein Bankname; keine Frist mit Ziffer;
-// Steuerberater und Anwälte arbeiten auf das Mandat des Kunden (die Honorare
-// trägt FIAON); Dauer nur als Erfahrungswert. Jeder deutsche Satz passiert
-// scripts/pruef-wortwand-de.ts, jeder englische scripts/seo-wortverbote-en.ts
-// und scripts/pruef-global-en.ts (globalWortPruefenEn).
+// ── UMBAU 13.11.2026 (E-510, Sprachleitfaden FIAON Global) ─────────────────
+// Justin (12.11.2026): „auf JEDER Seite muss das Wording geändert werden … keine Magie, sondern knallharte Fakten —
+// präsentiere uns wie eine Kanzlei, wie internationale Unternehmensberater.“
+//   · Die festen Sätze (S1 bis S17, Namen der Handlungen, Schluss-Satz, Kurzwörter der Schritte) kommen aus
+//     shared/fiaon-global-saetze.ts — hier wird keiner von ihnen getippt.
+//   · Die neun Fragen der Startseite stehen wie im Leitfaden (8.5): erst Leistung, Honorar, Zusage, „wenn die Finanzierung
+//     ausbleibt“, dann „für wen es nicht passt“, Karten, Recht und Steuern, achtzehnter Monat, Reise.
+//   · Weg sind: die Tipp-Zeile der Bühne, die Wörter der vier Pakete, der Stern „Ein Ansprechpartner statt acht“, der Bogen
+//     nach Miami als Abschnitt der Startseite, die Vertrauensleiste (jetzt das Vertrauens-Band aus den festen Sätzen),
+//     jedes „Team vor Ort“, „Kartenleiter“, „Etappe“, „Festpreis“, „Paket“.
+//   · Kopf der Seite /business/privatpersonen (Titel, Beschreibung, H1, Einleitung) kommt jetzt direkt aus dem
+//     Registereintrag (shared/fiaon-global-seiten/privat.ts) — eine Quelle statt zwei, die wortgleich sein mussten.
 //
-// ── NEUBAU 06.10.2026 (E-293, BAUPLAN /business Scheibe A) ─────────────────
-// Justin: „Business-Bereich übersichtlicher, grafischer, moderner, Texte neu
-// (auch Bürgschaft bei ausgewählten Kunden)". Die Seite schrumpft von rund
-// 2.730 auf rund 1.030 sichtbare Wörter: Pakete direkt nach dem Hero, jede
-// Grafik ersetzt einen Absatz. Warum JEDER sichtbare Satz hier steht — auch
-// Grafik-Beschriftungen, Tooltips, aria-label mit Aussage und Bildnachweise:
-// Die Wortwand liest kein JSX. Vertragsgleiche Sätze (Pakete, Inklusivliste,
-// Pflichthinweise, Geld zurück, Rollen) bleiben in shared/fiaon-global.ts;
-// was hier steht, sind Kurzfassungen — der volle Wortlaut steht im DOM in der
-// Klappe „Wortlaut wie im Vertrag“.
-// Gestrichen am 06.10.: Mandat-Karte, Nachrichtenlage (jetzt /business/wissen),
-// „Der Weg“ als eigener Abschnitt (jetzt Wegleiste über den Tafeln), Für-wen-
-// Kacheln (jetzt Chips), drei Uhren (jetzt „Drei Orte“ im Fuß), „Klare
-// Verhältnisse“ (Partnersatz im Stern, Standorte im Fuß), Kontaktkasten.
+// Die Grenzen der Wortwahl: keine Zusage zu Konto, Karte oder Finanzierung — darüber entscheidet das jeweilige Institut;
+// kein Bankname; keine Frist mit Ziffer; kein getippter Betrag; FIAON ist keine Kanzlei — Recht und Steuern liegen bei
+// Partner-Anwälten und US-Steuerberatern (CPA) aus dem Partnernetz, die in eigener Verantwortung arbeiten.
+// Jeder Satz passiert scripts/pruef-global-leitfaden.ts (deutsch und englisch), dazu scripts/pruef-wortwand-de.ts,
+// scripts/seo-wortverbote-en.ts und scripts/pruef-global-en.ts.
+//
+// FAQ-Antworten bleiben reine Zeichenketten in "…" — scripts/seo-fragen-erzeugen.ts liest nur diese Form ins FAQ-Markup.
+// Ausnahme: die Antwort auf die Honorar-Frage. Sie nennt Beträge, und kein Betrag wird getippt (Leitfaden 0.5) — sie setzt
+// die Beträge aus der Preisquelle ein und steht deshalb sichtbar auf der Seite, aber (noch) nicht im FAQ-Markup.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { FIAON_FIRMA } from "@shared/fiaon-firma";
 // E-481 (Mara Business): der WhatsApp-Satz im Gesprächs-Formular — wortgleich mit dem Server (globalWaHinweisGezeigt).
 import { GLOBAL_WA_HINWEIS } from "@shared/fiaon-whatsapp-erlaubnis";
+// E-510: die festen Sätze und Namen — eine Quelle für jede öffentliche Seite.
+import { SAETZE_BETRAEGE, handlung, kurzwoerter, satz, weitererSatz } from "@shared/fiaon-global-saetze";
 
-// 19.09.2026 (E-192) — Justin: „Die Business Seite muss PERFEKT sein, dass sie konvertieren
-// kann." FAQ-Antworten bleiben reine Zeichenketten in "…" — scripts/seo-fragen-erzeugen.ts liest
-// nur diese Form (Vorlagen mit ${…} fehlen sonst im FAQ-Markup).
-
-/** Ein Begriff zum Antippen (components/site/global/Begriff.tsx): Schlüssel → Erklärung. */
-export type GlobalBegriff = "ein" | "itin" | "registeredAgent" | "operatingAgreement" | "usCpa" | "kartenleiter" | "bareinlage" | "herausgeber" | "kapitalrahmen";
-/** Ein Knoten im Stern „Ein Ansprechpartner statt acht“: fest = im Festpreis, antrag = vorbereitet, das Institut entscheidet. */
+/** Ein Knoten im Stern (components/site/global/SternZentrale.tsx — steht seit E-510 nicht mehr auf der Startseite). */
 export interface GlobalSternKnoten { name: string; umfang?: string; status: "fest" | "antrag"; inkl?: number }
 
-const de = {
-  // E-509 (12.11.2026): EIN Produkt — Titel und Beschreibung der Startseite kommen aus VERKAUF_TEXTE.seo (shared/fiaon-global-verkauf.ts).
-  // Hier stehen sie wortgleich (scripts/pruef-global-seiten.ts gleicht ab), damit kein alter Preis im Wörterbuch bleibt.
-  // (Vorher: „US-Firma gründen ab 2.499 €“ und „Festpreis ab 2.499 €“.)
-  metaTitel: "US-Gesellschaft gründen, aktiv betreut — FIAON Global",
-  metaBeschreibung: "Die Unternehmensberatung für Ihre US-Gesellschaft: Gründung, Steuernummern, US-Büro, Konto, Karten und Ihr Kapitalrahmen. Preis sofort sehen.",
+const B = SAETZE_BETRAEGE;
+/** Der Schluss-Satz der Startseite in zwei Hälften (für die zweifarbige Überschrift) — geteilt, nicht neu getippt. */
+const schlussTeile = (sprache: "de" | "en", vor: string): [string, string] => {
+  const s = weitererSatz("SCHLUSS", sprache);
+  const i = s.indexOf(vor);
+  return i > 0 ? [s.slice(0, i), s.slice(i)] : [s, ""];
+};
 
-  // ── 1 Hero mit Vertrauensleiste ──
-  auge: "FIAON Global · Für Unternehmen und Privatpersonen",
-  /** Das Wort der Augenzeile, das auf /business/privatpersonen führt. */
-  augeLink: "Privatpersonen",
-  h1a: "US-Gesellschaft gründen.",
-  h1b: "Den Weg zum Kapital planen.",
-  /** E-442 (28.10.2026, Justin): Die zweite Zeile tippt sich selbst — „Ihr Weg …“. Screenreader und Suchmaschinen lesen h1b. */
-  h1Wechsel: [
-    "Ihr Weg zum Kapital.",
-    "Ihr Weg ins US-Finanzsystem.",
-    "Ihr Weg zur US-Gesellschaft.",
-    "Ihr Weg zum US-Geschäftskonto.",
-    "Ihr Weg zur ersten Firmenkarte.",
-  ] as string[],
-  lead: "Gründung, EIN und ITIN, Konto- und Kartenanträge — mit unserem Team in Miami und einem festen Ansprechpartner.",
-  knopfPakete: "Pakete und Preise",
-  knopfGespraech: "Erstgespräch vereinbaren",
-  gespraechMikro: "Dreißig Minuten, kostenfrei und ohne Verpflichtung.",
-  preisKopf: "Festpreis",
-  preisAb: "ab",
-  preisKopfZusatz: "Einmalig, alle Gebühren des Pakets inklusive.",
-  kapitalKopf: "Kapitalrahmen je nach Paket",
-  kapitalKopfZusatz: "Ihr Ziel — über jeden Rahmen entscheidet das jeweilige Institut.",
-  // Vier Felder unter dem Hero; das zweite führt auf „Ihr Vertrag im Überblick“ (/business/mustervertrag — seit 12.11.2026 der
-  // Aufbau des Vertrags; den Wortlaut zeigt das persönliche Angebot vor der Unterschrift), das vierte kommt aus FIAON_FIRMA.
-  vertrauensleiste: [
-    "Vertrag auf Deutsch, nach deutschem Recht",
-    "Vertrag vor der Unterschrift lesen",
-    "Per Rechnung, kein Abo",
-    `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
-  ],
-  // Redaktioneller Bildnachweis an jedem Higgsfield-Objekt (Art. 50 KI-VO) — erst sichtbar, wenn das Bild da ist (Scheibe C).
-  bildKi: "Abbildung mit KI erstellt",
-  /** Eine gemeinsame Zeile für die vier Objekte der Wegleiste (Bauplan 2.3: nicht je Objekt). */
-  bilderKi: "Abbildungen mit KI erstellt",
+const de = {
+  // Titel und Beschreibung der Startseite stehen in VERKAUF_TEXTE.seo (shared/fiaon-global-verkauf.ts). Hier stehen sie
+  // wortgleich (scripts/pruef-verkaufsmotor.ts und scripts/pruef-global-seiten.ts gleichen ab).
+  metaTitel: "US-Gesellschaft (LLC) gründen mit Betreuung — FIAON Global",
+  metaBeschreibung: "Unternehmensberatung für Ihre US-Gesellschaft: LLC-Gründung, EIN und ITIN, US-Büro, vorbereitete Anträge. Ihr Honorar sehen Sie vorab und vollständig.",
+
+  knopfGespraech: handlung("gespraech", "de"),
   szeneKi: "Szene mit KI erstellt",
 
-  // ── Begriffe zum Antippen (nur bei Bedarf sichtbar) ──
-  begriffe: {
-    ein: "Die Steuernummer Ihrer US-Gesellschaft, vergeben von der US-Steuerbehörde.",
-    itin: "Ihre persönliche US-Steuernummer — für Gesellschafter ohne US-Sozialversicherungsnummer.",
-    registeredAgent: "Die vorgeschriebene Zustelladresse Ihrer Gesellschaft im Bundesstaat der Gründung.",
-    operatingAgreement: "Der Gesellschaftsvertrag einer LLC: wem sie gehört und wer entscheidet.",
-    usCpa: "In den USA zugelassener Steuer- und Rechnungsprüfer (Certified Public Accountant); er erstellt die US-Meldung.",
-    kartenleiter: "Erst eine Karte, dann weitere Herausgeber in einer geplanten Reihenfolge — jede pünktliche Abrechnung baut Historie auf.",
-    bareinlage: "Ein Guthaben, das manche Herausgeber als Sicherheit verlangen.",
-    herausgeber: "Die Bank oder das Unternehmen, das eine Karte ausgibt.",
-    kapitalrahmen: "Der Rahmen, den Sie mit uns anstreben — Ihr Ziel, keine Zusage. Über jeden Rahmen entscheidet das jeweilige Institut.",
-  } as Record<GlobalBegriff, string>,
-  /** Wie der Begriff im Fließtext steht (Groß-/Kleinschreibung egal) — dort wird er antippbar. */
-  begriffWoerter: {
-    ein: "EIN", itin: "ITIN", registeredAgent: "Registered Agent", operatingAgreement: "Operating Agreement", usCpa: "US-CPA",
-    kartenleiter: "Kartenleiter", bareinlage: "Bareinlage", herausgeber: "Herausgeber", kapitalrahmen: "Kapitalrahmen",
-  } as Record<GlobalBegriff, string>,
-
-  // ── 2 Pakete mit Wegleiste, Beleg und Kleingedrucktem ──
-  paketeAuge: "Pakete und Preise",
-  paketeH2: "Wie weit sollen wir Sie begleiten?",
-  paketeLead: "Der Kapitalrahmen ist Ihr Ziel. Je höher er liegt, desto länger begleiten wir Sie.",
-  wegLabel: "Der Weg in vier Etappen",
-  wegLead: "Das Tempo bestimmen Behörden und Institute — wir nennen Erfahrungswerte, keine Fristen.",
-  // Die Titel sind wortgleich mit GLOBAL_ETAPPEN 1–4 (scripts/pruef-global-bereich.ts); Dauer und Text stehen im Knoten-Popover.
+  // ── Nur noch für den Prüfstand scripts/pruef-global-bereich.ts: Er vergleicht diese vier Titel mit den Etappen im
+  //    Kundenportal (shared/fiaon-global-bereich.ts — das Portal ist nicht Teil des Umbaus). Auf keiner öffentlichen Seite
+  //    steht „Der Weg“ mehr; fällt der Vergleich im Prüfstand, fällt dieses Feld.
   weg: [
-    { titel: "Gründung und Dokumente", dauer: "in der Regel wenige Wochen", text: "Gesellschaft, EIN, ITIN, Registered Agent, US-Adresse und Telefonnummer, Operating Agreement. Unser Team vor Ort reicht ein und holt ab; die ITIN vergibt die US-Steuerbehörde in eigener Frist." },
-    { titel: "Die erste Firmenkarte", dauer: "nach vollständigen Dokumenten", text: "Sie stellen den ersten Antrag bei einem US-Herausgeber — meist mit kleinem Rahmen und ohne Bareinlage, dafür mit persönlicher Haftung des Inhabers. Wir bereiten den Antrag vor; der Herausgeber entscheidet." },
-    { titel: "Die Kartenleiter", dauer: "über einige Monate", text: "Pünktliche Abrechnung öffnet weitere Herausgeber. Viele bieten neuen Firmenkunden einen Einführungszeitraum ohne Sollzins — ob und zu welchen Bedingungen, legt jeder Herausgeber selbst fest." },
-    { titel: "Das Bankdarlehen", dauer: "mit gewachsener Historie", text: "Mit gewachsener Historie kann ein Darlehen bei einer US-Bank in Frage kommen. Wir bereiten Unterlagen und Kennzahlen auf; den Antrag stellen Sie bei der Bank, die ihn nach ihren Regeln prüft." },
+    { titel: "Gründung und Dokumente" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
+    { titel: "Die erste Firmenkarte" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
+    { titel: "Die Kartenleiter" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
+    { titel: "Das Bankdarlehen" }, // wortwand: intern — nur für scripts/pruef-global-bereich.ts, kein Besucher sieht es
   ],
-  inJedemPaket: "In jedem Paket",
-  abPaket: (name: string) => `Ab ${name}`,
-  stempelInstitut: "Hier entscheidet das Institut",
-  // Die vier Bühnen über den Pakettafeln (16.10.2026, E-387): je Etappe ein Satz und wer dabei ist — nur Namen, keine Zeichen.
-  wegKurz: [
-    "Gesellschaft, EIN und ITIN, Registered Agent, US-Adresse und Operating Agreement.",
-    "Ihr erster Antrag bei einem US-Herausgeber, vollständig vorbereitet.",
-    "Weitere Herausgeber in der richtigen Reihenfolge, monatlicher Durchgang, Pflichtenkalender.",
-    "Kennzahlen-Mappe und Unterlagen für ein Darlehen, laufende Abstimmung mit Anwalt und Steuerberater.",
-  ],
-  wegLeute: [
-    ["Team vor Ort", "Registered Agent", "Partner-Anwalt", "Partner-Steuerberater"],
-    ["Ihr Ansprechpartner"],
-    ["Ihr Ansprechpartner, monatlich"],
-    ["Partner-Anwalt", "Partner-Steuerberater", "Team vor Ort mit Vorrang"],
-  ],
-  wegAblauf: "Ablauf und Dauer",
-  // 20.10.2026 (E-387 ohne 3D): Ablauf, Dauer und wer dabei ist klappen je Karte auf — ebenso die Aufgaben im Team-Band.
-  wegMehr: "Mehr",
-  wegWeniger: "Weniger",
-  teamTitel: "Ihr Team im Festpreis",
-  teamSub: "Alle Honorare für die Leistungen Ihres Pakets inklusive",
-  team: [
-    { name: "Ihr Ansprechpartner", was: "fest, für die gesamte Begleitung" },
-    { name: "Team vor Ort", was: "Termine und Einreichungen in den USA" },
-    { name: "Registered Agent", was: "US-Adresse und Telefon im ersten Jahr" },
-    { name: "Partner-Anwalt", was: "Operating Agreement und Gründungsunterlagen" },
-    { name: "Partner-Steuerberater", was: "Prüfung vor der Gründung" },
-    { name: "US-CPA", was: "erste jährliche US-Meldung" },
-    { name: "Geschäftsführung", was: "persönliche Begleitung", vip: true },
-  ] as { name: string; was: string; vip?: boolean }[],
-  fokusBand: "Alle vier Etappen",
-  festpreis: "Festpreis, einmalig",
-  inklusive: "Alle Gebühren des Pakets inklusive",
+
+  // ── Wörter der früheren Tafeln (components/site/global/GlobalTafel.tsx — seit E-509 auf keiner Seite mehr eingebaut).
+  //    Sie bleiben, weil der Baustein sie nennt; ihr Wortlaut folgt dem Leitfaden, falls er je wieder gezeigt wird.
+  fokusBand: "Alle sechs Schritte",
+  festpreis: "Honorar mit Ihrem Auftrag",
+  inklusive: "Im ersten Jahr enthalten: acht Bereiche",
   planung: "Kapitalrahmen",
-  planungZusatz: "Ihr Ziel — über den Rahmen entscheidet das Institut",
-  beauftragen: (name: string) => `${name} beauftragen`,
-  beauftragenKurz: "Jetzt beauftragen",
+  planungZusatz: "Ihr Ziel — über die Finanzierung entscheidet das finanzierende Institut",
+  beauftragen: (name: string) => `${name}: ${handlung("angebot", "de")}`,
+  beauftragenKurz: handlung("angebot", "de"),
   vipGespraech: (name: string) => `Gespräch zu ${name} vereinbaren`,
-  vipGespraechKurz: "Gespräch vereinbaren",
-  direktBeauftragen: "Direkt beauftragen",
-  erstSprechen: "Erst sprechen",
-  etappenBis: (bis: string) => `Etappen I–${bis}`,
-  festpreisKurz: "Festpreis",
-  einmaligInklusive: "Einmalig, alle Gebühren des Pakets inklusive",
+  vipGespraechKurz: handlung("gespraech", "de"),
+  direktBeauftragen: handlung("angebot", "de"),
+  erstSprechen: handlung("gespraech", "de"),
+  etappenBis: (bis: string) => `Schritte I–${bis}`,
+  festpreisKurz: "Honorar",
+  einmaligInklusive: "Mit Ihrem Auftrag — im ersten Jahr enthalten: acht Bereiche",
   alleLeistungen: (n: number) => `Alle ${n} Leistungen`,
   wenigerLeistungen: "Weniger anzeigen",
-  zumVergleich: "Alle Leistungen im Vergleich",
-  wischen: "Tabelle seitlich verschieben, um alle vier Pakete zu sehen.",
-  vipZeichen: "VIP",
+  vipZeichen: "Miami",
   vipTicket: {
-    titel: "Ihr Auftakt in Miami",
-    abflug: "Abflug", abflugOrte: "Deutschland · Österreich · Schweiz",
-    ziel: "Ziel", zielOrt: "Miami, Florida",
-    enthalten: "Enthalten", enthaltenText: "Hin- und Rückflug · Hotel",
+    titel: "Ihr Termin in Miami",
+    abflug: "Von", abflugOrte: "Ihrem Wohnsitz",
+    ziel: "Nach", zielOrt: "Miami, Florida",
+    enthalten: "Termin", enthaltenText: "nach Absprache",
     fuer: "Für", fuerText: "1 Person",
   },
-  kostenHinweis: "Unternehmen: zuzüglich Umsatzsteuer, soweit sie anfällt. Privatpersonen: Endpreise.",
-  finderLink: "Paket-Finder: vier Fragen",
-  // Der Beleg „Im Festpreis“ — Kurzzeilen; der Vertragswortlaut (GLOBAL_INKLUSIVE + GLOBAL_LAUFEND) steht in der Klappe.
-  inklAuge: "Im Festpreis",
-  inklTitel: "Ein Festpreis — die Honorare für die Leistungen Ihres Pakets trägt FIAON.",
-  beleg: [
-    "Staatliche Gründungsgebühren",
-    "Registered Agent, US-Adresse und Telefon im ersten Jahr",
-    "Anträge für EIN und ITIN",
-    "Partner-Anwalt: Operating Agreement",
-    "Partner-Steuerberater: Prüfung vor der Gründung",
-    "US-CPA: erste jährliche US-Meldung",
-    "Termine und Einreichungen vor Ort",
-    "Ihr fester Ansprechpartner",
-  ],
-  belegSumme: "Ihr Festpreis · einmalig",
-  belegKlappe: "Wortlaut wie im Vertrag",
-  nichtTitel: "Nicht im Festpreis",
-  wissenTitel: "Was Sie vor dem Auftrag wissen müssen",
-  // Vergleichstabelle (hinter der Klappzeile „Alle Leistungen im Vergleich“, auf allen Breiten zu)
-  leistung: "Leistung",
-  zeilePlanung: "Kapitalrahmen",
-  zeileDauer: "Begleitung (Erfahrungswert)",
-  ja: "enthalten",
-  nein: "nicht enthalten",
 
-  // ── 3 Jahresbetreuung als Band (Texte und Preis: GLOBAL_JAHRESBETREUUNG) ──
-  jbKnopf: "Beim Auftrag dazubuchen",
-  jbSo: "So funktioniert es",
-
-  // ── 4 Ein Ansprechpartner statt acht (#leistungen, darin #fuer-wen) ──
-  vsAuge: "Aus einer Hand",
-  vsH2: "Ein Ansprechpartner statt acht Anlaufstellen.",
-  sternLabel: "Ein Ansprechpartner statt acht Anlaufstellen",
-  sternSchalter: ["Ohne FIAON Global", "Mit FIAON Global"] as [string, string],
-  sternKnoten: [
-    { name: "Gründungsdienst", umfang: "Gründung samt Staatsgebühren", status: "fest", inkl: 0 },
-    { name: "Registered Agent", umfang: "im ersten Jahr", status: "fest", inkl: 1 },
-    { name: "US-Steuerbehörde", umfang: "Anträge für EIN und ITIN", status: "fest", inkl: 2 },
-    { name: "Anwalt", umfang: "Operating Agreement", status: "fest", inkl: 3 },
-    { name: "Steuerberater", umfang: "Prüfung vor der Gründung", status: "fest", inkl: 4 },
-    { name: "US-CPA", umfang: "erste US-Meldung", status: "fest", inkl: 5 },
-    { name: "Banken", status: "antrag" },
-    { name: "Kartenherausgeber", status: "antrag" },
-  ] as GlobalSternKnoten[],
-  sternMitte: "Ihr Ansprechpartner",
-  sternSie: "Sie",
-  sternLegende: ["Im Preis enthalten", "Antrag vorbereitet — das Institut entscheidet"] as [string, string],
-  // Im Zustand „Ohne“ (nur im DOM, nicht gezählt): wen man ohne FIAON Global selbst anspricht — je Knoten eine Zeile.
-  ohne: [
-    "Gründungsdienst für die Gesellschaft",
-    "Registered Agent und US-Adresse",
-    "US-Steuerbehörde für EIN und ITIN",
-    "Anwalt für den Gesellschaftsvertrag",
-    "Steuerberater im Wohnsitzland",
-    "US-CPA für die jährliche Meldung",
-    "Banken für das Geschäftskonto",
-    "Kartenherausgeber für jede Firmenkarte",
-  ],
-  ehrlichTitel: "Ehrlich gesagt",
-  ehrlichText: "Nur die Gesellschaft gibt es beim Gründungsdienst günstiger. Unser Festpreis deckt auch die Schritte danach — von EIN und ITIN bis zur ersten US-Meldung.",
-  ehrlichLink: "Selbst, Gründungsdienst oder FIAON Global: der Vergleich",
+  // ── Startseite: Überschriften der Abschnitte, die nicht aus VERKAUF_TEXTE kommen ──
+  wissenTitel: "Was Sie vor dem Mandat wissen müssen",
+  // Nicht mehr auf der Startseite (der Stern ist seit E-510 weg); scripts/pruef-global-seiten.ts liest das Feld noch.
+  vsH2: "Ein Mandat, ein Ansprechpartner.",
   fuerKurz: "Für wen:",
   fuerChips: [
     { text: "Mittelstand", pfad: "/business/tochtergesellschaft-usa" },
@@ -246,56 +103,47 @@ const de = {
     { text: "Privatpersonen", pfad: "/business/privatpersonen" },
   ] as { text: string; pfad?: string }[],
 
-  // ── 6 Erstgespräch ──
+  // ── Erstgespräch ──
   gespraechAuge: "Erstgespräch",
-  gespraechH2: "Erst sprechen, dann entscheiden.",
+  gespraechH2: "Ihr Erstgespräch.",
   gespraechLead: "Vorhaben, Wohnsitz, Ziel — in dreißig Minuten, kostenfrei und ohne Verpflichtung.",
 
-  // ── 7 Fragen ──
-  fragenAuge: "Häufige Fragen",
-  fragenH2: "Was Unternehmer und Gründer vor dem Auftrag fragen.",
-  fragenAlle: "Alle Antworten zu FIAON Global",
+  // ── Fragen (Leitfaden 8.5) ──
+  fragenAuge: "Fragen",
+  fragenH2: "Fragen zur Gründung Ihrer US-Gesellschaft.",
+  fragenAlle: "Alle Fragen und Antworten zur US-Gesellschaft",
   fragenAlleZahl: (n: number) => `Alle ${n} Fragen`,
-  // 06.10.2026 (E-293, Gutachten 2, § 5 UWG): Frage 1 endet nicht mehr mit „wir bezahlen alle, die für Ihre Gesellschaft
-  // arbeiten“ — FIAON trägt die Honorare für die Leistungen des Pakets, nicht jede Rechnung rund um die Gesellschaft.
-  // Reihenfolge bleibt; /business zeigt zuerst die Fragen FRAGEN_ZUERST (business.tsx), die übrigen hinter „Alle 18 Fragen“.
+  // Neun Fragen in der Reihenfolge des Leitfadens (7.8). Die Startseite zeigt die ersten fünf, die übrigen hinter „Alle Fragen“.
+  // Reine Zeichenketten: scripts/seo-fragen-erzeugen.ts liest sie als Text ins FAQ-Markup. Die festen Sätze darin (S6, S10, S11,
+  // der Miami-Satz, „für wen es nicht passt“) vergleicht scripts/pruef-verkaufsmotor.ts mit shared/fiaon-global-saetze.ts.
   fragen: [
-    // E-509 (12.11.2026): ein Produkt statt vier Pakete — die Fragen sprechen vom einen Mandat. Die Startseite zeigt die ersten fünf,
-    // die übrigen hinter „Alle Fragen“. Reine Zeichenketten: scripts/seo-fragen-erzeugen.ts liest sie als Text ins FAQ-Markup.
-    { f: "Was kostet es?", a: "Mit Ihrem Auftrag zahlen Sie den Preis für Gründung und aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen. Ab dem zweiten Jahr können Sie die Jahresbetreuung buchen. Ihren genauen Preis sehen Sie im Konfigurator." },
-    { f: "Muss ich in die USA reisen?", a: "Nein. Bis 950.000 US-Dollar läuft alles aus der Ferne; unsere Partner in den USA nehmen die Wege vor Ort wahr. Ab 1 Mio. US-Dollar treffen wir Sie persönlich in Miami." },
-    { f: "Wer leistet Rechts- und Steuerberatung?", a: "Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz, jeweils im eigenen Mandat. FIAON koordiniert und trägt ihre Honorare für die Leistungen, die Ihr Vertrag nennt." },
-    { f: "Was ist, wenn die Finanzierung nicht kommt?", a: "Dann erhalten Sie alles zurück, was Sie an uns gezahlt haben — so steht es in Ziffer 4 Ihres Vertrags. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
-    { f: "Entscheidet FIAON über Karten und Rahmen?", a: "Nein. Über Konto, Karte und Rahmen entscheidet das jeweilige Institut nach eigenen Regeln. FIAON baut die Struktur auf, bereitet Anträge vor und plant die Reihenfolge." },
-    // 19.09.2026 (Justin): wortgleich mit GLOBAL_KAPITAL_FREI.de (frage/antwort) — scripts/pruef-global-seiten.ts prüft das.
-    { f: "Muss das Kapital in den USA ausgegeben werden?", a: "Nein. Das Kapital ist nicht an die USA gebunden: Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren, etwa in Ihr bestehendes Unternehmen oder in Projekte hier. Über Rahmen und Bedingungen entscheidet das jeweilige Institut; wie Überweisungen und Investitionen steuerlich zu behandeln sind, klärt unser Partner-Steuerberater vorab mit Ihnen." },
-    { f: "Wie prüfe ich, ob FIAON seriös ist?", a: "An drei Stellen, bevor Sie etwas bezahlen: Die FIAON LTD steht im öffentlichen Register Companies House unter der Nummer 17318250. Den vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterschreiben. Und bezahlt wird erst nach der Unterschrift, per Rechnung auf das Geschäftskonto der FIAON LTD — nie auf ein privates Konto." },
-    { f: "Wer ist mein Vertragspartner?", a: "Die FIAON LTD mit Sitz in London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Ihr Vertrag ist auf Deutsch und unterliegt deutschem Recht. Steuerberater, US-CPA und Anwälte arbeiten auf Ihr Mandat; ihre Honorare trägt FIAON." },
-    { f: "Was ist mit Steuern?", a: "Die US-Gesellschaft ersetzt keine Steuerpflicht zu Hause: Wer sie aus Deutschland, Österreich oder der Schweiz führt, versteuert dort. Unser Partner-Steuerberater prüft Ihre Lage vor der Gründung, unser US-CPA übernimmt die erste jährliche US-Meldung — beide auf Ihr Mandat, die Honorare trägt FIAON." },
-    // E-465 (29.10.2026): wortgleich mit STAAT_WAHL_SATZ.de (shared/fiaon-global-bundesstaaten.ts) — scripts/pruef-global-bundesstaaten.ts prüft das.
-    { f: "In welchem US-Bundesstaat gründen Sie?", a: "Wir gründen in Delaware, Florida oder Wyoming — Sie wählen mit uns im Startgespräch. Wenn nichts anderes dafür spricht, gründen wir in Delaware: Mit dem Express des Staats steht die Gesellschaft in der Regel nach ein bis zwei Werktagen, und Delaware hat den besten Ruf bei Banken und Geldgebern. Florida trägt derzeit langsamer ein (oft rund zwei Wochen, ohne Express), Wyoming ist schnell und am günstigsten im Unterhalt." },
-    { f: "Welche Unterlagen brauchen Sie von mir?", a: "Für den Vertrag Ihren Namen, Ihr Geburtsdatum und Ihre Anschrift — Sie tragen sie selbst auf Ihrer Angebotsseite ein. Nach der Unterschrift laden Sie Ihren Reisepass hoch. Alles Weitere bereiten wir vor; Sie unterschreiben, was wir Ihnen fertig zuschicken." },
-    { f: "Kann ich sofort beauftragen?", a: "Ja. Sie stellen Ihr Angebot im Konfigurator zusammen und tragen Ihre Angaben ein. Ihr Angebot zeigt den vollständigen Vertrag; Sie unterschreiben am Bildschirm. Vertrag und Rechnung erhalten Sie per E-Mail." },
-    { f: "Wie bezahle ich?", a: "Per Überweisung auf das Geschäftskonto der FIAON LTD — Bankverbindung und Verwendungszweck stehen auf Ihrer Rechnung. Kein Abo, keine Raten; die Jahresbetreuung ab dem zweiten Jahr ist freiwillig und verlängert sich nicht von selbst." },
-    { f: "Für wen passt es nicht?", a: "Für Vorhaben ohne echte Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Das klären wir im ersten Gespräch — offen, auch wenn die Antwort ein Nein ist." },
+    { f: "Was übernimmt FIAON Global — und was tue ich selbst?", a: "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und bereiten Ihre Anträge für Konten, Karten und Finanzierung vollständig vor. Sie wählen den Namen, laden Ihren Reisepass hoch, unterzeichnen die Unterlagen und stellen die Anträge bei den Instituten selbst. Über Eintragung und Steuernummern entscheiden Bundesstaat und US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut." },
+    // Die Beträge kommen aus der Preisquelle (kein Betrag wird getippt) — deshalb keine reine Zeichenkette.
+    { f: "Was kostet das Mandat — und wann zahle ich was?", a: `Mit Ihrem Auftrag zahlen Sie ${B.de.honorarAuftrag} für die Gründung und die aktive Betreuung im ersten Jahr. Mit der Eintragung Ihrer Gesellschaft wird das Erfolgshonorar fällig; es richtet sich nach Ihrem Kapitalrahmen und beträgt mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr können Sie die Jahresbetreuung für ${B.de.jahresbetreuung} im Jahr beauftragen. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.` },
+    { f: "Sagt FIAON eine Finanzierung zu?", a: "Nein. Über jede Finanzierung entscheidet allein das finanzierende Institut. FIAON vergibt und vermittelt keine Kredite; wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Der Kapitalrahmen, den Sie wählen, ist ein Ziel, kein Versprechen. Was FIAON für Ihre Finanzierung einbringt, steht verbindlich in Ihrem persönlichen Angebot." },
+    { f: "Was gilt, wenn die Finanzierung ausbleibt?", a: "Dann greift die Geld-zurück-Garantie. Kommt die Auszahlung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen vierzehn Tagen nach Fristende. Ihre Gesellschaft bleibt Ihnen. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags; für Konto und Karten gilt sie nicht. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
+    { f: "Für wen passt das Mandat nicht?", a: "Für Vorhaben ohne tatsächliche Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Sind Sie unsicher, vereinbaren Sie ein Gespräch — wir sagen es Ihnen auch dann, wenn die Antwort ein Nein ist." },
+    { f: "Kosten Kreditkarten zusätzlich?", a: "Bei FIAON nicht. Auf Wunsch bereiten wir Ihre Kreditkartenanträge vor — privat und für Ihre Gesellschaft, ohne zusätzliches Honorar von FIAON. Über jede Karte und ihren Rahmen entscheidet der Herausgeber; seine Gebühren und Zinsen legt er selbst fest, und Sie tragen sie. Firmenkreditkarten setzen in der Regel die persönliche Haftung des Inhabers voraus." },
+    { f: "Wer klärt Rechts- und Steuerfragen?", a: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Ihr Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen." },
+    { f: "Was geschieht ab dem achtzehnten Monat?", a: "Ab dem achtzehnten Monat prüfen wir mit Ihnen, ob eine Umschuldung die Finanzierungskosten senken oder eine Aufstockung Ihren Spielraum für Investitionen erweitern kann. Voraussetzung ist die laufende Jahresbetreuung; sie verlängert sich nicht von selbst. Den Antrag stellt Ihre Gesellschaft. Ob und zu welchen Bedingungen, entscheidet das jeweilige Institut." },
+    { f: "Muss ich in die USA reisen?", a: "Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami." },
   ],
-  // ── 8 Schlussband ──
-  schlussA: "Eine Struktur, die Ihnen gehört — ",
-  schlussB: "mit einem Ansprechpartner, der Ihr Vorhaben kennt.",
-  // Nur noch auf den Unterseiten (global-seite.tsx); /business zeigt im Schlussband keinen Absatz mehr.
-  schlussText: "Stellen Sie Ihr Angebot zusammen oder sprechen Sie zuerst mit uns. Erstgespräch: dreißig Minuten, kostenfrei und ohne Verpflichtung.",
-  schlussBeauftragen: "Jetzt beauftragen",
 
-  // ── Klebeleiste am Handy ──
+  // ── Schlussband: der Schluss-Satz (Leitfaden 7.1), geteilt für die zweifarbige Überschrift ──
+  schlussA: schlussTeile("de", "bevor")[0],
+  schlussB: schlussTeile("de", "bevor")[1],
+  // Nur auf den Unterseiten (global-seite.tsx); die Startseite zeigt im Schlussband keinen Absatz.
+  schlussText: "Fordern Sie Ihr Angebot an oder vereinbaren Sie ein Gespräch. Erstgespräch: dreißig Minuten, kostenfrei.",
+  // Die Österreich-Seite kennt nur das Gespräch (Leitfaden 5.12).
+  schlussTextAT: "Vereinbaren Sie ein Gespräch. Erstgespräch: dreißig Minuten, kostenfrei.",
+
+  // ── Klebeleiste am Handy (Unterseiten) ──
   leisteGespraech: "Erstgespräch",
-  leistePakete: (preis: string) => `Pakete ab ${preis}`,
-  leisteBeauftragen: "Jetzt beauftragen",
-  leisteTafel: (name: string, preis: string) => `${name} · ${preis} — beauftragen`,
 
-  // ── Uhren (Mini-Uhren in „Drei Orte“ im Fuß) — Zonen prüft scripts/pruef-global-seiten.ts §9 ──
+  // ── Uhren (Mini-Uhren in „Drei Orte“ im Fuß der nicht öffentlichen Seiten) — Zonen prüft scripts/pruef-global-seiten.ts ──
   uhren: [
     { zone: "Europe/Berlin", ort: "Deutschland", zusatz: "auch Österreich und Schweiz" },
-    { zone: "America/New_York", ort: "Florida", zusatz: "Miami · Team vor Ort" },
+    { zone: "America/New_York", ort: "Florida", zusatz: "Miami · unsere Partner in den USA" },
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · Vertragspartner" },
   ],
   // ── Nachrichtenlage: seit 06.10.2026 auf /business/wissen (global-seite.tsx, Übersicht) ──
@@ -308,205 +156,61 @@ const de = {
   pressePause: "Laufband anhalten",
   presseWeiter: "Laufband fortsetzen",
 
-  // ── /business/privatpersonen: dieselbe Seite, eigene Wörter (E-196) ──
+  // ── /business/privatpersonen: dieselbe Seite, eigene Augenzeile und eigene Verweise (E-196). Titel, Beschreibung, H1 und
+  //    Einleitung kommen aus dem Registereintrag (shared/fiaon-global-seiten/privat.ts) — business.tsx liest sie dort. ──
   privat: {
-    // Deckungsgleich mit dem Registereintrag (Kopf im Vorab-HTML und in der SEO-Tabelle): shared/fiaon-global-seiten/privat.ts.
-    // 06.10.2026 (E-293): „Kontoantrag“ statt „Konto“ — im Suchtreffer steht der Satz ohne den Institut-Satz,
-    // und über das Konto entscheidet allein das Institut (Pflichthinweis 3, § 5 UWG). Wie bei /business.
-    metaTitel: "US-Firma als Privatperson gründen — FIAON Global",
-    metaBeschreibung: "Keine eigene Firma nötig: Als Privatperson oder Gründer beauftragen Sie FIAON Global direkt — US-Gesellschaft, EIN, ITIN und Kontoantrag in einem Auftrag.",
     auge: "FIAON Global · Für Privatpersonen und Gründer",
-    h1a: "Ihre eigene US-Gesellschaft.",
-    h1b: "Ohne Firma, in einem Auftrag.",
-    lead: "Sie werden selbst Gesellschafter: Wir gründen, beantragen EIN und ITIN und bereiten Konto- und Kartenanträge vor — Vertrag und Rechnung laufen auf Ihren Namen.",
-    preisKopfZusatz: "Einmalig, Endpreis, alle Gebühren des Pakets inklusive.",
-    // Gründer und Selbständige haben keine eigene Unterseite — die Chips ordnen ein, „Als Unternehmen“ führt zurück.
+    // Gründer und Selbständige haben keine eigene Unterseite — die Verweise ordnen ein, „Als Unternehmen“ führt zurück.
     fuerChips: [
       { text: "Gründer" },
       { text: "Selbständige" },
       { text: "Onlinehandel", pfad: "/business/onlinehandel" },
       { text: "Als Unternehmen", pfad: "/" },
     ] as { text: string; pfad?: string }[],
-    fragenH2: "Was Privatpersonen und Gründer vor dem Auftrag fragen.",
-    schlussA: "Ihre Gesellschaft, Ihr Name — ",
-    schlussB: "mit einem Ansprechpartner, der Ihr Vorhaben kennt.",
   },
 };
 
 const en: typeof de = {
-  metaTitel: "Form a US company, actively managed — FIAON Global",
-  metaBeschreibung: "The business consultancy for your US company: formation, tax numbers, US office, accounts, cards and your capital range. See your price now.",
+  metaTitel: "US LLC formation with ongoing administration — FIAON Global",
+  metaBeschreibung: "Business consultancy for your US company: LLC formation, EIN and ITIN, US office and prepared applications. Your fees are set out in full before you sign.",
 
-  auge: "FIAON Global · For companies and private individuals",
-  augeLink: "private individuals",
-  h1a: "Form a US company.",
-  h1b: "Plan your route to capital.",
-  // Kurz genug für eine Zeile am Handy (375 px); „business card“ hieße britisch Visitenkarte (E-234) — darum „company card“.
-  h1Wechsel: [
-    "Your route to capital.",
-    "Your route into US finance.",
-    "Your route to a US company.",
-    "Your route to US banking.",
-    "Your route to a company card.",
-  ],
-  lead: "Formation, EIN and ITIN, account and card applications — with our team in Miami and one dedicated contact.",
-  knopfPakete: "Packages and prices",
-  knopfGespraech: "Arrange a first call",
-  gespraechMikro: "Thirty minutes, free of charge and without obligation.",
-  preisKopf: "Fixed price",
-  preisAb: "from",
-  preisKopfZusatz: "One-off, all package fees included.",
-  kapitalKopf: "Capital range by package",
-  kapitalKopfZusatz: "Your target — each institution decides on its own limit.",
-  vertrauensleiste: [
-    "Contract under German law",
-    "Read the agreement before you sign",
-    "Pay by invoice, no subscription",
-    `${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`,
-  ],
-  bildKi: "Image created with AI",
-  bilderKi: "Images created with AI",
+  knopfGespraech: handlung("gespraech", "en"),
   szeneKi: "Scene created with AI",
 
-  begriffe: {
-    ein: "The tax number of your US company, issued by the US tax authority.",
-    itin: "Your personal US tax number — for shareholders without a US social security number.",
-    registeredAgent: "The mandatory address for service of your company in the state of formation.",
-    operatingAgreement: "The articles of an LLC: who owns it and who decides.",
-    usCpa: "A certified public accountant licensed in the US; prepares the US filing.",
-    kartenleiter: "First one card, then further issuers in a planned order — every punctual repayment builds history.",
-    bareinlage: "A balance that some issuers require as security.",
-    herausgeber: "The bank or company that issues a card.",
-    kapitalrahmen: "The range you aim for with us — your target, not a commitment. Each institution decides on its own limit.",
-  },
-  begriffWoerter: {
-    ein: "EIN", itin: "ITIN", registeredAgent: "registered agent", operatingAgreement: "operating agreement", usCpa: "US CPA",
-    kartenleiter: "card ladder", bareinlage: "cash deposit", herausgeber: "issuer", kapitalrahmen: "capital range",
-  },
-
-  paketeAuge: "Packages and prices",
-  paketeH2: "How far should we take you?",
-  paketeLead: "The capital range is your target. The higher it is, the longer we support you.",
-  wegLabel: "The route in four stages",
-  wegLead: "Authorities and institutions set the pace — we give you experience, not deadlines.",
   weg: [
-    { titel: "Formation and documents", dauer: "typically a few weeks", text: "Company, EIN, ITIN, registered agent, US address and phone number, operating agreement. Our team on the ground files and collects; the ITIN is issued by the US tax authority on its own timeline." },
-    { titel: "The first business card", dauer: "once documents are complete", text: "You submit the first application to a US issuer — usually with a small limit and no cash deposit, but with a personal guarantee from the owner. We prepare the application; the issuer decides." },
-    { titel: "The card ladder", dauer: "over several months", text: "Paying on time opens further issuers. Many offer new business customers an introductory period without interest — whether and on what terms is set by each issuer." },
-    { titel: "The bank loan", dauer: "with an established history", text: "With an established history, a loan from a US bank may become an option. We prepare documents and key figures; you apply to the bank, which assesses the application under its own rules." },
+    { titel: "Formation and documents" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
+    { titel: "The first business card" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
+    { titel: "The card ladder" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
+    { titel: "The bank loan" }, // wortwand: intern — only for scripts/pruef-global-bereich.ts, no visitor sees it
   ],
-  inJedemPaket: "In every package",
-  abPaket: (name: string) => `From ${name}`,
-  stempelInstitut: "The institution decides here",
-  wegKurz: [
-    "Company, EIN and ITIN, registered agent, US address and operating agreement.",
-    "Your first application to a US issuer, fully prepared.",
-    "Further issuers in the right order, a monthly review, a compliance calendar.",
-    "Key-figures file and documents for a loan, ongoing coordination with lawyer and tax adviser.",
-  ],
-  wegLeute: [
-    ["Team on the ground", "Registered agent", "Partner lawyer", "Partner tax adviser"],
-    ["Your dedicated contact"],
-    ["Your dedicated contact, monthly"],
-    ["Partner lawyer", "Partner tax adviser", "Team on the ground, with priority"],
-  ],
-  wegAblauf: "Process and timing",
-  wegMehr: "More",
-  wegWeniger: "Less",
-  teamTitel: "Your team in the fixed price",
-  teamSub: "All fees for the services in your package included",
-  team: [
-    { name: "Your dedicated contact", was: "for the entire engagement" },
-    { name: "Team on the ground", was: "appointments and filings in the US" },
-    { name: "Registered agent", was: "US address and phone for the first year" },
-    { name: "Partner lawyer", was: "operating agreement and formation documents" },
-    { name: "Partner tax adviser", was: "review before formation" },
-    { name: "US CPA", was: "first annual US filing" },
-    { name: "Management", was: "personal support", vip: true },
-  ],
-  fokusBand: "All four stages",
-  festpreis: "Fixed price, one-off",
-  inklusive: "All package fees included",
-  planung: "Capital range",
-  planungZusatz: "Your target — the institution decides on the limit",
-  beauftragen: (name: string) => `Order ${name}`,
-  beauftragenKurz: "Order now",
+
+  fokusBand: "All six steps",
+  festpreis: "Fee on engagement",
+  inklusive: "Included in the first year: eight areas",
+  planung: "Funding target",
+  planungZusatz: "Your goal — all financing decisions rest with the lender",
+  beauftragen: (name: string) => `${name}: ${handlung("angebot", "en")}`,
+  beauftragenKurz: handlung("angebot", "en"),
   vipGespraech: (name: string) => `Arrange a call about ${name}`,
-  vipGespraechKurz: "Arrange a call",
-  direktBeauftragen: "Order directly",
-  erstSprechen: "Talk first",
-  etappenBis: (bis: string) => `Stages I–${bis}`,
-  festpreisKurz: "Fixed price",
-  einmaligInklusive: "One-off, all package fees included",
+  vipGespraechKurz: handlung("gespraech", "en"),
+  direktBeauftragen: handlung("angebot", "en"),
+  erstSprechen: handlung("gespraech", "en"),
+  etappenBis: (bis: string) => `Steps I–${bis}`,
+  festpreisKurz: "Fee",
+  einmaligInklusive: "On engagement — included in the first year: eight areas",
   alleLeistungen: (n: number) => `All ${n} services`,
   wenigerLeistungen: "Show less",
-  zumVergleich: "Compare all services",
-  wischen: "Scroll the table sideways to see all four packages.",
-  vipZeichen: "VIP",
+  vipZeichen: "Miami",
   vipTicket: {
-    titel: "Your kick-off in Miami",
-    abflug: "From", abflugOrte: "Germany · Austria · Switzerland",
+    titel: "Your appointment in Miami",
+    abflug: "From", abflugOrte: "Your country of residence",
     ziel: "To", zielOrt: "Miami, Florida",
-    enthalten: "Included", enthaltenText: "Return flight · Hotel",
+    enthalten: "Appointment", enthaltenText: "by arrangement",
     fuer: "For", fuerText: "1 person",
   },
-  kostenHinweis: "Companies: plus VAT where applicable. Private individuals: final prices.",
-  finderLink: "Package finder: four questions",
-  inklAuge: "In the fixed price",
-  inklTitel: "One fixed price — FIAON pays the fees for the services in your package.",
-  beleg: [
-    "State formation fees",
-    "Registered agent, US address and phone in year one",
-    "EIN and ITIN applications",
-    "Partner lawyer: operating agreement",
-    "Partner tax adviser: review before formation",
-    "US CPA: first annual US filing",
-    "Appointments and filings on the ground",
-    "Your dedicated contact",
-  ],
-  belegSumme: "Your fixed price · one-off",
-  belegKlappe: "Wording as in the contract",
-  nichtTitel: "Not in the fixed price",
-  wissenTitel: "What you need to know before ordering",
-  leistung: "Service",
-  zeilePlanung: "Capital range",
-  zeileDauer: "Support (typical)",
-  ja: "included",
-  nein: "not included",
 
-  jbKnopf: "Add it when you order",
-  jbSo: "How it works",
-
-  vsAuge: "From one source",
-  vsH2: "One contact instead of eight.",
-  sternLabel: "One contact instead of eight points of contact",
-  sternSchalter: ["Without FIAON Global", "With FIAON Global"],
-  sternKnoten: [
-    { name: "Formation service", umfang: "formation incl. state fees", status: "fest", inkl: 0 },
-    { name: "Registered agent", umfang: "in year one", status: "fest", inkl: 1 },
-    { name: "US tax authority", umfang: "EIN and ITIN applications", status: "fest", inkl: 2 },
-    { name: "Lawyer", umfang: "operating agreement", status: "fest", inkl: 3 },
-    { name: "Tax adviser", umfang: "review before formation", status: "fest", inkl: 4 },
-    { name: "US CPA", umfang: "first US filing", status: "fest", inkl: 5 },
-    { name: "Banks", status: "antrag" },
-    { name: "Card issuers", status: "antrag" },
-  ],
-  sternMitte: "Your contact",
-  sternSie: "You",
-  sternLegende: ["Included in the price", "Application prepared — the institution decides"],
-  ohne: [
-    "Formation service for the company",
-    "Registered agent and US address",
-    "US tax authority for EIN and ITIN",
-    "Lawyer for the operating agreement",
-    "Tax adviser in your country of residence",
-    "US CPA for the annual filing",
-    "Banks for the business account",
-    "Card issuers for every business credit card",
-  ],
-  ehrlichTitel: "To be honest",
-  ehrlichText: "a formation service is cheaper if all you need is the company. Our fixed price also covers the steps after — from EIN and ITIN to the first US filing.",
-  ehrlichLink: "Yourself, a formation service or FIAON Global: the comparison",
+  wissenTitel: "What you need to know before you instruct us",
+  vsH2: "One engagement, one dedicated contact.",
   fuerKurz: "For:",
   fuerChips: [
     { text: "SMEs", pfad: "/en/business/us-subsidiary" },
@@ -516,89 +220,72 @@ const en: typeof de = {
     { text: "Private individuals", pfad: "/en/business/private-individuals" },
   ],
 
-  gespraechAuge: "First call",
-  gespraechH2: "Talk first, then decide.",
+  gespraechAuge: "Initial call",
+  gespraechH2: "Your initial call.",
   gespraechLead: "Your plans, your country of residence, your goal — thirty minutes, free of charge and without obligation.",
 
-  fragenAuge: "Frequently asked questions",
-  fragenH2: "What business owners and founders ask before ordering.",
-  fragenAlle: "All answers about FIAON Global",
+  fragenAuge: "Questions",
+  fragenH2: "Questions about forming your US company.",
+  fragenAlle: "All questions and answers about a US company",
   fragenAlleZahl: (n: number) => `All ${n} questions`,
+  // Nine questions in the order of the style guide (8.5) — the same questions as the German list.
   fragen: [
-    // E-509 (12.11.2026): one product instead of four packages — same questions as the German list.
-    { f: "What does it cost?", a: "With your order you pay the price for formation and active management in the first year. The success fee falls due when your company is registered; it follows your capital range. From the second year you can book annual care. You see your exact price in the configurator." },
-    { f: "Do I have to travel to the United States?", a: "No. Below US$1 million everything runs remotely; our partners in the US take care of what has to happen on the ground. From US$1 million we meet you in person in Miami." },
-    { f: "Who provides legal and tax work?", a: "Lawyers and US accountants (CPAs) from our partner network, each under their own mandate. FIAON coordinates and bears their fees for the services named in your agreement." },
-    { f: "What if the financing does not come?", a: "Then you receive back everything you have paid to us — this is set out as the money-back commitment in clause 4 of your agreement. The financing institution itself decides on the financing." },
-    { f: "Does FIAON decide on cards and limits?", a: "No. The institution concerned decides on account, card and limit under its own rules. FIAON builds the structure, prepares applications and plans the sequence." },
-    { f: "Does the capital have to be spent in the US?", a: "No. The capital is not tied to the US: your company can transfer funds to Europe or invest them in Europe, for example in your existing business or in projects here. The institution concerned decides on the limit and its terms; our partner tax adviser clarifies with you in advance how transfers and investments are treated for tax purposes." },
-    { f: "How do I check that FIAON is reputable?", a: "In three places, before you pay anything: FIAON LTD is listed in the public Companies House register under number 17318250. You read the complete agreement in your personal offer before you sign. And you only pay after signing, by invoice to the business account of FIAON LTD — never to a private account." },
-    { f: "Who is my contracting party?", a: "FIAON LTD, based in London and registered at Companies House (England and Wales) under number 17318250. Your contract is governed by German law. Tax advisers, US CPAs and lawyers act under your engagement; FIAON pays their fees." },
-    { f: "What about taxes?", a: "The US company does not replace tax liability at home: if you manage it from Germany, Austria or Switzerland, you pay tax there. Our partner tax adviser reviews your position before formation and our US CPA handles the first annual US filing — both under your engagement, with FIAON paying their fees." },
-    // E-465 (29.10.2026): word for word STAAT_WAHL_SATZ.en (shared/fiaon-global-bundesstaaten.ts) — checked by scripts/pruef-global-bundesstaaten.ts.
-    { f: "Which US state do you form in?", a: "We form in Delaware, Florida or Wyoming — you choose with us in the kick-off call. Unless something speaks for another state, we form in Delaware: with the state’s express service the company usually stands after one or two business days, and Delaware has the strongest reputation with banks and lenders. Florida is registering more slowly at present (often around two weeks, no express option); Wyoming is fast and the cheapest to maintain." },
-    { f: "Which documents do you need from me?", a: "For the agreement your name, your date of birth and your address — you enter them yourself on your offer page. After signing you upload your passport. We prepare everything else; you sign what we send you ready to sign." },
-    { f: "Can I order straight away?", a: "Yes. You put your offer together in the configurator and enter your details. Your offer shows the complete agreement; you sign on screen. The agreement and the invoice arrive by email." },
-    { f: "How do I pay?", a: "By bank transfer to the business account of FIAON LTD — bank details and payment reference are on your invoice. No subscription, no instalments; annual care from the second year is voluntary and does not renew automatically." },
-    { f: "Who is it not for?", a: "For plans without genuine business activity, and for anyone who does not want to run a company with ongoing duties. We clarify that in the first call — openly, even if the answer is no." },
+    { f: "What does FIAON Global do — and what do I do myself?", a: "We form your US company, assemble every document, apply for its tax identification numbers and prepare your applications for accounts, cards and financing in full. You choose the name, upload your passport, sign the documents and submit the applications to the institutions yourself. The state and the US tax authority decide on registration and the numbers; the institution concerned decides on accounts, cards and financing." },
+    // The amounts come from the fee source (no amount is typed) — which is why this answer is not a plain string.
+    { f: "What does the engagement cost — and when is each fee due?", a: `On engagement you pay ${B.en.honorarAuftrag} for formation and administration in the first year. The success fee falls due on registration of your company; it is set by your funding target and is at least ${B.en.erfolgMin}. From the second year you may continue with annual administration for ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.` },
+    { f: "Does FIAON promise financing?", a: "No. Every financing decision rests with the lender alone. FIAON does not lend and does not broker loans; we prepare the applications in full and support your company through to the decision. The funding target you choose is a goal, not a promise. What FIAON contributes to your financing is set out in your personal proposal and forms part of your agreement." },
+    { f: "What applies if the financing does not arrive?", a: "The money-back commitment then applies. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us — within fourteen days of the end of that period. Your company remains yours. The conditions are set out in clause 4 of your agreement; the commitment does not extend to accounts and cards. The financing decision itself rests with the lender." },
+    { f: "Who is the engagement not suited to?", a: "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we will tell you so even where the answer is no." },
+    { f: "Do credit cards cost extra?", a: "Not with FIAON. On request we prepare your personal and business credit card applications, at no additional fee from FIAON. Each card issuer decides on the card and its limit and sets its own charges and interest, which you bear. Business credit cards generally require a personal guarantee from the owner." },
+    { f: "Who deals with legal and tax matters?", a: "Partner lawyers and US certified public accountants (CPAs) from our partner network — in their own professional capacity. FIAON bears their fees for the services named in your agreement. FIAON itself is not a law firm. A US company is not a tax scheme; your tax liability in your country of residence remains." },
+    { f: "What happens from the eighteenth month?", a: "From the eighteenth month, we review with you whether refinancing could reduce your financing costs or an increase could widen your scope for investment. This requires annual administration to be in place; it does not renew automatically. Your company submits the application. Whether, and on what terms, is for the lender concerned to decide." },
+    { f: "Do I have to travel to the United States?", a: "Not for the formation or your company’s tax identification number. Whether an institution requires you to attend in person for an account, a card or financing is for that institution to decide. From US$1 million, we work with you in person in Miami." },
   ],
-  schlussA: "A structure that belongs to you — ",
-  schlussB: "with one contact who knows your plans.",
-  schlussText: "Put your offer together or talk to us first. First call: thirty minutes, free of charge and without obligation.",
-  schlussBeauftragen: "Order now",
 
-  leisteGespraech: "First call",
-  leistePakete: (preis: string) => `Packages from ${preis}`,
-  leisteBeauftragen: "Order now",
-  leisteTafel: (name: string, preis: string) => `${name} · ${preis} — order`,
+  schlussA: schlussTeile("en", "before")[0],
+  schlussB: schlussTeile("en", "before")[1],
+  schlussText: "Request your proposal or arrange a call. Initial call: thirty minutes, free of charge.",
+  schlussTextAT: "Arrange a call. Initial call: thirty minutes, free of charge.",
+
+  leisteGespraech: "Initial call",
 
   uhren: [
     { zone: "Europe/Berlin", ort: "Germany", zusatz: "also Austria and Switzerland" },
-    { zone: "America/New_York", ort: "Florida", zusatz: "Miami · team on the ground" },
+    { zone: "America/New_York", ort: "Florida", zusatz: "Miami · our partners in the United States" },
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · contracting party" },
   ],
   presseAuge: "The news",
   presseH2: "What speaks for a US company right now.",
-  presseStand: (datum: string) => `As of ${datum}`,
+  presseStand: (datum: string) => `As at ${datum}`,
   presseZurQuelle: "Read the report",
-  presseHinweis: "Third-party reports with date and source. They describe the general situation in the US — the institution alone decides on the account, the card and the limit.",
+  presseHinweis: "Third-party reports with date and source. They describe the general situation in the United States — the institution alone decides on the account, the card and the limit.",
   presseLaufband: "More headlines",
   pressePause: "Pause the ticker",
   presseWeiter: "Resume the ticker",
   privat: {
-    metaTitel: "Form a US company as a private individual — FIAON Global",
-    metaBeschreibung: "No company needed: as a private individual or founder, engage FIAON Global directly — US company, EIN, ITIN and account application in one order.",
     auge: "FIAON Global · For private individuals and founders",
-    h1a: "Your own US company.",
-    h1b: "No company needed — in one order.",
-    lead: "You become the shareholder yourself: we form the company, apply for the EIN and ITIN and prepare account and card applications — contract and invoice are in your name.",
-    preisKopfZusatz: "One-off, final price, all package fees included.",
     fuerChips: [
       { text: "Founders" },
       { text: "Self-employed" },
       { text: "E-commerce", pfad: "/en/business/e-commerce" },
       { text: "As a company", pfad: "/en" },
     ],
-    fragenH2: "What private individuals and founders ask before ordering.",
-    schlussA: "Your company, your name — ",
-    schlussB: "with a contact who knows your plans.",
   },
 };
 
 export const GLOBAL_WOERTER = { de, en };
 
 
-// ── Das Gespräch (Kalender auf /business#gespraech) ────────────────────────
+// ── Das Gespräch (Kalender auf der Startseite, #gespraech) ─────────────────
 const gespraechDe = {
   punkte: [
     "Ihr Vorhaben, Ihr Wohnsitz, Ihr Ziel — in dreißig Minuten geordnet.",
-    // E-509 (12.11.2026): ein Produkt statt vier Pakete — vorher „welches Paket“ und „was im Festpreis steckt“.
-    "Welche Gesellschaftsform und welcher Bundesstaat zu Ihrer Lage passen.",
-    "Was im Preis steckt und was wir nicht zusagen können.",
+    "Welcher Bundesstaat zu Ihrer Lage passt.",
+    "Was Ihr Honorar umfasst und was wir nicht zusagen.",
     "Ohne Verpflichtung — Sie entscheiden danach in Ruhe.",
   ],
   mitWemZusatz: "Dreißig Minuten am Telefon — wir rufen Sie zur gewählten Zeit an.",
-  direkt: "Lieber sofort sprechen?",
+  direkt: "Lieber direkt anrufen?",
   laedt: "Freie Zeiten werden geladen …",
   tagWaehlen: "Tag wählen",
   zeitWaehlen: "Uhrzeit wählen",
@@ -617,13 +304,13 @@ const gespraechDe = {
   rueckfallText: "Im Moment sind online keine freien Zeiten hinterlegt. Hinterlassen Sie Ihre Angaben — Ihr Ansprechpartner meldet sich und stimmt einen Termin mit Ihnen ab.",
   zurueckKalender: "Zurück zu den freien Zeiten",
   vergeben: "Diese Zeit wurde gerade vergeben. Bitte wählen Sie eine andere.",
-  fehler: "Das hat nicht geklappt. Bitte prüfen Sie Ihre Angaben und versuchen Sie es erneut.",
+  fehler: "Die Übertragung ist nicht gelungen. Bitte prüfen Sie Ihre Angaben und senden Sie sie erneut.",
   pflicht: "Bitte füllen Sie Name, E-Mail und Telefon aus.",
-  fertigTitel: "Ihr Gespräch steht.",
+  fertigTitel: "Ihr Gespräch ist vereinbart.",
   fertigText: (wann: string, wer: string) => `${wann} Uhr${wer ? " mit " + wer : ""}. Die Bestätigung ist unterwegs an Ihre E-Mail-Adresse — mit allem, was Sie für das Gespräch brauchen.`,
-  anfrageTitel: "Ihre Anfrage ist angekommen.",
+  anfrageTitel: "Wir haben Ihre Anfrage erhalten.",
   anfrageText: "Ihr Ansprechpartner meldet sich bei Ihnen und stimmt einen Termin ab.",
-  paketGewaehlt: (name: string) => `Paketwunsch: ${name}`,
+  paketGewaehlt: (name: string) => `Ihr Anliegen: ${name}`,
   datenschutz: "Ihre Angaben verwenden wir nur für dieses Gespräch. Einzelheiten stehen in der Datenschutzerklärung.",
   // 06.10.2026 (E-293): Visitenkarte statt Punkteliste, Kalender in zwei Schritten (erst Tag und Uhrzeit, dann die Angaben).
   karteTitel: "Ihr Ansprechpartner",
@@ -633,28 +320,28 @@ const gespraechDe = {
   anrufen: (name: string) => `${name} anrufen`,
   zurueck: "Zurück",
   rueckrufStatt: "Rückruf statt Termin",
-  // E-476 Scheibe 3 (05.11.2026): der persönliche Terminlink — Name, Firma, Mail und Telefon sind schon eingetragen.
-  persoenlich: "Ihre Angaben sind schon eingetragen — wählen Sie nur noch Tag und Uhrzeit.",
-  persoenlichPruefen: "Ihre Angaben sind schon eingetragen — bitte kurz prüfen.",
+  // E-476 Scheibe 3 (05.11.2026): der persönliche Terminlink — Name, Firma, Mail und Telefon sind schon ausgefüllt.
+  persoenlich: "Ihre Angaben sind bereits ausgefüllt — wählen Sie Tag und Uhrzeit.",
+  persoenlichPruefen: "Ihre Angaben sind bereits ausgefüllt — bitte sehen Sie sie kurz durch.",
   persoenlichLaedt: "Ihre Angaben werden geladen …",
-  // E-481 (Mara Business): Der Kunde wählt selbst, wie er das Gespräch führt — Telefon (Kalender), E-Mail oder WhatsApp mit Mara.
+  // E-481 (Mara Business): Der Klient wählt selbst, wie er das Gespräch führt — Telefon (Kalender), E-Mail oder WhatsApp mit Mara.
   wegeTitel: "Lieber schriftlich?",
   wegMail: "Per E-Mail",
   wegWhatsapp: "Auf WhatsApp mit Mara, der digitalen Assistentin",
   wegMailFertig: (email: string) => `Sehr gern — Justin Schwarzott schreibt Ihnen persönlich${email ? ` an ${email}` : ""}.`,
-  wegMailOhne: "Sehr gern — antworten Sie einfach auf unsere E-Mail, dann schreibt Ihnen Justin Schwarzott persönlich.",
+  wegMailOhne: "Sehr gern — antworten Sie auf unsere E-Mail; Justin Schwarzott schreibt Ihnen persönlich.",
   waHinweis: GLOBAL_WA_HINWEIS.de as string,
 };
 
 const gespraechEn: typeof gespraechDe = {
   punkte: [
     "Your plans, your residence, your goal — put in order in thirty minutes.",
-    "Which company form and which state suit your situation.",
-    "What the price covers and what we cannot commit to.",
+    "Which state suits your situation.",
+    "What your fees cover and what we do not promise.",
     "No obligation — you decide afterwards, in your own time.",
   ],
-  mitWemZusatz: "Thirty minutes by phone — we call you at the time you choose.",
-  direkt: "Rather talk right away?",
+  mitWemZusatz: "Thirty minutes by telephone — we call you at the time you choose.",
+  direkt: "Prefer to call us directly?",
   laedt: "Loading available times …",
   tagWaehlen: "Choose a day",
   zeitWaehlen: "Choose a time",
@@ -663,65 +350,62 @@ const gespraechEn: typeof gespraechDe = {
   name: "Your name",
   firma: "Company (if any)",
   email: "Email",
-  telefon: "Phone (with country code)",
+  telefon: "Telephone (with country code)",
   thema: "What is it about? (optional)",
   wunschzeit: "When is the best time to reach you?",
-  buchen: (wann: string) => `Book the call on ${wann}`,
+  buchen: (wann: string) => `Arrange the call for ${wann}`,
   anfragen: "Request a call back",
   sendet: "Sending …",
   rueckfallTitel: "We will call you back",
   rueckfallText: "There are currently no available times online. Leave your details — your contact will get in touch and agree a time with you.",
   zurueckKalender: "Back to the available times",
   vergeben: "This time has just been taken. Please choose another one.",
-  fehler: "That did not work. Please check your details and try again.",
-  pflicht: "Please fill in name, email and phone.",
-  fertigTitel: "Your call is booked.",
+  fehler: "The transmission did not succeed. Please check your details and send them again.",
+  pflicht: "Please fill in name, email and telephone.",
+  fertigTitel: "Your call is arranged.",
   fertigText: (wann: string, wer: string) => `${wann}${wer ? " with " + wer : ""}. The confirmation is on its way to your email address — with everything you need for the call.`,
-  anfrageTitel: "Your request has arrived.",
+  anfrageTitel: "We have received your enquiry.",
   anfrageText: "Your contact will get in touch and agree a time with you.",
-  paketGewaehlt: (name: string) => `Package of interest: ${name}`,
+  paketGewaehlt: (name: string) => `Your enquiry: ${name}`,
   datenschutz: "We use your details only for this call. Details are in the privacy policy.",
   karteTitel: "Your contact",
-  mitPerson: (vorname: string) => `Thirty minutes by phone — ${vorname} calls you personally at the time you choose.`,
+  mitPerson: (vorname: string) => `Thirty minutes by telephone — ${vorname} calls you personally at the time you choose.`,
   mailAn: (name: string) => `Email ${name}`,
   anrufen: (name: string) => `Call ${name}`,
   zurueck: "Back",
   rueckrufStatt: "Call me back instead",
-  persoenlich: "Your details are already filled in — simply choose a day and a time.",
-  persoenlichPruefen: "Your details are already filled in — please check them briefly.",
+  persoenlich: "Your details are already filled in — choose a day and a time.",
+  persoenlichPruefen: "Your details are already filled in — please look through them briefly.",
   persoenlichLaedt: "Loading your details …",
   wegeTitel: "Prefer to write?",
   wegMail: "By email",
   wegWhatsapp: "On WhatsApp with Mara, the digital assistant",
   wegMailFertig: (email: string) => `Of course — Justin Schwarzott will write to you personally${email ? ` at ${email}` : ""}.`,
-  wegMailOhne: "Of course — simply reply to our email and Justin Schwarzott will write to you personally.",
+  wegMailOhne: "Of course — reply to our email and Justin Schwarzott will write to you personally.",
   waHinweis: GLOBAL_WA_HINWEIS.en,
 };
 
 export const GLOBAL_GESPRAECH_WOERTER = { de: gespraechDe, en: gespraechEn };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DER FUSS DER BUSINESS-WELT (GlobalFuss.tsx) — 06.10.2026 (E-293)
-// Bis heute standen diese Wörter als JSX in GlobalFuss.tsx; die Wortwand liest
-// kein JSX. Jetzt prüft scripts/pruef-wortwand-de.ts die deutsche Hälfte und
-// scripts/pruef-global-en.ts die englische. Der Satz unter der Marke sagt nicht
-// mehr „alles inklusive“, sondern was inklusive ist: die Gebühren des Pakets.
-// KEINE_BANK steht auf jeder Seite der Business-Welt (Paketname „Global Banking“,
-// § 39/§ 41 KWG) — Begründung in GlobalFuss.tsx.
+// DER FUSS DER GLOBAL-SEITEN (GlobalFuss.tsx) — 06.10.2026 (E-293), nachgezogen 13.11.2026 (E-510)
+// Die Wortwand liest kein JSX — deshalb stehen die Wörter des Fußes hier. Der Rollen-Satz (keineBank) ist der feste Satz S8,
+// wortgleich auf jeder öffentlichen Seite; für die Österreich-Seite steht daneben S8-AT (keineBankAT).
+// Die Namen der beiden Handlungen sind die der Seite: „Angebot anfordern“ und „Gespräch vereinbaren“.
 // ═══════════════════════════════════════════════════════════════════════════
 const fussDe = {
   label: "FIAON Global — Fußzeile",
-  satz: "US-Gesellschaft aus einer Hand — für Unternehmen und Privatpersonen. Ein Mandat, ein Preis mit Ihrem Auftrag.",
-  gespraech: "Gespräch vereinbaren",
-  beauftragen: "Beauftragen",
-  auftrag: "Mein Auftrag",
+  satz: "Ihre US-Gesellschaft, gegründet und betreut in einem Mandat. Ihr Honorar steht fest, bevor Sie unterzeichnen.",
+  gespraech: handlung("gespraech", "de"),
+  beauftragen: handlung("angebot", "de"),
+  auftrag: "Mein Mandat",
   themen: "Themen",
   standorte: "Standorte",
   rechtlich: "Rechtliches",
-  orte: { london: "Vertragspartner", zuerich: "Partner Kapital-Etappe", miami: "Team vor Ort" },
-  // „Drei Orte“: wo Sie sind (Deutschland, Österreich, Schweiz) und die drei Gesellschaften.
+  orte: { london: "Vertragspartner", zuerich: "Verbundene Gesellschaft", miami: "Partner in den USA" },
+  // „Drei Orte“ (nur noch im Fuß der nicht öffentlichen Seiten): wo Sie sind und die drei Gesellschaften.
   orteSie: "Sie",
-  orteSieZusatz: "Deutschland · Österreich · Schweiz",
+  orteSieZusatz: "Ihr Wohnsitz",
   recht: [
     { pfad: "/impressum", text: "Impressum" },
     { pfad: "/datenschutz", text: "Datenschutz" },
@@ -731,22 +415,23 @@ const fussDe = {
     { pfad: "/ist-fiaon-serioes", text: "Ist FIAON seriös?" },
   ],
   registriert: "Eingetragen in England und Wales",
-  keineBank: "FIAON ist keine Bank und keine Kanzlei. Über Konten, Karten und Darlehen entscheiden allein die Institute; Steuer- und Rechtsfragen klären unsere Partner auf Ihr Mandat.",
+  keineBank: satz("S8", "de"),
+  keineBankAT: satz("S8", "de", "AT"),
   einwilligung: "Einwilligung ändern",
 };
 
 const fussEn: typeof fussDe = {
   label: "FIAON Global — footer",
-  satz: "Your US company from one source — for companies and private individuals. One mandate, one price with your order.",
-  gespraech: "Arrange a call",
-  beauftragen: "Order now",
-  auftrag: "My order",
+  satz: "Your US company, formed and administered under one engagement. Your fees are set out in full before you sign.",
+  gespraech: handlung("gespraech", "en"),
+  beauftragen: handlung("angebot", "en"),
+  auftrag: "My engagement",
   themen: "Topics",
   standorte: "Locations",
   rechtlich: "Legal",
-  orte: { london: "Contracting party", zuerich: "Capital stage partner", miami: "Team on the ground" },
+  orte: { london: "Contracting party", zuerich: "Connected company", miami: "Partners in the United States" },
   orteSie: "You",
-  orteSieZusatz: "Germany · Austria · Switzerland",
+  orteSieZusatz: "Your country of residence",
   recht: [
     { pfad: "/impressum", text: "Legal notice" },
     { pfad: "/datenschutz", text: "Privacy policy" },
@@ -756,23 +441,25 @@ const fussEn: typeof fussDe = {
     { pfad: "/en/is-fiaon-legit", text: "Is FIAON legit?" },
   ],
   registriert: "Registered in England and Wales",
-  keineBank: "FIAON is neither a bank nor a law firm. Accounts, cards and loans are decided solely by the institutions; tax and legal questions are handled by our partners under your engagement.",
+  keineBank: satz("S8", "en"),
+  keineBankAT: satz("S8", "en", "AT"),
   einwilligung: "Change consent",
 };
 
 export const GLOBAL_FUSS_WOERTER = { de: fussDe, en: fussEn };
 
 
-// ── Der Vorführraum (E-313, 08.10.2026): Filme im iPhone und das Konzept als PDF auf /business ──────────────────
+// ── Der Vorführraum (E-313, 08.10.2026): Filme im iPhone und das Konzept als PDF. Seit E-509 steht er nicht auf der
+//    Startseite (Filme und Mappe zeigen noch die vier Pakete); die Wörter folgen trotzdem dem Leitfaden. ─────────────
 const filmDe = {
   auge: "FIAON Global im Film",
   h2: "Der blaue Faden.",
-  h2Kursiv: "Ihr Weg in 83 Sekunden.",
+  h2Kursiv: "Der Ablauf in 83 Sekunden.",
   lead: "Von der Entscheidung bis zum Kapitalrahmen — einmal durcherzählt, mit Ton am schönsten. Und das ganze Konzept zum Mitnehmen.",
   // Ab zwei Filmen (lib/global-filme.ts) — der Vorführraum wählt selbst.
-  h2Zwei: "Sehen, wie es geht.",
+  h2Zwei: "Der Ablauf im Bild.",
   h2KursivZwei: "In zwei kurzen Filmen.",
-  leadZwei: "„Die Entscheidung“ erzählt den Weg mit einem Darsteller, „Der blaue Faden“ als Linie durch alle Stationen — von der Entscheidung bis zum Kapitalrahmen. Mit Ton am schönsten. Und das ganze Konzept zum Mitnehmen.",
+  leadZwei: "„Die Entscheidung“ erzählt den Ablauf mit einem Darsteller, „Der blaue Faden“ als Linie durch alle Schritte — von der Entscheidung bis zum Kapitalrahmen. Mit Ton am schönsten. Und das ganze Konzept zum Mitnehmen.",
   filmZeileZwei: (dauern: string[]) => `${dauern.length} Filme · ${dauern.join(" und ")} · Deutsch · mit KI erstellt`,
   ansehen: "Film ansehen",
   mitTon: "Mit Ton ansehen",
@@ -791,21 +478,21 @@ const filmDe = {
   stelle: "Stelle im Film",
   // Mappe
   mappeAuge: "Das Konzept · Oktober 2026",
-  mappeTitel: "Alles auf 22 Folien.",
-  mappeText: "Pakete, Etappen, Festpreis, Ablauf — und was wir nicht zusagen. Zum Weitergeben an Ihren Steuerberater oder Mitgesellschafter.",
+  mappeTitel: "Das Konzept auf 22 Folien.",
+  mappeText: "Leistung, Ablauf, Honorar — und was wir nicht zusagen. Zum Weitergeben an Ihren Steuerberater oder Mitgesellschafter.",
   laden: "PDF herunterladen",
   ladenZeile: (folien: number, mb: string) => `${folien} Folien · PDF · ${mb} MB`,
   imBrowser: "Im Browser ansehen",
-  mappeBild: "Drei Folien aus dem Konzept: Titel, Pakete und die vier Etappen",
+  mappeBild: "Drei Folien aus dem Konzept: Titel, Leistung und Ablauf",
 };
 const filmEn: typeof filmDe = {
   auge: "FIAON Global on film",
   h2: "The blue thread.",
-  h2Kursiv: "Your path in 83 seconds.",
-  lead: "From the decision to the capital framework — told once, best with sound. And the whole concept to keep.",
-  h2Zwei: "See how it works.",
+  h2Kursiv: "The process in 83 seconds.",
+  lead: "From the decision to the funding target — told once, best with sound. And the whole concept to keep.",
+  h2Zwei: "The process on film.",
   h2KursivZwei: "In two short films.",
-  leadZwei: "“The decision” tells the path with an actor, “The blue thread” as a line through every stage — from the decision to the capital framework. In German, best with sound. And the whole concept to keep.",
+  leadZwei: "“The decision” tells the process with an actor, “The blue thread” as a line through each step — from the decision to the funding target. In German, best with sound. And the whole concept to keep.",
   filmZeileZwei: (dauern: string[]) => `${dauern.length} films · ${dauern.join(" and ")} · in German · created with AI`,
   ansehen: "Watch the film",
   mitTon: "Watch with sound",
@@ -822,118 +509,84 @@ const filmEn: typeof filmDe = {
   vollbild: "Full screen",
   stelle: "Position in the film",
   mappeAuge: "The concept · October 2026",
-  mappeTitel: "Everything on 22 slides.",
-  mappeText: "Packages, stages, fixed price, process — and what we do not promise. To pass on to your tax adviser or co-shareholders.",
+  mappeTitel: "The concept on 22 slides.",
+  mappeText: "Services, process, fees — and what we do not promise. To pass on to your tax adviser or co-shareholders.",
   laden: "Download PDF",
   ladenZeile: (folien: number, mb: string) => `${folien} slides · PDF · ${mb} MB · in German`,
   imBrowser: "View in browser",
-  mappeBild: "Three slides from the concept: title, packages and the four stages",
+  mappeBild: "Three slides from the concept: title, services and process",
 };
 
 export const GLOBAL_FILM_WOERTER = { de: filmDe, en: filmEn };
 
-// ── Die Bühne von /business (09.10.2026) ─────────────────────────────────────
-// Justin: „Verwende B für den HERO und C ‚der Bogen‘ … füge diesen passend in einer Sektion ein“.
-// Hero „Ihr Auftrag“ (HeroAuftrag.tsx) = eine BEISPIELANSICHT — erfundene Gesellschaft, echter Ansprechpartner
-// (VISITENKARTEN.daniel). „Der Bogen“ (GlobalBogen.tsx) = Sektion nach „Ein Ansprechpartner statt acht“.
-// Kapital nie ohne „das Institut entscheidet“; der Satz zu Europa ist GLOBAL_KAPITAL_FREI (Fußnote im Hero).
+// ── Die Bühne (09.10.2026): Beispielansicht „Ihr Mandat“ (HeroAuftrag.tsx) und die Karte „Der Bogen“ (GlobalBogen.tsx) ──
+// Beide Bausteine stehen seit E-510 nicht mehr auf der Startseite (eine dunkle Fläche je Seite — der Honorarrechner; keine
+// Abschnitte nach ihm, die erst überzeugen sollen). Ihre Wörter bleiben, weil die Bausteine sie nennen, und folgen dem Leitfaden:
+// die Kurzwörter der vier Plätze kommen aus den festen Sätzen (Gründung · Konten · Finanzierung · Umschuldung).
 const buehneDe = {
   beispiel: "Beispielansicht",
-  kapitalAuge: "Ihr Kapitalziel",
+  kapitalAuge: "Ihr Kapitalrahmen",
   kapitalBetrag: "250.000 $",
-  // E-509 (12.11.2026): ohne Paketnamen (vorher „Paket Global Kapital“ und „Florida · Global Kapital“).
-  kapitalZeile: "Ihr Kapitalrahmen · über den Rahmen entscheidet das Institut",
+  kapitalZeile: "Von Ihnen gewählt · über die Finanzierung entscheidet das finanzierende Institut",
   akteAuge: "Ihre US-Gesellschaft",
   akteName: "Muster Ventures LLC",
   akteOrt: "Florida · mit aktiver Betreuung",
   schritte: [
-    { titel: "Gesellschaft gegründet", zeile: "Florida · Articles of Organization", marke: "Erledigt" },
+    { titel: "Gesellschaft angemeldet", zeile: "Florida · Articles of Organization", marke: "Erledigt" },
     { titel: "EIN erteilt", zeile: "Steuernummer der IRS", marke: "Erledigt" },
-    { titel: "ITIN beantragt", zeile: "Frist der US-Steuerbehörde", marke: "Läuft" },
+    { titel: "ITIN beantragt", zeile: "Es entscheidet die US-Steuerbehörde", marke: "Läuft" },
     { titel: "Geschäftskonto", zeile: "Antrag vorbereitet", marke: "Als Nächstes" },
-    { titel: "Erste Firmenkarte", zeile: "Etappe II", marke: "Danach" },
+    { titel: "Kreditkarten auf Wunsch", zeile: "Antrag vorbereitet", marke: "Danach" },
   ],
   person: "Ihr Ansprechpartner",
-  vertragAuge: "Ihr Vertrag",
   weiterBlick: "Weiter zum Überblick",
-  blickName: "Auf einen Blick",
-  teamAuge: "Ihr Team",
-  teamHinweis: "Porträt von Justin Schwarzott mit KI aus echten Fotos erstellt. Die übrigen Teamfotos — außer Daniel Stripling und Florentine Lombardi — sind Symbolbilder, mit KI erstellt.",
-  teamAnhalten: "Wechsel anhalten",
-  teamFortsetzen: "Wechsel fortsetzen",
   mail: "E-Mail",
   telefon: "Anrufen",
   meldungTitel: "Neu in Ihrer Akte",
   meldungText: "EIN-Bestätigung der IRS liegt bereit",
   meldungZeit: "jetzt",
-  heroLabel: (name: string) => `Beispielansicht eines Auftrags: Gesellschaft gegründet, EIN erteilt, ITIN beantragt, Geschäftskonto als Nächstes. Ihr Ansprechpartner: ${name}.`,
+  heroLabel: (name: string) => `Beispielansicht eines Mandats: Gesellschaft angemeldet, EIN erteilt, ITIN beantragt, Geschäftskonto als Nächstes. Ihr Ansprechpartner: ${name}.`,
 
-  bogenAuge: "Europa · Miami · Kapital",
-  bogenH2a: "Von Europa nach Miami",
-  bogenH2b: "— und zurück.",
-  bogenLead: "Sie bleiben, wo Sie sind. Unser Team in Miami gründet Ihre Gesellschaft und begleitet sie durch die vier Etappen — Ihr Ansprechpartner hält die Fäden zusammen.",
-  bogenPunkte: [
-    { titel: "Vor Ort in Miami", text: "Unser Team reicht ein, holt ab und fasst bei Behörden und Herausgebern nach." },
-    { titel: "Vier Schritte, ein Ansprechpartner", text: "Gesellschaft, US-Büro, Konto und Karten, Kapital — das Tempo bestimmen Behörden und Institute." },
-    { titel: "Auch in Europa einsetzbar", text: "Ihre Gesellschaft kann Mittel nach Europa überweisen oder damit in Europa investieren — im Rahmen der Bedingungen des jeweiligen Instituts." },
-  ],
-  bogenKnopf: "Erstgespräch vereinbaren",
   bogenSie: "Sie",
-  bogenSieZeile: "Deutschland · Österreich · Schweiz",
+  bogenSieZeile: "Ihr Wohnsitz",
   bogenMiami: "Miami",
-  bogenMiamiZeile: "Ihr Team vor Ort",
-  bogenKapital: "Kapital auch in Europa einsetzbar",
-  bogenKapitalZeile: "Über jeden Rahmen entscheidet das jeweilige Institut.",
-  bogenEtappenKurz: ["Gründung", "Erste Firmenkarte", "Kartenleiter", "Bankdarlehen"],
-  bogenLabel: "Karte: von Ihnen in Deutschland, Österreich oder der Schweiz nach Miami zu unserem Team vor Ort, dort die vier Etappen bis zum Bankdarlehen; ein zweiter Bogen führt zurück nach Europa — Kapital ist auch in Europa einsetzbar, über jeden Rahmen entscheidet das jeweilige Institut.",
+  bogenMiamiZeile: "Unsere Partner in den USA",
+  bogenKapital: "Mittel auch in Europa einsetzbar",
+  bogenKapitalZeile: satz("S1", "de"),
+  bogenEtappenKurz: [...kurzwoerter("de", "DE", 4)],
+  bogenLabel: `Karte: von Ihrem Wohnsitz zu unseren Partnern in den USA, dort die Schritte Gründung, Konten, Finanzierung und Umschuldung; ein zweiter Bogen führt zurück nach Europa. ${satz("S1", "de")}`,
 };
 const buehneEn: typeof buehneDe = {
   beispiel: "Sample view",
-  kapitalAuge: "Your capital target",
+  kapitalAuge: "Your funding target",
   kapitalBetrag: "$250,000",
-  kapitalZeile: "Your capital range · the institution decides on the limit",
+  kapitalZeile: "Chosen by you · all financing decisions rest with the lender",
   akteAuge: "Your US company",
   akteName: "Sample Ventures LLC",
-  akteOrt: "Florida · actively managed",
+  akteOrt: "Florida · formed and administered",
   schritte: [
-    { titel: "Company formed", zeile: "Florida · Articles of Organization", marke: "Done" },
-    { titel: "EIN issued", zeile: "Tax number from the IRS", marke: "Done" },
-    { titel: "ITIN applied for", zeile: "IRS processing time", marke: "In progress" },
+    { titel: "Company filed", zeile: "Florida · Articles of Organization", marke: "Done" },
+    { titel: "EIN issued", zeile: "Tax identification number from the IRS", marke: "Done" },
+    { titel: "ITIN applied for", zeile: "The US tax authority decides", marke: "In progress" },
     { titel: "Business account", zeile: "Application prepared", marke: "Next" },
-    { titel: "First business card", zeile: "Stage II", marke: "Then" },
+    { titel: "Credit cards on request", zeile: "Application prepared", marke: "Then" },
   ],
   person: "Your contact",
-  vertragAuge: "Your contract",
   weiterBlick: "Continue to the overview",
-  blickName: "At a glance",
-  teamAuge: "Your team",
-  teamHinweis: "Portrait of Justin Schwarzott created with AI from real photos. The other team photos — except Daniel Stripling and Florentine Lombardi — are illustrative images created with AI.",
-  teamAnhalten: "Pause rotation",
-  teamFortsetzen: "Resume rotation",
   mail: "Email",
   telefon: "Call",
   meldungTitel: "New in your file",
   meldungText: "IRS EIN confirmation is ready",
   meldungZeit: "now",
-  heroLabel: (name: string) => `Sample view of an engagement: company formed, EIN issued, ITIN applied for, business account next. Your contact: ${name}.`,
+  heroLabel: (name: string) => `Sample view of an engagement: company filed, EIN issued, ITIN applied for, business account next. Your contact: ${name}.`,
 
-  bogenAuge: "Europe · Miami · Capital",
-  bogenH2a: "From Europe to Miami",
-  bogenH2b: "— and back.",
-  bogenLead: "You stay where you are. Our team in Miami forms your company and guides it through the four stages — your contact keeps every thread together.",
-  bogenPunkte: [
-    { titel: "On site in Miami", text: "Our team files, collects and follows up with authorities and issuers." },
-    { titel: "Four steps, one contact", text: "Company, US office, accounts and cards, capital — authorities and institutions set the pace." },
-    { titel: "Can be used in Europe too", text: "Your company can transfer funds to Europe or invest them in Europe — within the terms of the institution concerned." },
-  ],
-  bogenKnopf: "Book an initial call",
   bogenSie: "You",
-  bogenSieZeile: "Germany · Austria · Switzerland",
+  bogenSieZeile: "Your country of residence",
   bogenMiami: "Miami",
-  bogenMiamiZeile: "Your team on site",
-  bogenKapital: "Capital can be used in Europe too",
-  bogenKapitalZeile: "Each institution decides on its own limit.",
-  bogenEtappenKurz: ["Formation", "First card", "Card ladder", "Bank loan"],
-  bogenLabel: "Map: from you in Germany, Austria or Switzerland to our team on site in Miami, where the four stages towards a bank loan take place; a second arc leads back to Europe — capital can be used in Europe too, each institution decides on its own limit.",
+  bogenMiamiZeile: "Our partners in the United States",
+  bogenKapital: "Funds can be used in Europe too",
+  bogenKapitalZeile: satz("S1", "en"),
+  bogenEtappenKurz: [...kurzwoerter("en", "DE", 4)],
+  bogenLabel: `Map: from your country of residence to our partners in the United States, where formation, accounts, financing and refinancing take place; a second arc leads back to Europe. ${satz("S1", "en")}`,
 };
 export const GLOBAL_BUEHNE_WOERTER = { de: buehneDe, en: buehneEn };

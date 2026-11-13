@@ -7,12 +7,37 @@
 // deutsch), dieselben Quellen-Adressen. „Firmenkarte" heißt „business credit
 // card", die persönliche Haftung „personal guarantee". FIAON ist keine Bank,
 // vergibt und vermittelt keine Kredite; über jeden Kredit entscheidet das Institut.
+//
+// E-510 (13.11.2026, language guide, building block “knowledge article” 7.4): one
+// section per page, “What FIAON Global handles”, with “your part” and “who decides”;
+// the fixed sentences (step 5 “Financing”, S1, S7, S9) come verbatim from
+// shared/fiaon-global-saetze.ts. Never here: an account that WE open (the client
+// submits the application, the institution decides), a name for the sequence of card
+// applications, a commitment, speed as an argument. The refund sentence (S7) appears
+// on the “financing routes” page only — it relates to financing within the chosen
+// funding target, not to property loans, accounts or cards.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../../fiaon-global-saetze";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { QUELLEN_WISSEN_EN as Q } from "../fakten-en";
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 
-const S = "2026-10-20";
+/** Date of first publication (E-416). */
+const ERSCHIENEN = "2026-10-20";
+/** Date of the last change in substance (E-510, language guide). */
+const S = "2026-11-13";
+const P = EIN_PRODUKT.en;
+/** Step 5 of the fixed narrative (language guide 2.3, the version in force today) — verbatim from the one source. */
+const FINANZIERUNG = SECHS_SCHRITTE.en.find((x) => x.nr === 5)!;
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** Heading of the one section about us (language guide 7.4). */
+const FIAON_H2 = "What FIAON Global handles";
+/** The decision sentence from S2: “Each institution makes its own decision on accounts, cards and limits.” */
+const INSTITUT = satz("S2", "en").split(/(?<=\.)\s+/)[1];
+/** The first two sentences of the role (S8): neither a bank nor a law firm; does not lend and does not broker loans. */
+const ROLLE = satz("S8", "en").split(/(?<=\.)\s+/).slice(0, 2).join(" ");
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 
 const QF: Record<string, GlobalQuelle> = {
@@ -41,7 +66,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       beschreibung: "Residential, mailing or mail receiving agency: how US banks check your address and phone number, and why both must match everywhere.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 40",
     auge: "Knowledge · US presence",
     h1: "Address and phone.",
@@ -106,13 +131,16 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global keeps your address and phone clean",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Before any application goes out, we check every US address against postal data: CMRA or not, residential or commercial, fully deliverable. We make sure your name, address and phone number are identical in every application and keep them on your file, so nobody writes them differently later.",
-          "You choose the address. We tell you openly how an institution will see it.",
+          "Before each application, we check the US address against postal data: CMRA or not, residential or commercial, fully deliverable. We keep your name, address and phone number on your file so that they match in every application. The registered agent, US business address and US telephone number of your company are included in the first year of your engagement.",
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: You choose the address; you submit the applications yourself.`,
+          `${TEIL.bedingung}: Whether an institution accepts an address is for the institution to decide.`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "US presence in your order", lead: "Registered agent, US business address and US phone number for the first year, plus prepared account and card applications — in one order.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The US presence in your engagement", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -144,17 +172,17 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       titel: "Financing a US property as a foreigner — FIAON Global",
       beschreibung: "How foreigners finance a US property: rent coverage instead of income, equity, reserves, source of funds, closing from abroad, FIRPTA.",
     },
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 41",
     auge: "Knowledge · Property in the US",
     h1: "Financing a US property.",
     h1b: "The rent carries the loan.",
-    lead: "For foreign investors, the US has its own kind of property financing: the lender mainly checks whether the rent covers the instalment, not your income or a US credit history. Here is how it works, what equity the market expects and what you need to know before you buy.",
+    lead: "For foreign investors, the US has its own kind of property financing: the lender mainly checks whether the rent covers the instalment, not your income or a US credit history. Here is how this financing is structured, what equity the market expects and what you need to know before you buy.",
     ziffern: [
       { wert: "1.0", label: "rent coverage: rent covers the instalment" },
       { wert: "20 – 35%", label: "equity according to 2026 market data" },
-      { wert: "21 – 45 days", label: "from complete application to funding" },
+      { wert: "21 – 45 days", label: "duration from a complete application, according to 2026 market data" },
     ],
     blick: [
       ["What counts", "The property's rental income (DSCR)"],
@@ -216,18 +244,21 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global prepares the purchase",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "We form the company that holds the property, apply for the EIN, open the account and put together the documents lenders want to see. Our partner tax adviser clarifies the tax questions on structure, rental income and sale with you before the purchase.",
-          "FIAON is not a bank and neither grants nor brokers loans. The lender decides on every financing.",
+          "We form the company that holds the property, apply for the EIN, prepare the account application in full and compile the documents lenders require. Partner tax advisers clarify the tax questions on structure, rental income and sale before the purchase, in their own professional capacity.",
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: You submit the account application and the loan application yourself; your company enters into the loan agreement in its own name.`,
+          `${TEIL.bedingung}: ${ROLLE} Every financing decision rests with the lender.`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "The company for your property", lead: "Company, tax numbers, account and the documents prepared for lenders — in one order.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "The company for your property", lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           "On a sale, the buyer generally withholds 15 percent of the price for US tax under FIRPTA, in some cases less for owner-occupied property priced at $1 million or less. Any excess withheld is recovered through the tax return.",
-          "If an individual holds the property directly, US estate tax may apply; the partner tax adviser clarifies the right structure before the purchase.",
+          "If an individual holds the property directly, US estate tax may apply; partner tax advisers clarify the structure before the purchase, in their own professional capacity.",
           "Market figures are not a commitment. The lender alone decides on the loan, its amount and its rate.",
           GLOBAL_PFLICHTHINWEIS.en[0],
         ],
@@ -256,19 +287,19 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       titel: "Financing routes for a US company — FIAON Global",
       beschreibung: "Cards, supplier accounts, balance-based business credit cards, platform loans, credit lines, property financing: what is open to a US company.",
     },
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 42",
     auge: "Knowledge · Financing",
     h1: "Financing routes in the US.",
-    h1b: "By speed and basis.",
-    lead: "A US company has more than one route to capital. Some open after days, others only after years; some depend on you personally, others on the account, on revenue or on collateral. Here is what each route rests on, so you can plan the sequence.",
+    h1b: "By basis and time frame.",
+    lead: "A US company has more than one financing route. Some open after days, others only after years; some depend on you personally, others on the account, on revenue or on collateral. Here is what each route rests on, so you can plan the sequence.",
     ziffern: [
       { wert: "6 routes", label: "from the card to property financing" },
       { wert: "1 rule", label: "the institution decides on every loan" },
     ],
     blick: [
-      ["Fast and small", "Personal cards, supplier accounts"],
+      ["Early and small", "Personal cards, supplier accounts"],
       ["By balance", "Business credit cards whose limit follows the account balance"],
       ["By revenue", "Loans from payment platforms"],
       ["With a track record", "A bank credit line, usually after two years"],
@@ -279,7 +310,7 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
     bloecke: [
       {
         typ: "tabelle", id: "uebersicht", h2: "The six routes at a glance",
-        kopf: ["Route", "Basis", "Speed", "Order of magnitude"],
+        kopf: ["Route", "Basis", "Usual time frame", "Order of magnitude"],
         zeilen: [
           ["Personal cards", "your personal credit file (ITIN or SSN)", "days after approval", "small, grows with your history"],
           ["Supplier accounts (Net 30)", "company credit file, D-U-N-S number", "weeks", "small to medium"],
@@ -305,24 +336,28 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
         typ: "text", id: "grenzen", h2: "Where the limits are",
         absaetze: [
           "Since 1 March 2026, government-backed SBA small business loans (the 7(a) and 504 programmes) have only been open to companies whose owners are all US citizens or US nationals with their principal residence in the United States — green card holders are excluded as well. Some online lenders only lend to owners resident in the US.",
-          "Building large amounts through stacked cards alone is not a proven route. In 2025 the US Federal Trade Commission ruled against a provider that promised business owners financing and applied for credit cards instead.",
+          "Building large amounts solely through many card applications in a short period is not a route supported by evidence. Following action by the US Federal Trade Commission (FTC), a provider that held out financing to business owners and applied for credit cards instead has been permanently banned from the financing business since 2025.",
         ],
       },
       {
         typ: "text", id: "kapital", h2: "What the capital can be used for",
         absaetze: [
           KAPITAL_FREI,
-          "Expensive short-term money only pays off if the return demonstrably exceeds it. Clean company figures open cheaper routes than any haste.",
+          "Short-term money at high cost is only viable if the return demonstrably exceeds it. For long-term routes, what counts is orderly company figures; each institution sets its own terms.",
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "What FIAON Global does",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "We build the foundation institutions decide on: company, account, consistent master data, identifier, supplier accounts, complete documents. We plan the sequence of applications and prepare each one.",
-          "FIAON is not a bank and neither grants nor brokers loans. The institution decides on every loan.",
+          "We lay the foundation on which institutions decide: the formation, consistent core data and complete documents. We prepare account and card applications in full; you submit the applications yourself.",
+          `${FINANZIERUNG.satz} ${satz("S9", "en")}`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${INSTITUT} ${ROLLE}`,
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "The whole route in one order", lead: "Company, account, card ladder and support through to financing within your capital range.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -333,10 +368,10 @@ export const WISSEN_FINANZIERUNG_EN: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "Which financing does a new US company get fastest?", a: "Business credit cards whose limit follows the balance, and supplier accounts with payment terms. Bank credit lines usually require years in business, revenue or collateral." },
+      { f: "Which financing is open to a new US company first?", a: "Business credit cards whose limit follows the balance, and supplier accounts with payment terms. Bank credit lines usually require years in business, revenue or collateral. The institution decides on every application." },
       { f: "Can an LLC from Europe get an SBA loan?", a: "No. Since 1 March 2026, every direct and indirect owner must be a US citizen or US national with a principal residence in the United States (SBA Procedural Notice 5000-876626); a green card is not enough." },
       { f: "Can a parent company in Europe stand surety for the US company?", a: "Yes, this is a common route to a credit line. The bank then mainly assesses the parent company's balance sheet." },
-      { f: "Does FIAON arrange the loan for my US company?", a: "No. FIAON is not a bank and neither grants nor brokers loans. We prepare the company, documents and sequence; the institution decides." },
+      { f: "Does FIAON arrange the loan for my US company?", a: `No. ${ROLLE} We prepare the applications in full and support your company through to the decision; the lender decides.` },
     ],
     paket: "global_kapital",
     weiter: ["/en/business/knowledge/us-business-credit", "/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-funding-for-foreign-owned-companies", "/en/business/us-business-credit-cards"],

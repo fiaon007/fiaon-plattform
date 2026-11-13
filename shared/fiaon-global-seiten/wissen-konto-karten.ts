@@ -1,21 +1,52 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — WISSEN: KONTO, BONITÄT, BUSINESS CREDIT, FIRMENKARTEN
-// (23.09.2026, E-232)
+// (23.09.2026, E-232 · Wortlaut neu gefasst 13.11.2026, E-510)
 //
 // Vier der zehn Beiträge vom 23.09.2026 (die übrigen sechs: wissen-gruendung.ts).
 // Hier ist die Wortwand am engsten: Es geht um Geld, Karten und Rahmen. Deshalb
 // steht in jedem Beitrag, wer entscheidet (das Institut, der Herausgeber), was
-// der Inhaber unterschreibt (persönliche Haftung) und was FIAON NICHT tut
-// (keine Bank, keine Kredite, keine Vermittlung; seit E-509 EIN Produkt — der Preis steht vor der Unterschrift fest).
-// Der Fall FTC v. Seek Capital (17.11.2025) steht mit Quelle da — als Maßstab,
-// an dem sich jeder Anbieter messen lassen muss, auch FIAON.
+// der Inhaber unterzeichnet (persönliche Haftung) und was FIAON NICHT tut
+// (keine Bank, keine Kredite, keine Vermittlung).
+// Der Fall FTC v. Seek Capital (Entscheidung 16.09.2025, Anordnung 01.10.2025,
+// Mitteilung der FTC 17.11.2025) steht mit Quelle da — als Maßstab, an dem sich
+// jeder Anbieter messen lassen muss, auch FIAON.
+//
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global, Baustein „Wissens-Artikel“ 7.4):
+// Je Seite EIN Abschnitt „Was FIAON Global dabei übernimmt“ — was wir tun, Ihr Teil,
+// die Bedingung (wer entscheidet). Die Schritte 3 (Konten) und 4 (Kreditkarten auf
+// Wunsch) und die festen Sätze kommen wortgleich aus shared/fiaon-global-saetze.ts.
+// WAS HIER NIE STEHT: ein Name für die Abfolge der Kartenanträge, eine Zusage zu
+// Konto, Karte oder Rahmen, ein Zins als Zahl oder Größenordnung, ein Warnzeichen,
+// das unser eigenes Honorar träfe (Leitfaden 5.6 Nr. 12: Warnzeichen ist das
+// Honorar, das mit jedem weiteren Kartenantrag wächst — nicht das Honorar nach dem
+// gewählten Kapitalrahmen), der Erklär-Satz zum Erfolgshonorar (S16, Vorbehalt V3),
+// ein „Team vor Ort“. Der Einführungszeitraum ohne Sollzins steht als EIN Satz
+// Marktwissen mit Beleg da (Leitfaden 7.4).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, beleg, satz, type Schritt, type SchrittNr } from "../fiaon-global-saetze";
+import { EIN_PRODUKT } from "./ein-produkt";
 import { FAKTEN_STAND, QUELLEN_WISSEN as Q, SCHWELLEN } from "./fakten";
 import type { GlobalSeite } from "./typen";
 
-const S = "2026-09-23";
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
+/** Tag der Erstveröffentlichung (E-232). */
+const ERSCHIENEN = "2026-09-23";
+/** Tag der letzten inhaltlichen Änderung (E-510, Sprachleitfaden). */
+const S = "2026-11-13";
+const P = EIN_PRODUKT.de;
+/** Ein Schritt der festen Erzählung (Leitfaden 2.2) — Satz, Bedingung und „Ihr Teil“ wortgleich aus der einen Quelle. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.de.find((x) => x.nr === nr)!;
+const KONTEN = schritt(3);
+const KARTEN = schritt(4);
+const FINANZIERUNG = schritt(5);
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+/** Überschrift des einen Abschnitts über uns (Leitfaden 7.4). */
+const FIAON_H2 = "Was FIAON Global dabei übernimmt";
+/** Der Entscheider-Satz aus S2: „Über Konto, Karte und Rahmen entscheidet das jeweilige Institut.“ */
+const INSTITUT = satz("S2").split(/(?<=\.)\s+/)[1];
+/** Der eine Satz Marktwissen zum Einführungszeitraum (Leitfaden 7.4) — wortgleich, je Seite einmal, mit Beleg. */
+const EINFUEHRUNG = "Einführungszeiträume ohne Sollzins bieten manche Herausgeber an; die Bedingungen legt jeder Herausgeber selbst fest.";
 
 export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -28,12 +59,12 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       beschreibung: "Welche Unterlagen US-Institute für das Konto einer LLC verlangen, warum sie fragen, woran Anträge scheitern und was die Einlagensicherung abdeckt.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 34",
     auge: "Wissen · Konto",
     h1: "Das US-Konto der LLC.",
     h1b: "Was Institute sehen wollen.",
-    lead: "Ein US-Geschäftskonto scheitert selten an der Gesellschaft, sondern an den Unterlagen: ein fehlendes Dokument, eine Adresse, die nicht passt, ein Geschäft, das niemand versteht. Hier steht, was Institute verlangen, warum sie es verlangen müssen — und wie ein Antrag aussieht, der beim ersten Mal trägt.",
+    lead: "Ein US-Geschäftskonto scheitert selten an der Gesellschaft, sondern an den Unterlagen: ein fehlendes Dokument, eine Adresse, die nicht passt, ein Geschäft, das niemand versteht. Hier steht, was Institute verlangen, warum sie es verlangen müssen — und was ein vollständiger Antrag enthält.",
     ziffern: [
       { wert: "7 Unterlagen", label: "die fast jedes Institut verlangt" },
       { wert: "25 %", label: "ab diesem Anteil wird jeder Gesellschafter identifiziert" },
@@ -63,7 +94,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         zeilen: [
           ["Articles of Organization", "Nachweis, dass die Gesellschaft besteht", "vom Staat eingetragene Fassung, Name exakt wie im Antrag"],
           ["EIN-Bestätigung (CP 575 oder Letter 147C)", "Steuernummer der Gesellschaft", "Name und Anschrift wie im Gründungsdokument"],
-          ["Operating Agreement", "Wer beteiligt ist und wer handeln darf", "unterschrieben, Beteiligungen ergeben zusammen 100 Prozent"],
+          ["Operating Agreement", "Wer beteiligt ist und wer handeln darf", "unterzeichnet, Beteiligungen ergeben zusammen 100 Prozent"],
           ["Pässe", "Identität der Gesellschafter ab 25 % und der lenkenden Person", "gültig, gut lesbar, Namen wie im Operating Agreement"],
           ["Adressnachweise", "Wohnanschrift der Beteiligten", "aktuell und auf den Namen der Person"],
           ["Geschäftsbeschreibung", "Was die Gesellschaft tut", "Kunden, Produkte, Länder, erwartete Umsätze und Zahlungswege"],
@@ -106,19 +137,21 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
           { titel: "Unterlagen bündeln", text: "Alle sieben Unterlagen, mit identischen Namen und Anschriften, in einer Mappe." },
           { titel: "Geschäft beschreiben", text: "Zwei Absätze, die ein Fremder versteht: was, für wen, in welchen Ländern, mit welchen Umsätzen und Zahlungswegen." },
           { titel: "Institut wählen", text: "Nach Geschäft, Währungen, Online-Eröffnung und späteren Karten — nicht nach Werbung." },
-          { titel: "Antrag und Rückfragen", text: "Rückfragen kommen fast immer. Wer sie schnell und widerspruchsfrei beantwortet, hat die besten Aussichten." },
+          { titel: "Antrag und Rückfragen", text: "Rückfragen kommen fast immer. Beantworten Sie sie vollständig und widerspruchsfrei; über den Antrag entscheidet das Institut." },
           { titel: "Eröffnung und erste Einlage", text: "Nach der Zusage folgt die erste Einlage — mit Beleg, woher das Geld stammt. Bei einer LLC mit ausländischem Gesellschafter ist sie zugleich ein meldepflichtiger Vorgang für Form 5472." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So bringt FIAON Global Ihr Konto auf den Weg",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Bei FIAON Global beginnt der Kontoantrag nicht mit einem Formular, sondern mit Ihrem Geschäft. Wir schreiben die Geschäftsbeschreibung mit Ihnen, stellen alle Unterlagen mit identischen Angaben zusammen, wählen das Institut nach Ihrem Vorhaben und bereiten den Antrag vollständig vor. Rückfragen des Instituts begleiten wir; verlangt ein Institut einen Termin vor Ort, geht unser Team in Miami mit Ihnen hin.",
-          "Das Konto ist der Anfang der Kartenleiter: Danach planen wir die Reihenfolge weiterer Herausgeber und bereiten jeden Antrag vor.",
-          GLOBAL_ROLLEN.de.fiaon,
+          `${KONTEN.satz} Wir verfassen die Geschäftsbeschreibung mit Ihnen, stellen die Unterlagen mit identischen Angaben zusammen und begleiten Sie bei Rückfragen des Instituts. Verlangt ein Institut einen Termin vor Ort, bereiten wir ihn mit Ihnen vor.`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${KONTEN.bedingung}`,
+          `Karten: ${satz("S4")}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Konto und Karten in Ihrem Auftrag", lead: "Vom ersten Kontoantrag bis zur geplanten Reihenfolge weiterer Herausgeber — in einem Auftrag.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die Kontoanträge in Ihrem Mandat", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -151,8 +184,8 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
     },
     // 27.10.2026: Abschnitt „Zählt meine SCHUFA in den USA?“ (Experian, Dienst für ausländische Kreditdaten mit
     // eigener Länderliste und Dokumentation), EO 14406 Sec. 3(a)(vi) zur ITIN im Abschnitt „null“, eine Frage dazu.
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 35",
     auge: "Wissen · Bonität in den USA",
     h1: "Bonität in den USA.",
@@ -172,7 +205,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       ["Was trägt", "Pünktlich zahlen, Rahmen wenig ausnutzen, Anträge planen"],
       ["Mit FIAON Global", "Reihenfolge geplant, jeder Antrag vorbereitet"],
     ],
-    kurz: "Ihre SCHUFA-Daten zählen in den USA nicht; eine US-Kredithistorie beginnt bei null. Einen ersten FICO Score gibt es, sobald ein Konto mindestens sechs Monate besteht und in den letzten sechs Monaten gemeldet wurde. Der Score (300 bis 850) folgt fünf Faktoren: Zahlungshistorie 35 Prozent, Auslastung 30, Alter der Historie 15, neue Konten 10 und Mischung der Kreditarten 10. Wer pünktlich zahlt, die Rahmen wenig ausnutzt und Anträge plant, baut die Historie am zügigsten auf.",
+    kurz: "Ihre SCHUFA-Daten zählen in den USA nicht; eine US-Kredithistorie beginnt bei null. Einen ersten FICO Score gibt es, sobald ein Konto mindestens sechs Monate besteht und in den letzten sechs Monaten gemeldet wurde. Der Score (300 bis 850) folgt fünf Faktoren: Zahlungshistorie 35 Prozent, Auslastung 30, Alter der Historie 15, neue Konten 10 und Mischung der Kreditarten 10. Die Historie tragen pünktliche Zahlungen, eine geringe Auslastung der Rahmen und wenige, geplante Anträge.",
     bloecke: [
       {
         typ: "text", id: "null", h2: "Warum Sie in den USA bei null beginnen",
@@ -215,7 +248,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       {
         typ: "karten", id: "irrwege", h2: "Was nicht hilft", spalten: 3,
         karten: [
-          { tag: "Irrweg", titel: "Viele Anträge auf einmal", text: "Jede Anfrage wird vermerkt, jedes neue Konto senkt das Durchschnittsalter. Ablehnungen in Serie sind der langsamste Weg." },
+          { tag: "Irrweg", titel: "Viele Anträge auf einmal", text: "Jede Anfrage wird vermerkt, jedes neue Konto senkt das Durchschnittsalter. Ablehnungen in Serie belasten die Akte zusätzlich." },
           { tag: "Irrweg", titel: "Gekaufte Historie", text: "Angebote, sich gegen Gebühr als Zusatznutzer auf fremde Karten setzen zu lassen, sind riskant: Herausgeber können solche Konten schließen, der Nutzen ist ungewiss." },
           { tag: "Irrweg", titel: "„Credit Repair“ gegen Vorkasse", text: "Richtige Einträge kann niemand entfernen lassen. Die US-Handelsaufsicht FTC warnt ausdrücklich vor Diensten, die das versprechen." },
         ],
@@ -231,17 +264,20 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         typ: "text", id: "firma", h2: "Persönliche und geschäftliche Historie",
         absaetze: [
           "Neben Ihrer persönlichen Akte kann Ihre Gesellschaft eine eigene Historie bei den Wirtschaftsauskunfteien aufbauen — mit eigener Kennziffer und eigenem Score. Bei einer jungen Gesellschaft schauen Kartenherausgeber aber fast immer zuerst auf die Person dahinter: Die persönliche Haftung ist die Regel, und damit zählt Ihre persönliche Historie.",
-          "Beide Historien wachsen am besten zusammen: pünktliche Zahlungen der Gesellschaft, eine saubere persönliche Akte, keine hektischen Anträge.",
+          "Beide Historien wachsen am besten zusammen: pünktliche Zahlungen der Gesellschaft, eine saubere persönliche Akte, wenige, geplante Anträge.",
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So baut FIAON Global Ihre US-Historie mit auf",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Eine US-Kredithistorie entsteht nicht durch einen Trick, sondern nach einem Plan: die richtigen Nummern, identische Angaben, der passende erste Antrag, dann Geduld und Reihenfolge. Genau das ist die Kartenleiter von FIAON Global. Wir sorgen dafür, dass ITIN, Anschrift und Telefonnummer von Anfang an stimmen, planen die Reihenfolge der Herausgeber, bereiten jeden Antrag vollständig vor und gehen jeden Monat mit Ihnen durch, wo Sie stehen.",
-          "Über jeden Rahmen entscheidet der Herausgeber. Unsere Aufgabe ist, dass er Ihre Anträge vollständig, widerspruchsfrei und zum richtigen Zeitpunkt sieht.",
+          `Eine US-Kredithistorie entsteht nach einem Plan: die richtigen Nummern, identische Angaben, ein passender erster Antrag, dann Zeit. Wir beantragen Ihre ITIN nach unserem ITIN-Check; über die ITIN entscheidet die US-Steuerbehörde. ${KARTEN.satz} Jeden Antrag bereiten wir einzeln und vollständig vor; die Reihenfolge planen wir mit Ihnen.`,
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: ${KARTEN.ihrTeil}`,
+          `${TEIL.bedingung}: ${KARTEN.bedingung}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Die Kartenleiter in Ihrem Auftrag", lead: "Gesellschaft, Steuernummern, erste Karte und die geplante Reihenfolge weiterer Herausgeber — in einem Auftrag.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die Kartenanträge in Ihrem Mandat", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -280,12 +316,12 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       beschreibung: "Firmenbonität in den USA: D-U-N-S-Nummer, PAYDEX, Experian, Equifax, Lieferantenkonten — und was Herausgeber bei jungen Gesellschaften prüfen.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 36",
     auge: "Wissen · Firmenbonität",
     h1: "Business Credit.",
     h1b: "Die Bonität Ihrer Gesellschaft.",
-    lead: "Neben Ihrer persönlichen Akte kann Ihre US-Gesellschaft eine eigene Kreditgeschichte aufbauen — bei Wirtschaftsauskunfteien, mit eigener Kennziffer und eigenem Score. Sie ist der Weg, auf dem eine Gesellschaft irgendwann für sich selbst kreditwürdig wird. Er verläuft in Etappen, und er beginnt nicht mit Karten, sondern mit Stammdaten.",
+    lead: "Neben Ihrer persönlichen Akte kann Ihre US-Gesellschaft eine eigene Kreditgeschichte aufbauen — bei Wirtschaftsauskunfteien, mit eigener Kennziffer und eigenem Score. Sie ist der Weg, auf dem eine Gesellschaft irgendwann für sich selbst kreditwürdig wird. Er verläuft in Schritten, und er beginnt nicht mit Karten, sondern mit Stammdaten.",
     ziffern: [
       { wert: "9 Ziffern", label: "D-U-N-S-Nummer, kostenlos" },
       { wert: "80 – 100", label: "PAYDEX: geringes Risiko" },
@@ -298,7 +334,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       ["Was zählt", "Pünktliche Zahlungen an Lieferanten und Herausgeber"],
       ["Grundlage", "Einheitliche Stammdaten überall"],
       ["Grenze", "Bei jungen Gesellschaften zählt zuerst die persönliche Haftung"],
-      ["Mit FIAON Global", "Stammdaten, Reihenfolge, Kennzahlen-Mappe"],
+      ["Mit FIAON Global", "Einheitliche Stammdaten, jeder Antrag vollständig vorbereitet"],
     ],
     kurz: "Business Credit ist die Kreditgeschichte Ihrer Gesellschaft bei den US-Wirtschaftsauskunfteien Dun & Bradstreet, Experian und Equifax. Grundlage ist die kostenlose D-U-N-S-Nummer; bewertet werden vor allem pünktliche Zahlungen an Lieferanten und Herausgeber — beim PAYDEX von Dun & Bradstreet auf einer Skala von 1 bis 100, ab 80 gilt das Risiko als gering. Bei jungen Gesellschaften verlangen Kartenherausgeber trotzdem fast immer die persönliche Haftung des Inhabers; die eigene Historie der Gesellschaft wächst über Jahre.",
     bloecke: [
@@ -331,7 +367,7 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         fuss: ["Einteilung nach Dun & Bradstreet. Ein Wert entsteht erst, wenn genügend Zahlungserfahrungen gemeldet sind."],
       },
       {
-        typ: "etappen", id: "aufbau", h2: "In fünf Etappen zur eigenen Historie",
+        typ: "etappen", id: "aufbau", h2: "In fünf Schritten zur eigenen Historie",
         etappen: [
           { titel: "Stammdaten vereinheitlichen", text: "Name, Anschrift, Telefonnummer, EIN und Website sind überall identisch — im Register des Staats, bei der IRS, beim Institut, bei Lieferanten und Auskunfteien." },
           { titel: "D-U-N-S-Nummer anlegen", text: "Kostenlos bei Dun & Bradstreet. Prüfen Sie dort auch, ob Ihre Gesellschaft schon erfasst ist, und korrigieren Sie abweichende Angaben." },
@@ -344,19 +380,22 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         typ: "karten", id: "warnung", h2: "Wovor Sie sich hüten sollten", spalten: 3,
         karten: [
           { tag: "Vorsicht", titel: "Lieferantenkonten ohne Geschäft", text: "Manche Anbieter verkaufen Konten mit Zahlungsziel, die nur dem Score dienen sollen. Was kein echtes Geschäft abbildet, trägt keine Prüfung durch ein Institut." },
-          { tag: "Vorsicht", titel: "Versprochene Rahmen", text: "Wer Ihrer Gesellschaft einen Kreditrahmen in bestimmter Höhe verspricht, verspricht, was nur ein Institut entscheiden kann." },
-          { tag: "Vorsicht", titel: "Karten statt Darlehen", text: "Die US-Handelsaufsicht FTC hat 2025 einem Anbieter dauerhaft untersagt, Finanzierungen anzubieten: Er hatte Darlehen versprochen und gegen hohe Gebühren Kreditkarten beantragt." },
+          { tag: "Vorsicht", titel: "Zugesagte Rahmen", text: "Wer Ihrer Gesellschaft einen Kreditrahmen in bestimmter Höhe zusagt, sagt zu, was nur ein Institut entscheiden kann." },
+          { tag: "Vorsicht", titel: "Karten statt Darlehen", text: "Auf Klage der US-Handelsaufsicht FTC ist einem Anbieter seit 2025 dauerhaft untersagt, Finanzierungen anzubieten: Er hatte mit Unternehmensfinanzierung geworben und gegen hohe Gebühren Kreditkarten beantragt." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So baut FIAON Global die Historie Ihrer Gesellschaft auf",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Die Historie einer Gesellschaft lässt sich nicht kaufen — aber planen. FIAON Global legt die Grundlage schon bei der Gründung: identische Stammdaten in allen Registern und Anträgen, EIN, US-Adresse und Telefonnummer, ein Konto, das zum Geschäft passt. Danach planen wir die Reihenfolge der Herausgeber, bereiten jeden Antrag vor und gehen Monat für Monat mit Ihnen durch, was die Auskunfteien über Ihre Gesellschaft wissen.",
-          "Wir führen diesen Weg bis zur Finanzierung in Ihrem Kapitalrahmen — in laufender Abstimmung mit Partner-Anwalt und Partner-Steuerberater.",
-          KAPITAL_FREI,
+          "Die Grundlage legen wir mit der Gründung: identische Stammdaten in jeder Unterlage und jedem Antrag, der Antrag für die EIN, US-Geschäftsadresse und US-Telefonnummer. Konto- und Kartenanträge bereiten wir vollständig vor; die Anträge stellen Sie selbst.",
+          `${FINANZIERUNG.satz} ${satz("S9")}`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${INSTITUT}`,
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Der ganze Weg in einem Auftrag", lead: "Stammdaten, Kartenleiter über mehrere Herausgeber und die Begleitung bis zur Finanzierung in Ihrem Kapitalrahmen.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -371,6 +410,8 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
       { f: "Was ist ein guter PAYDEX?", a: "Ab 80 gilt das Risiko eines Zahlungsverzugs als gering, von 50 bis 79 als mittel, darunter als hoch." },
       { f: "Wie lange dauert es, Business Credit aufzubauen?", a: "Einen PAYDEX gibt es erst, wenn genügend Zahlungserfahrungen gemeldet sind — meist nach einigen Monaten mit mehreren Geschäftspartnern. Eine Historie, die ohne persönliche Haftung trägt, braucht Jahre." },
       { f: "Brauche ich Business Credit für eine Firmenkarte?", a: "Bei jungen Gesellschaften prüfen Herausgeber vor allem die persönliche Historie des Inhabers und verlangen seine persönliche Haftung. Die Historie der Gesellschaft gewinnt mit den Jahren an Gewicht." },
+      // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — Wortlaut aus GLOBAL_KAPITAL_FREI (eine Quelle); seit E-510 als Frage statt im Abschnitt über uns.
+      { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
     ],
     paket: "global_kapital",
     weiter: ["/business/firmenkarten-kapital", "/business/wissen/us-bonitaet-aufbauen", "/business/wissen/us-firmenkarte-beantragen", "/business/wissen/us-bankkonto-unterlagen"],
@@ -384,30 +425,30 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "US-Firmenkarte beantragen: Prüfung, Haftung — FIAON Global",
-      beschreibung: "US-Firmenkarte für die LLC: wie Herausgeber prüfen, was persönliche Haftung heißt, wann der Einführungszeitraum endet und woran Sie Abzocke erkennen.",
+      beschreibung: "US-Firmenkarte für die LLC: wie Herausgeber prüfen, was persönliche Haftung heißt, wann der Einführungszeitraum endet, woran Sie Unseriöses erkennen.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 37",
     auge: "Wissen · Firmenkarten",
     h1: "Die US-Firmenkarte.",
     h1b: "Wie Herausgeber entscheiden.",
-    lead: "Firmenkarten sind in den USA der übliche Einstieg in Kredit für eine junge Gesellschaft — und das beliebteste Werbeversprechen im Netz. Zwischen „hohe Rahmen für jede LLC“ und der Wirklichkeit liegt die Prüfung des Herausgebers. Hier steht, was er prüft, was Sie unterschreiben und woran Sie unseriöse Angebote erkennen.",
+    lead: "Firmenkarten sind in den USA der übliche Einstieg in Kredit für eine junge Gesellschaft — und ein häufiges Werbeversprechen im Netz. Zwischen „hohe Rahmen für jede LLC“ und der Wirklichkeit liegt die Prüfung des Herausgebers. Hier steht, was er prüft, was Sie unterzeichnen und woran Sie unseriöse Angebote erkennen.",
     ziffern: [
       { wert: "persönlich", label: "haftet der Inhaber in der Regel mit" },
       { wert: "Reg Z", label: "Verbraucherschutz gilt für Firmenkarten nur teilweise" },
-      { wert: "11/2025", label: "FTC untersagt einem Anbieter das Geschäft dauerhaft" },
+      { wert: "10/2025", label: "dauerhaftes Verbot für einen Anbieter (FTC v. Seek Capital)" },
     ],
     blick: [
       ["Wer entscheidet", "Der Herausgeber — nach eigenen Regeln"],
       ["Was er prüft", "Persönliche Historie, Einkommen, Geschäft, Unterlagen"],
       ["Haftung", "Persönliche Haftung des Inhabers ist die Regel"],
-      ["Einführungszeitraum", "Ohne Sollzins auf Zeit — danach gilt der reguläre Zins"],
+      ["Einführungszeitraum", "Endet zu einem festen Datum — danach gilt der reguläre Zins des Herausgebers"],
       ["Verbraucherschutz", "Für Firmenkarten nur eingeschränkt"],
-      ["Warnzeichen", "Versprochene Rahmen, Honorar nach Rahmen, „Darlehen“ statt Karten"],
-      ["Mit FIAON Global", "Reihenfolge geplant, jeder Antrag vorbereitet, Preis vor der Unterschrift"],
+      ["Warnzeichen", "Zugesagte Rahmen, Honorar je Kartenantrag, „Darlehen“ statt Karten"],
+      ["Mit FIAON Global", "Jeder Antrag einzeln vorbereitet — auf Wunsch, ohne zusätzliches Honorar von FIAON"],
     ],
-    kurz: "Über eine US-Firmenkarte entscheidet der Herausgeber. Bei einer jungen Gesellschaft prüft er vor allem die persönliche Kredithistorie des Inhabers in den USA, Einkommen, Geschäft und Unterlagen, und er verlangt in der Regel dessen persönliche Haftung. Ein Einführungszeitraum ohne Sollzins endet zu einem festen Datum; danach gilt der reguläre Zins auf den offenen Saldo. Weil die meisten Verbraucherschutzregeln für Firmenkarten nicht gelten, lohnt der genaue Blick in die Bedingungen — und Vorsicht bei jedem, der Rahmen verspricht.",
+    kurz: "Über eine US-Firmenkarte entscheidet der Herausgeber. Bei einer jungen Gesellschaft prüft er vor allem die persönliche Kredithistorie des Inhabers in den USA, Einkommen, Geschäft und Unterlagen, und er verlangt in der Regel dessen persönliche Haftung. Ein Einführungszeitraum endet zu einem festen Datum; danach gilt der reguläre Zins des Herausgebers auf den offenen Saldo. Weil die meisten Verbraucherschutzregeln für Firmenkarten nicht gelten, lohnt der genaue Blick in die Bedingungen — und Vorsicht bei jedem, der einen Rahmen zusagt.",
     bloecke: [
       {
         typ: "text", id: "pruefung", h2: "Was ein Herausgeber prüft",
@@ -422,18 +463,19 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         nach: "Ohne persönliche US-Historie sind die Wege schmaler: Manche Herausgeber prüfen Anträge mit ITIN, manche nur mit SSN, manche verlangen ein bestehendes Konto bei ihnen. Welche das sind, ändert sich — und entscheidet jeder Herausgeber selbst.",
       },
       {
-        typ: "text", id: "haftung", h2: "Persönliche Haftung: was Sie unterschreiben",
+        typ: "text", id: "haftung", h2: "Persönliche Haftung: was Sie unterzeichnen",
         absaetze: [
-          "Mit fast jeder Firmenkarte für eine junge Gesellschaft unterschreibt der Inhaber eine persönliche Haftung („personal guarantee“): Zahlt die Gesellschaft nicht, haftet er selbst. Die beschränkte Haftung der LLC schützt ihn dann nicht.",
+          "Mit fast jeder Firmenkarte für eine junge Gesellschaft übernimmt der Inhaber eine persönliche Haftung („personal guarantee“): Zahlt die Gesellschaft nicht, haftet er selbst. Die beschränkte Haftung der LLC schützt ihn dann nicht.",
           "Das spricht nicht gegen die Karte, aber dafür, sie wie einen persönlichen Kredit zu behandeln: nur ausgeben, was die Gesellschaft sicher zurückzahlen kann.",
         ],
       },
       {
-        typ: "text", id: "einfuehrung", h2: "Der Einführungszeitraum ohne Sollzins",
+        typ: "text", id: "einfuehrung", h2: "Der Einführungszeitraum und sein Ende",
         absaetze: [
-          "Viele US-Firmenkarten bieten neuen Kunden einen Einführungszeitraum ohne Sollzins auf Einkäufe. Das ist Kredit auf Zeit, kein geschenktes Geld: Der Zeitraum endet zu einem festen Datum, danach gilt der reguläre Zins auf den offenen Saldo — bei Karten meist ein zweistelliger Satz.",
-          "Wer einen Einführungszeitraum nutzt, braucht deshalb einen Plan für sein Ende: Rückzahlung aus dem Geschäft, nicht aus der nächsten Karte. Gebühren etwa für Bargeld oder Überträge von anderen Karten sind oft nicht erfasst und kosten ab dem ersten Tag.",
+          `${EINFUEHRUNG} Ein solcher Zeitraum ist Kredit auf Zeit: Er endet zu einem festen Datum, danach gilt der reguläre Zins des Herausgebers auf den offenen Saldo.`,
+          "Wer einen Einführungszeitraum nutzt, braucht deshalb einen Plan für sein Ende: Rückzahlung aus dem Geschäft, nicht aus der nächsten Karte. Gebühren etwa für Bargeld oder Überträge von anderen Karten sind oft nicht erfasst und fallen ab dem ersten Tag an.",
         ],
+        nach: "Beleg: Im Fall FTC v. Seek Capital stellte das Gericht fest, dass der Anbieter auch Karten ohne einen solchen Einführungszeitraum beantragt hatte (Entscheidung vom 16. September 2025, siehe Quellen).",
       },
       {
         typ: "tabelle", id: "schutz", h2: "Privatkarte und Firmenkarte: der Unterschied im Schutz",
@@ -447,47 +489,50 @@ export const WISSEN_KONTO_KARTEN: GlobalSeite[] = [
         fuss: ["Nach 12 CFR 1026.3 und 1026.12 (Regulation Z) mit der amtlichen Kommentierung; vereinfachte Übersicht."],
       },
       {
-        typ: "text", id: "stapeln", h2: "„Kartenstapeln“ — und ein Fall der FTC",
+        typ: "text", id: "stapeln", h2: "Serienanträge: ein Fall der FTC",
         absaetze: [
           "Im Netz wird ein Modell beworben, das mehrere Karten mit Einführungszeitraum auf einmal beantragt und als „Finanzierung“ verkauft — gegen hohe Gebühren. Das Risiko liegt vollständig beim Unternehmer: viele Anfragen auf einmal, hohe Auslastung, persönliche Haftung für jede Karte und ein gemeinsames Ende aller Einführungszeiträume.",
-          "Wie das enden kann, zeigt ein Fall der US-Handelsaufsicht FTC: Im November 2025 wurde einem Anbieter und seinem Chef dauerhaft untersagt, Unternehmern Finanzierungen anzubieten. Er hatte Darlehen und Kreditlinien versprochen und stattdessen gegen Gebühren von mehreren Tausend Dollar Kreditkarten beantragt; das Gericht sah darin eine Täuschung. Der Vergleich lautet auf 48,28 Millionen US-Dollar, zum Teil ausgesetzt, weil die Beklagten nicht zahlen können.",
+          "Wie das enden kann, zeigt ein Fall der US-Handelsaufsicht FTC. Ein Anbieter hatte mit Unternehmensfinanzierung geworben und für seine Kunden gegen Gebühren von mehreren Tausend Dollar ausschließlich Kreditkarten beantragt. Ein US-Bundesgericht stellte im September 2025 fest, dass er dabei unter anderem über seine Beziehungen zu Kreditgebern, über Gebühren und über harte Anfragen getäuscht hatte. Seit Oktober 2025 ist ihm und seinem Gründer dauerhaft untersagt, Unternehmern Finanzierungen anzubieten. Das Geldurteil lautet auf 48,28 Millionen US-Dollar und ist zum Teil ausgesetzt, weil die Beklagten es nicht vollständig leisten können.",
         ],
       },
       {
         typ: "karten", id: "warnzeichen", h2: "Sechs Warnzeichen bei Anbietern", spalten: 3,
         karten: [
-          { tag: "Warnzeichen", titel: "Ein Rahmen wird versprochen", text: "Über jeden Rahmen entscheidet der Herausgeber. Wer eine Höhe verspricht, verspricht, was er nicht halten kann." },
-          { tag: "Warnzeichen", titel: "Honorar in Prozent des Rahmens", text: "Wer am Rahmen verdient, verdient an jedem weiteren Antrag — auch wenn er Ihnen schadet." },
-          { tag: "Warnzeichen", titel: "„Darlehen“, das eine Karte ist", text: "Karten sind Karten. Wer von Darlehen oder Kreditlinie spricht und Kartenanträge meint, täuscht." },
+          { tag: "Warnzeichen", titel: "Ein Rahmen wird zugesagt", text: "Über jeden Rahmen entscheidet der Herausgeber. Wer eine Höhe zusagt, sagt zu, was er nicht halten kann." },
+          { tag: "Warnzeichen", titel: "Honorar, das mit jedem Kartenantrag wächst", text: "Wer an jeder weiteren Karte verdient, hat einen Anreiz zu immer neuen Anträgen — auch wenn sie Ihrer Kreditakte schaden. Verlangen Sie Honorar und Leistungsverzeichnis schriftlich, bevor Sie unterzeichnen." },
+          { tag: "Warnzeichen", titel: "„Darlehen“, das eine Karte ist", text: "Karten sind Karten. Wer „Darlehen“ oder „Kreditlinie“ ankündigt und Kartenanträge meint, sagt Ihnen nicht, was Sie unterzeichnen." },
           { tag: "Warnzeichen", titel: "Viele Anträge an einem Tag", text: "Anträge in Serie belasten Ihre Historie und machen jede weitere Entscheidung schwerer." },
           { tag: "Warnzeichen", titel: "Kein Wort zur Haftung", text: "Wer die persönliche Haftung nicht erwähnt, verschweigt das Wichtigste an jeder Firmenkarte." },
           { tag: "Warnzeichen", titel: "Bewertungen verboten", text: "Klauseln, die Kunden negative Bewertungen untersagen, sind in den USA unzulässig — und ein deutliches Signal." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So bringt FIAON Global Sie zur ersten Karte — und weiter",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "FIAON Global macht aus dem Kartenantrag einen Plan statt einer Wette. Wir legen die Grundlage — Gesellschaft, EIN, ITIN, Anschrift, Telefonnummer, Konto —, wählen den ersten Herausgeber passend zu Ihrer Historie, bereiten den Antrag vollständig vor und planen die Kartenleiter: weitere Herausgeber in der richtigen Reihenfolge, mit Abstand zwischen den Anträgen, begleitet in einem monatlichen Durchgang.",
-          "Unser Preis steht fest, bevor Sie unterschreiben: Der Konfigurator zeigt Ihnen den Betrag für Ihren Kapitalrahmen, und er wächst nicht mit weiteren Anträgen. Über jeden Rahmen entscheidet der Herausgeber; Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.",
-          KAPITAL_FREI,
+          `${KARTEN.satz} Wir bereiten jeden Kartenantrag einzeln und vollständig vor. Anträge in Serie bereiten wir nicht vor.`,
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: ${KARTEN.ihrTeil}`,
+          `${TEIL.bedingung}: ${KARTEN.bedingung}`,
+          `Honorar: ${beleg("honorarVorab")}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Die Kartenleiter in Ihrem Auftrag", lead: "Erste Karte, geplante Folgeanträge, monatlicher Durchgang — in einem Auftrag.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die Kartenanträge in Ihrem Mandat", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           GLOBAL_PFLICHTHINWEIS.de[2],
-          "Ein Einführungszeitraum ohne Sollzins endet zu einem festen Datum; danach gilt der reguläre Zins des Herausgebers.",
-          "FIAON ist keine Bank, vergibt keine Kredite und vermittelt keine Kredite.",
+          "Ein Einführungszeitraum endet zu einem festen Datum; danach gilt der reguläre Zins des Herausgebers.",
+          satz("S8"),
         ],
       },
     ],
     fragen: [
       { f: "Kann meine LLC eine US-Firmenkarte beantragen?", a: "Ja. Ob eine Karte ausgegeben wird, entscheidet der Herausgeber: Bei jungen Gesellschaften prüft er vor allem die persönliche Historie des Inhabers in den USA und verlangt dessen persönliche Haftung. Ohne SSN oder ITIN sind die Wege schmal." },
       { f: "Hafte ich persönlich für die Firmenkarte meiner LLC?", a: "In der Regel ja. Fast alle Herausgeber verlangen bei jungen Gesellschaften eine persönliche Haftung des Inhabers; die beschränkte Haftung der LLC greift dann nicht." },
-      { f: "Was passiert nach dem Einführungszeitraum ohne Sollzins?", a: "Er endet zu einem festen Datum. Danach gilt der reguläre Zins des Herausgebers auf den offenen Saldo — bei Karten meist ein zweistelliger Satz." },
+      { f: "Was passiert nach dem Einführungszeitraum?", a: "Er endet zu einem festen Datum. Danach gilt der reguläre Zins des Herausgebers auf den offenen Saldo; Höhe und Bedingungen legt jeder Herausgeber selbst fest." },
       { f: "Gilt der US-Verbraucherschutz für Firmenkarten?", a: "Nur eingeschränkt. Für Karten zu geschäftlichen Zwecken gelten aus Regulation Z vor allem die Regeln zur Ausgabe der Karte und zur Haftung bei Missbrauch; die Schutzregeln des CARD Act, etwa bei Zinserhöhungen, in der Regel nicht." },
-      { f: "Woran erkenne ich unseriöse Anbieter für Firmenkarten?", a: "An versprochenen Rahmen, an Honoraren in Prozent des Rahmens, an „Darlehen“, die sich als Kartenanträge entpuppen, an vielen Anträgen auf einmal und an Verträgen, die Bewertungen verbieten." },
+      { f: "Woran erkenne ich unseriöse Anbieter für Firmenkarten?", a: "An zugesagten Rahmen, an Honoraren, die mit jedem Kartenantrag wachsen, an „Darlehen“, die sich als Kartenanträge herausstellen, an vielen Anträgen auf einmal und an Verträgen, die Bewertungen verbieten." },
     ],
     paket: "global_banking",
     weiter: ["/business/firmenkarten-kapital", "/business/wissen/us-bonitaet-aufbauen", "/business/wissen/business-credit-usa", "/business/wissen/anbieter-pruefen"],

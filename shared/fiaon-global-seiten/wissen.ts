@@ -12,12 +12,15 @@
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN, globalPreisText } from "../fiaon-global";
 // E-509 (12.11.2026): EIN Produkt statt vier Pakete — der Satz zu den Partnern ohne „Paket“.
 import { EIN_PRODUKT } from "./ein-produkt";
+// E-510 (13.11.2026, Sprachleitfaden): feste Sätze aus der einen Quelle (S2: Anträge, Konto und Karte).
+import { satz } from "../fiaon-global-saetze";
 import { GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
 import { FAKTEN_STAND, IRS, QUELLEN_IRS, QUELLEN_STAATEN } from "./fakten";
 import type { GlobalSeite } from "./typen";
 import { bundesstaatWahlSeite } from "./bundesstaat-wahl";
 
-const S = "2026-09-19";
+/** Tag der letzten inhaltlichen Änderung (E-510, Sprachleitfaden). Erstveröffentlichung dieser Seiten: 19.09.2026 (Standard des Registers, Feld „erschienen“ fehlt). */
+const S = "2026-11-13";
 const QUELLE_AO10 = { titel: "§ 10 AO — Geschäftsleitung", url: "https://www.gesetze-im-internet.de/ao_1977/__10.html" };
 const QUELLE_AO138 = { titel: "§ 138 AO — Anzeigen über die Erwerbstätigkeit", url: "https://www.gesetze-im-internet.de/ao_1977/__138.html" };
 const QUELLE_KSTG1 = { titel: "§ 1 KStG — Unbeschränkte Steuerpflicht", url: "https://www.gesetze-im-internet.de/kstg_1977/__1.html" };
@@ -46,14 +49,15 @@ export const WISSEN: GlobalSeite[] = [
     art: "hub",
     seo: {
       titel: "Ratgeber US-Gesellschaft: LLC, EIN, Konto — FIAON Global",
-      beschreibung: "28 Beiträge zur US-Gesellschaft: LLC, EIN und ITIN, Anschrift, Konto, Credit Score, Firmenkarten, US-Funding, Steuern — ehrlich erklärt, mit Quellen.",
+      beschreibung: "28 Beiträge zur US-Gesellschaft: LLC, EIN und ITIN, Anschrift, Konto, Credit Score, Firmenkreditkarten, Finanzierung, Steuern — mit Quellen und Stand.",
     },
     // 23.09.2026 (E-232): zehn Praxis-Beiträge dazu (wissen-gruendung.ts, wissen-konto-karten.ts), nach Themen geordnet.
-    stand: "2026-09-23",
+    // 13.11.2026 (E-510): Wortlaut nach Sprachleitfaden — „mit Quellen und Stand“ statt Beteuerung, „Finanzierung“ statt Jargon.
+    stand: "2026-11-13",
     kennung: "FG · 22",
     auge: "Wissen",
     h1: "Wissen vor der Gründung.",
-    h1b: "Ehrlich erklärt, mit Quellen.",
+    h1b: "Mit Quellen und Stand.",
     lead: "Was Unternehmer aus Deutschland, Österreich und der Schweiz über eine US-Gesellschaft wissen sollten: Gründung, EIN und ITIN, US-Präsenz, Konto, Karten, Steuererklärung und Struktur. Jeder Beitrag nennt seine Quellen und seinen Stand und sagt auch, was eine US-Gesellschaft nicht kann.",
     ziffern: [
       { wert: "28 Beiträge", label: "Gründung, Steuernummern, Konto, Karten, Finanzierung, Steuern" },
@@ -69,7 +73,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Anbieter", "Woran Sie seriöse Begleitung erkennen"],
       ["Redaktion", "FIAON Global — Quellen am Ende jedes Beitrags"],
     ],
-    kurz: `Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für den Aufbau von Kapital — kein Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Wer die Gesellschaft aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären jeden Schritt — von der Gründung über Steuernummern, Konto und Karten bis zur Steuererklärung.`,
+    kurz: `Eine US-Gesellschaft ist ein Werkzeug für echtes Geschäft in den USA und für die Finanzierung Ihres Vorhabens — kein Steuermodell. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer} Wer die Gesellschaft aus Deutschland, Österreich oder der Schweiz führt, versteuert sie in der Regel zu Hause, meldet sie dem Finanzamt und gibt in den USA jährlich Form 5472 ab. Die Beiträge hier erklären den Ablauf — von der Gründung über Steuernummern, Konto und Karten bis zur Steuererklärung.`,
     bloecke: [
       {
         typ: "verzeichnis", id: "gruendung", h2: "Vor der Gründung",
@@ -105,9 +109,9 @@ export const WISSEN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "verzeichnis", id: "funding", h2: "US-Funding und Kapital",
+        typ: "verzeichnis", id: "funding", h2: "Finanzierung in den USA",
         eintraege: [
-          { pfad: "/business/wissen/us-funding", tag: "Pfeiler" },
+          { pfad: "/business/wissen/us-funding", tag: "Überblick" },
           { pfad: "/business/wissen/kreditkarten-stacking", tag: "Warnzeichen" },
           { pfad: "/business/wissen/sba-kredit-auslaender", tag: "SBA" },
         ],
@@ -147,8 +151,8 @@ export const WISSEN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "pakete", id: "mandat", h2: "Alles aus einer Hand",
-        lead: "Jeder Beitrag hier beschreibt eine Aufgabe. FIAON Global übernimmt sie alle — Gründung, Steuernummern, US-Präsenz, Konto- und Kartenanträge, Pflichtenkalender und die erste US-Meldung, mit Partner-Anwalt, Partner-Steuerberater und US-CPA. In einem Auftrag, die Honorare unserer Partner inklusive.",
+        typ: "pakete", id: "mandat", h2: EIN_PRODUKT.de.karteH2,
+        lead: `Jeder Beitrag hier beschreibt eine Aufgabe. In einem Mandat übernimmt FIAON Global die Gründung, die Anträge für EIN und ITIN, die US-Präsenz, den Pflichtenkalender und die erste jährliche US-Meldung. Für Konto und Karten gilt: ${satz("S2")} ${EIN_PRODUKT.de.partner}`,
       },
     ],
     fragen: [],
@@ -160,15 +164,16 @@ export const WISSEN: GlobalSeite[] = [
     pfad: "/business/wissen/us-llc-steuern",
     art: "wissen",
     seo: {
-      titel: "US-LLC und Steuern: Die ehrliche Antwort — FIAON Global",
+      titel: "US-LLC und Steuern: Was wo gilt — FIAON Global",
       beschreibung: "Spart eine US-LLC Steuern? Für Unternehmer aus Deutschland und der Schweiz meist nicht: Geschäftsleitung, Typenvergleich, Meldepflichten — mit Quellen.",
     },
     // 27.10.2026: Tabelle „Was wo gilt“ mit Österreich als eigener Spalte (Quellen RIS, Findok, Fedlex).
-    stand: "2026-10-27",
+    // 13.11.2026 (E-510): Wortlaut nach Sprachleitfaden; Steuerfragen klären Partner-Steuerberater in eigener Verantwortung.
+    stand: "2026-11-13",
     kennung: "FG · 23",
     auge: "Wissen · Steuern",
     h1: "Spart eine US-LLC Steuern?",
-    h1b: "Die ehrliche Antwort.",
+    h1b: "Die Antwort, mit Quellen.",
     lead: "„Steuerfrei mit der US-LLC“ ist eines der hartnäckigsten Versprechen im Netz. Für Unternehmer, die in Deutschland, Österreich oder der Schweiz leben und von dort arbeiten, trägt es in aller Regel nicht. Hier steht, warum — und wofür eine US-Gesellschaft trotzdem gut ist.",
     ziffern: [
       { wert: "§ 10 AO", label: "Ort der Geschäftsleitung entscheidet" },
@@ -181,16 +186,16 @@ export const WISSEN: GlobalSeite[] = [
       ["Schweiz", "Sitz oder tatsächliche Verwaltung (Art. 50 DBG)"],
       ["USA", "Meldepflicht Form 5472 auch ohne Umsatz"],
       ["Wofür sie taugt", "Geschäft, Konto, Karten und Verträge in den USA"],
-      ["Kapital", GLOBAL_KAPITAL_FREI.de.kurz],
-      ["Prüfung", "Vor jeder Gründung durch unseren Partner-Steuerberater"],
+      ["Finanzierung", GLOBAL_KAPITAL_FREI.de.kurz],
+      ["Steuerfragen", "Klären Partner-Steuerberater vor der Gründung, in eigener Verantwortung"],
     ],
-    kurz: `In der Regel nicht. Eine US-LLC, die ein Unternehmer von Deutschland, Österreich oder der Schweiz aus führt, hat dort ihren Ort der Geschäftsleitung beziehungsweise ihre tatsächliche Verwaltung und ist dort steuerpflichtig. Dazu kommen Meldepflichten in beiden Ländern. Eine US-Gesellschaft lohnt sich für echtes Geschäft in den USA und für den Aufbau von Kapital — nicht, um Steuern zu vermeiden. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
+    kurz: `In der Regel nicht. Eine US-LLC, die ein Unternehmer von Deutschland, Österreich oder der Schweiz aus führt, hat dort ihren Ort der Geschäftsleitung beziehungsweise ihre tatsächliche Verwaltung und ist dort steuerpflichtig. Dazu kommen Meldepflichten in beiden Ländern. Eine US-Gesellschaft dient echtem Geschäft in den USA und der Finanzierung Ihres Vorhabens — nicht dem Vermeiden von Steuern. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`,
     bloecke: [
       {
         typ: "text", id: "mythos", h2: "Woher das Versprechen kommt",
         absaetze: [
           "Eine LLC mit einem einzigen ausländischen Gesellschafter wird in den USA steuerlich meist nicht als eigenes Steuersubjekt behandelt. Hat sie dort kein Geschäft, zahlt sie in den USA oft keine Bundessteuer auf ihren Gewinn. Staaten wie Wyoming erheben zudem keine eigene Körperschaftsteuer.",
-          "Daraus wird im Netz schnell „steuerfrei“. Übersehen wird dabei, dass der Staat, in dem der Unternehmer lebt und arbeitet, eigene Regeln hat — und die knüpfen nicht an den Sitz der Gesellschaft an, sondern daran, wo sie tatsächlich geführt wird.",
+          "Im Netz wird daraus „steuerfrei“. Übersehen wird dabei, dass der Staat, in dem der Unternehmer lebt und arbeitet, eigene Regeln hat — und die knüpfen nicht an den Sitz der Gesellschaft an, sondern daran, wo sie tatsächlich geführt wird.",
         ],
       },
       {
@@ -228,14 +233,14 @@ export const WISSEN: GlobalSeite[] = [
         typ: "karten", id: "wofuer", h2: "Wofür eine US-Gesellschaft gut ist", spalten: 3,
         karten: [
           { tag: "Gut für", titel: "Geschäft in den USA", text: "Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie in den USA." },
-          { tag: "Gut für", titel: "Kapitalaufbau — auch für Europa", text: `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
+          { tag: "Gut für", titel: "Finanzierung — auch für Europa", text: `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
           { tag: "Nicht gut für", titel: "Steuern zu Hause vermeiden", text: "Wird sie von zu Hause geführt, ist sie dort in der Regel steuerpflichtig. Wer „steuerfrei“ verspricht, verschweigt den Ort der Geschäftsleitung." },
         ],
       },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Dieser Beitrag erklärt Grundlagen. Ihren Fall prüft vor der Gründung unser Partner-Steuerberater auf Ihr Mandat — sie ist in Ihrem Auftrag enthalten.",
+          "Dieser Beitrag erklärt Grundlagen; er ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls. Steuerfragen zu Ihrem Fall klären Partner-Steuerberater vor der Gründung, in eigener Verantwortung. Ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
           GLOBAL_PFLICHTHINWEIS.de[0],
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],
@@ -243,9 +248,9 @@ export const WISSEN: GlobalSeite[] = [
     ],
     fragen: [
       { f: "Muss ich meine US-LLC in Deutschland versteuern?", a: "Wenn Sie sie von Deutschland aus führen, in der Regel ja: Der Ort der Geschäftsleitung liegt dann in Deutschland (§ 10 AO). Wie das Finanzamt die LLC einordnet, entscheidet ein Typenvergleich." },
-      { f: "Ist eine Wyoming-LLC steuerfrei?", a: "Wyoming erhebt keine eigene Körperschaftsteuer. Steuerpflichtig ist die Gesellschaft aber dort, wo sie geführt wird — für Unternehmer aus Deutschland, Österreich oder der Schweiz in der Regel zu Hause." },
-      { f: "Warum werben so viele mit einer steuerfreien LLC?", a: "Weil eine LLC mit ausländischem Gesellschafter in den USA oft keine Bundessteuer zahlt. Das stimmt für die USA, sagt aber nichts über die Steuerpflicht im Heimatland — und die hängt am Ort der Geschäftsleitung." },
-      { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: `Für echtes Geschäft in den USA — Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie — und für den Aufbau von Kapital. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
+      { f: "Ist eine Wyoming-LLC „steuerfrei“?", a: "Wyoming erhebt keine eigene Körperschaftsteuer. Steuerpflichtig ist die Gesellschaft aber dort, wo sie geführt wird — für Unternehmer aus Deutschland, Österreich oder der Schweiz in der Regel zu Hause." },
+      { f: "Warum werben so viele mit einer „steuerfreien“ LLC?", a: "Weil eine LLC mit ausländischem Gesellschafter in den USA oft keine Bundessteuer zahlt. Das stimmt für die USA, sagt aber nichts über die Steuerpflicht im Heimatland — und die hängt am Ort der Geschäftsleitung." },
+      { f: "Wofür lohnt sich eine US-Gesellschaft dann?", a: `Für echtes Geschäft in den USA — Verträge mit US-Kunden, ein US-Konto, Zahlungen in US-Dollar, getrennte Haftung, eine eigene Kartenhistorie — und für die Finanzierung Ihres Vorhabens. ${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}` },
     ],
     weiter: ["/business/aus-deutschland", "/business/aus-der-schweiz", "/business/wissen/form-5472", "/business/wissen/llc-steuererklaerung"],
     quellen: [
@@ -273,7 +278,7 @@ export const WISSEN: GlobalSeite[] = [
     ziffern: [
       { wert: IRS.koerperschaftsteuer, label: "Körperschaftsteuer des Bundes für Corporations" },
       { wert: "2 Formen", label: "beide mit beschränkter Haftung" },
-      { wert: "vor der Gründung", label: "geprüft durch unseren Partner-Steuerberater" },
+      { wert: "vor der Gründung", label: "steuerliche Folgen im Heimatland klären" },
     ],
     blick: [
       ["LLC", "Schlank, flexibel, meist kein eigenes Steuersubjekt in den USA"],
@@ -281,7 +286,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Haftung", "Bei beiden auf das Gesellschaftsvermögen beschränkt"],
       ["Investoren", "Erwarten in der Regel eine Corporation"],
       ["Wechsel", "Später möglich, aber mit Aufwand"],
-      ["Prüfung", "Vor der Gründung, in Ihrem Auftrag enthalten"],
+      ["Steuerfragen", "Vor der Gründung zu klären — durch Partner-Steuerberater"],
     ],
     kurz: `Die LLC ist die schlankere Form: flexibel geregelt im Operating Agreement und mit einem ausländischen Gesellschafter in den USA meist kein eigenes Steuersubjekt. Die Corporation ist ein eigenes Steuersubjekt — auf Bundesebene mit ${IRS.koerperschaftsteuer} Körperschaftsteuer — und der Standard, wenn Investoren einsteigen oder Mitarbeiter beteiligt werden sollen. Für Handel, Dienstleistung und den Aufbau einer Kartenhistorie ist meist die LLC die einfachere Wahl.`,
     bloecke: [
@@ -315,7 +320,7 @@ export const WISSEN: GlobalSeite[] = [
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
-          "Die Wahl der Rechtsform hat steuerliche Folgen im Heimatland. Unser Partner-Steuerberater prüft sie vor der Gründung auf Ihr Mandat.",
+          "Die Wahl der Rechtsform hat steuerliche Folgen im Heimatland. Diese Fragen klären Partner-Steuerberater vor der Gründung, in eigener Verantwortung.",
           GLOBAL_PFLICHTHINWEIS.de[1],
         ],
       },
@@ -342,7 +347,7 @@ export const WISSEN: GlobalSeite[] = [
     auge: "Wissen · Rechtsform",
     h1: "LLC oder GmbH?",
     h1b: "Meist kein Entweder-oder.",
-    lead: "Die LLC gilt als „amerikanische GmbH“ — schneller gegründet, ohne Notar, ohne Stammkapital. Das stimmt. Aber die Frage ist selten, welche von beiden: Die GmbH ist für das Geschäft zu Hause gemacht, die LLC für das Geschäft in den USA. Oft gehört die LLC der GmbH.",
+    lead: "Die LLC gilt als „amerikanische GmbH“ — gegründet ohne Notar und ohne Stammkapital. Das stimmt. Aber die Frage ist selten, welche von beiden: Die GmbH ist für das Geschäft zu Hause gemacht, die LLC für das Geschäft in den USA. Oft gehört die LLC der GmbH.",
     ziffern: [
       { wert: "25.000 €", label: "Stammkapital einer GmbH (§ 5 GmbHG)" },
       { wert: "kein", label: "Mindestkapital und kein Notar bei der LLC" },
@@ -354,7 +359,7 @@ export const WISSEN: GlobalSeite[] = [
       ["Haftung", "Bei beiden auf das Gesellschaftsvermögen beschränkt"],
       ["Steuern", "Beide dort, wo sie geführt werden"],
       ["Typisch", "GmbH zu Hause, LLC als US-Tochter"],
-      ["Prüfung", "Vor der Gründung durch unseren Partner-Steuerberater"],
+      ["Steuerfragen", "Vor der Gründung zu klären — durch Partner-Steuerberater"],
     ],
     kurz: "Die GmbH wird mit Notar und Handelsregister gegründet und braucht 25.000 Euro Stammkapital; die LLC wird beim Bundesstaat eingereicht und braucht weder Notar noch Mindestkapital. Beide beschränken die Haftung, und beide sind dort steuerpflichtig, wo sie geführt werden. Für Unternehmen mit Geschäft in beiden Ländern ist die typische Lösung keine Wahl, sondern eine Struktur: die GmbH zu Hause als Gesellschafterin der LLC in den USA.",
     bloecke: [
@@ -376,7 +381,7 @@ export const WISSEN: GlobalSeite[] = [
         typ: "text", id: "struktur", h2: "Die typische Struktur: GmbH und LLC",
         absaetze: [
           "Wer in Deutschland ein Unternehmen führt und in den USA Geschäft aufbaut, gründet in der Regel keine LLC statt der GmbH, sondern eine LLC unter der GmbH. Die GmbH ist Gesellschafterin, die LLC schließt Verträge in den USA, führt das US-Konto und baut dort eine eigene Historie auf.",
-          "So bleiben Haftung und Zahlen des US-Geschäfts getrennt. Steuerlich ist dabei zu klären, wo die LLC geführt wird und wie sie eingeordnet wird — das prüft unser Partner-Steuerberater vor der Gründung. Gehört eine Florida-LLC einer GmbH, gibt die GmbH in Florida zudem eine eigene Steuererklärung ab.",
+          "So bleiben Haftung und Zahlen des US-Geschäfts getrennt. Steuerlich ist dabei zu klären, wo die LLC geführt wird und wie sie eingeordnet wird — diese Fragen klären Partner-Steuerberater vor der Gründung, in eigener Verantwortung. Gehört eine Florida-LLC einer GmbH, gibt die GmbH in Florida zudem eine eigene Steuererklärung ab.",
         ],
       },
       {
@@ -457,8 +462,8 @@ export const WISSEN: GlobalSeite[] = [
         typ: "hinweis", id: "strafe", h2: "Was ein Versäumnis kostet",
         punkte: [
           `Für eine fehlende oder wesentlich unvollständige Meldung kann die IRS ${IRS.strafe5472} festsetzen — ebenso, wenn die nötigen Aufzeichnungen fehlen.`,
-          "Bleibt die Meldung länger als 90 Tage nach einer Aufforderung der IRS aus, kommen für jeden weiteren Zeitraum von 30 Tagen erneut 25.000 $ hinzu.",
-          "Die erste jährliche Meldung erstellt bei FIAON Global unser US-CPA — das Honorar ist im Preis enthalten.",
+          "Bleibt die Meldung länger als neunzig Tage nach einer Aufforderung der IRS aus, kommen für jeden weiteren Zeitraum von dreißig Tagen erneut 25.000 $ hinzu.",
+          "Im ersten Jahr Ihres Mandats bei FIAON Global enthalten: die erste jährliche US-Meldung durch einen US-Steuerberater (CPA) aus unserem Partnernetz.",
         ],
       },
     ],
@@ -483,11 +488,12 @@ export const WISSEN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "LLC-Anbieter seriös? Die Prüfliste — FIAON Global",
-      // E-509 (12.11.2026): Die Prüfliste legen wir an uns selbst an — seit dem einen Produkt heißt der Punkt „Preis, der vorab feststeht“
+      // E-509 (12.11.2026): Die Prüfliste legen wir an uns selbst an — seit dem einen Produkt heißt der Punkt „Honorar, das vorab feststeht“
       // (vorher „Festpreis“: Unser Erfolgshonorar richtet sich nach dem gewählten Kapitalrahmen und steht vor dem Auftrag fest).
-      beschreibung: "Seriöse Begleitung bei der US-Gründung erkennen: Vertragspartner im Register, Preis vorab, keine Steuer- und Kreditversprechen, Partner mit Zulassung.",
+      // E-510 (13.11.2026): „Honorar“ statt „Preis“; über uns nur: „Honorar und Leistungen stehen fest, bevor Sie unterzeichnen.“ (Leitfaden 5.6 Nr. 12)
+      beschreibung: "Seriöse Begleitung bei der US-Gründung erkennen: Vertragspartner im Register, Honorar vorab, keine Steuer- und Kreditversprechen, Partner mit Zulassung.",
     },
-    stand: "2026-11-12",
+    stand: "2026-11-13",
     kennung: "FG · 28",
     auge: "Wissen · Anbieter",
     h1: "Seriös oder nicht?",
@@ -495,27 +501,27 @@ export const WISSEN: GlobalSeite[] = [
     lead: "„LLC“ ist eine Rechtsform — nicht mehr und nicht weniger. Viele Anbieter nutzen sie, gute wie schlechte. Ob eine Begleitung seriös ist, zeigt sich an acht Punkten, die Sie vor jedem Auftrag prüfen können. Wir legen dieselbe Liste an uns selbst an.",
     ziffern: [
       { wert: "8 Punkte", label: "vor jedem Auftrag prüfbar" },
-      { wert: "2 Minuten", label: "genügen für den Registercheck" },
+      { wert: "Zwei Minuten", label: "genügen für den Registercheck" },
       { wert: "Companies House", label: "FIAON LTD No. 17318250" },
     ],
     blick: [
       ["Register", "Vertragspartner mit Registernummer, prüfbar"],
-      ["Preis", "Steht vorab fest, mit Leistungsverzeichnis"],
+      ["Honorar", "Steht vorab fest, mit Leistungsverzeichnis"],
       ["Steuern", "Keine Versprechen — Pflichthinweise stattdessen"],
       ["Kredit", "Keine Zusage zu Rahmen, Karte oder Darlehen"],
-      ["Partner", "Steuerberater und Anwälte mit Zulassung, auf Ihr Mandat"],
+      ["Partner", "Steuerberater und Anwälte mit Zulassung, in eigener Verantwortung"],
       ["Offenheit", "Verbundene Gesellschaften werden genannt"],
     ],
-    kurz: "Seriöse Begleitung bei der US-Gründung erkennen Sie an einem Vertragspartner mit prüfbarer Registernummer, einem Preis, der vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen zu Steuern und Meldungen, dem Verzicht auf Zusagen zu Steuern, Karten und Krediten, Partnern mit eigener Zulassung — und daran, dass verbundene Gesellschaften offen genannt werden.",
+    kurz: "Seriöse Begleitung bei der US-Gründung erkennen Sie an einem Vertragspartner mit prüfbarer Registernummer, einem Honorar, das vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen zu Steuern und Meldungen, dem Verzicht auf Zusagen zu Steuern, Karten und Krediten, Partnern mit eigener Zulassung — und daran, dass verbundene Gesellschaften offen genannt werden.",
     bloecke: [
       {
         typ: "etappen", id: "liste", h2: "Die acht Punkte",
         etappen: [
           { titel: "Wer ist Ihr Vertragspartner?", text: "Name, Rechtsform, Sitz und Registernummer müssen im Vertrag stehen — und im Register auffindbar sein. Ohne prüfbaren Vertragspartner kein Auftrag." },
-          { titel: "Steht der Preis vorab fest — mit Leistungsverzeichnis?", text: "Was enthalten ist, steht schriftlich — auch, was ab dem zweiten Jahr anfällt. Abos, die erst nach der Unterschrift auftauchen, sind ein Warnzeichen." },
+          { titel: "Steht das Honorar vorab fest — mit Leistungsverzeichnis?", text: "Was enthalten ist, steht schriftlich — auch, was ab dem zweiten Jahr anfällt. Laufende Entgelte, die erst nach der Unterschrift auftauchen, sind ein Warnzeichen." },
           { titel: "Werden Steuern versprochen?", text: "„Steuerfrei“ oder „ohne Steuern“ verschweigt den Ort der Geschäftsleitung. Seriöse Anbieter nennen die Steuerpflicht zu Hause und die Meldepflichten." },
-          { titel: "Werden Karten, Rahmen oder Kredite zugesagt?", text: "Über Konto, Karte und Rahmen entscheidet das Institut. Wer Beträge verspricht, verspricht, was er nicht halten kann." },
-          { titel: "Wer beantwortet Steuer- und Rechtsfragen?", text: "Nur Steuerberater, US-CPA und Anwälte mit Zulassung — auf Ihr eigenes Mandat. Ein Gründungsdienst selbst darf das nicht." },
+          { titel: "Werden Karten, Rahmen oder Kredite zugesagt?", text: "Über Konto, Karte und Rahmen entscheidet das Institut. Wer einen Betrag zusagt, sagt zu, was er nicht halten kann. Ein Ziel, das Sie selbst wählen, ist keine Zusage." },
+          { titel: "Wer beantwortet Steuer- und Rechtsfragen?", text: "Nur Steuerberater, US-CPA und Anwälte mit Zulassung — in eigener Verantwortung. Ein Gründungsdienst selbst darf das nicht." },
           { titel: "Werden die US-Pflichten genannt?", text: "Form 5472, Staatsgebühr, Registered Agent: Wer sie vor dem Auftrag nicht nennt, lässt Sie mit der teuersten Frist allein." },
           { titel: "Wer hat Zugriff auf Ihr Geld?", text: "Kontoinhaber ist Ihre Gesellschaft. Ein Anbieter braucht keine Vollmacht über Ihr Konto und nimmt kein Geld für Sie entgegen." },
           { titel: "Werden Verbindungen offen genannt?", text: "Gehören Partner zum selben Eigentümer, gehört das auf die Seite — nicht ins Kleingedruckte." },
@@ -524,7 +530,7 @@ export const WISSEN: GlobalSeite[] = [
       {
         typ: "text", id: "fiaon", h2: "Dieselbe Liste für FIAON Global",
         absaetze: [
-          "Unser Vertragspartner ist die FIAON LTD, eingetragen im Companies House unter der Nummer 17318250. Der Preis steht mit Leistungsverzeichnis im Vertrag, bevor Sie unterschreiben, die laufenden Kosten ab dem zweiten Jahr nennen wir vorab. Zu Steuern geben wir keine Zusagen, und wir sagen weder Karten noch Rahmen zu.",
+          "Ihr Vertragspartner ist die FIAON LTD, eingetragen im Companies House unter der Nummer 17318250. Honorar und Leistungen stehen fest, bevor Sie unterzeichnen; die laufenden Kosten ab dem zweiten Jahr nennen wir vorab. Zu Steuern geben wir keine Zusagen, und wir sagen weder Karte noch Rahmen noch Finanzierung zu.",
           EIN_PRODUKT.de.partner,
           GLOBAL_VERBUNDEN,
         ],
@@ -539,7 +545,7 @@ export const WISSEN: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "Woran erkenne ich einen seriösen Anbieter für die US-Gründung?", a: "An einem prüfbaren Vertragspartner mit Registernummer, einem Preis, der vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen und dem Verzicht auf Zusagen zu Steuern, Karten und Krediten." },
+      { f: "Woran erkenne ich einen seriösen Anbieter für die US-Gründung?", a: "An einem prüfbaren Vertragspartner mit Registernummer, einem Honorar, das vorab feststeht, mit Leistungsverzeichnis, klaren Pflichthinweisen und dem Verzicht auf Zusagen zu Steuern, Karten und Krediten." },
       { f: "Ist eine LLC an sich unseriös?", a: "Nein. Die LLC ist eine gewöhnliche Rechtsform in den USA. Über Seriosität entscheidet, wie ein Anbieter arbeitet — nicht, welche Rechtsform er hat." },
       { f: "Wie prüfe ich die Registernummer von FIAON?", a: "Im Companies House (England and Wales) unter der Nummer 17318250." },
     ],

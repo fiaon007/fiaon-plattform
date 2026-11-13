@@ -31,14 +31,27 @@
 // Geld-zurück steht (wie im Deutschen) nicht auf dieser Seite.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Kapitalrahmen aus EIN_PRODUKT.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Honorar und Kapitalrahmen aus EIN_PRODUKT.
+// E-510 (13.11.2026, language guide): the one section about us is “What FIAON Global handles”, built from the fixed sentences
+// (step 5 in the version in force today, S7, S8, S9) — shared/fiaon-global-saetze.ts. The guarantors of an SBA loan and a parent
+// company standing as guarantor are market knowledge; no sentence says that FIAON or a connected company stands as guarantor.
+// Never here: “through to payout” (it is: through to the lender’s decision), a partner at work in the present tense, a place for
+// the partners, a country in the section on accounts, cards and financing.
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { IRS_EN, QUELLEN_WISSEN_EN as Q } from "../../fakten-en";
 
+/** Date of first publication (E-439). */
 const S = "2026-10-27";
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
 const P = EIN_PRODUKT.en;
+/** Step 5 of the fixed narrative (language guide 2.3, the version in force today) — verbatim from the one source. */
+const FINANZIERUNG = SECHS_SCHRITTE.en.find((x) => x.nr === 5)!;
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** The first two sentences of the role (S8): neither a bank nor a law firm; does not lend and does not broker loans. */
+const ROLLE = satz("S8", "en").split(/(?<=\.)\s+/).slice(0, 2).join(" ");
 
 /** Quellen dieses Beitrags — dieselben Adressen wie im Deutschen, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -65,12 +78,12 @@ export const SEITE: GlobalSeite = {
     titel: "SBA loan as a non-US citizen: the 2026 rule — FIAON Global",
     beschreibung: "SBA loan as a non-US citizen: since 1 March 2026, 7(a) and 504 loans go only to US owners living in the US. What applies and which capital routes remain.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 44",
-  auge: "Knowledge · Capital",
+  auge: "Knowledge · Financing",
   h1: "SBA loan as a non-US citizen.",
-  h1b: "This door is closed. Other routes remain.",
+  h1b: "Excluded since March 2026. Other routes remain.",
   lead: "Since 1 March 2026, loans from the 7(a) and 504 programmes of the US Small Business Administration (SBA) have been open only to companies whose owners are, without exception, US citizens or US nationals with their principal residence in the US. Green card holders are excluded too. This article sets out exactly what the rule says, what it means for entrepreneurs from Germany, Austria and Switzerland, and which routes to capital remain open to a US company.",
   ziffern: [
     { wert: "1 March 2026", label: "since then the stricter SBA rule has applied" },
@@ -84,7 +97,7 @@ export const SEITE: GlobalSeite = {
     ["Excluded", "Residence abroad, green card, visa, foreign parent company"],
     ["What remains", "Business credit, business credit cards, bank loan against collateral, equity, home bank"],
     ["Who decides", "The institution alone, on every loan"],
-    ["With FIAON Global", "One point of contact, every application prepared, price up front in the configurator"],
+    ["With FIAON Global", "Every application prepared in full, support through to the lender’s decision"],
   ],
   kurz: "No — if you live in Germany, Austria or Switzerland, your US company cannot obtain an SBA loan, whether you are a non-US citizen or a US citizen. Since 1 March 2026, 100 per cent of the direct and indirect owners must be US citizens or US nationals with their principal residence in the US (SBA Procedural Notice 5000-876626, part of SOP 50 10 8.1 since 1 October 2026); a green card, a visa, residence abroad or a foreign parent company rules out 7(a) and 504. What remains open is business credit and business credit cards, a bank loan against collateral, equity and your home bank in Europe — the institution decides on every loan.",
   bloecke: [
@@ -152,7 +165,7 @@ export const SEITE: GlobalSeite = {
         { tag: "Business credit cards", titel: "Cards based on balance and history", text: "Some business credit cards set the limit by reference to the company's account balance. As a rule they require the owner's personal guarantee; each issuer sets the terms itself.", pfad: "/en/business/knowledge/us-business-credit-card" },
         { tag: "Bank", titel: "Loan against collateral", text: "Without the SBA, the bank bears the default risk alone. It then looks at years of trading, revenue and collateral: a deposit, the parent company standing as guarantor, or a property.", pfad: "/en/business/knowledge/us-financing-routes" },
         { tag: "Equity", titel: "Contribution or shareholder loan", text: "You or your parent company fund the US company directly. If the LLC belongs solely to a foreign owner, it reports every contribution and every loan on the annual Form 5472.", pfad: "/en/business/us-subsidiary" },
-        { tag: "Europe", titel: "Your home bank", text: "Your bank in Germany, Austria or Switzerland has known your figures for years. A loan to you or your GmbH can flow into the US company as capital." },
+        { tag: "Europe", titel: "Your home bank", text: "Your bank in Germany, Austria or Switzerland knows your figures from your existing banking relationship. A loan to you or your GmbH can flow into the US company as capital." },
         { tag: "Property", titel: "Financing a property", text: "For rental properties, there are financing options that mainly assess whether the rent covers the instalments — with equity and reserves from your own funds.", pfad: "/en/business/knowledge/financing-us-property" },
       ],
     },
@@ -179,26 +192,30 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "text", id: "vorsicht", h2: "Beware when “funding” is meant to replace the SBA loan",
+      typ: "text", id: "vorsicht", h2: "Caution with substitutes for the SBA loan",
       absaetze: [
-        "Where an official route closes, offers spring up that promise fast capital without a review — often with sample limits in dollars and stacked credit cards. On 17 November 2025, the US Federal Trade Commission (FTC) announced that the provider Seek Capital and its chief executive had been permanently banned from the business financing industry to settle the FTC's allegations. According to the FTC, the company had advertised special relationships with lenders and favourable terms, but then charged business owners thousands of dollars merely to open credit cards, costing those affected millions and damaging their creditworthiness.",
-        "The benchmark that follows from this applies to every provider, including us: state fees in advance, claim no relationship with lenders that does not exist, commit to no limit, and explain openly how each application affects the credit file.",
+        "Where an official route closes, offers multiply that hold out capital without a review — often with promised limits and serial card applications. On 17 November 2025, the US Federal Trade Commission (FTC) announced that the provider Seek Capital and its chief executive had been permanently banned from the business financing industry to settle the FTC's allegations. According to the FTC, the company had advertised special relationships with lenders and favourable terms, but then charged business owners thousands of dollars merely to open credit cards, costing those affected millions and damaging their creditworthiness.",
+        "The benchmark that follows from this applies to every provider, including us: state fees and services in writing in advance, claim no relationship with lenders that does not exist, commit to no limit, and explain how each application affects the credit file.",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes over your route to capital",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "It begins with an honest assessment: we set your ownership structure against the SBA's published rules and record in writing the routes on which we plan to build your capital. For owners living in Germany, Austria or Switzerland, that currently means no SBA loan — and therefore building on the routes that remain from the very start. If a legal question remains open in an individual case, our partner lawyers clarify it under your engagement.",
-        `From then on: one point of contact instead of eight. With your power of attorney, we submit all applications for you — formation of the company, EIN, preparation of your ITIN, the D-U-N-S Number, the ongoing filings. We provide the registered agent, a US business address and a US phone number for the first year. You submit account, card and credit applications yourself, fully prepared by us and with the same details in every application. For the financing, we prepare every application in full and stay with your company through to payout. ${P.rahmenSatz}`,
-        `Our partner tax adviser clarifies with you whether a contribution or a shareholder loan is the right form and how your structure at home is treated for tax purposes; our US CPA prepares the annual Form 5472, and our partner lawyers draw up the operating agreement and formation documents. All of them act under your engagement, and FIAON bears their fees for the services in your order. Our team is based in Miami, our partner location is Zurich, and your contracting party is FIAON LTD in London. ${P.preisSatz}`,
-        "FIAON Global is a business consultancy for the move to the US, not a bank: we neither grant nor broker loans, and we commit to no limit.",
+        "For owners whose principal residence is outside the United States, an SBA loan is not available. We therefore prepare the applications on the routes that remain: we form your US company, apply for the EIN and, following our ITIN check, the ITIN, and prepare account and card applications in full.",
+        `${FINANZIERUNG.satz} ${satz("S9", "en")}`,
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${FINANZIERUNG.ihrTeil}`,
+        "Tax: partner tax advisers clarify the tax questions on contributions, shareholder loans and structure, in their own professional capacity.",
+        `${TEIL.bedingung}: ${ROLLE} FIAON makes no commitment on any limit.`,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Your capital range is your goal, not a commitment.`, paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} ${satz("S9", "en")}`, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "What you need to know",
       punkte: [
-        "FIAON is not a bank, does not grant credit, does not broker credit and does not commit to any limit. The institution alone decides on the account, the card, the limit and the loan; your capital range is a goal.",
+        `${satz("S8", "en")} FIAON makes no commitment on any limit.`,
         "Whether the SBA rule will stand remains a political question. What counts is the version in force on the day of your application — and that is the version the lender checks.",
         "An ownership structure that exists only on paper, such as a US citizen acting as a nominee owner, would be a false statement. 18 U.S.C. § 1014 makes knowingly false statements in loan applications a crime, including those made to institutions with FDIC deposit insurance.",
         GLOBAL_PFLICHTHINWEIS.en[0],
@@ -214,7 +231,7 @@ export const SEITE: GlobalSeite = {
     { f: "Does an E-2 visa with a home in Miami help?", a: "Not for the SBA loan. Visa holders are expressly listed as ineligible persons, even if they live in the US. The E-2 visa can matter for your work in the US, but it does not open the SBA route. Whether it is an option for you is assessed by immigration lawyers case by case." },
     { f: "Is it enough if a US partner holds the majority?", a: "No. The rule requires 100 per cent; a single ineligible owner is enough to exclude the company. It can only be considered if that person has fully divested their stake before the SBA loan number is assigned. An owner on paper only would be a false statement." },
     { f: "Did the GAO decision repeal the rule?", a: "No. On 1 July 2026, the US Government Accountability Office (GAO) found that the notices are a rule within the meaning of the Congressional Review Act and should have been submitted to Congress. As of 27 October 2026, we have found no repeal. On the contrary: since 1 October 2026, the rule has been part of the new version of the procedures, SOP 50 10 8.1." },
-    { f: "What financing remains for my US LLC instead?", a: "Business credit with a D-U-N-S Number and supplier accounts, business credit cards, a bank loan against collateral such as a deposit, the parent company standing as guarantor or a property, equity, and loans from your home bank in Europe. The institution decides on every loan; FIAON prepares the route and every application." },
+    { f: "What financing remains for my US LLC instead?", a: "Business credit with a D-U-N-S Number and supplier accounts, business credit cards, a bank loan against collateral such as a deposit, the parent company standing as guarantor or a property, equity, and loans from your home bank in Europe. The institution decides on every loan; FIAON prepares every application in full, and you submit the applications yourself." },
   ],
   paket: "global_kapital",
   weiter: ["/en/business/knowledge/us-financing-routes", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/us-funding-for-foreign-owned-companies", "/en/business/knowledge/e2-visa-own-us-company"],

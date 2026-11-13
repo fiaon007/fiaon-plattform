@@ -33,13 +33,26 @@
 // nach dem Zitat in GAO B-338157, Seite 8).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle, GlobalSeite } from "../typen";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Preis und Kapitalrahmen aus EIN_PRODUKT.
+// E-509 (12.11.2026): EIN Produkt statt vier Pakete — kein Paketname, Honorar und Kapitalrahmen aus EIN_PRODUKT.
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global): Der eine Abschnitt über uns heißt „Was FIAON Global dabei übernimmt“ und
+// kommt aus den festen Sätzen (Schritt 5 in der Fassung „heute“, S7, S8, S9) — shared/fiaon-global-saetze.ts. Die Bürgen des
+// SBA-Kredits und die Bürgschaft einer Muttergesellschaft sind Marktwissen; kein Satz sagt, dass FIAON oder eine verbundene
+// Gesellschaft bürgt. Nie hier: „bis zur Auszahlung“ (es heißt: bis zur Entscheidung des finanzierenden Instituts), ein Partner
+// bei der Arbeit im Präsens, ein Ort der Partner, ein Land im Abschnitt über Konto, Karte und Finanzierung.
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../ein-produkt";
 import { IRS, QUELLEN_WISSEN as Q } from "../fakten";
 
+/** Tag der Erstveröffentlichung (E-439). */
 const S = "2026-10-27";
 const P = EIN_PRODUKT.de;
+/** Schritt 5 der festen Erzählung (Leitfaden 2.2, Fassung „heute“) — wortgleich aus der einen Quelle. */
+const FINANZIERUNG = SECHS_SCHRITTE.de.find((x) => x.nr === 5)!;
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+/** Die ersten zwei Sätze der Rolle (S8): keine Bank, keine Kanzlei; vergibt und vermittelt keine Kredite. */
+const ROLLE = satz("S8").split(/(?<=\.)\s+/).slice(0, 2).join(" ");
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
 /** Quellen dieses Beitrags (Stand 27.10.2026). */
@@ -65,12 +78,12 @@ export const SEITE: GlobalSeite = {
     titel: "SBA-Kredit als Ausländer: was seit 2026 gilt — FIAON Global",
     beschreibung: "SBA-Kredit als Ausländer: Seit 1. März 2026 gibt es 7(a) und 504 nur für US-Eigentümer mit US-Wohnsitz. Was gilt und welche Kapitalwege bleiben.",
   },
-  stand: "2026-11-12",
+  stand: "2026-11-13",
   erschienen: S,
   kennung: "FG · 44",
-  auge: "Wissen · Kapital",
+  auge: "Wissen · Finanzierung",
   h1: "SBA-Kredit als Ausländer.",
-  h1b: "Diese Tür ist zu. Andere Wege bleiben.",
+  h1b: "Seit März 2026 ausgeschlossen. Andere Wege bleiben.",
   lead: "Seit dem 1. März 2026 gibt es Kredite aus den Programmen 7(a) und 504 der US-Mittelstandsbehörde SBA nur noch für Gesellschaften, deren Eigentümer ausnahmslos US-Bürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sind. Auch Inhaber einer Green Card sind ausgeschlossen. Hier steht, was die Regel genau sagt, was sie für Unternehmer aus Deutschland, Österreich und der Schweiz bedeutet und welche Kapitalwege einer US-Gesellschaft offen bleiben.",
   ziffern: [
     { wert: "1. März 2026", label: "seitdem gilt die verschärfte SBA-Regel" },
@@ -84,7 +97,7 @@ export const SEITE: GlobalSeite = {
     ["Ausgeschlossen", "Wohnsitz im Ausland, Green Card, Visum, ausländische Muttergesellschaft"],
     ["Was bleibt", "Firmenbonität, Firmenkarten, Bank mit Sicherheiten, Eigenkapital, Hausbank"],
     ["Wer entscheidet", "Über jeden Kredit allein das Institut"],
-    ["Mit FIAON Global", "Ein Ansprechpartner, jeder Antrag vorbereitet, Preis vorab im Konfigurator"],
+    ["Mit FIAON Global", "Jeder Antrag vollständig vorbereitet, Begleitung bis zur Entscheidung des Instituts"],
   ],
   kurz: "Nein — wer in Deutschland, Österreich oder der Schweiz lebt, bekommt für seine US-Gesellschaft keinen SBA-Kredit. Seit dem 1. März 2026 müssen 100 Prozent der direkten und indirekten Eigentümer US-Bürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626, seit 1. Oktober 2026 Teil der SOP 50 10 8.1); Green Card, Visum, Wohnsitz im Ausland oder eine ausländische Muttergesellschaft schließen 7(a) und 504 aus. Offen bleiben Firmenbonität und Firmenkarten, ein Bankkredit gegen Sicherheiten, Eigenkapital und die Hausbank in Europa — über jeden Kredit entscheidet das Institut.",
   bloecke: [
@@ -152,7 +165,7 @@ export const SEITE: GlobalSeite = {
         { tag: "Firmenkarten", titel: "Karten nach Guthaben und Historie", text: "Manche Firmenkarten richten den Rahmen am Kontostand der Gesellschaft aus. In der Regel verlangen sie die persönliche Haftung des Inhabers; die Bedingungen legt jeder Herausgeber selbst fest.", pfad: "/business/wissen/us-firmenkarte-beantragen" },
         { tag: "Bank", titel: "Kredit gegen Sicherheiten", text: "Ohne SBA trägt die Bank das Ausfallrisiko allein. Sie sieht dann auf Geschäftsjahre, Umsatz und Sicherheiten: eine Einlage, eine Bürgschaft der Muttergesellschaft oder eine Immobilie.", pfad: "/business/wissen/finanzierungswege-usa" },
         { tag: "Eigenkapital", titel: "Einlage oder Gesellschafterdarlehen", text: "Sie oder Ihre Muttergesellschaft statten die US-Gesellschaft selbst aus. Gehört die LLC allein einem ausländischen Eigentümer, meldet sie jede Einlage und jedes Darlehen mit der jährlichen Form 5472.", pfad: "/business/tochtergesellschaft-usa" },
-        { tag: "Europa", titel: "Die Hausbank zu Hause", text: "Ihre Bank in Deutschland, Österreich oder der Schweiz kennt Ihre Zahlen seit Jahren. Ein Kredit an Sie oder Ihre GmbH kann als Kapital in die US-Gesellschaft fließen." },
+        { tag: "Europa", titel: "Die Hausbank zu Hause", text: "Ihre Bank in Deutschland, Österreich oder der Schweiz kennt Ihre Zahlen aus der laufenden Geschäftsbeziehung. Ein Kredit an Sie oder Ihre GmbH kann als Kapital in die US-Gesellschaft fließen." },
         { tag: "Objekt", titel: "Immobilie finanzieren", text: "Für Mietobjekte gibt es Finanzierungen, die vor allem prüfen, ob die Miete die Rate deckt — mit Eigenkapital und Reserven aus eigenen Mitteln.", pfad: "/business/wissen/us-immobilie-finanzieren" },
       ],
     },
@@ -179,26 +192,30 @@ export const SEITE: GlobalSeite = {
       ],
     },
     {
-      typ: "text", id: "vorsicht", h2: "Vorsicht, wenn „Funding“ den SBA-Kredit ersetzen soll",
+      typ: "text", id: "vorsicht", h2: "Vorsicht bei Ersatzangeboten für den SBA-Kredit",
       absaetze: [
-        "Wo ein offizieller Weg schließt, wachsen Angebote, die schnelles Kapital ohne Prüfung versprechen — oft mit Beispielrahmen in Dollar und gestapelten Kreditkarten. Die US-Handelsaufsicht FTC hat am 17. November 2025 bekannt gemacht, dass der Anbieter Seek Capital und sein Geschäftsführer zur Beilegung ihrer Vorwürfe dauerhaft aus dem Geschäft mit Unternehmensfinanzierung verbannt sind. Nach Darstellung der FTC hatte das Unternehmen mit besonderen Beziehungen zu Kreditgebern und günstigen Konditionen geworben, Unternehmern dann aber Tausende Dollar allein dafür berechnet, Kreditkarten zu eröffnen; das kostete die Betroffenen Millionen und schadete ihrer Kreditwürdigkeit.",
-        "Der Maßstab daraus gilt für jeden Anbieter, auch für uns: Gebühren vorher nennen, keine Beziehung zu Kreditgebern behaupten, die es nicht gibt, keinen Rahmen zusagen und offen erklären, wie jeder Antrag auf die Kreditakte wirkt.",
+        "Wo ein offizieller Weg schließt, mehren sich Angebote, die Kapital ohne Prüfung in Aussicht stellen — oft mit zugesagten Rahmen und Kartenanträgen in Serie. Die US-Handelsaufsicht FTC hat am 17. November 2025 bekannt gemacht, dass der Anbieter Seek Capital und sein Geschäftsführer zur Beilegung ihrer Vorwürfe dauerhaft vom Geschäft mit Unternehmensfinanzierung ausgeschlossen sind. Nach Darstellung der FTC hatte das Unternehmen mit besonderen Beziehungen zu Kreditgebern und vorteilhaften Konditionen geworben, Unternehmern dann aber Tausende Dollar allein dafür berechnet, Kreditkarten zu eröffnen; das kostete die Betroffenen Millionen und schadete ihrer Kreditwürdigkeit.",
+        "Der Maßstab daraus gilt für jeden Anbieter, auch für uns: Honorar und Leistungen vorab schriftlich nennen, keine Beziehung zu Kreditgebern behaupten, die es nicht gibt, keinen Rahmen zusagen und erklären, wie jeder Antrag auf die Kreditakte wirkt.",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "So übernimmt FIAON Global Ihren Weg zum Kapital",
+      typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        "Am Anfang steht eine ehrliche Bestandsaufnahme: Wir legen Ihre Eigentümerstruktur neben die veröffentlichten Regeln der SBA und halten schriftlich fest, auf welchen Wegen wir Ihren Kapitalaufbau planen. Für Eigentümer, die in Deutschland, Österreich oder der Schweiz leben, heißt das heute: kein SBA-Kredit — und deshalb von Anfang an der Aufbau auf den Wegen, die bleiben. Bleibt im Einzelfall eine Rechtsfrage offen, klären sie unsere Partner-Anwälte in Ihrem Mandat.",
-        `Danach gilt: ein Ansprechpartner statt acht. Mit Ihrer Vollmacht stellen wir alle Anträge für Sie — Gründung der Gesellschaft, EIN, die Vorbereitung Ihrer ITIN, die D-U-N-S-Nummer, die laufenden Meldungen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer stellen wir für das erste Jahr. Konto-, Karten- und Kreditanträge stellen Sie selbst, vollständig von uns vorbereitet und in jedem Antrag mit denselben Angaben. Für die Finanzierung bereiten wir jeden Antrag vollständig vor und begleiten Ihre Gesellschaft bis zur Auszahlung. ${P.rahmenSatz}`,
-        `Ob Einlage oder Gesellschafterdarlehen und wie Ihre Struktur zu Hause steuerlich behandelt wird, klärt unser Partner-Steuerberater mit Ihnen; die jährliche Form 5472 erstellt unser US-CPA, Operating Agreement und Gründungsunterlagen erstellen unsere Partner-Anwälte. Sie alle arbeiten in Ihrem Mandat, ihre Honorare für die Leistungen Ihres Auftrags trägt FIAON. Unser Team sitzt in Miami, unser Partnerstandort ist Zürich, Ihr Vertragspartner ist die FIAON LTD in London. ${P.preisSatz}`,
-        "FIAON Global ist eine Unternehmensberatung für den Weg in die USA, keine Bank: Wir vergeben und vermitteln keine Kredite und sagen keinen Rahmen zu.",
+        "Für Eigentümer mit Hauptwohnsitz außerhalb der USA kommt ein SBA-Kredit nicht in Betracht. Wir bereiten deshalb die Anträge auf den Wegen vor, die bleiben: Wir gründen Ihre US-Gesellschaft, beantragen die EIN und, nach unserem ITIN-Check, die ITIN und bereiten Konto- und Kartenanträge vollständig vor.",
+        `${FINANZIERUNG.satz} ${satz("S9")}`,
+      ],
+      punkte: [
+        `${TEIL.ihrTeil}: ${FINANZIERUNG.ihrTeil}`,
+        "Steuern: Steuerfragen zu Einlage, Gesellschafterdarlehen und Struktur klären Partner-Steuerberater in eigener Verantwortung.",
+        `${TEIL.bedingung}: ${ROLLE} FIAON sagt keinen Rahmen zu.`,
+        P.geldZurueck,
       ],
     },
-    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} Ihr Kapitalrahmen ist Ihr Ziel, keine Zusage.`, paket: "global_kapital" },
+    { typ: "paket", id: "mandat", h2: P.karteH2, lead: `${P.karteLead} ${satz("S9")}`, paket: "global_kapital" },
     {
       typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
       punkte: [
-        "FIAON ist keine Bank, vergibt keine Kredite, vermittelt keine Kredite und sagt keinen Rahmen zu. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das Institut; Ihr Kapitalrahmen ist ein Ziel.",
+        `${satz("S8")} FIAON sagt keinen Rahmen zu.`,
         "Ob die SBA-Regel Bestand hat, ist politisch offen. Maßgeblich ist die Fassung, die am Tag Ihres Antrags gilt — sie prüft der Kreditgeber.",
         "Eine Eigentümerstruktur nur auf dem Papier, etwa ein US-Bürger als vorgeschobener Inhaber, wäre eine Falschangabe. 18 U.S.C. § 1014 stellt wissentlich falsche Angaben in Kreditanträgen unter Strafe, unter anderem gegenüber Instituten mit FDIC-Einlagensicherung.",
         GLOBAL_PFLICHTHINWEIS.de[0],
@@ -214,7 +231,7 @@ export const SEITE: GlobalSeite = {
     { f: "Hilft ein E-2-Visum mit Wohnsitz in Miami?", a: "Für den SBA-Kredit nicht. Visuminhaber zählen ausdrücklich zu den ausgeschlossenen Personen, auch wenn sie in den USA wohnen. Das E-2-Visum kann für Ihre Arbeit in den USA wichtig sein, den SBA-Weg öffnet es nicht. Ob es für Sie in Frage kommt, prüfen Einwanderungsanwälte im Einzelfall." },
     { f: "Reicht es, wenn ein US-Partner die Mehrheit hält?", a: "Nein. Die Regel verlangt 100 Prozent, ein einziger nicht berechtigter Eigentümer genügt für den Ausschluss. In Frage kommt die Gesellschaft erst, wenn diese Person ihren Anteil vor der Vergabe der SBA-Kreditnummer vollständig abgegeben hat. Ein Inhaber nur auf dem Papier wäre eine Falschangabe." },
     { f: "Hat der GAO-Entscheid die Regel aufgehoben?", a: "Nein. Der US-Rechnungshof GAO hat am 1. Juli 2026 festgestellt, dass die Notices eine Regel im Sinne des Congressional Review Act sind und dem Kongress hätten vorgelegt werden müssen. Eine Aufhebung haben wir bis zum 27. Oktober 2026 nicht gefunden. Im Gegenteil: Seit dem 1. Oktober 2026 steht die Regel in der neuen Fassung SOP 50 10 8.1 der Verfahrensordnung." },
-    { f: "Welche Finanzierung bleibt meiner US-LLC stattdessen?", a: "Firmenbonität mit D-U-N-S-Nummer und Lieferantenkonten, Firmenkarten, ein Bankkredit gegen Sicherheiten wie Einlage, Bürgschaft der Muttergesellschaft oder Immobilie, Eigenkapital und Kredite Ihrer Hausbank in Europa. Über jeden Kredit entscheidet das Institut; FIAON bereitet den Weg und jeden Antrag vor." },
+    { f: "Welche Finanzierung bleibt meiner US-LLC stattdessen?", a: "Firmenbonität mit D-U-N-S-Nummer und Lieferantenkonten, Firmenkarten, ein Bankkredit gegen Sicherheiten wie Einlage, Bürgschaft der Muttergesellschaft oder Immobilie, Eigenkapital und Kredite Ihrer Hausbank in Europa. Über jeden Kredit entscheidet das Institut; FIAON bereitet jeden Antrag vollständig vor, die Anträge stellen Sie selbst." },
   ],
   paket: "global_kapital",
   weiter: ["/business/wissen/finanzierungswege-usa", "/business/wissen/business-credit-usa", "/business/wissen/us-funding", "/business/wissen/e2-visum"],

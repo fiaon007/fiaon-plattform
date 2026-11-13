@@ -12,12 +12,37 @@
 // Wortwand wie in wissen-konto-karten.ts: kein Bankname, kein „bis zu“, keine
 // Empfehlung, keine Zusage; über jeden Kredit entscheidet das Institut, FIAON
 // vermittelt keine Kredite. Marktzahlen nur mit Quelle und Stand.
+//
+// E-510 (13.11.2026, Sprachleitfaden FIAON Global, Baustein „Wissens-Artikel“ 7.4):
+// je Seite EIN Abschnitt „Was FIAON Global dabei übernimmt“ mit „Sie selbst“ und
+// „wer entscheidet“; die festen Sätze (Schritt 5 „Finanzierung“, S1, S7, S9) kommen
+// wortgleich aus shared/fiaon-global-saetze.ts. Nie hier: ein Konto, das WIR eröffnen
+// (den Antrag stellt der Klient, es entscheidet das Institut), ein Name für die Abfolge
+// der Kartenanträge, eine Zusage, Tempo als Argument. Der Satz zur Erstattung (S7)
+// steht nur auf der Seite „Finanzierungswege“ — er gilt für die Finanzierung im
+// gewählten Kapitalrahmen, nicht für Objektkredite, Konto oder Karten.
 // ═══════════════════════════════════════════════════════════════════════════
 import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, satz } from "../fiaon-global-saetze";
+import { EIN_PRODUKT } from "./ein-produkt";
 import { QUELLEN_WISSEN as Q } from "./fakten";
 import type { GlobalQuelle, GlobalSeite } from "./typen";
 
-const S = "2026-10-20";
+/** Tag der Erstveröffentlichung (E-416). */
+const ERSCHIENEN = "2026-10-20";
+/** Tag der letzten inhaltlichen Änderung (E-510, Sprachleitfaden). */
+const S = "2026-11-13";
+const P = EIN_PRODUKT.de;
+/** Schritt 5 der festen Erzählung (Leitfaden 2.2, Fassung „heute“) — wortgleich aus der einen Quelle. */
+const FINANZIERUNG = SECHS_SCHRITTE.de.find((x) => x.nr === 5)!;
+/** Die Namen der festen Teile eines Schritts: „Ihr Teil“, „Bedingung“ (Leitfaden 2.1). */
+const TEIL = SCHRITTE_KOPF.de.teile;
+/** Überschrift des einen Abschnitts über uns (Leitfaden 7.4). */
+const FIAON_H2 = "Was FIAON Global dabei übernimmt";
+/** Der Entscheider-Satz aus S2: „Über Konto, Karte und Rahmen entscheidet das jeweilige Institut.“ */
+const INSTITUT = satz("S2").split(/(?<=\.)\s+/)[1];
+/** Die ersten zwei Sätze der Rolle (S8): keine Bank, keine Kanzlei; vergibt und vermittelt keine Kredite. */
+const ROLLE = satz("S8").split(/(?<=\.)\s+/).slice(0, 2).join(" ");
 const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.de.satz} ${GLOBAL_KAPITAL_FREI.de.steuer}`;
 
 / Quellen dieser drei Beiträge (Stand 20.10.2026). */
@@ -48,7 +73,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       beschreibung: "Wohnadresse, Postadresse, Postannahmestelle: wie US-Banken Anschrift und Telefonnummer prüfen und warum beides überall gleich sein muss.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 40",
     auge: "Wissen · US-Präsenz",
     h1: "Anschrift und Telefon.",
@@ -113,13 +138,16 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So hält FIAON Global Anschrift und Telefon sauber",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Bevor ein Antrag rausgeht, prüfen wir jede US-Anschrift in den Postdaten: CMRA oder nicht, Wohnung oder Gewerbe, vollständig zustellbar. Wir sorgen dafür, dass Name, Anschrift und Telefonnummer in jedem Antrag identisch sind, und führen sie in Ihrer Akte, damit niemand später anders schreibt.",
-          "Die Wahl der Anschrift treffen Sie. Wir sagen Ihnen offen, wie ein Institut sie sehen wird.",
+          "Vor jedem Antrag prüfen wir die US-Anschrift in den Postdaten: CMRA oder nicht, Wohnung oder Gewerbe, vollständig zustellbar. Name, Anschrift und Telefonnummer führen wir in Ihrer Akte, damit sie in jedem Antrag übereinstimmen. Registered Agent, US-Geschäftsadresse und US-Telefonnummer Ihrer Gesellschaft sind im ersten Jahr Ihres Mandats enthalten.",
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: Die Wahl der Anschrift treffen Sie; die Anträge stellen Sie selbst.`,
+          `${TEIL.bedingung}: Ob ein Institut eine Anschrift akzeptiert, entscheidet das Institut.`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "US-Präsenz in Ihrem Auftrag", lead: "Registered Agent, US-Geschäftsadresse und US-Telefonnummer für das erste Jahr, dazu die vorbereiteten Konto- und Kartenanträge — in einem Auftrag.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "Die US-Präsenz in Ihrem Mandat", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -149,17 +177,17 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       titel: "US-Immobilie finanzieren als Ausländer — FIAON Global",
       beschreibung: "Wie Ausländer eine US-Immobilie finanzieren: Mietdeckung statt Einkommen, Eigenkapital, Reserven, Herkunft der Mittel, Abschluss aus der Ferne, FIRPTA.",
     },
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 41",
     auge: "Wissen · Immobilien in den USA",
     h1: "Eine US-Immobilie finanzieren.",
     h1b: "Die Miete trägt den Kredit.",
-    lead: "Für ausländische Investoren gibt es in den USA eine eigene Art der Objektfinanzierung: Der Kreditgeber prüft vor allem, ob die Miete die Rate deckt, nicht Ihr Einkommen oder eine US-Bonität. Hier steht, wie das funktioniert, welches Eigenkapital der Markt erwartet und was Sie vor dem Kauf wissen müssen.",
+    lead: "Für ausländische Investoren gibt es in den USA eine eigene Art der Objektfinanzierung: Der Kreditgeber prüft vor allem, ob die Miete die Rate deckt, nicht Ihr Einkommen oder eine US-Bonität. Hier steht, wie diese Finanzierung aufgebaut ist, welches Eigenkapital der Markt erwartet und was Sie vor dem Kauf wissen müssen.",
     ziffern: [
       { wert: "1,0", label: "Mietdeckung: Miete deckt die Rate" },
       { wert: "20 – 35 %", label: "Eigenkapital laut Marktangaben 2026" },
-      { wert: "21 – 45 Tage", label: "vom vollständigen Antrag bis zur Auszahlung" },
+      { wert: "21 – 45 Tage", label: "Dauer ab vollständigem Antrag laut Marktangaben 2026" },
     ],
     blick: [
       ["Was zählt", "Die Mieteinnahme des Objekts (DSCR)"],
@@ -221,18 +249,21 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "So bereitet FIAON Global den Kauf vor",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Wir gründen die Gesellschaft, die das Objekt hält, beantragen die EIN, eröffnen das Konto und stellen die Unterlagen zusammen, die Kreditgeber sehen wollen. Die Steuerfragen zu Struktur, Mieteinnahmen und Verkauf klärt unser Partner-Steuerberater mit Ihnen vor dem Kauf.",
-          "FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Über jede Finanzierung entscheidet der Kreditgeber.",
+          "Wir gründen die Gesellschaft, die das Objekt hält, beantragen die EIN, bereiten den Kontoantrag vollständig vor und stellen die Unterlagen zusammen, die Kreditgeber verlangen. Steuerfragen zu Struktur, Mieteinnahmen und Verkauf klären Partner-Steuerberater vor dem Kauf, in eigener Verantwortung.",
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: Konto- und Kreditantrag stellen Sie selbst; den Darlehensvertrag schließt Ihre Gesellschaft im eigenen Namen.`,
+          `${TEIL.bedingung}: ${ROLLE} Über jede Finanzierung entscheidet der Kreditgeber.`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Die Gesellschaft für Ihr Objekt", lead: "Gesellschaft, Steuernummern, Konto und die vorbereiteten Unterlagen für Kreditgeber — in einem Auftrag.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: "Die Gesellschaft für Ihr Objekt", lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           "Beim Verkauf behält der Käufer nach FIRPTA in der Regel 15 Prozent des Preises für die US-Steuer ein, bei selbst genutzten Objekten bis 1 Mio. $ teils weniger. Zu viel Einbehaltenes holt die Steuererklärung zurück.",
-          "Hält eine Person das Objekt direkt, kann in den USA Erbschaftsteuer anfallen; die passende Struktur klärt der Partner-Steuerberater vor dem Kauf.",
+          "Hält eine Person das Objekt direkt, kann in den USA Erbschaftsteuer anfallen; die Struktur klären Partner-Steuerberater vor dem Kauf, in eigener Verantwortung.",
           "Marktzahlen sind keine Zusage. Über Kredit, Höhe und Zins entscheidet allein der Kreditgeber.",
           GLOBAL_PFLICHTHINWEIS.de[0],
         ],
@@ -259,19 +290,19 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       titel: "Finanzierungswege einer US-Gesellschaft — FIAON Global",
       beschreibung: "Karten, Lieferantenkonten, Firmenkarten nach Guthaben, Plattformkredite, Kreditlinie, Objektfinanzierung: was einer US-Gesellschaft offensteht.",
     },
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 42",
     auge: "Wissen · Finanzierung",
     h1: "Finanzierungswege in den USA.",
-    h1b: "Nach Tempo und Grundlage.",
-    lead: "Eine US-Gesellschaft hat mehr als einen Weg zu Kapital. Manche öffnen sich nach Tagen, andere erst nach Jahren; manche hängen an Ihrer Person, andere am Konto, am Umsatz oder an einer Sicherheit. Hier steht, welcher Weg worauf beruht, damit Sie die Reihenfolge planen können.",
+    h1b: "Nach Grundlage und Zeitrahmen.",
+    lead: "Einer US-Gesellschaft stehen mehrere Finanzierungswege offen. Manche öffnen sich nach Tagen, andere erst nach Jahren; manche hängen an Ihrer Person, andere am Konto, am Umsatz oder an einer Sicherheit. Hier steht, welcher Weg worauf beruht, damit Sie die Reihenfolge planen können.",
     ziffern: [
       { wert: "6 Wege", label: "von der Karte bis zur Objektfinanzierung" },
       { wert: "1 Regel", label: "über jeden Kredit entscheidet das Institut" },
     ],
     blick: [
-      ["Schnell und klein", "Persönliche Karten, Lieferantenkonten"],
+      ["Früh und klein", "Persönliche Karten, Lieferantenkonten"],
       ["Nach Guthaben", "Firmenkarten, deren Rahmen dem Kontostand folgt"],
       ["Nach Umsatz", "Kredite von Zahlungsplattformen"],
       ["Mit Geschichte", "Kreditlinie der Bank, meist nach zwei Jahren"],
@@ -282,7 +313,7 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
     bloecke: [
       {
         typ: "tabelle", id: "uebersicht", h2: "Die sechs Wege im Überblick",
-        kopf: ["Weg", "Grundlage", "Tempo", "Größenordnung"],
+        kopf: ["Weg", "Grundlage", "Üblicher Zeitrahmen", "Größenordnung"],
         zeilen: [
           ["Persönliche Karten", "Ihre persönliche Akte (ITIN oder SSN)", "Tage nach Zusage", "klein, wächst mit der Historie"],
           ["Lieferantenkonten (Net 30)", "Firmenakte, D-U-N-S-Nummer", "Wochen", "klein bis mittel"],
@@ -308,24 +339,28 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
         typ: "text", id: "grenzen", h2: "Wo die Grenzen liegen",
         absaetze: [
           "Staatlich gestützte Kleinunternehmerkredite der SBA (Programme 7(a) und 504) stehen seit dem 1. März 2026 nur Gesellschaften offen, deren Eigentümer ausnahmslos US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sind — auch Inhaber einer Green Card sind ausgeschlossen. Manche Online-Kreditgeber vergeben Kredite nur an Inhaber mit Wohnsitz in den USA.",
-          "Große Beträge allein über gestapelte Karten aufzubauen, ist kein belegter Weg. Die US-Handelsaufsicht FTC hat 2025 einen Anbieter verurteilt, der Unternehmern Finanzierungen versprach und stattdessen Kreditkarten beantragte.",
+          "Große Beträge allein über viele Kartenanträge in kurzer Zeit aufzubauen, ist kein belegter Weg. Auf Klage der US-Handelsaufsicht FTC ist einem Anbieter, der Unternehmern Finanzierungen in Aussicht stellte und stattdessen Kreditkarten beantragte, seit 2025 das Finanzierungsgeschäft dauerhaft untersagt.",
         ],
       },
       {
         typ: "text", id: "kapital", h2: "Wofür das Kapital eingesetzt werden kann",
         absaetze: [
           KAPITAL_FREI,
-          "Teure kurzfristige Mittel lohnen sich nur, wenn die Rendite nachweisbar darüber liegt. Saubere Zahlen der Gesellschaft öffnen günstigere Wege als jede Eile.",
+          "Kurzfristige Mittel mit hohen Kosten tragen sich nur, wenn der Ertrag nachweisbar darüber liegt. Für langfristige Wege zählen geordnete Zahlen der Gesellschaft; die Bedingungen legt jedes Institut selbst fest.",
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "Was FIAON Global dabei tut",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "Wir bauen die Grundlage, auf der Institute entscheiden: Gesellschaft, Konto, einheitliche Stammdaten, Kennziffer, Lieferantenkonten, vollständige Unterlagen. Wir planen die Reihenfolge der Anträge und bereiten jeden vor.",
-          "FIAON ist keine Bank und vergibt und vermittelt keine Kredite. Über jeden Kredit entscheidet das Institut.",
+          "Wir legen die Grundlage, auf der Institute entscheiden: die Gründung, einheitliche Stammdaten und vollständige Unterlagen. Konto- und Kartenanträge bereiten wir vollständig vor; die Anträge stellen Sie selbst.",
+          `${FINANZIERUNG.satz} ${satz("S9")}`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${INSTITUT} ${ROLLE}`,
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Der ganze Weg in einem Auftrag", lead: "Gesellschaft, Konto, Kartenleiter und die Begleitung bis zur Finanzierung in Ihrem Kapitalrahmen.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
@@ -336,10 +371,10 @@ export const WISSEN_FINANZIERUNG: GlobalSeite[] = [
       },
     ],
     fragen: [
-      { f: "Welche Finanzierung bekommt eine neue US-Gesellschaft am schnellsten?", a: "Firmenkarten, deren Rahmen sich am Guthaben orientiert, und Lieferantenkonten mit Zahlungsziel. Kreditlinien der Bank setzen meist Geschäftsjahre, Umsatz oder eine Sicherheit voraus." },
+      { f: "Welche Finanzierung steht einer neuen US-Gesellschaft zuerst offen?", a: "Firmenkarten, deren Rahmen sich am Guthaben orientiert, und Lieferantenkonten mit Zahlungsziel. Kreditlinien der Bank setzen meist Geschäftsjahre, Umsatz oder eine Sicherheit voraus. Über jeden Antrag entscheidet das Institut." },
       { f: "Bekommt eine LLC aus Europa einen SBA-Kredit?", a: "Nein. Seit dem 1. März 2026 müssen alle direkten und indirekten Eigentümer US-Staatsbürger oder US-Staatsangehörige mit Hauptwohnsitz in den USA sein (SBA Procedural Notice 5000-876626); auch eine Green Card genügt nicht." },
       { f: "Kann eine Muttergesellschaft in Europa für die US-Gesellschaft bürgen?", a: "Ja, das ist ein üblicher Weg zu einer Kreditlinie. Die Bank prüft dann vor allem die Bilanz der Muttergesellschaft." },
-      { f: "Beschafft FIAON den Kredit für meine US-Gesellschaft?", a: "Nein. FIAON ist keine Bank, vergibt und vermittelt keine Kredite. Wir bereiten Gesellschaft, Unterlagen und Reihenfolge vor; das Institut entscheidet." },
+      { f: "Beschafft FIAON den Kredit für meine US-Gesellschaft?", a: `Nein. ${ROLLE} Wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung; es entscheidet das finanzierende Institut.` },
     ],
     paket: "global_kapital",
     weiter: ["/business/wissen/business-credit-usa", "/business/wissen/us-firmenkarte-beantragen", "/business/wissen/us-funding", "/business/firmenkarten-kapital"],

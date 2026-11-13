@@ -11,15 +11,44 @@
 // Einführungszeitraum ist „without debit interest" (nie „0%"), die persönliche
 // Haftung ist die „personal guarantee". Über Konto, Karte und Rahmen entscheidet
 // das Institut bzw. der Herausgeber; FIAON ist keine Bank, vergibt und vermittelt
-// keine Kredite. Der Fall FTC v. Seek Capital (17.11.2025) steht mit denselben
-// Zahlen wie im Deutschen da.
+// keine Kredite. Der Fall FTC v. Seek Capital (Entscheidung 16.09.2025, Anordnung
+// 01.10.2025, Mitteilung der FTC 17.11.2025) steht mit denselben Zahlen wie im
+// Deutschen da.
+//
+// E-510 (13.11.2026, language guide, building block “knowledge article” 7.4): one
+// section per page, “What FIAON Global handles” — what we do, your part, the
+// condition (who decides). Steps 3 (accounts) and 4 (credit cards on request) and
+// the fixed sentences come verbatim from shared/fiaon-global-saetze.ts. Never here:
+// a name for the sequence of card applications, a commitment on an account, card or
+// limit, an interest rate as a figure or an order of magnitude, a warning sign that
+// would describe our own fee (guide 5.6 no. 12), sentence S16 (reservation V3), a
+// “team on the ground”. The introductory period without debit interest appears as
+// ONE sentence of market knowledge, with evidence (guide 7.4).
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_ROLLEN } from "../../fiaon-global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "../../fiaon-global";
+import { SCHRITTE_KOPF, SECHS_SCHRITTE, beleg, satz, type Schritt, type SchrittNr } from "../../fiaon-global-saetze";
+import { EIN_PRODUKT } from "../ein-produkt";
 import { FAKTEN_STAND_EN, QUELLEN_WISSEN_EN as Q, SCHWELLEN_EN } from "../fakten-en";
 import type { GlobalQuelle, GlobalSeite } from "../typen";
 
-const S = "2026-09-24";
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
+/** Date of first publication (E-234). */
+const ERSCHIENEN = "2026-09-24";
+/** Date of the last change in substance (E-510, language guide). */
+const S = "2026-11-13";
+const P = EIN_PRODUKT.en;
+/** One step of the fixed narrative (language guide 2.3) — sentence, condition and “your part” from the one source. */
+const schritt = (nr: SchrittNr): Schritt => SECHS_SCHRITTE.en.find((x) => x.nr === nr)!;
+const KONTEN = schritt(3);
+const KARTEN = schritt(4);
+const FINANZIERUNG = schritt(5);
+/** The names of the fixed parts of a step: “Your part”, “Condition” (language guide 2.1). */
+const TEIL = SCHRITTE_KOPF.en.teile;
+/** Heading of the one section about us (language guide 7.4). */
+const FIAON_H2 = "What FIAON Global handles";
+/** The decision sentence from S2: “Each institution makes its own decision on accounts, cards and limits.” */
+const INSTITUT = satz("S2", "en").split(/(?<=\.)\s+/)[1];
+/** The one sentence of market knowledge on the introductory period (language guide 7.4) — once per page, with evidence. */
+const EINFUEHRUNG = "Some issuers offer introductory periods without debit interest; each issuer sets its own terms.";
 // Der deutsche Titel trägt das Datum als „17.11.2025" — auf Englisch mit Monatsnamen (dieselbe Adresse).
 const QUELLE_FTC_SEEK: GlobalQuelle = { titel: "FTC — Seek Capital and CEO permanently banned (17 November 2025)", url: Q.ftcSeek.url };
 
@@ -36,12 +65,12 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       beschreibung: "Which documents US institutions require to open an LLC bank account, why they ask, why applications fail and what deposit insurance covers.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 34",
     auge: "Knowledge · Account",
     h1: "The LLC’s US account.",
     h1b: "What institutions want to see.",
-    lead: "An application for a US business account rarely fails because of the company itself; it fails because of the documents: a missing document, an address that does not match, a business nobody understands. Here is what institutions require, why they are obliged to require it — and what an application that holds up first time looks like.",
+    lead: "An application for a US business account rarely fails because of the company itself; it fails because of the documents: a missing document, an address that does not match, a business nobody understands. Here is what institutions require, why they are obliged to require it — and what a complete application contains.",
     ziffern: [
       { wert: "7 documents", label: "that almost every institution requires" },
       { wert: "25%", label: "every shareholder with this share or more is identified" },
@@ -114,19 +143,21 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
           { titel: "Gather the documents", text: "All seven documents, with identical names and addresses, in one file." },
           { titel: "Describe the business", text: "Two paragraphs a stranger can understand: what, for whom, in which countries, with what revenue and which payment channels." },
           { titel: "Choose the institution", text: "Based on your business, currencies, online opening and later cards — not on advertising." },
-          { titel: "Application and follow-up questions", text: "Follow-up questions almost always come. Those who answer them quickly and consistently have the best prospects." },
+          { titel: "Application and follow-up questions", text: "Follow-up questions almost always come. Answer them in full and consistently; the institution decides on the application." },
           { titel: "Opening and first deposit", text: "Once the account is approved, the first deposit follows — with proof of where the money comes from. For an LLC with a foreign shareholder (member), it is also a reportable transaction for Form 5472." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global gets your account under way",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "At FIAON Global, the account application does not begin with a form but with your business. We write the business description with you, compile all documents with identical details, choose the institution to suit your plans and prepare the application in full. We support you through the institution’s follow-up questions; if an institution requires an in-person appointment, our team in Miami goes with you.",
-          `The account is the start of the card ladder: we then plan the sequence of further issuers and prepare every application.`,
-          GLOBAL_ROLLEN.en.fiaon,
+          `${KONTEN.satz} We write the business description with you, compile the documents with identical details and support you through the institution’s follow-up questions. If an institution requires an in-person appointment, we prepare it with you.`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${KONTEN.bedingung}`,
+          `Cards: ${satz("S4", "en")}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "Account and cards in your order", lead: "From the first account application to a planned sequence of further issuers — in one order.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The account applications in your engagement", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -160,8 +191,8 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       beschreibung: "Why SCHUFA does not count in the US, how the FICO Score is made up, what you need for a first score and how a US credit history grows.",
     },
     // 27.10.2026: wie die deutsche Schwester — Abschnitt „schufa-usa“, EO 14406 Sec. 3(a)(vi) im Abschnitt „null“, eine Frage.
-    stand: "2026-10-27",
-    erschienen: S,
+    stand: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 35",
     auge: "Knowledge · Credit in the US",
     h1: "Credit in the US.",
@@ -181,7 +212,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       ["What works", "Pay on time, use only a small part of your limits, plan applications"],
       ["With FIAON Global", "Sequence planned, every application prepared"],
     ],
-    kurz: "Your SCHUFA data does not count in the US; a US credit history starts at zero. A first FICO Score can be generated once an account has existed for at least six months and has been reported in the last six months. The score (300 to 850) follows five factors: payment history 35 per cent, utilisation 30, length of history 15, new accounts 10 and credit mix 10. Those who pay on time, use only a small part of their limits and plan their applications build the history fastest.",
+    kurz: "Your SCHUFA data does not count in the US; a US credit history starts at zero. A first FICO Score can be generated once an account has existed for at least six months and has been reported in the last six months. The score (300 to 850) follows five factors: payment history 35 per cent, utilisation 30, length of history 15, new accounts 10 and credit mix 10. On-time payments, low utilisation of your limits and few, planned applications carry the history.",
     bloecke: [
       {
         typ: "text", id: "null", h2: "Why you start at zero in the US",
@@ -224,7 +255,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       {
         typ: "karten", id: "irrwege", h2: "What does not help", spalten: 3,
         karten: [
-          { tag: "Wrong turn", titel: "Many applications at once", text: "Every enquiry is recorded, every new account lowers the average age of your accounts. A series of refusals is the slowest route." },
+          { tag: "Wrong turn", titel: "Many applications at once", text: "Every enquiry is recorded, every new account lowers the average age of your accounts. A series of refusals weighs on the file further." },
           { tag: "Wrong turn", titel: "Bought history", text: "Offers to be added, for a fee, as an authorised user on other people’s cards are risky: issuers can close such accounts, and the benefit is uncertain." },
           { tag: "Wrong turn", titel: "“Credit repair” paid up front", text: "Nobody can have accurate entries removed. The US Federal Trade Commission (FTC) expressly warns against services that promise this." },
         ],
@@ -240,17 +271,20 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         typ: "text", id: "firma", h2: "Personal and business history",
         absaetze: [
           "Alongside your personal file, your company can build its own history with the business credit bureaus — with its own identifier and its own score. With a young company, however, card issuers almost always look first at the person behind it: a personal guarantee is the rule, and so your personal history counts.",
-          "Both histories grow best together: on-time payments by the company, a clean personal file, no hasty applications.",
+          "Both histories grow best together: on-time payments by the company, a clean personal file, few, planned applications.",
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global helps build your US history",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "A US credit history does not come from a trick but from a plan: the right numbers, identical details, the right first application, then patience and sequence. That is exactly FIAON Global’s card ladder. We make sure that your ITIN, address and phone number are right from the start, plan the sequence of issuers, prepare every application in full and each month review with you where you stand.",
-          "The issuer decides on every limit. Our task is to ensure that it sees your applications complete, consistent and at the right time.",
+          `A US credit history follows a plan: the right numbers, identical details, a suitable first application, then time. We apply for your ITIN following our ITIN check; the US tax authority decides on the ITIN. ${KARTEN.satz} We prepare each application individually and in full, and plan the sequence with you.`,
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: ${KARTEN.ihrTeil}`,
+          `${TEIL.bedingung}: ${KARTEN.bedingung}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "The card ladder in your order", lead: "Company, tax numbers, first card and the planned sequence of further issuers — in one order.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The card applications in your engagement", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -291,12 +325,12 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       beschreibung: "Building US business credit: D-U-N-S Number, PAYDEX, Experian, Equifax, supplier accounts — and what issuers check when a company is young.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 36",
     auge: "Knowledge · Business credit",
     h1: "Business credit.",
     h1b: "Your company’s creditworthiness.",
-    lead: "Alongside your personal file, your US company can build its own credit history — with business credit bureaus, with its own identifier and its own score. It is the route by which a company eventually becomes creditworthy in its own right. It runs in stages, and it begins not with cards but with core company data.",
+    lead: "Alongside your personal file, your US company can build its own credit history — with business credit bureaus, with its own identifier and its own score. It is the route by which a company eventually becomes creditworthy in its own right. It proceeds in steps, and it begins not with cards but with core company data.",
     ziffern: [
       { wert: "9 digits", label: "D-U-N-S Number, free of charge" },
       { wert: "80 – 100", label: "PAYDEX: low risk" },
@@ -309,7 +343,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       ["What counts", "On-time payments to suppliers and issuers"],
       ["Foundation", "Consistent core data everywhere"],
       ["Limitation", "With young companies, the personal guarantee counts first"],
-      ["With FIAON Global", "Core data, sequence, key-figures file"],
+      ["With FIAON Global", "Consistent core data, every application prepared in full"],
     ],
     kurz: "Business credit is your company’s credit history with the US business credit bureaus Dun & Bradstreet, Experian and Equifax. The basis is the free D-U-N-S Number; what is assessed above all is on-time payment to suppliers and issuers — with Dun & Bradstreet’s PAYDEX on a scale of 1 to 100, where 80 and above counts as low risk. With young companies, card issuers nevertheless almost always require the owner’s personal guarantee; the company’s own history grows over years.",
     bloecke: [
@@ -342,7 +376,7 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         fuss: ["Bands according to Dun & Bradstreet. A score only arises once enough payment experiences have been reported."],
       },
       {
-        typ: "etappen", id: "aufbau", h2: "Five stages to a history of your own",
+        typ: "etappen", id: "aufbau", h2: "Five steps to a history of your own",
         etappen: [
           { titel: "Standardise core data", text: "Name, address, phone number, EIN and website are identical everywhere — in the state register, with the IRS, with the institution, with suppliers and with the credit bureaus." },
           { titel: "Obtain a D-U-N-S Number", text: "Free of charge from Dun & Bradstreet. Check there, too, whether your company is already listed, and correct any differing details." },
@@ -356,18 +390,21 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         karten: [
           { tag: "Caution", titel: "Supplier accounts with no real business behind them", text: "Some providers sell accounts with payment terms that are meant only to serve the score. Anything that does not reflect genuine business will not hold up under an institution’s review." },
           { tag: "Caution", titel: "Promised limits", text: "Anyone who promises your company a credit limit of a particular amount is promising something only an institution can decide." },
-          { tag: "Caution", titel: "Cards instead of loans", text: "In 2025 the US Federal Trade Commission (FTC) permanently banned a provider from offering financing: it had promised loans and, for high fees, applied for credit cards." },
+          { tag: "Caution", titel: "Cards instead of loans", text: "Following action by the US Federal Trade Commission (FTC), a provider has been permanently banned from offering financing since 2025: it had advertised business financing and, for high fees, applied for credit cards." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global builds your company’s history",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "A company’s history cannot be bought — but it can be planned. FIAON Global lays the foundation at formation: identical core data in all registers and applications, EIN, US address and phone number, an account that fits the business. We then plan the sequence of issuers, prepare every application and review with you, month by month, what the credit bureaus know about your company.",
-          `We take this route through to financing within your capital range — in ongoing coordination with our partner lawyer and partner tax adviser.`,
-          KAPITAL_FREI,
+          "We lay the foundation at formation: identical core data in every document and every application, the EIN application, a US business address and a US telephone number. We prepare account and card applications in full; you submit the applications yourself.",
+          `${FINANZIERUNG.satz} ${satz("S9", "en")}`,
+        ],
+        punkte: [
+          `${TEIL.bedingung}: ${INSTITUT}`,
+          P.geldZurueck,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "The whole route in one order", lead: "Core data, a card ladder across several issuers and support through to financing within your capital range.", paket: "global_kapital" },
+      { typ: "paket", id: "mandat", h2: P.karteH2, lead: P.karteLead, paket: "global_kapital" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
@@ -382,6 +419,8 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
       { f: "What is a good PAYDEX score?", a: "At 80 or above, the risk of late payment is considered low; from 50 to 79, medium; below 50, high." },
       { f: "How long does it take to build business credit?", a: "A PAYDEX only exists once enough payment experiences have been reported — usually after a few months with several business partners. A history that holds up without a personal guarantee takes years." },
       { f: "Do I need business credit for a business credit card?", a: "With young companies, issuers mainly check the owner’s personal history and require a personal guarantee from the owner. The company’s own history gains weight over the years." },
+      // 19.09.2026 (Justin): the capital is not tied to the US — wording from GLOBAL_KAPITAL_FREI (one source); since E-510 as a question instead of in the section about us.
+      { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
     ],
     paket: "global_kapital",
     weiter: ["/en/business/us-business-credit-cards", "/en/business/knowledge/building-us-credit", "/en/business/knowledge/us-business-credit-card", "/en/business/knowledge/us-bank-account-documents"],
@@ -397,30 +436,30 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
     art: "wissen",
     seo: {
       titel: "US business credit card: checks and liability — FIAON Global",
-      beschreibung: "US business credit card for an LLC: what issuers check, what a personal guarantee means, when the introductory period ends and how to spot rip-offs.",
+      beschreibung: "US business credit card for an LLC: what issuers check, what a personal guarantee means, when the introductory period ends, how to spot unsound offers.",
     },
     stand: S,
-    erschienen: S,
+    erschienen: ERSCHIENEN,
     kennung: "FG · 37",
     auge: "Knowledge · Business credit cards",
     h1: "The US business credit card.",
     h1b: "How issuers decide.",
-    lead: "In the US, business credit cards are the usual first step into credit for a young company — and the most popular advertising promise online. Between “high limits for every LLC” and reality lies the issuer’s review. Here is what the issuer checks, what you sign and how to recognise dubious offers.",
+    lead: "In the US, business credit cards are the usual first step into credit for a young company — and a frequent advertising promise online. Between “high limits for every LLC” and reality lies the issuer’s review. Here is what the issuer checks, what you sign and how to recognise unsound offers.",
     ziffern: [
       { wert: "personal", label: "liability of the owner, as a rule, alongside the company" },
       { wert: "Reg Z", label: "consumer protection applies only partly to business credit cards" },
-      { wert: "November 2025", label: "the FTC permanently banned a provider from the business" },
+      { wert: "October 2025", label: "permanent ban on a provider (FTC v. Seek Capital)" },
     ],
     blick: [
       ["Who decides", "The issuer — by its own rules"],
       ["What it checks", "Personal history, income, business, documents"],
       ["Liability", "A personal guarantee from the owner is the rule"],
-      ["Introductory period", "No debit interest for a limited time — then the standard rate applies"],
+      ["Introductory period", "Ends on a fixed date — then the issuer’s standard interest rate applies"],
       ["Consumer protection", "Only limited for business credit cards"],
-      ["Warning signs", "Promised limits, fees tied to the limit, “loans” instead of cards"],
-      ["With FIAON Global", "Sequence planned, every application prepared, price set before you sign"],
+      ["Warning signs", "Promised limits, a fee per card application, “loans” instead of cards"],
+      ["With FIAON Global", "Each application prepared individually — on request, at no additional fee from FIAON"],
     ],
-    kurz: "The issuer decides whether to issue a US business credit card. For a young company it mainly checks the owner’s personal credit history in the US, income, business and documents, and it generally requires the owner’s personal guarantee. An introductory period without debit interest ends on a fixed date; after that the standard interest rate applies to the outstanding balance. Because most consumer protection rules do not apply to business credit cards, it pays to read the terms closely — and to be wary of anyone who promises limits.",
+    kurz: "The issuer decides whether to issue a US business credit card. For a young company it mainly checks the owner’s personal credit history in the US, income, business and documents, and it generally requires the owner’s personal guarantee. An introductory period ends on a fixed date; after that the issuer’s standard interest rate applies to the outstanding balance. Because most consumer protection rules do not apply to business credit cards, it pays to read the terms closely — and to be wary of anyone who promises a limit.",
     bloecke: [
       {
         typ: "text", id: "pruefung", h2: "What an issuer checks",
@@ -442,11 +481,12 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         ],
       },
       {
-        typ: "text", id: "einfuehrung", h2: "The introductory period without debit interest",
+        typ: "text", id: "einfuehrung", h2: "The introductory period and its end",
         absaetze: [
-          "Many US business credit cards offer new customers an introductory period without debit interest on purchases. That is credit for a limited time, not free money: the period ends on a fixed date, after which the standard interest rate applies to the outstanding balance — for cards, usually a double-digit rate.",
-          "Anyone using an introductory period therefore needs a plan for when it ends: repayment from the business, not from the next card. Fees, for example for cash withdrawals or for balance transfers from other cards, are often not covered by the introductory period and cost money from day one.",
+          `${EINFUEHRUNG} Such a period is credit for a limited time: it ends on a fixed date, after which the issuer’s standard interest rate applies to the outstanding balance.`,
+          "Anyone using an introductory period therefore needs a plan for when it ends: repayment from the business, not from the next card. Fees, for example for cash withdrawals or for balance transfers from other cards, are often not covered by the introductory period and are charged from day one.",
         ],
+        nach: "Evidence: in FTC v. Seek Capital the court found that the provider had also applied for cards without such an introductory period (ruling of 16 September 2025, see Sources).",
       },
       {
         typ: "tabelle", id: "schutz", h2: "Personal card and business credit card: the difference in protection",
@@ -460,47 +500,50 @@ export const WISSEN_KONTO_KARTEN_EN: GlobalSeite[] = [
         fuss: ["Based on 12 CFR 1026.3 and 1026.12 (Regulation Z) with the official commentary; simplified overview."],
       },
       {
-        typ: "text", id: "stapeln", h2: "“Card stacking” — and an FTC case",
+        typ: "text", id: "stapeln", h2: "Serial applications: an FTC case",
         absaetze: [
           "A model advertised online applies for several cards with introductory periods at once and sells this as “financing” — for high fees. The risk lies entirely with the business owner: many enquiries at once, high utilisation, a personal guarantee for every card and all introductory periods ending at the same time.",
-          "A case brought by the US Federal Trade Commission (FTC) shows how this can end: in November 2025 a provider and its chief executive were permanently banned from offering financing to business owners. The provider had promised loans and lines of credit and instead, for fees of several thousand dollars, applied for credit cards; the court regarded this as deception. The settlement is for US$48.28 million, partly suspended because the defendants are unable to pay.",
+          "A case brought by the US Federal Trade Commission (FTC) shows how this can end. A provider had advertised business financing and, for fees of several thousand dollars, applied solely for credit cards on its customers’ behalf. In September 2025 a US federal court found that, in doing so, it had deceived customers about, among other things, its relationships with lenders, its fees and hard enquiries. Since October 2025 the provider and its founder have been permanently banned from offering financing to business owners. The monetary judgment is for US$48.28 million and is partly suspended because the defendants are unable to pay it in full.",
         ],
       },
       {
         typ: "karten", id: "warnzeichen", h2: "Six warning signs in a provider", spalten: 3,
         karten: [
           { tag: "Warning sign", titel: "A limit is promised", text: "The issuer decides on every limit. Anyone who promises an amount is promising something they cannot deliver." },
-          { tag: "Warning sign", titel: "Fees as a percentage of the limit", text: "Anyone who earns from the limit earns from every further application — even if it harms you." },
-          { tag: "Warning sign", titel: "A “loan” that is a card", text: "Cards are cards. Anyone who talks of loans or a line of credit and means card applications is deceiving you." },
+          { tag: "Warning sign", titel: "A fee that grows with every card application", text: "Anyone who earns from every further card has an incentive to keep applying — even if the applications harm your credit file. Ask for the fee and a schedule of services in writing before you sign." },
+          { tag: "Warning sign", titel: "A “loan” that is a card", text: "Cards are cards. Anyone who announces a “loan” or a “line of credit” and means card applications is not telling you what you are signing." },
           { tag: "Warning sign", titel: "Many applications in one day", text: "A series of applications weighs on your history and makes every further decision harder." },
           { tag: "Warning sign", titel: "Not a word about liability", text: "Anyone who does not mention the personal guarantee is concealing the most important thing about any business credit card." },
           { tag: "Warning sign", titel: "Reviews prohibited", text: "Clauses that prohibit customers from posting negative reviews are not permitted in the US — and a clear signal." },
         ],
       },
       {
-        typ: "text", id: "fiaon", h2: "How FIAON Global guides you to your first card — and beyond",
+        typ: "text", id: "fiaon", h2: FIAON_H2,
         absaetze: [
-          "FIAON Global turns the card application into a plan instead of a gamble. We lay the foundation — company, EIN, ITIN, address, phone number, account — choose the first issuer to suit your history, prepare the application in full and plan the card ladder: further issuers in the right order, with gaps between applications, supported in a monthly review.",
-          "Our price is set before you sign: the configurator shows you the amount for your capital range, and it does not grow with further applications. The issuer decides on every limit; your capital range is your goal, not a promise.",
-          KAPITAL_FREI,
+          `${KARTEN.satz} We prepare each card application individually and in full. We do not prepare serial applications.`,
+        ],
+        punkte: [
+          `${TEIL.ihrTeil}: ${KARTEN.ihrTeil}`,
+          `${TEIL.bedingung}: ${KARTEN.bedingung}`,
+          `Fees: ${beleg("honorarVorab", "en")}`,
         ],
       },
-      { typ: "paket", id: "mandat", h2: "The card ladder in your order", lead: "First card, planned follow-up applications, monthly review — in one order.", paket: "global_banking" },
+      { typ: "paket", id: "mandat", h2: "The card applications in your engagement", lead: P.karteLead, paket: "global_banking" },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           GLOBAL_PFLICHTHINWEIS.en[2],
-          "An introductory period without debit interest ends on a fixed date; after that the issuer’s standard interest rate applies.",
-          "FIAON is not a bank, does not lend and does not broker credit.",
+          "An introductory period ends on a fixed date; after that the issuer’s standard interest rate applies.",
+          satz("S8", "en"),
         ],
       },
     ],
     fragen: [
       { f: "Can my LLC apply for a US business credit card?", a: "Yes. Whether a card is issued is decided by the issuer: with young companies it mainly checks the owner’s personal history in the US and requires the owner’s personal guarantee. Without an SSN or ITIN, the routes are narrow." },
       { f: "Am I personally liable for my LLC’s business credit card?", a: "As a rule, yes. With young companies, almost all issuers require a personal guarantee from the owner; the LLC’s limited liability then does not apply." },
-      { f: "What happens when the introductory period without debit interest ends?", a: "It ends on a fixed date. After that, the issuer’s standard interest rate applies to the outstanding balance — for cards, usually a double-digit rate." },
+      { f: "What happens when the introductory period ends?", a: "It ends on a fixed date. After that, the issuer’s standard interest rate applies to the outstanding balance; each issuer sets the rate and the terms itself." },
       { f: "Does US consumer protection apply to business credit cards?", a: "Only to a limited extent. For cards used for business purposes, the rules of Regulation Z that apply are mainly those on the issuance of the card and on liability for unauthorised use; the protections of the CARD Act, for example on interest rate increases, generally do not apply." },
-      { f: "How do I spot dubious business credit card providers?", a: "Watch for promised limits, fees as a percentage of the limit, “loans” that turn out to be card applications, many applications at once and contracts that prohibit reviews." },
+      { f: "How do I spot dubious business credit card providers?", a: "Watch for promised limits, fees that grow with every card application, “loans” that turn out to be card applications, many applications at once and contracts that prohibit reviews." },
     ],
     paket: "global_banking",
     weiter: ["/en/business/us-business-credit-cards", "/en/business/knowledge/building-us-credit", "/en/business/knowledge/us-business-credit", "/en/business/knowledge/checking-providers"],

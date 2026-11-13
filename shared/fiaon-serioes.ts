@@ -10,12 +10,13 @@
 // Diese Datei ist bewusst klein: Sie steht in der SEO-Tabelle, die der Browser auf jeder Seite lädt (Titel, Sprachpaar,
 // Sitemap). Den ganzen Seitentext trägt shared/fiaon-serioes-seite.ts — die sichtbare Seite und der Server
 // (server/lib/fiaon-global-seo.ts, Vorab-HTML und FAQ) lesen ihn von dort.
+// 13.11.2026 (E-510): Beschreibung, Einleitung und Stand nach dem Sprachleitfaden (ohne „Festpreis“, „Vertrag vorab“, „Weg zum Kapital“).
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 
 export const SERIOES_PFAD = { de: "/ist-fiaon-serioes", en: "/en/is-fiaon-legit" } as const;
 /** Stand der Fakten auf der Seite (Sitemap lastmod, Vermerk unter dem Text). */
-export const SERIOES_STAND = "2026-10-29";
+export const SERIOES_STAND = "2026-11-13";
 /** Der amtliche Registereintrag — jeder kann ihn ohne Anmeldung öffnen. */
 export const COMPANIES_HOUSE_URL = `https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`;
 
@@ -23,18 +24,18 @@ export const COMPANIES_HOUSE_URL = `https://find-and-update.company-information.
 export const SERIOES_KOPF = {
   de: {
     titel: "Ist FIAON seriös? Die Fakten zu FIAON Global",
-    beschreibung: "Ist FIAON Global seriös? Die prüfbaren Fakten: FIAON LTD London (Companies House 17318250), Festpreis per Rechnung, Vertrag vorab, Kontakt.",
+    beschreibung: `Ist FIAON Global seriös? Die prüfbaren Fakten: ${FIAON_FIRMA.name} (Companies House Nr. ${FIAON_FIRMA.companyNo}), Zahlung per Rechnung, Vertrag lesbar vor der Unterschrift.`,
     krume: "Ist FIAON seriös?",
     h1: "Ist FIAON seriös?",
     h1b: "Die Fakten.",
-    lead: "Bevor Sie uns Ihre US-Gesellschaft, Ihre Unterlagen und Ihren Weg zum Kapital anvertrauen, wollen Sie wissen, mit wem Sie es zu tun haben – zu Recht. Hier steht alles, was Sie selbst nachprüfen können: wer hinter FIAON Global steht, wohin Sie zahlen, was vor der Beauftragung feststeht, was FIAON ist und was nicht, was mit Ihren Unterlagen geschieht und wie Sie uns erreichen.",
+    lead: "Bevor Sie uns Ihre US-Gesellschaft und Ihre Unterlagen anvertrauen, wollen Sie wissen, mit wem Sie es zu tun haben. Hier steht, was Sie selbst nachprüfen können: wer hinter FIAON Global steht, wohin Sie zahlen und was vor Ihrer Unterschrift feststeht. Dazu: was FIAON ist und was nicht, was mit Ihren Unterlagen geschieht und wie Sie uns erreichen.",
   },
   en: {
     titel: "Is FIAON legit? The facts about FIAON Global",
-    beschreibung: "Is FIAON Global legitimate? The verifiable facts: FIAON LTD London (Companies House 17318250), fixed price by invoice, agreement in advance, contact.",
+    beschreibung: `Is FIAON Global legitimate? The verifiable facts: ${FIAON_FIRMA.name} (company number ${FIAON_FIRMA.companyNo}), payment by invoice only, agreement readable before you sign.`,
     krume: "Is FIAON legit?",
     h1: "Is FIAON legit?",
     h1b: "The facts.",
-    lead: "Before you entrust us with your US company, your documents and your route to capital, you want to know who you are dealing with — rightly so. Here is everything you can check for yourself: who is behind FIAON Global, where you pay, what is fixed before you commission us, what FIAON is and what it is not, what happens to your documents and how to reach us.",
+    lead: "Before you entrust us with your US company and your documents, you want to know who you are dealing with. Here is what you can check for yourself: who is behind FIAON Global, where you pay and what is fixed before you sign. In addition: what FIAON is and what it is not, what happens to your documents and how to reach us.",
   },
 } as const;

@@ -1,47 +1,72 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // FIAON GLOBAL — CONCEPT PAGE: WHAT IS FIAON GLOBAL? (27.10.2026, E-439) · FG · 53
+// neu gefasst am 13.11.2026 (E-510, Sprachleitfaden FIAON Global)
 //
 // Die englische Schwester von ../../e439/was-ist-fiaon-global.ts — die Entitätsseite
-// für Google und KI-Modelle (Recherche .arbeit/recherche/ki.md, Befund 5 und
-// Abschnitt 5): ein Definitionssatz ganz oben, ein Faktenkasten, die acht
-// Anlaufstellen, die vier Etappen, die Rollen, was FIAON Global nicht ist und wie ein
-// Auftrag abläuft. Selbstbezeichnung „business consultancy“ (= Unternehmensberatung,
-// Justin 27.10.2026, E-439/E-439). Hauptsuchwort EN „FIAON Global“ (Titel, H1, Kurz,
-// erster Absatz, mehrere H2).
+// für Google und KI-Modelle: die Positionierung ganz oben, ein Faktenkasten, die acht
+// Anlaufstellen, die sechs Schritte, die Rollen, was FIAON Global nicht ist und wie
+// ein Mandat beginnt. Selbstbezeichnung „business consultancy“ (= Unternehmens-
+// beratung, Justin 27.10.2026, E-439). Hauptsuchwort EN „FIAON Global“ (Titel, H1,
+// Kurz, erster Absatz, mehrere H2).
 //
 // Britisches Englisch, inhaltlich identisch: dieselben Bausteine in derselben
-// Reihenfolge, dieselben ids, gleich viele Absätze, Punkte, Zeilen, Spalten, Etappen,
+// Reihenfolge, dieselben ids, gleich viele Absätze, Punkte, Zeilen, Spalten, Schritte,
 // Fragen, Blick-Zeilen und Kennziffern; Quellen mit denselben Adressen in derselben
 // Reihenfolge (englische Titel). Zahlen aus fakten-en.ts, wo die deutsche Fassung
-// fakten.ts liest. Fach- und Rechtsprüfung wie in der deutschen Fassung vom 27.10.2026
-// (SS-4 12/2025: EIN aus dem Ausland per Telefon, Fax oder Post; Third Party Designee
-// bis zur Vergabe der EIN; CAA-Seite der IRS: Pass oder beglaubigte Kopie liegt dem CAA
-// im Gespräch vor; i5472; Registered Agent FL § 605.0113, DE § 18-104, WY § 17-28-101;
-// § 138 Abs. 5 AO; § 5 StBerG, § 3 RDG, § 34c GewO; § 27 Abs. 2 BAO; Art. 50 DBG;
-// Companies House: FIAON LTD, 17318250, eingetragen am 3. Juli 2026).
+// fakten.ts liest.
 //
-// Bewusst NICHT genannt: die Partnergesellschaften in Zürich und Miami, Anbieter-
-// namen, Paketpreise als Zahl (Baustein „pakete“), der Preis der Jahresbetreuung,
-// eine Bürgschaft. Wortwand EN: kein „up to“, kein Bankname, keine Frist mit Ziffer
-// als Zusage, kein Zinssatz, kein „recommend“, „advice“ nur verneint, „personal
-// guarantee“ als Fachbegriff, Firmenkarte = „business credit card“, kein „credit
-// broker“ (→ „loan intermediary“). Über Konto, Karte, Rahmen und Darlehen entscheidet
-// das Institut; FIAON vermittelt keine Kredite; keine US-Gesellschaft als Steuermodell.
+// E-510 (13.11.2026): Die Positionierung (Leitfaden 1.1), der Definitionssatz (9.4),
+// die sechs Schritte (2.3, Schritt 5 in der Fassung „heute“), die festen Sätze S1 bis
+// S17, die Belege (6.2) und die Übergangssätze kommen aus
+// shared/fiaon-global-saetze.ts — nie ein zweites Mal getippt; kein Betrag ist
+// getippt (SAETZE_BETRAEGE). Ein Wort je Sache: engagement · client · fee · funding
+// target · the lender · proposal · fee calculator · annual administration · step.
+// Was hier NIE steht: wer für eine Finanzierung einsteht (nur im persönlichen Angebot
+// und im Vertrag) · “subject to satisfactory due diligence” (Vorbehalt V1) · ein
+// eigener Erklär-Satz zum Erfolgshonorar (V3) · ein Partner bei der Arbeit im Präsens
+// (V2 — nur die Rollenwörter) · Ort oder Name einer Partnergesellschaft, ein „team on
+// the ground“ · eine Dauer als Zusage · Austria oder Switzerland im selben Satz wie
+// accounts, cards oder financing · die Presse-Zeile (steht einmal je Seite im
+// Vertrauens-Band der Vorlage). Wortwand EN: kein „up to“, kein Bankname, keine Frist
+// mit Ziffer, kein Zinssatz, kein „recommend“, kein „advice“, „personal guarantee“
+// nur als Fachbegriff, kein „credit broker“ / „loan broker“ (auch nicht verneint —
+// es heißt “does not broker loans”).
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalSeite, GlobalQuelle } from "../../typen";
-import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI, GLOBAL_ROLLEN } from "../../../fiaon-global";
-// E-509 (12.11.2026): one product instead of four packages — wording follows the German page (e439/was-ist-fiaon-global.ts).
+import { GLOBAL_PFLICHTHINWEIS, GLOBAL_KAPITAL_FREI } from "../../../fiaon-global";
+import { GELD_ZURUECK, SAETZE_BETRAEGE, SCHRITTE_KOPF, beleg, satz, sechsSchritte, weitererSatz } from "../../../fiaon-global-saetze";
 import { EIN_PRODUKT } from "../../ein-produkt";
 import { FIAON_FIRMA as F } from "../../../fiaon-firma";
 import { QUELLEN_WISSEN_EN as Q, QUELLEN_STAATEN_EN, QUELLEN_RECHT_EN as R, IRS_EN } from "../../fakten-en";
 
+/** Day of first publication (E-439). */
 const S = "2026-10-27";
-const STAND = "2026-11-12";
-const KAPITAL_FREI = `${GLOBAL_KAPITAL_FREI.en.satz} ${GLOBAL_KAPITAL_FREI.en.steuer}`;
+/** Day of the last change in substance (E-510, style guide) — first published remains 27 October. */
+const STAND = "2026-11-13";
 const P = EIN_PRODUKT.en;
+/** The amounts from the price source — never typed. */
+const B = SAETZE_BETRAEGE.en;
+/** The six steps, word for word from the source of the fixed sentences (step 5 in today’s version). */
+const SCHRITTE = sechsSchritte("en").schritte;
+const KOPF = SCHRITTE_KOPF.en;
 
-/** The definition — the same wording for the page, the short profile and the questions. */
-const DEFINITION = `FIAON Global is the business consultancy of ${F.name} (London, Companies House ${F.companyNo}) for businesses, the self-employed and private individuals from Germany, Austria and Switzerland who are forming a US company and planning the route to an account, business credit cards and capital — under one roof, at a price that is set before you order.`;
+/** The positioning in one sentence (guide 1.1) — stands word for word in the head of the page. */
+const POSITIONIERUNG = weitererSatz("POSITIONIERUNG", "en");
+/** The definition (guide 9.4) — the same wording for the short profile, the questions, structured data and /llms.txt. */
+const DEFINITION = weitererSatz("DEFINITION", "en");
+/** The roles sentence on the partners (guide 5.11) and its second sentence: who bears their fees. */
+const ROLLEN = weitererSatz("ROLLEN", "en");
+const HONORARE_DER_PARTNER = ROLLEN.split(/(?<=\.)\s+/)[1];
+/** Sentence S8 in its three sentences: not a bank, not a law firm · no lending, no brokering · legal and tax matters with partners. */
+const [KEINE_BANK, KEINE_KREDITE, RECHT_UND_STEUERN] = satz("S8", "en").split(/(?<=\.)\s+/);
+/** The fees in short form (guide 1.3, answer to “What does it cost — and when?”) — always all three parts. */
+const HONORAR = `${B.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.erfolgMin}. From the second year, on request, ${B.jahresbetreuung} a year.`;
+/** The passport in the ITIN application — the route the IRS allows, without naming a partner or a place. */
+const PASS_WEG = "The IRS allows a Certifying Acceptance Agent authorised by it to verify your passport; you then do not have to send the original to the United States. We agree the route with you before the application is filed.";
+/** The Miami sentence with its reference (guide 5.8) — written out, because here it stands without the range of the funding target. */
+const MIAMI = "From a funding target of US$1 million, we work with you in person in Miami.";
+/** What the funds from a financing may be used for (Justin, 19.09.2026) — with the lender and the responsibility for tax questions. */
+const MITTEL_IN_EUROPA = "The funds from a financing are not tied to the United States. Your company may transfer them to Europe or invest them there, within the terms set by the lender. How transfers and investments are treated for tax purposes rests with partner tax advisers acting in their own professional capacity.";
 
 /** Eigene Quellen dieser Seite — dieselben Adressen wie in der deutschen Fassung, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -51,12 +76,8 @@ const QUELLEN: Record<string, GlobalQuelle> = {
   kstgAt1: { titel: "Section 1 Austrian Corporate Income Tax Act 1988 (KStG 1988) — unlimited and limited tax liability (RIS)", url: "https://www.ris.bka.gv.at/NormDokument.wxe?Abfrage=Bundesnormen&Gesetzesnummer=10004569&Paragraf=1" },
   stberg5: { titel: "Section 5 German Tax Consultancy Act (StBerG) — prohibition of unauthorised assistance in tax matters", url: "https://www.gesetze-im-internet.de/stberg/__5.html" },
   rdg3: { titel: "Section 3 German Legal Services Act (RDG) — authorisation to provide out-of-court legal services", url: "https://www.gesetze-im-internet.de/rdg/__3.html" },
-  gewo34c: { titel: "Section 34c German Trade Regulation Act (GewO) — licence requirement, among others for loan intermediaries", url: "https://www.gesetze-im-internet.de/gewo/__34c.html" },
   wyAgent: { titel: "Wyoming Statutes § 17-28-101 — registered office and registered agent (Wyoming Legislature)", url: "https://statutes.wyoleg.gov/NXT/gateway.dll/2022%20Wyoming%20Statutes/2022%20Titles/898/1039" },
 };
-
-/** The passport for the ITIN — more precise than GLOBAL_AGENT.en.pass (IRS, ITIN Acceptance Agent Program). */
-const PASS = "Our certified acceptance agent partner in the DACH region checks your passport, in person or in a video appointment; they must have the passport, or a copy certified by the issuing authority, in front of them while doing so. You do not have to send it to the US.";
 
 export const SEITE: GlobalSeite = {
   pfad: "/en/business/what-is-fiaon-global",
@@ -65,7 +86,7 @@ export const SEITE: GlobalSeite = {
   art: "leistung",
   seo: {
     titel: "What is FIAON Global? Business consultancy — FIAON Global",
-    beschreibung: "FIAON Global is the business consultancy of FIAON LTD for your US company: one point of contact instead of eight, one mandate, one price upfront.",
+    beschreibung: "FIAON Global is the business consultancy of FIAON LTD, London, for your US company: one engagement, clear roles, fees in advance — stated with sources.",
   },
   stand: STAND,
   erschienen: S,
@@ -73,179 +94,167 @@ export const SEITE: GlobalSeite = {
   auge: "FIAON Global · Who we are",
   h1: "What is FIAON Global?",
   h1b: "The business consultancy for your US company.",
-  lead: `${DEFINITION} This page explains what that means: who your contracting party is, which eight points of contact we bring together and who decides what.`,
+  lead: `${POSITIONIERUNG} This page names your contracting party, the six steps of the engagement and who decides what.`,
   ziffern: [
-    { wert: "1 instead of 8", label: "one point of contact for eight parties" },
-    { wert: F.companyNo, label: "FIAON LTD’s entry at Companies House, London" },
-    { wert: "3 locations", label: "London, Zurich, Miami" },
+    { wert: "1 engagement", label: "one agreement, one dedicated contact" },
+    { wert: F.companyNo, label: `company number of ${F.name}, registered in England and Wales` },
+    { wert: "6 steps", label: "each with its condition" },
   ],
   blick: [
-    ["What", "Business consultancy for building a US company"],
-    ["Contracting party", `${F.name}, London, Companies House ${F.companyNo}`],
-    ["Locations", "London · Zurich · Miami"],
-    ["For whom", "Businesses, the self-employed and private individuals from Germany, Austria and Switzerland"],
-    ["Price", "Set before you order — the configurator shows your price"],
-    ["Who decides", "The institution alone decides on account, card and limit"],
-    ["With FIAON Global", "One point of contact instead of eight"],
+    ["What", `Business consultancy of ${F.name} for US companies`],
+    ["Contracting party", `${F.name}, London · registered in England and Wales, company number ${F.companyNo}`],
+    ["We handle", "Formation, documents and tax identification numbers; fully prepared applications for accounts, credit cards on request and financing"],
+    ["You", "Choose the name, upload your passport and sign; you submit the applications to the institutions yourself"],
+    ["Who decides", "The state, the US tax authority and the institution concerned"],
+    ["Fees", HONORAR],
+    [GELD_ZURUECK.en.auge, satz("S7", "en")],
   ],
-  kurz: `FIAON Global is the business consultancy of FIAON LTD in London for businesses, the self-employed and private individuals from Germany, Austria and Switzerland who are building a US company. With the client’s power of attorney, FIAON files the applications on their behalf (formation, EIN, D-U-N-S Number, filings), prepares the ITIN and provides the registered agent, US address and US phone number in the first year; the client files account, card and credit applications themselves, fully prepared. Partner tax advisers, US CPAs and partner lawyers act under the client’s engagement; FIAON pays their fees for the services in the order. FIAON is not a bank, does not arrange loans and does not commit to any limit.`,
+  kurz: `FIAON Global is the business consultancy of ${F.name}, London (company number ${F.companyNo}). We form your US company, assemble every document and apply for the tax identification numbers. We prepare your applications for accounts, credit cards on request and financing in full; you submit them yourself. Decisions rest with the state, the US tax authority and the institution concerned. ${KEINE_BANK}`,
   bloecke: [
     {
-      typ: "text", id: "definition", h2: "What is FIAON Global? The idea behind it",
+      typ: "text", id: "definition", h2: "FIAON Global: the idea behind it",
       absaetze: [
-        "Behind the definition above lies a simple idea. Anyone from the German-speaking region who builds a US company usually deals with eight parties: the state, a registered agent, the US tax authority (IRS), a lawyer, a tax adviser at home, a US CPA, banks and card issuers. Each has its own forms, its own deadlines and its own queries — and none of them knows the others. FIAON Global brings them together: you have one point of contact, and we coordinate everyone else involved.",
-        "FIAON Global is the division of FIAON LTD for US companies. Your contracting party is FIAON LTD in London in all cases; our team on the ground works in Miami, and Zurich is our partner location. We work in German and in English, for clients resident or registered in Germany, Austria and Switzerland.",
+        "Anyone building a US company from abroad usually deals with eight parties — from the state to the card issuer. Each has its own forms, its own deadlines and its own queries. FIAON Global brings this work together under one engagement. You have one dedicated contact, and every responsibility is named.",
+        `FIAON Global is the division of ${F.name} for US companies. Your contracting party is always ${F.name}, with its registered office in London. ${weitererSatz("UEBERGANG-EINREICHUNG", "en")} We work in German and in English, for clients resident or based in Germany, Austria and Switzerland.`,
       ],
     },
     {
-      typ: "tabelle", id: "fakten", h2: "FIAON Global at a glance: the fact box",
-      lead: "The details a search engine, an AI system or a cautious client wants to know first — with the source where you can check each of them yourself.",
+      typ: "tabelle", id: "fakten", h2: "The facts about FIAON Global",
+      lead: "The details of the company — each with the source where you can check it yourself.",
       kopf: ["Feature", "Detail"],
       zeilen: [
-        ["Name", "FIAON Global — the division of FIAON LTD for US companies"],
-        ["What it is", "Business consultancy for building a US company: formation, tax numbers, US presence, prepared account and card applications, support on the route to capital"],
-        ["Contracting party", `${F.name}, private limited company, registered in England and Wales`],
+        ["Name", `FIAON Global — the division of ${F.name} for US companies`],
+        ["What it is", "Business consultancy for US companies: formation, ongoing administration and support through to the lender’s decision on financing"],
+        ["Contracting party", `${F.name}, private limited company, England and Wales`],
         ["Register", `Companies House, company number ${F.companyNo}, incorporated on 3 July 2026`],
         ["Registered office", `${F.strasse}, ${F.ortZeile}, United Kingdom`],
         ["Management", `${F.director}, director and founder`],
-        ["Locations", "London (contracting party) · Zurich (partner location) · Miami (team on the ground)"],
-        ["For whom", "Businesses, the self-employed and private individuals resident or registered in Germany, Austria or Switzerland"],
-        ["What is formed", "LLC or corporation in Florida, Delaware or Wyoming"],
+        ["In the United States", `${weitererSatz("UEBERGANG-EINREICHUNG", "en")} ${MIAMI}`],
+        ["For whom", "Businesses, the self-employed and private individuals resident or based in Germany, Austria or Switzerland"],
+        ["What is formed", "US company (LLC) in Delaware, Florida or Wyoming"],
         ["Languages", "German and English"],
-        ["Offer", `One mandate: ${P.name} — the price is set before you order`],
-        ["From the second year", "Annual care, optional; it does not renew automatically"],
+        ["Engagement", `One engagement: ${P.name}`],
+        ["Fees", HONORAR],
         ["Contact", `${F.email} · ${F.telefon}`],
       ],
-      fuss: ["Register details as shown at Companies House, retrieved on 27 October 2026. The configurator shows your price."],
+      fuss: [`Register details as shown at Companies House, retrieved on 27 October 2026. ${beleg("honorarVorab", "en")}`],
     },
     {
-      typ: "tabelle", id: "anlaufstellen", h2: "One point of contact instead of eight: what FIAON Global brings together",
-      lead: "Eight parties that a US company owned from abroad usually deals with — and who takes care of each of them when you engage FIAON Global.",
+      typ: "tabelle", id: "anlaufstellen", h2: "One dedicated contact instead of eight parties",
+      lead: "Eight parties that a US company owned from abroad usually deals with. The last column shows who handles what once you instruct FIAON Global.",
       kopf: ["Party", "What it is about", "Without FIAON Global", "With FIAON Global"],
       zeilen: [
-        ["State", "Formation of the LLC or corporation, state fee", "find a formation service or file yourself", "we file with your power of attorney; the state formation fee is included in your price"],
-        ["Registered agent", "mandatory address for service of process in the state, plus a US address and US phone number", "separate contract, separate annual fee", "included for the first year; official mail is scanned for you"],
-        ["US tax authority (IRS)", "EIN for the company (Form SS-4), ITIN for you personally (Form W-7)", "English-language forms; from abroad only by phone, fax or post, not online", "we apply for the EIN as third party designee and prepare the ITIN"],
-        ["Lawyer", "Operating agreement and formation documents", "separate engagement, separate fee", "partner lawyer under your engagement; FIAON pays the fee for this"],
-        ["Tax adviser in your country of residence", "Review before formation: tax liability at home, notifications", "separate engagement, separate fee", "partner tax adviser under your engagement; FIAON pays the fee for the review before formation"],
-        ["US CPA", "Annual US filing (Form 5472 with Form 1120)", "separate engagement, renewed every year", "the first filing is included, later ones with annual care"],
-        ["Banks", "The company’s business account", "find an institution, gather the documents, apply", "you file the application, fully prepared by us; the bank decides"],
-        ["Card issuers", "The company’s business credit cards", "each application separately", "we prepare every application in full; the issuer decides"],
+        ["State", "Formation of the company, state fee", "find a formation service or file yourself", "we file your company, state fee included; registration is decided by the state"],
+        ["Registered agent", "mandatory address for service in the state, plus a US business address and US telephone number", "separate contract, separate annual fee", "included in the first year; your dedicated contact coordinates post, calls and appointments"],
+        ["US tax authority (IRS)", "EIN for the company (Form SS-4), ITIN for you personally (Form W-7)", "English-language forms; from abroad only by phone, fax or post, not online", "we apply for the EIN and, following our ITIN check, for the ITIN; the IRS decides"],
+        ["Lawyer", "Operating agreement and formation documents", "separate instruction, separate fee", "operating agreement and formation documents are included; legal matters rest with partner lawyers, in their own professional capacity"],
+        ["Tax adviser in your country of residence", "Tax liability in your country of residence, reporting the formation", "separate instruction, separate fee", "tax questions rest with partner tax advisers acting in their own professional capacity; your tax return remains with your own tax adviser"],
+        ["US certified public accountant (CPA)", "Annual US filing (Form 5472 with Form 1120)", "separate instruction, renewed every year", "the first annual US filing is included, later ones with annual administration"],
+        ["Institutions", "Personal US account and business account", "find an institution, gather the documents, apply", "we prepare every application in full; you submit it yourself, and the institution concerned decides"],
+        ["Card issuers", "Credit cards, personal and for your company", "each application separately", "on request we prepare every application, at no additional fee from FIAON; the card issuer decides"],
       ],
       hervor: 3,
       fuss: [
-        "With your power of attorney we also apply to Dun & Bradstreet for your company’s D-U-N-S Number; it is free of charge and has nine digits.",
+        "Suppliers and institutions also look at the D-U-N-S Number issued by Dun & Bradstreet: nine digits, issued without a fee.",
         "Florida, Delaware and Wyoming each require every company to have a registered agent with an address in the state.",
       ],
     },
     {
-      typ: "etappen", id: "etappen", h2: "The route with FIAON Global in four stages",
-      lead: "Durations are figures published by the authorities or drawn from experience, not deadlines. How quickly a stage moves depends on authorities and institutions — and each stage shows who decides.",
-      etappen: [
-        { titel: "Formation and documents", dauer: "usually a few weeks", text: `Company, EIN, ITIN preparation, registered agent, US address and phone number, operating agreement. For an EIN applied for from abroad the IRS gives ${IRS_EN.einDauer}; for the ITIN it gives ${IRS_EN.itinDauer}. Who decides: the state and the IRS.` },
-        { titel: "Accounts and cards", dauer: "once the documents are complete", text: "Personal US account, personal US cards, business account and company credit card: you file the applications, and we prepare each one in full. Cards usually start with a small limit and no cash deposit, but with a personal guarantee from the owner. Introductory periods without debit interest are offered by some issuers; each issuer sets the terms itself. Who decides: the institution concerned." },
-        { titel: "Your capital range", dauer: "once the company and documents are in place", text: "You choose the capital range your company is to take up. We compile the documents, prepare every application and stay with you through to payout; your company signs the loan agreement itself. Who decides: the financing institution, under its own rules." },
-        { titel: "Keep growing", dauer: "from the eighteenth month", text: "With an established history, your company can apply for an increase or refinance with another institution. As long as annual care is running, we stay with it. Who decides: the institution concerned." },
-      ],
+      // The six steps of the fixed narrative (guide 2.3): sentence, condition and “Your outcome” — no timings. “Your part” is in the block “rollen” below.
+      typ: "etappen", id: "etappen", h2: KOPF.h2,
+      lead: KOPF.lead,
+      etappen: SCHRITTE.map((s) => ({ titel: s.titel, text: `${s.satz} ${s.bedingung} ${KOPF.teile.ihrErgebnis}: ${s.ihrErgebnis}` })),
     },
     {
-      typ: "rollen", id: "rollen", h2: "Who does what: FIAON Global, the partners and you",
-      lead: GLOBAL_ROLLEN.en.fiaon,
+      typ: "rollen", id: "rollen", h2: "Who is responsible for what",
+      lead: ROLLEN,
       fiaon: [
-        "plans the route and coordinates everyone involved",
-        "files the applications with the state, the IRS and Dun & Bradstreet with your power of attorney",
-        "prepares the ITIN and provides the registered agent, US address and US phone number in the first year",
-        "prepares every account and card application in full",
-        "pays the partners’ fees for the services in your order",
-        "attends appointments on the ground with the team in Miami",
+        "files your company with the state, state fee included",
+        "assembles the documents and applies for the EIN and the ITIN (the ITIN following our ITIN check)",
+        "provides the registered agent, US business address and US telephone number in the first year",
+        "prepares every application for accounts, credit cards on request and financing in full",
+        "keeps the compliance calendar and files the first annual report with the state",
+        "bears the partners’ fees for the services in your agreement",
       ],
       partner: [
-        "Partner tax adviser: review before formation and tax liability in your country of residence",
-        "Partner lawyer: operating agreement and formation documents",
-        "US CPA: first annual US filing (Form 5472 with Form 1120)",
-        "Acceptance agent partner in the DACH region: checking your passport for the ITIN",
-        "all partners act under your engagement",
+        "Partner lawyers: legal matters, in their own professional capacity",
+        "US certified public accountant (CPA) from our partner network: the first annual US filing",
+        "Partner tax advisers: tax questions in your country of residence, in their own professional capacity",
       ],
       sie: [
-        "grant the power of attorney and upload your documents",
-        "make the decisions: legal form, state, name",
-        "file account, card and credit applications yourself",
-        "report the formation to the tax office — in Germany under section 138 of the German Fiscal Code (AO) together with your tax return, with your tax adviser",
-        "settle your statements on time — that builds your history",
+        "choose the name, upload your passport and sign the documents presented to you",
+        "submit the applications to the institution and the card issuer yourself",
+        "choose your funding target; your company decides on any financing offer from the lender",
+        "report the formation to the tax office — in Germany under section 138 of the German Fiscal Code (AO), with your tax adviser",
       ],
     },
     {
-      typ: "text", id: "fiaon", h2: "How FIAON Global takes over your route to the US",
+      typ: "text", id: "fiaon", h2: "What FIAON Global handles",
       absaetze: [
-        "FIAON Global works as a business consultancy on one principle: one point of contact instead of eight. You speak to one person who leads your engagement from the kick-off meeting to the last stage; we coordinate everyone else involved. With your power of attorney we file the applications for you: the formation with the state, the EIN with the IRS, the D-U-N-S Number with Dun & Bradstreet and your company’s filings. For the EIN, Form SS-4 has a dedicated section for this, the third party designee: the person from our team named there answers the IRS’s questions about the application and receives the EIN; their authority ends as soon as the EIN has been assigned.",
-        `We prepare the ITIN. ${PASS} We provide the registered agent, US business address and US phone number for the first year, and official mail is scanned for you.`,
-        `You file account, card and credit applications yourself; every statement in them remains your own. We prepare each of these applications in full: name, address and phone number spelt the same way on every form, the documents in the order in which an institution reviews them. For the financing we compile the documents an institution reviews. If an institution requires an appointment in person, our team in Miami accompanies you.`,
-        `${P.partner} The reason is professional regulation: in Germany, only those who are authorised to do so may provide assistance in tax matters on a business basis (section 5 of the German Tax Consultancy Act, StBerG); the same applies to out-of-court legal services (section 3 of the German Legal Services Act, RDG). FIAON engages, coordinates and pays the partners; the professional responsibility lies with them, the engagement with you.`,
-        "Your price is set before you order: an amount with your order for formation and active management in the first year, plus the success fee, which falls due when your company is registered and follows the capital range you choose. FIAON receives no share in the capital. From the second year you can choose annual care; it is optional and does not renew automatically.",
-        P.geldZurueck,
-        KAPITAL_FREI,
+        "FIAON Global works on one principle: one engagement, one agreement, one dedicated contact. Your contact leads your engagement from the proposal to the last step. We present every document ready for your signature. Your portal shows the current status.",
+        `We apply for your company’s EIN on Form SS-4. ${weitererSatz("UEBERGANG-ITIN", "en")} ${PASS_WEG} ${satz("S3", "en")}`,
+        `On accounts and cards: ${satz("S2", "en")} Every statement in an application remains your own. Name, address and telephone number are spelt the same way on every form. ${beleg("keinZugriff", "en")}`,
+        `On financing: ${satz("S9", "en")} ${satz("S7", "en")}`,
+        `${RECHT_UND_STEUERN} ${HONORARE_DER_PARTNER} The reason for this separation is professional regulation. In Germany, assistance in tax matters may be provided on a business basis only by those authorised to do so (section 5 of the German Tax Consultancy Act, StBerG). The same applies to out-of-court legal services (section 3 of the German Legal Services Act, RDG).`,
+        `${satz("S12", "en")} ${weitererSatz("ZAHLUNG", "en")}`,
+        MITTEL_IN_EUROPA,
       ],
     },
     {
-      typ: "text", id: "einordnung", h2: "Business consultancy rather than formation service: where FIAON Global stands",
+      typ: "text", id: "einordnung", h2: "Business consultancy or formation service: the distinction",
       absaetze: [
-        "A formation service registers the company with the state and usually provides the registered agent. But that is only where the work begins: the tax numbers with the IRS, an address and phone number that read the same on every application, the operating agreement, the review of tax liability at home, the first annual filing and the applications to banks and card issuers.",
-        "FIAON Global therefore sees itself as a business consultancy, not a form-filling service: we plan the whole route, not just the first step, and lead it with a dedicated contact — a US company under one roof. To be candid: the company on its own is cheaper from a formation service. Our price also covers the steps that follow, from the EIN and ITIN to the first US filing.",
-        `These steps are not a formality. An LLC wholly owned by a single foreign owner files Form 5472 with Form 1120 with the IRS for every year with reportable transactions between the company and its owner, even without revenue — and even the capital contribution and formation costs paid count as such transactions. For a calendar year the deadline is ${IRS_EN.frist5472}. If the filing is not made, the IRS can impose a penalty of ${IRS_EN.strafe5472}. That is why the first filing is included in your order.`,
+        "A formation service files the company with the state and usually provides the registered agent. What follows are the tax identification numbers with the IRS, the operating agreement and the first annual US filing. Added to these are tax liability in your country of residence and the applications to institutions and card issuers.",
+        "FIAON Global therefore works as a business consultancy: one engagement for formation, documents and the preparation of your applications, with one dedicated contact. Formation alone costs less with a formation service. Our fee also covers the tasks that follow, from the tax identification numbers to the first annual US filing.",
+        `These tasks are not a formality. An LLC wholly owned by a single foreign owner files Form 5472 with Form 1120 with the IRS. This applies to every year with reportable transactions between the company and its owner, even without revenue. The capital contribution and formation costs paid already count as such transactions. For a calendar year the deadline is ${IRS_EN.frist5472}. If the filing is not made, the IRS can impose a penalty of ${IRS_EN.strafe5472}. That is why the first annual US filing is included in your engagement.`,
       ],
     },
     {
-      typ: "text", id: "inklusive", h2: "What your order with FIAON Global includes",
-      absaetze: ["The first year includes these services and fees:"],
+      typ: "text", id: "inklusive", h2: "Included in the first year",
+      absaetze: ["On engagement, the first year includes:"],
       punkte: [...P.enthalten],
-      nach: "Not included are your company’s running costs from the second year — the state fee, the registered agent and the annual US filing; we tell you about them well in advance, and with optional annual care we take care of them. Tax returns in your country of residence stay with your own tax adviser.",
+      nach: `Not included: the charges and interest of card issuers and institutions, the cost of the loan, and taxes. Available on request: annual administration from the second year (${B.jahresbetreuung} a year) and priority handling (${B.fastTrack}). Tax returns in your country of residence remain with your own tax adviser.`,
     },
     {
-      typ: "etappen", id: "auftrag", h2: "How an engagement with FIAON Global works",
-      lead: "From the first conversation to the first US filing — you can see at any time whose turn it is.",
+      // Proposal, signature, invoice and passport stand BEFORE the six steps — they do not count as steps (guide 2.1).
+      typ: "etappen", id: "auftrag", h2: "Your engagement begins",
+      lead: "Four things are in place before the first of the six steps begins.",
       etappen: [
-        { titel: "Initial call or configurator", text: "Thirty minutes, free of charge and without obligation: your plans, your residence, your goal. If you have already made up your mind, you put your offer together in the configurator and see your price at once." },
-        { titel: "Engagement on screen", text: "You read your agreement in full in your offer; it is in German, the language of the contract. You sign on screen; your contracting party is FIAON LTD in London." },
-        { titel: "Start and documents", text: "Work begins once your payment has been received. You choose the name of your company when you sign; afterwards you upload your passport to the document room." },
-        { titel: "Clarified beforehand", text: "Our partner tax adviser clarifies with you beforehand how transfers and investments are treated for tax purposes." },
-        { titel: "Formation and tax numbers", text: "Formation with the state, EIN, ITIN preparation, D-U-N-S Number, registered agent, US address and phone number; our partner lawyer drafts the operating agreement. You can follow the progress in “My order”." },
-        { titel: "Account and cards", text: "You file the applications, fully prepared by us. The institution decides on every application." },
-        { titel: "First US filing and year two", text: "Our US CPA prepares the first annual filing. From the second year you can add annual care — or take over the ongoing duties yourself." },
+        { titel: "Your proposal", text: "You request it in the fee calculator or arrange a call first: thirty minutes, free of charge and without obligation." },
+        { titel: "Your signature", text: `You read your complete agreement in your personal proposal, choose the name of your company and sign online. The agreement is in German; your contracting party is ${F.name}, London.` },
+        { titel: "Your invoice", text: `You receive the agreement and the invoice by email, together with access to your portal. ${weitererSatz("ZAHLUNG", "en")}` },
+        { titel: "Your passport", text: "You upload it once you have signed. We begin once your payment and your passport have been received." },
       ],
     },
     {
-      typ: "text", id: "pruefen", h2: "FIAON Global reviews: how to check us yourself",
+      typ: "text", id: "pruefen", h2: "FIAON Global reviews: check us yourself",
       absaetze: [
-        "Reviews from other clients are one point of reference. More reliable is what you can check yourself before you sign — without having to take our word for anything:",
+        "Reviews are one point of reference. More reliable is what you can check yourself before you sign:",
       ],
       punkte: [
-        `the contracting party in the register: ${F.name}, Companies House ${F.companyNo}, incorporated on 3 July 2026, registered office at ${F.strasse} in London — open to public inspection`,
-        `the management: the director is ${F.director}, also entered in the register`,
-        "the contract: you read it in full in your offer before you sign; it is in German, the language of the contract",
-        "the price: it is set before you order — you see it in the configurator before you enter your details",
-        `the payment: only after your signature, by invoice to the business account of ${F.name} — never to a private account`,
-        "the limits: this page and every engagement state openly what FIAON Global is not",
+        `the contracting party in the register: ${F.name}, Companies House, company number ${F.companyNo}, incorporated on 3 July 2026, registered office at ${F.strasse} in London — open to public inspection`,
+        `the management: the director is ${F.director}, entered in the same register`,
+        "the agreement: you read it in full in your personal proposal before you sign; it is in German",
+        "the fees: they are stated as amounts in your proposal before you sign",
+        `the payment: ${beleg("zahlung", "en")}`,
+        "the limits: this page and your agreement state what FIAON Global is not",
       ],
-      nach: "A reputable provider passes this check before you sign. Anyone who promises limits, interest rates or “tax-free” status does not.",
+      nach: "You can check the same points with any provider. No provider can keep a commitment on limits or interest: each institution makes its own decision.",
     },
     {
       typ: "zitat", id: "kurzprofil",
       text: DEFINITION,
-      quelle: "Short profile of FIAON Global for citation · as of October 2026",
+      quelle: "Short profile of FIAON Global for citation · as at November 2026",
     },
-    {
-      typ: "pakete", id: "mandat", h2: "One mandate with FIAON Global",
-      lead: `${P.karteLead} You choose the capital range yourself; it is your goal, and the institution decides on every limit.`,
-    },
+    { typ: "pakete", id: "mandat", h2: P.karteH2, lead: P.karteLead },
     {
       typ: "hinweis", id: "nicht", h2: "What FIAON Global is not",
-      lead: "We state these limits before the engagement, not afterwards.",
+      lead: "These limits are fixed before you sign.",
       punkte: [
-        "Not a bank: FIAON does not provide accounts, does not issue cards and does not grant loans. The institution concerned alone decides on the account, the card, the limit and the loan.",
-        "Not a loan intermediary: anyone in Germany who arranges loans on a commercial basis needs a licence to do so (section 34c of the German Trade Regulation Act, GewO). FIAON does not arrange loans and does not commit to any limit. You choose the capital range yourself — it is a goal we work towards together, not a commitment.",
-        "Not a tax model: a US company that is managed from the German-speaking region remains taxable there — in Germany, for instance, under section 10 of the German Fiscal Code (AO) and section 1 of the German Corporate Income Tax Act (KStG), in Austria according to the place of management (section 27(2) of the Federal Fiscal Code, BAO; section 1 KStG 1988), in Switzerland according to the place of effective management (Art. 50 of the Federal Direct Tax Act, DBG).",
-        "Not a law firm: FIAON provides no assistance in tax matters and no legal services. These are provided by partner tax advisers, US CPAs and partner lawyers under your engagement.",
-        "No promise on interest: introductory periods without debit interest are offered by some issuers; each issuer sets the terms itself.",
+        `Not a bank: FIAON holds no accounts and issues no cards. ${beleg("keinZugriff", "en")} Decisions on accounts, cards and financing rest with the institution concerned.`,
+        `Does not broker loans: ${KEINE_KREDITE} ${satz("S9", "en")} ${satz("S1", "en")}`,
+        `Not a tax scheme: ${satz("S10", "en")} If the company is managed from your country of residence, it is taxable there as well: in Germany under section 10 AO and section 1 KStG. In Austria the place of management is decisive (section 27(2) BAO, section 1 KStG 1988); in Switzerland, the place of effective management (Art. 50 DBG).`,
+        `Not a law firm: FIAON provides no assistance in tax matters and no legal services. ${RECHT_UND_STEUERN}`,
+        "No commitment on interest: each card issuer and each institution sets its own charges and interest.",
         GLOBAL_PFLICHTHINWEIS.en[0],
         GLOBAL_PFLICHTHINWEIS.en[1],
         GLOBAL_PFLICHTHINWEIS.en[2],
@@ -254,13 +263,13 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "What is FIAON Global?", a: DEFINITION },
-    { f: "Is FIAON Global a bank or a loan intermediary?", a: "No. FIAON is not a bank, does not grant loans, does not arrange loans and does not commit to any limit. The institution concerned alone decides on the account, the card, the limit and the loan. You file account, card and credit applications yourself; FIAON prepares them in full. You choose the capital range yourself; it is a goal, not a commitment." },
-    { f: "Who is behind FIAON Global?", a: `Your contracting party is ${F.name}, a private limited company with its registered office at ${F.strasse} in London, registered at Companies House on 3 July 2026 (company number ${F.companyNo}). The director is ${F.director}. Our team on the ground works in Miami, and Zurich is our partner location.` },
-    { f: "What does FIAON Global cost?", a: "Your price is set before you order: an amount with your order for formation and active management in the first year, plus the success fee, which falls due when your company is registered and follows your capital range. The configurator shows your exact price. From the second year your company incurs running costs; optional annual care takes care of them." },
-    { f: "Does a US company set up through FIAON Global lower my taxes?", a: `No, and we say so openly. A US company managed from Germany, Austria or Switzerland remains taxable there; its formation must be reported to the tax office, in Germany under section 138 of the German Fiscal Code (AO) with the tax return. A US company is a tool for real business in the US and for building a history with institutions, not a tax model. Before formation, our partner tax adviser reviews how your company will be treated.` },
-    { f: "How does FIAON Global differ from a formation service?", a: "A formation service registers the company. As a business consultancy, FIAON Global takes over the whole route: formation, EIN, ITIN preparation, D-U-N-S Number, registered agent, US address and phone in the first year, tax adviser, lawyer and US CPA under your engagement, and prepared account and card applications — with one point of contact. Only the company on its own is cheaper from a formation service." },
-    { f: "Do I have to travel to the US for FIAON Global?", a: `Usually not. Formation, tax numbers and filings are handled remotely; our acceptance agent partner in the DACH region checks your passport in person or by video, with the passport or a copy certified by the issuing authority in front of them. If an institution requires an appointment in person, our team in Miami accompanies you. From a capital range of US$1 million we work with you there in person.` },
-    { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
+    { f: "Is FIAON Global a bank, or does it broker loans?", a: `No. ${KEINE_BANK} ${KEINE_KREDITE} ${satz("S2", "en")} ${satz("S9", "en")}` },
+    { f: "Who is behind FIAON Global?", a: `Your contracting party is ${F.name}, a private limited company with its registered office at ${F.strasse} in London. It is registered in England and Wales under company number ${F.companyNo} and was incorporated on 3 July 2026. The director is ${F.director}. You can view the entry without an account.` },
+    { f: "What does FIAON Global cost?", a: satz("S12", "en") },
+    { f: "Does a US company set up through FIAON Global lower my taxes?", a: `No. ${satz("S10", "en")} You report the formation to the tax office, in Germany under section 138 of the German Fiscal Code (AO) with your tax return. ${beleg("fuerWenNicht", "en")}` },
+    { f: "How does FIAON Global differ from a formation service?", a: "A formation service files the company with the state. FIAON Global works under one engagement: formation, documents and tax identification numbers, plus fully prepared applications for accounts, credit cards on request and financing. Each institution makes its own decision on every application. Formation alone costs less with a formation service." },
+    { f: "Do I have to travel to the US for FIAON Global?", a: `Not for the formation or for your company’s tax identification number. ${weitererSatz("UEBERGANG-EINREICHUNG", "en")} ${PASS_WEG} Whether you need to attend in person is for the institution concerned to decide. ${MIAMI}` },
+    { f: GLOBAL_KAPITAL_FREI.en.frage, a: `No. ${MITTEL_IN_EUROPA}` },
   ],
   weiter: ["/en/business/process", "/en/business/comparison", "/en/business/knowledge/us-funding-for-foreign-owned-companies", "/en/business/knowledge/us-llc-tax"],
   quellen: [
@@ -282,6 +291,5 @@ export const SEITE: GlobalSeite = {
     R.dbg50,
     QUELLEN.stberg5,
     QUELLEN.rdg3,
-    QUELLEN.gewo34c,
   ],
 };

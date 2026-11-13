@@ -5,8 +5,9 @@
 // „$125" und „€2,499", „per cent" im Fließtext, „%" in Tabellen). Ändert sich
 // eine Gebühr, ändert sie sich in BEIDEN Dateien — scripts/pruef-global-seiten.ts
 // gleicht die Ziffern beider Fassungen ab.
-// Wortgrenzen wie überall in FIAON Global: kein „up to" (außer der VIP-Zahl),
-// keine Frist mit Ziffer als Zusage, keine Zusage zu Konto, Karte oder Rahmen.
+// Wortgrenzen wie überall in FIAON Global: kein „up to", keine Zusage zu Konto,
+// Karte oder Rahmen. E-510 (13.11.2026, Sprachleitfaden): Fristen stehen als
+// Zahlwort („after sixty days“), nie mit Ziffer vor days, weeks oder months.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle } from "./typen";
 import { QUELLEN_IRS, QUELLEN_WISSEN } from "./fakten";
@@ -30,7 +31,7 @@ export const STAAT_EN = {
   },
   wyoming: {
     gruendung: "$100", gruendungDetail: "Articles of Organization, plus a card fee when filed online",
-    jahr: "at least $60", jahrName: "annual report with License Tax", jahrFrist: "first day of the month in which the company was formed", jahrVerzug: "after 60 days in arrears the state may dissolve the company",
+    jahr: "at least $60", jahrName: "annual report with License Tax", jahrFrist: "first day of the month in which the company was formed", jahrVerzug: "after sixty days in arrears the state may dissolve the company",
     jahrDetail: "$60 or 0.02% of the assets located in Wyoming — whichever is higher",
     steuer: "Wyoming levies no corporate income tax and no state income tax",
     agent: "required, with a physical address in Wyoming",

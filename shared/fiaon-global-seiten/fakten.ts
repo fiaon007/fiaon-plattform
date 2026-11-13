@@ -15,6 +15,11 @@
 //   endgültig von der BOI-Meldung befreit.
 // Marktspannen (Registered Agent, US-CPA, Acceptance Agent) sind veröffent-
 // lichte Preise mehrerer Anbieter im September 2026 — keine amtlichen Werte.
+//
+// E-510 (13.11.2026, Sprachleitfaden): Fristen stehen als Zahlwort („nach
+// sechzig Tagen“), nie mit Ziffer vor Tagen, Wochen oder Monaten. FAKTEN_STAND
+// ist der Tag der Prüfung an den amtlichen Texten — er ändert sich nur, wenn
+// die Zahlen neu geprüft sind, nie mit einer Änderung am Wortlaut.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalQuelle } from "./typen";
 
@@ -37,7 +42,7 @@ export const STAAT = {
   },
   wyoming: {
     gruendung: "100 $", gruendungDetail: "Articles of Organization, online zuzüglich Kartengebühr",
-    jahr: "mindestens 60 $", jahrName: "Annual Report mit License Tax", jahrFrist: "erster Tag des Monats, in dem die Gesellschaft gegründet wurde", jahrVerzug: "nach 60 Tagen Verzug droht die Auflösung durch den Staat",
+    jahr: "mindestens 60 $", jahrName: "Annual Report mit License Tax", jahrFrist: "erster Tag des Monats, in dem die Gesellschaft gegründet wurde", jahrVerzug: "nach sechzig Tagen Verzug droht die Auflösung durch den Staat",
     jahrDetail: "60 $ oder 0,02 % des in Wyoming gelegenen Vermögens — der höhere Wert",
     steuer: "Wyoming erhebt keine Körperschaftsteuer und keine Einkommensteuer des Staats",
     agent: "Pflicht, mit physischer Anschrift in Wyoming",

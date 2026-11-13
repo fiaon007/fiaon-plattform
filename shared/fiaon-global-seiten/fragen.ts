@@ -4,16 +4,31 @@
 // des Menüs. Keine Frage wird hier von Hand geschrieben: Wer eine Antwort
 // ändert, ändert sie auf ihrer Seite, und hier steht sie im selben Moment neu.
 // Doppelte Fragen (gleicher Wortlaut) erscheinen einmal.
+// E-510 (13.11.2026): Kopf, Blick und Kurzantwort nach dem Sprachleitfaden (Abschnitt 7.8 und 9.3). Titel und Beschreibung
+// nennen kein Land neben Konto, Karte oder Finanzierung; das Honorar steht in drei Teilen, die Beträge kommen aus der
+// Preisquelle (shared/fiaon-global-saetze.ts). Die Antworten selbst gehören den Seiten, von denen sie stammen.
 // ═══════════════════════════════════════════════════════════════════════════
 import type { GlobalBlock, GlobalSeite, MenueGruppe } from "./typen";
 import { globalMenuePunkt } from "../fiaon-global-menue";
-import { GLOBAL_KAPITAL_FREI } from "../fiaon-global";
+import { SAETZE_BETRAEGE, SECHS_SCHRITTE, satz } from "../fiaon-global-saetze";
+
+const STAND = "2026-11-13";
+/** Das Honorar als eine Zeile für „Auf einen Blick“ — immer alle drei Teile, Beträge aus der Preisquelle. */
+const HONORAR_ZEILE = {
+  de: `${SAETZE_BETRAEGE.de.honorarAuftrag} mit Ihrem Auftrag · Erfolgshonorar mit der Eintragung, mindestens ${SAETZE_BETRAEGE.de.erfolgMin} · ab dem zweiten Jahr auf Wunsch ${SAETZE_BETRAEGE.de.jahresbetreuung} im Jahr`,
+  en: `${SAETZE_BETRAEGE.en.honorarAuftrag} on engagement · success fee on registration, at least ${SAETZE_BETRAEGE.en.erfolgMin} · from the second year, on request, ${SAETZE_BETRAEGE.en.jahresbetreuung} a year`,
+} as const;
+/** Schritt 5 (Finanzierung): was gilt, wenn sie ausbleibt — die Zeile aus der Tabelle „Wer macht was“ (mit Fristbeginn und Ziffer 4). */
+const ERSTATTUNG = {
+  de: SECHS_SCHRITTE.de.find((s) => s.nr === 5)?.werMachtWas.wennEsAusbleibt ?? satz("S7"),
+  en: SECHS_SCHRITTE.en.find((s) => s.nr === 5)?.werMachtWas.wennEsAusbleibt ?? satz("S7", "en"),
+} as const;
 
 const GRUPPEN: { gruppe: MenueGruppe; id: string; h2: string; lead: string }[] = [
-  { gruppe: "leistungen", id: "leistungen", h2: "Gründung, Steuernummern, Konto und Karten", lead: "Was FIAON Global übernimmt — und wo die Entscheidung bei Behörden und Instituten liegt." },
-  { gruppe: "preise", id: "preise", h2: "Preise und Ablauf", lead: "Was es kostet, wie lange es dauert, wie Sie Ihr Angebot zusammenstellen." },
-  { gruppe: "fuerwen", id: "fuerwen", h2: "Für wen", lead: "Mittelstand, Handel, Dienstleister, Bau — und die Regeln in Deutschland und der Schweiz." },
-  { gruppe: "wissen", id: "wissen", h2: "Steuern, Bundesstaaten und Rechtsformen", lead: "Die Grundlagen, ehrlich erklärt." },
+  { gruppe: "leistungen", id: "leistungen", h2: "Gründung, Steuernummern, Konten und Karten", lead: "Was FIAON Global übernimmt — und wo die Entscheidung bei Behörden und Instituten liegt." },
+  { gruppe: "preise", id: "preise", h2: "Honorar und Ablauf", lead: "Was es kostet, wie lange es dauert, wie Sie Ihr Angebot anfordern." },
+  { gruppe: "fuerwen", id: "fuerwen", h2: "Für wen", lead: "Mittelstand, Handel, Dienstleister, Bau — und die Regeln Ihres Wohnsitzlandes." },
+  { gruppe: "wissen", id: "wissen", h2: "Steuern, Bundesstaaten und Rechtsformen", lead: "Die Grundlagen, mit Quellen und Stand." },
 ];
 
 export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
@@ -31,26 +46,26 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
     pfad: "/business/fragen",
     art: "preise",
     seo: {
-      titel: "Fragen zur US-Firmengründung — FIAON Global",
-      beschreibung: "Alle Antworten zu FIAON Global: US-Gesellschaft, EIN und ITIN, Konto und Karten, Kosten, Ablauf, Steuern in Deutschland und der Schweiz.",
+      titel: "US-Gesellschaft gründen: Fragen und Antworten — FIAON Global",
+      beschreibung: "Antworten zu Gründung, Steuernummern, Honorar und Pflichten einer US-Gesellschaft — mit Quellen und der Angabe, wer jeweils entscheidet.",
     },
-    stand: "2026-09-19",
+    stand: STAND,
     kennung: "FG · 17",
-    auge: "Preise und Ablauf · Fragen",
-    h1: "Fragen und Antworten.",
+    auge: "Honorar und Ablauf · Fragen",
+    h1: "Fragen zur US-Gesellschaft.",
     h1b: `${anzahl} Antworten, an einem Ort.`,
-    lead: "Die Fragen, die uns Unternehmer vor einer US-Gründung stellen — mit den Antworten, die auch auf den jeweiligen Seiten stehen. Fehlt Ihre Frage, stellen Sie sie im Gespräch.",
+    lead: "Die Fragen, die uns Unternehmer vor einer US-Gründung stellen — mit den Antworten, die auch auf den jeweiligen Seiten stehen. Fehlt Ihre Frage, vereinbaren Sie ein Gespräch.",
     blick: [
-      ["Gründung", "US-Gesellschaft ohne Wohnsitz und ohne Reise"],
-      ["Steuernummern", "EIN für die Gesellschaft, ITIN für Sie"],
-      ["Konto und Karten", "Vorbereitet von uns, entschieden vom Institut"],
-      // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden. Die Frage dazu kommt von /business/firmenkarten-kapital.
-      ["Kapital", `${GLOBAL_KAPITAL_FREI.de.kurz} — über Rahmen und Bedingungen entscheidet das Institut, die steuerliche Behandlung klärt unser Partner-Steuerberater vorab`],
-      ["Kosten", "Ein Preis mit Ihrem Auftrag; Erfolgshonorar mit der Eintragung, nach Ihrem Kapitalrahmen"],
-      ["Steuern", "Steuerpflicht dort, wo die Gesellschaft geführt wird"],
-      ["Ihre Frage fehlt?", "Im Gespräch — dreißig Minuten, ohne Verpflichtung"],
+      ["Gründung", "LLC in Delaware, Florida oder Wyoming"],
+      ["EIN und ITIN", "Die US-Steuernummern — beantragt, nicht zugesagt"],
+      ["Konten und Karten", "Vorbereitet von uns, entschieden vom Institut"],
+      ["Finanzierung", "Anträge vollständig vorbereitet, begleitet bis zur Entscheidung des finanzierenden Instituts"],
+      ["Erstattung", ERSTATTUNG.de],
+      ["Honorar", HONORAR_ZEILE.de],
+      ["Steuern", satz("S10")],
+      ["Ihre Frage fehlt?", "Erstgespräch: dreißig Minuten, kostenfrei"],
     ],
-    kurz: "Eine US-Gesellschaft lässt sich aus Deutschland, Österreich oder der Schweiz ohne Wohnsitz und ohne Reise gründen. FIAON Global übernimmt Gründung, EIN, ITIN, Registered Agent, Adresse und die Vorbereitung von Konto und Karten in einem Auftrag. Über Konto, Karte und Rahmen entscheidet das Institut; steuerpflichtig bleibt die Gesellschaft in der Regel dort, wo sie geführt wird.",
+    kurz: "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und bereiten Ihre Anträge für Konten, Karten und Finanzierung vollständig vor. Sie wählen den Namen, laden Ihren Reisepass hoch, unterzeichnen die Unterlagen und stellen die Anträge bei den Instituten selbst. Über Eintragung und Steuernummern entscheiden Bundesstaat und US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut.",
     bloecke,
     fragen: [],
     weiter: ["/business/us-firmengruendung", "/business/kosten", "/business/ablauf", "/business/vergleich"],
@@ -64,10 +79,10 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
 // fielen alle Leistungs-, Preis- und Zielgruppen-Fragen aus der englischen Seite.
 // ═══════════════════════════════════════════════════════════════════════════
 const GRUPPEN_EN: Record<MenueGruppe, { h2: string; lead: string }> = {
-  leistungen: { h2: "Formation, tax numbers, account and cards", lead: "What FIAON Global takes on — and where authorities and institutions make the decision." },
-  preise: { h2: "Prices and process", lead: "What it costs, how long it takes, how you build your offer." },
-  fuerwen: { h2: "Who it is for", lead: "SMEs, e-commerce, service providers, construction — and the rules in Germany and Switzerland." },
-  wissen: { h2: "Tax, states and legal forms", lead: "The fundamentals, explained honestly." },
+  leistungen: { h2: "Formation, tax identification numbers, accounts and cards", lead: "What FIAON Global handles — and where authorities and institutions make the decision." },
+  preise: { h2: "Fees and process", lead: "What it costs, how long it takes, how you request your proposal." },
+  fuerwen: { h2: "Who it is for", lead: "SMEs, e-commerce, service providers, construction — and the rules of your country of residence." },
+  wissen: { h2: "Tax, states and legal forms", lead: "The fundamentals, stated plainly, with sources." },
 };
 
 export function fragenSeiteEn(alle: GlobalSeite[]): GlobalSeite {
@@ -87,26 +102,27 @@ export function fragenSeiteEn(alle: GlobalSeite[]): GlobalSeite {
     schwester: "/business/fragen",
     art: "preise",
     seo: {
-      titel: "US company formation FAQ — FIAON Global",
-      beschreibung: "All answers about FIAON Global: US company, EIN and ITIN, account and cards, costs, process, and tax in Germany and Switzerland.",
+      titel: "Forming a US company: questions and answers — FIAON Global",
+      beschreibung: "Answers on formation, tax identification numbers, fees and obligations of a US company — with sources and a note on who decides in each case.",
     },
-    stand: "2026-09-24",
+    stand: STAND,
     erschienen: "2026-09-24",
     kennung: "FG · 17",
-    auge: "Prices and process · FAQ",
-    h1: "Questions and answers.",
+    auge: "Fees and process · Questions",
+    h1: "Questions about a US company.",
     h1b: `${anzahl} answers in one place.`,
-    lead: "The questions business owners ask us before forming a US company — with the answers that also appear on the individual pages. If your question is missing, ask it in a call.",
+    lead: "The questions business owners ask us before forming a US company — with the answers that also appear on the individual pages. If your question is missing, arrange a call.",
     blick: [
-      ["Formation", "A US company without residence and without travel"],
-      ["Tax numbers", "EIN for the company, ITIN for you"],
-      ["Account and cards", "Prepared by us, decided by the institution"],
-      ["Capital", `${GLOBAL_KAPITAL_FREI.en.kurz} — the institution decides on the limit and its terms, our partner tax adviser clarifies the tax treatment in advance`],
-      ["Costs", "One price with your order; success fee on registration, according to your capital range"],
-      ["Tax", "Taxable where the company is managed"],
-      ["Question not listed?", "In a call — thirty minutes, without obligation"],
+      ["Formation", "LLC in Delaware, Florida or Wyoming"],
+      ["EIN and ITIN", "The tax identification numbers — applied for, not promised"],
+      ["Accounts and cards", "Prepared by us, decided by the institution"],
+      ["Financing", "Applications prepared in full, supported through to the lender’s decision"],
+      ["Refund", ERSTATTUNG.en],
+      ["Fees", HONORAR_ZEILE.en],
+      ["Tax", satz("S10", "en")],
+      ["Question not listed?", "Initial call: thirty minutes, free of charge"],
     ],
-    kurz: "A US company can be formed from Germany, Austria or Switzerland without residence and without travel. FIAON Global handles formation, EIN, ITIN, registered agent, address and the preparation of account and card applications in one order. The institution decides on the account, the card and the limit; the company generally remains taxable where it is managed.",
+    kurz: "We form your US company, assemble every document, apply for its tax identification numbers and prepare your applications for accounts, cards and financing in full. You choose the name, upload your passport, sign the documents and submit the applications to the institutions yourself. The state and the US tax authority decide on registration and the numbers; the institution concerned decides on accounts, cards and financing.",
     bloecke,
     fragen: [],
     weiter: ["/en/business/us-company-formation", "/en/business/costs", "/en/business/process", "/en/business/comparison"],

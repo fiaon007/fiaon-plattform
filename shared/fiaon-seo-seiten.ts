@@ -329,14 +329,14 @@ const START_WORT: Record<SatzSprache, StartWort> = {
     beschreibung: "Unternehmensberatung für Ihre US-Gesellschaft: LLC-Gründung, EIN und ITIN, US-Büro, vorbereitete Anträge. Ihr Honorar sehen Sie vorab und vollständig.",
     // buehne.h1a + buehne.h1b · buehne.lead
     h1: "US-Gesellschaft gründen. In einem Mandat.",
-    lead: "Wir gründen Ihre Gesellschaft in den USA, holen jede Unterlage ein und bereiten mit Ihnen die Kontoanträge vor. Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft dabei — über Konto und Finanzierung entscheidet das jeweilige Institut.",
+    lead: "Wir gründen Ihre Gesellschaft in den USA, holen jede Unterlage ein und bereiten mit Ihnen die Anträge für Konten und Finanzierung vor. Wir begleiten Ihre Gesellschaft bis zur Entscheidung — über Konto und Finanzierung entscheidet das jeweilige Institut.",
     // blick.titel · blick.punkte (Frage, Antwort) — die vier Antworten der 30-Sekunden-Probe
     blickH2: "Auf einen Blick",
     blick: [
       ["Was geschieht?", "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge für Konten, auf Wunsch Kreditkarten und Finanzierung vor. Wir begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts."],
-      ["Was kostet es — und wann?", `${B.de.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.`],
+      ["Was kostet es — und wann?", `${B.de.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch die Jahresbetreuung für ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.`],
       ["Was tue ich selbst?", "Sie wählen den Namen, laden Ihren Reisepass hoch und unterzeichnen die Unterlagen, die wir vorlegen. Die Anträge bei Institut und Kartenherausgeber stellen Sie selbst."],
-      ["Was gilt, wenn etwas ausbleibt?", "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut. Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags. Für Konto und Karten gilt das nicht."],
+      ["Was gilt, wenn etwas ausbleibt?", "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut. Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags. Für Konten und Karten gilt das nicht."],
     ],
     // produkt.h2a + produkt.h2b · produkt.lead · produkt.bereiche (titel, zeile)
     mandatH2: "Ihre US-LLC: ein Mandat, acht Bereiche.",
@@ -345,8 +345,8 @@ const START_WORT: Record<SatzSprache, StartWort> = {
       ["Gründung", "Ihre Gesellschaft (LLC) in Delaware, Florida oder Wyoming: angemeldet und dokumentiert. Über die Eintragung entscheidet der Bundesstaat."],
       ["Steuernummern", "Wir beantragen die EIN Ihrer Gesellschaft und, nach unserem ITIN-Check, Ihre ITIN. Es entscheidet die US-Steuerbehörde."],
       ["Ihr US-Büro", "Registered Agent, Geschäftsadresse und Telefonnummer in den USA. Im ersten Jahr enthalten."],
-      ["Recht", "Operating Agreement und Gründungsunterlagen Ihrer Gesellschaft. Rechtsfragen klären Partner-Anwälte in eigener Verantwortung."],
-      ["Steuern", "Die erste jährliche US-Meldung Ihrer Gesellschaft. Steuerfragen klären US-Steuerberater (CPA) aus unserem Partnernetz in eigener Verantwortung."],
+      ["Recht", "Operating Agreement und Gründungsunterlagen Ihrer Gesellschaft. Rechtsfragen liegen bei Partner-Anwälten, die in eigener Verantwortung arbeiten."],
+      ["Steuern", "Die erste jährliche US-Meldung Ihrer Gesellschaft. Steuerfragen liegen bei US-Steuerberatern (CPA) aus unserem Partnernetz, die in eigener Verantwortung arbeiten."],
       ["Konten und Karten", "Wir bereiten vor, Sie stellen den Antrag, das Institut entscheidet. Kreditkarten auf Wunsch, ohne zusätzliches Honorar von FIAON."],
       ["Finanzierung", "Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Es entscheidet das finanzierende Institut."],
       ["Pflichten und Fristen", "Pflichtenkalender und erste Jahresmeldung beim Bundesstaat. Ab dem zweiten Jahr auf Wunsch: Jahresbetreuung."],
@@ -360,7 +360,7 @@ const START_WORT: Record<SatzSprache, StartWort> = {
     angebotLead: "Sie wählen Ihre Schwerpunkte und Ihren Kapitalrahmen. Der Honorarrechner zeigt Ihr Honorar vollständig: mit Ihrem Auftrag, mit der Eintragung und ab dem zweiten Jahr.",
     rahmenTitel: "Ihr Kapitalrahmen",
     // garantie.text, zweiter Satz (der erste ist S7)
-    garantieNicht: "Für Konto und Karten gilt das nicht.",
+    garantieNicht: "Für Konten und Karten gilt das nicht.",
     // GLOBAL_WOERTER.de.wissenTitel (client/src/i18n/global.ts) · GLOBAL_PFLICHTHINWEIS.de (shared/fiaon-global.ts, Wortlaut wie im Vertrag)
     wissenH2: "Was Sie vor dem Mandat wissen müssen",
     wissen: [
@@ -383,11 +383,11 @@ const START_WORT: Record<SatzSprache, StartWort> = {
     titel: "US LLC formation with ongoing administration — FIAON Global",
     beschreibung: "Business consultancy for your US company: LLC formation, EIN and ITIN, US office and prepared applications. Your fees are set out in full before you sign.",
     h1: "Form your US company. Under one engagement.",
-    lead: "We form your company in the United States, assemble every document and prepare your account applications with you. We prepare each application and support your company throughout; decisions on accounts and financing rest with the institution concerned.",
+    lead: "We form your company in the United States, assemble every document and prepare the applications for accounts and financing with you. We support your company through to the decision; decisions on accounts and financing rest with the institution concerned.",
     blickH2: "At a glance",
     blick: [
       ["What happens?", "We form your US company, assemble every document and prepare your applications for accounts, credit cards on request and financing. We support your company through to the lender’s decision."],
-      ["What does it cost — and when?", `${B.en.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.en.erfolgMin}. From the second year, on request, ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.`],
+      ["What does it cost — and when?", `${B.en.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.en.erfolgMin}. From the second year, on request, annual administration for ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.`],
       ["What do I do myself?", "You choose the name, upload your passport and sign the documents we present. You submit the applications to the institution and the card issuer yourself."],
       ["What applies if something does not come about?", "Decisions on accounts, cards and financing rest with the institution concerned. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us. The conditions are set out in clause 4 of your agreement. This does not apply to accounts and cards."],
     ],
@@ -516,7 +516,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/what-is-fiaon",
       titel: "What is FIAON? The operating system for creditworthiness",
-      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and, in Germany, guides you to the account and card of our partner bank. Three layers, one path.",
+      beschreibung: "FIAON shows you what SCHUFA, KSV or CRIF hold on you, repairs it with you and, in Germany, guides you to the account and card of our partner bank.",
       h1: "The operating system for creditworthiness.",
       lead: "FIAON shows you what the credit bureaus hold on you, repairs it with you — and then, in Germany, guides you to the account and card of our partner bank. One sentence, three layers, one path.",
       abschnitte: [
@@ -634,7 +634,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       { h2: "Was kostet mein Fall?", text: "Einträge, Auskunfteien und Ziel eingeben – der Rechner nennt das passende Paket, den Gesamtpreis über zwölf Raten und was derselbe Fall in eigener Zeit oder beim Anwalt (Richtwert 190 € je Schreiben) kostet. Bei einem einzigen klaren Eintrag reichen die kostenlosen Werkzeuge oft aus." },
       { h2: "Der Zahlungsweg – Schritt für Schritt.", text: "Antrag und Vertrag, erste Rate per Überweisung (bankbestätigt, dann Startgespräch), ab Monat zwei jede weitere Rate ebenfalls per Überweisung; nach der zwölften Rate jederzeit mit einer Frist von einem Monat kündbar, formlos. Keine Vorkasse für Leistungen, die noch nicht erbracht sind." },
       // 17.09.2026 (E-188): Business-Abos eingestellt, für Unternehmen gibt es FIAON Global (Einmalpreise aus shared/fiaon-pakete.ts, geprüft von scripts/pruef-pakete.ts).
-      { h2: "Für Unternehmen: FIAON Global.", text: `FIAON gründet Ihre US-Gesellschaft mit einem Team vor Ort in den USA, bereitet Steuernummern, Dokumente sowie Konto- und Kartenanträge vor. Ein Mandat, kein Abo: ${verkaufEur(VERKAUF_PREISE.gruendungCents)} mit Ihrem Auftrag, das Erfolgshonorar mit der Eintragung nach Ihrem Kapitalrahmen. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.` },
+      { h2: "Für Unternehmen: FIAON Global.", text: `FIAON gründet Ihre US-Gesellschaft und bereitet Steuernummern, Unterlagen sowie Konto- und Kartenanträge vor. Ein Mandat, kein Abo: ${verkaufEur(VERKAUF_PREISE.gruendungCents)} mit Ihrem Auftrag, das Erfolgshonorar mit der Eintragung nach Ihrem Kapitalrahmen. Über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.` },
       { h2: "Wann Sie FIAON nicht brauchen", text: "Ein einziger, klar erledigter Eintrag: der kostenlose Löschantrag-Generator. Nur wissen, was drinsteht: die kostenlose Datenkopie. FIAON lohnt sich bei mehreren Einträgen, mehreren Ländern, Fristen und Antworten – oder wenn Konto und Karte das Ziel sind." },
     ],
     weiter: ["/privatkunden", "/", "/bonitaetsauskunft-beantragen", "/fiaon-erfahrungen", "/werkzeuge"],
@@ -698,7 +698,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/austria",
       titel: "FIAON in Austria: KSV1870, CRIF and your rights",
-      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists — and how FIAON helps you exercise your rights.",
+      beschreibung: "KSV1870 and CRIF explained, self-disclosure under Art. 15 GDPR, deletion deadlines, the banks' warning lists and how FIAON helps you exercise your rights.",
       h1: "Creditworthiness in Austria, in plain terms.",
       lead: "KSV1870, CRIF, the banks' warning lists: in Austria, different bodies decide on account, card and mobile contract than in Germany — with their own rules and their own deadlines. FIAON knows them.",
       abschnitte: [
@@ -2433,7 +2433,9 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   "/antrag": { pfad: "/antrag", art: "intern", stand: "2026-10-05", prio: 0.1, robots: "noindex,follow", titel: "Antrag stellen — FIAON", beschreibung: "Ihr Antrag bei FIAON: Angaben, Prüfung, persönliche PIN, Paket und Vertrag – Schritt für Schritt.", h1: "Ihr Antrag bei FIAON", lead: "Angaben, Prüfung, persönliche PIN, Paket und Vertrag – Schritt für Schritt." },
   "/business/auftrag": { pfad: "/business/auftrag", art: "intern", stand: "2026-09-17", prio: 0.1, robots: "noindex,nofollow", bild: GLOBAL_BILD, titel: "Mein Auftrag — FIAON Global", beschreibung: "Stand Ihres Auftrags bei FIAON Global: Etappen, nächster Schritt, Dokumente, Pflichtenkalender und Ihr Ansprechpartner.", h1: "Mein Auftrag", lead: "Etappen, nächster Schritt, Dokumente und Pflichtenkalender Ihres Auftrags.", en: { pfad: "/en/business/auftrag", bild: GLOBAL_BILD_EN, titel: "My order — FIAON Global", beschreibung: "The status of your FIAON Global order: stages, next step, documents, compliance calendar and your contact.", h1: "My order", lead: "Stages, next step, documents and compliance calendar of your order." } },
   // 19.09.2026: Rechtliches der Business-Welt (client/src/pages/site/global-recht.tsx).
-  "/business/widerrufsbelehrung": { pfad: "/business/widerrufsbelehrung", art: "recht", stand: "2026-09-19", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Widerrufsbelehrung — FIAON Global", beschreibung: "Die Widerrufsbelehrung für Aufträge über FIAON Global, die Sie als Privatperson und Verbraucher erteilen — mit Muster-Widerrufsformular.", h1: "Widerrufsbelehrung für Privatpersonen", lead: "Sie gilt für Aufträge über FIAON Global, die Sie als Verbraucher erteilen. Derselbe Wortlaut steht als Anlage in Ihrem Vertrag.", en: { pfad: "/en/business/widerrufsbelehrung", bild: GLOBAL_BILD_EN, titel: "Withdrawal instructions — FIAON Global", beschreibung: "The withdrawal instructions for FIAON Global orders placed by private individuals as consumers — with the model withdrawal form.", h1: "Withdrawal instructions for private individuals", lead: "They apply to FIAON Global orders you place as a consumer. The same wording is attached to your contract as an annex." } },
+  // 13.11.2026 (E-510, Gegenlesen): Beschreibung und Einleitung wortgleich mit der sichtbaren Seite (global-recht.tsx, Leitfaden 9.1
+  // Nr. 10) — vorher „Aufträge über FIAON Global“ / “orders placed”, “contract”; die Seite sagt „Mandat erteilen“ / “instruct”.
+  "/business/widerrufsbelehrung": { pfad: "/business/widerrufsbelehrung", art: "recht", stand: "2026-11-13", prio: 0.1, robots: "noindex,follow", bild: GLOBAL_BILD, titel: "Widerrufsbelehrung — FIAON Global", beschreibung: "Die Widerrufsbelehrung für Verbraucher, die FIAON Global ein Mandat erteilen — mit Muster-Widerrufsformular.", h1: "Widerrufsbelehrung für Privatpersonen", lead: "Sie gilt, wenn Sie FIAON Global als Verbraucher ein Mandat erteilen. Erteilen Sie es als Unternehmen, besteht kein gesetzliches Widerrufsrecht. Derselbe Wortlaut steht als Anlage in Ihrem Vertrag.", en: { pfad: "/en/business/widerrufsbelehrung", bild: GLOBAL_BILD_EN, titel: "Withdrawal instructions — FIAON Global", beschreibung: "The withdrawal instructions for consumers who instruct FIAON Global — with the model withdrawal form.", h1: "Withdrawal instructions for private individuals", lead: "They apply where you instruct FIAON Global as a consumer. If you instruct us as a company, there is no statutory right of withdrawal. The same wording is annexed to your agreement." } },
   // E-509 (Leitplanke 12.11.2026): /business/mustervertrag ist „Ihr Vertrag im Überblick“ — der Aufbau des Vertrags in Stichpunkten,
   // nicht sein Wortlaut (der steht nur im persönlichen Angebot). Titel, Beschreibung, Überschrift und Lead wortgleich mit
   // VERKAUF_TEXTE.vertrag (shared/fiaon-global-verkauf.ts; scripts/pruef-verkaufsmotor.ts prüft die Gleichheit).

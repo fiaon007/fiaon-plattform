@@ -40,7 +40,7 @@ const Z_ENTSCHEIDET: [string, string] = ["Decided by", "The state and the US tax
 /** What applies if the financing does not arrive — the row from the table “who does what” (style guide 2.4), directly below “Decided by”. */
 const Z_AUSBLEIBT: [string, string] = [GELD_ZURUECK.en.auge, SECHS_SCHRITTE.en.find((x) => x.nr === 5)!.werMachtWas.wennEsAusbleibt];
 /** Switzerland: the first view without accounts, cards or financing (style guide 1.3, version B). */
-const Z_UEBERNEHMEN_CH: [string, string] = ["We handle", "Formation, documents, the EIN and ITIN applications; deadlines and filings in the first year"];
+const Z_UEBERNEHMEN_CH: [string, string] = ["We handle", "Formation, documents, the EIN and ITIN applications; US deadlines and filings in the first year"];
 const Z_SELBST_CH: [string, string] = ["You", "Choose the name, upload your passport, sign"];
 const Z_ENTSCHEIDET_CH: [string, string] = ["Decided by", "Registration by the state; the EIN and the ITIN by the US tax authority"];
 
@@ -135,7 +135,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: KARTE_LEAD, paket: "global_banking" },
     ],
     fragen: [
-      { f: "Can my GmbH own a US LLC or corporation?", a: "Yes. A GmbH, AG or holding company can be the shareholder of an LLC or corporation just as a natural person can. In that case we need the commercial register extract of the parent company." },
+      { f: "Can my GmbH own a US LLC or corporation?", a: "Yes. A GmbH, AG or holding company can be the shareholder of an LLC or corporation just as a natural person can. In that case we need the commercial register extract of the parent company. If you request your proposal via the fee calculator, you personally become the shareholder; if your GmbH is to hold the shares, we agree this with you in a call." },
       { f: "Is a US subsidiary taxed in the US?", a: `That depends on the legal form, the activity and the place of management. ${STEUERFRAGEN}; your tax adviser handles the ongoing tax return.` },
       { f: "Does FIAON also handle visas for employees?", a: "No. Visas, payroll and transfer pricing are not part of your engagement." },
       { f: "How long does it take to set up a US subsidiary?", a: "That is determined by the authorities: registration is decided by the state, the EIN by the US tax authority. We therefore do not commit to a deadline." },
@@ -160,7 +160,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     auge: "Who it is for · E-commerce",
     h1: "A US company for e-commerce sellers.",
     h1b: "EIN, US address, sales tax.",
-    lead: "Marketplaces, payment providers and logistics companies in the US often expect a US company with an EIN and a US address. We form your company, apply for its tax identification numbers and prepare your account and card applications; each institution makes its own decision.",
+    lead: "Marketplaces, payment providers and logistics companies in the US often expect a US company with an EIN and a US address. We form your company, apply for its tax identification numbers and prepare your account applications and, on request, your card applications; each institution makes its own decision.",
     ziffern: [
       { wert: "EIN", label: "your company’s US tax number; the US tax authority decides" },
       { wert: "Sales tax", label: "levied by the states, each with its own thresholds" },
@@ -390,7 +390,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
         typ: "text", id: "typenvergleich", h2: "The Typenvergleich: how the LLC is classified",
         absaetze: [
           "German tax law has no category for the LLC. The tax office therefore examines whether its characteristics correspond more closely to a corporation such as the GmbH or to a partnership. This is the so-called Typenvergleich, a classification by comparison with German legal forms. The German Federal Ministry of Finance set out the criteria for the US LLC in a dedicated letter (BMF letter of 19 March 2004). The classification in the US, the so-called check-the-box election, plays no part in this.",
-          `The outcome depends on the operating agreement: who decides, how profits are distributed, whether shares are transferable. The classification should therefore be clarified before the operating agreement is drafted. ${STEUERFRAGEN}.`,
+          `The outcome depends on the operating agreement: who decides, how profits are distributed and whether shares are transferable. The classification should therefore be clarified before the operating agreement is drafted. ${STEUERFRAGEN}.`,
         ],
       },
       {
@@ -444,7 +444,7 @@ export const ZIELGRUPPEN_EN: GlobalSeite[] = [
     auge: "Who it is for · From Switzerland",
     h1: "A US company from Switzerland.",
     h1b: "Effective management.",
-    lead: "You do not need to be resident in the US to own a US company. We form your US company, assemble every document, apply for the tax identification numbers and handle deadlines and filings in the first year.",
+    lead: "You do not need to be resident in the US to own a US company. We form your US company, assemble every document, apply for the tax identification numbers and handle the US deadlines and filings in the first year.",
     ziffern: [
       { wert: "Art. 50 DBG", label: "tax liability where the registered office or effective management is in Switzerland" },
       { wert: "Form 5472", label: "annual US filing, even without revenue" },

@@ -135,7 +135,7 @@ export function verkaufPreis(usd: number, kursUsdJeEur: number = VERKAUF_KURS_VO
 //   ohne_kapital  Kein Kapital gewählt: Der Vertrag der Fassung C enthält immer Kapital, Bürgschaft und Geld-zurück-Garantie —
 //                 wer kein Kapital will, bekommt ihn nicht zur Unterschrift.
 //   miami         Ab 1 Mio. US-Dollar persönlich in Miami.
-//   vorhaben      Wohnsitz Österreich (laufendes Verfahren der Aufsicht: kein Selbstabschluss mit Bürgschaft) oder ein Land
+//   vorhaben      Wohnsitz Österreich (persönlicher Weg, kein Selbstabschluss) oder ein Land
 //                 außerhalb von Deutschland, Österreich und der Schweiz (der Vertrag kennt nur diese drei).
 //   abschluss     Alles andere: Das Angebot entsteht sofort.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -352,7 +352,7 @@ const DE: VerkaufTexte = {
     honorarZeile: `Mit der Eintragung Ihrer Gesellschaft: Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}.`,
     h1a: "US-Gesellschaft gründen.",
     h1b: "In einem Mandat.",
-    lead: "Wir gründen Ihre Gesellschaft in den USA, holen jede Unterlage ein und bereiten mit Ihnen die Kontoanträge vor. Wir bereiten jeden Antrag vor und begleiten Ihre Gesellschaft dabei — über Konto und Finanzierung entscheidet das jeweilige Institut.",
+    lead: "Wir gründen Ihre Gesellschaft in den USA, holen jede Unterlage ein und bereiten mit Ihnen die Anträge für Konten und Finanzierung vor. Wir begleiten Ihre Gesellschaft bis zur Entscheidung — über Konto und Finanzierung entscheidet das jeweilige Institut.",
     knopf: handlung("angebot", "de"),
     knopfGespraech: handlung("gespraech", "de"),
     mikro: "Ihre Honorarübersicht sehen Sie vorab. Ihren vollständigen Vertrag lesen Sie, bevor Sie unterzeichnen.",
@@ -363,9 +363,9 @@ const DE: VerkaufTexte = {
     titel: "Auf einen Blick",
     punkte: [
       { frage: "Was geschieht?", antwort: "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und bereiten Ihre Anträge für Konten, auf Wunsch Kreditkarten und Finanzierung vor. Wir begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts." },
-      { frage: "Was kostet es — und wann?", antwort: `${B.de.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.` },
+      { frage: "Was kostet es — und wann?", antwort: `${B.de.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.de.erfolgMin}. Ab dem zweiten Jahr auf Wunsch die Jahresbetreuung für ${B.de.jahresbetreuung} im Jahr. Alle Beträge sind Endpreise und stehen in Ihrem Angebot, bevor Sie unterzeichnen.` },
       { frage: "Was tue ich selbst?", antwort: "Sie wählen den Namen, laden Ihren Reisepass hoch und unterzeichnen die Unterlagen, die wir vorlegen. Die Anträge bei Institut und Kartenherausgeber stellen Sie selbst." },
-      { frage: "Was gilt, wenn etwas ausbleibt?", antwort: "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut. Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags. Für Konto und Karten gilt das nicht." },
+      { frage: "Was gilt, wenn etwas ausbleibt?", antwort: "Über Konto, Karte und Finanzierung entscheidet das jeweilige Institut. Kommt die Auszahlung Ihrer Finanzierung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags. Für Konten und Karten gilt das nicht." },
     ],
   },
   produkt: {
@@ -391,12 +391,12 @@ const DE: VerkaufTexte = {
         "US-Telefonnummer",
         weitererSatz("UEBERGANG-ASSISTENZ", "de"),
       ] },
-      { nr: "IV", titel: "Recht", zeile: "Operating Agreement und Gründungsunterlagen Ihrer Gesellschaft. Rechtsfragen klären Partner-Anwälte in eigener Verantwortung.", details: [
+      { nr: "IV", titel: "Recht", zeile: "Operating Agreement und Gründungsunterlagen Ihrer Gesellschaft. Rechtsfragen liegen bei Partner-Anwälten, die in eigener Verantwortung arbeiten.", details: [
         "Operating Agreement Ihrer Gesellschaft",
         "Gründungsunterlagen, geordnet in Ihrem Portal",
         weitererSatz("ROLLEN", "de"),
       ] },
-      { nr: "V", titel: "Steuern", zeile: "Die erste jährliche US-Meldung Ihrer Gesellschaft. Steuerfragen klären US-Steuerberater (CPA) aus unserem Partnernetz in eigener Verantwortung.", details: [
+      { nr: "V", titel: "Steuern", zeile: "Die erste jährliche US-Meldung Ihrer Gesellschaft. Steuerfragen liegen bei US-Steuerberatern (CPA) aus unserem Partnernetz, die in eigener Verantwortung arbeiten.", details: [
         "Die erste jährliche US-Meldung ist im ersten Jahr enthalten",
         satz("S10", "de"),
       ] },
@@ -440,7 +440,7 @@ const DE: VerkaufTexte = {
     schritt1: "Ihre Schwerpunkte",
     schritt1Sub: "Mehrere sind möglich.",
     schritt2: "Ihr Kapitalrahmen",
-    schritt2Sub: "Stellen Sie den Regler auf den Kapitalrahmen, den Sie wählen.",
+    schritt2Sub: "Stellen Sie den Regler auf Ihren Kapitalrahmen.",
     schritt3: "Ihre Honorarübersicht",
     interessen: {
       kapital: { titel: "Finanzierung", zeile: "Begleitung bis zur Entscheidung des finanzierenden Instituts.", preis: "Erfolgshonorar nach Kapitalrahmen" },
@@ -469,7 +469,7 @@ const DE: VerkaufTexte = {
       finanzierung: satz("S5-C", "de"),
       kurs: (kurs, tag) => `Umgerechnet zum Referenzkurs der Europäischen Zentralbank vom ${tag} (1 € = ${kurs} US-$).`,
     },
-    ohneKapitalBlatt: "Ohne Finanzierung entfällt das Erfolgshonorar. Ihr Angebot dazu erhalten Sie persönlich.",
+    ohneKapitalBlatt: "Ohne Kapitalrahmen fällt kein Erfolgshonorar an. Ihr Angebot erhalten Sie persönlich.",
     weiter: handlung("angebot", "de"),
     zurueck: "Zurück",
     form: {
@@ -548,7 +548,7 @@ const DE: VerkaufTexte = {
   garantie: {
     auge: GELD_ZURUECK.de.auge,
     h2: `${GELD_ZURUECK.de.name}.`,
-    text: `${saetzeVon(satz("S7", "de"))[0]} Für Konto und Karten gilt das nicht.`,
+    text: `${saetzeVon(satz("S7", "de"))[0]} Für Konten und Karten gilt das nicht.`,
     mittel: [...GELD_ZURUECK.de.mittel],
     fein: saetzeVon(satz("S7", "de"))[1],
   },
@@ -624,7 +624,7 @@ const DE: VerkaufTexte = {
     anlageWort: "Anlage",
     punkte: [
       { nr: "1", titel: "Vertragsparteien und Gegenstand", text: "Wer den Vertrag schließt und was er umfasst. Ihre Gesellschaft gehört allein Ihnen; FIAON erwirbt keine Anteile." },
-      { nr: "2", titel: "Die US-Gesellschaft", text: "Die Gründung Ihrer Gesellschaft: Anmeldung beim Bundesstaat mit Staatsgebühr, Operating Agreement, Ihr US-Büro im ersten Jahr, die Anträge für EIN und ITIN, der Pflichtenkalender und die ersten Meldungen." },
+      { nr: "2", titel: "Die US-Gesellschaft", text: "Die Gründung Ihrer Gesellschaft: Anmeldung beim Bundesstaat mit Staatsgebühr, Operating Agreement, Ihr US-Büro im ersten Jahr, die Anträge für die EIN und, nach unserem ITIN-Check, für die ITIN, der Pflichtenkalender und die ersten Meldungen." },
       { nr: "3", titel: "Konto und Karten", text: "Privates US-Konto, private US-Kreditkarten, Geschäftskonto und Firmenkreditkarte: Wir bereiten jeden Antrag vollständig vor. Sie stellen ihn selbst; über Konto, Karten und Rahmen entscheidet das jeweilige Institut." },
       { nr: "4 und 5", titel: "Begleitung zur Finanzierung und Geld-zurück-Garantie", text: "Wir bereiten die Anträge für die Finanzierung in Ihrem Kapitalrahmen vor und begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts. Der Vertrag nennt das Ziel der Begleitung, die Voraussetzungen der Geld-zurück-Garantie und alle weiteren Einzelheiten zur Finanzierung. Über die Finanzierung entscheidet das finanzierende Institut." },
       { nr: "6", titel: "Vergütung und Fälligkeit", text: "Das Honorar mit Ihrem Auftrag, das Erfolgshonorar mit der Eintragung Ihrer Gesellschaft und die Jahresbetreuung ab dem zweiten Jahr. Alle Beträge sind Endpreise." },
@@ -634,7 +634,7 @@ const DE: VerkaufTexte = {
       { nr: "10", titel: "Widerrufsrecht", text: "Ihr gesetzliches Widerrufsrecht als Verbraucher: vierzehn Tage. Belehrung und Muster-Formular stehen in der Anlage." },
       { nr: "11", titel: "Haftung", text: "Wofür FIAON haftet und wofür die Partner haften, die in eigener Verantwortung arbeiten." },
       { nr: "12", titel: "Vertraulichkeit und Datenschutz", text: "Wie wir mit Ihren Unterlagen und Ihren Daten umgehen." },
-      { nr: "13", titel: "Befugnisse von FIAON", text: "Wozu Sie uns bevollmächtigen — und was bei Ihnen bleibt: Konten eröffnen, über Geld verfügen und Finanzierungen beantragen." },
+      { nr: "13", titel: "Befugnisse von FIAON", text: "Wozu Sie uns bevollmächtigen. Allein bei Ihnen bleiben: die Eröffnung von Konten, jede Verfügung über Geld und die Anträge auf Finanzierung." },
       { nr: "14", titel: "Schlussbestimmungen", text: "Vertragssprache Deutsch, deutsches Recht, Änderungen in Textform." },
       { nr: "A", titel: "Widerrufsbelehrung und Muster-Widerrufsformular", text: "Der gesetzliche Wortlaut, Ihrem Vertrag als Anlage beigefügt." },
     ],
@@ -659,7 +659,7 @@ const EN: VerkaufTexte = {
     honorarZeile: `On registration of your company: success fee set by your funding target, at least ${B.en.erfolgMin}.`,
     h1a: "Form your US company.",
     h1b: "Under one engagement.",
-    lead: "We form your company in the United States, assemble every document and prepare your account applications with you. We prepare each application and support your company throughout; decisions on accounts and financing rest with the institution concerned.",
+    lead: "We form your company in the United States, assemble every document and prepare the applications for accounts and financing with you. We support your company through to the decision; decisions on accounts and financing rest with the institution concerned.",
     knopf: handlung("angebot", "en"),
     knopfGespraech: handlung("gespraech", "en"),
     mikro: "Your schedule of fees is shown in advance. You read your complete agreement before you sign.",
@@ -670,7 +670,7 @@ const EN: VerkaufTexte = {
     titel: "At a glance",
     punkte: [
       { frage: "What happens?", antwort: "We form your US company, assemble every document and prepare your applications for accounts, credit cards on request and financing. We support your company through to the lender’s decision." },
-      { frage: "What does it cost — and when?", antwort: `${B.en.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.en.erfolgMin}. From the second year, on request, ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.` },
+      { frage: "What does it cost — and when?", antwort: `${B.en.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.en.erfolgMin}. From the second year, on request, annual administration for ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.` },
       { frage: "What do I do myself?", antwort: "You choose the name, upload your passport and sign the documents we present. You submit the applications to the institution and the card issuer yourself." },
       { frage: "What applies if something does not come about?", antwort: "Decisions on accounts, cards and financing rest with the institution concerned. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us. The conditions are set out in clause 4 of your agreement. This does not apply to accounts and cards." },
     ],
@@ -747,7 +747,7 @@ const EN: VerkaufTexte = {
     schritt1: "Your priorities",
     schritt1Sub: "You may choose several.",
     schritt2: "Your funding target",
-    schritt2Sub: "Set the slider to the funding target you choose.",
+    schritt2Sub: "Set the slider to your funding target.",
     schritt3: "Your schedule of fees",
     interessen: {
       kapital: { titel: "Financing", zeile: "Support through to the lender’s decision.", preis: "success fee set by your funding target" },
@@ -776,7 +776,7 @@ const EN: VerkaufTexte = {
       finanzierung: satz("S5-C", "en"),
       kurs: (kurs, tag) => `Converted at the European Central Bank reference rate of ${tag} (€1 = US$${kurs}).`,
     },
-    ohneKapitalBlatt: "Without financing, no success fee is payable. You receive your proposal for this from us in person.",
+    ohneKapitalBlatt: "Without a funding target, there is no success fee. You receive your proposal from us in person.",
     weiter: handlung("angebot", "en"),
     zurueck: "Back",
     form: {
@@ -797,7 +797,7 @@ const EN: VerkaufTexte = {
       datenschutz: `We use your details to draw up your proposal and to contact you about it. ${beleg("daten", "en")}`,
       datenschutzLink: "Privacy policy",
       vertragssprache: "Your agreement and your proposal page are in German, the language of the contract.",
-      bundesstaat: `Via the fee calculator, we form in ${VERKAUF_BUNDESSTAAT}. Florida or Wyoming can be agreed with you in a call.`,
+      bundesstaat: `Via the fee calculator, we form in ${VERKAUF_BUNDESSTAAT}. We agree Florida or Wyoming with you in a call.`,
     },
     wege: {
       miami: {
@@ -930,7 +930,7 @@ const EN: VerkaufTexte = {
     anlageWort: "Annex",
     punkte: [
       { nr: "1", titel: "Parties and subject matter", text: "Who enters into the agreement and what it covers. Your company belongs to you alone; FIAON acquires no interest in it." },
-      { nr: "2", titel: "The US company", text: "The formation of your company: filing with the state including the state fee, operating agreement, your US office in the first year, the EIN and ITIN applications, the compliance calendar and the first filings." },
+      { nr: "2", titel: "The US company", text: "The formation of your company: filing with the state including the state fee, operating agreement, your US office in the first year, the applications for the EIN and, following our ITIN check, the ITIN, the compliance calendar and the first filings." },
       { nr: "3", titel: "Accounts and cards", text: "Personal US account, personal US credit cards, business account and business credit card: we prepare every application in full. You submit it yourself; each institution decides on accounts, cards and limits." },
       { nr: "4 and 5", titel: "Support through to financing and money-back commitment", text: "We prepare the applications for financing within your funding target and support your company through to the lender’s decision. The agreement sets out the aim of that support, the conditions of the money-back commitment and every further detail of the financing. All financing decisions rest with the lender." },
       { nr: "6", titel: "Fees and due dates", text: "The fee on engagement, the success fee on registration of your company, and annual administration from the second year. All fees are stated in full; nothing is added." },
@@ -938,9 +938,9 @@ const EN: VerkaufTexte = {
       { nr: "8", titel: "Mandatory information", text: "What you need to know before you instruct us: tax liability in your country of residence, annual filing duties in the United States and the decisions of the institutions." },
       { nr: "9", titel: "Term and end", text: "When the agreement begins, how long our support runs and how it ends." },
       { nr: "10", titel: "Right of withdrawal", text: "Your statutory right of withdrawal as a consumer: fourteen days. The instructions and the model form are in the annex." },
-      { nr: "11", titel: "Liability", text: "What FIAON is liable for, and what the partners are liable for, who act in their own professional capacity." },
+      { nr: "11", titel: "Liability", text: "What FIAON is liable for, and what the partners, who act in their own professional capacity, are liable for." },
       { nr: "12", titel: "Confidentiality and data protection", text: "How we handle your documents and your data." },
-      { nr: "13", titel: "Authority of FIAON", text: "What you authorise us to do — and what stays with you: opening accounts, disposing of funds and applying for financing." },
+      { nr: "13", titel: "Authority of FIAON", text: "What you authorise us to do. Reserved to you alone: opening accounts, any disposal of funds and applications for financing." },
       { nr: "14", titel: "Final provisions", text: "German as the language of the contract, German law, changes in text form." },
       { nr: "A", titel: "Withdrawal instructions and model withdrawal form", text: "The statutory wording, attached to your agreement as an annex." },
     ],
@@ -982,7 +982,7 @@ export function verkaufMeldungZeilen(e: VerkaufEingabe, weg: VerkaufWeg, kursUsd
     abschluss: "Selbstabschluss — das Angebot ist angelegt, die Unterschrift ist frei.",
     miami: "Persönlicher Weg: ab 1 Mio. US-Dollar in Miami — bitte Termin abstimmen.",
     bestand: "Persönlicher Weg: bestehende US-Gesellschaft — Unterlagen anfordern, prüfen, dann Angebot „übernehmen statt neu gründen“ (E-506).",
-    vorhaben: e.land === "AT" ? "Persönlicher Weg: Wohnsitz Österreich — kein Selbstabschluss mit Bürgschaft; Vorhaben persönlich besprechen." : "Persönlicher Weg: Wohnsitz außerhalb von Deutschland, Österreich und der Schweiz.",
+    vorhaben: e.land === "AT" ? "Persönlicher Weg: Wohnsitz Österreich — kein Selbstabschluss; Vorhaben persönlich besprechen." : "Persönlicher Weg: Wohnsitz außerhalb von Deutschland, Österreich und der Schweiz.",
     ohne_kapital: "Persönlicher Weg: ohne Kapital — Angebot nur Gesellschaft mit Betreuung.",
   };
   const namen: Record<VerkaufInteresse, string> = { kapital: "Kapital", karten: "Firmenkreditkarten", konto: "US-Konto", beratung: "Unternehmensberatung" };

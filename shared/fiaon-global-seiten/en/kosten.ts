@@ -118,7 +118,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
           ["Formation", STAAT_EN.delaware.gruendung, STAAT_EN.florida.gruendung, STAAT_EN.wyoming.gruendung],
           ["Annual", `${STAAT_EN.delaware.jahr} (${STAAT_EN.delaware.jahrName})`, `${STAAT_EN.florida.jahr} (${STAAT_EN.florida.jahrName})`, `${STAAT_EN.wyoming.jahr} (${STAAT_EN.wyoming.jahrName})`],
           ["Deadline", STAAT_EN.delaware.jahrFrist, "1 January to 1 May", "Month of formation"],
-          ["If late", STAAT_EN.delaware.jahrVerzug, STAAT_EN.florida.jahrVerzug, STAAT_EN.wyoming.jahrVerzug],
+          ["If late", STAAT_EN.delaware.jahrVerzug.replace(/^if late, /, ""), STAAT_EN.florida.jahrVerzug, STAAT_EN.wyoming.jahrVerzug],
           ["Registered agent", "Required", "Required", "Required"],
           [`Registration, based on experience (as at ${STAATEN_STAND_TEXT.en})`, BUNDESSTAATEN.delaware.eintragungKurz.en, BUNDESSTAATEN.florida.eintragungKurz.en, BUNDESSTAATEN.wyoming.eintragungKurz.en],
           ["Express", BUNDESSTAATEN.delaware.express.kurz.en, BUNDESSTAATEN.florida.express.kurz.en, BUNDESSTAATEN.wyoming.express.kurz.en],
@@ -127,7 +127,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
           `Source: the fee schedules and statutes of the three states (sources at the end of this page). As at ${FAKTEN_STAND_EN}. ${STAAT_EN.florida.gruendung} in Florida = ${STAAT_EN.florida.gruendungDetail}.`,
           `Delaware: ${STAAT_EN.delaware.jahrAlt}`,
           `Wyoming: ${STAAT_EN.wyoming.jahrDetail}.`,
-          `Registration times: as at ${STAATEN_STAND_TEXT.en}. ${satz("S15", "en")}`,
+          `Registration times: as at ${STAATEN_STAND_TEXT.en}; registration is decided by the state. ${satz("S15", "en")}`,
           "Different amounts apply to corporations; the details are on the states’ own websites.",
         ],
       },
@@ -146,7 +146,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
       },
       {
         typ: "tabelle", id: "selbst", h2: "Organised yourself or under one engagement",
-        lead: "For context: what each authority or provider charges separately. If you need only a company and coordinate everything yourself, you pay less than with us; coordination and risk then remain with you.",
+        lead: "For context: what each authority or provider charges separately. If you need only a company and coordinate everything yourself, you pay less than with us. Coordination and risk then remain with you.",
         kopf: ["Item", "Organised yourself", "FIAON Global"],
         zeilen: [
           ["State formation fee", GRUENDUNG_SPANNE, "included"],
@@ -160,7 +160,7 @@ export const KOSTEN_EN: GlobalSeite[] = [
           ["Preparation of the account and card applications", "your time", "included; the institution concerned decides"],
         ],
         hervor: 2,
-        fuss: [`State and IRS fees: official figures, as at ${FAKTEN_STAND_EN}. Other items: market ranges.`],
+        fuss: [`State and IRS fees: official figures, as at ${FAKTEN_STAND_EN}. Other items: market ranges based on figures published by several providers, as at ${FAKTEN_STAND_EN}.`],
       },
       {
         // The refund in its medium form (guide 5.7) — only for financing, with the start of the period, clause 4 and the lender sentence (both in S7).
@@ -173,9 +173,10 @@ export const KOSTEN_EN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "What you need to know",
         punkte: [
           "Ongoing bookkeeping, sales tax registrations in the United States and the tax return in your country of residence are not part of your engagement.",
-          `For a missed Form 5472, the US tax authority, the IRS, can impose a penalty of ${IRS_EN.strafe5472} — the costliest item is the one that is forgotten.`,
+          `For a missed Form 5472, the US tax authority, the IRS, can impose a penalty of ${IRS_EN.strafe5472}.`,
           `State fees change: with effect from tax year 2026, Delaware has raised the annual LLC tax from $300 to ${STAAT_EN.delaware.jahr}.`,
-          "We form in Delaware, Florida or Wyoming. Unless you specify otherwise, we form in Delaware; Delaware is familiar to banks and investors.",
+          // Via the fee calculator we form in Delaware; Florida or Wyoming is agreed in a call (as on the state pages).
+          "We form in Delaware, Florida or Wyoming. In the fee calculator, Delaware is the state provided for; we agree any other state with you in a call. Delaware is familiar to banks and investors.",
         ],
       },
       { typ: "pakete", id: "mandat", h2: P.karteH2, lead: "The fee calculator shows the schedule of fees for your funding target." },

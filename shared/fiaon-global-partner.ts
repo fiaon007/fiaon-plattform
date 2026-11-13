@@ -70,7 +70,7 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
       rolle: "Your contracting party — agreement, invoice and dedicated contact",
       aufgaben: [
         "concludes the agreement with you and issues the invoice",
-        "coordinates formation, tax numbers, partners and appointments",
+        "coordinates formation, tax identification numbers, partners and appointments",
         "bears the partners’ fees for the services in your agreement",
       ],
     },

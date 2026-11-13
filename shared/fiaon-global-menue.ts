@@ -44,7 +44,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   { gruppe: "fuerwen", pfad: "/business/privatpersonen", titel: "Privatpersonen und Gründer", text: "Ohne eigene Firma beauftragen", reihe: 1, en: { titel: "Individuals and founders", text: "Instruct us without a company of your own" } },
   { gruppe: "fuerwen", pfad: "/business/tochtergesellschaft-usa", titel: "Mittelstand", text: "Tochtergesellschaft in den USA", reihe: 2, en: { titel: "SMEs", text: "A subsidiary in the United States" } },
   { gruppe: "fuerwen", pfad: "/business/onlinehandel", titel: "Onlinehandel und Marken", text: "Verkaufen an Kunden in den USA", reihe: 3, en: { titel: "E-commerce and brands", text: "Selling to customers in the US" } },
-  { gruppe: "fuerwen", pfad: "/business/agenturen-software", titel: "Agenturen und Software", text: "Dienstleister mit US-Kunden", reihe: 4, en: { titel: "Agencies and software", text: "Service providers with US clients" } },
+  { gruppe: "fuerwen", pfad: "/business/agenturen-software", titel: "Agenturen und Software", text: "Dienstleister mit US-Kunden", reihe: 4, en: { titel: "Agencies and software", text: "Service providers with US customers" } },
   { gruppe: "fuerwen", pfad: "/business/bau-immobilien", titel: "Bau und Immobilien", text: "Projekte und Objekte in den USA", reihe: 5, en: { titel: "Construction and property", text: "Projects and properties in the US" } },
   { gruppe: "fuerwen", pfad: "/business/aus-deutschland", titel: "Aus Deutschland", text: "Steuerpflicht, § 138 AO, Typenvergleich", reihe: 6, en: { titel: "From Germany", text: "Tax liability, section 138 AO, classification" } },
   { gruppe: "fuerwen", pfad: "/business/aus-der-schweiz", titel: "Aus der Schweiz", text: "Tatsächliche Verwaltung, Steuerpflicht", reihe: 7, en: { titel: "From Switzerland", text: "Effective management, tax liability" } },
@@ -60,7 +60,7 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   // E-510 (13.11.2026): Der Anker #jahresbetreuung steht nicht mehr auf der Startseite. Der Eintrag führt deshalb auf die
   // Kostenseite, Abschnitt „Laufende Kosten ab dem zweiten Jahr“ (id „laufend“, deutsch und englisch gleich).
   { gruppe: "preise", pfad: "/business/kosten#laufend", titel: "Jahresbetreuung", text: `Ab dem zweiten Jahr, auf Wunsch: ${verkaufEur(VERKAUF_PREISE.jahresCents, "de")} im Jahr`, reihe: 2, en: { titel: "Annual administration", text: `From the second year, on request: ${verkaufEur(VERKAUF_PREISE.jahresCents, "en")} a year` } },
-  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Honorar, Staatsgebühren, ab dem zweiten Jahr", reihe: 3, en: { titel: "Costs at a glance", text: "Fees, state fees, from the second year" } },
+  { gruppe: "preise", pfad: "/business/kosten", titel: "Kosten im Überblick", text: "Honorar, Staatsgebühren, laufende Kosten", reihe: 3, en: { titel: "Costs at a glance", text: "Fees, state fees, running costs" } },
   { gruppe: "preise", pfad: "/business/ablauf", titel: "Ablauf und Dauer", text: "Sechs Schritte, jeder mit seiner Bedingung", reihe: 4, en: { titel: "Process and timing", text: "Six steps, each with its condition" } },
   { gruppe: "preise", pfad: "/business/start", titel: "Angebot anfordern", text: "Ihre Honorarübersicht vorab", reihe: 5, en: { titel: "Request your proposal", text: "Your schedule of fees in advance" } },
   { gruppe: "preise", pfad: "/business/vergleich", titel: "Vergleich", text: "Selbst, Gründungsdienst oder FIAON Global", reihe: 6, en: { titel: "Comparison", text: "Yourself, a formation service or FIAON Global" } },
@@ -76,8 +76,8 @@ export const GLOBAL_MENUE: GlobalMenuePunkt[] = [
   // E-510: Der Leitfaden (Abschnitt 10 Zeile 31) nennt hier „US Funding, mit Quellen“. Die Wortwand lässt das Wort aber nur
   // auf der Seite des Artikels selbst zu (Titel, H1, erster Absatz) — das Menü steht auf jeder Seite. Deshalb deutsch
   // „US-Finanzierung“; englisch bleibt “US funding” (dort ist nur “funding programme” gesperrt).
-  { gruppe: "wissen", pfad: "/business/wissen/us-funding", titel: "US-Finanzierung, mit Quellen", text: "Drei Ebenen, und woran Sie Seriöses erkennen", reihe: 5, en: { titel: "US funding, with sources", text: "Three levels, and how to spot what is sound" } },
-  { gruppe: "wissen", pfad: "/business/wissen/form-5472", titel: "Form 5472", text: "Die Meldung, die niemand vergessen darf", reihe: 6, en: { titel: "Form 5472", text: "The filing nobody can afford to forget" } },
+  { gruppe: "wissen", pfad: "/business/wissen/us-funding", titel: "US-Finanzierung, mit Quellen", text: "Drei Ebenen und woran Sie Seriöses erkennen", reihe: 5, en: { titel: "US funding, with sources", text: "Three levels and how to spot what is sound" } },
+  { gruppe: "wissen", pfad: "/business/wissen/form-5472", titel: "Form 5472", text: "Die Jahresmeldung bei ausländischem Eigentümer", reihe: 6, en: { titel: "Form 5472", text: "The annual filing for foreign-owned US LLCs" } },
   { gruppe: "wissen", pfad: "/business/wissen/markteintritt-usa", titel: "Markteintritt USA", text: "Der Ablauf, Schritt für Schritt", reihe: 7, en: { titel: "US market entry", text: "The process, step by step" } },
   { gruppe: "wissen", pfad: "/business/wissen/us-firmenkarte-beantragen", titel: "US-Firmenkarte beantragen", text: "Wie Herausgeber entscheiden", reihe: 8, en: { titel: "US business credit card", text: "How issuers decide" } },
   { gruppe: "wissen", pfad: "/business/wissen/anbieter-pruefen", titel: "Seriöse Anbieter erkennen", text: "Die Prüfliste vor dem Auftrag", reihe: 9, en: { titel: "Spotting reputable providers", text: "The checklist before you instruct a provider" } },

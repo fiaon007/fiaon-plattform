@@ -116,7 +116,7 @@ const de = {
     { f: "Was gilt, wenn die Finanzierung ausbleibt?", a: "Dann greift die Geld-zurück-Garantie. Kommt die Auszahlung nicht binnen acht Wochen ab Ihrem Auftrag, erstatten wir Ihnen alles, was Sie an uns gezahlt haben — binnen vierzehn Tagen nach Fristende. Ihre Gesellschaft bleibt Ihnen. Die Bedingungen stehen in Ziffer 4 Ihres Vertrags; für Konto und Karten gilt sie nicht. Über die Finanzierung selbst entscheidet das finanzierende Institut." },
     { f: "Für wen passt das Mandat nicht?", a: "Für Vorhaben ohne tatsächliche Geschäftstätigkeit und für alle, die keine Gesellschaft mit laufenden Pflichten führen wollen. Sind Sie unsicher, vereinbaren Sie ein Gespräch — wir sagen es Ihnen auch dann, wenn die Antwort ein Nein ist." },
     { f: "Kosten Kreditkarten zusätzlich?", a: "Bei FIAON nicht. Auf Wunsch bereiten wir Ihre Kreditkartenanträge vor — privat und für Ihre Gesellschaft, ohne zusätzliches Honorar von FIAON. Über jede Karte und ihren Rahmen entscheidet der Herausgeber; seine Gebühren und Zinsen legt er selbst fest, und Sie tragen sie. Firmenkreditkarten setzen in der Regel die persönliche Haftung des Inhabers voraus." },
-    { f: "Wer klärt Rechts- und Steuerfragen?", a: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Ihr Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen." },
+    { f: "Wer klärt Rechts- und Steuerfragen?", a: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Deren Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen." },
     { f: "Was geschieht ab dem achtzehnten Monat?", a: "Ab dem achtzehnten Monat prüfen wir mit Ihnen, ob eine Umschuldung die Finanzierungskosten senken oder eine Aufstockung Ihren Spielraum für Investitionen erweitern kann. Voraussetzung ist die laufende Jahresbetreuung; sie verlängert sich nicht von selbst. Den Antrag stellt Ihre Gesellschaft. Ob und zu welchen Bedingungen, entscheidet das jeweilige Institut." },
     { f: "Muss ich in die USA reisen?", a: "Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. Ab 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami." },
     // 19.09.2026 (Justin, „Ändere das ÜBERALL“): wortgleich mit GLOBAL_KAPITAL_FREI.de — scripts/pruef-global-seiten.ts prüft das.
@@ -136,13 +136,13 @@ const de = {
 
   // ── Uhren (Mini-Uhren in „Drei Orte“ im Fuß der nicht öffentlichen Seiten) — Zonen prüft scripts/pruef-global-seiten.ts ──
   uhren: [
-    { zone: "Europe/Berlin", ort: "Deutschland", zusatz: "auch Österreich und Schweiz" },
+    { zone: "Europe/Berlin", ort: "Deutschland", zusatz: "auch Österreich und die Schweiz" },
     { zone: "America/New_York", ort: "Florida", zusatz: "Miami · unsere Partner in den USA" },
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · Vertragspartner" },
   ],
   // ── Nachrichtenlage: seit 06.10.2026 auf /business/wissen (global-seite.tsx, Übersicht) ──
   presseAuge: "Nachrichtenlage",
-  presseH2: "Was gerade für eine US-Gesellschaft spricht.",
+  presseH2: "Die Lage in den USA. Mit Datum und Quelle.",
   presseStand: (datum: string) => `Stand ${datum}`,
   presseZurQuelle: "Zur Meldung",
   presseHinweis: "Meldungen Dritter mit Datum und Quelle. Sie beschreiben die allgemeine Lage in den USA — über Konto, Karte und Rahmen entscheidet allein das jeweilige Institut.",
@@ -223,7 +223,7 @@ const en: typeof de = {
     { f: "What does the engagement cost — and when is each fee due?", a: `On engagement you pay ${B.en.honorarAuftrag} for formation and administration in the first year. The success fee falls due on registration of your company; it is set by your funding target and is at least ${B.en.erfolgMin}. From the second year you may continue with annual administration for ${B.en.jahresbetreuung} a year. All fees are stated in full in your proposal before you sign.` },
     { f: "Does FIAON promise financing?", a: "No. Every financing decision rests with the lender alone. FIAON does not lend and does not broker loans; we prepare the applications in full and support your company through to the decision. The funding target you choose is a goal, not a promise. What FIAON contributes to your financing is set out in your personal proposal and forms part of your agreement." },
     { f: "What applies if the financing does not arrive?", a: "The money-back commitment then applies. If the financing has not been disbursed within eight weeks of your engagement, we refund everything you have paid to us — within fourteen days of the end of that period. Your company remains yours. The conditions are set out in clause 4 of your agreement; the commitment does not extend to accounts and cards. The financing decision itself rests with the lender." },
-    { f: "Who is the engagement not suited to?", a: "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we will tell you so even where the answer is no." },
+    { f: "Who is the engagement not suited to?", a: "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we tell you so even where the answer is no." },
     { f: "Do credit cards cost extra?", a: "Not with FIAON. On request we prepare your personal and business credit card applications, at no additional fee from FIAON. Each card issuer decides on the card and its limit and sets its own charges and interest, which you bear. Business credit cards generally require a personal guarantee from the owner." },
     { f: "Who deals with legal and tax matters?", a: "Partner lawyers and US certified public accountants (CPAs) from our partner network — in their own professional capacity. FIAON bears their fees for the services named in your agreement. FIAON itself is not a law firm. A US company is not a tax scheme; your tax liability in your country of residence remains." },
     { f: "What happens from the eighteenth month?", a: "From the eighteenth month, we review with you whether refinancing could reduce your financing costs or an increase could widen your scope for investment. This requires annual administration to be in place; it does not renew automatically. Your company submits the application. Whether, and on what terms, is for the lender concerned to decide." },
@@ -245,7 +245,7 @@ const en: typeof de = {
     { zone: "Europe/London", ort: "London", zusatz: "FIAON LTD · contracting party" },
   ],
   presseAuge: "The news",
-  presseH2: "What speaks for a US company right now.",
+  presseH2: "The situation in the US. With date and source.",
   presseStand: (datum: string) => `As at ${datum}`,
   presseZurQuelle: "Read the report",
   presseHinweis: "Third-party reports with date and source. They describe the general situation in the United States — the institution alone decides on the account, the card and the limit.",
@@ -325,7 +325,7 @@ const gespraechDe = {
 
 const gespraechEn: typeof gespraechDe = {
   punkte: [
-    "Your plans, your residence, your goal — put in order in thirty minutes.",
+    "Your plans, your country of residence, your goal — put in order in thirty minutes.",
     "Which state suits your situation.",
     "What your fees cover and what we do not promise.",
     "No obligation — you decide afterwards, in your own time.",
@@ -351,13 +351,13 @@ const gespraechEn: typeof gespraechDe = {
   zurueckKalender: "Back to the available times",
   vergeben: "This time has just been taken. Please choose another one.",
   fehler: "The transmission did not succeed. Please check your details and send them again.",
-  pflicht: "Please fill in name, email and telephone.",
+  pflicht: "Please enter your name, email address and telephone number.",
   fertigTitel: "Your call is arranged.",
   fertigText: (wann: string, wer: string) => `${wann}${wer ? " with " + wer : ""}. The confirmation is on its way to your email address — with everything you need for the call.`,
   anfrageTitel: "We have received your enquiry.",
   anfrageText: "Your contact will get in touch and agree a time with you.",
   paketGewaehlt: (name: string) => `Your enquiry: ${name}`,
-  datenschutz: "We use your details only for this call. Details are in the privacy policy.",
+  datenschutz: "We use your details only for this call. The privacy policy sets out the particulars.",
   karteTitel: "Your contact",
   mitPerson: (vorname: string) => `Thirty minutes by telephone — ${vorname} calls you personally at the time you choose.`,
   mailAn: (name: string) => `Email ${name}`,

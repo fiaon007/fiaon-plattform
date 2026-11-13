@@ -40,7 +40,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
   art: "zielgruppe",
   seo: {
     titel: "US-Firma als Privatperson gründen — FIAON Global",
-    beschreibung: "Ohne eigene Firma: Sie beauftragen FIAON Global als Person. Wir gründen Ihre US-Gesellschaft, beantragen EIN und ITIN und bereiten Ihre Kontoanträge vor.",
+    beschreibung: "Ohne eigene Firma: Sie beauftragen FIAON Global als Person. Wir gründen Ihre US-Gesellschaft, beantragen die EIN und bereiten Ihre Kontoanträge vor.",
   },
   // 06.10.2026 (E-293): H1 und Lead deckungsgleich mit der sichtbaren Startseite für Privatpersonen
   // (GLOBAL_WOERTER.de.privat, business-privat.tsx) — Vorab-HTML und Seite sagen dasselbe.
@@ -50,7 +50,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
   h1: "Ihre eigene US-Gesellschaft.",
   h1b: "Ohne Firma, in einem Mandat.",
   // Aussage. Bedingung. Entscheider. (Leitfaden 3.2) — in drei Sätzen.
-  lead: "Sie werden selbst Gesellschafter; Vertrag und Rechnung laufen auf Ihren Namen. Wir gründen Ihre US-Gesellschaft, beantragen EIN und ITIN und bereiten Ihre Kontoanträge vor — auf Wunsch auch Ihre Kreditkartenanträge. Die Anträge stellen Sie selbst; es entscheidet das jeweilige Institut.",
+  lead: "Sie werden selbst Gesellschafter; Vertrag und Rechnung laufen auf Ihren Namen. Wir gründen Ihre US-Gesellschaft, beantragen die EIN und nach unserem ITIN-Check Ihre ITIN und bereiten Ihre Kontoanträge vor — auf Wunsch auch Ihre Kreditkartenanträge. Die Anträge stellen Sie selbst; es entscheidet das jeweilige Institut.",
   ziffern: [
     { wert: P.preis, label: P.preisLabel },
     { wert: "Ihr Name", label: "auf Vertrag und Rechnung" },
@@ -84,7 +84,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
         { titel: handlung("angebot", "de"), text: "Im Honorarrechner machen Sie Ihre Angaben und sehen Ihre Honorarübersicht vorab." },
         { titel: "Ihre Angaben eintragen", text: "Auf Ihrer Angebotsseite tragen Sie Geburtsdatum und Anschrift ein und wählen den Namen Ihrer Gesellschaft. Registerauszug und Firmendaten entfallen." },
         { titel: "Widerrufsbelehrung und Beginn", text: "Sie lesen den Vertrag mit der Widerrufsbelehrung. Mit Ihrer Unterschrift verlangen Sie ausdrücklich, dass wir vor Ablauf der Widerrufsfrist beginnen." },
-        { titel: "Unterzeichnen", text: "Vertrag und Rechnung auf Ihren Namen kommen per E-Mail, mit der Widerrufsbelehrung und dem Muster-Widerrufsformular. Danach laden Sie Ihren Reisepass hoch." },
+        { titel: "Vertrag, Rechnung, Reisepass", text: "Vertrag und Rechnung auf Ihren Namen kommen per E-Mail, mit der Widerrufsbelehrung und dem Muster-Widerrufsformular. Danach laden Sie Ihren Reisepass hoch." },
       ],
     },
     {
@@ -129,7 +129,7 @@ export const PRIVAT_SEITE: GlobalSeite = {
     { f: "Welchen Kapitalrahmen kann ich wählen?", a: P.rahmenSatz },
     // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — dieselbe Frage wie auf /business (GLOBAL_KAPITAL_FREI).
     { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
-    { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: `Mit der Jahresbetreuung ${P.jahres} im Jahr, auf Wunsch. Enthalten sind Staatsgebühr, Registered Agent, US-Geschäftsadresse, US-Telefonnummer und die jährliche US-Meldung (Form 5472). Sie verlängert sich nicht von selbst. Nicht enthalten ist der Steuerberater in Ihrem Wohnsitzland.` },
+    { f: "Was kostet die Gesellschaft ab dem zweiten Jahr?", a: `Mit der Jahresbetreuung ${P.jahres} im Jahr, auf Wunsch. Enthalten sind Staatsgebühr, Registered Agent, US-Geschäftsadresse, US-Telefonnummer und die jährliche US-Meldung (Form 5472). Die Jahresbetreuung verlängert sich nicht von selbst. Nicht enthalten ist der Steuerberater in Ihrem Wohnsitzland.` },
     { f: "Kann ich die US-Gesellschaft später auf meine Firma übertragen?", a: "Grundsätzlich ja. Eine Übertragung hat steuerliche Folgen in beiden Ländern; das prüfen Sie vorher mit Ihrem Steuerberater." },
     { f: "Muss ich in die USA reisen?", a: `Für die Gründung und die Steuernummer Ihrer Gesellschaft nicht. Ob ein Institut für Konto, Karte oder Finanzierung Ihre Anwesenheit verlangt, entscheidet das Institut. ${weitererSatz("MIAMI", "de")}` },
     { f: "Welche Unterlagen brauche ich als Privatperson?", a: "Ihren Reisepass — Sie laden ihn nach der Unterschrift hoch. Den Namen Ihrer Gesellschaft wählen Sie auf Ihrer Angebotsseite. Verlangt eine Behörde oder ein Institut weitere Unterlagen, nennen wir sie Ihnen." },

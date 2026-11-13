@@ -134,8 +134,8 @@ export const FESTE_SAETZE: Readonly<Record<SatzNr, FesterSatz>> = {
   },
   "S5-B": {
     wofuer: "Finanzierung — die Fassung, die heute gilt (solange V1 offen ist)",
-    de: "Wir bereiten jeden Antrag für die Finanzierung im gewählten Kapitalrahmen vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts. Vor Beginn stellen wir Ihre Identität fest und gleichen Ihre Angaben mit den Sanktionslisten ab. Was FIAON dafür einbringt, steht verbindlich in Ihrem persönlichen Angebot.",
-    en: "We prepare every application for financing within the funding target you have chosen and support your company through to the lender’s decision. Before work begins, we verify your identity and screen your details against the applicable sanctions lists. What FIAON contributes to that end is set out in your personal proposal and forms part of your agreement.",
+    de: "Wir bereiten jeden Antrag für die Finanzierung im gewählten Kapitalrahmen vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts. Vor Beginn unserer Arbeit stellen wir Ihre Identität fest und gleichen Ihre Angaben mit den Sanktionslisten ab. Was FIAON für Ihre Finanzierung einbringt, steht verbindlich in Ihrem persönlichen Angebot.",
+    en: "We prepare every application for financing within the funding target you have chosen and support your company through to the lender’s decision. Before work begins, we verify your identity and screen your details against the applicable sanctions lists. What FIAON contributes to your financing is set out in your personal proposal and forms part of your agreement.",
   },
   "S5-C": {
     wofuer: "Zeile im Honorarblatt des Honorarrechners",
@@ -303,7 +303,7 @@ export const WEITERE_SAETZE: Readonly<Record<WeitererSatzNr, FesterSatz>> = {
   },
   ROLLEN: {
     wofuer: "Rollen-Satz zu den Partnern (5.11) — ersetzt „arbeiten auf Ihr Mandat“",
-    de: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz arbeiten in eigener Verantwortung. Ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
+    de: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz arbeiten in eigener Verantwortung. Deren Honorare für die Leistungen Ihres Vertrags trägt FIAON.",
     en: "Partner lawyers and US certified public accountants (CPAs) from our partner network act in their own professional capacity. FIAON bears their fees for the services in your agreement.",
   },
   MIAMI: {
@@ -415,12 +415,12 @@ const SCHRITT_5_HEUTE: Record<SatzSprache, Pick<Schritt, "titel" | "satz" | "bed
   de: {
     titel: "Finanzierung",
     satz: "Wir bereiten jeden Antrag für die Finanzierung im gewählten Kapitalrahmen vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung des finanzierenden Instituts.",
-    bedingung: "Vor Beginn stellen wir Ihre Identität fest und gleichen Ihre Angaben mit den Sanktionslisten ab (Ziffer 8 Ihres Vertrags). Was FIAON dafür einbringt, steht verbindlich in Ihrem persönlichen Angebot. Über die Finanzierung entscheidet das finanzierende Institut.",
+    bedingung: "Vor Beginn unserer Arbeit stellen wir Ihre Identität fest und gleichen Ihre Angaben mit den Sanktionslisten ab (Ziffer 8 Ihres Vertrags). Was FIAON für Ihre Finanzierung einbringt, steht verbindlich in Ihrem persönlichen Angebot. Über die Finanzierung entscheidet das finanzierende Institut.",
   },
   en: {
     titel: "Financing",
     satz: "We prepare every application for financing within the funding target you have chosen and support your company through to the lender’s decision.",
-    bedingung: "Before work begins, we verify your identity and screen your details against the applicable sanctions lists (clause 8 of your agreement). What FIAON contributes to that end is set out in your personal proposal and forms part of your agreement. All financing decisions rest with the lender.",
+    bedingung: "Before work begins, we verify your identity and screen your details against the applicable sanctions lists (clause 8 of your agreement). What FIAON contributes to your financing is set out in your personal proposal and forms part of your agreement. All financing decisions rest with the lender.",
   },
 };
 /** Schritt 5: Titel, Satz und Bedingung in der Fassung, die der Schalter V1 vorgibt — heute immer „heute“. */
@@ -659,13 +659,13 @@ export const VIER_SCHRITTE: Readonly<Record<SatzSprache, readonly KurzSchritt[]>
     { nr: 1, titel: "Gründung und Unterlagen", kurz: "Gründung", text: "Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein und beantragen die Steuernummern. Über Eintragung und Nummern entscheiden Bundesstaat und US-Steuerbehörde." },
     { nr: 2, titel: "Konten — Karten auf Wunsch", kurz: "Konten", text: "Wir bereiten Ihre Kontoanträge mit Ihnen vor, privat und für Ihre Gesellschaft. Auf Wunsch auch Ihre Kreditkartenanträge — ohne zusätzliches Honorar von FIAON. Die Anträge stellen Sie selbst; es entscheidet das jeweilige Institut." },
     { nr: 3, ...kurz3("de"), kurz: "Finanzierung" },
-    { nr: 4, titel: "Umschuldung und Aufstockung", kurz: "Umschuldung", text: "Ab dem achtzehnten Monat prüfen wir mit Ihnen Umschuldung oder Aufstockung. Ob und zu welchen Bedingungen, entscheidet das Institut." },
+    { nr: 4, titel: "Umschuldung und Aufstockung", kurz: "Umschuldung", text: "Ab dem achtzehnten Monat prüfen wir mit Ihnen Umschuldung oder Aufstockung, sofern die Jahresbetreuung läuft. Ob und zu welchen Bedingungen, entscheidet das Institut." },
   ],
   en: [
     { nr: 1, titel: "Formation and documents", kurz: "Formation", text: "We form your US company, assemble every document and apply for the tax identification numbers. Registration and numbers are decided by the state and the US tax authority." },
     { nr: 2, titel: "Accounts — cards on request", kurz: "Accounts", text: "We prepare your account applications with you, personal and business. On request, your credit card applications too — at no additional fee from FIAON. You submit the applications yourself; each institution decides." },
     { nr: 3, ...kurz3("en"), kurz: "Financing" },
-    { nr: 4, titel: "Refinancing and increase", kurz: "Refinancing", text: "From the eighteenth month, we review with you whether refinancing or an increase is appropriate. Whether, and on what terms, is for the lender to decide." },
+    { nr: 4, titel: "Refinancing and increase", kurz: "Refinancing", text: "From the eighteenth month, with annual administration in place, we review with you whether refinancing or an increase is appropriate. Whether, and on what terms, is for the lender to decide." },
   ],
 };
 
@@ -794,7 +794,7 @@ export const BELEGE: Readonly<Record<BelegNr, FesterSatz>> = {
   fuerWenNicht: {
     wofuer: "Fragen (weit oben) · Zielgruppen-Seiten",
     de: "Für Vorhaben ohne tatsächliche Geschäftstätigkeit ist das Mandat nicht geeignet. Sind Sie unsicher, vereinbaren Sie ein Gespräch — wir sagen es Ihnen auch dann, wenn die Antwort ein Nein ist.",
-    en: "The engagement is not suited to ventures without genuine business activity. If you are unsure, arrange a call — we will tell you so even where the answer is no.",
+    en: "The engagement is not suited to ventures without genuine business activity. If you are unsure, arrange a call — we tell you so even where the answer is no.",
   },
   rolle: {
     wofuer: "Startseite vor den Fragen · Leistungsseiten",

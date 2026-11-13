@@ -187,7 +187,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wer klärt Rechts- und Steuerfragen?",
-      "a": "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Ihr Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen."
+      "a": "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung. Deren Honorar für die Leistungen, die Ihr Vertrag nennt, trägt FIAON. FIAON selbst ist keine Kanzlei. Eine US-Gesellschaft ist kein Steuermodell; Ihre Steuerpflicht im Wohnsitzland bleibt bestehen."
     },
     {
       "f": "Was geschieht ab dem achtzehnten Monat?",
@@ -221,7 +221,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Who is the engagement not suited to?",
-      "a": "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we will tell you so even where the answer is no."
+      "a": "Ventures without genuine business activity, and anyone who does not wish to run a company with ongoing obligations. If you are unsure, arrange a call — we tell you so even where the answer is no."
     },
     {
       "f": "Do credit cards cost extra?",

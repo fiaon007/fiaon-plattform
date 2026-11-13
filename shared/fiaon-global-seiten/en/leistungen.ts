@@ -53,7 +53,7 @@ const EIN_MANDAT = "One engagement, one agreement, one dedicated contact.";
 /** The fees in the “At a glance” row — the three due dates of S12 in the short form of the language guide (1.3, version A). */
 const HONORAR_BLICK = `${B.honorarAuftrag} on engagement. On registration of your company, the success fee set by your funding target — at least ${B.erfolgMin}. From the second year, on request, ${B.jahresbetreuung} a year.`;
 /** What is payable from the second year (agreement, clause 6(3)) — amount from the price source. */
-const LAUFEND = `From the second year your company incurs running costs: the state fee, the registered agent and the annual US filing. With annual administration we handle these on request for ${B.jahresbetreuung} a year, state fee included; it does not renew automatically.`;
+const LAUFEND = `From the second year your company incurs running costs: the state fee, the registered agent and the annual US filing. With annual administration we handle these on request for ${B.jahresbetreuung} a year, state fee included; annual administration does not renew automatically.`;
 /** The first annual US filing — wording of the agreement (clause 2), role as in guard rail 5. */
 const US_MELDUNG = "the first annual US filing by a US certified public accountant (CPA) from our partner network";
 /** The note on knowledge content (language guide 5.11). */
@@ -121,7 +121,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         lead: KOPF.lead,
         etappen: [
           { titel: "Your engagement begins", text: "You request your proposal, read your complete agreement and sign online. We begin once your payment has been received." },
-          { titel: "Name and passport", text: "You choose the name of your company and upload your passport. We look up in the register whether the name is available; the state registers each name only once." },
+          { titel: "Name and passport", text: "You choose the name of your company and upload your passport. We check the register to see whether the name is available; the state registers each name only once." },
           { titel: schritt(1).titel, dauer: `Decided by ${schritt(1).entscheidet}`, text: `${schritt(1).satz} ${weitererSatz("UEBERGANG-EINREICHUNG", "en")}` },
           { titel: schritt(2).titel, dauer: `Decided by ${schritt(2).entscheidet}`, text: `${schritt(2).satz} ${schritt(2).werMachtWas.wennEsAusbleibt}` },
           { titel: "Accounts, cards, financing", dauer: "Decided by each institution", text: "We then prepare your account applications, your credit card applications on request and the applications for financing in full. You submit the applications yourself." },
@@ -177,7 +177,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       { f: "LLC or corporation — which one suits me?", a: `Your engagement provides for an LLC; for trading and services it is usually the leaner form. A corporation suits businesses that want to bring in investors or give shares to employees. ${VERMERK}` },
       { f: "How long does it take to form a US company?", a: `${satz("S15", "en")} Our timings for each step are on the “Process” page.` },
       { f: "How much does it cost to form a US company with FIAON?", a: satz("S12", "en") },
-      { f: "Can a US company reduce my tax bill?", a: `No. ${satz("S10", "en")} If the company is managed from there, it is generally taxable there, and annual filing duties apply in the United States in addition.` },
+      { f: "Is a US company a tax scheme?", a: `No. ${satz("S10", "en")} If the company is managed from there, it is generally taxable there, and annual filing duties apply in the United States in addition.` },
     ],
     paket: "global_struktur",
     weiter: ["/en/business/knowledge/form-a-us-llc", "/en/business/ein-itin", "/en/business/costs", "/en/business/private-individuals"],
@@ -216,7 +216,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["Fees", `Part of your engagement; the IRS charges no fee. ${HONORAR_BLICK}`],
       ["EIN", "Tax identification number of the company — Form SS-4"],
       ["ITIN", "Personal tax identification number — Form W-7 with proof of identity"],
-      ["ITIN requirement", "A tax reason that the IRS recognises — we go through it before applying (ITIN check)"],
+      ["ITIN requirement", "A tax reason that the IRS recognises — we check before applying that one exists (ITIN check)"],
     ],
     kurz: "The US tax authority, the IRS, issues the EIN (Employer Identification Number) to your company — without a fee and without a US Social Security number. It issues the ITIN (Individual Taxpayer Identification Number) to you personally where there is a tax reason; the application is made on Form W-7 with proof of identity. FIAON Global prepares both applications and files them; the IRS decides.",
     bloecke: [
@@ -230,13 +230,13 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           ["Requirement", "a registered company", "a tax reason that the IRS recognises"],
           ["IRS fee", "none", "none"],
           ["Decided by", "the IRS", "the IRS"],
-          ["IRS processing time", "fax about four working days, post about four weeks", "about seven weeks, from abroad nine to eleven"],
+          ["IRS processing time", "fax about four working days, post about four weeks", "about seven weeks, from abroad nine to eleven weeks"],
           // E-465 (29.10.2026): current practice next to the IRS figure.
-          ["In practice at present", "same day by phone from abroad, often around two weeks by fax", "as stated by the IRS"],
+          ["In practice at present", "closer to six to eight weeks by fax", "as stated by the IRS"],
         ],
         fuss: [
           "Processing times according to the IRS (as at 2026): EIN by fax about four working days, by post about four weeks; ITIN about seven weeks, and between mid-January and the end of April as well as for applications from abroad nine to eleven weeks.",
-          `The row “In practice at present” gives timings based on experience (as at October 2026). ${satz("S15", "en")}`,
+          `The row “In practice at present” gives timings based on experience (as at November 2026). ${satz("S15", "en")}`,
         ],
       },
       {
@@ -268,7 +268,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         punkte: [
           "Both numbers are issued by the IRS alone, on its own timeline. FIAON prepares and files — the decision is not FIAON’s to make.",
           "The ITIN requires a tax reason. Wanting an account or a card is not in itself a reason that the IRS recognises.",
-          "An ITIN is neither a credit card nor a credit limit. It is a prerequisite for a card issuer to be able to assess your application at all; each card issuer makes its own decision.",
+          "An ITIN is neither a credit card nor a credit limit. It is generally the prerequisite for a card issuer to assess your application; each card issuer makes its own decision.",
         ],
       },
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: "The EIN and ITIN applications are part of your engagement.", paket: "global_struktur" },
@@ -307,7 +307,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
     auge: "Service · US business bank account",
     h1: "The US business bank account.",
     h1b: "Prepared by us, decided by the institution.",
-    lead: `Every US account rests on complete, consistent documents. We assemble them and support you until the institution has decided. ${satz("S2", "en")}`,
+    lead: `Every US account rests on complete documents without contradictions. We assemble them and support you until the institution has decided. ${satz("S2", "en")}`,
     ziffern: [
       { wert: "prepared", label: "Every account application, in full — you submit it yourself" },
       { wert: "no authority", label: beleg("keinZugriff", "en") },
@@ -322,7 +322,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["Requirements", "Registered company, EIN, operating agreement, US business address"],
       ["In your engagement", "Personal account and business account: every application prepared; credit card applications on request"],
     ],
-    kurz: "A US company can apply for a business account in the United States once it is registered and has an EIN. Institutions require formation documents, the EIN confirmation, the operating agreement, identity documents and a clear description of the business. FIAON Global prepares these documents and the application in full; you submit the application yourself. Whether, and on what terms, an account is opened is for the institution to decide.",
+    kurz: "A US company can apply for a business account in the United States once it is registered and has an EIN. Institutions require formation documents, the EIN confirmation, the operating agreement, identity documents of the shareholders and a clear description of the business. FIAON Global prepares these documents and the application in full; you submit the application yourself. Whether, and on what terms, an account is opened is for the institution to decide.",
     bloecke: [
       {
         typ: "text", id: "unterlagen", h2: "What an institution wants to see",
@@ -335,6 +335,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           "US business address and phone number",
           "A clear description of the business: what, for whom, with which payment flows",
         ],
+        nach: "The institution decides on the application.",
       },
       {
         typ: "karten", id: "wege", h2: "Online or on site", spalten: 2,
@@ -352,7 +353,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
           "Names, addresses or shareholdings do not match across two documents.",
           "Payment flows touch countries or sectors that the institution does not serve.",
         ],
-        nach: "We identify such gaps before the application — not after the refusal.",
+        nach: "We identify such gaps before the application — not after the refusal. The decision rests with the institution.",
       },
       {
         typ: "hinweis", id: "wissen", h2: "What you need to know",
@@ -414,7 +415,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         typ: "etappen", id: "ablauf", h2: "The process through to financing",
         lead: satz("S15", "en"),
         etappen: [
-          { titel: "Choose the funding target", text: `You choose the funding target your company is to take up: ${B.rahmen}.` },
+          { titel: "Choose the funding target", text: `You choose the funding target your company is to take up: ${B.rahmen}. ${weitererSatz("MIAMI", "en")} A funding target is a goal, not a promise.` },
           { titel: "Before work begins", text: "We verify your identity and screen your details against the applicable sanctions lists (clause 8 of your agreement)." },
           { titel: "Applications", text: "We prepare every application in full and support your company. Your company submits the application itself." },
           { titel: "Decision and loan agreement", text: `${satz("S1", "en")} Your company enters into the loan agreement in its own name.` },
@@ -425,12 +426,12 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         absaetze: ["Lenders and card issuers decide under their own rules. As a rule, their decision takes into account:"],
         punkte: [
           "the company’s revenue and payment flows",
-          "a clear, credible business with a link to the United States",
+          "a credible business with a link to the United States",
           "the length and punctuality of previous payments",
           "the creditworthiness of the owner who gives the personal guarantee",
-          "complete, consistent documents",
+          "complete documents without contradictions",
         ],
-        nach: "Complete, consistent documents are our part of the work.",
+        nach: "Complete documents without contradictions are our part of the work.",
       },
       {
         typ: "tabelle", id: "verantwortung", h2: "Who is responsible for what",
@@ -467,13 +468,13 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
         lead: satz("S9", "en"),
         karten: [
           { tag: "FIAON does", titel: "Prepare and support", text: "Fully prepared applications for financing and, on request, for credit cards. Support for your company through to the lender’s decision." },
-          { tag: "FIAON does not", titel: "Promise, lend, broker", text: `${satz("S8", "en")} FIAON makes no commitment on any limit. ${beleg("keinZugriff", "en")}` },
+          { tag: "FIAON does not", titel: "Promise, lend, broker", text: `${satz("S8", "en")} FIAON makes no commitment on any limit; that decision rests with the institution concerned. ${beleg("keinZugriff", "en")}` },
         ],
       },
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: `${EIN_MANDAT} ${beleg("honorarVorab", "en")}`, paket: "global_kapital" },
     ],
     fragen: [
-      { f: "Does FIAON promise financing?", a: `No. Every financing decision rests with the lender alone. FIAON does not lend and does not broker loans; we prepare the applications in full and support your company through to the decision. The funding target you choose is a goal, not a promise. ${satz("S5-C", "en")}` },
+      { f: "Does FIAON promise financing?", a: `No. Every financing decision rests with the lender alone. FIAON does not lend and does not broker loans; we prepare the applications in full and support your company through to the decision. ${satz("S9", "en")} ${satz("S5-C", "en")}` },
       { f: "How large can the funding target be?", a: `${B.rahmen}. ${weitererSatz("MIAMI", "en")} ${satz("S9", "en")} ${satz("S1", "en")}` },
       { f: "Who is liable for a business credit card?", a: `${satz("S11", "en")} The person giving the personal guarantee is personally liable for the statement balance. The card issuer decides what security it requires.` },
       { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
@@ -514,7 +515,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       ["State", "Annual report or annual fee, with its own deadline depending on the state"],
       ["Registered agent", "Annually — without one, no valid address in the state"],
     ],
-    kurz: "A US company with a foreign shareholder (member) must file Form 5472 together with Form 1120 with the IRS every year — even without revenue. The state’s annual report or annual fee and the registered agent come in addition. In the country of residence, the shareholding must be reported, and the company is generally taxed there. FIAON Global keeps the compliance calendar; the first annual US filing is included in the first year.",
+    kurz: "A US company with a foreign shareholder (member) must file Form 5472 together with Form 1120 with the IRS every year — even without revenue. The state’s annual report or annual fee and the registered agent come in addition. In the country of residence, the shareholding must be reported; if the company is managed from there, it is generally taxable there. FIAON Global keeps the compliance calendar; the first annual US filing is included in the first year.",
     bloecke: [
       {
         typ: "tabelle", id: "kalender", h2: "A US company’s duties over the year",
@@ -557,7 +558,7 @@ export const LEISTUNGEN_EN: GlobalSeite[] = [
       { f: "What happens if I miss the Form 5472 deadline?", a: `The IRS can impose a penalty of ${IRS_EN.strafe5472}, with further amounts if the failure continues after a notice. That is why the deadline is in your compliance calendar, and we remind you in good time.` },
       { f: "Who prepares the annual US filing?", a: `In the first year, a US certified public accountant (CPA) from our partner network; FIAON bears the fee for it. From the second year, the filing is part of annual administration, which you may continue with for ${B.jahresbetreuung} a year; it does not renew automatically.` },
       { f: "Do I have to report the US company to my tax office?", a: "In Germany, yes: under section 138 of the German Fiscal Code (AO), together with the tax return. Austria and Switzerland have their own rules; your tax adviser in your country of residence tells you what they are." },
-      { f: "What does a US company cost from the second year onwards?", a: `The state fee, the registered agent and the annual US filing. With annual administration we handle these on request for ${B.jahresbetreuung} a year, state fee included; it does not renew automatically. The individual amounts per state are on the “Costs” page.` },
+      { f: "What does a US company cost from the second year onwards?", a: `The state fee, the registered agent and the annual US filing. With annual administration we handle these on request for ${B.jahresbetreuung} a year, state fee included; annual administration does not renew automatically. The individual amounts per state are on the “Costs” page.` },
     ],
     paket: "global_banking",
     weiter: ["/en/business/knowledge/llc-tax-returns", "/en/business/knowledge/form-5472", "/en/business/knowledge/registered-agent-address", "/en/business/from-germany"],

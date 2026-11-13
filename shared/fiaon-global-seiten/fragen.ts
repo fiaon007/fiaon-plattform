@@ -26,8 +26,8 @@ const ERSTATTUNG = {
 
 const GRUPPEN: { gruppe: MenueGruppe; id: string; h2: string; lead: string }[] = [
   { gruppe: "leistungen", id: "leistungen", h2: "Gründung, Steuernummern, Konten und Karten", lead: "Was FIAON Global übernimmt — und wo die Entscheidung bei Behörden und Instituten liegt." },
-  { gruppe: "preise", id: "preise", h2: "Honorar und Ablauf", lead: "Was es kostet, wie lange es dauert, wie Sie Ihr Angebot anfordern." },
-  { gruppe: "fuerwen", id: "fuerwen", h2: "Für wen", lead: "Mittelstand, Handel, Dienstleister, Bau — und die Regeln Ihres Wohnsitzlandes." },
+  { gruppe: "preise", id: "preise", h2: "Honorar und Ablauf", lead: "Wann welches Honorar fällig wird, wie der Ablauf aussieht und wie Sie Ihr Angebot anfordern." },
+  { gruppe: "fuerwen", id: "fuerwen", h2: "Für wen", lead: "Mittelstand, Onlinehandel, Dienstleister, Bau — und die Regeln Ihres Wohnsitzlandes." },
   { gruppe: "wissen", id: "wissen", h2: "Steuern, Bundesstaaten und Rechtsformen", lead: "Die Grundlagen, mit Quellen und Stand." },
 ];
 
@@ -52,7 +52,7 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
     stand: STAND,
     kennung: "FG · 17",
     auge: "Honorar und Ablauf · Fragen",
-    h1: "Fragen zur US-Gesellschaft.",
+    h1: "Fragen zur US-LLC-Gründung.",
     h1b: `${anzahl} Antworten, an einem Ort.`,
     lead: "Die Fragen, die uns Unternehmer vor einer US-Gründung stellen — mit den Antworten, die auch auf den jeweiligen Seiten stehen. Fehlt Ihre Frage, vereinbaren Sie ein Gespräch.",
     blick: [
@@ -80,9 +80,9 @@ export function fragenSeite(alle: GlobalSeite[]): GlobalSeite {
 // ═══════════════════════════════════════════════════════════════════════════
 const GRUPPEN_EN: Record<MenueGruppe, { h2: string; lead: string }> = {
   leistungen: { h2: "Formation, tax identification numbers, accounts and cards", lead: "What FIAON Global handles — and where authorities and institutions make the decision." },
-  preise: { h2: "Fees and process", lead: "What it costs, how long it takes, how you request your proposal." },
+  preise: { h2: "Fees and process", lead: "When each fee falls due, how the process runs and how you request your proposal." },
   fuerwen: { h2: "Who it is for", lead: "SMEs, e-commerce, service providers, construction — and the rules of your country of residence." },
-  wissen: { h2: "Tax, states and legal forms", lead: "The fundamentals, stated plainly, with sources." },
+  wissen: { h2: "Tax, states and legal forms", lead: "The fundamentals, with sources and dates." },
 };
 
 export function fragenSeiteEn(alle: GlobalSeite[]): GlobalSeite {
@@ -109,7 +109,7 @@ export function fragenSeiteEn(alle: GlobalSeite[]): GlobalSeite {
     erschienen: "2026-09-24",
     kennung: "FG · 17",
     auge: "Fees and process · Questions",
-    h1: "Questions about a US company.",
+    h1: "Questions on forming a US company.",
     h1b: `${anzahl} answers in one place.`,
     lead: "The questions business owners ask us before forming a US company — with the answers that also appear on the individual pages. If your question is missing, arrange a call.",
     blick: [

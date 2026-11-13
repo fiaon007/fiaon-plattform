@@ -150,7 +150,7 @@ export const PREISE_UND_ABLAUF_EN: GlobalSeite[] = [
       { wert: "1 engagement", label: "with FIAON Global: one agreement for all steps" },
     ],
     blick: [
-      ["Yourself", "State fees only; coordination and risk stay with you"],
+      ["Yourself", "Third-party fees only; coordination and risk stay with you"],
       ["Service", "Formation handled; taxes, accounts, cards stay with you"],
       ["FIAON Global", "Formation, documents, applications under one engagement"],
       ["What matters", "Who coordinates the lawyer, the tax adviser, the US CPA and the applications to the institutions?"],

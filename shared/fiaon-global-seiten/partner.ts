@@ -27,7 +27,7 @@ const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const LONDON = GLOBAL_STANDORTE.find((o) => o.schluessel === "london")!;
 /** Rollen-Satz (Leitfaden 5.11): wer für Recht und Steuern zuständig ist und wer die Honorare trägt. */
 const ROLLEN = EIN_PRODUKT.de.partner;
-/** Der zweite Satz daraus: „Ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.“ */
+/** Der zweite Satz daraus: „Deren Honorare für die Leistungen Ihres Vertrags trägt FIAON.“ */
 const HONORARE = ROLLEN.split(/(?<=\.)\s+/)[1] ?? "";
 /** Übergangssatz (Leitfaden 5.11): sagt nur, was FIAON selbst tut. */
 const EINREICHUNG = weitererSatz("UEBERGANG-EINREICHUNG", "de");
@@ -54,7 +54,7 @@ export const PARTNER_SEITE: GlobalSeite = {
     ["Vertragspartner", `${FIRMA}, ${FIAON_FIRMA.strasse}, London · Companies House Nr. ${NR}`],
     ["In den USA", EINREICHUNG],
     ["Recht und Steuern", "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung"],
-    ["Honorare der Partner", "Für die Leistungen Ihres Vertrags trägt sie FIAON"],
+    ["Honorare der Partner", "FIAON trägt sie für die Leistungen Ihres Vertrags"],
     ["Verbundene Gesellschaft", "Schwarzott Group — über unseren Gründer Justin Schwarzott"],
     ["Keine Bank, keine Kanzlei", "FIAON vergibt und vermittelt keine Kredite"],
     ["Wer entscheidet", "Über die Eintragung der Bundesstaat, über Konto, Karte und Finanzierung das jeweilige Institut"],
@@ -73,7 +73,7 @@ export const PARTNER_SEITE: GlobalSeite = {
       typ: "text", id: "netz", h2: "Das Partnernetz",
       absaetze: [
         ROLLEN,
-        "Rechts- und Steuerfragen darf nur beantworten, wer dafür zugelassen ist. Sie liegen deshalb bei den Partnern. FIAON koordiniert und bereitet vor.",
+        "Rechts- und Steuerfragen darf nur beantworten, wer dafür zugelassen ist. Diese Fragen liegen deshalb bei den Partnern. FIAON koordiniert und bereitet vor.",
       ],
     },
     {

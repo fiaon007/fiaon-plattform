@@ -330,8 +330,8 @@ export function ablaufBloecke(staatRoh?: unknown): AblaufBlock[] {
     nr: 6, titel: "EIN", wann: "Fax oft rund 2 Wochen · Brief 4–5 Wochen später",
     schritte: [
       { nr: 16, key: "s16_ein", titel: "EIN-Brief in den Tresor", wer: "team", quelle: { art: "station", schluessel: "ein" },
-        text: "Northwest beantragt die EIN von selbst (per Fax bei der Steuerbehörde IRS) — in jedem Staat gleich, erst nach der Eintragung. Die Nummer kommt derzeit oft nach rund zwei Wochen, der EIN-Brief vier bis fünf Wochen später. Kommt der EIN-Brief, legst du ihn in den Tresor (Art „EIN-Bestätigung“) und setzt die Station „EIN“.",
-        hinweise: [{ ton: "info", text: `Eilt es (z. B. Konto für eine Finanzierung)? Antragsteller aus dem Ausland bekommen die EIN per Telefon noch im Gespräch: ${EIN_WEG.telefon}, ${EIN_WEG.telefonZeit}. Anrufen darf, wer für die Gesellschaft unterschreibt (der Kunde) oder als Designee im Formular SS-4 befugt ist.` }],
+        text: "Northwest beantragt die EIN von selbst (per Fax bei der Steuerbehörde IRS) — in jedem Staat gleich, erst nach der Eintragung. Die Nummer kommt derzeit eher nach sechs bis acht Wochen, der EIN-Brief vier bis fünf Wochen später. Kommt der EIN-Brief, legst du ihn in den Tresor (Art „EIN-Bestätigung“) und setzt die Station „EIN“.",
+        hinweise: [{ ton: "info", text: `Den Telefonweg der IRS (${EIN_WEG.telefon}) gibt es laut Anleitung zu Form SS-4 nur für Antragsteller ohne Sitz oder Geschäftsadresse in den USA. Unsere Gesellschaften nennen eine US-Adresse: Es bleibt beim Fax. Nie Fax und Telefon zugleich — sonst droht eine zweite EIN, die sich nicht löschen lässt.` }],
         links: [{ titel: "Tresor", reiter: "tresor" }] },
     ],
   },

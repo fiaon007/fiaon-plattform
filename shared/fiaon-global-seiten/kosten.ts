@@ -114,7 +114,7 @@ export const KOSTEN: GlobalSeite[] = [
           ["Gründung", STAAT.delaware.gruendung, STAAT.florida.gruendung, STAAT.wyoming.gruendung],
           ["Jährlich", `${STAAT.delaware.jahr} (${STAAT.delaware.jahrName})`, `${STAAT.florida.jahr} (${STAAT.florida.jahrName})`, `${STAAT.wyoming.jahr} (${STAAT.wyoming.jahrName})`],
           ["Frist", STAAT.delaware.jahrFrist, "1. Januar bis 1. Mai", "Gründungsmonat"],
-          ["Bei Verzug", STAAT.delaware.jahrVerzug, STAAT.florida.jahrVerzug, STAAT.wyoming.jahrVerzug],
+          ["Bei Verzug", STAAT.delaware.jahrVerzug.replace(/^bei Verzug /, ""), STAAT.florida.jahrVerzug, STAAT.wyoming.jahrVerzug],
           ["Registered Agent", "Pflicht", "Pflicht", "Pflicht"],
           [`Eintragung, Erfahrungswert (Stand ${STAATEN_STAND_TEXT.de})`, BUNDESSTAATEN.delaware.eintragungKurz.de, BUNDESSTAATEN.florida.eintragungKurz.de, BUNDESSTAATEN.wyoming.eintragungKurz.de],
           ["Express", BUNDESSTAATEN.delaware.express.kurz.de, BUNDESSTAATEN.florida.express.kurz.de, BUNDESSTAATEN.wyoming.express.kurz.de],
@@ -123,8 +123,8 @@ export const KOSTEN: GlobalSeite[] = [
           `Quelle: Gebührenordnungen und Gesetze der drei Bundesstaaten (Quellen am Ende der Seite). Stand: ${FAKTEN_STAND}. ${STAAT.florida.gruendung} in Florida = ${STAAT.florida.gruendungDetail}.`,
           `Delaware: ${STAAT.delaware.jahrAlt}`,
           `Wyoming: ${STAAT.wyoming.jahrDetail}.`,
-          `Eintragungszeiten: Stand ${STAATEN_STAND_TEXT.de}. ${satz("S15")}`,
-          "Für Corporations gelten andere Beträge; die Einzelheiten stehen auf den Seiten der Bundesstaaten.",
+          `Eintragungszeiten: Stand ${STAATEN_STAND_TEXT.de}; über die Eintragung entscheidet der Bundesstaat. ${satz("S15")}`,
+          "Für Corporations gelten andere Beträge; die Einzelheiten stehen auf den Internetseiten der Bundesstaaten.",
         ],
       },
       {
@@ -142,7 +142,7 @@ export const KOSTEN: GlobalSeite[] = [
       },
       {
         typ: "tabelle", id: "selbst", h2: "Selbst organisiert oder in einem Mandat",
-        lead: "Zur Einordnung: was jede Stelle einzeln kostet. Wer nur eine Gesellschaft braucht und alles selbst koordiniert, zahlt weniger als bei uns; Koordination und Risiko liegen dann bei ihm.",
+        lead: "Zur Einordnung: was jede Stelle einzeln kostet. Wer nur eine Gesellschaft braucht und alles selbst koordiniert, zahlt weniger als bei uns. Koordination und Risiko liegen dann bei ihm.",
         kopf: ["Posten", "Selbst organisiert", "FIAON Global"],
         zeilen: [
           ["Gründungsgebühr des Staats", GRUENDUNG_SPANNE, "enthalten"],
@@ -156,7 +156,7 @@ export const KOSTEN: GlobalSeite[] = [
           ["Vorbereitung der Konto- und Kartenanträge", "Ihre Zeit", "enthalten; es entscheidet das jeweilige Institut"],
         ],
         hervor: 2,
-        fuss: [`Gebühren der Staaten und der IRS: amtliche Werte, Stand ${FAKTEN_STAND}. Übrige Posten: Marktspannen.`],
+        fuss: [`Gebühren der Staaten und der IRS: amtliche Werte, Stand ${FAKTEN_STAND}. Übrige Posten: Marktspannen nach veröffentlichten Angaben mehrerer Anbieter, Stand ${FAKTEN_STAND}.`],
       },
       {
         // Geld zurück in der Mittel-Form (Leitfaden 5.7) — nur bei der Finanzierung, mit Fristbeginn, Ziffer 4 und dem Institut-Satz (beides in S7).
@@ -169,15 +169,16 @@ export const KOSTEN: GlobalSeite[] = [
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           "Laufende Buchhaltung, Umsatzsteuer-Registrierungen in den USA und die Steuererklärung im Wohnsitzland sind nicht Teil Ihres Mandats.",
-          `Für eine versäumte Form 5472 kann die US-Steuerbehörde IRS ${IRS.strafe5472} festsetzen — die teuerste Position ist die vergessene.`,
+          `Für eine versäumte Form 5472 kann die US-Steuerbehörde IRS eine Strafe von ${IRS.strafe5472} festsetzen.`,
           `Gebühren der Staaten ändern sich: Delaware hat die Jahressteuer der LLC ab dem Steuerjahr 2026 von 300 $ auf ${STAAT.delaware.jahr} angehoben.`,
-          "Wir gründen in Delaware, Florida oder Wyoming. Ohne andere Angabe gründen wir in Delaware; Banken und Investoren ist Delaware vertraut.",
+          // Über den Honorarrechner wird in Delaware gegründet; Florida oder Wyoming werden im Gespräch abgestimmt (wie auf den Staatsseiten).
+          "Wir gründen in Delaware, Florida oder Wyoming. Im Honorarrechner ist Delaware als Bundesstaat vorgesehen; einen anderen Staat stimmen wir im Gespräch mit Ihnen ab. Banken und Investoren ist Delaware vertraut.",
         ],
       },
       { typ: "pakete", id: "mandat", h2: P.karteH2, lead: "Ihre Honorarübersicht für Ihren Kapitalrahmen zeigt der Honorarrechner." },
     ],
     fragen: [
-      { f: "Was kostet es, eine LLC in den USA zu gründen?", a: `Beim Bundesstaat ${STAAT.wyoming.gruendung} (Wyoming), ${STAAT.delaware.gruendung} (Delaware) oder ${STAAT.florida.gruendung} (Florida). Hinzu kommen am Markt Registered Agent, US-Geschäftsadresse, Operating Agreement und die jährliche US-Meldung. Unser Honorar: ${HONORAR_KURZ}` },
+      { f: "Was kostet es, eine LLC in den USA zu gründen?", a: `Beim Bundesstaat ${STAAT.wyoming.gruendung} (Wyoming), ${STAAT.delaware.gruendung} (Delaware) oder ${STAAT.florida.gruendung} (Florida). Hinzu kommen die Kosten am Markt für Registered Agent, US-Geschäftsadresse, Operating Agreement und die jährliche US-Meldung. Unser Honorar: ${HONORAR_KURZ}` },
       { f: "Welche laufenden Kosten hat eine US-LLC?", a: `Drei Posten im Jahr. Die Staatsgebühr oder -steuer: ${JAHR_SPANNE} je nach Staat. Der Registered Agent: am Markt ${MARKT.agent}. Die Meldung an die US-Steuerbehörde durch einen US-Steuerberater (CPA): am Markt ${MARKT.cpa5472}. Mit der Jahresbetreuung übernehmen wir diese Posten für ${B.jahresbetreuung} im Jahr; sie verlängert sich nicht von selbst.` },
       { f: "Was kosten EIN und ITIN?", a: `Bei der US-Steuerbehörde IRS nichts. Wer die ITIN über einen Acceptance Agent beantragt, zahlt am Markt ${MARKT.acceptanceAgent}. Bei FIAON Global sind beide Anträge im Honorar enthalten; die ITIN beantragen wir nach unserem ITIN-Check. Über beide Nummern entscheidet die US-Steuerbehörde.` },
       { f: "Was ist im Honorar nicht enthalten?", a: `Nicht enthalten sind Gebühren und Zinsen der Herausgeber und Institute, die Kosten des Darlehens und Steuern. Auf Wunsch kommen hinzu: die Jahresbetreuung ab dem zweiten Jahr (${B.jahresbetreuung} im Jahr) und Fast-Track (${B.fastTrack}). Laufende Buchhaltung und die Steuererklärung im Wohnsitzland sind ebenfalls nicht Teil Ihres Mandats. Was das Honorar umfasst, steht in Ihrem Vertrag.` },

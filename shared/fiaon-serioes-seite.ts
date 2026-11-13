@@ -157,7 +157,7 @@ const de: GlobalSeite = {
       karten: [
         { tag: "Vereinbarung", titel: "Alles schriftlich", text: "Jede Zusammenarbeit steht vorher in einer schriftlichen Vereinbarung, mit Leistungen und Bedingungen." },
         { tag: "Gutschrift", titel: "Abrechnung per Gutschrift", text: "Wer als Tippgeber oder Kooperationspartner vergütet wird, erhält eine Gutschrift mit Monatsbericht." },
-        { tag: "Berufsrecht", titel: "Berufsrecht gewahrt", text: "Anwälte und Steuerberater erhalten für das Zuführen von Mandanten keine Vergütung und keinen sonstigen Vorteil (§ 49b Abs. 3 BRAO, § 9 StBerG). Wirken sie an den Leistungen eines Vertrags mit, trägt FIAON ihre Honorare dafür." },
+        { tag: "Berufsrecht", titel: "Unabhängigkeit der Partner", text: "Anwälte und Steuerberater erhalten für das Zuführen von Mandanten keine Vergütung und keinen sonstigen Vorteil (§ 49b Abs. 3 BRAO, § 9 StBerG). Wirken sie an den Leistungen eines Vertrags mit, trägt FIAON ihre Honorare dafür." },
         { tag: "Kontakt", titel: "Partner werden", text: `Schreiben Sie uns an ${F.email} — Bedingungen und Vereinbarung erhalten Sie schriftlich.`, pfad: `mailto:${F.email}?subject=Partnerschaft%20FIAON%20Global` },
       ],
     },
@@ -176,7 +176,7 @@ const de: GlobalSeite = {
     },
   ],
   fragen: [
-    { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an diesen Fakten. FIAON Global ist die Unternehmensberatung der ${F.name}, eingetragen im Companies House (England und Wales) unter Nr. ${F.companyNo}. Der Sitz der Gesellschaft ist ${F.strasse}, ${F.ortZeile}. Ihr Honorar und Ihren vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen. ${beleg("zahlung")}` },
+    { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an Fakten statt an Versprechen. FIAON Global ist die Unternehmensberatung der ${F.name}, eingetragen im Companies House (England und Wales) unter Nr. ${F.companyNo}. Der Sitz der Gesellschaft ist ${F.strasse}, ${F.ortZeile}. Ihr Honorar und Ihren vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen. ${beleg("zahlung")}` },
     { f: "Wer steht hinter FIAON Global?", a: `Die ${F.name} mit Sitz in ${F.strasse}, ${F.ortZeile}, eingetragen im Companies House unter Nr. ${F.companyNo}. Geschäftsführer ist der Gründer ${F.director}. Den Eintrag können Sie ohne Anmeldung einsehen; alle Pflichtangaben stehen im Impressum. Ihr Vertragspartner ist in jedem Fall die ${F.name}. ${ROLLEN.de}` },
     { f: "Wohin zahle ich, und woran erkenne ich eine echte Rechnung?", a: `Sie zahlen nur per Überweisung an ${BANK.empfaenger}; die Bankverbindung steht auf dieser Seite und auf jeder Rechnung, zusammen mit Ihrem Verwendungszweck. Für Zahlungen aus den Vereinigten Arabischen Emiraten nennen wir Ihnen auf Wunsch ein zweites Konto der ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} (IBAN ${BANK_AED.ibanDisplay}). Andere Konten gibt es nicht. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto. Erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht. Melden Sie sich bei ${F.email} oder unter ${F.telefon}.` },
     { f: "Was kostet FIAON Global, und verlängert sich etwas von selbst?", a: `${satz("S12")} ${saetzeVon(weitererSatz("ZAHLUNG"))[1]}` },
@@ -233,7 +233,7 @@ const en: GlobalSeite = {
       zeilen: [["Recipient", BANK.empfaenger], ["IBAN", BANK.ibanDisplay], ["BIC", BANK.bic], ["Bank", BANK.bank]],
       fuss: [
         `For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request. IBAN: ${BANK_AED.ibanDisplay}, ${BANK_AED.bank}. There are no other accounts.`,
-        "FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If anyone asks you to do so in FIAON's name, please do not pay and let us know straight away.",
+        "FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If anyone asks you to do so in FIAON’s name, please do not pay and let us know straight away.",
       ],
     },
     {
@@ -243,7 +243,7 @@ const en: GlobalSeite = {
         { tag: "Fees", titel: "Fees in advance", text: `${HONORAR.en} ${HONORAR_VORAB.en}`, pfad: "/en/business/costs" },
         { tag: "Agreement", titel: "Your agreement at a glance", text: "What the agreement covers. You read your complete agreement in your personal proposal before you sign.", pfad: "/en/business/mustervertrag" },
         { tag: "Refund", titel: GZ.en.titel, text: GZ.en.text },
-        { tag: "Year two", titel: "Annual administration on request", text: `${JAHRESBETREUUNG.en} It is invoiced a year in advance.` },
+        { tag: "Year two", titel: "Annual administration on request", text: `${JAHRESBETREUUNG.en} It is invoiced annually in advance.` },
       ],
     },
     {
@@ -276,7 +276,7 @@ const en: GlobalSeite = {
       karten: [
         { tag: "Agreement", titel: "Everything in writing", text: "Every cooperation is set out beforehand in a written agreement, with its services and conditions." },
         { tag: "Credit note", titel: "Settlement by credit note", text: "Anyone remunerated as an introducer or cooperation partner receives a credit note with a monthly report." },
-        { tag: "Professional rules", titel: "Professional rules respected", text: "Lawyers and tax advisers receive no fee or other benefit for introducing clients (section 49b(3) BRAO, section 9 StBerG). Where they contribute to the services in an agreement, FIAON bears their fees for those services." },
+        { tag: "Professional rules", titel: "Independence of the partners", text: "Lawyers and tax advisers receive no fee or other benefit for introducing clients (section 49b(3) BRAO, section 9 StBerG). Where they contribute to the services in an agreement, FIAON bears their fees for those services." },
         { tag: "Contact", titel: "Become a partner", text: `Write to us at ${F.email} — you receive the conditions and the agreement in writing.`, pfad: `mailto:${F.email}?subject=Partnership%20FIAON%20Global` },
       ],
     },
@@ -295,9 +295,9 @@ const en: GlobalSeite = {
     },
   ],
   fragen: [
-    { f: "Is FIAON Global legit?", a: `Check it against these facts. FIAON Global is the business consultancy of ${F.name}, registered in England and Wales under company number ${F.companyNo}. Its registered office is ${F.strasse}, ${F.ortZeile}. You read your fees and your complete agreement in your personal proposal before you sign. ${beleg("zahlung", "en")}` },
+    { f: "Is FIAON Global legit?", a: `Check it against facts rather than promises. FIAON Global is the business consultancy of ${F.name}, registered in England and Wales under company number ${F.companyNo}. Its registered office is ${F.strasse}, ${F.ortZeile}. You read your fees and your complete agreement in your personal proposal before you sign. ${beleg("zahlung", "en")}` },
     { f: "Who is behind FIAON Global?", a: `${F.name}, with its registered office at ${F.strasse}, ${F.ortZeile}, registered in England and Wales under company number ${F.companyNo}. The Director is the founder, ${F.director}. You can view the entry without an account; all statutory details are in the legal notice. Your contracting party is always ${F.name}. ${ROLLEN.en}` },
-    { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request (IBAN ${BANK_AED.ibanDisplay}). There are no other accounts. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If such a request reaches you in FIAON's name, please do not pay. Contact ${F.email} or ${F.telefon}.` },
+    { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request (IBAN ${BANK_AED.ibanDisplay}). There are no other accounts. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If such a request reaches you in FIAON’s name, please do not pay. Contact ${F.email} or ${F.telefon}.` },
     { f: "What does FIAON Global cost, and does anything renew automatically?", a: `${satz("S12", "en")} ${saetzeVon(weitererSatz("ZAHLUNG", "en"))[1]}` },
     { f: "Is FIAON a bank, or does it broker loans?", a: `No. ${S8.en[0]} ${S8.en[1]} ${satz("S2", "en")} ${satz("S9", "en")} ${satz("S1", "en")}` },
     { f: "Does a US company save me tax?", a: `No. ${satz("S10", "en")} You report the formation to the tax office in your country of residence, in Germany under section 138 AO. ${S8.en[2]}` },

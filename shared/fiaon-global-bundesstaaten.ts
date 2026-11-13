@@ -215,8 +215,8 @@ export const BUNDESSTAATEN: Record<StaatSchluessel, BundesstaatInfo> = {
   wyoming: {
     schluessel: "wyoming", kurz: "WY", name: "Wyoming", angeboten: true,
     eintragung: {
-      de: "Rund drei Werktage, oft schon am selben Tag — zugesagt wird das vom Staat nicht.",
-      en: "Around three business days, often on the same day — the state does not commit to that.",
+      de: "Oft schon am selben Tag, sonst rund drei Werktage — zugesagt wird das vom Staat nicht.",
+      en: "Often on the same day, otherwise around three business days — the state does not commit to that.",
     },
     eintragungKurz: { de: "rund drei Werktage", en: "around three business days" },
     werktage: { von: 1, bis: 4 },
@@ -341,25 +341,28 @@ export function staatenAufzaehlung(s: Sprache = "de"): string {
 // zwei Wochen bis zur Nummer, der Bestätigungsbrief (CP 575) kommt vier bis fünf Wochen später.
 // Antragsteller aus dem Ausland können telefonisch beantragen — die Nummer gibt es im Gespräch.
 export const EIN_ZEITEN: Record<Sprache, { telefon: string; fax: string; brief: string; satz: string; kurz: string }> = {
+  // E-510 Runde 2 (13.11.2026, Befund E-485): Den Telefonweg sieht die US-Steuerbehörde laut SS-4-Anleitung nur für Antragsteller
+  // ohne Sitz oder Geschäftsadresse in den USA vor — für eine Gesellschaft mit US-Adresse gilt er nicht. Die Fax-Zeit ist der
+  // Erfahrungswert vom November 2026 (vorher stand hier „Telefon am selben Tag, Fax rund zwei Wochen“).
   de: {
-    telefon: "per Telefon (für Antragsteller aus dem Ausland) noch am selben Tag",
-    fax: "per Fax derzeit oft rund zwei Wochen bis zur Nummer",
+    telefon: "den Telefonweg sieht die US-Steuerbehörde nur für Antragsteller ohne Sitz oder Geschäftsadresse in den USA vor",
+    fax: "per Fax derzeit eher sechs bis acht Wochen bis zur Nummer",
     brief: "der Bestätigungsbrief der US-Steuerbehörde kommt rund vier bis fünf Wochen später per Post",
-    satz: "Die EIN — die Steuernummer der Gesellschaft — hängt nicht vom Bundesstaat ab und wird erst nach der Eintragung beantragt: per Telefon (für Antragsteller aus dem Ausland) gibt es sie noch am selben Tag, per Fax derzeit oft nach rund zwei Wochen; der Bestätigungsbrief der US-Steuerbehörde kommt rund vier bis fünf Wochen später per Post.",
-    kurz: "nach der Eintragung: per Telefon am selben Tag, per Fax derzeit oft rund zwei Wochen",
+    satz: "Die EIN — die Steuernummer der Gesellschaft — hängt nicht vom Bundesstaat ab und wird erst nach der Eintragung beantragt: per Fax, derzeit eher mit sechs bis acht Wochen Bearbeitungszeit der US-Steuerbehörde; der Bestätigungsbrief kommt rund vier bis fünf Wochen später per Post. Den Telefonweg sieht die US-Steuerbehörde nur für Antragsteller ohne Sitz oder Geschäftsadresse in den USA vor.",
+    kurz: "nach der Eintragung: per Fax, derzeit eher sechs bis acht Wochen",
   },
   en: {
-    telefon: "by phone (for applicants outside the US) on the same day",
-    fax: "by fax often around two weeks to the number at present",
+    telefon: "the US tax authority provides the telephone route only for applicants with no principal office or business address in the US",
+    fax: "by fax currently closer to six to eight weeks to the number",
     brief: "the US tax authority’s confirmation letter follows by post some four to five weeks later",
-    satz: "The EIN — the company’s tax number — does not depend on the state and can only be applied for after registration: by phone (for applicants outside the US) it is issued on the same day, by fax it often takes around two weeks at present; the US tax authority’s confirmation letter follows by post some four to five weeks later.",
-    kurz: "after registration: same day by phone, often around two weeks by fax at present",
+    satz: "The EIN — the company’s tax number — does not depend on the state and can only be applied for after registration: by fax, currently with a processing time at the US tax authority closer to six to eight weeks; the confirmation letter follows by post some four to five weeks later. The US tax authority provides the telephone route only for applicants with no principal office or business address in the US.",
+    kurz: "after registration: by fax, currently closer to six to eight weeks",
   },
 };
 
 /** Was bei Konto und Karte wirklich zählt — kundentauglich, ohne Bank als Zusage. */
 export const STAAT_BANKEN: Record<Sprache, string> = {
-  de: "Für Konto und Karten zählt der Bundesstaat weniger, als viele denken. Entscheidend ist ein stimmiges Bild: dieselbe US-Adresse und Telefonnummer in allen Unterlagen, ein unterschriebenes Operating Agreement und Ihre persönliche Bonität als Inhaber. Die Entscheidung trifft jedes Institut nach eigenen Regeln.",
+  de: "Für Konto und Karten zählt der Bundesstaat weniger, als viele denken. Entscheidend ist ein stimmiges Bild: dieselbe US-Adresse und Telefonnummer in allen Unterlagen, ein unterzeichnetes Operating Agreement und Ihre persönliche Bonität als Inhaber. Die Entscheidung trifft jedes Institut nach eigenen Regeln.",
   en: "For accounts and cards, the state matters less than many assume. What counts is a consistent picture: the same US address and phone number in every document, a signed operating agreement and your personal credit standing as the owner. Each institution decides by its own rules.",
 };
 

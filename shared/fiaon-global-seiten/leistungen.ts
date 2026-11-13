@@ -51,13 +51,13 @@ const EIN_MANDAT = "Ein Mandat, ein Vertrag, ein Ansprechpartner.";
 /** Das Honorar in der Zeile „Auf einen Blick“ — die drei Zeitpunkte aus S12 in der Kurzform des Leitfadens (1.3, Fassung A). */
 const HONORAR_BLICK = `${B.honorarAuftrag} mit Ihrem Auftrag. Mit der Eintragung Ihrer Gesellschaft das Erfolgshonorar nach Ihrem Kapitalrahmen, mindestens ${B.erfolgMin}. Ab dem zweiten Jahr auf Wunsch ${B.jahresbetreuung} im Jahr.`;
 /** Was ab dem zweiten Jahr anfällt (Vertrag Ziffer 6 Absatz 3) — Betrag aus der Preisquelle. */
-const LAUFEND = `Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das auf Wunsch für ${B.jahresbetreuung} im Jahr, Staatsgebühr enthalten; sie verlängert sich nicht von selbst.`;
+const LAUFEND = `Ab dem zweiten Jahr fallen die laufenden Kosten Ihrer Gesellschaft an: Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das auf Wunsch für ${B.jahresbetreuung} im Jahr, Staatsgebühr enthalten; die Jahresbetreuung verlängert sich nicht von selbst.`;
 /** Die erste jährliche US-Meldung — Wortlaut des Vertrags (Ziffer 2), Rollenbezeichnung nach Leitplanke 5. */
 const US_MELDUNG = "die erste jährliche US-Meldung durch einen US-Steuerberater (CPA) aus unserem Partnernetz";
 /** Der Vermerk der Wissens-Inhalte (Leitfaden 5.11). */
 const VERMERK = "Diese Seite erklärt Grundlagen und ersetzt keine steuerliche oder rechtliche Prüfung Ihres Falls.";
 /** Der Reisepass im ITIN-Antrag — der Weg, den die IRS zulässt, ohne einen Partner beim Namen oder Ort zu nennen. */
-const PASS_WEG = "Die IRS lässt zu, dass ein von ihr zugelassener Certifying Acceptance Agent Ihren Reisepass bestätigt; das Original müssen Sie dann nicht in die USA senden. Den Weg stimmen wir vor dem Antrag mit Ihnen ab.";
+const PASS_WEG = "Die IRS erlaubt, dass ein von ihr zugelassener Certifying Acceptance Agent Ihren Reisepass bestätigt; das Original müssen Sie dann nicht in die USA senden. Den Weg stimmen wir vor dem Antrag mit Ihnen ab.";
 
 export const LEISTUNGEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         kopf: ["", "LLC", "Corporation"],
         zeilen: [
           ["Haftung", "beschränkt auf das Gesellschaftsvermögen", "beschränkt auf das Gesellschaftsvermögen"],
-          ["Besteuerung in den USA", "Eine LLC mit einem ausländischen Gesellschafter wird dort in der Regel steuerlich nicht als eigenes Steuersubjekt behandelt", "Die Gesellschaft zahlt Körperschaftsteuer des Bundes, dazu je nach Staat eine eigene"],
+          ["Besteuerung in den USA", "Eine LLC mit einem ausländischen Gesellschafter wird dort in der Regel nicht als eigenes Steuersubjekt behandelt", "Die Gesellschaft zahlt Körperschaftsteuer des Bundes, dazu je nach Staat eine eigene"],
           ["Innere Ordnung", "Operating Agreement, frei gestaltbar", "Satzung, Vorstand, Anteile nach festen Regeln"],
           ["Investoren und Mitarbeiteranteile", "möglich, aber seltener üblich", "der übliche Weg"],
           ["Passt zu", "Handel, Dienstleistung, Holding", "Wachstum mit Investoren, Beteiligung von Mitarbeitern"],
@@ -137,9 +137,9 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "US-Steuerberater (CPA) aus unserem Partnernetz: die erste jährliche US-Meldung",
         ],
         sie: [
-          "den Namen Ihrer Gesellschaft wählen",
+          "Den Namen Ihrer Gesellschaft wählen",
           "Ihren Reisepass hochladen",
-          "die vorgelegten Unterlagen unterzeichnen",
+          "Die vorgelegten Unterlagen unterzeichnen",
           "Ihre Gesellschaft im Wohnsitzland melden — mit Ihrem Steuerberater",
         ],
       },
@@ -156,7 +156,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "Pflichtenkalender und die erste Jahresmeldung beim Bundesstaat, Staatsgebühr enthalten",
           "Vollständig vorbereitete Anträge für Ihre Konten und, auf Wunsch, Ihre Kreditkarten — es entscheidet das jeweilige Institut",
           ohnePunkt(schritt(5).ihrErgebnis),
-          `Nicht enthalten: Gebühren und Zinsen der Herausgeber und Institute, Kosten des Darlehens, Steuern, die Jahresbetreuung ab dem zweiten Jahr und Fast-Track (${B.fastTrack}, auf Wunsch)`,
+          `Nicht enthalten: Gebühren und Zinsen der Herausgeber und Institute, Kosten des Darlehens, Steuern, die Jahresbetreuung ab dem zweiten Jahr und Fast-Track (Vorrang in allen Schritten; ${B.fastTrack}, auf Wunsch)`,
         ],
         nach: LAUFEND,
       },
@@ -208,7 +208,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Honorar", `Teil Ihres Mandats; die IRS erhebt keine Gebühr. ${HONORAR_BLICK}`],
       ["EIN", "Steuernummer der Gesellschaft — Formular SS-4"],
       ["ITIN", "Persönliche Steuernummer — Formular W-7 mit Identitätsnachweis"],
-      ["Voraussetzung ITIN", "Ein steuerlicher Grund, den die IRS anerkennt — wir sehen ihn vor dem Antrag durch (ITIN-Check)"],
+      ["Voraussetzung ITIN", "Ein steuerlicher Grund, den die IRS anerkennt — ob er vorliegt, prüfen wir vor dem Antrag (ITIN-Check)"],
     ],
     kurz: "Die EIN (Employer Identification Number) vergibt die US-Steuerbehörde IRS an Ihre Gesellschaft — ohne Gebühr und ohne US-Sozialversicherungsnummer. Die ITIN (Individual Taxpayer Identification Number) vergibt sie an Sie persönlich, wenn ein steuerlicher Grund vorliegt; beantragt wird sie mit Formular W-7 und einem Identitätsnachweis. FIAON Global bereitet beide Anträge vor und reicht sie ein; es entscheidet die IRS.",
     bloecke: [
@@ -222,13 +222,13 @@ export const LEISTUNGEN: GlobalSeite[] = [
           ["Voraussetzung", "eine eingetragene Gesellschaft", "ein steuerlicher Grund, den die IRS anerkennt"],
           ["Gebühr der IRS", "keine", "keine"],
           ["Wer entscheidet", "die IRS", "die IRS"],
-          ["Dauer laut IRS", "Fax etwa vier Werktage, Post etwa vier Wochen", "etwa sieben Wochen, aus dem Ausland neun bis elf"],
+          ["Dauer laut IRS", "Fax etwa vier Werktage, Post etwa vier Wochen", "etwa sieben Wochen, aus dem Ausland neun bis elf Wochen"],
           // E-465 (29.10.2026): die heutige Praxis neben der Angabe der IRS (shared/fiaon-global-bundesstaaten.ts, EIN_ZEITEN).
-          ["Derzeit in der Praxis", "Telefon aus dem Ausland am selben Tag, Fax oft rund zwei Wochen", "wie laut IRS"],
+          ["Derzeit in der Praxis", "Fax eher sechs bis acht Wochen", "wie laut IRS"],
         ],
         fuss: [
           "Bearbeitungszeiten laut IRS (Stand 2026): EIN per Fax etwa vier Werktage, per Post etwa vier Wochen; ITIN etwa sieben Wochen, zwischen Mitte Januar und Ende April sowie bei Anträgen aus dem Ausland neun bis elf Wochen.",
-          `Die Zeile „Derzeit in der Praxis“ nennt Erfahrungswerte (Stand: Oktober 2026). ${satz("S15")}`,
+          `Die Zeile „Derzeit in der Praxis“ nennt Erfahrungswerte (Stand: November 2026). ${satz("S15")}`,
         ],
       },
       {
@@ -260,7 +260,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         punkte: [
           "Beide Nummern vergibt allein die IRS, in eigener Frist. FIAON bereitet vor und reicht ein — entscheiden kann FIAON nicht.",
           "Die ITIN setzt einen steuerlichen Grund voraus. Ein Konto- oder Kartenwunsch allein ist kein Grund, den die IRS anerkennt.",
-          "Eine ITIN ist keine Kreditkarte und kein Rahmen. Sie ist eine Voraussetzung, damit ein Herausgeber Ihren Antrag überhaupt beurteilen kann; über jede Karte entscheidet der Herausgeber.",
+          "Eine ITIN ist keine Kreditkarte und kein Kreditrahmen. Sie ist in der Regel die Voraussetzung dafür, dass ein Herausgeber Ihren Antrag beurteilen kann; über jede Karte entscheidet der Herausgeber.",
         ],
       },
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: "Die Anträge für EIN und ITIN sind Teil Ihres Mandats.", paket: "global_struktur" },
@@ -296,7 +296,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
     auge: "Leistung · US-Geschäftskonto",
     h1: "Das US-Geschäftskonto.",
     h1b: "Vorbereitet von uns, entschieden vom Institut.",
-    lead: `Grundlage jedes US-Kontos sind vollständige, widerspruchsfreie Unterlagen. Wir stellen sie zusammen und begleiten Sie bis zur Entscheidung des Instituts. ${satz("S2")}`,
+    lead: `Grundlage jedes US-Kontos sind vollständige Unterlagen ohne Widersprüche. Wir stellen sie zusammen und begleiten Sie bis zur Entscheidung des Instituts. ${satz("S2")}`,
     ziffern: [
       { wert: "vorbereitet", label: "Jeder Kontoantrag, vollständig — den Antrag stellen Sie selbst" },
       { wert: "keine Vollmacht", label: beleg("keinZugriff") },
@@ -324,6 +324,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "US-Geschäftsadresse und Telefonnummer",
           "eine klare Beschreibung des Geschäfts: was, für wen, mit welchen Zahlungsströmen",
         ],
+        nach: "Über den Antrag entscheidet das Institut.",
       },
       {
         typ: "karten", id: "wege", h2: "Online oder vor Ort", spalten: 2,
@@ -341,13 +342,13 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "Namen, Adressen oder Beteiligungen stimmen in zwei Unterlagen nicht überein.",
           "Zahlungsströme berühren Länder oder Branchen, die das Institut nicht bedient.",
         ],
-        nach: "Wir benennen solche Lücken vor dem Antrag — nicht erst nach der Ablehnung.",
+        nach: "Wir benennen solche Lücken vor dem Antrag — nicht erst nach der Ablehnung. Die Entscheidung trifft das Institut.",
       },
       {
         typ: "hinweis", id: "wissen", h2: "Was Sie wissen müssen",
         punkte: [
           satz("S2"),
-          "FIAON nennt auf dieser Seite keine Institute: Ihre Anforderungen ändern sich, und welches passt, hängt von Ihrem Vorhaben ab. Welche Institute in Betracht kommen, nennt Ihnen Ihr Ansprechpartner.",
+          "FIAON nennt auf dieser Seite keine Institute: ihre Anforderungen ändern sich, und welches passt, hängt von Ihrem Vorhaben ab. Welche Institute in Betracht kommen, nennt Ihnen Ihr Ansprechpartner.",
           `Kontoinhaber ist Ihre Gesellschaft. ${beleg("keinZugriff")}`,
         ],
       },
@@ -400,7 +401,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
         typ: "etappen", id: "ablauf", h2: "Der Ablauf bis zur Finanzierung",
         lead: satz("S15"),
         etappen: [
-          { titel: "Kapitalrahmen wählen", text: `Sie wählen den Kapitalrahmen, den Ihre Gesellschaft aufnehmen soll: ${B.rahmen}.` },
+          { titel: "Kapitalrahmen wählen", text: `Sie wählen den Kapitalrahmen, den Ihre Gesellschaft aufnehmen soll: ${B.rahmen}. ${weitererSatz("MIAMI")} Ein Kapitalrahmen ist ein Ziel, kein Versprechen.` },
           { titel: "Vor Beginn", text: "Wir stellen Ihre Identität fest und gleichen Ihre Angaben mit den Sanktionslisten ab (Ziffer 8 Ihres Vertrags)." },
           { titel: "Anträge", text: "Wir bereiten jeden Antrag vollständig vor und begleiten Ihre Gesellschaft. Den Antrag stellt sie selbst." },
           { titel: "Entscheidung und Darlehensvertrag", text: `${satz("S1")} Den Darlehensvertrag schließt Ihre Gesellschaft im eigenen Namen.` },
@@ -414,9 +415,9 @@ export const LEISTUNGEN: GlobalSeite[] = [
           "ein nachvollziehbares Geschäft mit Bezug zu den USA",
           "die Dauer und Pünktlichkeit der bisherigen Zahlungen",
           "die persönliche Kreditwürdigkeit des haftenden Inhabers",
-          "vollständige, widerspruchsfreie Unterlagen",
+          "vollständige Unterlagen ohne Widersprüche",
         ],
-        nach: "Vollständige, widerspruchsfreie Unterlagen sind unser Teil der Arbeit.",
+        nach: "Vollständige Unterlagen ohne Widersprüche sind unser Teil der Arbeit.",
       },
       {
         typ: "tabelle", id: "verantwortung", h2: "Wer was verantwortet",
@@ -453,13 +454,13 @@ export const LEISTUNGEN: GlobalSeite[] = [
         lead: satz("S9"),
         karten: [
           { tag: "FIAON tut", titel: "Vorbereiten und begleiten", text: "Vollständig vorbereitete Anträge für die Finanzierung und, auf Wunsch, für Kreditkarten. Begleitung Ihrer Gesellschaft bis zur Entscheidung des finanzierenden Instituts." },
-          { tag: "FIAON tut nicht", titel: "Zusagen, vergeben, vermitteln", text: `${satz("S8")} FIAON sagt keinen Rahmen zu. ${beleg("keinZugriff")}` },
+          { tag: "FIAON tut nicht", titel: "Zusagen, vergeben, vermitteln", text: `${satz("S8")} FIAON sagt keinen Rahmen zu; darüber entscheidet das jeweilige Institut. ${beleg("keinZugriff")}` },
         ],
       },
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: `${EIN_MANDAT} ${beleg("honorarVorab")}`, paket: "global_kapital" },
     ],
     fragen: [
-      { f: "Sagt FIAON eine Finanzierung zu?", a: `Nein. Über jede Finanzierung entscheidet allein das finanzierende Institut. FIAON vergibt und vermittelt keine Kredite; wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung. Der Kapitalrahmen, den Sie wählen, ist ein Ziel, kein Versprechen. ${satz("S5-C")}` },
+      { f: "Sagt FIAON eine Finanzierung zu?", a: `Nein. Über jede Finanzierung entscheidet allein das finanzierende Institut. FIAON vergibt und vermittelt keine Kredite; wir bereiten die Anträge vollständig vor und begleiten Ihre Gesellschaft bis zur Entscheidung. ${satz("S9")} ${satz("S5-C")}` },
       { f: "Wie groß kann der Kapitalrahmen sein?", a: `${B.rahmen}. ${weitererSatz("MIAMI")} ${satz("S9")} ${satz("S1")}` },
       { f: "Wer haftet für eine Firmenkreditkarte?", a: `${satz("S11")} Wer haftet, steht mit seinem Vermögen für die Abrechnung ein. Welche Sicherheiten ein Herausgeber verlangt, entscheidet er selbst.` },
       { f: GLOBAL_KAPITAL_FREI.de.frage, a: GLOBAL_KAPITAL_FREI.de.antwort },
@@ -497,7 +498,7 @@ export const LEISTUNGEN: GlobalSeite[] = [
       ["Bundesstaat", "Jahresmeldung oder Jahresgebühr, je nach Staat mit eigener Frist"],
       ["Registered Agent", "Jährlich — ohne ihn keine gültige Anschrift im Bundesstaat"],
     ],
-    kurz: "Eine US-Gesellschaft mit einem ausländischen Gesellschafter muss der IRS jedes Jahr Form 5472 zusammen mit Form 1120 übermitteln — auch ohne Umsatz. Hinzu kommen Jahresmeldung oder Jahresgebühr des Bundesstaats und der Registered Agent. Im Wohnsitzland ist die Beteiligung zu melden und die Gesellschaft in der Regel dort zu versteuern. FIAON Global führt den Pflichtenkalender; die erste jährliche US-Meldung ist im ersten Jahr enthalten.",
+    kurz: "Eine US-Gesellschaft mit einem ausländischen Gesellschafter muss der IRS jedes Jahr Form 5472 zusammen mit Form 1120 übermitteln — auch ohne Umsatz. Hinzu kommen Jahresmeldung oder Jahresgebühr des Bundesstaats und der Registered Agent. Im Wohnsitzland ist die Beteiligung zu melden; wird die Gesellschaft von dort aus geführt, ist sie in der Regel dort steuerpflichtig. FIAON Global führt den Pflichtenkalender; die erste jährliche US-Meldung ist im ersten Jahr enthalten.",
     bloecke: [
       {
         typ: "tabelle", id: "kalender", h2: "Die Pflichten einer US-Gesellschaft im Jahr",
@@ -536,11 +537,11 @@ export const LEISTUNGEN: GlobalSeite[] = [
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: "Der Pflichtenkalender für alle US-Meldungen und Fristen ist Teil Ihres Mandats.", paket: "global_banking" },
     ],
     fragen: [
-      { f: "Muss ich Form 5472 auch ohne Umsatz abgeben?", a: "Ja. Die Pflicht hängt nicht am Umsatz, sondern daran, dass die Gesellschaft einem ausländischen Gesellschafter gehört und Geschäfte mit ihm meldet — Gründungseinlagen zählen bereits dazu." },
+      { f: "Muss ich Form 5472 auch ohne Umsatz abgeben?", a: "Ja. Die Pflicht hängt nicht am Umsatz, sondern daran, dass die Gesellschaft einem ausländischen Gesellschafter gehört. Sie meldet ihre Geschäfte mit ihm; Gründungseinlagen zählen bereits dazu." },
       { f: "Was passiert, wenn ich die Frist verpasse?", a: "Die IRS kann eine Strafe von 25.000 US-Dollar je Formular und Jahr festsetzen, bei fortdauerndem Versäumnis nach einer Aufforderung zusätzliche Beträge. Deshalb steht die Frist in Ihrem Pflichtenkalender, und wir erinnern rechtzeitig." },
       { f: "Wer erstellt die jährliche US-Meldung?", a: `Im ersten Jahr ein US-Steuerberater (CPA) aus unserem Partnernetz; sein Honorar dafür trägt FIAON. Ab dem zweiten Jahr ist die Meldung Teil der Jahresbetreuung, die Sie für ${B.jahresbetreuung} im Jahr beauftragen können; sie verlängert sich nicht von selbst.` },
       { f: "Muss ich die US-Gesellschaft dem Finanzamt melden?", a: "In Deutschland ja, nach § 138 AO zusammen mit der Steuererklärung. In Österreich und der Schweiz gelten eigene Regeln; Ihr Steuerberater im Wohnsitzland nennt sie Ihnen." },
-      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: `Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das auf Wunsch für ${B.jahresbetreuung} im Jahr, Staatsgebühr enthalten; sie verlängert sich nicht von selbst. Die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“.` },
+      { f: "Was kostet die US-Gesellschaft ab dem zweiten Jahr?", a: `Staatsgebühr, Registered Agent und die jährliche US-Meldung. Mit der Jahresbetreuung übernehmen wir das auf Wunsch für ${B.jahresbetreuung} im Jahr, Staatsgebühr enthalten; die Jahresbetreuung verlängert sich nicht von selbst. Die Einzelbeträge je Bundesstaat stehen auf der Seite „Kosten“.` },
     ],
     paket: "global_banking",
     weiter: ["/business/wissen/llc-steuererklaerung", "/business/wissen/form-5472", "/business/wissen/registered-agent-adresse", "/business/aus-deutschland"],

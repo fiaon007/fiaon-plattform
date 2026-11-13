@@ -102,7 +102,7 @@ export const SEITE: GlobalSeite = {
   erschienen: S,
   kennung: "FG · 46",
   auge: "Für wen · Aus Österreich",
-  h1: "Aus Österreich in die USA.",
+  h1: "Ihre US-Firma aus Österreich.",
   h1b: "Mit allem, was in Österreich gilt.",
   lead: `Für eine US-Firma aus Österreich brauchen Sie weder Wohnsitz noch Staatsbürgerschaft in den USA. Maßgeblich ist, was in Österreich gilt: wo die Gesellschaft geleitet wird, wie das Finanzamt die LLC einordnet und was zu melden ist. ${WAS_GESCHIEHT}`,
   ziffern: [
@@ -126,13 +126,13 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "gruenden", h2: "US-Firma aus Österreich gründen: was vorher feststeht",
       absaetze: [
-        "Wer eine US-Firma aus Österreich gründen will, braucht dafür weder einen Wohnsitz noch eine Staatsbürgerschaft in den USA — gleich, ob Sie eine LLC gründen oder eine Corporation. Gegründet wird beim Bundesstaat, nicht beim Bund; jede Gesellschaft braucht einen Registered Agent mit Anschrift im Gründungsstaat, und die US-Steuerbehörde vergibt die Steuernummer der Gesellschaft, die EIN. Für Gesellschafter ohne US-Sozialversicherungsnummer ist das kein Hindernis: Im Antrag steht dann „foreign“ statt der Nummer, und ausländische Antragsteller beantragen die EIN telefonisch, per Fax oder per Post — " + IRS.einDauer + ".",
+        "Wer eine US-Firma aus Österreich gründen will, braucht dafür weder einen Wohnsitz noch eine Staatsbürgerschaft in den USA — gleich, ob Sie eine LLC gründen oder eine Corporation. Gegründet wird beim Bundesstaat, nicht beim Bund; jede Gesellschaft braucht einen Registered Agent mit Anschrift im Gründungsstaat, und die US-Steuerbehörde vergibt die Steuernummer der Gesellschaft, die EIN. Für Gesellschafter ohne US-Sozialversicherungsnummer ist das kein Hindernis: Im Antrag steht dann „foreign“ statt der Nummer, und der Antrag geht mit Formular SS-4 per Fax oder per Post an die IRS — " + IRS.einDauer + ".",
         "Die maßgebliche Frage stellt sich nicht in Wyoming, Florida oder Delaware, sondern in Österreich: Wo wird die Gesellschaft tatsächlich geleitet, wie ordnet das Finanzamt die LLC ein, und was ist zu melden? Diese drei Punkte gehören vor die Gründung — weil das Operating Agreement, der Gesellschaftsvertrag der LLC, das Ergebnis des Typenvergleichs mitbestimmt.",
       ],
       punkte: [
         "Gültiger Reisepass jedes Gesellschafters",
         "Aktueller Adressnachweis aus Österreich",
-        "Gründet Ihre GmbH mit: ein aktueller Firmenbuchauszug",
+        "Wenn Ihre GmbH mitgründet: ein aktueller Firmenbuchauszug",
         "Eine kurze, klare Beschreibung des Geschäfts in den USA",
       ],
     },
@@ -147,7 +147,7 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "typenvergleich", h2: "LLC-Besteuerung in Österreich: der Typenvergleich",
       absaetze: [
-        "Das österreichische Recht kennt keine LLC. Ob eine US-LLC einer österreichischen Kapitalgesellschaft vergleichbar ist, lässt sich nach Auffassung des Finanzministeriums nicht allgemein beantworten, sondern nur im Einzelfall anhand aller Gegebenheiten (EAS 1413 vom 4. Februar 1999). Wie die Gesellschaft in den USA besteuert wird — etwa nach einer Wahl auf Form 8832 —, ist dafür nicht entscheidend. Das Bundesfinanzgericht formuliert es ebenso: Ausländische Rechtsgebilde werden aus dem Blickwinkel des österreichischen Rechts eingeordnet.",
+        "Das österreichische Recht kennt keine LLC. Ob eine US-LLC einer österreichischen Kapitalgesellschaft vergleichbar ist, lässt sich nach Auffassung des Finanzministeriums nicht allgemein beantworten, sondern nur im Einzelfall anhand aller Gegebenheiten (EAS 1413 vom 4. Februar 1999). Wie die Gesellschaft in den USA besteuert wird (etwa nach einer Wahl auf Form 8832), ist dafür nicht entscheidend. Das Bundesfinanzgericht formuliert es ebenso: Ausländische Rechtsgebilde werden aus dem Blickwinkel des österreichischen Rechts eingeordnet.",
         "Als Merkmale einer Kapitalgesellschaft nennt das Finanzministerium unter Verweis auf die Fachliteratur eigene Rechtspersönlichkeit, ein starres, vom Ergebnis unabhängiges Gesellschaftskapital, die Beteiligung anderer Personen am Kapital, die Beschränkung der Haftung und eine Willensbildung unter Mitwirkung der Gesellschafter (EAS 1107). Ist die LLC einer Personengesellschaft vergleichbar, gilt sie als transparent: Nicht die Gesellschaft, sondern ihre Gesellschafter werden besteuert.",
         "Gehört die LLC nur Ihnen, kann sie keiner Personengesellschaft entsprechen, denn eine Gesellschaft setzt in Österreich zwei oder mehr Personen voraus (§ 1175 ABGB). Sie wird dann entweder wie eine Kapitalgesellschaft behandelt — oder, wenn ihr deren Merkmale fehlen, nicht als eigenes Steuersubjekt, denn körperschaftsteuerpflichtig sind nur Körperschaften (§ 1 Abs. 1 KStG); ihr Ergebnis wird dann Ihnen persönlich zugerechnet. Welche Merkmale vorliegen, bestimmen das Gesellschaftsrecht des Gründungsstaats und das Operating Agreement.",
         "Das Finanzministerium weist ausdrücklich darauf hin, dass die Analyse der Gesellschaftsstruktur im Rahmen der erhöhten Mitwirkungspflicht bei Auslandsbeziehungen von Ihrer Seite kommen muss — und dass eine Einordnung ohne nähere Prüfung zu einem Konflikt mit der Besteuerung in den USA führen kann (EAS 1413). Deshalb gehört die Einordnung mit Ihrem in Österreich befugten Steuerberater geklärt, bevor das Operating Agreement geschrieben wird.",
@@ -160,8 +160,8 @@ export const SEITE: GlobalSeite = {
       zeilen: [
         ["Wer ist steuerpflichtig?", "Körperschaften mit Geschäftsleitung oder Sitz im Inland, mit allen Einkünften (§ 1 Abs. 2 KStG)", "Die LLC ohne eigene Wahl: mit einem Gesellschafter steuerlich unbeachtlich, mit mehreren wie eine Personengesellschaft"],
         ["Wie wird die LLC eingeordnet?", "Typenvergleich im Einzelfall; die Einordnung in den USA ist nicht entscheidend (EAS 1413)", "Nach US-Bundessteuerrecht; auf Antrag mit Form 8832 als Corporation"],
-        ["Steuersatz der Gesellschaft", "23 % Körperschaftsteuer, wenn sie als Körperschaft gilt (§ 22 Abs. 1 KStG); ab 2028 für Einkommensteile über 1 Mio. € 24 %", `${IRS.koerperschaftsteuer} Bundes-Körperschaftsteuer, wenn sie als Corporation besteuert wird`],
-        ["Ausschüttungen an Sie", "Besonderer Steuersatz von 27,5 % für Einkünfte aus Kapitalvermögen (§ 27a Abs. 1 EStG); US-Quellensteuer rechnet Österreich nach dem DBA an (Art. 22 Abs. 3)", "Wird die LLC als Corporation besteuert: Quellensteuer nach dem DBA höchstens 15 %; 5 %, wenn eine Gesellschaft — etwa Ihre GmbH — unmittelbar mindestens 10 % der stimmberechtigten Anteile hält (Art. 10 Abs. 2)"],
+        ["Steuersatz der Gesellschaft", "23 % Körperschaftsteuer, wenn sie als Körperschaft gilt (§ 22 Abs. 1 KStG); ab 2028 für Einkommensteile über 1 Mio. €: 24 %", `${IRS.koerperschaftsteuer} Bundes-Körperschaftsteuer, wenn sie als Corporation besteuert wird`],
+        ["Ausschüttungen an Sie", "Besonderer Steuersatz von 27,5 % für Einkünfte aus Kapitalvermögen (§ 27a Abs. 1 EStG); US-Quellensteuer rechnet Österreich nach dem DBA an (Art. 22 Abs. 3)", "Wird die LLC als Corporation besteuert: Quellensteuer nach dem DBA höchstens 15 %; 5 %, wenn eine Gesellschaft, etwa Ihre GmbH, unmittelbar mindestens 10 % der stimmberechtigten Anteile hält (Art. 10 Abs. 2)"],
         ["Mehrere Gesellschafter", "Gilt die LLC als steuerlich transparent, werden die Gewinnanteile den Gesellschaftern zugerechnet",`Form 1065 bis ${FRISTEN.f1065}; Steuerabzug auf US-Geschäftsgewinne, die auf ausländische Gesellschafter entfallen: ${SCHWELLEN.abzug1446}`],
         ["Jährliche Pflicht", "Steuererklärung mit allen Einkünften; Anzeige neuer Umstände binnen einem Monat (§§ 120, 121 BAO)", `Ein-Personen-LLC: Form 5472 mit Form 1120, Frist ${IRS.frist5472}`],
       ],
@@ -175,7 +175,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "In Österreich zeigen Sie dem Finanzamt alle Umstände an, die eine persönliche Abgabepflicht für Einkommen-, Körperschaft- oder Umsatzsteuer begründen, ändern oder beenden (§ 120 Abs. 1 BAO). Wer einen gewerblichen Betrieb oder eine sonstige selbständige Erwerbstätigkeit beginnt, meldet das dem zuständigen Finanzamt (§ 120 Abs. 2 BAO) — jeweils binnen einem Monat ab dem Ereignis (§ 121 BAO). Die Einkünfte aus der US-Gesellschaft gehören in Ihre österreichische Steuererklärung; ob als Gewinnanteil oder als Ausschüttung, folgt aus dem Typenvergleich.",
         `In den USA gibt eine Ein-Personen-LLC mit ausländischem Eigentümer Form 5472 zusammen mit Form 1120 ab, sobald es Vorgänge zwischen ihr und ihrem Eigentümer gibt — schon die Einlage bei der Gründung zählt dazu, Umsatz ist keine Voraussetzung; Frist ist der ${IRS.frist5472}. Für eine fehlende oder unvollständige Meldung sieht die US-Steuerbehörde eine Strafe von ${IRS.strafe5472} vor (Stand Oktober 2026). Die Meldung wirtschaftlich Berechtigter an FinCEN entfällt seit August 2026 für Gesellschaften, die in den USA gegründet wurden.`,
-        "Gründet eine österreichische GmbH die US-Gesellschaft, kommen eigene Fragen hinzu. Gilt die US-Gesellschaft als Körperschaft und hält die GmbH mehr als die Hälfte der Stimmrechte oder des Kapitals, können der GmbH Passiveinkünfte der US-Gesellschaft — etwa Zinsen oder Lizenzgebühren — hinzugerechnet werden: wenn mehr als ein Drittel der Einkünfte der US-Gesellschaft passiv ist, ihre tatsächliche Steuerbelastung im Ausland unter 15 % liegt und sie keine wesentliche wirtschaftliche Tätigkeit entfaltet (§ 10a KStG).",
+        "Gründet eine österreichische GmbH die US-Gesellschaft, kommen eigene Fragen hinzu. Gilt die US-Gesellschaft als Körperschaft und hält die GmbH mehr als die Hälfte der Stimmrechte oder des Kapitals, können der GmbH Passiveinkünfte der US-Gesellschaft, etwa Zinsen oder Lizenzgebühren, hinzugerechnet werden. Voraussetzung ist, dass mehr als ein Drittel der Einkünfte der US-Gesellschaft passiv ist, ihre tatsächliche Steuerbelastung im Ausland unter 15 % liegt und sie keine wesentliche wirtschaftliche Tätigkeit entfaltet (§ 10a KStG).",
       ],
     },
     {
@@ -192,7 +192,7 @@ export const SEITE: GlobalSeite = {
       etappen: [
         { titel: "Einordnung in Österreich", dauer: "vor der Gründung", text: "Den Ort der Geschäftsleitung, die Einordnung im Typenvergleich und Ihre Pflichten in Österreich klären Sie mit Ihrem in Österreich befugten Steuerberater. Das Ergebnis bestimmt das Operating Agreement mit." },
         { titel: GRUENDUNG.titel, dauer: "nach der Einordnung", text: `${GRUENDUNG.satz} ${GRUENDUNG.bedingung}` },
-        { titel: UNTERLAGEN.titel, dauer: "EIN: " + IRS.einDauer, text: `${UNTERLAGEN.satz} ${UNTERLAGEN.bedingung}` },
+        { titel: UNTERLAGEN.titel, dauer: "nach der Eintragung", text: `${UNTERLAGEN.satz} ${UNTERLAGEN.bedingung}` },
         { titel: "Fristen und Meldungen", dauer: "im ersten Jahr", text: "Im ersten Jahr enthalten: der Pflichtenkalender, die erste Jahresmeldung beim Bundesstaat und die erste jährliche US-Meldung Ihrer Gesellschaft durch einen US-Steuerberater (CPA) aus unserem Partnernetz. Ihre Steuererklärung in Österreich übernimmt Ihr Steuerberater." },
       ],
     },
@@ -213,7 +213,8 @@ export const SEITE: GlobalSeite = {
     {
       typ: "text", id: "fiaon", h2: "Was FIAON Global dabei übernimmt",
       absaetze: [
-        weitererSatz("POSITIONIERUNG-AT", "de"),
+        // E-510 Runde 2: hier nur der erste Satz — der eine Satz zum weiteren Vorhaben (S17) steht im Baustein „Ein Mandat“ und im Schluss (Leitfaden 2.8).
+        weitererSatz("POSITIONIERUNG-AT", "de").split(/(?<=\.)\s+/)[0],
         `Ihr Vertragspartner ist die ${FIAON_FIRMA.name} mit Sitz in London (Companies House Nr. ${FIAON_FIRMA.companyNo}). ${weitererSatz("UEBERGANG-EINREICHUNG", "de")} ${HONORAR_AT} Ab dem zweiten Jahr können Sie die Jahresbetreuung beauftragen; sie verlängert sich nicht von selbst.`,
       ],
       punkte: [

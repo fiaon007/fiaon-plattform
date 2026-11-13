@@ -142,8 +142,8 @@ export const STAAT_SEITENTEXT: Record<AngebotenerStaat, StaatSeitentext> = {
       en: "A fit where low running costs matter more than how familiar the state is to banks and investors.",
     },
     zeit: {
-      de: "In der Regel rund drei Werktage, oft schon am selben Tag.",
-      en: "Usually around three business days, often on the same day.",
+      de: "Oft schon am selben Tag, sonst in der Regel innerhalb von rund drei Werktagen.",
+      en: "Often on the same day, otherwise usually within around three business days.",
     },
     passtFuer: {
       de: "Gesellschaften, die in keinem bestimmten Staat tätig sind, niedrige laufende Kosten wollen und keine Termine vor Ort brauchen.",
@@ -284,10 +284,8 @@ export function bundesstaatWahlSeite(s: Sprache): GlobalSeite {
       staatAbschnitt("wyoming", s),
       {
         typ: "text", id: "banken", h2: en ? "What counts for accounts and cards" : "Was bei Konto und Karten zählt",
+        // Gegenlesen: Die drei Punkte (Adresse und Telefonnummer, Operating Agreement, Bonität) stehen schon wörtlich in STAAT_BANKEN — keine zweite Liste darunter.
         absaetze: [STAAT_BANKEN[s]],
-        punkte: en
-          ? ["The same US address and telephone number in every document", "A signed operating agreement", "Your personal credit standing as the owner"]
-          : ["Dieselbe US-Adresse und Telefonnummer in allen Unterlagen", "Ein unterzeichnetes Operating Agreement", "Ihre persönliche Bonität als Inhaber"],
       },
       {
         typ: "text", id: "ein", h2: en ? "The EIN: the same in every state" : "Die EIN: in jedem Staat gleich",
@@ -337,19 +335,19 @@ export function bundesstaatWahlSeite(s: Sprache): GlobalSeite {
     fragen: en
       ? [
           { f: "In which US state does registration take the least time?", a: `In Delaware with the state’s express service: usually one or two business days. Wyoming usually takes around three business days. Florida often takes around two weeks at present and offers no express service. ${staatErfahrungSatz("en")}` },
-          { f: "Why does registration in Florida take longer at present?", a: "Florida has taken markedly longer to process formations since autumn 2026: registration often takes around two weeks, and the official formation documents follow some twelve business days later. There is no express service. Before that, the times were shorter; these are timings based on experience." },
+          { f: "Why does registration in Florida take longer at present?", a: `Florida has taken markedly longer to process formations since autumn 2026: registration often takes around two weeks, and the official formation documents follow some twelve business days later. There is no express service. Before that, the times were shorter. ${staatErfahrungSatz("en")}` },
           { f: "Does the state matter for my bank account and cards?", a: "Less than many assume. What counts is a consistent picture: the same US address and telephone number everywhere, a signed operating agreement and your personal credit standing. Each institution decides by its own rules." },
           { f: "When is the EIN applied for?", a: "After registration, and it is the same in every state. We apply for the EIN once the company is registered. The US tax authority decides on the EIN and determines how long processing takes." },
           { f: "What about Nevada?", a: NEVADA_SEITENTEXT.en },
-          { f: "Does the state affect my tax at home?", a: "No. Tax liability in your home country depends on the place of management, not on the company’s registered office." },
+          { f: "Does the state affect my tax at home?", a: "No. Tax liability in your country of residence depends on the place of management, not on the company’s registered office." },
         ]
       : [
           { f: "In welchem US-Bundesstaat dauert die Eintragung am kürzesten?", a: `In Delaware mit dem Express des Staats: in der Regel ein bis zwei Werktage. Wyoming braucht meist rund drei Werktage. Florida braucht derzeit oft rund zwei Wochen und bietet keinen Express an. ${staatErfahrungSatz("de")}` },
-          { f: "Warum dauert die Eintragung in Florida derzeit länger?", a: "Florida braucht für Gründungen seit Herbst 2026 deutlich länger: Bis zur Eintragung vergehen oft rund zwei Wochen, die amtlichen Gründungsunterlagen folgen etwa zwölf Werktage später. Einen Express gibt es nicht. Zuvor waren die Zeiten kürzer; es sind Erfahrungswerte." },
+          { f: "Warum dauert die Eintragung in Florida derzeit länger?", a: `Florida braucht für Gründungen seit Herbst 2026 deutlich länger: Bis zur Eintragung vergehen oft rund zwei Wochen, die amtlichen Gründungsunterlagen folgen etwa zwölf Werktage später. Einen Express gibt es nicht. Zuvor waren die Zeiten kürzer. ${staatErfahrungSatz("de")}` },
           { f: "Spielt der Bundesstaat für Konto und Karten eine Rolle?", a: "Weniger, als viele denken. Entscheidend ist ein stimmiges Bild: überall dieselbe US-Adresse und Telefonnummer, ein unterzeichnetes Operating Agreement und Ihre persönliche Bonität. Die Entscheidung trifft jedes Institut nach eigenen Regeln." },
           { f: "Wann wird die EIN beantragt?", a: "Nach der Eintragung, in jedem Staat gleich. Wir beantragen die EIN, sobald die Gesellschaft eingetragen ist. Über die EIN entscheidet die US-Steuerbehörde; wie lange die Bearbeitung dauert, bestimmt sie." },
           { f: "Und Nevada?", a: NEVADA_SEITENTEXT.de },
-          { f: "Beeinflusst der Bundesstaat meine Steuern zu Hause?", a: "Nein. Die Steuerpflicht im Heimatland hängt am Ort der Geschäftsleitung, nicht am Sitz der Gesellschaft." },
+          { f: "Beeinflusst der Bundesstaat meine Steuern zu Hause?", a: "Nein. Die Steuerpflicht im Wohnsitzland hängt vom Ort der Geschäftsleitung ab, nicht vom Sitz der Gesellschaft." },
         ],
     weiter: en
       ? ["/en/business/delaware", "/en/business/florida", "/en/business/wyoming", "/en/business/knowledge/form-a-us-llc"]

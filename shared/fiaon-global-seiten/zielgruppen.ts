@@ -39,7 +39,7 @@ const Z_ENTSCHEIDET: [string, string] = ["Wer entscheidet", "Bundesstaat und US-
 /** Was gilt, wenn die Finanzierung ausbleibt — die Zeile aus der Tabelle „Wer macht was“ (Leitfaden 2.4), direkt unter „Wer entscheidet“. */
 const Z_AUSBLEIBT: [string, string] = [GELD_ZURUECK.de.auge, SECHS_SCHRITTE.de.find((x) => x.nr === 5)!.werMachtWas.wennEsAusbleibt];
 /** Schweiz: der Blickfang ohne Konto, Karte und Finanzierung (Leitfaden 1.3, Fassung B). */
-const Z_UEBERNEHMEN_CH: [string, string] = ["Wir übernehmen", "Gründung, Unterlagen, Anträge für EIN und ITIN; im ersten Jahr Fristen und Meldungen"];
+const Z_UEBERNEHMEN_CH: [string, string] = ["Wir übernehmen", "Gründung, Unterlagen, Anträge für EIN und ITIN; im ersten Jahr US-Fristen und US-Meldungen"];
 const Z_SELBST_CH: [string, string] = ["Sie selbst", "Namen wählen, Reisepass hochladen, unterzeichnen"];
 const Z_ENTSCHEIDET_CH: [string, string] = ["Wer entscheidet", "Über die Eintragung der Bundesstaat, über EIN und ITIN die US-Steuerbehörde"];
 
@@ -60,7 +60,7 @@ const kurzSchritte = (land: SatzLand): { titel: string; text: string }[] =>
   vierSchritte("de", land).schritte.map((x) => ({ titel: x.titel, text: x.nr === 4 ? `${x.text} ${JAHRESBETREUUNG_BEDINGUNG}` : x.text }));
 
 /** Zuständigkeit für Steuerfragen — sagt, wer verantwortet, nicht, was ein Partner gerade tut (Leitfaden 5.11). */
-const STEUERFRAGEN = "Steuerfragen klären Partner-Steuerberater in eigener Verantwortung";
+const STEUERFRAGEN = "Steuerfragen liegen bei Partner-Steuerberatern, die in eigener Verantwortung arbeiten";
 
 export const ZIELGRUPPEN: GlobalSeite[] = [
   // ─────────────────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { wert: "Drei Staaten", label: "Delaware, Florida oder Wyoming — Sie wählen" },
     ],
     blick: [
-      ["Inhaberin", "Ihre GmbH, AG oder Holding — oder Sie persönlich"],
+      ["Gesellschafterin", "Ihre GmbH, AG oder Holding — oder Sie persönlich"],
       Z_UEBERNEHMEN,
       Z_HONORAR,
       Z_SELBST,
@@ -131,7 +131,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
       { typ: "paket", id: "mandat", h2: KARTE_H2, lead: KARTE_LEAD, paket: "global_banking" },
     ],
     fragen: [
-      { f: "Kann meine GmbH Gesellschafterin der US-Gesellschaft sein?", a: "Ja. Gesellschafterin einer LLC oder Corporation kann eine GmbH, AG oder Holding ebenso sein wie eine natürliche Person. Wir benötigen dann den Registerauszug der Muttergesellschaft." },
+      { f: "Kann meine GmbH Gesellschafterin der US-Gesellschaft sein?", a: "Ja. Gesellschafterin einer LLC oder Corporation kann eine GmbH, AG oder Holding ebenso sein wie eine natürliche Person. Wir benötigen dann den Registerauszug der Muttergesellschaft. Wer sein Angebot über den Honorarrechner anfordert, wird persönlich Gesellschafter; soll Ihre GmbH die Anteile halten, stimmen wir das im Gespräch mit Ihnen ab." },
       { f: "Muss die US-Tochter in den USA versteuert werden?", a: `Das hängt von Rechtsform, Tätigkeit und Ort der Leitung ab. ${STEUERFRAGEN}; die laufende Steuererklärung übernimmt Ihr Steuerberater.` },
       { f: "Übernimmt FIAON auch Visa für Mitarbeiter?", a: "Nein. Visa, Lohnbuchhaltung und Verrechnungspreise sind nicht Teil Ihres Mandats." },
       { f: "Wie lange dauert die Gründung der Tochter?", a: "Das bestimmen die Behörden: Über die Eintragung entscheidet der Bundesstaat, über die EIN die US-Steuerbehörde. Eine Frist sagen wir deshalb nicht zu." },
@@ -153,7 +153,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     auge: "Für wen · Onlinehandel",
     h1: "US-Gesellschaft für Onlinehändler.",
     h1b: "EIN, US-Adresse, Sales Tax.",
-    lead: "Marktplätze, Zahlungsdienste und Logistiker in den USA erwarten oft eine US-Gesellschaft mit EIN und US-Adresse. Wir gründen Ihre Gesellschaft, beantragen die Steuernummern und bereiten Ihre Konto- und Kartenanträge vor; über Konto und Karte entscheidet das jeweilige Institut.",
+    lead: "Marktplätze, Zahlungsdienste und Logistiker in den USA erwarten oft eine US-Gesellschaft mit EIN und US-Adresse. Wir gründen Ihre Gesellschaft, beantragen die Steuernummern und bereiten Ihre Kontoanträge und auf Wunsch Ihre Kartenanträge vor; über Konto und Karte entscheidet das jeweilige Institut.",
     ziffern: [
       { wert: "EIN", label: "die US-Steuernummer Ihrer Gesellschaft; es entscheidet die US-Steuerbehörde" },
       { wert: "Sales Tax", label: "erheben die Bundesstaaten, mit eigenen Schwellen" },
@@ -374,7 +374,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
         typ: "text", id: "typenvergleich", h2: "Der Typenvergleich",
         absaetze: [
           "Das deutsche Steuerrecht kennt keine LLC. Deshalb prüft das Finanzamt anhand ihrer Merkmale, ob sie eher einer Kapitalgesellschaft wie der GmbH oder einer Personengesellschaft entspricht — der sogenannte Typenvergleich. Die Kriterien hat das Bundesfinanzministerium für die US-LLC in einem eigenen Schreiben festgelegt (BMF vom 19. März 2004). Die Einordnung in den USA, das sogenannte Check-the-box-Wahlrecht, spielt dafür keine Rolle.",
-          `Das Ergebnis hängt vom Operating Agreement ab: Wer entscheidet, wie Gewinne verteilt werden, ob Anteile übertragbar sind. Deshalb gehört die Einordnung geklärt, bevor das Operating Agreement geschrieben wird. ${STEUERFRAGEN}.`,
+          `Das Ergebnis hängt vom Operating Agreement ab: wer entscheidet, wie Gewinne verteilt werden und ob Anteile übertragbar sind. Deshalb gehört die Einordnung geklärt, bevor das Operating Agreement geschrieben wird. ${STEUERFRAGEN}.`,
         ],
       },
       {
@@ -425,7 +425,7 @@ export const ZIELGRUPPEN: GlobalSeite[] = [
     auge: "Für wen · Aus der Schweiz",
     h1: "US-Gesellschaft aus der Schweiz.",
     h1b: "Tatsächliche Verwaltung.",
-    lead: "Für eine US-Gesellschaft brauchen Sie keinen Wohnsitz in den USA. Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und übernehmen im ersten Jahr Fristen und Meldungen.",
+    lead: "Für eine US-Gesellschaft brauchen Sie keinen Wohnsitz in den USA. Wir gründen Ihre US-Gesellschaft, holen jede Unterlage ein, beantragen die Steuernummern und übernehmen im ersten Jahr die US-Fristen und US-Meldungen.",
     ziffern: [
       { wert: "Art. 50 DBG", label: "Steuerpflicht bei Sitz oder tatsächlicher Verwaltung in der Schweiz" },
       { wert: "Form 5472", label: "jährliche US-Meldung, auch ohne Umsatz" },

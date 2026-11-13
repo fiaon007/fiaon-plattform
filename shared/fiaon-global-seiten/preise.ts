@@ -35,7 +35,7 @@ const KOSTEN_SEITE = globalMenuePunkt("/business/kosten")?.titel ?? "Kosten im �
 /** Erfahrungswerte je Schritt (Tabelle „Wie lange es dauert“) — nie eine Frist, immer mit dem, der entscheidet. */
 const ERFAHRUNG: Record<number, string> = {
   1: "Eintragung je nach Bundesstaat wenige Tage bis rund zwei Wochen",
-  2: "EIN und ITIN in eigener Frist der US-Steuerbehörde",
+  2: "EIN und ITIN nach der Bearbeitungszeit der US-Steuerbehörde",
   3: "nach der Prüfung durch das jeweilige Institut",
   4: "nach der Prüfung durch den Herausgeber",
   5: "Ziel und Bedingungen stehen in Ihrem Vertrag",
@@ -71,7 +71,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
       ["Stand", "Jederzeit in Ihrem Portal: aktueller Schritt, Unterlagen, Pflichtenkalender"],
       ["Dauer", "Erfahrungswerte, keine Fristen — es bestimmen Behörden und Institute"],
     ],
-    kurz: `Ihr Mandat beginnt mit Ihrem Angebot: Sie fordern es im Honorarrechner an oder vereinbaren zuerst ein Gespräch, und Sie unterzeichnen online. Nach Eingang Ihrer Zahlung und Ihres Reisepasses folgen sechs Schritte: Gründung, Unterlagen, Konten, Kreditkarten auf Wunsch, Finanzierung, Umschuldung und Aufstockung. Über die Eintragung entscheidet der Bundesstaat, über EIN und ITIN die US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut. ${satz("S15")}`,
+    kurz: `Ihr Mandat beginnt mit Ihrem Angebot: Sie fordern es im Honorarrechner an oder vereinbaren zuerst ein Gespräch, und Sie unterzeichnen online. Nach Eingang Ihrer Zahlung und Ihres Reisepasses folgen sechs Schritte: Gründung, Unterlagen, Konten, Kreditkarten auf Wunsch, Finanzierung sowie Umschuldung und Aufstockung. Über die Eintragung entscheidet der Bundesstaat, über EIN und ITIN die US-Steuerbehörde, über Konto, Karte und Finanzierung das jeweilige Institut. ${satz("S15")}`,
     bloecke: [
       {
         // Angebot, Unterschrift, Rechnung und Reisepass stehen VOR den sechs Schritten — ohne eigene Schritt-Nummern (Leitfaden 2.1).
@@ -144,7 +144,7 @@ export const PREISE_UND_ABLAUF: GlobalSeite[] = [
       { wert: "1 Mandat", label: "bei FIAON Global: ein Vertrag für alle Schritte" },
     ],
     blick: [
-      ["Selbst", "Nur Staatsgebühren; Koordination und Risiko bei Ihnen"],
+      ["Selbst", "Nur Gebühren Dritter; Koordination und Risiko bei Ihnen"],
       ["Dienst", "Gründung übernommen; Steuern, Konten, Karten bei Ihnen"],
       ["FIAON Global", "Gründung, Unterlagen, Anträge in einem Mandat"],
       ["Entscheidend", "Wer koordiniert Anwalt, Steuerberater, US-Steuerberater (CPA) und die Anträge bei den Instituten?"],

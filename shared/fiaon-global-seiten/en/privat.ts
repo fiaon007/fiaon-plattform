@@ -42,7 +42,7 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
   art: "zielgruppe",
   seo: {
     titel: "Form a US company as a private individual — FIAON Global",
-    beschreibung: "No company needed: you engage FIAON Global as a person. We form your US company, apply for the EIN and ITIN and prepare your account applications.",
+    beschreibung: "No company needed: you engage FIAON Global as a person. We form your US company, apply for the EIN and prepare your account applications.",
   },
   stand: "2026-11-13",
   erschienen: S,
@@ -51,7 +51,7 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
   // 06.10.2026 (E-293): H1 und Lead deckungsgleich mit der sichtbaren Startseite (GLOBAL_WOERTER.en.privat).
   h1: "Your own US company.",
   h1b: "No company needed — under one engagement.",
-  lead: "You become the shareholder yourself; the agreement and invoice are in your name. We form your US company, apply for the EIN and ITIN and prepare your account applications — on request, your credit card applications too. You submit the applications yourself; each institution decides.",
+  lead: "You become the shareholder yourself; the agreement and invoice are in your name. We form your US company, apply for the EIN and, following our ITIN check, your ITIN, and prepare your account applications — on request, your credit card applications too. You submit the applications yourself; each institution decides.",
   ziffern: [
     { wert: P.preis, label: P.preisLabel },
     { wert: "Your name", label: "on the agreement and invoice" },
@@ -85,7 +85,7 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
         { titel: handlung("angebot", "en"), text: "In the fee calculator you enter your details and see your schedule of fees in advance." },
         { titel: "Enter your details", text: "On your proposal page you enter your date of birth and address and choose the name of your company. No register extract or company details are needed." },
         { titel: "Withdrawal instructions and start", text: "You read the agreement with the withdrawal instructions. By signing, you expressly request that we begin before the withdrawal period expires." },
-        { titel: "Sign", text: "You receive the agreement and invoice in your name by email, together with the withdrawal instructions and the model withdrawal form. You then upload your passport." },
+        { titel: "Agreement, invoice, passport", text: "You receive the agreement and invoice in your name by email, together with the withdrawal instructions and the model withdrawal form. You then upload your passport." },
       ],
     },
     {
@@ -129,7 +129,7 @@ export const PRIVAT_SEITE_EN: GlobalSeite = {
     { f: "Which funding target can I choose?", a: P.rahmenSatz },
     // Wie auf /business: Das Kapital ist nicht an die USA gebunden (GLOBAL_KAPITAL_FREI).
     { f: GLOBAL_KAPITAL_FREI.en.frage, a: GLOBAL_KAPITAL_FREI.en.antwort },
-    { f: "What does the company cost from the second year onwards?", a: `With annual administration, ${P.jahres} a year, on request. It includes the state fee, the registered agent, a US business address, a US telephone number and the annual US filing (Form 5472). It does not renew automatically. The tax adviser in your country of residence is not included.` },
+    { f: "What does the company cost from the second year onwards?", a: `With annual administration, ${P.jahres} a year, on request. It includes the state fee, the registered agent, a US business address, a US telephone number and the annual US filing (Form 5472). Annual administration does not renew automatically. The tax adviser in your country of residence is not included.` },
     { f: "Can I transfer the US company to my business later?", a: "In principle, yes. A transfer has tax consequences in both countries; please check this with your tax adviser beforehand." },
     { f: "Do I have to travel to the United States?", a: `Not for the formation or your company’s tax identification number. Whether an institution requires you to attend in person for an account, a card or financing is for that institution to decide. ${weitererSatz("MIAMI", "en")}` },
     { f: "Which documents do I need as a private individual?", a: "Your passport — you upload it after signing. You choose the name of your company on your proposal page. If an authority or an institution requires further documents, we tell you which." },

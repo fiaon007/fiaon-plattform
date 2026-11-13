@@ -66,7 +66,7 @@ const PASS_WEG = "The IRS allows a Certifying Acceptance Agent authorised by it 
 /** The Miami sentence with its reference (guide 5.8) — written out, because here it stands without the range of the funding target. */
 const MIAMI = "From a funding target of US$1 million, we work with you in person in Miami.";
 /** What the funds from a financing may be used for (Justin, 19.09.2026) — with the lender and the responsibility for tax questions. */
-const MITTEL_IN_EUROPA = "The funds from a financing are not tied to the United States. Your company may transfer them to Europe or invest them there, within the terms set by the lender. How transfers and investments are treated for tax purposes rests with partner tax advisers acting in their own professional capacity.";
+const MITTEL_IN_EUROPA = "The funds from a financing are not tied to the United States. Your company may transfer them to Europe or invest them there, within the terms set by the lender. The tax treatment of transfers and investments rests with partner tax advisers acting in their own professional capacity.";
 
 /** Eigene Quellen dieser Seite — dieselben Adressen wie in der deutschen Fassung, englische Titel. */
 const QUELLEN: Record<string, GlobalQuelle> = {
@@ -128,7 +128,7 @@ export const SEITE: GlobalSeite = {
         ["Contracting party", `${F.name}, private limited company, England and Wales`],
         ["Register", `Companies House, company number ${F.companyNo}, incorporated on 3 July 2026`],
         ["Registered office", `${F.strasse}, ${F.ortZeile}, United Kingdom`],
-        ["Management", `${F.director}, director and founder`],
+        ["Management", `${F.director}, Director and founder`],
         ["In the United States", `${weitererSatz("UEBERGANG-EINREICHUNG", "en")} ${MIAMI}`],
         ["For whom", "Businesses, the self-employed and private individuals resident or based in Germany, Austria or Switzerland"],
         ["What is formed", "US company (LLC) in Delaware, Florida or Wyoming"],
@@ -205,7 +205,7 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "A formation service files the company with the state and usually provides the registered agent. What follows are the tax identification numbers with the IRS, the operating agreement and the first annual US filing. Added to these are tax liability in your country of residence and the applications to institutions and card issuers.",
         "FIAON Global therefore works as a business consultancy: one engagement for formation, documents and the preparation of your applications, with one dedicated contact. Formation alone costs less with a formation service. Our fee also covers the tasks that follow, from the tax identification numbers to the first annual US filing.",
-        `These tasks are not a formality. An LLC wholly owned by a single foreign owner files Form 5472 with Form 1120 with the IRS. This applies to every year with reportable transactions between the company and its owner, even without revenue. The capital contribution and formation costs paid already count as such transactions. For a calendar year the deadline is ${IRS_EN.frist5472}. If the filing is not made, the IRS can impose a penalty of ${IRS_EN.strafe5472}. That is why the first annual US filing is included in your engagement.`,
+        `These tasks are not a formality. An LLC wholly owned by a single foreign owner files Form 5472 with Form 1120 with the IRS. This applies to every year with reportable transactions between the company and its owner, even without revenue. The capital contribution and formation costs paid already count as such transactions. Where the tax year is the calendar year, the deadline is ${IRS_EN.frist5472}. If the filing is not made, the IRS can impose a penalty of ${IRS_EN.strafe5472}. That is why the first annual US filing is included in your engagement.`,
       ],
     },
     {
@@ -232,13 +232,13 @@ export const SEITE: GlobalSeite = {
       ],
       punkte: [
         `the contracting party in the register: ${F.name}, Companies House, company number ${F.companyNo}, incorporated on 3 July 2026, registered office at ${F.strasse} in London — open to public inspection`,
-        `the management: the director is ${F.director}, entered in the same register`,
+        `the management: the Director is ${F.director}, entered in the same register`,
         "the agreement: you read it in full in your personal proposal before you sign; it is in German",
         "the fees: they are stated as amounts in your proposal before you sign",
         `the payment: ${beleg("zahlung", "en")}`,
         "the limits: this page and your agreement state what FIAON Global is not",
       ],
-      nach: "You can check the same points with any provider. No provider can keep a commitment on limits or interest: each institution makes its own decision.",
+      nach: "You can check the same points with any provider. No provider can honour a commitment on limits or interest: each institution makes its own decision.",
     },
     {
       typ: "zitat", id: "kurzprofil",
@@ -263,8 +263,8 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "What is FIAON Global?", a: DEFINITION },
-    { f: "Is FIAON Global a bank, or does it broker loans?", a: `No. ${KEINE_BANK} ${KEINE_KREDITE} ${satz("S2", "en")} ${satz("S9", "en")}` },
-    { f: "Who is behind FIAON Global?", a: `Your contracting party is ${F.name}, a private limited company with its registered office at ${F.strasse} in London. It is registered in England and Wales under company number ${F.companyNo} and was incorporated on 3 July 2026. The director is ${F.director}. You can view the entry without an account.` },
+    { f: "Is FIAON Global a bank, or does it broker loans?", a: `No. ${KEINE_BANK} ${KEINE_KREDITE} ${satz("S2", "en")} ${satz("S9", "en")} ${satz("S1", "en")}` },
+    { f: "Who is behind FIAON Global?", a: `Your contracting party is ${F.name}, a private limited company with its registered office at ${F.strasse} in London. It is registered in England and Wales under company number ${F.companyNo} and was incorporated on 3 July 2026. The Director is ${F.director}. You can view the entry without an account.` },
     { f: "What does FIAON Global cost?", a: satz("S12", "en") },
     { f: "Does a US company set up through FIAON Global lower my taxes?", a: `No. ${satz("S10", "en")} You report the formation to the tax office, in Germany under section 138 of the German Fiscal Code (AO) with your tax return. ${beleg("fuerWenNicht", "en")}` },
     { f: "How does FIAON Global differ from a formation service?", a: "A formation service files the company with the state. FIAON Global works under one engagement: formation, documents and tax identification numbers, plus fully prepared applications for accounts, credit cards on request and financing. Each institution makes its own decision on every application. Formation alone costs less with a formation service." },

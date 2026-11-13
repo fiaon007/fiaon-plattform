@@ -496,7 +496,7 @@ function RedaktionAktuell({ beitraege, nr, sp }: { beitraege: RedaktionsBeitrag[
   const am = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(sp === "en" ? "en-GB" : "de-DE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Berlin" }) : "");
   return (
     <Abschnitt id="aktuell">
-      <Kopf nr={nr} h2={AKTUELL_TITEL[sp]} lead={sp === "en" ? "New articles for business owners — current, with sources." : "Jeden Tag ein neuer Beitrag für Unternehmer — aktuell, mit Quellen."} />
+      <Kopf nr={nr} h2={AKTUELL_TITEL[sp]} lead={sp === "en" ? "New articles for business owners, with sources and dates." : "Neue Beiträge für Unternehmer, mit Quellen und Stand."} />
       <ul className="fd-verzeichnis">
         {sichtbar.map((b) => (
           <li key={b.slug}><a href={businessArtikelPfad(b.slug, sp)}>

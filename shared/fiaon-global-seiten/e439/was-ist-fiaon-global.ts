@@ -216,14 +216,14 @@ export const SEITE: GlobalSeite = {
       absaetze: [
         "Ein Gründungsdienst meldet die Gesellschaft beim Bundesstaat an und stellt meist den Registered Agent. Danach folgen die Steuernummern bei der IRS, das Operating Agreement und die erste jährliche US-Meldung. Hinzu kommen die Steuerpflicht im Wohnsitzland und die Anträge bei Instituten und Kartenherausgebern.",
         "FIAON Global arbeitet deshalb als Unternehmensberatung: ein Mandat für Gründung, Unterlagen und die Vorbereitung Ihrer Anträge, mit einem festen Ansprechpartner. Wer nur die Gründung braucht, zahlt bei einem Gründungsdienst weniger. Unser Honorar umfasst auch die Aufgaben danach, von den Steuernummern bis zur ersten jährlichen US-Meldung.",
-        `Diese Aufgaben sind keine Formsache. Eine LLC, die ganz einem Eigentümer aus dem Ausland gehört, reicht Form 5472 mit Form 1120 bei der IRS ein. Das gilt für jedes Jahr mit meldepflichtigen Vorgängen zwischen ihr und ihrem Eigentümer, auch ohne Umsatz. Dazu zählen schon die Einlage und bezahlte Gründungskosten. Frist ist bei Kalenderjahr der ${IRS.frist5472}. Fehlt die Meldung, kann die IRS eine Strafe von ${IRS.strafe5472} festsetzen. Deshalb ist die erste jährliche US-Meldung in Ihrem Mandat enthalten.`,
+        `Diese Aufgaben sind keine Formsache. Eine LLC, die ganz einem Eigentümer aus dem Ausland gehört, reicht Form 5472 mit Form 1120 bei der IRS ein. Das gilt für jedes Jahr mit meldepflichtigen Vorgängen zwischen ihr und ihrem Eigentümer, auch ohne Umsatz. Dazu zählen schon die Einlage und bezahlte Gründungskosten. Entspricht das Geschäftsjahr dem Kalenderjahr, ist die Frist der ${IRS.frist5472}. Fehlt die Meldung, kann die IRS eine Strafe von ${IRS.strafe5472} festsetzen. Deshalb ist die erste jährliche US-Meldung in Ihrem Mandat enthalten.`,
       ],
     },
     {
       typ: "text", id: "inklusive", h2: "Im ersten Jahr enthalten",
       absaetze: ["Mit Ihrem Auftrag sind im ersten Jahr enthalten:"],
       punkte: [...P.enthalten],
-      nach: `Nicht enthalten sind Gebühren und Zinsen der Herausgeber und Institute, die Kosten des Darlehens und Steuern. Auf Wunsch kommen hinzu: die Jahresbetreuung ab dem zweiten Jahr (${B.jahresbetreuung} im Jahr) und Fast-Track (${B.fastTrack}). Steuererklärungen in Ihrem Wohnsitzland bleiben bei Ihrem Steuerberater.`,
+      nach: `Nicht enthalten sind Gebühren und Zinsen der Herausgeber und Institute, die Kosten des Darlehens und Steuern. Auf Wunsch kommen hinzu: die Jahresbetreuung ab dem zweiten Jahr (${B.jahresbetreuung} im Jahr) und Fast-Track, der Vorrang in allen Schritten (${B.fastTrack}). Steuererklärungen in Ihrem Wohnsitzland bleiben bei Ihrem Steuerberater.`,
     },
     {
       // Angebot, Unterschrift, Rechnung und Reisepass stehen VOR den sechs Schritten — sie zählen nicht als Schritte (Leitfaden 2.1).
@@ -274,7 +274,7 @@ export const SEITE: GlobalSeite = {
   ],
   fragen: [
     { f: "Was ist FIAON Global?", a: DEFINITION },
-    { f: "Ist FIAON Global eine Bank oder ein Kreditvermittler?", a: `Nein. ${KEINE_BANK} ${KEINE_KREDITE} ${satz("S2")} ${satz("S9")}` },
+    { f: "Ist FIAON Global eine Bank oder ein Kreditvermittler?", a: `Nein. ${KEINE_BANK} ${KEINE_KREDITE} ${satz("S2")} ${satz("S9")} ${satz("S1")}` },
     { f: "Wer steht hinter FIAON Global?", a: `Vertragspartner ist die ${F.name}, eine Private Limited Company mit Sitz ${F.strasse} in London. Sie ist eingetragen im Companies House unter Nr. ${F.companyNo}, seit dem 3. Juli 2026. Director ist ${F.director}. Den Eintrag können Sie ohne Anmeldung einsehen.` },
     { f: "Was kostet FIAON Global?", a: satz("S12") },
     { f: "Spart man mit einer US-Gesellschaft über FIAON Global Steuern?", a: `Nein. ${satz("S10")} Die Gründung melden Sie dem Finanzamt, in Deutschland nach § 138 AO mit Ihrer Steuererklärung. ${beleg("fuerWenNicht")}` },

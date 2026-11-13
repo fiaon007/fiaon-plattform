@@ -112,7 +112,9 @@ for (const w of ["110 $", "289 $ (ohne Express)", "icis.corp.delaware.gov", "cor
 for (const w of ["100 $", "279 $", "wyobiz.wyo.gov/Business/FilingSearch.aspx", "wyobiz.wyo.gov/Business/AnnualReport.aspx", "Gründungsmonats", "rund drei Werktage", "{raAnschrift}"]) pruef(`E-465: Wyoming „${w}“`, wyText.includes(w));
 pruef("E-465: Florida ehrlich (rund zwei Wochen, kein Express)", flText.includes("rund zwei Wochen") && flText.includes("einen Express gibt es nicht"));
 pruef("E-465: Florida ohne Express-Hinweis", !fl.flatMap((b) => b.schritte).some((s) => (s.hinweise ?? []).some((h) => /Expedite/.test(h.text))));
-pruef("E-465: EIN-Zeiten ehrlich (Telefon + Fax)", flText.includes("rund zwei Wochen") && /Telefon noch im Gespräch/.test(flText));
+// E-510 Runde 2 (13.11.2026) vorher → nachher: geprüft wurde „rund zwei Wochen“ und „Telefon noch im Gespräch“ (E-465). Nach dem Befund
+// E-485 gilt der Telefonweg der IRS nicht für Gesellschaften mit US-Adresse, und das Fax braucht derzeit eher sechs bis acht Wochen.
+pruef("E-510: EIN-Zeiten nach Befund E-485 (Fax sechs bis acht Wochen, kein Telefonweg)", flText.includes("sechs bis acht Wochen") && /Es bleibt beim Fax/.test(flText) && !/Telefon noch im Gespräch/.test(flText));
 pruef("E-465: Delaware-Werte ohne Florida-Anschrift", !deText.includes("St. Petersburg, FL"));
 const wDe = ablaufWerte({ gesellschaftName: "Muster LLC", bundesstaatName: "Delaware", jetzt });
 pruef("E-465: Werte DE ohne RA-Anschrift (Leerstelle)", wDe.raAnschrift === "" && ablaufEinsetzen("{raAnschrift}", wDe).fehlt);

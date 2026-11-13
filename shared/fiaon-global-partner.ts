@@ -1,42 +1,32 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// FIAON GLOBAL — DREI STANDORTE: LONDON · ZÜRICH · MIAMI (19.09.2026, E-191)
+// FIAON GLOBAL — VERTRAGSPARTNER UND VERBUNDENE GESELLSCHAFTEN (19.09.2026, E-191; neu gefasst 13.11.2026, E-510)
 //
-// Justin (18.09.2026, spät): „Wir arbeiten hier mit der Schwarzott Global LLC
-// aus Miami zusammen und mit der Schwarzott Capital Partners AG aus Zürich."
+// Öffentlich heißt die verbundene Gesellschaft seit dem 30.10.2026 (E-466, Justin) nur „Schwarzott Group“ — ohne
+// Registernummer, Anschrift, Ort und Register-Links. Verträge und Angebote nennen ihre Vertragsparteien dort, wo sie
+// Vertragspartei sind; das hier betrifft nur die Seite. Namen, Nummern und Anschriften der Gesellschaften stehen
+// bewusst NICHT in dieser Datei (das Repo ist öffentlich).
 //
-// ── 30.10.2026 (E-466, Justin): „entferne Schwarzott Capital Partners AG bzw. Schwarzott Global LLC,
-// sondern eher Schwarzott Group“ — öffentlich heißen Zürich und Miami seither „Schwarzott Group“, ohne
-// Registernummer, Anschrift und Register-Links. Verträge, Angebote (Bürgschaft) und Buchhaltung nennen die
-// Gesellschaften weiter mit ihrem echten Namen (dort sind sie Vertragspartei) — das hier betrifft nur die Seite.
+// · FIAON LTD — Companies House (England and Wales) No. 17318250, London (shared/fiaon-firma.ts).
 //
-// ── WAS HIER STEHT, IST GEPRÜFT (Stand 19.09.2026, vor der Umbenennung) ────
-// · FIAON LTD — Companies House (England and Wales) No. 17318250, 128 City
-//   Road, London (shared/fiaon-firma.ts).
-// · Schwarzott Capital Partners AG — Handelsregister des Kantons Zürich,
-//   UID CHE-102.119.428, Schifflände 26, 8001 Zürich (Zefix, abgefragt am
-//   19.09.2026). Zweck laut Register: Investition und Beteiligung an
-//   Unternehmen, Unternehmensberatung und Marketing, Immobilieninvestitionen
-//   im Ausland.
-// · Schwarzott Global LLC — Miami, Florida; 3119 Coral Way, Suite 200,
-//   Miami, FL 33145 (Angabe der Gesellschaft). Das Florida-Register
-//   (Sunbiz) liegt hinter einer Bot-Sperre und wurde NICHT abgefragt (19.09.2026
-//   erneut: Sunbiz 403, OpenCorporates Captcha, eigene Imprint-Seite 403) —
-//   deshalb steht hier keine Registernummer; die Seiten nennen stattdessen die
-//   Rechtsform (standortNachweis). Nummer in `register` eintragen, sobald Justin
-//   sie nennt — sie ersetzt die Rechtsform dann überall von selbst.
-//
-// ── OFFEN GESAGT: DIE VERBINDUNG ──────────────────────────────────────────
-// Alle drei Gesellschaften sind über Justin Schwarzott verbunden (Director der
-// FIAON LTD, Verwaltungsrat der AG, Vertreter der LLC). Wer als Firmenkunde
-// prüft, sieht das in zwei Minuten im Register. Die Seite sagt es deshalb
-// selbst — eine Kanzlei nennt ihre verbundenen Gesellschaften, sie versteckt
-// sie nicht (§ 5a UWG: nichts weglassen, was für die Entscheidung zählt).
+// ── DIE VERBINDUNG ────────────────────────────────────────────────────────
+// Die Gesellschaften sind über Justin Schwarzott verbunden. Die Seite sagt es selbst (fester Satz S13 in
+// shared/fiaon-global-saetze.ts) — nichts weglassen, was für die Entscheidung zählt.
 //
 // ── WAS DIE PARTNER TUN — UND WAS NICHT ───────────────────────────────────
 // Vertragspartner des Kunden ist immer die FIAON LTD. Die Partner arbeiten
 // für FIAON (Team vor Ort) oder begleiten die Kapital-Etappe. Keine der drei
 // Gesellschaften ist eine Bank, vergibt Kredite oder vermittelt sie; über
 // Konto, Karte, Rahmen und Darlehen entscheidet das jeweilige Institut.
+//
+// ── 13.11.2026 (E-510, Sprachleitfaden FIAON Global, Leitplanke 7) — WAS ÖFFENTLICH GILT ──────────────────────
+// · Die verbundene Gesellschaft heißt öffentlich nur „Schwarzott Group“ — OHNE Ort (nie im selben Blick wie Zürich oder
+//   Miami), ohne Rolle, ohne Nummer, ohne Anschrift. Öffentlich steht sie nur mit dem Satz GLOBAL_VERBUNDEN (S13).
+// · Vor Ort heißt es „unsere Partner in den USA“. Über Partner steht nichts im Präsens, was nicht belegt ist.
+// · Die Liste GLOBAL_STANDORTE (Stadt + Gesellschaft) steht deshalb auf KEINER öffentlichen Seite mehr: Die Partnerseite
+//   (shared/fiaon-global-seiten/partner.ts) liest von ihr nur noch London. Sie bleibt für den Fuß der nicht öffentlichen
+//   Seiten (Angebot, Mandat, Konto — components/site/global/GlobalOrte.tsx). Wer den Baustein „standorte“ oder diese Liste
+//   wieder auf eine öffentliche Seite setzt, bricht die Leitplanke.
+// · Die Zeilen oben (19.09. bis 30.10.2026) sind der Verlauf; sie beschreiben nicht mehr, was auf der Seite steht.
 // ═══════════════════════════════════════════════════════════════════════════
 import { FIAON_FIRMA } from "./fiaon-firma";
 
@@ -70,18 +60,18 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     register: `Companies House No. ${FIAON_FIRMA.companyNo}`,
     rolle: "Ihr Vertragspartner — Vertrag, Rechnung und Ansprechpartner",
     aufgaben: [
-      "schließt den Auftrag mit Ihnen und stellt die Rechnung",
+      "schließt den Vertrag mit Ihnen und stellt die Rechnung",
       "koordiniert Gründung, Steuernummern, Partner und Termine",
-      // E-509 (12.11.2026): ein Produkt statt vier Pakete — „Ihres Auftrags“ (vorher „Ihres Pakets“).
-      "trägt die Honorare der Partner für die Leistungen Ihres Auftrags",
+      // E-510 (13.11.2026): wortgleich mit dem Rollen-Satz (Leitfaden 5.11) — „für die Leistungen Ihres Vertrags“.
+      "trägt die Honorare der Partner für die Leistungen Ihres Vertrags",
     ],
     en: {
       stadt: "London", land: "United Kingdom", rechtsform: "Private Limited Company",
-      rolle: "Your contracting party — contract, invoice and dedicated contact",
+      rolle: "Your contracting party — agreement, invoice and dedicated contact",
       aufgaben: [
-        "concludes the engagement with you and issues the invoice",
+        "concludes the agreement with you and issues the invoice",
         "coordinates formation, tax numbers, partners and appointments",
-        "pays the partners’ fees for the services in your order",
+        "bears the partners’ fees for the services in your agreement",
       ],
     },
   },
@@ -91,22 +81,19 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     land: "Schweiz",
     zeitzone: "Europe/Zurich",
     gesellschaft: "Schwarzott Group",
-    rechtsform: "Partner von FIAON Global",
+    rechtsform: "Verbundene Gesellschaft",
     adresse: ["Zürich, Schweiz"],
     register: null,
-    rolle: "Partner für die Kapital-Etappe und für Kunden aus der Schweiz",
+    // E-510 (13.11.2026): keine Rolle, keine Tätigkeit — nur die Offenlegung (wie im Fuß: „Verbundene Gesellschaft“).
+    rolle: "Verbundene Gesellschaft",
     aufgaben: [
-      "begleitet die Kapital-Etappe: Kennzahlen und Unterlagen für Finanzierungsgespräche",
-      "Ansprechpartner vor Ort für Unternehmen aus der Schweiz",
-      "Beteiligungs- und Investmentgruppe — keine Bank, keine Kreditvergabe",
+      "keine Bank, keine Kreditvergabe",
     ],
     en: {
-      stadt: "Zurich", land: "Switzerland", rechtsform: "Partner of FIAON Global",
-      rolle: "Partner for the capital stage and for clients from Switzerland",
+      stadt: "Zurich", land: "Switzerland", rechtsform: "Connected company",
+      rolle: "Connected company",
       aufgaben: [
-        "supports the capital stage: key figures and documents for financing discussions",
-        "local contact for companies from Switzerland",
-        "an investment and holding group — not a bank, no lending",
+        "not a bank, no lending",
       ],
     },
   },
@@ -116,25 +103,21 @@ export const GLOBAL_STANDORTE: GlobalStandort[] = [
     land: "Florida, USA",
     zeitzone: "America/New_York",
     gesellschaft: "Schwarzott Group",
-    rechtsform: "Partner von FIAON Global",
+    rechtsform: "Partner in den USA",
     adresse: ["Miami, Florida"],
     register: null,
-    // E-466 (30.10.2026): Rolle ohne „Team vor Ort“ — der Kasten steht im Fuß jeder Global-Seite, auch der Anzeigen-Landingpage.
-    // E-509 (12.11.2026): Das Paket Global VIP wird nicht mehr verkauft — ab 1 Mio. US-Dollar begleiten wir persönlich in Miami
-    // (vorher: „… und der Auftakt von Global VIP“ / „richtet den Auftakt des Pakets Global VIP in Miami aus“).
-    rolle: "Partner in Miami — Termine vor Ort und persönliche Begleitung",
+    // E-510 (13.11.2026): Rolle und Aufgabe in den Worten des Leitfadens (4.1 „unsere Partner in den USA“, 5.11 Übergangssatz).
+    // Was ein Partner im Einzelnen tut, steht hier nicht mehr — solche Sätze gehen erst live, wenn der Partner bestätigt ist.
+    // (Vorher: „Partner in Miami — Termine vor Ort und persönliche Begleitung“ und drei Tätigkeiten im Präsens.)
+    rolle: "Unsere Partner in den USA",
     aufgaben: [
-      "nimmt Termine bei Behörden und Banken vor Ort wahr",
-      "reicht Unterlagen ein und holt Dokumente ab",
-      "empfängt Sie in Miami, wenn wir Sie persönlich begleiten",
+      "wir reichen die Gründung über unsere Partner in den USA ein",
     ],
     en: {
-      stadt: "Miami", land: "Florida, USA", rechtsform: "Partner of FIAON Global",
-      rolle: "Partner in Miami — on-site appointments and in-person support",
+      stadt: "Miami", land: "Florida, USA", rechtsform: "Partners in the United States",
+      rolle: "Our partners in the United States",
       aufgaben: [
-        "attends appointments with authorities and banks on the ground",
-        "files documents and collects paperwork",
-        "welcomes you in Miami when we work with you in person",
+        "we file the formation through our partners in the United States",
       ],
     },
   },

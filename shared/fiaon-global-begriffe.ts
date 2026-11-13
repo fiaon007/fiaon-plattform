@@ -10,6 +10,8 @@
 //   · nie auf die eigene Seite, nie in Überschriften,
 //   · Groß-/Kleinschreibung wie in der Liste (EIN ist nicht „ein“).
 // Neue Seite mit eigenem Fachbegriff → Zeile hier ergänzen (deutsch und englisch).
+// 13.11.2026 (E-510, Sprachleitfaden Abschnitt 10 Zeile 32): Der Eintrag für das Wort mit der Leiter (Karten) ist
+// entfernt, deutsch und englisch — das Wort steht auf keiner Seite mehr und soll auch nie wieder verlinkt werden.
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Begriff → Zielseite. Längere Begriffe zuerst (sie gewinnen gegen enthaltene kürzere). */
@@ -20,7 +22,6 @@ const BEGRIFFE: Record<"de" | "en", [string, string][]> = {
     ["US-Geschäftskonto", "/business/us-geschaeftskonto"],
     ["Business Credit", "/business/wissen/business-credit-usa"],
     ["D-U-N-S", "/business/wissen/business-credit-usa"],
-    ["Kartenleiter", "/business/firmenkarten-kapital"],
     ["Credit Score", "/business/wissen/us-bonitaet-aufbauen"],
     ["US-Funding", "/business/wissen/us-funding"],
     ["E-2-Visum", "/business/wissen/e2-visum"],
@@ -38,7 +39,6 @@ const BEGRIFFE: Record<"de" | "en", [string, string][]> = {
     ["US business bank account", "/en/business/us-business-bank-account"],
     ["business credit", "/en/business/knowledge/us-business-credit"],
     ["D-U-N-S", "/en/business/knowledge/us-business-credit"],
-    ["card ladder", "/en/business/us-business-credit-cards"],
     ["credit score", "/en/business/knowledge/building-us-credit"],
     ["E-2 visa", "/en/business/knowledge/e2-visa-own-us-company"],
     ["subsidiary", "/en/business/us-subsidiary"],

@@ -1,72 +1,98 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// FIAON GLOBAL — STANDORTE UND PARTNER (19.09.2026, E-191)
-// London · Zürich · Miami. Angaben aus shared/fiaon-global-partner.ts
-// (Register geprüft am 19.09.2026). Die Verbindung über den Gründer steht
-// offen auf der Seite — eine Kanzlei nennt ihre verbundenen Gesellschaften.
+// FIAON GLOBAL — VERTRAGSPARTNER UND PARTNER (19.09.2026, E-191; neu gefasst 13.11.2026, E-510)
+//
+// Bis 12.11.2026 hieß die Seite „London, Zürich, Miami — drei Standorte“ und zeigte je Stadt eine Gesellschaft mit
+// Rolle und Tätigkeiten. Seit dem Sprachleitfaden FIAON Global (Leitplanke 7, Abschnitte 4.1 und 5.11) gilt:
+//   · Die verbundene Gesellschaft heißt öffentlich nur „Schwarzott Group“ — ohne Ort, ohne Rolle, ohne Nummer,
+//     ohne Anschrift. Sie steht nur mit dem Satz S13 (GLOBAL_VERBUNDEN).
+//   · Vor Ort heißt es „unsere Partner in den USA“. Über Partner steht nichts im Präsens, was nicht belegt ist —
+//     deshalb nur die Zuständigkeit (Rollen-Satz, S8) und der eine Übergangssatz zur Einreichung der Gründung.
+//   · FIAON ist keine Kanzlei. Recht und Steuern liegen bei Partner-Anwälten und US-Steuerberatern (CPA) aus unserem
+//     Partnernetz; sie arbeiten in eigener Verantwortung.
+// Darum steht der Baustein „standorte“ (Karte mit drei Städten) hier nicht mehr, und die Karten kommen nicht mehr aus
+// der Standort-Liste: Aus shared/fiaon-global-partner.ts liest die Seite nur noch London (Vertragspartner).
+// Feste Sätze kommen aus shared/fiaon-global-saetze.ts, Firmendaten aus shared/fiaon-firma.ts — nichts davon getippt.
+// Pfad, Kennung und die Anker (aufgaben, netz, offen) bleiben.
 // ═══════════════════════════════════════════════════════════════════════════
-import { GLOBAL_ROLLEN } from "../fiaon-global";
-// E-509 (12.11.2026): EIN Produkt statt vier Pakete — der Partner-Satz ohne das Wort „Paket“.
 import { EIN_PRODUKT } from "./ein-produkt";
 import { GLOBAL_STANDORTE, GLOBAL_VERBUNDEN } from "../fiaon-global-partner";
+import { FIAON_FIRMA } from "../fiaon-firma";
+import { satz, weitererSatz } from "../fiaon-global-saetze";
 import type { GlobalSeite } from "./typen";
+
+const FIRMA = FIAON_FIRMA.name;
+const NR = FIAON_FIRMA.companyNo;
+const gross = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** London — der Vertragspartner. Rolle und Aufgaben aus der einen Quelle. */
+const LONDON = GLOBAL_STANDORTE.find((o) => o.schluessel === "london")!;
+/** Rollen-Satz (Leitfaden 5.11): wer für Recht und Steuern zuständig ist und wer die Honorare trägt. */
+const ROLLEN = EIN_PRODUKT.de.partner;
+/** Der zweite Satz daraus: „Ihre Honorare für die Leistungen Ihres Vertrags trägt FIAON.“ */
+const HONORARE = ROLLEN.split(/(?<=\.)\s+/)[1] ?? "";
+/** Übergangssatz (Leitfaden 5.11): sagt nur, was FIAON selbst tut. */
+const EINREICHUNG = weitererSatz("UEBERGANG-EINREICHUNG", "de");
 
 export const PARTNER_SEITE: GlobalSeite = {
   pfad: "/business/partner",
   art: "partner",
   seo: {
-    titel: "Standorte und Partner: London, Zürich, Miami — FIAON Global",
-    beschreibung: "FIAON LTD in London, Schwarzott Group in Zürich und Miami: wer Ihr Vertragspartner ist und wer vor Ort arbeitet.",
+    titel: "Vertragspartner und Partnernetz — FIAON Global",
+    beschreibung: `Ihr Vertragspartner: ${FIRMA}, London, Companies House Nr. ${NR}. Recht und Steuern liegen bei Partnern, die in eigener Verantwortung arbeiten.`,
   },
-  stand: "2026-09-19",
+  stand: "2026-11-13",
   kennung: "FG · 18",
-  auge: "Wissen · Standorte und Partner",
-  h1: "London, Zürich, Miami.",
-  h1b: "Drei Standorte, ein Vertragspartner.",
-  lead: "Ihr Vertrag kommt mit der FIAON LTD in London zustande. Die Schwarzott Group begleitet in Zürich die Kapital-Etappe und arbeitet in Miami als unser Team vor Ort. Dazu kommen Steuerberater, US-CPA und Anwälte aus unserem Partnernetz — auf Ihr Mandat.",
+  auge: "Wissen · Vertragspartner und Partner",
+  h1: "Ein Vertragspartner.",
+  h1b: "Klar benannte Zuständigkeiten.",
+  lead: `Ihr Vertrag kommt mit der ${FIRMA} in London zustande. ${ROLLEN}`,
   ziffern: [
-    { wert: "London", label: "FIAON LTD — Vertrag, Rechnung, Ansprechpartner" },
-    { wert: "Zürich", label: "Schwarzott Group — Kapital-Etappe" },
-    { wert: "Miami", label: "Schwarzott Group — Team vor Ort" },
+    { wert: "London", label: `${FIRMA} — Vertrag, Rechnung, Ansprechpartner` },
+    { wert: `Nr. ${NR}`, label: "Companies House (England und Wales)" },
+    { wert: "USA", label: "Einreichung der Gründung über unsere Partner" },
   ],
   blick: [
-    ["Vertragspartner", "FIAON LTD, 128 City Road, London · Companies House No. 17318250"],
-    ["Zürich", "Schwarzott Group — Kapital-Etappe"],
-    ["Miami", "Schwarzott Group — Termine vor Ort"],
-    ["Partnernetz", "Steuerberater, US-CPA und Anwälte — auf Ihr Mandat, Honorare trägt FIAON"],
-    ["Verbunden", "Über unseren Gründer Justin Schwarzott"],
-    ["Keine Bank", "Keine der Gesellschaften vergibt oder vermittelt Kredite"],
+    ["Vertragspartner", `${FIRMA}, ${FIAON_FIRMA.strasse}, London · Companies House Nr. ${NR}`],
+    ["In den USA", EINREICHUNG],
+    ["Recht und Steuern", "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung"],
+    ["Honorare der Partner", "Für die Leistungen Ihres Vertrags trägt sie FIAON"],
+    ["Verbundene Gesellschaft", "Schwarzott Group — über unseren Gründer Justin Schwarzott"],
+    ["Keine Bank, keine Kanzlei", "FIAON vergibt und vermittelt keine Kredite"],
+    ["Wer entscheidet", "Über die Eintragung der Bundesstaat, über Konto, Karte und Finanzierung das jeweilige Institut"],
   ],
-  kurz: "FIAON Global arbeitet von drei Standorten aus: Die FIAON LTD in London ist Ihr Vertragspartner, die Schwarzott Group begleitet in Zürich die Kapital-Etappe und nimmt in Miami als unser Team vor Ort Termine wahr. FIAON LTD und Schwarzott Group sind über unseren Gründer Justin Schwarzott verbunden. Keine von ihnen ist eine Bank oder vergibt Kredite.",
+  kurz: `Sie schließen Ihren Vertrag mit der ${FIRMA} in London (Companies House Nr. ${NR}); auch die Rechnung kommt von ihr. ${ROLLEN} ${GLOBAL_VERBUNDEN}`,
   bloecke: [
-    { typ: "standorte", id: "standorte", h2: "Die drei Standorte", lead: "Wer Ihr Vertragspartner ist, wer für Sie vor Ort arbeitet und wer die Kapital-Etappe begleitet." },
     {
-      typ: "karten", id: "aufgaben", h2: "Wer was tut", spalten: 3,
-      karten: GLOBAL_STANDORTE.map((o) => ({ tag: o.stadt, titel: o.gesellschaft, text: `${o.rolle}. ${o.aufgaben.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(". ")}.` })),
+      typ: "karten", id: "aufgaben", h2: "Wer wofür zuständig ist", spalten: 3,
+      karten: [
+        { tag: "London", titel: FIRMA, text: `${LONDON.rolle}. ${LONDON.aufgaben.map(gross).join(". ")}.` },
+        { tag: "USA", titel: "Unsere Partner in den USA", text: `${EINREICHUNG} ${satz("S3", "de")}` },
+        { tag: "Recht und Steuern", titel: "Partnernetz", text: "Partner-Anwälte und US-Steuerberater (CPA) aus unserem Partnernetz — in eigener Verantwortung." },
+      ],
     },
     {
       typ: "text", id: "netz", h2: "Das Partnernetz",
       absaetze: [
-        EIN_PRODUKT.de.partner,
-        "Steuerberater, US-CPA und Anwälte arbeiten auf Ihr eigenes Mandat, weil Steuer- und Rechtsfragen nur beantworten darf, wer dafür zugelassen ist. FIAON koordiniert, bereitet vor und trägt die Honorare für die Leistungen Ihres Auftrags.",
+        ROLLEN,
+        "Rechts- und Steuerfragen darf nur beantworten, wer dafür zugelassen ist. Sie liegen deshalb bei den Partnern. FIAON koordiniert und bereitet vor.",
       ],
     },
     {
-      typ: "hinweis", id: "offen", h2: "Offen gesagt",
+      typ: "hinweis", id: "offen", h2: "Zur Einordnung",
       punkte: [
         GLOBAL_VERBUNDEN,
-        GLOBAL_ROLLEN.de.fiaon,
-        "Weder die FIAON LTD noch die Schwarzott Group ist eine Bank, vergibt Kredite oder vermittelt sie. Über Konto, Karte, Rahmen und Darlehen entscheidet allein das jeweilige Institut.",
+        `Weder die ${FIRMA} noch die Schwarzott Group ist eine Bank; keine von beiden vergibt oder vermittelt Kredite.`,
+        satz("S2", "de"),
       ],
     },
   ],
   fragen: [
-    { f: "Wer ist mein Vertragspartner bei FIAON Global?", a: "Die FIAON LTD, 128 City Road, London, eingetragen im Companies House (England and Wales) unter der Nummer 17318250. Vertrag und Rechnung kommen von ihr." },
-    { f: "Was macht die Schwarzott Group in Miami?", a: "Sie ist unser Team vor Ort: Sie nimmt Termine bei Behörden und Instituten wahr, reicht Unterlagen ein, holt Dokumente ab und begleitet Mandanten ab einem Kapitalrahmen von 1 Mio. US-Dollar persönlich in Miami." },
-    { f: "Was macht die Schwarzott Group in Zürich?", a: "Sie begleitet die Kapital-Etappe mit Kennzahlen und Unterlagen für Finanzierungsgespräche und ist Ansprechpartner für Unternehmen aus der Schweiz. Sie ist eine Beteiligungs- und Investmentgruppe, keine Bank." },
-    { f: "Sind die Partner unabhängig von FIAON?", a: "Nein. Die Schwarzott Group ist mit FIAON über unseren Gründer Justin Schwarzott verbunden. Wir sagen das offen, weil es für Ihre Entscheidung zählt." },
+    { f: "Wer ist mein Vertragspartner bei FIAON Global?", a: `Die ${FIRMA}, ${FIAON_FIRMA.strasse}, London, eingetragen im Companies House (England und Wales) unter der Nummer ${NR}. Vertrag und Rechnung kommen von ihr.` },
+    { f: "Wer ist für Recht und Steuern zuständig?", a: `${satz("S8", "de")} ${HONORARE}` },
+    { f: "Wer reicht die Gründung in den USA ein?", a: `${EINREICHUNG} ${satz("S3", "de")}` },
+    { f: "Ist die Schwarzott Group unabhängig von FIAON?", a: `Nein. ${GLOBAL_VERBUNDEN}` },
   ],
-  weiter: ["/business/miami", "/business/aus-der-schweiz", "/business/firmenkarten-kapital", "/business/us-firmengruendung"],
+  weiter: ["/business/miami", "/business/wissen/anbieter-pruefen", "/business/firmenkarten-kapital", "/business/us-firmengruendung"],
   quellen: [
-    { titel: "Companies House — FIAON LTD", url: "https://find-and-update.company-information.service.gov.uk/company/17318250" },
+    { titel: `Companies House — ${FIRMA}`, url: `https://find-and-update.company-information.service.gov.uk/company/${NR}` },
   ],
 };

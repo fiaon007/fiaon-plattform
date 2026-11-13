@@ -75,7 +75,7 @@ export function GlobalVipTicket({ texte }: { texte: VipTicketTexte }) {
     // Außen neigt und schwebt das Ticket (mit Schatten), innen sitzt das Blatt mit den ausgestanzten Kerben.
     <div className="fg-ticket">
       <div className="fg-ticket-blatt">
-        <div className="fg-ticket-kopf"><span>FIAON Global</span><b>VIP</b></div>
+        <div className="fg-ticket-kopf"><span>FIAON Global</span><b>Miami</b></div>
         <p className="fg-ticket-titel">{texte.titel}</p>
         <div className="fg-ticket-route">
           <div className="ort"><small>{texte.abflug}</small><b>DACH</b><span>{texte.abflugOrte}</span></div>

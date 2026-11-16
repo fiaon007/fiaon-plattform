@@ -157,14 +157,14 @@ export function kartenTextur(variante: "blau" | "tinte" = "blau"): THREE.Texture
   ctx.fillText("2026", 96, 585);
   ctx.fillText("08/31", 330, 585);
 
-  // rechts unten: Rahmen-Hinweis
+  // rechts unten: Ziel-Hinweis (16.11.2026, E-515: kein Rahmen als Zahl auf der Karte)
   ctx.textAlign = "right";
   ctx.fillStyle = "rgba(255,255,255,0.55)";
   ctx.font = "500 24px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  ctx.fillText("RAHMEN BIS", w - 96, 545);
+  ctx.fillText("IHR ZIEL", w - 96, 545);
   ctx.fillStyle = "#ffffff";
   ctx.font = "600 36px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-  ctx.fillText("25.000 €", w - 96, 590);
+  ctx.fillText("Die Karte", w - 96, 590);
 
   // feine helle Kante innen — die Karte wirkt gefasst statt flach
   ctx.strokeStyle = "rgba(255,255,255,0.12)";

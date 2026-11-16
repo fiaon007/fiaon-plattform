@@ -148,7 +148,7 @@ export default function FiaonHome() {
         <Kennzahlen items={[
           { wert: "9", label: "Merkmale einer Kreditprüfung – in Ihrer Bonitätsauswertung" },
           { wert: "≈ 25", label: "Seiten Bonitätsauswertung, von einem Menschen geprüft" },
-          { wert: "25.000 €", label: "Kreditkartenrahmen bei guter Bonität" },
+          { wert: "3", label: "Schichten: Einsicht, Aktion, Zugang – die Bank entscheidet" },
           { wert: "100 Mio.", label: "Menschen im DACH-Raum, für die FIAON gebaut ist" },
         ]} />
       </Block>

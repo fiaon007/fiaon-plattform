@@ -321,7 +321,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "Wie hoch ist der Rahmen am Anfang?",
-      "a": "Bei erledigten Einträgen oder kurzer Historie meist 500 bis 2.000 Euro. Nach sechs Monaten pünktlicher Abrechnung prüfen Herausgeber neu. Die Schwelle des Kartenpartners liegt bei 25.000 Euro."
+      "a": "Bei erledigten Einträgen oder kurzer Historie meist 500 bis 2.000 Euro. Nach sechs Monaten pünktlicher Abrechnung prüfen Herausgeber neu. Über Höhe und Erhöhung entscheidet immer der Herausgeber."
     },
     {
       "f": "Schadet die Anfrage für die Karte meiner Auskunft?",
@@ -343,7 +343,7 @@ export const SEO_FRAGEN: Record<string, SeoFrage[]> = {
     },
     {
       "f": "How high is the limit at the start?",
-      "a": "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The card partner's threshold is €25,000."
+      "a": "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The issuer always decides on the amount and any increase."
     },
     {
       "f": "Does the card application hurt my report?",

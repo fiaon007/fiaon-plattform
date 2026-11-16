@@ -545,7 +545,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
     en: {
       pfad: "/en/personal",
       titel: "Personal: credit file, current account, credit card | FIAON",
-      beschreibung: "Clean up entries, open an account, a credit card up to €25,000 — FIAON explains every entry in your credit report, sends the letters and opens the door.",
+      beschreibung: "Clean up entries, prepare account and card applications — FIAON explains every entry in your credit report and sends the letters.",
       h1: "The credit card waiting at the end of your credit file.",
       lead: "An entry is not a verdict. FIAON explains every entry in your credit report, has challengeable ones deleted — and then opens the door: a current account straight away, a credit card as soon as your file supports it.",
       abschnitte: [
@@ -675,7 +675,7 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
       h1: "The card comes through your report.",
       lead: "Not through tricks, not through providers that promise “guaranteed” — but by making sure that what issuers read about you is correct. FIAON takes care of that. The bank decides on card and limit.",
       abschnitte: [
-        { h2: "Three routes to a card", text: "A debit or prepaid card works today for open entries; a credit card with a small limit of €500 to €2,000 for settled entries and short histories; a full limit up to €25,000 with a good file and the headroom to match." },
+        { h2: "Three routes to a card", text: "A debit or prepaid card works today for open entries; a credit card with a small limit of €500 to €2,000 for settled entries and short histories; a full limit with a good file and the headroom to match — the issuer decides on the amount." },
         { h2: "How the limit grows over twelve months", text: "Month 0: your credit assessment from your bank statements; your data copy, requested by you, explained. Months 1–2: clean-up and current account. Months 2–4: first card, often with a small limit. Month 6: first review after statements settled on time. Month 12: the limit that income and headroom allow. A typical course, not a promise." },
         { h2: "What issuers see", text: "Negative entries, credit enquiries, account behaviour, address and identity, headroom. FIAON checks every entry for its legal requirements (Section 31 BDSG), makes no enquiry without your approval and prepares corrections under Art. 16 GDPR.", punkte: ["Free card check: five inputs, no enquiry, no trace", "Headroom calculator: income minus fixed costs", "No guarantee, no score trick, no flood of enquiries"] },
       ],

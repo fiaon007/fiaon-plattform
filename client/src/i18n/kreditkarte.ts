@@ -11,7 +11,7 @@ const de = {
   lead: "Nicht über Tricks, nicht über Anbieter, die „garantiert“ versprechen – sondern darüber, dass das, was Herausgeber über Sie lesen, stimmt. FIAON sorgt dafür. Über Karte und Rahmen entscheidet die Bank.",
   kartenCheck: "Karten-Check (kostenlos)", wieWaechst: "Wie der Rahmen wächst",
   zahlen: [
-    { wert: "25k", label: "Euro Rahmen bei guter Bonität – die Schwelle des Kartenpartners" },
+    { wert: "3", label: "Wege zur Karte – über Karte und Rahmen entscheidet der Herausgeber" },
     { wert: "10", label: "Tage, die eine Kreditanfrage für andere sichtbar bleibt" },
     { wert: "18", label: "Monate Speicherfrist bei Zahlung innerhalb von 100 Tagen" },
     { wert: "0", label: "Anfragen, die FIAON ohne Ihre Freigabe stellt" },
@@ -21,16 +21,16 @@ const de = {
   wege: [
     { tag: "Weg 1", titel: "Debit- oder Prepaid-Karte", text: "Funktioniert überall, wo eine Karte verlangt wird: Hotel, Mietwagen, Online-Kauf. Kein Rahmen, keine Auskunft nötig. Der Weg für offene Einträge und Rücklastschriften – solange die Bereinigung läuft." },
     { tag: "Weg 2", titel: "Kreditkarte mit kleinem Rahmen", text: "Echte Kreditkarte mit 500 bis 2.000 Euro. Herausgeber starten so bei erledigten Einträgen, befristeten Verträgen, kurzer Historie. Pünktlich abgerechnet, wächst der Rahmen." },
-    { tag: "Weg 3", titel: "Kreditkarte mit vollem Rahmen", text: "Bis 25.000 Euro bei guter Bonität und entsprechendem Spielraum. Der Weg für saubere Auskünfte – und das Ziel für alle anderen nach zwölf Monaten." },
+    { tag: "Weg 3", titel: "Kreditkarte mit vollem Rahmen", text: "Ein Rahmen, der zu Einkommen und Spielraum passt – bei guter Bonität. Der Weg für saubere Auskünfte – und das Ziel für alle anderen nach zwölf Monaten." },
   ],
   zeitPille: "Zeitachse", zeitH2a: "So wächst ", zeitH2b: "der Rahmen.",
   zeitLead: "Klicken Sie durch die zwölf Monate. Kein Versprechen – der typische Verlauf, wenn Auskunft, Konto und Abrechnung stimmen.",
   etappen: [
     { monat: "Monat 0", titel: "Bonität", text: "Ihre Bonitätsauswertung zeigt Ihre Bonität aus Sicht einer Bank – aus Ihren Kontoauszügen; für neue Paketkunden ist sie im Paket enthalten. Ihre kostenlose Datenkopie fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag. Sie wissen, was Herausgeber sehen – bevor Sie irgendwo anfragen.", rahmen: "–" },
-    { monat: "Monat 1–2", titel: "Bereinigen", text: "Angreifbare Einträge werden angegriffen, alte Anfragen und Adressfehler bereinigt. Das Girokonto wird eröffnet und sauber geführt.", rahmen: "Girokonto" },
+    { monat: "Monat 1–2", titel: "Bereinigen", text: "Angreifbare Einträge werden angegriffen, alte Anfragen und Adressfehler bereinigt. Der Antrag auf das Girokonto der Partnerbank wird vorbereitet (bei Wohnsitz in Deutschland); das Konto führen Sie danach sauber.", rahmen: "Girokonto" },
     { monat: "Monat 2–4", titel: "Erste Karte", text: "Sobald die Auskunft trägt, bereitet FIAON den Kartenantrag vor. Bei erledigten Einträgen oft mit kleinem Rahmen – die Tür ist offen.", rahmen: "500 – 2.000 €" },
     { monat: "Monat 6", titel: "Erste Anpassung", text: "Sechs Monate pünktlich abgerechnet: Herausgeber prüfen den Rahmen neu. FIAON bereitet die Anfrage mit aktuellen Unterlagen vor.", rahmen: "2.000 – 5.000 €" },
-    { monat: "Monat 12", titel: "Volle Karte", text: "Ein Jahr sauber, Einträge gelöscht oder abgelaufen: Jetzt ist der Rahmen realistisch, den Einkommen und Spielraum hergeben – bis 25.000 € bei guter Bonität.", rahmen: "bis 25.000 €" },
+    { monat: "Monat 12", titel: "Volle Karte", text: "Ein Jahr sauber, Einträge gelöscht oder abgelaufen: Jetzt ist der Rahmen realistisch, den Einkommen und Spielraum hergeben. Über die Höhe entscheidet der Herausgeber.", rahmen: "nach Spielraum" },
   ],
   typischerRahmen: "Typischer Rahmen", zurueck: "Zurück", weiter: "Weiter",
   sehenPille: "Was Herausgeber sehen", sehenH2a: "Die fünf Dinge, ", sehenH2b: "die zählen.",
@@ -59,7 +59,7 @@ const de = {
   fragenPille: "Häufige Fragen",
   fragen: [
     { f: "Bekomme ich mit einem offenen Eintrag eine Kreditkarte?", a: "Mit Rahmen praktisch nie. Eine Debit- oder Prepaid-Karte ja – und parallel gehört der Eintrag geprüft: Ist er berechtigt? Wann läuft die Frist? Oft ist die Sperre kürzer als gedacht." },
-    { f: "Wie hoch ist der Rahmen am Anfang?", a: "Bei erledigten Einträgen oder kurzer Historie meist 500 bis 2.000 Euro. Nach sechs Monaten pünktlicher Abrechnung prüfen Herausgeber neu. Die Schwelle des Kartenpartners liegt bei 25.000 Euro." },
+    { f: "Wie hoch ist der Rahmen am Anfang?", a: "Bei erledigten Einträgen oder kurzer Historie meist 500 bis 2.000 Euro. Nach sechs Monaten pünktlicher Abrechnung prüfen Herausgeber neu. Über Höhe und Erhöhung entscheidet immer der Herausgeber." },
     { f: "Schadet die Anfrage für die Karte meiner Auskunft?", a: "Eine Kreditanfrage wird zwölf Monate gespeichert und ist zehn Tage für andere sichtbar. Deshalb stellen Sie den Antrag über den Link unserer Partnerbank erst, wenn die Auskunft trägt – und nie mehrere gleichzeitig." },
     { f: "Welche Karte bekomme ich über FIAON?", a: "Eine Kreditkarte eines Kartenpartners, je nach Profil Mastercard oder Visa, mit Monatsabrechnung. Welche konkret, klärt das Startgespräch anhand Ihrer Bonitätsauswertung." },
     { f: "Was kostet die Karte?", a: "Die Kartengebühr legt der Herausgeber fest und wird vorher genannt. Eröffnen Sie über den Antragslink unserer Partnerbank ein Konto, erhält FIAON dafür eine Vergütung; für Sie entstehen dadurch keine Kosten – der Paketpreis ist der Preis." },
@@ -78,7 +78,7 @@ const en: typeof de = {
   lead: "Not through tricks, not through providers that promise “guaranteed” — but by making sure that what issuers read about you is correct. FIAON takes care of that. The bank decides on card and limit.",
   kartenCheck: "Card check (free)", wieWaechst: "How the limit grows",
   zahlen: [
-    { wert: "25k", label: "euro limit with a good file — the card partner's threshold" },
+    { wert: "3", label: "routes to a card — the issuer decides on card and limit" },
     { wert: "10", label: "days a credit enquiry stays visible to others" },
     { wert: "18", label: "months of storage if you pay within 100 days" },
     { wert: "0", label: "enquiries FIAON makes without your approval" },
@@ -88,7 +88,7 @@ const en: typeof de = {
   wege: [
     { tag: "Route 1", titel: "Debit or prepaid card", text: "Works wherever a card is required: hotel, hire car, online purchase. No limit, no report needed. The route for open entries and returned direct debits — while the clean-up is under way." },
     { tag: "Route 2", titel: "Credit card with a small limit", text: "A real credit card with €500 to €2,000. Issuers start this way with settled entries, fixed-term contracts, a short history. Settled on time, the limit grows." },
-    { tag: "Route 3", titel: "Credit card with a full limit", text: "Up to €25,000 with a good file and the headroom to match. The route for clean reports — and the goal for everyone else after twelve months." },
+    { tag: "Route 3", titel: "Credit card with a full limit", text: "A limit that matches your income and headroom — with a good file. The route for clean reports — and the goal for everyone else after twelve months." },
   ],
   zeitPille: "Timeline", zeitH2a: "How ", zeitH2b: "the limit grows.",
   zeitLead: "Click through the twelve months. Not a promise — the typical course when report, account and statements are in order.",
@@ -97,7 +97,7 @@ const en: typeof de = {
     { monat: "Months 1–2", titel: "Clean-up", text: "Challengeable entries are challenged, old enquiries and address errors cleaned up. The current account is opened and run cleanly.", rahmen: "Current account" },
     { monat: "Months 2–4", titel: "First card", text: "As soon as the report supports it, FIAON prepares the card application. With settled entries often with a small limit — the door is open.", rahmen: "€500 – 2,000" },
     { monat: "Month 6", titel: "First review", text: "Six months settled on time: issuers review the limit. FIAON prepares the request with up-to-date documents.", rahmen: "€2,000 – 5,000" },
-    { monat: "Month 12", titel: "Full card", text: "A clean year, entries deleted or expired: now the limit is realistic that income and headroom allow — up to €25,000 with a good file.", rahmen: "up to €25,000" },
+    { monat: "Month 12", titel: "Full card", text: "A clean year, entries deleted or expired: now the limit is realistic that income and headroom allow. The issuer decides on the amount.", rahmen: "by headroom" },
   ],
   typischerRahmen: "Typical limit", zurueck: "Back", weiter: "Next",
   sehenPille: "What issuers see", sehenH2a: "The five things ", sehenH2b: "that count.",
@@ -124,7 +124,7 @@ const en: typeof de = {
   fragenPille: "Frequently asked questions",
   fragen: [
     { f: "Can I get a credit card with an open entry?", a: "With a limit, practically never. A debit or prepaid card, yes — and in parallel the entry should be checked: is it justified? When does the deadline expire? The block is often shorter than you think." },
-    { f: "How high is the limit at the start?", a: "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The card partner's threshold is €25,000." },
+    { f: "How high is the limit at the start?", a: "With settled entries or a short history usually €500 to €2,000. After six months of statements settled on time, issuers review. The issuer always decides on the amount and any increase." },
     { f: "Does the card application hurt my report?", a: "A credit enquiry is stored for twelve months and visible to others for ten days. That is why you apply via our partner bank's link only once the report supports it — and never for several at once." },
     { f: "Which card do I get through FIAON?", a: "A credit card from a card partner, Mastercard or Visa depending on your profile, with a monthly statement. Which one exactly is settled in the onboarding call on the basis of your credit assessment." },
     { f: "What does the card cost?", a: "The card fee is set by the issuer and named beforehand. If you open an account via our partner bank's application link, FIAON receives a fee for it; this costs you nothing — the plan price is the price." },

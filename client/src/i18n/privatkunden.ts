@@ -32,7 +32,7 @@ const de = {
   paketWaehlen: "Paket wählen", eintragPruefen: "Ist mein Eintrag angreifbar?",
   zahlen: [
     { wert: "25 Seiten", label: "Bonitätsauswertung (rund): Ihre Bonität aus Sicht einer Bank, aus Ihren Kontoauszügen" },
-    { wert: "25.000 €", label: "Kreditkarten-Rahmen, der bei guter Bonität erreichbar wird" },
+    { wert: "3 Schichten", label: "Einsicht, Aktion, Zugang – Schritt für Schritt; über Karte und Rahmen entscheidet die Bank" },
     { wert: "1 Link", label: "zum Hochladen von Ausweis und Kontoauszügen – ohne Anmeldung" },
     { wert: "12 Raten", label: "monatlich per Überweisung – danach entscheiden Sie, ob Sie bleiben" },
   ],
@@ -73,7 +73,7 @@ const de = {
   karte: [
     { tag: "Heute", titel: "Girokonto", text: "Für jeden Kunden, unabhängig von der Bonität. Mit Debitkarte – online, im Ausland, im Alltag." },
     { tag: "In Reichweite", titel: "Kreditkarte bis 5.000 €", text: "Sobald angreifbare Einträge gefallen sind und das Konto einige Monate sauber läuft." },
-    { tag: "Das Ziel", titel: "Bis 25.000 € Rahmen", text: "Bei guter Bonität, über unseren Kartenpartner – Antrag aus Ihrer Akte heraus, vorausgefüllt." },
+    { tag: "Das Ziel", titel: "Die Kreditkarte", text: "Wenn Ihre Bonität so weit ist: der Antrag beim Kartenpartner aus Ihrer Akte heraus, vorausgefüllt. Über Karte und Rahmen entscheidet der Kartenpartner." },
     { tag: "Ohne Risiko", titel: "Keine Abfrage, die schadet", text: "Die Vorqualifizierung läuft über Ihre FIAON-Daten. Erst wenn es passt, stellt die Bank die Anfrage." },
   ],
   readiness: "Karten-Readiness", readinessBeispiel: "Beispiel: Ein Kunde nach vier Monaten – ein Eintrag gelöscht, einer läuft. Die Karte ist in rund drei Monaten realistisch.",
@@ -111,7 +111,7 @@ const en: typeof de = {
   paketWaehlen: "Choose a plan", eintragPruefen: "Can my entry be challenged?",
   zahlen: [
     { wert: "25 pages", label: "credit assessment (approx.): your creditworthiness as a bank sees it, from your bank statements" },
-    { wert: "€25,000", label: "credit card limit that becomes reachable with a good file" },
+    { wert: "3 layers", label: "insight, action, access — step by step; the bank decides on card and limit" },
     { wert: "1 link", label: "to upload your ID and bank statements — no login needed" },
     { wert: "12 instalments", label: "monthly by bank transfer — then you decide whether to stay" },
   ],
@@ -161,7 +161,7 @@ const en: typeof de = {
   karte: [
     { tag: "Today", titel: "Current account", text: "For every customer, regardless of their file. With a debit card — online, abroad, every day." },
     { tag: "Within reach", titel: "Credit card up to €5,000", text: "As soon as challengeable entries have gone and the account has run cleanly for a few months." },
-    { tag: "The goal", titel: "Up to €25,000 limit", text: "With a good file, through our card partner — application from your file, pre-filled." },
+    { tag: "The goal", titel: "The credit card", text: "Once your file is ready: the application with our card partner, pre-filled from your file. The card partner decides on card and limit." },
     { tag: "Without risk", titel: "No enquiry that hurts", text: "Pre-qualification runs on your FIAON data. Only when it fits does the bank make the enquiry." },
   ],
   readiness: "Card readiness", readinessBeispiel: "Example: a customer after four months — one entry deleted, one in progress. The card is realistic in around three months.",

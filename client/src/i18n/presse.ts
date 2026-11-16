@@ -20,7 +20,7 @@ const de = {
     { wert: "100 Mio.", label: "Menschen im DACH-Raum mit einem Eintrag bei einer Auskunftei" },
     { wert: "6 Mio.", label: "überschuldete Personen allein in Deutschland" },
     { wert: "25 Seiten", label: "Bonitätsauswertung (rund): Bonität aus Sicht einer Bank, aus den eigenen Kontoauszügen" },
-    { wert: "25.000 €", label: "Kreditkartenrahmen, der bei guter Bonität über Partner erreichbar ist" },
+    { wert: "3 Schichten", label: "Einsicht, Aktion, Zugang – über Konto, Karte und Rahmen entscheidet die Bank" },
   ],
   geschichtePille: "Die Geschichte", geschichteA: "In drei Sätzen ", geschichteB: "erzählt.", geschichteLead: "Wer FIAON in einem Absatz beschreiben will, braucht nur die drei Schichten.",
   schichten: [
@@ -75,7 +75,7 @@ const en: typeof de = {
     { wert: "100 m", label: "people in the DACH region with an entry at a credit bureau" },
     { wert: "6 m", label: "over-indebted people in Germany alone" },
     { wert: "25 pages", label: "credit assessment (approx.): creditworthiness as a bank sees it, from your own bank statements" },
-    { wert: "€25,000", label: "credit card limit reachable via partners with a good credit file" },
+    { wert: "3 layers", label: "insight, action, access — the bank decides on account, card and limit" },
   ],
   geschichtePille: "The story", geschichteA: "Told in ", geschichteB: "three sentences.", geschichteLead: "Anyone who wants to describe FIAON in one paragraph needs only the three layers.",
   schichten: [

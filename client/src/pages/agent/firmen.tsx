@@ -60,6 +60,7 @@ import { ERZAEHLT_FELDER, EINSCHAETZUNGEN, EINSCHAETZUNG_WORT, ERZAEHLT_MIN } fr
 import { PFLICHT_NOTIZ_ERGEBNISSE, RUECKRUF_ERGEBNISSE, RUECKRUF_ZEITEN, rueckrufTage } from "@shared/fiaon-lead-takt";
 import { firmaBrauchbar } from "@shared/fiaon-global-lead";
 import { GLOBAL_WA_TELEFON_SATZ, TELEFON_JA_ERGEBNISSE } from "@shared/fiaon-whatsapp-erlaubnis";
+import { zweiterName } from "@shared/fiaon-firmen-suche";
 import "@/styles/office-firmen.css";
 
 /**
@@ -152,6 +153,20 @@ const firmaAnzeige = (f: { firma?: string | null; ansprechpartner?: string | nul
   if (!wer || firmaBrauchbar(firma, wer).brauchbar) return firma || wer || "—";
   return firma && firma.toLowerCase() !== wer.toLowerCase() ? `${wer} (${firma})` : wer;
 };
+/** E-516: Datum und Uhrzeit eines Verlaufs-Eintrags in Berliner Zeit („16.11. · 10:41“). */
+const verlaufZeit = (iso: unknown): string => {
+  const d = new Date(String(iso ?? ""));
+  if (Number.isNaN(d.getTime())) return "—";
+  const p = Object.fromEntries(new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}.${p.month}. · ${p.hour}:${p.minute}`;
+};
+/** E-516: was der Eintrag sagt — Anruf-Ergebnis, Info-Mail, Global-Ereignis oder Notiz. */
+const verlaufWas = (v: { art?: string; ergebnis?: string }): string =>
+  v.art === "anruf" ? (ERGEBNIS_KNOEPFE.find(([w]) => w === v.ergebnis)?.[1] || String(v.ergebnis ?? "Anruf"))
+    : v.art === "mail" ? "Info-Mail versendet"
+    : v.art === "global" ? (GLOBAL_EREIGNIS[String(v.ergebnis ?? "")] || "FIAON Global")
+    : "Notiz";
 /** E-487: der Berliner Kalendertag (JJJJ-MM-TT) — über formatToParts, nie über die Gerätezeit. */
 const berlinHeute = (): string => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" })
@@ -459,21 +474,30 @@ function FirmenInnen() {
                       onClick={() => void importieren()}>{laeuft === "import" ? "Lese ein …" : "Einlesen"}</button>
             </div>
           )}
-          <input className="fk-suche" value={suche} onChange={(e) => setSuche(e.target.value)}
-                 placeholder="Firma, Ort, Ansprechpartner, Nummer …" />
+          <input className="fk-suche" type="search" value={suche} onChange={(e) => setSuche(e.target.value)}
+                 placeholder="Firma, Name, Ort, E-Mail, Nummer …" aria-label="Firmen durchsuchen" />
+          {/* E-516: Wer sucht, sucht in ALLEN Firmen — der Reiter gilt nur ohne Suchtext. */}
+          {suche.trim() && <p className="fk-such-hinweis">{firmen.length === 1 ? "1 Treffer" : `${firmen.length} Treffer`} in allen Firmen{firmen.length >= 80 ? " (die ersten 80)" : ""}</p>}
           <ul className="fk-liste">
             {firmen.map((f) => {
               const [st, ton] = STATUS_TEXT[f.status] || [f.status, "still"];
               return (
                 <li key={f.id}>
                   <button type="button" className={aktiv?.id === f.id ? "an" : ""} onClick={() => void oeffnen(f)}>
-                    <span className="fk-liste-wer"><b>{firmaAnzeige(f)}</b><small>{[f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ") || "—"}</small></span>
+                    <span className="fk-liste-wer"><b>{firmaAnzeige(f)}</b><small>{(() => {
+                      // E-516: Den echten Namen aus der Anfrage zeigen, wenn die Karte nur „GmbH“, „Selbständig“ o. Ä. heißt.
+                      const zweiter = zweiterName(firmaAnzeige(f), f.mappe_firma);
+                      const rest = [f.global_am ? "FIAON Global" : null, f.ort, f.branche].filter(Boolean).join(" · ");
+                      return zweiter ? <><i>{zweiter}</i>{rest ? ` · ${rest}` : ""}</> : (rest || "—");
+                    })()}</small></span>
                     <span className={`fk-marke ${ton}`}>{rueckrufKurz(f.rueckruf_um) ?? st}</span>
                   </button>
                 </li>
               );
             })}
-            {!firmen.length && <li className="fk-leise">Nichts in dieser Sicht — Liste einkleben oder Filter wechseln.</li>}
+            {!firmen.length && <li className="fk-leise">{suche.trim()
+              ? `Keine Firma passt zu „${suche.trim()}“ — gesucht in Firma, Ansprechpartner, Person, E-Mail, Website, Ort, Branche, Nummer und Firma aus der Anfrage.`
+              : "Nichts in dieser Sicht — Liste einkleben oder Filter wechseln."}</li>}
           </ul>
         </section>
 
@@ -485,7 +509,7 @@ function FirmenInnen() {
               <header>
                 <div>
                   <h2>{firmaAnzeige(aktiv)}</h2>
-                  <small>{[aktiv.ansprechpartner, aktiv.ort, aktiv.branche].filter(Boolean).join(" · ") || "—"}</small>
+                  <small>{[aktiv.ansprechpartner, zweiterName(firmaAnzeige(aktiv), aktiv.mappe_firma) ? `Firma laut Anfrage: ${zweiterName(firmaAnzeige(aktiv), aktiv.mappe_firma)}` : null, aktiv.ort, aktiv.branche].filter(Boolean).join(" · ") || "—"}</small>
                 </div>
                 {(() => { const [st, ton] = STATUS_TEXT[aktiv.status] || [aktiv.status, "still"]; return <span className={`fk-marke ${ton}`}>{st}</span>; })()}
                 {rueckrufKurz(aktiv.rueckruf_um) && <span className="fk-marke warte">{rueckrufKurz(aktiv.rueckruf_um)}</span>}
@@ -733,18 +757,24 @@ function FirmenInnen() {
                 </div>
               )}
 
-              <div className="fk-verlauf">
-                <b>Verlauf</b>
+              {/* E-516: eigener Klassenname — „fk-verlauf" ist die Farbverlauf-Schrift der Überschrift (Geisterschrift beim Scrollen). */}
+              <div className="fk-verlaufkasten">
+                <b>Verlauf{verlauf && verlauf.length > 0 && <small>{verlauf.length} Einträge · neueste oben</small>}</b>
                 {verlauf === null && <p className="fk-leise">Lade …</p>}
                 {verlauf?.length === 0 && <p className="fk-leise">Noch kein Eintrag — dein Anruf ist der erste.</p>}
-                <ul>
-                  {(verlauf || []).map((v, i) => (
-                    <li key={i}>
-                      <span>{new Date(v.created_at).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                      <span>{v.agent_name || "System"}: {v.art === "anruf" ? (ERGEBNIS_KNOEPFE.find(([w]) => w === v.ergebnis)?.[1] || v.ergebnis) : v.art === "mail" ? "Info-Mail versendet" : v.art === "global" ? (GLOBAL_EREIGNIS[v.ergebnis] || "FIAON Global") : "Notiz"}{v.notiz ? ` — ${v.notiz}` : ""}</span>
-                    </li>
-                  ))}
-                </ul>
+                {verlauf && verlauf.length > 0 && (
+                  <ol>
+                    {verlauf.map((v, i) => (
+                      <li key={i}>
+                        <span className="fk-vk-zeit">{verlaufZeit(v.created_at)}</span>
+                        <span className="fk-vk-was">
+                          <strong>{v.agent_name || "System"}</strong>{" · "}{verlaufWas(v)}
+                          {v.notiz ? <span className="fk-vk-notiz">{String(v.notiz)}</span> : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
               </div>
             </div>
           )}

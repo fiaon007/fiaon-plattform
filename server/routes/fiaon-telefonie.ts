@@ -14,7 +14,7 @@ import { ensureRolleSpalte } from "./fiaon-vertrieb";
 import {
   ansageText, aufnahmeFrist, aufnahmenAufraeumen, einrichtungsStand, MAX_MINUTEN, offeneAnrufe, telefonBereit,
   twimlAusgehend, wahlProtokoll, wahlPruefen, zugangsAusweis,
-  nummerKontingent, nummerWarnungMelden,
+  nummerKontingent, nummerWarnungMelden, absenderFuerZiel,
 } from "../lib/fiaon-softphone";
 import { DOKUMENTE, dokumentInhalt, dokumentStand, istDokumentArt } from "../lib/fiaon-dokumente";
 import { gespraechsblatt } from "../lib/fiaon-gespraechsblatt";
@@ -278,7 +278,8 @@ router.post("/telefon/ausweis", requireAgent, async (req: AgentRequest, res: Res
     // Hier wird deshalb NUR GEZÄHLT: Der Stand geht an das Panel des Agenten
     // (dezenter Hinweis) und, ab dem 1,5-fachen, als Warnung an den Betreiber.
     // Es gibt in diesem Block keinen `return` mehr.
-    const absender = process.env.TWILIO_CALLER_ID || "";
+    // E-516: Schweizer Kunde → Schweizer Absendernummer (wenn eingetragen), sonst wie bisher.
+    const absender = absenderFuerZiel(pruefung.nummer!);
     const kontingent = await nummerKontingent(absender);
     if (kontingent.stufe === "warnung") {
       // Fire-and-forget: Eine Warnung an den Betreiber darf einen Anruf nicht
@@ -769,7 +770,8 @@ router.post("/telefon/twiml", async (req: Request, res: Response) => {
     }
     res.send(twimlAusgehend({
       an: pruefung.nummer!,
-      von: process.env.TWILIO_CALLER_ID || "",
+      // E-516: die Absendernummer nach Land des Kunden (+41 → TWILIO_CALLER_ID_CH, +43 → _AT, sonst TWILIO_CALLER_ID).
+      von: absenderFuerZiel(pruefung.nummer!),
       ansage: await ansageText(),
       aufnahmeCallback: mitKennung("/api/fiaon/telefon/aufnahme"),
       statusCallback: mitKennung("/api/fiaon/telefon/status"),

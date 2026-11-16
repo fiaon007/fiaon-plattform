@@ -605,6 +605,18 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Begründung: Sie steht im Termin, damit du beim Klingeln weißt, warum du anrufst.",
     tipp: "Sagst DU einen Termin ab, wird diese Zeit dem Kunden nicht wieder angeboten — du hast ja abgesagt, weil du sie nicht kannst.",
   },
+  {
+    // 16.11.2026 (E-516, Florentine + Justin): der Teamkalender.
+    ziel: ".ca-bereich",
+    titel: "„Team\u201c zeigt die Termine aller Kollegen.",
+    text: "Mit „Ich | Team\u201c schaltest du um. Im Team siehst du oben, wer gerade frei ist (und bis wann), wer im Termin sitzt und "
+      + "wer seine Zeit geblockt hat. Darunter am Tag eine Spalte je Person, in der Woche eine Zeile je Person — mit Uhrzeit, Kunde "
+      + "und Art. Hell ist Arbeitszeit, gelb schraffiert eine geblockte Zeit. Ein Klick auf einen Termin öffnet die Akte bzw. das "
+      + "Firmen-Cockpit. Fällt ein Kollege aus, drückst du „Übernehmen\u201c: Der Termin liegt dann bei dir — still, der Kunde bekommt "
+      + "keine Mail, die Uhrzeit bleibt, und der Kunde bleibt bei seinem Betreuer. Im Verlauf steht, wer von wem übernommen hat.",
+    tipp: "Kurzfristige Anfrage? Erst oben schauen, wer „frei bis …\u201c hat — dann gibt es keine Doppelbuchung. "
+      + "„Team im Handy-Kalender\u201c legt dir die Termine der Kollegen als eigenen Kalender aufs Handy.",
+  },
 ];
 
 export const RUNDGANG_ONBOARDING: RundgangSchritt[] = [
@@ -1304,6 +1316,16 @@ export const RUNDGANG_FIRMEN: RundgangSchritt[] = [
       + "siehst du die Zeile „Lead-Dossier an Justin\u201c — Justin hat den Lead mit dem Check schon auf dem Tisch. "
       + "Steht dort „Justin ruft selbst an\u201c, ist dein Auftrag dazu geschlossen.",
     tipp: "Wiedervorlagen zuerst. Ein gehaltenes Versprechen verkauft besser als zehn Kaltanrufe.",
+  },
+  {
+    // 16.11.2026 (E-516, Florentine): Die Suche fand vorher nur Nummern.
+    ziel: ".fk-suche",
+    titel: "Die Suche findet jede Firma — mit Namen, Mail oder Nummer.",
+    text: "Tipp einen Firmennamen, den Namen des Ansprechpartners, eine E-Mail, die Website, den Ort oder eine Telefonnummer ein "
+      + "(ab drei Ziffern, „0152 …\u201c findet auch „+49 152 …\u201c). Sobald du tippst, sucht sie in ALLEN Firmen — egal, welcher Reiter "
+      + "offen ist. Über der Liste steht, wie viele Treffer es gibt. Heißt eine Karte nur „GmbH\u201c, „Selbständig\u201c oder „Privatperson · …\u201c, "
+      + "findet die Suche sie auch über den echten Firmennamen aus der Anfrage — der steht klein unter dem Namen.",
+    tipp: "Ruft jemand zurück und du weißt nur den Nachnamen: einfach eintippen, ein Klick, die Karte ist offen.",
   },
   {
     ziel: ".fk-karte",

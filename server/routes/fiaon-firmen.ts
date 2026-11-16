@@ -53,6 +53,7 @@ import { verkaufbarePakete } from "@shared/fiaon-pakete";
 import { globalInfoMail, globalVorbereitungSystem } from "@shared/fiaon-global-vertrieb";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
 import { berlinToday, berlinPlusTage } from "../lib/fiaon-time";
+import { firmenSucheLesen } from "@shared/fiaon-firmen-suche";
 import { openaiFetch, istKiPause } from "../lib/fiaon-ki-pause";
 
 const router = Router();
@@ -295,6 +296,30 @@ export async function globalLeadStandSetzen(ein: {
   }
 }
 
+// E-516: Gibt es die Lead-Mappe (fiaon_lead_gespraech + fiaon_lead_dossier)? Beide Tabellen entstehen erst mit dem
+// Lead-Weg — fehlen sie (frische DB), sucht die Liste wie vorher ohne Mappe. „Da" wird gemerkt, „nicht da" nicht.
+let mappeDaGemerkt = false;
+async function leadMappeDa(): Promise<boolean> {
+  if (mappeDaGemerkt) return true;
+  try {
+    const [r] = (await sqlPool`SELECT to_regclass('public.fiaon_lead_gespraech') IS NOT NULL AND to_regclass('public.fiaon_lead_dossier') IS NOT NULL AS da`) as any[];
+    mappeDaGemerkt = !!r?.da;
+  } catch { /* ohne Mappe */ }
+  return mappeDaGemerkt;
+}
+
+/** E-516: der echte Firmenname aus der Anfrage (Lead-Mappe) für die Anruf-Karte — null ohne Mappe; wirft nie. */
+async function mappeFirmaFuer(firmaId: number): Promise<string | null> {
+  if (!(await leadMappeDa())) return null;
+  const [m] = (await sqlPool`
+    SELECT d.basis->'firma'->>'anzeige' AS anzeige
+      FROM fiaon_lead_gespraech g
+      JOIN fiaon_lead_dossier d ON (d.anlass = 'anfrage' AND d.anlass_id = g.anfrage_id) OR (d.anlass = 'termin' AND d.anlass_id = g.termin_id)
+     WHERE g.firma_id = ${firmaId} AND COALESCE(d.basis->'firma'->>'anzeige', '') <> ''
+     ORDER BY d.id DESC LIMIT 1`.catch(() => [])) as any[];
+  return m?.anzeige ? String(m.anzeige) : null;
+}
+
 const HEUTE_BERLIN = `(NOW() AT TIME ZONE 'Europe/Berlin')::date`;
 
 // ── Die Tagesliste + Zähler ─────────────────────────────────────────────────
@@ -302,8 +327,10 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
   try {
     await ensureFirmen();
     const me = req.agent!.id;
-    const q = String(req.query.q || "").trim().slice(0, 80);
+    const suche = firmenSucheLesen(req.query.q);
     const filter = String(req.query.filter || "arbeit");
+    // E-516: Die Lead-Mappe kennt oft den echten Firmennamen (Karte „GmbH" → Mappe „Sonnenhof Muster GmbH").
+    const mappe = await leadMappeDa();
 
     // Arbeit = was JETZT dran ist: fällige Wiedervorlagen zuerst, dann Neues.
     // „Kein Interesse"/ungültig/Antrag sind raus; fremd zugeteilte auch.
@@ -312,14 +339,41 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
     // um ein Gespräch zu FIAON Global bittet, wartet nicht hinter der
     // Kaltakquise von letzter Woche.
     const zeilen = await sqlPool.unsafe(`
-      SELECT f.*,
+      SELECT f.*, x.mappe_firma,
              (SELECT COUNT(*)::int FROM fiaon_firmen_log l WHERE l.firma_id = f.id AND l.art = 'anruf') AS anrufe,
              (SELECT MAX(l.created_at) FROM fiaon_firmen_log l WHERE l.firma_id = f.id) AS letzte_bewegung
       FROM fiaon_firmen_leads f
+      LEFT JOIN fiaon_persons p ON p.id = f.person_id
+      ${mappe ? `LEFT JOIN LATERAL (
+        SELECT d.basis->'firma'->>'anzeige' AS mappe_firma
+          FROM fiaon_lead_gespraech g
+          JOIN fiaon_lead_dossier d ON (d.anlass = 'anfrage' AND d.anlass_id = g.anfrage_id) OR (d.anlass = 'termin' AND d.anlass_id = g.termin_id)
+         WHERE g.firma_id = f.id AND COALESCE(d.basis->'firma'->>'anzeige', '') <> ''
+         ORDER BY d.id DESC LIMIT 1) x ON TRUE` : `LEFT JOIN LATERAL (SELECT NULL::text AS mappe_firma) x ON TRUE`}
+      -- ══════════════════════════════════════════════════════════════════════
+      -- E-516 (16.11.2026, Florentine): DIE SUCHE FINDET AUCH NAMEN
+      -- Hier stand die Nummer als Bedingung OHNE Mindestlänge: Bei „Muster"
+      -- blieb keine Ziffer übrig → LIKE '%%' → JEDE Zeile passte, die
+      -- Namenssuche filterte nichts. Jetzt: $4 (die Ziffern) ist '' unter drei
+      -- Ziffern und wird dann gar nicht geprüft. Gesucht wird in Karte,
+      -- verknüpfter Person und Lead-Mappe ($2 ist entschärft, shared/fiaon-firmen-suche.ts).
+      -- ══════════════════════════════════════════════════════════════════════
       WHERE ($2 = '' OR f.firma ILIKE '%' || $2 || '%' OR COALESCE(f.ort,'') ILIKE '%' || $2 || '%'
              OR COALESCE(f.ansprechpartner,'') ILIKE '%' || $2 || '%'
-             OR regexp_replace(COALESCE(f.telefon,''), '[^0-9]', '', 'g') LIKE '%' || regexp_replace($2, '[^0-9]', '', 'g') || '%')
+             OR COALESCE(f.email,'') ILIKE '%' || $2 || '%'
+             OR COALESCE(f.website,'') ILIKE '%' || $2 || '%'
+             OR COALESCE(f.branche,'') ILIKE '%' || $2 || '%'
+             OR TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')) ILIKE '%' || $2 || '%'
+             OR COALESCE(p.company_name,'') ILIKE '%' || $2 || '%'
+             OR COALESCE(p.contact_name,'') ILIKE '%' || $2 || '%'
+             OR COALESCE(p.primary_email,'') ILIKE '%' || $2 || '%'
+             OR COALESCE(x.mappe_firma,'') ILIKE '%' || $2 || '%'
+             OR ($4 <> '' AND (
+                  regexp_replace(COALESCE(f.telefon,''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%'
+               OR regexp_replace(COALESCE(p.primary_phone,''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%')))
+        -- E-516: Wer sucht, sucht in ALLEN Firmen — der Reiter gilt nur ohne Suchtext.
         AND CASE
+          WHEN $2 <> '' THEN TRUE
           WHEN $3 = 'alle' THEN TRUE
           WHEN $3 = 'meine' THEN f.zustaendig_agent_id = $1
           ELSE ( -- arbeit
@@ -336,7 +390,7 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
                f.status = 'termin' DESC, f.status = 'in_arbeit' DESC,
                f.created_at ASC
       LIMIT 80
-    `, [me, q, filter]);
+    `, [me, suche.text, filter, suche.ziffern]);
 
     const [z] = (await sqlPool`
       SELECT
@@ -352,7 +406,7 @@ router.get("/agent/firmen/liste", requireAgent, async (req: AgentRequest, res: R
             AND status NOT IN ('kein_interesse', 'ungueltig', 'antrag')) AS faellig
     `) as any[];
 
-    res.json({ ok: true, firmen: zeilen, zahlen: { ...z, ziel: FIRMEN_TAGESZIEL } });
+    res.json({ ok: true, firmen: zeilen, zahlen: { ...z, ziel: FIRMEN_TAGESZIEL }, sucheAlle: suche.aktiv });
   } catch (err) {
     console.error("[FIRMEN] liste:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -643,7 +697,7 @@ router.get("/agent/firmen/zu-person/:personId", requireAgent, async (req: AgentR
       FROM fiaon_firmen_log WHERE firma_id = ${firma.id}
       ORDER BY created_at DESC LIMIT 40
     `) as any[];
-    res.json({ ok: true, firma, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
+    res.json({ ok: true, firma: { ...firma, mappe_firma: await mappeFirmaFuer(Number(firma.id)) }, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
   } catch (err) {
     console.error("[FIRMEN] zu-person:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -661,7 +715,7 @@ router.get("/agent/firmen/:id", requireAgent, async (req: AgentRequest, res: Res
       FROM fiaon_firmen_log WHERE firma_id = ${firma.id}
       ORDER BY created_at DESC LIMIT 40
     `) as any[];
-    res.json({ ok: true, firma, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
+    res.json({ ok: true, firma: { ...firma, mappe_firma: await mappeFirmaFuer(Number(firma.id)) }, verlauf, lead: await leadStandFuerKarte(Number(firma.id), req) });
   } catch (err) {
     console.error("[FIRMEN] detail:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });

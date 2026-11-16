@@ -244,13 +244,16 @@ const KONTO_FAELLE: KontoFall[] = [
   { n: "eigene · deaktiviert, Stufe Geschäftsführung", u: "eigene", k: { aktiv: false, gesperrt: false, stufe: "geschaeftsfuehrung" }, soll: false },
   { n: "eigene · deaktiviert, Inhaber (kommt ins Chefbüro)", u: "eigene", k: { aktiv: false, gesperrt: false, stufe: "inhaber" }, soll: true },
   { n: "eigene · Konto fehlt", u: "eigene", k: null, soll: false },
-  { n: "team · aktiv ohne Stufe", u: "team", k: { aktiv: true, gesperrt: false, stufe: null }, soll: false },
-  { n: "team · Geschäftsführung", u: "team", k: { aktiv: true, gesperrt: false, stufe: "geschaeftsfuehrung" }, soll: false },
+  // E-516 (16.11.2026, Justin: „Alle mit Namen"): Das Team-Abo gilt für jeden aktiven Mitarbeiter (vorher nur Inhaber).
+  { n: "team · aktiv ohne Stufe", u: "team", k: { aktiv: true, gesperrt: false, stufe: null }, soll: true },
+  { n: "team · Geschäftsführung", u: "team", k: { aktiv: true, gesperrt: false, stufe: "geschaeftsfuehrung" }, soll: true },
   { n: "team · Inhaber", u: "team", k: { aktiv: true, gesperrt: false, stufe: "inhaber" }, soll: true },
   { n: "team · Inhaber, gesperrt", u: "team", k: { aktiv: true, gesperrt: true, stufe: "inhaber" }, soll: false },
+  { n: "team · deaktiviert ohne Stufe", u: "team", k: { aktiv: false, gesperrt: false, stufe: null }, soll: false },
+  { n: "team · aktiv, gesperrt", u: "team", k: { aktiv: true, gesperrt: true, stufe: null }, soll: false },
 ];
 const kontoRegelFalsch = (f: (u: "eigene" | "team", k: KontoFall["k"]) => boolean) => KONTO_FAELLE.filter((c) => f(c.u, c.k) !== c.soll).map((c) => c.n);
-ok("A6 kontoDarfAbo: alle zehn Fälle (gesperrt, deaktiviert, Stufe)", kontoRegelFalsch(kal.kontoDarfAbo).length === 0, kontoRegelFalsch(kal.kontoDarfAbo));
+ok("A6 kontoDarfAbo: alle zwölf Fälle (gesperrt, deaktiviert, Stufe; E-516 Team für alle Aktiven)", kontoRegelFalsch(kal.kontoDarfAbo).length === 0, kontoRegelFalsch(kal.kontoDarfAbo));
 {
   const leer = kal.leererKalenderIcs();
   ok("A6 toter Link → leerer Kalender: gültig, 0 Termine, „Link gilt nicht mehr“, täglicher Abruf",
@@ -482,7 +485,11 @@ try {
   const mitEigene = await kal.aboAktiv(INHABER);
   ok("B12 aboAktiv zählt nur „eigene“ (das Team-Abo trägt die eigenen Termine nicht)", !nurTeam && mitEigene, { nurTeam, mitEigene });
   const quelleAgent = (await import("node:fs")).readFileSync("server/routes/fiaon-kalender.ts", "utf8");
-  ok("B12 die Mitarbeiter-Route kennt nur „eigene“ (kein „team“ im Agent-Router)", !/aboHolen\([^)]*"team"/.test(quelleAgent) && /aboHolen\(agent\.id, "eigene"/.test(quelleAgent));
+  // E-516 (16.11.2026, Justin: „Alle mit Namen"): Die Mitarbeiter-Route gibt das Team-Abo NUR auf ausdrücklichen Wunsch
+  // (?umfang=team) — ohne Angabe bleibt es „eigene"; der Umfang kommt aus EINER Stelle (aboUmfangAus).
+  ok("B12 die Mitarbeiter-Route: „eigene“ als Vorgabe, „team“ nur ausdrücklich (E-516)",
+    /aboUmfangAus = \(roh: unknown\): "eigene" \| "team" => \(String\(roh \?\? ""\) === "team" \? "team" : "eigene"\)/.test(quelleAgent)
+      && /aboHolen\(agent\.id, umfang,/.test(quelleAgent) && !/aboHolen\(agent\.id, "team"/.test(quelleAgent));
 
   // ═══ 13 ═══
   abschnitt("B13. Mails an den Mitarbeiter");
@@ -656,8 +663,10 @@ try {
     const tNach = await kal.aboPruefen(kal.aboToken(t!), tx);
     const eNach = await kal.aboPruefen(kal.aboToken(e!), tx);
     const tNeu = await kal.aboHolen(INHABER, "team", STEMPEL, tx);
-    ok("B16 Stufe „inhaber“ entzogen: Team-Abo widerrufen, kein neues; „Meine Termine“ (aktives Konto) bleibt",
-      !!t && tNach === null && tNeu === null && eNach?.id === e?.id, { t: !!t, tNach: !!tNach, tNeu: !!tNeu, eNach: eNach?.id, e: e?.id });
+    // E-516 (16.11.2026): Das Team-Abo gilt für jeden aktiven Mitarbeiter — die Stufe zu entziehen widerruft es NICHT mehr
+    // (Migration 136). Widerrufen wird bei Sperre oder Deaktivierung (B16 oben/unten).
+    ok("B16 Stufe „inhaber“ entzogen (Konto aktiv): Team-Abo und „Meine Termine“ bleiben (E-516)",
+      !!t && tNach?.id === t?.id && tNeu?.id === t?.id && eNach?.id === e?.id, { t: !!t, tNach: !!tNach, tNeu: !!tNeu, eNach: eNach?.id, e: e?.id });
   });
   await zurueckrollen(async (tx) => {
     const t = await kal.aboHolen(INHABER, "team", STEMPEL, tx);

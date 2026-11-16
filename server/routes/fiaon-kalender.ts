@@ -189,6 +189,40 @@ type MitAgent = Request & { agent?: { id: number; name: string; ansicht?: boolea
 
 export const agentRouter = Router();
 
+/** E-516: welches Abo — „team" nur ausdrücklich, alles andere ist das eigene. */
+const aboUmfangAus = (roh: unknown): "eigene" | "team" => (String(roh ?? "") === "team" ? "team" : "eigene");
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DER TEAMKALENDER (E-516, 16.11.2026) — Calendar → „Team"
+//   GET  /agent/calendar/team?from&to     alle Termine des Teams (Lesen auch in der Nur-Ansicht)
+//   POST /agent/termine/:id/uebernehmen   still übernehmen — nur der Termin wandert, keine Mail an den Kunden
+// Regeln: shared/fiaon-teamkalender.ts, Lesen/Schreiben: server/lib/fiaon-teamkalender.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+agentRouter.get("/agent/calendar/team", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const tk = await import("../lib/fiaon-teamkalender");
+    const { von, bis } = tk.teamFenster(req.query.from, req.query.to);
+    const daten = await tk.teamKalenderLesen(req.agent!.id, von, bis);
+    res.json({ ok: true, ...daten });
+  } catch (err) {
+    console.error("[TEAMKALENDER] lesen:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Der Teamkalender konnte nicht geladen werden." });
+  }
+});
+
+agentRouter.post("/agent/termine/:id/uebernehmen", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const agent = req.agent!;
+    if (agent.ansicht) return void res.status(403).json({ ok: false, error: "In der Ansicht nicht möglich." });
+    const tk = await import("../lib/fiaon-teamkalender");
+    const r = await tk.terminUebernehmen(Number(req.params.id), { id: agent.id, name: agent.name });
+    res.status(r.status).json(r.body);
+  } catch (err) {
+    console.error("[TEAMKALENDER] übernehmen:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Das Übernehmen hat nicht geklappt — bitte noch einmal." });
+  }
+});
+
 agentRouter.get("/agent/kalender-abo", agentWand, async (req: MitAgent, res: Response) => {
   try {
     const agent = req.agent!;
@@ -196,8 +230,10 @@ agentRouter.get("/agent/kalender-abo", agentWand, async (req: MitAgent, res: Res
     // Er ist persönlich, und wer ihn hat, sieht die Termine.
     if (agent.ansicht) return void res.json({ ok: true, ansicht: true, eingerichtet: true, abo: null });
     if (!(await aboTabelleDa())) return void res.json({ ok: true, eingerichtet: false, abo: null });
-    const abo = await aboHolen(agent.id, "eigene", `Mitarbeiter #${agent.id}`);
-    res.json({ ok: true, eingerichtet: true, abo: abo ? aboSicht(abo) : null });
+    // E-516 (16.11.2026, Justin: „Alle mit Namen"): ?umfang=team — die Termine der Kollegen, für jeden aktiven Mitarbeiter.
+    const umfang = aboUmfangAus(req.query.umfang);
+    const abo = await aboHolen(agent.id, umfang, `Mitarbeiter #${agent.id}`);
+    res.json({ ok: true, eingerichtet: true, umfang, abo: abo ? aboSicht(abo) : null });
   } catch (err) {
     console.error("[KALENDER] Agent-Abo:", String((err as Error)?.message ?? err).slice(0, 200));
     res.status(500).json({ ok: false, error: "Das Kalender-Abo ließ sich nicht laden." });
@@ -211,13 +247,14 @@ agentRouter.post("/agent/kalender-abo/:aktion", agentWand, async (req: MitAgent,
     const agent = req.agent!;
     if (agent.ansicht) return void res.status(403).json({ ok: false, error: "In der Ansicht nicht möglich." });
     const von = `Mitarbeiter #${agent.id}`;
+    const umfang = aboUmfangAus(req.query.umfang ?? req.body?.umfang);
     if (aktion === "beenden") {
-      const war = await aboBeenden(agent.id, "eigene", von);
-      console.log(`[KALENDER] ${von}: Abo beendet (${war ? "war aktiv" : "war keins aktiv"})`);
+      const war = await aboBeenden(agent.id, umfang, von);
+      console.log(`[KALENDER] ${von}: Abo (${umfang}) beendet (${war ? "war aktiv" : "war keins aktiv"})`);
       return void res.json({ ok: true, beendet: true, abo: null });
     }
-    const abo = await aboErneuern(agent.id, "eigene", von);
-    console.log(`[KALENDER] ${von}: neuer Abo-Link`);
+    const abo = await aboErneuern(agent.id, umfang, von);
+    console.log(`[KALENDER] ${von}: neuer Abo-Link (${umfang})`);
     res.json({ ok: true, abo: abo ? aboSicht(abo) : null });
   } catch (err) {
     console.error("[KALENDER] Agent-Abo ändern:", String((err as Error)?.message ?? err).slice(0, 200));

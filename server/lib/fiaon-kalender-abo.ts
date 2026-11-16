@@ -31,7 +31,8 @@
 // Anlegen (aboHolen) und bei jedem Einzel-Link (einzelIcs):
 //   eigene  nicht gesperrt UND (aktiv ODER Stufe „inhaber" — der Inhaber kommt
 //           auch mit deaktiviertem Konto ins Chefbüro und sieht dort alles)
-//   team    nicht gesperrt UND Stufe „inhaber"
+//   team    nicht gesperrt UND (aktiv ODER Stufe „inhaber") — seit E-516 (16.11.2026) für jeden aktiven
+//           Mitarbeiter; vorher nur „inhaber" (Migration 136 zieht den Trigger nach)
 // Dazu widerruft ein Trigger an fiaon_agents (Migration 085) jedes Abo, sobald
 // eine Sperre, Deaktivierung oder der Entzug der Stufe es unzulässig macht —
 // ein späteres Entsperren belebt den alten Link nicht wieder.
@@ -114,7 +115,10 @@ export interface KontoStand { aktiv: boolean; gesperrt: boolean; stufe: string |
 export function kontoDarfAbo(umfang: KalenderAboUmfang, k: KontoStand | null | undefined): boolean {
   if (!k || k.gesperrt) return false;
   const inhaber = String(k.stufe ?? "").trim() === "inhaber";
-  return umfang === "team" ? inhaber : (k.aktiv || inhaber);
+  // E-516 (16.11.2026, Justin: „Alle mit Namen"): Das Team-Abo gilt für jeden aktiven Mitarbeiter — genau wie der
+  // Teamkalender im Calendar. Vorher: nur Stufe „inhaber". Gesperrt bleibt gesperrt (oben).
+  void umfang;
+  return k.aktiv || inhaber;
 }
 
 function kontoAus(r: any): KontoStand | null {

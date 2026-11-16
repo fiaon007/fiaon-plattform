@@ -50,6 +50,7 @@ import { RUNDGAENGE } from "./rundgaenge";
 import { KALENDER_TEXT, kalenderZustandSatz, type KalenderAboSicht } from "@shared/fiaon-kalender-abo";
 import { ZeichenSchliessen } from "@/lib/fiaon-zeichen";
 import "@/styles/office-rundgang.css";
+import { TeamKalender } from "./calendar-team";
 
 // ── Zeit in Europe/Berlin (nie über toISOString, AGENTS.md) ─────────────────
 interface Teile { y: number; m: number; d: number; h: number; min: number; wd: number }
@@ -345,6 +346,13 @@ function CalendarInnen() {
   // 25.08.2026 (Florentine): „Der Kalender sollte beim Öffnen standardmäßig
   // direkt auf heute stehen." Die Woche bleibt einen Klick entfernt.
   const [ansicht, setAnsicht] = useState<"tag" | "woche">("tag");
+  // E-516 (16.11.2026, Florentine): „Ich | Team" — der Teamkalender zeigt die Termine aller Kollegen (Justin: alle mit
+  // Namen). Die Wahl merkt sich der Browser (nur Bequemlichkeit, ohne Speicher geht es mit „Ich" los).
+  const [bereich, setBereichRoh] = useState<"ich" | "team">(() => {
+    try { return window.localStorage.getItem("fiaon-calendar-bereich") === "team" ? "team" : "ich"; } catch { return "ich"; }
+  });
+  const setBereich = (b: "ich" | "team") => { setBereichRoh(b); try { window.localStorage.setItem("fiaon-calendar-bereich", b); } catch { /* egal */ } };
+  const [aboUmfang, setAboUmfang] = useState<"eigene" | "team">("eigene");
   const [, navigiere] = useLocation();
   // E-051: 1 Klick auf einen Termin → Kundenakte. Am Handy (kein Hover)
   // öffnet der erste Tap stattdessen das Popover mit großem „Akte“-Knopf.
@@ -734,6 +742,11 @@ function CalendarInnen() {
       </div>
 
       <section className="ca-leiste">
+        {/* E-516: „Ich | Team" — vor Tag/Woche, damit klar ist, WESSEN Termine darunter stehen. */}
+        <div className="ca-reiter ca-bereich" role="tablist" aria-label="Wessen Termine">
+          <button type="button" role="tab" aria-selected={bereich === "ich"} className={bereich === "ich" ? "an" : ""} onClick={() => setBereich("ich")}>Ich</button>
+          <button type="button" role="tab" aria-selected={bereich === "team"} className={bereich === "team" ? "an" : ""} onClick={() => setBereich("team")}>Team</button>
+        </div>
         <div className="ca-reiter" role="tablist">
           <button type="button" role="tab" aria-selected={ansicht === "tag"} className={ansicht === "tag" ? "an" : ""} onClick={() => { setAnsicht("tag"); setTagKey(heuteKey); }}>Tag</button>
           <button type="button" role="tab" aria-selected={ansicht === "woche"} className={ansicht === "woche" ? "an" : ""} onClick={() => setAnsicht("woche")}>Woche</button>
@@ -746,14 +759,21 @@ function CalendarInnen() {
         </div>
         <button type="button" className="ca-knopf" onClick={() => setAnlegen(true)}><Plus size={16} strokeWidth={1.75} /> Termin anlegen</button>
         {/* E-263: nach „Termin anlegen" — der Rundgang-Schritt „.ca-knopf" trifft weiter den ersten. */}
-        <button type="button" className="ca-knopf still ca-abo" onClick={() => setAboOffen(true)}><ZeichenKalenderAbo /> In meinen Kalender</button>
+        <button type="button" className="ca-knopf still ca-abo" onClick={() => { setAboUmfang("eigene"); setAboOffen(true); }}><ZeichenKalenderAbo /> In meinen Kalender</button>
         {/* E-498: Zeiten sperren, die nicht im System stehen (Zoom, Treffen vor Ort) — die Buchungsseiten bieten sie dann nicht mehr an. */}
         <button type="button" className="ca-knopf still ca-sperren-knopf" onClick={() => setSperrOffen(true)}><ZeichenSperre /> Zeit blockieren{sperren.length > 0 ? ` (${sperren.length})` : ""}</button>
       </section>
 
       {laedt && <p className="ca-lade">Lade …</p>}
 
-      {ansicht === "tag" && !laedt && (
+      {/* E-516: der Teamkalender — eigene Daten (GET /agent/calendar/team), eigene Spalten je Person. */}
+      {bereich === "team" && (
+        <TeamKalender ansicht={ansicht} tagKey={tagKey} heuteKey={heuteKey} wochenKeys={wochenKeys} jetzt={jetzt}
+                      onTag={(k) => { setTagKey(k); setAnsicht("tag"); }}
+                      onTeamAbo={() => { setAboUmfang("team"); setAboOffen(true); }} onGeaendert={laden} flash={flash} />
+      )}
+
+      {bereich === "ich" && ansicht === "tag" && !laedt && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b>{tagKey === heuteKey ? "Heute" : datumLang(tagDate)}</b>{/* 24.08.2026: Die Zeile zählt genau das, was darunter steht — gebuchte
              Termine und notierte Rückrufe. Vorher hieß beides „Termine". */}
@@ -767,14 +787,14 @@ function CalendarInnen() {
 
       {/* 25.08.2026 (Florentine): „zuerst die normalen Termine und darunter
           die überfälligen" — der Tag zuerst, das Aufräumen danach. */}
-      {!laedt && ueberfaellig.length > 0 && (
+      {bereich === "ich" && !laedt && ueberfaellig.length > 0 && (
         <section className="ca-block">
           <div className="ca-block-kopf"><b className="warn">Überfällig ({ueberfaellig.length})</b><small>Nach dem Tagesgeschäft aufräumen: Ergebnis nachtragen oder neu ansetzen.</small></div>
           {ueberfaellig.map((a) => <Zeile key={tKey(a)} a={a} datum busy={busy === tKey(a)} onAkte={() => zurAkte(a)} onOeffnen={() => setDetail(a)} onErledigt={() => erledigt(a)} ausser={!inVerfuegbarkeit(tZeit(a))} jetzt={jetzt.getTime()} onNichtZustande={(g, o) => void nichtZustande(a, g, o)} onVerschieben={() => verschiebenOeffnen(a)} />)}
         </section>
       )}
 
-      {ansicht === "woche" && !laedt && (
+      {bereich === "ich" && ansicht === "woche" && !laedt && (
         <>
           <section className="ca-woche" aria-label="Wochenansicht" ref={wocheRef} onScroll={() => setPopover(null)}>
             <div className="ca-w-zeiten">
@@ -874,7 +894,7 @@ function CalendarInnen() {
                 onUebergeben={(id, g) => uebergeben(detail, id, g)} onAbsagen={() => absagen(detail)} />
       )}
       {anlegen && <Anlegen vorschlag={tagKey === heuteKey ? "" : `${tagKey}T10:00`} onZu={() => setAnlegen(false)} onFertig={(t) => { setAnlegen(false); flash(t); laden(); }} />}
-      {aboOffen && <KalenderAboBlatt onZu={() => setAboOffen(false)} />}
+      {aboOffen && <KalenderAboBlatt umfang={aboUmfang} onZu={() => setAboOffen(false)} />}
       {sperrOffen && (
         <ZeitBlockieren vorschlag={sperrVorschlag(ansicht === "tag" ? tagKey : heuteKey, heuteKey, jetzt)} sperren={sperren} busy={sperrBusy}
                         onZu={() => setSperrOffen(false)} onGeaendert={sperrenLaden} onFrei={(s) => void sperreFrei(s)} />
@@ -1514,7 +1534,9 @@ function ZeichenKalenderAbo({ size = 16 }: { size?: number }) {
   );
 }
 
-function KalenderAboBlatt({ onZu }: { onZu: () => void }) {
+function KalenderAboBlatt({ onZu, umfang = "eigene" }: { onZu: () => void; umfang?: "eigene" | "team" }) {
+  // E-516: dasselbe Blatt für das Team-Abo („FIAON · Termine des Teams") — nur ?umfang=team an jedem Aufruf.
+  const zusatz = umfang === "team" ? "?umfang=team" : "";
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);
   const [abo, setAbo] = useState<KalenderAboSicht | null>(null);
@@ -1527,12 +1549,12 @@ function KalenderAboBlatt({ onZu }: { onZu: () => void }) {
 
   const laden = useCallback(() => {
     setLaedt(true); setFehler(null);
-    api("/agent/kalender-abo").then((r) => {
+    api(`/agent/kalender-abo${zusatz}`).then((r) => {
       if (r.ok) { setAbo(r.json.abo ?? null); setAnsicht(!!r.json.ansicht); setEingerichtet(r.json.eingerichtet !== false); setBeendet(false); }
       else setFehler(r.json?.error || "Das Kalender-Abo ließ sich nicht laden.");
       setLaedt(false);
     }).catch(() => { setFehler("Keine Verbindung."); setLaedt(false); });
-  }, []);
+  }, [zusatz]);
   useEffect(() => { laden(); }, [laden]);
   useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onZu]);
 
@@ -1543,7 +1565,7 @@ function KalenderAboBlatt({ onZu }: { onZu: () => void }) {
   };
   const aendern = async (aktion: "erneuern" | "beenden") => {
     setBusy(true); setMeldung(null);
-    const r = await api(`/agent/kalender-abo/${aktion}`, { method: "POST" }).catch(() => ({ ok: false, json: null }));
+    const r = await api(`/agent/kalender-abo/${aktion}${zusatz}`, { method: "POST" }).catch(() => ({ ok: false, json: null }));
     setBusy(false); setFrage(null);
     if (!r.ok) { setMeldung(r.json?.error || "Das hat nicht geklappt — bitte noch einmal."); return; }
     // Gegenprüfung E-263: Der tote Link liefert einen LEEREN Kalender — die App leert sich, das Abo selbst bleibt stehen.
@@ -1557,8 +1579,10 @@ function KalenderAboBlatt({ onZu }: { onZu: () => void }) {
       <div className="ca-dialog ca-abo-blatt" onClick={(e) => e.stopPropagation()}>
         <div className="ca-dialog-kopf">
           <div>
-            <h2 id="ca-abo-titel">Deine Termine im Handy-Kalender</h2>
-            <small>Einmal abonnieren — neue Termine kommen von selbst, verschobene ändern sich, abgesagte verschwinden. Nichts doppelt.</small>
+            <h2 id="ca-abo-titel">{umfang === "team" ? "Die Termine des Teams im Handy-Kalender" : "Deine Termine im Handy-Kalender"}</h2>
+            <small>{umfang === "team"
+              ? "Ein eigener Kalender „FIAON · Termine des Teams“ mit den Terminen aller Kollegen — deine eigenen stehen in „FIAON · meine Termine“. Hält sich selbst aktuell, nichts doppelt."
+              : "Einmal abonnieren — neue Termine kommen von selbst, verschobene ändern sich, abgesagte verschwinden. Nichts doppelt."}</small>
           </div>
           <button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen"><ZeichenSchliessen size={18} /></button>
         </div>

@@ -521,6 +521,34 @@ export async function ansageText(lauf: Lauf = sqlPool): Promise<string> {
   return String(r?.value || ANSAGE_VORGABE);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIE ABSENDERNUMMER NACH LAND DES KUNDEN (E-516, 16.11.2026)
+//
+// Florentine (16.11.): „Ohne Schweizer Nummer kann ich gewisse Kunden nicht
+// anrufen." Das Telefon wählte Schweizer Nummern schon (DACH-Wand), zeigte dem
+// Kunden aber immer TWILIO_CALLER_ID — eine deutsche Nummer. Viele Schweizer
+// nehmen das nicht ab.
+//
+// Jetzt: Ruft man eine +41-Nummer an und ist TWILIO_CALLER_ID_CH gesetzt
+// (internationale Schreibweise), erscheint beim Kunden die Schweizer Nummer;
+// ebenso +43 mit TWILIO_CALLER_ID_AT. Fehlt die Länder-Nummer oder ist sie
+// unbrauchbar, bleibt alles wie vorher. Die Nummer muss bei Twilio dem Konto
+// gehören oder als „Verified Caller ID" bestätigt sein — sonst lehnt Twilio den
+// Ruf ab. Darum wird sie erst nach der Bestätigung eingetragen (Render-ENV).
+// Dieselbe Nummer steht in fiaon_calls.von_nummer, damit das Tageskontingent je
+// Absendernummer richtig zählt (nummerKontingent).
+// ═══════════════════════════════════════════════════════════════════════════
+const ABSENDER_FORM = /^\+[1-9]\d{6,15}$/;
+export function absenderFuerZiel(ziel: string, env: Record<string, string | undefined> = process.env): string {
+  const std = String(env.TWILIO_CALLER_ID || "").trim();
+  const nr = String(ziel || "").trim();
+  const ch = String(env.TWILIO_CALLER_ID_CH || "").trim();
+  const at = String(env.TWILIO_CALLER_ID_AT || "").trim();
+  if (nr.startsWith("+41") && ABSENDER_FORM.test(ch)) return ch;
+  if (nr.startsWith("+43") && ABSENDER_FORM.test(at)) return at;
+  return std;
+}
+
 /**
  * Das TwiML für einen ausgehenden Ruf.
  *

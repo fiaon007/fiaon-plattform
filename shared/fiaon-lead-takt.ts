@@ -153,8 +153,9 @@ export type LeadStandEreignis =
   | "selbst" | "ableitung"
   // Nachbesserung E-476 (Gutachten Sicherheit, Mangel 6): eine schriftliche Absage („kein Interesse“) — der Auftrag schließt sich.
   | "schriftlich_abgesagt"
-  // E-481 (Mara Business): er wählt das Gespräch per E-Mail (Justin schreibt aus js@) oder auf WhatsApp (Mara) — der
-  // Wunsch des Kunden zählt, Daniels Anruf-Auftrag schließt sich mit Vermerk.
+  // E-481 (Mara Business): er wählt das Gespräch per E-Mail (Justin schreibt aus js@) — der Wunsch des Kunden zählt,
+  // Daniels Anruf-Auftrag schließt sich mit Vermerk. Auf WhatsApp (Mara): seit 16.11.2026 bleibt der Auftrag OFFEN, bis ein
+  // Termin steht (Befund 10.11.: „bitte nicht anrufen“, Mara buchte nie, niemand rief an).
   | "weg_mail" | "weg_whatsapp";
 
 /** Was mit dem Anruf-Auftrag („bitte anrufen“, global-anfrage:<id>, und dem Rückruf der Vertretung) passiert. */
@@ -167,6 +168,8 @@ export type AuftragFolge = "schliessen" | "offen_lassen" | "wieder_oeffnen" | nu
  */
 export function auftragNachEreignis(e: LeadStandEreignis): AuftragFolge {
   if (e === "anruf:nicht_erreicht" || e === "anruf:mailbox") return "offen_lassen";
+  // 16.11.2026: „spricht auf WhatsApp mit Mara“ ist kein Termin — der Anruf-Auftrag bleibt offen (Vermerk + Wiedervorlage).
+  if (e === "weg_whatsapp") return "offen_lassen";
   if (e === "termin_abgesagt" || e === "gespraech_nicht_zustande") return "wieder_oeffnen";
   if (e === "ableitung") return null;
   return "schliessen";

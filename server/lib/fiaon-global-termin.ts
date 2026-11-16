@@ -66,6 +66,8 @@ import { googleKalenderLink } from "./fiaon-ics";
 import { absoluteUrl } from "../fiaon-base-url";
 import { globalPaket, globalPreisText } from "@shared/fiaon-global";
 import { GLOBAL_TEXTE, globalText } from "@shared/fiaon-global-termin-texte";
+// 16.11.2026: EINE Regel für „ist diese Zeit frei?“ — dieselbe Funktion prüft Maras Angebot auf WhatsApp.
+import { freieZeitFinden } from "@shared/fiaon-mara-wa-termin";
 // E-476 (05.11.2026): der Platzhalter „Privatperson · <Name>“ aus EINER Konstante — das Lead-Dossier erkennt ihn daran.
 import { privatpersonPlatzhalter, firmaBrauchbar } from "@shared/fiaon-global-lead";
 // E-476 Scheibe 4 (05.11.2026): die Lead-Mails aus einem Guss — SEINE Sätze in der Bestätigung, die Privatkunden-Weiche.
@@ -262,7 +264,13 @@ function nameTeilen(name: string): { vorname: string | null; nachname: string | 
   return { vorname: teile[0], nachname: teile.slice(1).join(" ") };
 }
 
-export function globalKontaktLesen(b: any): GlobalKontakt | GlobalFeldFehler {
+/**
+ * Der eine Leser für Buchung und Anfrage. `ohneMail` (16.11.2026): NUR für Maras Buchung auf WhatsApp — eine Anfrage, die aus
+ * WhatsApp kam, hat keine E-Mail; eine LEERE Adresse ist dann erlaubt (eine falsche nie), die Bestätigung kommt über
+ * WhatsApp. Befund 10.11.: Ohne diese Ausnahme scheiterte jede solche Buchung still, und Mara sagte „vergeben“.
+ * Öffentliche Formulare rufen ohne `opt` — dort bleibt die E-Mail Pflicht.
+ */
+export function globalKontaktLesen(b: any, opt: { ohneMail?: boolean } = {}): GlobalKontakt | GlobalFeldFehler {
   const en = String(b?.sprache ?? "").toLowerCase().startsWith("en");
   const T = en ? GLOBAL_TEXTE.en : GLOBAL_TEXTE.de;
   // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 1): Name und Firma ohne < > " (sie landen in Mails und im Cockpit), die
@@ -276,7 +284,7 @@ export function globalKontaktLesen(b: any): GlobalKontakt | GlobalFeldFehler {
   const telefon = String(b?.telefon ?? "").replace(/[^\d\s+()\/-]/g, "").replace(/\s+/g, " ").trim().slice(0, 40);
   if (name.length < 2) return { feld: "name", error: T.fehlerName };
   const firma = firmaRoh.length >= 2 ? firmaRoh : privatpersonPlatzhalter(name, en ? "en" : "de");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { feld: "email", error: T.fehlerEmail };
+  if (!(opt.ohneMail && email === "") && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { feld: "email", error: T.fehlerEmail };
   if (telefon.replace(/\D/g, "").length < 6) return { feld: "telefon", error: T.fehlerTelefon };
   // Ein unbekanntes Paket ist kein Fehler des Menschen: Der Wunsch bleibt
   // dann leer, das Gespräch findet trotzdem statt.
@@ -343,7 +351,8 @@ export async function globalTerminBuchen(ein: {
   const person = angebot.person;
   const kalender = angebot.kalender ?? null;
   const alt = !kalender || kalender.modus === "alt";
-  const slot = angebot.ergebnis.frei.find((f) => f.tag === ein.tag && f.zeit === ein.zeit);
+  // Dieselbe Regel wie Maras Vorprüfung auf WhatsApp (freieZeitFinden, shared/fiaon-mara-wa-termin.ts) — auf derselben Liste.
+  const slot = freieZeitFinden(angebot.ergebnis.frei, { tag: ein.tag, zeit: ein.zeit });
   if (!slot) {
     await versuchProtokollieren({ ergebnis: "abgelehnt", grund: "nicht_angeboten", agentId: person.id, quelle: "global", akteur: ein.durch ? "agent" : "kunde" });
     return { ok: false, status: 409, grund: "nicht_angeboten", angebot, feld: "zeit",
@@ -504,11 +513,11 @@ export async function globalTerminBuchen(ein: {
   const wegZeile = ein.durch
     ? `Eingetragen im Gespräch von ${ein.durch.name} (Firmen-Cockpit).`
     : ausLink
-      ? `Gebucht über den persönlichen Link (Anfrage #${ausLink.anfrageId})${k.email !== ausLink.email.toLowerCase() ? ` — angegeben: ${k.email}` : ""}.`
+      ? `Gebucht über den persönlichen Link (Anfrage #${ausLink.anfrageId})${k.email && k.email !== String(ausLink.email ?? "").toLowerCase() ? ` — angegeben: ${k.email}` : ""}.`
       : `Gebucht über fiaon.com (${zu.angelegt ? "neuer Kontakt" : "bekannte Person"})${lead?.anfrageId ? ` — gehört zu Anfrage #${lead.anfrageId}` : ""}.`;
   const notiz = [
     `Firma: ${k.firma}`,
-    `Ansprechpartner: ${k.name} · ${k.telefon} · ${k.email}`,
+    `Ansprechpartner: ${[k.name, k.telefon, k.email || "ohne E-Mail (Kontakt über WhatsApp)"].join(" · ")}`,
     k.paketText ? `Paketwunsch: ${k.paketText}` : "Paketwunsch: noch offen",
     k.land ? `Land: ${k.land}` : "",
     en ? "Sprache: Englisch" : "",
@@ -559,7 +568,10 @@ export async function globalTerminBuchen(ein: {
     ? await import("./fiaon-global-lead-post").then((m) => m.antwortenDerAnfrage(lead.anfrageId)).then((a) => angabenSatz(a, k.sprache === "en" ? "en" : "de")).catch(() => "")
     : "";
   const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
-  await versendenUndProtokollieren(
+  // 16.11.2026: Ohne E-Mail (Maras Buchung auf WhatsApp) keine Mail — Mara bestätigt im Chat, der Takt schickt die
+  // Terminnachricht (fiaon_gl_termin) und am Vortag die Erinnerung über WhatsApp.
+  if (!k.email) console.log(`[GLOBAL-TERMIN] #${buchung.id}: ohne E-Mail — die Bestätigung kommt über WhatsApp.`);
+  else await versendenUndProtokollieren(
     "global_termin",
     globalTerminPayload({
       email: k.email, name: k.name, firma: k.firma, telefon: k.telefon, paketText: k.paketText,
@@ -604,7 +616,7 @@ export async function globalTerminBuchen(ein: {
           `Erstgespräch zu FIAON Global, ${ein.durch ? `eingetragen von ${ein.durch.name}` : "gebucht über den Kalender auf fiaon.com"}.`,
           `Wann: ${buchung.datumText} um ${buchung.uhrzeit} Uhr, ${GLOBAL_DAUER_MIN} Minuten — du rufst an.`,
           `Firma: ${k.firma} · Ansprechpartner: ${k.name}`,
-          `Telefon: ${k.telefon} · E-Mail: ${k.email}`,
+          `Telefon: ${k.telefon} · E-Mail: ${k.email || "keine (Kontakt über WhatsApp)"}`,
           `Paketwunsch: ${k.paketText ?? "noch offen"}${k.land ? ` · Land: ${k.land}` : ""}${en ? " · Gespräch auf ENGLISCH" : ""}`,
           ein.thema ? `Thema: ${ein.thema}` : null,
           ein.durch ? `Was er selbst erzählt hat: ${ein.durch.erzaehlt}` : null,

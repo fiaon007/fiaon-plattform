@@ -799,7 +799,8 @@ const EREIGNIS_SATZ: Readonly<Record<string, string>> = {
   selbst: "Justin ruft selbst an", ableitung: "Stand aus dem Cockpit übernommen",
   schriftlich_abgesagt: "schriftlich abgesagt (kein Interesse) — bitte nicht anrufen",
   weg_mail: "wünscht das Gespräch per E-Mail (Justin schreibt aus js@) — bitte nicht anrufen",
-  weg_whatsapp: "spricht auf WhatsApp mit Mara — bitte nicht anrufen",
+  // 16.11.2026: kein „bitte nicht anrufen“ mehr — ohne Termin bleibt der Anruf-Auftrag offen (auftragNachEreignis).
+  weg_whatsapp: "spricht auf WhatsApp mit Mara, noch ohne Termin — bitte anrufen, falls bis zur Wiedervorlage kein Termin steht",
 };
 
 /**

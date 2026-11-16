@@ -40,6 +40,12 @@ import {
 import { antwortZeile, type LeadAntwort } from "@shared/fiaon-global-lead";
 import { imVersandfenster, berlinMinuten } from "@shared/fiaon-nicht-erreicht-nachfass";
 import { berlinHeuteIso } from "@shared/fiaon-geburtsdatum";
+// 16.11.2026: EINE Regel für „frei?“, das Lesen seines Wunsches und die Absage-Sätze (Befund: fünfmal „vergeben“ ohne Grund).
+import {
+  waZeitText, waZeitAngebot, waTerminEntscheiden, zweiAlternativen, waAbsageArt, waAbsageForm, satzNichtFrei,
+  satzRueckfrage, satzWunschWeitergegeben, kontaktErgaenzen, type WaFreieZeit, type WaWunsch,
+} from "@shared/fiaon-mara-wa-termin";
+import { plusWerktage } from "@shared/fiaon-wiedervorlage";
 
 type Lauf = typeof sqlPool;
 
@@ -235,6 +241,21 @@ export async function businessKontakt(nummerRoh: string, personId: number | null
     const [d] = anfrageId ? (await lauf`SELECT antworten, firma_id FROM fiaon_lead_dossier WHERE anfrage_id = ${anfrageId} ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[] : [];
     const roh = Array.isArray(d?.antworten) ? d.antworten : (typeof d?.antworten === "string" ? (() => { try { return JSON.parse(d.antworten); } catch { return []; } })() : []);
     const antworten = (roh as LeadAntwort[]).filter((x) => x && x.frage && x.antwort).map((x) => antwortZeile(x));
+    // 16.11.2026 (Befund 10.11.: fünfmal „vergeben“): Eine Anfrage aus WhatsApp trägt weder Name noch Firma noch E-Mail. Eine
+    // zweite Global-Anfrage desselben Anschlusses (z. B. das Meta-Formular Sekunden später) füllt die LEEREN Felder — die
+    // neueste zuerst. Gibt es keine, bucht Mara trotzdem (buchen: ohne E-Mail, die Bestätigung kommt über WhatsApp).
+    let weitere: any[] = [];
+    const k9 = nummerKey9(nummer);
+    if (k9 && (!String(a?.name ?? "").trim() || !String(a?.firma ?? "").trim() || !String(a?.email ?? "").trim())) {
+      weitere = (await lauf`
+        SELECT name, firma, email FROM fiaon_anfragen
+         WHERE art = 'global' AND id <> ${anfrageId ?? 0} AND NOT COALESCE(ist_test, FALSE) AND COALESCE(status, '') <> 'privat'
+           AND created_at > NOW() - INTERVAL '60 days'
+           AND RIGHT(REGEXP_REPLACE(COALESCE(telefon, ''), '\\D', '', 'g'), 9) = ${k9}
+         ORDER BY created_at DESC LIMIT 5`.catch(() => [])) as any[];
+    }
+    const daten = kontaktErgaenzen(a, weitere);
+    // Die Anrede nur aus SEINER Anfrage (wie bisher) — ein Formularname wie „Firma XY Restaurant“ gehört in keine Anrede.
     const name = String(a?.name ?? "").trim();
     const { leadAnredeZeile } = await import("@shared/fiaon-global-lead-texte");
     const anredeZeile = name ? leadAnredeZeile(name, "de") : "";
@@ -242,7 +263,7 @@ export async function businessKontakt(nummerRoh: string, personId: number | null
     if (anfrageId && !z) await zeileMerken(nummer, { anfrageId, firmaId: d?.firma_id ? Number(d.firma_id) : null }, lauf).catch(() => {});
     return {
       nummer, anfrageId, firmaId: z?.firma_id ? Number(z.firma_id) : (d?.firma_id ? Number(d.firma_id) : null),
-      anrede, name, firma: String(a?.firma ?? "").trim(), email: String(a?.email ?? "").trim(), telefon: String(a?.telefon ?? "").trim(),
+      anrede, name: daten.name, firma: daten.firma, email: daten.email, telefon: String(a?.telefon ?? "").trim(),
       code: link?.code ?? null, link: link?.url ?? null,
       weg: istGespraechsweg(z?.weg) ? z.weg : null,
       englisch: /^Sprache:\s*Englisch/m.test(String(a?.text ?? "")),
@@ -313,8 +334,11 @@ async function anfrageAusWhatsapp(nummer: string, text: string, lauf: Lauf): Pro
 
 // ── Der gewählte Weg ───────────────────────────────────────────────────────
 /**
- * Merkt den Weg (telefon | mail | whatsapp). Wählt er E-Mail oder WhatsApp, schließt sich Daniels Anruf-Auftrag mit
- * Vermerk (leadStandSetzen); bei E-Mail bekommt Justin eine kurze Mail, dass er schreiben soll. Wirft nie.
+ * Merkt den Weg (telefon | mail | whatsapp). Wählt er E-Mail, schließt sich Daniels Anruf-Auftrag mit Vermerk
+ * (leadStandSetzen), und Justin bekommt eine kurze Mail, dass er schreiben soll. 16.11.2026: Wählt er WhatsApp, bleibt der
+ * Anruf-Auftrag OFFEN, bis ein Termin steht (dann schließt ihn die Buchung) — mit Vermerk und Wiedervorlage am nächsten
+ * Werktag. Vorher schloss er sich sofort mit „bitte nicht anrufen“; scheiterte das Gespräch mit Mara, rief niemand an.
+ * Wirft nie.
  */
 export async function wegSetzen(nummer: string, weg: Gespraechsweg, quelle: string, lauf: Lauf = sqlPool): Promise<void> {
   try {
@@ -335,7 +359,12 @@ export async function wegSetzen(nummer: string, weg: Gespraechsweg, quelle: stri
     }
     if (weg === "mail" || weg === "whatsapp") {
       const { leadStandSetzen } = await import("./fiaon-lead-takt");
-      await leadStandSetzen({ anfrageId, ereignis: weg === "mail" ? "weg_mail" : "weg_whatsapp", wer: { id: null, name: "Mara (WhatsApp)" } }, lauf).catch(() => {});
+      await leadStandSetzen({
+        anfrageId, ereignis: weg === "mail" ? "weg_mail" : "weg_whatsapp", wer: { id: null, name: "Mara (WhatsApp)" },
+        // WhatsApp: der Auftrag bleibt offen (auftragNachEreignis → offen_lassen) — Daniel ruft am nächsten Werktag an, falls bis
+        // dahin kein Termin steht; bucht Mara vorher, schließt die Buchung ihn („termin_gebucht“).
+        ...(weg === "whatsapp" ? { wiedervorlage: plusWerktage(berlinHeuteIso(), 1) } : {}),
+      }, lauf).catch(() => {});
     }
     if (weg === "whatsapp") {
       // Er spricht jetzt auf WhatsApp mit Mara — die Nachfass-Mails aus js@ hören auf (Stopp „hat geantwortet“, E-476).
@@ -368,27 +397,25 @@ async function anJustin(anfrageId: number | null, kurz: string, text: string, la
 }
 
 // ── Freie Zeiten bei Justin ────────────────────────────────────────────────
-const WOCHENTAG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
-/** „Donnerstag, 12.11., 14:00 Uhr“ aus Tag (JJJJ-MM-TT, Berlin) und Zeit. Rein. */
-export function zeitText(tag: string, zeit: string): string {
-  const [j, m, t] = tag.split("-").map(Number);
-  const wt = WOCHENTAG[new Date(Date.UTC(j, (m || 1) - 1, t || 1, 12)).getUTCDay()];
-  return `${wt}, ${String(t).padStart(2, "0")}.${String(m).padStart(2, "0")}., ${zeit} Uhr`;
-}
-/** Bis zu drei Zeiten an verschiedenen Tagen (die frühesten), dazu alle als Text für Mara. */
-export async function freieZeiten(): Promise<{ angebot: { tag: string; zeit: string; text: string }[]; alle: { tag: string; zeit: string; text: string }[] }> {
+/** „Donnerstag, 12.11., 14:00 Uhr“ aus Tag (JJJJ-MM-TT, Berlin) und Zeit. Rein. (Seit 16.11.2026 in shared/fiaon-mara-wa-termin.ts.) */
+export const zeitText = waZeitText;
+type FreiZeile = { tag: string; zeit: string; text: string; beginn?: string };
+/**
+ * Die freien Zeiten bei Justin — DIESELBE Quelle wie die Annahme (globalAngebotLaden → ergebnis.frei, mit Arbeitszeit,
+ * Sperrzeiten E-498, Vorlauf, beiden Tagesdeckeln). `frei` = alle (für die Vorprüfung mit freieZeitFinden), `alle` = die
+ * ersten 24 als Text für Mara, `angebot` = bis zu drei an verschiedenen Tagen (die frühesten).
+ */
+export async function freieZeiten(): Promise<{ angebot: FreiZeile[]; alle: FreiZeile[]; frei: FreiZeile[] }> {
   try {
     const { globalAngebotLaden } = await import("./fiaon-global-termin");
     const st = await globalAngebotLaden();
-    const frei = [...(st.ergebnis?.frei ?? [])].sort((a: any, b: any) => `${a.tag} ${a.zeit}`.localeCompare(`${b.tag} ${b.zeit}`));
-    const alle = frei.slice(0, 24).map((f: any) => ({ tag: String(f.tag), zeit: String(f.zeit), text: zeitText(String(f.tag), String(f.zeit)) }));
-    const angebot: typeof alle = [];
-    const tage = new Set<string>();
-    for (const f of alle) { if (tage.has(f.tag)) continue; tage.add(f.tag); angebot.push(f); if (angebot.length === 3) break; }
-    return { angebot, alle };
+    const frei: FreiZeile[] = [...(st.ergebnis?.frei ?? [])]
+      .sort((a: any, b: any) => `${a.tag} ${a.zeit}`.localeCompare(`${b.tag} ${b.zeit}`))
+      .map((f: any) => ({ tag: String(f.tag), zeit: String(f.zeit), beginn: f.beginn ? String(f.beginn) : undefined, text: zeitText(String(f.tag), String(f.zeit)) }));
+    return { angebot: waZeitAngebot(frei, 3), alle: frei.slice(0, 24), frei };
   } catch (e) {
     console.error("[MARA-BUSINESS] freie Zeiten:", String((e as Error)?.message || e).slice(0, 160));
-    return { angebot: [], alle: [] };
+    return { angebot: [], alle: [], frei: [] };
   }
 }
 
@@ -403,21 +430,45 @@ async function kommendesGespraech(k: BusinessKontakt, lauf: Lauf): Promise<{ id:
   return { id: t.terminId, text: zeitText(tag, zeit), beginn: b };
 }
 
-/** Bucht eine von Mara angebotene Zeit bei Justin über den persönlichen Link der Anfrage. */
-async function buchen(k: BusinessKontakt, tag: string, zeit: string): Promise<{ ok: boolean; text: string | null; terminId: number | null }> {
+/** Warum eine Buchung nicht stand — „nicht_frei“ ist die EINZIGE Art, die Mara als „nicht frei“ sagen darf. */
+export type BuchenGrund = "nicht_frei" | "schon_gebucht" | "kontakt" | "fehler";
+/** Diese Gründe aus globalTerminBuchen heißen: die Zeit ist (jetzt) nicht frei — alles andere ist kein „vergeben“. */
+const NICHT_FREI_GRUENDE = ["nicht_angeboten", "belegt", "tag_voll", "zu_frueh", "zu_spaet", "kein_slot", "vergangenheit"];
+
+/**
+ * Bucht eine von Mara angebotene Zeit bei Justin über den persönlichen Link der Anfrage. 16.11.2026: Der Kontakt wird OHNE
+ * E-Mail-Pflicht gelesen (eine Anfrage aus WhatsApp hat keine — vorher scheiterte hier jede Buchung still), und das
+ * Ergebnis sagt WARUM es nicht ging; bei „nicht frei“ kommen die frischen freien Zeiten mit (für zwei Alternativen).
+ */
+async function buchen(k: BusinessKontakt, tag: string, zeit: string): Promise<
+  { ok: true; text: string; terminId: number | null } | { ok: false; grund: BuchenGrund; detail: string; frei: WaFreieZeit[] | null }
+> {
   try {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || !/^\d{2}:\d{2}$/.test(zeit)) return { ok: false, text: null, terminId: null };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tag) || !/^\d{2}:\d{2}$/.test(zeit)) return { ok: false, grund: "fehler", detail: "Zeit unlesbar", frei: null };
     const { globalTerminBuchen, globalKontaktLesen } = await import("./fiaon-global-termin");
-    const kontakt = globalKontaktLesen({ name: k.name || "Business-Lead", firma: k.firma, email: k.email, telefon: k.telefon || `+${k.nummer}`, sprache: k.englisch ? "en" : "de" });
-    if ("error" in kontakt) return { ok: false, text: null, terminId: null };
+    const kontakt = globalKontaktLesen(
+      { name: k.name || "Business-Lead", firma: k.firma, email: k.email, telefon: k.telefon || `+${k.nummer}`, sprache: k.englisch ? "en" : "de" },
+      { ohneMail: true },
+    );
+    if ("error" in kontakt) {
+      console.error(`[MARA-BUSINESS] buchen …${k.nummer.slice(-4)}: Kontakt unvollständig (${kontakt.feld}) — an Justin.`);
+      return { ok: false, grund: "kontakt", detail: `Kontakt unvollständig (${kontakt.feld})`, frei: null };
+    }
     const erg: any = await globalTerminBuchen({ kontakt, tag, zeit, thema: "Über WhatsApp mit Mara (FIAON Global)", code: k.code });
-    if (!erg?.ok) return { ok: false, text: null, terminId: null };
+    if (!erg?.ok) {
+      const g = String(erg?.grund ?? "");
+      const frei = Array.isArray(erg?.angebot?.ergebnis?.frei) ? (erg.angebot.ergebnis.frei as WaFreieZeit[]) : null;
+      if (NICHT_FREI_GRUENDE.includes(g)) return { ok: false, grund: "nicht_frei", detail: g, frei };
+      if (g === "schon_gebucht") return { ok: false, grund: "schon_gebucht", detail: g, frei: null };
+      console.error(`[MARA-BUSINESS] buchen …${k.nummer.slice(-4)}: ${g || "unbekannt"} — ${String(erg?.error ?? "").slice(0, 120)}`);
+      return { ok: false, grund: "fehler", detail: g || "unbekannt", frei: null };
+    }
     const terminId = Number(erg.terminId ?? erg.termin?.id ?? 0) || null;
     if (terminId) await sqlPool`UPDATE fiaon_wa_global SET termin_gemeldet_id = ${terminId}, updated_at = NOW() WHERE nummer = ${k.nummer}`.catch(() => {});
     return { ok: true, text: zeitText(tag, zeit), terminId };
   } catch (e) {
     console.error("[MARA-BUSINESS] buchen:", String((e as Error)?.message || e).slice(0, 200));
-    return { ok: false, text: null, terminId: null };
+    return { ok: false, grund: "fehler", detail: String((e as Error)?.message || e).slice(0, 120), frei: null };
   }
 }
 
@@ -497,7 +548,7 @@ export async function maraBusinessAntwortet(ein: MbEin): Promise<{ gesendet: boo
 
   // 2. Das Modell — mit Business-Gehirn, Wand und genau einem zweiten Versuch.
   const termin = await kommendesGespraech(k, sqlPool).catch(() => null);
-  const zeiten = termin ? { angebot: [], alle: [] } : await freieZeiten();
+  const zeiten = termin ? { angebot: [], alle: [], frei: [] } : await freieZeiten();
   const { erzaehltLesen } = await import("./fiaon-lead-weg");
   const erzaehlt = k.firmaId ? (await erzaehltLesen(k.firmaId).catch(() => [])).slice(0, 4).map((x) => x.text) : [];
   const anweisung = String((await einstellung(MB_SCHLUESSEL.anweisung)) ?? "").trim() || null;
@@ -539,13 +590,56 @@ export async function maraBusinessAntwortet(ein: MbEin): Promise<{ gesendet: boo
   const handlungen: string[] = [];
   if (istGespraechsweg(obj.weg) && obj.weg !== k.weg) { await wegSetzen(nummer, obj.weg, "chat"); handlungen.push(`Weg ${obj.weg}`); }
   if (obj.termin && !termin) {
-    const b = await buchen(k, String(obj.termin.tag ?? ""), String(obj.termin.zeit ?? ""));
-    if (b.ok && b.text) { text = satzGebucht(b.text, k.englisch); handlungen.push(`Gespräch gebucht ${b.text}`); }
-    else {
-      const z = await freieZeiten();
-      text = `${k.englisch ? "That time has just been taken, I am sorry." : "Diese Zeit ist leider gerade vergeben."} ${satzTelefon(z.angebot.map((x) => x.text), k.link, k.englisch)}`;
-      handlungen.push("Zeit vergeben — neue angeboten");
+    // 16.11.2026 (Befund 10.11.: fünfmal wörtlich „Diese Zeit ist leider gerade vergeben“, auch für Maras eigene Zeit — die
+    // Anfrage aus WhatsApp hatte keine E-Mail, und JEDES Scheitern hieß „vergeben“). Jetzt: dieselbe Liste wie die Annahme,
+    // EINE Regel (freieZeitFinden), seine eigenen Worte als Gegenprobe; „nicht frei“ nur, wenn die Zeit wirklich nicht frei
+    // ist — dann sofort zwei konkrete freie Zeiten, und nie zweimal hintereinander dieselbe Absage.
+    const letzteMara = String(ein.verlauf.find((v) => v.richtung === "raus" && String(v.text ?? "").trim())?.text ?? "") || null;
+    const frei: WaFreieZeit[] = zeiten.frei.length ? zeiten.frei : (await freieZeiten()).frei;
+    const e = waTerminEntscheiden({ modell: obj.termin, kunde: seinText, kontext: letzteMara, jetzt: new Date(), frei });
+    const wunschText = (w: WaWunsch) => (w.tag && w.zeit ? zeitText(w.tag, w.zeit) : null);
+    const wer = `${k.name || "Business-Lead"}${k.firma ? ` (${k.firma})` : ""}`;
+    const nichtFrei = async (w: WaWunsch, alternativen: WaFreieZeit[]) => {
+      const art = waAbsageArt(letzteMara, alternativen.length);
+      text = satzNichtFrei({ wunsch: wunschText(w), alternativen: alternativen.map((x) => zeitText(x.tag, x.zeit)), link: k.link, englisch: k.englisch, art });
+      if (art === "uebergabe") {
+        await ein.anJustinUebergeben(`FIAON Global — ${wer} möchte auf WhatsApp ein Gespräch mit dir, aber ${wunschText(w) ?? "seine Wunschzeit"} ist nicht frei${alternativen.length ? " (zum zweiten Mal in Folge)" : ", und gerade ist keine Zeit frei"}. Bitte eine Zeit mit ihm festmachen und im Firmen-Cockpit „Termin bei Justin eintragen“ — er schrieb: „${seinText.slice(0, 200)}“`);
+        handlungen.push("Zeit nicht frei — an Justin übergeben");
+      } else {
+        handlungen.push(`Zeit nicht frei — zwei freie Zeiten genannt (${alternativen.map((x) => `${x.tag} ${x.zeit}`).join(", ")})`);
+      }
+    };
+    if (e.art === "buchen") {
+      const b = await buchen(k, e.slot.tag, e.slot.zeit);
+      if (b.ok) {
+        text = satzGebucht(b.text, k.englisch);
+        handlungen.push(`Gespräch gebucht ${b.text}${e.quelle === "kunde" ? " (aus seinen eigenen Worten)" : ""}`);
+      } else if (b.grund === "nicht_frei") {
+        // In der Zwischenzeit vergeben (oder Vorlauf überschritten): die FRISCHEN freien Zeiten aus der Annahme.
+        const frisch = b.frei ?? (await freieZeiten()).frei;
+        await nichtFrei({ tag: e.slot.tag, zeit: e.slot.zeit }, zweiAlternativen(frisch, { tag: e.slot.tag, zeit: e.slot.zeit }));
+      } else if (b.grund === "schon_gebucht") {
+        const steht = await kommendesGespraech(k, sqlPool).catch(() => null);
+        if (steht) text = satzPasst(steht.text, k.englisch);
+        else {
+          text = satzWunschWeitergegeben(zeitText(e.slot.tag, e.slot.zeit), k.englisch);
+          await ein.anJustinUebergeben(`FIAON Global — ${wer} möchte ${zeitText(e.slot.tag, e.slot.zeit)} (auf WhatsApp mit Mara), laut Kalender steht schon ein Gespräch, Mara findet es aber nicht. Bitte prüfen und ihm auf WhatsApp bestätigen.`);
+        }
+        handlungen.push("Gespräch stand schon");
+      } else {
+        // Ein technischer Fehler ist nie „vergeben“ — der Wunsch geht an Justin, der Kunde erfährt die Wahrheit.
+        text = satzWunschWeitergegeben(zeitText(e.slot.tag, e.slot.zeit), k.englisch);
+        await ein.anJustinUebergeben(`FIAON Global — ${wer} möchte ${zeitText(e.slot.tag, e.slot.zeit)} (auf WhatsApp mit Mara vereinbart, die Zeit ist frei), aber Mara konnte nicht eintragen (${b.detail}). Bitte im Firmen-Cockpit „Termin bei Justin eintragen“ und ihm auf WhatsApp bestätigen.`);
+        handlungen.push(`Eintragen ging nicht (${b.detail}) — an Justin übergeben`);
+      }
+    } else if (e.art === "rueckfrage") {
+      text = satzRueckfrage(e.kandidaten.map((x) => zeitText(x.tag, x.zeit)), k.link, k.englisch);
+      handlungen.push("Zeit nicht eindeutig — nachgefragt");
+    } else {
+      await nichtFrei(e.wunsch, e.alternativen);
     }
+    // Wache: nie wörtlich dieselbe Absage wie eben (der Befund: fünfmal derselbe Satz).
+    if (letzteMara && waAbsageForm(text) && text.trim() === letzteMara.trim()) text = satzUebergabe(k.englisch);
   }
   if (obj.notiz && k.firmaId) {
     const { erzaehltVermerken } = await import("./fiaon-lead-weg");

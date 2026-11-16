@@ -161,7 +161,8 @@ gleich(anfrageNummer("+43 664 1234567"), "436641234567", "österreichische Handy
 gleich(anfrageNummer("+41 79 123 45 67"), "41791234567", "Schweizer Handynummer");
 gleich(zeitText("2026-11-12", "14:00"), "Donnerstag, 12.11., 14:00 Uhr", "Zeit-Text");
 gleich(TAKT.auftragNachEreignis("weg_mail" as any), "schliessen", "Wahl E-Mail schließt Daniels Anruf-Auftrag");
-gleich(TAKT.auftragNachEreignis("weg_whatsapp" as any), "schliessen", "Wahl WhatsApp schließt Daniels Anruf-Auftrag");
+// 16.11.2026 (Befund 10.11.): WhatsApp ist kein Termin — Daniels Anruf-Auftrag bleibt offen (Vermerk + Wiedervorlage), bis Mara bucht.
+gleich(TAKT.auftragNachEreignis("weg_whatsapp" as any), "offen_lassen", "Wahl WhatsApp lässt Daniels Anruf-Auftrag offen, bis ein Termin steht");
 
 abschnitt("A7 Quelltext-Wände");
 const wa = lies("server/lib/fiaon-whatsapp.ts");

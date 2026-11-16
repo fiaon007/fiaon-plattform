@@ -123,6 +123,81 @@ export function firmaNameVerbindet(firmaRoh: unknown, personName?: unknown): boo
   return !ROLLE_IM_FELD.test(firma);
 }
 
+// ── WORAN ZWEI EINGÄNGE DERSELBE LEAD SIND — DIE EINE REGEL (E-487 Nachtrag, 16.11.2026) ─────────────────────────────
+// Vorher stand die Regel viermal im Haus: im Eingang (globalLeadAufnehmen, mit Nummer und Firmenname) und dreimal als
+// „Karte zur Anfrage“ (Lead-Weg, Takt, Dossier — nur Person und Mail, ohne Nummer). Eine WhatsApp-Anfrage ohne Mail fand
+// ihre Karte dort nie, eine Fantasienummer („0123456789“) verband im Eingang fremde Menschen. Jetzt: EINE Merkmal-Regel
+// hier (rein) und EINE Abfrage dazu (server/lib/fiaon-lead-zuordnung.ts). Zuordnung nur über eindeutige Merkmale:
+// Person, Mail, Mobilnummer (letzte 9 Ziffern, „+49 152…“ = „0152…“ = „152…“) — der Firmenname nur, wenn er eine Firma
+// mit Rechtsform benennt (firmaNameVerbindet; nie „Selbständig“, „GmbH“ allein, „noch offen“, „-“, der eigene Name).
+
+/** Die letzten neun Ziffern einer Nummer — erst ab neun Ziffern, sonst "". Die Ländervorwahl fällt so heraus. Rein. */
+export function telefon9(tel: unknown): string {
+  const d = String(tel ?? "").replace(/\D/g, "");
+  return d.length >= 9 ? d.slice(-9) : "";
+}
+
+/** Eine Fantasienummer (weniger als drei verschiedene Ziffern, 123456789, 987654321 …) belegt keine Person. Rein. */
+export function telefonTrivial(n9: string): boolean {
+  if (!/^\d{9}$/.test(n9)) return true;
+  if (new Set(n9.split("")).size < 3) return true;
+  const d = n9.split("").map(Number);
+  const auf = d.every((x, i) => i === 0 || x === (d[i - 1] + 1) % 10);
+  const ab = d.every((x, i) => i === 0 || x === (d[i - 1] + 9) % 10);
+  return auf || ab;
+}
+
+/** Die letzten neun Ziffern, nur wenn sie eine echte Nummer sein können — sonst "" (verbindet dann nie). Rein. */
+export function telefon9Echt(tel: unknown): string {
+  const n9 = telefon9(tel);
+  return n9 && !telefonTrivial(n9) ? n9 : "";
+}
+
+/** Die Mail für den Abgleich: klein, ohne Rand — nur mit „@“ und einem Punkt in der Domain, sonst "" („keine“, „-“). Rein. */
+export function mailSchluessel(m: unknown): string {
+  const s = String(m ?? "").trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s : "";
+}
+
+/** Die Merkmale eines Eingangs, an denen er seine Karte findet. Leere Felder ("" / null) verbinden nie. */
+export interface LeadMerkmale {
+  personId: number | null;
+  email: string;
+  tel9: string;
+  /** Der Firmenname klein und ohne Rand — NUR wenn er allein verbinden darf (firmaNameVerbindet), sonst "". */
+  firmaName: string;
+}
+
+/**
+ * Die Merkmale aus dem, was der Lead angegeben hat. `firma`/`name` weglassen = ohne Firmenname (die „Karte zur Anfrage“
+ * sucht nie über den Namen). Der Firmenname in derselben Form, wie der Eingang ihn speichert (trim, höchstens 200 Zeichen). Rein.
+ */
+export function leadMerkmale(ein: { personId?: unknown; email?: unknown; telefon?: unknown; firma?: unknown; name?: unknown }): LeadMerkmale {
+  const p = Number(ein.personId);
+  const firma = String(ein.firma ?? "").trim().slice(0, 200);
+  return {
+    personId: ein.personId != null && Number.isInteger(p) && p > 0 ? p : null,
+    email: mailSchluessel(ein.email),
+    tel9: telefon9Echt(ein.telefon),
+    firmaName: firma && firmaNameVerbindet(firma, ein.name) ? firma.toLowerCase() : "",
+  };
+}
+
+export type LeadTreffer = "person" | "mail" | "telefon" | "firma";
+
+/**
+ * Sind zwei Eingänge derselbe Lead (dieselbe Karte)? In der Rangfolge der Abfrage: Person, Mail, Nummer, Firmenname — null =
+ * nein (neue Karte). Dieselbe Regel wie karteZuMerkmalen (server/lib/fiaon-lead-zuordnung.ts) — Prüfstand
+ * scripts/pruef-firmenkarte-platzhalter.ts. Rein.
+ */
+export function gleicherLead(a: LeadMerkmale, b: LeadMerkmale): LeadTreffer | null {
+  if (a.personId != null && a.personId === b.personId) return "person";
+  if (a.email && a.email === b.email) return "mail";
+  if (a.tel9 && a.tel9 === b.tel9) return "telefon";
+  if (a.firmaName && a.firmaName === b.firmaName) return "firma";
+  return null;
+}
+
 // ── Freemail: nie eine Firmen-Website ───────────────────────────────────────
 /** RADAR_FREEMAIL plus die Anbieter, die am 04.11. fehlten (aol.com, seznam.cz) und die üblichen in DACH/Europa. */
 export const LEAD_FREEMAIL: ReadonlySet<string> = new Set([

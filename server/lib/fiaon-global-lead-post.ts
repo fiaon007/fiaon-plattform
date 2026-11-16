@@ -417,10 +417,10 @@ export async function leadLageLesen(anfrageId: number, lauf: Lauf = sqlPool, jet
   const fb = firmaBrauchbar(firmaRoh, name).brauchbar;
 
   const [w] = (await lauf`SELECT * FROM fiaon_lead_weg WHERE anfrage_id = ${anfrageId}`.catch(() => [])) as any[];
-  const [fl] = (await lauf`
-    SELECT f.id, f.status FROM fiaon_firmen_leads f
-     WHERE (${email} <> '' AND LOWER(COALESCE(f.email, '')) = ${email}) OR f.id = ${w?.firma_id ?? 0}
-     ORDER BY (f.id = ${w?.firma_id ?? 0}) DESC, f.id ASC LIMIT 1`.catch(() => [])) as any[];
+  // E-487 Nachtrag (16.11.2026): die EINE Zuordnung (karteZurAnfrage, server/lib/fiaon-lead-zuordnung.ts) — Lead-Weg, Takt,
+  // Gespräch, dann Person, Mail oder Nummer (vorher hier eine eigene Fassung: Lead-Weg, dann nur die Mail).
+  const kartenId = await import("./fiaon-lead-zuordnung").then((m) => m.karteZurAnfrage(anfrageId, lauf)).catch(() => null);
+  const [fl] = kartenId ? ((await lauf`SELECT f.id, f.status FROM fiaon_firmen_leads f WHERE f.id = ${kartenId}`.catch(() => [])) as any[]) : [];
   const firmaId = fl ? Number(fl.id) : w?.firma_id ? Number(w.firma_id) : null;
   const k9 = key9(telefon);
   const eingang = new Date(a.created_at);

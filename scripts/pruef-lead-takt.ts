@@ -342,8 +342,14 @@ abschnitt("A11 E-487 Platzhalter im Firmenfeld verschmelzen keine Menschen (rein
   ok(firmaNameVerbindet("Muster Logistik GmbH", "Erika Beispiel") && firmaNameVerbindet("Beispiel Holding AG", "Max Muster"), "echter Firmenname mit Rechtsform verbindet weiter");
   ok(!firmaNameVerbindet("Selbständig GmbH i. G.", "Erika Beispiel"), "Rollenwort trotz Rechtsform verbindet nicht");
   const route = lies("server/routes/fiaon-firmen.ts");
-  ok(/OR \(\$\{nameTaugt\} AND LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\)/.test(route) && /const nameTaugt = firmaNameVerbindet\(firma, ein\.ansprechpartner\)/.test(route) && !/\n\s+OR LOWER\(TRIM\(firma\)\) = \$\{firma\.toLowerCase\(\)\}\n/.test(route), "globalLeadAufnehmen: Name zählt nur, wenn firmaNameVerbindet");
-  ok(/RIGHT\(regexp_replace\(COALESCE\(telefon, ''\), '\[\^0-9\]', '', 'g'\), 9\) = \$\{tel9\}/.test(route), "dieselbe Mobilnummer (9 Ziffern) verbindet");
+  // E-487 Nachtrag (16.11.2026): die Regel steht EINMAL — leadMerkmale (rein) + karteZuMerkmalen (die Abfrage); der Eingang ruft sie.
+  const zuordnung = lies("server/lib/fiaon-lead-zuordnung.ts");
+  const regelLead = lies("shared/fiaon-global-lead.ts");
+  ok(/leadMerkmale\(\{ personId, email: ein\.email, telefon: ein\.telefon, firma, name: ein\.ansprechpartner \}\)/.test(route) && /await karteZuMerkmalen\(merkmale\)/.test(route)
+    && !/LOWER\(TRIM\(firma\)\) = \$\{firma/.test(route)
+    && /firmaName: firma && firmaNameVerbindet\(firma, ein\.name\) \? firma\.toLowerCase\(\) : ""/.test(regelLead)
+    && /OR \(\$\{m\.firmaName\} <> '' AND LOWER\(TRIM\(firma\)\) = \$\{m\.firmaName\}\)/.test(zuordnung), "globalLeadAufnehmen: Name zählt nur, wenn firmaNameVerbindet (zentral: leadMerkmale + karteZuMerkmalen)");
+  ok(/RIGHT\(regexp_replace\(COALESCE\(telefon, ''\), '\[\^0-9\]', '', 'g'\), 9\) = \$\{m\.tel9\}/.test(zuordnung) && /tel9: telefon9Echt\(ein\.telefon\)/.test(regelLead), "dieselbe Mobilnummer (9 Ziffern, nie eine Fantasienummer) verbindet");
   const seite = lies("client/src/pages/agent/firmen.tsx");
   ok(/<b>\{firmaAnzeige\(f\)\}<\/b>/.test(seite) && /<h2>\{firmaAnzeige\(aktiv\)\}<\/h2>/.test(seite), "Cockpit zeigt bei Platzhaltern den Menschen („Name (Selbständig)“)");
 }

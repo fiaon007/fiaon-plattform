@@ -697,7 +697,9 @@ abschnitt("A11 Quelltext-Wände");
   // Die Regel liest den Notiz-Block genau so, wie der Eingang ihn schreibt — ändert sich das dort, schlägt diese Wand an.
   ok(firmen.includes("const notizZeile = `FIAON Global (${heute.split(\"-\").reverse().join(\".\")}): ${ein.verlauf}`.slice(0, 600);"), "globalLeadAufnehmen schreibt den Notiz-Block im erwarteten Format");
   ok(firmen.includes("VALUES (${firmaId}, NULL, 'Website', 'global', ${ein.ereignis}, ${ein.verlauf.slice(0, 2000)})"), "… und die Eingangszeile mit demselben Verlauf");
-  ok(/firmaNameVerbindet\(firma, ein\.ansprechpartner\)/.test(firmen), "Der Eingang verbindet über den Namen nur mit firmaNameVerbindet (Platzhalter-Fix bleibt)");
+  // E-487 Nachtrag (16.11.2026): die Regel steht zentral (leadMerkmale → firmaNameVerbindet; karteZuMerkmalen fragt firmaName ab).
+  ok(/leadMerkmale\(\{ personId, email: ein\.email, telefon: ein\.telefon, firma, name: ein\.ansprechpartner \}\)/.test(firmen)
+    && /firmaNameVerbindet\(firma, ein\.name\)/.test(lies("shared/fiaon-global-lead.ts")), "Der Eingang verbindet über den Namen nur mit firmaNameVerbindet (Platzhalter-Fix bleibt)");
   // Die Marken, auf die sich der Planer verlässt — ändern sich die Absender oder Spalten dort, schlägt diese Wand an.
   const dossierLib = lies("server/lib/fiaon-lead-dossier.ts");
   const mara = lies("server/lib/fiaon-mara-business.ts");
@@ -781,7 +783,12 @@ if (LOKAL_DB) {
     await sql`INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz) VALUES (${karte}, NULL, 'Prüfer', 'anruf', 'erreicht_interesse', ${anruf})`;
     return { karte, anfragen, anruf, bloecke };
   };
-  const neueKarten = async (quelle: number) => (await sql`SELECT * FROM fiaon_firmen_leads WHERE getrennt_aus = ${quelle} ORDER BY id`) as any[];
+  // Die Spalte getrennt_aus legt erst der Modus „an“ an (firmenTrennungSchema) — vorher (B1, trocken) gibt es keine getrennte Karte.
+  // Nachtrag 16.11.2026: Teil B lief zum ersten Mal gegen eine echte Datenbank und brach hier ab („column getrennt_aus does not exist“).
+  const neueKarten = async (quelle: number) => {
+    const [sp] = (await sql`SELECT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = to_regclass('fiaon_firmen_leads') AND attname = 'getrennt_aus' AND NOT attisdropped) AS da`) as any[];
+    return sp?.da ? ((await sql`SELECT * FROM fiaon_firmen_leads WHERE getrennt_aus = ${quelle} ORDER BY id`) as any[]) : [];
+  };
   const protokoll = async (quelle: number) => (await sql`SELECT * FROM fiaon_firmen_trennung WHERE quell_firma_id = ${quelle} ORDER BY id`) as any[];
   const logVon = async (karte: number) => (await sql`SELECT id, art, ergebnis, notiz FROM fiaon_firmen_log WHERE firma_id = ${karte} ORDER BY id`) as any[];
 

@@ -264,19 +264,15 @@ export interface TaktLage {
   echterEingang: Date | null;
 }
 
-/** Die Firma (Cockpit) zu einer Anfrage: aus Lead-Weg/Takt/Gespräch, sonst über die Person oder die Mail. */
+/**
+ * Die Firma (Cockpit) zu einer Anfrage: aus Lead-Weg/Takt/Gespräch, sonst über Person, Mail oder Nummer. E-487 Nachtrag
+ * (16.11.2026): die EINE Zuordnung (karteZurAnfrage, server/lib/fiaon-lead-zuordnung.ts) statt einer eigenen Fassung hier.
+ */
 async function firmaZurAnfrage(a: { id: number; email: string; personId: number | null }, lauf: Lauf): Promise<{ id: number; status: string | null; quelle: string | null; personId: number | null } | null> {
-  const [bek] = (await lauf`
-    SELECT COALESCE(
-      (SELECT firma_id FROM fiaon_lead_weg WHERE anfrage_id = ${a.id}),
-      (SELECT firma_id FROM fiaon_lead_takt WHERE anfrage_id = ${a.id}),
-      (SELECT firma_id FROM fiaon_lead_gespraech WHERE anfrage_id = ${a.id} AND firma_id IS NOT NULL ORDER BY created_at DESC LIMIT 1)) AS id`.catch(() => [])) as any[];
-  const [f] = (await lauf`
-    SELECT id, status, quelle, person_id FROM fiaon_firmen_leads
-     WHERE id = ${bek?.id ? Number(bek.id) : 0}
-        OR (${a.personId}::int IS NOT NULL AND person_id = ${a.personId}::int)
-        OR (${a.email} <> '' AND LOWER(COALESCE(email, '')) = ${a.email})
-     ORDER BY (id = ${bek?.id ? Number(bek.id) : 0}) DESC, COALESCE(person_id = ${a.personId}::int, FALSE) DESC, id ASC LIMIT 1`.catch(() => [])) as any[];
+  const { karteZurAnfrage } = await import("./fiaon-lead-zuordnung");
+  const id = await karteZurAnfrage(a.id, lauf, { personId: a.personId }).catch(() => null);
+  if (!id) return null;
+  const [f] = (await lauf`SELECT id, status, quelle, person_id FROM fiaon_firmen_leads WHERE id = ${id}`.catch(() => [])) as any[];
   return f ? { id: Number(f.id), status: f.status ? String(f.status) : null, quelle: f.quelle ? String(f.quelle) : null, personId: f.person_id ? Number(f.person_id) : null } : null;
 }
 

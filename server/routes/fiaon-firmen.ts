@@ -175,22 +175,16 @@ export async function globalLeadAufnehmen(ein: {
   // Vorher landeten drei verschiedene Menschen mit „Selbständig“ im Firmenfeld auf EINER Karte — mit den Notizen des
   // ersten („Justin führt selbst — bitte nicht anrufen“) bei allen. Platzhalter („Selbständig“, „GmbH“, „privat“, der
   // eigene Name …) verbinden jetzt nur noch über Person oder E-Mail.
-  const { firmaNameVerbindet } = await import("@shared/fiaon-global-lead");
-  const nameTaugt = firmaNameVerbindet(firma, ein.ansprechpartner);
   // Dieselbe Mobilnummer (letzte 9 Ziffern) ist dieselbe Person — auch mit neuer Mail (vorher: zweite Karte).
-  const tel9 = String(ein.telefon ?? "").replace(/\D/g, "").slice(-9);
+  // E-487 Nachtrag (16.11.2026): Die Regel steht EINMAL — leadMerkmale (shared/fiaon-global-lead.ts) und karteZuMerkmalen
+  // (server/lib/fiaon-lead-zuordnung.ts); dieselbe Abfrage nutzt die „Karte zur Anfrage“ (Lead-Weg, Takt, Dossier). Neu dabei:
+  // eine Fantasienummer („0123456789“) und eine Mail ohne „@“ verbinden nie.
+  const { leadMerkmale } = await import("@shared/fiaon-global-lead");
+  const { karteZuMerkmalen } = await import("../lib/fiaon-lead-zuordnung");
+  const merkmale = leadMerkmale({ personId, email: ein.email, telefon: ein.telefon, firma, name: ein.ansprechpartner });
   const [bekannt] = ein.firmaId ? ((await sqlPool`SELECT id FROM fiaon_firmen_leads WHERE id = ${ein.firmaId}`) as any[]) : [];
-  const [da] = bekannt ? [bekannt] : (await sqlPool`
-    SELECT id FROM fiaon_firmen_leads
-    WHERE (${personId}::int IS NOT NULL AND person_id = ${personId}::int)
-       OR (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email})
-       OR (LENGTH(${tel9}) = 9 AND RIGHT(regexp_replace(COALESCE(telefon, ''), '[^0-9]', '', 'g'), 9) = ${tel9})
-       OR (${nameTaugt} AND LOWER(TRIM(firma)) = ${firma.toLowerCase()})
-    ORDER BY COALESCE(person_id = ${personId}::int, FALSE) DESC,
-             (${email} <> '' AND LOWER(COALESCE(email, '')) = ${email}) DESC,
-             (LENGTH(${tel9}) = 9 AND RIGHT(regexp_replace(COALESCE(telefon, ''), '[^0-9]', '', 'g'), 9) = ${tel9}) DESC, id ASC
-    LIMIT 1
-  `) as any[];
+  const gefunden = bekannt ? Number(bekannt.id) : await karteZuMerkmalen(merkmale);
+  const da = gefunden ? { id: gefunden } : null;
 
   let firmaId: number;
   if (da) {

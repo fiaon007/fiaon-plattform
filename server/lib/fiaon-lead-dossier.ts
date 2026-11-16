@@ -60,7 +60,7 @@ import {
   antwortenSortieren, antwortZeile, domainPasstZurFirma, metaBlockAusText, paketwunschAus, leadTemperatur, privatOderBeschwerde,
   privatUrteil, leadAnzeigeName, fadenBetreff, fadenAntwortBetreff, namenForm, firmenKern, rechtsformIm, registerBudget,
   registerCreditsErlaubt, registerMonatSchluessel, einzelDossierFaellig, sammelKandidat, anrufFenster, vorDemFenster, berlinZeit,
-  naechsterVersuchMinuten, linksEntschaerfen, ANRUF_ERGEBNIS_TEXT, LEAD_DOSSIER_SCHLUESSEL as S, LEAD_DOSSIER_VORGABE as V,
+  naechsterVersuchMinuten, linksEntschaerfen, leadMerkmale, ANRUF_ERGEBNIS_TEXT, LEAD_DOSSIER_SCHLUESSEL as S, LEAD_DOSSIER_VORGABE as V,
   TEMPERATUR_WORT, type LeadAntwort, type LeadKanal, type LeadTemperatur, type MetaFrageDef, type TelefonLand,
 } from "@shared/fiaon-global-lead";
 import { produktkategorie } from "@shared/fiaon-produktkategorie";
@@ -816,13 +816,13 @@ function berlinMitTag(d: Date | string): string {
   return `${z.wochentag.slice(0, 2)} ${z.datum}, ${String(z.stunde).padStart(2, "0")}:${String(z.minute).padStart(2, "0")}`;
 }
 
+/**
+ * Die Karte, wenn der Anstoß keine mitbringt. E-487 Nachtrag (16.11.2026): die EINE Zuordnung (server/lib/fiaon-lead-zuordnung.ts)
+ * — Person, Mail oder Nummer (vorher nur Person und Mail), nie der Firmenname.
+ */
 async function firmaFinden(e: Eingang, lauf: Lauf): Promise<number | null> {
-  const [f] = (await lauf`
-    SELECT id FROM fiaon_firmen_leads
-     WHERE (${e.personId}::int IS NOT NULL AND person_id = ${e.personId}::int)
-        OR (${e.email} <> '' AND LOWER(COALESCE(email, '')) = ${e.email})
-     ORDER BY COALESCE(person_id = ${e.personId}::int, FALSE) DESC, id ASC LIMIT 1`.catch(() => [])) as any[];
-  return f ? Number(f.id) : null;
+  const { karteZuMerkmalen } = await import("./fiaon-lead-zuordnung");
+  return karteZuMerkmalen(leadMerkmale({ personId: e.personId, email: e.email, telefon: e.telefon }), lauf).catch(() => null);
 }
 
 /**

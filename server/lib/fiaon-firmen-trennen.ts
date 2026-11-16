@@ -59,7 +59,7 @@ const REGEL = "e487-firmenfeld-v2";
 // SCHEMA — Protokoll-Tabelle und Spalte getrennt_aus (nur im Modus „an“, mit lock_timeout; erst im Katalog nachsehen)
 // ═══════════════════════════════════════════════════════════════════════════
 /** Nur Lesen (Katalog): gibt es Karten, Verlauf und das Protokoll schon? */
-async function tabellenLage(lauf: Lauf): Promise<{ karten: boolean; verlauf: boolean; protokoll: boolean }> {
+export async function tabellenLage(lauf: Lauf): Promise<{ karten: boolean; verlauf: boolean; protokoll: boolean }> {
   const [k] = (await lauf`
     SELECT to_regclass('fiaon_firmen_leads') IS NOT NULL AS karten,
            to_regclass('fiaon_firmen_log') IS NOT NULL AS verlauf,
@@ -67,10 +67,15 @@ async function tabellenLage(lauf: Lauf): Promise<{ karten: boolean; verlauf: boo
   return { karten: !!k?.karten, verlauf: !!k?.verlauf, protokoll: !!k?.protokoll };
 }
 
-let schemaBereit: Promise<boolean> | null = null;
+/**
+ * Je Datenbank-Zugang EIN Versuch (Nachtrag 16.11.2026): vorher ein einziger Merker für alle — rief ein Prüfstand das Schema mit
+ * einer Attrappe auf, galt es danach auch für die echte Datenbank als „angelegt“, und Teil B brach ohne Protokoll-Tabelle ab.
+ */
+const schemaBereitJe = new WeakMap<object, Promise<boolean>>();
 
 /** false = es gibt (noch) keine Firmen-Karten — dann hat der Lauf nichts zu tun. Legt Protokoll und Spalte an (nur „an“). */
 export function firmenTrennungSchema(lauf: Lauf = sqlPool): Promise<boolean> {
+  let schemaBereit = schemaBereitJe.get(lauf as object) ?? null;
   if (!schemaBereit) {
     schemaBereit = (async () => {
       const [k] = (await lauf`
@@ -102,7 +107,8 @@ export function firmenTrennungSchema(lauf: Lauf = sqlPool): Promise<boolean> {
         });
       }
       return true;
-    })().then((ok) => { if (!ok) schemaBereit = null; return ok; }, (e) => { schemaBereit = null; throw e; });
+    })().then((ok) => { if (!ok) schemaBereitJe.delete(lauf as object); return ok; }, (e) => { schemaBereitJe.delete(lauf as object); throw e; });
+    schemaBereitJe.set(lauf as object, schemaBereit);
   }
   return schemaBereit;
 }
@@ -234,7 +240,8 @@ export async function standLesen(lauf: Lauf = sqlPool): Promise<{ stand: TrennSt
 // ═══════════════════════════════════════════════════════════════════════════
 // DIE ZIELSUCHE — eine vorhandene Karte derselben Person (person_id, Mail, 9 Ziffern), nie die Quelle
 // ═══════════════════════════════════════════════════════════════════════════
-async function zielSuchen(q: any, quelleId: number, g: KartenPlanGruppe, sperren: boolean): Promise<{ id: number; ueber: string } | null> {
+/** Exportiert für die Vorprüfung der Einmal-Reparatur (server/lib/fiaon-firmenkarte-reparatur.ts) — dasselbe Ziel wie der Lauf. */
+export async function zielSuchen(q: any, quelleId: number, g: KartenPlanGruppe, sperren: boolean): Promise<{ id: number; ueber: string } | null> {
   const pids = Array.from(new Set(g.personIds));
   const mails = Array.from(new Set(g.mitglieder.map((m) => mailForm(m.email)).filter(Boolean)));
   // Nie über eine Fantasienummer (123456789, 000000000 …) — Gutachten, Mangel 13.
@@ -670,9 +677,20 @@ const PULS_MS = 6 * 60 * 60_000;
  * Trockenprobe, sonst als Puls alle 6 Stunden (Vermerke einer Trockenprobe lösen keine Zeile aus — Gutachten, Mangel 10).
  * Deshalb immer false (stillerLauf schriebe sonst eine zweite, leere Zeile). Eine gescheiterte Gruppe oder der Deckel wirft
  * am Ende — stillerLauf schreibt den Fehler in die Historie.
+ *
+ * E-487 Nachtrag (16.11.2026): ZUERST die Einmal-Reparatur der einen bekannten Karte (server/lib/fiaon-firmenkarte-reparatur.ts) —
+ * mit eigener Vorprüfung und Marke in fiaon_settings, unabhängig vom Schalter (nur „aus“ hält auch sie an). Scheitert sie, läuft
+ * der Lauf trotzdem; der Fehler steht danach in der Historie, und der nächste Lauf versucht es neu.
  */
 export async function firmenTrennenTakt(): Promise<false> {
   const start = Date.now();
+  let reparaturFehler: string | null = null;
+  try {
+    await (await import("./fiaon-firmenkarte-reparatur")).firmenkarteReparatur();
+  } catch (e) {
+    reparaturFehler = String((e as Error)?.message ?? e).slice(0, 300);
+    console.error("[FIRMEN-TRENNEN] Einmal-Reparatur:", reparaturFehler);
+  }
   const erg = await firmenTrennenLauf();
   if (erg.getrennt > 0 || erg.fehler > 0 || erg.gedeckelt > 0 || (erg.modus === "trocken" && erg.plan.length)) {
     console.log(`[FIRMEN-TRENNEN] ${erg.modus}: ${erg.karten} Karten, ${erg.platzhalter} Kandidaten, ${erg.gruppen} fremde Gruppe(n) — `
@@ -680,6 +698,9 @@ export async function firmenTrennenTakt(): Promise<false> {
       + `Zeilen: Verlauf ${erg.zeilen.verlauf}, Dossier ${erg.zeilen.dossier}, Aufträge ${erg.zeilen.auftraege}, Lead ${erg.zeilen.lead}, Notiz ${erg.zeilen.notiz}`
       + `${erg.vermerke ? `, ${erg.vermerke} Vermerk(e)` : ""}${erg.stand ? `, Stand ${erg.stand}` : ""}${erg.gedeckelt ? `, über dem Deckel ${erg.gedeckelt}` : ""}`
       + `${erg.fehler ? `, ${erg.fehler} Fehler` : ""}.`);
+  }
+  if (reparaturFehler) {
+    throw new Error(`firmen_trennen: Einmal-Reparatur gescheitert (der nächste Lauf prüft neu) — ${reparaturFehler}`.slice(0, 600));
   }
   if (erg.fehler > 0) {
     throw new Error(`firmen_trennen: ${erg.getrennt} getrennt, ${erg.fehler} Gruppe(n) zurückgerollt (der nächste Lauf versucht es neu) — ${erg.fehlerText ?? "unbekannt"}`.slice(0, 600));

@@ -40,7 +40,7 @@ import {
 } from "@shared/fiaon-lead-weg";
 import {
   linksEntschaerfen, antwortZeile, TEMPERATUR_WORT, berlinZeit, firmaBrauchbar, fadenAntwortBetreff, landAusTelefon,
-  telefonLesbar, leadAnzeigeName, fadenBetreff,
+  telefonLesbar, leadAnzeigeName, fadenBetreff, telefon9Echt,
 } from "@shared/fiaon-global-lead";
 import { globalStartUrl } from "@shared/fiaon-global-wege";
 import type { DossierBasis, Faden } from "./fiaon-lead-dossier";
@@ -50,7 +50,9 @@ import type { GlobalZustaendig } from "./fiaon-global-termin";
 
 type Lauf = typeof sqlPool;
 
-const key9 = (tel: unknown) => { const d = String(tel ?? "").replace(/\D/g, ""); return d.length >= 7 ? d.slice(-9) : ""; };
+// E-487 Nachtrag (16.11.2026): dieselbe Nummern-Regel wie Karte und Eingang (shared/fiaon-global-lead.ts) — erst ab neun Ziffern,
+// nie eine Fantasienummer (vorher ab sieben Ziffern: „1234567“ fand die Anfrage eines anderen Menschen).
+const key9 = (tel: unknown) => telefon9Echt(tel);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SCHEMA (gleich Migration 129) — nie im Eingangs-Pfad, nie in der Buchungs-Transaktion
@@ -218,15 +220,14 @@ export async function leadCodeSichern(anfrageId: number, opt: { firmaId?: number
   return null;
 }
 
-/** Die Firma (Firmen-Cockpit) einer Global-Anfrage — über die Mail oder die Person. */
+/**
+ * Die Firma (Firmen-Cockpit) einer Global-Anfrage. E-487 Nachtrag (16.11.2026): die EINE Zuordnung (karteZurAnfrage,
+ * server/lib/fiaon-lead-zuordnung.ts) — erst die gespeicherten Verweise, dann Person, Mail oder Nummer (vorher nur Person und
+ * Mail: eine WhatsApp-Anfrage ohne Mail fand ihre Karte hier nie).
+ */
 async function firmaZurAnfrage(anfrageId: number, lauf: Lauf): Promise<number | null> {
-  const [f] = (await lauf`
-    SELECT f.id FROM fiaon_anfragen a
-      JOIN fiaon_firmen_leads f ON (a.person_id IS NOT NULL AND f.person_id = a.person_id)
-                                OR (COALESCE(a.email, '') <> '' AND LOWER(COALESCE(f.email, '')) = LOWER(a.email))
-     WHERE a.id = ${anfrageId}
-     ORDER BY (a.person_id IS NOT NULL AND f.person_id = a.person_id) DESC, f.id ASC LIMIT 1`.catch(() => [])) as any[];
-  return f ? Number(f.id) : null;
+  const { karteZurAnfrage } = await import("./fiaon-lead-zuordnung");
+  return karteZurAnfrage(anfrageId, lauf).catch(() => null);
 }
 
 export interface LeadVorlage {

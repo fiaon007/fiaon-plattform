@@ -40,7 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import {
   firmaBrauchbar, firmaNameVerbindet, namenForm, berlinZeit, firmenDomain, paketwunschAus, fadenBetreff, leadAnzeigeName,
-  firmaOffenPlatzhalter, type LeadTemperatur,
+  firmaOffenPlatzhalter, telefon9, telefonTrivial, telefon9Echt, type LeadTemperatur,
 } from "./fiaon-global-lead";
 import { isoPlus } from "./fiaon-global-lead-texte";
 
@@ -86,30 +86,19 @@ export interface TrennKontakt {
   name?: string | null;
 }
 
+// Die Nummern-Regel steht seit dem E-487-Nachtrag (16.11.2026) EINMAL in shared/fiaon-global-lead.ts (telefon9 …) — der Eingang,
+// die Karte zur Anfrage und dieser Lauf lesen dieselbe. Die alten Namen bleiben für Lauf und Prüfstand.
 /** Die letzten neun Ziffern einer Nummer (wie globalLeadAufnehmen: erst ab neun Ziffern), sonst "". Rein. */
-export function nummer9(tel: unknown): string {
-  const d = String(tel ?? "").replace(/\D/g, "");
-  return d.length >= 9 ? d.slice(-9) : "";
-}
+export const nummer9 = telefon9;
 
 /**
  * Eine Fantasienummer (weniger als drei verschiedene Ziffern, 123456789, 987654321 …) belegt keine Person (Gutachten,
  * Mangel 13). Rein.
  */
-export function nummerTrivial(n9: string): boolean {
-  if (!/^\d{9}$/.test(n9)) return true;
-  if (new Set(n9.split("")).size < 3) return true;
-  const d = n9.split("").map(Number);
-  const auf = d.every((x, i) => i === 0 || x === (d[i - 1] + 1) % 10);
-  const ab = d.every((x, i) => i === 0 || x === (d[i - 1] + 9) % 10);
-  return auf || ab;
-}
+export const nummerTrivial = telefonTrivial;
 
 /** Die letzten neun Ziffern, nur wenn sie eine echte Nummer sein können — für die Zielsuche (nie über eine Fantasienummer). Rein. */
-export function nummer9Echt(tel: unknown): string {
-  const n9 = nummer9(tel);
-  return n9 && !nummerTrivial(n9) ? n9 : "";
-}
+export const nummer9Echt = telefon9Echt;
 
 export function mailForm(m: unknown): string {
   return String(m ?? "").trim().toLowerCase();

@@ -41,7 +41,7 @@ const de = {
   weg: [
     { titel: "Einsicht", text: "Ihre Bonitätsauswertung aus Ihren Kontoauszügen. Ihre kostenlose Datenkopie fordern Sie selbst an – laden Sie sie hoch, erklären wir jeden Eintrag: berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet, falsch." },
     { titel: "Aktion", text: "Löschanträge, Widersprüche, Ratenvereinbarungen – anwaltlich geprüft, von Ihnen freigegeben, per Einschreiben versendet. FIAON hält jede Frist." },
-    { titel: "Konto", text: "Ein Girokonto für jeden Kunden, unabhängig von der Bonität. Ab hier läuft Ihr Zahlungsverhalten sauber – das zählt für jede Bank." },
+    { titel: "Konto", text: "Der Antrag auf das Girokonto unserer Partnerbank (bei Wohnsitz in Deutschland) – über die Eröffnung entscheidet die Bank. Ab hier läuft Ihr Zahlungsverhalten sauber – das zählt für jede Bank." },
     { titel: "Karte", text: "Aus Einträgen, Einkommen und Kontoverhalten berechnet FIAON Ihre Readiness. Reicht der Wert, ist der Antrag beim Kartenpartner vorbereitet." },
   ],
   paketePille: "Ihr Paket", paketeH2a: "Wählen Sie, wie weit Sie gehen. ", paketeH2b: "Nicht, ob.",
@@ -120,7 +120,7 @@ const en: typeof de = {
   weg: [
     { titel: "Insight", text: "Your credit assessment from your bank statements. You request your free data copy yourself — upload it and we explain every entry: justified, paid-but-not-deleted, reported without a reminder, wrong." },
     { titel: "Action", text: "Deletion requests, objections, instalment agreements — reviewed by lawyers, approved by you, sent by registered post. FIAON keeps every deadline." },
-    { titel: "Account", text: "A current account for every customer, regardless of their file. From here your payment behaviour runs cleanly — and that counts with every bank." },
+    { titel: "Account", text: "The application for our partner bank's current account (for residents of Germany) — the bank decides whether to open it. From here your payment behaviour runs cleanly — and that counts with every bank." },
     { titel: "Card", text: "From entries, income and account behaviour FIAON calculates your readiness. When the value is there, the application with the card partner is prepared." },
   ],
   paketePille: "Your plan", paketeH2a: "Choose how far you go. ", paketeH2b: "Not whether.",

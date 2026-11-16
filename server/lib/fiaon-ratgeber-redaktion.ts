@@ -81,6 +81,9 @@ export const MODELL = () => kiModell("ratgeber");
 // DIE TABELLE
 // ═══════════════════════════════════════════════════════════════════════════
 let tabelleDa = false;
+/** 16.11.2026: Werbeversprechen im schon eingetragenen Startartikel, vorher → nachher (Neufassung auch in fiaon-ratgeber-start.ts). */
+const RATGEBER_SATZ_ALT = "Danach: Girokonto für jeden Kunden, Kreditkarte, sobald der Wert reicht.";
+const RATGEBER_SATZ_NEU = "Danach: der Antrag auf das Girokonto der Partnerbank (bei Wohnsitz in Deutschland), die Kreditkarte, sobald der Wert reicht – über beides entscheidet die Bank.";
 
 export async function ensureRatgeberTabelle(): Promise<void> {
   if (tabelleDa) return;
@@ -141,6 +144,13 @@ export async function ensureRatgeberTabelle(): Promise<void> {
               ${a.metaTitel}, ${a.metaBeschreibung}, ${lesezeitVon(a.inhalt)}, 'veroeffentlicht', 'hand', ${JSON.stringify(p)}::text::jsonb, ${a.slug}, NOW() - (${i + 1} * INTERVAL '1 hour'), ${bereichVonKategorie(a.kategorie)})
       ON CONFLICT (slug) DO NOTHING`;
   }
+  // 16.11.2026: ON CONFLICT DO NOTHING zieht die neue Fassung des Startartikels nicht nach — genau dieser eine Satz wird
+  // ersetzt, nur solange er noch drinsteht; danach tut die Zeile nichts.
+  await sqlPool`
+    UPDATE fiaon_ratgeber
+       SET inhalt = REPLACE(inhalt, ${RATGEBER_SATZ_ALT}, ${RATGEBER_SATZ_NEU}), updated_at = NOW()
+     WHERE slug = 'schufa-eintrag-loeschen-lassen' AND quelle = 'hand' AND POSITION(${RATGEBER_SATZ_ALT} IN inhalt) > 0`
+    .catch((e: unknown) => console.error("[RATGEBER] Startartikel-Satz:", String((e as Error)?.message ?? e).slice(0, 160)));
   tabelleDa = true;
 }
 

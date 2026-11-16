@@ -50,8 +50,8 @@ const de = {
     { tag: "Recht", titel: "Anwaltlich geprüft, versioniert.", text: "Jeder Brieftyp wird vom Anwaltsteam freigegeben und versioniert. Kein Schreiben geht hinaus, das nicht geprüft ist – und keines ohne Ihre Freigabe." },
     { tag: "Erinnerung", titel: "Fristen, Termine, Nachfassen.", text: "Eine Erinnerungs-Engine hält Fristen und Zahlungstermine – seriös, auf Augenhöhe, kurz. Sie vergessen nichts, weil FIAON nichts vergisst." },
   ],
-  szene2a: "Dann die ", szene2b: "Tür.", szene2Text: "Wer Einsicht hat und gehandelt hat, soll etwas bekommen. Das ist das Versprechen – und der Grund, warum niemand bei FIAON ohne nächstes Ziel bleibt.",
-  s3Pille: "Schicht 3 · Zugang", s3H2a: "Niemand geht leer aus. ", s3H2b: "Jeder hat ein nächstes Ziel.",
+  szene2a: "Dann die ", szene2b: "Tür.", szene2Text: "Wer Einsicht hat und handelt, kommt Schritt für Schritt weiter. Bei FIAON hat jeder Schritt ein klares Ziel – über Konto, Karte und Rahmen entscheidet die Bank.",
+  s3Pille: "Schicht 3 · Zugang", s3H2a: "Jeder Schritt hat ein Ziel. ", s3H2b: "Die Bank entscheidet.",
   s3Lead: "Die Logik ist einfach und ehrlich: Bonität gut – Karte sofort. Bonität schlecht – FIAON-Programm, Karte später. Über die Vergabe entscheidet immer die Bank; FIAON bereitet Sie darauf vor und begleitet Sie bis dorthin.",
   s3Karten: [
     { tag: "In Deutschland", titel: "Girokonto.", text: "Das Girokonto unserer Partnerbank – für Kunden mit Wohnsitz in Deutschland; den Antrag stellen Sie selbst." },
@@ -151,8 +151,8 @@ const en: typeof de = {
     { tag: "Legal", titel: "Reviewed by lawyers, versioned.", text: "Every letter type is approved and versioned by the legal team. No letter goes out that has not been reviewed — and none without your approval." },
     { tag: "Reminders", titel: "Deadlines, dates, follow-up.", text: "A reminder engine keeps deadlines and payment dates — respectful, on equal terms, brief. You forget nothing, because FIAON forgets nothing." },
   ],
-  szene2a: "Then the ", szene2b: "door.", szene2Text: "Those who have insight and have acted should get something. That is the promise — and the reason nobody at FIAON is left without a next goal.",
-  s3Pille: "Layer 3 · Access", s3H2a: "Nobody leaves empty-handed. ", s3H2b: "Everyone has a next goal.",
+  szene2a: "Then the ", szene2b: "door.", szene2Text: "Those who have insight and act move forward step by step. At FIAON every step has a clear goal — the bank decides on account, card and limit.",
+  s3Pille: "Layer 3 · Access", s3H2a: "Every step has a goal. ", s3H2b: "The bank decides.",
   s3Lead: "The logic is simple and honest: good file — card straight away. Poor file — FIAON programme, card later. The bank always decides on the issue; FIAON prepares you for it and stays with you until then.",
   s3Karten: [
     { tag: "In Germany", titel: "A current account.", text: "Our partner bank's current account — for customers resident in Germany; you make the application yourself." },

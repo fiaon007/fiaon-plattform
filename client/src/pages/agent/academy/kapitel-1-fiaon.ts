@@ -24,7 +24,7 @@ export const KAPITEL_1: KapitelInhalt = {
         tab(["Schicht", "Was passiert", "Wer handelt"],
           ["1 · Einsicht", "FIAON-Bonitätsauswertung aus Ausweis und Kontoauszug (Haushaltsrechnung, jede Ausgabe, Ampel, Finanzwert, Plan); eine hochgeladene Datenkopie (SCHUFA, KSV1870/CRIF, CRIF/Intrum) Eintrag für Eintrag erklären. FIAON fordert bei keiner Auskunftei an.", "Du entwickelst die Auswertung per Knopf, prüfst und gibst frei; im Startgespräch ordnest du ein."],
           ["2 · Aktion", "Für angreifbare Einträge liegen geprüfte Schreiben bereit: Datenkopie Art. 15, Berichtigung Art. 16, Löschung Art. 17, Widerspruch, Ratenangebot. Der Kunde gibt frei, FIAON versendet per Einschreiben, verfolgt Fristen und Antworten.", "Der Kunde gibt frei; das Back-Office versendet; du erklärst und hältst nach."],
-          ["3 · Zugang", "Girokonto für jeden Kunden (unabhängig von der Bonität, z. B. DKB), Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht (bis 25.000 € bei guter Bonität), später Finanzierung.", "Die Bank entscheidet. FIAON bereitet vor. Niemand verspricht."],
+          ["3 · Zugang", "Der Antrag auf das Girokonto der Partnerbank (nur bei Wohnsitz in Deutschland; Österreich/Schweiz: nie Konto, Karte oder Finanzierung in Aussicht stellen), Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht, später Finanzierung. Nie „Girokonto für jeden“, nie einen Rahmen als Zahl nennen.", "Die Bank entscheidet. FIAON bereitet vor. Niemand verspricht."],
         ),
         sichten(
           "Eine Übersicht mit Fahrplan: Startgespräch, Unterlagen, Bonitätsauskunft, Analyse, Schreiben, Girokonto, Kreditkarte. Jeder Eintrag mit Erklärung und Stand. Jedes Schreiben mit Datum, Weg und Frist.",

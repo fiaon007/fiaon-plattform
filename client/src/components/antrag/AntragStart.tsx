@@ -70,7 +70,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
             <Karten items={[
               { tag: "Schicht 1 · Einsicht", titel: "Ihre Bonität, erklärt.", text: "Am Anfang steht Ihre FIAON-Bonitätsauswertung aus Ausweis und Kontoauszug – Ihre Bonität aus Sicht einer Bank. Eine Datenkopie der Auskunftei erklären wir Ihnen Eintrag für Eintrag." },
               { tag: "Schicht 2 · Aktion", titel: "Schreiben, die hinausgehen.", text: "Löschanträge, Widersprüche, Ratenvereinbarungen – vorbereitet, Sie geben frei, wir übermitteln. FIAON verfolgt jede Antwort und jede Frist." },
-              { tag: "Schicht 3 · Zugang", titel: "Konto, Karte, Finanzierung.", text: "Girokonto für jeden Kunden, Kreditkarte bis 25.000 € bei guter Bonität, Finanzierung später. Niemand geht leer aus – jeder hat ein nächstes Ziel." },
+              { tag: "Schicht 3 · Zugang", titel: "Konto, Karte, Finanzierung.", text: "Der Antrag auf das Girokonto unserer Partnerbank (bei Wohnsitz in Deutschland), später Karte und Finanzierung. Die Anträge stellen Sie selbst; über Konto, Karte und Rahmen entscheidet die Bank." },
             ]} />
           </div>
         </Block>
@@ -113,7 +113,7 @@ export function AntragStart({ packs, onWahl }: { packs: readonly StartPaket[]; o
           { f: "Wann zahle ich?", a: "Die erste Rate mit der Aktivierung – per Überweisung. Danach monatlich, ebenfalls per Überweisung, zwölf Raten lang. Nach der zwölften fragen wir Sie, ob Sie bleiben möchten." },
           { f: "Kann ich das Paket später ändern?", a: "Ja, direkt im Antrag über „Paket ändern“ – und im Startgespräch prüfen wir gemeinsam, ob es passt." },
           { f: "Brauche ich Unterlagen?", a: "Für den Antrag nicht. Nach Ihrer ersten Zahlung laden Sie Ausweis und Kontoauszüge der letzten drei Monate hoch – daraus entsteht Ihre FIAON-Bonitätsauswertung, der Schritt vor dem Link unserer Partnerbank." },
-          { f: "Bekomme ich garantiert eine Karte?", a: "Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON bringt Ihre Bonität in Ordnung und bereitet Sie vor – ein Girokonto ist für jeden Kunden erreichbar, eine Karte bis 25.000 € bei guter Bonität." },
+          { f: "Bekomme ich garantiert eine Karte?", a: "Über Konto, Karte und Rahmen entscheidet immer die Bank. FIAON arbeitet an Ihrer Bonität und bereitet Sie vor. Eine Zusage zu Konto, Karte oder Rahmen gibt FIAON nicht – die Anträge stellen Sie selbst." },
         ]} />
       </Block>
 

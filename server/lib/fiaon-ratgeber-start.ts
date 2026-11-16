@@ -82,7 +82,7 @@ Ein Löschantrag ist kein Bittbrief. Er benennt den Eintrag, die Rechtsgrundlage
 
 ## Was FIAON dabei übernimmt
 
-FIAON beschafft die Auskunft, zerlegt sie in einzelne Einträge und ordnet jeden ein: berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet, falsch. Für jeden angreifbaren Eintrag liegt das passende Schreiben aus anwaltlich geprüften Vorlagen bereit – Sie geben frei, FIAON versendet per Einschreiben, setzt die Frist, erfasst die Antwort und bereitet bei Ablehnung die nächste Stufe vor. Danach: Girokonto für jeden Kunden, Kreditkarte, sobald der Wert reicht.
+FIAON beschafft die Auskunft, zerlegt sie in einzelne Einträge und ordnet jeden ein: berechtigt, bezahlt-aber-nicht-gelöscht, ohne Mahnung gemeldet, falsch. Für jeden angreifbaren Eintrag liegt das passende Schreiben aus anwaltlich geprüften Vorlagen bereit – Sie geben frei, FIAON versendet per Einschreiben, setzt die Frist, erfasst die Antwort und bereitet bei Ablehnung die nächste Stufe vor. Danach: der Antrag auf das Girokonto der Partnerbank (bei Wohnsitz in Deutschland), die Kreditkarte, sobald der Wert reicht – über beides entscheidet die Bank.
 
 ## Was nicht geht
 

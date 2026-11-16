@@ -32,7 +32,7 @@ export default function EnStart() {
         <Karten items={[
           { tag: "1 · Insight", titel: "Your credit file, explained", text: "You request your free data copy from SCHUFA (Germany's main credit bureau), KSV1870 (Austria) or CRIF and Intrum (Switzerland) yourself and upload it. We explain every entry: what it is, why it is there, when it will be deleted. For new plan customers the FIAON credit assessment is included in the plan: your creditworthiness as a bank sees it, from your own bank statements." },
           { tag: "2 · Action", titel: "Letters that are sent and followed up", text: "For entries that can be challenged there are reviewed letters: deletion requests under Art. 17 GDPR, objections, corrections. You approve, FIAON sends, tracks the deadlines and assesses the replies." },
-          { tag: "3 · Access", titel: "An account, then a card", text: "A current account for every customer, regardless of their file. A card once your file meets the partner's threshold. Card, account and limit are goals, never promises — the bank decides." },
+          { tag: "3 · Access", titel: "An account, then a card", text: "The application for our partner bank's current account (for residents of Germany). A card once your file meets the partner's threshold. Card, account and limit are goals, never promises — the bank decides." },
         ]} />
       </Block>
 

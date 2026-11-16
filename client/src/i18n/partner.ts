@@ -14,7 +14,7 @@ const de = {
   ],
   wenPille: "Für wen", wenA: "Vier Partner. ", wenB: "Eine Akte.",
   wen: [
-    { tag: "Banken und Kartenherausgeber", titel: "Neukunden mit Geschichte statt Antrag.", text: "Sie sehen bereinigte Einträge, den monatlichen Spielraum und zwölf pünktliche Raten – mit Einwilligung. Girokonto für jeden Kunden, Kreditkarte bei guter Bonität, Finanzierung später." },
+    { tag: "Banken und Kartenherausgeber", titel: "Neukunden mit Geschichte statt Antrag.", text: "Sie sehen bereinigte Einträge, den monatlichen Spielraum und zwölf pünktliche Raten – mit Einwilligung. Über Konto, Karte und Finanzierung entscheiden Sie – nach Ihren eigenen Kriterien." },
     { tag: "Auskunfteien", titel: "Weniger Streit, saubere Daten.", text: "FIAON stellt Anfragen strukturiert und in einem Format, das Sie verarbeiten können. Löschanträge kommen geprüft und vollständig – für Deutschland, Österreich und die Schweiz." },
     { tag: "Inkasso und Gläubiger", titel: "Ratenvereinbarungen, die halten.", text: "Vorschläge, die zum Spielraum des Kunden passen – aus seinem Kontoauszug abgeleitet. Antwort-Tracking auf beiden Seiten, Erinnerungen an jede Frist." },
     { tag: "Vermittler", titel: "Provision je Abschluss.", text: "Sie bringen Kunden, FIAON begleitet sie bis zur Karte. Vergütung je Abschluss und je bezahlter Rate – transparent in Ihrem Bereich, festgelegt von der Vertriebsleitung." },
@@ -69,7 +69,7 @@ const en: typeof de = {
   ],
   wenPille: "For whom", wenA: "Four partners. ", wenB: "One file.",
   wen: [
-    { tag: "Banks and card issuers", titel: "New customers with a history instead of an application.", text: "You see cleaned-up entries, the monthly headroom and twelve punctual instalments – with consent. A current account for every customer, a credit card with a good credit file, financing later." },
+    { tag: "Banks and card issuers", titel: "New customers with a history instead of an application.", text: "You see cleaned-up entries, the monthly headroom and twelve punctual instalments – with consent. You decide on account, card and financing — by your own criteria." },
     { tag: "Credit bureaus", titel: "Less dispute, clean data.", text: "FIAON makes requests in a structured way and in a format you can process. Deletion requests arrive checked and complete – for Germany, Austria and Switzerland." },
     { tag: "Debt collectors and creditors", titel: "Instalment agreements that hold.", text: "Proposals that fit the customer's headroom – derived from their bank statement. Reply tracking on both sides, reminders for every deadline." },
     { tag: "Introducers", titel: "Commission per deal.", text: "You bring customers, FIAON accompanies them to the card. Remuneration per deal and per paid instalment – transparent in your area, set by the head of sales." },

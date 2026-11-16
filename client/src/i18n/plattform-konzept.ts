@@ -15,7 +15,7 @@ const de = {
   schichten: [
     { nr: "I", titel: "Einsicht", text: "Die FIAON-Bonitätsauswertung: Ihre Bonität aus Sicht einer Bank – aus Ihren eigenen Kontoauszügen, mit Haushaltsrechnung, Ampel und Plan. Dazu Ihre kostenlose Datenkopie von SCHUFA, KSV1870 oder CRIF: Sie fordern sie selbst an und laden sie hoch, wir erklären sie in Menschensprache.", ergebnis: "Ergebnis: Sie wissen, wie eine Bank Sie sieht – und was die Auskunfteien über Sie wissen." },
     { nr: "II", titel: "Aktion", text: "Für jeden angreifbaren Eintrag ein anwaltlich geprüftes Schreiben: Löschantrag, Widerspruch, Berichtigung, Ratenangebot. Sie geben frei, FIAON versendet per Einschreiben, verfolgt Fristen und Antworten.", ergebnis: "Ergebnis: Was nicht hingehört, ist weg." },
-    { nr: "III", titel: "Zugang", text: "Girokonto für jeden Kunden, unabhängig von der Bonität. Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht. Später Finanzierung. Über alles entscheidet die Bank – FIAON bereitet vor.", ergebnis: "Ergebnis: Türen, die vorher zu waren." },
+    { nr: "III", titel: "Zugang", text: "Der Antrag auf das Girokonto unserer Partnerbank (bei Wohnsitz in Deutschland). Kreditkarte, sobald der Wert die Schwelle des Kartenpartners erreicht. Später Finanzierung. Über alles entscheidet die Bank – FIAON bereitet vor.", ergebnis: "Ergebnis: Türen, die vorher zu waren." },
   ],
   wegPille: "Der Weg", wegA: "Was passiert, ", wegB: "Tag für Tag.", wegLead: "Klicken Sie sich durch. Jede Station zeigt, was FIAON tut, was Sie tun – und wo es im Kundenbereich steht.",
   imBereich: "im Bereich:", zurueck: "Zurück", weiter: "Weiter", amZiel: "Am Ziel",
@@ -105,7 +105,7 @@ const en: typeof de = {
   schichten: [
     { nr: "I", titel: "Insight", text: "The FIAON credit assessment: your creditworthiness as a bank sees it – from your own bank statements, with household budget, traffic light and plan. Plus your free data copy from SCHUFA, KSV1870 or CRIF: you request it yourself and upload it, we explain it in plain language.", ergebnis: "Result: you know how a bank sees you – and what the credit bureaus know about you." },
     { nr: "II", titel: "Action", text: "For every challengeable entry a lawyer-reviewed letter: deletion request, objection, rectification, instalment offer. You approve, FIAON sends by registered post and tracks deadlines and replies.", ergebnis: "Result: what does not belong is gone." },
-    { nr: "III", titel: "Access", text: "A current account for every customer, regardless of creditworthiness. A credit card as soon as your value reaches the card partner's threshold. Later, financing. The bank decides on everything – FIAON prepares.", ergebnis: "Result: doors that were closed before." },
+    { nr: "III", titel: "Access", text: "The application for our partner bank's current account (for residents of Germany). A credit card as soon as your value reaches the card partner's threshold. Later, financing. The bank decides on everything – FIAON prepares.", ergebnis: "Result: doors that were closed before." },
   ],
   wegPille: "The route", wegA: "What happens, ", wegB: "day by day.", wegLead: "Click through. Each station shows what FIAON does, what you do – and where it sits in the customer area.",
   imBereich: "in the area:", zurueck: "Back", weiter: "Next", amZiel: "Arrived",

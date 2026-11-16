@@ -123,7 +123,7 @@ const STATIONEN: Station[] = [
     warum: "Wer seine Unterlagen bei FIAON hat, wechselt nicht. Und wer nach Jahren nachweisen muss, was wann geschah, kann es." },
   { ziel: "kb-zugang", ueber: "Station 11 · Die Tür", titel: "Konto, Karte, Finanzierung – die Tür, wegen der er kam.",
     text: <>Das Girokonto ist eröffnet, die Karte hat einen Termin, die Finanzierung wartet auf den passenden Wert. <b>Vorqualifiziert aus FIAON-Daten</b>, ohne Abfrage, die den Score drückt. Ein Klick, Antrag vorausgefüllt.</>,
-    warum: "Hier verdient FIAON das zweite Mal – an der Provision – und der Kunde bekommt genau das, weswegen er kam. Niemand geht leer aus." },
+    warum: "Hier verdient FIAON das zweite Mal – an der Provision – und der Kunde kommt dem Ziel näher, weswegen er kam. Über Konto, Karte und Rahmen entscheidet die Bank." },
   { ziel: "kb-simulator", ueber: "Station 12 · Der Simulator", titel: "Was passiert, wenn …? Der Kunde rechnet selbst.",
     text: <>Eintrag löschen lassen, Kredit tilgen, eine Kreditanfrage vermeiden – der Simulator zeigt die Wirkung auf Wert und Karten-Readiness. <b>Gelernt aus echten Akten, nicht geraten.</b> Schalten Sie die Hebel um.</>,
     warum: "Wer versteht, welcher Schritt wie viel bringt, tut ihn. Der Simulator macht aus Ratlosigkeit einen Plan – und aus dem Plan eine Rate, die sich lohnt." },

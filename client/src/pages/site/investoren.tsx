@@ -303,8 +303,8 @@ export default function Investoren() {
               ? "Löschanträge, Berichtigungen, Widersprüche, Ratenvereinbarungen: vorbereitet, anwaltlich geprüft, mit einem Klick versendet, Antwort verfolgt. Jede Antwort macht das System besser."
               : "Deletion requests, corrections, objections, instalment agreements: prepared, legally reviewed, sent with one click, every reply tracked. Each reply makes the system smarter."}</Glas></Auf>
             <Auf verzoegerung={200}><Glas tag={de ? "Schicht 3 · Zugang" : "Layer 3 · Access"} titel={de ? "Dann die Tür." : "Then the door."}>{de
-              ? "Ein Girokonto für jeden Kunden, später Finanzierung über Partnerbanken – für Menschen, deren Bonität dokumentiert und repariert ist. Hier entstehen Partnererlöse."
-              : "A current account for every customer, later financing through partner banks — for people whose creditworthiness is documented and repaired. This is where partner revenue is created."}</Glas></Auf>
+              ? "Der Weg zum Girokonto über die Partnerbank, später Finanzierung über Partnerbanken – für Menschen, deren Bonität dokumentiert und repariert ist. Hier entstehen Partnererlöse."
+              : "The route to a current account through the partner bank, later financing through partner banks — for people whose creditworthiness is documented and repaired. This is where partner revenue is created."}</Glas></Auf>
           </div>
         </div>
       </Block>

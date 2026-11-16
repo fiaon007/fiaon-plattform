@@ -23,8 +23,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useLocation } from "wouter";
 import { api } from "./shared";
 import {
-  jetztFrei, teamFarbe, uhrAusMinuten, TEAM_STANDARD_DAUER,
-  type TeamKalenderAntwort, type TeamTermin, type Zerleger,
+  jetztFrei, teamFarbe, uhrAusMinuten, TEAM_STANDARD_DAUER, KOLLEGEN_ARTEN,
+  type TeamKalenderAntwort, type TeamTermin, type Zerleger, type KollegenArt,
 } from "@shared/fiaon-teamkalender";
 import { ZeichenSchliessen } from "@/lib/fiaon-zeichen";
 
@@ -102,6 +102,8 @@ export function TeamKalender({ ansicht, tagKey, heuteKey, wochenKeys, jetzt, onT
   const [aus, setAus] = useState<Set<number>>(() => new Set());
   const [blatt, setBlatt] = useState<TeamTermin | null>(null);
   const [busy, setBusy] = useState(false);
+  // E-517: „Für Kollegen eintragen" — offen mit vorgewählter Person und (aus dem Klick in die Spalte) Tag und Uhrzeit.
+  const [eintragen, setEintragen] = useState<{ agentId: number | null; tag: string | null; min: number | null } | null>(null);
 
   // Fenster: die gezeigte Woche (bzw. der Tag) mit einem Tag Luft auf jeder Seite.
   const [vonKey, bisKey] = ansicht === "woche" ? [wochenKeys[0], wochenKeys[6]] : [tagKey, tagKey];
@@ -166,11 +168,15 @@ export function TeamKalender({ ansicht, tagKey, heuteKey, wochenKeys, jetzt, onT
         </div>
         <div className="tk-fuss">
           <span className="tk-legende"><i className="dienst" /> Arbeitszeit <i className="belegt" /> geblockt <i className="vertretung" /> übernommen</span>
-          <button type="button" className="ca-knopf klein still" onClick={onTeamAbo}>Team im Handy-Kalender</button>
+          <span className="tk-fuss-knoepfe">
+            <button type="button" className="ca-knopf klein tk-eintragen-knopf" onClick={() => setEintragen({ agentId: null, tag: ansicht === "tag" ? tagKey : null, min: null })}>Termin für Kollegen eintragen</button>
+            <button type="button" className="ca-knopf klein still" onClick={onTeamAbo}>Team im Handy-Kalender</button>
+          </span>
         </div>
       </section>
 
-      {ansicht === "tag" && <TeamTag daten={daten} personen={sichtbar} tagKey={tagKey} istHeute={tagKey === heuteKey} jetzt={jetzt} farbe={farbe} onTermin={setBlatt} />}
+      {ansicht === "tag" && <TeamTag daten={daten} personen={sichtbar} tagKey={tagKey} istHeute={tagKey === heuteKey} jetzt={jetzt} farbe={farbe} onTermin={setBlatt}
+                                      onFrei={(agentId, min) => setEintragen({ agentId, tag: tagKey, min })} />}
       {ansicht === "woche" && (
         <section className="ca-block tk-woche-block" aria-label="Team-Woche">
           <div className="tk-woche" style={{ "--tk-spalten": wochenKeys.length } as CSSProperties}>
@@ -194,14 +200,21 @@ export function TeamKalender({ ansicht, tagKey, heuteKey, wochenKeys, jetzt, onT
                      ich={daten.personen.find((p) => p.ich)?.id ?? 0} farbe={farbe.get(blatt.agentId) ?? "#5aa9ff"} busy={busy}
                      onZu={() => setBlatt(null)} onOeffnen={() => navigiere(oeffnenHref(blatt))} onUebernehmen={() => void uebernehmen(blatt)} />
       )}
+
+      {eintragen && (
+        <KollegenTermin personen={daten.personen} farbe={farbe} start={eintragen} onZu={() => setEintragen(null)}
+                        onFertig={(hinweis) => { setEintragen(null); flash(hinweis); laden(); onGeaendert?.(); }} />
+      )}
     </>
   );
 }
 
 // ── TAG: eine Spalte je Person ──────────────────────────────────────────────
-function TeamTag({ daten, personen, tagKey, istHeute, jetzt, farbe, onTermin }: {
+function TeamTag({ daten, personen, tagKey, istHeute, jetzt, farbe, onTermin, onFrei }: {
   daten: TeamKalenderAntwort; personen: TeamKalenderAntwort["personen"]; tagKey: string; istHeute: boolean; jetzt: Date;
   farbe: Map<number, string>; onTermin: (t: TeamTermin) => void;
+  /** E-517: Klick auf eine freie Stelle der Spalte → „Für Kollegen eintragen" mit Person und Uhrzeit (auf 15 Minuten abgerundet). */
+  onFrei: (agentId: number, min: number) => void;
 }) {
   const wd = zerlege(ausKey(tagKey)).wd;
   const amTag = useMemo(() => daten.termine.filter((t) => zerlege(new Date(t.beginn)).tag === tagKey), [daten, tagKey]);
@@ -247,7 +260,12 @@ function TeamTag({ daten, personen, tagKey, istHeute, jetzt, farbe, onTermin }: 
           return (
             <div key={p.id} className="tk-spalte-wrap" style={{ "--tk-farbe": farbe.get(p.id) } as CSSProperties}>
               <div className="tk-person"><i aria-hidden="true" /><b>{p.ich ? `${p.vorname} (du)` : p.vorname}</b><small>{offen ? `${offen} ${offen === 1 ? "Termin" : "Termine"}` : "frei"}</small></div>
-              <div className="tk-spalte" style={{ height: hoehe }}>
+              <div className="tk-spalte" style={{ height: hoehe }} title={`Auf eine freie Stelle klicken: Termin für ${p.ich ? "dich" : p.vorname} eintragen`}
+                   onClick={(e) => {
+                     if ((e.target as HTMLElement).closest(".tk-termin")) return;
+                     const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+                     onFrei(p.id, Math.max(0, Math.floor((vonMin + (y / STUNDE_PX) * 60) / 15) * 15));
+                   }}>
                 {Array.from({ length: bisStd - vonStd }, (_, i) => <div key={i} className="tk-linie" style={{ top: (i + 1) * STUNDE_PX }} />)}
                 {dienst.map((d, i) => <div key={`d${i}`} className="tk-dienst" style={{ top: px(hm(d.von)), height: px(hm(d.bis)) - px(hm(d.von)) }} />)}
                 {sperren.map((s, i) => <div key={`s${i}`} className="tk-belegt" style={{ top: px(s.von), height: Math.max(14, px(s.bis) - px(s.von)) }} title={s.grund ?? "geblockt"}><span>{s.grund ?? "belegt"}</span></div>)}
@@ -333,6 +351,171 @@ function TerminBlatt({ t, bei, ich, farbe, busy, onZu, onOeffnen, onUebernehmen 
         </div>
         {darf && <p className="tk-blatt-satz">„Übernehmen“ legt den Termin still zu dir: keine Mail an den Kunden, gleiche Uhrzeit, der Kunde bleibt bei seinem Betreuer.</p>}
         {!darf && t.agentId !== ich && !t.abgesagt && vorbei && <p className="tk-blatt-satz">Der Termin ist vorbei — übernehmen geht nur vorher oder währenddessen.</p>}
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FÜR KOLLEGEN EINTRAGEN (E-517, 16.11.2026)
+//
+// Für wen → welcher Kunde → welche Art → eine FREIE Zeit der Kollegin (dieselbe
+// Rechnung wie jede Buchung; was hier steht, nimmt der Server auch an). Ein
+// Global-Kontakt aus dem Firmen-Cockpit bekommt nur das Global-Gespräch (und die
+// Bestätigung im Global-Rahmen), alle anderen die bekannten Arten.
+// Server: GET /agent/termine/kollegen/kunden · …/frei · POST /agent/termine/kollegen.
+// ═══════════════════════════════════════════════════════════════════════════
+interface KKunde { personId: number; name: string; firma: string | null; global: boolean; betreuer: string | null }
+interface KFrei { tag: string; zeiten: { beginn: string; uhrzeit: string }[] }
+
+function KollegenTermin({ personen, farbe, start, onZu, onFertig }: {
+  personen: TeamKalenderAntwort["personen"]; farbe: Map<number, string>;
+  start: { agentId: number | null; tag: string | null; min: number | null };
+  onZu: () => void; onFertig: (hinweis: string) => void;
+}) {
+  const [agentId, setAgentId] = useState<number | null>(start.agentId ?? personen.find((p) => !p.ich)?.id ?? personen[0]?.id ?? null);
+  const [q, setQ] = useState("");
+  const [treffer, setTreffer] = useState<KKunde[]>([]);
+  const [sucht, setSucht] = useState(false);
+  const [kunde, setKunde] = useState<KKunde | null>(null);
+  const [art, setArt] = useState<KollegenArt>("rueckruf");
+  const [frei, setFrei] = useState<KFrei[] | null>(null);
+  const [tag, setTag] = useState<string | null>(start.tag);
+  const [beginn, setBeginn] = useState<string | null>(null);
+  const [notiz, setNotiz] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState<string | null>(null);
+  const zielMin = useRef<number | null>(start.min);
+  useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === "Escape") onZu(); }; window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f); }, [onZu]);
+
+  // Kundensuche (je Kollegin — wen ich für SIE eintragen darf)
+  useEffect(() => {
+    if (!agentId || q.trim().length < 2) { setTreffer([]); return; }
+    const t = window.setTimeout(() => {
+      setSucht(true);
+      api(`/agent/termine/kollegen/kunden?agentId=${agentId}&q=${encodeURIComponent(q.trim())}`)
+        .then((r) => { setTreffer(r.ok ? (r.json.kunden || []) : []); setSucht(false); }).catch(() => setSucht(false));
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [q, agentId]);
+  // Ein Global-Kontakt bekommt das Global-Gespräch, alle anderen anfangs den Rückruf.
+  useEffect(() => { if (kunde) setArt(kunde.global ? "global" : (art === "global" ? "rueckruf" : art)); }, [kunde]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Freie Zeiten der Kollegin für die gewählte Art
+  useEffect(() => {
+    if (!agentId) return;
+    setFrei(null); setBeginn(null);
+    api(`/agent/termine/kollegen/frei?agentId=${agentId}&art=${art}`).then((r) => {
+      const tage: KFrei[] = r.ok ? (r.json.tage || []) : [];
+      setFrei(tage);
+      const wunschTag = tage.find((x) => x.tag === tag) ?? tage[0] ?? null;
+      setTag(wunschTag?.tag ?? null);
+      // Aus dem Klick in die Spalte: die erste freie Zeit ab der geklickten Uhrzeit vorwählen.
+      if (wunschTag && zielMin.current != null) {
+        const z = wunschTag.zeiten.find((x) => hm(x.uhrzeit) >= zielMin.current!);
+        if (z) setBeginn(z.beginn);
+        zielMin.current = null;
+      }
+    }).catch(() => setFrei([]));
+  }, [agentId, art]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const arten = KOLLEGEN_ARTEN.filter((a) => (kunde?.global ? a.art === "global" : a.art !== "global"));
+  const person = personen.find((p) => p.id === agentId) ?? null;
+  const zeitenAmTag = frei?.find((x) => x.tag === tag)?.zeiten ?? [];
+  const kannSpeichern = !!agentId && !!kunde && !!beginn && !busy && (art !== "rueckruf" || notiz.trim().length > 0);
+
+  const speichern = async () => {
+    if (!kannSpeichern) return;
+    setBusy(true); setFehler(null);
+    const r = await api("/agent/termine/kollegen", { method: "POST", body: JSON.stringify({ agentId, personId: kunde!.personId, beginn, art, notiz: notiz.trim() || null }) })
+      .catch(() => ({ ok: false, json: null as any }));
+    setBusy(false);
+    if (r.ok) onFertig(r.json?.hinweis || "Eingetragen.");
+    else setFehler(r.json?.error || "Der Termin konnte nicht eingetragen werden.");
+  };
+
+  return (
+    <div className="ca-dialog-hintergrund" onClick={(e) => { if (e.target === e.currentTarget) onZu(); }} role="dialog" aria-modal="true" aria-labelledby="tk-eintragen-titel">
+      <div className="ca-dialog tk-eintragen" style={{ "--tk-farbe": agentId ? farbe.get(agentId) : undefined } as CSSProperties}>
+        <div className="ca-dialog-kopf">
+          <div>
+            <h2 id="tk-eintragen-titel">Termin für {person ? (person.ich ? "dich" : person.vorname) : "…"} eintragen</h2>
+            <small>Nur in freien Zeiten — so gibt es keine Doppelbuchung. Der Kunde bekommt eine Bestätigung mit dem Namen der Person; sein Betreuer bleibt derselbe.</small>
+          </div>
+          <button type="button" className="ca-zu" onClick={onZu} aria-label="Schließen"><ZeichenSchliessen size={18} /></button>
+        </div>
+
+        <p className="tk-schritt">1 · Für wen?</p>
+        <div className="tk-wahl" role="radiogroup" aria-label="Für wen">
+          {personen.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={agentId === p.id} className={agentId === p.id ? "an" : ""}
+                    style={{ "--tk-farbe": farbe.get(p.id) } as CSSProperties} onClick={() => { setAgentId(p.id); setKunde(null); setTreffer([]); }}>
+              <i aria-hidden="true" />{p.ich ? `${p.vorname} (du)` : p.vorname}
+            </button>
+          ))}
+        </div>
+
+        <p className="tk-schritt">2 · Welcher Kunde?</p>
+        {!kunde ? (
+          <>
+            <input className="ca-feld" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, Firma, E-Mail oder Nummer" aria-label="Kunde suchen" autoFocus />
+            {sucht && <p className="tk-leise">Sucht …</p>}
+            {!sucht && q.trim().length >= 2 && treffer.length === 0 && <p className="tk-leise">Niemand gefunden. Eintragen lassen sich eigene Kunden, Kunden der Person, Kunden ohne Betreuer und Kontakte aus dem Firmen-Cockpit.</p>}
+            <div className="ca-treffer">
+              {treffer.map((k) => (
+                <button key={k.personId} type="button" onClick={() => setKunde(k)}>
+                  <span>{k.name}{k.firma ? ` · ${k.firma}` : ""}</span>
+                  <small>{k.global ? "FIAON Global" : k.betreuer ? `betreut von ${k.betreuer}` : "ohne Betreuer"}</small>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="ca-treffer"><button type="button" className="an" onClick={() => setKunde(null)}><span>{kunde.name}{kunde.firma ? ` · ${kunde.firma}` : ""}</span><small>ändern</small></button></div>
+        )}
+
+        {kunde && (
+          <>
+            <p className="tk-schritt">3 · Worum geht es?</p>
+            <div className="tk-wahl" role="radiogroup" aria-label="Art des Termins">
+              {arten.map((a) => (
+                <button key={a.art} type="button" role="radio" aria-checked={art === a.art} className={art === a.art ? "an" : ""} onClick={() => setArt(a.art)}>{a.text}</button>
+              ))}
+            </div>
+
+            <p className="tk-schritt">4 · Freie Zeit von {person?.ich ? "dir" : person?.vorname}</p>
+            {frei === null && <p className="tk-leise">Lade freie Zeiten …</p>}
+            {frei !== null && frei.length === 0 && <p className="tk-leise">In den nächsten 7 Tagen ist keine Zeit frei (keine Arbeitszeiten hinterlegt oder alles belegt).</p>}
+            {frei !== null && frei.length > 0 && (
+              <>
+                <div className="tk-tage" role="tablist" aria-label="Tag">
+                  {frei.map((t) => {
+                    const z = zerlege(ausKey(t.tag));
+                    return (
+                      <button key={t.tag} type="button" role="tab" aria-selected={tag === t.tag} className={tag === t.tag ? "an" : ""} onClick={() => { setTag(t.tag); setBeginn(null); }}>
+                        <b>{TAGE[z.wd - 1]}</b><small>{datumKurz(t.tag)}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="tk-zeiten-wahl" role="radiogroup" aria-label="Uhrzeit">
+                  {zeitenAmTag.map((z) => (
+                    <button key={z.beginn} type="button" role="radio" aria-checked={beginn === z.beginn} className={beginn === z.beginn ? "an" : ""} onClick={() => setBeginn(z.beginn)}>{z.uhrzeit}</button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <input className="ca-feld" value={notiz} onChange={(e) => setNotiz(e.target.value)}
+                   placeholder={art === "rueckruf" ? "Warum der Rückruf? (Pflicht — steht im Termin)" : "Notiz für die Person (freiwillig)"} aria-label="Notiz" />
+          </>
+        )}
+
+        {fehler && <p className="ca-fehler">{fehler}</p>}
+        <div className="ca-form-knoepfe tk-blatt-knoepfe">
+          <button type="button" className="ca-knopf" disabled={!kannSpeichern} onClick={() => void speichern()}>{busy ? "Trägt ein …" : "Termin eintragen"}</button>
+          <button type="button" className="ca-knopf still" onClick={onZu}>Abbrechen</button>
+        </div>
       </div>
     </div>
   );

@@ -192,3 +192,46 @@ export function kundeUndFirma(z: {
   const kunde = name || (firma ?? String(z.company_name ?? "").replace(/^privatperson\s*·\s*/i, "").trim()) || "Kunde";
   return { kunde, firma: firma && firma.toLowerCase() !== kunde.toLowerCase() ? String(firma).trim().slice(0, 120) : null };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FÜR KOLLEGEN EINTRAGEN (E-517, 16.11.2026)
+//
+// Justin (16.11.): „bau das für Kollegen eintragen auch". Im Teamkalender
+// trägt man einen Termin direkt bei einer Kollegin ein — nur in ihren FREIEN
+// Zeiten (dieselbe Rechnung wie jede Buchung: Arbeitszeiten, Termine, geblockte
+// Zeit), damit es keine Doppelbuchung gibt. Der Kunde bekommt die gewohnte
+// Bestätigung mit dem Namen der Kollegin; Global-Kontakte die Bestätigung im
+// FIAON-Global-Rahmen (Sie-Form). Der Betreuer des Kunden bleibt derselbe.
+// ═══════════════════════════════════════════════════════════════════════════
+export type KollegenArt = "global" | "rueckruf" | "vertrieb" | "support" | "onboarding" | "zahlung";
+/** Die Arten in der Reihenfolge der Auswahl — mit der echten Gesprächsart (fiaon_termine.quelle). */
+export const KOLLEGEN_ARTEN: { art: KollegenArt; text: string; quelle: string; nurGlobal?: boolean }[] = [
+  { art: "global", text: "Global-Gespräch", quelle: "global", nurGlobal: true },
+  { art: "rueckruf", text: "Rückruf", quelle: "agent_manuell" },
+  { art: "vertrieb", text: "Vertrieb", quelle: "agent_manuell" },
+  { art: "support", text: "Support", quelle: "support" },
+  { art: "onboarding", text: "Onboarding", quelle: "onboarding_call" },
+  { art: "zahlung", text: "Zahlung", quelle: "inkasso_call" },
+];
+export function kollegenQuelle(art: unknown): string | null {
+  return KOLLEGEN_ARTEN.find((a) => a.art === art)?.quelle ?? null;
+}
+
+export type KollegenPruefung = { ok: true; art: KollegenArt; quelle: string; notiz: string | null } | { ok: false; error: string; feld: "art" | "notiz" | "zeit" | "kunde" };
+/**
+ * Prüft die Eingabe für „Für Kollegen eintragen" (rein, ohne DB):
+ *   · Art muss es geben; „Global-Gespräch" nur bei einem Global-Kontakt (Firmen-Cockpit), und ein Global-Kontakt
+ *     bekommt nur das Global-Gespräch (sonst ginge eine Privat-Bestätigung an ein Unternehmen).
+ *   · Rückruf braucht einen Grund (wie „Termin anlegen" — er steht im Termin).
+ *   · Ein Zeitpunkt muss gewählt sein.
+ */
+export function kollegenEintragPruefen(ein: { art: unknown; notiz: unknown; beginn: unknown; globalKontakt: boolean }): KollegenPruefung {
+  const eintrag = KOLLEGEN_ARTEN.find((a) => a.art === ein.art);
+  if (!eintrag) return { ok: false, feld: "art", error: "Bitte die Art des Termins wählen." };
+  if (eintrag.nurGlobal && !ein.globalKontakt) return { ok: false, feld: "art", error: "Ein Global-Gespräch gibt es nur für Kontakte aus dem Firmen-Cockpit." };
+  if (!eintrag.nurGlobal && ein.globalKontakt) return { ok: false, feld: "art", error: "Für ein Unternehmen aus dem Firmen-Cockpit bitte „Global-Gespräch“ wählen — dann bekommt es die passende Bestätigung." };
+  const notiz = String(ein.notiz ?? "").replace(/\s+/g, " ").trim().slice(0, 500) || null;
+  if (eintrag.art === "rueckruf" && !notiz) return { ok: false, feld: "notiz", error: "Bitte kurz begründen, warum der Rückruf stattfindet — das steht dann im Termin." };
+  if (!String(ein.beginn ?? "").trim()) return { ok: false, feld: "zeit", error: "Bitte eine freie Zeit wählen." };
+  return { ok: true, art: eintrag.art, quelle: eintrag.quelle, notiz };
+}

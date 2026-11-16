@@ -390,7 +390,17 @@ export async function globalGespraechVerschieben(terminId: number, neu: Date, we
 }
 
 /** Die Bestätigung des Erstgesprächs (global_termin) mit der neuen Zeit — Firma, Paketwunsch und Sprache aus der Buchung. */
-async function globalBestaetigungNeu(g: GlobalGespraech): Promise<{ status: string; grund?: string | null }> {
+/**
+ * E-517 (16.11.2026): die Global-Bestätigung zu einem Gespräch, das eine Kollegin im Teamkalender für eine andere
+ * eingetragen hat („Für Kollegen eintragen“) — derselbe Rahmen wie nach dem Verschieben, Name der Kollegin als Ansprechpartner.
+ */
+export async function globalBestaetigungFuerTermin(terminId: number): Promise<{ status: string; grund?: string | null }> {
+  const g = await globalGespraechLesen(terminId);
+  if (!g) return { status: "uebersprungen", grund: "Termin nicht gefunden" };
+  return globalBestaetigungNeu(g, "nach dem Eintrag im Teamkalender");
+}
+
+async function globalBestaetigungNeu(g: GlobalGespraech, anlass = "nach dem Verschieben"): Promise<{ status: string; grund?: string | null }> {
   if (!g.email || !g.stornoToken) return { status: "uebersprungen", grund: "keine E-Mail-Adresse oder kein Storno-Token" };
   const anrufer = await globalZustaendigFuer(g.agentId, g.beginn);
   const paketText = /Paketwunsch: (?!noch offen)(.+)/.exec(g.notiz)?.[1]?.trim() ?? null;
@@ -411,7 +421,7 @@ async function globalBestaetigungNeu(g: GlobalGespraech): Promise<{ status: stri
   });
   const { versendenUndProtokollieren } = await import("./fiaon-mail-log");
   const erg = await versendenUndProtokollieren("global_termin", nutzlast as any, {
-    personId: g.personId, verlaufText: `Terminbestätigung (FIAON Global) nach dem Verschieben versandt: ${berlinDatumText(g.beginn)} um ${gespraechUhrzeit(g.beginn)} Uhr.`,
+    personId: g.personId, verlaufText: `Terminbestätigung (FIAON Global) ${anlass} versandt: ${berlinDatumText(g.beginn)} um ${gespraechUhrzeit(g.beginn)} Uhr.`,
   });
   return { status: erg.status, grund: erg.grund ?? null };
 }

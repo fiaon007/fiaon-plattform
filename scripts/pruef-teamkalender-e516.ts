@@ -9,7 +9,7 @@
 // Der DB-Teil läuft NUR gegen 127.0.0.1/localhost (nie gegen Produktion) und legt eigene Zeilen an.
 // ═══════════════════════════════════════════════════════════════════════════
 import { firmenSucheLesen, zweiterName, likeEntschaerfen } from "../shared/fiaon-firmen-suche";
-import { jetztFrei, kundeUndFirma, istEchteFirma, teamFarbe, personenOrdnen, uhrAusMinuten, TEAM_FARBEN, type TeamKalenderAntwort, type Zerleger } from "../shared/fiaon-teamkalender";
+import { jetztFrei, kundeUndFirma, istEchteFirma, teamFarbe, personenOrdnen, uhrAusMinuten, TEAM_FARBEN, kollegenEintragPruefen, kollegenQuelle, type TeamKalenderAntwort, type Zerleger } from "../shared/fiaon-teamkalender";
 
 let gut = 0; let schlecht = 0;
 function ok(name: string, bed: boolean, info?: unknown) {
@@ -123,6 +123,20 @@ ok("D10 Team-Abo: aktiver Mitarbeiter ohne Stufe darf", kal.kontoDarfAbo("team",
 ok("D11 Team-Abo: gesperrt nie", kal.kontoDarfAbo("team", { aktiv: true, gesperrt: true, stufe: "inhaber" }) === false);
 ok("D12 Team-Abo: deaktiviert ohne Inhaber nie", kal.kontoDarfAbo("team", { aktiv: false, gesperrt: false, stufe: null }) === false);
 
+// ── F. Für Kollegen eintragen (E-517) — reine Regeln ────────────────────────
+abschnitt("F. Für Kollegen eintragen (kollegenEintragPruefen)");
+{
+  const z = "2026-11-17T09:00:00.000Z";
+  ok("F1 Rückruf ohne Grund → Notiz fehlt", (() => { const r = kollegenEintragPruefen({ art: "rueckruf", notiz: " ", beginn: z, globalKontakt: false }); return !r.ok && r.feld === "notiz"; })());
+  ok("F2 Rückruf mit Grund → ok, Quelle agent_manuell", (() => { const r = kollegenEintragPruefen({ art: "rueckruf", notiz: "  Rückfrage   Unterlagen ", beginn: z, globalKontakt: false }); return r.ok && r.quelle === "agent_manuell" && r.notiz === "Rückfrage Unterlagen"; })());
+  ok("F3 Global-Gespräch nur für Global-Kontakte", (() => { const r = kollegenEintragPruefen({ art: "global", notiz: null, beginn: z, globalKontakt: false }); return !r.ok && r.feld === "art"; })());
+  ok("F4 Global-Kontakt nur mit Global-Gespräch (keine Privat-Bestätigung an ein Unternehmen)", (() => { const r = kollegenEintragPruefen({ art: "vertrieb", notiz: null, beginn: z, globalKontakt: true }); return !r.ok && r.feld === "art"; })());
+  ok("F5 Global-Kontakt + Global-Gespräch → Quelle global", (() => { const r = kollegenEintragPruefen({ art: "global", notiz: null, beginn: z, globalKontakt: true }); return r.ok && r.quelle === "global"; })());
+  ok("F6 unbekannte Art", !kollegenEintragPruefen({ art: "quatsch", notiz: null, beginn: z, globalKontakt: false }).ok);
+  ok("F7 ohne Zeit", (() => { const r = kollegenEintragPruefen({ art: "vertrieb", notiz: null, beginn: "", globalKontakt: false }); return !r.ok && r.feld === "zeit"; })());
+  ok("F8 Arten → Quellen", kollegenQuelle("onboarding") === "onboarding_call" && kollegenQuelle("zahlung") === "inkasso_call" && kollegenQuelle("support") === "support" && kollegenQuelle("x") === null);
+}
+
 // ── E. Gegen eine Wegwerf-DB ────────────────────────────────────────────────
 if (process.argv.includes("--db")) {
   const url = String(process.env.DATABASE_URL || "");
@@ -225,6 +239,54 @@ if (process.argv.includes("--db")) {
     await abo(B, "team");
     await sql`UPDATE fiaon_agents SET zugang_gesperrt_am = NOW() WHERE id = ${B}`;
     ok("E22 gesperrt → Team-Abo widerrufen", (await offen(B, "team")) === 0);
+    // ── Für Kollegen eintragen (E-517) ──
+    abschnitt("G. Für Kollegen eintragen (Wegwerf-DB)");
+    await sql`UPDATE fiaon_agents SET active = TRUE, zugang_gesperrt_am = NULL WHERE id IN (${B}, ${C})`;
+    // Ben arbeitet jeden Tag 07–21 Uhr (Berlin) — dann gibt es in den nächsten Tagen sicher freie Zeiten.
+    await sql`DELETE FROM fiaon_agent_verfuegbarkeit WHERE agent_id = ${B}`;
+    for (let wd = 1; wd <= 7; wd++) await sql`INSERT INTO fiaon_agent_verfuegbarkeit (agent_id, wochentag, von, bis) VALUES (${B}, ${wd}, '07:00', '21:00')`;
+    const pOhne = await person("Ole", "Offen", null, null);            // ohne Betreuer
+    const pDora = await person("Dana", "Fremd", null, D);              // gehört Dora (dritte Kollegin)
+    const pGlob = await person("Gina", "Global", "Beispiel Handel GmbH", null);
+    const fGlob = Number(((await sql`INSERT INTO fiaon_firmen_leads (firma, ansprechpartner, person_id, status) VALUES ('Beispiel Handel GmbH', 'Gina Global', ${pGlob}, 'neu') RETURNING id`) as any[])[0].id);
+    const suche = await tk.kundenFuerKollegen({ id: A, rolle: "agent" }, B, "Offen");
+    ok("G1 Suche: Kunde ohne Betreuer gefunden", suche.some((k) => k.personId === pOhne));
+    const sucheFremd = await tk.kundenFuerKollegen({ id: A, rolle: "agent" }, B, "Fremd");
+    ok("G2 Suche: Kunde einer DRITTEN Kollegin nicht gefunden", !sucheFremd.some((k) => k.personId === pDora));
+    const sucheLeitung = await tk.kundenFuerKollegen({ id: A, rolle: "vertriebsleiter" }, B, "Fremd");
+    ok("G3 Leitung findet jeden Kunden", sucheLeitung.some((k) => k.personId === pDora));
+    const sucheG = await tk.kundenFuerKollegen({ id: A, rolle: "agent" }, B, "Beispiel Handel");
+    ok("G4 Global-Kontakt gefunden und markiert", sucheG.some((k) => k.personId === pGlob && k.global && k.firma === "Beispiel Handel GmbH"), sucheG);
+    const kollegeB = await tk.kollegeLesen(B);
+    ok("G5 Kollegin lesbar, Testkonto nicht", !!kollegeB && (await tk.kollegeLesen(T)) === null);
+    const frei = await tk.kollegenFreieZeiten(kollegeB!, "agent_manuell");
+    const ersteZeit = frei.tage[0]?.zeiten[0]?.beginn;
+    ok("G6 freie Zeiten der Kollegin (7 Tage)", frei.tage.length >= 1 && !!ersteZeit, { tage: frei.tage.length });
+    const g1 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pOhne, beginn: ersteZeit, art: "vertrieb", notiz: "Bitte Unterlagen besprechen" });
+    const [neuT] = g1.buchung ? (await sql`SELECT agent_id, quelle, notiz, herkunft FROM fiaon_termine WHERE id = ${g1.buchung.id}`) as any[] : [null];
+    ok("G7 eingetragen bei Ben, Art Vertrieb, Notiz mit „Eingetragen von Anna Berg“", g1.status === 200 && Number(neuT?.agent_id) === B && neuT?.quelle === "agent_manuell" && /Eingetragen von Anna Berg für Ben Leit — Bitte Unterlagen besprechen/.test(String(neuT?.notiz)), { g1: g1.body, neuT });
+    const [pNach] = (await sql`SELECT assigned_agent_id FROM fiaon_persons WHERE id = ${pOhne}`) as any[];
+    ok("G8 Kunde bleibt ohne Betreuer (kein Umhängen)", pNach.assigned_agent_id == null, pNach);
+    const g2 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pOhne, beginn: ersteZeit, art: "vertrieb", notiz: null });
+    ok("G9 dieselbe Zeit noch einmal → 409 (keine Doppelbuchung)", g2.status === 409 && !g2.buchung, g2.body);
+    const g3 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pDora, beginn: frei.tage[0]?.zeiten[2]?.beginn, art: "vertrieb", notiz: null });
+    ok("G10 Kunde einer dritten Kollegin → 403", g3.status === 403, g3.body);
+    const g4 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pGlob, beginn: frei.tage[0]?.zeiten[3]?.beginn, art: "vertrieb", notiz: null });
+    ok("G11 Global-Kontakt mit Privat-Art → 400", g4.status === 400 && g4.body.feld === "art", g4.body);
+    const morgenNacht = new Date(Date.now() + 2 * 864e5); morgenNacht.setUTCHours(2, 0, 0, 0); // 03:00/04:00 Berlin — außerhalb der Zeiten
+    const g5 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pOhne, beginn: morgenNacht.toISOString(), art: "vertrieb", notiz: null });
+    ok("G12 außerhalb der Arbeitszeit → 409", g5.status === 409, g5.body);
+    const g6 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: T, personId: pOhne, beginn: ersteZeit, art: "vertrieb", notiz: null });
+    ok("G13 bei einem Testkonto → 404", g6.status === 404);
+    const freiG = await tk.kollegenFreieZeiten(kollegeB!, "global");
+    const zeitG = freiG.tage.flatMap((t) => t.zeiten).find((z) => z.beginn !== ersteZeit)?.beginn;
+    const g7 = await tk.terminFuerKollegen({ wer: { id: A, name: "Anna Berg", rolle: "agent" }, agentId: B, personId: pGlob, beginn: zeitG, art: "global", notiz: null });
+    const [gT] = g7.buchung ? (await sql`SELECT quelle, herkunft FROM fiaon_termine WHERE id = ${g7.buchung.id}`) as any[] : [null];
+    const fLog = (await sql`SELECT ergebnis, notiz FROM fiaon_firmen_log WHERE firma_id = ${fGlob} ORDER BY id DESC LIMIT 1`) as any[];
+    const [fStatus] = (await sql`SELECT status FROM fiaon_firmen_leads WHERE id = ${fGlob}`) as any[];
+    ok("G14 Global-Gespräch bei Ben: Quelle global, Herkunft agent_global, Cockpit-Verlauf + Status „termin“",
+      g7.status === 200 && g7.global === true && gT?.quelle === "global" && gT?.herkunft === "agent_global" && fLog[0]?.ergebnis === "termin_eingetragen" && fStatus?.status === "termin",
+      { g7: g7.body, gT, fLog: fLog[0], fStatus });
     await sql.end({ timeout: 2 }).catch(() => {});
   }
 }

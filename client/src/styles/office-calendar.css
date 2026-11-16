@@ -477,3 +477,25 @@ select.ca-feld option{color:#0f172a}
   .tk-woche{grid-template-columns:92px repeat(var(--tk-spalten,7),minmax(110px,1fr))}
 }
 @media (prefers-reduced-motion:reduce){.tk-chip{transition:none}}
+
+/* ═══ E-517 (16.11.2026): Für Kollegen eintragen ═══ */
+.tk-fuss-knoepfe{display:inline-flex;gap:8px;flex-wrap:wrap}
+.tk-spalte{cursor:copy}
+.tk-spalte .tk-termin{cursor:pointer}
+.tk-eintragen{--tk-farbe:#5aa9ff;width:min(100%,600px);border-top:3px solid var(--tk-farbe)}
+.tk-schritt{margin:16px 0 8px;font:600 11.5px/1.2 'Inter',sans-serif;letter-spacing:.06em;text-transform:uppercase;color:#93c5fd}
+.tk-schritt:first-of-type{margin-top:4px}
+.tk-wahl{display:flex;flex-wrap:wrap;gap:8px}
+.tk-wahl button{--tk-farbe:#5aa9ff;display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;cursor:pointer}
+.tk-wahl button i{width:9px;height:9px;border-radius:50%;background:var(--tk-farbe)}
+.tk-wahl button.an{background:rgba(59,130,246,.22);border-color:rgba(147,197,253,.7);color:#fff}
+.tk-tage{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.tk-tage button{flex:none;display:grid;gap:2px;justify-items:center;min-width:58px;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e5e7eb;cursor:pointer}
+.tk-tage button b{font:600 12.5px/1 'Inter',sans-serif}
+.tk-tage button small{font-size:11px;color:#94a3b8}
+.tk-tage button.an{background:rgba(59,130,246,.22);border-color:rgba(147,197,253,.7)}
+.tk-zeiten-wahl{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px;margin:10px 0 12px;max-height:180px;overflow-y:auto}
+.tk-zeiten-wahl button{min-height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);color:#e5e7eb;font:500 13px/1 'Inter',sans-serif;font-variant-numeric:tabular-nums;cursor:pointer}
+.tk-zeiten-wahl button.an{background:linear-gradient(135deg,#2563eb,#3b82f6);border-color:transparent;color:#fff}
+.tk-wahl button:focus-visible,.tk-tage button:focus-visible,.tk-zeiten-wahl button:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.tk-leise{margin:6px 0;font-size:12px;color:#94a3b8}

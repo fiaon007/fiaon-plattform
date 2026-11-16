@@ -615,7 +615,11 @@ export const RUNDGANG_CALENDAR: RundgangSchritt[] = [
       + "Firmen-Cockpit. Fällt ein Kollege aus, drückst du „Übernehmen\u201c: Der Termin liegt dann bei dir — still, der Kunde bekommt "
       + "keine Mail, die Uhrzeit bleibt, und der Kunde bleibt bei seinem Betreuer. Im Verlauf steht, wer von wem übernommen hat.",
     tipp: "Kurzfristige Anfrage? Erst oben schauen, wer „frei bis …\u201c hat — dann gibt es keine Doppelbuchung. "
-      + "„Team im Handy-Kalender\u201c legt dir die Termine der Kollegen als eigenen Kalender aufs Handy.",
+      + "„Team im Handy-Kalender\u201c legt dir die Termine der Kollegen als eigenen Kalender aufs Handy. "
+      // 16.11.2026 (E-517): Für Kollegen eintragen.
+      + "Einen Termin für eine Kollegin trägst du mit „Termin für Kollegen eintragen\u201c ein — oder du klickst in ihrer Spalte auf eine "
+      + "freie Stelle: Person, Kunde, Art, dann eine ihrer FREIEN Zeiten. Der Kunde bekommt die Bestätigung mit ihrem Namen "
+      + "(ein Unternehmen aus dem Firmen-Cockpit im FIAON-Global-Rahmen), sein Betreuer bleibt derselbe, und sie bekommt die übliche Meldung.",
   },
 ];
 

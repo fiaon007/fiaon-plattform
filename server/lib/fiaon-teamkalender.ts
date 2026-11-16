@@ -238,3 +238,169 @@ export async function terminUebernehmen(terminId: number, wer: { id: number; nam
     },
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FÜR KOLLEGEN EINTRAGEN (E-517, 16.11.2026)
+//
+//   GET  /agent/termine/kollegen/kunden?agentId&q   kundenFuerKollegen
+//   GET  /agent/termine/kollegen/frei?agentId&art   kollegenFreieZeiten
+//   POST /agent/termine/kollegen                    terminFuerKollegen (+ Bestätigung in der Route)
+//
+// ── WER WEN EINTRAGEN DARF ──────────────────────────────────────────────────
+// Jeder aktive Mitarbeiter (Justin: der Teamkalender gehört allen) — für einen
+// Kunden, der ihm selbst oder der Kollegin gehört, der noch keinen Betreuer
+// hat oder der ein Global-Kontakt aus dem Firmen-Cockpit ist. Die Leitung
+// (vertriebsleiter/admin) darf jeden Kunden eintragen. Fremde Kunden eines
+// DRITTEN Kollegen nicht — das wäre eine Zuständigkeitsübernahme durch die
+// Hintertür (derselbe Gedanke wie POST /agent/termine).
+//
+// ── WAS PASSIERT ────────────────────────────────────────────────────────────
+// Gebucht wird über terminBuchen (die EINE Schreibstelle) mit der Kollegin als
+// agent_id — dieselben Wände wie überall (Arbeitszeit, Raster, Überschneidung,
+// geblockte Zeit, Doppelbuchungs-Index). buchungAnwenden mit zuordnen:false:
+// Der Kunde bleibt, wo er ist; die Kollegin bekommt die übliche Buchungsmeldung.
+// Die Kundenbestätigung schickt die Route (Privat: termin_bestaetigung,
+// Global: global_termin im Global-Rahmen mit dem Namen der Kollegin).
+// ═══════════════════════════════════════════════════════════════════════════
+export interface Kollege { id: number; name: string; vorname: string }
+
+/** Die Kollegin, bei der eingetragen wird — aktiv, nicht gesperrt, kein Testkonto, nicht das Forderungsmanagement. */
+export async function kollegeLesen(agentId: number, lauf: Lauf = sqlPool): Promise<Kollege | null> {
+  if (!Number.isInteger(agentId) || agentId <= 0) return null;
+  const [k] = (await lauf.unsafe(`
+    SELECT a.id, a.name, COALESCE(NULLIF(TRIM(a.first_name), ''), split_part(COALESCE(a.name, ''), ' ', 1)) AS vorname
+      FROM fiaon_agents a
+     WHERE a.id = $1 AND a.active AND a.zugang_gesperrt_am IS NULL AND ${echteMitarbeiterSql("a")}
+       AND COALESCE(a.rolle, 'agent') <> 'inkasso'
+  `, [agentId])) as any[];
+  return k ? { id: Number(k.id), name: String(k.name ?? ""), vorname: String(k.vorname ?? "") } : null;
+}
+
+const istLeitung = (rolle: string | null | undefined) => ["vertriebsleiter", "admin"].includes(String(rolle ?? ""));
+
+/** Die Bedingung „darf diesen Kunden für die Kollegin eintragen" als SQL — p = fiaon_persons, $1 = ich, $2 = Kollegin. */
+function zugriffSql(leitung: boolean, firmenDa: boolean): string {
+  // $1/$2 immer mit Typ — bei der Leitung steht die Bedingung nur der Form halber da (sonst kennt Postgres den Typ nicht).
+  if (leitung) return "(TRUE OR p.assigned_agent_id IN ($1::int, $2::int))";
+  return `(p.assigned_agent_id IS NULL OR p.assigned_agent_id IN ($1::int, $2::int)${firmenDa ? " OR EXISTS (SELECT 1 FROM fiaon_firmen_leads f WHERE f.person_id = p.id)" : ""})`;
+}
+
+export interface KollegenKunde { personId: number; name: string; firma: string | null; global: boolean; firmaId: number | null; betreuer: string | null }
+
+export async function kundenFuerKollegen(wer: { id: number; rolle: string | null }, agentId: number, qRoh: unknown, lauf: Lauf = sqlPool): Promise<KollegenKunde[]> {
+  const q = String(qRoh ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (q.length < 2) return [];
+  const text = q.replace(/[\\%_]/g, (z) => `\\${z}`);
+  const ziffern = q.replace(/[^0-9]/g, "").replace(/^0+/, "");
+  const firmenDa = await tabelleDa("fiaon_firmen_leads", lauf);
+  const zeilen = (await lauf.unsafe(`
+    SELECT p.id, p.first_name, p.last_name, p.contact_name, p.company_name,
+           ag.first_name AS betreuer_vorname, ag.name AS betreuer_name,
+           ${firmenDa ? `(SELECT f.id FROM fiaon_firmen_leads f WHERE f.person_id = p.id ORDER BY f.updated_at DESC LIMIT 1)` : "NULL::int"} AS firma_id,
+           ${firmenDa ? `(SELECT f.firma FROM fiaon_firmen_leads f WHERE f.person_id = p.id ORDER BY f.updated_at DESC LIMIT 1)` : "NULL::text"} AS firmen_karte
+      FROM fiaon_persons p
+      LEFT JOIN fiaon_agents ag ON ag.id = p.assigned_agent_id
+     WHERE p.merged_into_person_id IS NULL
+       AND ${zugriffSql(istLeitung(wer.rolle), firmenDa)}
+       AND (TRIM(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')) ILIKE '%' || $3 || '%'
+            OR COALESCE(p.company_name, '') ILIKE '%' || $3 || '%'
+            OR COALESCE(p.contact_name, '') ILIKE '%' || $3 || '%'
+            OR COALESCE(p.primary_email, '') ILIKE '%' || $3 || '%'
+            OR ($4 <> '' AND length($4) >= 3 AND regexp_replace(COALESCE(p.primary_phone, ''), '[^0-9]', '', 'g') LIKE '%' || $4 || '%'))
+     ORDER BY p.id DESC
+     LIMIT 12
+  `, [wer.id, agentId, text, ziffern])) as any[];
+  return zeilen.map((z) => {
+    const { kunde, firma } = kundeUndFirma({ ...z, firmen_karte: z.firmen_karte });
+    return {
+      personId: Number(z.id), name: kunde, firma, global: z.firma_id != null, firmaId: z.firma_id != null ? Number(z.firma_id) : null,
+      betreuer: z.betreuer_vorname || z.betreuer_name ? String(z.betreuer_vorname || z.betreuer_name) : null,
+    };
+  });
+}
+
+/** Freie Zeiten der Kollegin für die nächsten 7 Tage — DIESELBE Rechnung wie jede Buchung (rohSlots), Vorlauf wie die Annahme. */
+export async function kollegenFreieZeiten(kollege: Kollege, quelle: string, lauf: Lauf = sqlPool): Promise<{ dauerMin: number; tage: { tag: string; zeiten: { beginn: string; uhrzeit: string }[] }[] }> {
+  const { rohSlots, dauerFuer, VORLAUF_STUNDEN } = await import("./fiaon-termine");
+  const dauerMin = dauerFuer(quelle);
+  // Derselbe Vorlauf wie die Annahme (terminBuchen): Nur der selbst notierte Rückruf/Vertrieb (agent_manuell) darf
+  // „gleich in 15 Minuten“ — alle anderen Arten frühestens in VORLAUF_STUNDEN (sonst böte der Dialog Zeiten an, die abgelehnt werden).
+  const vorlaufMs = quelle === "agent_manuell" ? 15 * 60_000 : VORLAUF_STUNDEN * 3600_000;
+  const alle = await rohSlots([{ id: kollege.id, vorname: kollege.vorname }], dauerMin, lauf, vorlaufMs);
+  const grenze = Date.now() + 7 * 864e5;
+  const jeTag = new Map<string, { beginn: string; uhrzeit: string }[]>();
+  for (const s of alle) {
+    if (new Date(s.beginn).getTime() > grenze) continue;
+    if (!jeTag.has(s.datum)) jeTag.set(s.datum, []);
+    const liste = jeTag.get(s.datum)!;
+    if (liste.length < 40) liste.push({ beginn: s.beginn, uhrzeit: s.uhrzeit });
+  }
+  return { dauerMin, tage: Array.from(jeTag.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([tag, zeiten]) => ({ tag, zeiten })) };
+}
+
+export interface KollegenEintragErgebnis {
+  status: number;
+  body: { ok: boolean; error?: string; feld?: string; code?: string };
+  buchung?: any;
+  global?: boolean;
+  kollege?: Kollege;
+  kunde?: string;
+}
+
+export async function terminFuerKollegen(ein: {
+  wer: { id: number; name: string; rolle: string | null };
+  agentId: number; personId: number; beginn: unknown; art: unknown; notiz: unknown;
+}, lauf: Lauf = sqlPool): Promise<KollegenEintragErgebnis> {
+  const { kollegenEintragPruefen } = await import("../../shared/fiaon-teamkalender");
+  const kollege = await kollegeLesen(Number(ein.agentId), lauf);
+  if (!kollege) return { status: 404, body: { ok: false, error: "Diese Kollegin bzw. diesen Kollegen gibt es nicht (mehr) — oder der Zugang ist gesperrt." } };
+  const firmenDa = await tabelleDa("fiaon_firmen_leads", lauf);
+  const [p] = (await lauf.unsafe(`
+    SELECT p.id, p.first_name, p.last_name, p.contact_name, p.company_name, p.assigned_agent_id,
+           ${firmenDa ? `(SELECT f.id FROM fiaon_firmen_leads f WHERE f.person_id = p.id ORDER BY f.updated_at DESC LIMIT 1)` : "NULL::int"} AS firma_id,
+           ${zugriffSql(istLeitung(ein.wer.rolle), firmenDa)} AS darf
+      FROM fiaon_persons p
+     WHERE p.id = $3 AND p.merged_into_person_id IS NULL
+  `, [ein.wer.id, kollege.id, Number(ein.personId)])) as any[];
+  if (!p) return { status: 404, body: { ok: false, feld: "kunde", error: "Kunde nicht gefunden." } };
+  if (p.darf !== true) return { status: 403, body: { ok: false, feld: "kunde", error: "Dieser Kunde wird von einem anderen Kollegen betreut — eintragen darf ihn nur sein Betreuer oder die Leitung." } };
+  const globalKontakt = p.firma_id != null;
+  const pruef = kollegenEintragPruefen({ art: ein.art, notiz: ein.notiz, beginn: ein.beginn, globalKontakt });
+  if (!pruef.ok) return { status: 400, body: { ok: false, error: pruef.error, feld: pruef.feld } };
+
+  const { terminBuchen, buchungAnwenden, versuchProtokollieren, TerminFehler } = await import("./fiaon-termine");
+  let buchung;
+  try {
+    buchung = await terminBuchen({
+      personId: Number(p.id), agentId: kollege.id, beginn: String(ein.beginn), quelle: pruef.quelle,
+      herkunft: pruef.art === "global" ? "agent_global" : "agent", artVomMitarbeiter: true,
+    }, lauf);
+  } catch (e) {
+    await versuchProtokollieren({ ergebnis: "abgelehnt", personId: Number(p.id), slotBeginn: String(ein.beginn), agentId: kollege.id, grund: e instanceof TerminFehler ? e.code : "serverfehler", quelle: pruef.quelle, akteur: "agent" }).catch(() => {});
+    if (e instanceof TerminFehler) return { status: 409, body: { ok: false, feld: "zeit", code: e.code, error: e.message } };
+    throw e;
+  }
+  const notizText = `Eingetragen von ${ein.wer.name} für ${kollege.name}${pruef.notiz ? ` — ${pruef.notiz}` : ""}`;
+  await lauf`UPDATE fiaon_termine SET notiz = TRIM(BOTH ' ' FROM COALESCE(notiz, '') || CASE WHEN COALESCE(notiz, '') = '' THEN '' ELSE E'\n' END || ${notizText.slice(0, 600)}) WHERE id = ${buchung.id}`.catch(() => {});
+  // Der Kunde bleibt, wo er ist (kein Betreuerwechsel); die Kollegin bekommt die übliche Buchungsmeldung.
+  await buchungAnwenden(buchung, lauf, { zuordnen: false });
+  await versuchProtokollieren({ ergebnis: "gebucht", personId: Number(p.id), slotBeginn: String(ein.beginn), agentId: kollege.id, quelle: pruef.quelle, akteur: "agent" }).catch(() => {});
+
+  // ── Verlauf: Akte (Privat) und Firmen-Cockpit (Global) — beides wirft nie ──
+  const satz = `Termin ${berlinText(buchung.beginn)} Uhr (${terminArtAusQuelle(pruef.quelle).text}) bei ${kollege.name} eingetragen von ${ein.wer.name}.`;
+  await lauf`
+    INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note, created_at)
+    SELECT a.ref, ${Number(p.id)}, ${ein.wer.id}, ${ein.wer.name}, 'system', ${satz}, NOW()
+      FROM fiaon_applications a WHERE a.person_id = ${Number(p.id)} AND a.merged_into IS NULL ORDER BY a.created_at DESC LIMIT 1
+  `.catch(() => {});
+  if (globalKontakt && await tabelleDa("fiaon_firmen_log", lauf)) {
+    await lauf`
+      INSERT INTO fiaon_firmen_log (firma_id, agent_id, agent_name, art, ergebnis, notiz)
+      VALUES (${Number(p.firma_id)}, ${ein.wer.id}, ${ein.wer.name}, 'global', 'termin_eingetragen', ${satz})
+    `.catch(() => {});
+    await lauf`UPDATE fiaon_firmen_leads SET status = 'termin', letzter_kontakt = NOW(), updated_at = NOW() WHERE id = ${Number(p.firma_id)} AND status NOT IN ('antrag')`.catch(() => {});
+  }
+  const { kunde } = kundeUndFirma(p);
+  console.log(`[TEAMKALENDER] Termin #${buchung.id} für Kollegen eingetragen: #${ein.wer.id} → bei #${kollege.id} (${pruef.quelle})`);
+  return { status: 200, body: { ok: true }, buchung, global: globalKontakt, kollege, kunde };
+}

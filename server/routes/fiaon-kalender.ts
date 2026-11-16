@@ -210,6 +210,84 @@ agentRouter.get("/agent/calendar/team", agentWand, async (req: MitAgent, res: Re
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FÜR KOLLEGEN EINTRAGEN (E-517, 16.11.2026) — Teamkalender
+//   GET  /agent/termine/kollegen/kunden?agentId&q   wen darf ich für die Kollegin eintragen?
+//   GET  /agent/termine/kollegen/frei?agentId&art   ihre freien Zeiten (dieselbe Rechnung wie jede Buchung)
+//   POST /agent/termine/kollegen                    {agentId, personId, beginn, art, notiz}
+// Regeln: shared/fiaon-teamkalender.ts (kollegenEintragPruefen), Schreiben: server/lib/fiaon-teamkalender.ts.
+// ═══════════════════════════════════════════════════════════════════════════
+const rolleLesen = async (id: number): Promise<string | null> => {
+  const { rolleVon } = await import("../lib/fiaon-kundenzugriff");
+  return (await rolleVon(id).catch(() => null)) as string | null;
+};
+
+agentRouter.get("/agent/termine/kollegen/kunden", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const tk = await import("../lib/fiaon-teamkalender");
+    const kollege = await tk.kollegeLesen(Number(req.query.agentId));
+    if (!kollege) return void res.status(404).json({ ok: false, error: "Diese Kollegin bzw. diesen Kollegen gibt es nicht (mehr)." });
+    const kunden = await tk.kundenFuerKollegen({ id: req.agent!.id, rolle: await rolleLesen(req.agent!.id) }, kollege.id, req.query.q);
+    res.json({ ok: true, kunden });
+  } catch (err) {
+    console.error("[TEAMKALENDER] Kundensuche:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Die Suche hat nicht geklappt." });
+  }
+});
+
+agentRouter.get("/agent/termine/kollegen/frei", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    res.setHeader("Cache-Control", "private, no-store");
+    const tk = await import("../lib/fiaon-teamkalender");
+    const { kollegenQuelle } = await import("../../shared/fiaon-teamkalender");
+    const kollege = await tk.kollegeLesen(Number(req.query.agentId));
+    if (!kollege) return void res.status(404).json({ ok: false, error: "Diese Kollegin bzw. diesen Kollegen gibt es nicht (mehr)." });
+    const quelle = kollegenQuelle(req.query.art) ?? "agent_manuell";
+    const frei = await tk.kollegenFreieZeiten(kollege, quelle);
+    res.json({ ok: true, kollege: { id: kollege.id, vorname: kollege.vorname }, ...frei });
+  } catch (err) {
+    console.error("[TEAMKALENDER] freie Zeiten:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Die freien Zeiten konnten nicht geladen werden." });
+  }
+});
+
+agentRouter.post("/agent/termine/kollegen", agentWand, async (req: MitAgent, res: Response) => {
+  try {
+    const agent = req.agent!;
+    if (agent.ansicht) return void res.status(403).json({ ok: false, error: "In der Ansicht nicht möglich." });
+    const tk = await import("../lib/fiaon-teamkalender");
+    const b = req.body || {};
+    const r = await tk.terminFuerKollegen({
+      wer: { id: agent.id, name: agent.name, rolle: await rolleLesen(agent.id) },
+      agentId: Number(b.agentId), personId: Number(b.personId), beginn: b.beginn, art: b.art, notiz: b.notiz,
+    });
+    if (!r.buchung) return void res.status(r.status).json(r.body);
+    // Die Bestätigung an den Kunden — Global im Global-Rahmen (Sie-Form, Name der Kollegin), sonst die gewohnte.
+    let mail = "nicht versandt";
+    try {
+      if (r.global) {
+        const { globalBestaetigungFuerTermin } = await import("../lib/fiaon-global-gespraech");
+        const erg = await globalBestaetigungFuerTermin(Number(r.buchung.id));
+        mail = erg.status === "versandt" ? "versandt" : `nicht versandt (${erg.grund ?? erg.status})`;
+      } else {
+        const { bestaetigungSenden } = await import("./fiaon-termin");
+        const erg = await bestaetigungSenden(r.buchung, { ausgeloestVon: `Teamkalender (${agent.name})`, ausgeloestAgentId: agent.id });
+        mail = erg?.status === "versandt" ? "versandt" : `nicht versandt (${(erg as any)?.grund ?? "keine E-Mail-Adresse"})`;
+      }
+    } catch (e) { mail = `nicht versandt (${String((e as Error)?.message ?? e).slice(0, 80)})`; }
+    res.json({
+      ok: true,
+      termin: { id: Number(r.buchung.id), datumText: r.buchung.datumText, uhrzeit: r.buchung.uhrzeit },
+      bei: r.kollege?.vorname ?? "",
+      hinweis: `Eingetragen: ${r.buchung.datumText} um ${r.buchung.uhrzeit} Uhr bei ${r.kollege?.vorname ?? "der Kollegin"} — ${r.kunde ?? "der Kunde"} `
+        + (mail === "versandt" ? "bekommt eine Bestätigung per E-Mail." : `— die Bestätigung wurde ${mail}; bitte den Kunden kurz selbst informieren.`),
+    });
+  } catch (err) {
+    console.error("[TEAMKALENDER] für Kollegen eintragen:", String((err as Error)?.message ?? err).slice(0, 200));
+    res.status(500).json({ ok: false, error: "Serverfehler — der Termin ist NICHT eingetragen. Bitte noch einmal versuchen." });
+  }
+});
+
 agentRouter.post("/agent/termine/:id/uebernehmen", agentWand, async (req: MitAgent, res: Response) => {
   try {
     const agent = req.agent!;

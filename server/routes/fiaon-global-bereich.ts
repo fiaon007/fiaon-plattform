@@ -32,6 +32,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import { requireAgent, type AgentRequest } from "./fiaon-agent";
+import { tageslauf } from "../lib/fiaon-crons";
 import { readChef } from "./fiaon-chef-zugang";
 import { hasAdminCode } from "./fiaon-admin-zugang";
 import { globalTokenPruefen, globalTokenErzeugen, globalVertragPdfLesen, globalRechnungPdf, GLOBAL_PORTAL_TAGE, GLOBAL_PORTAL_ERNEUERN_TAGE } from "../lib/fiaon-global-auftrag";
@@ -589,7 +590,10 @@ async function office(req: AgentRequest, res: Response, schreibt: boolean): Prom
   const person = wer(req);
   const zustaendig = ref ? await globalBereichZustaendig(ref) : undefined;
   const urteil = globalOfficeZugriff(person, zustaendig ?? null);
-  if (!urteil.erlaubt) { res.status(403).json({ ok: false, error: "Diesen Auftrag führt jemand anderes. Zugriff haben die zuständige Person und die Leitung." }); return null; }
+  // E-520 (17.11.2026): Wer den offenen Auftrag „Gründung bestellen“ zu dieser Akte hat, darf hinein — sonst könnte er nicht bestellen.
+  const gruendung = !urteil.erlaubt && !!req.agent?.id && !!ref
+    && await import("../lib/fiaon-global-gruendung-auftrag").then((g) => g.gruendungDarf(req.agent!.id, ref)).catch(() => false);
+  if (!urteil.erlaubt && !gruendung) { res.status(403).json({ ok: false, error: "Diesen Auftrag führt jemand anderes. Zugriff haben die zuständige Person und die Leitung." }); return null; }
   if (zustaendig === undefined) { res.status(404).json({ ok: false, error: "Diesen Auftrag gibt es nicht." }); return null; }
   if (schreibt && req.agent?.ansicht) { res.status(403).json({ ok: false, error: "In der Ansicht lässt sich nichts ändern." }); return null; }
   return { ref, agent: { id: req.agent!.id, name: req.agent!.name } };
@@ -618,9 +622,17 @@ router.get("/agent/global/auftraege", requireAgent, async (req: AgentRequest, re
     const person = wer(req);
     const siehtAlle = !!globalOfficeSiehtAlle(person);
     const urteil = globalOfficeRaumZugriff(person, siehtAlle ? { fuehrtAuftraege: false, istEingestellt: false } : await globalBereichRaumLage(req.agent!.id));
-    if (!urteil.erlaubt) return res.status(403).json({ ok: false, error: "Dieser Raum gehört der Person, die FIAON Global führt, und der Leitung." });
+    // E-520: offene Aufträge „Gründung bestellen“ öffnen den Raum — mit genau diesen Akten (zusätzlich zu den eigenen).
+    const gruendungRefs = urteil.alle ? [] : await import("../lib/fiaon-global-gruendung-auftrag").then((g) => g.gruendungRefsVon(req.agent!.id)).catch(() => [] as string[]);
+    if (!urteil.erlaubt && !gruendungRefs.length) return res.status(403).json({ ok: false, error: "Dieser Raum gehört der Person, die FIAON Global führt, und der Leitung." });
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ ok: true, alle: urteil.alle, zeilen: await globalBereichListe({ agentId: req.agent!.id, alle: urteil.alle }) });
+    let zeilen = urteil.erlaubt ? await globalBereichListe({ agentId: req.agent!.id, alle: urteil.alle }) : [];
+    if (gruendungRefs.length) {
+      const schon = new Set(zeilen.map((z) => String((z as any).ref)));
+      const dazu = (await globalBereichListe({ agentId: req.agent!.id, alle: true })).filter((z) => gruendungRefs.includes(String((z as any).ref)) && !schon.has(String((z as any).ref)));
+      zeilen = [...dazu, ...zeilen];
+    }
+    res.json({ ok: true, alle: urteil.alle, zeilen });
   } catch (err) {
     console.error("[GLOBAL-BEREICH] office liste:", err);
     res.status(500).json({ ok: false, error: "Serverfehler" });
@@ -675,6 +687,29 @@ router.post("/agent/global/auftraege/:ref/station", requireAgent, async (req: Ag
     res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+// ── E-520 (17.11.2026): Reiter „Gründung bestellen“ — die Bestell-Anleitung mit Werten und der Beleg (Bestellnummer) ──
+router.get("/agent/global/auftraege/:ref/gruendung", requireAgent, async (req: AgentRequest, res: Response) => {
+  try {
+    const z = await office(req, res, false);
+    if (!z) return;
+    const { gruendungSicht } = await import("../lib/fiaon-global-gruendung-auftrag");
+    const sicht = await gruendungSicht(z.ref);
+    if (!sicht) return res.status(404).json({ ok: false, error: "Diesen Auftrag gibt es nicht." });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ ok: true, gruendung: sicht });
+  } catch (err) {
+    console.error("[GLOBAL-BEREICH] office gruendung:", err);
+    res.status(500).json({ ok: false, error: "Serverfehler" });
+  }
+});
+router.post("/agent/global/auftraege/:ref/gruendung/bestellt", requireAgent, aktion("gruendung bestellt", async (ref, b, agent) =>
+  (await import("../lib/fiaon-global-gruendung-auftrag")).gruendungBestellt(ref, { bestellnummer: b.bestellnummer }, agent)));
+router.post("/agent/global/auftraege/:ref/gruendung/haken", requireAgent, aktion("gruendung haken", async (ref, b, agent) => {
+  const { GRUENDUNG_HAKEN } = await import("../../shared/fiaon-global-gruendung-auftrag");
+  if (!(GRUENDUNG_HAKEN as readonly string[]).includes(String(b.schritt ?? ""))) return { ok: false as const, status: 400, error: "Diesen Schritt gibt es hier nicht." };
+  return (await import("../lib/fiaon-global-mandat")).globalArbeitsablaufHaken(ref, { schritt: b.schritt, erledigt: b.erledigt }, agent);
+}));
+
 router.post("/agent/global/auftraege/:ref/itin", requireAgent, async (req: AgentRequest, res: Response) => {
   try {
     const z = await office(req, res, false);
@@ -806,5 +841,14 @@ router.get("/agent/global/auftraege/:ref/rechnung.pdf", requireAgent, async (req
     if (!res.headersSent) res.status(500).json({ ok: false, error: "Serverfehler" });
   }
 });
+
+// ── E-520 (17.11.2026): DER WÄCHTER „GRÜNDUNG BESTELLEN“ (nur im Betrieb, CRONS_AN) ─────────────────────────────
+// Alle 10 Minuten: bezahlte Gründung ohne Station „Gründung eingereicht“ → EIN Auftrag bei der Person, die bestellt;
+// Station erledigt → Auftrag zu; am nächsten Werktag 10 Uhr noch offen → Ampel + Mail an die Leitung.
+tageslauf("gruendung-auftrag", async () => {
+  const { gruendungWaechter } = await import("../lib/fiaon-global-gruendung-auftrag");
+  const e = await gruendungWaechter();
+  return e.angelegt + e.geschlossen + e.eskaliert > 0;
+}, 10 * 60_000, { beimStartNach: 5 * 60_000, nurMitErgebnis: true });
 
 export default router;

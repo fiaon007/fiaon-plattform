@@ -57,6 +57,7 @@ import {
 } from "./global-logik";
 import GlobalStationen, { type StationenDaten } from "@/components/global/GlobalStationen";
 import GlobalFormulare from "@/components/global/GlobalFormulare";
+import GlobalGruendung from "./global-gruendung";
 import "@/styles/office-pipeline.css";
 import "@/styles/office-rundgang.css";
 import "@/styles/office-global.css";
@@ -64,8 +65,9 @@ import "@/styles/office-global.css";
 type Zustand = "laedt" | "ok" | "kein_zugriff" | "nicht_da" | "fehler";
 // 22.10.2026: „Fahrplan & Werte“ — der Stationen-Editor des Chefbüros (EIN, ITIN, D-U-N-S, Telefon, Adressen, Konto, Karten).
 // 22.10.2026: + „Unterschriften“ — Dokumente & Unterschriften je Mandat (GlobalFormulare, dieselben Wege wie das Chefbüro).
-type Reiter = "stand" | "fahrplan" | "gesellschaft" | "dokumente" | "unterschriften" | "verlauf";
-const REITER: [Reiter, string][] = [["stand", "Stand"], ["fahrplan", "Fahrplan & Werte"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["unterschriften", "Unterschriften"], ["verlauf", "Verlauf"]];
+// E-520 (17.11.2026): + „Gründung bestellen“ — die Bestell-Anleitung für den Auftrag vom Zahlungstag (global-gruendung.tsx).
+type Reiter = "stand" | "gruendung" | "fahrplan" | "gesellschaft" | "dokumente" | "unterschriften" | "verlauf";
+const REITER: [Reiter, string][] = [["stand", "Stand"], ["gruendung", "Gründung bestellen"], ["fahrplan", "Fahrplan & Werte"], ["gesellschaft", "Gesellschaft & Pflichten"], ["dokumente", "Dokumente"], ["unterschriften", "Unterschriften"], ["verlauf", "Verlauf"]];
 
 interface TunWahl { method?: "POST" | "DELETE"; body?: unknown; gut: string; gutText?: string; lokal?: (a: GlobalAkte) => GlobalAkte }
 type Tun = (schluessel: string, pfad: string, wahl: TunWahl) => Promise<boolean>;
@@ -108,7 +110,11 @@ function AkteInnen() {
   const [fehlerText, setFehlerText] = useState("");
   const [akte, setAkte] = useState<GlobalAkte | null>(null);
   const [laeuft, setLaeuft] = useState<string | null>(null);
-  const [reiter, setReiter] = useState<Reiter>("stand");
+  // E-520: Der Auftrag „Gründung bestellen“ verlinkt mit ?reiter=gruendung — dann öffnet die Akte gleich dort.
+  const [reiter, setReiter] = useState<Reiter>(() => {
+    try { return new URLSearchParams(window.location.search).get("reiter") === "gruendung" ? "gruendung" : "stand"; } catch { return "stand"; }
+  });
+  const [gruendungOffen, setGruendungOffen] = useState(false);
   const heute = useMemo(() => berlinTag(), []);
   const basis = `/agent/global/auftraege/${encodeURIComponent(ref)}`;
 
@@ -196,7 +202,7 @@ function AkteInnen() {
   const offeneUnterlagen = akte.unterlagen.filter((u) => !u.vorhanden).length;
   const offeneFristen = akte.fristen.filter((f) => !f.erledigt).length;
   const marke: Record<Reiter, string> = {
-    stand: "", fahrplan: "", gesellschaft: offeneFristen ? String(offeneFristen) : "", dokumente: offeneUnterlagen ? `${offeneUnterlagen} fehlen` : "",
+    stand: "", gruendung: gruendungOffen ? "heute" : "", fahrplan: "", gesellschaft: offeneFristen ? String(offeneFristen) : "", dokumente: offeneUnterlagen ? `${offeneUnterlagen} fehlen` : "",
     unterschriften: "", verlauf: "",
   };
 
@@ -216,6 +222,9 @@ function AkteInnen() {
             <EtappenAbschnitt {...werk} /><SchrittAbschnitt {...werk} />
             {/* E-268: Ein Individualangebot hat keinen Stichtag, sondern Teile und eine Frist mit Erstattungszusage. */}
             {akte.angebot ? <AngebotAbschnitt {...werk} /> : <StichtagAbschnitt {...werk} />}
+          </div>
+          <div className="gl-panel" role="tabpanel" id="gl-panel-gruendung" aria-labelledby="gl-reiter-gruendung" hidden={reiter !== "gruendung"}>
+            <GlobalGruendung basis={basis} sichtbar={reiter === "gruendung"} onStand={setGruendungOffen} frisch={() => void laden(true)} />
           </div>
           <div className="gl-panel" role="tabpanel" id="gl-panel-fahrplan" aria-labelledby="gl-reiter-fahrplan" hidden={reiter !== "fahrplan"}>
             {reiter === "fahrplan" && <FahrplanAbschnitt basis={basis} akte={akte} frisch={() => void laden(true)} />}

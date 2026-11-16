@@ -56,7 +56,29 @@ export const HAUSPUTZ_REGELN: readonly HausputzRegel[] = [
   { id: "rueckruf_alt", label: "Rückruf: Kunde danach erreicht oder Vertrag beendet", grund: "Kunde danach erreicht oder Vertrag beendet — der Rückruf-Wunsch ist erledigt", aktion: "schliessen" },
   { id: "doppel", label: "Doppel (gleicher Kunde, gleiche Art) — zusammengeführt", grund: "Doppel — Text und Verlauf stehen im neuesten Auftrag dieses Kunden", aktion: "zusammenfuehren" },
   { id: "gesperrt", label: "Lag bei gesperrtem Mitarbeiter — umgehängt", grund: "Lag bei einem gesperrten Mitarbeiter — an den Betreuer bzw. die passende Rolle umgehängt", aktion: "umhaengen" },
+  // E-520 (17.11.2026) — DER GROSSE SCHNITT. Justin im Chat: „obwohl keine Aufgaben bearbeitet werden, gibt es hunderte offen im
+  // System — lösch alle raus bitte“. Gemessen am 16.11.: 2.563 offen (1.688 Aufträge, 776 „Zu tun“, 99 Rückrufe), 97 % älter als
+  // 7 Tage. Diese Regel greift NUR im Schnitt-Lauf (hausputzBewerten mit { schnitt: true }) und nimmt alles, was keine genauere
+  // Regel schon schließt — auch Heikles, offene Fragen und Erstattungen. AUSGENOMMEN: FIAON Global und Kooperation
+  // (schnittVerschont). Nichts wird gelöscht: Jede Zeile ist 30 Tage rückholbar, die Sache selbst steht in der Akte des Kunden;
+  // die heiklen Punkte liegen vor dem Lauf als Liste bei der Leitung.
+  { id: "schnitt", label: "Großer Schnitt 17.11.2026 — alles Übrige", grund: "Großer Schnitt am 17.11.2026 (Entscheidung der Leitung): Neustart der Aufgaben — die Sache selbst steht in der Akte", aktion: "schliessen" },
 ];
+/** E-520: Diese Aufträge gehören zum neuen Ablauf und überleben den Schnitt (Auftrag „Gründung bestellen“). */
+export const SCHNITT_BLEIBT = /^global:[^:]+:gruendung-bestellen$/;
+/**
+ * E-520 — WAS DER SCHNITT NICHT ANFASST: alles von FIAON Global und der Kooperation.
+ * Gegengelesen am Code vor dem Lauf (17.11.2026): An diesen Aufträgen hängen laufende Abläufe, die den STAND lesen —
+ * der Lead-Takt (fiaon-lead-takt.ts: Anruf-Auftrag „global-anfrage:<n>“ steuert Erinnerung und Vertretung), die
+ * Empfehlungen der Kooperation (fiaon-koop-empfehlung.ts: ein ERLEDIGTER Anruf-Auftrag zählt als „Kontakt hergestellt“),
+ * das Startgespräch und die Eingänge im Global-Mandat. Ein blindes Schließen hätte dort Tatsachen behauptet, die es nicht
+ * gibt. Diese Aufträge sind zudem die laufende Arbeit (gemessen: 68 von 1.688, 28 davon jünger als 7 Tage).
+ */
+export function schnittVerschont(t: { art?: unknown; schluessel?: unknown; quelle?: unknown; bereich?: unknown; titel?: unknown; text?: unknown }): boolean {
+  const k = String(t.schluessel || "");
+  if (SCHNITT_BLEIBT.test(k) || /^koop[a-z-]*:/.test(k)) return true;
+  return artNachInhalt(t.art as any, { schluessel: t.schluessel as any, quelle: t.quelle as any, bereich: t.bereich as any, titel: t.titel as any, text: t.text as any }) === "global";
+}
 export function hausputzRegel(id: string): HausputzRegel | null {
   return HAUSPUTZ_REGELN.find((r) => r.id === id) ?? null;
 }
@@ -364,13 +386,31 @@ export interface HausputzDaten { auftraege: any[]; vermerke: any[]; rueckrufe: a
  * Ziel selbst durch eine Regel zu (z. B. „Kündigung gebucht“), bleibt das Doppel offen, wie es ist. Sonst landete
  * etwa ein Widerruf-Text in einem geschlossenen Auftrag.
  */
-export function hausputzBewerten(d: HausputzDaten): HausputzEntscheid[] {
+export function hausputzBewerten(d: HausputzDaten, opt: { schnitt?: boolean } = {}): HausputzEntscheid[] {
   const roh: HausputzEntscheid[] = [];
+  if (opt.schnitt) {
+    // E-520: Im Schnitt geht JEDE offene Zeile zu. Eine genauere Schließ-Regel behält ihren Grund; Zusammenführen und Umhängen
+    // entfallen (ihr Ziel ginge im selben Lauf zu). Ausnahme: FIAON Global und Kooperation (schnittVerschont) — dort lesen
+    // laufende Abläufe den Stand der Aufträge.
+    const zu = (e: HausputzEntscheid | null, tabelle: HausputzTabelle, id: number, beiJustin: boolean): HausputzEntscheid =>
+      e && e.aktion === "schliessen" ? e : { tabelle, id, regel: "schnitt", aktion: "schliessen", beiJustin };
+    for (const t of d.auftraege) {
+      if (schnittVerschont(t)) continue;
+      roh.push(zu(auftragBewerten(t), "auftrag", Number(t.id), t.zustaendig_art !== "agent"));
+    }
+    for (const v of d.vermerke) roh.push(zu(vermerkBewerten(v), "vermerk", Number(v.id), wahr(v.fuer_betreiber) || v.zustaendig_agent_id == null));
+    for (const r of d.rueckrufe) roh.push(zu(rueckrufBewerten(r), "rueckruf", Number(r.id), r.zustaendig_agent_id == null));
+    return roh;
+  }
   for (const t of d.auftraege) { const e = auftragBewerten(t); if (e) roh.push(e); }
   for (const v of d.vermerke) { const e = vermerkBewerten(v); if (e) roh.push(e); }
   for (const r of d.rueckrufe) { const e = rueckrufBewerten(r); if (e) roh.push(e); }
   const zu = new Set(roh.filter((e) => e.aktion !== "umhaengen").map((e) => `${e.tabelle}:${e.id}`));
   return roh.filter((e) => e.aktion !== "zusammenfuehren" || (e.ziel != null && !zu.has(`${e.tabelle}:${e.ziel}`)));
+}
+/** E-520: Ist diese Freigabe der große Schnitt? Der Freigabe-Text trägt das Wort SCHNITT. */
+export function hausputzIstSchnitt(freigabe: string | null | undefined): boolean {
+  return /\bSCHNITT\b/.test(String(freigabe ?? ""));
 }
 
 export interface HausputzZahlen {

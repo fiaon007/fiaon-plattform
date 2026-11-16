@@ -1959,7 +1959,7 @@ export const RUNDGANG_GLOBAL: RundgangSchritt[] = [
 export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
   {
     titel: "Eine Akte, zwei Spalten: links arbeitest du, rechts liest du nach.",
-    text: "Links liegen fünf Reiter — Stand, Fahrplan & Werte, Gesellschaft & Pflichten, Dokumente, Verlauf. Rechts stehen Kontakt, Firmendaten, "
+    text: "Links liegen die Reiter — Stand, Gründung bestellen, Fahrplan & Werte, Gesellschaft & Pflichten, Dokumente, Unterschriften, Verlauf. Rechts stehen Kontakt, Firmendaten, "
       + "Vertrag und Rechnung. Alles, was du hier für den Kunden sichtbar speicherst, steht Sekunden später auf seiner Seite "
       + "„Mein Auftrag“ — wörtlich.",
     tipp: "Schreibst du an den Kunden, liest das Werkzeug mit: Steht unter dem Feld ein gelber Hinweis, prüf den Satz, bevor du speicherst.",
@@ -1972,6 +1972,15 @@ export const RUNDGANG_GLOBAL_AKTE: RundgangSchritt[] = [
     // E-487 (09.11.2026) mitgezogen: das Telefon-Feld in der Kontakt-Karte.
     tipp: "Ist „Anrufen“ blass, fehlt die Nummer: rechts in der Karte „Kontakt“ bei Telefon auf „Eintragen“ — speichern, fertig. "
       + "Die Nummer gilt dann auch für die Anruf-Erkennung.",
+  },
+  // E-520 (17.11.2026): der Reiter „Gründung bestellen“ — Auftrag vom Zahlungstag, Anleitung mit Kopieren-Knöpfen, Beleg.
+  {
+    ziel: "#gl-reiter-gruendung",
+    titel: "Gründung bestellen: jedes Feld steht hier — mit Kopieren-Knopf.",
+    text: "Ist eine Gründung bezahlt, bekommst du am selben Tag den Auftrag „Gründung bestellen“ (auch per Mail). Er führt genau auf diesen "
+      + "Reiter. Hier steht Schritt für Schritt, was du beim Registered Agent anklickst und einträgst. Den Wert kopierst du mit einem Klick.",
+    tipp: "Fertig bist du erst mit der Bestellnummer: unten eintragen, „Bestellt“ klicken. Dann steht „Gründung eingereicht“ beim Kunden im Portal, "
+      + "und dein Auftrag schließt sich von selbst. Bleibt der Auftrag liegen, fragt das System am nächsten Werktag um 10 Uhr bei der Leitung nach.",
   },
   {
     ziel: ".gl-etappen",

@@ -18,7 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { sqlPool } from "./db-pool";
 import {
-  HAUSPUTZ_REGELN, hausputzAuftraegeSql, hausputzBewerten, hausputzRegel, hausputzRueckrufeSql, hausputzVermerkeSql, hausputzZaehlen,
+  HAUSPUTZ_REGELN, hausputzAuftraegeSql, hausputzBewerten, hausputzIstSchnitt, hausputzRegel, hausputzRueckrufeSql, hausputzVermerkeSql, hausputzZaehlen,
   type HausputzDaten, type HausputzEntscheid, type HausputzZahlen,
 } from "../../shared/fiaon-hausputz-regeln";
 
@@ -28,7 +28,10 @@ type Lauf = typeof sqlPool;
  * DIE FREIGABE. null = nur Probelauf. Nach Justins „go“ im Chat wird hier in einem eigenen Commit ein Text
  * eingetragen (z. B. „2026-10-20 go Justin (Chat)“) — dann läuft der Hausputz genau einmal auf der Plattform.
  */
-export const HAUSPUTZ_FREIGABE: string | null = null;
+// E-520 (17.11.2026): Justin im Chat (direkt, 17.11. nachts): „obwohl keine Aufgaben bearbeitet werden, gibt es hunderte offen im
+// System — lösch alle raus bitte“. Das Wort SCHNITT schaltet die Regel „schnitt“ ein (hausputzIstSchnitt): alles Offene geht zu,
+// 30 Tage rückholbar; die Aufträge des neuen Ablaufs („Gründung bestellen“) bleiben.
+export const HAUSPUTZ_FREIGABE: string | null = "2026-11-17 SCHNITT alle raus — Justin (Chat)";
 
 /** So lange lässt sich eine Änderung des Hausputzes zurückholen. */
 export const ZURUECK_TAGE = 30;
@@ -194,7 +197,7 @@ export async function hausputzAusfuehren(freigabe: string | null = HAUSPUTZ_FREI
     console.log(`[HAUSPUTZ] Lauf #${laufId} beginnt (Freigabe: ${freigabe}).`);
     try {
       const daten = await hausputzDaten();
-      const ent = hausputzBewerten(daten);
+      const ent = hausputzBewerten(daten, { schnitt: hausputzIstSchnitt(freigabe) });
       const geplant = hausputzZaehlen(daten, ent);
       // Zusammenführen zuletzt: Erst wenn alles andere entschieden ist, steht fest, welches Ziel offen bleibt.
       const reihe = [...ent.filter((e) => e.aktion === "schliessen"), ...ent.filter((e) => e.aktion === "umhaengen"), ...ent.filter((e) => e.aktion === "zusammenfuehren")];

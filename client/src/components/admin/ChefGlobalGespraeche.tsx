@@ -14,13 +14,17 @@
 // statt in einem Bestätigungsfenster — mit dem Haken „Kunde schon persönlich
 // angeschrieben — keine Mail und keine WhatsApp“ (Standard aus, geht als ohneMail
 // an den Server; seit der Nachbesserung sperrt er auch die WhatsApp „nicht erreicht“).
+// 17.11.2026 (Wunsch Florentine): „Kundenakte öffnen“ neben JEDEM Gespräch (Ergebnis fehlt · Geplant · Zuletzt) — mit einem
+// Klick in die Akte statt Namen merken und suchen. Welche Akte, sagt der Server (gespraechAkte in shared/fiaon-global-gespraech.ts):
+// Global-Akte hier im Raum vor Personenakte (/akte/…). Ohne zuordenbare Akte kein Knopf, nur ein leiser Hinweis.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useDaten } from "./chef-teile";
 import { NACHLADEN_MS, senden } from "./chef-global-kunden-teile";
 import {
-  GLOBAL_ERGEBNIS_WAHL, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS, type GlobalErgebnisWahl,
+  GLOBAL_ERGEBNIS_WAHL, KUNDENAKTE_FEHLT, KUNDENAKTE_KNOPF, NICHT_ERREICHT_SATZ, OHNE_MAIL_HAKEN, OHNE_MAIL_HINWEIS,
+  type GespraechAkte, type GlobalErgebnisWahl,
 } from "@shared/fiaon-global-gespraech";
 
 interface Zeile {
@@ -28,6 +32,8 @@ interface Zeile {
   name: string; firma: string | null; kontakt: string | null; telefon: string | null; email: string | null; wer: string | null;
   vortagAm: string | null; kurzAm: string | null; ergebnisAufgabeAm: string | null; leitungAm: string | null;
   nichtErreichtMailAm: string | null; erledigtAm: string | null; verpasstGrund: string | null;
+  /** 17.11.2026: die beste vorhandene Akte (Server) — fehlt bei einem älteren Server-Stand ganz. */
+  akte?: GespraechAkte | null;
 }
 interface Stand { ok: true; offen: Zeile[]; kommend: Zeile[]; zuletzt: Zeile[]; vertretung: { id: number; name: string } | null }
 
@@ -52,6 +58,27 @@ function ausgang(z: Zeile): string {
   return z.status;
 }
 const folge = (k: GlobalErgebnisWahl) => GLOBAL_ERGEBNIS_WAHL.find((w) => w.key === k)?.folge ?? "";
+
+/**
+ * 17.11.2026 (Florentine): der Knopf „Kundenakte öffnen“ — bleibt in der App (Link, kein neuer Tab; Strg/⌘-Klick öffnet
+ * trotzdem einen). Die Global-Akte geht hier im Raum auf: dann zur Akte rollen. Die Personenakte ist eine eigene Seite: nach oben.
+ */
+function AkteKnopf({ akte }: { akte?: GespraechAkte | null }) {
+  if (!akte) return <small className="cgg-ohne-akte">{KUNDENAKTE_FEHLT}</small>;
+  const hinrollen = (art: GespraechAkte["art"]) => () => window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    if (art === "mandat") { document.querySelector(".cgn-akte")?.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    window.scrollTo(0, 0);
+    const r = document.getElementById("root"); if (r) r.scrollTop = 0;
+  }));
+  return (
+    <>
+      <Link href={akte.pfad} className="cgn-knopf klein" title={akte.titel} data-cgn="termin-akte" onClick={hinrollen(akte.art)}>{KUNDENAKTE_KNOPF}</Link>
+      {akte.personPfad && (
+        <Link href={akte.personPfad} className="cgn-link leise cgg-person" title="Die Personenakte: Kontaktdaten, E-Mails, Gespräche und Notizen." onClick={hinrollen("person")}>Personenakte</Link>
+      )}
+    </>
+  );
+}
 
 export default function ChefGlobalGespraeche() {
   const such = useSearch();
@@ -137,6 +164,7 @@ export default function ChefGlobalGespraeche() {
                     <small>{wann(z.beginn)} Uhr · {z.wer ?? "—"}{z.leitungAm ? " · Leitung erinnert" : z.ergebnisAufgabeAm ? " · Aufgabe gestellt" : ""}{z.telefon ? ` · ${z.telefon}` : ""}</small>
                   </div>
                   <div className="cgg-knoepfe">
+                    <AkteKnopf akte={z.akte} />
                     {GLOBAL_ERGEBNIS_WAHL.map((w) => (
                       <button key={w.key} type="button" title={w.folge} disabled={laeuft === z.id || (w.key === "verschoben" && z.status !== "gebucht")}
                         className={`cgn-knopf klein${w.key === "stattgefunden" ? " haupt" : ""}`}
@@ -166,6 +194,7 @@ export default function ChefGlobalGespraeche() {
                   <small>{wann(z.beginn)} Uhr · {z.wer ?? "—"}{z.vortagAm ? " · am Vortag erinnert" : ""}{z.kurzAm ? " · 1 Std. vorher erinnert" : ""}</small>
                 </div>
                 <div className="cgg-knoepfe">
+                  <AkteKnopf akte={z.akte} />
                   <button type="button" className="cgn-knopf klein" title={folge("verschoben")} disabled={laeuft === z.id}
                     onClick={() => setSchieben({ id: z.id, wert: feldWert(z.beginn) })}>Verschieben</button>
                 </div>
@@ -181,6 +210,7 @@ export default function ChefGlobalGespraeche() {
                 <div key={z.id} className="cgg-zeile still">
                   <div className="cgg-wer"><b>{z.name}</b><small>{wann(z.beginn)} Uhr · {z.wer ?? "—"}</small></div>
                   <span className="cgg-ausgang">{ausgang(z)}</span>
+                  <div className="cgg-knoepfe"><AkteKnopf akte={z.akte} /></div>
                 </div>
               ))}
             </div>

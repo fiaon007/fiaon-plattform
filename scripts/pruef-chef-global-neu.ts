@@ -238,8 +238,12 @@ ok(/"global-kunden": \(\) => <Suspense[^\n]*<ChefGlobalKunden \/>/.test(chef), "
 ok(/\(!istSeite && raum\.key === "global-kunden"\)/.test(chef), "ruhige Hülle: Standbild statt Film unter der Tafel");
 ok(/global: \(\) => <Suspense[^\n]*<ChefGlobal \/>/.test(chef), "/chef/global zeigt weiter den alten Raum");
 gleich(globalChefMandatPfad("AB-1"), "/chef/global?mandat=AB-1", "Aufgaben-Links bleiben auf dem alten Raum");
-const diffAlt = (() => { try { return execSync("git diff --stat origin/main -- client/src/components/admin/ChefGlobal.tsx client/src/styles/chef-global-raum.css server/routes/ shared/fiaon-global-wege.ts", { cwd: WURZEL, encoding: "utf8" }).trim(); } catch { return "?"; } })();
-gleich(diffAlt, "", "alter Raum, Server-Routen und Aufgaben-Wege unverändert gegenüber origin/main");
+const diffAlt = (() => { try { return execSync("git diff --stat origin/main -- client/src/components/admin/ChefGlobal.tsx client/src/styles/chef-global-raum.css server/routes/", { cwd: WURZEL, encoding: "utf8" }).trim(); } catch { return "?"; } })();
+gleich(diffAlt, "", "alter Raum und Server-Routen unverändert gegenüber origin/main");
+// 17.11.2026 („Kundenakte öffnen“ je Gespräch): Die Aufgaben-Wege dürfen Geschwister bekommen (globalChefKundenAktePfad),
+// aber kein bestehender Weg ändert sich — im Vergleich zu origin/main nur Zeilen dazu, keine weg.
+const diffWege = (() => { try { return execSync("git diff -U0 origin/main -- shared/fiaon-global-wege.ts", { cwd: WURZEL, encoding: "utf8" }); } catch { return "?"; } })();
+ok(diffWege !== "?" && !diffWege.split("\n").some((z) => /^-(?!--)/.test(z)), "Aufgaben-Wege (shared/fiaon-global-wege.ts): keine Zeile geändert oder entfernt", diffWege.slice(0, 300));
 const diffLib = (() => { try { return execSync("git diff -U0 origin/main -- server/", { cwd: WURZEL, encoding: "utf8" }); } catch { return "?"; } })();
 const libDateien = Array.from(diffLib.matchAll(/^\+\+\+ b\/(.+)$/gm)).map((x) => x[1]);
 const libWeg = diffLib.split("\n").filter((z) => /^-(?!--)/.test(z));

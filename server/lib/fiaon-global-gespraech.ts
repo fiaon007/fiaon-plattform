@@ -47,6 +47,8 @@ import {
   nichtErreichtWann, type GespraechSprache,
 } from "./fiaon-global-gespraech-regeln";
 import { istLeadGespraech } from "@shared/fiaon-lead-weg";
+// 17.11.2026 (Florentine): „Kundenakte öffnen“ je Gespräch — welche Akte, entscheidet eine reine Regel in shared/.
+import { gespraechAkte, type GespraechAkte } from "@shared/fiaon-global-gespraech";
 // E-476 Scheibe 4 (05.11.2026): die Vortag-Mail spiegelt SEINE Antworten und fragt nur, was fehlt.
 import { vorbereitungHtml, angabenSatz } from "@shared/fiaon-global-lead-texte";
 import type { LeadAntwort } from "@shared/fiaon-global-lead";
@@ -632,6 +634,26 @@ export interface GespraechZeile {
   name: string; firma: string | null; kontakt: string | null; telefon: string | null; email: string | null;
   wer: string | null; vortagAm: string | null; kurzAm: string | null; ergebnisAufgabeAm: string | null; leitungAm: string | null;
   nichtErreichtMailAm: string | null; erledigtAm: string | null; verpasstGrund: string | null;
+  /** 17.11.2026 (Florentine): die beste vorhandene Akte für den Knopf „Kundenakte öffnen“ — null = keine zuordenbar. */
+  personId: number | null; akte: GespraechAkte | null;
+}
+
+/**
+ * 17.11.2026: Der Global-Auftrag je Person für „Kundenakte öffnen“ — bei mehreren der laufende vor dem stornierten, der echte
+ * vor dem Test, sonst der neueste. Eigene Abfrage mit Auffangnetz: Klemmt sie, steht die Gesprächsliste trotzdem (dann mit
+ * der Personenakte als Ziel).
+ */
+async function auftragJePerson(personIds: number[]): Promise<Map<number, string>> {
+  const m = new Map<number, string>();
+  if (!personIds.length) return m;
+  const rows = (await sqlPool`
+    SELECT DISTINCT ON (g.person_id) g.person_id, g.ref
+      FROM fiaon_global_auftraege g
+     WHERE g.person_id = ANY(${personIds}::int[])
+     ORDER BY g.person_id, (g.storniert_am IS NOT NULL OR g.status = 'storniert'), (g.ist_test_am IS NOT NULL), g.created_at DESC`
+    .catch((e: unknown) => { console.error("[GLOBAL-GESPRAECH] Akte je Gespräch:", String((e as Error)?.message ?? e).slice(0, 160)); return []; })) as any[];
+  for (const r of rows) if (r.ref) m.set(Number(r.person_id), String(r.ref));
+  return m;
 }
 
 export async function globalGespraecheListe(jetzt: Date = new Date()): Promise<{ offen: GespraechZeile[]; kommend: GespraechZeile[]; zuletzt: GespraechZeile[] }> {
@@ -641,7 +663,8 @@ export async function globalGespraecheListe(jetzt: Date = new Date()): Promise<{
            t.ergebnis_aufgabe_am, t.ergebnis_leitung_am, t.verpasst_mail_am, t.erledigt_am, t.verpasst_grund,
            NULLIF(p.company_name, '') AS firma,
            NULLIF(TRIM(CONCAT_WS(' ', NULLIF(p.first_name, ''), NULLIF(p.last_name, ''))), '') AS person_name, p.contact_name,
-           NULLIF(p.primary_phone, '') AS telefon, NULLIF(p.primary_email, '') AS email, ag.name AS wer
+           NULLIF(p.primary_phone, '') AS telefon, NULLIF(p.primary_email, '') AS email, ag.name AS wer,
+           p.id AS person_id
       FROM fiaon_termine t
       LEFT JOIN fiaon_persons p ON p.id = t.person_id
       LEFT JOIN fiaon_agents ag ON ag.id = t.agent_id
@@ -649,12 +672,16 @@ export async function globalGespraecheListe(jetzt: Date = new Date()): Promise<{
        AND t.beginn > ${new Date(jetzt.getTime() - 30 * 86_400_000)} AND t.beginn < ${new Date(jetzt.getTime() + 21 * 86_400_000)}
      ORDER BY t.beginn ASC`) as any[];
   const iso = (v: unknown) => (v ? new Date(v as any).toISOString() : null);
+  // 17.11.2026: person_id kommt aus der Personen-Zeile (p.id) — zeigt ein Termin auf eine gelöschte Person, gibt es keine Akte.
+  const auftraege = await auftragJePerson(Array.from(new Set(rows.filter((r) => r.person_id != null).map((r) => Number(r.person_id)))));
   const zeilen: GespraechZeile[] = rows.map((r) => ({
     id: Number(r.id), beginn: new Date(r.beginn).toISOString(), dauerMin: Number(r.dauer_min), status: String(r.status), herkunft: r.herkunft ?? null,
     name: gespraechName({ firma: r.firma, vorname: null, nachname: r.person_name || r.contact_name }),
     firma: r.firma ?? null, kontakt: r.person_name || r.contact_name || null, telefon: r.telefon ?? null, email: r.email ?? null,
     wer: r.wer ?? null, vortagAm: iso(r.erinnert_am), kurzAm: iso(r.kurz_erinnert_am), ergebnisAufgabeAm: iso(r.ergebnis_aufgabe_am),
     leitungAm: iso(r.ergebnis_leitung_am), nichtErreichtMailAm: iso(r.verpasst_mail_am), erledigtAm: iso(r.erledigt_am), verpasstGrund: r.verpasst_grund ?? null,
+    personId: r.person_id != null ? Number(r.person_id) : null,
+    akte: gespraechAkte({ mandatRef: r.person_id != null ? auftraege.get(Number(r.person_id)) ?? null : null, personId: r.person_id != null ? Number(r.person_id) : null }),
   }));
   const jetztMs = jetzt.getTime();
   // Vorbei und noch „gebucht“ — oder vom früheren Lauf still auf „verpasst“ gesetzt (ohne erledigt_am): hier fehlt das Ergebnis.

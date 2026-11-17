@@ -79,6 +79,14 @@ export function globalChefMandatPfad(ref: string): string {
   return `/chef/global?mandat=${encodeURIComponent(ref)}`;
 }
 
+/**
+ * 17.11.2026: Derselbe Auftrag im Raum „Global-Kunden“ (E-455) — die Akte rechts neben der Kundenliste. Ziel des Knopfs
+ * „Kundenakte öffnen“ an jedem Global-Gespräch (shared/fiaon-global-gespraech.ts, gespraechAkte).
+ */
+export function globalChefKundenAktePfad(ref: string): string {
+  return `/chef/global-kunden?akte=${encodeURIComponent(ref)}`;
+}
+
 // 29.10.2026 (E-461): fiaon.com/ ist FIAON Global — Mails und Signaturen verlinken die Startseite direkt (kein Umweg über die 301).
 export const GLOBAL_SEITE_URL = "https://fiaon.com/";
 export const GLOBAL_GESPRAECH_URL = "https://fiaon.com/#gespraech";

@@ -18,6 +18,9 @@
 // E-490 F6 (A7/B8): „Nicht erreicht“ mit dem Haken „schon persönlich angeschrieben“ — Nachbesserung (Gutachten): auch keine
 // WhatsApp (Marke nicht_erreicht_id, Takt-Schritt 4), der Vermerk nennt, wer es vermerkt hat; „abgesagt“ bekommt keine WhatsApp.
 //
+// 17.11.2026 (A8/B9, Wunsch Florentine): „Kundenakte öffnen“ neben jedem Gespräch — die Regel (Global-Akte vor Personenakte,
+// sonst kein Knopf), der Knopf in allen drei Gruppen, der Rundgang; gegen die Kopie: welche Akte die Liste je Gespräch mitliefert.
+//
 //   env -i HOME=$HOME PATH=$PATH TZ=Europe/Berlin node_modules/.bin/tsx scripts/pruef-global-gespraech-e458.ts
 //   … mit PRUEF_DB=postgresql://fiaon@127.0.0.1:54329/fiaon_pruefstand_e458g für Teil B
 // ═══════════════════════════════════════════════════════════════════════════
@@ -258,6 +261,45 @@ titel("A7 · E-490 F6: „Nicht erreicht“ mit dem Haken „Kunde schon persön
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+titel("A8 · 17.11.2026: „Kundenakte öffnen“ — Global-Akte vor Personenakte, ohne Akte kein Knopf");
+// ═══════════════════════════════════════════════════════════════════════════
+{
+  const S = await import("../shared/fiaon-global-gespraech");
+  const W = await import("../shared/fiaon-global-wege");
+  const gleich = (ist: unknown, soll: unknown) => JSON.stringify(ist) === JSON.stringify(soll);
+  ok("Weg in die Global-Akte im Raum Global-Kunden (kodiert)", W.globalChefKundenAktePfad("FG-2026 1/A") === "/chef/global-kunden?akte=FG-2026%201%2FA");
+  ok("der alte Weg der Aufgaben bleibt (Raum Global-Mandate)", W.globalChefMandatPfad("AB-1") === "/chef/global?mandat=AB-1");
+  const m = S.gespraechAkte({ mandatRef: "FG-1", personId: 42 });
+  ok("Auftrag + Person → Global-Akte hier im Raum, daneben die Personenakte", !!m && m.art === "mandat" && m.pfad === "/chef/global-kunden?akte=FG-1" && m.personPfad === "/akte/42" && /Fahrplan/.test(m.titel), JSON.stringify(m));
+  ok("Auftrag ohne Person → Global-Akte, keine Personenakte daneben", gleich(S.gespraechAkte({ mandatRef: "FG-2", personId: null })?.personPfad, null) && S.gespraechAkte({ mandatRef: "FG-2" })?.art === "mandat");
+  const p = S.gespraechAkte({ mandatRef: null, personId: 7 });
+  ok("nur Person → die EINE Akte /akte/<Nummer>", !!p && p.art === "person" && p.pfad === "/akte/7" && p.personPfad === null && /E-Mails/.test(p.titel), JSON.stringify(p));
+  ok("leerer Auftrag zählt nicht (nur Leerzeichen)", S.gespraechAkte({ mandatRef: "   ", personId: 7 })?.art === "person");
+  ok("ohne Auftrag und ohne Person → null (kein toter Knopf)", S.gespraechAkte({}) === null && S.gespraechAkte({ mandatRef: "", personId: null }) === null);
+  ok("unbrauchbare Personen-Nummern → null", [0, -3, Number.NaN, 2.5].every((n) => S.gespraechAkte({ personId: n }) === null));
+  ok("Knopf-Text und leiser Hinweis", S.KUNDENAKTE_KNOPF === "Kundenakte öffnen" && S.KUNDENAKTE_FEHLT === "Keine Akte zugeordnet");
+
+  const lib = quelle("server/lib/fiaon-global-gespraech.ts");
+  const liste = lib.split("export async function globalGespraecheListe(")[1]?.split("\n}\n")[0] ?? "";
+  ok("Server: die Liste liefert je Gespräch personId und akte (über gespraechAkte)", /akte: gespraechAkte\(\{ mandatRef: /.test(liste) && /p\.id AS person_id/.test(liste) && /await auftragJePerson\(/.test(liste));
+  const auftrag = lib.split("async function auftragJePerson(")[1]?.split("\n}\n")[0] ?? "";
+  ok("Server: Auftrag je Person — laufend vor storniert, echt vor Test, sonst neuester; Auffangnetz statt Ausfall der Liste",
+    /DISTINCT ON \(g\.person_id\)/.test(auftrag) && /ORDER BY g\.person_id, \(g\.storniert_am IS NOT NULL OR g\.status = 'storniert'\), \(g\.ist_test_am IS NOT NULL\), g\.created_at DESC/.test(auftrag)
+    && /\.catch\(/.test(auftrag));
+  const cgg = quelle("client/src/components/admin/ChefGlobalGespraeche.tsx");
+  ok("Chefbüro: der Knopf steht in allen drei Gruppen (Ergebnis fehlt, Geplant, Zuletzt)", (cgg.match(/<AkteKnopf akte=\{z\.akte\} \/>/g) ?? []).length === 3);
+  ok("Chefbüro: in der App (wouter-Link), kein neuer Tab; ohne Akte nur der leise Hinweis",
+    /import \{ Link, useSearch \} from "wouter";/.test(cgg) && /<Link href=\{akte\.pfad\} className="cgn-knopf klein"/.test(cgg) && !/target="_blank"/.test(cgg)
+    && /if \(!akte\) return <small className="cgg-ohne-akte">\{KUNDENAKTE_FEHLT\}<\/small>;/.test(cgg));
+  const css = quelle("client/src/styles/chef-global-kunden.css");
+  ok("Handy: Knopf und Personenakte ≥ 44 px", /@media \(max-width: 640px\)[\s\S]*\.cgn-knopf\.klein \{ min-height: 44px; \}/.test(css) && /@media \(max-width: 640px\)[\s\S]*\.cgg-person, \.cgg-ohne-akte \{ min-height: 44px; \}/.test(css));
+  const RG = await import("../client/src/pages/agent/rundgaenge");
+  const satz = RG.RUNDGANG_CHEF_GLOBAL_KUNDEN.map((x: { text?: string; tipp?: string }) => `${x.text ?? ""} ${x.tipp ?? ""}`).join(" ");
+  ok("Rundgang Global-Kunden mitgezogen („Kundenakte öffnen“, „Personenakte“, „Keine Akte zugeordnet“)",
+    /„Kundenakte öffnen“/.test(satz) && /„Personenakte“/.test(satz) && /„Keine Akte zugeordnet“/.test(satz));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // TEIL B — DATENBANK
 // ═══════════════════════════════════════════════════════════════════════════
 if (!mitDb) {
@@ -269,6 +311,7 @@ if (!mitDb) {
   // Aufräumen aus einem früheren Lauf dieses Prüfstands.
   await sqlPool`DELETE FROM fiaon_betreiber_todos WHERE schluessel LIKE 'global-%' OR schluessel LIKE 'pruef-e458%'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_global_angebote WHERE angebot_ref LIKE 'PRUEF-E458-%'`.catch(() => {});
+  await sqlPool`DELETE FROM fiaon_global_auftraege WHERE ref LIKE 'PRUEF-E458-%'`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_termine WHERE notiz LIKE 'PRUEF-E458%'`;
   await sqlPool`DELETE FROM fiaon_firmen_log WHERE firma_id IN (SELECT id FROM fiaon_firmen_leads WHERE email LIKE '%@beispiel-gmbh.example')`.catch(() => {});
   await sqlPool`DELETE FROM fiaon_firmen_leads WHERE email LIKE '%@beispiel-gmbh.example'`.catch(() => {});
@@ -505,6 +548,44 @@ if (!mitDb) {
   const [wN] = (await sqlPool`SELECT nicht_erreicht_id FROM fiaon_wa_global WHERE nummer = ${waN}`) as any[];
   ok("… und die WhatsApp „nicht erreicht“ steht für Takt-Schritt 4 an (keine Marke gesetzt)",
     !wN?.nicht_erreicht_id && (await MB.waNichtErreichtFaellig({ nummer: waN, email: mailN, nichtErreichtId: null }, sqlPool, h(0))) === tN);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  titel("B9 · 17.11.2026: „Kundenakte öffnen“ — die Liste liefert je Gespräch die beste Akte");
+  // ─────────────────────────────────────────────────────────────────────────
+  const { ensureGlobalMandat } = await import("../server/lib/fiaon-global-mandat");
+  await ensureGlobalMandat();
+  const auftrag = async (ref: string, personId: number, zusatz: { storniert?: boolean; test?: boolean; vor?: number } = {}) => {
+    await sqlPool`
+      INSERT INTO fiaon_global_auftraege (ref, paket_key, land, firma, ansprechpartner, bestaetigungen, vertrag_version, person_id, status, storniert_am, ist_test_am, created_at)
+      VALUES (${ref}, 'banking', 'DE', ${sqlPool.json({ name: "Beispiel GmbH" } as any)}, ${sqlPool.json({} as any)}, ${sqlPool.json({} as any)}, 'pruef', ${personId},
+              ${zusatz.storniert ? "storniert" : "gestartet"}, ${zusatz.storniert ? new Date() : null}, ${zusatz.test ? new Date() : null},
+              ${new Date(Date.now() - (zusatz.vor ?? 0) * 86_400_000)})`;
+  };
+  const stamm = `PRUEF-E458-${Date.now()}`;
+  const pM = await firma(); const tM = await gespraech(pM, h(26), h(-1), 8, "akte-mandat");
+  // Drei Aufträge derselben Person: ein neuerer stornierter, ein neuerer Test — der laufende ältere gewinnt.
+  await auftrag(`${stamm}-LAUF`, pM, { vor: 10 });
+  await auftrag(`${stamm}-STORNO`, pM, { storniert: true, vor: 1 });
+  await auftrag(`${stamm}-TEST`, pM, { test: true, vor: 2 });
+  const pP = await firma(); const tP = await gespraech(pP, h(27), h(-1), 8, "akte-person");
+  const pNur = await firma(); const tNur = await gespraech(pNur, h(28), h(-1), 8, "akte-nur-storniert");
+  await auftrag(`${stamm}-NURSTORNO`, pNur, { storniert: true, vor: 3 });
+  // Ein Termin, dessen Person es nicht (mehr) gibt (fiaon_termine.person_id hat keinen Fremdschlüssel).
+  const [frei] = (await sqlPool`SELECT COALESCE(MAX(id), 0) + 100000 AS n FROM fiaon_persons`) as any[];
+  const tWeg = await gespraech(Number(frei.n), h(29), h(-1), 8, "akte-person-weg");
+  const lB9 = await G.globalGespraecheListe(J);
+  const zB9 = (id: number) => lB9.kommend.find((z) => z.id === id);
+  const aM = zB9(tM)?.akte;
+  ok("Auftrag vorhanden → Global-Akte im Raum (laufend vor storniert und Test), daneben die Personenakte",
+    aM?.art === "mandat" && aM.pfad === `/chef/global-kunden?akte=${encodeURIComponent(`${stamm}-LAUF`)}` && aM.personPfad === `/akte/${pM}`, JSON.stringify(aM));
+  const aP = zB9(tP)?.akte;
+  ok("ohne Auftrag → die Personenakte /akte/<Nummer>", aP?.art === "person" && aP.pfad === `/akte/${pP}` && zB9(tP)?.personId === pP, JSON.stringify(aP));
+  const aNur = zB9(tNur)?.akte;
+  ok("nur ein stornierter Auftrag → trotzdem dessen Global-Akte (der Verlauf steht dort)", aNur?.art === "mandat" && aNur.pfad.endsWith(encodeURIComponent(`${stamm}-NURSTORNO`)), JSON.stringify(aNur));
+  const zWeg = zB9(tWeg);
+  ok("Person gibt es nicht → keine Akte (kein toter Knopf), das Gespräch steht trotzdem in der Liste", !!zWeg && zWeg.akte === null && zWeg.personId === null, JSON.stringify(zWeg?.akte));
+  ok("Gespräche aus B1–B8 bekommen ihre Personenakte", lB9.offen.concat(lB9.kommend, lB9.zuletzt).filter((z) => z.personId != null).every((z) => !!z.akte));
+  await sqlPool`DELETE FROM fiaon_global_auftraege WHERE ref LIKE 'PRUEF-E458-%'`.catch(() => {});
 
   await sqlPool.end({ timeout: 2 }).catch(() => {});
 }

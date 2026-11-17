@@ -7,6 +7,8 @@
 // Unternehmen bekommt. Die Folgen selbst stehen im Server
 // (server/lib/fiaon-global-gespraech.ts, fiaon-global-termin.ts). Team-Texte: du.
 // ═══════════════════════════════════════════════════════════════════════════
+import { globalChefKundenAktePfad } from "./fiaon-global-wege";
+import { akteAdresse } from "./fiaon-akte-aufloesung";
 
 export type GlobalErgebnisWahl = "stattgefunden" | "nicht_erreicht" | "verschoben";
 
@@ -40,3 +42,39 @@ export const GLOBAL_GRUENDE: { key: string; label: string; folge: string }[] = [
 ];
 /** E-490 F6: Diese Gründe schicken die Mail „nicht erreicht“ — nur bei ihnen zählt der Haken „schon persönlich angeschrieben“. */
 export const GLOBAL_GRUENDE_MIT_MAIL: readonly string[] = ["nicht_erschienen", "nummer_falsch"];
+
+// ── 17.11.2026 (Wunsch Florentine): „Kundenakte öffnen“ neben jedem Gespräch ─────────────────────────────────────────────
+// Vorher: Namen merken, Kundenverwaltung öffnen, Kunden suchen, Akte von Hand aufrufen. Jetzt liefert der Server zu jedem
+// Gespräch die beste vorhandene Akte mit (globalGespraecheListe) — ein Klick, und die Akte ist offen. Die Reihenfolge:
+//   1. Global-Akte (Auftrag der Person) — im Raum Global-Kunden selbst (/chef/global-kunden?akte=…): Fahrplan = Stand,
+//      Nachrichten, Zahlungen, Verlauf & Notizen. Daneben leise die Personenakte (E-Mails, Kontakt).
+//   2. Personenakte, die EINE Akte (/akte/<Personen-Nummer>, E-315): Kontaktdaten, E-Mails, Gespräche, Notizen.
+// Ohne zuordenbare Akte gibt es keinen Knopf (kein toter Link), nur einen leisen Hinweis.
+// Ein Firmen-Radar- oder Lead-Blatt kommt nie zum Zug: Jedes Global-Gespräch hängt an einer Person (Buchung legt sie an).
+
+export const KUNDENAKTE_KNOPF = "Kundenakte öffnen";
+export const KUNDENAKTE_FEHLT = "Keine Akte zugeordnet";
+
+export interface GespraechAkte {
+  /** mandat = Global-Akte im Raum Global-Kunden · person = die EINE Akte (/akte/…). */
+  art: "mandat" | "person";
+  pfad: string;
+  /** Der Satz beim Überfahren: was die Akte zeigt. */
+  titel: string;
+  /** Nur bei art = mandat: die Personenakte daneben (E-Mails, Kontakt). */
+  personPfad: string | null;
+}
+
+/** Die beste vorhandene Akte zu einem Gespräch — oder null, wenn keine zuordenbar ist. Rein (Server und Prüfstand). */
+export function gespraechAkte(ein: { mandatRef?: string | null; personId?: number | null }): GespraechAkte | null {
+  const ref = String(ein.mandatRef ?? "").trim();
+  const pid = Number(ein.personId);
+  const person = Number.isInteger(pid) && pid > 0 ? akteAdresse(pid) : null;
+  if (ref) {
+    return { art: "mandat", pfad: globalChefKundenAktePfad(ref), titel: "Öffnet die Global-Akte hier im Raum: Fahrplan, Nachrichten, Zahlungen, Verlauf und Notizen.", personPfad: person };
+  }
+  if (person) {
+    return { art: "person", pfad: person, titel: "Öffnet die Kundenakte: Kontaktdaten, E-Mails, Gespräche, Notizen und Stand.", personPfad: null };
+  }
+  return null;
+}

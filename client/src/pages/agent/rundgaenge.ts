@@ -1852,6 +1852,16 @@ export const RUNDGANG_CHEF_GLOBAL_KUNDEN: RundgangSchritt[] = [
     tipp: "Eine halbe Stunde nach dem Gespräch bekommt die zuständige Person die Aufgabe „Ergebnis fehlt“ — ist sie nicht da, die Vertretung. "
       + "Steht am nächsten Werktag um 9 Uhr noch nichts da, erinnert dich das System. Die Vertretung legst du unter Rückholung › FIAON Global fest.",
   },
+  // 17.11.2026 (Wunsch Florentine) mitgezogen: „Kundenakte öffnen“ neben jedem Gespräch.
+  {
+    ziel: "[data-cgn='gespraeche']",
+    titel: "„Kundenakte öffnen“: ein Klick vom Gespräch in die Akte.",
+    text: "Neben jedem Gespräch (Ergebnis fehlt, Geplant, Zuletzt) steht der Knopf „Kundenakte öffnen“. Hat der Kunde schon einen Auftrag, "
+      + "geht seine Global-Akte hier im Raum auf — mit Fahrplan, Nachrichten, Zahlungen, Verlauf und Notizen; daneben führt „Personenakte“ "
+      + "zu Kontaktdaten und E-Mails. Sonst öffnet der Knopf seine Kundenakte mit Kontaktdaten, E-Mails, Gesprächen und Notizen. "
+      + "Namen merken und suchen fällt weg.",
+    tipp: "Steht dort „Keine Akte zugeordnet“, hängt das Gespräch an keiner Person im System — dann über die Suche oben gehen.",
+  },
   // E-476 Scheibe 3 (05.11.2026, Entscheidung 1A): die Erstgespräche mit Business-Leads führt Justin.
   {
     ziel: "[data-cgn='gespraeche']",

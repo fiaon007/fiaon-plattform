@@ -445,6 +445,9 @@ export function radarDomain(roh: unknown): string | null {
 export const RADAR_FREEMAIL = new Set([
   "gmail.com", "googlemail.com", "gmx.de", "gmx.net", "gmx.at", "gmx.ch", "web.de", "t-online.de", "yahoo.com", "yahoo.de",
   "hotmail.com", "hotmail.de", "outlook.com", "outlook.de", "live.com", "icloud.com", "me.com", "aon.at", "bluewin.ch", "freenet.de", "posteo.de", "proton.me", "protonmail.com",
+  // 17.11.2026: weitere Anbieter — seit heute entscheidet diese Liste auch, welche Domäne der Radar nie einer Firma zuordnet.
+  "live.de", "live.at", "msn.com", "aol.com", "aol.de", "mac.com", "mail.de", "arcor.de", "online.de", "email.de", "outlook.at", "hotmail.at", "hotmail.ch",
+  "yahoo.at", "yahoo.ch", "a1.net", "chello.at", "hispeed.ch", "sunrise.ch", "gmx.li", "protonmail.ch", "pm.me", "yandex.com", "mail.ru", "zoho.com",
 ]);
 
 /** „DE" | „AT" | „CH" aus einer Eingabe — sonst null (dann sucht der Radar in allen drei Ländern). */

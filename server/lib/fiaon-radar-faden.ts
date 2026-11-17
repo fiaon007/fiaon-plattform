@@ -55,6 +55,7 @@ import {
   type RadarAntwortArt, type RadarAutomatik, type RadarMotor,
 } from "@shared/fiaon-radar";
 import { globalWortPruefen, globalWortPruefenEn } from "@shared/fiaon-global-wortregeln";
+import { RADAR_FREEMAIL } from "@shared/fiaon-radar";
 import { GLOBAL_PAKETE, globalKatalog, globalPreisText } from "@shared/fiaon-global";
 import { globalLeitfaden } from "@shared/fiaon-global-vertrieb";
 import { FIAON_FIRMA } from "@shared/fiaon-firma";
@@ -288,8 +289,24 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
     // Lead-Weg (fiaon-global-lead-post.ts) — der Radar liest sie nie, auch wenn die Domäne zufällig eine Radar-Domäne ist.
     const leadFaeden = new Set(((await sqlPool`SELECT gmail_faden FROM fiaon_lead_weg WHERE gmail_faden IS NOT NULL`.catch(() => [])) as any[]).map((r) => String(r.gmail_faden)));
     const ersteMails = new Set<string>(firmen.filter((x) => x.gmail_nachricht_id).map((x) => String(x.gmail_nachricht_id)));
+    // 17.11.2026 (Florentine: „sämtliche E-Mails an welcome@ landen in der Akte der HMS Technik GmbH“): Eine Freemail-Domäne
+    // (gmail.com, gmx.net, web.de …) ist NIE eine Firmen-Domäne. Vorher zählte die Domäne der Kontaktadresse — lag die bei
+    // Gmail, gehörte jede Gmail-Mail an das Radar-Postfach dieser einen Firma (Raten, Kündigungen, Mitarbeiter-Antworten),
+    // und eine fremde Absage sperrte die Firma sogar. Jetzt: Faden → genaue Adresse → Firmen-Domäne (nur ohne Freemail).
+    // Was so nicht eindeutig ist, liest der Radar nicht — es bleibt im Postfach für den normalen Weg (Mara, Team).
+    const frei = (d: string) => RADAR_FREEMAIL.has(d.trim().toLowerCase());
+    const adressen = new Map<string, number>();
     const domaenen = new Map<string, number>();
-    for (const x of firmen) { domaenen.set(String(x.domain), Number(x.id)); if (x.email) domaenen.set(String(x.email).split("@")[1], Number(x.id)); }
+    for (const x of firmen) {
+      const d = String(x.domain ?? "").trim().toLowerCase();
+      if (d && !frei(d)) domaenen.set(d, Number(x.id));
+      if (x.email) {
+        const e = String(x.email).trim().toLowerCase();
+        adressen.set(e, Number(x.id));
+        const ed = e.split("@")[1] ?? "";
+        if (ed && !frei(ed)) domaenen.set(ed, Number(x.id));
+      }
+    }
 
     const standKey = `radar_post_stand_${postfach.split("@")[0]}`;
     const [stand] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${standKey}`) as any[];
@@ -300,7 +317,8 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
     //   faden   eingehend, nur Nachrichten in Radar-Fäden (Antworten, Rückläufer, Ticket-Bestätigungen)
     //   domaene eingehend von Radar-Domänen (Antwort in einem NEUEN Faden, z. B. vom Geschäftsführer persönlich)
     //   aus     ausgehend in Radar-Fäden (Justins Antworten von Hand)
-    const domainListe = Array.from(new Set(firmen.map((x) => String(x.domain)).concat(firmen.filter((x) => x.email).map((x) => String(x.email).split("@")[1]))));
+    // Firmen-Domänen ohne Freemail; bei Freemail-Kontakten nur die genaue Adresse (nie „from:gmail.com“).
+    const domainListe = Array.from(new Set([...Array.from(domaenen.keys()), ...Array.from(adressen.keys()).filter((e) => frei(e.split("@")[1] ?? ""))]));
     const abfragen: { q: string; art: "faden" | "domaene" | "aus" }[] = [
       { q: `${zeitraum} -from:me -in:drafts -in:chats`, art: "faden" },
       { q: `${zeitraum} in:sent`, art: "aus" },
@@ -327,8 +345,9 @@ export async function radarPostLauf(): Promise<PostErgebnis> {
           try {
             erg.gelesen++;
             const n = await nachrichtLesen(postfach, m.id);
-            const dom = n.vonAdresse.split("@")[1] ?? "";
-            const firmaId = faeden.get(m.threadId) ?? domaenen.get(n.vonAdresse) ?? domaenen.get(dom) ?? null;
+            const von = n.vonAdresse.trim().toLowerCase();
+            const dom = von.split("@")[1] ?? "";
+            const firmaId = faeden.get(m.threadId) ?? adressen.get(von) ?? (frei(dom) ? null : domaenen.get(dom) ?? null);
             if (!firmaId) continue;
             if (abfrage.art === "aus" || n.vonAdresse === postfach) {
               await ausgehendMerken(firmaId, postfach, n, ersteMails.has(n.id));

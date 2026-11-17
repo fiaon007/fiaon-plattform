@@ -152,6 +152,31 @@ router.post("/global/angebot/:token/reisepass", async (req: Request, res: Respon
   }
 });
 
+// 17.11.2026: Bestehende US-Gesellschaft — löschen oder übertragen? Die Weisung des Kunden nach der Annahme
+// (server/lib/fiaon-global-bestehende-llc.ts, Seite /business/angebot/<Link>/bestehende-gesellschaft).
+router.get("/global/angebot/:token/bestehende-gesellschaft", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  try {
+    const { bestehendeLlcSicht } = await import("../lib/fiaon-global-bestehende-llc");
+    const erg = await bestehendeLlcSicht(String(req.params.token), { ip: clientIp(req), leitung: istLeitung(req) });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] bestehende-gesellschaft:", err);
+    res.status(500).json({ ok: false, error: "Die Seite lässt sich gerade nicht laden — bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+router.post("/global/angebot/:token/bestehende-gesellschaft", async (req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "private, no-store");
+  try {
+    const { bestehendeLlcSpeichern } = await import("../lib/fiaon-global-bestehende-llc");
+    const erg = await bestehendeLlcSpeichern(String(req.params.token), req.body ?? {}, { ip: clientIp(req), leitung: istLeitung(req) });
+    res.status(erg.status).json(erg.body);
+  } catch (err) {
+    console.error("[FIAON-ANGEBOT] bestehende-gesellschaft (senden):", err);
+    if (!res.headersSent) res.status(500).json({ ok: false, error: "Ihre Weisung ließ sich gerade nicht speichern — bitte versuchen Sie es gleich noch einmal." });
+  }
+});
+
 // E-410: Was wie lange gelesen wurde — die Seite schickt alle 15 s und beim Verlassen die Summen je Abschnitt.
 // Antwortet sofort 204 und verbucht danach (feuern und vergessen); Unlesbares wird still verworfen.
 router.post("/global/angebot/:token/lesen", (req: Request, res: Response) => {

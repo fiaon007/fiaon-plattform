@@ -181,7 +181,10 @@ export type GlobalDokumentArt =
   // E-432 (28.10.2026): die Unterlagen einer Finanzierung (Kapital-Angebot Fassung C) — vorher landeten Personalausweis,
   // Gehaltsnachweise und Kontoauszug unter „Adressnachweis“, „Unterlage für Bank“ oder „Sonstiges“. Die Art einer
   // FIAON-Ablage lässt sich später nicht ändern; deshalb eigene Arten.
-  | "personalausweis" | "einkommensnachweis" | "kontoauszug";
+  | "personalausweis" | "einkommensnachweis" | "kontoauszug"
+  // 17.11.2026: die Weisung des Auftraggebers in Textform (z. B. bestehende Gesellschaft löschen oder übertragen —
+  // shared/fiaon-global-bestehende-llc.ts). Legt das System ab; der Kunde wählt sie nicht beim Hochladen.
+  | "weisung";
 
 /** `von`: wer diese Art üblicherweise liefert. Der Kunde wählt nur aus „kunde" und „beide"; FIAON darf jede Art ablegen. */
 export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fiaon" | "beide"; de: string; en: string }[] = [
@@ -209,6 +212,7 @@ export const GLOBAL_DOKUMENTARTEN: { art: GlobalDokumentArt; von: "kunde" | "fia
   { art: "personalausweis", von: "kunde", de: "Personalausweis", en: "Identity card" },
   { art: "einkommensnachweis", von: "kunde", de: "Einkommensnachweis (z. B. Gehaltsnachweis)", en: "Proof of income (e.g. payslip)" },
   { art: "kontoauszug", von: "kunde", de: "Kontoauszug", en: "Bank statement" },
+  { art: "weisung", von: "fiaon", de: "Weisung des Auftraggebers", en: "Client instruction" },
   { art: "sonstiges", von: "beide", de: "Sonstiges Dokument", en: "Other document" },
 ];
 

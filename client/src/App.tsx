@@ -256,6 +256,8 @@ const BusinessAuftragPage = lazy(() => import("@/pages/business-auftrag"));
 const BusinessKontoPage = lazy(() => import("@/pages/business-konto"));
 // 01.10.2026 (E-268): das persönliche Individualangebot — signierter Link, Annahme per Knopf.
 const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
+// 17.11.2026: bisherige US-Gesellschaft löschen oder übertragen — die Weisung des Kunden nach der Annahme.
+const BusinessBestehendeLlcPage = lazy(() => import("@/pages/business-bestehende-llc"));
 // E-386 (16.10.2026): Partnerbereich der Kooperation — signierter Link ohne Anmeldung.
 const KoopPartnerPage = lazy(() => import("@/pages/koop-partner"));
 // E-388 (16.10.2026): Partner-Netzwerk für Privatkunden — Hub + fünf Bereiche, DE und EN (eine Komponente, der Pfad entscheidet).
@@ -570,6 +572,7 @@ function Router() {
       <Route path="/business/passwort-vergessen" component={BusinessKontoPage} />
       <Route path="/business/zugang" component={BusinessKontoPage} />
       <Route path="/business/konto" component={BusinessKontoPage} />
+      <Route path="/business/angebot/:token/bestehende-gesellschaft" component={BusinessBestehendeLlcPage} />
       <Route path="/business/angebot/:token" component={BusinessAngebotPage} />
       <Route path="/partner/:token" component={KoopPartnerPage} />
       <Route path="/partnernetzwerk" component={SitePartnerNetz} />

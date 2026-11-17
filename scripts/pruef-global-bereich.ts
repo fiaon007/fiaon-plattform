@@ -225,11 +225,12 @@ ok(B.globalUnterlagenStand([], "de").every((u) => !/als Text/i.test(u.hinweis)) 
 ok(B.globalUnterlagenStand([], "en").filter((u) => u.alsText).every((u) => /as text/.test(u.textHinweis ?? "")), "textHinweis englisch");
 // E-338: zwölf Arten + acht des Global-Mandats (Vollmacht, Bank, Karten, Kapital, Steuer, Jahresbericht, Post, Info).
 // E-432 (28.10.2026): + Personalausweis, Einkommensnachweis, Kontoauszug (Unterlagen einer Finanzierung) = dreiundzwanzig.
-gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "bank_vertrag", "ein_brief", "einkommensnachweis", "gesellschafterliste", "gruendungsurkunde", "info", "itin_bescheid", "jahresbericht", "kapital_vertrag", "karten_unterlage", "kontoauszug", "namenswunsch", "operating_agreement", "personalausweis", "post", "registerauszug", "reisepass", "sonstiges", "steuer", "taetigkeitsbeschreibung", "vollmacht"], "dreiundzwanzig Dokumentarten");
+// 17.11.2026: + Weisung des Auftraggebers (Textform, z. B. bestehende Gesellschaft löschen/übertragen) = vierundzwanzig.
+gleich(B.GLOBAL_DOKUMENTARTEN.map((a) => a.art).sort(), ["adressnachweis", "bank_unterlage", "bank_vertrag", "ein_brief", "einkommensnachweis", "gesellschafterliste", "gruendungsurkunde", "info", "itin_bescheid", "jahresbericht", "kapital_vertrag", "karten_unterlage", "kontoauszug", "namenswunsch", "operating_agreement", "personalausweis", "post", "registerauszug", "reisepass", "sonstiges", "steuer", "taetigkeitsbeschreibung", "vollmacht", "weisung"], "vierundzwanzig Dokumentarten");
 ok(B.GLOBAL_DOKUMENTARTEN[B.GLOBAL_DOKUMENTARTEN.length - 1].art === "sonstiges", "„Sonstiges“ bleibt der letzte Eintrag");
 ok(["vollmacht", "post", "info", "jahresbericht"].every((a) => !B.globalKundeDarfArt(a)), "Vollmacht, Post, Info, Jahresbericht legt nur FIAON ab");
 
-gleich(B.globalDokumentArtenFuer("office").length, 23, "das Office wählt aus allen dreiundzwanzig Arten");
+gleich(B.globalDokumentArtenFuer("office").length, 24, "das Office wählt aus allen vierundzwanzig Arten");
 ok(B.globalDokumentArtenFuer("kunde").every((a) => B.globalKundeDarfArt(a.art)) && B.globalDokumentArtenFuer("kunde").some((a) => a.art === "sonstiges") && B.globalDokumentArtenFuer("kunde").length === 15, "der Kunde wählt nur aus Arten, die er liefern darf (fünfzehn, mit „Sonstiges“)");
 // E-432: die drei neuen Arten liegen in ihren Mappen (Tresor) und darf der Kunde selbst liefern.
 {

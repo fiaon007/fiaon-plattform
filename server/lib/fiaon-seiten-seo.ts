@@ -600,6 +600,7 @@ const BUSINESS_APP_WEGE = [
   /^\/(en\/)?business\/start$/,             // Auftrag erteilen
   /^\/(en\/)?business\/auftrag(\/[^/]+)?$/, // Mein Auftrag, auch mit Referenz
   /^\/business\/angebot\/[^/]+$/,            // Individualangebot mit Token (01.10.2026, E-268)
+  /^\/business\/angebot\/[^/]+\/bestehende-gesellschaft$/, // bisherige US-Gesellschaft löschen oder übertragen (17.11.2026)
   // E-423 (22.10.2026): der persönliche Zugang — Anmeldung, Passwort vergessen, Zugang einrichten, Übersicht.
   /^\/business\/(login|passwort-vergessen|zugang|konto)$/,
   /^\/en\/business\/(login|forgot-password|access|account)$/,

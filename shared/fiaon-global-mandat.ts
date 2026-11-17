@@ -206,7 +206,7 @@ const KATEGORIE_NACH_ART: Record<string, GlobalTresorKategorie> = {
   registerauszug: "unternehmen", gesellschafterliste: "unternehmen", namenswunsch: "unternehmen", taetigkeitsbeschreibung: "unternehmen",
   gruendungsurkunde: "gesellschaft", ein_brief: "gesellschaft", operating_agreement: "gesellschaft", itin_bescheid: "gesellschaft",
   bank_unterlage: "bank", bank_vertrag: "bank", kontoauszug: "bank",
-  vollmacht: "vollmacht",
+  vollmacht: "vollmacht", weisung: "vollmacht",
   kapital_vertrag: "kapital", karten_unterlage: "kapital", einkommensnachweis: "kapital",
   steuer: "steuern", jahresbericht: "steuern",
   post: "post", info: "info", sonstiges: "sonstiges",

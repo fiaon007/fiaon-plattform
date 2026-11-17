@@ -1,48 +1,50 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// fiaon.com/ — FIAON GLOBAL: EIN MANDAT, EIN HONORARRECHNER (Register E-509, 12.11.2026; Kanzlei-Ton E-510, 13.11.2026)
+// fiaon.com/ — FIAON GLOBAL: DAS ALTE GEWAND MIT DEN NEUEN INHALTEN (17.11.2026)
 //
-// Justin (12.11.2026): „wir sollten die Pakete weg — die US LLC Gründung mit aktiver Betreuung (volle Package, perfekt
-// animiert anführen aber clean halten, sauber halten, platz lassen, Rechtsberatung rein, Steuerberatung — all das) …
-// das muss der Motor unserer Plattform sein, der Sales Apparat! — ein WOW Gefühl und Erlebnis für den Klienten.“
-// Und am selben Tag (E-510): „auf JEDER Seite muss das Wording geändert werden … keine Magie, sondern knallharte Fakten —
-// präsentiere uns wie eine Kanzlei, wie internationale Unternehmensberater.“
+// Justin (17.11.2026): „Was ist mit unserer Startseite passiert? Wir hatten da mal geile Animationen, geilen Apple-Hero …
+// warum wurde das so billig geändert? Auch dass wir bei der Presse waren, kommt gar nicht zur Geltung — ich will mein altes
+// Design mit allen neuen Änderungen.“ Und: „nichts soll weg, nur erweitert werden, angepasst an die Änderungen — es muss
+// einfach perfekt aussehen.“
+// Darum steht wieder das Gewand vom 29.10. (E-442/E-461, von Justin abgenommen) — mit den Inhalten seit E-509 (ein Mandat,
+// ein Honorarrechner) und E-510 (Sprachleitfaden, sechs Schritte). Vorher→Nachher: Seit 13.11. stand hier die ruhige
+// Kanzlei-Fassung (Satz statt Zahl, Haarlinien, helles Ende, ohne Instagram, Stern, Bogen und Schlussbild).
 //
-// ── AUFBAU SEIT E-510 (Sprachleitfaden FIAON Global, Abschnitt 7.1; Gestaltung nach UX-Prüfung 3.10) ─────────
-//   1  Bühne — DER SATZ IST DAS GRÖSSTE: die Überschrift ganz sichtbar („US-Gesellschaft gründen. In einem Mandat.“),
-//      zwei Handlungen, darunter die Tatsachenreihe an einer Haarlinie (Honorar zum Auftrag · Spanne des Kapitalrahmens,
-//      jede Zahl mit ihrem Satz). Unter der Bühne „Auf einen Blick“ (#auf-einen-blick): die vier Antworten der
-//      30-Sekunden-Probe als Zeilen an Haarlinien.
-//   2  Vertrauens-Band — vier nachprüfbare Tatsachen, jede mit ihrem Beleg (GlobalVertrauen.tsx)
-//   3  Ein Mandat (#produkt) — acht Bereiche an Haarlinien, daneben die Urkunde mit dem Honorar zum Auftrag
-//   4  Sechs Schritte (#ablauf) — das Herzstück: eine Linie von Schritt zu Schritt; je Schritt Satz, Bedingung,
-//      Ihr Teil, Ihr Ergebnis und der, der entscheidet
-//   5  Ihr Angebot (#konfigurator) — der Honorarrechner, die EINE dunkle Glasfläche der Seite
-//   6  Wenn die Finanzierung ausbleibt (#geld-zurueck) — Geld-zurück-Garantie in der Mittel-Form als Band an Haarlinien,
-//      im selben Band „Was Sie vor dem Mandat wissen müssen“ (die drei Pflichthinweise, Wortlaut wie im Vertrag)
-//   7  Was FIAON ist — und was nicht (#rolle), darunter „Für wen“ (#fuer-wen)
-//   8  Erstgespräch (#gespraech) → 9 Fragen (#fragen) → 10 Schluss (hell, an einer Linie, ohne Bild) → Leiste am Handy.
-// Nach dem Honorarrechner steht kein Abschnitt mehr, der erst überzeugen soll (Leitfaden 7.1). Deshalb stehen seit E-510
-// nicht mehr auf der Startseite: Instagram und Facebook (die Verweise stehen im Fuß), der Stern „Ein Ansprechpartner statt
-// acht“ (er zeigt Partner bei der Arbeit — solche Sätze gehen erst live, wenn die Partner bestätigt sind), der Bogen nach
-// Miami (zweite dunkle Fläche, „Team vor Ort“) und das Bild im Schlussband (dritte dunkle Fläche, erzeugter Raum). Die
-// Bausteine selbst bleiben unverändert in ihren Dateien.
-// Die Sätze des Produkts, des Honorars und des Honorarrechners stehen in shared/fiaon-global-verkauf.ts (dieselben
-// Funktionen rechnen im Vertrag), die festen Sätze in shared/fiaon-global-saetze.ts.
-//
-// Die Klasse „fg-start“ am Rahmen trägt Raster und Schriftleiter der Startseite (styles/global-verkauf.css, Abschnitt 0):
-// gleiche Luft je Abschnitt, Überschriften ruhig in der Schriftfarbe (kein Lichtstreif mehr über jeder H2), der zweite
-// Teil einer Überschrift leiser. Im Honorarrechner selbst übernimmt am Handy seine eigene Leiste (VerkaufKonfigurator) —
-// die Leiste dieser Seite ruht dann.
+// ── AUFBAU ────────────────────────────────────────────────────────────────────
+//   1  Die Glas-Bühne (HeroGlas): Zahl „2.799 €“ mit Glanz, darunter die Zeile zum Erfolgshonorar, Tipp-Zeile, zwei Pillen;
+//      beim Scrollen drei Kacheln (Kapitalrahmen · das Team im Wechsel · Ihr Vertrag) und „Auf einen Blick“ als Glasfläche
+//   2  Die Presse-Bühne (GlobalPresse) — NEU: „Zitiert in Die Presse“ groß, mit Zeitungsblatt aus Glas
+//   3  Ein Mandat: acht Bereiche mit der Urkunde (VerkaufProdukt) — statt der drei Pakettafeln
+//   4  Persönlich in Miami (GlobalMiami) — die Navy-Bühne der früheren VIP-Tafel, jetzt „ab 1 Mio. US-Dollar“
+//   5  Sechs Schritte (GlobalSchritte) — statt der vier Etappen
+//   6  Ihr Angebot: der Honorarrechner (VerkaufKonfigurator)
+//   7  Wenn die Finanzierung ausbleibt + Pflichthinweise (VerkaufGarantie) — statt des Kleingedruckten
+//   8  Jahresbetreuung als Band (GlobalJahresbetreuung, „im Mandat enthalten“)
+//   9  FIAON Global auf Instagram und Facebook (SozialFenster)
+//  10  Ein Ansprechpartner statt acht Anlaufstellen (SternZentrale mit Ohne/Mit) + Partnersatz + „Ehrlich gesagt“
+//  11  Was FIAON ist — und was nicht, darunter „Für wen“ (VerkaufRolle)
+//  12  Von Europa nach Miami — und zurück (GlobalBogen)
+//  13  Erstgespräch → 14 Fragen → 15 Schlussband mit Bild (GlobalSchlussBild) → Leiste am Handy
+// Nicht zurück: der Vorführraum (beide Filme nennen noch „ab 2.499 Euro“, Pakete und „Kartenleiter“ — er kommt mit neuen
+// Filmen wieder) und das Vertrauens-Band als eigene Zeile (seine Tatsachen stehen jetzt in der Vertrag-Kachel, die Presse
+// hat ihre eigene Bühne — die Presse-Zeile steht so weiter genau einmal auf der Seite).
+// Sätze: Produkt, Honorar, Honorarrechner in shared/fiaon-global-verkauf.ts; feste Sätze in shared/fiaon-global-saetze.ts;
+// die Sätze der zurückgeholten Abschnitte in i18n/global.ts (GLOBAL_START_WOERTER).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalGespraech from "@/components/site/GlobalGespraech";
 import { useWoerter, useSprache } from "@/i18n/sprache";
-import { GLOBAL_WOERTER } from "@/i18n/global";
-import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS } from "@shared/fiaon-global";
+import { GLOBAL_WOERTER, GLOBAL_BUEHNE_WOERTER, GLOBAL_START_WOERTER } from "@/i18n/global";
+import { GLOBAL_KAPITAL_FREI, GLOBAL_PFLICHTHINWEIS, GLOBAL_INKLUSIVE } from "@shared/fiaon-global";
 import { werbeEreignis } from "@/lib/werbung";
 import HeroGlas from "@/components/site/global/HeroGlas";
-import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
+import GlobalPresse from "@/components/site/global/GlobalPresse";
+import GlobalMiami from "@/components/site/global/GlobalMiami";
+import SternZentrale from "@/components/site/global/SternZentrale";
+import GlobalBogen from "@/components/site/global/GlobalBogen";
+import GlobalSchlussBild from "@/components/site/global/GlobalSchlussBild";
+import GlobalJahresbetreuung from "@/components/site/GlobalJahresbetreuung";
+import { SozialFenster } from "@/components/site/sozial/SozialFenster";
 import GlobalSchritte from "@/components/site/global/GlobalSchritte";
 import { VerkaufProdukt, VerkaufGarantie, VerkaufRolle } from "@/components/site/global/VerkaufProdukt";
 import VerkaufKonfigurator, { VerkaufKonfigLead } from "@/components/site/global/VerkaufKonfigurator";
@@ -50,7 +52,7 @@ import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 import { sauber } from "@/components/site/global/VerkaufSatz";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import { VERKAUF_TEXTE, VERKAUF_PREISE, verkaufEur } from "@shared/fiaon-global-verkauf";
-import { SAETZE_BETRAEGE } from "@shared/fiaon-global-saetze";
+import { SAETZE_BETRAEGE, vertrauensBand } from "@shared/fiaon-global-saetze";
 // Kopf der Seite /business/privatpersonen: aus dem Registereintrag — eine Quelle für Titel, Beschreibung, H1 und Einleitung.
 import { PRIVAT_SEITE } from "@shared/fiaon-global-seiten/privat";
 import { PRIVAT_SEITE_EN } from "@shared/fiaon-global-seiten/en/privat";
@@ -58,6 +60,7 @@ import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
 import "@/styles/global-verkauf.css";
+import "@/styles/global-startseite.css";
 
 function Winkel({ offen }: { offen: boolean }) {
   return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: offen ? "rotate(180deg)" : undefined, transition: "transform .25s" }}><path d="m6 9 6 6 6-6" /></svg>;
@@ -107,8 +110,8 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   useEffect(() => {
     // Wer mit #gespraech oder #konfigurator ankommt (alte Links auf #pakete landen beim Honorarrechner), landet dort —
     // erst nach dem ersten Bild, sonst misst der Browser die Höhe der Seite falsch. Alte Anker der Abschnitte, die es
-    // nicht mehr gibt (#leistungen, #bogen), führen zum einen Mandat.
-    const alt: Record<string, string> = { "#pakete": "#konfigurator", "#jahresbetreuung": "#konfigurator", "#leistungen": "#produkt", "#bogen": "#ablauf" };
+    // nicht mehr gibt (#pakete), führen zum Honorarrechner; #leistungen, #bogen und #jahresbetreuung gibt es seit 17.11. wieder.
+    const alt: Record<string, string> = { "#pakete": "#konfigurator" };
     const anker = alt[window.location.hash] ?? window.location.hash;
     if (anker && /^#[A-Za-z][\w-]*$/.test(anker)) requestAnimationFrame(() => setTimeout(() => document.querySelector(anker)?.scrollIntoView(), 60));
   }, []);
@@ -150,32 +153,44 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
   const rahmenSpanne = SAETZE_BETRAEGE[s].rahmen;
   // 19.09.2026 (Justin): Das Kapital ist nicht an die USA gebunden — der Hinweis steht am Kapitalrahmen der Bühne (eine Quelle).
   const frei = GLOBAL_KAPITAL_FREI[s];
+  // Die Sätze der zurückgeholten Abschnitte (17.11.2026) und die Wörter der Karte „Der Bogen“.
+  const st = GLOBAL_START_WOERTER[s];
+  const buehne = GLOBAL_BUEHNE_WOERTER[s];
+  // Die Vertrag-Kachel: die nachprüfbaren Tatsachen des Vertrauens-Bands außer der Presse-Zeile (die hat ihre eigene Bühne).
+  const vertragZeilen = vertrauensBand(s).filter((z) => z.art !== "presse").map((z) => (
+    z.art === "register" ? { text: z.text, href: z.adresse ?? undefined, extern: true }
+      : z.art === "vertrag" ? { text: z.text, href: z.adresse ?? undefined }
+        : { text: z.text }
+  ));
 
   return (
     <Dunkel seite="business" titel={kopf.titel} beschreibung={kopf.beschreibung}>
-      <div className="fg fg-neu fg-start">
-        {/* ── 1 Die Bühne (E-442, E-510): der Satz groß, zwei Handlungen, darunter die Tatsachenreihe — das Honorar zum Auftrag
-               (mit der Zeile zum Erfolgshonorar) und die Spanne des Kapitalrahmens (mit S9 und dem Miami-Satz). Unter der
-               Bühne: „Auf einen Blick“ — die vier Antworten der 30-Sekunden-Probe. ── */}
-        <HeroGlas onAngebot={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
-          auge: kopf.auge, h1a: kopf.h1a, h1b: kopf.h1b, lead: sauber(kopf.lead),
-          knopfAngebot: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
-          preis, label: V.buehne.label, honorarZeile: V.buehne.honorarZeile,
+      <div className="fg fg-neu">
+        {/* ── 1 Die Glas-Bühne (E-442, zurück seit 17.11.2026): die Zahl mit Glanz, die Zeile zum Erfolgshonorar, die
+               Tipp-Zeile, zwei Pillen; darunter beim Scrollen die drei Kacheln und „Auf einen Blick“. ── */}
+        <HeroGlas en={s === "en"} onAngebot={zumKonfigurator("buehne")} onGespraech={zumGespraech} t={{
+          auge: kopf.auge, preis, label: V.buehne.label, zahlSatz: V.buehne.honorarZeile,
+          h1a: kopf.h1a, h1b: kopf.h1b, wechsel: privat ? undefined : st.wechsel, lead: sauber(kopf.lead),
+          knopfPakete: V.buehne.knopf, knopfGespraech: V.buehne.knopfGespraech, mikro: V.buehne.mikro,
           kapitalTitel: V.buehne.kapitalTitel, kapitalWert: rahmenSpanne, kapitalSatz: V.buehne.kapitalSatz,
-          kapitalFrei: frei.kurz, fussnote: `${frei.satz} ${frei.steuer}`,
-          blickName: V.blick.titel, blick: V.blick.punkte,
+          kapitalFrei: frei.kurz, fussnoteNr: 1, fussnote: `${frei.satz} ${frei.steuer}`,
+          personTitel: st.personTitel, teamTitel: st.teamTitel, teamHinweis: st.teamHinweis, teamAnhalten: st.teamAnhalten, teamFortsetzen: st.teamFortsetzen,
+          vertragTitel: st.vertragTitel, vertrag: vertragZeilen, weiter: st.weiter, blickName: V.blick.titel, blick: V.blick.punkte,
         }} />
 
-        {/* ── 2 Das Vertrauens-Band: Register, Presse-Zeile, Vertrag vor der Unterschrift, Zahlung per Rechnung ── */}
-        <GlobalVertrauen sprache={s} />
+        {/* ── 2 Die Presse-Bühne (neu, 17.11.2026): „Zitiert in Die Presse“ — die Presse-Zeile genau einmal auf der Seite ── */}
+        <GlobalPresse sprache={s} />
 
-        {/* ── 3 Ein Mandat: acht Bereiche ── */}
+        {/* ── 3 Ein Mandat: acht Bereiche mit der Urkunde ── */}
         <VerkaufProdukt sprache={s} onKonfigurator={zumKonfigurator("produkt")} />
 
-        {/* ── 4 Sechs Schritte, jeder mit seiner Bedingung ── */}
+        {/* ── 4 Persönlich in Miami — die Navy-Bühne der früheren VIP-Tafel ── */}
+        <GlobalMiami w={st.miami} onGespraech={zumGespraech} />
+
+        {/* ── 5 Sechs Schritte, jeder mit seiner Bedingung ── */}
         <GlobalSchritte sprache={s} mehr={V.ablauf.mehr} />
 
-        {/* ── 5 Ihr Angebot: der Honorarrechner — die eine dunkle Glasfläche der Seite ── */}
+        {/* ── 6 Ihr Angebot: der Honorarrechner ── */}
         <Sek className="fg-sek vk-konfig-sek" titelId="vk-konfig-titel">
           <div className="fg-rahmen">
             <div className="fg-kopf">
@@ -186,9 +201,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </Sek>
 
-        {/* ── 6 Wenn die Finanzierung ausbleibt: Geld-zurück-Garantie in der Mittel-Form — ein Band an Haarlinien.
-               Im selben Band darunter: „Was Sie vor dem Mandat wissen müssen“ (die drei Pflichthinweise, Wortlaut wie im
-               Vertrag) — immer offen. ── */}
+        {/* ── 7 Wenn die Finanzierung ausbleibt — und darunter „Was Sie vor dem Mandat wissen müssen“ (immer offen) ── */}
         <VerkaufGarantie sprache={s}>
           <div className="vk-wissen">
             <h2 id="vk-wissen-titel">{t.wissenTitel}</h2>
@@ -196,7 +209,30 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </VerkaufGarantie>
 
-        {/* ── 7 Was FIAON ist — und was nicht; darunter „Für wen“ mit den Verweisen auf die Zielgruppen-Seiten ── */}
+        {/* ── 8 Jahresbetreuung als Band (trägt id="jahresbetreuung" selbst) — „im Mandat enthalten“ statt „Paket“ ── */}
+        <GlobalJahresbetreuung sprache={s} groesse="band" startPfad="#konfigurator" knopf={st.jbKnopf} so={st.jbSo}
+          ueber={{ zeitleiste: st.jbZeit, lead: st.jbLead }} />
+
+        {/* ── 9 FIAON Global auf Instagram und Facebook (E-296): nur Beiträge von FIAON Global ── */}
+        <SozialFenster aussehen="kanzlei" marke="global" />
+
+        {/* ── 10 Ein Ansprechpartner statt acht Anlaufstellen — die Schaltzentrale mit „Ohne / Mit FIAON Global“ ── */}
+        <Sek id="leistungen" className="fg-sek fg-stern-sek">
+          <div className="fg-rahmen">
+            <div className="fg-kopf mitte">
+              <div><span className="fg-auge">{st.vsAuge}</span><h2 className="fg-h2">{st.vsH2}</h2></div>
+            </div>
+            <SternZentrale knoten={st.sternKnoten} ohne={st.ohne} schalter={st.sternSchalter} mitte={st.sternMitte} sie={st.sternSie} legende={st.sternLegende}
+              label={st.sternLabel} inklusive={GLOBAL_INKLUSIVE[s]} begriffe={[]} />
+            <div className="fg-stern-unter">
+              <p className="fg-stern-partner">{sauber(V.partnerSatz)}</p>
+              <p className="fg-ehrlich-zeile"><b>{st.ehrlichTitel}:</b> {st.ehrlichText}{" "}
+                <a href={st.vergleichPfad}>{st.ehrlichLink}<Pfeil /></a></p>
+            </div>
+          </div>
+        </Sek>
+
+        {/* ── 11 Was FIAON ist — und was nicht; darunter „Für wen“ ── */}
         <VerkaufRolle sprache={s}>
           <div id="fuer-wen" className="fg-fuer-chips" style={{ scrollMarginTop: 96 }}>
             <span>{t.fuerKurz}</span>
@@ -206,7 +242,27 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </VerkaufRolle>
 
-        {/* ── 8 Erstgespräch ── */}
+        {/* ── 12 Der Bogen: Europa → Miami → sechs Schritte → Mittel auch zurück nach Europa ── */}
+        <Sek id="bogen" className="fg-sek stein fg-bogen-sek">
+          <div className="fg-rahmen fg-bogen-raster">
+            <div className="fg-bogen-text">
+              <span className="fg-auge">{st.bogenAuge}</span>
+              <h2 className="fg-h2">{st.bogenH2a} <em>{st.bogenH2b}</em></h2>
+              <p className="fg-lead">{st.bogenLead}</p>
+              <dl className="fg-bogen-punkte">
+                {st.bogenPunkte.map((p, i) => (
+                  <div key={p.titel}><i aria-hidden="true">{["I", "II", "III"][i]}</i><dt>{p.titel}</dt><dd>{p.text}</dd></div>
+                ))}
+              </dl>
+              <div className="fg-knoepfe">
+                <button type="button" className="fg-knopf" onClick={zumGespraech}>{st.bogenKnopf}<Pfeil /></button>
+              </div>
+            </div>
+            <div className="fg-bogen-bild"><GlobalBogen w={buehne} etappen={buehne.bogenEtappenKurz} /></div>
+          </div>
+        </Sek>
+
+        {/* ── 13 Erstgespräch ── */}
         <Sek id="gespraech" className="fg-sek fg-gespraech-sek" titelId="fg-gespraech-titel">
           <div className="fg-rahmen">
             <div className="fg-kopf">
@@ -216,7 +272,7 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </Sek>
 
-        {/* ── 9 Fragen: fünf sichtbar, die übrigen im DOM hinter dem Knopf ── */}
+        {/* ── 14 Fragen: fünf sichtbar, die übrigen im DOM hinter dem Knopf ── */}
         <Sek id="fragen" className="fg-sek stein" titelId="fg-fragen-titel">
           <div className="fg-rahmen fg-fragen">
             <div className="fg-fragen-kopf">
@@ -240,9 +296,9 @@ export function BusinessSeite({ zielgruppe = "unternehmen" }: { zielgruppe?: "un
           </div>
         </Sek>
 
-        {/* ── 10 Schluss: ein Satz, zwei Knöpfe (Leitfaden 7.1) — hell, an einer Linie, ohne Bild. Die eine dunkle Fläche
-               der Seite ist der Honorarrechner (UX-Prüfung 3.6). ── */}
-        <section className="fg-schluss ruhig hell" aria-labelledby="fg-schluss-titel">
+        {/* ── 15 Schlussband mit Bild (Szene mit KI erstellt — der Nachweis steht am Bild) ── */}
+        <section className="fg-schluss mit-bild" aria-labelledby="fg-schluss-titel">
+          <GlobalSchlussBild nachweis={t.szeneKi} />
           <div className="fg-rahmen">
             <div className="fg-schluss-text">
               <h2 className="fg-h2" id="fg-schluss-titel">{t.schlussA}<em>{t.schlussB}</em></h2>

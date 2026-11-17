@@ -1,0 +1,9 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTSEITE fiaon.com/ — Feinschliff für das alte Gewand mit den neuen Inhalten (17.11.2026, pages/site/business.tsx)
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Die Spanne des Kapitalrahmens („50.000 bis 1.000.000 US-Dollar“) ist länger als die frühere „50.000 $ – 1.000.000 $“:
+   in der Kachel darf sie umbrechen, statt mit „…“ abgeschnitten zu werden. */
+.hg-widget:first-child > b { white-space: normal; overflow: visible; text-overflow: clip; text-wrap: balance; }
+/* Die Miami-Bühne folgt direkt auf das Mandat — kein doppelter Abschnittsabstand dazwischen. */
+html body .fg.fg.fg-neu .fg-sek.fg-miami-sek { padding-top: 0; }
+@media (max-width: 720px) { html body .fg.fg.fg-neu .fg-sek.fg-miami-sek { padding-top: 8px; } }

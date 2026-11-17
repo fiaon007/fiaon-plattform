@@ -1,0 +1,103 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIE PRESSE-BÜHNE (17.11.2026, GlobalPresse.tsx) — Präfix gpr-
+   Eine helle Glasfläche wie die Kacheln der Bühne: links der Name der Zeitung groß in der Serife (Schrift, kein Logo),
+   rechts ein Zeitungsblatt aus Glas, dessen Linien sich einmal zeichnen; eine Zeile leuchtet in Glasblau auf.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gpr-sek { --ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif; --kurve: cubic-bezier(.22, 1, .36, 1); }
+html .fg.fg .gpr-sek { padding-top: clamp(40px, 6vw, 88px); padding-bottom: clamp(40px, 6vw, 88px); }
+.gpr {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr); align-items: center;
+  gap: clamp(28px, 5vw, 72px); padding: clamp(30px, 4.6vw, 64px); border-radius: 36px; color: #0c1a2e;
+  background:
+    radial-gradient(60% 80% at 100% 0%, rgba(40, 141, 250, .12), rgba(40, 141, 250, 0) 70%),
+    rgba(255, 255, 255, .62);
+  border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 40px 90px -52px rgba(18, 40, 74, .5);
+  -webkit-backdrop-filter: blur(26px) saturate(170%); backdrop-filter: blur(26px) saturate(170%);
+}
+.gpr-text { position: relative; min-width: 0; font-family: var(--ap); }
+.gpr-auge { display: inline-flex; align-items: center; gap: 9px; min-height: 32px; padding: 0 13px; border-radius: 999px;
+  background: rgba(29, 78, 216, .07); border: 1px solid rgba(29, 78, 216, .14);
+  font: 500 11px/1 var(--ap); letter-spacing: .2em; text-transform: uppercase; color: #1d4ed8; }
+.gpr-punkt { width: 6px; height: 6px; border-radius: 50%; background: #1d4ed8; box-shadow: 0 0 0 3px rgba(29, 78, 216, .16); }
+html .fg.fg .gpr-name { margin: clamp(18px, 2.4vw, 28px) 0 0; max-width: 12ch; font: 300 clamp(44px, 6vw, 86px)/.98 var(--serif); letter-spacing: -.03em; color: #0c1a2e;
+  -webkit-text-fill-color: currentColor; background: none; text-wrap: balance; }
+html .fg.fg .gpr-name a { color: inherit; text-decoration: none; background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size .5s var(--kurve); }
+html .fg.fg .gpr-name a:hover { background-size: 100% 1px; }
+html .fg.fg .gpr-name .gpr-datum { display: block; margin-top: 14px; font: 400 clamp(13px, 1.1vw, 15px)/1.3 var(--ap); letter-spacing: .18em; text-transform: uppercase; color: #6b7487; }
+html .fg.fg .gpr-satz { margin: 16px 0 0; max-width: 52ch; font: 400 clamp(15px, 1.2vw, 16.5px)/1.62 var(--ap); color: #46516a; text-wrap: pretty; }
+.gpr-fuss { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: clamp(22px, 2.6vw, 32px); }
+.gpr-knopf { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 22px; border-radius: 999px;
+  background: #0c1a2e; color: #fff; font: 500 14.5px/1 var(--ap); text-decoration: none;
+  box-shadow: 0 14px 30px -16px rgba(12, 26, 46, .6); transition: transform .3s var(--kurve), box-shadow .3s ease, background .25s ease; }
+.gpr-knopf:hover { background: #12284a; transform: translateY(-1px); box-shadow: 0 18px 36px -16px rgba(12, 26, 46, .6); }
+
+/* ── Das Zeitungsblatt aus Glas ── */
+.gpr-bild { position: relative; min-width: 0; display: flex; justify-content: center; perspective: 1400px; }
+.gpr-blatt {
+  position: relative; width: min(100%, 440px); padding: 26px 26px 30px; border-radius: 20px; overflow: hidden;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .96), rgba(246, 249, 255, .88));
+  border: 1px solid rgba(255, 255, 255, .98);
+  box-shadow: inset 0 1px 0 #fff, 0 50px 80px -46px rgba(18, 40, 74, .55), 0 12px 24px -18px rgba(18, 40, 74, .3);
+  transform: rotateY(-9deg) rotateX(4deg) rotateZ(1.2deg); transform-origin: 60% 50%;
+}
+.gpr-blatt-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.gpr-blatt-name { display: block; width: 46%; height: 16px; border-radius: 4px; background: rgba(12, 26, 46, .82); }
+.gpr-blatt-datum { font: 500 9.5px/1 var(--ap); letter-spacing: .16em; color: #6b7487; }
+.gpr-blatt-linie { height: 1px; margin: 12px 0 16px; background: linear-gradient(90deg, #0c1a2e, rgba(12, 26, 46, .2)); transform-origin: left center; }
+.gpr-blatt-titel { display: grid; gap: 8px; margin-bottom: 20px; }
+.gpr-blatt-titel i { display: block; height: 11px; border-radius: 3px; background: rgba(12, 26, 46, .78); transform-origin: left center; }
+.gpr-blatt-spalten { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.gpr-blatt-spalte { display: grid; gap: 8px; align-content: start; }
+.gpr-blatt-spalte i { display: block; height: 5px; border-radius: 3px; background: rgba(12, 26, 46, .16); transform-origin: left center; }
+.gpr-blatt-luft { display: block; height: 6px; }
+/* Die markierte Stelle: rechts unten in der dritten Spalte, Glasblau, mit „FIAON“. */
+.gpr-blatt-marke { position: relative; display: flex; align-items: center; justify-content: center; height: 24px; margin: 2px -6px; border-radius: 7px;
+  background: linear-gradient(90deg, rgba(40, 141, 250, .2), rgba(40, 141, 250, .34)); border: 1px solid rgba(40, 141, 250, .45);
+  box-shadow: 0 10px 26px -10px rgba(40, 141, 250, .7); }
+.gpr-blatt-marke span { font: 600 10.5px/1 var(--ap); letter-spacing: .2em; color: #1d4ed8; }
+.gpr-blatt-glanz { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, .7) 50%, rgba(255, 255, 255, 0) 62%) 120% 0 / 260% 100% no-repeat; }
+
+/* ── Bewegung: einmal beim Hineinscrollen ── */
+.gpr-sek[data-an="0"] .gpr-text > *, .gpr-sek[data-an="0"] .gpr-blatt { opacity: 0; }
+.gpr-sek[data-an="0"] .gpr-blatt-linie, .gpr-sek[data-an="0"] .gpr-blatt-titel i, .gpr-sek[data-an="0"] .gpr-blatt-spalte i { transform: scaleX(0); }
+.gpr-sek[data-an="0"] .gpr-blatt-marke { opacity: 0; transform: scale(.9); }
+.gpr-sek[data-an="1"] .gpr-text > * { animation: gpr-ein .9s var(--kurve) backwards; }
+.gpr-sek[data-an="1"] .gpr-text > :nth-child(2) { animation-delay: .08s; }
+.gpr-sek[data-an="1"] .gpr-text > :nth-child(3) { animation-delay: .18s; }
+.gpr-sek[data-an="1"] .gpr-text > :nth-child(4) { animation-delay: .26s; }
+.gpr-sek[data-an="1"] .gpr-text > :nth-child(5) { animation-delay: .34s; }
+.gpr-sek[data-an="1"] .gpr-blatt { animation: gpr-blatt 1.3s var(--kurve) .1s backwards; }
+.gpr-sek[data-an="1"] .gpr-blatt-linie { animation: gpr-zeichnen .8s var(--kurve) .5s backwards; }
+.gpr-sek[data-an="1"] .gpr-blatt-titel i { animation: gpr-zeichnen .7s var(--kurve) .62s backwards; }
+.gpr-sek[data-an="1"] .gpr-blatt-titel i + i { animation-delay: .74s; }
+.gpr-sek[data-an="1"] .gpr-blatt-spalte i { animation: gpr-zeichnen .55s var(--kurve) calc(.8s + var(--z, 0) * 28ms) backwards; }
+.gpr-sek[data-an="1"] .gpr-blatt-marke { animation: gpr-marke .8s var(--kurve) 1.9s backwards; }
+.gpr-sek[data-an="1"] .gpr-blatt-glanz { animation: gpr-glanz 1.6s cubic-bezier(.45, .05, .35, 1) 2.3s backwards; }
+@keyframes gpr-ein { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes gpr-blatt { from { opacity: 0; transform: rotateY(-22deg) rotateX(10deg) rotateZ(3deg) translateY(36px); } to { opacity: 1; } }
+@keyframes gpr-zeichnen { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes gpr-marke { 0% { opacity: 0; transform: scale(.9); box-shadow: 0 0 0 0 rgba(40, 141, 250, .6); } 60% { opacity: 1; transform: scale(1.04); box-shadow: 0 0 0 12px rgba(40, 141, 250, 0); } 100% { opacity: 1; transform: none; } }
+@keyframes gpr-glanz { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+
+@media (max-width: 900px) {
+  .gpr { grid-template-columns: minmax(0, 1fr); border-radius: 30px; }
+  .gpr-bild { order: -1; }
+  .gpr-blatt { width: min(100%, 360px); transform: rotateX(6deg) rotateZ(-1deg); }
+  .gpr-blatt-spalten { gap: 12px; }
+  .gpr-blatt-spalte > :nth-child(n + 13) { display: none; }
+}
+@media (max-width: 520px) {
+  .gpr { padding: 22px 20px 26px; gap: 22px; border-radius: 26px; }
+  .gpr-blatt { padding: 18px 18px 22px; }
+  .gpr-fuss { gap: 12px; }
+  .gpr-knopf { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpr-sek *, .gpr-sek *::before { animation: none !important; transition: none !important; }
+  .gpr-sek[data-an] .gpr-text > *, .gpr-sek[data-an] .gpr-blatt, .gpr-sek[data-an] .gpr-blatt-marke { opacity: 1; }
+  .gpr-sek[data-an] .gpr-blatt-linie, .gpr-sek[data-an] .gpr-blatt-titel i, .gpr-sek[data-an] .gpr-blatt-spalte i, .gpr-sek[data-an] .gpr-blatt-marke { transform: none; }
+}
+@media print { .gpr-sek[data-an] * { opacity: 1 !important; animation: none !important; } }

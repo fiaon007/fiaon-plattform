@@ -42,10 +42,12 @@ function Jahresring() {
   );
 }
 
-function Band({ sprache, startPfad, knopf, so }: { sprache: "de" | "en"; startPfad: string; knopf: string; so: string }) {
+/** 17.11.2026: Die Startseite spricht vom einen Mandat statt vom Paket — sie reicht Zeitleiste und Einleitung selbst herein. */
+type BandUeber = { zeitleiste?: readonly [string, string] | readonly string[]; lead?: string };
+function Band({ sprache, startPfad, knopf, so, ueber }: { sprache: "de" | "en"; startPfad: string; knopf: string; so: string; ueber?: BandUeber }) {
   const ref = useRef<HTMLElement>(null);
   useEinmalSichtbar(ref);
-  const j = GLOBAL_JAHRESBETREUUNG[sprache];
+  const j = { ...GLOBAL_JAHRESBETREUUNG[sprache], ...(ueber?.zeitleiste ? { zeitleiste: ueber.zeitleiste } : {}), ...(ueber?.lead ? { lead: ueber.lead } : {}) };
   return (
     <section ref={ref} id="jahresbetreuung" className="fg-sek eng fg-jb-band-sek" style={{ scrollMarginTop: 72 }}>
       <div className="fg-rahmen">
@@ -79,7 +81,7 @@ function Band({ sprache, startPfad, knopf, so }: { sprache: "de" | "en"; startPf
   );
 }
 
-export default function GlobalJahresbetreuung({ sprache, groesse = "kompakt", startPfad, onGespraech, knopf, gespraech, so }: {
+export default function GlobalJahresbetreuung({ sprache, groesse = "kompakt", startPfad, onGespraech, knopf, gespraech, so, ueber }: {
   sprache: "de" | "en";
   groesse?: "voll" | "kompakt" | "band";
   /** Wohin „beim Auftrag dazubuchen" führt (Auftrag mit oder ohne Paket). */
@@ -89,8 +91,10 @@ export default function GlobalJahresbetreuung({ sprache, groesse = "kompakt", st
   knopf: string;
   gespraech?: string;
   so: string;
+  /** Nur Größe „band“: eigene Zeitleiste und Einleitung (Startseite: „im Mandat enthalten“ statt „Paket“). */
+  ueber?: BandUeber;
 }) {
-  if (groesse === "band") return <Band sprache={sprache} startPfad={startPfad} knopf={knopf} so={so} />;
+  if (groesse === "band") return <Band sprache={sprache} startPfad={startPfad} knopf={knopf} so={so} ueber={ueber} />;
   const j = GLOBAL_JAHRESBETREUUNG[sprache];
   const preis = globalJahresbetreuungPreisText(sprache);
   const [zahl, einheit] = sprache === "en" ? [preis, "a year"] : [preis, "im Jahr"];
@@ -116,7 +120,7 @@ export default function GlobalJahresbetreuung({ sprache, groesse = "kompakt", st
         <div className="fg-jb voll">
           <div className="fg-jb-kopf">
             <span className="fg-auge">{j.marke}</span>
-            <h2 className="fg-h2">{sprache === "en" ? `${j.titel}: we take care of everything, year after year.` : `${j.titel}: Wir kümmern uns fortlaufend um alles.`}</h2>
+            <h2 className="fg-h2">{sprache === "en" ? `${j.titel}: your company’s US obligations, year after year.` : `${j.titel}: Wir kümmern uns fortlaufend um alles.`}</h2>
             <p className="fg-lead">{j.lead}</p>
             <div className="fg-jb-preis">
               <b className="fg-glanz">{zahl}</b>

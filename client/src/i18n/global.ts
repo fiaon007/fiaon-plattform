@@ -580,3 +580,167 @@ const buehneEn: typeof buehneDe = {
   bogenLabel: `Map: from your country of residence to our partners in the United States, where formation, accounts, financing and refinancing take place; a second arc leads back to Europe. ${satz("S1", "en")}`,
 };
 export const GLOBAL_BUEHNE_WOERTER = { de: buehneDe, en: buehneEn };
+
+// ── DIE STARTSEITE IM ALTEN GEWAND (17.11.2026) ─────────────────────────────────────────────────────────────────────
+// Justin (17.11.): „ich will mein altes Design mit allen neuen Änderungen … nichts soll weg, nur erweitert werden, angepasst
+// werden an die Änderungen — es muss einfach perfekt aussehen.“ Die Abschnitte von vorher (Glas-Bühne mit Tipp-Zeile und
+// drei Kacheln, „Ein Ansprechpartner statt acht“, Miami-Karte, Bogen, Instagram, Schlussbild) stehen wieder auf fiaon.com/ —
+// ihre Sätze hier folgen dem Stand seit E-509/E-510: ein Mandat statt Pakete, kein „Festpreis“, kein „Team vor Ort“ als
+// Behauptung über die Seite hinaus (nur, was das Mandat schon sagt: Partner in den USA, ab 1 Mio. US-Dollar persönlich in
+// Miami — VERKAUF_TEXTE.buehne.kapitalSatz), Bürgschaft nie öffentlich. Feste Sätze kommen aus ihrer Quelle (satz(), GLOBAL_*).
+export type GlobalStartWoerter = {
+  wechsel: string[];
+  personTitel: string; teamTitel: string; teamHinweis: string; teamAnhalten: string; teamFortsetzen: string;
+  vertragTitel: string; weiter: string;
+  vsAuge: string; vsH2: string; sternLabel: string; sternSchalter: [string, string]; sternKnoten: GlobalSternKnoten[];
+  sternMitte: string; sternSie: string; sternLegende: [string, string]; ohne: string[];
+  ehrlichTitel: string; ehrlichText: string; ehrlichLink: string; vergleichPfad: string;
+  miami: { zeichen: string; marke: string; titel: string; text: string; kapitalTitel: string; kapitalWert: string; kapitalSatz: string;
+    punkte: string[]; knopf: string; ticket: { titel: string; abflug: string; abflugOrte: string; ziel: string; zielOrt: string; enthalten: string; enthaltenText: string; fuer: string; fuerText: string } };
+  bogenAuge: string; bogenH2a: string; bogenH2b: string; bogenLead: string; bogenPunkte: { titel: string; text: string }[]; bogenKnopf: string;
+  jbKnopf: string; jbSo: string; jbZeit: [string, string]; jbLead: string;
+  sozialAuge: string;
+};
+const startDe: GlobalStartWoerter = {
+  // Die Tipp-Zeile unter „US-Gesellschaft gründen.“ — jeder Satz steht so schon auf der Seite (Mandat, Ansprechpartner,
+  // acht Bereiche in einem Vertrag, Begleitung bis zur Entscheidung des Instituts). Der erste ist die ruhige Fassung der h1.
+  wechsel: ["In einem Mandat.", "Mit einem Ansprechpartner.", "Acht Bereiche, ein Vertrag.", "Begleitet bis zur Entscheidung."],
+  personTitel: "Ihr Ansprechpartner",
+  teamTitel: "Ihr Team",
+  teamHinweis: "Porträt von Justin Schwarzott mit KI aus echten Fotos erstellt. Die übrigen Teamfotos — außer Daniel Stripling und Florentine Lombardi — sind Symbolbilder, mit KI erstellt.",
+  teamAnhalten: "Wechsel anhalten",
+  teamFortsetzen: "Wechsel fortsetzen",
+  vertragTitel: "Ihr Vertrag",
+  weiter: "Weiter zum Überblick",
+  vsAuge: "Ein Mandat",
+  vsH2: "Ein Ansprechpartner statt acht Anlaufstellen.",
+  sternLabel: "Grafik: acht Stellen einer US-Gründung — ohne und mit FIAON Global",
+  sternSchalter: ["Ohne FIAON Global", "Mit FIAON Global"],
+  sternKnoten: [
+    { name: "Gründungsdienst", umfang: "Gründung samt Staatsgebühren", status: "fest", inkl: 0 },
+    { name: "Registered Agent", umfang: "im ersten Jahr", status: "fest", inkl: 1 },
+    { name: "US-Steuerbehörde", umfang: "Anträge für EIN und ITIN", status: "fest", inkl: 2 },
+    { name: "Anwalt", umfang: "Operating Agreement", status: "fest", inkl: 3 },
+    { name: "Steuerberater", umfang: "Prüfung vor der Gründung", status: "fest", inkl: 4 },
+    { name: "US-CPA", umfang: "erste US-Meldung", status: "fest", inkl: 5 },
+    { name: "Banken", status: "antrag" },
+    { name: "Kartenherausgeber", status: "antrag" },
+  ],
+  sternMitte: "Ihr Ansprechpartner",
+  sternSie: "Sie",
+  sternLegende: ["Im Mandat enthalten", "Antrag vorbereitet — das Institut entscheidet"],
+  ohne: [
+    "Gründungsdienst für die Gesellschaft",
+    "Registered Agent und US-Adresse",
+    "US-Steuerbehörde für EIN und ITIN",
+    "Anwalt für den Gesellschaftsvertrag",
+    "Steuerberater im Wohnsitzland",
+    "US-CPA für die jährliche Meldung",
+    "Banken für das Geschäftskonto",
+    "Kartenherausgeber für jede Firmenkarte",
+  ],
+  ehrlichTitel: "Zur Einordnung",
+  ehrlichText: "Ein Gründungsdienst meldet nur die Gesellschaft an. Ihr Mandat umfasst auch die Schritte danach — von EIN und ITIN bis zur ersten US-Meldung.",
+  ehrlichLink: "Selbst, Gründungsdienst oder FIAON Global: der Vergleich",
+  vergleichPfad: "/business/vergleich",
+  miami: {
+    zeichen: "Ab 1 Mio. US-Dollar",
+    marke: "Persönlich",
+    titel: "Persönlich in Miami.",
+    text: "Dasselbe Mandat, dieselben acht Bereiche — und ab einem Kapitalrahmen von 1 Mio. US-Dollar begleiten wir Sie persönlich in Miami. Wie Ablauf und Termine aussehen, besprechen wir im Erstgespräch.",
+    kapitalTitel: "Ihr Kapitalrahmen",
+    kapitalWert: "ab 1 Mio. US-$",
+    kapitalSatz: "Ein Kapitalrahmen ist ein Ziel, kein Versprechen. Über die Finanzierung entscheidet das jeweilige Institut.",
+    punkte: ["Persönliche Begleitung in Miami", "Dasselbe Mandat mit allen acht Bereichen", "Ablauf und Termine klären wir im Erstgespräch"],
+    knopf: "Gespräch vereinbaren",
+    ticket: { titel: "Ihr Termin in Miami", abflug: "Von", abflugOrte: "Deutschland · Österreich · Schweiz", ziel: "Nach", zielOrt: "Miami, Florida",
+      enthalten: "Ab", enthaltenText: "1 Mio. US-Dollar Kapitalrahmen", fuer: "Ablauf", fuerText: "im Erstgespräch" },
+  },
+  bogenAuge: "Europa · Miami · Kapital",
+  bogenH2a: "Von Europa nach Miami",
+  bogenH2b: "— und zurück.",
+  bogenLead: "Sie bleiben, wo Sie sind. Ihre Gesellschaft entsteht in den USA und geht die sechs Schritte bis zur Entscheidung über Ihre Finanzierung — Ihr Ansprechpartner hält die Fäden zusammen.",
+  bogenPunkte: [
+    { titel: "Unsere Partner in den USA", text: "Registered Agent, US-Steuerberater und Partner-Anwälte arbeiten in eigener Verantwortung für Ihre Gesellschaft. Ab 1 Mio. US-Dollar Kapitalrahmen begleiten wir Sie persönlich in Miami." },
+    { titel: "Sechs Schritte, jeder mit seiner Bedingung", text: "Gründung, Unterlagen, Konten, Kreditkarten auf Wunsch, Finanzierung, Umschuldung — das Tempo bestimmen Behörden und Institute." },
+    { titel: GLOBAL_KAPITAL_FREI.de.kurz, text: GLOBAL_KAPITAL_FREI.de.satz },
+  ],
+  bogenKnopf: "Gespräch vereinbaren",
+  jbKnopf: "Angebot anfordern",
+  jbSo: "So läuft die Jahresbetreuung",
+  // GLOBAL_JAHRESBETREUUNG spricht noch von „Paket“ (dieselben Sätze stehen in Auftrag und Rechnung — dort bleiben sie);
+  // auf der Startseite gelten diese zwei Sätze nach dem einen Mandat.
+  jbZeit: ["Jahr 1: im Mandat enthalten", "Ab Jahr 2: Jahresbetreuung"],
+  jbLead: `Das erste Jahr ist in Ihrem Mandat enthalten. Ab dem zweiten Jahr halten wir Ihre Gesellschaft auf Wunsch für ${SAETZE_BETRAEGE.de.jahresbetreuung} im Jahr am Laufen – mit allen Gebühren, ohne dass Sie eine Frist im Kopf behalten müssen.`,
+  sozialAuge: "FIAON Global auf Instagram und Facebook",
+};
+const startEn: GlobalStartWoerter = {
+  wechsel: ["Under one engagement.", "With one dedicated contact.", "Eight areas, one agreement.", "Supported through to the decision."],
+  personTitel: "Your contact",
+  teamTitel: "Your team",
+  teamHinweis: "Portrait of Justin Schwarzott created with AI from real photos. The other team photos — except Daniel Stripling and Florentine Lombardi — are illustrative images created with AI.",
+  teamAnhalten: "Pause rotation",
+  teamFortsetzen: "Resume rotation",
+  vertragTitel: "Your agreement",
+  weiter: "Continue to the overview",
+  vsAuge: "One engagement",
+  vsH2: "One contact instead of eight.",
+  sternLabel: "Graphic: eight points of a US formation — without and with FIAON Global",
+  sternSchalter: ["Without FIAON Global", "With FIAON Global"],
+  sternKnoten: [
+    { name: "Formation service", umfang: "formation incl. state fees", status: "fest", inkl: 0 },
+    { name: "Registered agent", umfang: "in the first year", status: "fest", inkl: 1 },
+    { name: "US tax authority", umfang: "EIN and ITIN applications", status: "fest", inkl: 2 },
+    { name: "Lawyer", umfang: "operating agreement", status: "fest", inkl: 3 },
+    { name: "Tax adviser", umfang: "review before formation", status: "fest", inkl: 4 },
+    { name: "US CPA", umfang: "first US filing", status: "fest", inkl: 5 },
+    { name: "Banks", status: "antrag" },
+    { name: "Card issuers", status: "antrag" },
+  ],
+  sternMitte: "Your contact",
+  sternSie: "You",
+  sternLegende: ["Included in the engagement", "Application prepared — the institution decides"],
+  ohne: [
+    "A formation service for the company",
+    "A registered agent and US address",
+    "The US tax authority for EIN and ITIN",
+    "A lawyer for the operating agreement",
+    "A tax adviser in your country of residence",
+    "A US CPA for the annual filing",
+    "Banks for the business account",
+    "Card issuers for every company card",
+  ],
+  ehrlichTitel: "For context",
+  ehrlichText: "a formation service registers the company only. Your engagement also covers the steps after — from EIN and ITIN to the first US filing.",
+  ehrlichLink: "Yourself, a formation service or FIAON Global: the comparison",
+  vergleichPfad: "/en/business/comparison",
+  miami: {
+    zeichen: "From US$1 million",
+    marke: "In person",
+    titel: "In person in Miami.",
+    text: "The same engagement, the same eight areas — and from a funding target of US$1 million, we work with you in person in Miami. We discuss the process and dates in your initial call.",
+    kapitalTitel: "Your funding target",
+    kapitalWert: "from US$1m",
+    kapitalSatz: "A funding target is a goal, not a promise. Decisions on financing rest with the institution concerned.",
+    punkte: ["Personal support in Miami", "The same engagement covering all eight areas", "Process and dates agreed in your initial call"],
+    knopf: "Arrange a call",
+    ticket: { titel: "Your meeting in Miami", abflug: "From", abflugOrte: "Germany · Austria · Switzerland", ziel: "To", zielOrt: "Miami, Florida",
+      enthalten: "From", enthaltenText: "US$1 million funding target", fuer: "Process", fuerText: "in your initial call" },
+  },
+  bogenAuge: "Europe · Miami · Capital",
+  bogenH2a: "From Europe to Miami",
+  bogenH2b: "— and back.",
+  bogenLead: "You stay where you are. Your company is formed in the United States and moves through the six steps to the decision on your financing — your contact keeps every thread together.",
+  bogenPunkte: [
+    { titel: "Our partners in the United States", text: "Registered agent, US accountants and partner lawyers act in their own professional capacity for your company. From a funding target of US$1 million, we work with you in person in Miami." },
+    { titel: "Six steps, each with its condition", text: "Formation, documents, accounts, credit cards on request, financing, refinancing — the pace is set by authorities and institutions." },
+    { titel: GLOBAL_KAPITAL_FREI.en.kurz, text: GLOBAL_KAPITAL_FREI.en.satz },
+  ],
+  bogenKnopf: "Arrange a call",
+  jbKnopf: "Request your proposal",
+  jbSo: "How annual administration works",
+  jbZeit: ["Year 1: included in your engagement", "From year 2: annual administration"],
+  jbLead: `The first year is included in your engagement. From the second year, on request, we keep your company running for ${SAETZE_BETRAEGE.en.jahresbetreuung} a year — all fees included, with no deadline for you to keep track of.`,
+  sozialAuge: "FIAON Global on Instagram and Facebook",
+};
+export const GLOBAL_START_WOERTER = { de: startDe, en: startEn };

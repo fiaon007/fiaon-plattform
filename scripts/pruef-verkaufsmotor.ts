@@ -642,11 +642,17 @@ const musterDaten = (() => {
   const schritte = ohneKommentar(quelle("client/src/components/site/global/GlobalSchritte.tsx"));
   ok(/<GlobalSchritte /.test(seite) && /sechsSchritte\(sprache, land\)/.test(schritte) && /<ol /.test(schritte) && /<h3>/.test(schritte) && /s\.bedingung/.test(schritte) && /s\.ihrTeil/.test(schritte) && /s\.ihrErgebnis/.test(schritte) && /s\.entscheidet/.test(schritte),
     "Startseite: die sechs Schritte stehen als geordnete Liste mit Satz, Bedingung, Ihr Teil, Ihr Ergebnis und dem, der entscheidet");
-  ok(/<h1 className="hg-h1">\{t\.h1a\} <em>\{t\.h1b\}<\/em><\/h1>/.test(buehne) && !/hg-sr">\{t\.h1b\}/.test(buehne) && !/TippZeile|wechsel/.test(buehne), "Bühne: die ganze Überschrift ist sichtbar — keine Tipp-Zeile, keine versteckte zweite Hälfte");
-  ok(/<GlobalBlick /.test(buehne) && /t\.honorarZeile/.test(buehne), "Bühne: der Kasten „Auf einen Blick“ steht direkt darunter; an der Zahl steht die Zeile zum Erfolgshonorar");
-  const folge = ["<HeroGlas ", "<GlobalVertrauen ", "<VerkaufProdukt ", "<GlobalSchritte ", "<VerkaufKonfigurator ", "<VerkaufGarantie ", "<VerkaufRolle ", "<GlobalGespraech ", "<Fragen ", 'className="fg-schluss'].map((x) => seite.indexOf(x));
-  ok(folge.every((x, i) => x > 0 && (i === 0 || x > folge[i - 1])), `Startseite: Aufbau nach Leitfaden 7.1 (Bühne, Vertrauens-Band, Ein Mandat, sechs Schritte, Honorarrechner, Garantie, Rolle, Erstgespräch, Fragen, Schluss) — ${folge.join(",")}`);
-  ok(!/SozialFenster|SternZentrale|GlobalBogen/.test(seite), "Startseite: nach dem Honorarrechner kein Abschnitt mehr, der erst überzeugen soll (kein Social-Fenster, kein Stern, kein Bogen)");
+  // 17.11.2026 (Justin: „ich will mein altes Design mit allen neuen Änderungen … nichts soll weg“): Die Glas-Bühne vom 29.10.
+  // steht wieder — mit Tipp-Zeile. Die h1 trägt weiter BEIDE Teile (h1b für Suchmaschinen und Screenreader), die Tipp-Zeile
+  // steht aria-hidden AUSSERHALB der h1; an der Zahl steht die Zeile zum Erfolgshonorar, darunter „Auf einen Blick“.
+  ok(/<h1 className="hg-h1 mit-tipp">\{t\.h1a\} <span className="hg-sr">\{t\.h1b\}<\/span><\/h1><TippZeile /.test(buehne) && /className="hg-tipp" aria-hidden="true"/.test(buehne)
+    && /<h1 className="hg-h1">\{t\.h1a\} <em>\{t\.h1b\}<\/em><\/h1>/.test(buehne), "Bühne: die h1 trägt beide Teile der Überschrift; die Tipp-Zeile steht aria-hidden außerhalb der h1 (ohne Wechsel: h1b sichtbar)");
+  ok(/<GlobalBlick /.test(buehne) && /className="hg-zahl-satz">\{W\(t\.zahlSatz\)\}/.test(buehne) && /zahlSatz: V\.buehne\.honorarZeile/.test(seite),
+    "Bühne: an der Zahl steht immer die Zeile zum Erfolgshonorar; „Auf einen Blick“ steht unter den Kacheln");
+  const folge = ["<HeroGlas ", "<GlobalPresse ", "<VerkaufProdukt ", "<GlobalMiami ", "<GlobalSchritte ", "<VerkaufKonfigurator ", "<VerkaufGarantie ", "<GlobalJahresbetreuung ", "<SozialFenster ", "<SternZentrale ", "<VerkaufRolle ", "<GlobalBogen ", "<GlobalGespraech ", "<Fragen ", 'className="fg-schluss'].map((x) => seite.indexOf(x));
+  ok(folge.every((x, i) => x > 0 && (i === 0 || x > folge[i - 1])), `Startseite: Aufbau vom 17.11. (Bühne, Presse, Mandat, Miami, sechs Schritte, Honorarrechner, Garantie, Jahresbetreuung, Instagram, Stern, Rolle, Bogen, Erstgespräch, Fragen, Schluss) — ${folge.join(",")}`);
+  ok(!/<GlobalVertrauen /.test(seite) && (seite.match(/<GlobalPresse /g) ?? []).length === 1 && /presseZeile\(sprache\)/.test(ohneKommentar(quelle("client/src/components/site/global/GlobalPresse.tsx"))),
+    "Startseite: die Presse-Zeile steht genau einmal — in der Presse-Bühne, aus PRESSE_ZEILE");
 }
 
 console.log(`\n${gut} Prüfungen grün, ${schlecht} rot.`);

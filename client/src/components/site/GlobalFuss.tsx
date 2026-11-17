@@ -14,6 +14,10 @@
 // der Satz zur verbundenen Gesellschaft stehen im öffentlichen Fuß nicht: Die Partnergesellschaft wird öffentlich nie mit
 // einem Ort genannt (Leitfaden, Leitplanke 7); der Satz gehört auf die Partnerseite. Angebot, Auftrag und Konto-Tor
 // behalten den bisherigen Fuß.
+//
+// 17.11.2026 (Justin: „ich will mein altes Design … nichts soll weg“): Der Fuß ist auf allen Global-Seiten wieder NACHTBLAU
+// wie bis 13.11., mit den zwei Knöpfen (jetzt „Gespräch vereinbaren“ und „Angebot anfordern“). Die Inhalte von E-510 bleiben:
+// öffentlich der Rollen-Satz S8 und KEINE „Drei Orte“ (die verbundene Gesellschaft wird öffentlich nie mit einem Ort genannt).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useSprache } from "@/i18n/sprache";
 import { GLOBAL_FUSS_WOERTER, GLOBAL_WOERTER } from "@/i18n/global";
@@ -51,19 +55,16 @@ export default function GlobalFuss() {
   const oeffentlich = globalOeffentlich(pfad);
 
   return (
-    <footer className={`gf${oeffentlich ? " gf-hell" : ""}`} aria-label={w.label}>
+    <footer className="gf" aria-label={w.label}>
       <div className="gf-rahmen">
         <div className="gf-oben">
           <div className="gf-marke">
-            <GlobalMarke en={en} hell={!oeffentlich} />
+            <GlobalMarke en={en} hell />
             <p>{w.satz}</p>
-            {/* Öffentlich keine Knöpfe im Fuß — das Schlussband darüber trägt die Handlungen. */}
-            {!oeffentlich && (
-              <div className="gf-tun">
-                <a href={en ? "/en#gespraech" : "/#gespraech"} className="gf-knopf">{w.gespraech}</a>
-                <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
-              </div>
-            )}
+            <div className="gf-tun">
+              <a href={en ? "/en#gespraech" : "/#gespraech"} className="gf-knopf">{w.gespraech}</a>
+              <a href={globalStartPfad(undefined, en ? "en" : "de")} className="gf-knopf hell">{w.beauftragen}</a>
+            </div>
             <p className="gf-kontakt">
               <a href={`tel:${FIAON_FIRMA.telefonTel}`}>{FIAON_FIRMA.telefon}</a>
               <span aria-hidden="true">·</span>

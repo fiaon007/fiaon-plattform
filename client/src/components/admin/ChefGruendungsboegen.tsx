@@ -88,7 +88,7 @@ function Anlegen({ onFertig }: { onFertig: (kennung: string) => void }) {
     } catch (e: any) { setFehler({ feld: e.feld ?? null, text: e.message }); }
     finally { setLaeuft(false); }
   };
-  const aendern = (i: number, k: keyof MitgliedEingabe, v: string) => setMitglieder((ms) => ms.map((m, j) => (j === i ? { ...m, [k]: v } : m)));
+  const aendern = (i: number, k: keyof MitgliedEingabe, v: string) => { setFehler(null); setMitglieder((ms) => ms.map((m, j) => (j === i ? { ...m, [k]: v } : m))); };
   const F = (feld: string) => (fehler && (fehler.feld === feld || (feld === "mitglieder" && fehler.feld?.startsWith("mitglieder"))) ? <p className="gbc-fehler" role="alert">{fehler.text}</p> : null);
 
   if (fertig) {

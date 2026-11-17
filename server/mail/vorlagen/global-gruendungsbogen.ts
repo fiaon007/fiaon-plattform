@@ -20,7 +20,8 @@ import { GLOBAL_ROLLEN } from "@shared/fiaon-global";
 export const GLOBAL_GRUENDUNGSBOGEN_VORLAGEN: Record<string, MailBaustein> = {
   global_gruendungsbogen_zugang: {
     bereich: "business", kopfSatz: "FIAON Global", rechtsSatz: GLOBAL_ROLLEN.de.fiaon,
-    betreff: "Ihr persönlicher Zugang zur Gründung von {{params.wunschname}}",
+    // Betreff ohne Wunschnamen: Die Nutzlast ist für das HTML maskiert — ein „&“ stünde sonst als „&amp;“ im Betreff.
+    betreff: "Ihr persönlicher Zugang zur Gründung Ihrer US-Gesellschaft",
     preheader: "Über den Knopf öffnen Sie Ihre eigene Seite: Angaben, Reisepass, Unterschrift.",
     titel: "Ihr persönlicher Zugang",
     absaetze: [

@@ -62,6 +62,7 @@
 .gbc-inline input, .gbc-feld input, .gbc-feld select, .gbc-feld textarea, .gbc-notiz {
   min-height: 38px; padding: 8px 11px; border-radius: 10px; border: 1px solid var(--gbc-linie); background: rgba(2, 6, 23, .35); color: var(--gbc-text); font: inherit; font-size: 13px; }
 .gbc-notiz { width: 100%; min-height: 90px; resize: vertical; box-sizing: border-box; }
+.gbc-feld input, .gbc-feld select, .gbc-feld textarea { width: 100%; box-sizing: border-box; min-width: 0; }
 .gbc-ueberholt summary { cursor: pointer; font-size: 12.5px; color: var(--gbc-gelb); }
 .gbc-ueberholt ul, .gbc-verlauf { margin: 6px 0 0; padding-left: 16px; font-size: 12px; line-height: 1.6; }
 .gbc-verlauf { list-style: none; padding: 0; max-height: 360px; overflow-y: auto; }

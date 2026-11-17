@@ -964,6 +964,18 @@ export const MAKE_EVENT_REGISTRY: MakeEventDef[] = [
     },
   },
   {
+    // E-526 (17.11.2026): der persönliche Link zum Gründungsbogen (server/mail/vorlagen/global-gruendungsbogen.ts).
+    type: "global_gruendungsbogen_zugang",
+    label: "FIAON Global: persönlicher Zugang zum Gründungsbogen",
+    description: "Ein Gesellschafter drückt auf der gemeinsamen Seite des Gründungsbogens „Ich bin … — persönlichen Zugang anfordern“ (oder die Leitung sendet ihn aus Chefbüro › Gründungsbögen erneut). Der Link geht nur an die hinterlegte Adresse und gilt 14 Tage; höchstens fünf je Stunde.",
+    customerBound: false,
+    example: {
+      email: "m.muster@beispiel.example", anrede_zeile: "Guten Tag Herr Max Muster", wunschname: "Muster Holdings LLC", kennung: "GB-ABC234",
+      zugang_url: "https://www.fiaon.com/business/gruendung/1-abcdef12-0123456789abcdef0123456789abcdef/m/2-abcdef12-0123456789abcdef0123456789abcdef",
+      gueltig_text: "Dienstag, 1. Dezember 2026",
+    },
+  },
+  {
     type: "global_passwort_neu",
     label: "FIAON Global: neues Passwort festlegen (Firmenkunde)",
     description: "„Passwort vergessen“ auf /business/login: Link zum Festlegen eines neuen Passworts (60 Minuten, einmal). Die Seite antwortet für jede Adresse gleich; die Mail geht nur an eine Adresse mit Zugang.",

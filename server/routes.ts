@@ -515,6 +515,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   //    Einladung nach der Annahme, „Passwort vergessen“, Kundenzugänge im Chefbüro. Ganz getrennt vom Privatkunden-Login.
   const fiaonGlobalKontoRoutes = await import('./routes/fiaon-global-konto');
   app.use('/api/fiaon', fiaonGlobalKontoRoutes.default);
+  // 🖋 E-526 (17.11.2026): der Gründungsbogen — mehrere Gesellschafter gründen gemeinsam eine US-LLC, jeder macht seine Angaben
+  //    und unterschreibt SELBST (gemeinsame Seite /business/gruendung/:bt, persönliche Seite …/m/:mt, signierte Links ohne Login).
+  //    Leitung: /chef/s/gruendungsboegen (requireChef). Logik: server/lib/fiaon-global-gruendungsbogen.ts.
+  app.use('/api/fiaon', (await import('./routes/fiaon-global-gruendungsbogen')).default);
   // 🛰️ Firmen-Radar (19.09.2026): täglich 50 passende Firmen, Scan der Website, persönliche erste Mail —
   //    nur im Chefbüro (Stufe Geschäftsführung), nie im Office. Tageslauf stündlich 6–20 Uhr bis zum Tagesziel.
   const fiaonRadarRoutes = await import('./routes/fiaon-radar');
@@ -1193,6 +1197,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (e) { console.error('[BUSINESS-ARTIKEL]', e); next(); }
   });
 
+  // E-526 (17.11.2026): Die Seiten des Gründungsbogens tragen einen persönlichen Link im Pfad — nie in den Index, nie als Verweis weiter.
+  app.get(/^\/business\/gruendung\//i, (_req, res, next) => {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
   app.get('*', async (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     try {

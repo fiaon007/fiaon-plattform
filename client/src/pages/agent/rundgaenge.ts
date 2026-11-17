@@ -3625,7 +3625,36 @@ export const RUNDGANG_MAILWERK: RundgangSchritt[] = [
   },
 ];
 
+// ── /chef/s/gruendungsboegen (17.11.2026, E-526) ─────────────────────────────
+export const RUNDGANG_GRUENDUNGSBOEGEN: RundgangSchritt[] = [
+  {
+    titel: "Hier gründen mehrere Gesellschafter gemeinsam.",
+    text: "Ein Gründungsbogen ist für eine US-Gesellschaft mit zwei bis sechs Gesellschaftern. Jeder macht seine Angaben selbst und "
+      + "unterschreibt selbst — getrennt von den anderen. Du legst den Bogen an („Neuen Gründungsbogen anlegen“): Anredezeile, "
+      + "Kostenhinweis, Bundesstaat, Wunschname, Gegenstand, Führung und je Gesellschafter Name, E-Mail und Anteil (zusammen 100 %). "
+      + "Danach bekommst du den gemeinsamen Link. Den schickst du den Gesellschaftern.",
+    tipp: "Jeder Gesellschafter braucht eine eigene E-Mail-Adresse — dorthin geht sein persönlicher Zugang.",
+  },
+  {
+    titel: "Der gemeinsame Link und der persönliche Zugang.",
+    text: "Auf der gemeinsamen Seite drückt jeder „Ich bin … — persönlichen Zugang anfordern“. Der Link kommt nur an SEINE hinterlegte "
+      + "Adresse und gilt 14 Tage. Auf seiner Seite prüft er die gemeinsamen Angaben, trägt seine eigenen ein, lädt den Reisepass hoch "
+      + "und unterschreibt. Die anderen sehen von ihm nur Namen und Status. Ändert jemand die gemeinsamen Angaben, nachdem ein anderer "
+      + "schon unterschrieben hat, muss dieser neu unterschreiben — die alte Unterschrift bleibt im Bogen gespeichert.",
+    tipp: "Kommt ein Zugang nicht an: im Detail „Zugang erneut senden“ — oder die Adresse mit „ändern“ korrigieren.",
+  },
+  {
+    titel: "Wenn alle unterschrieben haben.",
+    text: "Dann steht der Bogen auf „vollständig“. Die Person, die Gründungen bestellt, bekommt eine Aufgabe, und die Leitung eine kurze "
+      + "Mail — ohne Anhang und ohne persönliche Daten. Alle Angaben, die Reisepässe und die unterschriebenen PDFs findest du hier im "
+      + "Detail des Bogens. „Bogen schließen“ beendet einen Bogen; gelöscht wird nichts.",
+    tipp: "Ein Bogen lässt sich auch per Skript anlegen: npx tsx scripts/gruendungsbogen-anlegen.ts <datei.json>.",
+  },
+];
+
 export const RUNDGAENGE: Record<string, { titel: string; schritte: RundgangSchritt[] }> = {
+  // E-526 (17.11.2026): Chefbüro › Gründungsbögen.
+  gruendungsboegen: { titel: "Gründungsbögen", schritte: RUNDGANG_GRUENDUNGSBOEGEN },
   // E-487 (09.11.2026): Chefbüro › Mailwerk.
   mailwerk: { titel: "Mailwerk", schritte: RUNDGANG_MAILWERK },
   // E-484 (06.11.2026): FIAON Banking › Auszahlungsplan.

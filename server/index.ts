@@ -73,7 +73,9 @@ app.use((req, res, next) => {
         // E-487 (09.11.2026): der persönliche Vorsorge-Link (Token im Pfad, server/routes/fiaon-koop.ts).
         .replace(/\/koop\/vorsorge\/[^/?]+/, "/koop/vorsorge/…")
         // „Mein Auftrag" (Kunde) und die Office-/Leitungsrouten dazu: dieselbe Nummer, derselbe Schutz.
-        .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…");
+        .replace(/\/global\/(auftrag|mein-auftrag|auftraege|angebot)\/[^/?]+/, "/global/$1/…")
+        // E-526 (17.11.2026): der Gründungsbogen — gemeinsamer UND persönlicher Link im Pfad.
+        .replace(/\/global\/gruendung\/[^/?]+(\/m\/[^/?]+)?/, "/global/gruendung/…");
       // Die Antworten der Office- und Leitungsrouten tragen den Kundenlink mit frischem Token — auch sie bleiben draußen.
       // 08.10.2026: Zugang übergeben — die Antworten tragen Link und Code (Chefbüro) oder das Start-Passwort
       // (Empfängerseite). Für diese Pfade steht nur die Anfrage-Zeile im Protokoll, nie die Antwort.

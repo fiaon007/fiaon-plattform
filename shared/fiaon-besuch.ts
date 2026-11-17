@@ -30,8 +30,9 @@
  * scripts/pruef-zugang-uebergabe.ts den Text; scripts/pruef-e378.ts hält beide Listen gleich).
  */
 export const BEREICH_INTERN = /^\/(agent|admin|chef|akte|admindashboard|onboarding|inkasso|team-intern|buchhaltung|banking)(\/|$)/i;
-/** Seiten mit Passwort, IBAN oder Vertrag im Bild — dort misst niemand, auch nicht mit Einwilligung (= OHNE_MESSUNG dort). */
-export const BEREICH_OHNE_MESSUNG = /^\/(business\/angebot|zugang\/uebergabe|auszahlung-ausfuehren)(\/|$)/i;
+/** Seiten mit Passwort, IBAN oder Vertrag im Bild — dort misst niemand, auch nicht mit Einwilligung (= OHNE_MESSUNG dort).
+ *  E-526: auch der Gründungsbogen (Reisepass, Geburtsdatum, Unterschrift). */
+export const BEREICH_OHNE_MESSUNG = /^\/(business\/angebot|business\/gruendung|zugang\/uebergabe|auszahlung-ausfuehren)(\/|$)/i;
 /**
  * E-378: Der Kundenbereich (/app, „Mein Bereich", Kundensicht der Mitarbeiter) zählt NICHT als Besuch —
  * dort sind angemeldete Kunden, keine Reichweite. Gezählt wird, was ein Fremder auf fiaon.com sehen kann.

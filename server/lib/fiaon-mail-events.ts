@@ -370,6 +370,12 @@ const ZUSATZ: Partial<Record<MakeEventType, EventZusatz>> = {
     vonHand: false,
     klartext: "FIAON Global: sechsstelliger Code zum digitalen Unterschreiben eines Dokuments im Portal — zehn Minuten gültig, fordert der Kunde selbst an.",
   },
+  // E-526 (17.11.2026): der persönliche Link zum Gründungsbogen — nur über die gemeinsame Seite bzw. Chefbüro › Gründungsbögen.
+  global_gruendungsbogen_zugang: {
+    gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
+    vonHand: false,
+    klartext: "FIAON Global: persönlicher Link eines Gesellschafters zum Gründungsbogen (Angaben, Reisepass, Unterschrift) — 14 Tage gültig, geht nur an die hinterlegte Adresse.",
+  },
   global_passwort_neu: {
     gruppe: "konto", zielgruppe: "kunde", rollen: ["admin"],
     vonHand: false,

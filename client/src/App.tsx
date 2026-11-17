@@ -258,6 +258,8 @@ const BusinessKontoPage = lazy(() => import("@/pages/business-konto"));
 const BusinessAngebotPage = lazy(() => import("@/pages/business-angebot"));
 // 17.11.2026: bisherige US-Gesellschaft löschen oder übertragen — die Weisung des Kunden nach der Annahme.
 const BusinessBestehendeLlcPage = lazy(() => import("@/pages/business-bestehende-llc"));
+// E-526 (17.11.2026): der Gründungsbogen — gemeinsame Seite und persönliche Seite je Gesellschafter (signierte Links).
+const BusinessGruendungPage = lazy(() => import("@/pages/business-gruendung"));
 // E-386 (16.10.2026): Partnerbereich der Kooperation — signierter Link ohne Anmeldung.
 const KoopPartnerPage = lazy(() => import("@/pages/koop-partner"));
 // E-388 (16.10.2026): Partner-Netzwerk für Privatkunden — Hub + fünf Bereiche, DE und EN (eine Komponente, der Pfad entscheidet).
@@ -574,6 +576,8 @@ function Router() {
       <Route path="/business/konto" component={BusinessKontoPage} />
       <Route path="/business/angebot/:token/bestehende-gesellschaft" component={BusinessBestehendeLlcPage} />
       <Route path="/business/angebot/:token" component={BusinessAngebotPage} />
+      <Route path="/business/gruendung/:bt/m/:mt" component={BusinessGruendungPage} />
+      <Route path="/business/gruendung/:bt" component={BusinessGruendungPage} />
       <Route path="/partner/:token" component={KoopPartnerPage} />
       <Route path="/partnernetzwerk" component={SitePartnerNetz} />
       <Route path="/partnernetzwerk/vorsorge" component={SitePartnerNetz} />

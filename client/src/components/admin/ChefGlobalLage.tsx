@@ -669,6 +669,8 @@ function News() {
 const STEUER_WEGE: { titel: string; satz: string; ziel: string }[] = [
   { titel: "Angebote", satz: "Anlegen, zurückziehen, Meilensteine, Unterlagen zum Angebot.", ziel: "/chef/s/global-auftraege?reiter=angebote" },
   { titel: "Akten der Mandanten", satz: "Fahrplan, Dokumente, Nachrichten, Fristen, Zugang zum Portal.", ziel: "/chef/global-kunden" },
+  // E-526 (17.11.2026): Gründungsbögen — gemeinsam gründen, jeder Gesellschafter unterschreibt selbst.
+  { titel: "Gründungsbögen", satz: "Mehrere Gesellschafter gründen gemeinsam — anlegen, Angaben und Unterschriften je Person.", ziel: "/chef/s/gruendungsboegen" },
   { titel: "Gespräche und Kalender", satz: "Wer die Gespräche führt, wie viele am Tag, Vertretung.", ziel: "/chef/rueckholung" },
   { titel: "Anfragen und Lead-Mails", satz: "Dossier an dich, Willkommens- und Nachfass-Mails, KI-Hintergrund.", ziel: "/chef/s/lead-motor" },
   { titel: "Partner und Empfehlungen", satz: "Partner-Akten, Aufgaben, Kooperationen, Provision.", ziel: "/chef/s/geschaeftspartner?reiter=partner" },

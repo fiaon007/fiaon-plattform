@@ -31,7 +31,8 @@ const INTERN = /^\/(agent|admin|chef|akte|Admindashboard|admindashboard|onboardi
 // 09.11.2026 (E-489, Nachbesserung): Ebenso der Datenraum für Investoren (/datenraum/zugang, /datenraum/raum) — dort stehen
 // die Vereinbarung mit Name, Anschrift und E-Mail des Gastes und die Liste der Unterlagen im Bild, und kurz der
 // Einladungscode in der Adresse. Kein Clarity, kein Pixel, kein Analytics, kein Hinweis.
-const OHNE_MESSUNG = /^\/(business\/angebot|zugang\/uebergabe|auszahlung-ausfuehren|datenraum\/(zugang|raum))(\/|$)/;
+// 17.11.2026 (E-526): Ebenso der Gründungsbogen (/business/gruendung/…) — Geburtsdatum, Reisepass und Unterschrift im Bild.
+const OHNE_MESSUNG = /^\/(business\/angebot|business\/gruendung|zugang\/uebergabe|auszahlung-ausfuehren|datenraum\/(zugang|raum))(\/|$)/;
 
 export default function EinwilligungsHinweis() {
   // Auf Business-Seiten öffnen die Rechtsseiten im Rahmen von FIAON Global (lib/bereich.ts).

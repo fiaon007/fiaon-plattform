@@ -45,8 +45,8 @@ import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
 
 type Sp = "de" | "en";
 
-/** Seiten der Business-Welt, die NICHT öffentlich sind: das persönliche Angebot, der Auftrag, das Konto-Tor. */
-const NICHT_OEFFENTLICH = /^\/(en\/)?business\/(angebot|auftrag|login|konto|zugang|passwort-vergessen|forgot-password|access|account)(\/|$)/;
+/** Seiten der Business-Welt, die NICHT öffentlich sind: das persönliche Angebot, der Auftrag, der Gründungsbogen (E-526), das Konto-Tor. */
+const NICHT_OEFFENTLICH = /^\/(en\/)?business\/(angebot|auftrag|gruendung|login|konto|zugang|passwort-vergessen|forgot-password|access|account)(\/|$)/;
 
 /**
  * Ist das eine öffentliche Seite von FIAON Global (Startseite, Unterseiten, Honorarrechner, Landingpages, Rechtsseiten)?

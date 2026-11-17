@@ -269,7 +269,8 @@ export function kontoMailWegFuer(email: string): KontoMailWeg {
 }
 // Dieselbe Regel wie der Motor (mailDirektSenden): genau eine Adresse, ohne Leerzeichen — sonst geht auf keinem Weg etwas raus.
 const adresseSiehtGueltigAus = (an: string) => /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(an);
-async function kontoMailUeber(weg: "brevo" | "google", event: KontoMail, nutzlast: Record<string, unknown>): Promise<{ ok: boolean; messageId: string | null; grund: string | null }> {
+/** Exportiert seit E-526 (17.11.2026): Der Zugang zum Gründungsbogen geht über dieselben zwei Wege (fiaon-global-gruendungsbogen.ts). */
+export async function kontoMailUeber(weg: "brevo" | "google", event: KontoMail | string, nutzlast: Record<string, unknown>): Promise<{ ok: boolean; messageId: string | null; grund: string | null }> {
   try {
     if (weg === "brevo") {
       const { mailDirektSenden } = await import("../mail/motor");

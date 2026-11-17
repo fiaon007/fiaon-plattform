@@ -1,0 +1,189 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DER GRÜNDUNGSBOGEN (E-526, 17.11.2026, pages/business-gruendung.tsx) — Präfix gbb-
+   Kanzlei-Papier der Business-Welt: Navy #12284a, Blau #1d4ed8 für Handlung und Wahl,
+   Haarlinien statt Kästen, Newsreader 300 für die Überschriften, die dünne Apple-Schrift
+   für den Text. Kein Gold, kein Grün als Fläche. Am Handy perfekt (360–430 px): eine Spalte,
+   16 px in jedem Feld (kein Zoom), Tippflächen ab 44 px, kein seitliches Scrollen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gbb {
+  --ap: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+  --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --tinte: #0c1a2e; --navy: #12284a; --blau: #1d4ed8; --licht: #288dfa; --text: #3b4658; --leise: #5b6576;
+  --linie: rgba(18, 40, 74, .12); --linie-stark: rgba(18, 40, 74, .26); --papier: #fff; --grund: #f4f7fc;
+  --rot: #b42318; --kurve: cubic-bezier(.22, 1, .36, 1);
+  position: relative; z-index: 0; max-width: 880px; margin: 0 auto; padding: clamp(100px, 12vh, 136px) 20px 96px;
+  font-family: var(--ap); color: var(--tinte); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere;
+}
+.gbb * { box-sizing: border-box; }
+.gbb :where(h1, h2, h3, p, ol, ul, dl, dd) { margin: 0; }
+.gbb-nur-leser { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gbb :focus-visible { outline: 2px solid var(--blau); outline-offset: 3px; border-radius: 8px; }
+.gbb-licht { position: absolute; left: 50%; top: 0; z-index: -1; width: min(1000px, 120vw); height: 480px; transform: translateX(-50%); pointer-events: none;
+  background: radial-gradient(50% 50% at 50% 28%, rgba(40, 141, 250, .13), rgba(40, 141, 250, 0) 70%); }
+
+/* ── Kopf ──────────────────────────────────────────────────────────────── */
+.gbb-kopf { margin-bottom: clamp(26px, 4vw, 40px); animation: gbb-ein .8s var(--kurve) backwards; }
+.gbb-auge { display: inline-flex; align-items: flex-start; gap: 12px; font: 500 11.5px/1.35 var(--ap); letter-spacing: .2em; text-transform: uppercase; color: var(--navy); }
+.gbb-auge::before { content: ""; flex: 0 0 26px; width: 26px; height: 1px; margin-top: .62em; background: currentColor; opacity: .55; }
+.gbb h1 { margin-top: 16px; font: 300 clamp(34px, 5vw, 56px)/1.05 var(--serif); letter-spacing: -.025em; color: var(--tinte); text-wrap: balance; }
+.gbb h1 em { display: block; margin-top: 10px; font: 400 clamp(15px, 1.4vw, 17px)/1.5 var(--ap); font-style: normal; letter-spacing: 0; color: var(--leise); }
+.gbb-gruss { margin-top: 18px; max-width: 62ch; font: 400 clamp(15.5px, 1.3vw, 17px)/1.65 var(--ap); color: var(--text); text-wrap: pretty; }
+.gbb-laedt { color: var(--leise); }
+
+/* ── Blätter (Karten) ──────────────────────────────────────────────────── */
+.gbb-blatt { position: relative; margin-top: 16px; padding: clamp(20px, 3.2vw, 32px) clamp(18px, 3.4vw, 34px); border-radius: 22px;
+  background: var(--papier); border: 1px solid var(--linie); box-shadow: 0 24px 54px -44px rgba(18, 40, 74, .45); animation: gbb-hoch .7s var(--kurve) backwards; }
+.gbb h2 { font: 300 clamp(23px, 2.6vw, 30px)/1.18 var(--serif); letter-spacing: -.015em; color: var(--tinte); }
+.gbb h3 { font: 500 15px/1.35 var(--ap); color: var(--navy); }
+.gbb-lead { margin-top: 8px; font: 400 15px/1.6 var(--ap); color: var(--leise); max-width: 64ch; }
+.gbb-klein { margin-top: 12px; font: 400 13.5px/1.55 var(--ap); color: var(--leise); }
+.gbb-hinweis { margin-top: 16px; padding: 14px 16px; border-radius: 14px; background: #f3f7ff; border: 1px solid rgba(29, 78, 216, .18); font: 400 14.5px/1.55 var(--ap); color: var(--navy); }
+.gbb-hinweis.warn { background: #fff8eb; border-color: #f1d8a4; color: #6b4a0c; }
+.gbb-hinweis.fehler { background: #fff4f2; border-color: #f4c7c0; color: var(--rot); }
+.gbb-hinweis.gut { background: #f2f8f5; border-color: #c7e3d3; color: #1c5a3c; }
+
+/* ── So geht es ────────────────────────────────────────────────────────── */
+.gbb-schritte { list-style: none; padding: 0; margin-top: 18px; display: grid; gap: 0; counter-reset: gbb; }
+.gbb-schritte li { position: relative; display: grid; grid-template-columns: 40px 1fr; gap: 4px 14px; padding: 16px 0; border-top: 1px solid var(--linie); }
+.gbb-schritte li:first-child { border-top: 0; padding-top: 4px; }
+.gbb-nr { grid-row: span 2; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid rgba(29, 78, 216, .3); color: var(--blau); font: 400 15px/1 var(--serif); }
+.gbb-schritte b { font: 500 15.5px/1.35 var(--ap); color: var(--tinte); }
+.gbb-schritte p { font: 400 14.5px/1.6 var(--ap); color: var(--text); }
+.gbb-danach { margin-top: 6px; padding-top: 16px; border-top: 1px solid var(--linie); font: 400 14.5px/1.6 var(--ap); color: var(--text); }
+
+/* ── Statusliste ───────────────────────────────────────────────────────── */
+.gbb-leute { list-style: none; padding: 0; margin-top: 14px; }
+.gbb-person { display: grid; gap: 10px; padding: 16px 0; border-top: 1px solid var(--linie); }
+.gbb-person:first-child { border-top: 0; }
+.gbb-person-kopf { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 14px; }
+.gbb-person-name { font: 500 16px/1.35 var(--ap); color: var(--tinte); }
+.gbb-person-name small { margin-left: 6px; font-weight: 400; color: var(--leise); }
+.gbb-marken { display: flex; flex-wrap: wrap; gap: 6px; }
+.gbb-marke { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--linie-stark); font: 500 12px/1.3 var(--ap); color: var(--leise); white-space: nowrap; }
+.gbb-marke::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #c3cbd8; }
+.gbb-marke.gut { color: var(--navy); border-color: rgba(29, 78, 216, .35); }
+.gbb-marke.gut::before { background: var(--blau); }
+.gbb-marke.neu { color: #6b4a0c; border-color: #e7c983; }
+.gbb-marke.neu::before { background: #d39b20; }
+
+/* ── Knöpfe ────────────────────────────────────────────────────────────── */
+.gbb-knopf { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 12px 22px; border: 0; border-radius: 999px;
+  background: linear-gradient(180deg, #2a6be6, #1d4ed8); color: #fff; font: 500 15.5px/1.25 var(--ap); text-align: center; cursor: pointer; text-decoration: none;
+  box-shadow: 0 14px 30px -16px rgba(29, 78, 216, .75); transition: transform .25s var(--kurve), box-shadow .25s ease, opacity .2s ease; }
+.gbb-knopf:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 18px 38px -16px rgba(29, 78, 216, .8); }
+.gbb-knopf:disabled { opacity: .5; cursor: default; }
+.gbb-knopf.still { background: transparent; color: var(--blau); border: 1px solid rgba(29, 78, 216, .35); box-shadow: none; }
+.gbb-knopf.voll { width: 100%; min-height: 54px; font-size: 16.5px; }
+.gbb-textknopf { padding: 0; border: 0; background: none; color: var(--blau); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.gbb-leiste { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; }
+.gbb-gesendet { font: 400 14px/1.5 var(--ap); color: #1c5a3c; }
+
+/* ── Fortschritt (drei Abschnitte) ─────────────────────────────────────── */
+.gbb-schiene { position: sticky; top: 72px; z-index: 5; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 8px;
+  border-radius: 18px; background: rgba(255, 255, 255, .86); border: 1px solid var(--linie); -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
+  box-shadow: 0 16px 34px -30px rgba(18, 40, 74, .55); overflow: hidden; }
+.gbb-schiene button { position: relative; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 14px; border: 0; border-left: 1px solid var(--linie);
+  background: transparent; color: var(--leise); font: 500 13.5px/1.25 var(--ap); text-align: left; cursor: pointer; transition: background .2s ease, color .2s ease; }
+.gbb-schiene button:first-child { border-left: 0; }
+.gbb-schiene button[aria-current="step"] { color: var(--tinte); background: #f3f7ff; }
+.gbb-schiene button[aria-current="step"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--blau); }
+.gbb-schiene .gbb-punkt { flex: 0 0 26px; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--linie-stark); font: 400 13px/1 var(--serif); color: var(--navy); }
+.gbb-schiene .fertig .gbb-punkt { background: var(--blau); border-color: var(--blau); color: #fff; }
+.gbb-schiene .gbb-punkt svg { width: 14px; height: 14px; }
+
+/* ── Formular ──────────────────────────────────────────────────────────── */
+.gbb-raster { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 16px; margin-top: 20px; }
+.gbb-feld { display: grid; align-content: start; gap: 7px; font: 500 13.5px/1.35 var(--ap); color: var(--navy); min-width: 0; }
+.gbb-feld.breit { grid-column: 1 / -1; }
+.gbb-feld small { font-weight: 400; color: var(--leise); }
+.gbb-feld input:not([type="checkbox"]):not([type="radio"]), .gbb-feld select, .gbb-feld textarea {
+  width: 100%; min-height: 48px; padding: 12px 14px; border-radius: 12px; border: 1px solid #d3dbe8; background: #fff;
+  font: 400 16px/1.35 var(--ap); color: var(--tinte); transition: border-color .2s ease, box-shadow .2s ease; -webkit-appearance: none; appearance: none; }
+.gbb-feld select { background-image: linear-gradient(45deg, transparent 50%, var(--navy) 50%), linear-gradient(135deg, var(--navy) 50%, transparent 50%);
+  background-position: calc(100% - 20px) 21px, calc(100% - 15px) 21px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 36px; }
+.gbb-feld textarea { resize: vertical; min-height: 96px; }
+.gbb-feld :is(input, select, textarea):focus { outline: none; border-color: var(--licht); box-shadow: 0 0 0 4px rgba(40, 141, 250, .14); }
+.gbb-feld :is(input, select, textarea):disabled { background: #f6f8fb; color: var(--leise); }
+.gbb-feld.falsch :is(input, select, textarea) { border-color: #e7a59c; box-shadow: 0 0 0 3px rgba(180, 35, 24, .08); }
+.gbb-zusatz { display: flex; align-items: center; gap: 8px; }
+.gbb-zusatz input { flex: 1; }
+.gbb-zusatz span { flex: 0 0 auto; font: 500 15px/1 var(--ap); color: var(--leise); }
+.gbb-fehler { margin: 0; font: 500 13px/1.45 var(--ap); color: var(--rot); }
+.gbb-gruppe { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--linie); }
+.gbb-gruppe:first-of-type { margin-top: 20px; }
+
+/* Wahl als Karten (Bundesstaat, Führung, Ja/Nein) */
+.gbb-wahl { display: grid; gap: 10px; margin-top: 10px; }
+.gbb-wahl.drei { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.gbb-wahl.zwei { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gbb-option { position: relative; display: grid; gap: 4px; padding: 14px 14px 14px 44px; border-radius: 14px; border: 1px solid #d8e0ec; background: #fff; text-align: left; cursor: pointer;
+  font: 400 13.5px/1.5 var(--ap); color: var(--text); transition: border-color .2s ease, box-shadow .25s ease, background .2s ease; min-height: 48px; }
+.gbb-option b { font: 500 15px/1.3 var(--ap); color: var(--tinte); }
+.gbb-option::before { content: ""; position: absolute; left: 14px; top: 16px; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b6c3d8; background: #fff; }
+.gbb-option.an { border-color: var(--licht); background: #f5f9ff; box-shadow: 0 0 0 3px rgba(40, 141, 250, .12); }
+.gbb-option.an::before { border-color: var(--blau); box-shadow: inset 0 0 0 4px #fff; background: var(--blau); }
+.gbb-option:disabled { cursor: default; opacity: .7; }
+
+/* Anteile */
+.gbb-anteile { display: grid; gap: 0; margin-top: 10px; }
+.gbb-anteil { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--linie); font: 400 15px/1.4 var(--ap); color: var(--tinte); }
+.gbb-anteil:first-child { border-top: 0; }
+.gbb-anteil .gbb-zusatz input { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid #d3dbe8; background: #fff;
+  font: 400 16px/1.3 var(--ap); color: var(--tinte); text-align: right; -webkit-appearance: none; appearance: none; }
+.gbb-anteil .gbb-zusatz input:focus { outline: none; border-color: var(--licht); box-shadow: 0 0 0 4px rgba(40, 141, 250, .14); }
+.gbb-anteil .gbb-zusatz input:disabled { background: #f6f8fb; color: var(--leise); }
+.gbb-summe { display: flex; justify-content: space-between; padding: 10px 0 0; border-top: 1px solid var(--linie-stark); font: 500 14px/1.4 var(--ap); color: var(--navy); }
+.gbb-summe.falsch { color: var(--rot); }
+
+/* Häkchen */
+.gbb-haken { display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start; padding: 14px 0; border-top: 1px solid var(--linie); font: 400 14.5px/1.6 var(--ap); color: var(--text); cursor: pointer; }
+.gbb-haken:first-child { border-top: 0; }
+.gbb-haken input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--blau); cursor: pointer; }
+.gbb-haken b { color: var(--tinte); font-weight: 500; }
+.gbb-haken a { color: var(--blau); }
+.gbb-haken.falsch { color: var(--rot); }
+.gbb-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font: 400 15px/1.4 var(--ap); color: var(--tinte); cursor: pointer; }
+.gbb-check input { width: 20px; height: 20px; accent-color: var(--blau); }
+
+/* Upload */
+.gbb-upload { display: grid; gap: 10px; margin-top: 10px; padding: 16px; border-radius: 14px; border: 1px dashed var(--linie-stark); background: var(--grund); }
+.gbb-upload-da { font: 400 14px/1.5 var(--ap); color: var(--navy); }
+.gbb-upload input[type="file"] { font: 400 14px/1.4 var(--ap); color: var(--text); max-width: 100%; }
+
+/* Zusammenfassung */
+.gbb-zus { display: grid; grid-template-columns: minmax(130px, 34%) 1fr; gap: 0; margin-top: 12px; font: 400 14px/1.5 var(--ap); }
+.gbb-zus dt { padding: 8px 12px 8px 0; border-top: 1px solid var(--linie); color: var(--leise); }
+.gbb-zus dd { padding: 8px 0; border-top: 1px solid var(--linie); color: var(--tinte); white-space: pre-line; }
+.gbb-zus dt:first-of-type, .gbb-zus dd:first-of-type { border-top: 0; }
+.gbb-fehlt { margin-top: 12px; padding-left: 0; list-style: none; }
+.gbb-fehlt li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; padding: 10px 0; border-top: 1px solid var(--linie); font: 400 14.5px/1.5 var(--ap); color: var(--text); }
+.gbb-fehlt li:first-child { border-top: 0; }
+
+/* Unterschrift */
+.gbb-pad { margin-top: 6px; }
+.gbb-fertig { display: grid; gap: 10px; }
+.gbb-fertig-zeichen { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; color: #fff; background: var(--blau); }
+.gbb-fertig-zeichen svg { width: 22px; height: 22px; }
+
+.gbb-weiter { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--linie); }
+.gbb-ungespeichert { font: 500 12.5px/1.3 var(--ap); color: #8a5a08; }
+
+@keyframes gbb-ein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes gbb-hoch { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .gbb-kopf, .gbb-blatt { animation: none; } .gbb-knopf { transition: none; } }
+
+@media (max-width: 720px) {
+  .gbb { padding-left: 16px; padding-right: 16px; }
+  .gbb-raster { grid-template-columns: 1fr; }
+  .gbb-wahl.drei, .gbb-wahl.zwei { grid-template-columns: 1fr; }
+  .gbb-schiene { top: 64px; }
+  .gbb-schiene button { flex-direction: column; justify-content: center; align-items: center; gap: 4px; padding: 8px 6px; font-size: 11.5px; text-align: center; }
+  .gbb-zus { grid-template-columns: 1fr; }
+  .gbb-zus dt { padding-bottom: 0; }
+  .gbb-zus dd { border-top: 0; padding-top: 2px; }
+  .gbb-anteil { grid-template-columns: 1fr 108px; }
+  .gbb-knopf { width: 100%; }
+  .gbb-leiste .gbb-knopf { width: 100%; }
+}

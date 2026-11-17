@@ -5,6 +5,33 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 17.11.2026 — E-526: Gründungsbogen — mehrere Gesellschafter gründen gemeinsam, jeder unterschreibt selbst
+
+- **Ausfall:** Gründen zwei oder mehr Menschen zusammen eine US-LLC, gab es keinen Weg, auf dem jeder seine Angaben
+  selbst macht und getrennt unterschreibt. Angaben und Unterschriften liefen über Mails und Telefon.
+- **Fix:** Neuer Gründungsbogen. Die Leitung legt ihn an (Chefbüro › Global › **Gründungsbögen**, Formular — oder per
+  Skript `scripts/gruendungsbogen-anlegen.ts <datei.json>`, dieselbe Server-Funktion). Die Gesellschafter bekommen den
+  **gemeinsamen Link** (`/business/gruendung/…`, 90 Tage): Kopf, „So geht es“, Kostenhinweis, wer wie weit ist, und je
+  Gesellschafter „Ich bin … — persönlichen Zugang anfordern“. Der persönliche Link geht **nur an die hinterlegte
+  Adresse** (14 Tage, höchstens fünf je Stunde; Brevo und Google Workspace wie E-441). Auf der persönlichen Seite:
+  Gesellschaft (Namen, Bundesstaat, Gegenstand, Führung, Anteile = 100 %, Responsible Party) · Ihre Angaben (wie im
+  Reisepass, Upload der Bildseite PDF/JPG/PNG, am Inhalt geprüft) · Bestätigen und unterschreiben (fünf Häkchen, nie
+  vorangekreuzt, Name wie im Reisepass, Unterschrift auf dem Pad). Danach PDF „Gründungsauftrag und Angaben“ mit Hash.
+- **Änderungen:** Jede Änderung der gemeinsamen Angaben zählt die Fassung hoch. Wer schon unterschrieben hat, muss neu
+  unterschreiben — die Seite sagt es vorher; die alte Unterschrift bleibt gespeichert (nie gelöscht).
+- **Getrennt:** Ein Gesellschafter sieht vom anderen nur Namen und Status — nie Geburtsdaten, Anschrift oder Reisepass.
+  Keine Messung (Clarity, Pixel) auf diesen Seiten, noindex, Links im Zugriffslog maskiert.
+- **Nach der letzten Unterschrift:** Status „vollständig“, eine Aufgabe an die Person, die Gründungen bestellt (wie
+  E-520), und eine kurze Mail an die Leitung — ohne Anhang, ohne persönliche Daten. Keine Dokumente per Mail an Kunden.
+- **Wo:** shared/fiaon-global-gruendungsbogen.ts (Regeln, Wortlaut), server/lib/fiaon-global-gruendungsbogen*.ts,
+  server/lib/fiaon-gruendungsbogen-token.ts, server/routes/fiaon-global-gruendungsbogen.ts, Mail-Vorlage
+  server/mail/vorlagen/global-gruendungsbogen.ts, client/src/pages/business-gruendung.tsx,
+  client/src/components/admin/ChefGruendungsboegen.tsx, Rundgang „Gründungsbögen“. Tabellen entstehen beim ersten
+  Gebrauch (fiaon_global_gruendungsboegen, fiaon_global_gruendungsbogen_mitglieder).
+- **Abnahme:** `scripts/pruef-gruendungsbogen.ts` (125 Prüfungen, Rot-Probe rot), Wortwand 0 Treffer, lokaler
+  Durchlauf mit zwei Gesellschaftern im Browser (anlegen → Zugang → Angaben → Unterschrift → Änderung mit Warnung →
+  neu unterschreiben → vollständig → PDF → Chefbüro).
+
 ## 12.11.2026 — E-508 Scheibe 4: Steuerung in der Global-Lage (Einstellungen der Seite und Wegweiser)
 
 - **Ausfall:** Der Schalter und der Tagesdeckel der News-Kurzfassungen standen nur als Werte in der Datenbank. Und wer für

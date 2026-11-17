@@ -99,6 +99,7 @@ export const PFLICHTMAILS = new Set<string>([
   "global_zugang",           // E-188: dasselbe für Firmenkunden — der Link zu „Mein Auftrag" ist ihr einziger Zugang.
   // E-423: der persönliche Zugang — Code und Passwort-Link fordert der Kunde selbst an, die Einladung folgt seiner Annahme.
   "global_zugang_einladung", "global_login_code", "global_passwort_neu", "global_unterschrift_code",
+  "global_gruendungsbogen_zugang", // E-526: der persönliche Link zum Gründungsbogen — das Mitglied fordert ihn selbst an.
   // Betriebsmeldungen an die Hausleitung, nie an Kunden — dürfen nie stocken.
   "kritisch", "warnung", "info",
 ]);

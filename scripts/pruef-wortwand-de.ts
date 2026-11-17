@@ -57,6 +57,8 @@ import { VERKAUF_TEXTE } from "../shared/fiaon-global-verkauf";
 // jede deutsche Fassung mit Musterwerten (die Mail-Wand selbst prüft scripts/pruef-lead-mails.ts für ALLE Antwort-Kombinationen).
 import * as LT from "../shared/fiaon-global-lead-texte";
 import { KUNDEN_SATZ } from "../shared/fiaon-global-lead";
+// E-526 (17.11.2026): der Gründungsbogen — Seitentexte, Bestätigungen (der eine Wortlaut), Statustexte, Satz „danach“.
+import { GB_TEXTE, GB_STATUS_TEXT, GB_UNTERSCHRIFT_TEXT, GB_KOSTEN_VORGABE, bestaetigungsWortlaut, danachSatz } from "../shared/fiaon-global-gruendungsbogen";
 
 const SCHAERFER: { muster: RegExp; grund: string }[] = [
   { muster: /\bnorthwest\b/i, grund: "Name unseres Registered-Agent-Partners nie öffentlich (Partnervertrag vertraulich, E-422)" },
@@ -171,6 +173,8 @@ sammle(ZUSATZ_WOERTER.de, "zusatz/woerter", texte);
       absaetze: KC.KAPITAL_C_BESTAETIGUNG.absaetze({ anrede: "Sehr geehrter Herr Mustermann", angenommen: "28.10.2026 um 10:00 Uhr", llc: "MUSTER LLC", tempoFassung: d.parameter.tempoFassung }), fussnote: KC.KAPITAL_C_BESTAETIGUNG.fussnote }, "kapital-c/bestaetigung", texte);
   }
 }
+sammle(GB_TEXTE, "gruendungsbogen/texte", texte);
+sammle({ status: GB_STATUS_TEXT, unterschrift: GB_UNTERSCHRIFT_TEXT, bestaetigungen: bestaetigungsWortlaut(GB_KOSTEN_VORGABE), danach: ["delaware", "florida", "wyoming"].map((s) => danachSatz(s)) }, "gruendungsbogen/satz", texte);
 // E-509: Jeder Satz des Verkaufsmotors — „Garantie“ auch dort nur als Name der vertraglichen Geld-zurück-Garantie (Pfad verkauf/).
 sammle(VERKAUF_TEXTE.de, "verkauf/texte", texte);
 /** Fassung C: ein Satz mit „Garantie“ ist erlaubt, wenn er die Geld-zurück-Garantie (oder ihre Frist) meint — nie ein „garantiert“. */

@@ -63,6 +63,8 @@ const KiEinstellungen = lazy(() => import("@/components/admin/ChefKiEinstellunge
 const Dubletten = lazy(() => import("@/pages/admin-dubletten"));
 const GlobalAuftraege = lazy(() => import("@/components/admin/ChefGlobalAuftraege"));
 const FirmenRadar = lazy(() => import("@/components/admin/ChefRadar"));
+// E-526 (17.11.2026): Gründungsbögen — mehrere Gesellschafter gründen gemeinsam, jeder unterschreibt selbst.
+const Gruendungsboegen = lazy(() => import("@/components/admin/ChefGruendungsboegen"));
 // 21.09.2026 (E-201): Justins eigene Anrufseite — nur Stufe Inhaber.
 const Telefonkartei = lazy(() => import("@/components/admin/ChefTelefonkartei"));
 // 21.09.2026: Maras Steuerpult — sehen, steuern, nachvollziehen. Nur Stufe Inhaber.
@@ -231,6 +233,8 @@ export const CHEF_SEITEN: ChefSeite[] = [
   // Auftrag über 2.499 bis 35.999 € mit Vertrag, Stichtag und zuständiger Person keine Zeile der
   // Privatkunden-Zentrale ist.
   { slug: "global-auftraege", label: "Global: Angebote & Aufträge", kurz: "Angebote & Aufträge", satz: "Angebote anlegen, Aufträge steuern.", Seite: GlobalAuftraege, raum: "global", auch: "global business firma firmenkunde b2b us llc struktur auftrag vertrag stichtag" },
+  // E-526 (17.11.2026): Gründungsbögen — Bögen anlegen, Angaben und Unterschriften je Gesellschafter sehen, Reisepass und PDF laden.
+  { slug: "gruendungsboegen", label: "Gründungsbögen", satz: "Gemeinsam gründen — jeder Gesellschafter unterschreibt selbst.", Seite: Gruendungsboegen, raum: "global", eigenesDesign: true, volltext: true, auch: "gründung gruendung gründungsbogen gruendungsbogen gesellschafter mitglieder llc us gesellschaft unterschrift reisepass angaben mehrere gründer gemeinsam ein responsible party" },
   { slug: "geschaeftspartner", label: "Geschäftspartner", satz: "Partner-CRM: Kontakte, Verlauf, Verträge, Aufgaben — dazu Kooperationen und Provision.", Seite: GlobalAuftraege, raum: "global", suche: "reiter=partner", auch: "partner kooperation koop tippgeber provision gutschrift empfehlung chehade crm lieferant dienstleister kontakt registered agent kanzlei bank" },
 
   // ── Team ────────────────────────────────────────────────────────────────

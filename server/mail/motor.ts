@@ -62,6 +62,8 @@ import { FINANZAUSWERTUNG_VORLAGEN } from "./vorlagen/finanzauswertung";
 import { NACHARBEIT_VORLAGEN, nacharbeitBaustein } from "./vorlagen/nacharbeit";
 // E-487 (09.11.2026): Maras Mail „Ihr Vorsorge-Überblick“ (Werbung für die FIAON-eigene Leistung, nur nach Freigabe im Mailwerk).
 import { VORSORGE_VORLAGEN } from "./vorlagen/vorsorge";
+// E-526 (17.11.2026): der persönliche Zugang zum Gründungsbogen (mehrere Gesellschafter, jeder unterschreibt selbst).
+import { GLOBAL_GRUENDUNGSBOGEN_VORLAGEN } from "./vorlagen/global-gruendungsbogen";
 
 /** Alle Vorlagen, ein Verzeichnis. Schlüssel = Ereignisname. */
 export const VORLAGEN: Record<string, MailBaustein> = {
@@ -86,6 +88,7 @@ export const VORLAGEN: Record<string, MailBaustein> = {
   ...FINANZAUSWERTUNG_VORLAGEN,
   ...NACHARBEIT_VORLAGEN,
   ...VORSORGE_VORLAGEN,
+  ...GLOBAL_GRUENDUNGSBOGEN_VORLAGEN,
 };
 
 /**
@@ -171,6 +174,8 @@ const ROLLE_JE_EVENT: Record<string, AbsenderRolle> = {
   global_nicht_erreicht: "global",
   // E-476 Nachbesserung (Gutachten Lead-Sicht, Mangel 3): die Absage eines Global-Gesprächs durch uns — derselbe Rahmen.
   global_termin_absage: "global",
+  // E-526 (17.11.2026): der persönliche Zugang zum Gründungsbogen — Business-Rahmen „FIAON Global“.
+  global_gruendungsbogen_zugang: "global",
 };
 
 /**

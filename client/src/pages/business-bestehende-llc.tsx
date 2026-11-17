@@ -183,7 +183,7 @@ export default function BusinessBestehendeLlc() {
                   <span className="gbl-option-satz">Wir lösen die Gesellschaft beim Bundesstaat auf.</span>
                   <ul>
                     <li>Auflösung und Löschung im Register</li>
-                    <li>{sicht!.loeschungUsd} US-Dollar — die Rechnung kommt erst nach der Löschung</li>
+                    <li>Unsere Gebühr: {sicht!.loeschungUsd} US-Dollar — in Rechnung gestellt mit Ihrem Auftrag</li>
                     <li>Ist noch ein steuerlicher Abschluss in den USA nötig, nennen wir die Kosten vorab</li>
                   </ul>
                 </button>
@@ -194,7 +194,7 @@ export default function BusinessBestehendeLlc() {
                   <ul>
                     <li>Übertragung der Anteile und neue Verantwortliche im Register</li>
                     <li>Ab der Übertragung trägt der neue Inhaber die laufenden Pflichten</li>
-                    <li>Die Kosten nennen wir Ihnen vorab, bevor wir etwas einreichen</li>
+                    <li>Unsere Gebühr nennen wir Ihnen, bevor wir sie in Rechnung stellen</li>
                   </ul>
                 </button>
               </div>
@@ -265,7 +265,7 @@ export default function BusinessBestehendeLlc() {
                 <button type="button" className="gbl-knopf" disabled={sendet || !!sicht?.vorschau} onClick={() => void senden()}>
                   {sendet ? "Wird gesendet …" : "Weisung erteilen"}
                 </button>
-                <p className="gbl-klein">Sie erhalten sofort eine Kopie per E-Mail. Eingereicht wird erst, nachdem wir Ihnen die Unterlagen vorgelegt haben.</p>
+                <p className="gbl-klein">Sie erhalten sofort eine Kopie per E-Mail. Mit Ihrem Auftrag stellen wir unsere Gebühr in Rechnung; eingereicht wird, nachdem wir Ihnen die Unterlagen vorgelegt haben.</p>
               </section>
             )}
           </>

@@ -15,7 +15,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { namePasst } from "./fiaon-global-unterschrift";
 
-/** Kosten der Löschung — wie Justin sie Herrn Milkowitsch am 12.11.2026 zugesagt hat: Rechnung erst nach der Löschung. */
+/** Gebühr der Löschung (Justin 12.11.2026: 149 US-Dollar). Justin 17.11.2026: „sobald er uns seinen Auftrag erteilt, berechnen
+ *  wir unsere Gebühr“ — die Rechnung kommt mit der Weisung (vorher: erst nach erfolgter Löschung). */
 export const BESTEHENDE_LLC_LOESCHUNG_USD = 149;
 
 export const BESTEHENDE_LLC_STAATEN = ["Florida", "Delaware", "Wyoming", "anderer Bundesstaat"] as const;
@@ -102,14 +103,14 @@ export function bestehendeLlcWeisungText(e: BestehendeLlcEingabe, k: { auftragge
   z.push("");
   if (e.wahl === "loeschen") {
     z.push("Weisung: LÖSCHUNG — FIAON soll die Gesellschaft beim Bundesstaat auflösen lassen (Auflösung und Löschung im Register).");
-    z.push(`Kosten der Löschung: ${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar, in Rechnung gestellt erst nach erfolgter Löschung. Ist für die Gesellschaft noch ein steuerlicher Abschluss in den USA nötig, nennt FIAON die Kosten vorab.`);
+    z.push(`Gebühr der Löschung: ${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar, in Rechnung gestellt mit dieser Weisung. Ist für die Gesellschaft noch ein steuerlicher Abschluss in den USA nötig, nennt FIAON die Kosten vorab.`);
   } else if (e.empfaenger) {
     const p = e.empfaenger;
     z.push(`Weisung: ÜBERTRAGUNG — FIAON soll die Übertragung von ${e.anteil} % der Anteile an der Gesellschaft vorbereiten und die neuen Verantwortlichen beim Bundesstaat eintragen lassen.`);
     z.push(`Neuer Inhaber: ${p.art === "firma" ? `${p.name} (Firma), vertreten durch ${p.vertreten}` : p.name}`);
     z.push(`Anschrift: ${p.strasse}, ${p.plz} ${p.ort}, ${p.land}`);
     z.push(`Kontakt: ${p.email}${p.telefon ? ` · ${p.telefon}` : ""}`);
-    z.push("Die Übertragungsunterlagen unterschreiben Auftraggeber und neuer Inhaber. Die Kosten nennt FIAON vorab, bevor etwas eingereicht wird.");
+    z.push("Die Übertragungsunterlagen unterschreiben Auftraggeber und neuer Inhaber. Die Gebühr der Übertragung nennt FIAON, bevor sie in Rechnung gestellt wird.");
   }
   if (e.stichtag) z.push(`Gewünschter Stichtag: ${tagText(e.stichtag)}`);
   if (e.anmerkung) { z.push(""); z.push(`Anmerkung des Auftraggebers: ${e.anmerkung}`); }

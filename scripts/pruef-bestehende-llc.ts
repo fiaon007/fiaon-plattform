@@ -16,7 +16,7 @@ if (l.ok) {
   ok(l.eingabe.gesellschaft.dokumentNr === "L21000123456", "Registernummer wird groß geschrieben");
   ok(l.eingabe.empfaenger === null && l.eingabe.anteil === null, "Löschen trägt keinen Empfänger und keinen Anteil");
   const t = bestehendeLlcWeisungText(l.eingabe, { auftraggeber: "Herr Max Muster", auftragRef: "FIAON-X", erteiltAm: "17.11.2026, 10:00 Uhr" });
-  ok(t.includes("LÖSCHUNG") && t.includes(`${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar`) && t.includes("erst nach erfolgter Löschung"), "Weisungstext Löschung nennt Kosten und Zeitpunkt der Rechnung");
+  ok(t.includes("LÖSCHUNG") && t.includes(`${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar`) && t.includes("in Rechnung gestellt mit dieser Weisung"), "Weisungstext Löschung nennt Gebühr und Zeitpunkt der Rechnung (mit der Weisung, Justin 17.11.)");
   ok(t.includes("„max muster“") && t.includes("FIAON-X"), "Weisungstext nennt Bestätigung und Auftrag");
   ok(bestehendeLlcKurz(l.eingabe) === "Löschung von Muster Events LLC (Florida)", "Kurzfassung Löschung");
 }
@@ -34,7 +34,7 @@ ok(u.ok, "Übertragen an eine Firma mit allen Angaben ist gültig");
 if (u.ok) {
   ok(u.eingabe.empfaenger?.email === "erika@beispiel.example", "E-Mail wird klein geschrieben");
   const t = bestehendeLlcWeisungText(u.eingabe, { auftraggeber: "Herr Max Muster", auftragRef: "FIAON-X", erteiltAm: "17.11.2026" });
-  ok(t.includes("ÜBERTRAGUNG") && t.includes("100 % der Anteile") && t.includes("vertreten durch Erika Beispiel") && t.includes("Kosten nennt FIAON vorab"), "Weisungstext Übertragung vollständig");
+  ok(t.includes("ÜBERTRAGUNG") && t.includes("100 % der Anteile") && t.includes("vertreten durch Erika Beispiel") && t.includes("Gebühr der Übertragung nennt FIAON"), "Weisungstext Übertragung vollständig");
   ok(bestehendeLlcKurz(u.eingabe).includes("100 % der Anteile an Beispiel Holding GmbH (Firma)"), "Kurzfassung Übertragung");
 }
 ok(!bestehendeLlcPruefen({ ...ue, empfaenger: { ...ue.empfaenger, vertreten: "" } }, NAME).ok, "Firma ohne Vertreter: Fehler");

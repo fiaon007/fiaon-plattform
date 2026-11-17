@@ -152,8 +152,8 @@ export async function bestehendeLlcSpeichern(token: string, body: unknown, konte
   try {
     const { eigeneMailSenden } = await import("./fiaon-brevo");
     const weiter = e.wahl === "loeschen"
-      ? `So geht es weiter: Wir bereiten die Auflösung Ihrer Gesellschaft vor und legen Ihnen die Unterlagen zum Unterschreiben in Ihren persönlichen Bereich. Die Rechnung über ${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar erhalten Sie erst, wenn die Löschung durch ist.`
-      : "So geht es weiter: Wir bereiten die Übertragungsunterlagen vor und nennen Ihnen vorab, was die Übertragung kostet. Unterschreiben werden Sie und der neue Inhaber anschließend digital.";
+      ? `So geht es weiter: Mit Ihrem Auftrag stellen wir unsere Gebühr von ${BESTEHENDE_LLC_LOESCHUNG_USD} US-Dollar in Rechnung. Wir bereiten die Auflösung Ihrer Gesellschaft vor und legen Ihnen die Unterlagen zum Unterschreiben in Ihren persönlichen Bereich.`
+      : "So geht es weiter: Wir nennen Ihnen unsere Gebühr für die Übertragung und stellen sie in Rechnung. Wir bereiten die Übertragungsunterlagen vor; unterschreiben werden Sie und der neue Inhaber anschließend digital.";
     if (k.email) {
       const v = await eigeneMailSenden({
         an: k.email, name: k.voll, betreff: "Ihre Weisung zur bestehenden Gesellschaft — Ihre Kopie",

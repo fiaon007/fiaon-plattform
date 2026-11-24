@@ -992,7 +992,11 @@ export function kapitalCBestandTexte(d: Pick<KapitalCDaten, "parameter">) {
       datenTitel: "Alle Angaben Ihrer Gesellschaft", daten: B.daten,
       gutTitel: "Das stimmt schon", gut: B.gut,
       ordnungTitel: "Das bringen wir für Sie in Ordnung", ordnungSub: "Alles davon ist in Ihrem Preis enthalten.", ordnung: B.ordnung,
-      fuss: "Grundlage sind die Unterlagen, die Sie uns geschickt haben, und das amtliche Register des Bundesstaats.",
+      // E-529 (24.11.2026): Den Satz „Unterlagen, die Sie uns geschickt haben“ nur, wenn wirklich Unterlagen vorliegen (parameter.unterlagen);
+      // sonst ehrlich: Grundlage ist das Register, die Unterlagen prüfen wir nach der Annahme (Vertrag Ziffer 2: „Nach der Prüfung der vorgelegten Unterlagen …“).
+      fuss: par.unterlagen.length
+        ? "Grundlage sind die Unterlagen, die Sie uns geschickt haben, und das amtliche Register des Bundesstaats."
+        : "Grundlage ist das amtliche Register des Bundesstaats. Die Unterlagen Ihrer Gesellschaft sehen wir uns nach Ihrer Annahme gemeinsam mit Ihnen an.",
     } as KapitalCBestandBlock,
     // ── Übersicht, Annahme, danach ──
     uebFaellig: (zahlbarSatz: string) => `${preis} (Übernahme Ihrer Gesellschaft, Konto und Karten — alles enthalten) — ${zahlbarSatz}`,

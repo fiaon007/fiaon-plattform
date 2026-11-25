@@ -30,7 +30,7 @@ export const SEITE: GlobalSeite = {
   h1b: "their engagement with FIAON Global.",
   lead: "Anyone searching for “FIAON reviews” wants to know what working with us is really like. This page shows it in order: from the introductory call through the contract to the portal “My engagement”, where you see which step of your company is under way.",
   ziffern: [
-    { wert: "1 contact", label: "named when your engagement starts" },
+    { wert: "1 engagement", label: "one agreement, one dedicated contact" },
     { wert: "Portal", label: "“My engagement” — status, documents, history" },
     { wert: "Contract", label: "readable in full before you sign" },
   ],

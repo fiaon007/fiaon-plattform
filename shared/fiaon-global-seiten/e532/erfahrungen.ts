@@ -35,7 +35,7 @@ export const SEITE: GlobalSeite = {
   h1b: "ihr Mandat bei FIAON Global.",
   lead: "Wer „FIAON Erfahrungen“ sucht, will wissen, wie die Zusammenarbeit wirklich aussieht. Diese Seite zeigt es der Reihe nach: vom Erstgespräch über den Vertrag bis zum Portal „Mein Auftrag“, in dem Sie sehen, welcher Schritt Ihrer Gesellschaft gerade läuft.",
   ziffern: [
-    { wert: "1 Ansprechpartner", label: "fest benannt, mit dem Start Ihres Mandats" },
+    { wert: "1 Mandat", label: "ein Vertrag, ein fester Ansprechpartner" },
     { wert: "Portal", label: "„Mein Auftrag“ — Stand, Dokumente, Verlauf" },
     { wert: "Vertrag", label: "vollständig lesbar, bevor Sie unterzeichnen" },
   ],

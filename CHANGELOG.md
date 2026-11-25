@@ -5,6 +5,27 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.11.2026 — E-533: Kino-Glas für alle öffentlichen Global-Seiten — Apple-Glas, Kino-Einstieg, Tiefe beim Scrollen, Menüzeile „Linie“
+
+- **Wunsch:** Justin wollte die öffentlichen Global-Seiten „wie ein cinematisches Intro“ — am Handy und am PC, mehr
+  Apple-Glas, mehr Bewegung beim Scrollen. Maßstab ist die Startseite (E-521); sie selbst bleibt unverändert. Nach der
+  Vorschau: „nur die Menüzeile oben muss cleaner werden“ — aus drei Vorschlägen hat er die „Linie“ gewählt.
+- **Fix:** Neues Glas- und Bewegungssystem, greift nur unter der Klasse `kino`: Kino-Einstieg nach dem Ladebildschirm
+  (Überschrift Wort für Wort mit Lichtschein, Lichter, Ring, Glasscheiben), Kapitel als Glasplatten, schwebende
+  Karteikarte, Lesering im Inhaltsverzeichnis, Schlussband öffnet sich beim Scrollen, Licht unter dem Zeiger, Knöpfe mit
+  Lichtschein. Tiefe beim Scrollen nur über `animation-timeline` (nur transform/opacity). Überschrift und Einleitung
+  warten nie ganz unsichtbar (Ladezeit für Google gleich), die Bühne wartet, bis der Kopf liegt (kein Verrutschen),
+  „weniger Bewegung“ zeigt sofort das Endbild.
+  - Menüzeile der Unterseiten „Linie“: hauchdünne Glasleiste über die ganze Breite, kleines Schriftbild, großes
+    Glas-Menü; weicht beim Runterscrollen aus und kommt beim Hochscrollen wieder.
+  - /justin gehört jetzt zur Business-Welt (Global-Kopf, -Fuß und -Ladebildschirm).
+  - /kontakt, /termin, /partnernetzwerk bleiben dunkel (Privat), Inhalte und Menüs unverändert, mit dunklem Kino-Glas.
+- **Wo:** alle Global-Unterseiten DE/EN (Vorlage `global-seite.tsx`), Landingpages, Rechtsseiten, Honorarrechner,
+  /business/start, /justin, /kontakt, /termin, /partnernetzwerk. `client/src/components/site/global/KinoGlas.tsx`,
+  `client/src/styles/global-kino.css` (Abschnitt 17 = Menüzeile), `client/src/styles/dunkel-kino.css`,
+  `client/src/pages/gruender-termin.css`, `shared/fiaon-business-grenze.ts` (`GRUENDER_TERMIN_PFADE`).
+  Vorab-HTML für Google unverändert bis auf die Pfadliste des Ladebildschirms (+ /justin).
+
 ## 25.11.2026 — E-530 Korb B: Google-Prüfung ohne Lücken, ehrliche Klick-Zahlen, IndexNow mit Protokoll
 
 - **Ausfall:** (1) Die tägliche URL-Prüfung nahm die Priorität zuerst; bei 150 Prüfungen am Tag kamen Randseiten

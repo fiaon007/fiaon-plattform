@@ -19,7 +19,7 @@ import { VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 // E-533 (25.11.2026): Kino-Glas — Kopf mit Einstieg nach dem Ladebildschirm, der Honorarrechner schwebt herein.
-import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg, useKinoKopf } from "@/components/site/global/KinoGlas";
+import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
@@ -35,7 +35,6 @@ export default function GlobalKonfiguratorSeite() {
   useEinmalSichtbar(sek, 0, "0px 0px -10% 0px");
   useKinoEinstieg(sek);
   useGlasZeiger(wurzel);
-  useKinoKopf();
   return (
     <Dunkel seite="business" titel={V.seo.titel} beschreibung={V.seo.beschreibung}>
       <div ref={wurzel} className="fg fg-neu fg-start vk-seite kino">

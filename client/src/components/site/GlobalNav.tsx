@@ -40,8 +40,11 @@ import { SAETZE_BETRAEGE, beleg, handlung, hauptHandlung, satzLand, weitererSatz
 import "@/styles/global-tokens.css";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
+// E-533: die Linie (Justins Wahl) und die PC-Fassungen — EINE Leiste für Startseite und Unterseiten.
+import "@/styles/global-kopf.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
+import { useKopfLeiste } from "@/components/site/global/KopfLeiste";
 
 type Sp = "de" | "en";
 
@@ -108,6 +111,8 @@ export default function GlobalNav() {
   const w = WORT[sp];
   const pfad = typeof window !== "undefined" ? window.location.pathname : BUSINESS_START.de;
   const oeffentlich = globalOeffentlich(pfad);
+  // E-533: Auf jeder öffentlichen Seite trägt der Kopf die Linie (html.kn-kopf) und weicht beim Runterscrollen aus.
+  useKopfLeiste(oeffentlich);
   const land = satzLand(pfad);
   const [offen, setOffen] = useState<MenueGruppe | null>(null);
   const [mobil, setMobil] = useState(false);
@@ -319,6 +324,8 @@ export default function GlobalNav() {
 
         <button ref={burger} type="button" className="gk-burger" aria-expanded={mobil} aria-controls="gk-mobil" aria-label={mobil ? w.zu : w.auf} onClick={() => setMobil(!mobil)}>
           <span /><span /><span />
+          {/* E-533: das Wort zum Menü — sichtbar nur in den PC-Fassungen mit Menüknopf (styles/global-kopf.css). */}
+          <b className="gk-burger-wort" aria-hidden="true">{w.menue}</b>
         </button>
       </div>
 
@@ -349,7 +356,9 @@ export default function GlobalNav() {
           NEBEN dem Kopf, nicht darin: Der Kopf trägt backdrop-filter, und ein Filter
           macht ihn zum Bezugsrahmen für position:fixed — das Menü wäre 72 px hoch. */}
       {mobil && (
-        <div ref={menue} id="gk-mobil" className={`gk-mobil${oeffentlich ? " gk-neu" : ""}`} role="dialog" aria-modal="true" aria-label={w.menue}>
+        // E-533: Ein Klick auf den freien Schleier neben dem Menüblatt schließt es (PC-Fassungen mit Menüknopf).
+        <div ref={menue} id="gk-mobil" className={`gk-mobil${oeffentlich ? " gk-neu" : ""}`} role="dialog" aria-modal="true" aria-label={w.menue}
+             onClick={(e) => { if (e.target === e.currentTarget) setMobil(false); }}>
           <div className="gk-mobil-rumpf">
             <a href={globalSeitePfad(sp)} className="gk-mobil-start" onClick={() => setMobil(false)}><b>{w.uebersicht}</b><span>{weitererSatz("PRODUKTNAME", sp)}</span></a>
             {gruppen.map((g) => (
@@ -357,13 +366,13 @@ export default function GlobalNav() {
                 <button type="button" aria-expanded={mobilGruppe === g.gruppe} onClick={() => setMobilGruppe(mobilGruppe === g.gruppe ? null : g.gruppe)}>
                   {g.titel}<Winkel />
                 </button>
-                {mobilGruppe === g.gruppe && (
-                  <ul className="gk-mobil-liste">
-                    {g.eintraege.map((e) => (
-                      <li key={e.pfad}><a href={e.pfad} aria-current={e.pfad === pfad ? "page" : undefined} onClick={() => setMobil(false)}><b>{e.titel}</b>{unterzeile(e.text) && <span>{unterzeile(e.text)}</span>}</a></li>
-                    ))}
-                  </ul>
-                )}
+                {/* E-533: Die Liste ist immer da; eingeklappt blendet der Stil sie aus (global-rahmen.css) — das PC-Menüblatt
+                    zeigt so alle vier Themen nebeneinander. */}
+                <ul className="gk-mobil-liste">
+                  {g.eintraege.map((e) => (
+                    <li key={e.pfad}><a href={e.pfad} aria-current={e.pfad === pfad ? "page" : undefined} onClick={() => setMobil(false)}><b>{e.titel}</b>{unterzeile(e.text) && <span>{unterzeile(e.text)}</span>}</a></li>
+                  ))}
+                </ul>
               </div>
             ))}
             <div className="gk-mobil-zeile">

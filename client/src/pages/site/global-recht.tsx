@@ -19,7 +19,7 @@ import { useRef } from "react";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
 // E-533 (25.11.2026): Kino-Glas, hier bewusst leise — Kopf mit Einstieg, das Blatt als helles Glas; der Rechtstext bleibt ruhig lesbar.
-import { KinoBuehne, KinoWorte, kinoWortZahl, useKinoEinstieg, useKinoKopf } from "@/components/site/global/KinoGlas";
+import { KinoBuehne, KinoWorte, kinoWortZahl, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import { handlung } from "@shared/fiaon-global-saetze";
 import { useSprache } from "@/i18n/sprache";
@@ -35,7 +35,6 @@ import "@/styles/global-kino.css";
 function Kopf({ auge, h1, h1b, lead }: { auge: string; h1: string; h1b?: string; lead: string }) {
   const ref = useRef<HTMLElement>(null);
   useKinoEinstieg(ref);
-  useKinoKopf();
   return (
     <section ref={ref} className="fd-kopf">
       <KinoBuehne ring={false} scheiben={false} />

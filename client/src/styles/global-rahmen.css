@@ -61,6 +61,8 @@ html.fg-dokument #root { overflow-x:clip; }
 .gk-sprache i { font-style:normal; opacity:.5; }
 
 .gk-burger { display:none; margin-left:auto; width:44px; height:44px; border:0; background:none; border-radius:10px; cursor:pointer; position:relative; }
+/* E-533: das Wort „Menü“ am Knopf — nur die PC-Fassungen mit Menüknopf zeigen es (global-kopf.css). */
+.gk-burger-wort { display:none; }
 .gk-burger span { position:absolute; left:12px; right:12px; height:1.6px; background:var(--gk-tinte); border-radius:2px; transition:transform .25s, opacity .2s; }
 .gk-burger span:nth-child(1) { top:15px; } .gk-burger span:nth-child(2) { top:21px; } .gk-burger span:nth-child(3) { top:27px; }
 .gk-burger[aria-expanded="true"] span:nth-child(1) { transform:translateY(6px) rotate(45deg); }
@@ -103,6 +105,8 @@ html.fg-dokument #root { overflow-x:clip; }
   font:400 16px/1 var(--gk-sans); color:var(--gk-tinte); cursor:pointer; }
 .gk-mobil-gruppe[data-auf] > button .gk-winkel { transform:rotate(180deg); }
 .gk-mobil-liste { list-style:none; margin:0; padding:4px 0 8px; }
+/* E-533: Die Liste einer Gruppe ist immer im Menü; eingeklappt ist sie aus (am Handy wie vorher). */
+.gk-mobil-gruppe:not([data-auf]) > .gk-mobil-liste { display:none; }
 .gk-mobil-gruppe .gk-mobil-liste { border-bottom:1px solid var(--gk-linie); }
 .gk-mobil-liste a { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; padding:12px 0 12px 12px; text-decoration:none; }
 .gk-mobil-liste a b { font:400 15px/1.3 var(--gk-sans); color:var(--gk-tinte); }

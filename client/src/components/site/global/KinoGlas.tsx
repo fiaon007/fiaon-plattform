@@ -89,35 +89,6 @@ export function useKinoEinstieg(ref: RefObject<HTMLElement | null>) {
   }, [ref]);
 }
 
-/**
- * Die Kopfzeile der Unterseiten — Fassung „Linie“ (Justin 25.11.2026: „die Menüzeile oben muss cleaner werden“; aus drei
- * Vorschlägen gewählt): eine hauchdünne Glasleiste über die ganze Breite, kleine ruhige Schrift, großes Glas-Menü. Sie weicht
- * beim Scrollen nach unten aus und kommt beim Zurückscrollen wieder — nie über dem Lesen, nie bei offenem Menü.
- * Nur auf Seiten mit der Bühne; die Startseite behält ihren Kopf. Setzt html.kn-kopf (+ kn-kopf-weg beim Ausweichen);
- * der Stil steht in styles/global-kino.css (Abschnitt 17).
- */
-export function useKinoKopf() {
-  useLayoutEffect(() => {
-    const html = document.documentElement;
-    html.classList.add("kn-kopf");
-    let bild = 0, letzt = window.scrollY;
-    const messen = () => {
-      bild = 0;
-      const y = window.scrollY;
-      const offen = !!document.querySelector('.gk-panel:not([hidden]), #gk-mobil');
-      if (offen || y < 140 || y < letzt - 4) html.classList.remove("kn-kopf-weg");
-      else if (y > letzt + 4) html.classList.add("kn-kopf-weg");
-      letzt = y;
-    };
-    const planen = () => { if (!bild) bild = requestAnimationFrame(messen); };
-    if (!ruhigGewuenscht()) window.addEventListener("scroll", planen, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", planen); cancelAnimationFrame(bild);
-      html.classList.remove("kn-kopf", "kn-kopf-weg");
-    };
-  }, []);
-}
-
 /** Zählt die Wörter eines Satzes so, wie KinoWorte sie trennt — damit die zweite Zeile der Überschrift weiterzählt. */
 export const kinoWortZahl = (text: string) => text.split(/[ \t\n\r]+/).filter(Boolean).length;
 

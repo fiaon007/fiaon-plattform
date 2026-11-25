@@ -3,7 +3,7 @@ import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import SeoDaten from "@/components/site/SeoDaten";
 // E-533 (25.11.2026): Kino-Glas — die Person schwebt als Glas herein, die Buchung ist eine Glasplatte (gruender-termin.css, Ende).
-import { KinoBuehne, KinoWorte, useGlasZeiger, useKinoEinstieg, useKinoKopf } from "@/components/site/global/KinoGlas";
+import { KinoBuehne, KinoWorte, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import "./gruender-termin.css";
 // Die Kopfzeile der Unterseiten (drei Fassungen, Abschnitt 17) steht im Kino-Stilblatt.
 import "@/styles/global-kino.css";
@@ -67,7 +67,6 @@ export default function GruenderTermin() {
   const rahmen = useRef<HTMLElement>(null);
   useKinoEinstieg(rahmen);
   useGlasZeiger(seite);
-  useKinoKopf();
   // E-533: /justin gehört jetzt zur Business-Welt (shared/fiaon-business-grenze.ts, GRUENDER_TERMIN_PFADE) — Kopf und Fuß von FIAON Global
   // kommen von selbst (GlassNav/PremiumFooter schalten um). Wie jede Business-Seite rollt das Dokument, nicht #root (fg-dokument,
   // vor dem ersten Bild — sonst springt der Kopf beim Start).

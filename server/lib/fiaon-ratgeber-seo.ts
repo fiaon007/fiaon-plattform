@@ -22,7 +22,7 @@ import { titelPixel, TITEL_MAX_PX } from "@shared/fiaon-pixel";
 import { ogBusinessArtikelBild } from "@shared/fiaon-og-business-regeln";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
 import { globalSeite } from "@shared/fiaon-global-seiten";
-import { ensureRatgeberTabelle } from "./fiaon-ratgeber-redaktion";
+import { ensureRatgeberTabelle, zeile, artikelOeffentlich } from "./fiaon-ratgeber-redaktion";
 
 // Titel für die Trefferliste: höchstens 60 Zeichen. Der Report vom 02.09.
 // fand 20 Artikel „zu lang" — jeder trug „· FIAON Ratgeber" (17 Zeichen)
@@ -161,7 +161,9 @@ export async function businessArtikelHtml(slug: string, sprache: "de" | "en"): P
   const inhalt = `<main><nav aria-label="${en ? "Breadcrumbs" : "Brotkrumen"}"><ol><li><a href="${wurzel}">FIAON Global</a></li><li><a href="${hub}">${en ? "Knowledge" : "Wissen"}</a></li></ol></nav><article><h1>${esc(a.titel)}</h1>${a.untertitel ? `<p>${esc(a.untertitel)}</p>` : ""}<p>${esc(byline)}</p>${markdownZuHtml(a.inhalt)}${faqHtml}<nav aria-label="${en ? "Read on" : "Weiterlesen"}"><h2>${en ? "Read on" : "Weiterlesen"}</h2><ul>${weiter}</ul></nav></article></main>`;
   const bild = ogBusinessArtikelBild(slug, sp);
   const ld = [
-    organisationLd(undefined, { sprache: sp }), globalOrganisationLd(sp),
+    // E-530 (25.11.2026, Prüfung A2): die Business-Fassung des Firmenblocks — vorher trugen alle Global-Beiträge die Privat-Fassung
+    // („Betriebssystem für Bonität … Konto- und Kartenanträge … Deutschland, Österreich und die Schweiz“), auf EN-Seiten deutsch.
+    organisationLd("business", { sprache: sp }), globalOrganisationLd(sp),
     { "@context": "https://schema.org", "@type": "Article", "@id": `${url}#seite`, headline: a.titel, description: a.teaser, inLanguage: sp, datePublished: a.published_at, dateModified: a.updated_at,
       author: { "@id": `${BASIS}/#fiaon-global` }, publisher: { "@id": `${BASIS}/#fiaon-global` }, mainEntityOfPage: url, image: bild?.url,
       keywords: schlag.join(", "), articleSection: kat, wordCount: textAusMarkdown(a.inhalt).split(" ").length },
@@ -178,5 +180,11 @@ export async function businessArtikelHtml(slug: string, sprache: "de" | "en"): P
     og: { type: "article", erschienen, geaendert: new Date(a.updated_at).toISOString() }, sprache: sp,
     ...(bild ? { bild: bild.url, bildAlt: bild.alt } : {}),
   }));
-  return { html: out.replace('<div id="root"></div>', `<div id="root"><div class="vorab vorab-hell">${kopf}${inhalt}${fuss}</div></div>`) };
+  // E-530 (25.11.2026, Prüfung A1): Die Artikeldaten reisen im Vorab-HTML mit (außerhalb von #root, React ersetzt nur #root).
+  // So zeichnet der Browser — und Googlebot beim Darstellen — den Beitrag ohne Abruf von /api/. Dieselbe Auswahl wie die API.
+  const daten = JSON.stringify({ ok: true, artikel: artikelOeffentlich(zeile(a)) })
+    .replace(/</g, "\\u003c").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+  // Ersetzen immer über eine Funktion: Ein „$&“ oder „$'“ im Artikeltext würde sonst als Ersetzungsmuster gelesen.
+  const mitDaten = out.replace("</body>", () => `<script type="application/json" id="fiaon-artikel-daten">${daten}</script></body>`);
+  return { html: mitDaten.replace('<div id="root"></div>', () => `<div id="root"><div class="vorab vorab-hell">${kopf}${inhalt}${fuss}</div></div>`) };
 }

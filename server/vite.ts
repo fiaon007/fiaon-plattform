@@ -107,7 +107,7 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist
   // CRITICAL: Never serve index.html for /api/* routes - they must return JSON 404
-  app.use("*", (req, res) => {
+  app.use("*", async (req, res) => {
     // 06.10.2026 (E-291): Eine fehlende Bau-Datei (/assets/…) bekommt ein echtes 404 — NIE die index.html.
     // Vorher antwortete der Server mit 200 + HTML; Safari verwarf das Stilblatt still und die App startete
     // ungestaltet (Justin, iPhone, 00:33 — eine Minute nach dem Deploy, als alte und neue Instanz parallel liefen).
@@ -126,6 +126,13 @@ export function serveStatic(app: Express) {
       });
     }
     res.setHeader("Cache-Control", "no-cache, must-revalidate");
+    // E-530 (25.11.2026, Prüfung A15): die App-Hülle ohne die Notizen aus dem Quelltext (Entwicklungsgeschichte, E-Nummern,
+    // Konten) — dieselbe bereinigte Fassung, die auch die vorgerenderten Seiten nutzen. Die rohe Datei nur als Rückfall.
+    try {
+      const { indexHtml } = await import("./lib/fiaon-seiten-seo");
+      const html = indexHtml();
+      if (html) return res.type("html").send(html);
+    } catch (e) { console.error("[STATIC] index.html:", String(e).slice(0, 160)); }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

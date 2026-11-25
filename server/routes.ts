@@ -1097,7 +1097,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   // E-489 (09.11.2026, Nachbesserung): der Datenraum für Investoren — der Einladungscode steht kurz in der Adresse (#c=…),
   // die Seite zeigt Vereinbarung und Unterlagen. Derselbe Schutz: kein Index, kein Referer, kein Zwischenspeicher.
-  app.get(['/datenraum/zugang', '/datenraum/zugang/*', '/datenraum/raum', '/datenraum/raum/*'], (_req, res, next) => {
+  // E-530 (25.11.2026): Der ältere Datenraum steht nicht mehr in der robots.txt (dort war sein Name für jeden lesbar) —
+  // er schützt sich jetzt selbst mit demselben Kopf.
+  app.get(['/datenraum/zugang', '/datenraum/zugang/*', '/datenraum/raum', '/datenraum/raum/*', '/scp-datenraum', '/scp-datenraum/*'], (_req, res, next) => {
     res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'private, no-store');

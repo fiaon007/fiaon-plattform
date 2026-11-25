@@ -15,6 +15,8 @@ console.log("[BUILD]", { mailFix: "ae196b1", at: new Date().toISOString() });
 kiNetzAbsichern();
 
 const app = express();
+// E-530 (25.11.2026, Prüfung A16): Der Kopf „X-Powered-By: Express“ verrät jedem Abrufer die Technik — er bringt nichts.
+app.disable("x-powered-by");
 
 // ============================================================================
 // CRITICAL: Trust proxy + Canonical Host Redirect MUST be FIRST

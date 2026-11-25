@@ -183,6 +183,13 @@ export function zeile(r: any): Artikel {
   };
 }
 
+/** Was die Öffentlichkeit von einem Artikel sieht. Die API (GET /api/fiaon/ratgeber/:slug) und die Artikeldaten im
+ *  Vorab-HTML der Business-Artikel (E-530, server/lib/fiaon-ratgeber-seo.ts) nutzen dieselbe Regel — ein neues internes Feld
+ *  muss nur hier ausgeblendet werden. */
+export function artikelOeffentlich(a: Artikel) {
+  return { ...a, pruefung: undefined, modell: undefined, quelle: undefined, quellen: undefined, anlass: undefined, autorin: AUTORIN };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TAG UND BEREICH — reine Rechnungen
 // ═══════════════════════════════════════════════════════════════════════════

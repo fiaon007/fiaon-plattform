@@ -143,25 +143,47 @@ function redaktionsSeite(a: RedaktionsDaten, sp: Sp): GlobalSeite {
   };
 }
 
+/** E-530 (25.11.2026): Der Server legt die Artikeldaten ins Vorab-HTML (#fiaon-artikel-daten, server/lib/fiaon-ratgeber-seo.ts).
+ *  Dann braucht die Seite beim ersten Laden keinen Abruf — und Suchmaschinen sehen den Text auch, wenn sie /api/ nicht laden.
+ *  Vorher zeigte Googlebot beim Darstellen „Diese Seite existiert nicht“, weil die robots.txt /api/ sperrte (Prüfung A1). */
+function eingebetteterArtikel(slug: string): RedaktionsDaten | null {
+  try {
+    const el = typeof document === "undefined" ? null : document.getElementById("fiaon-artikel-daten");
+    if (!el?.textContent) return null;
+    const j = JSON.parse(el.textContent);
+    const a = j?.artikel as RedaktionsDaten | undefined;
+    return j?.ok && a && a.bereich === "business" && a.slug === slug ? a : null;
+  } catch { return null; }
+}
+
 function RedaktionsArtikel({ slug, sp }: { slug: string; sp: Sp }) {
-  const [s, setS] = useState<GlobalSeite | null>(null);
+  const [s, setS] = useState<{ slug: string; seite: GlobalSeite } | null>(() => {
+    const a = eingebetteterArtikel(slug);
+    return a && (a.sprache === "en" ? "en" : "de") === sp ? { slug, seite: redaktionsSeite(a, sp) } : null;
+  });
   const [fehlt, setFehlt] = useState(false);
   useEffect(() => {
+    if (s?.slug === slug) return;
     let vorbei = false;
-    fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}`).then((r) => r.json()).then((j) => {
+    setFehlt(false);
+    fetch(`/api/fiaon/ratgeber/${encodeURIComponent(slug)}`).then(async (r) => {
       if (vorbei) return;
+      // Nur eine echte 404 heißt „gibt es nicht“ — ein Netzfehler oder eine Störung des Servers nicht (E-530).
+      if (r.status === 404) { setFehlt(true); return; }
+      const j = await r.json().catch(() => null);
+      if (vorbei || !r.ok || !j) return;
       const a = j?.artikel as RedaktionsDaten | undefined;
       if (!j?.ok || !a || a.bereich !== "business") { setFehlt(true); return; }
       const asp: Sp = a.sprache === "en" ? "en" : "de";
       // Falsche Sprache in der Adresse → auf die richtige (der Server leitet dasselbe per 301).
       if (asp !== sp) { window.location.replace(businessArtikelPfad(slug, asp)); return; }
-      setS(redaktionsSeite(a, asp));
-    }).catch(() => { if (!vorbei) setFehlt(true); });
+      setS({ slug, seite: redaktionsSeite(a, asp) });
+    }).catch(() => {});
     return () => { vorbei = true; };
   }, [slug, sp]);
   if (fehlt) return <NotFound />;
-  if (!s) return <Dunkel seite="business" sprache={sp} titel="FIAON Global" beschreibung=""><div style={{ minHeight: "70vh" }} /></Dunkel>;
-  return <Seite s={s} />;
+  if (!s || s.slug !== slug) return <Dunkel seite="business" sprache={sp} titel="FIAON Global" beschreibung=""><div style={{ minHeight: "70vh" }} /></Dunkel>;
+  return <Seite s={s.seite} />;
 }
 
 // 29.10.2026 (E-459): Die Vorlage zeichnet auch Seiten außerhalb des Registers — die Vertrauensseite „Ist FIAON seriös?“

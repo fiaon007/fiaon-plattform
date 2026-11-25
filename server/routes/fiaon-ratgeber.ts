@@ -26,7 +26,7 @@ import { sqlPool } from "../lib/db-pool";
 import { AUTORIN, BEREICHE, THEMEN, pruefstand, slugify, lesezeitVon, bereichVonKategorie, type Artikel, type Bereich } from "@shared/fiaon-ratgeber";
 import { kiPausiert, kiLesenMoeglich } from "../lib/fiaon-ki-pause";
 import {
-  ensureRatgeberTabelle, zeile, tagesStand, tagesartikelLauf, ratgeberLaufPruefen, entwurfErzeugen, naechsterLauf, faelligerTag,
+  ensureRatgeberTabelle, zeile, artikelOeffentlich, tagesStand, tagesartikelLauf, ratgeberLaufPruefen, entwurfErzeugen, naechsterLauf, faelligerTag,
   RATGEBER_LAUF, MODELL, type TageslaufErgebnis,
 } from "../lib/fiaon-ratgeber-redaktion";
 
@@ -34,10 +34,14 @@ export { ensureRatgeberTabelle } from "../lib/fiaon-ratgeber-redaktion";
 
 const router = Router();
 
-const oeffentlich = (a: Artikel) => ({ ...a, pruefung: undefined, modell: undefined, quelle: undefined, quellen: undefined, anlass: undefined, autorin: AUTORIN });
+const oeffentlich = artikelOeffentlich;
 const bereichAus = (v: unknown): Bereich | null => (v === "privat" || v === "business" ? v : null);
 
 // ── Öffentlich ──────────────────────────────────────────────────────────────
+// E-530 (25.11.2026): Die robots.txt erlaubt Suchmaschinen jetzt /api/fiaon/ratgeber — die Artikelseiten holen ihren Text
+// von hier, und eine gesperrte Datei ließ Googlebot beim Darstellen „Diese Seite existiert nicht“ sehen. Das JSON selbst
+// gehört in keinen Index (gilt für /ratgeber und /ratgeber/:slug, nicht für /admin/ratgeber).
+router.use("/ratgeber", (_req: Request, res: Response, next) => { res.setHeader("X-Robots-Tag", "noindex"); next(); });
 router.get("/ratgeber", async (req: Request, res: Response) => {
   try {
     await ensureRatgeberTabelle();

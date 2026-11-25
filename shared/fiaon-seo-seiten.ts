@@ -2352,11 +2352,13 @@ export const SEO_SEITEN: Record<string, SeoSeite> = {
   // RECHTLICHES — indexierbar, nicht beworben
   // ═════════════════════════════════════════════════════════════════════════
   "/impressum": {
-    pfad: "/impressum", art: "recht", stand: "2026-10-05", prio: 0.3,
+    pfad: "/impressum", art: "recht", stand: "2026-11-25", prio: 0.3,
     titel: "Impressum: FIAON LTD, London — Anbieterkennzeichnung",
     beschreibung: "Anbieterkennzeichnung: FIAON LTD, 128 City Road, London, Company Registration Number 17318250, Vertretung, Kontakt und Verbraucherstreitbeilegung.",
     h1: "Impressum / Legal Notice",
-    lead: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Company Registration Number 17318250. Kontakt: support@fiaon.com, Telefon +41 44 244 93 01.",
+    // E-530 (25.11.2026, Prüfung A14): Vertretung und Verantwortung stehen jetzt auch im Vorab-Text — vorher nur im Browser
+    // (client/src/pages/impressum.tsx), Crawler lasen auf der Pflichtseite keinen Namen.
+    lead: "FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom. Company Registration Number 17318250. Kontakt: support@fiaon.com, Telefon +41 44 244 93 01. Vertreten durch den vertretungsberechtigten Director Justin Schwarzott. Verantwortlich für redaktionelle und journalistische Inhalte (§ 18 Abs. 2 MStV): Justin Schwarzott, Anschrift wie oben.",
     weiter: ["/privacy", "/agb", "/widerrufsbelehrung", "/kontakt"],
     krumen: [{ name: "Impressum", pfad: "/impressum" }],
   },

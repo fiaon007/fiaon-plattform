@@ -15,6 +15,8 @@ import { WISSEN_KONTO_KARTEN } from "./wissen-konto-karten";
 import { WISSEN_FINANZIERUNG } from "./wissen-finanzierung";
 import { WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE } from "./wissen-e439";
 import { PARTNER_SEITE } from "./partner";
+// 25.11.2026 (E-532): Erfahrungen, Mandate und Referenzen, Presse — die Vertrauens-Seiten neben /ist-fiaon-serioes.
+import { VERTRAUEN_E532 } from "./vertrauen-e532";
 import { PRIVAT_SEITE } from "./privat";
 import { LANDINGPAGES } from "./landingpages";
 import { fragenSeite, fragenSeiteEn } from "./fragen";
@@ -30,12 +32,13 @@ import { WISSEN_KONTO_KARTEN_EN } from "./en/wissen-konto-karten";
 import { WISSEN_FINANZIERUNG_EN } from "./en/wissen-finanzierung";
 import { WISSEN_E439_EN, AUS_OESTERREICH_SEITE_EN, WAS_IST_FIAON_GLOBAL_SEITE_EN } from "./en/wissen-e439";
 import { PARTNER_SEITE_EN } from "./en/partner";
+import { VERTRAUEN_E532_EN } from "./en/vertrauen-e532";
 import { PRIVAT_SEITE_EN } from "./en/privat";
 
 export * from "./typen";
 
 /** Alle Unterseiten ohne die Fragen-Seite (die sammelt aus allen anderen). */
-const OHNE_FRAGEN: GlobalSeite[] = [...LEISTUNGEN, WAS_IST_FIAON_GLOBAL_SEITE, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, AUS_OESTERREICH_SEITE, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, ...WISSEN_E439, PARTNER_SEITE];
+const OHNE_FRAGEN: GlobalSeite[] = [...LEISTUNGEN, WAS_IST_FIAON_GLOBAL_SEITE, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, AUS_OESTERREICH_SEITE, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, ...WISSEN_E439, PARTNER_SEITE, ...VERTRAUEN_E532];
 
 export const GLOBAL_SEITEN: GlobalSeite[] = [...OHNE_FRAGEN, fragenSeite(OHNE_FRAGEN)];
 export { LANDINGPAGES };
@@ -45,7 +48,7 @@ export { LANDINGPAGES };
  * deutsche. GLOBAL_SEITEN bleibt deutsch: die deutsche Wortwand, das Menü, der Firmen-Radar und die
  * deutsche Fragen-Seite lesen es. Nur die Adresssuche (globalSeite) und der Server kennen beide.
  */
-const OHNE_FRAGEN_EN: GlobalSeite[] = [...LEISTUNGEN_EN, WAS_IST_FIAON_GLOBAL_SEITE_EN, ...KOSTEN_EN, ...PREISE_UND_ABLAUF_EN, ...ZIELGRUPPEN_EN, AUS_OESTERREICH_SEITE_EN, PRIVAT_SEITE_EN, ...STAATEN_EN, ...WISSEN_EN, ...WISSEN_GRUENDUNG_EN, ...WISSEN_KONTO_KARTEN_EN, ...WISSEN_FINANZIERUNG_EN, ...WISSEN_E439_EN, PARTNER_SEITE_EN]
+const OHNE_FRAGEN_EN: GlobalSeite[] = [...LEISTUNGEN_EN, WAS_IST_FIAON_GLOBAL_SEITE_EN, ...KOSTEN_EN, ...PREISE_UND_ABLAUF_EN, ...ZIELGRUPPEN_EN, AUS_OESTERREICH_SEITE_EN, PRIVAT_SEITE_EN, ...STAATEN_EN, ...WISSEN_EN, ...WISSEN_GRUENDUNG_EN, ...WISSEN_KONTO_KARTEN_EN, ...WISSEN_FINANZIERUNG_EN, ...WISSEN_E439_EN, PARTNER_SEITE_EN, ...VERTRAUEN_E532_EN]
   .filter((s): s is GlobalSeite => !!s);
 export const GLOBAL_SEITEN_EN: GlobalSeite[] = OHNE_FRAGEN_EN.length ? [...OHNE_FRAGEN_EN, fragenSeiteEn(OHNE_FRAGEN_EN)] : [];
 

@@ -39,7 +39,7 @@ import { VERKAUF_PREISE } from "@shared/fiaon-global-verkauf-preise";
 import { verkaufKarte, VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
 // E-510 (13.11.2026): die festen Sätze des Sprachleitfadens für die Datenblöcke — Definitionssatz (9.4), Österreich-Fassung (1.1),
 // Honorar in drei Zeilen (S12), wer entscheidet (S1, S2). Geholt, nie getippt.
-import { SAETZE_ERFOLG_MIN_CENTS, satz, satzLand, weitererSatz } from "@shared/fiaon-global-saetze";
+import { PRESSE_ZEILE, SAETZE_ERFOLG_MIN_CENTS, satz, satzLand, weitererSatz } from "@shared/fiaon-global-saetze";
 import { FIAON_FIRMA, fiaonVerwechslung } from "@shared/fiaon-firma";
 import { istOesterreichSeite } from "@shared/fiaon-global-wortregeln";
 import { SOZIALE_PROFILE } from "@shared/fiaon-sozial";
@@ -304,6 +304,11 @@ export function globalOrganisationLd(sprache: Sprache = "de", optionen: Pick<Org
       ? ["US company formation", "US LLC for non-residents", "Employer Identification Number (EIN)", "ITIN", "Registered agent", "Form 5472", ...(at ? [] : themenGeld), "US market entry", "E-2 visa (basics)"]
       : ["US-Firmengründung", "US-LLC für Ausländer", "Employer Identification Number (EIN)", "ITIN", "Registered Agent", "Form 5472", ...(at ? [] : themenGeld), "Markteintritt USA", "E-2-Visum (Grundzüge)"],
     contactPoint: [{ "@type": "ContactPoint", contactType: "customer service", telephone: "+41442449301", email: "support@fiaon.com", availableLanguage: ["de", "en"] }],
+    // 25.11.2026 (E-532): Gründer, Eintragungstag und die Erwähnung in der Presse als Datenblock — nur Prüfbares: Companies House
+    // (Eintrag 03.07.2026, Director), der Beitrag hinter PRESSE_ZEILE. Die Presse-Zeile selbst steht sichtbar nur im Vertrauens-Band.
+    founder: { "@type": "Person", name: FIAON_FIRMA.director, jobTitle: "Director" },
+    foundingDate: "2026-07-03",
+    subjectOf: { "@type": "NewsArticle", url: PRESSE_ZEILE.adresse, datePublished: "2026-11-02", publisher: { "@type": "Organization", name: "Die Presse" } },
     sameAs: [`https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`],
   };
 }
@@ -468,7 +473,8 @@ export function seoRahmenBusiness(sprache: Sprache): { kopf: string; fuss: strin
   // 29.10.2026 (E-461): Seit fiaon.com/ FIAON Global ist, führt EIN leiser Link im Fuß zur Privat-Startseite (wie im Browser, nach dem Angebot benannt).
   const privat = link(en ? PRIVAT_START.en : PRIVAT_START.de, en ? "Credit file, account and card" : "Bonität, Konto und Karte");
   const kopf = `<header><nav aria-label="FIAON Global"><a href="${start}" aria-label="FIAON Global"><strong>FIAON Global</strong></a><ul>${gruppen.flatMap((g) => g.eintraege).slice(0, 12).map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav></header>`;
-  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", VERKAUF_TEXTE.en.vertrag.linkName], ["/en/is-fiaon-legit", "Is FIAON legit?"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", VERKAUF_TEXTE.de.vertrag.linkName], ["/ist-fiaon-serioes", "Ist FIAON seriös?"]];
+  // 25.11.2026 (E-532): Erfahrungen und Presse stehen wie im sichtbaren Fuß (i18n/global.ts → GlobalFuss) auch im Vorab-HTML.
+  const recht = en ? [["/impressum?bereich=business", "Legal notice"], ["/datenschutz?bereich=business", "Privacy policy"], ["/en/business/widerrufsbelehrung", "Withdrawal instructions"], ["/en/business/mustervertrag", VERKAUF_TEXTE.en.vertrag.linkName], ["/en/is-fiaon-legit", "Is FIAON legit?"], ["/en/business/client-experience", "Client experience"], ["/en/business/press", "Press"]] : [["/impressum?bereich=business", "Impressum"], ["/datenschutz?bereich=business", "Datenschutz"], ["/business/widerrufsbelehrung", "Widerrufsbelehrung"], ["/business/mustervertrag", VERKAUF_TEXTE.de.vertrag.linkName], ["/ist-fiaon-serioes", "Ist FIAON seriös?"], ["/business/erfahrungen", "Erfahrungen"], ["/business/presse", "Presse"]];
   const zeile = `FIAON LTD, 128 City Road, London, EC1V 2NX, United Kingdom · Companies House No. 17318250 · ${en ? "Phone" : "Telefon"} ${FIAON_FIRMA.telefon} · ${FIAON_FIRMA.email}`;
   const fuss = `<footer>${gruppen.map((g) => `<nav aria-label="${esc(g.titel)}"><h2>${esc(g.titel)}</h2><ul>${g.eintraege.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}</ul></nav>`).join("")}<nav aria-label="${en ? "Legal" : "Rechtliches"}"><ul>${recht.map(([p, t]) => `<li>${link(p, t)}</li>`).join("")}<li>${privat}</li></ul></nav><p>${esc(zeile)}</p></footer>`;
   return { kopf, fuss };

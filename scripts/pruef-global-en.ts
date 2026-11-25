@@ -54,7 +54,9 @@ const { WISSEN_FINANZIERUNG } = await import("../shared/fiaon-global-seiten/wiss
 const { WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE } = await import("../shared/fiaon-global-seiten/wissen-e439");
 const { PARTNER_SEITE } = await import("../shared/fiaon-global-seiten/partner");
 const { PRIVAT_SEITE } = await import("../shared/fiaon-global-seiten/privat");
-const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, ...WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE, PARTNER_SEITE];
+// 25.11.2026 (E-532): die Vertrauens-Seiten (Erfahrungen, Mandate und Referenzen, Presse).
+const { VERTRAUEN_E532 } = await import("../shared/fiaon-global-seiten/vertrauen-e532");
+const DEUTSCH: GlobalSeite[] = [...LEISTUNGEN, ...KOSTEN, ...PREISE_UND_ABLAUF, ...ZIELGRUPPEN, PRIVAT_SEITE, ...STAATEN, ...WISSEN, ...WISSEN_GRUENDUNG, ...WISSEN_KONTO_KARTEN, ...WISSEN_FINANZIERUNG, ...WISSEN_E439, AUS_OESTERREICH_SEITE, WAS_IST_FIAON_GLOBAL_SEITE, PARTNER_SEITE, ...VERTRAUEN_E532];
 const DE = new Map(DEUTSCH.map((s) => [s.pfad, s]));
 
 // Die englischen Seiten: aus den genannten Dateien oder aus allen in en/.

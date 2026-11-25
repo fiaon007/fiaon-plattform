@@ -107,6 +107,15 @@ const de: GlobalSeite = {
         { tag: "Privatkunden", titel: "FIAON für Privatkunden", text: "Bonität, Konto und Karte: Laufzeit, Monatsentgelt und Ablauf stehen auf einer eigenen Seite.", pfad: "/fiaon-erfahrungen" },
       ],
     },
+    // 25.11.2026 (E-532): die drei Vertrauens-Seiten neben dieser — Erfahrungen, Mandate und Referenzen, Presse.
+    {
+      typ: "karten", id: "mehr", h2: "Mehr Fakten zu FIAON Global", spalten: 3,
+      karten: [
+        { tag: "Erfahrungen", titel: "Das Mandat von innen", text: "Erstgespräch, Vertrag, Rechnung, Portal „Mein Auftrag“ und fester Ansprechpartner.", pfad: "/business/erfahrungen" },
+        { tag: "Mandate", titel: "Für wen wir arbeiten", text: "Das Profil unserer Mandate — und warum wir Namen nur mit Zustimmung nennen.", pfad: "/business/referenzen" },
+        { tag: "Presse", titel: "Presse und Medien", text: "Das Unternehmen in wenigen Sätzen, die Fakten für Redaktionen und der Weg zu uns.", pfad: "/business/presse" },
+      ],
+    },
     {
       typ: "tabelle", id: "zahlung", h2: "Wohin Sie zahlen — und woran Sie uns erkennen",
       lead: `${beleg("zahlung")} Sie überweisen auf das Geschäftskonto der ${BANK.empfaenger}; es gibt keine Lastschrift, keine Kartenabbuchung und kein Abo. Jede Zahlung lösen Sie selbst aus. Jede Rechnung nennt Ihren Verwendungszweck und diese Bankverbindung.`,
@@ -177,6 +186,8 @@ const de: GlobalSeite = {
   ],
   fragen: [
     { f: "Ist FIAON Global seriös?", a: `Prüfen Sie es an Fakten statt an Versprechen. FIAON Global ist die Unternehmensberatung der ${F.name}, eingetragen im Companies House (England und Wales) unter Nr. ${F.companyNo}. Der Sitz der Gesellschaft ist ${F.strasse}, ${F.ortZeile}. Ihr Honorar und Ihren vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen. ${beleg("zahlung")}` },
+    { f: "Ist FIAON ein unseriöses Angebot oder Betrug?", a: `Nein — und Sie können es selbst prüfen. Die ${F.name} ist im Companies House (England und Wales) unter Nr. ${F.companyNo} eingetragen. Ihr Honorar und Ihren vollständigen Vertrag lesen Sie in Ihrem persönlichen Angebot, bevor Sie unterzeichnen. ${beleg("zahlung")} Erfahrungsberichte und Warnungen unter ähnlich klingenden Namen betreffen andere Unternehmen.` },
+    { f: "Welche Erfahrungen machen Klienten mit FIAON Global?", a: `Ein Mandat mit festem Ansprechpartner und klaren Schritten: Vertrag vor der Unterschrift, Rechnung an die ${F.name}, im Portal „Mein Auftrag“ jeder Stand und jedes Dokument. Mehr dazu auf der Seite „Erfahrungen“. Klienten nennen wir nur mit ihrer schriftlichen Zustimmung.` },
     { f: "Wer steht hinter FIAON Global?", a: `Die ${F.name} mit Sitz in ${F.strasse}, ${F.ortZeile}, eingetragen im Companies House unter Nr. ${F.companyNo}. Geschäftsführer ist der Gründer ${F.director}. Den Eintrag können Sie ohne Anmeldung einsehen; alle Pflichtangaben stehen im Impressum. Ihr Vertragspartner ist in jedem Fall die ${F.name}. ${ROLLEN.de}` },
     { f: "Wohin zahle ich, und woran erkenne ich eine echte Rechnung?", a: `Sie zahlen nur per Überweisung an ${BANK.empfaenger}; die Bankverbindung steht auf dieser Seite und auf jeder Rechnung, zusammen mit Ihrem Verwendungszweck. Für Zahlungen aus den Vereinigten Arabischen Emiraten nennen wir Ihnen auf Wunsch ein zweites Konto der ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} (IBAN ${BANK_AED.ibanDisplay}). Andere Konten gibt es nicht. FIAON verlangt nie eine Zahlung per Gutschein, Kryptowährung, Bargeldtransfer oder auf ein privates Konto. Erhalten Sie eine solche Aufforderung im Namen von FIAON, zahlen Sie bitte nicht. Melden Sie sich bei ${F.email} oder unter ${F.telefon}.` },
     { f: "Was kostet FIAON Global, und verlängert sich etwas von selbst?", a: `${satz("S12")} ${saetzeVon(weitererSatz("ZAHLUNG"))[1]}` },
@@ -187,7 +198,7 @@ const de: GlobalSeite = {
     { f: "Wie arbeite ich als Steuerberater, Anwalt oder Finanzierer mit FIAON zusammen?", a: `Über eine schriftliche Vereinbarung, die vor dem Beginn feststeht. Wer als Tippgeber oder Kooperationspartner vergütet wird, erhält eine Gutschrift mit Monatsbericht. Anwälte und Steuerberater erhalten für das Zuführen von Mandanten keine Vergütung und keinen sonstigen Vorteil (§ 49b Abs. 3 BRAO, § 9 StBerG). Wirken sie an den Leistungen eines Vertrags mit, trägt FIAON ihre Honorare dafür. Schreiben Sie uns an ${F.email}.` },
     { f: "Warum finde ich Warnungen oder Erfahrungsberichte, die nicht zu FIAON passen?", a: `Weil es Unternehmen mit ähnlich klingenden Namen gibt. FIAON schreibt sich F-I-A-O-N, die Internetadresse ist fiaon.com, Vertragspartner ist die ${F.name} in London. Warnlisten von Aufsichtsbehörden und Verbraucherportalen nennen Anbieter mit Namen und Anschrift. Prüfen Sie beides genau, und fragen Sie uns direkt, wenn etwas nicht zusammenpasst.` },
   ],
-  weiter: ["/business/was-ist-fiaon-global", "/business/kosten", "/business/ablauf", "/business/fragen"],
+  weiter: ["/business/was-ist-fiaon-global", "/business/erfahrungen", "/business/referenzen", "/business/presse", "/business/kosten", "/business/fragen"],
   quellen: QUELLEN_DE,
   schluss: { a: "Prüfen Sie uns. ", b: "Dann sprechen wir.", text: "Dreißig Minuten, kostenfrei und ohne Verpflichtung — mit Ihrem festen Ansprechpartner." },
   prio: 0.8,
@@ -224,6 +235,14 @@ const en: GlobalSeite = {
         { tag: "Statutory details", titel: "Legal notice", text: `All statutory details of ${F.name}.`, pfad: "/impressum?bereich=business" },
         { tag: "Overview", titel: "At a glance", text: "What happens, what it costs, what you do yourself and what applies if something does not come about.", pfad: "/en#auf-einen-blick" },
         { tag: "Personal clients", titel: "FIAON for personal clients", text: "Credit standing, account and card: term, monthly fee and process are set out on a separate page.", pfad: "/en/how-fiaon-works" },
+      ],
+    },
+    {
+      typ: "karten", id: "mehr", h2: "More facts about FIAON Global", spalten: 3,
+      karten: [
+        { tag: "Client experience", titel: "The engagement from the inside", text: "Introductory call, contract, invoice, the portal “My engagement” and one dedicated contact.", pfad: "/en/business/client-experience" },
+        { tag: "Engagements", titel: "Who we work for", text: "The profile of our engagements — and why we name clients only with their consent.", pfad: "/en/business/references" },
+        { tag: "Press", titel: "Press and media", text: "The company in a few sentences, the facts for editors and the route to us.", pfad: "/en/business/press" },
       ],
     },
     {
@@ -296,6 +315,8 @@ const en: GlobalSeite = {
   ],
   fragen: [
     { f: "Is FIAON Global legit?", a: `Check it against facts rather than promises. FIAON Global is the business consultancy of ${F.name}, registered in England and Wales under company number ${F.companyNo}. Its registered office is ${F.strasse}, ${F.ortZeile}. You read your fees and your complete agreement in your personal proposal before you sign. ${beleg("zahlung", "en")}` },
+    { f: "Is FIAON a scam?", a: `No — and you can check that yourself. ${F.name} is registered with Companies House (England and Wales) under company number ${F.companyNo}. You read your fee and your full contract in your personal proposal before you sign. ${beleg("zahlung", "en")} Reviews and warnings under similar-sounding names concern other companies.` },
+    { f: "What do clients experience with FIAON Global?", a: `An engagement with one dedicated contact and clear steps: the contract before you sign, an invoice from ${F.name}, and in the portal “My engagement” the current status and every document. More on the page “Client experience”. We name clients only with their written consent.` },
     { f: "Who is behind FIAON Global?", a: `${F.name}, with its registered office at ${F.strasse}, ${F.ortZeile}, registered in England and Wales under company number ${F.companyNo}. The Director is the founder, ${F.director}. You can view the entry without an account; all statutory details are in the legal notice. Your contracting party is always ${F.name}. ${ROLLEN.en}` },
     { f: "Where do I pay, and how do I recognise a genuine invoice?", a: `You pay by bank transfer only, to ${BANK.empfaenger}; the account details are on this page and on every invoice, together with your payment reference. For payments from the United Arab Emirates, we give you a second account of ${BANK_AED.empfaenger} in ${BANK_AED.waehrung} on request (IBAN ${BANK_AED.ibanDisplay}). There are no other accounts. FIAON never asks for payment by voucher, cryptocurrency, cash transfer or into a private account. If such a request reaches you in FIAON’s name, please do not pay. Contact ${F.email} or ${F.telefon}.` },
     { f: "What does FIAON Global cost, and does anything renew automatically?", a: `${satz("S12", "en")} ${saetzeVon(weitererSatz("ZAHLUNG", "en"))[1]}` },
@@ -306,7 +327,7 @@ const en: GlobalSeite = {
     { f: "How do I work with FIAON as a tax adviser, lawyer or financier?", a: `Through a written agreement that is fixed before we begin. Anyone remunerated as an introducer or cooperation partner receives a credit note with a monthly report. Lawyers and tax advisers receive no fee or other benefit for introducing clients (section 49b(3) BRAO, section 9 StBerG). Where they contribute to the services in an agreement, FIAON bears their fees for those services. Write to us at ${F.email}.` },
     { f: "Why do I find warnings or reviews that do not fit FIAON?", a: `Because there are companies with similar-sounding names. FIAON is spelt F-I-A-O-N, the web address is fiaon.com, and the contracting party is ${F.name} in London. Warning lists from regulators and consumer portals name providers with their name and address. Check both carefully, and ask us directly if something does not add up.` },
   ],
-  weiter: ["/en/business/what-is-fiaon-global", "/en/business/costs", "/en/business/process", "/en/business/faq"],
+  weiter: ["/en/business/what-is-fiaon-global", "/en/business/client-experience", "/en/business/references", "/en/business/press", "/en/business/costs", "/en/business/faq"],
   quellen: [
     { titel: `Companies House (England and Wales): ${F.name}, No. ${F.companyNo}`, url: COMPANIES_HOUSE_URL },
     { titel: "Section 49b Federal Lawyers' Act (BRAO) — remuneration", url: "https://www.gesetze-im-internet.de/brao/__49b.html" },

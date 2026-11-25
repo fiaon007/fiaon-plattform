@@ -95,6 +95,10 @@ export const GLOBAL_EN_PFADE: Record<string, string> = {
   "/business/was-ist-fiaon-global": "/en/business/what-is-fiaon-global",
   // Standorte
   "/business/partner": "/en/business/partners",
+  // 25.11.2026 (E-532): die Vertrauens-Seiten
+  "/business/erfahrungen": "/en/business/client-experience",
+  "/business/referenzen": "/en/business/references",
+  "/business/presse": "/en/business/press",
   // Impressum, Datenschutz und Cookie-Einstellungen gibt es nur deutsch — englische Seiten verlinken sie
   // unverändert (mit ?bereich=business, wie GlobalFuss). Sie stehen deshalb NICHT in dieser Tabelle.
 };

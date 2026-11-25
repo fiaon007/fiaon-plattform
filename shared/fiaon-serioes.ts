@@ -16,7 +16,7 @@ import { FIAON_FIRMA } from "./fiaon-firma";
 
 export const SERIOES_PFAD = { de: "/ist-fiaon-serioes", en: "/en/is-fiaon-legit" } as const;
 /** Stand der Fakten auf der Seite (Sitemap lastmod, Vermerk unter dem Text). */
-export const SERIOES_STAND = "2026-11-13";
+export const SERIOES_STAND = "2026-11-25";
 /** Der amtliche Registereintrag — jeder kann ihn ohne Anmeldung öffnen. */
 export const COMPANIES_HOUSE_URL = `https://find-and-update.company-information.service.gov.uk/company/${FIAON_FIRMA.companyNo}`;
 

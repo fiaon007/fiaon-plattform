@@ -36,6 +36,7 @@ import { VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
 // E-510: Definitionssatz, Österreich-Fassung, die sechs Schritte, die festen Sätze und die Beträge — geholt, nie getippt.
 import { SAETZE_BETRAEGE, SCHRITTE_KOPF, satz, sechsSchritte, weitererSatz } from "@shared/fiaon-global-saetze";
 import { GLOBAL_SEITEN, GLOBAL_SEITEN_EN, type GlobalSeite } from "@shared/fiaon-global-seiten";
+import { SERIOES_SEITE } from "@shared/fiaon-serioes-seite";
 import { STAATEN_STAND_TEXT, STAATEN_ZUR_WAHL } from "@shared/fiaon-global-bundesstaaten";
 import { FIAON_FIRMA, fiaonVerwechslungSatz } from "@shared/fiaon-firma";
 import { SEO_BASIS, seoSeite } from "@shared/fiaon-seo-seiten";
@@ -116,7 +117,10 @@ export function llmsTxt(): string {
     ...gruppe("Für wen", art("zielgruppe", "land")),
     ...gruppe("Bundesstaaten", art("staat")),
     ...gruppe("Wissen: Ratgeber zur US-Gesellschaft (mit Quellen)", art("hub", "wissen")),
-    ...gruppe("Standorte und Partner", art("partner")),
+    // 25.11.2026 (E-532): Wer KI-Assistenten fragt „Ist FIAON seriös?“, bekommt die Fakten-Seite und die Vertrauens-Seiten
+    // (Erfahrungen, Mandate und Referenzen, Presse) als eigene Gruppe — die Fakten-Seite steht nicht im Register, darum hier von Hand.
+    ...gruppe("Seriosität: Fakten, Erfahrungen, Mandate und Presse", [SERIOES_SEITE.de, ...art("partner").filter((x) => x.pfad !== "/business/partner")]),
+    ...gruppe("Vertragspartner und Partner", art("partner").filter((x) => x.pfad === "/business/partner")),
     // 27.10.2026 (E-439): die Tagesartikel der Business-Redaktion (Datenbank, über den Speicher in fiaon-business-artikel-liste.ts).
     ...(businessArtikel("de").length ? ["## Aktuell aus der Redaktion (FIAON Global)", "", ...businessArtikel("de").slice(0, 60).map((a) => `- [${a.titel}](${SEO_BASIS}${businessArtikelPfad(a.slug, "de")}): ${a.teaser}`), ""] : []),
     // 24.09.2026 (E-234): dieselben Seiten auf Englisch — für Assistenten, die englisch gefragt werden.

@@ -403,6 +403,9 @@ const fussDe = {
     { pfad: "/business/widerrufsbelehrung", text: "Widerrufsbelehrung" },
     { pfad: "/business/mustervertrag", text: "Vertrag im Überblick" },
     { pfad: "/ist-fiaon-serioes", text: "Ist FIAON seriös?" },
+    // 25.11.2026 (E-532): die Vertrauens-Seiten im Fuß jeder Global-Seite.
+    { pfad: "/business/erfahrungen", text: "Erfahrungen" },
+    { pfad: "/business/presse", text: "Presse" },
   ],
   registriert: "Eingetragen in England und Wales",
   keineBank: satz("S8", "de"),
@@ -429,6 +432,8 @@ const fussEn: typeof fussDe = {
     { pfad: "/en/business/widerrufsbelehrung", text: "Withdrawal instructions" },
     { pfad: "/en/business/mustervertrag", text: "Agreement at a glance" },
     { pfad: "/en/is-fiaon-legit", text: "Is FIAON legit?" },
+    { pfad: "/en/business/client-experience", text: "Client experience" },
+    { pfad: "/en/business/press", text: "Press" },
   ],
   registriert: "Registered in England and Wales",
   keineBank: satz("S8", "en"),

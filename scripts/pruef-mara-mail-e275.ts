@@ -524,8 +524,10 @@ if (MIT_DB) {
       einordnung: { kategorien: ["status_frage"], dringend: false, sprache: "de", fragen: ["Stand?"], zusammenfassung: "Fragt nach dem Angebot.", flags: {} },
       antwort: { antwort: "Danke für Ihre Nachricht. Ihre Ansprechperson bei FIAON Global meldet sich bei Ihnen.", naechster_schritt: { art: "wartet_auf_uns", url: null, text: "" }, belege: [], fragen_beantwortet: [], merken: [] },
     });
-    ok(s6.z?.aktion === "entwurf" && s6.gesendet === 0, `Global-Kunde: nie automatisch (${s6.z?.aktion}; ${String(s6.z?.begruendung ?? "").slice(0, 80)})`);
-    ok(!/DU ERLEDIGST ES SELBST/.test(String(s6.kiAntwort[0]?.system ?? "")), "Global-Kunde: kein Block „DU ERLEDIGST ES SELBST“ (es gilt GLOBAL_AUFTRAG)");
+    // E-531 (25.11.2026): Die Global-Weiche läuft VOR jeder KI — kein Entwurf mehr, sondern 'ignoriert' + Aufgabe für Justin
+    // (Ordner „FIAON/Global von Hand“). Vorher erwartete dieser Fall aktion „entwurf“ (E-272).
+    ok(s6.z?.aktion === "ignoriert" && s6.gesendet === 0 && /Global-Kunde \(E-531\): keine KI-Antwort/.test(String(s6.z?.begruendung ?? "")), `Global-Kunde: nie automatisch, keine KI-Antwort (${s6.z?.aktion}; ${String(s6.z?.begruendung ?? "").slice(0, 80)})`);
+    ok((s6.kiAntwort?.length ?? 0) === 0, `Global-Kunde: gar kein KI-Aufruf (E-531, ${s6.kiAntwort?.length ?? 0} Aufrufe)`);
 
     // ── DB 7 · DIE ECHTE FUNKTION AUS DEM BEREICH KARTE (Aufruf, ohne Versand) ─
     abschnitt("DB 7 · karte_senden mit der echten karteEinladungFuerPerson (Netz abgeklemmt)");

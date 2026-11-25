@@ -23,10 +23,10 @@
 import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { Router, type Request, type Response } from "express";
 import { sqlPool } from "../lib/db-pool";
-import { AUTORIN, BEREICHE, THEMEN, pruefstand, slugify, lesezeitVon, bereichVonKategorie, type Artikel, type Bereich } from "@shared/fiaon-ratgeber";
+import { AUTORIN, THEMEN, pruefstand, slugify, lesezeitVon, bereichVonKategorie, type Artikel, type Bereich } from "@shared/fiaon-ratgeber";
 import { kiPausiert, kiLesenMoeglich } from "../lib/fiaon-ki-pause";
 import {
-  ensureRatgeberTabelle, zeile, artikelOeffentlich, tagesStand, tagesartikelLauf, ratgeberLaufPruefen, entwurfErzeugen, naechsterLauf, faelligerTag,
+  ensureRatgeberTabelle, zeile, artikelOeffentlich, tagesStand, tagesartikelLauf, ratgeberLaufPruefen, entwurfErzeugen, naechsterLauf, faelligerTag, tagFertig,
   RATGEBER_LAUF, MODELL, type TageslaufErgebnis,
 } from "../lib/fiaon-ratgeber-redaktion";
 
@@ -103,7 +103,7 @@ router.get("/admin/ratgeber", async (_req: Request, res: Response) => {
     const { REGISTRIERT } = await import("../lib/fiaon-crons");
     const automatik = REGISTRIERT.some((r) => r.name === RATGEBER_LAUF && r.laeuft);
     const [letzter] = (await sqlPool`SELECT begonnen, ergebnis, fehler FROM fiaon_lauf_historie WHERE name = ${RATGEBER_LAUF} ORDER BY begonnen DESC LIMIT 1`.catch(() => [])) as any[];
-    const naechster = automatik ? naechsterLauf(jetzt, letzter?.begonnen ? new Date(letzter.begonnen) : null, BEREICHE.every((b) => stand[b].erledigt)) : null;
+    const naechster = automatik ? naechsterLauf(jetzt, letzter?.begonnen ? new Date(letzter.begonnen) : null, tagFertig(stand)) /* E-531: nur Bereiche mit Tagesartikel */ : null;
     res.json({
       ok: true, artikel: rows.map((r) => ({ ...zeile(r), inhalt: undefined, recherche: undefined })),
       heute: { tag, ...stand }, naechsterLauf: naechster ? naechster.toISOString() : null, automatik,
@@ -214,7 +214,7 @@ router.post("/admin/ratgeber/generieren", async (req: Request, res: Response) =>
   if (arbeit) return res.status(409).json({ ok: false, error: "Die Redaktion schreibt gerade — bitte warten, bis sie fertig ist." });
   if (!kiLesenMoeglich()) return res.status(503).json({ ok: false, error: "Kein KI-Schlüssel gesetzt." });
   if (await kiPausiert().catch(() => false)) return res.status(503).json({ ok: false, error: "Die KI ist pausiert (Chefbüro › Mara-Steuerpult)." });
-  const bereich = bereichAus(req.body?.bereich) ?? "privat";
+  const bereich = bereichAus(req.body?.bereich) ?? "business"; // E-531: ohne Angabe Business
   imHintergrund("entwurf", bereich, async () => {
     const a = await entwurfErzeugen(bereich);
     return { ok: !!a.pruefung?.ok, text: `${a.titel}${a.pruefung?.ok ? " — Prüfstand ok" : " — Prüfstand meldet Fehler"}` };

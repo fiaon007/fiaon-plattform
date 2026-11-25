@@ -265,6 +265,23 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     }
   }
 
+  // ── E-531 (Schlussprüfung Runde 6): WOHIN DIE ANTWORT DARF — VOR ALLEN SCHALTERN ─────────────────────────────────────
+  // Mit Person nur an eine saubere, bei ihr gespeicherte Adresse (handVersandZiel), sonst gar nicht. Geprüft wird hier, bevor
+  // Werbesperre, Kündigung oder Aufgabe laufen — eine gesperrte Freigabe bucht nichts.
+  let mailVorab: any = null;
+  let ziel: { an: string | null; sperre: string | null; hinweis: string | null } = { an: null, sperre: null, hinweis: null };
+  try {
+    mailVorab = await (await import("../lib/fiaon-gmail")).nachrichtLesen(r.postfach, r.gmail_id);
+    ziel = await (await import("../lib/fiaon-postmeister-lauf")).handVersandZiel(mailVorab, r.person_id != null ? Number(r.person_id) : null);
+  } catch (e) {
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck} WHERE id = ${id}`;
+    return { ok: false, grund: `Die Kundenmail ist gerade nicht lesbar — nichts gesendet, bitte gleich noch einmal: ${String((e as Error)?.message ?? e).slice(0, 160)}` };
+  }
+  if (ziel.sperre) {
+    await sqlPool`UPDATE fiaon_postmeister SET aktion = ${zurueck} WHERE id = ${id}`;
+    return { ok: false, grund: ziel.sperre };
+  }
+
   const erledigt: string[] = [];
   const gelaufen = handlungenLesen(r.handlungen).filter((h) => h.ok).map((h) => String(h.werkzeug));
 
@@ -385,7 +402,8 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     const { nachrichtLesen, antwortSenden, nachrichtLabeln, labelSicherstellen, entwurfLoeschen } = await import("../lib/fiaon-gmail");
     const gebaut = plan.length ? await anhaengeBauen(plan) : { dateien: [], fehler: [] as string[] };
     if (gebaut.fehler.length) erledigt.push(`Nicht angehängt: ${gebaut.fehler.join("; ")}`);
-    const mail = await nachrichtLesen(r.postfach, r.gmail_id);
+    // Dieselbe Nachricht, die oben für das Ziel geprüft wurde (kein zweites Lesen, keine Abweichung).
+    const mail = mailVorab ?? await nachrichtLesen(r.postfach, r.gmail_id);
     // Text und HTML aus dem FINALEN Text bauen — nie das alte HTML mit neuem Text.
     const { antwortAusText, grussMitAgent } = await import("../lib/fiaon-postmeister-antworttext");
     const { agentName } = await import("../lib/fiaon-postmeister-agent");
@@ -394,7 +412,9 @@ export async function entwurfSenden(id: number, textNeu?: string | null, wahl: S
     const name = mensch ?? await agentName();
     const grussVorgabe = grussMitAgent(postfachGrussVorgabe(String(r.postfach)), name);
     const fertig = antwortAusText(text, { schritt: jsonOderLeer(r.naechster_schritt, null), betreff: String(r.betreff || ""), sprache: r.sprache ?? null, agentName: name, gruss: grussVorgabe });
-    await antwortSenden(r.postfach, mail, fertig.text, fertig.html, gebaut.dateien);
+    // E-531 (Gegenprüfung Runde 5/6): Ziel oben geprüft (handVersandZiel) — mit Person nie an den rohen Kopf.
+    await antwortSenden(r.postfach, mail, fertig.text, fertig.html, gebaut.dateien, ziel.an ? { an: ziel.an } : {});
+    if (ziel.hinweis) erledigt.push(ziel.hinweis);
     if (gebaut.dateien.length) erledigt.push(`Angehängt: ${gebaut.dateien.map((d) => d.dateiname).join(", ")}`);
     if (r.antwort_draft_id) await entwurfLoeschen(r.postfach, r.antwort_draft_id).catch(() => {});
     await nachrichtLabeln(r.postfach, r.gmail_id, [await labelSicherstellen(r.postfach, "FIAON/Beantwortet")], ["UNREAD"]).catch(() => {});

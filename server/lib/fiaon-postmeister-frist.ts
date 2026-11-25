@@ -454,6 +454,14 @@ export async function entwurfFristLauf(opts: { immer?: boolean; jetzt?: Date; nu
             if (!z.fakten.neu) e.abgelegtAltbestand++;
           }
         } else if (u.art === "neu_schreiben" && neu < NEU_JE_LAUF && !opts.nurAltbestand) {
+          // E-531 Nachbesserung (Gutachten Kosten): Ein Entwurf der Schleifen-Bremse wird NICHT neu geschrieben, solange sie
+          // noch bremst — sonst ein voller KI-Lauf samt Fall-Akte, der wieder gebremst würde (neuer Entwurf, springende Karte).
+          // Lässt sie nach, schreibt die Regel wie sonst neu. Der Knopf „Neu schreiben lassen“ (ein Mensch) bleibt frei.
+          const pmLauf = await import("./fiaon-postmeister-lauf");
+          if (pmLauf.e531SchleifenEntwurf(z.fakten.begruendung) && (await pmLauf.schleifeBremstNoch(z.id))) {
+            console.log(`[POSTMEISTER-FRIST] Mail #${z.id}: Schleifen-Bremse hält noch an — kein Neuschreiben (E-531)`);
+            continue;
+          }
           neu++;
           const r = await entwurfNeuSchreiben(z, basis.modus);
           if (r.aktion === "uebersprungen") continue;

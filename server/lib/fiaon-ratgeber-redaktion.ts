@@ -29,6 +29,12 @@
 //      neu — höchstens drei Mal je Lauf; danach bleibt es ein Entwurf und der
 //      nächste Lauf versucht es wieder, bis der Tagesdeckel erreicht ist.
 //
+// ── E-531 (25.11.2026): NUR NOCH BUSINESS ───────────────────────────────────
+// Der Tageslauf schreibt und prüft nur noch TAGESARTIKEL_BEREICHE (Business,
+// shared/fiaon-ratgeber.ts). Privat wird aufgelassen; die Privat-Artikel bleiben
+// online. Ein Tag ohne Privat-Artikel ist darum kein Fehler (Ampel bleibt grün).
+// „Entwurf erzeugen“ von Hand geht weiter für beide Bereiche.
+//
 // KEINE AUFGABE an den Betreiber (Justin 15.10.: „hör auf, mir Aufgaben zu
 // geben"). Ein Tag ohne Artikel zeigt sich als Fehler in der Lauf-Historie und
 // auf der Maschinen-Ampel (LAUF_FOLGEN „ratgeber-tagesartikel").
@@ -44,7 +50,7 @@ import { nutzungMerken } from "./fiaon-postmeister-schema";
 import { kiModell } from "./fiaon-ki-kasse";
 import { berlinToday } from "./fiaon-time";
 import {
-  AUTORIN, BEREICHE, BEREICH_LABEL, KATEGORIEN, THEMEN, hausstilFuer, kategorienFuer, bereichVonKategorie, pruefstand,
+  AUTORIN, BEREICHE, BEREICH_LABEL, KATEGORIEN, THEMEN, TAGESARTIKEL_BEREICHE, hausstilFuer, kategorienFuer, bereichVonKategorie, pruefstand,
   slugify, lesezeitVon, type Artikel, type Bereich, type Kategorie, type Land, type Pruefung, type Quelle,
 } from "@shared/fiaon-ratgeber";
 import { SEO_SEITEN } from "@shared/fiaon-seo-seiten";
@@ -219,7 +225,26 @@ export function faelligerTag(jetzt: Date): { tag: string; faellig: boolean; vort
   return { tag, faellig: Number.isFinite(stunde) && stunde >= AB_STUNDE, vortag: tagPlus(tag, -1) };
 }
 
-/** Wann läuft die Redaktion als Nächstes los? Für die Kopfzeile der Redaktion. Rein. */
+/**
+ * E-531 (25.11.2026): Welche Bereiche ein Tageslauf schreibt und prüft. Ohne Vorgabe nur TAGESARTIKEL_BEREICHE
+ * (Business) — Privat schreibt die KI nicht mehr. `nurBereich` (Prüfstände, gezielter Aufruf) wählt genau einen. Rein.
+ */
+export function tageslaufBereiche(nurBereich?: Bereich | null): Bereich[] {
+  return nurBereich ? [nurBereich] : [...TAGESARTIKEL_BEREICHE];
+}
+
+/**
+ * E-531 (25.11.2026): Ist der Tag fertig? Es zählen nur die Bereiche mit Tagesartikel (ohne Vorgabe: Business) —
+ * ein Tag ohne Privat-Artikel hält die Kopfzeile der Redaktion nicht mehr auf „gleich“. Für naechsterLauf. Rein.
+ */
+export function tagFertig(stand: Partial<Record<Bereich, { erledigt: boolean }>>, bereiche: readonly Bereich[] = TAGESARTIKEL_BEREICHE): boolean {
+  return bereiche.every((b) => !!stand[b]?.erledigt);
+}
+
+/**
+ * Wann läuft die Redaktion als Nächstes los? Für die Kopfzeile der Redaktion. Rein.
+ * E-531 (25.11.2026): `beideFertig` heißt jetzt „alle Bereiche mit Tagesartikel fertig“ — dafür gibt es tagFertig(stand).
+ */
 export function naechsterLauf(jetzt: Date, letzterBeginn: Date | null, beideFertig: boolean, taktMs = 30 * 60_000): Date {
   const { tag, faellig } = faelligerTag(jetzt);
   const sechsUhr = (datum: string) => {
@@ -769,6 +794,7 @@ export async function tagesStand(tag: string, lauf: Lauf = sqlPool): Promise<Rec
             OR tagesartikel = ${tag}::date)
      ORDER BY (status = 'veroeffentlicht') DESC, published_at ASC NULLS LAST, id ASC`) as any[];
   const aus: Record<Bereich, StandBereich> = { privat: { erledigt: false, artikel: null }, business: { erledigt: false, artikel: null } };
+  // E-531 (25.11.2026): Der Stand bleibt für BEIDE Bereiche (die Redaktion zeigt beide) — geschrieben wird nur TAGESARTIKEL_BEREICHE.
   for (const b of BEREICHE) {
     const eigene = rows.filter((r) => (r.bereich === "business" ? "business" : "privat") === b);
     const fertig = eigene.find((r) => r.status === "veroeffentlicht") ?? eigene.find((r) => r.status === "archiv" && datumText(r.tagesartikel) === tag);
@@ -947,6 +973,8 @@ export async function bereichAbarbeiten(b: Bereich, tag: string, ki: RedaktionKi
 export interface TageslaufErgebnis {
   tag: string;
   faellig: boolean;
+  /** E-531 (25.11.2026): Die Bereiche, die dieser Lauf geprüft hat (ohne Vorgabe nur TAGESARTIKEL_BEREICHE). */
+  geprueft: Bereich[];
   /** Bereiche, deren Artikel für `tag` fehlt — nach diesem Lauf. */
   fehlt: Bereich[];
   veroeffentlicht: number;
@@ -967,21 +995,22 @@ export async function tagesartikelLauf(opt: { jetzt?: Date; ki?: RedaktionKi; la
   // „Tagesartikel jetzt" in der Redaktion: auch vor 06:00 — eine Entscheidung eines Menschen, kein Nebeneffekt des Takts.
   const { tag, vortag } = zeit;
   const faellig = zeit.faellig || !!opt.sofort;
-  const bereiche = opt.nurBereich ? [opt.nurBereich] : BEREICHE;
+  // E-531 (25.11.2026): ohne Vorgabe nur TAGESARTIKEL_BEREICHE (Business) — Privat wird weder geschrieben noch vermisst.
+  const bereiche = tageslaufBereiche(opt.nurBereich);
 
   if (!faellig) {
     // Vor 06:00: nichts schreiben — aber ehrlich sagen, ob der Vortag erfüllt war.
     const st = await tagesStand(vortag, lauf);
     const fehlt = bereiche.filter((b) => !st[b].erledigt);
-    return { tag: vortag, faellig: false, fehlt, veroeffentlicht: 0, bereiche: [], grund: fehlt.length ? "Vortag ohne Artikel" : "vor 06:00" };
+    return { tag: vortag, faellig: false, geprueft: bereiche, fehlt, veroeffentlicht: 0, bereiche: [], grund: fehlt.length ? "Vortag ohne Artikel" : "vor 06:00" };
   }
 
   const st = await tagesStand(tag, lauf);
   const offen = bereiche.filter((b) => !st[b].erledigt);
-  if (!offen.length) return { tag, faellig: true, fehlt: [], veroeffentlicht: 0, bereiche: [], grund: "erledigt" };
+  if (!offen.length) return { tag, faellig: true, geprueft: bereiche, fehlt: [], veroeffentlicht: 0, bereiche: [], grund: "erledigt" };
   // Ohne KI (kein Schlüssel, Pause) kein Aufruf — aber auch kein „erfolg": Es fehlt etwas.
-  if (!opt.ki && !kiLesenMoeglich()) return { tag, faellig: true, fehlt: offen, veroeffentlicht: 0, bereiche: [], grund: "kein KI-Schlüssel" };
-  if (!opt.ki && (await kiPausiert())) return { tag, faellig: true, fehlt: offen, veroeffentlicht: 0, bereiche: [], grund: "KI pausiert" };
+  if (!opt.ki && !kiLesenMoeglich()) return { tag, faellig: true, geprueft: bereiche, fehlt: offen, veroeffentlicht: 0, bereiche: [], grund: "kein KI-Schlüssel" };
+  if (!opt.ki && (await kiPausiert())) return { tag, faellig: true, geprueft: bereiche, fehlt: offen, veroeffentlicht: 0, bereiche: [], grund: "KI pausiert" };
 
   const ergebnisse: BereichErgebnis[] = [];
   let grund: string | null = null;
@@ -1001,15 +1030,21 @@ export async function tagesartikelLauf(opt: { jetzt?: Date; ki?: RedaktionKi; la
   const veroeffentlicht = ergebnisse.filter((e) => e.ergebnis === "veroeffentlicht").length;
   if (!grund && fehlt.length) grund = ergebnisse.filter((e) => fehlt.includes(e.bereich)).map((e) => `${BEREICH_LABEL[e.bereich]}: ${e.ergebnis}${e.fehler.length ? ` (${e.fehler.slice(0, 3).join("; ")})` : ""}`).join(" · ").slice(0, 600) || "unbekannt";
   for (const e of ergebnisse) console.log(`[RATGEBER] Tagesartikel ${e.bereich}: ${e.ergebnis}${e.titel ? ` — ${e.titel}` : ""} (${e.versuche} KI-Aufrufe)`);
-  return { tag, faellig: true, fehlt, veroeffentlicht, bereiche: ergebnisse, grund };
+  return { tag, faellig: true, geprueft: bereiche, fehlt, veroeffentlicht, bereiche: ergebnisse, grund };
 }
 
-/** Für den Takt: Fehlt nach dem Lauf ein Artikel, ist der Lauf KEIN Erfolg (Historie „fehler", Ampel, Warnmail). */
-export function ratgeberLaufPruefen(e: TageslaufErgebnis): { tag: string; veroeffentlicht: number; privat: number; business: number; grund: string | null } {
+/**
+ * Für den Takt: Fehlt nach dem Lauf ein Artikel, ist der Lauf KEIN Erfolg (Historie „fehler", Ampel, Warnmail).
+ * E-531 (25.11.2026): Es zählen nur die geprüften Bereiche (ohne Vorgabe nur Business). Ein Bereich ohne Tagesartikel
+ * steht als null in der Rückgabe — die Lauf-Meldung lässt ihn weg, statt „1 = erschienen“ zu behaupten.
+ */
+export function ratgeberLaufPruefen(e: TageslaufErgebnis): { tag: string; veroeffentlicht: number; privat: number | null; business: number | null; grund: string | null } {
   if (e.fehlt.length) {
     throw new Error(`Tagesartikel fehlt für ${e.tag}: ${e.fehlt.map((b) => BEREICH_LABEL[b]).join(" und ")} — ${e.grund ?? "unbekannt"}`);
   }
-  return { tag: e.tag, veroeffentlicht: e.veroeffentlicht, privat: e.fehlt.includes("privat") ? 0 : 1, business: e.fehlt.includes("business") ? 0 : 1, grund: e.grund };
+  const geprueft = e.geprueft ?? tageslaufBereiche();
+  const je = (b: Bereich) => (geprueft.includes(b) ? 1 : null);
+  return { tag: e.tag, veroeffentlicht: e.veroeffentlicht, privat: je("privat"), business: je("business"), grund: e.grund };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

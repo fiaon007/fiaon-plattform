@@ -203,13 +203,14 @@ async function main() {
       immer: (a: any, n: number) => muster(a.bereich, { fehler: n % 2 === 0 ? "garantie" : undefined }),
     });
     const e1 = await r.tagesartikelLauf({ jetzt: T1, ki: a1.ki as any });
-    ok(e1.faellig && e1.fehlt.length === 0 && e1.veroeffentlicht === 2, `beide Bereiche veröffentlicht (${e1.veroeffentlicht}, fehlt ${e1.fehlt.join(",") || "nichts"})`, e1.grund ?? "");
-    ok(a1.log.themen === 2 && a1.log.schreiben === 4, `zwei Recherchen, je zwei Schreibversuche (${a1.log.themen}/${a1.log.schreiben})`);
+    // E-531 (25.11.2026): Der Tageslauf schreibt ohne Vorgabe nur noch Business (TAGESARTIKEL_BEREICHE) — vorher beide Bereiche.
+    ok(e1.faellig && e1.fehlt.length === 0 && e1.veroeffentlicht === 1, `nur Business veröffentlicht (E-531) (${e1.veroeffentlicht}, fehlt ${e1.fehlt.join(",") || "nichts"})`, e1.grund ?? "");
+    ok(a1.log.themen === 1 && a1.log.schreiben === 2, `eine Recherche, zwei Schreibversuche (E-531) (${a1.log.themen}/${a1.log.schreiben})`);
     const zweiter = a1.log.auftraege[1];
     ok(Array.isArray(zweiter?.fehler) && zweiter.fehler.some((f: string) => /garantie/i.test(f)) && !!zweiter.vorlage, "2. Versuch bekommt die Fehler des Prüfstands und den Entwurf");
     const rows1 = (await sql`SELECT * FROM fiaon_ratgeber WHERE tagesartikel = '2026-11-02' ORDER BY bereich`) as any[];
-    ok(rows1.length === 2 && rows1.every((x) => x.status === "veroeffentlicht" && x.quelle === "ki" && x.published_at), "Status veroeffentlicht, quelle ki, published_at gesetzt");
-    ok(rows1.find((x) => x.bereich === "business")?.kategorie === "firmen" && rows1.find((x) => x.bereich === "privat")?.kategorie === "kredit", "Kategorie passt zum Bereich");
+    ok(rows1.length === 1 && rows1[0]?.bereich === "business" && rows1.every((x) => x.status === "veroeffentlicht" && x.quelle === "ki" && x.published_at), "nur Business (E-531): Status veroeffentlicht, quelle ki, published_at gesetzt");
+    ok(rows1.find((x) => x.bereich === "business")?.kategorie === "firmen" && !rows1.some((x) => x.bereich === "privat"), "Kategorie passt zum Bereich, kein Privat-Tagesartikel (E-531)");
     const [jt] = (await sql`SELECT jsonb_typeof(faq) AS f, jsonb_typeof(schlagworte) AS s, jsonb_typeof(recherche) AS r, jsonb_typeof(pruefung) AS p FROM fiaon_ratgeber WHERE tagesartikel = '2026-11-02' LIMIT 1`) as any[];
     ok(jt?.f === "array" && jt?.s === "array" && jt?.r === "object" && jt?.p === "object", `JSON richtig gespeichert, nicht doppelt verpackt (${JSON.stringify(jt)})`);
     ok(rows1.every((x) => /## Quellen/.test(x.inhalt) && Number(x.versuche) === 3), "Quellenblock im Text, drei KI-Aufrufe gezählt");
@@ -222,10 +223,10 @@ async function main() {
     const a3 = attrappe({});
     const [p1, p2] = await Promise.all([r.tagesartikelLauf({ jetzt: T3, ki: a3.ki as any }), r.tagesartikelLauf({ jetzt: T3, ki: a3.ki as any })]);
     const rows3 = (await sql`SELECT bereich, status FROM fiaon_ratgeber WHERE tagesartikel = '2026-11-03'`) as any[];
-    ok(rows3.length === 2 && rows3.every((x) => x.status === "veroeffentlicht"), `zwei gleichzeitige Läufe: je Bereich genau eine Zeile (${rows3.length})`);
-    ok(p1.bereiche.concat(p2.bereiche).filter((b) => b.ergebnis === "parallel").length >= 1 || a3.log.themen === 2, `der zweite Lauf bekommt die Arbeitszeile nicht (${a3.log.themen} Recherchen)`);
-    const [n3] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND bereich = 'privat' AND tagesartikel = '2026-11-03'`) as any[];
-    ok(Number(n3.n) === 1, "genau ein veröffentlichter Privat-Artikel am 03.11.");
+    ok(rows3.length === 1 && rows3.every((x) => x.status === "veroeffentlicht"), `zwei gleichzeitige Läufe: genau eine Zeile (nur Business, E-531) (${rows3.length})`);
+    ok(p1.bereiche.concat(p2.bereiche).filter((b) => b.ergebnis === "parallel").length >= 1 || a3.log.themen === 1, `der zweite Lauf bekommt die Arbeitszeile nicht (${a3.log.themen} Recherchen)`);
+    const [n3] = (await sql`SELECT COUNT(*)::int AS n FROM fiaon_ratgeber WHERE status = 'veroeffentlicht' AND bereich = 'business' AND tagesartikel = '2026-11-03'`) as any[];
+    ok(Number(n3.n) === 1, "genau ein veröffentlichter Business-Artikel am 03.11. (E-531)");
 
     gruppe("B4 Tor bleibt zu → Entwurf, nächster Lauf macht weiter, Tagesdeckel");
     const T4 = new Date("2026-11-04T07:00:00Z");
@@ -253,7 +254,7 @@ async function main() {
     ok(a6.log.auftraege.every((x) => x.bereich === "business") && a6.log.themaAuftraege.every((x) => x.bereich === "business") && e6.fehlt.length === 0, "privat schon von Hand erschienen → nur Business wird geschrieben");
     const a7 = attrappe({});
     const e7 = await r.tagesartikelLauf({ jetzt: new Date("2026-11-08T04:00:00Z"), ki: a7.ki as any }); // 05:00 MEZ, Vortag 07.11. leer
-    ok(!e7.faellig && e7.tag === "2026-11-07" && e7.fehlt.length === 2 && a7.log.themen === 0, "vor 06:00: keine KI, Vortag ohne Artikel wird gemeldet");
+    ok(!e7.faellig && e7.tag === "2026-11-07" && e7.fehlt.length === 1 && e7.fehlt[0] === "business" && a7.log.themen === 0, "vor 06:00: keine KI, Vortag ohne Business-Artikel wird gemeldet (E-531)");
     let g7 = ""; try { r.ratgeberLaufPruefen(e7); } catch (x: any) { g7 = String(x?.message); }
     ok(/2026-11-07/.test(g7), "… und als Fehler in der Historie (nicht „erfolg“)");
     const e8 = await r.tagesartikelLauf({ jetzt: new Date("2026-11-03T04:00:00Z"), ki: a7.ki as any }); // Vortag 02.11. erfüllt
@@ -303,7 +304,7 @@ async function main() {
   ok(/tageslauf\('ratgeber-tagesartikel',\s*async \(\) => await fiaonRatgeber\.ratgeberTageslaufStreng\(\)/.test(lies("server/routes.ts")), "der Takt ist registriert (REGISTRIERT) und meldet Fehlendes als Fehler");
   ok(r.RATGEBER_LAUF === "ratgeber-tagesartikel", "ein Name für Takt, Katalog und Redaktion");
   ok(/bereich=privat/.test(lies("client/src/pages/site/ratgeber.tsx")), "/ratgeber holt nur Privat");
-  ok(/bereich=business&sprache=de/.test(lies("client/src/pages/site/global-seite.tsx")) && /RedaktionAktuell/.test(lies("client/src/pages/site/global-seite.tsx")), "/business/wissen zeigt die neuesten Business-Artikel");
+  ok(/bereich=business&sprache=(?:de|\$\{sp\})/.test(lies("client/src/pages/site/global-seite.tsx")) && /RedaktionAktuell/.test(lies("client/src/pages/site/global-seite.tsx")), "/business/wissen zeigt die neuesten Business-Artikel");
   const art = lies("client/src/pages/site/ratgeber-artikel.tsx");
   // E-509 (12.11.2026): ein Produkt statt vier Pakete — der Weg führt zum Konfigurator (vorher: globalPaketePfad("de") → /#pakete, „Pakete ansehen“).
   ok(/globalStartPfad\(undefined, "de"\)/.test(art) && !/Pakete ansehen|vier Pakete/.test(art) && /\{!business && <LeseAufruf[^>]*\/>\}/.test(art), "Business-Artikel: Weg zu FIAON Global (Konfigurator), kein Privat-Aufruf");

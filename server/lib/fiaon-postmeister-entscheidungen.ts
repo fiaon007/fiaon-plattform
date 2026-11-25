@@ -18,6 +18,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { sqlPool } from "./db-pool";
+// E-531: die eine Regel für Adress-Warnsätze (rein, ohne Datenbank).
+import { adressWarnung } from "./fiaon-fall-akte";
 import {
   entscheidungAnlegen, entscheidungArt, werkzeugRegistrieren, detektorRegistrieren, ausfuehrErgebnis,
   type EntscheidungNeu, type EntscheidungBeleg,
@@ -88,7 +90,10 @@ export function karteAusZeile(z: any): EntscheidungNeu {
   const fall = entwurfFall(grund);
   const pruefung = json<{ fehlend?: string[] }>(z.pruefung, {});
   const maengel = Array.isArray(pruefung.fehlend) ? pruefung.fehlend.filter(Boolean).map(String) : [];
-  const vorsicht = fall === "widerruf" || fall === "rechtlich";
+  // E-531 (Gegenprüfung Runde 5/6): Adress-Warnsatz (fremde „Antwort-an“, Absender nicht gespeichert oder nicht eindeutig — EINE
+  // Regel: adressWarnung in fiaon-fall-akte.ts) — „Neu schreiben“ löst das nie (derselbe Kopf), also „Selbst antworten“, Senden mit Vorsicht.
+  const adressHinweis = maengel.some((m) => adressWarnung(m));
+  const vorsicht = fall === "widerruf" || fall === "rechtlich" || adressHinweis;
   const belege: EntscheidungBeleg[] = [
     ...(z.empfangen_am || z.created_at ? [{ text: `Mail vom ${tag(z.empfangen_am ?? z.created_at)}` }] : []),
     ...(z.kundenlage ? [{ text: String(z.kundenlage).replace(/_/g, " ") }] : []),
@@ -103,7 +108,7 @@ export function karteAusZeile(z: any): EntscheidungNeu {
     ref: z.ref ?? null,
     titel: TITEL[fall],
     text: `„${kurz(z.betreff || "(ohne Betreff)", 90)}“ — ${SATZ[fall]}${grund && fall === "unsicher" ? ` (${kurz(grund, 140)})` : ""}${fall === "ampel_gelb" && gelbKarteGrund(grund) ? ` (${kurz(gelbKarteGrund(grund), 140)})` : ""}${fall === "ampel" ? ` (${kurz(grund.replace(/^Ampel rot:\s*/, ""), 160)})` : ""}`,
-    empfehlung: maengel.length ? "neu" : "senden",
+    empfehlung: adressHinweis ? "selbst" : maengel.length ? "neu" : "senden",
     optionen: [
       { key: "senden", label: "Maras Antwort senden", werkzeug: "postmeister_entwurf_senden", args: { id }, ton: vorsicht ? "vorsicht" : "gut",
         titel: "Sendet Maras Antwort jetzt — vorher prüft die Plattform, ob sie noch stimmt." },

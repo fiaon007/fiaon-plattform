@@ -125,9 +125,21 @@ export function altenVermerkSuchen(z: { neuAngelegt: boolean; vermerkMerker: unk
 // sie hat nur keine gesendete Antwort in unserer Datenbank. Bisher kannte der Filter nur einen der Wege („vom
 // Menschen beantwortet“ in Gmail); „Nichts senden“ (E-371), „Verworfen“ (Zentrale), „Vom Betreuer übernommen“ und
 // die 24-Stunden-Ablage holte der Takt alle 20 Minuten wieder hervor — neuer Entwurf, neue Karte, neuer Vermerk.
-// Die Grund-Texte sind die, die diese Wege seit jeher schreiben (keiner davon wird umgetextet). Dazu die zwei
-// Fälle, in denen eine ANDERE Zeile die Antwort trägt (Doppelzustellung, Doppel E-248) — dort ist nichts offen.
+// Die Grund-Texte sind die, die diese Wege seit jeher schreiben (keiner davon wird umgetextet). Dazu die Fälle, in
+// denen eine ANDERE Zeile die Antwort trägt (Doppelzustellung, Doppel E-248, Bündeln E-369, Ablage E-531) — dort ist
+// nichts offen.
+//
+// E-531 Nachbesserung (Abnahme, 25.11.2026): Zwei Wege fehlten. (1) Die Ablage „je Adresse nur ein offener Entwurf der
+// Sendewand“ (Postmeister-Lauf) — der Takt holte die abgelegte Mail wieder hervor: voller KI-Lauf, neuer Entwurf, neue
+// Karte. (2) „Gebündelt“ (E-369) — eine Zeile, deren neuere Mail in einem ANDEREN Faden beantwortet war, wurde in
+// jedem Takt neu gelesen und wieder gebündelt (gemessen: über zwei Wochen alle 20 Minuten).
 // ═══════════════════════════════════════════════════════════════════════════
+/**
+ * E-531: Kopf der Ablage „je Adresse nur ein offener Entwurf der Sendewand“ (e531AeltereAblegen im Postmeister-Lauf).
+ * Eine NEUERE Mail derselben Adresse trägt den Fall. Steht hier, damit Text und Muster nie auseinanderlaufen.
+ */
+export const E531_ABLAGE_KOPF = "Nicht mehr nötig (E-531)";
+
 export const MENSCH_ERLEDIGT_MUSTER: readonly string[] = [
   "vom Menschen beantwortet%",          // Antwort von Hand in Gmail (mailBearbeiten 5b)
   "Nicht beantwortet — Entscheidung%",  // „Nichts senden“ auf der Entscheidungskarte (E-371)
@@ -136,6 +148,8 @@ export const MENSCH_ERLEDIGT_MUSTER: readonly string[] = [
   "Nicht mehr nötig (24-Stunden-Regel)%", // die 24-Stunden-Regel hat abgelegt (E-401 6/6)
   "Dieselbe Mail liegt auch in%",        // Doppelzustellung — die Schwesterzeile im anderen Postfach antwortet
   "Doppel von Mail #%",                  // derselbe Text noch einmal (E-248) — nur eine Antwort
+  `${E531_ABLAGE_KOPF}%`,               // E-531: je Adresse ein Wand-Entwurf — die neuere Mail trägt den Fall
+  "Gebündelt:%",                         // E-369: die Antwort auf die neuere Mail desselben Kunden trägt diese mit
 ];
 
 /** SQL-LIKE (nur % am Ende) als reine Prüfung — für den Prüfstand und für Code ohne Datenbank. */

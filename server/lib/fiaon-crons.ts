@@ -522,8 +522,8 @@ export const LAUF_FOLGEN: Record<string, { zweck: string; folge: string; fenster
     fenster: 3,
   },
   "ratgeber-tagesartikel": {
-    zweck: "Ratgeber: jeden Tag ab 06:00 je einen neuen, aktuellen Artikel für Privatkunden (/ratgeber) und Business (FIAON Global, /business/wissen) recherchieren, schreiben, streng prüfen und veröffentlichen",
-    folge: "Auf fiaon.com erscheinen keine neuen Ratgeber — weder für Privatkunden noch auf /business/wissen; die Seiten veralten, und der organische Kanal bekommt keinen Nachschub.",
+    zweck: "Ratgeber: jeden Tag ab 06:00 einen neuen, aktuellen Artikel für Business (FIAON Global, /business/wissen) recherchieren, schreiben, streng prüfen und veröffentlichen (Privat seit E-531 ohne Tagesartikel)",
+    folge: "Auf /business/wissen erscheinen keine neuen Ratgeber; die Seiten veralten, und der organische Kanal von FIAON Global bekommt keinen Nachschub.",
     fenster: 26,
   },
   // 17.09.2026 (E-188): „Mein Auftrag" von FIAON Global. Die Pakete sagen Pflichtenkalender und

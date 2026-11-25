@@ -22,7 +22,8 @@ import {
 import { einordnenMitMerker, antwortErzeugen, maraMailVermerk, antwortSprache, type Vorgeschichte } from "./fiaon-postmeister-agent";
 // E-401 (19.10.2026): eine Mail — eine Einordnung, ein Aktenvermerk.
 import { einordnungMerken, akteVermerkEinmal } from "./fiaon-postmeister-einmal";
-import { personSuchen, akteLesen } from "./fiaon-postmeister-dossier";
+// E-531 Abnahme (akte#0): absenderGehoertZurPerson — js@/Team und Auto-Versand nur von der bei der Person gespeicherten Adresse.
+import { personSuchen, akteLesen, absenderGehoertZurPerson } from "./fiaon-postmeister-dossier";
 import { anredeBestimmen, antwortBauen } from "./fiaon-postmeister-antworttext";
 import { postmeisterSchema } from "./fiaon-postmeister-schema";
 import { wirdBedient, POSTFAECHER } from "./fiaon-postmeister-postfaecher";
@@ -35,6 +36,18 @@ import { heikelArt } from "@shared/fiaon-auftrag-arten";
 import { kuendigungSendeUrteil } from "@shared/fiaon-wortverbote";
 // E-406 B3: die Ampel „Mails beantworten“ (grün/gelb/rot) — rein, eine Weiche vor dem Senden.
 import { mailDarfAuto, mailAmpelGrund, mailAmpelGelbKarteGrund } from "@shared/fiaon-mara-ampel";
+// E-531 (25.11.2026): Fall-Akte aus Gmail, keine Zeit-Zusagen, Schleifen-Bremse, Global-Weiche.
+import {
+  fallAkteMail, fallAkteBlock, berlinZeitText, adresseAus as fallAdresse, absenderAdresse, absenderEindeutig, entwurfTextLesen, entwurfUnveraendert,
+  antwortAnAndere, antwortAnArt, adressWarnung, gueltigeAdresse,
+  type FallAkte, type FallAkteGmail, type MaraSpur,
+} from "./fiaon-fall-akte";
+import { maraZeitZusage, bestehenderTermin, E531_UEBERGABE_SATZ } from "./fiaon-postmeister-werkzeuge";
+// E-531 Nachbesserung: js@/Team nur für einen geprüften Absender; „gemischt“ (bezahltes Stufenpaket) wie E-272.
+import { absenderEcht } from "@shared/fiaon-angaben-aendern";
+import { produktkategorieSql } from "@shared/fiaon-produktkategorie";
+// E-531 Abnahme (senden#0): der Kopf der Ablage „je Adresse ein Wand-Entwurf“ — derselbe Text wie im Muster des Rückstands-Takts.
+import { E531_ABLAGE_KOPF } from "@shared/fiaon-postmeister-merker";
 
 /**
  * E-272 (02.10.2026): Ist der Absender ein Kunde von FIAON Global? Dann geht seine Mail an den
@@ -213,7 +226,80 @@ export const UEBERGABE_GRUND = {
   kuendigung: "Kündigung angesprochen, aber nicht gebucht",
   // E-275 (02.10.2026): Kunde von FIAON Global — Mara antwortet ihm nicht automatisch, Justin übernimmt (E-272).
   global: "Kunde von FIAON Global",
+  // E-531 Abnahme (akte#0): erkannt über Nummer, Telefon oder Antwortkette, aber von einer Adresse, die bei der Person nicht
+  // gespeichert ist — vielleicht ein Dritter. Nie automatisch; ein Mensch prüft, wer schreibt („nur von Hand“).
+  fremderAbsender: "Absender ist nicht die bei der Person gespeicherte Adresse",
+  // E-531 (Abnahme Runde 3): „Antwort-an“ nennt eine Adresse, die weder der Absender ist noch bei der Person gespeichert —
+  // die Antwort ginge dorthin (vielleicht gefälschtes Von). Nie automatisch; ein Mensch prüft („nur von Hand“).
+  fremdeAntwortAn: "Antwort-an ist eine fremde Adresse (nicht beim Kunden gespeichert)",
 } as const;
+
+/**
+ * E-531 (Abnahme Runde 3 — Fund der Gegenprüfung, vorgezogen; fail-closed): Ginge eine Antwort laut „Antwort-an“ an eine
+ * Adresse, die weder der Absender ist noch bei der Person gespeichert ist? antwortSenden schreibt an „Antwort-an“ — mit
+ * gefälschtem Von (gespeicherte Adresse, Domain ohne strenges DMARC) und fremder Antwort-an ginge die Antwort samt Kundenlage
+ * an einen Dritten. Dann nie automatisch. Ohne Person oder bei einer Störung: ja (im Zweifel Entwurf).
+ * Gegenprüfung Runde 4 (hoch): Was keine EINZELNE gültige Adresse ist (der Rückfall „ganzer Kopf“ von antwortAnAndere), ist
+ * sofort fremd — absenderGehoertZurPerson nähme sonst aus „<kunde@x>, "boese"@y“ die erste <…>-Gruppe und sagte „gehört zu ihm“.
+ * `gehoert` nur für den Prüfstand (Attrappe statt Datenbank).
+ */
+export async function antwortAnFremd(antwortAn: unknown, von: unknown, personId: number | null | undefined,
+  gehoert: (adresse: string, personId: number) => Promise<boolean> = absenderGehoertZurPerson): Promise<boolean> {
+  // Schlussprüfung Runde 6: nur die Art zählt — „unklar“ ist immer fremd, „einzel“ nur, wenn bei der Person nicht gespeichert.
+  const a = antwortAnArt(antwortAn, von);
+  if (a.art === "leer" || a.art === "absender") return false;
+  if (a.art === "unklar" || !personId || !gueltigeAdresse(a.adresse)) return true;
+  return !(await gehoert(a.adresse, Number(personId)).catch(() => false));
+}
+
+/**
+ * E-531 (Gegenprüfung Runde 4/5, Schlussprüfung Runde 6): der Warnsatz für Karte und Postfach, wenn „Antwort-an“ fremd ist.
+ * Mit der fremden Adresse vorn (gekürzt — die Karte kürzt Belege auf 90 Zeichen) und dem, was „Senden“ hier tut: nur an die
+ * gespeicherte Absenderadresse, oder gesperrt (dann in Gmail). Rein.
+ */
+export function antwortAnMangel(antwortAn: unknown, von: unknown, vonGespeichert = false): string {
+  const wohin = antwortAnAndere(antwortAn, von).join(", ").replace(/[\r\n]+/g, " ").slice(0, 120);
+  return `E-531: Antwort-an fremd (${wohin}) — ${vonGespeichert ? "„Senden“ geht nur an die gespeicherte Adresse" : "„Senden“ hier gesperrt, in Gmail prüfen"}.`;
+}
+
+/**
+ * E-531 (Gegenprüfung Runde 5, Schlussprüfung Runde 6): der Warnsatz, wenn der Absender nicht die beim Kunden gespeicherte
+ * Adresse ist — oder nicht eindeutig (dann der ganze Kopf, nie nur die Kundenadresse aus dem Namen). „Senden“ ist dann hier
+ * gesperrt (handVersandZiel): ein Mensch prüft in Gmail, wer schreibt. Rein.
+ */
+export function absenderMangel(von: unknown): string {
+  const eindeutig = absenderEindeutig(von);
+  const wer = String((eindeutig && absenderAdresse(von)) || String(von ?? "")).replace(/[\r\n]+/g, " ").slice(0, 120);
+  return `E-531: Absender nicht ${eindeutig ? "gespeichert" : "eindeutig"} (${wer}) — „Senden“ hier gesperrt, erst in Gmail prüfen, wer schreibt.`;
+}
+
+/** E-531: Ist das ein Adress-Warnsatz (dann hilft „Neu schreiben“ nie — ein Mensch prüft)? Eine Regel, in fiaon-fall-akte.ts. */
+export { adressWarnung };
+
+/**
+ * E-531 (Gegenprüfung Runde 5, Schlussprüfung Runde 6): Wohin darf eine Antwort, die ein MENSCH über die Plattform freigibt
+ * (Zentrale, Karte, Postfach, „N markierte senden“, Betreuer-Office, Mara heute, älterer Freigabe-Weg)? Mit Person NIE an den
+ * rohen Kopf — immer an eine saubere, bei der Person gespeicherte Adresse, sonst gar nicht:
+ *   · „Antwort-an“ = eine saubere, gespeicherte Adresse → dorthin (Wunsch des Kunden);
+ *   · sonst der Absender, wenn er eindeutig und gespeichert ist (bei fremder Antwort-an mit Hinweis „umgeleitet“);
+ *   · sonst gesperrt — ein Mensch antwortet bewusst in Gmail (der Gmail-Entwurf hat dann keinen Empfänger).
+ * Ohne Person wie bisher (Antwort-an || Von). `gehoert` nur für den Prüfstand.
+ */
+export async function handVersandZiel(mail: { von?: unknown; antwortAn?: unknown }, personId: number | null | undefined,
+  gehoert: (adresse: string, personId: number) => Promise<boolean> = absenderGehoertZurPerson): Promise<{ an: string | null; sperre: string | null; hinweis: string | null }> {
+  if (!personId) return { an: null, sperre: null, hinweis: null };
+  const pid = Number(personId);
+  // Letzte Prüfung Runde 7 (klein): ZUERST der Absender — ist er nicht eindeutig und gespeichert, immer gesperrt (auch wenn die
+  // Antwort-an gespeichert wäre); so stimmt der Warnsatz „Senden hier gesperrt“ immer.
+  const von = absenderAdresse(mail.von);
+  if (!von || !absenderEindeutig(mail.von) || !(await gehoert(von, pid).catch(() => false))) {
+    return { an: null, sperre: "Der Absender ist nicht eindeutig die beim Kunden gespeicherte Adresse — hier geht nichts raus. Bitte in Gmail bewusst beantworten oder anrufen (Empfänger dort selbst prüfen — ein älterer Gmail-Entwurf kann noch an die fremde Adresse gerichtet sein); danach hier „Nichts senden“ (E-531).", hinweis: null };
+  }
+  const aa = antwortAnArt(mail.antwortAn, mail.von);
+  if (aa.art === "einzel" && gueltigeAdresse(aa.adresse) && await gehoert(aa.adresse, pid).catch(() => false)) return { an: aa.adresse, sperre: null, hinweis: null };
+  const umgeleitet = aa.art === "einzel" || aa.art === "unklar";
+  return { an: von, sperre: null, hinweis: umgeleitet ? `An die gespeicherte Adresse ${von} gesendet — „Antwort-an“ war eine fremde Adresse (E-531).` : null };
+}
 
 /**
  * Gründe, die allein eine ANTWORT verlangen (E-244, Nachbesserung 26.09.).
@@ -973,29 +1059,49 @@ async function buendelUrteil(ein: { id: number; personId: number | null; von: st
   );
 }
 
+/** Die Nachbar-Mails, wie sie in den Auftrag gehen (Verlauf, älteste zuerst) — und die IDs, deren Kundentext dort steht. */
+export interface NachbarMails { eintraege: { von: string; am: string; text: string }[]; ids: number[] }
+
+/**
+ * E-531 Gegenprüfung (B13): die Zeilen aus nachbarMails (neueste zuerst gelesen) als Verlauf, ÄLTESTE zuerst. `ids` nennt
+ * nur Zeilen, deren Kundentext wirklich im Auftrag steht — nur sie darf e531AeltereAblegen aus einem anderen Faden ablegen.
+ * Die Namen der Einträge bleiben (der Agent erkennt Nachbar-Mails daran). Rein.
+ */
+export function nachbarEintraege(zeilenNeuesteZuerst: readonly any[]): NachbarMails {
+  const eintraege: NachbarMails["eintraege"] = [];
+  const ids: number[] = [];
+  for (const z of [...(zeilenNeuesteZuerst ?? [])].reverse()) {
+    if (!z) continue;
+    const am = new Date(z.am).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    if (z.text) {
+      eintraege.push({ von: "Kunde (andere Mail von ihm, anderer Faden)", am, text: String(z.text).slice(0, 1500) });
+      const id = Number(z.id);
+      if (Number.isFinite(id) && id > 0) ids.push(id);
+    }
+    if (z.antwort && (z.gesendet_am || z.aktion === "auto_beantwortet")) {
+      eintraege.push({ von: "FIAON (unsere Antwort darauf — er hat sie bekommen)", am, text: String(z.antwort).slice(0, 1500) });
+    }
+  }
+  return { eintraege, ids };
+}
+
 /**
  * Die anderen Mails desselben Kunden aus den letzten drei Tagen, die NICHT in
  * diesem Faden stehen (E-248). Schreibt jemand in drei Fäden kurz hintereinander,
  * sieht Mara alle drei und was sie darauf schon geantwortet hat — eine Antwort,
  * die an die vorige anknüpft, statt dreimal von vorn.
+ * E-531 Gegenprüfung (B13): die 8 NEUESTEN (vorher die 8 ältesten — bei Vielschreibern fehlte gerade die jüngste ältere
+ * Mail), im Auftrag weiter älteste zuerst; dazu die IDs, die wirklich im Auftrag stehen. Bei einer Störung: nichts.
  */
-async function nachbarMails(personId: number | null, id: number, threadId: string): Promise<{ von: string; am: string; text: string }[]> {
-  if (personId == null) return [];
+async function nachbarMails(personId: number | null, id: number, threadId: string): Promise<NachbarMails> {
+  if (personId == null) return { eintraege: [], ids: [] };
   const zeilen = (await sqlPool`
-    SELECT text, antwort, gesendet_am, aktion, COALESCE(empfangen_am, created_at) AS am
+    SELECT id, text, antwort, gesendet_am, aktion, COALESCE(empfangen_am, created_at) AS am
       FROM fiaon_postmeister
      WHERE person_id = ${personId} AND id <> ${id} AND COALESCE(thread_id, '') <> ${threadId || "-"}
        AND aktion NOT IN ('ignoriert') AND COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '3 days'
-     ORDER BY COALESCE(empfangen_am, created_at) ASC LIMIT 8`.catch(() => [])) as any[];
-  const aus: { von: string; am: string; text: string }[] = [];
-  for (const z of zeilen) {
-    const am = new Date(z.am).toLocaleString("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    if (z.text) aus.push({ von: "Kunde (andere Mail von ihm, anderer Faden)", am, text: String(z.text).slice(0, 1500) });
-    if (z.antwort && (z.gesendet_am || z.aktion === "auto_beantwortet")) {
-      aus.push({ von: "FIAON (unsere Antwort darauf — er hat sie bekommen)", am, text: String(z.antwort).slice(0, 1500) });
-    }
-  }
-  return aus;
+     ORDER BY COALESCE(empfangen_am, created_at) DESC LIMIT 8`.catch(() => [])) as any[];
+  return nachbarEintraege(zeilen);
 }
 
 /**
@@ -1043,6 +1149,511 @@ export async function schonGetan(postmeisterId: number): Promise<{ werkzeug: str
   return handlungenFlach(z?.handlungen)
     .filter((h: any) => h && typeof h.werkzeug === "string" && h.ok !== false)
     .map((h: any) => ({ werkzeug: String(h.werkzeug), ergebnis: String(h.ergebnis ?? "").slice(0, 300) }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// E-531 (25.11.2026) — MARA-NEUBAU STUFE 1 IM POSTFACH
+//
+// Justin (25.11.): Mara soll Zusammenhänge kennen wie ein guter Mitarbeiter, keine falschen Zusagen machen und Arbeit
+// abnehmen statt machen. Audit 26.10.–24.11. (welcome@/support@): viele Auto-Mails mit „X meldet sich heute“, fast keine
+// davon gehalten; Widerspruch zu Briefen der Geschäftsleitung im selben Faden; einzelne Menschen bekamen in wenigen Tagen
+// sehr viele Auto-Mails; Global-Kunden mit Privat-Wissen beantwortet (Zahlen im Register E-531). Hier vier Bausteine:
+//   1. GLOBAL-WEICHE vor der KI (wie E-350): keine KI-Antwort, Ordner „FIAON/Global von Hand“, EINE Aufgabe je Faden.
+//   2. FALL-AKTE (fiaon-fall-akte.ts): der ganze Gmail-Faden, js@, Team — fiaon_postmeister nur noch als Rückfall.
+//   3. KEINE ZEIT-ZUSAGEN: maraZeitZusage vor JEDEM automatischen Versand — Treffer → Entwurf + Karte.
+//   4. SCHLEIFEN-BREMSE: ab der dritten automatischen Antwort in 7 Tagen an dieselbe Adresse → Entwurf + Karte.
+// Die Entscheidungen sind rein (globalWeicheUrteil, schleifenBremseUrteil) — scripts/pruef-mara-e531.ts rechnet nach.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Eine Spur „dieser Absender gehört zu FIAON Global“ — aus Auftrag, Angebot/Partnervertrag oder der Akte (E-272). */
+export interface GlobalSpur { quelle: "auftrag" | "angebot" | "person"; fassung?: string | null; status?: string | null; test?: boolean }
+
+/** Die Art eines Global-Angebots aus seiner Fassung (IA-KAPITAL-…, IA-KOOP-EMPFEHLUNG-…). Rein. */
+export function globalAngebotArt(fassung: string | null | undefined): string {
+  const f = String(fassung ?? "").trim().toUpperCase();
+  if (f.startsWith("IA-KOOP-EMPFEHLUNG")) return "Empfehlungs-Partnervertrag";
+  if (f.startsWith("IA-KOOP")) return "Kooperations-Partnervertrag";
+  if (f.startsWith("IA-KAPITAL")) return "Kapital-Angebot";
+  if (f.startsWith("IA-FIRMA")) return "Firmenangebot";
+  if (f.startsWith("IA-BEGLEIT")) return "Begleitvertrag";
+  return "Global-Angebot";
+}
+
+/**
+ * E-531: Ist der Absender ein Global-Kunde? Ja bei einem Global-Auftrag (Testakten zählen nicht), bei jedem Angebot oder
+ * Partnervertrag in fiaon_global_angebote (jeder Status — ein Nein macht keinen Privatkunden, E-272) und bei einer
+ * Person, die laut Akte Global-Kunde ist. Rein — die Spuren liest globalSpurenLesen.
+ * E-531 Nachbesserung (Gutachten Richtigkeit): AUSNAHME „gemischt“ wie E-272/E-476 — hat er ein BEZAHLTES Stufenpaket
+ * (und keinen angenommenen Begleitvertrag), bleibt er Privatkunde: Mara antwortet wie bisher (Kündigung, Rate, Karte),
+ * dieselbe Regel wie auf WhatsApp (globalKundeWa). Dann zählen auch Adress-Spuren aus Angebot oder Auftrag nicht.
+ */
+export function globalWeicheUrteil(spuren: GlobalSpur[] | null | undefined, opt: { gemischt?: boolean } = {}): { global: boolean; grund: string } {
+  if (opt.gemischt) return { global: false, grund: "" };
+  const gruende: string[] = [];
+  for (const s of spuren ?? []) {
+    if (!s) continue;
+    const status = s.status ? ` (${String(s.status).slice(0, 30)})` : "";
+    const grund = s.quelle === "auftrag" ? (s.test ? "" : `Global-Auftrag${status}`)
+      : s.quelle === "angebot" ? `${globalAngebotArt(s.fassung)}${status}`
+      : s.quelle === "person" ? "Global-Kunde laut Akte (E-272)" : "";
+    if (grund && !gruende.includes(grund)) gruende.push(grund);
+  }
+  return gruende.length ? { global: true, grund: gruende.slice(0, 3).join(", ") } : { global: false, grund: "" };
+}
+
+/** Der Schlüssel der EINEN offenen Aufgabe je Gmail-Faden (E-531). Ohne Faden: je Mail. Rein. */
+export function globalWeicheSchluessel(threadId: string | null | undefined, mailId: number): string {
+  const t = String(threadId ?? "").trim();
+  return t ? `postmeister:${t}:global` : `postmeister:mail:${Number(mailId)}:global`;
+}
+
+/** Der Aufgabentext der Global-Weiche: wer, wann, Betreff und die ersten 300 Zeichen seiner Mail. Rein. */
+export function globalAufgabeText(ein: { id: number; postfach: string; von: string; betreff: string; text: string; grund: string; am?: Date | null }): string {
+  const auszug = String(ein.text ?? "").replace(/\s+/g, " ").trim();
+  return [
+    `Postfach ${ein.postfach}, von ${String(ein.von || "(unbekannt)").slice(0, 120)}, ${berlinZeitText(ein.am ?? null)}.`,
+    `Betreff: „${String(ein.betreff || "(ohne Betreff)").slice(0, 160)}“`,
+    `„${auszug.slice(0, 300)}${auszug.length > 300 ? " …" : ""}“`,
+    `Global-Kunde (${ein.grund}) — Mara antwortet NICHT (E-531): keine KI-Antwort, kein Entwurf. Bitte von Hand antworten; die Mail liegt ungelesen im Posteingang (Ordner „FIAON/Global von Hand“). [Mail #${ein.id}]`,
+  ].join("\n");
+}
+
+/**
+ * Die Global-Spuren eines Absenders (Adresse und Antwort-an) und der gefundenen Person. Spalten wie in der Produktion
+ * (gelesen 25.11.): fiaon_global_auftraege.email/status/ist_test_am, fiaon_global_angebote.kunde->>'email'/fassung/status.
+ * ist_test_am legt erst die Laufzeit an — darum über to_jsonb gelesen (fehlt die Spalte, ist es kein Test). Wirft bei
+ * einer Störung: Die Zeile geht auf „fehler“ und wird später neu geprüft — nie „im Zweifel antworten“ (Muster E-350).
+ * E-531 Nachbesserung: dazu „gemischt“ (E-272/E-476) — ein bezahltes Stufenpaket der Person oder unter seiner Adresse,
+ * ohne angenommenen Begleitvertrag (E-384). Dieselbe Kategorie-Regel wie globalKundeSql (produktkategorieSql = 'konto').
+ */
+async function globalSpurenLesen(adressen: string[], personId: number | null): Promise<{ spuren: GlobalSpur[]; gemischt: boolean }> {
+  const liste = Array.from(new Set(adressen.map((a) => String(a || "").trim().toLowerCase())))
+    .filter((a) => /^[^\s@<>]+@[^\s@<>]+$/.test(a) && !a.endsWith("@fiaon.com"));
+  const spuren: GlobalSpur[] = [];
+  const pid = personId != null && Number(personId) > 0 ? Number(personId) : null;
+  let gemischt = false;
+  if (!liste.length && !pid) return { spuren, gemischt };
+  const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_global_angebote') AS angebote, to_regclass('public.fiaon_global_auftraege') AS akten`) as any[];
+  {
+    // Bezahltes Stufenpaket (Person oder Adresse) — dann entscheidet die Privat-Regel, nicht die Adress-Spur.
+    const [b] = (await sqlPool.unsafe(`
+      SELECT EXISTS (
+               SELECT 1 FROM fiaon_applications a
+                WHERE (a.person_id = $1::int OR LOWER(TRIM(COALESCE(a.email, ''))) = ANY($2::text[]))
+                  AND a.merged_into IS NULL AND a.payment_status = 'paid' AND NOT COALESCE(a.ist_entwurf, FALSE)
+                  AND a.gdpr_deleted_at IS NULL AND ${produktkategorieSql("a")} = 'konto') AS bezahlt,
+             ${t?.angebote ? `EXISTS (
+               SELECT 1 FROM fiaon_global_angebote g
+                WHERE g.status = 'angenommen' AND g.fassung LIKE 'IA-BEGLEIT-%'
+                  AND (g.person_id = $1::int OR LOWER(TRIM(COALESCE(g.kunde->>'email', CASE WHEN jsonb_typeof(g.kunde) = 'string' THEN (g.kunde #>> '{}')::jsonb ->> 'email' END, ''))) = ANY($2::text[])))` : "FALSE"} AS begleit`,
+      [pid, liste])) as any[];
+    gemischt = b?.bezahlt === true && b?.begleit !== true;
+    if (gemischt) return { spuren, gemischt };
+  }
+  if (liste.length) {
+    if (t?.akten) {
+      const zeilen = (await sqlPool`
+        SELECT g.status, (to_jsonb(g) ->> 'ist_test_am') IS NOT NULL AS test
+          FROM fiaon_global_auftraege g
+         WHERE LOWER(TRIM(COALESCE(g.email, ''))) = ANY(${liste}::text[])
+         ORDER BY g.id DESC LIMIT 5`) as any[];
+      for (const z of zeilen) spuren.push({ quelle: "auftrag", status: z.status ?? null, test: !!z.test });
+    }
+    if (t?.angebote) {
+      const zeilen = (await sqlPool`
+        SELECT a.fassung, a.status FROM fiaon_global_angebote a
+         WHERE LOWER(TRIM(COALESCE(a.kunde->>'email', CASE WHEN jsonb_typeof(a.kunde) = 'string' THEN (a.kunde #>> '{}')::jsonb ->> 'email' END, ''))) = ANY(${liste}::text[])
+         ORDER BY a.id DESC LIMIT 5`) as any[];
+      for (const z of zeilen) spuren.push({ quelle: "angebot", fassung: z.fassung ?? null, status: z.status ?? null });
+    }
+  }
+  if (!globalWeicheUrteil(spuren).global && personId != null && Number(personId) > 0 && await istGlobalKunde(Number(personId))) {
+    spuren.push({ quelle: "person" });
+  }
+  return { spuren, gemischt };
+}
+
+/** Die EINE Aufgabe je Faden für Justin (Board des Betreibers). Wie E-350: scheitert sie, bleibt die Mail trotzdem liegen. */
+async function globalAufgabeAnlegen(ein: { id: number; postfach: string; mail: GmailNachricht; text: string; grund: string; personId: number | null; ref: string | null }): Promise<void> {
+  try {
+    const { auftragFuerKunden } = await import("../routes/fiaon-betreiber-todo");
+    const a = await auftragFuerKunden({
+      personId: ein.personId, ref: ein.ref, anBetreiber: true, dringend: true,
+      titel: `Global-Kunde schreibt: „${String(ein.mail.betreff || "(ohne Betreff)").slice(0, 100)}“`,
+      text: globalAufgabeText({ id: ein.id, postfach: ein.postfach, von: ein.mail.von, betreff: ein.mail.betreff, text: ein.text, grund: ein.grund, am: ein.mail.datum }),
+      schluessel: globalWeicheSchluessel(ein.mail.threadId, ein.id),
+      quelle: "postmeister", autorName: "Mara", link: `/chef/s/postmeister?eintrag=${ein.id}`,
+    });
+    await wiederOffenBereinigen(a.id);
+  } catch (e) {
+    console.error("[POSTMEISTER] Aufgabe Global-Kunde (E-531):", String(e).slice(0, 160));
+  }
+}
+
+/**
+ * E-531: Die Fall-Akte dieser Mail. Maras eigene Antworten im Faden erkennt die Akte an Zeit und Text aus
+ * fiaon_postmeister (die Gmail-ID der gesendeten Antwort steht dort nicht). Wirft nie.
+ * E-531 Nachbesserung (Gutachten Richtigkeit/Kundensicherheit):
+ *   · automatische Mails der Mara-Aktion im selben Faden an ihrer Gmail-ID (fiaon_mara_aktion.gmail_id/thread_id) und
+ *     andere automatische Mara-Mails (Kündigungsbestätigung) an ihrem Absendernamen — nie „WIR (Mensch)“;
+ *   · js@ und die Team-Postfächer NUR für einen bekannten Kunden (Person gefunden) mit geprüftem Absender (absenderEcht:
+ *     SPF/DKIM/DMARC bestanden, keine fremde Antwort-an) — dazu seine Adresse aus der Akte.
+ * E-531 Abnahme (Gegenprüfung akte#0, senden#1, akte#1):
+ *   · js@/Team zusätzlich nur, wenn die Absenderadresse bei der erkannten Person gespeichert ist (`eigenerAbsender`, vom Lauf
+ *     mit absenderGehoertZurPerson gerechnet). personSuchen erkennt eine Person auch über Rechnungsnummer, Telefon oder
+ *     Antwortkette — ein Dritter mit eigener, echter Adresse bekäme sonst die Briefe der Geschäftsleitung an sie.
+ *   · alle gespeicherten Adressen der Person (Person, Bestellungen) für Suche und Empfänger-Filter; die Antwort-an-Adresse
+ *     für den Faden (dorthin gingen unsere Antworten).
+ *   · scheitert eine Datenbank-Spur, ist die Akte unvollständig (`lesefehler`): Maras eigene Antworten gälten sonst als
+ *     Brief eines Menschen. Wirft weiter nie. `gmail` nur für den Prüfstand.
+ */
+export async function fallAkteLesen(postfach: string, mail: GmailNachricht, wer: { personId: number | null; eigenerAbsender: boolean },
+  gmail?: FallAkteGmail): Promise<FallAkte> {
+  let maraSpuren: MaraSpur[] = [];
+  let eigeneAntwortIds: string[] = [];
+  const dbLuecken: string[] = [];
+  if (mail.threadId) {
+    try {
+      const zeilen = (await sqlPool`
+        SELECT gesendet_am, antwort, aktion FROM fiaon_postmeister
+         WHERE thread_id = ${mail.threadId} AND LOWER(postfach) = ${String(postfach).toLowerCase()}
+           AND gesendet_am IS NOT NULL AND aktion IN ('auto_beantwortet', 'gesendet')
+         ORDER BY gesendet_am ASC LIMIT 80`) as any[];
+      maraSpuren = zeilen.map((z) => ({ am: z.gesendet_am ? new Date(z.gesendet_am) : null, text: z.antwort ?? null, freigegeben: String(z.aktion) === "gesendet" }));
+    } catch (e) {
+      console.warn("[POSTMEISTER] Fall-Akte: Mara-Antworten nicht lesbar:", String((e as any)?.message || e).slice(0, 160));
+      dbLuecken.push("Mara-Antworten (Datenbank)");
+    }
+    try {
+      const aktion = (await sqlPool`
+        SELECT gmail_id FROM fiaon_mara_aktion
+         WHERE thread_id = ${mail.threadId} AND status = 'gesendet' AND COALESCE(gmail_id, '') <> '' LIMIT 40`) as any[];
+      eigeneAntwortIds = aktion.map((z) => String(z.gmail_id)).filter(Boolean);
+    } catch (e) {
+      console.warn("[POSTMEISTER] Fall-Akte: Mara-Aktion nicht lesbar:", String((e as any)?.message || e).slice(0, 160));
+      dbLuecken.push("Mara-Aktion (Datenbank)");
+    }
+  }
+  const { agentNamen } = await import("./fiaon-postmeister-agent");
+  const maraNamen = [(await agentNamen().catch(() => null))?.voll].filter((n): n is string => !!n);
+  const gmailSuche = !!wer.personId && absenderEcht({ authErgebnis: mail.authErgebnis ?? null, von: mail.von, antwortAn: mail.antwortAn ?? null }).echt
+    && wer.eigenerAbsender === true;
+  let kundenAdressen: string[] = [];
+  if (gmailSuche) {
+    try {
+      const pid = Number(wer.personId);
+      const zeilen = (await sqlPool`
+        SELECT a FROM (
+          SELECT p.primary_email AS a, 0 AS o FROM fiaon_persons p WHERE p.id = ${pid} OR p.merged_into_person_id = ${pid}
+          UNION ALL
+          SELECT unnest(ARRAY[ap.email, ap.contact_email, ap.billing_email]) AS a, 1 AS o FROM fiaon_applications ap
+           WHERE ap.gdpr_deleted_at IS NULL
+             AND (ap.person_id = ${pid} OR ap.person_id IN (SELECT d.id FROM fiaon_persons d WHERE d.merged_into_person_id = ${pid}))
+        ) q WHERE COALESCE(q.a, '') LIKE '%@%' ORDER BY q.o ASC LIMIT 12`) as any[];
+      kundenAdressen = Array.from(new Set(zeilen.map((z) => fallAdresse(z.a ?? "")).filter(Boolean)));
+    } catch (e) {
+      console.warn("[POSTMEISTER] Fall-Akte: gespeicherte Adressen nicht lesbar:", String((e as any)?.message || e).slice(0, 160));
+      dbLuecken.push("gespeicherte Adressen (Datenbank)");
+    }
+  }
+  const akte = await fallAkteMail({
+    postfach, threadId: mail.threadId, kundenEmail: mail.von || mail.vonAdresse, kundenAdressen, maraSpuren, eigeneAntwortIds, maraNamen,
+    ohneId: mail.id, gmailSuche, antwortAn: mail.antwortAn ?? null,
+  }, gmail);
+  if (dbLuecken.length) {
+    akte.lesefehler = [...dbLuecken, ...(akte.lesefehler ?? [])];
+    akte.hinweise.push(`Datenbank nicht lesbar (${dbLuecken.join(", ")}) — eigene frühere Antworten stehen darum vielleicht als „Mensch“ da.`);
+  }
+  return akte;
+}
+
+/** E-531: Ab der dritten automatischen Antwort in 7 Tagen an dieselbe Adresse (also wenn schon 2 draußen sind) ein Mensch. */
+export const SCHLEIFE_AUTO_GRENZE = 2;
+
+/** Schleifen-Bremse: Darf die nächste automatische Antwort an diese Adresse noch raus? Rein. */
+export function schleifenBremseUrteil(z: { autoAntworten7Tage: number; kundenMails7Tage?: number | null }): { bremsen: boolean; n: number; grund: string | null } {
+  const auto = Math.max(0, Math.floor(Number(z?.autoAntworten7Tage) || 0));
+  if (auto < SCHLEIFE_AUTO_GRENZE) return { bremsen: false, n: auto + 1, grund: null };
+  const n = Math.max(auto + 1, Math.floor(Number(z?.kundenMails7Tage) || 0));
+  return { bremsen: true, n, grund: `Kunde schreibt zum ${n}. Mal in 7 Tagen – bitte ein Mensch (E-531 Schleifen-Bremse: schon ${auto} automatische Antworten an diese Adresse)` };
+}
+
+/**
+ * E-531 Nachbesserung (Gutachten Kundensicherheit): Bestätigt die Antwort, was ein Werkzeug GERADE gebucht oder gefunden hat
+ * — und sonst bestätigt es niemand? Dann bremst die Schleife nicht (die Zeit-Wand gilt weiter): Storno einer unbezahlten
+ * Bestellung, sofort beendeter Vertrag, eine neue Kündigung ohne Hausbestätigung (fiaon-kuendigung-nachholen bestätigt nur
+ * mit offenen Raten), die gemeldete Zahlung im Bankbuch gefunden. Rein.
+ */
+export function e531NurBestaetigung(werkzeugDaten: Record<string, any> | null | undefined): boolean {
+  return e531BestaetigungsArt(werkzeugDaten) !== null;
+}
+
+/** E-531 Abnahme (senden#2): welche Ausnahme von der Schleifen-Bremse trägt die Antwort? */
+export type E531Ausnahme = "kuendigung" | "zahlung";
+
+/**
+ * E-531 Abnahme (senden#2): Die Art der Bestätigung (wie e531NurBestaetigung). „kuendigung“ = ein Storno oder Vertragsende,
+ * das ein Werkzeug GERADE gebucht hat (geschieht je Vertrag einmal); „zahlung“ = zahlung_suchen fand seinen Eingang (kann
+ * sich bei jeder Mail wiederholen — darum zählt e531AusnahmeGilt mit). Rein.
+ */
+export function e531BestaetigungsArt(werkzeugDaten: Record<string, any> | null | undefined): E531Ausnahme | null {
+  const k = werkzeugDaten?.kuendigung_vormerken;
+  if (k && typeof k === "object") {
+    const weg = String(k.weg ?? "");
+    const neu = ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort", "letzte_rate", "laufzeit_ende"].includes(weg)
+      || (weg === "bereits" && k.in_diesem_vorgang_vorgemerkt === true);
+    if (neu && k.bestaetigung_gesendet !== true) return "kuendigung";
+  }
+  const z = werkzeugDaten?.zahlung_suchen;
+  if (z && typeof z === "object" && ["gebucht", "unterwegs", "gefunden"].includes(String(z.art ?? ""))
+    && !(Array.isArray(z.ohneEingang) && z.ohneEingang.length)) return "zahlung";
+  return null;
+}
+
+/**
+ * E-531 Abnahme (senden#2): Gilt die Ausnahme hier? Kündigung: ja (ein Ereignis). Zahlungsfund: höchstens EINMAL je Adresse
+ * in 7 Tagen — nur, wenn noch keine Auto-Antwort an sie einen Zahlungsfund trug. Sonst bestätigte Mara denselben Fund Tag
+ * für Tag („Warum noch Mahnung?“), während die Karte „Geld eingegangen“ auf einen Klick wartet. Unbekannte Zahl: nein. Rein.
+ */
+export function e531AusnahmeGilt(art: E531Ausnahme | null | undefined, z: { zahlungFunde7Tage?: number | null } | null | undefined): boolean {
+  if (art === "kuendigung") return true;
+  if (art !== "zahlung") return false;
+  const n = Number(z?.zahlungFunde7Tage);
+  return Number.isFinite(n) && n <= 0;
+}
+
+/**
+ * Dasselbe für das Nachholen eines gescheiterten Versands — dort stehen nur die Handlungen der Zeile (Werkzeug, Ergebnis).
+ * Grob und vorsichtig: ein gebuchter Storno bzw. ein beendeter Vertrag (Satz aus kuendigungSatz). Rein.
+ */
+export function e531NurBestaetigungAusHandlungen(handlungen: unknown): boolean {
+  const liste = Array.isArray(handlungen) ? handlungen : [];
+  return liste.some((h: any) => {
+    const t = String(h?.ergebnis ?? "");
+    return !!h && h.ok !== false && String(h.werkzeug ?? "") === "kuendigung_vormerken" && !/lag bereits vor/i.test(t)
+      && /Bestellung wurde storniert|Vertrag ist beendet|offene Raten entfallen|Raten für die Zeit danach entfallen/i.test(t);
+  });
+}
+
+/** E-531 Nachbesserung: ein Entwurf, den die Schleifen-Bremse angehalten hat (Begründung der Sendewand). Rein. */
+export function e531SchleifenEntwurf(begruendung: string | null | undefined): boolean {
+  return /\(E-531 Schleifen-Bremse|^Schleifen-Bremse nicht prüfbar/.test(String(begruendung ?? ""));
+}
+
+/** E-531 Abnahme (senden#1): der Grund, wenn der Fall-Akte eine Quelle fehlt — Entwurf + Karte statt Versand. */
+export const E531_AKTE_UNVOLLSTAENDIG = "Fall-Akte unvollständig – nicht automatisch gesendet (E-531)";
+
+/**
+ * E-531 Abnahme (senden#1): Fehlt der Fall-Akte eine Quelle (Gmail-Faden, js@, Team-Postfach, Datenbank, Zeitbudget), geht
+ * nichts automatisch hinaus — sonst widerspräche Mara einem Brief, den sie nur nicht lesen konnte (genau der Fall des
+ * Audits). Ein bewusst nicht gelesenes js@ (kein bekannter Kunde) steht nicht in `lesefehler`. Rein.
+ * E-531 Gegenprüfung (akte#1): ebenso, wenn im Faden ein Brief von uns an eine andere externe Adresse steht (er fehlt in
+ * der Akte, fiaon-fall-akte.ts E531_FREMD_ADRESSIERT).
+ */
+export function e531AkteWand(lesefehler: readonly (string | null | undefined)[] | null | undefined): { grund: string; mangel: string } | null {
+  const l = (lesefehler ?? []).map((x) => String(x ?? "").trim()).filter(Boolean);
+  if (!l.length) return null;
+  return {
+    grund: E531_AKTE_UNVOLLSTAENDIG,
+    mangel: `E-531 Fall-Akte unvollständig (${l.join(", ").slice(0, 160)}) — vor dem Senden selbst nachsehen, was wir ihm geschrieben haben`,
+  };
+}
+
+/** Ein Entwurf der Sendewand (Schleife, Zeit-Zusage oder unvollständige Fall-Akte) — je Adresse soll nur EINER offen sein. Rein. */
+export function e531WandEntwurf(begruendung: string | null | undefined): boolean {
+  const b = String(begruendung ?? "");
+  return e531SchleifenEntwurf(b) || /^Zeit-Zusage im Text ohne Kalendertermin/.test(b) || b.startsWith(E531_AKTE_UNVOLLSTAENDIG);
+}
+
+/**
+ * E-531 Nachbesserung (Gutachten Kosten): Hält die Schleifen-Bremse für diese Zeile noch an? Für die 24-Stunden-Regel
+ * (fiaon-postmeister-frist.ts): Solange sie bremst, wird der Entwurf NICHT neu geschrieben — ein voller KI-Lauf, der
+ * wieder gebremst würde, nur mit neuem Entwurf und springender Karte. Lässt sie nach (die alten Auto-Antworten fallen aus
+ * den 7 Tagen), schreibt die Regel wie sonst neu. Im Zweifel (nicht lesbar): bremst noch — der nächste Lauf prüft wieder.
+ */
+export async function schleifeBremstNoch(id: number): Promise<boolean> {
+  try {
+    const [z] = (await sqlPool`SELECT von FROM fiaon_postmeister WHERE id = ${Number(id)}`) as any[];
+    const adresse = fallAdresse(z?.von ?? "");
+    if (!adresse) return false;
+    return schleifenBremseUrteil(await schleifeZaehlen(Number(id), [adresse])).bremsen;
+  } catch (e) {
+    console.warn("[POSTMEISTER] Schleifen-Bremse (24-Stunden-Regel) nicht prüfbar:", String((e as any)?.message || e).slice(0, 160));
+    return true;
+  }
+}
+
+/** E-531 Abnahme (senden#4): ältere Wand-Entwürfe nur bis so weit vor der neuen Mail ablegen. */
+export const E531_ABLAGE_FENSTER_MS = 7 * 86_400_000;
+/** So weit zurück sieht die neue Antwort Mails derselben Person aus ANDEREN Fäden (nachbarMails: drei Tage). */
+const NACHBAR_FENSTER_MS = 3 * 86_400_000;
+
+/** E-531 Abnahme (senden#0): die Begründung der Ablage — ihr Kopf steht im Muster des Rückstands-Takts (MENSCH_ERLEDIGT_MUSTER). Rein. */
+export function e531AblageBegruendung(neueMailId: number): string {
+  return `${E531_ABLAGE_KOPF}: Seine neuere Mail #${Number(neueMailId)} trägt den Fall — je Adresse nur ein offener Entwurf`;
+}
+
+/**
+ * E-531 Abnahme (Gegenprüfung senden#4): Darf dieser ältere Entwurf abgelegt werden? Nur ein Wand-Entwurf, nur höchstens
+ * 7 Tage vor der neuen Mail — und nur, wenn die neue Antwort ihn kannte: derselbe Gmail-Faden (er steht in ihrer
+ * Fall-Akte) oder dieselbe bekannte Person mit der alten Mail in den letzten drei Tagen (Nachbar-Mail). Sonst bliebe ein
+ * anderes Anliegen in einem anderen Faden ohne Antwort; dann entscheidet wie bisher die 24-Stunden-Regel. Rein.
+ * E-531 Gegenprüfung (B13): Aus einem ANDEREN Faden nur, wenn nachbarMails genau diese Zeile in den Auftrag gegeben hat
+ * (ihre ID steht in `nachbarIds`) — bei Vielschreibern fehlen ältere Zeilen dort. Ohne IDs (Nachholen: welche Nachbarn der
+ * gespeicherte Text sah, ist unbekannt) nie.
+ */
+export function e531AblageErlaubt(
+  alt: { id?: number | null; begruendung: string | null | undefined; am: number; threadId: string | null | undefined; personId: number | null | undefined },
+  neu: { am: number; threadId: string | null | undefined; personId: number | null | undefined; jetzt?: number; nachbarIds?: readonly number[] | null },
+): boolean {
+  if (!e531WandEntwurf(alt.begruendung)) return false;
+  if (!Number.isFinite(alt.am) || !Number.isFinite(neu.am) || alt.am >= neu.am || neu.am - alt.am > E531_ABLAGE_FENSTER_MS) return false;
+  const fadenAlt = String(alt.threadId ?? "").trim();
+  if (fadenAlt && fadenAlt === String(neu.threadId ?? "").trim()) return true;
+  const altId = alt.id == null ? NaN : Number(alt.id);
+  const imAuftrag = Number.isFinite(altId) && altId > 0 && (neu.nachbarIds ?? []).some((x) => Number(x) === altId);
+  if (!imAuftrag) return false;
+  const jetzt = Number.isFinite(Number(neu.jetzt)) ? Number(neu.jetzt) : Date.now();
+  return neu.personId != null && alt.personId != null && Number(alt.personId) === Number(neu.personId) && jetzt - alt.am <= NACHBAR_FENSTER_MS;
+}
+
+/** Gmail-Ordner umhängen: „Entwurf wartet“ → „Nicht mehr nötig“ (wie die 24-Stunden-Regel). Nur Ablage — scheitert es, bleibt alles andere. */
+async function ordnerNichtMehrNoetig(postfach: string, gmailId: string): Promise<void> {
+  try {
+    const alt = await labelSicherstellen(postfach, "FIAON/Entwurf wartet");
+    await ablegen(postfach, gmailId, "FIAON/Nicht mehr nötig", [alt]);
+  } catch (e) {
+    console.warn(`[POSTMEISTER] E-531: Ordner für ${postfach}/${gmailId} nicht umgehängt:`, String((e as any)?.message || e).slice(0, 120));
+  }
+}
+
+/**
+ * E-531 Nachbesserung (Gutachten Kosten): je Adresse nur EIN offener Entwurf der Sendewand. Kommt eine neuere Mail derselben
+ * Adresse als Entwurf dazu, werden ihre ÄLTEREN Wand-Entwürfe sofort abgelegt — Übergabe zu, Zeile „geordnet“ mit Verweis
+ * auf die neue Mail. Genau das täte die 24-Stunden-Regel einen Tag später („Kunde schrieb danach“); die Karten schließen
+ * sich beim nächsten Sammeln. Wirft nie; liefert, wie viele abgelegt wurden.
+ * E-531 Abnahme (Gegenprüfung senden#4):
+ *   · nur die ECHTE Absenderadresse der neuen Mail (nie Antwort-an) und nur mit bestandener Absender-Prüfung;
+ *   · höchstens 7 Tage zurück, nur Entwürfe, die die neue Antwort kannte (e531AblageErlaubt);
+ *   · das UPDATE prüft die Begründung noch einmal (hat sie sich seit dem Lesen geändert, bleibt die Zeile);
+ *   · der Gmail-Entwurf wird nur gelöscht, wenn er noch genau Maras Text trägt (drafts.get) — hat ein Mensch ihn in Gmail
+ *     bearbeitet (oder ist er nicht prüfbar), bleibt er stehen; nur die Zeile wird abgelegt. Ordner „FIAON/Nicht mehr nötig“.
+ * E-531 Gegenprüfung (hoch, B13):
+ *   · `von` ist der ganze Von-Kopf; die Adresse daraus mit absenderAdresse — dieselbe (letzte „<…>“-Gruppe), die
+ *     absenderEcht geprüft hat. Ein mehrdeutiger Von-Kopf (absenderEindeutig) legt nichts ab.
+ *   · aus anderen Fäden nur Zeilen, die nachbarMails dieser Antwort mitgab (`nachbarIds`); ohne IDs nur derselbe Faden.
+ */
+async function e531AeltereAblegen(ein: {
+  id: number; von: string; threadId: string | null; personId: number | null; mailAm: Date | null; absenderGeprueft: boolean;
+  nachbarIds?: readonly number[] | null;
+}): Promise<number> {
+  const adresse = absenderAdresse(ein.von);
+  if (!ein.absenderGeprueft || !absenderEindeutig(ein.von) || !adresse.includes("@") || adresse.endsWith("@fiaon.com")) return 0;
+  try {
+    const bis = ein.mailAm instanceof Date && Number.isFinite(ein.mailAm.getTime()) ? ein.mailAm : new Date();
+    const kandidaten = (await sqlPool`
+      SELECT id, begruendung, thread_id, person_id, COALESCE(empfangen_am, created_at) AS am FROM fiaon_postmeister
+       WHERE id <> ${ein.id} AND aktion = 'entwurf' AND gesendet_am IS NULL
+         AND COALESCE(empfangen_am, created_at) < ${bis}
+         AND COALESCE(empfangen_am, created_at) > ${new Date(bis.getTime() - E531_ABLAGE_FENSTER_MS)}
+         AND LOWER(TRIM(COALESCE(substring(von from '<([^>]+)>'), von, ''))) = ${adresse}
+       ORDER BY id ASC LIMIT 50`) as any[];
+    const neu = { am: bis.getTime(), threadId: ein.threadId, personId: ein.personId, nachbarIds: ein.nachbarIds ?? null };
+    const passend = kandidaten.filter((k) => e531AblageErlaubt(
+      { id: Number(k.id), begruendung: k.begruendung ?? null, am: k.am ? new Date(k.am).getTime() : NaN, threadId: k.thread_id ?? null, personId: k.person_id ?? null }, neu));
+    let n = 0;
+    for (const k of passend) {
+      const [r] = (await sqlPool`
+        UPDATE fiaon_postmeister SET aktion = 'geordnet', naechster_versuch_am = NULL, updated_at = NOW(),
+               begruendung = ${e531AblageBegruendung(ein.id)}
+         WHERE id = ${Number(k.id)} AND aktion = 'entwurf' AND gesendet_am IS NULL AND begruendung = ${String(k.begruendung)}
+        RETURNING id, postfach, gmail_id, antwort_draft_id, antwort, person_id, ref`) as any[];
+      if (!r) continue;
+      n += 1;
+      let entwurfWeg = !r.antwort_draft_id;
+      if (r.antwort_draft_id) {
+        const imEntwurf = await entwurfTextLesen(String(r.postfach), String(r.antwort_draft_id)).catch(() => null);
+        if (imEntwurf != null && entwurfUnveraendert(r.antwort, imEntwurf)) {
+          const { entwurfLoeschen } = await import("./fiaon-gmail");
+          entwurfWeg = await entwurfLoeschen(String(r.postfach), String(r.antwort_draft_id)).then(() => true, () => false);
+          if (entwurfWeg) {
+            await sqlPool`UPDATE fiaon_postmeister SET antwort_draft_id = NULL WHERE id = ${Number(r.id)} AND antwort_draft_id = ${String(r.antwort_draft_id)}`.catch(() => {});
+          }
+        } else {
+          console.warn(`[POSTMEISTER] E-531: Gmail-Entwurf zu Mail #${Number(r.id)} bleibt stehen (in Gmail geändert oder nicht prüfbar) — nur die Zeile ist abgelegt.`);
+        }
+      }
+      // Der Ordner folgt dem Entwurf: Steht er noch in Gmail, bleibt „Entwurf wartet“.
+      if (entwurfWeg && r.gmail_id) await ordnerNichtMehrNoetig(String(r.postfach), String(r.gmail_id));
+      await uebergabeSchliessen({ id: Number(r.id), personId: r.person_id ?? null, ref: r.ref ?? null }, "Mara (automatisch)",
+        `Nicht mehr nötig: neuere Mail #${ein.id} derselben Adresse trägt den Fall (E-531), Mail #${Number(r.id)}.`, { abgelegt: true }).catch(() => false);
+    }
+    if (n) console.log(`[POSTMEISTER] E-531: ${n} ältere Wand-Entwürfe derselben Adresse abgelegt (neue Mail #${ein.id}).`);
+    return n;
+  } catch (e) {
+    console.warn("[POSTMEISTER] E-531 ältere Entwürfe ablegen:", String((e as any)?.message || e).slice(0, 160));
+    return 0;
+  }
+}
+
+/**
+ * Automatische Antworten der letzten 7 Tage an diese Adressen und seine Mails in derselben Zeit (ohne diese Zeile).
+ * E-531 Abnahme (senden#2): dazu, wie viele dieser Auto-Antworten einen Zahlungsfund trugen (Handlung „zahlung_suchen: …“
+ * ohne „kein passender Eingang“) — die Zahlungs-Ausnahme gilt nur, solange es keine gab.
+ */
+async function schleifeZaehlen(id: number, adressen: string[]): Promise<{ autoAntworten7Tage: number; kundenMails7Tage: number; zahlungFunde7Tage: number }> {
+  const liste = Array.from(new Set(adressen.map((a) => String(a || "").trim().toLowerCase()).filter((a) => a.includes("@"))));
+  if (!liste.length) return { autoAntworten7Tage: 0, kundenMails7Tage: 1, zahlungFunde7Tage: 0 };
+  const [z] = (await sqlPool`
+    SELECT COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet' AND gesendet_am > NOW() - INTERVAL '7 days')::int AS auto,
+           COUNT(*) FILTER (WHERE aktion = 'auto_beantwortet' AND gesendet_am > NOW() - INTERVAL '7 days'
+                              AND COALESCE(handlungen::text, '') ~ 'zahlung_suchen: (?!kein passender Eingang)')::int AS zahlung_funde,
+           COUNT(*) FILTER (WHERE COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '7 days' AND aktion <> 'ignoriert'
+                              AND NOT (aktion = 'geordnet' AND (COALESCE(begruendung, '') LIKE 'Doppel von Mail #%'
+                                                             OR COALESCE(begruendung, '') LIKE 'Dieselbe Mail liegt auch in%')))::int AS mails
+      FROM fiaon_postmeister
+     WHERE id <> ${id}
+       AND (gesendet_am > NOW() - INTERVAL '8 days' OR COALESCE(empfangen_am, created_at) > NOW() - INTERVAL '8 days')
+       AND LOWER(TRIM(COALESCE(substring(von from '<([^>]+)>'), von, ''))) = ANY(${liste}::text[])`) as any[];
+  return { autoAntworten7Tage: Number(z?.auto ?? 0), kundenMails7Tage: Number(z?.mails ?? 0) + 1, zahlungFunde7Tage: Number(z?.zahlung_funde ?? NaN) };
+}
+
+/**
+ * E-531: DIE SENDEWAND vor JEDEM automatischen Versand einer Postmeister-Antwort (erster Versand und Nachholen).
+ * null = darf raus; sonst der Grund (Entwurf + Karte) und bei einer Zeit-Zusage der Mangel für die Karte. Wirft nie:
+ * Ist die Schleife nicht zählbar, hält die Wand an — im Zweifel ein Mensch, nie im Zweifel senden.
+ */
+export async function e531Sendewand(ein: {
+  id: number; text: string; personId: number | null; adressen: string[]; kalender?: (string | null | undefined)[];
+  /**
+   * E-531 Nachbesserung: die Antwort bestätigt, was ein Werkzeug gerade gebucht/gefunden hat und sonst niemand bestätigt
+   * (e531BestaetigungsArt). E-531 Abnahme (senden#2): „kuendigung“ = keine Schleifen-Bremse; „zahlung“ = nur, wenn an diese
+   * Adresse in 7 Tagen noch keine Auto-Antwort einen Zahlungsfund trug (e531AusnahmeGilt). Die Zeit-Wand gilt immer.
+   */
+  ausnahme?: E531Ausnahme | null;
+}): Promise<{ grund: string; mangel: string | null } | null> {
+  const kalender: (string | null | undefined)[] = (ein.kalender ?? []).slice();
+  if (ein.personId) {
+    const termin = await bestehenderTermin(Number(ein.personId)).catch(() => null);
+    if (termin?.kundenText) kalender.push(termin.kundenText);
+  }
+  const zeit = maraZeitZusage(ein.text, { kalender });
+  if (zeit.length) {
+    return {
+      grund: "Zeit-Zusage im Text ohne Kalendertermin — nicht automatisch gesendet (E-531)",
+      mangel: `E-531 Zeit-Zusage: „${zeit[0].satz.slice(0, 140)}“ — ohne Zeit und ohne Namen schreiben („${E531_UEBERGABE_SATZ}“)`,
+    };
+  }
+  if (ein.ausnahme === "kuendigung") return null;
+  try {
+    const z = await schleifeZaehlen(ein.id, ein.adressen);
+    const u = schleifenBremseUrteil(z);
+    if (!u.bremsen || e531AusnahmeGilt(ein.ausnahme, z)) return null;
+    return { grund: String(u.grund), mangel: null };
+  } catch (e) {
+    console.warn("[POSTMEISTER] Schleifen-Bremse nicht prüfbar:", String((e as any)?.message || e).slice(0, 160));
+    return { grund: "Schleifen-Bremse nicht prüfbar — bitte ein Mensch (E-531)", mangel: null };
+  }
 }
 
 export interface LaufErgebnis {
@@ -1273,6 +1884,42 @@ export async function mailBearbeiten(ein: {
     fuerAufgabe = { personId: wer.personId, ref: wer.ref, betreff: mail.betreff };
     const alterTage = Math.floor((Date.now() - mail.datum.getTime()) / 86_400_000);
 
+    // 3b. E-531 (25.11.2026): GLOBAL-WEICHE VOR DER KI. Global-Kunde (Auftrag, Angebot/Partnervertrag oder laut Akte) →
+    //     keine KI-Antwort, kein Entwurf, kein Senden. Muster E-350 (0b, greift vorher für Firmenangebote): Ordner
+    //     „FIAON/Global von Hand“, die Mail bleibt ungelesen, EINE offene Aufgabe je Faden für Justin. Nach Fremdpost und
+    //     Doppelzustellung — keine Aufgabe für Abwesenheitsnotizen, keine zweite für dieselbe Mail in zwei Postfächern.
+    //     Stört die Prüfung, wirft sie (Zeile „fehler“, später neu) — nie „im Zweifel antworten“.
+    //     Nachbesserung: „gemischt“ (bezahltes Stufenpaket, kein angenommener Begleitvertrag) bleibt Privatkunde wie E-272/E-476.
+    {
+      const antwortAn = String(mail.antwortAn?.match(/<([^>]+)>/)?.[1] ?? mail.antwortAn ?? "");
+      const gl = await globalSpurenLesen([String(mail.vonAdresse || ""), antwortAn], wer.personId ?? null);
+      const globalUrteil = globalWeicheUrteil(gl.spuren, { gemischt: gl.gemischt });
+      if (globalUrteil.global) {
+        await ablegen(postfach, gmailId, "FIAON/Global von Hand");
+        // Nachbesserung (Gutachten Richtigkeit): auch diese Mail steht GENAU EINMAL in der Akte (Schritt 5 läuft hier nicht) —
+        // ohne KI-Zusammenfassung, nur der Anfang seiner Mail.
+        await akteVermerkEinmal({
+          postmeisterId: id, ref: wer.ref, personId: wer.personId,
+          postfach, betreff: mail.betreff,
+          zusammenfassung: `Global-Kunde schreibt (keine KI-Antwort, E-531): „${String(neuerText || mail.snippet || "").replace(/\s+/g, " ").trim().slice(0, 200)}“`,
+          neuAngelegt, vermerkMerker: anspruch[0].akte_vermerk_am, einordnungMerker: anspruch[0].einordnung_merker, zeileSeit,
+        });
+        // Eine ältere Mail (Rückstand, nach der KI-Pause) hat vielleicht schon ein Mensch in Gmail beantwortet — dann keine
+        // Aufgabe mehr. Ist Gmail gestört, lieber eine Aufgabe zu viel als eine zu wenig.
+        const alt = Date.now() - mail.datum.getTime() > 20 * 60_000;
+        const schonBeantwortet = alt ? await spaetereAntwortImFaden(postfach, mail).catch(() => null) : null;
+        if (!schonBeantwortet) {
+          await globalAufgabeAnlegen({ id, postfach, mail, text: neuerText || mail.snippet || "", grund: globalUrteil.grund, personId: wer.personId ?? null, ref: wer.ref ?? null });
+        }
+        return fertig({
+          ...basis, kategorie: "intern", aktion: "ignoriert", person_id: wer.personId ?? null, ref: wer.ref ?? null,
+          begruendung: (schonBeantwortet
+            ? `Global-Kunde (E-531): keine KI-Antwort — schon von Hand in Gmail beantwortet (${globalUrteil.grund})`
+            : `Global-Kunde (E-531): keine KI-Antwort — Justin antwortet von Hand (${globalUrteil.grund})`).slice(0, 400),
+        }, "Global-Kunde");
+      }
+    }
+
     // 4. Einordnen — E-401 (19.10.2026): EINMAL je Mail. Vorher lief die KI-Einordnung in JEDEM Anlauf neu, auch
     //    wenn die Mail danach nur einen Takt wartete (Bündeln) oder ein Takt sie wieder hervorholte. Der Merker an
     //    der Zeile (einordnung_merker) trägt die rohe Modellantwort; passt er zu dieser Mail, fragt der Server das
@@ -1396,10 +2043,34 @@ export async function mailBearbeiten(ein: {
     }
 
     // 6. Verlauf und Antwort.
-    const verlauf = await verlaufLesen(postfach, mail.threadId, gmailId);
+    // E-531 (25.11.2026): zuerst die FALL-AKTE aus Gmail — der ganze Faden (auch Hand-Mails der Geschäftsleitung), js@
+    // und die Team-Postfächer. Der Verlauf aus fiaon_postmeister ist nur noch der Rückfall, wenn Gmail keinen Faden
+    // liefert (sonst stünde derselbe Schriftwechsel doppelt im Auftrag).
+    // E-531 Abnahme (Gegenprüfung akte#0): Gehört die Absenderadresse zur erkannten Person (Person, Bestellungen, Gmail-
+    // Grundform)? personSuchen erkennt sie auch über Rechnungsnummer, Telefon oder Antwortkette — nur von ihrer gespeicherten
+    // Adresse liest die Akte js@ und das Team, und nur dann darf Mara automatisch antworten (8.). Bei einer Störung: nein.
+    // Die Adresse aus „Name <a@b>“ oder „a@b (Name)“ — nie die ganze Zeile.
+    // E-531 Gegenprüfung (hoch): die LETZTE „<…>“-Gruppe (absenderAdresse) — dieselbe, die absenderEcht prüft und an die
+    // Gmail antwortet; „"<kunde@x>" <fremd@y>“ ist fremd@y. Nennt der Von-Kopf mehr als einen Absender (zweite Adresse im
+    // Namen oder Kommentar, zwei Absender), ist es nie der eigene (absenderEindeutig) → Entwurf + Karte (fremderAbsender).
+    const eigenerAbsender = !!wer.personId && absenderEindeutig(mail.von)
+      && await absenderGehoertZurPerson(absenderAdresse(mail.von) || mail.von, Number(wer.personId)).catch(() => false);
+    const fall = await fallAkteLesen(postfach, mail, { personId: wer.personId ?? null, eigenerAbsender });
+    const fallBlock = fallAkteBlock(fall);
+    if (fall.hinweise.length) console.warn(`[POSTMEISTER] Fall-Akte ${postfach}/${gmailId}: ${fall.hinweise.join(" · ").slice(0, 300)}`);
+    // E-531 Nachbesserung (Gutachten Richtigkeit): Der Verlauf DIESES Fadens aus fiaon_postmeister wird immer gelesen (nur
+    // die Datenbank) — die festen Server-Wege brauchen ihn (Ja auf Maras Zahltag-Rückfrage E-406, „Ja bitte löschen“ auf ihr
+    // Löschangebot E-264). Nur der Block „BISHERIGER SCHRIFTWECHSEL“ im Auftrag entfällt, wenn die Fall-Akte den Faden hat.
+    const verlaufFaden = await verlaufLesen(postfach, mail.threadId, gmailId);
+    // E-531 Abnahme (akte#1): … und nur, wenn die Akte mindestens so viele unserer Antworten zeigt wie dieser Verlauf. Gingen
+    // unsere Antworten an eine Antwort-an- oder andere Adresse, die der Faden-Filter nicht kennt, fehlten sie sonst ganz.
+    const unsereImVerlauf = verlaufFaden.filter((v) => v.von === "FIAON").length;
+    const akteTraegt = !!fall.fadenText && (fall.eigeneImFaden?.length ?? 0) >= unsereImVerlauf;
+    const verlauf: { von: string; am: string; text: string }[] = akteTraegt ? [] : verlaufFaden.slice();
     // E-248: Seine anderen Mails der letzten drei Tage (andere Fäden) und unsere Antworten darauf.
+    // E-531 Gegenprüfung (B13): die 8 neuesten; ihre IDs gehen an die Ablage (nur sie darf sie aus anderen Fäden ablegen).
     const nachbarn = await nachbarMails(wer.personId, id, mail.threadId);
-    if (nachbarn.length) verlauf.unshift(...nachbarn);
+    if (nachbarn.eintraege.length) verlauf.unshift(...nachbarn.eintraege);
     // E-248 (#5633): Ein Widerruf oder eine bestrittene Forderung aus einer früheren Mail ist noch offen.
     const vorgeschichte = await offeneEinwaende(wer.personId, id).catch(() => null);
     // E-246: Lag die Mail aus der KI-Pause, kann ein früherer Anlauf schon
@@ -1419,6 +2090,12 @@ export async function mailBearbeiten(ein: {
       postfach, mail: { betreff: mail.betreff, text: textFuerMara, von: mail.von, alterTage, authErgebnis: mail.authErgebnis ?? null, antwortAn: mail.antwortAn ?? null, am: mail.datum ?? null },
       verlauf, einordnung, personId: wer.personId, ref: wer.ref, postmeisterId: id,
       sprache: antwortSpracheCode, vorgeschichte,
+      // E-531: der Block „FALL-AKTE – VERBINDLICH“ direkt vor der neuen Nachricht.
+      fallAkte: fallBlock || null,
+      // E-531 Nachbesserung: für die festen Server-Wege — dieser Faden (Datenbank), unsere Nachrichten darin (Gmail) und
+      // was Menschen ihm geschrieben haben (Geld-Prüfungen).
+      verlaufFaden,
+      fallDaten: { eigene: fall.eigeneImFaden ?? [], mensch: fall.menschTexte ?? [], gmail: !!fall.fadenText },
     });
 
     if (!erg.ok || !erg.antwort) {
@@ -1487,6 +2164,24 @@ export async function mailBearbeiten(ein: {
       && erg.handlungen.some((h) => h.ok && ["aufgabe_an_betreuer", "notiz_an_betreuer", "terminlink_bauen"].includes(h.werkzeug))) {
       mensch = null;
     }
+    // E-531 Abnahme (Gegenprüfung akte#0): Erkannt über Rechnungsnummer, Telefon oder Antwortkette, aber von einer Adresse,
+    // die bei der Person nicht gespeichert ist — nie automatisch antworten (es könnte ein Dritter sein, der Akte und Briefe
+    // nicht sehen darf). Entwurf + Karte; ein Mensch prüft, wer schreibt.
+    // Gegenprüfung Runde 5: dazu ein Warnsatz (pruefung.fehlend) — auch wenn schon ein anderer Grund gesetzt ist —, damit Karte
+    // und Postfach nicht „senden“ empfehlen.
+    if (wer.personId && !eigenerAbsender) {
+      if (!mensch) mensch = UEBERGABE_GRUND.fremderAbsender;
+      erg.pruefung = { ...erg.pruefung, fehlend: [absenderMangel(mail.von), ...(erg.pruefung?.fehlend ?? [])] };
+    }
+    // E-531 (Abnahme Runde 3): antwortSenden schreibt an „Antwort-an“. Nennt es eine Adresse, die weder der Absender ist noch
+    // bei der Person gespeichert ist (vielleicht gefälschtes Von + fremde Antwort-an), nie automatisch: Entwurf + Karte.
+    // Gegenprüfung Runde 4: unabhängig von einem schon gesetzten Grund prüfen — dazu ein Warnsatz (pruefung.fehlend), damit Karte
+    // und Postfach nicht „senden“ empfehlen. Von Hand geht die Antwort dann nur an den gespeicherten Absender (handVersandZiel).
+    const fremdeAntwortAnJa = !!wer.personId && await antwortAnFremd(mail.antwortAn, mail.von, Number(wer.personId));
+    if (fremdeAntwortAnJa) {
+      if (!mensch) mensch = UEBERGABE_GRUND.fremdeAntwortAn;
+      erg.pruefung = { ...erg.pruefung, fehlend: [antwortAnMangel(mail.antwortAn, mail.von, eigenerAbsender), ...(erg.pruefung?.fehlend ?? [])] };
+    }
     // E-248: Sperre direkt vor dem Senden — ist auf denselben Text schon eine Antwort raus, keine zweite.
     const sperre = ein.modus === "auto" && erg.automatischErlaubt && !mensch ? await sendeSperre(id) : null;
     if (sperre) {
@@ -1506,7 +2201,31 @@ export async function mailBearbeiten(ein: {
       erg.grund = `${e393.grund}${erg.grund ? ` · ${erg.grund}` : ""}`.slice(0, 900);
       console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e393.grund}`);
     }
-    const darfAutoOhneAmpel = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
+    const darfAutoOhneE531 = ein.modus === "auto" && erg.automatischErlaubt && !ein.nurOrdnen && !mensch && !e393.gesperrt;
+    // ── E-531 (25.11.2026): DIE SENDEWAND — ZEIT-ZUSAGE UND SCHLEIFEN-BREMSE ─────────────────────────────────
+    // Nur, was sonst automatisch hinausginge: Verspricht der Text eine Zeit („Herr X meldet sich heute“) ohne echten
+    // Kalendertermin, oder ginge an dieselbe Adresse schon die dritte automatische Antwort in 7 Tagen, wird es ein Entwurf
+    // mit Karte (derselbe Weg wie „Mensch nötig“). Die Wand hält nur an — nie lässt sie etwas raus.
+    const e531Adressen = [String(mail.vonAdresse || ""), String(mail.antwortAn?.match(/<([^>]+)>/)?.[1] ?? mail.antwortAn ?? "")];
+    // E-531 Abnahme (senden#1): Fehlt der Fall-Akte eine Quelle (Faden, js@, Team, Datenbank), geht nichts automatisch raus.
+    const akteWand = darfAutoOhneE531 ? e531AkteWand(fall.lesefehler) : null;
+    const wand = darfAutoOhneE531
+      ? await e531Sendewand({
+          id, text: fertigeAntwort.text, personId: wer.personId ?? null,
+          adressen: e531Adressen,
+          kalender: [erg.werkzeugDaten?.aufgabe_an_betreuer?.rueckruf_termin, erg.werkzeugDaten?.aufgabe_an_betreuer?.bestehender_termin],
+          // Nachbesserung: Bestätigt die Antwort nur, was ein Werkzeug gerade gebucht hat (Storno, Ende, Zahlung gefunden), keine
+          // Bremse — Abnahme (senden#2): den Zahlungsfund höchstens einmal je Adresse in 7 Tagen.
+          ausnahme: e531BestaetigungsArt(erg.werkzeugDaten),
+        })
+      : null;
+    const e531 = wand ?? akteWand;
+    if (e531) {
+      console.warn(`[POSTMEISTER] ${postfach}/${gmailId}: ${e531.grund}`);
+      const maengelE531 = [wand?.mangel, akteWand?.mangel].filter((m): m is string => !!m);
+      if (maengelE531.length) erg.pruefung = { ...erg.pruefung, fehlend: [...maengelE531, ...(erg.pruefung?.fehlend ?? [])] };
+    }
+    const darfAutoOhneAmpel = darfAutoOhneE531 && !e531;
     // ── E-406 B3 / E-409: DIE AMPEL „MAILS BEANTWORTEN“ (Werkzeug antwort_senden, KI-Team › Werkzeuge) ─────────
     // Grün (Startwert = heutiges Verhalten): wie bisher. Gelb: Entwurf statt Senden — er steht in „Mara heute“ im
     // Lagezimmer („Nicht senden“) und geht nach 24 Stunden über die 24-Stunden-Regel raus (ampelFrist). Rot: jede
@@ -1563,7 +2282,10 @@ export async function mailBearbeiten(ein: {
       // Antwort mit allen Feldern in der Zeile und wird nachgeholt (unten,
       // versandNachholen): in 15 Minuten, dann 2 Stunden, dann 24 Stunden.
       try {
-        await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien);
+        // E-531 (Gegenprüfung Runde 4): automatisch mit Kundendaten NUR an die geprüfte, bei ihm gespeicherte Absenderadresse
+        // (eigenerAbsender ist hier sicher wahr) — nie an den rohen Antwort-an-/Von-Kopf, den Gmail anders lesen könnte als wir.
+        await antwortSenden(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien,
+          wer.personId ? { an: absenderAdresse(mail.von) } : {});
       } catch (e: any) {
         const grund = String(e?.message || e).slice(0, 300);
         const naechster = new Date(Date.now() + WIEDERVORLAGE_MS[1]);
@@ -1598,10 +2320,16 @@ export async function mailBearbeiten(ein: {
       return fertig({ ...felder, aktion: "auto_beantwortet", gesendet_am: new Date(), begruendung: erg.grund }, erg.grund);
     }
 
-    const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien).catch(() => null);
+    // E-531 (Gegenprüfung Runde 5, Schlussprüfung Runde 6): Mit Person ist der Gmail-Entwurf an dieselbe Adresse gerichtet, an
+    // die auch „Senden“ von Hand ginge (handVersandZiel: saubere, gespeicherte Adresse) — ist das gesperrt, hat er KEINEN
+    // Empfänger: Wer ihn in Gmail sendet, trägt die Adresse bewusst selbst ein.
+    const zielEntwurf = wer.personId ? await handVersandZiel(mail, Number(wer.personId)).catch(() => null) : null;
+    const draftId = await entwurfAnlegen(postfach, mail, fertigeAntwort.text, fertigeAntwort.html, gebaut.dateien,
+      wer.personId ? (zielEntwurf?.an ? { an: zielEntwurf.an } : { ohneEmpfaenger: true }) : {}).catch(() => null);
     await ablegen(postfach, gmailId, "FIAON/Entwurf wartet");
     // E-406 B3: Hält NUR die Ampel die Antwort an, steht das als Begründung da („Ampel gelb: …“ / „Ampel rot: …“).
-    const begruendungEntwurf = mensch ? `Übergabe an den Betreuer: ${mensch}` : (ampelGrund ?? erg.grund);
+    // E-531: Hält die Sendewand die Antwort an, steht ihr Grund da (Zeit-Zusage, „Kunde schreibt zum n. Mal …“).
+    const begruendungEntwurf = mensch ? `Übergabe an den Betreuer: ${mensch}` : (e531?.grund ?? ampelGrund ?? erg.grund);
     const ergebnis = await fertig({ ...felder, aktion: "entwurf", antwort_draft_id: draftId, begruendung: begruendungEntwurf }, erg.grund);
     // E-240: Auch der Entwurf steht in der Akte — der Betreuer, der anruft, sieht,
     // was Mara vorgeschlagen und schon getan hat (Angebot, Aufgabe, Rechnung).
@@ -1622,6 +2350,18 @@ export async function mailBearbeiten(ein: {
       // E-406 B3: Ein gelber Entwurf ist KEINE Karte — er steht in „Mara heute“ und geht nach 24 h selbst raus.
       const { postmeisterKarteJetzt } = await import("./fiaon-postmeister-entscheidungen");
       await postmeisterKarteJetzt(id);
+    }
+    // E-531 Nachbesserung (Gutachten Kosten): Hielt die Sendewand an, bleibt je Adresse genau EIN Entwurf und EINE Karte —
+    // ältere Wand-Entwürfe derselben Adresse legt der Server jetzt ab (sonst erst die 24-Stunden-Regel einen Tag später).
+    // Abnahme (senden#4): nur die echte, geprüfte Absenderadresse (nie Antwort-an), nur Entwürfe, die diese Antwort kannte.
+    // Gegenprüfung: derselbe Von-Kopf für Adresse und Prüfung (letzte „<…>“-Gruppe); aus anderen Fäden nur die Nachbar-Mails,
+    // die wirklich im Auftrag standen (nachbarIds).
+    if (e531 && !mensch) {
+      await e531AeltereAblegen({
+        id, von: mail.von, threadId: mail.threadId ?? null, personId: wer.personId ?? null, mailAm: mail.datum ?? null,
+        absenderGeprueft: absenderEcht({ authErgebnis: mail.authErgebnis ?? null, von: mail.von, antwortAn: mail.antwortAn ?? null }).echt,
+        nachbarIds: nachbarn.ids,
+      });
     }
     return ergebnis;
   } catch (e: any) {
@@ -1753,6 +2493,40 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
         console.warn(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} nicht nachgeholt: ${e393.grund}`);
         continue;
       }
+      // E-531 (25.11.2026): dieselbe Sendewand wie beim ersten Versand — eine nachgeholte Antwort darf nie mehr als damals:
+      // Zeit-Zusage ohne Kalendertermin oder dritte Auto-Antwort in 7 Tagen → Entwurf + Karte statt Versand.
+      // E-531 (Abnahme Runde 3 + Gegenprüfung Runde 4): beim Nachholen dieselben Absender-Sperren wie beim ersten Versand —
+      // eine Zeile von vor E-531 (ohne Prüfung des eigenen Absenders) holt nichts an eine fremde Adresse nach. Fremder oder
+      // mehrdeutiger Absender bzw. fremde „Antwort-an“ → Entwurf + Karte mit Warnsatz.
+      const eigenerAbsenderNach = !personId || (absenderEindeutig(mail.von)
+        && await absenderGehoertZurPerson(absenderAdresse(mail.von) || mail.von, Number(personId)).catch(() => false));
+      const fremdeAntwortAn = personId ? await antwortAnFremd(mail.antwortAn, mail.von, Number(personId)) : false;
+      const wand = !eigenerAbsenderNach
+        ? { grund: `Nicht nachgeholt: ${UEBERGABE_GRUND.fremderAbsender} (E-531)`, mangel: absenderMangel(mail.von) as string | null }
+        : fremdeAntwortAn
+          ? { grund: `Nicht nachgeholt: ${UEBERGABE_GRUND.fremdeAntwortAn} (E-531)`, mangel: antwortAnMangel(mail.antwortAn, mail.von, true) as string | null }
+          : await e531Sendewand({ id, text, personId, adressen: [adresseAus(r.von)], ausnahme: e531NurBestaetigungAusHandlungen(handlungenFlach(r.handlungen)) ? "kuendigung" : null });
+      if (wand) {
+        const vorher = jsonLesen(r.pruefung) ?? {};
+        const pruefungNeu = wand.mangel
+          ? { ...vorher, fehlend: [wand.mangel, ...(Array.isArray(vorher.fehlend) ? vorher.fehlend : [])] }
+          : vorher;
+        await sqlPool`
+          UPDATE fiaon_postmeister SET aktion = 'entwurf', naechster_versuch_am = NULL, in_arbeit_seit = NULL,
+                 begruendung = ${wand.grund.slice(0, 900)}, pruefung = ${JSON.stringify(pruefungNeu)}, updated_at = NOW() WHERE id = ${id}
+        `.catch((x) => console.error("[POSTMEISTER] E-531 beim Nachholen:", String(x).slice(0, 160)));
+        const { postmeisterKarteJetzt } = await import("./fiaon-postmeister-entscheidungen");
+        await postmeisterKarteJetzt(id);
+        // Nachbesserung (Gutachten Kosten): auch hier je Adresse nur EIN offener Wand-Entwurf — Abnahme (senden#4): nur die
+        // echte, geprüfte Absenderadresse, nur Entwürfe, die diese Antwort kannte. Gegenprüfung (B13): derselbe Von-Kopf für
+        // Adresse und Prüfung; ohne nachbarIds — welche Nachbar-Mails der gespeicherte Text sah, ist unbekannt (nur derselbe Faden).
+        await e531AeltereAblegen({
+          id, von: mail.von, threadId: r.thread_id ?? null, personId, mailAm: r.empfangen_am ? new Date(r.empfangen_am) : null,
+          absenderGeprueft: absenderEcht({ authErgebnis: mail.authErgebnis ?? null, von: mail.von, antwortAn: mail.antwortAn ?? null }).echt,
+        });
+        console.warn(`[POSTMEISTER] Versand ${r.postfach}/${r.gmail_id} nicht nachgeholt: ${wand.grund}`);
+        continue;
+      }
       // Das HTML aus dem Erstversuch. Fehlt es (Altzeile), wird es aus dem Text
       // gebaut — derselbe Weg wie beim Freigeben eines Entwurfs.
       let html: string | null = r.antwort_html ? String(r.antwort_html) : null;
@@ -1766,7 +2540,8 @@ export async function versandNachholen(ein: { postfaecher?: string[] } = {}):
           agentName: name, gruss: grussMitAgent(postfachGruss(String(r.postfach)), name),
         }).html;
       }
-      await antwortSenden(String(r.postfach), mail, text, html, gebaut.dateien);
+      // E-531 (Gegenprüfung Runde 4): wie beim ersten Versand nur an die geprüfte, gespeicherte Absenderadresse.
+      await antwortSenden(String(r.postfach), mail, text, html, gebaut.dateien, personId ? { an: absenderAdresse(mail.von) } : {});
       await sqlPool`
         UPDATE fiaon_postmeister SET aktion = 'auto_beantwortet', gesendet_am = NOW(), versand_versuche = ${versuch},
                versand_fehler = NULL, naechster_versuch_am = NULL, in_arbeit_seit = NULL, updated_at = NOW() WHERE id = ${id}

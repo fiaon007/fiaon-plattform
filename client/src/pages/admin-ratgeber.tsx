@@ -21,7 +21,7 @@
 import { businessArtikelPfad } from "@shared/fiaon-business-artikel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageIntro } from "@/components/admin/PageHelp";
-import { BEREICH_LABEL, KATEGORIEN, THEMEN, pruefstand, type Artikel, type Bereich, type Kategorie, type Status } from "@shared/fiaon-ratgeber";
+import { BEREICH_LABEL, KATEGORIEN, THEMEN, hatTagesartikel, pruefstand, type Artikel, type Bereich, type Kategorie, type Status } from "@shared/fiaon-ratgeber";
 import { markdownZuHtml } from "@shared/fiaon-markdown";
 import "@/styles/ratgeber.css";
 
@@ -54,7 +54,7 @@ export default function AdminRatgeberPage() {
   const [info, setInfo] = useState<Info | null>(null);
   const [filter, setFilter] = useState<Status | "alle">("alle");
   const [bereichFilter, setBereichFilter] = useState<Bereich | "alle">("alle");
-  const [neuBereich, setNeuBereich] = useState<Bereich>("privat");
+  const [neuBereich, setNeuBereich] = useState<Bereich>("business"); // E-531: Tagesartikel nur noch Business
   const [aktiv, setAktiv] = useState<Artikel | null>(null);
   const [reiter, setReiter] = useState<"text" | "vorschau" | "pruefstand">("text");
   const [meldung, setMeldung] = useState<{ art: "ok" | "fehler"; text: string } | null>(null);
@@ -125,7 +125,7 @@ export default function AdminRatgeberPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-[1500px] mx-auto">
-      <PageIntro id="ratgeber" title="Ratgeber-Redaktion" subtitle="Jeden Tag ab 06:00 erscheint je ein neuer Artikel für Privat und Business – selbst recherchiert, streng geprüft, automatisch veröffentlicht." steps={["Oben: der Stand von heute und der nächste Lauf", "Artikel links öffnen – Text, Vorschau, Prüfstand", "Zurückziehen nimmt einen Artikel sofort von der Seite", "„Entwurf erzeugen“ oder „Neuer Artikel“ für eigene Texte"]} />
+      <PageIntro id="ratgeber" title="Ratgeber-Redaktion" subtitle="Jeden Tag ab 06:00 erscheint ein neuer Artikel für Business (FIAON Global) – selbst recherchiert, streng geprüft, automatisch veröffentlicht." steps={["Oben: der Stand von heute und der nächste Lauf", "Artikel links öffnen – Text, Vorschau, Prüfstand", "Zurückziehen nimmt einen Artikel sofort von der Seite", "„Entwurf erzeugen“ oder „Neuer Artikel“ für eigene Texte"]} />
 
       {/* E-379: Der Tag auf einen Blick — statt „0 von 40 Themen offen“. */}
       {info?.heute && (
@@ -134,7 +134,7 @@ export default function AdminRatgeberPage() {
           {(["privat", "business"] as Bereich[]).map((b) => {
             const st = info.heute[b];
             const a = st.artikel;
-            const zeichen = st.erledigt ? "✓" : info.arbeit && (info.arbeit.was === "tagesartikel" || info.arbeit.bereich === b) ? "schreibt …" : a ? `Entwurf · ${a.versuche} Versuche` : "offen";
+            const zeichen = st.erledigt ? "✓" : info.arbeit && ((info.arbeit.was === "tagesartikel" && hatTagesartikel(b)) || info.arbeit.bereich === b) ? "schreibt …" : a ? `Entwurf · ${a.versuche} Versuche` : hatTagesartikel(b) ? "offen" : "kein Tagesartikel"; // E-531
             return (
               <span key={b} className="inline-flex items-center gap-1.5">
                 <span className="text-slate-500">{BEREICH_LABEL[b]}</span>

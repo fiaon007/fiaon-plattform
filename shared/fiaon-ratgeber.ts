@@ -22,6 +22,11 @@
 // `streng: true`) nichts mehr findet. Der Bereich (privat | business) hängt an
 // der Kategorie: „firmen" ist Business, alles andere privat — eine Funktion,
 // bereichVonKategorie, entscheidet das überall.
+//
+// ── E-531 (25.11.2026): TAGESARTIKEL NUR NOCH FÜR BUSINESS ────────────────
+// Privat wird aufgelassen. Die KI schreibt den Tagesartikel nur noch für
+// TAGESARTIKEL_BEREICHE (Business). Die Privat-Artikel bleiben online: Seiten,
+// Sitemap und Links lesen weiter BEREICHE — diese Liste bleibt, wie sie ist.
 // ═══════════════════════════════════════════════════════════════════════════
 import { worthygiene } from "./fiaon-onboarding-agenda";
 import { wandPruefen } from "./fiaon-wortverbote";
@@ -34,6 +39,16 @@ export type Status = "entwurf" | "geprueft" | "veroeffentlicht" | "archiv";
 export type Bereich = "privat" | "business";
 export const BEREICHE: Bereich[] = ["privat", "business"];
 export const BEREICH_LABEL: Record<Bereich, string> = { privat: "Privat", business: "Business" };
+/**
+ * E-531 (25.11.2026): Für diese Bereiche schreibt die KI jeden Tag einen Tagesartikel — nur noch Business.
+ * Privat wird aufgelassen: Die Privat-Artikel bleiben online, es kommen nur keine neuen KI-Artikel dazu.
+ * Seiten, Routen und die Redaktion lesen weiter BEREICHE (beide Bereiche).
+ */
+export const TAGESARTIKEL_BEREICHE: readonly Bereich[] = ["business"];
+/** E-531 (25.11.2026): Schreibt die KI für diesen Bereich jeden Tag einen Artikel? Rein. */
+export function hatTagesartikel(b: Bereich): boolean {
+  return TAGESARTIKEL_BEREICHE.includes(b);
+}
 
 export const KATEGORIEN: Record<Kategorie, { label: string; kurz: string }> = {
   eintraege: { label: "Einträge löschen", kurz: "Welche Einträge angreifbar sind – und wie" },

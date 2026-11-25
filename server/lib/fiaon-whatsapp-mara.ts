@@ -111,7 +111,7 @@ import {
   personaText, tonPruefung, linkPruefung, persoenlicherLink, stufeAusAntrag, zeitFuerKunde, uhrzeitenIn, datumFuerKunde,
   abweichungsSatz, type AbweichungsGrund, stornoUngefragt,
   abstreitenArt, istLoeschwunsch, loeschenAngeboten, bausteinAbstreiten, loeschAntwort, nachAbstreiten, stoppWunsch, willWeitermachen,
-  abstreitenHinweis, WUT_EMOJI, type AbstreitenBefund, type AbstreitenFestArt, type AbstreitenArt,
+  abstreitenHinweis, herkunftSatz, WUT_EMOJI, STOPP_WUNSCH, type AbstreitenBefund, type AbstreitenFestArt, type AbstreitenArt,
   bausteinKreditFrage, bausteinVorabZahlen, bausteinZoegern, bausteinAblehnung, bausteinZuTeuer, bausteinSicher, paketName, paketPreisText,
   type LinkLage, type LinkStufe, type TonBefund, type LinkBefund,
   // E-265 (29.09.2026): Nachnamen und die Kreditkarte
@@ -183,7 +183,7 @@ import { angabenAntwortFunde, angabenWunsch, type AngabenLageRein, type AngabeFe
 import type { GenanntLage } from "./fiaon-mara-genannter-termin";
 // E-408 (Scheibe 3, 22.10.2026): Ja zum Anruf — Mara fragt (angehängter eigener Satz) und dankt für ein klares JA.
 import { jaImGespraech, jaFrageZumAnhaengen } from "./fiaon-ja-zum-anruf";
-import { JA_DANKE_WA, ANRUF_SPERRE_WA, jaHinweisFuerMara } from "@shared/fiaon-ja-zum-anruf";
+import { JA_DANKE_WA, ANRUF_SPERRE_WA, jaHinweisFuerMara, istNeinZumAnruf } from "@shared/fiaon-ja-zum-anruf";
 
 export const DIENST_WA = "mara-whatsapp";
 /** E-458 / E-262 D: das Modell der WhatsApp-Antworten — Texte an Kunden bleiben auf gpt-5.5 (Notfall-Weiche MARA_WA_MODELL). */
@@ -2206,7 +2206,9 @@ export type AufgabenKlasse = "heikel" | "geld" | "rueckruf" | "anliegen" | "prue
   | "bestreitet" | "loeschen" | "falsche_nummer" | "in_ruhe" | "rueckfrage" | "wut"
   // E-272 (02.10.2026): Ein Global-Kunde schreibt — Mara antwortet nie, die Aufgabe liegt auf Justins Board
   // (eigene Klasse, damit sie nie an eine offene Privat-Aufgabe beim Betreuer angehängt wird).
-  | "global";
+  | "global"
+  // E-531 (25.11.2026): WhatsApp Privat ohne KI (Schalter mara_wa_privat aus) — EINE offene Aufgabe je Nummer.
+  | "privat";
 /** Die Grundklasse einer Übergabe aus WhatsApp — eine offene Aufgabe je Mensch und Klasse. */
 export function aufgabenKlasse(kundeText: string, uebergabe = ""): AufgabenKlasse {
   if (heikelAnliegen(kundeText)) return "heikel";
@@ -2747,6 +2749,557 @@ const MEDIEN_KURZ: Record<string, string> = {
   sticker: "(Sticker)", reaction: "(Reaktion)", location: "(Standort)", unsupported: "(nicht übermittelte Nachricht)",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-531 (25.11.2026): WHATSAPP PRIVAT OHNE KI — DER SCHALTER mara_wa_privat
+//
+// Justin (Mara-Neubau, Stufe 1): keine falschen Zusagen, Arbeit abnehmen statt machen. Die Privat-Mara lief auf
+// WhatsApp in Schleifen (Audit B2). Steht „WhatsApp Privat mit KI“ auf „aus“, gilt für ein PRIVATES Gespräch
+// (Global-Kunde E-272 und Business-Lead E-481 sind vorher schon raus):
+//   · kein KI-Aufruf, kein Werkzeug, keiner der festen Privat-Sätze;
+//   · höchstens EINMAL je 24 Stunden je Nummer der feste Hinweis (Sie-Form, ohne Zeit-Zusage) — über den Versandtakt,
+//     der wie bei jeder freien Antwort das 24-Stunden-Fenster prüft;
+//   · EINE offene Aufgabe je Nummer (Klasse „privat“) mit seiner Nachricht. Kündigung, Widerruf, Erstattung, Anwalt,
+//     Klage, Beschwerde (dazu der Löschwunsch) → Priorität hoch und das Wort im Titel. Die Aufgabe ersetzt die Werkzeuge,
+//     die sonst Rechtssicheres erledigt hätten (Kündigung aufnehmen, Widerruf, Löschwunsch) — nichts geht still verloren;
+//   · ein „Ok danke“ auf eine erledigte Sache → nichts (wie bisher: keine Aufgabe).
+// Die Entscheidung ist rein (waPrivatEntscheidung) — Prüfstand scripts/pruef-mara-wa-privat.ts.
+//
+// NACHBESSERUNG (Gutachten Kundensicherheit, 25.11.2026): „aus“ schaltet nur die KI ab, NIE die festen Schutzwege, die ohne
+// KI laufen. In maraAntwortet laufen darum vor diesem Weg weiter: E-264 (Abstreiten, Löschwunsch, „in Ruhe lassen“, Stopp
+// nach der Entschuldigung — fester Satz, Werbesperre, Karte für Justin) und E-372 (Anwalt/Polizei, Widerruf nach Zahlung,
+// Geld zurück — sicherer Satz, Karte für Justin). Hier dazu: ein Stopp-Wunsch („Schreiben Sie mir nicht mehr“, „Lassen Sie
+// mich in Ruhe“) setzt die Werbesperre und bekommt die STOPP-Bestätigung statt des E-Mail-Hinweises („keine Werbung mehr“:
+// nur die Werbesperre, wa#0); schreibt er zu einer offenen Karte für Justin weiter, bekommt die Karte die Nachricht.
+// Prüfung 25.11.2026: Auch E-408 („nicht mehr anrufen“) endet ohne KI nur früh, wenn nichts Heikles danebensteht
+// (waAnrufSperreFrueh) — sonst Aufgabe bzw. Karte und der Anruf-Satz statt des festen Hinweises.
+// ═══════════════════════════════════════════════════════════════════════════
+export const WA_PRIVAT_SCHALTER = "mara_wa_privat";
+/** Der feste Hinweis — wörtlich so (E-531). Er besteht sendePruefung und sagt keine Zeit zu. */
+export const WA_PRIVAT_AUS_TEXT = "Vielen Dank für Ihre Nachricht. Wir beantworten Ihr Anliegen schriftlich per E-Mail. Bei Fragen zu Ihrem Vertrag schreiben Sie uns bitte an support@fiaon.com.";
+/** Höchstens ein fester Hinweis je Nummer in so vielen Stunden. */
+export const WA_PRIVAT_HINWEIS_STUNDEN = 24;
+/** Ist das der feste Hinweis? (Er ist keine Antwort in der Sache — versandLauf, maraWaGeantwortet.) Rein. */
+export const istWaPrivatHinweis = (text: unknown): boolean => String(text ?? "").trim() === WA_PRIVAT_AUS_TEXT;
+/**
+ * E-531 (wa#0): Bestätigung eines REINEN Werbe-Widerspruchs — wie E-264 bei Stufe B nur „keine Werbung mehr“, nie „wir schreiben
+ * Ihnen nicht mehr“ (Vertragspost geht weiter). Nur, wenn die Werbesperre in dieser Runde neu gesetzt wurde. Bewusst OHNE
+ * „ab jetzt“: „Sie bekommen von uns ab jetzt keine Werbung mehr“ ist die Marke von nachAbstreiten — seine nächste Nachricht
+ * liefe sonst als „nach der Entschuldigung“ (still, Karte „bestreitet“).
+ */
+export const WA_PRIVAT_WERBUNG_TEXT = "Verstanden – Sie bekommen von uns keine Werbung mehr.";
+
+/**
+ * Die Wörter für „Priorität hoch“ — in dieser Reihenfolge im Titel. E-531 Nachbesserung: dazu „Stopp“ (will keinen Kontakt
+ * oder keine Werbung mehr) und „Bestreitet“ (hat nie etwas beantragt) — beides darf kein Mensch übersehen.
+ * E-531 (wa#6): dazu „Datenauskunft“ — „Wer sind Sie?“, „Woher haben Sie meine Nummer?“ (womöglich Art. 15 DSGVO, mit Frist).
+ * Bewusst nicht „Auskunft“: so heißt hier die Bonitätsauskunft (Produkt).
+ * E-531 (wa#0): dazu „Anrufstopp“ — „nicht (mehr) anrufen“ ist kein WhatsApp-Stopp mehr, aber kein Mensch darf ihn anrufen.
+ */
+export const WA_PRIVAT_WOERTER = ["Kündigung", "Widerruf", "Erstattung", "Anwalt", "Klage", "Beschwerde", "Löschwunsch", "Stopp", "Anrufstopp", "Bestreitet", "Datenauskunft"] as const;
+export type WaPrivatWort = (typeof WA_PRIVAT_WOERTER)[number];
+// „Ankündigung“ zählt nicht (Wortgrenze davor); Storno und „Vertrag beenden“ zählen wie eine Kündigung.
+const PRIVAT_KUENDIGUNG = new RegExp(String.raw`(?<![\p{L}])(?:k(?:ü|ue)ndig\p{L}*|gek(?:ü|ue)ndigt\p{L}*|stornier\p{L}*|storno\p{L}*|vertrag\s+(?:\p{L}+\s+){0,2}?(?:beenden|aufl(?:ö|oe)sen|aufheben))`, "iu");
+const PRIVAT_ANWALT = new RegExp(String.raw`(?<![\p{L}])(?:(?:rechts|staats)?anw(?:a|ä|ae)lt\p{L}*|kanzlei\p{L}*)`, "iu");
+// „gerichtet“ ist kein Gericht; „beklagen“ keine Klage (Wortgrenze davor).
+const PRIVAT_KLAGE = new RegExp(String.raw`(?<![\p{L}])(?:klage\p{L}*|verklag\p{L}*|gericht(?!et)\p{L}*|rechtlich\p{L}*\s+schritt\p{L}*|schritte\s+einleiten)`, "iu");
+const PRIVAT_BESCHWERDE = new RegExp(String.raw`(?<![\p{L}])(?:beschwer\p{L}*|reklamation\p{L}*|reklamier\p{L}*|verbraucherzentrale\p{L}*|verbraucherschutz\p{L}*|bafin|schlichtung\p{L}*|ombuds\p{L}*|poli(?:zei|zai|zey)\p{L}*|polzai|betr(?:u|ü)g\p{L}*|abzock\p{L}*|strafanzeige\p{L}*|erstatt\p{L}*\s+(?:\p{L}+\s+){0,2}?anzeige\p{L}*|anzeige\s+(?:gegen|erstatt\p{L}*|mach\p{L}*|gemacht|gestellt|stell\p{L}*|aufgegeben|aufgeben|bei\s+der))`, "iu");
+// „Ich erstatte Anzeige“ ist kein Geld — waErstattung nimmt nur „Anzeige erstatten“ heraus, hier auch die andere Wortfolge.
+const ANZEIGE_ERSTATTEN = new RegExp(String.raw`(?<![\p{L}])erstatt\p{L}*\s+(?:\p{L}+\s+){0,2}?(?:straf)?anzeige\p{L}*`, "giu");
+const PRIVAT_TEST: Record<WaPrivatWort, (t: string) => boolean> = {
+  "Kündigung": (t) => PRIVAT_KUENDIGUNG.test(t),
+  "Widerruf": (t) => WIDERRUF_WORT.test(t) || WIDERSPRUCH_VERTRAG.test(t),
+  "Erstattung": (t) => waErstattung(t.replace(ANZEIGE_ERSTATTEN, " ")),
+  "Anwalt": (t) => PRIVAT_ANWALT.test(t),
+  "Klage": (t) => PRIVAT_KLAGE.test(t),
+  "Beschwerde": (t) => PRIVAT_BESCHWERDE.test(t) || ANZEIGE_AN.test(t),
+  "Löschwunsch": (t) => istLoeschwunsch(t),
+  "Stopp": (t) => waKontaktStopp(t),
+  // Derselbe Erkenner wie der Eingang (E-408): weich („bitte nicht anrufen“) und klar („nicht mehr anrufen“), nie „Warum …?“.
+  "Anrufstopp": (t) => istNeinZumAnruf(t),
+  "Bestreitet": (t) => abstreitenArt(t)?.art === "bestreitet",
+  "Datenauskunft": (t) => { const a = abstreitenArt(t)?.art; return a === "datenfrage" || a === "wer"; },
+};
+/**
+ * E-531 (wa#0): ZWEI STUFEN statt eines Stopp-Begriffs (Abnahme 25.11.2026).
+ *   · waKontaktStoppEcht — will keinen Kontakt mehr: „Stopp“, „Schreiben Sie mir nicht mehr“, „keine Nachrichten mehr“
+ *     (stoppWunsch), „Lassen Sie mich in Ruhe“ (abstreitenArt „in_ruhe“) → Werbesperre UND die STOPP-Bestätigung.
+ *     Ein reiner Anruf-Stopp („nicht mehr anrufen“) zählt nicht: die Telefonsperre setzt der Eingang, den festen Satz
+ *     ANRUF_SPERRE_WA schickt E-408 (läuft auch ohne KI). „keine Werbung mehr“ ist ein Werbe-Widerspruch, kein Kontakt-Stopp.
+ *   · waWerbeWiderspruch — „keine Werbung“ als Wunsch (§ 7 UWG, Art. 21 DSGVO) → nur die Werbesperre, nie „hier auf WhatsApp
+ *     schreiben wir Ihnen nicht mehr“. Nie in einer Frage („Ist das keine Werbung?“), nie als Feststellung („Das ist keine Werbung“).
+ *   · waKontaktStopp = eins von beiden → Werbesperre und das Wort „Stopp“ in der Aufgabe.
+ * STOPP_WUNSCH selbst bleibt unverändert (E-264 und das Postfach lesen es). Alles rein.
+ * E-531 (Prüfung 25.11.2026, Rest von wa#0):
+ *   · „keine Nachrichten/E-Mails mehr“ zählt je TEILSATZ (Trenner , ; . ! ? und Zeilenumbruch): Ein Teilsatz mit „?“ oder
+ *     „warum“ ist eine Frage, einer mit „bekomme/kriege/erhalte …“ ohne Wunschwort (bitte, möchte, will …) eine Feststellung
+ *     („Ich bekomme keine E-Mails mehr“) — beides kein Stopp. „schick mir keine E-Mails mehr, wann kommt die Karte?“ bleibt
+ *     einer (der erste Teilsatz fragt nicht), ebenso die höfliche Bitte („Können Sie mir bitte keine E-Mails mehr schicken?“).
+ *     Gesucht wird im ganzen Text: „Bitte keine⏎Nachrichten mehr“ ist ein Stopp.
+ *   · „nicht mehr anrufen“ und „Hören Sie auf, mich anzurufen“ fallen nur heraus, wenn nicht „und/oder (an)schreiben,
+ *     kontaktieren …“ folgt — „Bitte nicht mehr anrufen oder schreiben“ ist ein Kontakt-Stopp.
+ */
+// Folgt „und/oder (nicht mehr) schreiben, kontaktieren …“ (als Grundform — nicht „und schreiben Sie mir lieber …“), ist es
+// mehr als ein Anruf-Stopp.
+const NICHT_NUR_ANRUF = String.raw`(?!\s*,?\s*(?:und|oder|bzw\.?|sowie)\s+(?:(?:mir|mich|uns)\s+)?(?:auch\s+)?(?:(?:nicht|nie|keine)\s+mehr\s+)?(?:(?:nachrichten|whatsapps?|sms|mails?|e-?mails?)\s+)?(?:zu\s+)?(?:(?:an)?schreiben|anzuschreiben|kontaktieren|nerven|bel(?:ä|ae)stigen|schicken|senden)(?!\s+(?:sie|mir|uns)(?![\p{L}]))(?![\p{L}]))`;
+const NUR_ANRUF_STOPP = new RegExp(String.raw`(?<![\p{L}])(?:nicht|nie)\s+mehr\s+anrufen(?![\p{L}])${NICHT_NUR_ANRUF}`, "giu");
+// „Hören Sie auf, mich anzurufen“: abstreitenArt nennt es „in_ruhe“ — es ist aber nur ein Anruf-Stopp (Telefonsperre: Eingang).
+const NUR_ANRUF_AUFHOEREN = new RegExp(String.raw`(?<![\p{L}])h(?:ö|oe)r(?:en|t)\s+(?:sie\s+|ihr\s+)?(?:bitte\s+|endlich\s+|sofort\s+)?auf\s*,?\s+(?:mich\s+|uns\s+)?(?:\p{L}+\s+)?(?:zu\s+)?(?:anzurufen|anrufen)(?![\p{L}])${NICHT_NUR_ANRUF}`, "giu");
+/** Sein Text ohne die reinen Anruf-Stopp-Wendungen — was übrig bleibt, entscheidet über WhatsApp-Stopp und Heikles. Rein. */
+export function ohneAnrufStopp(text: string): string {
+  return String(text ?? "").replace(NUR_ANRUF_STOPP, " ").replace(NUR_ANRUF_AUFHOEREN, " ");
+}
+const WERBUNG_MEHR = new RegExp(String.raw`(?<![\p{L}])keine\s+werbung\s+mehr(?![\p{L}])`, "giu");
+const STOPP_GRENZE = /[,;.!?\n]/;
+const STOPP_FRAGEWORT = new RegExp(String.raw`(?<![\p{L}])(?:warum|wieso|weshalb|weswegen)(?![\p{L}])`, "iu");
+// Empfang oder Feststellung: „bekomme/kriege/erhalte keine … mehr“, „es kommen keine … mehr an“, „sehe keine … mehr“, „seit …“.
+const STOPP_EMPFANG = new RegExp(String.raw`(?<![\p{L}])(?:bekomm\p{L}*|bekam\p{L}*|krieg\p{L}*|erhalt\p{L}*|erh(?:ä|ae)lt\p{L}*|(?:an)?komm(?:e|en|t|st)|kam(?:en)?|seh(?:e|en)|sieht|gesehen|seit)(?![\p{L}])`, "iu");
+// E-531 (Gegenprüfung Runde 4): „(an)gekommen“ ist nur HINTER der Stopp-Wendung eine Feststellung („Keine Mails mehr
+// angekommen“). Davor gehört es zu etwas anderem („Es ist nie Geld gekommen schreiben Sie mir nicht mehr“ bleibt ein Stopp).
+const STOPP_EMPFANG_DANACH = new RegExp(String.raw`(?<![\p{L}])(?:an)?gekommen(?![\p{L}])`, "iu");
+const STOPP_WUNSCHWORT = new RegExp(String.raw`(?<![\p{L}])(?:bitte|m(?:ö|oe)cht\p{L}*|will|willst|wollen|w(?:ü|ue)nsch\p{L}*|soll\p{L}*)(?![\p{L}])`, "iu");
+const STOPP_BITTE = new RegExp(String.raw`(?<![\p{L}])bitte(?![\p{L}])`, "iu");
+// Als Konstruktor (nicht als /…/u-Literal): tsc ohne target lehnt das u-Flag in Literalen ab (TS1501), das Verhalten ist gleich.
+const STOPP_DASS = new RegExp(String.raw`^\s*dass(?![\p{L}])`, "iu");
+const NICHT_BUCHSTABEN = new RegExp(String.raw`[^\p{L}]+`, "u");
+const STOPP_EMOJI = new RegExp("[\\p{Extended_Pictographic}\\u{1F3FB}-\\u{1F3FF}\\u200D\\uFE0F]", "gu");
+// Dieselben Muster wie stoppWunsch (STOPP_WUNSCH, shared, unverändert) — hier mit „g“, um JEDEN Treffer in seinem Teilsatz zu prüfen.
+const STOPP_WUNSCH_ALLE = STOPP_WUNSCH.map((r) => new RegExp(r.source, r.flags.includes("g") ? r.flags : `${r.flags}g`));
+/** stoppWunsch — aber ein Treffer zählt nur, wenn sein Teilsatz weder fragt noch feststellt (siehe oben). Rein. */
+export function waStoppWunschEcht(text: string): boolean {
+  const n = String(text ?? "").replace(STOPP_EMOJI, " ").replace(WERBUNG_MEHR, " ")
+    .replace(/[^\S\n]+/g, " ").replace(/ *\n\s*/g, "\n").trim();
+  if (!n) return false;
+  const vor = (i: number) => { let a = i; while (a > 0 && !STOPP_GRENZE.test(n[a - 1])) a--; return a; };
+  const nach = (i: number) => { let b = i; while (b < n.length && !STOPP_GRENZE.test(n[b])) b++; return b; };
+  for (const r of STOPP_WUNSCH_ALLE) {
+    for (const m of Array.from(n.matchAll(r))) {
+      const a = vor(m.index ?? 0);
+      const ende = (m.index ?? 0) + m[0].length;
+      const teil = n.slice(a, nach(ende) + 1);
+      if (STOPP_FRAGEWORT.test(teil)) continue;
+      const empfang = STOPP_EMPFANG.test(teil) || STOPP_EMPFANG_DANACH.test(n.slice(ende, nach(ende) + 1));
+      // Eine Frage ist kein Stopp — außer der höflichen Bitte („Können Sie mir bitte keine E-Mails mehr schicken?“).
+      if (teil.includes("?") && !(STOPP_BITTE.test(teil) && !empfang)) continue;
+      // „Ich möchte, dass ich keine Nachrichten mehr bekomme“: Das Wunschwort steht im Teilsatz davor.
+      const davor = a > 0 && n[a - 1] === "," && STOPP_DASS.test(teil) ? n.slice(vor(a - 1), a) : "";
+      if (empfang && !STOPP_WUNSCHWORT.test(teil) && !STOPP_WUNSCHWORT.test(davor)) continue;
+      return true;
+    }
+  }
+  return false;
+}
+export function waKontaktStoppEcht(text: string): boolean {
+  const t = String(text ?? "");
+  if (!t.trim()) return false;
+  // Je Nachricht (seinText trennt sie mit Zeilenumbruch): ein „Stopp“ allein zählt auch, wenn danach noch „Danke“ kam.
+  if (t.split(/\n+/).some((z) => istStopp(z.trim()))) return true;
+  const ohne = ohneAnrufStopp(t);
+  return waStoppWunschEcht(ohne) || abstreitenArt(ohne)?.art === "in_ruhe";
+}
+const KEINE_WERBUNG = new RegExp(String.raw`(?<![\p{L}])(?:keine|null)\s+werbung(?![\p{L}])`, "iu");
+// Der Wunsch steht dabei: „keine Werbung mehr/bitte“ oder davor „bitte“, „möchte“, „will“, „wünsche“, „schicken/senden Sie mir“.
+const WERBUNG_WUNSCH = new RegExp(String.raw`(?<![\p{L}])(?:(?:keine|null)\s+werbung\s+(?:mehr|bitte)|(?:bitte|m(?:ö|oe)cht\p{L}*|will|wollen|w(?:ü|ue)nsch\p{L}*|schick\p{L}*|send\p{L}*)\s+(?:\p{L}+\s+){0,2}?(?:keine|null)\s+werbung)(?![\p{L}])`, "iu");
+// Ohne Wunschwort zählt nur ein kurzer Satz — und nie eine Feststellung („ist/war keine Werbung“, „habe keine Werbung bekommen“).
+const WERBUNG_FESTSTELLUNG = new RegExp(String.raw`(?<![\p{L}])(?:ist|war|sei|sind|waren|habe|hab|hat|hatte|bekommen|bekam|erhalten|gesehen|kam|kommt)(?![\p{L}])`, "iu");
+export function waWerbeWiderspruch(text: string): boolean {
+  // Je Satz und je Nachricht — ein „?“ in einer anderen Nachricht macht den Widerspruch nicht zur Frage.
+  const saetze = String(text ?? "").split(/(?<=[.!?])\s*|\n+/).map((s) => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+  return saetze.some((s) => !s.includes("?")
+    && (WERBUNG_WUNSCH.test(s) || (s.length <= 60 && KEINE_WERBUNG.test(s) && !WERBUNG_FESTSTELLUNG.test(s))));
+}
+export function waKontaktStopp(text: string): boolean {
+  return waKontaktStoppEcht(text) || waWerbeWiderspruch(text);
+}
+/**
+ * E-531 (wa#0): Ist es NUR der Werbe-Widerspruch (dazu höchstens Gruß, Dank, Füllwörter — „Keine Werbung mehr, danke!“)?
+ * Dann bekommt er die kurze Bestätigung wie E-264 (WA_PRIVAT_WERBUNG_TEXT) statt des E-Mail-Hinweises. Steht ein Anliegen
+ * dabei („Keine Werbung, aber meine Karte …“), bleibt es beim festen Hinweis — er bekommt die Antwort schriftlich. Rein.
+ */
+const WERBUNG_FUELLE = new RegExp(String.raw`^(?:hallo|hi|hey|moin|servus|guten|tag|morgen|abend|ok|okay|ja|nein|danke|dank|vielen|bitte|ich|wir|m(?:ö|oe)cht\p{L}*|will|wollen|w(?:ü|ue)nsch\p{L}*|keine|null|werbung|mehr|stopp?|schick\p{L}*|send\p{L}*|sie|ihr|mir|uns|ab|jetzt|sofort|gar|absolut|einfach|erhalten|bekommen|und|aber|also|nur|das|reicht|lg|mfg|gru(?:ß|ss)\p{L}*)$`, "iu");
+export function waWerbeWiderspruchRein(text: string): boolean {
+  const t = String(text ?? "").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 80 || t.includes("?") || waKontaktStoppEcht(t) || !waWerbeWiderspruch(t)) return false;
+  return t.split(NICHT_BUCHSTABEN).filter(Boolean).every((w) => WERBUNG_FUELLE.test(w));
+}
+/**
+ * Welche dieser Wörter stecken in seiner Nachricht? Bewusst weit (auch eine Frage oder ein „nicht“ zählt) — ein Mensch liest
+ * ohnehin; lieber einmal zu früh „hoch“ als eine Frist verpasst. Reihenfolge wie WA_PRIVAT_WOERTER. Rein.
+ */
+export function waPrivatWoerter(text: string): WaPrivatWort[] {
+  const t = String(text ?? "");
+  if (!t.trim()) return [];
+  return WA_PRIVAT_WOERTER.filter((w) => PRIVAT_TEST[w](t));
+}
+/**
+ * Dazu die Wörter aus Maras FRAGE direkt davor, wenn seine Antwort kurz ist: „Ja bitte“ auf „Soll ich Ihre Kündigung …
+ * aufnehmen?“ ist eine Kündigung (Übergang beim Umschalten — sonst ginge sie als normales Anliegen unter). Rein.
+ */
+export function waPrivatWoerterMitFrage(text: string, frageVorher?: string | null): WaPrivatWort[] {
+  const eigene = waPrivatWoerter(text);
+  if (String(text ?? "").trim().length > 60) return eigene;
+  // Nur die Fragesätze zählen („Soll ich Ihre Kündigung … aufnehmen? Dann antworten Sie bitte mit Ja.“) — nicht
+  // „Ihre Kündigung ist aufgenommen. Kann ich sonst helfen?“.
+  const fragen = String(frageVorher ?? "").replace(/https?:\/\/\S+/g, " ").split(/(?<=[.!?])\s+/).filter((s) => /\?\s*$/.test(s.trim())).join(" ");
+  if (!fragen) return eigene;
+  const ausFrage = waPrivatWoerter(fragen);
+  return WA_PRIVAT_WOERTER.filter((w) => eigene.includes(w) || ausFrage.includes(w));
+}
+
+/**
+ * E-531 (Prüfung 25.11.2026, E-408 ohne KI): Darf der Sperrzweig in maraAntwortet („nicht mehr anrufen“ → ANRUF_SPERRE_WA)
+ * früh beenden? Mit KI („an“) wie seit E-408 immer. Ohne KI („aus“) nur, wenn außer dem Anruf-Stopp nichts Heikles in seinen
+ * Worten steht: kein Wort aus WA_PRIVAT_WOERTER außer „Anrufstopp“ (Kündigung, Widerruf, Erstattung, Anwalt, Löschwunsch,
+ * Beschwerde, Stopp …) und nichts, was E-264 (Abstreiten, falsche Nummer, „wofür zahlen?“ …) oder E-372 (Recht, Widerruf,
+ * Geld zurück) übernähme. Sonst ginge es ohne KI still verloren — keine Aufgabe, keine Karte. Dann läuft maraAntwortet weiter:
+ * Die Telefonsperre steht schon (Eingang), E-264 und E-372 übernehmen, und der Weg ohne KI schickt den Anruf-Satz statt des
+ * festen Hinweises. „Hören Sie auf, mich anzurufen“ (abstreitenArt: „in_ruhe“) bleibt dabei ein reiner Anruf-Stopp. Rein.
+ */
+export function waAnrufSperreFrueh(ein: { privatOhneKi: boolean; text: string; frageVorher?: string | null }): boolean {
+  if (!ein.privatOhneKi) return true;
+  const t = String(ein.text ?? "");
+  if (waPrivatWoerterMitFrage(t, ein.frageVorher).some((w) => w !== "Anrufstopp")) return false;
+  if (waEntscheidungVorab(t, { bezahlt: true })) return false;
+  const ab = abstreitenArt(t);
+  return !ab || (ab.art === "in_ruhe" && !abstreitenArt(ohneAnrufStopp(t)));
+}
+
+/** Der Schalter wie die Einstellungen-Seite ihn zeigt (wertAnzeige): fehlt/leer → Vorgabe „an“; an nur bei an/1/true/ja. Rein. */
+export function waPrivatSchalterAn(roh: unknown): boolean {
+  const w = String(roh ?? "").trim();
+  if (!w) return true;
+  return /^(an|1|true|ja)$/i.test(w);
+}
+
+export type WaPrivatAktion = "ki" | "fest_und_aufgabe" | "nur_aufgabe" | "still";
+export interface WaPrivatEntscheidung { aktion: WaPrivatAktion; prioritaet: "hoch" | "normal"; woerter: WaPrivatWort[] }
+/**
+ * DIE Entscheidung (rein): privat? Schalter? Vor wie vielen Stunden ging der feste Hinweis zuletzt an diese Nummer
+ * (null = nie)? Sein Text. Dazu: ist es nur ein „Ok danke“ auf eine erledigte Sache (abschluss)?
+ *   · nicht privat oder Schalter an → „ki“ (alles wie bisher);
+ *   · Schalter aus, reine Bestätigung ohne heikles Wort → „still“ (kein Hinweis, keine Aufgabe);
+ *   · Schalter aus, kein Hinweis in den letzten 24 Stunden → „fest_und_aufgabe“, sonst → „nur_aufgabe“.
+ * Eine unklare Stundenzahl (NaN, negativ) zählt wie „gerade geschickt“ — lieber kein zweiter Hinweis als zwei.
+ * prioritaet „hoch“, sobald eins der WA_PRIVAT_WOERTER in seinem Text steht (bei kurzer Antwort auch in Maras Frage davor).
+ */
+export function waPrivatEntscheidung(ein: { privat: boolean; schalter: unknown; festVorStunden: number | null | undefined; text: string; abschluss?: boolean; frageVorher?: string | null }): WaPrivatEntscheidung {
+  const woerter = waPrivatWoerterMitFrage(ein.text, ein.frageVorher);
+  const prioritaet = woerter.length ? "hoch" : "normal";
+  if (!ein.privat || waPrivatSchalterAn(ein.schalter)) return { aktion: "ki", prioritaet, woerter };
+  if (ein.abschluss && !woerter.length) return { aktion: "still", prioritaet, woerter };
+  const h = ein.festVorStunden;
+  const frei = h == null || (Number.isFinite(h) && h >= WA_PRIVAT_HINWEIS_STUNDEN);
+  return { aktion: frei ? "fest_und_aufgabe" : "nur_aufgabe", prioritaet, woerter };
+}
+
+/** Der Titel der Aufgabe: die Wörter der offenen Aufgabe bleiben, neue kommen dazu — nie zurückgestuft. Rein. */
+export function waPrivatTitel(alterTitel: string | null | undefined, woerter: readonly WaPrivatWort[]): string {
+  const alt = String(alterTitel ?? "");
+  const alle = WA_PRIVAT_WOERTER.filter((w) => woerter.includes(w) || alt.includes(w));
+  return alle.length ? `WhatsApp Privat: ${alle.join(", ")} — bitte jetzt übernehmen` : "WhatsApp Privat: Anliegen ohne KI — bitte übernehmen";
+}
+
+/** Was der Mensch je Wort tun soll — kurz; Mara hat nichts gebucht und nichts zugesagt. */
+const PRIVAT_TUN: Record<WaPrivatWort, string> = {
+  "Kündigung": "Kündigung bitte in der Akte aufnehmen und schriftlich bestätigen (Mara hat nichts gebucht).",
+  "Widerruf": "Widerruf bitte prüfen und schriftlich beantworten (Mara hat nichts gebucht).",
+  "Erstattung": "Erstattung nicht zusagen — Klärung nur über die Buchhaltung.",
+  "Anwalt": "Anwalt erwähnt — bitte persönlich und schriftlich antworten, nichts zusagen.",
+  "Klage": "Klage oder Gericht erwähnt — bitte persönlich und schriftlich antworten, nichts zusagen.",
+  "Beschwerde": "Beschwerde — bitte persönlich klären.",
+  "Löschwunsch": "Löschwunsch — bitte prüfen und schriftlich bestätigen.",
+  "Stopp": "Will keinen Kontakt oder keine Werbung mehr — keine Werbung, kein Anruf ohne seinen Wunsch; nur noch Vertragspost.",
+  "Anrufstopp": "Will nicht angerufen werden — bitte nicht anrufen, nur schriftlich antworten (eine klare Telefonsperre setzt der Eingang selbst).",
+  "Bestreitet": "Bestreitet den Antrag — bitte klären, wer ihn gestellt hat; nichts verkaufen, keine Zahlungsbitte.",
+  "Datenauskunft": "Fragt, wer wir sind oder woher wir seine Nummer haben — bitte mit der belegten Herkunft antworten; will er Auskunft über seine Daten (Art. 15 DSGVO), gilt die Frist von einem Monat.",
+};
+/**
+ * Der Text für die Aufgabe (rein): seine Nachricht(en) mit Berliner Uhrzeit, die heiklen Wörter mit dem, was zu tun ist,
+ * und — nur in der Runde mit dem festen Hinweis — wie geantwortet wird. Wird an die offene Aufgabe angehängt, also kurz.
+ */
+export function waPrivatAufgabeText(ein: {
+  zitate: readonly { text: string; am: unknown }[]; woerter: readonly WaPrivatWort[]; hinweisGeschickt: boolean; frage?: string | null;
+  /** E-531 (wa#5): Jemand aus dem Team hat ihm in den letzten 48 Stunden auf WhatsApp geschrieben — darum kein fester Hinweis. */
+  menschImGespraech?: boolean;
+  /** E-531 (wa#6): die belegte Herkunft seiner Nummer (herkunftSatz) — nur bei „Datenauskunft“ gezeigt. */
+  herkunft?: { satz: string; belegt: boolean } | null;
+  /** E-531 (wa#3): offene Sachen bei Justin (Karten, kurz benannt) — dazu sagt der Mensch nichts zu. */
+  offeneSachen?: readonly string[];
+  /** E-531 (Prüfung 25.11.2026): Er bekommt den Anruf-Satz (ANRUF_SPERRE_WA) statt des festen Hinweises — Anliegen schriftlich. */
+  anrufSatz?: boolean;
+  /** E-531 (Prüfung 25.11.2026, wa#3): seine Karte bei Justin (kurz benannt) steht auf „später“ — darum auch diese Aufgabe. */
+  karteSpaeter?: string | null;
+}): string {
+  const zitate = ein.zitate.map((z) => {
+    const d = z.am instanceof Date ? z.am : new Date(String(z.am ?? ""));
+    const t = Number.isFinite(d.getTime()) ? berlinTeile(d, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : null;
+    const wort = String(z.text ?? "").replace(/\s+/g, " ").trim().slice(0, 500) || "(ohne Text)";
+    return `${t ? `${t.day}.${t.month}. ${t.hour}:${t.minute} ` : ""}„${wort}“`;
+  });
+  const zeilen = [`WhatsApp Privat ohne KI — er schreibt: ${zitate.join(" · ") || "(ohne Text)"}`];
+  // Kam ein Wort nur aus Maras Frage davor, steht die Frage dabei — sonst versteht niemand das „Ja“.
+  if (ein.frage) zeilen.push(`Antwort auf Maras Frage: „${String(ein.frage).replace(/\s+/g, " ").trim().slice(0, 300)}“`);
+  if (ein.woerter.length) zeilen.push(`Darin: ${ein.woerter.join(", ")}. ${ein.woerter.map((w) => PRIVAT_TUN[w]).join(" ")}`);
+  if (ein.herkunft && ein.woerter.includes("Datenauskunft")) {
+    zeilen.push(ein.herkunft.belegt
+      ? `Belegte Herkunft für die Antwort: „${ein.herkunft.satz}.“`
+      : "Woher wir seine Nummer haben, ist nicht sicher belegt — bitte in der Akte nachsehen, nichts vermuten.");
+  }
+  if (ein.karteSpaeter) zeilen.push(`Seine Sache liegt als Karte bei Justin (${ein.karteSpaeter}), steht dort aber auf „später“ — darum auch diese Aufgabe: nichts zusagen, keine Zahlungsbitte, nicht selbst entscheiden.`);
+  const andere = Array.from(new Set(ein.offeneSachen ?? [])).filter((x) => x !== ein.karteSpaeter);
+  if (andere.length) zeilen.push(`Offen bei Justin (${andere.join(", ")}): dazu nichts zusagen und nicht selbst entscheiden.`);
+  if (ein.anrufSatz) zeilen.push(`Er bekommt „${ANRUF_SPERRE_WA}“ (die Telefonsperre hat der Eingang gesetzt) — sein Anliegen bitte schriftlich beantworten: per E-Mail; ohne Adresse im WhatsApp-Raum (frei bis 24 Stunden nach seiner Nachricht).`);
+  if (ein.menschImGespraech) zeilen.push("Jemand aus dem Team hat ihm in den letzten 48 Stunden auf WhatsApp geschrieben — darum kein fester Hinweis; bitte im WhatsApp-Raum weiterführen (frei bis 24 Stunden nach seiner Nachricht).");
+  else if (ein.hinweisGeschickt) zeilen.push("Er bekommt den festen Hinweis „Antwort schriftlich per E-Mail“ — bitte per E-Mail antworten; ohne Adresse im WhatsApp-Raum (frei bis 24 Stunden nach seiner Nachricht).");
+  return zeilen.join("\n").slice(0, 3000);
+}
+
+/**
+ * E-531: den Schalter lesen (der Leser im Register). Fehlt er → null (Vorgabe „an“, der Deploy ändert nichts).
+ * Lesefehler → „aus“: dann diese Runde ohne KI — die Aufgabe braucht die Datenbank ohnehin, sonst versucht es der Nachhol-Takt.
+ */
+async function waPrivatSchalter(): Promise<string | null> {
+  try {
+    const [r] = (await sqlPool`SELECT value FROM fiaon_settings WHERE key = ${WA_PRIVAT_SCHALTER}`) as any[];
+    return r?.value == null ? null : String(r.value);
+  } catch (e) {
+    console.warn("[MARA-WA] Schalter mara_wa_privat nicht lesbar — diese Runde ohne KI:", String((e as Error)?.message ?? e).slice(0, 160));
+    return "aus";
+  }
+}
+
+/** E-531 (wa#5): So lange zählt die freie Antwort eines Menschen — so lange kommt kein fester Hinweis dazwischen. */
+export const WA_PRIVAT_MENSCH_STUNDEN = 48;
+/**
+ * E-531: Vor wie vielen Stunden ging der feste Hinweis zuletzt an diese Nummer raus? null = nie; Lesefehler = 0 (dann keiner).
+ * E-531 (wa#5): Hat ein MENSCH (nicht Mara, nicht ARAS, kein System — wie istMara) in den letzten 48 Stunden geschrieben (frei
+ * oder mit einer Vorlage aus dem WhatsApp-Raum — Prüfung 25.11.2026), führt er das Gespräch im WhatsApp-Raum: Das zählt wie ein Hinweis von gerade eben (vorStunden 0, mensch true) — kein Hinweis
+ * mitten in sein Gespräch, nur die Aufgabe. Die Übernahme (mara_an) läuft nach 15 Minuten ab, das Gespräch nicht.
+ */
+async function waPrivatHinweisLage(nummer: string): Promise<{ vorStunden: number | null; mensch: boolean }> {
+  try {
+    // E-531 (Prüfung 25.11.2026): „keine Vorlage“ gilt nur für den Hinweis (freie Mara-Nachricht) — eine Vorlage, mit der ein
+    // Kollege aus dem WhatsApp-Raum das Gespräch beginnt, zählt beim Menschen mit.
+    const [z] = (await sqlPool`
+      SELECT MAX(COALESCE(gesendet_am, created_at)) FILTER (WHERE vorlage IS NULL AND text = ${WA_PRIVAT_AUS_TEXT}) AS am,
+             COUNT(*) FILTER (WHERE text IS DISTINCT FROM ${WA_PRIVAT_AUS_TEXT} AND von IS NOT NULL AND von !~* '^(mara|aras|system)'
+               AND COALESCE(gesendet_am, created_at) > NOW() - INTERVAL '48 hours')::int AS mensch
+        FROM fiaon_whatsapp
+       WHERE nummer = ${nummer} AND richtung = 'raus' AND status <> 'fehler'`) as any[];
+    if (Number(z?.mensch ?? 0) > 0) return { vorStunden: 0, mensch: true };
+    if (!z?.am) return { vorStunden: null, mensch: false };
+    return { vorStunden: (Date.now() - new Date(z.am).getTime()) / 3_600_000, mensch: false };
+  } catch (e) {
+    console.warn("[MARA-WA] Letzter fester Hinweis nicht lesbar — diesmal keiner:", String((e as Error)?.message ?? e).slice(0, 160));
+    return { vorStunden: 0, mensch: false };
+  }
+}
+
+/** E-531: Nachrichten, die schon in der Aufgabe stehen (Nummer:Nachricht) — mehrere offene Nachrichten nicht doppelt. */
+const waPrivatGemeldet = new Set<string>();
+
+/**
+ * E-531 Nachbesserung: Welcher feste Satz geht ohne KI hinaus? Ein Stopp-Wunsch bekommt die STOPP-Bestätigung (auch
+ * innerhalb der 24 Stunden — nie zweimal hintereinander), nie den E-Mail-Hinweis an jemanden, der keinen Kontakt will.
+ * Sonst der feste Hinweis nach der 24-Stunden-Regel, sonst keiner. Rein.
+ * E-531 (wa#0): `stopp` heißt nur noch der ECHTE Kontakt-Stopp (waKontaktStoppEcht). Ein reiner Werbe-Widerspruch
+ * (`werbung`: nur „keine Werbung“, Werbesperre gerade neu gesetzt) bekommt die kurze Bestätigung WA_PRIVAT_WERBUNG_TEXT —
+ * steht ein Anliegen dabei, ist `werbung` false und es bleibt beim festen Hinweis.
+ * E-531 (Prüfung 25.11.2026): `anruf` — er will nicht mehr angerufen werden UND hat ein heikles Anliegen (der E-408-Sperrzweig
+ * lief deshalb weiter, waAnrufSperreFrueh): Er bekommt den Anruf-Satz ANRUF_SPERRE_WA wie bei E-408 — auch innerhalb der
+ * 24 Stunden, nie zweimal hintereinander (dann gilt wieder die 24-Stunden-Regel). Sein Anliegen beantwortet ein Mensch schriftlich.
+ */
+export function waPrivatAntwortText(ein: { aktion: WaPrivatAktion; stopp: boolean; werbung?: boolean; anruf?: boolean; letzteMara?: string | null }): string | null {
+  if (ein.aktion === "ki" || ein.aktion === "still") return null;
+  const letzte = String(ein.letzteMara ?? "").trim();
+  if (ein.stopp) return letzte === STOPP_ANTWORT ? null : STOPP_ANTWORT;
+  if (ein.anruf && letzte !== ANRUF_SPERRE_WA) return ANRUF_SPERRE_WA;
+  if (ein.werbung) return letzte === WA_PRIVAT_WERBUNG_TEXT ? null : WA_PRIVAT_WERBUNG_TEXT;
+  return ein.aktion === "fest_und_aufgabe" ? WA_PRIVAT_AUS_TEXT : null;
+}
+
+/**
+ * E-531 (wa#3): Liegt eine Karte bei Justin offen, über die er entscheidet (karteRuhe: Recht, Widerruf, Geld zurück, Löschwunsch,
+ * bestrittener Antrag, Rücknahme der Kündigung, Ratenpause)? Dann bekommt diese Karte seine Folge-Nachricht — auch ohne
+ * Schlüsselwort („Und? Was ist jetzt?“) —, keine Aufgabe beim Betreuer, der von der offenen Entscheidung nichts weiß.
+ * Die neueste zuerst (waOffeneKarten liest absteigend). Rein.
+ */
+export function waPrivatOffeneKarte(karten: readonly { fall: WaFall }[]): WaFall | null {
+  return karten.find((x) => karteRuhe([x]))?.fall ?? null;
+}
+/** E-372/E-531: die offenen Sachen kurz benannt — für das Modell (JETZT BEACHTEN) und für die Aufgabe ohne KI. */
+const WA_FALL_KURZ: Record<WaFall, string> = {
+  rechtlich: "Anwalt/Behörde", widerruf: "Widerruf", erstattung: "Geld zurück", loeschen: "Löschwunsch",
+  bestreitet: "bestrittener Antrag", kuendigung_zurueck: "Rücknahme der Kündigung", ratenpause: "Ratenpause", global: "FIAON Global",
+  karte: "Kartenlink", falsche_nummer: "Nummer", werbesperre: "Werbesperre", unsicher: "eine offene Frage", frage: "eine offene Frage",
+};
+/**
+ * E-531 (Prüfung 25.11.2026, wa#3): der Warn-Beleg auf der Karte, wenn eine Folge-Nachricht sie auffrischt — das Auffrischen
+ * ersetzt die Zitate; so steht wenigstens da, dass es eine Folge-Nachricht ist und welche heiklen Wörter darin stehen. Rein.
+ */
+export function waPrivatKarteGrund(woerter: readonly WaPrivatWort[]): string {
+  return woerter.length ? `Folge-Nachricht — darin: ${woerter.join(", ")}` : "Folge-Nachricht";
+}
+/**
+ * E-531 (Prüfung 25.11.2026, wa#3): Sieht Justin diese Karte gerade NICHT? Auf „später“ gestellt zeigt die Liste sie erst ab
+ * spaeter_bis (SICHT_SQL in fiaon-mara-entscheidungen.ts), das Auffrischen ändert den Status nicht. Dann bekommt zusätzlich die
+ * Aufgabe die Nachricht. Lesefehler oder keine Karte → true (lieber einmal doppelt als nie gesehen).
+ */
+async function waKarteVerborgen(id: number | null | undefined): Promise<boolean> {
+  if (!id) return true;
+  try {
+    const [z] = (await sqlPool`
+      SELECT (status = 'offen' OR (status = 'spaeter' AND spaeter_bis <= NOW())) IS TRUE AS sichtbar
+        FROM fiaon_mara_entscheidungen WHERE id = ${Number(id)}`) as any[];
+    return z?.sichtbar !== true;
+  } catch (e) {
+    console.warn("[MARA-WA] Karte für Justin (später?) nicht lesbar — zusätzlich die Aufgabe:", String((e as Error)?.message ?? e).slice(0, 160));
+    return true;
+  }
+}
+
+/**
+ * E-531: WhatsApp Privat ohne KI. null = Schalter an → maraAntwortet macht weiter wie bisher. Sonst, ohne KI-Aufruf:
+ * erst die Aufgabe für einen Menschen, und nur wenn sie steht, der feste Hinweis (bzw. still). Steht die Aufgabe nicht
+ * (Datenbank), bleibt die Nachricht offen und der Nachhol-Takt versucht es wieder — der Hinweis geht nie ohne Aufgabe raus.
+ * Nachbesserung (Gutachten Kundensicherheit): Läuft erst NACH den festen Schutzwegen (E-264, E-372 in maraAntwortet). Hier
+ * dazu: Stopp-Wunsch → Werbesperre + STOPP-Bestätigung; schreibt er zu einer offenen Karte für Justin weiter (Anwalt,
+ * Widerruf, Geld zurück) → die Karte bekommt die Nachricht, keine Aufgabe beim Betreuer.
+ * E-531 (Abnahme 25.11.2026): STOPP-Bestätigung nur beim echten Kontakt-Stopp; ein Werbe-Widerspruch setzt die Werbesperre
+ * und bekommt die kurze Werbe-Bestätigung (nur rein) oder den festen Hinweis (wa#0). Jede offene Karte, über die Justin
+ * entscheidet, bekommt die Folge-Nachricht, auch ohne Schlüsselwort (wa#3). Hat ein Mensch in den letzten 48 Stunden frei
+ * geschrieben, kein Hinweis, nur die Aufgabe (wa#5). „Wer sind Sie?“ → hoch, mit der belegten Herkunft in der Aufgabe (wa#6).
+ * E-531 (Prüfung 25.11.2026): Lief der E-408-Sperrzweig weiter (Anruf-Stopp UND etwas Heikles, waAnrufSperreFrueh), bekommt er
+ * den Anruf-Satz statt des festen Hinweises — dazu die Aufgabe bzw. die Karte. Die Karte trägt beim Auffrischen den Warn-Beleg
+ * „Folge-Nachricht — darin: …“; steht sie bei Justin auf „später“, bekommt zusätzlich die Aufgabe die Nachricht (wa#3).
+ */
+async function waPrivatOhneKi(ein: {
+  nummer: string; personId: number | null; leadId: number | null;
+  offeneRein: readonly any[]; neuesteRein: any; autoIds: readonly number[]; abschluss: boolean;
+  /** Maras letzte freie Nachricht — ist sie eine Frage, erbt eine kurze Antwort deren heikle Wörter. */
+  frageVorher: string | null;
+  /** Der schon gelesene Schalter (maraAntwortet liest ihn einmal). */
+  schalter: string | null;
+  /** E-372: Er schreibt zu einer offenen Karte dieses Falls weiter — dann bekommt die Karte die Nachricht. */
+  entscheidungsFall?: WaFall | null;
+  lageE?: WaEntscheidungsLage | null;
+  /** E-531 (wa#3): alle offenen Karten dieses Menschen (waOffeneKarten, neueste zuerst; id für „steht auf später?“). */
+  offeneKarten?: readonly { fall: WaFall; id?: number }[];
+  /** E-531 (wa#6): die belegte Herkunft seiner Nummer — nur gelesen, wenn er fragt, wer wir sind oder woher wir sie haben. */
+  herkunft?: { satz: string; belegt: boolean } | null;
+  /** E-531 (Prüfung 25.11.2026): Der E-408-Sperrzweig lief weiter (Anruf-Stopp mit etwas Heiklem) — dann der Anruf-Satz. */
+  anrufSperre?: boolean;
+}): Promise<Ergebnis | null> {
+  const schalter = ein.schalter;
+  if (waPrivatSchalterAn(schalter)) return null;
+  const auto = new Set(ein.autoIds.map(Number));
+  // Älteste zuerst; Autoantworten zählen nicht als seine Worte (E-248).
+  const echte = ein.offeneRein.filter((v) => !auto.has(Number(v.id))).slice().reverse();
+  const textVon = (v: any) => String(v.text || v.knopf || MEDIEN_KURZ[String(v.typ)] || (v.typ && v.typ !== "text" ? `(${v.typ})` : ""));
+  const seinText = echte.map(textVon).join("\n").trim();
+  // E-531 (wa#5): Schreibt gerade ein Mensch mit ihm (freie Antwort in den letzten 48 Stunden), zählt das wie ein Hinweis von eben.
+  const lageH = await waPrivatHinweisLage(ein.nummer);
+  const e = waPrivatEntscheidung({ privat: true, schalter, festVorStunden: lageH.vorStunden, text: seinText, abschluss: ein.abschluss, frageVorher: ein.frageVorher });
+  if (e.aktion === "ki") return null;
+  const aufId = Number(ein.neuesteRein.id);
+  const kurz = seinText.replace(/\s+/g, " ").slice(0, 100);
+  const basis = { nummer: ein.nummer, personId: ein.personId, leadId: ein.leadId };
+  // Ohne ein eigenes Wort von ihm (nur Autoantworten — oben schon still) gibt es nichts zu übergeben: nie ein Hinweis ohne Aufgabe.
+  if (e.aktion === "still" || !echte.length) {
+    const was = echte.length ? `reine Bestätigung „${kurz}“` : "nur Autoantworten";
+    await stillSetzen(ein.nummer, aufId);
+    await protokolliere({ ...basis, art: "still", ok: true, text: `WhatsApp Privat ohne KI (E-531): ${was} — kein Hinweis, keine Aufgabe.`,
+      daten: { grund: "wa_privat_aus", aktion: e.aktion, auf_id: aufId } });
+    return { gesendet: false, grund: `WhatsApp Privat ohne KI — ${echte.length ? "reine Bestätigung" : "nur Autoantworten"}, Mara schweigt.` };
+  }
+  // 0. Nachbesserung: Stopp-Wunsch — die Werbesperre (derselbe Weg wie E-264/E-391), dann die STOPP-Bestätigung.
+  // E-531 (wa#0): zwei Stufen — die STOPP-Bestätigung nur beim echten Kontakt-Stopp (nie bei „nicht mehr anrufen“ oder einer
+  // Frage wie „Ist das keine Werbung?“); ein Werbe-Widerspruch bekommt nur die Werbesperre (und rein die Werbe-Bestätigung).
+  const kontaktStopp = waKontaktStoppEcht(seinText);
+  const werbeStopp = !kontaktStopp && waWerbeWiderspruch(seinText);
+  const stopp = kontaktStopp || werbeStopp;
+  const taten: string[] = [];
+  let sperreNeu = false;
+  if (stopp && ein.personId) {
+    sperreNeu = await (await import("./fiaon-mara-abstreiten")).werbesperreSetzen(Number(ein.personId)).catch(() => false);
+    if (sperreNeu) {
+      taten.push("Werbesperre gesetzt");
+      await sqlPool`INSERT INTO fiaon_contact_log (ref, person_id, agent_id, agent_name, type, note)
+        SELECT a.ref, ${Number(ein.personId)}, NULL, 'Mara', 'system', ${`Werbesperre gesetzt: Der Kunde schrieb per WhatsApp, er wolle ${kontaktStopp ? "keinen Kontakt" : "keine Werbung"} mehr („${kurz}“) — WhatsApp Privat ohne KI (E-531). Werbung bleibt aus; Vertragspost (Raten, Kündigung) geht weiter.`}
+          FROM fiaon_applications a WHERE a.person_id = ${Number(ein.personId)} ORDER BY a.created_at DESC LIMIT 1`.catch(() => {});
+    }
+  }
+  // Die Werbe-Bestätigung sagt „keine Werbung mehr“ — nur, wenn die Sperre gerade steht und er nichts anderes will.
+  const werbung = werbeStopp && sperreNeu && waWerbeWiderspruchRein(seinText);
+  // Der feste Satz muss durch die Wand wie jeder Text (nie erwartet — dann still, die Aufgabe sagt es nicht zu).
+  // E-531 (Prüfung 25.11.2026): Lief der E-408-Sperrzweig weiter (anrufSperre), ist es der Anruf-Satz statt des Hinweises.
+  const satz = waPrivatAntwortText({ aktion: e.aktion, stopp: kontaktStopp, werbung, anruf: !!ein.anrufSperre, letzteMara: ein.frageVorher });
+  const wand = satz ? sendePruefung(satz) : [];
+  const hinweis = !!satz && !wand.length;
+  const satzArt = !hinweis ? null : satz === STOPP_ANTWORT ? "STOPP-Bestätigung" : satz === ANRUF_SPERRE_WA ? "Anruf-Satz"
+    : satz === WA_PRIVAT_WERBUNG_TEXT ? "Werbe-Bestätigung" : "fester Hinweis";
+  const neu = echte.filter((v) => !waPrivatGemeldet.has(`${ein.nummer}:${v.id}`));
+  // E-531 (wa#3): auch ohne Schlüsselwort — liegt eine Karte offen, über die Justin entscheidet, bekommt SIE die Nachricht.
+  const karteFall = ein.entscheidungsFall ?? waPrivatOffeneKarte(ein.offeneKarten ?? []);
+  // E-531 (Prüfung 25.11.2026, wa#3): Steht diese Karte bei Justin auf „später“, sieht sie bis dahin niemand — dann bekommt
+  // zusätzlich die Aufgabe die Nachricht (mit der Warnung, nichts zuzusagen und nichts selbst zu entscheiden).
+  let karteSpaeter = false;
+  if (karteFall) {
+    // 1a. E-372: Seine Sache liegt schon als Karte bei Justin (Anwalt, Widerruf, Geld zurück …) — die Karte bekommt die Nachricht.
+    // Geht die Karte nicht (Datenbank), legt uebergeben die heikle Aufgabe an — mit der Warnung, nichts selbst zu entscheiden.
+    const fall = karteFall;
+    const steht = await uebergeben({ nummer: ein.nummer, personId: ein.personId, leadId: ein.leadId, aufId,
+      weg: { weg: "karte", fall, grund: "er schreibt zu seiner offenen Sache weiter (WhatsApp Privat ohne KI, E-531)" },
+      aufgabe: { grund: `Er schreibt zu seiner offenen Sache bei Justin weiter (${WA_FALL_KURZ[fall]}) — WhatsApp Privat ohne KI: „${seinText.slice(0, 240)}“. Nichts zusagen, keine Zahlungsbitte, nicht selbst entscheiden.`, dringend: true, klasse: "heikel" },
+      karte: { kunde: seinText, mara: hinweis ? satz : null, grund: waPrivatKarteGrund(e.woerter) }, lage: ein.lageE });
+    if (!steht) return { gesendet: false, grund: "WhatsApp Privat ohne KI — die Karte für Justin ließ sich nicht auffrischen; neuer Versuch im Nachhol-Takt." };
+    karteSpaeter = await waKarteVerborgen((ein.offeneKarten ?? []).find((x) => x.fall === fall)?.id);
+    if (!karteSpaeter) for (const v of neu) waPrivatGemeldet.add(`${ein.nummer}:${v.id}`);
+  }
+  if ((!karteFall || karteSpaeter) && neu.length) {
+    // 1b. Die Aufgabe — nur mit den Nachrichten, die noch nicht drinstehen (auch, wenn die Karte bei Justin auf „später“ steht).
+    const hoch = e.prioritaet === "hoch";
+    const neuText = neu.map(textVon).join("\n");
+    const woerterNeu = waPrivatWoerterMitFrage(neuText, ein.frageVorher);
+    const ausFrage = woerterNeu.length > waPrivatWoerter(neuText).length;
+    // E-531 (wa#3): Liegt bei Justin eine andere Sache offen (Kartenlink, offene Frage …), steht die Warnung in der Aufgabe.
+    const offeneSachen = (ein.offeneKarten ?? []).map((x) => WA_FALL_KURZ[x.fall]).filter(Boolean);
+    const sperreText = sperreNeu ? "Werbesperre gesetzt"
+      : ein.personId ? "die Werbesperre stand schon oder ließ sich nicht setzen (bitte in der Akte prüfen)" : "ohne Akte keine Werbesperre möglich (bitte von Hand vermerken)";
+    const grund = [
+      waPrivatAufgabeText({ zitate: neu.map((v) => ({ text: textVon(v), am: v.am })), woerter: woerterNeu, hinweisGeschickt: hinweis && satz === WA_PRIVAT_AUS_TEXT,
+        frage: ausFrage ? ein.frageVorher : null, menschImGespraech: lageH.mensch, herkunft: ein.herkunft ?? null, offeneSachen,
+        anrufSatz: hinweis && satz === ANRUF_SPERRE_WA, karteSpaeter: karteSpaeter && karteFall ? WA_FALL_KURZ[karteFall] : null }),
+      ...(kontaktStopp ? [`Will keinen Kontakt mehr — ${satzArt === "STOPP-Bestätigung" ? "er bekommt die STOPP-Bestätigung (keine WhatsApp mehr)" : "die STOPP-Bestätigung hat er schon"}; ${sperreText}.`] : []),
+      ...(werbeStopp ? [`Widerspruch gegen Werbung — ${sperreText}${satzArt === "Werbe-Bestätigung" ? "; er bekommt die kurze Bestätigung „keine Werbung mehr“" : ""}.`] : []),
+    ].join("\n").slice(0, 3000);
+    const steht = await aufgabeFuerMenschen(ein.nummer, ein.personId, ein.leadId, grund, hoch, "privat",
+      { titel: (alt) => waPrivatTitel(alt, e.woerter), kopie: hoch, ...(hoch ? { still: false } : {}) });
+    if (!steht) return { gesendet: false, grund: "WhatsApp Privat ohne KI — die Aufgabe ließ sich nicht anlegen; neuer Versuch im Nachhol-Takt (kein Hinweis ohne Aufgabe)." };
+    if (waPrivatGemeldet.size > 5000) waPrivatGemeldet.clear();
+    for (const v of neu) waPrivatGemeldet.add(`${ein.nummer}:${v.id}`);
+  }
+  // 2. Der feste Satz (Hinweis höchstens 1× je 24 h, STOPP-/Werbe-Bestätigung und Anruf-Satz nie zweimal) — sonst still bis hierher.
+  const wohinKurz = karteFall ? (karteSpaeter ? "Karte für Justin (auf „später“) und Aufgabe" : "Karte für Justin") : "Aufgabe für einen Menschen";
+  if (hinweis && satz) {
+    await vorbereiten(ein.nummer, satz, aufId, seinText, { kunde: seinText,
+      handlung: `WhatsApp Privat ohne KI (E-531): ${satzArt === "STOPP-Bestätigung" ? "STOPP bestätigt" : satzArt === "Anruf-Satz" ? "nicht mehr anrufen bestätigt (Telefonsperre: Eingang)" : satzArt === "Werbe-Bestätigung" ? "keine Werbung mehr bestätigt" : "fester Hinweis"}${taten.length ? `, ${taten.join(", ")}` : ""}, ${wohinKurz}${e.woerter.length ? ` (${e.woerter.join(", ")})` : ""}` });
+  } else {
+    await stillSetzen(ein.nummer, aufId);
+  }
+  const wohin = karteFall
+    ? (karteSpaeter ? `die Karte für Justin (${karteFall}, auf „später“) und eine Aufgabe haben die Nachricht` : `die Karte für Justin (${karteFall}) hat die Nachricht`)
+    : "Aufgabe für einen Menschen";
+  const ohneSatz = wand.length ? `fester Satz fiel durch die Wand (${wand.join(" · ").slice(0, 120)})`
+    : kontaktStopp ? "STOPP schon bestätigt" : ein.anrufSperre ? "Anruf-Satz stand schon da, Hinweis nicht fällig"
+    : lageH.mensch ? "ein Mensch schreibt gerade mit ihm (48 Stunden)" : "Hinweis schon in den letzten 24 Stunden";
+  await protokolliere({ ...basis, art: hinweis ? "sicherer_satz" : "still", ok: true,
+    text: `WhatsApp Privat ohne KI (E-531) auf „${kurz}“: ${hinweis ? `${satzArt} liegt bereit` : ohneSatz}${taten.length ? `, ${taten.join(", ")}` : ""}, ${wohin}${e.prioritaet === "hoch" ? ` — hoch (${e.woerter.join(", ")})` : ""}.`,
+    daten: { grund: "wa_privat_aus", aktion: e.aktion, prioritaet: e.prioritaet, woerter: e.woerter, auf_id: aufId, neu: neu.length, wand, stopp: kontaktStopp, werbe_stopp: werbeStopp, anruf_satz: satzArt === "Anruf-Satz", taten, fall: karteFall ?? null, karte_spaeter: karteSpaeter, mensch: lageH.mensch } });
+  return { gesendet: false, grund: hinweis
+    ? `WhatsApp Privat ohne KI — ${satzArt} liegt bereit, ${wohin}${e.prioritaet === "hoch" ? ` (hoch: ${e.woerter.join(", ")})` : ""}.`
+    : `WhatsApp Privat ohne KI — kein weiterer fester Satz, nur ${wohin}${e.prioritaet === "hoch" ? ` (hoch: ${e.woerter.join(", ")})` : ""}.` };
+}
+
 /**
  * Antwortet auf ein offenes Gespräch. Läuft im Hintergrund, wirft nie — eine
  * misslungene Antwort darf den Empfang nicht stören. Die Antwort wird
@@ -2924,6 +3477,19 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       }
     }
 
+    // ── E-531 (25.11.2026): WHATSAPP PRIVAT OHNE KI (Schalter mara_wa_privat) ───────────────────────────────────────
+    // Ab hier ist das Gespräch privat: Global-Kunde (E-272) und Business-Lead (E-481) sind oben raus, ebenso Schweigen,
+    // Übernahme, Fenster und STOPP. Steht der Schalter auf „aus“: kein KI-Aufruf, kein Werkzeug — höchstens 1× je 24 h der
+    // feste Hinweis und EINE Aufgabe für einen Menschen. „an“ (Vorgabe): wie bisher.
+    // Nachbesserung (Gutachten Kundensicherheit): „aus“ schaltet NIE die festen Schutzwege ab, die ohne KI laufen — E-264
+    // (Abstreiten, Löschwunsch, Werbesperre) und E-372 (Recht, Widerruf, Geld zurück → Karte für Justin) laufen unten weiter.
+    // Ohne KI entfallen nur der Dank auf das Ja zum Anruf (E-408), der warme Abschluss und das Modell; der Weg ohne KI
+    // (waPrivatOhneKi) folgt direkt nach E-372, vor KI-Pause, Lage und Modell. Der Schalter wird hier EINMAL gelesen.
+    // E-531 (wa#0): Die Telefonsperre bestätigt auch ohne KI der feste Satz ANRUF_SPERRE_WA (E-408 läuft, nur ohne Dank).
+    // Prüfung 25.11.2026: ohne KI endet E-408 dort nur, wenn nichts Heikles dabeisteht (waAnrufSperreFrueh) — sonst unten weiter.
+    const waPrivatRoh = await waPrivatSchalter();
+    const privatOhneKi = !waPrivatSchalterAn(waPrivatRoh);
+
     // ── E-408 (Scheibe 3, 22.10.2026): SEINE ANTWORT AUF DIE FRAGE NACH DEM JA ZUM ANRUF ───────────────────────────
     // Gespeichert (oder zurückgenommen, oder die Telefonsperre gesetzt) hat es schon der Eingang (waEingang →
     // jaAusWhatsApp, fiaon-ja-zum-anruf.ts). Feste Sätze ohne Modell — also auch in der KI-Pause:
@@ -2933,6 +3499,12 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // gespeichert / die Frage stand da, aber kein klares Ja). Ein bloßer Widerruf läuft wie bisher übers Modell.
     let jaHinweis: string | null = null;
     let jaFrageZuletzt = false;
+    // E-531 (Prüfung 25.11.2026): Ohne KI und mit etwas Heiklem neben dem Anruf-Stopp endet der Sperrzweig NICHT — dann schickt
+    // der Weg ohne KI den Anruf-Satz (statt des festen Hinweises), und Aufgabe bzw. Karte bekommen das Anliegen.
+    let anrufSatzOhneKi = false;
+    // E-531 (wa#0): Der Block läuft auch ohne KI — dann entfällt nur der Dank-Satz (das Ja hat der Eingang schon gespeichert).
+    // Die Telefonsperre bestätigt weiter der feste Satz ANRUF_SPERRE_WA (ein Schutzsatz ohne KI, wie in der KI-Pause).
+    // Der Hinweis fürs Modell (jaHinweis, jaFrageZuletzt) nur mit KI.
     {
       const autoIds = new Set(urteil.autoIds);
       const echteOffeneJa = offeneRein.filter((v) => !autoIds.has(Number(v.id)));
@@ -2940,18 +3512,26 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
       const ja = await jaImGespraech({ nummer, offene: echteOffeneJa.map((v) => ({ id: Number(v.id), text: String(v.text || v.knopf || "") })), ersteOffeneId: Number(ersteOffene.id) })
         .catch((e) => { console.warn(`[MARA-WA] ${nummer.slice(-4)}: Ja zum Anruf nicht lesbar:`, String(e?.message ?? e).slice(0, 160)); return null; });
       const seineWorte = echteOffeneJa.map((v) => String(v.text || v.knopf || "")).reverse().join("\n");
-      if (ja && echteIds.length > 0 && echteIds.every((id) => ja.gespeichertIds.includes(id))) {
+      if (!privatOhneKi && ja && echteIds.length > 0 && echteIds.every((id) => ja.gespeichertIds.includes(id))) {
         await vorbereiten(nummer, JA_DANKE_WA, Number(neuesteRein.id), seineWorte, { kunde: seineWorte, handlung: "Ja zum Anruf gespeichert (E-408) — kurzer Dank" });
         await protokolliere({ art: "ja_zum_anruf", ok: true, nummer, personId, leadId, text: `Ja zum Anruf gespeichert — kurzer Dank: ${JA_DANKE_WA}`, daten: { auf_id: Number(neuesteRein.id) } });
         return { gesendet: false, grund: "Ja zum Anruf gespeichert — kurzer Dank liegt bereit." };
       }
-      if (ja && echteIds.length > 0 && echteIds.every((id) => ja.sperreIds.includes(id)) && !seineWorte.includes("?")) {
+      const sperreAlle = !!(ja && echteIds.length > 0 && echteIds.every((id) => ja.sperreIds.includes(id)) && !seineWorte.includes("?"));
+      // E-531 (Prüfung 25.11.2026): Ohne KI nur früh beenden, wenn außer dem Anruf-Stopp nichts Heikles dasteht — sonst gingen
+      // Kündigung, Widerruf, Löschwunsch, Anwalt … still verloren. Dann weiter: Die Telefonsperre steht schon (Eingang), E-264,
+      // E-372 und der Weg ohne KI übernehmen (Aufgabe bzw. Karte), und der Weg ohne KI schickt den Anruf-Satz.
+      const nurSperre = waAnrufSperreFrueh({ privatOhneKi, text: seineWorte, frageVorher: letzteMaraText ?? null });
+      if (sperreAlle && nurSperre) {
         await vorbereiten(nummer, ANRUF_SPERRE_WA, Number(neuesteRein.id), seineWorte, { kunde: seineWorte, handlung: "Nicht mehr anrufen — Telefonsperre gesetzt (E-408)" });
         await protokolliere({ art: "ja_zum_anruf", ok: true, nummer, personId, leadId, text: `Telefonsperre — fester Satz: ${ANRUF_SPERRE_WA}`, daten: { auf_id: Number(neuesteRein.id) } });
         return { gesendet: false, grund: "Telefonsperre gesetzt — fester Satz liegt bereit." };
       }
-      jaFrageZuletzt = !!ja?.frageOffen;
-      jaHinweis = ja ? jaHinweisFuerMara({ jaGespeichert: ja.gespeichertIds.length > 0, zurueckgenommen: ja.zurueckIds.length > 0, gesperrt: ja.sperreIds.length > 0, frageOffen: ja.frageOffen }) : null;
+      anrufSatzOhneKi = privatOhneKi && sperreAlle;
+      if (!privatOhneKi) {
+        jaFrageZuletzt = !!ja?.frageOffen;
+        jaHinweis = ja ? jaHinweisFuerMara({ jaGespeichert: ja.gespeichertIds.length > 0, zurueckgenommen: ja.zurueckIds.length > 0, gesperrt: ja.sperreIds.length > 0, frageOffen: ja.frageOffen }) : null;
+      }
     }
 
     // ── E-264: ABSTREITEN, IRRTUM, DATENFRAGE, LÖSCHWUNSCH (fester Satz, ohne Modell) ──
@@ -2960,6 +3540,8 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
     // „Wer sind Sie?" / „Woher meine Nummer?" bekommen KEINEN festen Satz (Nachbesserung): Das Modell
     // stellt sich vor, nennt die belegte Herkunft (herkunftHinweis) und den nächsten Schritt.
     let herkunftHinweis: string | null = null;
+    // E-531 (wa#6): dieselbe belegte Herkunft als Satz für die Aufgabe ohne KI (dort antwortet ein Mensch statt des Modells).
+    let herkunftBeleg: { satz: string; belegt: boolean } | null = null;
     // E-265 Nachbesserung (29.09.2026, E-264-Regression): welche Art Abstreiten — „Was ist FIAON?" löscht den
     // Herkunftshinweis nur bei „wer", nie bei einer Datenfrage („… und woher haben Sie meine Nummer?").
     let abstArtJetzt: string | null = null;
@@ -3035,12 +3617,14 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         // Keine eigene Aufgabe (sie käme in der KI-Pause bei jedem Nachhol-Takt wieder) — fragt er nach
         // seinen Daten im Sinne von Art. 15 DSGVO, übergibt das Modell (mensch true).
         herkunftHinweis = abstreitenHinweis({ art: abst.art, kanal: "whatsapp", herkunft: al?.herkunft ?? null, betreuer: al?.betreuer ?? null });
+        herkunftBeleg = herkunftSatz(al?.herkunft ?? null, "whatsapp");
       }
     }
 
     // ── E-248: DER KURZE WARME ABSCHLUSS (ohne Modell) ─────────────────────
     // „Ok danke" auf Maras erledigte Sache: EIN Satz — „Gern, dann bis morgen um 20 Uhr!" — danach schweigt sie.
-    if (urteil.art === "abschluss") {
+    // E-531: ohne KI kein Abschluss-Satz — waPrivatOhneKi schweigt auf ein reines „Ok danke“ (still, keine Aufgabe).
+    if (urteil.art === "abschluss" && !privatOhneKi) {
       const mt = await import("./fiaon-mara-termin");
       const t = personId ? await mt.kuenftigerTermin(Number(personId)).catch(() => null) : null;
       const kundeText = offeneRein.map((v) => String(v.text || v.knopf || "")).join(" ");
@@ -3086,14 +3670,25 @@ export async function maraAntwortet(nummer: string): Promise<Ergebnis> {
         return { gesendet: false, grund: wand.length ? `${fall} — Karte für Justin (der sichere Satz fiel durch die Wand).` : `${fall} — sicherer Satz liegt bereit, Karte für Justin.` };
       }
       if (fall) entscheidungsFall = fall;
-      const offenText = offeneKarten.map((x) => ({ rechtlich: "Anwalt/Behörde", widerruf: "Widerruf", erstattung: "Geld zurück", loeschen: "Löschwunsch",
-        bestreitet: "bestrittener Antrag", kuendigung_zurueck: "Rücknahme der Kündigung", ratenpause: "Ratenpause", global: "FIAON Global",
-        karte: "Kartenlink", falsche_nummer: "Nummer", werbesperre: "Werbesperre", unsicher: "eine offene Frage", frage: "eine offene Frage" } as Record<WaFall, string>)[x.fall]);
+      // E-531: dieselben kurzen Namen wie in der Aufgabe ohne KI (WA_FALL_KURZ) — Wortlaut unverändert.
+      const offenText = offeneKarten.map((x) => WA_FALL_KURZ[x.fall]);
       if (offeneKarten.length) {
         entscheidungsHinweis = `SEINE SACHE LIEGT BEI UNSERER GESCHÄFTSFÜHRUNG (${Array.from(new Set(offenText)).join(", ")}): `
           + `${entscheidungsFall ? "Du hast ihm schon gesagt, dass unsere Geschäftsführung entscheidet und er eine schriftliche Nachricht bekommt — wiederhole den Satz nicht wörtlich. " : ""}`
           + `Sag dazu nichts zu (kein Geld, keine Frist, kein Ergebnis, keine Löschung, kein Storno)${karteRuhe(offeneKarten) ? ", keine Zahlungsbitte, keine Rückfrage zur Kündigung" : ""}. Beantworte ruhig, was er sonst fragt.`;
       }
+    }
+
+    // ── E-531 (25.11.2026): WHATSAPP PRIVAT OHNE KI — NACH DEN FESTEN SCHUTZWEGEN (E-264, E-372) ─────────────────────
+    // Bis hierher lief alles, was ohne KI schützt. Ab hier bräuchte es KI (Lage, Modell) — mit „aus“: fester Hinweis bzw.
+    // STOPP-Bestätigung und EINE Aufgabe (oder die offene Karte für Justin). Vor der KI-Pause: Ohne KI gibt es nichts zu pausieren.
+    if (privatOhneKi) {
+      // E-531: dazu alle offenen Karten (wa#3: auch eine Folge-Nachricht ohne Schlüsselwort geht an die Karte), die belegte
+      // Herkunft (wa#6: „Wer sind Sie?“ — für die Antwort des Menschen) und ob der E-408-Sperrzweig weiterlief (Anruf-Satz).
+      const ohneKi = await waPrivatOhneKi({ nummer, personId: personId ? Number(personId) : null, leadId: leadId ? Number(leadId) : null,
+        offeneRein, neuesteRein, autoIds: urteil.autoIds, abschluss: urteil.art === "abschluss", frageVorher: letzteMaraText ?? null,
+        schalter: waPrivatRoh, entscheidungsFall, lageE, offeneKarten, herkunft: herkunftBeleg, anrufSperre: anrufSatzOhneKi });
+      if (ohneKi) return ohneKi;
     }
 
     // ── KI-PAUSE (27.09.2026, E-246) ──────────────────────────────────────────
@@ -5767,6 +6362,8 @@ const TITEL: Record<AufgabenKlasse, string> = {
   falsche_nummer: "Falsche Nummer — bitte korrigieren", in_ruhe: "Will keinen Kontakt mehr",
   rueckfrage: "Weiß nicht, wofür er zahlen soll", wut: "Verärgert — bitte ansehen",
   global: "FIAON Global — Mara antwortet nicht",
+  // E-531: der eigentliche Titel kommt aus waPrivatTitel (mit „Kündigung“ & Co.) — das hier ist nur die Vorgabe.
+  privat: "Privat ohne KI — bitte per E-Mail antworten",
 };
 /**
  * Vertretung (01.10.2026): Diese Klassen sind heikel — Kündigung/Widerruf/Beschwerde/Rechtsdrohung
@@ -5838,18 +6435,22 @@ export async function aufgabeFuerMenschen(
   klasse: AufgabenKlasse = "anliegen",
   /** E-264: leitung — an die Leitung (Vertriebsleiter wie aufgabe_an_betreuer „Leitung", sonst Justin), nicht an den Betreuer. */
   /** E-272 (02.10.2026): betreiber — auf Justins Board (Global-Kunde), ohne Betreuer, Vertretung oder Leitung. */
-  opt: { still?: boolean; leitung?: boolean; betreiber?: boolean } = {},
+  /**
+   * E-531 (25.11.2026): titel — eigener Titel aus dem Titel der offenen Aufgabe (null = keine offen); er zieht bei einer
+   * offenen Aufgabe mit (z. B. kommt „Kündigung“ dazu). kopie — wie heikel: liegt sie beim Vertreter, sieht das Board sie auch.
+   */
+  opt: { still?: boolean; leitung?: boolean; betreiber?: boolean; titel?: (alterTitel: string | null) => string; kopie?: boolean } = {},
 ): Promise<boolean> {
   try {
     const wer = personId ? String(Number(personId)) : `n${String(nummer).replace(/\D/g, "")}`;
     const tag = berlinTag(new Date());
     // E-272: Die Klasse „global“ hängt nie an einen alten Tages-Schlüssel ohne Klasse (vor E-248) — der läge
-    // womöglich beim Privat-Betreuer; sie hat nur ihre eigene offene Aufgabe.
-    const muster = klasse === "global"
-      ? `^wa-${wer}-global(-\\d{4}-\\d{2}-\\d{2})?$`
+    // womöglich beim Privat-Betreuer; sie hat nur ihre eigene offene Aufgabe. E-531: „privat“ ebenso.
+    const muster = klasse === "global" || klasse === "privat"
+      ? `^wa-${wer}-${klasse}(-\\d{4}-\\d{2}-\\d{2})?$`
       : `^wa-${wer}-(${klasse}(-\\d{4}-\\d{2}-\\d{2})?|\\d{4}-\\d{2}-\\d{2})$`;
     const [offen] = (await sqlPool`
-      SELECT schluessel FROM fiaon_betreiber_todos
+      SELECT schluessel, titel FROM fiaon_betreiber_todos
        WHERE schluessel LIKE ${`wa-${wer}-%`} AND schluessel ~ ${muster} AND status <> 'erledigt' ORDER BY id DESC LIMIT 1`.catch(() => [])) as any[];
     const schluessel = offen?.schluessel ? String(offen.schluessel) : `wa-${wer}-${klasse}-${tag}`;
     const erstes = !offen;
@@ -5870,7 +6471,9 @@ export async function aufgabeFuerMenschen(
     const leitung = !opt.betreiber && opt.leitung && !vt ? await (await import("./fiaon-mara-abstreiten")).leitungId().catch(() => null) : null;
     // Gilt die Abwesenheit nicht für den Kunden, aber für die Leitung selbst (nur einzelne abwesend): auch dann der Vertreter.
     if (!vt && leitung) vt = await abw.uebergabeVertretung(personId ? Number(personId) : null, leitung);
-    const titel = `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
+    const titel = opt.titel
+      ? opt.titel(offen?.titel != null ? String(offen.titel) : null).slice(0, 160)
+      : `WhatsApp: ${TITEL[klasse]}${dringend ? " — bitte jetzt übernehmen" : " — bitte übernehmen"}`;
     let text = `${grund}${personId ? "" : ` · Nummer +${nummer}${leadId ? ` · Lead ${leadId}` : ""}`}`;
     // E-IT-F (Fertigstellung 08.10., Gegenprüfung Fund 6): Ist die Tages-Aufgabe dieser Klasse schon ERLEDIGT und bittet der
     // Kunde mit demselben Satz erneut (fester Satz „möchte mit jemandem aus dem Team sprechen“), wäre der Text nicht neu —
@@ -5898,9 +6501,14 @@ export async function aufgabeFuerMenschen(
       link,
       schluessel, still,
     });
+    // E-531: auftragFuerKunden ändert den Titel einer bestehenden Aufgabe nie — der eigene Titel zieht hier nach.
+    if (opt.titel && erg?.id) {
+      await sqlPool`UPDATE fiaon_betreiber_todos SET titel = ${titel} WHERE id = ${Number(erg.id)} AND status <> 'erledigt' AND titel IS DISTINCT FROM ${titel}`
+        .catch((e) => console.warn("[MARA-WA] Titel nachziehen:", String((e as Error)?.message ?? e).slice(0, 160)));
+    }
     // Heikel (Kündigung, Beschwerde, Bestreiten, Löschwunsch, Rechtsdrohung) — oder sonst ein Fall für die
     // Leitung: Der Betreiber sieht ihn zusätzlich auf seinem Board (nur, wenn die Aufgabe beim Vertreter liegt).
-    const kopie = vt?.anVertreter && (HEIKLE_KLASSEN.has(klasse) || opt.leitung)
+    const kopie = vt?.anVertreter && (HEIKLE_KLASSEN.has(klasse) || opt.leitung || opt.kopie)
       // Gegenprüfung (01.10.2026): `still` wie bei der Aufgabe — sonst öffnete jede weitere Nachricht die Kopie wieder.
       ? await abw.betreiberKopie({ personId: personId ?? null, ref: null, titel, text, dringend: true, schluessel, quelle: "mara-whatsapp", link, still }, vt)
       : null;
@@ -6005,7 +6613,8 @@ export async function versandLauf(): Promise<{ gesendet: number; verworfen: numb
           await sqlPool`UPDATE fiaon_whatsapp_gespraech SET ki_rueckfall_auf_id = NULL, ki_rueckfall_am = NULL WHERE nummer = ${nummer}`;
         }
         // E-397: „Mara hat geantwortet“ zählt auch auf WhatsApp — schließt nur „Kunde wartet auf Antwort“ (eng, fiaon-auftraege.ts).
-        await import("./fiaon-auftraege").then((m) => m.maraWaGeantwortet({ nummer, personId: w?.person_id ? Number(w.person_id) : null, aufId, antwortText: String(g.antwort_text ?? ""), rueckfall: istRueckfall(g.antwort_text) })).catch(() => {});
+        // E-531 (25.11.2026): Der feste Hinweis „WhatsApp Privat ohne KI“ ist keine Antwort in der Sache — er schließt nichts.
+        await import("./fiaon-auftraege").then((m) => m.maraWaGeantwortet({ nummer, personId: w?.person_id ? Number(w.person_id) : null, aufId, antwortText: String(g.antwort_text ?? ""), rueckfall: istRueckfall(g.antwort_text) || istWaPrivatHinweis(g.antwort_text) })).catch(() => {});
         gesendet++;
       } else if (Number(g.versuche) + 1 < 3) {
         // Die fertige Antwort bleibt — nur der Versand wird in 5 Minuten wiederholt, ohne neu zu denken.
@@ -6062,7 +6671,10 @@ export const OFFENE_GESPRAECHE_SQL = `
 export async function nachholLauf(): Promise<{ angestossen: number }> {
   let angestossen = 0;
   // E-246: In der KI-Pause nichts anstoßen — nach dem Aktivieren ruft fiaon-ki-pause.ts diesen Lauf sofort.
-  if (await kiPausiert()) return { angestossen: 0 };
+  // E-531 (wa#7): außer bei „WhatsApp Privat ohne KI“ (Schalter mara_wa_privat aus) — der Weg braucht keine KI; scheiterte die
+  // Aufgabe einmal (Datenbank) oder war die Nummer gerade in Arbeit, wartet die Nachricht sonst bis zum Ende der Pause.
+  // maraAntwortet hält die KI-Wege selbst an (Privat: kiPausiert vor Lage und Modell; Mara Business: kiAufruf meldet die Pause).
+  if (await kiPausiert() && waPrivatSchalterAn(await waPrivatSchalter())) return { angestossen: 0 };
   // E-261: Konto bei Meta gesperrt (oder Zugang abgelaufen) → auch keine Antwort möglich; nach „WhatsApp wieder
   // aktivieren" stößt die Bremse diesen Lauf an.
   const wp = await waPauseLesen();

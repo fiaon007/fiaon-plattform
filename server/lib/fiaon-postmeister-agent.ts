@@ -43,8 +43,13 @@ import {
   ausdruecklicherStopp, hatEigenenText, eigenerKundentext, eigenerBetreff,
   // E-499 (Mara 2.0): die Kündigung vorab — klare Erklärung oder sein Ja bucht der Server, nie eine zweite Rückfrage.
   eigenerKern, austrittsWille, austrittsGrund, bejahtAustritt, kuendigungFrageSchon, zitierterTeil, rechtlichNurWegenWiderruf,
+  // E-531 (25.11.2026): der Satz statt jeder Zeit-Zusage.
+  E531_UEBERGABE_SATZ,
   type WerkzeugKontext, type WerkzeugErgebnis, type AuskunftAntwort,
 } from "./fiaon-postmeister-werkzeuge";
+// E-531 (25.11.2026): Hat ein Mensch dem Kunden schon geschrieben? (Kopfzeilen der Fall-Akte)
+// Nachbesserung: Geld in Briefen von Menschen (Storno, Erlass, Erstattung) — für Zahlungsseite, Zahlungsbitte und Zusagen.
+import { fallMenschGeld, fallMenschStorno } from "./fiaon-fall-akte";
 import { akteLesen, vertragsfassung } from "./fiaon-postmeister-dossier";
 import { nutzungMerken, kostenHeute, kostenCentsAus } from "./fiaon-postmeister-schema";
 import { kiModell } from "./fiaon-ki-kasse";
@@ -518,6 +523,8 @@ export function antwortLesen(j: any, wofuer: string): any {
 async function kiAufrufClaude(ein: {
   dienst: string; modell: string; nachrichten: any[]; schema?: any; tools?: unknown[];
   aufwand?: "low" | "medium" | "high"; maxTokens?: number; person?: number | string | null;
+  /** E-531 Nachbesserung: nur für den OpenAI-Cache — auf dem Claude-Rückweg gehen die Werkzeuge dann gar nicht mit (wie bisher). */
+  werkzeugeNurCache?: boolean;
 }, start: number): Promise<any> {
   const abbruch = new AbortController();
   // Claude denkt mit — die Zeitgrenze etwas weiter als bei OpenAI.
@@ -529,7 +536,7 @@ async function kiAufrufClaude(ein: {
       max_tokens: ein.maxTokens ?? 8000, reasoning_effort: ein.aufwand ?? "medium",
     };
     if (ein.schema) chat.response_format = { type: "json_schema", json_schema: { name: "antwort", strict: true, schema: ein.schema } };
-    if (ein.tools?.length) { chat.tools = ein.tools; chat.tool_choice = "auto"; }
+    if (ein.tools?.length && !ein.werkzeugeNurCache) { chat.tools = ein.tools; chat.tool_choice = "auto"; }
     const res = await openaiFetch(ein.dienst, "/chat/completions", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(chat), signal: abbruch.signal,
     });
@@ -564,6 +571,11 @@ export async function kiAufruf(ein: {
    * demselben Textanfang landen so beim selben Cache; gelesen wird der Anfang dann für ein Zehntel des Preises.
    */
   cacheTeil?: string | null;
+  /**
+   * E-531 Nachbesserung (Gutachten Kosten): Die Werkzeuge gehen nur mit, damit der Anfang des Auftrags (Werkzeuge, Regeln,
+   * Akte, Fall-Akte) derselbe bleibt wie im Hauptaufruf und aus dem Cache kommt — gerufen wird keins (tool_choice „none“).
+   */
+  werkzeugeNurCache?: boolean;
 }): Promise<any> {
   const start = Date.now();
   // E-279 (03.10.2026): Trägt Claude, geht der Aufruf im Chat-Format an die Weiche (fiaon-ki-claude.ts) — dann
@@ -607,7 +619,7 @@ export async function kiAufruf(ein: {
       reasoning: { effort: ein.aufwand ?? "medium" },
     };
     if (ein.schema) body.text = { format: { type: "json_schema", name: "antwort", strict: true, schema: ein.schema } };
-    if (ein.tools?.length) { body.tools = alsResponsesWerkzeuge(ein.tools); body.tool_choice = "auto"; }
+    if (ein.tools?.length) { body.tools = alsResponsesWerkzeuge(ein.tools); body.tool_choice = ein.werkzeugeNurCache ? "none" : "auto"; }
     if (!cacheSchluesselAus) body.prompt_cache_key = cacheSchluessel(ein.dienst, [ein.cacheTeil, werkzeugSignatur(ein.tools)].filter(Boolean).join("-"));
     // E-246: über die KI-Pause — pausiert heißt kein Netzaufruf, ein Abrechnungsfehler pausiert alles.
     const senden = () => openaiFetch(ein.dienst, "/responses", {
@@ -955,7 +967,8 @@ export const GLOBAL_AUFTRAG = "DEIN ERSTER AUFTRAG: DIESER MENSCH IST KUNDE VON 
   + "Du erwähnst nichts davon, auch nicht als Aussicht. Du beantwortest seine Frage sachlich, ruhig und verbindlich, nach VERTRAG und Akte (Feld global). "
   + "Hat er einen Firmenauftrag mit offener Rechnung, nennst du Betrag und Verwendungszweck aus zahlungslink_bauen — ohne Drängen. "
   + "Was ein Mensch entscheiden oder klären muss (Angebot, Preis, Ablauf, Termin, Storno, Erstattung), gibst du mit aufgabe_an_betreuer weiter und sagst ihm, "
-  + "dass sich seine Ansprechperson bei FIAON Global meldet. Eine alte Privatbestellung in der Akte sprichst du nicht an.";
+  // E-531 (25.11.2026): vorher „dass sich seine Ansprechperson bei FIAON Global meldet“ — eine Zusage ohne Zeit und ohne Menschen, der sie hält.
+  + "dass sein Anliegen bei seiner Ansprechperson bei FIAON Global liegt und er dazu eine schriftliche Nachricht bekommt — ohne Zeitangabe. Eine alte Privatbestellung in der Akte sprichst du nicht an.";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MARA ARBEITET SELBSTSTÄNDIG UND VERKAUFT (E-275, 02.10.2026)
@@ -1228,6 +1241,16 @@ function systemPrompt(ein: {
       : `Du heißt ${ein.name}, bist die digitale Assistentin von FIAON und schreibst aus dem Postfach ${ein.postfach}. Du hast die Akte und den ganzen bisherigen Schriftwechsel gelesen, bevor du antwortest — der Kunde soll merken, dass ihn hier jemand kennt und sich um ihn kümmert. Fragt er, ob ein Mensch schreibt: „${MARA_PERSONA.offenlegungFrage}" Du gibst dich nie als Mensch aus.`,
     anliegen ? ANLIEGEN_KANAL_BLOCK : ``,
     `Wenn der Kunde dich mit Namen anspricht oder auf eine frühere Mail von dir Bezug nimmt, gehst du darauf ein — du erinnerst dich an alles, was in diesem Verlauf steht.`,
+    // ═══════════════════════════════════════════════════════════════════
+    // E-531 (25.11.2026, Mara-Neubau Stufe 1): Was WIR geschrieben haben, gilt — und keine Zeit-Zusagen. Audit
+    // 26.10.–24.11.: Mara widersprach Briefen der Geschäftsleitung im selben Faden (Hand-Mails sah sie nicht), und
+    // Auto-Mails versprachen „X meldet sich heute“, gehalten wurde das fast nie. Beide Regeln gehen den festen Sätzen unten vor.
+    // Nachbesserung (Gutachten Kundensicherheit): Eine Geld-Zusage nur aus einem Brief ist in der Plattform nicht gebucht —
+    // die Erinnerungen liefen weiter (MAHNSTOPP unten). Dann bestätigt Mara sie nicht, sondern gibt an die Leitung; der Server
+    // hält solche Antworten ohnehin an (pruefenUndAbschliessen, E-531).
+    // ═══════════════════════════════════════════════════════════════════
+    `WAS WIR GESCHRIEBEN HABEN, GILT (E-531): Was WIR (Geschäftsleitung, Team, auch in js@) dem Kunden geschrieben haben, gilt. Nie widersprechen. Steht dort eine Zusage (Storno, Erstattung, keine Erinnerungen, Termin, Betrag), bestätige sie wortgetreu. Bist du unsicher, ob etwas gilt oder was der echte Stand ist: keine Behauptung, sondern Übergabe an einen Menschen (aufgabe_an_betreuer, kollege „Leitung“) — dem Kunden schreibst du dann nur: „${E531_UEBERGABE_SATZ}“ Du findest es in der FALL-AKTE (VERBINDLICH, direkt vor der neuen Nachricht), sonst im bisherigen Schriftwechsel und in den Notizen des Teams. Diese Regel geht allen festen Sätzen unten vor, auch denen zu Widerruf, Erstattung und Rate: Hat die Geschäftsleitung schon entschieden, schreibst du nie „prüft unsere Geschäftsführung“ und verlangst nichts, was sie erlassen hat. Eine Geld-Zusage aus einem Brief (Storno, Erlass, Erstattung, keine Erinnerungen mehr) bestätigst du nur, wenn die Akte sie gebucht zeigt (keine offene Rate mehr, Storno oder Kündigung gebucht) — die Zahlungserinnerungen der Plattform lesen keine Briefe. Sonst: Übergabe an die Leitung, dem Kunden nur der Satz oben, keine Zahlungsbitte.`,
+    `KEINE ZEIT-ZUSAGEN (E-531): Nenne nie eine Zeit, wann sich jemand meldet oder anruft – außer ein echter Kalendertermin steht in der Akte. Kein „heute“, „morgen“, „gleich“, „umgehend“, „in den nächsten Tagen“, kein „Herr X meldet sich“, kein „Herr X ruft Sie an“, kein „die Leitung meldet sich“. Eine Zeit-Zusage aus einer früheren Mail von dir wiederholst du nie — wurde sie nicht gehalten, entschuldigst du dich dafür, ohne neue Zeit („Es tut mir leid, dass der Rückruf nicht geklappt hat.“). Eine Antwort mit Zeit-Zusage sendet der Server nie automatisch.`,
     `DU UNTERSCHREIBST NICHT. Kein Name, kein Gruß am Ende — beides hängt der Server an. Dein Text endet mit dem letzten Satz an den Kunden.`,
     `KEINE ADRESSE (URL) IM TEXT. Wenn der Kunde eine Seite braucht, nennst du sie beim Namen („die Zahlungsseite", „Ihren Bereich") — der Knopf darunter trägt die Adresse. Eine URL im Fließtext ist ein Fremdkörper.`,
     ``,
@@ -1396,8 +1419,8 @@ function systemPrompt(ein: {
     // Zugang (Passwort-vergessen-Seite) erledigt sie selbst; „FIAON gibt keine Karte aus, die Bank entscheidet“ und
     // „konto_freischalten“ (braucht die Freigabe eines Menschen, lief per Modell nie) stehen hier nicht mehr.
     `DAS ERLEDIGST DU IMMER SELBST, ohne jemanden einzuschalten: Zahlungsfragen (Zahlungsseite holen; Betrag, Rate, Fälligkeit, Verwendungszweck nennen; Rechnung anhängen, wenn verlangt; klar um die Zahlung bitten). Karte und Kartenlink (karte_senden — es prüft den Stand und schickt dem zahlenden Kunden den Link der Partnerbank, auch erneut; dazu der Weg: Antrag online in wenigen Minuten, nach der Zusage der Bank in der Regel 2–5 Werktage, meist vorher Apple Pay). Kündigung, Storno, Widerruf, „ich will nicht mehr" (Werkzeug kuendigung_vormerken — es storniert eine unbezahlte Bestellung oder merkt die Kündigung mit der letzten Rate vor; du erklärst dem Kunden das Ergebnis). Fragen zu Konto, Leistung, Ablauf, Kosten, Fristen (Haus-Wissen und Akte; welche Etappe der Kunde gerade hat, steht in der Akte). Zugang und Passwort („Passwort vergessen“ auf der Anmeldeseite — Vorname, Nachname, E-Mail-Adresse und Geburtsdatum eingeben, dann kommt ein Anmelde-Link an die hinterlegte E-Mail-Adresse, der direkt zu „Passwort“ im Bereich führt; Knopf „bereich“). Unterlagen und Bilder per Mail (Eingang bestätigen, still notieren mit notiz_an_betreuer). Terminwunsch (terminlink_bauen — der Kunde wählt selbst eine Zeit). Doppelte oder unpassende Mails erklären und die Werbesperre setzen, wenn der Kunde es AUSDRÜCKLICH will. Stand der Unterlagen nennen.`,
-    `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht AUSDRÜCKLICH einen Rückruf oder ein Gespräch — dann Aufgabe mit Uhrzeitwunsch (Parameter rueckruf_am als YYYY-MM-DD HH:MM, heute ist ${ein.akte?.heute ?? "unbekannt"}; nennt er keine Uhrzeit, bleibt es leer), und dem Kunden klar sagen, wer sich meldet (mit Namen, wie unter NAMEN). (2) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Erstattung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. (3) Ein Zahlungsbeleg oder eine Buchungsfrage („ich habe überwiesen, hier der Beleg") — die geht an die Zahlungsstelle (kollege: "Zahlung"); dem Kunden sagst du, dass die Zahlungsstelle den Eingang prüft und verbucht. AUSNAHME (E-401): Steht unten ZAHLUNG GESUCHT mit einem Eingang (gebucht, angekommen, unterwegs), hat der Server schon im Bankbuch nachgesehen — dann keine Aufgabe, du sagst ihm, was dort steht. (4) Eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast — Name, Geburtsdatum, Bankverbindung, Ausweisdaten. Anschrift, E-Mail-Adresse und Telefonnummer ändert der SERVER selbst (E-401) — aber NUR, wenn unten ein Block ANGABEN steht: dann keine Aufgabe dafür, außer ANGABEN sagt, dass ein Mensch es eintragen muss. Steht KEIN Block ANGABEN da, hat niemand etwas geändert — dann gibst du für eine gewünschte Änderung von Anschrift, E-Mail-Adresse oder Telefonnummer wie bisher eine Aufgabe (Fall 4) und schreibst nie, sie sei geändert. (5) Ein Technik-Fehler, den du nicht selbst lösen kannst (ein Werkzeug scheitert). Unterlagen sind KEIN Grund für eine Aufgabe (notiz_an_betreuer, still), eine angebliche frühere Kündigung oder ein „Widerruf“ auch nicht: die prüfst du selbst gegen die Akte (siehe DEIN ERSTER AUFTRAG). Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
-    `NIE: „Herr X meldet sich", „ich habe Herrn X gebeten", „X prüft das" als Ersatz für eine Antwort — außer bei einem Rückruf, den er wollte. Wenn du eine Aufgabe gibst, beantwortest du trotzdem JETZT alles, was du beantworten kannst. Nie eine Kündigung, ein Storno, eine Zahlungsfrage, eine Kartenfrage oder Unterlagen „zur Prüfung" weitergeben — das erledigst du selbst. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer), und der Kunde erfährt davon nichts.`,
+    `NUR DANN gibst du eine Aufgabe (aufgabe_an_betreuer): (1) Der Kunde wünscht AUSDRÜCKLICH einen Rückruf oder ein Gespräch — dann Aufgabe mit Uhrzeitwunsch (Parameter rueckruf_am als YYYY-MM-DD HH:MM, heute ist ${ein.akte?.heute ?? "unbekannt"}; nennt er keine Uhrzeit, bleibt es leer). E-531: Steht der Rückruf laut Werkzeug wirklich im Kalender, nennst du genau diesen Termin; sonst keine Zeit und niemanden, der sich meldet — biete ihm an, selbst eine Zeit zu wählen (terminlink_bauen). (2) Eine Entscheidung über Geld zurück (Widerruf nach Zahlung, Erstattung, Kulanz) — die geht an die Leitung (kollege: "Leitung"), nie an den Betreuer. (3) Ein Zahlungsbeleg oder eine Buchungsfrage („ich habe überwiesen, hier der Beleg") — die geht an die Zahlungsstelle (kollege: "Zahlung"); dem Kunden sagst du, dass die Zahlungsstelle den Eingang prüft und verbucht. AUSNAHME (E-401): Steht unten ZAHLUNG GESUCHT mit einem Eingang (gebucht, angekommen, unterwegs), hat der Server schon im Bankbuch nachgesehen — dann keine Aufgabe, du sagst ihm, was dort steht. (4) Eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast — Name, Geburtsdatum, Bankverbindung, Ausweisdaten. Anschrift, E-Mail-Adresse und Telefonnummer ändert der SERVER selbst (E-401) — aber NUR, wenn unten ein Block ANGABEN steht: dann keine Aufgabe dafür, außer ANGABEN sagt, dass ein Mensch es eintragen muss. Steht KEIN Block ANGABEN da, hat niemand etwas geändert — dann gibst du für eine gewünschte Änderung von Anschrift, E-Mail-Adresse oder Telefonnummer wie bisher eine Aufgabe (Fall 4) und schreibst nie, sie sei geändert. (5) Ein Technik-Fehler, den du nicht selbst lösen kannst (ein Werkzeug scheitert). (6) E-531: Du bist unsicher, ob etwas gilt oder was der echte Stand ist (Akte und FALL-AKTE passen nicht zusammen, eine Zusage ist unklar) — kollege: "Leitung"; dem Kunden nur „${E531_UEBERGABE_SATZ}“ Unterlagen sind KEIN Grund für eine Aufgabe (notiz_an_betreuer, still), eine angebliche frühere Kündigung oder ein „Widerruf“ auch nicht: die prüfst du selbst gegen die Akte (siehe DEIN ERSTER AUFTRAG). Nennt der Kunde einen Kollegen mit Namen, geht die Aufgabe an diesen (Parameter kollege).`,
+    `NIE: „Herr X meldet sich", „ich habe Herrn X gebeten", „X prüft das" als Ersatz für eine Antwort — auch nicht beim Rückruf, außer sein Termin steht wirklich im Kalender (E-531). Wenn du eine Aufgabe gibst, beantwortest du trotzdem JETZT alles, was du beantworten kannst. Nie eine Kündigung, ein Storno, eine Zahlungsfrage, eine Kartenfrage oder Unterlagen „zur Prüfung" weitergeben — das erledigst du selbst. Wenn ein Mensch nur etwas wissen soll, reicht eine Notiz (notiz_an_betreuer), und der Kunde erfährt davon nichts.`,
     `MAHNSTOPP gibt es für dich nicht (08.09.2026, Justin): Die Zahlungserinnerungen laufen, bis die Zahlung gebucht ist — du hältst sie nie an. Belegt der Kunde eine Zahlung, gibst du den Beleg an die Zahlungsstelle (aufgabe_an_betreuer, kollege "Zahlung") und sagst ihm, dass bis zur Buchung noch eine Erinnerung kommen kann und dann gegenstandslos ist — außer ZAHLUNG GESUCHT zeigt seinen Eingang schon (E-401): dann keine Aufgabe, du sagst ihm, was im Bankbuch steht. Alles andere — Ärger, „erst eine Antwort“, „ich zahle nicht“ — ändert an der Forderung nichts; die Antwort gibst du jetzt.`,
     ``,
     `BELEGE: Jede Zahl, jedes Datum, jeder Betrag, jeder Name in deiner Antwort muss aus einem Werkzeugergebnis oder der Akte stammen, und du führst ihn in "belege" auf. Was du nicht belegen kannst, schreibst du nicht.`,
@@ -1565,7 +1588,9 @@ EIN ZIEL JE MAIL. Am Ende steht genau eine Handlung, und sie ist leicht: bezahle
     ``,
     `WENN DER KUNDE EINEN VERPASSTEN TERMIN NENNT, sieh in den Terminen der Akte nach. Stimmt es, entschuldige dich konkret (Datum, wer). Stimmt es nicht, sag ruhig, was du in der Akte siehst.`,
     // E-265 (29.09.2026): „Herr Stripling ruft Sie an" — nie der Vorname (auch nicht im Beispiel, das Modell kopiert es).
-    `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. „Herr Stripling ruft Sie an" reicht. Die Nummer kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
+    // E-531 Nachbesserung (Gutachten Kundensicherheit): Das Beispiel „Herr Stripling ruft Sie an" war selbst eine Zusage ohne
+    // Termin (die Zeit-Wand hält sie jetzt an) — darum ohne Beispiel.
+    `KEINE TELEFONNUMMERN IM TEXT — weder die des Kunden noch die eines Kollegen. Die Nummer nennst du nicht: Die eigene kennt der Kunde, und die des Kollegen geht ihn nichts an.`,
     ``,
     // E-395 (19.10.2026): Daniels Notiz „telefoniert am Montag 11 Uhr mit Justin“ stand nur tief im Kundenweg.
     ...(ein.teamNotizen ? [
@@ -1810,6 +1835,53 @@ export function bestaetigtKuendigung(text: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * E-531 Nachbesserung (Gutachten Kundensicherheit): Sagt der Text zu, dass eine Rate, Forderung oder Bestellung storniert
+ * oder erlassen ist, dass keine Erinnerungen mehr kommen oder dass er nichts mehr zahlen muss? (Fall aus dem Audit: ein Brief
+ * „Rate storniert, keine Erinnerungen“ — die Plattform erinnerte weiter, und Mara hätte den Brief bestätigt.) bestaetigtKuendigung
+ * kennt diese Formen nicht und überspringt jeden Satz mit „keine“. Fragen, Verneinungen („ist nicht storniert“) und
+ * Bedingungen („sobald die Zahlung gebucht ist“) zählen nicht. Rein.
+ */
+export function bestaetigtErlass(text: string): string | null {
+  const saetze = String(text || "").split(/(?<=[.!?])\s+|\n+/);
+  const verb = String.raw`(?:storniert|erlassen|gestrichen|aufgehoben|entf(?:ä|ae)llt|entfallen)`;
+  const muster: RegExp[] = [
+    new RegExp(String.raw`\b(?:rate|raten|forderung|forderungen|zahlung|rechnung|bestellung|betrag|restbetrag)\b[^.!?]{0,60}?\b${verb}`, "i"),
+    new RegExp(String.raw`\b(?:haben|habe)\s+(?:wir|ich)\b[^.!?]{0,40}?\b(?:rate|raten|forderung|zahlung|rechnung|bestellung|betrag)\b[^.!?]{0,30}?\b${verb}`, "i"),
+    /\bkeine\s+(?:weitere[nr]?\s+)?(?:zahlungs)?(?:erinnerung(?:en)?|mahnung(?:en)?)\b/i,
+    /\bnichts\s+mehr\s+(?:zu\s+)?(?:be)?zahlen\b|\bzahlen\s+(?:sie\s+)?nichts\s+mehr\b/i,
+  ];
+  for (const s of saetze) {
+    const satz = s.trim();
+    if (!satz || /\?\s*$/.test(satz)) continue;
+    if (new RegExp(String.raw`\b(?:nicht|noch\s+nicht|kein\w*)\b[^.!?]{0,25}\b${verb}`, "i").test(satz)) continue;
+    if (/\b(?:sobald|wenn|falls)\b|\bnach\s+(?:der|ihrer)\s+(?:zahlung|buchung|überweisung|ueberweisung)\b/i.test(satz)) continue;
+    for (const m of muster) {
+      const x = satz.match(m);
+      if (x) return x[0].slice(0, 90);
+    }
+  }
+  return null;
+}
+
+/**
+ * E-531 Nachbesserung: Ist in der Plattform noch etwas offen, das eine Geld-Zusage („keine Erinnerungen mehr“, „storniert“)
+ * Lügen strafen würde? Offene Rate (ohne Raten nach dem Vertragsende — die mahnt kein Lauf), unbezahlte Bestellung — außer
+ * kuendigung_vormerken hat gerade storniert oder beendet (die Akte wurde VOR dem Werkzeug gelesen). Rein.
+ */
+export function e531GeldNochOffen(k: { akte?: any; werkzeugDaten?: Record<string, any> | null; ref?: string | null }): boolean {
+  const kv = k.werkzeugDaten?.kuendigung_vormerken;
+  if (kv && typeof kv === "object") {
+    if (kv.vertrag_beendet === true || ["storno_unbezahlt", "sofort_beendet", "kulanz_sofort"].includes(String(kv.weg ?? ""))) return false;
+    if (Array.isArray(kv.offene_raten)) return kv.offene_raten.length > 0;
+  }
+  const raten = (k.akte?.raten ?? []).filter((r: any) => r && r.status === "offen" && !r.nachVertragsende);
+  if (raten.length) return true;
+  // Eine nie abgeschickte Bestellung mahnt kein Lauf (E-264: Erinnerungen nur an abgeschickte Anträge) — sie zählt nicht.
+  return (k.akte?.bestellungen ?? []).some((b: any) => b && (!k.ref || b.ref === k.ref)
+    && !["paid", "cancelled", "canceled", "storniert", "refunded", "superseded", "antrag_nicht_abgeschickt", "expired"].includes(String(b.status ?? "")));
 }
 
 /**
@@ -2278,6 +2350,34 @@ export async function abstreitenPerMail(ein: {
   };
 }
 
+/** Der Name der Nachbar-Mails im Verlauf (lauf.ts, nachbarMails) — sie gehören zu einem ANDEREN Faden. */
+const NACHBAR_FIAON = /^FIAON \(unsere Antwort darauf/;
+
+/**
+ * E-531 Nachbesserung (Gutachten Richtigkeit): Was die festen Server-Wege als „unsere Nachrichten“ lesen. Rein.
+ *   · `letzte` — unsere letzte Nachricht in DIESEM Faden: die Rückfrage, die ein „Ja“ bestätigt (Zahltag, E-406 Welle 1).
+ *     Zuerst der echte Gmail-Faden (Fall-Akte — auch eine Rückfrage, die ein Mensch von Hand schrieb), sonst der Verlauf
+ *     dieses Fadens aus fiaon_postmeister, im Anliegen der übergebene Verlauf („FIAON (Mara)“/„FIAON (Team)“). Nie eine
+ *     Nachbar-Mail aus einem anderen Faden („FIAON (unsere Antwort darauf …)“) — vorher fand der Server genau die, sobald
+ *     die Fall-Akte den Verlauf ersetzte.
+ *   · `texte` — alles, worin wir ihm das Löschen angeboten haben könnten (E-264): Gmail-Faden, Faden-Verlauf und der ganze
+ *     übergebene Verlauf mit Nachbar-Mails (wie bisher — „Löschen“ in einem neuen Faden auf das Angebot im alten zählt).
+ */
+export function eigeneNachrichtenImFaden(ein: {
+  fadenEigene?: readonly (string | null | undefined)[] | null;
+  verlaufFaden?: readonly { von: string; text: string }[] | null;
+  verlauf: readonly { von: string; text: string }[];
+}): { letzte: string | null; texte: string[] } {
+  const unsere = (liste: readonly { von: string; text: string }[]) => liste
+    .filter((v) => v && (v.von === "FIAON" || (String(v.von).startsWith("FIAON (") && !NACHBAR_FIAON.test(String(v.von)))))
+    .map((v) => String(v.text ?? ""));
+  const faden = (ein.fadenEigene ?? []).map((t) => String(t ?? "")).filter((t) => t.trim());
+  const ausDb = unsere(ein.verlaufFaden ?? ein.verlauf);
+  const letzte = faden.length ? faden[faden.length - 1] : ausDb.length ? ausDb[ausDb.length - 1] : null;
+  const texte = [...faden, ...(ein.verlaufFaden ?? []).map((v) => String(v?.text ?? "")), ...ein.verlauf.map((v) => String(v?.text ?? ""))];
+  return { letzte, texte };
+}
+
 export async function antwortErzeugen(ein: {
   postfach: string;
   /** E-401 Nachbesserung: authErgebnis (Gmails Absender-Prüfung) und antwortAn (Reply-To) — für angaben_aendern. */
@@ -2303,6 +2403,22 @@ export async function antwortErzeugen(ein: {
   anliegenId?: number | null;
   /** Wann er das Anliegen schrieb — „heute“/„morgen“ im genannten Termin zählen ab dann. */
   anliegenAm?: Date | null;
+  /**
+   * E-531 (25.11.2026): die FALL-AKTE als fertiger Block (fiaon-fall-akte.ts, fallAkteBlock) — der ganze Gmail-Faden samt
+   * Hand-Mails, js@ und Team-Postfächer. Steht direkt vor der neuen Nachricht. Fehlt sie: alles wie bisher.
+   */
+  fallAkte?: string | null;
+  /**
+   * E-531 Nachbesserung (Gutachten Richtigkeit): der Verlauf DIESES Fadens aus fiaon_postmeister — immer gelesen, auch wenn
+   * die Fall-Akte den Prompt-Verlauf ersetzt. Nur für die festen Server-Wege (eigeneNachrichtenImFaden). Fehlt er
+   * (Anliegen): `verlauf` wie bisher.
+   */
+  verlaufFaden?: { von: string; am: string; text: string }[] | null;
+  /**
+   * E-531 Nachbesserung: aus der Fall-Akte — unsere Nachrichten an ihn in diesem Gmail-Faden vor der neuen Mail (`eigene`,
+   * älteste zuerst) und was Menschen bei FIAON ihm geschrieben haben (`mensch`).
+   */
+  fallDaten?: { eigene?: string[] | null; mensch?: string[] | null; gmail?: boolean } | null;
 }): Promise<AgentErgebnis> {
   const leer: AgentErgebnis = {
     ok: false, antwort: null, antwortHtml: null, belege: [], naechsterSchritt: null, handlungen: [],
@@ -2358,7 +2474,9 @@ export async function antwortErzeugen(ein: {
   // Aufgabe an einen Menschen — kein Link, kein Verkauf, keine Zahlung. Die Werbesperre setzt
   // erst die Freigabe (Nachbesserung). „Wer sind Sie?" / „Woher meine Adresse?": das Modell mit Hinweis.
   const abst = ein.personId ? abstreitenArt(kontext.kundeText ?? "") : null;
-  const loesch = !!ein.personId && istLoeschwunsch(kontext.kundeText ?? "", { angeboten: ein.verlauf.some((v) => loeschenAngeboten(v.text)) });
+  // E-531 Nachbesserung: unsere Nachrichten aus DIESEM Faden — auch wenn die Fall-Akte den Prompt-Verlauf ersetzt.
+  const eigene = eigeneNachrichtenImFaden({ fadenEigene: ein.fallDaten?.eigene ?? null, verlaufFaden: ein.verlaufFaden ?? null, verlauf: ein.verlauf });
+  const loesch = !!ein.personId && istLoeschwunsch(kontext.kundeText ?? "", { angeboten: eigene.texte.some((t) => loeschenAngeboten(t)) });
   if (ein.personId && (loesch || abst?.fest)) {
     // E-406 C1: Im Anliegen beantwortet ein Löschwunsch oder „hab nie etwas beantragt“ ein Mensch — keine feste
     // Mail-Antwort, keine Aufgabe von hier (der Lauf lässt das Anliegen offen und schreibt den Hinweis).
@@ -2535,7 +2653,8 @@ export async function antwortErzeugen(ein: {
   // „FIAON (Team)“ (E-406 Welle 1, Abnahme — Prüfer-Fund: der exakte Vergleich fand im Anliegen nie etwas, das „Ja“
   // hielt den Zahltag dort nie fest). Die Rückfrage eines Kollegen zählt genauso: Sein „Ja“ bestätigt den Tag, gleich
   // wer gefragt hat — die Regel (zahltagErkennen) verlangt weiter genau EINEN Tag in der letzten Frage, kein Termin.
-  const letzteMara = [...ein.verlauf].reverse().find((v) => v.von === "FIAON" || v.von.startsWith("FIAON ("))?.text ?? null;
+  // E-531 Nachbesserung: aus DIESEM Faden (Gmail-Faden der Fall-Akte, sonst fiaon_postmeister) — nie eine Nachbar-Mail.
+  const letzteMara = eigene.letzte;
   const zusage = ein.personId && zusageErlaubt({ lage, flags: ein.einordnung.flags as any, global: !!akte?.global, vorgeschichte: !!ein.vorgeschichte?.grund })
     ? await zuM.zahlungszusageBehandeln({
       personId: ein.personId, kundeText: kontext.kundeText ?? "", betreff: ein.mail.betreff, letzteMara,
@@ -2570,7 +2689,13 @@ export async function antwortErzeugen(ein: {
     && zahlungsstelleUnnoetig(zahlungGesucht.ergebnis, zahlungGesucht.vorgelegt) && aufgabeAnZahlungsstelle(p);
   // E-248: In einer Ruhe-Antwort (Stopp, Widerruf …) wird die Zahlungsseite NICHT vorab geholt —
   // „VORAB GEHOLT: Zahlungsseite" im Auftrag ließ das Modell trotzdem zur Zahlung auffordern (#5633).
-  if (zahlLagen.includes(lage) && !ruhe) {
+  // E-531 Nachbesserung (Gutachten Richtigkeit): ebenso nicht, wenn ein Mensch bei FIAON ihm Storno, Erlass oder „keine
+  // Erinnerungen mehr“ geschrieben hat (Fall-Akte) — die Rate steht dann womöglich nur noch in der Datenbank offen.
+  const menschStorno = fallMenschStorno(ein.fallDaten?.mensch);
+  if (menschStorno && zahlLagen.includes(lage) && !ruhe) {
+    vorab.push(`HINWEIS (E-531): Ein Mensch bei FIAON hat ihm zu Storno, Erlass oder „keine Erinnerungen mehr“ geschrieben (FALL-AKTE). Keine Zahlungsbitte, keine Zahlungsseite, keine eigene Zusage — was offen ist, klärt die Leitung (aufgabe_an_betreuer, kollege „Leitung“); dem Kunden nur: „${E531_UEBERGABE_SATZ}“`);
+  }
+  if (zahlLagen.includes(lage) && !ruhe && !menschStorno) {
     // E-265 Schluss-Nachbesserung (01.10.2026, Probe 3 M3): nie eine Rate nach dem Vertragsende (gekündigter Altvertrag).
     const offeneRate = (akte.raten ?? []).filter((r: any) => r.status === "offen" && r.referenz && !r.nachVertragsende).sort((a: any, b: any) => Number(a.nr) - Number(b.nr))[0];
     const bestellung = (akte.bestellungen ?? []).find((b: any) => b.ref === ein.ref) ?? (akte.bestellungen ?? [])[0];
@@ -2677,6 +2802,9 @@ export async function antwortErzeugen(ein: {
       content: `BISHERIGER SCHRIFTWECHSEL (älteste zuerst, ${ein.verlauf.length} Nachrichten):\n${ein.verlauf.map((v) => `[${v.am}] ${v.von}: ${v.text.slice(0, 3000)}`).join("\n\n")}`,
     });
   }
+  // E-531 (25.11.2026): die FALL-AKTE direkt vor der neuen Nachricht — was WIR geschrieben haben, gilt (Regel oben).
+  const fallAkte = String(ein.fallAkte ?? "").trim().slice(0, 32_000);
+  if (fallAkte) nachrichten.push({ role: "user", content: fallAkte });
   nachrichten.push({ role: "user", content: anliegen
     ? `NEUES ANLIEGEN (Kundenbereich „Hilfe & Anliegen“, er ist angemeldet${ein.anliegenId ? ` — Anliegen #${ein.anliegenId}` : ""})\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}`
     : `NEUE NACHRICHT\nVon: ${ein.mail.von}\nBetreff: ${ein.mail.betreff}\n\n${String(ein.mail.text).slice(0, 6000)}` });
@@ -2725,6 +2853,13 @@ export async function antwortErzeugen(ein: {
         lage, akte, einordnung: ein.einordnung, handlungen, werkzeugDaten, kosten, kontext, nachrichten,
         kundeText: kundeTextOhneAnhang(ein.mail.text), sprache, ruhe, werbesperreZahlend, genannt, zahlung: zahlungGesucht, angaben,
         zusage,
+        // E-531: Haben Menschen bei FIAON ihm schon geschrieben (Fall-Akte)? Dann gilt deren Wort (Erstattungs-Prüfung).
+        // Nachbesserung (Gutachten Richtigkeit): nur ein Brief, der Geld berührt (Storno, Erlass, Erstattung, Kulanz) —
+        // nicht jede Hand-Mail und keine automatische Mara-Mail (Mara-Aktion, Kündigungsbestätigung).
+        fallAkteMenschen: fallMenschGeld(ein.fallDaten?.mensch),
+        fallMenschStorno: menschStorno,
+        // Nachbesserung (Gutachten Kosten): derselbe Anfang des Auftrags für die Umformulierung — dann aus dem Cache.
+        tools, cacheTeil: werkzeugSatz,
         ...(anliegen ? { kanal: "anliegen" as const, dienst } : {}),
       });
       // E-409 (Fund 6): Ein rotes Werkzeug mit Rot-Weg „karte“ — die Antwort geht NIE von selbst raus, sie wird eine
@@ -2821,6 +2956,14 @@ async function pruefenUndAbschliessen(roh: any, k: {
   /** E-406 C1: Kanal und KI-Dienst — fehlen sie, ist es die Mail (postmeister-antwort). */
   kanal?: AntwortKanal;
   dienst?: string;
+  /** E-531 (25.11.2026): Die Fall-Akte enthält Mails, die Menschen bei FIAON dem Kunden geschrieben haben. */
+  /** Nachbesserung: nur Briefe, die Geld berühren (Storno, Erlass, Erstattung, Kulanz — fallMenschGeld). */
+  fallAkteMenschen?: boolean;
+  /** E-531 Nachbesserung: Ein Mensch schrieb ihm Storno, Erlass oder „keine Erinnerungen mehr“ (fallMenschStorno). */
+  fallMenschStorno?: boolean;
+  /** E-531 Nachbesserung (Gutachten Kosten): Werkzeuge und Cache-Teil des Hauptaufrufs — für die Umformulierung aus dem Cache. */
+  tools?: unknown[];
+  cacheTeil?: string | null;
 }): Promise<AgentErgebnis> {
   // E-281 (Justin 03.10.2026): kein Limit, kein „über den Rahmen entscheidet unsere Partnerbank“ in der Mail.
   let text = ohneLimitUndBankSatz(String(roh.antwort || "").trim());
@@ -2980,10 +3123,27 @@ async function pruefenUndAbschliessen(roh: any, k: {
     if (bestaetigt && !gebucht) fehlend.push(`Die Antwort bestätigt eine Kündigung oder ein Storno („${bestaetigt}"), das NICHT gebucht ist — nur bestätigen, was kuendigung_vormerken gebucht hat; sonst freundlich fragen, ob er kündigen möchte`);
     // (2) Keine Rückzahlungs- oder Ergebniszusage (#5635).
     const rueck = zusageRueckzahlung(t, { widerruf: !!k.einordnung.flags?.widerruf });
-    if (rueck) fehlend.push(`Rückzahlung/Erstattung zugesagt oder beim Widerruf ausgeschlossen („${rueck.slice(0, 70)}") — darüber entscheidet allein die Geschäftsführung: nichts zusagen, beim Widerruf auch nicht „nichts wird erstattet"; Satz: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht."`);
+    // E-531 (25.11.2026): Haben Menschen bei FIAON ihm schon geschrieben, verlangt der Hinweis nie den Stillstand-Satz
+    // („prüft unsere Geschäftsführung“) — der widerspräche einem Brief, der längst entschieden hat. Der Mangel bleibt:
+    // Eine Erstattung im Text geht nie automatisch raus, ein Mensch gibt sie frei.
+    if (rueck) fehlend.push(k.fallAkteMenschen
+      ? `Erstattung/Rückzahlung im Text („${rueck.slice(0, 70)}") — E-531: nur wortgetreu bestätigen, was WIR (Mensch, Geschäftsleitung, Team) in der FALL-AKTE schriftlich zugesagt haben; sonst nichts zusagen und nichts ausschließen. Ein Mensch gibt diese Antwort frei.`
+      : `Rückzahlung/Erstattung zugesagt oder beim Widerruf ausgeschlossen („${rueck.slice(0, 70)}") — darüber entscheidet allein die Geschäftsführung: nichts zusagen, beim Widerruf auch nicht „nichts wird erstattet"; Satz: „Ihren Widerruf prüft unsere Geschäftsführung; Sie bekommen dazu eine schriftliche Nachricht."`);
     // (3) Ruhe: keine Zahlungsaufforderung (#5633, #5575).
     const bitte = ruheKnopf && (k.ruhe || kuendigungOffen) ? zahltOderVerkauft(t) : null;
     if (bitte) fehlend.push(`Zahlungsaufforderung („${bitte}") in einer Antwort auf ${k.ruhe ?? "einen Kündigungs- oder Stornowunsch, der noch nicht gebucht ist"} — beantworte sein Anliegen ohne Bitte um Zahlung`);
+    // (4) E-531 Nachbesserung (Gutachten Kundensicherheit, Fall aus dem Audit: Brief „Rate storniert, keine Erinnerungen“,
+    // die Plattform erinnerte weiter): Eine Geld-Zusage — storniert, erlassen, „keine Erinnerungen mehr“, „nichts mehr zu
+    // zahlen“ —, die die Plattform NICHT gebucht hat, geht nie automatisch raus. Ins Mahnwesen greift der Server nicht ein:
+    // Der Mensch, der die Karte entscheidet, zieht die Plattform nach (Buchhaltung).
+    const erlass = bestaetigtErlass(t);
+    if (erlass && e531GeldNochOffen({ akte: k.akte, werkzeugDaten: k.werkzeugDaten, ref: k.kontext.ref ?? null })) {
+      fehlend.push(`E-531: Die Antwort sagt zu „${erlass}“ — in der Plattform ist das NICHT gebucht (es ist noch etwas offen), die Zahlungserinnerungen laufen weiter. Nichts zusagen, was die Plattform nicht gebucht hat; steht es in einem Brief von uns, gib es an die Leitung (aufgabe_an_betreuer) und schreib nur: „${E531_UEBERGABE_SATZ}“ Ein Mensch gibt frei und zieht die Plattform nach (Buchhaltung).`);
+    }
+    // (5) E-531 Nachbesserung: Hat ein Mensch bei FIAON ihm zu Geld geschrieben (Storno, Erlass, Erstattung — Fall-Akte),
+    // kann eine Zahlungsbitte seinem Brief widersprechen (die Rate steht womöglich nur noch in der Datenbank offen).
+    const bitteMensch = k.fallAkteMenschen && !bitte ? zahltOderVerkauft(t) : null;
+    if (bitteMensch) fehlend.push(`E-531: Zahlungsbitte („${bitteMensch}“), obwohl ein Mensch bei FIAON ihm zu Storno, Erlass oder Erstattung geschrieben hat (FALL-AKTE) — keine Zahlungsbitte; ein Mensch prüft und gibt frei.`);
     // E-265 Nachbesserung (29.09.2026, Recht): Ist nach der Kündigung bis zum Vertragsende nichts mehr zu zahlen
     // (Altvertrag, die Rate liegt nach dem Monatsende), verlangt die Mail auch keine Rate.
     const kvDaten = k.werkzeugDaten.kuendigung_vormerken;
@@ -3091,8 +3251,12 @@ async function pruefenUndAbschliessen(roh: any, k: {
       ...weich.map((w) => `· Besser: ${w}`),
     ].join("\n");
     const weichVorher = weich;
+    // E-531 Nachbesserung (Gutachten Kosten): Seit E-531 trägt der Auftrag die Fall-Akte (bis 32.000 Zeichen). Ohne Werkzeuge
+    // und Cache-Teil begann die Umformulierung mit einem anderen Anfang als der Hauptaufruf — der ganze Auftrag kam zum vollen
+    // Preis. Jetzt derselbe Anfang (Werkzeuge nur für den Cache, gerufen wird keins) und derselbe Cache-Schlüssel.
     const neu = await kiAufruf({
       dienst: k.dienst ?? "postmeister-antwort", modell: MODELL(), aufwand: "low", maxTokens: 6000, schema: SCHEMA_B, person: k.kontext?.personId ?? null,
+      ...(k.tools?.length ? { tools: k.tools, werkzeugeNurCache: true } : {}), cacheTeil: k.cacheTeil ?? null,
       nachrichten: [...k.nachrichten, { role: "user", content: `Deine Antwort hat diese Mängel:\n${liste}\n\nSchreib sie neu — dieselbe Sache, ohne die Mängel, im Ton von WER DU BIST (warm, mutmachend, mit Aussicht, ohne Zusage). Nichts erfinden.` }],
     }).catch((e) => { if (istKiPause(e)) throw e; return null; }); // E-246: in der Pause liegen lassen, nicht die Mängel-Fassung nehmen
     if (neu) {

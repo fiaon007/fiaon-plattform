@@ -846,6 +846,11 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
   if (!wirdBedient(zeile.postfach)) {
     throw new Error(`${zeile.postfach} wird vom Agenten nicht mehr bedient — hier geht nichts mehr raus.`);
   }
+  // E-531 (Gegenprüfung Runde 5, Schlussprüfung Runde 6): derselbe Schutz wie in der Zentrale — mit Person nur an eine saubere,
+  // gespeicherte Adresse, sonst gar nicht. VOR der Werbesperre geprüft: Eine gesperrte Freigabe setzt nichts.
+  const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
+  const ziel = await (await import("../lib/fiaon-postmeister-lauf")).handVersandZiel(mail, zeile.person_id != null ? Number(zeile.person_id) : null);
+  if (ziel.sperre) throw new Error(ziel.sperre);
   // E-264 (29.09.2026): Die Werbesperre einer „Hab nix beantragt"-Antwort kommt mit der Freigabe
   // (derselbe Merker wie im Sendeweg der Zentrale, werbesperreBeiFreigabe).
   await (await import("../lib/fiaon-mara-abstreiten")).werbesperreBeiFreigabe({ id: Number(zeile.id), person_id: zeile.person_id ?? null, handlungen: zeile.handlungen })
@@ -858,8 +863,7 @@ async function entwurfVersenden(zeile: any, text: string): Promise<void> {
     kulanzErlaubt: await (await import("../lib/fiaon-kuendigung")).kulanzSatzErlaubt(zeile.ref ?? null, zeile.person_id ?? null).catch(() => null),
   });
   if (e393.gesperrt) throw new Error(`${e393.grund} — bitte umschreiben, dann senden.`);
-  const mail = await nachrichtLesen(zeile.postfach, zeile.gmail_id);
-  await antwortSenden(zeile.postfach, mail, text);
+  await antwortSenden(zeile.postfach, mail, text, undefined, undefined, ziel.an ? { an: ziel.an } : {});
   if (zeile.antwort_draft_id) {
     await entwurfLoeschen(zeile.postfach, zeile.antwort_draft_id).catch(() => {});
   }

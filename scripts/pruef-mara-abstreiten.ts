@@ -277,7 +277,7 @@ ok(/Wir schreiben Ihnen ab jetzt nicht mehr/.test(fall) && /auf Wunsch löschen 
 ok(!/Zahlung|Account|Antrag fortsetzen|Karte/i.test(fall), "… kein Wort von Zahlung, Account oder Karte");
 ok(fall.length + 52 <= 500, `… kurz genug für WhatsApp (${fall.length + 52} Zeichen mit KI-Hinweis)`);
 const b = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "bestreitet", herkunft: H_ANTRAG, abgeschickt: true, jetzt: JETZT });
-ok(/Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam/.test(b) && !/löschen wir|nicht mehr/.test(b), "Stufe B (abgeschickt): die Leitung klärt und meldet sich — keine Zusage „nie mehr“, kein Löschangebot");
+ok(/Unsere Leitung prüft, wie es zu dem Antrag kam; Sie erhalten dazu eine schriftliche Nachricht\./.test(b) && !/heute|meldet sich/.test(b) && !/löschen wir|nicht mehr/.test(b), "Stufe B (abgeschickt, E-531): die Leitung prüft, schriftliche Nachricht, ohne „heute“ und ohne „meldet sich“ — keine Zusage „nie mehr“, kein Löschangebot");
 ok(/Woher genau, prüft unsere Leitung/.test(ton.bausteinAbstreiten({ kanal: "whatsapp", art: "bestreitet", herkunft: null, jetzt: JETZT })), "Ohne Beleg: keine erfundene Herkunft — „Woher genau, prüft unsere Leitung.“");
 ok(/Facebook oder Instagram/.test(ton.bausteinAbstreiten({ kanal: "whatsapp", art: "bestreitet", herkunft: H_META, jetzt: JETZT })), "Meta-Lead: „in einem Anfrageformular von FIAON bei Facebook oder Instagram“");
 ok(/29\. Juli 2025/.test(ton.herkunftSatz({ art: "antrag", am: "2025-07-29T10:00:00Z" }, "whatsapp", JETZT).satz), "Anderes Jahr: mit Jahreszahl");
@@ -288,9 +288,11 @@ ok(/versehentlich hinterlegt/.test(fn) && !/Juli|Antrag|Internetseite/.test(fn),
 // E-265 (29.09.2026, Justin „zum letzten Mal!!"): Der Betreuer kommt als Nennform („Frau Lombardi") und wird nie
 // auf den Vornamen gekürzt — vorher erwartete dieser Fall „Florentine meldet sich" (split auf das erste Wort).
 const rf = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: "Frau Lombardi", abgeschickt: true, jetzt: JETZT });
-ok(/Das kläre ich gern für Sie/.test(rf) && /Frau Lombardi meldet sich/.test(rf) && !/Florentine/.test(rf) && !/Zahlung|€/.test(rf), `Rückfrage: kein Betrag, keine Zahlung, der Betreuer meldet sich mit Nennform („${rf.slice(0, 80)}…“)`);
+// E-531 (25.11.2026): keine Personen- oder Zeit-Zusage mehr — der Übergabe-Satz ohne Namen, die Aufgabe geht weiter an den Betreuer.
+ok(/Das kläre ich gern für Sie/.test(rf) && /Ihre Frage liegt jetzt bei unserem Team; Sie erhalten dazu eine schriftliche Nachricht\./.test(rf) && !/meldet sich|Lombardi|Florentine/.test(rf) && !/Zahlung|€/.test(rf), `Rückfrage (E-531): kein Betrag, keine Zahlung, kein Name, keine Zusage („${rf.slice(0, 80)}…“)`);
 const rfOhne = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "rueckfrage", herkunft: null, betreuer: "Nikita Boychenko", abgeschickt: true, jetzt: JETZT });
-ok(/Nikita Boychenko meldet sich/.test(rfOhne), "Rückfrage: ohne gepflegte Anrede der volle Name, nie der Vorname allein");
+ok(!/Boychenko|Nikita|meldet sich/.test(rfOhne) && /schriftliche Nachricht/.test(rfOhne), "Rückfrage ohne gepflegte Anrede (E-531): kein Name, keine Zusage");
+ok(ton.nachAbstreiten("Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam, und meldet sich bei Ihnen.") && ton.nachAbstreiten(ton.bausteinAbstreiten({ kanal: "whatsapp", art: "bestreitet", herkunft: null, abgeschickt: true })), "nachAbstreiten erkennt die alte UND die neue Stufe-B-Antwort (Verlauf vor E-531)");
 const wt = ton.bausteinAbstreiten({ kanal: "whatsapp", art: "wut", herkunft: H_META, jetzt: JETZT });
 ok(/„Stopp“/.test(wt) && !/nicht mehr,|löschen wir/.test(wt), "Nur Wut: „Stopp“ genügt — keine Zusage, kein Löschangebot");
 // „Wer sind Sie?" / „Woher meine Nummer?": kein fester Satz, ein Hinweis ans Modell

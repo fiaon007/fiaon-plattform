@@ -156,6 +156,635 @@ export function berlinZeitLesen(roh: string): Date | null {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// E-531 (25.11.2026): KEINE ZEIT-ZUSAGEN
+// Audit 26.10.–24.11.: Viele automatisch gesendete Mails versprachen „X meldet sich heute“ — gehalten wurde das fast nie
+// (Zahlen im Register E-531). Der Satz kam meist aus dem Ergebnis von aufgabe_an_betreuer. maraZeitZusage findet solche
+// Sätze; der Lauf sendet eine Antwort mit Treffer nie automatisch (Entwurf + Karte). Frei bleibt eine Zeit, die als echter
+// Kalendertermin feststeht (`kalender`, z. B. „morgen um 10 Uhr“ aus dem gebuchten Rückruf).
+//
+// NACHBESSERUNG (Gutachten Kundensicherheit, 25.11.2026): Die Wand hatte Lücken — „wird Sie heute anrufen“, „setzt sich
+// heute … in Verbindung“, „Sie erhalten heute noch eine Nachricht“, „gebeten, sich heute zu melden“, „in den nächsten Tagen“,
+// „spätestens Montag“, „innerhalb von 24 Stunden“, englisch „We'll get back to you today“, türkisch „yarın … arayacak“ — und
+// „Herr X ruft Sie an“ ohne Termin war frei. Dafür hielt sie Entschuldigungen an („Der Rückruf heute hat leider nicht
+// geklappt“), Bedingungen („umgehend, sobald Ihre Zahlung eingegangen ist“) und Bitten an ihn („Rufen Sie uns gern heute an“).
+//
+// NACHBESSERUNG 2 (Abnahme-Gegenprüfung, 25.11.2026): Weiter frei waren Futur („Wir werden uns zeitnah melden“), Umstellung
+// („Gern rufen wir Sie heute zurück“, „Wir kommen morgen auf Sie zu“, „Wir geben Ihnen bis Freitag Bescheid“), Nebensätze
+// („…, damit sich jemand zeitnah meldet“), Datum, Uhrzeit, Spannen („1–2 Werktage“), „bald“, „so schnell wie möglich“,
+// englisch „We will be in touch shortly“, türkisch „en kısa sürede“ und andere Sprachen. Dafür hielt sie Antworten auf dem
+// Terminlink-Weg an („Sie hatten heute um einen Rückruf gebeten – wählen Sie hier eine Zeit“). Und der Kalender deckte zu
+// viel: dieselbe Uhrzeit an einem anderen Tag, das Wort „Termin“ allein, einen ganzen Satz samt zweiter Zusage. Prüfstand:
+// scripts/pruef-mara-zeitzusage-e531.ts.
+//
+// NACHBESSERUNG 3 (Abnahme-Prüfung, 25.11.2026): Die Ausnahme „sein Wunsch“ gab UNSERE Zusagen frei, in denen „Sie“ nicht
+// der Wünschende ist („Sie werden morgen wie gewünscht zurückgerufen.“, „Wir haben für Sie morgen einen Rückruf
+// eingetragen.“) — jetzt eine feste Liste plus Sperre. Der Kalender deckte „wie vereinbart“ bei fremden Stellen, „dann“ nach
+// einem Satz mit nur dem Tageswort, eine falsche Tageszeit und eine zweite Zusage ohne Zeit im selben Satz. Falsche
+// Treffer: Beträge („bis 10.000 €“), „bis bald“, englisch „by e-mail“, „…, melden Sie sich bitte heute“, „… nicht auf Sie
+// zu“. Restlücken: „Ich rufe Sie morgen an“, „Eine Rückmeldung erhalten Sie morgen“, „Die Antwort folgt morgen“, „Morgen
+// hören Sie von uns“, „Morgen werden Sie angerufen“; Eile unter einer Bedingung nur ohne weitere Zeit im Satz.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Der Satz statt jeder Zeit-Zusage (E-531) — dieselben Worte im Werkzeug und in der Fall-Akte. */
+export const E531_UEBERGABE_SATZ = "Ihr Anliegen liegt jetzt bei unserem Team; Sie erhalten dazu eine schriftliche Nachricht.";
+
+const ZZ_WOCHENTAG = String.raw`(?:Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)`;
+const ZZ_MONAT = String.raw`(?:Januar|Februar|M(?:ä|ae)rz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)`;
+const ZZ_ZAHL = String.raw`(?:\d{1,3}|eine[rm]?|zwei|drei|vier|f(?:ü|ue)nf|sechs|sieben|zehn|vierundzwanzig|achtundvierzig)`;
+/** E-531 Nachbesserung 2: Eine Spanne („2–3“, „1 bis 2“) zählt wie eine Zahl. */
+const ZZ_SPANNE = String.raw`${ZZ_ZAHL}(?:\s*(?:[-–—]|bis)\s*${ZZ_ZAHL})?`;
+const ZZ_ZEIT = String.raw`(?:noch\s+)?(?:` + [
+  String.raw`heute|morgen|(?:ü|ue)bermorgen|gleich|sofort|umgehend|zeitnah|in\s+K(?:ü|ue)rze|kurzfristig|schnellstm(?:ö|oe)glich|schnellstens|baldm(?:ö|oe)glichst`,
+  String.raw`im\s+Laufe\s+(?:des\s+(?:Tages|Vormittags|Nachmittags)|der\s+(?:Woche|n(?:ä|ae)chsten\s+(?:Tage|Stunden)))`,
+  String.raw`bis\s+(?:heute\s+)?(?:Abend|Mittag|morgen)`,
+  String.raw`(?:am|bis|ab)\s+${ZZ_WOCHENTAG}`,
+  String.raw`sp(?:ä|ae)testens(?:\s+(?:am|bis|zum|um|in|nach|Anfang|Mitte|Ende))?\s+[A-Za-zÄÖÜäöüß0-9]+`,
+  String.raw`in\s+den\s+(?:n(?:ä|ae)chsten|kommenden)\s+(?:${ZZ_SPANNE}\s+)?(?:Tagen|Stunden|Minuten|Werktagen|Wochen)`,
+  String.raw`in\s+wenigen\s+(?:Tagen|Stunden|Minuten)`,
+  String.raw`(?:innerhalb|binnen)\s+(?:von\s+|der\s+n(?:ä|ae)chsten\s+)?${ZZ_SPANNE}\s*(?:Stunden|Std|Tag(?:en|e)?|Werktag(?:en|e)?|Minuten|h|Wochen?)`,
+  String.raw`(?:diese|n(?:ä|ae)chste|kommende)\s+Woche`,
+  String.raw`(?:Anfang|Mitte|Ende)\s+(?:der|dieser|n(?:ä|ae)chster|kommender)\s+Woche`,
+  String.raw`nach\s+dem\s+Wochenende|am\s+Wochenende`,
+  // E-531 Nachbesserung 2 (Abnahme-Gegenprüfung): Spanne ohne „innerhalb“, vage Eile, Datum, Uhrzeit, Wochentag,
+  // Monat, Feiertage. „30.11.“ steht im Suchtext als „30:11.“ (Ziffer-Punkt-Ziffer wird „:“), darum [.:].
+  // E-531 Nachbesserung 3: nie „bis bald“ (Gruß); nach der zweiten Zahl keine Ziffer — „bis 10.000 €“, „ab 2.500 €“ sind Beträge.
+  String.raw`in\s+${ZZ_SPANNE}\s+(?:Tag(?:en)?|Werktag(?:en)?|Stunden?|Minuten?|Wochen?)`,
+  String.raw`so\s+(?:schnell|bald|rasch|z(?:ü|ue)gig)\s+(?:wie\s+m(?:ö|oe)glich|es\s+geht)|m(?:ö|oe)glichst\s+(?:schnell|rasch)|(?<!\bbis\s{1,3})bald|demn(?:ä|ae)chst|z(?:ü|ue)gig|rasch`,
+  String.raw`(?:am|bis|ab|zum|bis\s+zum|vor\s+dem)\s+\d{1,2}[.:]\s?\d{1,2}(?!\d)(?:[.:]\d{2,4}(?!\d)|[.:](?!\d))?`,
+  String.raw`(?:am|bis|ab|zum|bis\s+zum|vor\s+dem)\s+\d{1,2}\.\s?${ZZ_MONAT}`,
+  String.raw`(?:um|gegen|ab|bis)\s+\d{1,2}(?::\d{2})?\s*Uhr|(?:um|gegen)\s+\d{1,2}:\d{2}(?!\d)|\d{1,2}(?::\d{2})?\s*Uhr`,
+  String.raw`zwischen\s+\d{1,2}(?::\d{2})?(?:\s*Uhr)?\s+und\s+\d{1,2}(?::\d{2})?\s*Uhr`,
+  String.raw`(?:n(?:ä|ae)chsten|kommenden|diesen)\s+${ZZ_WOCHENTAG}|${ZZ_WOCHENTAG}(?:s|morgen|vormittag|mittag|nachmittag|abend)?`,
+  String.raw`(?:Anfang|Mitte|Ende)\s+(?:des\s+Monats|n(?:ä|ae)chsten\s+Monats|${ZZ_MONAT})|(?:im|ab)\s+${ZZ_MONAT}|(?:n(?:ä|ae)chsten|kommenden|diesen)\s+Monat`,
+  String.raw`(?:nach|vor)\s+(?:den\s+Feiertagen|Weihnachten|Neujahr|Silvester|Ostern|dem\s+Jahreswechsel)|zwischen\s+den\s+Jahren|Jahresende`,
+].join("|") + ")";
+/** Die Zeit als ganzes Wort — \b greift ohne Unicode-Flag vor „ü“ nie (übermorgen), darum Lookarounds. */
+const ZZ_T = String.raw`(?<![A-Za-zÄÖÜäöüß])${ZZ_ZEIT}(?![A-Za-zÄÖÜäöüß])`;
+const ZZ_WER = String.raw`(?:(?:die|unsere|Ihre)\s+)?(?:Leitung|Gesch(?:ä|ae)ftsf(?:ü|ue)hrung|Gesch(?:ä|ae)ftsleitung|Gesch(?:ä|ae)ftsf(?:ü|ue)hrer(?:in)?|Buchhaltung|Zahlungsstelle|Ihr(?:e)?\s+(?:pers(?:ö|oe)nliche[rn]?\s+)?(?:Betreuer(?:in)?|Ansprechpartner(?:in)?|Ansprechperson|Berater(?:in)?)|jemand(?:\s+aus\s+unserem\s+Team)?|ein(?:e)?\s+(?:Kollege|Kollegin|Mitarbeiter(?:in)?)|unser\s+Team|das\s+Team)`;
+const ZZ_NAME = String.raw`(?:Herr|Frau)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß-]+)?`;
+/** „Rufen Sie uns/mich (gern) an“ — ER ruft uns an, keine Zusage von uns. */
+const ZZ_ER_RUFT = String.raw`\s+(?:(?:gern(?:e)?|bitte|einfach|jederzeit|doch|kurz|direkt)\s+)*(?:uns|mich|bei\s+uns|unser\w*)\b`;
+/** „ruft Sie“, „ruft er Sie“ (E-531 Nachbesserung 2), „rufen Sie“, „(ich) rufe Sie“ (Nachbesserung 3) — „rufen Sie uns an“ fällt über ZZ_ER_RUFT heraus. */
+const ZZ_RUFT_SIE = String.raw`\b(?:ruft\s+(?:(?:er|sie)\s+)?|rufen\s+|rufe\s+(?:ich\s+)?)(?:Sie|Ihnen)\b`;
+/** „meldet sich“, „meldet er sich“ (E-531 Nachbesserung 2) — nie „melden Sie sich“ (Bitte an ihn). */
+const ZZ_MELDET_SICH = String.raw`\b(?:meldet\s+(?:(?:er|sie)\s+)?sich|melden\s+sich)\b`;
+const ZZ_KONTAKT = String.raw`(?:anrufen|zur(?:ü|ue)ckrufen|kontaktieren|schreiben|informieren|benachrichtigen|antworten|Bescheid\s+geben)`;
+// E-531 Nachbesserung 2: „eine E-Mail von unserer Buchhaltung“ — nie die nackte „E-Mail“, sonst hielte die Wand den
+// erlaubten Satz „Die schriftliche Bestätigung bekommen Sie gleich per E-Mail.“ (Kündigung, Werkzeug-Beleg) an.
+const ZZ_BESCHEID = String.raw`(?:Nachricht|Antwort|R(?:ü|ue)ckmeldung|Bescheid|Anruf|R(?:ü|ue)ckruf|E-?Mail\s+(?:von|aus)\s+(?:uns|unser\w*|Herrn|Frau|der\s+\w+|dem\s+\w+|Ihre[mr]\s+\w+))`;
+/** E-531 Nachbesserung 3: UNSERE Nachricht für „… folgt/kommt + Zeit“ — nie SEINE („Ihre Rückmeldung“, „eine Antwort von Ihnen“). */
+const ZZ_UNSERE_NACHRICHT = String.raw`(?<!\bIhre[mnrs]?\s+)\b${ZZ_BESCHEID}\b(?!\s+von\s+Ihnen\b)`;
+const ZZ_FOLGT = String.raw`\b(?:folgt|folgen|kommt|kommen|erfolgt|erfolgen)\b`;
+const ZZ_EN_ZEIT = String.raw`(?:today|tomorrow|tonight|shortly|soon|later\s+today|right\s+away|asap|promptly|as\s+soon\s+as\s+possible|this\s+(?:week|morning|afternoon|evening)|next\s+week|within\s+(?:the\s+next\s+)?(?:\d+(?:\s*[-–]\s*\d+)?|a\s+few|few|a\s+couple\s+of)\s*(?:hours?|days?|business\s+days?|working\s+days?|h)|in\s+\d+(?:\s*[-–]\s*\d+)?\s*(?:hours?|days?|business\s+days?|working\s+days?)|in\s+the\s+next\s+(?:few\s+)?(?:hours?|days?)|(?:on|by|next|this)\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|by\s+(?:tomorrow|tonight|(?:the\s+)?end\s+of\s+(?:the\s+)?(?:day|week))|at\s+\d{1,2}(?::\d{2})?\s*(?:a\.?m|p\.?m|o['’]clock))`;
+// E-531 Nachbesserung 2: andere Sprachen (Polnisch, Tschechisch/Slowakisch, Rumänisch, Russisch/Bulgarisch, Serbisch/Bosnisch/
+// Kroatisch, Spanisch, Portugiesisch, Italienisch, Französisch). Eine Zeit UND eine Zusage im Futur im selben Satz; nur
+// Futurformen („zadzwonimy“, „позвоним“, „llamaremos“), nie die Bitte an ihn („zadzwonić“, „позвоните“, „llámenos“).
+const ZZ_FREMD_ZEIT = [
+  String.raw`dzisiaj|dziś|jutro|pojutrze|wkrótce|niezwłocznie|jak\s+najszybciej|w\s+ciągu\s+\d+`,
+  String.raw`dnes|zajtra|zítra|čoskoro|brzy|čo\s+najskôr|co\s+nejdříve|co\s+nejdřív`,
+  String.raw`astăzi|azi|mâine|poimâine|în\s+curând|cât\s+mai\s+(?:curând|repede|rapid)|în\s+cel\s+mai\s+scurt\s+timp`,
+  String.raw`сегодня|завтра|послезавтра|скоро|в\s+ближайшее\s+время|в\s+течение|днес|утре|възможно\s+най-скоро|данас|сутра|ускоро`,
+  String.raw`danas|sutra|uskoro|što\s+prije|što\s+je\s+prije\s+moguće|u\s+najkraćem\s+roku`,
+  String.raw`hoy|mañana|en\s+breve|pronto|lo\s+antes\s+posible|cuanto\s+antes|dentro\s+de\s+\d+`,
+  String.raw`hoje|amanhã|em\s+breve|brevemente|o\s+mais\s+(?:rápido|breve|cedo)\s+possível`,
+  String.raw`oggi|domani|dopodomani|a\s+breve|presto|al\s+più\s+presto|il\s+prima\s+possibile|entro\s+\d+`,
+  String.raw`aujourd['’]hui|demain|après-demain|sous\s+peu|bientôt|dès\s+que\s+possible|dans\s+les\s+plus\s+brefs\s+délais|rapidement|d['’]ici\s+\d+`,
+].join("|");
+const ZZ_FREMD_ZUSAGE = [
+  String.raw`skontaktuj(?:e|emy)|zadzwoni(?:my)?|oddzwoni(?:my)?|odezw(?:ie|iemy)|odpowie(?:my)?|odpiszemy|napiszemy`,
+  String.raw`ozveme|ozve|zavoláme|zavolá|kontaktujeme|kontaktuje|odpovieme|odpovíme|odpovie|napíšeme`,
+  String.raw`(?:va|vom|vor)\s+(?:contacta|suna|reveni|răspunde|scrie)|veți\s+primi`,
+  String.raw`свяжется|свяжемся|позвонит|позвоним|перезвонит|перезвоним|ответит|ответим|напишет|напишем|сообщим|сообщит|получите`,
+  String.raw`ще\s+(?:(?:ви|се)\s+){0,2}(?:свържем|свърже|обадим|обади|отговорим|отговори|пишем|пише)`,
+  String.raw`javit\s*(?:ćemo|će)|javićemo|(?:ćemo|će)\s+(?:(?:vam|vas|se)\s+){0,2}(?:javiti|nazvati|kontaktirati|pozvati|odgovoriti)|nazvat\s*(?:ćemo|će)|kontaktirat\s*(?:ćemo|će)|pozvat\s*(?:ćemo|će)`,
+  String.raw`llamar(?:á|emos|é)|contactar(?:á|emos|é)|pondr(?:á|emos|é)\s+en\s+contacto|responder(?:á|emos|é)|escribir(?:á|emos|é)|recibirá`,
+  String.raw`ligar(?:á|emos|ei)|contactar(?:á|emos|ei)|contatar(?:á|emos|ei)|entrar(?:á|emos|ei)\s+em\s+conta(?:c)?to|responder(?:á|emos|ei)|receberá`,
+  String.raw`contatter(?:à|emo|ò)|chiamer(?:à|emo|ò)|richiamer(?:à|emo|ò)|risponder(?:à|emo|ò)|scriver(?:à|emo|ò)|far(?:emo|ò|à)\s+sapere|riceverà`,
+  String.raw`contacter(?:a|ons|ai)|rappeller(?:a|ons|ai)|rappeler(?:a|ons|ai)|reviendr(?:a|ons|ai)|répondr(?:a|ons|ai)|écrir(?:a|ons|ai)|recevrez`,
+].join("|");
+
+interface ZzMuster {
+  art: string; re: RegExp;
+  /** Ohne Zeitangabe („Herr X ruft Sie an“) — zählt nicht beim Nachprüfen des Satz-Rests (E-531 Nachbesserung 2). */
+  ohneZeit?: boolean;
+  /** Kann SEINEN Wunsch oder SEINE Buchung beschreiben („Sie hatten heute um einen Rückruf gebeten“) — dann keine Zusage. */
+  seinWunsch?: boolean;
+  /** Steht DAS in der Fundstelle, ist sie verneint und keine Zusage („… nicht auf Sie zu“) — E-531 Nachbesserung 3. */
+  verneint?: RegExp;
+}
+/** „Weitere Kosten kommen bis zum 31.12. nicht auf Sie zu.“, „… kommen keine Kosten mehr auf Sie zu.“ — nur direkt davor. */
+const ZZ_VERNEINT_AUF_SIE = /\bnichts?\s+(?:mehr\s+)?auf\s+Sie\s+(?:zu|zur(?:ü|ue)ck)(?:kommen)?\b|\bkein(?:e[mnrs]?)?\s+(?:weiteren?\s+|zus(?:ä|ae)tzlichen?\s+|neuen?\s+)?[A-Za-zÄÖÜäöüß]+\s+(?:mehr\s+)?auf\s+Sie\s+(?:zu|zur(?:ü|ue)ck)(?:kommen)?\b/i;
+const ZZ_MUSTER: ZzMuster[] = [
+  // E-531 Nachbesserung 2 (Abnahme-Gegenprüfung): Futur, Umstellung, Nebensatz, Englisch ohne „you“.
+  { art: "werden uns + Zeit + melden", re: new RegExp(String.raw`\b(?:werden|werde|wird)\s+(?:wir\s+|ich\s+)?(?:uns|mich|sich)\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\b(?:melden|zur(?:ü|ue)ckmelden)\b|${ZZ_T}[^.!?\n]{0,40}?\b(?:werden|werde|wird)\s+(?:wir\s+|ich\s+)?(?:uns|mich|sich)\b[^.!?\n]{0,40}?\bmelden\b`, "gi") },
+  { art: "rufen wir Sie + Zeit", re: new RegExp(String.raw`\b(?:ruf(?:e|en)|kontaktier(?:e|en)|informier(?:e|en)|benachrichtig(?:e|en)|antwort(?:e|en))\s+(?:wir|ich)\s+(?:Sie|Ihnen)\b[^.!?\n]{0,50}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,40}?\b(?:ruf(?:e|en)|kontaktier(?:e|en)|informier(?:e|en)|benachrichtig(?:e|en)|antwort(?:e|en))\s+(?:wir|ich)\s+(?:Sie|Ihnen)\b`, "gi") },
+  { art: "wir informieren Sie + Zeit", re: new RegExp(String.raw`\b(?:wir|ich)\s+(?:informier|benachrichtig|antwort|kontaktier)(?:e|en)\s+(?:Sie|Ihnen)\b[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  { art: "kommen auf Sie zurück + Zeit", re: new RegExp(String.raw`\bkomm(?:e|en|t)\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\bauf\s+Sie\s+(?:zur(?:ü|ue)ck|zu)\b|\bkomm(?:e|en|t)\s+(?:wir\s+|ich\s+)?auf\s+Sie\s+(?:zur(?:ü|ue)ck|zu)\b[^.!?\n]{0,40}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,40}?\bkomm(?:e|en|t)\b[^.!?\n]{0,40}?\bauf\s+Sie\s+(?:zur(?:ü|ue)ck|zu)\b|\b(?:werden|werde|wird)\b[^.!?\n]{0,40}?${ZZ_T}[^.!?\n]{0,40}?\bauf\s+Sie\s+(?:zur(?:ü|ue)ckkommen|zukommen)\b`, "gi"), verneint: ZZ_VERNEINT_AUF_SIE },
+  { art: "geben Ihnen Bescheid + Zeit", re: new RegExp(String.raw`\b(?:geb(?:e|en)|gibt)\s+(?:wir\s+|ich\s+)?Ihnen\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,30}?\bBescheid\b|\b(?:geb(?:e|en)|gibt)\s+(?:wir\s+|ich\s+)?Ihnen\b[^.!?\n]{0,30}?\bBescheid\b[^.!?\n]{0,40}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,40}?\b(?:geb(?:e|en)|gibt)\s+(?:wir\s+|ich\s+)?Ihnen\b[^.!?\n]{0,30}?\bBescheid\b`, "gi") },
+  // E-531 Nachbesserung 3: nie „…, melden Sie sich bitte heute“ — das Verb mit „Sie“ dahinter ist die Bitte an ihn.
+  { art: "dass sich X + Zeit + meldet", re: new RegExp(String.raw`\b(?:dass|damit)\s+(?:sich\s+)?(?:wir|ich|jemand|unser\w*|Ihr(?:e)?\s+\S+|die\s+\S+|der\s+\S+|Herr\s+\S+|Frau\s+\S+)\b[^.!?\n]{0,60}?${ZZ_T}[^.!?\n]{0,40}?\b(?:meldet|melden|anruft|anrufen|zur(?:ü|ue)ckruft|zur(?:ü|ue)ckrufen|kontaktiert|kontaktieren)\b(?!\s+Sie\b)`, "gi") },
+  { art: "englisch: we will be in touch shortly", re: new RegExp(String.raw`(?:\bwill|'ll|’ll|\bshall)\s+(?:be\s+in\s+touch|reach\s+out|follow\s+up|get\s+back\s+to\s+you|respond|reply)\b[^.!?\n]{0,40}?\b${ZZ_EN_ZEIT}\b`, "gi") },
+  // E-531 Nachbesserung 3: „e-mail“ nur mit Absender („from us/our team“) — wie im Deutschen ZZ_BESCHEID. „You will receive the
+  // written confirmation by e-mail shortly.“ ist das englische Gegenstück zum erlaubten Kündigungs-Satz.
+  { art: "englisch: you will receive a response within", re: new RegExp(String.raw`\byou(?:'ll|’ll|\s+will|\s+shall)\s+(?:receive|get|hear)\b[^.!?\n]{0,40}?\b(?:response|reply|answer|call|e-?mail\s+from\s+(?:us|me|our\s+\w+|your\s+\w+|the\s+\w+|Mr|Ms|Mrs)|update|message|feedback)\b[^.!?\n]{0,40}?\b${ZZ_EN_ZEIT}\b`, "gi") },
+  { art: "meldet sich + Zeit", re: new RegExp(String.raw`${ZZ_MELDET_SICH}[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  { art: "Zeit + meldet sich", re: new RegExp(String.raw`${ZZ_T}[^.!?\n]{0,40}?${ZZ_MELDET_SICH}`, "gi") },
+  { art: "wird sich + Zeit + melden", re: new RegExp(String.raw`\bwird\s+sich\b[^.!?\n]{0,40}?${ZZ_T}[^.!?\n]{0,30}?\bmelden\b`, "gi") },
+  { art: "melden uns + Zeit", re: new RegExp(String.raw`\bmelden\s+(?:wir\s+)?uns\b[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  { art: "Zeit + melden wir uns", re: new RegExp(String.raw`${ZZ_T}[^.!?\n]{0,30}?\bmelden\s+wir\s+uns\b|${ZZ_T}[^.!?\n]{0,40}?\b(?:und|dann)\s+melden\s+(?:wir\s+)?uns\b`, "gi") },
+  { art: "melde mich + Zeit", re: new RegExp(String.raw`\bmelde\s+(?:ich\s+)?mich\b[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  // E-531 Nachbesserung 3: auch „Morgen hören Sie von uns.“ und „Von uns hören Sie morgen.“
+  { art: "hören + Zeit + von uns", re: new RegExp(String.raw`\bh(?:ö|oe)ren\b[^.!?\n]{0,30}?${ZZ_T}[^.!?\n]{0,30}?\bvon\s+uns\b|${ZZ_T}[^.!?\n]{0,30}?\bvon\s+uns\s+h(?:ö|oe)ren\b|${ZZ_T}[^.!?\n]{0,30}?\bh(?:ö|oe)ren\s+Sie\b[^.!?\n]{0,30}?\bvon\s+(?:uns|mir|unsere[mr]|Ihre[mr]|Herrn|Frau)\b|\bvon\s+uns\b[^.!?\n]{0,30}?\bh(?:ö|oe)ren\s+Sie\b[^.!?\n]{0,30}?${ZZ_T}`, "gi") },
+  { art: "ruft Sie + Zeit + an", re: new RegExp(String.raw`${ZZ_RUFT_SIE}(?!${ZZ_ER_RUFT})[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\b(?:an|zurück|zurueck)\b`, "gi") },
+  { art: "Zeit + ruft Sie an", re: new RegExp(String.raw`${ZZ_T}[^.!?\n]{0,50}?\bruf(?:e|t|en)\b(?!\s+(?:Sie|Ihnen)${ZZ_ER_RUFT})[^.!?\n]{0,40}?\b(?:Sie|Ihnen)\b[^.!?\n]{0,30}?\b(?:an|zurück|zurueck)\b`, "gi") },
+  // Rückruf = unser Anruf (nicht sein „Rückrufwunsch“); „Anruf“ nur, wenn er von uns kommt — „Danke für Ihren Anruf heute“ ist keine Zusage.
+  { art: "Rückruf + Zeit", re: new RegExp(String.raw`\b(?:Rückruf|Rueckruf)(?!wunsch|bitte)\w*\b[^.!?\n]{0,40}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,40}?\b(?:Rückruf|Rueckruf)(?!wunsch|bitte)`, "gi"), seinWunsch: true },
+  { art: "Anruf von uns + Zeit", re: new RegExp(String.raw`${ZZ_T}[^.!?\n]{0,40}?\bAnruf\s+(?:von|durch)\s+(?:Herrn|Frau|uns|unserem|unserer|Ihrem|Ihrer)\b|\bAnruf\s+(?:von|durch)\s+(?:Herrn|Frau|uns|unserem|unserer|Ihrem|Ihrer)\b[^.!?\n]{0,60}?${ZZ_T}`, "gi"), seinWunsch: true },
+  // E-531 Nachbesserung 3: auch umgestellt — „Morgen werden Sie (wie gewünscht) angerufen.“
+  { art: "werden + Zeit + angerufen", re: new RegExp(String.raw`\bwerden\b[^.!?\n]{0,30}?${ZZ_T}[^.!?\n]{0,30}?\b(?:angerufen|zurückgerufen|zurueckgerufen|kontaktiert)\b|${ZZ_T}[^.!?\n]{0,30}?\b(?:angerufen|zurückgerufen|zurueckgerufen|kontaktiert)\s+werden\b|${ZZ_T}[^.!?\n]{0,30}?\bwerden\s+Sie\b[^.!?\n]{0,40}?\b(?:angerufen|zurückgerufen|zurueckgerufen|kontaktiert)\b`, "gi"), seinWunsch: true },
+  { art: "kontaktiert Sie + Zeit", re: new RegExp(String.raw`\bkontaktier(?:t|en)\s+Sie\b[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  // Nachbesserung: „wird Sie heute anrufen“, „werden Sie morgen kontaktieren“.
+  { art: "wird Sie + Zeit + anrufen", re: new RegExp(String.raw`\b(?:wird|werden)\s+(?:wir\s+)?(?:Sie|Ihnen)\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\b${ZZ_KONTAKT}\b|${ZZ_T}[^.!?\n]{0,40}?\b(?:wird|werden)\s+(?:wir\s+)?(?:Sie|Ihnen)\b[^.!?\n]{0,40}?\b${ZZ_KONTAKT}\b`, "gi") },
+  // Nachbesserung: „setzt sich heute mit Ihnen in Verbindung“, „nimmt morgen Kontakt auf“, „schreibt Ihnen heute“.
+  { art: "in Verbindung + Zeit", re: new RegExp(String.raw`\b(?:setz(?:t|en)\s+(?:sich|uns)|(?:wird|werden)\s+sich)\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\bin\s+Verbindung\b|${ZZ_T}[^.!?\n]{0,40}?\bsetz(?:t|en)\s+(?:sich|uns|wir\s+uns)\b[^.!?\n]{0,40}?\bin\s+Verbindung\b`, "gi") },
+  { art: "Kontakt aufnehmen + Zeit", re: new RegExp(String.raw`\b(?:nimmt|nehmen|wird|werden)\b[^.!?\n]{0,40}?${ZZ_T}[^.!?\n]{0,40}?\bKontakt\b[^.!?\n]{0,20}?\bauf(?:nehmen)?\b`, "gi") },
+  { art: "schreibt Ihnen + Zeit", re: new RegExp(String.raw`\bschreib(?:t|en)\s+(?:wir\s+)?Ihnen\b[^.!?\n]{0,40}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,30}?\bschreib(?:t|en)\s+(?:wir\s+)?Ihnen\b`, "gi") },
+  // Nachbesserung: „Sie erhalten heute noch eine Nachricht von uns“, „Sie bekommen morgen Bescheid“.
+  // E-531 Nachbesserung 3: auch „Eine Rückmeldung erhalten Sie morgen.“ (das Nachricht-Wort vorn).
+  { art: "Sie erhalten + Zeit + Nachricht", re: new RegExp(String.raw`\b(?:Sie\s+(?:erhalten|bekommen)|(?:erhalten|bekommen)\s+Sie)\b[^.!?\n]{0,50}?${ZZ_T}[^.!?\n]{0,40}?\b${ZZ_BESCHEID}\b|\b(?:Sie\s+(?:erhalten|bekommen)|(?:erhalten|bekommen)\s+Sie)\b[^.!?\n]{0,40}?\b${ZZ_BESCHEID}\b[^.!?\n]{0,40}?${ZZ_T}|${ZZ_T}[^.!?\n]{0,30}?\b(?:erhalten|bekommen)\s+Sie\b[^.!?\n]{0,40}?\b${ZZ_BESCHEID}\b|\b${ZZ_BESCHEID}\b[^.!?\n]{0,40}?\b(?:erhalten|bekommen)\s+Sie\b[^.!?\n]{0,40}?${ZZ_T}`, "gi") },
+  // E-531 Nachbesserung 3: „Die Antwort folgt morgen.“, „Morgen kommt die Rückmeldung.“ — nur mit einem Nachricht-Wort
+  // (nie „Der Anmelde-Link kommt sofort …“, nie „Die Bestätigung kommt gleich per E-Mail“, nie „Ihre Nachricht von heute“).
+  { art: "Nachricht folgt + Zeit", re: new RegExp(String.raw`${ZZ_UNSERE_NACHRICHT}[^.!?\n]{0,40}?${ZZ_FOLGT}[^.!?\n]{0,40}?(?<!\bvon\s{1,3})${ZZ_T}|${ZZ_UNSERE_NACHRICHT}[^.!?\n]{0,40}?(?<!\bvon\s{1,3})${ZZ_T}[^.!?\n]{0,30}?${ZZ_FOLGT}|${ZZ_T}[^.!?\n]{0,30}?${ZZ_FOLGT}[^.!?\n]{0,40}?${ZZ_UNSERE_NACHRICHT}`, "gi"), seinWunsch: true },
+  // Nachbesserung: „Ich habe Herrn X gebeten, sich heute bei Ihnen zu melden“ (das alte Werkzeug-Muster).
+  { art: "gebeten + Zeit", re: new RegExp(String.raw`\bgebeten\b[^.!?\n]{0,80}?${ZZ_T}[^.!?\n]{0,40}?\b(?:zu\s+melden|anzurufen|zur(?:ü|ue)ckzurufen|zu\s+kontaktieren|zu\s+pr(?:ü|ue)fen|zu\s+kl(?:ä|ae)ren|zu\s+schreiben|zu\s+bearbeiten)\b|\bgebeten\b[^.!?\n]{0,80}?\b(?:zu\s+melden|anzurufen|zur(?:ü|ue)ckzurufen|zu\s+kontaktieren|zu\s+pr(?:ü|ue)fen|zu\s+kl(?:ä|ae)ren)\b[^.!?\n]{0,30}?${ZZ_T}`, "gi") },
+  { art: "meldet sich persönlich/umgehend", re: /\bmeld(?:et|en)\s+sich\s+(?:[^\s.!?]+\s+){0,3}?(?:persönlich|persoenlich|umgehend|gleich|sofort|schnellstmöglich|schnellstmoeglich|zeitnah)\b/gi, ohneZeit: true },
+  { art: "Leitung/Team meldet sich", re: new RegExp(String.raw`\b${ZZ_WER}\b[^.!?\n]{0,40}?\b(?:meldet\s+sich|wird\s+sich\b[^.!?\n]{0,30}?\bmelden|ruft\s+Sie\b(?!${ZZ_ER_RUFT})[^.!?\n]{0,40}?\b(?:an|zurück|zurueck)\b|wird\s+Sie\b[^.!?\n]{0,30}?\b(?:anrufen|zur(?:ü|ue)ckrufen|kontaktieren)\b)`, "gi"), ohneZeit: true },
+  // Nachbesserung: auch OHNE Zeit kein „Herr X ruft Sie an“ / „wird Sie anrufen“ — ohne Kalendertermin hält das niemand.
+  // E-531 Nachbesserung 2: bis zu acht Wörter zwischen Name und Verb („Herr X hat den Auftrag dazu bekommen und meldet sich …“),
+  // aber nie über ein Satzende hinweg (vorher \S+ — „… an Frau X gegeben. Sie … meldet sich“ wurde ein Treffer).
+  { art: "Herr/Frau X meldet sich", re: new RegExp(String.raw`\b${ZZ_NAME}\s+(?:[^\s.!?]+\s+){0,8}?(?:meldet\s+sich|wird\s+sich\b[^.!?\n]{0,30}?\bmelden|ruft\s+Sie\b(?!${ZZ_ER_RUFT})|wird\s+Sie\b[^.!?\n]{0,30}?\b(?:anrufen|zur(?:ü|ue)ckrufen|kontaktieren)\b|setzt\s+sich\b[^.!?\n]{0,40}?\bin\s+Verbindung\b)`, "g"), ohneZeit: true },
+  { art: "Vorname Nachname meldet sich", re: /\b(?!(?:Die|Der|Das|Ihre?|Unser(?:e)?|Eine?|Kein(?:e)?|Diese[rs]?|Jede[rs]?)\s)[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][A-Za-zäöüß-]+\s+(?:meldet\s+sich|ruft\s+Sie)\b/g, ohneZeit: true },
+  // E-531 Nachbesserung 2: umgestellt — „Dann ruft Herr X Sie an“, „ruft Sie Ihr Betreuer zurück“, „meldet sich unsere Leitung“.
+  { art: "ruft Herr X Sie an (umgestellt)", re: new RegExp(String.raw`\b[Rr]uft\s+(?:Sie\s+)?(?:${ZZ_NAME}|${ZZ_WER})\b[^.!?\n]{0,40}?\b(?:an|zur(?:ü|ue)ck)\b|\b[Mm]eldet\s+sich\s+(?:bei\s+Ihnen\s+)?(?:${ZZ_NAME}|${ZZ_WER})\b|\b[Ww]ird\s+(?:${ZZ_NAME}|${ZZ_WER})\s+(?:Sie|Ihnen)\b[^.!?\n]{0,40}?\b(?:anrufen|zur(?:ü|ue)ckrufen|kontaktieren)\b|\b[Ww]ird\s+sich\s+(?:${ZZ_NAME}|${ZZ_WER})\b[^.!?\n]{0,40}?\bmelden\b`, "g"), ohneZeit: true },
+  { art: "englisch: will contact you today", re: new RegExp(String.raw`(?:\bwill|'ll|’ll|\bshall|\bis\s+going\s+to|\bare\s+going\s+to)\s+(?:get\s+back\s+to|contact|call|reach\s+out\s+to|be\s+in\s+touch\s+with|e-?mail|write\s+to|update)\s+you\b[^.!?\n]{0,40}?\b${ZZ_EN_ZEIT}\b`, "gi") },
+  { art: "englisch: you will hear from us today", re: new RegExp(String.raw`\byou(?:'ll|’ll|\s+will|\s+shall)?\s+hear\s+(?:back\s+)?from\s+(?:us|me|him|her|our\s+\w+)\b[^.!?\n]{0,30}?\b${ZZ_EN_ZEIT}\b`, "gi") },
+  { art: "englisch: I have asked … today", re: new RegExp(String.raw`\b(?:I|we)\s*(?:have|'ve|’ve)\s+asked\b[^.!?\n]{0,80}?\bto\b[^.!?\n]{0,60}?\b${ZZ_EN_ZEIT}\b`, "gi") },
+  { art: "englisch: Mr X will contact", re: /\b(?:Mr|Ms|Mrs)\.?\s+[A-Z][A-Za-z-]+\s+will\s+(?:contact|call|get\s+in\s+touch|get\s+back|reach\s+out)\b/g, ohneZeit: true },
+  // „ü“/„ı“ sind für \b keine Wortzeichen — darum Unicode-Lookarounds (vorher griff „\bbugün\b“ nie). Als new RegExp wie im
+  // ganzen Haus: tsc prüft Regex-Literale gegen das Ziel, das u-Flag ginge dort nicht.
+  // E-531 Nachbesserung 2: auch „en kısa sürede“, „kısa süre içinde“, „hemen“, „24 saat içinde“ und „bilgi/yanıt vereceğiz“.
+  { art: "türkisch: bugün/yarın … arayacak", re: new RegExp(String.raw`(?<![\p{L}])(?:bugün|yarın|en\s+kısa\s+(?:sürede|zamanda)|kısa\s+süre\s+içinde|hemen|birazdan|\d+\s*(?:saat|gün|iş\s+günü)\s+içinde)(?![\p{L}])[^.!?\n]{0,60}?(?:arayaca[kğ]\p{L}*|dönece\p{L}*|dönüş\p{L}*|ulaşaca\p{L}*|iletişime\s+geçece\p{L}*|haber\s+verece\p{L}*|bilgi\s+verece\p{L}*|yanıt\s+verece\p{L}*|cevap\s+verece\p{L}*)`, "giu") },
+  { art: "andere Sprache: Zeit + Zusage", re: new RegExp(String.raw`(?<!\p{L})(?:${ZZ_FREMD_ZEIT})(?!\p{L})[^.!?\n]{0,60}?(?<!\p{L})(?:${ZZ_FREMD_ZUSAGE})(?!\p{L})|(?<!\p{L})(?:${ZZ_FREMD_ZUSAGE})(?!\p{L})[^.!?\n]{0,60}?(?<!\p{L})(?:${ZZ_FREMD_ZEIT})(?!\p{L})`, "giu") },
+];
+
+/** Bitte an ihn: „(Bitte/Gern) Rufen Sie … an“, „Melden Sie sich …“ — keine Zusage von uns. Geprüft am Satzteil (Nachbesserung 2). */
+const ZZ_BITTE_AN_IHN = /^(?:(?:bitte|gern(?:e)?|dann|sonst|oder|und|selbstverständlich|natürlich)\s*,?\s+)*(?:rufen|melden|schreiben|antworten|wenden)\s+sie\b/i;
+/** Vergangenheit/Entschuldigung: „hat leider nicht geklappt“, „gestern“ … */
+const ZZ_VERGANGEN = /\b(?:gestern|vorgestern|vorhin)\b|\bletzte\s+Woche\b|\bnicht\s+(?:\S+\s+){0,2}?(?:geklappt|stattgefunden|erreicht|gemeldet|zur(?:ü|ue)ckgerufen|angerufen)\b|\b(?:hat|hatte|haben|hatten|ist|war|waren|wurde|wurden)\b[^.!?\n]{0,60}?\b(?:geklappt|stattgefunden|ausgefallen|verpasst|vergessen|vers(?:ä|ae)umt)\b/i;
+/** … mit einer neuen Zusage im selben Satz bleibt es ein Treffer (Nachbesserung 2: auch die neuen Zusage-Formen). */
+const ZZ_ZUSAGE_VERB = /\bmeld(?:et|en|e)\s+(?:sich|uns|mich)\b|\bruf(?:t|en)\s+(?:Sie|Ihnen)\b|\b(?:wird|werden|werde)\b|\b(?:erhalten|bekommen)\s+Sie\b|\bsetz(?:t|en)\s+(?:sich|uns)\b|\bschreib(?:t|en)\s+(?:wir\s+)?Ihnen\b|\bkomm(?:e|en|t)\b[^.!?\n]{0,40}?\bauf\s+Sie\b|\b(?:geb(?:e|en)|gibt)\s+(?:wir\s+|ich\s+)?Ihnen\b|\b(?:ruf|kontaktier|informier|benachrichtig|antwort)(?:e|en)\s+(?:wir|ich)\s+(?:Sie|Ihnen)\b|\b(?:wir|ich)\s+(?:informier|benachrichtig|antwort|kontaktier)(?:e|en)\s+(?:Sie|Ihnen)\b|\b(?:will|shall)\b|['’]ll\b/i;
+/** „sobald Ihre Zahlung eingegangen ist“ — die Eile hängt an einer Bedingung, nicht an der Uhr. */
+const ZZ_SOBALD = /\b(?:sobald|nachdem|wenn)\b[^.!?\n]{0,80}?\b(?:eingegangen|eingeht|da\s+ist|vorliegt|vorliegen|gebucht|verbucht|best(?:ä|ae)tigt|angekommen|zugeordnet|gekl(?:ä|ae)rt|erledigt|freigegeben)\b|\b(?:sobald|wenn)\s+(?:wir|ich)\s+(?:Neuigkeiten|Neues|mehr\s+wissen|eine\s+R(?:ü|ue)ckmeldung|R(?:ü|ue)ckmeldung)\b|\bsobald\s+es\s+(?:Neuigkeiten|Neues)\b/i;
+const ZZ_EILE = new RegExp(String.raw`(?<![A-Za-zÄÖÜäöüß])(?:gleich|sofort|umgehend|zeitnah|in\s+K(?:ü|ue)rze|kurzfristig|schnellstm(?:ö|oe)glich|schnellstens|baldm(?:ö|oe)glichst|so\s+(?:schnell|bald|rasch|z(?:ü|ue)gig)\s+(?:wie\s+m(?:ö|oe)glich|es\s+geht)|m(?:ö|oe)glichst\s+(?:schnell|rasch)|bald|z(?:ü|ue)gig|rasch|demn(?:ä|ae)chst)(?![A-Za-zÄÖÜäöüß])`, "i");
+const ZZ_KALENDERWORT = new RegExp(String.raw`\d|(?<![A-Za-zÄÖÜäöüß])(?:heute|morgen|(?:ü|ue)bermorgen|${ZZ_WOCHENTAG}|${ZZ_MONAT}|Woche|Wochenende|Tagen|Werktagen|Stunden|Minuten|Uhr|Monat|Jahresende|sp(?:ä|ae)testens)(?![A-Za-zÄÖÜäöüß])`, "i");
+
+/**
+ * E-531 Nachbesserung 3: Eile unter einer Bedingung ist nur frei, wenn im ganzen Satz sonst keine Zeit steht. Vorher sah die
+ * Ausnahme nur die Fundstelle — „Wir melden uns umgehend, sobald die Prüfung erledigt ist, spätestens aber am Freitag.“ war
+ * frei. Herausgenommen werden der sobald-Teil und das Eile-Wort DIESER Fundstelle (eine zweite Eile im Satz zählt). Rein.
+ */
+function zzSobaldFrei(t: string, a: number, e: number, von: number, bis: number): boolean {
+  const ohneEile = `${t.slice(a, von)} ${t.slice(von, bis).replace(new RegExp(ZZ_EILE.source, "gi"), " ")} ${t.slice(bis, e)}`;
+  const ohne = ohneEile.replace(new RegExp(ZZ_SOBALD.source, "gi"), " ").replace(/\s+/g, " ");
+  return !new RegExp(ZZ_T, "i").test(zzOhneDatumPunkt(ohne));
+}
+
+// ── E-531 Nachbesserung 2/3: SEIN WUNSCH, SEINE BUCHUNG (Terminlink-Weg) ─────────────────────────────────────────
+// „Sie hatten heute um einen Rückruf gebeten. Wählen Sie hier eine Zeit …“ ist keine Zusage von uns. Geprüft wird nur
+// der Satzteil mit dem Wort „Rückruf/angerufen“ — „Wie Sie gebeten haben, erfolgt der Rückruf heute.“ bleibt ein Treffer.
+// NACHBESSERUNG 3 (Abnahme-Prüfung): Vorher reichte „Sie … gewünscht/eingetragen“ irgendwo im Satzteil. Damit waren
+// UNSERE Zusagen frei, in denen „Sie“ nicht der Wünschende ist („Sie werden morgen wie gewünscht zurückgerufen.“, „Wir
+// haben für Sie morgen einen Rückruf eingetragen.“, „Unser Team hat Sie für morgen eingetragen.“). Jetzt eine feste Liste,
+// in der „Sie“ eindeutig ER ist, der wünscht, bittet oder absagt — und eine Sperre (ZZ_UNSERE_ZUSAGE), die immer gewinnt.
+// „eingetragen/gebucht/verschoben“ stehen bewusst nicht in der Liste: „Sie haben den Rückruf eingetragen“ kann auch „die
+// Kollegen“ meinen. Hat ER wirklich gebucht, steht der Termin im Kalender und deckt den Satz dort.
+const ZZ_WUNSCH_PARTIZIP = String.raw`(?:gebeten|gew(?:ü|ue)nscht|angefragt|abgesagt|storniert)`;
+const ZZ_LINK_WEG = String.raw`(?:[Üü]ber|[Uu]nter|[Mm]it)\s+(?:den|dem|diesen|diesem|folgenden|folgendem)\s+(?:Link|Knopf|Button)`;
+const ZZ_SEIN_WUNSCH = new RegExp([
+  // „Sie hatten (heute) um einen Rückruf gebeten“, „Sie haben den Rückruf abgesagt“
+  String.raw`\bSie\s+(?:hatten|haben|h(?:ä|ae)tten)\b[^.!?\n]{0,80}?\b${ZZ_WUNSCH_PARTIZIP}\b`,
+  // „Den Rückruf für morgen haben Sie abgesagt“ — nie direkt nach wir/ich/er/sie/es („Wir haben Sie gebeten …“)
+  String.raw`(?<!\b(?:[Ww]ir|[Ii]ch|[Ee]r|sie|[Ee]s)\s+)\b(?:haben|hatten|h(?:ä|ae)tten)\s+Sie\b[^.!?\n]{0,60}?\b${ZZ_WUNSCH_PARTIZIP}\b`,
+  // „Sie möchten heute zurückgerufen werden“ — nie „wie Sie möchten“ (das ist unsere Zusage)
+  String.raw`(?<!\b[Ww]ie\s+)\bSie\s+(?:m(?:ö|oe)chten|w(?:ü|ue)nschen|w(?:ü|ue)nschten|wollen|wollten|baten|bitten|h(?:ä|ae)tten\s+gern(?:e)?)\b`,
+  // Frage an ihn am Anfang des Satzteils: „Möchten Sie morgen angerufen werden?“, „Wann möchten Sie …“
+  String.raw`^(?:(?:[Uu]nd|[Oo]der|[Aa]lso|[Dd]ann|[Gg]ern(?:e)?)\s+)*(?:(?:[Ww]ann|[Ww]ie|[Oo]b|[Ww]o)\s+)?(?:[Mm](?:ö|oe)chten|[Ww](?:ü|ue)nschen|[Ww]ollen|[Hh](?:ä|ae)tten)\s+Sie\b`,
+  // „Ihren Rückruf … können Sie hier direkt eintragen“ — nur mit „sich“ oder „hier/selbst/direkt/über den Link“
+  String.raw`\b(?:[Kk](?:ö|oe)nnen|[Dd](?:ü|ue)rfen)\s+Sie\s+(?:sich\b|[^.!?\n]{0,40}?\b(?:hier|selbst|direkt|jederzeit|bequem|online|${ZZ_LINK_WEG})\b)[^.!?\n]{0,60}?\b(?:eintragen|einbuchen|buchen|w(?:ä|ae)hlen|ausw(?:ä|ae)hlen|aussuchen|vereinbaren|festlegen|absagen|verschieben|stornieren)\b`,
+  // Aufforderung an ihn am Anfang des Satzteils: „Buchen Sie Ihren Rückruf für morgen hier“, „Wählen Sie …“
+  String.raw`^(?:(?:[Bb]itte|[Gg]ern(?:e)?|[Dd]ann|[Ee]infach|[Hh]ier|[Jj]etzt|[Dd]irekt|${ZZ_LINK_WEG})\s+)*(?:[Ww](?:ä|ae)hlen|[Bb]uchen|[Tt]ragen|[Ss]uchen|[Vv]ereinbaren|[Ll]egen)\s+Sie\b`,
+].join("|"));
+/**
+ * Die Sperre (gewinnt immer): Im Satzteil steht UNSERE Zusage — „für Sie“, „wie (von Ihnen) gewünscht/besprochen“, „wie Sie
+ * (es) möchten“, „Sie werden/wurden/sind/stehen/bekommen/erhalten“ (Passiv, Empfang) oder wir/ich, eine Stelle (ZZ_WER),
+ * Kollegen/Team/Betreuer, Herr/Frau X. Lieber ein Entwurf zu viel als eine Zusage, die niemand hält.
+ */
+const ZZ_UNSERE_ZUSAGE = new RegExp([
+  String.raw`\bf(?:ü|ue)r\s+Sie\b`,
+  String.raw`\bwie\s+(?:von\s+Ihnen\s+|es\s+)?(?:gew(?:ü|ue)nscht|angefragt|erbeten|gebeten|gebucht|besprochen|abgesprochen|vereinbart|verabredet|eingetragen|angefordert|zugesagt|angek(?:ü|ue)ndigt)\b`,
+  String.raw`\bwie\s+(?:es\s+)?Sie\b`,
+  String.raw`\bSie\s+(?:werden|wurden|sind|waren|stehen|standen|bekommen|erhalten|kriegen)\b`,
+  String.raw`\b(?:werden|wurden|sind|waren|stehen|standen|bekommen|erhalten|kriegen)\s+Sie\b`,
+  String.raw`\b(?:wir|ich)\b`,
+  String.raw`(?<![A-Za-zÄÖÜäöüß])${ZZ_WER}(?![A-Za-zÄÖÜäöüß])`,
+  String.raw`\b(?:Kolleg(?:e|in|en|innen)|Mitarbeiter(?:in|innen)?|Team|Betreuer(?:in|innen)?|Berater(?:in|innen)?|Ansprechpartner(?:in|innen)?)\b`,
+  String.raw`\b(?:Herrn?|Frau)\s+[A-ZÄÖÜ]`,
+].join("|"), "i");
+/** Das Wort, um das es bei „seinWunsch“ geht — dessen Satzteil wird geprüft. */
+const ZZ_ANKER = /R(?:ü|ue)ckruf|angerufen|zur(?:ü|ue)ckgerufen|kontaktiert|Anruf/i;
+/** Satzteile: Komma, Strichpunkt, Doppelpunkt (nicht in „10:30“), Gedankenstrich, Klammer, „und/oder/aber/sowie/sondern“. */
+// Als new RegExp wie im ganzen Haus (Lookbehind): tsc prüft Regex-Literale gegen das Ziel (E-531 Nachbesserung 2).
+const ZZ_KLAUSEL = new RegExp(String.raw`[,;–—()]|(?<!\d):|:(?!\d)|\s-\s|(?<![A-Za-zÄÖÜäöüß])(?:und|oder|aber|sowie|sondern)(?![A-Za-zÄÖÜäöüß])`, "gi");
+
+// ── E-531 Nachbesserung 2: KALENDER-DECKUNG NUR MIT DEM RICHTIGEN TAG (senden#3, wa#8) ──────────────────────────
+// Vorher reichte dieselbe Uhrzeit an irgendeinem Tag („heute um 10 Uhr“ gegen den Termin „morgen um 10 Uhr“), das Wort
+// „Termin“ allein, und ein Satz mit dem Termin war ganz frei, auch mit einer zweiten Zusage darin. Jetzt:
+//   · Uhrzeit nur mit dem passenden Tag (heute/morgen/Wochentag/Datum aus dem Kalendertext, ohne Tag gilt „heute“ — oder
+//     der Tag des Termin-Satzes direkt davor); jede Uhrzeit im Satz muss die des Termins sein.
+//   · „zum (vereinbarten) Termin“, „wie vereinbart“, „zur vereinbarten Zeit“ — und „dann“ nur im Satz direkt nach dem
+//     Termin-Satz —, jeweils ohne eigene Zeit.
+//   · Steht der Termin im Satz, wird der Rest des Satzes noch einmal geprüft („…, und die Leitung meldet sich heute“).
+// Ein Termin, der nur in einem Brief der Geschäftsleitung (Fall-Akte, js@) steht und nicht im Kalender, deckt bewusst
+// nichts: Die Bestätigung wird ein Entwurf, ein Mensch gibt sie frei (lieber Entwurf als falsche Zusage).
+// NACHBESSERUNG 3 (Abnahme-Prüfung): Der Kalender gab noch zu viel frei. Jetzt außerdem:
+//   · „wie vereinbart“ und „dann“ decken nie, wenn eine Stelle (ZZ_WER: Leitung, Geschäftsführung, Buchhaltung, Team,
+//     Ihr Betreuer …) im Satz steht — „Die Geschäftsführung meldet sich wie vereinbart“ verspricht jemand anderes.
+//   · „dann“ nur nach einem Satz mit dem Kalendertext oder mit Tag UND Uhrzeit des Termins (nicht „Danke für Ihre
+//     Nachricht von heute.“).
+//   · Tageszeiten (früh, Vormittag, Mittag, Nachmittag, Abend, Nacht) müssen zur Uhrzeit des Termins passen —
+//     „morgen Abend“ deckt den Termin „morgen um 10 Uhr“ nicht.
+//   · Der Rest des Satzes wird auch mit den Mustern OHNE Zeit geprüft, in den Satzteilen ohne die Termin-Angabe
+//     („…, und Frau Y meldet sich bei Ihnen.“) — auch bei „wie vereinbart“ und „dann“ (zzRestFrei).
+const ZZ_VEREINBART =/\b(?:zum|zu\s+(?:Ihrem|dem|diesem))\s+(?:(?:vereinbarten|verabredeten|gebuchten|eingetragenen|besprochenen)\s+)?(?:Termin|R(?:ü|ue)ckruftermin|Zeitpunkt)\b|\bwie\s+(?:vereinbart|verabredet|besprochen|abgesprochen)\b|\bzur\s+(?:vereinbarten|verabredeten|gebuchten|eingetragenen)\s+(?:Zeit|Uhrzeit)\b/i;
+const ZZ_DANN = new RegExp(String.raw`(?<![A-Za-zÄÖÜäöüß])(?:dann|zu\s+diese[mr]\s+(?:Zeit(?:punkt)?|Uhrzeit|Termin))(?![A-Za-zÄÖÜäöüß])`, "i");
+/** Eine Stelle im Satz (Leitung, Geschäftsführung, Team, Ihr Betreuer …) — dann decken „wie vereinbart“/„dann“ nie (Nachbesserung 3). */
+const ZZ_WER_RE = new RegExp(String.raw`(?<![A-Za-zÄÖÜäöüß])${ZZ_WER}(?![A-Za-zÄÖÜäöüß])`, "i");
+/** Tageszeiten: „morgen früh“, „heute Abend“, „Donnerstagnachmittag“, „heute Morgen“ — nie der Gruß „Guten Abend/Morgen“. */
+const ZZ_TAGESZEIT_RE = new RegExp([
+  String.raw`(?<![A-Za-zÄÖÜäöüß])(?<!\bgute[nr]?\s+)(?:sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag)?(fr(?:ü|ue)h|morgens|vormittags?|nachmittags?|mittags?|abends?|nachts?)(?![A-Za-zÄÖÜäöüß])`,
+  String.raw`(?<=\b(?:heute|gestern|am|jeden|diesen)\s+)(morgen)(?![A-Za-zÄÖÜäöüß])`,
+].join("|"), "gi");
+/** Tagesangaben: heute/morgen/übermorgen, Wochentag, Datum („30:11.“ im Suchtext, „30. November“). */
+const ZZ_TAG_RE = new RegExp([
+  String.raw`(?<![A-Za-zÄÖÜäöüß])(heute|(?:ü|ue)bermorgen|vorgestern|gestern)(?![A-Za-zÄÖÜäöüß])`,
+  String.raw`(?<![A-Za-zÄÖÜäöüß])(?<!(?:heute|gestern|guten|am|jeden|diesen)\s+)(morgen)(?![A-Za-zÄÖÜäöüß])`,
+  String.raw`(?<![A-Za-zÄÖÜäöüß])(sonntag|montag|dienstag|mittwoch|donnerstag|freitag|samstag)(?:s|morgen|vormittag|mittag|nachmittag|abend)?(?![A-Za-zÄÖÜäöüß])`,
+  String.raw`(?<![\d:.])(?<!(?:um|gegen)\s)(\d{1,2})[.:]\s?(\d{1,2})(?:[.:](\d{4}|\d{2})(?![\d:])|\.(?!\d))`,
+  String.raw`(?<![\d:.])(\d{1,2})\.\s?(januar|februar|m(?:ä|ae)rz|april|mai|juni|juli|august|september|oktober|november|dezember)(?:\s+(\d{4}))?(?![A-Za-zÄÖÜäöüß])`,
+].join("|"), "gi");
+const ZZ_DATUM_RE = new RegExp(String.raw`(?<![\d:.])(?<!(?:um|gegen)\s)\d{1,2}[.:]\s?\d{1,2}(?:[.:](?:\d{4}|\d{2})(?![\d:])|\.(?!\d))`, "gi");
+const ZZ_UHR_RE = new RegExp(String.raw`(?:(?:um|gegen|ab|bis)\s+)?(?<![\d:])(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?\s*uhr(?![A-Za-zÄÖÜäöüß])|(?:(?:um|gegen|ab)\s+)?(?<![\d:])(?:[01]?\d|2[0-3])[:.][0-5]\d(?![\d:])`, "gi");
+const ZZ_WT_NAMEN = ["sonntag", "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag"];
+const ZZ_MONAT_NAMEN = ["januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september", "oktober", "november", "dezember"];
+/** Die Grenze, die ein herausgenommener Termin im Satz hinterlässt: wie ein Satzende, kein Muster greift darüber. */
+const ZZ_SCHNITT = " . ";
+
+interface ZzTag { art: "rel" | "wt" | "datum"; key: string | null; wt: number; von: number; bis: number }
+interface ZzTermin { text: string; uhr: string[]; tag: { key: string; wt: number } | null }
+
+/** Berliner Kalendertag von `jetzt` plus `n` Tage — nur über formatToParts (Zeit-Falle). Rein. */
+function zzBerlinTag(jetzt: Date, n: number): { key: string; wt: number; j: number } {
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(jetzt);
+  const w = (x: string) => Number(p.find((y) => y.type === x)?.value ?? "0");
+  const d = new Date(Date.UTC(w("year"), w("month") - 1, w("day") + n));
+  return { key: `${d.getUTCDate()}.${d.getUTCMonth() + 1}`, wt: d.getUTCDay(), j: d.getUTCFullYear() };
+}
+
+/** „30.11.“ ohne Jahr: der nächste solche Tag (lange vorbei → nächstes Jahr). Null, wenn es den Tag nicht gibt. Rein. */
+function zzDatumTag(t: number, m: number, jahr: number | null, jetzt: Date): { key: string; wt: number } | null {
+  if (!(t >= 1 && t <= 31 && m >= 1 && m <= 12)) return null;
+  const heute = zzBerlinTag(jetzt, 0);
+  let j = jahr && jahr >= 100 ? jahr : jahr ? 2000 + jahr : heute.j;
+  if (!jahr) {
+    const [ht, hm] = heute.key.split(".").map(Number);
+    if (Date.UTC(j, m - 1, t) < Date.UTC(j, hm - 1, ht) - 60 * 86_400_000) j += 1;
+  }
+  const d = new Date(Date.UTC(j, m - 1, t));
+  if (d.getUTCMonth() !== m - 1) return null;
+  return { key: `${t}.${m}`, wt: d.getUTCDay() };
+}
+
+/** Alle Tagesangaben im Text, mit Lage. Rein. */
+function zzTage(s: string, jetzt: Date): ZzTag[] {
+  const aus: ZzTag[] = [];
+  const re = new RegExp(ZZ_TAG_RE.source, "gi");
+  for (let m = re.exec(s); m; m = re.exec(s)) {
+    if (!m[0]) { re.lastIndex += 1; continue; }
+    const von = m.index, bis = m.index + m[0].length;
+    const rel = (m[1] ?? m[2] ?? "").toLowerCase();
+    if (rel) {
+      const n = rel === "heute" ? 0 : rel === "morgen" ? 1 : /bermorgen$/.test(rel) ? 2 : rel === "gestern" ? -1 : -2;
+      const b = zzBerlinTag(jetzt, n);
+      aus.push({ art: "rel", key: b.key, wt: b.wt, von, bis });
+    } else if (m[3]) {
+      aus.push({ art: "wt", key: null, wt: ZZ_WT_NAMEN.indexOf(m[3].toLowerCase()), von, bis });
+    } else {
+      const t = Number(m[4] ?? m[7]);
+      const mo = m[5] ? Number(m[5]) : ZZ_MONAT_NAMEN.indexOf(String(m[8] ?? "").toLowerCase().replace("ae", "ä")) + 1;
+      const jahr = m[6] ?? m[9];
+      const d = zzDatumTag(t, mo, jahr ? Number(jahr) : null, jetzt);
+      if (d) aus.push({ art: "datum", key: d.key, wt: d.wt, von, bis });
+    }
+  }
+  return aus;
+}
+
+/** Uhrzeiten in einem Text als „HH:MM“ („10 Uhr“, „9:30 Uhr“, „14.15“) — ein Datum („16:11.“) ist keine Uhrzeit. Rein. */
+function zzUhrzeiten(s: string): string[] {
+  const aus: string[] = [];
+  const ohneDatum = s.replace(new RegExp(ZZ_DATUM_RE.source, "gi"), (x) => " ".repeat(x.length));
+  const re = /\b([01]?\d|2[0-3])(?:[:.]([0-5]\d))?\s*uhr\b|\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/gi;
+  for (let m = re.exec(ohneDatum); m; m = re.exec(ohneDatum)) {
+    const h = String(m[1] ?? m[3] ?? "");
+    if (!h) continue;
+    aus.push(`${h.length === 1 ? `0${h}` : h}:${String(m[2] ?? m[4] ?? "00")}`);
+  }
+  return aus;
+}
+
+/** Die Kalendertermine, wie die Wand sie vergleicht: Text, Uhrzeiten, Tag. Rein. */
+function zzTermine(kalender: (string | null | undefined)[], jetzt: Date): ZzTermin[] {
+  const aus: ZzTermin[] = [];
+  for (const k of kalender) {
+    const text = String(k ?? "").toLowerCase().replace(/(\d)\.(?=\d)/g, "$1:").replace(/\s+/g, " ").trim();
+    if (text.length < 5 || aus.some((x) => x.text === text)) continue;
+    const tage = zzTage(text, jetzt);
+    const fest = tage.find((x) => x.art === "datum") ?? tage.find((x) => x.art === "rel");
+    let tag: ZzTermin["tag"] = fest && fest.key ? { key: fest.key, wt: fest.wt } : null;
+    const wt = tage.find((x) => x.art === "wt");
+    if (!tag && wt) {
+      // „am Montag um 10 Uhr“ (zeitFuerKunde: 2 bis 6 Tage voraus) — der nächste solche Wochentag.
+      for (let n = 1; n <= 7 && !tag; n++) { const b = zzBerlinTag(jetzt, n); if (b.wt === wt.wt) tag = { key: b.key, wt: b.wt }; }
+    }
+    aus.push({ text, uhr: zzUhrzeiten(text), tag });
+  }
+  return aus;
+}
+
+/** Steht der Kalendertext wörtlich im Satz (Groß/klein und Leerraum egal)? */
+function zzTextRe(text: string): RegExp {
+  return new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+"), "gi");
+}
+
+/**
+ * E-531 Nachbesserung 3: Passt jede Tageszeit im Satz („morgen früh“, „heute Abend“) zu den Uhrzeiten des Termins? Ein
+ * Termin ohne Uhrzeit passt zu keiner Tageszeit (im Zweifel ein Entwurf). Rein.
+ */
+function zzTageszeitPasst(satz: string, terminUhr: string[]): boolean {
+  const re = new RegExp(ZZ_TAGESZEIT_RE.source, "gi");
+  for (let m = re.exec(satz); m; m = re.exec(satz)) {
+    if (!m[0]) { re.lastIndex += 1; continue; }
+    const w = String(m[1] ?? m[2] ?? "").toLowerCase().replace("frueh", "früh");
+    const [ab, bis] = /^(?:früh|morgen)/.test(w) ? [5, 11] : w.startsWith("vormittag") ? [6, 12] : w.startsWith("nachmittag") ? [12, 18]
+      : w.startsWith("mittag") ? [11, 15] : w.startsWith("abend") ? [17, 24] : [20, 29];
+    if (!terminUhr.length) return false;
+    const passt = terminUhr.every((u) => {
+      let h = Number(u.slice(0, 2)) + Number(u.slice(3, 5)) / 60;
+      if (ab >= 20 && h < 5) h += 24; // Nacht über Mitternacht
+      return h >= ab && h < bis;
+    });
+    if (!passt) return false;
+  }
+  return true;
+}
+
+/**
+ * Passt der Satz zum Termin — jede Tagesangabe ist sein Tag (ohne Tag: heute oder der Termin-Satz davor), jede Uhrzeit
+ * seine, jede Tageszeit zu seiner Uhrzeit (Nachbesserung 3)? `tagUndUhr`: nur mit Tag UND Uhrzeit im Satz (Satz vor „dann“). Rein.
+ */
+function zzTerminPasst(satz: string, tm: ZzTermin, kontext: boolean, jetzt: Date, tagUndUhr = false): boolean {
+  const tag = tm.tag;
+  if (!tag) return false;
+  const tage = zzTage(satz, jetzt), uhr = zzUhrzeiten(satz);
+  if (!tage.length && !uhr.length) return false;
+  if (tagUndUhr && !(tage.length && uhr.length)) return false;
+  if (tage.length) {
+    if (!tage.every((x) => (x.art === "wt" ? x.wt === tag.wt : x.key === tag.key))) return false;
+  } else if (!kontext && tag.key !== zzBerlinTag(jetzt, 0).key) return false;
+  if (!uhr.every((u) => tm.uhr.includes(u))) return false;
+  return zzTageszeitPasst(satz, tm.uhr);
+}
+
+/** Der Satz ohne seine Uhrzeiten und die Tagesangaben direkt daneben (ohne Uhrzeit: ohne die erste Tagesangabe). Rein. */
+function zzOhneTerminAngaben(satz: string, jetzt: Date): string {
+  const datum: [number, number][] = [];
+  const dre = new RegExp(ZZ_DATUM_RE.source, "gi");
+  for (let m = dre.exec(satz); m; m = dre.exec(satz)) datum.push([m.index, m.index + m[0].length]);
+  const uhr: [number, number][] = [];
+  const ure = new RegExp(ZZ_UHR_RE.source, "gi");
+  for (let m = ure.exec(satz); m; m = ure.exec(satz)) {
+    const v = m.index, b = m.index + m[0].length;
+    if (!datum.some(([dv, db]) => v < db && b > dv)) uhr.push([v, b]);
+  }
+  const tage = zzTage(satz, jetzt);
+  const weg: [number, number][] = [...uhr];
+  if (uhr.length) {
+    for (const tg of tage) {
+      if (uhr.some(([v, b]) => (tg.bis <= v && v - tg.bis <= 30) || (tg.von >= b && tg.von - b <= 15))) weg.push([tg.von, tg.bis]);
+    }
+  } else if (tage.length) weg.push([tage[0].von, tage[0].bis]);
+  weg.sort((x, y) => y[0] - x[0]);
+  let r = satz;
+  let grenze = Infinity;
+  for (const [v, b] of weg) {
+    if (b > grenze) continue;
+    r = r.slice(0, v) + ZZ_SCHNITT + r.slice(b);
+    grenze = v;
+  }
+  return r;
+}
+
+/** „am 2. Dezember“, „am 01:12. fällig“ (Suchtext): Der Punkt nach dem Datum beendet keinen Satz (E-531 Nachbesserung 2). */
+const ZZ_DATUM_PUNKT = new RegExp(String.raw`^\.\s?${ZZ_MONAT}(?![A-Za-zÄÖÜäöüß])`, "i");
+/** Endet bei `i` ein Satz? Rein. */
+function zzEnde(t: string, i: number): boolean {
+  const c = t.charAt(i);
+  if (!/[.!?\n]/.test(c)) return false;
+  if (c !== "." || !/\d/.test(t.charAt(i - 1))) return true;
+  if (ZZ_DATUM_PUNKT.test(t.slice(i, i + 16))) return false;
+  return !(/\d{1,2}[.:]\d{1,2}$/.test(t.slice(Math.max(0, i - 5), i)) && /^\.\s+[a-zäöüß]/.test(t.slice(i, i + 4)));
+}
+/** Für die Ausnahme-Prüfungen: „2. Dezember“ → „2 Dezember“, „01:12. fällig“ → „01:12 fällig“ — [^.!?] liest darüber. Rein. */
+function zzOhneDatumPunkt(s: string): string {
+  return s.replace(new RegExp(String.raw`(\d)\.(?=\s?${ZZ_MONAT}(?![A-Za-zÄÖÜäöüß]))`, "gi"), "$1")
+    .replace(/(\d{1,2}[.:]\d{1,2})\.(?=\s+[a-zäöüß])/g, "$1");
+}
+
+/** Satzgrenzen um eine Fundstelle in `t`: [Anfang, Ende) inklusive Satzzeichen. Rein. */
+function zzGrenzen(t: string, von: number, bis: number): [number, number] {
+  let a = von;
+  while (a > 0 && !zzEnde(t, a - 1)) a--;
+  let e = bis;
+  while (e < t.length && !zzEnde(t, e)) e++;
+  return [a, Math.min(t.length, e + 1)];
+}
+
+/** Der Satz direkt vor dem Satz, der bei `a` beginnt („" am Textanfang). Rein. */
+function zzVorsatz(t: string, a: number): string {
+  let q = a - 1;
+  while (q >= 0 && (/\s/.test(t.charAt(q)) || zzEnde(t, q))) q--;
+  if (q < 0) return "";
+  const [a2, e2] = zzGrenzen(t, q, q);
+  return t.slice(a2, e2).replace(/\s+/g, " ").trim();
+}
+
+/** Der Satzteil (zwischen Komma, „und“ …) in t[a, e), in dem `p` liegt — Text und Lage. Rein. */
+function zzKlauselLage(t: string, a: number, e: number, p: number): { text: string; lo: number; hi: number } {
+  const re = new RegExp(ZZ_KLAUSEL.source, "gi");
+  re.lastIndex = a;
+  let lo = a, hi = e;
+  for (let m = re.exec(t); m && m.index < e; m = re.exec(t)) {
+    if (!m[0]) { re.lastIndex += 1; continue; }
+    const ende = m.index + m[0].length;
+    if (ende <= p) lo = ende;
+    else if (m.index > p) { hi = m.index; break; }
+  }
+  return { text: t.slice(lo, hi).replace(/\s+/g, " ").trim(), lo, hi };
+}
+function zzKlausel(t: string, a: number, e: number, p: number): string {
+  return zzKlauselLage(t, a, e, p).text;
+}
+
+export interface ZeitZusageTreffer { art: string; treffer: string; satz: string }
+
+/**
+ * Die Suche selbst: jedes Muster, jede Fundstelle, die Ausnahmen (Bitte an ihn, Vergangenes, Eile unter Bedingung, sein
+ * Wunsch), dann die Kalender-Deckung (`gedeckt`, null = keine). `nurZeit` = nur Muster mit Zeitangabe (Satz-Rest). Rein.
+ */
+function zzSuche(t: string, roh: string, nurZeit: boolean, gedeckt: ((a: number, e: number) => boolean) | null): ZeitZusageTreffer[] {
+  const aus: ZeitZusageTreffer[] = [];
+  for (const m of ZZ_MUSTER) {
+    if (nurZeit && m.ohneZeit) continue;
+    const re = new RegExp(m.re.source, m.re.flags.includes("g") ? m.re.flags : `${m.re.flags}g`);
+    for (let x = re.exec(t); x; x = re.exec(t)) {
+      if (!x[0]) { re.lastIndex += 1; continue; }
+      const von = x.index, bis = x.index + x[0].length;
+      const [a, e] = zzGrenzen(t, von, bis);
+      const satz = roh.slice(a, e).replace(/\s+/g, " ").trim().slice(0, 240);
+      if (aus.some((z) => z.satz === satz)) continue;
+      const satzT = zzOhneDatumPunkt(t.slice(a, e).replace(/\s+/g, " ").trim());
+      // E-531 Nachbesserung: keine Zusage — Bitte an ihn (Nachbesserung 2: im Satzteil der Fundstelle, sonst rettete „Rufen
+      // Sie uns gern an, sonst melden wir uns morgen“ die Zusage), Entschuldigung für Vergangenes, Eile unter einer Bedingung.
+      // Danach weiter ab dem nächsten Zeichen — eine zweite Fundstelle im selben Satz zählt.
+      if (ZZ_BITTE_AN_IHN.test(zzOhneDatumPunkt(zzKlausel(t, a, e, von)))) { re.lastIndex = von + 1; continue; }
+      if (ZZ_VERGANGEN.test(satzT) && !ZZ_ZUSAGE_VERB.test(satzT)) { re.lastIndex = von + 1; continue; }
+      // E-531 Nachbesserung 3: Eile unter einer Bedingung nur, wenn im Satz sonst keine Zeit steht (zzSobaldFrei).
+      if (ZZ_SOBALD.test(satzT) && ZZ_EILE.test(x[0]) && !ZZ_KALENDERWORT.test(x[0]) && zzSobaldFrei(t, a, e, von, bis)) { re.lastIndex = von + 1; continue; }
+      if (m.verneint && m.verneint.test(x[0])) { re.lastIndex = von + 1; continue; }
+      // E-531 Nachbesserung 2/3: sein Wunsch oder seine Buchung im Satzteil des Worts „Rückruf/angerufen“ (Terminlink-Weg) —
+      // nur aus der festen Liste, nie gegen die Sperre (unsere Zusage), und nur, wenn im Rest des Satzes keine weitere Zeit
+      // steht („…, das erfolgt heute noch“ bleibt ein Treffer).
+      if (m.seinWunsch) {
+        const k = zzKlauselLage(t, a, e, von + Math.max(0, x[0].search(ZZ_ANKER)));
+        const kText = zzOhneDatumPunkt(k.text);
+        const rest = zzOhneDatumPunkt(`${t.slice(a, k.lo)}${ZZ_SCHNITT}${t.slice(k.hi, e)}`);
+        if (ZZ_SEIN_WUNSCH.test(kText) && !ZZ_UNSERE_ZUSAGE.test(kText) && !new RegExp(ZZ_T, "i").test(rest)) { re.lastIndex = von + 1; continue; }
+      }
+      if (gedeckt && gedeckt(a, e)) continue;
+      aus.push({ art: m.art, treffer: roh.slice(von, bis).replace(/\s+/g, " ").trim().slice(0, 120), satz });
+    }
+  }
+  return aus;
+}
+
+/** Wörter, die neben dem herausgenommenen Termin stehen dürfen, ohne eine eigene Aussage zu sein („…, und zwar . .“). */
+const ZZ_FUELLWORT = /^(?:an|zur(?:ü|ue)ck|und|zwar|also|n(?:ä|ae)mlich|genau|dann|wie|gesagt|vereinbart|besprochen|abgesprochen|verabredet|gebucht|am|um|ab|gegen|zum|zur|ist|das|es)$/i;
+/** Ein Satzteil mit dem herausgenommenen Termin: ein allein stehender Punkt (ZZ_SCHNITT), nie das Satzende „Ihnen.“ */
+const ZZ_SCHNITT_DRIN = /(?:^|\s)\.(?=\s|$)/;
+
+/**
+ * E-531 Nachbesserung 3 (wa#8-Rest): Verspricht der Satz ohne den Termin (ZZ_SCHNITT an seiner Stelle) nichts Weiteres?
+ * Muster MIT Zeit gelten im ganzen Rest. Muster OHNE Zeit („…, und Frau Y meldet sich bei Ihnen.“) gelten in den Satzteilen
+ * ohne die Termin-Angabe — vorher prüfte der Rest nur Muster mit Zeit. Höchstens EINE Zusage daneben gehört zum Termin:
+ *   · wenn der Termin allein in seinem Satzteil steht („Herr X ruft Sie an, morgen um 10 Uhr.“), oder
+ *   · wenn der Termin-Satzteil selbst nichts verspricht und die Zusage mit „dann“ auf ihn zeigt („Ihr Rückruf morgen um 10 Uhr
+ *     ist eingetragen; Herr X ruft Sie dann an.“) — dieselbe Regel wie über zwei Sätze: nur mit Kalendertext oder Tag UND
+ *     Uhrzeit (`dannDeckt`), nie mit einer Stelle oder einer Tageszeit in diesem Satzteil.
+ * Jede weitere Zusage ist ein Treffer. Rein.
+ */
+function zzRestFrei(rest: string, dannDeckt = false): boolean {
+  if (zzSuche(rest, rest, true, null).length) return false;
+  const teile = rest.split(new RegExp(ZZ_KLAUSEL.source, "gi"));
+  const mitTermin = teile.filter((x) => ZZ_SCHNITT_DRIN.test(x));
+  const andere = teile.filter((x) => !ZZ_SCHNITT_DRIN.test(x) && /[A-Za-zÄÖÜäöüß]/.test(x) && zzSuche(x, x, false, null).length > 0);
+  if (!andere.length) return true;
+  if (andere.length > 1 || !mitTermin.length) return false;
+  const terminAllein = mitTermin.every((x) => x.split(/[^A-Za-zÄÖÜäöüß]+/).filter(Boolean).every((w) => ZZ_FUELLWORT.test(w)));
+  if (terminAllein) return true;
+  return dannDeckt && mitTermin.every((x) => zzSuche(x, x, false, null).length === 0)
+    && ZZ_DANN.test(andere[0]) && !ZZ_WER_RE.test(andere[0]) && !new RegExp(ZZ_TAGESZEIT_RE.source, "i").test(andere[0]);
+}
+
+/**
+ * E-531 (25.11.2026): Verspricht der Text, dass sich jemand zu einer Zeit meldet oder anruft — oder dass „Herr X“,
+ * „die Leitung“, „Ihr Betreuer“ sich meldet? Liefert die ungedeckten Treffer (leer = keine Zeit-Zusage). Rein (`jetzt`
+ * nur für heute/morgen/Wochentag, Standard: jetzt).
+ * Gedeckt ist ein Satz nur durch einen echten Kalendertermin (`kalender`, Texte wie aus zeitFuerKunde, „morgen um 10 Uhr“),
+ * und immer nur, wenn der Rest des Satzes nichts Weiteres verspricht (zzRestFrei, auch ohne Zeit — Nachbesserung 3):
+ *   · der Kalendertext steht im Satz, oder
+ *   · Tag, Uhrzeit und Tageszeit im Satz passen zum Termin (Uhrzeit ohne Tag: heute, oder der Tag des Termin-Satzes davor), oder
+ *   · „zum (vereinbarten) Termin“ / „wie vereinbart“ / „zur vereinbarten Zeit“ ohne eigene Zeit, oder „dann“ ohne eigene
+ *     Zeit direkt nach einem Satz mit dem Kalendertext oder Tag UND Uhrzeit („Ihr Rückruf ist für morgen um 10 Uhr
+ *     eingetragen. Herr X ruft Sie dann an.“) — beides nie, wenn eine Stelle (ZZ_WER) im Satz steht.
+ * Kein Treffer: „Wir melden uns, sobald die Bestätigung da ist.“, „Der Rückruf heute hat leider nicht geklappt.“ (Vergangenheit),
+ * „Wir melden uns umgehend, sobald Ihre Zahlung eingegangen ist.“ (Bedingung), „Rufen Sie uns gern heute an.“ (Bitte an ihn),
+ * „Sie hatten heute um einen Rückruf gebeten – wählen Sie hier eine Zeit“ (sein Wunsch, feste Liste seit Nachbesserung 3).
+ * Treffer: „Herr X ruft Sie an.“ ohne Termin (hält niemand), „Wir werden uns zeitnah melden.“, „Wir rufen Sie am 30.11. an.“,
+ * „Sie werden morgen wie gewünscht zurückgerufen.“ (unsere Zusage, auch wenn „gewünscht“ darin steht).
+ */
+export function maraZeitZusage(text: string, opt: { kalender?: (string | null | undefined)[]; jetzt?: Date } = {}): ZeitZusageTreffer[] {
+  const roh = String(text ?? "");
+  if (!roh.trim()) return [];
+  // „9.30 Uhr“, „16.11.“: Der Punkt zwischen Ziffern beendet keinen Satz — gesucht wird in einer Kopie mit „:“ (gleich lang).
+  const t = roh.replace(/(\d)\.(?=\d)/g, "$1:");
+  const jetzt = opt.jetzt instanceof Date && Number.isFinite(opt.jetzt.getTime()) ? opt.jetzt : new Date();
+  const termine = zzTermine(opt.kalender ?? [], jetzt);
+  if (!termine.length) return zzSuche(t, roh, false, null);
+  const zeitWort = new RegExp(ZZ_T, "i");
+  const satzGedeckt = (a: number, e: number): boolean => {
+    const satz = t.slice(a, e).replace(/\s+/g, " ").trim();
+    const vorsatz = zzVorsatz(t, a);
+    // Der Satz davor nennt den Termin: für eine Uhrzeit ohne Tag reicht sein Tag; für „dann“ braucht es den Kalendertext
+    // oder Tag UND Uhrzeit (E-531 Nachbesserung 3 — „Danke für Ihre Nachricht von heute.“ ist kein Termin-Satz).
+    const kontextTag = vorsatz ? termine.filter((tm) => zzTextRe(tm.text).test(vorsatz) || zzTerminPasst(vorsatz, tm, false, jetzt)) : [];
+    const kontextVoll = vorsatz ? termine.filter((tm) => zzTextRe(tm.text).test(vorsatz) || zzTerminPasst(vorsatz, tm, false, jetzt, true)) : [];
+    for (const tm of termine) {
+      if (zzTextRe(tm.text).test(satz)) {
+        // Der Termin steht wörtlich im Satz: frei, wenn der Rest nichts Weiteres verspricht — sonst deckt DIESER Termin nicht.
+        if (zzRestFrei(satz.replace(zzTextRe(tm.text), ZZ_SCHNITT), true)) return true;
+        continue;
+      }
+      if (zzTerminPasst(satz, tm, kontextTag.includes(tm), jetzt)
+        && zzRestFrei(zzOhneTerminAngaben(satz, jetzt), zzTerminPasst(satz, tm, false, jetzt, true))) return true;
+    }
+    if (zeitWort.test(satz) || zzTage(satz, jetzt).length || zzUhrzeiten(satz).length || new RegExp(ZZ_TAGESZEIT_RE.source, "i").test(satz)) return false;
+    // E-531 Nachbesserung 3: nie, wenn eine Stelle im Satz steht; der Rest des Satzes darf nichts Weiteres versprechen.
+    if (ZZ_WER_RE.test(satz)) return false;
+    if (ZZ_VEREINBART.test(satz)) return zzRestFrei(satz.replace(new RegExp(ZZ_VEREINBART.source, "gi"), ZZ_SCHNITT));
+    if (kontextVoll.length > 0 && ZZ_DANN.test(satz)) return zzRestFrei(satz.replace(new RegExp(ZZ_DANN.source, "gi"), ZZ_SCHNITT));
+    return false;
+  };
+  // Je Satz einmal entscheiden — mehrere Muster treffen oft denselben Satz.
+  const schon = new Map<string, boolean>();
+  const gedeckt = (a: number, e: number): boolean => {
+    const k = `${a}:${e}`;
+    if (!schon.has(k)) schon.set(k, satzGedeckt(a, e));
+    return schon.get(k) === true;
+  };
+  return zzSuche(t, roh, false, gedeckt);
+}
+
 /** Verlangt der Kunde ausdrücklich eine Rechnung, einen Beleg oder die Zahlungsdaten? Rein. */
 export function kundeWillRechnung(text: unknown): boolean {
   return /\b(rechnung\w*|beleg\w*|quittung\w*|invoice|factura|fattura|facture|zahlungsdaten|bankdaten|kontodaten|bankverbindung|iban)\b/i.test(String(text ?? ""));
@@ -380,9 +1009,13 @@ export const notizAnBetreuer: Werkzeug = {
     }
     // E-275 (02.10.2026): ohne Anruf ist die Notiz still — das Ergebnis sagt es dem Modell, damit aus ihr kein
     // „Herr X ist informiert und kümmert sich“ in der Kundenmail wird (gemessen: 186 von 400 Antworten nannten einen Mitarbeiter).
+    // E-531 (25.11.2026): auch mit Anruf kein „X ist informiert und ruft Sie an“ mehr — der Rückruf steht nur in der
+    // Liste, keine Uhrzeit, niemand hat ihn zugesagt.
     return {
       ok: true,
-      ergebnis: p.anrufen ? `${wer.kundenName} ist informiert und ruft Sie an.` : "Intern notiert (still) — dem Kunden nicht erwähnen; beantworte sein Anliegen selbst und vollständig.",
+      ergebnis: p.anrufen
+        ? "Notiert, mit Rückrufwunsch (Rückrufliste des Teams, ohne Termin). Dem Kunden ohne Zeitangabe und ohne Namen: „Ihr Rückrufwunsch liegt jetzt bei unserem Team.“ Eine feste Zeit gibt es nur, wenn er selbst eine wählt (terminlink_bauen)."
+        : "Intern notiert (still) — dem Kunden nicht erwähnen; beantworte sein Anliegen selbst und vollständig.",
       daten: { betreuer: wer.kundenName, betreuer_intern: wer.name, dringend: !!p.dringend, still: !p.anrufen },
     };
   },
@@ -399,7 +1032,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
   // Unterlagen stehen hier nicht mehr (die gehen still über notiz_an_betreuer), und die Aufgabe ist kein Ersatz für
   // die Antwort. Gemessen 18.09.–02.10.: 115 Aufgaben, 28 davon nur wegen Unterlagen, 186 von 400 Antworten nannten
   // einen Mitarbeiter.
-  beschreibung: "Legt einem Menschen eine echte Aufgabe mit Titel, Auftrag und Frist an (Portal unter Aufträge, dazu eine Mail an ihn). NUR in diesen Fällen: (1) der Kunde will AUSDRÜCKLICH einen Rückruf oder ein Gespräch (rueckruf_am, wenn er eine Zeit nennt), (2) Geld zurück, Erstattung, Widerruf nach Zahlung oder Kulanz (kollege Leitung), (3) ein Zahlungsbeleg oder eine Buchungsfrage (kollege Zahlung — nur sie sieht das Bankbuch), (4) eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast (Name, Geburtsdatum, Bankverbindung, Ausweisdaten — Anschrift, E-Mail-Adresse und Telefonnummer ändert der Server selbst, E-401, aber nur, wenn ein Block ANGABEN dasteht; steht keiner da, gibst du dafür wie bisher diese Aufgabe), (5) ein Technik-Fehler, den du nicht selbst lösen kannst. NIE für Unterlagen oder Bilder per Mail (dafür notiz_an_betreuer, still), nie für Karten-, Zahlungs-, Zugangs- oder Ablauffragen, nie um eine Zahlung, Kündigung oder Beschwerde „prüfen zu lassen“ — das erledigst du selbst. Die Aufgabe ersetzt nie deine Antwort: Du beantwortest trotzdem JETZT alles selbst; „X meldet sich“ schreibst du nur bei einem Rückruf, den er wollte.",
+  beschreibung: "Legt einem Menschen eine echte Aufgabe mit Titel, Auftrag und Frist an (Portal unter Aufträge, dazu eine Mail an ihn). NUR in diesen Fällen: (1) der Kunde will AUSDRÜCKLICH einen Rückruf oder ein Gespräch (rueckruf_am, wenn er eine Zeit nennt), (2) Geld zurück, Erstattung, Widerruf nach Zahlung oder Kulanz (kollege Leitung), (3) ein Zahlungsbeleg oder eine Buchungsfrage (kollege Zahlung — nur sie sieht das Bankbuch), (4) eine Datenänderung oder Bescheinigung, für die du kein Werkzeug hast (Name, Geburtsdatum, Bankverbindung, Ausweisdaten — Anschrift, E-Mail-Adresse und Telefonnummer ändert der Server selbst, E-401, aber nur, wenn ein Block ANGABEN dasteht; steht keiner da, gibst du dafür wie bisher diese Aufgabe), (5) ein Technik-Fehler, den du nicht selbst lösen kannst, (6) E-531: du bist unsicher, ob etwas gilt oder was der echte Stand ist (Akte und FALL-AKTE passen nicht zusammen, eine Zusage ist unklar) — kollege Leitung. NIE für Unterlagen oder Bilder per Mail (dafür notiz_an_betreuer, still), nie für Karten-, Zahlungs-, Zugangs- oder Ablauffragen, nie um eine Zahlung, Kündigung oder Beschwerde „prüfen zu lassen“ — das erledigst du selbst. Die Aufgabe ersetzt nie deine Antwort: Du beantwortest trotzdem JETZT alles selbst. E-531: Eine Zeit („heute“, „morgen“) oder „X meldet sich“ schreibst du NIE — außer der Rückruf steht laut Ergebnis wirklich im Kalender, dann genau diesen Termin.",
   stufe: "frei",
   lagen: "alle",
   parameter: {
@@ -522,12 +1155,13 @@ export const aufgabeAnBetreuer: Werkzeug = {
     // E-265: Nennform — nie der Vorname (erg.kundenName ist schon „Herr Stripling", E-117).
     const werKunde = zielAbwesend ? abw!.vertreter.anrufName : erg.kundenName ?? erg.agentName ?? "unsere Leitung";
     await protokoll(k, "aufgabe_an_betreuer", `Aufgabe für ${wer}: „${titelMitName}" (fällig ${faelligAm}).${zahlungGemeldet} ${text.slice(0, 300)}`);
-    const wann = tage === 0 ? "heute" : tage === 1 ? "morgen" : `in ${tage} Tagen`;
     // ── RÜCKRUF ALS TERMIN IM KALENDER (Florentine Punkt 3) ───────────────
     // „Erkannte Rückrufwünsche automatisch als Termin in den Kalender des
     // zuständigen Mitarbeiters eintragen, verknüpft mit Kunde und Mail."
     let terminSatz = "";
     let gebuchtText: string | null = null;
+    /** E-531: wer zum gebuchten Termin wirklich anruft (Nennform) — nur dann nennt das Ergebnis eine Person. */
+    let terminPerson: string | null = null;
     const rueckrufAm = String(p.rueckruf_am || "").trim();
     // ── E-248: KEIN ZWEITER TERMIN, KEINE ZEIT IN DER VERGANGENHEIT ───────
     // Steht schon ein gebuchter Termin, wird keiner dazugebucht (Fall K. auf
@@ -543,7 +1177,8 @@ export const aufgabeAnBetreuer: Werkzeug = {
     if (bestehend) {
       terminSatz = ` Es steht schon ein Termin: ${bestehend.vorname ? `${bestehend.vorname} ruft Sie ` : ""}${bestehend.kundenText}${bestehend.vorname ? " an" : ""}. Kein zweiter wurde eingetragen.`;
     } else if (terminRot) {
-      terminSatz = " (Termine trägt gerade die Geschäftsführung selbst ein — KEIN Termin eingetragen; nenne dem Kunden keine Uhrzeit, der Betreuer meldet sich und macht die Zeit fest.)";
+      // E-531: kein „der Betreuer meldet sich“ mehr als Vorlage für die Kundenmail.
+      terminSatz = " (Termine trägt gerade die Geschäftsführung selbst ein — KEIN Termin eingetragen; nenne dem Kunden keine Uhrzeit und niemanden, der sich meldet. Biete ihm an, selbst eine Zeit zu wählen: terminlink_bauen.)";
     } else if (rueckrufAm && (!wunschZeit || wunschZeit.getTime() < Date.now() + 20 * 60_000)) {
       terminSatz = ` (Rückruf-Zeit ${rueckrufAm} liegt nicht mindestens 20 Minuten in der Zukunft oder ist unlesbar — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit.)`;
     } else if (rueckrufAm && k.personId && zielAbwesend && wunschZeit && wunschZeit.getTime() < abw!.bis.getTime()) {
@@ -556,7 +1191,8 @@ export const aufgabeAnBetreuer: Werkzeug = {
           .filter((x) => x.d >= -10 * 60_000 && x.d <= 20 * 60_000)
           .sort((a, b) => Math.abs(a.d) - Math.abs(b.d) || b.d - a.d)[0]?.s ?? null;
         if (!platz) {
-          terminSatz = ` (Zur Wunschzeit ${rueckrufAm} ist ${abw!.vertreter.anrufName} nicht frei — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit, ${abw!.vertreter.anrufName} meldet sich.)`;
+          // E-531: ohne Termin keine Person und keine Zeit für den Kunden.
+          terminSatz = ` (Zur Wunschzeit ${rueckrufAm} ist niemand frei — kein Termin eingetragen; nenne dem Kunden keine Uhrzeit und niemanden, der sich meldet. Biete ihm an, selbst eine Zeit zu wählen: terminlink_bauen.)`;
         } else {
           const { terminBuchen } = await import("./fiaon-termine");
           const b = await terminBuchen({ personId: k.personId, agentId: abw!.vertreter.id, beginn: platz.beginn, quelle: "agent_manuell", herkunft: "mara_mail" });
@@ -566,6 +1202,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
           const { buchungMelden } = await import("./fiaon-termin-meldung");
           await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
           gebuchtText = zeitFuerKunde(new Date(b.beginn));
+          terminPerson = abw!.vertreter.anrufName;
           terminSatz = ` Der Rückruf steht im Kalender: ${gebuchtText}.`;
           await protokoll(k, "aufgabe_an_betreuer", `Rückruf-Termin ${b.datumText} ${b.uhrzeit} Uhr für ${abw!.vertreter.name} eingetragen (vertritt ${fuer} bis ${bisText(abw!.bis)}).`);
         }
@@ -587,6 +1224,7 @@ export const aufgabeAnBetreuer: Werkzeug = {
         await buchungMelden(b.id, b.beginn, "agent_manuell").catch(() => {});
         // E-248: so, wie der Kunde es liest — „morgen um 20 Uhr", nie ISO.
         gebuchtText = zeitFuerKunde(new Date(b.beginn));
+        terminPerson = beimBetreuer ? vtPerson!.betreuer!.nenn.nom : werKunde;
         // E-265: der Kunde liest die Nennform des Betreuers („Herr Stripling ruft an"), nie den Vornamen.
         terminSatz = beimBetreuer
           ? ` Der Rückruf steht im Kalender: ${gebuchtText} ruft ${vtPerson!.betreuer!.nenn.nom} an.`
@@ -598,13 +1236,21 @@ export const aufgabeAnBetreuer: Werkzeug = {
     }
     // ── E-275 (02.10.2026): „X MELDET SICH HEUTE“ NUR BEIM RÜCKRUF ───────────
     // Dieser Satz war das Ergebnis JEDER Aufgabe — und das Modell schrieb ihn wörtlich in die Kundenmail
-    // („I have asked Nikita Boychenko to check this today“, #6120). Jetzt: Steht ein Rückruf (Wunschzeit,
+    // („I have asked <Betreuer> to check this today“). Jetzt: Steht ein Rückruf (Wunschzeit,
     // bestehender Termin) oder geht es um Geld zurück, bleibt die Zusage; sonst ist die Aufgabe intern, und
     // das Ergebnis sagt dem Modell, dass es selbst antwortet. Der Satz beginnt weiter mit der Nennform.
+    // ── E-531 (25.11.2026): KEINE ZEIT-ZUSAGE MEHR IM ERGEBNIS ─────────────────
+    // Bis heute hieß es hier „<Name> meldet sich heute/morgen bei Ihnen.“ — das Modell übernahm den Satz wörtlich, und
+    // gehalten wurde er fast nie (Audit 26.10.–24.11.). Jetzt: Steht der Rückruf WIRKLICH im Kalender, nennt das Ergebnis
+    // genau diesen Termin (und wer anruft); steht schon einer, genau den. Sonst nur der Satz ohne Zeit und ohne Namen.
     const zusageNoetig = !!rueckrufAm || !!bestehend || leitungGewollt;
-    const ergebnisText = zusageNoetig
-      ? `${werKunde} meldet sich ${wann} bei Ihnen.${terminSatz}`
-      : `${werKunde} meldet sich nur, wenn noch etwas von Ihnen gebraucht wird — die Aufgabe ist intern. Erwähne sie nicht als „meldet sich“, sondern beantworte sein Anliegen selbst und vollständig.${terminSatz}`;
+    const ergebnisText = !zusageNoetig
+      ? `${werKunde} meldet sich nur, wenn noch etwas von Ihnen gebraucht wird — die Aufgabe ist intern. Erwähne sie nicht als „meldet sich“, sondern beantworte sein Anliegen selbst und vollständig.${terminSatz}`
+      : gebuchtText
+        ? `${terminPerson ?? werKunde} meldet sich zum eingetragenen Termin: ${gebuchtText}. Nenne ihm genau diesen Termin — keine andere Zeit.${terminSatz}`
+        : bestehend
+          ? `Nenne ihm genau den Termin, der schon im Kalender steht — keine andere Zeit, keinen zweiten Termin.${terminSatz}`
+          : `Aufgabe angelegt. Dem Kunden schreibst du ohne Zeitangabe und ohne Namen, wer sich meldet: „${E531_UEBERGABE_SATZ}“${terminSatz}`;
     return {
       ok: true, ergebnis: ergebnisText,
       daten: {
@@ -1299,7 +1945,11 @@ export const kuendigungVormerken: Werkzeug = {
       }
       if (ja) {
         const { absenderGehoertZurPerson } = await import("./fiaon-postmeister-dossier");
-        if (!(await absenderGehoertZurPerson(k.absender, k.personId).catch(() => false))) {
+        // E-531 (Abnahme Runde 3): dieselbe Absenderadresse wie absenderEcht und Gmail — die LETZTE „<…>“-Gruppe — und nur bei
+        // genau EINEM Absender im Von-Kopf („"<kunde@x>" <fremd@y>“ ist fremd@y, nie der Kunde).
+        const { absenderAdresse, absenderEindeutig } = await import("./fiaon-fall-akte");
+        if (!absenderEindeutig(k.absender)
+          || !(await absenderGehoertZurPerson(absenderAdresse(k.absender) || k.absender, k.personId).catch(() => false))) {
           return { ok: false, ergebnis: "", fehler: "Das „Ja“ kommt nicht von einer E-Mail-Adresse, die bei ihm gespeichert ist — NICHTS ist gebucht (E-396: nur vom eigenen Absender). Bestätige keine Kündigung. Bitte ihn in EINEM freundlichen Satz, kurz von seiner bei uns hinterlegten E-Mail-Adresse mit „Ja“ zu antworten." };
         }
         // E-401: Liegt Gmails Absender-Prüfung vor, muss sie die Adresse bestätigen — sonst könnte jeder mit einer
@@ -2451,7 +3101,8 @@ export const karteSenden: Werkzeug = {
       return {
         ok: false, ergebnis: "",
         fehler: aktion === "gesperrt"
-          ? `Für ihn gibt es keinen Kartenlink (${intern || "Ausschluss"}) — schreib NICHT, der Link sei raus. Gib es mit aufgabe_an_betreuer weiter und sag ihm ehrlich, dass sich jemand meldet.`
+          // E-531 (25.11.2026): ehrlich, aber ohne „jemand meldet sich“ — der Satz ohne Zeit und ohne Namen.
+          ? `Für ihn gibt es keinen Kartenlink (${intern || "Ausschluss"}) — schreib NICHT, der Link sei raus. Gib es mit aufgabe_an_betreuer weiter und sag ihm ehrlich: „${E531_UEBERGABE_SATZ}“`
           : `Der Kartenlink ging nicht raus (${intern || "Versand gescheitert"}) — schreib NICHT, er sei unterwegs. Erkläre den Weg und gib dem Team still Bescheid (notiz_an_betreuer).`,
       };
     }

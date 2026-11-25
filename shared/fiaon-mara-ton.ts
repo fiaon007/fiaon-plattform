@@ -1853,9 +1853,9 @@ export function bausteinAbstreiten(opt: { kanal: MaraKanal; art: AbstreitenFestA
       "Ich gebe das sofort an unser Team weiter, damit sie bei uns gelöscht wird.");
   }
   if (opt.art === "rueckfrage") {
-    // E-265: die Nennform („Herr Stripling"), nie der erste Teil des Namens (vorher `.split(/\s+/)[0]` = Vorname).
-    const wer = opt.betreuer?.trim() || "Jemand aus unserem Team";
-    return absatz(`Das kläre ich gern für Sie. ${woher}`, `${wer} meldet sich dazu persönlich bei Ihnen und geht alles in Ruhe mit Ihnen durch.`);
+    // E-531 (25.11.2026): keine Personen- oder Zeit-Zusage mehr (vorher „<Betreuer> meldet sich dazu persönlich bei Ihnen …").
+    // Der Mensch bekommt die Aufgabe (an: betreuer), der Kunde den Übergabe-Satz ohne Zeit und ohne Namen.
+    return absatz(`Das kläre ich gern für Sie. ${woher}`, "Ihre Frage liegt jetzt bei unserem Team; Sie erhalten dazu eine schriftliche Nachricht.");
   }
   if (opt.art === "wut") {
     return absatz(`Entschuldigen Sie bitte, wenn unsere Nachricht Sie verärgert hat. ${woher}`,
@@ -1875,7 +1875,8 @@ export function bausteinAbstreiten(opt: { kanal: MaraKanal; art: AbstreitenFestA
   }
   // bestreitet
   const kopf = `Entschuldigen Sie bitte ${mail ? "unsere" : "die"} Nachricht. ${woher} Wenn das nicht von Ihnen kam, tut es mir leid.`;
-  return absatz(kopf, opt.abgeschickt ? "Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam, und meldet sich bei Ihnen." : loeschen);
+  // E-531: ohne „heute" und ohne „meldet sich" (vorher „Unsere Leitung sieht sich heute an, … und meldet sich bei Ihnen.").
+  return absatz(kopf, opt.abgeschickt ? "Unsere Leitung prüft, wie es zu dem Antrag kam; Sie erhalten dazu eine schriftliche Nachricht." : loeschen);
 }
 
 /**
@@ -1906,7 +1907,7 @@ export const ABSTREITEN_REGEL_TEXT = [
   `═══ WENN ER BESTREITET, SICH BESCHWERT ODER NICHT WEISS, WORUM ES GEHT ═══`,
   `· Sagt er, er habe nichts beantragt, jemand anderes habe das gemacht, er wisse nicht, worum es geht, oder er wolle keinen Kontakt: kurz und aufrichtig entschuldigen, ehrlich sagen, woher wir ihn kennen — nur, was in SEINE LAGE steht, sonst „Ihre Nummer ist bei uns gespeichert, woher genau, prüft unsere Leitung" —, kein Link, kein Verkauf, kein Wort von Zahlung. Ein Mensch übernimmt (WhatsApp: mensch true; Mail: aufgabe_an_betreuer an die Leitung).`,
   `· Hält er uns für Betrug oder Spam: ruhig und ehrlich (wer wir sind, woher wir ihn kennen), kein Link, kein Verkauf, kein Druck. Ein Mensch übernimmt.`,
-  `· Weiß er nicht, wofür er zahlen soll: keine Zahlungsseite, kein Betrag — sag ihm, dass sich sein Betreuer persönlich meldet. Ein Mensch übernimmt.`,
+  `· Weiß er nicht, wofür er zahlen soll: keine Zahlungsseite, kein Betrag — sag ihm, dass seine Frage jetzt bei unserem Team liegt und er dazu eine schriftliche Nachricht bekommt — keine Zeit, kein Name (E-531). Ein Mensch übernimmt.`,
 ].join("\n");
 
 /** Die Antwort auf „Löschen Sie meine Daten" — fester Text; die Leitung bekommt die Aufgabe. */
@@ -1918,7 +1919,7 @@ export function loeschAntwort(kanal: MaraKanal): string {
 
 /** War Maras letzte Nachricht eine feste Abstreiten-Antwort (bausteinAbstreiten, jede Art)? */
 export function nachAbstreiten(maraText: string | null | undefined): boolean {
-  return /Wir schreiben Ihnen ab jetzt nicht mehr|Sie bekommen von uns ab jetzt keine Werbung mehr|Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam|Entschuldigen Sie bitte, wenn unsere Nachricht Sie verärgert hat|bei uns versehentlich hinterlegt|Das kläre ich gern für Sie\./.test(String(maraText ?? ""));
+  return /Wir schreiben Ihnen ab jetzt nicht mehr|Sie bekommen von uns ab jetzt keine Werbung mehr|Unsere Leitung sieht sich heute an, wie es zu dem Antrag kam|Unsere Leitung prüft, wie es zu dem Antrag kam|Entschuldigen Sie bitte, wenn unsere Nachricht Sie verärgert hat|bei uns versehentlich hinterlegt|Das kläre ich gern für Sie\./.test(String(maraText ?? ""));
 }
 
 /** Hat Mara ihm gerade das Löschen angeboten (bausteinAbstreiten)? Für istLoeschwunsch({ angeboten }). */

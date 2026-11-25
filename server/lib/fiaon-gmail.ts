@@ -290,12 +290,29 @@ export function mimeAntwort(opts: { von: string; an: string; betreff: string; te
   // keine Knöpfe, kein Absender-Bild. Jetzt geht dieselbe Nachricht als
   // multipart/alternative raus — Textfassung für Zweifelsfälle, HTML für
   // alle üblichen Postfächer. Ohne `html` bleibt alles wie vorher.
-  const references = [opts.references, opts.inReplyTo].filter(Boolean).join(" ").trim() || null;
+  // E-531 (Gegenprüfung Runde 5): In-Reply-To/References kommen aus der fremden Mail — nur echte Kennungen „<…>“ übernehmen
+  // (höchstens 20), nie Zeilenumbrüche oder anderen Text, sonst könnte ein Kopf weitere Kopfzeilen (Bcc) einschmuggeln.
+  // Schlussprüfung Runde 6 (klein): Eine nackte Kennung „abc@host“ (ohne Klammern, ohne Leer-/Steuerzeichen) wird in <…> gesetzt
+  // statt verworfen; beim Kürzen bleibt die erste Kennung (Wurzel des Fadens) plus die letzten 19.
+  // Letzte Prüfung Runde 7 (klein): nur druckbares ASCII wie im RFC für msg-id (keine Steuerzeichen wie NUL oder NEL).
+  const kennungen = (s: unknown): string[] => {
+    const roh = String(s ?? "");
+    const mit = roh.match(/<[\x21-\x3b\x3d\x3f-\x7e]{1,250}>/g);
+    if (mit && mit.length) return mit;
+    const nackt = roh.trim();
+    return /^[\x21-\x27\x2a\x2b\x2d-\x39\x3d\x3f-\x5a\x5e-\x7e]{1,250}@[\x21-\x27\x2a\x2b\x2d-\x39\x3d\x3f-\x5a\x5e-\x7e]{1,250}$/.test(nackt) ? [`<${nackt}>`] : [];
+  };
+  const inReplyTo = kennungen(opts.inReplyTo).pop() || null;
+  const refsAlle = [...kennungen(opts.references), ...(inReplyTo ? [inReplyTo] : [])];
+  const references = (refsAlle.length > 20 ? [refsAlle[0], ...refsAlle.slice(-19)] : refsAlle).join(" ") || null;
+  const an = String(opts.an ?? "").replace(/[\r\n]+/g, " ").trim();
   const kopf = [
-    `From: ${opts.von}`,
-    `To: ${opts.an}`,
+    // E-531 (Gegenprüfung Runde 4): nie ein Zeilenumbruch in From/To — sonst könnte ein Kopf weitere Kopfzeilen (Bcc) einschmuggeln.
+    `From: ${String(opts.von ?? "").replace(/[\r\n]+/g, " ")}`,
+    // Schlussprüfung Runde 6: ohne Empfänger (Entwurf, den ein Mensch bewusst adressiert) keine To-Zeile.
+    an ? `To: ${an}` : null,
     `Subject: ${kodiertBetreff}`,
-    opts.inReplyTo ? `In-Reply-To: ${opts.inReplyTo}` : null,
+    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
     references ? `References: ${references}` : null,
     // E-476 Nachbesserung (Gutachten Sicherheit, Mangel 13): wie mimeNeu — der „Abmelden“-Knopf des Mailprogramms statt „Spam“.
     opts.abmelden ? `List-Unsubscribe: <mailto:${opts.abmelden.replace(/[\r\n<>]/g, "")}?subject=Stopp>` : null,
@@ -367,12 +384,14 @@ export async function antwortSenden(postfach: string, original: GmailNachricht, 
   return String(j?.id || "");
 }
 
-export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null): Promise<string> {
+export async function entwurfAnlegen(postfach: string, original: GmailNachricht, text: string, html?: string | null, anhaenge?: MailAnhang[] | null, opts: { an?: string | null; ohneEmpfaenger?: boolean } = {}): Promise<string> {
   const j = await api(postfach, "/drafts", {
     method: "POST",
     body: JSON.stringify({
       message: {
-        raw: mimeAntwort({ von: postfach, an: original.antwortAn || original.von, betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
+        // E-531 (Gegenprüfung Runde 5/6): wahlweise an eine geprüfte Adresse statt an Antwort-an/Von (wie antwortSenden) —
+        // oder ganz ohne Empfänger, wenn die Plattform keine sichere Adresse hat (der Mensch trägt sie in Gmail bewusst ein).
+        raw: mimeAntwort({ von: postfach, an: opts.ohneEmpfaenger ? "" : (opts.an || original.antwortAn || original.von), betreff: original.betreff, text, html, inReplyTo: original.messageIdHeader, references: original.references, anhaenge }),
         threadId: original.threadId,
       },
     }),

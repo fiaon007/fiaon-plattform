@@ -231,6 +231,23 @@
 .bzg-sitemaps i { font-style: normal; }
 .bzg-sitemaps i[data-ton="rot"] { color: #fca5a5; }
 .bzg-sitemaps i[data-ton="gelb"] { color: #fcd34d; }
+/* E-530 Korb B: ehrliche Klick-Zahlen (B2), Index-Zahl des Tages (B1), IndexNow (B4) */
+.bzg-ehrlich { display: grid; gap: 10px; }
+.bzg-ehrlich-kopf { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 22px; font-size: 12.5px; color: #b8c4d6; }
+.bzg-ehrlich-kopf b { color: #fff; font-weight: 300; font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin-right: 6px; }
+.bzg-anonym b { font-size: 18px; color: #cbd5e1; }
+.bzg-ehrlich-zeile, .bzg-gruende { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; font-size: 12px; color: var(--bz-leise); font-variant-numeric: tabular-nums; }
+.bzg-trenner { color: rgba(255, 255, 255, .18); }
+.bzg-gruende b { color: #cbd5e1; font-weight: 400; margin-left: 3px; }
+.bzg-signale { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin: 0; font-size: 12px; color: var(--bz-leise); }
+.bzg-signale b { color: #e5ecf6; font-weight: 400; font-variant-numeric: tabular-nums; }
+.bzg-ampel { display: inline-flex; align-items: center; gap: 8px; }
+.bzg-ampel i { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 0 3px rgba(52, 211, 153, .14); flex: none; }
+.bzg-ampel[data-ton="gelb"] i { background: #fcd34d; box-shadow: 0 0 0 3px rgba(252, 211, 77, .16); }
+.bzg-ampel[data-ton="rot"] i { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, .18); }
+.bzg-index-delta { font-variant-numeric: tabular-nums; color: #b8c4d6; }
+.bzg-ueberfaellig { font-variant-numeric: tabular-nums; color: #fcd34d; }
+.bzg-indexnow b { color: #cbd5e1; font-weight: 400; }
 
 /* ── Telefon ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
@@ -242,6 +259,7 @@
   .bz-kacheln { gap: 8px; }
   .bz .bz-kz { padding: 14px 14px 12px; }
   .bz-karte, .bz-rang { padding: 14px 14px; border-radius: 16px; }
+  .bzg-ehrlich-kopf b { font-size: 22px; }
   .bz-trichter li { grid-template-columns: 58px minmax(0, 1fr) auto; column-gap: 10px; }
   .bz-trichter-zahl { font-size: 18px; }
   .bz-heat-zeile { grid-template-columns: 22px repeat(24, minmax(0, 1fr)); gap: 2px; }

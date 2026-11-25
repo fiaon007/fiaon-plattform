@@ -1273,7 +1273,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     tageslauf('ratgeber-tagesartikel', async () => await fiaonRatgeber.ratgeberTageslaufStreng(), 30 * 60 * 1000, { beimStartNach: 120_000 });
   // 27.10.2026 (E-439): die Business-Artikel für Vorrenderer und llms.txt einmal beim Start laden (danach alle 5 Min. bei Bedarf).
   void import('./lib/fiaon-business-artikel-liste').then((m) => m.businessArtikelLaden()).catch(() => {});
-  // E-439: nach jedem Deploy die frisch geänderten Seiten an Bing melden (IndexNow), drei Minuten nach dem Start.
+  // E-439: nach jedem Deploy die geänderten Seiten an Bing melden (IndexNow), drei Minuten nach dem Start.
+  // E-530 B4: alles, was neuer ist als seine letzte erfolgreiche Meldung (Protokoll fiaon_indexnow_meldungen); nach einer
+  // Ablehnung erst nach einer Pause. Nur im Betrieb und nicht bei CRONS=aus (prüft indexNowAktiv selbst).
   setTimeout(() => { void import('./lib/fiaon-indexnow').then((m) => m.indexNowNachStart()).catch(() => {}); }, 180_000).unref?.();
   });
 
@@ -1448,7 +1450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }, 60 * 60 * 1000, { beimStartNach: 90_000 });
   });
   // 🔎 E-454 (28.10.2026): Google Search Console im Chefbüro (Besucher › Google). Stündlich prüfen, ab 05:00 Berlin
-  //    einmal am Tag holen (Zahlen, Sitemaps, bis zu 150 URL-Prüfungen) — lib/fiaon-search-console.ts. Ohne Zugang:
+  //    einmal am Tag holen (Zahlen, Sitemaps, bis zu 400 URL-Prüfungen, E-530) — lib/fiaon-search-console.ts. Ohne Zugang:
   //    Zustand „zugang_fehlt“, neuer Versuch nach 3 Stunden. Eine Zeile in der Lauf-Historie nur bei Abruf oder Fehler.
   const chefGoogle = await import('./routes/fiaon-chef-google');
   app.use('/api/fiaon', chefGoogle.default);

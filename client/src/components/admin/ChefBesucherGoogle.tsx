@@ -7,17 +7,35 @@
 //   1. Kacheln: Klicks, Impressionen, CTR, Position — mit den 28 Tagen davor
 //   2. Fast auf Seite 1: Suchanfragen auf Platz 8–20 mit Impressionen
 //   3. Suchanfragen, Seiten, Länder, Geräte
-//   4. Neu bei Google / Noch nicht bei Google (URL-Prüfung, bis 150 am Tag)
+//   4. Neu bei Google / Noch nicht bei Google (URL-Prüfung, bis 400 am Tag)
 //   5. Sitemap-Stand
+// E-530 Korb B (25.11.2026):
+//   · „Klicks ohne Marke, Global (sichtbar)“ mit dem Anteil anonym der Global-Klicks,
+//     darunter Marke/Name/ohne Marke/anonym und Global/Privat, dazu Impressionen für
+//     den Namen und eine Ampel für feste Suchwörter (nur Zahlen, keine Suchtexte;
+//     die Wörter kennt nur der Server) — B2
+//   · Index-Zahl des Tages mit Veränderung, überfällig und den Gründen laut Google — B1
+//   · IndexNow: letzte Meldung an Bing und wie viele Seiten offen sind — B4
 // Fehlt der Zugang (API aus, Dienstkonto ohne Freigabe), steht nur das da —
 // mit dem Satz, was fehlt. „Jetzt abrufen“ sehen Geschäftsführung und Inhaber.
 // Wenig Text (Justin 12.10.): Erklärungen im title.
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from "react";
-import { API, Karte, zahl, seit, datum } from "./chef-teile";
+import { API, Karte, zahl, seit, datum, datumZeit } from "./chef-teile";
 
 interface Kennzahlen { klicks: number; impressionen: number; ctr: number; position: number | null }
 interface Eintrag extends Kennzahlen { name: string }
+interface KlickTeil { gesamt: number; marke: number; name: number; feste: number; ohneMarke: number; anonym: number; anteilAnonym: number | null }
+interface KlickArten {
+  gesamt: number; sichtbar: number; marke: number; name: number; feste: number; ohneMarke: number; anonym: number; anteilAnonym: number | null;
+  nameSuchen: { klicks: number; impressionen: number; suchen: number };
+  global: KlickTeil | null; privat: KlickTeil | null;
+  ampel: {
+    stufe: "gruen" | "gelb" | "rot"; impressionen: number; suchen: number; je: Record<string, number>;
+    seiten: { pfad: string; impressionen: number }[];
+  } | null;
+  hinweis: string | null;
+}
 interface Stand {
   ok: true;
   zustand: "ok" | "zugang_fehlt" | "fehler" | "leer";
@@ -30,6 +48,16 @@ interface Stand {
   fastSeiteEins: Eintrag[]; anfragen: Eintrag[]; seiten: Eintrag[]; laender: Eintrag[]; geraete: Eintrag[];
   sitemaps: { pfad: string; eingereicht: string | null; gelesen: string | null; wartet: boolean; warnungen: number; fehler: number; adressen: number | null }[];
   pruefung: { gestoppt?: string | null } | null;
+  klickArten: KlickArten | null;
+  index: {
+    tag: string; gesamt: number; indexiert: number; nichtIndexiert: number; ungeprueft: number; ueberfaellig?: number; alterStand?: number;
+    gruende: { grund: string; anzahl: number }[];
+    veraenderung: { delta: number; seit: string } | null;
+  } | null;
+  indexnow: {
+    aktiv: boolean; aus: "ausgeschaltet" | "nur im Betrieb" | null; offen: number | null; letzterErfolg: string | null; pauseBis: string | null;
+    letzte: { am: string; anzahl: number; status: number | null; anlass: string } | null;
+  } | null;
   adressen: {
     gesamt: number; beiGoogle: number; nicht: number; ungeprueft: number; heute: number; budget: number;
     neu: { adresse: string; seit: string | null }[];
@@ -44,6 +72,8 @@ interface Stand {
 const komma = (n: number, stellen = 1) => n.toLocaleString("de-DE", { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
 const prozent = (anteil: number) => `${komma(anteil * 100)} %`;
 const tagKurz = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.`;
+/** Zahl mit Einzahl oder Mehrzahl: „1 Impression“, „3 Impressionen“. */
+const anzahl = (n: number, eins: string, viele: string) => `${zahl(n)} ${n === 1 ? eins : viele}`;
 const pfadVon = (adresse: string) => { try { const u = new URL(adresse); return `${u.pathname}${u.search}` || "/"; } catch { return adresse; } };
 
 // Google liefert Länder als ISO-3166-alpha-3 in Kleinbuchstaben.
@@ -132,6 +162,78 @@ function Liste({ titel, wertTitel, zeilen, leer, kurz = 8, klasse = "" }: {
 }
 
 const suche = (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}&hl=de&gl=de`;
+const mitVorzeichen = (n: number) => (n > 0 ? `+${zahl(n)}` : n < 0 ? `−${zahl(Math.abs(n))}` : "±0");
+
+// ── B4: IndexNow — letzte Meldung an Bing und was noch offen ist ───────────
+function IndexNowZeile({ n }: { n: NonNullable<Stand["indexnow"]> }) {
+  const l = n.letzte;
+  const angenommen = !!l && l.status != null && l.status >= 200 && l.status < 300;
+  return (
+    <span className="bzg-indexnow" title="IndexNow meldet neue und geänderte Seiten an Bing (speist ChatGPT-Suche und Copilot) — nach jedem Start alles, was neuer ist als seine letzte angenommene Meldung.">
+      <b>IndexNow (Bing)</b>
+      {l
+        ? <> · letzte Meldung {seit(l.am)} · {anzahl(l.anzahl, "Adresse", "Adressen")} · {l.status == null
+            ? <i data-ton="rot">keine Antwort</i>
+            : angenommen
+              ? <>angenommen ({l.status})</>
+              : <i data-ton="rot">abgelehnt ({l.status})</i>}</>
+        : <> · noch keine Meldung</>}
+      {l && !angenommen && n.letzterErfolg && <> · zuletzt angenommen {seit(n.letzterErfolg)}</>}
+      {n.offen != null && (n.offen > 0 ? <i data-ton="gelb"> · {zahl(n.offen)} offen</i> : <> · nichts offen</>)}
+      {n.pauseBis && <span title={`Nach der Ablehnung meldet erst ein Start nach ${datumZeit(n.pauseBis)} wieder.`}> · Pause</span>}
+      {n.aus && <> · hier {n.aus}</>}
+    </span>
+  );
+}
+
+// ── B2: ehrliche Klick-Zahlen — die Kennzahl ohne Marke, daneben der Anteil anonym ──
+function KlickArtenKarte({ k }: { k: KlickArten }) {
+  const g = k.global;
+  const anteil = (x: number | null) => (x == null ? "—" : prozent(x));
+  const teilText = (t: KlickTeil) =>
+    `Marke ${zahl(t.marke)} · Name ${zahl(t.name)} · ohne Marke ${zahl(t.ohneMarke)} · anonym ${zahl(t.anonym)} (${anteil(t.anteilAnonym)})`;
+  const a = k.ampel;
+  return (
+    <div className="bz-karte bzg-ehrlich">
+      <div className="bzg-ehrlich-kopf">
+        <span title="Klicks aus sichtbaren Suchen ohne „fiaon“ (und ähnliche Schreibweisen) und ohne den Namen, auf Global-Seiten: /, /en, /business, /justin-schwarzott">
+          <b>{g ? zahl(g.ohneMarke) : "—"}</b> Klicks ohne Marke, Global (sichtbar)
+        </span>
+        {g && (
+          <span className="bzg-anonym" title={`${zahl(g.anonym)} von ${zahl(g.gesamt)} Global-Klicks kommen aus Suchen, die Google nicht zeigt — darunter können auch Suchen ohne Marke sein.`}>
+            <b>{anteil(g.anteilAnonym)}</b> anonym
+          </span>
+        )}
+      </div>
+      <p className="bzg-ehrlich-zeile">
+        <span title="Sichtbare Suchen mit „fiaon“ und ähnlichen Schreibweisen">Marke {zahl(k.marke)}</span>
+        <span title="Sichtbare Suchen nach dem Namen des Gründers">Name {zahl(k.name)}</span>
+        {k.feste > 0 && <span title="Sichtbare Suchen mit den festen Suchwörtern der Ampel">Suchwörter {zahl(k.feste)}</span>}
+        <span title="Sichtbare Suchen ohne Marke und ohne Namen">ohne Marke {zahl(k.ohneMarke)}</span>
+        <span title={`Klicks laut Google minus alle sichtbaren Suchen — ${anteil(k.anteilAnonym)} aller Klicks`}>anonym {zahl(k.anonym)}</span>
+        <span className="bzg-trenner" aria-hidden="true">·</span>
+        {g && k.privat
+          ? <>
+              <span title={`Global: ${teilText(g)}`}>Global {zahl(g.gesamt)}</span>
+              <span title={`Privat: ${teilText(k.privat)}`}>Privat {zahl(k.privat.gesamt)}</span>
+            </>
+          : <span title={k.hinweis ?? undefined}>Global/Privat heute ohne Zahl</span>}
+      </p>
+      <p className="bzg-signale">
+        <span title={`Sichtbare Suchen nach dem Namen in 28 Tagen: ${anzahl(k.nameSuchen.suchen, "Suche", "Suchen")}, ${anzahl(k.nameSuchen.klicks, "Klick", "Klicks")}. Seltene Suchen zeigt Google nicht.`}>
+          Name (sichtbar): <b>{anzahl(k.nameSuchen.impressionen, "Impression", "Impressionen")}</b>
+        </span>
+        {a && (
+          <span className="bzg-ampel" data-ton={a.stufe}
+                title={`Impressionen sichtbarer Suchen mit den festen Suchwörtern in 28 Tagen (je Wort: ${Object.values(a.je).map((n) => zahl(n)).join(" · ")}). Gelb ab 1, rot ab 10.${a.seiten.length ? ` Meiste Impressionen auf: ${a.seiten.map((x) => `${x.pfad} (${zahl(x.impressionen)})`).join(", ")}` : ""}`}>
+            <i aria-hidden="true" />
+            Feste Suchwörter (sichtbar): <b>{anzahl(a.impressionen, "Impression", "Impressionen")}</b>
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
 
 export default function ChefBesucherGoogle() {
   const [d, setD] = useState<Stand | null>(null);
@@ -195,6 +297,8 @@ export default function ChefBesucherGoogle() {
   const s = d.summen;
   const zugangFehlt = d.zustand === "zugang_fehlt";
   const a = d.adressen;
+  const ueberfaellig = d.index?.ueberfaellig ?? 0;
+  const alterStand = d.index?.alterStand ?? 0;
   const nichtOk = d.zustand !== "ok" && d.zustand !== "leer";
 
   const standZeile = (
@@ -222,6 +326,7 @@ export default function ChefBesucherGoogle() {
               : <><b>Abruf gescheitert.</b> {d.grund}</>}
         </div>
         {meldung && <p className="cw-meldung" role="status">{meldung}</p>}
+        {d.indexnow && <div className="bzg-sitemaps"><IndexNowZeile n={d.indexnow} /></div>}
       </section>
     );
   }
@@ -256,6 +361,7 @@ export default function ChefBesucherGoogle() {
         <Tagesband tage={d.verlauf} />
         <p className="bz-legende"><span><i className="bzg-legende-klick" aria-hidden="true" /> Klicks</span><span><i className="bzg-legende-impr" aria-hidden="true" /> Impressionen</span></p>
       </div>
+      {d.klickArten && <KlickArtenKarte k={d.klickArten} />}
 
       <div className="bz-raenge">
         <Liste titel="Fast auf Seite 1" wertTitel="Platz 8–20" klasse="bzg-fast" kurz={10}
@@ -286,7 +392,27 @@ export default function ChefBesucherGoogle() {
         <span title="Geprüft, aber (noch) nicht aufgenommen"><b>{zahl(a.nicht)}</b> noch nicht</span>
         <span title="Noch nicht geprüft — kommt in den nächsten Tagen dran"><b>{zahl(a.ungeprueft)}</b> ungeprüft</span>
         <span className="bz-leise">von {zahl(a.gesamt)} in der Sitemap</span>
+        {d.index?.veraenderung && (
+          <span className="bzg-index-delta" title={`Index-Zahl des Tages (${tagKurz(d.index.tag)}): ${zahl(d.index.indexiert)} bei Google — verglichen mit ${tagKurz(d.index.veraenderung.seit)}`}>
+            {mitVorzeichen(d.index.veraenderung.delta)} seit {tagKurz(d.index.veraenderung.seit)}
+          </span>
+        )}
+        {ueberfaellig > 0 && (
+          <span className="bzg-ueberfaellig" title="Älter als 7 Tage nicht geprüft — soll 0 sein">
+            überfällig {zahl(ueberfaellig)}
+          </span>
+        )}
+        {alterStand > 0 && (
+          <span className="bz-leise" title="Bei Google, aber Google war zuletzt vor der letzten Änderung da — Kandidaten für eine Neu-Indexierung">
+            alter Stand {zahl(alterStand)}
+          </span>
+        )}
       </div>
+      {d.index && d.index.gruende.length > 0 && (
+        <p className="bzg-gruende" title="Nicht bei Google — Grund laut Google, Stand der Tageszahl">
+          {d.index.gruende.slice(0, 4).map((g) => <span key={g.grund}>{g.grund} <b>{zahl(g.anzahl)}</b></span>)}
+        </p>
+      )}
       {d.pruefung?.gestoppt && <p className="cw-meldung" role="status">{d.pruefung.gestoppt}</p>}
       <div className="bz-raenge">
         <Liste titel="Neu bei Google" wertTitel="seit" leer="In den letzten 14 Tagen nichts Neues." klasse="bzg-neu"
@@ -298,7 +424,7 @@ export default function ChefBesucherGoogle() {
                }))} />
       </div>
 
-      {d.sitemaps.length > 0 && (
+      {(d.sitemaps.length > 0 || d.indexnow) && (
         <div className="bzg-sitemaps">
           {d.sitemaps.map((m) => (
             <span key={m.pfad} title={m.eingereicht ? `Eingereicht ${datum(m.eingereicht)}` : undefined}>
@@ -309,6 +435,7 @@ export default function ChefBesucherGoogle() {
               {m.warnungen > 0 && <i data-ton="gelb"> {zahl(m.warnungen)} Warnungen</i>}
             </span>
           ))}
+          {d.indexnow && <IndexNowZeile n={d.indexnow} />}
         </div>
       )}
     </section>

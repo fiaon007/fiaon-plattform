@@ -15,9 +15,29 @@
 //      Seiten, Länder, Geräte.
 //   2. sitemaps.list — eingereichte Sitemaps, wann Google sie gelesen hat.
 //   3. urlInspection.index.inspect — je Adresse aus der Sitemap: Ist sie bei
-//      Google? Höchstens 150 Prüfungen am Tag (Google erlaubt 2.000 je Tag und
-//      Eigenschaft); die mit höchster Priorität zuerst und öfter. Daraus
-//      entstehen „Neu bei Google“ und „Noch nicht bei Google“.
+//      Google? Höchstens 400 Prüfungen am Tag (Google erlaubt 2.000 je Tag und
+//      Eigenschaft). Daraus entstehen „Neu bei Google“ und „Noch nicht bei Google“.
+//
+// ── E-530 KORB B (25.11.2026) ─────────────────────────────────────────────
+//   B1  Die URL-Prüfung nimmt die am längsten nicht geprüften Adressen zuerst
+//       (nie geprüft ganz vorn), die Priorität der Sitemap zählt nur bei
+//       Gleichstand (derselbe Berliner Tag); jede Adresse ist spätestens nach
+//       sieben Tagen wieder dran, auch wenn sich der Tageslauf verschiebt.
+//       Vorher stand die Priorität vorn — bei 150 am Tag kamen Randseiten
+//       wochenlang nicht dran und ihr altes Urteil blieb stehen.
+//       Nach der Prüfung legt der Lauf die Index-Zahl des Tages ab
+//       (fiaon_gsc_tage.index_stand: gesamt, bei Google, nicht bei Google je
+//       Grund laut Google, überfällig, „Google kennt einen alten Stand“) — die
+//       Zahl muss nicht mehr von Hand aus Chrome kommen. Der Stand der Sitemap
+//       (lastmod) steht je Adresse in fiaon_gsc_adressen.sitemap_stand.
+//   B2  Klick-Summen je Tag (fiaon_gsc_tage.klickarten): Marke (Suche passt
+//       auf fiaon und ähnliche Schreibweisen), Name (Suchen nach dem Gründer,
+//       Personenmarke), ohne Marke (sichtbare Suchen ohne beides), anonym
+//       (Klicks laut Google minus alle sichtbaren Suchen — Google zeigt
+//       seltene Suchen nicht). Dazu Global gegen Privat nach Seite und eine
+//       kleine Ampel für feste Suchwörter. Die Wörter stehen nicht im Code,
+//       sondern in der Server-Umgebung (GSC_AMPEL_WOERTER); fehlt sie, gibt
+//       es keine Ampel. Abgelegt werden nur Zahlen und Pfade, nie Suchtexte.
 //
 // ── ZUGANG ────────────────────────────────────────────────────────────────
 // Dasselbe Dienstkonto wie Gmail und Kalender (GOOGLE_SA_KEY), aber OHNE „sub“:
@@ -45,8 +65,21 @@ import { berlinToday } from "./fiaon-time";
 export const GSC_EIGENSCHAFT = String(process.env.GSC_PROPERTY || "https://fiaon.com/").trim();
 const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 const API = "https://searchconsole.googleapis.com";
-/** Unser Deckel für URL-Prüfungen je Berliner Tag. Google erlaubt 2.000. */
-export const PRUEF_TAGESBUDGET = 150;
+/** Unser Deckel für URL-Prüfungen je Berliner Tag. Google erlaubt 2.000 (E-530: 150 → 400). */
+export const PRUEF_TAGESBUDGET = 400;
+/** Spätestens nach so vielen Stunden ist jede Adresse wieder geprüft — sieben Tage (E-530 B1). */
+export const PRUEF_HOECHSTENS_STUNDEN = 7 * 24;
+/**
+ * Spielraum für den Tageslauf: Eine Adresse wird schon so viele Stunden VOR den
+ * sieben Tagen wieder fällig. Läuft der Tageslauf einmal später (Neuversuch nach
+ * einem Google-Fehler, „Jetzt abrufen“ am Nachmittag), kommt sie trotzdem am
+ * nächsten Morgen dran — höchstens 142 h plus ein Tag bis zum nächsten Lauf.
+ */
+export const PRUEF_SPIELRAUM_STUNDEN = 26;
+/** Ampel für feste Suchwörter: gelb ab so vielen Impressionen im 28-Tage-Fenster, rot ab so vielen. */
+export const AMPEL_GRENZEN = { gelb: 1, rot: 10 } as const;
+/** Höchstens so viele feste Suchwörter liest die Ampel aus GSC_AMPEL_WOERTER. */
+export const AMPEL_HOECHSTENS = 5;
 /** „Fast auf Seite 1“: durchschnittliche Position von … bis … */
 export const FAST_SEITE_1 = { von: 8, bis: 20 } as const;
 /** Der Tageslauf holt ab dieser Berliner Stunde. */
@@ -75,7 +108,8 @@ export interface PruefErgebnis {
   adresse: string; urteil: string; abdeckung: string | null; indexierung: string | null; abruf: string | null;
   robots: string | null; letzterCrawl: string | null; kanonisch: string | null; indexiert: boolean; link: string | null;
 }
-export interface Kandidat { adresse: string; prio: number }
+/** Eine Adresse der Sitemap: Priorität und Stand (lastmod, JJJJ-MM-TT), wenn die Sitemap einen nennt. */
+export interface Kandidat { adresse: string; prio: number; stand?: string }
 export interface Bekannt { zuletztGeprueft: Date | null; indexiert: boolean | null }
 
 /** Was Google gemeldet hat, in einem Satz für Menschen. */
@@ -253,7 +287,8 @@ export function sitemapAdressen(xml: string): Kandidat[] {
     if (gesehen.has(adresse)) continue;
     gesehen.add(adresse);
     const p = Number(/<priority>\s*([\d.]+)\s*<\/priority>/.exec(m[1])?.[1]);
-    raus.push({ adresse, prio: Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0.5 });
+    const stand = /<lastmod>\s*(\d{4}-\d{2}-\d{2})/.exec(m[1])?.[1];
+    raus.push({ adresse, prio: Number.isFinite(p) ? Math.min(1, Math.max(0, p)) : 0.5, ...(stand ? { stand } : {}) });
   }
   return raus;
 }
@@ -262,29 +297,321 @@ export function sitemapAdressen(xml: string): Kandidat[] {
  * Wie lange nach der letzten Prüfung eine Adresse wieder dran ist (Stunden).
  * Was noch nicht bei Google ist, wollen wir am Tag sehen, an dem es hineinkommt —
  * die Kernseiten (Priorität ab 0,8) täglich, den Rest jeden zweiten Tag. Was
- * schon drin ist, reicht alle drei (Kern) bzw. sieben Tage.
+ * schon drin ist, reicht alle drei Tage (Kern) bzw. knapp sechs Tage: höchstens
+ * sieben Tage minus Spielraum (142 h), damit „spätestens nach sieben Tagen“ auch
+ * hält, wenn der Tageslauf sich einmal verschiebt.
  */
 export function pruefAbstandStunden(prio: number, indexiert: boolean | null): number {
-  if (indexiert === true) return prio >= 0.9 ? 70 : 166;
-  return prio >= 0.8 ? 20 : 44;
+  const h = indexiert === true ? (prio >= 0.9 ? 70 : 166) : (prio >= 0.8 ? 20 : 44);
+  return Math.min(h, PRUEF_HOECHSTENS_STUNDEN - PRUEF_SPIELRAUM_STUNDEN);
+}
+
+const BERLIN_TAG = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
+/** Der Berliner Kalendertag als JJJJ-MM-TT — über formatToParts (nie Number(format()), siehe fiaon-zeit-berlin-falle). */
+export function berlinTag(at: Date): string {
+  const teile = BERLIN_TAG.formatToParts(at);
+  const teil = (typ: string) => teile.find((p) => p.type === typ)?.value ?? "";
+  return `${teil("year")}-${teil("month")}-${teil("day")}`;
 }
 
 /**
- * Welche Adressen heute geprüft werden: alle fälligen, höchste Priorität zuerst,
- * bei gleicher Priorität die am längsten nicht geprüften (nie geprüft = ganz vorn).
+ * Welche Adressen heute geprüft werden (E-530 B1): alle fälligen, die am längsten
+ * nicht geprüften zuerst (nie geprüft = ganz vorn). Die Priorität der Sitemap
+ * entscheidet nur bei Gleichstand — gleich alt heißt: am selben Berliner Tag
+ * geprüft (ein Lauf prüft alle seine Adressen innerhalb weniger Minuten; eine
+ * Stundengrenze mitten im Lauf teilt ihn so nicht). Am selben Tag und mit gleicher
+ * Priorität geht die ältere Prüfung vor. Eine Adresse, deren letzte Prüfung fast
+ * sieben Tage zurückliegt, ist immer fällig und steht damit vor allem, was erst
+ * seit Kurzem wieder dran ist.
  */
 export function pruefAuswahl(kandidaten: Kandidat[], bekannt: Map<string, Bekannt>, jetzt: Date, budget: number): string[] {
-  if (budget <= 0) return [];
+  if (!(budget > 0)) return [];
+  const zeit = new Map<string, { tag: string; t: number }>();
   const faellig = kandidaten.filter((k) => {
     const b = bekannt.get(k.adresse);
-    if (!b?.zuletztGeprueft) return true;
-    return jetzt.getTime() - b.zuletztGeprueft.getTime() >= pruefAbstandStunden(k.prio, b.indexiert) * 3_600_000;
+    const t = b?.zuletztGeprueft?.getTime();
+    if (t == null || !Number.isFinite(t)) { zeit.set(k.adresse, { tag: "", t: -Infinity }); return true; }
+    if (jetzt.getTime() - t < pruefAbstandStunden(k.prio, b?.indexiert ?? null) * 3_600_000) return false;
+    zeit.set(k.adresse, { tag: berlinTag(new Date(t)), t });
+    return true;
   });
-  const alter = (a: string) => bekannt.get(a)?.zuletztGeprueft?.getTime() ?? -Infinity;
+  // Nie geprüft hat den Tag "" und steht damit vor jedem echten Tag.
   return faellig
-    .sort((a, b) => b.prio - a.prio || alter(a.adresse) - alter(b.adresse))
-    .slice(0, budget)
+    .sort((a, b) => {
+      const x = zeit.get(a.adresse)!, y = zeit.get(b.adresse)!;
+      if (x.tag !== y.tag) return x.tag < y.tag ? -1 : 1;
+      return (b.prio - a.prio) || (x.t === y.t ? 0 : x.t < y.t ? -1 : 1);
+    })
+    .slice(0, Math.floor(budget))
     .map((k) => k.adresse);
+}
+
+// ── B1: die Index-Zahl des Tages ────────────────────────────────────────────
+export interface IndexGrund { grund: string; anzahl: number }
+export interface IndexStand {
+  gemessenAm?: string;
+  gesamt: number; indexiert: number; nichtIndexiert: number; ungeprueft: number;
+  /** Adressen, deren letzte Prüfung älter als sieben Tage ist (soll nach B1 auf 0 gehen). */
+  ueberfaellig: number;
+  /**
+   * Bei Google, aber Google war zuletzt VOR dem Stand der Sitemap da (letzter Crawl
+   * älter als lastmod) — Kandidaten für eine Neu-Indexierung (B1).
+   */
+  alterStand: number;
+  /** Nicht bei Google, je Grund laut Google (coverageState), häufigster zuerst. */
+  gruende: IndexGrund[];
+}
+export interface IndexZeile {
+  indexiert: boolean | null; abdeckung: string | null; zuletztGeprueft: Date | null;
+  /** Letzter Besuch von Google und Stand der Sitemap (JJJJ-MM-TT) — nur für alterStand. */
+  letzterCrawl?: Date | null; stand?: string | null;
+}
+
+/** Zählt den Stand der Adresstabelle — rein, ohne Datenbank. */
+export function indexStandZaehlen(zeilen: IndexZeile[], jetzt: Date): IndexStand {
+  let indexiert = 0, nicht = 0, ungeprueft = 0, ueberfaellig = 0, alterStand = 0;
+  const gruende = new Map<string, number>();
+  const grenze = jetzt.getTime() - PRUEF_HOECHSTENS_STUNDEN * 3_600_000;
+  for (const z of zeilen) {
+    const t = z.zuletztGeprueft?.getTime();
+    if (t == null || !Number.isFinite(t) || t < grenze) ueberfaellig++;
+    if (z.indexiert === true) {
+      indexiert++;
+      const crawl = z.letzterCrawl?.getTime();
+      const stand = String(z.stand ?? "").slice(0, 10);
+      // Kalendertag des Besuchs (UTC, wie lastmod) vor dem Stand der Sitemap → Google kennt einen alten Stand.
+      if (crawl != null && Number.isFinite(crawl) && /^\d{4}-\d{2}-\d{2}$/.test(stand) && new Date(crawl).toISOString().slice(0, 10) < stand) alterStand++;
+      continue;
+    }
+    if (z.indexiert !== false) { ungeprueft++; continue; }
+    nicht++;
+    const g = String(z.abdeckung ?? "").trim() || "ohne Angabe";
+    gruende.set(g, (gruende.get(g) ?? 0) + 1);
+  }
+  return {
+    gesamt: zeilen.length, indexiert, nichtIndexiert: nicht, ungeprueft, ueberfaellig, alterStand,
+    gruende: Array.from(gruende, ([grund, anzahl]) => ({ grund, anzahl })).sort((a, b) => b.anzahl - a.anzahl || a.grund.localeCompare(b.grund, "de")),
+  };
+}
+
+/**
+ * Wie sich „bei Google“ verändert hat: der jüngste Tag gegen den jüngsten Tag, der
+ * mindestens `tage` Tage davor liegt (sonst gegen den ältesten vorhandenen).
+ * Weniger als zwei Tage → null.
+ */
+export function indexVeraenderung(verlauf: { tag: string; indexiert: number }[], tage = 7): { delta: number; seit: string } | null {
+  const v = verlauf.filter((x) => /^\d{4}-\d{2}-\d{2}$/.test(x.tag) && Number.isFinite(x.indexiert)).sort((a, b) => (a.tag < b.tag ? 1 : -1));
+  if (v.length < 2) return null;
+  const grenze = tagPlus(v[0].tag, -tage);
+  const vorher = v.find((x) => x.tag <= grenze) ?? v[v.length - 1];
+  return { delta: v[0].indexiert - vorher.indexiert, seit: vorher.tag };
+}
+
+// ── B2: Marke, Name, ohne Marke, anonym — Global gegen Privat ───────────────
+const klein = (s: unknown) => String(s ?? "").toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
+
+/**
+ * Die Marke in einer Suche. Eindeutig ist „fiaon“ am Wortanfang — egal, was
+ * angehängt ist (fiaonglobal, fiaon24, fiaonerfahrungen, fiaon.com). Die unscharfen
+ * Schreibweisen, die Menschen wirklich tippen (fion, fianon, fiaoon, fyaon, faion,
+ * „fia on“), zählen nur als ganzes Wort, höchstens mit einem bekannten Anhängsel
+ * (global, ltd, com …). Kein Treffer: fiona, fionn, fiano, finanzen, infion.
+ */
+export const MARKEN_MUSTER = /(?:^|[^a-z0-9])(?:fiaon|f(?:[iy]a?n?|ai)o+n(?:global|ltd|com|de|app|login|karte|kreditkarte)?(?=$|[^a-z0-9]))/;
+
+export function istMarke(suche: string): boolean {
+  const q = klein(suche).replace(/(^|[^a-z0-9])fia[\s.\-_]+on(?=$|[^a-z0-9])/g, "$1fiaon");
+  return MARKEN_MUSTER.test(q);
+}
+
+/**
+ * Suchen nach dem Namen des Gründers (Personenmarke, Plan E-530 §4): der Nachname
+ * als ganzes Wort, auch mit Vorname davor. Solche Suchen kommen von Menschen, die
+ * den Namen schon kennen — sie zählen deshalb NICHT als „ohne Marke“.
+ */
+export const NAME_MUSTER = /(?:^|[^a-z0-9])schwarzott?(?=$|[^a-z0-9])/;
+
+/** Ein festes Suchwort der Ampel: ein neutraler Schlüssel (w1, w2 …) und das Muster. Das Wort selbst wird nie abgelegt. */
+export interface AmpelWort { schluessel: string; muster: RegExp }
+
+/**
+ * Die festen Suchwörter der Ampel stehen nicht im Code, sondern in der
+ * Server-Umgebung: GSC_AMPEL_WOERTER, durch Komma getrennt, höchstens fünf.
+ * Ganze Wörter; Leerzeichen, Punkt, Binde- und Unterstrich zwischen den Teilen
+ * sind frei („a b“ trifft auch „a-b“ und „ab“). Fehlt die Angabe: keine Ampel.
+ */
+export function ampelWoerter(roh: string | undefined = process.env.GSC_AMPEL_WOERTER): AmpelWort[] {
+  const raus: AmpelWort[] = [];
+  for (const w of String(roh ?? "").split(",")) {
+    const teile = klein(w).split(/[^a-z0-9]+/).filter(Boolean);
+    if (!teile.length || raus.length >= AMPEL_HOECHSTENS) continue;
+    raus.push({ schluessel: `w${raus.length + 1}`, muster: new RegExp(`(?:^|[^a-z0-9])${teile.join("[\\s.\\-_]*")}(?=$|[^a-z0-9])`) });
+  }
+  return raus;
+}
+
+export type SuchArt = "marke" | "feste" | "name" | "ohne";
+
+/**
+ * Was für eine Suche das ist. Reihenfolge: Marke vor den festen Suchwörtern vor dem
+ * Namen; „ohne Marke“ bleibt nur, was nichts davon trifft. So landet eine Suche mit
+ * einem festen Suchwort nie in „ohne Marke“ und nie beim Namen.
+ */
+export function sucheArt(suche: string, woerter: AmpelWort[] = ampelWoerter()): SuchArt {
+  if (istMarke(suche)) return "marke";
+  const q = klein(suche);
+  if (woerter.some((w) => w.muster.test(q))) return "feste";
+  if (NAME_MUSTER.test(q)) return "name";
+  return "ohne";
+}
+
+export type Bereich = "global" | "privat";
+
+/**
+ * Global = /, /en, /business (genau, /business/… oder /business-…), dasselbe unter
+ * /en/business, und /justin-schwarzott (genau oder /justin-schwarzott/…, auch unter
+ * /en). Alles andere Privat. Eine leere oder kaputte Adresse zählt nirgends (null).
+ */
+export function seitenBereich(adresse: string): Bereich | null {
+  const roh = String(adresse ?? "").trim();
+  if (!roh) return null;
+  let p: string;
+  try { p = new URL(roh, "https://fiaon.com").pathname; } catch { return null; }
+  p = p.toLowerCase().replace(/\/+$/, "") || "/";
+  if (p === "/" || p === "/en") return "global";
+  if (/^(?:\/en)?\/business(?:$|[/-])/.test(p)) return "global";
+  if (/^(?:\/en)?\/justin-schwarzott(?:$|\/)/.test(p)) return "global";
+  return "privat";
+}
+
+/** Klicks, deren Suche Google nicht zeigt: alle Klicks minus alle sichtbaren Suchen (nie unter 0). */
+export function anonymKlicks(gesamt: number, sichtbar: number): number {
+  return Math.max(0, zahlOder0(gesamt) - zahlOder0(sichtbar));
+}
+
+export type AmpelStufe = "gruen" | "gelb" | "rot";
+export function ampelStufe(impressionen: number, grenzen: { gelb: number; rot: number } = AMPEL_GRENZEN): AmpelStufe {
+  const n = zahlOder0(impressionen);
+  return n >= grenzen.rot ? "rot" : n >= grenzen.gelb ? "gelb" : "gruen";
+}
+
+/** Nur der Pfad einer fiaon.com-Adresse (andere Hosts: null). */
+function fiaonPfad(adresse: string): string | null {
+  try {
+    const u = new URL(String(adresse ?? ""), "https://fiaon.com");
+    return /(^|\.)fiaon\.com$/.test(u.hostname) ? (u.pathname || "/") : null;
+  } catch { return null; }
+}
+
+export interface BezugAmpel {
+  stufe: AmpelStufe; impressionen: number; suchen: number;
+  /** Impressionen je festem Suchwort, nur unter neutralem Schlüssel (w1, w2 …). */
+  je: Record<string, number>;
+  /** Die (höchstens drei) Seiten mit den meisten Impressionen dafür — nur Pfade; leer, wenn Suche × Seite fehlte. */
+  seiten: { pfad: string; impressionen: number }[];
+}
+
+/**
+ * Impressionen sichtbarer Suchen mit einem der festen Suchwörter — nur Zahlen und
+ * Pfade, nie die Suchtexte. Ohne Suchwörter (GSC_AMPEL_WOERTER fehlt): null.
+ */
+export function bezugAmpel(anfragen: GscZeile[], woerter: AmpelWort[] = ampelWoerter(), anfrageSeiten: GscZeile[] | null = null): BezugAmpel | null {
+  if (!woerter.length) return null;
+  const je: Record<string, number> = Object.fromEntries(woerter.map((w) => [w.schluessel, 0]));
+  let impressionen = 0, suchen = 0;
+  for (const z of anfragen) {
+    const q = klein(z.keys?.[0]);
+    const treffer = woerter.filter((w) => w.muster.test(q));
+    if (!treffer.length) continue;
+    const i = zahlOder0(z.impressions);
+    impressionen += i; suchen++;
+    for (const w of treffer) je[w.schluessel] += i;
+  }
+  const jeSeite = new Map<string, number>();
+  for (const z of anfrageSeiten ?? []) {
+    const q = klein(z.keys?.[0]);
+    if (!woerter.some((w) => w.muster.test(q))) continue;
+    const pfad = fiaonPfad(String(z.keys?.[1] ?? ""));
+    if (pfad) jeSeite.set(pfad, (jeSeite.get(pfad) ?? 0) + zahlOder0(z.impressions));
+  }
+  const seiten = Array.from(jeSeite, ([pfad, n]) => ({ pfad, impressionen: n }))
+    .filter((s) => s.impressionen > 0)
+    .sort((a, b) => b.impressionen - a.impressionen || a.pfad.localeCompare(b.pfad))
+    .slice(0, 3);
+  return { stufe: ampelStufe(impressionen), impressionen, suchen, je, seiten };
+}
+
+export interface KlickTeil {
+  gesamt: number; marke: number; name: number; feste: number; ohneMarke: number; anonym: number;
+  /** anonym / gesamt in diesem Bereich (null ohne Klicks). */
+  anteilAnonym: number | null;
+}
+export interface KlickArten {
+  /** Klicks laut Google (alle Suchen, auch die nicht gezeigten). */
+  gesamt: number;
+  /** Summe der sichtbaren Suchen = marke + name + feste + ohneMarke. */
+  sichtbar: number;
+  marke: number; name: number; feste: number; ohneMarke: number; anonym: number;
+  anteilAnonym: number | null;
+  /** Suchen nach dem Namen (Plan E-530 §4): Klicks, Impressionen, wie viele verschiedene Suchen. */
+  nameSuchen: { klicks: number; impressionen: number; suchen: number };
+  /** null, wenn Google „Suche × Seite“ an dem Tag nicht lieferte (Grund in hinweis). */
+  global: KlickTeil | null; privat: KlickTeil | null;
+  /** null ohne feste Suchwörter. */
+  ampel: BezugAmpel | null;
+  hinweis: string | null;
+}
+
+/**
+ * Die Summen. gesamtKlicks = Klicks laut Google im Zeitraum (aus den Tageszeilen);
+ * anfragen = Zeilen nach Suche; anfrageSeiten = nach Suche und Seite (null, wenn
+ * Google sie nicht lieferte); seiten = nach Seite (enthält auch die anonymen Klicks).
+ */
+export function klickArten(e: {
+  gesamtKlicks: number; anfragen: GscZeile[]; anfrageSeiten: GscZeile[] | null; seiten: GscZeile[];
+  woerter?: AmpelWort[]; hinweis?: string | null;
+}): KlickArten {
+  const woerter = e.woerter ?? ampelWoerter();
+  const arten = new Map<string, SuchArt>();
+  const art = (q: string) => { let a = arten.get(q); if (!a) { a = sucheArt(q, woerter); arten.set(q, a); } return a; };
+  const summe: Record<SuchArt, number> = { marke: 0, feste: 0, name: 0, ohne: 0 };
+  const nameSuchen = { klicks: 0, impressionen: 0, suchen: 0 };
+  for (const z of e.anfragen) {
+    const k = zahlOder0(z.clicks);
+    const a = art(String(z.keys?.[0] ?? ""));
+    summe[a] += k;
+    if (a === "name") { nameSuchen.klicks += k; nameSuchen.impressionen += zahlOder0(z.impressions); nameSuchen.suchen++; }
+  }
+  let global: KlickTeil | null = null, privat: KlickTeil | null = null;
+  if (e.anfrageSeiten) {
+    const teil = (): KlickTeil => ({ gesamt: 0, marke: 0, name: 0, feste: 0, ohneMarke: 0, anonym: 0, anteilAnonym: null });
+    const t: Record<Bereich, KlickTeil> = { global: teil(), privat: teil() };
+    for (const z of e.anfrageSeiten) {
+      const b = seitenBereich(String(z.keys?.[1] ?? ""));
+      if (!b) continue;
+      const a = art(String(z.keys?.[0] ?? ""));
+      t[b][a === "ohne" ? "ohneMarke" : a] += zahlOder0(z.clicks);
+    }
+    for (const z of e.seiten) {
+      const b = seitenBereich(String(z.keys?.[0] ?? ""));
+      if (b) t[b].gesamt += zahlOder0(z.clicks);
+    }
+    for (const b of Object.values(t)) {
+      b.anonym = anonymKlicks(b.gesamt, b.marke + b.name + b.feste + b.ohneMarke);
+      b.anteilAnonym = b.gesamt > 0 ? b.anonym / b.gesamt : null;
+    }
+    global = t.global; privat = t.privat;
+  }
+  const sichtbar = summe.marke + summe.feste + summe.name + summe.ohne;
+  const gesamt = zahlOder0(e.gesamtKlicks);
+  const anonym = anonymKlicks(gesamt, sichtbar);
+  return {
+    gesamt, sichtbar, marke: summe.marke, name: summe.name, feste: summe.feste, ohneMarke: summe.ohne, anonym,
+    anteilAnonym: gesamt > 0 ? anonym / gesamt : null,
+    nameSuchen, global, privat,
+    ampel: bezugAmpel(e.anfragen, woerter, e.anfrageSeiten),
+    hinweis: e.hinweis ?? null,
+  };
 }
 
 /** Was die Kacheln zeigen: Summen jetzt und davor, aus den Datumszeilen. */
@@ -364,31 +691,56 @@ export interface GscDaten {
   verlauf: (Kennzahlen & { tag: string })[];
   anfragen: Eintrag[]; seiten: Eintrag[]; laender: Eintrag[]; geraete: Eintrag[];
   sitemaps: SitemapStand[];
+  /** E-530 B2: Marke / Name / ohne Marke / anonym, Global gegen Privat, Ampel. */
+  klickArten: KlickArten;
 }
 
-/** Alles aus searchAnalytics und sitemaps — fünf Anfragen plus eine. Wirft GoogleAntwortFehler. */
+/** Zeilen je Abruf: Google liefert höchstens 25.000 — für die Summen brauchen wir ALLE sichtbaren Suchen. */
+const ALLE_ZEILEN = 25_000;
+
+/**
+ * Alles aus searchAnalytics und sitemaps — sechs Anfragen plus eine. Wirft GoogleAntwortFehler.
+ * Die siebte (Suche × Seite, nur für Global gegen Privat) ist bei Google die teuerste:
+ * Scheitert NUR sie (Kontingent, Zeitlimit, 5xx), laufen Kacheln, URL-Prüfung und
+ * Index-Zahl trotzdem — Global/Privat fehlt dann für diesen Tag, der Grund steht in
+ * klickArten.hinweis.
+ */
 export async function gscHolen(jetzt: Date = new Date()): Promise<GscDaten> {
   const gestern = tagPlus(berlinToday(jetzt), -1);
   // 60 Tage je Tag — daraus der letzte Tag mit Daten und beide Zeiträume.
   const datum = await analyse(tagPlus(gestern, -59), gestern, ["date"], 100);
   const letzter = datum.map((r) => String(r.keys?.[0] ?? "")).filter(Boolean).sort().pop() ?? gestern;
   const z = zeitraeume(letzter);
-  const [anfragen, seiten, laender, geraete, karten] = await Promise.all([
-    analyse(z.von, z.bis, ["query"], 500),
-    analyse(z.von, z.bis, ["page"], 100),
+  const [anfragen, seiten, laender, geraete, karten, suchSeite] = await Promise.all([
+    analyse(z.von, z.bis, ["query"], ALLE_ZEILEN),
+    analyse(z.von, z.bis, ["page"], ALLE_ZEILEN),
     analyse(z.von, z.bis, ["country"], 30),
     analyse(z.von, z.bis, ["device"], 5),
     google("GET", `${eigenschaftPfad()}/sitemaps`),
+    analyse(z.von, z.bis, ["query", "page"], ALLE_ZEILEN).then(
+      (zeilen) => ({ zeilen, grund: null as string | null }),
+      (e) => ({
+        zeilen: null,
+        grund: e instanceof GoogleAntwortFehler ? e.deutung.grund : `Google war nicht erreichbar: ${String((e as Error)?.message || e).slice(0, 120)}`,
+      }),
+    ),
   ]);
+  const anfrageSeiten = suchSeite.zeilen;
+  if (suchSeite.grund) console.log(`[GSC] Suche × Seite fehlt heute: ${suchSeite.grund}`);
+  const summenJetzt = auswerten(datum, z);
   return {
     zeitraum: z,
-    summen: auswerten(datum, z),
+    summen: summenJetzt,
     verlauf: verlaufJeTag(datum, z),
     anfragen: eintraege(anfragen),
     seiten: eintraege(seiten),
     laender: eintraege(laender),
     geraete: eintraege(geraete),
     sitemaps: sitemapStand(karten),
+    klickArten: klickArten({
+      gesamtKlicks: summenJetzt.jetzt.klicks, anfragen, anfrageSeiten, seiten,
+      hinweis: suchSeite.grund ? `Global gegen Privat fehlt heute: ${suchSeite.grund}` : null,
+    }),
   };
 }
 
@@ -411,17 +763,43 @@ export function ensureGscTabellen(): Promise<void> {
     bereit = (async () => {
       const sqlPool = await db();
       const r = (await sqlPool`SELECT to_regclass('public.fiaon_gsc_adressen') AS a, to_regclass('public.fiaon_gsc_tage') AS t`) as any[];
-      if (r[0]?.a && r[0]?.t) return;
-      const datei = path.resolve(process.cwd(), "db", "migrations", "126_google_search_console.sql");
-      // SET ohne LOCAL bliebe an der Verbindung des Pools hängen — hier nur für diese Transaktion.
-      const text = readFileSync(datei, "utf8").replace(/^SET lock_timeout\b/m, "SET LOCAL lock_timeout");
-      await sqlPool.begin(async (tx: any) => {
-        await tx`SET LOCAL lock_timeout = '3s'`;
-        await tx.unsafe(text);
-      });
+      if (!(r[0]?.a && r[0]?.t)) {
+        const datei = path.resolve(process.cwd(), "db", "migrations", "126_google_search_console.sql");
+        // SET ohne LOCAL bliebe an der Verbindung des Pools hängen — hier nur für diese Transaktion.
+        const text = readFileSync(datei, "utf8").replace(/^SET lock_timeout\b/m, "SET LOCAL lock_timeout");
+        await sqlPool.begin(async (tx: any) => {
+          await tx`SET LOCAL lock_timeout = '3s'`;
+          await tx.unsafe(text);
+        });
+      }
     })().catch((e) => { bereit = null; throw e; });
   }
   return bereit;
+}
+
+/**
+ * E-530 Korb B: drei Spalten dazu — fiaon_gsc_tage.klickarten (B2) und .index_stand
+ * (B1, Index-Zahl des Tages), fiaon_gsc_adressen.sitemap_stand (B1, lastmod).
+ * Die DDL-Wache sieht vorher im Katalog nach (keine Sperre, wenn sie schon da sind).
+ * Wirft nie: Scheitert es (Sperre, Abkühlzeit der Wache), arbeiten Abruf und Chefbüro
+ * ohne die neuen Spalten weiter — die Google-Karte bleibt —, und der nächste Aufruf
+ * versucht es wieder. true = alle Spalten da.
+ */
+let spalten: Promise<boolean> | null = null;
+export function gscSpalten(): Promise<boolean> {
+  if (!spalten) {
+    spalten = (async () => {
+      const sqlPool = await db();
+      await sqlPool`ALTER TABLE fiaon_gsc_tage ADD COLUMN IF NOT EXISTS klickarten JSONB, ADD COLUMN IF NOT EXISTS index_stand JSONB`;
+      await sqlPool`ALTER TABLE fiaon_gsc_adressen ADD COLUMN IF NOT EXISTS sitemap_stand DATE`;
+      return true;
+    })().catch((e) => {
+      console.error("[GSC] neue Spalten (E-530):", String((e as Error)?.message || e).slice(0, 160));
+      spalten = null;
+      return false;
+    });
+  }
+  return spalten;
 }
 
 /** Die Adressen der Sitemap, aus denselben Funktionen, die /sitemap.xml baut. */
@@ -464,25 +842,37 @@ async function pruefFehlerAblegen(adresse: string, grund: string): Promise<void>
      WHERE adresse = ${adresse}`;
 }
 
-/** Die Sitemap in die Adresstabelle spiegeln: neue anlegen, Priorität nachziehen, verschwundene markieren. */
-async function adressenSpiegeln(kandidaten: Kandidat[]): Promise<void> {
+/**
+ * Die Sitemap in die Adresstabelle spiegeln: neue anlegen, Priorität und Stand der
+ * Sitemap (lastmod, nur mit der neuen Spalte) nachziehen, verschwundene markieren.
+ */
+async function adressenSpiegeln(kandidaten: Kandidat[], mitStand: boolean): Promise<void> {
   if (!kandidaten.length) return;
   const sqlPool = await db();
   const adressen = kandidaten.map((k) => k.adresse);
   const prios = kandidaten.map((k) => k.prio);
-  await sqlPool`
-    INSERT INTO fiaon_gsc_adressen (adresse, prio, in_sitemap)
-    SELECT a, p, TRUE FROM unnest(${adressen}::text[], ${prios}::numeric[]) AS x(a, p)
-    ON CONFLICT (adresse) DO UPDATE SET prio = EXCLUDED.prio, in_sitemap = TRUE`;
+  // Leerer Text statt null im Feld — NULLIF macht daraus in SQL ein echtes NULL.
+  const staende = kandidaten.map((k) => (/^\d{4}-\d{2}-\d{2}$/.test(String(k.stand ?? "")) ? String(k.stand) : ""));
+  if (mitStand) {
+    await sqlPool`
+      INSERT INTO fiaon_gsc_adressen (adresse, prio, in_sitemap, sitemap_stand)
+      SELECT a, p, TRUE, NULLIF(s, '')::date FROM unnest(${adressen}::text[], ${prios}::numeric[], ${staende}::text[]) AS x(a, p, s)
+      ON CONFLICT (adresse) DO UPDATE SET prio = EXCLUDED.prio, in_sitemap = TRUE, sitemap_stand = EXCLUDED.sitemap_stand`;
+  } else {
+    await sqlPool`
+      INSERT INTO fiaon_gsc_adressen (adresse, prio, in_sitemap)
+      SELECT a, p, TRUE FROM unnest(${adressen}::text[], ${prios}::numeric[]) AS x(a, p)
+      ON CONFLICT (adresse) DO UPDATE SET prio = EXCLUDED.prio, in_sitemap = TRUE`;
+  }
   await sqlPool`UPDATE fiaon_gsc_adressen SET in_sitemap = FALSE WHERE in_sitemap AND NOT (adresse = ANY(${adressen}::text[]))`;
 }
 
 export interface PruefLauf { geprueft: number; fehler: number; gestoppt: string | null; budgetRest: number }
 
-/** Die URL-Prüfung des Tages: höchstens bis zum Tagesbudget, nach Priorität. */
-async function adressenPruefen(kandidaten: Kandidat[], jetzt: Date): Promise<PruefLauf> {
+/** Die URL-Prüfung des Tages: höchstens bis zum Tagesbudget, älteste Prüfung zuerst (pruefAuswahl). */
+async function adressenPruefen(kandidaten: Kandidat[], jetzt: Date, mitStand: boolean): Promise<PruefLauf> {
   const sqlPool = await db();
-  await adressenSpiegeln(kandidaten);
+  await adressenSpiegeln(kandidaten, mitStand);
   const budget = Math.max(0, PRUEF_TAGESBUDGET - (await heuteGeprueft()));
   const zeilen = (await sqlPool`SELECT adresse, zuletzt_geprueft, indexiert FROM fiaon_gsc_adressen WHERE in_sitemap`) as any[];
   const bekannt = new Map<string, Bekannt>(zeilen.map((z) => [String(z.adresse), {
@@ -525,6 +915,25 @@ async function adressenZahlen(): Promise<{ gesamt: number; beiGoogle: number; ni
   return { gesamt: Number(r?.gesamt ?? 0), beiGoogle: Number(r?.bei_google ?? 0), nicht: Number(r?.nicht ?? 0), ungeprueft: Number(r?.ungeprueft ?? 0), heute: Number(r?.heute ?? 0) };
 }
 
+/** B1: die Index-Zahl des Tages aus dem API-Stand der Adresstabelle (nach der URL-Prüfung). */
+async function indexStandMessen(jetzt: Date, mitStand: boolean): Promise<IndexStand> {
+  const sqlPool = await db();
+  const zeilen = (await sqlPool`
+    SELECT indexiert, abdeckung, zuletzt_geprueft, letzter_crawl,
+           ${mitStand ? sqlPool`to_char(sitemap_stand, 'YYYY-MM-DD')` : sqlPool`NULL::text`} AS stand
+      FROM fiaon_gsc_adressen WHERE in_sitemap`) as any[];
+  return {
+    gemessenAm: jetzt.toISOString(),
+    ...indexStandZaehlen(zeilen.map((z) => ({
+      indexiert: z.indexiert == null ? null : Boolean(z.indexiert),
+      abdeckung: z.abdeckung == null ? null : String(z.abdeckung),
+      zuletztGeprueft: z.zuletzt_geprueft ? new Date(z.zuletzt_geprueft) : null,
+      letzterCrawl: z.letzter_crawl ? new Date(z.letzter_crawl) : null,
+      stand: z.stand == null ? null : String(z.stand),
+    })), jetzt),
+  };
+}
+
 export interface AbrufErgebnis { zustand: GscZustand; grund: string | null; code: string | null; pruefung: PruefLauf | null }
 
 /** Einen Zustand ohne Daten ablegen — überschreibt nie einen guten Stand desselben Tages. */
@@ -561,29 +970,41 @@ export async function gscAbruf(opts: { vonHand?: boolean; jetzt?: Date; kandidat
   }
 
   const sqlPool = await db();
+  // E-530: Fehlen die neuen Spalten (DDL gescheitert), wird ohne sie geschrieben — die Kacheln kommen trotzdem.
+  const mitSpalten = await gscSpalten();
   const schreiben = async (pruefung: unknown) => sqlPool`
     INSERT INTO fiaon_gsc_tage (tag, geholt_am, zustand, grund_code, grund, von_hand, eigenschaft,
-                                zeitraum, summen, verlauf, anfragen, seiten, laender, geraete, sitemaps, pruefung)
+                                zeitraum, summen, verlauf, anfragen, seiten, laender, geraete, sitemaps, pruefung
+                                ${mitSpalten ? sqlPool`, klickarten` : sqlPool``})
     VALUES (${tag}, NOW(), 'ok', NULL, NULL, ${vonHand}, ${GSC_EIGENSCHAFT},
             ${j(daten.zeitraum)}::text::jsonb, ${j(daten.summen)}::text::jsonb, ${j(daten.verlauf)}::text::jsonb,
-            ${j(daten.anfragen.slice(0, 500))}::text::jsonb, ${j(daten.seiten)}::text::jsonb, ${j(daten.laender)}::text::jsonb,
-            ${j(daten.geraete)}::text::jsonb, ${j(daten.sitemaps)}::text::jsonb, ${j(pruefung)}::text::jsonb)
+            ${j(daten.anfragen.slice(0, 500))}::text::jsonb, ${j(daten.seiten.slice(0, 100))}::text::jsonb, ${j(daten.laender)}::text::jsonb,
+            ${j(daten.geraete)}::text::jsonb, ${j(daten.sitemaps)}::text::jsonb, ${j(pruefung)}::text::jsonb
+            ${mitSpalten ? sqlPool`, ${j(daten.klickArten)}::text::jsonb` : sqlPool``})
     ON CONFLICT (tag) DO UPDATE SET geholt_am = NOW(), zustand = 'ok', grund_code = NULL, grund = NULL,
       von_hand = EXCLUDED.von_hand, eigenschaft = EXCLUDED.eigenschaft, zeitraum = EXCLUDED.zeitraum, summen = EXCLUDED.summen,
       verlauf = EXCLUDED.verlauf, anfragen = EXCLUDED.anfragen, seiten = EXCLUDED.seiten, laender = EXCLUDED.laender,
-      geraete = EXCLUDED.geraete, sitemaps = EXCLUDED.sitemaps, pruefung = EXCLUDED.pruefung`;
+      geraete = EXCLUDED.geraete, sitemaps = EXCLUDED.sitemaps, pruefung = EXCLUDED.pruefung
+      ${mitSpalten ? sqlPool`, klickarten = EXCLUDED.klickarten` : sqlPool``}`;
   // Erst die Zahlen ablegen — die URL-Prüfung dauert eine Minute, die Kacheln sollen nicht darauf warten.
   await schreiben(null);
 
   let pruefung: PruefLauf | null = null;
   try {
     const kandidaten = opts.kandidaten ?? await sitemapKandidaten();
-    pruefung = await adressenPruefen(kandidaten, jetzt);
+    pruefung = await adressenPruefen(kandidaten, jetzt, mitSpalten);
   } catch (e) {
     pruefung = { geprueft: 0, fehler: 0, gestoppt: `URL-Prüfung gescheitert: ${String((e as Error)?.message || e).slice(0, 160)}`, budgetRest: 0 };
   }
   const stand = await adressenZahlen().catch(() => null);
-  await sqlPool`UPDATE fiaon_gsc_tage SET pruefung = ${j({ ...pruefung, ...(stand ?? {}) })}::text::jsonb WHERE tag = ${tag}`;
+  // B1: die Index-Zahl des Tages — auch wenn die Prüfung heute früh aufhörte (dann ist es der Stand von gestern plus heute).
+  // Scheitert die Messung, bleibt ein schon abgelegter Stand desselben Tages stehen (COALESCE).
+  const index = mitSpalten
+    ? await indexStandMessen(new Date(), true).catch((e) => { console.error("[GSC] Index-Zahl:", String((e as Error)?.message || e).slice(0, 160)); return null; })
+    : null;
+  await sqlPool`UPDATE fiaon_gsc_tage SET pruefung = ${j({ ...pruefung, ...(stand ?? {}) })}::text::jsonb
+    ${mitSpalten ? sqlPool`, index_stand = COALESCE(${index ? j(index) : null}::text::jsonb, index_stand)` : sqlPool``}
+    WHERE tag = ${tag}`;
   console.log(`[GSC] Abruf abgelegt (${vonHand ? "von Hand" : "Tageslauf"}): ${daten.summen.jetzt.klicks} Klicks, `
     + `${pruefung.geprueft} Adressen geprüft${pruefung.gestoppt ? ` — ${pruefung.gestoppt}` : ""}`);
   return { zustand: "ok", grund: pruefung.gestoppt, code: null, pruefung };
@@ -651,6 +1072,15 @@ export async function gscStand(): Promise<Record<string, unknown>> {
      WHERE in_sitemap AND indexiert IS FALSE
      ORDER BY prio DESC, adresse LIMIT 400`) as any[];
   const zahlen = await adressenZahlen();
+  // B1: Index-Zahl je Tag (jüngste 30) — für „seit … +n“ und die Gründe. Ohne die neue Spalte: keine.
+  const indexTage = (await gscSpalten())
+    ? (await sqlPool`
+        SELECT to_char(tag, 'YYYY-MM-DD') AS tag, index_stand FROM fiaon_gsc_tage
+         WHERE index_stand IS NOT NULL ORDER BY tag DESC LIMIT 30`) as any[]
+    : [];
+  const indexVerlauf = indexTage
+    .map((r) => ({ tag: String(r.tag), stand: jsonLesen(r.index_stand) as IndexStand | null }))
+    .filter((r): r is { tag: string; stand: IndexStand } => !!r.stand && typeof r.stand === "object" && Number.isFinite(Number(r.stand.indexiert)));
 
   const anfragen = (jsonLesen(gut?.anfragen) as Eintrag[] | null) ?? [];
   return {
@@ -670,6 +1100,14 @@ export async function gscStand(): Promise<Record<string, unknown>> {
     geraete: jsonLesen(gut?.geraete) ?? [],
     sitemaps: jsonLesen(gut?.sitemaps) ?? [],
     pruefung: jsonLesen(gut?.pruefung),
+    klickArten: jsonLesen(gut?.klickarten) ?? null,
+    index: indexVerlauf[0]
+      ? {
+          tag: indexVerlauf[0].tag,
+          ...indexVerlauf[0].stand,
+          veraenderung: indexVeraenderung(indexVerlauf.map((r) => ({ tag: r.tag, indexiert: Number(r.stand.indexiert) }))),
+        }
+      : null,
     adressen: {
       ...zahlen,
       budget: PRUEF_TAGESBUDGET,

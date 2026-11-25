@@ -5,6 +5,34 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.11.2026 — E-530 Korb B: Google-Prüfung ohne Lücken, ehrliche Klick-Zahlen, IndexNow mit Protokoll
+
+- **Ausfall:** (1) Die tägliche URL-Prüfung nahm die Priorität zuerst; bei 150 Prüfungen am Tag kamen Randseiten
+  wochenlang nicht dran, ihr altes Urteil „nicht bei Google“ blieb stehen. Die Index-Zahl kam von Hand aus Chrome.
+  (2) Die Klick-Zahl im Chefbüro trennte nicht zwischen Markensuchen, Suchen ohne Marke und Suchen, die Google nicht
+  zeigt. (3) IndexNow meldete nach dem Start nur Seiten mit Stand höchstens drei Tage alt; das Ergebnis stand nur im Log.
+- **Fix B1:** Älteste Prüfung zuerst (nie geprüft ganz vorn), Priorität nur bei Gleichstand (derselbe Berliner Tag),
+  jede Adresse spätestens nach sieben Tagen — auch wenn der Tageslauf sich verschiebt (höchstens 142 h Abstand),
+  Tagesbudget 400 (Google erlaubt 2.000). Nach der Prüfung legt der Lauf die Index-Zahl des Tages ab
+  (`fiaon_gsc_tage.index_stand`: gesamt, bei Google, nicht bei Google je Grund laut Google, überfällig, alter Stand).
+  Der Stand der Sitemap (lastmod) steht je Adresse in `fiaon_gsc_adressen.sitemap_stand` — daraus „alter Stand“
+  (Google war zuletzt vor der letzten Änderung da) als Liste für die Neu-Indexierung.
+- **Fix B2:** Der Tageslauf legt `fiaon_gsc_tage.klickarten` ab: Marke (fiaon und ähnliche Schreibweisen), Name
+  (Personenmarke, zählt nicht als „ohne Marke“), ohne Marke, anonym (Klicks laut Google minus alle sichtbaren Suchen),
+  Global gegen Privat nach Seite mit eigenem Anteil anonym, Impressionen für den Namen und eine Ampel für feste
+  Suchwörter. Die Wörter stehen nicht im Code, sondern in der Server-Umgebung (`GSC_AMPEL_WOERTER`, durch Komma
+  getrennt); ohne sie keine Ampel. Abgelegt werden nur Zahlen und Pfade. Scheitert bei Google nur die Abfrage
+  „Suche × Seite“, laufen Kacheln, URL-Prüfung und Index-Zahl trotzdem. Kennzahl: „Klicks ohne Marke, Global (sichtbar)“.
+- **Fix B4:** Neue Tabelle `fiaon_indexnow_meldungen` (Pfad, Stand, Zeit, HTTP-Status, Anlass). Nach jedem Start geht
+  alles raus, was neuer ist als seine letzte erfolgreiche Meldung; scheitert sie, bleibt die Seite offen, und der
+  nächste Start setzt eine Pause lang aus (6 h, nach 429 24 h). Höchstens 10.000 je Meldung. Tagesartikel werden
+  ebenfalls protokolliert. Gemeldet wird nur im Betrieb (NODE_ENV=production, nicht bei CRONS=aus oder INDEXNOW_AUS=1).
+- **Wo:** Chefbüro › Besucher › Google (Karte „Klicks ohne Marke“, Veränderung, überfällig und Gründe bei „Bei
+  Google“, Zeile „IndexNow (Bing)“ unten), Rundgang „Besucher“. server/lib/fiaon-search-console.ts,
+  server/lib/fiaon-indexnow.ts, server/routes/fiaon-chef-google.ts, client/src/components/admin/ChefBesucherGoogle.tsx.
+  Prüfstand scripts/pruef-e530-korb-b.ts (mit --db auch das Protokoll), scripts/pruef-search-console.ts.
+  Spalten und Tabelle entstehen beim ersten Gebrauch; scheitert das Anlegen der Spalten, bleibt die Google-Karte.
+
 ## 17.11.2026 — E-526: Gründungsbogen — mehrere Gesellschafter gründen gemeinsam, jeder unterschreibt selbst
 
 - **Ausfall:** Gründen zwei oder mehr Menschen zusammen eine US-LLC, gab es keinen Weg, auf dem jeder seine Angaben

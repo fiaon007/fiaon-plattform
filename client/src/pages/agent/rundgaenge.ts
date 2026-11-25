@@ -3564,12 +3564,23 @@ export const RUNDGANG_BESUCHER: RundgangSchritt[] = [
     tipp: "„Jetzt abrufen“ holt sofort neu — Geschäftsführung und Inhaber, höchstens alle 10 Minuten.",
   },
   {
+    // E-530 B2 (25.11.2026): ehrliche Klick-Zahlen.
+    titel: "Klicks ohne Marke.",
+    text: "Die große Zahl: Klicks aus sichtbaren Suchen ohne „fiaon“ und ohne deinen Namen, auf den Global-Seiten. Daneben, wie viele Global-Klicks anonym sind — Google zeigt diese Suchen nicht. Darunter Marke, Name, ohne Marke, anonym und Global gegen Privat.",
+    tipp: "Ganz unten: Impressionen für deinen Namen und ein Punkt für feste Suchwörter — gelb ab 1, rot ab 10 in 28 Tagen.",
+  },
+  {
     titel: "Fast auf Seite 1.",
     text: "Suchanfragen auf Platz 8 bis 20: Hier bringt eine bessere Seite am schnellsten neue Besucher. Ein Klick zeigt die Google-Suche dazu.",
   },
   {
     titel: "Neu bei Google, noch nicht bei Google.",
-    text: "Jeden Tag prüft der Lauf bis zu 150 Adressen aus der Sitemap. „Neu“ = seit Kurzem aufgenommen. „Noch nicht“ = wartet, mit Googles Grund; ein Klick öffnet die Prüfung in der Search Console.",
+    text: "Jeden Tag prüft der Lauf bis zu 400 Adressen aus der Sitemap — die am längsten ungeprüften zuerst, jede spätestens nach 7 Tagen. Daneben, wie viel sich seit dem genannten Tag verändert hat (meist eine Woche), „überfällig“ (soll 0 sein) und die Gründe laut Google. Ein Klick öffnet die Prüfung in der Search Console.",
+  },
+  {
+    // E-530 B4 (25.11.2026): IndexNow mit Protokoll.
+    titel: "IndexNow (Bing).",
+    text: "Ganz unten: wann zuletzt an Bing gemeldet wurde, wie viele Adressen und ob Bing sie angenommen hat. „Offen“ = Seiten, die beim nächsten Start rausgehen — nach einer Ablehnung erst nach einer Pause.",
   },
   {
     ziel: ".bz-clarity",

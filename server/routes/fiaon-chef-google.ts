@@ -7,10 +7,14 @@
 //   POST /chef/google/abrufen  holt jetzt neu — nur Geschäftsführung und Inhaber;
 //                              läuft im Hintergrund, die Seite fragt nach.
 // Die Arbeit selbst steht in server/lib/fiaon-search-console.ts.
+// E-530 B4 (25.11.2026): GET liefert dazu den Stand von IndexNow (letzte Meldung an
+// Bing, wie viele Seiten offen sind) — server/lib/fiaon-indexnow.ts. Scheitert das,
+// bleibt die Google-Karte trotzdem da (indexnow: null).
 // ═══════════════════════════════════════════════════════════════════════════
 import { Router, type Request, type Response } from "express";
 import { requireChef, type ChefRequest } from "./fiaon-chef-zugang";
 import { gscAbrufEinmal, gscHandErgebnis, gscLaeuft, gscStand } from "../lib/fiaon-search-console";
+import { indexNowStand } from "../lib/fiaon-indexnow";
 
 const router = Router();
 /** Von Hand höchstens alle zehn Minuten — die URL-Prüfung hat ein Tagesbudget. */
@@ -24,8 +28,11 @@ const darfAbrufen = (req: Request) => {
 
 router.get("/chef/google", requireChef("leitung"), async (req: Request, res: Response) => {
   try {
-    const stand = await gscStand();
-    res.json({ ok: true, ...stand, laeuft: gscLaeuft(), darfAbrufen: darfAbrufen(req), hand: gscHandErgebnis() });
+    const [stand, indexnow] = await Promise.all([
+      gscStand(),
+      indexNowStand().catch((e) => { console.error("[INDEXNOW] Stand lesen:", String((e as Error)?.message || e).slice(0, 160)); return null; }),
+    ]);
+    res.json({ ok: true, ...stand, indexnow, laeuft: gscLaeuft(), darfAbrufen: darfAbrufen(req), hand: gscHandErgebnis() });
   } catch (err) {
     console.error("[GSC] lesen:", err);
     res.status(500).json({ ok: false, error: "Die Google-Zahlen ließen sich nicht laden." });

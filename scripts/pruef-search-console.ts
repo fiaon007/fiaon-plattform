@@ -104,6 +104,23 @@ const ANFRAGEN = [
   { keys: ["itin beantragen"], clicks: 0, impressions: 9, ctr: 0, position: 20 },
   { keys: ["us steuernummer beantragen"], clicks: 0, impressions: 10, ctr: 0, position: 20.1 },
 ];
+/** E-530 B2: Suche × Seite — zwei Schlüssel [Suche, Seite]. */
+const ANFRAGE_SEITEN = [
+  { keys: ["fiaon", "https://fiaon.com/"], clicks: 88, impressions: 150, ctr: 0.58, position: 1.2 },
+  { keys: ["us gesellschaft gründen", "https://fiaon.com/business/us-firmengruendung"], clicks: 1, impressions: 40, ctr: 0.025, position: 14.4 },
+  { keys: ["registered agent", "https://fiaon.com/ratgeber/x"], clicks: 0, impressions: 12, ctr: 0, position: 11 },
+];
+const SEITEN = [
+  { keys: ["https://fiaon.com/"], clicks: 100, impressions: 300, position: 2 },
+  { keys: ["https://fiaon.com/business/us-firmengruendung"], clicks: 5, impressions: 60, position: 9 },
+  { keys: ["https://fiaon.com/ratgeber/x"], clicks: 3, impressions: 40, position: 12 },
+];
+/** Die Zeilen des gefälschten Google je Dimension (Suche × Seite getrennt von Suche). */
+function zeilenFuer(b: any): any[] {
+  const d = (b?.dimensions ?? []).join(",");
+  return d === "date" ? datumZeilen() : d === "query" ? ANFRAGEN : d === "query,page" ? ANFRAGE_SEITEN : d === "page" ? SEITEN
+    : d === "country" ? [{ keys: ["deu"], clicks: 150, impressions: 600, position: 5 }] : [{ keys: ["MOBILE"], clicks: 120, impressions: 500, ctr: 0.24, position: 6 }];
+}
 const SITEMAPS = {
   sitemap: [{
     path: "https://fiaon.com/sitemap.xml", lastSubmitted: "2026-10-28T07:12:00.000Z", isPending: false, isSitemapsIndex: false,
@@ -183,8 +200,9 @@ async function teilA() {
     ["/rand-fehlt", { zuletztGeprueft: std(30), indexiert: false }],   // fehlt, Rand: alle 44 h → nicht fällig
     ["/rand-drin", { zuletztGeprueft: std(200), indexiert: true }],    // drin, Rand: nach 166 h → fällig
   ]);
-  gleich("Fällige nach Priorität, nie geprüft vorn", gsc.pruefAuswahl(kand, bek, jetzt, 10), ["/kern-neu", "/kern-fehlt", "/rand-nie", "/rand-drin"]);
-  gleich("Budget begrenzt", gsc.pruefAuswahl(kand, bek, jetzt, 2), ["/kern-neu", "/kern-fehlt"]);
+  // E-530 B1 (25.11.2026): älteste Prüfung zuerst, Priorität nur bei Gleichstand (vorher Priorität zuerst).
+  gleich("Fällige nach Alter der Prüfung, nie geprüft vorn (Priorität bei Gleichstand)", gsc.pruefAuswahl(kand, bek, jetzt, 10), ["/kern-neu", "/rand-nie", "/rand-drin", "/kern-fehlt"]);
+  gleich("Budget begrenzt", gsc.pruefAuswahl(kand, bek, jetzt, 2), ["/kern-neu", "/rand-nie"]);
   gleich("Budget 0 → nichts", gsc.pruefAuswahl(kand, bek, jetzt, 0), []);
 
   gruppe("A6 Token-Anfrage (ohne sub, Signatur echt)");
@@ -201,22 +219,41 @@ async function teilA() {
   gruppe("A7 gscHolen gegen ein gefälschtes Google (kein Netz)");
   process.env.GOOGLE_SA_KEY = JSON.stringify(PRUEF_SA);
   const echt = gsc.gscTechnik.fetch;
-  const g = falschesGoogle({
-    analyse: (b) => ({ json: { rows: b.dimensions[0] === "date" ? datumZeilen() : b.dimensions[0] === "query" ? ANFRAGEN : b.dimensions[0] === "page" ? [{ keys: ["https://fiaon.com/"], clicks: 100, impressions: 300, position: 2 }] : b.dimensions[0] === "country" ? [{ keys: ["deu"], clicks: 150, impressions: 600, position: 5 }] : [{ keys: ["MOBILE"], clicks: 120, impressions: 500, ctr: 0.24, position: 6 }] } }),
-    sitemaps: () => ({ json: SITEMAPS }),
-  });
+  const g = falschesGoogle({ analyse: (b) => ({ json: { rows: zeilenFuer(b) } }), sitemaps: () => ({ json: SITEMAPS }) });
   gsc.gscTechnik.fetch = g.f;
   const h = await gsc.gscHolen(new Date("2026-10-28T06:00:00Z"));
   const datumAnfrage = g.anfragen.find((x) => x.body?.dimensions?.[0] === "date")?.body;
   gleich("Datumsanfrage: 60 Tage bis gestern, dataState all", [datumAnfrage?.startDate, datumAnfrage?.endDate, datumAnfrage?.dataState], ["2026-08-29", "2026-10-27", "all"]);
   gleich("Zeitraum am letzten Tag MIT Daten (25.10.)", [h.zeitraum.von, h.zeitraum.bis], ["2026-09-28", "2026-10-25"]);
   const qa = g.anfragen.find((x) => x.body?.dimensions?.[0] === "query")?.body;
-  gleich("Suchanfragen im selben Zeitraum, 500 Zeilen", [qa?.startDate, qa?.endDate, qa?.rowLimit], ["2026-09-28", "2026-10-25", 500]);
+  // E-530 B2: alle sichtbaren Suchen (höchstens 25.000), sonst stimmt „anonym“ nicht; abgelegt werden weiter 500.
+  gleich("Suchanfragen im selben Zeitraum, 25.000 Zeilen", [qa?.startDate, qa?.endDate, qa?.rowLimit], ["2026-09-28", "2026-10-25", 25000]);
   ok("Eigenschaft richtig kodiert", g.anfragen.some((x) => x.url.includes("/webmasters/v3/sites/https%3A%2F%2Ffiaon.com%2F/searchAnalytics/query")));
-  ok("Token mit Bearer benutzt (keine Anfrage ohne)", g.anfragen.filter((x) => !x.url.includes("oauth2")).length === 6);
+  // E-530 B2: dazu Suche × Seite (Global gegen Privat) → sieben Anfragen.
+  ok("Token mit Bearer benutzt (keine Anfrage ohne)", g.anfragen.filter((x) => !x.url.includes("oauth2")).length === 7);
   gleich("Summen aus den Datumszeilen", [h.summen.jetzt.klicks, h.summen.vorher.klicks], [216, 112]);
   gleich("Sitemaps übernommen", h.sitemaps[0]?.adressen, 348);
   gleich("Geräte/Länder/Seiten da", [h.geraete[0]?.name, h.laender[0]?.name, h.seiten[0]?.name], ["MOBILE", "deu", "https://fiaon.com/"]);
+  // E-530 B2: Suche × Seite kommt mit zwei Schlüsseln [Suche, Seite] — daraus Global gegen Privat.
+  const qp = g.anfragen.find((x) => x.body?.dimensions?.join(",") === "query,page")?.body;
+  gleich("Suche × Seite: gleicher Zeitraum, 25.000 Zeilen", [qp?.startDate, qp?.endDate, qp?.rowLimit], ["2026-09-28", "2026-10-25", 25000]);
+  gleich("Global aus Suche × Seite: gesamt 105, Marke 88, ohne Marke 1, anonym 16",
+    [h.klickArten.global?.gesamt, h.klickArten.global?.marke, h.klickArten.global?.ohneMarke, h.klickArten.global?.anonym], [105, 88, 1, 16]);
+  gleich("Privat: 3 Klicks, alle anonym", [h.klickArten.privat?.gesamt, h.klickArten.privat?.anonym, h.klickArten.privat?.anteilAnonym], [3, 3, 1]);
+  gleich("Alle: sichtbar 89 von 216, kein Hinweis", [h.klickArten.sichtbar, h.klickArten.gesamt, h.klickArten.anonym, h.klickArten.hinweis], [89, 216, 127, null]);
+
+  // Scheitert NUR Suche × Seite (Kontingent), laufen die Kernzahlen weiter.
+  const g429 = falschesGoogle({
+    analyse: (b) => (b.dimensions.join(",") === "query,page" ? { status: 429, json: KONTINGENT } : { json: { rows: zeilenFuer(b) } }),
+    sitemaps: () => ({ json: SITEMAPS }),
+  });
+  gsc.gscTechnik.fetch = g429.f;
+  let h429: any = null, w429: unknown = null;
+  try { h429 = await gsc.gscHolen(new Date("2026-10-28T06:00:00Z")); } catch (e) { w429 = e; }
+  ok("429 nur bei Suche × Seite → kein Wurf, Kacheln da", !w429 && h429?.summen?.jetzt?.klicks === 216, String(w429));
+  gleich("… Global/Privat null, Marke und anonym trotzdem da, Hinweis mit Grund",
+    [h429?.klickArten?.global, h429?.klickArten?.privat, h429?.klickArten?.marke, h429?.klickArten?.anonym, /Global gegen Privat fehlt heute: .*Tageskontingent/.test(String(h429?.klickArten?.hinweis))],
+    [null, null, 88, 127, true]);
 
   const g403 = falschesGoogle({ analyse: () => ({ status: 403, json: API_AUS }) });
   gsc.gscTechnik.fetch = g403.f;
@@ -236,18 +273,26 @@ async function teilB(url: string) {
   await gsc.ensureGscTabellen();
   const [t] = (await sqlPool`SELECT to_regclass('public.fiaon_gsc_tage') AS t, to_regclass('public.fiaon_gsc_adressen') AS a`) as any[];
   ok("fiaon_gsc_tage und fiaon_gsc_adressen stehen", !!t?.t && !!t?.a);
+  // E-530 Korb B: die neuen Spalten — zweimal ohne Fehler (IF NOT EXISTS, DDL-Wache).
+  gleich("Neue Spalten (E-530) da, auch beim zweiten Mal", [await gsc.gscSpalten(), await gsc.gscSpalten()], [true, true]);
+  const sp = (await sqlPool`SELECT table_name || '.' || column_name AS s FROM information_schema.columns
+     WHERE (table_name = 'fiaon_gsc_tage' AND column_name IN ('klickarten', 'index_stand')) OR (table_name = 'fiaon_gsc_adressen' AND column_name = 'sitemap_stand')
+     ORDER BY 1`) as any[];
+  gleich("klickarten, index_stand, sitemap_stand", sp.map((r) => r.s), ["fiaon_gsc_adressen.sitemap_stand", "fiaon_gsc_tage.index_stand", "fiaon_gsc_tage.klickarten"]);
   await sqlPool`DELETE FROM fiaon_gsc_tage`; await sqlPool`DELETE FROM fiaon_gsc_adressen`;
 
   gruppe("B1b Adressen aus derselben Quelle wie /sitemap.xml");
   const echteKand = await gsc.sitemapKandidaten();
   ok("Mindestens 200 Adressen aus der Sitemap", echteKand.length >= 200, echteKand.length);
-  gleich("Startseite mit Priorität 1 vorn", echteKand[0], { adresse: "https://fiaon.com/", prio: 1 });
+  gleich("Startseite mit Priorität 1 vorn", [echteKand[0]?.adresse, echteKand[0]?.prio], ["https://fiaon.com/", 1]);
+  ok("Stand (lastmod) als JJJJ-MM-TT bei den meisten Adressen", echteKand.filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(String(k.stand ?? ""))).length >= echteKand.length * 0.9);
   ok("Nur fiaon.com-Adressen", echteKand.every((k) => k.adresse.startsWith("https://fiaon.com/")));
 
   gruppe("B2 Zugang fehlt → Zustand, kein Absturz");
   const echt = gsc.gscTechnik.fetch;
   gsc.gscTechnik.fetch = falschesGoogle({ analyse: () => ({ status: 403, json: API_AUS }) }).f;
-  const kand = [{ adresse: "https://fiaon.com/", prio: 1 }, { adresse: "https://fiaon.com/business", prio: 0.9 }, { adresse: "https://fiaon.com/ratgeber/x", prio: 0.7 }];
+  // Die Startseite trägt einen Stand NACH dem letzten Google-Besuch (27.10.) → „alter Stand“ (B1).
+  const kand = [{ adresse: "https://fiaon.com/", prio: 1, stand: "2026-10-28" }, { adresse: "https://fiaon.com/business", prio: 0.9 }, { adresse: "https://fiaon.com/ratgeber/x", prio: 0.7 }];
   const e1 = await gsc.gscAbruf({ jetzt: new Date(), kandidaten: kand });
   gleich("Ergebnis zugang_fehlt/api_aus", [e1.zustand, e1.code], ["zugang_fehlt", "api_aus"]);
   const s1: any = await gsc.gscStand();
@@ -262,7 +307,7 @@ async function teilB(url: string) {
     return { json: pruefAntwort("PASS", "Gesendet und indexiert") };
   };
   const gDaten = () => falschesGoogle({
-    analyse: (b) => ({ json: { rows: b.dimensions[0] === "date" ? datumZeilen() : b.dimensions[0] === "query" ? ANFRAGEN : [] } }),
+    analyse: (b) => ({ json: { rows: ["date", "query", "query,page", "page"].includes(b.dimensions.join(",")) ? zeilenFuer(b) : [] } }),
     sitemaps: () => ({ json: SITEMAPS }), pruefen: pruefung,
   });
   gsc.gscTechnik.fetch = gDaten().f;
@@ -275,6 +320,24 @@ async function teilB(url: string) {
   gleich("Adressen: 1 bei Google, 1 noch nicht, 1 mit Fehler ungeprüft", [s2.adressen.beiGoogle, s2.adressen.nicht, s2.adressen.ungeprueft, s2.adressen.heute], [1, 1, 1, 3]);
   gleich("Startseite beim ersten Blick schon drin → NICHT „neu“", s2.adressen.neu.length, 0);
   gleich("„Noch nicht bei Google“ mit Googles Grund", s2.adressen.fehlt.map((x: any) => [x.adresse, x.abdeckung]), [["https://fiaon.com/business", "Gefunden – zurzeit nicht indexiert"]]);
+  // E-530 Korb B: klickarten und index_stand wirklich als jsonb-Objekt, sitemap_stand gespiegelt.
+  const [neu] = (await sqlPool`SELECT jsonb_typeof(klickarten) k, jsonb_typeof(index_stand) i, jsonb_typeof(klickarten->'global') g FROM fiaon_gsc_tage ORDER BY tag DESC LIMIT 1`) as any[];
+  gleich("klickarten und index_stand sind Objekte (kein Text), Global gesetzt", [neu?.k, neu?.i, neu?.g], ["object", "object", "object"]);
+  gleich("Stand: Global ohne Marke 1, Marke 88", [s2.klickArten?.global?.ohneMarke, s2.klickArten?.marke], [1, 88]);
+  gleich("Stand: Index-Zahl des Tages (1 bei Google, 1 nicht, 1 ungeprüft), noch keine Veränderung",
+    [s2.index?.indexiert, s2.index?.nichtIndexiert, s2.index?.ungeprueft, s2.index?.veraenderung], [1, 1, 1, null]);
+  gleich("Alter Stand: Startseite zuletzt 27.10. besucht, Sitemap-Stand 28.10.", s2.index?.alterStand, 1);
+  const [st] = (await sqlPool`SELECT to_char(sitemap_stand, 'YYYY-MM-DD') s FROM fiaon_gsc_adressen WHERE adresse = 'https://fiaon.com/'`) as any[];
+  gleich("sitemap_stand der Startseite gespiegelt", st?.s, "2026-10-28");
+  // Ein Tag eine Woche davor mit 0 bei Google → Veränderung +1 seit diesem Tag.
+  const tagHeute = String(s2.index?.tag ?? "");
+  const wocheVorher = gsc.tagPlus(tagHeute, -7);
+  await sqlPool`INSERT INTO fiaon_gsc_tage (tag, geholt_am, zustand, eigenschaft, index_stand)
+    VALUES (${wocheVorher}, NOW(), 'ok', ${gsc.GSC_EIGENSCHAFT}, ${JSON.stringify({ gesamt: 3, indexiert: 0, nichtIndexiert: 1, ungeprueft: 2, ueberfaellig: 0, alterStand: 0, gruende: [] })}::text::jsonb)
+    ON CONFLICT (tag) DO UPDATE SET index_stand = EXCLUDED.index_stand`;
+  const s2b: any = await gsc.gscStand();
+  gleich("Veränderung gegen den Tag eine Woche davor", s2b.index?.veraenderung, { delta: 1, seit: wocheVorher });
+  await sqlPool`DELETE FROM fiaon_gsc_tage WHERE tag = ${wocheVorher}`;
 
   gruppe("B4 Fehlschlag überschreibt keinen guten Stand");
   gsc.gscTechnik.fetch = falschesGoogle({ analyse: () => ({ status: 403, json: KEINE_FREIGABE }) }).f;

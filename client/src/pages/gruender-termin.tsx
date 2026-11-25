@@ -65,7 +65,7 @@ export default function GruenderTermin() {
   const rahmen = useRef<HTMLElement>(null);
   useKinoEinstieg(rahmen);
   useGlasZeiger(seite);
-  // E-533: /justin gehört jetzt zur Business-Welt (shared/fiaon-business-grenze.ts, GRUENDER_PFADE) — Kopf und Fuß von FIAON Global
+  // E-533: /justin gehört jetzt zur Business-Welt (shared/fiaon-business-grenze.ts, GRUENDER_TERMIN_PFADE) — Kopf und Fuß von FIAON Global
   // kommen von selbst (GlassNav/PremiumFooter schalten um). Wie jede Business-Seite rollt das Dokument, nicht #root (fg-dokument,
   // vor dem ersten Bild — sonst springt der Kopf beim Start).
   useLayoutEffect(() => {

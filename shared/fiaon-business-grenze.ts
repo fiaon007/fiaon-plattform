@@ -20,10 +20,10 @@ export const PRIVAT_START = { de: "/privat", en: "/en/private" } as const;
 /** Die Buchungsseite des Gründers (E-124) — seit E-533 (25.11.2026) in der Business-Welt: Justins Link geht an Global-Leads
  *  (Entscheidung der Sitzung „Unternehmensberater FIAON Global“, 25.11.: „seit 12.11. ist FIAON 100 % Global, B2C läuft aus“).
  *  Kopf, Fuß und Ladebildschirm sind dort jetzt die von FIAON Global; die Seite selbst (noindex) bleibt, wie sie ist. */
-export const GRUENDER_PFADE = ["/justin", "/termin/justin"] as const;
+export const GRUENDER_TERMIN_PFADE = ["/justin", "/termin/justin"] as const;
 
 /** Seiten außerhalb von /business, die ganz zur Business-Welt gehören (Adresse bleibt, Rahmen und Daten: FIAON Global). */
-export const BUSINESS_EIGENE_PFADE: ReadonlySet<string> = new Set([BUSINESS_START.de, BUSINESS_START.en, SERIOES_PFAD.de, SERIOES_PFAD.en, ...GRUENDER_PFADE]);
+export const BUSINESS_EIGENE_PFADE: ReadonlySet<string> = new Set([BUSINESS_START.de, BUSINESS_START.en, SERIOES_PFAD.de, SERIOES_PFAD.en, ...GRUENDER_TERMIN_PFADE]);
 
 /** Gehört die Adresse zur Business-Welt? */
 export const istBusinessPfad = (pfad: string): boolean => {

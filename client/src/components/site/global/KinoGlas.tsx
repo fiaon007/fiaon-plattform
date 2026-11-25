@@ -41,46 +41,51 @@ function kopfRuht(): boolean {
  *   "w"  unsichtbar (visibility), bis der Kopf der Seite ruht — höchstens 1,2 s;
  *   "0"  da, aber zart: Überschrift und Einleitung stehen schon (Google zählt sie, LCP), alles andere wartet;
  *   "1"  sobald der Ladebildschirm geht: die Bühne baut sich auf.
- * Bei „weniger Bewegung“ folgt auf "w" sofort "1" (Endbild, keine Bewegung).
+ * Bei „weniger Bewegung“ folgt auf "w" sofort "1" (Endbild, keine Bewegung). Gibt die Aufräum-Funktion zurück.
+ * Auch für Bühnen ohne eigenen Ref (die dunklen Privat-Seiten, Dunkel mit „kino“): kinoEinstiegAn(element).
  */
+export function kinoEinstiegAn(el: HTMLElement): () => void {
+  let bild = 0, weg = () => {}, aus = false;
+  const t0 = performance.now();
+  const los = () => {
+    if (aus) return;
+    if (ruhigGewuenscht()) { el.setAttribute("data-kino", "1"); return; }
+    el.setAttribute("data-kino", "0");
+    weg = nachLadebild(() => {
+      // Zwei Bilder Abstand: Der Ladebildschirm beginnt seinen Ausgang, dann setzt der Auftakt ein (wie auf der Startseite).
+      bild = requestAnimationFrame(() => { bild = requestAnimationFrame(() => el.setAttribute("data-kino", "1")); });
+    });
+  };
+  const warten = () => {
+    bild = 0;
+    if (kopfRuht() || performance.now() - t0 > 1200) { los(); return; }
+    bild = requestAnimationFrame(warten);
+  };
+  if (kopfRuht()) {
+    // Der Kopf liegt schon (Seitenwechsel ohne Neuladen): kein Warten.
+    los();
+  } else {
+    el.setAttribute("data-kino", "w");
+    bild = requestAnimationFrame(warten);
+  }
+  // Sicherung: Falls der Ladebildschirm nie geht (Fehler, Tab im Hintergrund), steht die Bühne nach 4 s trotzdem.
+  const fertig = window.setTimeout(() => el.setAttribute("data-kino", "1"), 4000);
+  // Wer druckt oder per Tastatur hineinspringt, sieht sofort alles.
+  const sofort = () => el.setAttribute("data-kino", "1");
+  window.addEventListener("beforeprint", sofort);
+  el.addEventListener("focusin", sofort, { once: true });
+  return () => {
+    aus = true; weg(); cancelAnimationFrame(bild); window.clearTimeout(fertig);
+    window.removeEventListener("beforeprint", sofort); el.removeEventListener("focusin", sofort);
+  };
+}
+
+/** Der Kino-Einstieg für eine Bühne mit Ref (siehe kinoEinstiegAn). */
 export function useKinoEinstieg(ref: RefObject<HTMLElement | null>) {
   // useLayoutEffect: Der Startzustand steht vor dem ersten Bild — sonst blitzt die fertige Bühne kurz auf.
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    let bild = 0, weg = () => {}, aus = false;
-    const t0 = performance.now();
-    const los = () => {
-      if (aus) return;
-      if (ruhigGewuenscht()) { el.setAttribute("data-kino", "1"); return; }
-      el.setAttribute("data-kino", "0");
-      weg = nachLadebild(() => {
-        // Zwei Bilder Abstand: Der Ladebildschirm beginnt seinen Ausgang, dann setzt der Auftakt ein (wie auf der Startseite).
-        bild = requestAnimationFrame(() => { bild = requestAnimationFrame(() => el.setAttribute("data-kino", "1")); });
-      });
-    };
-    const warten = () => {
-      bild = 0;
-      if (kopfRuht() || performance.now() - t0 > 1200) { los(); return; }
-      bild = requestAnimationFrame(warten);
-    };
-    if (kopfRuht()) {
-      // Der Kopf liegt schon (Seitenwechsel ohne Neuladen): kein Warten.
-      los();
-    } else {
-      el.setAttribute("data-kino", "w");
-      bild = requestAnimationFrame(warten);
-    }
-    // Sicherung: Falls der Ladebildschirm nie geht (Fehler, Tab im Hintergrund), steht die Bühne nach 4 s trotzdem.
-    const fertig = window.setTimeout(() => el.setAttribute("data-kino", "1"), 4000);
-    // Wer druckt oder per Tastatur hineinspringt, sieht sofort alles.
-    const sofort = () => el.setAttribute("data-kino", "1");
-    window.addEventListener("beforeprint", sofort);
-    el.addEventListener("focusin", sofort, { once: true });
-    return () => {
-      aus = true; weg(); cancelAnimationFrame(bild); window.clearTimeout(fertig);
-      window.removeEventListener("beforeprint", sofort); el.removeEventListener("focusin", sofort);
-    };
+    return el ? kinoEinstiegAn(el) : undefined;
   }, [ref]);
 }
 
@@ -126,7 +131,7 @@ export function KinoBuehne({ ring = true, scheiben = true }: { ring?: boolean; s
 /** Welche Glasflächen dem Zeiger folgen (Licht + leichte Neigung). Ein Selektor für alle — keine Markierung je Baustein. */
 const ZEIGER_ZIELE = [
   ".fd-karteikarte.breit", ".fd-karte", ".fd-rolle", ".fd-weiter-raster > a", ".fd-verzeichnis a", ".kn-glas",
-  ".fd-gespraech-karte", ".gvt-liste > li", ".vk-karte", ".lp-karte", ".gt-person", ".kn-zeiger",
+  ".fd-gespraech-karte", ".gvt-liste > li", ".vk-karte", ".lp-karte", ".gt-person", ".dk-kino .dk-glas", ".dk-kino .kt-weg", ".kn-zeiger",
 ].join(",");
 
 /**

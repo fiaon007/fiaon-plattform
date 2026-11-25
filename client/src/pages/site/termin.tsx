@@ -29,6 +29,8 @@ import { useLocation } from "wouter";
 import { globalPaket } from "@shared/fiaon-global";
 import "@/styles/ratgeber.css";
 import "@/styles/seo-seiten.css";
+// E-533 (25.11.2026): dunkles Kino-Glas (nur Optik und Bewegung — Inhalte und Menü unverändert).
+import "@/styles/dunkel-kino.css";
 
 /** Wohin ?quelle=global führt — null, wenn die Adresse keine Global-Anfrage ist. */
 function globalZiel(suche: string, en: boolean): string | null {
@@ -52,7 +54,7 @@ export default function Termin() {
   const zu = (p: string) => inSprache(p, sprache);
   const pfad = en ? "/en/book-a-call" : "/termin";
   return (
-    <Dunkel seite="kontakt" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+    <Dunkel seite="kontakt" titel={t.metaTitel} beschreibung={t.metaBeschreibung} kino>
       <SeoDaten pfad={pfad} titel={t.seoTitel} beschreibung={t.seoBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad }]} />
 
       <Hero

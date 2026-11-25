@@ -15,6 +15,8 @@ import { SUPPORT } from "@shared/fiaon-wissen";
 import { useWoerter } from "@/i18n/sprache";
 import { KONTAKT_WOERTER } from "@/i18n/kontakt";
 import "@/styles/kontakt.css";
+// E-533 (25.11.2026): dunkles Kino-Glas (nur Optik und Bewegung — Inhalte und Menü unverändert).
+import "@/styles/dunkel-kino.css";
 
 export default function Kontakt() {
   const t = useWoerter(KONTAKT_WOERTER);
@@ -36,7 +38,7 @@ export default function Kontakt() {
   };
 
   return (
-    <Dunkel seite="kontakt" titel={t.metaTitel} beschreibung={t.metaBeschreibung}>
+    <Dunkel seite="kontakt" titel={t.metaTitel} beschreibung={t.metaBeschreibung} kino>
       <section className="dk-hero kt-hero">
         <div className="dk-hero-bild" aria-hidden="true"><img src="/kino/hero.jpg" alt="" decoding="async" {...({ fetchpriority: "high" } as any)} /><div className="schleier" /></div>
         <div className="dk-rahmen dk-zweispaltig">

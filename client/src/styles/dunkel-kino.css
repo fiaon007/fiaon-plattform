@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-533 (25.11.2026) — DUNKLES KINO-GLAS für die drei Privat-Seiten /kontakt, /termin, /partnernetzwerk
+
+   Entscheidung (Sitzung „Unternehmensberater FIAON Global“, 25.11.): Die drei Seiten bleiben in der dunklen Privat-Welt —
+   ihre Inhalte (SCHUFA, Vorsorge, Strom, Handy) und ihr Menü bleiben, wie sie sind. Sie bekommen aber dieselben Kino-Effekte
+   wie die Global-Seiten (styles/global-kino.css), im dunklen Glas: Kino-Einstieg nach dem Ladebildschirm, Tiefe beim
+   Scrollen, Mikro-Bewegung an Knöpfen und Karten. Nur Optik und Bewegung, kein Text.
+
+   Greift NUR unter .dk.dk-kino (Dunkel mit „kino“). Alle anderen dunklen Seiten — und /start — bleiben unberührt.
+   Gesetze wie im hellen Kino-Glas: nur transform/opacity bewegen; Überschrift, Einleitung und das große Bild warten nie ganz
+   unsichtbar (sonst zählt Google sie zu spät, LCP); die Bühne wartet unsichtbar, bis der Kopf liegt (data-kino="w", CLS);
+   Tiefe beim Scrollen nur über animation-timeline; „weniger Bewegung“: Endbild sofort.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@property --kl { syntax: "<number>"; inherits: false; initial-value: 0; }
+
+html .dk.dk-kino {
+  --kn-aus: cubic-bezier(.16, 1, .3, 1);
+  --kn-feder: cubic-bezier(.3, 1.28, .5, 1);
+}
+
+/* ── 1 · Die Bühne wartet, bis der Kopf liegt ─────────────────────────────── */
+html .dk.dk-kino [data-kino="w"] { visibility: hidden; }
+
+/* ── 2 · Der Kino-Einstieg der dunklen Bühne (.dk-hero: /termin, /kontakt) ── */
+/* Die Hüllen (Auf) stehen still — jedes Teil hat seinen eigenen Auftritt. */
+html .dk.dk-kino .dk-hero[data-kino] .dk-auf { opacity: 1; transform: none; transition: none; }
+/* Zart da (unter dem Ladebildschirm): Überschrift, Einleitung und Bild sind schon gemalt (LCP), der Rest wartet. */
+html .dk.dk-kino .dk-hero[data-kino="0"] :is(.dk-pille, .dk-knoepfe > *, .dk-szene, .kt-wege > *) { opacity: 0; }
+html .dk.dk-kino .dk-hero[data-kino="0"] .dk-h1 { opacity: .3; transform: translate3d(0, .35em, 0); }
+html .dk.dk-kino .dk-hero[data-kino="0"] .dk-lead { opacity: .3; transform: translate3d(0, 16px, 0); }
+html .dk.dk-kino .dk-hero[data-kino="0"] .dk-hero-bild { opacity: .45; scale: 1.12; }
+/* Der Auftakt: das Bild zieht sich aus der Nähe zurück, dann Zeile, Überschrift, Lichtschein im Verlauf, Lead, Knöpfe. */
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-hero-bild { animation: kn-dk-bild 2.6s var(--kn-aus) backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-pille { animation: kn-dk-ein .9s var(--kn-aus) .1s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-h1 { animation: kn-dk-titel 1.2s var(--kn-aus) .2s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-h1 .dk-verlauf { background-size: 260% 100%; animation: kn-dk-verlauf 2.6s cubic-bezier(.45, .05, .35, 1) .9s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-lead { animation: kn-dk-lead 1s var(--kn-aus) .5s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-knoepfe > * { animation: kn-dk-knopf 1s var(--kn-feder) .72s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-knoepfe > :nth-child(2) { animation-delay: .82s; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .dk-szene { animation: kn-dk-szene 1.8s var(--kn-aus) .35s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .kt-wege > * { animation: kn-dk-kachel 1s var(--kn-aus) .8s backwards; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .kt-wege > :nth-child(2) { animation-delay: .9s; }
+html .dk.dk-kino .dk-hero[data-kino="1"] .kt-wege > :nth-child(3) { animation-delay: 1s; }
+@keyframes kn-dk-ein { from { opacity: 0; transform: translate3d(0, 14px, 0); } }
+@keyframes kn-dk-bild { from { opacity: .45; scale: 1.12; } to { opacity: 1; scale: 1; } }
+@keyframes kn-dk-titel { from { opacity: .3; transform: translate3d(0, .35em, 0); } }
+@keyframes kn-dk-verlauf { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes kn-dk-lead { from { opacity: .3; transform: translate3d(0, 16px, 0); } }
+@keyframes kn-dk-knopf { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.92); } }
+@keyframes kn-dk-szene { from { opacity: 0; transform: translate3d(0, 34px, 0) scale(.92); } }
+@keyframes kn-dk-kachel { from { opacity: 0; transform: translate3d(0, 22px, 0) scale(.97); } }
+
+/* ── 3 · /partnernetzwerk: die Wörter warten auf den Ladebildschirm (vorher liefen sie unsichtbar darunter ab) ── */
+/* Die Bühne hat ihre eigene Bewegung (E-390: Wörter einzeln, Bild mit Einzoomen) — sie läuft jetzt erst, wenn man sie sieht.
+   Überschrift und Einleitung warten zart (0,3) statt unsichtbar, damit Google sie gleich zählt. */
+html .dk.dk-kino .pn-hero .pn-wort, html .dk.dk-kino .pn-hero .pn-lead.pn-ein { opacity: .3; }
+html .dk.dk-kino .pn-hero:not([data-kino="1"]) :is(.pn-wort, .pn-ein) { animation-play-state: paused; }
+
+/* ── 4 · Tiefe beim Scrollen (Compositor) — die Seiten rollen in #root, view() nimmt den nächsten Scroller ── */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html .dk.dk-kino .dk-hero { view-timeline: --kn-dk block; }
+    /* Das Bild bleibt beim Scrollen zurück (eigene Eigenschaft „translate“ — der Auftakt nutzt „scale“, nichts kommt sich in die Quere). */
+    html .dk.dk-kino .dk-hero .dk-hero-bild { animation-name: kn-dk-tief; animation-timing-function: linear; animation-fill-mode: both; animation-timeline: --kn-dk; animation-range: exit 0% exit 100%; }
+    html .dk.dk-kino .dk-hero[data-kino="1"] .dk-hero-bild { animation: kn-dk-bild 2.6s var(--kn-aus) backwards, kn-dk-tief linear both; animation-timeline: auto, --kn-dk; animation-range: normal, exit 0% exit 100%; }
+    html .dk.dk-kino .pn-hero { view-timeline: --kn-pn block; }
+    html .dk.dk-kino .pn-hero .pn-hero-bild { animation: kn-dk-tief linear both; animation-timeline: --kn-pn; animation-range: exit 0% exit 100%; }
+  }
+}
+@keyframes kn-dk-tief { from { translate: 0 0; } to { translate: 0 24vh; } }
+
+/* ── 5 · Abschnitte kommen einmal aus der Tiefe (Auf außerhalb der Bühne) ── */
+html .dk.dk-kino .dk-auf:not(.dk-hero .dk-auf) { transform: translate3d(0, 36px, 0) scale(.985); transition: opacity 1.1s var(--kn-aus), transform 1.1s var(--kn-aus); }
+html .dk.dk-kino .dk-auf.da:not(.dk-hero .dk-auf) { transform: none; }
+
+/* ── 6 · Mikro-Bewegung: Knöpfe mit Lichtschein, Glaskarten mit Licht unter dem Zeiger ── */
+html .dk.dk-kino .dk-knopf { position: relative; overflow: hidden; isolation: isolate; transition: transform .55s var(--kn-feder), box-shadow .35s ease, background .25s ease; }
+html .dk.dk-kino .dk-knopf::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .34) 50%, rgba(255, 255, 255, 0) 70%);
+  transform: translate3d(-120%, 0, 0);
+}
+html .dk.dk-kino .dk-knopf svg { transition: transform .5s var(--kn-feder); }
+@media (hover: hover) and (pointer: fine) {
+  html .dk.dk-kino .dk-knopf:hover { transform: translate3d(0, -2px, 0); }
+  html .dk.dk-kino .dk-knopf:hover::after { transform: translate3d(120%, 0, 0); transition: transform .9s var(--kn-aus); }
+  html .dk.dk-kino .dk-knopf:hover svg { transform: translate3d(3px, 0, 0); }
+}
+html .dk.dk-kino .dk-knopf:active { transform: scale(.97); transition-duration: .12s; }
+
+/* Dunkles Glas: Lichtkante oben, Lichtinsel unter dem Zeiger (--kx/--ky aus useGlasZeiger), weicher Hub mit Feder. */
+html .dk.dk-kino .dk-glas, html .dk.dk-kino .kt-weg {
+  --kl: 0;
+  background-image: radial-gradient(320px circle at var(--kx, 50%) var(--ky, 0%), rgba(96, 165, 250, calc(var(--kl) * .18)), rgba(96, 165, 250, 0) 70%);
+  transition: transform .7s var(--kn-feder), border-color .3s ease, box-shadow .45s ease, --kl .35s ease;
+}
+html .dk.dk-kino :is(.dk-glas, .kt-weg)[data-zeiger] { --kl: 1; }
+html .dk.dk-kino .dk-glas::before {
+  content: ""; position: absolute; left: 14%; right: 14%; top: -1px; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(147, 197, 253, 0), rgba(147, 197, 253, .7) 50%, rgba(147, 197, 253, 0));
+}
+@media (hover: hover) and (pointer: fine) {
+  html .dk.dk-kino .dk-glas:not(.ruhig):hover { box-shadow: 0 30px 70px -36px rgba(37, 99, 235, .55), inset 0 1px 0 rgba(255, 255, 255, .08); }
+}
+
+/* ── 7 · Weniger Bewegung, Druck ── */
+@media (prefers-reduced-motion: reduce) {
+  html .dk.dk-kino .dk-hero :is(.dk-hero-bild, .dk-pille, .dk-h1, .dk-h1 .dk-verlauf, .dk-lead, .dk-knoepfe > *, .dk-szene, .kt-wege > *),
+  html .dk.dk-kino .pn-hero :is(.pn-wort, .pn-ein) {
+    animation: none !important; opacity: 1 !important; transform: none !important; scale: none !important; translate: none !important;
+  }
+  html .dk.dk-kino .dk-knopf::after { display: none; }
+  html .dk.dk-kino .dk-auf:not(.dk-hero .dk-auf) { transform: none; transition: none; }
+}
+@media print {
+  html .dk.dk-kino [data-kino], html .dk.dk-kino [data-kino] * { visibility: visible !important; opacity: 1 !important; animation: none !important; }
+}

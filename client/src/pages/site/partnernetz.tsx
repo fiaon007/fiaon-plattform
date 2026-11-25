@@ -17,6 +17,8 @@ import { useWoerter, useSprache } from "@/i18n/sprache";
 import { PARTNERNETZ_WOERTER, type NetzKarte, type NetzSeite, type NetzSymbol } from "@/i18n/partnernetz";
 import { NETZ_BEREICHE, NETZ_PFAD, NETZ_BEREICH_NAME, netzBereichAusPfad, netzDemoPfad, type NetzBereich } from "@shared/fiaon-partnernetz";
 import "@/styles/partnernetz.css";
+// E-533 (25.11.2026): dunkles Kino-Glas (nur Optik und Bewegung — Inhalte und Menü unverändert).
+import "@/styles/dunkel-kino.css";
 
 const BILD: Record<NetzBereich | "hub", string> = {
   hub: "/kino/partnernetz-netz.jpg", vorsorge: "/kino/partnernetz-vorsorge.jpg", recht: "/kino/partnernetz-recht.jpg",
@@ -127,7 +129,10 @@ function Woerter({ text, start }: { text: string; start: number }) {
 }
 function NetzHero({ bild, pille, a, b, lead, chips, knoepfe, symbolbild }: { bild: string; pille: string; a: string; b: string; lead: string; chips: string[]; knoepfe: ReactNode; symbolbild: string }) {
   const bildRef = useRef<HTMLDivElement>(null);
-  useScroll((_a, y) => { if (bildRef.current && !ruhig()) bildRef.current.style.transform = `translate3d(0,${Math.min(y, 1000) * 0.3}px,0)`; });
+  // E-533 (25.11.2026): Wo der Browser Scroll-Zeitachsen kann, macht das CSS die Parallaxe auf dem Compositor (styles/dunkel-kino.css,
+  // ruckelt nicht) — das Skript schiebt das Bild dann nicht mehr bei jedem Bild selbst. Ältere Browser behalten den alten Weg.
+  const cssTiefe = typeof CSS !== "undefined" && !!CSS.supports?.("animation-timeline: view()");
+  useScroll((_a, y) => { if (bildRef.current && !ruhig() && !cssTiefe) bildRef.current.style.transform = `translate3d(0,${Math.min(y, 1000) * 0.3}px,0)`; });
   const nA = a.trim().split(/\s+/).length, nB = b.trim().split(/\s+/).length;
   const band = [...chips, ...chips, ...chips, ...chips];
   return (
@@ -395,7 +400,7 @@ export default function PartnerNetz() {
   const P = en ? NETZ_PFAD.en : NETZ_PFAD.de;
   const demo = netzDemoPfad(welche) + (en ? "&lang=en" : "");
   return (
-    <Dunkel seite="partner" titel={t.metaTitel} beschreibung={t.metaBeschreibung} sprache={sprache}>
+    <Dunkel seite="partner" titel={t.metaTitel} beschreibung={t.metaBeschreibung} sprache={sprache} kino>
       <SeoDaten pfad={P[welche]} titel={t.metaTitel} beschreibung={t.metaBeschreibung} fragen={t.fragen}
                 krumen={[{ name: w.hub.krume, pfad: P.hub }, { name: t.krume, pfad: P[welche] }]} />
       <div className="pn">
@@ -464,7 +469,7 @@ function Hub({ en }: { en: boolean }) {
   const demo = netzDemoPfad("vorsorge") + (en ? "&lang=en" : "");
   const alsKarte = (xs: string[], s: NetzSymbol): NetzKarte[] => xs.map((titel) => ({ s, titel, text: "" }));
   return (
-    <Dunkel seite="partner" titel={t.metaTitel} beschreibung={t.metaBeschreibung} sprache={sprache}>
+    <Dunkel seite="partner" titel={t.metaTitel} beschreibung={t.metaBeschreibung} sprache={sprache} kino>
       <SeoDaten pfad={P.hub} titel={t.metaTitel} beschreibung={t.metaBeschreibung} fragen={t.fragen} krumen={[{ name: t.krume, pfad: P.hub }]} />
       <div className="pn">
         <Fortschritt />

@@ -4,18 +4,20 @@
 // Jede Seite: Hero → viele kurze Blöcke mit Mehrwert → Zwischen-CTAs →
 // Abschluss, der den Zusammenhang zur Startseite und zum nächsten Schritt zieht.
 // ═══════════════════════════════════════════════════════════════════════════
-import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import GlassNav from "@/components/GlassNav";
 import { globalOeffentlich } from "@/components/site/GlobalNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import NeuralSphere from "@/components/home3d/NeuralSphere";
 import WellenFeld from "@/components/site/WellenFeld";
 import { seoSeite } from "@shared/fiaon-seo-seiten";
+// E-533 (25.11.2026): dunkles Kino-Glas — nur für Seiten, die „kino“ setzen (/kontakt, /termin, /partnernetzwerk).
+import { kinoEinstiegAn, useGlasZeiger } from "@/components/site/global/KinoGlas";
 import "@/styles/dunkel.css";
 
 type Seite = "startseite" | "investoren" | "karriere" | "presse" | "partner" | "datenraum" | "team" | "demo" | "ratgeber" | "login" | "privatkunden" | "kontakt" | "business" | "plattform-konzept" | "was-ist-fiaon";
 
-export function Dunkel({ seite, titel, beschreibung, sprache, children }: { seite: Seite; titel: string; beschreibung: string; sprache?: "de" | "en"; children: ReactNode }) {
+export function Dunkel({ seite, titel, beschreibung, sprache, kino = false, children }: { seite: Seite; titel: string; beschreibung: string; sprache?: "de" | "en"; kino?: boolean; children: ReactNode }) {
   useEffect(() => {
     // 02.09.2026 (E-079): Steht die Seite in der gemeinsamen SEO-Tabelle,
     // gilt DEREN Titel und Beschreibung — dieselben, die der Server ins HTML
@@ -71,8 +73,17 @@ export function Dunkel({ seite, titel, beschreibung, sprache, children }: { seit
     m.setAttribute("content", "#f4f8ff");
     return () => { m.setAttribute("content", alt); };
   }, [oeffentlich]);
+  // E-533: „kino“ schaltet das dunkle Kino-Glas an (styles/dunkel-kino.css, von der Seite geladen): Kino-Einstieg der ersten
+  // Bühne nach dem Ladebildschirm, Licht unter dem Zeiger auf den Glaskarten. Ohne „kino“ bleibt alles, wie es war (auch /start).
+  const kinoRef = useRef<HTMLDivElement>(null);
+  useGlasZeiger(kinoRef);
+  useLayoutEffect(() => {
+    if (!kino) return;
+    const buehne = kinoRef.current?.querySelector<HTMLElement>(".dk-hero, .pn-hero");
+    return buehne ? kinoEinstiegAn(buehne) : undefined;
+  }, [kino]);
   return (
-    <div className={`dk${business ? " dk-business" : ""}${oeffentlich ? " dk-global" : ""}`}>
+    <div ref={kino ? kinoRef : undefined} className={`dk${business ? " dk-business" : ""}${oeffentlich ? " dk-global" : ""}${kino ? " dk-kino" : ""}`}>
       {!business && (
         <div className="dk-grund" aria-hidden="true">
           <span className="dk-nebel a" /><span className="dk-nebel b" /><span className="dk-nebel c" />

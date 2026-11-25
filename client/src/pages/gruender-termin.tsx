@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import GlassNav from "@/components/GlassNav";
 import PremiumFooter from "@/components/PremiumFooter";
 import SeoDaten from "@/components/site/SeoDaten";
@@ -65,6 +65,13 @@ export default function GruenderTermin() {
   const rahmen = useRef<HTMLElement>(null);
   useKinoEinstieg(rahmen);
   useGlasZeiger(seite);
+  // E-533: /justin gehört jetzt zur Business-Welt (shared/fiaon-business-grenze.ts, GRUENDER_PFADE) — Kopf und Fuß von FIAON Global
+  // kommen von selbst (GlassNav/PremiumFooter schalten um). Wie jede Business-Seite rollt das Dokument, nicht #root (fg-dokument,
+  // vor dem ersten Bild — sonst springt der Kopf beim Start).
+  useLayoutEffect(() => {
+    document.documentElement.classList.add("fg-dokument");
+    return () => document.documentElement.classList.remove("fg-dokument");
+  }, []);
   const [daten, setDaten] = useState<Angebot | null>(null);
   const [laedt, setLaedt] = useState(true);
   const [fehler, setFehler] = useState<string | null>(null);

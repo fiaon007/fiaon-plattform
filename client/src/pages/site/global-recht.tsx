@@ -17,8 +17,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 import { useRef } from "react";
 import { Dunkel, Auf } from "@/components/site/DunkleBuehne";
-import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+// E-533 (25.11.2026): Kino-Glas, hier bewusst leise — Kopf mit Einstieg, das Blatt als helles Glas; der Rechtstext bleibt ruhig lesbar.
+import { KinoBuehne, KinoWorte, kinoWortZahl, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import { handlung } from "@shared/fiaon-global-saetze";
 import { useSprache } from "@/i18n/sprache";
@@ -29,14 +30,18 @@ import "@/styles/global-tokens.css";
 import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-apple.css";
+import "@/styles/global-kino.css";
 
 function Kopf({ auge, h1, h1b, lead }: { auge: string; h1: string; h1b?: string; lead: string }) {
+  const ref = useRef<HTMLElement>(null);
+  useKinoEinstieg(ref);
   return (
-    <section className="fd-kopf">
+    <section ref={ref} className="fd-kopf">
+      <KinoBuehne ring={false} scheiben={false} />
       <div className="fg-rahmen">
         <Auf>
           <span className="fg-auge">{auge}</span>
-          <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(h1)}{h1b && <><br /><em>{ohneBindestrichBruch(h1b)}</em></>}</h1>
+          <h1 className="fg-h1 fd-h1"><span className="kn-zeile"><KinoWorte text={h1} /></span>{h1b && <><br /><em className="kn-zeile"><KinoWorte text={h1b} start={kinoWortZahl(h1)} /></em></>}</h1>
           <p className="fd-lead">{lead}</p>
         </Auf>
       </div>
@@ -50,7 +55,7 @@ export function GlobalWiderrufsbelehrungSeite() {
   const b = globalWiderrufsbelehrung(en ? "en" : "de");
   return (
     <Dunkel seite="business" sprache={en ? "en" : "de"} titel={en ? "Withdrawal instructions — FIAON Global" : "Widerrufsbelehrung — FIAON Global"} beschreibung={en ? "The withdrawal instructions for consumers who instruct FIAON Global — with the model withdrawal form." : "Die Widerrufsbelehrung für Verbraucher, die FIAON Global ein Mandat erteilen — mit Muster-Widerrufsformular."}>
-      <div className="fg fd gr">
+      <div className="fg fd gr kino">
         {en
           ? <Kopf auge="FIAON Global · Legal" h1="Withdrawal instructions" h1b="for private individuals."
               lead="They apply where you instruct FIAON Global as a consumer. If you instruct us as a company, there is no statutory right of withdrawal. The same wording is annexed to your agreement." />
@@ -109,7 +114,7 @@ export function GlobalMustervertragSeite() {
 
   return (
     <Dunkel seite="business" titel={T.seo.titel} beschreibung={T.seo.beschreibung} sprache={s}>
-      <div className="fg fd gr">
+      <div className="fg fd gr kino">
         <Kopf auge={T.auge} h1={T.h1a} h1b={T.h1b} lead={T.lead} />
         <section className="fg-sek eng">
           <div className="fg-rahmen">

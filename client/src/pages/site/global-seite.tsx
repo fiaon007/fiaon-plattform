@@ -40,12 +40,24 @@
 //     einzeln. Das Inhaltsverzeichnis führt eine Marke weich zum gelesenen Abschnitt.
 //   · Handlungen heißen überall gleich (handlung() aus shared/fiaon-global-saetze). Auf der Österreich-Seite gibt es
 //     nur „Gespräch vereinbaren“, keinen Betrag und keine Karte „Ein Mandat“ (Leitfaden 5.12).
+//
+// ── E-533 (25.11.2026): KINO-GLAS ─────────────────────────────────────────────
+// Justin (25.11.): „wie ein cinematisches Intro, einfach WOW und Gänsehaut“ — die Kanzlei-Fassung (E-510) hatte er auf der
+// Startseite schon „billig“ genannt (E-521). Die Vorlage trägt darum die Klasse „kino“ (styles/global-kino.css):
+//   · Kino-Einstieg der Bühne nach dem Ladebildschirm: Licht und Ring, die Überschrift Wort für Wort, Lead, Knöpfe,
+//     Kennziffern, die Karteikarte schwebt als Glas herein (useKinoEinstieg, components/site/global/KinoGlas.tsx).
+//   · Kapitel als Glasplatten statt Haarlinien; Karten, Tabellen, Weg, Rollen, „Weiterlesen“ als Glas mit Licht unter dem
+//     Zeiger (useGlasZeiger); das Inhaltsverzeichnis als Glasleiste mit Lesering.
+//   · Tiefe beim Scrollen nur über den Compositor (animation-timeline): Lichter, Ring und Karteikarte bewegen sich in
+//     verschiedenen Tiefen; das Schlussband öffnet sich beim Hineinscrollen.
+// Kein Text ändert sich, das Vorab-HTML für Suchmaschinen ebenso wenig (es kommt vom Server, fiaon-global-seo.ts).
 // ═══════════════════════════════════════════════════════════════════════════
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dunkel, Auf, Fragen } from "@/components/site/DunkleBuehne";
 import GlobalSchlagzeilen from "@/components/site/GlobalSchlagzeilen";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
-import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
+// E-533 (25.11.2026): Kino-Glas — Kino-Einstieg der Bühne, Überschrift Wort für Wort, Licht unter dem Zeiger, Tiefe beim Scrollen.
+import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import Merkblatt from "@/components/site/global-seite/Merkblatt";
 import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import SeitenWeg from "@/components/site/global-seite/SeitenWeg";
@@ -75,6 +87,7 @@ import "@/styles/global.css";
 import "@/styles/global-seiten.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
+import "@/styles/global-kino.css";
 
 const ROEMISCH = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV"];
 
@@ -194,8 +207,8 @@ export function GlobalSeitenAnsicht({ s }: { s: GlobalSeite }) {
 
 /** Wörter der Vorlage, die keine festen Sätze sind (deutsch und englisch — die Wortwand liest sie hier). */
 const VORLAGE_WORT = {
-  de: { lesezeit: (min: number) => `Lesezeit: ${min} ${min === 1 ? "Minute" : "Minuten"}`, nachOben: "Nach oben", honorar: "Honorar" },
-  en: { lesezeit: (min: number) => `Reading time: ${min} ${min === 1 ? "minute" : "minutes"}`, nachOben: "Back to top", honorar: "Fees" },
+  de: { lesezeit: (min: number) => `Lesezeit: ${min} ${min === 1 ? "Minute" : "Minuten"}`, nachOben: "Nach oben", honorar: "Honorar", weiter: "Weiter zum Inhalt" },
+  en: { lesezeit: (min: number) => `Reading time: ${min} ${min === 1 ? "minute" : "minutes"}`, nachOben: "Back to top", honorar: "Fees", weiter: "Continue to the content" },
 } as const;
 
 function Seite({ s }: { s: GlobalSeite }) {
@@ -239,7 +252,11 @@ function Seite({ s }: { s: GlobalSeite }) {
   const kopf = useRef<HTMLElement>(null);
   const text = useRef<HTMLElement>(null);
   const verzeichnis = useRef<HTMLOListElement>(null);
+  const wurzel = useRef<HTMLDivElement>(null);
   useEinmalSichtbar(kopf, 0.1);
+  // E-533: Die Bühne baut sich nach dem Ladebildschirm auf; Glas folgt dem Zeiger (nur Maus und Trackpad).
+  useKinoEinstieg(kopf);
+  useGlasZeiger(wurzel);
   const [leiste, setLeiste] = useState(false);
   // 06.10.2026 (E-293): Der Kalender lädt erst auf Wunsch — oder sofort, wenn jemand mit #gespraech ankommt.
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
@@ -311,11 +328,12 @@ function Seite({ s }: { s: GlobalSeite }) {
 
   return (
     <Dunkel seite="business" titel={s.seo.titel} beschreibung={s.seo.beschreibung} sprache={sp}>
-      <div className="fg fd" data-land={land}>
+      <div ref={wurzel} className="fg fd kino" data-land={land}>
         <div className="fd-fortschritt" aria-hidden="true"><i ref={fortschritt as any} /></div>
 
         {/* ── Kopf ───────────────────────────────────────────────────────── */}
         <header ref={kopf} className="fd-kopf neu">
+          <KinoBuehne />
           <div className="fg-rahmen fd-kopf-raster">
             <Auf>
               <nav aria-label={u.krumen}>
@@ -327,7 +345,9 @@ function Seite({ s }: { s: GlobalSeite }) {
                 </ol>
               </nav>
               <span className="fg-auge">{s.auge}</span>
-              <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(s.h1)}{s.h1b && <><br /><em>{ohneBindestrichBruch(s.h1b)}</em></>}</h1>
+              {/* E-533: Wort für Wort (KinoWorte) — der Satz bleibt Zeichen für Zeichen derselbe. Ein Wort ist ein Inline-Block:
+                  Bindestrich-Wörter bleiben dadurch ganz zusammen, wie vorher mit ohneBindestrichBruch. */}
+              <h1 className="fg-h1 fd-h1"><span className="kn-zeile"><KinoWorte text={s.h1} /></span>{s.h1b && <><br /><em className="kn-zeile"><KinoWorte text={s.h1b} start={kinoWortZahl(s.h1)} /></em></>}</h1>
               <p className="fd-lead">{s.lead}</p>
               <div className="fg-knoepfe fd-kopf-knoepfe">{knoepfe()}</div>
               {/* Kennziffern als schmale Leiste: höchstens drei Werte, jede Zahl mit ihrem Satz (Blickfang-Regel). */}
@@ -339,10 +359,18 @@ function Seite({ s }: { s: GlobalSeite }) {
               <p className="fd-kopf-stand">{stand}</p>
             </Auf>
             <Auf verzoegerung={140}>
-              <Merkblatt titel={u.blick} kennung={s.kennung} zeilen={s.blick} alle={u.alleAngaben} punkte={u.blickPunkte(s.blick.length)}
-                stand={stand} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
+              {/* E-533: Die Hülle bewegt sich beim Scrollen (Tiefe), die Karte selbst blendet sich ein — nie opacity auf einem
+                  Vorfahren von Glas (E-346). */}
+              <div className="kn-karte">
+                <Merkblatt titel={u.blick} kennung={s.kennung} zeilen={s.blick} alle={u.alleAngaben} punkte={u.blickPunkte(s.blick.length)}
+                  stand={stand} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
+              </div>
             </Auf>
           </div>
+          {/* E-533: der leise Winkel nach unten wie auf der Startseite (atmet, blendet beim Scrollen aus; nur ab Tablet). */}
+          <a className="kn-weiter" href="#kurz" aria-label={v.weiter} onClick={(e) => { e.preventDefault(); document.getElementById("kurz")?.scrollIntoView({ behavior: glatt(), block: "start" }); }}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg>
+          </a>
         </header>
 
         {/* 06.10.2026 (E-293): Die Nachrichtenlage stand bis heute auf /business direkt nach dem Hero — noch bevor das
@@ -356,7 +384,11 @@ function Seite({ s }: { s: GlobalSeite }) {
         {/* ── Körper ─────────────────────────────────────────────────────── */}
         <div className="fd-koerper neu">
           <nav className="fd-inhalt" aria-label={u.inhaltLabel}>
-            <p>{u.inhalt}{minuten > 0 && <span className="fd-inhalt-zeit">{v.lesezeit(minuten)}</span>}</p>
+            <p>
+              {/* E-533: Der Lesering füllt sich mit dem Bildlauf (animation-timeline: scroll(), nur wo der Browser es kann). */}
+              <svg className="kn-lesering" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><circle className="spur" cx="18" cy="18" r="15" /><circle className="lauf" cx="18" cy="18" r="15" pathLength="100" /></svg>
+              <span className="kn-inhalt-titel">{u.inhalt}{minuten > 0 && <span className="fd-inhalt-zeit">{v.lesezeit(minuten)}</span>}</span>
+            </p>
             <ol ref={verzeichnis}>
               {inhalt.map((e) => (
                 <li key={e.id}><a href={`#${e.id}`} aria-current={aktiv === e.id ? "true" : undefined}
@@ -452,6 +484,8 @@ function Seite({ s }: { s: GlobalSeite }) {
         {/* ── Schlussband — auf den Unterseiten die EINE dunkle Fläche: ruhiges Navy, Schrift, die Handlungen ── */}
         <section className={`fg-schluss ruhig${mitRechner ? " hell" : ""}`}>
           <div className="fg-rahmen">
+            {/* E-533: zwei Lichter in der dunklen Bühne — sie wandern nur mit dem Bildlauf, nie von selbst. */}
+            {!mitRechner && <div className="kn-aurora" aria-hidden="true"><i /><i /></div>}
             <Auf>
               <div className="fg-schluss-text">
                 <h2 className="fg-h2">{s.schluss?.a ?? t.schlussA}<em>{s.schluss?.b ?? t.schlussB}</em></h2>
@@ -552,6 +586,8 @@ function Abschnitt({ id, className = "", children }: { id: string; className?: s
 function Kopf({ nr, h2, lead }: { nr?: string; h2: string; lead?: string }) {
   return (
     <>
+      {/* E-533: die große, dünne Kapitelziffer hinter der Überschrift — als ::before aus data-nr, also kein Text im DOM. */}
+      {nr && <span className="kn-nr" data-nr={nr} aria-hidden="true" />}
       {nr && <span className="fd-nr">{nr}.</span>}
       <h2 className="fd-h2 fg-h2">{h2}</h2>
       {lead && <p className="fd-block-lead">{lead}</p>}

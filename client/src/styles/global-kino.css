@@ -1,0 +1,732 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   E-533 (25.11.2026) — KINO-GLAS: die öffentlichen Global-Seiten im Apple-Glas, mit Kino-Einstieg und Tiefe
+
+   Justin (25.11.2026): „wie ein cinematisches Intro, einfach WOW und Gänsehaut“ — für Handy UND PC, viel mehr Apple-Glas,
+   viel mehr Apple-Look, viel mehr und bessere Animationen und Scroll-Effekte. Die ruhige Kanzlei-Fassung (E-510,
+   „Papier, Linie“) hatte er auf der Startseite schon „billig“ genannt (E-521). Maßstab: die Startseite fiaon.com/.
+
+   Bauweise wie global-apple.css: Diese Schicht baut keinen Baustein um. Sie greift nur unter der Klasse „kino“
+   (html .fg.fg.kino …, eine Stufe gewichtiger als E-510) — die Startseite trägt sie nicht und bleibt, wie Justin sie
+   abgenommen hat. Texte bleiben Zeichen für Zeichen gleich; das Vorab-HTML kommt vom Server und ist nicht berührt.
+
+   Die fünf Gesetze dieser Schicht:
+     1. Bewegt werden nur transform und opacity (Compositor). Keine Breite, keine Höhe, kein Abstand — nichts springt.
+     2. Inhalte erscheinen EINMAL und zeitgesteuert (data-kino, data-an). An den Bildlauf gekoppelt sind nur Ebenen der
+        Tiefe (Lichter, Ring, Glasscheiben, Karteikarte, Schlussband) — über animation-timeline, nie über JS.
+     3. Nie opacity oder filter auf einem Vorfahren von Glas (sonst schaltet backdrop-filter ab, E-346): Das Glas blendet
+        sich selbst ein, seine Hülle steht still.
+     4. Am Telefon: dichtes Glas ohne Unschärfe, keine Neigung, kein Zeigerlicht — Scrollen bleibt flüssig.
+     5. „Weniger Bewegung“, Druck und Kontrastmodus: Endbild sofort, keine Tiefe.
+   Die Haken dazu: components/site/global/KinoGlas.tsx (useKinoEinstieg, KinoWorte, useGlasZeiger, KinoBuehne).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 0 · Werte ──────────────────────────────────────────────────────────── */
+@property --kl { syntax: "<number>"; inherits: false; initial-value: 0; }
+
+html .fg.fg.kino {
+  --kn-glas: linear-gradient(168deg, rgba(255, 255, 255, .76) 0%, rgba(255, 255, 255, .54) 100%);
+  --kn-kachel: linear-gradient(160deg, rgba(255, 255, 255, .94) 0%, rgba(246, 250, 255, .72) 100%);
+  --kn-kante: rgba(255, 255, 255, .9);
+  --kn-licht: inset 0 1px 0 rgba(255, 255, 255, .98), inset 0 0 0 1px rgba(255, 255, 255, .24);
+  --kn-schatten: 0 1px 1px rgba(18, 40, 74, .04), 0 14px 30px -20px rgba(18, 40, 74, .2), 0 48px 96px -60px rgba(29, 78, 216, .46);
+  --kn-schatten-hoch: 0 1px 1px rgba(18, 40, 74, .05), 0 24px 44px -22px rgba(18, 40, 74, .26), 0 72px 128px -64px rgba(29, 78, 216, .58);
+  --kn-kachel-schatten: inset 0 1px 0 #fff, 0 1px 2px rgba(18, 40, 74, .05), 0 18px 36px -28px rgba(18, 40, 74, .38);
+  --kn-kachel-hoch: inset 0 1px 0 #fff, 0 2px 4px rgba(18, 40, 74, .05), 0 30px 56px -30px rgba(29, 78, 216, .52);
+  --kn-blur: blur(26px) saturate(185%);
+  --kn-r: 30px;
+  --kn-r-kachel: 20px;
+  --kn-aus: cubic-bezier(.16, 1, .3, 1);        /* alles, was ankommt (Apple-Kurve) */
+  --kn-feder: cubic-bezier(.3, 1.28, .5, 1);    /* Mikro-Bewegung mit einem Hauch Feder: Knöpfe, Kacheln */
+  --kn-blau: #1d4ed8;
+  --kn-hell: #288dfa;
+}
+
+/* ── 1 · Der Grund: mehr Licht, und er steht still ──────────────────────── */
+html .fg.fg.kino::before {
+  background:
+    radial-gradient(64vw 46vw at 92% -2%, rgba(40, 141, 250, .24), rgba(40, 141, 250, 0) 64%),
+    radial-gradient(54vw 42vw at -10% 14%, rgba(29, 78, 216, .13), rgba(29, 78, 216, 0) 62%),
+    radial-gradient(50vw 38vw at 96% 46%, rgba(127, 182, 255, .2), rgba(127, 182, 255, 0) 62%),
+    radial-gradient(58vw 42vw at 2% 74%, rgba(40, 141, 250, .11), rgba(40, 141, 250, 0) 62%),
+    linear-gradient(180deg, #f4f8ff 0%, #e8f0fd 38%, #edf3fd 70%, #eef4fd 100%);
+}
+
+/* ═══ 2 · DIE BÜHNE (Kopf der Unterseite) ════════════════════════════════════ */
+html .fg.fg.fd.kino .fd-kopf {
+  position: relative; isolation: isolate; overflow-x: clip;
+  display: grid; align-content: center;
+  min-height: min(100svh, 1060px);
+  padding: clamp(116px, 14vh, 170px) 0 clamp(64px, 9vh, 116px);
+}
+html .fg.fg.fd.kino .fd-kopf-raster { width: 100%; align-items: center; }
+/* Die Hüllen der Bühne (Auf) stehen still — den Auftritt übernimmt jedes Teil selbst (Gesetz 3). */
+html .fg.fg.fd.kino .fd-kopf .dk-auf { opacity: 1; transform: none; transition: none; }
+
+/* Schmuck hinter der Bühne: drei Lichter, ein Ring, zwei Glasscheiben (KinoBuehne). */
+html .fg.fg.kino .kn-buehne { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+html .fg.fg.kino .kn-licht { position: absolute; display: block; border-radius: 50%; }
+html .fg.fg.kino .kn-licht.a { width: min(64vw, 1000px); aspect-ratio: 1; right: -16vw; top: -22%;
+  background: radial-gradient(closest-side, rgba(40, 141, 250, .34), rgba(40, 141, 250, .12) 50%, rgba(40, 141, 250, 0) 74%); }
+html .fg.fg.kino .kn-licht.b { width: min(50vw, 780px); aspect-ratio: 1; left: -18vw; top: 18%;
+  background: radial-gradient(closest-side, rgba(29, 78, 216, .2), rgba(29, 78, 216, 0) 72%); }
+html .fg.fg.kino .kn-licht.c { width: min(30vw, 460px); aspect-ratio: 1; right: 16%; top: 2%;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .95), rgba(255, 255, 255, 0) 72%); }
+/* Der Ring steht hinter der Karteikarte: Mitte der rechten Spalte. */
+html .fg.fg.kino .kn-ring {
+  --kn-ring: min(44vw, 620px);
+  position: absolute; width: var(--kn-ring); height: var(--kn-ring);
+  left: calc(50% + min(22vw, 330px) - var(--kn-ring) / 2); top: calc(50% - var(--kn-ring) / 2 + 20px);
+  overflow: visible;
+}
+html .fg.fg.kino .kn-ring circle { fill: none; stroke: url(#kn-ring-verlauf); vector-effect: non-scaling-stroke; }
+html .fg.fg.kino .kn-ring-a { stroke-width: 1.2; }
+html .fg.fg.kino .kn-ring-b { stroke-width: 1; stroke-dasharray: .5 2.2; opacity: .75; }
+/* Zwei Glasscheiben in verschiedenen Tiefen — eine ragt hinter der Karte hervor, eine schwebt unten rechts. */
+html .fg.fg.kino .kn-scheibe {
+  position: absolute; display: block; border-radius: 50%;
+  background: linear-gradient(145deg, rgba(255, 255, 255, .74) 0%, rgba(255, 255, 255, .16) 58%, rgba(255, 255, 255, .36) 100%);
+  border: 1px solid rgba(255, 255, 255, .8);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -12px 26px -18px rgba(29, 78, 216, .4), 0 26px 50px -28px rgba(29, 78, 216, .55);
+  -webkit-backdrop-filter: blur(10px) saturate(170%); backdrop-filter: blur(10px) saturate(170%);
+}
+html .fg.fg.kino .kn-scheibe.a { width: 112px; height: 112px; left: calc(50% + min(4vw, 50px)); top: 14%; }
+html .fg.fg.kino .kn-scheibe.b { width: 64px; height: 64px; left: calc(50% + min(40vw, 572px)); top: 74%; }
+@media (max-width: 1020px) {
+  html .fg.fg.kino .kn-ring, html .fg.fg.kino .kn-scheibe { display: none; }
+}
+
+/* Die Überschrift: Wort für Wort (KinoWorte). Schrift und Größe wie vorher (LCP bleibt gleich) — nur ohne den Verlauf in
+   der Schrift, weil Wörter als Inline-Blöcke darin nicht mitgezeichnet würden. Die zweite Zeile trägt Glasblau. */
+html .fg.fg.fd.kino .fd-h1 {
+  --kn-wortfarbe: var(--g-tinte);
+  background: none; color: var(--g-tinte); -webkit-text-fill-color: currentColor; -webkit-background-clip: border-box; background-clip: border-box;
+  animation: none;
+}
+html .fg.fg.fd.kino .fd-h1 em { --kn-wortfarbe: var(--kn-blau); color: var(--kn-blau); -webkit-text-fill-color: currentColor; font-style: normal; }
+html .fg.fg.kino .kn-w { display: inline-block; color: var(--kn-wortfarbe, inherit); }
+
+/* Die Karteikarte schwebt als Glas: leicht gedreht, mit Licht unter dem Zeiger (nur breit, also ≥ 1021 px). */
+html .fg.fg.fd.kino .kn-karte { position: relative; perspective: 1500px; }
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit {
+  --kl: 0;
+  border: 1px solid var(--kn-kante); border-radius: 30px;
+  background:
+    radial-gradient(380px circle at var(--kx, 30%) var(--ky, 0%), rgba(255, 255, 255, calc(.5 + var(--kl) * .45)), rgba(255, 255, 255, 0) 64%),
+    linear-gradient(160deg, rgba(255, 255, 255, .8) 0%, rgba(255, 255, 255, .5) 100%);
+  box-shadow: var(--kn-licht), 0 2px 4px rgba(18, 40, 74, .04), 0 30px 60px -30px rgba(18, 40, 74, .3), 0 90px 150px -70px rgba(29, 78, 216, .62);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+  transform: rotateY(calc(-6deg + var(--nx, 0) * 5deg)) rotateX(calc(3deg - var(--ny, 0) * 4deg));
+  transition: transform 1s var(--kn-aus), --kl .4s ease, box-shadow .5s ease;
+}
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit[data-zeiger] { --kl: 1; }
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit > summary { border-bottom-color: rgba(18, 40, 74, .1); }
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit > summary .gross { font: 300 1.5rem/1.2 var(--ap); letter-spacing: -.02em; }
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte dl > div { border-top-color: rgba(18, 40, 74, .08); }
+html .fg.fg.fd.kino .kn-karte .fd-karteikarte-fuss { background: rgba(255, 255, 255, .34); }
+/* Am Handy ist die Karte eine Klappzeile — dichtes Glas statt Papier. */
+html .fg.fg.fd.kino .fd-karteikarte:not(.breit) {
+  border: 1px solid var(--kn-kante); border-radius: 22px; background: rgba(255, 255, 255, .86);
+  box-shadow: var(--kn-licht), 0 16px 34px -24px rgba(18, 40, 74, .38);
+}
+
+/* Die Kennziffern: dünne große Zahlen auf einer Lichtlinie, die sich beim Auftakt zeichnet. */
+html .fg.fg.fd.kino .fd-leiste { position: relative; border-top-color: transparent; }
+html .fg.fg.fd.kino .fd-leiste::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 1px; transform-origin: left center;
+  background: linear-gradient(90deg, rgba(29, 78, 216, .55), rgba(40, 141, 250, .35) 45%, rgba(18, 40, 74, .1));
+}
+html .fg.fg.fd.kino .fd-leiste b { font-weight: 200; letter-spacing: -.03em; }
+
+/* Der Winkel nach unten (wie hg-weiter der Startseite): ein Glaskreis, der atmet und beim Scrollen geht. */
+html .fg.fg.kino .kn-weiter {
+  position: absolute; left: 50%; bottom: clamp(18px, 3.4vh, 36px); z-index: 2; width: 44px; height: 44px; margin-left: -22px;
+  display: grid; place-items: center; border-radius: 50%; color: #12284a; text-decoration: none;
+  background: rgba(255, 255, 255, .7); border: 1px solid rgba(255, 255, 255, .95);
+  box-shadow: inset 0 1px 0 #fff, 0 10px 24px -16px rgba(18, 40, 74, .5);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  animation: kn-atmen 3.2s ease-in-out 3.4s infinite;
+  transition: opacity .45s ease, visibility 0s linear 0s, color .2s ease, background .2s ease;
+}
+html .fg.fg.kino .kn-weiter:hover { color: var(--kn-blau); background: #fff; }
+html .fg.fg.kino .kn-weiter svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+html.ap-gescrollt .fg.fg.kino .kn-weiter { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .45s ease, visibility 0s linear .45s; }
+@keyframes kn-atmen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+@media (max-width: 1020px), (max-height: 700px) { html .fg.fg.kino .kn-weiter { display: none; } }
+
+/* ═══ 3 · DER KINO-EINSTIEG (data-kino: "0" vor dem ersten Bild, "1" nach dem Ladebildschirm) ═══════════════ */
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] :is(.fd-krumen, .fg-auge, .fd-lead, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand,
+  .fd-karteikarte, .kn-licht, .kn-ring circle, .kn-scheibe, .kn-w) { opacity: 0; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .fd-leiste::before { transform: scaleX(0); }
+
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-licht { animation: kn-licht-an 2.4s var(--kn-aus) backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-licht.b { animation-delay: .12s; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-licht.c { animation-delay: .3s; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-ring-a { stroke-dasharray: 100; animation: kn-ring-zug 2.4s var(--kn-aus) .25s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-ring-b { animation: kn-blende 2s var(--kn-aus) .6s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-scheibe.a { animation: kn-scheibe-a 1.8s var(--kn-aus) .55s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-scheibe.b { animation: kn-scheibe-b 1.8s var(--kn-aus) .75s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-krumen { animation: kn-ein .8s var(--kn-aus) .06s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fg-auge { animation: kn-ein .9s var(--kn-aus) .14s backwards; }
+/* Jedes Wort steigt aus der Unschärfe, 52 ms nach dem vorigen — danach läuft EINMAL ein Lichtschein Wort für Wort darüber. */
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-w {
+  animation: kn-wort 1.1s var(--kn-aus) calc(.26s + var(--w, 0) * 52ms) backwards,
+             kn-wort-licht 1.5s ease-in-out calc(1.3s + var(--w, 0) * 75ms) backwards;
+}
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-lead { animation: kn-ein 1s var(--kn-aus) .6s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-kopf-knoepfe > * { animation: kn-knopf 1s var(--kn-feder) .76s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-kopf-knoepfe > :nth-child(2) { animation-delay: .86s; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-leiste::before { animation: kn-linie 1.4s var(--kn-aus) .9s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-leiste > div { animation: kn-ziffer 1s var(--kn-aus) 1s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-leiste > div:nth-child(2) { animation-delay: 1.1s; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-leiste > div:nth-child(3) { animation-delay: 1.2s; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-kopf-stand { animation: kn-ein .9s var(--kn-aus) 1.3s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="0"] .kn-weiter { opacity: 0; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-weiter { animation: kn-blende 1s var(--kn-aus) 1.6s backwards, kn-atmen 3.2s ease-in-out 3.4s infinite; }
+/* Die Karteikarte dreht sich aus der Tiefe in ihre Ruhelage (Endwert = ihre eigene Drehung, nichts springt danach). */
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-karteikarte.breit { animation: kn-karte 1.6s var(--kn-aus) .36s backwards; }
+html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .fd-karteikarte:not(.breit) { animation: kn-ein 1s var(--kn-aus) .9s backwards; }
+
+@keyframes kn-ein { from { opacity: 0; transform: translate3d(0, 16px, 0); } }
+@keyframes kn-blende { from { opacity: 0; } }
+@keyframes kn-licht-an { from { opacity: 0; transform: scale(.72); } }
+@keyframes kn-ring-zug { from { opacity: 0; stroke-dashoffset: 100; } 30% { opacity: 1; } to { stroke-dashoffset: 0; } }
+@keyframes kn-scheibe-a { from { opacity: 0; transform: translate3d(-36px, 48px, 0) scale(.6); } }
+@keyframes kn-scheibe-b { from { opacity: 0; transform: translate3d(30px, 40px, 0) scale(.5); } }
+@keyframes kn-wort { from { opacity: 0; transform: translate3d(0, .5em, 0); filter: blur(10px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes kn-wort-licht { 0%, 100% { color: var(--kn-wortfarbe); } 42% { color: #5fa6ff; } }
+@keyframes kn-knopf { from { opacity: 0; transform: translate3d(0, 14px, 0) scale(.92); } }
+@keyframes kn-linie { from { transform: scaleX(0); } }
+@keyframes kn-ziffer { from { opacity: 0; transform: translate3d(0, 22px, 0); } }
+/* Beide Enden mit derselben Funktionsliste — sonst rechnet der Browser über Matrizen und die Drehung eiert. */
+@keyframes kn-karte {
+  from { opacity: 0; transform: translate3d(48px, 64px, -80px) rotateY(-24deg) rotateX(14deg) scale(.9); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) rotateY(-6deg) rotateX(3deg) scale(1); }
+}
+
+/* ═══ 4 · TIEFE BEIM SCROLLEN (nur Compositor; ohne Unterstützung steht alles still) ═══════════════════════ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html .fg.fg.fd.kino .fd-kopf { view-timeline: --kn-kopf block; }
+    /* Hinten bleibt zurück, vorne eilt voraus: Lichter und Ring sinken langsamer weg als der Text, die Karte steigt schneller. */
+    html .fg.fg.fd.kino .fd-kopf > .kn-buehne { animation: kn-tiefe-hinten linear both; animation-timeline: --kn-kopf; animation-range: exit 0% exit 100%; }
+    html .fg.fg.fd.kino .kn-ring { animation: kn-ring-dreh linear both; animation-timeline: --kn-kopf; animation-range: exit 0% exit 100%; }
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 1021px) {
+    html .fg.fg.fd.kino .kn-karte { animation: kn-tiefe-vorn linear both; animation-timeline: --kn-kopf; animation-range: exit 0% exit 100%; }
+  }
+}
+@keyframes kn-tiefe-hinten { to { transform: translate3d(0, 26vh, 0); } }
+@keyframes kn-tiefe-vorn { to { transform: translate3d(0, -12vh, 0); } }
+@keyframes kn-ring-dreh { to { transform: rotate(38deg) scale(1.08); } }
+
+/* ═══ 5 · DAS INHALTSVERZEICHNIS: eine Glasleiste mit Lesering ═══════════════════════════════════════════ */
+html .fg.fg.fd.kino .fd-inhalt {
+  top: 100px; max-height: calc(100vh - 124px);
+  padding: 20px 14px 18px 16px; border-radius: 26px;
+  background: var(--kn-glas); border: 1px solid var(--kn-kante);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.fd.kino .fd-inhalt > p { display: flex; align-items: center; gap: 12px; }
+html .fg.fg.fd.kino .kn-inhalt-titel { display: grid; gap: 4px; }
+html .fg.fg.fd.kino .fd-inhalt ol { margin-left: 2px; }
+html .fg.fg.kino .kn-lesering { flex: 0 0 auto; width: 34px; height: 34px; transform: rotate(-90deg); overflow: visible; }
+html .fg.fg.kino .kn-lesering circle { fill: none; stroke-width: 2.4; }
+html .fg.fg.kino .kn-lesering .spur { stroke: rgba(29, 78, 216, .12); }
+html .fg.fg.kino .kn-lesering .lauf { stroke: var(--kn-hell); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; filter: drop-shadow(0 0 3px rgba(40, 141, 250, .45)); }
+@supports (animation-timeline: scroll()) {
+  html .fg.fg.kino .kn-lesering .lauf { animation: kn-lesen 1ms linear both; animation-timeline: scroll(root block); }
+}
+@supports not (animation-timeline: scroll()) { html .fg.fg.kino .kn-lesering { display: none; } }
+@keyframes kn-lesen { to { stroke-dashoffset: 0; } }
+/* Am Handy: die Klappzeile als dichte Glaskarte statt zwischen zwei Linien. */
+html .fg.fg.fd.kino .fd-inhalt-mobil {
+  margin-top: 16px; padding: 4px 20px; border: 1px solid var(--kn-kante); border-radius: 22px;
+  background: rgba(255, 255, 255, .86); box-shadow: var(--kn-licht), 0 16px 34px -26px rgba(18, 40, 74, .38);
+}
+
+/* ═══ 6 · „KURZ BEANTWORTET“: die Antwort als Glasplatte mit Lichtkante ═══════════════════════════════════ */
+html .fg.fg.fd.kino .fd-antwort {
+  position: relative; overflow: hidden;
+  padding: clamp(26px, 3vw, 40px) clamp(24px, 3.2vw, 46px) clamp(28px, 3vw, 42px) clamp(30px, 3.6vw, 54px);
+  border: 1px solid var(--kn-kante); border-radius: var(--kn-r);
+  background: radial-gradient(120% 150% at 0% 0%, rgba(40, 141, 250, .16), rgba(40, 141, 250, 0) 46%), var(--kn-glas);
+  box-shadow: var(--kn-licht), var(--kn-schatten-hoch);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.fd.kino .fd-antwort::before {
+  content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #6fb0ff, var(--kn-blau)); box-shadow: 0 0 18px rgba(40, 141, 250, .55);
+}
+html .fg.fg.fd.kino .fd-antwort p { font-size: clamp(1.25rem, 1.55vw, 1.375rem); line-height: 1.52; }
+
+/* ═══ 7 · KAPITEL ALS GLASPLATTEN ═══════════════════════════════════════════════════════════════════════════ */
+html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand) {
+  margin-top: clamp(16px, 1.8vw, 24px);
+  padding: clamp(30px, 3.6vw, 54px) clamp(24px, 3.6vw, 54px) clamp(32px, 3.8vw, 56px);
+  border-radius: var(--kn-r);
+  background: var(--kn-glas); border: 1px solid var(--kn-kante);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.fd.kino .fd-text.neu > .fd-inhalt-mobil + .fd-abschnitt,
+html .fg.fg.fd.kino .fd-text.neu > .fd-antwort + .fd-abschnitt { margin-top: clamp(24px, 2.6vw, 36px); }
+/* Statt der Haarlinie: eine Lichtkante oben auf jeder Platte, die sich beim Auftritt von der Mitte her zeichnet. */
+html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand)::before,
+html .fg.fg.fd.kino .fd-text.neu > .fd-inhalt-mobil + .fd-abschnitt:not(.fd-rand)::before {
+  display: block; content: ""; position: absolute; left: 12%; right: 12%; top: -1px; height: 1px; transform-origin: center;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff 28%, rgba(111, 176, 255, .95) 50%, #fff 72%, rgba(255, 255, 255, 0));
+}
+/* Die große, dünne Kapitelziffer (aus data-nr, kein Text im DOM) — rechts oben in der Platte, ganz leise. */
+html .fg.fg.fd.kino .kn-nr { position: absolute; top: clamp(14px, 1.6vw, 22px); right: clamp(20px, 2.6vw, 38px); pointer-events: none; }
+html .fg.fg.fd.kino .kn-nr::before {
+  content: attr(data-nr); display: block;
+  font: 200 clamp(56px, 6vw, 92px)/1 var(--ap); letter-spacing: -.04em;
+  background: linear-gradient(180deg, rgba(40, 141, 250, .26), rgba(40, 141, 250, .02));
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+}
+html .fg.fg.fd.kino .fd-rand .kn-nr, html .fg.fg.fd.kino .fd-zitat .kn-nr { display: none; }
+@media (max-width: 720px) { html .fg.fg.fd.kino .kn-nr::before { font-size: 52px; } }
+/* Platz für die Ziffer: die Überschrift läuft nicht darunter. */
+html .fg.fg.fd.kino .fd-abschnitt:not(.fd-rand) > .fd-h2 { padding-right: clamp(48px, 6vw, 96px); }
+
+/* Auftritt: Die Platte steigt aus der Tiefe, dann Ziffer, Überschrift, Lichtkante — einmal. */
+html .fg.fg.fd.kino .fd-abschnitt[data-an="0"] { opacity: 0; transform: translate3d(0, 64px, 0) scale(.96); }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="0"]::before { transform: scaleX(0); }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="0"] :is(.fd-nr, .fd-h2, .kn-nr) { opacity: 0; }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] { animation: kn-platte 1.2s var(--kn-aus) backwards; }
+html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt[data-an="1"]::before { animation: kn-linie 1.6s var(--kn-aus) .35s backwards; }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] .kn-nr { animation: kn-ziffer-tief 1.8s var(--kn-aus) .1s backwards; }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] .fd-nr { animation: kn-ein .8s var(--kn-aus) .2s backwards; }
+html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] .fd-h2 {
+  animation: kn-titel 1.1s var(--kn-aus) .26s backwards, fg-glanz 1.8s cubic-bezier(.45, .05, .35, 1) .75s 1 both;
+}
+@keyframes kn-platte { from { opacity: 0; transform: translate3d(0, 64px, 0) scale(.96); } }
+@keyframes kn-titel { from { opacity: 0; transform: translate3d(0, 22px, 0); } }
+@keyframes kn-ziffer-tief { from { opacity: 0; transform: translate3d(0, 40px, 0) scale(.9); } }
+/* Tiefe in der Platte: Die Kapitelziffer wandert beim Scrollen langsamer als ihr Text. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 721px) {
+    html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] .kn-nr { animation: kn-ziffer-tief 1.8s var(--kn-aus) .1s backwards, kn-ziffer-schweben linear both; animation-timeline: auto, view(); animation-range: normal, cover 0% cover 100%; }
+  }
+}
+@keyframes kn-ziffer-schweben { from { translate: 0 28px; } to { translate: 0 -28px; } }
+
+/* ═══ 8 · DIE BAUSTEINE IN DER PLATTE ═══════════════════════════════════════════════════════════════════════ */
+/* Kacheln folgen der Platte gestaffelt: Karten, Rollen, Verzeichnis, Fragen, „Weiterlesen“ (bis sechs Stufen). */
+html .fg.fg.fd.kino [data-an="1"] :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage),
+html .fg.fg.fd.kino .fd-weiter[data-an="1"] .fd-weiter-raster > a {
+  animation: kn-kachel .95s var(--kn-aus) backwards; animation-delay: calc(380ms + var(--fd-i, 6) * 70ms);
+}
+@keyframes kn-kachel { from { opacity: 0; transform: translate3d(0, 26px, 0) scale(.97); } }
+
+/* Licht unter dem Zeiger: eine weiße Lichtinsel folgt der Maus (--kx/--ky), --kl blendet sie weich ein (useGlasZeiger). */
+html .fg.fg.kino :is(.fd-karte, .fd-rolle, .fd-verzeichnis a, .fd-weiter-raster > a, .gvt-liste > li, .fd-gespraech-karte) {
+  --kl: 0;
+}
+html .fg.fg.kino :is(.fd-karte, .fd-rolle, .fd-verzeichnis a, .fd-weiter-raster > a, .gvt-liste > li, .fd-gespraech-karte)[data-zeiger] { --kl: 1; }
+
+/* Karten: Glaskacheln, zwei Spalten */
+html .fg.fg.fd.kino .fd-karten { gap: 14px; margin-top: 28px; border-top: 0; }
+html .fg.fg.fd.kino .fd-karte {
+  position: relative; padding: 22px 24px 24px; border: 1px solid rgba(255, 255, 255, .92); border-radius: var(--kn-r-kachel);
+  background: radial-gradient(260px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .95)), rgba(255, 255, 255, 0) 70%), var(--kn-kachel);
+  box-shadow: var(--kn-kachel-schatten);
+  transition: transform .7s var(--kn-feder), box-shadow .45s ease, border-color .3s ease, --kl .35s ease;
+}
+html .fg.fg.fd.kino a.fd-karte { padding-right: 54px; }
+html .fg.fg.fd.kino .fd-karte .pfeil { right: 22px; top: 26px; }
+html .fg.fg.fd.kino .fd-karte .tag { display: inline-flex; align-items: center; gap: 8px; }
+html .fg.fg.fd.kino .fd-karte .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--kn-hell); box-shadow: 0 0 0 3px rgba(40, 141, 250, .14); }
+
+/* Rollen: drei Kacheln, FIAON mit Glasblau-Ring */
+html .fg.fg.fd.kino .fd-rollen { gap: 12px; margin-top: 26px; }
+html .fg.fg.fd.kino .fd-rolle, html .fg.fg.fd.kino .fd-rolle.fiaon {
+  padding: 20px 20px 22px; border: 1px solid rgba(255, 255, 255, .92); border-radius: var(--kn-r-kachel);
+  background: radial-gradient(240px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .9)), rgba(255, 255, 255, 0) 70%), var(--kn-kachel);
+  box-shadow: var(--kn-kachel-schatten);
+  transition: transform .7s var(--kn-feder), box-shadow .45s ease, --kl .35s ease;
+}
+html .fg.fg.fd.kino .fd-rolle.fiaon {
+  border-color: rgba(40, 141, 250, .45);
+  background: radial-gradient(240px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .9)), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(140% 120% at 0% 0%, rgba(40, 141, 250, .16), rgba(40, 141, 250, 0) 55%), var(--kn-kachel);
+  box-shadow: inset 0 1px 0 #fff, 0 0 0 4px rgba(40, 141, 250, .08), 0 24px 46px -28px rgba(29, 78, 216, .55);
+}
+
+/* Tabelle: ein Glasblock mit hellem Kopf; die hervorgehobene Spalte trägt Licht von oben */
+html .fg.fg.fd.kino .fd-tabelle.neu {
+  margin-top: 26px; border: 1px solid rgba(255, 255, 255, .92); border-radius: var(--kn-r-kachel);
+  background: rgba(255, 255, 255, .62); box-shadow: var(--kn-kachel-schatten);
+}
+html .fg.fg.fd.kino .fd-tabelle.neu th { padding-top: 15px; padding-bottom: 13px; background: linear-gradient(180deg, rgba(236, 244, 255, .96), rgba(228, 238, 254, .7)); border-bottom-color: rgba(18, 40, 74, .1); }
+html .fg.fg.fd.kino .fd-tabelle.neu th.hervor { color: var(--kn-blau); box-shadow: inset 0 3px 0 var(--kn-hell); background: linear-gradient(180deg, rgba(40, 141, 250, .18), rgba(40, 141, 250, .06)); }
+html .fg.fg.fd.kino .fd-tabelle.neu td.hervor { background: rgba(40, 141, 250, .06); }
+html .fg.fg.fd.kino .fd-tabelle.neu tbody tr:hover td { background: rgba(255, 255, 255, .72); }
+html .fg.fg.fd.kino .fd-tabelle.neu tbody tr:hover td.hervor { background: rgba(40, 141, 250, .1); }
+@media (min-width: 561px) {
+  html .fg.fg.fd.kino .fd-tabelle.neu tbody td:first-child, html .fg.fg.fd.kino .fd-tabelle.neu tbody th:first-child,
+  html .fg.fg.fd.kino .fd-tabelle.neu thead th:first-child { padding-left: 20px; }
+  html .fg.fg.fd.kino .fd-tabelle.neu td:last-child, html .fg.fg.fd.kino .fd-tabelle.neu th:last-child { padding-right: 20px; }
+}
+@media (min-width: 561px) {
+  /* Die leere Ecke oben links trägt denselben Glaskopf wie die anderen Spalten (E-510 setzte sie auf „kein Grund“). */
+  html .fg.fg.fd.kino .fd-tabelle.neu thead th:first-child { background: linear-gradient(180deg, rgba(236, 244, 255, .96), rgba(228, 238, 254, .7)); }
+}
+@media (min-width: 561px) and (max-width: 700px) {
+  html .fg.fg.fd.kino .fd-tabelle.neu tbody td:first-child, html .fg.fg.fd.kino .fd-tabelle.neu tbody th:first-child,
+  html .fg.fg.fd.kino .fd-tabelle.neu thead th:first-child { background: #f6f9ff; }
+}
+/* Zeilen folgen der Platte gestaffelt */
+html .fg.fg.fd.kino .fd-abschnitt[data-an="1"] .fd-tabelle tbody tr { animation: kn-zeile .8s var(--kn-aus) backwards; animation-delay: calc(360ms + var(--kn-r-i, 6) * 60ms); }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(1) { --kn-r-i: 0; }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(2) { --kn-r-i: 1; }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(3) { --kn-r-i: 2; }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(4) { --kn-r-i: 3; }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(5) { --kn-r-i: 4; }
+html .fg.fg.fd.kino .fd-tabelle tbody tr:nth-child(6) { --kn-r-i: 5; }
+@keyframes kn-zeile { from { opacity: 0; transform: translate3d(0, 12px, 0); } }
+@media (max-width: 560px) {
+  /* Am Telefon: je Zeile eine helle Kachel */
+  html .fg.fg.fd.kino .fd-tabelle.neu { border: 0; border-radius: 0; background: none; box-shadow: none; }
+  html .fg.fg.fd.kino .fd-tabelle.neu tr { margin-top: 12px; padding: 4px 16px 6px; border: 1px solid rgba(255, 255, 255, .92); border-radius: 18px; background: rgba(255, 255, 255, .8); box-shadow: var(--kn-kachel-schatten); }
+  html .fg.fg.fd.kino .fd-tabelle.neu tbody tr:first-child { margin-top: 0; }
+  html .fg.fg.fd.kino .fd-tabelle.neu tbody tr:first-child td, html .fg.fg.fd.kino .fd-tabelle.neu td { border-top-color: rgba(18, 40, 74, .08); }
+  html .fg.fg.fd.kino .fd-tabelle.neu td.hervor { box-shadow: inset 2px 0 0 var(--kn-hell); }
+}
+
+/* Der Weg: leuchtende Knoten auf einem Lichtfaden */
+html .fg.fg.fd.kino .fd-weg ol::before { width: 2px; margin-left: -1px; background: linear-gradient(180deg, var(--kn-hell), rgba(40, 141, 250, .22) 72%, rgba(40, 141, 250, 0)); }
+html .fg.fg.fd.kino .fd-weg-knoten {
+  background: linear-gradient(160deg, #fff, #eaf3ff); border: 1px solid rgba(255, 255, 255, .95); color: var(--kn-blau);
+  box-shadow: inset 0 1px 0 #fff, 0 0 0 4px rgba(40, 141, 250, .1), 0 10px 22px -10px rgba(29, 78, 216, .6);
+}
+html .fg.fg.fd.kino .fd-weg-station:first-child .fd-weg-knoten {
+  background: linear-gradient(180deg, #3a8bff, var(--kn-blau)); border-color: transparent; color: #fff;
+  box-shadow: 0 0 0 5px rgba(40, 141, 250, .16), 0 12px 26px -10px rgba(29, 78, 216, .8);
+}
+html .fg.fg.fd.kino .fd-weg-linie path { stroke: rgba(40, 141, 250, .55); stroke-width: 1.5; }
+html .fg.fg.fd.kino .fd-weg[data-an="1"] .fd-weg-knoten { animation: kn-knoten .9s var(--kn-feder) calc(.25s + var(--i, 0) * 130ms) backwards; }
+@keyframes kn-knoten { from { transform: scale(.4); box-shadow: 0 0 0 0 rgba(40, 141, 250, .5); } 60% { box-shadow: 0 0 0 12px rgba(40, 141, 250, 0); } }
+
+/* Hinweis und Randnotiz: Glas mit Lichtkante links */
+html .fg.fg.fd.kino .fd-text.neu > .fd-rand {
+  position: relative; margin-top: clamp(16px, 1.8vw, 24px); padding: clamp(24px, 2.6vw, 34px) clamp(22px, 2.4vw, 32px) clamp(24px, 2.6vw, 34px) clamp(28px, 3vw, 38px);
+  border: 1px solid var(--kn-kante); border-radius: 26px;
+  background: radial-gradient(130% 100% at 0% 0%, rgba(40, 141, 250, .1), rgba(40, 141, 250, 0) 50%), var(--kn-glas);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.fd.kino .fd-text.neu > .fd-rand::before {
+  display: block; content: ""; position: absolute; left: 0; right: auto; top: 24px; bottom: 24px; width: 3px; height: auto; border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #6fb0ff, var(--kn-blau)); transform-origin: center top;
+}
+/* Die Randnotiz zeichnet ihren Lichtbalken von oben (nicht von der Mitte wie die Platten). */
+html .fg.fg.fd.kino .fd-rand[data-an="0"]::before { transform: scaleY(0); }
+html .fg.fg.fd.kino .fd-text.neu > .fd-rand[data-an="1"]::before { animation: kn-balken 1.2s var(--kn-aus) .3s backwards; }
+@keyframes kn-balken { from { transform: scaleY(0); } }
+html .fg.fg.fd.kino .fd-hinweis {
+  padding: 22px 24px 20px 28px; border: 1px solid rgba(255, 255, 255, .92); border-left: 3px solid var(--kn-hell); border-radius: 18px;
+  background: rgba(255, 255, 255, .7); box-shadow: var(--kn-kachel-schatten);
+}
+@media (min-width: 1280px) {
+  html .fg.fg.fd.kino .fd-text.neu > .fd-rand:not(.unten) { margin: clamp(16px, 1.8vw, 24px) 0 0; padding: 30px 26px 30px 32px; border: 1px solid var(--kn-kante); }
+}
+
+/* Verzeichnis: helle Glaszeilen, der Pfeil gleitet */
+html .fg.fg.fd.kino .fd-verzeichnis { display: grid; gap: 10px; margin-top: 24px; border-top: 0; }
+html .fg.fg.fd.kino .fd-verzeichnis a {
+  padding: 20px 22px 20px 24px; border: 1px solid rgba(255, 255, 255, .92); border-radius: 18px;
+  background: radial-gradient(320px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .95)), rgba(255, 255, 255, 0) 70%), var(--kn-kachel);
+  box-shadow: var(--kn-kachel-schatten);
+  transition: transform .6s var(--kn-feder), box-shadow .4s ease, border-color .3s ease, --kl .35s ease;
+}
+
+/* Zitat: eine große Glasplatte mit leisem Anführungszeichen */
+html .fg.fg.fd.kino .fd-zitat {
+  position: relative; margin: clamp(16px, 1.8vw, 24px) 0 0; padding: clamp(36px, 4.2vw, 60px) clamp(28px, 4vw, 60px) clamp(32px, 3.8vw, 52px);
+  border: 1px solid var(--kn-kante); border-radius: var(--kn-r);
+  background: radial-gradient(90% 120% at 100% 0%, rgba(40, 141, 250, .14), rgba(40, 141, 250, 0) 55%), var(--kn-glas);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.fd.kino .fd-zitat::before { content: "\201C"; position: absolute; left: clamp(16px, 2vw, 28px); top: -.12em; font: 200 clamp(110px, 10vw, 150px)/1 var(--ap); color: rgba(40, 141, 250, .22); pointer-events: none; }
+
+/* Fragen in der Platte: helle Kacheln mit Abstand */
+html .fg.fg.fd.kino .fd-abschnitt .dk-fragen-liste { display: grid; gap: 10px; }
+html .fg.fg.fd.kino .fd-abschnitt .dk-frage, html .fg.fg.fd.kino .fd-abschnitt .dk-frage:first-child {
+  padding: 0 22px; border: 1px solid rgba(255, 255, 255, .92); border-radius: 18px;
+  background: rgba(255, 255, 255, .7); box-shadow: var(--kn-kachel-schatten);
+  transition: background .3s ease, box-shadow .4s ease, border-color .3s ease;
+}
+html .fg.fg.fd.kino .fd-abschnitt .dk-frage.auf { background: rgba(255, 255, 255, .92); border-color: rgba(40, 141, 250, .32); box-shadow: inset 0 1px 0 #fff, 0 0 0 4px rgba(40, 141, 250, .07), 0 24px 46px -30px rgba(29, 78, 216, .5); }
+html .fg.fg.fd.kino .fd-abschnitt .dk-frage .plus { background: rgba(40, 141, 250, .1); }
+html .fg.fg.fd.kino .fd-abschnitt .dk-frage.auf .plus { background: var(--kn-blau); color: #fff; }
+@media (hover: hover) { html .fg.fg.fd.kino .fd-abschnitt .dk-frage:hover { background: rgba(255, 255, 255, .88); } }
+
+/* Ab 1280 px steht neben den Platten die Spalte der Randnotizen — die Platte ist dort ~600 px breit. Damit nichts gequetscht
+   wirkt: weniger Rand in der Platte, die Karte „Ein Mandat“ untereinander (Text, dann Preis), die drei Rollen untereinander
+   mit zweispaltiger Liste (vorher drei Spalten à ~170 px, Messung 25.11.). Breite Abschnitte (.breit) behalten zwei Spalten. */
+@media (min-width: 1280px) {
+  html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand):not(.breit) { padding-left: clamp(28px, 2.6vw, 40px); padding-right: clamp(28px, 2.6vw, 40px); }
+  html .fg.fg.fd.kino .fd-abschnitt:not(.breit) .vk-karte { grid-template-columns: minmax(0, 1fr); }
+  html .fg.fg.fd.kino .fd-abschnitt:not(.breit) .vk-karte-preis { padding-left: 0; border-left: 0; padding-top: 22px; border-top: 1px solid var(--g-linie); }
+  html .fg.fg.fd.kino .fd-abschnitt:not(.breit) .fd-rollen { grid-template-columns: minmax(0, 1fr); }
+  html .fg.fg.fd.kino .fd-abschnitt:not(.breit) .fd-rolle ul { display: block; columns: 2; column-gap: 28px; }
+  html .fg.fg.fd.kino .fd-abschnitt:not(.breit) .fd-rolle li { break-inside: avoid; margin-bottom: 9px; }
+}
+/* Die Karte „Ein Mandat“ in der Platte: Glas statt Papier, mit Licht unter dem Zeiger. */
+html .fg.fg.fd.kino .fd-abschnitt .vk-karte {
+  border: 1px solid rgba(255, 255, 255, .94); border-radius: 24px;
+  background: radial-gradient(420px circle at var(--kx, 80%) var(--ky, 0%), rgba(255, 255, 255, calc(.55 + var(--kl) * .4)), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(120% 120% at 100% 0%, rgba(40, 141, 250, .12), rgba(40, 141, 250, 0) 55%), var(--kn-kachel);
+  box-shadow: var(--kn-kachel-hoch);
+  transition: --kl .4s ease;
+}
+html .fg.fg.fd.kino .fd-abschnitt .vk-karte[data-zeiger] { --kl: 1; }
+
+/* ═══ 9 · GESPRÄCH, WEITERLESEN, VERTRAUEN ═══════════════════════════════════════════════════════════════ */
+html .fg.fg.fd.kino .fd-gespraech-karte {
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 24px;
+  padding: clamp(24px, 2.6vw, 34px) clamp(24px, 2.8vw, 38px); border: 1px solid var(--kn-kante); border-radius: var(--kn-r);
+  background: radial-gradient(360px circle at var(--kx, 12%) var(--ky, 0%), rgba(255, 255, 255, calc(.4 + var(--kl) * .5)), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(120% 140% at 0% 0%, rgba(40, 141, 250, .14), rgba(40, 141, 250, 0) 50%), var(--kn-glas);
+  box-shadow: var(--kn-licht), var(--kn-schatten-hoch);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+  transition: --kl .4s ease;
+}
+html .fg.fg.fd.kino .fd-gespraech-karte b { font-size: clamp(1.25rem, 1.6vw, 1.5rem); font-weight: 300; }
+
+/* Weiterlesen: vier Glaskacheln, die sich dem Zeiger zuneigen */
+html .fg.fg.fd.kino .fd-weiter-raster { gap: 14px; margin-top: 20px; border-top: 0; }
+html .fg.fg.fd.kino .fd-weiter-raster a {
+  padding: 24px 56px 24px 26px; border: 1px solid rgba(255, 255, 255, .92); border-radius: 24px;
+  background: radial-gradient(300px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .95)), rgba(255, 255, 255, 0) 70%), var(--kn-glas);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+  transition: transform .7s var(--kn-feder), box-shadow .45s ease, border-color .3s ease, --kl .35s ease;
+}
+html .fg.fg.fd.kino .fd-weiter-raster .pfeil { right: 22px; }
+
+/* Vertrauen: vier Tatsachen als Glaschips */
+html .fg.fg.kino .gvt-liste { gap: 12px; }
+html .fg.fg.kino .gvt-liste > li {
+  position: relative; padding: 20px 20px 20px 22px; border: 1px solid var(--kn-kante); border-radius: 22px;
+  background: radial-gradient(240px circle at var(--kx, 50%) var(--ky, 0%), rgba(255, 255, 255, calc(var(--kl) * .9)), rgba(255, 255, 255, 0) 70%), var(--kn-glas);
+  box-shadow: var(--kn-licht), 0 18px 40px -30px rgba(18, 40, 74, .42);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+  transition: transform .7s var(--kn-feder), box-shadow .45s ease, --kl .35s ease;
+}
+
+/* ═══ 10 · DAS SCHLUSSBAND: die dunkle Bühne öffnet sich beim Hineinscrollen ═══════════════════════════════ */
+html .fg.fg.kino .fg-schluss.ruhig:not(.hell) > .fg-rahmen {
+  box-shadow: 0 70px 130px -60px rgba(11, 28, 54, .9), inset 0 1px 0 rgba(255, 255, 255, .2);
+}
+html .fg.fg.kino .kn-aurora { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; border-radius: inherit; }
+html .fg.fg.kino .kn-aurora i { position: absolute; display: block; border-radius: 50%; }
+html .fg.fg.kino .kn-aurora i:first-child { width: 74%; aspect-ratio: 1; right: -20%; top: -62%; background: radial-gradient(closest-side, rgba(40, 141, 250, .55), rgba(40, 141, 250, 0) 72%); }
+html .fg.fg.kino .kn-aurora i:last-child { width: 62%; aspect-ratio: 1; left: -18%; bottom: -66%; background: radial-gradient(closest-side, rgba(111, 176, 255, .34), rgba(111, 176, 255, 0) 72%); }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html .fg.fg.kino .fg-schluss.ruhig:not(.hell) { view-timeline: --kn-schluss block; }
+    html .fg.fg.kino .fg-schluss.ruhig:not(.hell) > .fg-rahmen { animation: kn-vorhang linear both; animation-timeline: --kn-schluss; animation-range: entry 0% cover 42%; }
+    html .fg.fg.kino .kn-aurora i:first-child { animation: kn-aurora-a linear both; animation-timeline: --kn-schluss; animation-range: cover 0% cover 100%; }
+    html .fg.fg.kino .kn-aurora i:last-child { animation: kn-aurora-b linear both; animation-timeline: --kn-schluss; animation-range: cover 0% cover 100%; }
+  }
+}
+@keyframes kn-vorhang { from { transform: scale(.9); } to { transform: none; } }
+@keyframes kn-aurora-a { from { transform: translate3d(8%, -6%, 0); } to { transform: translate3d(-14%, 16%, 0); } }
+@keyframes kn-aurora-b { from { transform: translate3d(-6%, 8%, 0); } to { transform: translate3d(16%, -14%, 0); } }
+
+/* ═══ 11 · MIKRO-BEWEGUNG: Knöpfe mit Lichtschein, Kacheln neigen sich ═════════════════════════════════════ */
+html .fg.fg.kino .fg-knopf { position: relative; isolation: isolate; overflow: hidden; transition: transform .55s var(--kn-feder), box-shadow .35s ease, background .25s ease; }
+html .fg.fg.kino .fg-knopf::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0) 30%, rgba(255, 255, 255, .42) 50%, rgba(255, 255, 255, 0) 70%);
+  transform: translate3d(-120%, 0, 0);
+}
+html .fg.fg.kino .fg-knopf svg { transition: transform .5s var(--kn-feder); }
+@media (hover: hover) and (pointer: fine) {
+  html .fg.fg.kino .fg-knopf:hover { transform: translate3d(0, -2px, 0); }
+  html .fg.fg.kino .fg-knopf:hover::after { transform: translate3d(120%, 0, 0); transition: transform .9s var(--kn-aus); }
+  html .fg.fg.kino .fg-knopf:hover svg { transform: translate3d(3px, 0, 0); }
+  /* Kacheln: ein Hauch Höhe und Neigung zum Zeiger (±2,5°) */
+  html .fg.fg.fd.kino :is(a.fd-karte, .fd-weiter-raster > a):hover {
+    transform: perspective(900px) translate3d(0, -4px, 0) rotateX(calc(var(--ny, 0) * -2.5deg)) rotateY(calc(var(--nx, 0) * 2.5deg));
+    box-shadow: var(--kn-kachel-hoch); border-color: rgba(40, 141, 250, .36);
+  }
+  html .fg.fg.fd.kino .fd-rolle:hover { transform: translate3d(0, -3px, 0); box-shadow: var(--kn-kachel-hoch); }
+  html .fg.fg.fd.kino .fd-verzeichnis a:hover { transform: translate3d(4px, 0, 0); box-shadow: var(--kn-kachel-hoch); border-color: rgba(40, 141, 250, .32); }
+  html .fg.fg.kino .gvt-liste > li:hover { transform: translate3d(0, -3px, 0); }
+}
+html .fg.fg.kino .fg-knopf:active { transform: scale(.97); transition-duration: .12s; }
+
+/* ═══ 14 · LANDINGPAGES (.lp): dieselbe Bühne, Abschnitte als Glasplatten ═════════════════════════════════════ */
+/* Der schlanke Kopf klebt oben (E-510) — die Bühne beginnt darunter, darum weniger Luft oben. */
+html .fg.fg.fd.lp.kino .lp-buehne { min-height: min(calc(100svh - 80px), 980px); padding-top: clamp(56px, 8vh, 112px); }
+html .fg.fg.lp.kino .lp-kopf-innen {
+  background: rgba(255, 255, 255, .72); border: 1px solid rgba(255, 255, 255, .9);
+  box-shadow: var(--kn-licht), 0 18px 40px -28px rgba(18, 40, 74, .4);
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+}
+html .fg.fg.lp.kino .lp-sek { padding: 0 0 clamp(16px, 1.8vw, 24px); }
+html .fg.fg.lp.kino .lp-sek-raster {
+  width: calc(100% - 2 * var(--g-rand)); max-width: calc(var(--g-breite) - 2 * var(--g-rand)); margin-inline: auto;
+  padding: clamp(30px, 3.6vw, 56px) clamp(24px, 3.6vw, 56px);
+  border-radius: var(--kn-r); background: var(--kn-glas); border: 1px solid var(--kn-kante);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.lp.kino .lp-sek-raster::before {
+  left: 12%; right: 12%; top: -1px; transform-origin: center;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff 28%, rgba(111, 176, 255, .95) 50%, #fff 72%, rgba(255, 255, 255, 0));
+}
+/* Auftritt am Glas selbst (Gesetz 3): Die Hülle .lp-sek steht still, die Platte steigt. */
+html .fg.fg.lp.kino .lp-sek[data-an] { opacity: 1; transform: none; animation: none; }
+html .fg.fg.lp.kino .lp-sek[data-an="0"] .lp-sek-raster { opacity: 0; transform: translate3d(0, 64px, 0) scale(.96); }
+html .fg.fg.lp.kino .lp-sek[data-an="0"] .lp-sek-raster::before { transform: scaleX(0); }
+html .fg.fg.lp.kino .lp-sek[data-an="0"] .lp-sek-kopf { opacity: 0; }
+html .fg.fg.lp.kino .lp-sek[data-an="1"] .lp-sek-raster { animation: kn-platte 1.2s var(--kn-aus) backwards; }
+html .fg.fg.lp.kino .lp-sek[data-an="1"] .lp-sek-raster::before { animation: kn-linie 1.6s var(--kn-aus) .35s backwards; }
+html .fg.fg.lp.kino .lp-sek[data-an="1"] .lp-sek-kopf { animation: kn-titel 1.1s var(--kn-aus) .25s backwards; }
+html .fg.fg.lp.kino .lp-schritte .nr { font-weight: 200; background: linear-gradient(180deg, var(--kn-hell), var(--kn-blau)); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+html .fg.fg.lp.kino .lp-wissen {
+  padding: 22px 24px 22px 28px; border: 1px solid rgba(255, 255, 255, .92); border-left: 3px solid var(--kn-hell); border-radius: 18px;
+  background: rgba(255, 255, 255, .72); box-shadow: var(--kn-kachel-schatten);
+}
+/* Gesprächskarte in der Platte: kein zweites Glas im Glas (doppelte Unschärfe kostet nur Rechenzeit). */
+html .fg.fg.lp.kino .lp-sek .fd-gespraech-karte { -webkit-backdrop-filter: none; backdrop-filter: none; background: radial-gradient(360px circle at var(--kx, 12%) var(--ky, 0%), rgba(255, 255, 255, calc(.4 + var(--kl) * .5)), rgba(255, 255, 255, 0) 70%), var(--kn-kachel); box-shadow: var(--kn-kachel-hoch); }
+@media (max-width: 720px) {
+  html .fg.fg.fd.lp.kino .lp-buehne { min-height: 0; padding-top: 40px; }
+  html .fg.fg.lp.kino .lp-sek-raster { padding: 28px 20px 30px; }
+}
+
+/* ═══ 15 · RECHTSSEITEN (.gr): leise — Einstieg im Kopf, das Blatt als helles Glas, der Text ruhig ════════════════ */
+html .fg.fg.fd.gr.kino .fd-kopf { min-height: 0; display: block; padding: clamp(140px, 15vw, 190px) 0 clamp(48px, 5vw, 72px); }
+html .fg.fg.gr.kino :is(.gr-papier, .gr-formular) {
+  border: 1px solid var(--kn-kante); border-radius: var(--kn-r);
+  background: linear-gradient(168deg, rgba(255, 255, 255, .92) 0%, rgba(255, 255, 255, .8) 100%);
+  box-shadow: var(--kn-licht), var(--kn-schatten);
+  -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur);
+}
+html .fg.fg.gr.kino .fd-hinweis { background: rgba(255, 255, 255, .78); }
+html .fg.fg.gr.kino .gr-weiter { padding: clamp(24px, 2.8vw, 36px); border: 1px solid var(--kn-kante); border-radius: var(--kn-r); background: var(--kn-glas); box-shadow: var(--kn-licht), var(--kn-schatten); -webkit-backdrop-filter: var(--kn-blur); backdrop-filter: var(--kn-blur); }
+@media (max-width: 720px) { html .fg.fg.fd.gr.kino .fd-kopf { padding: 112px 0 36px; } }
+
+/* ═══ 16 · DER HONORARRECHNER (/business/start, .vk-seite): Kopf mit Einstieg, der Rechner schwebt herein ═════════ */
+html .fg.fg.vk-seite.kino .vk-konfig-sek { position: relative; isolation: isolate; overflow-x: clip; }
+html .fg.fg.vk-seite.kino .fg-kopf h1.fg-h2 {
+  --kn-wortfarbe: var(--g-tinte);
+  background: none; color: var(--g-tinte); -webkit-text-fill-color: currentColor; -webkit-background-clip: border-box; background-clip: border-box; animation: none;
+}
+html .fg.fg.vk-seite.kino .fg-kopf h1.fg-h2 em { --kn-wortfarbe: var(--kn-blau); color: var(--kn-blau); -webkit-text-fill-color: currentColor; font-style: normal; }
+/* Der Kopf gleitet nicht mehr als Block (fg-ap-auf) — seine Teile kommen einzeln. */
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-an] .fg-kopf { opacity: 1; transform: none; animation: none; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="0"] :is(.fg-kopf .fg-auge, .fg-kopf .fg-lead, .kn-w, .vk-konfig, .kn-licht, .kn-scheibe) { opacity: 0; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht { animation: kn-licht-an 2.4s var(--kn-aus) backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht.b { animation-delay: .12s; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-licht.c { animation-delay: .3s; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-scheibe.a { animation: kn-scheibe-a 1.8s var(--kn-aus) .6s backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-scheibe.b { animation: kn-scheibe-b 1.8s var(--kn-aus) .8s backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .fg-kopf .fg-auge { animation: kn-ein .9s var(--kn-aus) .1s backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-w {
+  animation: kn-wort 1.1s var(--kn-aus) calc(.2s + var(--w, 0) * 55ms) backwards,
+             kn-wort-licht 1.5s ease-in-out calc(1.15s + var(--w, 0) * 75ms) backwards;
+}
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .fg-kopf .fg-lead { animation: kn-ein 1s var(--kn-aus) .5s backwards; }
+html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .vk-konfig { animation: kn-rechner 1.5s var(--kn-aus) .62s backwards; }
+@keyframes kn-rechner { from { opacity: 0; transform: perspective(1600px) translate3d(0, 70px, 0) rotateX(12deg) scale(.95); } to { opacity: 1; transform: perspective(1600px) translate3d(0, 0, 0) rotateX(0deg) scale(1); } }
+/* Die Scheiben sitzen hier rechts oben neben dem Kopf. */
+html .fg.fg.vk-seite.kino .kn-scheibe.a { left: auto; right: max(4vw, calc(50% - 620px)); top: 96px; }
+html .fg.fg.vk-seite.kino .kn-scheibe.b { left: max(3vw, calc(50% - 660px)); top: 46%; }
+@media (max-width: 720px) {
+  html .fg.fg.vk-seite.kino .vk-konfig-sek[data-kino="1"] .kn-w {
+    animation: kn-wort-ruhig .95s var(--kn-aus) calc(.2s + var(--w, 0) * 46ms) backwards,
+               kn-wort-licht 1.5s ease-in-out calc(1s + var(--w, 0) * 70ms) backwards;
+  }
+}
+
+/* Die Handlungsleiste am Handy: eine schwebende Glaspille (dicht, ohne Unschärfe — klebende Flächen ruckeln sonst). */
+html .fg.fg.kino .fd-mobil {
+  gap: 6px; padding: 6px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .95);
+  background: rgba(255, 255, 255, .9); -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: inset 0 1px 0 #fff, 0 2px 6px rgba(18, 40, 74, .06), 0 22px 44px -20px rgba(18, 40, 74, .5);
+  transition: transform .6s var(--kn-feder);
+}
+html .fg.fg.kino .fd-mobil a { border-radius: 999px; }
+html .fg.fg.kino .fd-mobil a.voll { background: var(--g-knopf); color: #fff; border: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 10px 22px -12px rgba(29, 78, 216, .8); }
+html .fg.fg.kino .fd-mobil a.hell { background: rgba(255, 255, 255, .7); color: var(--g-tinte); border: 1px solid rgba(18, 40, 74, .12); }
+
+/* ═══ 12 · TELEFON: dichtes Glas ohne Unschärfe, ruhigere Tiefe (Gesetz 4) ═══════════════════════════════════ */
+@media (max-width: 720px) {
+  html .fg.fg.kino {
+    --kn-blur: none;
+    --kn-glas: linear-gradient(168deg, rgba(255, 255, 255, .92) 0%, rgba(255, 255, 255, .82) 100%);
+    --kn-r: 24px; --kn-r-kachel: 18px;
+  }
+  html .fg.fg.fd.kino .fd-kopf { min-height: 0; display: block; padding: 104px 0 40px; }
+  html .fg.fg.kino .kn-licht.a { width: 130vw; right: -62vw; top: -10%; }
+  html .fg.fg.kino .kn-licht.b { width: 120vw; left: -70vw; top: 34%; }
+  html .fg.fg.kino .kn-licht.c { display: none; }
+  html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand) { margin-top: 14px; padding: 28px 20px 30px; }
+  html .fg.fg.fd.kino .fd-antwort { padding: 24px 20px 26px 26px; }
+  html .fg.fg.fd.kino .fd-karte, html .fg.fg.fd.kino .fd-rolle { padding: 18px 18px 20px; }
+  html .fg.fg.fd.kino a.fd-karte { padding-right: 46px; }
+  html .fg.fg.fd.kino .fd-karte .pfeil { right: 16px; top: 20px; }
+  html .fg.fg.fd.kino .fd-weiter-raster a { padding: 20px 48px 20px 20px; }
+  html .fg.fg.fd.kino .fd-verzeichnis a { padding: 18px 16px 18px 18px; }
+  html .fg.fg.fd.kino .fd-abschnitt .dk-frage, html .fg.fg.fd.kino .fd-abschnitt .dk-frage:first-child { padding: 0 16px; }
+  /* Am Telefon steigen die Wörter ohne Unschärfe (Filter auf großer Schrift kostet dort Bilder). */
+  html .fg.fg.fd.kino .fd-kopf[data-kino="1"] .kn-w {
+    animation: kn-wort-ruhig .95s var(--kn-aus) calc(.22s + var(--w, 0) * 46ms) backwards,
+               kn-wort-licht 1.5s ease-in-out calc(1.1s + var(--w, 0) * 70ms) backwards;
+  }
+  html .fg.fg.fd.kino .fd-abschnitt[data-an="0"] { transform: translate3d(0, 40px, 0) scale(.98); }
+}
+@keyframes kn-wort-ruhig { from { opacity: 0; transform: translate3d(0, .45em, 0); } }
+@media (max-width: 380px) {
+  html .fg.fg.fd.kino .fd-text.neu > .fd-abschnitt:not(.fd-rand) { padding: 26px 18px 28px; }
+}
+
+/* ═══ 13 · WENIGER BEWEGUNG, DRUCK, KONTRASTMODUS (Gesetz 5) ══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  html .fg.fg.kino :is(.kn-licht, .kn-ring, .kn-ring circle, .kn-scheibe, .kn-w, .kn-nr, .kn-karte, .kn-aurora i, .fg-schluss > .fg-rahmen),
+  html .fg.fg.fd.kino .fd-kopf :is(.fd-krumen, .fg-auge, .fd-lead, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand, .fd-karteikarte),
+  html .fg.fg.fd.kino .fd-leiste::before,
+  html .fg.fg.fd.kino .fd-abschnitt, html .fg.fg.fd.kino .fd-abschnitt::before, html .fg.fg.fd.kino .fd-abschnitt :is(.fd-nr, .fd-h2, .fd-weg-knoten),
+  html .fg.fg.fd.kino .fd-tabelle tbody tr,
+  html .fg.fg.fd.kino :is(.fd-verzeichnis > li, .fd-karten > .fd-karte, .fd-rollen > .fd-rolle, .dk-fragen-liste > .dk-frage, .fd-weiter-raster > a),
+  html .fg.fg.lp.kino .lp-sek :is(.lp-sek-raster, .lp-sek-kopf), html .fg.fg.lp.kino .lp-sek-raster::before,
+  html .fg.fg.vk-seite.kino .vk-konfig-sek :is(.fg-auge, .fg-lead, .vk-konfig) {
+    animation: none !important; opacity: 1 !important; transition: none !important;
+  }
+  html .fg.fg.lp.kino .lp-sek :is(.lp-sek-raster, .lp-sek-kopf), html .fg.fg.lp.kino .lp-sek-raster::before,
+  html .fg.fg.vk-seite.kino .vk-konfig-sek :is(.fg-auge, .fg-lead, .vk-konfig) { transform: none !important; }
+  html .fg.fg.fd.kino .fd-kopf :is(.fd-krumen, .fg-auge, .fd-lead, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand),
+  html .fg.fg.fd.kino .fd-abschnitt, html .fg.fg.fd.kino .fd-leiste::before, html .fg.fg.fd.kino .fd-abschnitt::before { transform: none !important; }
+  html .fg.fg.kino .fg-knopf::after { display: none; }
+  html .fg.fg.kino .kn-weiter { animation: none !important; opacity: 1 !important; }
+  html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit { transform: rotateY(-6deg) rotateX(3deg); transition: none; }
+}
+@media print {
+  html .fg.fg.kino .kn-buehne, html .fg.fg.kino .kn-aurora, html .fg.fg.kino .kn-nr, html .fg.fg.kino .kn-lesering { display: none !important; }
+  html .fg.fg.fd.kino :is(.fd-text.neu > .fd-abschnitt, .fd-antwort, .fd-rand, .fd-zitat, .fd-inhalt, .fd-gespraech-karte, .fd-weiter-raster a) {
+    background: #fff !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: #c9d3e3 !important;
+  }
+  html .fg.fg.fd.kino .kn-karte .fd-karteikarte.breit { transform: none !important; }
+  html .fg.fg.kino [data-kino], html .fg.fg.kino [data-kino] *, html .fg.fg.kino [data-an], html .fg.fg.kino [data-an] * { opacity: 1 !important; animation: none !important; }
+}
+@media (forced-colors: active) {
+  html .fg.fg.kino :is(.kn-buehne, .kn-aurora, .kn-nr) { display: none; }
+  html .fg.fg.fd.kino :is(.fd-text.neu > .fd-abschnitt, .fd-antwort, .fd-rand, .fd-zitat, .fd-inhalt, .fd-karte, .fd-rolle, .fd-weiter-raster a, .fd-verzeichnis a, .fd-gespraech-karte, .fd-karteikarte) {
+    background: Canvas; border: 1px solid CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  html .fg.fg.kino .kn-w { color: CanvasText; }
+  html .fg.fg.fd.kino .fd-h1 em, html .fg.fg.fd.kino .fd-h1 em .kn-w { color: LinkText; }
+}
+/* Ohne Unschärfe-Unterstützung: dichteres Glas, gleiche Ruhe. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html .fg.fg.kino { --kn-glas: linear-gradient(168deg, rgba(255, 255, 255, .94) 0%, rgba(255, 255, 255, .86) 100%); }
+}

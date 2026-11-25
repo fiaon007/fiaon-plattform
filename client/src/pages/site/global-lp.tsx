@@ -39,8 +39,10 @@ import "@/styles/global-apple.css";
 import { FiaonWortmarke, MARKE_NAVY } from "@/components/marke/FiaonWortmarke";
 import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
-import { ohneBindestrichBruch } from "@/components/site/global/Wortbruch";
+// E-533 (25.11.2026): Kino-Glas wie auf den Unterseiten — Kino-Einstieg, Überschrift Wort für Wort, Abschnitte als Glasplatten.
+import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import "@/styles/global-rahmen-apple.css";
+import "@/styles/global-kino.css";
 
 /** Die Wörter der Landingpage, die keine festen Sätze sind (die Seite gibt es nur deutsch). */
 const WORT = {
@@ -84,6 +86,11 @@ function Abschnitt({ id, auge, h2, children }: { id?: string; auge: string; h2: 
 export default function GlobalLandingPage() {
   const lp = globalLandingpage(typeof window !== "undefined" ? window.location.pathname : "");
   useApfelBewegung();
+  // E-533: Bühne nach dem Ladebildschirm, Licht unter dem Zeiger.
+  const wurzel = useRef<HTMLDivElement>(null);
+  const buehne = useRef<HTMLElement>(null);
+  useKinoEinstieg(buehne);
+  useGlasZeiger(wurzel);
   const [gespraechOffen, setGespraechOffen] = useState(() => typeof window !== "undefined" && window.location.hash === "#gespraech");
   // Wie die Business-Seiten: Das Dokument scrollt (styles/global-rahmen.css, fg-dokument); die Browserleiste am Handy ist hell.
   useEffect(() => {
@@ -125,7 +132,7 @@ export default function GlobalLandingPage() {
   ];
 
   return (
-    <div className="fg fd lp">
+    <div ref={wurzel} className="fg fd lp kino">
       <a className="gk-sprung" href="#inhalt" onClick={zumInhalt}>{WORT.sprung}</a>
       {/* ── Schlanker Kopf: Marke und die eine Handlung ───────────────────── */}
       <header className="lp-kopf">
@@ -139,11 +146,12 @@ export default function GlobalLandingPage() {
 
       <main id="inhalt" tabIndex={-1}>
         {/* ── Kopf: das Suchwort, zwei Sätze, die Handlungen — rechts die Karteikarte ── */}
-        <section className="fd-kopf neu lp-buehne">
+        <section ref={buehne} className="fd-kopf neu lp-buehne">
+          <KinoBuehne />
           <div className="fg-rahmen fd-kopf-raster">
             <Auf>
               <span className="fg-auge">{lp.auge}</span>
-              <h1 className="fg-h1 fd-h1">{ohneBindestrichBruch(lp.h1)}{lp.h1b && <><br /><em>{ohneBindestrichBruch(lp.h1b)}</em></>}</h1>
+              <h1 className="fg-h1 fd-h1"><span className="kn-zeile"><KinoWorte text={lp.h1} /></span>{lp.h1b && <><br /><em className="kn-zeile"><KinoWorte text={lp.h1b} start={kinoWortZahl(lp.h1)} /></em></>}</h1>
               <p className="fd-lead">{lp.lead}</p>
               <div className="fg-knoepfe fd-kopf-knoepfe">
                 <a className="fg-knopf" href={start} onClick={klick}>{angebot}<Pfeil /></a>
@@ -151,8 +159,10 @@ export default function GlobalLandingPage() {
               </div>
             </Auf>
             <Auf verzoegerung={140}>
-              <Merkblatt titel={u.blick} kennung={WORT.kennung} zeilen={blick} alle={u.alleAngaben} punkte={u.blickPunkte(blick.length)}
-                stand={weitererSatz("PRODUKTNAME", "de")} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
+              <div className="kn-karte">
+                <Merkblatt titel={u.blick} kennung={WORT.kennung} zeilen={blick} alle={u.alleAngaben} punkte={u.blickPunkte(blick.length)}
+                  stand={weitererSatz("PRODUKTNAME", "de")} firma={`${FIAON_FIRMA.name} · Companies House ${FIAON_FIRMA.companyNo}`} />
+              </div>
             </Auf>
           </div>
         </section>
@@ -208,6 +218,7 @@ export default function GlobalLandingPage() {
         {/* ── Schlussband: die eine dunkle Fläche — ein Satz, die Handlungen ── */}
         <section className="fg-schluss ruhig">
           <div className="fg-rahmen">
+            <div className="kn-aurora" aria-hidden="true"><i /><i /></div>
             <Auf>
               <div className="fg-schluss-text">
                 <h2 className="fg-h2">{weitererSatz("SCHLUSS", "de")}</h2>

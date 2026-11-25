@@ -18,26 +18,33 @@ import GlobalVertrauen from "@/components/site/global/GlobalVertrauen";
 import { VERKAUF_TEXTE } from "@shared/fiaon-global-verkauf";
 import { BUSINESS_START } from "@shared/fiaon-business-grenze";
 import { useEinmalSichtbar } from "@/components/site/global/bewegung";
+// E-533 (25.11.2026): Kino-Glas — Kopf mit Einstieg nach dem Ladebildschirm, der Honorarrechner schwebt herein.
+import { KinoBuehne, KinoWorte, kinoWortZahl, useGlasZeiger, useKinoEinstieg } from "@/components/site/global/KinoGlas";
 import "@/styles/global.css";
 import "@/styles/global-grafik.css";
 import "@/styles/global-apple.css";
 import "@/styles/global-verkauf.css";
+import "@/styles/global-kino.css";
 
 export default function GlobalKonfiguratorSeite() {
   const s = useSprache() === "en" ? "en" : "de";
   const V = VERKAUF_TEXTE[s];
   // Der Kopf gleitet wie auf der Startseite einmal herein (data-an am Abschnitt, global-apple.css).
   const sek = useRef<HTMLElement>(null);
+  const wurzel = useRef<HTMLDivElement>(null);
   useEinmalSichtbar(sek, 0, "0px 0px -10% 0px");
+  useKinoEinstieg(sek);
+  useGlasZeiger(wurzel);
   return (
     <Dunkel seite="business" titel={V.seo.titel} beschreibung={V.seo.beschreibung}>
-      <div className="fg fg-neu fg-start vk-seite">
+      <div ref={wurzel} className="fg fg-neu fg-start vk-seite kino">
         <section className="fg-sek vk-konfig-sek" ref={sek} aria-labelledby="vk-konfig-titel">
+          <KinoBuehne ring={false} />
           <div className="fg-rahmen">
             <div className="fg-kopf">
               <div>
                 <span className="fg-auge">{V.konfig.auge}</span>
-                <h1 className="fg-h2" id="vk-konfig-titel">{V.konfig.h2a} <em>{V.konfig.h2b}</em></h1>
+                <h1 className="fg-h2" id="vk-konfig-titel"><KinoWorte text={V.konfig.h2a} /> <em><KinoWorte text={V.konfig.h2b} start={kinoWortZahl(V.konfig.h2a)} /></em></h1>
               </div>
               <VerkaufKonfigLead sprache={s} />
             </div>

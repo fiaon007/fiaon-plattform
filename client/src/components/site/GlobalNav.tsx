@@ -309,7 +309,11 @@ export default function GlobalNav() {
         </nav>
 
         <div className="gk-tun">
-          <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>{auftragWort}</a>
+          <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>
+            {/* E-533: als Symbol nur in der PC-Fassung „Glas-Insel“ (global-kopf.css); das Wort bleibt der Name des Links. */}
+            <svg className="gk-leise-symbol" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6" /><path d="M4.8 19.5c1.4-3.3 4-5 7.2-5s5.8 1.7 7.2 5" /></svg>
+            <span className="gk-leise-wort">{auftragWort}</span>
+          </a>
           {nurGespraech ? knopfGespraech : (
             <>
               {/* Öffentlich: das Gespräch als ruhiger Textverweis neben der einen Haupt-Handlung. */}

@@ -109,9 +109,9 @@ html.kn-kopf .gk-mobil.gk-mobil.gk-neu .gk-mobil-start b { font: 300 24px/1.15 v
   }
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-gruppe > button .gk-winkel { display: none; }
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-gruppe > .gk-mobil-liste { display: block; padding: 0; border: 0; }
-  html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a { grid-template-columns: 1fr; padding: 7px 0; }
+  html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a { grid-template-columns: 1fr; padding: 6px 0; }
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a b { font: 300 16.5px/1.3 var(--gk-sans); letter-spacing: -.01em; transition: color .2s ease; }
-  html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a span { font-size: 12px; }
+  html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a span { display: none; } /* nur Titel — ruhig und kurz; Unterzeilen stehen im Themen-Blatt und am Handy */
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-liste a:hover b { color: #1d4ed8; }
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-zeile { grid-column: 1 / -1; margin-top: 22px; padding: 18px 0 0; border-top: 1px solid rgba(18, 40, 74, .08); }
   html.kn-kopf.kn-pc-a .gk-mobil.gk-mobil.gk-neu .gk-mobil-fuss { display: none; }
@@ -134,10 +134,18 @@ html.kn-kopf .gk-mobil.gk-mobil.gk-neu .gk-mobil-start b { font: 300 24px/1.15 v
   html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-tun { gap: 4px; }
   html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-text { display: none; }
   html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-knopf { min-height: 40px; padding: 0 18px; font-size: 13px; }
-  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise { position: absolute; top: 6px; right: 70px; min-height: 40px; padding: 0 10px; font-size: 12.5px; }
-  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-sprache { position: absolute; top: 4px; right: 22px; min-height: 44px; }
-  html.kn-kopf.kn-pc-b.ap-gescrollt .gk.gk.gk-neu .gk-leise { top: 3px; }
-  html.kn-kopf.kn-pc-b.ap-gescrollt .gk.gk.gk-neu .gk-sprache { top: 1px; }
+  /* Hinter dem Angebot, nach einer Haarlinie: das Mandat als Personen-Symbol und die andere Sprache (die Glas-Unschärfe macht
+     die Insel zum Bezugsrahmen — darum in der Insel, nicht daneben). */
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-knopf { order: 1; }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise {
+    order: 2; justify-content: center; min-width: 38px; min-height: 38px; margin-left: 6px; padding: 0; border-radius: 50%; color: #3b4658;
+    position: relative; transition: background .2s ease, color .2s ease;
+  }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise::before { content: ""; position: absolute; left: -6px; top: 10px; bottom: 10px; width: 1px; background: rgba(18, 40, 74, .12); }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise:hover, html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise[data-an] { background: rgba(18, 40, 74, .06); color: #0c1a2e; }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise-symbol { display: block; }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-leise-wort { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-sprache { order: 3; min-width: 38px; min-height: 38px; padding: 0 8px; }
   html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-sprache span[data-an], html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-sprache i { display: none; }
   html.kn-kopf.kn-pc-b .gk.gk.gk-neu .gk-panel {
     top: 62px; left: 50%; right: auto; width: min(1000px, calc(100vw - 48px)); max-width: none; margin: 0 0 0 calc(min(1000px, calc(100vw - 48px)) / -2);

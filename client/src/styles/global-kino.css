@@ -52,13 +52,15 @@ html .fg.fg.kino::before {
 }
 
 /* ═══ 2 · DIE BÜHNE (Kopf der Unterseite) ════════════════════════════════════ */
+/* Oben bündig, nicht mittig (Messung 25.11.): Bei mittiger Bühne verschiebt jeder Schriftwechsel (Webschrift lädt nach) die
+   Überschrift — eine Layout-Verschiebung. Die Höhe der Bühne hängt am Bildschirm, nicht am Inhalt: darunter rückt nichts. */
 html .fg.fg.fd.kino .fd-kopf {
   position: relative; isolation: isolate; overflow-x: clip;
-  display: grid; align-content: center;
   min-height: min(100svh, 1060px);
-  padding: clamp(116px, 14vh, 170px) 0 clamp(64px, 9vh, 116px);
+  padding: clamp(124px, 15vh, 176px) 0 clamp(64px, 9vh, 116px);
 }
-html .fg.fg.fd.kino .fd-kopf-raster { width: 100%; align-items: center; }
+html .fg.fg.fd.kino .fd-kopf-raster { width: 100%; align-items: start; }
+html .fg.fg.fd.kino .kn-karte { margin-top: clamp(8px, 2vh, 28px); }
 /* Die Hüllen der Bühne (Auf) stehen still — den Auftritt übernimmt jedes Teil selbst (Gesetz 3). */
 html .fg.fg.fd.kino .fd-kopf .dk-auf { opacity: 1; transform: none; transition: none; }
 
@@ -153,7 +155,11 @@ html.ap-gescrollt .fg.fg.kino .kn-weiter { opacity: 0; visibility: hidden; point
 @keyframes kn-atmen { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 @media (max-width: 1020px), (max-height: 700px) { html .fg.fg.kino .kn-weiter { display: none; } }
 
-/* ═══ 3 · DER KINO-EINSTIEG (data-kino: "0" vor dem ersten Bild, "1" nach dem Ladebildschirm) ═══════════════ */
+/* ═══ 3 · DER KINO-EINSTIEG (data-kino: "w" wartet unsichtbar, "0" zart da, "1" nach dem Ladebildschirm) ═══════ */
+/* "w": Bis der Kopf der Seite liegt, ist die Bühne nicht zu sehen (sonst zählt ihr Hochspringen als Layout-Verschiebung). */
+html .fg.fg.kino [data-kino="w"] { visibility: hidden; }
+/* Der Schmuck (Lichter, Ring, Scheiben) entsteht erst mit dem Auftakt — vorher ist er gar nicht da, auch nicht unsichtbar gezählt. */
+html .fg.fg.kino [data-kino="0"] > .kn-buehne, html .fg.fg.kino [data-kino="w"] > .kn-buehne { visibility: hidden; }
 html .fg.fg.fd.kino .fd-kopf[data-kino="0"] :is(.fd-krumen, .fg-auge, .fd-kopf-knoepfe > *, .fd-leiste > div, .fd-kopf-stand,
   .fd-karteikarte, .kn-licht, .kn-ring circle, .kn-scheibe) { opacity: 0; }
 /* LCP (Messung 25.11.): Überschrift und Einleitung sind die größten Elemente — sie dürfen nie ganz unsichtbar warten, sonst

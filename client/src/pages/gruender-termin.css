@@ -314,7 +314,9 @@
 }
 .gt-seite.kino .gt-fertig { border-color: rgba(255, 255, 255, .95); background: rgba(255, 255, 255, .8); box-shadow: inset 0 1px 0 #fff, 0 24px 50px -32px rgba(29, 78, 216, .45); }
 
-/* Der Kino-Einstieg (data-kino an .gt-rahmen: "0" vor dem ersten Bild, "1" nach dem Ladebildschirm) */
+/* Der Kino-Einstieg (data-kino an .gt-rahmen: "w" wartet unsichtbar, bis der Kopf liegt; "0" zart; "1" nach dem Ladebildschirm) */
+.gt-seite.kino .gt-rahmen[data-kino="w"] { visibility: hidden; }
+.gt-seite.kino .gt-rahmen[data-kino="w"] > .kn-buehne, .gt-seite.kino .gt-rahmen[data-kino="0"] > .kn-buehne { visibility: hidden; }
 .gt-seite.kino .gt-rahmen[data-kino="0"] :is(.gt-buchung, .kn-licht, .kn-scheibe, .gt-eyebrow, .gt-titel, .gt-fakten li) { opacity: 0; }
 /* LCP: Personenkarte, Name und Zitat warten nie ganz unsichtbar (zart, tiefer) — Google zählt sie so gleich beim ersten Bild. */
 .gt-seite.kino .gt-rahmen[data-kino="0"] :is(.gt-person, .gt-zitat) { opacity: .3; }

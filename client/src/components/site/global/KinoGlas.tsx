@@ -24,28 +24,61 @@
 import { useEffect, useLayoutEffect, type ReactNode, type RefObject } from "react";
 import { nachLadebild, ruhigGewuenscht } from "@/components/site/global/bewegung";
 
-/** Der Kino-Einstieg: data-kino="0" vor dem ersten Bild, "1" sobald der Ladebildschirm weg ist. */
+/**
+ * Ruht der Kopf der Seite? Im allerersten Bild nach dem Start steht er noch im Fluss (ohne seine feste Lage) und schiebt alles
+ * um ~260 px nach unten; ein, zwei Zehntel später springt die Seite hoch (Messung 25.11., Produktions-Bündel). Was in diesem
+ * Moment sichtbar ist, zählt Google als Layout-Verschiebung (CLS). Darum wartet die Bühne unsichtbar, bis der Kopf liegt.
+ */
+function kopfRuht(): boolean {
+  const k = document.querySelector<HTMLElement>("header.gk, header.lp-kopf, #root nav, #root header");
+  if (!k) return true;
+  const lage = getComputedStyle(k).position;
+  return lage === "fixed" || lage === "sticky" || lage === "absolute";
+}
+
+/**
+ * Der Kino-Einstieg einer Bühne in drei Stufen (data-kino):
+ *   "w"  unsichtbar (visibility), bis der Kopf der Seite ruht — höchstens 1,2 s;
+ *   "0"  da, aber zart: Überschrift und Einleitung stehen schon (Google zählt sie, LCP), alles andere wartet;
+ *   "1"  sobald der Ladebildschirm geht: die Bühne baut sich auf.
+ * Bei „weniger Bewegung“ folgt auf "w" sofort "1" (Endbild, keine Bewegung).
+ */
 export function useKinoEinstieg(ref: RefObject<HTMLElement | null>) {
   // useLayoutEffect: Der Startzustand steht vor dem ersten Bild — sonst blitzt die fertige Bühne kurz auf.
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (ruhigGewuenscht()) { el.setAttribute("data-kino", "1"); return; }
-    el.setAttribute("data-kino", "0");
-    let bild = 0;
-    let fertig = 0;
-    const weg = nachLadebild(() => {
-      // Zwei Bilder Abstand: Der Ladebildschirm beginnt seinen Ausgang, dann setzt der Auftakt ein (wie auf der Startseite).
-      bild = requestAnimationFrame(() => { bild = requestAnimationFrame(() => el.setAttribute("data-kino", "1")); });
-    });
+    let bild = 0, weg = () => {}, aus = false;
+    const t0 = performance.now();
+    const los = () => {
+      if (aus) return;
+      if (ruhigGewuenscht()) { el.setAttribute("data-kino", "1"); return; }
+      el.setAttribute("data-kino", "0");
+      weg = nachLadebild(() => {
+        // Zwei Bilder Abstand: Der Ladebildschirm beginnt seinen Ausgang, dann setzt der Auftakt ein (wie auf der Startseite).
+        bild = requestAnimationFrame(() => { bild = requestAnimationFrame(() => el.setAttribute("data-kino", "1")); });
+      });
+    };
+    const warten = () => {
+      bild = 0;
+      if (kopfRuht() || performance.now() - t0 > 1200) { los(); return; }
+      bild = requestAnimationFrame(warten);
+    };
+    if (kopfRuht()) {
+      // Der Kopf liegt schon (Seitenwechsel ohne Neuladen): kein Warten.
+      los();
+    } else {
+      el.setAttribute("data-kino", "w");
+      bild = requestAnimationFrame(warten);
+    }
     // Sicherung: Falls der Ladebildschirm nie geht (Fehler, Tab im Hintergrund), steht die Bühne nach 4 s trotzdem.
-    fertig = window.setTimeout(() => el.setAttribute("data-kino", "1"), 4000);
+    const fertig = window.setTimeout(() => el.setAttribute("data-kino", "1"), 4000);
     // Wer druckt oder per Tastatur hineinspringt, sieht sofort alles.
     const sofort = () => el.setAttribute("data-kino", "1");
     window.addEventListener("beforeprint", sofort);
     el.addEventListener("focusin", sofort, { once: true });
     return () => {
-      weg(); cancelAnimationFrame(bild); window.clearTimeout(fertig);
+      aus = true; weg(); cancelAnimationFrame(bild); window.clearTimeout(fertig);
       window.removeEventListener("beforeprint", sofort); el.removeEventListener("focusin", sofort);
     };
   }, [ref]);

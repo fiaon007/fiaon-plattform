@@ -5,6 +5,22 @@ Jede Änderung am System bekommt hier einen Eintrag im selben Commit:
 
 ---
 
+## 25.11.2026 — E-533 Nachtrag: EINE Kopfleiste für Startseite und Unterseiten — am PC „Linie · ein Menü“
+
+- **Wunsch:** Justin: „Ich möchte auch für den PC eine andere Menüleiste bitte — gebe mir hierfür 3 Vorschläge, damit sie
+  cleaner und moderner wirkt.“ Bis dahin trugen nur die Unterseiten die „Linie“; die Startseiten (/, /en,
+  /business/privatpersonen) zeigten am PC und am Handy noch die alte Pille. Aus drei Vorschlägen (Linie · ein Menü,
+  Glas-Insel, Marke in der Mitte) hat er „Linie · ein Menü“ gewählt.
+- **Fix:** Die Leiste steuert ihr Aussehen jetzt selbst: GlobalNav ruft `useKopfLeiste()` auf jeder öffentlichen
+  Global-Seite — Startseite und Unterseiten tragen EINE Leiste. Am PC stehen in der Linie nur noch Marke, „Gespräch
+  vereinbaren“, „Angebot anfordern“ und „Menü“; das Menü ist ein großes Glasblatt mit allen vier Themen nebeneinander,
+  darunter Telefon, „Mein Mandat“ und die Sprache. Ein Klick auf den Schleier darunter, Escape oder das Kreuz schließt es.
+  Am Handy bleibt die Linie (jetzt auch auf der Startseite). Kein Menüpunkt fällt weg. Angebot, Auftrag, Konto-Tor und
+  gemeinsame Seiten behalten ihren Rahmen.
+- **Wo:** `client/src/components/site/global/KopfLeiste.ts` (neu), `client/src/styles/global-kopf.css` (neu — die Linie
+  zog aus global-kino.css hierher), `client/src/components/site/GlobalNav.tsx` (Wort „Menü“ am Knopf, Schleier-Klick,
+  Themenlisten im Menü immer da und per Stil eingeklappt), `client/src/styles/global-rahmen.css`.
+
 ## 25.11.2026 — E-533: Kino-Glas für alle öffentlichen Global-Seiten — Apple-Glas, Kino-Einstieg, Tiefe beim Scrollen, Menüzeile „Linie“
 
 - **Wunsch:** Justin wollte die öffentlichen Global-Seiten „wie ein cinematisches Intro“ — am Handy und am PC, mehr

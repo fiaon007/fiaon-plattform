@@ -40,7 +40,7 @@ import { SAETZE_BETRAEGE, beleg, handlung, hauptHandlung, satzLand, weitererSatz
 import "@/styles/global-tokens.css";
 import "@/styles/global-rahmen.css";
 import "@/styles/global-rahmen-apple.css";
-// E-533: die Linie (Justins Wahl) und die PC-Fassungen — EINE Leiste für Startseite und Unterseiten.
+// E-533: die Linie (Justins Wahl; am PC „Linie · ein Menü“) — EINE Leiste für Startseite und Unterseiten.
 import "@/styles/global-kopf.css";
 import { FiaonWortmarke } from "@/components/marke/FiaonWortmarke";
 import { useApfelBewegung } from "@/components/site/global/ApfelBewegung";
@@ -309,11 +309,7 @@ export default function GlobalNav() {
         </nav>
 
         <div className="gk-tun">
-          <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>
-            {/* E-533: als Symbol nur in der PC-Fassung „Glas-Insel“ (global-kopf.css); das Wort bleibt der Name des Links. */}
-            <svg className="gk-leise-symbol" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6" /><path d="M4.8 19.5c1.4-3.3 4-5 7.2-5s5.8 1.7 7.2 5" /></svg>
-            <span className="gk-leise-wort">{auftragWort}</span>
-          </a>
+          <a href={auftragHref} className="gk-leise" data-an={pfad.includes("/business/auftrag") ? "1" : undefined}>{auftragWort}</a>
           {nurGespraech ? knopfGespraech : (
             <>
               {/* Öffentlich: das Gespräch als ruhiger Textverweis neben der einen Haupt-Handlung. */}
@@ -328,7 +324,7 @@ export default function GlobalNav() {
 
         <button ref={burger} type="button" className="gk-burger" aria-expanded={mobil} aria-controls="gk-mobil" aria-label={mobil ? w.zu : w.auf} onClick={() => setMobil(!mobil)}>
           <span /><span /><span />
-          {/* E-533: das Wort zum Menü — sichtbar nur in den PC-Fassungen mit Menüknopf (styles/global-kopf.css). */}
+          {/* E-533: das Wort zum Menü — am PC steht der Menüknopf in der Linie (styles/global-kopf.css), am Handy nur die Striche. */}
           <b className="gk-burger-wort" aria-hidden="true">{w.menue}</b>
         </button>
       </div>
@@ -360,7 +356,7 @@ export default function GlobalNav() {
           NEBEN dem Kopf, nicht darin: Der Kopf trägt backdrop-filter, und ein Filter
           macht ihn zum Bezugsrahmen für position:fixed — das Menü wäre 72 px hoch. */}
       {mobil && (
-        // E-533: Ein Klick auf den freien Schleier neben dem Menüblatt schließt es (PC-Fassungen mit Menüknopf).
+        // E-533: Ein Klick auf den freien Schleier unter dem Menüblatt schließt es (am PC; am Handy füllt das Menü die Fläche).
         <div ref={menue} id="gk-mobil" className={`gk-mobil${oeffentlich ? " gk-neu" : ""}`} role="dialog" aria-modal="true" aria-label={w.menue}
              onClick={(e) => { if (e.target === e.currentTarget) setMobil(false); }}>
           <div className="gk-mobil-rumpf">
